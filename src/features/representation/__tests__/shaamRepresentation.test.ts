@@ -564,4 +564,13 @@ export const TESTS: TestCase[] = [
     equal(at('accountant').xPct, FORM_2279_TEMPLATE.accountantStamp.xPct);
     equal(matchRegisteredPersonName('סלע הדסה', 'הדסה סלע', 'יאיר סלע'), 'client');
   }),
+  test('29ח · המספר נקרא מהבקשה שנפתחה (199) — אותה הודעה עם המספר, לא «נשאר להביא טופס»; «שלח» פעיל', () => {
+    const t = { ...hadassaTracking(), requestNumber: '2026538930' };
+    const line = shaamProgressLine(t).text;
+    assert(line.includes('2026538930') && line.includes('נמצאה ברשימת הבקשות'), line);
+    assert(!line.includes('נשאר להביא'), line);
+    const a = shaamRepresentationAction('awaiting_stamp', t, true);
+    equal(a?.kind, 'submit');
+    equal(a?.disabled, undefined);
+  }),
 ];

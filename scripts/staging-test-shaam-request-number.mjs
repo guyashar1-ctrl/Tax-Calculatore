@@ -97,9 +97,35 @@ try {
   console.log('— בדיקה עם "" אחרי שיש מספר —');
   row = await runJob('fx-198-check-3', 'shaam.check_representation', CHECK_NO_NUMBER);
   eq('"" מהבדיקה לא מוחק מספר קיים', track(row).requestNumber, '2026538930');
+
+  // ── 199: המספר נשמר ברגע שהעובד כתב אותו ל-progress, גם אם המשימה נעצרה ──
+  console.log('— 199: progress.requestNumber ⇒ execution, בלי לחכות להצלחה —');
+  // מתחילים נקי: "" כמו בפרודקשן, בלי submittedAt מהסעיף הקודם, וחזרה ל-awaiting_stamp.
+  await writeStaging(`update public.representation_requests set execution = '{"shaam":{"person:client":{"requestNumber":""}}}'::jsonb, status = 'awaiting_stamp' where id = '${REQ}';`);
+  const progressJob = async (id, actionType, progress) => {
+    await writeStaging(`
+      delete from public.automation_jobs where id like 'fx-199-%';
+      insert into public.automation_jobs (id, user_id, client_id, action_type, input, status)
+      values ('${id}', '${USER_ID}', '${CID}', '${actionType}',
+              '${q(JSON.stringify({ role: 'client', submissionKey: 'person:client' }))}'::jsonb, 'queued');
+      update public.automation_jobs set progress = '${q(JSON.stringify(progress))}'::jsonb where id = '${id}';
+      update public.automation_jobs set status = 'needs_human', error_code = 'shaam_unexpected_screen' where id = '${id}';`);
+    return one(`select coalesce(execution, '{}'::jsonb) as ex, status from public.representation_requests where id = '${REQ}'`);
+  };
+  row = await progressJob('fx-199-a', 'shaam.submit_poa', { requestNumber: '2026538930' });
+  eq('המספר מה-progress נכתב במקום "" (משימה שנעצרה)', track(row).requestNumber, '2026538930');
+  eq('בלי submittedAt', track(row).submittedAt ?? null, null);
+  eq('הסטטוס לא זז', row.status, 'awaiting_stamp');
+  row = await progressJob('fx-199-b', 'shaam.submit_poa', { requestNumber: '2026111111' });
+  eq('progress עם מספר אחר לא דורס', track(row).requestNumber, '2026538930');
+  await writeStaging(`update public.representation_requests set execution = jsonb_set(execution, '{shaam,person:client,requestNumber}', '""'::jsonb) where id = '${REQ}';`);
+  row = await progressJob('fx-199-c', 'btl.create_representation', { requestNumber: '2026222222' });
+  eq('משימה שאינה shaam.* לא כותבת', track(row).requestNumber, '');
+  row = await progressJob('fx-199-d', 'shaam.submit_poa', { requestNumber: '12' });
+  eq('מספר קצר מדי לא נכתב', track(row).requestNumber, '');
 } finally {
   await writeStaging(`
-    delete from public.automation_jobs where id like 'fx-198-%';
+    delete from public.automation_jobs where id like 'fx-198-%' or id like 'fx-199-%';
     update public.representation_requests
        set execution = '${q(ORIGINAL_EXECUTION)}'::jsonb, status = '${q(ORIGINAL_STATUS)}'
      where id = '${REQ}';`);

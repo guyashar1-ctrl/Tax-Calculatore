@@ -69,43 +69,7 @@ async function settle(page, { idleMs = 12000 } = {}) {
     .waitFor({ state: 'hidden', timeout: 20000 }).catch(() => {});
 }
 
-/**
- * השלב מתוך טקסט המסך — טהורה, כדי שתיבדק מול המסכים האמיתיים.
- * ‼ 23.09.2026 · רצועת השלבים («אימות ישות … השהייה וסיום») מוצגת בכל מסך
- * של האשף; בלי להסיר אותה, «אימות ישות» נמצא תמיד — והשלב נקרא 1 גם בשלב 4.
- * @param body טקסט העמוד · @param strip טקסט רצועת השלבים (אם נמצאה)
- */
-export function wizardStepFromText(body, strip) {
-  const clean = (x) => String(x ?? '').replace(/\s+/g, ' ').trim();
-  let text = clean(body);
-  if (strip) text = text.split(clean(strip)).join(' ');
-  const headings = [
-    { n: 4, re: /טעינת\s+מסמכים\s+למיוצג/ },
-    { n: 3, re: /פרטי\s+התקשרות\s+למיוצג/ },
-    { n: 2, re: /בקשה\s+חדשה\s+לייצוג/ },
-    { n: 5, re: /השהייה\s+וסיום/ },
-    { n: 1, re: /אימות\s+(המיוצג|ישות)/ },
-  ];
-  for (const h of headings) {
-    // ‼ «השהייה וסיום» (ההצלחה) ו«אימות ישות» הם גם תוויות ברצועה. בלי רצועה
-    // שהוסרה בפועל — לא מכריזים עליהם; «לא ידוע» עדיף על «נשלח» מדומה.
-    if ((h.n === 5 || h.n === 1) && !strip) continue;
-    if (h.re.test(text)) return h.n;
-  }
-  return strip ? 0 : null;
-}
 
-export async function currentWizardStep(page) {
-  const r = await page.evaluate(() => {
-    const clean = (x) => (x || '').replace(/\s+/g, ' ').trim();
-    const labels = [/אימות\s+ישות/, /פרטי\s+התקשרות/, /טעינת\s+מסמכים/, /השהייה\s+וסיום/];
-    const strip = [...document.querySelectorAll('body *')]
-      .filter((e) => { const t = clean(e.textContent); return t.length < 200 && labels.every((re) => re.test(t)); })
-      .sort((a, b) => clean(a.textContent).length - clean(b.textContent).length)[0];
-    return { body: document.body.innerText || '', strip: strip ? strip.innerText : '' };
-  });
-  return wizardStepFromText(r.body, r.strip);
-}
 
 /** «מספר בקשה: N» — המזהה החיצוני, מופיע בכותרת האשף משלב 3 והלאה. */
 export async function readRequestNumber(page) {
@@ -189,20 +153,6 @@ export async function confirmKnownDialog(page) {
   return { ok: true, dialog: verdict.id, text: text.slice(0, 200) };
 }
 
-/**
- * שגיאת ולידציה שהמסך הציג. ‼ נקראת **לפני** שמכריזים הצלחה: מסך שנשאר
- * באותו שלב עם הודעה אדומה אינו «עדיין נטען».
- */
-export async function readScreenError(page) {
-  return page.evaluate(() => {
-    const clean = (s) => (s || '').replace(/\s+/g, ' ').trim();
-    const nodes = [...document.querySelectorAll(
-      '.error, .alert-danger, .validation-summary-errors, .field-validation-error, [role="alert"], .text-danger',
-    )];
-    const msgs = nodes.map((n) => clean(n.textContent)).filter(Boolean);
-    return msgs.length ? msgs.join(' · ').slice(0, 300) : null;
-  });
-}
 
 // ── שלב 0: הגעה למערכת ──────────────────────────────────────────────────────
 
@@ -926,98 +876,8 @@ export function openedRequestIdentity(bodyText, { entityId, expectedClientName }
   return { ok: idOk && nameOk, idOk, nameOk, requestNumber: m ? m[1] : null };
 }
 
-/**
- * ההחלטה על מסך «טעינת מסמכים» — לפני שנוגעים בשע״ם. טהורה.
- * ‼ כל עצירה כאן קורית **לפני** סימן הנגיעה ולפני העלאה.
- */
-export function documentsStepPlan(state, { spouseSignatureConfirmed } = {}) {
-  if (!state?.identityOk) return { ok: false, reason: 'documents_screen_identity_unverified' };
-  if (state.poaRows !== 1) return { ok: false, reason: state.poaRows ? 'poa_row_ambiguous' : 'poa_row_not_found' };
-  // ‼ כבר נטען קובץ לשורה — לא מעלים שני. ההחלטה חוזרת לאדם/לבדיקה.
-  if (state.poaHasFile) return { ok: false, reason: 'poa_already_uploaded' };
-  if (state.plusControls !== 1) return { ok: false, reason: state.plusControls ? 'upload_opener_ambiguous' : 'upload_opener_not_found' };
-  if (state.spouseCheckboxes > 1) return { ok: false, reason: 'spouse_checkbox_ambiguous' };
-  // ‼ המסך מבקש את האישור, ואנחנו לא מוצאים את התיבה — «המשך» בלי לסמן היה
-  // מוליד שידור שלא נקלט. עוצרים לפני העלאה.
-  if (state.spouseLabelOnScreen && state.spouseCheckboxes === 0) return { ok: false, reason: 'spouse_checkbox_not_found' };
-  // ‼ התיבה מסומנת רק כש-PIVO הוכיחה את חתימת בן/בת הזוג בטופס הסופי.
-  if (state.spouseCheckboxes === 1 && spouseSignatureConfirmed !== true) {
-    return { ok: false, reason: 'spouse_signature_not_proven' };
-  }
-  return { ok: true, checkSpouse: state.spouseCheckboxes === 1 };
-}
 
-/**
- * שורת «טופס ייפוי כוח» במסך טעינת המסמכים — פונקציה עצמאית שרצה בדף.
- * ‼ לא מניחים סוג אלמנט לשורה: מוצאים את התווית עצמה («* טופס ייפוי כוח»)
- * ועולים מעליה עד המיכל הקרוב ביותר שיש בו פקד «+» גלוי — ועוצרים לפני
- * שהמיכל נהיה גדול משורה. כל ספירה ≠ 1 חוזרת כמו שהיא, וההחלטה בחוץ.
- * @param mode 'read' | 'clickPlus'
- */
-function poaRowProbe(mode) {
-  const clean = (x) => (x || '').replace(/\s+/g, ' ').trim();
-  const visible = (e) => e.offsetParent !== null || getComputedStyle(e).position === 'fixed';
-  const labels = [...document.querySelectorAll('body *')]
-    .filter((e) => visible(e) && /^\*?\s*טופס\s+ייפוי\s+כוח\s*\*?$/.test(clean(e.textContent)))
-    .filter((e, _, all) => !all.some((o) => o !== e && e.contains(o)));
-  const out = { poaRows: labels.length, plusControls: 0, poaHasFile: false, rowText: '' };
-  if (labels.length !== 1) return out;
-  const isPlus = (e) => /^\+$/.test(clean(e.textContent))
-    || /(^|[\s_-])(plus|add)([\s_-]|$)|fa-plus|k-i-plus|icon-plus/i.test(String(e.className?.baseVal ?? e.className ?? ''))
-    || /(^|[\s_-])(plus|add)([\s_-]|$)|הוספ|טעינ|צרף/i.test(clean([e.getAttribute?.('k-content'), e.getAttribute?.('title'), e.getAttribute?.('aria-label'), e.getAttribute?.('alt'), e.getAttribute?.('value')].filter(Boolean).join(' ')));
-  const SEL = 'a, button, input[type=button], input[type=image], [type=button], [role=button], [kendo-tooltip], [ng-click], img, i, span, svg';
-  let row = labels[0];
-  let plus = [];
-  for (let i = 0; i < 6 && row.parentElement; i++) {
-    row = row.parentElement;
-    if (clean(row.textContent).length > 160) break;
-    plus = [...row.querySelectorAll(SEL)].filter(visible).filter(isPlus)
-      .filter((e, _, all) => !all.some((o) => o !== e && e.contains(o)));
-    if (plus.length) break;
-  }
-  out.plusControls = plus.length;
-  out.rowText = clean(row.textContent).slice(0, 200);
-  out.poaHasFile = /\.pdf/i.test(out.rowText);
-  if (mode === 'clickPlus') {
-    if (out.plusControls !== 1) return { ...out, clicked: false };
-    plus[0].click();
-    return { ...out, clicked: true };
-  }
-  return out;
-}
 
-/** מצב מסך «טעינת מסמכים», קריאה בלבד. */
-async function readDocumentsStep(page, { entityId, expectedClientName }) {
-  const row = await page.evaluate(poaRowProbe, 'read');
-  const raw = await page.evaluate(() => {
-    const clean = (s) => (s || '').replace(/\s+/g, ' ').trim();
-    // ‼ התיבה היא רכיב של שע״ם (ng-click על ה-input). הטקסט שלה יושב לידה,
-    // לא בהכרח במיכל הקרוב — עולים עד שמוצאים אותו, ולא מעבר לגודל שורה.
-    const holderText = (b) => {
-      let e = b;
-      for (let i = 0; i < 5 && e; i++) {
-        const t = clean(e.textContent);
-        if (/מאשר\s+את\s+חתימת\s+בן\s*[\/\\]?\s*ת?\s*הזוג/.test(t)) return t;
-        if (t.length > 200) break;
-        e = e.parentElement;
-      }
-      return '';
-    };
-    const spouseBoxes = [...document.querySelectorAll('input[type=checkbox]')].filter((b) => !!holderText(b));
-    return {
-      body: document.body.innerText || '',
-      spouseCheckboxes: spouseBoxes.length,
-      spouseLabelOnScreen: /מאשר\s+את\s+חתימת\s+בן\s*[\/\\]?\s*ת?\s*הזוג/.test(clean(document.body.innerText)),
-      spouseChecked: spouseBoxes.length === 1 ? spouseBoxes[0].checked : null,
-    };
-  });
-  const id = openedRequestIdentity(raw.body, { entityId, expectedClientName });
-  return {
-    ...raw, body: undefined,
-    poaRows: row.poaRows, plusControls: row.plusControls, poaHasFile: row.poaHasFile,
-    identityOk: id.ok, requestNumber: id.requestNumber,
-  };
-}
 
 // ‼ 23.09.2026 · נקרא מה-DOM החי: החץ הוא <input type="button" class="icon
 // upload" k-content="'טעינת מסמכים'">, והשאר <div type="button" ...>
@@ -1045,21 +905,232 @@ export async function describeActionCandidates(rowLoc) {
   }));
 }
 
+// ── הזרימה, לפי קוד האפליקציה של שע״ם (נקרא 23.09.2026, בלי לנווט) ────────
+//
+// ‼ מקור האמת כאן אינו ניחוש ולא צילום מסך בלבד: התבניות והבקרים של
+// «מערכת לרישום ייצוג» נקראו מתוך הדף הפתוח (GET לקבצים סטטיים/$templateCache):
+//   · שלב 3 — state `pirteyHitkashrut`. הכפתורים הם <button btntype="hemshech"
+//     btnclick="vm.hemshech()">, <button btntype="idkun"> («עדכון» — **שומר**
+//     לשרת, updatePir…), <button btntype="chazara">. hemshech() = ניווט בלבד
+//     ($state.go('uploadKasafot')) — בלי כתיבה לשרת.
+//   · שלב 4 — state `uploadKasafot`. fileList[0] = {id:1,"טופס ייפוי כוח"}.
+//     השורה: div.BoxA > label.required + <u>{{UploadName}}</u> + input.icon.plus
+//     (ng-hide=isAdded); אחרי טעינה: .icon.replace + .icon.checkmark.
+//     «+» פותח את #dialogTeinatAsmachta (shaam-window-open-close) ובו
+//     shaam-file-upload: input[name=myFile][type=file] של Kendo, autoUpload
+//     לאחסון זמני (GDUploadAPI/UploadFile), וב-success ⇒ vm.uploadFile(0) ⇒
+//     isAdded. שגיאת טעינה: #errDiv.alert-warning בתוך הדיאלוג.
+//     תיבת בן/ת הזוג: input[type=checkbox][ng-model="vm.isCheckeChatimatBz"],
+//     בשתי גרסאות (חובה/רשות) — רק אחת גלויה.
+//     «המשך» = vm.hemshech(): בודק שכל המסמכים נטענו ושהתיבה סומנה כשהיא
+//     חובה, ושולח **את הכול לבקשה** (uploadToKasafot/GetFile). זו ההגשה.
+//     הצלחה ⇒ $state.go('returnUpload'); כישלון ⇒ .alert-danger גלוי במסך.
+//   · שלב 5 — state `returnUpload`: «אישור קליטת מסמכים למיוצג <ת.ז.> -
+//     <שם>», סימן V ירוק, «עכשיו תורנו...», «אנחנו בודקים כרגע את הקבצים
+//     שצירפת», ושורת מצב לפי statusBakasha.
+//   · השלב הנוכחי מסומן ברצועה: .bs-wizard-dot עם המחלקה active.
+
+const HEMSHECH = 'button[btntype="hemshech"]';
+
+/**
+ * שגיאה גלויה במסך. ‼ 23.09.2026 · הניסיון השלישי נעצר על «כתובת מייל אינה
+ * תקינה» — div#divMasterErr.alert-danger בתוך הדיאלוג **המוסתר** «שליחת פניה
+ * במקרה של תקלה». אלמנט שאינו מוצג אינו שגיאה של המסך.
+ */
+export async function readScreenError(page) {
+  return page.evaluate(() => {
+    const clean = (s) => (s || '').replace(/\s+/g, ' ').trim();
+    const visible = (e) => e.offsetParent !== null && getComputedStyle(e).visibility !== 'hidden';
+    const nodes = [...document.querySelectorAll(
+      '.error, .alert-danger, .validation-summary-errors, .field-validation-error, [role="alert"], .text-danger',
+    )].filter(visible);
+    const msgs = nodes.map((n) => clean(n.textContent)).filter(Boolean);
+    return msgs.length ? msgs.join(' · ').slice(0, 300) : null;
+  });
+}
+
+/**
+ * השלב מתוך טקסט המסך — טהורה, כדי שתיבדק מול המסכים האמיתיים.
+ * ‼ רצועת השלבים מוצגת בכל מסך של האשף; מסירים אותה לפני שמחפשים כותרת.
+ * שלב 5 (ההצלחה) מזוהה לפי כותרת המסך שלו — «אישור קליטת מסמכים למיוצג» —
+ * או «השהייה וסיום» רק מחוץ לרצועה שהוסרה בפועל.
+ */
+export function wizardStepFromText(body, strip) {
+  const clean = (x) => String(x ?? '').replace(/\s+/g, ' ').trim();
+  let text = clean(body);
+  if (strip) text = text.split(clean(strip)).join(' ');
+  const headings = [
+    { n: 5, re: /אישור\s+קליטת\s+מסמכים\s+למיוצג/ },
+    { n: 4, re: /טעינת\s+מסמכים\s+למיוצג/ },
+    { n: 3, re: /פרטי\s+התקשרות\s+למיוצג/ },
+    { n: 2, re: /בקשה\s+חדשה\s+לייצוג/ },
+    { n: 5, re: /השהייה\s+וסיום/, needsStrip: true },
+    { n: 1, re: /אימות\s+(המיוצג|ישות)/, needsStrip: true },
+  ];
+  for (const h of headings) {
+    if (h.needsStrip && !strip) continue;
+    if (h.re.test(text)) return h.n;
+  }
+  return strip ? 0 : null;
+}
+
+/**
+ * השלב הנוכחי: הנקודה הפעילה ברצועה (.bs-wizard-dot.active), ובנוסף כותרת
+ * המסך. ‼ שני המקורות חייבים להסכים; אם אין נקודה פעילה אחת — הכותרת לבדה.
+ */
+export async function currentWizardStep(page) {
+  const r = await page.evaluate(() => {
+    const clean = (x) => (x || '').replace(/\s+/g, ' ').trim();
+    const dots = [...document.querySelectorAll('.bs-wizard-dot.active')].filter((e) => e.offsetParent !== null);
+    const labels = [/אימות\s+ישות/, /פרטי\s+התקשרות/, /טעינת\s+מסמכים/, /השהייה\s+וסיום/];
+    const strip = [...document.querySelectorAll('body *')]
+      .filter((e) => { const t = clean(e.textContent); return t.length < 200 && labels.every((re) => re.test(t)); })
+      .sort((a, b) => clean(a.textContent).length - clean(b.textContent).length)[0];
+    return {
+      dots: dots.map((d) => clean(d.textContent)),
+      body: document.body.innerText || '',
+      strip: strip ? strip.innerText : '',
+    };
+  });
+  return wizardStepResolve(r);
+}
+
+/** טהורה: הנקודה הפעילה + הכותרת ⇒ שלב, או 0 כשהם סותרים. */
+export function wizardStepResolve({ dots, body, strip }) {
+  const byText = wizardStepFromText(body, strip);
+  const d = (dots ?? []).map((x) => Number(String(x).trim())).filter((n) => n >= 1 && n <= 5);
+  if (d.length !== 1) return byText;
+  if (byText && byText !== d[0]) return 0;
+  return d[0];
+}
+
+/**
+ * «המשך» — טהורה: בדיוק כפתור אחד, גלוי ופעיל, לפי btntype="hemshech" ועם
+ * הטקסט «המשך». ‼ «עדכון» (idkun, שומר לשרת) ו«חזרה» (chazara) לעולם לא.
+ * @param buttons [{btntype, label, visible, disabled}]
+ */
+export function pickContinueButton(buttons) {
+  const list = Array.isArray(buttons) ? buttons : [];
+  const live = list.filter((b) => b.btntype === 'hemshech' && b.visible && !b.disabled);
+  if (live.length !== 1) {
+    const total = list.filter((b) => b.btntype === 'hemshech').length;
+    return { ok: false, reason: live.length ? 'continue_ambiguous' : 'continue_not_found', detail: `גלויים: ${live.length}/${total}` };
+  }
+  if (String(live[0].label ?? '').trim() !== 'המשך') return { ok: false, reason: 'continue_label_mismatch', detail: live[0].label };
+  return { ok: true };
+}
+
+async function clickHemshech(page) {
+  const buttons = await page.evaluate(() => [...document.querySelectorAll('button[btntype]')].map((b) => ({
+    btntype: b.getAttribute('btntype'),
+    label: (b.textContent || b.getAttribute('aria-label') || '').replace(/\s+/g, ' ').trim(),
+    visible: b.offsetParent !== null && getComputedStyle(b).visibility !== 'hidden',
+    disabled: !!b.disabled,
+  })));
+  const pick = pickContinueButton(buttons);
+  if (!pick.ok) return pick;
+  const clicked = await page.locator(`${HEMSHECH}:visible`).click({ timeout: 8000 }).then(() => true).catch(() => false);
+  return clicked ? { ok: true } : { ok: false, reason: 'continue_click_failed' };
+}
+
+/**
+ * פקדים שאינם «המשך» ושאסור ללחוץ עליהם בזרימה הזאת, כדי שבדיקה תוכל לוודא
+ * שהבורר לא תופס אותם: «עדכון» שומר פרטי התקשרות לשרת, «חזרה» חוזר לרשימה.
+ */
+export const NEVER_CLICK_BTNTYPES = ['idkun', 'chazara'];
+
+/**
+ * שורת «טופס ייפוי כוח» במסך טעינת המסמכים — פונקציה עצמאית שרצה בדף.
+ * ‼ לפי התבנית: div.BoxA > label.required{שם} + <u>{קובץ}</u> +
+ * input.icon.plus (לפני טעינה) או .icon.replace + .icon.checkmark (אחרי).
+ * @param mode 'read' | 'clickPlus'
+ */
+function poaRowProbe(mode) {
+  const clean = (x) => (x || '').replace(/\s+/g, ' ').trim();
+  const visible = (e) => !!e && e.offsetParent !== null;
+  const boxes = [...document.querySelectorAll('.BoxA')].filter(visible);
+  const docName = (b) => clean(b.querySelector('label')?.textContent);
+  const poa = boxes.filter((b) => /^\*?\s*טופס\s+ייפוי\s+כוח\s*\*?$/.test(docName(b)));
+  const others = boxes.filter((b) => !poa.includes(b)).map(docName).filter(Boolean);
+  const out = { poaRows: poa.length, otherDocs: others, plusControls: 0, poaHasFile: false, uploadName: '', rowText: '' };
+  if (poa.length !== 1) return out;
+  const row = poa[0];
+  const plus = [...row.querySelectorAll('input[type=button].plus, .icon.plus')].filter(visible)
+    .filter((e, _, all) => !all.some((o) => o !== e && e.contains(o)));
+  out.plusControls = plus.length;
+  out.uploadName = clean(row.querySelector('u')?.textContent);
+  out.poaHasFile = !!out.uploadName || [...row.querySelectorAll('.icon.checkmark')].some(visible);
+  out.rowText = clean(row.textContent).slice(0, 200);
+  if (mode === 'clickPlus') {
+    if (out.plusControls !== 1 || out.poaHasFile) return { ...out, clicked: false };
+    plus[0].click();
+    return { ...out, clicked: true };
+  }
+  return out;
+}
+
+/**
+ * ההחלטה על מסך «טעינת מסמכים» — לפני שנוגעים בשע״ם. טהורה.
+ * ‼ כל עצירה כאן קורית **לפני** סימן הנגיעה ולפני «+».
+ */
+export function documentsStepPlan(state, { spouseSignatureConfirmed } = {}) {
+  if (!state?.identityOk) return { ok: false, reason: 'documents_screen_identity_unverified' };
+  if (state.poaRows !== 1) return { ok: false, reason: state.poaRows ? 'poa_row_ambiguous' : 'poa_row_not_found' };
+  // ‼ שע״ם דורשת מסמך נוסף (למשל תצלום ת.ז.) — «המשך» ייכשל על «יש לטעון את
+  // כל המסמכים», ואין לנו אותו. לא מתחילים העלאה חלקית.
+  if ((state.otherDocs ?? []).length) return { ok: false, reason: 'other_documents_required', detail: state.otherDocs.join(', ') };
+  // ‼ כבר נטען קובץ לשורה — לא מעלים שני. ההחלטה חוזרת לאדם/לבדיקה.
+  if (state.poaHasFile) return { ok: false, reason: 'poa_already_uploaded' };
+  if (state.plusControls !== 1) return { ok: false, reason: state.plusControls ? 'upload_opener_ambiguous' : 'upload_opener_not_found' };
+  if (state.spouseCheckboxes > 1) return { ok: false, reason: 'spouse_checkbox_ambiguous' };
+  // ‼ המסך מבקש את האישור, ואנחנו לא מוצאים את התיבה — עוצרים.
+  if (state.spouseLabelOnScreen && state.spouseCheckboxes === 0) return { ok: false, reason: 'spouse_checkbox_not_found' };
+  // ‼ התיבה מסומנת רק כש-PIVO הוכיחה את חתימת בן/בת הזוג בטופס הסופי.
+  if (state.spouseCheckboxes === 1 && spouseSignatureConfirmed !== true) {
+    return { ok: false, reason: 'spouse_signature_not_proven' };
+  }
+  if (state.continueButtons !== 1) return { ok: false, reason: state.continueButtons ? 'continue_ambiguous' : 'continue_not_found' };
+  return { ok: true, checkSpouse: state.spouseCheckboxes === 1 };
+}
+
+/** מצב מסך «טעינת מסמכים», קריאה בלבד. */
+async function readDocumentsStep(page, { entityId, expectedClientName }) {
+  const row = await page.evaluate(poaRowProbe, 'read');
+  const raw = await page.evaluate((sel) => {
+    const clean = (s) => (s || '').replace(/\s+/g, ' ').trim();
+    const visible = (e) => e.offsetParent !== null;
+    const spouseBoxes = [...document.querySelectorAll('input[type=checkbox][ng-model="vm.isCheckeChatimatBz"]')].filter(visible);
+    return {
+      body: document.body.innerText || '',
+      spouseCheckboxes: spouseBoxes.length,
+      spouseChecked: spouseBoxes.length === 1 ? spouseBoxes[0].checked : null,
+      spouseLabelOnScreen: [...document.querySelectorAll('p')].filter(visible)
+        .some((p) => /מאשר\s+את\s+חתימת\s+בן\s*[\/\\]?\s*ת?\s*הזוג/.test(clean(p.textContent))),
+      continueButtons: [...document.querySelectorAll(sel)].filter((b) => visible(b) && !b.disabled).length,
+    };
+  }, HEMSHECH);
+  const id = openedRequestIdentity(raw.body, { entityId, expectedClientName });
+  return {
+    ...raw, body: undefined,
+    poaRows: row.poaRows, otherDocs: row.otherDocs, plusControls: row.plusControls, poaHasFile: row.poaHasFile,
+    identityOk: id.ok, requestNumber: id.requestNumber,
+  };
+}
+
 /**
  * פותח בקשה קיימת עד מסך «טעינת מסמכים», ומחזיר את מספר הבקשה שנקרא מהמסך.
  *
- * ‼ ניווט בלבד. «המשך» בשלב 3 אינו משנה דבר (לא נוגעים בשדות); שום קובץ
- * אינו נטען כאן. כל עצירה ⇒ «שום דבר לא נשלח».
- * ‼ הייחוס: עם מספר — השורה שמכילה אותו; בלי — ישות + שם, בקשה אחת
- * (singleAttributedRequest), ושורת **מס הכנסה** שלה (הפעולה פותחת את
- * הבקשה כולה, אבל נבחרת השורה שהתבקשה, לא «הראשונה»).
+ * ‼ ניווט בלבד. «המשך» בשלב 3 הוא $state.go (נקרא מהבקר), לא שמירה; «עדכון»
+ * — ששומר — לעולם לא נלחץ. שום קובץ אינו נטען כאן. כל עצירה ⇒ «שום דבר לא
+ * נשלח». ‼ האיתור ברשימה תמיד לפי ישות + שם (המסלול שנבדק חי); מספר בקשה
+ * ידוע משמש לאימות הבקשה שנפתחה, לא לחיפוש.
  */
 export async function openRequestForDocuments(page, { requestNumber, entityId, expectedClientName, systemLabel = 'מס הכנסה' }) {
   const want = String(requestNumber ?? '').replace(/\D/g, '');
   if (!entityId || !expectedClientName) {
     return { ok: false, reason: 'cannot_attribute', detail: 'אין ת.ז. ושם לאימות הבקשה שנפתחת', step: 'resume' };
   }
-  const found = await findRequestRows(page, { requestNumber: want, entityId, expectedClientName });
+  const found = await findRequestRows(page, { requestNumber: '', entityId, expectedClientName });
   if (!found.ok) return found;
   if (found.rows.length === 0) return { ok: false, reason: 'request_not_found_in_list', step: 'resume' };
 
@@ -1117,7 +1188,7 @@ export async function openRequestForDocuments(page, { requestNumber, entityId, e
   if (step === 3) {
     const err0 = await readScreenError(page);
     if (err0) return { ok: false, reason: 'contact_step_error', detail: err0, step: 'contact_continue', requestNumber: openedNumber };
-    const go = await clickExact(page, 'המשך');
+    const go = await clickHemshech(page);
     if (!go.ok) return { ...go, step: 'contact_continue', requestNumber: openedNumber };
     await settle(page, { idleMs: 20000 });
     const err = await readScreenError(page);
@@ -1134,85 +1205,126 @@ export async function openRequestForDocuments(page, { requestNumber, entityId, e
   return { ok: true, requestNumber: openedNumber, documents: docs };
 }
 
+const POA_DIALOG = '#dialogTeinatAsmachta';
+
 /**
  * העלאת הטופס החתום לשורת «טופס ייפוי כוח». ‼ נקראת רק אחרי
- * markExternalAttempt, ורק אחרי documentsStepPlan שאישר: שורה אחת, «+»
- * אחד, ואין עדיין קובץ בשורה.
+ * markExternalAttempt ורק אחרי documentsStepPlan שאישר.
+ * «+» ⇒ #dialogTeinatAsmachta ⇒ input[type=file] אחד בתוכו ⇒ ממתינים
+ * לראיה בשורה (שם הקובץ / V) ⇒ סוגרים את הדיאלוג בכפתור שלו.
  */
 export async function uploadSignedForm(page, { fileName, buffer }) {
   const step = await currentWizardStep(page);
   if (step !== 4) return { ok: false, reason: 'not_on_documents_step', currentStep: step, step: 'upload' };
 
   const probe = await page.evaluate(poaRowProbe, 'clickPlus');
-  const opened = probe.clicked ? { ok: true }
-    : { ok: false, reason: probe.poaRows !== 1 ? (probe.poaRows ? 'poa_row_ambiguous' : 'poa_row_not_found')
+  if (!probe.clicked) {
+    return { ok: false, step: 'upload_open', reason: probe.poaHasFile ? 'poa_already_uploaded'
+      : probe.poaRows !== 1 ? (probe.poaRows ? 'poa_row_ambiguous' : 'poa_row_not_found')
       : (probe.plusControls ? 'upload_opener_ambiguous' : 'upload_opener_not_found') };
-  if (!opened.ok) return { ...opened, step: 'upload_open' };
-  await page.waitForTimeout(800);
+  }
+  const dialog = page.locator(POA_DIALOG);
+  const opened = await dialog.waitFor({ state: 'visible', timeout: 10000 }).then(() => true).catch(() => false);
+  if (!opened) return { ok: false, reason: 'upload_dialog_not_open', step: 'upload_open' };
+  const openModals = await page.evaluate(() => [...document.querySelectorAll('.modal')].filter((m) => m.offsetParent !== null || getComputedStyle(m).display === 'block').map((m) => m.id));
+  if (openModals.length !== 1 || openModals[0] !== POA_DIALOG.slice(1)) {
+    return { ok: false, reason: 'upload_dialog_ambiguous', detail: openModals.join(','), step: 'upload_open' };
+  }
 
-  const fileInput = page.locator('input[type=file]');
-  const present = await fileInput.first().waitFor({ state: 'attached', timeout: 10000 }).then(() => true).catch(() => false);
-  if (!present) return { ok: false, reason: 'file_input_not_found', step: 'upload_open' };
+  const fileInput = dialog.locator('input[type=file]');
   if (await fileInput.count() !== 1) return { ok: false, reason: 'file_input_ambiguous', step: 'upload_open' };
+  await fileInput.setInputFiles({ name: fileName, mimeType: 'application/pdf', buffer });
 
-  await fileInput.first().setInputFiles({ name: fileName, mimeType: 'application/pdf', buffer });
-  await settle(page, { idleMs: 25000 });
+  // ‼ autoUpload של Kendo: ההצלחה נראית בשורה (שם הקובץ + V) אחרי vm.uploadFile(0).
+  const deadline = Date.now() + 60000;
+  let row = null;
+  let dialogErr = null;
+  while (Date.now() < deadline) {
+    await page.waitForTimeout(700);
+    row = await page.evaluate(poaRowProbe, 'read');
+    dialogErr = await page.evaluate((sel) => {
+      const e = document.querySelector(`${sel} #errDiv`);
+      return e && e.offsetParent !== null ? (e.textContent || '').replace(/\s+/g, ' ').trim() : null;
+    }, POA_DIALOG);
+    if (row.poaHasFile || dialogErr) break;
+  }
+  if (dialogErr) return { ok: false, reason: 'upload_rejected', detail: dialogErr, step: 'upload' };
+  if (!row?.poaHasFile) return { ok: false, reason: 'upload_not_confirmed', step: 'upload' };
 
-  const err = await readScreenError(page);
-  if (err) return { ok: false, reason: 'upload_rejected', detail: err, step: 'upload' };
-
-  // סוגרים את חלון הטעינה אם נשאר פתוח.
-  const close = byExactName(page, 'סגירה');
-  if (await close.count().catch(() => 0)) await close.click({ timeout: 5000 }).catch(() => {});
+  // סוגרים את הדיאלוג בכפתור הסגירה שלו (לא «סגירה» כללי במסך).
+  await dialog.locator('button.close').first().click({ timeout: 5000 }).catch(() => {});
+  await dialog.waitFor({ state: 'hidden', timeout: 10000 }).catch(() => {});
   await settle(page);
-  return { ok: true };
+  return { ok: true, uploadName: row.uploadName };
 }
 
 /**
  * הראיה שהמסמך נקלט, והמשך **פעם אחת**.
  * ‼ סדר: הקובץ מופיע בשורת «טופס ייפוי כוח» ⇒ (תיבת בן/בת הזוג, רק אם
- * הוכחה) ⇒ «המשך» אחד ⇒ האשף בשלב 5. בלי כל אלה — אין «נשלח».
+ * הוכחה) ⇒ «המשך» אחד ⇒ state `returnUpload`: «אישור קליטת מסמכים למיוצג».
+ * בלי כל אלה — אין «נשלח».
  */
-export async function confirmDocumentsStep(page, { checkSpouse = false } = {}) {
+export async function confirmDocumentsStep(page, { checkSpouse = false, entityId, expectedClientName } = {}) {
   const row = await page.evaluate(poaRowProbe, 'read');
   const attached = row.poaRows !== 1
     ? { ok: false, reason: row.poaRows ? 'poa_row_ambiguous' : 'poa_row_not_found' }
-    : { ok: row.poaHasFile, reason: row.poaHasFile ? undefined : 'no_file_listed', text: row.rowText };
+    : { ok: row.poaHasFile, reason: row.poaHasFile ? undefined : 'no_file_listed', text: row.uploadName || row.rowText };
   if (!attached.ok) return { ...attached, step: 'documents_confirm' };
 
   if (checkSpouse) {
     const box = await page.evaluate(() => {
-      const clean = (s) => (s || '').replace(/\s+/g, ' ').trim();
-      const holderText = (b) => {
-        let e = b;
-        for (let i = 0; i < 5 && e; i++) {
-          const t = clean(e.textContent);
-          if (/מאשר\s+את\s+חתימת\s+בן\s*[\/\\]?\s*ת?\s*הזוג/.test(t)) return t;
-          if (t.length > 200) break;
-          e = e.parentElement;
-        }
-        return '';
-      };
-      const boxes = [...document.querySelectorAll('input[type=checkbox]')].filter((b) => !!holderText(b));
+      const boxes = [...document.querySelectorAll('input[type=checkbox][ng-model="vm.isCheckeChatimatBz"]')]
+        .filter((b) => b.offsetParent !== null);
       if (boxes.length !== 1) return { ok: false, reason: boxes.length ? 'spouse_checkbox_ambiguous' : 'spouse_checkbox_not_found' };
-      // ‼ element.click() ולא שינוי checked ישיר — כך המסגרת רואה את השינוי.
+      // ‼ element.click() ולא שינוי checked ישיר — כך ng-model רואה את השינוי.
       if (!boxes[0].checked) boxes[0].click();
       return { ok: boxes[0].checked, reason: boxes[0].checked ? undefined : 'spouse_checkbox_not_checked' };
     });
     if (!box.ok) return { ...box, step: 'documents_confirm' };
   }
 
-  const go = await clickExact(page, 'המשך');
+  const go = await clickHemshech(page);
   if (!go.ok) return { ...go, step: 'documents_confirm' };
-  await settle(page, { idleMs: 25000 });
 
-  const err = await readScreenError(page);
-  if (err) return { ok: false, reason: 'documents_continue_error', detail: err, step: 'documents_confirm' };
-
-  const step = await currentWizardStep(page);
-  if (step !== 5) {
-    return { ok: false, reason: 'did_not_reach_final_step', detail: `שלב נוכחי: ${step}`, step: 'documents_confirm' };
+  // ‼ ההגשה עצמה (uploadToKasafot/GetFile). ממתינים לאחת משתי ראיות בלבד:
+  // מעבר ל-returnUpload, או שגיאה גלויה במסך. שום דבר אחר אינו תוצאה.
+  const deadline = Date.now() + 45000;
+  let state = null;
+  while (Date.now() < deadline) {
+    await page.waitForTimeout(800);
+    state = await page.evaluate(() => {
+      const clean = (s) => (s || '').replace(/\s+/g, ' ').trim();
+      const visible = (e) => e.offsetParent !== null;
+      const err = [...document.querySelectorAll('.alert-danger')].filter(visible).map((e) => clean(e.textContent)).filter(Boolean).join(' · ');
+      return {
+        hash: location.hash,
+        body: document.body.innerText || '',
+        err,
+        statusLines: [...document.querySelectorAll('strong')].filter(visible).map((e) => clean(e.textContent)).filter(Boolean).slice(0, 6),
+      };
+    });
+    if (/returnUpload/.test(state.hash) || state.err) break;
   }
-  const summary = await page.evaluate(() => (document.body.innerText || '').replace(/\s+/g, ' ').slice(0, 600));
-  return { ok: true, fileLine: attached.text, summary };
+  if (!state) return { ok: false, reason: 'no_result', step: 'documents_confirm' };
+  if (state.err && !/returnUpload/.test(state.hash)) {
+    return { ok: false, reason: 'documents_continue_error', detail: state.err.slice(0, 300), step: 'documents_confirm' };
+  }
+  const evidence = submissionAcceptedEvidence(state, { entityId, expectedClientName });
+  if (!evidence.ok) return { ok: false, reason: evidence.reason, detail: evidence.detail, step: 'documents_confirm' };
+  return { ok: true, fileLine: attached.text, summary: evidence.summary, statusLines: state.statusLines };
+}
+
+/**
+ * טהורה: האם המסך אחרי «המשך» הוא אישור הקליטה של **הבקשה הזאת**.
+ * ‼ שלושה יחד: state returnUpload, הכותרת «אישור קליטת מסמכים למיוצג», וזהות
+ * (ת.ז. + שם). חסר אחד מהם ⇒ לא «נשלח».
+ */
+export function submissionAcceptedEvidence({ hash, body, statusLines }, { entityId, expectedClientName }) {
+  if (!/returnUpload/.test(String(hash ?? ''))) return { ok: false, reason: 'did_not_reach_final_step', detail: String(hash ?? '') };
+  const text = String(body ?? '').replace(/\s+/g, ' ');
+  if (!/אישור\s+קליטת\s+מסמכים\s+למיוצג/.test(text)) return { ok: false, reason: 'final_heading_missing' };
+  const id = openedRequestIdentity(text, { entityId, expectedClientName });
+  if (!id.ok) return { ok: false, reason: 'final_screen_identity_unverified' };
+  const summary = [...(statusLines ?? [])].join(' · ').slice(0, 400);
+  return { ok: true, requestNumber: id.requestNumber, summary };
 }

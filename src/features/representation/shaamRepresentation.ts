@@ -443,13 +443,15 @@ export function shaamProgressLine(t: ShaamRequestTracking | undefined): ShaamPro
   }
   if (!t.submittedAt) {
     if (!t.formDocumentId) {
-      if (!t.requestNumber) {
+      if (!t.requestNumber || (t.systems?.length ?? 0) > 0) {
         // ‼ נמצאה בשע״ם בלי ש-PIVO פתחה אותה (הוזנה ידנית) — הטופס לא הגיע
         // דרך האוטומציה, ולכן לא אומרים «נשאר להביא»: מדווחים מה שנקרא.
+        // ‼ 199: גם כשהמספר נקרא אחר כך מהבקשה שנפתחה — אותה בקשה, אותו דיווח.
         const state = parseShaamRequestState(t.rawRequestState ?? t.systems?.[0]?.rawRequestState);
+        const which = t.requestNumber ? `הבקשה ${t.requestNumber}` : 'הבקשה';
         return {
           ball: 'office',
-          text: `הבקשה פתוחה בשע״ם (נמצאה ברשימת הבקשות בתהליך) — ${SHAAM_REQUEST_STATE_LABELS[state]}.`,
+          text: `${which} פתוחה בשע״ם (נמצאה ברשימת הבקשות בתהליך) — ${SHAAM_REQUEST_STATE_LABELS[state]}.`,
         };
       }
       return { ball: 'office', text: `הבקשה נפתחה בשע״ם (${t.requestNumber}) — נשאר להביא את טופס ייפוי הכוח.` };

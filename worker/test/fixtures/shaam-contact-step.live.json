@@ -1,0 +1,174 @@
+{
+  "capturedAt": "2026-09-23T19:40:58.331Z",
+  "screen": "pirteyHitkashrut (step 3)",
+  "hash": "#/pirteyHitkashrut",
+  "headings": [
+    "בקשה לרישום ייפוי כוח חדש",
+    "מספר בקשה: 2026538930",
+    "פרטי התקשרות למיוצג {ID} - {NAME}"
+  ],
+  "strip": "1 אימות ישות 2 בקשת ייפוי כוח 3 פרטי התקשרות 4 טעינת מסמכים 5 השהייה וסיום",
+  "dots": [
+    {
+      "text": "1",
+      "cls": "bs-wizard-dot ng-binding",
+      "parentCls": "ng-scope col-xs-2 bs-wizard-step complete",
+      "visible": true
+    },
+    {
+      "text": "2",
+      "cls": "bs-wizard-dot ng-binding",
+      "parentCls": "ng-scope col-xs-2 bs-wizard-step complete",
+      "visible": true
+    },
+    {
+      "text": "3",
+      "cls": "bs-wizard-dot ng-binding col-xs-2 bs-wizard-step active",
+      "parentCls": "ng-scope col-xs-2 bs-wizard-step complete",
+      "visible": true
+    },
+    {
+      "text": "4",
+      "cls": "bs-wizard-dot ng-binding",
+      "parentCls": "ng-scope col-xs-2 bs-wizard-step disabled",
+      "visible": true
+    },
+    {
+      "text": "5",
+      "cls": "bs-wizard-dot ng-binding",
+      "parentCls": "ng-scope col-xs-2 bs-wizard-step disabled",
+      "visible": true
+    }
+  ],
+  "buttons": [
+    {
+      "btntype": null,
+      "btnclick": null,
+      "label": "",
+      "visible": false,
+      "disabled": false
+    },
+    {
+      "btntype": null,
+      "btnclick": null,
+      "label": "×",
+      "visible": false,
+      "disabled": false
+    },
+    {
+      "btntype": null,
+      "btnclick": null,
+      "label": "×",
+      "visible": false,
+      "disabled": false
+    },
+    {
+      "btntype": null,
+      "btnclick": null,
+      "label": "1",
+      "visible": true,
+      "disabled": false
+    },
+    {
+      "btntype": null,
+      "btnclick": null,
+      "label": "2",
+      "visible": true,
+      "disabled": false
+    },
+    {
+      "btntype": null,
+      "btnclick": null,
+      "label": "3",
+      "visible": true,
+      "disabled": false
+    },
+    {
+      "btntype": null,
+      "btnclick": null,
+      "label": "4",
+      "visible": true,
+      "disabled": true
+    },
+    {
+      "btntype": null,
+      "btnclick": null,
+      "label": "5",
+      "visible": true,
+      "disabled": true
+    },
+    {
+      "btntype": "bitul",
+      "btnclick": "vm.bitul()",
+      "label": "ביטול",
+      "visible": false,
+      "disabled": false
+    },
+    {
+      "btntype": "idkun",
+      "btnclick": "vm.idkun()",
+      "label": "עדכון",
+      "visible": true,
+      "disabled": false
+    },
+    {
+      "btntype": "hemshech",
+      "btnclick": "vm.hemshech()",
+      "label": "המשך",
+      "visible": true,
+      "disabled": false
+    },
+    {
+      "btntype": "chazara",
+      "btnclick": "vm.chazara()",
+      "label": "חזרה",
+      "visible": true,
+      "disabled": false
+    },
+    {
+      "btntype": null,
+      "btnclick": null,
+      "label": "×",
+      "visible": false,
+      "disabled": false
+    },
+    {
+      "btntype": "ishur",
+      "btnclick": "vm.changeState(true)",
+      "label": "אישור",
+      "visible": false,
+      "disabled": false
+    },
+    {
+      "btntype": "bitul",
+      "btnclick": "vm.changeState(false)",
+      "label": "ביטול",
+      "visible": false,
+      "disabled": false
+    },
+    {
+      "btntype": null,
+      "btnclick": null,
+      "label": "×",
+      "visible": false,
+      "disabled": false
+    }
+  ],
+  "errors": [
+    {
+      "text": "כתובת מייל אינה תקינה",
+      "visible": false,
+      "inModal": true
+    },
+    {
+      "text": "",
+      "visible": false,
+      "inModal": false
+    },
+    {
+      "text": "",
+      "visible": false,
+      "inModal": false
+    }
+  ]
+}

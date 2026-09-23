@@ -1,0 +1,17 @@
+{
+  "capturedAt": "2026-09-23T19:26:00Z",
+  "screen": "process — «בקשות בתהליך», income-tax row of the attributed request (actions cell), read via describeActionCandidates",
+  "candidates": [
+    { "attrText": "Expand #", "classText": "k-icon k-i-expand", "hidden": false, "nested": false, "tooltip": "" },
+    { "attrText": "'מעבר להצגת פרטים'", "classText": "ng-scope ng-binding", "hidden": false, "nested": false, "tooltip": "" },
+    { "attrText": "'המתנה למסמכים'", "classText": "ng-scope", "hidden": false, "nested": false, "tooltip": "" },
+    { "attrText": "'אירועים קודמים'", "classText": "col-sm-1 icon details_icon ng-scope", "hidden": false, "nested": false, "tooltip": "" },
+    { "attrText": "'ביטול הבקשה'", "classText": "col-sm-1 icon xmark ng-scope", "hidden": false, "nested": false, "tooltip": "" },
+    { "attrText": "'טעינת מסמכים'", "classText": "col-sm-1 icon upload ng-scope", "hidden": false, "nested": false, "tooltip": "" },
+    { "attrText": "'שחזור בקשה/PDF'", "classText": "col-sm-1 icon adobe_pdf ng-scope", "hidden": false, "nested": false, "tooltip": "" },
+    { "attrText": "'ניתן לשחזר את הטופס רק לאחר מילוי פרטי התקשרות'", "classText": "col-sm-1 noclick icon adobe_pdf ng-scope ng-hide", "hidden": true, "nested": false, "tooltip": "" },
+    { "attrText": "'הצגת מסמכים'", "classText": "col-sm-1 icon powerp ng-scope ng-hide", "hidden": true, "nested": false, "tooltip": "" },
+    { "attrText": "'לא ניתן לצפות במסמכים מכיוון שהבקשה נוצרה על ידי המטה'", "classText": "col-sm-1 icon powerp noclick ng-scope ng-hide", "hidden": true, "nested": false, "tooltip": "" }
+  ],
+  "expectedIndex": 5
+}

@@ -1,140 +1,200 @@
 // ─── שידור טופס 2279 חתום — הזרימה האמיתית (23.09.2026) ─────────────────────
-// ‼ מקור האמת: צילומי המסך של הבקשה של הדסה סלע (2026538930), אחרי שהניסיון
-// החי הראשון נעצר ברשימה, לפני כל לחיצה:
-//   רשימה → שורת מס הכנסה → חץ «טעינת מסמכים» → «פרטי התקשרות למיוצג
-//   034605212 - סלע הדסה» (מספר בקשה מוצג) → «המשך» → «טעינת מסמכים למיוצג
-//   034605212 - סלע הדסה» → «+» של «טופס ייפוי כוח» → PDF → תיבת בן/ת הזוג
-//   (רק אם הוכחה) → «המשך» אחד → שלב 5.
+// ‼ מקור האמת: ה-DOM החי (נקרא בלי ללחוץ) וקוד האפליקציה של שע״ם (תבניות
+// ובקרים שנקראו מהדף הפתוח):
+//   רשימה → שורת מס הכנסה → <input class="icon upload" k-content="'טעינת מסמכים'">
+//   → state pirteyHitkashrut (שלב 3) → <button btntype="hemshech"> (ניווט בלבד)
+//   → state uploadKasafot (שלב 4) → .BoxA «טופס ייפוי כוח» → input.icon.plus
+//   → #dialogTeinatAsmachta → input[type=file] → V + שם קובץ בשורה
+//   → תיבת vm.isCheckeChatimatBz (רק אם הוכחה) → hemshech (ההגשה)
+//   → state returnUpload: «אישור קליטת מסמכים למיוצג <ת.ז.> - <שם>».
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
   pickUploadDocumentsControl, openedRequestIdentity, documentsStepPlan,
+  wizardStepFromText, wizardStepResolve, pickContinueButton, submissionAcceptedEvidence,
+  NEVER_CLICK_BTNTYPES,
 } from '../src/shaamRepresentationSession.mjs';
 
 const src = (p) => readFileSync(new URL(p, import.meta.url), 'utf8');
 const HANDLER = src('../src/handlers/shaamSubmitPoa.mjs');
 const SESSION = src('../src/shaamRepresentationSession.mjs');
 const fnBody = (s, sig) => { const i = s.indexOf(sig); assert.ok(i >= 0, sig); return s.slice(i, s.indexOf('\n}', i)); };
+const LIST_ROW = JSON.parse(src('./fixtures/shaam-list-row.live.json'));
+const CONTACT = JSON.parse(src('./fixtures/shaam-contact-step.live.json'));
 
-/** עמודת «פעולות» בשורת מס הכנסה של הדסה — PDF, מחיקה, פירוט, וחץ ההעלאה. */
-const ACTIONS = [
-  { attrText: 'צפייה בקובץ PDF', classText: 'fa fa-file-pdf-o', tooltip: '' },
-  { attrText: 'מחיקת בקשה', classText: 'fa fa-times', tooltip: '' },
-  { attrText: 'פירוט', classText: 'fa fa-file-text-o', tooltip: '' },
-  { attrText: '', classText: 'fa fa-upload', tooltip: 'טעינת מסמכים' },
-];
+const ID = '034605212';
+const NAME_ON_SCREEN = 'סלע הדסה';
+const WHO = { entityId: ID, expectedClientName: 'הדסה סלע' };
+const fill = (s) => String(s).split('{ID}').join(ID).split('{NAME}').join(NAME_ON_SCREEN);
 
-// ── 1 · הפקד הנכון בשורה ────────────────────────────────────────────────────
+// ── רשימת הבקשות: הפקד הנכון בשורה (fixture חי) ─────────────────────────────
 
-test('1 · חץ «טעינת מסמכים» נבחר — לא PDF, לא מחיקה, לא פירוט', () => {
-  const r = pickUploadDocumentsControl(ACTIONS);
-  assert.equal(r.ok, true);
-  assert.equal(r.index, 3);
+test('רשימה · ה-DOM החי: נבחר <input class="icon upload"> — לא «ביטול הבקשה», לא PDF, לא «אירועים קודמים»', () => {
+  const r = pickUploadDocumentsControl(LIST_ROW.candidates);
+  assert.deepEqual([r.ok, r.index], [true, LIST_ROW.expectedIndex]);
 });
 
-test('1ב · הכרזה ב-title (בלי ריחוף) — אותו פקד', () => {
-  const r = pickUploadDocumentsControl([ACTIONS[0], { attrText: 'טעינת מסמכים', classText: 'icon', tooltip: '' }]);
-  assert.deepEqual([r.ok, r.index], [true, 1]);
+test('רשימה · פקד מוסתר (ng-hide) אינו מועמד, גם אם הוא אומר «טעינת מסמכים»', () => {
+  const hiddenOnly = LIST_ROW.candidates.map((c, i) => (i === LIST_ROW.expectedIndex ? { ...c, hidden: true } : c));
+  assert.equal(pickUploadDocumentsControl(hiddenOnly).reason, 'upload_action_not_found');
 });
 
-test('1ג · אף פקד לא מכריז «טעינת מסמכים» ⇒ עצירה; שניים ⇒ עצירה', () => {
-  assert.equal(pickUploadDocumentsControl(ACTIONS.slice(0, 3)).reason, 'upload_action_not_found');
-  const two = [...ACTIONS, { attrText: '', classText: 'k-i-upload', tooltip: 'טעינת מסמכים' }];
+test('רשימה · אף פקד או שניים ⇒ עצירה; tooltip שדלף למחיקה/PDF ⇒ לא נבחר', () => {
+  assert.equal(pickUploadDocumentsControl(LIST_ROW.candidates.slice(0, 5)).reason, 'upload_action_not_found');
+  const two = [...LIST_ROW.candidates, { attrText: '', classText: 'k-i-upload', tooltip: 'טעינת מסמכים' }];
   assert.equal(pickUploadDocumentsControl(two).reason, 'upload_action_ambiguous');
-});
-
-test('1ד · tooltip «טעינת מסמכים» שדלף לפקד מחיקה/PDF — לא נבחר', () => {
   const leaked = [
-    { attrText: 'מחיקת בקשה', classText: 'fa fa-times', tooltip: 'טעינת מסמכים' },
-    { attrText: 'צפייה בקובץ PDF', classText: 'fa-file-pdf-o', tooltip: 'טעינת מסמכים' },
+    { attrText: "'ביטול הבקשה'", classText: 'icon xmark', tooltip: 'טעינת מסמכים' },
+    { attrText: 'PDF', classText: 'icon adobe_pdf', tooltip: 'טעינת מסמכים' },
   ];
   assert.equal(pickUploadDocumentsControl(leaked).ok, false);
 });
 
-// ── 2/3/11 · הבקשה שנפתחה: זהות + מספר בקשה ─────────────────────────────────
-
-const CONTACT_SCREEN = 'בקשה לרישום ייפוי כוח חדש מספר בקשה: 2026538930 פרטי התקשרות למיוצג 034605212 - סלע הדסה טלפון נייד';
-const WHO = { entityId: '034605212', expectedClientName: 'הדסה סלע' };
-
-test('2/3 · המסך שנפתח — ת.ז. ושם מאומתים, ומספר הבקשה נקרא ממנו', () => {
-  const r = openedRequestIdentity(CONTACT_SCREEN, WHO);
-  assert.equal(r.ok, true);
-  assert.equal(r.requestNumber, '2026538930');
+test('רשימה · המועמדים נקראים מ-input/div עם type=button ו-k-content, והזרימה משתמשת באותו קורא', () => {
+  const line = SESSION.split('\n').find((l) => l.startsWith('export const ACTION_CANDIDATES = ')) ?? '';
+  for (const sel of ['input[type=button]', '[type=button]', '[kendo-tooltip]']) assert.ok(line.includes(sel), sel);
+  const d = fnBody(SESSION, 'export async function describeActionCandidates');
+  assert.ok(d.includes("'k-content'") && d.includes('ng-hide'));
+  const fn = fnBody(SESSION, 'export async function openRequestForDocuments');
+  assert.ok(fn.includes('describeActionCandidates(rowLoc)') && fn.includes('locator(ACTION_CANDIDATES).nth(pick.index)'));
+  assert.ok(fn.includes("systemLabel = 'מס הכנסה'") && fn.includes('singleAttributedRequest(found.rows)'));
+  // ‼ האיתור תמיד לפי ישות (המסלול שנבדק חי); מספר ידוע רק לאימות.
+  assert.ok(fn.includes("findRequestRows(page, { requestNumber: '', entityId, expectedClientName })"));
 });
 
-test('11 · לקוח/תיק אחר במסך שנפתח ⇒ עצירה', () => {
+// ── שלב 3: פרטי התקשרות (fixture חי) ───────────────────────────────────────
+
+test('שלב 3 · fixture חי: הנקודה הפעילה ברצועה + הכותרת ⇒ שלב 3 (לא טקסט הרצועה)', () => {
+  const dots = CONTACT.dots.filter((d) => /\bactive\b/.test(d.cls) && d.visible).map((d) => d.text);
+  assert.deepEqual(dots, ['3']);
+  const body = fill(CONTACT.headings.join(' ') + ' ' + CONTACT.strip);
+  assert.equal(wizardStepResolve({ dots, body, strip: CONTACT.strip }), 3);
+  assert.equal(wizardStepFromText(body, CONTACT.strip), 3, 'הכותרת לבדה מסכימה');
+});
+
+test('שלב 3 · נקודה פעילה וכותרת שסותרות ⇒ 0 (לא ממשיכים)', () => {
+  const body = fill(`${CONTACT.strip} טעינת מסמכים למיוצג {ID} - {NAME}`);
+  assert.equal(wizardStepResolve({ dots: ['3'], body, strip: CONTACT.strip }), 0);
+});
+
+test('שלב 3 · fixture חי: «המשך» הוא hemshech — לא «עדכון» ולא «חזרה»; מוסתרים לא נחשבים', () => {
+  assert.deepEqual(pickContinueButton(CONTACT.buttons), { ok: true });
+  const types = CONTACT.buttons.filter((b) => b.btntype && b.visible).map((b) => b.btntype);
+  assert.ok(types.includes('idkun') && types.includes('chazara'), 'עדכון וחזרה גלויים באותו מסך');
+  for (const t of NEVER_CLICK_BTNTYPES) assert.equal(pickContinueButton(CONTACT.buttons.filter((b) => b.btntype === t)).ok, false);
+  const twoVisible = [...CONTACT.buttons, { btntype: 'hemshech', label: 'המשך', visible: true, disabled: false }];
+  assert.equal(pickContinueButton(twoVisible).reason, 'continue_ambiguous');
+  const disabled = CONTACT.buttons.map((b) => (b.btntype === 'hemshech' ? { ...b, disabled: true } : b));
+  assert.equal(pickContinueButton(disabled).reason, 'continue_not_found');
+  const hiddenDup = [...CONTACT.buttons, { btntype: 'hemshech', label: 'המשך', visible: false, disabled: false }];
+  assert.deepEqual(pickContinueButton(hiddenDup), { ok: true });
+});
+
+test('שלב 3 · fixture חי: «כתובת מייל אינה תקינה» יושב בדיאלוג מוסתר — אינו שגיאה של המסך', () => {
+  const e = CONTACT.errors.find((x) => /כתובת מייל/.test(x.text));
+  assert.ok(e && e.visible === false && e.inModal === true, 'זה בדיוק מה שעצר את הניסיון השלישי');
+  assert.equal(CONTACT.errors.filter((x) => x.visible).length, 0);
+  const rse = fnBody(SESSION, 'export async function readScreenError');
+  assert.ok(rse.includes('.filter(visible)'), 'רק שגיאות גלויות');
+});
+
+test('שלב 3 · זהות + מספר בקשה מהמסך שנפתח; לקוח/תיק אחר ⇒ עצירה', () => {
+  const body = fill(CONTACT.headings.join(' '));
+  const r = openedRequestIdentity(body, WHO);
+  assert.deepEqual([r.ok, r.requestNumber], [true, '2026538930']);
   assert.equal(openedRequestIdentity('מספר בקשה: 2026495063 פרטי התקשרות למיוצג 312359193 - לזימי שמעון', WHO).ok, false);
-  // ‼ שם נכון בלי ת.ז. (או ת.ז. בלי שם) אינו מספיק לפעולה משנה.
   assert.equal(openedRequestIdentity('פרטי התקשרות למיוצג - סלע הדסה', WHO).ok, false);
   assert.equal(openedRequestIdentity('פרטי התקשרות למיוצג 034605212', WHO).ok, false);
 });
 
-test('3 · בלי מספר בקשה במסך שנפתח ⇒ לא ממשיכים (עוגן הזהות היחיד של הבקשה)', () => {
-  const fn = fnBody(SESSION, 'export async function openRequestForDocuments');
-  assert.ok(fn.includes("reason: 'request_number_not_on_screen'"));
-  assert.ok(fn.includes("reason: 'opened_wrong_request'"), 'מספר ידוע שאינו תואם ⇒ עצירה');
-});
-
-// ── 4 · פרטי התקשרות → «המשך», בלי לשנות דבר ───────────────────────────────
-
-test('4 · שלב 3: «המשך» — ובלי מילוי שדות או לחיצה על «שמירה»', () => {
+test('שלב 3 · «המשך» דרך clickHemshech בלבד; בלי «עדכון», מילוי שדות או «שמירה»', () => {
   const fn = fnBody(SESSION, 'export async function openRequestForDocuments');
   const step3 = fn.slice(fn.indexOf('if (step === 3)'), fn.indexOf('if (step !== 4)'));
-  assert.ok(step3.includes("clickExact(page, 'המשך')"));
-  for (const forbidden of ['setValue', 'fillContactDetails', "'שמירה'", 'setInputFiles', '.check(']) {
-    assert.ok(!step3.includes(forbidden), `שלב פרטי ההתקשרות אינו משנה דבר (${forbidden})`);
+  assert.ok(step3.includes('await clickHemshech(page)'));
+  for (const bad of ['idkun', 'setValue', 'fillContactDetails', "'שמירה'", 'setInputFiles', '.check(', "clickExact(page, 'המשך')"]) {
+    assert.ok(!step3.includes(bad), bad);
   }
-  assert.ok(fn.indexOf('openedRequestIdentity(') < fn.indexOf('if (step === 3)'), 'הזהות נבדקת לפני «המשך»');
+  assert.ok(fn.indexOf('openedRequestIdentity(') < fn.indexOf('if (step === 3)'), 'הזהות לפני «המשך»');
+  assert.ok(fn.includes("reason: 'request_number_not_on_screen'") && fn.includes("reason: 'opened_wrong_request'"));
 });
 
-// ── 5/6/8/9/13 · מסך טעינת המסמכים ──────────────────────────────────────────
+// ── שלב 4: טעינת מסמכים (לפי התבנית uploadKasafot.html) ──────────────────────
 
-const DOCS_OK = { identityOk: true, poaRows: 1, poaHasFile: false, plusControls: 1, spouseCheckboxes: 1 };
+const DOCS_OK = { identityOk: true, poaRows: 1, otherDocs: [], poaHasFile: false, plusControls: 1, spouseCheckboxes: 1, spouseLabelOnScreen: true, continueButtons: 1 };
 
-test('5/6 · «טופס ייפוי כוח» אחד, «+» אחד ⇒ ממשיכים', () => {
-  assert.deepEqual(documentsStepPlan({ ...DOCS_OK, spouseCheckboxes: 0 }), { ok: true, checkSpouse: false });
+test('שלב 4 · שורה אחת, «+» אחד, «המשך» אחד ⇒ ממשיכים; כל סטייה ⇒ עצירה לפני הנגיעה', () => {
+  assert.deepEqual(documentsStepPlan({ ...DOCS_OK, spouseCheckboxes: 0, spouseLabelOnScreen: false }), { ok: true, checkSpouse: false });
   assert.equal(documentsStepPlan({ ...DOCS_OK, poaRows: 0 }).reason, 'poa_row_not_found');
   assert.equal(documentsStepPlan({ ...DOCS_OK, poaRows: 2 }).reason, 'poa_row_ambiguous');
-  assert.equal(documentsStepPlan({ ...DOCS_OK, plusControls: 0 }).reason, 'upload_opener_not_found');
-  assert.equal(documentsStepPlan({ ...DOCS_OK, plusControls: 2 }).reason, 'upload_opener_ambiguous');
+  assert.equal(documentsStepPlan({ ...DOCS_OK, plusControls: 0 }, { spouseSignatureConfirmed: true }).reason, 'upload_opener_not_found');
   assert.equal(documentsStepPlan({ ...DOCS_OK, identityOk: false }).reason, 'documents_screen_identity_unverified');
+  assert.equal(documentsStepPlan({ ...DOCS_OK, continueButtons: 0 }, { spouseSignatureConfirmed: true }).reason, 'continue_not_found');
 });
 
-test('8 · נשואים + חתימות הוכחו ⇒ התיבה תסומן', () => {
-  assert.deepEqual(documentsStepPlan(DOCS_OK, { spouseSignatureConfirmed: true }), { ok: true, checkSpouse: true });
+test('שלב 4 · שע״ם דורשת מסמך נוסף (למשל תצלום ת.ז.) ⇒ לא מתחילים העלאה חלקית', () => {
+  const r = documentsStepPlan({ ...DOCS_OK, otherDocs: ['תצלום תעודת זהות או רישיון נהיגה'] }, { spouseSignatureConfirmed: true });
+  assert.equal(r.reason, 'other_documents_required');
 });
 
-test('9 · התיבה מוצגת ו-PIVO לא הוכיחה חתימת בן/בת זוג ⇒ עצירה לפני העלאה', () => {
-  assert.equal(documentsStepPlan(DOCS_OK, { spouseSignatureConfirmed: false }).reason, 'spouse_signature_not_proven');
-  assert.equal(documentsStepPlan(DOCS_OK, {}).reason, 'spouse_signature_not_proven');
-  assert.equal(documentsStepPlan({ ...DOCS_OK, spouseCheckboxes: 2 }, { spouseSignatureConfirmed: true }).reason, 'spouse_checkbox_ambiguous');
-});
-
-test('13 · כבר מופיע קובץ בשורת «טופס ייפוי כוח» ⇒ לא מעלים שוב', () => {
+test('שלב 4 · כבר נטען קובץ לשורה ⇒ לא מעלים שוב', () => {
   assert.equal(documentsStepPlan({ ...DOCS_OK, poaHasFile: true }, { spouseSignatureConfirmed: true }).reason, 'poa_already_uploaded');
 });
 
-test('8ב · התיבה מסומנת רק בנתיב שבו התוכנית אישרה, ורק אחרי שהקובץ מופיע', () => {
-  const fn = fnBody(SESSION, 'export async function confirmDocumentsStep');
-  assert.ok(fn.indexOf("reason: 'no_file_listed'") < fn.indexOf('if (checkSpouse)'), 'קודם הקובץ בשורה');
-  assert.ok(fn.indexOf('if (checkSpouse)') < fn.indexOf("clickExact(page, 'המשך')"), 'התיבה לפני «המשך»');
-  assert.ok(HANDLER.includes('checkSpouse: plan.checkSpouse'), 'הדגל מגיע מהתוכנית בלבד');
+test('שלב 4 · נשואים + הוכחה ⇒ התיבה תסומן; בלי הוכחה / בלי תיבה / שתי תיבות ⇒ עצירה', () => {
+  assert.deepEqual(documentsStepPlan(DOCS_OK, { spouseSignatureConfirmed: true }), { ok: true, checkSpouse: true });
+  assert.equal(documentsStepPlan(DOCS_OK, { spouseSignatureConfirmed: false }).reason, 'spouse_signature_not_proven');
+  assert.equal(documentsStepPlan({ ...DOCS_OK, spouseCheckboxes: 0 }, { spouseSignatureConfirmed: true }).reason, 'spouse_checkbox_not_found');
+  assert.equal(documentsStepPlan({ ...DOCS_OK, spouseCheckboxes: 2 }, { spouseSignatureConfirmed: true }).reason, 'spouse_checkbox_ambiguous');
 });
 
-// ── 7/12/14 · גבול הנגיעה, קובץ אחד, «המשך» אחד, «נשלח» רק על ראיה ─────────
-
-test('7 · הקובץ שנטען הוא המסמך החתום שהתבקש — משיכה אחת, העלאה אחת', () => {
-  assert.equal((HANDLER.match(/await getDocument\(/g) || []).length, 1);
-  assert.ok(HANDLER.includes('getDocument(ctx.workerId, ctx.job.id, documentId)'));
-  assert.ok(HANDLER.includes('buffer: doc.buffer'));
+test('שלב 4 · הבוררים לקוחים מהתבנית: .BoxA, input.plus, #dialogTeinatAsmachta, ng-model של התיבה', () => {
+  const probe = fnBody(SESSION, 'function poaRowProbe(mode)');
+  assert.ok(probe.includes("querySelectorAll('.BoxA')") && probe.includes("input[type=button].plus"));
+  assert.ok(probe.includes('.icon.checkmark') && probe.includes("querySelector('u')"), 'V + שם הקובץ = נטען');
+  assert.ok(probe.includes('if (out.plusControls !== 1 || out.poaHasFile) return { ...out, clicked: false };'));
+  assert.ok(SESSION.includes("const POA_DIALOG = '#dialogTeinatAsmachta';"));
   const up = fnBody(SESSION, 'export async function uploadSignedForm');
-  assert.equal((up.match(/setInputFiles\(/g) || []).length, 1);
-  assert.ok(up.includes("'file_input_ambiguous'"), 'שדה קובץ אחד בלבד');
+  assert.ok(up.includes("dialog.locator('input[type=file]')"), 'שדה הקובץ מתוך הדיאלוג הפתוח בלבד');
+  assert.ok(up.includes("'upload_dialog_ambiguous'") && up.includes("'file_input_ambiguous'"));
+  assert.equal((up.match(/setInputFiles\(/g) || []).length, 1, 'העלאה אחת');
+  assert.ok(up.includes('#errDiv'), 'שגיאת טעינה מתוך הדיאלוג');
+  const conf = fnBody(SESSION, 'export async function confirmDocumentsStep');
+  assert.ok(conf.includes('input[type=checkbox][ng-model="vm.isCheckeChatimatBz"]'));
+  assert.ok(conf.indexOf("reason: row.poaHasFile ? undefined : 'no_file_listed'") < conf.indexOf('if (checkSpouse)'));
+  assert.ok(conf.indexOf('if (checkSpouse)') < conf.indexOf('await clickHemshech(page)'));
+  assert.equal((conf.match(/await clickHemshech\(page\)/g) || []).length, 1, '«המשך» אחד בלבד');
 });
 
-test('12 · סדר: זהות ותוכנית → סימן נגיעה → «+»/העלאה → «המשך» אחד; כשל אחרי הנגיעה = לא ידוע', () => {
+test('שלב 4 · תיבת בן\\ת הזוג: הטקסט במסך נתפס עם לוכסן הפוך', () => {
+  const found = SESSION.match(/\/מאשר[^\n]*?הזוג\/(?=\.test)/g) || [];
+  assert.ok(found.length >= 1);
+  const re = new RegExp(found[0].slice(1, -1));
+  assert.ok(re.test(String.raw`אני מאשר את חתימת בן\ת הזוג על טופס ייפוי הכוח`));
+  assert.ok(re.test('אני מאשר את חתימת בן/ת הזוג על טופס ייפוי הכוח'));
+});
+
+// ── שלב 5: returnUpload — הראיה היחידה ל«נשלח» ──────────────────────────────
+
+const RETURN_BODY = fill('בקשה לרישום ייפוי כוח חדש מספר בקשה: 2026538930 אישור קליטת מסמכים למיוצג {ID} - {NAME} עכשיו תורנו... אנחנו בודקים כרגע את הקבצים שצירפת');
+
+test('שלב 5 · returnUpload + «אישור קליטת מסמכים למיוצג» + זהות ⇒ נשלח', () => {
+  const r = submissionAcceptedEvidence({ hash: '#/returnUpload', body: RETURN_BODY, statusLines: ['בקשתך תיקלט במערכת ותמתין לסיום השהייה'] }, WHO);
+  assert.equal(r.ok, true);
+  assert.equal(r.requestNumber, '2026538930');
+});
+
+test('שלב 5 · בלי המעבר, בלי הכותרת, או לקוח אחר ⇒ לא «נשלח»', () => {
+  assert.equal(submissionAcceptedEvidence({ hash: '#/uploadKasafot', body: RETURN_BODY }, WHO).reason, 'did_not_reach_final_step');
+  assert.equal(submissionAcceptedEvidence({ hash: '#/returnUpload', body: fill('עכשיו תורנו {ID} {NAME}') }, WHO).reason, 'final_heading_missing');
+  assert.equal(submissionAcceptedEvidence({ hash: '#/returnUpload', body: 'אישור קליטת מסמכים למיוצג 312359193 - לזימי שמעון' }, WHO).reason, 'final_screen_identity_unverified');
+  assert.equal(wizardStepFromText(RETURN_BODY, ''), 5, 'גם זיהוי השלב מכיר את כותרת ההצלחה');
+});
+
+// ── הגבול, פעם אחת, ו«נשלח» רק על ראיה ─────────────────────────────────────
+
+test('סדר · זהות ותוכנית → סימן נגיעה → «+»/העלאה → «המשך» אחד; כשל אחרי הנגיעה = לא ידוע', () => {
   const at = (needle) => { const i = HANDLER.indexOf(needle); assert.ok(i > 0, `חסר: ${needle}`); return i; };
   const gate = at('assertNotAlreadyAttempted(progress');
   const open = at('await openRequestForDocuments(');
@@ -147,110 +207,15 @@ test('12 · סדר: זהות ותוכנית → סימן נגיעה → «+»/ה
   assert.equal((HANDLER.match(/await confirmDocumentsStep\(/g) || []).length, 1);
   assert.ok(!/for\s*\(|while\s*\(|\.retry|attempt\s*\+\+/.test(HANDLER), 'אין לולאה ואין מונה ניסיונות');
   assert.ok(HANDLER.slice(mark).includes("'ambiguous_submit_result'"));
-  const conf = fnBody(SESSION, 'export async function confirmDocumentsStep');
-  assert.equal((conf.match(/clickExact\(page, 'המשך'\)/g) || []).length, 1, '«המשך» אחד בלבד');
+  assert.ok(HANDLER.includes('checkSpouse: plan.checkSpouse, entityId, expectedClientName: personName'));
 });
 
-test('14 · submitted=true רק אחרי ראיית שלב 5, במקום אחד', () => {
+test('נשלח · submitted=true במקום אחד, אחרי confirmDocumentsStep; ומספר הבקשה נשמר מיד', () => {
   assert.equal((HANDLER.match(/submitted: true,/g) || []).length, 1);
   assert.ok(HANDLER.lastIndexOf('submitted: true,') > HANDLER.indexOf('await confirmDocumentsStep('));
   const conf = fnBody(SESSION, 'export async function confirmDocumentsStep');
-  assert.ok(conf.includes('if (step !== 5)'));
-});
-
-test('3ב · מספר הבקשה שנקרא נשמר ב-progress לפני כל עצירה, ומוחזר בתוצאה', () => {
+  assert.ok(conf.includes('submissionAcceptedEvidence(state'), 'ההצלחה רק מראיית returnUpload');
   const save = HANDLER.indexOf('progress.set({ requestNumber: opened.requestNumber })');
-  assert.ok(save > 0 && save < HANDLER.indexOf('if (!opened.ok)'), 'נשמר גם כשעוצרים');
-  assert.ok(HANDLER.includes('requestNumber: opened.requestNumber || requestNumber'));
-});
-
-test('15 · הדסה סלע: שורת מס הכנסה של בקשה 2026538930, תיק 034605212', () => {
-  const fn = fnBody(SESSION, 'export async function openRequestForDocuments');
-  assert.ok(fn.includes("systemLabel = 'מס הכנסה'"), 'השורה שנלחצת היא של מס הכנסה');
-  assert.ok(fn.includes('singleAttributedRequest(found.rows)'), 'בקשה אחת בלבד לאדם');
-  const r = openedRequestIdentity(
-    'טעינת מסמכים למיוצג 034605212 - סלע הדסה יש לטעון את המסמכים הבאים: טופס ייפוי כוח מספר בקשה: 2026538930', WHO);
-  assert.deepEqual([r.ok, r.requestNumber], [true, '2026538930']);
-});
-
-// ── 16 · ה-DOM החי של עמודת «פעולות» (נקרא ב-23.09.2026, שורת מס הכנסה של הדסה) ──
-// ‼ הניסיון השני נעצר כאן: החץ הוא <input type="button">, והתווית שלו בתכונה
-// k-content — לא a/button/img ולא title. הרשימה כאן היא בדיוק מה שנמצא בתא.
-import { wizardStepFromText } from '../src/shaamRepresentationSession.mjs';
-
-const LIVE_ACTIONS = [
-  { attrText: "'אירועים קודמים'", classText: 'col-sm-1 icon details_icon ng-scope', hidden: false, tooltip: '' },
-  { attrText: "'ביטול הבקשה'", classText: 'col-sm-1 icon xmark ng-scope', hidden: false, tooltip: '' },
-  { attrText: '', classText: 'col-sm-1 icon ng-hide', hidden: true, tooltip: '' },
-  { attrText: "'טעינת מסמכים'", classText: 'col-sm-1 icon upload ng-scope', hidden: false, tooltip: '' },
-  { attrText: "'שחזור בקשה/PDF'", classText: 'col-sm-1 icon adobe_pdf ng-scope', hidden: false, tooltip: '' },
-  { attrText: "'ניתן לשחזר את הטופס רק לאחר מילוי פרטי התקשרות'", classText: 'col-sm-1 noclick icon adobe_pdf ng-scope ng-hide', hidden: true, tooltip: '' },
-  { attrText: "'הצגת מסמכים'", classText: 'col-sm-1 icon powerp ng-scope ng-hide', hidden: true, tooltip: '' },
-];
-
-test('16 · ה-DOM החי: נבחר <input class="icon upload"> — לא «ביטול הבקשה», לא PDF, לא «אירועים קודמים»', () => {
-  const r = pickUploadDocumentsControl(LIVE_ACTIONS);
-  assert.deepEqual([r.ok, r.index], [true, 3]);
-});
-
-test('16ב · פקד מוסתר (ng-hide) אינו מועמד, גם אם הוא אומר «טעינת מסמכים»', () => {
-  const hiddenOnly = LIVE_ACTIONS.map((c, i) => (i === 3 ? { ...c, hidden: true } : c));
-  assert.equal(pickUploadDocumentsControl(hiddenOnly).reason, 'upload_action_not_found');
-});
-
-test('16ג · המועמדים נקראים גם מ-input/div עם type=button, והתווית גם מ-k-content', () => {
-  const line = SESSION.split('\n').find((l) => l.startsWith('export const ACTION_CANDIDATES = ')) ?? '';
-  for (const sel of ['input[type=button]', '[type=button]', '[kendo-tooltip]']) {
-    assert.ok(line.includes(sel), `חסר ${sel} ברשימת המועמדים`);
-  }
-  const d = fnBody(SESSION, 'export async function describeActionCandidates');
-  assert.ok(d.includes("'k-content'"), 'התווית של Kendo');
-  assert.ok(d.includes('ng-hide'), 'גלויות בלבד');
-  const fn = fnBody(SESSION, 'export async function openRequestForDocuments');
-  assert.ok(fn.includes('describeActionCandidates(rowLoc)') && fn.includes('locator(ACTION_CANDIDATES).nth(pick.index)'), 'הזרימה משתמשת באותו קורא');
-});
-
-// ── 17 · שלב האשף: רצועת השלבים אינה כותרת ──────────────────────────────────
-
-const STRIP = '1 אימות ישות 2 בקשת ייפוי כוח 3 פרטי התקשרות 4 טעינת מסמכים 5 השהייה וסיום';
-const DOCS_PAGE = `בקשה לרישום ייפוי כוח חדש מספר בקשה: 2026538930 ${STRIP} טעינת מסמכים למיוצג 034605212 - סלע הדסה יש לטעון את המסמכים הבאים: * טופס ייפוי כוח + אני מאשר את חתימת בן\ת הזוג על טופס ייפוי הכוח המשך חזרה`;
-const CONTACT_PAGE = `בקשה לרישום ייפוי כוח חדש מספר בקשה: 2026538930 ${STRIP} פרטי התקשרות למיוצג 034605212 - סלע הדסה המשך חזרה`;
-
-test('17 · מסך טעינת המסמכים האמיתי ⇒ שלב 4 (לא 1 בגלל «אימות ישות» ברצועה)', () => {
-  assert.equal(wizardStepFromText(DOCS_PAGE, STRIP), 4);
-  assert.equal(wizardStepFromText(CONTACT_PAGE, STRIP), 3);
-});
-
-test('17ב · «השהייה וסיום» נחשב שלב 5 רק מחוץ לרצועה — אחרת «לא ידוע», לעולם לא «נשלח»', () => {
-  assert.equal(wizardStepFromText(`${STRIP} שגיאה כללית`, STRIP), 0);
-  assert.equal(wizardStepFromText(`${STRIP} שגיאה כללית`, ''), null);
-  assert.equal(wizardStepFromText(`${STRIP} השהייה וסיום למיוצג 034605212 - סלע הדסה`, STRIP), 5);
-  // בלי רצועה שהוסרה בפועל — לא מכריזים על 5.
-  assert.notEqual(wizardStepFromText('השהייה וסיום', ''), 5);
-});
-
-test('17ג · תיבת בן/ת הזוג כפי שמופיעה במסך (לוכסן הפוך) נתפסת — הביטוי נלקח מהקוד עצמו', () => {
-  // ‼ לא משכפלים את הביטוי: מוציאים אותו מהמקור, כך שהבדיקה בודקת את מה שרץ.
-  const found = SESSION.match(/\/מאשר[^\n]*?הזוג\/(?=\.test)/g) || [];
-  assert.equal(found.length, 3, 'אותו ביטוי: קריאה, סימון, וזיהוי הטקסט במסך');
-  assert.ok(found.every((x) => x === found[0]), 'אין שתי גרסאות של אותו ביטוי');
-  const re = new RegExp(found[0].slice(1, -1));
-  const screenLabel = String.raw`אני מאשר את חתימת בן\ת הזוג על טופס ייפוי הכוח`;
-  assert.ok(screenLabel.includes('\\'), 'הלייבל כולל לוכסן הפוך, כמו בצילום');
-  assert.ok(re.test(screenLabel));
-  assert.ok(re.test('אני מאשר את חתימת בן/ת הזוג על טופס ייפוי הכוח'));
-  assert.ok(!re.test('אני מאשר את פרטי ההתקשרות'));
-});
-
-test('17ד · המסך מבקש לאשר את חתימת בן/ת הזוג והתיבה לא נמצאה ⇒ עצירה לפני העלאה', () => {
-  const r = documentsStepPlan({ ...DOCS_OK, spouseCheckboxes: 0, spouseLabelOnScreen: true }, { spouseSignatureConfirmed: true });
-  assert.equal(r.reason, 'spouse_checkbox_not_found');
-});
-
-test('17ה · שורת «טופס ייפוי כוח» נמצאת מהתווית עצמה ועולה עד ה-«+» — פונקציה אחת לקריאה, ללחיצה ולאישור', () => {
-  assert.ok(SESSION.includes('function poaRowProbe(mode)'));
-  assert.equal((SESSION.match(/page\.evaluate\(poaRowProbe, 'read'\)/g) || []).length, 2, 'קריאה לפני הנגיעה + אישור אחריה');
-  assert.equal((SESSION.match(/page\.evaluate\(poaRowProbe, 'clickPlus'\)/g) || []).length, 1, 'לחיצה אחת בלבד');
-  const probe = fnBody(SESSION, 'function poaRowProbe(mode)');
-  assert.ok(probe.includes("if (out.plusControls !== 1) return { ...out, clicked: false };"), 'לא לוחצים כש-«+» אינו יחיד');
+  assert.ok(save > 0 && save < HANDLER.indexOf('if (!opened.ok)'));
+  assert.ok(HANDLER.includes('getDocument(ctx.workerId, ctx.job.id, documentId)') && HANDLER.includes('buffer: doc.buffer'));
 });

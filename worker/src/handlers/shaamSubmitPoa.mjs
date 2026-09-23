@@ -55,6 +55,11 @@ const BEFORE_TOUCH_STOPS = {
   upload_opener_not_found: 'פקד ה-«+» של «טופס ייפוי כוח» לא נמצא',
   upload_opener_ambiguous: 'יותר מפקד «+» אחד בשורת «טופס ייפוי כוח»',
   spouse_checkbox_ambiguous: 'יותר מתיבת אישור אחת לחתימת בן/בת הזוג',
+  other_documents_required: 'שע״ם דורשת בבקשה הזאת מסמך נוסף מלבד ייפוי הכוח',
+  continue_not_found: 'כפתור «המשך» לא נמצא (או מושבת) במסך',
+  continue_ambiguous: 'נמצא יותר מכפתור «המשך» אחד גלוי',
+  continue_label_mismatch: 'הכפתור שסומן «המשך» אינו נושא את הטקסט «המשך»',
+  contact_step_error: 'במסך פרטי ההתקשרות מוצגת שגיאה',
   spouse_checkbox_not_found: 'המסך מבקש לאשר את חתימת בן/בת הזוג, אבל תיבת האישור לא נמצאה',
   spouse_signature_not_proven: 'שע״ם מבקשת לאשר את חתימת בן/בת הזוג, ו-PIVO לא הוכיחה אותה בטופס החתום',
 };
@@ -196,7 +201,7 @@ export async function run(ctx, input) {
       );
     }
 
-    const confirmed = await confirmDocumentsStep(page, { checkSpouse: plan.checkSpouse });
+    const confirmed = await confirmDocumentsStep(page, { checkSpouse: plan.checkSpouse, entityId, expectedClientName: personName });
     if (!confirmed.ok) {
       // ‼ הקובץ אולי נקלט ואולי לא. לא «נשלח», ולא מעלים שוב.
       throw new NeedsHumanError(
@@ -215,6 +220,7 @@ export async function run(ctx, input) {
         requestNumber: opened.requestNumber || requestNumber || '',
         submitted: true,
         spouseConfirmationChecked: plan.checkSpouse,
+        statusLines: confirmed.statusLines ?? [],
         fileLine: confirmed.fileLine,
         summary: (confirmed.summary ?? '').slice(0, 400),
       },
