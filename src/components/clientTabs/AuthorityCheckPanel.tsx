@@ -164,6 +164,7 @@ export function AuthorityCheckSummary({
     parts.push(changed === 0 ? 'אין שינויים' : changed === 1 ? 'שינוי אחד' : `${changed} שינויים`);
     if (s.failed > 0) parts.push(s.failed === 1 ? 'שדה אחד לא נקרא' : `${s.failed} שדות לא נקראו`);
     if (s.unsupported > 0) parts.push(`${s.unsupported} טרם נתמכים`);
+    if ((s.notChecked ?? 0) > 0) parts.push(`${s.notChecked} לא נבדקו בריצה הזו`);
   }
   // ‼ בזמן ריצה אין עדיין מה לסכם — בלי זה נשארת מסגרת ריקה עם קו מפריד.
   const hasContent = parts.length > 0 || (result?.groupNotes.length ?? 0) > 0 || !!runError || !!result?.runError

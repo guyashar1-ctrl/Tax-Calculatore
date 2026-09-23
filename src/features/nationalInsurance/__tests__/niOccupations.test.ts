@@ -145,6 +145,23 @@ export const TESTS: TestCase[] = [
     equal(inc.patchValue, undefined, 'לא מוצע למחוק את 16,500');
   }),
 
+  test('עדכון לאדם אחד: השדות של האחר «לא נבדקו», לא «טרם נתמכים»', () => {
+    const client = { id: 'c', familyStatus: 'married' } as unknown as Client;
+    const cardFields = [...ALL_KEYS, { label: 'מספר תיק' }];
+    const check = buildAuthorityCheck(spec, job([personResult('client', 2062)]), client, cardFields)!;
+    equal(check.summary.notChecked, 7, 'שבעת השדות של בן/בת הזוג');
+    equal(check.summary.unsupported, 1, 'רק השורה שאין לה מקור');
+  }),
+
+  test('כשל של אדם: ההסבר פעם אחת — לא על כל שדה', () => {
+    const client = { id: 'c', familyStatus: 'married' } as unknown as Client;
+    const check = buildAuthorityCheck(spec, job([personResult('client', 2062),
+      { role: 'spouse', ok: false, errorCode: 'navigation_failed', error: 'לא הצלחתי לפתוח את התיק בביטוח לאומי' }]), client, ALL_KEYS)!;
+    const spouseFields = check.fields.filter(f => f.person === 'spouse');
+    assert(spouseFields.length === 7 && spouseFields.every(f => f.status === 'failed' && !f.error), 'אדום בלי משפט חוזר');
+    equal(check.runErrorByPerson?.spouse, 'לא הצלחתי לפתוח את התיק בביטוח לאומי');
+  }),
+
   test('מתאם: בן/בת זוג עם כרטיס משלו/ה לא נשלח/ת לקריאה מכאן', () => {
     const client = { id: 'c', idNumber: '123456782', familyStatus: 'married', firstName: 'א', lastName: 'ב' } as unknown as Client;
     const spouseClient = { id: 's', idNumber: '300000007', firstName: 'ג', lastName: 'ד' } as unknown as Client;

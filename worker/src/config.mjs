@@ -26,6 +26,14 @@ export const USER_ID = get('PIVO_USER_ID');
 export const WORKER_ID = get('PIVO_WORKER_ID') || 'worker-1';
 export const POLL_SECONDS = Number(get('PIVO_POLL_SECONDS') || 5);
 export const LEASE_SECONDS = Number(get('PIVO_LEASE_SECONDS') || 60);
+/**
+ * עובד נוסף על אותו מחשב (למשל מול סביבת הבדיקות) — ‼ ברירת המחדל היא
+ * ההתנהגות הרגילה. `PIVO_ONLY_ACTIONS` מצמצם את הפעולות שהעובד תופס;
+ * `PIVO_MONITOR=btl` מנטר רק את חלון ב"ל (בדיקה שאינה מנווטת) ולא נוגע
+ * בחלון שע״ם — שני מנטרים על אותו חלון היו מזיזים את הרו"ח מהמסך.
+ */
+export const ONLY_ACTIONS = (get('PIVO_ONLY_ACTIONS') || '').split(',').map(s => s.trim()).filter(Boolean);
+export const MONITOR_SCOPE = get('PIVO_MONITOR') === 'btl' ? 'btl' : 'all';
 
 const missing = [];
 if (!FUNCTION_URL) missing.push('PIVO_FUNCTION_URL');

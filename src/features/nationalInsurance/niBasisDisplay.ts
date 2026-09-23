@@ -51,7 +51,9 @@ export function niBasisView(b: NiInsuranceBasis, opts: { directMonthlyIncome?: n
   const monthly = b.periodBasis / Math.max(1, b.months);
   const base = {
     periodText: `${ils(b.periodBasis)} · ${niBasisPeriodText(b)}`,
-    monthlyText: `${ils(niDisplayRound(monthly))} לחודש`,
+    // ‼ «בסיס חודשי» ולא «X לחודש»: ליד «הכנסה מוצהרת 16,500 ₪ לחודש»,
+    // «15,861 ₪ לחודש» נקרא כמו הכנסה. זה בסיס — וכך הוא נקרא.
+    monthlyText: `בסיס חודשי ${ils(niDisplayRound(monthly))}`,
   };
   const r = niReverse({
     periodBasis: b.periodBasis,

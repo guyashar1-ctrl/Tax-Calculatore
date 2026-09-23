@@ -119,6 +119,8 @@ export interface AuthorityCheckSummary {
   changed: number;
   unsupported: number;
   failed: number;
+  /** שדות נתמכים שלא חזרו בריצה הזו (למשל האדם שלא נבחר בעדכון לאדם אחד). */
+  notChecked?: number;
 }
 
 export interface AuthorityCheckResult {
@@ -457,14 +459,13 @@ function interpretBtlFile(
     if (!p.ok) {
       // ‼ כשל של אדם שלם: סמן אדום לכל שדה, אבל **ההסבר פעם אחת** — בבלוק
       // של האדם (runErrorByPerson), לא אותו משפט מתחת לשישה שדות.
-      const error = p.error ?? 'לא הצלחתי לקרוא את התיק בביטוח לאומי.';
       for (const k of [keys.occupations, keys.incomeBasisMonthly, keys.advanceMonthly, keys.balance, keys.debitAuthorization, keys.insuranceBasis]) {
         push({ fieldKey: k, label: k, status: 'failed', currentValue: String(c[k] ?? ''), ...person });
       }
       // ‼ «לא נמצא ברשימת המיוצגים» היא תשובה, לא תקלה — מוצגת ליד «ייצוג».
       push(p.errorCode === 'not_found'
         ? { fieldKey: repKey, label: 'ייצוג', status: 'info', currentValue: '', authorityDisplay: 'לא נמצא ברשימת המיוצגים', ...person }
-        : { fieldKey: repKey, label: 'ייצוג', status: 'failed', currentValue: '', error, ...person });
+        : { fieldKey: repKey, label: 'ייצוג', status: 'failed', currentValue: '', ...person });
       continue;
     }
     const s = p.sections ?? {};
@@ -718,11 +719,15 @@ export function buildAuthorityCheck(
     return { fieldKey: f.fieldKey ?? '', label: f.label, status: 'unsupported', currentValue: '' };
   });
 
+  // ‼ «טרם נתמך» רק לשדה שאין לו מקור ברשות. שדה נתמך שלא חזר בריצה
+  // הזו (למשל האדם השני בעדכון לאדם אחד) — «לא נבדק», לא «לא נתמך».
+  const notReturned = fields.filter(f => f.status === 'unsupported');
   const summary: AuthorityCheckSummary = {
     checked: fields.filter(f => f.status === 'match' || f.status === 'changed' || f.status === 'info').length,
     changed: fields.filter(f => f.status === 'changed').length,
-    unsupported: fields.filter(f => f.status === 'unsupported').length,
+    unsupported: notReturned.filter(f => !supported.has(f.fieldKey)).length,
     failed: fields.filter(f => f.status === 'failed').length,
+    notChecked: notReturned.filter(f => supported.has(f.fieldKey)).length,
   };
 
   let runError: string | null = null;

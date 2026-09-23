@@ -3,7 +3,7 @@
 // לא Playwright, לא דפדפן, לא שע״ם — אבן דרך 1 מוכיחה רק את הצנרת. ראה
 // docs/PIVO-AUTOMATION-FOUNDATION.html לארכיטקטורה המלאה ול-worker/README.md
 // להרצה.
-import { USER_ID, WORKER_ID, POLL_SECONDS, LEASE_SECONDS } from './config.mjs';
+import { USER_ID, WORKER_ID, POLL_SECONDS, LEASE_SECONDS, ONLY_ACTIONS, MONITOR_SCOPE } from './config.mjs';
 import { claim, heartbeat, complete, fail } from './apiClient.mjs';
 import { handlerFor, supportedActionTypes } from './dispatcher.mjs';
 import { NeedsHumanError, PermanentError } from './errors.mjs';
@@ -80,7 +80,7 @@ async function runJob(job) {
 }
 
 async function tick() {
-  const actionTypes = supportedActionTypes();
+  const actionTypes = ONLY_ACTIONS.length ? supportedActionTypes().filter(a => ONLY_ACTIONS.includes(a)) : supportedActionTypes();
   const j = await claim(USER_ID, WORKER_ID, actionTypes, LEASE_SECONDS).catch((e) => {
     log('✗ claim נכשל (רשת?):', e?.message ?? e);
     return { ok: false };
@@ -100,13 +100,14 @@ async function tick() {
 
 async function main() {
   log(`עובד אוטומציה PIVO · worker=${WORKER_ID} · v${VERSION}`);
-  log(`פעולות נתמכות: ${supportedActionTypes().join(', ') || '(אין)'}`);
+  const claimed = ONLY_ACTIONS.length ? supportedActionTypes().filter(a => ONLY_ACTIONS.includes(a)) : supportedActionTypes();
+  log(`פעולות נתמכות: ${claimed.join(', ') || '(אין)'}${MONITOR_SCOPE === 'btl' ? ' · ניטור: ב״ל בלבד' : ''}`);
   log(`תשאול כל ${POLL_SECONDS}s · חכירה ${LEASE_SECONDS}s`);
   while (!stopping) {
     const found = await tick();
     // ניטור החיבור רץ באותה לולאה ולא בטיימר נפרד — כדי ששני הדברים לא
     // ייגעו ב-Chrome בו-זמנית ויתחרו על אותו חיבור CDP.
-    await tickConnectionMonitor(USER_ID, WORKER_ID, log).catch((e) =>
+    await tickConnectionMonitor(USER_ID, WORKER_ID, log, { scope: MONITOR_SCOPE }).catch((e) =>
       log('ניטור חיבור נכשל:', e?.message ?? e));
     if (!found && !stopping) await sleep(POLL_SECONDS * 1000);
   }

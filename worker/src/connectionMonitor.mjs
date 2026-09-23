@@ -161,14 +161,14 @@ async function checkBtl(now, log) {
   }
 }
 
-export async function tickConnectionMonitor(userId, workerId, log) {
+export async function tickConnectionMonitor(userId, workerId, log, { scope = 'all' } = {}) {
   const now = Date.now();
   if (now - lastCheck < LOCAL_CHECK_MS) return;
   lastCheck = now;
 
   let shaam = false;
 
-  const conn = await attach();
+  const conn = scope === 'btl' ? { ok: false, reason: 'out_of_scope' } : await attach();
   // ‼ חלון סגור = סוף מחזור החיים. 'blocked' (דיאלוג אישור פתוח) אינו סגירה.
   if (!conn.ok && conn.reason === 'not_running') resetShaamLifecycle(log, 'החלון הייעודי סגור');
 

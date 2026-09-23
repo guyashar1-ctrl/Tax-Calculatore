@@ -9,7 +9,7 @@
 import { attachBtl, detachBtl, pickBtlPage, classifyBtlAuth, probeBtlSession } from '../btlSession.mjs';
 import {
   BtlSessionLost, openRepresentedInsured, readInfoSummary, openOccupationList,
-  drillOccupationSegment, openIncomeList, openDebitAuthorizations, openRealValueLedger,
+  drillOccupationSegment, openIncomeList, openDebitAuthorizations, openRealValueLedger, returnToRepresentedHome,
 } from '../btlInsuredSession.mjs';
 import { readSubjects, maskId } from '../btlFileSync.mjs';
 import { NeedsHumanError, PermanentError } from '../errors.mjs';
@@ -49,6 +49,7 @@ export async function run(ctx, input) {
 
   const conn = await attachBtl();
   if (!conn.ok) throw new NeedsHumanError(NOT_READY, 'btl_connection_not_ready');
+  let touchedPage = null;
   try {
     // ‼ הלשונית של «מערכת ייצוג לקוחות» עצמה — לא לשונית עזרה (תרמי״ל)
     // שיושבת על אותו דומיין. ‼ ובכוונה **לא** לשונית חדשה ונסתרת: המבוטח
@@ -72,6 +73,7 @@ export async function run(ctx, input) {
     };
 
     ctx.log(`קורא תיק מבוטח · ${subjects.map(s => `${s.role}:${maskId(s.idNumber)}`).join(' · ')} · נכון ל-${asOf}`);
+    touchedPage = page;
     const { persons, sessionLost } = await readSubjects(portal, subjects, { asOf, log: ctx.log });
 
     for (const p of persons) {
@@ -92,6 +94,10 @@ export async function run(ctx, input) {
     if (e instanceof BtlSessionLost) throw new NeedsHumanError(NOT_READY, 'btl_connection_not_ready');
     throw e;
   } finally {
+    if (touchedPage) {
+      const back = await returnToRepresentedHome(touchedPage);
+      ctx.log(back ? 'החלון הוחזר לדף «מיוצגים» (בלי מבוטח נבחר)' : 'לא הצלחתי להחזיר את החלון לדף «מיוצגים»');
+    }
     await detachBtl(conn.browser);
   }
 }

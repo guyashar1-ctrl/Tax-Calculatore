@@ -165,12 +165,20 @@ export async function openRepresentedInsured(page, idNumber) {
     await settle(page, 800);
     await assertStillConnected(page);
 
-    const tables = await waitForTable(page, SEARCH_HEADERS, 15000);
-    if (!tables) {
-      const text = await bodyText(page);
-      if (/נמצאו\s*0\s*רשומות/.test(text) || /לא\s*נמצאו/.test(text)) return { ok: false, reason: 'not_found', steps };
-      return { ok: false, reason: 'search_results_not_found', steps };
+    // ‼ נצפה חי (23.09.2026): ת.ז. שאינה ברשימת המיוצגים לא מחזירה טבלה
+    // ריקה אלא «הודעת שגיאה — אינך מורשה לבצע פעולות עבור המבוטח… או שהזנת
+    // פרטים חסרים או שגויים». זו תשובה («לא מיוצג אצלך»), לא תקלה — ומזהים
+    // אותה מיד במקום לחכות לטבלה שלא תגיע.
+    const NOT_REPRESENTED = /אינך מורשה לבצע פעולות עבור המבוטח|נמצאו\s*0\s*רשומות|לא\s*נמצאו\s*רשומות/;
+    let tables = null;
+    const deadline = Date.now() + 15000;
+    while (Date.now() < deadline) {
+      const t = await scrapeTables(page).catch(() => []);
+      if (t.some(x => SEARCH_HEADERS.every(h => x.headerCells.includes(h)))) { tables = t; break; }
+      if (NOT_REPRESENTED.test(await bodyText(page))) return { ok: false, reason: 'not_found', steps };
+      await page.waitForTimeout(500);
     }
+    if (!tables) return { ok: false, reason: 'search_results_not_found', steps };
     const row = findRepresentedRow(tables, idNumber);
     if (!row.found) return { ok: false, reason: row.reason, steps };
 
@@ -262,6 +270,19 @@ export async function drillOccupationSegment(page, rowIndex) {
   }
   if (!returned) returned = (await openOccupationList(page)).ok;
   return { ok: true, tables, returned };
+}
+
+/**
+ * בסוף ריצה: החלון חוזר לדף «מיוצגים» — בלי מבוטח נבחר בכותרת (נצפה
+ * בהקלטה: הכותרת ריקה שם). ‼ כך הרו"ח שחוזר לחלון לא מוצא את עצמו על מצב
+ * החשבון של מבוטח שהוא לא פתח. הניסיון בלבד — כשל כאן אינו כשל של הקריאה.
+ */
+export async function returnToRepresentedHome(page) {
+  try {
+    await byExactName(page, 'מיוצגים').click({ timeout: 8000 });
+    await settle(page, 400);
+    return true;
+  } catch { return false; }
 }
 
 export function openIncomeList(page) {
