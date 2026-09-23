@@ -90,30 +90,4 @@ test('29 · הטופס כבר שודר ⇒ אין שידור שני', async () =
   );
 });
 
-test('29 · סדר ההגנות בקוד: ייחוס ואימות המסך — לפני סימון הנגיעה; העלאה והמשך — פעם אחת', () => {
-  const s = src('../src/handlers/shaamSubmitPoa.mjs');
-  const at = (needle) => { const i = s.indexOf(needle); assert.ok(i > 0, `חסר: ${needle}`); return i; };
-  const gate = at('assertNotAlreadyAttempted(progress');
-  const locate = at('await openRequestForDocuments(');
-  const ambiguous = at("opened.reason === 'ambiguous_request'");
-  const unverified = at("opened.reason === 'cannot_verify_opened_request'");
-  const mark = at("markExternalAttempt('upload_signed_form')");
-  const upload = at('await uploadSignedForm(');
-  assert.ok(gate < locate && locate < ambiguous && ambiguous < mark && unverified < mark && mark < upload,
-    'שער «כבר נוסה» → איתור → עצירות זהות → סימון נגיעה → העלאה');
-  assert.equal((s.match(/await uploadSignedForm\(/g) || []).length, 1, 'העלאה אחת בלבד');
-  assert.equal((s.match(/await confirmDocumentsStep\(/g) || []).length, 1, '«המשך» אחד בלבד');
-  assert.ok(!/for\s*\(|while\s*\(|\.retry|attempt\s*\+\+/.test(s), 'אין לולאה ואין מונה ניסיונות');
-  // ‼ «נשלח» רק אחרי ראיית קליטה, ותוצאה לא ודאית אינה «נשלח».
-  assert.ok(s.lastIndexOf('submitted: true,') > s.indexOf('await confirmDocumentsStep('), 'submitted רק אחרי האישור');
-  assert.equal((s.match(/submitted: true,/g) || []).length, 1, 'מקום אחד בלבד מחזיר submitted');
-  assert.ok(s.slice(mark).includes("'ambiguous_submit_result'"), 'כשל אחרי הנגיעה = תוצאה לא ידועה');
-});
-
-test('29 · בסשן: ניסיון בלי מספר לוחץ על השורה שיוחסה, ומאמת את המסך לפני שחוזר', () => {
-  const s = src('../src/shaamRepresentationSession.mjs');
-  const fn = s.slice(s.indexOf('export async function openRequestForDocuments'));
-  assert.ok(fn.includes('singleAttributedRequest(found.rows)'), 'ייחוס חד-משמעי לפני לחיצה');
-  assert.ok(fn.indexOf('openedScreenMatches(') > fn.indexOf('currentWizardStep(page)'), 'אימות המסך אחרי הפתיחה');
-  assert.ok(!fn.slice(0, fn.indexOf('\n}')).includes('uploadSignedForm'), 'הפונקציה מנווטת בלבד');
-});
+// ‼ סדר ההגנות בקוד ומסלול המסכים — ב-shaam-submit-real-flow.test.mjs.

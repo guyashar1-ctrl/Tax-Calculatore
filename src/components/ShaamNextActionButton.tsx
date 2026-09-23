@@ -27,6 +27,7 @@ import { shaamPersonFacts, shaamBirthDateInput } from '../features/representatio
 import type { ShaamRepresentationAction } from '../features/taxFile/shaamRepresentationAction';
 import { signatureDocumentsOf } from '../utils/repDocuments';
 import { shaamStopState } from '../features/representation/shaamJobSafety';
+import { spouseSignatureProof } from '../features/representation/shaamSpouseConfirmation';
 import ShaamStopNotice from './ShaamStopNotice';
 
 interface Props {
@@ -156,6 +157,9 @@ export default function ShaamNextActionButton({
         entityId: person.idNumber.replace(/\D/g, ''),
         personName: person.name,
         signedDocumentId: doc.signedPdfStoredId,
+        // ‼ העובד מסמן את תיבת «אני מאשר את חתימת בן/ת הזוג» רק על הדגל הזה,
+        // ועוצר לפני העלאה אם שע״ם מציגה את התיבה והדגל חסר.
+        spouseSignatureConfirmed: spouseSignatureProof(request, linkedClient, doc, married).ok,
         alreadySubmittedAt: tracking?.submittedAt ?? null,
       }, { acknowledgeExternal });
       return;

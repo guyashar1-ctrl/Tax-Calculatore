@@ -597,83 +597,7 @@ export async function fetchGeneratedForm(page, { alreadyCaptured } = {}) {
 
 // ── שלב 4: טעינת המסמך החתום ────────────────────────────────────────────────
 
-/**
- * מעלה את טופס ייפוי הכוח החתום בשורה «טופס ייפוי כוח».
- *
- * ‼ הקובץ נמסר כ-Buffer ונכתב ל-`input[type=file]` דרך Playwright —
- * בלי חלון בחירת קבצים של מערכת ההפעלה, ובלי לשמור אותו על הדיסק.
- * ‼ אין כאן הכרזת הצלחה: `confirmDocumentsStep` היא שקוראת את הראיה.
- */
-export async function uploadSignedForm(page, { fileName, buffer }) {
-  const step = await currentWizardStep(page);
-  if (step !== 4) return { ok: false, reason: 'not_on_documents_step', currentStep: step, step: 'upload' };
 
-  // פתיחת מסך הטעינה של השורה — כפתור «+» בשורת «טופס ייפוי כוח».
-  const opened = await page.evaluate(() => {
-    const clean = (s) => (s || '').replace(/\s+/g, ' ').trim();
-    const rows = [...document.querySelectorAll('tr, .row, li, div')]
-      .filter((r) => /^\*?\s*טופס\s+ייפוי\s+כוח\s*$/.test(clean(r.textContent)));
-    const row = rows[rows.length - 1];   // הפנימי ביותר
-    if (!row) return { ok: false, reason: 'poa_row_not_found' };
-    const holder = row.closest('tr') || row.parentElement;
-    const btn = [...(holder?.querySelectorAll('a, button, input[type=button], img, i, span') ?? [])]
-      .find((e) => /^\+$/.test(clean(e.textContent)) || /הוספ|טעינ|צרף/.test(clean(e.getAttribute?.('title') || e.getAttribute?.('alt') || '')));
-    if (!btn) return { ok: false, reason: 'upload_opener_not_found' };
-    btn.click();
-    return { ok: true };
-  });
-  if (!opened.ok) return { ...opened, step: 'upload_open' };
-  await page.waitForTimeout(800);
-
-  const fileInput = page.locator('input[type=file]').first();
-  const present = await fileInput.waitFor({ state: 'attached', timeout: 10000 }).then(() => true).catch(() => false);
-  if (!present) return { ok: false, reason: 'file_input_not_found', step: 'upload_open' };
-
-  await fileInput.setInputFiles({ name: fileName, mimeType: 'application/pdf', buffer });
-  await settle(page, { idleMs: 25000 });
-
-  const err = await readScreenError(page);
-  if (err) return { ok: false, reason: 'upload_rejected', detail: err, step: 'upload' };
-
-  // סוגרים את חלון הטעינה אם נשאר פתוח.
-  const close = byExactName(page, 'סגירה');
-  if (await close.count().catch(() => 0)) await close.click({ timeout: 5000 }).catch(() => {});
-  await settle(page);
-  return { ok: true };
-}
-
-/**
- * הראיה שהמסמך נקלט: שורת «טופס ייפוי כוח» מציגה שם קובץ, והאשף מתקדם
- * אחרי «המשך».
- *
- * ‼ זו הפונקציה שמכריעה «נשלח לשע״ם». בלי הראיה הזאת — לא נשלח, נקודה.
- */
-export async function confirmDocumentsStep(page) {
-  const attached = await page.evaluate(() => {
-    const clean = (s) => (s || '').replace(/\s+/g, ' ').trim();
-    const rows = [...document.querySelectorAll('tr')]
-      .filter((r) => /טופס\s+ייפוי\s+כוח/.test(clean(r.textContent)));
-    if (!rows.length) return { ok: false, reason: 'poa_row_not_found' };
-    const text = clean(rows[rows.length - 1].textContent);
-    const hasFile = /\.pdf/i.test(text);
-    return { ok: hasFile, reason: hasFile ? undefined : 'no_file_listed', text: text.slice(0, 200) };
-  });
-  if (!attached.ok) return { ...attached, step: 'documents_confirm' };
-
-  const go = await clickExact(page, 'המשך');
-  if (!go.ok) return { ...go, step: 'documents_confirm' };
-  await settle(page, { idleMs: 25000 });
-
-  const err = await readScreenError(page);
-  if (err) return { ok: false, reason: 'documents_continue_error', detail: err, step: 'documents_confirm' };
-
-  const step = await currentWizardStep(page);
-  if (step !== 5) {
-    return { ok: false, reason: 'did_not_reach_final_step', detail: `שלב נוכחי: ${step}`, step: 'documents_confirm' };
-  }
-  const summary = await page.evaluate(() => (document.body.innerText || '').replace(/\s+/g, ' ').slice(0, 600));
-  return { ok: true, fileLine: attached.text, summary };
-}
 
 // ── רשימת הבקשות: קריאת מצב ─────────────────────────────────────────────────
 
@@ -936,69 +860,299 @@ export function openedScreenMatches(bodyText, { entityId, expectedClientName }) 
   return !!expectedClientName && nameMatches(text, expectedClientName);
 }
 
+// ── המשך בקשה קיימת: רשימה → «טעינת מסמכים» → פרטי התקשרות → מסמכים ──────
+//
+// ‼ 23.09.2026 · נבנה מחדש לפי המסכים האמיתיים (צילומי מסך של גיא, בקשה
+// 2026538930 של הדסה סלע), אחרי שהניסיון החי הראשון נעצר ברשימה עצמה —
+// לפני כל לחיצה ולפני כל העלאה:
+//   1. ברשימת «בקשות בתהליך», בעמודת «פעולות» של השורה, יש כמה סמלים:
+//      PDF, מחיקה (X), פירוט — וחץ העלאה שהריחוף עליו אומר «טעינת מסמכים».
+//      רק החץ הזה. הקוד הישן חיפש רק a/button/img עם title, ולא מצא.
+//   2. הלחיצה פותחת «בקשה לרישום ייפוי כוח חדש» בשלב **3** («פרטי
+//      התקשרות למיוצג <ת.ז.> - <שם>»), לא בשלב 4. מספר הבקשה **מוצג** כאן
+//      («מספר בקשה: 2026538930») — גם כשהרשימה לא הציגה אותו.
+//   3. «המשך» בלי לשנות דבר ⇒ שלב 4, «טעינת מסמכים למיוצג <ת.ז.> - <שם>»,
+//      שורת «טופס ייפוי כוח» עם «+», ותיבת «אני מאשר את חתימת בן/ת הזוג על
+//      טופס ייפוי הכוח».
+
+const UPLOAD_ACTION_RE = /טעינת\s*מסמכים/;
+/** סמלים אחרים באותה עמודה — לעולם לא נלחצים בזרימה הזאת. */
+const FORBIDDEN_ACTION_RE = /pdf|delete|remove|trash|close|times|cancel|מחיק|מחק|ביטול|הדפס|print|צפי|view|info|details|פירוט/i;
+
 /**
- * פותח בקשה קיימת בשלב «טעינת מסמכים».
- *
- * ‼ שני מסלולים לאיתור, ושניהם נעצרים לפני העלאה אם הזהות אינה מבוססת:
- *   · יש מספר בקשה — השורה שמכילה אותו, והמספר במסך שנפתח חייב להתאים.
- *   · אין מספר (הוא לא מוצג ברשימה) — חיפוש לפי ישות, ייחוס לפי שם,
- *     singleAttributedRequest, לחיצה על **אותה שורה בדיוק** (לפי מיקומה),
- *     ואז openedScreenMatches על המסך שנפתח.
- * כל זה ניווט בלבד. שום דבר לא נטען לשע״ם בפונקציה הזאת.
+ * בוחר את פקד «טעינת מסמכים» מבין הפקדים בעמודת הפעולות — או עוצר.
+ * ‼ טהורה. כל מועמד מתואר בטקסט שלו: תכונות (title/aria/alt/...), מחלקות,
+ * ו-tooltip שהופיע בריחוף. בדיוק מועמד אחד שמכריז «טעינת מסמכים», ואינו
+ * נושא סימן של פעולה אחרת (PDF/מחיקה/פירוט). אפס או יותר מאחד ⇒ עצירה.
  */
-export async function openRequestForDocuments(page, { requestNumber, entityId, expectedClientName }) {
+export function pickUploadDocumentsControl(candidates) {
+  const list = Array.isArray(candidates) ? candidates : [];
+  const says = (c) => UPLOAD_ACTION_RE.test(`${c?.attrText ?? ''} ${c?.tooltip ?? ''}`);
+  const forbidden = (c) => FORBIDDEN_ACTION_RE.test(`${c?.attrText ?? ''} ${c?.classText ?? ''}`)
+    && !UPLOAD_ACTION_RE.test(c?.attrText ?? '');
+  const hits = list.map((c, i) => ({ c, i })).filter(({ c }) => says(c) && !forbidden(c));
+  if (hits.length === 0) return { ok: false, reason: 'upload_action_not_found' };
+  if (hits.length > 1) return { ok: false, reason: 'upload_action_ambiguous' };
+  return { ok: true, index: hits[0].i };
+}
+
+/**
+ * המסך שנפתח שייך לאדם שלנו — **גם** ת.ז. **וגם** שם מלא.
+ * ‼ לפעולה משנה, קשוח יותר מ-openedScreenMatches: כותרת המסך האמיתית היא
+ * «פרטי התקשרות למיוצג 034605212 - סלע הדסה», ושני הרכיבים חייבים להופיע.
+ */
+export function openedRequestIdentity(bodyText, { entityId, expectedClientName }) {
+  const text = String(bodyText ?? '').replace(/\s+/g, ' ');
+  const id = String(entityId ?? '').replace(/\D/g, '');
+  const bare = id.replace(/^0+/, '');
+  const digits = text.match(/\d{5,9}/g) ?? [];
+  const idOk = !!id && digits.some((d) => d === id || (bare && d.replace(/^0+/, '') === bare));
+  const nameOk = !!expectedClientName && nameMatches(text, expectedClientName);
+  const m = /מספר\s*בקשה\s*:?\s*(\d{6,})/.exec(text);
+  return { ok: idOk && nameOk, idOk, nameOk, requestNumber: m ? m[1] : null };
+}
+
+/**
+ * ההחלטה על מסך «טעינת מסמכים» — לפני שנוגעים בשע״ם. טהורה.
+ * ‼ כל עצירה כאן קורית **לפני** סימן הנגיעה ולפני העלאה.
+ */
+export function documentsStepPlan(state, { spouseSignatureConfirmed } = {}) {
+  if (!state?.identityOk) return { ok: false, reason: 'documents_screen_identity_unverified' };
+  if (state.poaRows !== 1) return { ok: false, reason: state.poaRows ? 'poa_row_ambiguous' : 'poa_row_not_found' };
+  // ‼ כבר נטען קובץ לשורה — לא מעלים שני. ההחלטה חוזרת לאדם/לבדיקה.
+  if (state.poaHasFile) return { ok: false, reason: 'poa_already_uploaded' };
+  if (state.plusControls !== 1) return { ok: false, reason: state.plusControls ? 'upload_opener_ambiguous' : 'upload_opener_not_found' };
+  if (state.spouseCheckboxes > 1) return { ok: false, reason: 'spouse_checkbox_ambiguous' };
+  // ‼ התיבה מסומנת רק כש-PIVO הוכיחה את חתימת בן/בת הזוג בטופס הסופי.
+  if (state.spouseCheckboxes === 1 && spouseSignatureConfirmed !== true) {
+    return { ok: false, reason: 'spouse_signature_not_proven' };
+  }
+  return { ok: true, checkSpouse: state.spouseCheckboxes === 1 };
+}
+
+/** מצב מסך «טעינת מסמכים», קריאה בלבד. */
+async function readDocumentsStep(page, { entityId, expectedClientName }) {
+  const raw = await page.evaluate(() => {
+    const clean = (s) => (s || '').replace(/\s+/g, ' ').trim();
+    const poaRows = [...document.querySelectorAll('tr, li, .row')]
+      .filter((r) => /טופס\s+ייפוי\s+כוח/.test(clean(r.textContent)) && clean(r.textContent).length < 200)
+      .filter((r) => r.offsetParent !== null)
+      .filter((r, _, all) => !all.some((o) => o !== r && r.contains(o)));   // הפנימי ביותר
+    const row = poaRows[0];
+    const rowText = row ? clean(row.textContent) : '';
+    const isPlus = (e) => /^\+$/.test(clean(e.textContent))
+      || /(^|[\s-])(plus|add)([\s-]|$)|fa-plus|k-i-plus|icon-plus/i.test(String(e.className?.baseVal ?? e.className ?? ''))
+      || /הוספ|טעינ|צרף/.test(clean(e.getAttribute?.('title') || e.getAttribute?.('aria-label') || e.getAttribute?.('alt') || ''));
+    const plus = row ? [...row.querySelectorAll('a, button, input[type=button], img, i, span, svg')].filter(isPlus)
+      .filter((e, _, all) => !all.some((o) => o !== e && e.contains(o))) : [];
+    const spouseBoxes = [...document.querySelectorAll('input[type=checkbox]')].filter((b) => b.offsetParent !== null || b.closest('label')?.offsetParent !== null).filter((b) => {
+      const holder = b.closest('label, tr, .row, .form-group, div');
+      return /מאשר\s+את\s+חתימת\s+בן\s*\/?\s*ת?\s*הזוג/.test(clean(holder?.textContent));
+    });
+    return {
+      body: document.body.innerText || '',
+      poaRows: poaRows.length,
+      poaHasFile: /\.pdf/i.test(rowText),
+      plusControls: plus.length,
+      spouseCheckboxes: spouseBoxes.length,
+      spouseChecked: spouseBoxes.length === 1 ? spouseBoxes[0].checked : null,
+    };
+  });
+  const id = openedRequestIdentity(raw.body, { entityId, expectedClientName });
+  return { ...raw, body: undefined, identityOk: id.ok, requestNumber: id.requestNumber };
+}
+
+/**
+ * פותח בקשה קיימת עד מסך «טעינת מסמכים», ומחזיר את מספר הבקשה שנקרא מהמסך.
+ *
+ * ‼ ניווט בלבד. «המשך» בשלב 3 אינו משנה דבר (לא נוגעים בשדות); שום קובץ
+ * אינו נטען כאן. כל עצירה ⇒ «שום דבר לא נשלח».
+ * ‼ הייחוס: עם מספר — השורה שמכילה אותו; בלי — ישות + שם, בקשה אחת
+ * (singleAttributedRequest), ושורת **מס הכנסה** שלה (הפעולה פותחת את
+ * הבקשה כולה, אבל נבחרת השורה שהתבקשה, לא «הראשונה»).
+ */
+export async function openRequestForDocuments(page, { requestNumber, entityId, expectedClientName, systemLabel = 'מס הכנסה' }) {
   const want = String(requestNumber ?? '').replace(/\D/g, '');
-  if (!want && !(entityId && expectedClientName)) {
-    return { ok: false, reason: 'cannot_attribute', detail: 'אין מספר בקשה, ואין ישות ושם לייחוס', step: 'resume' };
+  if (!entityId || !expectedClientName) {
+    return { ok: false, reason: 'cannot_attribute', detail: 'אין ת.ז. ושם לאימות הבקשה שנפתחת', step: 'resume' };
   }
   const found = await findRequestRows(page, { requestNumber: want, entityId, expectedClientName });
   if (!found.ok) return found;
   if (found.rows.length === 0) return { ok: false, reason: 'request_not_found_in_list', step: 'resume' };
 
-  let target = null;
-  if (!want) {
-    const single = singleAttributedRequest(found.rows);
-    if (!single.ok) return { ...single, step: 'resume' };
-    target = { tableIndex: single.row.tableIndex, trIndex: single.row.trIndex };
+  const single = singleAttributedRequest(found.rows);
+  if (!single.ok) return { ...single, step: 'resume' };
+  const norm = (s) => String(s ?? '').replace(/["'״׳]/g, '').replace(/\s+/g, ' ').trim();
+  const targetRows = found.rows.filter((r) => norm(r.system) === norm(systemLabel));
+  if (targetRows.length !== 1) {
+    return { ok: false, reason: 'ambiguous_request', detail: `שורת «${systemLabel}» של הבקשה לא נמצאה בדיוק פעם אחת`, step: 'resume' };
   }
+  const target = targetRows[0];
 
-  const clicked = await page.evaluate(({ requestNumber, target }) => {
+  // ── עמודת «פעולות»: מועמדים, ואז ריחוף רק אם אין הכרזה בתכונות ────────
+  const rowLoc = page.locator('table').nth(target.tableIndex).locator('tbody tr, tr').nth(target.trIndex);
+  const CAND = 'a, button, [role=button], img, i, svg, span[class*="icon"], span[class*="fa-"], span[class*="k-i-"]';
+  const describe = async () => rowLoc.locator(CAND).evaluateAll((els) => els.map((e) => {
     const clean = (s) => (s || '').replace(/\s+/g, ' ').trim();
-    const isResume = (e) => /טעינ|מסמכ|המשך|עדכון/.test(clean(e.getAttribute?.('title') || e.getAttribute?.('alt') || e.textContent || ''));
-    if (target) {
-      const table = document.querySelectorAll('table')[target.tableIndex];
-      const tr = table ? [...table.querySelectorAll('tbody tr, tr')][target.trIndex] : null;
-      if (!tr) return { ok: false, reason: 'target_row_gone' };
-      const control = [...tr.querySelectorAll('a, button, input[type=button], img')].find(isResume);
-      if (!control) return { ok: false, reason: 'resume_control_not_found' };
-      control.click();
-      return { ok: true, via: 'attributed_row' };
+    const attrText = ['title', 'aria-label', 'alt', 'data-title', 'data-original-title', 'data-tooltip',
+      'ng-reflect-title', 'ng-reflect-message', 'mattooltip', 'kendotooltip', 'tooltip', 'src', 'href']
+      .map((a) => e.getAttribute(a) || '').join(' ');
+    const svgUse = e.querySelector?.('use')?.getAttribute('href') || e.querySelector?.('use')?.getAttribute('xlink:href') || '';
+    return {
+      attrText: clean(`${attrText} ${svgUse}`),
+      classText: String(e.className?.baseVal ?? e.className ?? ''),
+      nested: [...els].some((o) => o !== e && e.contains(o)),
+      tooltip: '',
+    };
+  }));
+  let cands = await describe();
+  let pick = pickUploadDocumentsControl(cands);
+  if (!pick.ok && pick.reason === 'upload_action_not_found') {
+    // ‼ ה-tooltip אינו בתכונות — הוא מצויר בריחוף. ריחוף אינו פעולה אצל
+    // הרשות; קוראים את מה שהופיע, ולא לוחצים על שום דבר בזמן החיפוש.
+    for (let i = 0; i < cands.length; i++) {
+      if (cands[i].nested) continue;
+      const ok = await rowLoc.locator(CAND).nth(i).hover({ timeout: 3000 }).then(() => true).catch(() => false);
+      if (!ok) continue;
+      await page.waitForTimeout(450);
+      cands[i].tooltip = await page.evaluate(() => {
+        const clean = (s) => (s || '').replace(/\s+/g, ' ').trim();
+        return [...document.querySelectorAll('[role=tooltip], .tooltip, .k-tooltip, .mat-tooltip, .mdc-tooltip, .cdk-overlay-container, .p-tooltip')]
+          .filter((t) => t.offsetParent !== null || getComputedStyle(t).position === 'fixed')
+          .map((t) => clean(t.textContent)).join(' ').slice(0, 200);
+      });
     }
-    for (const tr of [...document.querySelectorAll('tr')]) {
-      const text = clean(tr.textContent);
-      if (!text) continue;
-      const sibling = tr.nextElementSibling ? clean(tr.nextElementSibling.textContent) : '';
-      if (!text.includes(requestNumber) && !sibling.includes(requestNumber)) continue;
-      const control = [...tr.querySelectorAll('a, button, input[type=button], img')].find(isResume);
-      if (control) { control.click(); return { ok: true, via: 'row_action' }; }
-    }
-    return { ok: false, reason: 'resume_control_not_found' };
-  }, { requestNumber: want, target });
+    await page.mouse.move(0, 0).catch(() => {});
+    pick = pickUploadDocumentsControl(cands);
+  }
+  if (!pick.ok) return { ...pick, step: 'resume', detail: cands.map((c) => `${c.attrText}|${c.classText}|${c.tooltip}`.slice(0, 80)).join(' ; ').slice(0, 400) };
 
-  if (!clicked.ok) return { ...clicked, step: 'resume' };
+  const clicked = await rowLoc.locator(CAND).nth(pick.index).click({ timeout: 8000 }).then(() => true).catch(() => false);
+  if (!clicked) return { ok: false, reason: 'upload_action_click_failed', step: 'resume' };
   await settle(page, { idleMs: 20000 });
 
+  // ── שלב 3: פרטי התקשרות — אימות זהות, מספר בקשה, «המשך» בלי לשנות דבר ──
+  let step = await currentWizardStep(page);
+  const firstBody = await page.evaluate(() => document.body.innerText || '');
+  const first = openedRequestIdentity(firstBody, { entityId, expectedClientName });
+  if (!first.ok) return { ok: false, reason: 'opened_request_identity_mismatch', detail: `ת.ז.: ${first.idOk ? 'תואם' : 'לא נמצא'} · שם: ${first.nameOk ? 'תואם' : 'לא נמצא'}`, step: 'resume' };
+  if (!first.requestNumber) return { ok: false, reason: 'request_number_not_on_screen', step: 'resume' };
+  if (want && first.requestNumber !== want) {
+    return { ok: false, reason: 'opened_wrong_request', detail: first.requestNumber, step: 'resume' };
+  }
+  const openedNumber = first.requestNumber;
+
+  if (step === 3) {
+    const err0 = await readScreenError(page);
+    if (err0) return { ok: false, reason: 'contact_step_error', detail: err0, step: 'contact_continue', requestNumber: openedNumber };
+    const go = await clickExact(page, 'המשך');
+    if (!go.ok) return { ...go, step: 'contact_continue', requestNumber: openedNumber };
+    await settle(page, { idleMs: 20000 });
+    const err = await readScreenError(page);
+    if (err) return { ok: false, reason: 'contact_continue_error', detail: err, step: 'contact_continue', requestNumber: openedNumber };
+    step = await currentWizardStep(page);
+  }
+  if (step !== 4) {
+    return { ok: false, reason: 'did_not_reach_documents_step', detail: `שלב נוכחי: ${step}`, step: 'resume', requestNumber: openedNumber };
+  }
+  const docs = await readDocumentsStep(page, { entityId, expectedClientName });
+  if (docs.requestNumber && docs.requestNumber !== openedNumber) {
+    return { ok: false, reason: 'opened_wrong_request', detail: docs.requestNumber, step: 'documents', requestNumber: openedNumber };
+  }
+  return { ok: true, requestNumber: openedNumber, documents: docs };
+}
+
+/**
+ * העלאת הטופס החתום לשורת «טופס ייפוי כוח». ‼ נקראת רק אחרי
+ * markExternalAttempt, ורק אחרי documentsStepPlan שאישר: שורה אחת, «+»
+ * אחד, ואין עדיין קובץ בשורה.
+ */
+export async function uploadSignedForm(page, { fileName, buffer }) {
   const step = await currentWizardStep(page);
-  const onScreenNumber = await readRequestNumber(page);
-  if (want && onScreenNumber && onScreenNumber !== want) {
-    return { ok: false, reason: 'opened_wrong_request', detail: onScreenNumber, step: 'resume' };
+  if (step !== 4) return { ok: false, reason: 'not_on_documents_step', currentStep: step, step: 'upload' };
+
+  const opened = await page.evaluate(() => {
+    const clean = (s) => (s || '').replace(/\s+/g, ' ').trim();
+    const rows = [...document.querySelectorAll('tr, li, .row')]
+      .filter((r) => /טופס\s+ייפוי\s+כוח/.test(clean(r.textContent)) && clean(r.textContent).length < 200)
+      .filter((r) => r.offsetParent !== null)
+      .filter((r, _, all) => !all.some((o) => o !== r && r.contains(o)));
+    if (rows.length !== 1) return { ok: false, reason: rows.length ? 'poa_row_ambiguous' : 'poa_row_not_found' };
+    const isPlus = (e) => /^\+$/.test(clean(e.textContent))
+      || /(^|[\s-])(plus|add)([\s-]|$)|fa-plus|k-i-plus|icon-plus/i.test(String(e.className?.baseVal ?? e.className ?? ''))
+      || /הוספ|טעינ|צרף/.test(clean(e.getAttribute?.('title') || e.getAttribute?.('aria-label') || e.getAttribute?.('alt') || ''));
+    const plus = [...rows[0].querySelectorAll('a, button, input[type=button], img, i, span, svg')].filter(isPlus)
+      .filter((e, _, all) => !all.some((o) => o !== e && e.contains(o)));
+    if (plus.length !== 1) return { ok: false, reason: plus.length ? 'upload_opener_ambiguous' : 'upload_opener_not_found' };
+    plus[0].click();
+    return { ok: true };
+  });
+  if (!opened.ok) return { ...opened, step: 'upload_open' };
+  await page.waitForTimeout(800);
+
+  const fileInput = page.locator('input[type=file]');
+  const present = await fileInput.first().waitFor({ state: 'attached', timeout: 10000 }).then(() => true).catch(() => false);
+  if (!present) return { ok: false, reason: 'file_input_not_found', step: 'upload_open' };
+  if (await fileInput.count() !== 1) return { ok: false, reason: 'file_input_ambiguous', step: 'upload_open' };
+
+  await fileInput.first().setInputFiles({ name: fileName, mimeType: 'application/pdf', buffer });
+  await settle(page, { idleMs: 25000 });
+
+  const err = await readScreenError(page);
+  if (err) return { ok: false, reason: 'upload_rejected', detail: err, step: 'upload' };
+
+  // סוגרים את חלון הטעינה אם נשאר פתוח.
+  const close = byExactName(page, 'סגירה');
+  if (await close.count().catch(() => 0)) await close.click({ timeout: 5000 }).catch(() => {});
+  await settle(page);
+  return { ok: true };
+}
+
+/**
+ * הראיה שהמסמך נקלט, והמשך **פעם אחת**.
+ * ‼ סדר: הקובץ מופיע בשורת «טופס ייפוי כוח» ⇒ (תיבת בן/בת הזוג, רק אם
+ * הוכחה) ⇒ «המשך» אחד ⇒ האשף בשלב 5. בלי כל אלה — אין «נשלח».
+ */
+export async function confirmDocumentsStep(page, { checkSpouse = false } = {}) {
+  const attached = await page.evaluate(() => {
+    const clean = (s) => (s || '').replace(/\s+/g, ' ').trim();
+    const rows = [...document.querySelectorAll('tr, li, .row')]
+      .filter((r) => /טופס\s+ייפוי\s+כוח/.test(clean(r.textContent)) && clean(r.textContent).length < 300)
+      .filter((r) => r.offsetParent !== null)
+      .filter((r, _, all) => !all.some((o) => o !== r && r.contains(o)));
+    if (rows.length !== 1) return { ok: false, reason: rows.length ? 'poa_row_ambiguous' : 'poa_row_not_found' };
+    const text = clean(rows[0].textContent);
+    const hasFile = /\.pdf/i.test(text);
+    return { ok: hasFile, reason: hasFile ? undefined : 'no_file_listed', text: text.slice(0, 200) };
+  });
+  if (!attached.ok) return { ...attached, step: 'documents_confirm' };
+
+  if (checkSpouse) {
+    const box = await page.evaluate(() => {
+      const clean = (s) => (s || '').replace(/\s+/g, ' ').trim();
+      const boxes = [...document.querySelectorAll('input[type=checkbox]')].filter((b) => {
+        const holder = b.closest('label, tr, .row, .form-group, div');
+        return /מאשר\s+את\s+חתימת\s+בן\s*\/?\s*ת?\s*הזוג/.test(clean(holder?.textContent));
+      });
+      if (boxes.length !== 1) return { ok: false, reason: boxes.length ? 'spouse_checkbox_ambiguous' : 'spouse_checkbox_not_found' };
+      // ‼ element.click() ולא שינוי checked ישיר — כך המסגרת רואה את השינוי.
+      if (!boxes[0].checked) boxes[0].click();
+      return { ok: boxes[0].checked, reason: boxes[0].checked ? undefined : 'spouse_checkbox_not_checked' };
+    });
+    if (!box.ok) return { ...box, step: 'documents_confirm' };
   }
-  if (step !== 4) return { ok: false, reason: 'did_not_reach_documents_step', detail: `שלב נוכחי: ${step}`, step: 'resume' };
-  if (!want) {
-    const body = await page.evaluate(() => document.body.innerText || '');
-    if (!openedScreenMatches(body, { entityId, expectedClientName })) {
-      return { ok: false, reason: 'cannot_verify_opened_request', step: 'resume' };
-    }
+
+  const go = await clickExact(page, 'המשך');
+  if (!go.ok) return { ...go, step: 'documents_confirm' };
+  await settle(page, { idleMs: 25000 });
+
+  const err = await readScreenError(page);
+  if (err) return { ok: false, reason: 'documents_continue_error', detail: err, step: 'documents_confirm' };
+
+  const step = await currentWizardStep(page);
+  if (step !== 5) {
+    return { ok: false, reason: 'did_not_reach_final_step', detail: `שלב נוכחי: ${step}`, step: 'documents_confirm' };
   }
-  return { ok: true, requestNumber: want || onScreenNumber || null };
+  const summary = await page.evaluate(() => (document.body.innerText || '').replace(/\s+/g, ' ').slice(0, 600));
+  return { ok: true, fileLine: attached.text, summary };
 }

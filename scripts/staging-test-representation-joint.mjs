@@ -118,7 +118,8 @@ console.log('\n3 · אף טריגר לא כותב מחוץ למפתח שלו');
   const d = await one(`select coalesce(execution, '{}'::jsonb) as ex from public.representation_requests where id = '${REQ}'`);
   const keys = Object.keys(d.ex).sort();
   eq('רק שני המפתחות הצפויים', keys, ['nationalInsurance', 'shaam']);
-  eq('‼ אין מספר בקשה בדוי בשע״ם', d.ex.shaam?.['person:client']?.requestNumber, '');
+  // ‼ 198: בדיקה בלי מספר לא כותבת "" — השדה פשוט חסר. העיקר: שום מספר לא הומצא.
+  eq('‼ אין מספר בקשה בדוי בשע״ם', d.ex.shaam?.['person:client']?.requestNumber || '', '');
 }
 
 // ── ניקוי ושחזור ───────────────────────────────────────────────────────────
