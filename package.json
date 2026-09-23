@@ -22,7 +22,8 @@
     "verify:close-rules": "node scripts/verify-close-rules.mjs",
     "test:unit": "node scripts/run-unit-tests.mjs",
     "test:worker": "node --test \"worker/test/*.test.mjs\" && node worker/test/btl-tracking.mjs",
-    "test:all": "node scripts/run-unit-tests.mjs && node --test \"worker/test/*.test.mjs\" && node worker/test/btl-tracking.mjs"
+    "test:all": "node scripts/run-unit-tests.mjs && node --test \"worker/test/*.test.mjs\" && node worker/test/btl-tracking.mjs && node --test scripts/staging-anonymize.test.mjs",
+    "test:staging-anonymize": "node --test scripts/staging-anonymize.test.mjs"
   },
   "dependencies": {
     "@pdf-lib/fontkit": "^1.1.1",

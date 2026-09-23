@@ -22,6 +22,10 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { ROOT, STAGING_REF, readProd, writeStaging } from './staging-lib.mjs';
+import {
+  scrubTaxFiles, syntheticIdentification, findRealIdLeaks,
+  IDENTIFICATION_SOURCE_SQL, TAX_FILES_SOURCE_SQL,
+} from './staging-anonymize.mjs';
 
 const USER_ID = readFileSync(resolve(ROOT, 'STAGING_USER_ID'), 'utf8').trim();
 const tok = () => randomBytes(16).toString('hex');
@@ -39,7 +43,9 @@ const PII = {
     'pension_fund_name', 'notes', 'pinned_note', 'field_meta', 'investment_accounts',
     'bank_accounts', 'family_company_name', 'kibbutz_name', 'intake_token', 'business_name',
     'prev_accountant_name', 'prev_accountant_email', 'prev_accountant_phone', 'portal_token',
-    'assigned_accountant_id', 'tax_office_name', 'withholding_office_name', 'ni_branch_name'],
+    'assigned_accountant_id', 'tax_office_name', 'withholding_office_name', 'ni_branch_name',
+    // ‼ 23.09.2026: נוספו אחרי שהרשימה נכתבה ועברו ל-staging עם מידע אמיתי.
+    'spouse_first_name', 'spouse_last_name', 'spouse', 'activity'],
   leads: ['full_name', 'phone', 'email', 'business_name', 'notes',
     'prev_accountant_name', 'prev_accountant_email', 'prev_accountant_phone'],
   quotations: ['public_token', 'email_subject', 'email_message', 'notes_for_client',
@@ -52,13 +58,25 @@ const PII = {
   journey_templates: ['name', 'description', 'entries'],
 };
 
+/**
+ * עמודות jsonb שהמבנה שלהן נחוץ אבל יש בהן ערכים אישיים — מצומצמות **בתוך
+ * הפרודקשן** (ראה staging-anonymize.mjs). tax_files: אצל יחיד מספר התיק הוא
+ * הת.ז.; identification: בלוק הזיהוי המלא של בקשת הייצוג.
+ */
+const SOURCE_TRANSFORMS = {
+  clients: { tax_files: TAX_FILES_SOURCE_SQL },
+  representation_requests: { identification: IDENTIFICATION_SOURCE_SQL },
+};
+
 /** מושך שורות עם עמודות המבנה בלבד — הסינון קורה בתוך הפרודקשן. */
 async function structural(table) {
-  const deny = PII[table].map((c) => `'${c}'`).join(',') || `''`;
+  const transforms = SOURCE_TRANSFORMS[table] ?? {};
+  const deny = [...PII[table], ...Object.keys(transforms)].map((c) => `'${c}'`).join(',') || `''`;
+  const extra = Object.entries(transforms).map(([col, sql]) => `|| jsonb_build_object('${col}', ${sql})`).join(' ');
   const rows = await readProd(`
     select coalesce((select jsonb_object_agg(key, value)
                        from jsonb_each(to_jsonb(t))
-                      where key not in (${deny})), '{}'::jsonb) as r
+                      where key not in (${deny})), '{}'::jsonb) ${extra} as r
       from public.${table} t`);
   return rows.map((x) => x.r);
 }
@@ -150,10 +168,15 @@ for (const t of ['onboarding_events', 'onboarding_steps', 'engagements',
 //   התגלה כשמבחן ההתאמה הראה שתי התקשרויות חסרות.
 //   כל הכתובות עדיין על resend.dev ואינן מגיעות לאף אדם.
 const clients = await structural('clients');
-await ins('clients', clients, (_r, i) => ({
+const syntheticIdOf = new Map(clients.map((r, i) => [r.id, String(100000000 + i * 7).slice(0, 9)]));
+const syntheticIdByRequest = new Map(clients
+  .filter((r) => r.representation_request_id)
+  .map((r) => [r.representation_request_id, syntheticIdOf.get(r.id)]));
+await ins('clients', clients, (r, i) => ({
   first_name: `לקוח${i + 1}`, last_name: 'בדיקה',
   email: `delivered+c${i + 1}@resend.dev`, phone: `052-2${String(i + 1).padStart(6, '0')}`,
-  id_number: String(100000000 + i * 7).slice(0, 9),
+  id_number: syntheticIdOf.get(r.id),
+  tax_files: scrubTaxFiles(r.tax_files, syntheticIdOf.get(r.id)),
   city: 'עיר בדיקה', address: 'רחוב הבדיקה 1',
   business_name: `עסק בדיקה ${i + 1}`,
   portal_token: tok(),
@@ -183,7 +206,11 @@ await ins('quotations', quotations, (_r, i) => ({
 }));
 
 const reps = await structural('representation_requests');
-await ins('representation_requests', reps, (_r, i) => ({
+await ins('representation_requests', reps, (r, i) => ({
+  identification: syntheticIdentification(r.identification, {
+    // ‼ הקישור הוא מהלקוח לבקשה (clients.representation_request_id), לא להפך.
+    idNumber: syntheticIdByRequest.get(r.id) ?? '100000000', firstName: `לקוח${i + 1}`,
+  }),
   client_name: `לקוח${i + 1} בדיקה`, client_email: 'delivered@resend.dev',
   onboarding_token: tok(), notes: null,
   signature_setup: null, signature_values: null, execution: {}, signers: [],
@@ -249,6 +276,17 @@ const leak = await writeStaging(`
     (select count(*) from public.onboarding_events) as events`);
 const L = leak[0];
 console.log('\nבדיקת דליפה:', JSON.stringify(L));
+// ‼ 23.09.2026: לא סומכים על רשימת העמודות — מחפשים בפועל כל ת.ז. אמיתית
+//   מהפרודקשן בכל ערך בכל שורה שהועתקה. עמודה חדשה שתישכח ברשימה תיתפס כאן.
+const realIds = (await readProd(`select distinct v from public.clients c, lateral (
+    select c.id_number v union select c.spouse_id_number union select c.spouse->>'idNumber'
+    union select f->>'fileNumber' from jsonb_array_elements(coalesce(c.tax_files,'[]')) f) x
+  where v ~ '^[0-9]{8,9}$' and c.id not like 'sample-%'`)).map((x) => x.v);
+const copied = {};
+for (const t of ['clients', 'leads', 'quotations', 'representation_requests', 'engagements', 'onboarding_steps', 'journey_templates']) {
+  copied[t] = (await writeStaging(`select to_jsonb(x) j from public.${t} x`)).map((x) => x.j);
+}
+L.real_ids = findRealIdLeaks(realIds, copied).length;
 const bad = Object.entries(L).filter(([, v]) => Number(v) !== 0);
 if (bad.length) { console.log(`✗ נשאר מידע שלא היה אמור: ${bad.map(([k]) => k).join(', ')}`); process.exit(1); }
 console.log('\n✓ ההעתקה הושלמה. אין מיילים אמיתיים, אין חתימות, אין מסמכים.');
