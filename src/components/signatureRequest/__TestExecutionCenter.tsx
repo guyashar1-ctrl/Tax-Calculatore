@@ -32,11 +32,23 @@ const BASE: RepresentationRequest = {
   // ‼ בלי זה המסך נופל על `request.authorities.includes(...)` — הפיקסטורה
   // דילגה על השדה, ולכן דף הבדיקה כולו לא עלה (נתפס ב-QA של 23.09.2026).
   authorities: ['incomeTax', 'nationalInsurance'],
+  // ‼ signToken לכל חותם — בלעדיו "העתק קישור חתימה אישי" לא מופיע בשורה,
+  // וזו בדיוק הפעולה שצריך לראות כאן.
   signers: [
-    { id: 'client', role: 'client', source: 'client_self', name: 'רותי לקוח', email: 'ruti@example.com', order: 1, signStatus: 'pending' },
-    { id: 'spouse', role: 'spouse', source: 'spouse', name: 'דני לקוח', email: 'dani@example.com', order: 2, signStatus: 'pending' },
+    { id: 'client', role: 'client', source: 'client_self', name: 'רותי לקוח', email: 'ruti@example.com', order: 1, signStatus: 'pending', signToken: '11111111111111111111111111111111' },
+    { id: 'spouse', role: 'spouse', source: 'spouse', name: 'דני לקוח', email: 'dani@example.com', order: 2, signStatus: 'pending', signToken: '22222222222222222222222222222222' },
   ],
 } as unknown as RepresentationRequest;
+
+/**
+ * ‼ המקרה של הדסה ויאיר סלע (23.09.2026): לאחד מבני הזוג אין כתובת מייל,
+ * ולכן אף מייל לא יצא אליו — ובכל זאת האסמכתא שלו קיימת. השורה חייבת לומר
+ * את זה, והצעד "ההוראות הגיעו למבוטח" חייב להישאר פתוח.
+ */
+const SPOUSE_WITHOUT_EMAIL = [
+  { id: 'client', role: 'client', source: 'client_self', name: 'הדסה סלע', email: 'yairselao@gmail.com', order: 1, signStatus: 'pending', signToken: '33333333333333333333333333333333' },
+  { id: 'spouse', role: 'spouse', source: 'spouse', name: 'יאיר סלע', email: '', order: 2, signStatus: 'pending', signToken: '44444444444444444444444444444444' },
+];
 
 /* הנתיב המזורז בכל מצביו. ‼ מוזרק ולא נטען: המסך הזה רץ בלי מסד, ובלי
    הזרקה אי אפשר לראות כאן את השורה בכלל. במסך האמיתי המקור הוא
@@ -127,6 +139,27 @@ const SCENARIOS: Scenario[] = [
         syncedAt: '2026-09-23T09:52:33.656Z',
       },
     }) } as RepresentationRequest,
+  },
+  {
+    // ‼ האירוע של 23.09: ליאיר אין מייל, האסמכתא שלו קיימת ולא נמסרה.
+    // השורה שלו חייבת להיות ⚠ עם "אסמכתא 75074203 טרם נמסרה", והצעד
+    // "ההוראות הגיעו למבוטח" במסלול שלו חייב להישאר פתוח.
+    key: 'spouse-no-email',
+    label: '9. לבן/בת הזוג אין מייל (אירוע 23.09)',
+    req: { ...BASE, ...withSetup, signers: SPOUSE_WITHOUT_EMAIL, execution: ni({
+      incomeTax: { enteredAt: '2026-07-02T08:00:00.000Z' },
+      signatureEmailSentAt: '2026-09-23T17:25:18.636Z',
+      nationalInsurance: {
+        enteredAt: '2026-09-23T09:52:33.656Z', referenceNumber: '75165449', deadline: '2026-11-22',
+        externalState: 'pending', rawExternalState: 'ממתין לאישור', syncedAt: '2026-09-23T09:52:33.656Z',
+        instructionsSentAt: '2026-09-23T17:25:18.636Z', instructionsSentWith: 'signature',
+      },
+      nationalInsuranceSpouse: {
+        enteredAt: '2026-09-23T17:24:53.304Z', referenceNumber: '75074203', deadline: '2026-11-15',
+        externalState: 'pending', rawExternalState: 'ממתין לאישור', syncedAt: '2026-09-23T17:24:53.304Z',
+        foundExternally: true,
+      },
+    }) } as unknown as RepresentationRequest,
   },
   {
     // אחרי הסימון — כאן נבדק שהמייל ללקוח אינו יוצא מעצמו אלא בכפתור

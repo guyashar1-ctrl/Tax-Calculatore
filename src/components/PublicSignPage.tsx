@@ -48,8 +48,9 @@ type Phase = 'loading' | 'invalid' | 'already' | 'sign' | 'submitting' | 'done' 
 function SpouseNextStep({ token, spouseName }: { token: string; spouseName: string }) {
   const [mode, setMode] = useState<'choice' | 'email' | 'sent'>('choice');
   const [email, setEmail] = useState('');
-  const [busy, setBusy] = useState<'handoff' | 'send' | null>(null);
+  const [busy, setBusy] = useState<'handoff' | 'send' | 'link' | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [copiedLink, setCopiedLink] = useState('');
   const name = spouseName.trim() || 'בן/בת הזוג';
 
   async function handleTogether() {
@@ -61,6 +62,27 @@ function SpouseNextStep({ token, spouseName }: { token: string; spouseName: stri
       window.location.href = `${window.location.origin}/?sign=${data.spouseToken}`;
     } catch {
       setErr('לא הצלחנו לפתוח את החתימה כרגע. נסו שוב, או פנו למשרד.');
+      setBusy(null);
+    }
+  }
+
+  /**
+   * ‼ האפשרות השלישית: קישור להעתקה, לשליחה בוואטסאפ או בכל דרך אחרת.
+   * הטוקן האישי של בן/בת הזוג כבר קיים — עד עכשיו פשוט לא הייתה דרך להוציא
+   * אותו מהדף. אותו `handoff` מחזיר אותו; ההבדל הוא שכאן לא עוזבים את הדף.
+   */
+  async function handleCopyLink() {
+    setBusy('link');
+    setErr(null);
+    try {
+      const { data, error } = await supabase.functions.invoke('signing-session', { body: { action: 'handoff', token } });
+      if (error || !data?.ok || !data?.spouseToken) throw new Error(error?.message || data?.error || 'failed');
+      const url = `${window.location.origin}/?sign=${data.spouseToken}`;
+      try { await navigator.clipboard.writeText(url); } catch { /* נציג את הקישור לבחירה ידנית */ }
+      setCopiedLink(url);
+    } catch {
+      setErr('לא הצלחנו להפיק את הקישור כרגע. נסו שוב, או פנו למשרד.');
+    } finally {
       setBusy(null);
     }
   }
@@ -109,22 +131,38 @@ function SpouseNextStep({ token, spouseName }: { token: string; spouseName: stri
   return (
     <div style={box}>
       <div style={{ fontSize: 14.5, fontWeight: 600, color: '#111', marginBottom: 3 }}>
-        נשארה החתימה של {name}
+        נשאר התור של {name}
       </div>
+      {/* ‼ לא רק חתימה: לבן/בת הזוג יש ייפוי כוח נפרד בביטוח לאומי, עם
+          אסמכתא משלו/ה, והקישור האישי נושא את שניהם. הניסוח הקודם ("נשארה
+          רק חתימה") גרם לכך שאיש לא ידע שיש עוד פעולה. */}
       <div style={{ fontSize: 12.5, color: '#6B6B68', lineHeight: 1.6, marginBottom: 12 }}>
-        הפרטים כבר מולאו - נשארה רק חתימה. איך נוח לכם?
+        הפרטים כבר מולאו. נשארה חתימה, ואישור ייפוי הכוח בביטוח הלאומי - שניהם בקישור אישי אחד. איך נוח לכם?
       </div>
 
       {mode === 'choice' ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           <button type="button" onClick={handleTogether} disabled={busy !== null}
             style={{ ...btn, background: '#1A1A1A', color: '#fff', border: 'none', opacity: busy === 'handoff' ? 0.7 : 1 }}>
-            {busy === 'handoff' ? 'פותח…' : `${name} כאן? ממשיכים לחתימה עכשיו`}
+            {busy === 'handoff' ? 'פותח…' : `${name} כאן? ממשיכים עכשיו`}
           </button>
           <button type="button" onClick={() => { setErr(null); setMode('email'); }} disabled={busy !== null}
             style={{ ...btn, background: '#fff', color: '#1A1A1A', border: '1px solid #D9D8D3' }}>
-            ✉ שליחת קישור חתימה במייל
+            ✉ שליחת הקישור במייל
           </button>
+          <button type="button" onClick={handleCopyLink} disabled={busy !== null}
+            style={{ ...btn, background: '#fff', color: '#1A1A1A', border: '1px solid #D9D8D3', opacity: busy === 'link' ? 0.7 : 1 }}>
+            {busy === 'link' ? 'מפיק…' : '🔗 העתקת קישור לשליחה בוואטסאפ'}
+          </button>
+          {copiedLink && (
+            <div style={{ padding: '10px 12px', background: '#fff', border: '1px solid #D9D8D3', borderRadius: 10 }}>
+              <div style={{ fontSize: 12.5, color: '#111', fontWeight: 600, marginBottom: 5 }}>✓ הקישור הועתק</div>
+              <div style={{ fontSize: 11.5, color: '#6B6B68', lineHeight: 1.6, marginBottom: 6 }}>
+                שלחו אותו ל{name}. הקישור אישי - רק הוא/היא יכול/ה לחתום דרכו.
+              </div>
+              <div dir="ltr" style={{ fontSize: 11, color: '#6B6B68', wordBreak: 'break-all', userSelect: 'all' }}>{copiedLink}</div>
+            </div>
+          )}
         </div>
       ) : (
         <div>

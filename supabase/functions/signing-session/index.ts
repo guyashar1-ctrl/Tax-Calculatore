@@ -216,6 +216,21 @@ Deno.serve(async (req: Request) => {
       if (upErr) return json({ error: upErr.message }, 500);
       if (!applied?.ok) return json({ error: applied?.error || "apply_failed" }, 409);
 
+      // ‼ פרט קשר קבוע, לא ערך חד-פעמי של הבקשה הזאת: כתובת שהנישום מסר
+      // כאן נשמרת גם בכרטיס, ומשם היא תיפתר בשרת בכל שליחה עתידית
+      // (תזכורות, מסמכים). בלי זה הכתובת חיה רק על החותם בבקשה הזאת,
+      // והכרטיס ממשיך להיראות כאילו אין לבן/בת הזוג מייל.
+      // ‼ לא דורס כתובת שכבר קיימת בכרטיס — שם המשרד הוא מקור האמת.
+      if (sp.role === "spouse" && reqRow.linked_client_id) {
+        const { data: cli } = await admin
+          .from("clients").select("id,spouse_email").eq("id", reqRow.linked_client_id).maybeSingle();
+        if (cli && !String(cli.spouse_email || "").trim()) {
+          const { error: cliErr } = await admin
+            .from("clients").update({ spouse_email: cleanEmail }).eq("id", cli.id);
+          if (cliErr) console.error("[signing-session] spouse_email save failed", cliErr.code, cliErr.message);
+        }
+      }
+
       const sendRes = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/send-onboarding-email`, {
         method: "POST",
         headers: {

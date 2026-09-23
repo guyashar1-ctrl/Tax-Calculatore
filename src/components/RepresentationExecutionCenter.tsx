@@ -309,6 +309,8 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
   const status = request.status;
   const signers = getRequestSigners(request);
   const pendingSigners = signers.filter(s => effectiveSignStatus(request, s) === 'pending');
+  /** מי מהממתינים באמת יכול לקבל מייל — רק להם יש טעם בבחירת נמען. */
+  const emailableSigners = pendingSigners.filter(s => s.email.trim());
   const signed = ['awaiting_stamp', 'awaiting_authorities', 'active'].includes(status);
   const sentToShaam = ['awaiting_authorities', 'active'].includes(status);
   // ‼ "הופק" ו"הוחתם" הם **כל** הטפסים: בקשה עם מע"מ לשני בני הזוג מולידה
@@ -381,19 +383,35 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
   const [previewSignerId, setPreviewSignerId] = useState<string | null>(null);
   const missingIds = representationInsight(request, linkedClient, steps).missingIdentity;
   const [confirmSendWithoutId, setConfirmSendWithoutId] = useState(false);
+  /** null = לכל מי שיש לו מייל. מזהה חותם = רק אליו, והוא יעביר לשני. */
+  const [sendOnlyTo, setSendOnlyTo] = useState<string | null>(null);
 
-  /** שולח לכל החותמים שטרם חתמו, ומתעד שההוראות לב"ל יצאו עם אותו מייל. */
-  async function handleSendAll() {
+  /**
+   * שולח לחותמים שנבחרו, ומתעד שההוראות לב"ל יצאו — **רק למי שבאמת נשלח
+   * אליו מייל**.
+   *
+   * ‼ הבאג שתוקן כאן (23.09.2026, הדסה ויאיר סלע): הסימון הוחל על שני
+   * המסלולים בלי קשר למי קיבל. ליאיר לא הייתה כתובת, אף מייל לא יצא אליו,
+   * והאסמכתא שלו (75074203) לא הופיעה בשום מקום — ובכל זאת הצעד "ההוראות
+   * הגיעו למבוטח" נצבע ירוק. אותה משפחה של טענה בלי ראיה כמו «קיימת בקשה
+   * ⇒ אושר» (195).
+   *
+   * @param only מזהה חותם יחיד — "לשלוח רק ל-X, והוא יעביר לשני". ריק = לכולם.
+   */
+  async function handleSendAll(only?: string) {
     setBusy('send');
     setNote(null);
     // חותם בלי מייל אינו תקלה (110): בן/בת זוג בלי כתובת חותם יחד עם הנישום
     // באותו מכשיר, או מקבל קישור אחרי שהנישום יזין את המייל בשלב החתימה.
-    const emailable = pendingSigners.filter(s => s.email.trim());
-    const skipped = pendingSigners.filter(s => !s.email.trim());
+    const chosen = only ? pendingSigners.filter(s => s.id === only) : pendingSigners;
+    const emailable = chosen.filter(s => s.email.trim());
+    const skipped = pendingSigners.filter(s => !emailable.some(e => e.id === s.id));
+    const sentIds = new Set<string>();
     const failures: string[] = [];
     for (const s of emailable) {
       const err = await onSendToSigner(s);
       if (err) failures.push(`${s.name || s.email}: ${err}`);
+      else sentIds.add(s.id);
     }
     if (failures.length > 0) {
       setNote({ kind: 'err', text: failures.join(' · ') });
@@ -406,26 +424,61 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
       return;
     }
     const now = new Date().toISOString();
-    // כל מבוטח מקבל את האסמכתא שלו במייל האישי שלו, ולכן מסמנים "ההוראות יצאו"
-    // בנפרד לכל מסלול — אחרת מסלול אחד ייראה שהושלם בזכות המייל של השני.
-    const stampSent = (t: NiTracking): NiTracking =>
-      t.referenceNumber && !t.instructionsSentAt
+    // ‼ מסמנים מסלול **רק** כשיצא מייל לחותם של אותו מסלול. `signerSent`
+    // קושר תפקיד↔מסלול במפורש; בלעדיו "מישהו קיבל" נקרא כ"כולם קיבלו".
+    const signerSent = (role: 'client' | 'spouse') =>
+      [...sentIds].some(id => signers.find(s => s.id === id)?.role === role);
+    const stampSent = (t: NiTracking, role: 'client' | 'spouse'): NiTracking =>
+      signerSent(role) && t.referenceNumber && !t.instructionsSentAt
         ? { ...t, instructionsSentAt: now, instructionsSentWith: 'signature' as const }
         : t;
     await onSaveExecution({
       ...exec,
       signatureEmailSentAt: now,
-      ...(niTargetsClient ? { nationalInsurance: stampSent(ni) } : {}),
-      ...(niTargetsSpouse ? { nationalInsuranceSpouse: stampSent(niSpouse) } : {}),
+      ...(niTargetsClient ? { nationalInsurance: stampSent(ni, 'client') } : {}),
+      ...(niTargetsSpouse ? { nationalInsuranceSpouse: stampSent(niSpouse, 'spouse') } : {}),
     });
     setNote({
       kind: 'ok',
       text: `נשלח ל-${emailable.map(s => s.email).join(', ')}` + (skipped.length > 0
-        ? ` · ל${skipped.map(s => s.name || 'בן/בת הזוג').join(', ')} אין מייל - הלקוח יבחר בשלב החתימה אם לחתום יחד או להזין מייל`
+        ? ` · ל${skipped.map(s => s.name || 'בן/בת הזוג').join(', ')} לא נשלח - אפשר להזין מייל או להעתיק קישור בשורה שלו/ה`
         : ''),
     });
     setBusy(null);
     void reloadEmails();
+  }
+
+  /**
+   * ההודעה שיצאה לכתובת של החותם הזה — למצב המסירה (נמסר/נפתח/נלחץ).
+   * ‼ התאמה לפי כתובת בלבד, וזו **לא** ראיה שההוראות של האדם הזה יצאו:
+   * שני חותמים יכולים לחלוק תיבה אחת (נצפה בייצור — בן/בת זוג שנותנים את
+   * המייל של השני), ואז אותה הודעה תתאים לשניהם אף שהיא נשאה את האסמכתא
+   * של אחד מהם. הראיה לכך שהוראות ב"ל של אדם מסוים יצאו היא
+   * `track.instructionsSentAt`, שנכתב לפי תפקיד מפורש.
+   */
+  const signerEmail = (s: RepSigner) => {
+    const addr = s.email.trim().toLowerCase();
+    return addr ? signatureEmails.find(m => m.toEmail.trim().toLowerCase() === addr) : undefined;
+  };
+  /** מסלול הב"ל של החותם — לפי תפקיד מפורש, לעולם לא "הראשון". */
+  const niTrackFor = (s: RepSigner): NiTracking | undefined =>
+    s.role === 'spouse' ? (niTargetsSpouse ? niSpouse : undefined) : (niTargetsClient ? ni : undefined);
+
+  /**
+   * "נמסר קישור ידנית" — הרו"ח העתיק את הקישור האישי ומוסר אותו בעצמו
+   * (וואטסאפ/טלפון). ‼ ראיה חלשה ומסומנת ככזו (`instructionsSentWith:'link'`):
+   * יודעים שהקישור יצא מכאן, לא שהוא הגיע. בלי זה הצעד "ההוראות הגיעו
+   * למבוטח" היה נשאר פתוח לנצח למי שלא מקבל מיילים.
+   */
+  async function markLinkHandedOver(role: 'client' | 'spouse') {
+    const track = role === 'spouse' ? niSpouse : ni;
+    if (!track.referenceNumber || track.instructionsSentAt) return;
+    const now = new Date().toISOString();
+    const next = { ...track, instructionsSentAt: now, instructionsSentWith: 'link' as const };
+    await onSaveExecution({
+      ...exec,
+      ...(role === 'spouse' ? { nationalInsuranceSpouse: next } : { nationalInsurance: next }),
+    });
   }
 
   /** תזכורת = אותו מייל שוב, לאותו חותם. בלי גרסה חלקית שתבלבל את הלקוח. */
@@ -789,13 +842,23 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
                 : formReady ? 'השליחה בפס המשותף שמתחת - מייל אחד לשתי הרשויות'
                   : 'אפשרי אחרי הפקת הטופס'} />
 
+            {/* ‼ שורה אחת לכל חותם שמספרת את כל הסיפור: מי הוא, לאן יצא (או
+                לא יצא) מייל, איזו אסמכתא שייכת לו, ומה אפשר לעשות עכשיו.
+                עד 23.09.2026 הופיע כאן שם בלבד, ורשימת הכתובות ישבה מתחת
+                לכפתור השליחה בלי שמות — ולכן "למי זה נשלח?" לא הייתה שאלה
+                שאפשר היה לענות עליה מהמסך. */}
             <Step n={4 + extraEntries.length} title="כל החותמים חתמו" done={signed}>
               {signers.length > 0 && !signed && (
-                <div style={{ fontSize: 'var(--fs-13)', color: 'var(--ink-3)', lineHeight: 1.7 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '.55rem' }}>
                   {signers.map(s => (
-                    <div key={s.id}>
-                      {effectiveSignStatus(request, s) === 'signed' ? '✓' : '⏳'} {s.name || s.email}
-                    </div>
+                    <SignerLine
+                      key={s.id}
+                      signer={s}
+                      signed={effectiveSignStatus(request, s) === 'signed'}
+                      email={signerEmail(s)}
+                      track={niTrackFor(s)}
+                      onCopiedLink={() => void markLinkHandedOver(s.role === 'spouse' ? 'spouse' : 'client')}
+                    />
                   ))}
                 </div>
               )}
@@ -1030,13 +1093,43 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
           {formReady && !exec.signatureEmailSentAt && (
             <div style={{ marginTop: '.7rem' }}>
               <button className="btn btn-green" disabled={busy === 'send' || niRefMissing || pendingSigners.length === 0}
-                onClick={() => (missingIds.length > 0 ? setConfirmSendWithoutId(true) : void handleSendAll())}>
-                {busy === 'send' ? 'שולח…' : `שלח ללקוח${pendingSigners.length > 1 ? ` (${pendingSigners.length} חותמים)` : ''}`}
+                onClick={() => (missingIds.length > 0 ? setConfirmSendWithoutId(true) : void handleSendAll(sendOnlyTo ?? undefined))}>
+                {busy === 'send' ? 'שולח…'
+                  : sendOnlyTo
+                    ? `שלח ל${pendingSigners.find(s => s.id === sendOnlyTo)?.name || 'חותם'}`
+                    : `שלח ללקוח${emailableSigners.length > 1 ? ` (${emailableSigners.length} חותמים)` : ''}`}
               </button>
+              {/* ‼ בחירת נמענים — קיימת רק כששני החותמים באמת יכולים לקבל.
+                  שליחה לאחד בלבד היא בחירה לגיטימית: הוא מעביר לשני מדף
+                  החתימה (חתימה יחד באותו מכשיר, מייל, או קישור). */}
+              {emailableSigners.length > 1 && !niRefMissing && (
+                <div style={{ marginTop: '.5rem', display: 'flex', gap: '.9rem', flexWrap: 'wrap', justifyContent: 'center', fontSize: 'var(--fs-13)', color: 'var(--ink-2)' }}>
+                  <label style={{ display: 'flex', gap: '.3rem', alignItems: 'center', cursor: 'pointer' }}>
+                    <input type="radio" name="send-to" checked={sendOnlyTo === null}
+                      onChange={() => setSendOnlyTo(null)} />
+                    לכל אחד מייל נפרד
+                  </label>
+                  {emailableSigners.map(s => (
+                    <label key={s.id} style={{ display: 'flex', gap: '.3rem', alignItems: 'center', cursor: 'pointer' }}>
+                      <input type="radio" name="send-to" checked={sendOnlyTo === s.id}
+                        onChange={() => setSendOnlyTo(s.id)} />
+                      רק ל{s.name || s.email}
+                    </label>
+                  ))}
+                </div>
+              )}
               {pendingSigners.length > 0 && !niRefMissing && (
                 <>
-                  <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)', marginTop: '.4rem' }} dir="ltr">
-                    {pendingSigners.map(s => s.email).join(' · ')}
+                  <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)', marginTop: '.4rem', lineHeight: 1.6 }}>
+                    {pendingSigners.map(s => {
+                      const skip = sendOnlyTo ? s.id !== sendOnlyTo : !s.email.trim();
+                      return (
+                        <div key={s.id} style={{ opacity: skip ? 0.55 : 1 }}>
+                          {s.name || 'חותם'} — <span dir="ltr">{s.email.trim() || 'אין מייל'}</span>
+                          {skip ? ' · לא ייכלל' : ''}
+                        </div>
+                      );
+                    })}
                   </div>
                   <button
                     type="button"
@@ -1114,6 +1207,83 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
       )}
     </div>
   );
+}
+
+/**
+ * שורת חותם אחד: מי הוא, מה קרה למייל שלו, איזו אסמכתא שייכת לו, ומה אפשר
+ * לעשות עכשיו. ‼ השורה הזאת היא התשובה לשאלה "למי זה נשלח?" — שעד
+ * 23.09.2026 לא הייתה לה תשובה בשום מסך.
+ *
+ * ‼ שתי עובדות נפרדות שאסור לערבב:
+ *   · **המייל** (נמסר/נפתח) — מצב המסירה לכתובת. תיבה משותפת לשני בני הזוג
+ *     תיראה כאן פעמיים, וזה בסדר: זו באמת אותה תיבה.
+ *   · **האסמכתא** — האם ההוראות של **האדם הזה** יצאו. זו עובדה פר-אדם,
+ *     והיא זו שחשפה שיאיר סומן כמי שקיבל בלי שיצא אליו דבר.
+ */
+function SignerLine({ signer, signed, email, track, onCopiedLink }: {
+  signer: RepSigner;
+  signed: boolean;
+  email?: { toEmail: string; sentAt: string; openedAt?: string; clickedAt?: string; status: string };
+  track?: NiTracking;
+  onCopiedLink: () => void;
+}) {
+  const [copied, setCopied] = useState(false);
+  const hasAddress = !!signer.email.trim();
+  const opened = !!email && (!!email.openedAt || ['opened', 'clicked'].includes(email.status));
+  const bounced = !!email && ['bounced', 'complained', 'failed'].includes(email.status);
+  const link = signer.signToken ? `${window.location.origin}/?sign=${signer.signToken}` : '';
+  // ‼ האסמכתא לא נמסרה — הפער שאין לו שום סימן אחר במסך.
+  const refPending = !!track?.referenceNumber && !track.instructionsSentAt;
+  const handedByLink = track?.instructionsSentWith === 'link';
+
+  const copy = async () => {
+    if (!link) return;
+    try { await navigator.clipboard.writeText(link); } catch { return; }
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 2500);
+    onCopiedLink();
+  };
+
+  const tone = signed ? 'var(--text-success, var(--success-text))'
+    : bounced || (!hasAddress && !handedByLink) || refPending ? 'var(--danger)'
+    : 'var(--ink-3)';
+
+  const detail = signed
+    ? 'חתם/ה'
+    : [
+        hasAddress ? signer.email : 'אין כתובת מייל',
+        email ? `נשלח ${fmtTime(email.sentAt)}${opened ? ' · נפתח ✓' : ''}${bounced ? ' · חזר ✗' : ''}` : (hasAddress ? 'טרם נשלח' : 'לא נשלח אליו דבר'),
+        handedByLink ? 'הקישור נמסר ידנית' : null,
+        track?.referenceNumber
+          ? (refPending ? `אסמכתא ${track.referenceNumber} טרם נמסרה` : `אסמכתא ${track.referenceNumber}`)
+          : null,
+      ].filter(Boolean).join(' · ');
+
+  return (
+    <div style={{ display: 'flex', gap: '.5rem', alignItems: 'flex-start' }}>
+      <span style={{ color: tone, lineHeight: 1.5 }}>{signed ? '✓' : refPending || bounced || !hasAddress ? '⚠' : '⏳'}</span>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 'var(--fs-13)', color: 'var(--ink-1)' }}>{signer.name || signer.email}</div>
+        <div style={{ fontSize: 'var(--fs-12)', color: refPending ? 'var(--danger)' : 'var(--ink-3)', marginTop: 2, lineHeight: 1.6 }}>
+          {detail}
+        </div>
+        {!signed && link && (
+          <button type="button" onClick={() => void copy()}
+            style={{
+              background: 'none', border: 'none', padding: 0, marginTop: '.3rem', font: 'inherit',
+              fontSize: 'var(--fs-12)', color: 'var(--accent)', textDecoration: 'underline', cursor: 'pointer',
+            }}>
+            {copied ? '✓ הקישור הועתק' : 'העתק קישור חתימה אישי'}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** שעה קצרה לשורת החותם. */
+function fmtTime(iso: string) {
+  return new Date(iso).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
 }
 
 /**
@@ -1216,6 +1386,9 @@ function NiTrack({
       <Step n={3} title="ההוראות הגיעו למבוטח" done={sentWithSignature || !!ni.instructionsSentAt}
         hint={
           sentWithSignature ? 'נכללו במייל בקשת החתימה - מייל אחד לשתי הפעולות'
+          // ‼ קישור שנמסר ביד הוא ראיה חלשה יותר ממייל: יודעים שהוא יצא
+          // מכאן, לא שהוא הגיע. הצעד נסגר, אבל אומר בדיוק מה קרה.
+          : ni.instructionsSentWith === 'link' ? `הקישור האישי הועתק ונמסר ידנית ב-${fmt(ni.instructionsSentAt)}`
           : ni.instructionsSentAt ? `נשלחו בנפרד ב-${fmt(ni.instructionsSentAt)}`
           : `יישלחו יחד עם בקשת החתימה: אסמכתא, מועד אחרון, ואישור באתר ב״ל או בטלפון ${NI_APPROVAL_PHONE}`
         }>
