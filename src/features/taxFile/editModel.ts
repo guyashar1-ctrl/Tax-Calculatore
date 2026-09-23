@@ -112,7 +112,7 @@ export const EDIT_SECTIONS: EditSection[] = [
     summary: c => join(c.idNumber && `ת.ז. ${c.idNumber}`, c.city),
     fields: [
       { key: 'idNumber', label: 'תעודת זהות', kind: 'text' },
-      { key: 'birthDate', label: 'תאריך לידה', kind: 'text' },
+      { key: 'birthDate', label: 'תאריך לידה', kind: 'date' },
       { key: 'phone', label: 'טלפון', kind: 'text' },
       { key: 'email', label: 'אימייל', kind: 'text' },
       { key: 'city', label: 'יישוב', kind: 'text', hebrew: true },

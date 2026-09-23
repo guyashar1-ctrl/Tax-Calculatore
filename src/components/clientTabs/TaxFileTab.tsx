@@ -38,6 +38,9 @@ import { findUnsyncedSession, syncIntakeSession } from '../../lib/intakeSync';
 import type { IntakeSyncResult } from '../../lib/intakeSync';
 import NiInstructionsDialog from '../NiInstructionsDialog';
 import SpouseRelationshipCard from './SpouseRelationshipCard';
+import { isValidIsraeliId } from '../../utils/israeliId';
+import { isValidEmail } from '../../utils/email';
+import { hasNonHebrewLetters, HEBREW_ONLY_HINT } from '../../utils/hebrewText';
 
 interface Props {
   client: Client;
@@ -202,6 +205,30 @@ function fieldsOf(...sectionIds: string[]): EditField[] {
     .filter(f => f.governed);
 }
 
+/**
+ * פרטי הנישום — ת.ז., תאריך לידה, טלפון, מייל, יישוב וכתובת.
+ * ‼ אלה אינם עובדות מנוהלות ובכוונה: הם אינם מגיעים מיישור קו ואין להם
+ * פרובננס. לכן הם מוחרגים מהמסנן של fieldsOf ונשמרים במסלול הרגיל —
+ * וזו הסיבה שעד עכשיו פשוט לא הייתה בתיק דרך לתקן כתובת שהגיעה שגויה.
+ */
+function identityFields(): EditField[] {
+  return EDIT_SECTIONS.find(s => s.id === 'identity')?.fields ?? [];
+}
+
+/**
+ * בדיקת ערך לפני שמירה של פרט נישום. ‼ ת.ז. שגויה כאן אינה טעות הקלדה
+ * מקומית: היא נוסעת לייפוי הכוח ולבקשות הייצוג, והרשות דוחה אותה שם.
+ * שדה שרוקן במכוון עובר — «טרם ביררנו» הוא מצב לגיטימי.
+ */
+function identityFieldError(def: EditField, raw: string): string | null {
+  const v = raw.trim();
+  if (!v) return null;
+  if (def.key === 'idNumber' && !isValidIsraeliId(v)) return 'מספר תעודת הזהות אינו תקין';
+  if (def.key === 'email' && !isValidEmail(v)) return 'כתובת המייל אינה תקינה';
+  if (def.hebrew && hasNonHebrewLetters(v)) return HEBREW_ONLY_HINT;
+  return null;
+}
+
 export default function TaxFileTab({
   client, spouseClient, onCreateSpouseClient, onOpenSpouseClient,
   onClientPersisted, onSendQuestionnaire, onOpenDetails,
@@ -305,9 +332,44 @@ export default function TaxFileTab({
     if (!client.id) return;
     setSectionSaving(true);
     setSectionError(null);
+
+    // ‼ שדות שאינם עובדות מנוהלות (פרטי הנישום) נשמרים במסלול הרגיל ובבת
+    // אחת: מסלול העובדות דוחה אותם — הם אינם ב-allowlist של השרת — ואין להם
+    // פרובננס לשמור. הבדיקה היא על ההגדרה ולא על שם השדה.
+    const plain: Partial<Client> = {};
     for (const [key, raw] of Object.entries(sectionDrafts)) {
       const def = EDIT_FIELD_BY_KEY[key];
-      if (!def) continue;
+      if (!def || def.governed) continue;
+      if (raw === editFieldValue(client, def)) continue;
+      const invalid = identityFieldError(def, raw);
+      if (invalid) {
+        setSectionError(`${def.label}: ${invalid}`);
+        setSectionSaving(false);
+        return;
+      }
+      (plain as Record<string, unknown>)[def.key] = coerceEditField(def, raw);
+    }
+    if (Object.keys(plain).length > 0) {
+      if (!onUpdateClientFields) {
+        setSectionError('השמירה אינה זמינה במסך הזה');
+        setSectionSaving(false);
+        return;
+      }
+      try {
+        await onUpdateClientFields(plain);
+        // ‼ הכרטיס שבמסך הוא עותק: בלי האימוץ הזה הערך החדש נשמר בשרת
+        //   והמסך ממשיך להציג את הישן עד רענון.
+        onClientPersisted({ ...client, ...plain });
+      } catch (e) {
+        setSectionError(e instanceof Error ? e.message : 'השמירה נכשלה');
+        setSectionSaving(false);
+        return;
+      }
+    }
+
+    for (const [key, raw] of Object.entries(sectionDrafts)) {
+      const def = EDIT_FIELD_BY_KEY[key];
+      if (!def || !def.governed) continue;
       const before = editFieldValue(client, def);
       if (raw === before) continue;
       const res = await recordManualEdit(
@@ -890,6 +952,47 @@ export default function TaxFileTab({
           </div>
         );
       })}
+
+      {/* ═══ פרטי הנישום ═══════════════════════════════════════════════════
+          ‼ שורה אחת, ומעליה אין מקטע משלה: אלה הפרטים שנוסעים לרשויות —
+          ת.ז., תאריך לידה, טלפון, מייל, יישוב וכתובת — והם היו עד עכשיו
+          לקריאה בלבד בכל המסכים. כתובת שהגיעה שגויה מטופס הקליטה לא הייתה
+          ניתנת לתיקון בשום מקום מלבד המסד. */}
+      <SectHead family="auth" title="פרטי הנישום"
+        why="מה שנוסע לרשויות — בייפוי הכוח ובבקשות הייצוג" />
+      <div className="txf-sect">
+        <TRow
+          id="identity" name="פרטים אישיים"
+          summary={[
+            client.idNumber ? `ת.ז. ${client.idNumber}` : 'אין ת.ז.',
+            client.phone, client.city,
+          ].filter(Boolean).join(' · ')}
+          open={openRows.has('identity')} onToggle={toggleRow}
+        >
+          <div className="txf-kv">
+            {editingSection === 'identity'
+              ? identityFields().map(f => (
+                  <EditableKV key={f.key} def={f} value={sectionDrafts[f.key] ?? ''}
+                    onChange={v => setSectionDrafts(d => ({ ...d, [f.key]: v }))} />
+                ))
+              : identityFields().map(f => {
+                  const v = editFieldValue(client, f);
+                  return (
+                    <KV key={f.key} k={f.label}
+                      v={v
+                        ? (f.key === 'phone' || f.key === 'email' || f.key === 'idNumber'
+                            ? <span className="ltr-isolate">{editFieldDisplay(f, v)}</span>
+                            : editFieldDisplay(f, v))
+                        : <span style={{ color: 'var(--ink-4)' }}>טרם התקבל</span>} />
+                  );
+                })}
+          </div>
+          {editingSection === 'identity' && <EditActions />}
+          <SrcLine label="מקור: כרטיס הלקוח"
+            onEdit={editingSection === 'identity' || !onUpdateClientFields ? undefined
+              : () => startSectionEdit('identity', identityFields())} />
+        </TRow>
+      </div>
 
       {/* ═══ מול הרשויות ══════════════════════════════════════════════════
           מקור UX מחייב: docs/prototypes/client-case-simplified-exploration-v3-final2.html

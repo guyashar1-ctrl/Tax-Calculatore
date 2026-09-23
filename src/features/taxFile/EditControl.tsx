@@ -8,6 +8,7 @@
 
 import { getEligibleSettlements } from '../../data/eligibleSettlements';
 import { CURRENT_TAX_YEAR } from '../../data/taxData';
+import HebrewTextInput from '../../components/ui/HebrewTextInput';
 import type { EditField } from './editModel';
 
 export default function EditControl({ def, value, onChange }: {
@@ -39,6 +40,9 @@ export default function EditControl({ def, value, onChange }: {
         {def.options.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
       </select>
     );
+  }
+  if (def.hebrew) {
+    return <HebrewTextInput value={value} placeholder="—" onChange={e => onChange(e.target.value)} />;
   }
   return (
     <input type={def.kind === 'date' ? 'date' : 'text'}
