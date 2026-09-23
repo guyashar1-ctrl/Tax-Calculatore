@@ -33,7 +33,7 @@ import EmailPreviewDialog from './EmailActivity/EmailPreviewDialog';
 import type { RepSigner } from '../types';
 import InfoLines from './ui/InfoLines';
 import NiNextActionButton from './NiNextActionButton';
-import { niPersons, niRepresentationOf, niRepresentationAction } from '../utils/niPersons';
+import { niPersons, niRepresentationOf, niRepresentationAction, niExternalEvidence } from '../utils/niPersons';
 import { shaamRepresentationAction } from '../features/taxFile/shaamRepresentationAction';
 import { representationInsight } from '../utils/representationInsight';
 import ConfirmDialog from './ui/ConfirmDialog';
@@ -979,6 +979,17 @@ function NiTrack({
   const [refNumber, setRefNumber] = useState(ni.referenceNumber || '');
   const [deadline, setDeadline] = useState(ni.deadline || '');
 
+  /* ‼ הבאג שהוליד את 195 בצד המסך: `useState(ni.x)` קורא את הערך **פעם
+     אחת**, ברינדור הראשון — ובו הבקשה עדיין נטענת ו-`ni` הוא `{}`. כשהערך
+     האמיתי הגיע (מהאוטומציה או משמירה), הצעד למעלה נצבע ירוק והשובל
+     "נותרו N ימים" הופיע — ושני השדות נשארו ריקים עם ה-placeholder
+     (73882698), כך שהם **נראו** ריקים גם אחרי רענון. כאן מסתנכרנים עם
+     הערך שהשרת מחזיק; התלות היא הערך עצמו, ולכן הקלדה של הרו"ח נדרסת רק
+     כשהשרת באמת שינה את הערך. ראה memory/stale-client-after-server-write. */
+  useEffect(() => { setRefNumber(ni.referenceNumber || ''); }, [ni.referenceNumber]);
+  useEffect(() => { setDeadline(ni.deadline || ''); }, [ni.deadline]);
+
+  const external = niExternalEvidence(ni);
   const steps = [!!ni.enteredAt, !!ni.referenceNumber, !!ni.instructionsSentAt, !!ni.confirmedAt];
   const sentWithSignature = ni.instructionsSentWith === 'signature';
   const k = (suffix: string) => `${busyPrefix}-${suffix}`;
@@ -991,8 +1002,13 @@ function NiTrack({
 
   const executionSteps = (
     <>
+      {/* ‼ `foundExternally` (195): הרישום נמצא קיים בב"ל ולא נוצר מכאן —
+          כמעט תמיד כי הוזן ידנית בפורטל. הצעד בוצע, אבל לא "סומן" על ידינו,
+          והמסך לא ייחס לעצמו פעולה שלא עשה. */}
       <Step n={1} title="ייפוי הכוח הוזן באתר ב״ל" done={!!ni.enteredAt}
-        hint={ni.enteredAt ? `סומן ב-${fmt(ni.enteredAt)}` : 'מסך "הוספת ייפוי כח מבוטח" - ארבעת השדות מהבלוק שמעל'}>
+        hint={!ni.enteredAt ? 'מסך "הוספת ייפוי כח מבוטח" - ארבעת השדות מהבלוק שמעל'
+          : ni.foundExternally ? `נמצא קיים באתר ב״ל (הוזן שם, לא מכאן) · אותר ב-${fmt(ni.enteredAt)}`
+          : `סומן ב-${fmt(ni.enteredAt)}`}>
         {!ni.enteredAt && (
           <button className="btn btn-secondary btn-sm" disabled={busy === k('entered')}
             onClick={() => onPatch({ enteredAt: new Date().toISOString() }, k('entered'))}>
@@ -1049,6 +1065,21 @@ function NiTrack({
 
       <Step n={4} title="אושר - הייצוג בב״ל פעיל" done={!!ni.confirmedAt}
         hint={ni.confirmedAt ? `אושר ב-${fmt(ni.confirmedAt)}` : 'בדקו באתר ב״ל שהאישור נקלט'}>
+        {/* ‼ 195 — מה שביטוח לאומי **אמרה** בקריאה האחרונה, במילים שלה.
+            הצעד נשאר לא-מסומן עד שהמצב שנקרא היה «מאושר»; השורה הזאת קיימת
+            כדי שהמסך לא ישתוק על «ממתין לאישור» ויותיר את הרו"ח לנחש. */}
+        {external && !ni.confirmedAt && (
+          <div style={{
+            marginBottom: '.45rem', padding: '.35rem .6rem', borderRadius: 'var(--radius)',
+            fontSize: 'var(--fs-13)',
+            background: external.tone === 'warn' ? 'var(--orange-light)' : 'var(--surface-2)',
+            color: external.tone === 'warn' ? 'var(--ink-1)' : 'var(--ink-3)',
+          }}>
+            ביטוח לאומי: <b>{external.label}</b>
+            {external.raw && ` ("${external.raw}")`}
+            {external.at && ` · נקרא ${fmt(external.at)}`}
+          </div>
+        )}
         {!ni.confirmedAt && (
           <button className="btn btn-secondary btn-sm" disabled={busy === k('conf')}
             onClick={() => onPatch({ confirmedAt: new Date().toISOString() }, k('conf'))}>

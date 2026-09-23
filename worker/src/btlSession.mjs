@@ -24,6 +24,13 @@ import { spawn, execFileSync } from 'node:child_process';
 import { resolve } from 'node:path';
 import { mkdirSync, existsSync } from 'node:fs';
 import { findChromeExe, snapPage } from './browserSession.mjs';
+import {
+  TRACKING_COLUMNS, selectTrackingRow, classifyPoaStatus, toIsoDate, sameIdNumber,
+} from './btlTracking.mjs';
+
+// ‼ יוצאים מחדש כדי שה-handlers ימשיכו לייבא ממקום אחד («הסשן של ב"ל»),
+// בלי שהלוגיקה הטהורה תיאלץ לחיות בקובץ שדורש Chrome כדי להיטען.
+export { classifyPoaStatus, toIsoDate, sameIdNumber };
 
 const CDP_URL = 'http://localhost:9223';
 const BTL_ORIGIN = 'https://meyazegs.btl.gov.il';
@@ -445,9 +452,21 @@ export async function extractPoaConfirmation(page) {
     ok: true,
     referenceNumber: refMatch ? refMatch[1] : null,
     deadline: deadlineMatch ? toIsoDate(deadlineMatch[1]) : null,
+    status: confirmationState(bodyText),
     // ‼ אם אחד מהם null למרות שנמצא ה-marker: ה-handler מדווח permanent
     // (no_reference_extracted) — לא כותב ערך חלקי כאילו הוא שלם.
   };
+}
+
+// ‼ מסך התוצאה אומר במפורש «ייפוי הכוח ניקלט במערכת, אך עדיין אינו בתוקף»
+// (נצפה חי 16.09.2026, ושוב 23.09.2026 במסך הפירוט של רישום קיים). זו ראיה
+// חיובית ל**ממתין** — לא היעדר ראיה. בלי ניסוח כזה מחזירים 'unknown':
+// הגשה שהצליחה אינה, ולעולם לא תהיה, ראיה לאישור.
+const PENDING_MARKERS = ['אינו בתוקף', 'אינה בתוקף', 'טרם הופעל', 'ממתין לאישור'];
+
+export function confirmationState(bodyText) {
+  const t = String(bodyText ?? '');
+  return PENDING_MARKERS.some((m) => t.includes(m)) ? 'pending' : 'unknown';
 }
 
 /** מיוצגים → ייפוי כח → מעקב ייפוי כח. מאמת הגעה לפי טבלת המעקב — לא לפי URL. */
@@ -460,110 +479,47 @@ export async function openPoaTrackingScreen(page) {
   return { ok: true, steps: nav.steps };
 }
 
-/**
- * ‼ ביטוח לאומי מציג ת.ז. **בלי אפסים מובילים** (נצפה חי, 16.09.2026: ת.ז.
- * בת 9 ספרות שמתחילה באפס מופיעה במסך המעקב — וגם בשדה הטופס אחרי הגשה —
- * כ-8 ספרות). השוואת מחרוזות ישירה החמיצה רישום קיים והובילה להגשה חוזרת,
- * שביטוח לאומי דחה («מבוטח זה כבר קיים במעקב ייפוי כח»). משווים ספרות
- * בלבד, אחרי הסרת אפסים מובילים, משני הצדדים.
- */
-export function sameIdNumber(a, b) {
-  const norm = (v) => String(v ?? '').replace(/\D/g, '').replace(/^0+/, '');
-  const x = norm(a); const y = norm(b);
-  return x.length > 0 && x === y;
-}
+// ─── קריאת טבלת המעקב ───────────────────────────────────────────────────────
+// ‼ החלוקה כאן מכוונת: הדף מחזיר **טקסט בלבד** (כותרות ושורות), וכל
+// ההכרעה — מיפוי עמודות, התאמה, בחירה בין כמה שורות וסיווג הסטטוס — קורית
+// ב-Node בתוך `selectTrackingRow` (btlTracking.mjs), שהוא טהור ונבדק
+// ב-worker/test/btl-tracking.mjs. עד 23.09.2026 הכול חי בתוך page.evaluate
+// ולכן לא היה ניתן לבדיקה בלי סשן מאומת — וזו בדיוק השכבה שבה «קיימת שורה»
+// יכול היה להיקרא כ«אושר».
 
 /**
- * ‼ ביטוח לאומי מציג תאריכים DD/MM/YYYY; NiTracking.deadline הוא YYYY-MM-DD,
- * ו-sync_authority_representation_steps בשרת עושה `::date` — «15/11/2026»
- * נפל ב-"date/time field value out of range" והפיל את השלמת המשימה כולה
- * (נצפה חי, 16.09.2026). ממירים כאן, פעם אחת, לפני שהערך עוזב את העובד.
- * צורה לא מזוהה מוחזרת null — לא תאריך מנוחש.
+ * גורד **את כל** הטבלאות המועמדות כמערך מחרוזות. בלי שום החלטה עסקית.
+ * ‼ לא "הראשונה שיש בה «אסמכתא»": במסך המעקב פאנל הסינון שבראש העמוד מכיל
+ * בעצמו את המילים «אסמכתא» ו«סטטוס», והוא מגיע ראשון ב-DOM. הבחירה
+ * (pickTrackingTable) קורית ב-Node, על כל המועמדות, לפי כמה כותרות מוכרות
+ * יש בכל אחת — ראה btlTracking.mjs.
  */
-export function toIsoDate(display) {
-  const m = String(display ?? '').trim().match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
-  if (!m) return null;
-  const [, dd, mm, yyyy] = m;
-  if (Number(mm) < 1 || Number(mm) > 12 || Number(dd) < 1 || Number(dd) > 31) return null;
-  return `${yyyy}-${mm}-${dd}`;
-}
-
-// ‼ עוגן מבני מאומת בסשן אמיתי (16.09.2026): כותרות העמודה כפי שנקראו
-// מילה-במילה מתוך `document.querySelectorAll('table')` על מסך המעקב האמיתי
-// (הטבלה: `#SherutData_GridViewMainList`, GridView קלאסי של ASP.NET) —
-// לא מהתיאור המילולי במשימה, שהיה קרוב אך לא מדויק ("זהות/ח.פ מעסיק" מול
-// "זהות/תיק מעסיק" בפועל, "מועד אחרון" מול "מ/עד תאריך" בפועל). אם ביטוח
-// לאומי משנה ניסוח — הקוד נכשל ב-'columns_not_found' ולא מחזיר ניחוש.
-const TRACKING_COLUMNS = {
-  reference: ['אסמכתא'],
-  idNumber: ['זהות/תיק מעסיק'],
-  status: ['סטטוס'],
-  deadline: ['מ/עד תאריך'],
-};
-
-/**
- * מאתר בטבלת המעקב שורה אחת — לפי קוד אסמכתא כשהוא ידוע (מסלול הבדיקה
- * הרגיל: `btlCheckRepresentation`), או לפי ת.ז. כשאין עדיין אסמכתא (מסלול
- * ההתאוששות ביצירה, אחרי worker שקרס בין «הוספה» לחילוץ התוצאה — ראה
- * handlers/btlCreateRepresentation.mjs). ‼ לעולם לא "שורה ראשונה": מוצא
- * את הטבלה **שכותרתה** מכילה "אסמכתא", ממפה עמודות לפי הכותרות, ובודק את
- * כל השורות — התאמה כפולה מוחזרת כדו-משמעית, לא כ"הראשונה שמצאתי".
- */
-export async function findPoaTrackingRow(page, { referenceNumber, idNumber }) {
-  const row = await findPoaTrackingRowRaw(page, { referenceNumber, idNumber });
-  // ‼ המועד חוזר בפורמט תצוגה (DD/MM/YYYY) — מנורמל ל-ISO לפני שהוא עוזב
-  // את העובד; הגולמי נשמר ב-deadlineRaw לאבחון.
-  if (row?.found) return { ...row, deadlineRaw: row.deadline, deadline: toIsoDate(row.deadline) };
-  return row;
-}
-
-async function findPoaTrackingRowRaw(page, { referenceNumber, idNumber }) {
-  return page.evaluate(({ referenceNumber, idNumber, columns }) => {
+async function scrapeTrackingTables(page) {
+  return page.evaluate((referenceLabels) => {
     const norm = (s) => (s || '').replace(/\s+/g, ' ').trim();
-    const tables = [...document.querySelectorAll('table')];
-    let target = null;
-    let headerCells = null;
-    for (const t of tables) {
+    const tables = [];
+    for (const t of document.querySelectorAll('table')) {
+      if (tables.length >= 20) break;
       const headerRow = t.querySelector('tr');
       if (!headerRow) continue;
-      const cells = [...headerRow.querySelectorAll('th,td')].map((c) => norm(c.textContent));
-      if (cells.some((c) => columns.reference.includes(c))) { target = t; headerCells = cells; break; }
+      const headerCells = [...headerRow.querySelectorAll('th,td')].map((c) => norm(c.textContent));
+      if (!headerCells.some((c) => referenceLabels.includes(c))) continue;
+      const dataRows = [...t.querySelectorAll('tr')].slice(1, 501)
+        .map((r) => [...r.querySelectorAll('td,th')].map((c) => norm(c.textContent)));
+      tables.push({ headerCells, dataRows });
     }
-    if (!target) return { found: false, reason: 'table_not_found' };
+    return { ok: tables.length > 0, tables };
+  }, TRACKING_COLUMNS.reference);
+}
 
-    const colIndex = (labels) => headerCells.findIndex((c) => labels.includes(c));
-    const idxRef = colIndex(columns.reference);
-    const idxId = colIndex(columns.idNumber);
-    const idxStatus = colIndex(columns.status);
-    const idxDeadline = colIndex(columns.deadline);
-    if (idxRef < 0 || idxStatus < 0) return { found: false, reason: 'columns_not_found', headerCells };
-
-    const dataRows = [...target.querySelectorAll('tr')].slice(1)
-      .map((r) => [...r.querySelectorAll('td,th')].map((c) => norm(c.textContent)));
-
-    // ‼ ת.ז. מושווית כספרות בלי אפסים מובילים — ראה sameIdNumber (הגרסה
-    // בתוך הדף, כי page.evaluate לא רואה את הפונקציה שבחוץ).
-    const normId = (v) => String(v ?? '').replace(/\D/g, '').replace(/^0+/, '');
-    let matches;
-    if (referenceNumber) {
-      matches = dataRows.filter((cells) => cells[idxRef] === referenceNumber);
-    } else if (idNumber) {
-      if (idxId < 0) return { found: false, reason: 'id_column_not_found', headerCells };
-      const want = normId(idNumber);
-      matches = dataRows.filter((cells) => normId(cells[idxId]) === want);
-    } else {
-      return { found: false, reason: 'no_lookup_key' };
-    }
-    if (matches.length === 0) return { found: false, reason: referenceNumber ? 'reference_not_found' : 'id_not_found' };
-    if (matches.length > 1) return { found: false, reason: 'ambiguous_match', count: matches.length };
-
-    const cells = matches[0];
-    return {
-      found: true,
-      referenceNumber: idxRef >= 0 ? cells[idxRef] : null,
-      idNumber: idxId >= 0 ? cells[idxId] : null,
-      rawStatus: cells[idxStatus],
-      deadline: idxDeadline >= 0 ? cells[idxDeadline] : null,
-    };
-  }, { referenceNumber: referenceNumber ?? null, idNumber: idNumber ?? null, columns: TRACKING_COLUMNS });
+/**
+ * מאתר בטבלת המעקב שורה אחת — לפי אסמכתא כשהיא ידועה (מסלול הבדיקה,
+ * `btlCheckRepresentation`), או לפי ת.ז. כשאין עדיין אסמכתא (מסלול ההתאמה
+ * ביצירה, `btlCreateRepresentation`). מחזיר גם `status` **קנוני** לצד
+ * `rawStatus` הגולמי; ראה btlTracking.mjs לכללי ההכרעה.
+ */
+export async function findPoaTrackingRow(page, { referenceNumber, idNumber }) {
+  const scraped = await scrapeTrackingTables(page);
+  if (!scraped?.ok) return { found: false, reason: 'table_not_found' };
+  return selectTrackingRow(scraped, { referenceNumber, idNumber });
 }

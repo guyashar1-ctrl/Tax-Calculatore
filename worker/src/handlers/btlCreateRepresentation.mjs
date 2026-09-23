@@ -133,8 +133,31 @@ export async function run(ctx, input) {
     if (!tracking.ok) throw navFailure('פתיחת מסך מעקב לבדיקת כפילות', tracking);
     const existing = await findPoaTrackingRow(page, { idNumber: subject.idNumber });
     if (existing?.found) {
-      ctx.log(`נמצא רישום קיים אצל ביטוח לאומי · אסמכתא ${existing.referenceNumber} · סטטוס ${existing.rawStatus} — לא יוצר כפול`);
-      return { result: { role: subject.role, referenceNumber: existing.referenceNumber, deadline: existing.deadline, reconciled: true } };
+      // ‼ זהו **מסלול היישוב** (reconcile), ולא "הצלחנו ליצור": הרישום כבר
+      // היה שם — לרוב כי מישהו הזין אותו ידנית בפורטל. עד 23.09.2026
+      // המסלול הזה החזיר אסמכתא ומועד בלבד וזרק את הסטטוס, וכך «קיימת
+      // שורה» הגיע ל-CRM בלי שום אמירה על **מה** קיים. מחזירים את המצב
+      // הקנוני כמו שהוא נקרא; רק 'approved' הוא ראיה לייצוג פעיל, והתרגום
+      // למצב עסקי נשאר בשרת (194).
+      ctx.log(
+        `נמצא רישום קיים אצל ביטוח לאומי · אסמכתא ${existing.referenceNumber} · ` +
+        `סטטוס "${existing.rawStatus}" ⇒ ${existing.status}${existing.candidates > 1 ? ` · מתוך ${existing.candidates} שורות לאותה ת.ז.` : ''} — לא יוצר כפול`,
+      );
+      return {
+        result: {
+          role: subject.role,
+          referenceNumber: existing.referenceNumber,
+          deadline: existing.deadline ?? null,
+          found: true,
+          status: existing.status,
+          rawStatus: existing.rawStatus ?? null,
+          idNumber: existing.idNumber ?? null,
+          candidates: existing.candidates ?? 1,
+          reconciled: true,
+          /** ‼ PIVO לא הזינה אותו בריצה הזו — המסך לא יטען שהיא כן. */
+          foundExternally: true,
+        },
+      };
     }
     if (existing?.reason === 'ambiguous_match') {
       throw new PermanentError(
@@ -160,7 +183,7 @@ export async function run(ctx, input) {
     if (confirmation.ok && confirmation.alreadyExisted) {
       // ‼ ביטוח לאומי דחה כי כבר קיים ייפוי כוח למבוטח — ומסר את האסמכתא.
       // זו תוצאת reconcile, לא כישלון: משלימים מועד אחרון ממסך המעקב.
-      ctx.log(`ביטוח לאומי: ייפוי כוח כבר קיים · אסמכתא ${confirmation.referenceNumber} — משלים מועד ממסך המעקב`);
+      ctx.log(`ביטוח לאומי: ייפוי כוח כבר קיים · אסמכתא ${confirmation.referenceNumber} — משלים מועד וסטטוס ממסך המעקב`);
       const tracking2 = await openPoaTrackingScreen(page);
       const row = tracking2.ok ? await findPoaTrackingRow(page, { referenceNumber: confirmation.referenceNumber }) : null;
       return {
@@ -168,7 +191,14 @@ export async function run(ctx, input) {
           role: subject.role,
           referenceNumber: confirmation.referenceNumber,
           deadline: row?.found ? (row.deadline ?? null) : null,
+          found: true,
+          // ‼ לא הצלחנו לקרוא את שורת המעקב ⇒ 'unknown', לא 'pending'
+          // ולא 'approved'. ההודעה «כבר קיים» מוכיחה **קיום**, לא מצב.
+          status: row?.found ? row.status : 'unknown',
+          rawStatus: row?.found ? (row.rawStatus ?? null) : null,
+          idNumber: row?.found ? (row.idNumber ?? null) : null,
           reconciled: true,
+          foundExternally: true,
         },
       };
     }
@@ -193,6 +223,12 @@ export async function run(ctx, input) {
         role: subject.role,
         referenceNumber: confirmation.referenceNumber,
         deadline: confirmation.deadline ?? null,
+        found: true,
+        // ‼ מסך התוצאה אומר «ניקלט במערכת, אך עדיין אינו בתוקף» — ראיה
+        // חיובית ל**ממתין**. בלי הניסוח הזה: 'unknown'. הגשה שהצליחה אינה
+        // ראיה לאישור, גם כשהכול עבר חלק.
+        status: confirmation.status ?? 'unknown',
+        foundExternally: false,
       },
     };
   } finally {
