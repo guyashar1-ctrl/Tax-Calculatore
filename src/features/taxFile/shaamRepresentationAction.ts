@@ -7,7 +7,7 @@
 
 import type { RepresentationStatus } from '../../types';
 import type { ShaamRequestTracking } from '../representation/shaamRepresentation';
-import { allSystemsAccepted } from '../representation/shaamRepresentation';
+import { allSystemsAccepted, shaamRequestExists } from '../representation/shaamRepresentation';
 import {
   SHAAM_CREATE_REPRESENTATION_ACTION_TYPE,
   SHAAM_SUBMIT_POA_ACTION_TYPE,
@@ -41,7 +41,7 @@ export function shaamRepresentationAction(
   // ‼ «פעיל» הוא סוף הדרך אצלנו, אבל כל עוד לא ראינו את שע״ם אומרת שהכול
   // נקלט — בדיקה עדיין שווה משהו. אחרי שראינו, אין מה להציע.
   if (status === 'active') {
-    if (tracking?.requestNumber && !allSystemsAccepted(tracking)) {
+    if (shaamRequestExists(tracking) && !allSystemsAccepted(tracking)) {
       return { kind: 'check', label: 'בדוק קבלת הייצוג', actionType: SHAAM_CHECK_REPRESENTATION_ACTION_TYPE };
     }
     return null;
@@ -76,9 +76,23 @@ export function shaamRepresentationAction(
   // ידנית — «בדוק קבלת הייצוג» מוצא אותו לבד (חיפוש לפי ישות, worker
   // מיוחס). לפני שמציעים «צור בקשה» — קודם בודקים שהיא לא כבר שם, כדי
   // שלא ליצור כפילות. בדיקה היא קריאה בלבד, ולכן בטוחה גם כשאין שם כלום.
+  // ‼ «בדוק» מצא את הבקשה בשע״ם (שורות משויכות) אבל מספר הבקשה לא נחשף
+  // ב-DOM — המקרה האמיתי של הדסה סלע (23.09.2026). הבקשה **קיימת**, ולכן
+  // לעולם לא «צור»: זו הייתה פותחת אימות ישות חוזר מול שע״ם על בקשה פתוחה.
+  if (shaamRequestExists(tracking)) {
+    if (stamped) {
+      return {
+        kind: 'submit', label: 'שלח טופס חתום לשע״ם', actionType: SHAAM_SUBMIT_POA_ACTION_TYPE,
+        disabled: true,
+        reason: 'מספר הבקשה בשע״ם לא נקרא מרשימת הבקשות, ולכן אי אפשר לאתר אותה לשידור אוטומטי. '
+          + 'שדרו את הטופס החתום ידנית בשע״ם, ואז «בדוק קבלת הייצוג».',
+      };
+    }
+    return { kind: 'check', label: 'בדוק קבלת הייצוג', actionType: SHAAM_CHECK_REPRESENTATION_ACTION_TYPE };
+  }
   if (!tracking?.syncedAt) {
     return { kind: 'check', label: 'בדוק קבלת הייצוג', actionType: SHAAM_CHECK_REPRESENTATION_ACTION_TYPE };
   }
-  // כבר נבדקה בשע״ם ולא נמצא מספר בקשה — עכשיו אפשר באמת ליצור.
+  // כבר נבדקה בשע״ם, ולא נמצאה שם שום שורה שלה — עכשיו אפשר באמת ליצור.
   return { kind: 'create', label: 'הזן את הפרטים בשע״ם', actionType: SHAAM_CREATE_REPRESENTATION_ACTION_TYPE };
 }

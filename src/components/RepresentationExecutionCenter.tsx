@@ -42,7 +42,7 @@ import ShaamNextActionButton from './ShaamNextActionButton';
 import type { ShaamSubmission } from '../utils/repScope';
 import {
   shaamProgressLine, shaamSystemViews, SHAAM_REQUEST_STATE_LABELS, SHAAM_SYSTEM_STATE_LABELS,
-  parseShaamRequestState,
+  parseShaamRequestState, shaamRequestExists,
   type ShaamRequestTracking,
 } from '../features/representation/shaamRepresentation';
 import { representationInsight } from '../utils/representationInsight';
@@ -757,9 +757,11 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
                   )}
                   {/* ‼ המזהה החיצוני מוצג ברגע שהוא קיים: ממנו נגזרת כל
                       פעולה הבאה מול שע״ם, והוא גם מה שהרו"ח מחפש שם ידנית. */}
-                  {shaamTrack(sub.key)?.requestNumber && (
+                  {shaamRequestExists(shaamTrack(sub.key)) && (
                     <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)', marginTop: '.4rem' }}>
-                      מספר בקשה בשע״ם: <span className="ltr-isolate">{shaamTrack(sub.key)!.requestNumber}</span>
+                      {shaamTrack(sub.key)?.requestNumber
+                        ? <>מספר בקשה בשע״ם: <span className="ltr-isolate">{shaamTrack(sub.key)!.requestNumber}</span></>
+                        : 'הבקשה נמצאה ברשימת הבקשות בשע״ם (מספר הבקשה לא מוצג שם)'}
                       {shaamTrack(sub.key)?.formDocumentId ? ' · טופס ייפוי הכוח הובא לתיק הלקוח' : ''}
                     </div>
                   )}
@@ -889,7 +891,7 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
                   היה מוחק בדיוק את מה שצריך לדעת — אצל מי הכדור. */}
               {submissions.map(sub => {
                 const t = shaamTrack(sub.key);
-                if (!t?.requestNumber) return null;
+                if (!t || !shaamRequestExists(t)) return null;
                 const line = shaamProgressLine(t);
                 const reqState = t.rawRequestState ? parseShaamRequestState(t.rawRequestState) : undefined;
                 return (

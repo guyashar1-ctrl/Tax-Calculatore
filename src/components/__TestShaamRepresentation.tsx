@@ -120,6 +120,21 @@ const TRACK_ACTIVE: RepresentationExecution = {
   },
 };
 
+// ‼ המקרה האמיתי של הדסה סלע (23.09.2026): «בדוק» מצא את השורות בשע״ם,
+// אבל מספר הבקשה לא נחשף ברשימה.
+const TRACK_FOUND_NO_NUMBER: RepresentationExecution = {
+  shaam: {
+    'person:client': {
+      syncedAt: '2026-09-23T13:00:00.000Z',
+      rawRequestState: 'המתנה למסמכים',
+      systems: [
+        { systemLabel: 'מס הכנסה', rawRequestState: 'המתנה למסמכים', rawSystemState: 'ממתין', clientName: 'הדסה סלע' },
+        { systemLabel: 'מעמ', rawRequestState: 'המתנה למסמכים', rawSystemState: 'ממתין', clientName: 'הדסה סלע' },
+      ],
+    },
+  },
+};
+
 /**
  * מסמך החתימה כפי שהוא נראה אחרי ההכנה האוטומטית (194): הטופס שהובא
  * משע״ם, ואזורי החתימה שנבנו מהתבנית שנמדדה. `signed` ⇒ גם נחתם ונצרב.
@@ -154,6 +169,7 @@ const SCENARIOS: Scenario[] = [
     status: 'awaiting_accountant', execution: TRACK_NONE,
     client: { ...CLIENT, spousePhone: '' } as Client,
   },
+  { key: 'found-no-number', label: '2ב · נמצאה בשע״ם בלי מספר בקשה', status: 'awaiting_accountant', execution: TRACK_FOUND_NO_NUMBER },
   { key: 'created', label: '3 · הבקשה נפתחה והטופס הובא', status: 'pending_signature', execution: TRACK_CREATED, docs: shaamDoc(false) },
   { key: 'stamped', label: '4 · נחתם והוחתם - מוכן לשידור', status: 'awaiting_stamp', execution: TRACK_CREATED, docs: shaamDoc(true), signed: true },
   { key: 'suspended', label: '5 · שודר · השהיה + ממתין לפתיחת תיק', status: 'awaiting_authorities', execution: TRACK_SUSPENDED, docs: shaamDoc(true), signed: true },

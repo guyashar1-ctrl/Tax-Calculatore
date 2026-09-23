@@ -480,4 +480,38 @@ export const TESTS: TestCase[] = [
     equal(matchRegisteredPersonName('הדסה סלע', 'הדסה סלע', null), 'client');
     equal(matchRegisteredPersonName('יאיר סלע', 'הדסה סלע', null), 'no_match');
   }),
+  // ── 29 · נמצאה בשע״ם בלי מספר בקשה — הצורה האמיתית של הדסה סלע (23.09.2026) ──
+  // ‼ «בדוק» ייחס שורות לבקשה, אבל מספר הבקשה לא נחשף ב-DOM. הבקשה קיימת,
+  // ולכן לעולם לא «צור» (אימות ישות חוזר), ולא «טרם נפתחה».
+
+  test('29 · שורות משויכות בלי מספר בקשה — הבקשה קיימת, הפעולה «בדוק» ולא «צור»', () => {
+    const t: ShaamRequestTracking = {
+      syncedAt: '2026-09-23T13:00:00Z',
+      rawRequestState: 'המתנה למסמכים',
+      systems: [{ systemLabel: 'מס הכנסה', rawRequestState: 'המתנה למסמכים', rawSystemState: 'ממתין' }],
+    };
+    equal(shaamStageOf(t), 'request_created');
+    equal(shaamRepresentationAction('awaiting_accountant', t, false)?.kind, 'check');
+    const line = shaamProgressLine(t).text;
+    assert(!line.includes('טרם נפתחה'), 'לא «טרם נפתחה» כשנמצאו שורות');
+    assert(!line.includes('()'), 'אין סוגריים ריקים במקום מספר');
+    assert(line.includes('נמצאה ברשימת הבקשות'), line);
+  }),
+
+  test('29ב · אותה צורה עם טופס חתום — «שדר» מושבת עם הסבר', () => {
+    const t: ShaamRequestTracking = {
+      syncedAt: '2026-09-23T13:00:00Z',
+      systems: [{ systemLabel: 'מס הכנסה', rawRequestState: 'המתנה למסמכים' }],
+    };
+    const a = shaamRepresentationAction('awaiting_stamp', t, true);
+    equal(a?.kind, 'submit');
+    equal(a?.disabled, true);
+    assert((a?.reason ?? '').includes('ידנית'), a?.reason ?? '');
+  }),
+
+  test('29ג · נבדקה ולא נמצאה שום שורה — רק אז «צור»; «פעיל» עם שורות שטרם נקלטו — «בדוק»', () => {
+    equal(shaamRepresentationAction('awaiting_accountant', { syncedAt: 't', systems: [] }, false)?.kind, 'create');
+    const t: ShaamRequestTracking = { syncedAt: 't', systems: [{ systemLabel: 'מס הכנסה', rawSystemState: 'ממתין' }] };
+    equal(shaamRepresentationAction('active', t, false)?.kind, 'check');
+  }),
 ];

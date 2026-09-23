@@ -352,12 +352,26 @@ export type ShaamIntegrationStage =
 const STAGE_ORDER: ShaamIntegrationStage[] = ['none', 'request_created', 'form_fetched', 'submitted', 'active'];
 
 /** השלב שבו ההגשה נמצאת בפועל — נגזר מהעובדות, לא מדגל שנכתב ביד. */
+/**
+ * יש עדות שהבקשה **קיימת** בשע״ם: מספר בקשה, או שורות שנקראו ושויכו אליה.
+ *
+ * ‼ 23.09.2026 · נצפה בפועל (הדסה סלע): «בדוק קבלת הייצוג» מצא את הבקשה
+ * ברשימת «בקשות בתהליך» ושייך אליה שלוש שורות — אבל מספר הבקשה לא נחשף
+ * ב-DOM. בלי הכלל הזה, `syncedAt` בלי `requestNumber` נקרא כ«נבדק ולא
+ * נמצא», והמסך הציע «הזן את הפרטים בשע״ם» — כלומר אימות ישות חוזר מול
+ * שע״ם על בקשה שכבר פתוחה. שורות נשמרות רק אחרי שיוך fail-closed
+ * (attributeRows), ולכן הן ראיה, לא ניחוש.
+ */
+export function shaamRequestExists(t: ShaamRequestTracking | undefined): boolean {
+  return !!t?.requestNumber || (t?.systems?.length ?? 0) > 0;
+}
+
 export function shaamStageOf(t: ShaamRequestTracking | undefined): ShaamIntegrationStage {
   if (!t) return 'none';
   if (allSystemsAccepted(t)) return 'active';
   if (t.submittedAt) return 'submitted';
   if (t.formDocumentId) return 'form_fetched';
-  if (t.requestNumber) return 'request_created';
+  if (shaamRequestExists(t)) return 'request_created';
   return 'none';
 }
 
@@ -396,7 +410,7 @@ export interface ShaamProgressLine {
  * (מרכז הביצוע וכרטיס הרשות) לא יספרו שני סיפורים על אותה בקשה.
  */
 export function shaamProgressLine(t: ShaamRequestTracking | undefined): ShaamProgressLine {
-  if (!t || !t.requestNumber) {
+  if (!t || !shaamRequestExists(t)) {
     return { ball: 'office', text: 'טרם נפתחה בקשת ייצוג בשע״ם.' };
   }
   if (allSystemsAccepted(t)) {
@@ -409,6 +423,15 @@ export function shaamProgressLine(t: ShaamRequestTracking | undefined): ShaamPro
   }
   if (!t.submittedAt) {
     if (!t.formDocumentId) {
+      if (!t.requestNumber) {
+        // ‼ נמצאה בשע״ם בלי ש-PIVO פתחה אותה (הוזנה ידנית) — הטופס לא הגיע
+        // דרך האוטומציה, ולכן לא אומרים «נשאר להביא»: מדווחים מה שנקרא.
+        const state = parseShaamRequestState(t.rawRequestState ?? t.systems?.[0]?.rawRequestState);
+        return {
+          ball: 'office',
+          text: `הבקשה פתוחה בשע״ם (נמצאה ברשימת הבקשות בתהליך) — ${SHAAM_REQUEST_STATE_LABELS[state]}.`,
+        };
+      }
       return { ball: 'office', text: `הבקשה נפתחה בשע״ם (${t.requestNumber}) — נשאר להביא את טופס ייפוי הכוח.` };
     }
     return { ball: 'office', text: 'טופס ייפוי הכוח מוכן — נשאר להחתים ולשדר אותו לשע״ם.' };

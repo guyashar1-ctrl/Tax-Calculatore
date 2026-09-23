@@ -281,3 +281,13 @@ test('קלט תקין ל-check: בלי מספר בקשה חייב שם לקוח 
   const guard = s.slice(s.indexOf('if (!requestNumber && !personName)'), s.indexOf('if (!requestNumber && !personName)') + 300);
   assert.ok(guard.includes('לא ניתן לבסס בבטחה'), 'ההודעה מסבירה למה עוצרים');
 });
+
+// ── 29 · נמצאה בשע״ם בלי מספר (הדסה סלע, 23.09.2026) — יצירה נחסמת בעובד ──
+test('29 · alreadyFoundInShaam חוסם יצירה לפני כל פנייה לשע״ם', () => {
+  const s = src('../src/handlers/shaamCreateRepresentation.mjs');
+  const guard = s.indexOf('input?.alreadyFoundInShaam === true');
+  assert.ok(guard > 0, 'יש שער ייעודי');
+  assert.ok(guard < s.indexOf("markExternalAttempt('verify_entity')"),
+    'השער לפני סימון הנגיעה — כלומר לפני אימות הישות');
+  assert.ok(s.slice(guard, guard + 400).includes("'already_exists'"), 'שגיאה קבועה, לא זמנית');
+});

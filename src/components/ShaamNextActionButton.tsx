@@ -21,7 +21,7 @@ import { useAutomationGate } from '../hooks/useAutomationGate';
 import type { ShaamSubmission } from '../utils/repScope';
 import {
   preflightShaamSubmission, SHAAM_SYSTEM_SCREEN_LABELS,
-  SHAAM_REPRESENTATION_TYPE, type ShaamRequestTracking,
+  SHAAM_REPRESENTATION_TYPE, shaamRequestExists, type ShaamRequestTracking,
 } from '../features/representation/shaamRepresentation';
 import { shaamPersonFacts, shaamBirthDateInput } from '../features/representation/shaamPersonFacts';
 import type { ShaamRepresentationAction } from '../features/taxFile/shaamRepresentationAction';
@@ -127,6 +127,7 @@ export default function ShaamNextActionButton({
         spousePhone: married ? person.spousePhone : '',
         formFileName: `ייפוי כוח לחתימה - ${person.name}.pdf`,
         existingRequestNumber: tracking?.requestNumber ?? null,
+        alreadyFoundInShaam: shaamRequestExists(tracking),
       }, { acknowledgeExternal });
       return;
     }
