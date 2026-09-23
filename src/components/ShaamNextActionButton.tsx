@@ -76,16 +76,23 @@ export default function ShaamNextActionButton({
   // ‼ «חסר נתון» נבדק **לפני** שער החיבור ומוצג תמיד: זו עובדה על הכרטיס,
   // ונכונה גם כשמחשב האוטומציה כבוי. בלי זה, לחיצה בלי עובד הייתה מראה
   // «מחשב האוטומציה אינו פעיל» ומסתירה את מה שבאמת חוסם.
-  const preflight = action.kind === 'create' && linkedClient
+  // ‼ שלב טרום-יצירה = אין עדיין שום עדות לבקשה בשע״ם. כאן הפעולה המוצעת
+  // היא «בדוק» (יישוב לפני יצירה), אבל הנתון החסר רלוונטי ליצירה שתבוא אחריה
+  // — ולכן מוצג כבר עכשיו. הוא **חוסם** רק את היצירה עצמה; בדיקה היא קריאה
+  // בלבד ואינה זקוקה לטלפון/אמצעי זיהוי.
+  const preCreate = action.kind === 'create'
+    || (action.kind === 'check' && !tracking?.requestNumber && !tracking?.syncedAt);
+  const preflight = preCreate && linkedClient
     ? preflightShaamSubmission(
         submission,
         shaamPersonFacts(request, linkedClient, submission.target),
         linkedClient, married,
       )
     : null;
-  const missingData = preflight && !preflight.ok
+  const missingText = preflight && !preflight.ok
     ? preflight.issues.map(i => i.message).join(' · ')
     : null;
+  const missingData = action.kind === 'create' ? missingText : null;
 
   async function run(acknowledgeExternal = false) {
     setLocalError(null);
@@ -201,8 +208,10 @@ export default function ShaamNextActionButton({
       </button>
       {/* ‼ מוצג תמיד כשחסר נתון — לא רק אחרי לחיצה. הרו"ח רואה מה חסם
           עוד לפני שהוא מנסה. */}
-      {!localError && missingData && (
-        <div className={errorClassName}>{missingData}</div>
+      {!localError && missingText && (
+        <div className={errorClassName}>
+          {action.kind === 'check' ? `לפני פתיחת בקשה בשע״ם יש להשלים: ${missingText}` : missingText}
+        </div>
       )}
       {localError && <div className={errorClassName}>{localError}</div>}
       {hook.error && <div className={errorClassName}>{hook.error}</div>}
