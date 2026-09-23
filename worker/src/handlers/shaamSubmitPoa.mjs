@@ -55,6 +55,7 @@ const BEFORE_TOUCH_STOPS = {
   upload_opener_not_found: 'פקד ה-«+» של «טופס ייפוי כוח» לא נמצא',
   upload_opener_ambiguous: 'יותר מפקד «+» אחד בשורת «טופס ייפוי כוח»',
   spouse_checkbox_ambiguous: 'יותר מתיבת אישור אחת לחתימת בן/בת הזוג',
+  spouse_checkbox_not_found: 'המסך מבקש לאשר את חתימת בן/בת הזוג, אבל תיבת האישור לא נמצאה',
   spouse_signature_not_proven: 'שע״ם מבקשת לאשר את חתימת בן/בת הזוג, ו-PIVO לא הוכיחה אותה בטופס החתום',
 };
 

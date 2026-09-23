@@ -172,3 +172,85 @@ test('15 · הדסה סלע: שורת מס הכנסה של בקשה 2026538930, 
     'טעינת מסמכים למיוצג 034605212 - סלע הדסה יש לטעון את המסמכים הבאים: טופס ייפוי כוח מספר בקשה: 2026538930', WHO);
   assert.deepEqual([r.ok, r.requestNumber], [true, '2026538930']);
 });
+
+// ── 16 · ה-DOM החי של עמודת «פעולות» (נקרא ב-23.09.2026, שורת מס הכנסה של הדסה) ──
+// ‼ הניסיון השני נעצר כאן: החץ הוא <input type="button">, והתווית שלו בתכונה
+// k-content — לא a/button/img ולא title. הרשימה כאן היא בדיוק מה שנמצא בתא.
+import { wizardStepFromText } from '../src/shaamRepresentationSession.mjs';
+
+const LIVE_ACTIONS = [
+  { attrText: "'אירועים קודמים'", classText: 'col-sm-1 icon details_icon ng-scope', hidden: false, tooltip: '' },
+  { attrText: "'ביטול הבקשה'", classText: 'col-sm-1 icon xmark ng-scope', hidden: false, tooltip: '' },
+  { attrText: '', classText: 'col-sm-1 icon ng-hide', hidden: true, tooltip: '' },
+  { attrText: "'טעינת מסמכים'", classText: 'col-sm-1 icon upload ng-scope', hidden: false, tooltip: '' },
+  { attrText: "'שחזור בקשה/PDF'", classText: 'col-sm-1 icon adobe_pdf ng-scope', hidden: false, tooltip: '' },
+  { attrText: "'ניתן לשחזר את הטופס רק לאחר מילוי פרטי התקשרות'", classText: 'col-sm-1 noclick icon adobe_pdf ng-scope ng-hide', hidden: true, tooltip: '' },
+  { attrText: "'הצגת מסמכים'", classText: 'col-sm-1 icon powerp ng-scope ng-hide', hidden: true, tooltip: '' },
+];
+
+test('16 · ה-DOM החי: נבחר <input class="icon upload"> — לא «ביטול הבקשה», לא PDF, לא «אירועים קודמים»', () => {
+  const r = pickUploadDocumentsControl(LIVE_ACTIONS);
+  assert.deepEqual([r.ok, r.index], [true, 3]);
+});
+
+test('16ב · פקד מוסתר (ng-hide) אינו מועמד, גם אם הוא אומר «טעינת מסמכים»', () => {
+  const hiddenOnly = LIVE_ACTIONS.map((c, i) => (i === 3 ? { ...c, hidden: true } : c));
+  assert.equal(pickUploadDocumentsControl(hiddenOnly).reason, 'upload_action_not_found');
+});
+
+test('16ג · המועמדים נקראים גם מ-input/div עם type=button, והתווית גם מ-k-content', () => {
+  const line = SESSION.split('\n').find((l) => l.startsWith('export const ACTION_CANDIDATES = ')) ?? '';
+  for (const sel of ['input[type=button]', '[type=button]', '[kendo-tooltip]']) {
+    assert.ok(line.includes(sel), `חסר ${sel} ברשימת המועמדים`);
+  }
+  const d = fnBody(SESSION, 'export async function describeActionCandidates');
+  assert.ok(d.includes("'k-content'"), 'התווית של Kendo');
+  assert.ok(d.includes('ng-hide'), 'גלויות בלבד');
+  const fn = fnBody(SESSION, 'export async function openRequestForDocuments');
+  assert.ok(fn.includes('describeActionCandidates(rowLoc)') && fn.includes('locator(ACTION_CANDIDATES).nth(pick.index)'), 'הזרימה משתמשת באותו קורא');
+});
+
+// ── 17 · שלב האשף: רצועת השלבים אינה כותרת ──────────────────────────────────
+
+const STRIP = '1 אימות ישות 2 בקשת ייפוי כוח 3 פרטי התקשרות 4 טעינת מסמכים 5 השהייה וסיום';
+const DOCS_PAGE = `בקשה לרישום ייפוי כוח חדש מספר בקשה: 2026538930 ${STRIP} טעינת מסמכים למיוצג 034605212 - סלע הדסה יש לטעון את המסמכים הבאים: * טופס ייפוי כוח + אני מאשר את חתימת בן\ת הזוג על טופס ייפוי הכוח המשך חזרה`;
+const CONTACT_PAGE = `בקשה לרישום ייפוי כוח חדש מספר בקשה: 2026538930 ${STRIP} פרטי התקשרות למיוצג 034605212 - סלע הדסה המשך חזרה`;
+
+test('17 · מסך טעינת המסמכים האמיתי ⇒ שלב 4 (לא 1 בגלל «אימות ישות» ברצועה)', () => {
+  assert.equal(wizardStepFromText(DOCS_PAGE, STRIP), 4);
+  assert.equal(wizardStepFromText(CONTACT_PAGE, STRIP), 3);
+});
+
+test('17ב · «השהייה וסיום» נחשב שלב 5 רק מחוץ לרצועה — אחרת «לא ידוע», לעולם לא «נשלח»', () => {
+  assert.equal(wizardStepFromText(`${STRIP} שגיאה כללית`, STRIP), 0);
+  assert.equal(wizardStepFromText(`${STRIP} שגיאה כללית`, ''), null);
+  assert.equal(wizardStepFromText(`${STRIP} השהייה וסיום למיוצג 034605212 - סלע הדסה`, STRIP), 5);
+  // בלי רצועה שהוסרה בפועל — לא מכריזים על 5.
+  assert.notEqual(wizardStepFromText('השהייה וסיום', ''), 5);
+});
+
+test('17ג · תיבת בן/ת הזוג כפי שמופיעה במסך (לוכסן הפוך) נתפסת — הביטוי נלקח מהקוד עצמו', () => {
+  // ‼ לא משכפלים את הביטוי: מוציאים אותו מהמקור, כך שהבדיקה בודקת את מה שרץ.
+  const found = SESSION.match(/\/מאשר[^\n]*?הזוג\/(?=\.test)/g) || [];
+  assert.equal(found.length, 3, 'אותו ביטוי: קריאה, סימון, וזיהוי הטקסט במסך');
+  assert.ok(found.every((x) => x === found[0]), 'אין שתי גרסאות של אותו ביטוי');
+  const re = new RegExp(found[0].slice(1, -1));
+  const screenLabel = String.raw`אני מאשר את חתימת בן\ת הזוג על טופס ייפוי הכוח`;
+  assert.ok(screenLabel.includes('\\'), 'הלייבל כולל לוכסן הפוך, כמו בצילום');
+  assert.ok(re.test(screenLabel));
+  assert.ok(re.test('אני מאשר את חתימת בן/ת הזוג על טופס ייפוי הכוח'));
+  assert.ok(!re.test('אני מאשר את פרטי ההתקשרות'));
+});
+
+test('17ד · המסך מבקש לאשר את חתימת בן/ת הזוג והתיבה לא נמצאה ⇒ עצירה לפני העלאה', () => {
+  const r = documentsStepPlan({ ...DOCS_OK, spouseCheckboxes: 0, spouseLabelOnScreen: true }, { spouseSignatureConfirmed: true });
+  assert.equal(r.reason, 'spouse_checkbox_not_found');
+});
+
+test('17ה · שורת «טופס ייפוי כוח» נמצאת מהתווית עצמה ועולה עד ה-«+» — פונקציה אחת לקריאה, ללחיצה ולאישור', () => {
+  assert.ok(SESSION.includes('function poaRowProbe(mode)'));
+  assert.equal((SESSION.match(/page\.evaluate\(poaRowProbe, 'read'\)/g) || []).length, 2, 'קריאה לפני הנגיעה + אישור אחריה');
+  assert.equal((SESSION.match(/page\.evaluate\(poaRowProbe, 'clickPlus'\)/g) || []).length, 1, 'לחיצה אחת בלבד');
+  const probe = fnBody(SESSION, 'function poaRowProbe(mode)');
+  assert.ok(probe.includes("if (out.plusControls !== 1) return { ...out, clicked: false };"), 'לא לוחצים כש-«+» אינו יחיד');
+});

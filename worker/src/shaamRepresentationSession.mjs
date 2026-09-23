@@ -30,7 +30,7 @@ const TAB_IN_PROGRESS = 'בקשות בתהליך';
 /** כותרות חמשת שלבי האשף — גם האימות שאנחנו במקום הנכון. */
 export const WIZARD_STEPS = [
   'אימות ישות',
-  'בקשות ייפוי כוח',
+  'בקשת ייפוי כוח',
   'פרטי התקשרות',
   'טעינת מסמכים',
   'השהייה וסיום',
@@ -70,28 +70,41 @@ async function settle(page, { idleMs = 12000 } = {}) {
 }
 
 /**
- * באיזה שלב האשף נמצא. ‼ נקרא מהמסך ולא נזכר בזיכרון: ניסיון חוזר אחרי
- * קריסה חייב לדעת איפה הוא באמת, לא איפה הוא חשב שהוא.
- * מחזיר 1..5, או null כשאין אשף על המסך.
+ * השלב מתוך טקסט המסך — טהורה, כדי שתיבדק מול המסכים האמיתיים.
+ * ‼ 23.09.2026 · רצועת השלבים («אימות ישות … השהייה וסיום») מוצגת בכל מסך
+ * של האשף; בלי להסיר אותה, «אימות ישות» נמצא תמיד — והשלב נקרא 1 גם בשלב 4.
+ * @param body טקסט העמוד · @param strip טקסט רצועת השלבים (אם נמצאה)
  */
+export function wizardStepFromText(body, strip) {
+  const clean = (x) => String(x ?? '').replace(/\s+/g, ' ').trim();
+  let text = clean(body);
+  if (strip) text = text.split(clean(strip)).join(' ');
+  const headings = [
+    { n: 4, re: /טעינת\s+מסמכים\s+למיוצג/ },
+    { n: 3, re: /פרטי\s+התקשרות\s+למיוצג/ },
+    { n: 2, re: /בקשה\s+חדשה\s+לייצוג/ },
+    { n: 5, re: /השהייה\s+וסיום/ },
+    { n: 1, re: /אימות\s+(המיוצג|ישות)/ },
+  ];
+  for (const h of headings) {
+    // ‼ «השהייה וסיום» (ההצלחה) ו«אימות ישות» הם גם תוויות ברצועה. בלי רצועה
+    // שהוסרה בפועל — לא מכריזים עליהם; «לא ידוע» עדיף על «נשלח» מדומה.
+    if ((h.n === 5 || h.n === 1) && !strip) continue;
+    if (h.re.test(text)) return h.n;
+  }
+  return strip ? 0 : null;
+}
+
 export async function currentWizardStep(page) {
-  return page.evaluate((steps) => {
-    const clean = (s) => (s || '').replace(/\s+/g, ' ').trim();
-    // כל שלב הוא עיגול עם מספר + כותרת. העיגול הפעיל מסומן, אבל הסימון
-    // אינו ידוע — ולכן מזהים לפי הכותרת שמופיעה כ"נוכחית" בגוף העמוד:
-    // כותרת המסך עצמו נגזרת מהשלב ("טעינת מסמכים למיוצג ...").
-    const body = clean(document.body.innerText);
-    const headings = [
-      { n: 1, re: /אימות\s+(המיוצג|ישות)/ },
-      { n: 2, re: /בקשה\s+חדשה\s+לייצוג/ },
-      { n: 3, re: /פרטי\s+התקשרות\s+למיוצג/ },
-      { n: 4, re: /טעינת\s+מסמכים\s+למיוצג/ },
-      { n: 5, re: /השהייה\s+וסיום/ },
-    ];
-    for (const h of headings) if (h.re.test(body)) return h.n;
-    // נפילה-לאחור: קיימת רצועת שלבים בכלל?
-    return steps.some((s) => body.includes(s)) ? 0 : null;
-  }, WIZARD_STEPS);
+  const r = await page.evaluate(() => {
+    const clean = (x) => (x || '').replace(/\s+/g, ' ').trim();
+    const labels = [/אימות\s+ישות/, /פרטי\s+התקשרות/, /טעינת\s+מסמכים/, /השהייה\s+וסיום/];
+    const strip = [...document.querySelectorAll('body *')]
+      .filter((e) => { const t = clean(e.textContent); return t.length < 200 && labels.every((re) => re.test(t)); })
+      .sort((a, b) => clean(a.textContent).length - clean(b.textContent).length)[0];
+    return { body: document.body.innerText || '', strip: strip ? strip.innerText : '' };
+  });
+  return wizardStepFromText(r.body, r.strip);
 }
 
 /** «מספר בקשה: N» — המזהה החיצוני, מופיע בכותרת האשף משלב 3 והלאה. */
@@ -887,7 +900,8 @@ const FORBIDDEN_ACTION_RE = /pdf|delete|remove|trash|close|times|cancel|מחיק
  */
 export function pickUploadDocumentsControl(candidates) {
   const list = Array.isArray(candidates) ? candidates : [];
-  const says = (c) => UPLOAD_ACTION_RE.test(`${c?.attrText ?? ''} ${c?.tooltip ?? ''}`);
+  // ‼ פקד מוסתר (ng-hide) קיים ב-DOM ואינו גלוי — לעולם אינו מועמד.
+  const says = (c) => !c?.hidden && UPLOAD_ACTION_RE.test(`${c?.attrText ?? ''} ${c?.tooltip ?? ''}`);
   const forbidden = (c) => FORBIDDEN_ACTION_RE.test(`${c?.attrText ?? ''} ${c?.classText ?? ''}`)
     && !UPLOAD_ACTION_RE.test(c?.attrText ?? '');
   const hits = list.map((c, i) => ({ c, i })).filter(({ c }) => says(c) && !forbidden(c));
@@ -923,6 +937,9 @@ export function documentsStepPlan(state, { spouseSignatureConfirmed } = {}) {
   if (state.poaHasFile) return { ok: false, reason: 'poa_already_uploaded' };
   if (state.plusControls !== 1) return { ok: false, reason: state.plusControls ? 'upload_opener_ambiguous' : 'upload_opener_not_found' };
   if (state.spouseCheckboxes > 1) return { ok: false, reason: 'spouse_checkbox_ambiguous' };
+  // ‼ המסך מבקש את האישור, ואנחנו לא מוצאים את התיבה — «המשך» בלי לסמן היה
+  // מוליד שידור שלא נקלט. עוצרים לפני העלאה.
+  if (state.spouseLabelOnScreen && state.spouseCheckboxes === 0) return { ok: false, reason: 'spouse_checkbox_not_found' };
   // ‼ התיבה מסומנת רק כש-PIVO הוכיחה את חתימת בן/בת הזוג בטופס הסופי.
   if (state.spouseCheckboxes === 1 && spouseSignatureConfirmed !== true) {
     return { ok: false, reason: 'spouse_signature_not_proven' };
@@ -930,36 +947,102 @@ export function documentsStepPlan(state, { spouseSignatureConfirmed } = {}) {
   return { ok: true, checkSpouse: state.spouseCheckboxes === 1 };
 }
 
+/**
+ * שורת «טופס ייפוי כוח» במסך טעינת המסמכים — פונקציה עצמאית שרצה בדף.
+ * ‼ לא מניחים סוג אלמנט לשורה: מוצאים את התווית עצמה («* טופס ייפוי כוח»)
+ * ועולים מעליה עד המיכל הקרוב ביותר שיש בו פקד «+» גלוי — ועוצרים לפני
+ * שהמיכל נהיה גדול משורה. כל ספירה ≠ 1 חוזרת כמו שהיא, וההחלטה בחוץ.
+ * @param mode 'read' | 'clickPlus'
+ */
+function poaRowProbe(mode) {
+  const clean = (x) => (x || '').replace(/\s+/g, ' ').trim();
+  const visible = (e) => e.offsetParent !== null || getComputedStyle(e).position === 'fixed';
+  const labels = [...document.querySelectorAll('body *')]
+    .filter((e) => visible(e) && /^\*?\s*טופס\s+ייפוי\s+כוח\s*\*?$/.test(clean(e.textContent)))
+    .filter((e, _, all) => !all.some((o) => o !== e && e.contains(o)));
+  const out = { poaRows: labels.length, plusControls: 0, poaHasFile: false, rowText: '' };
+  if (labels.length !== 1) return out;
+  const isPlus = (e) => /^\+$/.test(clean(e.textContent))
+    || /(^|[\s_-])(plus|add)([\s_-]|$)|fa-plus|k-i-plus|icon-plus/i.test(String(e.className?.baseVal ?? e.className ?? ''))
+    || /(^|[\s_-])(plus|add)([\s_-]|$)|הוספ|טעינ|צרף/i.test(clean([e.getAttribute?.('k-content'), e.getAttribute?.('title'), e.getAttribute?.('aria-label'), e.getAttribute?.('alt'), e.getAttribute?.('value')].filter(Boolean).join(' ')));
+  const SEL = 'a, button, input[type=button], input[type=image], [type=button], [role=button], [kendo-tooltip], [ng-click], img, i, span, svg';
+  let row = labels[0];
+  let plus = [];
+  for (let i = 0; i < 6 && row.parentElement; i++) {
+    row = row.parentElement;
+    if (clean(row.textContent).length > 160) break;
+    plus = [...row.querySelectorAll(SEL)].filter(visible).filter(isPlus)
+      .filter((e, _, all) => !all.some((o) => o !== e && e.contains(o)));
+    if (plus.length) break;
+  }
+  out.plusControls = plus.length;
+  out.rowText = clean(row.textContent).slice(0, 200);
+  out.poaHasFile = /\.pdf/i.test(out.rowText);
+  if (mode === 'clickPlus') {
+    if (out.plusControls !== 1) return { ...out, clicked: false };
+    plus[0].click();
+    return { ...out, clicked: true };
+  }
+  return out;
+}
+
 /** מצב מסך «טעינת מסמכים», קריאה בלבד. */
 async function readDocumentsStep(page, { entityId, expectedClientName }) {
+  const row = await page.evaluate(poaRowProbe, 'read');
   const raw = await page.evaluate(() => {
     const clean = (s) => (s || '').replace(/\s+/g, ' ').trim();
-    const poaRows = [...document.querySelectorAll('tr, li, .row')]
-      .filter((r) => /טופס\s+ייפוי\s+כוח/.test(clean(r.textContent)) && clean(r.textContent).length < 200)
-      .filter((r) => r.offsetParent !== null)
-      .filter((r, _, all) => !all.some((o) => o !== r && r.contains(o)));   // הפנימי ביותר
-    const row = poaRows[0];
-    const rowText = row ? clean(row.textContent) : '';
-    const isPlus = (e) => /^\+$/.test(clean(e.textContent))
-      || /(^|[\s-])(plus|add)([\s-]|$)|fa-plus|k-i-plus|icon-plus/i.test(String(e.className?.baseVal ?? e.className ?? ''))
-      || /הוספ|טעינ|צרף/.test(clean(e.getAttribute?.('title') || e.getAttribute?.('aria-label') || e.getAttribute?.('alt') || ''));
-    const plus = row ? [...row.querySelectorAll('a, button, input[type=button], img, i, span, svg')].filter(isPlus)
-      .filter((e, _, all) => !all.some((o) => o !== e && e.contains(o))) : [];
-    const spouseBoxes = [...document.querySelectorAll('input[type=checkbox]')].filter((b) => b.offsetParent !== null || b.closest('label')?.offsetParent !== null).filter((b) => {
-      const holder = b.closest('label, tr, .row, .form-group, div');
-      return /מאשר\s+את\s+חתימת\s+בן\s*\/?\s*ת?\s*הזוג/.test(clean(holder?.textContent));
-    });
+    // ‼ התיבה היא רכיב של שע״ם (ng-click על ה-input). הטקסט שלה יושב לידה,
+    // לא בהכרח במיכל הקרוב — עולים עד שמוצאים אותו, ולא מעבר לגודל שורה.
+    const holderText = (b) => {
+      let e = b;
+      for (let i = 0; i < 5 && e; i++) {
+        const t = clean(e.textContent);
+        if (/מאשר\s+את\s+חתימת\s+בן\s*[\/\\]?\s*ת?\s*הזוג/.test(t)) return t;
+        if (t.length > 200) break;
+        e = e.parentElement;
+      }
+      return '';
+    };
+    const spouseBoxes = [...document.querySelectorAll('input[type=checkbox]')].filter((b) => !!holderText(b));
     return {
       body: document.body.innerText || '',
-      poaRows: poaRows.length,
-      poaHasFile: /\.pdf/i.test(rowText),
-      plusControls: plus.length,
       spouseCheckboxes: spouseBoxes.length,
+      spouseLabelOnScreen: /מאשר\s+את\s+חתימת\s+בן\s*[\/\\]?\s*ת?\s*הזוג/.test(clean(document.body.innerText)),
       spouseChecked: spouseBoxes.length === 1 ? spouseBoxes[0].checked : null,
     };
   });
   const id = openedRequestIdentity(raw.body, { entityId, expectedClientName });
-  return { ...raw, body: undefined, identityOk: id.ok, requestNumber: id.requestNumber };
+  return {
+    ...raw, body: undefined,
+    poaRows: row.poaRows, plusControls: row.plusControls, poaHasFile: row.poaHasFile,
+    identityOk: id.ok, requestNumber: id.requestNumber,
+  };
+}
+
+// ‼ 23.09.2026 · נקרא מה-DOM החי: החץ הוא <input type="button" class="icon
+// upload" k-content="'טעינת מסמכים'">, והשאר <div type="button" ...>
+// («אירועים קודמים», «ביטול הבקשה» ‼, סמל ה-PDF). ה-tooltip של
+// Kendo יושב בתכונה k-content. פקדים עם ng-hide נמצאים ב-DOM ואינם גלויים.
+export const ACTION_CANDIDATES = 'a, button, input[type=button], input[type=image], [type=button], [role=button], [kendo-tooltip], img, i, svg, span[class*="icon"], span[class*="fa-"], span[class*="k-i-"]';
+/**
+ * מתאר את הפקדים בשורה — קריאה בלבד (בלי לחיצה, בלי ריחוף). מיוצא כדי
+ * שאפשר יהיה לבדוק אותו מול השורה החיה בלי להריץ את הזרימה.
+ */
+export async function describeActionCandidates(rowLoc) {
+  return rowLoc.locator(ACTION_CANDIDATES).evaluateAll((els) => els.map((e) => {
+    const clean = (s) => (s || '').replace(/\s+/g, ' ').trim();
+    const attrText = ['k-content', 'title', 'aria-label', 'alt', 'value', 'data-title', 'data-original-title', 'data-tooltip',
+      'ng-reflect-title', 'ng-reflect-message', 'mattooltip', 'kendotooltip', 'tooltip', 'src', 'href']
+      .map((a) => e.getAttribute(a) || '').join(' ');
+    const svgUse = e.querySelector?.('use')?.getAttribute('href') || e.querySelector?.('use')?.getAttribute('xlink:href') || '';
+    return {
+      attrText: clean(`${attrText} ${svgUse}`),
+      classText: String(e.className?.baseVal ?? e.className ?? ''),
+      nested: [...els].some((o) => o !== e && e.contains(o)),
+      hidden: e.offsetParent === null || /(^|\s)ng-hide(\s|$)/.test(String(e.className?.baseVal ?? e.className ?? '')),
+      tooltip: '',
+    };
+  }));
 }
 
 /**
@@ -991,28 +1074,16 @@ export async function openRequestForDocuments(page, { requestNumber, entityId, e
 
   // ── עמודת «פעולות»: מועמדים, ואז ריחוף רק אם אין הכרזה בתכונות ────────
   const rowLoc = page.locator('table').nth(target.tableIndex).locator('tbody tr, tr').nth(target.trIndex);
-  const CAND = 'a, button, [role=button], img, i, svg, span[class*="icon"], span[class*="fa-"], span[class*="k-i-"]';
-  const describe = async () => rowLoc.locator(CAND).evaluateAll((els) => els.map((e) => {
-    const clean = (s) => (s || '').replace(/\s+/g, ' ').trim();
-    const attrText = ['title', 'aria-label', 'alt', 'data-title', 'data-original-title', 'data-tooltip',
-      'ng-reflect-title', 'ng-reflect-message', 'mattooltip', 'kendotooltip', 'tooltip', 'src', 'href']
-      .map((a) => e.getAttribute(a) || '').join(' ');
-    const svgUse = e.querySelector?.('use')?.getAttribute('href') || e.querySelector?.('use')?.getAttribute('xlink:href') || '';
-    return {
-      attrText: clean(`${attrText} ${svgUse}`),
-      classText: String(e.className?.baseVal ?? e.className ?? ''),
-      nested: [...els].some((o) => o !== e && e.contains(o)),
-      tooltip: '',
-    };
-  }));
+  const describe = () => describeActionCandidates(rowLoc);
   let cands = await describe();
   let pick = pickUploadDocumentsControl(cands);
+  if (pick.ok && cands[pick.index].hidden) pick = { ok: false, reason: 'upload_action_hidden' };
   if (!pick.ok && pick.reason === 'upload_action_not_found') {
     // ‼ ה-tooltip אינו בתכונות — הוא מצויר בריחוף. ריחוף אינו פעולה אצל
     // הרשות; קוראים את מה שהופיע, ולא לוחצים על שום דבר בזמן החיפוש.
     for (let i = 0; i < cands.length; i++) {
-      if (cands[i].nested) continue;
-      const ok = await rowLoc.locator(CAND).nth(i).hover({ timeout: 3000 }).then(() => true).catch(() => false);
+      if (cands[i].nested || cands[i].hidden) continue;
+      const ok = await rowLoc.locator(ACTION_CANDIDATES).nth(i).hover({ timeout: 3000 }).then(() => true).catch(() => false);
       if (!ok) continue;
       await page.waitForTimeout(450);
       cands[i].tooltip = await page.evaluate(() => {
@@ -1024,10 +1095,11 @@ export async function openRequestForDocuments(page, { requestNumber, entityId, e
     }
     await page.mouse.move(0, 0).catch(() => {});
     pick = pickUploadDocumentsControl(cands);
+    if (pick.ok && cands[pick.index].hidden) pick = { ok: false, reason: 'upload_action_hidden' };
   }
   if (!pick.ok) return { ...pick, step: 'resume', detail: cands.map((c) => `${c.attrText}|${c.classText}|${c.tooltip}`.slice(0, 80)).join(' ; ').slice(0, 400) };
 
-  const clicked = await rowLoc.locator(CAND).nth(pick.index).click({ timeout: 8000 }).then(() => true).catch(() => false);
+  const clicked = await rowLoc.locator(ACTION_CANDIDATES).nth(pick.index).click({ timeout: 8000 }).then(() => true).catch(() => false);
   if (!clicked) return { ok: false, reason: 'upload_action_click_failed', step: 'resume' };
   await settle(page, { idleMs: 20000 });
 
@@ -1071,22 +1143,10 @@ export async function uploadSignedForm(page, { fileName, buffer }) {
   const step = await currentWizardStep(page);
   if (step !== 4) return { ok: false, reason: 'not_on_documents_step', currentStep: step, step: 'upload' };
 
-  const opened = await page.evaluate(() => {
-    const clean = (s) => (s || '').replace(/\s+/g, ' ').trim();
-    const rows = [...document.querySelectorAll('tr, li, .row')]
-      .filter((r) => /טופס\s+ייפוי\s+כוח/.test(clean(r.textContent)) && clean(r.textContent).length < 200)
-      .filter((r) => r.offsetParent !== null)
-      .filter((r, _, all) => !all.some((o) => o !== r && r.contains(o)));
-    if (rows.length !== 1) return { ok: false, reason: rows.length ? 'poa_row_ambiguous' : 'poa_row_not_found' };
-    const isPlus = (e) => /^\+$/.test(clean(e.textContent))
-      || /(^|[\s-])(plus|add)([\s-]|$)|fa-plus|k-i-plus|icon-plus/i.test(String(e.className?.baseVal ?? e.className ?? ''))
-      || /הוספ|טעינ|צרף/.test(clean(e.getAttribute?.('title') || e.getAttribute?.('aria-label') || e.getAttribute?.('alt') || ''));
-    const plus = [...rows[0].querySelectorAll('a, button, input[type=button], img, i, span, svg')].filter(isPlus)
-      .filter((e, _, all) => !all.some((o) => o !== e && e.contains(o)));
-    if (plus.length !== 1) return { ok: false, reason: plus.length ? 'upload_opener_ambiguous' : 'upload_opener_not_found' };
-    plus[0].click();
-    return { ok: true };
-  });
+  const probe = await page.evaluate(poaRowProbe, 'clickPlus');
+  const opened = probe.clicked ? { ok: true }
+    : { ok: false, reason: probe.poaRows !== 1 ? (probe.poaRows ? 'poa_row_ambiguous' : 'poa_row_not_found')
+      : (probe.plusControls ? 'upload_opener_ambiguous' : 'upload_opener_not_found') };
   if (!opened.ok) return { ...opened, step: 'upload_open' };
   await page.waitForTimeout(800);
 
@@ -1114,26 +1174,26 @@ export async function uploadSignedForm(page, { fileName, buffer }) {
  * הוכחה) ⇒ «המשך» אחד ⇒ האשף בשלב 5. בלי כל אלה — אין «נשלח».
  */
 export async function confirmDocumentsStep(page, { checkSpouse = false } = {}) {
-  const attached = await page.evaluate(() => {
-    const clean = (s) => (s || '').replace(/\s+/g, ' ').trim();
-    const rows = [...document.querySelectorAll('tr, li, .row')]
-      .filter((r) => /טופס\s+ייפוי\s+כוח/.test(clean(r.textContent)) && clean(r.textContent).length < 300)
-      .filter((r) => r.offsetParent !== null)
-      .filter((r, _, all) => !all.some((o) => o !== r && r.contains(o)));
-    if (rows.length !== 1) return { ok: false, reason: rows.length ? 'poa_row_ambiguous' : 'poa_row_not_found' };
-    const text = clean(rows[0].textContent);
-    const hasFile = /\.pdf/i.test(text);
-    return { ok: hasFile, reason: hasFile ? undefined : 'no_file_listed', text: text.slice(0, 200) };
-  });
+  const row = await page.evaluate(poaRowProbe, 'read');
+  const attached = row.poaRows !== 1
+    ? { ok: false, reason: row.poaRows ? 'poa_row_ambiguous' : 'poa_row_not_found' }
+    : { ok: row.poaHasFile, reason: row.poaHasFile ? undefined : 'no_file_listed', text: row.rowText };
   if (!attached.ok) return { ...attached, step: 'documents_confirm' };
 
   if (checkSpouse) {
     const box = await page.evaluate(() => {
       const clean = (s) => (s || '').replace(/\s+/g, ' ').trim();
-      const boxes = [...document.querySelectorAll('input[type=checkbox]')].filter((b) => {
-        const holder = b.closest('label, tr, .row, .form-group, div');
-        return /מאשר\s+את\s+חתימת\s+בן\s*\/?\s*ת?\s*הזוג/.test(clean(holder?.textContent));
-      });
+      const holderText = (b) => {
+        let e = b;
+        for (let i = 0; i < 5 && e; i++) {
+          const t = clean(e.textContent);
+          if (/מאשר\s+את\s+חתימת\s+בן\s*[\/\\]?\s*ת?\s*הזוג/.test(t)) return t;
+          if (t.length > 200) break;
+          e = e.parentElement;
+        }
+        return '';
+      };
+      const boxes = [...document.querySelectorAll('input[type=checkbox]')].filter((b) => !!holderText(b));
       if (boxes.length !== 1) return { ok: false, reason: boxes.length ? 'spouse_checkbox_ambiguous' : 'spouse_checkbox_not_found' };
       // ‼ element.click() ולא שינוי checked ישיר — כך המסגרת רואה את השינוי.
       if (!boxes[0].checked) boxes[0].click();
