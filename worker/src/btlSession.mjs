@@ -36,6 +36,16 @@ const CDP_URL = 'http://localhost:9223';
 const BTL_ORIGIN = 'https://meyazegs.btl.gov.il';
 const BTL_ROOT = 'https://meyazegs.btl.gov.il/';
 
+// ‼ נצפה חי (23.09.2026): על **אותו דומיין** יושבות כמה אפליקציות של ביטוח
+// לאומי, ולכל אחת תפריט משלה. שתי לשוניות פתוחות אצל הרו"ח באותו רגע:
+//   · /BTL.ILG.Meyazgim.New/…  — «מערכת ייצוג לקוחות», זו שיש בה «מיוצגים»
+//   · /tarmil/?q=…             — «תרמי"ל», תפריט אחר לגמרי
+// `startsWith(BTL_ORIGIN)` לבדו אינו מבחין ביניהן, ולכן העובד בחר את לשונית
+// תרמי"ל, לא מצא «מיוצגים», ודיווח «המסך השתנה — יש לעדכן את הקוד». הוא לא
+// השתנה; פשוט הסתכלנו על האפליקציה הלא נכונה.
+const BTL_REP_APP_PATH = '/BTL.ILG.Meyazgim.New/';
+const BTL_REP_APP_ROOT = 'https://meyazegs.btl.gov.il/BTL.ILG.Meyazgim.New/groupdefaultpage.aspx';
+
 // ‼ מסך הכניסה הוא שער F5 (‎/my.policy‎) ולא עמוד של האפליקציה. נצפה בפועל
 // ב-02/09/2026: שלושה שדות — ‎username‎ (ת.ז.), ‎usercode‎ (קוד משתמש)
 // ו-‎pass‎ — וכותרת «מערכת ייצוג לקוחות».
@@ -136,16 +146,37 @@ export async function detachBtl(browser) {
  *
  * מעדיף לשונית שכבר **מחוברת**, ורק אם אין כזו — לשונית כלשהי על הדומיין.
  */
+/**
+ * דירוג לשונית — גבוה יותר = מתאים יותר לעבוד עליו. ‼ טהורה ומיוצאת כדי
+ * שתהיה ניתנת לבדיקה בלי Chrome (worker/test/btl-tracking.mjs).
+ *   3 · מחובר **וב«מערכת ייצוג לקוחות»** — הלשונית היחידה שיש בה «מיוצגים»
+ *   2 · מחובר, אבל באפליקציה אחרת על אותו דומיין (תרמי"ל וכו')
+ *   1 · על ביטוח לאומי אך לא מחובר (מסך כניסה)
+ *   0 · לא על ביטוח לאומי בכלל
+ */
+export function btlPageRank(s) {
+  if (!s || !String(s.href ?? '').startsWith(BTL_ORIGIN)) return 0;
+  if (!btlState(s).connected) return 1;
+  return String(s.pathname ?? '').startsWith(BTL_REP_APP_PATH) ? 3 : 2;
+}
+
+/**
+ * בוחר את הלשונית לעבוד עליה. ‼ לא "הראשונה שמחוברת": עד 23.09.2026 כל
+ * לשונית על הדומיין של ביטוח לאומי נחשבה טובה באותה מידה, והבחירה נפלה על
+ * תרמי"ל — אפליקציה אחרת, בלי תפריט «מיוצגים». עכשיו בוחרים לפי דירוג,
+ * ולשונית של מערכת הייצוג תמיד גוברת.
+ */
 export async function pickBtlPage(context, fallback) {
-  let anyOnBtl = null;
+  let best = null;
+  let bestRank = 0;
   for (const p of context.pages()) {
     if (!p.url().startsWith(BTL_ORIGIN)) continue;
     let s;
     try { s = await snapPage(p); } catch { continue; }
-    if (btlState(s).connected) return p;
-    anyOnBtl = anyOnBtl ?? p;
+    const rank = btlPageRank(s);
+    if (rank > bestRank) { best = p; bestRank = rank; }
   }
-  return anyOnBtl ?? fallback;
+  return best ?? fallback;
 }
 
 /**
@@ -276,7 +307,20 @@ async function openPoaSubScreen(page, subLabel) {
     await loc.click({ timeout: 10000 });
     steps.push(`clicked:${label}`);
   };
-  try {
+
+  /**
+   * ‼ התאוששות חסומה (פעם אחת, לא לולאה): הלשונית נמצאת באפליקציה אחרת של
+   * ביטוח לאומי — למשל תרמי"ל, שאין בה «מיוצגים» — ולכן עוברים לשורש מערכת
+   * הייצוג. זה **לא** סותר את "לא נוגעים במסך שהרו"ח פתח": pickBtlPage כבר
+   * מעדיף לשונית של מערכת הייצוג, ואם הגענו לכאן אין כזו בכלל.
+   */
+  const gotoRepApp = async (why) => {
+    steps.push(`goto_rep_app:${why}`);
+    await page.goto(BTL_REP_APP_ROOT, { waitUntil: 'domcontentloaded', timeout: 20000 }).catch(() => {});
+    await page.waitForTimeout(800);
+  };
+
+  const run = async () => {
     await click('מיוצגים');
     await page.waitForLoadState('domcontentloaded', { timeout: 15000 }).catch(() => {});
     await page.waitForTimeout(500);
@@ -288,10 +332,33 @@ async function openPoaSubScreen(page, subLabel) {
     await click(subLabel);
     await page.waitForLoadState('domcontentloaded', { timeout: 15000 }).catch(() => {});
     await page.waitForTimeout(800);
+  };
+
+  // ‼ לא על אפליקציית הייצוג בכלל ⇒ עוברים אליה **לפני** שמחפשים תפריט,
+  // במקום להיכשל על "לא נמצא מיוצגים" ולהאשים את הקוד.
+  try {
+    const before = new URL(page.url());
+    if (!before.pathname.startsWith(BTL_REP_APP_PATH)) await gotoRepApp('other_app');
+  } catch { /* URL לא תקין — ננסה בכל זאת, ואם ייכשל תהיה התאוששות */ }
+
+  try {
+    await run();
     return { ok: true, steps };
-  } catch (e) {
-    const detail = e instanceof Error ? e.message : String(e);
-    return { ok: false, steps, failedAt: current, detail: detail.slice(0, 200) };
+  } catch (firstError) {
+    const firstAt = current;
+    await gotoRepApp('menu_not_found');
+    try {
+      await run();
+      return { ok: true, steps, recovered: true };
+    } catch (e) {
+      const detail = e instanceof Error ? e.message : String(e);
+      return {
+        ok: false, steps, failedAt: current, recoveryAttempted: true,
+        firstFailedAt: firstAt,
+        firstDetail: (firstError instanceof Error ? firstError.message : String(firstError)).slice(0, 200),
+        detail: detail.slice(0, 200),
+      };
+    }
   }
 }
 
