@@ -4,6 +4,7 @@
 
 import { useState } from 'react';
 import { supabase } from '../../lib/supabase';
+import { fetchEmailHtml } from '../../hooks/useEmailMessages';
 import { EmailMessage } from '../../types/emailActivity';
 import SentEmailViewer from './SentEmailViewer';
 
@@ -33,12 +34,23 @@ export default function EmailStatusRow({ message, note, onRemind, onChanged }: P
   // לפתיחה שמסתמכת על טעינת תמונה. לכן הוא מוצג כשלב נפרד ומדויק יותר.
   const entered = !!message.clickedAt || message.status === 'clicked';
 
-  /** אין עותק שמור ⇒ נמשך מ-Resend ונפתח מיד, באותה לחיצה. */
+  /**
+   * ‼ שלושה מקורות, לפי הסדר: מה שכבר בזיכרון ⇒ העותק שבמסד ⇒ Resend.
+   *
+   * ‼ הדילוג על המסד היה באג אמיתי (23.09.2026): רשימת המיילים נשלפת בלי
+   * עמודת `html` בכוונה (LIST_COLUMNS — גוף מייל הוא כמה קילובייטים לשורה),
+   * ולכן `message.html` **תמיד** ריק כאן. הקוד קפץ ישר ל-Resend, ש-Resend
+   * אינו שומר לאורך זמן, והמסך הודיע «Resend לא מחזיק יותר את תוכן המייל»
+   * על מייל שהעותק המלא שלו יושב אצלנו במסד. ClientEmailsSection כבר עשה
+   * את זה נכון; כאן וב-QuotationEmailsPanel השלב הזה פשוט חסר.
+   */
   async function view() {
     if (message.html) { setViewing(message); return; }
     setBusy('view');
     setErr(null);
     try {
+      const saved = await fetchEmailHtml(message.id);
+      if (saved) { setViewing({ ...message, html: saved }); return; }
       const { data, error } = await supabase.functions.invoke('backfill-email-html', { body: { messageId: message.id } });
       if (error || !data?.ok) setErr(data?.error === 'missing_read_key' ? 'חסר מפתח קריאה של Resend' : (data?.error || error?.message || 'לא הצלחתי לשלוף'));
       else if (!data.html) setErr('Resend לא מחזיק יותר את תוכן המייל');

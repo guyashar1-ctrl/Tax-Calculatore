@@ -8,6 +8,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
+import { fetchEmailHtml } from '../../hooks/useEmailMessages';
 import { emailKindLabel, EmailMessage } from '../../types/emailActivity';
 import SentEmailViewer from '../EmailActivity/SentEmailViewer';
 
@@ -87,12 +88,18 @@ function EmailRow({ m, onChanged }: { m: EmailMessage; onChanged: () => void }) 
   const opened = !!m.openedAt || ['opened', 'clicked'].includes(m.status);
   const delivered = !!m.deliveredAt || opened;
 
-  /** אין עותק שמור (מייל ישן) ⇒ נמשך מ-Resend ונפתח באותה לחיצה. */
+  /**
+   * ‼ שלושה מקורות, לפי הסדר: מה שכבר בזיכרון ⇒ העותק שבמסד ⇒ Resend.
+   * הרשימה נשלפת בלי עמודת `html`, ולכן `m.html` תמיד ריק כאן — בלי השליפה
+   * מהמסד המסך היה מודיע «Resend לא מחזיק» על מייל ששמור אצלנו במלואו.
+   */
   async function view() {
     if (m.html) { setViewing(m); return; }
     setBusy(true);
     setErr(null);
     try {
+      const saved = await fetchEmailHtml(m.id);
+      if (saved) { setViewing({ ...m, html: saved }); return; }
       const { data, error } = await supabase.functions.invoke('backfill-email-html', { body: { messageId: m.id } });
       if (error || !data?.ok) setErr(data?.error === 'missing_read_key' ? 'חסר מפתח קריאה של Resend' : (data?.error || error?.message || 'לא הצלחתי לשלוף'));
       else if (!data.html) setErr('Resend לא מחזיק יותר את תוכן המייל');
