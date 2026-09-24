@@ -221,14 +221,45 @@ export const TESTS: TestCase[] = [
     equal(pre.fileNumbers.vat, '557788991');
   }),
 
-  test('10ה · ניכויים בלי תיק בכרטיס — נעצר, לא ממציא אפסים', () => {
+  // ── כלל מוצר 24.09.2026: מספר תיק ניכויים ← מפורש, ובלעדיו הת.ז. ──────────
+  test('10ה · ניכויים בלי תיק בכרטיס — מספר התיק הוא הת.ז., ואין חסימה', () => {
     const c = client();
     const req = request({ scope: scope({ withholding: active(['client']) }) });
     const s = subFor(req, c, 'client');
+    const facts = shaamPersonFacts(req, c, 'client');
+    const pre = preflightShaamSubmission(s, facts, c, false);
+    excludes(pre.issues.map(i => i.code), 'missing_file_number_withholding');
+    equal(pre.fileNumbers.withholding, facts.idNumber.replace(/\D/g, ''));
+  }),
+
+  test('10ו · מספר תיק ניכויים מפורש בכרטיס גובר על הת.ז.', () => {
+    const c = client({ taxFiles: [{ id: 'w1', authority: 'deductions', fileNumber: '941234567', owner: 'client', repStatus: 'none' }] } as Partial<Client>);
+    const req = request({ scope: scope({ withholding: active(['client']) }) });
+    const s = subFor(req, c, 'client');
     const pre = preflightShaamSubmission(s, shaamPersonFacts(req, c, 'client'), c, false);
+    equal(pre.fileNumbers.withholding, '941234567');
+  }),
+
+  test('10ז · אין מספר ניכויים ואין ת.ז. — נעצר על הת.ז. בלבד, בלי מספר מומצא', () => {
+    const c = client();
+    const req = request({ scope: scope({ withholding: active(['client']) }) });
+    const s = subFor(req, c, 'client');
+    const facts = { ...shaamPersonFacts(req, c, 'client'), idNumber: '' };
+    const pre = preflightShaamSubmission(s, facts, c, false);
     equal(pre.ok, false);
-    includes(pre.issues.map(i => i.code), 'missing_file_number_withholding');
+    const codes = pre.issues.map(i => i.code);
+    includes(codes, 'missing_id_number');
+    excludes(codes, 'missing_file_number_withholding');
     equal(pre.fileNumbers.withholding, '');
+  }),
+
+  test('10ח · הכלל לא מוסיף ניכויים לבקשה שלא דרשה אותו', () => {
+    const c = client();
+    const req = request({ scope: scope({ incomeTax: IT, vat: active(['client']) }) });
+    const s = subFor(req, c, 'client');
+    const pre = preflightShaamSubmission(s, shaamPersonFacts(req, c, 'client'), c, false);
+    excludes(pre.systems, 'withholding');
+    equal(pre.fileNumbers.withholding, undefined);
   }),
 
   // ── 11–12: אימות ישות ──────────────────────────────────────────────────────

@@ -77,7 +77,12 @@ export function shaamSubmissionsOf(
  * ‼ לא מניחים שכל המערכים חולקים מספר: `tax_files` הוא מקור האמת, ורק
  * כשאין שם מספר נופלים לת.ז. של בעל ההגשה — וזה בדיוק מה שמופיע בשע״ם
  * לעוסק יחיד ולתיק מס הכנסה של הרשום/ה (מספר התיק במ"ה **הוא** הת.ז.).
- * תיק שטרם נפתח נשאר ריק, והעובד עוצר עליו — לא ממציא אפסים.
+ *
+ * ‼ כלל מוצר (גיא, 24.09.2026): גם **ניכויים** — מספר מפורש בכרטיס גובר, ובלעדיו
+ * מספר התיק הוא הת.ז. של בעל ההגשה. היעדר מספר ניכויים נפרד אינו חוסם הזנה.
+ * ‼ הכלל רק קובע *איזה מספר* נכתב בשורה; הוא לעולם לא מוסיף את ניכויים לבקשה —
+ * זה נקבע ב-shaamSystemsOf, רק כש-PIVO דורשת ייצוג בניכויים.
+ * אין ת.ז. תקינה ⇒ ריק, וההזנה עוצרת על «חסרה תעודת זהות». שום ערך אחר לא נגזר.
  */
 export function shaamFileNumberOf(
   client: Client | null | undefined,
@@ -91,9 +96,9 @@ export function shaamFileNumberOf(
     f.authority === authority && (f.owner === owner || f.owner === 'joint'));
   const fromFile = file?.fileNumber?.replace(/\D/g, '') ?? '';
   if (fromFile) return fromFile;
-  // מס הכנסה ומע"מ ליחיד — מספר התיק הוא הת.ז. (נצפה בטופס 2279 שהופק).
-  if (system === 'incomeTax' || system === 'vat') return personIdNumber.replace(/\D/g, '');
-  return '';
+  // מס הכנסה ומע"מ ליחיד — מספר התיק הוא הת.ז. (נצפה בטופס 2279 שהופק); ניכויים — כלל מוצר.
+  const id = personIdNumber.replace(/\D/g, '');
+  return ID_RE.test(id) ? id : '';
 }
 
 // ── 2. הפרטים שהאדם חייב להחזיק לפני שנוגעים בשע״ם ──────────────────────────
@@ -177,7 +182,9 @@ export function preflightShaamSubmission(
   for (const s of systems) {
     const n = shaamFileNumberOf(client, s, role, id);
     fileNumbers[s] = n;
-    if (!n) {
+    // ‼ בלי ת.ז. אין גם מספר תיק (הוא הת.ז.) — «חסרה תעודת זהות» כבר אומרת את
+    // הדבר היחיד שצריך להשלים; לא מוסיפים לה הודעת תיק שמתחזה לדרישה נפרדת.
+    if (!n && ID_RE.test(id)) {
       add(`missing_file_number_${s}`, `חסר מספר תיק ${SHAAM_SYSTEM_SCREEN_LABELS[s]} של ${who} בכרטיס.`);
     }
   }
