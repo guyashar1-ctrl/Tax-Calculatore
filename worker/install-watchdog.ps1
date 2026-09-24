@@ -20,6 +20,11 @@ $ErrorActionPreference = 'Stop'
 $here = Split-Path -Parent $MyInvocation.MyCommand.Path
 $vbs = Join-Path $here 'start-worker.vbs'
 if (-not (Test-Path $vbs)) { throw "start-worker.vbs not found next to this script" }
+# ‼ תחת AppData, קבצים שנוצרו מתוך אפליקציית Claude (MSIX) קיימים רק בתוכה —
+# Task Scheduler ו-Startup לא רואים אותם, והעובד לא יעלה לעולם. ראה README.
+if ($here -match '\\AppData\\') {
+  throw "The permanent worker must not live under AppData ($here). Use C:\Users\<user>\PIVO\worker-production — see worker\README.md."
+}
 
 $name = 'PIVO Automation Worker Watchdog'
 # ‼ בלי -WorkingDirectory: איתו Task Scheduler נכשל ב-0x8007010B («שם תיקייה

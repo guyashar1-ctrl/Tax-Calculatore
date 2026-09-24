@@ -52,6 +52,15 @@
 
    לביטול: `Win+R` → `shell:startup` → למחוק את הקיצור.
 
+   **‼ מיקום העותק הקבוע: `C:\Users\guyas\PIVO\worker-production` — לעולם לא
+   תחת `AppData`.** אפליקציית Claude לדסקטופ היא חבילת MSIX, ו-Windows מפנה
+   כל כתיבה שלה (ושל כל תהליך שהיא מריצה) לתוך `AppData` לתיקייה פרטית
+   (`AppData\Local\Packages\Claude_…\LocalCache`). העותק הקודם
+   (`%LOCALAPPDATA%\PIVO\worker-production`) נוצר מסשן Claude ולכן היה קיים
+   **רק** בתוך Claude: קיצור ה-Startup הצביע על נתיב ש-Windows עצמה לא רואה,
+   העובד מעולם לא עלה לבד בכניסה, ורץ רק כשסשן הפעיל אותו — ומת איתו.
+   נתגלה 24.09.2026 כש-Task Scheduler החזיר «Can not find script file».
+
    **Watchdog (24.09.2026):** אותו סקריפט גם רושם משימה מתוזמנת
    (`PIVO Automation Worker Watchdog`, דרך `install-watchdog.ps1`) שמפעילה את
    `start-worker.vbs` כל 5 דקות — גם על סוללה, וגם כשהמחשב חוזר משינה.
