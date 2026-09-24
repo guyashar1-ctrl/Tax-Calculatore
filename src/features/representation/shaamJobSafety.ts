@@ -110,6 +110,17 @@ export function shaamStopState(job: AutomationJob | null | undefined): ShaamStop
       mayHaveActed: false, allowDirectRetry: true, suggestCheck: false,
     };
   }
+  // ‼ 24.09.2026 · «הזן ייפוי כוח בשע״ם» עצר בבדיקה שלפני היצירה (קריאה
+  // בלבד): יש שורות שלא ניתן לייחס, או שהרשימה לא נקראה בוודאות. לא נגענו,
+  // אבל גם «נסה שוב» לבדו לא יעזור — קודם מסתכלים ברשימה בשע״ם.
+  if (code === 'preflight_ambiguous' || code === 'preflight_unreadable') {
+    return {
+      kind: 'before_external',
+      title: 'לא נפתחה בקשה — לא ניתן היה לוודא שאין כבר בקשה בשע״ם',
+      next: 'שום דבר לא נשלח לשע״ם. בדקו ב«בקשות בתהליך» בשע״ם מה קיים לאדם הזה. אם אין שם בקשה — אפשר להפעיל שוב.',
+      mayHaveActed: false, allowDirectRetry: true, suggestCheck: false,
+    };
+  }
   if (code === 'worker_stopped_before_external' || code === 'progress_write_failed_before_external') {
     return {
       kind: 'before_external',

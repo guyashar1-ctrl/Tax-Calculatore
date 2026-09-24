@@ -78,12 +78,7 @@ export default function ShaamNextActionButton({
   // ‼ «חסר נתון» נבדק **לפני** שער החיבור ומוצג תמיד: זו עובדה על הכרטיס,
   // ונכונה גם כשמחשב האוטומציה כבוי. בלי זה, לחיצה בלי עובד הייתה מראה
   // «מחשב האוטומציה אינו פעיל» ומסתירה את מה שבאמת חוסם.
-  // ‼ שלב טרום-יצירה = אין עדיין שום עדות לבקשה בשע״ם. כאן הפעולה המוצעת
-  // היא «בדוק» (יישוב לפני יצירה), אבל הנתון החסר רלוונטי ליצירה שתבוא אחריה
-  // — ולכן מוצג כבר עכשיו. הוא **חוסם** רק את היצירה עצמה; בדיקה היא קריאה
-  // בלבד ואינה זקוקה לטלפון/אמצעי זיהוי.
-  const preCreate = action.kind === 'create'
-    || (action.kind === 'check' && !tracking?.requestNumber && !tracking?.syncedAt);
+  const preCreate = action.kind === 'create';
   const preflight = preCreate && linkedClient
     ? preflightShaamSubmission(
         submission,
@@ -94,7 +89,7 @@ export default function ShaamNextActionButton({
   const missingText = preflight && !preflight.ok
     ? preflight.issues.map(i => i.message).join(' · ')
     : null;
-  const missingData = action.kind === 'create' ? missingText : null;
+  const missingData = missingText;
 
   // ‼ השרת סירב כי הניסיון הקודם כבר נגע בשע״ם — פותחים את האישור במקום
   // להשאיר את הרו"ח מול כפתור שלא עושה כלום.
@@ -233,9 +228,13 @@ export default function ShaamNextActionButton({
       </button>
       {/* ‼ מוצג תמיד כשחסר נתון — לא רק אחרי לחיצה. הרו"ח רואה מה חסם
           עוד לפני שהוא מנסה. */}
-      {!localError && missingText && (
-        <div className={errorClassName}>
-          {action.kind === 'check' ? `לפני פתיחת בקשה בשע״ם יש להשלים: ${missingText}` : missingText}
+      {!localError && missingText && <div className={errorClassName}>{missingText}</div>}
+      {/* ‼ מחשב האוטומציה כבוי הוא תנאי-קדם, לא שלב: הפעולה העסקית נשארת
+          כתובה על הכפתור, וכאן — למה היא לא תרוץ עכשיו. בלי זה הלחיצה הייתה
+          נראית כמו «לא קרה כלום». */}
+      {!localError && !missingText && gate.workerOffline && !action.disabled && !running && (
+        <div className={errorClassName} style={{ color: 'var(--ink-3)' }}>
+          מחשב האוטומציה כבוי, ולכן הפעולה לא תרוץ עכשיו. כשיחזור לפעול — לחצו שוב.
         </div>
       )}
       {localError && <div className={errorClassName}>{localError}</div>}

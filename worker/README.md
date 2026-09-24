@@ -52,6 +52,17 @@
 
    לביטול: `Win+R` → `shell:startup` → למחוק את הקיצור.
 
+   **Watchdog (24.09.2026):** אותו סקריפט גם רושם משימה מתוזמנת
+   (`PIVO Automation Worker Watchdog`, דרך `install-watchdog.ps1`) שמפעילה את
+   `start-worker.vbs` כל 5 דקות — גם על סוללה, וגם כשהמחשב חוזר משינה.
+   כשעובד כבר רץ, ההפעלה הנוספת יוצאת מיד ובשקט (`src/singleInstance.mjs`).
+   ביטול: `Unregister-ScheduledTask -TaskName 'PIVO Automation Worker Watchdog' -Confirm:$false`.
+
+   **הפעלה מחדש (למשל אחרי עדכון גרסה):** רק דרך
+   `powershell -NoProfile -File workerestart-worker.ps1` — לא `Start-Process`/`wscript`
+   מתוך טרמינל של סשן Claude או IDE. עובד שהופעל כך הוא צאצא של אותה אפליקציה
+   ונסגר איתה; כך בדיוק העובד הקבוע נפל ב-24.09.2026 בשינה של 07:24.
+
 ## הרצה
 
 בשגרה — אין. העובד עולה לבד עם המחשב.

@@ -33,6 +33,31 @@ export function allRowsAccepted(rows) {
   return Array.isArray(rows) && rows.length > 0 && rows.every((r) => ACCEPTED_RE.test(r?.rawSystemState ?? ""));
 }
 
+/**
+ * שורות הרשימה כפי שהן נמסרות ל-PIVO. ‼ משותף לבדיקה ולבדיקה שבתוך
+ * «הזן ייפוי כוח בשע״ם» — אותו מבנה, כדי שהטריגר יקרא את שתיהן אותו דבר.
+ */
+export function reportedRows(foundRows, requestNumber = '') {
+  return foundRows.map(r => ({
+    systemLabel: r.system ?? '',
+    // ‼ 23.09.2026 · «שם הלקוח» כפי שהוא מופיע ברשימת הבקשות בשע״ם —
+    // ראיה על מי בן/בת הזוג הרשום/ה במס הכנסה, ולא רק תיאור השורה.
+    // ההתאמה לשם ספציפי נעשית ב-PIVO (shaamRepresentation.ts) — כאן רק
+    // מעבירים את מה שנקרא, כמו כל שדה גולמי אחר בקובץ הזה.
+    clientName: r.clientName ?? '',
+    rawRequestState: r.requestState ?? '',
+    rawSystemState: r.systemState ?? '',
+    fileNumber: r.fileNumber ?? '',
+    repType: r.repType ?? '',
+    enteredAt: r.date ?? '',
+    // «צפוי לסיום השהייה» — לפעמים תאריך, לפעמים טקסט מצב. מועבר כמו שהוא;
+    // הפירוש (תאריך או לא) נעשה ב-PIVO.
+    suspensionEndsRaw: r.detail?.suspensionEnds ?? '',
+    systemUpdatedAtRaw: r.detail?.systemUpdatedAt ?? '',
+    requestNumber: r.detail?.requestNumber ?? requestNumber,
+  }));
+}
+
 export async function run(ctx, input) {
   const submissionKey = String(input?.submissionKey ?? '');
   const role = input?.role;
@@ -115,24 +140,7 @@ export async function run(ctx, input) {
       };
     }
 
-    const rows = found.rows.map(r => ({
-      systemLabel: r.system ?? '',
-      // ‼ 23.09.2026 · «שם הלקוח» כפי שהוא מופיע ברשימת הבקשות בשע״ם —
-      // ראיה על מי בן/בת הזוג הרשום/ה במס הכנסה, ולא רק תיאור השורה.
-      // ההתאמה לשם ספציפי נעשית ב-PIVO (shaamRepresentation.ts) — כאן רק
-      // מעבירים את מה שנקרא, כמו כל שדה גולמי אחר בקובץ הזה.
-      clientName: r.clientName ?? '',
-      rawRequestState: r.requestState ?? '',
-      rawSystemState: r.systemState ?? '',
-      fileNumber: r.fileNumber ?? '',
-      repType: r.repType ?? '',
-      enteredAt: r.date ?? '',
-      // «צפוי לסיום השהייה» — לפעמים תאריך, לפעמים טקסט מצב. מועבר כמו שהוא;
-      // הפירוש (תאריך או לא) נעשה ב-PIVO.
-      suspensionEndsRaw: r.detail?.suspensionEnds ?? '',
-      systemUpdatedAtRaw: r.detail?.systemUpdatedAt ?? '',
-      requestNumber: r.detail?.requestNumber ?? requestNumber,
-    }));
+    const rows = reportedRows(found.rows, requestNumber);
 
     const allAccepted = allRowsAccepted(rows);
     ctx.log(`נמצאו ${rows.length} שורות · כולן נקלטו: ${allAccepted}`);

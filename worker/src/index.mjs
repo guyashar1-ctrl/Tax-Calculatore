@@ -8,6 +8,7 @@ import { claim, heartbeat, complete, fail } from './apiClient.mjs';
 import { handlerFor, supportedActionTypes } from './dispatcher.mjs';
 import { NeedsHumanError, PermanentError } from './errors.mjs';
 import { tickConnectionMonitor, invalidateConnectionCache } from './connectionMonitor.mjs';
+import { acquireSingleInstance } from './singleInstance.mjs';
 
 const VERSION = '0.1.0';
 let stopping = false;
@@ -99,6 +100,11 @@ async function tick() {
 }
 
 async function main() {
+  // ‼ עובד אחד לכל id. ה-watchdog של Task Scheduler מפעיל את העובד כל כמה
+  // דקות; כשכבר יש עובד — יוצאים בשקט, בלי שורה ביומן (אחרת היומן היה
+  // מתמלא שורה כל 5 דקות).
+  const lock = await acquireSingleInstance(WORKER_ID);
+  if (!lock.ok) process.exit(0);
   log(`עובד אוטומציה PIVO · worker=${WORKER_ID} · v${VERSION}`);
   const claimed = ONLY_ACTIONS.length ? supportedActionTypes().filter(a => ONLY_ACTIONS.includes(a)) : supportedActionTypes();
   log(`פעולות נתמכות: ${claimed.join(', ') || '(אין)'}${MONITOR_SCOPE === 'btl' ? ' · ניטור: ב״ל בלבד' : ''}`);

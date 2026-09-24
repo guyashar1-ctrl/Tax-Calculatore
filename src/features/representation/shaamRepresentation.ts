@@ -365,6 +365,8 @@ export interface ShaamRequestTracking {
   requiredDocuments?: ShaamRequiredDocument[];
   requiredDocumentsObservedAt?: string;
   lastStaleReadingAt?: string;
+  /** 202 · «הזן ייפוי כוח בשע״ם» מצא שהבקשה כבר קיימת שם, ולא יצר חדשה. */
+  foundBeforeCreateAt?: string;
 }
 
 /** סוג המסמך המזהה ששע״ם מבקשת. null ⇒ לא מסמך מזהה (או לא זוהה). */

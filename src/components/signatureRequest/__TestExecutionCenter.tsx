@@ -112,6 +112,26 @@ const shaamReq = (track: object, over: Partial<RepresentationRequest> = {}) => (
 }) as unknown as RepresentationRequest;
 
 const SCENARIOS: Scenario[] = [
+  // ‼ 24.09.2026 · עידן רוקח: 0/7 בשע״ם, ב״ל באמצע. הפעולה הראשית בשלב 1
+  // חייבת להיות «הזן ייפוי כוח בשע״ם» — לא «בדוק קבלת הייצוג».
+  {
+    key: 'shaam-not-started', label: 'שע״ם 0. טרם הוזן (עידן רוקח)',
+    req: { ...BASE, status: 'pending_signature', authorities: ['incomeTax', 'nationalInsurance'],
+      scope: { incomeTax: { status: 'in_process', level: 'primary' }, vat: { status: 'in_process', level: 'primary' }, withholding: { status: 'in_process', level: 'primary' } },
+      execution: ni({ nationalInsurance: { enteredAt: '2026-09-24T08:00:00.000Z', referenceNumber: '73882698' } }) } as unknown as RepresentationRequest,
+  },
+  {
+    key: 'shaam-found-existing', label: 'שע״ם 0ב. «הזן» מצא בקשה קיימת (202)',
+    req: shaamReq({
+      foundBeforeCreateAt: '2026-09-24T09:10:00.000Z', syncedAt: '2026-09-24T09:10:00.000Z', observedAt: '2026-09-24T09:09:40.000Z',
+      rawRequestState: 'המתנה למסמכים',
+      systems: [shaamRow('מס הכנסה', 'המתנה למסמכים', ''), shaamRow('מעמ', 'המתנה למסמכים', '')],
+    }, { status: 'pending_signature', execution: { shaam: { 'person:client': {
+      foundBeforeCreateAt: '2026-09-24T09:10:00.000Z', syncedAt: '2026-09-24T09:10:00.000Z', observedAt: '2026-09-24T09:09:40.000Z',
+      rawRequestState: 'המתנה למסמכים',
+      systems: [shaamRow('מס הכנסה', 'המתנה למסמכים', ''), shaamRow('מעמ', 'המתנה למסמכים', '')],
+    } } } } as Partial<RepresentationRequest>),
+  },
   { key: 'shaam-before', label: 'שע״ם א. הוגש - הצילום הישן (לפני 201)', req: shaamReq(SHAAM_BEFORE) },
   { key: 'shaam-confirmed', label: 'שע״ם ב. הוגש + צפי ממסך האישור', req: shaamReq(SHAAM_CONFIRMED) },
   { key: 'shaam-suspended', label: 'שע״ם ג. התקבלו המסמכים / השהייה', req: shaamReq(SHAAM_RECONCILED) },

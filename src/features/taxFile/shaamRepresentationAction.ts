@@ -4,6 +4,16 @@
 // ‼ הפעולה נגזרת משני דברים בלבד: סטטוס הבקשה, ומצב האינטגרציה שנשמר
 // בפועל (`execution.shaam[key]`). לא ממציאים «נשלח לשע״ם» בלי ראיה —
 // `submittedAt` נכתב רק אחרי אישור קליטה מהרשות (194).
+//
+// ‼ 24.09.2026 · החוזה: **שלב** אחד נגזר (shaamLifecycleStage), והפעולה נגזרת
+// ממנו. ארבעה דברים שונים ואסור לערבב ביניהם:
+//   1. מחשב האוטומציה דולק/כבוי        — useShaamReadiness.workerOffline
+//   2. שע״ם מחוברת/לא                    — useAutomationGate.ready
+//   3. מערכת הייצוג נבדקה/טרם נבדקה      — useAutomationGate.unverified
+//   4. איפה ההגשה במחזור החיים           — כאן, ורק כאן
+// 1–3 הם תנאי-קדם להרצה (צבע הכפתור, מה קורה בלחיצה). הם **לא** משנים את
+// הפעולה העסקית שמוצעת. ובאותו אופן «טרם נבדק אם כבר קיימת בקשה» אינו שלב:
+// הבדיקה הזאת קורית בתוך «הזן ייפוי כוח בשע״ם», בעובד, לפני כל נגיעה (202).
 
 import type { RepresentationStatus } from '../../types';
 import type { ShaamRequestTracking } from '../representation/shaamRepresentation';
@@ -28,81 +38,89 @@ export interface ShaamRepresentationAction {
 }
 
 /**
+ * איפה ההגשה במחזור החיים מול שע״ם.
+ *   not_started        · אין שום עדות לבקשה ⇒ «הזן ייפוי כוח בשע״ם»
+ *                        (שבודק בעצמו שאין כבר בקשה, ולא יוצר כפולה).
+ *   signatures_pending · יש בקשה בשע״ם (נוצרה כאן, או נמצאה שם) והטופס טרם
+ *                        נחתם והוחתם ⇒ השלב הבא הוא החתימה, והשידור מושבת.
+ *   signed_ready       · יש בקשה והטופס חתום ומוחתם ⇒ «שלח טופס חתום».
+ *   ambiguous          · השורות שנמצאו אינן בקשה אחת ⇒ לא משדרים.
+ *   submitted          · נשלח (או סומן ידנית כנשלח) ⇒ רק קריאת מצב.
+ *   waiting_client     · שע״ם: «ממתין לאישור לקוח» ⇒ הלקוח חייב לאשר.
+ *   active             · הכול נקלט / הייצוג פעיל ⇒ סופי, גובר על כל השאר.
+ */
+export type ShaamLifecycleStage =
+  | 'not_started' | 'signatures_pending' | 'signed_ready' | 'ambiguous'
+  | 'submitted' | 'waiting_client' | 'active';
+
+export function shaamLifecycleStage(
+  status: RepresentationStatus | null | undefined,
+  tracking?: ShaamRequestTracking,
+  stamped?: boolean,
+): ShaamLifecycleStage | null {
+  if (!status) return null;
+  // ‼ סופי גובר: מה שהסטטוס אומר, או מה ששע״ם אמרה על כל המערכים.
+  if (status === 'active' || allSystemsAccepted(tracking)) return 'active';
+  if (tracking?.submittedAt) return tracking.clientApprovalRequiredAt ? 'waiting_client' : 'submitted';
+  // ‼ «ממתין לרשויות» בלי שום עדות מהאינטגרציה = סומן ידנית כנשלח (או משטח
+  // שלא מקבל את מצב שע״ם, כמו תיק המס). זה לעולם לא «טרם הוזן».
+  if (!shaamRequestExists(tracking)) return status === 'awaiting_authorities' ? 'submitted' : 'not_started';
+  // ‼ נמצאה בלי מספר בקשה (הדסה סלע, 23.09.2026) — השידור מאתר אותה לפי ישות
+  // + שם, ולכן השורות חייבות לתאר בקשה אחת. מערך כפול = שתי בקשות.
+  if (!tracking?.requestNumber && !shaamRowsFormOneRequest(tracking)) return 'ambiguous';
+  if (stamped) return 'signed_ready';
+  // סומן ידנית כ«נשלח» בלי שהאוטומציה שידרה — עדיין אפשר לבדוק מצב.
+  if (status === 'awaiting_authorities') return 'submitted';
+  return 'signatures_pending';
+}
+
+const CHECK = { kind: 'check' as const, label: 'בדוק קבלת הייצוג', actionType: SHAAM_CHECK_REPRESENTATION_ACTION_TYPE };
+const SUBMIT = { kind: 'submit' as const, label: 'שלח טופס חתום לשע״ם', actionType: SHAAM_SUBMIT_POA_ACTION_TYPE };
+export const SHAAM_ENTER_LABEL = 'הזן ייפוי כוח בשע״ם';
+
+/**
  * @param status סטטוס בקשת הייצוג (או `client.representationStatus`).
  * @param tracking מצב ההגשה בשע״ם, כשידוע. חסר ⇒ טרם נפתחה בקשה.
  * @param stamped כל טופסי הבקשה נחתמו והוטבעה עליהם חותמת — התנאי לשידור.
+ * ‼ 'check' הוא יישוב (קריאה חוזרת), לא צעד בתהליך: המרכז מצייר אותו פעם
+ * אחת ליד הכותרת (representationCenter.isReconcileAction), ולא בעמודה.
  */
 export function shaamRepresentationAction(
   status: RepresentationStatus | null | undefined,
   tracking?: ShaamRequestTracking,
   stamped?: boolean,
 ): ShaamRepresentationAction | null {
-  if (!status) return null;
-  // ‼ «פעיל» הוא סוף הדרך אצלנו, אבל כל עוד לא ראינו את שע״ם אומרת שהכול
-  // נקלט — בדיקה עדיין שווה משהו. אחרי שראינו, אין מה להציע.
-  if (status === 'active') {
-    if (shaamRequestExists(tracking) && !allSystemsAccepted(tracking)) {
-      return { kind: 'check', label: 'בדוק קבלת הייצוג', actionType: SHAAM_CHECK_REPRESENTATION_ACTION_TYPE };
-    }
-    return null;
-  }
-
-  // כבר שודר — מכאן והלאה רק קוראים מצב.
-  if (tracking?.submittedAt) {
-    return { kind: 'check', label: 'בדוק קבלת הייצוג', actionType: SHAAM_CHECK_REPRESENTATION_ACTION_TYPE };
-  }
-
-  // יש בקשה בשע״ם וטופס — נשאר לשדר את החתום.
-  if (tracking?.requestNumber) {
-    if (stamped) {
-      return { kind: 'submit', label: 'שלח טופס חתום לשע״ם', actionType: SHAAM_SUBMIT_POA_ACTION_TYPE };
-    }
-    if (status === 'awaiting_authorities') {
-      // סומן ידנית כ«נשלח» בלי שהאוטומציה שידרה — עדיין אפשר לבדוק מצב.
-      return { kind: 'check', label: 'בדוק קבלת הייצוג', actionType: SHAAM_CHECK_REPRESENTATION_ACTION_TYPE };
-    }
-    return {
-      kind: 'submit', label: 'שלח טופס חתום לשע״ם', actionType: SHAAM_SUBMIT_POA_ACTION_TYPE,
-      disabled: true,
-      reason: tracking.formDocumentId
-        ? 'הטופס טרם נחתם והוחתם בחותמת — אי אפשר לשדר לשע״ם.'
-        : 'טופס ייפוי הכוח טרם הובא משע״ם.',
-    };
-  }
-
-  // ‼ 23.09.2026 · אין ל-PIVO עדיין מספר בקשה בשע״ם — אבל זה לא אומר
-  // שאין שם בקשה. ייתכן שהיא הוזנה ידנית (בדיוק המקרה של הדסה סלע):
-  // הוגשה בפועל בשע״ם, בלי שדרך PIVO. ‼ לא דורשים מהרו"ח להעתיק מספר בקשה
-  // ידנית — «בדוק קבלת הייצוג» מוצא אותו לבד (חיפוש לפי ישות, worker
-  // מיוחס). לפני שמציעים «צור בקשה» — קודם בודקים שהיא לא כבר שם, כדי
-  // שלא ליצור כפילות. בדיקה היא קריאה בלבד, ולכן בטוחה גם כשאין שם כלום.
-  // ‼ «בדוק» מצא את הבקשה בשע״ם (שורות משויכות) אבל מספר הבקשה לא נחשף
-  // ב-DOM — המקרה האמיתי של הדסה סלע (23.09.2026). הבקשה **קיימת**, ולכן
-  // לעולם לא «צור»: זו הייתה פותחת אימות ישות חוזר מול שע״ם על בקשה פתוחה.
-  // ‼ השידור לא דורש מספר בקשה: העובד מאתר אותה לפי ישות + שם, ועוצר לפני
-  // העלאה אם הייחוס אינו חד-משמעי (singleAttributedRequest, openedScreenMatches).
-  // כאן חוסמים רק את מה שכבר ידוע כדו-משמעי מהבדיקה האחרונה.
-  if (shaamRequestExists(tracking)) {
-    const submit = { kind: 'submit' as const, label: 'שלח טופס חתום לשע״ם', actionType: SHAAM_SUBMIT_POA_ACTION_TYPE };
-    if (!shaamRowsFormOneRequest(tracking)) {
+  const stage = shaamLifecycleStage(status, tracking, stamped);
+  switch (stage) {
+    case null:
+      return null;
+    case 'active':
+      // ‼ «פעיל» אצלנו, אבל שע״ם עוד לא אמרה שהכול נקלט — קריאה עוד שווה משהו.
+      return status === 'active' && shaamRequestExists(tracking) && !allSystemsAccepted(tracking) ? CHECK : null;
+    case 'submitted':
+    case 'waiting_client':
+      return CHECK;
+    case 'not_started':
+      // ‼ 24.09.2026 · לחיצה אחת. הבדיקה אם כבר יש בקשה בשע״ם (הדסה סלע —
+      // הוזנה שם ידנית) רצה בתוך הפעולה, בעובד, לפני אימות הישות; נמצאה ⇒
+      // לא נוצרת שנייה, והמצב שלה נקלט כאן (202).
+      return { kind: 'create', label: SHAAM_ENTER_LABEL, actionType: SHAAM_CREATE_REPRESENTATION_ACTION_TYPE };
+    case 'ambiguous':
       return {
-        ...submit, disabled: true,
+        ...SUBMIT, disabled: true,
         reason: 'בבדיקה האחרונה בשע״ם נמצאו שורות שאינן בקשה אחת (תאריכים/מצבים שונים או מערך כפול) — '
           + 'אי אפשר לקבוע לאיזו בקשה לשדר, ולכן לא משדרים. בדקו בשע״ם את הבקשות הפתוחות של האדם הזה.',
       };
-    }
-    if (stamped) return submit;
-    if (status === 'awaiting_authorities') {
-      return { kind: 'check', label: 'בדוק קבלת הייצוג', actionType: SHAAM_CHECK_REPRESENTATION_ACTION_TYPE };
-    }
-    return {
-      ...submit, disabled: true,
-      reason: 'הטופס טרם נחתם בידי כל החותמים והוחתם בחותמת המשרד — אי אפשר לשדר לשע״ם.',
-    };
+    case 'signed_ready':
+      return SUBMIT;
+    case 'signatures_pending':
+      return {
+        ...SUBMIT, disabled: true,
+        reason: !tracking?.requestNumber
+          ? 'הטופס טרם נחתם בידי כל החותמים והוחתם בחותמת המשרד — אי אפשר לשדר לשע״ם.'
+          : tracking.formDocumentId
+            ? 'הטופס טרם נחתם והוחתם בחותמת — אי אפשר לשדר לשע״ם.'
+            : 'טופס ייפוי הכוח טרם הובא משע״ם.',
+      };
   }
-  if (!tracking?.syncedAt) {
-    return { kind: 'check', label: 'בדוק קבלת הייצוג', actionType: SHAAM_CHECK_REPRESENTATION_ACTION_TYPE };
-  }
-  // כבר נבדקה בשע״ם, ולא נמצאה שם שום שורה שלה — עכשיו אפשר באמת ליצור.
-  return { kind: 'create', label: 'הזן את הפרטים בשע״ם', actionType: SHAAM_CREATE_REPRESENTATION_ACTION_TYPE };
 }

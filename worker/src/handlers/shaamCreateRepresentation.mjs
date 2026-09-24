@@ -13,7 +13,11 @@
 // ‼ אידמפוטנטיות — ארבע רמות, כמו ב-btlCreateRepresentation:
 //   1. `automation_jobs_open_unique` (150) — משימה פתוחה אחת לכל (לקוח, סוג).
 //   2. `input.existingRequestNumber` — ל-PIVO כבר יש מספר בקשה ⇒ לא יוצרים שנייה.
-//   3. בדיקה חיה במסך שלב 2: «ייצוגים פעילים (N)» ו«בקשות(N)» של אותה ישות.
+//   3. **בדיקה לפני כל נגיעה** (24.09.2026): רשימת «בקשות בתהליך» נקראת לפי
+//      הישות, קריאה בלבד, לפני אימות הישות. נמצאה בקשה ⇒ לא יוצרים, ומדווחים
+//      אותה כמו «בדוק קבלת הייצוג». לא ניתן לבסס/לקרוא ⇒ עוצרים. רק רשימה
+//      ריקה-בוודאות מתירה להמשיך (createPreflightDecision).
+//   3ב. בדיקה חיה במסך שלב 2: «ייצוגים פעילים (N)» ו«בקשות(N)» של אותה ישות.
 //   4. checkpoint ב-progress לפני כל פעולה עם תופעת לוואי — אימות הישות
 //      ויצירת הבקשה — כדי שקריסה בדיוק שם לא תוביל לניסיון עיוור שני.
 
@@ -22,7 +26,9 @@ import {
   openRepresentationSystem, startNewRequest, verifyEntity,
   readExistingRepresentations, selectRequestedSystems, confirmSystemsStep,
   fillContactDetails, capturePdf, fetchGeneratedForm,
+  findRequestRows, createPreflightDecision,
 } from '../shaamRepresentationSession.mjs';
+import { reportedRows, allRowsAccepted } from './shaamCheckRepresentation.mjs';
 import { NeedsHumanError, PermanentError } from '../errors.mjs';
 import { putDocument } from '../apiClient.mjs';
 import {
@@ -74,16 +80,34 @@ export function validate(input) {
   if (systems.length === 0) {
     throw new PermanentError('לא נמסר אף מערך להזנה בשע״ם.', 'no_systems_requested');
   }
+  // ‼ השם הוא ראיית השיוך של הבדיקה שלפני היצירה (attributeRows): בלעדיו
+  // שורה ברשימה לא ניתנת לייחוס, ואז גם «אין בקשה» אינו ניתן לקביעה.
+  const personName = String(input?.personName ?? '').trim();
+  if (!personName) {
+    throw new PermanentError(
+      'לא נמסר שם האדם — בלעדיו אי אפשר לבדוק בשע״ם אם כבר קיימת לו בקשה, ולכן לא פותחים חדשה.',
+      'missing_attribution_evidence',
+    );
+  }
   for (const s of systems) {
     if (!s?.screenLabel) throw new PermanentError('שורת מערך בלי שם.', 'bad_system_row');
     if (!String(s?.fileNumber ?? '').trim()) {
       throw new PermanentError(`חסר מספר תיק ל-${s.screenLabel} — לא מזינים בלעדיו.`, 'missing_file_number');
     }
   }
-  return { submissionKey, role, entityId, birthDate, systems, secondary: input.secondary };
+  return { submissionKey, role, entityId, birthDate, systems, secondary: input.secondary, personName };
 }
 
-export async function run(ctx, input) {
+/**
+ * התלויות של ההרצה — דפדפן, מסכי שע״ם, שמירה. ‼ קיים כדי שהבדיקות יריצו את
+ * **הזרימה עצמה** (מה נקרא, מה נעצר, כמה פעמים נוצר) בלי דפדפן ובלי רשות.
+ */
+export const DEFAULT_DEPS = {
+  attach, detach, detectBlockingSignal, openRepresentationSystem, findRequestRows, startNewRequest, verifyEntity, readExistingRepresentations, selectRequestedSystems, confirmSystemsStep, fillContactDetails, capturePdf, fetchGeneratedForm, putDocument, captureDiagnostics, progressTracker,
+};
+
+export async function run(ctx, input, deps = {}) {
+  const d = { ...DEFAULT_DEPS, ...deps };
   const v = validate(input);
 
   // ‼ קו הגנה שני נגד כפילות.
@@ -107,23 +131,23 @@ export async function run(ctx, input) {
 
   // ‼ שער הכניסה: משימה שכבר נגעה בשע״ם אינה מורצת שוב, נקודה. מיגרציה
   // 196 כבר מונעת את התפיסה מחדש; זה קו ההגנה השני.
-  const progress = progressTracker(ctx);
+  const progress = d.progressTracker(ctx);
   assertNotAlreadyAttempted(progress, {
     operation: 'פתיחת בקשת הייצוג',
     howToCheck: 'בדקו בשע״ם אם הבקשה כבר נפתחה. אם כן — הזינו את מספרה, ואל תפתחו בקשה נוספת.',
   });
 
-  const conn = await attach();
+  const conn = await d.attach();
   if (!conn.ok) throw new NeedsHumanError(NOT_READY, 'awaiting_shaam_auth');
 
   try {
     const page = conn.page;
 
     // ‼ סימן חסימה/אבטחה עוצר לפני שנגענו במשהו.
-    const blocked = await detectBlockingSignal(page);
+    const blocked = await d.detectBlockingSignal(page);
     if (blocked) throw blockingError(blocked, 'פתיחת בקשת הייצוג');
 
-    const open = await openRepresentationSystem(page);
+    const open = await d.openRepresentationSystem(page);
     if (!open.ok) {
       if (open.reason === 'login_required') throw new NeedsHumanError(NOT_READY, 'awaiting_shaam_auth');
       if (open.reason === 'user_work_screen_open') {
@@ -132,12 +156,59 @@ export async function run(ctx, input) {
           'user_work_screen_open',
         );
       }
-      const diag = await captureDiagnostics(page, 'פתיחת מערכת רישום הייצוג');
+      const diag = await d.captureDiagnostics(page, 'פתיחת מערכת רישום הייצוג');
       ctx.log('אבחון מסך:', JSON.stringify(diag));
       throw unknownScreenError('פתיחת בקשת הייצוג', 'פתיחת מערכת רישום הייצוג', diag);
     }
 
-    const started = await startNewRequest(page, v.entityId);
+    // ── בדיקה לפני יצירה — קריאה בלבד, לפני כל נגיעה ────────────────────
+    // ‼ לא נרשם כאן externalAttempt: רשימת «בקשות בתהליך» היא קריאה, וכשל
+    // בה אינו «לא ידוע אם נקלט». הסימן נכתב רק לפני אימות הישות.
+    const observedAt = new Date().toISOString();
+    const found = await d.findRequestRows(page, {
+      entityId: v.entityId, expectedClientName: v.personName, expandDetails: true,
+    });
+    const pre = createPreflightDecision(found);
+    ctx.log(`בדיקה לפני יצירה: ${pre.decision}${pre.reason ? ` (${pre.reason})` : ''}${found?.total !== undefined ? ` · שורות לישות=${found.total}` : ''}`);
+
+    if (pre.decision === 'existing') {
+      const rows = reportedRows(pre.rows);
+      for (const r of rows) ctx.log(`  · ${r.systemLabel}: בקשה="${r.rawRequestState}" מערך="${r.rawSystemState}"`);
+      return {
+        result: {
+          submissionKey: v.submissionKey,
+          role: v.role,
+          // ‼ הטריגר (202) מזהה את זה ומעדכן כמו בדיקה — בלי createdAt.
+          preflight: 'existing_found',
+          found: true,
+          observedAt,
+          rows,
+          allAccepted: allRowsAccepted(rows),
+          requestNumber: rows.find(r => r.requestNumber)?.requestNumber ?? '',
+          note: 'בשע״ם כבר קיימת בקשת ייצוג לאדם הזה — לא נפתחה בקשה נוספת.',
+        },
+      };
+    }
+    if (pre.decision === 'ambiguous') {
+      throw new NeedsHumanError(
+        'ברשימת הבקשות בשע״ם יש שורות לתעודת הזהות הזאת, אבל לא הצלחתי לוודא שהן של האדם הזה ' +
+        '(שם שונה, או כמה בקשות). כדי לא ליצור בקשה כפולה — לא נפתחה בקשה ושום דבר לא נשלח לשע״ם. ' +
+        'פתחו בשע״ם את «בקשות בתהליך», בדקו מה קיים שם, והמשיכו לפי זה.',
+        'preflight_ambiguous',
+      );
+    }
+    if (pre.decision !== 'none') {
+      const diag = await d.captureDiagnostics(page, 'בדיקה לפני יצירה');
+      ctx.log('אבחון מסך:', JSON.stringify(diag));
+      throw new NeedsHumanError(
+        'לא הצלחתי לקרוא בוודאות את רשימת הבקשות בשע״ם, ולכן לא ידוע אם כבר קיימת בקשה לאדם הזה. ' +
+        'כדי לא ליצור בקשה כפולה — לא נפתחה בקשה ושום דבר לא נשלח לשע״ם. ' +
+        'בדקו ב«בקשות בתהליך» בשע״ם, ואז הריצו שוב או סמנו ידנית.',
+        'preflight_unreadable',
+      );
+    }
+
+    const started = await d.startNewRequest(page, v.entityId);
     if (!started.ok) {
       if (started.reason === 'entity_mismatch') {
         throw new PermanentError(
@@ -145,7 +216,7 @@ export async function run(ctx, input) {
           'entity_mismatch',
         );
       }
-      const diag = await captureDiagnostics(page, 'בקשה חדשה');
+      const diag = await d.captureDiagnostics(page, 'בקשה חדשה');
       ctx.log('אבחון מסך:', JSON.stringify(diag));
       throw unknownScreenError('פתיחת בקשת הייצוג', 'מסך בקשה חדשה', diag);
     }
@@ -156,12 +227,12 @@ export async function run(ctx, input) {
     // בדיוק כאן תיראה כ«לא ידוע» ולא תורץ שוב (196).
     await progress.markExternalAttempt('verify_entity');
     ctx.log(`מאמת ישות ${v.entityId.slice(0, 4)}#####  ·  ניסיון יחיד`);
-    const verified = await verifyEntity(page, {
+    const verified = await d.verifyEntity(page, {
       birthDateDDMMYYYY: v.birthDate,
       secondary: v.secondary,
     });
     if (!verified.ok) {
-      const signal = await detectBlockingSignal(page);
+      const signal = await d.detectBlockingSignal(page);
       if (signal) throw blockingError(signal, 'אימות הישות בשע״ם');
       if (verified.reason === 'verification_rejected') {
         throw new NeedsHumanError(
@@ -172,13 +243,13 @@ export async function run(ctx, input) {
           'entity_verification_failed',
         );
       }
-      const diag = await captureDiagnostics(page, 'אימות ישות');
+      const diag = await d.captureDiagnostics(page, 'אימות ישות');
       ctx.log('אבחון מסך:', JSON.stringify(diag), '·', verified.reason, verified.detail ?? '');
       throw unknownScreenError('אימות הישות בשע״ם', 'אימות ישות', diag);
     }
 
     // ── בדיקה חיה: אין כבר ייצוג/בקשה פתוחה לישות הזאת ────────────────────
-    const existing = await readExistingRepresentations(page);
+    const existing = await d.readExistingRepresentations(page);
     ctx.log(`אצל הישות: ייצוגים פעילים=${existing.activeCount} · בקשות פתוחות=${existing.openRequestCount}`);
     // ‼ לא הצלחנו לקרוא את המונה ⇒ **לא** מסיקים «אין בקשה פתוחה». null
     // הוא היעדר ידיעה, וכאן היעדר ידיעה שקול לסיכון לפתוח בקשה כפולה.
@@ -200,7 +271,7 @@ export async function run(ctx, input) {
 
     // ── בחירת המערכים — בדיוק מה ש-PIVO ביקש ──────────────────────────────
     ctx.log(`מסמן מערכים: ${v.systems.map(s => s.screenLabel).join(', ')}`);
-    const selected = await selectRequestedSystems(page, v.systems);
+    const selected = await d.selectRequestedSystems(page, v.systems);
     if (!selected.ok) {
       if (selected.reason === 'unrequested_system_checked') {
         throw new PermanentError(
@@ -215,7 +286,7 @@ export async function run(ctx, input) {
     // ‼ checkpoint לפני «אישור» — הרגע שבו הבקשה נוצרת בפועל אצל הרשות.
     await progress.set({ stage: 'systems_confirm' });
 
-    const confirmed = await confirmSystemsStep(page);
+    const confirmed = await d.confirmSystemsStep(page);
     if (!confirmed.ok) {
       if (confirmed.reason === 'unknown_dialog') {
         throw new NeedsHumanError(
@@ -236,10 +307,10 @@ export async function run(ctx, input) {
 
     // ── פרטי התקשרות + לכידת הטופס שמופק ─────────────────────────────────
     let captured = null;
-    const contact = await capturePdf(
+    const contact = await d.capturePdf(
       page,
       async () => {
-        const r = await fillContactDetails(page, { spousePhone: input?.spousePhone });
+        const r = await d.fillContactDetails(page, { spousePhone: input?.spousePhone });
         captured = r;
       },
       { timeoutMs: 45000 },
@@ -255,7 +326,7 @@ export async function run(ctx, input) {
       throw navFailure('פרטי התקשרות', captured ?? { reason: 'contact_step_failed' });
     }
 
-    const form = await fetchGeneratedForm(page, { alreadyCaptured: contact });
+    const form = await d.fetchGeneratedForm(page, { alreadyCaptured: contact });
     if (!form.ok) {
       // ‼ הבקשה כבר נוצרה — לכן זו **לא** שגיאה סופית: הטופס ניתן להבאה
       // בניסיון חוזר, שיתחיל מהשלב הנכון בזכות requestNumber שנשמר.
@@ -268,7 +339,7 @@ export async function run(ctx, input) {
 
     const documentId = `poa-pdf-${input.requestId}-${v.submissionKey.replace(/[^a-z0-9]+/gi, '-')}`;
     const fileName = input?.formFileName || `ייפוי כוח לחתימה - ${input?.personName || v.entityId}.pdf`;
-    const stored = await putDocument(ctx.workerId, ctx.job.id, {
+    const stored = await d.putDocument(ctx.workerId, ctx.job.id, {
       documentId, fileName, buffer: form.buffer,
       description: 'טופס ייפוי כוח - לחתימה',
       linkedTo: `rep:${input.requestId}`,
@@ -297,6 +368,6 @@ export async function run(ctx, input) {
       artifacts: [{ kind: 'poa_form', documentId, fileName, source: form.source }],
     };
   } finally {
-    await detach(conn.browser);
+    await d.detach(conn.browser);
   }
 }

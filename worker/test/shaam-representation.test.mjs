@@ -71,6 +71,7 @@ const GOOD = {
   birthDateDDMMYYYY: '30101985',
   secondary: { type: 'parentId', value: '067574996' },
   systems: [{ screenLabel: 'מס הכנסה', fileNumber: '034605212', repType: 'ראשי' }],
+  personName: 'הדסה סלע',
 };
 
 test('קלט תקין עובר', () => {
@@ -193,9 +194,9 @@ test('7.4 · אמצעי הזיהוי הנוסף נשלח פעם אחת, ואין
     'אין רשימת אמצעי זיהוי חלופיים לנסות אחד אחרי השני');
 
   const handler = src('../src/handlers/shaamCreateRepresentation.mjs');
-  assert.equal((handler.match(/await verifyEntity\(/g) || []).length, 1,
+  assert.equal((handler.match(/await (d\.)?verifyEntity\(/g) || []).length, 1,
     'קריאה אחת בלבד ל-verifyEntity בכל ההרצה');
-  assert.ok(handler.indexOf("markExternalAttempt('verify_entity')") < handler.indexOf('await verifyEntity('),
+  assert.ok(handler.indexOf("markExternalAttempt('verify_entity')") < handler.indexOf('await d.verifyEntity('),
     'הסימן נרשם לפני האימות, אחרת קריסה בדיוק שם תיראה כ«לא נגענו»');
 });
 

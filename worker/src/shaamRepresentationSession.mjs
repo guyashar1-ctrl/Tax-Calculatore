@@ -745,6 +745,16 @@ export async function findRequestRows(page, { requestNumber, entityId, expectedC
     () => /מוצגים\s+\d+\s+תיק/.test(document.body.innerText || ''),
     { timeout: 8000 },
   ).catch(() => {}); // ‼ אם לא הופיע — ממשיכים לקרוא בכל זאת; found:false נשאר תוצאה תקפה
+  // ‼ 24.09.2026 · ראיה שהרשימה **ריקה באמת**, ולא שהטבלה עוד לא התעדכנה.
+  // לבדיקה «0 שורות» הוא עובדה תקפה; לבדיקה שלפני יצירה הוא אינו מספיק לבד
+  // (createPreflightDecision) — שם «ריק» פותח פנייה חיצונית.
+  const listed = await page.evaluate(() => {
+    const m = (document.body.innerText || '').match(/מוצגים\s+(\d+)\s+תיק/);
+    return {
+      count: m ? Number(m[1]) : null,
+      noRecords: !!document.querySelector('.k-grid-norecords, .k-grid-norecords-template'),
+    };
+  }).catch(() => ({ count: null, noRecords: false }));
 
   // ‼ 201 · «צפי לסיום השהייה», «מספר בקשה» ו«מספר לקוח» מוצגים רק בפירוט
   // השורה, שנפתח בחץ ההרחבה של Kendo (k-hierarchy-cell / k-i-expand). זו
@@ -829,7 +839,35 @@ export async function findRequestRows(page, { requestNumber, entityId, expectedC
     requestNumber, entityId, searchedBy: searched.by, expectedClientName,
   });
   if (!attributed.ok) return { ...attributed, step: 'list_read' };
-  return { ok: true, rows: attributed.rows, total: rows.total, searchedBy: searched.by };
+  return { ok: true, rows: attributed.rows, total: rows.total, searchedBy: searched.by, listed };
+}
+
+/**
+ * «הזן ייפוי כוח בשע״ם» — מה עושים אחרי הבדיקה שלפני היצירה. טהורה.
+ *
+ * ‼ 24.09.2026 · הבדיקה (קריאה בלבד, ברשימת «בקשות בתהליך» לפי ישות) היא
+ * תנאי-קדם **בתוך** פעולת ההזנה, לא כפתור נפרד. רק 'none' מתיר להתחיל את
+ * הפנייה החיצונית (אימות הישות ואילך). כל השאר עוצר לפני כל נגיעה:
+ *   existing   · נמצאה בקשה של האדם הזה ⇒ לא יוצרים; מדווחים אותה כמו בדיקה.
+ *   ambiguous  · יש שורות לישות שאי אפשר לבסס שהן שלו (או סתירה) ⇒ עצירה.
+ *   unreadable · הרשימה לא נקראה, או «ריק» בלי ראיה שהיא ריקה ⇒ עצירה.
+ * ‼ «ריק» = אפס שורות **וגם** המסך אומר שאין (מוצגים 0 / אין רשומות). אפס
+ * שורות בלי אחד מהם הוא היעדר ידיעה, ולא פותחים עליו בקשה.
+ */
+export function createPreflightDecision(found) {
+  if (!found?.ok) {
+    if (found?.reason === 'identity_mismatch' || found?.reason === 'cannot_attribute') {
+      return { decision: 'ambiguous', reason: found.reason };
+    }
+    return { decision: 'unreadable', reason: found?.reason ?? 'unknown' };
+  }
+  const rows = Array.isArray(found.rows) ? found.rows : [];
+  const total = Number.isInteger(found.total) ? found.total : rows.length;
+  if (rows.length > 0) return { decision: 'existing', rows };
+  // שורות לישות הזאת שלא יוחסו לשם שלה — ייתכן שזו אותה בקשה בשם אחר.
+  if (total > 0) return { decision: 'ambiguous', reason: 'unattributed_rows_for_entity' };
+  if (found.listed?.count === 0 || found.listed?.noRecords === true) return { decision: 'none' };
+  return { decision: 'unreadable', reason: 'empty_list_unconfirmed' };
 }
 
 /**

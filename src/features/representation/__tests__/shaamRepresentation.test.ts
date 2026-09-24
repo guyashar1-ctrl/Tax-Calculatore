@@ -271,10 +271,11 @@ export const TESTS: TestCase[] = [
     equal(a?.kind, 'submit');
   }),
 
-  test('17 · לפני שנבדק בשע״ם — «בדוק»; אחרי בדיקה שלא מצאה — «צור»; עם מספר בקשה — לעולם לא «צור» שוב', () => {
-    // ‼ 23.09.2026 · תיקון: אסור להציע «צור» לפני שבדקו שהבקשה לא כבר קיימת
-    // בשע״ם (למשל הוזנה ידנית) — אחרת נוצרת בקשה כפולה.
-    equal(shaamRepresentationAction('awaiting_accountant', undefined, false)?.kind, 'check');
+  test('17 · אין עדות לבקשה — «הזן» (הבדיקה בתוכו, בעובד); עם מספר בקשה — לעולם לא «צור» שוב', () => {
+    // ‼ 24.09.2026 · הבדיקה שהבקשה לא כבר קיימת בשע״ם (הדסה — הוזנה שם
+    // ידנית) עברה לתוך הפעולה עצמה: העובד קורא את הרשימה לפני כל נגיעה.
+    // לכן «טרם נבדק» אינו שלב, ו«הזן» מוצע מיד.
+    equal(shaamRepresentationAction('awaiting_accountant', undefined, false)?.kind, 'create');
     equal(shaamStageOf(undefined), 'none');
     const notFound: ShaamRequestTracking = { syncedAt: '2026-09-23T13:00:00Z' };
     equal(shaamRepresentationAction('awaiting_accountant', notFound, false)?.kind, 'create');

@@ -51,7 +51,16 @@ if errorlevel 1 (
 )
 
 echo [v] Installed. The worker will start automatically at every login.
+
+REM  Watchdog (24.09.2026): a Task Scheduler task re-launches the worker every
+REM  5 minutes if it is not running (a second copy exits at once). It is also
+REM  what starts it now - so the worker is never a child of this console.
+powershell -NoProfile -ExecutionPolicy Bypass -File "%WORKERDIR%install-watchdog.ps1"
+if errorlevel 1 (
+  echo [x] Failed to install the watchdog task.
+  exit /b 1
+)
 echo     Starting it now as well...
-start "" wscript.exe "%VBS%"
+schtasks /run /tn "PIVO Automation Worker Watchdog" >nul
 echo [v] Done. Check worker\worker.log if the SHAAM light stays grey.
 endlocal

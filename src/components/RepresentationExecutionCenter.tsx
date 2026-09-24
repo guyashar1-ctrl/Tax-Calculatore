@@ -666,7 +666,17 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
   // ── ספירת שלבים שהושלמו, להצגה בכותרת כל מסלול ──
   // ‼ הנתיב המזורז אינו כאן: הוא אופציונלי, וספירתו הייתה מציגה מסלול שהושלם
   // כאילו נשאר בו צעד.
-  const itSteps = [!!it.enteredAt, ...extraEntries.map(s => !!entryAt(s.key)), formReady, !!exec.signatureEmailSentAt, signed, stamped, sentToShaam, status === 'active'];
+  // ‼ 24.09.2026 · «הפרטים הוזנו בשע״ם» הושלם גם על ראיה מהרשות — בקשה שנוצרה
+  // מכאן, או שנמצאה שם (הוזנה ידנית; «הזן» בדק ומצא, 202). ראיה גוברת על
+  // היעדר סימון ידני; הסימון הידני נשאר לשורה שאין לה ראיה.
+  const shaamEvidenceAt = (key: string): string | undefined => {
+    const t = exec.shaam?.[key];
+    if (!shaamRequestExists(t)) return undefined;
+    return t?.createdAt || t?.foundBeforeCreateAt || t?.observedAt || t?.syncedAt || t?.submittedAt || undefined;
+  };
+  const enteredAtOf = (key: string, first: boolean) =>
+    (first ? it.enteredAt : entryAt(key)) || shaamEvidenceAt(key);
+  const itSteps = [!!(it.enteredAt || (firstEntry && shaamEvidenceAt(firstEntry.key))), ...extraEntries.map(s => !!enteredAtOf(s.key, false)), formReady, !!exec.signatureEmailSentAt, signed, stamped, sentToShaam, status === 'active'];
 
   // שמות המבוטחים לכותרות המסלולים — כשיש שניים, "ביטוח לאומי" לבדו לא מספיק
   const nameOf = (role: 'client' | 'spouse') =>
@@ -763,7 +773,9 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
           : { role, idNumber: person.idNumber, referenceNumber: ref },
       };
     });
-  const shaamNextActionNode = shaamLeadSubmission ? shaamNode(shaamLeadSubmission) : null;
+  // ‼ «הזן» חי בשלב 1 של כל אדם — בראש העמודה רק מה שאין לו שלב משלו (שידור).
+  const shaamNextActionNode = shaamLeadSubmission && columnAction(shaamActionFor(shaamLeadSubmission))?.kind !== 'create'
+    ? shaamNode(shaamLeadSubmission) : null;
   // מי מבין השניים תקוע בלי אסמכתא — כדי שהחסימה תגיד לאן ללכת, ולא רק שנחסם
   const missingRefFor = !niTargetsSpouse ? '' : [
     !ni.referenceNumber && (nameOf('client') || 'הנישום'),
@@ -799,7 +811,10 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
                 שם היא נענית בפועל — והסימון של אותה הזנה **הוא** ההכרעה. */}
             {submissions.map((sub, i) => {
               const first = i === 0;
-              const at = first ? it.enteredAt : entryAt(sub.key);
+              const manualAt = first ? it.enteredAt : entryAt(sub.key);
+              const at = enteredAtOf(sub.key, first);
+              const byEvidence = !manualAt && !!at;
+              const foundThere = !!shaamTrack(sub.key)?.foundBeforeCreateAt;
               const asksHere = regChoice && !regVerified && sub.key === regRowKey;
               const busyKey = first ? 'it' : `entry-${sub.key}`;
               const mark = (owner?: 'client' | 'spouse') => first
@@ -817,8 +832,12 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
                   hint={at
                     ? (asksHere ? undefined
                         : sub.carriesIncomeTax && regVerified && regSentence
-                          ? `${what} · ${regSentence} · סומן ב-${fmt(at)}`
-                          : `${what} · סומן ב-${fmt(at)}`)
+                          ? `${what} · ${regSentence} · ${byEvidence ? 'נמצא בשע״ם' : 'סומן'} ב-${fmt(at)}`
+                          : byEvidence
+                            ? (foundThere
+                                ? `${what} · הבקשה כבר הייתה קיימת בשע״ם (הוזנה שם, לא מכאן) - לא נפתחה בקשה נוספת · נמצאה ב-${fmt(at)}`
+                                : `${what} · הבקשה קיימת בשע״ם · ${fmt(at)}`)
+                            : `${what} · סומן ב-${fmt(at)}`)
                     : asksHere
                       ? `${what}. מי מבין השניים רשום שם במס הכנסה?`
                       : `${what} · הזנה אחת בשע״ם, על ת.ז. של ${sub.personName}`}
@@ -862,7 +881,10 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
                        סימון ידני אינו מתחזה לראיה חיצונית — הוא לא כותב מספר
                        בקשה, ולכן גם לא פותח את השידור האוטומטי. */
                     <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap', alignItems: 'flex-start' }}>
-                      {/* ‼ «הזן את הפרטים בשע״ם» יושב בראש העמודה — פעם אחת. */}
+                      {/* ‼ 24.09.2026 · «הזן ייפוי כוח בשע״ם» יושב כאן, בשלב שהוא מבצע —
+                          אחד לכל אדם, ולא בראש העמודה (שם הוא היה מופיע פעמיים).
+                          הבדיקה שאין כבר בקשה בשע״ם רצה בתוכו, בעובד (202). */}
+                      {shaamNode(sub, 'create')}
                       <button className="btn btn-ghost btn-sm" disabled={busy === busyKey}
                         onClick={() => void mark()}>
                         {busy === busyKey ? 'שומר…' : 'סמן כהוזן ידנית'}
@@ -878,10 +900,13 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
                           שינוי בן/בת הזוג הרשום/ה
                         </button>
                       )}
-                      <button type="button" className="btn btn-ghost btn-sm" disabled={busy === busyKey}
-                        onClick={() => void unmarkEntry(sub.key, first)}>
-                        {busy === busyKey ? 'שומר…' : 'ביטול הסימון'}
-                      </button>
+                      {/* ראיה מהרשות אינה סימון, ואין מה לבטל בה. */}
+                      {manualAt && (
+                        <button type="button" className="btn btn-ghost btn-sm" disabled={busy === busyKey}
+                          onClick={() => void unmarkEntry(sub.key, first)}>
+                          {busy === busyKey ? 'שומר…' : 'ביטול הסימון'}
+                        </button>
+                      )}
                     </div>
                   )}
                   {/* ‼ המזהה החיצוני מוצג ברגע שהוא קיים: ממנו נגזרת כל
