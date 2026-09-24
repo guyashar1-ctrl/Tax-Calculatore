@@ -75,6 +75,15 @@ if (failed > 0) process.exit(1);
     // ‼ הבדיקות טהורות ואינן נוגעות ב-DOM, אבל מודולים משותפים עלולים לייבא
     // קבצי סגנון/נכסים — esbuild מדלג עליהם במקום ליפול.
     loader: { '.css': 'empty', '.png': 'empty', '.svg': 'empty' },
+    // ‼ `?raw` (כמו ב-vite): בדיקות מבנה שקוראות את מקור הרכיב — למשל
+    // «כפתור היישוב מופיע פעם אחת במרכז». קריאה בלבד, בלי להריץ את הרכיב.
+    plugins: [{
+      name: 'raw',
+      setup(b) {
+        b.onResolve({ filter: /\?raw$/ }, (args) => ({ path: resolve(args.resolveDir, args.path.replace(/\?raw$/, '')), namespace: 'raw' }));
+        b.onLoad({ filter: /.*/, namespace: 'raw' }, async (args) => ({ contents: (await import('node:fs')).readFileSync(args.path, 'utf8'), loader: 'text' }));
+      },
+    }],
     // ‼ מודולים משותפים (למשל מתאמי האוטומציה) מייבאים בעקיפין את לקוח
     // Supabase, שנבנה בטעינה מ-import.meta.env. ערכי דמה — הבדיקות טהורות
     // ואינן פונות לרשת.

@@ -134,7 +134,26 @@ const SCENARIOS: Scenario[] = [
     key: 'shaam-accepted', label: 'שע״ם ו. נקלט בהצלחה',
     req: shaamReq({ ...SHAAM_RECONCILED, systems: [
       shaamRow('מס הכנסה', 'מסמכים אושרו', 'נקלט בהצלחה'), shaamRow('מעמ', 'מסמכים אושרו', 'נקלט בהצלחה'),
-    ] }),
+    ] }, { status: 'active' }),
+  },
+  // ── ב״ל: קדימות סופי > נוכחי > היסטורי (24.09.2026) ──
+  {
+    key: 'btl-pending', label: 'ב״ל א. ממתין, לפני המועד',
+    req: shaamReq(SHAAM_CONFIRMED, { execution: { incomeTax: { enteredAt: '2026-09-23T09:00:00.000Z' }, signatureEmailSentAt: '2026-09-23T17:25:18.636Z',
+      shaam: { 'person:client': SHAAM_CONFIRMED },
+      nationalInsurance: { enteredAt: '2026-09-23T17:24:53.304Z', referenceNumber: '75074203', deadline: '2026-11-15', externalState: 'pending', rawExternalState: 'ממתין לאישור', syncedAt: '2026-09-23T17:24:53.304Z', instructionsSentAt: '2026-09-23T17:25:18.636Z', instructionsSentWith: 'signature' } } } as Partial<RepresentationRequest>),
+  },
+  {
+    key: 'btl-expired', label: 'ב״ל ב. המועד עבר, עדיין ממתין',
+    req: shaamReq(SHAAM_CONFIRMED, { execution: { incomeTax: { enteredAt: '2026-09-23T09:00:00.000Z' }, signatureEmailSentAt: '2026-09-23T17:25:18.636Z',
+      shaam: { 'person:client': SHAAM_CONFIRMED },
+      nationalInsurance: { enteredAt: '2026-09-01T09:52:33.656Z', referenceNumber: '75165449', deadline: '2026-09-20', externalState: 'pending', rawExternalState: 'ממתין לאישור', syncedAt: '2026-09-21T09:52:33.656Z', instructionsSentAt: '2026-09-01T17:25:18.636Z', instructionsSentWith: 'signature' } } } as Partial<RepresentationRequest>),
+  },
+  {
+    key: 'btl-approved', label: 'ב״ל ג. אושר אחרי המועד (הדסה)',
+    req: shaamReq(SHAAM_CONFIRMED, { execution: { incomeTax: { enteredAt: '2026-09-23T09:00:00.000Z' }, signatureEmailSentAt: '2026-09-23T17:25:18.636Z',
+      shaam: { 'person:client': SHAAM_CONFIRMED },
+      nationalInsurance: { enteredAt: '2026-09-23T09:52:33.656Z', referenceNumber: '75165449', deadline: '2026-09-23', externalState: 'approved', syncedAt: '2026-09-23T20:00:00.000Z', confirmedAt: '2026-09-23T20:00:00.000Z', instructionsSentAt: '2026-09-23T17:25:18.636Z', instructionsSentWith: 'signature' } } } as Partial<RepresentationRequest>),
   },
   {
     key: 'shaam-docs', label: 'שע״ם ז. דרישת ת.ז./דרכון',

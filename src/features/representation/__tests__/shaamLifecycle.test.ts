@@ -70,7 +70,8 @@ export const TESTS: TestCase[] = [
     equal(l.ball, 'authority');
     equal(l.nextMilestone?.date, '2026-10-06');
     assert(/אישור הקליטה/.test(l.nextMilestone?.text ?? ''), 'המקור מוצג');
-    assert(!!l.officeAction && /בדוק קבלת הייצוג/.test(l.officeAction), 'הצעד הבא למשרד: קריאה');
+    // ‼ אין «הריצו בדוק» בתוך המצב — לבדיקה כפתור אחד ליד כותרת המרכז.
+    equal(l.officeAction, undefined);
   }),
 
   test('201-3 · הדסה אחרי יישוב: «התקבלו המסמכים» + «השהייה», צפי 06/10/2026', () => {

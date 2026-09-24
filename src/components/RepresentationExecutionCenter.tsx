@@ -34,7 +34,8 @@ import EmailStatusRow from './EmailActivity/EmailStatusRow';
 import EmailPreviewDialog from './EmailActivity/EmailPreviewDialog';
 import type { RepSigner } from '../types';
 import InfoLines from './ui/InfoLines';
-import ShaamLifecyclePanel, { ShaamRequiredDocsList } from './ShaamLifecyclePanel';
+import { ShaamRequiredDocsList } from './ShaamRequiredDocsList';
+import RepresentationReconcileButton, { type ReconcileTarget } from './RepresentationReconcileButton';
 import NiNextActionButton from './NiNextActionButton';
 import NiDropSubjectButton from './NiDropSubjectButton';
 import { niPersons, niRepresentationOf, niRepresentationAction, niExternalEvidence } from '../utils/niPersons';
@@ -43,10 +44,14 @@ import type { ShaamActionKind } from '../features/taxFile/shaamRepresentationAct
 import ShaamNextActionButton from './ShaamNextActionButton';
 import type { ShaamSubmission } from '../utils/repScope';
 import {
-  shaamProgressLine, shaamSystemViews, SHAAM_REQUEST_STATE_LABELS, SHAAM_SYSTEM_STATE_LABELS,
-  parseShaamRequestState, shaamRequestExists, shaamLifecycle,
+  shaamRequestExists,
   type ShaamRequestTracking,
 } from '../features/representation/shaamRepresentation';
+import {
+  NOTICE_STYLES, columnAction, isReconcileAction, niTrackView, shaamSubmittedFacts, type NoticeTone,
+} from '../features/representation/representationCenter';
+import { shaamPersonFacts } from '../features/representation/shaamPersonFacts';
+import type { NiRepresentationLine } from '../utils/niPersons';
 import { representationInsight } from '../utils/representationInsight';
 import ConfirmDialog from './ui/ConfirmDialog';
 
@@ -106,21 +111,34 @@ interface Props {
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
 
+function fmtDateTime(iso?: string): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return iso;
+  return `${d.toLocaleDateString('he-IL')} ${d.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}`;
+}
+
 function fmt(dateish?: string): string {
   if (!dateish) return '';
   const d = new Date(dateish);
   return isNaN(d.getTime()) ? dateish : d.toLocaleDateString('he-IL');
 }
 
-/** ימים עד המועד האחרון. שלילי = עבר. */
-function daysUntil(deadline?: string): number | null {
-  if (!deadline) return null;
-  const d = new Date(deadline);
-  if (isNaN(d.getTime())) return null;
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  d.setHours(0, 0, 0, 0);
-  return Math.round((d.getTime() - today.getTime()) / 86400000);
+/**
+ * הודעה במרכז. ‼ הצבע נגזר מ-NoticeTone בלבד (representationCenter) — ורוד
+ * שמור לכפתורי אוטומציה, ולכן הודעה לעולם לא נראית כמו פעולה.
+ */
+function Notice({ tone, children, style }: { tone: NoticeTone; children: React.ReactNode; style?: React.CSSProperties }) {
+  const t = NOTICE_STYLES[tone];
+  return (
+    <div data-tone={tone} style={{
+      padding: '.35rem .6rem', borderRadius: 'var(--radius)', fontSize: 'var(--fs-13)', lineHeight: 1.6,
+      background: t.background, color: t.color, border: t.border, borderInlineStart: t.borderInlineStart,
+      fontWeight: t.fontWeight, ...style,
+    }}>
+      {children}
+    </div>
+  );
 }
 
 /**
@@ -642,7 +660,7 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
   // ‼ 201 · «ממתין לאישור לקוח» בשע״ם ⇒ האישור הוא חובה, לא זירוז. שני מקורות,
   // שניהם שמורים: הסימון בשלב (השרת), ומה ששע״ם מציגה עכשיו בהגשה כלשהי.
   const approvalRequired = repApproval?.requiredBy === 'shaam'
-    || submissions.some(sub => !!shaamLifecycle(exec.shaam?.[sub.key]).clientAction);
+    || submissions.some(sub => !!shaamSubmittedFacts(exec.shaam?.[sub.key])?.clientApprovalRequired);
   useEffect(() => { void reloadRepApproval(); }, [status, reloadRepApproval]);
 
   // ── ספירת שלבים שהושלמו, להצגה בכותרת כל מסלול ──
@@ -660,18 +678,23 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
   // מאותו כרטיס ומאותו מסלול ביצוע — כדי ששני המשטחים לא יסטו. המצב של
   // אדם אחד לעולם לא נגזר מהשני: role מפורש לכל עמודה.
   const niExecutionByRole = { client: ni, spouse: niSpouse };
+  const niLineFor = (role: 'client' | 'spouse'): NiRepresentationLine | null => {
+    if (!linkedClient) return null;
+    const person = niPersons(linkedClient).find(p => p.role === role);
+    return person ? niRepresentationOf(person, linkedClient, undefined, niExecutionByRole) : null;
+  };
   const niActionFor = (role: 'client' | 'spouse') => {
     if (!linkedClient) return null;
     const person = niPersons(linkedClient).find(p => p.role === role);
-    if (!person) return null;
-    const line = niRepresentationOf(person, linkedClient, undefined, niExecutionByRole);
+    const line = niLineFor(role);
+    if (!person || !line) return null;
     return niRepresentationAction(person, linkedClient, line, niExecutionByRole[role]);
   };
   // ‼ 200: «הסר מהבקשה» רק כששני האנשים בב"ל — הסרת האחרון אינה הסרה (השרת דוחה).
   const niNextActionNode = (role: 'client' | 'spouse') => linkedClient ? (
     <>
       <NiNextActionButton
-        client={linkedClient} role={role} action={niActionFor(role)} track={niExecutionByRole[role]}
+        client={linkedClient} role={role} action={columnAction(niActionFor(role))} track={niExecutionByRole[role]}
         onChanged={onStepsChanged} className="btn btn-sm" errorClassName="rep-track-next-err"
       />
       {niTargetsClient && niTargetsSpouse && (
@@ -692,7 +715,8 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
   const shaamActionFor = (sub: ShaamSubmission) =>
     shaamRepresentationAction(status, shaamTrack(sub.key), stamped);
   const shaamNode = (sub: ShaamSubmission, only?: ShaamActionKind) => {
-    const a = shaamActionFor(sub);
+    // ‼ «בדוק» לעולם לא בעמודה — יש לו כפתור אחד ליד כותרת המרכז.
+    const a = columnAction(shaamActionFor(sub));
     if (!a || (only && a.kind !== only)) return null;
     return (
       <ShaamNextActionButton
@@ -705,9 +729,40 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
   // ‼ הפעולה שבראש המסלול היא של ההגשה הראשונה שעוד יש בה עבודה — לא
   // «הראשונה ברשימה»: אצל זוג, אחת עשויה כבר להיות מוגשת והשנייה לא.
   const shaamLeadSubmission = submissions.find(s => {
-    const a = shaamActionFor(s);
+    const a = columnAction(shaamActionFor(s));
     return !!a && !a.disabled;
-  }) ?? submissions[0] ?? null;
+  }) ?? submissions.find(s => !!columnAction(shaamActionFor(s))) ?? null;
+
+  // ── «בדוק קבלת הייצוג» — פעולה אחת של המרכז (representationCenter) ──────
+  const shaamReconcile: ReconcileTarget[] = submissions
+    .filter(sub => isReconcileAction(shaamActionFor(sub)?.kind))
+    .map(sub => {
+      const person = linkedClient ? shaamPersonFacts(request, linkedClient, sub.target) : null;
+      const entityId = person?.idNumber.replace(/\D/g, '') ?? '';
+      return {
+        key: sub.key,
+        label: `שע״ם${sub.title ? ` · ${sub.title}` : ''}`,
+        input: !person ? 'אין כרטיס לקוח מקושר לבקשה'
+          : !entityId ? 'אין תעודת זהות תקינה לאדם הזה בכרטיס'
+          : {
+            submissionKey: sub.key, role: sub.target,
+            requestNumber: shaamTrack(sub.key)?.requestNumber ?? '',
+            entityId, personName: person.name,
+          },
+      };
+    });
+  const btlReconcile: ReconcileTarget[] = (['client', 'spouse'] as const)
+    .filter(role => (role === 'client' ? niTargetsClient : niTargetsSpouse) && isReconcileAction(niActionFor(role)?.kind))
+    .map(role => {
+      const person = linkedClient ? niPersons(linkedClient).find(p => p.role === role) : undefined;
+      const ref = niExecutionByRole[role].referenceNumber;
+      return {
+        key: role,
+        label: `ב״ל · ${nameOf(role) || (role === 'spouse' ? 'בן/בת הזוג' : 'הנישום')}`,
+        input: !person?.idNumber || !ref ? 'אין קוד אסמכתא שמור לאדם הזה'
+          : { role, idNumber: person.idNumber, referenceNumber: ref },
+      };
+    });
   const shaamNextActionNode = shaamLeadSubmission ? shaamNode(shaamLeadSubmission) : null;
   // מי מבין השניים תקוע בלי אסמכתא — כדי שהחסימה תגיד לאן ללכת, ולא רק שנחסם
   const missingRefFor = !niTargetsSpouse ? '' : [
@@ -717,8 +772,10 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
 
   return (
     <div id="rep-execution" className="card" style={{ marginBottom: '1rem' }}>
-      <div className="card-header">
+      <div className="card-header" style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '.75rem', flexWrap: 'wrap' }}>
         <div className="card-title">ביצוע הייצוג מול הרשויות</div>
+        {/* ‼ הפעולה היחידה במסך שבודקת מול הרשויות. לא לשכפל בעמודה או בשלב. */}
+        <RepresentationReconcileButton clientId={linkedClient?.id} shaam={shaamReconcile} btl={btlReconcile} onChanged={onStepsChanged} />
       </div>
       <div className="card-body">
         <p style={{ marginTop: 0, fontSize: 'var(--fs-12)', color: 'var(--ink-3)', lineHeight: 1.6 }}>
@@ -805,7 +862,7 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
                        סימון ידני אינו מתחזה לראיה חיצונית — הוא לא כותב מספר
                        בקשה, ולכן גם לא פותח את השידור האוטומטי. */
                     <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap', alignItems: 'flex-start' }}>
-                      {shaamNode(sub, 'create')}
+                      {/* ‼ «הזן את הפרטים בשע״ם» יושב בראש העמודה — פעם אחת. */}
                       <button className="btn btn-ghost btn-sm" disabled={busy === busyKey}
                         onClick={() => void mark()}>
                         {busy === busyKey ? 'שומר…' : 'סמן כהוזן ידנית'}
@@ -835,6 +892,10 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
                         ? <>מספר בקשה בשע״ם: <span className="ltr-isolate">{shaamTrack(sub.key)!.requestNumber}</span></>
                         : 'הבקשה נמצאה ברשימת הבקשות בשע״ם (מספר הבקשה לא מוצג שם)'}
                       {shaamTrack(sub.key)?.formDocumentId ? ' · טופס ייפוי הכוח הובא לתיק הלקוח' : ''}
+                      {/* ‼ לפני ההגשה בלבד: אחריה המצב של שע״ם יושב בשלב 6, והקריאה הישנה לא מוצגת. */}
+                      {!shaamTrack(sub.key)?.submittedAt && shaamTrack(sub.key)?.rawRequestState
+                        ? ` · סטטוס בשע״ם: ${shaamTrack(sub.key)!.rawRequestState}`
+                        : ''}
                     </div>
                   )}
                 </Step>
@@ -910,25 +971,37 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
             </Step>
 
             <Step n={6 + extraEntries.length} title="נשלח לשע״ם" done={sentToShaam}
-              hint={stamped && !sentToShaam ? 'שדרו את הטופס החתום לשע״ם' : undefined}>
+              hint={stamped && !sentToShaam ? 'שדרו את הטופס החתום לשע״ם (הכפתור בראש העמודה)' : undefined}>
+              {/* ‼ אחרי ההגשה: שלוש עובדות מהמקור של שע״ם, לכל הגשה. בלי פרוזה,
+                  בלי «בדקו שוב» (יש כפתור אחד למעלה), ובלי קריאה מלפני ההגשה. */}
+              {submissions.map(sub => {
+                const f = shaamSubmittedFacts(shaamTrack(sub.key));
+                const docs = shaamTrack(sub.key)?.requiredDocuments ?? [];
+                if (!f && docs.length === 0) return null;
+                return (
+                  <div key={sub.key} data-testid="shaam-submitted-facts" style={{ marginBottom: '.4rem', fontSize: 'var(--fs-13)', color: 'var(--ink-2)', lineHeight: 1.7 }}>
+                    {sub.title && submissions.length > 1 && (
+                      <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)' }}>{sub.title}</div>
+                    )}
+                    {f && (
+                      <>
+                        <div>הוגש לשע״ם: {fmtDateTime(f.submittedAt)}</div>
+                        {f.status && <div>סטטוס בשע״ם: <strong>{f.status}</strong></div>}
+                        {f.suspensionEndsAt && <div>צפי לסיום ההשהייה: {fmt(f.suspensionEndsAt)}</div>}
+                        {/* ‼ פעולת החובה עצמה היא שלב האישור שמתחת. רק כשאין שלב כזה — היא כאן. */}
+                        {f.clientApprovalRequired && !repApproval && (
+                          <Notice tone="required" style={{ marginTop: '.3rem' }}>
+                            אישור הייצוג באזור האישי - נדרש: רשות המסים ממתינה לאישור הלקוח. בלי האישור הייצוג לא ייקלט.
+                          </Notice>
+                        )}
+                      </>
+                    )}
+                    <ShaamRequiredDocsList docs={docs} />
+                  </div>
+                );
+              })}
               {stamped && !sentToShaam && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '.5rem' }}>
-                  {/* ‼ שידור לכל הגשה בנפרד: לכל אדם בקשה משלו בשע״ם וטופס
-                      משלו, וסיום של אחת אינו אומר דבר על השנייה. */}
-                  {submissions.map(sub => {
-                    const node = shaamNode(sub, 'submit');
-                    if (!node) return null;
-                    return (
-                      <div key={sub.key}>
-                        {sub.title && (
-                          <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)', marginBottom: '.2rem' }}>{sub.title}</div>
-                        )}
-                        {node}
-                        {/* ‼ 201 · מסמך נוסף ששע״ם דרשה במסך טעינת המסמכים (ת.ז./דרכון) — ומה נעשה איתו. */}
-                        <ShaamRequiredDocsList docs={shaamTrack(sub.key)?.requiredDocuments ?? []} />
-                      </div>
-                    );
-                  })}
                   {/* ‼ הסימון הידני נשאר — אבל כקישור שקט, לא ככפתור ראשי:
                       «נשלח לשע״ם» אמיתי נכתב רק מאישור קליטה של הרשות (194).
                       מי שהגיש ביד עדיין צריך דרך לומר את זה. */}
@@ -954,76 +1027,16 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
                   isRepApprovalClosed(repApproval)
                     ? undefined
                     : declared
-                      ? (approvalRequired
-                          ? 'הלקוח דיווח שאישר - בדקו בשע״ם שהסטטוס כבר אינו «ממתין לאישור לקוח»'
-                          : 'הלקוח דיווח שאישר - ממתין לאימות בשע״ם')
+                      ? 'הלקוח דיווח שאישר - ממתין לאימות בשע״ם'
                       : approvalRequired
-                        ? 'שע״ם ממתינה לאישור הלקוח - בלי האישור הייצוג לא ייקלט. הבקשה מופיעה בדף האישי שלו כפעולה נדרשת'
+                        ? 'נדרש - רשות המסים ממתינה לאישור הלקוח. בלי האישור הייצוג לא ייקלט. הבקשה מופיעה בדף האישי שלו'
                         : 'ממתין ללקוח - הבקשה מופיעה בדף האישי שלו'
-                }>
-                {declared && (
-                  /* ‼ גודל מוקטן במפורש: ברירת המחדל של ui-lines גדולה מהשורה
-                     שהיא שייכת לה, וטקסט העזר היה מושך יותר תשומת לב מהכותרת. */
-                  <InfoLines style={{ fontSize: 'var(--fs-12)' }} items={[
-                    'בדקו בשע״ם אם הייצוג נקלט',
-                    'נקלט ⇒ סמנו "מיוצג פעיל" בשלב הבא, וזה סוגר גם את השורה הזו',
-                  ]} />
-                )}
-              </SideStep>
+                } />
             )}
 
-            <Step n={7 + extraEntries.length} title="הייצוג פעיל" done={status === 'active'}
-              hint={status === 'awaiting_authorities' ? 'בדקו מול שע״ם אם הייצוג נקלט' : undefined}>
-              {/* ── מה שע״ם אומרת עכשיו, לכל הגשה ──────────────────────────
-                  ‼ שתי עמודות נפרדות ולא סטטוס אחד: «מצב בקשה» מתאר את
-                  המסמכים, «מצב מערך» את הקליטה של כל מערך. שיטוח לשניהם
-                  היה מוחק בדיוק את מה שצריך לדעת — אצל מי הכדור. */}
-              {submissions.map(sub => {
-                const t = shaamTrack(sub.key);
-                if (!t || !shaamRequestExists(t)) return null;
-                // ‼ 201 · אחרי ההגשה שע״ם היא מקור האמת — ומה שנקרא לפניה לא מוצג.
-                if (t.submittedAt) {
-                  return (
-                    <div key={sub.key} style={{ marginBottom: '.6rem' }}>
-                      {sub.title && (
-                        <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)' }}>{sub.title}</div>
-                      )}
-                      <ShaamLifecyclePanel view={shaamLifecycle(t)} />
-                      <div style={{ marginTop: '.35rem' }}>{shaamNode(sub, 'check')}</div>
-                    </div>
-                  );
-                }
-                const line = shaamProgressLine(t);
-                const reqState = t.rawRequestState ? parseShaamRequestState(t.rawRequestState) : undefined;
-                return (
-                  <div key={sub.key} style={{ marginBottom: '.6rem' }}>
-                    {sub.title && (
-                      <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)' }}>{sub.title}</div>
-                    )}
-                    <div style={{ fontSize: 'var(--fs-13)', color: 'var(--ink-2)', lineHeight: 1.6 }}>
-                      {line.text}
-                      {line.until ? ` צפי לסיום: ${fmt(line.until)}.` : ''}
-                    </div>
-                    {(reqState || shaamSystemViews(t).length > 0) && (
-                      <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)', lineHeight: 1.7, marginTop: '.2rem' }}>
-                        {reqState && <div>מצב הבקשה: {SHAAM_REQUEST_STATE_LABELS[reqState]}</div>}
-                        {shaamSystemViews(t).map((s, i) => (
-                          <div key={`${s.systemLabel}-${i}`}>
-                            {s.systemLabel}: {SHAAM_SYSTEM_STATE_LABELS[s.state]}
-                            {s.suspensionEndsAt ? ` · עד ${fmt(s.suspensionEndsAt)}` : ''}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                    {t.syncedAt && (
-                      <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-4)' }}>
-                        נבדק לאחרונה: {fmt(t.syncedAt)}
-                      </div>
-                    )}
-                    <div style={{ marginTop: '.35rem' }}>{shaamNode(sub, 'check')}</div>
-                  </div>
-                );
-              })}
+            {/* ‼ שלב 7 הוא היעד. אין כאן «בדקו מול שע״ם» ואין מצב ביניים — המצב
+                הנוכחי של שע״ם בשלב 6, והבדיקה בכפתור אחד ליד הכותרת. */}
+            <Step n={7 + extraEntries.length} title="הייצוג פעיל" done={status === 'active'}>
               {status === 'awaiting_authorities' && (
                 <button className="btn btn-ghost btn-sm" onClick={onMarkActive}>סמן ידנית כמיוצג פעיל</button>
               )}
@@ -1061,6 +1074,7 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
                 <NiTrack
                   title={clientNiTitle}
                   ni={ni}
+                  line={niLineFor('client')}
                   busy={busy}
                   busyPrefix="ni"
                   nextAction={niNextActionNode('client')}
@@ -1078,6 +1092,7 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
                 <NiTrack
                   title={`ב״ל - ${nameOf('spouse') || 'בן/בת הזוג'}`}
                   ni={niSpouse}
+                  line={niLineFor('spouse')}
                   busy={busy}
                   busyPrefix="nis"
                   nextAction={niNextActionNode('spouse')}
@@ -1201,13 +1216,9 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
         </div>
 
         {note && (
-          <div style={{
-            marginTop: '.9rem', padding: '.55rem .8rem', borderRadius: 'var(--radius)', fontSize: 'var(--fs-13)',
-            background: note.kind === 'ok' ? 'var(--green-light, #eaf6f1)' : 'var(--red-light)',
-            color: note.kind === 'ok' ? 'var(--success-text)' : 'var(--danger)',
-          }}>
+          <Notice tone={note.kind === 'ok' ? 'success' : 'danger'} style={{ marginTop: '.9rem' }}>
             {note.kind === 'ok' ? '✓ ' : '⚠ '}{note.text}
-          </div>
+          </Notice>
         )}
       </div>
 
@@ -1329,11 +1340,13 @@ function fmtTime(iso: string) {
  * בב"ל מקבל שני מסלולים כאלה — לכל אחד אסמכתא, מועד תפוגה ואישור משלו.
  */
 function NiTrack({
-  title, ni, busy, busyPrefix, nextAction, hasSignatureEmails, onPatch,
+  title, ni, line, busy, busyPrefix, nextAction, hasSignatureEmails, onPatch,
   prereqStep, prereqCurrentValues, prereqClient, prereqSpouse, prereqOnSaveEmail, prereqOnChanged,
 }: {
   title: string;
   ni: NiTracking;
+  /** הראיה של הכרטיס (niRepresentationOf) — «פעיל» שם גובר על כל מצב ביניים. */
+  line?: NiRepresentationLine | null;
   busy: string | null;
   /** מבדיל בין מצבי ה"שומר…" של שני המסלולים, שלא יידלקו יחד */
   busyPrefix: string;
@@ -1368,15 +1381,12 @@ function NiTrack({
   useEffect(() => { setDeadline(ni.deadline || ''); }, [ni.deadline]);
 
   const external = niExternalEvidence(ni);
-  const steps = [!!ni.enteredAt, !!ni.referenceNumber, !!ni.instructionsSentAt, !!ni.confirmedAt];
+  // ‼ סדר קדימות (representationCenter.niTrackView): סופי > נוכחי > היסטורי.
+  const view = niTrackView(ni, line);
+  const steps = [!!ni.enteredAt, !!ni.referenceNumber, !!ni.instructionsSentAt, view.final];
   const sentWithSignature = ni.instructionsSentWith === 'signature';
   const k = (suffix: string) => `${busyPrefix}-${suffix}`;
 
-  const dLeft = daysUntil(ni.deadline);
-  const deadlineTone = dLeft === null ? null
-    : dLeft < 0 ? { bg: 'var(--red-light)', fg: 'var(--danger)', text: `המועד עבר לפני ${Math.abs(dLeft)} ימים - יש להזין מחדש בב"ל` }
-    : dLeft <= 14 ? { bg: 'var(--orange-light)', fg: 'var(--ink-1)', text: `⏳ נותרו ${dLeft} ימים לאישור` }
-    : { bg: 'var(--surface-2)', fg: 'var(--ink-3)', text: `נותרו ${dLeft} ימים לאישור` };
 
   const executionSteps = (
     <>
@@ -1396,7 +1406,11 @@ function NiTrack({
       </Step>
 
       <Step n={2} title="מספר אסמכתא ומועד אחרון לאישור" done={!!ni.referenceNumber}
-        hint="ב״ל מציג אותם במסך שאחרי ההזנה">
+        hint={view.editableReference
+          ? 'ב״ל מציג אותם במסך שאחרי ההזנה'
+          : `אסמכתא ${ni.referenceNumber || '-'}${ni.deadline ? ` · מועד אחרון ${fmt(ni.deadline)}` : ''}`}>
+        {/* ‼ במצב סופי האסמכתא היא עובדה, לא טופס לעריכה. */}
+        {view.editableReference && (
         <div style={{ display: 'flex', gap: '.4rem', flexWrap: 'wrap', alignItems: 'flex-end' }}>
           <div style={{ flex: '1 1 130px' }}>
             <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)' }}>מספר אסמכתא</div>
@@ -1414,10 +1428,11 @@ function NiTrack({
             {busy === k('ref') ? 'שומר…' : 'שמירה'}
           </button>
         </div>
-        {deadlineTone && (
-          <div style={{ marginTop: '.45rem', padding: '.35rem .6rem', borderRadius: 'var(--radius)', background: deadlineTone.bg, color: deadlineTone.fg, fontSize: 'var(--fs-13)' }}>
-            {deadlineTone.text} {ni.deadline && `(${fmt(ni.deadline)})`}
-          </div>
+        )}
+        {view.deadlineNotice && (
+          <Notice tone={view.deadlineNotice.tone} style={{ marginTop: '.45rem' }}>
+            {view.deadlineNotice.text} {ni.deadline && `(${fmt(ni.deadline)})`}
+          </Notice>
         )}
       </Step>
 
@@ -1432,36 +1447,27 @@ function NiTrack({
         }>
         {/* ‼ אין כאן כפתור שליחה. ההוראות תמיד יוצאות עם מייל החתימה —
             שליחה נפרדת גורמת למבוטח לקבל שני מיילים על אותו תהליך. */}
-        {!hasSignatureEmails && (
-          <div style={{
-            fontSize: 'var(--fs-13)', lineHeight: 1.6, padding: '.45rem .6rem', borderRadius: 'var(--radius)',
-            background: 'var(--surface-2)', color: 'var(--ink-3)',
-          }}>
-            {ni.referenceNumber
-              ? 'ℹ האסמכתא נשמרה. היא תיכלל במייל שנשלח מהפס המשותף שמתחת.'
-              : `ℹ ההוראות נשלחות יחד עם בקשת החתימה: אסמכתא, מועד אחרון, ואישור באתר ב״ל או בטלפון ${NI_APPROVAL_PHONE}.`}
-          </div>
+        {/* ‼ הסבר «מה עוד יקרה» — רק כשזה עוד לא קרה. אחרי שההוראות יצאו (או
+            שהייצוג כבר פעיל) זה הסבר על עבר. */}
+        {/* ‼ בלי אסמכתא — השורה שמעל כבר אומרת בדיוק את זה; לא חוזרים עליה. */}
+        {!hasSignatureEmails && !sentWithSignature && !ni.instructionsSentAt && !view.final && ni.referenceNumber && (
+          <Notice tone="info">ℹ האסמכתא נשמרה. היא תיכלל במייל שנשלח מהפס המשותף שמתחת.</Notice>
         )}
       </Step>
 
-      <Step n={4} title="אושר - הייצוג בב״ל פעיל" done={!!ni.confirmedAt}
-        hint={ni.confirmedAt ? `אושר ב-${fmt(ni.confirmedAt)}` : 'בדקו באתר ב״ל שהאישור נקלט'}>
+      <Step n={4} title="אושר - הייצוג בב״ל פעיל" done={view.final}
+        hint={ni.confirmedAt ? `אושר ב-${fmt(ni.confirmedAt)}` : view.final ? 'פעיל לפי תיק ב״ל בכרטיס' : ni.referenceNumber ? 'ממתין לאישור המבוטח בב״ל' : undefined}>
         {/* ‼ 195 — מה שביטוח לאומי **אמרה** בקריאה האחרונה, במילים שלה.
             הצעד נשאר לא-מסומן עד שהמצב שנקרא היה «מאושר»; השורה הזאת קיימת
             כדי שהמסך לא ישתוק על «ממתין לאישור» ויותיר את הרו"ח לנחש. */}
-        {external && !ni.confirmedAt && (
-          <div style={{
-            marginBottom: '.45rem', padding: '.35rem .6rem', borderRadius: 'var(--radius)',
-            fontSize: 'var(--fs-13)',
-            background: external.tone === 'warn' ? 'var(--orange-light)' : 'var(--surface-2)',
-            color: external.tone === 'warn' ? 'var(--ink-1)' : 'var(--ink-3)',
-          }}>
+        {external && view.showExternalEvidence && (
+          <Notice tone={external.tone === 'warn' ? 'warning' : 'info'} style={{ marginBottom: '.45rem' }}>
             ביטוח לאומי: <b>{external.label}</b>
             {external.raw && ` ("${external.raw}")`}
             {external.at && ` · נקרא ${fmt(external.at)}`}
-          </div>
+          </Notice>
         )}
-        {!ni.confirmedAt && (
+        {view.showManualConfirm && (
           <button className="btn btn-secondary btn-sm" disabled={busy === k('conf')}
             onClick={() => onPatch({ confirmedAt: new Date().toISOString() }, k('conf'))}>
             {busy === k('conf') ? 'שומר…' : 'סמן כאושר'}

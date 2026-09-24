@@ -582,8 +582,8 @@ export function shaamLifecycle(t: ShaamRequestTracking | undefined): ShaamLifecy
   if (!reconciled) {
     return {
       ...v, ball: 'authority',
+      // ‼ אין כאן «הריצו בדוק»: לבדיקה יש כפתור אחד ליד כותרת המרכז.
       headline: 'הטופס החתום נקלט בשע״ם. המצב העדכני אחרי ההגשה טרם נקרא משע״ם.',
-      officeAction: 'להריץ «בדוק קבלת הייצוג» כשהחיבור לשע״ם פתוח - קריאה בלבד.',
       nextMilestone: suspensionMilestone,
     };
   }
