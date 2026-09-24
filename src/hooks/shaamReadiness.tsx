@@ -38,7 +38,8 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import type { ReactNode } from 'react';
 import { supabase } from '../lib/supabase';
 import { automationWorkerFromDb } from '../lib/dbMappers';
-import { WORKER_STALE_AFTER_MS, SUBSYSTEM_STALE_AFTER_MS } from '../types/automation';
+import { SUBSYSTEM_STALE_AFTER_MS } from '../types/automation';
+import { workstationPicture, type WorkstationRow } from '../features/automation/workstations';
 import type { AutomationWorkerStatus } from '../types/automation';
 
 const POLL_MS = 4000;
@@ -166,8 +167,13 @@ export interface ShaamCapability {
 export interface ShaamReadiness {
   /** מוכן להריץ אוטומציה **עכשיו**. ירוק בכותרת = הערך הזה, ותו לא. */
   ready: boolean;
-  /** אין עובד, או שפעימת הלב שלו ישנה מדי. */
+  /**
+   * אין מחשב עבודה חי עם יכולת שע״ם (203: מכל המחשבים הרשומים, לא «העובד
+   * האחרון»). ‼ השם נשמר לתאימות; המשמעות היא «אין מי שיריץ שע״ם».
+   */
   workerOffline: boolean;
+  /** אותו דבר לביטוח לאומי — בנפרד. */
+  btlWorkerOffline: boolean;
   status: AutomationWorkerStatus;
   /** מה חוסם — משפט אחד לרו"ח. null כשמוכן. */
   blockedReason: string | null;
@@ -188,6 +194,7 @@ const UNKNOWN_REASON = 'מצב החיבור לשע״ם אינו ידוע.';
 const FALLBACK: ShaamReadiness = {
   ready: false,
   workerOffline: true,
+  btlWorkerOffline: true,
   status: {},
   blockedReason: UNKNOWN_REASON,
   capability: () => ({ ready: false, blockedReason: UNKNOWN_REASON }),
@@ -206,6 +213,7 @@ export function useShaamReadiness(): ShaamReadiness {
 export function ShaamReadinessProvider({ userId, children }: { userId?: string; children: ReactNode }) {
   const [status, setStatus] = useState<AutomationWorkerStatus>({});
   const [workerOffline, setWorkerOffline] = useState(true);
+  const [btlWorkerOffline, setBtlWorkerOffline] = useState(true);
   const [selectedLayers, setSelectedLayers] = useState<ShaamLayer[]>(DEFAULT_WARMUP_LAYERS);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -235,23 +243,30 @@ export function ShaamReadinessProvider({ userId, children }: { userId?: string; 
   const refresh = useCallback(async () => {
     if (!userId) {
       setWorkerOffline(true);
+      setBtlWorkerOffline(true);
       setStatus(prev => (Object.keys(prev).length === 0 ? prev : {}));
       return;
     }
-    const { data } = await supabase.from('automation_workers').select('*')
-      .order('last_seen_at', { ascending: false }).limit(1).maybeSingle();
-    const w = data ? automationWorkerFromDb(data) : null;
+    // ‼ 203 · כל מחשבי העבודה של החשבון, לא «האחרון». מחשב אחד כבוי אינו
+    // «האוטומציה כבויה» כשמחשב אחר חי; שע״ם וב״ל נלקחות כל אחת מהמחשב
+    // הכי מוכן עבורה (features/automation/workstations.ts).
+    const { data } = await supabase.from('automation_workers')
+      .select('worker_id,user_id,last_seen_at,revoked_at,capabilities,status')
+      .order('last_seen_at', { ascending: false }).limit(20);
+    const rows = (data ?? []).map(r => automationWorkerFromDb(r) as unknown as WorkstationRow);
     // ‼ התיישנות דטרמיניסטית: פעימת לב ישנה מדי היא "לא יודעים", ו"לא
     // יודעים" אינו ירוק. בלי זה עובד שנפל בשקט היה נשאר ירוק לנצח.
-    const stale = !w || !(Date.now() - new Date(w.lastSeenAt).getTime() < WORKER_STALE_AFTER_MS);
-    const next: AutomationWorkerStatus = stale ? {} : (w?.status ?? {});
+    const picture = workstationPicture(rows);
+    const stale = picture.shaamOffline;
+    const next: AutomationWorkerStatus = picture.status;
     setWorkerOffline(stale);
+    setBtlWorkerOffline(picture.btlOffline);
     // ‼ שומרים את הזהות כשהתוכן זהה. אובייקט חדש בכל משיכה הוא ערך חדש
     // בכל הקוראים, וזה מה שהפך פעימה של 4 שניות לרינדור של כל העץ.
     setStatus(prev => (JSON.stringify(prev) === JSON.stringify(next) ? prev : next));
     const verdict = [
       stale, freshLayer(next.gmf), freshLayer(next.vat), freshLayer(next.nikui), freshLayer(next.representation),
-      !!next.shaam?.connected, !!next.shaam?.bootstrapped, !!next.btl?.connected,
+      !!next.shaam?.connected, !!next.shaam?.bootstrapped, !!next.btl?.connected, picture.btlOffline,
     ].join('|');
     if (verdict !== verdictRef.current) {
       verdictRef.current = verdict;
@@ -290,7 +305,9 @@ export function ShaamReadinessProvider({ userId, children }: { userId?: string; 
     const nikui = freshLayer(status.nikui);
     const representation = freshLayer(status.representation);
 
-    const WORKER_OFF = 'מחשב האוטומציה אינו פעיל, ולכן אי אפשר לקרוא משע״ם.';
+    // ‼ 203 · לא «מחשב האוטומציה» יחיד — אין כרגע אף מחשב עבודה חי שיכול להריץ.
+    const WORKER_OFF = 'אין כרגע מחשב עבודה פעיל עם PIVO, ולכן אי אפשר להריץ מול שע״ם.';
+    const BTL_WORKER_OFF = 'אין כרגע מחשב עבודה פעיל עם PIVO, ולכן אי אפשר להריץ מול ביטוח לאומי.';
     const LAYER_REASON: Record<ReadinessLayer, string> = {
       portal: 'אין חיבור פעיל לשע״ם — יש להתחבר קודם מהכפתור «שע״ם» בכותרת.',
       gmf: 'מערכת גביית מס הכנסה אינה מוכנה — יש להשלים את החיבור בחלון שע״ם.',
@@ -303,7 +320,7 @@ export function ShaamReadinessProvider({ userId, children }: { userId?: string; 
     // מוכנות: הצופה מדווח connected רק אחרי שראה סשן מאומת בחלון של ב״ל.
     const LAYER_OK: Record<ReadinessLayer, boolean> = {
       portal: shaam, gmf, vat, nikui, representation,
-      btl: !workerOffline && !!status.btl?.connected,
+      btl: !btlWorkerOffline && !!status.btl?.connected,
     };
 
     // ‼ תיקון מוצר (16.09.2026): הנורית הגלובלית = פורטל + bootstrap ב-GMF
@@ -333,9 +350,13 @@ export function ShaamReadinessProvider({ userId, children }: { userId?: string; 
      * בכוונה: הסרה מרשימת ה-warm-up אינה ביטול היכולת (פרק 16 §16.1).
      */
     function capability(name: string): ShaamCapability {
-      if (workerOffline) return { ready: false, blockedReason: WORKER_OFF };
       const needed = SHAAM_CAPABILITIES[name];
-      if (!needed) return { ready: false, blockedReason: UNKNOWN_REASON };
+      if (!needed) return { ready: false, blockedReason: workerOffline ? WORKER_OFF : UNKNOWN_REASON };
+      // ‼ 203 · המחשב הנדרש תלוי ברשות: פעולת ב״ל בודקת מחשב עם ב״ל, ולהפך.
+      const onlyBtl = needed.every(l => l === 'btl');
+      if (onlyBtl ? btlWorkerOffline : workerOffline) {
+        return { ready: false, blockedReason: onlyBtl ? BTL_WORKER_OFF : WORKER_OFF };
+      }
       const missing = needed.find(l => !LAYER_OK[l]);
       if (!missing) return { ready: true, blockedReason: null };
       const sub = missing === 'gmf' || missing === 'vat' || missing === 'nikui' || missing === 'representation';
@@ -343,11 +364,11 @@ export function ShaamReadinessProvider({ userId, children }: { userId?: string; 
       return { ready: false, blockedReason: LAYER_REASON[missing], missingLayer: missing, unverified };
     }
 
-    return { ready, workerOffline, status, blockedReason, capability, selectedLayers: warmupLayers, warmupSummary, refresh };
+    return { ready, workerOffline, btlWorkerOffline, status, blockedReason, capability, selectedLayers: warmupLayers, warmupSummary, refresh };
     // ‼ verdictTick נמצא כאן בכוונה אף שאינו נקרא בגוף: הוא מה שמכריח חישוב
     // מחדש כששכבה התיישנה בזמן בלי ששום שדה השתנה.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status, workerOffline, refresh, verdictTick, selectedLayers]);
+  }, [status, workerOffline, btlWorkerOffline, refresh, verdictTick, selectedLayers]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

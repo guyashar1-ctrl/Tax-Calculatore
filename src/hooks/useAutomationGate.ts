@@ -77,6 +77,8 @@ export function useAutomationGate(capability: string): AutomationGate {
   const { showToast } = useToast();
   const cap = readiness.capability(capability);
   const pending = useRef<(() => void) | null>(null);
+  // ‼ 203 · «אין מי שיריץ» נמדד לרשות של הפעולה: פעולת ב״ל ⇒ מחשב חי עם ב״ל.
+  const offline = capabilityAuthority(capability) === 'btl' ? readiness.btlWorkerOffline : readiness.workerOffline;
   const [connecting, setConnecting] = useState(false);
 
   // ‼ הרגע שבו החיבור הפך מוכן — לא לפי ה-job של ההתחברות אלא לפי המוכנות
@@ -91,7 +93,7 @@ export function useAutomationGate(capability: string): AutomationGate {
 
   const runOrConnect = useCallback((run: () => void) => {
     if (cap.ready) { run(); return; }
-    if (readiness.workerOffline) {
+    if (offline) {
       // ‼ בלי עובד אין למי לפתוח חלון — זו ההודעה היחידה שנשארת «הודעה».
       showToast(cap.blockedReason ?? 'מחשב האוטומציה אינו פעיל.');
       return;
@@ -114,5 +116,5 @@ export function useAutomationGate(capability: string): AutomationGate {
     });
   }, [cap.ready, cap.blockedReason, cap.missingLayer, capability, readiness, showToast]);
 
-  return { ready: cap.ready, blockedReason: cap.blockedReason, connecting, unverified: !!cap.unverified, workerOffline: readiness.workerOffline, runOrConnect };
+  return { ready: cap.ready, blockedReason: cap.blockedReason, connecting, unverified: !!cap.unverified, workerOffline: offline, runOrConnect };
 }

@@ -21,6 +21,7 @@ import { useAutomationJob } from '../hooks/useAutomationJobs';
 import { useAutomationGate } from '../hooks/useAutomationGate';
 import { niPersons, niPersonIdentity } from '../utils/niPersons';
 import type { NiRepresentationAction } from '../utils/niPersons';
+import ConfirmDialog from './ui/ConfirmDialog';
 
 interface Props {
   client: Client;
@@ -50,6 +51,9 @@ export default function NiNextActionButton({
   const create = useAutomationJob(client.id || undefined, BTL_CREATE_REPRESENTATION_ACTION_TYPE);
   const check = useAutomationJob(client.id || undefined, BTL_CHECK_REPRESENTATION_ACTION_TYPE);
   const [localError, setLocalError] = useState<string | null>(null);
+  // ‼ 203 · «הזן בב״ל» היא פעולה משנה (כמו בשע״ם, 196): ניסיון קודם שכבר נגע
+  // ברשות לא מוחלף בשקט. השרת מסרב, והמסך שואל — «כן, נסה שוב» היא ההרשאה.
+  const [confirmRetry, setConfirmRetry] = useState(false);
   const createGate = useAutomationGate(BTL_CREATE_REPRESENTATION_ACTION_TYPE);
   const checkGate = useAutomationGate(BTL_CHECK_REPRESENTATION_ACTION_TYPE);
 
@@ -75,8 +79,9 @@ export default function NiNextActionButton({
   const hook = isCheck ? check : create;
   const job = jobForRole(hook.job, role);
 
-  async function run() {
+  async function run(acknowledgeExternal = false) {
     setLocalError(null);
+    setConfirmRetry(false);
     const person = niPersons(client, spouseClient).find(p => p.role === role);
     if (isCheck) {
       if (!person?.idNumber || !track?.referenceNumber) {
@@ -93,10 +98,11 @@ export default function NiNextActionButton({
       setLocalError('חסרים בכרטיס פרטים הדרושים לטופס ביטוח לאומי (שם פרטי, שם משפחה או שנת לידה).');
       return;
     }
-    await create.run({
+    const r = await create.run({
       role, idNumber: identity.idNumber, firstName: identity.firstName,
       lastName: identity.lastName, birthYear: identity.birthYear,
-    });
+    }, { acknowledgeExternal });
+    if (r?.code === 'requires_acknowledgement') setConfirmRetry(true);
   }
 
   const busyLabel = isCheck ? 'בודק…' : 'שולח…';
@@ -120,6 +126,22 @@ export default function NiNextActionButton({
       {hook.error && <div className={errorClassName}>{hook.error}</div>}
       {job?.status === 'needs_human' && <div className={errorClassName}>{job.needsHuman}</div>}
       {job?.status === 'failed' && <div className={errorClassName}>{job.errorDetail}</div>}
+      {confirmRetry && (
+        <ConfirmDialog
+          title="ניסיון חדש מול ביטוח לאומי"
+          tone="normal"
+          confirmLabel="כן, נסה שוב"
+          cancelLabel="ביטול"
+          message={
+            <>
+              <div>הניסיון הקודם להזין את ייפוי הכוח כבר הגיע לביטוח לאומי, ולא ידוע אם נקלט.</div>
+              <div>ניסיון חדש יבדוק קודם את מסך «מעקב ייפוי כוח», ולא יזין שוב אם ייפוי הכוח כבר שם.</div>
+            </>
+          }
+          onCancel={() => setConfirmRetry(false)}
+          onConfirm={() => { setConfirmRetry(false); gate.runOrConnect(() => void run(true)); }}
+        />
+      )}
       {job?.status === 'queued' || job?.status === 'running'
         ? <div className={errorClassName} style={{ color: 'var(--ink-3)' }}>{isCheck ? 'הבדיקה רצה בעובד המקומי…' : 'ההזנה רצה בעובד המקומי…'}</div>
         : null}

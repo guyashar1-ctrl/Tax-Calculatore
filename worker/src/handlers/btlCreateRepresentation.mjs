@@ -180,8 +180,21 @@ export async function run(ctx, input) {
 
     // ‼ נקודת ה-checkpoint: אחרי זה, "הוספה" עומדת להילחץ. אם ה-worker
     // קורס אחרי הלחיצה, הניסיון הבא יידע לא לשלוח שוב עיוור (ראה למעלה).
-    const progress = { ...(ctx.job.progress ?? {}), submitted: true };
-    await updateJobProgress(ctx.workerId, ctx.job.id, ctx.job.revision ?? 0, progress);
+    // ‼ 203 · externalAttempt — אותו סימן כמו בשע״ם (196): מרגע שהוא במסד,
+    // חכירה שפקעה עוברת ל-needs_human ולא נתפסת שוב בשום מחשב עבודה, וחידוש
+    // אוטומטי (report_worker_status) לא נוגע בה. לא הצלחנו לרשום ⇒ לא לוחצים.
+    const progress = {
+      ...(ctx.job.progress ?? {}), submitted: true,
+      externalAttempt: { at: new Date().toISOString(), stage: 'btl_add_poa' },
+    };
+    const saved = await updateJobProgress(ctx.workerId, ctx.job.id, ctx.job.revision ?? 0, progress).catch(() => null);
+    if (!saved?.ok) {
+      throw new NeedsHumanError(
+        'לא הצלחתי לרשום את תחילת ההזנה מול ביטוח לאומי, ולכן לא לחצתי «הוספה». ' +
+        'שום דבר לא נשלח לרשות. בדקו את החיבור לאינטרנט והריצו שוב.',
+        'progress_write_failed_before_external',
+      );
+    }
 
     const submitted = await submitAddPoaForm(page, subject);
     if (!submitted.ok) throw navFailure('מילוי/שליחת טופס ייפוי הכוח', submitted);

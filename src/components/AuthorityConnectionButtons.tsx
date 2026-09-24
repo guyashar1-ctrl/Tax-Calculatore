@@ -64,7 +64,7 @@ function warmupCountFor(authority: Authority, summary: { ready: number; total: n
 }
 
 function tooltipFor(authority: Authority, state: AuthorityConnState, summary: { ready: number; total: number }): string {
-  if (state.workerOffline) return 'מחשב האוטומציה כבוי';
+  if (state.workerOffline) return 'אין מחשב עבודה פעיל';
   switch (state.phase) {
     case 'idle':
       return authority === 'shaam'
@@ -206,7 +206,7 @@ export default function AuthorityConnectionButtons({ userId }: Props) {
   function renderPopoverContent(authority: Authority, state: AuthorityConnState) {
     if (state.workerOffline) {
       return (
-        <p>מחשב האוטומציה כבוי. כשיופעל במחשב המשרד אפשר יהיה להתחבר מכאן.</p>
+        <p>אין כרגע מחשב עבודה פעיל עם PIVO. כשאחד ממחשבי העבודה יופעל, אפשר יהיה להתחבר מכאן.</p>
       );
     }
     if (authority === 'shaam' && state.phase === 'connecting') {

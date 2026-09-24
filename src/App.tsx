@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { formatRoute, parseHash, type View as AppRouteView } from './lib/appRoute';
 import { resolveListedEntity } from './lib/routeEntity';
 import RouteEntityFallback from './components/RouteEntityFallback';
+import WorkstationPairingDialog from './components/WorkstationPairingDialog';
 import {
   Client,
   RepresentationRequest,
@@ -646,6 +647,7 @@ export default function App() {
   );
   // תפריט החשבון נפתח מהאווטאר — כדי ש"המשרד" ו"התנתק" לא יתפסו מקום בסרגל
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+  const [showWorkstationPairing, setShowWorkstationPairing] = useState(false);
   const db = useDocumentDB();
 
   // ── הכתובת בשורת הכתובת ↔ המסך שמוצג ──────────────────────────────────────
@@ -2453,6 +2455,15 @@ export default function App() {
                   <Icon name="book" size={14} />
                   <span>ידע מס</span>
                 </button>
+                {/* 203 · הוספת מחשב שיריץ אוטומציה — קוד צימוד חד-פעמי. */}
+                <button
+                  type="button"
+                  className="account-menu-item"
+                  onClick={() => { setAccountMenuOpen(false); setShowWorkstationPairing(true); }}
+                >
+                  <Icon name="plus" size={14} />
+                  <span>חיבור מחשב עבודה</span>
+                </button>
 
                 <span className="account-menu-sep" aria-hidden="true" />
 
@@ -2865,6 +2876,8 @@ export default function App() {
         )}
         </ErrorBoundary>
       </main>
+
+      {showWorkstationPairing && <WorkstationPairingDialog onClose={() => setShowWorkstationPairing(false)} />}
 
       {/* סרגל ניווט תחתון — מופיע רק במסכי טלפון */}
       <nav className="mobile-nav">

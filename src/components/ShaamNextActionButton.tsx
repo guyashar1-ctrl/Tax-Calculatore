@@ -234,7 +234,7 @@ export default function ShaamNextActionButton({
           נראית כמו «לא קרה כלום». */}
       {!localError && !missingText && gate.workerOffline && !action.disabled && !running && (
         <div className={errorClassName} style={{ color: 'var(--ink-3)' }}>
-          מחשב האוטומציה כבוי, ולכן הפעולה לא תרוץ עכשיו. כשיחזור לפעול — לחצו שוב.
+          אין כרגע מחשב עבודה פעיל, ולכן הפעולה לא תרוץ עכשיו. כשאחד יופעל — לחצו שוב.
         </div>
       )}
       {localError && <div className={errorClassName}>{localError}</div>}

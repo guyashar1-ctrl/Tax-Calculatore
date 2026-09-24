@@ -1,11 +1,22 @@
 // apiClient.mjs — עטיפה דקה לארבע הפעולות של automation-worker edge function.
 // שום גישה ישירה למסד — הכול עובר דרך ה-HTTP הזה, מאומת ב-x-worker-secret.
-import { FUNCTION_URL, WORKER_SECRET } from './config.mjs';
+import { FUNCTION_URL, WORKER_SECRET, WORKER_TOKEN, WORKER_ID, INSTANCE_ID } from './config.mjs';
+
+/**
+ * 203 · אסימון המחשב (מועדף) — השרת גוזר ממנו חשבון וזהות. בלעדיו: הסוד
+ * המשותף הישן, רק לזהות שעוד לא נרשמה. המופע נשלח תמיד.
+ */
+export function authHeaders() {
+  const h = { 'content-type': 'application/json', 'x-worker-instance': INSTANCE_ID };
+  if (WORKER_TOKEN) { h['x-worker-id'] = WORKER_ID; h['x-worker-token'] = WORKER_TOKEN; }
+  else h['x-worker-secret'] = WORKER_SECRET;
+  return h;
+}
 
 async function call(body) {
   const res = await fetch(FUNCTION_URL, {
     method: 'POST',
-    headers: { 'content-type': 'application/json', 'x-worker-secret': WORKER_SECRET },
+    headers: authHeaders(),
     body: JSON.stringify(body),
   });
   const data = await res.json().catch(() => ({ ok: false, error: `bad_response_${res.status}` }));

@@ -80,12 +80,26 @@ async function runJob(job) {
   }
 }
 
+// 203 · מופע אחר של אותה זהות חי (תהליך כפול, או .env שהועתק למחשב אחר) —
+// לא תופסים עבודה, ומודיעים פעם אחת לכל רצף ולא בכל סבב.
+let blockedLogged = null;
+function noteBlocked(reason) {
+  if (reason === blockedLogged) return;
+  blockedLogged = reason;
+  if (reason) log(`⛔ לא תופס עבודה: ${reason === 'instance_conflict'
+    ? 'תהליך אחר עם אותה זהות מחשב פעיל כרגע (כפול במחשב הזה, או הגדרות שהועתקו למחשב אחר)'
+    : reason}`);
+  else log('✓ הזהות פנויה — חוזר לתפוס עבודה');
+}
+
 async function tick() {
   const actionTypes = ONLY_ACTIONS.length ? supportedActionTypes().filter(a => ONLY_ACTIONS.includes(a)) : supportedActionTypes();
   const j = await claim(USER_ID, WORKER_ID, actionTypes, LEASE_SECONDS).catch((e) => {
     log('✗ claim נכשל (רשת?):', e?.message ?? e);
     return { ok: false };
   });
+  if (j?.blocked) { noteBlocked(j.blocked); return false; }
+  if (j?.ok) noteBlocked(null);
   if (j?.job) {
     const job = normalizeJob(j.job);
     log(`▶ תפסתי משימה ${job.id} · ${job.actionType} · ניסיון #${job.attempts}`);

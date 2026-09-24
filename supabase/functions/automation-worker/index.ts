@@ -6,7 +6,13 @@
 // כל אחת עוטפת RPC אחד ב-security definer. progress/resolve_needs_human
 // נוספו ב-168 להכנת סביבת עבודה לשע״ם (warm-up היברידי, פרק 16).
 //
-// ‼ אימות: x-worker-secret בלבד, מאומת מול verify_automation_worker_secret
+// ‼ 203 · מחשבי עבודה: אימות מועדף = x-worker-id + x-worker-token (אסימון אישי
+// לכל מחשב, נשמר במסד רק כ-sha256). אז user_id/worker_id **נגזרים בשרת** ולא
+// נלקחים מהגוף. x-worker-instance מזהה את התהליך הרץ — מופע שני של אותה זהות
+// לא תופס עבודה (automation_worker_touch). op=register פודה קוד צימוד חד-פעמי.
+// הסוד המשותף הישן נשאר לתאימות, רק לזהות שעדיין לא נרשמה, וניתן לכיבוי
+// (AUTOMATION_LEGACY_SECRET=off).
+// ‼ אימות (ישן): x-worker-secret בלבד, מאומת מול verify_automation_worker_secret
 // (Vault). לא Authorization/service-role — הסוד הזה מוגבל לתפיסה/דיווח על
 // automation_jobs ותו לא, ולכן פשרה עליו לא חושפת את שאר המסד. ה-service-role
 // עצמו יושב רק כאן, על השרת, ולעולם לא מגיע לתהליך העובד על מחשב המשרד.
@@ -19,11 +25,17 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 // עכשיו** (claimed_by = workerId, status = running) — ראה
 // automation_job_document_context.
 type Op =
+  | "register"
   | "claim" | "heartbeat" | "complete" | "fail" | "status" | "progress" | "resolve_needs_human"
   | "put_document" | "get_document";
 
 interface Body {
   op: Op;
+  /** register · קוד הצימוד שהמשתמש קיבל ב-PIVO. */
+  code?: string;
+  label?: string;
+  /** register · רישום-מחדש של זהות קיימת של אותו משתמש (הגירה). */
+  existingWorkerId?: string;
   userId?: string;
   workerId: string;
   jobId?: string;
@@ -54,6 +66,16 @@ const DOC_BUCKET = "client-documents";
 /** תקרה שמרנית: טופס 2279 שנצפה הוא ~60KB, וחתום ~740KB. */
 const MAX_DOC_BYTES = 20 * 1024 * 1024;
 
+async function sha256Hex(s: string): Promise<string> {
+  const d = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s));
+  return [...new Uint8Array(d)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+function randomToken(bytes: number): string {
+  const a = crypto.getRandomValues(new Uint8Array(bytes));
+  return btoa(String.fromCharCode(...a)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
 function decodeBase64(b64: string): Uint8Array {
   const bin = atob(b64);
   const out = new Uint8Array(bin.length);
@@ -73,7 +95,7 @@ function encodeBase64(bytes: Uint8Array): string {
 Deno.serve(async (req: Request) => {
   const cors: Record<string, string> = {
     "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Headers": "content-type, x-worker-secret",
+    "Access-Control-Allow-Headers": "content-type, x-worker-secret, x-worker-id, x-worker-token, x-worker-instance",
     "Access-Control-Allow-Methods": "POST, OPTIONS",
   };
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
@@ -87,13 +109,49 @@ Deno.serve(async (req: Request) => {
     const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const admin = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { autoRefreshToken: false, persistSession: false } });
 
-    const secret = req.headers.get("x-worker-secret") || "";
-    if (!secret) return json({ ok: false, error: "unauthorized" }, 401);
-    const { data: validSecret, error: secretErr } = await admin.rpc("verify_automation_worker_secret", { p: secret });
-    if (secretErr || validSecret !== true) return json({ ok: false, error: "unauthorized" }, 401);
-
     const body = (await req.json().catch(() => null)) as Body | null;
-    if (!body?.op || !body.workerId) return json({ ok: false, error: "bad_request" }, 400);
+    if (!body?.op) return json({ ok: false, error: "bad_request" }, 400);
+
+    // ── 203 · רישום מחשב עבודה: קוד צימוד ⇒ זהות + אסימון (מוחזר פעם אחת) ──
+    if (body.op === "register") {
+      if (!body.code) return json({ ok: false, error: "bad_request: code required" }, 400);
+      const token = randomToken(32);
+      const newId = "ws-" + [...crypto.getRandomValues(new Uint8Array(6))].map((b) => b.toString(16).padStart(2, "0")).join("");
+      const { data, error } = await admin.rpc("redeem_workstation_pairing", {
+        p_code: body.code,
+        p_token_hash: await sha256Hex(token),
+        p_new_worker_id: newId,
+        p_existing_worker_id: body.existingWorkerId ?? null,
+        p_label: body.label ?? null,
+      });
+      if (error) return json({ ok: false, error: error.message }, 500);
+      if (!data?.ok) return json({ ok: false, error: data?.error ?? "register_failed" }, 400);
+      return json({ ok: true, workerId: data.workerId, userId: data.userId, token });
+    }
+
+    const instance = req.headers.get("x-worker-instance") || null;
+    const tokenHeader = req.headers.get("x-worker-token") || "";
+    if (tokenHeader) {
+      const wid = req.headers.get("x-worker-id") || "";
+      const { data: auth, error: authErr } = await admin.rpc("authenticate_workstation", { p_worker_id: wid, p_token: tokenHeader });
+      if (authErr || !auth?.ok) return json({ ok: false, error: "unauthorized" }, 401);
+      // ‼ הזהות נכפית מהשרת — מה שהגוף אומר על userId/workerId לא משנה.
+      body.workerId = auth.workerId;
+      body.userId = auth.userId;
+    } else {
+      if ((Deno.env.get("AUTOMATION_LEGACY_SECRET") || "").toLowerCase() === "off") {
+        return json({ ok: false, error: "legacy_secret_disabled" }, 401);
+      }
+      const secret = req.headers.get("x-worker-secret") || "";
+      if (!secret) return json({ ok: false, error: "unauthorized" }, 401);
+      const { data: validSecret, error: secretErr } = await admin.rpc("verify_automation_worker_secret", { p: secret });
+      if (secretErr || validSecret !== true) return json({ ok: false, error: "unauthorized" }, 401);
+      if (!body.workerId) return json({ ok: false, error: "bad_request" }, 400);
+      // ‼ זהות שנרשמה עם אסימון לא מתחזה דרך הסוד המשותף.
+      const { data: needsToken } = await admin.rpc("workstation_requires_token", { p_worker_id: body.workerId });
+      if (needsToken === true) return json({ ok: false, error: "workstation_requires_token" }, 401);
+    }
+    if (!body.workerId) return json({ ok: false, error: "bad_request" }, 400);
 
     if (body.op === "claim") {
       if (!body.userId) return json({ ok: false, error: "bad_request: userId required" }, 400);
@@ -102,8 +160,11 @@ Deno.serve(async (req: Request) => {
         p_worker_id: body.workerId,
         p_action_types: body.actionTypes ?? null,
         p_lease_seconds: body.leaseSeconds ?? 60,
+        ...(instance ? { p_instance: instance } : {}),
       });
       if (error) return json({ ok: false, error: error.message }, 500);
+      // 203 · {blocked:'instance_conflict'|...} — לא משימה.
+      if (data && typeof data === "object" && "blocked" in data) return json({ ok: true, job: null, blocked: data.blocked });
       return json({ ok: true, job: data ?? null });
     }
 
@@ -115,6 +176,7 @@ Deno.serve(async (req: Request) => {
         p_job_id: body.jobId ?? null,
         p_lease_seconds: body.leaseSeconds ?? 60,
         p_worker_version: body.workerVersion ?? null,
+        ...(instance ? { p_instance: instance } : {}),
       });
       if (error) return json({ ok: false, error: error.message }, 500);
       return json(data);
@@ -126,6 +188,7 @@ Deno.serve(async (req: Request) => {
         p_user_id: body.userId,
         p_worker_id: body.workerId,
         p_status: body.status ?? {},
+        ...(instance ? { p_instance: instance } : {}),
       });
       if (error) return json({ ok: false, error: error.message }, 500);
       return json(data);

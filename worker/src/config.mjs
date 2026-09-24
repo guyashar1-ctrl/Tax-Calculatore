@@ -2,9 +2,10 @@
 // לזה שהסקריפטים ב-scripts/ כבר קוראים ידנית.
 import { readFileSync, existsSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
+import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 
-const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+export const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const ENV_PATH = resolve(ROOT, '.env');
 
 function loadEnvFile(path) {
@@ -22,8 +23,16 @@ const get = (key) => process.env[key] ?? fileEnv[key];
 
 export const FUNCTION_URL = get('PIVO_FUNCTION_URL');
 export const WORKER_SECRET = get('PIVO_WORKER_SECRET');
+/**
+ * 203 · אסימון מחשב העבודה (worker/register.mjs כותב אותו). כשהוא קיים, השרת
+ * גוזר ממנו את החשבון ואת הזהות — PIVO_USER_ID נשאר רק לתאימות/לוג.
+ * ‼ לעולם לא ב-git ולא מועתק למחשב אחר: מחשב חדש נרשם בקוד צימוד משלו.
+ */
+export const WORKER_TOKEN = get('PIVO_WORKER_TOKEN');
 export const USER_ID = get('PIVO_USER_ID');
 export const WORKER_ID = get('PIVO_WORKER_ID') || 'worker-1';
+/** 203 · מזהה התהליך הזה. תהליך נוסף עם אותה זהות לא תופס עבודה בזמן שזה חי. */
+export const INSTANCE_ID = randomUUID();
 export const POLL_SECONDS = Number(get('PIVO_POLL_SECONDS') || 5);
 export const LEASE_SECONDS = Number(get('PIVO_LEASE_SECONDS') || 60);
 /**
@@ -37,8 +46,8 @@ export const MONITOR_SCOPE = get('PIVO_MONITOR') === 'btl' ? 'btl' : 'all';
 
 const missing = [];
 if (!FUNCTION_URL) missing.push('PIVO_FUNCTION_URL');
-if (!WORKER_SECRET) missing.push('PIVO_WORKER_SECRET');
-if (!USER_ID) missing.push('PIVO_USER_ID');
+if (!WORKER_TOKEN && !WORKER_SECRET) missing.push('PIVO_WORKER_TOKEN (הריצו worker/install-workstation.ps1)');
+if (!WORKER_TOKEN && !USER_ID) missing.push('PIVO_USER_ID');
 if (missing.length) {
   console.error(`✋ חסרים משתני סביבה: ${missing.join(', ')}`);
   console.error(`   העתק worker/.env.example ל-worker/.env ומלא אותם.`);

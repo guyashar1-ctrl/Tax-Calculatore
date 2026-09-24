@@ -69,6 +69,7 @@ import {
   attachBtl, detachBtl, classifyBtlAuth, probeBtlSession, pickBtlPage,
 } from './btlSession.mjs';
 import { reportStatus } from './apiClient.mjs';
+import { hostIdleSeconds } from './hostActivity.mjs';
 
 const LOCAL_CHECK_MS = 30_000;
 const SERVER_PROBE_MS = 4 * 60_000;
@@ -289,7 +290,10 @@ export async function tickConnectionMonitor(userId, workerId, log, { scope = 'al
   // קבוע להתקנה, ולכן זהות "אותו worker" שורדת הפעלה מחדש. ראה 170.
   // ‼ bootstrapped = הנורית בכותרת. דגל מחזור-חיים, לא מדידה עם שעון: נשאר
   // true גם כשהלשונית עברה למע״מ/מגן, ומתאפס רק ב-resetShaamLifecycle.
+  // 203 · לבחירת מחשב להתחברות (אדם ליד המחשב) — מספר בלבד.
+  const idleSeconds = await hostIdleSeconds().catch(() => null);
   const statusResult = await reportStatus(userId, workerId, {
+    host: { idleSeconds, reportedAt: at },
     shaam: { connected: shaam, bootstrapped: shaam && gmf, checkedAt: at },
     gmf: { ready: gmf, checkedAt: stamp(gmfCheckedAtMs) },
     vat: { ready: vat, checkedAt: stamp(vatCheckedAtMs) },

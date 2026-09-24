@@ -41,7 +41,7 @@ export interface AuthorityConnState extends DerivedConnState {
  */
 export function useAuthorityConnections(userId: string | undefined) {
   const readiness = useShaamReadiness();
-  const { status, workerOffline } = readiness;
+  const { status, workerOffline, btlWorkerOffline } = readiness;
   const [shaamJob, setShaamJob] = useState<AutomationJob | null>(null);
   const [btlJob, setBtlJob] = useState<AutomationJob | null>(null);
   const [busy, setBusy] = useState<'shaam' | 'btl' | null>(null);
@@ -119,7 +119,7 @@ export function useAuthorityConnections(userId: string | undefined) {
   // קשר לנורית הזו. אותו ערך בדיוק שפקדי השדות קוראים — לא חישוב מקביל.
   const ready = readiness.ready;
   // ‼ לביטוח לאומי אין שכבות משנה, ולכן "מחובר" הוא כל הסיפור.
-  const btlConnected = !workerOffline && !!status.btl?.connected;
+  const btlConnected = !btlWorkerOffline && !!status.btl?.connected;
 
   // ‼ derivePhase עברה ל-authorityConnectionModel.ts (מודל טהור, נבדק ב-node
   // דרך scripts/test-authority-connection-model.ts) — כולל שמירת בדיקת
@@ -133,7 +133,7 @@ export function useAuthorityConnections(userId: string | undefined) {
   });
   const btlState = derivePhase({
     connected: btlConnected,
-    workerOffline,
+    workerOffline: btlWorkerOffline,
     job: btlJob,
     localError: uiError?.authority === 'btl' ? uiError.text : null,
     isOwnJobId: (id) => btlJobIdRef.current === id,
@@ -227,7 +227,7 @@ export function useAuthorityConnections(userId: string | undefined) {
 
   return {
     shaam: { ...shaamState, busy: busy === 'shaam', workerOffline } as AuthorityConnState,
-    btl: { ...btlState, busy: busy === 'btl', workerOffline } as AuthorityConnState,
+    btl: { ...btlState, busy: busy === 'btl', workerOffline: btlWorkerOffline } as AuthorityConnState,
     connect,
     disconnect,
     connectBtl,
