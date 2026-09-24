@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { formatRoute, parseHash, type View as AppRouteView } from './lib/appRoute';
+import { resolveListedEntity } from './lib/routeEntity';
+import RouteEntityFallback from './components/RouteEntityFallback';
 import {
   Client,
   RepresentationRequest,
@@ -426,7 +428,7 @@ export default function App() {
 
   const { user, loading: authLoading, authorized, displayName, avatarUrl, signOut } = useAuth();
 
-  const { clients, addClient, updateClient, deleteClient: removeClient, bulkAddClients, setClientLifecycleStage, applyClientLocally, refreshClient, refreshClients, linkSpouseClients } = useClients(user?.id);
+  const { clients, loading: clientsLoading, error: clientsError, addClient, updateClient, deleteClient: removeClient, bulkAddClients, setClientLifecycleStage, applyClientLocally, refreshClient, refreshClients, linkSpouseClients } = useClients(user?.id);
   const { tasks, loading: tasksLoading, addTask, updateTask, bulkUpdateTasks, deleteTask: removeTask, bulkAddTasks, reloadTasks } = useTasks(user?.id);
 
   // בתחילת כל רבעון (ינואר/אפריל/יולי/אוקטובר) נוצרת אוטומטית משימת בדיקת
@@ -449,7 +451,7 @@ export default function App() {
   // ‼ lean: 3.2MB של חתימות base64 אינם נטענים בכל כניסה; הבקשה שנפתחת
   // מושלמת ב-hydrateRequest לפני שמסך הבדיקה מרונדר (אחרת היה דורס חתימות).
   // reloadRequest משמשת גם לתנאי-קדם שמולאו דרך קישור משתתף (165).
-  const { requests, addRequest, updateRequest, deleteRequest: removeRequest, hydrateRequest, isHydrated, reloadRequest } =
+  const { requests, addRequest, updateRequest, deleteRequest: removeRequest, hydrateRequest, isHydrated, reloadRequest, requestResolution } =
     useRepresentationRequests(user?.id, { lean: true });
   const { profile: firmProfile, saveProfile } = useFirmProfile(user?.id);
   // ‼ (186) ברירות המחדל מ"ניהול המשרד → ייצוג" — undefined ⇒ הדיאלוג נופל
@@ -501,7 +503,7 @@ export default function App() {
     for (const l of leads) if (l.convertedClientId) map.set(l.convertedClientId, l.id);
     return map;
   }, [leads]);
-  const { quotations, addQuotation, updateQuotation, cancelQuotation, deleteQuotation, refreshQuotations } = useQuotations(user?.id);
+  const { quotations, loading: quotationsLoading, error: quotationsError, addQuotation, updateQuotation, cancelQuotation, deleteQuotation, refreshQuotations } = useQuotations(user?.id);
   const { charges, addCharge, replaceCharge, markChargePaid } = useCharges(user?.id);
   const { services: catalogServices, templates: quotationTemplates } = useQuotationCatalog(user?.id);
   const failedNotifications = useFailedNotifications(user?.id);
@@ -830,6 +832,13 @@ export default function App() {
   const selectedClient = selectedId ? clients.find(c => c.id === selectedId) ?? null : null;
   const selectedRequest = selectedRequestId && isHydrated(selectedRequestId)
     ? requests.find(r => r.id === selectedRequestId) ?? null : null;
+  // ‼ 24.09.2026 · F5 בכתובת עומק: «עוד לא נטען» ו«לא קיים» אינם אותו מצב
+  // (lib/routeEntity). «לא נמצא» רק אחרי תשובה שהסתיימה.
+  const resolveOrLoading = (r: ReturnType<typeof requestResolution>) => (r === 'found' ? 'loading' : r);
+  const selectedRequestFallback = selectedRequestId ? resolveOrLoading(requestResolution(selectedRequestId)) : 'not_found';
+  const selectedClientFallback = resolveOrLoading(resolveListedEntity({
+    signedIn: !!user?.id, listLoading: clientsLoading, listError: clientsError, present: !!selectedClient,
+  }));
   // 191: שורה אחת לכרטיס הייצוג של הלקוח הפתוח — מהשורה הרזה שכבר נטענה
   // (identification ו-identity_docs ב-LEAN_COLUMNS), בלי שליפה נוספת.
   const selectedRepNote = (() => {
@@ -1781,6 +1790,10 @@ export default function App() {
   // ─── הצעות מחיר ולידים ─────────────────────────────────────────────────────
 
   const editingQuotation = editingQuotationId ? quotations.find(q => q.id === editingQuotationId) ?? null : null;
+  const quotationFallback = (() => {
+    const r = resolveListedEntity({ signedIn: !!user?.id, listLoading: quotationsLoading, listError: quotationsError, present: !!editingQuotation });
+    return r === 'found' ? 'loading' as const : r;
+  })();
 
   function handleNewQuotation() {
     setEditingQuotationId(null);
@@ -2568,6 +2581,12 @@ export default function App() {
         )}
 
         {view === 'form' && (
+          // ‼ F5 על כרטיס קיים: עד שהרשימה נטענה — «טוען», לא טופס לקוח חדש ריק.
+          // אחרי הטעינה ההתנהגות לא השתנתה (כרטיס שנוצר בשרת מגיע רגע אחר כך).
+          selectedId && !selectedClient && selectedClientFallback === 'loading' ? (
+            <RouteEntityFallback state="loading" notFoundTitle="הלקוח לא נמצא"
+              onBack={() => { setView('list'); setSelectedId(null); }} />
+          ) : (
           <ClientWorkspace
             client={selectedClient}
             clients={clients}
@@ -2627,6 +2646,7 @@ export default function App() {
             onCreateSpouseClient={handleCreateClientFromSpouse}
             onOpenClient={handleSelectClient}
           />
+          )
         )}
 
         {view === 'calculator' && (
@@ -2636,10 +2656,12 @@ export default function App() {
               onBack={() => setView('form')}
             />
           ) : (
-            <div className="empty-state">
-              <div className="empty-state-title">הלקוח לא נמצא</div>
-              <button className="btn btn-primary" onClick={() => { setView('list'); setSelectedId(null); }}>חזרה לרשימה</button>
-            </div>
+            <RouteEntityFallback
+              state={selectedClientFallback}
+              notFoundTitle="הלקוח לא נמצא"
+              onBack={() => { setView('list'); setSelectedId(null); }}
+              onRetry={() => { void refreshClients(); }}
+            />
           )
         )}
 
@@ -2652,10 +2674,12 @@ export default function App() {
               onApplyExtractedData={handleApplyExtractedData}
             />
           ) : (
-            <div className="empty-state">
-              <div className="empty-state-title">הלקוח לא נמצא</div>
-              <button className="btn btn-primary" onClick={() => { setView('list'); setSelectedId(null); }}>חזרה לרשימה</button>
-            </div>
+            <RouteEntityFallback
+              state={selectedClientFallback}
+              notFoundTitle="הלקוח לא נמצא"
+              onBack={() => { setView('list'); setSelectedId(null); }}
+              onRetry={() => { void refreshClients(); }}
+            />
           )
         )}
 
@@ -2709,6 +2733,16 @@ export default function App() {
         )}
 
         {view === 'quotationBuilder' && (
+          // ‼ הבונה קורא את ההצעה רק ברגע הפתיחה. ב-F5, לפני שההצעות נטענו, הוא
+          // נפתח ריק — ושמירה הייתה יוצרת הצעה חדשה. עד שהיא כאן: «טוען».
+          editingQuotationId && !editingQuotation ? (
+            <RouteEntityFallback
+              state={quotationFallback}
+              notFoundTitle="ההצעה לא נמצאה"
+              onBack={() => { setEditingQuotationId(null); setView(journeyUi ? 'list' : 'quotations'); }}
+              onRetry={() => { void refreshQuotations(); }}
+            />
+          ) : (
           <QuotationBuilder
             profile={firmProfile}
             services={catalogServices}
@@ -2741,6 +2775,7 @@ export default function App() {
               setView(journeyUi ? 'list' : 'quotations');
             }}
           />
+          )
         )}
 
         {view === 'firmProfile' && (
@@ -2803,10 +2838,12 @@ export default function App() {
               }}
             />
           ) : (
-            <div className="empty-state">
-              <div className="empty-state-title">הבקשה לא נמצאה</div>
-              <button className="btn btn-primary" onClick={() => { setView('list'); setSelectedRequestId(null); }}>חזרה לרשימה</button>
-            </div>
+            <RouteEntityFallback
+              state={selectedRequestFallback}
+              notFoundTitle="הבקשה לא נמצאה"
+              onBack={() => { setView('list'); setSelectedRequestId(null); }}
+              onRetry={() => { if (selectedRequestId) void hydrateRequest(selectedRequestId); }}
+            />
           )
         )}
 
@@ -2818,10 +2855,12 @@ export default function App() {
               onCancel={() => setView('requestReview')}
             />
           ) : (
-            <div className="empty-state">
-              <div className="empty-state-title">הבקשה לא נמצאה</div>
-              <button className="btn btn-primary" onClick={() => { setView('list'); setSelectedRequestId(null); }}>חזרה לרשימה</button>
-            </div>
+            <RouteEntityFallback
+              state={selectedRequestFallback}
+              notFoundTitle="הבקשה לא נמצאה"
+              onBack={() => { setView('list'); setSelectedRequestId(null); }}
+              onRetry={() => { if (selectedRequestId) void hydrateRequest(selectedRequestId); }}
+            />
           )
         )}
         </ErrorBoundary>

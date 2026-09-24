@@ -2,6 +2,10 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { RepresentationRequest } from '../types';
 import { supabase } from '../lib/supabase';
 import { repRequestFromDb, repRequestToDb } from '../lib/dbMappers';
+import {
+  lookupOutcome, mergeListKeepingHydrated, resolveFetchedEntity, resolveListedEntity,
+  type EntityResolution,
+} from '../lib/routeEntity';
 
 /**
  * ‼ signature_values מחזיקה את תמונות החתימות (base64). בייצור: 15 בקשות,
@@ -33,12 +37,22 @@ export function useRepresentationRequests(userId: string | undefined, opts?: Rep
   /** במצב lean: הבקשות שכבר הושלמו במלואן. במצב רגיל — כולן. */
   const hydratedRef = useRef<Set<string>>(new Set());
   const [, setHydratedTick] = useState(0);
+  /** התוצאה האחרונה של שליפת בקשה בודדת — «לא נמצאה» רק מכאן. */
+  const [lookups, setLookups] = useState<Record<string, Exclude<EntityResolution, 'loading'>>>({});
+  const listUserRef = useRef<string | undefined>(undefined);
 
   useEffect(() => {
     if (!userId) {
       setRequests([]);
       setLoading(false);
       return;
+    }
+    // ‼ משתמש אחר ⇒ כל מה שנשלף שייך לחשבון הקודם. אותו משתמש ⇒ שורות שכבר
+    // נשלפו במלואן נשמרות (mergeListKeepingHydrated), גם אם הרשימה הגיעה אחריהן.
+    if (listUserRef.current !== userId) {
+      hydratedRef.current = new Set();
+      setLookups({});
+      listUserRef.current = userId;
     }
     let cancelled = false;
     setLoading(true);
@@ -53,8 +67,8 @@ export function useRepresentationRequests(userId: string | undefined, opts?: Rep
         setLoading(false);
         return;
       }
-      hydratedRef.current = new Set();
-      setRequests((data ?? []).map(repRequestFromDb));
+      const list = (data ?? []).map(repRequestFromDb);
+      setRequests(prev => mergeListKeepingHydrated(prev, list, hydratedRef.current));
       setError(null);
       setLoading(false);
     })();
@@ -62,18 +76,32 @@ export function useRepresentationRequests(userId: string | undefined, opts?: Rep
   }, [userId, lean]);
 
   /** השלמת בקשה אחת במלואה (כולל החתימות). במצב רגיל — כלום לעשות. */
+  // ‼ תלויה ב-userId: ב-F5 המסך מבקש את הבקשה לפני שהזהות שוחזרה. שאילתה
+  // כזאת רצה כאנונימי ו-RLS מחזיר «אין שורה» — לכן לא שולחים אותה בכלל, והפונקציה
+  // מתחלפת (והקורא מריץ שוב) ברגע שהמשתמש מוכר.
   const hydrateRequest = useCallback(async (id: string): Promise<void> => {
-    if (!lean || hydratedRef.current.has(id)) return;
-    const { data, error } = await supabase
+    if (!lean || !userId || hydratedRef.current.has(id)) return;
+    // ניסיון חוזר אחרי שגיאה חוזר ל«טוען» עד שתגיע תשובה חדשה.
+    setLookups(prev => { if (!(id in prev)) return prev; const next = { ...prev }; delete next[id]; return next; });
+    const res = await supabase
       .from('representation_requests').select('*').eq('id', id).maybeSingle();
-    if (error || !data) return;
-    const full = repRequestFromDb(data);
+    const outcome = lookupOutcome(res);
+    setLookups(prev => ({ ...prev, [id]: outcome }));
+    if (outcome !== 'found') return;
+    const full = repRequestFromDb(res.data);
     hydratedRef.current.add(id);
     setRequests(prev => prev.some(r => r.id === id) ? prev.map(r => r.id === id ? full : r) : [...prev, full]);
     setHydratedTick(t => t + 1);
-  }, [lean]);
+  }, [lean, userId]);
 
   const isHydrated = useCallback((id: string): boolean => !lean || hydratedRef.current.has(id), [lean]);
+
+  /** מצב הבקשה שבכתובת — טוען / נמצאה / לא נמצאה / שגיאה (lib/routeEntity). */
+  const requestResolution = (id: string): EntityResolution => {
+    const present = requests.some(r => r.id === id);
+    if (!lean) return resolveListedEntity({ signedIn: !!userId, listLoading: loading, listError: error, present });
+    return resolveFetchedEntity({ signedIn: !!userId, ready: present && hydratedRef.current.has(id), lookup: lookups[id] });
+  };
 
   async function addRequest(req: RepresentationRequest): Promise<RepresentationRequest> {
     if (!userId) throw new Error('Not signed in');
@@ -125,11 +153,12 @@ export function useRepresentationRequests(userId: string | undefined, opts?: Rep
     if (error || !data) return;
     const fresh = repRequestFromDb(data);
     hydratedRef.current.add(fresh.id);
+    setLookups(prev => ({ ...prev, [fresh.id]: 'found' }));
     setRequests(prev => prev.some(r => r.id === fresh.id)
       ? prev.map(r => r.id === fresh.id ? fresh : r)
       : [...prev, fresh]);
     setHydratedTick(t => t + 1);
   }, []);
 
-  return { requests, loading, error, addRequest, updateRequest, deleteRequest, hydrateRequest, isHydrated, reloadRequest };
+  return { requests, loading, error, addRequest, updateRequest, deleteRequest, hydrateRequest, isHydrated, reloadRequest, requestResolution };
 }
