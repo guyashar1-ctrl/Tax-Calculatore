@@ -22,7 +22,10 @@ $vbs = Join-Path $here 'start-worker.vbs'
 if (-not (Test-Path $vbs)) { throw "start-worker.vbs not found next to this script" }
 
 $name = 'PIVO Automation Worker Watchdog'
-$action = New-ScheduledTaskAction -Execute 'wscript.exe' -Argument "`"$vbs`"" -WorkingDirectory $here
+# ‼ בלי -WorkingDirectory: איתו Task Scheduler נכשל ב-0x8007010B («שם תיקייה
+# לא חוקי») והעובד לא עלה (נצפה 24.09.2026). start-worker.vbs קובע את
+# התיקייה בעצמו (shell.CurrentDirectory).
+$action = New-ScheduledTaskAction -Execute 'wscript.exe' -Argument "`"$vbs`""
 $trigger = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(1) -RepetitionInterval (New-TimeSpan -Minutes 5)
 $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries `
   -StartWhenAvailable -MultipleInstances IgnoreNew -ExecutionTimeLimit (New-TimeSpan -Minutes 2)
