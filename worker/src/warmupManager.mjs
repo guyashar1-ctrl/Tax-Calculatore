@@ -11,12 +11,13 @@ import {
   openGmfAndCheck, openVatAndCheck, openNikuiAndCheck,
   openRepresentationAndCheck, attemptRepresentationLoginConfirm,
   readGmfOnCurrentPage, readVatOnCurrentPage, readNikuiOnCurrentPage, readRepresentationOnCurrentPage,
-  readGmfLoginForm, focusGmfLoginField, attemptGmfLoginConfirm,
+  readGmfLoginForm,
   ensureWithBoundedRecovery,
   isOnWorkScreen,
 } from './browserSession.mjs';
 import { updateJobProgress } from './apiClient.mjs';
 import { isShaamLifecycleEstablished, markGmfVerified } from './connectionMonitor.mjs';
+import { ensureGmfLogin, HUMAN_WAIT_MS } from './gmfAutoLogin.mjs';
 
 export const CAPABILITY_ORDER = ['gmf', 'vat', 'nikui', 'representation'];
 export const DEFAULT_CAPABILITIES = [...CAPABILITY_ORDER];
@@ -29,7 +30,7 @@ export const HUMAN_REASON = {
 };
 
 export const HUMAN_MESSAGE = {
-  gmf: 'מערכת גביית מס הכנסה מבקשת סיסמה. בחלון שע״ם: הקלידו את הסיסמה (אפשר לאשר ל-Chrome לשמור אותה) — ואמשיך משם לבד.',
+  gmf: 'מערכת גביית מס הכנסה מבקשת את הסיסמה השנייה, ואין סיסמה שמורה ב-Chrome שאפשר להשתמש בה. בחלון שע״ם: הקלידו אותה, לחצו «כניסה» ואשרו ל-Chrome לשמור — מהפעם הבאה אכנס לבד.',
   vat: 'מע״מ מבקשת סיסמה. הזינו אותה בחלון שע״ם שנפתח, ואמשיך משם לבד.',
   nikui: 'מגן (ניכויים) מבקשת סיסמה. הזינו אותה בחלון שע״ם שנפתח, ואמשיך משם לבד.',
   representation: 'מערכת רישום הייצוג מבקשת התחברות נפרדת משלה. השלימו אותה בחלון שע״ם, ואמשיך משם לבד.',
@@ -54,16 +55,13 @@ function mapLegacyResult(r) {
 /**
  * ‼ GMF היא ה-bootstrap של החיבור (תיקון מוצר 16.09.2026): "מחובר לשע״ם"
  * ירוק רק אחרי שהחיבור הטרי הזה נכנס ל-GMF. מסך הכניסה שלה נצפה חי — ראה
- * browserSession.mjs (readGmfLoginForm): Chrome לא ממלא לבד; הוא מציע את
- * הסיסמה השמורה בחלונית מקומית כשהשדה בפוקוס, והבחירה בה (או הקלדה בפעם
- * הראשונה) היא של הרו"ח. PIVO: ממקדת את השדה, ממתינה זמן קצוב לעדות
- * בוליאנית שהשדה מולא, ואז לוחצת «כניסה» פעם אחת ומאמתת את התפריט.
- * לעולם לא קוראת/מקלידה את הערך, ולא נוגעת בחלונית של Chrome או במודאלים.
+ * browserSession.mjs (readGmfLoginForm).
+ * ‼ 27.09.2026 (גיא): הסיסמה השנייה שמורה ב-Chrome ומשמשת לבד — קודם
+ * gmfAutoLogin בוחר אותה בחלונית של Chrome ולוחץ «כניסה» פעם אחת. אין
+ * סיסמה שמורה ⇒ השדה בפוקוס והחלון בחזית, והרו"ח מקליד פעם אחת ו-Chrome
+ * שומר. PIVO לעולם לא קוראת/מקלידה את הערך ולא נוגעת במודאלים.
  */
-const GMF_FILL_WAIT_MS = 25_000;
-const GMF_FILL_POLL_MS = 1_000;
-
-export async function ensureGmf(page, { waitForFillMs = GMF_FILL_WAIT_MS } = {}) {
+export async function ensureGmf(page, { waitForHumanMs = HUMAN_WAIT_MS, log } = {}) {
   const initial = await openGmfAndCheck(page);
   const r = await ensureWithBoundedRecovery(page, { initial, readCurrent: readGmfOnCurrentPage, reopen: openGmfAndCheck });
   if (r.ready) { markGmfVerified(); return { state: 'ready', reasonCode: r.reason, evidenceKind: 'dom_state' }; }
@@ -73,24 +71,12 @@ export async function ensureGmf(page, { waitForFillMs = GMF_FILL_WAIT_MS } = {})
   if (form.humanOnlyModal) {
     return { state: 'human_required', reasonCode: 'human_only_modal', evidenceKind: 'dom_state' };
   }
-  if (!form.hasValue) {
-    await focusGmfLoginField(page);
-    const deadline = Date.now() + waitForFillMs;
-    while (Date.now() < deadline) {
-      await page.waitForTimeout(GMF_FILL_POLL_MS);
-      const f = await readGmfLoginForm(page);
-      if (!f.onLogin) break; // הרו"ח כבר שלח בעצמו (Enter) — נבדוק את היעד למטה
-      if (f.humanOnlyModal) return { state: 'human_required', reasonCode: 'human_only_modal', evidenceKind: 'dom_state' };
-      if (f.hasValue) break;
-    }
+  const login = await ensureGmfLogin(page, { log, waitForHumanMs });
+  if (login.ok) {
+    markGmfVerified();
+    return { state: 'ready', reasonCode: login.via === 'saved_password' ? 'saved_password' : 'confirmed_fill', evidenceKind: 'dom_state' };
   }
-
-  const now = await readGmfOnCurrentPage(page);
-  if (now.ready === true) { markGmfVerified(); return { state: 'ready', reasonCode: now.reason, evidenceKind: 'dom_state' }; }
-
-  const confirm = await attemptGmfLoginConfirm(page);
-  if (confirm.ok) { markGmfVerified(); return { state: 'ready', reasonCode: 'confirmed_fill', evidenceKind: 'dom_state' }; }
-  return { state: 'human_required', reasonCode: confirm.reason ?? 'login_required', evidenceKind: 'dom_state' };
+  return { state: 'human_required', reasonCode: login.reason ?? 'login_required', evidenceKind: 'dom_state' };
 }
 async function ensureVat(page) {
   const initial = await openVatAndCheck(page);
@@ -198,7 +184,7 @@ export async function runCapabilities(ctx, page, capabilities) {
       break;
     }
 
-    const evidence = await ADAPTERS[capability](page);
+    const evidence = await ADAPTERS[capability](page, { log: ctx.log });
     progress.capabilities[capability] = { ...evidence, observedAt: new Date().toISOString() };
     ctx.log(`capability ${capability}: ${evidence.state} (${evidence.reasonCode})`);
 

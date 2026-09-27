@@ -1172,10 +1172,11 @@ export async function isOnWorkScreen(page) {
 // שדה יחיד: input#pass בתוך <app-password-input>. כפתור "עין" הופך אותו
 // ל-type=text, ולכן מאתרים אותו לפי #pass ולא לפי input[type=password].
 // ‼ Chrome **לא** ממלא את השדה בטעינה (טופס סיסמה-בלבד): הוא פותח חלונית
-// הצעה מקומית רק כשהשדה בפוקוס, והבחירה בה היא מחווה של אדם. חלונית זו
-// אינה DOM — לחיצות/מקשים דרך CDP לא מגיעים אליה (לחיצה בקואורדינטות שלה
-// נפלה על הדף שמתחת ופתחה את "החלפת סיסמה"). לכן: PIVO רק ממקדת את
-// השדה, ממתינה לעדות בוליאנית שהוא מולא, ולוחצת «כניסה» פעם אחת.
+// הצעה מקומית רק כשהשדה בפוקוס. חלונית זו אינה DOM — לחיצות/מקשים דרך CDP
+// לא מגיעים אליה (לחיצה בקואורדינטות שלה נפלה על הדף שמתחת ופתחה את
+// "החלפת סיסמה"; Enter שלח טופס ריק — 27.09.2026). מאז 27.09.2026 הבחירה
+// בה נעשית דרך UI Automation של Windows (chromePasswordPicker.mjs,
+// gmfAutoLogin.mjs); PIVO לוחצת «כניסה» פעם אחת רק אחרי ש-Chrome מילא.
 // ‼ מודאל עם שדות סיסמה (למשל «החלפת סיסמה», 3 שדות) = מצב לאדם בלבד.
 export const GMF_LOGIN_PATH = '/gmf-main-menu/login';
 export const GMF_MENU_PATH = '/gmf-main-menu/main';
@@ -1183,6 +1184,14 @@ const GMF_PASS_SELECTOR = '#pass, app-password-input input';
 
 /**
  * עובדות בוליאניות/מבניות בלבד על טופס הכניסה של GMF. לעולם לא הערך.
+ *
+ * ‼ `autofilled` מבדיל בין שדה ש-Chrome מילא (בחירה בחלונית ההצעה — של
+ * הרו"ח או של chromePasswordPicker) לבין הקלדה. רק מילוי של Chrome מאשר
+ * לחיצה על «כניסה»: הקלדה ידנית נראית «מלאה» כבר אחרי התו הראשון, ולחיצה
+ * באמצע ההקלדה שולחת סיסמה חלקית — ניסיון כושל מול שע״ם.
+ * ‼ `username` — שם המשתמש שמוצג כטקסט (נצפה חי 27.09.2026:
+ * ‎<p>שם משתמש</p><div><b>D…</b></div>‎). לפיו בוחרים את השורה בחלונית של
+ * Chrome; תווית שאינה יחידה ⇒ null, ואז לא בוחרים כלום.
  */
 export async function readGmfLoginForm(page) {
   try {
@@ -1195,10 +1204,23 @@ export async function readGmfLoginForm(page) {
       const visibleSubmits = form
         ? [...form.querySelectorAll('button[type=submit]')].filter((b) => { const r = b.getBoundingClientRect(); return r.width > 0 && r.height > 0; })
         : [];
+      let autofilled = false;
+      if (pw) {
+        try { autofilled = pw.matches(':autofill'); } catch {
+          try { autofilled = pw.matches(':-webkit-autofill'); } catch { autofilled = false; }
+        }
+      }
+      const labels = [...document.querySelectorAll('p')]
+        .filter((p) => (p.textContent || '').replace(/\s+/g, ' ').trim() === 'שם משתמש');
+      const shown = labels.length === 1
+        ? (labels[0].nextElementSibling?.querySelector('b')?.textContent || '').trim()
+        : '';
       return {
         onLogin,
         hasField: !!pw,
         hasValue: !!pw && !!pw.value && pw.value.length > 0,
+        autofilled,
+        username: /^[A-Za-z0-9]{3,20}$/.test(shown) ? shown : null,
         hasForm: !!form,
         visibleSubmits: visibleSubmits.length,
         humanOnlyModal: !!modal,
@@ -1206,7 +1228,7 @@ export async function readGmfLoginForm(page) {
       };
     }, GMF_PASS_SELECTOR);
   } catch {
-    return { onLogin: false, hasField: false, hasValue: false, hasForm: false, visibleSubmits: 0, humanOnlyModal: false, modalTitle: null };
+    return { onLogin: false, hasField: false, hasValue: false, autofilled: false, username: null, hasForm: false, visibleSubmits: 0, humanOnlyModal: false, modalTitle: null };
   }
 }
 
@@ -1249,11 +1271,13 @@ export async function attemptGmfLoginConfirm(page) {
   }, GMF_PASS_SELECTOR).catch(() => false);
   if (!clicked) return { ok: false, reason: 'click_failed' };
 
+  // ‼ מכאן והלאה זה ניסיון כניסה אמיתי מול שע״ם (clicked) — מי שקורא סופר
+  // אותו, כדי שסיסמה שמורה שנדחתה לא תישלח שוב לבד.
   await page.waitForURL((u) => new URL(u).pathname.startsWith(GMF_MENU_PATH), { timeout: 15000 }).catch(() => {});
   const s = await settlePage(page, { idleMs: 10000, watchMs: 3000 });
   const after = await gmfStateOnPage(page, s);
-  if (after.ready) return { ok: true, reason: 'confirmed' };
-  return { ok: false, reason: after.reason ?? 'not_confirmed' };
+  if (after.ready) return { ok: true, reason: 'confirmed', clicked: true };
+  return { ok: false, reason: after.reason ?? 'not_confirmed', clicked: true };
 }
 
 /**
@@ -1269,6 +1293,27 @@ async function gmfStateOnPage(page, snap) {
   return modal.blocked
     ? { ready: false, reason: 'auth_wall', detail: modal.title }
     : base;
+}
+
+/**
+ * הצצה זולה בכל הלשוניות, בלי ניווט ובלי בקשה לשרת: האם כבר רואים שהפורטל
+ * נפתח (דף הבית, כותרת HomePage) או ש-GMF פתוחה. רמז בלבד — ההכרעה שייכת
+ * לסבב המלא של connectionMonitor; כאן רק מחליטים אם להקדים אותו.
+ */
+export async function peekShaamProgress(context) {
+  let portalUp = false;
+  let gmfOpen = false;
+  for (const p of context.pages()) {
+    let url;
+    try { url = new URL(p.url()); } catch { continue; }
+    if (url.origin !== SHAAM_ORIGIN) continue;
+    if (GMF_ANY_PATH.test(url.pathname) && !url.pathname.startsWith(GMF_LOGIN_PATH)) {
+      portalUp = true; gmfOpen = true;
+      continue;
+    }
+    if (/^\/myz\/pages\/homepage\.aspx$/i.test(url.pathname) || (await safeTitle(p)) === 'HomePage') portalUp = true;
+  }
+  return { portalUp, gmfOpen };
 }
 
 export async function readGmfOnCurrentPage(page) {

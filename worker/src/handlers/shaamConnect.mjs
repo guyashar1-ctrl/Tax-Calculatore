@@ -10,8 +10,9 @@
 // עסקית שזקוקה לאחת מהן מבקשת אותה נקודתית (shaam.ensure_capability).
 // סגירת החלון מאפסת את ה-bootstrap — חיבור חדש מוכיח GMF מחדש (ראה
 // resetShaamLifecycle ב-connectionMonitor.mjs).
-// האוטומציה לעולם לא מקלידה אישור, PIN, OTP או סיסמה ולא נוגעת בחלונית
-// הסיסמאות של Chrome — היא רק ממקדת את השדה ולוחצת «כניסה» אחרי שמולא.
+// האוטומציה לעולם לא מקלידה אישור, PIN, OTP או סיסמה. את הסיסמה השנייה
+// (GMF) Chrome ממלא: PIVO בוחרת את השורה השמורה בחלונית של Chrome
+// (chromePasswordPicker.mjs, 27.09.2026) ולוחצת «כניסה» פעם אחת.
 import {
   attach, detach, classifyShaamAuth, probeServerSession,
   launchDedicatedChrome, focusShaamWindow, readGmfOnCurrentPage,

@@ -12,6 +12,7 @@ import {
   attach, detach, openClientFileDetails, verifyFileDetailsFor,
 } from '../browserSession.mjs';
 import { NeedsHumanError, PermanentError } from '../errors.mjs';
+import { isGmfLoginPath, reloginGmf, gmfReloginMessage } from '../gmfRelogin.mjs';
 
 export const actionType = 'shaam.open_client_file';
 
@@ -38,7 +39,13 @@ export async function run(ctx, input) {
     // ‼ אין שער נפרד של פורטל כאן — ראה shaamSyncIncomeTaxFile.mjs. הבדיקה
     // התפעולית האמיתית קיימת ב-openClientFileDetails, והיא הסמכות היחידה.
     ctx.log(`פותח «פרטי תיק» (שאילתה 181) · ${fileNumber.length} ספרות`);
-    const opened = await openClientFileDetails(conn.page, fileNumber);
+    let opened = await openClientFileDetails(conn.page, fileNumber);
+    // ‼ כמו ביישור קו: מסך הכניסה של GMF ⇒ הסיסמה השמורה, ואז ממשיכים.
+    if (!opened.ok && opened.reason === 'gmf_not_ready' && isGmfLoginPath(opened.pathname)) {
+      const relog = await reloginGmf(conn.page, ctx.log);
+      if (!relog.ok) throw new NeedsHumanError(gmfReloginMessage(relog.reason), 'shaam_gmf_login_required');
+      opened = await openClientFileDetails(conn.page, fileNumber);
+    }
     if (!opened.ok) {
       if (opened.reason === 'gmf_not_ready') {
         throw new NeedsHumanError(NOT_READY, 'shaam_connection_not_ready');

@@ -63,16 +63,19 @@ import {
   readVatOnCurrentPage,
   readNikuiOnCurrentPage,
   readRepresentationOnCurrentPage,
-  isOnWorkScreen,
+  isOnWorkScreen, peekShaamProgress,
 } from './browserSession.mjs';
 import {
   attachBtl, detachBtl, classifyBtlAuth, probeBtlSession, pickBtlPage, peekBtlConnected,
 } from './btlSession.mjs';
+// ‼ אותו כלל המתנה משמש גם את שע״ם (27.09.2026) — הפונקציות טהורות וכלליות;
+// רק השמות נולדו בב״ל.
 import {
   initialBtlWatch, afterBtlCheck, btlPeekDue, afterBtlPeek, loopSleepMs,
 } from './btlLoginWatch.mjs';
 import { reportStatus } from './apiClient.mjs';
 import { hostIdleSeconds } from './hostActivity.mjs';
+import { tryGmfAutoLogin, resetGmfAutoLogin } from './gmfAutoLogin.mjs';
 
 const LOCAL_CHECK_MS = 30_000;
 const SERVER_PROBE_MS = 4 * 60_000;
@@ -90,6 +93,15 @@ let representationReported = null;
 let btlReported = null;
 /** ההמתנה להתחברות לב״ל — ראה btlLoginWatch.mjs. */
 let btlWatch = initialBtlWatch();
+/**
+ * ההמתנה להתחברות לשע״ם — אותו כלל (27.09.2026). נצפה בהקלטה של גיא: מהרגע
+ * שהפורטל נפתח (אחרי כרטיס, PIN, קוד ומספר מעסיק) עברו 11 שניות עד המעבר
+ * למסך הסיסמה השנייה, כי החלון נבדק פעם ב-30 שניות. חלון פתוח ולא «ירוק»
+ * (פורטל + GMF) ⇒ הצצה כל 2 שניות, עד 10 דקות.
+ */
+let shaamWatch = initialBtlWatch();
+/** מתי GMF נמדדה פתוחה לאחרונה אחרי שהייתה סגורה — לאבחון ניתוקים מהירים. */
+let gmfOpenSinceMs = 0;
 
 /** זמן (ms) המדידה הישירה האחרונה של כל שכבת Tier-B. 0 = מעולם לא נמדדה. */
 let gmfCheckedAtMs = 0;
@@ -110,6 +122,8 @@ export function resetShaamLifecycle(log, why) {
   const hadEvidence = gmfReported || vatReported || nikuiReported || representationReported;
   gmfReported = null; vatReported = null; nikuiReported = null; representationReported = null;
   gmfCheckedAtMs = 0; vatCheckedAtMs = 0; nikuiCheckedAtMs = 0; representationCheckedAtMs = 0;
+  gmfOpenSinceMs = 0;
+  resetGmfAutoLogin();
   if (hadEvidence) log(`מחזור חיים חדש של שע״ם (${why}) — עדות תת-המערכות אופסה, GMF תוכח מחדש`);
 }
 
@@ -131,6 +145,19 @@ export function markGmfVerified() {
   shaamReported = true;
   gmfReported = true;
   gmfCheckedAtMs = Date.now();
+  if (!gmfOpenSinceMs) gmfOpenSinceMs = gmfCheckedAtMs;
+  // כניסה מוצלחת ⇒ מותר שוב ניסיון אוטומטי אחד בפעם הבאה ש-GMF תבקש סיסמה.
+  resetGmfAutoLogin();
+}
+
+/** כמה שניות GMF הייתה פתוחה לפני ש(שוב) ביקשה סיסמה. null ⇒ לא ידוע. */
+export function gmfOpenForSeconds(now = Date.now()) {
+  return gmfOpenSinceMs ? Math.round((now - gmfOpenSinceMs) / 1000) : null;
+}
+
+/** GMF ביקשה סיסמה שוב — מאפסים את השעון (הפתיחה הבאה תימדד מחדש). */
+export function noteGmfClosed() {
+  gmfOpenSinceMs = 0;
 }
 
 /**
@@ -189,16 +216,42 @@ async function peekBtlLogin(now, log) {
   }
 }
 
-/** כמה הלולאה הראשית ישנה כשאין משימה: 2 שניות סביב התחברות לב״ל. */
+/**
+ * הצצה בחלון שע״ם בין שני סבבים רגילים, רק בזמן שממתינים להתחברות. בלי
+ * ניווט. true ⇒ הפורטל נפתח עכשיו (או GMF), והסבב המלא צריך לרוץ מיד — הוא
+ * זה שמעביר למסך הסיסמה השנייה.
+ */
+async function peekShaamLogin(now, log) {
+  if (!btlPeekDue(shaamWatch, now)) return false;
+  const conn = await attach();
+  if (!conn.ok) {
+    shaamWatch = afterBtlPeek(shaamWatch, now, { connected: false, windowOpen: conn.reason !== 'not_running' });
+    return false;
+  }
+  try {
+    const seen = await peekShaamProgress(conn.page.context());
+    // ‼ ממשיכים להמתין — רק הסבב המלא מכריע «ירוק» (פורטל + GMF).
+    shaamWatch = afterBtlPeek(shaamWatch, now, { connected: false, windowOpen: true });
+    const moved = (seen.portalUp && !shaamReported) || (seen.gmfOpen && !gmfReported);
+    if (moved) log('שע״ם: זוהתה התקדמות בהתחברות — ממשיך מיד');
+    return moved;
+  } finally {
+    await detach(conn.browser);
+  }
+}
+
+/** כמה הלולאה הראשית ישנה כשאין משימה: 2 שניות סביב התחברות לב״ל או לשע״ם. */
 export function monitorSleepMs(pollMs) {
-  return loopSleepMs(btlWatch, Date.now(), pollMs);
+  const now = Date.now();
+  return Math.min(loopSleepMs(btlWatch, now, pollMs), loopSleepMs(shaamWatch, now, pollMs));
 }
 
 export async function tickConnectionMonitor(userId, workerId, log, { scope = 'all' } = {}) {
   const now = Date.now();
   if (now - lastCheck < LOCAL_CHECK_MS) {
-    const justLoggedIn = await peekBtlLogin(now, log).catch(() => false);
-    if (!justLoggedIn) return;
+    const btlMoved = await peekBtlLogin(now, log).catch(() => false);
+    const shaamMoved = scope === 'btl' ? false : await peekShaamLogin(now, log).catch(() => false);
+    if (!btlMoved && !shaamMoved) return;
   }
   lastCheck = now;
 
@@ -249,9 +302,11 @@ export async function tickConnectionMonitor(userId, workerId, log, { scope = 'al
       // ההצעה של Chrome או הקליד) — PIVO משלימה את הלחיצה על «כניסה» פעם
       // אחת. זה מה שהופך "בחרתי בחלונית" ל-ירוק גם אחרי שה-job כבר עבר
       // ל-needs_human. בוליאני בלבד; מודאל (החלפת סיסמה/OTP) = לא נוגעים.
+      // ‼ רק שדה ש-Chrome מילא (autofilled). שדה שמוקלד ביד נראה «מלא» כבר
+      // אחרי התו הראשון — לחיצה אז שולחת סיסמה חלקית.
       if (onGmf.onGmf && onGmf.ready === false && onGmf.reason === 'login_required') {
         const form = await readGmfLoginForm(conn.page);
-        if (form.onLogin && form.hasValue && !form.humanOnlyModal) {
+        if (form.onLogin && form.hasValue && form.autofilled && !form.humanOnlyModal) {
           const confirm = await attemptGmfLoginConfirm(conn.page);
           log(`אישור כניסה ל-GMF אחרי שהשדה מולא: ${confirm.ok ? 'הצליח' : `לא אושר (${confirm.reason})`}`);
           onGmf = await readGmfOnCurrentPage(conn.page);
@@ -276,7 +331,12 @@ export async function tickConnectionMonitor(userId, workerId, log, { scope = 'al
       // שם) או כשעבודה אמיתית פותחת אותן (openXAndCheck שכל handler קורא
       // בעצמו, כבר קיים). לפני זה: "מחובר" היה מחכה לסיור בארבע מערכות
       // ומנווט את הלשונית שוב ושוב ברקע — גם כשהרו"ח לא ביקש שום דבר מהן.
-      if (shaam && !gmf && now - lastSubNav >= SUB_RECHECK_MS) {
+      // ‼ 27.09.2026 (גיא): «ברגע שנכנסנו לשע״ם — ישר למסך הסיסמה השנייה».
+      // פורטל שנפתח עכשיו (דווח מנותק בסבב הקודם של התהליך הזה — לא null של
+      // עובד שרק עלה) עוקף את ההמתנה של דקה, ומיד מנסה את הסיסמה השמורה ב-Chrome.
+      // הרו"ח בדיוק עבד בחלון הזה, ולכן אין כאן חטיפת פוקוס מעבודה אחרת.
+      const portalJustUp = shaam && shaamReported === false;
+      if (shaam && !gmf && (portalJustUp || now - lastSubNav >= SUB_RECHECK_MS)) {
         if (await isOnWorkScreen(conn.page)) {
           // בדיקת מוכנות לא שווה את זה שהמסך שהרו"ח פתח ייעלם מתחת לידיו.
           lastSubNav = now;
@@ -287,6 +347,11 @@ export async function tickConnectionMonitor(userId, workerId, log, { scope = 'al
           gmf = checked.ready;
           gmfCheckedAtMs = now;
           log(`בוטסטרפ GMF: ${checked.ready ? 'מוכנה' : `לא מוכנה (${checked.reason})`}`);
+          if (!gmf && portalJustUp && checked.reason === 'login_required') {
+            const auto = await tryGmfAutoLogin(conn.page, { log });
+            log(`כניסה ל-GMF עם הסיסמה השמורה: ${auto.ok ? 'הצליחה' : `לא בוצעה (${auto.reason})`}`);
+            if (auto.ok) { gmf = true; gmfCheckedAtMs = Date.now(); resetGmfAutoLogin(); }
+          }
         }
       }
     } finally {
@@ -298,6 +363,22 @@ export async function tickConnectionMonitor(userId, workerId, log, { scope = 'al
   // ומטופלת באותה צורה: נשאר הערך האחרון, וההתיישנות לפי checkedAt (בצד
   // הלקוח) קובעת אם עדיין אפשר לסמוך עליו. הפורטל עצמו נשאר false כברירת
   // המחדל הקיימת של תחילת הפונקציה — לא שונה כאן.
+
+  if (scope !== 'btl') {
+    shaamWatch = afterBtlCheck(shaamWatch, now, {
+      connected: shaam && gmf,
+      windowOpen: conn.ok || conn.reason === 'blocked',
+      wasConnected: !!(shaamReported && gmfReported),
+    });
+    // ‼ אבחון (27.09.2026): GMF ביקשה את הסיסמה שוב 2.5 דקות אחרי כניסה,
+    // בלי ניווט שלנו באמצע, והסיבה לא ידועה. שורה ביומן בכל פעם, עם משך.
+    if (gmfReported === true && gmf === false && shaam) {
+      const s = gmfOpenForSeconds(now);
+      log(`GMF ביקשה שוב את הסיסמה השנייה${s != null ? ` — ${s} שנ׳ אחרי שנפתחה` : ''}`);
+      noteGmfClosed();
+    }
+    if (gmf && !gmfOpenSinceMs) gmfOpenSinceMs = now;
+  }
 
   // ‼ רשות נפרדת לגמרי: כישלון בבדיקת ב״ל לא נוגע בנורית של שע״ם ולהפך.
   // חלון ב״ל סגור אינו תקלה — הוא פשוט «לא מחובר».

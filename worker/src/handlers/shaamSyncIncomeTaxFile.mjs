@@ -13,6 +13,7 @@ import {
   extractIncomeTaxFileFacts, verifyFileDetailsFor,
 } from '../browserSession.mjs';
 import { NeedsHumanError, PermanentError } from '../errors.mjs';
+import { isGmfLoginPath, reloginGmf, gmfReloginMessage } from '../gmfRelogin.mjs';
 
 export const actionType = 'shaam.sync_income_tax_file';
 
@@ -39,8 +40,17 @@ export async function run(ctx, input) {
     // אימות מחדש. הבדיקה התפעולית האמיתית — נתיב, שדה סיסמה, חומת אימות
     // — כבר קיימת ב-openAdvancesInfo, והיא הסמכות היחידה כאן.
     ctx.log(`קורא «מקדמות — פרטי דרישה ודיווח» (134) · ${fileNumber.length} ספרות`);
-    const opened = await openAdvancesInfo(conn.page, fileNumber);
+    let opened = await openAdvancesInfo(conn.page, fileNumber);
     if (opened.steps) for (const st of opened.steps) ctx.log(`   · ${st}`);
+    // ‼ GMF ביקשה את הסיסמה השנייה באמצע — נכנסים עם השמורה וממשיכים, במקום
+    // לעצור ב«החיבור אינו מוכן» (27.09.2026). קריאה בלבד, ולכן ניסיון נוסף
+    // של השאילתה אחרי הכניסה אינו פנייה כפולה לרשות.
+    if (!opened.ok && opened.reason === 'gmf_not_ready' && isGmfLoginPath(opened.pathname)) {
+      const relog = await reloginGmf(conn.page, ctx.log);
+      if (!relog.ok) throw new NeedsHumanError(gmfReloginMessage(relog.reason), 'shaam_gmf_login_required');
+      opened = await openAdvancesInfo(conn.page, fileNumber);
+      if (opened.steps) for (const st of opened.steps) ctx.log(`   · ${st}`);
+    }
     if (!opened.ok) {
       if (opened.reason === 'gmf_not_ready') {
         throw new NeedsHumanError(NOT_READY, 'shaam_connection_not_ready');

@@ -5,13 +5,13 @@
 // לא נוחשה. ניווט ישיר ולא לחיצה על סלקטור: הקישור הוא href רגיל ולא
 // postback של WebForms, ולכן כתובת יציבה יותר מאשר מיקום בתפריט שעשוי לזוז.
 //
-// ‼ הפעולה מניחה חיבור מוכן ואינה מנהלת התחברות. הכנת שתי שכבות האימות
-// (פורטל שע״ם + מערכת הגבייה) שייכת לזרימת החיבור שבכותרת — shaam.connect.
-// אם בכל זאת נתקלים כאן בקיר סיסמה, זו עדות שהחיבור לא הושלם: המשימה
-// נעצרת עם "החיבור אינו מוכן" ומפנה לכותרת, במקום לפתוח תהליך התחברות
-// שני מתוך כפתור בדיקה. האוטומציה לעולם אינה מקלידה סיסמה, PIN או OTP.
+// ‼ הפעולה מניחה פורטל מחובר ואינה מנהלת את ההתחברות הראשית (כרטיס+PIN —
+// shaam.connect). מסך הסיסמה השנייה של GMF כן נפתר כאן, עם הסיסמה ששמורה
+// ב-Chrome (gmfRelogin.mjs, 27.09.2026). האוטומציה לעולם אינה מקלידה סיסמה,
+// PIN או OTP — Chrome ממלא.
 import { attach, detach } from '../browserSession.mjs';
 import { NeedsHumanError, PermanentError } from '../errors.mjs';
+import { isGmfLoginPath, reloginGmf, gmfReloginMessage } from '../gmfRelogin.mjs';
 
 export const actionType = 'shaam.open_income_tax';
 
@@ -51,7 +51,7 @@ export async function run(ctx) {
     // עמוד-יחיד: goto חוזר כבר ב-/gmf-main-menu/, ורק אחר כך היא מפנה בצד
     // הלקוח ל-/login. קריאת הכתובת מיד אחרי goto דיווחה "הצלחה" בזמן שעל
     // המסך היה מסך סיסמה. אומת בפועל, ולכן הבדיקה כאן היא על מצב מיוצב.
-    const settled = await settle(conn.page);
+    let settled = await settle(conn.page);
     ctx.log(`נחת ב: ${settled.pathname} · שדה סיסמה: ${settled.hasPasswordField}`);
 
     if (!settled.pathname.startsWith(GMF_PATH)) {
@@ -75,12 +75,13 @@ export async function run(ctx) {
     // לזרימת החיבור שבכותרת (shaam.connect). אם הגענו לקיר סיסמה — סימן
     // שהחיבור לא הושלם, ואומרים זאת במפורש במקום לגרור את הרו"ח לתהליך
     // התחברות מתוך כפתור בדיקה.
+    // ‼ 27.09.2026: מסך הכניסה של GMF הוא הסיסמה השנייה בלבד (הפורטל חי,
+    // אחרת היינו נוחתים ב-/taxes-login/) — נכנסים עם הסיסמה השמורה ב-Chrome.
     if (settled.hasPasswordField || settled.pathname.includes('/login')) {
-      throw new NeedsHumanError(
-        'החיבור לשע״ם אינו מוכן — מערכת גביית מס הכנסה עדיין מבקשת התחברות. ' +
-        'לחצו על "שע״ם" בכותרת והשלימו את החיבור, ואז הריצו שוב.',
-        'shaam_connection_not_ready',
-      );
+      const relog = isGmfLoginPath(settled.pathname) ? await reloginGmf(conn.page, ctx.log) : { ok: false, reason: 'login_required' };
+      if (!relog.ok) throw new NeedsHumanError(gmfReloginMessage(relog.reason), 'shaam_gmf_login_required');
+      settled = await settle(conn.page);
+      ctx.log(`אחרי הכניסה: ${settled.pathname}`);
     }
 
     return {
