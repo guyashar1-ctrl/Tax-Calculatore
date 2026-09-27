@@ -7,7 +7,7 @@ import { USER_ID, WORKER_ID, POLL_SECONDS, LEASE_SECONDS, ONLY_ACTIONS, MONITOR_
 import { claim, heartbeat, complete, fail } from './apiClient.mjs';
 import { handlerFor, supportedActionTypes } from './dispatcher.mjs';
 import { NeedsHumanError, PermanentError } from './errors.mjs';
-import { tickConnectionMonitor, invalidateConnectionCache } from './connectionMonitor.mjs';
+import { tickConnectionMonitor, invalidateConnectionCache, checkBtlSoon, monitorSleepMs } from './connectionMonitor.mjs';
 import { acquireSingleInstance } from './singleInstance.mjs';
 
 const VERSION = '0.1.0';
@@ -106,6 +106,9 @@ async function tick() {
     await runJob(job);
     // חיבור/ניתוק משנים את מצב הנורית — לא ממתינים למחזור הבדיקה הרגיל.
     if (job.actionType.startsWith('shaam.')) invalidateConnectionCache();
+    // ‼ ב״ל: סבב מיידי, כדי שחלון שנפתח עכשיו על מסך הכניסה ייכנס מיד
+    // להמתנה הצפופה (btlLoginWatch.mjs) ולא רק בעוד עד 30 שניות.
+    if (job.actionType.startsWith('btl.')) checkBtlSoon();
     return true; // רץ עוד סבב מיד — אולי יש עוד עבודה בתור
   }
   // אין עבודה — פעימת נוכחות ריקה, כדי ש-PIVO ידע שהמחשב הזה חי
@@ -129,7 +132,8 @@ async function main() {
     // ייגעו ב-Chrome בו-זמנית ויתחרו על אותו חיבור CDP.
     await tickConnectionMonitor(USER_ID, WORKER_ID, log, { scope: MONITOR_SCOPE }).catch((e) =>
       log('ניטור חיבור נכשל:', e?.message ?? e));
-    if (!found && !stopping) await sleep(POLL_SECONDS * 1000);
+    // ‼ 2 שניות בזמן המתנה להתחברות לב״ל ומיד אחריה — ראה btlLoginWatch.mjs.
+    if (!found && !stopping) await sleep(monitorSleepMs(POLL_SECONDS * 1000));
   }
   log('להתראות.');
 }

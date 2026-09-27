@@ -180,6 +180,22 @@ export async function pickBtlPage(context, fallback) {
 }
 
 /**
+ * «הרו"ח כבר סיים להתחבר?» — הצצה בלבד, בכל הלשוניות.
+ * ‼ לעולם לא מנווטת ולא מביאה לחזית, בניגוד ל-classifyBtlAuth: היא רצה כל 2
+ * שניות בזמן שהרו"ח מקליד קוד משתמש וקוד חד-פעמי (btlLoginWatch.mjs), וניווט
+ * באמצע היה מוחק לו את מה שהקליד.
+ */
+export async function peekBtlConnected(context) {
+  for (const p of context.pages()) {
+    if (!p.url().startsWith(BTL_ORIGIN)) continue;
+    let s;
+    try { s = await snapPage(p); } catch { continue; }
+    if (btlState(s).connected) return true;
+  }
+  return false;
+}
+
+/**
  * ההכרעה, ממצב הדף בלבד:
  *   ‎/my.policy‎ או שדה סיסמה  ⇒ מסך כניסה (גם שלב הקוד החד-פעמי יושב שם)
  *   ‎/my.logout‎               ⇒ יצא

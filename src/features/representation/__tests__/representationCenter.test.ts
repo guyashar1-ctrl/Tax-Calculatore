@@ -8,6 +8,7 @@ import type { TestCase } from '../../../testkit/tinyTest';
 import type { NiTracking } from '../../../types';
 import {
   NOTICE_STYLES, columnAction, isReconcileAction, niTrackView, shaamSubmittedFacts, daysUntil,
+  niReconcileLine, niReconcileLineFromJob, shaamReconcileLine, checkedAtText,
 } from '../representationCenter';
 import type { ShaamRequestTracking, ShaamSystemStatus } from '../shaamRepresentation';
 import { shaamRepresentationAction } from '../../taxFile/shaamRepresentationAction';
@@ -144,11 +145,74 @@ export const TESTS: TestCase[] = [
     assert(NOTICE_STYLES.required.border !== NOTICE_STYLES.info.border, 'פעולה נדרשת נבדלת ממידע');
   }),
 
+  // ── «בדוק קבלת הייצוג»: התוצאה מתחת לכפתור (27.09.2026) ─────────────────
+  test('מרכז · ב״ל ממתין ⇒ «טרם אושר» + מועד + שעת הבדיקה, לא «נבדק» בלבד', () => {
+    const at = new Date(2026, 8, 27, 15, 47).toISOString();
+    const l = niReconcileLine({ externalState: 'pending', syncedAt: at, deadline: '2026-11-23', referenceNumber: '75204909' }, new Date(2026, 8, 27, 18, 0))!;
+    equal(l.text, 'טרם אושר - ממתין לאישור המבוטח עד 23.11.2026 · נבדק היום 15:47');
+    equal(l.tone, 'required');
+    equal(l.at, at);
+  }),
+
+  test('מרכז · ב״ל: כל מצב במילים שלו; «לא מזוהה» לעולם אינו «אושר»', () => {
+    const at = new Date(2026, 8, 27, 9, 5).toISOString();
+    const T = new Date(2026, 8, 27, 12, 0);
+    equal(niReconcileLine({ externalState: 'approved', syncedAt: at }, T)!.text, 'אושר - הייצוג בב״ל פעיל · נבדק היום 09:05');
+    equal(niReconcileLine({ externalState: 'expired', syncedAt: at }, T)!.text, 'פג תוקף - צריך להזין מחדש בב״ל · נבדק היום 09:05');
+    equal(niReconcileLine({ externalState: 'not_found', syncedAt: at, referenceNumber: '75204909' }, T)!.text, 'לא נמצא בב״ל רישום לאסמכתא 75204909 · נבדק היום 09:05');
+    const u = niReconcileLine({ externalState: 'unknown', rawExternalState: 'בטיפול', syncedAt: at }, T)!;
+    assert(!u.text.includes('אושר'), 'unknown אינו אישור');
+    assert(u.text.includes('«בטיפול»'), 'מצטט את מה שב״ל הציגה');
+  }),
+
+  test('מרכז · ב״ל ממתין אבל המועד כבר עבר ⇒ «המועד עבר», לא «ממתין עד»', () => {
+    const at = new Date(2026, 8, 21, 12, 52).toISOString();
+    const l = niReconcileLine({ externalState: 'pending', syncedAt: at, deadline: '2026-09-20' }, new Date(2026, 8, 27, 9, 0))!;
+    equal(l.text, 'טרם אושר - המועד לאישור עבר ב-20.9.2026 · נבדק 21.9.2026 12:52');
+    equal(l.tone, 'warning');
+  }),
+
+  test('מרכז · ב״ל שעוד לא נבדק ⇒ אין שורה', () => {
+    equal(niReconcileLine({ externalState: 'pending' }), null);
+    equal(niReconcileLine({ syncedAt: '2026-09-27T10:00:00Z' }), null);
+  }),
+
+  test('מרכז · ב״ל ישר מתוצאת המשימה: אותו נרמול כמו השרת, ומועד שמור לא נמחק', () => {
+    const fin = new Date(2026, 8, 27, 15, 47).toISOString();
+    const T = new Date(2026, 8, 27, 16, 0);
+    const prev: NiTracking = { referenceNumber: '75204909', deadline: '2026-11-23' };
+    equal(niReconcileLineFromJob({ status: 'pending', deadline: null }, fin, prev, T)!.text,
+      'טרם אושר - ממתין לאישור המבוטח עד 23.11.2026 · נבדק היום 15:47');
+    const weird = niReconcileLineFromJob({ status: 'approved-ish', rawStatus: 'X' }, fin, prev, T)!;
+    assert(!weird.text.startsWith('אושר'), 'סטטוס לא מוכר ⇒ לא מזוהה, לא אושר');
+  }),
+
+  test('מרכז · שעת הבדיקה: היום ⇒ «היום», יום אחר ⇒ תאריך', () => {
+    const T = new Date(2026, 8, 27, 12, 0);
+    equal(checkedAtText(new Date(2026, 8, 27, 8, 3).toISOString(), T), 'נבדק היום 08:03');
+    equal(checkedAtText(new Date(2026, 8, 26, 23, 59).toISOString(), T), 'נבדק 26.9.2026 23:59');
+  }),
+
+  test('מרכז · שע״ם: קריאה מלפני ההגשה אינה תוצאה; ממתין לאישור לקוח ⇒ פעולה נדרשת', () => {
+    equal(shaamReconcileLine(hadassaNow()), null);
+    equal(shaamReconcileLine(undefined), null);
+    const l = shaamReconcileLine(reconciled([row('מס הכנסה', 'ממתין לאישור לקוח')]))!;
+    assert(l.text.startsWith('הייצוג ממתין לאישור הלקוח · נבדק'), l.text);
+    equal(l.tone, 'required');
+    equal(shaamReconcileLine(reconciled([row('מס הכנסה', 'נקלט בהצלחה')]))!.tone, 'success');
+  }),
+
   // ── בדיקות מקור: המבנה שחוסם את סוגי הבאגים ─────────────────────────────
   test('מסך · «בדוק קבלת הייצוג» מופיע כטקסט רק בכפתור המרכזי', () => {
     equal((code(CENTER_SOURCE).match(/בדוק קבלת הייצוג/g) ?? []).length, 0, 'לא בתוך המרכז עצמו');
     equal((RECONCILE_SOURCE.match(/'בדוק קבלת הייצוג'/g) ?? []).length, 1, 'כפתור אחד');
     equal((CENTER_SOURCE.match(/<RepresentationReconcileButton/g) ?? []).length, 1, 'מוצג פעם אחת, ליד הכותרת');
+  }),
+
+  test('מסך · בדיקה שהצליחה אינה מסתכמת ב«נבדק» — השורה היא התוצאה, מהנתון השמור', () => {
+    assert(!/'נבדק'/.test(code(RECONCILE_SOURCE)), 'אין יותר «נבדק» כתוצאה');
+    assert(CENTER_SOURCE.includes('last: niReconcileLine('), 'ב״ל: השורה נקראת מהנתון השמור');
+    assert(CENTER_SOURCE.includes('last: shaamReconcileLine('), 'שע״ם: השורה נקראת מהנתון השמור');
   }),
 
   test('מסך · בלי הוראת «בדקו» כללית, בלי «יש להזין מחדש» קשיח, בלי מילוי ורדרד', () => {

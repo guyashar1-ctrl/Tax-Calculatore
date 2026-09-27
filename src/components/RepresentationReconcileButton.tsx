@@ -11,6 +11,10 @@
 // ‼ תור לכל סוג: משימה פתוחה אחת בלבד לכל (לקוח, פעולה) —
 // automation_jobs_open_unique. לכן לזוג עם שתי הגשות בשע״ם הבדיקה השנייה
 // יוצאת רק אחרי שהראשונה הסתיימה. שע״ם וב״ל רצים במקביל (סוגים שונים).
+//
+// ‼ 27.09.2026: השורה מתחת לכפתור היא **התוצאה** («טרם אושר - ממתין לאישור
+// המבוטח עד 23.11.2026 · נבדק היום 15:47»), לא «נבדק». והיא נקראת מהנתון
+// השמור (ReconcileTarget.last), ולכן נשארת גם אחרי רענון.
 
 import { useEffect, useRef, useState } from 'react';
 import type { AutomationJob } from '../types/automation';
@@ -19,6 +23,7 @@ import {
 } from '../types/automation';
 import { useAutomationJob } from '../hooks/useAutomationJobs';
 import { useAutomationGate } from '../hooks/useAutomationGate';
+import { NOTICE_STYLES, type ReconcileLine } from '../features/representation/representationCenter';
 
 export interface ReconcileTarget {
   /** submissionKey (שע״ם) או role (ב״ל). */
@@ -27,6 +32,13 @@ export interface ReconcileTarget {
   label: string;
   /** הקלט למשימה; מחרוזת ⇒ חסר נתון, והבדיקה הזו לא יוצאת. */
   input: Record<string, unknown> | string;
+  /** מה נקרא בבדיקה האחרונה, מהנתון השמור. null ⇒ עוד לא נבדק. */
+  last?: ReconcileLine | null;
+  /**
+   * התוצאה ישר מהמשימה שהסתיימה, בלי לחכות לטעינה מחדש של הבקשה. בלעדיה
+   * מוצג «טוען את התוצאה…» עד שהנתון השמור מתעדכן.
+   */
+  fromJob?: (result: unknown, finishedAt: string | undefined) => ReconcileLine | null;
 }
 
 interface Props {
@@ -36,8 +48,17 @@ interface Props {
   onChanged?: () => void;
 }
 
+/** מה קרה בבדיקה שרצה עכשיו (בזיכרון בלבד — הנתון השמור הוא `last`). */
+type RunResult =
+  | { kind: 'line'; line: ReconcileLine }
+  /** הצליחה, והתוצאה תגיע עם הנתון השמור שמתעדכן; `since` = מתי התחילה. */
+  | { kind: 'fresh'; since: string }
+  | { kind: 'error'; text: string };
+
 const keyOf = (job: AutomationJob | null, field: 'submissionKey' | 'role') =>
   (job?.input as Record<string, unknown> | undefined)?.[field] as string | undefined;
+
+const ms = (iso?: string) => (iso ? Date.parse(iso) : NaN);
 
 /** תור של סוג אחד (שע״ם או ב״ל): מריץ את היעדים אחד-אחד. */
 function useReconcileQueue(clientId: string | undefined, actionType: string, field: 'submissionKey' | 'role',
@@ -45,7 +66,7 @@ function useReconcileQueue(clientId: string | undefined, actionType: string, fie
   const hook = useAutomationJob(clientId, actionType);
   const gate = useAutomationGate(actionType);
   const [queue, setQueue] = useState<string[]>([]);
-  const [results, setResults] = useState<Record<string, string>>({});
+  const [results, setResults] = useState<Record<string, RunResult>>({});
   const current = queue[0];
   // ‼ רק המשימה שהלחיצה הזאת יצרה (או קיבלה פתוחה) — לא תוצאה ישנה של אותו אדם.
   const [jobId, setJobId] = useState<string | null>(null);
@@ -56,7 +77,7 @@ function useReconcileQueue(clientId: string | undefined, actionType: string, fie
     const t = targets.find(x => x.key === key);
     if (!t) return;
     if (typeof t.input === 'string') {
-      setResults(r => ({ ...r, [key]: t.input as string }));
+      setResults(r => ({ ...r, [key]: { kind: 'error', text: t.input as string } }));
       setQueue(q => q.slice(1));
       return;
     }
@@ -65,7 +86,7 @@ function useReconcileQueue(clientId: string | undefined, actionType: string, fie
     void hook.run(t.input).then(r => {
       if (r.job) setJobId(r.job.id);
       if (!r.ok && !r.job) {
-        setResults(x => ({ ...x, [key]: hook.error ?? 'הבדיקה לא יצאה' }));
+        setResults(x => ({ ...x, [key]: { kind: 'error', text: hook.error ?? 'הבדיקה לא יצאה' } }));
         setQueue(q => q.slice(1));
       }
     });
@@ -76,11 +97,19 @@ function useReconcileQueue(clientId: string | undefined, actionType: string, fie
     if (!current) return;
     if (started.current !== current) { start(current); return; }
     if (!job || OPEN_AUTOMATION_STATUSES.has(job.status) && job.status !== 'needs_human') return;
-    const text = job.status === 'succeeded' ? 'נבדק'
-      : job.status === 'needs_human' ? (job.needsHuman ?? 'נעצר וממתין להחלטה')
-      : job.status === 'failed' ? (job.errorDetail ?? 'הבדיקה נכשלה')
-      : 'בוטל';
-    setResults(r => ({ ...r, [current]: text }));
+    let result: RunResult;
+    if (job.status === 'succeeded') {
+      const line = targets.find(x => x.key === current)?.fromJob?.(job.result, job.finishedAt);
+      result = line ? { kind: 'line', line } : { kind: 'fresh', since: job.createdAt };
+    } else {
+      result = {
+        kind: 'error',
+        text: job.status === 'needs_human' ? (job.needsHuman ?? 'נעצר וממתין להחלטה')
+          : job.status === 'failed' ? (job.errorDetail ?? 'הבדיקה נכשלה')
+          : 'בוטל',
+      };
+    }
+    setResults(r => ({ ...r, [current]: result }));
     if (job.status === 'succeeded') onChanged?.();
     setQueue(q => q.slice(1));
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -96,6 +125,21 @@ function useReconcileQueue(clientId: string | undefined, actionType: string, fie
   return { runAll, running, results, gate, currentKey: current };
 }
 
+/** מה מוצג בשורה של יעד אחד. null ⇒ אין שורה (עוד לא נבדק ולא רץ עכשיו). */
+function lineFor(t: ReconcileTarget, r: RunResult | undefined, live: boolean): { text: string; color?: string } | null {
+  const muted = NOTICE_STYLES.info.color;
+  if (live && !r) return { text: 'הבדיקה רצה בעובד המקומי…', color: muted };
+  if (r?.kind === 'error') return { text: r.text };
+  const line = r?.kind === 'line' ? r.line
+    // ‼ «fresh»: מציגים את הנתון השמור רק כשהוא כבר מהבדיקה הזו, אחרת זו
+    // התוצאה הקודמת שנראית כאילו היא של עכשיו.
+    : r?.kind === 'fresh' ? (t.last && ms(t.last.at) >= ms(r.since) ? t.last : null)
+    : t.last ?? null;
+  if (line) return { text: line.text, color: NOTICE_STYLES[line.tone].color };
+  if (r?.kind === 'fresh') return { text: 'נבדק · טוען את התוצאה…', color: muted };
+  return null;
+}
+
 export default function RepresentationReconcileButton({ clientId, shaam, btl, onChanged }: Props) {
   const sh = useReconcileQueue(clientId, SHAAM_CHECK_REPRESENTATION_ACTION_TYPE, 'submissionKey', shaam, onChanged);
   const bt = useReconcileQueue(clientId, BTL_CHECK_REPRESENTATION_ACTION_TYPE, 'role', btl, onChanged);
@@ -107,9 +151,9 @@ export default function RepresentationReconcileButton({ clientId, shaam, btl, on
   const soft = !running && !connecting
     && (shaam.length === 0 || !sh.gate.ready) && (btl.length === 0 || !bt.gate.ready);
   const lines = [
-    ...shaam.map(t => ({ t, r: sh.results[t.key], live: sh.currentKey === t.key })),
-    ...btl.map(t => ({ t, r: bt.results[t.key], live: bt.currentKey === t.key })),
-  ].filter(x => x.r || x.live);
+    ...shaam.map(t => ({ t, shown: lineFor(t, sh.results[t.key], sh.currentKey === t.key) })),
+    ...btl.map(t => ({ t, shown: lineFor(t, bt.results[t.key], bt.currentKey === t.key) })),
+  ].filter(x => x.shown);
 
   return (
     <div data-testid="rep-reconcile" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '.2rem' }}>
@@ -119,10 +163,10 @@ export default function RepresentationReconcileButton({ clientId, shaam, btl, on
         onClick={() => { sh.runAll(); bt.runAll(); }}>
         {running ? 'בודק…' : connecting ? 'ממתין לחיבור…' : 'בדוק קבלת הייצוג'}
       </button>
-      {lines.map(({ t, r, live }) => (
-        <div key={`${t.label}`} className="rep-track-next-err"
-          style={{ color: r === 'נבדק' || live ? 'var(--ink-3)' : undefined }}>
-          {t.label}: {live && !r ? 'הבדיקה רצה בעובד המקומי…' : r}
+      {lines.map(({ t, shown }) => (
+        <div key={`${t.label}`} className="rep-track-next-err" data-testid={`rep-reconcile-line-${t.key}`}
+          style={shown!.color ? { color: shown!.color } : undefined}>
+          {t.label}: {shown!.text}
         </div>
       ))}
     </div>

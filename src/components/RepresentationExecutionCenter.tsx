@@ -49,6 +49,7 @@ import {
 } from '../features/representation/shaamRepresentation';
 import {
   NOTICE_STYLES, columnAction, isReconcileAction, niTrackView, shaamSubmittedFacts, type NoticeTone,
+  niReconcileLine, niReconcileLineFromJob, shaamReconcileLine,
 } from '../features/representation/representationCenter';
 import { shaamPersonFacts } from '../features/representation/shaamPersonFacts';
 import type { NiRepresentationLine } from '../utils/niPersons';
@@ -759,6 +760,7 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
             requestNumber: shaamTrack(sub.key)?.requestNumber ?? '',
             entityId, personName: person.name,
           },
+        last: shaamReconcileLine(shaamTrack(sub.key)),
       };
     });
   const btlReconcile: ReconcileTarget[] = (['client', 'spouse'] as const)
@@ -771,6 +773,8 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
         label: `ב״ל · ${nameOf(role) || (role === 'spouse' ? 'בן/בת הזוג' : 'הנישום')}`,
         input: !person?.idNumber || !ref ? 'אין קוד אסמכתא שמור לאדם הזה'
           : { role, idNumber: person.idNumber, referenceNumber: ref },
+        last: niReconcileLine(niExecutionByRole[role]),
+        fromJob: (result, finishedAt) => niReconcileLineFromJob(result, finishedAt, niExecutionByRole[role]),
       };
     });
   // ‼ «הזן» חי בשלב 1 של כל אדם — בראש העמודה רק מה שאין לו שלב משלו (שידור).

@@ -66,8 +66,11 @@ import {
   isOnWorkScreen,
 } from './browserSession.mjs';
 import {
-  attachBtl, detachBtl, classifyBtlAuth, probeBtlSession, pickBtlPage,
+  attachBtl, detachBtl, classifyBtlAuth, probeBtlSession, pickBtlPage, peekBtlConnected,
 } from './btlSession.mjs';
+import {
+  initialBtlWatch, afterBtlCheck, btlPeekDue, afterBtlPeek, loopSleepMs,
+} from './btlLoginWatch.mjs';
 import { reportStatus } from './apiClient.mjs';
 import { hostIdleSeconds } from './hostActivity.mjs';
 
@@ -85,6 +88,8 @@ let vatReported = null;
 let nikuiReported = null;
 let representationReported = null;
 let btlReported = null;
+/** ההמתנה להתחברות לב״ל — ראה btlLoginWatch.mjs. */
+let btlWatch = initialBtlWatch();
 
 /** זמן (ms) המדידה הישירה האחרונה של כל שכבת Tier-B. 0 = מעולם לא נמדדה. */
 let gmfCheckedAtMs = 0;
@@ -140,7 +145,7 @@ export function markGmfVerified() {
  */
 async function checkBtl(now, log) {
   const conn = await attachBtl();
-  if (!conn.ok) return false;
+  if (!conn.ok) return { connected: false, windowOpen: false };
   try {
     const page = await pickBtlPage(conn.context, conn.page);
     const local = await classifyBtlAuth(page);
@@ -156,15 +161,45 @@ async function checkBtl(now, log) {
         log(`בדיקת סשן ביטוח לאומי נכשלה: ${probe.detail}`);
       }
     }
-    return btl;
+    return { connected: btl, windowOpen: true };
   } finally {
     await detachBtl(conn.browser);
   }
 }
 
+/**
+ * הצצה בחלון ב״ל בין שני סבבים רגילים, רק בזמן שממתינים להתחברות.
+ * true ⇒ הרו"ח התחבר עכשיו, והסבב המלא צריך לרוץ ולדווח מיד.
+ */
+async function peekBtlLogin(now, log) {
+  if (!btlPeekDue(btlWatch, now)) return false;
+  const conn = await attachBtl();
+  if (!conn.ok) {
+    // ‼ רק חלון שנסגר מפסיק את ההמתנה; 'blocked' (דיאלוג פתוח) הוא עדיין חלון.
+    btlWatch = afterBtlPeek(btlWatch, now, { connected: false, windowOpen: conn.reason !== 'not_running' });
+    return false;
+  }
+  try {
+    const connected = await peekBtlConnected(conn.context);
+    btlWatch = afterBtlPeek(btlWatch, now, { connected, windowOpen: true });
+    if (connected) log('ביטוח לאומי: זוהתה התחברות — מדווח מיד');
+    return connected;
+  } finally {
+    await detachBtl(conn.browser);
+  }
+}
+
+/** כמה הלולאה הראשית ישנה כשאין משימה: 2 שניות סביב התחברות לב״ל. */
+export function monitorSleepMs(pollMs) {
+  return loopSleepMs(btlWatch, Date.now(), pollMs);
+}
+
 export async function tickConnectionMonitor(userId, workerId, log, { scope = 'all' } = {}) {
   const now = Date.now();
-  if (now - lastCheck < LOCAL_CHECK_MS) return;
+  if (now - lastCheck < LOCAL_CHECK_MS) {
+    const justLoggedIn = await peekBtlLogin(now, log).catch(() => false);
+    if (!justLoggedIn) return;
+  }
   lastCheck = now;
 
   let shaam = false;
@@ -266,7 +301,9 @@ export async function tickConnectionMonitor(userId, workerId, log, { scope = 'al
 
   // ‼ רשות נפרדת לגמרי: כישלון בבדיקת ב״ל לא נוגע בנורית של שע״ם ולהפך.
   // חלון ב״ל סגור אינו תקלה — הוא פשוט «לא מחובר».
-  const btl = await checkBtl(now, log).catch(() => false);
+  const btlCheck = await checkBtl(now, log).catch(() => ({ connected: false, windowOpen: false }));
+  const btl = btlCheck.connected;
+  btlWatch = afterBtlCheck(btlWatch, now, { ...btlCheck, wasConnected: !!btlReported });
 
   if (shaam !== shaamReported || gmf !== gmfReported || vat !== vatReported
     || nikui !== nikuiReported || representation !== representationReported || btl !== btlReported) {
@@ -312,4 +349,13 @@ export function invalidateConnectionCache() {
   lastProbe = 0;
   lastSubNav = 0;
   lastBtlProbe = 0;
+}
+
+/**
+ * אחרי משימת ב״ל — סבב מיידי, בלי לגעת בקצבים של שע״ם. ‼ לא
+ * invalidateConnectionCache: זו הייתה מאלצת בדיקת שרת וניווט בלשונית של שע״ם
+ * אחרי כל פעולה בב״ל. כאן רק רוצים לראות מיד שחלון ב״ל נפתח וממתין.
+ */
+export function checkBtlSoon() {
+  lastCheck = 0;
 }

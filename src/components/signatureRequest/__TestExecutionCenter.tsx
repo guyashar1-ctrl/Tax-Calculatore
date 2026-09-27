@@ -2,7 +2,7 @@
 // נטען רק כש-URL כולל ?test-exec=1.
 
 import { useState } from 'react';
-import { RepresentationRequest, RepresentationExecution } from '../../types';
+import { RepresentationRequest, RepresentationExecution, Client } from '../../types';
 import { EmailMessage } from '../../types/emailActivity';
 import RepresentationExecutionCenter from '../RepresentationExecutionCenter';
 import type { RepApprovalStep } from '../../hooks/useRepApprovalStep';
@@ -296,6 +296,16 @@ export default function TestExecutionCenter() {
   const [approval, setApproval] = useState(
     approvalFromUrl && approvalFromUrl in REP_APPROVAL_STATES ? approvalFromUrl : 'pending');
   const sc = SCENARIOS.find(s => s.key === key)!;
+  // ?linked=1 — כרטיס לקוח מדומה, כדי שכפתור «בדוק קבלת הייצוג» והשורה שמתחתיו
+  // יופיעו (בלי כרטיס אין יעדים לבדיקה). ‼ לא ללחוץ עליו כאן: הלחיצה יוצרת
+  // משימה אמיתית לעובד.
+  const linkedFixture = new URLSearchParams(window.location.search).get('linked') === '1'
+    ? ({
+        id: sc.req.linkedClientId ?? 'client-1', name: 'רותי לקוח', firstName: 'רותי', lastName: 'לקוח',
+        idNumber: '318853694', representationStatus: sc.req.status,
+        authorityRepresentations: { nationalInsurance: { targets: ['client'] } },
+      } as unknown as Client)
+    : undefined;
 
   return (
     <div style={{ padding: '1.5rem', fontFamily: 'Heebo, sans-serif', direction: 'rtl' }}>
@@ -336,6 +346,7 @@ export default function TestExecutionCenter() {
         onSendToSigner={async () => null}
         userId={undefined}
         repApprovalOverride={realClientId ? undefined : REP_APPROVAL_STATES[approval]}
+        linkedClient={linkedFixture}
       />
 
       <h2 style={{ marginTop: '2rem' }}>מיילים בכרטיס הלקוח</h2>

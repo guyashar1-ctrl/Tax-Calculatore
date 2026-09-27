@@ -28,6 +28,8 @@ const CONNECT_ACTION: Record<Authority, string> = {
   shaam: SHAAM_CONNECT_ACTION_TYPE,
   btl: BTL_CONNECT_ACTION_TYPE,
 };
+const CONNECT_WAIT_POLL_MS = 2_000;
+const CONNECT_WAIT_POLL_LIMIT_MS = 10 * 60_000;
 const CONNECT_TOAST: Record<Authority, string> = {
   shaam: 'נפתח חלון ההתחברות לשע״ם — אחרי ההתחברות PIVO תמשיך את הפעולה לבד.',
   btl: 'נפתח חלון ההתחברות לביטוח לאומי — אחרי ההתחברות PIVO תמשיך את הפעולה לבד.',
@@ -80,6 +82,22 @@ export function useAutomationGate(capability: string): AutomationGate {
   // ‼ 203 · «אין מי שיריץ» נמדד לרשות של הפעולה: פעולת ב״ל ⇒ מחשב חי עם ב״ל.
   const offline = capabilityAuthority(capability) === 'btl' ? readiness.btlWorkerOffline : readiness.workerOffline;
   const [connecting, setConnecting] = useState(false);
+
+  // ‼ 27.09.2026: בזמן ההמתנה — שואלים כל 2 שניות, **גם כשהלשונית מוסתרת**.
+  // הספק (ShaamReadinessProvider) לא מושך כשהלשונית ברקע, וזה בדיוק המצב
+  // כאן: חלון ההתחברות של הרשות מכסה את PIVO. בלי זה הפעולה שהרו"ח ביקש
+  // התחילה רק כשחזר ל-PIVO, אחרי שכבר התחבר מזמן. מוגבל ל-10 דקות, כדי
+  // שהתחברות שננטשה לא תמשוך לנצח.
+  const refreshReadiness = readiness.refresh;
+  useEffect(() => {
+    if (!connecting) return;
+    const until = Date.now() + CONNECT_WAIT_POLL_LIMIT_MS;
+    const t = setInterval(() => {
+      if (Date.now() > until) { clearInterval(t); return; }
+      void refreshReadiness();
+    }, CONNECT_WAIT_POLL_MS);
+    return () => clearInterval(t);
+  }, [connecting, refreshReadiness]);
 
   // ‼ הרגע שבו החיבור הפך מוכן — לא לפי ה-job של ההתחברות אלא לפי המוכנות
   // עצמה (אותו מקור שהופך את הנורית לירוקה). ריצה אחת, ואז שוכחים.

@@ -19,10 +19,10 @@
 //   · **ורוד שמור לפעולת אוטומציה** (`btn-automation`). הודעה — מידע, אזהרה,
 //     פעולה נדרשת — מקבלת NoticeTone, ואף אחד מהם אינו ורוד.
 
-import type { NiTracking } from '../../types';
+import type { NiExternalState, NiTracking } from '../../types';
 import type { NiRepresentationLine } from '../../utils/niPersons';
 import {
-  shaamLifecycle, type ShaamRequestTracking, type ShaamRequiredDocument,
+  shaamLifecycle, shaamProgressLine, type ShaamRequestTracking, type ShaamRequiredDocument,
 } from './shaamRepresentation';
 
 // ── 1. צבע: הודעה אינה פעולה ────────────────────────────────────────────────
@@ -163,4 +163,117 @@ export function shaamSubmittedFacts(t: ShaamRequestTracking | undefined): ShaamS
     final,
     requiredDocuments: l.requiredDocuments,
   };
+}
+
+// ── 5. «בדוק קבלת הייצוג»: מה נאמר מתחת לכפתור ─────────────────────────────
+//
+// ‼ 27.09.2026 (עידן רוקח): כל בדיקה שהצליחה הוצגה כ«נבדק» — בלי לומר מה
+// נמצא. התשובה («ממתין לאישור») נקברה בשלב 4, והרו"ח ראה כפתור שרץ ונגמר
+// בלי תוצאה. עכשיו השורה מתחת לכפתור היא התוצאה עצמה, במשפט אחד.
+// ‼ המקור הוא הנתון השמור (מה שהטריגר בשרת כתב), לא זיכרון הדפדפן — כדי
+// שהשורה תישאר גם אחרי רענון, יחד עם שעת הבדיקה.
+
+export interface ReconcileLine {
+  text: string;
+  tone: NoticeTone;
+  /** מתי נקראה הרשות (ISO) — כדי לדעת אם השורה כבר משקפת בדיקה שרצה עכשיו. */
+  at: string;
+}
+
+const pad2 = (n: number) => String(n).padStart(2, '0');
+const sameDay = (a: Date, b: Date) =>
+  a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+
+/** 23.11.2026 — כמו בשאר המרכז. ‼ תאריך בלבד (YYYY-MM-DD) נקרא כיום מקומי, לא UTC. */
+function dayText(dateish: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateish);
+  const d = m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : new Date(dateish);
+  return isNaN(d.getTime()) ? dateish : `${d.getDate()}.${d.getMonth() + 1}.${d.getFullYear()}`;
+}
+
+/** «נבדק היום 15:47» / «נבדק 26.9.2026 15:47». */
+export function checkedAtText(iso: string, today: Date = new Date()): string {
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return 'נבדק';
+  const time = `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+  return sameDay(d, today) ? `נבדק היום ${time}` : `נבדק ${dayText(iso)} ${time}`;
+}
+
+const NI_STATES: readonly NiExternalState[] = ['approved', 'pending', 'expired', 'cancelled', 'unknown', 'not_found'];
+
+/**
+ * התוצאה האחרונה מול ב״ל, מהנתון השמור. null ⇒ עוד לא נבדק מול ב״ל.
+ * ‼ 'unknown' לעולם אינו «אושר» — רק מצטט את מה שב״ל הציגה.
+ */
+export function niReconcileLine(
+  ni: Pick<NiTracking, 'externalState' | 'rawExternalState' | 'syncedAt' | 'deadline' | 'referenceNumber'>,
+  today: Date = new Date(),
+): ReconcileLine | null {
+  if (!ni.syncedAt || !ni.externalState) return null;
+  const when = ` · ${checkedAtText(ni.syncedAt, today)}`;
+  const at = ni.syncedAt;
+  switch (ni.externalState) {
+    case 'approved':
+      return { text: `אושר - הייצוג בב״ל פעיל${when}`, tone: 'success', at };
+    case 'pending': {
+      // ‼ «ממתין עד 20.9» כשהיום כבר 27.9 אינו מצב — המועד עבר (כמו niTrackView).
+      const left = daysUntil(ni.deadline, today);
+      if (left !== null && left < 0) {
+        return { text: `טרם אושר - המועד לאישור עבר ב-${dayText(ni.deadline!)}${when}`, tone: 'warning', at };
+      }
+      return {
+        text: `טרם אושר - ממתין לאישור המבוטח${ni.deadline ? ` עד ${dayText(ni.deadline)}` : ''}${when}`,
+        tone: 'required', at,
+      };
+    }
+    case 'expired':
+      return { text: `פג תוקף - צריך להזין מחדש בב״ל${when}`, tone: 'warning', at };
+    case 'cancelled':
+      return { text: `הרישום בוטל בב״ל${when}`, tone: 'warning', at };
+    case 'not_found':
+      return {
+        text: `לא נמצא בב״ל רישום${ni.referenceNumber ? ` לאסמכתא ${ni.referenceNumber}` : ''}${when}`,
+        tone: 'warning', at,
+      };
+    default:
+      return {
+        text: `ב״ל מציגה «${ni.rawExternalState?.trim() || '—'}» - מצב שלא זוהה${when}`,
+        tone: 'warning', at,
+      };
+  }
+}
+
+/**
+ * אותה שורה, ישר מתוצאת המשימה שהסתיימה — לפני שהנתון השמור נטען מחדש.
+ * ‼ אותו נרמול כמו הטריגר בשרת (195): מצב שאינו ברשימה הסגורה ⇒ 'unknown',
+ * ומועד/אסמכתא שלא הגיעו לא מוחקים את השמורים.
+ */
+export function niReconcileLineFromJob(
+  result: unknown, finishedAt: string | undefined, prev: NiTracking, today: Date = new Date(),
+): ReconcileLine | null {
+  const r = (result ?? {}) as { status?: string; rawStatus?: string | null; deadline?: string | null; referenceNumber?: string | null };
+  const state = NI_STATES.find(s => s === r.status) ?? 'unknown';
+  return niReconcileLine({
+    externalState: state,
+    rawExternalState: r.rawStatus ?? undefined,
+    deadline: r.deadline || prev.deadline,
+    referenceNumber: r.referenceNumber || prev.referenceNumber,
+    syncedAt: finishedAt || new Date().toISOString(),
+  }, today);
+}
+
+/**
+ * התוצאה האחרונה מול שע״ם — אותו משפט שהמרכז כבר אומר (shaamProgressLine),
+ * עם שעת הבדיקה. null ⇒ עוד לא נבדק, או שהקריאה היחידה קדמה להגשה (אז היא
+ * לא מתארת את המצב של עכשיו — ראה shaamLifecycle).
+ */
+export function shaamReconcileLine(t: ShaamRequestTracking | undefined, today: Date = new Date()): ReconcileLine | null {
+  if (!t?.syncedAt) return null;
+  if (t.submittedAt && !shaamLifecycle(t).reconciled) return null;
+  const line = shaamProgressLine(t);
+  const tone: NoticeTone = line.ball === 'done' ? 'success'
+    : line.ball === 'client' ? 'required'
+    : line.ball === 'office' ? 'warning'
+    : 'info';
+  return { text: `${line.text.replace(/\.$/, '')} · ${checkedAtText(t.syncedAt, today)}`, tone, at: t.syncedAt };
 }
