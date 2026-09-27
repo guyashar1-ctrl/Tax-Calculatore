@@ -1,6 +1,12 @@
-// gmf-auto-login.test.mjs — הסיסמה השנייה של שע״ם (GMF) מ-Chrome, בלי אדם
-// (החלטת גיא, 27.09.2026). page מדומה של מסך הכניסה ו«חלונית» מדומה של
-// Chrome; ההכרעות שנבדקות כאן הן אלה שמגנות על החשבון:
+// gmf-auto-login.test.mjs — הסיסמה השנייה של שע״ם (GMF): מתי מ-Chrome בלי
+// אדם, ומתי בידי הרו"ח. page מדומה של מסך הכניסה ו«חלונית» מדומה של Chrome.
+//
+// הכלל של גיא (27.09.2026):
+//   · מחובר + מופיעה רק הסיסמה השנייה ⇒ אוטומטי.
+//   · הופיעה הסיסמה הראשונה ⇒ מחזור התחברות חדש: ידני עד סוף הסיסמה השנייה
+//     (PIVO לא בוחרת ולא לוחצת — לפעמים שע״ם דורשת שם החלפת סיסמה).
+//   · התחברות מלאה הושלמה ⇒ חוזרים לאוטומטי.
+// וההגנות שלא השתנו:
 //   · לוחצים «כניסה» רק אחרי ש-Chrome מילא (autofilled) — לא על הקלדה.
 //   · סיסמה שמורה שנדחתה ⇒ ניסיון אחד, ואז לא שוב עד כניסה מוצלחת/מחזור חדש.
 //   · בוחרים רק לפי שם המשתמש שמוצג במסך.
@@ -10,16 +16,31 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   tryGmfAutoLogin, ensureGmfLogin, waitForHumanGmfLogin, resetGmfAutoLogin, gmfAutoLoginRejected,
+  beginShaamLoginCycle, completeShaamLogin, gmfAutoAllowed, shaamLoginCycle,
 } from '../src/gmfAutoLogin.mjs';
 import { parsePickOutput, isPickableUsername } from '../src/chromePasswordPicker.mjs';
 
+/** «מחובר»: התחברות מלאה הושלמה, ועכשיו מבוקשת רק הסיסמה השנייה. */
+function connected() {
+  beginShaamLoginCycle('test_reset');
+  completeShaamLogin();
+  resetGmfAutoLogin();
+}
+
+/** «מחזור התחברות חדש»: שע״ם ביקשה את הסיסמה הראשונה. */
+function newLoginCycle() {
+  completeShaamLogin();
+  beginShaamLoginCycle('first_password');
+  resetGmfAutoLogin();
+}
+
 function fakeGmfLogin({ username = 'D1466734', accept = true, value = '', autofilled = false, modal = false } = {}) {
-  const s = { path: '/gmf-main-menu/login', value, autofilled, username, modal, submits: 0, fieldClicks: 0 };
+  const s = { path: '/gmf-main-menu/login', value, autofilled, username, modal, submits: 0, fieldClicks: 0, focused: false };
   const page = {
     s,
     url: () => `https://shaam.taxes.gov.il${s.path}`,
     bringToFront: async () => {},
-    click: async () => { s.fieldClicks++; },
+    click: async () => { s.fieldClicks++; s.focused = true; },
     waitForTimeout: (ms) => new Promise((r) => setTimeout(r, Math.min(ms, 5))),
     waitForLoadState: async () => {},
     waitForURL: async () => {},
@@ -29,7 +50,7 @@ function fakeGmfLogin({ username = 'D1466734', accept = true, value = '', autofi
         const onLogin = s.path.startsWith('/gmf-main-menu/login');
         return {
           onLogin, hasField: onLogin, hasValue: onLogin && !!s.value, autofilled: onLogin && s.autofilled,
-          username: s.username, hasForm: onLogin, visibleSubmits: onLogin ? 1 : 0,
+          focused: onLogin && s.focused, username: s.username, hasForm: onLogin, visibleSubmits: onLogin ? 1 : 0,
           humanOnlyModal: s.modal, modalTitle: s.modal ? 'החלפת סיסמה' : null,
         };
       }
@@ -61,8 +82,28 @@ function fakePicker(page, statuses) {
 
 const noForeground = async () => 'foreground';
 
-test('סיסמה שמורה: בוחרים את השורה של שם המשתמש שבמסך, ולוחצים «כניסה» פעם אחת', async () => {
-  resetGmfAutoLogin();
+// ─── מחזור ההתחברות ────────────────────────────────────────────────────────
+
+test('עובד שרק עלה: אין ראיה להתחברות מלאה ⇒ לא אוטומטי', async () => {
+  // המצב ההתחלתי של המודול לפני כל קריאה ב-test הזה.
+  assert.equal(shaamLoginCycle().state, 'unknown');
+  assert.equal(gmfAutoAllowed(), false);
+});
+
+test('סיסמה ראשונה ⇒ ידני; התחברות מלאה ⇒ אוטומטי; סיסמה ראשונה שוב ⇒ ידני', () => {
+  connected();
+  assert.equal(gmfAutoAllowed(), true);
+  assert.equal(beginShaamLoginCycle('first_password'), true);
+  assert.equal(gmfAutoAllowed(), false);
+  assert.equal(beginShaamLoginCycle('first_password'), false, 'כבר ידני — בלי מעבר נוסף');
+  assert.equal(completeShaamLogin(), true);
+  assert.equal(gmfAutoAllowed(), true);
+});
+
+// ─── מחובר + סיסמה שנייה בלבד ⇒ אוטומטי ─────────────────────────────────────
+
+test('מחובר: בוחרים את השורה של שם המשתמש שבמסך, ולוחצים «כניסה» פעם אחת', async () => {
+  connected();
   const page = fakeGmfLogin();
   const { picker, calls } = fakePicker(page, ['invoked']);
   const r = await tryGmfAutoLogin(page, { picker, foreground: noForeground });
@@ -73,8 +114,8 @@ test('סיסמה שמורה: בוחרים את השורה של שם המשתמש
   assert.equal(page.s.path, '/gmf-main-menu/main/home');
 });
 
-test('החלונית לא נפתחה ⇒ החלון לחזית ברמת Windows, ועוד ניסיון פתיחה אחד', async () => {
-  resetGmfAutoLogin();
+test('מחובר: החלונית לא נפתחה ⇒ החלון לחזית ברמת Windows, ועוד ניסיון פתיחה אחד', async () => {
+  connected();
   const page = fakeGmfLogin();
   const { picker, calls } = fakePicker(page, ['no_popup', 'invoked']);
   let fg = 0;
@@ -85,8 +126,8 @@ test('החלונית לא נפתחה ⇒ החלון לחזית ברמת Windows,
   assert.equal(page.s.fieldClicks, 2);
 });
 
-test('סיסמה שמורה שנדחתה ⇒ ניסיון אחד בלבד, עד כניסה מוצלחת', async () => {
-  resetGmfAutoLogin();
+test('מחובר: סיסמה שמורה שנדחתה ⇒ ניסיון אחד בלבד, עד כניסה מוצלחת', async () => {
+  connected();
   const page = fakeGmfLogin({ accept: false });
   const first = fakePicker(page, ['invoked']);
   const r1 = await tryGmfAutoLogin(page, { picker: first.picker, foreground: noForeground });
@@ -105,8 +146,8 @@ test('סיסמה שמורה שנדחתה ⇒ ניסיון אחד בלבד, עד 
   assert.equal(gmfAutoLoginRejected(), null);
 });
 
-test('הקלדה ידנית (שדה מלא אבל לא ע"י Chrome) ⇒ לא לוחצים «כניסה»', async () => {
-  resetGmfAutoLogin();
+test('מחובר: הקלדה ידנית (שדה מלא אבל לא ע"י Chrome) ⇒ לא לוחצים «כניסה»', async () => {
+  connected();
   const page = fakeGmfLogin({ value: 'ab', autofilled: false });
   const { picker, calls } = fakePicker(page, ['invoked']);
   const r = await tryGmfAutoLogin(page, { picker, foreground: noForeground });
@@ -115,8 +156,8 @@ test('הקלדה ידנית (שדה מלא אבל לא ע"י Chrome) ⇒ לא ל
   assert.equal(page.s.submits, 0);
 });
 
-test('אין שם משתמש חד-משמעי במסך ⇒ לא בוחרים שורה', async () => {
-  resetGmfAutoLogin();
+test('מחובר: אין שם משתמש חד-משמעי במסך ⇒ לא בוחרים שורה', async () => {
+  connected();
   const page = fakeGmfLogin({ username: null });
   const { picker, calls } = fakePicker(page, ['invoked']);
   const r = await tryGmfAutoLogin(page, { picker, foreground: noForeground });
@@ -124,8 +165,8 @@ test('אין שם משתמש חד-משמעי במסך ⇒ לא בוחרים שו
   assert.equal(calls.length, 0);
 });
 
-test('חלונית שדורשת אדם (למשל «החלפת סיסמה») ⇒ לא נוגעים', async () => {
-  resetGmfAutoLogin();
+test('מחובר: חלונית שדורשת אדם (למשל «החלפת סיסמה») ⇒ לא נוגעים', async () => {
+  connected();
   const page = fakeGmfLogin({ modal: true });
   const { picker, calls } = fakePicker(page, ['invoked']);
   const r = await ensureGmfLogin(page, { picker, foreground: noForeground, waitForHumanMs: 10 });
@@ -135,8 +176,8 @@ test('חלונית שדורשת אדם (למשל «החלפת סיסמה») ⇒ 
   assert.equal(page.s.submits, 0);
 });
 
-test('אין שורה עם שם המשתמש ⇒ לא לוחצים כלום; בלי המתנה לאדם זה סוף הניסיון', async () => {
-  resetGmfAutoLogin();
+test('מחובר: אין שורה עם שם המשתמש ⇒ לא לוחצים כלום; בלי המתנה לאדם זה סוף הניסיון', async () => {
+  connected();
   const page = fakeGmfLogin();
   const { picker } = fakePicker(page, ['no_matching_credential']);
   const r = await ensureGmfLogin(page, { picker, foreground: noForeground, waitForHumanMs: 0 });
@@ -144,8 +185,8 @@ test('אין שורה עם שם המשתמש ⇒ לא לוחצים כלום; ב�
   assert.equal(page.s.submits, 0);
 });
 
-test('אדם בוחר בעצמו את הסיסמה השמורה ⇒ PIVO לוחצת «כניסה» פעם אחת', async () => {
-  resetGmfAutoLogin();
+test('מחובר: אדם בוחר בעצמו את הסיסמה השמורה ⇒ PIVO לוחצת «כניסה» פעם אחת', async () => {
+  connected();
   const page = fakeGmfLogin();
   setTimeout(() => { page.s.value = 'x'; page.s.autofilled = true; }, 30);
   const r = await waitForHumanGmfLogin(page, { waitMs: 2000, pollMs: 10 });
@@ -153,14 +194,63 @@ test('אדם בוחר בעצמו את הסיסמה השמורה ⇒ PIVO לוח�
   assert.equal(page.s.submits, 1);
 });
 
-test('אדם מקליד ⇒ PIVO לא שולחת; ממתינה שהוא ישלח בעצמו', async () => {
-  resetGmfAutoLogin();
-  const page = fakeGmfLogin({ accept: true });
-  page.s.value = 'ab';
-  setTimeout(() => { page.s.path = '/gmf-main-menu/main/home'; }, 40);
+// ─── מחזור התחברות חדש ⇒ הסיסמה השנייה ידנית ────────────────────────────────
+
+test('מחזור חדש: tryGmfAutoLogin לא פותח את החלונית ולא לוחץ', async () => {
+  newLoginCycle();
+  const page = fakeGmfLogin();
+  const { picker, calls } = fakePicker(page, ['invoked']);
+  const r = await tryGmfAutoLogin(page, { picker, foreground: noForeground });
+  assert.deepEqual(r, { ok: false, reason: 'manual_login_cycle', attempted: false });
+  assert.equal(calls.length, 0);
+  assert.equal(page.s.submits, 0);
+});
+
+test('מחזור חדש: הרו"ח בוחר את השמורה ⇒ PIVO **לא** לוחצת «כניסה»; הרו"ח לוחץ ⇒ ממשיכים', async () => {
+  newLoginCycle();
+  const page = fakeGmfLogin();
+  const { picker, calls } = fakePicker(page, ['invoked']);
+  setTimeout(() => { page.s.value = 'x'; page.s.autofilled = true; }, 20);
+  setTimeout(() => { page.s.path = '/gmf-main-menu/main/home'; }, 120);
+  const r = await ensureGmfLogin(page, { picker, foreground: noForeground, waitForHumanMs: 2000 });
+  assert.equal(r.ok, true);
+  assert.equal(r.via, 'human');
+  assert.equal(calls.length, 0, 'PIVO לא פתחה את חלונית הסיסמאות');
+  assert.equal(page.s.submits, 0, 'PIVO לא לחצה «כניסה» — הרו"ח לחץ');
+  assert.equal(page.s.fieldClicks, 1, 'השדה קיבל פוקוס פעם אחת, כדי שהרו"ח יראה את ההצעה');
+});
+
+test('מחזור חדש: הרו"ח לא סיים ⇒ עוצרים בלי ללחוץ, עם הסיבה «מחזור ידני»', async () => {
+  newLoginCycle();
+  const page = fakeGmfLogin();
+  const { picker, calls } = fakePicker(page, ['invoked']);
+  const r = await ensureGmfLogin(page, { picker, foreground: noForeground, waitForHumanMs: 0 });
+  assert.deepEqual(r, { ok: false, reason: 'manual_login_cycle' });
+  assert.equal(calls.length, 0);
+  assert.equal(page.s.submits, 0);
+});
+
+test('מחזור חדש: שדה שכבר בפוקוס או מתחיל להתמלא ⇒ לא לוחצים עליו שוב (לא מזיזים סמן)', async () => {
+  newLoginCycle();
+  const page = fakeGmfLogin({ value: 'ab' });
+  page.s.focused = true;
+  setTimeout(() => { page.s.path = '/gmf-main-menu/main/home'; }, 30);
   const r = await waitForHumanGmfLogin(page, { waitMs: 2000, pollMs: 10 });
   assert.equal(r.ok, true);
-  assert.equal(page.s.submits, 0, 'הרו"ח שלח, לא PIVO');
+  assert.equal(page.s.fieldClicks, 0);
+  assert.equal(page.s.submits, 0);
+});
+
+test('אדם מקליד ⇒ PIVO לא שולחת; ממתינה שהוא ישלח בעצמו (בשני המצבים)', async () => {
+  for (const setup of [connected, newLoginCycle]) {
+    setup();
+    const page = fakeGmfLogin({ accept: true });
+    page.s.value = 'ab';
+    setTimeout(() => { page.s.path = '/gmf-main-menu/main/home'; }, 40);
+    const r = await waitForHumanGmfLogin(page, { waitMs: 2000, pollMs: 10 });
+    assert.equal(r.ok, true);
+    assert.equal(page.s.submits, 0, 'הרו"ח שלח, לא PIVO');
+  }
 });
 
 test('פענוח תשובת הבוחר ושם משתמש מותר', () => {

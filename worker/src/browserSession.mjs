@@ -1220,6 +1220,7 @@ export async function readGmfLoginForm(page) {
         hasField: !!pw,
         hasValue: !!pw && !!pw.value && pw.value.length > 0,
         autofilled,
+        focused: !!pw && document.activeElement === pw,
         username: /^[A-Za-z0-9]{3,20}$/.test(shown) ? shown : null,
         hasForm: !!form,
         visibleSubmits: visibleSubmits.length,
@@ -1228,7 +1229,7 @@ export async function readGmfLoginForm(page) {
       };
     }, GMF_PASS_SELECTOR);
   } catch {
-    return { onLogin: false, hasField: false, hasValue: false, autofilled: false, username: null, hasForm: false, visibleSubmits: 0, humanOnlyModal: false, modalTitle: null };
+    return { onLogin: false, hasField: false, hasValue: false, autofilled: false, focused: false, username: null, hasForm: false, visibleSubmits: 0, humanOnlyModal: false, modalTitle: null };
   }
 }
 
@@ -1303,17 +1304,49 @@ async function gmfStateOnPage(page, snap) {
 export async function peekShaamProgress(context) {
   let portalUp = false;
   let gmfOpen = false;
+  let firstPassword = false;
   for (const p of context.pages()) {
     let url;
     try { url = new URL(p.url()); } catch { continue; }
     if (url.origin !== SHAAM_ORIGIN) continue;
+    if (isFirstPasswordPath(url.pathname)) { firstPassword = true; continue; }
     if (GMF_ANY_PATH.test(url.pathname) && !url.pathname.startsWith(GMF_LOGIN_PATH)) {
       portalUp = true; gmfOpen = true;
       continue;
     }
-    if (/^\/myz\/pages\/homepage\.aspx$/i.test(url.pathname) || (await safeTitle(p)) === 'HomePage') portalUp = true;
+    const title = await safeTitle(p);
+    if (title && /Error_nocard/i.test(title)) { firstPassword = true; continue; }
+    if (/^\/myz\/pages\/homepage\.aspx$/i.test(url.pathname) || title === 'HomePage') portalUp = true;
   }
-  return { portalUp, gmfOpen };
+  return { portalUp, gmfOpen, firstPassword };
+}
+
+/**
+ * מסכי «הסיסמה הראשונה» של שע״ם — כל מה שבא לפני דף הבית של הפורטל:
+ * קוד חד-פעמי (/taxes-login/, נצפה בהקלטה 27.09.2026), בחירת מספר מעסיק
+ * (/dbusbyip1/loginDetails.aspx, אותה הקלטה), ורמת אבטחה (/srlogininternet/,
+ * ההפניה של GMF על 418). דיאלוג האישור הדיגיטלי וה-PIN אינם דף — הם נראים
+ * כ-attach 'blocked'.
+ */
+export function isFirstPasswordPath(pathname) {
+  return /^\/(taxes-login|dbusbyip1|srlogininternet)\//i.test(pathname ?? '');
+}
+
+/**
+ * «להגיע מיד למסך הסיסמה הראשונה» (גיא, 27.09.2026): החלון לחזית, ואם הוא
+ * עומד על מסך אחר של שע״ם (למשל GMF) — ניווט לכניסה של הפורטל, שם נפתחים
+ * האישור הדיגיטלי וה-PIN. ‼ רק אחרי שהשרת אישר שהפורטל מנותק, ולעולם לא
+ * כשהרו"ח כבר באמצע הרצף (קוד חד-פעמי / מספר מעסיק) — ניווט שם מוחק את מה
+ * שהוא עשה.
+ */
+export async function goToFirstPasswordScreen(page) {
+  try { await page.bringToFront(); } catch { /* לא קריטי */ }
+  let pathname = '';
+  try { pathname = new URL(page.url()).pathname; } catch { /* about:blank */ }
+  if (isFirstPasswordPath(pathname)) return 'already_there';
+  await page.goto(SHAAM_ROOT, { waitUntil: 'domcontentloaded', timeout: 12000 })
+    .catch(() => { /* דיאלוג האישור הדיגיטלי חוסם את הטעינה — זה בדיוק היעד */ });
+  return 'navigated';
 }
 
 export async function readGmfOnCurrentPage(page) {

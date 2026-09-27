@@ -75,7 +75,10 @@ import {
 } from './btlLoginWatch.mjs';
 import { reportStatus } from './apiClient.mjs';
 import { hostIdleSeconds } from './hostActivity.mjs';
-import { tryGmfAutoLogin, resetGmfAutoLogin } from './gmfAutoLogin.mjs';
+import {
+  tryGmfAutoLogin, resetGmfAutoLogin, presentGmfLoginToHuman,
+  beginShaamLoginCycle, completeShaamLogin, gmfAutoAllowed,
+} from './gmfAutoLogin.mjs';
 
 const LOCAL_CHECK_MS = 30_000;
 const SERVER_PROBE_MS = 4 * 60_000;
@@ -124,7 +127,14 @@ export function resetShaamLifecycle(log, why) {
   gmfCheckedAtMs = 0; vatCheckedAtMs = 0; nikuiCheckedAtMs = 0; representationCheckedAtMs = 0;
   gmfOpenSinceMs = 0;
   resetGmfAutoLogin();
+  // חלון שנסגר / פורטל שפג ⇒ ההתחברות הבאה מתחילה מהסיסמה הראשונה ⇒ ידני.
+  beginShaamLoginCycle(why);
   if (hadEvidence) log(`מחזור חיים חדש של שע״ם (${why}) — עדות תת-המערכות אופסה, GMF תוכח מחדש`);
+}
+
+/** שע״ם ביקשה את הסיסמה הראשונה — שורה ביומן רק במעבר. */
+function noteFirstPassword(log, why) {
+  if (beginShaamLoginCycle(why)) log(`שע״ם ביקשה את הסיסמה הראשונה (${why}) — מחזור התחברות חדש: הסיסמה השנייה ידנית עד שנכנסים`);
 }
 
 /**
@@ -140,15 +150,23 @@ export function isShaamLifecycleEstablished() {
   return !!(shaamReported && gmfReported);
 }
 
-/** ה-job של ההתחברות אימת GMF חיובית — לא ממתינים לסבב המדידה הבא. */
+/**
+ * ה-job של ההתחברות אימת GMF חיובית — לא ממתינים לסבב המדידה הבא.
+ * @returns {boolean} true ⇒ זה עתה הושלמה התחברות מלאה (מעבר ממחזור ידני).
+ */
 export function markGmfVerified() {
   shaamReported = true;
   gmfReported = true;
   gmfCheckedAtMs = Date.now();
   if (!gmfOpenSinceMs) gmfOpenSinceMs = gmfCheckedAtMs;
-  // כניסה מוצלחת ⇒ מותר שוב ניסיון אוטומטי אחד בפעם הבאה ש-GMF תבקש סיסמה.
+  // כניסה מוצלחת ⇒ מותר שוב ניסיון אוטומטי אחד בפעם הבאה ש-GMF תבקש סיסמה,
+  // והתחברות מלאה הושלמה ⇒ מכאן סיסמה שנייה לבדה היא אוטומטית.
   resetGmfAutoLogin();
+  return completeShaamLogin();
 }
+
+export const FULL_LOGIN_DONE_LOG =
+  'התחברות מלאה לשע״ם הושלמה — מעכשיו, אם GMF תבקש רק את הסיסמה השנייה, PIVO תיכנס עם השמורה';
 
 /** כמה שניות GMF הייתה פתוחה לפני ש(שוב) ביקשה סיסמה. null ⇒ לא ידוע. */
 export function gmfOpenForSeconds(now = Date.now()) {
@@ -225,11 +243,14 @@ async function peekShaamLogin(now, log) {
   if (!btlPeekDue(shaamWatch, now)) return false;
   const conn = await attach();
   if (!conn.ok) {
+    // 'blocked' = דיאלוג האישור הדיגיטלי / PIN פתוח — הסיסמה הראשונה.
+    if (conn.reason === 'blocked') noteFirstPassword(log, 'אישור דיגיטלי / PIN');
     shaamWatch = afterBtlPeek(shaamWatch, now, { connected: false, windowOpen: conn.reason !== 'not_running' });
     return false;
   }
   try {
     const seen = await peekShaamProgress(conn.page.context());
+    if (seen.firstPassword) noteFirstPassword(log, 'מסך כניסה של הפורטל');
     // ‼ ממשיכים להמתין — רק הסבב המלא מכריע «ירוק» (פורטל + GMF).
     shaamWatch = afterBtlPeek(shaamWatch, now, { connected: false, windowOpen: true });
     const moved = (seen.portalUp && !shaamReported) || (seen.gmfOpen && !gmfReported);
@@ -260,14 +281,18 @@ export async function tickConnectionMonitor(userId, workerId, log, { scope = 'al
   const conn = scope === 'btl' ? { ok: false, reason: 'out_of_scope' } : await attach();
   // ‼ חלון סגור = סוף מחזור החיים. 'blocked' (דיאלוג אישור פתוח) אינו סגירה.
   if (!conn.ok && conn.reason === 'not_running') resetShaamLifecycle(log, 'החלון הייעודי סגור');
+  if (!conn.ok && conn.reason === 'blocked') noteFirstPassword(log, 'אישור דיגיטלי / PIN');
 
   let gmf = gmfReported ?? false;
   let vat = vatReported ?? false;
   let nikui = nikuiReported ?? false;
   let representation = representationReported ?? false;
+  let firstPasswordNow = false;
 
   if (conn.ok) {
     try {
+      firstPasswordNow = (await peekShaamProgress(conn.page.context())).firstPassword;
+      if (firstPasswordNow) noteFirstPassword(log, 'מסך כניסה של הפורטל');
       // ‼ הבדיקה המקומית יכולה רק **להעלות** ל"מחובר", לעולם לא להוריד:
       // היא נשענת על כותרת הטאב, וברגע שמנווטים למסך אחר בשע״ם (למשל GMF)
       // הכותרת כבר אינה HomePage — והנורית קפצה לאפור אף שהסשן חי. קרה
@@ -286,6 +311,7 @@ export async function tickConnectionMonitor(userId, workerId, log, { scope = 'al
             resetShaamLifecycle(log, 'סשן הפורטל פג בצד השרת');
             gmf = false; vat = false; nikui = false; representation = false;
           }
+          if (!probe.authenticated) { firstPasswordNow = true; noteFirstPassword(log, 'סשן הפורטל פג'); }
         } else {
           log(`בדיקת סשן פורטל נכשלה: ${probe.detail}`);
         }
@@ -304,7 +330,8 @@ export async function tickConnectionMonitor(userId, workerId, log, { scope = 'al
       // ל-needs_human. בוליאני בלבד; מודאל (החלפת סיסמה/OTP) = לא נוגעים.
       // ‼ רק שדה ש-Chrome מילא (autofilled). שדה שמוקלד ביד נראה «מלא» כבר
       // אחרי התו הראשון — לחיצה אז שולחת סיסמה חלקית.
-      if (onGmf.onGmf && onGmf.ready === false && onGmf.reason === 'login_required') {
+      // ‼ ורק כשהאוטומטי מותר: במחזור התחברות חדש הרו"ח לוחץ «כניסה» בעצמו.
+      if (gmfAutoAllowed() && onGmf.onGmf && onGmf.ready === false && onGmf.reason === 'login_required') {
         const form = await readGmfLoginForm(conn.page);
         if (form.onLogin && form.hasValue && form.autofilled && !form.humanOnlyModal) {
           const confirm = await attemptGmfLoginConfirm(conn.page);
@@ -317,6 +344,11 @@ export async function tickConnectionMonitor(userId, workerId, log, { scope = 'al
       const onRepresentation = await readRepresentationOnCurrentPage(conn.page);
 
       if (onGmf.ready !== null) { gmf = onGmf.ready; gmfCheckedAtMs = now; }
+      // ‼ «התחברות מלאה» נקבעת רק על GMF שנמדדה פתוחה **בסבב הזה** — לא על
+      // ערך שמור. נמצא בסימולציה (27.09.2026): הפורטל פג בזמן שהלשונית עמדה
+      // על תפריט GMF, ה-true הישן שרד את הכניסה מחדש, ו-PIVO דילגה על מסך
+      // הסיסמה השנייה והכריזה «מחובר» בלי ראיה.
+      let gmfSeenNow = onGmf.ready === true;
       if (onVat.ready !== null) { vat = onVat.ready; vatCheckedAtMs = now; }
       if (onNikui.ready !== null) { nikui = onNikui.ready; nikuiCheckedAtMs = now; }
       if (onRepresentation.ready !== null) { representation = onRepresentation.ready; representationCheckedAtMs = now; }
@@ -333,9 +365,12 @@ export async function tickConnectionMonitor(userId, workerId, log, { scope = 'al
       // ומנווט את הלשונית שוב ושוב ברקע — גם כשהרו"ח לא ביקש שום דבר מהן.
       // ‼ 27.09.2026 (גיא): «ברגע שנכנסנו לשע״ם — ישר למסך הסיסמה השנייה».
       // פורטל שנפתח עכשיו (דווח מנותק בסבב הקודם של התהליך הזה — לא null של
-      // עובד שרק עלה) עוקף את ההמתנה של דקה, ומיד מנסה את הסיסמה השמורה ב-Chrome.
-      // הרו"ח בדיוק עבד בחלון הזה, ולכן אין כאן חטיפת פוקוס מעבודה אחרת.
+      // עובד שרק עלה) עוקף את ההמתנה של דקה. במחזור התחברות חדש (הסיסמה
+      // הראשונה נדרשה) — השדה בפוקוס והרו"ח ממשיך בעצמו; רק כשהאוטומטי מותר
+      // — הסיסמה השמורה. הרו"ח בדיוק עבד בחלון הזה, ולכן אין כאן חטיפת פוקוס.
       const portalJustUp = shaam && shaamReported === false;
+      // אחרי סיסמה ראשונה GMF מוכחת מחדש: «מוכנה» שנשמרה מלפני כן אינה ראיה.
+      if (portalJustUp && !gmfSeenNow) gmf = false;
       if (shaam && !gmf && (portalJustUp || now - lastSubNav >= SUB_RECHECK_MS)) {
         if (await isOnWorkScreen(conn.page)) {
           // בדיקת מוכנות לא שווה את זה שהמסך שהרו"ח פתח ייעלם מתחת לידיו.
@@ -345,15 +380,25 @@ export async function tickConnectionMonitor(userId, workerId, log, { scope = 'al
           lastSubNav = now;
           const checked = await openGmfAndCheck(conn.page);
           gmf = checked.ready;
+          gmfSeenNow = checked.ready;
           gmfCheckedAtMs = now;
           log(`בוטסטרפ GMF: ${checked.ready ? 'מוכנה' : `לא מוכנה (${checked.reason})`}`);
           if (!gmf && portalJustUp && checked.reason === 'login_required') {
-            const auto = await tryGmfAutoLogin(conn.page, { log });
-            log(`כניסה ל-GMF עם הסיסמה השמורה: ${auto.ok ? 'הצליחה' : `לא בוצעה (${auto.reason})`}`);
-            if (auto.ok) { gmf = true; gmfCheckedAtMs = Date.now(); resetGmfAutoLogin(); }
+            if (gmfAutoAllowed()) {
+              const auto = await tryGmfAutoLogin(conn.page, { log });
+              log(`כניסה ל-GMF עם הסיסמה השמורה: ${auto.ok ? 'הצליחה' : `לא בוצעה (${auto.reason})`}`);
+              if (auto.ok) { gmf = true; gmfSeenNow = true; gmfCheckedAtMs = Date.now(); resetGmfAutoLogin(); }
+            } else {
+              const shown = await presentGmfLoginToHuman(conn.page);
+              log(`מסך הסיסמה השנייה מוכן לרו"ח${shown ? ' (השדה בפוקוס)' : ''} — PIVO לא בוחרת ולא לוחצת במחזור התחברות חדש`);
+            }
           }
         }
       }
+
+      // ‼ התחברות מלאה = הפורטל מחובר ו-GMF פתוחה, בלי שום מסך של הסיסמה
+      // הראשונה ברקע. מכאן — סיסמה שנייה לבדה היא אוטומטית.
+      if (shaam && gmfSeenNow && !firstPasswordNow && completeShaamLogin()) log(FULL_LOGIN_DONE_LOG);
     } finally {
       await detach(conn.browser);
     }

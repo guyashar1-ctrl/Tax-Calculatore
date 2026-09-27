@@ -11,12 +11,12 @@ import {
   openGmfAndCheck, openVatAndCheck, openNikuiAndCheck,
   openRepresentationAndCheck, attemptRepresentationLoginConfirm,
   readGmfOnCurrentPage, readVatOnCurrentPage, readNikuiOnCurrentPage, readRepresentationOnCurrentPage,
-  readGmfLoginForm,
+  readGmfLoginForm, pickPageOn, GMF_LOGIN_PATH,
   ensureWithBoundedRecovery,
   isOnWorkScreen,
 } from './browserSession.mjs';
 import { updateJobProgress } from './apiClient.mjs';
-import { isShaamLifecycleEstablished, markGmfVerified } from './connectionMonitor.mjs';
+import { isShaamLifecycleEstablished, markGmfVerified, FULL_LOGIN_DONE_LOG } from './connectionMonitor.mjs';
 import { ensureGmfLogin, HUMAN_WAIT_MS } from './gmfAutoLogin.mjs';
 
 export const CAPABILITY_ORDER = ['gmf', 'vat', 'nikui', 'representation'];
@@ -30,7 +30,7 @@ export const HUMAN_REASON = {
 };
 
 export const HUMAN_MESSAGE = {
-  gmf: 'מערכת גביית מס הכנסה מבקשת את הסיסמה השנייה, ואין סיסמה שמורה ב-Chrome שאפשר להשתמש בה. בחלון שע״ם: הקלידו אותה, לחצו «כניסה» ואשרו ל-Chrome לשמור — מהפעם הבאה אכנס לבד.',
+  gmf: 'מערכת גביית מס הכנסה מבקשת את הסיסמה השנייה. בחלון שע״ם: בחרו את הסיסמה השמורה או הקלידו אותה ולחצו «כניסה» (ואם שע״ם דורשת החלפת סיסמה — טפלו בה שם). אמשיך לבד מיד אחרי הכניסה.',
   vat: 'מע״מ מבקשת סיסמה. הזינו אותה בחלון שע״ם שנפתח, ואמשיך משם לבד.',
   nikui: 'מגן (ניכויים) מבקשת סיסמה. הזינו אותה בחלון שע״ם שנפתח, ואמשיך משם לבד.',
   representation: 'מערכת רישום הייצוג מבקשת התחברות נפרדת משלה. השלימו אותה בחלון שע״ם, ואמשיך משם לבד.',
@@ -56,27 +56,53 @@ function mapLegacyResult(r) {
  * ‼ GMF היא ה-bootstrap של החיבור (תיקון מוצר 16.09.2026): "מחובר לשע״ם"
  * ירוק רק אחרי שהחיבור הטרי הזה נכנס ל-GMF. מסך הכניסה שלה נצפה חי — ראה
  * browserSession.mjs (readGmfLoginForm).
- * ‼ 27.09.2026 (גיא): הסיסמה השנייה שמורה ב-Chrome ומשמשת לבד — קודם
- * gmfAutoLogin בוחר אותה בחלונית של Chrome ולוחץ «כניסה» פעם אחת. אין
- * סיסמה שמורה ⇒ השדה בפוקוס והחלון בחזית, והרו"ח מקליד פעם אחת ו-Chrome
- * שומר. PIVO לעולם לא קוראת/מקלידה את הערך ולא נוגעת במודאלים.
+ * ‼ 27.09.2026 (גיא): אחרי התחברות מלאה, סיסמה שנייה לבדה ⇒ gmfAutoLogin
+ * בוחר את השמורה בחלונית של Chrome ולוחץ «כניסה» פעם אחת. במחזור התחברות
+ * חדש (הסיסמה הראשונה נדרשה) ⇒ השדה בפוקוס והחלון בחזית, והרו"ח בוחר
+ * ולוחץ בעצמו. PIVO לעולם לא קוראת/מקלידה את הערך ולא נוגעת במודאלים.
  */
 export async function ensureGmf(page, { waitForHumanMs = HUMAN_WAIT_MS, log } = {}) {
-  const initial = await openGmfAndCheck(page);
-  const r = await ensureWithBoundedRecovery(page, { initial, readCurrent: readGmfOnCurrentPage, reopen: openGmfAndCheck });
-  if (r.ready) { markGmfVerified(); return { state: 'ready', reasonCode: r.reason, evidenceKind: 'dom_state' }; }
+  // ‼ לשונית שכבר עומדת על מסך הכניסה של GMF — הצופה העביר לשם מיד אחרי
+  // הסיסמה הראשונה, והרו"ח אולי כבר בוחר/מקליד — משמשת כמו שהיא. ניווט
+  // נוסף היה טוען את המסך מחדש ומוחק את מה שהוקלד.
+  let target = page;
+  let r;
+  const loginTab = await pickPageOn(page.context(), GMF_LOGIN_PATH, '#pass');
+  const readyTab = loginTab ? await firstReadyGmfTab(page.context()) : null;
+  if (readyTab) {
+    r = readyTab;
+  } else if (loginTab) {
+    target = loginTab;
+    r = { ready: false, reason: 'login_required' };
+  } else {
+    const initial = await openGmfAndCheck(page);
+    r = await ensureWithBoundedRecovery(page, { initial, readCurrent: readGmfOnCurrentPage, reopen: openGmfAndCheck });
+  }
+  if (r.ready) {
+    if (markGmfVerified()) log?.(FULL_LOGIN_DONE_LOG);
+    return { state: 'ready', reasonCode: r.reason, evidenceKind: 'dom_state' };
+  }
   if (r.reason !== 'login_required') return mapLegacyResult(r);
 
-  const form = await readGmfLoginForm(page);
+  const form = await readGmfLoginForm(target);
   if (form.humanOnlyModal) {
     return { state: 'human_required', reasonCode: 'human_only_modal', evidenceKind: 'dom_state' };
   }
-  const login = await ensureGmfLogin(page, { log, waitForHumanMs });
+  const login = await ensureGmfLogin(target, { log, waitForHumanMs });
   if (login.ok) {
-    markGmfVerified();
+    if (markGmfVerified()) log?.(FULL_LOGIN_DONE_LOG);
     return { state: 'ready', reasonCode: login.via === 'saved_password' ? 'saved_password' : 'confirmed_fill', evidenceKind: 'dom_state' };
   }
   return { state: 'human_required', reasonCode: login.reason ?? 'login_required', evidenceKind: 'dom_state' };
+}
+
+/** לשונית GMF מאומתת כלשהי (תפריט או מסך עבודה), בלי ניווט. */
+async function firstReadyGmfTab(context) {
+  for (const p of context.pages()) {
+    const s = await readGmfOnCurrentPage(p).catch(() => ({ ready: null }));
+    if (s.ready === true) return s;
+  }
+  return null;
 }
 async function ensureVat(page) {
   const initial = await openVatAndCheck(page);

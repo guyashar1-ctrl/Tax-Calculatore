@@ -13,7 +13,7 @@ import {
   extractIncomeTaxFileFacts, verifyFileDetailsFor,
 } from '../browserSession.mjs';
 import { NeedsHumanError, PermanentError } from '../errors.mjs';
-import { isGmfLoginPath, reloginGmf, gmfReloginMessage } from '../gmfRelogin.mjs';
+import { isGmfLoginPath, reloginGmf, gmfReloginMessage, noteFirstPasswordLanding } from '../gmfRelogin.mjs';
 
 export const actionType = 'shaam.sync_income_tax_file';
 
@@ -53,6 +53,8 @@ export async function run(ctx, input) {
     }
     if (!opened.ok) {
       if (opened.reason === 'gmf_not_ready') {
+        // הפורטל מבקש שוב את הסיסמה הראשונה ⇒ מחזור התחברות חדש (ידני).
+        noteFirstPasswordLanding(opened.pathname);
         throw new NeedsHumanError(NOT_READY, 'shaam_connection_not_ready');
       }
       if (opened.reason === 'blocked_by_modal' || opened.reason === 'submit_click_blocked') {

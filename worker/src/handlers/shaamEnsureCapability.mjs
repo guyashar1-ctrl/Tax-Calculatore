@@ -6,7 +6,10 @@
 // מ-shaam.connect ולא רק קריאה לו עם רשימה קצרה יותר — מבחינת ה-UI/ה-job
 // queue זו כוונה שונה (recover, לא warm-up), אבל שתיהן קוראות בדיוק לאותו
 // runCapabilities ב-warmupManager.mjs. זה כל הרעיון של "אותו מנגנון ensure".
-import { attach, detach, classifyShaamAuth, probeServerSession, focusShaamWindow } from '../browserSession.mjs';
+import {
+  attach, detach, classifyShaamAuth, probeServerSession, focusShaamWindow, goToFirstPasswordScreen,
+} from '../browserSession.mjs';
+import { beginShaamLoginCycle } from '../gmfAutoLogin.mjs';
 import { NeedsHumanError, PermanentError } from '../errors.mjs';
 import { runCapabilities, HUMAN_MESSAGE } from '../warmupManager.mjs';
 
@@ -45,13 +48,17 @@ export async function run(ctx, input = {}) {
     // לא אישור נוסף כשהיא כבר מאשרת.
     const local = await classifyShaamAuth(conn.page);
     let authenticated = local.authenticated;
+    let session = null;
     if (!authenticated) {
-      const session = await probeServerSession(conn.page);
+      session = await probeServerSession(conn.page);
       authenticated = session.authenticated;
     }
     if (!authenticated) {
       ctx.log('אימות בסיסי חסר — לא ניתן לשחזר capability בלעדיו');
-      await focusShaamWindow(conn.page);
+      // הסיסמה הראשונה נדרשת ⇒ מחזור התחברות חדש, ומיד למסך שלה (כמו shaamConnect).
+      beginShaamLoginCycle('portal_login_required');
+      if (session?.ok) await goToFirstPasswordScreen(conn.page);
+      else await focusShaamWindow(conn.page);
       throw new NeedsHumanError(SHAAM_AUTH_PENDING, 'awaiting_shaam_auth');
     }
 

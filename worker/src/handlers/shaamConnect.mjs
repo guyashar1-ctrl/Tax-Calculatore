@@ -10,16 +10,18 @@
 // עסקית שזקוקה לאחת מהן מבקשת אותה נקודתית (shaam.ensure_capability).
 // סגירת החלון מאפסת את ה-bootstrap — חיבור חדש מוכיח GMF מחדש (ראה
 // resetShaamLifecycle ב-connectionMonitor.mjs).
-// האוטומציה לעולם לא מקלידה אישור, PIN, OTP או סיסמה. את הסיסמה השנייה
-// (GMF) Chrome ממלא: PIVO בוחרת את השורה השמורה בחלונית של Chrome
-// (chromePasswordPicker.mjs, 27.09.2026) ולוחצת «כניסה» פעם אחת.
+// האוטומציה לעולם לא מקלידה אישור, PIN, OTP או סיסמה. ‼ חיבור שמתחיל כאן
+// הוא מחזור התחברות חדש (gmfAutoLogin.beginShaamLoginCycle): גם הסיסמה
+// השנייה בידי הרו"ח — PIVO רק מעבירה אליה מיד וממקדת את השדה. רק אחרי
+// התחברות מלאה, סיסמה שנייה לבדה נבחרת מ-Chrome אוטומטית.
 import {
   attach, detach, classifyShaamAuth, probeServerSession,
-  launchDedicatedChrome, focusShaamWindow, readGmfOnCurrentPage,
+  launchDedicatedChrome, focusShaamWindow, readGmfOnCurrentPage, goToFirstPasswordScreen,
 } from '../browserSession.mjs';
+import { beginShaamLoginCycle } from '../gmfAutoLogin.mjs';
 import { NeedsHumanError, PermanentError } from '../errors.mjs';
 import { runCapabilities, HUMAN_MESSAGE } from '../warmupManager.mjs';
-import { markGmfVerified } from '../connectionMonitor.mjs';
+import { markGmfVerified, FULL_LOGIN_DONE_LOG } from '../connectionMonitor.mjs';
 
 export const actionType = 'shaam.connect';
 
@@ -41,6 +43,8 @@ export async function run(ctx) {
   // ── חלון סגור: לפתוח. ──
   if (!conn.ok && conn.reason === 'not_running') {
     ctx.log('החלון סגור — פותח חלון Chrome ייעודי');
+    // חלון חדש ⇒ הסיסמה הראשונה ⇒ מחזור התחברות ידני עד סוף הסיסמה השנייה.
+    beginShaamLoginCycle('window_opened');
     const launched = launchDedicatedChrome();
     if (!launched.ok) throw new PermanentError(CHROME_NOT_FOUND, launched.reason);
     await new Promise((r) => setTimeout(r, 4000));
@@ -50,6 +54,7 @@ export async function run(ctx) {
   // 'blocked' = החלון פתוח ודיאלוג אישור/PIN כבר ממתין.
   if (!conn.ok) {
     ctx.log('לא ניתן להתחבר לחלון:', conn.reason);
+    if (conn.reason === 'blocked') beginShaamLoginCycle('certificate_dialog');
     throw new NeedsHumanError(SHAAM_AUTH_PENDING, 'awaiting_shaam_auth');
   }
 
@@ -65,13 +70,22 @@ export async function run(ctx) {
     // חד-פעמית ולא תשאול תקופתי.
     const local = await classifyShaamAuth(conn.page);
     let authenticated = local.authenticated;
+    let session = null;
     if (!authenticated) {
-      const session = await probeServerSession(conn.page);
+      session = await probeServerSession(conn.page);
       authenticated = session.authenticated;
     }
     if (!authenticated) {
-      ctx.log('הפורטל אינו מאומת — מביא את החלון לנקודת ההתחברות');
-      await focusShaamWindow(conn.page);
+      beginShaamLoginCycle('portal_login_required');
+      // ‼ «להגיע מיד למסך הסיסמה הראשונה» (גיא, 27.09.2026): כשהשרת אישר
+      // שהפורטל מנותק והחלון עומד על מסך אחר (למשל GMF) — ניווט לכניסה.
+      if (session?.ok) {
+        const went = await goToFirstPasswordScreen(conn.page);
+        ctx.log(`הפורטל מנותק — מסך הסיסמה הראשונה: ${went}`);
+      } else {
+        ctx.log('הפורטל אינו מאומת — מביא את החלון לנקודת ההתחברות');
+        await focusShaamWindow(conn.page);
+      }
       throw new NeedsHumanError(SHAAM_AUTH_PENDING, 'awaiting_shaam_auth');
     }
     ctx.log('שלב 1 — פורטל שע״ם: מאומת. עובר ל-bootstrap: מערכת גביית מס הכנסה');
@@ -82,7 +96,7 @@ export async function run(ctx) {
     // היא הוכחה — לא מנווטים ממנה; runCapabilities בכל מקרה לא נוגע במסך עבודה.
     const onGmf = await readGmfOnCurrentPage(conn.page);
     if (onGmf.ready === true) {
-      markGmfVerified();
+      if (markGmfVerified()) ctx.log(FULL_LOGIN_DONE_LOG);
       ctx.log(`שלב 2 — GMF כבר מאומתת בלשונית (${onGmf.reason}). החיבור מוכן`);
       return { result: { ready: true, system: 'shaam', bootstrap: 'gmf' } };
     }

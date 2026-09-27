@@ -11,7 +11,7 @@
 // PIN או OTP — Chrome ממלא.
 import { attach, detach } from '../browserSession.mjs';
 import { NeedsHumanError, PermanentError } from '../errors.mjs';
-import { isGmfLoginPath, reloginGmf, gmfReloginMessage } from '../gmfRelogin.mjs';
+import { isGmfLoginPath, reloginGmf, gmfReloginMessage, noteFirstPasswordLanding } from '../gmfRelogin.mjs';
 
 export const actionType = 'shaam.open_income_tax';
 
@@ -58,7 +58,7 @@ export async function run(ctx) {
       // ‼ הפניה לכניסת הפורטל (למשל אחרי חומת OTP, או סשן שער שפג) היא
       // עדות ל"החיבור אינו מוכן" — לא לתקלה מבנית. בלי ההבחנה הזאת, פורטל
       // שנפל היה נופל כאן ל-PermanentError, שאין ממנו חזרה בלי התערבות.
-      if (settled.pathname.includes('/taxes-login/')) {
+      if (noteFirstPasswordLanding(settled.pathname) || settled.pathname.includes('/taxes-login/')) {
         throw new NeedsHumanError(
           'הפורטל של שע״ם מבקש אימות מחדש. לחצו על "שע״ם" בכותרת והשלימו את ' +
           'ההתחברות בחלון הייעודי, ואז הריצו שוב.',

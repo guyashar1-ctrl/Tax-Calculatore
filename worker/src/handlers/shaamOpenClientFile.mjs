@@ -12,7 +12,7 @@ import {
   attach, detach, openClientFileDetails, verifyFileDetailsFor,
 } from '../browserSession.mjs';
 import { NeedsHumanError, PermanentError } from '../errors.mjs';
-import { isGmfLoginPath, reloginGmf, gmfReloginMessage } from '../gmfRelogin.mjs';
+import { isGmfLoginPath, reloginGmf, gmfReloginMessage, noteFirstPasswordLanding } from '../gmfRelogin.mjs';
 
 export const actionType = 'shaam.open_client_file';
 
@@ -48,6 +48,7 @@ export async function run(ctx, input) {
     }
     if (!opened.ok) {
       if (opened.reason === 'gmf_not_ready') {
+        noteFirstPasswordLanding(opened.pathname);
         throw new NeedsHumanError(NOT_READY, 'shaam_connection_not_ready');
       }
       // ‼ חומת אימות (למשל «פג תוקף האימות» שדורשת קוד חד-פעמי) אינה תקלה
