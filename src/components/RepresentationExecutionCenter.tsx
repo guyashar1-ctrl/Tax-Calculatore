@@ -49,7 +49,7 @@ import {
 } from '../features/representation/shaamRepresentation';
 import {
   NOTICE_STYLES, columnAction, isReconcileAction, niTrackView, shaamSubmittedFacts, type NoticeTone,
-  niReconcileLine, niReconcileLineFromJob, shaamReconcileLine,
+  niReconcileLine, niReconcileLineFromJob, shaamReconcileLine, niInstructionsDelivered,
 } from '../features/representation/representationCenter';
 import { shaamPersonFacts } from '../features/representation/shaamPersonFacts';
 import type { NiRepresentationLine } from '../utils/niPersons';
@@ -775,6 +775,7 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
           : { role, idNumber: person.idNumber, referenceNumber: ref },
         last: niReconcileLine(niExecutionByRole[role]),
         fromJob: (result, finishedAt) => niReconcileLineFromJob(result, finishedAt, niExecutionByRole[role]),
+        premature: !niInstructionsDelivered(niExecutionByRole[role]),
       };
     });
   // ‼ «הזן» חי בשלב 1 של כל אדם — בראש העמודה רק מה שאין לו שלב משלו (שידור).
@@ -788,10 +789,11 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
 
   return (
     <div id="rep-execution" className="card" style={{ marginBottom: '1rem' }}>
-      <div className="card-header" style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '.75rem', flexWrap: 'wrap' }}>
-        <div className="card-title">ביצוע הייצוג מול הרשויות</div>
-        {/* ‼ הפעולה היחידה במסך שבודקת מול הרשויות. לא לשכפל בעמודה או בשלב. */}
-        <RepresentationReconcileButton clientId={linkedClient?.id} shaam={shaamReconcile} btl={btlReconcile} onChanged={onStepsChanged} />
+      <div className="card-header" style={{ display: 'block' }}>
+        {/* ‼ הפעולה היחידה במסך שבודקת מול הרשויות. לא לשכפל בעמודה או בשלב.
+            הכותרת עוברת פנימה כדי שהכפתור ישב צמוד אליה (ולא בקצה השני). */}
+        <RepresentationReconcileButton heading={<div className="card-title">ביצוע הייצוג מול הרשויות</div>}
+          clientId={linkedClient?.id} shaam={shaamReconcile} btl={btlReconcile} onChanged={onStepsChanged} />
       </div>
       <div className="card-body">
         <p style={{ marginTop: 0, fontSize: 'var(--fs-12)', color: 'var(--ink-3)', lineHeight: 1.6 }}>
@@ -1109,6 +1111,7 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
                   nextAction={niNextActionNode('client')}
                   hasSignatureEmails={signatureEmails.length > 0}
                   onPatch={(p, label) => patch({ ...exec, nationalInsurance: { ...ni, ...p } }, label)}
+                  resultShownAbove={btlReconcile.some(t => t.key === 'client' && !!t.last)}
                   prereqStep={niClientStep}
                   prereqCurrentValues={niPrereqValues}
                   prereqClient={prereqClient}
@@ -1127,6 +1130,7 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
                   nextAction={niNextActionNode('spouse')}
                   hasSignatureEmails={signatureEmails.length > 0}
                   onPatch={(p, label) => patch({ ...exec, nationalInsuranceSpouse: { ...niSpouse, ...p } }, label)}
+                  resultShownAbove={btlReconcile.some(t => t.key === 'spouse' && !!t.last)}
                   prereqStep={niSpouseStep}
                   prereqCurrentValues={niPrereqValues}
                   prereqClient={prereqClient}
@@ -1369,11 +1373,17 @@ function fmtTime(iso: string) {
  * בב"ל מקבל שני מסלולים כאלה — לכל אחד אסמכתא, מועד תפוגה ואישור משלו.
  */
 function NiTrack({
-  title, ni, line, busy, busyPrefix, nextAction, hasSignatureEmails, onPatch,
+  title, ni, line, busy, busyPrefix, nextAction, hasSignatureEmails, onPatch, resultShownAbove,
   prereqStep, prereqCurrentValues, prereqClient, prereqSpouse, prereqOnSaveEmail, prereqOnChanged,
 }: {
   title: string;
   ni: NiTracking;
+  /**
+   * מה שב״ל אמרה כבר מוצג בשורה שמתחת לכותרת המרכז (RepresentationReconcileButton).
+   * ‼ 27.09.2026: אותה עובדה הופיעה שלוש פעמים (שם, בכותרת-המשנה של שלב 4,
+   * ובתיבה אפורה בשלב 4). התיבה יורדת כשהשורה למעלה קיימת.
+   */
+  resultShownAbove?: boolean;
   /** הראיה של הכרטיס (niRepresentationOf) — «פעיל» שם גובר על כל מצב ביניים. */
   line?: NiRepresentationLine | null;
   busy: string | null;
@@ -1485,11 +1495,14 @@ function NiTrack({
       </Step>
 
       <Step n={4} title="אושר - הייצוג בב״ל פעיל" done={view.final}
-        hint={ni.confirmedAt ? `אושר ב-${fmt(ni.confirmedAt)}` : view.final ? 'פעיל לפי תיק ב״ל בכרטיס' : ni.referenceNumber ? 'ממתין לאישור המבוטח בב״ל' : undefined}>
+        hint={ni.confirmedAt ? `אושר ב-${fmt(ni.confirmedAt)}` : view.final ? 'פעיל לפי תיק ב״ל בכרטיס'
+          // ‼ בלי האסמכתא אין למבוטח מה לאשר — «ממתין לאישורו» מצביע על האדם הלא נכון.
+          : ni.referenceNumber && !niInstructionsDelivered(ni) ? 'המבוטח יוכל לאשר רק אחרי שיקבל את ההוראות (שלב 3)'
+          : ni.referenceNumber ? 'ממתין לאישור המבוטח בב״ל' : undefined}>
         {/* ‼ 195 — מה שביטוח לאומי **אמרה** בקריאה האחרונה, במילים שלה.
             הצעד נשאר לא-מסומן עד שהמצב שנקרא היה «מאושר»; השורה הזאת קיימת
             כדי שהמסך לא ישתוק על «ממתין לאישור» ויותיר את הרו"ח לנחש. */}
-        {external && view.showExternalEvidence && (
+        {external && view.showExternalEvidence && !resultShownAbove && (
           <Notice tone={external.tone === 'warn' ? 'warning' : 'info'} style={{ marginBottom: '.45rem' }}>
             ביטוח לאומי: <b>{external.label}</b>
             {external.raw && ` ("${external.raw}")`}

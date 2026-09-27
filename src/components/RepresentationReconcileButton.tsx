@@ -16,14 +16,14 @@
 // המבוטח עד 23.11.2026 · נבדק היום 15:47»), לא «נבדק». והיא נקראת מהנתון
 // השמור (ReconcileTarget.last), ולכן נשארת גם אחרי רענון.
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { AutomationJob } from '../types/automation';
 import {
   SHAAM_CHECK_REPRESENTATION_ACTION_TYPE, BTL_CHECK_REPRESENTATION_ACTION_TYPE, OPEN_AUTOMATION_STATUSES,
 } from '../types/automation';
 import { useAutomationJob } from '../hooks/useAutomationJobs';
 import { useAutomationGate } from '../hooks/useAutomationGate';
-import { NOTICE_STYLES, type ReconcileLine } from '../features/representation/representationCenter';
+import { NOTICE_STYLES, reconcileIsPremature, type ReconcileLine } from '../features/representation/representationCenter';
 
 export interface ReconcileTarget {
   /** submissionKey (שע״ם) או role (ב״ל). */
@@ -39,9 +39,17 @@ export interface ReconcileTarget {
    * מוצג «טוען את התוצאה…» עד שהנתון השמור מתעדכן.
    */
   fromJob?: (result: unknown, finishedAt: string | undefined) => ReconcileLine | null;
+  /** הבדיקה לא צפויה לשנות משהו עכשיו (ב״ל: ההוראות עוד לא יצאו) — ראה reconcileIsPremature. */
+  premature?: boolean;
 }
 
 interface Props {
+  /**
+   * כותרת המרכז. ‼ 27.09.2026: הכפתור יושב צמוד לכותרת והתוצאה מתחתיה —
+   * «איפה אנחנו מול הרשויות» ו«בדוק שוב» נקראים כיחידה אחת. קודם הכפתור
+   * ישב בקצה השני של השורה, המקום האחרון שהעין מגיעה אליו בעברית.
+   */
+  heading: ReactNode;
   clientId: string | undefined;
   shaam: ReconcileTarget[];
   btl: ReconcileTarget[];
@@ -140,29 +148,35 @@ function lineFor(t: ReconcileTarget, r: RunResult | undefined, live: boolean): {
   return null;
 }
 
-export default function RepresentationReconcileButton({ clientId, shaam, btl, onChanged }: Props) {
+export default function RepresentationReconcileButton({ heading, clientId, shaam, btl, onChanged }: Props) {
   const sh = useReconcileQueue(clientId, SHAAM_CHECK_REPRESENTATION_ACTION_TYPE, 'submissionKey', shaam, onChanged);
   const bt = useReconcileQueue(clientId, BTL_CHECK_REPRESENTATION_ACTION_TYPE, 'role', btl, onChanged);
-  if (shaam.length === 0 && btl.length === 0) return null;
+  if (shaam.length === 0 && btl.length === 0) return <>{heading}</>;
 
   const running = sh.running || bt.running;
   const connecting = sh.gate.connecting || bt.gate.connecting;
   // ‼ «רך» רק כשאף מערכת שצריך לבדוק אינה מחוברת — אותה שפה כמו כל כפתור אוטומציה.
   const soft = !running && !connecting
     && (shaam.length === 0 || !sh.gate.ready) && (btl.length === 0 || !bt.gate.ready);
+  // ‼ «שקט» גובר על «רך»: המסר החשוב כאן הוא שהבדיקה לא תקדם כלום עכשיו.
+  const quiet = !running && !connecting && reconcileIsPremature([...shaam, ...btl]);
+  const readOnly = `קריאה בלבד מול ${[shaam.length ? 'שע״ם' : '', btl.length ? 'ביטוח לאומי' : ''].filter(Boolean).join(' ו')} - לא נשלח ולא משתנה דבר ברשות`;
   const lines = [
     ...shaam.map(t => ({ t, shown: lineFor(t, sh.results[t.key], sh.currentKey === t.key) })),
     ...btl.map(t => ({ t, shown: lineFor(t, bt.results[t.key], bt.currentKey === t.key) })),
   ].filter(x => x.shown);
 
   return (
-    <div data-testid="rep-reconcile" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '.2rem' }}>
-      <button type="button" className={`btn btn-sm btn-automation ${soft ? 'is-soft' : ''}`}
-        disabled={running || connecting} aria-busy={running || undefined}
-        title={`קריאה בלבד מול ${[shaam.length ? 'שע״ם' : '', btl.length ? 'ביטוח לאומי' : ''].filter(Boolean).join(' ו')} - לא נשלח ולא משתנה דבר ברשות`}
-        onClick={() => { sh.runAll(); bt.runAll(); }}>
-        {running ? 'בודק…' : connecting ? 'ממתין לחיבור…' : 'בדוק קבלת הייצוג'}
-      </button>
+    <div data-testid="rep-reconcile" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '.25rem' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '.75rem', flexWrap: 'wrap' }}>
+        {heading}
+        <button type="button" className={`btn btn-sm btn-automation ${quiet ? 'is-quiet' : soft ? 'is-soft' : ''}`}
+          disabled={running || connecting} aria-busy={running || undefined}
+          title={quiet ? `ההוראות עוד לא נשלחו למבוטח - סביר שעדיין אין מה לבדוק. ${readOnly}` : readOnly}
+          onClick={() => { sh.runAll(); bt.runAll(); }}>
+          {running ? 'בודק…' : connecting ? 'ממתין לחיבור…' : 'בדוק קבלת הייצוג'}
+        </button>
+      </div>
       {lines.map(({ t, shown }) => (
         <div key={`${t.label}`} className="rep-track-next-err" data-testid={`rep-reconcile-line-${t.key}`}
           style={shown!.color ? { color: shown!.color } : undefined}>

@@ -4743,6 +4743,26 @@ input.pg-search:focus { box-shadow: 0 0 0 2px var(--focus-ring); border-color: t
   border-color: var(--automation-fill);
   color: var(--automation-text);
 }
+/* שקט = «אפשר, אבל כנראה לא יקדם כלום עכשיו» (27.09.2026 — «בדוק קבלת
+   הייצוג» לפני שההוראות יצאו למבוטח). מסגרת ורודה בלי מילוי: עדיין בן
+   משפחת האוטומציה ועדיין לחיץ, רק לא מושך את העין מהפעולה שבאמת תקדם. */
+.btn-automation.is-quiet,
+.btn.btn-automation.is-quiet,
+.ui-btn.btn-automation.is-quiet,
+.txf-check-btn.btn-automation.is-quiet {
+  background: transparent;
+  border: 1px solid var(--automation-soft-bd);
+  color: var(--automation-text);
+  font-weight: 400;
+  cursor: pointer;
+}
+.btn.btn-automation.is-quiet:hover,
+.ui-btn.btn-automation.is-quiet:hover,
+.txf-check-btn.btn-automation.is-quiet:hover {
+  background: var(--automation-soft);
+  border-color: var(--automation-fill);
+  color: var(--automation-text);
+}
 
 /* ── «איפה מוצאים?» — עזרת שדה בתצוגת הרשויות הקומפקטית (19.09.2026) ──────
    גילוי הדרגתי: «?» זעיר וחיוור ליד התווית, מתחזק בריחוף על השורה; ההסבר

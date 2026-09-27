@@ -202,14 +202,35 @@ export function checkedAtText(iso: string, today: Date = new Date()): string {
 const NI_STATES: readonly NiExternalState[] = ['approved', 'pending', 'expired', 'cancelled', 'unknown', 'not_found'];
 
 /**
- * התוצאה האחרונה מול ב״ל, מהנתון השמור. null ⇒ עוד לא נבדק מול ב״ל.
+ * ההוראות (אסמכתא + מועד) הגיעו למבוטח — אותו תנאי כמו שלב 3 במרכז.
+ * ‼ בלי האסמכתא אין למבוטח מה לאשר בב״ל, ולכן «ממתין לאישור המבוטח» לפני
+ * שהן יצאו מתאר את הסיבה הלא נכונה (27.09.2026, עידן רוקח).
+ */
+export function niInstructionsDelivered(ni: Pick<NiTracking, 'instructionsSentAt' | 'instructionsSentWith'>): boolean {
+  return ni.instructionsSentWith === 'signature' || !!ni.instructionsSentAt;
+}
+
+const INSTRUCTIONS_NOT_SENT = 'ההוראות לאישור עוד לא נשלחו למבוטח';
+
+/**
+ * התוצאה האחרונה מול ב״ל, מהנתון השמור. null ⇒ עוד לא נבדק מול ב״ל (ואין
+ * סיבה אחרת לומר משהו).
  * ‼ 'unknown' לעולם אינו «אושר» — רק מצטט את מה שב״ל הציגה.
+ * ‼ סדר: מה שב״ל אמרה (אושר/פג/בוטל/לא נמצא) > המועד עבר > ההוראות לא יצאו >
+ * ממתין לאישור.
  */
 export function niReconcileLine(
-  ni: Pick<NiTracking, 'externalState' | 'rawExternalState' | 'syncedAt' | 'deadline' | 'referenceNumber'>,
+  ni: Pick<NiTracking, 'externalState' | 'rawExternalState' | 'syncedAt' | 'deadline' | 'referenceNumber'
+    | 'instructionsSentAt' | 'instructionsSentWith'>,
   today: Date = new Date(),
 ): ReconcileLine | null {
-  if (!ni.syncedAt || !ni.externalState) return null;
+  const delivered = niInstructionsDelivered(ni);
+  if (!ni.syncedAt || !ni.externalState) {
+    // ‼ עוד לא נבדק, אבל יש מה לומר: למה עדיין אין טעם לבדוק.
+    return ni.referenceNumber && !delivered
+      ? { text: `${INSTRUCTIONS_NOT_SENT} - עד אז אין לו מה לאשר`, tone: 'required', at: '' }
+      : null;
+  }
   const when = ` · ${checkedAtText(ni.syncedAt, today)}`;
   const at = ni.syncedAt;
   switch (ni.externalState) {
@@ -221,6 +242,7 @@ export function niReconcileLine(
       if (left !== null && left < 0) {
         return { text: `טרם אושר - המועד לאישור עבר ב-${dayText(ni.deadline!)}${when}`, tone: 'warning', at };
       }
+      if (!delivered) return { text: `טרם אושר - ${INSTRUCTIONS_NOT_SENT}${when}`, tone: 'required', at };
       return {
         text: `טרם אושר - ממתין לאישור המבוטח${ni.deadline ? ` עד ${dayText(ni.deadline)}` : ''}${when}`,
         tone: 'required', at,
@@ -254,6 +276,7 @@ export function niReconcileLineFromJob(
   const r = (result ?? {}) as { status?: string; rawStatus?: string | null; deadline?: string | null; referenceNumber?: string | null };
   const state = NI_STATES.find(s => s === r.status) ?? 'unknown';
   return niReconcileLine({
+    ...prev,
     externalState: state,
     rawExternalState: r.rawStatus ?? undefined,
     deadline: r.deadline || prev.deadline,
@@ -276,4 +299,14 @@ export function shaamReconcileLine(t: ShaamRequestTracking | undefined, today: D
     : line.ball === 'office' ? 'warning'
     : 'info';
   return { text: `${line.text.replace(/\.$/, '')} · ${checkedAtText(t.syncedAt, today)}`, tone, at: t.syncedAt };
+}
+
+/**
+ * הכפתור «שקט» (מסגרת ורודה בלי מילוי) כשאף אחת מהבדיקות לא צפויה לשנות
+ * משהו עכשיו — למשל ההוראות עוד לא יצאו למבוטח. ‼ עדיין ורוד (אוטומציה)
+ * ועדיין לחיץ: אולי המבוטח קיבל את האסמכתא בטלפון. רק לא מושך את העין
+ * מהפעולה שבאמת תקדם את העניין.
+ */
+export function reconcileIsPremature(targets: { premature?: boolean }[]): boolean {
+  return targets.length > 0 && targets.every(t => !!t.premature);
 }

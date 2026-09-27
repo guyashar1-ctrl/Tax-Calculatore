@@ -9,6 +9,7 @@ import type { NiTracking } from '../../../types';
 import {
   NOTICE_STYLES, columnAction, isReconcileAction, niTrackView, shaamSubmittedFacts, daysUntil,
   niReconcileLine, niReconcileLineFromJob, shaamReconcileLine, checkedAtText,
+  niInstructionsDelivered, reconcileIsPremature,
 } from '../representationCenter';
 import type { ShaamRequestTracking, ShaamSystemStatus } from '../shaamRepresentation';
 import { shaamRepresentationAction } from '../../taxFile/shaamRepresentationAction';
@@ -148,7 +149,7 @@ export const TESTS: TestCase[] = [
   // ── «בדוק קבלת הייצוג»: התוצאה מתחת לכפתור (27.09.2026) ─────────────────
   test('מרכז · ב״ל ממתין ⇒ «טרם אושר» + מועד + שעת הבדיקה, לא «נבדק» בלבד', () => {
     const at = new Date(2026, 8, 27, 15, 47).toISOString();
-    const l = niReconcileLine({ externalState: 'pending', syncedAt: at, deadline: '2026-11-23', referenceNumber: '75204909' }, new Date(2026, 8, 27, 18, 0))!;
+    const l = niReconcileLine({ externalState: 'pending', syncedAt: at, deadline: '2026-11-23', referenceNumber: '75204909', instructionsSentWith: 'signature' }, new Date(2026, 8, 27, 18, 0))!;
     equal(l.text, 'טרם אושר - ממתין לאישור המבוטח עד 23.11.2026 · נבדק היום 15:47');
     equal(l.tone, 'required');
     equal(l.at, at);
@@ -172,6 +173,34 @@ export const TESTS: TestCase[] = [
     equal(l.tone, 'warning');
   }),
 
+  test('מרכז · ב״ל ההוראות עוד לא יצאו (עידן רוקח, 27.09) ⇒ הסיבה האמיתית, לא «ממתין לאישור המבוטח»', () => {
+    const at = new Date(2026, 8, 27, 19, 19).toISOString();
+    const T = new Date(2026, 8, 27, 20, 0);
+    const idan: NiTracking = { referenceNumber: '75204909', deadline: '2026-11-23', externalState: 'pending', syncedAt: at };
+    const l = niReconcileLine(idan, T)!;
+    equal(l.text, 'טרם אושר - ההוראות לאישור עוד לא נשלחו למבוטח · נבדק היום 19:19');
+    equal(l.tone, 'required');
+    // ‼ גם לפני בדיקה ראשונה יש מה לומר — למה עדיין אין טעם לבדוק.
+    const before = niReconcileLine({ referenceNumber: '75204909' }, T)!;
+    equal(before.text, 'ההוראות לאישור עוד לא נשלחו למבוטח - עד אז אין לו מה לאשר');
+    // ‼ מה שב״ל אמרה גובר: אושר הוא אושר גם בלי שסומנו הוראות.
+    assert(niReconcileLine({ ...idan, externalState: 'approved' }, T)!.text.startsWith('אושר'), 'אושר גובר על הוראות שלא סומנו');
+  }),
+
+  test('מרכז · ההוראות נחשבות שיצאו כמו בשלב 3: עם מייל החתימה, בנפרד, או בקישור', () => {
+    equal(niInstructionsDelivered({}), false);
+    equal(niInstructionsDelivered({ instructionsSentWith: 'signature' }), true);
+    equal(niInstructionsDelivered({ instructionsSentAt: '2026-09-24T10:00:00Z' }), true);
+    equal(niInstructionsDelivered({ instructionsSentAt: '2026-09-24T10:00:00Z', instructionsSentWith: 'link' }), true);
+  }),
+
+  test('מרכז · הכפתור «שקט» רק כשכל הבדיקות מוקדמות מדי', () => {
+    equal(reconcileIsPremature([]), false);
+    equal(reconcileIsPremature([{ premature: true }]), true);
+    equal(reconcileIsPremature([{ premature: true }, { premature: false }]), false);
+    equal(reconcileIsPremature([{ premature: true }, {}]), false);
+  }),
+
   test('מרכז · ב״ל שעוד לא נבדק ⇒ אין שורה', () => {
     equal(niReconcileLine({ externalState: 'pending' }), null);
     equal(niReconcileLine({ syncedAt: '2026-09-27T10:00:00Z' }), null);
@@ -180,7 +209,7 @@ export const TESTS: TestCase[] = [
   test('מרכז · ב״ל ישר מתוצאת המשימה: אותו נרמול כמו השרת, ומועד שמור לא נמחק', () => {
     const fin = new Date(2026, 8, 27, 15, 47).toISOString();
     const T = new Date(2026, 8, 27, 16, 0);
-    const prev: NiTracking = { referenceNumber: '75204909', deadline: '2026-11-23' };
+    const prev: NiTracking = { referenceNumber: '75204909', deadline: '2026-11-23', instructionsSentAt: '2026-09-24T10:00:00Z' };
     equal(niReconcileLineFromJob({ status: 'pending', deadline: null }, fin, prev, T)!.text,
       'טרם אושר - ממתין לאישור המבוטח עד 23.11.2026 · נבדק היום 15:47');
     const weird = niReconcileLineFromJob({ status: 'approved-ish', rawStatus: 'X' }, fin, prev, T)!;
@@ -213,6 +242,12 @@ export const TESTS: TestCase[] = [
     assert(!/'נבדק'/.test(code(RECONCILE_SOURCE)), 'אין יותר «נבדק» כתוצאה');
     assert(CENTER_SOURCE.includes('last: niReconcileLine('), 'ב״ל: השורה נקראת מהנתון השמור');
     assert(CENTER_SOURCE.includes('last: shaamReconcileLine('), 'שע״ם: השורה נקראת מהנתון השמור');
+  }),
+
+  test('מסך · הכפתור צמוד לכותרת, ותוצאת ב״ל מוצגת פעם אחת', () => {
+    assert(/<RepresentationReconcileButton heading=\{<div className="card-title">/.test(CENTER_SOURCE), 'הכותרת עוברת אל שורת הכפתור');
+    assert(!/justifyContent: 'space-between'[^\n]*\n[^\n]*card-title">ביצוע הייצוג/.test(CENTER_SOURCE), 'לא בקצה השני של השורה');
+    assert(/external && view\.showExternalEvidence && !resultShownAbove/.test(CENTER_SOURCE), 'התיבה בשלב 4 יורדת כשהשורה למעלה קיימת');
   }),
 
   test('מסך · בלי הוראת «בדקו» כללית, בלי «יש להזין מחדש» קשיח, בלי מילוי ורדרד', () => {

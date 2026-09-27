@@ -176,6 +176,14 @@ const SCENARIOS: Scenario[] = [
       nationalInsurance: { enteredAt: '2026-09-23T09:52:33.656Z', referenceNumber: '75165449', deadline: '2026-09-23', externalState: 'approved', syncedAt: '2026-09-23T20:00:00.000Z', confirmedAt: '2026-09-23T20:00:00.000Z', instructionsSentAt: '2026-09-23T17:25:18.636Z', instructionsSentWith: 'signature' } } } as Partial<RepresentationRequest>),
   },
   {
+    // ‼ 27.09.2026 (עידן רוקח): יש אסמכתא, ב״ל אומרת «ממתין», אבל ההוראות
+    // עוד לא יצאו — הכפתור «שקט» והשורה אומרת את הסיבה האמיתית.
+    key: 'btl-no-instructions', label: 'ב״ל ד. יש אסמכתא, ההוראות לא יצאו (עידן)',
+    req: { ...BASE, status: 'pending_signature', authorities: ['incomeTax', 'nationalInsurance'],
+      scope: { incomeTax: { status: 'in_process', level: 'primary' }, vat: { status: 'in_process', level: 'primary' }, withholding: { status: 'in_process', level: 'primary' } },
+      execution: ni({ nationalInsurance: { enteredAt: '2026-09-24T09:00:00.000Z', referenceNumber: '75204909', deadline: '2026-11-23', externalState: 'pending', rawExternalState: 'ממתין לאישור', syncedAt: '2026-09-27T16:19:05.000Z' } }) } as unknown as RepresentationRequest,
+  },
+  {
     key: 'shaam-docs', label: 'שע״ם ז. דרישת ת.ז./דרכון',
     req: shaamReq({ ...SHAAM_BEFORE, submittedAt: undefined, requiredDocuments: [
       { label: 'צילום תעודת זהות', required: true, kind: 'idCard', handling: 'requested' },
