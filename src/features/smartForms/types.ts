@@ -55,6 +55,11 @@ export interface FieldDef {
   kind: FieldKind;
   /** קו הבסיס של הטקסט. חסר ⇒ ממורכז אנכית בתוך box. */
   baseline?: number;
+  /**
+   * הקצה העליון של קו הכתיבה המודפס מתחת לשדה (נמדד). כשקיים: טקסט עם זנב
+   * תחתון (g, p, ק, פסיק) מורם עד שהזנב לא נוגע בקו, וחתימה נחה עליו.
+   */
+  line?: number;
   align?: 'right' | 'left' | 'center';
   /** גבולות התיבות לספרות (n+1 ערכי x משמאל לימין). */
   cells?: number[];
@@ -117,7 +122,7 @@ export interface SmartFormTemplate {
 export type DrawOp =
   | { kind: 'text'; page: number; fieldId: string; text: string; x: number; y: number; size: number; align: 'right' | 'left' | 'center'; width: number }
   | { kind: 'check'; page: number; fieldId: string; box: PdfRect }
-  | { kind: 'signature'; page: number; fieldId: string; signer: 'client' | 'spouse'; box: PdfRect }
+  | { kind: 'signature'; page: number; fieldId: string; signer: 'client' | 'spouse'; box: PdfRect; line?: number }
   | { kind: 'appendix'; page: number; rows: string[][]; header: string[]; title: string; idNumber: string; name: string };
 
 /** בעיית פריסה — נחסמת לפני נעילה לחתימה, לעולם לא נחתכת בשקט. */
@@ -134,5 +139,12 @@ export interface LayoutResult {
   pageCount: number;
 }
 
-/** מדידת רוחב טקסט בגודל נתון — מוזרק כדי שאותה פריסה תרוץ בדפדפן ובבדיקות. */
-export type MeasureText = (text: string, size: number) => number;
+/** גבולות הדיו של טקסט ביחס לנקודת ההתחלה וקו הבסיס (נק'), ורוחב ההתקדמות. */
+export interface InkBox { minX: number; maxX: number; minY: number; maxY: number; advance: number }
+
+/**
+ * מדידת רוחב טקסט בגודל נתון — מוזרק כדי שאותה פריסה תרוץ בדפדפן ובבדיקות.
+ * `ink` (רשות): גבולות הדיו מתוך הגליפים עצמם — למרכוז אופטי של ספרה בתא
+ * ולהרמת זנבות מעל קו. בלעדיו הפריסה נשענת על רוחב ההתקדמות בלבד.
+ */
+export type MeasureText = ((text: string, size: number) => number) & { ink?: (text: string, size: number) => InkBox };

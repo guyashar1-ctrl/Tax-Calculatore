@@ -262,6 +262,29 @@ try {
   ok('ניסיון להפוך אותה לרשות — השרת משאיר אותה חובה', downgrade?.ok && fG2?.attachments?.[0]?.required === true && fG2?.attachments?.[0]?.lockedRequirement === true, fG2?.attachments);
   const nullAtt = await rpc(office.db, 'smart_form_set_attachments', { p_filing_id: G, p_attachments: null });
   ok('רשימת אסמכתאות ריקה (null) נדחית ולא מוחקת', nullAtt?.error === 'invalid', nullAtt);
+
+  // ── (208) מיפוי: חותמים רק על מה שמוצג ──
+  const mapOf = async (rev) => (await writeStaging(`select mapping_version from public.smart_form_revisions where filing_id = ${q(G)} and revision = ${rev}`))[0]?.mapping_version;
+  ok('208: הנעילה רושמת את המיפוי הנוכחי (2)', await mapOf(1) === 2);
+  const linkG = await rpc(office.db, 'smart_form_issue_sign_link', { p_filing_id: G, p_revision: 1, p_role: 'client', p_days: 7 });
+  ok('208: קישור חתימה נוצר על גרסה במיפוי הנוכחי', linkG?.ok && linkG.token, linkG);
+  // הדמיה: גרסה שננעלה לפני 208 (מיפוי 1) — מצוירת אחרת ממה שהקוד מציג היום
+  await writeStaging(`update public.smart_form_revisions set mapping_version = 1 where filing_id = ${q(G)} and revision = 1`);
+  const capOld = await rpc(office.db, 'smart_form_capture_signature', { p_filing_id: G, p_revision: 1, p_role: 'client', p_png: PNG, p_content_sha256: lkG.contentSha256, p_attestation: 'נכח/ה וחתם/ה' });
+  ok('208: חתימה במשרד על גרסה ממיפוי 1 נחסמת', capOld?.error === 'mapping_outdated', capOld);
+  const linkOld = await rpc(office.db, 'smart_form_issue_sign_link', { p_filing_id: G, p_revision: 1, p_role: 'client', p_days: 7 });
+  ok('208: קישור חתימה חדש על גרסה ממיפוי 1 נחסם', linkOld?.error === 'mapping_outdated', linkOld);
+  const subOld = await rpc(anon, 'submit_smart_form_signature', { p_token: linkG.token, p_png: PNG, p_content_sha256: lkG.contentSha256, p_consent: true });
+  ok('208: קישור שנשלח לפני כן — חתימה דרכו נחסמת', subOld?.reason === 'mapping_outdated', subOld);
+  const nrG = await rpc(office.db, 'smart_form_new_revision', { p_filing_id: G, p_reason: 'עדכון מיקום השדות בטופס (מיפוי 2)' });
+  ok('208: גרסה חדשה נפתחת', nrG?.ok, nrG);
+  ok('208: הגרסה החדשה במיפוי הנוכחי (לא מועתקת מהקודמת)', await mapOf(2) === 2);
+  const lockOldScreen = await rpc(office.db, 'smart_form_lock', { p_filing_id: G, p_revision: 2,
+    p_snapshot: { ...snapG, template: { mappingVersion: 1 }, professional: { startAndEnd: { reason: 'עבודה עונתית' } } }, p_signers: signersG });
+  ok('208: נעילה ממסך שמציג מיפוי אחר (דפדפן שלא התרענן) נדחית', lockOldScreen?.error === 'mapping_outdated' && lockOldScreen.mappingVersion === 2, lockOldScreen);
+  const lockNow = await rpc(office.db, 'smart_form_lock', { p_filing_id: G, p_revision: 2,
+    p_snapshot: { ...snapG, template: { mappingVersion: 2 }, professional: { startAndEnd: { reason: 'עבודה עונתית' } } }, p_signers: signersG });
+  ok('208: נעילה במיפוי הנוכחי עוברת ונרשמת במיפוי 2', lockNow?.ok && await mapOf(2) === 2, lockNow);
   }
 } catch (e) {
   fail++;

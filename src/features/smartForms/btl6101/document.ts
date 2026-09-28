@@ -87,6 +87,8 @@ export function snapshotFor(res: Resolve6101Result, layoutIssues: LayoutResult['
       syncedAt: res.btl.syncedAt ?? null,
       declaredIncomeMonthly: res.btl.declaredIncomeMonthly ?? null,
       declaredIncomeYear: res.btl.declaredIncomeYear ?? null,
+      // (207) מה ב"ל רשם ברגע הנעילה — ראיה למצב שממנו ביקשו את השינוי
+      recorded: res.btl.recorded ?? null,
     },
     template: { key: BTL6101_TEMPLATE.key, version: BTL6101_TEMPLATE.version, sha256: BTL6101_TEMPLATE.sha256, mappingVersion: BTL6101_TEMPLATE.mappingVersion },
   };

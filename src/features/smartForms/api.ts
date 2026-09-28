@@ -247,6 +247,7 @@ export const signLinkUrl = (token: string) => `${window.location.origin}/?sign-f
 /** הודעות שגיאה מהשרת ⇒ עברית למסך. */
 export function filingErrorText(code?: string): string {
   switch (code) {
+    case 'mapping_outdated': return 'מיקום השדות בטופס עודכן מאז — צריך גרסה חדשה (הערכים נשמרים) ולנעול מחדש';
     case 'not_a_candidate': return 'המסמך הזה אינו מועמד לראיית קליטה של ההגשה';
     case 'already_confirmed': return 'כבר אושרה ראיית קליטה אחרת להגשה הזו';
     case 'not_submitted': return 'ראיית קליטה נרשמת רק להגשה שהוגשה ולא נסגרה';

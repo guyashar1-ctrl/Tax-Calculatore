@@ -24,6 +24,7 @@ import {
 import Btl6101Lifecycle from './Btl6101Lifecycle';
 import type { LayoutIssue } from '../types';
 import { BtlNow, formatDay, formatIl, type WorkspaceCtx } from './ui';
+import { loadBtlPortalRecord, type BtlPortalRecord } from '../../nationalInsurance/btlPortalRecord';
 import '../smartForms.css';
 
 type Step = 'purpose' | 'data' | 'review' | 'sign' | 'submit';
@@ -73,6 +74,14 @@ export default function Btl6101Workspace({ filingId, client: clientProp, onClose
 
   useEffect(() => setClient(clientProp), [clientProp]);
 
+  // (207) מה ב"ל רושם — נקרא בפורטל ונשמר בשרת; מקור השוואה והשלמה בפתרון השדות.
+  const [btlRecord, setBtlRecord] = useState<BtlPortalRecord | null>(null);
+  useEffect(() => {
+    let alive = true;
+    void loadBtlPortalRecord(clientProp.id).then(r => { if (alive) setBtlRecord(r); });
+    return () => { alive = false; };
+  }, [clientProp.id]);
+
   const reload = useCallback(async () => {
     try {
       const b = await loadFiling(filingId);
@@ -98,7 +107,9 @@ export default function Btl6101Workspace({ filingId, client: clientProp, onClose
   const editable = !!filing && !!rev && rev.state === 'draft' && ['draft', 'waiting_client_info', 'review'].includes(filing.state);
   const asOf = useMemo(todayIso, []);
 
-  const resolved = useMemo(() => resolve6101({ client, purposes, entered, confirmed, asOf, flags, professional }), [client, purposes, entered, confirmed, asOf, flags, professional]);
+  const subjectRecord = btlRecord?.[filing?.subjectRole ?? 'client'];
+  const resolved = useMemo(() => resolve6101({ client, purposes, entered, confirmed, asOf, flags, professional, btlRecord: subjectRecord }),
+    [client, purposes, entered, confirmed, asOf, flags, professional, subjectRecord]);
 
   // ── שמירה אוטומטית (רק טיוטה) ──
   const saveTimer = useRef<number | null>(null);
@@ -187,7 +198,7 @@ export default function Btl6101Workspace({ filingId, client: clientProp, onClose
   }
 
   const blockers = [...resolved.issues.filter(i => i.severity === 'blocker'), ...preview.issues.map(i => ({ key: i.fieldId, severity: 'blocker' as const, code: i.code, message: i.message }))];
-  const ctx: WorkspaceCtx = { filing, rev, revisions: bundle.revisions, events: bundle.events, client, reload, onChanged };
+  const ctx: WorkspaceCtx = { filing, rev, revisions: bundle.revisions, events: bundle.events, client, reload, onChanged, btlRecord: subjectRecord };
   const stateTone = ['submitted', 'awaiting_signatures', 'waiting_client_info', 'awaiting_client_submission'].includes(filing.state) ? 'is-wait'
     : filing.state === 'closed' ? 'is-done' : 'is-mine';
 
@@ -447,6 +458,12 @@ function statusBadge(st: FieldState | undefined, required: boolean) {
   return <span className={cls}>{FIELD_STATUS_LABELS[st.status]}</span>;
 }
 
+const MARITAL_TEXT: Record<string, string> = { single: 'רווק/ה', married: 'נשוי/אה', common_law: 'ידוע/ה בציבור', divorced: 'גרוש/ה', widowed: 'אלמן/ה' };
+const HOURS_TEXT: Record<string, string> = { '1_11': '1–11 שעות בשבוע', '12_19': '12–19 שעות בשבוע', '20_plus': '20 שעות ומעלה' };
+/** ערך חלופי כפי שהוא מוצג (קוד ⇒ תווית, תאריך ⇒ יום/חודש/שנה). */
+const altText = (k: keyof Btl6101Data, v: string) =>
+  DATE_KEYS.has(k) ? formatDay(v) : k === 'maritalStatus' ? MARITAL_TEXT[v] ?? v : k === 'hoursBand' ? HOURS_TEXT[v] ?? v : v;
+
 function FieldRow({ k, data, fields, editable, activeKey, entered, onValue, onReset, onFocus }: DataStepProps & { k: keyof Btl6101Data }) {
   const st = fields[k];
   const v = data[k];
@@ -498,7 +515,10 @@ function FieldRow({ k, data, fields, editable, activeKey, entered, onValue, onRe
         <div className="sf-src">
           {st?.sourceLabel && st.status !== 'entered' ? <>מקור: {st.sourceLabel}{st.sourceAt ? ` · ${formatIl(st.sourceAt)}` : ''}</> : null}
           {st?.note ? <>{st?.sourceLabel && st.status !== 'entered' ? ' · ' : ''}{st.note}</> : null}
-          {alt && editable ? <> · <button type="button" onClick={() => onReset(k)}>חזרה ל«{DATE_KEYS.has(k) ? formatDay(alt.value) : alt.value}» ({alt.sourceLabel})</button></> : null}
+          {/* ‼ שני מצבים שונים: אחרי הזנה — החלופה היא הערך המקורי ו«חזרה» מבטלת את ההזנה;
+              בסתירה (למשל כרטיס מול ב"ל) — החלופה היא הערך מהמקור השני ו«להשתמש» מזינה אותו. */}
+          {alt && editable && isEntered ? <> · <button type="button" onClick={() => onReset(k)}>חזרה ל«{altText(k, alt.value)}» ({alt.sourceLabel})</button></> : null}
+          {alt && editable && !isEntered ? <> · <button type="button" onClick={() => onValue(k, alt.value)}>להשתמש ב«{altText(k, alt.value)}» ({alt.sourceLabel})</button></> : null}
           {isEntered && !alt && editable ? <> <button type="button" onClick={() => onReset(k)}>ביטול השינוי</button></> : null}
         </div>
       )}

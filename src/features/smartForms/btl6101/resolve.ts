@@ -14,6 +14,7 @@ import type { FieldMeta } from '../../../types/clientWorkspace';
 import { FIELD_SOURCE_LABELS } from '../../../types/clientWorkspace';
 import { isValidIsraeliId } from '../../../utils/israeliId';
 import { niOccupationLabel, niOccupationOverlaps } from '../../nationalInsurance/niOccupations';
+import type { BtlPortalPerson } from '../../nationalInsurance/btlPortalRecord';
 import type { Btl6101Data, Btl6101Purpose, MaritalStatus6101, OccupationRow6101 } from './model';
 import { EMPTY_6101, sectionApplies } from './model';
 import { parseHebrewAddress } from './address';
@@ -71,6 +72,14 @@ export interface CurrentBtlState {
   declaredIncomeAt?: string;
   advanceMonthly?: number;
   classificationLabel: string;
+  /** (207) ריכוז המידע ודמי הביטוח השנתיים, כפי שנקראו מב"ל — המצב הרשום. */
+  recorded?: {
+    readAt?: string;
+    familyStatus?: string;
+    paymentObligation?: { value: string; since: string; previous?: string };
+    coverage?: string;
+    years?: { year: number; text: string }[];
+  };
 }
 
 export interface Resolve6101Input {
@@ -85,6 +94,11 @@ export interface Resolve6101Input {
   flags?: { contactNotOwn?: boolean; separateMailing?: boolean };
   /** אישורים מקצועיים של הרו"ח שנדרשים לפני נעילה (עם סיבה). */
   professional?: ProfessionalConfirmations;
+  /**
+   * (207) מה ב"ל רושם על האדם שההגשה עליו — נקרא בפורטל המייצגים ונשמר בשרת
+   * (get_btl_portal_record). ‼ מקור נוסף להשוואה ולהשלמה, לא דריסה של הכרטיס.
+   */
+  btlRecord?: BtlPortalPerson;
 }
 
 /**
@@ -151,7 +165,39 @@ function metaSourceLabel(m: FieldMeta | undefined, fallback: string): string {
   return `${fallback} · ${FIELD_SOURCE_LABELS[m.source] ?? m.source}`;
 }
 
-export function currentBtlState(client: Client, asOf: string): CurrentBtlState {
+const BTL_FAMILY_LABEL: Record<string, string> = {
+  single: 'רווק/ה', married: 'נשוי/אה', divorced: 'גרוש/ה', widowed: 'אלמן/ה', separated: 'פרוד/ה', common_law: 'ידוע/ה בציבור',
+};
+const BTL_TO_6101: Record<string, MaritalStatus6101> = {
+  single: 'single', married: 'married', divorced: 'divorced', widowed: 'widowed', common_law: 'common_law',
+};
+type BtlRaw = { raw?: string | null; code?: string };
+type BtlYears = { years?: { year: number; byAssessment: boolean | null; total: number | null; classes: { classification: string; charge: string | null; annualBase: number | null }[] }[] };
+
+/** (207) סיכום «רשום בב"ל» מתוך הרשומה שנשמרה — לתצוגה ולהשוואה. */
+export function recordedBtl(rec?: BtlPortalPerson): CurrentBtlState['recorded'] {
+  const f = rec?.facts;
+  if (!f || !Object.keys(f).length) return undefined;
+  const seen = Object.values(f).map(x => x?.lastSeen).filter((x): x is string => !!x).sort();
+  const fam = f.familyStatus?.value as BtlRaw | undefined;
+  const po = f.paymentObligation;
+  const poRaw = (po?.value as BtlRaw | undefined)?.raw;
+  const prevRaw = (po?.history?.[0]?.value as BtlRaw | undefined)?.raw;
+  const years = ((f.annualContributions?.value as BtlYears | undefined)?.years ?? []).slice(0, 3).map(y => ({
+    year: y.year,
+    text: [y.classes.map(c => [c.classification, c.charge].filter(Boolean).join(' ')).join(' + ') || null,
+      y.byAssessment === true ? 'לפי שומה' : y.byAssessment === false ? 'טרם שומה' : null].filter(Boolean).join(' · '),
+  })).filter(y => y.text);
+  return {
+    readAt: seen[seen.length - 1],
+    ...(fam?.raw ? { familyStatus: fam.code ? BTL_FAMILY_LABEL[fam.code] ?? fam.raw : fam.raw } : {}),
+    ...(poRaw ? { paymentObligation: { value: poRaw, since: po!.since, ...(prevRaw && prevRaw !== poRaw ? { previous: prevRaw } : {}) } } : {}),
+    ...((f.coverage?.value as BtlRaw | undefined)?.raw ? { coverage: (f.coverage!.value as BtlRaw).raw! } : {}),
+    ...(years.length ? { years } : {}),
+  };
+}
+
+export function currentBtlState(client: Client, asOf: string, rec?: BtlPortalPerson): CurrentBtlState {
   const occs = client.niOccupations ?? [];
   const meta = metaOf(client, 'niOccupations');
   const fromPortal = occs.some(o => o.source === 'btl_portal');
@@ -180,6 +226,7 @@ export function currentBtlState(client: Client, asOf: string): CurrentBtlState {
     declaredIncomeAt: incMeta?.syncedAt,
     advanceMonthly: client.niAdvanceMonthly,
     classificationLabel,
+    ...(recordedBtl(rec) ? { recorded: recordedBtl(rec) } : {}),
   };
 }
 
@@ -189,7 +236,9 @@ export function resolve6101(input: Resolve6101Input): Resolve6101Result {
   const { client, purposes, entered, asOf } = input;
   const confirmed = input.confirmed ?? {};
   const flags = input.flags ?? {};
-  const btl = currentBtlState(client, asOf);
+  const btl = currentBtlState(client, asOf, input.btlRecord);
+  const rec = input.btlRecord?.facts ?? {};
+  const btlSrc = (screen: string, at?: string) => `ב"ל · ${screen}${at ? ` (נקרא ${formDate(at.slice(0, 10))})` : ''}`;
   const fields: Record<string, FieldState> = {};
   const issues: Issue[] = [];
   const hints: Record<string, string[]> = {};
@@ -213,9 +262,29 @@ export function resolve6101(input: Resolve6101Input): Resolve6101Result {
 
   // ── מצב משפחתי ──
   const ms = MARITAL[client.familyStatus];
-  if (ms) put('maritalStatus', ms, 'verified', card);
+  // (207) מה ב"ל רושם — להשוואה, ולהשלמה כשבכרטיס אין מצב משפחתי. ‼ לא דורס את הכרטיס.
+  const btlFam = rec.familyStatus?.value as BtlRaw | undefined;
+  const btlMs = btlFam?.code ? BTL_TO_6101[btlFam.code] : undefined;
+  const btlFamAt = rec.familyStatus?.lastSeen;
+  if (ms && btlMs && btlMs !== ms) {
+    put('maritalStatus', ms, 'conflict', card, {
+      note: `בכרטיס «${BTL_FAMILY_LABEL[client.familyStatus] ?? client.familyStatus}», בב"ל רשום «${BTL_FAMILY_LABEL[btlFam!.code!]}» — לבחור את הנכון`,
+      alternatives: [{ value: btlMs, sourceLabel: btlSrc('ריכוז מידע', btlFamAt) }],
+    });
+  } else if (ms) put('maritalStatus', ms, 'verified', btlMs ? `${card} · תואם לב"ל` : card);
   else if (client.familyStatus === 'singleParent') {
-    put('maritalStatus', '', 'confirm', card, { note: '«הורה יחיד» אינו מצב משפחתי בטופס — יש לבחור רווק/גרוש/אלמן' });
+    // הורה יחיד אינו נשוי — «נשוי» בב"ל הוא סתירה לבירור, לא הצעה.
+    const fromBtl = btlMs && btlMs !== 'married' && btlMs !== 'common_law' ? btlMs : undefined;
+    put('maritalStatus', fromBtl ?? '', fromBtl ? 'derived' : 'confirm',
+      fromBtl ? btlSrc('ריכוז מידע', btlFamAt) : card,
+      { note: btlMs && !fromBtl
+          ? `בכרטיס «הורה יחיד», בב"ל רשום «${BTL_FAMILY_LABEL[btlFam!.code!]}» — לברר ולבחור`
+          : '«הורה יחיד» אינו מצב משפחתי בטופס — יש לבחור רווק/גרוש/אלמן',
+        ...(fromBtl && btlFamAt ? { sourceAt: btlFamAt } : {}) });
+  } else if (btlMs) {
+    put('maritalStatus', btlMs, 'derived', btlSrc('ריכוז מידע', btlFamAt), { note: 'בכרטיס אין מצב משפחתי — נלקח מב"ל, לאשר', ...(btlFamAt ? { sourceAt: btlFamAt } : {}) });
+  } else if (btlFam?.raw) {
+    hint('maritalStatus', `בב"ל רשום «${btlFam.raw}» — נוסח שלא זוהה, לבחור ידנית`);
   }
   const sinceYear = ms === 'married' ? client.marriageYear : ms === 'divorced' ? client.divorceYear : ms === 'widowed' ? client.widowhoodYear : undefined;
   if (sinceYear) put('maritalSinceYear', String(sinceYear), 'derived', `${card} · שנה בלבד`, { note: 'החודש אינו שמור בכרטיס' });
@@ -327,7 +396,15 @@ export function resolve6101(input: Resolve6101Input): Resolve6101Result {
     put('incomeBefore', String(client.niIncomeBasisMonthly), 'verified', `ב"ל · ההכנסה המוצהרת${btl.declaredIncomeYear ? ` (${btl.declaredIncomeYear})` : ''}`, { sourceAt: btl.declaredIncomeAt });
   }
   const deductions = (client.taxFiles ?? []).find(t => t.authority === 'deductions' && t.owner !== 'spouse' && t.fileNumber);
-  if (deductions?.fileNumber) put('withholdingFile', deductions.fileNumber, 'verified', `${card} · תיק ניכויים`);
+  const btlWithholding = ((rec.withholdingFile?.value as BtlRaw | undefined)?.raw ?? '').replace(/\D/g, '');
+  if (deductions?.fileNumber) {
+    const same = !btlWithholding || btlWithholding.replace(/^0+/, '') === deductions.fileNumber.replace(/\D/g, '').replace(/^0+/, '');
+    put('withholdingFile', deductions.fileNumber, same ? 'verified' : 'conflict', `${card} · תיק ניכויים`, same ? {} : {
+      note: `בב"ל רשום תיק ניכויים ${btlWithholding}`, alternatives: [{ value: btlWithholding, sourceLabel: btlSrc('ריכוז מידע', rec.withholdingFile?.lastSeen) }],
+    });
+  } else if (btlWithholding.length >= 5) {
+    put('withholdingFile', btlWithholding, 'derived', btlSrc('ריכוז מידע', rec.withholdingFile?.lastSeen), { note: 'בכרטיס אין תיק ניכויים — נלקח מב"ל, לאשר' });
+  }
   const currentEmployer = (client.employers ?? []).find(e => !e.belongsToSpouse && !e.endDate);
   if (currentEmployer) {
     put('currentOccupation', 'שכיר', 'derived', `${card} · מעסיק «${currentEmployer.name}»`);
@@ -350,6 +427,17 @@ export function resolve6101(input: Resolve6101Input): Resolve6101Result {
     if (b.netIncome != null) hint('monthlyIncome', `בכרטיס: רווח שנתי בעסק «${b.name}» ${b.netIncome.toLocaleString('en-US')} ₪ — לא מומר לחודשי`);
   }
   if (client.niIncomeBasisMonthly != null) hint('monthlyIncome', `בב"ל מוצהרת כרגע הכנסה חודשית של ${client.niIncomeBasisMonthly.toLocaleString('en-US')} ₪`);
+  // (207) החיוב השנתי בב"ל לפי סיווג — בדיקת עקביות לטבלת השנתיים (רמז, לא ערך).
+  for (const y of ((rec.annualContributions?.value as BtlYears | undefined)?.years ?? [])) {
+    if (y.year < year - 2 || y.year > year) continue;
+    const inYear = occs.filter(o => niOccupationOverlaps(o, `${y.year}-01-01`, `${y.year}-12-31`)).map(o => occupationFormLabel(o));
+    for (const c of y.classes) {
+      const want = /לא עובד/.test(c.classification) ? /לא עובד|ללא עיסוק/ : /עצמאי/.test(c.classification) ? /עצמאי/ : null;
+      if (want && !inYear.some(l => want.test(l))) {
+        hint('occupations', `ב"ל חייב את ${y.year} גם כ«${c.classification}»${c.charge ? ` (${c.charge})` : ''} — לבדוק שהתקופה מופיעה בטבלה`);
+      }
+    }
+  }
   if (client.rentalIncomeAnnual) hint('occupations', `בכרטיס: הכנסה משכירות ${client.rentalIncomeAnnual.toLocaleString('en-US')} ₪ לשנה — הכנסה שלא מעבודה (הסכום לתקופה — להזנה)`);
   if (client.capitalGainsAnnual || client.dividendInterestAnnual) hint('occupations', 'בכרטיס: הכנסות הוניות (רווחי הון/ריבית/דיבידנד) — הכנסה שלא מעבודה, להזנה לפי תקופה');
   if (business?.startYear) hint('startDate', `בכרטיס: שנת פתיחת העסק ${business.startYear} (שנה בלבד)`);

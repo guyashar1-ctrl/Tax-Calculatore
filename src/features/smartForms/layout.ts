@@ -95,7 +95,7 @@ export function layoutFields({ template, valueOf, isActive, measure }: LayoutInp
       continue;
     }
     if (f.kind === 'signature') {
-      if (f.signer) ops.push({ kind: 'signature', page: f.page, fieldId: f.id, signer: f.signer, box: f.box });
+      if (f.signer) ops.push({ kind: 'signature', page: f.page, fieldId: f.id, signer: f.signer, box: f.box, ...(f.line != null ? { line: f.line } : {}) });
       continue;
     }
     if (typeof v !== 'string') continue;
@@ -103,7 +103,7 @@ export function layoutFields({ template, valueOf, isActive, measure }: LayoutInp
     if (!text) continue;
 
     if (f.kind === 'digits') {
-      layoutDigits(f, text, ops, issues);
+      layoutDigits(f, text, ops, issues, measure);
       continue;
     }
 
@@ -113,9 +113,11 @@ export function layoutFields({ template, valueOf, isActive, measure }: LayoutInp
     }
     const pad = padFor(f);
     const align = f.align ?? 'right';
-    const x = anchorX(f.box, pad, align);
+    // ‼ טקסט ממורכז (תאריכים, סכומים, מיקוד) — מרכוז אופטי כמו בספרות: «1» בקצה
+    // הזיז מיקוד שלם ב-0.8 נק' (נמדד).
+    const x = anchorX(f.box, pad, align) - (align === 'center' && fit.lines.length === 1 ? inkCenterShift(fit.lines[0], fit.size, measure) : 0);
     if (fit.lines.length === 1) {
-      const y = f.baseline ?? centeredBaseline(f.box, fit.size);
+      const y = clearOfLine(f, fit.lines[0], fit.size, f.baseline ?? centeredBaseline(f.box, fit.size), measure);
       ops.push({ kind: 'text', page: f.page, fieldId: f.id, text: fit.lines[0], x, y, size: fit.size, align, width: f.box.w - pad * 2 });
     } else {
       const lh = fit.size * LINE_GAP;
@@ -134,7 +136,32 @@ export function layoutFields({ template, valueOf, isActive, measure }: LayoutInp
  * פחות ספרות מתיבותיה מיושרת לימין (צמודה לקבוצה הבאה). ערך ארוך מהתיבות —
  * שגיאה, לא חיתוך.
  */
-function layoutDigits(f: FieldDef, text: string, ops: DrawOp[], issues: LayoutIssue[]) {
+/**
+ * ‼ קו כתיבה מודפס (f.line): זנב תחתון (g, p, ק, פסיק) לא נוגע בקו — קו הבסיס
+ * מורם בדיוק עד מרווח LINE_CLEAR, ולא יותר; טקסט בלי זנב נשאר במקומו. ההרמה
+ * מוגבלת כך שראש האותיות לא יוצא מהשדה.
+ */
+const LINE_CLEAR = 0.4;
+function clearOfLine(f: FieldDef, text: string, size: number, baseline: number, measure: MeasureText): number {
+  if (f.line == null || !measure.ink) return baseline;
+  const ink = measure.ink(text, size);
+  const need = f.line + LINE_CLEAR - ink.minY;          // minY שלילי = מתחת לקו הבסיס
+  if (need <= baseline) return baseline;
+  const room = f.box.y + f.box.h - ink.maxY;            // הכי גבוה שעוד נכנס
+  return round(Math.min(need, Math.max(baseline, room)));
+}
+
+/**
+ * מרכוז אופטי: מרכז **הדיו** של הספרה על מרכז התא. ‼ מרכוז לפי רוחב ההתקדמות
+ * הזיז את «1» (שהדיו שלו לא סימטרי) ב-0.6–0.7 נק' הצידה — נמדד.
+ */
+function inkCenterShift(ch: string, size: number, measure?: MeasureText): number {
+  if (!measure?.ink) return 0;
+  const k = measure.ink(ch, size);
+  return (k.minX + k.maxX) / 2 - k.advance / 2;
+}
+
+function layoutDigits(f: FieldDef, text: string, ops: DrawOp[], issues: LayoutIssue[], measure?: MeasureText) {
   const cells = f.cells ?? [];
   const n = cells.length - 1;
   if (n <= 0) return;
@@ -155,7 +182,7 @@ function layoutDigits(f: FieldDef, text: string, ops: DrawOp[], issues: LayoutIs
       const offset = size - part.length;
       [...part].forEach((d, i) => {
         const c = start + offset + i;
-        const x = round((cells[c] + cells[c + 1]) / 2);
+        const x = round((cells[c] + cells[c + 1]) / 2 - inkCenterShift(d, f.fontSize, measure));
         const y = f.baseline ?? centeredBaseline(f.box, f.fontSize);
         ops.push({ kind: 'text', page: f.page, fieldId: f.id, text: d, x, y, size: f.fontSize, align: 'center', width: cells[c + 1] - cells[c] });
       });

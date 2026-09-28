@@ -9,7 +9,7 @@
 // ‼ הקובץ הוא הסמכות. קובץ עם טביעה אחרת ⇒ המיפוי אינו חל (ראה
 // templateRegistry.ts). הזזת שדה על אותו קובץ ⇒ mappingVersion עולה.
 
-import type { FieldDef, SmartFormTemplate, UnmappedArea } from '../types';
+import type { FieldDef, PdfRect, SmartFormTemplate, UnmappedArea } from '../types';
 
 export const BTL6101_TEMPLATE_KEY = 'btl-6101';
 export const BTL6101_SHA256 = '79e4f387e851cf1a8218c52c4991321e9daae39f3c02f235aeaa3287c3d93754';
@@ -108,7 +108,7 @@ const FIELDS: FieldDef[] = [
   ] as const).map(([v, label, x, w]) => f({
     id: `p1.marital.${v}`, dataKey: `maritalStatus=${v}`, label: `מצב משפחתי — ${label}`, page: 1, section: 'marital',
     box: { x, y: 525.3, w, h: 8.7 }, kind: 'checkbox', overflow: 'none', required: 'always',
-    source: 'clients.family_status', formatRule: 'single→רווק · married→נשוי · divorced→גרוש · widowed→אלמן; «ידוע בציבור» והורה-יחיד — רק בהזנה מפורשת',
+    source: 'clients.family_status · השוואה/השלמה: btl_portal_facts.familyStatus (207)', formatRule: 'single→רווק · married→נשוי · divorced→גרוש · widowed→אלמן; «ידוע בציבור» והורה-יחיד — רק בהזנה מפורשת',
     validation: 'בדיוק אחד מסומן',
   })),
   f({ id: 'p1.marital.sinceMonth', dataKey: 'maritalSinceMonth', label: 'מצב משפחתי — החל מחודש', page: 1, section: 'marital',
@@ -324,7 +324,7 @@ const FIELDS: FieldDef[] = [
     provenance: 'filing', required: 'when_applicable', source: 'מטרת ההגשה' }),
   f({ id: 'p2.employees.withholdingFile', dataKey: 'withholdingFile', label: "תיק ניכויים מס'", page: 2, section: 'employees',
     box: { x: 288.0, y: 244.5, w: 94.8, h: 10 }, baseline: 245.3, kind: 'text', align: 'center', fontSize: 9.5,
-    applies: ['stop_employees'], required: 'when_applicable', source: "clients.tax_files[authority='deductions'].fileNumber",
+    applies: ['stop_employees'], required: 'when_applicable', source: "clients.tax_files[authority='deductions'].fileNumber · השוואה/השלמה: btl_portal_facts.withholdingFile (207)",
     formatRule: 'ספרות כפי שנשמרו', validation: '9 ספרות' }),
   f({ id: 'p2.employees.date', dataKey: 'stopEmployeesDate', label: 'חדלתי להעסיק עובדים מתאריך', page: 2, section: 'employees',
     box: { x: 151.5, y: 244.5, w: 100.5, h: 10 }, baseline: 245.3, kind: 'text', align: 'center', fontSize: 9.5,
@@ -370,6 +370,50 @@ const UNMAPPED: UnmappedArea[] = [
     label: 'כתובת מייצג (שורה חתוכה)', reason: 'השורה חתוכה בגבול המסגרת ואין בה תאים גלויים — לא ממלאים' },
 ];
 
+// ── מיפוי 2 (28.09.2026): גיאומטריה מודפסת שנמדדה בסקאלה 8 (‎1/8 נק') ──────
+// ‼ מדידת היישור (scripts/test-smart-form-6101.mjs) הראתה ש-✗ של המצב המשפחתי
+// ישב 1.04 נק' מתחת למרכז הריבוע המודפס (התיבה כללה את המסגרת), ושזנבות
+// (g, p, פסיק) חצו את קו הכתיבה. לכן: תיבת כל ✗ = פנים הריבוע המודפס, ולכל
+// שדה-קו — הקצה העליון של הקו.
+
+/** פנים הריבוע המודפס (x, y, רוחב×גובה) — ה-✗ ממורכז בו. */
+export const CHECK_SQUARES: Record<string, PdfRect> = {
+  'p1.marital.single': { x: 538.38, y: 527.0, w: 7.38, h: 7.38 },
+  'p1.marital.married': { x: 495.38, y: 527.0, w: 7.38, h: 7.38 },
+  'p1.marital.common_law': { x: 458.13, y: 527.0, w: 7.38, h: 7.38 },
+  'p1.marital.divorced': { x: 392.5, y: 527.0, w: 7.38, h: 7.38 },
+  'p1.marital.widowed': { x: 352.0, y: 527.0, w: 7.38, h: 7.38 },
+  'p1.digital.refuse': { x: 543.0, y: 266.25, w: 6.38, h: 6.13 },
+  'p2.start.check': { x: 542.63, y: 435.5, w: 4.75, h: 4.75 },
+  'p2.start.hours.1_11': { x: 414.0, y: 406.5, w: 5.25, h: 5.25 },
+  'p2.start.hours.12_19': { x: 316.13, y: 406.5, w: 5.25, h: 5.25 },
+  'p2.start.hours.20_plus': { x: 212.88, y: 406.5, w: 5.25, h: 5.25 },
+  'p2.change.check': { x: 542.0, y: 362.38, w: 5.25, h: 5.25 },
+  'p2.spouseBusiness.check': { x: 542.0, y: 319.0, w: 5.25, h: 5.25 },
+  'p2.end.check': { x: 542.0, y: 275.38, w: 5.25, h: 5.25 },
+  'p2.employees.check': { x: 542.0, y: 246.5, w: 5.25, h: 5.25 },
+};
+
+/** הקצה העליון של קו הכתיבה המודפס (נק'). */
+export const WRITING_LINES: Record<string, number> = {
+  'p1.header.idNumber': 757.75, 'p2.header.idNumber': 751.88, 'p3.header.idNumber': 745.75,
+  'p1.contact.emailLocal': 360.88, 'p1.contact.emailDomain': 360.88,
+  'p2.start.date': 432.75, 'p2.start.monthlyIncome': 388.63, 'p2.start.profession': 374.25,
+  'p2.change.before.from': 345.13, 'p2.change.before.hours': 345.13, 'p2.change.before.income': 345.13,
+  'p2.change.after.from': 330.63, 'p2.change.after.hours': 330.63, 'p2.change.after.income': 330.63,
+  'p2.spouseBusiness.from': 316.13, 'p2.spouseBusiness.share': 316.13, 'p2.spouseBusiness.hours': 301.5,
+  'p2.end.date': 272.5, 'p2.end.currentOccupation': 272.5, 'p2.end.currentFrom': 272.5,
+  'p2.employees.withholdingFile': 243.63, 'p2.employees.date': 243.63,
+  'p3.declaration.date': 479.75,
+  'p2.spouseBusiness.signature': 287.0, 'p3.declaration.signature': 479.75,
+};
+
+const MEASURED_FIELDS: FieldDef[] = FIELDS.map(f => {
+  const square = CHECK_SQUARES[f.id];
+  const line = WRITING_LINES[f.id];
+  return { ...f, ...(square ? { box: square } : {}), ...(line != null ? { line } : {}) };
+});
+
 export const BTL6101_TEMPLATE: SmartFormTemplate = {
   key: BTL6101_TEMPLATE_KEY,
   title: 'דין וחשבון רב שנתי (6101)',
@@ -377,12 +421,12 @@ export const BTL6101_TEMPLATE: SmartFormTemplate = {
   formNumber: '6101',
   version: '06.2026',
   sha256: BTL6101_SHA256,
-  mappingVersion: 1,
+  mappingVersion: 2,
   pageCount: 3,
   pageSize: { width: 612, height: 792 },
   fileUrl: '/templates/btl-6101-06.2026.pdf',
-  fields: FIELDS,
+  fields: MEASURED_FIELDS,
   unmapped: UNMAPPED,
 };
 
-export const fieldById = (id: string): FieldDef | undefined => FIELDS.find(x => x.id === id);
+export const fieldById = (id: string): FieldDef | undefined => MEASURED_FIELDS.find(x => x.id === id);

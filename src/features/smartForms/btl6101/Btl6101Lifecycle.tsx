@@ -12,6 +12,7 @@ import { requestedSummary, KEY_LABELS, type Issue, type ProfessionalConfirmation
 import { BTL6101_PURPOSE_LABELS, type Btl6101Purpose } from './model';
 import { currentBtlState } from './resolve';
 import { formDate } from './layout6101';
+import { BTL6101_TEMPLATE } from './template';
 import {
   advanceFiling, attachSignedPdf, captureSignature, filingErrorText, issueSignLink, lockForSignature,
   newRevision, setAttachments, signLinkUrl, FILING_STATE_LABELS, type Attachment,
@@ -217,7 +218,7 @@ function ReviewStep({ ctx, resolved, blockers, purposes, dirty, editable, onStep
 // ═════════════════════════════════════════════════════════════════════════
 // חתימות
 // ═════════════════════════════════════════════════════════════════════════
-function SignStep({ ctx }: Props) {
+function SignStep({ ctx, onStep }: Props) {
   const { filing, rev, client } = ctx;
   const { busy, error, run, setError } = useAction(ctx);
   const [reason, setReason] = useState('');
@@ -272,7 +273,34 @@ function SignStep({ ctx }: Props) {
   }, [allSigned, rev.signedDocumentId]);
 
   if (rev.state === 'draft') {
-    return <div className="sf-banner">הטופס עוד לא ננעל לחתימה. «בדיקה ונעילה» ← «נעל לחתימה».</div>;
+    return (
+      <div className="sf-section">
+        <div className="sf-banner">הטופס עוד לא ננעל לחתימה — הנעילה נעשית בשלב «בדיקה ונעילה».</div>
+        <div className="sf-actions">
+          <button type="button" className="btn btn-primary" onClick={() => onStep('review')}>לבדיקה ונעילה ←</button>
+        </div>
+      </div>
+    );
+  }
+
+  // ‼ (208) גרסה שננעלה לפני שמיקום השדות בטופס עודכן — חותמים רק על מה שמוצג, ולכן
+  // קודם גרסה חדשה במיקום המעודכן (השרת חוסם חתימה/קישור עליה: mapping_outdated).
+  if (rev.state === 'locked' && rev.mappingVersion !== BTL6101_TEMPLATE.mappingVersion) {
+    return (
+      <div className="sf-section">
+        <div className="sf-banner is-warn">
+          מיקום השדות בטופס עודכן (מיפוי {BTL6101_TEMPLATE.mappingVersion}) אחרי שהגרסה הזו ננעלה. כדי לחתום צריך גרסה
+          חדשה במיקום המעודכן — הערכים נשמרים, והקישורים לחתימה שכבר נשלחו יפסיקו לעבוד.
+        </div>
+        <div className="sf-actions">
+          <button type="button" className="btn btn-primary" disabled={busy}
+            onClick={() => void run(() => newRevision(filing.id, `עדכון מיקום השדות בטופס (מיפוי ${BTL6101_TEMPLATE.mappingVersion})`), () => onStep('review'))}>
+            צור גרסה במיקום המעודכן
+          </button>
+        </div>
+        {error && <div className="sf-error">{error}</div>}
+      </div>
+    );
   }
 
   return (
@@ -520,7 +548,7 @@ function SubmitStep({ ctx, onStep }: Props) {
 
   const attachments: Attachment[] = filing.attachments.length ? filing.attachments : (rev.snapshot?.requiredAttachments ?? []);
   const missingAttach = attachments.filter(a => a.required && !a.documentId);
-  const btlNow = useMemo(() => currentBtlState(client, israelDate(new Date().toISOString())), [client]);
+  const btlNow = useMemo(() => currentBtlState(client, israelDate(new Date().toISOString()), ctx.btlRecord), [client, ctx.btlRecord]);
   const syncedAfterSubmit = !!(filing.submission?.submittedAt && btlNow.syncedAt && btlNow.syncedAt.slice(0, 10) >= filing.submission.submittedAt);
   const docOptions = docs.filter(d => d.id !== rev.signedDocumentId);
 

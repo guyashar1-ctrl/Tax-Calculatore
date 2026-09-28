@@ -32,8 +32,15 @@ function loadImage(src: string): Promise<HTMLImageElement> {
   });
 }
 
+/**
+ * השוליים השקופים סביב הדיו בכל חתימה חתוכה — **תמיד** בדיוק הערך הזה, מכל צד
+ * (גם כשהדיו נגע בקצה הקנבס). כך הייצוא יודע איפה הדיו בתוך התמונה ומניח
+ * אותו על קו החתימה (exportPdf.signatureAnnotation).
+ */
+export const SIGNATURE_PAD_PX = 6;
+
 /** חיתוך לדיו: פיקסל «דיו» = אטום מספיק וכהה מספיק (לא רקע לבן). */
-export async function trimSignature(dataUrl: string, pad = 6): Promise<TrimmedSignature> {
+export async function trimSignature(dataUrl: string, pad = SIGNATURE_PAD_PX): Promise<TrimmedSignature> {
   const img = await loadImage(dataUrl);
   const c = document.createElement('canvas');
   c.width = img.naturalWidth; c.height = img.naturalHeight;
@@ -54,19 +61,18 @@ export async function trimSignature(dataUrl: string, pad = 6): Promise<TrimmedSi
     }
   }
   if (maxX < 0) throw new EmptySignatureError();
-  const x0 = Math.max(0, minX - pad), y0 = Math.max(0, minY - pad);
-  const x1 = Math.min(width, maxX + pad + 1), y1 = Math.min(height, maxY + pad + 1);
+  const inkW = maxX - minX + 1, inkH = maxY - minY + 1;
   const out = document.createElement('canvas');
-  out.width = x1 - x0; out.height = y1 - y0;
+  out.width = inkW + pad * 2; out.height = inkH + pad * 2;
   const octx = out.getContext('2d');
   if (!octx) throw new Error('canvas');
   // רקע שקוף: רק הדיו עובר (פיקסלים בהירים נמחקים), כדי שהחתימה לא תכסה את הקו המודפס.
-  const src = ctx.getImageData(x0, y0, out.width, out.height);
+  const src = ctx.getImageData(minX, minY, inkW, inkH);
   for (let i = 0; i < src.data.length; i += 4) {
     const lum = src.data[i] * 0.3 + src.data[i + 1] * 0.59 + src.data[i + 2] * 0.11;
     if (lum >= 225) src.data[i + 3] = 0;
   }
-  octx.putImageData(src, 0, 0);
+  octx.putImageData(src, pad, pad);
   const url = out.toDataURL('image/png');
   return { png: dataUrlToBytes(url), dataUrl: url, width: out.width, height: out.height };
 }

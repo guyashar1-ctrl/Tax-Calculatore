@@ -4,6 +4,7 @@ import type { Client } from '../../../types';
 import { NI_HOURS_BAND_LABELS } from '../../../types';
 import type { Filing, FilingEvent, Revision } from '../api';
 import type { CurrentBtlState } from './resolve';
+import type { BtlPortalPerson } from '../../nationalInsurance/btlPortalRecord';
 
 export interface WorkspaceCtx {
   filing: Filing;
@@ -13,6 +14,8 @@ export interface WorkspaceCtx {
   client: Client;
   reload: () => Promise<void>;
   onChanged?: () => void;
+  /** (207) מה ב"ל רושם על האדם שההגשה עליו. */
+  btlRecord?: BtlPortalPerson;
 }
 
 export const formatDay = (iso: string) => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso); return m ? `${m[3]}/${m[2]}/${m[1]}` : iso; };
@@ -27,6 +30,18 @@ export function BtlNow({ btl }: { btl: CurrentBtlState }) {
         <div><b>הכנסה חודשית מוצהרת:</b> {btl.declaredIncomeMonthly.toLocaleString('en-US')} ₪{btl.declaredIncomeYear ? ` (${btl.declaredIncomeYear})` : ''}</div>
       )}
       {btl.advanceMonthly != null && <div><b>מקדמה חודשית:</b> {btl.advanceMonthly.toLocaleString('en-US')} ₪</div>}
+      {btl.recorded?.paymentObligation && (
+        <div><b>חובת תשלום:</b> {btl.recorded.paymentObligation.value}
+          {btl.recorded.paymentObligation.previous
+            ? <span className="sf-hint"> · מאז {formatDay(btl.recorded.paymentObligation.since.slice(0, 10))} (קודם: {btl.recorded.paymentObligation.previous})</span>
+            : null}
+        </div>
+      )}
+      {btl.recorded?.familyStatus && <div><b>מצב משפחתי בב"ל:</b> {btl.recorded.familyStatus}</div>}
+      {btl.recorded?.coverage && <div><b>כיסוי ביטוחי:</b> {btl.recorded.coverage}</div>}
+      {btl.recorded?.years?.length ? (
+        <div className="sf-note">חיוב שנתי: {btl.recorded.years.map(y => `${y.year} ${y.text}`).join(' · ')}</div>
+      ) : null}
       {btl.currentSelfEmployed?.btlDetail && (() => {
         const d = btl.currentSelfEmployed.btlDetail;
         return (

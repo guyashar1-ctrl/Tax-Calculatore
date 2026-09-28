@@ -26,6 +26,17 @@ export type AnnotationKind =
 
 export type LatinFamily = 'sans' | 'serif' | 'mono';
 
+export type TextAlign = 'right' | 'center' | 'left';
+
+/** היסט השורה מתחילת התיבה, לפי היישור. חסר ⇒ עברית לימין, לטינית לשמאל. */
+export function lineOffset(align: TextAlign | undefined, line: string, boxWidth: number, textWidth: number): number {
+  const free = boxWidth - textWidth;
+  if (align === 'center') return free / 2;
+  if (align === 'right') return Math.max(0, free);
+  if (align === 'left') return 0;
+  return /[֐-׿]/.test(line) ? Math.max(0, free) : 0;
+}
+
 export interface Annotation {
   id: string;
   /** מזהה העמוד בתוכנית שאליו הסימון שייך — הוא נוסע איתו בסידור מחדש. */
@@ -55,6 +66,11 @@ export interface Annotation {
   /** משפחת הגופן ללטינית וספרות. העברית תמיד ב-Noto Hebrew. */
   fontFamily?: LatinFamily;
   bold?: boolean;
+  /**
+   * יישור השורה בתוך התיבה. חסר = אוטומטי (עברית לימין, לטינית לשמאל — כמו
+   * שהיה תמיד). ‼ טופס חכם צריך מרכוז בתא ויישור קבוע לשדה, בלי קשר לשפה.
+   */
+  align?: TextAlign;
   /** נקודות ציור חופשי, יחסית לתיבה (0..1). */
   points?: { x: number; y: number }[];
   /** עובי קו באחוז מרוחב העמוד המוצג. */
@@ -571,9 +587,8 @@ export async function drawAnnotations(
           if (!line.trim()) continue;
           const segs = layoutMixed(line);
           const tw = measureSafe(segs, size, fonts);
-          // שורה עברית נצמדת לימין התיבה, לטינית לשמאלה — בדיוק כמו השכבה
-          const rtl = /[֐-׿]/.test(line);
-          const offsetX = rtl ? Math.max(0, boxWDisplay - tw) : 0;
+          // ‼ בלי יישור מפורש: עברית נצמדת לימין התיבה, לטינית לשמאלה — בדיוק כמו השכבה
+          const offsetX = lineOffset(ann.align, line, boxWDisplay, tw);
           const topPct = ann.yPct + (i * lineHeight) / dH;
           const baselinePct = topPct + (size * 0.82) / dH;
           const anchor = displayPointToPage(box, ann.xPct + offsetX / dW, baselinePct);

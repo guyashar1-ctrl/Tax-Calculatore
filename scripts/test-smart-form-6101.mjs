@@ -119,6 +119,32 @@ const SCENARIOS = [
   { name: 'F-gaps', client: 'gaps', purposes: ['change'], entered: {}, flags: {}, sign: [] },
 ];
 
+/**
+ * מה בדיוק צריך להיות איפה — לכל ספרה התא המודפס שלה, לכל ✗ הריבוע, לכל שדה
+ * טקסט המלבן והיישור, ולכל חתימה התיבה ויחס הדיו המקורי. נמדד מול הרינדור.
+ */
+function alignmentTargets(lay, sig) {
+  const out = [];
+  const seenText = new Set();
+  for (const op of lay.ops) {
+    if (op.kind === 'appendix') continue;
+    const f = T.fields.find(x => x.id === op.fieldId);
+    if (!f) continue;
+    if (op.kind === 'check') out.push({ kind: 'check', page: op.page, id: op.fieldId, rect: op.box });
+    else if (op.kind === 'signature') {
+      // ‼ יחס הדיו עצמו — בלי השוליים השקופים (SIGNATURE_PAD_PX = 6 מכל צד)
+      if (sig[op.signer]) out.push({ kind: 'signature', page: op.page, id: op.fieldId, rect: op.box, line: op.line, aspect: (sigs[op.signer].w - 12) / (sigs[op.signer].h - 12) });
+    } else if (f.kind === 'digits') {
+      const c = f.cells.findIndex((x, i) => i < f.cells.length - 1 && op.x > x && op.x < f.cells[i + 1]);
+      out.push({ kind: 'digit', page: op.page, id: `${op.fieldId}#${c + 1}`, rect: { x: f.cells[c], y: f.box.y, w: f.cells[c + 1] - f.cells[c], h: f.box.h } });
+    } else if (!seenText.has(op.fieldId)) {
+      seenText.add(op.fieldId);
+      out.push({ kind: 'text', page: op.page, id: op.fieldId, rect: f.box, align: f.align ?? 'right', pad: f.box.h >= 14 ? 2.5 : 1, line: f.line });
+    }
+  }
+  return out;
+}
+
 const results = [];
 for (const sc of SCENARIOS) {
   const client = M.FX_CLIENTS[sc.client];
@@ -139,7 +165,8 @@ for (const sc of SCENARIOS) {
   const activeBoxes = [...new Set(lay.ops.filter(o => o.kind !== 'appendix').map(o => o.fieldId))]
     .map(id => T.fields.find(f => f.id === id)).filter(Boolean).map(f => ({ page: f.page, ...f.box }));
   results.push({ name: sc.name, pages: lay.pageCount, issues: lay.issues, blockers: r.issues.filter(i => i.severity === 'blocker').map(i => i.message),
-    warnings: r.issues.filter(i => i.severity !== 'blocker').map(i => i.message), deterministic, activeBoxes });
+    warnings: r.issues.filter(i => i.severity !== 'blocker').map(i => i.message), deterministic, activeBoxes,
+    targets: alignmentTargets(lay, sig) });
 }
 
 // מסגרות ניפוי: כל מלבני המלאי על הטופס הריק
@@ -242,6 +269,131 @@ for (const [name, pg, label, r] of CLOSEUPS) {
   writeFileSync(join(OUT, `zoom-${name}-p${pg}-${label}.png`), Buffer.from(png, 'base64'));
 }
 
+// ── 6ב · מדידת יישור: הדיו מול התא/הריבוע/התיבה המודפסים (סקאלה 6 ⇒ ‎1/6 נק') ──
+// ‼ «בפנים» לבד (סעיף 5) לא מוכיח דיוק: ספרה יכולה לשבת בתוך השדה ועדיין לא
+// באמצע התא. כאן כל רכיב נמדד מול הגיאומטריה שלו.
+const AS = 6;
+const LIMITS = {
+  digitDx: 0.3, digitDy: 0.9,       // ספרה: מרכז הדיו מול מרכז התא (אופטי)
+  checkD: 0.35,                      // ✗: מרכז מול מרכז הריבוע
+  textClear: 0.3,                    // טקסט: מרווח מינימלי מקצוות השדה
+  textCenterDx: 0.5,                 // טקסט ממורכז: מרכז מול מרכז
+  textPadErr: 1.0,                   // טקסט מיושר: המרווח מהקצה מול הריפוד שנקבע
+  sigLine: 0.35, sigAspect: 0.03,    // חתימה: הדיו 0.5 נק' מעל הקו (±), בלי מתיחה
+  lineClear: 0.2,                    // שדה-קו: הדיו לא נוגע בקו המודפס
+};
+async function measureInk(name, pageNo, rects) {
+  return page.evaluate(async ({ name, pageNo, rects, AS }) => {
+    const pdfjs = await import('/pdfjs/build/pdf.mjs');
+    pdfjs.GlobalWorkerOptions.workerSrc = '/pdfjs/build/pdf.worker.mjs';
+    const load = async (u) => pdfjs.getDocument({ data: new Uint8Array(await (await fetch(u)).arrayBuffer()), standardFontDataUrl: '/pdfjs/standard_fonts/' }).promise;
+    const draw = async (u) => {
+      const pg = await (await load(u)).getPage(pageNo);
+      const vp = pg.getViewport({ scale: AS });
+      const c = document.createElement('canvas'); c.width = vp.width; c.height = vp.height;
+      await pg.render({ canvasContext: c.getContext('2d'), viewport: vp }).promise;
+      return c.getContext('2d').getImageData(0, 0, c.width, c.height);
+    };
+    const a = await draw(`/${name}.pdf`);
+    const b = await draw('/blank.pdf');
+    const W = a.width, H = a.height;
+    return rects.map(r => {
+      const m = 1.5; // נק' — מעבר לתיבה, כדי שגלישה תימדד ולא תיחתך
+      const x0 = Math.max(0, Math.floor((r.x - m) * AS)), x1 = Math.min(W, Math.ceil((r.x + r.w + m) * AS));
+      const y0 = Math.max(0, Math.floor((792 - r.y - r.h - m) * AS)), y1 = Math.min(H, Math.ceil((792 - r.y + m) * AS));
+      let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity, n = 0;
+      for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) {
+        const k = (y * W + x) * 4;
+        const d = Math.abs(a.data[k] - b.data[k]) + Math.abs(a.data[k + 1] - b.data[k + 1]) + Math.abs(a.data[k + 2] - b.data[k + 2]);
+        if (d < 120) continue;
+        n++; if (x < minX) minX = x; if (x > maxX) maxX = x; if (y < minY) minY = y; if (y > maxY) maxY = y;
+      }
+      if (!n) return null;
+      // פיקסלים ⇒ נקודות PDF (y עולה)
+      return { left: minX / AS, right: (maxX + 1) / AS, top: 792 - minY / AS, bottom: 792 - (maxY + 1) / AS, n };
+    });
+  }, { name, pageNo, rects, AS });
+}
+
+const audit = [];
+for (const r of results) {
+  for (const pg of [...new Set(r.targets.map(t => t.page))]) {
+    const ts = r.targets.filter(t => t.page === pg);
+    const ink = await measureInk(r.name, pg, ts.map(t => t.rect));
+    ts.forEach((t, i) => {
+      const k = ink[i];
+      const row = { scenario: r.name, page: pg, kind: t.kind, id: t.id };
+      if (!k) { audit.push({ ...row, fail: 'אין דיו' }); return; }
+      const cx = (k.left + k.right) / 2, cy = (k.top + k.bottom) / 2;
+      const rcx = t.rect.x + t.rect.w / 2, rcy = t.rect.y + t.rect.h / 2;
+      // ‼ בשדה-קו הרצפה היא הקו המודפס (t.line), לא תחתית התיבה
+      const clear = Math.min(k.left - t.rect.x, t.rect.x + t.rect.w - k.right, t.line != null ? 99 : k.bottom - t.rect.y, t.rect.y + t.rect.h - k.top);
+      const lineClear = t.line != null ? k.bottom - t.line : null;
+      if (t.kind === 'digit') {
+        const dx = cx - rcx, dy = cy - rcy;
+        audit.push({ ...row, dx, dy, clear, fail: Math.abs(dx) > LIMITS.digitDx || Math.abs(dy) > LIMITS.digitDy || clear < LIMITS.textClear ? 'ספרה לא במרכז התא' : '' });
+      } else if (t.kind === 'check') {
+        const dx = cx - rcx, dy = cy - rcy;
+        audit.push({ ...row, dx, dy, clear, fail: Math.abs(dx) > LIMITS.checkD || Math.abs(dy) > LIMITS.checkD || clear < 0 ? '✗ לא במרכז הריבוע' : '' });
+      } else if (t.kind === 'text') {
+        const dx = t.align === 'center' ? cx - rcx
+          : t.align === 'right' ? (t.rect.x + t.rect.w - k.right) - t.pad : (k.left - t.rect.x) - t.pad;
+        const lim = t.align === 'center' ? LIMITS.textCenterDx : LIMITS.textPadErr;
+        audit.push({ ...row, align: t.align, dx, dy: cy - rcy, clear, lineClear,
+          fail: clear < LIMITS.textClear ? 'נוגע בקצה השדה' : lineClear != null && lineClear < LIMITS.lineClear ? 'נוגע בקו' : Math.abs(dx) > lim ? 'יישור אופקי' : '' });
+      } else if (t.kind === 'signature') {
+        const bottom = t.line != null ? k.bottom - (t.line + 0.5) : k.bottom - t.rect.y;
+        const aspect = (k.right - k.left) / (k.top - k.bottom);
+        const aErr = Math.abs(aspect / t.aspect - 1);
+        audit.push({ ...row, bottom, aspect, aErr, clear: Math.min(k.left - t.rect.x, t.rect.x + t.rect.w - k.right, t.rect.y + t.rect.h - k.top),
+          fail: Math.abs(bottom) > LIMITS.sigLine || aErr > LIMITS.sigAspect || k.top > t.rect.y + t.rect.h + 0.2 ? 'חתימה' : '' });
+      }
+    });
+  }
+}
+writeFileSync(join(OUT, 'alignment-report.json'), JSON.stringify(audit, (k, v) => (typeof v === 'number' ? Math.round(v * 100) / 100 : v), 1));
+
+// תקריבים עם קווי עזר: מרכז כל תא (כחול) ומלבן השדה (סגול) מעל הרינדור
+async function guidedCrop(name, pg, label, r, targets) {
+  const png = await page.evaluate(async ({ name, pg, r, targets }) => {
+    const pdfjs = await import('/pdfjs/build/pdf.mjs');
+    pdfjs.GlobalWorkerOptions.workerSrc = '/pdfjs/build/pdf.worker.mjs';
+    const doc = await pdfjs.getDocument({ data: new Uint8Array(await (await fetch(`/${name}.pdf`)).arrayBuffer()), standardFontDataUrl: '/pdfjs/standard_fonts/' }).promise;
+    const p = await doc.getPage(pg);
+    const S = 6;
+    const vp = p.getViewport({ scale: S, offsetX: -r.x * S, offsetY: -(792 - r.y - r.h) * S });
+    const c = document.createElement('canvas'); c.width = r.w * S; c.height = r.h * S;
+    const g = c.getContext('2d');
+    await p.render({ canvasContext: g, viewport: vp }).promise;
+    const X = (x) => (x - r.x) * S, Y = (y) => (r.y + r.h - y) * S;
+    g.lineWidth = 1;
+    for (const t of targets) {
+      g.strokeStyle = 'rgba(160, 32, 240, 0.55)';
+      g.strokeRect(X(t.rect.x), Y(t.rect.y + t.rect.h), t.rect.w * S, t.rect.h * S);
+      if (t.kind !== 'text') {
+        g.strokeStyle = 'rgba(0, 150, 255, 0.8)';
+        const cx = X(t.rect.x + t.rect.w / 2), cy = Y(t.rect.y + t.rect.h / 2);
+        g.beginPath(); g.moveTo(cx, cy - 8); g.lineTo(cx, cy + 8); g.moveTo(cx - 8, cy); g.lineTo(cx + 8, cy); g.stroke();
+      }
+    }
+    return c.toDataURL('image/png').split(',')[1];
+  }, { name, pg, r, targets });
+  writeFileSync(join(OUT, `guide-${name}-p${pg}-${label}.png`), Buffer.from(png, 'base64'));
+}
+const GUIDED = [
+  ['B-start-spouse-employees', 1, 'id-marital-spouse', { x: 46, y: 440, w: 516, h: 160 }],
+  ['B-start-spouse-employees', 1, 'phones-email-altcontact', { x: 46, y: 270, w: 516, h: 110 }],
+  ['A-full-report', 1, 'bank', { x: 46, y: 80, w: 516, h: 70 }],
+  ['B-start-spouse-employees', 2, 'start-spouse-signature', { x: 46, y: 270, w: 516, h: 175 }],
+  ['B-start-spouse-employees', 3, 'declaration-signature', { x: 46, y: 440, w: 516, h: 90 }],
+  ['A-full-report', 2, 'occupations', { x: 46, y: 560, w: 516, h: 100 }],
+];
+for (const [name, pg, label, r] of GUIDED) {
+  const res = results.find(x => x.name === name);
+  const ts = res.targets.filter(t => t.page === pg && t.rect.x < r.x + r.w && t.rect.x + t.rect.w > r.x && t.rect.y < r.y + r.h && t.rect.y + t.rect.h > r.y);
+  await guidedCrop(name, pg, label, r, ts);
+}
+
 await browser.close();
 server.close();
 
@@ -260,6 +412,18 @@ for (const s of summary) {
   for (const d of s.diff) if (d.outside) console.log(`    עמ' ${d.page}: ${JSON.stringify(d.outsideAt)}`);
   if (s.blockers.length) console.log(`    חוסמים: ${s.blockers.join(' | ')}`);
   if (s.warnings.length) console.log(`    אזהרות: ${s.warnings.join(' | ')}`);
+}
+{
+  const by = (k) => audit.filter(a => a.kind === k);
+  const max = (xs, f) => xs.length ? Math.max(...xs.map(a => Math.abs(f(a) ?? 0))) : 0;
+  const d = by('digit'), c = by('check'), t = by('text'), s = by('signature');
+  console.log(`\nיישור (סקאלה ${AS}, ‎1/${AS} נק'): ${d.length} ספרות · מרכז אופקי עד ${max(d, a => a.dx).toFixed(2)} · אנכי עד ${max(d, a => a.dy).toFixed(2)} נק'` +
+    ` | ${c.length} ✗ · עד ${Math.max(max(c, a => a.dx), max(c, a => a.dy)).toFixed(2)} נק'` +
+    ` | ${t.length} שדות טקסט · מרווח מינימלי מהקצה ${t.length ? Math.min(...t.map(a => a.clear ?? 99)).toFixed(2) : '-'} נק', מהקו ${Math.min(...t.filter(a => a.lineClear != null).map(a => a.lineClear)).toFixed(2)} נק'` +
+    ` | ${s.length} חתימות · סטייה מ«0.5 מעל הקו» עד ${max(s, a => a.bottom).toFixed(2)} נק', עיוות עד ${(max(s, a => a.aErr) * 100).toFixed(1)}%`);
+  const bad = audit.filter(a => a.fail);
+  for (const b of bad.slice(0, 25)) console.log(`  ✗ ${b.scenario} עמ' ${b.page} ${b.id}: ${b.fail} ${JSON.stringify({ dx: b.dx, dy: b.dy, clear: b.clear, bottom: b.bottom, aErr: b.aErr })}`);
+  if (bad.length) failed++;
 }
 if (errors.length) { console.log('שגיאות דפדפן:', errors); failed++; }
 console.log(failed ? `\n${failed} כשלים` : '\nהכול עבר');
