@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import SmartTemplatesCard from '../features/smartForms/SmartTemplatesCard';
+import '../features/smartForms/smartForms.css';
 import {
   FirmProfile,
   FirmBranding,
@@ -826,6 +828,8 @@ function ClientDocumentsSection({ profile, onChangeProfile }: { profile: FirmPro
         PDF עד 10MB. ‼ החלפת קובץ משנה מיד את מה שייפתח בכל הבקשות - גם אלה שכבר נשלחו.
         לשמירה יש ללחוץ «שמירת שינויים» למעלה.
       </div>
+
+      <SmartTemplatesCard />
 
       {err && <div style={{ marginTop: 10, color: 'var(--danger, var(--err))', fontSize: 'var(--fs-13)' }}>{err}</div>}
     </div>

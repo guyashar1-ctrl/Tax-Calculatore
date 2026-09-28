@@ -198,7 +198,8 @@ export async function openRepresentedInsured(page, idNumber) {
     }
     if (!header?.idNumber) return { ok: false, reason: 'insured_header_not_found', steps };
     if (!sameIdNumber(header.idNumber, idNumber)) return { ok: false, reason: 'identity_mismatch', steps };
-    return { ok: true, steps, pairs, representation: { type: row.type, receivedDate: row.receivedDate } };
+    const { found: _found, index: _index, ...representation } = row;
+    return { ok: true, steps, pairs, representation };
   } catch (e) {
     if (e instanceof BtlSessionLost) throw e;
     return { ok: false, reason: 'navigation_failed', detail: (e instanceof Error ? e.message : String(e)).slice(0, 200), steps };
@@ -249,16 +250,69 @@ export function openOccupationList(page) {
 }
 
 /**
+ * «פירוט עיסוק» של שורה אחת במסך «עיסוקים בתקופה», וחזרה לאותו מסך.
+ * ‼ קריאה בלבד: כפתורי הרדיו של השעות נעולים בדף. מהטקסט יוצאות רק שורות
+ * עם «הגדרה» או «מצב:» — לא שורת «יצירה» (שם הפקיד) ולא שום דבר אחר.
+ */
+async function readOccupationRecordDetail(page, rowIndex) {
+  const clicked = await clickRowAction(page, BTL_OCCUPATION_HEADERS, rowIndex);
+  if (!clicked.ok) return clicked;
+  await assertStillConnected(page);
+  let found = false;
+  for (let i = 0; i < 24; i++) {
+    const t = await bodyText(page);
+    if (t.includes('פירוט עיסוק') && t.includes('הכנסה להגדרה')) { found = true; break; }
+    await page.waitForTimeout(500);
+  }
+  if (!found) return { ok: false, reason: 'record_detail_not_found' };
+  const pairs = await scrapePairs(page);
+  const extra = await page.evaluate(() => {
+    const norm = (s) => (s || '').replace(/\s+/g, ' ').trim();
+    const radios = [...document.querySelectorAll('input[type=radio]')]
+      .map(r => ({ label: norm(r.labels?.[0]?.textContent), checked: !!r.checked }));
+    const lines = (document.body.innerText || '').split('\n').map(norm)
+      .filter(l => l && l.length <= 140 && (/הגדרה/.test(l) || /^מצב\s*:/.test(l)));
+    const heading = [...document.querySelectorAll('h1,h2,h3,h4,legend,[class*=title],[class*=Title],[class*=header]')]
+      .map(e => norm(e.textContent)).find(t => /^עיסוק\s*-\s*\S/.test(t) && t.length < 60) ?? null;
+    return { radios, lines, heading };
+  });
+
+  let returned = false;
+  const back = page.getByRole('button', { name: 'חזרה', exact: true })
+    .or(page.getByRole('link', { name: 'חזרה', exact: true })).first();
+  if (await back.isVisible().catch(() => false)) {
+    await back.click({ timeout: 8000 }).catch(() => {});
+    await settle(page, 800);
+    returned = !!(await waitForTable(page, BTL_OCCUPATION_HEADERS, 10000))
+      && (await bodyText(page)).includes('עיסוקים בתקופה') && !(await bodyText(page)).includes('פירוט עיסוק');
+  }
+  return { ok: true, pairs, ...extra, returned };
+}
+
+/**
  * פירוט שורת תקופה אחת («עיסוקים בתקופה») וחזרה לרשימה. ‼ החזרה נעשית
  * ב«חזרה» של המסך עצמו, ואם זה נכשל — פתיחה מחדש מהתפריט; לא goBack
  * (postback של ASP.NET עלול להישלח שוב).
  */
-export async function drillOccupationSegment(page, rowIndex) {
+export async function drillOccupationSegment(page, rowIndex, { detailRows } = {}) {
   const clicked = await clickRowAction(page, BTL_OCCUPATION_HEADERS, rowIndex);
   if (!clicked.ok) return clicked;
   await assertStillConnected(page);
   const tables = await waitForTable(page, BTL_OCCUPATION_HEADERS);
   if (!tables || !(await bodyText(page)).includes('עיסוקים בתקופה')) return { ok: false, reason: 'period_detail_not_found' };
+
+  // ‼ אילו שורות לפתוח — הכרעה של btlFileSync (recordsToDetail), לא של הסשן.
+  // פירוט שלא חזר ממנו למסך התקופה עוצר את השאר; החזרה לרשימה למטה מסתדרת
+  // גם משם (דרך התפריט).
+  const details = [];
+  for (const index of (detailRows ? detailRows(tables) : [])) {
+    const det = await readOccupationRecordDetail(page, index).catch(e => {
+      if (e instanceof BtlSessionLost) throw e;
+      return { ok: false, reason: 'record_detail_failed' };
+    });
+    details.push({ index, ...det });
+    if (!det.ok || !det.returned) break;
+  }
 
   let returned = false;
   const back = page.getByRole('button', { name: 'חזרה', exact: true })
@@ -269,7 +323,7 @@ export async function drillOccupationSegment(page, rowIndex) {
     returned = !!(await waitForTable(page, BTL_OCCUPATION_HEADERS, 10000)) && !(await bodyText(page)).includes('עיסוקים בתקופה');
   }
   if (!returned) returned = (await openOccupationList(page)).ok;
-  return { ok: true, tables, returned };
+  return { ok: true, tables, details, returned };
 }
 
 /**

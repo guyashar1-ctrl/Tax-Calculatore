@@ -6,6 +6,7 @@ import type { Client, NiOccupation } from '../../../types';
 import {
   niOccupationsFromBtl, niOccupationOverlaps, niOccupationsInYear, niOccupationPeriod,
   niOccupationsCountText, niOccupationTypeFromBtl, niOccupationsForDisplay,
+  niOccupationsKey, niOccupationsInline,
 } from '../niOccupations';
 import type { BtlOccupationChain } from '../niOccupations';
 import { AUTHORITY_AUTOMATION, buildAuthorityCheck } from '../../taxFile/authorityAutomation';
@@ -168,5 +169,37 @@ export const TESTS: TestCase[] = [
     const r = spec.buildInput!(client, spouseClient);
     assert('input' in r, 'יש קלט');
     deepEqual((r.input.subjects as { role: string }[]).map(s => s.role), ['client']);
+  }),
+
+  // ── «פירוט עיסוק» מב"ל (סינתטי; המבנה נצפה בבדיקה החיה 28.09.2026) ──
+  test('פירוט עיסוק: נשמר כ-btlDetail, לא דורס שעות/הכנסה שהוזנו ביד, ונכנס למפתח ולתצוגה', () => {
+    const detail = { hoursBand: '20_plus' as const, definitionIncome: 9000, definitionText: 'עצמאי לפי הגדרה של 12 שעות ו-15% מהשכר הממוצע',
+      definitionRule: { weeklyHours: 12, averageWagePct: 15 }, profession: 'ייעוץ', registeredDate: '2025-06-16', status: 'תקף', periodFrom: '2025-06-01', periodTo: null };
+    const withDetail: BtlOccupationChain[] = [{ ...CHAINS[0], detail }, CHAINS[1]];
+    const manual: NiOccupation[] = [{ id: 'm1', type: 'self_employed', weeklyHours: 30, definitionIncome: 16500 }];
+    const occ = niOccupationsFromBtl(withDetail, manual);
+    const se = occ.find(o => o.type === 'self_employed')!;
+    deepEqual(se.btlDetail, detail);
+    equal(se.weeklyHours, 30, 'הידני נשאר — הטווח לא מומר למספר');
+    equal(se.definitionIncome, 16500);
+    assert(niOccupationsKey(occ) !== niOccupationsKey(niOccupationsFromBtl(CHAINS)), 'פירוט חדש ⇒ «שונה» בהשוואה');
+    assert(String(niOccupationsInline(occ)).includes('20 שעות ומעלה בשבוע · הכנסה להגדרה 9,000 ₪'), '20 שעות ומעלה בשבוע · הכנסה להגדרה 9,000 ₪');
+  }),
+
+  test('פירוט עיסוק שלא נקרא הפעם — נשאר מהקריאה הקודמת (כשל חלקי אינו «אין»)', () => {
+    const detail = { hoursBand: '12_19' as const, definitionIncome: null, definitionText: null, definitionRule: null,
+      profession: null, registeredDate: null, status: null, periodFrom: '2025-06-01', periodTo: null };
+    const prev = niOccupationsFromBtl([{ ...CHAINS[0], detail }, CHAINS[1]]);
+    const again = niOccupationsFromBtl(CHAINS, prev);
+    deepEqual(again.find(o => o.type === 'self_employed')!.btlDetail, detail);
+    equal(niOccupationsKey(again), niOccupationsKey(prev), 'אין הצעת שינוי שמוחקת את הפירוט');
+  }),
+
+  test('מתאם: סטטוס הייצוג מתוצאות החיפוש מוצג כלשונו ליד «ייצוג»', () => {
+    const client = { id: 'c', familyStatus: 'single' } as unknown as Client;
+    const r = personResult('client', 2062);
+    const check = buildAuthorityCheck(spec, job([{ ...r, representation: { found: true, receivedDate: '2026-08-04', status: 'ממתין לאישור', pendingAction: 'ממתין תוקף' } }]), client, ALL_KEYS)!;
+    const rep = check.fields.find(f => (f.authorityDisplay ?? '').startsWith('מופיע ברשימת המיוצגים'))!;
+    equal(rep.authorityDisplay, 'מופיע ברשימת המיוצגים · נקלט 04/08/2026 · סטטוס: ממתין לאישור · ממתין תוקף');
   }),
 ];

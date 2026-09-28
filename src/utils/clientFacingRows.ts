@@ -81,7 +81,9 @@ export const EXECUTION_OWNED_TYPES: OnboardingStepType[] = ['rep_client_approval
 
 /** משימה פנימית שהרו"ח הוסיף בעצמו — בקשה חופשית שהכדור בה אצלו. */
 export const isManualInternalTask = (s: OnboardingStep): boolean =>
-  s.stepType === 'custom_request' && s.ball === 'me';
+  // ‼ הגשת טופס חכם (206) היא בקשה מול לקוח עם מחזור משלה (חתימות, רשות),
+  // גם כשהכדור אצל המשרד — לא «משימה לעצמי».
+  s.stepType === 'custom_request' && s.ball === 'me' && !s.payload?.smartForm;
 
 /** החבר הפעיל של שרשרת: הראשון הפתוח בסדר הפנימי, אחרת הראשון (הכול נסגר). */
 function pickPrimary(members: OnboardingStep[]): OnboardingStep {

@@ -1,0 +1,145 @@
+/* ─── טפסים חכמים (6101) — סביבת העבודה, התצוגה ודף החתימה ─────────────── */
+/* ‼ רק טוקנים קיימים (index.css) — ערכת כהה/בהירה עובדת בלי כפילות. */
+
+.sf-overlay {
+  position: fixed; inset: 0; z-index: 1000;
+  background: var(--page); color: var(--ink-1);
+  display: flex; flex-direction: column; direction: rtl;
+}
+.sf-head {
+  display: flex; align-items: center; gap: .75rem; flex-wrap: wrap;
+  padding: .7rem 1.1rem; border-bottom: 1px solid var(--bd); background: var(--card);
+}
+.sf-head h2 { margin: 0; font-size: var(--fs-17); font-weight: 650; }
+.sf-head .sf-sub { color: var(--ink-3); font-size: var(--fs-13); }
+.sf-state {
+  display: inline-flex; align-items: center; gap: .35rem; padding: .15rem .6rem; border-radius: 999px;
+  font-size: var(--fs-12); font-weight: 600; background: var(--chip-slate-bg); color: var(--chip-slate-tx);
+}
+.sf-state.is-mine { background: var(--chip-blue-bg); color: var(--chip-blue-tx); }
+.sf-state.is-wait { background: var(--chip-amber-bg); color: var(--chip-amber-tx); }
+.sf-state.is-done { background: var(--chip-green-bg); color: var(--chip-green-tx); }
+.sf-saved { font-size: var(--fs-12); color: var(--ink-3); }
+
+.sf-steps { display: flex; gap: .25rem; padding: .5rem 1.1rem; border-bottom: 1px solid var(--bd); background: var(--card); overflow-x: auto; }
+.sf-step {
+  display: inline-flex; align-items: center; gap: .4rem; white-space: nowrap;
+  border: 0; background: transparent; padding: .35rem .7rem; border-radius: 999px; cursor: pointer;
+  font: inherit; font-size: var(--fs-13); color: var(--ink-3);
+}
+.sf-step .n {
+  width: 1.3rem; height: 1.3rem; border-radius: 50%; display: inline-grid; place-items: center;
+  font-size: var(--fs-12); background: var(--surface-2); color: var(--ink-3);
+}
+.sf-step.is-current { background: var(--soft); color: var(--br); font-weight: 600; }
+.sf-step.is-current .n { background: var(--br); color: var(--on-br); }
+.sf-step.is-done .n { background: var(--ok-bg); color: var(--ok); }
+
+.sf-body { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(380px, 560px) 1fr; }
+.sf-panel { overflow: auto; padding: 1rem 1.1rem 3rem; border-left: 1px solid var(--bd); background: var(--card); }
+.sf-previewcol { overflow: auto; background: var(--desk); }
+@media (max-width: 980px) {
+  .sf-body { grid-template-columns: 1fr; overflow: auto; }
+  .sf-panel { border-left: 0; overflow: visible; }
+  .sf-previewcol { overflow: visible; }
+}
+
+.sf-section { padding: .9rem 0; border-top: 1px solid var(--bd); }
+.sf-section:first-child { border-top: 0; padding-top: .2rem; }
+.sf-section h3 { margin: 0 0 .6rem; font-size: var(--fs-14); font-weight: 650; color: var(--ink-1); display: flex; align-items: center; gap: .5rem; }
+.sf-section .sf-hint { font-size: var(--fs-12); color: var(--ink-3); font-weight: 400; }
+.sf-note { font-size: var(--fs-13); color: var(--ink-3); line-height: 1.5; }
+
+.sf-purposes { display: grid; gap: .4rem; }
+.sf-purpose {
+  display: grid; grid-template-columns: auto 1fr; gap: .1rem .6rem; align-items: start; text-align: right;
+  padding: .55rem .7rem; border: 1px solid var(--bd); border-radius: var(--radius); cursor: pointer; background: var(--card);
+}
+.sf-purpose input { margin-top: .2rem; width: auto; }
+.sf-purpose b { font-weight: 600; font-size: var(--fs-14); }
+.sf-purpose span { grid-column: 2; font-size: var(--fs-12); color: var(--ink-3); }
+.sf-purpose.is-on { border-color: var(--soft-bd); background: var(--soft); }
+
+.sf-fields { display: grid; gap: .55rem; }
+.sf-row2 { display: grid; grid-template-columns: 1fr 1fr; gap: .55rem; }
+.sf-row3 { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: .55rem; }
+.sf-field { display: grid; gap: .2rem; min-width: 0; }
+.sf-field > label { font-size: var(--fs-12); color: var(--ink-2); font-weight: 600; display: flex; align-items: center; gap: .35rem; flex-wrap: wrap; }
+.sf-field input, .sf-field select { padding: .4rem .55rem; font-size: var(--fs-14); }
+.sf-field input[data-ltr] { direction: ltr; text-align: right; }
+.sf-field.is-active input, .sf-field.is-active select { border-color: var(--br); box-shadow: 0 0 0 3px var(--soft); }
+.sf-src { font-size: 11.5px; color: var(--ink-3); line-height: 1.35; }
+.sf-src button { font: inherit; color: var(--br); background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline; }
+.sf-req { color: var(--err); font-weight: 700; }
+
+.sf-badge { font-size: 11px; font-weight: 600; padding: 0 .4rem; border-radius: 999px; line-height: 1.55; white-space: nowrap; }
+.sf-b-verified { background: var(--chip-green-bg); color: var(--chip-green-tx); }
+.sf-b-entered { background: var(--chip-blue-bg); color: var(--chip-blue-tx); }
+.sf-b-derived, .sf-b-confirm { background: var(--chip-amber-bg); color: var(--chip-amber-tx); }
+.sf-b-stale { background: var(--chip-orange-bg); color: var(--chip-orange-tx); }
+.sf-b-missing, .sf-b-conflict { background: var(--chip-red-bg); color: var(--chip-red-tx); }
+
+.sf-issues { display: grid; gap: .3rem; margin: .2rem 0 .4rem; }
+.sf-issue { display: flex; gap: .45rem; align-items: baseline; font-size: var(--fs-13); line-height: 1.45; }
+.sf-issue button { font: inherit; background: none; border: 0; padding: 0; color: inherit; text-align: right; cursor: pointer; }
+.sf-issue .dot { width: .5rem; height: .5rem; border-radius: 50%; flex: none; transform: translateY(-.05rem); }
+.sf-issue.blocker .dot { background: var(--err); }
+.sf-issue.warning .dot { background: var(--warn); }
+.sf-issue.info .dot { background: var(--tx3); }
+
+.sf-compare { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; }
+.sf-compare > div { padding: .6rem .7rem; border-radius: var(--radius); background: var(--surface-2); font-size: var(--fs-13); line-height: 1.5; }
+.sf-compare h4 { margin: 0 0 .25rem; font-size: var(--fs-12); color: var(--ink-3); font-weight: 600; }
+.sf-compare .is-requested { background: var(--soft); }
+
+.sf-occ { width: 100%; border-collapse: collapse; font-size: var(--fs-13); }
+.sf-occ th { text-align: right; font-size: var(--fs-12); color: var(--ink-3); font-weight: 600; padding: .2rem .25rem; }
+.sf-occ td { padding: .15rem .2rem; vertical-align: top; }
+.sf-occ input { padding: .3rem .4rem; font-size: var(--fs-13); }
+.sf-occ .sf-occ-over td { border-top: 2px dashed var(--soft-bd); }
+
+.sf-actions { display: flex; flex-wrap: wrap; gap: .45rem; align-items: center; margin-top: .6rem; }
+.sf-error { color: var(--err); font-size: var(--fs-13); }
+.sf-okline { color: var(--ok); font-size: var(--fs-13); }
+.sf-banner { padding: .6rem .75rem; border-radius: var(--radius); background: var(--surface-2); font-size: var(--fs-13); line-height: 1.5; }
+.sf-banner.is-warn { background: var(--warn-bg); color: var(--warn); }
+.sf-banner.is-info { background: var(--soft); color: var(--chip-blue-tx); }
+
+.sf-signer { display: grid; gap: .45rem; padding: .7rem 0; border-top: 1px solid var(--bd); }
+.sf-signer:first-child { border-top: 0; }
+.sf-signer-head { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
+.sf-signer-head b { font-size: var(--fs-14); }
+.sf-pad { border: 1px dashed var(--bd-strong); border-radius: var(--radius); background: #fff; }
+.sf-link { display: flex; gap: .4rem; align-items: center; }
+.sf-link input { direction: ltr; font-size: var(--fs-12); }
+
+.sf-timeline { display: grid; gap: .25rem; font-size: var(--fs-12); color: var(--ink-3); }
+.sf-timeline b { color: var(--ink-2); font-weight: 600; }
+
+/* ── התצוגה ── */
+.sf-preview { min-height: 100%; }
+.sf-preview-bar {
+  position: sticky; top: 0; z-index: 2; display: flex; align-items: center; gap: .35rem;
+  padding: .4rem .8rem; background: color-mix(in srgb, var(--desk) 88%, transparent); backdrop-filter: blur(4px);
+}
+.sf-preview-title { font-size: var(--fs-12); color: var(--ink-3); font-weight: 600; }
+.sf-zoom { font-size: var(--fs-12); color: var(--ink-3); min-width: 3rem; text-align: center; font-variant-numeric: tabular-nums; }
+.sf-preview .btn-xs { padding: .1rem .5rem; font-size: 13px; line-height: 1.4; }
+.sf-pages { display: grid; justify-items: center; gap: 1rem; padding: .5rem 1rem 2rem; overflow-x: auto; }
+@media (max-width: 600px) { .sf-pages { padding: .5rem .25rem 1.5rem; } .sf-public { padding: 1rem .75rem 2.5rem; } }
+.sf-page { position: relative; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.18), 0 6px 18px rgba(0,0,0,.08); }
+.sf-page canvas { display: block; }
+.sf-hot { position: absolute; border: 1px solid transparent; border-radius: 2px; padding: 0; cursor: pointer; }
+.sf-hot:hover { outline: 2px solid var(--br); }
+.sf-hot.is-active { outline: 2px solid var(--br); outline-offset: 1px; }
+.sf-preview-error { padding: 1rem; color: var(--err); }
+
+/* ── כרטיס בקשות ── */
+.sf-card-line { display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; font-size: var(--fs-13); color: var(--ink-3); }
+
+/* ── דף החתימה הציבורי ── */
+.sf-public { max-width: 880px; margin: 0 auto; padding: 1.2rem 1rem 3rem; direction: rtl; }
+.sf-public h1 { font-size: var(--fs-20); margin: .2rem 0 .3rem; }
+.sf-public .sf-public-pages { background: var(--desk); border-radius: var(--radius); padding: .5rem 0; margin: .8rem 0; }
+.sf-public .sf-declare { display: flex; gap: .55rem; align-items: flex-start; font-size: var(--fs-14); line-height: 1.55; }
+.sf-public .sf-declare input { width: auto; margin-top: .3rem; }

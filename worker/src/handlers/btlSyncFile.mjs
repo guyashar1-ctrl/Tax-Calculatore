@@ -66,7 +66,7 @@ export async function run(ctx, input) {
       open: (id) => openRepresentedInsured(page, id),
       readInfo: () => readInfoSummary(page),
       openOccupationList: () => openOccupationList(page),
-      drillSegment: (i) => drillOccupationSegment(page, i),
+      drillSegment: (i, opts) => drillOccupationSegment(page, i, opts),
       openIncomeList: () => openIncomeList(page),
       openDebitAuthorizations: () => openDebitAuthorizations(page),
       openLedger: () => openRealValueLedger(page),

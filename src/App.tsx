@@ -143,6 +143,7 @@ import TestRegisteredSpouse from './components/__TestRegisteredSpouse';
 import TestPoaStamp from './components/__TestPoaStamp';
 import TestShaamRepresentation from './components/__TestShaamRepresentation';
 import PublicSignPage from './components/PublicSignPage';
+import PublicSmartFormSignPage from './features/smartForms/PublicSmartFormSignPage';
 import ErrorBoundary from './components/ErrorBoundary';
 import LegacyMigrationBanner from './components/LegacyMigrationBanner';
 import FailedNotificationsBanner from './components/FailedNotificationsBanner';
@@ -407,6 +408,9 @@ export default function App() {
     // עמוד חתימה ציבורי — קישור אישי לכל חותם (נישום / בן זוג).
     const signToken = new URLSearchParams(window.location.search).get('sign');
     if (signToken) return asClientPage(<PublicSignPage token={signToken} />);
+    // חתימה על טופס חכם (206) — קישור חד-פעמי לחותם אחד (מבוטח / בן-בת זוג).
+    const signFormToken = new URLSearchParams(window.location.search).get('sign-form');
+    if (signFormToken) return asClientPage(<PublicSmartFormSignPage token={signFormToken} />);
     // שאלון עצמאי — נשלח יזום מכרטיס הלקוח, בלי הליך ייצוג.
     const intakeToken = new URLSearchParams(window.location.search).get('intake');
     if (intakeToken) return asClientPage(<PublicIntakePage token={intakeToken} />);

@@ -125,6 +125,7 @@ const CLIENT_SERVER_OWNED = [
 // ששם JSON null כבר נכתב כ-NULL (מיגרציה 145).
 const CLIENT_NULLABLE = [
   'idNumber', 'birthDate', 'gender', 'phone', 'email', 'city', 'address',
+  'zipCode', 'landlinePhone', 'mailingAddress',
   'type', 'incomeTaxType', 'vatStatus', 'niType', 'taxCoordinationDetails',
   'spouseName', 'spouseIdNumber', 'spouseIncome', 'spouseFirstName', 'spouseLastName',
   'spouseBirthYear', 'spouseEmail', 'spousePhone', 'spouseClientId', 'spouse',

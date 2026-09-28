@@ -17,6 +17,7 @@ import {
   buildOccupationChains, extensionTargets, parseOccupationSummary, compareWithSummary,
   parseAdvanceLine, parseInsuredHeader, parseIncomeList, selectDirectIncome,
   parseDebitAuthorizations, parseLedgerBalance, findRepresentedRow, maskId,
+  hoursBandFromLabel, recordsToDetail, parseOccupationDetail, attachDetails,
 } from '../src/btlFileSync.mjs';
 
 const AS_OF = '2026-09-23';
@@ -266,7 +267,7 @@ test('חיפוש מיוצגים: התאמה מדויקת לפי ת.ז.; אין �
     headerCells: ['', 'זהות/תיק מעסיק', 'שם', 'סוג', 'תאריך קליטה', 'הרשאה לחיוב', 'מזהה פנקס', 'סטטוס'],
     dataRows: [['', '123456782', 'ישראלי דנה', 'מבוטח', '04/08/2026', 'חשבון בנק', '', '']],
   };
-  assert.deepEqual(findRepresentedRow([t], '123456782'), { found: true, index: 0, type: 'מבוטח', receivedDate: '2026-08-04' });
+  assert.deepEqual(findRepresentedRow([t], '123456782'), { found: true, index: 0, type: 'מבוטח', receivedDate: '2026-08-04', debitAuthorization: 'חשבון בנק' });
   assert.equal(findRepresentedRow([t], '300000007').reason, 'not_found');
   const two = { ...t, dataRows: [...t.dataRows, t.dataRows[0]] };
   assert.equal(findRepresentedRow([two], '123456782').reason, 'ambiguous');
@@ -282,3 +283,108 @@ test('בחירת טבלה: שתי טבלאות שונות עם אותן כותר
 test('ת.ז. בלוג — מוסתרת', () => {
   assert.equal(maskId('123456782'), '…782');
 });
+
+// ─── פירוט עיסוק (v135z) ועמודות החיפוש — נצפו בבדיקה חיה 28.09.2026 ──────
+// ‼ הערכים כאן **סינתטיים** (ת.ז. בדיקה, סכומים ומשלח יד מומצאים); רק המבנה
+// — התוויות, כפתורי הרדיו, שורת ההגדרה ו«מצב:» — נלקח מהמסך.
+
+const DETAIL_RAW = {
+  pairs: [
+    { label: 'זהות:', value: '123456782' }, { label: 'יתרה:', value: '0' },
+    { label: 'מתאריך', value: '01/06/2025' }, { label: 'עד תאריך', value: '' },
+    { label: 'רישום', value: 'כ' }, { label: 'תאריך רישום', value: '16/06/2025' },
+    { label: 'הכנסה להגדרה', value: '9000' },
+    { label: 'שעות עבודה בשבוע', value: '1 עד 11 שעות 12 עד 19 שעות 20 שעות ומעלה' },
+    { label: 'משלח יד', value: 'ייעוץ' }, { label: 'מקור מידע', value: '' },
+  ],
+  radios: [
+    { label: '1 עד 11 שעות', checked: false },
+    { label: '12 עד 19 שעות', checked: false },
+    { label: '20 שעות ומעלה', checked: true },
+  ],
+  lines: ['הכנסה להגדרה 9000', 'עצמאי לפי הגדרה של 12 שעות ו-15% מהשכר הממוצע', 'מצב: תקף'],
+  heading: 'עיסוק - עצמאי',
+};
+
+test('טווח שעות: שלוש התוויות של הרדיו ⇒ טווח; תווית אחרת ⇒ null (לא מספר)', () => {
+  assert.equal(hoursBandFromLabel('1 עד 11 שעות'), '1_11');
+  assert.equal(hoursBandFromLabel('12 עד 19 שעות'), '12_19');
+  assert.equal(hoursBandFromLabel('20 שעות ומעלה'), '20_plus');
+  assert.equal(hoursBandFromLabel('מעל 40'), null);
+});
+
+test('פירוט עיסוק: כל השדות, הכלל מפורק, ושורת «יצירה» לא נקראת', () => {
+  const p = parseOccupationDetail(DETAIL_RAW);
+  assert.equal(p.ok, true);
+  assert.deepEqual(p.value, {
+    label: 'עצמאי', fromDate: '2025-06-01', toDate: null, hoursBand: '20_plus', definitionIncome: 9000,
+    definitionText: 'עצמאי לפי הגדרה של 12 שעות ו-15% מהשכר הממוצע',
+    definitionRule: { weeklyHours: 12, averageWagePct: 15 },
+    profession: 'ייעוץ', registeredDate: '2025-06-16', status: 'תקף',
+  });
+});
+
+test('פירוט עיסוק: אין רדיו מסומן / שני מסומנים ⇒ hoursBand null; אין הכנסה ⇒ null ולא 0', () => {
+  const none = parseOccupationDetail({ ...DETAIL_RAW, radios: DETAIL_RAW.radios.map(r => ({ ...r, checked: false })) });
+  assert.equal(none.value.hoursBand, null);
+  const two = parseOccupationDetail({ ...DETAIL_RAW, radios: DETAIL_RAW.radios.map(r => ({ ...r, checked: true })) });
+  assert.equal(two.value.hoursBand, null, 'לא מנחשים בין שני טווחים');
+  const noIncome = parseOccupationDetail({ ...DETAIL_RAW, pairs: DETAIL_RAW.pairs.map(p => p.label === 'הכנסה להגדרה' ? { ...p, value: '' } : p) });
+  assert.equal(noIncome.value.definitionIncome, null);
+  const otherWording = parseOccupationDetail({ ...DETAIL_RAW, lines: ['עצמאי שאינו עונה להגדרה'] });
+  assert.equal(otherWording.value.definitionText, 'עצמאי שאינו עונה להגדרה', 'נוסח אחר נשמר כלשונו');
+  assert.equal(otherWording.value.definitionRule, null, 'ולא מפורק לכלל שלא נצפה');
+  assert.equal(parseOccupationDetail({ pairs: [], radios: [], lines: [] }).ok, false);
+});
+
+test('אילו רשומות פותחים: עצמאי בתוקף בלבד, עד שתיים', () => {
+  const tables = [{ headerCells: ['', 'עיסוקים', 'מתאריך', 'עד תאריך'], dataRows: [
+    ['', 'תלמיד להשכלה גבוהה', '01/10/2025', '30/09/2026'],
+    ['', 'עצמאי', '01/06/2025', ''],
+    ['', 'עצמאי', '01/01/2020', '31/12/2020'],
+  ] }];
+  assert.deepEqual(recordsToDetail(tables, AS_OF), [1]);
+});
+
+test('הצמדת פירוט: רק אחרי אימות זהות ואותה רשומה; אחרת אזהרה והרשומה נשארת בלי פירוט', () => {
+  const recs = () => [{ label: 'עצמאי', fromDate: '2025-06-01', toDate: null, index: 1 }];
+  const ok = recs();
+  assert.deepEqual(attachDetails(ok, [{ index: 1, ok: true, ...DETAIL_RAW }], '123456782'), []);
+  assert.equal(ok[0].detail.hoursBand, '20_plus');
+  assert.equal(ok[0].detail.periodFrom, '2025-06-01');
+
+  const otherPerson = recs();
+  assert.deepEqual(attachDetails(otherPerson, [{ index: 1, ok: true, ...DETAIL_RAW }], '300000007'), ['detail_identity_unverified:עצמאי']);
+  assert.equal(otherPerson[0].detail, undefined);
+
+  const otherRow = recs();
+  const shifted = { ...DETAIL_RAW, pairs: DETAIL_RAW.pairs.map(p => p.label === 'מתאריך' ? { ...p, value: '01/01/2024' } : p) };
+  assert.deepEqual(attachDetails(otherRow, [{ index: 1, ok: true, ...shifted }], '123456782'), ['detail_mismatch:עצמאי']);
+  assert.equal(otherRow[0].detail, undefined);
+
+  const failed = recs();
+  assert.deepEqual(attachDetails(failed, [{ index: 1, ok: false, reason: 'record_detail_not_found' }], '123456782'), ['detail_failed:עצמאי']);
+});
+
+test('הרצף נושא את הפירוט של הרשומה המאוחרת שנפתחה', () => {
+  const chains = buildOccupationChains([
+    { label: 'עצמאי', fromDate: '2025-06-01', toDate: null, detail: { hoursBand: '20_plus', periodFrom: '2025-06-01' } },
+    { label: 'תלמיד להשכלה גבוהה', fromDate: '2025-10-01', toDate: '2026-09-30' },
+  ], AS_OF);
+  assert.equal(chains.find(c => c.sourceLabel === 'עצמאי').detail.hoursBand, '20_plus');
+  assert.equal('detail' in chains.find(c => c.sourceLabel !== 'עצמאי'), false, 'בלי פירוט ⇒ אין מפתח, לא null');
+});
+
+test('חיפוש מיוצגים: עמודות הסטטוס נקראות כלשונן, ו«מזהה פנקס»/«שם» לא', () => {
+  const t = {
+    headerCells: ['פעולות', 'זהות/תיק מעסיק', 'שם', 'סוג', 'תאריך קליטה', 'הרשאה לגימלאות', 'הרשאה לחיוב', 'מזהה פנקס', 'סטטוס'],
+    dataRows: [['ממתין תוקף', '123456782', 'בדיקה ראשונה', 'מבוטח', '04/08/2026', '', 'חשבון בנק', '555', 'ממתין לאישור']],
+  };
+  const r = findRepresentedRow([t], '123456782');
+  assert.deepEqual(r, {
+    found: true, index: 0, type: 'מבוטח', receivedDate: '2026-08-04',
+    debitAuthorization: 'חשבון בנק', status: 'ממתין לאישור', pendingAction: 'ממתין תוקף',
+  });
+  assert.ok(!JSON.stringify(r).includes('555') && !JSON.stringify(r).includes('בדיקה ראשונה'));
+});
+

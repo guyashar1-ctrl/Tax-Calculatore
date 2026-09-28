@@ -117,6 +117,9 @@ export const EDIT_SECTIONS: EditSection[] = [
       { key: 'email', label: 'אימייל', kind: 'text' },
       { key: 'city', label: 'יישוב', kind: 'text', hebrew: true },
       { key: 'address', label: 'כתובת', kind: 'text', hebrew: true },
+      // 206 · כתובת ותקשורת כפי שטופסי הרשויות מבקשים אותן (6101 ואחרים).
+      { key: 'zipCode', label: 'מיקוד', kind: 'text' },
+      { key: 'landlinePhone', label: 'טלפון קווי', kind: 'text' },
     ],
   },
   {

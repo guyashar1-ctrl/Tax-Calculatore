@@ -73,6 +73,9 @@ import EmailInput from '../ui/EmailInput';
 import InfoLines from '../ui/InfoLines';
 import PrerequisiteGate, { type PrerequisitePerson } from '../PrerequisiteGate';
 import NiNextActionButton from '../NiNextActionButton';
+import Btl6101Workspace from '../../features/smartForms/btl6101/Btl6101Workspace';
+import { BTL6101_PURPOSE_LABELS, type Btl6101Purpose } from '../../features/smartForms/btl6101/model';
+import { filingErrorText, startFiling, type SmartFormProjection } from '../../features/smartForms/api';
 import SendRequestsDialog from './SendRequestsDialog';
 import { useReadyToSend, readyRecipientCount } from '../../hooks/useReadyToSend';
 import { useAutomationJob } from '../../hooks/useAutomationJobs';
@@ -373,6 +376,8 @@ export default function OnboardingTab({
   // שורה סגורה מראה שם, מצב ופעולה; פתיחה חושפת את הפרטים וההיסטוריה שלה.
   const [openRowId, setOpenRowId] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
+  /** הגשת טופס חכם (6101) פתוחה במסך הפירוט שלה. ‼ השורה ב«בקשות» היא היטל. */
+  const [smartFilingId, setSmartFilingId] = useState<string | null>(null);
   /** תבנית שנבחרה מהקטלוג — פותחת את הקומפוזר על עותק שלה. */
   const [templateDraft, setTemplateDraft] = useState<RequestTemplate | null>(null);
   /** בקשה שנשמרת כרגע כתבנית — החלון מבקש רק שם. */
@@ -1136,6 +1141,34 @@ export default function OnboardingTab({
 
   /** רינדור בקשה אחת — משותף לרשימה השטוחה (המסך הישן) ולשורות "מה אני צריך מהלקוח"/"העבודה שלי". */
   const renderStepInner = (step: OnboardingStep) => {
+              // ‼ טופס חכם (206): השורה היא היטל של ההגשה — המצב נכתב בשרת, ומכאן
+              // רק הדלת למסך הפירוט. אין עריכה בשורה ואין «סמן כהושלם» ידני.
+              const smart = (step.stepType === 'custom_request' ? step.payload?.smartForm : undefined) as SmartFormProjection | undefined;
+              if (smart?.filingId) {
+                const purposes = (smart.purposes ?? []) as Btl6101Purpose[];
+                return (
+                  <JourneyRow
+                    key={step.id}
+                    step={step}
+                    stepById={stepById}
+                    highlight={highlightStepId === step.id}
+                    statusLabel={smart.stateLabel ?? 'טופס חכם'}
+                    menu={null}
+                    always={
+                      <div className="sf-card-line" style={{ marginTop: '.35rem' }}>
+                        {purposes.length > 0 && <span>{purposes.map(p => BTL6101_PURPOSE_LABELS[p]).join(' · ')}</span>}
+                        {(smart.revision ?? 1) > 1 && <span>· גרסה {smart.revision}</span>}
+                        <span style={{ flex: 1 }} />
+                        <button type="button" className="btn btn-sm btn-primary" onClick={() => setSmartFilingId(smart.filingId)}>
+                          פתח את הטופס ←
+                        </button>
+                      </div>
+                    }
+                  >
+                    {null}
+                  </JourneyRow>
+                );
+              }
               // עריכה בתוך השורה — הקומפוזר מחליף את השורה עצמה. אין מודל.
               if (editingStepId === step.id && step.stepType === 'custom_request') {
                 return (
@@ -2360,8 +2393,27 @@ export default function OnboardingTab({
           client={client}
           niExecution={niExecution}
           onRequestAuthorityRepresentation={onRequestAuthorityRepresentation}
+          onStartSmartForm={async () => {
+            // ‼ אידמפוטנטי בשרת: הגשה פתוחה קיימת ⇒ חוזרים אליה, לא פותחים שנייה.
+            const r = await startFiling(clientId, []);
+            if (!r.ok) return filingErrorText(r.error);
+            setAddOpen(false);
+            setSmartFilingId(r.filingId as string);
+            refresh?.();
+            return null;
+          }}
           onClose={() => setAddOpen(false)}
           onCreated={() => refresh?.()}
+        />
+      )}
+
+      {smartFilingId && (
+        <Btl6101Workspace
+          filingId={smartFilingId}
+          client={client}
+          onClientPersisted={onClientPersisted}
+          onChanged={() => refresh?.()}
+          onClose={() => { setSmartFilingId(null); refresh?.(); }}
         />
       )}
 
