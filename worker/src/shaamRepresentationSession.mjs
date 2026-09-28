@@ -573,7 +573,17 @@ export async function confirmSystemsStep(page) {
     const vis = (e) => !!e && e.getClientRects().length > 0 && getComputedStyle(e).visibility !== 'hidden';
     const clean = (s) => (s || '').replace(/\s+/g, ' ').trim();
     const modal = [...document.querySelectorAll('.modal')].find((m) => vis(m) && m.classList.contains('in'));
-    if (modal) return { state: 'dialog', text: clean(modal.querySelector('.modal-content')?.innerText ?? modal.innerText) };
+    if (modal) {
+      // ‼ 28.09.2026 · «בהמשך תתבקש לצרף:» (p.fontbold) ואחריה <p> יחיד או <ul><li> —
+      // כך בתבנית hazanatBakasha.html. זו רשימת המסמכים ששע״ם תדרוש לבקשה הזאת.
+      const head = [...modal.querySelectorAll('p.fontbold')].find((p) => /בהמשך\s+תתבקש\s+לצרף/.test(clean(p.textContent)));
+      const attach = [];
+      for (let el = head?.nextElementSibling; el; el = el.nextElementSibling) {
+        if (el.tagName === 'UL') attach.push(...[...el.querySelectorAll('li')].map((li) => clean(li.textContent)));
+        else if (el.tagName === 'P') attach.push(clean(el.textContent));
+      }
+      return { state: 'dialog', text: clean(modal.querySelector('.modal-content')?.innerText ?? modal.innerText), attach: attach.filter(Boolean) };
+    }
     const errs = [...document.querySelectorAll('label.errfont, .alert-danger')].filter(vis).map((e) => clean(e.textContent)).filter(Boolean);
     if (errs.length) return { state: 'error', detail: errs.join(' · ') };
     return { state: 'pending' };
@@ -604,7 +614,7 @@ export async function confirmSystemsStep(page) {
     return { state: 'pending' };
   }, null, { timeoutMs: 40000 });
   if (post.state === 'contact_step') {
-    return { ok: true, requestNumber: post.requestNumber, dialog: verdict.id, notice: pre.text.slice(0, 1200), attention };
+    return { ok: true, requestNumber: post.requestNumber, dialog: verdict.id, notice: pre.text.slice(0, 1200), attention, attach: pre.attach ?? [] };
   }
   return { ok: false, reason: 'create_outcome_unknown', detail: post.detail ?? post.state, step: 'systems_dialog_confirm' };
 }
@@ -1769,11 +1779,13 @@ export function documentsSubmissionDecision(resolved, { extraUploadVerified } = 
   const list = Array.isArray(resolved) ? resolved : [];
   const by = (err) => list.filter((x) => !x.result?.ok && x.result?.error === err);
   const bad = list.filter((x) => !x.result?.ok);
-  const unexpected = bad.filter((x) => !['needs_document_assignment', 'not_pdf_convertible', 'missing'].includes(x.result?.error));
+  // ‼ 208 · not_confirmed — יש בתיק צילום, אבל הלקוח עוד לא אישר שהוא שלו: ממתינים כמו למסמך חסר.
+  const unexpected = bad.filter((x) => !['needs_document_assignment', 'not_pdf_convertible', 'missing', 'not_confirmed'].includes(x.result?.error));
   if (unexpected.length) return { ok: false, code: 'required_document_unavailable', slots: unexpected };
   if (by('needs_document_assignment').length) return { ok: false, code: 'needs_document_assignment', slots: by('needs_document_assignment') };
   if (by('not_pdf_convertible').length) return { ok: false, code: 'document_not_pdf_convertible', slots: by('not_pdf_convertible') };
-  if (by('missing').length) return { ok: false, code: 'awaiting_required_documents', slots: by('missing') };
+  const waiting = [...by('missing'), ...by('not_confirmed')];
+  if (waiting.length) return { ok: false, code: 'awaiting_required_documents', slots: waiting };
   if (list.length && extraUploadVerified !== true) return { ok: false, code: 'first_live_verification', slots: list };
   return { ok: true, uploads: list };
 }

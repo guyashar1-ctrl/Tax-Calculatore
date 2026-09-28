@@ -26,6 +26,7 @@ import SignaturePad from './SignaturePad';
 import RepSignersStatus from './RepSignersStatus';
 import RepresentationAuthorityData from './RepresentationAuthorityData';
 import RepresentationExecutionCenter from './RepresentationExecutionCenter';
+import RemoveAuthorityBeforeSigning from './RemoveAuthorityBeforeSigning';
 import RepresentationNextStep from './RepresentationNextStep';
 import EmailPreviewDialog from './EmailActivity/EmailPreviewDialog';
 import { repSendPhase, representationStatusLabel } from '../utils/representationAction';
@@ -631,6 +632,14 @@ export default function RepresentationRequestReview({
                     <span key={l.authority} className={`rep-scope-item${l.household ? ' is-household' : ''}`}>
                       {l.authorityLabel}<span className="sep">·</span><b>{l.whoLabel}</b>
                       {l.ownerNote && <><span className="sep">·</span>{l.ownerNote}</>}
+                      {/* ‼ 208 · לפני השליחה לחתימה בלבד. */}
+                      {linkedClient && (
+                        <RemoveAuthorityBeforeSigning
+                          request={request} line={l} people={people}
+                          shaamAuthorityCount={scope.filter(x => ['incomeTax', 'vat', 'withholding'].includes(x.authority)).length}
+                          onChanged={() => onStepsChanged?.()}
+                        />
+                      )}
                     </span>
                   ))}
                 </div>

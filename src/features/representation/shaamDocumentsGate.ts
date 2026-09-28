@@ -88,6 +88,7 @@ const PLAN_STATUS_TEXT: Record<string, string> = {
   missing: 'חסר',
   needs_document_assignment: 'לא ניתן לשייך',
   not_pdf_convertible: 'פורמט שאי אפשר להמיר',
+  not_confirmed: 'יש בתיק - ממתין לאישור הלקוח',
 };
 
 export function planStatusText(s: string): string {

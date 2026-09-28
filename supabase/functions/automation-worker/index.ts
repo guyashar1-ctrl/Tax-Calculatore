@@ -368,12 +368,40 @@ Deno.serve(async (req: Request) => {
       }
       if (pdf.bytes.length > MAX_DOC_BYTES) return json({ ok: false, error: "document_too_large" }, 413);
       const who = String(sel.personName ?? "").trim();
+      const fileName = `${SLOT_KIND_LABEL[body.slotKind] ?? "מסמך מזהה"}${who ? ` - ${who}` : ""}.pdf`;
+      const sourceIds = docs.map((d) => d.documentId);
+      // ‼ 208 · ה-PDF שנבנה מתמונה (או משני צדדים) נשמר בתיק **לצד** המקור, עם
+      // המקורות שלו — אותו קובץ שהמשרד רואה ויכול להוריד להעלאה ידנית. מקור
+      // שהוא כבר PDF יחיד — אין מה לשמור.
+      let derivedDocumentId: string | null = null;
+      const onlyPdf = docs.length === 1 && parts[0][0] === 0x25 && parts[0][1] === 0x50 && parts[0][2] === 0x44 && parts[0][3] === 0x46;
+      if (!onlyPdf && sel.userId && sel.clientId) {
+        derivedDocumentId = `pdf-${(await sha256Hex([...sourceIds].sort().join("|"))).slice(0, 24)}`;
+        const path = `${sel.userId}/${sel.clientId}/${derivedDocumentId}`;
+        const { error: upErr } = await admin.storage.from(DOC_BUCKET)
+          .upload(path, pdf.bytes, { contentType: "application/pdf", upsert: true });
+        if (!upErr) {
+          const { data: src } = await admin.from("documents").select("label_id, category").eq("id", sourceIds[0]).maybeSingle();
+          const { error: docErr } = await admin.from("documents").upsert({
+            id: derivedDocumentId, user_id: sel.userId, client_id: sel.clientId, storage_path: path,
+            file_name: fileName, file_type: "application/pdf", file_size: pdf.bytes.length,
+            category: src?.category ?? "id_card", year: "general", label_id: src?.label_id,
+            description: "PDF שנוצר אוטומטית מהצילום לרשות המסים",
+            notes: `נוצר אוטומטית מ-${docs.map((d) => d.fileName).join(" + ")}`,
+            source_document_ids: sourceIds, status: "received",
+          }, { onConflict: "id" });
+          if (docErr) derivedDocumentId = null;
+        } else {
+          derivedDocumentId = null;
+        }
+      }
       return json({
         ok: true,
         person: sel.person, personName: sel.personName ?? null, docKind: sel.docKind,
-        fileName: `${SLOT_KIND_LABEL[body.slotKind] ?? "מסמך מזהה"}${who ? ` - ${who}` : ""}.pdf`,
+        fileName,
         pageCount: pdf.pageCount,
-        sourceDocumentIds: docs.map((d) => d.documentId),
+        sourceDocumentIds: sourceIds,
+        derivedDocumentId,
         contentBase64: encodeBase64(pdf.bytes),
       });
     }

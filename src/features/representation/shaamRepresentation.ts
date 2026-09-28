@@ -467,6 +467,25 @@ export interface ShaamRequestTracking {
   foundBeforeCreateAt?: string;
   /** 205 · «לידיעתך» של שלב 2 כמו ששע״ם הציגה (מה יש לצרף) — ראיה בלבד. */
   creationNotice?: { text: string; at: string };
+  /** 208 · «בהמשך תתבקש לצרף» כרשימה — דרישות המסמכים של הבקשה, מרגע היצירה. */
+  creationAttach?: string[];
+  /** 208 · המערכים שנפתחו בבקשה בשע״ם (כפי שהוזנו), לזיהוי טופס שכולל רשות שהוסרה. */
+  requestedSystems?: string[];
+  /** 208 · רשות הוסרה אחרי שהבקשה נפתחה בשע״ם ⇒ הבקשה שם צריכה ביטול ופתיחה מחדש. */
+  replacement?: ShaamReplacement;
+  /** 208 · בקשות קודמות להגשה הזאת שבוטלו (הוחלפו) — היסטוריה, לא מצב. */
+  history?: (Omit<ShaamRequestTracking, 'history'> & { archivedAt?: string; archivedHow?: string })[];
+}
+
+export interface ShaamReplacement {
+  reason: 'authority_removed';
+  requestNumber: string;
+  /** «ניכויים» / «מע"מ» — מה שהוסר מהבקשה. */
+  removed: string[];
+  supersededFormDocumentId?: string;
+  at: string;
+  /** סומן «ביטלתי בשע״ם», אבל «הזן» מצא את אותה בקשה עדיין פתוחה שם (208). */
+  stillOpenAt?: string;
 }
 
 /**
@@ -551,7 +570,8 @@ export function shaamDocumentsBlocked(t: ShaamRequestTracking | undefined): Shaa
  */
 export function shaamIdentityDocKind(label: string | undefined | null): ShaamIdentityDocKind | null {
   const l = (label ?? '').replace(/["״׳']/g, '');
-  const id = /(תעודת\s*זהות|ת\.\s*ז\.?|תז(?![א-ת])|ספח)/.test(l);
+  // ‼ 208 · «צילום תעודת הזהות» (עם ה' הידיעה) — כך שע״ם כתבה בלידיעתך של שלב 2.
+  const id = /(תעודת\s*ה?זהות|ת\.\s*ז\.?|תז(?![א-ת])|ספח)/.test(l);
   const license = /(רישיון|רשיון)/.test(l);
   const passport = /דרכון/.test(l);
   if (id && license) return 'idOrLicense';

@@ -125,6 +125,12 @@ test('החלטה · חסר מסמך ⇒ awaiting_required_documents', () => {
   assert.deepEqual([d.ok, d.code], [false, 'awaiting_required_documents']);
 });
 
+test('החלטה · 208 · יש צילום שהלקוח לא אישר ⇒ ממתינים (awaiting_required_documents), לא מעלים', () => {
+  const d = documentsSubmissionDecision([fail(idSlot, 'not_confirmed')], { extraUploadVerified: true });
+  assert.deepEqual([d.ok, d.code], [false, 'awaiting_required_documents']);
+  assert.equal(d.slots.length, 1);
+});
+
 test('החלטה · אי אפשר לשייך גובר על הכול; המרה גוברת על חוסר', () => {
   assert.equal(documentsSubmissionDecision([fail(idSlot, 'missing'), fail(passSlot, 'needs_document_assignment')], { extraUploadVerified: true }).code, 'needs_document_assignment');
   assert.equal(documentsSubmissionDecision([fail(idSlot, 'missing'), fail(passSlot, 'not_pdf_convertible')], { extraUploadVerified: true }).code, 'document_not_pdf_convertible');

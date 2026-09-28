@@ -242,6 +242,7 @@ Deno.serve(async (req: Request) => {
     // ‼ בב"ל לכל מבוטח תיק ואסמכתא נפרדים. כשגם בן/בת הזוג מיוצג, המייל של כל
     //   אחד חייב לשאת את האסמכתא שלו — אסמכתא של השני פשוט לא תאשר לו כלום.
     let niKey: "nationalInsurance" | "nationalInsuranceSpouse" = "nationalInsurance";
+    let signerRole: string | null = null;
     if (stage === "sign" && signerId) {
       const signers: any[] = Array.isArray(reqRow.signers) ? reqRow.signers : [];
       const signer = signers.find((s) => s?.id === signerId);
@@ -250,6 +251,7 @@ Deno.serve(async (req: Request) => {
       toEmail = signer.email;
       clientFirst = String(signer.name || "").trim().split(/\s+/)[0] || clientFirst;
       if (signer.role === "spouse") niKey = "nationalInsuranceSpouse";
+      signerRole = String(signer.role || "client");
     }
 
     // ‼ 157: הוראות אישור ב"ל עצמאיות — הבקשה כבר קיימת (execution.nationalInsurance[Spouse]
@@ -374,6 +376,50 @@ Deno.serve(async (req: Request) => {
         ${option("ב.", "בטלפון", `מתקשרים ל-<strong dir="ltr" style="color:${brand.ink};font-size:16px;">${esc(NI_PHONE)}</strong> (מענה קולי) ומאשרים באמצעות מספר האסמכתא ובאמצעות קוד בן 6 ספרות שהביטוח הלאומי ישלח אליכם בדואר או במייל. מתאים למי שאין לו כרטיס אשראי או מייל מאומת בביטוח הלאומי.`)}`;
     };
 
+    /**
+     * 208 · מה שרשות המסים דורשת מעבר לחתימה (צילום תעודה) — כרטיס שקט אחרי
+     * פעולות החובה, עם קישור לדף האישי. ‼ רק במייל לבעל הכרטיס: לבן/בת הזוג אין
+     * דף אישי, והדף של הבעלים מציג גם את הדרישה של בן/בת הזוג.
+     * ‼ נגזר מהדרישות ומהתיק (shaam_presign_client_actions), לא מהשלבים — כך
+     * התצוגה המקדימה שלפני «שלח ללקוח» מציגה בדיוק את מה שיצא.
+     */
+    let shaamDocsHtml = "";
+    // ‼ אחרי כפתור החתימה, לא לפניו — החתימה היא הפעולה הראשית של המייל.
+    let afterCtaHtml = "";
+    if (stage === "sign" && signerRole !== "spouse" && reqRow?.id) {
+      const { data: acts } = await admin.rpc("shaam_presign_client_actions", { p_request_id: reqRow.id });
+      const list = Array.isArray(acts) ? acts as { personName?: string; label?: string; action?: string }[] : [];
+      if (list.length > 0 && reqRow.linked_client_id) {
+        const { data: pc } = await admin.from("clients").select("portal_token").eq("id", reqRow.linked_client_id).maybeSingle();
+        let portalToken = String(pc?.portal_token || "").trim();
+        if (!portalToken && !preview) {
+          portalToken = crypto.randomUUID().replace(/-/g, "");
+          const { error: portalErr } = await admin.from("clients")
+            .update({ portal_token: portalToken }).eq("id", reqRow.linked_client_id);
+          if (portalErr) portalToken = "";
+        }
+        const portalHref = portalToken ? `${APP_URL}/?portal=${portalToken}` : "";
+        const rows = list.map((a) => {
+          const who = a.personName ? ` של ${esc(a.personName)}` : "";
+          const what = a.action === "confirm"
+            ? `יש לנו בתיק צילום${who}. צריך לאשר שזה הצילום הנכון, או להעלות אחר.`
+            : `צריך להעלות צילום תעודת זהות או רישיון נהיגה${who}.`;
+          return `<div style="font-family:${f};text-align:right;font-size:14px;color:${brand.ink};line-height:1.8;padding-top:6px;">• ${what}</div>`;
+        }).join("");
+        shaamDocsHtml = `
+      <tr><td dir="rtl" align="right" style="text-align:right;padding:14px 28px 0;">
+        <div style="border:1px solid ${brand.border};border-radius:${brand.radius}px;padding:16px 18px;background:${brand.pageBg};">
+          <div style="font-family:${f};text-align:right;font-size:16px;font-weight:700;color:${brand.ink};">רשות המסים דורשת גם צילום תעודה</div>
+          ${rows}
+          <div style="font-family:${f};text-align:right;font-size:13px;color:${brand.muted};line-height:1.7;padding-top:8px;">
+            אפשר גם אחרי החתימה. את ייפוי הכוח נגיש לרשות המסים כשהצילום יגיע.
+          </div>
+          ${portalHref ? `<div style="font-family:${f};text-align:right;padding-top:10px;font-size:14px;"><a href="${esc(portalHref)}" style="color:${brand.accent};font-weight:700;">להעלאה או לאישור בדף האישי ←</a></div>` : ""}
+        </div>
+      </td></tr>`;
+      }
+    }
+
     /** הבלוק העצמאי — כשההוראות נשלחות לבדן ולא יחד עם החתימה. */
     const niBlock = (ni: any): string =>
       `<tr><td dir="rtl" align="right" style="text-align:right;padding:6px 40px 0;">${niCardInner(ni)}</td></tr>`;
@@ -477,6 +523,7 @@ Deno.serve(async (req: Request) => {
         }, 400);
       }
       ctaLabel = copy.cta;
+      afterCtaHtml = shaamDocsHtml;
     } else if (stage === "sign") {
       // ★ שתי פעולות במייל אחד. הן נבנות ככרטיסים ממוספרים ולא ככפתור אחד עם
       //   נספח, כדי שלא ניתן יהיה לפספס את השנייה. לכן אין כאן CTA סטנדרטי.
@@ -503,7 +550,7 @@ Deno.serve(async (req: Request) => {
         niCardInner(niData),
         "#C2410C",
       );
-      extraHtml = banner + signCard + niCard;
+      extraHtml = banner + signCard + niCard + shaamDocsHtml;
     } else {
       ctaLabel = copy.cta;
     }
@@ -513,6 +560,7 @@ Deno.serve(async (req: Request) => {
       heading: copy.heading + (clientFirst ? ", " + clientFirst : ""),
       bodyHtml: esc(copy.body),
       extraHtml,
+      afterCtaHtml: afterCtaHtml || undefined,
       ctaLabel: ctaLabel || undefined,
       ctaHref: ctaLabel ? ctaHref : undefined,
       ctaArrow: true,

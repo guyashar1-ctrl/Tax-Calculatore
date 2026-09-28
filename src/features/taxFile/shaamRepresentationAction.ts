@@ -51,20 +51,33 @@ export interface ShaamRepresentationAction {
  *   submitted          · נשלח (או סומן ידנית כנשלח) ⇒ רק קריאת מצב.
  *   waiting_client     · שע״ם: «ממתין לאישור לקוח» ⇒ הלקוח חייב לאשר.
  *   active             · הכול נקלט / הייצוג פעיל ⇒ סופי, גובר על כל השאר.
+ *   client_documents_pending · 208 · הטופס חתום, אבל מסמך ששע״ם דרשה ביצירה עוד
+ *                        לא אושר/הועלה ע"י הלקוח ⇒ השידור מושבת עם הסבר.
+ *   replacement_pending · 208 · רשות הוסרה מהבקשה אחרי שנפתחה בשע״ם ⇒ הבקשה שם
+ *                        צריכה ביטול (רק כולה, לפני קבלת המסמכים) ופתיחה מחדש.
  */
 export type ShaamLifecycleStage =
   | 'not_started' | 'signatures_pending' | 'signed_ready' | 'ambiguous' | 'documents_blocked'
-  | 'reupload' | 'submitted' | 'waiting_client' | 'active';
+  | 'reupload' | 'submitted' | 'waiting_client' | 'active'
+  | 'client_documents_pending' | 'replacement_pending';
+
+/** 208 · מה עוד חסר מהלקוח לפני השידור (null = כלום). נגזר ב-shaamPreSigningDocs. */
+export interface ShaamStageOptions {
+  clientDocumentsPending?: string | null;
+}
 
 export function shaamLifecycleStage(
   status: RepresentationStatus | null | undefined,
   tracking?: ShaamRequestTracking,
   stamped?: boolean,
+  opts: ShaamStageOptions = {},
 ): ShaamLifecycleStage | null {
   if (!status) return null;
   // ‼ סופי גובר: מה שהסטטוס אומר, או מה ששע״ם אמרה על כל המערכים.
   // ‼ 28.09.2026 · «פעיל לפי רשות» (הכרעת גיא) — כל מה שיש לו תיק נקלט.
   if (status === 'active' || shaamSettled(tracking)) return 'active';
+  // ‼ 208 · רשות הוסרה לפני החתימה והבקשה בשע״ם עדיין כוללת אותה ⇒ קודם ביטול שם.
+  if (tracking?.replacement && !tracking?.submittedAt) return 'replacement_pending';
   // ‼ 28.09 · שע״ם: «כשל-ממתין לטעינת חוזרת» ⇒ הטופס צריך להיטען שוב (גם אחרי «נשלח»).
   if (stamped && shaamUploadFailed(tracking)) return 'reupload';
   if (tracking?.submittedAt) return tracking.clientApprovalRequiredAt ? 'waiting_client' : 'submitted';
@@ -77,7 +90,11 @@ export function shaamLifecycleStage(
   // ‼ נמצאה בלי מספר בקשה (הדסה סלע, 23.09.2026) — השידור מאתר אותה לפי ישות
   // + שם, ולכן השורות חייבות לתאר בקשה אחת. מערך כפול = שתי בקשות.
   if (!tracking?.requestNumber && !shaamRowsFormOneRequest(tracking)) return 'ambiguous';
-  if (stamped) return shaamDocumentsBlocked(tracking) ? 'documents_blocked' : 'signed_ready';
+  if (stamped) {
+    if (shaamDocumentsBlocked(tracking)) return 'documents_blocked';
+    // ‼ 208 · מסמך ששע״ם דרשה ביצירה, ושהלקוח עוד לא אישר/העלה — השידור ממתין לו.
+    return opts.clientDocumentsPending ? 'client_documents_pending' : 'signed_ready';
+  }
   // סומן ידנית כ«נשלח» בלי שהאוטומציה שידרה — עדיין אפשר לבדוק מצב.
   if (status === 'awaiting_authorities') return 'submitted';
   return 'signatures_pending';
@@ -108,8 +125,9 @@ export function shaamRepresentationAction(
   status: RepresentationStatus | null | undefined,
   tracking?: ShaamRequestTracking,
   stamped?: boolean,
+  opts: ShaamStageOptions = {},
 ): ShaamRepresentationAction | null {
-  const stage = shaamLifecycleStage(status, tracking, stamped);
+  const stage = shaamLifecycleStage(status, tracking, stamped, opts);
   switch (stage) {
     case null:
       return null;
@@ -132,6 +150,11 @@ export function shaamRepresentationAction(
       };
     case 'signed_ready':
       return SUBMIT;
+    case 'client_documents_pending':
+      return { ...SUBMIT, disabled: true, reason: opts.clientDocumentsPending ?? undefined };
+    case 'replacement_pending':
+      // ‼ הפעולה היא ביטול בשע״ם (ידני) ואז בדיקה — «בדוק קבלת הייצוג» מזהה שבוטלה.
+      return CHECK;
     case 'reupload':
       return { ...SUBMIT, label: 'שלח שוב את הטופס החתום לשע״ם' };
     case 'documents_blocked': {
