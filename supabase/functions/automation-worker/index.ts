@@ -17,6 +17,10 @@
 // automation_jobs ותו לא, ולכן פשרה עליו לא חושפת את שאר המסד. ה-service-role
 // עצמו יושב רק כאן, על השרת, ולעולם לא מגיע לתהליך העובד על מחשב המשרד.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { PDFDocument, degrees } from "https://esm.sh/pdf-lib@1.17.1";
+import {
+  documentPartsToPdfWith, ImageConversionError, type PdfLib,
+} from "../_shared/imageToPdfCore.ts";
 
 // ‼ 194: שתי פעולות מסמך. הן הכרחיות לזרימת הייצוג בשע״ם — הטופס שמופק שם
 // חייב להגיע לתיק הלקוח, והטופס החתום חייב לחזור לשם — **בלי** מסלול
@@ -27,7 +31,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 type Op =
   | "register"
   | "claim" | "heartbeat" | "complete" | "fail" | "status" | "progress" | "resolve_needs_human"
-  | "put_document" | "get_document";
+  | "put_document" | "get_document" | "get_identity_document";
 
 interface Body {
   op: Op;
@@ -60,7 +64,17 @@ interface Body {
   description?: string;
   linkedTo?: string;
   linkedLabel?: string;
+  /** 204 · get_identity_document — הת.ז. מכותרת המסך בשע״ם, וסוג השורה. */
+  entityId?: string;
+  slotKind?: string;
 }
+
+// ‼ 204 · pdf-lib של Deno מוזרק לליבה המשותפת — אותו קוד כמו בדפדפן.
+const PDF_LIB = { PDFDocument, degrees } as unknown as PdfLib;
+const SLOT_KIND_LABEL: Record<string, string> = {
+  idOrLicense: "צילום תעודת זהות או רישיון נהיגה",
+  passport: "צילום דרכון",
+};
 
 const DOC_BUCKET = "client-documents";
 /** תקרה שמרנית: טופס 2279 שנצפה הוא ~60KB, וחתום ~740KB. */
@@ -313,6 +327,55 @@ Deno.serve(async (req: Request) => {
         return json({ ok: false, error: docErr.message }, 500);
       }
       return json({ ok: true, documentId: body.documentId, size: bytes.length });
+    }
+
+    // ── 204 · המסמך המזהה ששע״ם דורשת — כ-PDF אחד ────────────────────────────
+    // ‼ הבחירה בשרת (automation_job_identity_document): הת.ז. שבכותרת המסך ⇒
+    // אדם אחד בכרטיס ⇒ רק המסמכים הרשומים עליו, מהסוג שהשורה מקבלת. בגבול
+    // המשימה שהעובד מחזיק עכשיו. אין נפילה לאדם אחר ואין «הראשון שנמצא».
+    if (body.op === "get_identity_document") {
+      if (!body.jobId || !body.entityId || !body.slotKind) {
+        return json({ ok: false, error: "bad_request: jobId+entityId+slotKind required" }, 400);
+      }
+      const { data: sel, error: selErr } = await admin.rpc("automation_job_identity_document", {
+        p_worker_id: body.workerId, p_job_id: body.jobId,
+        p_entity_id: body.entityId, p_slot_kind: body.slotKind,
+      });
+      if (selErr) return json({ ok: false, error: selErr.message }, 500);
+      if (!sel?.ok) {
+        if (sel?.error === "not_owner_or_finished") return json({ ok: false, error: sel.error }, 403);
+        // missing / needs_document_assignment / unsupported_kind — תשובה עסקית, לא תקלה.
+        return json({ ok: false, error: sel?.error ?? "selection_failed", person: sel?.person ?? null, personName: sel?.personName ?? null });
+      }
+      const docs = (sel.documents ?? []) as { documentId: string; fileName: string; storagePath: string }[];
+      const parts: Uint8Array[] = [];
+      for (const d of docs) {
+        const { data: file, error: dlErr } = await admin.storage.from(DOC_BUCKET).download(d.storagePath);
+        if (dlErr || !file) return json({ ok: false, error: "download_failed", detail: dlErr?.message ?? "" }, 500);
+        const bytes = new Uint8Array(await file.arrayBuffer());
+        if (bytes.length > MAX_DOC_BYTES) return json({ ok: false, error: "document_too_large" }, 413);
+        parts.push(bytes);
+      }
+      let pdf: { bytes: Uint8Array; pageCount: number };
+      try {
+        pdf = await documentPartsToPdfWith(PDF_LIB, parts);
+      } catch (e) {
+        // ‼ HEIC/WEBP/פגום — לא מורידים ולידציה כדי שיעלה משהו.
+        if (e instanceof ImageConversionError) {
+          return json({ ok: false, error: "not_pdf_convertible", detail: e.message, person: sel.person, personName: sel.personName });
+        }
+        throw e;
+      }
+      if (pdf.bytes.length > MAX_DOC_BYTES) return json({ ok: false, error: "document_too_large" }, 413);
+      const who = String(sel.personName ?? "").trim();
+      return json({
+        ok: true,
+        person: sel.person, personName: sel.personName ?? null, docKind: sel.docKind,
+        fileName: `${SLOT_KIND_LABEL[body.slotKind] ?? "מסמך מזהה"}${who ? ` - ${who}` : ""}.pdf`,
+        pageCount: pdf.pageCount,
+        sourceDocumentIds: docs.map((d) => d.documentId),
+        contentBase64: encodeBase64(pdf.bytes),
+      });
     }
 
     if (body.op === "fail") {

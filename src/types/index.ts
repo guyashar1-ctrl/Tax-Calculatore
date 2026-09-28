@@ -1490,6 +1490,11 @@ export interface AuthorityRepresentation {
    * ‼ שני יעדים = **שתי הגשות נפרדות**, כל אחת על התיק של אותו אדם.
    */
   targets?: RepTarget[];
+  /**
+   * 205 · שע״ם: הבקשה לרשות הזו «ממתין לפתיחת התיק» כי **אין** תיק במערך. לא
+   * עוצרת את הייצוג (הכרעת גיא, 28.09.2026) — ייקלט מעצמו אם ייפתח תיק. נכתב בשרת.
+   */
+  awaitingFileOpening?: boolean;
 }
 
 export type AuthorityRepresentations = Partial<Record<RepAuthorityKind, AuthorityRepresentation>>;

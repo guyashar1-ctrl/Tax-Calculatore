@@ -72,6 +72,7 @@ const GOOD = {
   secondary: { type: 'parentId', value: '067574996' },
   systems: [{ screenLabel: 'מס הכנסה', fileNumber: '034605212', repType: 'ראשי' }],
   personName: 'הדסה סלע',
+  clientPhone: '0524409230',
 };
 
 test('קלט תקין עובר', () => {
@@ -276,10 +277,11 @@ test('13 · שורה בלי שם לקוח בכלל (clientName חסר) — עו�
   assert.equal(r.reason, 'cannot_attribute');
 });
 
-test('קלט תקין ל-check: בלי מספר בקשה חייב שם לקוח — מקור נבדק', () => {
+test('קלט תקין ל-check: בלי מספר בקשה — ת.ז. (שיוך מדויק מנתוני הטבלה) או שם — מקור נבדק', () => {
   const s = src('../src/handlers/shaamCheckRepresentation.mjs');
   assert.ok(s.includes('missing_attribution_evidence'), 'יש קוד שגיאה ייעודי לחוסר ראיית שיוך');
-  const guard = s.slice(s.indexOf('if (!requestNumber && !personName)'), s.indexOf('if (!requestNumber && !personName)') + 300);
+  // ‼ 28.09.2026 · שורות הטבלה נושאות ת.ז. — שיוך לפי ת.ז. מדויקת; השם אינו תנאי.
+  const guard = s.slice(s.indexOf('if (!requestNumber && !personName && !entityId)'), s.indexOf('if (!requestNumber && !personName && !entityId)') + 300);
   assert.ok(guard.includes('לא ניתן לבסס בבטחה'), 'ההודעה מסבירה למה עוצרים');
 });
 

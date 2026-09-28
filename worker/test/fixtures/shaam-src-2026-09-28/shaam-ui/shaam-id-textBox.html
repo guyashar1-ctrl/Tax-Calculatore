@@ -1,0 +1,14 @@
+<div ng-model-options="{ updateOn: 'blur' }">
+
+    <input class="clsTxtId" name="{{vm.name}}" ng-model="vm.value" ng-class="vm.cssclass" id="{{vm.name}}"
+           ng-style="vm.mystyle" ng-change="vm.changeId1()" ng-disabled="vm.disable"
+           data-toggle="popover" data-content="יש להקליד ספרות בלבד "
+           data-shaam-input-validation="Tz" ng-blur="vm.blr($event)"
+           maxlength="9" ng-focus="vm.infocus"
+           group-validation="vm.groupValidation"
+           ng-keypress="vm.checkhebrewNum($event)"
+           data-is-req="vm.isReq" aria-required="{{vm.isReq}}"
+           data-index="{{vm.index}}" />
+
+
+</div>

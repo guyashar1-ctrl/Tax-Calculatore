@@ -59,6 +59,22 @@ export const getDocument = async (workerId, jobId, documentId) => {
   return { ...r, buffer: Buffer.from(r.contentBase64, 'base64') };
 };
 
+/**
+ * 204 · המסמך המזהה ששע״ם דורשת בשורה נוספת במסך «טעינת מסמכים» — כ-PDF אחד.
+ *
+ * ‼ הבחירה נעשית **בשרת**, לא כאן: הת.ז. מכותרת המסך (`entityId`) ממופה
+ * בשרת לאדם אחד בכרטיס, ורק המסמכים הרשומים על אותו אדם, מהסוג שהשורה מקבלת,
+ * נשלחים. אין נפילה לאדם אחר ואין «המסמך הראשון שנמצא». תמונה (JPEG/PNG) מומרת
+ * ל-PDF בשרת; כמה צילומים של אותו מסמך (שני צדדים) מאוחדים ל-PDF אחד.
+ * @returns {{ok:true, person, docKind, fileName, pageCount, sourceDocumentIds, buffer}
+ *   | {ok:false, error:'missing'|'needs_document_assignment'|'not_pdf_convertible'|...}}
+ */
+export const getIdentityDocument = async (workerId, jobId, { entityId, slotKind }) => {
+  const r = await call({ op: 'get_identity_document', workerId, jobId, entityId, slotKind });
+  if (!r?.ok) return r;
+  return { ...r, buffer: Buffer.from(r.contentBase64, 'base64') };
+};
+
 // ‼ 168: התקדמות עמידה לפי capability (warmupManager.mjs) — CAS על revision,
 // כדי ש-worker "זומבי" שהחכירה שלו פקעה לא ידרוס עדכון של המחזיק הנוכחי.
 export const updateJobProgress = (workerId, jobId, expectedRevision, progress) =>

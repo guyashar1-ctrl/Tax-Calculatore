@@ -22,7 +22,7 @@
 import type { NiExternalState, NiTracking } from '../../types';
 import type { NiRepresentationLine } from '../../utils/niPersons';
 import {
-  shaamLifecycle, shaamProgressLine, type ShaamRequestTracking, type ShaamRequiredDocument,
+  shaamLifecycle, shaamProgressLine, shaamDocumentsInShaam, type ShaamRequestTracking, type ShaamRequiredDocument, type ShaamSystemKey,
 } from './shaamRepresentation';
 
 // ── 1. צבע: הודעה אינה פעולה ────────────────────────────────────────────────
@@ -123,7 +123,9 @@ export function niTrackView(ni: NiTracking, line?: Pick<NiRepresentationLine, 'k
 // ── 4. שע״ם: מה נכנס לשלב 6 («נשלח לשע״ם») ─────────────────────────────────
 
 export interface ShaamSubmittedFacts {
-  submittedAt: string;
+  /** חסר ⇒ הוגש מחוץ ל-PIVO (שע״ם אומרת שהמסמכים אצלה). */
+  submittedAt?: string;
+  submittedOutside: boolean;
   /** «סטטוס בשע״ם» — במילים של שע״ם. null ⇒ שע״ם עוד לא מסרה מצב. */
   status: string | null;
   /** צפי סיום ההשהייה (ISO), רק ממקור של שע״ם ורק כשההשהייה רלוונטית. */
@@ -133,6 +135,12 @@ export interface ShaamSubmittedFacts {
   /** כל המערכים נקלטו — שלב 7 הושלם. */
   final: boolean;
   requiredDocuments: ShaamRequiredDocument[];
+  /** 28.09 · מערכים שאין להם תיק — ייקלטו מעצמם אם ייפתח תיק (עם אפשרות להסיר מהבקשה). */
+  missingFileSystems: { label: string; authority?: ShaamSystemKey; deadline?: string }[];
+  /** 28.09 · מה שהמשרד צריך לעשות (טעינה חוזרת, ביטול עם סיבה). */
+  officeAction?: string;
+  /** 28.09 · שורה קצרה על מצב שאין לו פעולה (השהיית מטה, ביטול+סיבה). */
+  note?: string;
 }
 
 /**
@@ -141,7 +149,7 @@ export interface ShaamSubmittedFacts {
  * מצב»). כאן רק בוחרים מה מוצג.
  */
 export function shaamSubmittedFacts(t: ShaamRequestTracking | undefined): ShaamSubmittedFacts | null {
-  if (!t?.submittedAt) return null;
+  if (!t || (!t.submittedAt && !shaamDocumentsInShaam(t))) return null;
   const l = shaamLifecycle(t);
   const final = l.ball === 'done';
   const states = l.systems.map(s => s.raw).filter(Boolean);
@@ -155,13 +163,19 @@ export function shaamSubmittedFacts(t: ShaamRequestTracking | undefined): ShaamS
   else if (!l.reconciled && /השהי/.test(t.submissionConfirmation?.text ?? '')) status = 'השהייה';
   else status = null;
   const suspended = !final && (l.systems.some(s => s.state === 'suspended') || (!l.reconciled && status === 'השהייה'));
+  const stoppedWithReason = l.systems.find(s => (s.state === 'cancelled' || s.state === 'rejected') && s.cancelReason);
   return {
     submittedAt: t.submittedAt,
+    submittedOutside: !t.submittedAt,
     status,
     suspensionEndsAt: suspended ? l.nextMilestone?.date : undefined,
     clientApprovalRequired: !!l.clientAction,
     final,
     requiredDocuments: l.requiredDocuments,
+    missingFileSystems: l.systems.filter(s => s.missingFile).map(s => ({ label: s.label, authority: s.authority, deadline: s.fileOpeningDeadline })),
+    officeAction: l.officeAction,
+    note: stoppedWithReason ? `${stoppedWithReason.label}: ${stoppedWithReason.cancelReason}`
+      : l.systems.some(s => s.state === 'authority_review') ? 'בבדיקה פרטנית של מרשם המייצגים - אין מועד ידוע' : undefined,
   };
 }
 

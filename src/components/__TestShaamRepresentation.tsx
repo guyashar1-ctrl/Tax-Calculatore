@@ -135,6 +135,92 @@ const TRACK_FOUND_NO_NUMBER: RepresentationExecution = {
   },
 };
 
+// ‼ 204 · מסך «טעינת מסמכים» בשע״ם דרש שורה מעבר לטופס. הכותרת שם = הת.ז.
+// של הדסה ⇒ הדרישה שלה, לא של יאיר.
+const docsGate = (
+  state: NonNullable<ShaamRequestTracking['documentsGate']>['state'],
+  extra: Partial<ShaamRequestTracking> = {},
+  kind: 'idOrLicense' | 'passport' | 'inheritance' = 'idOrLicense',
+): RepresentationExecution => {
+  const label = kind === 'passport' ? 'צילום דרכון' : kind === 'inheritance' ? 'צו ירושה + מכתב מעו"ד' : 'תצלום תעודת זהות או רישיון נהיגה';
+  const person = state === 'needs_document_assignment' ? null : 'client';
+  const handling = kind === 'inheritance' ? 'unsupported'
+    : state === 'needs_document_assignment' ? 'needs_document_assignment'
+    : state === 'first_live_verification' || state === 'resume_queued' ? 'exists' : 'requested';
+  return {
+    shaam: {
+      'person:client': {
+        ...TRACK_CREATED.shaam!['person:client'],
+        requiredDocuments: [{ slotId: kind === 'passport' ? 5 : kind === 'inheritance' ? 3 : 2, label, kind: kind === 'inheritance' ? undefined : kind, required: true, requiredBy: 'shaam', person, personName: person ? 'הדסה סלע' : null, handling } as never],
+        requiredDocumentsEntityId: state === 'needs_document_assignment' ? '111111118' : '034605212',
+        requiredDocumentsPerson: person,
+        documentsGate: { state, jobId: 'job-test-1', at: '2026-09-27T09:00:00.000Z', person, entityId: '034605212' },
+        ...extra,
+      },
+    },
+  };
+};
+
+// ‼ 28.09.2026 · מצבים שנצפו חי ב«בקשות בתהליך» (קריאה בלבד), עם הקודים של שע״ם.
+const LIVE_OBSERVED = '2026-09-28T05:40:00.000Z';
+const liveRow = (r: Partial<import('../features/representation/shaamRepresentation').ShaamSystemStatus>) => ({
+  systemLabel: 'מס הכנסה', clientName: 'סלע הדסה', fileNumber: '034605212', repType: 'ראשי',
+  enteredAt: '12/08/2026', requestNumber: '2026462261', entityId: '034605212', ...r,
+});
+/** «דן רכס»: הוזן ושודר ידנית באוגוסט, תיק 91 — ממתין לאישור הלקוח (קוד 7). PIVO קישרה לפי ת.ז. */
+const TRACK_LIVE_MANUAL_91: RepresentationExecution = {
+  shaam: { 'person:client': {
+    requestNumber: '2026462261', observedAt: LIVE_OBSERVED, syncedAt: LIVE_OBSERVED, clientApprovalRequiredAt: LIVE_OBSERVED,
+    systems: [liveRow({ rawRequestState: 'התקבלו המסמכים', rawSystemState: 'ממתין:91-לאישור לקוח,כל השאר-לפתיחת התיק',
+      requestStateCode: 2, systemStateCode: 7, systemCode: 1, suspensionEndsRaw: 'ממתין לאישור לקוח', tik91: true })],
+  } },
+};
+/** «לזימי»: מ"ה ומע"מ נקלטו, ניכויים ממתין לפתיחת תיק שלא קיים (הכרעת גיא: פעיל לפי רשות). */
+const TRACK_LIVE_SETTLED: RepresentationExecution = {
+  shaam: { 'person:client': {
+    ...TRACK_CREATED.shaam!['person:client'], submittedAt: '2026-08-27T10:00:00.000Z', observedAt: LIVE_OBSERVED, syncedAt: LIVE_OBSERVED,
+    systems: [
+      liveRow({ enteredAt: '27/08/2026', rawRequestState: 'מסמכים אושרו', rawSystemState: 'נקלט בהצלחה', requestStateCode: 3, systemStateCode: 5, systemCode: 1 }),
+      liveRow({ enteredAt: '27/08/2026', systemLabel: 'מעמ', rawRequestState: 'מסמכים אושרו', rawSystemState: 'נקלט בהצלחה', requestStateCode: 3, systemStateCode: 5, systemCode: 2 }),
+      liveRow({ enteredAt: '27/08/2026', systemLabel: 'ניכויים', fileNumber: 'לא קיים תיק', rawRequestState: 'מסמכים אושרו', rawSystemState: 'ממתין לפתיחת התיק', requestStateCode: 3, systemStateCode: 1, systemCode: 5, noFile: true }),
+    ],
+  } },
+};
+const TRACK_LIVE_UPLOAD_FAILED: RepresentationExecution = {
+  shaam: { 'person:client': {
+    ...TRACK_CREATED.shaam!['person:client'], submittedAt: '2026-09-23T10:05:00.000Z', observedAt: LIVE_OBSERVED,
+    systems: [liveRow({ enteredAt: '23/09/2026', rawRequestState: 'כשל-ממתין לטעינת חוזרת', rawSystemState: '', requestStateCode: 6 })],
+  } },
+};
+const TRACK_LIVE_CANCELLED: RepresentationExecution = {
+  shaam: { 'person:client': {
+    ...TRACK_CREATED.shaam!['person:client'], submittedAt: '2026-08-04T10:05:00.000Z', observedAt: LIVE_OBSERVED,
+    systems: [liveRow({ enteredAt: '04/08/2026', systemLabel: 'ניכויים', fileNumber: 'לא קיים תיק', rawRequestState: 'נדחה', rawSystemState: 'בוטל',
+      requestStateCode: 4, systemStateCode: 6, systemCode: 5, cancelReason: 'אי טעינת מסמכים במועד' })],
+  } },
+};
+const TRACK_LIVE_HQ: RepresentationExecution = {
+  shaam: { 'person:client': {
+    ...TRACK_CREATED.shaam!['person:client'], submittedAt: '2026-09-23T10:05:00.000Z', observedAt: LIVE_OBSERVED,
+    systems: [liveRow({ enteredAt: '23/09/2026', rawRequestState: 'התקבלו המסמכים', rawSystemState: 'השהיית מטה', requestStateCode: 2, systemStateCode: 3, systemCode: 1 })],
+  } },
+};
+const TRACK_LIVE_7_OPENING: RepresentationExecution = {
+  shaam: { 'person:client': {
+    ...TRACK_CREATED.shaam!['person:client'], submittedAt: '2026-09-23T10:05:00.000Z', observedAt: LIVE_OBSERVED,
+    systems: [liveRow({ enteredAt: '23/09/2026', fileNumber: 'לא קיים תיק', rawRequestState: 'התקבלו המסמכים', rawSystemState: 'ממתין:91-לאישור לקוח,כל השאר-לפתיחת התיק',
+      requestStateCode: 2, systemStateCode: 7, systemCode: 1, suspensionEndsRaw: 'לא בהשהייה', tik91: false, noFile: true })],
+  } },
+};
+/** לקוח עם ניכויים שעוד לא נקלט — כדי שכפתור «לא צריך ייצוג בניכויים» יופיע. */
+const CLIENT_WITH_WITHHOLDING: Client = {
+  ...CLIENT,
+  authorityRepresentations: {
+    incomeTax: { status: 'active' }, vat: { status: 'active', targets: ['client'] },
+    withholding: { status: 'in_process', targets: ['client'], awaitingFileOpening: true },
+  },
+} as unknown as Client;
+
 /**
  * מסמך החתימה כפי שהוא נראה אחרי ההכנה האוטומטית (194): הטופס שהובא
  * משע״ם, ואזורי החתימה שנבנו מהתבנית שנמדדה. `signed` ⇒ גם נחתם ונצרב.
@@ -176,6 +262,29 @@ const SCENARIOS: Scenario[] = [
   { key: 'suspended', label: '5 · שודר · השהיה + ממתין לפתיחת תיק', status: 'awaiting_authorities', execution: TRACK_SUSPENDED, docs: shaamDoc(true), signed: true },
   { key: 'client', label: '6 · ממתין לאישור הלקוח', status: 'awaiting_authorities', execution: TRACK_AWAITING_CLIENT, docs: shaamDoc(true), signed: true },
   { key: 'active', label: '7 · נקלט בכל המערכים', status: 'active', execution: TRACK_ACTIVE, docs: shaamDoc(true), signed: true },
+  // ── 204 · מסמכים ששע״ם דורשת בשלב 4 (חוסמים רק את השידור) ──
+  { key: 'docs-wait', label: 'מ1 · ממתין לצילום ת.ז./רישיון', status: 'awaiting_stamp', execution: docsGate('awaiting_required_documents'), docs: shaamDoc(true), signed: true },
+  { key: 'docs-assign', label: 'מ2 · אי אפשר לשייך לאדם', status: 'awaiting_stamp', execution: docsGate('needs_document_assignment'), docs: shaamDoc(true), signed: true },
+  { key: 'docs-heic', label: 'מ3 · פורמט שאי אפשר להמיר', status: 'awaiting_stamp', execution: docsGate('document_not_pdf_convertible'), docs: shaamDoc(true), signed: true },
+  { key: 'docs-unsupported', label: 'מ4 · צו ירושה (לא נתמך)', status: 'awaiting_stamp', execution: docsGate('unsupported_required_document', {}, 'inheritance'), docs: shaamDoc(true), signed: true },
+  {
+    key: 'docs-first-live', label: 'מ5 · עצירת אימות ראשון', status: 'awaiting_stamp', docs: shaamDoc(true), signed: true,
+    execution: docsGate('first_live_verification', {
+      documentsGate: {
+        state: 'first_live_verification', jobId: 'job-test-1', person: 'client', entityId: '034605212',
+        plan: { decision: 'first_live_verification', slots: [{ slotId: 2, kind: 'idOrLicense', label: 'תצלום תעודת זהות או רישיון נהיגה', status: 'ready', personName: 'הדסה סלע', fileName: 'צילום תעודת זהות - הדסה סלע.pdf', pageCount: 2 }] },
+      },
+    }),
+  },
+  { key: 'docs-resume', label: 'מ6 · המסמך הגיע - ממשיך', status: 'awaiting_stamp', execution: docsGate('resume_queued'), docs: shaamDoc(true), signed: true },
+  // ── 28.09 · מצבים שנצפו חי ב«בקשות בתהליך» ──
+  { key: 'live-manual-91', label: 'ח1 · הוזן ידנית, תיק 91 - אישור לקוח', status: 'awaiting_authorities', execution: TRACK_LIVE_MANUAL_91, docs: shaamDoc(true), signed: true },
+  { key: 'live-settled', label: 'ח2 · נקלט, ניכויים בלי תיק', status: 'active', execution: TRACK_LIVE_SETTLED, docs: shaamDoc(true), signed: true, client: CLIENT_WITH_WITHHOLDING },
+  { key: 'live-settled-pending', label: 'ח2ב · כנ"ל, לפני «פעיל»', status: 'awaiting_authorities', execution: TRACK_LIVE_SETTLED, docs: shaamDoc(true), signed: true, client: CLIENT_WITH_WITHHOLDING },
+  { key: 'live-upload-failed', label: 'ח3 · כשל - טעינה חוזרת', status: 'awaiting_authorities', execution: TRACK_LIVE_UPLOAD_FAILED, docs: shaamDoc(true), signed: true },
+  { key: 'live-cancelled', label: 'ח4 · בוטל + סיבה', status: 'awaiting_authorities', execution: TRACK_LIVE_CANCELLED, docs: shaamDoc(true), signed: true },
+  { key: 'live-hq', label: 'ח5 · השהיית מטה', status: 'awaiting_authorities', execution: TRACK_LIVE_HQ, docs: shaamDoc(true), signed: true },
+  { key: 'live-7-opening', label: 'ח6 · קוד 7 בלי תיק 91', status: 'awaiting_authorities', execution: TRACK_LIVE_7_OPENING, docs: shaamDoc(true), signed: true },
 ];
 
 /**
@@ -197,7 +306,13 @@ const STOP_CASES: { label: string; job: AutomationJob }[] = [
   { label: 'אימות ישות נדחה', job: { errorCode: 'entity_verification_failed', progress: {}, needsHuman: 'שע״ם לא אישרה את פרטי אימות הישות.' } as unknown as AutomationJob },
   { label: 'נעצר לפני שנגענו', job: { errorCode: 'worker_stopped_before_external', progress: {}, needsHuman: 'לא בוצעה שום פנייה לרשות.' } as unknown as AutomationJob },
   { label: 'אין חיבור', job: { errorCode: 'awaiting_shaam_auth', progress: {}, needsHuman: 'חלון שע״ם אינו מחובר.' } as unknown as AutomationJob },
-].map(c => ({ ...c, job: { ...c.job, status: 'needs_human', actionType: 'shaam.submit_poa' } as AutomationJob }));
+].map(c => ({ ...c, job: { ...c.job, status: 'needs_human', actionType: 'shaam.submit_poa' } as AutomationJob }))
+  // ‼ 204 · עצירות המסמכים מסתיימות כ-failed (מפנות את המקום) — לא needs_human.
+  .concat([
+    { label: 'ממתין למסמך ששע״ם דורשת', job: { errorCode: 'awaiting_required_documents', progress: {}, errorDetail: 'שע״ם דורשת «תצלום תעודת זהות או רישיון נהיגה» של הדסה סלע.' } as unknown as AutomationJob },
+    { label: 'עצירת אימות ראשון', job: { errorCode: 'first_live_verification', progress: {}, errorDetail: 'המסמך נמצא; ההעלאה האוטומטית של מסמך נוסף עוד לא אומתה.' } as unknown as AutomationJob },
+    { label: 'אי אפשר לשייך', job: { errorCode: 'needs_document_assignment', progress: {}, errorDetail: 'הת.ז. בכותרת אינה אדם אחד בכרטיס.' } as unknown as AutomationJob },
+  ].map(c => ({ ...c, job: { ...c.job, status: 'failed', actionType: 'shaam.submit_poa' } as AutomationJob })));
 
 function StopStatesPreview() {
   const [confirming, setConfirming] = useState<string | null>(null);
@@ -213,7 +328,7 @@ function StopStatesPreview() {
               <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-4)' }}>{c.label}</div>
               <ShaamStopNotice
                 stop={stop}
-                workerMessage={c.job.needsHuman}
+                workerMessage={c.job.needsHuman ?? c.job.errorDetail}
                 className="rep-track-next-err"
                 confirming={confirming === c.label}
                 onAskConfirm={() => setConfirming(c.label)}

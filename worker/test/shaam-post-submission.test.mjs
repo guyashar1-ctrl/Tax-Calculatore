@@ -96,10 +96,10 @@ test('201 · הבדיקה פותחת פירוט רק כקריאה, והשידו�
   assert.match(session, /forbidden = \/ביטול\|מחיק/);
 });
 
-test('201 · השידור מדווח מסמכים נוספים לפני העצירה, ולא מעלה אותם', () => {
+test('201/204 · השידור מדווח את שורות המסמכים לפני ההחלטה, וההחלטה קודמת לכל נגיעה', () => {
   const submit = readFileSync(new URL('../src/handlers/shaamSubmitPoa.mjs', import.meta.url), 'utf8');
-  const report = submit.indexOf('shaamRequiredDocuments');
-  const plan = submit.indexOf('documentsStepPlan(opened.documents');
+  const report = submit.indexOf('shaamDocuments: {');
+  const plan = submit.indexOf('documentsStepPlan(docsState');
   const touch = submit.indexOf("markExternalAttempt('upload_signed_form')");
   assert.ok(report > 0 && report < plan && plan < touch, 'הדיווח קודם להחלטה, וההחלטה קודמת לכל נגיעה');
 });

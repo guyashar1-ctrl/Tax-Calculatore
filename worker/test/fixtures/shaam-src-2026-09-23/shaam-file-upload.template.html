@@ -1,0 +1,420 @@
+<div class="k-rtl">
+    <div id="errDiv" class="alert alert-warning" ng-show="vm.isErrMess">{{vm.errMes}}</div>
+    <div class="bluediv breakLine">
+        <!--<div>{{vm.scanOption | json}}</div>
+        <div>{{vm.cookieScan | json}}</div>
+        <div>{{vm.getUploadFileText() | json}}</div>-->
+        <div ng-show="vm.mode!=3">
+            <div class="row">
+                <div class="col-sm-5">
+                    <div class="row" ng-show="vm.mode==2">
+                        <div class="col-sm-1 bigicon big_upload" ng-hide="vm.isFileSelected">
+                        </div>
+                        <div class="col-sm-10">
+                            <h4 class="lblUpld largefont noclick" ng-hide="vm.isFileSelected"> טעינת קבצים </h4>
+                        </div>
+                    </div>
+                    <div class="row" ng-show="vm.mode==2">
+                        <div class="col-sm-1 bigicon big_handed" ng-show="vm.isFileSelected">
+                        </div>
+                        <div class="col-sm-10" ng-show="vm.isFileSelected">
+                            <h4 class="lblUpld largefont noclick" ng-show="vm.isFileSelected"> קבצים שנבחרו להעלאה </h4>
+                            <h5 class="lblUpld smallfont noclick" ng-show="vm.isFileSelected">ניתן לצפות להחליף או למחוק את הקבצים שנבחרו טרם שמירה </h5>
+                        </div>
+                    </div>
+                    <div class="row" ng-show="vm.mode==1">
+                        <div class="col-sm-1 bigicon big_upload noclick" ng-hide="vm.isFileSelected">
+                        </div>
+                        <div class="col-sm-10">
+                            <h4 class="lblUpld largefont noclick" ng-hide="vm.isFileSelected"> טעינת קובץ </h4>
+                        </div>
+
+                    </div>
+                    <div class="row" ng-show="vm.mode==1">
+                        <div class="col-sm-1 bigicon big_handed" ng-show="vm.isFileSelected">
+                        </div>
+                        <div class="col-sm-10" ng-show="vm.isFileSelected">
+                            <h4 class="lblUpld largefont noclick" ng-show="vm.isFileSelected"> קובץ שנבחר להעלאה </h4>
+                            <h5 class="lblUpld smallfont noclick" ng-show="vm.isFileSelected && !vm.zipFile">ניתן לצפות להחליף או למחוק את הקובץ שנבחר טרם שמירה </h5>
+                            <h5 class="lblUpld smallfont noclick" ng-show="vm.isFileSelected && vm.zipFile">ניתן למחוק את הקובץ שנבחר טרם שמירה </h5>
+                        </div>
+
+                    </div>
+                </div>
+                <div class="col-sm-7">
+                    <div class="row">
+                        <div class="col-sm-4 col-sm-offset-3">
+                            <!--<p></p>
+                        <p></p>
+                        <p></p>-->
+                            <div ng-if="vm.afterScanOrUpload">
+                                <shaam-scan-button successfunc="vm.scfunc(newValue)"
+                                                   errfunc="vm.errfunc(errValue)" resetmessage="vm.resetmessage()" startscanfunc="vm.startscanfunc(numValue)" maximumcapacitytest="vm.maximumcapacitytest()"
+                                                   ng-show="vm.scanOption && vm.cookieScan" ng-disabled="vm.disableScanUpload"></shaam-scan-button>
+
+                            </div>
+                            <div ng-if="vm.beforeScanOrUpload">
+                                <shaam-scan-button resetmessage="vm.resetmessage()" successfunc="vm.scfunc(newValue)"
+                                                   errfunc="vm.errfunc(errValue)" startscanfunc="vm.startscanfunc(numValue)" maximumcapacitytest="vm.maximumcapacitytest()"
+                                                   ng-show="vm.scanOption && vm.cookieScan" ng-disabled="vm.disableScanUpload"></shaam-scan-button>
+
+                            </div>
+                        </div>
+                        <div ng-if="!vm.scanOption" class="col-sm-4" style="padding:0px;">
+                            <input name="myFile" type="file" title="{{vm.getUploadFileText()}}" kendo-upload k-options="vm.options" tabindex="0" k-multiple="vm.multiple" k-rebind="vm.multiple" ng-disabled="vm.disableFileUpload" />
+
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+            <!--<div class="row">
+            <div class="col-sm-5">
+                <div class="row" ng-show="vm.mode==2">
+                    <div class="col-sm-1 bigicon big_upload" ng-hide="vm.isFileSelected">
+                    </div>
+                    <div class="col-sm-6" style="margin-top:15px;">
+                        <h4 class="lblUpld largefont noclick" ng-hide="vm.isFileSelected"> טעינת קבצים </h4>
+                    </div>
+
+                </div>
+                <div class="row" ng-show="vm.mode==2">
+                    <div class="col-sm-1 bigicon big_handed" ng-show="vm.isFileSelected">
+                    </div>
+                    <div class="col-sm-10" style="margin-top:15px; " ng-show="vm.isFileSelected">
+                        <h4 class="lblUpld largefont noclick" ng-show="vm.isFileSelected"> קבצים שנבחרו להעלאה </h4>
+                        <h5 class="lblUpld smallfont noclick" ng-show="vm.isFileSelected">ניתן לצפות להחליף או למחוק את הקבצים שנבחרו טרם שמירה </h5>
+                    </div>
+                </div>
+                <div class="row" ng-show="vm.mode==1">
+                    <div class="col-sm-1 bigicon big_upload noclick" ng-hide="vm.isFileSelected">
+                    </div>
+                    <div class="col-sm-6" style="margin-top:15px;">
+                        <h4 class="lblUpld largefont noclick" ng-hide="vm.isFileSelected"> טעינת קובץ </h4>
+                    </div>
+
+                </div>
+                <div class="row" ng-show="vm.mode==1">
+                    <div class="col-sm-1 bigicon big_handed" ng-show="vm.isFileSelected">
+                    </div>
+                    <div class="col-sm-10" style="margin-top:15px; " ng-show="vm.isFileSelected">
+                        <h4 class="lblUpld largefont noclick" ng-show="vm.isFileSelected"> קובץ שנבחר להעלאה </h4>
+                        <h5 class="lblUpld smallfont noclick" ng-show="vm.isFileSelected && !vm.zipFile">ניתן לצפות להחליף או למחוק את הקובץ שנבחר טרם שמירה </h5>
+                        <h5 class="lblUpld smallfont noclick" ng-show="vm.isFileSelected && vm.zipFile">ניתן למחוק את הקובץ שנבחר טרם שמירה </h5>
+                    </div>
+                </div>
+            </div>
+            <div class="col-sm-4">
+                <div class="row" ng-if="vm.afterScanOrUpload">
+                    <div>  <p></p> </div>
+                    <div class="col-sm-10 col-sm-offset-9">
+                        <shaam-scan-button successfunc="vm.scfunc(newValue)"
+                                           errfunc="vm.errfunc(errValue)" resetmessage="vm.resetmessage()" startscanfunc="vm.startscanfunc(numValue)" maximumcapacitytest="vm.maximumcapacitytest()"
+                                           ng-show="vm.scanOption && vm.cookieScan" ng-disabled="vm.disableScanUpload"></shaam-scan-button>
+                    </div>
+                </div>
+
+                <div class="row" ng-if="vm.beforeScanOrUpload">
+                    <div class="col-sm-8">  <p></p> </div>
+                    <div class="col-sm-6">  <p></p> </div>
+
+                    <div class="col-sm-10 col-sm-offset-9">
+                        <shaam-scan-button resetmessage="vm.resetmessage()" successfunc="vm.scfunc(newValue)"
+                                           errfunc="vm.errfunc(errValue)" startscanfunc="vm.startscanfunc(numValue)" maximumcapacitytest="vm.maximumcapacitytest()"
+                                           ng-show="vm.scanOption && vm.cookieScan" ng-disabled="vm.disableScanUpload"></shaam-scan-button>
+                    </div>
+                </div>
+
+            </div>
+
+            <div class="col-sm-3">
+                <input name="myFile" type="file" title="{{vm.getUploadFileText()}}" kendo-upload k-options="vm.options" tabindex="0" k-multiple="vm.multiple" k-rebind="vm.multiple" ng-disabled="vm.disableFileUpload" />
+                <input name="myFile2" ng-show="vm.mode==2" type="file" title="{{vm.getUploadFileText()}}"  kendo-upload k-options="vm.options" k-multiple="true" ng-disabled="vm.disableFileUpload" />
+            </div>
+        </div>-->
+
+
+            <div class="progress" ng-show="vm.isProgressBar">
+                <div class="progress-bar progress-striped" id="uploadprogress" name="uploadprogress" ng-style="{width:(vm.percentcomplete+'%')}" role="progressbar" aria-valuenow="vm.percentcomplete" aria-valuemin="0" aria-valuemax="100">{{vm.percentcomplete }}%</div>
+                <div class=""></div>
+
+            </div>
+
+            <!--<div class="row" ng-show="vm.isFileSelected">
+
+            <div class="col-sm-6" style="margin-top:15px;">
+                <h4 class="lblUpld largefont noclick" ng-show="vm.isFileSelected"> קבצים שנבחרו להעלאה </h4>
+                <h5 class="lblUpld smallfont noclick" ng-show="vm.isFileSelected">ניתן לצפות להחליף או למחוק את הקבצים שנבחרו טרם שמירה </h5>
+            </div>
+            <div class="col-sm-4">
+                <input name="myFile" type="file" title="{{vm.getUploadFileText()}}" kendo-upload k-options="vm.options" ng-disabled="vm.disableFileUpload" />
+            </div>
+        </div>-->
+            <br />
+            <div class=" scrolling" ng-hide="vm.hideFileList" tabindex="0">
+                <div class="row divbutton2 " ng-repeat="item in vm.files">
+
+                    <div class="col-sm-1 icon view "></div>
+                    <div class="col-sm-10 ">
+                        <a href="" ng-click="vm.openWindowFile($index)">
+                            {{item.UploadName}}
+                        </a>
+                        <!--<a href="{{item.FileUrl}}" tabindex="0">
+                        {{item.UploadName}}
+                    </a>-->
+                        <!--לעבור דרך הviewer-->
+                        <!--<a href="" ng-click="vm.openWindowFile($index)">
+                        {{item.UploadName}}
+                    </a>-->
+                    </div>
+
+                    <div class="col-sm-1">
+                        <a aria-label="מחק קובץ" class="col-sm-1 icon trash" href="" ng-click="vm.removeFile($index)" ng-show="vm.mode!=3" tabindex="0">
+
+                        </a>
+                    </div>
+                    <div name="ViewrWindow" shaam-window-open-close
+                         is-window-open="vm.isViewrWindowOpen"
+                         btclickok="vm.btok()"
+                         enablebtncancel="false"
+                         enablebtnok="false"
+                         btclickcancel="vm.btcancel()"
+                         window-title={{item.UploadName}}
+                         value="vm.checked6">
+                        <div class="row">
+                            <div class="col-sm-4">
+                                <div shaam-pdf-stream-viewer srcurl="vm.srcurl"
+                                     objdata="vm.objdata" file-type="{{vm.fileType}}" height="{{vm.iframeHeight}}" width="{{vm.iframeWidth}}">
+                                </div>
+
+
+
+
+
+
+                            </div>
+                            <div class="col-sm-8"></div>
+                        </div>
+                    </div>
+
+
+                    <!--<div class="col-sm-1 icon trash" title="מחיקת הקובץ מרשימת הקבצים לטעינה" aria-describedby="p1" ng-click="vm.removeFile($index)" ng-show="vm.mode!=3">&nbsp;</div>
+                <p id="p1" style="hidden"> מחיקת הקובץ מרשימת הקבצים לטעינה</p>-->
+                </div>
+            </div>
+
+
+
+            <!--<ul style="list-style:none;">
+
+            <li ng-repeat="item in vm.files">
+                <a href="{{item.FileUrl}}">
+                    {{item.UploadName}}
+                </a>
+                <div class="col-sm-2 ">
+                    <div class="col-sm-1 icon trash" ng-click="vm.removeFile()" ng-show="vm.isFileSelected">&nbsp;</div>
+                    </div>
+            </li>
+
+        </ul>-->
+            <!--<div class="col-sm-2 ">
+
+        </div>
+        <div class="col-sm-1 bigicon big_trash" ng-click="vm.removeFile()" ng-show="vm.isFileSelected">&nbsp;</div>-->
+
+            <br />
+            <div class="row" ng-show="vm.mode==2">
+                <div class="col-sm-12">
+                    <p>
+                        סוגי קבצים נתמכים:
+                        <span dir="ltr">{{vm.allowedFileExtentions | fileExtentionsFilter}}</span>
+
+                        <!--<span style="direction:ltr"  ng-repeat="item in vm.allowedFileExtentions">
+                      .{{item}}{{$last ? '' : ','}}
+                    </span>-->
+                        <!--לצפייה בקובץ שנטען יש ללחוץ על שם הקובץ-->
+                    </p>
+                </div>
+            </div>
+            <div class="row" ng-show="vm.mode==1 && !vm.zipFile">
+                <div class="col-sm-12">
+                    <p>
+                        סוג קובץ נתמך:
+                        <span dir="ltr">{{vm.allowedFileExtentions | fileExtentionsFilter}}</span>
+
+                        <!--<span style="direction:ltr"  ng-repeat="item in vm.allowedFileExtentions">
+                      .{{item}}{{$last ? '' : ','}}
+                    </span>-->
+                        <!--לצפייה בקובץ שנטען יש ללחוץ על שם הקובץ-->
+                    </p>
+                </div>
+            </div>
+            <div class="row" ng-show="vm.mode==1 && !vm.zipFile || vm.mode ==2">
+                <div class="col-sm-12">
+                    <p>
+
+                        גודל מקסימלי לקובץ:{{vm.sizeFile}}MB
+                    </p>
+                </div>
+            </div>
+            <div class="row" ng-show="vm.mode==1 && vm.zipFile">
+                <div class="col-sm-12">
+
+                    סוג קובץ נתמך:
+                    <span dir="ltr">zip</span>
+
+                    <!--<span style="direction:ltr"  ng-repeat="item in vm.allowedFileExtentions">
+                  .{{item}}{{$last ? '' : ','}}
+                </span>-->
+                    <!--לצפייה בקובץ שנטען יש ללחוץ על שם הקובץ-->
+                </div>
+            </div>
+            <div class="row" ng-show="vm.mode==1 && vm.zipFile">
+                <div class="col-sm-12">
+                    קובץ ה-<span dir="ltr">zip</span> יכול להכיל קבצים מסוג
+                    <span dir="ltr">{{vm.allowedZipFileExtentions | fileExtentionsFilter}}:</span>
+                </div>
+            </div>
+            <div class="row" ng-show="vm.mode==1 && vm.zipFile">
+                <div class="col-sm-12">
+                    <p>
+
+                        גודל מקסימלי כולל:{{vm.sizeFile}}MB
+                    </p>
+                </div>
+            </div>
+
+
+        </div>
+
+        <div class="row" ng-show="vm.mode==3">
+            <div class="col-sm-7">
+                <div class="row divbutton2 " ng-repeat="item in vm.files">
+                    <div class="col-sm-1 icon view "></div>
+                    <div class="col-sm-10 ">
+
+                        <!--<a href="{{item.FileUrl}}">
+                        {{item.UploadName}}
+                    </a>-->
+
+                        <a href="" ng-click="vm.openWindowFile($index)">
+                            {{item.UploadName}}
+                        </a>
+
+
+                    </div>
+                </div>
+
+            </div>
+            <div class="col-sm-5">
+                <div class="row">
+                    <div class="col-sm-4">
+                        <!--<p></p>
+                    <p></p>
+                    <p></p>-->
+                        <div ng-if="vm.afterScanOrUpload">
+                            <shaam-scan-button successfunc="vm.scfunc(newValue)"
+                                               errfunc="vm.errfunc(errValue)" resetmessage="vm.resetmessage()" startscanfunc="vm.startscanfunc(numValue)" maximumcapacitytest="vm.maximumcapacitytest()"
+                                               ng-show="vm.scanOption && vm.cookieScan" ng-disabled="vm.disableScanUpload"></shaam-scan-button>
+
+                        </div>
+                        <div ng-if="vm.beforeScanOrUpload">
+                            <shaam-scan-button resetmessage="vm.resetmessage()" successfunc="vm.scfunc(newValue)"
+                                               errfunc="vm.errfunc(errValue)" startscanfunc="vm.startscanfunc(numValue)" maximumcapacitytest="vm.maximumcapacitytest()"
+                                               ng-show="vm.scanOption && vm.cookieScan" ng-disabled="vm.disableScanUpload"></shaam-scan-button>
+
+                        </div>
+                    </div>
+
+                        <div ng-if="!vm.scanOption" class="col-sm-8">
+
+                        <input name="myFile1" type="file" title="{{vm.getUploadFileText()}}" k-rebind="vm.multiple" kendo-upload k-options="vm.options" k-multiple="vm.multiple" ng-disabled="vm.disableFileUpload" />
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+
+        <br />
+        <div class="row" ng-show="vm.mode==3">
+            <div class="col-sm-12">
+                <p>
+                    סוג קובץ נתמך:
+                    <span dir="ltr">{{vm.allowedFileExtentions | fileExtentionsFilter}}</span>
+                    <!--לצפייה בקובץ שנטען יש ללחוץ על שם הקובץ-->
+                </p>
+            </div>
+        </div>
+        <div class="row" ng-show="vm.mode==3">
+            <div class="col-sm-12">
+                <p>
+
+                    גודל מקסימלי לקובץ:{{vm.sizeFile}}MB
+                </p>
+            </div>
+        </div>
+
+        <style>
+            /*.k-file-success .k-progress {
+                                    background-color: #f4f9ff;
+                                }*/
+
+            /*.k-upload-files {
+                                    border-width: 0px;
+                                }*/
+
+            .k-dropzone {
+                width: 50%;
+                padding: 0px;
+                text-align: left;
+                /*padding:0em 2em;*/
+            }
+
+            .html .k-upload {
+                width: 50%;
+            }
+
+            .k-rtl .k-dropzone em {
+                display: none;
+            }
+
+            /*.k-header, .k-grid-header-wrap, .k-grid .k-grouping-header, .k-grid-header, .k-pager-wrap, .k-pager-wrap .k-textbox, .k-pager-wrap .k-link, .k-grouping-header .k-group-indicator, .k-gantt-toolbar .k-state-default {
+                                    border-color: #f0f4f5;
+                                }*/
+
+            /*.k-widget .k-upload .k-header {
+                                    background-color: #f4f9ff;
+                                }
+                                .k-animation-container, .k-widget, .k-widget *, .k-animation-container *, .k-widget *::before, .k-animation-container *::after, .k-block .k-header, .k-list-container {
+                      -webkit-box-sizing: content-box;
+                      /* box-sizing: border-box;
+                    }
+                                k-upload-status {
+                                    margin-top: 200px;
+                                }
+
+                                .k-header, .k-grid-header-wrap, .k-grid .k-grouping-header, .k-grid-header, .k-pager-wrap, .k-pager-wrap .k-textbox, .k-pager-wrap .k-link, .k-grouping-header .k-group-indicator, .k-gantt-toolbar .k-state-default {
+                                    background-color: transparent;
+                                }
+
+                                .breakLine {
+                                    word-wrap: break-word;
+                                }*/
+        </style>
+    </div>
+</div>

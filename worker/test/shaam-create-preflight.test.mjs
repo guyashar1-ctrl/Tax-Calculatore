@@ -23,6 +23,8 @@ const INPUT = {
   secondary: { type: 'parentId', value: '067574996' },
   systems: [{ screenLabel: 'מס הכנסה', fileNumber: '039999998', repType: 'ראשי' }],
   spousePhone: '',
+  clientPhone: '050-1234567',
+  clientEmail: 'client@example.test',
   existingRequestNumber: null,
   alreadyFoundInShaam: false,
 };
@@ -44,15 +46,13 @@ function harness(found, over = {}) {
     detectBlockingSignal: spy('detectBlockingSignal', null),
     openRepresentationSystem: spy('openRepresentationSystem', { ok: true }),
     findRequestRows: spy('findRequestRows', found),
-    startNewRequest: spy('startNewRequest', { ok: true, mode: 'typed' }),
+    startNewRequest: spy('startNewRequest', { ok: true, needsVerification: true }),
     verifyEntity: spy('verifyEntity', { ok: true }),
     readExistingRepresentations: spy('readExistingRepresentations', { activeCount: 0, openRequestCount: 0 }),
     selectRequestedSystems: spy('selectRequestedSystems', { ok: true }),
     confirmSystemsStep: spy('confirmSystemsStep', { ok: true, requestNumber: '2026599999' }),
-    fillContactDetails: spy('fillContactDetails', { ok: true }),
-    capturePdf: async (_page, trigger) => { calls.push('capturePdf'); await trigger(); return { buffer: Buffer.from('%PDF') }; },
-    fetchGeneratedForm: spy('fetchGeneratedForm', { ok: true, buffer: Buffer.from('%PDF'), source: 'captured' }),
-    putDocument: spy('putDocument', { ok: true, size: 4 }),
+    fillContactDetailsAndCaptureForm: spy('fillContactDetailsAndCaptureForm', { ok: true, spousePhoneAsked: false, form: { ok: true, buffer: Buffer.from('%PDF-'), source: 'window_open' } }),
+    putDocument: spy('putDocument', { ok: true, size: 5 }),
     captureDiagnostics: spy('captureDiagnostics', {}),
     progressTracker: () => {
       const state = {};
@@ -66,7 +66,12 @@ function harness(found, over = {}) {
     ...over,
   };
   const ctx = { workerId: 'w', job: { id: 'job-1', progress: {} }, log: () => {} };
-  return { calls, progressWrites, go: () => run(ctx, INPUT, deps) };
+  const args = {};
+  for (const [k, fn] of Object.entries(deps)) {
+    if (typeof fn !== 'function' || k === 'progressTracker') continue;
+    deps[k] = async (...a) => { (args[k] ??= []).push(a); return fn(...a); };
+  }
+  return { calls, progressWrites, args, go: (input = INPUT) => run(ctx, input, deps) };
 }
 
 const EMPTY = { ok: true, rows: [], total: 0, searchedBy: 'entityId', listed: { count: 0, noRecords: false } };
@@ -156,4 +161,81 @@ test('createPreflightDecision — טבלת ההכרעות', () => {
   assert.equal(createPreflightDecision({ ok: false, reason: 'cannot_attribute' }).decision, 'ambiguous');
   assert.equal(createPreflightDecision({ ok: false, reason: 'tab_in_progress' }).decision, 'unreadable');
   assert.equal(createPreflightDecision(null).decision, 'unreadable');
+});
+
+// ── 28.09.2026 · הזרימה שלפני החתימה, לפי קוד שע״ם האמיתי ───────────────────
+
+test('F · זרימה מלאה: האימות מקבל את needsVerification, הרשויות בדיוק מהקלט, והטופס נשמר מול הבקשה', async () => {
+  const h = harness(EMPTY);
+  const out = await h.go();
+  assert.equal(h.args.verifyEntity[0][1].needsVerification, true);
+  assert.deepEqual(h.args.selectRequestedSystems[0][1], INPUT.systems, 'בדיוק המערכים שבקלט');
+  const contactArgs = h.args.fillContactDetailsAndCaptureForm[0][1];
+  assert.deepEqual(contactArgs, { clientPhone: '050-1234567', spousePhone: '', clientEmail: 'client@example.test' });
+  assert.equal(h.args.putDocument.length, 1, 'הטופס נשמר פעם אחת');
+  const doc = h.args.putDocument[0][2];
+  assert.equal(doc.documentId, 'poa-pdf-req-1-person-client');
+  assert.equal(doc.linkedTo, 'rep:req-1');
+  assert.equal(out.result.formDocumentId, doc.documentId);
+  assert.equal(out.result.requestNumber, '2026599999');
+  assert.ok(h.progressWrites.some((p) => p.requestNumber === '2026599999'), 'מספר הבקשה נשמר מיד');
+  assert.ok(h.calls.indexOf('confirmSystemsStep') < h.calls.indexOf('fillContactDetailsAndCaptureForm'));
+});
+
+test('F · שע״ם דילגה על האימות (יש ייצוג פעיל) ⇒ העובד לא ממציא אימות', async () => {
+  const h = harness(EMPTY, { startNewRequest: async () => ({ ok: true, needsVerification: false }) });
+  await h.go();
+  assert.equal(h.args.verifyEntity[0][1].needsVerification, false);
+});
+
+test('F · אימות נדחה ⇒ ניסיון אחד, עצירה לאדם, בלי יצירה ובלי ניסיון נוסף', async () => {
+  const h = harness(EMPTY, { verifyEntity: async () => ({ ok: false, reason: 'verification_rejected', detail: 'אין התאמה בנתונים' }) });
+  await assert.rejects(h.go(), (e) => e.name === 'NeedsHumanError' && e.code === 'entity_verification_failed' && /אין התאמה/.test(e.message));
+  assert.equal(h.args.verifyEntity.length, 1);
+  assert.ok(!h.calls.includes('confirmSystemsStep'));
+  assert.ok(h.progressWrites.some((p) => p.externalAttempt === 'verify_entity'), 'הנגיעה נרשמה');
+});
+
+test('F · המסך לא קיבל את פרטי האימות ⇒ עצירה, האימות לא נוצל', async () => {
+  const h = harness(EMPTY, { verifyEntity: async () => ({ ok: false, reason: 'verification_input_rejected_on_screen', detail: 'יש למלא תאריך לידה' }) });
+  await assert.rejects(h.go(), (e) => e.code === 'verification_input_rejected');
+  assert.ok(!h.calls.includes('confirmSystemsStep'));
+});
+
+for (const [reason, code] of [['shaam_manual_handling', 'shaam_manual_handling'], ['entity_rejected', 'entity_rejected']]) {
+  test(`F · בדיקת הישות: ${reason} ⇒ עצירה לפני אימות ולפני יצירה`, async () => {
+    const h = harness(EMPTY, { startNewRequest: async () => ({ ok: false, reason, detail: 'הודעת שע״ם' }) });
+    await assert.rejects(h.go(), (e) => e.code === code);
+    for (const forbidden of ['markExternalAttempt', 'verifyEntity', 'confirmSystemsStep']) assert.ok(!h.calls.includes(forbidden), forbidden);
+  });
+}
+
+test('F · שע״ם דחתה את התיקים ⇒ עצירה, לא נוצרה בקשה', async () => {
+  const h = harness(EMPTY, { confirmSystemsStep: async () => ({ ok: false, reason: 'systems_rejected', detail: 'מספר תיק שגוי' }) });
+  await assert.rejects(h.go(), (e) => e.code === 'systems_rejected');
+  assert.ok(!h.calls.includes('fillContactDetailsAndCaptureForm'));
+});
+
+test('F · אחרי «אישור» בחלונית לא הגיע שלב 3 ⇒ «לא ידוע», בלי להמשיך', async () => {
+  const h = harness(EMPTY, { confirmSystemsStep: async () => ({ ok: false, reason: 'create_outcome_unknown' }) });
+  await assert.rejects(h.go(), (e) => e.code === 'create_outcome_unknown' && /בדוק קבלת הייצוג/.test(e.message));
+});
+
+test('F · חסר טלפון בן/בת זוג כששע״ם דורשת ⇒ עצירה שאומרת שהבקשה נפתחה, עם המספר', async () => {
+  const h = harness(EMPTY, { fillContactDetailsAndCaptureForm: async () => ({ ok: false, reason: 'spouse_phone_required_but_missing' }) });
+  await assert.rejects(h.go(), (e) => e.code === 'missing_spouse_phone' && e.message.includes('2026599999'));
+  assert.ok(!h.calls.includes('putDocument'));
+});
+
+test('F · הטופס לא הגיע ⇒ עצירה עם המספר, בלי שמירת מסמך', async () => {
+  const h = harness(EMPTY, { fillContactDetailsAndCaptureForm: async () => ({ ok: true, form: { ok: false, reason: 'form_not_pdf' } }) });
+  await assert.rejects(h.go(), (e) => e.code === 'form_not_captured' && e.message.includes('2026599999'));
+  assert.ok(!h.calls.includes('putDocument'));
+});
+
+test('F · בלי טלפון תקין ללקוח ⇒ לא מתחילים בכלל (המסך שדורש אותו בא אחרי היצירה)', () => {
+  assert.throws(() => validate({ ...INPUT, clientPhone: '' }), (e) => e.code === 'missing_client_phone');
+  assert.throws(() => validate({ ...INPUT, clientPhone: '05' }), (e) => e.code === 'missing_client_phone');
+  assert.throws(() => validate({ ...INPUT, spousePhone: '12' }), (e) => e.code === 'bad_spouse_phone');
+  assert.doesNotThrow(() => validate({ ...INPUT, clientPhone: '+972-50-123-4567' }));
 });

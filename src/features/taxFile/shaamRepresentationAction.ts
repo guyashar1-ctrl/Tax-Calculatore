@@ -17,7 +17,7 @@
 
 import type { RepresentationStatus } from '../../types';
 import type { ShaamRequestTracking } from '../representation/shaamRepresentation';
-import { allSystemsAccepted, shaamRequestExists, shaamRowsFormOneRequest } from '../representation/shaamRepresentation';
+import { shaamSettled, shaamRequestExists, shaamRowsFormOneRequest, shaamDocumentsBlocked, shaamDocumentsInShaam, shaamUploadFailed } from '../representation/shaamRepresentation';
 import {
   SHAAM_CREATE_REPRESENTATION_ACTION_TYPE,
   SHAAM_SUBMIT_POA_ACTION_TYPE,
@@ -45,13 +45,16 @@ export interface ShaamRepresentationAction {
  *                        נחתם והוחתם ⇒ השלב הבא הוא החתימה, והשידור מושבת.
  *   signed_ready       · יש בקשה והטופס חתום ומוחתם ⇒ «שלח טופס חתום».
  *   ambiguous          · השורות שנמצאו אינן בקשה אחת ⇒ לא משדרים.
+ *   documents_blocked  · 204 · שע״ם דורשת מסמך נוסף שעוד לא אצלנו (או שאי אפשר
+ *                        לשייך/להמיר/להעלות אוטומטית) ⇒ השידור ממתין. ‼ לא
+ *                        «נסה שוב»: ההמשך קורה מעצמו כשהמסמך הנכון מגיע.
  *   submitted          · נשלח (או סומן ידנית כנשלח) ⇒ רק קריאת מצב.
  *   waiting_client     · שע״ם: «ממתין לאישור לקוח» ⇒ הלקוח חייב לאשר.
  *   active             · הכול נקלט / הייצוג פעיל ⇒ סופי, גובר על כל השאר.
  */
 export type ShaamLifecycleStage =
-  | 'not_started' | 'signatures_pending' | 'signed_ready' | 'ambiguous'
-  | 'submitted' | 'waiting_client' | 'active';
+  | 'not_started' | 'signatures_pending' | 'signed_ready' | 'ambiguous' | 'documents_blocked'
+  | 'reupload' | 'submitted' | 'waiting_client' | 'active';
 
 export function shaamLifecycleStage(
   status: RepresentationStatus | null | undefined,
@@ -60,19 +63,35 @@ export function shaamLifecycleStage(
 ): ShaamLifecycleStage | null {
   if (!status) return null;
   // ‼ סופי גובר: מה שהסטטוס אומר, או מה ששע״ם אמרה על כל המערכים.
-  if (status === 'active' || allSystemsAccepted(tracking)) return 'active';
+  // ‼ 28.09.2026 · «פעיל לפי רשות» (הכרעת גיא) — כל מה שיש לו תיק נקלט.
+  if (status === 'active' || shaamSettled(tracking)) return 'active';
+  // ‼ 28.09 · שע״ם: «כשל-ממתין לטעינת חוזרת» ⇒ הטופס צריך להיטען שוב (גם אחרי «נשלח»).
+  if (stamped && shaamUploadFailed(tracking)) return 'reupload';
   if (tracking?.submittedAt) return tracking.clientApprovalRequiredAt ? 'waiting_client' : 'submitted';
+  // ‼ 28.09 · הוגש מחוץ ל-PIVO (ידנית בשע״ם) — שע״ם אומרת שהמסמכים אצלה. לא
+  // מציעים לשדר שוב; מה שנשאר הוא לבדוק מצב.
+  if (shaamDocumentsInShaam(tracking)) return tracking?.clientApprovalRequiredAt ? 'waiting_client' : 'submitted';
   // ‼ «ממתין לרשויות» בלי שום עדות מהאינטגרציה = סומן ידנית כנשלח (או משטח
   // שלא מקבל את מצב שע״ם, כמו תיק המס). זה לעולם לא «טרם הוזן».
   if (!shaamRequestExists(tracking)) return status === 'awaiting_authorities' ? 'submitted' : 'not_started';
   // ‼ נמצאה בלי מספר בקשה (הדסה סלע, 23.09.2026) — השידור מאתר אותה לפי ישות
   // + שם, ולכן השורות חייבות לתאר בקשה אחת. מערך כפול = שתי בקשות.
   if (!tracking?.requestNumber && !shaamRowsFormOneRequest(tracking)) return 'ambiguous';
-  if (stamped) return 'signed_ready';
+  if (stamped) return shaamDocumentsBlocked(tracking) ? 'documents_blocked' : 'signed_ready';
   // סומן ידנית כ«נשלח» בלי שהאוטומציה שידרה — עדיין אפשר לבדוק מצב.
   if (status === 'awaiting_authorities') return 'submitted';
   return 'signatures_pending';
 }
+
+/** 204 · למה השידור ממתין — משפט אחד, לכפתור. הפירוט לכל אדם במרכז הייצוג. */
+const SHAAM_DOCUMENTS_STAGE_REASON: Record<string, string> = {
+  awaiting_required_documents: 'רשות המסים דורשת מסמך נוסף שעוד לא התקבל. נפתחה ללקוח בקשת מסמך — כשהמסמך יגיע, השידור ימשיך מעצמו.',
+  needs_document_assignment: 'רשות המסים דורשת מסמך מזהה, ולא ניתן לקבוע של מי: הת.ז. בשע״ם אינה תואמת לאדם אחד בכרטיס. תקנו את מספרי הזהות בכרטיס ושדרו שוב.',
+  document_not_pdf_convertible: 'המסמך שיש לנו בפורמט שאי אפשר להפוך ל-PDF. צרפו צילום JPEG/PNG/PDF — השידור ימשיך מעצמו.',
+  unsupported_required_document: 'רשות המסים דורשת מסמך שאינו מסמך מזהה (צו ירושה/אפוטרופוס). יש להשלים את ההגשה ידנית בשע״ם.',
+  first_live_verification: 'עצירת אימות ראשון: הכול מוכן, אבל העלאה אוטומטית של מסמך נוסף עוד לא אומתה. השלימו ידנית בשע״ם לפי התוכנית, ואז «שודר ידנית».',
+  required_document_unavailable: 'המסמך הנדרש לא נקרא מתיק הלקוח. בדקו שהוא נפתח, ושדרו שוב.',
+};
 
 const CHECK = { kind: 'check' as const, label: 'בדוק קבלת הייצוג', actionType: SHAAM_CHECK_REPRESENTATION_ACTION_TYPE };
 const SUBMIT = { kind: 'submit' as const, label: 'שלח טופס חתום לשע״ם', actionType: SHAAM_SUBMIT_POA_ACTION_TYPE };
@@ -96,7 +115,7 @@ export function shaamRepresentationAction(
       return null;
     case 'active':
       // ‼ «פעיל» אצלנו, אבל שע״ם עוד לא אמרה שהכול נקלט — קריאה עוד שווה משהו.
-      return status === 'active' && shaamRequestExists(tracking) && !allSystemsAccepted(tracking) ? CHECK : null;
+      return status === 'active' && shaamRequestExists(tracking) && !shaamSettled(tracking) ? CHECK : null;
     case 'submitted':
     case 'waiting_client':
       return CHECK;
@@ -113,6 +132,15 @@ export function shaamRepresentationAction(
       };
     case 'signed_ready':
       return SUBMIT;
+    case 'reupload':
+      return { ...SUBMIT, label: 'שלח שוב את הטופס החתום לשע״ם' };
+    case 'documents_blocked': {
+      // ‼ 204 · ההמתנה היא עובדה עמידה (documentsGate), לא תקלה. רק כשהתיקון
+      // בידי המשרד ואין מה שיעורר המשך מעצמו — הכפתור זמין לשידור מחדש.
+      const g = shaamDocumentsBlocked(tracking)!;
+      const officeFix = g.state === 'needs_document_assignment' || g.state === 'required_document_unavailable';
+      return { ...SUBMIT, disabled: !officeFix, reason: SHAAM_DOCUMENTS_STAGE_REASON[g.state] };
+    }
     case 'signatures_pending':
       return {
         ...SUBMIT, disabled: true,

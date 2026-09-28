@@ -1,0 +1,349 @@
+<style>
+    /**
+    * Extracted from: SweetAlert
+    * Modified by: Istiak Tridip
+    */
+    .success-checkmark {
+        width: 80px;
+        height: 115px;
+        margin: 0 auto;
+    }
+
+        .success-checkmark .check-icon {
+            width: 80px;
+            height: 80px;
+            position: relative;
+            border-radius: 50%;
+            box-sizing: content-box;
+            border: 4px solid #4caf50;
+        }
+
+            .success-checkmark .check-icon::before {
+                top: 3px;
+                left: -2px;
+                width: 30px;
+                transform-origin: 100% 50%;
+                border-radius: 100px 0 0 100px;
+            }
+
+            .success-checkmark .check-icon::after {
+                top: 0;
+                left: 30px;
+                width: 60px;
+                transform-origin: 0 50%;
+                border-radius: 0 100px 100px 0;
+                animation: rotate-circle 4.25s ease-in;
+            }
+
+            .success-checkmark .check-icon::before, .success-checkmark .check-icon::after {
+                content: '';
+                height: 100px;
+                position: absolute;
+                background: #fff;
+                transform: rotate(-45deg);
+            }
+
+            .success-checkmark .check-icon .icon-line {
+                height: 5px;
+                background-color: #4caf50;
+                display: block;
+                border-radius: 2px;
+                position: absolute;
+                z-index: 10;
+            }
+
+                .success-checkmark .check-icon .icon-line.line-tip {
+                    top: 46px;
+                    left: 14px;
+                    width: 25px;
+                    transform: rotate(45deg);
+                    animation: icon-line-tip 0.75s;
+                }
+
+                .success-checkmark .check-icon .icon-line.line-long {
+                    top: 38px;
+                    right: 8px;
+                    width: 47px;
+                    transform: rotate(-45deg);
+                    animation: icon-line-long 0.75s;
+                }
+
+            .success-checkmark .check-icon .icon-circle {
+                top: -4px;
+                left: -4px;
+                z-index: 10;
+                width: 80px;
+                height: 80px;
+                border-radius: 50%;
+                position: absolute;
+                box-sizing: content-box;
+                border: 4px solid rgba(76, 175, 80, .5);
+            }
+
+            .success-checkmark .check-icon .icon-fix {
+                top: 8px;
+                width: 5px;
+                left: 26px;
+                z-index: 1;
+                height: 85px;
+                position: absolute;
+                transform: rotate(-45deg);
+                background-color: #fff;
+            }
+
+    @keyframes icon-line-tip {
+        0% {
+            width: 0;
+            left: 1px;
+            top: 19px;
+        }
+
+        54% {
+            width: 0;
+            left: 1px;
+            top: 19px;
+        }
+
+        70% {
+            width: 50px;
+            left: -8px;
+            top: 37px;
+        }
+
+        84% {
+            width: 17px;
+            left: 21px;
+            top: 48px;
+        }
+
+        100% {
+            width: 25px;
+            left: 14px;
+            top: 45px;
+        }
+    }
+
+    @keyframes icon-line-long {
+        0% {
+            width: 0;
+            right: 46px;
+            top: 54px;
+        }
+
+        65% {
+            width: 0;
+            right: 46px;
+            top: 54px;
+        }
+
+        84% {
+            width: 55px;
+            right: 0px;
+            top: 35px;
+        }
+
+        100% {
+            width: 47px;
+            right: 8px;
+            top: 38px;
+        }
+    }
+
+    /*////////////////////////////////////////////////////////////*/
+
+    @keyframes swal2-animate-error-x-mark {
+        0% {
+            margin-top: 1.625em;
+            -webkit-transform: scale(.4);
+            transform: scale(.4);
+            opacity: 0;
+        }
+
+        50% {
+            margin-top: 1.625em;
+            -webkit-transform: scale(.4);
+            transform: scale(.4);
+            opacity: 0;
+        }
+
+        80% {
+            margin-top: -.375em;
+            -webkit-transform: scale(1.15);
+            transform: scale(1.15);
+        }
+
+        100% {
+            margin-top: 0;
+            -webkit-transform: scale(1);
+            transform: scale(1);
+            opacity: 1;
+        }
+    }
+
+    @keyframes swal2-animate-error-icon {
+        0% {
+            -webkit-transform: rotateX(100deg);
+            transform: rotateX(100deg);
+            opacity: 0;
+        }
+
+        100% {
+            -webkit-transform: rotateX(0);
+            transform: rotateX(0);
+            opacity: 1;
+        }
+    }
+
+    .swal2-icon {
+        position: relative;
+        justify-content: center;
+        width: 5em;
+        height: 5em;
+        margin: 1.25em auto 1.875em;
+        border: .25em solid transparent;
+        border-radius: 50%;
+        line-height: 5em;
+        cursor: default;
+        box-sizing: content-box;
+        -webkit-user-select: none;
+        -moz-user-select: none;
+        -ms-user-select: none;
+        user-select: none;
+        zoom: normal;
+    }
+
+        .swal2-icon.swal2-error {
+            border-color: #f9baba;
+        }
+
+            .swal2-icon.swal2-error .swal2-x-mark {
+                position: relative;
+                flex-grow: 1;
+            }
+
+            .swal2-icon.swal2-error [class^=swal2-x-mark-line] {
+                display: block;
+                position: absolute;
+                top: 2.3125em;
+                width: 2.9375em;
+                height: .3125em;
+                border-radius: .125em;
+                background-color: #f76d6d;
+            }
+
+                .swal2-icon.swal2-error [class^=swal2-x-mark-line][class$=left] {
+                    left: 1.0625em;
+                    -webkit-transform: rotate(45deg);
+                    transform: rotate(45deg);
+                }
+
+                .swal2-icon.swal2-error [class^=swal2-x-mark-line][class$=right] {
+                    right: 1em;
+                    -webkit-transform: rotate(-45deg);
+                    transform: rotate(-45deg);
+                }
+
+    .swal2-animate-error-icon {
+        -webkit-animation: swal2-animate-error-icon .5s;
+        animation: swal2-animate-error-icon .5s;
+    }
+
+        .swal2-animate-error-icon .swal2-x-mark {
+            -webkit-animation: swal2-animate-error-x-mark .5s;
+            animation: swal2-animate-error-x-mark .5s;
+        }
+</style>
+
+<div class="row">
+
+
+    <div pirtey-myz-oved-etzel-myzg></div>
+    <div class="col-sm-12">
+        <div koteret mis-yeshut="vm.misY" shem-yeshut="vm.shemYeshut" asmachta="vm.asmahata" page-index="4" koteret-mishnit="'אישור קליטת מסמכים למיוצג'" melel-hashaya="vm.state" is-show-mis-bakasha="true" is-show-koteret-mishnit="true"></div>
+    </div>
+    <div>
+        <div class="row">
+            <div class="col-sm-1 col-sm-offset-5 ">
+                <div class="success-checkmark">
+                    <div class="check-icon">
+                        <span class="icon-line line-tip"></span>
+                        <span class="icon-line line-long"></span>
+                        <div class="icon-circle"></div>
+                        <div class="icon-fix"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="row">
+            <div class="col-sm-2 col-sm-offset-5 ">
+                <div class="largefont ">עכשיו תורנו...</div>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-sm-8 col-sm-offset-4 ">
+                <strong>אנחנו בודקים כרגע את הקבצים שצירפת </strong>
+            </div>
+        </div>
+
+
+        <div>
+            <div class="row">
+                <div class=" col-sm-offset-1 ">
+                    <div class="col-sm-8 col-sm-offset-3 ">
+                        <strong ng-show="vm.statusBakasha != 3"> הלקוח יקבל מסרון, דוא"ל, ומכתב עם פירוט בקשתך.</strong>
+                    </div>
+                </div>
+            </div>
+
+
+            <div class="row" ng-show="vm.statusBakasha == 1">
+                <div class="col-sm-offset-1 col-sm-12">
+
+                    <div class="col-sm-8 col-sm-offset-2">
+                        <strong> בקשתך תיקלט במערכת {{vm.txt1}}.</strong>
+                    </div>
+                </div>
+            </div>
+            <div class="row" ng-show="vm.statusBakasha == 2">
+                <div class="col-sm-offset-1 col-sm-9">
+                    <div class="col-sm-3"></div>
+                    <div class="col-sm-8">
+                            <strong> בקשתך תיקלט במערכת {{vm.txt1}}.</strong>
+                    </div>
+                </div>
+            </div>
+            <div class="row" ng-show="vm.statusBakasha == 3">
+                <div class="col-sm-offset-1 col-sm-12 ">
+                    <div class="col-sm-8 col-sm-offset-2">
+                        <div class="col-sm-8 col-sm-offset-1">
+                            <strong> בקשתך תיקלט במערכת {{vm.txt1}}.</strong>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+
+            <div class="row" ng-show="vm.statusBakasha == 1">
+                <div class="col-sm-8 col-sm-offset-3 ">
+                    <strong> הלקוח יכול {{vm.txt2}} לדחות את הבקשה בלחיצה על הקישור שיקבל.</strong>
+                </div>
+            </div>
+            <div class="row" ng-show="vm.statusBakasha == 2">
+                <div class=" col-sm-offset-1 ">
+                    <div class="col-sm-1"></div>
+                    <div class="col-sm-9 col-sm-offset-1">                     
+                       <strong>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; הלקוח יכול {{vm.txt2}} לדחות את הבקשה בלחיצה על הקישור שיקבל.</strong>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+
+
+
+
+    </div>
+</div>
+
+

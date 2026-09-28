@@ -4,7 +4,8 @@
 // הפירוט המדויק (מה הוזן, מה נשלח, מי חתם) חי במרכז הייצוג; כאן רק המשפט
 // שאומר אצל מי הכדור ומה הצעד.
 
-import type { RepresentationStatus } from '../types';
+import type { RepresentationRequest, RepresentationStatus } from '../types';
+import { REPRESENTATION_STATUS_LABELS } from '../types';
 
 export interface RepresentationAction {
   /** הפעולה עצמה — פועל, לא סטטוס. */
@@ -50,6 +51,32 @@ const ACTIONS: Record<RepresentationStatus, RepresentationAction> = {
   },
 };
 
-export function representationAction(status: RepresentationStatus): RepresentationAction {
-  return ACTIONS[status];
+/**
+ * ‼ «ממתין לחתימה» מתחיל רק כשהמייל יצא. הפקת הטופס מעבירה את הבקשה ל-
+ * pending_signature, אבל השליחה היא פעולה נפרדת — ועד שהיא קורית «נשלח
+ * לחתימת הלקוח» הוא טענה שקרית. 'unsent' = הטופס מוכן, המייל עוד לא יצא.
+ * null = אין פער (לא pending_signature, או שהמייל כבר יצא).
+ */
+export type RepSendPhase = 'unsent';
+
+export function repSendPhase(
+  req: Pick<RepresentationRequest, 'status' | 'execution'> | undefined | null,
+): RepSendPhase | null {
+  if (!req || req.status !== 'pending_signature' || req.execution?.signatureEmailSentAt) return null;
+  return 'unsent';
+}
+
+const UNSENT: RepresentationAction = {
+  action: 'לשלוח ללקוח לחתימה',
+  why: 'הטופס מוכן, אבל המייל עוד לא יצא. השליחה במרכז הייצוג.',
+  mine: true, ball: 'אצלי',
+};
+
+export function representationAction(status: RepresentationStatus, phase?: RepSendPhase | null): RepresentationAction {
+  return phase === 'unsent' && status === 'pending_signature' ? UNSENT : ACTIONS[status];
+}
+
+/** תווית הסטטוס לתצוגה — «נשלח לחתימת הלקוח» רק כשהמייל באמת יצא. */
+export function representationStatusLabel(status: RepresentationStatus, phase?: RepSendPhase | null): string {
+  return phase === 'unsent' && status === 'pending_signature' ? 'מוכן לשליחה ללקוח' : REPRESENTATION_STATUS_LABELS[status];
 }

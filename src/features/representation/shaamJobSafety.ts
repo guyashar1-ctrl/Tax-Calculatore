@@ -40,7 +40,9 @@ export type ShaamStopKind =
   /** מסך לא מזוהה. הקוד צריך תיקון לפני ניסיון נוסף. */
   | 'unexpected_screen'
   /** חסר חיבור לשע״ם. */
-  | 'not_connected';
+  | 'not_connected'
+  /** 204 · השידור ממתין למסמך ששע״ם דורשת — לא תקלה, ולא «נסה שוב». */
+  | 'documents_wait';
 
 export interface ShaamStopState {
   kind: ShaamStopKind;
@@ -57,6 +59,40 @@ export interface ShaamStopState {
 }
 
 const BLOCKED_PREFIX = 'shaam_';
+
+/** 204 · עצירות על מסמכים ששע״ם דורשת. retry = התיקון בידי המשרד, ואין המשך מעצמו. */
+export const DOCUMENTS_STOPS: Record<string, { title: string; next: string; retry: boolean }> = {
+  awaiting_required_documents: {
+    title: 'ממתין למסמך שרשות המסים דורשת',
+    next: 'נפתחה ללקוח בקשת מסמך. כשהמסמך יגיע — השידור ימשיך מעצמו, פעם אחת. שום דבר לא נשלח לשע״ם.',
+    retry: false,
+  },
+  needs_document_assignment: {
+    title: 'לא ניתן לשייך את דרישת המסמך לאדם',
+    next: 'הת.ז. שבבקשה בשע״ם אינה תואמת לאדם אחד בכרטיס. תקנו את מספרי הזהות בכרטיס ושדרו שוב. שום דבר לא נשלח לשע״ם.',
+    retry: true,
+  },
+  document_not_pdf_convertible: {
+    title: 'המסמך בפורמט שאי אפשר לשלוח לרשות המסים',
+    next: 'צרפו צילום בפורמט JPEG, PNG או PDF — השידור ימשיך מעצמו. שום דבר לא נשלח לשע״ם.',
+    retry: false,
+  },
+  unsupported_required_document: {
+    title: 'רשות המסים דורשת מסמך שהאוטומציה לא מעלה',
+    next: 'צו ירושה / מינוי אפוטרופוס — השלימו את ההגשה ידנית בשע״ם, ואז «שודר ידנית - סמנו כנשלח».',
+    retry: false,
+  },
+  first_live_verification: {
+    title: 'עצירת אימות ראשון — לא תקלה',
+    next: 'שע״ם דורשת מסמך נוסף והכול מוכן, אבל העלאה אוטומטית של מסמך נוסף עוד לא אומתה מול שע״ם. השלימו ידנית לפי התוכנית שבמרכז הייצוג, ואז «שודר ידנית».',
+    retry: false,
+  },
+  required_document_unavailable: {
+    title: 'המסמך הנדרש לא נקרא מתיק הלקוח',
+    next: 'בדקו שהמסמך נפתח בתיק המסמכים, ושדרו שוב. שום דבר לא נשלח לשע״ם.',
+    retry: true,
+  },
+};
 
 /**
  * מצב העצירה של משימת שע״ם, או `null` כשאין עצירה.
@@ -100,6 +136,15 @@ export function shaamStopState(job: AutomationJob | null | undefined): ShaamStop
       title: 'שע״ם לא אישרה את פרטי אימות הישות',
       next: 'בדקו מול הלקוח תאריך לידה ואמצעי זיהוי נוסף, עדכנו בכרטיס, ורק אז הפעילו שוב.',
       mayHaveActed: true, allowDirectRetry: false, suggestCheck: false,
+    };
+  }
+  // ‼ 204 · עצירה על מסמך ששע״ם דורשת — תמיד לפני כל נגיעה. ההמשך קורה מעצמו
+  // כשהמסמך הנכון מגיע (שרת, 204); «נסה שוב» רק כשהתיקון בידי המשרד.
+  const docs = DOCUMENTS_STOPS[code];
+  if (docs) {
+    return {
+      kind: 'documents_wait', title: docs.title, next: docs.next,
+      mayHaveActed: false, allowDirectRetry: docs.retry, suggestCheck: false,
     };
   }
   if (code === 'awaiting_shaam_auth') {

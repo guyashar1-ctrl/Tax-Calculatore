@@ -1,0 +1,341 @@
+
+<div class="row">
+
+    <div class="col-sm-12">
+        <div pirtey-myz-oved-etzel-myzg></div>
+
+        <div class="alert alert-info" ng-if="vm.showAttention">{{vm.attention}}</div>
+
+        <div koteret mis-yeshut="vm.misYeshut" shem-yeshut="vm.shemYeshut" asmachta="" 
+             page-index="1" 
+             koteret-mishnit="'פרטים למיוצג'" melel-hashaya="0" is-show-mis-bakasha="false" 
+             is-show-koteret-mishnit="true"></div>
+
+        <br />
+
+        <div class="row">
+            <div class="col-sm-3">
+                <h4>ייצוגים פעילים ({{vm.sizeOfizugimPeilimList}})</h4>
+                <input type="button" class="col-sm-4 icon plus" ng-click="vm.onClickIzugimPeilim()" 
+                       ng-if="vm.sizeOfizugimPeilimList != 0"/>
+            </div>
+        </div>
+
+        <div class="row" ng-if="vm.isOpenIzugimPeilim">
+            <div class="col-sm-12">
+                <div izugim-peilim izugim="vm.izugimPeilimList" size="vm.sizeOfizugimPeilimList"></div>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-sm-3">
+                <h4>בקשות({{vm.sizeOfIpkHamtanaList}})</h4>
+                <input type="button" class="col-sm-4 icon plus" ng-click="vm.onClickIpkHamtana()"
+                       ng-if="vm.sizeOfIpkHamtanaList != 0" autofocus />
+            </div>
+        </div>
+
+        <div class="row" ng-if="vm.isOpenIpkHamtana">
+            <div class="col-sm-12">
+                <div ipuy-koach-be-hamtana data="vm.ipkHamtanaList" size="vm.sizeOfIpkHamtanaList" size-klali="vm.sizeOfIpkHamtanaList" pageable="false" show-count="false" scrollable="false" is-show-muzag="false"
+                     is-show-success-msg="vm.isShowSuccessMsg">
+                </div>
+            </div>
+        </div>
+
+
+        <br />
+        <div class="row">
+            <div class="col-sm-12">
+                <h4>בקשה חדשה לייצוג</h4>
+
+                <div class="alert alert-danger" ng-if="vm.showErr && !vm.tikim.isShowErrorMsg()">{{vm.err}}</div>
+                <div class="alert alert-success" ng-if="vm.showSuccess">{{vm.success}}</div>
+
+                <div class="bluediv">
+
+                    <div class="row">
+                        <div class="col-sm-12">
+                            <div class="row">
+                                <div class="col-sm-2">
+                                    <div class="row">
+                                        <div class="col-sm-3"></div>
+                                        <div class="col-sm-6 fontbold">מערך</div>
+                                    </div>
+                                </div>
+
+                                <div class="col-sm-3">
+                                    <label for="tik" class="fontbold">מספר תיק</label>
+                                </div>
+                                <div class="col-sm-3 fontbold">סוג ייצוג</div>
+                            </div>
+                        </div>
+                    </div>
+                    <br />
+
+                    <div data-shaam-group-validation="" group-name="tikim" ng-disabled="vm.disTikim">
+
+                        <div class="row">
+                            <div class="col-sm-12">
+                                <div class="row">
+                                    <div class="col-sm-2">
+                                        <div class="row">
+                                            <div class="col-sm-3">
+                                                <div class="button-radio-set" shaam-check-box-buttons 
+                                                     btntype="" btn-disable="vm.disableBakashaMa"
+                                                     btn-checked="vm.isCheckedMa" value="vm.isCheckedMa" 
+                                                     btnclick="vm.cbMaChecked(isChecked)" group-name-check-btn="g"></div>
+                                            </div>
+                                            <div class="col-sm-6">
+                                                <p>מס הכנסה</p>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    
+                                    <div class="col-sm-3">
+                                        <div shaam-num-only selected-num="vm.tikMasHachnasa" 
+                                             disable-num="vm.disableTikMa" 
+                                             cssclass="vm.clsMa" length="9" change-num=""
+                                             num-only-blur="vm.changeTik(vm.tikMasHachnasa,1,vm.sugIzugMaObj.Key)">
+                                        </div>
+                                    </div>
+                                    <div class="col-sm-2">
+                                        <div shaam-ddl url="vm.sugIzugMaData" ng-class="vm.classSugIzug.ma" ng-required="required" selected-obj-web-api="vm.sugIzugMaObj.Value" selected-val-ddl="vm.sugIzugMaObj.Key"
+                                             text-field="Value" value-field="Key" changeddl="vm.changeSugIzugMa(newValue)" disableddl="vm.disableSugIzugMa" mystyle="vm.mywidth"></div>
+                                    </div>
+                                    
+                                    <div ng-if="vm.showErrMa">
+                                        <div class="col-sm-5">
+                                            <label class="errfont fontbold">{{vm.errMa}}</label>
+                                        </div>
+                                    </div>
+                                    <div ng-if="vm.showAttentionMa">
+                                        <div class="col-sm-5">
+                                            <label class="fontbold" id="attentionMa">{{vm.attentionMa}}</label>
+                                        </div>
+                                    </div>
+                                    <div ng-if="vm.isShowShutfutReshumaMsg">
+                                        <div class="col-sm-5">
+                                            <label class="fontbold">לא ניתן לבקש ייפוי כוח עבור שותפות</label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <br />
+                        <div class="row">
+                            <div class="col-sm-12">
+                                <div class="row">
+                                    <div class="col-sm-2">
+                                        <div class="row">
+                                            <div class="col-sm-3">
+                                                <div class="button-radio-set" shaam-check-box-buttons btntype="" btn-disable="vm.disableMaam"
+                                                     btnclick="vm.cbMaamChecked(isChecked)" btn-checked="vm.isCheckedMaam" value="vm.isCheckedMaam"
+                                                     group-name-check-btn="g"></div>
+                                            </div>
+                                            <div class="col-sm-6">
+                                                <p>מע"מ</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="col-sm-3">
+                                        <div shaam-num-only selected-num="vm.tikMaam" disable-num="vm.disableTikMaam" cssclass="vm.clsMaam"
+                                             length="9" change-num=""
+                                             num-only-blur="vm.changeTik(vm.tikMaam,2,vm.sugIzugMaamObj.Key)"></div>
+                                    </div>
+                                    <div class="col-sm-2">
+                                        <div shaam-ddl url="vm.sugIzugMaamData" ng-class="vm.classSugIzug.maam" selected-obj-web-api="vm.sugIzugMaamObj.Value" selected-val-ddl="vm.sugIzugMaamObj.Key"
+                                             text-field="Value" value-field="Key" changeddl="vm.changeSugIzugMaam(newValue)" disableddl="vm.disableSugIzugMaam" mystyle="vm.mywidth"></div>
+                                    </div>
+                                    
+                                    <div ng-if="vm.showErrMaam">
+                                        <div class="col-sm-5">
+                                            <label class="errfont fontbold" id="idErrMaam">{{vm.errMaam}}</label>
+                                        </div>
+                                    </div>
+                                    <div ng-if="vm.showAttentionMaam">
+                                        <div class="col-sm-5">
+                                            <label class="fontbold" id="attentionMaam">{{vm.attentionMaam}}</label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <br />
+                        <div class="row">
+                            <div class="col-sm-12">
+                                <div class="row">
+                                    <div class="col-sm-2">
+                                        <div class="row">
+                                            <div class="col-sm-3">
+                                                <div class="button-radio-set" shaam-check-box-buttons btntype="" btn-disable="vm.disableNic"
+                                                     btn-checked="vm.isCheckedNic" btnclick="vm.cbNicuiimChecked(isChecked)"
+                                                     group-name-check-btn="g"></div>
+                                            </div>
+                                            <div class="col-sm-5">
+                                                <p>ניכויים</p>
+                                            </div>
+                                            <div class="col-sm-1">
+                                                <input ng-if="!vm.disPlusTikNic" type="button" class="col-sm-1 icon plus" ng-click="vm.onClickOpenTikNic()" data-shaam-tooltip="הוספת תיק ניכויים" />
+                                                <input ng-if="vm.disPlusTikNic" class="col-sm-1 icon plus" data-shaam-tooltip="ניתן להוסיף תיקים נוספים כאשר קיים לפחות תיק ניכויים אחד" />
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="col-sm-3">
+                                        <div shaam-num-only selected-num="vm.tikNic1" disable-num="vm.disableTikNicuiim"
+                                             cssclass="vm.clsNic1"
+                                             length="9" change-num=""
+                                             num-only-blur="vm.changeTikNic(vm.tikNic1,5,0,vm.sugIzugNic1Obj.Key)">
+                                        </div>
+                                    </div>
+                                    <div class="col-sm-2">
+                                        <div shaam-ddl url="vm.sugIzugNic1Data" ng-class="vm.classSugIzug.nic" selected-obj-web-api="vm.sugIzugNic1Obj.Value" selected-val-ddl="vm.sugIzugNic1Obj.Key"
+                                             text-field="Value" value-field="Key" changeddl="vm.changeSugIzugNic(newValue)" disableddl="vm.disableSugIzugNic" mystyle="vm.mywidth"></div>
+                                    </div>
+                                    
+                                    <div ng-if="vm.showErrNic1">
+                                        <div class="col-sm-5">
+                                            <label class="errfont fontbold" id="idErrNic1">{{vm.errNic1}}</label>
+                                        </div>
+                                    </div>
+                                    <div ng-if="vm.showAttentionNic1">
+                                        <div class="col-sm-5">
+                                            <label class="fontbold" id="attentionNic1">{{vm.attentionNic1}}</label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row" ng-if="vm.isShowTik2">
+                            <div class="col-sm-12">
+                                <div class="row">
+                                    <div class="col-sm-2"></div>
+                                    <div class="col-sm-3">
+                                        <div shaam-num-only selected-num="vm.tikNic2" disable-num="vm.disableTikNicuiim"
+                                             cssclass="vm.clsNic2"
+                                             length="9" change-num=""
+                                             num-only-blur="vm.changeTikNic(vm.tikNic2,5,1,vm.sugIzugNic2Obj.Key)">
+                                        </div>
+                                    </div>
+                                    <div class="col-sm-2">
+                                        <div shaam-ddl url="vm.sugIzugNic2Data" ng-class="vm.classSugIzug.nic" selected-obj-web-api="vm.sugIzugNic2Obj.Value" selected-val-ddl="vm.sugIzugNic2Obj.Key"
+                                             text-field="Value" value-field="Key" changeddl="vm.changeSugIzug(newValue)" disableddl="vm.disableSugIzugNic" mystyle="vm.mywidth"></div>
+                                    </div>
+                                  
+                                    <input type="button" class="col-sm-1 icon xmark" ng-click="vm.onClickBitulTikNic2()" />
+                                    <div ng-if="vm.showErrNic2">
+                                        <div class="col-sm-4">
+                                            <label class="errfont fontbold" id="idErrNic2">{{vm.errNic2}}</label>
+                                        </div>
+                                    </div>
+                                    <div ng-if="vm.showAttentionNic2">
+                                        <div class="col-sm-4">
+                                            <label class="fontbold" id="attentionNic2">{{vm.attentionNic2}}</label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row" ng-if="vm.isShowTik3">
+                            <div class="col-sm-12">
+                                <div class="row">
+                                    <div class="col-sm-2"></div>
+                                    <div class="col-sm-3">
+                                        <div shaam-num-only selected-num="vm.tikNic3" disable-num="vm.disableTikNicuiim"
+                                             cssclass="vm.clsNic3"
+                                             length="9" change-num=""
+                                             num-only-blur="vm.changeTikNic(vm.tikNic3,5,2,vm.sugIzugNic3Obj.Key)">
+                                        </div>
+                                    </div>
+                                    <div class="col-sm-2">
+                                        <div shaam-ddl url="vm.sugIzugNic3Data" ng-class="vm.classSugIzug.nic" 
+                                             selected-obj-web-api="vm.sugIzugNic3Obj.Value" selected-val-ddl="vm.sugIzugNic3Obj.Key"
+                                             text-field="Value" value-field="Key" changeddl="vm.changeSugIzug(newValue)" 
+                                             disableddl="vm.disableSugIzugNic" mystyle="vm.mywidth"></div>
+                                    </div>
+                                    
+                                    <input type="button" class="col-sm-1 icon xmark" ng-click="vm.onClickBitulTikNic3()" />
+                                    <div ng-if="vm.showErrNic3">
+                                        <div class="col-sm-4">
+                                            <label class="errfont fontbold" id="idErrNic3">{{vm.errNic3}}</label>
+                                        </div>
+                                    </div>
+                                    <div ng-if="vm.showAttentionNic3">
+                                        <div class="col-sm-4">
+                                            <label class="fontbold" id="attentionNic3">{{vm.attentionNic3}}</label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <br />
+                        <br />
+
+                        <div class="row" ng-if="vm.sugYeshut">
+                            <div class="col-sm-12">
+                                <div class="row">
+                                    <div class="col-sm-2">
+                                        <div class="row">
+                                            <div class="col-sm-3">
+                                                <div class="button-radio-set" shaam-check-box-buttons btntype="" btn-disable="false"
+                                                     btn-checked="vm.isCheckedApotropus" value="vm.isCheckedApotropus"
+                                                     btnclick="vm.cbIsCheckedApotropus(isChecked)" group-name-check-btn="g"></div>
+                                            </div>
+                                            <div class="col-sm-9">
+                                                <p>קיים אפוטרופוס </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-sm-12 text-left">
+                    <div shaam-buttons btnclick="vm.ishur()" btntype="ishur" ng-if="vm.mazavIdkun"></div>
+                    <div shaam-buttons btnclick="vm.nikuy()" btntype="nikui" ng-if="vm.mazavIdkun"></div>
+                    <div shaam-buttons btnclick="vm.hemshech()" btntype="hemshech" ng-if="!vm.mazavIdkun"></div>
+                    <div shaam-buttons btnclick="vm.chazara()" btntype="chazara"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<div>
+    <div name="dialogMsgBeforeSave" shaam-window-open is-window-open="vm.isWindowOpen"
+         btclickok="vm.btok()" btclickcancel="vm.btcancel()" 
+          window-title="לידיעתך,">
+
+        <div class="alert alert-info" ng-if="vm.isKayamTikMamtin">
+            שים לב, הבקשה תקלט רק לאחר פתיחת התיק במשרד או במערכת מפת"ח
+        </div>
+
+        <p ng-if="vm.lsAttentionMsgForDialog.length == 1">{{vm.lsAttentionMsgForDialog[0]}}</p>
+        <ul ng-if="vm.lsAttentionMsgForDialog.length > 1">
+            <li ng-repeat="msg in vm.lsAttentionMsgForDialog">{{msg}}</li>
+        </ul>
+
+        <p class="fontbold">בהמשך תתבקש לצרף:</p>
+        <p ng-if="vm.lsYeshLeZarefMsgForDialog.length == 1">{{vm.lsYeshLeZarefMsgForDialog[0]}}</p>
+
+        <ul ng-if="vm.lsYeshLeZarefMsgForDialog.length > 1">
+            <li ng-repeat="msg in vm.lsYeshLeZarefMsgForDialog">{{msg}}</li>
+        </ul>
+        נא לוודא שאלו הנתונים שהנך רוצה להזין.
+    </div>
+</div>
+
+<div please-wait is-prog-on="vm.isProgOn"></div>
+
+

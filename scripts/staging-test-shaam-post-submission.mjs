@@ -227,7 +227,8 @@ try {
   };
   const idItems = async () => {
     const d = await docsStep();
-    return (d?.payload?.checklist ?? []).filter(x => x.key === 'id_card');
+    // ‼ 204: דרכון הוא פריט נפרד (passport), לא «צילום ת.ז.».
+    return (d?.payload?.checklist ?? []).filter(x => x.key === 'id_card' || x.key === 'passport');
   };
 
   console.log('— ת.ז. חסרה ⇒ פריט אחד בבקשת המסמכים —');
@@ -251,6 +252,10 @@ try {
     console.log('— ת.ז. קיימת ⇒ לא מבקשים —');
     await writeStaging(`
       delete from public.onboarding_steps where client_id = '${CID}' and step_type = 'client_documents';
+      -- ‼ 204: צילום «קיים» = רשום על האדם **ונמצא בתיק**. רישום שמצביע על מסמך
+      -- שאינו קיים אי אפשר להעלות לשע״ם, ולכן אינו נחשב.
+      insert into public.documents (id, user_id, client_id, storage_path, file_name, file_type, file_size, category, label_id)
+      values ('fx-201-doc', '${USER_ID}', '${CID}', 'fx/none', 'id.jpg', 'image/jpeg', 1, 'id_card', (select label_id from public.documents where user_id = '${USER_ID}' limit 1));
       update public.representation_requests
          set identity_docs = '{"client":[{"documentId":"fx-201-doc","docKind":"idCard","fileName":"id.jpg"}]}'::jsonb
        where id = '${REQ}';`);

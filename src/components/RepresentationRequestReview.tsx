@@ -5,7 +5,6 @@ import {
   Gender,
   AccountantPartB,
   AUTHORITY_LABELS,
-  REPRESENTATION_STATUS_LABELS,
   REPRESENTATION_STATUS_BADGE,
   RepresentationExecution,
   RepSigner,
@@ -29,6 +28,7 @@ import RepresentationAuthorityData from './RepresentationAuthorityData';
 import RepresentationExecutionCenter from './RepresentationExecutionCenter';
 import RepresentationNextStep from './RepresentationNextStep';
 import EmailPreviewDialog from './EmailActivity/EmailPreviewDialog';
+import { repSendPhase, representationStatusLabel } from '../utils/representationAction';
 import { isSpouseRequest, getRequestSigners, effectiveSignStatus } from '../utils/repSigners';
 import { SignatureField, SignatureValue } from '../types';
 import PoaProduceEditor from './signatureRequest/PoaProduceEditor';
@@ -540,7 +540,7 @@ export default function RepresentationRequestReview({
             <span className="pg-title pg-title-lg">בקשת ייצוג</span>
             {/* הסטטוס הוא המידע היחיד שדורש מבט — הוא נשאר תגית */}
             <span className={`badge ${REPRESENTATION_STATUS_BADGE[request.status]}`}>
-              {REPRESENTATION_STATUS_LABELS[request.status]}
+              {representationStatusLabel(request.status, repSendPhase(request))}
             </span>
           </div>
           <div className="pg-status">
@@ -653,6 +653,10 @@ export default function RepresentationRequestReview({
                   borderRadius: 8, padding: '.45rem .6rem', marginTop: '.4rem', lineHeight: 1.6,
                 }}>
                   {'⚠'} {missingIdentityLine(insight)}
+                  {/* ‼ 204: זו בקשה של המשרד. מסמך ששע״ם דורשת מוצג בשלב «נשלח לשע״ם». */}
+                  <div data-testid="office-identity-nonblocking" style={{ color: 'var(--ink-3)' }}>
+                    בקשה של המשרד - לא עוצרת את החתימה או את הייצוג.
+                  </div>
                 </div>
               )}
               {/* ‼ 191: לפני ההגשה — עד איפה הלקוח הגיע. «הקישור טרם נפתח» הוא

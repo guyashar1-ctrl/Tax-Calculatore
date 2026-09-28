@@ -26,6 +26,9 @@ interface Props {
 export default function ShaamStopNotice({
   stop, workerMessage, className, confirming, onAskConfirm, onCancelConfirm, onConfirmRetry, busy,
 }: Props) {
+  // ‼ 204 · המתנה למסמך אינה עצירה שמנסים לעקוף: ההמשך קורה מעצמו כשהמסמך
+  // מגיע. «בכל זאת לנסות שוב» היה מזמין לולאה שתיעצר שוב באותו מקום.
+  const offerRetry = stop.kind !== 'documents_wait';
   return (
     <div className={className} style={{ lineHeight: 1.7 }}>
       <div style={{ fontWeight: 600 }}>{stop.title}</div>
@@ -41,13 +44,13 @@ export default function ShaamStopNotice({
         </div>
       )}
 
-      {!stop.allowDirectRetry && !confirming && (
+      {offerRetry && !stop.allowDirectRetry && !confirming && (
         <button type="button" className="btn btn-ghost btn-sm" style={{ marginTop: '.35rem' }}
           onClick={onAskConfirm}>
           בכל זאת לנסות שוב
         </button>
       )}
-      {!stop.allowDirectRetry && confirming && (
+      {offerRetry && !stop.allowDirectRetry && confirming && (
         <div style={{ marginTop: '.35rem' }}>
           <div style={{ color: 'var(--ink-2)' }}>
             {stop.mayHaveActed

@@ -128,6 +128,9 @@ export default function ShaamNextActionButton({
           repType: SHAAM_REPRESENTATION_TYPE,
         })),
         spousePhone: married ? person.spousePhone : '',
+        // ‼ 28.09.2026 · מסך פרטי ההתקשרות בשע״ם דורש את הטלפון של המיוצג.
+        clientPhone: person.phone,
+        clientEmail: person.email,
         formFileName: `ייפוי כוח לחתימה - ${person.name}.pdf`,
         existingRequestNumber: tracking?.requestNumber ?? null,
         alreadyFoundInShaam: shaamRequestExists(tracking),

@@ -1,0 +1,290 @@
+
+<div class="row">
+
+    <div pirtey-myz-oved-etzel-myzg></div>
+
+    <div class="col-sm-9">
+
+        <div koteret mis-yeshut="" shem-yeshut="" asmachta="" page-index="0" koteret-mishnit="" melel-hashaya="0" is-show-mis-bakasha="false" is-show-koteret-mishnit="false"></div>
+
+        <br />
+        <div id="divZehut">
+            <div>
+                <div class="alert alert-danger" data-ng-bind="vm.zehut.ErrorMsg" ng-show="vm.zehut.isShowErrorMsg()" aria-live="assertive"></div>
+                <div class="alert alert-danger" ng-show="vm.showErr && !vm.zehut.isShowErrorMsg()" aria-live="assertive">{{vm.err}}</div>
+                <div class="alert alert-success" ng-show="vm.showSuccess" aria-live="assertive">{{vm.success}}</div>
+            </div>
+
+            <div data-shaam-group-validation="" group-name="zehut">
+                <div class="bluediv">
+                    <div class="row">
+                        <div class="col-sm-2">
+                            <label for="yeshut" class="required">
+                                מספר הישות
+                            </label>
+                        </div>
+
+                        <div class="col-sm-3" data-shaam-id-textbox="" aria-required="true" name="yeshut"
+                             id="yeshut" data-group-validation="vm.zehut" is-focus="vm.isFocusMisYeshut"
+                             value="vm.misYeshut" data-is-req="vm.isShowZehutErr"
+                             disable="vm.isShowMisMuzag" ng-keyup="$event.keyCode==13?vm.keyUpFunction($event):null">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="imutTaagid" ng-show="vm.isShowImutTaagid">
+                <br />
+                <h4>אימות הישות (תאגיד)</h4>
+
+                <div data-shaam-group-validation="" group-name="zehutTaagid">
+                    <div class="bluediv">
+                        <div class="row" ng-repeat="taagid in vm.taagidList">
+                            <div class="col-sm-6">
+                                <div class="row">
+                                    <div class="col-sm-7">
+                                        <label for="txtTagid">
+                                            {{taagid.txtTaagid}} {{taagid.misTaagidKodem}}:
+                                        </label>
+                                    </div>
+
+                                    <div class="col-sm-5">
+                                        <div data-shaam-id-textbox="" name="txtTagid"
+                                             data-group-validation="vm.zehutTaagid"
+                                             value="taagid.misTaagid" disable="taagid.disableTaagid"
+                                             data-is-req="vm.isShowZehutErr" change-id="vm.changeTaagid(newValue)"
+                                             ng-keyup="$event.keyCode==13?vm.keyUpFunction($event):null">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-sm-6">
+                                <div class="row">
+                                    <div class="col-sm-1"></div>
+                                    <div ng-show="taagid.showErrTaagid">
+                                        <div class="col-sm-5" ng-show="taagid.sugTaagid == 4">
+                                            <label class="errfont fontbold">{{taagid.txtErr}}</label>
+                                        </div>
+                                    </div>
+                                    <div ng-show="taagid.showErrTaagid">
+                                        <div class="col-sm-7" ng-hide="taagid.sugTaagid == 4">
+                                            <label class="errfont fontbold">{{taagid.txtErr}}</label>
+                                        </div>
+                                    </div>
+                                    <div class="col-sm-1 icon helpp " ng-click="vm.isImutChevraOpen=true"></div>
+                                    <div class="col-sm-5"><a href='' ng-click="vm.BaalMenayotZarOpen=true">בעל מניות זר</a></div>
+                                    <div class="col-sm-5" ng-show="taagid.sugTaagid == 4"><a href='' ng-click="vm.isImutChevraOpen=true">סוגי תפקיד לבדיקה</a></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="imutToshavIsrael" ng-show="vm.showToshavIsrael">
+                <br />
+                <h4>{{vm.koteretImutToshavIsrael}}</h4>
+
+                <div class="alert alert-danger" data-ng-bind="vm.tzHoreYeledGroup.ErrorMsg" ng-show="vm.tzHoreYeledGroup.isShowErrorMsg()"></div>
+                <div class="alert alert-danger" ng-show="vm.isShowImutToshavIsraelErr && !vm.tzHoreYeledGroup.isShowErrorMsg()">{{vm.imutToshavIsraelErr}}</div>
+
+                <div class="bluediv">
+                    <br />
+                    <div class="row">
+                        <div class="col-sm-2">
+                            <label for="taarichLeda" class="required">
+                                תאריך לידה
+                            </label>
+                        </div>
+                        <div class="col-sm-7">
+                            <div class="row">
+                                <div class="col-sm-6" shaam-date-picker max="vm.max" min="vm.min"
+                                     is-out-of-range-visible="false" clean-date="vm.cleanDate"
+                                     value-as-string="vm.taarichLeda" ng-focus="vm.isFocusTarLeda"
+                                     disable-dates="vm.disableDates" datechange="vm.changeMe(newDate)"
+                                     value-date="vm.selectedDate" enabledatepicker="vm.enabledate">
+                                </div>
+                                <div class="col-sm-5">
+                                    <span>(במבנה ddmmyyyy)</span>
+                                </div>
+                                <div class="col-sm-1 icon helpp " ng-click="vm.isTarLedaHaanchayotOpen=true"></div>
+                            </div>
+                        </div>
+
+                    </div>
+                    <br />
+                    <div class="row">
+                        <div class="col-sm-5">
+                            <p class="fontbold">חובה למלא אחד מהשדות הבאים</p>
+                        </div>
+                    </div>
+
+
+                    <div data-shaam-group-validation="" group-name="tzHoreYeledGroup">
+                        <div class="row">
+                            <div class="col-sm-3">
+                                <div shaam-radio-buttons btntype="ת.ז הורה" btn-disable="false" name="rbDarconRishayonTz" btn-checked="vm.checked1" value="vm.checked1" btnclick="vm.rbTzHoreYeled()"></div>
+                            </div>
+                            <label for="horeYeled" ng-show="false" class="required">
+                                ת.ז הורה
+                            </label>
+                            <div class="col-sm-3" data-shaam-id-textbox="" name="horeYeled"
+                                 data-group-validation="vm.tzHoreYeledGroup"
+                                 value="vm.tzHoreYeled" data-is-req="vm.isShowTzHoreYeledGroup"
+                                 disable="vm.disableTzHoreYeled">
+                            </div>
+                        </div>
+                    </div>
+
+                    <br />
+                    <div class="row">
+                        <div class="col-sm-3">
+                            <div shaam-radio-buttons btntype="מספר רישיון נהיגה" btn-disable="false" name="rbDarconRishayonTz" btn-checked="vm.checked2" value="vm.checked2" btnclick="vm.rbRishayon()"></div>
+                        </div>
+                        <div class="col-sm-3">
+                            <div shaam-num-only selected-num="vm.rishayon" length="8" disable-num="vm.disableRishayon"></div>
+                        </div>
+                        <div class="col-sm-2 icon helpp " data-shaam-tooltip="מספר רישיון נהיגה לרשיונות שהונפקו עד 07/08/2017." ng-click="vm.isRishayonHaanchayotOpen=true"></div>
+                    </div>
+                    <br />
+                    <div class="row">
+                        <div class="col-sm-3">
+                            <div shaam-radio-buttons btntype="מספר דרכון ישראלי" btn-disable="false" name="rbDarconRishayonTz" btn-checked="vm.checked3" value="vm.checked3" btnclick="vm.rbDarcon()"></div>
+                        </div>
+                        <div class="col-sm-3">
+                            <div shaam-num-only selected-num="vm.darconToshavIsrael" length="10" disable-num="vm.disableDarconToshavIsrael"> </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+            <!--<div id="imutToshavChootz" ng-show="vm.showToshavChootz">
+                <br />
+                <h4>אימות המיוצג (תושב חוץ)</h4>
+
+                <div class="alert alert-danger" ng-show="vm.isShowImutToshavChootzErr">{{vm.imutToshavChootzErr}}</div>
+
+                <div class="bluediv">
+                    <div class="row">
+                        <div class="col-sm-3">
+                            <label for="darconToshavChootz" class="required">
+                                מספר דרכון
+                            </label>
+                        </div>
+                        <div class="col-sm-3">
+                            <div shaam-general-input selected-input="vm.darconToshavChootz" length="12" change-input="vm.changeinput()" disable-input="false"> </div>
+                        </div>
+                    </div>
+                    <br />
+                    <div class="row">
+                        <div class="col-sm-3">
+                            <label for="tarHanpakaDarcon" class="required">
+                                תאריך הנפקת דרכון
+                            </label>
+                        </div>
+                        <div class="col-sm-1">
+                            <div shaam-date-picker max="vm.max" min="vm.min"
+                                 is-out-of-range-visible="false"
+                                 value-as-string="vm.taarichHanpakaDarcon"
+                                 disable-dates="vm.disableDates" datechange="vm.changeMe()"
+                                 value-date="vm.selectedDate" enabledatepicker="vm.enabledate"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>-->
+
+
+            <div class="row">
+                <div class="col-sm-12 text-left">
+                    <div shaam-buttons btnclick="vm.hemshech()" btntype="hemshech" enablebtn="vm.enablebtnHemshech"></div>
+                    <div shaam-buttons btnclick="vm.nikuy()" btntype="nikui" enablebtn="vm.enablebtnNikuy"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div name="imutChevraHanchayot" shaam-window-open-close
+     is-window-open="vm.isImutChevraOpen"
+     enablebtncancel="false"
+     btclickcancel="vm.btcancelChevraOpen()"
+     window-title="הנחיות">
+    <div>
+        <p>האימות יתבצע לפי מספר זהות של תושב שהוא בעל תפקיד בתאגיד, לפי הכללים הבאים:</p>
+        <span class="fontbold">חברה - </span> <span>בעל מניה.</span>
+        <div class="row">
+            <div class="col-sm-1"></div>
+            <p class="col-sm-11">אם כל בעלי המניות בחברה הם חברות, יש למלא מספר חברה בעלת מניות אשר יש לה בעל מניות שהוא יחיד.</p>
+        </div>
+        <div class="row">
+            <div class="col-sm-1"></div>
+            <p class="col-sm-11">ניתן למלא בצורה זו עד 5 חברות. אם לאף אחת מהן אין בעל מניות שהוא יחיד - הבקשה תועבר אוטומטית לטיפול מטה מרשם המייצגים.</p>
+        </div>
+        <span class="fontbold">שותפות - </span> <span>שותף רגיל או שותף מייצג.</span>
+        <br />
+        <span class="fontbold">עמותה פעילה - </span> <span>מנהל כללי, סגן מנהל כללי, מורשה חתימה.</span>
+        <br />
+        <span class="fontbold">עמותה בהליכי פירוק - </span> <span>מפרק, מפרק זמני, מנהל מיוחד, נאמן, כונס נכסים.</span>
+    </div>
+</div>
+
+<div name="rishayonHaanchayot" shaam-window-open-close
+     is-window-open="vm.isRishayonHaanchayotOpen"
+     enablebtncancel="false"
+     btclickcancel="vm.btRishayonCancel()"
+     window-title="הנחיות">
+    <div>
+        <p>המידע המשמש לזיהוי מתעדכן ממשרד התחבורה אחת לתקופה.</p>
+        <p>אם הונפק עבורכם רישיון נהיגה חדש, אחרי ה- 07/08/2017 יכול להיות שמספרו טרם עודכן במערכת.</p>
+        <p>במקרה כזה, הזינו את מספר הרישיון הישן ואם אינכם יודעים אותו, נסו שאלה אחרת</p>
+    </div>
+</div>
+
+<div name="tarLedaHaanchayot" shaam-window-open-close
+     is-window-open="vm.isTarLedaHaanchayotOpen"
+     enablebtncancel="false"
+     btclickcancel="vm.btTarLedaHaanchayotCancel()"
+     window-title="הנחיות">
+    <div>
+        <p>כאשר לא צוין בתעודת זהות יום או חודש בתאריך הלידה, </p>
+
+        <p>יש למלא 01 במקום החסר, לדוגמא 0101YYYY.</p>
+    </div>
+</div>
+
+<div name="BaalMenayotZar" shaam-window-open
+     is-window-open="vm.BaalMenayotZarOpen"
+     enablebtncancel="false" enablebtnok="false"
+     btclickok="vm.btnBaalMenayotZarOk()" btclickcancel="vm.btnBaalMenayotZarCancel()"
+     window-title="הבהרה לנושא בעל מניה זר">
+    <div>
+        <div class="alert alert-danger" data-ng-bind="vm.errBaalMenayaZar" ng-show="vm.isShowErrBaalMenayaZar"></div>
+        <div class="row">
+            <div class="col-sm-10">
+                <div class="row">
+                    <div class="col-sm-1"></div>
+                    <div class="col-sm-1">
+                        <input type="checkbox" class="required" ng-change="vm.changeBaalMenayotZar(cbMaChecked)" ng-disabled="false" ng-model="vm.isCheckeBaalMenayotZar" />
+                    </div>
+                    <div class="col-sm-10">
+                        <p>אני מאשר\ת שכל בעלי המניות הם ישויות זרות</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <p>לידיעתך, הבקשה תועבר לטיפול מחלקת מרשם המייצגים בחטיבת שירות לקוחות.</p>
+      
+    </div>
+</div>
+
+<div name="wind" shaam-window-open is-window-open="vm.isWindowOpenOtonomia" btclickok="vm.btok()"
+      btclickcancel="vm.btcancel()" 
+     is-focus-ok-btn="true"  is-focus-cancel-btn="false"  enablebtncancel="false"
+       enablebtnok="false"  window-title="לתשומת ליבך"> אם כוונתך לתיק ניכויים יש ללחוץ על ביטול ולהזין כאן מספר זהות או מספר תאגיד השייכים לתיק. </div> 
+ <br />
+<a href="" ng-click="vm.isWindowOpenOtonomia=true"></a>
+
+<div please-wait is-prog-on="vm.isProgOn"></div>
+

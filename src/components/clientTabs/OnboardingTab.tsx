@@ -28,7 +28,7 @@ import type { AdvanceResult } from '../../hooks/useOnboarding';
 import InstitutionAlignmentGroup, { InstitutionFocus } from './InstitutionAlignment';
 import AuthoritiesPanel from '../authorities/AuthoritiesPanel';
 import { NEXT_ACTION, nextStepForClient } from '../../utils/onboardingNext';
-import { representationAction } from '../../utils/representationAction';
+import { representationAction, type RepSendPhase } from '../../utils/representationAction';
 import { relativeTime } from '../../utils/clientDerived';
 import { formatDate } from '../../utils/dateFormat';
 import { calcTotals, formatILS } from '../../utils/quotationCalc';
@@ -109,6 +109,8 @@ interface Props {
   repStatus?: RepresentationStatus;
   /** 191: שורה אחת על הקליטה — עד איפה הלקוח הגיע / צילום תעודה שחסר. */
   repNote?: string;
+  /** הטופס מוכן אבל המייל לא יצא — ראה repSendPhase. */
+  repSendPhase?: RepSendPhase | null;
   /** קפיצה למרכז הייצוג — המסך שבו העבודה באמת נעשית. */
   onOpenRepresentation?: () => void;
   /** מעבר ללשונית המסמכים — משם ניגשים למה שהרו"ח הקודם שלח. */
@@ -336,7 +338,7 @@ const COLLECTION_METHODS = ['הוראת קבע בבנק', 'כרטיס אשראי
 
 export default function OnboardingTab({
   clientId, client, onClientPersisted, engagements, steps, events, loading, advance, refresh,
-  prevAccountant, onPrepareReleaseLetter, quotations, repStatusLabel, repStatus, repNote, onOpenRepresentation,
+  prevAccountant, onPrepareReleaseLetter, quotations, repStatusLabel, repStatus, repNote, repSendPhase, onOpenRepresentation,
   onOpenDocuments,
   clientDisplayName, clientEmail, embedded, ballFilter, onOpenTaxFile,
   niExecution, onUpdateClientFields, onRequestAuthorityRepresentation, onNiInstructionsSent, onAttentionSummary,
@@ -1400,6 +1402,7 @@ export default function OnboardingTab({
                     statusLabel={repStatusLabel}
                     repStatus={repStatus}
                     repNote={repNote}
+                    repSendPhase={repSendPhase}
                     onOpen={onOpenRepresentation}
                     menu={menu}
                   />
@@ -3212,20 +3215,21 @@ function RepresentationUpgradeCard(p: UpgradeCardProps) {
 // מה שכן יש: הדלת למרכז הייצוג, כי משם עושים את העבודה — וגיא צדק שלא
 // הגיוני לצאת למסך הלקוחות כדי למצוא אותה.
 
-function RepresentationStepCard({ step, stepById, highlight, statusLabel, repStatus, repNote, onOpen, menu }: {
+function RepresentationStepCard({ step, stepById, highlight, statusLabel, repStatus, repNote, repSendPhase, onOpen, menu }: {
   step: OnboardingStep;
   stepById: Map<string, OnboardingStep>;
   highlight: boolean;
   statusLabel?: string;
   repStatus?: RepresentationStatus;
   repNote?: string;
+  repSendPhase?: RepSendPhase | null;
   onOpen?: () => void;
   menu: React.ReactNode;
 }) {
   const open = isStepOpen(step.status);
   // ‼ הסטטוס אומר במה השלב נמצא; הפעולה אומרת מה לעשות. "אין כאן מה לסמן
   // ידנית" נכון לגבי השלב, ונקרא בטעות כ"אין מה לעשות" — ואז מחפשים במסכים.
-  const act = open && repStatus ? representationAction(repStatus) : null;
+  const act = open && repStatus ? representationAction(repStatus, repSendPhase) : null;
   return (
     <StepCardShell step={step} stepById={stepById} highlight={highlight} menu={menu}
       statusLabel={act ? act.action : statusLabel}

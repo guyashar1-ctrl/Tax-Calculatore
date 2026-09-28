@@ -109,7 +109,7 @@ export interface PortalItem {
   needsBusinessName?: boolean;
   businessName?: string;
   /** רשימת המסמכים שביקשנו — מה התקבל ומה עוד חסר. */
-  checklist?: { key: string; label: string; done: boolean }[];
+  checklist?: { key: string; label: string; done: boolean; /** 204 · למה מבקשים — למשל «נדרש על ידי רשות המסים להשלמת הייצוג». */ note?: string }[];
   /** דרישות של בקשה חופשית — שדות בתוך בקשה אחת, כל אחד עם סוג ו-חובה/רשות. */
   requirements?: {
     key: string;
@@ -235,9 +235,9 @@ async function confirmOpened(href: string | undefined | null): Promise<boolean> 
  * ‼ הקובץ נכנס ישירות לתיק של הלקוח אצל הרו"ח ומסמן את הפריט. אין שלב ביניים
  * של "ממתין לאישור" — מה שהגיע, הגיע, וההחלטה אם הוא תקין נשארת אצל הרו"ח.
  */
-function UploadItem({ token, tokenKind, stepId, itemKey, label, done, brand, accent, onDone }: {
+function UploadItem({ token, tokenKind, stepId, itemKey, label, note, done, brand, accent, onDone }: {
   token: string; tokenKind: 'portal' | 'release';
-  stepId: string; itemKey: string; label: string; done: boolean;
+  stepId: string; itemKey: string; label: string; note?: string; done: boolean;
   brand: { ink: string; muted: string; border: string; radius: number };
   accent: string; onDone: () => void;
 }) {
@@ -274,7 +274,9 @@ function UploadItem({ token, tokenKind, stepId, itemKey, label, done, brand, acc
           flex: 1, minWidth: 120, fontSize: 13,
           color: done ? brand.muted : brand.ink,
           textDecoration: done ? 'line-through' : 'none',
-        }}>{label}</span>
+        }}>{label}{note && !done && (
+          <span data-testid="upload-item-note" style={{ display: 'block', fontSize: 12, color: brand.muted, textDecoration: 'none' }}>{note}</span>
+        )}</span>
         {!done && !previewMode && (
           <>
             <input id={inputId} type="file" accept={ACCEPT} disabled={busy}
@@ -570,7 +572,7 @@ function ActionItem({ token, item, brand, accent, last, onDone }: {
         <ul style={{ margin: '12px 0 0', padding: 0, listStyle: 'none', display: 'grid', gap: 2, borderTop: `1px dashed ${brand.border}`, paddingTop: 8 }}>
           {item.checklist.map(ci => (
             <UploadItem key={ci.key ?? ci.label} token={token} tokenKind="portal"
-              stepId={item.actionValue!} itemKey={ci.key} label={ci.label} done={ci.done}
+              stepId={item.actionValue!} itemKey={ci.key} label={ci.label} note={ci.note} done={ci.done}
               brand={brand} accent={accent} onDone={onDone} />
           ))}
         </ul>

@@ -25,8 +25,8 @@ import { attach, detach } from '../browserSession.mjs';
 import {
   openRepresentationSystem, startNewRequest, verifyEntity,
   readExistingRepresentations, selectRequestedSystems, confirmSystemsStep,
-  fillContactDetails, capturePdf, fetchGeneratedForm,
-  findRequestRows, createPreflightDecision,
+  fillContactDetailsAndCaptureForm, splitShaamPhone,
+  findRequestRows, createPreflightDecision, classifyRequestGroup,
 } from '../shaamRepresentationSession.mjs';
 import { reportedRows, allRowsAccepted } from './shaamCheckRepresentation.mjs';
 import { NeedsHumanError, PermanentError } from '../errors.mjs';
@@ -95,7 +95,24 @@ export function validate(input) {
       throw new PermanentError(`חסר מספר תיק ל-${s.screenLabel} — לא מזינים בלעדיו.`, 'missing_file_number');
     }
   }
-  return { submissionKey, role, entityId, birthDate, systems, secondary: input.secondary, personName };
+  // ‼ 28.09.2026 · שע״ם דורשת במסך פרטי ההתקשרות טלפון של המיוצג (קידומת + 7
+  // ספרות) — אלא אם יש לה כבר טלפון מאומת, ואת זה אי אפשר לדעת מראש. המסך הזה
+  // בא **אחרי** שהבקשה נוצרה, ולכן בודקים כאן, לפני כל נגיעה בשע״ם.
+  const clientPhone = String(input?.clientPhone ?? '').trim();
+  if (!splitShaamPhone(clientPhone)) {
+    throw new PermanentError(
+      `חסר מספר טלפון תקין של ${personName} בכרטיס — שע״ם מבקשת אותו כדי לשלוח ללקוח את הקישור לאישור הייצוג.`,
+      'missing_client_phone',
+    );
+  }
+  const spousePhone = String(input?.spousePhone ?? '').trim();
+  if (spousePhone && !splitShaamPhone(spousePhone)) {
+    throw new PermanentError('מספר הטלפון של בן/בת הזוג בכרטיס אינו תקין — תקנו אותו לפני ההזנה בשע״ם.', 'bad_spouse_phone');
+  }
+  return {
+    submissionKey, role, entityId, birthDate, systems, secondary: input.secondary, personName,
+    clientPhone, spousePhone, clientEmail: String(input?.clientEmail ?? '').trim(),
+  };
 }
 
 /**
@@ -103,7 +120,7 @@ export function validate(input) {
  * **הזרימה עצמה** (מה נקרא, מה נעצר, כמה פעמים נוצר) בלי דפדפן ובלי רשות.
  */
 export const DEFAULT_DEPS = {
-  attach, detach, detectBlockingSignal, openRepresentationSystem, findRequestRows, startNewRequest, verifyEntity, readExistingRepresentations, selectRequestedSystems, confirmSystemsStep, fillContactDetails, capturePdf, fetchGeneratedForm, putDocument, captureDiagnostics, progressTracker,
+  attach, detach, detectBlockingSignal, openRepresentationSystem, findRequestRows, startNewRequest, verifyEntity, readExistingRepresentations, selectRequestedSystems, confirmSystemsStep, fillContactDetailsAndCaptureForm, putDocument, captureDiagnostics, progressTracker,
 };
 
 export async function run(ctx, input, deps = {}) {
@@ -184,7 +201,8 @@ export async function run(ctx, input, deps = {}) {
           observedAt,
           rows,
           allAccepted: allRowsAccepted(rows),
-          requestNumber: rows.find(r => r.requestNumber)?.requestNumber ?? '',
+          settled: allRowsAccepted(rows) || classifyRequestGroup(pre.rows) === 'settled',
+          requestNumber: pre.requestNumber || (rows.find(r => r.requestNumber)?.requestNumber ?? ''),
           note: 'בשע״ם כבר קיימת בקשת ייצוג לאדם הזה — לא נפתחה בקשה נוספת.',
         },
       };
@@ -208,13 +226,36 @@ export async function run(ctx, input, deps = {}) {
       );
     }
 
+    // ‼ «המשך» אחרי מספר הישות הוא בדיקה (checkYeshut), לא אימות זהות: שום
+    // דבר לא נוצר ושום ניסיון אימות לא נספר. שע״ם עונה כאן אם צריך אימות.
     const started = await d.startNewRequest(page, v.entityId);
     if (!started.ok) {
-      if (started.reason === 'entity_mismatch') {
+      if (started.reason === 'entity_mismatch' || started.reason === 'new_request_screen_not_fresh') {
         throw new PermanentError(
-          `מסך הבקשה החדשה כבר מכיל ישות אחרת (${started.current}). סגרו את המסך בשע״ם והריצו שוב.`,
-          'entity_mismatch',
+          started.reason === 'entity_mismatch'
+            ? `מסך הבקשה החדשה כבר מכיל ישות אחרת (${started.current}). סגרו את המסך בשע״ם והריצו שוב.`
+            : 'מסך הבקשה החדשה בשע״ם כבר באמצע תהליך. סגרו אותו (או עברו ל«בקשות בתהליך») והריצו שוב.',
+          started.reason,
         );
+      }
+      if (started.reason === 'shaam_manual_handling') {
+        throw new NeedsHumanError(
+          `שע״ם לא מאפשרת אימות מקוון לישות הזאת: «${started.detail}». לא נפתחה בקשה ולא נוצל אימות. ` +
+          'ההחלטה אם להגיש כך (לטיפול מחלקת המייצגים) היא שלכם — המשיכו ידנית בשע״ם.',
+          'shaam_manual_handling',
+        );
+      }
+      if (started.reason === 'entity_rejected') {
+        throw new NeedsHumanError(
+          `שע״ם דחתה את מספר הישות: «${started.detail}». לא נפתחה בקשה ולא נוצל אימות.`,
+          'entity_rejected',
+        );
+      }
+      if (started.reason === 'entity_is_corporation') {
+        throw new PermanentError('שע״ם מזהה את הישות כתאגיד — האוטומציה מטפלת רק ביחידים. יש להזין ידנית.', 'entity_is_corporation');
+      }
+      if (started.reason === 'unknown_dialog') {
+        throw new NeedsHumanError(`שע״ם הציגה חלונית לא מוכרת בבדיקת הישות: «${started.text}». לא אושרה.`, 'unknown_dialog');
       }
       const diag = await d.captureDiagnostics(page, 'בקשה חדשה');
       ctx.log('אבחון מסך:', JSON.stringify(diag));
@@ -230,13 +271,21 @@ export async function run(ctx, input, deps = {}) {
     const verified = await d.verifyEntity(page, {
       birthDateDDMMYYYY: v.birthDate,
       secondary: v.secondary,
+      needsVerification: started.needsVerification,
     });
     if (!verified.ok) {
       const signal = await d.detectBlockingSignal(page);
       if (signal) throw blockingError(signal, 'אימות הישות בשע״ם');
+      if (verified.reason === 'verification_input_rejected_on_screen') {
+        throw new NeedsHumanError(
+          `המסך בשע״ם לא קיבל את פרטי האימות («${verified.detail}») ולכן לא נשלחו לבדיקה — האימות לא נוצל. ` +
+          'בדקו את תאריך הלידה ואת אמצעי הזיהוי הנוסף בכרטיס.',
+          'verification_input_rejected',
+        );
+      }
       if (verified.reason === 'verification_rejected') {
         throw new NeedsHumanError(
-          'שע״ם לא אישרה את פרטי אימות הישות. המערכת לא תנסה שוב מעצמה — ' +
+          `שע״ם לא אישרה את פרטי אימות הישות («${verified.detail ?? ''}»). המערכת לא תנסה שוב מעצמה — ` +
           'ניסיונות חוזרים על אימות זהות עלולים לחסום את המשתמש בשע״ם. ' +
           'יש לבדוק מול הלקוח את תאריך הלידה ואת אמצעי הזיהוי הנוסף (ת.ז. הורה / ' +
           'רישיון נהיגה / דרכון), לעדכן בכרטיס, ורק אז להפעיל שוב ידנית.',
@@ -288,6 +337,19 @@ export async function run(ctx, input, deps = {}) {
 
     const confirmed = await d.confirmSystemsStep(page);
     if (!confirmed.ok) {
+      if (confirmed.reason === 'systems_rejected') {
+        throw new NeedsHumanError(
+          `שע״ם לא אישרה את פרטי התיקים: «${confirmed.detail}». לא נפתחה בקשה.`,
+          'systems_rejected',
+        );
+      }
+      if (confirmed.reason === 'create_outcome_unknown') {
+        throw new NeedsHumanError(
+          'אישרתי בשע״ם את פתיחת הבקשה, אבל המסך הבא לא הגיע — לא ידוע אם הבקשה נוצרה. ' +
+          'אל תפתחו בקשה נוספת: לחצו «בדוק קבלת הייצוג», והיא תאותר לפי תעודת הזהות.',
+          'create_outcome_unknown',
+        );
+      }
       if (confirmed.reason === 'unknown_dialog') {
         throw new NeedsHumanError(
           `שע״ם הציגה חלונית שלא מוכרת לאוטומציה, ולכן לא אושרה: «${confirmed.text}». ` +
@@ -303,39 +365,38 @@ export async function run(ctx, input, deps = {}) {
     // ‼ שומרים את המזהה החיצוני **מיד**, לפני כל שלב נוסף: קריסה מכאן
     // והלאה חייבת להשאיר את המספר בידינו, אחרת ניסיון חוזר לא ידע שכבר
     // נוצרה בקשה והיה מנסה ליצור שנייה.
-    await progress.set({ requestNumber, stage: 'request_created' });
+    await progress.set({ requestNumber, stage: 'request_created', ...(confirmed.notice ? { creationNotice: confirmed.notice } : {}) });
 
     // ── פרטי התקשרות + לכידת הטופס שמופק ─────────────────────────────────
-    let captured = null;
-    const contact = await d.capturePdf(
-      page,
-      async () => {
-        const r = await d.fillContactDetails(page, { spousePhone: input?.spousePhone });
-        captured = r;
-      },
-      { timeoutMs: 45000 },
+    // ‼ מכאן הבקשה קיימת בשע״ם. כל עצירה אומרת את זה במפורש, עם המספר.
+    const afterCreate = (what, code) => new NeedsHumanError(
+      `הבקשה נפתחה בשע״ם (${requestNumber}), אבל ${what}. אל תפתחו בקשה נוספת: השלימו בשע״ם את ` +
+      'פרטי ההתקשרות והורידו את הטופס, ואז «העלה טופס וסמן אזורי חתימה» בבקשה ב-PIVO.',
+      code,
     );
-    if (!captured?.ok) {
-      if (captured?.reason === 'spouse_phone_required_but_missing') {
-        throw new NeedsHumanError(
-          'שע״ם מבקשת מספר טלפון של בן/בת הזוג, והוא אינו קיים בכרטיס. ' +
-          'השלימו אותו בפרטי הקשר של הלקוח והריצו שוב — המערכת לא ממציאה מספר.',
-          'missing_spouse_phone',
-        );
+    const contact = await d.fillContactDetailsAndCaptureForm(page, {
+      clientPhone: v.clientPhone, spousePhone: v.spousePhone, clientEmail: v.clientEmail,
+    });
+    if (!contact?.ok) {
+      if (contact?.reason === 'spouse_phone_required_but_missing') {
+        throw afterCreate('שע״ם דורשת את הטלפון של בן/בת הזוג (חתימה משותפת) והוא אינו בכרטיס', 'missing_spouse_phone');
       }
-      throw navFailure('פרטי התקשרות', captured ?? { reason: 'contact_step_failed' });
+      if (contact?.reason === 'client_phone_required_but_missing') {
+        throw afterCreate('שע״ם דורשת את הטלפון של המיוצג והוא אינו בכרטיס', 'missing_client_phone');
+      }
+      if (contact?.reason === 'phone_prefix_not_in_list') {
+        throw afterCreate(`הקידומת ${contact.detail} אינה ברשימת הקידומות של שע״ם`, 'phone_prefix_not_in_list');
+      }
+      if (contact?.reason === 'contact_save_error') {
+        throw afterCreate(`שמירת פרטי ההתקשרות נדחתה: «${contact.detail}»`, 'contact_save_error');
+      }
+      throw afterCreate(`שלב פרטי ההתקשרות נעצר (${contact?.reason ?? 'unknown'}${contact?.detail ? ` — ${contact.detail}` : ''})`, 'contact_step_failed');
     }
-
-    const form = await d.fetchGeneratedForm(page, { alreadyCaptured: contact });
-    if (!form.ok) {
-      // ‼ הבקשה כבר נוצרה — לכן זו **לא** שגיאה סופית: הטופס ניתן להבאה
-      // בניסיון חוזר, שיתחיל מהשלב הנכון בזכות requestNumber שנשמר.
-      throw new NeedsHumanError(
-        `הבקשה נפתחה בשע״ם (${requestNumber}), אבל לא הצלחתי להביא את טופס ייפוי הכוח (${form.reason}). ` +
-        'פתחו את הבקשה בשע״ם, ודאו שהטופס הופק, והריצו שוב.',
-        'form_not_captured',
-      );
+    const form = contact.form;
+    if (!form?.ok) {
+      throw afterCreate(`לא הצלחתי להביא את טופס ייפוי הכוח (${form?.reason ?? 'unknown'})`, 'form_not_captured');
     }
+    const captured = contact;
 
     const documentId = `poa-pdf-${input.requestId}-${v.submissionKey.replace(/[^a-z0-9]+/gi, '-')}`;
     const fileName = input?.formFileName || `ייפוי כוח לחתימה - ${input?.personName || v.entityId}.pdf`;
@@ -364,6 +425,8 @@ export async function run(ctx, input, deps = {}) {
         formBytes: stored.size,
         systems: v.systems.map(s => s.screenLabel),
         spousePhoneAsked: !!captured.spousePhoneAsked,
+        // ‼ 28.09 · «לידיעתך» של שלב 2 כמו שהוא — מה שע״ם אמרה שיש לצרף.
+        ...(confirmed.notice ? { creationNotice: confirmed.notice } : {}),
       },
       artifacts: [{ kind: 'poa_form', documentId, fileName, source: form.source }],
     };

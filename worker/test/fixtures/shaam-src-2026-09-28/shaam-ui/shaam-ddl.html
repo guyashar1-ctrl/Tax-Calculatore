@@ -1,0 +1,19 @@
+<div class="k-rtl" >
+  
+    <div please-wait is-prog-on="vm.isProgOn"></div>
+    <select kendo-drop-down-list k-data-source="vm.sources" ng-style="vm.mystyle" k-rebind="vm.sources"
+           name="{{vm.name}}" id="{{vm.name}}"
+           shaam-input-custom-validation-name="{{vm.customValidationName}}"
+           shaam-input-custom-validation-error-message="vm.customValidationErrorMessage"
+           shaam-input-custom-validation="vm.customValidationCallBack({value:value})"
+           group-validation="vm.groupValidation" 
+           k-data-text-field="vm.textField" k-data-value-field="vm.valueField" ng-class="vm.cssclass" ng-change="vm.changeddl1()"
+           k-ng-model="vm.selectedObjWebApi" ng-model="vm.selectedValDdl" ng-disabled="vm.disableddl" />
+</div>
+
+
+
+
+
+
+

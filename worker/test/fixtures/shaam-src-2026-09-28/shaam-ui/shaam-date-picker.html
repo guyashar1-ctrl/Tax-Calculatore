@@ -1,0 +1,16 @@
+<div class="k-rtl">
+    <input title="יש להקליד תאריך בפורמט 'dd mm yyyy'" type="text" maxlength="10" kendo-date-picker ng-class="vm.cssclass"
+           id="{{vm.name}}" 
+           aria-required="{{vm.isReq}}"
+           k-ng-model="vm.valueDate"
+           k-options="vm.optionsd"
+           ng-keypress="vm.preventTyping($event)"
+           k-disable-dates="vm.disableDates"
+           k-on-change="vm.dateChangedLocal()"
+           ng-paste="vm.pastedate($event)"
+           ng-blur="vm.menualDate($event)"
+           k-rebind="vm.optionsd"
+           ng-disabled="vm.enabledatepicker" />
+  
+</div>
+

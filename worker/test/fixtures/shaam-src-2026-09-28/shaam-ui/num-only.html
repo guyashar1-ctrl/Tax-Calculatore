@@ -1,0 +1,12 @@
+<div>
+    <input ng-model="vm.selectedNum" ng-disabled="vm.disableNum" ng-change="vm.changeNum()" ng-style="vm.mywidth"
+           ng-blur="vm.numOnlyBlur1($event)" ng-class="vm.cssclass" maxlength="{{vm.length}}"
+           data-toggle="popover" data-content="יש להקליד ספרות בלבד"
+           ng-keypress="vm.checknumber($event)"
+           name="{{vm.name}}" id="{{vm.name}}" aria-required="{{vm.ariaReq}}"
+           ng-focus="vm.focusNumbersOnlyf($event)"
+           data-shaam-input-custom-validation-error-message="vm.customValidationErrorMessage"
+           data-shaam-input-custom-validation="vm.customValidationCallBack({value:value})"
+           data-shaam-input-custom-validation-name="{{vm.customValidationName}}"
+           group-validation="vm.groupValidation" />
+</div>

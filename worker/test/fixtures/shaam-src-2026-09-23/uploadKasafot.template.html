@@ -1,0 +1,138 @@
+
+<div class="row">
+
+    <div pirtey-myz-oved-etzel-myzg></div>
+
+    <div class="col-sm-9">
+        <div koteret mis-yeshut="vm.misY" shem-yeshut="vm.shemYeshut" asmachta="vm.asmahata" page-index="3" koteret-mishnit="'טעינת מסמכים למיוצג'" melel-hashaya="0" is-show-mis-bakasha="true" is-show-koteret-mishnit="true"></div>
+
+        <br />
+        <div class="row">
+            <div class="col-sm-12">
+                <h4>יש לטעון את המסמכים הבאים:</h4>
+                <div class="alert alert-danger" ng-show="vm.showErr">{{vm.err}}</div>
+                <div class="bluediv">
+                    <div ng-repeat="fl in vm.fileList">
+                        <div class="BoxA row" ng-show="fl.isShow">
+                            <div class="col-sm-4">
+                                <label class="required">{{fl.name}}</label>
+                            </div>
+                            <div class="col-sm-7">
+                                <u>{{fl.file[0].UploadName}}</u>
+                            </div>
+                            <div ng-hide="fl.isAdded">
+                                <input type="button" class="col-sm-1 icon plus" ng-click="vm.onClickTeinatMismachim(fl.id)" data-shaam-tooltip="טעינת מסמך" />
+                            </div>  
+                            <div ng-show="fl.isAdded">
+                                <div ng-click="vm.onClickTeinatMismachim(fl.id)" class="col-sm-1 icon replace"></div>
+                                <div class="col-sm-1 icon checkmark "></div>
+                            </div>
+                        </div>
+                        <div ng-show="fl.isShow == true ? true : false"><br /></div>
+                    </div>
+                </div>
+
+                <div class="col-sm-6" ng-show="vm.bz.hatzagatBz">
+                    <div class="row">
+                        <div class="col-sm-12" ng-hide="vm.bz.chovatChatimatBz">
+                            <div class="row">
+                                <div class="col-sm-1">
+                                    <input type="checkbox"  ng-disabled="false" ng-model="vm.isCheckeChatimatBz" />
+                                </div>
+                                <!--<div class="button-radio-set col-sm-1" shaam-check-box-buttons btntype="" btn-disable="false"
+                                     btn-checked="vm.isCheckeChatimatBz" value="" btnclick=""></div>-->
+                                <div class="col-sm-11">
+                                    <p>אני מאשר את חתימת בן\ת הזוג על טופס ייפוי הכוח</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-sm-12" ng-show="vm.bz.chovatChatimatBz">
+                            <div class="row">
+                                <div class="col-sm-1">
+                                    <input type="checkbox" class="required" ng-disabled="false" ng-model="vm.isCheckeChatimatBz" />
+                                </div>
+                                <div class="col-sm-11">
+                                    <p>אני מאשר את חתימת בן\ת הזוג על טופס ייפוי הכוח</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div please-wait is-prog-on="vm.isProgOn"></div>
+
+                <div class="row">
+                    <div class="col-sm-12 text-left">
+                        <div shaam-buttons btnclick="vm.hemshech()" btntype="hemshech" enablebtn="vm.enablebtnHemshech"></div>
+                        <div shaam-buttons btnclick="vm.chazara()" btntype="chazara" enablebtn="vm.enablebChazara"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div>
+    <div name="dialogMsgBeforeChazera" shaam-window-open is-window-open="vm.isWindowOpen"
+         btclickok="vm.btok()" btclickcancel="vm.btcancelDialogChazera()" enablebtncancel="false"
+         enablebtnok="false/true" window-title="הבהרה">
+        <p>לתשומת ליבך,</p>
+        <p>כדי לשמור את המסמך שצירפת, יש ללחוץ תחילה על כפתור "שמירה".</p>
+    </div>
+</div>
+
+<div name="dialogTeinatAsmachta" shaam-window-open-close is-window-open="vm.fileList[0].isOpenDialog"
+     btclickok="vm.btokTeinatMismachim()" btclickcancel="vm.btcancelTeinatMismachim(0)" enablebtncancel="false"
+     enablebtnok="false/true" window-title="טעינת בקשה/אסמכתא">
+
+    <div shaam-file-upload file-title="{{vm.fileTitle}}" preview="true" files="vm.fileList[0].file" metad="meta"
+         mode="1" multiple="false" allowed-file-extentions="['pdf']"
+         upload-file-succes="vm.uploadFile(0)" delete-file-succes="vm.deleteFile(0)" size-file="vm.sizeFile">
+    </div>
+</div>
+
+<div name="dialogTeinatTzilumTz" shaam-window-open-close is-window-open="vm.fileList[1].isOpenDialog"
+     btclickok="vm.btokTeinatMismachim()" btclickcancel="vm.btcancelTeinatMismachim(1)" enablebtncancel="false"
+     enablebtnok="false/true" window-title="טעינת תצלום תעודת זהות">
+
+    <div shaam-file-upload file-title="{{vm.fileTitle}}" preview="true" files="vm.fileList[1].file" metad="meta"
+         mode="1" multiple="false" allowed-file-extentions="['pdf']"
+         upload-file-succes="vm.uploadFile(1)" delete-file-succes="vm.deleteFile(1)" size-file="vm.sizeFile">
+    </div>
+</div>
+
+<div name="dialogTeinatTzavY" shaam-window-open-close is-window-open="vm.fileList[2].isOpenDialog"
+     btclickok="vm.btokTeinatMismachim()" btclickcancel="vm.btcancelTeinatMismachim(2)" enablebtncancel="false"
+     enablebtnok="false/true" window-title="טעינת צו ירושה">
+
+    <div shaam-file-upload file-title="{{vm.fileTitle}}" preview="true" files="vm.fileList[2].file" metad="meta"
+         mode="1" multiple="false" allowed-file-extentions="['pdf']"
+         upload-file-succes="vm.uploadFile(2)" delete-file-succes="vm.deleteFile(2)" size-file="vm.sizeFile">
+    </div>
+</div>
+
+<div name="dialogTeinatIpkH" shaam-window-open-close is-window-open="vm.fileList[3].isOpenDialog"
+     btclickok="vm.btokTeinatMismachim()" btclickcancel="vm.btcancelTeinatMismachim(3)" enablebtncancel="false"
+     enablebtnok="false/true" window-title="טעינת ייפויי כוח">
+
+    <div shaam-file-upload file-title="{{vm.fileTitle}}" preview="true" files="vm.fileList[3].file" metad="meta"
+         mode="1" multiple="false" allowed-file-extentions="['pdf']"
+         upload-file-succes="vm.uploadFile(3)" delete-file-succes="vm.deleteFile(3)" size-file="vm.sizeFile">
+    </div>
+</div>
+
+<div name="dialogTeinatTzilumDarkon" shaam-window-open-close is-window-open="vm.fileList[4].isOpenDialog"
+     btclickok="vm.btokTeinatMismachim()" btclickcancel="vm.btcancelTeinatMismachim(4)" enablebtncancel="false"
+     enablebtnok="false/true" window-title="טעינת צילום דרכון">
+
+    <div shaam-file-upload file-title="{{vm.fileTitle}}" preview="true" files="vm.fileList[4].file" metad="meta"
+         mode="1" multiple="false" allowed-file-extentions="['pdf']"
+         upload-file-succes="vm.uploadFile(4)" delete-file-succes="vm.deleteFile(4)" size-file="vm.sizeFile">
+    </div>
+</div>
+
+
+
+<div please-wait is-prog-on="vm.isProgOn"></div>
+
+

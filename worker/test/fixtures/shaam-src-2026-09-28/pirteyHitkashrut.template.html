@@ -1,0 +1,146 @@
+
+
+<div class="row">
+
+    <div pirtey-myz-oved-etzel-myzg></div>
+
+    <div class="col-sm-10">
+
+        <div koteret mis-yeshut="vm.dataFromPrevPages.misYeshut" shem-yeshut="vm.dataFromPrevPages.shemYeshut" asmachta="vm.dataFromPrevPages.asmahata[0]" page-index="2" koteret-mishnit="'פרטי התקשרות למיוצג'" melel-hashaya="0" is-show-mis-bakasha="true" is-show-koteret-mishnit="true"></div>
+
+        <br />
+        <div class="row">
+            <div class="col-sm-12">
+                <div class="alert alert-danger" data-ng-bind="vm.mail.ErrorMsg" ng-show="vm.mail.isShowErrorMsg()"></div>
+                <div class="alert alert-danger" ng-show="vm.showErr && !vm.mail.isShowErrorMsg()">{{vm.err}}</div>
+                <div class="alert alert-success" ng-show="vm.showSuccess">{{vm.success}}</div>
+
+                <div class="bluediv">
+                    <div class="row alert alert-info" ng-if="!vm.isAllMeumat">
+                        לתשומת לבך, הלקוח יקבל מסרון/מייל לפי הפרטים שרשמת. מומלץ לוודא את נכונותם כדי שההודעה תגיע ללקוח שלך ולא לאחר.
+                    </div>
+                    <div class="row">
+                        <div class="col-sm-6">
+                            <div class="row">
+                                <div class="col-sm-10">
+                                    <div class="row">
+                                        <div class="col-sm-4">
+                                            <p class="required"> טלפון מיוצג:</p>
+                                        </div>
+                                        <div class="col-sm-4" ng-show="vm.newData && ! vm.isPhoneMeumat">
+                                            <div shaam-num-only selected-num="vm.pirteyHitkashrut.telephoneMeuzag" disable-num="false" cssclass="errBcolor"
+                                                 length="7" mywidth="{ 'width': '100%' }" num-only-blur="vm.blr()" mystyle="vm.mywidth"></div>
+                                        </div>
+                                        <div class="col-sm-1 text-right" ng-show="vm.newData && ! vm.isPhoneMeumat" mywidth="vm.mystyle2" mystyle="vm.mywidth2" shaam-ddl-kidometnumber selected-value-number="vm.pirteyHitkashrut.kidomet" tf-flag="vm.flag"></div>
+                                        <div class="col-sm-8" ng-hide="vm.newData  || vm.isPhoneMeumat">
+                                            <div class="row">
+                                                <div class="col-sm-10">
+                                                    <span>{{vm.pirteyHitkashrut.telPlusKidometMuzag}}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="col-sm-8" ng-show="vm.isPhoneMeumat" dir="ltr">
+                                            <div class="row">
+                                                <div class="col-sm-10">
+                                                    <span>{{vm.phoneMeumat}}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-sm-6" ng-show="vm.bz.hatzagatBz">
+                            <div class="row">
+                                <div class="col-sm-12">
+                                    <div class="row">
+                                        <div class="col-sm-4" ng-hide="vm.bz.chovatChatimatBz">
+                                            <p>טלפון בן\ת זוג:</p>
+                                        </div>
+                                        <div class="col-sm-4" ng-show="vm.bz.chovatChatimatBz">
+                                            <p class="required"> טלפון בן\ת זוג:</p>
+                                        </div>
+                                        <div class="col-sm-4" ng-show="vm.newData && !vm.isPhoneBZMeumat">
+                                            <div shaam-num-only selected-num="vm.pirteyHitkashrut.telephoneBz" disable-num="false" cssclass="vm.cls"
+                                                 length="7" mywidth="{ 'width': '100%' }" num-only-blur="vm.blr()" mystyle="vm.mywidth"></div>
+                                        </div>
+                                        <div class="col-sm-1 text-right" ng-show="vm.newData && !vm.isPhoneBZMeumat" mywidth="vm.mystyle1" shaam-ddl-kidometnumber selected-value-number="vm.pirteyHitkashrut.kidometBz" tf-flag="vm.flag"></div>
+                                        <div class="col-sm-8" ng-hide="vm.newData || vm.isPhoneBZMeumat">
+                                            <span>{{vm.pirteyHitkashrut.telPlusKidometBz}}</span>
+                                        </div>
+                                        <div class="col-sm-8" ng-show="vm.isPhoneBZMeumat" dir="ltr">
+                                            <div class="row">
+                                                <div class="col-sm-10">
+                                                    <span>{{vm.phoneBZMeumat}}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-sm-10">
+                            <div data-shaam-group-validation="" group-name="mail">
+                                <div class="row">
+                                    <div class="col-sm-12">
+                                        <div class="row">
+                                            <div class="col-sm-2">
+                                                <label for="email">דוא"ל מיוצג:</label>
+                                            </div>
+                                            <div class="col-sm-7">
+                                                <div ng-show="vm.newData && !vm.isMailMeumat" value="vm.pirteyHitkashrut.mailMeuzag" mystyle="vm.mywidth"
+                                                     data-shaam-email-text-box="" id="email" name="mail" data-group-validation="vm.mail" data-is-req="vm.isReq"
+                                                     email-blur="vm.onChangeMail()" length="50">
+                                                </div>
+                                            </div>
+                                            <div class="col-sm-8" dir="ltr" ng-show="vm.isMailMeumat">
+                                                <span>{{vm.mailMeumat}}</span>
+                                            </div>
+                                            <div class="col-sm-8" ng-hide="vm.newData || vm.isMailMeumat">
+                                                <span>{{vm.pirteyHitkashrut.mailMeuzag}}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row" ng-if="vm.newData && !vm.isAllMeumat">
+                        <div class="col-sm-10">
+                            <div shaam-check-box-buttons
+                                 btntype='הלקוח מאשר קבלת הודעות מרשות המסים באמצעות מסרון או דואר אלקטרוני'
+                                 btn-disable="false"
+                                 btn-checked="vm.cbIshur"
+                                 class="required"
+                                 requied="true">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-sm-12 text-left">
+                        <div shaam-buttons btnclick="vm.shmira()" title="שמירת הפרטים, והצגת טופס ייפוי הכוח" btntype="shmira" enablebtn="vm.enablebtnShmira" ng-if="vm.newData && !vm.isAllMeumat"></div>
+                        <div shaam-buttons btnclick="vm.bitul()" btntype="bitul" enablebtn="vm.enablebtnBitul" ng-show="vm.matzavIdkun"></div>
+                        <div shaam-buttons btnclick="vm.idkun()" btntype="idkun" enablebtn="vm.enablebtnShmira" ng-hide="vm.newData || vm.isAllMeumat"></div>
+                        <div shaam-buttons btnclick="vm.hemshech()" btntype="hemshech" enablebtn="vm.enablebtnNikuy" ng-hide="vm.newData && !vm.isAllMeumat"></div>
+                        <div shaam-buttons btnclick="vm.chazara()" btntype="chazara" enablebtn="vm.enablebChazara"></div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+</div>
+
+<div>
+    <div name="netuneiIdkunLoNishmeroo" shaam-window-open is-window-open="vm.isWindowOpen"
+         btclickok="vm.btok()" btclickcancel="vm.btcancel()"
+         enablebtncancel="false" enablebtnok="false"
+         window-title="לתשומת ליבך">
+        הנך מועבר/ת לטעינת מסמכים, הנתונים ששינית לא עודכנו.
+    </div>
+</div>
+
+<div please-wait is-prog-on="vm.isProgOn"></div>

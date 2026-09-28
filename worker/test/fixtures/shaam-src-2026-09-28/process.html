@@ -1,0 +1,149 @@
+
+<div class="row">
+
+    <div class="col-sm-12">
+        <div pirtey-myz-oved-etzel-myzg></div>
+        <div class="row">
+            <div class="col-sm-2">
+                <h2>רשימת בקשות</h2>
+            </div>
+            <!-- $$HD הורדה מתצוגה -->
+            <!--<div class="col-sm-7 text-left">
+                <br />
+                <br />
+                לפניות תפעוליות: <a href='mailto:lameyazeg@taxes.gov.il'>lameyazeg@taxes.gov.il</a>
+            </div>-->
+            <!--<div class="col-sm-3">
+                <h2>הודעות</h2>
+            </div>-->
+        </div>
+
+        <div class="row">
+            <div class="col-sm-12">
+                <div class="alert alert-danger" data-ng-bind="vm.sinunim.ErrorMsg" ng-show="vm.sinunim.isShowErrorMsg()"></div>
+                <div class="alert alert-danger" ng-show="vm.showErr && !vm.sinunim.isShowErrorMsg()">{{vm.err}}</div>
+                <div data-shaam-group-validation="" group-name="sinunim">
+                    <div class="bluediv">
+                        <div class="row">
+                            <div class="col-sm-6">
+                                <div class="row">
+                                    <label for="yeshut" class="col-sm-4">
+                                        ישות מיוצג
+                                    </label>
+                                    <div class="col-sm-8" data-shaam-id-textbox="" name="yeshut"
+                                         data-group-validation="vm.sinunim"
+                                         value="vm.misYeshut" data-is-req="vm.isShowZehutErr"
+                                         disable="vm.isShowMisMuzag"
+                                         data-index="1">
+                                    </div>
+                                </div>
+                                <div class="row">
+                                    <label class="col-sm-4" data-shaam-tooltip="אסמכתא">
+                                        מספר בקשה
+                                    </label>
+                                    <div class="col-sm-8"
+                                         shaam-num-only
+                                         length="10"
+                                         num-only-blur="vm.changeAsmachta(vm.asmachta)"
+                                         selected-num="vm.asmachta" >
+                                    </div>
+                                </div>
+                                <div class="row">
+                                    <label class="col-sm-4">
+                                        ת.הזנה מ-
+                                    </label>
+                                    <div class="col-sm-7" shaam-date-picker max="vm.maxMe" min="vm.minMe" mywidth=""
+                                         is-out-of-range-visible="false"
+                                         value-as-string="vm.valueAsDateMe" clean-date="vm.cleanDate"
+                                         disable-dates="vm.disableDates" datechange="vm.changeMe(newDate)"
+                                         value-date="vm.selectedDateMe" enabledatepicker="vm.enabledate"></div>
+                                </div>
+                                <div class="row">
+                                    <label class="col-sm-4">
+                                        ת.הזנה עד-
+                                    </label>
+                                    <div class="col-sm-7" shaam-date-picker max="vm.maxAd" min="vm.minAd" mywidth=""
+                                         is-out-of-range-visible="false"
+                                         value-as-string="vm.valueAsDateAd" clean-date="vm.cleanDate"
+                                         disable-dates="vm.disableDates" datechange="vm.changeAd(newDate)"
+                                         value-date="vm.selectedDateAd" enabledatepicker="vm.enabledate"></div>
+                                </div>
+                            </div>
+
+                            <div class="col-sm-6">
+                                <div class="row">
+                                    <label class="col-sm-4">
+                                        מערך מס
+                                    </label>
+                                    <div class="col-sm-5">
+                                        <div shaam-ddl url="vm.kodMarData" selected-obj-web-api="vm.kodMarObj.Value" selected-val-ddl="vm.kodMarObj.Key"
+                                             text-field="Value" value-field="Key" mystyle=""></div>
+                                    </div>
+                                </div>
+                                <div class="row">
+                                    <label class="col-sm-4">
+                                        מצב בקשה
+                                    </label>
+                                    <div class="col-sm-5">
+                                        <div shaam-ddl url="vm.statusBakashaData" selected-obj-web-api="vm.statusBakashaObj.Value" selected-val-ddl="vm.statusBakashaObj.Key"
+                                             text-field="Value" value-field="Key" mystyle=""></div>
+                                    </div>
+                                </div>                          
+                                <div class="row">
+                                    <label class="col-sm-4">
+                                        מצב מערך
+                                    </label>
+                                    <div class="col-sm-5">
+                                        <div shaam-ddl url="vm.statusTikData" selected-obj-web-api="vm.statusTikObj.Value" selected-val-ddl="vm.statusTikObj.Key"
+                                             text-field="Value" value-field="Key" mystyle=""></div>
+                                    </div>
+                                </div>
+                                <div class="row">
+                                    <div class="col-sm-5 ">
+                                        סוג תיק - החזר מס (91)
+                                    </div>
+                                    <div class="col-sm-4" shaam-check-box-buttons btntype=" " btn-disable="false"
+                                         btn-checked="vm.sinunByTik91" btnclick="vm.func1ChekBox()" group-name-check-btn="g"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+
+                </div>
+                <div class="row">
+                    <div id="divBtn2" class="col-sm-12 text-left">
+                        <div shaam-buttons btnclick="vm.hipus()" btntype="hipus" enablebtn="vm.enablebtn"></div>
+                        <div shaam-buttons btnclick="vm.nikuy()" btntype="nikui" enablebtn="vm.enablebtnNikuy"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!--<div class="col-sm-3">
+                <div class="bluediv" style="overflow:scroll;overflow-y:scroll;overflow-x:hidden;height:157px;">
+                    <div ng-repeat="msg in vm.lsMsg">
+                        <p class="errfont">{{msg}}</p>
+                    </div>
+                </div>
+            </div>-->
+        </div>        
+        <div class="row">
+            <div class="col-sm-12">
+                <br />
+                <p ng-show="vm.isShowSinunBy" class="fontbold">סינון לפי : {{vm.sinunBy}}</p>
+                <div ipuy-koach-be-hamtana data="vm.ipkHamtanaList" size="vm.sizeIpkHamtanaList" size-klali="vm.sizeTikimKlali" pageable="true" show-count="true" scrollable="false" is-show-muzag="true" is-show-success-msg="vm.isShowSuccessMsg" is-show-earot="false" txt-no-resultes="vm.txtNoResultes">
+                </div>
+                <div please-wait is-prog-on="vm.isProgOn"></div>
+            </div>
+        </div>
+        <div class="row">
+            <div class="col-sm-12 text-left">
+                <a href='' ng-click="vm.getMoreBakashot()" ng-show="vm.isShowBakashotNosafot" data-shaam-tooltip='לשליפת בקשות נוספות' target='_blank'>לשליפת בקשות נוספות</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+
+

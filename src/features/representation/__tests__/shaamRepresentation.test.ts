@@ -8,7 +8,7 @@ import type {
 import { test, equal, deepEqual, assert, includes, excludes } from '../../../testkit/tinyTest';
 import type { TestCase } from '../../../testkit/tinyTest';
 import {
-  shaamSubmissionsOf, shaamSystemsOf, preflightShaamSubmission,
+  shaamSubmissionsOf, shaamSystemsOf, preflightShaamSubmission, shaamPhoneValid,
   parseShaamRequestState, parseShaamSystemState, parseShaamDate,
   shaamStageOf, allSystemsAccepted, shaamProgressLine,
   buildForm2279Fields, form2279BothSign, FORM_2279_TEMPLATE, matchRegisteredPersonName,
@@ -148,7 +148,21 @@ export const TESTS: TestCase[] = [
     const s = subFor(req, c, 'client');
     const pre = preflightShaamSubmission(s, shaamPersonFacts(req, c, 'client'), c, false);
     equal(pre.ok, false);
-    includes(pre.issues.map(i => i.code), 'missing_contact');
+    includes(pre.issues.map(i => i.code), 'missing_phone');
+  }),
+
+  test('5ב · דוא"ל בלי טלפון — נחסם לפני שע״ם (המסך שדורש טלפון בא אחרי יצירת הבקשה)', () => {
+    const c = client({ phone: '' });
+    const req = request({ scope: scope({ incomeTax: IT }), identification: { idNumber: '034605212', birthDate: '1985-10-30', secondaryType: 'parentId', secondaryValue: '067574996', email: 'a@b.test' } } as Partial<RepresentationRequest>);
+    const s = subFor(req, c, 'client');
+    const pre = preflightShaamSubmission(s, shaamPersonFacts(req, c, 'client'), c, false);
+    equal(pre.ok, false);
+    includes(pre.issues.map(i => i.code), 'missing_phone');
+  }),
+
+  test('5ג · טלפון: נייד/נייח/+972 תקינים; קצר או בלי 0 — לא', () => {
+    for (const ok of ['0524409230', '052-440-9230', '+972524409230', '02-6543210', '0776543210']) equal(shaamPhoneValid(ok), true, ok);
+    for (const bad of ['', '05', '524409230', '05244092301', 'abc']) equal(shaamPhoneValid(bad), false, bad);
   }),
 
   // ── 6–10: מיפוי המערכים ───────────────────────────────────────────────────
@@ -354,11 +368,13 @@ export const TESTS: TestCase[] = [
     equal(parseShaamRequestState('משהו חדש לגמרי'), 'unknown');
   }),
 
-  test('22 · ממתין לאישור לקוח — הכדור אצל הלקוח', () => {
-    equal(parseShaamSystemState('ממתין:91-לאישור לקוח,כל השאר-לפתיחת התיק'), 'awaiting_client_approval');
+  test('22 · ממתין לאישור לקוח — הכדור אצל הלקוח (רק בתיק 91: ראיה ב«צפי»/בפירוט)', () => {
+    // ‼ 28.09.2026 · נצפה חי: זה קוד אחד (7) לשני מצבים — אישור לקוח רק בתיק 91,
+    // אחרת «ממתין לפתיחת התיק». הטקסט לבדו אינו מכריע.
+    equal(parseShaamSystemState('ממתין:91-לאישור לקוח,כל השאר-לפתיחת התיק'), 'awaiting_file_opening');
     const line = shaamProgressLine({
       requestNumber: 'x', submittedAt: SUBMITTED, observedAt: OBSERVED,
-      systems: [{ systemLabel: 'מס הכנסה', rawSystemState: 'ממתין:91-לאישור לקוח,כל השאר-לפתיחת התיק' }],
+      systems: [{ systemLabel: 'מס הכנסה', rawSystemState: 'ממתין:91-לאישור לקוח,כל השאר-לפתיחת התיק', suspensionEndsRaw: 'ממתין לאישור לקוח' }],
     });
     equal(line.ball, 'client');
   }),
@@ -429,11 +445,12 @@ export const TESTS: TestCase[] = [
     equal(other.xPct, FORM_2279_TEMPLATE.otherSpouse.xPct);
   }),
 
-  test('26ג · רווק/ה — חתימה אחת + חותמת, בלי תיבת בן/בת זוג', () => {
+  test('26ג · רווק/ה — חתימה אחת + חותמת, בלי תיבת בן/בת זוג (ושני ה-✓ הקבועים)', () => {
     const fields = buildForm2279Fields('client', false);
-    equal(fields.length, 2);
+    equal(fields.length, 4);
     equal(fields.filter(f => f.kind === 'signature').length, 1);
     equal(fields.filter(f => f.kind === 'stamp').length, 1);
+    equal(fields.filter(f => f.kind === 'check' && f.signerId === 'static').length, 2);
   }),
 
   test('26ד · חותמת המשרד ממוקמת מתחת לחלק ב\'', () => {

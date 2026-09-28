@@ -1,0 +1,14 @@
+<div class="radio-inline">
+    <div ng-if="vm.btnDisable==false">
+        <label>
+            <input type="radio" name="{{vm.name}}" ng-model="vm.value" ng-click="vm.onClick($event)" ng-checked="vm.btnChecked">{{vm.radioBtnName}}
+        </label>
+    </div>
+    <div ng-if="vm.btnDisable==true">
+        <label class="radio-inline">
+            <input type="radio" name="{{vm.name}}" ng-model="vm.value" ng-checked="vm.btnChecked" disabled>{{vm.radioBtnName}}
+        </label>
+    </div>
+</div>
+
+

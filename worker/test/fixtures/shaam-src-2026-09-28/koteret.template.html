@@ -1,0 +1,28 @@
+
+<div class="row">
+    <div class="col-sm-7">
+        <h2>בקשה לרישום ייפוי כוח חדש</h2>
+    </div>
+    <div class="col-sm-5 text-left" ng-show="vm.isShowMisBakasha">
+        <br />
+        <!--<h4 ng-show="vm.asmachta[1] == null ? true : false">מספר בקשה: {{vm.asmachta[0]}}</h4>
+        <h4 ng-show="vm.asmachta[1] != null ? true : false">מספרי בקשות: {{vm.asmachta[0]}},{{vm.asmachta[1]}}</h4>-->
+        <h4>מספר בקשה: {{vm.asmachta}}</h4>
+    </div>
+</div>
+<div class="row">
+    <div class="col-sm-12">
+        <div shaam-wizard api="vm.api" current-index="vm.pageIndex"
+             num-of-steps="5" 
+             current-index-change="3">
+            <div shaam-wizard-step title="אימות ישות" wizard-space="3"></div>
+            <div shaam-wizard-step title="בקשת ייפוי כוח"></div>
+            <div shaam-wizard-step title="פרטי התקשרות"></div>
+            <div shaam-wizard-step title="טעינת מסמכים"></div>
+            <div shaam-wizard-step title={{vm.melelStep5}}></div>
+        </div>
+        <div ng-show="vm.isShowKoteretMishnit">
+            <h3>  {{vm.koteretMishnit}} {{vm.misYeshut}}  -  {{vm.shemYeshut}}</h3>
+        </div>
+    </div>
+</div>

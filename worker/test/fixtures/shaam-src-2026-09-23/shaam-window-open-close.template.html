@@ -1,0 +1,48 @@
+<div>
+    <div ng-if="vm.shaamWinOcFullModal==undefiend">
+        <div class="modal" data-keyboard="true"  tabindex="-1" data-backdrop="static" role="dialog" id="{{vm.name}}" aria-labelledby="{{vm.titleLbBy}}" aria-modal="true">
+            <div ng-style="vm.windowStyle" class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <button type="button" class="close" ng-click="vm.changeState(false)" aria-label="סגירה">&times;</button>
+                        <h4 id="{{vm.titleLbBy}}" class="modal-title" ng-bind="vm.windowTitle" aria-level="2"></h4>
+                    </div>
+                    <div class="modal-body" style="direction:rtl; text-align:right" id="messageIshur">
+                        <div>
+                            <ng-transclude />
+                        </div>
+                    </div>
+                    <p align="left">
+                        <button shaam-buttons tabindex="0" btnclick="vm.changeState(false)" btntype="vm.tranbtn" ng-bind="vm.tranbtn" is-focus="vm.isFocusCloseBtn"
+                                enablebtn="vm.enablebtncancel"></button>
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div ng-if="vm.shaamWinOcFullModal==true">
+        <div ng-show="vm.isWindowOpen" style="z-index:1051;background-color:rgba(133, 121, 121, 0.61);  left:0px;top:0px;right:0px;bottom:0px;position:fixed">
+
+            <div class="modal" data-keyboard="true"  tabindex="-1" data-backdrop="static" role="dialog" id="{{vm.name}}"  aria-labelledby="{{vm.titleLbBy}}" aria-modal="true">
+                <div ng-style="vm.windowStyle" class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <button type="button" class="close" ng-click="vm.changeState(false)" aria-label="סגירה">&times;</button>
+                            <h4 id="{{vm.titleLbBy}}" class="modal-title" ng-bind="vm.windowTitle" aria-level="2"></h4>
+                        </div>
+                        <div class="modal-body" style="direction:rtl; text-align:right" id="messageIshur">
+                            <div>
+                                <ng-transclude />
+                            </div>
+                        </div>
+                        <p align="left">
+                            <button shaam-buttons tabindex="0" btnclick="vm.changeState(false)" btntype="sgira"  is-focus="vm.isFocusCloseBtn"
+                                    enablebtn="vm.enablebtncancel"></button>
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>

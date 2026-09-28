@@ -14,7 +14,7 @@ import { readFileSync } from 'node:fs';
 import {
   pickUploadDocumentsControl, openedRequestIdentity, documentsStepPlan,
   wizardStepFromText, wizardStepResolve, pickContinueButton, submissionAcceptedEvidence,
-  NEVER_CLICK_BTNTYPES, pickPoaFileInput, pickDialogCloseButton, uploadDialogEvidence,
+  NEVER_CLICK_BTNTYPES, pickUploadFileInput, pickDialogCloseButton, uploadDialogEvidence,
 } from '../src/shaamRepresentationSession.mjs';
 
 const src = (p) => readFileSync(new URL(p, import.meta.url), 'utf8');
@@ -60,7 +60,9 @@ test('רשימה · המועמדים נקראים מ-input/div עם type=button 
   assert.ok(d.includes("'k-content'") && d.includes('ng-hide'));
   const fn = fnBody(SESSION, 'export async function openRequestForDocuments');
   assert.ok(fn.includes('describeActionCandidates(rowLoc)') && fn.includes('locator(ACTION_CANDIDATES).nth(pick.index)'));
-  assert.ok(fn.includes("systemLabel = 'מס הכנסה'") && fn.includes('singleAttributedRequest(found.rows)'));
+  // ‼ 28.09 · קודם «הבקשה הנוכחית» (מספר שמור, או החיה היחידה) — ורק עליה singleAttributedRequest.
+  assert.ok(fn.includes("systemLabel = 'מס הכנסה'") && fn.includes('currentRequestRows(found.rows, { requestNumber: want })') && fn.includes('singleAttributedRequest(current.rows)'));
+  assert.ok(fn.includes('request_not_awaiting_documents'), 'לא מחפשים פקד טעינה בבקשה שאינה ממתינה למסמכים');
   // ‼ האיתור תמיד לפי ישות (המסלול שנבדק חי); מספר ידוע רק לאימות.
   assert.ok(fn.includes("findRequestRows(page, { requestNumber: '', entityId, expectedClientName })"));
 });
@@ -122,46 +124,57 @@ test('שלב 3 · «המשך» דרך clickHemshech בלבד; בלי «עדכו�
 });
 
 // ── שלב 4: טעינת מסמכים (לפי התבנית uploadKasafot.html) ──────────────────────
+// ‼ 204 · המסך נקרא כשורות (לא רק «טופס ייפוי כוח»), והבעלים נקרא מהכותרת.
 
-const DOCS_OK = { identityOk: true, poaRows: 1, otherDocs: [], poaHasFile: false, plusControls: 1, spouseCheckboxes: 1, spouseLabelOnScreen: true, continueButtons: 1 };
+const POA_ROW = { label: 'טופס ייפוי כוח', required: true, uploadName: '', hasFile: false, plusControls: 1 };
+const ID_ROW = { label: 'תצלום תעודת זהות או רישיון נהיגה', required: true, uploadName: '', hasFile: false, plusControls: 1 };
+const DOCS_OK = {
+  identityOk: true, headerEntityId: ID, expectedEntityId: ID, rows: [POA_ROW],
+  spouseCheckboxes: 1, spouseLabelOnScreen: true, continueButtons: 1,
+};
 
 test('שלב 4 · שורה אחת, «+» אחד, «המשך» אחד ⇒ ממשיכים; כל סטייה ⇒ עצירה לפני הנגיעה', () => {
-  assert.deepEqual(documentsStepPlan({ ...DOCS_OK, spouseCheckboxes: 0, spouseLabelOnScreen: false }), { ok: true, checkSpouse: false });
-  assert.equal(documentsStepPlan({ ...DOCS_OK, poaRows: 0 }).reason, 'poa_row_not_found');
-  assert.equal(documentsStepPlan({ ...DOCS_OK, poaRows: 2 }).reason, 'poa_row_ambiguous');
-  assert.equal(documentsStepPlan({ ...DOCS_OK, plusControls: 0 }, { spouseSignatureConfirmed: true }).reason, 'upload_opener_not_found');
+  const ok = documentsStepPlan({ ...DOCS_OK, spouseCheckboxes: 0, spouseLabelOnScreen: false });
+  assert.deepEqual([ok.ok, ok.checkSpouse, ok.extraSlots.length, ok.entityId], [true, false, 0, ID]);
+  assert.equal(documentsStepPlan({ ...DOCS_OK, rows: [] }).reason, 'poa_row_not_found');
+  assert.equal(documentsStepPlan({ ...DOCS_OK, rows: [POA_ROW, POA_ROW] }).reason, 'document_row_ambiguous');
+  assert.equal(documentsStepPlan({ ...DOCS_OK, rows: [{ ...POA_ROW, plusControls: 0 }] }, { spouseSignatureConfirmed: true }).reason, 'upload_opener_not_found');
   assert.equal(documentsStepPlan({ ...DOCS_OK, identityOk: false }).reason, 'documents_screen_identity_unverified');
   assert.equal(documentsStepPlan({ ...DOCS_OK, continueButtons: 0 }, { spouseSignatureConfirmed: true }).reason, 'continue_not_found');
 });
 
-test('שלב 4 · שע״ם דורשת מסמך נוסף (למשל תצלום ת.ז.) ⇒ לא מתחילים העלאה חלקית', () => {
-  const r = documentsStepPlan({ ...DOCS_OK, otherDocs: ['תצלום תעודת זהות או רישיון נהיגה'] }, { spouseSignatureConfirmed: true });
-  assert.equal(r.reason, 'other_documents_required');
+test('שלב 4 · שע״ם דורשת מסמך נוסף ⇒ התוכנית מזהה את השורה (לא עוצרת כאן) — ההחלטה על המסמך נפרדת', () => {
+  const r = documentsStepPlan({ ...DOCS_OK, rows: [POA_ROW, ID_ROW] }, { spouseSignatureConfirmed: true });
+  assert.equal(r.ok, true);
+  assert.deepEqual(r.extraSlots.map((s) => [s.id, s.kind]), [[2, 'idOrLicense']]);
 });
 
 test('שלב 4 · כבר נטען קובץ לשורה ⇒ לא מעלים שוב', () => {
-  assert.equal(documentsStepPlan({ ...DOCS_OK, poaHasFile: true }, { spouseSignatureConfirmed: true }).reason, 'poa_already_uploaded');
+  assert.equal(documentsStepPlan({ ...DOCS_OK, rows: [{ ...POA_ROW, hasFile: true }] }, { spouseSignatureConfirmed: true }).reason, 'poa_already_uploaded');
+  assert.equal(documentsStepPlan({ ...DOCS_OK, rows: [POA_ROW, { ...ID_ROW, hasFile: true }] }, { spouseSignatureConfirmed: true }).reason, 'row_already_populated');
 });
 
 test('שלב 4 · נשואים + הוכחה ⇒ התיבה תסומן; בלי הוכחה / בלי תיבה / שתי תיבות ⇒ עצירה', () => {
-  assert.deepEqual(documentsStepPlan(DOCS_OK, { spouseSignatureConfirmed: true }), { ok: true, checkSpouse: true });
+  const ok = documentsStepPlan(DOCS_OK, { spouseSignatureConfirmed: true });
+  assert.deepEqual([ok.ok, ok.checkSpouse], [true, true]);
   assert.equal(documentsStepPlan(DOCS_OK, { spouseSignatureConfirmed: false }).reason, 'spouse_signature_not_proven');
   assert.equal(documentsStepPlan({ ...DOCS_OK, spouseCheckboxes: 0 }, { spouseSignatureConfirmed: true }).reason, 'spouse_checkbox_not_found');
   assert.equal(documentsStepPlan({ ...DOCS_OK, spouseCheckboxes: 2 }, { spouseSignatureConfirmed: true }).reason, 'spouse_checkbox_ambiguous');
 });
 
-test('שלב 4 · הבוררים לקוחים מהתבנית: .BoxA, input.plus, #dialogTeinatAsmachta, ng-model של התיבה', () => {
-  const probe = fnBody(SESSION, 'function poaRowProbe(mode)');
+test('שלב 4 · הבוררים לקוחים מהתבנית: .BoxA, input.plus, דיאלוג לפי id, ng-model של התיבה', () => {
+  const probe = fnBody(SESSION, 'function docRowsProbe(arg)');
   assert.ok(probe.includes("querySelectorAll('.BoxA')") && probe.includes("input[type=button].plus"));
   assert.ok(probe.includes('.icon.checkmark') && probe.includes("querySelector('u')"), 'V + שם הקובץ = נטען');
-  assert.ok(probe.includes('if (out.plusControls !== 1 || out.poaHasFile) return { ...out, clicked: false };'));
-  assert.ok(SESSION.includes("const POA_DIALOG = '#dialogTeinatAsmachta';"));
-  const up = fnBody(SESSION, 'export async function uploadSignedForm');
-  assert.equal(up.split('setInputFiles(').length - 1, 1, 'העלאה אחת');
+  assert.ok(probe.includes("reason: 'row_already_populated'"), 'שורה עם קובץ ⇒ לא לוחצים «+»');
+  assert.ok(SESSION.includes("dialog: 'dialogTeinatAsmachta'"));
+  const up = fnBody(SESSION, 'export async function uploadIntoSlot');
+  assert.equal(up.split('setInputFiles(').length - 1, 1, 'העלאה אחת לשורה');
   assert.ok(up.includes("dialog.locator('input[type=file]').nth(inputIndex)"), 'ה-input שנבחר לפני הנגיעה');
   const conf = fnBody(SESSION, 'export async function confirmDocumentsStep');
   assert.ok(conf.includes('input[type=checkbox][ng-model="vm.isCheckeChatimatBz"]'));
-  assert.ok(conf.indexOf("reason: row.poaHasFile ? undefined : 'no_file_listed'") < conf.indexOf('if (checkSpouse)'));
+  assert.ok(conf.indexOf("reason: 'no_file_listed'") < conf.indexOf('if (checkSpouse)'));
+  assert.ok(conf.indexOf("reason: 'document_rows_changed'") < conf.indexOf('if (checkSpouse)'), 'שורה חדשה שהופיעה ⇒ לא ממשיכים');
   assert.ok(conf.indexOf('if (checkSpouse)') < conf.indexOf('await clickHemshech(page)'));
   assert.equal((conf.match(/await clickHemshech\(page\)/g) || []).length, 1, '«המשך» אחד בלבד');
 });
@@ -193,18 +206,25 @@ test('שלב 5 · בלי המעבר, בלי הכותרת, או לקוח אחר �
 
 // ── הגבול, פעם אחת, ו«נשלח» רק על ראיה ─────────────────────────────────────
 
-test('סדר · זהות ותוכנית → סימן נגיעה → «+»/העלאה → «המשך» אחד; כשל אחרי הנגיעה = לא ידוע', () => {
+test('סדר · זהות ותוכנית → מסמכים (שרת) → בדיקת דיאלוגים → שומר → סימן נגיעה → העלאה → «המשך» אחד', () => {
   const at = (needle) => { const i = HANDLER.indexOf(needle); assert.ok(i > 0, `חסר: ${needle}`); return i; };
   const gate = at('assertNotAlreadyAttempted(progress');
   const open = at('await openRequestForDocuments(');
-  const plan = at('documentsStepPlan(opened.documents');
+  const report = at('shaamDocuments: {');
+  const plan = at('documentsStepPlan(docsState');
+  const docs = at('getIdentityDocument(ctx.workerId, ctx.job.id');
+  const decide = at('documentsSubmissionDecision(resolved');
+  const inspect = at('await inspectSlotDialog(page, x.slot)');
+  const guard = at("throw documentsStop('first_live_verification'");
+  const poaDlg = at('await openSlotUploadDialog(page, poaSlot)');
   const mark = at("markExternalAttempt('upload_signed_form')");
-  const upload = at('await uploadSignedForm(');
+  const upload = at('await uploadIntoSlot(page, poaSlot');
   const confirm = at('await confirmDocumentsStep(');
-  assert.ok(gate < open && open < plan && plan < mark && mark < upload && upload < confirm);
-  assert.equal((HANDLER.match(/await uploadSignedForm\(/g) || []).length, 1);
+  assert.ok(gate < open && open < report && report < plan && plan < docs && docs < decide
+    && decide < inspect && inspect < guard && guard < poaDlg && poaDlg < mark && mark < upload && upload < confirm);
   assert.equal((HANDLER.match(/await confirmDocumentsStep\(/g) || []).length, 1);
-  assert.ok(!/for\s*\(|while\s*\(|\.retry|attempt\s*\+\+/.test(HANDLER), 'אין לולאה ואין מונה ניסיונות');
+  // ‼ אין לולאת ניסיונות: הלולאות היחידות עוברות על שורות המסמכים, פעם אחת כל אחת.
+  assert.ok(!/while\s*\(|\.retry|attempt\s*\+\+|attempts\s*\+/.test(HANDLER), 'אין לולאת ניסיון חוזר');
   assert.ok(HANDLER.slice(mark).includes("'ambiguous_submit_result'"));
   assert.ok(HANDLER.includes('checkSpouse: plan.checkSpouse, entityId, expectedClientName: personName'));
 });
@@ -222,11 +242,11 @@ test('נשלח · submitted=true במקום אחד, אחרי confirmDocumentsSte
 // ── דיאלוג הטעינה (תבנית shaam-file-upload + צילום המסך) ─────────────────────
 
 test('דיאלוג · שני input[type=file]: myFile (גלוי) נבחר, myFile1 (mode==3, מוסתר) לא — זה מה שעצר את ניסיון 4', () => {
-  assert.deepEqual(pickPoaFileInput(DIALOG.beforeSelection.inputs), { ok: true, index: 0 });
+  assert.deepEqual(pickUploadFileInput(DIALOG.beforeSelection.inputs), { ok: true, index: 0 });
   const both = DIALOG.beforeSelection.inputs.map((x) => ({ ...x, containerVisible: true, name: 'myFile' }));
-  assert.equal(pickPoaFileInput(both).reason, 'file_input_ambiguous');
-  assert.equal(pickPoaFileInput([{ name: 'myFile1', containerVisible: true }]).reason, 'file_input_not_found');
-  assert.equal(pickPoaFileInput([{ name: 'myFile', containerVisible: true, disabled: true }]).reason, 'file_input_not_found');
+  assert.equal(pickUploadFileInput(both).reason, 'file_input_ambiguous');
+  assert.equal(pickUploadFileInput([{ name: 'myFile1', containerVisible: true }]).reason, 'file_input_not_found');
+  assert.equal(pickUploadFileInput([{ name: 'myFile', containerVisible: true, disabled: true }]).reason, 'file_input_not_found');
 });
 
 test('דיאלוג · «סגירה» הוא כפתור התחתית עם הטקסט — לא ה-×; מוסתר/כפול ⇒ עצירה', () => {
@@ -247,17 +267,17 @@ test('דיאלוג · ראיית העלאה: קובץ PDF אחד ברשימה �
 
 test('דיאלוג · הגבול: «+» ופתיחת הדיאלוג לפני הסימן; בחירת הקובץ אחריו; השורה מאומתת אחרי «סגירה»', () => {
   const at = (needle) => { const i = HANDLER.indexOf(needle); assert.ok(i > 0, `חסר: ${needle}`); return i; };
-  const plan = at('documentsStepPlan(opened.documents');
-  const open = at('await openPoaUploadDialog(page)');
+  const plan = at('documentsStepPlan(docsState');
+  const open = at('await openSlotUploadDialog(page, poaSlot)');
   const mark = at("markExternalAttempt('upload_signed_form')");
-  const upload = at('await uploadSignedForm(');
+  const upload = at('await uploadIntoSlot(page, poaSlot');
   assert.ok(plan < open && open < mark && mark < upload);
   assert.ok(HANDLER.includes('inputIndex: dlg.inputIndex'));
-  const opener = fnBody(SESSION, 'export async function openPoaUploadDialog');
+  const opener = fnBody(SESSION, 'export async function openSlotUploadDialog');
   assert.ok(!opener.includes('setInputFiles'), 'פתיחת הדיאלוג אינה בוחרת קובץ');
-  assert.ok(opener.includes("reason: 'upload_dialog_ambiguous'") && opener.includes('pickPoaFileInput(d.inputs)'));
-  assert.ok(opener.includes("reason: 'poa_already_uploaded'"), 'קובץ כבר בדיאלוג ⇒ לא מעלים שני');
-  const up = fnBody(SESSION, 'export async function uploadSignedForm');
-  assert.ok(up.indexOf('uploadDialogEvidence(') < up.indexOf('pickDialogCloseButton('), 'קודם ראיה, אחר כך «סגירה»');
+  assert.ok(opener.includes('dialogMatchesSlot(d, slot)') && opener.includes('pickUploadFileInput(d.inputs)'));
+  assert.ok(opener.includes("'poa_already_uploaded'"), 'קובץ כבר בדיאלוג ⇒ לא מעלים שני');
+  const up = fnBody(SESSION, 'export async function uploadIntoSlot');
+  assert.ok(up.indexOf('uploadDialogEvidence(') < up.indexOf('closeSlotDialog('), 'קודם ראיה, אחר כך «סגירה»');
   assert.ok(up.includes("reason: 'row_not_updated'") && up.includes("reason: 'row_file_mismatch'"), 'השורה אחרי הסגירה');
 });

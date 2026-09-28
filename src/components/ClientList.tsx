@@ -5,7 +5,6 @@ import {
   NIType,
   RepresentationRequest,
   RepresentationStatus,
-  REPRESENTATION_STATUS_LABELS,
   REPRESENTATION_STATUS_BADGE,
   Task,
   VATStatus,
@@ -33,6 +32,7 @@ import {
   isWithholdingExpired,
 } from '../utils/clientDerived';
 import { representationState } from '../lib/clientState';
+import { repSendPhase, representationStatusLabel } from '../utils/representationAction';
 
 const IT_LABELS: Record<IncomeTaxType, string> = {
   employee: 'שכיר',
@@ -732,6 +732,8 @@ export default function ClientList({
                   const overallRep = deriveOverallRep(client.authorityRepresentations ?? undefined);
                   const linkedReq = client.representationRequestId ? requestById.get(client.representationRequestId) : undefined;
                   const idSubmitted = linkedReq?.onboardingStatus === 'submitted' && status !== 'active';
+                  // ‼ «נשלח לחתימה» רק כשהמייל יצא.
+                  const sendPhase = repSendPhase(linkedReq);
                   const pc = getPrimaryContact(client);
                   // אם הראשי הוא לא הנישום, נציג שם של הראשי כדי שגיא יבין את מי הוא רואה
                   const primaryNote = !pc.isClient ? pc.name : '';
@@ -754,7 +756,7 @@ export default function ClientList({
                               )}
                               {overallRep === null && repBadgeForNonActive && (
                                 <span className={`badge ${REPRESENTATION_STATUS_BADGE[status]}`} style={{ fontSize: '12px', padding: '.05rem .35rem' }}>
-                                  {REPRESENTATION_STATUS_LABELS[status]}
+                                  {representationStatusLabel(status, sendPhase)}
                                 </span>
                               )}
                               {/* שלב הכרטיס. "לקוח פעיל" הוא המצב הצפוי ואינו מסומן;
@@ -808,7 +810,7 @@ export default function ClientList({
                               const rep = client.authorityRepresentations?.[a];
                               const st: RepAreaStatus = rep?.status ?? 'none';
                               const c = REP_DOT[st];
-                              const title = `${REP_AUTHORITY_LABELS[a]}: ${REP_AREA_STATUS_LABELS[st]}${rep?.level ? ` (${REP_LEVEL_LABELS[rep.level]})` : ''}`;
+                              const title = `${REP_AUTHORITY_LABELS[a]}: ${rep?.awaitingFileOpening && st !== 'active' ? 'ממתין לפתיחת תיק (אין תיק)' : REP_AREA_STATUS_LABELS[st]}${rep?.level ? ` (${REP_LEVEL_LABELS[rep.level]})` : ''}`;
                               return (
                                 <span
                                   key={a}

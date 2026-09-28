@@ -1,0 +1,9 @@
+{
+    "menuSons": [
+        { "name": "בקשות בתהליך", "url": "#/process", "parent_id": "-1", "id": "1" },
+        { "name": "בקשה חדשה", "url": "#/imut", "parent_id": "-1", "id": "2" },
+         { "name": "עזרה", "url": "#", "parent_id": "-1", "id": "3" },
+        { "name": "הדרכה", "url": "#", "click": "javascript:openHadracha()","parent_id": "3", "id": "4" },
+         { "name": "תמיכה", "url": "#","click": "javascript:openTmicha()","parent_id": "3", "id": "5" }
+    ]
+}

@@ -11,7 +11,7 @@
 // העובדה היחידה שהטריגר בשרת פועל לפיה.
 
 import { attach, detach } from '../browserSession.mjs';
-import { openRepresentationSystem, findRequestRows } from '../shaamRepresentationSession.mjs';
+import { openRepresentationSystem, findRequestRows, currentRequestRows, classifyRequestGroup } from '../shaamRepresentationSession.mjs';
 import { NeedsHumanError, PermanentError } from '../errors.mjs';
 import { detectBlockingSignal, blockingError, captureDiagnostics, unknownScreenError } from '../shaamSafety.mjs';
 
@@ -28,9 +28,12 @@ export async function preflight() {
 /** «נקלט בהצלחה» — הניסוח היחיד שמשמעותו תיק פעיל (נצפה ברשימה). */
 export const ACCEPTED_RE = /נקלט/;
 
+/** מערך נקלט: קוד 5 (נתוני הטבלה), ובהיעדר קוד — «נקלט» בטקסט. */
+const rowAccepted = (r) => (Number.isInteger(r?.systemStateCode) ? r.systemStateCode === 5 : ACCEPTED_RE.test(r?.rawSystemState ?? ''));
+
 /** האם **כל** המערכים שנצפו נקלטו. ריק אינו «הכול נקלט». פונקציה טהורה. */
 export function allRowsAccepted(rows) {
-  return Array.isArray(rows) && rows.length > 0 && rows.every((r) => ACCEPTED_RE.test(r?.rawSystemState ?? ""));
+  return Array.isArray(rows) && rows.length > 0 && rows.every(rowAccepted);
 }
 
 /**
@@ -55,6 +58,15 @@ export function reportedRows(foundRows, requestNumber = '') {
     suspensionEndsRaw: r.detail?.suspensionEnds ?? '',
     systemUpdatedAtRaw: r.detail?.systemUpdatedAt ?? '',
     requestNumber: r.detail?.requestNumber ?? requestNumber,
+    // ‼ 28.09.2026 · מנתוני הטבלה בשע״ם (כשיש) — קודים מדויקים, לא ניסוח.
+    ...(Number.isInteger(r.codes?.requestState) ? { requestStateCode: r.codes.requestState } : {}),
+    ...(Number.isInteger(r.codes?.systemState) ? { systemStateCode: r.codes.systemState } : {}),
+    ...(Number.isInteger(r.codes?.system) ? { systemCode: r.codes.system } : {}),
+    ...(Number.isInteger(r.codes?.repType) ? { repTypeCode: r.codes.repType } : {}),
+    ...(r.detail?.entityId ? { entityId: r.detail.entityId } : {}),
+    ...(r.noFile === true ? { noFile: true } : {}),
+    ...(r.cancelReason ? { cancelReason: r.cancelReason } : {}),
+    ...(typeof r.tik91 === 'boolean' ? { tik91: r.tik91 } : {}),
   }));
 }
 
@@ -78,7 +90,9 @@ export async function run(ctx, input) {
       'nothing_to_search_by',
     );
   }
-  if (!requestNumber && !personName) {
+  // ‼ 28.09.2026 · נתוני הטבלה נושאים ת.ז. בכל שורה — שיוך לפי ת.ז. מדויקת
+  // מספיק; השם הוא ראיה נוספת, לא תנאי. בלי ת.ז. ובלי מספר — עדיין עוצרים.
+  if (!requestNumber && !personName && !entityId) {
     throw new PermanentError(
       'אין מספר בקשה שמור ואין שם לקוח לאימות שיוך — לא ניתן לבסס בבטחה שהתוצאה שייכת לאדם הזה.',
       'missing_attribution_evidence',
@@ -140,9 +154,21 @@ export async function run(ctx, input) {
       };
     }
 
-    const rows = reportedRows(found.rows, requestNumber);
+    // ‼ 28.09.2026 · לאותו אדם יכולות להיות כמה בקשות — מדווחים על אחת.
+    const current = currentRequestRows(found.rows, { requestNumber });
+    if (!current.ok) {
+      throw new NeedsHumanError(
+        'לאדם הזה יש בשע״ם יותר מבקשה פתוחה אחת, ולא ברור לאיזו מהן PIVO מתייחסת. ' +
+        'שום מצב לא עודכן ושום דבר לא שונה בשע״ם. בדקו ב«בקשות בתהליך».',
+        'request_identity_unverified',
+      );
+    }
+    const rows = reportedRows(current.rows, current.requestNumber || requestNumber);
 
     const allAccepted = allRowsAccepted(rows);
+    // ‼ הכרעת גיא (28.09.2026): «פעיל לפי רשות» — כל מה שיש לו תיק נקלט, והשאר
+    // ממתינים לפתיחת תיק שלא קיים ⇒ הבקשה גמורה.
+    const settled = allAccepted || classifyRequestGroup(current.rows) === 'settled';
     ctx.log(`נמצאו ${rows.length} שורות · כולן נקלטו: ${allAccepted}`);
     for (const r of rows) ctx.log(`  · ${r.systemLabel}: בקשה="${r.rawRequestState}" מערך="${r.rawSystemState}"${r.suspensionEndsRaw ? ` צפי="${r.suspensionEndsRaw}"` : ''}`);
 
@@ -154,6 +180,8 @@ export async function run(ctx, input) {
         observedAt,
         rows,
         allAccepted,
+        settled,
+        ...(current.others?.length ? { otherRequests: current.others } : {}),
       },
     };
   } finally {

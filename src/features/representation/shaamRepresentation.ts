@@ -137,6 +137,16 @@ export interface PreflightResult {
 }
 
 const ID_RE = /^\d{5,9}$/;
+
+/**
+ * טלפון ישראלי שמסך פרטי ההתקשרות בשע״ם יכול לקבל: קידומת מהרשימה + 7 ספרות.
+ * ‼ אותו כלל כמו `splitShaamPhone` בעובד (+972 ⇒ 0; 9–10 ספרות שמתחילות ב-0).
+ */
+export function shaamPhoneValid(phone: string | null | undefined): boolean {
+  let d = String(phone ?? '').replace(/\D/g, '');
+  if (d.startsWith('972')) d = `0${d.slice(3)}`;
+  return /^0\d{8,9}$/.test(d);
+}
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}/;
 
 /**
@@ -191,9 +201,16 @@ export function preflightShaamSubmission(
 
   if (needsSpouseContact && !(person.spousePhone || '').trim()) {
     add('missing_spouse_phone', 'חסר מספר טלפון של בן/בת הזוג — שע״ם מבקש אותו במסך פרטי ההתקשרות.');
+  } else if ((person.spousePhone || '').trim() && !shaamPhoneValid(person.spousePhone)) {
+    add('bad_spouse_phone', 'מספר הטלפון של בן/בת הזוג בכרטיס אינו תקין.');
   }
-  if (!(person.email || '').trim() && !(person.phone || '').trim()) {
-    add('missing_contact', `חסרים פרטי התקשרות של ${who} — נדרש טלפון או דוא"ל.`);
+  // ‼ 28.09.2026 · שע״ם דורשת במסך פרטי ההתקשרות טלפון של המיוצג (אלא אם יש לה
+  // כבר מאומת — ואת זה אי אפשר לדעת מראש). המסך הזה בא **אחרי** שהבקשה נוצרה,
+  // ולכן דוא"ל בלבד אינו מספיק: בלי טלפון הבקשה הייתה נפתחת ונתקעת באמצע.
+  if (!shaamPhoneValid(person.phone)) {
+    add('missing_phone', (person.phone || '').trim()
+      ? `מספר הטלפון של ${who} בכרטיס אינו תקין — שע״ם שולחת אליו את הקישור לאישור הייצוג.`
+      : `חסר מספר טלפון של ${who} בכרטיס — שע״ם שולחת אליו את הקישור לאישור הייצוג.`);
   }
 
   return { ok: issues.length === 0, issues, systems, fileNumbers };
@@ -208,22 +225,32 @@ export function preflightShaamSubmission(
 // ‼ לכן אסור לשטח לסטטוס אחד: «נכשל/הצליח» היה מוחק בדיוק את המידע שהרו"ח
 // צריך — מי צריך לפעול עכשיו.
 
+// ‼ 28.09.2026 · המילונים המלאים נקראו חי מרשימות הסינון של שע״ם עצמה
+// («מצב בקשה», «מצב מערך»), והקודים מנתוני הטבלה. קוד — כשיש — גובר על טקסט.
 export type ShaamRequestState =
-  | 'awaiting_documents'    // המתנה למסמכים
-  | 'documents_uploading'   // מסמכים בטעינה
-  | 'documents_received'    // התקבלו המסמכים
-  | 'documents_approved'    // מסמכים אושרו
-  | 'rejected'              // נדחתה
-  | 'cancelled'             // בוטלה
+  | 'awaiting_documents'    // 1 המתנה למסמכים
+  | 'documents_received'    // 2 התקבלו המסמכים
+  | 'documents_approved'    // 3 מסמכים אושרו
+  | 'rejected'              // 4 נדחה
+  | 'documents_uploading'   // 5 מסמכים בטעינה
+  | 'upload_failed'         // 6 כשל-ממתין לטעינת חוזרת
+  | 'cancelled'             // בוטלה (טקסט ישן)
   | 'unknown';
 
+/** «מצב בקשה» לפי הקוד של שע״ם (statusBakashaKod). */
+export const SHAAM_REQUEST_STATE_BY_CODE: Record<number, ShaamRequestState> = {
+  1: 'awaiting_documents', 2: 'documents_received', 3: 'documents_approved',
+  4: 'rejected', 5: 'documents_uploading', 6: 'upload_failed',
+};
+
 export type ShaamSystemState =
-  | 'accepted'                 // נקלט בהצלחה — התיק פעיל
-  | 'suspended'                // השהיה לקליטה
-  | 'awaiting_client_approval' // ממתין לאישור לקוח
-  | 'awaiting_file_opening'    // ממתין לפתיחת תיק
+  | 'accepted'                 // 5 נקלט בהצלחה — התיק פעיל
+  | 'suspended'                // 2 השהייה
+  | 'authority_review'         // 3 השהיית מטה — בדיקה פרטנית של מרשם המייצגים, בלי מועד
+  | 'awaiting_client_approval' // 7 בתיק 91 — הלקוח חייב לאשר
+  | 'awaiting_file_opening'    // 1 (או 7 בתיק שאינו 91) — אין עדיין תיק במערך
   | 'rejected'                 // נדחה
-  | 'cancelled'                // בוטל
+  | 'cancelled'                // 6 בוטל
   | 'pending'                  // נמסר, אין עדיין מצב
   | 'unknown';
 
@@ -233,6 +260,7 @@ export const SHAAM_REQUEST_STATE_LABELS: Record<ShaamRequestState, string> = {
   documents_received: 'התקבלו המסמכים',
   documents_approved: 'מסמכים אושרו',
   rejected: 'נדחתה',
+  upload_failed: 'כשל בטעינה - ממתין לטעינה חוזרת',
   cancelled: 'בוטלה',
   unknown: 'מצב לא ידוע',
 };
@@ -240,6 +268,7 @@ export const SHAAM_REQUEST_STATE_LABELS: Record<ShaamRequestState, string> = {
 export const SHAAM_SYSTEM_STATE_LABELS: Record<ShaamSystemState, string> = {
   accepted: 'תיק פעיל',
   suspended: 'השהיה לקליטה',
+  authority_review: 'בבדיקת מרשם המייצגים',
   awaiting_client_approval: 'ממתין לאישור הלקוח',
   awaiting_file_opening: 'ממתין לפתיחת תיק',
   rejected: 'נדחה',
@@ -260,6 +289,7 @@ function norm(text: string | undefined | null): string {
 export function parseShaamRequestState(text: string | undefined | null): ShaamRequestState {
   const t = norm(text);
   if (!t) return 'unknown';
+  if (t.includes('כשל')) return 'upload_failed';
   if (t.includes('המתנה למסמכים') || t.includes('ממתין למסמכים')) return 'awaiting_documents';
   if (t.includes('בוטל')) return 'cancelled';
   if (t.includes('נדח')) return 'rejected';
@@ -275,9 +305,14 @@ export function parseShaamSystemState(text: string | undefined | null): ShaamSys
   if (!t) return 'pending';
   if (t.includes('בוטל')) return 'cancelled';
   if (t.includes('נדח')) return 'rejected';
+  // ‼ 28.09.2026 · «ממתין:91-לאישור לקוח,כל השאר-לפתיחת התיק» הוא **קוד אחד (7)**
+  // לשני מצבים: אישור לקוח רק בתיק 91, אחרת פתיחת תיק. מהטקסט לבדו אי אפשר
+  // להכריע — ההכרעה ב-classifyShaamRow (לפי הפירוט). כאן: פתיחת תיק.
+  if (t.includes('כל השאר')) return 'awaiting_file_opening';
   if (t.includes('לאישור לקוח') || t.includes('לאישור הלקוח')) return 'awaiting_client_approval';
   if (t.includes('לפתיחת התיק') || t.includes('לפתיחת תיק')) return 'awaiting_file_opening';
   if (t.includes('נקלט')) return 'accepted';
+  if (t.includes('השהיית מטה')) return 'authority_review';
   if (t.includes('השהי')) return 'suspended';
   return 'unknown';
 }
@@ -312,6 +347,22 @@ export interface ShaamSystemStatus {
   suspensionEndsRaw?: string;
   systemUpdatedAtRaw?: string;
   requestNumber?: string;
+  // ── 28.09.2026 · מנתוני הטבלה בשע״ם (כשנקראו) ──
+  /** statusBakashaKod · 1..6. */
+  requestStateCode?: number;
+  /** statusTikKod · 1,2,3,5,6,7. */
+  systemStateCode?: number;
+  /** kodMaarach · 1 מ"ה, 2 מע"מ, 5 ניכויים. */
+  systemCode?: number;
+  /** ת.ז. המיוצג (misMuzag) — 9 ספרות. */
+  entityId?: string;
+  /** אין עדיין תיק במערך (isBehamtana / «לא קיים תיק»). */
+  noFile?: boolean;
+  /** סיבת ביטול (bitulTeur), כששע״ם ביטלה. */
+  cancelReason?: string;
+  /** הפירוט הציג (גלוי) «תיק החזר מס (91)». undefined ⇒ הפירוט לא נקרא. */
+  tik91?: boolean;
+  repTypeCode?: number;
 }
 
 /** מצב מערך אחד, מתורגם — זה מה שהמסך מציג. */
@@ -331,9 +382,43 @@ export interface ShaamSystemView {
 export function classifyShaamSystem(row: ShaamSystemStatus): ShaamSystemView {
   return {
     systemLabel: row.systemLabel || 'מערך',
-    state: parseShaamSystemState(row.rawSystemState),
+    state: classifyShaamRow(row),
     suspensionEndsAt: parseShaamDate(row.suspensionEndsRaw),
   };
+}
+
+/**
+ * מצב מערך אחד — לפי הקוד של שע״ם כשיש, אחרת לפי הטקסט.
+ * ‼ קוד 7 («ממתין:91-לאישור לקוח,כל השאר-לפתיחת התיק») = אישור לקוח **רק**
+ * בתיק 91: הפירוט מציג (גלוי) «תיק החזר מס (91)», או ש«צפי לסיום השהייה»
+ * אומר «ממתין לאישור לקוח» (נצפה חי אצל דן רכס). בלי אחד מהם — פתיחת תיק.
+ */
+export function classifyShaamRow(row: ShaamSystemStatus): ShaamSystemState {
+  const code = row.systemStateCode;
+  const clientEvidence = row.tik91 === true || /לאישור\s*(ה)?לקוח/.test(norm(row.suspensionEndsRaw));
+  if (typeof code === 'number') {
+    switch (code) {
+      case 1: return 'awaiting_file_opening';
+      case 2: return 'suspended';
+      case 3: return 'authority_review';
+      case 5: return 'accepted';
+      case 6: return 'cancelled';
+      case 7: return clientEvidence ? 'awaiting_client_approval' : 'awaiting_file_opening';
+      default: return 'unknown';
+    }
+  }
+  const byText = parseShaamSystemState(row.rawSystemState);
+  if (byText === 'awaiting_file_opening' && norm(row.rawSystemState).includes('כל השאר') && clientEvidence) {
+    return 'awaiting_client_approval';
+  }
+  return byText;
+}
+
+/** «מצב בקשה» של שורה — לפי קוד כשיש. */
+export function shaamRowRequestState(row: ShaamSystemStatus | undefined): ShaamRequestState {
+  const code = row?.requestStateCode;
+  if (typeof code === 'number' && SHAAM_REQUEST_STATE_BY_CODE[code]) return SHAAM_REQUEST_STATE_BY_CODE[code];
+  return parseShaamRequestState(row?.rawRequestState);
 }
 
 /** מה שנשמר ב-PIVO על ההגשה. מצב אינטגרציה עמיד, לא צילום מסך. */
@@ -371,36 +456,109 @@ export interface ShaamRequestTracking {
   /** מסמכים נוספים ששע״ם דרשה במסך טעינת המסמכים, ומה PIVO עשתה עם כל אחד. */
   requiredDocuments?: ShaamRequiredDocument[];
   requiredDocumentsObservedAt?: string;
+  /** 204 · הת.ז. שבכותרת מסך «טעינת מסמכים» — בעלי כל הדרישות במסך הזה. */
+  requiredDocumentsEntityId?: string;
+  /** 204 · האדם בכרטיס שהת.ז. הזו ממופה אליו. null ⇒ לא ניתן לשייך בוודאות. */
+  requiredDocumentsPerson?: 'client' | 'spouse' | null;
+  /** 204 · מצב ההמתנה העמיד של השידור על מסמכים — ראה ShaamDocumentsGate. */
+  documentsGate?: ShaamDocumentsGate;
   lastStaleReadingAt?: string;
   /** 202 · «הזן ייפוי כוח בשע״ם» מצא שהבקשה כבר קיימת שם, ולא יצר חדשה. */
   foundBeforeCreateAt?: string;
+  /** 205 · «לידיעתך» של שלב 2 כמו ששע״ם הציגה (מה יש לצרף) — ראיה בלבד. */
+  creationNotice?: { text: string; at: string };
 }
 
-/** סוג המסמך המזהה ששע״ם מבקשת. null ⇒ לא מסמך מזהה (או לא זוהה). */
-export type ShaamIdentityDocKind = 'idCard' | 'passport' | 'idOrPassport';
+/**
+ * סוג המסמך המזהה ששע״ם מבקשת. null ⇒ לא מסמך מזהה (או לא זוהה).
+ * ‼ 204 · שורה 2 בשע״ם היא «תצלום תעודת זהות או רישיון נהיגה» ⇒ idOrLicense.
+ */
+export type ShaamIdentityDocKind = 'idCard' | 'passport' | 'idOrPassport' | 'idOrLicense' | 'driverLicense';
 
 /** מה נעשה עם דרישת מסמך — נכתב בשרת (201, ensure_shaam_identity_document_request). */
 export type ShaamRequiredDocumentHandling =
-  | 'exists' | 'requested' | 'already_requested' | 'ambiguous_materials' | 'unrecognized' | 'no_request';
+  | 'exists' | 'requested' | 'already_requested' | 'ambiguous_materials' | 'unrecognized' | 'no_request'
+  | 'needs_document_assignment' | 'unsupported';
 
 export interface ShaamRequiredDocument {
   label: string;
   required?: boolean;
-  kind?: ShaamIdentityDocKind | null;
+  /** 204 · שורת המסמך הקבועה בשע״ם (1–5). */
+  slotId?: number | null;
+  kind?: ShaamIdentityDocKind | 'inheritance' | 'guardianship' | 'unknown' | null;
   handling?: ShaamRequiredDocumentHandling;
+  /** 204 · הדרישה באה משע״ם — לא מבקשה של המשרד. */
+  requiredBy?: 'shaam';
+  /** 204 · בעל הדרישה: הת.ז. בכותרת שע״ם ⇒ אדם בכרטיס. null ⇒ לא ניתן לשייך. */
+  person?: 'client' | 'spouse' | null;
+  personName?: string | null;
+}
+
+/**
+ * 204 · מצב השידור מול מסמכים ששע״ם דורשת — נכתב בשרת מתוצאת משימת השידור.
+ *   awaiting_required_documents   · חסר מסמך; בקשה נפתחה ללקוח; ממשיך מעצמו כשמגיע.
+ *   needs_document_assignment     · הת.ז. בכותרת שע״ם אינה אדם אחד בכרטיס.
+ *   document_not_pdf_convertible  · המסמך בפורמט שאי אפשר להפוך ל-PDF.
+ *   unsupported_required_document · צו ירושה / אפוטרופוס / שורה לא מוכרת — ידני.
+ *   first_live_verification       · שומר המקרה החי הראשון: הכול מוכן, לא הועלה.
+ *   required_document_unavailable · המסמך לא נקרא מהתיק.
+ *   resume_queued                 · המסמך הגיע, ונוצרה משימת שידור חדשה אחת.
+ *   submitted                     · השידור הצליח.
+ */
+export type ShaamDocumentsGateState =
+  | 'awaiting_required_documents' | 'needs_document_assignment' | 'document_not_pdf_convertible'
+  | 'unsupported_required_document' | 'first_live_verification' | 'required_document_unavailable'
+  | 'resume_queued' | 'submitted';
+
+export interface ShaamDocumentsPlanSlot {
+  slotId: number; kind: string; label: string;
+  status: string;
+  person?: 'client' | 'spouse' | null; personName?: string | null;
+  docKind?: string | null; sourceDocumentIds?: string[]; pageCount?: number | null; fileName?: string | null;
+}
+
+export interface ShaamDocumentsGate {
+  state: ShaamDocumentsGateState;
+  jobId?: string;
+  at?: string;
+  entityId?: string;
+  person?: 'client' | 'spouse' | null;
+  rows?: { slotId: number | null; kind: string; label: string; hasFile?: boolean }[];
+  plan?: { entityId?: string; decision?: string; slots?: ShaamDocumentsPlanSlot[] };
+  detail?: string;
+  resumeJobId?: string;
+  resumedAt?: string;
+  resumePendingOpenJob?: boolean;
+}
+
+/** המצבים שבהם השידור **ממתין** (ולא רץ/הושלם) — הכפתור לא מוצע כ«נסה שוב». */
+export const SHAAM_DOCUMENTS_BLOCKING_STATES: readonly ShaamDocumentsGateState[] = [
+  'awaiting_required_documents', 'needs_document_assignment', 'document_not_pdf_convertible',
+  'unsupported_required_document', 'first_live_verification', 'required_document_unavailable',
+];
+
+/** מצב ההמתנה כשהוא חוסם את השידור, או null. */
+export function shaamDocumentsBlocked(t: ShaamRequestTracking | undefined): ShaamDocumentsGate | null {
+  const g = t?.documentsGate;
+  if (!g || t?.submittedAt) return null;
+  return SHAAM_DOCUMENTS_BLOCKING_STATES.includes(g.state) ? g : null;
 }
 
 /**
  * סוג המסמך המזהה מתוך התווית בשע״ם. ‼ תאום של public.shaam_identity_doc_kind
- * (201) — אותו כלל בשני הצדדים. תווית שלא זוהתה ⇒ null, ולא ניחוש.
+ * (201/204) — אותו כלל בשני הצדדים. תווית שלא זוהתה ⇒ null, ולא ניחוש.
+ * ‼ 204 · «תעודת זהות או רישיון נהיגה» ⇒ idOrLicense (כל אחד מהשניים מספק).
  */
 export function shaamIdentityDocKind(label: string | undefined | null): ShaamIdentityDocKind | null {
   const l = (label ?? '').replace(/["״׳']/g, '');
   const id = /(תעודת\s*זהות|ת\.\s*ז\.?|תז(?![א-ת])|ספח)/.test(l);
+  const license = /(רישיון|רשיון)/.test(l);
   const passport = /דרכון/.test(l);
+  if (id && license) return 'idOrLicense';
   if (id && passport) return 'idOrPassport';
   if (id) return 'idCard';
   if (passport) return 'passport';
+  if (/(רישיון|רשיון)\s*נהיגה/.test(l)) return 'driverLicense';
   return null;
 }
 
@@ -411,6 +569,8 @@ const REQUIRED_DOC_HANDLING_TEXT: Record<ShaamRequiredDocumentHandling, string> 
   ambiguous_materials: 'בתיק יש צילום תעודה שלא ידוע של מי הוא - יש לשייך אותו או לבקש ידנית',
   unrecognized: 'מסמך שאינו ת.ז./דרכון - לטיפול המשרד',
   no_request: 'אין בקשת ייצוג פעילה לשייך אליה את הדרישה',
+  needs_document_assignment: 'לא ניתן לקבוע בוודאות של מי המסמך - הת.ז. בשע״ם אינה תואמת לאדם אחד בכרטיס',
+  unsupported: 'מסמך שאינו מסמך מזהה - להשלמה ידנית בשע״ם',
 };
 
 export function shaamRequiredDocumentText(d: ShaamRequiredDocument): string {
@@ -466,7 +626,7 @@ export function shaamRowsFormOneRequest(t: ShaamRequestTracking | undefined): bo
 
 export function shaamStageOf(t: ShaamRequestTracking | undefined): ShaamIntegrationStage {
   if (!t) return 'none';
-  if (allSystemsAccepted(t)) return 'active';
+  if (shaamSettled(t)) return 'active';
   if (t.submittedAt) return 'submitted';
   if (t.formDocumentId) return 'form_fetched';
   if (shaamRequestExists(t)) return 'request_created';
@@ -487,6 +647,53 @@ export function allSystemsAccepted(t: ShaamRequestTracking | undefined): boolean
   const list = t?.systems ?? [];
   if (list.length === 0) return false;
   return list.every(row => classifyShaamSystem(row).state === 'accepted');
+}
+
+/** מערך שממתין לפתיחת תיק **שלא קיים** — ייקלט מעצמו אם ייפתח תיק. */
+export function shaamAwaitingMissingFile(row: ShaamSystemStatus): boolean {
+  if (classifyShaamRow(row) !== 'awaiting_file_opening') return false;
+  const digits = (row.fileNumber ?? '').replace(/\D/g, '');
+  return row.noFile === true || /לא\s*קיים\s*תיק/.test(norm(row.fileNumber)) || (digits !== '' && /^0+$/.test(digits));
+}
+
+/**
+ * «גמור» לפי רשות (הכרעת גיא, 28.09.2026): כל מה שיש לו תיק נקלט, והשאר
+ * ממתינים לפתיחת תיק שלא קיים (שע״ם קולטת אותם מעצמה אם ייפתח תיק, ומבטלת
+ * אחרי 6 חודשים). ‼ לפחות מערך אחד נקלט — אחרת אין ראיה לשום ייצוג.
+ */
+export function shaamSettled(t: ShaamRequestTracking | undefined): boolean {
+  if (allSystemsAccepted(t)) return true;
+  if (t?.submittedAt && !shaamReconciledAfterSubmission(t)) return false;
+  const list = t?.systems ?? [];
+  const accepted = list.filter(r => classifyShaamRow(r) === 'accepted');
+  return accepted.length > 0 && list.every(r => classifyShaamRow(r) === 'accepted' || shaamAwaitingMissingFile(r));
+}
+
+/** ISO date + n ימים. */
+function addDays(iso: string, days: number): string {
+  const d = new Date(`${iso.slice(0, 10)}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+/**
+ * ‼ 28.09.2026 · מתוך ההדרכה של שע״ם: «בקשה אשר לא צורפו עבורה טפסים במשך 30
+ * יום – תבוטל אוטומטית». המועד (ISO date) — רק כשיש בקשה שעוד לא שודרה.
+ */
+export function shaamUploadDeadline(t: ShaamRequestTracking | undefined): string | undefined {
+  if (!t || t.submittedAt || !shaamRequestExists(t)) return undefined;
+  const entered = parseShaamDate(t.systems?.find(r => r.enteredAt)?.enteredAt);
+  const base = entered ?? (t.createdAt ? t.createdAt.slice(0, 10) : undefined);
+  return base ? addDays(base, 30) : undefined;
+}
+
+/** «בקשה אשר במשך 6 חודשים לא נפתח לגביה תיק … תבוטל אוטומטית». */
+export function shaamFileOpeningDeadline(row: ShaamSystemStatus): string | undefined {
+  const entered = parseShaamDate(row.enteredAt);
+  if (!entered) return undefined;
+  const d = new Date(`${entered}T00:00:00Z`);
+  d.setUTCMonth(d.getUTCMonth() + 6);
+  return d.toISOString().slice(0, 10);
 }
 
 /** כל שורות המערך, מתורגמות — הצורה שהמסך מצייר. */
@@ -515,6 +722,28 @@ export interface ShaamProgressLine {
 
 const ms = (iso?: string) => (iso ? Date.parse(iso) : NaN);
 
+/**
+ * ‼ 28.09.2026 · המסמכים כבר אצל שע״ם, גם כשהם לא עברו דרך PIVO (דן רכס —
+ * הוזן ושודר ידנית באוגוסט): «מצב בקשה» 2/3/5, או מערך שכבר עבר את שלב
+ * המסמכים. ‼ קוד 6 («כשל-ממתין לטעינת חוזרת») אינו «אצל שע״ם» — צריך לטעון שוב.
+ */
+export function shaamDocumentsInShaam(t: ShaamRequestTracking | undefined): boolean {
+  const rows = t?.systems ?? [];
+  if (rows.length === 0) return false;
+  const req = shaamRowRequestState(rows[0]);
+  if (req === 'upload_failed' || req === 'awaiting_documents') return false;
+  if (req === 'documents_received' || req === 'documents_approved' || req === 'documents_uploading') return true;
+  return rows.some(r => ['accepted', 'suspended', 'authority_review', 'awaiting_client_approval'].includes(classifyShaamRow(r)));
+}
+
+/** ‼ 28.09.2026 · שע״ם מציגה «כשל-ממתין לטעינת חוזרת» — הטופס צריך להיטען שוב. */
+export function shaamUploadFailed(t: ShaamRequestTracking | undefined): boolean {
+  const rows = t?.systems ?? [];
+  if (rows.length === 0) return false;
+  if (t?.submittedAt && !shaamReconciledAfterSubmission(t)) return false;
+  return shaamRowRequestState(rows[0]) === 'upload_failed';
+}
+
 /** יש קריאה של שע״ם שנעשתה אחרי ההגשה (ולכן מתארת את מה שקרה לטופס). */
 export function shaamReconciledAfterSubmission(t: ShaamRequestTracking | undefined): boolean {
   if (!t?.submittedAt) return false;
@@ -527,6 +756,25 @@ export interface ShaamSystemLine {
   /** «מצב מערך» כפי ששע״ם כתבה אותו. ריק ⇒ שע״ם טרם עדכנה. */
   raw: string;
   state: ShaamSystemState;
+  /** 28.09 · אין תיק במערך — ייקלט מעצמו אם ייפתח (עד המועד). */
+  missingFile?: boolean;
+  fileOpeningDeadline?: string;
+  /** 28.09 · סיבת ביטול, כפי ששע״ם כתבה. */
+  cancelReason?: string;
+  /** 28.09 · המפתח של הרשות ב-PIVO (לפי kodMaarach/התווית). */
+  authority?: ShaamSystemKey;
+}
+
+/** המערך של השורה כרשות ב-PIVO. */
+export function shaamRowAuthority(row: ShaamSystemStatus): ShaamSystemKey | undefined {
+  if (row.systemCode === 1) return 'incomeTax';
+  if (row.systemCode === 2) return 'vat';
+  if (row.systemCode === 5) return 'withholding';
+  const l = norm(row.systemLabel).replace(/"/g, '');
+  if (l.includes('מס הכנסה')) return 'incomeTax';
+  if (l.includes('מעמ')) return 'vat';
+  if (l.includes('ניכויים')) return 'withholding';
+  return undefined;
 }
 
 export interface ShaamLifecycleView {
@@ -553,22 +801,31 @@ export interface ShaamLifecycleView {
 
 export function shaamLifecycle(t: ShaamRequestTracking | undefined): ShaamLifecycleView {
   const requiredDocuments = t?.requiredDocuments ?? [];
+  // ‼ 28.09.2026 · הוגש מחוץ ל-PIVO (ידנית בשע״ם) — שע״ם עצמה אומרת שהמסמכים אצלה.
+  const outside = !t?.submittedAt && shaamDocumentsInShaam(t);
   const base = {
-    submitted: !!t?.submittedAt, submittedAt: t?.submittedAt, observedAt: t?.observedAt,
+    submitted: !!t?.submittedAt || outside, submittedAt: t?.submittedAt, observedAt: t?.observedAt,
     requiredDocuments,
   };
-  if (!t?.submittedAt) {
+  if (!t || (!t.submittedAt && !outside)) {
     const line = shaamProgressLine(t);
     return { ...base, reconciled: false, systems: [], ball: line.ball, headline: line.text };
   }
 
-  const reconciled = shaamReconciledAfterSubmission(t);
+  const reconciled = outside || shaamReconciledAfterSubmission(t);
   const systems: ShaamSystemLine[] = reconciled
-    ? (t.systems ?? []).map(r => ({
-      label: r.systemLabel || 'מערך',
-      raw: (r.rawSystemState ?? '').trim(),
-      state: parseShaamSystemState(r.rawSystemState),
-    }))
+    ? (t.systems ?? []).map(r => {
+      const state = classifyShaamRow(r);
+      const missingFile = shaamAwaitingMissingFile(r);
+      return {
+        label: r.systemLabel || 'מערך',
+        raw: (r.rawSystemState ?? '').trim(),
+        state,
+        ...(missingFile ? { missingFile, fileOpeningDeadline: shaamFileOpeningDeadline(r) } : {}),
+        ...(r.cancelReason ? { cancelReason: r.cancelReason } : {}),
+        ...(shaamRowAuthority(r) ? { authority: shaamRowAuthority(r) } : {}),
+      };
+    })
     : [];
   // «מצב בקשה» מהשורה שנקראה (כמו שהשרת שומר אותו), ורק מקריאה שאחרי ההגשה.
   const requestStateRaw = reconciled ? (t.systems?.[0]?.rawRequestState ?? t.rawRequestState ?? '').trim() || undefined : undefined;
@@ -583,8 +840,9 @@ export function shaamLifecycle(t: ShaamRequestTracking | undefined): ShaamLifecy
     : undefined;
   const opening = systems.filter(s => s.state === 'awaiting_file_opening');
   // ‼ «ממתין לפתיחת תיק» — הכדור אצל הרשות (כמו לפני 201). לא ממציאים פעולה למשרד.
+  // ‼ 28.09 · לפי ההדרכה של שע״ם: נקלט אוטומטית בלילה שאחרי פתיחת התיק, ומתבטל אחרי 6 חודשים.
   const openingNote = opening.length
-    ? `${opening.map(s => s.label).join(', ')}: שע״ם ממתינה לפתיחת תיק - הייצוג במערך הזה ייקלט רק אחרי שייפתח תיק.`
+    ? `${opening.map(s => s.label).join(', ')}: שע״ם ממתינה לפתיחת תיק - הייצוג במערך הזה ייקלט מעצמו בלילה שאחרי פתיחת התיק${opening[0].fileOpeningDeadline ? `, ויתבטל אם לא ייפתח תיק עד ${opening[0].fileOpeningDeadline}` : ''}.`
     : undefined;
   const v = { ...base, reconciled, systems, requestStateRaw };
 
@@ -598,6 +856,18 @@ export function shaamLifecycle(t: ShaamRequestTracking | undefined): ShaamLifecy
   }
   if (systems.length > 0 && systems.every(s => s.state === 'accepted')) {
     return { ...v, ball: 'done', headline: 'הייצוג נקלט בשע״ם בכל המערכים שהתבקשו.' };
+  }
+  // ‼ הכרעת גיא (28.09.2026): «פעיל לפי רשות» — כל מה שיש לו תיק נקלט.
+  if (shaamSettled(t)) {
+    const acc = systems.filter(s => s.state === 'accepted').map(s => s.label).join(', ');
+    return { ...v, ball: 'done', headline: `הייצוג נקלט בשע״ם ב${acc}.`, note: openingNote };
+  }
+  if (shaamUploadFailed(t)) {
+    return {
+      ...v, ball: 'office',
+      headline: 'שע״ם מציגה «כשל-ממתין לטעינת חוזרת» - הטופס לא נקלט וצריך לטעון אותו שוב.',
+      officeAction: 'לשלוח שוב את הטופס החתום לשע״ם.',
+    };
   }
   if (t.notInListAt && ms(t.notInListAt) >= ms(t.submittedAt)) {
     return {
@@ -613,7 +883,9 @@ export function shaamLifecycle(t: ShaamRequestTracking | undefined): ShaamLifecy
       clientAction: {
         required: true,
         title: 'הייצוג ממתין לאישור הלקוח',
-        text: 'הלקוח חייב לאשר את בקשת הייצוג באזור האישי ברשות המסים (או בקישור שקיבל מרשות המסים). בלי האישור שע״ם לא תקלוט את הייצוג.',
+        // ‼ 28.09 · מההדרכה של שע״ם: ההודעה ללקוח (מסרון, מייל ומכתב) יוצאת משע״ם
+        // עצמה, ובשע״ם אין פעולה «שלח שוב». התזכורת — מ-PIVO.
+        text: 'רשות המסים שלחה ללקוח הודעה (מסרון, מייל ומכתב) עם קישור לאישור הייצוג. הלקוח חייב לאשר - בקישור או באזור האישי. בשע״ם אין אפשרות לשלוח את ההודעה שוב.',
       },
       note: openingNote,
     };
@@ -622,8 +894,15 @@ export function shaamLifecycle(t: ShaamRequestTracking | undefined): ShaamLifecy
   if (stopped) {
     return {
       ...v, ball: 'office',
-      headline: `שע״ם מציגה «${stopped.raw}» ב${stopped.label}.`,
+      headline: `שע״ם מציגה «${stopped.raw}» ב${stopped.label}${stopped.cancelReason ? ` - ${stopped.cancelReason}` : ''}.`,
       officeAction: 'לבדוק את הבקשה בשע״ם ולהחליט איך ממשיכים.',
+    };
+  }
+  if (systems.some(s => s.state === 'authority_review')) {
+    return {
+      ...v, ball: 'authority',
+      headline: 'הבקשה בבדיקה פרטנית של מרשם המייצגים ברשות המסים («השהיית מטה») - אין מועד ידוע.',
+      note: openingNote,
     };
   }
   if (systems.some(s => s.state === 'suspended')) {
@@ -650,15 +929,19 @@ export function shaamLifecycle(t: ShaamRequestTracking | undefined): ShaamLifecy
  */
 export function shaamProgressLine(t: ShaamRequestTracking | undefined): ShaamProgressLine {
   // ‼ 201 · אחרי ההגשה — אותו מקור כמו המסך (shaamLifecycle), כדי שלא יהיו שני סיפורים.
-  if (t?.submittedAt) {
+  // ‼ 28.09 · כולל הגשה שנעשתה מחוץ ל-PIVO (שע״ם אומרת שהמסמכים אצלה).
+  if (t?.submittedAt || shaamDocumentsInShaam(t)) {
     const l = shaamLifecycle(t);
     return { ball: l.ball, text: l.headline, until: l.nextMilestone?.date };
   }
   if (!t || !shaamRequestExists(t)) {
     return { ball: 'office', text: 'טרם נפתחה בקשת ייצוג בשע״ם.' };
   }
-  if (allSystemsAccepted(t)) {
+  if (shaamSettled(t)) {
     return { ball: 'done', text: 'הייצוג נקלט בשע״ם בכל המערכים שהתבקשו.' };
+  }
+  if (shaamUploadFailed(t)) {
+    return { ball: 'office', text: 'שע״ם מציגה «כשל-ממתין לטעינת חוזרת» - יש לשלוח שוב את הטופס החתום.' };
   }
   const views = shaamSystemViews(t);
   const waitingClient = views.find(s => s.state === 'awaiting_client_approval');
@@ -671,16 +954,18 @@ export function shaamProgressLine(t: ShaamRequestTracking | undefined): ShaamPro
         // ‼ נמצאה בשע״ם בלי ש-PIVO פתחה אותה (הוזנה ידנית) — הטופס לא הגיע
         // דרך האוטומציה, ולכן לא אומרים «נשאר להביא»: מדווחים מה שנקרא.
         // ‼ 199: גם כשהמספר נקרא אחר כך מהבקשה שנפתחה — אותה בקשה, אותו דיווח.
-        const state = parseShaamRequestState(t.rawRequestState ?? t.systems?.[0]?.rawRequestState);
+        const state = t.systems?.[0] ? shaamRowRequestState(t.systems[0]) : parseShaamRequestState(t.rawRequestState);
         const which = t.requestNumber ? `הבקשה ${t.requestNumber}` : 'הבקשה';
         return {
           ball: 'office',
           text: `${which} פתוחה בשע״ם (נמצאה ברשימת הבקשות בתהליך) — ${SHAAM_REQUEST_STATE_LABELS[state]}.`,
+          until: shaamUploadDeadline(t),
         };
       }
-      return { ball: 'office', text: `הבקשה נפתחה בשע״ם (${t.requestNumber}) — נשאר להביא את טופס ייפוי הכוח.` };
+      return { ball: 'office', text: `הבקשה נפתחה בשע״ם (${t.requestNumber}) — נשאר להביא את טופס ייפוי הכוח.`, until: shaamUploadDeadline(t) };
     }
-    return { ball: 'office', text: 'טופס ייפוי הכוח מוכן — נשאר להחתים ולשדר אותו לשע״ם.' };
+    // ‼ 28.09 · «בקשה שלא צורפו לה טפסים 30 יום תבוטל» (ההדרכה של שע״ם).
+    return { ball: 'office', text: 'טופס ייפוי הכוח מוכן — נשאר להחתים ולשדר אותו לשע״ם.', until: shaamUploadDeadline(t) };
   }
   const suspended = views.find(s => s.state === 'suspended');
   if (suspended) {
@@ -725,11 +1010,64 @@ export const FORM_2279_TEMPLATE: {
   otherSpouse: Form2279Box;
   /** חתימת המייצג + חותמת המשרד, מתחת לחלק ב'. */
   accountantStamp: Form2279Box;
+  /**
+   * ✓ ליד «אני/אנחנו מאשר/ים לרשות המסים לשלוח הודעות באמצעות מסרון (sms) או
+   * לתיבת הדואר האלקטרוני». ‼ 28.09.2026 · גיא סימן אותו ידנית בהדגמה המוקלטת
+   * (לזימי, 27.08) — ובטופס שהוכן אוטומטית (הדסה, 23.09) הוא נשאר ריק.
+   */
+  smsConsentCheck: Form2279Box;
+  /** ✓ ליד «אני מאשר שייפוי הכוח המקורי עליו חתמו הנישום ו/או בן/ת זוגו נמצא במשרדי». אותו מקור. */
+  representativeOriginalCheck: Form2279Box;
 } = {
   registeredSigner: { xPct: 0.3934938248867116, yPct: 0.5141197691937937, widthPct: 0.1487377943942933, heightPct: 0.03382656485562341 },
   otherSpouse: { xPct: 0.13005731072135313, yPct: 0.5113501234488552, widthPct: 0.1487377943942933, heightPct: 0.03382656485562341 },
   accountantStamp: { xPct: 0.09886512564599877, yPct: 0.7129217899296978, widthPct: 0.22514095909038695, heightPct: 0.066606306884761 },
+  // ‼ המיקומים המדויקים שגיא סימן בעורך על טופס 2279 אמיתי (בקשה 2026495063, 27.08.2026).
+  smsConsentCheck: { xPct: 0.8738551401869159, yPct: 0.49810469314079425, widthPct: 0.035, heightPct: 0.025 },
+  representativeOriginalCheck: { xPct: 0.8703504672897197, yPct: 0.7246389891696752, widthPct: 0.035, heightPct: 0.025 },
 };
+
+/**
+ * עוגני הטקסט של טופס 2279 (5א) כפי ששע״ם מפיקה אותו — מיקום (שמאל, מלמעלה,
+ * באחוזי עמוד) של מילים קבועות בטופס. ‼ 28.09.2026 · נמדדו בשכבת הטקסט של שני
+ * טפסים אמיתיים (23.09 ו-27.08, זוג נשוי וגרוש) — זהים עד שלוש ספרות אחרי הנקודה.
+ * התבנית שלמעלה נכונה רק כשהעוגנים במקומם; אחרת — לא מסמנים אוטומטית.
+ */
+export const FORM_2279_ANCHORS: { id: string; text: string; x: number; y: number }[] = [
+  { id: 'registered_signature_label', text: 'חתימת', x: 0.498, y: 0.549 },
+  { id: 'registered_word', text: 'רשום', x: 0.431, y: 0.549 },
+  { id: 'other_spouse_signature_label', text: 'חתימת', x: 0.231, y: 0.549 },
+  { id: 'sms_consent_line', text: 'אני', x: 0.855, y: 0.518 },
+  { id: 'representative_original_line', text: 'אני', x: 0.846, y: 0.743 },
+  { id: 'representative_stamp_label', text: 'וחותמת', x: 0.175, y: 0.773 },
+];
+
+/** פריט טקסט מעמוד 1 — x/y באחוזי עמוד (y מלמעלה). */
+export interface Form2279TextItem { s: string; x: number; y: number }
+
+export interface Form2279Layout {
+  numPages: number;
+  width: number;
+  height: number;
+  items: Form2279TextItem[];
+}
+
+/**
+ * האם הטופס שהתקבל משע״ם הוא בדיוק הטופס שהתבנית נמדדה עליו.
+ * ‼ עמוד אחד, 612×792 נק', וכל העוגנים במקומם (סטייה עד ~1% מהעמוד). אחרת —
+ * `ok:false` ו**לא** מסמנים אזורי חתימה אוטומטית (מיקום שגוי היה נחתם).
+ */
+export function verifyForm2279Layout(layout: Form2279Layout | null | undefined): { ok: boolean; problems: string[] } {
+  const problems: string[] = [];
+  if (!layout) return { ok: false, problems: ['form_not_read'] };
+  if (layout.numPages !== 1) problems.push(`pages:${layout.numPages}`);
+  if (Math.abs(layout.width - 612) > 2 || Math.abs(layout.height - 792) > 2) problems.push(`size:${Math.round(layout.width)}x${Math.round(layout.height)}`);
+  for (const a of FORM_2279_ANCHORS) {
+    const hit = layout.items.some(i => i.s.trim() === a.text && Math.abs(i.x - a.x) <= 0.012 && Math.abs(i.y - a.y) <= 0.008);
+    if (!hit) problems.push(`anchor:${a.id}`);
+  }
+  return { ok: problems.length === 0, problems };
+}
 
 let fieldSeq = 0;
 function fieldId(prefix: string): string {
@@ -772,6 +1110,12 @@ export function buildForm2279Fields(
     pageIndex: 0,
     ...FORM_2279_TEMPLATE.accountantStamp,
   });
+  // ‼ 28.09.2026 · שני ה-✓ שגיא סימן בהדגמה המוקלטת — תוכן קבוע של המשרד,
+  // נצרב על הטופס לפני השליחה (signerId 'static', כמו בעורך).
+  fields.push(
+    { id: fieldId('check-sms'), signerId: 'static', kind: 'check', pageIndex: 0, ...FORM_2279_TEMPLATE.smsConsentCheck },
+    { id: fieldId('check-original'), signerId: 'static', kind: 'check', pageIndex: 0, ...FORM_2279_TEMPLATE.representativeOriginalCheck },
+  );
   return fields;
 }
 

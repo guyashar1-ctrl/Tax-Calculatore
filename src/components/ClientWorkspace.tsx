@@ -5,9 +5,10 @@
 // ארבע לשוניות סביב "המסע"; כבוי — חמש הלשוניות הישנות חוזרות, כולל "קליטה".
 
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { Client, Task, REPRESENTATION_STATUS_LABELS, REPRESENTATION_STATUS_BADGE, LifecycleStage, LIFECYCLE_STAGE_LABELS, NiTracking } from '../types';
+import { Client, Task, REPRESENTATION_STATUS_BADGE, LifecycleStage, LIFECYCLE_STAGE_LABELS, NiTracking } from '../types';
 import { ActivityEntry, ClientAlert } from '../types/clientWorkspace';
 import { useEmployees } from '../hooks/useEmployees';
+import { representationStatusLabel, type RepSendPhase } from '../utils/representationAction';
 import { useDocumentDB } from '../hooks/useIndexedDB';
 import { computeClientAlerts, getClientOpenTasks, getUpcomingDebts } from '../utils/clientDerived';
 // הלשוניות הישנות הוחלפו ב-ClientCockpitTab + ClientDossierTab; הטפסים
@@ -128,6 +129,8 @@ interface Props {
   onboardingSteps?: OnboardingStep[];
   /** 191: שורת הקליטה של בקשת הייצוג — מחושבת ב-App, מוצגת בכרטיס הייצוג. */
   repNote?: string;
+  /** הטופס מוכן אבל המייל לא יצא — «נשלח» יהיה שקר. */
+  repSendPhase?: RepSendPhase | null;
   onboardingEvents?: OnboardingEvent[];
   onboardingLoading?: boolean;
   advanceOnboardingStep?: (stepId: string, action: string, payload?: Record<string, unknown>) => Promise<AdvanceResult>;
@@ -232,6 +235,7 @@ export default function ClientWorkspace({
   engagements,
   onboardingSteps,
   repNote,
+  repSendPhase,
   onboardingEvents,
   onboardingLoading,
   advanceOnboardingStep,
@@ -700,7 +704,7 @@ export default function ClientWorkspace({
                 )}
                 {showRepBadge ? (
                   <span className={`badge ${REPRESENTATION_STATUS_BADGE[status]}`}>
-                    {REPRESENTATION_STATUS_LABELS[status]}
+                    {representationStatusLabel(status, repSendPhase)}
                   </span>
                 ) : (
                   <span className="badge badge-gray">{LIFECYCLE_STAGE_LABELS[stage]}</span>
@@ -719,16 +723,16 @@ export default function ClientWorkspace({
                 onOpenRepresentation ? (
                   <button
                     type="button"
-                    className={`cw-rep-line ${status === 'awaiting_accountant' || status === 'awaiting_stamp' ? 'is-mine' : ''}`}
+                    className={`cw-rep-line ${status === 'awaiting_accountant' || status === 'awaiting_stamp' || repSendPhase === 'unsent' ? 'is-mine' : ''}`}
                     onClick={() => onOpenRepresentation(client.id)}
                     style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', cursor: 'pointer', textAlign: 'start' }}
                     title="למרכז הייצוג"
                   >
-                    בקשת ייצוג · {REPRESENTATION_STATUS_LABELS[status]} ←
+                    בקשת ייצוג · {representationStatusLabel(status, repSendPhase)} ←
                   </button>
                 ) : (
-                  <div className={`cw-rep-line ${status === 'awaiting_accountant' || status === 'awaiting_stamp' ? 'is-mine' : ''}`}>
-                    בקשת ייצוג · {REPRESENTATION_STATUS_LABELS[status]}
+                  <div className={`cw-rep-line ${status === 'awaiting_accountant' || status === 'awaiting_stamp' || repSendPhase === 'unsent' ? 'is-mine' : ''}`}>
+                    בקשת ייצוג · {representationStatusLabel(status, repSendPhase)}
                   </div>
                 )
               )}
@@ -873,9 +877,10 @@ export default function ClientWorkspace({
             onStartRepresentation={onStartRepresentation ? () => onStartRepresentation(client.id) : undefined}
             onPrepareReleaseLetter={onOpenReleaseLetter
               ? (stepId, mode) => onOpenReleaseLetter(client.id, stepId, mode) : undefined}
-            repStatusLabel={client.representationStatus ? REPRESENTATION_STATUS_LABELS[client.representationStatus] : undefined}
+            repStatusLabel={client.representationStatus ? representationStatusLabel(client.representationStatus, repSendPhase) : undefined}
             repStatus={client.representationStatus ?? undefined}
             repNote={repNote}
+            repSendPhase={repSendPhase}
             onPinNote={(note) => update('pinnedNote', note)}
             onAddNote={(text) => appendActivity({ kind: 'note', text })}
             onGotoTab={(t) => { if (t === 'tasks') { onOpenClientTasks?.(client.id); return; } setTab(t); }}
@@ -1027,10 +1032,11 @@ export default function ClientWorkspace({
               ? (stepId, mode) => onOpenReleaseLetter(client.id, stepId, mode)
               : undefined}
             repStatusLabel={client.representationStatus
-              ? `בקשת ייצוג · ${REPRESENTATION_STATUS_LABELS[status]}`
+              ? `בקשת ייצוג · ${representationStatusLabel(status, repSendPhase)}`
               : undefined}
             repStatus={client.representationStatus ?? undefined}
             repNote={repNote}
+            repSendPhase={repSendPhase}
             onOpenRepresentation={onOpenRepresentation
               ? () => onOpenRepresentation(client.id)
               : undefined}

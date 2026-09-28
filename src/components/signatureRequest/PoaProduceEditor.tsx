@@ -3,7 +3,7 @@
 // אזורי החתימה — של הלקוח, של בן/בת הזוג (אם קיים/ת), שלו עצמו + חותמת המשרד.
 // רק אחרי שהכול מסומן, "המשך ושלח לחתימה" שולח את קישורי החתימה האישיים.
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   RepresentationRequest,
   RepSignatureDocument,
@@ -143,20 +143,35 @@ export default function PoaProduceEditor({ request, targets, onContinue, onCance
   async function switchDoc(key: string) {
     if (key === activeKey) return;
     setActiveKey(key);
+    await loadStoredPdf(key);
+  }
+
+  const loadSeq = useRef(0);
+  async function loadStoredPdf(key: string) {
+    const seq = ++loadSeq.current;
     setPdfDoc(null);
     setPdfPages([]);
     setPdfLoadError('');
     try {
-      const stored = await docDb.getDoc(pdfDocIdFor(request.id, key));
+      const id = existing.find(d => d.key === key)?.pdfDocId || pdfDocIdFor(request.id, key);
+      const stored = await docDb.getDoc(id);
       if (!stored || stored.fileData.byteLength === 0) return;   // טרם הועלה — מסך ההעלאה
       const { doc, pages } = await loadPdf(stored.fileData.slice(0));
+      if (seq !== loadSeq.current) return;   // בינתיים עברו ללשונית אחרת
       setPdfDoc(doc);
       setPdfPages(pages.map(p => ({ width: p.width, height: p.height })));
       setLoadedDocs(p => ({ ...p, [key]: true }));
     } catch (err: any) {
-      setPdfLoadError(`לא הצלחתי לטעון את ה-PDF: ${err?.message || err}`);
+      if (seq === loadSeq.current) setPdfLoadError(`לא הצלחתי לטעון את ה-PDF: ${err?.message || err}`);
     }
   }
+
+  // ‼ 28.09.2026 · «ערוך אזורים» על טופס שכבר קיים (הובא משע״ם או הועלה קודם) —
+  // טוענים אותו מיד, כדי שהאזורים שסומנו ייראו עליו. עד כאן נפתח מסך העלאה ריק.
+  useEffect(() => {
+    if (loadedDocs[activeKey]) void loadStoredPdf(activeKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   /** האם המסמך הזה מוכן — קובץ + חתימה לכל חותם + חתימה/חותמת של הרו"ח. */
   function docReady(key: string): boolean {

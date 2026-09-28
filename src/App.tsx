@@ -42,6 +42,7 @@ import { edgeFunctionError } from './utils/functionError';
 import { effectiveNiCoversSpouse } from './utils/repSigners';
 import { targetsOf } from './utils/repScope';
 import { representationInsight, onboardingProgressLine, missingIdentityLine } from './utils/representationInsight';
+import { repSendPhase } from './utils/representationAction';
 import {
   seedClientFromEmbeddedSpouse, findSpouseClient, resolvePersonAuthority, resolveIncomeTaxHousehold,
   spousePersonAuthorities,
@@ -843,6 +844,13 @@ export default function App() {
   }));
   // 191: שורה אחת לכרטיס הייצוג של הלקוח הפתוח — מהשורה הרזה שכבר נטענה
   // (identification ו-identity_docs ב-LEAN_COLUMNS), בלי שליפה נוספת.
+  // ‼ «נשלח לחתימת הלקוח» רק כשהמייל באמת יצא — ראה repSendPhase.
+  const selectedRepSendPhase = (() => {
+    if (!selectedClient) return null;
+    const req = requests.filter(r => r.linkedClientId === selectedClient.id)
+      .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''))[0];
+    return repSendPhase(req);
+  })();
   const selectedRepNote = (() => {
     if (!selectedClient) return undefined;
     const req = requests.filter(r => r.linkedClientId === selectedClient.id)
@@ -2628,6 +2636,7 @@ export default function App() {
             engagements={onboarding.engagements}
             onboardingSteps={onboarding.steps}
             repNote={selectedRepNote}
+            repSendPhase={selectedRepSendPhase}
             onboardingEvents={onboarding.events}
             onboardingLoading={onboarding.loading}
             advanceOnboardingStep={onboarding.advance}

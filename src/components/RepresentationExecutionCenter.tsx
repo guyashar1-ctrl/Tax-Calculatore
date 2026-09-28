@@ -24,7 +24,9 @@ import { getRequestSigners, effectiveSignStatus } from '../utils/repSigners';
 import { shaamSubmissions, requestScope, peopleFromClient, targetsOf } from '../utils/repScope';
 import { signatureDocumentsOf, allDocumentsStamped } from '../utils/repDocuments';
 import type { RepSignatureDocument } from '../types';
-import { buildForm2279Fields, form2279BothSign, matchRegisteredPersonName } from '../features/representation/shaamRepresentation';
+import { buildForm2279Fields, form2279BothSign, matchRegisteredPersonName, verifyForm2279Layout } from '../features/representation/shaamRepresentation';
+import { readForm2279Layout } from '../utils/form2279Layout';
+import { useDocumentDB } from '../hooks/useIndexedDB';
 import { useEmailMessages } from '../hooks/useEmailMessages';
 import {
   useRepApprovalStep, isRepApprovalClosed, isRepApprovalDeclared,
@@ -35,6 +37,7 @@ import EmailPreviewDialog from './EmailActivity/EmailPreviewDialog';
 import type { RepSigner } from '../types';
 import InfoLines from './ui/InfoLines';
 import { ShaamRequiredDocsList } from './ShaamRequiredDocsList';
+import ShaamDropAuthorityButton from './ShaamDropAuthorityButton';
 import RepresentationReconcileButton, { type ReconcileTarget } from './RepresentationReconcileButton';
 import NiNextActionButton from './NiNextActionButton';
 import NiDropSubjectButton from './NiDropSubjectButton';
@@ -44,7 +47,7 @@ import type { ShaamActionKind } from '../features/taxFile/shaamRepresentationAct
 import ShaamNextActionButton from './ShaamNextActionButton';
 import type { ShaamSubmission } from '../utils/repScope';
 import {
-  shaamRequestExists,
+  shaamRequestExists, shaamDocumentsBlocked,
   type ShaamRequestTracking,
 } from '../features/representation/shaamRepresentation';
 import {
@@ -624,34 +627,64 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
   // ‼ רץ פעם אחת לכל הגשה, עם שומר ref: StrictMode מריץ אפקטים פעמיים,
   // וכתיבה כפולה כאן הייתה יוצרת שני מסמכים לאותו טופס.
   const preparedRef = useRef<Set<string>>(new Set());
+  const formDocs = useDocumentDB();
+  // ‼ 28.09.2026 · טופס שלא עבר את בדיקת התבנית — לא מסומן אוטומטית; המשרד מסמן ידנית.
+  const [layoutProblems, setLayoutProblems] = useState<Record<string, string>>({});
   useEffect(() => {
     if (!onAttachShaamForms) return;
+    // ‼ 28.09.2026 · נמצא בבדיקה בדפדפן: ההכנה רצה לפני שכרטיס הלקוח נטען, ולכן
+    // «נשוי» נקרא כ-false וזוג קיבל טופס עם חתימה אחת. מי חותם נגזר מהכרטיס —
+    // בלי כרטיס לא מכינים (ההכנה חד-פעמית, ולכן אסור לה לרוץ על מידע חלקי).
+    if (!linkedClient) return;
     const existing = signatureDocumentsOf(request);
-    const additions: RepSignatureDocument[] = [];
-    for (const sub of submissions) {
+    const pending = submissions.filter(sub => {
       const t = exec.shaam?.[sub.key];
-      if (!t?.formDocumentId) continue;
-      if (existing.some(d => d.key === sub.key)) continue;
-      if (preparedRef.current.has(sub.key)) continue;
-      preparedRef.current.add(sub.key);
-      additions.push({
-        key: sub.key,
-        title: sub.title ? `${sub.title} · ${sub.authoritiesLabel}` : sub.authoritiesLabel,
-        pdfDocId: t.formDocumentId,
-        pdfFileName: t.formFileName || 'ייפוי כוח לחתימה.pdf',
-        fields: buildForm2279Fields(
-          // ‼ מי חותם/ת ב«בן זוג רשום»: ההכרעה כשהיא קיימת, אחרת בעל/ת
-          // ההגשה — הטופס הופק על שמו/ה, וזו התשובה הכי קרובה לוודאית.
-          regOwner ?? sub.target,
-          form2279BothSign(sub, scopePeople.married),
-        ),
-        createdAt: new Date().toISOString(),
-        signedPdfStoredId: null,
-      });
-    }
-    if (additions.length === 0) return;
-    void onAttachShaamForms([...existing, ...additions]);
-  }, [request, exec.shaam, submissions, regOwner, scopePeople.married, onAttachShaamForms]);
+      return !!t?.formDocumentId && !existing.some(d => d.key === sub.key) && !preparedRef.current.has(sub.key);
+    });
+    if (pending.length === 0) return;
+    for (const sub of pending) preparedRef.current.add(sub.key);
+    void (async () => {
+      const additions: RepSignatureDocument[] = [];
+      const problems: Record<string, string> = {};
+      for (const sub of pending) {
+        const t = exec.shaam![sub.key]!;
+        // ‼ לפני שמסמנים לפי תבנית — הטופס שהגיע הוא באמת הטופס שהתבנית נמדדה עליו.
+        let check: { ok: boolean; problems: string[] };
+        try {
+          const stored = await formDocs.getDoc(t.formDocumentId!);
+          check = stored && stored.fileData.byteLength > 0
+            ? verifyForm2279Layout(await readForm2279Layout(stored.fileData.slice(0)))
+            : { ok: false, problems: ['form_not_loaded'] };
+        } catch {
+          check = { ok: false, problems: ['form_not_read'] };
+        }
+        if (!check.ok) {
+          problems[sub.key] = check.problems.join(', ');
+          continue;
+        }
+        additions.push({
+          key: sub.key,
+          title: sub.title ? `${sub.title} · ${sub.authoritiesLabel}` : sub.authoritiesLabel,
+          pdfDocId: t.formDocumentId!,
+          pdfFileName: t.formFileName || 'ייפוי כוח לחתימה.pdf',
+          fields: buildForm2279Fields(
+            // ‼ מי חותם/ת ב«בן זוג רשום»: ההכרעה כשהיא קיימת, אחרת בעל/ת
+            // ההגשה — הטופס הופק על שמו/ה, וזו התשובה הכי קרובה לוודאית.
+            regOwner ?? sub.target,
+            form2279BothSign(sub, scopePeople.married),
+          ),
+          createdAt: new Date().toISOString(),
+          signedPdfStoredId: null,
+        });
+      }
+      if (Object.keys(problems).length) setLayoutProblems(p => ({ ...p, ...problems }));
+      if (additions.length === 0) return;
+      // ‼ מסמכים שכבר נשמרו בינתיים (לשונית אחרת) — לא מוסיפים שוב אותו מפתח.
+      const now = signatureDocumentsOf(request);
+      const fresh = additions.filter(a => !now.some(d => d.key === a.key));
+      if (fresh.length) await onAttachShaamForms([...now, ...fresh]);
+    })();
+  }, [request, exec.shaam, submissions, regOwner, scopePeople.married, onAttachShaamForms, formDocs, linkedClient]);
 
   // ‼ הנתיב המזורז נטען כאן ואינו מגיע כ-prop — ראה useRepApprovalStep.
   // מרוענן כשהסטטוס משתנה, כי המעבר ל-awaiting_authorities הוא שיוצר אותו.
@@ -941,6 +974,14 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
                 : extraEntries.length
                   ? 'טופס לכל אדם - כל אחד עם התיקים שלו'
                   : 'העלו את קובץ ייפוי הכוח וסמנו איפה כל אחד חותם'}>
+              {/* ‼ 28.09 · הטופס הגיע משע״ם, אבל אינו תואם את התבנית שנמדדה — לא סומן אוטומטית. */}
+              {!formReady && Object.keys(layoutProblems).length > 0 && (
+                <Notice tone="warning" style={{ marginBottom: '.4rem' }}>
+                  <span data-testid="form2279-layout-mismatch">
+                    הטופס שהגיע משע״ם שונה מהתבנית המוכרת, ולכן אזורי החתימה לא סומנו אוטומטית. סמנו אותם ידנית בכפתור שמתחת.
+                  </span>
+                </Notice>
+              )}
               <button className="btn btn-secondary btn-sm" onClick={onProduce}>
                 {formReady ? '↺ החלף טופס או ערוך אזורים' : 'העלה טופס וסמן אזורי חתימה'}
               </button>
@@ -1002,13 +1043,17 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
             </Step>
 
             <Step n={6 + extraEntries.length} title="נשלח לשע״ם" done={sentToShaam}
-              hint={stamped && !sentToShaam ? 'שדרו את הטופס החתום לשע״ם (הכפתור בראש העמודה)' : undefined}>
+              // ‼ 204: כשהשידור ממתין למסמך של שע״ם הכפתור מושבת — לא להפנות אליו.
+              hint={stamped && !sentToShaam && !submissions.some(sub => shaamDocumentsBlocked(shaamTrack(sub.key)))
+                ? 'שדרו את הטופס החתום לשע״ם (הכפתור בראש העמודה)' : undefined}>
               {/* ‼ אחרי ההגשה: שלוש עובדות מהמקור של שע״ם, לכל הגשה. בלי פרוזה,
                   בלי «בדקו שוב» (יש כפתור אחד למעלה), ובלי קריאה מלפני ההגשה. */}
               {submissions.map(sub => {
                 const f = shaamSubmittedFacts(shaamTrack(sub.key));
-                const docs = shaamTrack(sub.key)?.requiredDocuments ?? [];
-                if (!f && docs.length === 0) return null;
+                // ‼ 204 · דרישות שע״ם להגשה הזו (ומצב ההמתנה) — לא בקשות של המשרד.
+                const docsTrack = shaamTrack(sub.key);
+                const hasDocs = (docsTrack?.requiredDocuments ?? []).length > 0 || !!docsTrack?.documentsGate;
+                if (!f && !hasDocs) return null;
                 return (
                   <div key={sub.key} data-testid="shaam-submitted-facts" style={{ marginBottom: '.4rem', fontSize: 'var(--fs-13)', color: 'var(--ink-2)', lineHeight: 1.7 }}>
                     {sub.title && submissions.length > 1 && (
@@ -1016,9 +1061,35 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
                     )}
                     {f && (
                       <>
-                        <div>הוגש לשע״ם: {fmtDateTime(f.submittedAt)}</div>
+                        {/* ‼ 28.09 · הוגש ידנית בשע״ם (לא דרך PIVO) — שע״ם עצמה אומרת שהמסמכים אצלה. */}
+                        <div>{f.submittedAt ? <>הוגש לשע״ם: {fmtDateTime(f.submittedAt)}</> : 'הוגש לשע״ם (לא דרך PIVO)'}</div>
                         {f.status && <div>סטטוס בשע״ם: <strong>{f.status}</strong></div>}
                         {f.suspensionEndsAt && <div>צפי לסיום ההשהייה: {fmt(f.suspensionEndsAt)}</div>}
+                        {f.note && <div data-testid="shaam-facts-note" style={{ color: 'var(--ink-3)' }}>{f.note}</div>}
+                        {f.officeAction && (
+                          <Notice tone="required" style={{ marginTop: '.3rem' }}>{f.officeAction}</Notice>
+                        )}
+                        {/* ‼ 28.09 · הכרעת גיא: רשות בלי תיק לא עוצרת. ייקלט מעצמו אם ייפתח תיק;
+                            ואם בסוף לא צריך — הסרה מהבקשה ב-PIVO (לא בשע״ם). */}
+                        {f.missingFileSystems.map(m => {
+                          const auth = m.authority && m.authority !== 'incomeTax' ? m.authority : undefined;
+                          const canDrop = !!auth && !!linkedClient
+                            && !!linkedClient.authorityRepresentations?.[auth]
+                            && linkedClient.authorityRepresentations[auth]?.status !== 'active';
+                          // ‼ הוסר ב-PIVO — השורה בשע״ם עדיין קיימת (עובדה של שע״ם), ולכן היא נשארת עם הערה.
+                          const dropped = !!auth && !!linkedClient && !linkedClient.authorityRepresentations?.[auth];
+                          return (
+                            <div key={m.label} data-testid="shaam-missing-file" style={{ color: 'var(--ink-3)' }}>
+                              {m.label}: אין תיק - {dropped ? 'הוסר מהבקשה ב-PIVO (בשע״ם נשאר עד שיבוטל שם)' : <>ייקלט מעצמו אם ייפתח{m.deadline ? ` (שע״ם מבטלת אם לא ייפתח עד ${fmt(m.deadline)})` : ''}</>}
+                              {canDrop && linkedClient && auth && (
+                                <div>
+                                  <ShaamDropAuthorityButton clientId={linkedClient.id} authority={auth} label={m.label}
+                                    onChanged={() => onStepsChanged?.()} />
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
                         {/* ‼ פעולת החובה עצמה היא שלב האישור שמתחת. רק כשאין שלב כזה — היא כאן. */}
                         {f.clientApprovalRequired && !repApproval && (
                           <Notice tone="required" style={{ marginTop: '.3rem' }}>
@@ -1027,7 +1098,14 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
                         )}
                       </>
                     )}
-                    <ShaamRequiredDocsList docs={docs} />
+                    <ShaamRequiredDocsList
+                      tracking={docsTrack}
+                      requestId={request.id}
+                      clientId={linkedClient?.id}
+                      usedDocumentIds={Object.values(request.identityDocs ?? {}).flat()
+                        .map(d => d?.documentId).filter((x): x is string => !!x)}
+                      onAttached={() => onStepsChanged?.()}
+                    />
                   </div>
                 );
               })}
@@ -1267,14 +1345,17 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
       {confirmSendWithoutId && (
         <ConfirmDialog
           tone="normal"
-          title="לשלוח לחתימה בלי צילום תעודה?"
+          title="צילום התעודה שביקשנו טרם התקבל"
           message={<>
             <div>טרם התקבל צילום תעודה של: <b>{missingIds.map(m => m.name).join(', ')}</b>.</div>
-            <div style={{ marginTop: '.4rem' }}>אפשר לשלוח לחתימה גם עכשיו; הצילום ימשיך להופיע כחסר עד שיגיע - מהדף האישי של הלקוח או מהעלאה בתיק המסמכים.</div>
+            {/* ‼ 204 · זו בקשה של המשרד, לא דרישה של רשות המסים: לא חוסמת שליחה,
+                חתימה או ייצוג. מה ששע״ם דורשת מתגלה בשידור, ומוצג בשלב «נשלח לשע״ם». */}
+            <div style={{ marginTop: '.4rem' }}>זו בקשה של המשרד - היא לא עוצרת את החתימה או את הייצוג.</div>
+            <div style={{ marginTop: '.4rem' }}>אפשר לשלוח לחתימה גם עכשיו; הצילום ימשיך להופיע כחסר עד שהלקוח יעלה אותו בדף האישי.</div>
           </>}
           confirmLabel="שלח בכל זאת"
           onCancel={() => setConfirmSendWithoutId(false)}
-          onConfirm={() => { setConfirmSendWithoutId(false); void handleSendAll(); }}
+          onConfirm={() => { setConfirmSendWithoutId(false); void handleSendAll(sendOnlyTo ?? undefined); }}
         />
       )}
 

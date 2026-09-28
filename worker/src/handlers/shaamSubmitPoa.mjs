@@ -4,33 +4,55 @@
 //   רשימת «בקשות בתהליך» → שורת **מס הכנסה** של הבקשה → חץ «טעינת מסמכים»
 //   → «פרטי התקשרות למיוצג <ת.ז.> - <שם>» (אימות זהות + קריאת מספר הבקשה)
 //   → «המשך» (בלי לשנות דבר) → «טעינת מסמכים למיוצג <ת.ז.> - <שם>»
-//   → «+» בשורת «טופס ייפוי כוח» → העלאת ה-PDF החתום הסופי
+//   → «+» בכל שורה ששע״ם מציגה → העלאת PDF לכל שורה
 //   → (תיבת «אני מאשר את חתימת בן/ת הזוג», רק אם PIVO הוכיחה אותה)
 //   → «המשך» **פעם אחת** → ראיה מהאשף (שלב 5).
 //
-// ‼ גבול הפעולה החיצונית: כל מה שלפני ה«+» הוא ניווט וקריאה. הסימן
-// (markExternalAttempt) נרשם **לפני** ה«+» ולפני העלאת הקובץ. מכאן והלאה
+// ‼ 204 · שע״ם עשויה לדרוש מסמך נוסף מלבד הטופס: «תצלום תעודת זהות או רישיון
+// נהיגה» או «צילום דרכון» (ועוד שניים שאינם מסמך מזהה). הדרישה שייכת לאדם
+// שהת.ז. שלו בכותרת המסך — לא לתפקיד שנמסר למשימה. הבחירה במסמך המקומי
+// נעשית **בשרת** (get_identity_document), לפי אותו אדם ואותו סוג בלבד.
+// כשחסר מסמך — עוצרים **לפני** כל נגיעה, והמשימה מסתיימת (failed עם קוד
+// `awaiting_required_documents`) כדי לא לתפוס את מקום השידור הבא. השרת (204)
+// יוצר משימה חדשה אחת בדיוק כשהמסמך הנכון מגיע, והיא מתחילה מההתחלה וקוראת
+// שוב את המסך החי.
+//
+// ‼ גבול הפעולה החיצונית: כל מה שלפני בחירת הקובץ הראשון הוא ניווט וקריאה.
+// הסימן (markExternalAttempt) נרשם **לפני** בחירת הקובץ הראשון. מכאן והלאה
 // כל תקלה היא «לא ידוע אם נקלט» — בלי ניסיון חוזר (196).
 //
-// ‼ «נשלח לשע״ם» אינו לחיצה: `submitted: true` חוזר רק כשהקובץ מופיע בשורה
-// והאשף עבר לשלב 5. הטריגר בשרת כותב submittedAt רק על הדגל הזה.
+// ‼ «נשלח לשע״ם» אינו לחיצה: `submitted: true` חוזר רק כשכל הקבצים מופיעים
+// בשורות שלהם והאשף עבר לשלב 5. הטריגר בשרת כותב submittedAt רק על הדגל הזה.
 //
-// ‼ הקובץ נמשך דרך ה-edge function (get_document, בגבול ה-job) ונכתב
-// ישירות לשדה הקובץ — לא נשמר לדיסק.
+// ‼ הקבצים נמשכים דרך ה-edge function (בגבול ה-job) ונכתבים ישירות לשדה
+// הקובץ — לא נשמרים לדיסק.
 
 import { attach, detach } from '../browserSession.mjs';
 import {
-  openRepresentationSystem, openRequestForDocuments, uploadSignedForm,
-  confirmDocumentsStep, currentWizardStep, documentsStepPlan, openPoaUploadDialog,
+  openRepresentationSystem, openRequestForDocuments, uploadIntoSlot, openSlotUploadDialog,
+  inspectSlotDialog, confirmDocumentsStep, currentWizardStep, documentsStepPlan,
+  documentsSubmissionDecision, SHAAM_DOC_SLOTS, slotForLabel,
 } from '../shaamRepresentationSession.mjs';
 import { NeedsHumanError, PermanentError } from '../errors.mjs';
-import { getDocument } from '../apiClient.mjs';
+import { getDocument, getIdentityDocument } from '../apiClient.mjs';
 import {
   progressTracker, assertNotAlreadyAttempted, detectBlockingSignal, blockingError,
   captureDiagnostics, unknownScreenError,
 } from '../shaamSafety.mjs';
 
 export const actionType = 'shaam.submit_poa';
+
+/**
+ * ‼ שומר ההפעלה של המקרה החי הראשון — **זמני**.
+ * שורות 2–5 במסך «טעינת מסמכים» טרם נצפו גלויות בהרצה חיה; ההתנהגות שלהן
+ * נגזרת מקוד האפליקציה של שע״ם. עד שמקרה אמיתי אחד יאומת, כשמופיעה שורה
+ * נוספת — העובד מזהה, מסווג, משייך לאדם, בוחר את המסמך, בודק את הדיאלוג
+ * (תצוגה בלבד), מדווח את תוכנית ההעלאה — ו**עוצר לפני שמעלה**. זה לא כשל
+ * ולא «חסר מסמך»: המשימה מסתיימת בקוד `first_live_verification`.
+ * שידור של טופס בלבד (בלי שורה נוספת) אינו מושפע.
+ * להסרה: רק אחרי אימות חי של מקרה אחד, בשינוי קוד מכוון (לא הגדרה).
+ */
+export const EXTRA_DOCUMENT_UPLOAD_LIVE_VERIFIED = false;
 
 const NOT_READY =
   'מערכת רישום הייצוג בשע״ם אינה מוכנה. לחצו על "שע״ם" בכותרת, השלימו את ' +
@@ -44,34 +66,64 @@ const BEFORE_TOUCH_STOPS = {
   identity_mismatch: 'השורות ברשימה אינן של הלקוח הזה',
   cannot_attribute: 'אי אפשר לשייך את שורות הרשימה ללקוח הזה',
   opened_request_identity_mismatch: 'הבקשה שנפתחה בשע״ם אינה מציגה את ת.ז. ואת שם הלקוח',
-  documents_screen_identity_unverified: 'מסך טעינת המסמכים אינו מציג את ת.ז. ואת שם הלקוח',
+  documents_screen_identity_unverified: 'מסך טעינת המסמכים אינו מציג בוודאות את ת.ז. ואת שם הלקוח',
   opened_wrong_request: 'נפתחה בשע״ם בקשה אחרת מזו שנשמרה ב-PIVO',
   request_number_not_on_screen: 'מספר הבקשה לא הוצג בבקשה שנפתחה, ולכן אי אפשר לאמת אותה',
   upload_action_not_found: 'פקד «טעינת מסמכים» לא נמצא בשורת הבקשה',
   upload_action_ambiguous: 'יותר מפקד אחד בשורה נראה כמו «טעינת מסמכים»',
   poa_already_uploaded: 'בשורת «טופס ייפוי כוח» כבר מופיע קובץ — לא מעלים קובץ נוסף',
+  row_already_populated: 'בשורת מסמך נוסף כבר מופיע קובץ שלא אנחנו העלינו — לא נוגעים',
   poa_row_not_found: 'שורת «טופס ייפוי כוח» לא נמצאה במסך טעינת המסמכים',
   poa_row_ambiguous: 'נמצאה יותר משורת «טופס ייפוי כוח» אחת',
-  upload_opener_not_found: 'פקד ה-«+» של «טופס ייפוי כוח» לא נמצא',
-  upload_opener_ambiguous: 'יותר מפקד «+» אחד בשורת «טופס ייפוי כוח»',
+  document_row_ambiguous: 'אותה שורת מסמך מופיעה יותר מפעם אחת במסך',
+  document_row_not_found: 'שורת המסמך לא נמצאה במסך',
+  upload_opener_not_found: 'פקד ה-«+» של שורת המסמך לא נמצא',
+  upload_opener_ambiguous: 'יותר מפקד «+» אחד בשורת המסמך',
   spouse_checkbox_ambiguous: 'יותר מתיבת אישור אחת לחתימת בן/בת הזוג',
-  // ‼ 201: הדרישה עצמה נשמרה ב-PIVO (shaamRequiredDocuments); ת.ז./דרכון שחסרים
-  // בתיק הופכים לבקשת מסמך אצל הלקוח — מוצג במרכז ביצוע הייצוג.
-  other_documents_required: 'שע״ם דורשת בבקשה הזאת מסמך נוסף מלבד ייפוי הכוח — הדרישה מוצגת במרכז ביצוע הייצוג',
   continue_not_found: 'כפתור «המשך» לא נמצא (או מושבת) במסך',
   continue_ambiguous: 'נמצא יותר מכפתור «המשך» אחד גלוי',
   continue_label_mismatch: 'הכפתור שסומן «המשך» אינו נושא את הטקסט «המשך»',
   contact_step_error: 'במסך פרטי ההתקשרות מוצגת שגיאה',
   not_on_documents_step: 'המסך אינו מסך טעינת המסמכים',
-  upload_dialog_not_open: 'דיאלוג הטעינה של «טופס ייפוי כוח» לא נפתח',
-  upload_dialog_ambiguous: 'נפתח דיאלוג אחר, או יותר מדיאלוג אחד',
+  upload_dialog_not_open: 'דיאלוג הטעינה של השורה לא נפתח',
+  upload_dialog_mismatch: 'נפתח דיאלוג טעינה של שורה אחרת (או יותר מדיאלוג אחד)',
   file_input_ambiguous: 'בדיאלוג יותר משדה קובץ פעיל אחד',
   file_input_not_found: 'שדה הקובץ בדיאלוג לא נמצא',
   upload_button_not_found: 'כפתור «טעינת קובץ» לא נמצא בדיאלוג',
   close_button_not_found: 'כפתור «סגירה» לא נמצא בדיאלוג',
+  close_click_failed: 'הלחיצה על «סגירה» בדיאלוג נכשלה',
+  row_changed_after_inspect: 'שורת המסמך השתנתה אחרי בדיקת הדיאלוג',
   spouse_checkbox_not_found: 'המסך מבקש לאשר את חתימת בן/בת הזוג, אבל תיבת האישור לא נמצאה',
   spouse_signature_not_proven: 'שע״ם מבקשת לאשר את חתימת בן/בת הזוג, ו-PIVO לא הוכיחה אותה בטופס החתום',
 };
+
+const KIND_TEXT = { idOrLicense: 'צילום תעודת זהות או רישיון נהיגה', passport: 'צילום דרכון' };
+
+/** מה נדרש, ממי — לשורה בהודעה לרו"ח. */
+const slotLine = (x) => `${KIND_TEXT[x.slot.kind] ?? x.slot.label}${x.result?.personName ? ` של ${x.result.personName}` : ''}`;
+
+/** עצירה מבוקרת לפני נגיעה, שמסיימת את המשימה (failed) — לא «דרוש אדם». */
+function documentsStop(code, slots) {
+  const lines = slots.map(slotLine).join(', ');
+  const text = {
+    awaiting_required_documents:
+      `שע״ם דורשת לבקשה הזאת גם ${lines}, והמסמך עדיין לא אצלנו. נפתחה ללקוח בקשת מסמך ` +
+      '(«נדרש על ידי רשות המסים להשלמת הייצוג»). כשהמסמך יגיע — השידור ימשיך מעצמו, פעם אחת. ',
+    needs_document_assignment:
+      'שע״ם דורשת מסמך מזהה נוסף, אבל לא ניתן לקבוע בוודאות של מי הוא: הת.ז. בכותרת הבקשה בשע״ם ' +
+      'אינה תואמת בדיוק לאדם אחד בכרטיס. בדקו את מספרי הזהות בכרטיס. ',
+    document_not_pdf_convertible:
+      `שע״ם דורשת ${lines} כקובץ PDF, והקובץ שיש לנו בפורמט שאי אפשר להמיר (למשל HEIC/WEBP). ` +
+      'צרפו צילום בפורמט JPEG, PNG או PDF. ',
+    required_document_unavailable:
+      `שע״ם דורשת ${lines}, ולא הצלחתי לקרוא את המסמך מתיק הלקוח. `,
+    first_live_verification:
+      `עצירת אימות ראשון (לא תקלה): שע״ם מציגה שורה נוספת — ${lines}. המסמך נמצא והתוכנית ` +
+      'נשמרה, אבל העלאה אוטומטית של מסמך נוסף עוד לא אומתה מול שע״ם החיה. השלימו את ההגשה ' +
+      'ידנית בשע״ם לפי התוכנית שבמרכז הייצוג, ואז «שודר ידנית - סמנו כנשלח». ',
+  }[code] ?? '';
+  return new PermanentError(`${text}${NOTHING_SENT}`, code);
+}
 
 export async function preflight() {
   return { ok: true };
@@ -174,26 +226,97 @@ export async function run(ctx, input) {
       throw unknownScreenError('שידור הטופס לשע״ם', `פתיחת הבקשה לטעינת מסמכים (${opened.reason})`, diag);
     }
 
+    // ── מה שע״ם מציגה — מדווח ל-PIVO לפני כל החלטה. קריאה בלבד ─────────────
+    // ‼ 204 · השרת קורא את זה (shaamDocuments): ממפה את הת.ז. שבכותרת לאדם,
+    // פותח ללקוח בקשת מסמך כשחסר, ושומר את הדרישה על ההגשה.
+    const docsState = opened.documents;
+    const observed = (docsState.rows ?? []).map((r) => {
+      const slot = slotForLabel(r.label);
+      return { slotId: slot?.id ?? null, kind: slot?.kind ?? 'unknown', label: r.label, hasFile: r.hasFile, required: r.required };
+    });
+    const extraObserved = observed.filter((r) => r.kind !== 'poa');
+    if (extraObserved.length) ctx.log(`שע״ם דורשת מסמכים נוספים: ${extraObserved.map((r) => r.label).join(', ')}`);
+    await progress.set({
+      shaamDocuments: {
+        observedAt: new Date().toISOString(),
+        entityId: docsState.headerEntityId ?? null,
+        rows: observed,
+      },
+    });
+
     // ── ההחלטה על מסך המסמכים — עדיין לפני כל נגיעה ────────────────────────
-    // ‼ 201 · מסמך נוסף ששע״ם דורשת (למשל ת.ז./דרכון) — מדווח ל-PIVO לפני
-    // העצירה, והשרת פותח עליו בקשת מסמך אצל הלקוח כשחסר (201). קריאה בלבד.
-    const otherDocs = opened.documents?.otherDocsDetail ?? [];
-    if (otherDocs.length) {
-      ctx.log(`שע״ם דורשת מסמכים נוספים: ${otherDocs.map((d) => d.label).join(', ')}`);
-      await progress.set({ shaamRequiredDocuments: otherDocs });
-    }
-    const plan = documentsStepPlan(opened.documents, { spouseSignatureConfirmed });
+    const plan = documentsStepPlan(docsState, { spouseSignatureConfirmed });
     if (!plan.ok) {
-      ctx.log(`עצירה לפני טעינה: ${plan.reason}`);
+      ctx.log(`עצירה לפני טעינה: ${plan.reason}${plan.detail ? ` · ${plan.detail}` : ''}`);
+      if (plan.reason === 'unsupported_required_document' || plan.reason === 'unknown_document_row') {
+        throw new PermanentError(
+          `שע״ם דורשת בבקשה הזאת מסמך שאינו מסמך מזהה (${plan.detail}). האוטומציה לא מעלה אותו — ` +
+          `יש להשלים את ההגשה ידנית בשע״ם. ${NOTHING_SENT}`,
+          'unsupported_required_document',
+        );
+      }
       throw new NeedsHumanError(
-        `${BEFORE_TOUCH_STOPS[plan.reason] ?? plan.reason}. ${NOTHING_SENT}` +
+        `${BEFORE_TOUCH_STOPS[plan.reason] ?? plan.reason}${plan.detail ? ` (${plan.detail})` : ''}. ${NOTHING_SENT}` +
         (plan.reason === 'poa_already_uploaded' ? ' הריצו «בדוק קבלת הייצוג» כדי לראות מה נקלט.' : ''),
         plan.reason === 'poa_already_uploaded' ? 'poa_already_uploaded' : 'request_identity_unverified',
       );
     }
 
-    // ── «+» ⇒ דיאלוג הטעינה של «טופס ייפוי כוח» — תצוגה בלבד, עדיין לפני הנגיעה ──
-    const dlg = await openPoaUploadDialog(page);
+    // ── המסמכים הנוספים: מה יש לנו, לאדם שבכותרת בלבד (בשרת) ─────────────────
+    const resolved = await Promise.all(plan.extraSlots.map(async (slot) => {
+      const r = await getIdentityDocument(ctx.workerId, ctx.job.id, { entityId: plan.entityId, slotKind: slot.kind });
+      return { slot, result: r ?? { ok: false, error: 'no_response' } };
+    }));
+    const decision = documentsSubmissionDecision(resolved, { extraUploadVerified: EXTRA_DOCUMENT_UPLOAD_LIVE_VERIFIED });
+    const planReport = (evidence = []) => ({
+      entityId: plan.entityId,
+      decision: decision.ok ? 'upload' : decision.code,
+      slots: resolved.map((x) => ({
+        slotId: x.slot.id, kind: x.slot.kind, label: x.slot.label,
+        status: x.result?.ok ? 'ready' : (x.result?.error ?? 'unknown'),
+        person: x.result?.person ?? null,
+        personName: x.result?.personName ?? null,
+        docKind: x.result?.docKind ?? null,
+        sourceDocumentIds: x.result?.sourceDocumentIds ?? [],
+        pageCount: x.result?.pageCount ?? null,
+        fileName: x.result?.fileName ?? null,
+        dialog: evidence.find((e) => e.slotId === x.slot.id) ?? null,
+      })),
+      at: new Date().toISOString(),
+    });
+
+    if (!decision.ok && decision.code !== 'first_live_verification') {
+      await progress.set({ shaamDocumentsPlan: planReport() });
+      ctx.log(`עצירה לפני טעינה: ${decision.code}`);
+      throw documentsStop(decision.code, decision.slots);
+    }
+
+    // ── בדיקת הדיאלוג של כל שורה נוספת — תצוגה בלבד, לפני הנגיעה ────────────
+    const evidence = [];
+    for (const x of resolved) {
+      const seen = await inspectSlotDialog(page, x.slot);
+      if (!seen.ok) {
+        ctx.log(`עצירה לפני טעינה: ${seen.reason} (${x.slot.label})`);
+        await progress.set({ shaamDocumentsPlan: planReport(evidence) });
+        throw new NeedsHumanError(
+          `${BEFORE_TOUCH_STOPS[seen.reason] ?? seen.reason} — «${x.slot.label}». ${NOTHING_SENT}`,
+          'request_identity_unverified',
+        );
+      }
+      evidence.push({ slotId: x.slot.id, dialog: seen.dialog, title: seen.title });
+    }
+
+    if (!decision.ok) {
+      // first_live_verification — ראה EXTRA_DOCUMENT_UPLOAD_LIVE_VERIFIED.
+      await progress.set({ shaamDocumentsPlan: planReport(evidence) });
+      ctx.log('עצירת אימות ראשון: שורה נוספת זוהתה, המסמך נמצא, התוכנית נשמרה — לא מעלים');
+      throw documentsStop('first_live_verification', decision.slots);
+    }
+    await progress.set({ shaamDocumentsPlan: planReport(evidence) });
+
+    // ── «+» ⇒ דיאלוג «טופס ייפוי כוח» — תצוגה בלבד, עדיין לפני הנגיעה ──────
+    const poaSlot = SHAAM_DOC_SLOTS[0];
+    const dlg = await openSlotUploadDialog(page, poaSlot);
     if (!dlg.ok) {
       ctx.log(`עצירה לפני טעינה: ${dlg.reason}${dlg.detail ? ` · ${dlg.detail}` : ''}`);
       throw new NeedsHumanError(
@@ -206,41 +329,53 @@ export async function run(ctx, input) {
     // קריסה מכאן והלאה חייבת להיקרא «לא ידוע אם נקלט» — ולעולם לא «ננסה שוב» (196).
     await progress.markExternalAttempt('upload_signed_form');
 
-    ctx.log(`מעלה את הטופס החתום (${doc.buffer.length} בתים) לשורת «טופס ייפוי כוח»`);
-    const uploaded = await uploadSignedForm(page, {
-      fileName: doc.fileName || 'ייפוי כוח חתום.pdf',
-      buffer: doc.buffer,
-      inputIndex: dlg.inputIndex,
-    });
-    if (!uploaded.ok) {
+    const unknownAfterTouch = async (reason, detail) => {
       const signal = await detectBlockingSignal(page);
-      if (signal) throw blockingError(signal, 'טעינת הטופס החתום');
-      if (uploaded.reason === 'upload_rejected') {
-        throw new PermanentError(`שע״ם דחתה את הקובץ: ${uploaded.detail}`, 'upload_rejected');
-      }
+      if (signal) throw blockingError(signal, 'טעינת המסמכים');
+      if (reason === 'upload_rejected') throw new PermanentError(`שע״ם דחתה את הקובץ: ${detail}`, 'upload_rejected');
       const diag = await captureDiagnostics(page, 'טעינת מסמכים');
       ctx.log('אבחון מסך:', JSON.stringify(diag));
       throw new NeedsHumanError(
-        `שידור הטופס נעצר באמצע (${uploaded.reason}), ולא ידוע אם שע״ם קיבלה את הקובץ. ` +
+        `השידור נעצר באמצע (${reason}), ולא ידוע אם שע״ם קיבלה את הקבצים. ` +
         'לא נשדר שוב אוטומטית. הריצו «בדוק קבלת הייצוג» כדי לראות מה ' +
         'נקלט בפועל, ורק לפי זה החליטו אם לשדר שוב.',
         'ambiguous_submit_result',
       );
+    };
+
+    ctx.log(`מעלה את הטופס החתום (${doc.buffer.length} בתים) לשורת «טופס ייפוי כוח»`);
+    const uploaded = await uploadIntoSlot(page, poaSlot, {
+      fileName: doc.fileName || 'ייפוי כוח חתום.pdf',
+      buffer: doc.buffer,
+      inputIndex: dlg.inputIndex,
+    });
+    if (!uploaded.ok) await unknownAfterTouch(uploaded.reason, uploaded.detail);
+
+    // ‼ כל שורה נוספת — אותו מסלול בדיוק: הדיאלוג שלה, קובץ PDF אחד, V בשורה.
+    for (const x of decision.uploads) {
+      const d = await openSlotUploadDialog(page, x.slot);
+      if (!d.ok) await unknownAfterTouch(d.reason, x.slot.label);
+      ctx.log(`מעלה ${x.result.fileName} (${x.result.pageCount} עמודים) לשורת «${x.slot.label}»`);
+      const u = await uploadIntoSlot(page, x.slot, { fileName: x.result.fileName, buffer: x.result.buffer, inputIndex: d.inputIndex });
+      if (!u.ok) await unknownAfterTouch(u.reason, u.detail);
     }
 
-    const confirmed = await confirmDocumentsStep(page, { checkSpouse: plan.checkSpouse, entityId, expectedClientName: personName });
+    const confirmed = await confirmDocumentsStep(page, {
+      checkSpouse: plan.checkSpouse, entityId, expectedClientName: personName,
+      expectedSlotIds: [poaSlot.id, ...decision.uploads.map((x) => x.slot.id)],
+    });
     if (!confirmed.ok) {
-      // ‼ הקובץ אולי נקלט ואולי לא. לא «נשלח», ולא מעלים שוב.
+      // ‼ הקבצים אולי נקלטו ואולי לא. לא «נשלח», ולא מעלים שוב.
       throw new NeedsHumanError(
-        `הטופס הועלה אך לא זוהתה ראיה ברורה לקליטה (${confirmed.reason}${confirmed.detail ? ` · ${confirmed.detail}` : ''}). ` +
-        'בדקו בחלון שע״ם: אם הקובץ מופיע והבקשה התקדמה — הריצו «בדוק קבלת הייצוג». ' +
-        'PIVO לא יסמן «נשלח לשע״ם» בלי ראיה, ולא יעלה את הקובץ שוב.',
+        `המסמכים הועלו אך לא זוהתה ראיה ברורה לקליטה (${confirmed.reason}${confirmed.detail ? ` · ${confirmed.detail}` : ''}). ` +
+        'בדקו בחלון שע״ם: אם הקבצים מופיעים והבקשה התקדמה — הריצו «בדוק קבלת הייצוג». ' +
+        'PIVO לא יסמן «נשלח לשע״ם» בלי ראיה, ולא יעלה את הקבצים שוב.',
         'ambiguous_submit_result',
       );
     }
 
     const step = await currentWizardStep(page);
-    ctx.log(`הטופס נקלט · שלב נוכחי ${step} · ${confirmed.fileLine}`);
+    ctx.log(`המסמכים נקלטו · שלב נוכחי ${step} · ${confirmed.fileLine}`);
     return {
       result: {
         submissionKey, role,
@@ -249,6 +384,7 @@ export async function run(ctx, input) {
         spouseConfirmationChecked: plan.checkSpouse,
         statusLines: confirmed.statusLines ?? [],
         fileLine: confirmed.fileLine,
+        documents: confirmed.documents ?? [],
         summary: (confirmed.summary ?? '').slice(0, 400),
       },
       artifacts: [{ kind: 'poa_submitted', requestNumber: opened.requestNumber || requestNumber || '', fileName: doc.fileName }],

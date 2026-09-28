@@ -188,7 +188,10 @@ export function taskToDb(task: Partial<Task>, userId?: string): Record<string, a
 
 // ────────────────────────── RepresentationRequest ─────────────────────────
 
-const REP_OMIT_ON_WRITE = ['updatedAt'];
+// ‼ identity_docs נכתב בשרת בלבד (העלאה מהקליטה, מהדף האישי, מהמשרד — 175/191/204).
+// שמירה רגילה של הבקשה מחזיקה עותק מרגע הטעינה, ושליחתו בחזרה מחקה בשקט צילום
+// שהגיע בינתיים — בדיוק הצילום שהשידור לשע״ם ממתין לו (204).
+const REP_OMIT_ON_WRITE = ['updatedAt', 'identityDocs'];
 
 export function repRequestFromDb(row: Record<string, any>): RepresentationRequest {
   // DB column is part_b → camelCase becomes partB. Same for all others.
