@@ -30,6 +30,25 @@
 //   · בתוצאות «חיפוש מיוצגים» יש עמודות נוספות: הרשאה לגימלאות · הרשאה
 //     לחיוב («חשבון בנק») · מזהה פנקס · סטטוס («ממתין לאישור»), ובעמודת
 //     הפעולות לעיתים «ממתין תוקף».
+//
+// ‼ בדיקה חיה שנייה (28.09.2026, קריאה בלבד, כמה מבוטחים, פלט ממוסך):
+//   · ריכוז מידע (v101_rikuzmedagalash): מצב משפחתי · תושבות («כן») · חובת
+//     תשלום («עצמאי», «עובד (+)») · כיסוי ביטוחי («זו"ש מ- MM/YY») · ביקורת
+//     גביה (תווית כפולה; «MM/YY-MM/YY») · הסדר תשלומים · אכיפה · תיק ניכויים
+//     — ריקים אצל רובם. ‼ ריכוז המידע אינו המסך שנפתח תמיד: הפורטל פותח את
+//     המסך האחרון שנצפה במבוטח, ולכן מזהים אותו לפי הכתובת.
+//   · תיק מסמכים (my_scanimages): פעולות · תאור («דין וחשבון», «יפויי כוח») ·
+//     עמ' · תאריך. לכפתור הצפייה יש נתיב סריקה אטום (144–192 תווים), יציב בין
+//     טעינות באותו סשן. אין מספר אסמכתא. בלי מסמכים — אין טבלה ואין הודעה.
+//   · רשימת הודעות (v311_s611_hodaot): תאריך · סוג הודעה · מצב · מען.
+//   · גמלאות (vgimla_s_gimlaot): שנה · תאור גמלה («מילואים», «אבטלה») · גמלה
+//     ברוטו · ניכוי מס · החזר חוב ברוטו · החזר מס. בלי גמלאות — אין טבלה.
+//   · «הרשאה לגימלאות» ו«מזהה פנקס» — ריקות בכל השורות שנבדקו.
+//   · דמי ביטוח (v241_dmeibituach): טבלה שנתית עם כותרת כפולה — שורת קבוצות
+//     («עצמאי», «לא עובד») מעל: פעולות · שנה · לפי שומה · מס מקביל · ביטוח
+//     בריאות · [חיוב · בסיס סופי שנתי · דמי ביטוח לשנה] לכל קבוצה · סה"כ דמי ביטוח.
+//   · חוב גמלה (v261_chovotgimla) ורשימת תכתובות (v842_s_matalot): «לא נמצאו
+//     נתונים» אצל המבוטח שנבדק — ולכן נקראת רק הספירה, לא התוכן.
 
 import { sameIdNumber } from './btlTracking.mjs';
 
@@ -411,6 +430,216 @@ export function parseInsuredHeader(pairs) {
   return { idNumber: id ? id.replace(/\D/g, '') : null, balance: balances.length ? balances[0] : null, debitType: debit };
 }
 
+// ─── ריכוז מידע: מה ב"ל רושם על המבוטח ─────────────────────────────────────
+
+const FAMILY_STATUS = [
+  [/^רווק/, 'single'], [/^נשו/, 'married'], [/^גרו/, 'divorced'], [/^אלמ/, 'widowed'],
+  [/^פרוד/, 'separated'], [/ידוע/, 'common_law'],
+];
+
+/** «רווק» / «נשואה» ⇒ קוד. נוסח שלא מוכר ⇒ null (והנוסח נשמר כלשונו). */
+export function familyStatusCode(raw) {
+  const t = norm(raw);
+  if (!t) return null;
+  const hit = FAMILY_STATUS.find(([re]) => re.test(t));
+  return hit ? hit[1] : null;
+}
+
+/**
+ * התוויות שנקראות — רק מה שיש לו משמעות ברורה ושימוש: השוואה לכרטיס (מצב
+ * משפחתי), סיווג לתשלום (חובת תשלום), וסימנים לטיפול (אכיפה, הסדר, ביקורת).
+ * ‼ לא: שם, כתובת, טלפון, סניף, תאריך לידה — קיימים בכרטיס ואינם מתעדכנים מכאן.
+ */
+export const SUMMARY_FACT_LABELS = {
+  familyStatus: 'מצב משפחתי',
+  residency: 'תושבות',
+  paymentObligation: 'חובת תשלום',
+  coverage: 'כיסוי ביטוחי',
+  enforcement: 'אכיפה',
+  paymentArrangement: 'הסדר תשלומים',
+  collectionAudit: 'ביקורת גביה',
+  withholdingFile: 'תיק ניכויים',
+};
+
+/**
+ * `pairs` מריכוז המידע (כולל תוויות עם ערך ריק) ⇒ עובדות. ‼ תווית שנמצאה
+ * עם ערך ריק = «אין» לפי ב"ל (raw:null); תווית שלא נמצאה = המפתח חסר (לא
+ * נקרא). בלי «מצב משפחתי» ו«חובת תשלום» — זה לא ריכוז המידע (ok:false).
+ */
+export function parseSummaryFacts(pairs) {
+  const byLabel = new Map();
+  for (const p of pairs ?? []) {
+    const label = norm(p.label).replace(/:$/, '');
+    if (!byLabel.has(label)) byLabel.set(label, []);
+    byLabel.get(label).push(norm(p.value));
+  }
+  if (!byLabel.has('מצב משפחתי') || !byLabel.has('חובת תשלום')) return { ok: false, reason: 'summary_labels_missing' };
+  const value = {};
+  for (const [key, label] of Object.entries(SUMMARY_FACT_LABELS)) {
+    if (!byLabel.has(label)) continue;
+    const vals = [...new Set(byLabel.get(label).filter(Boolean))];
+    value[key] = { raw: vals.length ? vals.join(' · ').slice(0, 120) : null };
+  }
+  if (value.familyStatus) value.familyStatus.code = familyStatusCode(value.familyStatus.raw);
+  // «זו"ש מ- 06/25» ⇒ החודש שממנו. נוסח אחר ⇒ רק הגולמי.
+  const cov = value.coverage?.raw?.match(/מ-?\s*(\d{1,2})\/(\d{2,4})/);
+  if (cov) value.coverage.sinceMonth = `${cov[2].length === 2 ? '20' + cov[2] : cov[2]}-${cov[1].padStart(2, '0')}`;
+  return { ok: true, value };
+}
+
+// ─── תיק מסמכים ─────────────────────────────────────────────────────────────
+
+const DOC_HEADERS = ['תאור', 'תאריך'];
+
+/**
+ * «תיק מסמכים» ⇒ מסמכים (תיאור · עמודים · תאריך · הפניית סריקה מגובבת).
+ * ‼ `scanRefs[i]` — טביעה של נתיב הסריקה (לא הנתיב עצמו), לשורה i.
+ * טבלה ריקה (empty) ⇒ רשימה ריקה = «אין מסמכים» לפי ב"ל.
+ */
+export function parseDocumentList(tables, scanRefs = []) {
+  const t = pickTable(tables, DOC_HEADERS);
+  if (!t.ok) return { ok: false, reason: t.reason };
+  const pagesCol = (t.table.headerCells ?? []).map(norm).findIndex(h => /^עמ/.test(h));
+  const items = [];
+  t.table.dataRows.forEach((row, i) => {
+    const description = cell(row, t.cols['תאור']).slice(0, 120);
+    const date = parseBtlDate(cell(row, t.cols['תאריך']));
+    if (!description || !date) return;
+    const pages = pagesCol >= 0 ? Number(cell(row, pagesCol)) : NaN;
+    items.push({
+      description, date,
+      ...(Number.isInteger(pages) && pages > 0 ? { pages } : {}),
+      ...(scanRefs[i] ? { scanRef: scanRefs[i] } : {}),
+    });
+  });
+  items.sort((a, b) => b.date.localeCompare(a.date) || a.description.localeCompare(b.description));
+  return { ok: true, items };
+}
+
+/** «דין וחשבון» — הדוח שטופס 6101 הוא (וגם דוחות רב-שנתיים אחרים). */
+export function isReportDocument(description) {
+  return /דין\s*ו?חשבון/.test(norm(description));
+}
+
+// ─── רשימת הודעות ───────────────────────────────────────────────────────────
+
+const NOTICE_HEADERS = ['תאריך', 'סוג הודעה'];
+
+/**
+ * ‼ רק הודעות שמשפיעות על סיווג, דוח/6101, מסמכים חסרים, החלטת רשות או
+ * מילואים נשמרות — ורק המטא-דאטה (סוג · תאריך · מצב), לא תוכן. דף תשלומים,
+ * אישור תשלום, תזכורת חוב, הודעת שחרור מצה"ל וכו' ⇒ נספרות בלבד.
+ */
+const NOTICE_CATEGORIES = [
+  ['report', /דין\s*ו?חשבון|6101/],
+  ['documents', /מסמכ|חסר/],
+  ['reserve_duty', /מילואים|תגמול/],
+  ['assessment', /שומה/],
+  ['representation', /יפוי|ייפוי/],
+  ['decision', /החלטה|זכאות|דחיי|ערעור/],
+  ['insured_update', /^עדכונים\s*למבוטח/],
+];
+
+export function noticeCategory(type) {
+  const t = norm(type);
+  const hit = NOTICE_CATEGORIES.find(([, re]) => re.test(t));
+  return hit ? hit[0] : null;
+}
+
+export function parseNoticeList(tables) {
+  const t = pickTable(tables, NOTICE_HEADERS);
+  if (!t.ok) return { ok: false, reason: t.reason };
+  const stateCol = (t.table.headerCells ?? []).map(norm).indexOf('מצב');
+  const items = [];
+  let otherCount = 0;
+  for (const row of t.table.dataRows) {
+    const date = parseBtlDate(cell(row, t.cols['תאריך']));
+    const type = cell(row, t.cols['סוג הודעה']).slice(0, 120);
+    if (!date || !type) continue;
+    const category = noticeCategory(type);
+    if (!category) { otherCount++; continue; }
+    items.push({ date, type, category, ...(stateCol >= 0 && cell(row, stateCol) ? { state: cell(row, stateCol).slice(0, 60) } : {}) });
+  }
+  items.sort((a, b) => b.date.localeCompare(a.date) || a.type.localeCompare(b.type));
+  return { ok: true, items: items.slice(0, 40), otherCount };
+}
+
+// ─── גמלאות — מילואים ───────────────────────────────────────────────────────
+
+const BENEFIT_HEADERS = ['שנה', 'תאור גמלה', 'גמלה ברוטו'];
+
+/**
+ * «גמלאות» ⇒ שורות המילואים בלבד (שנה · ברוטו · ניכוי מס · החזרים). גמלאות
+ * אחרות ⇒ נספרות בלבד. ‼ אלה סכומים שנתיים ששולמו — לא מצב תביעה ולא
+ * תאריכי תשלום; אין במסך הזה פעולה למייצג.
+ */
+export function parseReserveDutyBenefits(tables) {
+  const t = pickTable(tables, BENEFIT_HEADERS);
+  if (!t.ok) return { ok: false, reason: t.reason };
+  const hs = (t.table.headerCells ?? []).map(norm);
+  const col = h => hs.indexOf(h);
+  const rows = [];
+  let otherBenefitsCount = 0;
+  for (const row of t.table.dataRows) {
+    const year = Number(cell(row, t.cols['שנה']));
+    const benefit = cell(row, t.cols['תאור גמלה']);
+    if (!Number.isInteger(year) || year < 1990 || !benefit) continue;
+    if (!/מילואים/.test(benefit)) { otherBenefitsCount++; continue; }
+    const money = h => (col(h) >= 0 ? parseMoney(cell(row, col(h))) : null);
+    rows.push({
+      year, benefit: benefit.slice(0, 60),
+      gross: parseMoney(cell(row, t.cols['גמלה ברוטו'])),
+      taxWithheld: money('ניכוי מס'),
+      debtRepaymentGross: money('החזר חוב ברוטו'),
+      taxRefund: money('החזר מס'),
+    });
+  }
+  rows.sort((a, b) => b.year - a.year || (b.gross ?? 0) - (a.gross ?? 0));
+  return { ok: true, rows, otherBenefitsCount };
+}
+
+// ─── דמי ביטוח שנתיים ───────────────────────────────────────────────────────
+
+/**
+ * «דמי ביטוח» ⇒ שורה לכל שנה. `rows` — תאי הטבלה כפי שנגרדו (כולל שורת
+ * הקבוצות שמעל הכותרות). ‼ השיוך של [חיוב · בסיס · דמי ביטוח] לסיווג נעשה לפי
+ * הסדר: שמות הקבוצות הלא-ריקים בשורה שמעל ⇔ כל «חיוב» בשורת הכותרות. מספר
+ * שונה ⇒ לא מנחשים (ok:false).
+ */
+export function parseAnnualContributions(rows) {
+  const clean = (rows ?? []).map(r => (r ?? []).map(norm));
+  const h = clean.findIndex(r => r.includes('שנה') && r.some(c => /^סה"?כ דמי ביטוח$/.test(c)));
+  if (h < 0) return { ok: false, reason: 'table_not_found' };
+  const header = clean[h];
+  const groups = h > 0 ? clean[h - 1].filter(Boolean) : [];
+  const chargeCols = header.map((c, i) => (c === 'חיוב' ? i : -1)).filter(i => i >= 0);
+  if (groups.length !== chargeCols.length) return { ok: false, reason: 'group_mismatch' };
+  const col = (name) => header.indexOf(name);
+  const totalCol = header.findIndex(c => /^סה"?כ דמי ביטוח$/.test(c));
+  const years = [];
+  for (const r of clean.slice(h + 1)) {
+    const year = Number(r[col('שנה')]);
+    if (!Number.isInteger(year) || year < 1990) continue;
+    const yn = r[col('לפי שומה')];
+    const classes = [];
+    groups.forEach((classification, g) => {
+      const i = chargeCols[g];
+      const charge = r[i] || null;
+      const annualBase = parseMoney(r[i + 1]);
+      const annualContribution = parseMoney(r[i + 2]);
+      if (charge || annualBase != null || annualContribution != null) classes.push({ classification, charge, annualBase, annualContribution });
+    });
+    years.push({
+      year,
+      byAssessment: yn === 'כן' ? true : yn === 'לא' ? false : null,
+      classes,
+      total: parseMoney(r[totalCol]),
+    });
+  }
+  years.sort((a, b) => b.year - a.year);
+  return { ok: true, years: years.slice(0, 12) };
+}
+
 // ─── הכנסות ─────────────────────────────────────────────────────────────────
 
 const INCOME_HEADERS = ['שנה', 'מחודש', 'עד חודש', 'מקור מידע', 'מקור הכנסה', 'סכום הכנסה', 'תאריך קבלה', 'סטטוס'];
@@ -631,6 +860,7 @@ export async function readInsured(portal, subject, { asOf, log = () => {} } = {}
   await run('directIncome', async () => {
     const r = await portal.openIncomeList();
     if (!r.ok) return { ok: false, reason: r.reason };
+    if (r.empty) return { ok: true, value: null, rows: 0, empty: true };
     const list = parseIncomeList(r.tables);
     if (!list.ok) return { ok: false, reason: list.reason };
     return { ok: true, value: selectDirectIncome(list.rows), rows: list.rows.length };
@@ -657,6 +887,61 @@ export async function readInsured(portal, subject, { asOf, log = () => {} } = {}
     if (header.balance != null) return { ok: true, value: header.balance, source: 'header', warnings: [ledger.reason] };
     return { ok: false, reason: ledger.reason };
   });
+
+  // ‼ עובדות ריכוז המידע — מאותם זוגות שכבר נקראו; בלי ניווט נוסף. אם ריכוז
+  // המידע עצמו לא נקרא, לא «מנחשים» מזוגות של מסך אחר.
+  await run('summaryFacts', async () => {
+    if (!sections.summary?.ok) return { ok: false, reason: 'summary_unavailable' };
+    const f = parseSummaryFacts(pairs);
+    return f.ok ? { ok: true, value: f.value } : { ok: false, reason: f.reason };
+  });
+  if (portal.openDocuments) {
+    await run('documents', async () => {
+      const r = await portal.openDocuments();
+      if (!r.ok) return { ok: false, reason: r.reason };
+      if (r.empty) return { ok: true, value: { items: [] }, empty: true };
+      const d = parseDocumentList(r.tables, r.scanRefs);
+      return d.ok ? { ok: true, value: { items: d.items } } : { ok: false, reason: d.reason };
+    });
+  }
+  if (portal.openNotices) {
+    await run('notices', async () => {
+      const r = await portal.openNotices();
+      if (!r.ok) return { ok: false, reason: r.reason };
+      if (r.empty) return { ok: true, value: { items: [], otherCount: 0 }, empty: true };
+      const n = parseNoticeList(r.tables);
+      return n.ok ? { ok: true, value: { items: n.items, otherCount: n.otherCount } } : { ok: false, reason: n.reason };
+    });
+  }
+  if (portal.openBenefits) {
+    await run('reserveDuty', async () => {
+      const r = await portal.openBenefits();
+      if (!r.ok) return { ok: false, reason: r.reason };
+      if (r.empty) return { ok: true, value: { rows: [], otherBenefitsCount: 0 }, empty: true };
+      const b = parseReserveDutyBenefits(r.tables);
+      return b.ok ? { ok: true, value: { rows: b.rows, otherBenefitsCount: b.otherBenefitsCount } } : { ok: false, reason: b.reason };
+    });
+  }
+
+  if (portal.openAnnualContributions) {
+    await run('annualContributions', async () => {
+      const r = await portal.openAnnualContributions();
+      if (!r.ok) return { ok: false, reason: r.reason };
+      if (r.empty) return { ok: true, value: { years: [] }, empty: true };
+      const a = parseAnnualContributions(r.rows);
+      return a.ok ? { ok: true, value: { years: a.years } } : { ok: false, reason: a.reason };
+    });
+  }
+  // ‼ תכתובות וחוב גמלה: רק «יש / אין / כמה» — אין דוגמה עם נתונים, ולכן אין
+  // מיפוי עמודות ואין תוכן.
+  for (const [key, open] of [['correspondence', portal.openCorrespondence], ['benefitDebt', portal.openBenefitDebt]]) {
+    if (!open) continue;
+    await run(key, async () => {
+      const r = await open();
+      if (!r.ok) return { ok: false, reason: r.reason };
+      return { ok: true, value: { count: r.empty ? 0 : r.count } };
+    });
+  }
 
   const okCount = Object.values(sections).filter(s => s.ok).length;
   log(`${maskId(subject.idNumber)}: ${okCount}/${Object.keys(sections).length} מקטעים נקראו`);

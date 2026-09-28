@@ -15,8 +15,9 @@ import { formDate } from './layout6101';
 import {
   advanceFiling, attachSignedPdf, captureSignature, filingErrorText, issueSignLink, lockForSignature,
   newRevision, setAttachments, signLinkUrl, FILING_STATE_LABELS, type Attachment,
+  receiptCandidates, confirmReceipt, type ReceiptState,
 } from '../api';
-import { BtlNow, formatIl, type WorkspaceCtx } from './ui';
+import { BtlNow, formatDay, formatIl, type WorkspaceCtx } from './ui';
 
 /**
  * פותח את המסמך החתום **כפי שנשמר** (מהאחסון, לא רינדור מחדש) ומאמת את
@@ -418,6 +419,83 @@ const CHANNELS: { v: string; label: string }[] = [
   { v: 'client_personal_area', label: 'הלקוח הגיש באזור האישי' },
 ];
 
+/**
+ * (207) קליטה בב"ל: «דין וחשבון» מתיק המסמכים של המבוטח שנקרא אחרי ההגשה. ‼ ב"ל
+ * לא מציג מזהה שמקשר מסמך להגשה — ולכן זו הצעה והרו"ח מאשר; אחרי האישור הראיה
+ * (המסמך כפי שהיה, כמה מועמדים היו) נשמרת על ההגשה.
+ */
+function ReceiptEvidence({ filingId, canConfirm, updatedAt, onChanged }: { filingId: string; canConfirm: boolean; updatedAt: string; onChanged: () => Promise<void> }) {
+  const [st, setSt] = useState<ReceiptState | null>(null);
+  const [pick, setPick] = useState<string>('');
+  const [note, setNote] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  useEffect(() => {
+    let alive = true;
+    void receiptCandidates(filingId).then(r => { if (alive) { setSt(r); setPick(r.candidates?.length === 1 ? r.candidates[0].id : ''); } });
+    return () => { alive = false; };
+  }, [filingId, updatedAt]);
+  if (!st?.ok || st.state === 'not_submitted') return null;
+  const read = st.lastReadAt ? 'תיק המסמכים נקרא מב"ל ' + formatIl(st.lastReadAt) : 'תיק המסמכים בב"ל עוד לא נקרא';
+  if (st.state === 'confirmed' && st.receipt) {
+    const r = st.receipt;
+    return (
+      <div className="sf-section">
+        <h3>קליטה בביטוח לאומי</h3>
+        <div className="sf-okline">✓ נקלט: «{r.description}» מ-{formatDay(r.docDate)}{r.pages ? ' · ' + r.pages + " עמ'" : ''} — בתיק המסמכים של המבוטח בב"ל</div>
+        <div className="sf-note">
+          אושר ע"י המשרד {formatIl(r.confirmedAt)}
+          {r.candidatesAtConfirmation > 1 ? ' · נבחר מתוך ' + r.candidatesAtConfirmation + ' מסמכים' : ''}
+          {r.note ? ' · ' + r.note : ''} · נראה לראשונה {formatIl(r.firstSeenAt)}
+        </div>
+      </div>
+    );
+  }
+  if (!canConfirm) return null;
+  const confirm = async () => {
+    if (!pick) return;
+    setBusy(true); setErr(null);
+    const r = await confirmReceipt(filingId, pick, note.trim() || undefined);
+    setBusy(false);
+    if (!r.ok) { setErr(filingErrorText(r.error)); return; }
+    await onChanged();
+  };
+  const cands = st.candidates ?? [];
+  return (
+    <div className="sf-section">
+      <h3>קליטה בביטוח לאומי <span className="sf-hint">{read}</span></h3>
+      {st.state === 'none' && (
+        <div className="sf-note">עוד לא נמצא «דין וחשבון» בתיק המסמכים של המבוטח בב"ל אחרי ההגשה. «עדכן נתונים מביטוח לאומי» בכרטיס ב"ל קורא אותו מחדש.</div>
+      )}
+      {cands.length > 0 && (
+        <>
+          <div className="sf-note" style={{ marginBottom: '.4rem' }}>
+            {cands.length === 1
+              ? 'בתיק המסמכים של המבוטח בב"ל יש «דין וחשבון» אחרי מועד ההגשה. ב"ל לא מציג מזהה שמקשר אותו להגשה — ולכן זו הצעה לאישור שלך, לא סימון.'
+              : 'בתיק המסמכים יש ' + cands.length + ' «דין וחשבון» אחרי מועד ההגשה — יש לבחור את זה של ההגשה הזו (או להשאיר בלי אישור).'}
+          </div>
+          <div className="sf-fields">
+            {cands.map(c => (
+              <label key={c.id} className="sf-radio">
+                <input type="radio" name={'rc-' + filingId} checked={pick === c.id} onChange={() => setPick(c.id)} />
+                {' '}«{c.description}» מ-{formatDay(c.docDate)}{c.pages ? ' · ' + c.pages + " עמ'" : ''}
+                <span className="sf-hint"> · נראה לראשונה {formatIl(c.firstSeenAt)}</span>
+              </label>
+            ))}
+            <div className="sf-field"><label>הערה (לא חובה)</label><input value={note} onChange={e => setNote(e.target.value)} placeholder="למשל: התאריך תואם להגשה בפורטל" /></div>
+          </div>
+          {err && <div className="sf-error">{err}</div>}
+          <div className="sf-actions">
+            <button type="button" className="btn btn-sm btn-secondary" disabled={busy || !pick} onClick={() => void confirm()}>
+              {busy ? 'שומר…' : 'אשר שזה הטופס שהגשנו'}
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 function SubmitStep({ ctx, onStep }: Props) {
   const { filing, rev, client, revisions, events } = ctx;
   const { busy, error, run } = useAction(ctx);
@@ -542,6 +620,10 @@ function SubmitStep({ ctx, onStep }: Props) {
             {syncedAfterSubmit ? 'הנתונים מב"ל נקראו אחרי ההגשה — אפשר להשוות ולרשום את התשובה עם הקריאה כראיה.' : 'כדי לראות אם ב"ל עדכן: «בדוק מול ב"ל» בתיק המס. עד אז — ממתינים.'}
           </div>
         </div>
+      )}
+
+      {['submitted', 'info_requested', 'result_received', 'closed'].includes(filing.state) && (
+        <ReceiptEvidence filingId={filing.id} canConfirm={filing.state !== 'closed'} updatedAt={filing.updatedAt} onChanged={ctx.reload} />
       )}
 
       {filing.state === 'submitted' && (

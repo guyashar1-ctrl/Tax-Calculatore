@@ -199,3 +199,34 @@ test('פירוט עיסוק: טווח השעות וההכנסה להגדרה מ�
   assert.ok(q.sections.occupations.warnings.some(w => w.startsWith('detail_identity_unverified')));
 });
 
+// ─── המקטעים החדשים דרך הזרימה המלאה (סינתטי) ───────────────────────────────
+function portalWithScreens(screens) {
+  const base = fakePortal({ people: { 123456782: { ...INSURED, pairs: [...RIKUZ_PAIRS, { label: 'מצב משפחתי', value: 'רווק' }, { label: 'חובת תשלום', value: 'עצמאי' }] } } });
+  return { ...base, ...screens };
+}
+
+test('מקטעים חדשים: נקראים; מסך ריק ⇒ «אין» (ok:true, empty); כשל מסך ⇒ ok:false, והשאר לא נפגע', async () => {
+  const p = await readInsured(portalWithScreens({
+    async openDocuments() { return { ok: true, tables: [{ headerCells: ['', 'תאור', "עמ'", 'תאריך'], dataRows: [['', 'דין וחשבון', '3', '15/09/2026']] }], scanRefs: ['ab12'] }; },
+    async openNotices() { return { ok: false, reason: 'side_link_failed' }; },
+    async openBenefits() { return { ok: true, tables: [], empty: true }; },
+    async openAnnualContributions() { return { ok: true, empty: true, tables: [] }; },
+    async openCorrespondence() { return { ok: true, empty: true, tables: [] }; },
+    async openBenefitDebt() { return { ok: true, count: 2 }; },
+  }), { role: 'client', idNumber: '123456782' }, { asOf: AS_OF });
+  const s = p.sections;
+  assert.equal(s.summaryFacts.ok, true);
+  assert.equal(s.summaryFacts.value.familyStatus.code, 'single');
+  assert.deepEqual(s.documents.value.items, [{ description: 'דין וחשבון', date: '2026-09-15', pages: 3, scanRef: 'ab12' }]);
+  assert.deepEqual(s.notices, { ok: false, reason: 'side_link_failed' }, 'כשל ⇒ «לא נקרא», לא «אין הודעות»');
+  assert.deepEqual(s.reserveDuty, { ok: true, value: { rows: [], otherBenefitsCount: 0 }, empty: true });
+  assert.deepEqual(s.correspondence.value, { count: 0 });
+  assert.deepEqual(s.benefitDebt.value, { count: 2 });
+  assert.equal(s.advance.ok, true, 'המקטעים הקיימים לא נפגעו');
+});
+
+test('ריכוז המידע לא נקרא ⇒ גם העובדות ממנו «לא נקרא» (לא מנחשים מזוגות של מסך אחר)', async () => {
+  const p = await readInsured(fakePortal({ people: { 123456782: INSURED }, failOn: { '123456782:info': { ok: false, reason: 'summary_screen_not_reached' } } }),
+    { role: 'client', idNumber: '123456782' }, { asOf: AS_OF });
+  assert.deepEqual(p.sections.summaryFacts, { ok: false, reason: 'summary_unavailable' });
+});

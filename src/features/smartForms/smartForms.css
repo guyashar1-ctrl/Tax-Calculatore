@@ -143,3 +143,6 @@
 .sf-public .sf-public-pages { background: var(--desk); border-radius: var(--radius); padding: .5rem 0; margin: .8rem 0; }
 .sf-public .sf-declare { display: flex; gap: .55rem; align-items: flex-start; font-size: var(--fs-14); line-height: 1.55; }
 .sf-public .sf-declare input { width: auto; margin-top: .3rem; }
+
+/* (207) בחירת מסמך לראיית קליטה */
+.sf-radio{display:flex;gap:.35rem;align-items:baseline;flex-wrap:wrap;font-size:var(--fs-13);color:var(--ink-1)}

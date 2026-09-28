@@ -87,6 +87,8 @@ export interface Filing {
   submission: { channel?: string; submittedAt?: string; reference?: string; evidenceDocumentId?: string; handedOffAt?: string; note?: string } | null;
   outcome: { status?: 'approved' | 'rejected' | 'partial'; summary?: string; receivedAt?: string; reference?: string; evidenceDocumentId?: string; btlSyncAt?: string; infoRequest?: { note: string; receivedAt: string } } | null;
   followUp: { kind: string; owner: string; stepId: string; title?: string } | null;
+  /** (207) ראיית קליטה בב"ל שאושרה בידי הרו"ח — המסמך כפי שהיה באישור. */
+  receipt: FilingReceipt | null;
   createdAt: string;
   updatedAt: string;
   closedAt: string | null;
@@ -109,6 +111,7 @@ const filingFromRow = (r: Row): Filing => ({
   stepId: (r.step_id as string) ?? null, missingInfo: (r.missing_info as Filing['missingInfo']) ?? null,
   attachments: (r.attachments as Attachment[]) ?? [], submission: (r.submission as Filing['submission']) ?? null,
   outcome: (r.outcome as Filing['outcome']) ?? null, followUp: (r.follow_up as Filing['followUp']) ?? null,
+  receipt: (r.receipt as FilingReceipt) ?? null,
   createdAt: r.created_at as string, updatedAt: r.updated_at as string, closedAt: (r.closed_at as string) ?? null,
 });
 
@@ -157,6 +160,27 @@ export async function loadClientFilings(clientId: string): Promise<Filing[]> {
 }
 
 export interface RpcResult { ok: boolean; error?: string; [k: string]: unknown }
+
+export interface FilingReceipt {
+  documentId: string; description: string; docDate: string; pages?: number | null; scanRef?: string | null;
+  firstSeenAt: string; lastSeenAt: string; observedJobId?: string | null; source: string;
+  candidatesAtConfirmation: number; confirmedAt: string; confirmedBy: string; note?: string | null;
+}
+export interface ReceiptCandidate { id: string; description: string; docDate: string; pages?: number | null; firstSeenAt: string; lastSeenAt: string }
+export interface ReceiptState {
+  ok: boolean; error?: string;
+  state?: 'confirmed' | 'not_submitted' | 'none' | 'single' | 'multiple';
+  candidates?: ReceiptCandidate[]; receipt?: FilingReceipt; submittedAt?: string; lastReadAt?: string | null;
+}
+
+/** (207) «דין וחשבון» בתיק המסמכים של ב"ל שעשוי להיות ההגשה הזו — הצעה, לא סימון. */
+export async function receiptCandidates(filingId: string): Promise<ReceiptState> {
+  const { data, error } = await supabase.rpc('smart_form_receipt_candidates', { p_filing_id: filingId });
+  if (error) return { ok: false, error: error.message };
+  return data as ReceiptState;
+}
+export const confirmReceipt = (filingId: string, documentId: string, note?: string) =>
+  call('smart_form_confirm_receipt', { p_filing_id: filingId, p_document_id: documentId, p_note: note ?? null });
 
 async function call(fn: string, args: Record<string, unknown>): Promise<RpcResult> {
   const { data, error } = await supabase.rpc(fn, args);
@@ -223,6 +247,9 @@ export const signLinkUrl = (token: string) => `${window.location.origin}/?sign-f
 /** הודעות שגיאה מהשרת ⇒ עברית למסך. */
 export function filingErrorText(code?: string): string {
   switch (code) {
+    case 'not_a_candidate': return 'המסמך הזה אינו מועמד לראיית קליטה של ההגשה';
+    case 'already_confirmed': return 'כבר אושרה ראיית קליטה אחרת להגשה הזו';
+    case 'not_submitted': return 'ראיית קליטה נרשמת רק להגשה שהוגשה ולא נסגרה';
     case 'stale_revision': return 'הטופס השתנה בחלון אחר — טוענים מחדש';
     case 'not_editable': case 'revision_locked': return 'הגרסה נעולה לחתימה — כדי לשנות צריך גרסה חדשה';
     case 'has_blockers': return 'יש שדות חסרים או סותרים — אי אפשר לנעול לחתימה';
