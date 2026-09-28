@@ -2287,6 +2287,14 @@ export default function OnboardingTab({
                           בטל אישור
                         </button>
                       )}
+                      {/* ‼ טופס חכם שהושלם: צפייה בלבד (החתום, ההגשה, התשובה) —
+                          לא פתיחה מחדש. בלי זה «לבקשה ←» בתיק המס מוביל למבוי סתום. */}
+                      {s.stepType === 'custom_request' && (s.payload?.smartForm as SmartFormProjection | undefined)?.filingId && (
+                        <button type="button" className="btn btn-sm btn-ghost"
+                          onClick={e => { e.stopPropagation(); setSmartFilingId((s.payload.smartForm as SmartFormProjection).filingId); }}>
+                          צפייה
+                        </button>
+                      )}
                       <span>
                         {skipped
                           ? `דולג${s.payload.skipReason ? ` · ${s.payload.skipReason}` : ''}`
