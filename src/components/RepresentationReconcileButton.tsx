@@ -54,6 +54,11 @@ interface Props {
   shaam: ReconcileTarget[];
   btl: ReconcileTarget[];
   onChanged?: () => void;
+  /**
+   * ‼ 28.09.2026 · במרכז החדש לכל רשות שורה עם המצב שלה, כולל הקריאה השמורה.
+   * false ⇒ מתחת לכפתור רק מה שקורה עכשיו (רץ / תוצאה טרייה / שגיאה), בלי כפילות.
+   */
+  persistedLines?: boolean;
 }
 
 /** מה קרה בבדיקה שרצה עכשיו (בזיכרון בלבד — הנתון השמור הוא `last`). */
@@ -148,7 +153,7 @@ function lineFor(t: ReconcileTarget, r: RunResult | undefined, live: boolean): {
   return null;
 }
 
-export default function RepresentationReconcileButton({ heading, clientId, shaam, btl, onChanged }: Props) {
+export default function RepresentationReconcileButton({ heading, clientId, shaam, btl, onChanged, persistedLines = true }: Props) {
   const sh = useReconcileQueue(clientId, SHAAM_CHECK_REPRESENTATION_ACTION_TYPE, 'submissionKey', shaam, onChanged);
   const bt = useReconcileQueue(clientId, BTL_CHECK_REPRESENTATION_ACTION_TYPE, 'role', btl, onChanged);
   if (shaam.length === 0 && btl.length === 0) return <>{heading}</>;
@@ -162,9 +167,9 @@ export default function RepresentationReconcileButton({ heading, clientId, shaam
   const quiet = !running && !connecting && reconcileIsPremature([...shaam, ...btl]);
   const readOnly = `קריאה בלבד מול ${[shaam.length ? 'שע״ם' : '', btl.length ? 'ביטוח לאומי' : ''].filter(Boolean).join(' ו')} - לא נשלח ולא משתנה דבר ברשות`;
   const lines = [
-    ...shaam.map(t => ({ t, shown: lineFor(t, sh.results[t.key], sh.currentKey === t.key) })),
-    ...btl.map(t => ({ t, shown: lineFor(t, bt.results[t.key], bt.currentKey === t.key) })),
-  ].filter(x => x.shown);
+    ...shaam.map(t => ({ t, now: sh.currentKey === t.key || !!sh.results[t.key], shown: lineFor(t, sh.results[t.key], sh.currentKey === t.key) })),
+    ...btl.map(t => ({ t, now: bt.currentKey === t.key || !!bt.results[t.key], shown: lineFor(t, bt.results[t.key], bt.currentKey === t.key) })),
+  ].filter(x => x.shown && (persistedLines || x.now));
 
   return (
     <div data-testid="rep-reconcile" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '.25rem' }}>

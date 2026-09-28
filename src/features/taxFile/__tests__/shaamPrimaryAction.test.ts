@@ -82,10 +82,11 @@ export const TESTS: TestCase[] = [
     equal(columnAction(shaamRepresentationAction('awaiting_authorities', { requestNumber: '1', submittedAt: SUB }, true)), null);
   }),
 
-  test('H · «הזן» מצויר פעם אחת לכל אדם — בשלב 1, לא בראש העמודה', () => {
+  test('H · «הזן» מצויר פעם אחת לכל אדם — בכרטיס «מה עכשיו» בהכנה, בפירוט אחרת', () => {
     const src = code(CENTER_SOURCE);
-    equal((src.match(/shaamNode\(sub, 'create'\)/g) ?? []).length, 1, 'בשלב של ההגשה');
-    assert(/columnAction\(shaamActionFor\(shaamLeadSubmission\)\)\?\.kind !== 'create'/.test(src), 'ראש העמודה מדלג על «הזן»');
+    equal((src.match(/shaamNode\(sub, 'create'\)/g) ?? []).length, 1, 'מקור אחד (createCell)');
+    equal((src.match(/\{createCell\(sub\)\}/g) ?? []).length, 2, 'שני מקומות אפשריים');
+    assert(/!inPrepare \? \(\s*<div[^>]*>\s*\{createCell\(sub\)\}/.test(src), 'בפירוט רק כשלא בהכנה — לעולם לא פעמיים');
     assert(!/הזן את הפרטים בשע״ם/.test(src), 'אין תווית ישנה');
   }),
 
