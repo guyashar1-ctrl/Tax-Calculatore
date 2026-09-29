@@ -71,7 +71,7 @@ const COPY: Record<Stage, { subject: string; heading: string; body: string; cta:
   sign_with_ni: {
     subject: "שתי פעולות אחרונות - חתימה ואישור בביטוח הלאומי",
     heading: "כמעט סיימנו",
-    body: "כדי שנוכל לייצג אתכם בפועל, נשארו שתי פעולות קצרות. שתיהן יחד לוקחות כשתי דקות.",
+    body: "נשארו שני צעדים קצרים כדי שנוכל לייצג אותך בפועל. שניהם יחד לוקחים כשתי דקות.",
     cta: "לחתימה על הטופס",
   },
   active: resolveRepMailTemplate("rep_active"),
@@ -388,7 +388,7 @@ Deno.serve(async (req: Request) => {
      * עכשיו: המספר תואם את הרשימה, כל צעד כותרת + שורה + הפעולה שלו, ופנייה ישירה.
      */
     const stepRow = (n: number, title: string, lead: string, inner: string, last: boolean) => `
-      <tr><td dir="rtl" align="right" style="text-align:right;padding:0 32px;">
+      <tr><td dir="rtl" align="right" style="text-align:right;padding:0 40px;">
         <table dir="rtl" role="presentation" width="100%" cellpadding="0" cellspacing="0"
                style="${last ? '' : `border-bottom:1px solid ${brand.border};`}">
           <tr>
@@ -509,42 +509,55 @@ Deno.serve(async (req: Request) => {
           }, 400);
         }
       }
+      // ‼ 29.09.2026 · פנייה ביחיד, כמו «שלום עידו» שבראש המייל — בצורות שאינן מגדריות
+      // בכתב («שלך», «אותך», «לאשר»). בלי כתובת טכנית מתחת לכפתור, ועם כפתור לכל צעד:
+      // מלא לחתימה (הפעולה העיקרית), קווי לשאר — אותה צורה, משקל שונה.
+      const stepButton = (label: string, href: string) => `
+        <table dir="rtl" role="presentation" cellpadding="0" cellspacing="0" align="right" style="margin-top:14px;">
+          <tr><td style="border:1.5px solid ${brand.accent};border-radius:${brand.buttonStyle === "pill" ? 999 : Math.max(brand.radius, 8)}px;background:#ffffff;">
+            <a href="${esc(href)}" style="display:inline-block;padding:10px 20px;font-family:${f};font-size:15px;font-weight:700;color:${brand.accent};text-decoration:none;">${esc(label)}&nbsp;&nbsp;←</a>
+          </td></tr>
+        </table>`;
       const steps: { title: string; lead: string; inner: string }[] = [];
       steps.push({
         title: "חתימה על ייפוי הכוח",
-        lead: "החתימה דיגיטלית ולוקחת פחות מדקה, גם מהטלפון.",
-        inner: `<div style="padding-top:14px;">${emailButton(brand, "לחתימה על הטופס", link, true)}</div>
-          <div dir="ltr" style="text-align:right;padding-top:8px;font-family:${f};font-size:11.5px;color:${brand.muted};word-break:break-all;">${esc(link)}</div>`,
+        lead: "חתימה דיגיטלית, פחות מדקה, גם מהטלפון.",
+        inner: `<div style="padding-top:14px;">${emailButton(brand, "לחתימה על הטופס", link, true)}</div>`,
       });
       for (const a of idActs) {
-        // ‼ המייל הזה הולך לבעל הכרטיס; צילום של בן/בת הזוג נקרא בשמו/ה, שלו עצמו — «שלכם».
-        const whose = a.person === "spouse" && a.personName ? ` של ${esc(a.personName)}` : " שלכם";
+        // ‼ המייל הזה הולך לבעל הכרטיס; צילום של בן/בת הזוג נקרא בשמו/ה, שלו עצמו — «שלך».
+        const whose = a.person === "spouse" && a.personName ? ` של ${esc(a.personName)}` : " שלך";
         steps.push({
           title: a.action === "confirm" ? "אישור צילום תעודת הזהות" : "צילום תעודת זהות או רישיון נהיגה",
           lead: a.action === "confirm"
-            ? `רשות המסים מבקשת צילום של תעודת הזהות או רישיון הנהיגה${whose}. יש לנו כבר צילום בתיק — אשרו שזה הצילום הנכון, או העלו אחר.`
+            ? `רשות המסים מבקשת צילום של תעודת הזהות או רישיון הנהיגה${whose}. יש לנו כבר צילום בתיק — צריך רק לאשר שהוא הנכון, או להעלות אחר.`
             : `רשות המסים מבקשת צילום של תעודת הזהות או רישיון הנהיגה${whose}. אפשר לצלם ישר מהטלפון.`,
-          inner: portalHref
-            ? `<div style="font-family:${f};text-align:right;padding-top:10px;font-size:15px;"><a href="${esc(portalHref)}" style="color:${brand.accent};font-weight:700;">${a.action === "confirm" ? "לאישור הצילום" : "להעלאת הצילום"} ←</a></div>`
-            : "",
+          inner: portalHref ? stepButton(a.action === "confirm" ? "לאישור הצילום" : "להעלאת הצילום", portalHref) : "",
         });
       }
       if (niData.referenceNumber) {
         const deadline = niData.deadline ? new Date(niData.deadline).toLocaleDateString("he-IL") : "";
+        const cell = (label: string, value: string, color: string, divider: boolean, ltr: boolean) => `
+          <td dir="rtl" align="right" valign="top" style="text-align:right;padding:12px 16px;${divider ? `border-right:1px solid ${brand.border};` : ""}">
+            <div style="font-family:${f};text-align:right;font-size:12.5px;color:${brand.muted};">${label}</div>
+            <div ${ltr ? 'dir="ltr" ' : ""}style="font-family:${f};text-align:right;font-size:20px;font-weight:700;letter-spacing:.03em;color:${color};padding-top:2px;">${value}</div>
+          </td>`;
         steps.push({
           title: "אישור הייצוג בביטוח הלאומי",
-          lead: "את ייפוי הכוח כבר הזנו עבורכם. הביטוח הלאומי מבקש שתאשרו אותו בעצמכם — בלי האישור הייצוג שם לא בתוקף.",
+          lead: "את ייפוי הכוח כבר הזנו בביטוח הלאומי. נשאר רק לאשר אותו — בלי האישור הייצוג שם לא נכנס לתוקף.",
           inner: `
-            <table role="presentation" cellpadding="0" cellspacing="0" style="margin-top:14px;border:1px solid ${brand.border};border-radius:${brand.radius}px;background:${brand.pageBg};">
-              <tr><td dir="rtl" align="right" style="text-align:right;padding:12px 16px;">
-                <div style="font-family:${f};text-align:right;font-size:12.5px;color:${brand.muted};">מספר האסמכתא שלכם</div>
-                <div dir="ltr" style="font-family:${f};text-align:right;font-size:26px;font-weight:700;letter-spacing:.05em;color:${brand.ink};padding-top:2px;">${esc(String(niData.referenceNumber))}</div>
-                ${deadline ? `<div style="font-family:${f};text-align:right;font-size:13.5px;color:#8A4B00;padding-top:4px;">לאשר עד <strong>${esc(deadline)}</strong></div>` : ""}
-              </td></tr>
+            <table dir="rtl" role="presentation" cellpadding="0" cellspacing="0" width="100%" style="margin-top:14px;border:1px solid ${brand.border};border-radius:${brand.radius}px;background:${brand.pageBg};">
+              <tr>
+                ${cell("מספר אסמכתא", esc(String(niData.referenceNumber)), brand.ink, false, true)}
+                ${deadline ? cell("לאשר עד", esc(deadline), "#8A4B00", true, false) : ""}
+              </tr>
             </table>
-            <div style="font-family:${f};text-align:right;font-size:14px;color:${brand.muted};line-height:1.85;padding-top:12px;">
-              <strong style="color:${brand.ink};">באתר:</strong> נכנסים ל<a href="${esc(NI_SITE)}" style="color:${brand.accent};font-weight:700;">${esc(NI_SITE_LABEL)}</a>, מקלידים תעודת זהות ואת מספר האסמכתא, מזדהים בכרטיס אשראי (או בטלפון/מייל המעודכנים בביטוח הלאומי) ומאשרים. הייצוג נכנס לתוקף מיד.<br/>
-              <strong style="color:${brand.ink};">בטלפון:</strong> <span dir="ltr">${esc(NI_PHONE)}</span> (מענה קולי) — עם מספר האסמכתא וקוד בן 6 ספרות שהביטוח הלאומי שולח בדואר או במייל.
+            ${stepButton("לאישור באתר הביטוח הלאומי", NI_SITE)}
+            <div style="clear:both;font-family:${f};text-align:right;font-size:13.5px;color:${brand.muted};line-height:1.7;padding-top:12px;">
+              באתר מקלידים תעודת זהות ואת מספר האסמכתא, ומזדהים בכרטיס אשראי או דרך הטלפון או המייל המעודכנים בביטוח הלאומי.
+            </div>
+            <div style="font-family:${f};text-align:right;font-size:13.5px;color:${brand.muted};line-height:1.7;padding-top:4px;">
+              אפשר גם בטלפון <span dir="ltr" style="color:${brand.ink};font-weight:700;white-space:nowrap;">${esc(NI_PHONE)}</span> (מענה קולי), עם מספר האסמכתא וקוד בן 6 ספרות שהביטוח הלאומי שולח בדואר או במייל.
             </div>`,
         });
       }
@@ -557,7 +570,7 @@ Deno.serve(async (req: Request) => {
           ...COPY.sign_with_ni,
           subject: niData.referenceNumber && idActs.length === 0 ? COPY.sign_with_ni.subject
             : `הצעדים האחרונים לייצוג - ${((xs: string[]) => xs.length > 1 ? `${xs.slice(0, -1).join(", ")} ו${xs[xs.length - 1]}` : xs[0])(["חתימה", ...(idActs.length ? ["צילום תעודה"] : []), ...(niData.referenceNumber ? ["אישור בביטוח הלאומי"] : [])])}`,
-          body: `כדי שנוכל לייצג אתכם מול הרשויות נשארו ${n === 2 ? "שני צעדים קצרים" : `${n} צעדים קצרים`}. כולם נדרשים, ואפשר לבצע אותם בכל סדר.`,
+          body: `נשארו ${n === 2 ? "שני צעדים קצרים" : `${n} צעדים קצרים`} כדי שנוכל לייצג אותך מול הרשויות. כולם נדרשים, ואפשר לבצע אותם בכל סדר.`,
         };
         extraHtml = `<tr><td style="padding-top:8px;"></td></tr>`
           + steps.map((x, i) => stepRow(i + 1, x.title, x.lead, x.inner, i === n - 1)).join("");
@@ -575,7 +588,8 @@ Deno.serve(async (req: Request) => {
       ctaLabel: ctaLabel || undefined,
       ctaHref: ctaLabel ? ctaHref : undefined,
       ctaArrow: true,
-      showLinkFallback: !!ctaLabel,
+      // ‼ 29.09.2026 · במייל החתימה בלי הכתובת הטכנית מתחת לכפתור (גיא: «כתובת חתימה טכנית ארוכה»).
+      showLinkFallback: !!ctaLabel && stage !== "sign",
       footerTagline: stage === "ni_approve" ? "אישור מול הביטוח הלאומי · כדקה" : undefined,
     });
 

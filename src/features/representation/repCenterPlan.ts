@@ -71,8 +71,6 @@ export interface RcInput {
   clientOpenItems: string[];
   /** אישור המייצג באזור האישי: נדרש (201) ועדיין פתוח. */
   clientApprovalRequiredOpen?: boolean;
-  /** אחרי ההגשה: למה מחכים, כל פריט כבר עם «ל» («לשע״ם (צפי …)», «לאישור של גל בביטוח הלאומי (עד …)»). */
-  waitingOn?: string[];
 }
 
 export interface RcPrepareItem {
@@ -217,10 +215,11 @@ export function repCenterPlan(input: RcInput): RcPlan {
   if (!input.signed) {
     const asks = ['לחתום על ייפוי הכוח', ...input.clientOpenItems,
       ...(input.ni.some(n => !n.final) ? ['לאשר את הייצוג בביטוח הלאומי'] : [])];
-    // ‼ הרשימה עצמה מוצגת מתחת — המשפט אומר רק מתי יצא ומה ההיקף, לא חוזר עליה.
-    const when = input.sentAt ? `המייל יצא ב-${new Date(input.sentAt).toLocaleDateString('he-IL')}. ` : '';
+    // ‼ הרשימה עצמה מוצגת מתחת — המשפט אומר רק את ההיקף, לא חוזר עליה. מתי יצא
+    // המייל ומה קרה לו — בטור «המייל», ממקור אחד (29.09.2026: הכותרת אמרה «יצא»
+    // והשורה של החותם אמרה «טרם נשלח»).
     return plan('waiting_client', 'client', `ממתינים ${toFirst}`,
-      `${when}${asks.length === 1 ? 'נשאר דבר אחד' : `נשארו ${asks.length} דברים`} אצל ${first}:`);
+      `${asks.length === 1 ? 'נשאר דבר אחד' : `נשארו ${asks.length} דברים`} אצל ${first}. אפשר בכל סדר.`);
   }
 
   // ── נחתם, טרם הוטבעה חותמת ─────────────────────────────────────────────
@@ -253,7 +252,7 @@ export function repCenterPlan(input: RcInput): RcPlan {
     return plan('waiting_authorities', 'client', `נשאר האישור של ${joinNames(niOpen.map(n => n.name)) || first} בביטוח הלאומי`,
       'הייצוג ברשות המסים נקלט. בביטוח הלאומי הוא ייכנס לתוקף אחרי אישור האסמכתא.');
   }
-  const waits = (input.waitingOn ?? []).filter(Boolean);
+  // ‼ למה מחכים ועד מתי — בטור «מה עוד פתוח», שורה לכל רשות (לא משפט עם סוגריים).
   return plan('waiting_authorities', 'authority', 'הוגש — ממתינים לקליטה',
-    waits.length ? `ממתינים ${listSentence(waits)}. בינתיים אין פעולה נדרשת ממך.` : 'הטופס הוגש לשע״ם. בינתיים אין פעולה נדרשת ממך.');
+    'בינתיים אין פעולה נדרשת ממך. המצב מתעדכן בכל בדיקה מול הרשויות.');
 }

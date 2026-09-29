@@ -225,27 +225,34 @@ function AuthRow({ name, scope, status, tone, defaultOpen, testId, children }: {
           <div className="rc-row-name">{name}{scope && <span className="rc-row-scope">{scope}</span>}</div>
           <div className="rc-row-status" data-tone={tone}>{status}</div>
         </div>
-        <span className="rc-row-end">{open ? 'הסתרה' : 'פירוט'}<Chevron /></span>
+        <span className="rc-row-end"><Chevron /></span>
       </button>
       {open && <div className="rc-row-body">{children}</div>}
     </div>
   );
 }
 
-/** פתיחה לפי דרישה. ‼ לא נשלט מבחוץ אחרי הרינדור הראשון — הלחיצה של הרו"ח גוברת. */
+/**
+ * פתיחה לפי דרישה — אותה שורה בדיוק כמו שורת רשות (שם, שורה משנית, חץ).
+ * ‼ עד שהרו"ח לוחץ, הפתיחה עוקבת אחרי המצב (defaultOpen); אחרי לחיצה — הלחיצה גוברת.
+ * קודם זה נקבע ברינדור הראשון בלבד, ולכן טבלת ההעתקה נשארה פתוחה גם אחרי שההכנה נגמרה.
+ */
 function More({ title, meta, defaultOpen, testId, children }: {
   title: string; meta?: string; defaultOpen?: boolean; testId?: string; children: React.ReactNode;
 }) {
-  const [open, setOpen] = useState(!!defaultOpen);
+  const [userOpen, setUserOpen] = useState<boolean | null>(null);
+  const open = userOpen ?? !!defaultOpen;
   return (
-    <details className="rc-more" open={open} data-testid={testId}
-      onToggle={e => setOpen((e.currentTarget as HTMLDetailsElement).open)}>
-      <summary>
-        <span>{title}{meta && <span className="rc-meta" style={{ marginInlineStart: 10 }}>{meta}</span>}</span>
-        <Chevron />
-      </summary>
-      {open && <div className="rc-more-body">{children}</div>}
-    </details>
+    <div className="rc-row" data-open={open ? 'true' : 'false'} data-testid={testId}>
+      <button type="button" className="rc-row-head" aria-expanded={open} onClick={() => setUserOpen(!open)}>
+        <div style={{ minWidth: 0 }}>
+          <div className="rc-row-name">{title}</div>
+          {meta && <div className="rc-row-meta">{meta}</div>}
+        </div>
+        <span className="rc-row-end"><Chevron /></span>
+      </button>
+      {open && <div className="rc-row-body rc-more-body">{children}</div>}
+    </div>
   );
 }
 
@@ -304,9 +311,29 @@ function NiRefForm({ ni, busy, onSave }: {
  * ביטול ידני ⇒ הבדיקה מול הרשויות רואה שבוטלה (או שהמשרד מאשר כאן) ⇒ הבקשה
  * עוברת להיסטוריה ⇒ «הזן» פותח חדשה רק למה שנשאר (ובודק שוב שאין פתוחה).
  */
-function ReplacementBody({ requestId, submissionKey, replacement, remaining, onChanged }: {
+function ReplacementBody({ replacement, remaining }: {
+  replacement: NonNullable<ShaamRequestTracking['replacement']>; remaining: string;
+}) {
+  return (
+    <div data-testid="shaam-replacement-notice">
+      {replacement.stillOpenAt && (
+        <p className="rc-err" data-testid="shaam-replacement-still-open" style={{ margin: '0 0 12px', fontWeight: 600 }}>
+          סומן שהבקשה בוטלה, אבל בבדיקה ב-{fmtDateTime(replacement.stillOpenAt)} היא עדיין הופיעה פתוחה בשע״ם — לכן לא נפתחה בקשה חדשה.
+        </p>
+      )}
+      <AskList items={[
+        { key: 'cancel', title: `בשע״ם, ברשימת הבקשות: «ביטול הבקשה» ${replacement.requestNumber}`, detail: 'לפני שהמסמכים התקבלו, שע״ם מבטלת את כל הבקשה ולא תיק אחד.' },
+        { key: 'mark', title: 'לסמן כאן שבוטלה', detail: 'או להריץ את הבדיקה מול הרשויות — היא מזהה ביטול.' },
+        { key: 'new', title: `לפתוח בקשה חדשה רק ל${remaining}`, detail: 'הטופס החדש יגיע משע״ם ויסומן לחתימה אוטומטית.' },
+      ]} />
+    </div>
+  );
+}
+
+/** «ביטלתי בשע״ם» — בטור הפעולה, כמו כל פעולה ראשית במסך. */
+function ReplacementConfirm({ requestId, submissionKey, replacement, onChanged }: {
   requestId: string; submissionKey: string;
-  replacement: NonNullable<ShaamRequestTracking['replacement']>; remaining: string; onChanged: () => void;
+  replacement: NonNullable<ShaamRequestTracking['replacement']>; onChanged: () => void;
 }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -320,24 +347,13 @@ function ReplacementBody({ requestId, submissionKey, replacement, remaining, onC
     if (e) setErr(e); else onChanged();
   }
   return (
-    <div data-testid="shaam-replacement-notice">
-      {replacement.stillOpenAt && (
-        <p className="rc-err" data-testid="shaam-replacement-still-open" style={{ margin: '0 0 12px', fontWeight: 600 }}>
-          סומן שהבקשה בוטלה, אבל בבדיקה ב-{fmtDateTime(replacement.stillOpenAt)} היא עדיין הופיעה פתוחה בשע״ם — לכן לא נפתחה בקשה חדשה.
-        </p>
-      )}
-      <AskList items={[
-        { key: 'cancel', title: `בשע״ם, ברשימת הבקשות: «ביטול הבקשה» ${replacement.requestNumber}`, detail: 'לפני שהמסמכים התקבלו, שע״ם מבטלת את כל הבקשה ולא תיק אחד.' },
-        { key: 'mark', title: 'לסמן כאן שבוטלה', detail: 'או להריץ את הבדיקה מול הרשויות — היא מזהה ביטול.' },
-        { key: 'new', title: `לפתוח בקשה חדשה רק ל${remaining}`, detail: 'הטופס החדש יגיע משע״ם ויסומן לחתימה אוטומטית.' },
-      ]} />
-      <div className="rc-actions">
-        <button type="button" className="btn btn-primary" disabled={busy} data-testid="shaam-confirm-cancelled" onClick={() => void confirm()}>
-          {busy ? 'שומר…' : 'ביטלתי בשע״ם'}
-        </button>
-      </div>
-      {err && <div className="rc-err" style={{ marginTop: 8 }}>{err}</div>}
-    </div>
+    <>
+      <button type="button" className="btn btn-primary" disabled={busy} data-testid="shaam-confirm-cancelled" onClick={() => void confirm()}>
+        {busy ? 'שומר…' : 'ביטלתי בשע״ם'}
+      </button>
+      <div className="rc-aside-line">PIVO לא מבטלת בשע״ם — רק מסמנת כאן שבוטלה.</div>
+      {err && <div className="rc-err">{err}</div>}
+    </>
   );
 }
 
@@ -571,6 +587,11 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
   const signerEmail = (s: RepSigner) => {
     const addr = s.email.trim().toLowerCase();
     return addr ? signatureEmails.find(m => m.toEmail.trim().toLowerCase() === addr) : undefined;
+  };
+  /** כל הניסיונות לכתובת הזו, מהחדש לישן — «נשלח/נפתח» נקרא מהאחרון שבאמת יצא. */
+  const signerEmails = (s: RepSigner) => {
+    const addr = s.email.trim().toLowerCase();
+    return addr ? signatureEmails.filter(m => m.toEmail.trim().toLowerCase() === addr) : [];
   };
   /** מסלול הב"ל של החותם — לפי תפקיד מפורש, לעולם לא "הראשון". */
   const niTrackFor = (s: RepSigner): NiTracking | undefined =>
@@ -959,16 +980,6 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
     })),
     clientOpenItems: [...new Set(idDocsOpen.map(d => (d.status === 'missing' ? 'להעלות צילום תעודה' : 'לאשר את צילום התעודה שבתיק')))],
     clientApprovalRequiredOpen: !!repApproval && approvalRequired && !isRepApprovalClosed(repApproval),
-    waitingOn: [
-      ...submissions.filter(sub => !!shaamFactsOf(sub) && !shaamSettled(shaamTrack(sub.key))).map(sub => {
-        const f = shaamFactsOf(sub)!;
-        return f.suspensionEndsAt ? `לשע״ם (צפי לסיום ההשהייה ${fmt(f.suspensionEndsAt)})` : 'לקליטה בשע״ם';
-      }),
-      ...niRoles.filter(role => !niTrackView(niExecutionByRole[role], niLineFor(role)).final).map(role => {
-        const t = niExecutionByRole[role];
-        return `לאישור של ${niNameOf(role)} בביטוח הלאומי${t.deadline ? ` (עד ${fmt(t.deadline)})` : ''}`;
-      }),
-    ],
   });
 
   // ── פקדים שמופיעים פעם אחת בדיוק (בכרטיס «מה עכשיו» או בפירוט — לא בשניהם) ──
@@ -1083,8 +1094,8 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
           <div className="rc-check-label">{item.label}</div>
           {item.detail && <div className="rc-check-detail">{item.detail}</div>}
         </div>
-        <div className="rc-check-ctrl">{ctl}</div>
         {body && <div className="rc-check-body">{body}</div>}
+        {ctl && <div className="rc-check-ctrl">{ctl}</div>}
       </div>
     );
   };
@@ -1132,85 +1143,115 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
 
   const sendClick = () => (missingIds.length > 0 ? setConfirmSendWithoutId(true) : void handleSendAll(sendOnlyTo ?? undefined));
   const recipients = pendingSigners.filter(s => (sendOnlyTo ? s.id === sendOnlyTo : !!s.email.trim()));
+  const toFirst = firstName ? `ל${firstName}` : 'ללקוח';
+  const sendLabel = sendOnlyTo ? `שלח ל${pendingSigners.find(s => s.id === sendOnlyTo)?.name || 'חותם'}`
+    : `שלח ${toFirst}${emailableSigners.length > 1 ? ` (${emailableSigners.length} חותמים)` : ''}`;
+  const recipientLine = recipients.length > 0
+    ? <div className="rc-aside-line">אל {recipients.map(s => <span key={s.id} className="ltr-isolate rc-addr">{s.email.trim()}</span>)}</div>
+    : <div className="rc-aside-line" data-tone="warn">לאף חותם אין כתובת מייל</div>;
 
-  // ── גוף ופעולות לכל מצב ───────────────────────────────────────────────────
+  // ── גוף ופעולה לכל מצב ────────────────────────────────────────────────────
+  // ‼ 29.09.2026 · הכרטיס בשני טורים: מימין המצב (כותרת, משפט, רשימה), משמאל
+  // «הפעולה» — תמיד באותו מקום. «שלח» יושב שם כבר בהכנה (כבוי) ונדלק במקום
+  // כשהצעד האחרון נסגר. בטלפון הטור השמאלי יורד מתחת לגוף.
   let heroBody: React.ReactNode = null;
-  let heroActions: React.ReactNode = null;
+  let aside: { title: string; content: React.ReactNode } | null = null;
   const replacementSub = submissions.find(s => !!shaamTrack(s.key)?.replacement);
 
   switch (plan.kind) {
-    case 'prepare':
+    case 'prepare': {
+      const left = plan.prepare.filter(i => !i.done).length || 1;
       heroBody = <div className="rc-checklist" data-testid="rc-prepare">{plan.prepare.map(prepareRow)}</div>;
+      aside = {
+        title: `המייל ${toFirst}`,
+        content: (
+          <>
+            <button className="btn btn-primary" disabled data-testid="rc-send-pending">{sendLabel}</button>
+            <div className="rc-aside-line">{left === 1 ? 'ייפתח אחרי הצעד האחרון' : `ייפתח אחרי ${left} הצעדים`}</div>
+            {recipients.length > 0 && recipientLine}
+          </>
+        ),
+      };
       break;
+    }
     case 'replacement':
       heroBody = replacementSub ? (
-        <ReplacementBody requestId={request.id} submissionKey={replacementSub.key}
-          replacement={shaamTrack(replacementSub.key)!.replacement!} remaining={replacementSub.authoritiesLabel}
-          onChanged={() => onStepsChanged?.()} />
+        <ReplacementBody replacement={shaamTrack(replacementSub.key)!.replacement!} remaining={replacementSub.authoritiesLabel} />
       ) : null;
+      aside = replacementSub ? {
+        title: `בקשה ${shaamTrack(replacementSub.key)!.replacement!.requestNumber} בשע״ם`,
+        content: (
+          <ReplacementConfirm requestId={request.id} submissionKey={replacementSub.key}
+            replacement={shaamTrack(replacementSub.key)!.replacement!} onChanged={() => onStepsChanged?.()} />
+        ),
+      } : null;
       break;
     case 'send':
       heroBody = <AskList title={`מה נבקש מ${firstName || 'הלקוח'}`} items={clientAsks(false)} />;
-      heroActions = (
-        <>
-          <button className="btn btn-green" data-testid="rc-send"
-            disabled={busy === 'send' || niRefMissing || pendingSigners.length === 0} onClick={sendClick}>
-            {busy === 'send' ? 'שולח…'
-              : sendOnlyTo ? `שלח ל${pendingSigners.find(s => s.id === sendOnlyTo)?.name || 'חותם'}`
-              : `שלח ל${firstName || 'לקוח'}${emailableSigners.length > 1 ? ` (${emailableSigners.length} חותמים)` : ''}`}
-          </button>
-          {pendingSigners.length > 0 && (
-            <button type="button" className="rc-link" onClick={() => setPreviewSignerId(pendingSigners[0].id)}>צפייה במייל</button>
-          )}
-          <span className="rc-meta">
-            {recipients.length > 0
-              ? <>במייל אל {recipients.map(s => <span key={s.id} className="ltr-isolate" style={{ marginInlineEnd: 6 }}>{s.email.trim()}</span>)}</>
-              : 'לאף חותם אין כתובת מייל'}
-          </span>
-          {emailableSigners.length > 1 && (
-            <div style={{ flexBasis: '100%', display: 'flex', gap: '.9rem', flexWrap: 'wrap', fontSize: 'var(--fs-13)', color: 'var(--ink-2)' }}>
-              <label style={{ display: 'flex', gap: '.3rem', alignItems: 'center', cursor: 'pointer' }}>
-                <input type="radio" name="send-to" checked={sendOnlyTo === null} onChange={() => setSendOnlyTo(null)} />
-                לכל אחד מייל נפרד
-              </label>
-              {emailableSigners.map(s => (
-                <label key={s.id} style={{ display: 'flex', gap: '.3rem', alignItems: 'center', cursor: 'pointer' }}>
-                  <input type="radio" name="send-to" checked={sendOnlyTo === s.id} onChange={() => setSendOnlyTo(s.id)} />
-                  רק ל{s.name || s.email}
-                </label>
-              ))}
-            </div>
-          )}
-        </>
-      );
+      aside = {
+        title: `המייל ${toFirst}`,
+        content: (
+          <>
+            {emailableSigners.length > 1 && (
+              <div className="rc-aside-radios">
+                <label><input type="radio" name="send-to" checked={sendOnlyTo === null} onChange={() => setSendOnlyTo(null)} />לכל אחד מייל נפרד</label>
+                {emailableSigners.map(s => (
+                  <label key={s.id}><input type="radio" name="send-to" checked={sendOnlyTo === s.id} onChange={() => setSendOnlyTo(s.id)} />רק ל{s.name || s.email}</label>
+                ))}
+              </div>
+            )}
+            <button className="btn btn-primary" data-testid="rc-send"
+              disabled={busy === 'send' || niRefMissing || pendingSigners.length === 0} onClick={sendClick}>
+              {busy === 'send' ? 'שולח…' : sendLabel}
+            </button>
+            {recipientLine}
+            {pendingSigners.length > 0 && (
+              <button type="button" className="rc-link" onClick={() => setPreviewSignerId(pendingSigners[0].id)}>צפייה במייל לפני השליחה</button>
+            )}
+          </>
+        ),
+      };
       break;
     case 'waiting_client':
-      heroBody = (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-          <AskList items={clientAsks(true)} />
-          <div className="rc-people" data-testid="rc-signers">
-            {signers.map(s => (
-              <SignerLine key={s.id} signer={s}
-                signed={effectiveSignStatus(request, s) === 'signed'}
-                email={signerEmail(s)} track={niTrackFor(s)}
-                onRemind={signerEmail(s) ? () => handleRemind(signerEmail(s)!) : undefined}
-                batchSentAt={exec.signatureEmailSentAt}
-                onCopiedLink={() => void markLinkHandedOver(s.role === 'spouse' ? 'spouse' : 'client')} />
-            ))}
+      heroBody = <AskList items={clientAsks(true)} />;
+      aside = {
+        title: signers.length > 1 ? 'המיילים לחותמים' : `המייל ${toFirst}`,
+        content: (
+          <div className="rc-signers" data-testid="rc-signers">
+            {signers.map(s => {
+              // ‼ תזכורת = אותו מייל שוב לאותה כתובת. מספיק שהבקשה נשלחה — גם בלי רשומה ביומן לכתובת הזו.
+              const canRemind = !!s.email.trim() && (!!signerEmail(s) || !!exec.signatureEmailSentAt);
+              return (
+                <SignerLine key={s.id} signer={s} showName={signers.length > 1}
+                  signed={effectiveSignStatus(request, s) === 'signed'}
+                  emails={signerEmails(s)} track={niTrackFor(s)}
+                  onRemind={canRemind ? () => handleRemind({ toEmail: s.email }) : undefined}
+                  batchSentAt={exec.signatureEmailSentAt}
+                  onCopiedLink={() => void markLinkHandedOver(s.role === 'spouse' ? 'spouse' : 'client')} />
+              );
+            })}
           </div>
-        </div>
-      );
+        ),
+      };
       break;
-    case 'stamp':
+    case 'stamp': {
       heroBody = poaDocs.length > 1 ? (
         <AskList items={poaDocs.map(d => ({ key: d.key, title: d.title, done: !!d.signedPdfStoredId, state: d.signedPdfStoredId ? 'נחתם' : 'ממתין', tone: d.signedPdfStoredId ? 'done' : 'wait' }))} />
       ) : null;
-      heroActions = (
-        <button className="btn btn-green" data-testid="rc-stamp" onClick={onStamp}>
-          {poaDocs.length > 1 && nextToStamp ? `חתימה וחותמת · ${nextToStamp.title}` : 'חתימה וחותמת'}
-        </button>
-      );
+      const signedAt = signers.map(s => s.signedAt).filter((x): x is string => !!x).sort().pop();
+      aside = {
+        title: 'החתימה שלך',
+        content: (
+          <>
+            <button className="btn btn-primary" data-testid="rc-stamp" onClick={onStamp}>
+              {poaDocs.length > 1 && nextToStamp ? `חתימה וחותמת · ${nextToStamp.title}` : 'חתימה וחותמת'}
+            </button>
+            {signedAt && <div className="rc-aside-line">הטופס נחתם בידי {firstName || 'הלקוח'} ב-{fmt(signedAt)}</div>}
+          </>
+        ),
+      };
       break;
+    }
     case 'waiting_docs':
     case 'blocked':
       heroBody = (
@@ -1223,50 +1264,86 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
           ))}
         </div>
       );
-      heroActions = plan.kind === 'blocked' && shaamLeadSubmission
-        ? <div className="rc-actioncell">{shaamNode(shaamLeadSubmission, undefined, 'btn')}</div> : null;
+      // ‼ כמו «שלח» בהכנה: ההגשה יושבת בטור הפעולה גם כשהיא ממתינה ללקוח (כבויה, עם הסיבה),
+      // כדי שיהיה ברור איפה היא תופיע ברגע שהצילום יאושר.
+      aside = shaamLeadSubmission
+        ? { title: 'ההגשה לשע״ם', content: <div className="rc-actioncell" data-testid="rc-submit">{shaamNode(shaamLeadSubmission, undefined, 'btn')}</div> }
+        : null;
       break;
     case 'submit':
-      heroActions = (
-        <>
-          {shaamLeadSubmission && <div className="rc-actioncell" data-testid="rc-submit">{shaamNode(shaamLeadSubmission, undefined, 'btn')}</div>}
-          <button type="button" className="rc-quiet" onClick={onMarkSentToShaam}>הוגש ידנית בשע״ם</button>
-        </>
-      );
+      aside = {
+        title: 'ההגשה לשע״ם',
+        content: (
+          <>
+            {shaamLeadSubmission && <div className="rc-actioncell" data-testid="rc-submit">{shaamNode(shaamLeadSubmission, undefined, 'btn')}</div>}
+            <button type="button" className="rc-quiet" onClick={onMarkSentToShaam}>הוגש ידנית בשע״ם</button>
+          </>
+        ),
+      };
       break;
-    case 'waiting_authorities':
-      heroBody = (
+    case 'waiting_authorities': {
+      const notes = submissions.map(sub => ({ sub, f: shaamFactsOf(sub) })).filter(x => x.f?.note || x.f?.officeAction);
+      const approvalOpen = !!repApproval && !isRepApprovalClosed(repApproval);
+      heroBody = notes.length > 0 || approvalOpen ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }} data-testid="rc-waiting-authorities">
-          {submissions.map(sub => {
-            const f = shaamFactsOf(sub);
-            if (!f) return null;
-            return (
-              <div key={sub.key} className="rc-meta">
-                {f.note && <div data-testid="shaam-facts-note">{f.note}</div>}
-                {f.officeAction && <Notice tone="required" style={{ marginTop: 6 }}>{f.officeAction}</Notice>}
-              </div>
-            );
-          })}
-          {repApproval && !isRepApprovalClosed(repApproval) && (
-            <span className="rc-meta">{declared ? `${firstName || 'הלקוח'} דיווח/ה שאישר/ה באזור האישי — ממתין לאימות בשע״ם.` : 'הבקשה לאישור מופיעה בדף האישי של הלקוח.'}</span>
+          {notes.map(({ sub, f }) => (
+            <div key={sub.key} className="rc-meta">
+              {f!.note && <div data-testid="shaam-facts-note">{f!.note}</div>}
+              {f!.officeAction && <Notice tone="required" style={{ marginTop: 6 }}>{f!.officeAction}</Notice>}
+            </div>
+          ))}
+          {approvalOpen && (
+            <span className="rc-meta">{declared ? `לפי ${firstName || 'הלקוח'}, האישור באזור האישי כבר ניתן — ממתין לאימות בשע״ם.` : 'הבקשה לאישור מופיעה בדף האישי של הלקוח.'}</span>
           )}
         </div>
-      );
-      heroActions = status === 'awaiting_authorities'
-        ? <button type="button" className="rc-quiet" onClick={onMarkActive}>סימון ידני כמיוצג פעיל</button> : null;
+      ) : null;
+      // ‼ למה מחכים ועד מתי — שורה לכל רשות, במקום משפט אחד ארוך עם סוגריים.
+      const waits = [
+        ...submissions.filter(sub => !!shaamFactsOf(sub) && !shaamSettled(shaamTrack(sub.key))).map(sub => {
+          const f = shaamFactsOf(sub)!;
+          return {
+            key: sub.key, who: `שע״ם${submissions.length > 1 ? ` · ${sub.personName}` : ''}`,
+            what: f.clientApprovalRequired ? 'אישור הלקוח באזור האישי' : f.suspensionEndsAt ? 'סיום ההשהייה' : 'קליטת הייצוג',
+            when: !f.clientApprovalRequired && f.suspensionEndsAt ? `צפי ${fmt(f.suspensionEndsAt)}` : '',
+          };
+        }),
+        ...niRoles.filter(role => !niTrackView(niExecutionByRole[role], niLineFor(role)).final).map(role => {
+          const t = niExecutionByRole[role];
+          return { key: `ni:${role}`, who: 'ביטוח לאומי', what: `האישור של ${niNameOf(role).split(/\s+/)[0]}`, when: t.deadline ? `עד ${fmt(t.deadline)}` : '' };
+        }),
+      ];
+      aside = waits.length > 0 || status === 'awaiting_authorities' ? {
+        title: 'מה עוד פתוח',
+        content: (
+          <>
+            {waits.length > 0 && (
+              <dl className="rc-facts" data-testid="rc-waits">
+                {waits.map(w => <div key={w.key}><dt>{w.who}</dt><dd>{w.what}{w.when && <span className="rc-facts-when">{w.when}</span>}</dd></div>)}
+              </dl>
+            )}
+            {status === 'awaiting_authorities' && (
+              <button type="button" className="rc-quiet" onClick={onMarkActive}>סימון ידני כמיוצג פעיל</button>
+            )}
+          </>
+        ),
+      } : null;
       break;
+    }
     case 'active':
       heroBody = activeEmails.length > 0 ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '.4rem' }}>
           {activeEmails.map(m => <EmailStatusRow key={m.id} message={m} note="עדכון ללקוח: הייצוג אושר" onChanged={reloadEmails} />)}
         </div>
       ) : null;
-      heroActions = activeEmails.length > 0 ? null : (
-        <>
-          <button className="btn btn-secondary" onClick={() => setPreviewActive(true)}>עדכון ללקוח שהייצוג פעיל</button>
-          <span className="rc-meta">לא נשלח אוטומטית — רואים את המייל לפני השליחה.</span>
-        </>
-      );
+      aside = activeEmails.length > 0 ? null : {
+        title: `עדכון ${toFirst}`,
+        content: (
+          <>
+            <button className="btn btn-secondary" onClick={() => setPreviewActive(true)}>צפייה במייל ושליחה</button>
+            <div className="rc-aside-line">מייל קצר שהייצוג פעיל. לא יוצא אוטומטית.</div>
+          </>
+        ),
+      };
       break;
   }
 
@@ -1444,32 +1521,34 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
     <div id="rep-execution" className="rc">
       {/* ─────────── מה עכשיו ─────────── */}
       <section className="rc-hero" data-ball={plan.ball} data-kind={plan.kind} data-testid="rc-hero">
-        <div className="rc-hero-top">
-          <div className="rc-rail" aria-label="שלבי הייצוג">
-            {plan.phases.map(p => (
-              <div key={p.key} className="rc-rail-seg" data-state={p.state} aria-current={p.state === 'current' ? 'step' : undefined}>
-                <div className="rc-rail-bar" />
-                <span className="rc-rail-label">{p.label}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-        <span className="rc-ball" data-testid="rc-ball">{plan.ballLabel}</span>
-        <h2 className="rc-headline" data-testid="rc-headline">{plan.headline}</h2>
-        <p className="rc-sub">{plan.sub}</p>
-        {heroBody && <div className="rc-body">{heroBody}</div>}
-        {heroActions && <div className="rc-actions">{heroActions}</div>}
-        {note && <div className="rc-note" data-kind={note.kind}>{note.kind === 'ok' ? '✓ ' : ''}{note.text}</div>}
-        {signatureEmails.length > 0 && plan.kind !== 'send' && (
-          <details style={{ marginTop: 16 }}>
-            <summary className="rc-meta" style={{ cursor: 'pointer' }}>המיילים שנשלחו ({signatureEmails.length})</summary>
-            <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: '.4rem' }}>
-              {signatureEmails.map(m => (
-                <EmailStatusRow key={m.id} message={m} onRemind={() => handleRemind(m)} onChanged={reloadEmails} />
-              ))}
+        <div className="rc-rail" aria-label="שלבי הייצוג">
+          {plan.phases.map(p => (
+            <div key={p.key} className="rc-rail-seg" data-state={p.state} aria-current={p.state === 'current' ? 'step' : undefined}>
+              <div className="rc-rail-bar" />
+              <span className="rc-rail-label">{p.label}</span>
             </div>
-          </details>
-        )}
+          ))}
+        </div>
+        {/* בטלפון: שורה אחת במקום תוויות דחוסות מתחת לכל קטע */}
+        {(() => {
+          const i = plan.phases.findIndex(p => p.state === 'current');
+          return i >= 0 ? <div className="rc-rail-caption">שלב {i + 1} מתוך {plan.phases.length} · {plan.phases[i].label}</div> : null;
+        })()}
+        <div className="rc-hero-grid" data-aside={aside ? 'true' : 'false'}>
+          <div className="rc-hero-main">
+            <span className="rc-ball" data-testid="rc-ball">{plan.ballLabel}</span>
+            <h2 className="rc-headline" data-testid="rc-headline">{plan.headline}</h2>
+            <p className="rc-sub">{plan.sub}</p>
+            {heroBody && <div className="rc-body">{heroBody}</div>}
+          </div>
+          {aside && (
+            <aside className="rc-aside" data-testid="rc-aside" aria-label={aside.title}>
+              <div className="rc-aside-title">{aside.title}</div>
+              {aside.content}
+            </aside>
+          )}
+        </div>
+        {note && <div className="rc-note" data-kind={note.kind}>{note.kind === 'ok' ? '✓ ' : ''}{note.text}</div>}
       </section>
 
       {/* ─────────── מול הרשויות ─────────── */}
@@ -1520,19 +1599,34 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
         )}
       </section>
 
-      {/* ─────────── פרטי הלקוח להזנה — פתוח רק כשמזינים ─────────── */}
-      {dataPanel && (
-        <More title="פרטי הלקוח להזנה ברשויות" meta="להעתקה לאתר של כל רשות" defaultOpen={inPrepare} testId="rc-data">
-          {dataPanel}
-        </More>
-      )}
-
-      {signedPanel && (
-        <More title="ייפוי הכוח החתום" meta="הורדה וצפייה" testId="rc-signed">{signedPanel}</More>
-      )}
-
-      {requestPanel && (
-        <More title="פרטי הבקשה" testId="rc-request">{requestPanel}</More>
+      {/* ─────────── פרטים ומסמכים — רשימה אחת, כל שורה נפתחת לפי דרישה ─────────── */}
+      {(dataPanel || signedPanel || requestPanel || signatureEmails.length > 0) && (
+        <section>
+          <div className="rc-section-head"><div className="rc-section-title">פרטים ומסמכים</div></div>
+          <div className="rc-list">
+            {dataPanel && (
+              <More title="פרטי הלקוח להזנה ברשויות" meta="להעתקה לאתר של כל רשות" defaultOpen={inPrepare} testId="rc-data">
+                {dataPanel}
+              </More>
+            )}
+            {signedPanel && (
+              <More title="ייפוי הכוח החתום" meta="צפייה והורדה" testId="rc-signed">{signedPanel}</More>
+            )}
+            {signatureEmails.length > 0 && (
+              <More title="המיילים ללקוח" testId="rc-emails"
+                meta={signatureEmails.length === 1 ? 'מייל אחד · מסירה ופתיחה' : `${signatureEmails.length} מיילים · מסירה ופתיחה`}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '.4rem' }}>
+                  {signatureEmails.map(m => (
+                    <EmailStatusRow key={m.id} message={m} onRemind={() => handleRemind(m)} onChanged={reloadEmails} />
+                  ))}
+                </div>
+              </More>
+            )}
+            {requestPanel && (
+              <More title="פרטי הבקשה" meta="מייל, סוג ייפוי הכוח וצילומי תעודות" testId="rc-request">{requestPanel}</More>
+            )}
+          </div>
+        </section>
       )}
 
       {previewActive && (
@@ -1598,29 +1692,38 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
 }
 
 /**
- * שורת חותם אחד: מי הוא, מה קרה למייל שלו, ואיזו אסמכתא שייכת לו.
+ * חותם אחד בטור «המייל»: הכתובת, מה קרה למייל, ומה אפשר לעשות.
  * ‼ שתי עובדות נפרדות: **המייל** (נמסר/נפתח — מצב הכתובת; תיבה משותפת תיראה
  * פעמיים וזה נכון) ו**האסמכתא** (האם ההוראות של האדם הזה יצאו — עובדה פר-אדם).
+ * ‼ 29.09.2026 · «נשלח» נקרא ממקור אחד: הרשומה ביומן לכתובת הזו, ובלעדיה — מועד
+ * השליחה של הבקשה (נכתב רק אחרי שכל המיילים יצאו בהצלחה). כך הכותרת («המייל
+ * יצא») והשורה של החותם לעולם לא סותרות זו את זו.
  */
-function SignerLine({ signer, signed, email, track, onCopiedLink, onRemind, batchSentAt }: {
+function SignerLine({ signer, showName, signed, emails, track, onCopiedLink, onRemind, batchSentAt }: {
   signer: RepSigner;
+  showName: boolean;
   signed: boolean;
-  email?: { toEmail: string; sentAt: string; openedAt?: string; clickedAt?: string; status: string };
+  /** הניסיונות לכתובת הזו, מהחדש לישן. */
+  emails: { toEmail: string; sentAt: string; openedAt?: string; clickedAt?: string; status: string }[];
   track?: NiTracking;
   onCopiedLink: () => void;
   onRemind?: () => Promise<string | null>;
-  /** מתי יצא מייל החתימה (execution) — כשאין רישום מייל לכתובת הזו, לא טוענים «טרם נשלח». */
   batchSentAt?: string;
 }) {
   const [copied, setCopied] = useState(false);
-  const [reminded, setReminded] = useState<string | null>(null);
+  const [reminded, setReminded] = useState<{ ok: boolean; text: string } | null>(null);
   const hasAddress = !!signer.email.trim();
+  // ‼ «נכשל» = השליחה שלנו לא יצאה (למשל תקלה בספק המייל) — לא «המייל חזר». המצב נקרא
+  // מהמייל האחרון שבאמת יצא, וניסיון אחרון שנכשל מוצג לצדו ולא במקומו.
+  const email = emails.find(m => m.status !== 'failed');
+  const lastFailed = emails[0]?.status === 'failed';
   const opened = !!email && (!!email.openedAt || ['opened', 'clicked'].includes(email.status));
-  const bounced = !!email && ['bounced', 'complained', 'failed'].includes(email.status);
+  const bounced = !!email && ['bounced', 'complained'].includes(email.status);
   const link = signer.signToken ? `${window.location.origin}/?sign=${signer.signToken}` : '';
   // ‼ האסמכתא לא נמסרה — הפער שאין לו שום סימן אחר במסך.
   const refPending = !!track?.referenceNumber && !track.instructionsSentAt;
   const handedByLink = track?.instructionsSentWith === 'link';
+  const sentAt = email?.sentAt ?? batchSentAt;
 
   const copy = async () => {
     if (!link) return;
@@ -1631,40 +1734,42 @@ function SignerLine({ signer, signed, email, track, onCopiedLink, onRemind, batc
   };
   const remind = async () => {
     if (!onRemind) return;
-    setReminded('שולח…');
+    setReminded({ ok: true, text: 'שולח…' });
     const err = await onRemind();
-    setReminded(err ? `לא נשלח: ${err}` : 'נשלח שוב ✓');
+    // ‼ השגיאה כבר אומרת «המייל לא נשלח (…)» — בלי קידומת שנייה.
+    setReminded(err ? { ok: false, text: err } : { ok: true, text: 'נשלח שוב ✓' });
   };
 
-  const mail = signed ? 'חתם/ה'
-    : email ? `נשלח ${fmtTime(email.sentAt)}${opened ? ' · נפתח' : ' · טרם נפתח'}${bounced ? ' · המייל חזר' : ''}`
-    : hasAddress ? (batchSentAt ? `נשלח ${fmtTime(batchSentAt)}` : 'טרם נשלח') : 'אין כתובת מייל';
-  const warn = !signed && (bounced || (!hasAddress && !handedByLink) || refPending);
+  const state = signed ? 'החתימה התקבלה'
+    : !hasAddress ? (handedByLink ? 'הקישור נמסר ידנית' : 'אין כתובת מייל')
+    : bounced ? 'המייל חזר — כדאי לבדוק את הכתובת'
+    : sentAt ? `נשלח ${fmtTime(sentAt)}${email ? (opened ? ' · נפתח' : ' · טרם נפתח') : ''}`
+    : 'טרם נשלח';
+  const tone = signed ? 'done' : bounced || (!hasAddress && !handedByLink) ? 'warn' : undefined;
 
   return (
-    <div className="rc-person">
-      <div style={{ minWidth: 0 }}>
-        <span className="rc-person-name">{signer.name || signer.email}</span>{' '}
-        <span className="rc-person-line" data-tone={warn ? 'warn' : undefined}>
-          {[hasAddress ? signer.email.trim() : null, mail, handedByLink ? 'הקישור נמסר ידנית' : null,
-            refPending ? `אסמכתא ${track!.referenceNumber} טרם נמסרה` : null].filter(Boolean).map(x => `· ${x}`).join(' ')}
-        </span>
-        {reminded && <div className="rc-meta">{reminded}</div>}
-      </div>
-      {!signed && (
-        <div className="rc-person-acts">
-          {onRemind && <button type="button" className="rc-link" onClick={() => void remind()}>שליחה חוזרת</button>}
+    <div className="rc-signer" data-testid="rc-signer">
+      {showName && <div className="rc-signer-name">{signer.name || signer.email}</div>}
+      {hasAddress && <div className="rc-signer-addr"><span className="ltr-isolate">{signer.email.trim()}</span></div>}
+      <div className="rc-signer-state" data-tone={tone}>{state}</div>
+      {hasAddress && handedByLink && !signed && <div className="rc-meta">הקישור נמסר גם ידנית</div>}
+      {lastFailed && !signed && !reminded && <div className="rc-err">השליחה האחרונה נכשלה{emails[0]?.sentAt ? ` ${fmtTime(emails[0].sentAt)}` : ''}</div>}
+      {refPending && <div className="rc-err">אסמכתא {track!.referenceNumber} של ביטוח לאומי טרם נמסרה</div>}
+      {!signed && (onRemind || link) && (
+        <div className="rc-signer-acts">
+          {onRemind && <button type="button" className="btn btn-secondary btn-sm" onClick={() => void remind()}>שליחה חוזרת</button>}
           {link && <button type="button" className="rc-link" onClick={() => void copy()}>{copied ? '✓ הועתק' : 'העתקת קישור אישי'}</button>}
         </div>
       )}
+      {reminded && <div className={reminded.ok ? 'rc-meta' : 'rc-err'}>{reminded.text}</div>}
     </div>
   );
 }
 
-/** שעה ותאריך קצרים לשורת החותם. */
+/** «28.9 בשעה 10:39» — לשורת החותם. */
 function fmtTime(iso: string) {
   const d = new Date(iso);
-  return `${d.toLocaleDateString('he-IL', { day: 'numeric', month: 'numeric' })} ${d.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}`;
+  return `ב-${d.toLocaleDateString('he-IL', { day: 'numeric', month: 'numeric' })} בשעה ${d.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}`;
 }
 
 /**

@@ -45,7 +45,10 @@ export const TESTS: TestCase[] = [
     const p = repCenterPlan(base({ status: 'pending_signature', sent: true }));
     equal(p.kind, 'waiting_client');
     equal(p.ball, 'client');
-    equal(p.sub, 'נשארו 3 דברים אצל עידן:');
+    equal(p.sub, 'נשארו 3 דברים אצל עידן. אפשר בכל סדר.');
+    // מתי יצא המייל — רק בטור «המייל», ממקור אחד. לא בכותרת (שם הוא סתר את שורת החותם).
+    const withDate = repCenterPlan(base({ status: 'pending_signature', sent: true, sentAt: '2026-09-27T20:40:00Z' }));
+    assert(!/יצא|נשלח/.test(withDate.sub), withDate.sub);
   }),
 
   test('נחתם ⇒ החתימה והחותמת של המשרד', () => {
@@ -77,10 +80,10 @@ export const TESTS: TestCase[] = [
 
   test('הוגש ⇒ ממתינים לרשויות, עם שורת המצב של שע״ם', () => {
     const p = repCenterPlan(base({ status: 'awaiting_authorities', sent: true, signed: true, stamped: true, submitted: true,
-      ni: [{ ...NI, delivered: true }], shaam: [SHAAM], waitingOn: ['לשע״ם (צפי לסיום ההשהייה 3.10.2026)', 'לאישור של עידן בביטוח הלאומי (עד 23.11.2026)'] }));
+      ni: [{ ...NI, delivered: true }], shaam: [SHAAM] }));
     equal(p.kind, 'waiting_authorities');
     equal(p.ball, 'authority');
-    equal(p.sub, 'ממתינים לשע״ם (צפי לסיום ההשהייה 3.10.2026) ולאישור של עידן בביטוח הלאומי (עד 23.11.2026). בינתיים אין פעולה נדרשת ממך.');
+    assert(p.sub.startsWith('בינתיים אין פעולה נדרשת ממך'), p.sub);
     equal(phaseStates(p), 'done,done,done,current');
   }),
 
@@ -119,7 +122,7 @@ export const TESTS: TestCase[] = [
     equal(p.kind, 'send');
     assert(!p.sub.includes('ביטוח לאומי'), p.sub);
     const w = repCenterPlan(base({ ni: [], clientOpenItems: [], sent: true, status: 'pending_signature' }));
-    equal(w.sub, 'נשאר דבר אחד אצל עידן:');
+    equal(w.sub, 'נשאר דבר אחד אצל עידן. אפשר בכל סדר.');
   }),
 
   test('זוג בב״ל ⇒ פריט לכל אדם, עם השם', () => {
