@@ -146,3 +146,26 @@
 
 /* (207) בחירת מסמך לראיית קליטה */
 .sf-radio{display:flex;gap:.35rem;align-items:baseline;flex-wrap:wrap;font-size:var(--fs-13);color:var(--ink-1)}
+
+/* ── שלב הנתונים: מה מבקשים ⇒ מה חסר ⇒ מה ידוע ── */
+.sf-group { margin: .9rem 0 .1rem; font-size: var(--fs-12); font-weight: 700; color: var(--ink-3); letter-spacing: .01em; }
+.sf-group:first-child, .sf-banner + .sf-group { margin-top: .2rem; }
+.sf-group .sf-hint { font-weight: 400; margin-inline-start: .35rem; }
+.sf-subtitle { font-size: var(--fs-12); font-weight: 650; color: var(--ink-2); margin: .15rem 0 .3rem; }
+.sf-reqrow + .sf-reqrow { margin-top: .35rem; padding-top: .55rem; border-top: 1px dashed var(--bd); }
+.sf-hintline { color: var(--chip-blue-tx); }
+.sf-linkbtn { font: inherit; font-size: var(--fs-12); color: var(--br); background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline; }
+.sf-known { display: grid; gap: .1rem; }
+.sf-known-sec { padding: .55rem 0; border-top: 1px solid var(--bd); }
+.sf-known-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: .15rem .6rem; margin-bottom: .25rem; font-size: var(--fs-13); }
+.sf-known-head b { font-weight: 650; color: var(--ink-1); }
+.sf-known-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(12.5rem, 1fr)); gap: .25rem .9rem; margin: 0; }
+.sf-known-item { min-width: 0; padding: .1rem .3rem; border-radius: 6px; }
+.sf-known-item.is-active { background: var(--soft); }
+.sf-known-item dt { font-size: 11.5px; color: var(--ink-3); }
+.sf-known-item dd { margin: 0; font-size: var(--fs-13); color: var(--ink-1); display: flex; flex-wrap: wrap; align-items: baseline; gap: .1rem .35rem; overflow-wrap: anywhere; }
+.sf-known-item dd [data-ltr] { direction: ltr; unicode-bidi: isolate; }
+.sf-flags { display: grid; gap: .3rem; font-size: var(--fs-13); }
+@media (max-width: 560px) {
+  .sf-row2, .sf-row3 { grid-template-columns: 1fr; }
+}

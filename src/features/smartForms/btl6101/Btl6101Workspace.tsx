@@ -222,7 +222,7 @@ export default function Btl6101Workspace({ filingId, client: clientProp, onClose
       <div className="sf-head">
         <div>
           <h2>דין וחשבון רב שנתי (6101) · ביטוח לאומי</h2>
-          <div className="sf-sub">{client.firstName} {client.lastName} · גרסה {rev.revision} · טופס {BTL6101_TEMPLATE.version}</div>
+          <div className="sf-sub">{client.firstName} {client.lastName}{rev.revision > 1 ? ` · גרסה ${rev.revision}` : ''}</div>
         </div>
         <span className={`sf-state ${stateTone}`}>{FILING_STATE_LABELS[filing.state]}</span>
         <span style={{ flex: 1 }} />
@@ -383,7 +383,23 @@ const DECLARED_BY_SECTION: Record<string, string[]> = {
   occupations: ['occupations'],
 };
 
+/** הסעיפים של מה שמבקשים מב"ל — הם בראש השלב, לפני הפרטים האישיים. */
+const REQUEST_SECTIONS = new Set(['start', 'change', 'spouseBusiness', 'end', 'employees']);
+/** כותרת לכל שורה בסעיף: בשינוי — קודם המצב היום, ורק אחריו מה משתנה. */
+const ROW_TITLES: Record<string, string[]> = { change: ['היום — לפני השינוי', 'מה משתנה'] };
+
+/** שדה שדורש מהמשתמש פעולה: חובה שחסר, סתירה, או נתון ישן. */
+const needsInput = (st?: FieldState) => !!st && st.status !== 'not_applicable'
+  && (st.status === 'conflict' || st.status === 'stale' || (st.status === 'missing' && st.required));
+
+/**
+ * ‼ סדר השלב הוא סדר העבודה, לא סדר הטופס המודפס: (1) מה מבקשים — ובו קודם מה
+ * שכבר ידוע היום (מב"ל / מהכרטיס) כטקסט, ואחריו רק מה שצריך להזין; (2) מה שחסר או
+ * סותר; (3) הפרטים הידועים בתצוגה מקוצרת, עם «עריכה» לכל סעיף. סעיף שנפתח לעריכה
+ * (או שהיה חסר) נשאר פתוח — אחרת הוא היה קופץ לתצוגה המקוצרת באמצע ההקלדה.
+ */
 function DataStep(p: DataStepProps) {
+  const [open, setOpen] = useState<Record<string, true>>({});
   const visible = (s: string) => {
     if (!sectionApplies(s, p.purposes)) return false;
     if (s === 'spouse') return p.data.maritalStatus === 'married' || p.data.maritalStatus === 'common_law';
@@ -391,6 +407,26 @@ function DataStep(p: DataStepProps) {
     if (s === 'mailing') return !!p.flags.separateMailing;
     return true;
   };
+  const shownSections = SECTIONS.filter(s => visible(s.key));
+  const request = shownSections.filter(s => REQUEST_SECTIONS.has(s.key));
+  const general = shownSections.filter(s => !REQUEST_SECTIONS.has(s.key));
+  const keysOf = (s: SectionDef) => s.rows.flat();
+  const needy = general.filter(s => keysOf(s).some(k => needsInput(p.fields[k]))).map(s => s.key);
+  const needyKey = needy.join(',');
+  useEffect(() => {
+    if (!needy.length) return;
+    setOpen(o => needy.every(k => o[k]) ? o : { ...o, ...Object.fromEntries(needy.map(k => [k, true as const])) });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [needyKey]);
+  // לחיצה על שדה בתצוגה המקדימה ⇒ הסעיף שלו נפתח לעריכה
+  useEffect(() => {
+    const s = general.find(x => keysOf(x).includes(p.activeKey as keyof Btl6101Data));
+    if (s) setOpen(o => o[s.key] ? o : { ...o, [s.key]: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [p.activeKey]);
+
+  const toFill = general.filter(s => open[s.key] || needy.includes(s.key));
+  const known = general.filter(s => !toFill.includes(s));
   const blockers = p.issues.filter(i => i.severity === 'blocker');
   return (
     <>
@@ -399,56 +435,164 @@ function DataStep(p: DataStepProps) {
           {blockers.length === 1 ? 'פריט אחד חסר או סותר' : `${blockers.length} פריטים חסרים או סותרים`} — מסומנים באדום בטופס ובשדות.
         </div>
       )}
-      {SECTIONS.filter(s => visible(s.key)).map(s => (
-        <div key={s.key} className="sf-section">
-          <h3>{s.title}</h3>
-          {s.key === 'contact' && (
-            <label className="checkbox-row" style={{ fontSize: 'var(--fs-13)', marginBottom: '.45rem' }}>
-              <input type="checkbox" style={{ width: 'auto' }} disabled={!p.editable} checked={!!p.flags.contactNotOwn}
-                onChange={e => p.onFlags({ ...p.flags, contactNotOwn: e.target.checked })} />
-              הנייד או המייל אינם של המבוטח (ימולא איש קשר)
-            </label>
-          )}
-          <div className="sf-fields">
-            {s.rows.map((row, i) => (
-              <div key={i} className={row.length === 3 ? 'sf-row3' : row.length === 2 ? 'sf-row2' : undefined}>
-                {row.map(k => <FieldRow key={k} k={k} {...p} />)}
-              </div>
-            ))}
-          </div>
-          {s.key === 'digital' && (
-            <div className="sf-note" style={{ marginTop: '.35rem' }}>
-              ברירת המחדל בטופס: בלי סימון ⇒ ב"ל שולח הודעות בערוצים הדיגיטליים. מסמנים רק אם הלקוח ביקש.
-            </div>
-          )}
-          {s.key === 'bank' && (
-            <div className="sf-note" style={{ marginTop: '.35rem' }}>לשינוי קבוע של החשבון — בתיק המס. כאן משנים רק את מה שנכתב בהגשה.</div>
-          )}
-          {s.key === 'address' && <ProfileSave k="zip" {...p} />}
-          {s.key === 'contact' && <ProfileSave k="landline" {...p} />}
-          {s.key === 'mailing' && <ProfileSave k="mailing" {...p} />}
-          {s.key === 'business' && <ProfileSave k="business" {...p} />}
-          {DECLARED_BY_SECTION[s.key] && <ConfirmToggle keys={DECLARED_BY_SECTION[s.key]} {...p} />}
-          {(p.hints[s.key === 'start' ? 'monthlyIncome' : ''] ?? []).length > 0 && s.key === 'start' && (
-            <ul className="sf-note" style={{ margin: '.35rem 0 0', paddingInlineStart: '1.1rem' }}>
-              {[...(p.hints.monthlyIncome ?? []), ...(p.hints.startDate ?? [])].map(h => <li key={h}>{h}</li>)}
-            </ul>
-          )}
-        </div>
-      ))}
-      <div className="sf-section">
-        <label className="checkbox-row" style={{ fontSize: 'var(--fs-13)' }}>
-          <input type="checkbox" style={{ width: 'auto' }} disabled={!p.editable} checked={!!p.flags.separateMailing}
-            onChange={e => p.onFlags({ ...p.flags, separateMailing: e.target.checked })} />
-          יש מען למכתבים שונה מכתובת המגורים
-        </label>
-      </div>
+
+      {(request.length > 0 || visible('occupations')) && <div className="sf-group">מה מבקשים</div>}
+      {request.map(s => <RequestSection key={s.key} s={s} p={p} />)}
       {visible('occupations') && <OccupationsEditor {...p} />}
+
+      {toFill.length > 0 && <div className="sf-group">{known.length ? 'צריך השלמה או תיקון' : 'פרטים'}</div>}
+      {toFill.map(s => <EditSection key={s.key} s={s} p={p} />)}
+
+      {known.length > 0 && (
+        <>
+          <div className="sf-group">פרטים שכבר ידועים <span className="sf-hint">מהכרטיס ומב"ל — ייכתבו בטופס כמו שהם</span></div>
+          <div className="sf-known">
+            {known.map(s => <KnownSection key={s.key} s={s} p={p} onEdit={() => setOpen(o => ({ ...o, [s.key]: true }))} />)}
+          </div>
+        </>
+      )}
+
+      {p.editable && (
+        <div className="sf-section sf-flags">
+          <label className="checkbox-row">
+            <input type="checkbox" style={{ width: 'auto' }} checked={!!p.flags.contactNotOwn}
+              onChange={e => p.onFlags({ ...p.flags, contactNotOwn: e.target.checked })} />
+            הנייד או המייל אינם של המבוטח (ימולא איש קשר)
+          </label>
+          <label className="checkbox-row">
+            <input type="checkbox" style={{ width: 'auto' }} checked={!!p.flags.separateMailing}
+              onChange={e => p.onFlags({ ...p.flags, separateMailing: e.target.checked })} />
+            יש מען למכתבים שונה מכתובת המגורים
+          </label>
+        </div>
+      )}
       <div className="sf-actions">
         <button type="button" className="btn btn-primary" onClick={p.onNext}>לבדיקה ונעילה</button>
       </div>
     </>
   );
+}
+
+/** סעיף «מה מבקשים»: ערך מאומת מוצג כטקסט (עם «שינוי»), כל השאר כשדה להזנה. */
+function RequestSection({ s, p }: { s: SectionDef; p: DataStepProps }) {
+  const [editing, setEditing] = useState<Set<string>>(new Set());
+  const titles = ROW_TITLES[s.key];
+  return (
+    <div className="sf-section">
+      <h3>{s.title}</h3>
+      <div className="sf-fields">
+        {s.rows.map((row, i) => {
+          const asText = row.filter(k => p.fields[k]?.status === 'verified' && !editing.has(k));
+          const inputs = row.filter(k => !asText.includes(k));
+          return (
+            <div key={i} className="sf-reqrow">
+              {titles?.[i] && <div className="sf-subtitle">{titles[i]}</div>}
+              {asText.length > 0 && (
+                <dl className="sf-known-list">
+                  {asText.map(k => (
+                    <KnownItem key={k} k={k} p={p}
+                      onEdit={p.editable ? () => setEditing(e => new Set(e).add(k)) : undefined} />
+                  ))}
+                </dl>
+              )}
+              {inputs.length > 0 && (
+                <div className={inputs.length === 3 ? 'sf-row3' : inputs.length === 2 ? 'sf-row2' : undefined}>
+                  {inputs.map(k => <FieldRow key={k} k={k} {...p} groupConfirm={!!DECLARED_BY_SECTION[s.key]} />)}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+      {DECLARED_BY_SECTION[s.key] && <ConfirmToggle keys={DECLARED_BY_SECTION[s.key]} {...p} />}
+    </div>
+  );
+}
+
+/** סעיף פתוח לעריכה — כל השדות שלו, עם ההערות והשמירה לכרטיס שהיו בו. */
+function EditSection({ s, p }: { s: SectionDef; p: DataStepProps }) {
+  return (
+    <div className="sf-section">
+      <h3>{s.title}</h3>
+      <div className="sf-fields">
+        {s.rows.map((row, i) => (
+          <div key={i} className={row.length === 3 ? 'sf-row3' : row.length === 2 ? 'sf-row2' : undefined}>
+            {row.map(k => <FieldRow key={k} k={k} {...p} />)}
+          </div>
+        ))}
+      </div>
+      {s.key === 'digital' && (
+        <div className="sf-note" style={{ marginTop: '.35rem' }}>
+          ברירת המחדל בטופס: בלי סימון ⇒ ב"ל שולח הודעות בערוצים הדיגיטליים. מסמנים רק אם הלקוח ביקש.
+        </div>
+      )}
+      {s.key === 'bank' && (
+        <div className="sf-note" style={{ marginTop: '.35rem' }}>לשינוי קבוע של החשבון — בתיק המס. כאן משנים רק את מה שנכתב בהגשה.</div>
+      )}
+      {s.key === 'address' && <ProfileSave k="zip" {...p} />}
+      {s.key === 'contact' && <ProfileSave k="landline" {...p} />}
+      {s.key === 'mailing' && <ProfileSave k="mailing" {...p} />}
+      {s.key === 'business' && <ProfileSave k="business" {...p} />}
+    </div>
+  );
+}
+
+/** סעיף ידוע בתצוגה מקוצרת: תווית ← ערך, בלי שדות קלט. */
+function KnownSection({ s, p, onEdit }: { s: SectionDef; p: DataStepProps; onEdit: () => void }) {
+  const keys = s.rows.flat().filter(k => {
+    const st = p.fields[k];
+    if (st?.status === 'not_applicable') return false;
+    const v = p.data[k];
+    return k === 'refuseDigital' || (v !== '' && v != null && v !== false);
+  });
+  if (!keys.length) return null;
+  // המקור פעם אחת לסעיף (לא ליד כל שדה) — אותו מקור חזר ארבע פעמים בכתובת ובבנק
+  const all = [...new Set(keys.map(k => sourceText(p.fields[k])).filter((x): x is string => !!x))];
+  // «כרטיס הלקוח» מיותר כשכבר כתוב «כרטיס הלקוח · שנה בלבד»
+  const sources = all.filter(a => !all.some(b => b !== a && b.startsWith(`${a} · `)));
+  return (
+    <div className="sf-known-sec">
+      <div className="sf-known-head">
+        <b>{s.title}</b>
+        {p.editable && <button type="button" className="sf-linkbtn" onClick={onEdit}>עריכה</button>}
+        {sources.length > 0 && <span className="sf-src">מקור: {sources.join(' · ')}</span>}
+      </div>
+      <dl className="sf-known-list">{keys.map(k => <KnownItem key={k} k={k} p={p} showSource={false} />)}</dl>
+    </div>
+  );
+}
+
+const sourceText = (st?: FieldState) =>
+  st?.sourceLabel && st.status !== 'entered' ? `${st.sourceLabel}${st.sourceAt ? ` · ${formatIl(st.sourceAt)}` : ''}` : null;
+
+function KnownItem({ k, p, onEdit, showSource = true }: { k: keyof Btl6101Data; p: DataStepProps; onEdit?: () => void; showSource?: boolean }) {
+  const st = p.fields[k];
+  const src = showSource && st?.sourceLabel !== 'כרטיס הלקוח' ? sourceText(st) : null;
+  return (
+    <div className={`sf-known-item${p.activeKey === k ? ' is-active' : ''}`} id={`sf-f-${k}`}>
+      <dt>{KEY_LABELS[k] ?? k}</dt>
+      <dd>
+        <span data-ltr={/idNumber|IdNumber|mobile|landline|zip|Zip|bankAccount|email|withholdingFile|bizPhone/.test(k) ? '' : undefined}>{shownValue(k, p.data[k])}</span>
+        {st?.status === 'derived' && <span className="sf-badge sf-b-derived">{FIELD_STATUS_LABELS.derived}</span>}
+        {st?.status === 'entered' && <span className="sf-badge sf-b-entered">{FIELD_STATUS_LABELS.entered}</span>}
+        {src && <span className="sf-src">{src}</span>}
+        {onEdit && <button type="button" className="sf-linkbtn" onClick={onEdit}>שינוי</button>}
+      </dd>
+      {(p.hints[k] ?? []).map(h => <div key={h} className="sf-src sf-hintline">{h}</div>)}
+    </div>
+  );
+}
+
+function shownValue(k: keyof Btl6101Data, v: unknown): string {
+  if (k === 'refuseDigital') return v === true ? 'הלקוח מסרב — סומן' : 'לא סומן (ב"ל ישלח הודעות דיגיטליות)';
+  if (typeof v === 'boolean') return v ? 'כן' : 'לא';
+  const s = String(v ?? '').trim();
+  if (!s) return '—';
+  if (DATE_KEYS.has(k)) return formatDay(s);
+  if (k === 'maritalStatus') return MARITAL_TEXT[s] ?? s;
+  if (k === 'hoursBand') return HOURS_TEXT[s] ?? s;
+  if (MONEY_KEYS.has(k) && /^\d+(\.\d+)?$/.test(s)) return `${Number(s).toLocaleString('en-US')} ₪`;
+  return s;
 }
 
 function statusBadge(st: FieldState | undefined, required: boolean) {
@@ -458,13 +602,15 @@ function statusBadge(st: FieldState | undefined, required: boolean) {
   return <span className={cls}>{FIELD_STATUS_LABELS[st.status]}</span>;
 }
 
+const CLIENT_DECLARATION_NOTE = 'הצהרת הלקוח — לאשר מולו לפני חתימה';
 const MARITAL_TEXT: Record<string, string> = { single: 'רווק/ה', married: 'נשוי/אה', common_law: 'ידוע/ה בציבור', divorced: 'גרוש/ה', widowed: 'אלמן/ה' };
 const HOURS_TEXT: Record<string, string> = { '1_11': '1–11 שעות בשבוע', '12_19': '12–19 שעות בשבוע', '20_plus': '20 שעות ומעלה' };
 /** ערך חלופי כפי שהוא מוצג (קוד ⇒ תווית, תאריך ⇒ יום/חודש/שנה). */
 const altText = (k: keyof Btl6101Data, v: string) =>
   DATE_KEYS.has(k) ? formatDay(v) : k === 'maritalStatus' ? MARITAL_TEXT[v] ?? v : k === 'hoursBand' ? HOURS_TEXT[v] ?? v : v;
 
-function FieldRow({ k, data, fields, editable, activeKey, entered, onValue, onReset, onFocus }: DataStepProps & { k: keyof Btl6101Data }) {
+/** groupConfirm: הסעיף מאושר מול הלקוח בתיבה אחת — בלי תווית/הערה «לאישור הלקוח» ליד כל שדה. */
+function FieldRow({ k, data, fields, hints, editable, activeKey, entered, onValue, onReset, onFocus, groupConfirm }: DataStepProps & { k: keyof Btl6101Data; groupConfirm?: boolean }) {
   const st = fields[k];
   const v = data[k];
   const label = KEY_LABELS[k] ?? k;
@@ -503,18 +649,19 @@ function FieldRow({ k, data, fields, editable, activeKey, entered, onValue, onRe
     );
   }
   const alt = st?.alternatives?.[0];
+  const note = groupConfirm && st?.note === CLIENT_DECLARATION_NOTE ? undefined : st?.note;
   return (
     <div className={`sf-field${activeKey === k ? ' is-active' : ''}`} id={`sf-f-${k}`}>
       <label htmlFor={`sf-in-${k}`}>
         {label}{st?.required ? <span className="sf-req" aria-label="חובה">*</span> : null}
         {statusBadge(st, !!st?.required)}
-        {st?.needsClientConfirmation && st.status !== 'missing' && st.status !== 'derived' && <span className="sf-badge sf-b-confirm">לאישור הלקוח</span>}
+        {!groupConfirm && st?.needsClientConfirmation && st.status !== 'missing' && st.status !== 'derived' && <span className="sf-badge sf-b-confirm">לאישור הלקוח</span>}
       </label>
       {input}
-      {(st?.sourceLabel || st?.note || alt || isEntered) && (
+      {(st?.sourceLabel || note || alt || isEntered) && (
         <div className="sf-src">
           {st?.sourceLabel && st.status !== 'entered' ? <>מקור: {st.sourceLabel}{st.sourceAt ? ` · ${formatIl(st.sourceAt)}` : ''}</> : null}
-          {st?.note ? <>{st?.sourceLabel && st.status !== 'entered' ? ' · ' : ''}{st.note}</> : null}
+          {note ? <>{st?.sourceLabel && st.status !== 'entered' ? ' · ' : ''}{note}</> : null}
           {/* ‼ שני מצבים שונים: אחרי הזנה — החלופה היא הערך המקורי ו«חזרה» מבטלת את ההזנה;
               בסתירה (למשל כרטיס מול ב"ל) — החלופה היא הערך מהמקור השני ו«להשתמש» מזינה אותו. */}
           {alt && editable && isEntered ? <> · <button type="button" onClick={() => onReset(k)}>חזרה ל«{altText(k, alt.value)}» ({alt.sourceLabel})</button></> : null}
@@ -522,6 +669,8 @@ function FieldRow({ k, data, fields, editable, activeKey, entered, onValue, onRe
           {isEntered && !alt && editable ? <> <button type="button" onClick={() => onReset(k)}>ביטול השינוי</button></> : null}
         </div>
       )}
+      {/* רמזים מב"ל ומהכרטיס (למשל טווח השעות שב"ל רושם) — ליד השדה, לא ממלאים אותו */}
+      {(hints[k] ?? []).map(h => <div key={h} className="sf-src sf-hintline">{h}</div>)}
     </div>
   );
 }

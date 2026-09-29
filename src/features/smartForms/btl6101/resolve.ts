@@ -745,7 +745,8 @@ export function requestedSummary(d: Btl6101Data, purposes: readonly Btl6101Purpo
   const out: string[] = [];
   const band = d.hoursBand === '20_plus' ? '20 שעות ומעלה' : d.hoursBand === '12_19' ? '12–19 שעות' : d.hoursBand === '1_11' ? '1–11 שעות' : '';
   if (purposes.includes('start')) out.push(`התחלת עבודה כעצמאי${d.startDate ? ` מ-${formDate(d.startDate)}` : ''}${band ? ` · ${band} בשבוע` : ''}${d.monthlyIncome ? ` · ${formMoney(d.monthlyIncome)} ₪ לחודש` : ''}`);
-  if (purposes.includes('change')) out.push(`שינוי היקף${d.changeToDate ? ` מ-${formDate(d.changeToDate)}` : ''}: ${d.hoursBefore || '?'}→${d.hoursAfter || '?'} שעות · ${d.incomeBefore ? formMoney(d.incomeBefore) : '?'}→${d.incomeAfter ? formMoney(d.incomeAfter) : '?'} ₪`);
+  // ‼ «25→12» בשורה עברית מתהפך לעין («12→25») — במילים, לא בחץ.
+  if (purposes.includes('change')) out.push(`שינוי היקף${d.changeToDate ? ` מ-${formDate(d.changeToDate)}` : ''}: שעות בשבוע מ-${d.hoursBefore || '?'} ל-${d.hoursAfter || '?'} · הכנסה חודשית מ-${d.incomeBefore ? formMoney(d.incomeBefore) : '?'} ל-${d.incomeAfter ? formMoney(d.incomeAfter) : '?'} ₪`);
   if (purposes.includes('end')) out.push(`הפסקת עבודה כעצמאי${d.endDate ? ` מ-${formDate(d.endDate)}` : ''}${d.currentOccupation ? ` · עיסוק נוכחי: ${d.currentOccupation}` : ''}`);
   if (purposes.includes('spouse_in_business')) out.push(`בן/בת הזוג עובד/ת בעסק${d.spouseFromDate ? ` מ-${formDate(d.spouseFromDate)}` : ''}${d.spouseSharePct ? ` · ${d.spouseSharePct}%` : ''}`);
   if (purposes.includes('stop_employees')) out.push(`הפסקת העסקת עובדים${d.stopEmployeesDate ? ` מ-${formDate(d.stopEmployeesDate)}` : ''}`);

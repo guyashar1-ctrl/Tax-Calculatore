@@ -49,7 +49,7 @@ function OpenStoredSigned({ docId, expectedSha }: { docId: string; expectedSha: 
       <button type="button" className="btn btn-sm btn-secondary" disabled={state === 'busy'} onClick={() => void open()}>
         {state === 'busy' ? 'פותח…' : 'פתיחת המסמך החתום'}
       </button>
-      {state === 'ok' && <span className="sf-hint" data-testid="sf-stored-verified">הטביעה תואמת למה שנשמר</span>}
+      {state === 'ok' && <span className="sf-hint" data-testid="sf-stored-verified">זהה בדיוק לקובץ שנחתם</span>}
       {state === 'mismatch' && <span className="sf-error">הקובץ שבאחסון שונה מהקובץ שנשמר בחתימה — לא נפתח</span>}
       {state === 'error' && <span className="sf-error">לא הצלחתי לטעון את המסמך מתיק הלקוח</span>}
     </span>
@@ -205,7 +205,7 @@ function ReviewStep({ ctx, resolved, blockers, purposes, dirty, editable, onStep
             )}
           </div>
           <div className="sf-note" style={{ marginTop: '.4rem' }}>
-            נעילה מקבעת את התוכן (טביעת SHA-256 בשרת). {spouseSigns ? 'יחתמו: המבוטח, ובנפרד בן/בת הזוג (סעיף 4).' : 'יחתום: המבוטח.'} שינוי אחרי נעילה = גרסה חדשה וחתימות מחדש.
+            נעילה מקבעת בדיוק את מה שייחתם. {spouseSigns ? 'יחתמו: המבוטח, ובנפרד בן/בת הזוג (סעיף 4).' : 'יחתום: המבוטח.'} שינוי אחרי נעילה = גרסה חדשה וחתימות מחדש.
           </div>
           {error && <div className="sf-error">{error}</div>}
         </div>
@@ -236,6 +236,10 @@ function SignStep({ ctx, onStep }: Props) {
     try {
       const clientSigned = rev.signers.find(s => s.role === 'client')?.signedAt;
       if (!clientSigned) throw new Error('חתימת המבוטח חסרה');
+      // ‼ הקובץ מצויר בקוד הנוכחי: אם מיקום השדות השתנה אחרי החתימה, הוא היה שונה ממה שנחתם.
+      if (rev.mappingVersion !== BTL6101_TEMPLATE.mappingVersion) {
+        throw new Error('מיקום השדות בטופס שופר אחרי החתימה, ולכן לא מפיקים קובץ שנראה אחרת ממה שנחתם. «ערוך — גרסה חדשה» ← חתימה מחדש (הערכים נשמרים).');
+      }
       const declarationDate = israelDate(clientSigned);
       const sig = Object.fromEntries(Object.entries(rev.signatures).map(([k, v]) => [k, v?.png]));
       const { bytes } = await renderBtl6101({ ...rev.snapshot.data, declarationDate }, rev.purposes, {
@@ -283,19 +287,19 @@ function SignStep({ ctx, onStep }: Props) {
     );
   }
 
-  // ‼ (208) גרסה שננעלה לפני שמיקום השדות בטופס עודכן — חותמים רק על מה שמוצג, ולכן
+  // ‼ (209) גרסה שננעלה לפני שמיקום השדות בטופס עודכן — חותמים רק על מה שמוצג, ולכן
   // קודם גרסה חדשה במיקום המעודכן (השרת חוסם חתימה/קישור עליה: mapping_outdated).
   if (rev.state === 'locked' && rev.mappingVersion !== BTL6101_TEMPLATE.mappingVersion) {
     return (
       <div className="sf-section">
         <div className="sf-banner is-warn">
-          מיקום השדות בטופס עודכן (מיפוי {BTL6101_TEMPLATE.mappingVersion}) אחרי שהגרסה הזו ננעלה. כדי לחתום צריך גרסה
-          חדשה במיקום המעודכן — הערכים נשמרים, והקישורים לחתימה שכבר נשלחו יפסיקו לעבוד.
+          מיקום השדות בטופס שופר אחרי שהגרסה הזו ננעלה. כדי לחתום צריך להכין אותה מחדש לחתימה — הערכים
+          נשמרים כמו שהם, וקישורי חתימה שכבר נשלחו יפסיקו לעבוד.
         </div>
         <div className="sf-actions">
           <button type="button" className="btn btn-primary" disabled={busy}
-            onClick={() => void run(() => newRevision(filing.id, `עדכון מיקום השדות בטופס (מיפוי ${BTL6101_TEMPLATE.mappingVersion})`), () => onStep('review'))}>
-            צור גרסה במיקום המעודכן
+            onClick={() => void run(() => newRevision(filing.id, `שיפור מיקום השדות בטופס (מיפוי ${BTL6101_TEMPLATE.mappingVersion})`), () => onStep('review'))}>
+            הכן מחדש לחתימה
           </button>
         </div>
         {error && <div className="sf-error">{error}</div>}
@@ -306,7 +310,7 @@ function SignStep({ ctx, onStep }: Props) {
   return (
     <>
       <div className="sf-section">
-        <h3>חתימות <span className="sf-hint">גרסה {rev.revision} · טביעה {rev.contentSha256?.slice(0, 12)}…</span></h3>
+        <h3 title={rev.contentSha256 ? `טביעת התוכן שנחתם: ${rev.contentSha256}` : undefined}>חתימות{rev.revision > 1 && <span className="sf-hint">גרסה {rev.revision}</span>}</h3>
         {rev.signers.filter(s => s.required).map(s => (
           <SignerCard key={s.role} ctx={ctx} role={s.role} name={s.name} status={s.status} signedAt={s.signedAt} method={s.method}
             linkExpiresAt={rev.signTokens[s.role]?.expiresAt} />
@@ -318,7 +322,7 @@ function SignStep({ ctx, onStep }: Props) {
           <h3>המסמך החתום</h3>
           {rev.signedDocumentId
             ? <>
-                <div className="sf-okline">נשמר בתיק הלקוח («מסמכים») · SHA-256 {rev.signedPdfSha256?.slice(0, 16)}…</div>
+                <div className="sf-okline" title={rev.signedPdfSha256 ? `SHA-256 ${rev.signedPdfSha256}` : undefined}>נשמר בתיק הלקוח, בלשונית «מסמכים»</div>
                 <div className="sf-actions" style={{ marginTop: '.4rem' }}><OpenStoredSigned docId={rev.signedDocumentId} expectedSha={rev.signedPdfSha256} /></div>
               </>
             : storeState === 'busy' ? <div className="sf-note">מפיק ושומר את המסמך החתום…</div>
@@ -567,7 +571,7 @@ function SubmitStep({ ctx, onStep }: Props) {
     <>
       <div className="sf-section">
         <h3>המסמך החתום</h3>
-        <div className="sf-okline">גרסה {rev.revision} · נשמר בתיק הלקוח · SHA-256 {rev.signedPdfSha256?.slice(0, 16)}…</div>
+        <div className="sf-okline" title={rev.signedPdfSha256 ? `SHA-256 ${rev.signedPdfSha256}` : undefined}>נשמר בתיק הלקוח, בלשונית «מסמכים»</div>
         <div className="sf-note">החתימות: {rev.signers.filter(s => s.required).map(s => `${s.name} (${s.signedAt ? formatIl(s.signedAt) : '—'})`).join(' · ')}</div>
         {rev.signedDocumentId && <div className="sf-actions" style={{ marginTop: '.4rem' }}><OpenStoredSigned docId={rev.signedDocumentId} expectedSha={rev.signedPdfSha256} /></div>}
       </div>

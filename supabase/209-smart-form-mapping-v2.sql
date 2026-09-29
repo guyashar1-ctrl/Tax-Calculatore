@@ -1,5 +1,5 @@
 -- ════════════════════════════════════════════════════════════════════════════
--- 208 · טופס 6101 — מיפוי 2 (מיקום מדויק מול הגיאומטריה המודפסת)
+-- 209 · טופס 6101 — מיפוי 2 (מיקום מדויק מול הגיאומטריה המודפסת)
 -- ════════════════════════════════════════════════════════════════════════════
 --
 -- מדידת היישור מול הטופס המודפס (scripts/test-smart-form-6101.mjs) הזיזה את תיבות
@@ -12,6 +12,7 @@
 -- ‼ גרסה שכבר ננעלה/נחתמה נשארת עם המיפוי שלה. דף החתימה משווה את המיפוי של
 --   הגרסה לקוד (PublicSmartFormSignPage), והשרת חוסם חתימה/קישור על גרסה כזו
 --   (mapping_outdated) — גרסה נעולה ממיפוי 1 דורשת «גרסה חדשה» (הערכים נשמרים).
+-- 4. קובץ חתום של גרסה ממיפוי אחר אינו נשמר (smart_form_attach_signed_pdf) — הוא היה מצויר אחרת ממה שנחתם.
 
 create or replace function public._smart_form_template(p_key text)
 returns jsonb language sql immutable set search_path to 'public' as $$
@@ -66,7 +67,7 @@ begin
   if p_revision is distinct from f.current_revision then return jsonb_build_object('ok', false, 'error', 'stale_revision'); end if;
   select * into r from public.smart_form_revisions where filing_id = f.id and revision = f.current_revision for update;
   if r.state <> 'draft' then return jsonb_build_object('ok', false, 'error', 'revision_locked'); end if;
-  -- ‼ 208: המיפוי שננעל = המיפוי הנוכחי של הקובץ (לא זה שהועתק מגרסה קודמת). צילום
+  -- ‼ 209: המיפוי שננעל = המיפוי הנוכחי של הקובץ (לא זה שהועתק מגרסה קודמת). צילום
   -- שהופק בקוד עם מיפוי אחר (דפדפן שלא התרענן) ⇒ לא ננעל: מה שנחתם הוא מה שהוצג.
   v_map := (public._smart_form_template(f.template_key)->>'mappingVersion')::int;
   if (p_snapshot->'template'->>'mappingVersion') is not null
@@ -154,7 +155,7 @@ begin
   if f.state <> 'awaiting_signatures' then return jsonb_build_object('ok', false, 'error', 'not_awaiting_signatures', 'state', f.state); end if;
   select * into r from public.smart_form_revisions where filing_id = f.id and revision = f.current_revision for update;
   if p_revision is distinct from r.revision or r.state <> 'locked' then return jsonb_build_object('ok', false, 'error', 'stale_revision'); end if;
-  -- ‼ 208: גרסה שננעלה במיפוי אחר מהנוכחי מצוירת אחרת ממה שננעל — לא חותמים עליה.
+  -- ‼ 209: גרסה שננעלה במיפוי אחר מהנוכחי מצוירת אחרת ממה שננעל — לא חותמים עליה.
   if r.mapping_version is distinct from (public._smart_form_template(f.template_key)->>'mappingVersion')::int then
     return jsonb_build_object('ok', false, 'error', 'mapping_outdated');
   end if;
@@ -198,7 +199,7 @@ begin
   if f.state <> 'awaiting_signatures' then return jsonb_build_object('ok', false, 'error', 'not_awaiting_signatures'); end if;
   select * into r from public.smart_form_revisions where filing_id = f.id and revision = f.current_revision for update;
   if p_revision is distinct from r.revision or r.state <> 'locked' then return jsonb_build_object('ok', false, 'error', 'stale_revision'); end if;
-  -- ‼ 208: גרסה שננעלה במיפוי אחר מהנוכחי מצוירת אחרת ממה שננעל — לא חותמים עליה.
+  -- ‼ 209: גרסה שננעלה במיפוי אחר מהנוכחי מצוירת אחרת ממה שננעל — לא חותמים עליה.
   if r.mapping_version is distinct from (public._smart_form_template(f.template_key)->>'mappingVersion')::int then
     return jsonb_build_object('ok', false, 'error', 'mapping_outdated');
   end if;
@@ -231,7 +232,7 @@ begin
   select * into r from public.smart_form_revisions where id = (x.r).id for update;
   select * into f from public.smart_form_filings where id = r.filing_id for update;
   if f.state <> 'awaiting_signatures' or r.state <> 'locked' then return jsonb_build_object('ok', false, 'reason', 'not_signable'); end if;
-  -- ‼ 208: גרסה שננעלה במיפוי אחר מהנוכחי מצוירת אחרת ממה שננעל — לא חותמים עליה.
+  -- ‼ 209: גרסה שננעלה במיפוי אחר מהנוכחי מצוירת אחרת ממה שננעל — לא חותמים עליה.
   if r.mapping_version is distinct from (public._smart_form_template(f.template_key)->>'mappingVersion')::int then
     return jsonb_build_object('ok', false, 'reason', 'mapping_outdated');
   end if;
@@ -257,6 +258,44 @@ begin
   v_all := public._smart_form_after_signature(r.id);
   perform public._smart_form_sync_step(f.id);
   return jsonb_build_object('ok', true, 'allSigned', v_all);
+end;
+$$;
+
+create or replace function public.smart_form_attach_signed_pdf(p_filing_id text, p_revision int, p_document_id text, p_pdf_sha256 text)
+returns jsonb language plpgsql security definer set search_path to 'public' as $$
+declare
+  f public.smart_form_filings%rowtype := public._smart_form_owned(p_filing_id);
+  r public.smart_form_revisions%rowtype;
+begin
+  if f.id is null then return jsonb_build_object('ok', false, 'error', 'forbidden'); end if;
+  select * into r from public.smart_form_revisions where filing_id = f.id and revision = p_revision for update;
+  if r.id is null or r.state <> 'signed' then return jsonb_build_object('ok', false, 'error', 'not_signed'); end if;
+  if r.signed_document_id is not null and r.signed_document_id <> p_document_id then
+    return jsonb_build_object('ok', false, 'error', 'already_attached');
+  end if;
+  -- אותו קובץ ואותה טביעה — כבר נרשם; אין אירוע כפול.
+  if r.signed_document_id = p_document_id and r.signed_pdf_sha256 = p_pdf_sha256 then
+    return jsonb_build_object('ok', true, 'unchanged', true);
+  end if;
+  -- ‼ קובץ חתום לא מוחלף בשקט בטביעה אחרת.
+  if r.signed_document_id = p_document_id and r.signed_pdf_sha256 is distinct from p_pdf_sha256 then
+    return jsonb_build_object('ok', false, 'error', 'hash_mismatch');
+  end if;
+  -- ‼ 209: הקובץ החתום מופק בדפדפן בקוד הנוכחי. גרסה שנחתמה במיפוי אחר תצויר אחרת ממה
+  -- שנחתם (למשל: בן/בת הזוג חתם/ה בקישור, ואחר כך עלתה גרסה שהזיזה שדות) — לא נשמרת.
+  if r.mapping_version is distinct from (public._smart_form_template(f.template_key)->>'mappingVersion')::int then
+    return jsonb_build_object('ok', false, 'error', 'mapping_outdated');
+  end if;
+  if p_pdf_sha256 !~ '^[0-9a-f]{64}$' then return jsonb_build_object('ok', false, 'error', 'bad_hash'); end if;
+  if not exists (select 1 from public.documents d where d.id = p_document_id and d.user_id = f.user_id and d.client_id = f.client_id) then
+    return jsonb_build_object('ok', false, 'error', 'document_not_found');
+  end if;
+  update public.smart_form_revisions set signed_document_id = p_document_id, signed_pdf_sha256 = p_pdf_sha256 where id = r.id;
+  update public.smart_form_filings set updated_at = now() where id = f.id;
+  perform public._smart_form_event(f.id, f.user_id, r.revision, 'office', 'signed_pdf_stored',
+    jsonb_build_object('documentId', p_document_id, 'sha256', p_pdf_sha256));
+  perform public._smart_form_sync_step(f.id);
+  return jsonb_build_object('ok', true);
 end;
 $$;
 
