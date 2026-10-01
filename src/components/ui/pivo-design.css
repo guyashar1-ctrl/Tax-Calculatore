@@ -3255,7 +3255,9 @@ input.pg-search:focus { box-shadow: 0 0 0 2px var(--focus-ring); border-color: t
   }
   .tw-chev { display: none; }
   .tw-fab {
-    display: grid; place-items: center; position: fixed; bottom: 18px; inset-inline-start: 18px;
+    /* ‼ 01.10.2026 · מעל סרגל הניווט התחתון (65px + אזור הבית של האייפון). ב-18px הוא ישב
+       מתחתיו, ובטלפון לא הייתה דרך להוסיף משימה — כפתור הראש מוסתר כאן במכוון. */
+    display: grid; place-items: center; position: fixed; bottom: calc(80px + env(safe-area-inset-bottom, 0px)); inset-inline-start: 18px;
     width: 54px; height: 54px; border-radius: 50%; border: 0;
     background: var(--accent); color: #fff; font-size: 26px;
     box-shadow: 0 6px 18px rgba(16,24,40,.22); z-index: 12; cursor: pointer;
