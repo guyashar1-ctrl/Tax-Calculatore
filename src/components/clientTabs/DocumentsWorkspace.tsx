@@ -17,7 +17,7 @@ import { supabase } from '../../lib/supabase';
 import { EmptyState } from '../ui/States';
 import LabelSelect from '../ui/LabelSelect';
 import { buildZip, sanitizeFileBaseName, uniqueEntryName, triggerBlobDownload } from '../../utils/zipArchive';
-import { looksConvertible, imageToPdfBytes, pdfFileNameFor, ImageConversionError } from '../../utils/imageToPdf';
+import { looksConvertible, buildDocumentPdf, pdfFileNameFor, ImageConversionError } from '../../utils/imageToPdf';
 import { useToast } from '../ui/Toast';
 import PdfOrganizer, { releaseOrganizerCache, type OrganizerSource, type OrganizerOutput } from './PdfOrganizer';
 import { looksLikePdf, isPdfBytes, buildPdfFromPlan, defaultOutputName, PdfPlanError } from '../../utils/pdfPages';
@@ -881,7 +881,8 @@ export default function DocumentsWorkspace({ client, allClients, initialFolderId
         setConvertError('הקובץ עצמו אינו זמין באחסון, ולכן אין מה להמיר.');
         return;
       }
-      const pdfBytes = await imageToPdfBytes(new Uint8Array(full.fileData));
+      // ‼ 01.10.2026 · אותה ליבה כמו ההכנה ברקע: גם HEIC/WebP, בלי אובדן.
+      const pdfBytes = (await buildDocumentPdf([new Uint8Array(full.fileData)])).bytes;
 
       // שם פנוי אצל הלקוח שאליו המסמך שייך — לא אצל הלקוח שממנו הסתכלנו
       const siblings = await db.getDocsByClient(source.clientId);

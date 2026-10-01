@@ -269,3 +269,57 @@
 /* «פרטי הלקוח להזנה» בתוך שורה נפתחת — בלי כותרת כפולה ובלי מסגרת פנימית */
 .rc-more-body #rep-authority-data > .card-header { display: none; }
 .rc-more-body #rep-authority-data > .card-body { padding: 0; }
+
+/* ── מסמכי הבקשה — שורה לכל מסמך, צפייה בלחיצה אחת (01.10.2026) ─────────── */
+.rc-doc { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 16px; align-items: center; padding: 14px 20px; }
+.rc-doc + .rc-doc { border-top: 1px solid var(--hairline-2); }
+.rc-doc-name { font-size: 15px; font-weight: 600; color: var(--ink-1); }
+.rc-doc-line { font-size: 14px; color: var(--ink-2); margin-top: 3px; display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 6px; line-height: 1.55; }
+.rc-doc-sep { color: var(--ink-3); }
+.rc-doc-state[data-tone='done'] { color: var(--success-text); }
+.rc-doc-state[data-tone='wait'] { color: var(--warn); }
+.rc-doc-state[data-tone='danger'] { color: var(--danger); }
+.rc-doc-muted { color: var(--ink-3); }
+.rc-doc-next { font-size: 13px; color: var(--ink-3); margin-top: 3px; line-height: 1.55; }
+.rc-doc-acts { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px 12px; }
+@media (max-width: 640px) {
+  .rc-doc { grid-template-columns: minmax(0, 1fr); padding: 14px 16px; }
+  .rc-doc-acts { justify-content: flex-start; }
+}
+
+/* ── עובדות בתוך פירוט רשות — במקום ציר של שלבים והסברים ─────────────────── */
+.rc-now { border-inline-start: 3px solid var(--warn); background: var(--warn-bg-soft); border-radius: var(--radius);
+  padding: 10px 14px; margin-bottom: 14px; display: flex; flex-direction: column; gap: 8px; }
+.rc-now-title { font-size: 13px; font-weight: 600; color: var(--warn); }
+.rc-now-line { font-size: 14px; color: var(--ink-1); line-height: 1.55; }
+.rc-now-acts { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 16px; }
+.rc-facts-grid { margin: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 24px; }
+.rc-facts-grid > div { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.rc-facts-grid dt { font-size: 13px; color: var(--ink-3); }
+.rc-facts-grid dd { margin: 0; font-size: 14px; color: var(--ink-1); line-height: 1.5; overflow-wrap: anywhere; }
+.rc-facts-grid dd[data-tone='done'] { color: var(--success-text); }
+.rc-facts-grid dd[data-tone='wait'] { color: var(--warn); }
+.rc-history { margin-top: 14px; }
+.rc-history > summary { list-style: none; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
+  font-size: 13px; color: var(--ink-3); text-decoration: underline; text-decoration-color: var(--bd-strong); text-underline-offset: 3px; }
+.rc-history > summary::-webkit-details-marker { display: none; }
+.rc-history > summary:hover { color: var(--ink-1); }
+.rc-history[open] > summary { margin-bottom: 10px; }
+@media (max-width: 640px) { .rc-facts-grid { grid-template-columns: minmax(0, 1fr); } }
+
+/* ── חלון הצפייה במסמך ─────────────────────────────────────────────────── */
+.dv { display: flex; flex-direction: column; gap: 12px; }
+.dv-caption { margin: 0; font-size: 14px; color: var(--ink-2); line-height: 1.6; }
+.dv-pages { display: flex; flex-direction: column; gap: 12px; }
+.dv-page { display: block; width: 100%; height: auto; background: #fff; border: 1px solid var(--hairline-1); border-radius: var(--radius); }
+.dv-image { display: block; max-width: 100%; height: auto; margin-inline: auto; background: #fff; border: 1px solid var(--hairline-1); border-radius: var(--radius); }
+.dv-item { display: flex; flex-direction: column; gap: 6px; }
+.dv-meta { font-size: 13px; color: var(--ink-3); }
+.dv-err { font-size: 14px; color: var(--danger); line-height: 1.6; }
+.dv-loading { font-size: 14px; color: var(--ink-3); padding: 48px 0; text-align: center; }
+.dv-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; width: 100%; }
+.dv-file { margin-inline-start: auto; font-size: 13px; color: var(--ink-3); overflow-wrap: anywhere; }
+.dv-title { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.dv-badge { font-size: 12px; font-weight: 600; padding: 2px 9px; border-radius: 999px; background: var(--surface-2); color: var(--ink-2); }
+.dv-badge[data-tone='done'] { background: var(--chip-green-bg); color: var(--chip-green-tx); }
+.dv-badge[data-tone='wait'] { background: var(--chip-amber-bg); color: var(--chip-amber-tx); }

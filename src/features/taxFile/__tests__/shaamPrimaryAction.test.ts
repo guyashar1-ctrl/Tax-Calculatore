@@ -86,7 +86,9 @@ export const TESTS: TestCase[] = [
     const src = code(CENTER_SOURCE);
     equal((src.match(/shaamNode\(sub, 'create'\)/g) ?? []).length, 1, 'מקור אחד (createCell)');
     equal((src.match(/\{createCell\(sub\)\}/g) ?? []).length, 2, 'שני מקומות אפשריים');
-    assert(/!inPrepare \? \(\s*<div[^>]*>\s*\{createCell\(sub\)\}/.test(src), 'בפירוט רק כשלא בהכנה — לעולם לא פעמיים');
+    // ‼ 01.10.2026 · בשורת הרשות הוא ב«הצעד הבא» (גלוי), לא בתוך ציר השלבים — ורק כשלא בהכנה.
+    assert(/const createHere = !c\.at && !inPrepare/.test(src), 'בשורה רק כשלא בהכנה — לעולם לא פעמיים');
+    assert(/createHere && \(\s*<div[^>]*>\s*\{createCell\(sub\)\}/.test(src), 'בבלוק «הצעד הבא» של השורה');
     assert(!/הזן את הפרטים בשע״ם/.test(src), 'אין תווית ישנה');
   }),
 

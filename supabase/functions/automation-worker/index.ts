@@ -17,7 +17,8 @@
 // automation_jobs ותו לא, ולכן פשרה עליו לא חושפת את שאר המסד. ה-service-role
 // עצמו יושב רק כאן, על השרת, ולעולם לא מגיע לתהליך העובד על מחשב המשרד.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-import { PDFDocument, degrees } from "https://esm.sh/pdf-lib@1.17.1";
+import { PDFDocument, degrees, drawImage } from "https://esm.sh/pdf-lib@1.17.1";
+import UPNG from "https://esm.sh/@pdf-lib/upng@1.0.1";
 import {
   documentPartsToPdfWith, ImageConversionError, type PdfLib,
 } from "../_shared/imageToPdfCore.ts";
@@ -70,7 +71,7 @@ interface Body {
 }
 
 // ‼ 204 · pdf-lib של Deno מוזרק לליבה המשותפת — אותו קוד כמו בדפדפן.
-const PDF_LIB = { PDFDocument, degrees } as unknown as PdfLib;
+const PDF_LIB = { PDFDocument, degrees, UPNG, drawImageOp: drawImage } as unknown as PdfLib;
 const SLOT_KIND_LABEL: Record<string, string> = {
   idOrLicense: "צילום תעודת זהות או רישיון נהיגה",
   passport: "צילום דרכון",
@@ -348,6 +349,41 @@ Deno.serve(async (req: Request) => {
         return json({ ok: false, error: sel?.error ?? "selection_failed", person: sel?.person ?? null, personName: sel?.personName ?? null });
       }
       const docs = (sel.documents ?? []) as { documentId: string; fileName: string; storagePath: string }[];
+      // ‼ 210 · PDF שכבר הוכן ברקע מאותם מקורות בדיוק, ועדיין עדכני — הוא מה שעולה.
+      // זה גם המסלול היחיד ל-HEIC/WebP (פוענחו בדפדפן; כאן אין מפענח).
+      {
+        const buildId = `pdf-${(await sha256Hex(docs.map((d) => d.documentId).sort().join("|"))).slice(0, 24)}`;
+        const { data: b } = await admin.from("document_pdf_builds")
+          .select("id, status, source_fingerprint, page_count, error_message, error_next").eq("id", buildId).maybeSingle();
+        if (b?.status === "failed") {
+          const { data: fpNow } = await admin.rpc("_doc_fingerprint", { p_ids: docs.map((d) => d.documentId) });
+          // ‼ ההכנה ברקע כבר גילתה שהקובץ פגום — לא מגישים, ומוסרים את ההסבר שלה.
+          if (fpNow === b.source_fingerprint) {
+            return json({ ok: false, error: "not_pdf_convertible", detail: [b.error_message, b.error_next].filter(Boolean).join(" "),
+              person: sel.person, personName: sel.personName });
+          }
+        }
+        if (b?.status === "ready") {
+          const { data: fp } = await admin.rpc("_doc_fingerprint", { p_ids: docs.map((d) => d.documentId) });
+          const { data: dd } = fp === b.source_fingerprint
+            ? await admin.from("documents").select("storage_path, file_name").eq("id", buildId).maybeSingle()
+            : { data: null };
+          if (dd?.storage_path) {
+            const { data: file } = await admin.storage.from(DOC_BUCKET).download(dd.storage_path);
+            if (file) {
+              const bytes = new Uint8Array(await file.arrayBuffer());
+              if (bytes.length <= MAX_DOC_BYTES && bytes[0] === 0x25 && bytes[1] === 0x50) {
+                return json({
+                  ok: true, person: sel.person, personName: sel.personName ?? null, docKind: sel.docKind,
+                  fileName: dd.file_name, pageCount: b.page_count ?? 1,
+                  sourceDocumentIds: docs.map((d) => d.documentId), derivedDocumentId: buildId,
+                  contentBase64: encodeBase64(bytes),
+                });
+              }
+            }
+          }
+        }
+      }
       const parts: Uint8Array[] = [];
       for (const d of docs) {
         const { data: file, error: dlErr } = await admin.storage.from(DOC_BUCKET).download(d.storagePath);

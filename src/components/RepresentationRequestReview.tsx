@@ -563,20 +563,7 @@ export default function RepresentationRequestReview({
     </div>
   );
 
-  // ‼ ייפוי הכוח החתום — בזרימה החדשה באזור נפתח בתוך מרכז הייצוג (לא בראש העמוד).
-  const signedPanel = request.signedPdfStoredId && generatedPdfUrl && !signMode ? (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-      <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'center' }}>
-        <button className="btn btn-primary btn-sm" onClick={handleDownloadPdf}>הורדת PDF</button>
-        <a href={generatedPdfUrl} target="_blank" rel="noreferrer" className="rc-link">פתיחה בכרטיסייה חדשה</a>
-        <button type="button" className="rc-quiet" onClick={handleRegeneratePdf} disabled={generating}>
-          {generating ? 'מעדכן...' : 'יצירה מחדש'}
-        </button>
-      </div>
-      <iframe src={generatedPdfUrl} title="ייפוי כוח חתום"
-        style={{ width: '100%', height: '560px', border: '1px solid var(--hairline-1)', borderRadius: 'var(--radius)' }} />
-    </div>
-  ) : null;
+
 
   return (
     <div className={rcMode ? 'rq-page' : undefined}>
@@ -962,7 +949,8 @@ export default function RepresentationRequestReview({
               onAttachShaamForms={onAttachShaamForms}
               dataPanel={<RepresentationAuthorityData request={request} niCoversSpouse={niCoversSpouse} linkedClient={linkedClient} />}
               requestPanel={requestPanel}
-              signedPanel={signedPanel}
+              onRegenerateSignedPdf={request.signedPdfStoredId && !signMode ? () => void handleRegeneratePdf() : undefined}
+              regeneratingSignedPdf={generating}
             />
 
             {request.status === 'pending_signature' && setup && !rcMode && (

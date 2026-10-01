@@ -90,3 +90,6 @@ verify_jwt = false
 # הזה (מיגרציה 144). הקובץ עצמו נשאר ב-bucket הפרטי.
 [functions.portal-open-document]
 verify_jwt = false
+
+[functions.document-pdf]
+verify_jwt = false

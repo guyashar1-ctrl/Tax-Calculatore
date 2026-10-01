@@ -23,7 +23,7 @@ import {
 import { getRequestSigners, effectiveSignStatus } from '../utils/repSigners';
 import { shaamSubmissions, requestScope, peopleFromClient, targetsOf } from '../utils/repScope';
 import { signatureDocumentsOf, allDocumentsStamped } from '../utils/repDocuments';
-import type { RepSignatureDocument } from '../types';
+import type { RepSignatureDocument, RepIdentityDocEntry } from '../types';
 import { buildForm2279Fields, form2279BothSign, matchRegisteredPersonName, verifyForm2279Layout } from '../features/representation/shaamRepresentation';
 import { readForm2279Layout } from '../utils/form2279Layout';
 import { useDocumentDB } from '../hooks/useIndexedDB';
@@ -66,6 +66,14 @@ import {
 import ShaamPreSigningDocsList from './ShaamPreSigningDocsList';
 import { repCenterPlan, type RcPrepareItem } from '../features/representation/repCenterPlan';
 import { shaamSettled } from '../features/representation/shaamRepresentation';
+import RepDocuments, { type PoaEntry, type IdEntry } from './RepDocuments';
+import IdentityDocAttach from './IdentityDocAttach';
+import { shaamDocumentsView } from '../features/representation/shaamDocumentsGate';
+import type { ViewerFile } from './DocumentViewerDialog';
+import { useDocumentPdfBuilds, pdfBuildFor } from '../hooks/useDocumentPdfBuilds';
+import { currentPoaVersion, noPoaReason, clientFieldsOf, type PoaVersion } from '../features/representation/poaVersion';
+import { burnSignaturesIntoPdf } from '../utils/signaturePdf';
+import { prepareForPdf, sniffFormat } from '../utils/imageToPdf';
 import './repCenter.css';
 
 interface Props {
@@ -124,8 +132,12 @@ interface Props {
   dataPanel?: React.ReactNode;
   /** «פרטי הבקשה» (מייל, סוג ייפוי הכוח, הערות) — סגור כברירת מחדל. */
   requestPanel?: React.ReactNode;
-  /** ייפוי הכוח החתום (הורדה / צפייה) — סגור כברירת מחדל, כדי שלא יידחוף את «מה עכשיו». */
-  signedPanel?: React.ReactNode;
+  /**
+   * ‼ 01.10.2026 · הקובץ החתום נפתח מ«מסמכי הבקשה» (צפייה + הורדה). כאן רק
+   * «יצירה מחדש» — פעולה נדירה שנשארה מהאזור הקודם.
+   */
+  onRegenerateSignedPdf?: () => void;
+  regeneratingSignedPdf?: boolean;
 }
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
@@ -223,12 +235,49 @@ function AuthRow({ name, scope, status, tone, defaultOpen, testId, children }: {
       <button type="button" className="rc-row-head" aria-expanded={open} onClick={() => setOpen(o => !o)}>
         <div style={{ minWidth: 0 }}>
           <div className="rc-row-name">{name}{scope && <span className="rc-row-scope">{scope}</span>}</div>
-          <div className="rc-row-status" data-tone={tone}>{status}</div>
+          {/* ‼ פתוח — העובדות שבגוף מחליפות את שורת הסיכום (בלי לומר אותו דבר פעמיים). */}
+          {!open && <div className="rc-row-status" data-tone={tone}>{status}</div>}
         </div>
         <span className="rc-row-end"><Chevron /></span>
       </button>
       {open && <div className="rc-row-body">{children}</div>}
     </div>
+  );
+}
+
+/**
+ * ‼ 01.10.2026 · גוף של שורת רשות: «מה חסר / הצעד הבא» (רק כשיש), עובדות קצרות
+ * עם תווית, וכל השלבים, ההסברים והפעולות הידניות — מאחורי קישור אחד.
+ * גיא: «פתיחת פירוט הרשויות מחזירה רשימה ארוכה של שלבים, הסברים, שמות קבצים ומידע חוזר».
+ */
+function Facts({ items }: { items: { label: string; value: React.ReactNode; tone?: 'done' | 'wait' }[] }) {
+  return (
+    <dl className="rc-facts-grid" data-testid="rc-facts">
+      {items.map(f => (
+        <div key={f.label}><dt>{f.label}</dt><dd data-tone={f.tone}>{f.value}</dd></div>
+      ))}
+    </dl>
+  );
+}
+
+function NowBlock({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="rc-now" data-testid="rc-now">
+      <div className="rc-now-title">{title}</div>
+      {children}
+    </div>
+  );
+}
+
+/** «כל השלבים והפרטים» — הציר המלא, עריכה וסימונים ידניים. סגור, אלא אם צריך לפעול בתוכו. */
+function History({ defaultOpen, children }: { defaultOpen?: boolean; children: React.ReactNode }) {
+  const [open, setOpen] = useState(!!defaultOpen);
+  return (
+    <details className="rc-history" open={open} data-testid="rc-history"
+      onToggle={e => setOpen((e.currentTarget as HTMLDetailsElement).open)}>
+      <summary>{open ? 'הסתרת השלבים והפרטים' : 'כל השלבים והפרטים'}</summary>
+      {open && children}
+    </details>
   );
 }
 
@@ -357,7 +406,7 @@ function ReplacementConfirm({ requestId, submissionKey, replacement, onChanged }
   );
 }
 
-export default function RepresentationExecutionCenter({ request, niIncluded, niCoversSpouse, onSaveExecution, onProduce, onStamp, onMarkSentToShaam, onMarkActive, onSendToSigner, userId, repApprovalOverride, linkedClient, onConfirmRegisteredSpouse, steps, onStepsChanged, onUpdateClientFields, onAttachShaamForms, dataPanel, requestPanel, signedPanel }: Props) {
+export default function RepresentationExecutionCenter({ request, niIncluded, niCoversSpouse, onSaveExecution, onProduce, onStamp, onMarkSentToShaam, onMarkActive, onSendToSigner, userId, repApprovalOverride, linkedClient, onConfirmRegisteredSpouse, steps, onStepsChanged, onUpdateClientFields, onAttachShaamForms, dataPanel, requestPanel, onRegenerateSignedPdf, regeneratingSignedPdf }: Props) {
   const exec = request.execution || {};
   const it = exec.incomeTax || {};
   const ni = exec.nationalInsurance || {};
@@ -985,6 +1034,94 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
   // ── פקדים שמופיעים פעם אחת בדיוק (בכרטיס «מה עכשיו» או בפירוט — לא בשניהם) ──
   const createCell = (sub: ShaamSubmission) => <div className="rc-actioncell">{shaamNode(sub, 'create')}</div>;
   const inPrepare = plan.kind === 'prepare';
+
+  // ── מסמכי הבקשה (01.10.2026): ייפוי הכוח בגרסה הנוכחית, והצילום המזהה + ה-PDF שלו ──
+  // ‼ ה-PDF מוכן ברקע (210): השרת בונה ברגע השיוך, והדפדפן משלים HEIC/WebP. אין «הכן PDF».
+  const pdf = useDocumentPdfBuilds({
+    requestId: request.id, clientId: linkedClient?.id, userId,
+    personName: role => nameOf(role) || '', identityKey: JSON.stringify(request.identityDocs ?? {}),
+    enabled: !!linkedClient && submissions.length > 0,
+  });
+  const loadDoc = async (id: string): Promise<ViewerFile> => {
+    const d = await formDocs.getDoc(id);
+    if (!d || !d.fileData || d.fileData.byteLength === 0) throw new Error('הקובץ לא נמצא באחסון.');
+    const bytes = new Uint8Array(d.fileData);
+    const fmt = sniffFormat(bytes);
+    return { bytes, fileName: d.fileName, mime: fmt === 'pdf' ? 'application/pdf' : d.fileType || 'application/octet-stream' };
+  };
+  /** ‼ «חתום על ידי הלקוח» אינו קובץ שמור — הטופס + חתימות הלקוח בלבד, מורכב לתצוגה. */
+  const composeClientSigned = async (v: PoaVersion): Promise<ViewerFile> => {
+    const doc = poaDocs.find(d => d.pdfDocId === v.documentId);
+    const form = await loadDoc(v.documentId);
+    if (!doc) return { ...form, fileName: v.fileName };
+    const buf = form.bytes.buffer.slice(form.bytes.byteOffset, form.bytes.byteOffset + form.bytes.byteLength) as ArrayBuffer;
+    const bytes = await burnSignaturesIntoPdf(buf, clientFieldsOf(doc.fields), request.signatureValues ?? {});
+    return { bytes, fileName: v.fileName, mime: 'application/pdf' };
+  };
+  /** HEIC/TIFF — הדפדפן לא מציג; מפענחים לתצוגה בלבד (המקור לא משתנה). */
+  const displayable = async (f: ViewerFile): Promise<ViewerFile> => {
+    const fmt = sniffFormat(f.bytes);
+    if (fmt === 'pdf') return { ...f, mime: 'application/pdf' };
+    if (fmt !== 'heic' && fmt !== 'tiff') return { ...f, mime: f.mime.startsWith('image/') ? f.mime : `image/${fmt === 'jpeg' ? 'jpeg' : fmt}` };
+    const prepared = await prepareForPdf(f.bytes);
+    const raw = prepared.part instanceof Uint8Array ? null : prepared.part;
+    if (!raw) return f;
+    const c = document.createElement('canvas');
+    c.width = raw.width; c.height = raw.height;
+    const ctx = c.getContext('2d')!;
+    const img = ctx.createImageData(raw.width, raw.height);
+    for (let i = 0, o = 0; o < raw.rgb.length; i += 4, o += 3) {
+      img.data[i] = raw.rgb[o]; img.data[i + 1] = raw.rgb[o + 1]; img.data[i + 2] = raw.rgb[o + 2]; img.data[i + 3] = 255;
+    }
+    ctx.putImageData(img, 0, 0);
+    const blob = await new Promise<Blob>(res => c.toBlob(b => res(b!), 'image/jpeg', 0.92));
+    return { bytes: new Uint8Array(await blob.arrayBuffer()), fileName: f.fileName, mime: 'image/jpeg',
+      original: { bytes: f.bytes, fileName: f.fileName, mime: fmt === 'heic' ? 'image/heic' : 'image/tiff' } };
+  };
+
+  const poaEntries: PoaEntry[] = poaDocs.length > 0
+    ? poaDocs.map(d => ({
+        key: d.key,
+        name: poaDocs.length > 1 ? `ייפוי כוח · ${d.title}` : 'ייפוי הכוח',
+        version: d.pdfDocId ? currentPoaVersion({
+          doc: d, values: request.signatureValues, allSignersDone: signed,
+          legacyFinalId: poaDocs.length === 1 ? request.signedPdfStoredId : null, clientName: firstName,
+        }) : null,
+        noneReason: d.pdfDocId ? undefined : noPoaReason({ entered: true }),
+      }))
+    : submissions.length > 0
+      ? [{
+          key: 'poa-none', name: 'ייפוי הכוח', version: null,
+          noneReason: noPoaReason({
+            replacementRequestNumber: submissions.map(s => shaamTrack(s.key)?.replacement?.requestNumber).find(Boolean) ?? null,
+            entered: submissions.some((s, i) => !!enteredAtOf(s.key, i === 0)),
+          }),
+        }]
+      : [];
+  const ID_GROUPS: { label: string; kinds: string[] }[] = [
+    { label: 'תעודה מזהה', kinds: ['idCard', 'driverLicense'] },
+    { label: 'דרכון', kinds: ['passport'] },
+  ];
+  const idEntries: IdEntry[] = (['client', 'spouse'] as const).flatMap(person => {
+    const list = (request.identityDocs?.[person] ?? []) as RepIdentityDocEntry[];
+    return ID_GROUPS.flatMap(g => {
+      // ‼ אותה הכרעה כמו בשרת: קבוצת הסוג הראשונה (לפי סדר ההעדפה) שיש לה מסמך.
+      const kind = g.kinds.find(k => list.some(e => (e.docKind || 'idCard') === k));
+      const docs = kind ? list.filter(e => (e.docKind || 'idCard') === kind) : [];
+      if (!docs.length) return [];
+      const confirmedDocs = docs.filter(e => !!e.clientConfirmedAt);
+      const used = confirmedDocs.length ? confirmedDocs : docs;
+      const who = nameOf(person) || (person === 'spouse' ? 'בן/בת הזוג' : firstName);
+      return [{
+        key: `${person}:${g.label}`,
+        name: `${kind === 'driverLicense' ? 'רישיון נהיגה' : g.label} · ${who}`,
+        sources: used.map(e => ({ documentId: e.documentId, fileName: e.fileName })),
+        confirmed: confirmedDocs.length > 0,
+        approvalRelevant: submissions.length > 0,
+        build: pdfBuildFor(pdf.builds, person, used.map(e => e.documentId)),
+      }];
+    });
+  });
   const regChoiceNode = (busyKey: string, mark: (owner?: 'client' | 'spouse') => void) => (
     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
       {regNames.map(r => (
@@ -1408,15 +1545,6 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
               {regChoiceNode(c.busyKey, c.mark)}
               {editingKey === sub.key && <button type="button" className="rc-quiet" onClick={() => setEditingKey(null)}>ביטול</button>}
             </>
-          ) : !c.at ? (
-            !inPrepare ? (
-              <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
-                {createCell(sub)}
-                <button type="button" className="rc-quiet" disabled={busy === c.busyKey} onClick={() => void c.mark()}>
-                  {busy === c.busyKey ? 'שומר…' : 'הוזן ידנית'}
-                </button>
-              </div>
-            ) : null
           ) : (sub.carriesIncomeTax && regChoice && regVerified) || c.manualAt ? (
             <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
               {sub.carriesIncomeTax && regChoice && regVerified && (
@@ -1467,7 +1595,6 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
               {f.status && <div>סטטוס בשע״ם: <strong>{f.status}</strong></div>}
               {f.suspensionEndsAt && <div>צפי לסיום ההשהייה: {fmt(f.suspensionEndsAt)}</div>}
               {f.note && plan.kind !== 'waiting_authorities' && <div className="rc-meta">{f.note}</div>}
-              {f.officeAction && plan.kind !== 'waiting_authorities' && <Notice tone="required">{f.officeAction}</Notice>}
               {f.missingFileSystems.map(m => {
                 const auth = m.authority && m.authority !== 'incomeTax' ? m.authority : undefined;
                 const canDrop = !!auth && !!linkedClient && !!linkedClient.authorityRepresentations?.[auth]
@@ -1482,15 +1609,7 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
                   </div>
                 );
               })}
-              {f.clientApprovalRequired && !repApproval && (
-                <Notice tone="required">רשות המסים ממתינה לאישור הלקוח באזור האישי. בלי האישור הייצוג לא ייקלט.</Notice>
-              )}
             </div>
-          )}
-          {!['waiting_docs', 'blocked'].includes(plan.kind) && (
-            <ShaamRequiredDocsList tracking={t} requestId={request.id} clientId={linkedClient?.id}
-              usedDocumentIds={Object.values(request.identityDocs ?? {}).flat().map(d => d?.documentId).filter((x): x is string => !!x)}
-              onAttached={() => onStepsChanged?.()} />
           )}
           {stamped && !sentToShaam && plan.kind !== 'submit' && (
             <button type="button" className="rc-quiet" onClick={onMarkSentToShaam}>הוגש ידנית בשע״ם</button>
@@ -1515,6 +1634,107 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
         </Step>
       </div>
     );
+  };
+
+  // ── גוף שורת שע״ם: מה חסר / הצעד הבא, ועובדות ─────────────────────────────
+  const usedIdDocIds = Object.values(request.identityDocs ?? {}).flat().map(d => d?.documentId).filter((x): x is string => !!x);
+  const shaamNow = (sub: ShaamSubmission): React.ReactNode => {
+    const c = entryCtl(sub);
+    const t = shaamTrack(sub.key);
+    const f = shaamFactsOf(sub);
+    const createHere = !c.at && !inPrepare && !t?.replacement;
+    const missing = preSigningDocsOf(sub).filter(d => d.kind !== 'poa' && d.kind !== 'other'
+      && (d.status === 'missing' || d.status === 'awaiting_confirmation'));
+    const gate = !['waiting_docs', 'blocked'].includes(plan.kind) && !!shaamDocumentsView(t);
+    const office = f?.officeAction && plan.kind !== 'waiting_authorities';
+    const approval = f?.clientApprovalRequired && !repApproval;
+    if (!createHere && !missing.length && !gate && !office && !approval) return null;
+    return (
+      <NowBlock title={createHere ? 'הצעד הבא' : 'מה חסר'}>
+        {createHere && (
+          <div className="rc-now-acts">
+            {createCell(sub)}
+            <button type="button" className="rc-quiet" disabled={busy === c.busyKey} onClick={() => void c.mark()}>
+              {busy === c.busyKey ? 'שומר…' : 'הוזן ידנית'}
+            </button>
+          </div>
+        )}
+        {missing.map(d => (
+          <div key={d.key} className="rc-now-line" data-testid="rc-now-missing">
+            {d.status === 'missing'
+              ? <>צילום תעודה מזהה של {d.personName} — אין בתיק. {exec.signatureEmailSentAt ? 'הבקשה להעלות מופיעה בדף האישי של הלקוח.' : 'הלקוח יתבקש להעלות יחד עם בקשת החתימה.'}</>
+              : <>צילום תעודה מזהה של {d.personName} — ממתין לאישור הלקוח. {exec.signatureEmailSentAt ? 'הבקשה מופיעה בדף האישי של הלקוח.' : 'הלקוח יתבקש לאשר יחד עם בקשת החתימה.'}</>}
+            {d.status === 'missing' && linkedClient && (
+              <IdentityDocAttach requestId={request.id} clientId={linkedClient.id}
+                missing={[{ person: d.person, name: d.personName, kind: d.kind === 'passport' ? 'passport' : 'idOrLicense' }]}
+                usedDocumentIds={usedIdDocIds} onAttached={() => onStepsChanged?.()} />
+            )}
+          </div>
+        ))}
+        {gate && (
+          <ShaamRequiredDocsList tracking={t} requestId={request.id} clientId={linkedClient?.id}
+            usedDocumentIds={usedIdDocIds} onAttached={() => onStepsChanged?.()} />
+        )}
+        {office && <Notice tone="required">{f!.officeAction}</Notice>}
+        {approval && <Notice tone="required">רשות המסים ממתינה לאישור הלקוח באזור האישי. בלי האישור הייצוג לא ייקלט.</Notice>}
+      </NowBlock>
+    );
+  };
+  const shaamFacts = (sub: ShaamSubmission) => {
+    const c = entryCtl(sub);
+    const t = shaamTrack(sub.key);
+    const f = shaamFactsOf(sub);
+    const settledNow = shaamSettled(t) || (status === 'active' && !f);
+    return [
+      { label: 'הבקשה בשע״ם', value: c.at ? `${t?.requestNumber ? `מספר ${t.requestNumber}` : 'נפתחה'} · ${fmt(c.at)}` : 'טרם נפתחה' },
+      {
+        label: 'ייפוי הכוח',
+        value: stamped ? 'חתום ומוחתם' : signed ? 'חתום על ידי הלקוח · נשארו החתימה והחותמת שלך'
+          : formReady ? (exec.signatureEmailSentAt ? `נשלח לחתימה ב-${fmt(exec.signatureEmailSentAt)}` : 'מוכן לחתימה')
+          : t?.replacement ? 'הטופס הקודם בוטל' : waitingForShaamForm ? 'ממתין לטופס משע״ם' : 'טרם הגיע',
+        tone: stamped ? 'done' as const : undefined,
+      },
+      {
+        label: 'הגשה',
+        value: f ? [f.submittedAt ? `הוגש ${fmt(f.submittedAt)}` : 'הוגש', f.status ? `שע״ם: ${f.status}` : '',
+          f.suspensionEndsAt ? `צפי ${fmt(f.suspensionEndsAt)}` : ''].filter(Boolean).join(' · ')
+          : stamped ? 'מוכן להגשה' : 'טרם הוגש',
+      },
+      // עובדה ריקה («—») אינה מידע — הקליטה מופיעה רק מרגע ההגשה.
+      ...(f || settledNow ? [{ label: 'קליטה', value: settledNow ? 'הייצוג נקלט' : 'ממתין לקליטה', tone: settledNow ? 'done' as const : undefined }] : []),
+    ];
+  };
+  // ── גוף שורת ב״ל: עובדות; הציר והעריכה מאחורי הקישור ──────────────────────
+  const niFacts = (role: 'client' | 'spouse') => {
+    const t = niExecutionByRole[role];
+    const view = niTrackView(t, niLineFor(role));
+    const ext = niExternalEvidence(t);
+    return [
+      { label: 'ייפוי הכוח בב״ל', value: t.enteredAt ? (t.foundExternally ? 'נמצא קיים באתר ב״ל' : `הוזן ${fmt(t.enteredAt)}`) : 'טרם הוזן' },
+      { label: 'אסמכתא', value: t.referenceNumber ? <span className="ltr-isolate">{t.referenceNumber}</span> : t.enteredAt ? 'חסרה' : '—' },
+      {
+        label: 'לאישור עד',
+        value: t.deadline ? `${fmt(t.deadline)}${view.deadlineNotice ? ` · ${view.deadlineNotice.text}` : ''}` : '—',
+        tone: view.deadlineNotice?.tone === 'warning' ? 'wait' as const : undefined,
+      },
+      {
+        label: 'ההוראות ללקוח',
+        value: t.instructionsSentWith === 'signature' ? 'נשלחו עם בקשת החתימה'
+          : t.instructionsSentWith === 'link' ? `הקישור נמסר ידנית ${fmt(t.instructionsSentAt)}`
+          : t.instructionsSentAt ? `נשלחו ${fmt(t.instructionsSentAt)}` : 'ייצאו עם בקשת החתימה',
+      },
+      {
+        label: 'אישור הלקוח',
+        value: view.final ? (t.confirmedAt ? `אושר ${fmt(t.confirmedAt)}` : 'הייצוג פעיל')
+          : ext ? `${ext.label}${ext.at ? ` · נבדק ${fmt(ext.at)}` : ''}` : 'עוד לא נבדק',
+        tone: view.final ? 'done' as const : undefined,
+      },
+    ];
+  };
+  /** ב״ל: כשצריך לפעול בתוך הציר (פרטים חסרים, הזנה, אסמכתא) — הוא נפתח מעצמו. */
+  const niNeedsHands = (role: 'client' | 'spouse') => {
+    const t = niExecutionByRole[role];
+    return !inPrepare && (prereqMissingOf(niStepOf(role)) || !t.enteredAt || !t.referenceNumber);
   };
 
   return (
@@ -1551,6 +1771,11 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
         {note && <div className="rc-note" data-kind={note.kind}>{note.kind === 'ok' ? '✓ ' : ''}{note.text}</div>}
       </section>
 
+      {/* ─────────── מסמכי הבקשה — צפייה בלחיצה אחת ─────────── */}
+      <RepDocuments poa={poaEntries} ids={idEntries} loadDoc={loadDoc} composeClientSigned={composeClientSigned}
+        displayable={displayable} onRetry={id => void pdf.retry(id)}
+        onRegenerateFinal={onRegenerateSignedPdf} regeneratingFinal={regeneratingSignedPdf} />
+
       {/* ─────────── מול הרשויות ─────────── */}
       <section>
         <div className="rc-section-head">
@@ -1566,7 +1791,9 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
               <AuthRow key={sub.key} testId="rc-row-shaam" name="רשות המסים · שע״ם"
                 scope={`${sub.authoritiesLabel}${submissions.length > 1 ? ` · ${sub.personName}` : ''}`}
                 status={st.text} tone={st.tone}>
-                {shaamDetail(sub, i)}
+                {shaamNow(sub)}
+                <Facts items={shaamFacts(sub)} />
+                <History>{shaamDetail(sub, i)}</History>
               </AuthRow>
             );
           })}
@@ -1574,6 +1801,8 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
             const st = niRowStatus(role);
             return (
               <AuthRow key={role} testId="rc-row-ni" name="ביטוח לאומי" scope={niNameOf(role)} status={st.text} tone={st.tone}>
+                <Facts items={niFacts(role)} />
+                <History defaultOpen={niNeedsHands(role)}>
                 <NiDetail
                   ni={niExecutionByRole[role]} line={niLineFor(role)} busy={busy} busyPrefix={role === 'spouse' ? 'nis' : 'ni'}
                   inPrepare={inPrepare}
@@ -1587,6 +1816,7 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
                   prereqOnSaveEmail={prereqOnSaveEmail}
                   prereqOnChanged={() => onStepsChanged?.()}
                 />
+                </History>
               </AuthRow>
             );
           })}
@@ -1599,18 +1829,15 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
         )}
       </section>
 
-      {/* ─────────── פרטים ומסמכים — רשימה אחת, כל שורה נפתחת לפי דרישה ─────────── */}
-      {(dataPanel || signedPanel || requestPanel || signatureEmails.length > 0) && (
+      {/* ─────────── פרטים — רשימה אחת, כל שורה נפתחת לפי דרישה ─────────── */}
+      {(dataPanel || requestPanel || signatureEmails.length > 0) && (
         <section>
-          <div className="rc-section-head"><div className="rc-section-title">פרטים ומסמכים</div></div>
+          <div className="rc-section-head"><div className="rc-section-title">פרטים</div></div>
           <div className="rc-list">
             {dataPanel && (
               <More title="פרטי הלקוח להזנה ברשויות" meta="להעתקה לאתר של כל רשות" defaultOpen={inPrepare} testId="rc-data">
                 {dataPanel}
               </More>
-            )}
-            {signedPanel && (
-              <More title="ייפוי הכוח החתום" meta="צפייה והורדה" testId="rc-signed">{signedPanel}</More>
             )}
             {signatureEmails.length > 0 && (
               <More title="המיילים ללקוח" testId="rc-emails"

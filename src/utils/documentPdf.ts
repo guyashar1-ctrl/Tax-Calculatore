@@ -8,7 +8,7 @@
 // קובץ חלקי.
 
 import type { StoredDoc } from '../hooks/useDocumentStore';
-import { documentPartsToPdf, isPdfBytes, ImageConversionError } from './imageToPdf';
+import { buildDocumentPdf, isPdfBytes, ImageConversionError } from './imageToPdf';
 
 /** שע״ם: shaam-file-upload חוסם מעל 30MB לקובץ, ומקבל PDF בלבד. */
 export const SHAAM_UPLOAD_MAX_BYTES = 30 * 1024 * 1024;
@@ -67,7 +67,7 @@ export async function ensurePdfVersion(
   }
   let pdf: { bytes: Uint8Array; pageCount: number };
   try {
-    pdf = await documentPartsToPdf(parts);
+    pdf = await buildDocumentPdf(parts);
   } catch (e) {
     return { ok: false, error: e instanceof ImageConversionError ? e.message : `ההמרה ל-PDF נכשלה: ${(e as Error)?.message ?? e}` };
   }

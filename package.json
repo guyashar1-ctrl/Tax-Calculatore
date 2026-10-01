@@ -28,6 +28,7 @@
   "dependencies": {
     "@pdf-lib/fontkit": "^1.1.1",
     "@supabase/supabase-js": "^2.45.0",
+    "libheif-js": "1.23.2",
     "pdf-lib": "^1.17.1",
     "pdfjs-dist": "^5.7.284",
     "react": "^18.3.1",
