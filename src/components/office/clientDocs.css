@@ -1,0 +1,66 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   «מסמכים ללקוחות» — שתי קבוצות שקטות: קבצים לשליחה, וטפסים רשמיים.
+   שורה = סמל · שם + פרט אחד · פעולה ראשית · ⋯ . בלי מסגרות סביב כל פריט.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.cdx { padding: 6px 0 18px; }
+.cdx-head h2 { font-size: var(--fs-17, 17px); font-weight: 600; margin: 0; color: var(--ink-1); }
+.cdx-head p { margin: 4px 0 0; font-size: var(--fs-13); color: var(--ink-3); }
+
+.cdx-group { margin-top: 22px; }
+.cdx-group-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding-bottom: 6px; border-bottom: 1px solid var(--hairline-2); }
+.cdx-group-head h3 { margin: 0; font-size: var(--fs-13); font-weight: 600; color: var(--ink-2); letter-spacing: .01em; }
+
+.cdx-list { list-style: none; margin: 0; padding: 0; }
+.cdx-row {
+  display: flex; align-items: center; gap: 12px; min-height: 56px;
+  padding: 8px 4px; border-bottom: 1px solid var(--hairline-2);
+}
+.cdx-row:hover { background: var(--surface-1); }
+.cdx-main { flex: 1; min-width: 0; }
+.cdx-title { font-size: var(--fs-14); font-weight: 500; color: var(--ink-1); overflow-wrap: anywhere; }
+.cdx-sub { font-weight: 400; color: var(--ink-3); font-size: var(--fs-13); margin-inline-start: 4px; }
+.cdx-meta { font-size: var(--fs-12); color: var(--ink-4); margin-top: 2px; display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; overflow-wrap: anywhere; }
+.cdx-chip { font-size: 11px; padding: 1px 8px; border-radius: 999px; background: var(--chip-amber-bg, #fef3c7); color: var(--chip-amber-tx, #92400e); }
+.cdx-quiet { color: var(--ink-4); font-size: var(--fs-12); }
+.cdx-note { margin: 8px 4px 0; }
+.cdx-empty { padding: 16px 4px; font-size: var(--fs-13); color: var(--ink-4); }
+.cdx-err { margin-top: 12px; color: var(--danger, var(--err)); font-size: var(--fs-13); }
+
+.cdx-glyph {
+  width: 32px; height: 32px; border-radius: 8px; flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--surface-2); color: var(--ink-3);
+}
+.cdx-glyph.is-form { background: var(--soft, #eef2ff); color: var(--accent, #4338ca); }
+
+.cdx-add, .cdx-rename, .cdx-confirm { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; flex: 1; }
+.cdx-add { padding: 10px 4px; border-bottom: 1px solid var(--hairline-2); }
+.cdx-add input, .cdx-rename input { flex: 1; min-width: 180px; font-size: var(--fs-14); }
+.cdx-confirm span { font-size: var(--fs-13); color: var(--ink-2); flex: 1; min-width: 160px; }
+.cdx-add label.btn { cursor: pointer; }
+
+.cdx-iconbtn {
+  width: 32px; height: 32px; border-radius: 8px; border: 0; background: transparent; cursor: pointer;
+  font-size: 18px; line-height: 1; color: var(--ink-3);
+}
+.cdx-iconbtn:hover, .cdx-iconbtn[aria-expanded="true"] { background: var(--surface-2); color: var(--ink-1); }
+.cdx-iconbtn:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
+.cdx-menu { position: relative; }
+.cdx-menu-pop {
+  position: absolute; inset-inline-end: 0; top: calc(100% + 4px); z-index: 30; min-width: 200px;
+  background: var(--card, #fff); border: 1px solid var(--hairline-1); border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, .12); padding: 4px;
+}
+.cdx-menu-item {
+  display: grid; gap: 1px; width: 100%; text-align: start; border: 0; background: none; cursor: pointer;
+  padding: 8px 10px; border-radius: 7px; font: inherit; font-size: var(--fs-13); color: var(--ink-1);
+}
+.cdx-menu-item small { font-size: 11.5px; color: var(--ink-4); }
+.cdx-menu-item:hover, .cdx-menu-item:focus-visible { background: var(--surface-2); outline: none; }
+.cdx-menu-item.is-danger { color: var(--danger, #b91c1c); }
+
+@media (max-width: 560px) {
+  .cdx-row { flex-wrap: wrap; }
+  .cdx-main { flex-basis: calc(100% - 44px); }
+  .cdx-row > .btn { margin-inline-start: 44px; }
+}

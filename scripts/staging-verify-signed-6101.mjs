@@ -10,7 +10,8 @@
  *   2. רינדור מחדש, בקוד הנוכחי, מהנתונים שננעלו + החתימות שנשמרו + תאריך החתימה —
  *      יוצא **זהה בייט-בבייט** לקובץ השמור. כלומר: אין בקובץ שום דבר שלא עבר את הנעילה.
  *   3. הערכים המבוקשים שננעלו אכן כתובים בקובץ (שכבת הטקסט).
- * ‼ רינדור זהה מחייב את אותו מיפוי: גרסה שננעלה במיפוי אחר מדווחת ולא מושווית.
+ * ‼ רינדור זהה מחייב את אותו מיפוי: מציירים במיפוי שבו הגרסה ננעלה — בסיס הקוד, או גרסה שפורסמה
+ *   מ«מסמכים ללקוחות» (smart_form_mappings, 210).
  */
 import { createClient } from '@supabase/supabase-js';
 import { build } from 'esbuild';
@@ -63,6 +64,7 @@ const esc = (p) => JSON.stringify(p.split('\\').join('/'));
 writeFileSync(join(tmp, 'entry.ts'), `
 export { renderBtl6101, israelDate } from ${esc(join(ROOT, 'src/features/smartForms/btl6101/document.ts'))};
 export { BTL6101_TEMPLATE } from ${esc(join(ROOT, 'src/features/smartForms/btl6101/template.ts'))};
+export { applyMapping } from ${esc(join(ROOT, 'src/features/smartForms/mappingCore.ts'))};
 export { formDate, formMoney } from ${esc(join(ROOT, 'src/features/smartForms/btl6101/layout6101.ts'))};
 `);
 await build({ entryPoints: [join(tmp, 'entry.ts')], bundle: true, outfile: join(tmp, 'm.mjs'), platform: 'node', format: 'esm', target: 'node20', logLevel: 'warning', nodePaths: [join(ROOT, 'node_modules')] });
@@ -73,17 +75,27 @@ globalThis.fetch = async (url, ...rest) => {
   return realFetch(url, ...rest);
 };
 const M = await import(pathToFileURL(join(tmp, 'm.mjs')).href);
-if (rev.mapping_version !== M.BTL6101_TEMPLATE.mappingVersion) {
-  console.log(`‼ הגרסה ננעלה במיפוי ${rev.mapping_version} והקוד במיפוי ${M.BTL6101_TEMPLATE.mappingVersion} — רינדור מחדש לא אמור להיות זהה; לא מושווה.`);
+// ‼ מציירים במיפוי שהגרסה ננעלה בו: עד בסיס הקוד — הבסיס עצמו; מעליו — התיקונים מ-smart_form_mappings (210)
+let template = null;
+const base = M.BTL6101_TEMPLATE;
+if (rev.mapping_version === base.mappingVersion) template = base;
+else if (rev.mapping_version > base.mappingVersion) {
+  const { data: mrow, error: mErr } = await admin.from('smart_form_mappings').select('version, status, fields')
+    .eq('template_key', 'btl-6101').eq('version', rev.mapping_version).maybeSingle();
+  ok(`מיפוי ${rev.mapping_version} שמור ופורסם`, !mErr && mrow && mrow.status !== 'draft', mErr?.message ?? mrow?.status ?? 'לא נמצא');
+  if (mrow && mrow.status !== 'draft') template = M.applyMapping(base, { version: rev.mapping_version, fields: mrow.fields ?? {} });
+}
+if (!template) {
+  console.log(`‼ הגרסה ננעלה במיפוי ${rev.mapping_version} והקוד בבסיס ${base.mappingVersion} — רינדור מחדש לא אמור להיות זהה; לא מושווה.`);
 } else {
   const clientSigned = (rev.signers ?? []).find(s => s.role === 'client')?.signedAt;
   const declarationDate = M.israelDate(clientSigned);
   const signatures = Object.fromEntries(Object.entries(rev.signatures ?? {}).map(([k, v]) => [k, v?.png]));
   const { bytes } = await M.renderBtl6101({ ...rev.snapshot.data, declarationDate }, rev.purposes, {
     signatures, title: `טופס 6101 חתום — ${client.first_name} ${client.last_name} — גרסה ${rev.revision}`,
-    date: new Date(rev.signed_at ?? clientSigned),
+    date: new Date(rev.signed_at ?? clientSigned), template,
   });
-  ok('רינדור מחדש (נתונים שננעלו + חתימות + תאריך חתימה) זהה בייט-בבייט לקובץ השמור', sha(bytes) === sha(stored),
+  ok(`רינדור מחדש (נתונים שננעלו + חתימות + תאריך חתימה, מיפוי ${template.mappingVersion}) זהה בייט-בבייט לקובץ השמור`, sha(bytes) === sha(stored),
     `${sha(bytes).slice(0, 12)} מול ${sha(stored).slice(0, 12)} (${bytes.byteLength} מול ${stored.byteLength})`);
 }
 

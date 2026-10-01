@@ -3,7 +3,7 @@
 // פיצול מייל סביב ה-@ המודפס, תאריך dd/mm/yyyy, סכום עם מפריד אלפים) וההחלטה
 // מה מוצג בכל תרחיש. הפריסה עצמה גנרית (../layout.ts).
 
-import type { DrawOp, FieldDef, LayoutIssue, LayoutResult, MeasureText } from '../types';
+import type { DrawOp, FieldDef, LayoutIssue, LayoutResult, MeasureText, SmartFormTemplate } from '../types';
 import { layoutFields, type FieldValue } from '../layout';
 import { BTL6101_TEMPLATE, OCCUPATION_VISIBLE_ROWS } from './template';
 import type { Btl6101Data, Btl6101Purpose, OccupationRow6101 } from './model';
@@ -91,15 +91,15 @@ function occupationValue(key: string, d: Btl6101Data): FieldValue {
 }
 
 /** האם המייל נכנס סביב ה-@ המודפס (שני החלקים, בגודל המינימלי לכל היותר). */
-export function emailFitsAroundAt(email: string, measure?: MeasureText): boolean {
+export function emailFitsAroundAt(email: string, measure?: MeasureText, template: SmartFormTemplate = BTL6101_TEMPLATE): boolean {
   if (!measure) return true;
   const { local, domain } = splitEmail(email);
-  const lf = BTL6101_TEMPLATE.fields.find(x => x.id === 'p1.contact.emailLocal')!;
-  const df = BTL6101_TEMPLATE.fields.find(x => x.id === 'p1.contact.emailDomain')!;
+  const lf = template.fields.find(x => x.id === 'p1.contact.emailLocal')!;
+  const df = template.fields.find(x => x.id === 'p1.contact.emailDomain')!;
   return measure(local, lf.minFontSize) <= lf.box.w - 2 && measure(domain, df.minFontSize) <= df.box.w - 2;
 }
 
-export function valueFor6101(f: FieldDef, d: Btl6101Data, measure?: MeasureText): FieldValue {
+export function valueFor6101(f: FieldDef, d: Btl6101Data, measure?: MeasureText, template: SmartFormTemplate = BTL6101_TEMPLATE): FieldValue {
   const key = f.dataKey;
   if (key.startsWith('#signature')) return undefined;
   if (key === '#appendixNote') {
@@ -112,7 +112,7 @@ export function valueFor6101(f: FieldDef, d: Btl6101Data, measure?: MeasureText)
     return (d as unknown as Record<string, unknown>)[k] === v;
   }
   if (key === 'email@local' || key === 'email@domain' || key === 'email@whole') {
-    const fits = emailFitsAroundAt(d.email, measure);
+    const fits = emailFitsAroundAt(d.email, measure, template);
     if (key === 'email@whole') return fits ? undefined : d.email.trim();
     if (!fits) return undefined;
     return key === 'email@local' ? splitEmail(d.email).local : splitEmail(d.email).domain;
@@ -131,16 +131,17 @@ export function valueFor6101(f: FieldDef, d: Btl6101Data, measure?: MeasureText)
 
 export const APPENDIX_HEADER = ['מתאריך', 'עד תאריך', 'עיסוק', 'הכנסה שלא מעבודה (₪)', 'מקור ההכנסה'];
 
-export function layout6101(d: Btl6101Data, purposes: readonly Btl6101Purpose[], measure: MeasureText): LayoutResult {
+/** ‼ template = הבסיס + גרסת המיפוי הפעילה (mapping.ts); ברירת המחדל — הבסיס שבקוד (בדיקות). */
+export function layout6101(d: Btl6101Data, purposes: readonly Btl6101Purpose[], measure: MeasureText, template: SmartFormTemplate = BTL6101_TEMPLATE): LayoutResult {
   const { ops, issues } = layoutFields({
-    template: BTL6101_TEMPLATE,
-    valueOf: f => valueFor6101(f, d, measure),
+    template,
+    valueOf: f => valueFor6101(f, d, measure, template),
     isActive: f => isActive6101(f, d, purposes),
     measure,
   });
   const out: DrawOp[] = [...ops];
   const extraIssues: LayoutIssue[] = [];
-  let pageCount = BTL6101_TEMPLATE.pageCount;
+  let pageCount = template.pageCount;
 
   if (sectionApplies('occupations', purposes)) {
     const sorted = sortOccupationRows(d.occupations);

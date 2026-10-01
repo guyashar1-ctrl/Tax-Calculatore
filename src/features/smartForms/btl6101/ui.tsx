@@ -5,6 +5,7 @@ import { NI_HOURS_BAND_LABELS } from '../../../types';
 import type { Filing, FilingEvent, Revision } from '../api';
 import type { CurrentBtlState } from './resolve';
 import type { BtlPortalPerson } from '../../nationalInsurance/btlPortalRecord';
+import type { SmartFormTemplate } from '../types';
 
 export interface WorkspaceCtx {
   filing: Filing;
@@ -16,6 +17,8 @@ export interface WorkspaceCtx {
   onChanged?: () => void;
   /** (207) מה ב"ל רושם על האדם שההגשה עליו. */
   btlRecord?: BtlPortalPerson;
+  /** (210) הבסיס + גרסת המיפוי הפעילה — נעילה, השוואת גרסאות ושמירת החתום. */
+  template: SmartFormTemplate;
 }
 
 export const formatDay = (iso: string) => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso); return m ? `${m[3]}/${m[2]}/${m[1]}` : iso; };
