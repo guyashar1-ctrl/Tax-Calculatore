@@ -2,7 +2,8 @@
 /**
  * prod-check-no-6101-test-data.mjs — אין בפרודקשן שום נתון של לקוחות הבדיקה של 6101 / «מה ב"ל רושם».
  *
- *   node scripts/prod-check-no-6101-test-data.mjs
+ *   node scripts/prod-check-no-6101-test-data.mjs                 ← לפני פריסה: הטבלאות אסור שיהיו
+ *   node scripts/prod-check-no-6101-test-data.mjs --after-deploy  ← אחרי: חייבות להיות, בלי שורות בדיקה
  *
  * ‼ קריאה בלבד (readProd, SELECT בלבד). מדפיס ספירות — לא ערכים אישיים.
  * מה נבדק: טבלאות ופונקציות 206/207/209 (לפני פריסה — אסור שיהיו), לקוחות הבדיקה
@@ -11,6 +12,7 @@
  */
 import { readProd, PROD_REF } from './staging-lib.mjs';
 
+const AFTER = process.argv.includes('--after-deploy');
 let bad = 0;
 const row = async (label, query, expectZero = true) => {
   const r = await readProd(query);
@@ -24,13 +26,21 @@ const exists = async (rel) => (await readProd(`select to_regclass('public.${rel}
 
 console.log(`פרודקשן ${PROD_REF} · קריאה בלבד\n`);
 
-// ── סכימה: 206/207/209 עוד לא הוחלו ──
-for (const t of ['smart_form_filings', 'smart_form_revisions', 'smart_form_events', 'btl_portal_facts', 'btl_portal_documents']) {
+// ── סכימה: לפני פריסה — 206/207/209 עוד לא הוחלו; אחרי — הטבלאות קיימות ואין בהן שורות בדיקה ──
+const TABLES = ['smart_form_filings', 'smart_form_revisions', 'smart_form_events', 'btl_portal_facts', 'btl_portal_documents'];
+for (const t of TABLES) {
   const e = await exists(t);
-  if (e) bad++;
-  console.log(`${e ? '✗' : '✓'} טבלה ${t} ${e ? 'קיימת' : 'לא קיימת'}`);
+  if (e !== AFTER) bad++;
+  console.log(`${e === AFTER ? '✓' : '✗'} טבלה ${t} ${e ? 'קיימת' : 'לא קיימת'}`);
 }
-await row('פונקציות smart_form_* / _btl_portal_* / get_btl_portal_record',
+if (AFTER) {
+  await row('הגשות 6101 של לקוחות בדיקה / עשן', `select count(*) from public.smart_form_filings where client_id like 'qa6101%' or client_id like 'sf6101-%' or client_id like 'smoke6101-%'`);
+  await row('רשומות «מה ב"ל רושם» של לקוחות בדיקה', `select count(*) from public.btl_portal_facts where client_id like 'qa6101%' or client_id like 'sf6101-%' or client_id like 'smoke6101-%'`);
+  await row('לקוחות עשן (smoke6101-*) שנשארו', `select count(*) from public.clients where id like 'smoke6101-%'`);
+  const total = await readProd(`select (select count(*) from public.smart_form_filings)::int f, (select count(*) from public.btl_portal_facts)::int b`);
+  console.log(`ℹ סה"כ בטבלאות החדשות: הגשות 6101 ${total[0].f} · עובדות ב"ל ${total[0].b} (אמיתיות בלבד)`);
+}
+if (!AFTER) await row('פונקציות smart_form_* / _btl_portal_* / get_btl_portal_record',
   `select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public'
      and (p.proname like 'smart_form%' or p.proname like '_smart_form%' or p.proname like '_btl_portal%' or p.proname = 'get_btl_portal_record'
           or p.proname like 'submit_smart_form%' or p.proname like 'get_smart_form%')`);
@@ -59,4 +69,4 @@ await row('כתובות המייל הסינתטיות של הבדיקות',
   `select count(*) from public.clients where email in ('noa.almog-83@mail.example.co.il', 'qa-6101@example.test', 'avi@example') or email like 'delivered+btlrec%'`);
 
 console.log(bad ? `\n✗ ${bad} ממצאים` : '\n✓ אין בפרודקשן שום נתון של בדיקות 6101');
-process.exit(bad ? 1 : 0);
+process.exitCode = bad ? 1 : 0;

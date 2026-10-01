@@ -48,6 +48,14 @@ interface Props {
   editRequest: { id: string; n: number } | null;
   /** טקסט נסגר; kept=false אם היה ריק ונמחק. ההורה עובר לכלי הבחירה. */
   onTextDone: (id: string, kept: boolean) => void;
+  /** צפייה בלבד: לחיצה בוחרת, בלי גרירה, ידיות או מחיקה (למשל מיפוי טופס שלא בעריכה). */
+  readOnly?: boolean;
+  /** האם לסימון נבחר יש כפתור מחיקה (שדה של טופס אינו נמחק). */
+  allowDelete?: boolean;
+  /** רצפת הגודל בשינוי גודל, כשבר מהעמוד. ברירת מחדל 0.015 — קטן מריבוע סימון בטופס רשמי. */
+  minSizePct?: number;
+  /** הגובה המרבי של הדף (CSS). ברירת המחדל מותאמת לסביבת העריכה של המסמכים. */
+  fitHeight?: string;
 }
 
 const TAP_SIZE = { w: 0.07, h: 0.05 };
@@ -73,6 +81,7 @@ export default function PdfPageEditor({
   page, bytes, sourceRotation, annotations, tool, color, zoom, pendingImage,
   onAdd, onLiveUpdate, onGestureStart, onGestureEnd,
   onRemove, selectedId, onSelect, editRequest, onTextDone,
+  readOnly = false, allowDelete = true, minSizePct = 0.015, fitHeight: fitHeightProp,
 }: Props) {
   const stageRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -317,7 +326,7 @@ export default function PdfPageEditor({
       return;
     }
     if (dd.mode === 'resize') {
-      onLiveUpdate(dd.id, resizeRect(dd.orig, dd.handle, p.x - dd.startX, p.y - dd.startY));
+      onLiveUpdate(dd.id, resizeRect(dd.orig, dd.handle, p.x - dd.startX, p.y - dd.startY, minSizePct));
     }
   }
 
@@ -356,7 +365,7 @@ export default function PdfPageEditor({
   const pageAnns = useMemo(() => annotations.filter(a => a.pageId === page.id), [annotations, page.id]);
   const drawing = tool !== 'select';
 
-  const fitHeight = `calc((100vh - 345px) * ${zoom})`;
+  const fitHeight = fitHeightProp ? `calc((${fitHeightProp}) * ${zoom})` : `calc((100vh - 345px) * ${zoom})`;
 
   return (
     <div className={`pdfe-stage-wrap${zoom > 1 ? ' is-zoomed' : ''}`}>
@@ -383,8 +392,9 @@ export default function PdfPageEditor({
             if (tool !== 'select') return;
             e.stopPropagation();
             e.preventDefault();
-            capturePointer(e);
             onSelect(a.id);
+            if (readOnly) return;   // צפייה: בחירה בלבד
+            capturePointer(e);
             const p = rel(e);
             dragRef.current = { mode: 'maybe-move', id: a.id, startX: p.x, startY: p.y, orig: a };
           };
@@ -412,6 +422,8 @@ export default function PdfPageEditor({
               selected={selectedId === a.id}
               editing={editingText === a.id}
               selectTool={tool === 'select'}
+              readOnly={readOnly}
+              allowDelete={allowDelete}
               onPointerDownBox={onDownBox}
               onStartResize={(e, handle) => {
                 e.stopPropagation();
@@ -524,9 +536,8 @@ function LineObject({ ann, stagePx, selected, selectTool, onPointerDownLine, onS
 
 // ─── שינוי גודל: 8 ידיות, מעוגן לצד הנגדי ──────────────────────────────
 
-function resizeRect(orig: Annotation, handle: Handle, dx: number, dy: number): Partial<Annotation> {
+function resizeRect(orig: Annotation, handle: Handle, dx: number, dy: number, min = 0.015): Partial<Annotation> {
   let x = orig.xPct, y = orig.yPct, w = orig.widthPct, h = orig.heightPct;
-  const min = 0.015;
 
   if (handle.includes('e')) w = orig.widthPct + dx;
   if (handle.includes('w')) { x = orig.xPct + dx; w = orig.widthPct - dx; }
@@ -559,7 +570,7 @@ const OVERLAY_FAMILY: Record<LatinFamily, string> = {
 };
 
 function AnnotationBox({
-  ann, stagePx, selected, editing, selectTool,
+  ann, stagePx, selected, editing, selectTool, readOnly = false, allowDelete = true,
   onPointerDownBox, onStartResize, onText, onAutoHeight, onDoneText, onEditText, onDelete,
 }: {
   ann: Annotation;
@@ -567,6 +578,8 @@ function AnnotationBox({
   selected: boolean;
   editing: boolean;
   selectTool: boolean;
+  readOnly?: boolean;
+  allowDelete?: boolean;
   onPointerDownBox: (e: React.PointerEvent) => void;
   onStartResize: (e: React.PointerEvent, h: Handle) => void;
   onText: (v: string) => void;
@@ -624,7 +637,7 @@ function AnnotationBox({
       style={style}
       onPointerDown={onPointerDownBox}
       onDoubleClick={() => { if (ann.kind === 'text') onEditText(); }}
-      title={ann.kind === 'text' && selectTool && !editing ? 'לחיצה כפולה או Enter לעריכה' : undefined}
+      title={ann.hint ?? (ann.kind === 'text' && selectTool && !editing ? 'לחיצה כפולה או Enter לעריכה' : undefined)}
     >
       {/* ‼ המילוי והמסגרת הם שתי שכבות נפרדות, בדיוק כמו בצריבה: השקיפות
           של המילוי אינה נוגעת במסגרת, ומסגרת אפשר לכבות לגמרי. */}
@@ -687,13 +700,15 @@ function AnnotationBox({
         )
       )}
 
-      {selected && selectTool && !editing && (
+      {selected && selectTool && !editing && !readOnly && (
         <>
-          <button
-            type="button" className="pdfe-del" aria-label="מחק סימון"
-            onPointerDown={e => e.stopPropagation()}
-            onClick={e => { e.stopPropagation(); onDelete(); }}
-          >✕</button>
+          {allowDelete && (
+            <button
+              type="button" className="pdfe-del" aria-label="מחק סימון"
+              onPointerDown={e => e.stopPropagation()}
+              onClick={e => { e.stopPropagation(); onDelete(); }}
+            >✕</button>
+          )}
           {HANDLES.map(h => (
             <span
               key={h}

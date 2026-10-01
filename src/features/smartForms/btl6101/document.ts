@@ -7,7 +7,7 @@ import type { ProfessionalConfirmations, Resolve6101Result } from './resolve';
 import { createMeasure, exportSmartForm } from '../exportPdf';
 import { sha256Hex } from '../hash';
 import { dataUrlToBytes } from '../signatureImage';
-import type { LayoutResult, MeasureText } from '../types';
+import type { LayoutResult, MeasureText, SmartFormTemplate } from '../types';
 
 let templateCache: Promise<Uint8Array> | null = null;
 let measureCache: Promise<MeasureText> | null = null;
@@ -32,8 +32,8 @@ export function measure6101(): Promise<MeasureText> {
   return measureCache;
 }
 
-export async function layoutFor(data: Btl6101Data, purposes: readonly Btl6101Purpose[]): Promise<LayoutResult> {
-  return layout6101(data, purposes, await measure6101());
+export async function layoutFor(data: Btl6101Data, purposes: readonly Btl6101Purpose[], template: SmartFormTemplate = BTL6101_TEMPLATE): Promise<LayoutResult> {
+  return layout6101(data, purposes, await measure6101(), template);
 }
 
 export interface RenderOpts {
@@ -41,15 +41,18 @@ export interface RenderOpts {
   draftMark?: string;
   title?: string;
   date?: Date;
+  /** הבסיס + גרסת המיפוי שבה מציירים (useActiveTemplate). חסר ⇒ הבסיס שבקוד. */
+  template?: SmartFormTemplate;
 }
 
 export async function renderBtl6101(data: Btl6101Data, purposes: readonly Btl6101Purpose[], opts: RenderOpts = {}): Promise<{ bytes: Uint8Array; layout: LayoutResult }> {
-  const [template, layout] = await Promise.all([loadBtl6101Template(), layoutFor(data, purposes)]);
+  const t = opts.template ?? BTL6101_TEMPLATE;
+  const [template, layout] = await Promise.all([loadBtl6101Template(), layoutFor(data, purposes, t)]);
   const signatures: Partial<Record<'client' | 'spouse', Uint8Array>> = {};
   for (const [role, url] of Object.entries(opts.signatures ?? {})) {
     if (url) signatures[role as 'client' | 'spouse'] = dataUrlToBytes(url);
   }
-  const bytes = await exportSmartForm(template, BTL6101_TEMPLATE, layout, {
+  const bytes = await exportSmartForm(template, t, layout, {
     signatures, draftMark: opts.draftMark,
     meta: { title: opts.title ?? 'דין וחשבון רב שנתי (6101)', subject: `ביטוח לאומי · טופס 6101 (${BTL6101_TEMPLATE.version})`, keywords: ['6101', BTL6101_TEMPLATE.sha256], date: opts.date },
   });
@@ -63,7 +66,7 @@ export function israelDate(iso: string): string {
 }
 
 /** מה ננעל לחתימה: הנתונים שעל הטופס + מקור כל שדה + אזהרות שנשארו. */
-export function snapshotFor(res: Resolve6101Result, layoutIssues: LayoutResult['issues'], professional: ProfessionalConfirmations = {}) {
+export function snapshotFor(res: Resolve6101Result, layoutIssues: LayoutResult['issues'], professional: ProfessionalConfirmations = {}, template: SmartFormTemplate = BTL6101_TEMPLATE) {
   const fields: Record<string, { status: string; source: string; at?: string }> = {};
   for (const [k, f] of Object.entries(res.fields)) {
     if (f.status === 'not_applicable') continue;
@@ -90,6 +93,6 @@ export function snapshotFor(res: Resolve6101Result, layoutIssues: LayoutResult['
       // (207) מה ב"ל רשם ברגע הנעילה — ראיה למצב שממנו ביקשו את השינוי
       recorded: res.btl.recorded ?? null,
     },
-    template: { key: BTL6101_TEMPLATE.key, version: BTL6101_TEMPLATE.version, sha256: BTL6101_TEMPLATE.sha256, mappingVersion: BTL6101_TEMPLATE.mappingVersion },
+    template: { key: template.key, version: template.version, sha256: template.sha256, mappingVersion: template.mappingVersion },
   };
 }

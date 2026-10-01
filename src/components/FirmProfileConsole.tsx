@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import SmartTemplatesCard from '../features/smartForms/SmartTemplatesCard';
-import '../features/smartForms/smartForms.css';
+import ClientDocumentsSection from './office/ClientDocumentsSection';
 import {
   FirmProfile,
   FirmBranding,
@@ -22,11 +21,6 @@ import QuotationDesignStudio from './quotations/QuotationDesignStudio';
 import { deriveQuotationBrand } from './quotations/quotationBranding';
 import { supabase } from '../lib/supabase';
 import { FIRM_PRIVATE_BUCKET, downloadPrivateDataUrl } from '../utils/privateAsset';
-import type { DocVersion } from '../lib/clientGuide';
-import {
-  GUIDE_BUCKET, documentLibrary, newDocumentId,
-  withAddedDocument, withRemovedDocument, withRenamedDocument, withReplacedFile,
-} from '../lib/clientGuide';
 import {
   defaultTemplate,
   PLACEHOLDERS_BY_KIND,
@@ -674,7 +668,7 @@ export default function FirmProfileConsole({ profile, clients, onSave }: Props) 
           )}
 
           {section === 'clientDocs' && (
-            <ClientDocumentsSection profile={draft} clients={clients} onChangeProfile={setDraft} />
+            <ClientDocumentsSection profile={draft} onChangeProfile={setDraft} />
           )}
 
           {section === 'emailActivity' && (
@@ -713,128 +707,6 @@ export default function FirmProfileConsole({ profile, clients, onSave }: Props) 
 // לקובץ העדכני, וההיסטוריה היא מה שמאפשר לדעת מה לקוח ראה בתאריך שרשום
 // על הבקשה שלו.
 
-function ClientDocumentsSection({ profile, clients, onChangeProfile }: { profile: FirmProfile; clients: Client[]; onChangeProfile: (p: FirmProfile) => void }) {
-  const [busyId, setBusyId] = useState<string | null>(null);
-  const [err, setErr] = useState<string | null>(null);
-  const [adding, setAdding] = useState(false);
-  const [newLabel, setNewLabel] = useState('');
-  const docs = documentLibrary(profile);
-
-  async function put(file: File, id: string): Promise<DocVersion | null> {
-    if (file.type !== 'application/pdf') { setErr('אפשר להעלות PDF בלבד.'); return null; }
-    if (file.size > 10 * 1024 * 1024) { setErr('הקובץ גדול מדי - עד 10MB.'); return null; }
-    // ‼ שם ייחודי לכל העלאה, בלי upsert: הגרסה הקודמת נשארת במקומה, וגם
-    // מדיניות הדלי חוסמת upsert (אותו לקח כמו בלוגו).
-    const path = `${profile.id}/${id}-${Date.now()}.pdf`;
-    const { error: upErr } = await supabase.storage
-      .from(GUIDE_BUCKET).upload(path, file, { contentType: 'application/pdf' });
-    if (upErr) { setErr(upErr.message); return null; }
-    const { data: pub } = supabase.storage.from(GUIDE_BUCKET).getPublicUrl(path);
-    return { path, url: pub.publicUrl, fileName: file.name || 'document.pdf', at: new Date().toISOString() };
-  }
-
-  async function addDocument(file: File) {
-    setErr(null);
-    const id = newDocumentId();
-    setBusyId(id);
-    const v = await put(file, id);
-    setBusyId(null);
-    if (!v) return;
-    onChangeProfile({
-      ...profile,
-      settings: withAddedDocument(profile, {
-        id, label: newLabel.trim() || file.name.replace(/\.pdf$/i, ''), ...v,
-      }),
-    });
-    setNewLabel('');
-    setAdding(false);
-  }
-
-  async function replaceFile(id: string, file: File) {
-    setErr(null);
-    setBusyId(id);
-    const v = await put(file, id);
-    setBusyId(null);
-    if (!v) return;
-    onChangeProfile({ ...profile, settings: withReplacedFile(profile, id, v) });
-  }
-
-  const row: React.CSSProperties = {
-    display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
-    padding: '10px 0', borderTop: '1px solid var(--hairline-2)',
-  };
-
-  return (
-    <div style={card}>
-      <div style={cardTitle}>מסמכים ללקוחות</div>
-      <div style={{ fontSize: 'var(--fs-12)', color: 'var(--gray-500)', marginBottom: 6, lineHeight: 1.6 }}>
-        קבצים משותפים לכל הלקוחות. שולחים אותם מלשונית «בקשות» של הלקוח, ב«שליחת מסמך ללקוח» -
-        הבקשה נסגרת לבד ברגע שהוא פותח את המסמך.
-      </div>
-
-      {docs.map(d => (
-        <div key={d.id} style={row}>
-          <input
-            value={d.label}
-            onChange={e => onChangeProfile({ ...profile, settings: withRenamedDocument(profile, d.id, e.target.value) })}
-            style={{ flex: 1, minWidth: 160, fontSize: 'var(--fs-14)' }} />
-          <a href={d.url} target="_blank" rel="noopener noreferrer"
-            style={{ fontSize: 'var(--fs-12)', color: 'var(--accent)' }}>צפייה</a>
-          <label style={{ fontSize: 'var(--fs-12)', color: 'var(--accent)', cursor: 'pointer' }}>
-            <input type="file" accept="application/pdf" style={{ display: 'none' }} disabled={busyId === d.id}
-              onChange={e => { const f = e.target.files?.[0]; if (f) void replaceFile(d.id, f); e.target.value = ''; }} />
-            {busyId === d.id ? 'מעלה…' : 'החלפת קובץ'}
-          </label>
-          <button type="button" className="ui-linkbtn" style={{ fontSize: 'var(--fs-12)', color: 'var(--gray-500)' }}
-            onClick={() => onChangeProfile({ ...profile, settings: withRemovedDocument(profile, d.id) })}>
-            הסרה
-          </button>
-          <span style={{ width: '100%', fontSize: 'var(--fs-12)', color: 'var(--gray-500)' }}>
-            {d.fileName} · {new Date(d.at).toLocaleDateString('he-IL')}
-            {d.history?.length ? ` · ${d.history.length} גרסאות קודמות` : ''}
-          </span>
-        </div>
-      ))}
-
-      {docs.length === 0 && !adding && (
-        <div style={{ fontSize: 'var(--fs-13)', color: 'var(--gray-600)', padding: '10px 0' }}>
-          עוד אין מסמכים.
-        </div>
-      )}
-
-      {adding ? (
-        <div style={{ ...row, alignItems: 'flex-end' }}>
-          <label style={{ flex: 1, minWidth: 180, fontSize: 'var(--fs-12)', color: 'var(--gray-600)' }}>
-            שם המסמך (מה שהלקוח יראה)
-            <input value={newLabel} autoFocus onChange={e => setNewLabel(e.target.value)}
-              placeholder="למשל: מדריך הוצאות מוכרות" style={{ marginTop: 4, width: '100%' }} />
-          </label>
-          <label className="btn btn-secondary" style={{ cursor: 'pointer' }}>
-            <input type="file" accept="application/pdf" style={{ display: 'none' }} disabled={!!busyId}
-              onChange={e => { const f = e.target.files?.[0]; if (f) void addDocument(f); e.target.value = ''; }} />
-            {busyId ? 'מעלה…' : 'בחירת קובץ PDF'}
-          </label>
-          <button type="button" className="btn btn-ghost" onClick={() => { setAdding(false); setNewLabel(''); }}>ביטול</button>
-        </div>
-      ) : (
-        <button type="button" className="ui-linkbtn"
-          style={{ marginTop: 10, fontSize: 'var(--fs-13)', color: 'var(--accent)' }}
-          onClick={() => { setAdding(true); setErr(null); }}>
-          ＋ הוספת מסמך
-        </button>
-      )}
-
-      <div style={{ fontSize: 'var(--fs-12)', color: 'var(--gray-500)', marginTop: 10 }}>
-        PDF עד 10MB. ‼ החלפת קובץ משנה מיד את מה שייפתח בכל הבקשות - גם אלה שכבר נשלחו.
-        לשמירה יש ללחוץ «שמירת שינויים» למעלה.
-      </div>
-
-      <SmartTemplatesCard clients={clients} />
-
-      {err && <div style={{ marginTop: 10, color: 'var(--danger, var(--err))', fontSize: 'var(--fs-13)' }}>{err}</div>}
-    </div>
-  );
-}
 
 // ───────────────────────── התראות למשרד ─────────────────────────
 // ‼ המסך נגזר מהקטלוג המשותף ולא מרשימה שכתובה כאן. אירוע חדש שנוסף לקטלוג

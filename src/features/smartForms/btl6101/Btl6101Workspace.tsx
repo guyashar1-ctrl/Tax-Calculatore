@@ -25,6 +25,7 @@ import Btl6101Lifecycle from './Btl6101Lifecycle';
 import type { LayoutIssue } from '../types';
 import { BtlNow, formatDay, formatIl, type WorkspaceCtx } from './ui';
 import { loadBtlPortalRecord, type BtlPortalRecord } from '../../nationalInsurance/btlPortalRecord';
+import { useActiveTemplate, useTemplateVersion } from '../mapping';
 import '../smartForms.css';
 
 type Step = 'purpose' | 'data' | 'review' | 'sign' | 'submit';
@@ -73,6 +74,9 @@ export default function Btl6101Workspace({ filingId, client: clientProp, onClose
   const [preview, setPreview] = useState<{ bytes: Uint8Array | null; busy: boolean; issues: LayoutIssue[]; drawn: Set<string>; error?: string }>({ bytes: null, busy: true, issues: [], drawn: new Set() });
 
   useEffect(() => setClient(clientProp), [clientProp]);
+
+  // (210) המיפוי הפעיל — בלעדיו לא מציירים ולא נועלים (מיפוי משוער = שדה במקום הלא נכון)
+  const activeT = useActiveTemplate(BTL6101_TEMPLATE);
 
   // (207) מה ב"ל רושם — נקרא בפורטל ונשמר בשרת; מקור השוואה והשלמה בפתרון השדות.
   const [btlRecord, setBtlRecord] = useState<BtlPortalRecord | null>(null);
@@ -139,15 +143,18 @@ export default function Btl6101Workspace({ filingId, client: clientProp, onClose
     return { ...rev.snapshot.data, declarationDate: clientSigned ? israelDate(clientSigned) : '' };
   }, [rev, resolved.data]);
   const previewPurposes = rev && rev.state !== 'draft' ? rev.purposes : purposes;
+  // ‼ גרסה שננעלה/נחתמה מוצגת במיפוי שלה; טיוטה — במיפוי הפעיל
+  const lockedT = useTemplateVersion(BTL6101_TEMPLATE, rev && rev.state !== 'draft' ? rev.mappingVersion : null);
+  const drawT = rev && rev.state !== 'draft' ? lockedT.template : activeT.template;
   useEffect(() => {
-    if (!previewData || !rev) return;
+    if (!previewData || !rev || !drawT) return;
     let cancelled = false;
     setPreview(p => ({ ...p, busy: true }));
     const t = window.setTimeout(async () => {
       try {
         const sig = Object.fromEntries(Object.entries(rev.signatures).map(([k, v]) => [k, v?.png]));
         const { bytes, layout } = await renderBtl6101(previewData, previewPurposes, {
-          signatures: sig,
+          signatures: sig, template: drawT,
           draftMark: rev.state === 'draft' ? `טיוטה · גרסה ${rev.revision} · לא לחתימה ולא להגשה` : undefined,
         });
         if (!cancelled) setPreview({ bytes, busy: false, issues: layout.issues, drawn: new Set(layout.ops.map(o => ('fieldId' in o ? o.fieldId : ''))) });
@@ -156,11 +163,11 @@ export default function Btl6101Workspace({ filingId, client: clientProp, onClose
       }
     }, 250);
     return () => { cancelled = true; window.clearTimeout(t); };
-  }, [previewData, previewPurposes, rev]);
+  }, [previewData, previewPurposes, rev, drawT]);
 
   const hotspots = useMemo<Hotspot[]>(() => {
-    if (!previewData) return [];
-    return BTL6101_TEMPLATE.fields
+    if (!previewData || !drawT) return [];
+    return drawT.fields
       .filter(f => isActive6101(f, previewData, previewPurposes))
       .filter(f => {
         // ‼ רק מה שצויר בפועל, או שדה חובה שחסר — שטח חלופי שלא בשימוש (מייל ארוך,
@@ -178,7 +185,7 @@ export default function Btl6101Workspace({ filingId, client: clientProp, onClose
           : st.status === 'verified' || st.status === 'entered' ? 'ok' : 'muted';
         return { page: f.page, box: f.box, key, tone: rev?.state === 'draft' ? tone : 'muted', title: KEY_LABELS[key] ?? f.label };
       });
-  }, [previewData, previewPurposes, resolved.fields, rev?.state, preview.drawn]);
+  }, [previewData, previewPurposes, resolved.fields, rev?.state, preview.drawn, drawT]);
 
   const focusField = (key: string) => {
     setActiveKey(key);
@@ -193,12 +200,19 @@ export default function Btl6101Workspace({ filingId, client: clientProp, onClose
         <div style={{ padding: '1.5rem' }} className="sf-error">לא ניתן לטעון את ההגשה: {loadError}</div></div>
     );
   }
-  if (!bundle || !filing || !rev || !step) {
+  if (activeT.error) {
+    return (
+      <div className="sf-overlay"><div className="sf-head"><h2>דין וחשבון רב שנתי (6101)</h2><span style={{ flex: 1 }} />
+        <button type="button" className="btn btn-sm btn-ghost" onClick={onClose}>סגירה</button></div>
+        <div style={{ padding: '1.5rem' }} className="sf-error">{activeT.error}</div></div>
+    );
+  }
+  if (!bundle || !filing || !rev || !step || !activeT.template) {
     return <div className="sf-overlay"><div style={{ padding: '2rem' }} className="sf-note">טוען…</div></div>;
   }
 
   const blockers = [...resolved.issues.filter(i => i.severity === 'blocker'), ...preview.issues.map(i => ({ key: i.fieldId, severity: 'blocker' as const, code: i.code, message: i.message }))];
-  const ctx: WorkspaceCtx = { filing, rev, revisions: bundle.revisions, events: bundle.events, client, reload, onChanged, btlRecord: subjectRecord };
+  const ctx: WorkspaceCtx = { filing, rev, revisions: bundle.revisions, events: bundle.events, client, reload, onChanged, btlRecord: subjectRecord, template: activeT.template };
   const stateTone = ['submitted', 'awaiting_signatures', 'waiting_client_info', 'awaiting_client_submission'].includes(filing.state) ? 'is-wait'
     : filing.state === 'closed' ? 'is-done' : 'is-mine';
 
