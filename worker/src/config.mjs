@@ -43,6 +43,18 @@ export const LEASE_SECONDS = Number(get('PIVO_LEASE_SECONDS') || 60);
  */
 export const ONLY_ACTIONS = (get('PIVO_ONLY_ACTIONS') || '').split(',').map(s => s.trim()).filter(Boolean);
 export const MONITOR_SCOPE = get('PIVO_MONITOR') === 'btl' ? 'btl' : 'all';
+/**
+ * 211 · הכנת PDF ברקע (pdfBuilds.mjs): Chrome ללא-ראש פותח את דף ההמרה של האתר.
+ * `PIVO_SITE_URL` — האתר שממנו נטען קוד ההמרה (ברירת מחדל: האתר החי).
+ * `PIVO_PDF=off` מכבה; `PIVO_PDF_ONLY=1` — רק המרת PDF (בלי משימות ובלי ניטור
+ * חיבור לרשויות) — לעובד בדיקות מול סביבת הבדיקות, שלא ייגע בשע״ם או בב"ל.
+ */
+export const SITE_URL = (get('PIVO_SITE_URL') || 'https://crm.yasharcpa.co.il').replace(/\/+$/, '');
+export const PDF_ENABLED = (get('PIVO_PDF') || '').toLowerCase() !== 'off';
+export const PDF_ONLY = get('PIVO_PDF_ONLY') === '1';
+export const PDF_POLL_SECONDS = Number(get('PIVO_PDF_POLL_SECONDS') || 20);
+/** ‼ לבדיקות בלבד: תקרת ההגשה (ברירת מחדל — 30MB של שע״ם), כדי להדגים גרסה מוקטנת בלי קובץ ענק. */
+export const PDF_MAX_BYTES = Number(get('PIVO_PDF_MAX_BYTES') || 30 * 1024 * 1024);
 
 const missing = [];
 if (!FUNCTION_URL) missing.push('PIVO_FUNCTION_URL');

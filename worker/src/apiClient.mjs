@@ -1,6 +1,6 @@
 // apiClient.mjs — עטיפה דקה לארבע הפעולות של automation-worker edge function.
 // שום גישה ישירה למסד — הכול עובר דרך ה-HTTP הזה, מאומת ב-x-worker-secret.
-import { FUNCTION_URL, WORKER_SECRET, WORKER_TOKEN, WORKER_ID, INSTANCE_ID } from './config.mjs';
+import { FUNCTION_URL, WORKER_SECRET, WORKER_TOKEN, WORKER_ID, USER_ID, INSTANCE_ID } from './config.mjs';
 
 /**
  * 203 · אסימון המחשב (מועדף) — השרת גוזר ממנו חשבון וזהות. בלעדיו: הסוד
@@ -72,8 +72,26 @@ export const getDocument = async (workerId, jobId, documentId) => {
 export const getIdentityDocument = async (workerId, jobId, { entityId, slotKind }) => {
   const r = await call({ op: 'get_identity_document', workerId, jobId, entityId, slotKind });
   if (!r?.ok) return r;
+  // ‼ 211 · קובץ הגשה מעל 20MB מגיע ככתובת הורדה חתומה וקצרה, לא ב-base64.
+  if (r.downloadUrl) {
+    const res = await fetch(r.downloadUrl).catch(() => null);
+    if (!res?.ok) return { ok: false, error: 'download_failed', detail: `status ${res?.status ?? 'network'}` };
+    const buffer = Buffer.from(await res.arrayBuffer());
+    if (buffer.length !== Number(r.size) || buffer.subarray(0, 4).toString('latin1') !== '%PDF') {
+      return { ok: false, error: 'download_failed', detail: 'הקובץ שהורד אינו תואם' };
+    }
+    return { ...r, buffer };
+  }
   return { ...r, buffer: Buffer.from(r.contentBase64, 'base64') };
 };
+
+// ── 211 · הכנת PDF ברקע ──────────────────────────────────────────────────
+// ‼ רק בניות של החשבון שהמחשב רשום אליו. הקבצים עצמם עוברים בכתובות חתומות
+// ישירות בין דף ההמרה לאחסון — לא דרך התהליך הזה.
+export const pdfClaim = (limit = 2) => call({ op: 'pdf_claim', workerId: WORKER_ID, userId: USER_ID, limit });
+export const pdfComplete = (buildId, fingerprint, pdfResult) => call({ op: 'pdf_complete', workerId: WORKER_ID, userId: USER_ID, buildId, fingerprint, pdfResult });
+export const pdfFail = (buildId, fingerprint, { code, message, next, retry }) =>
+  call({ op: 'pdf_fail', workerId: WORKER_ID, userId: USER_ID, buildId, fingerprint, code, message, next, retry: !!retry });
 
 // ‼ 168: התקדמות עמידה לפי capability (warmupManager.mjs) — CAS על revision,
 // כדי ש-worker "זומבי" שהחכירה שלו פקעה לא ידרוס עדכון של המחזיק הנוכחי.

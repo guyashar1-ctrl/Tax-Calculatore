@@ -90,17 +90,20 @@ export default function DocumentViewerDialog({ title, caption, badge, load, onCl
     return () => [...u, ...d].forEach(x => x && URL.revokeObjectURL(x));
   }, [files]);
 
+  // ‼ כמה תמונות מאותו קובץ (HEIC עם שתי תמונות) — הורדה אחת של הקובץ המקורי, לא כפתור לכל תמונה.
+  const dl = files ? files.map((f, i) => ({ i, key: f.original?.bytes ?? f.bytes, name: f.original?.fileName ?? f.fileName }))
+    .filter((x, idx, all) => all.findIndex(y => y.key === x.key) === idx) : [];
   const footer = files && urls.length ? (
     <div className="dv-foot">
-      {files.map((f, i) => (
-        <a key={i} className="btn btn-primary btn-sm" href={downloads[i] ?? urls[i]} download={f.original?.fileName ?? f.fileName} data-testid="dv-download">
-          {files.length > 1 ? `הורדת עמוד ${i + 1}` : 'הורדה'}
+      {dl.map((d, n) => (
+        <a key={d.i} className="btn btn-primary btn-sm" href={downloads[d.i] ?? urls[d.i]} download={d.name} data-testid="dv-download">
+          {dl.length > 1 ? `הורדת קובץ ${n + 1}` : 'הורדה'}
         </a>
       ))}
       {files.length === 1 && (
         <a className="rc-link" href={urls[0]} target="_blank" rel="noreferrer">פתיחה בכרטיסייה חדשה</a>
       )}
-      <span className="dv-file">{files.length === 1 ? files[0].fileName : `${files.length} קבצים`}</span>
+      <span className="dv-file">{dl.length === 1 ? dl[0].name : `${dl.length} קבצים`}</span>
     </div>
   ) : null;
 

@@ -73,8 +73,8 @@ export const DOCUMENTS_STOPS: Record<string, { title: string; next: string; retr
     retry: true,
   },
   document_not_pdf_convertible: {
-    title: 'המסמך בפורמט שאי אפשר לשלוח לרשות המסים',
-    next: 'צרפו צילום בפורמט JPEG, PNG או PDF — השידור ימשיך מעצמו. שום דבר לא נשלח לשע״ם.',
+    title: 'אין עדיין PDF תקין להגשה של המסמך',
+    next: 'הסיבה מופיעה בשורת המסמך ב«מסמכי הבקשה» (בהכנה, ממתין לבדיקת גרסת ההגשה, או קובץ פגום). כשה-PDF יהיה תקין — השידור ימשיך מעצמו. שום דבר לא נשלח לשע״ם.',
     retry: false,
   },
   unsupported_required_document: {

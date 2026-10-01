@@ -1,6 +1,6 @@
 // ─── המרת תצלום ל-PDF — הליבה המשותפת לדפדפן ול-Deno ────────────────────
 // לקוחות שולחים צילום של מסמך; רשות המסים מבקשת PDF. אותו קוד רץ בדפדפן
-// (src/utils/imageToPdf.ts), בשרת (document-pdf — הכנה ברקע, 210) ובעובד
+// (src/utils/imageToPdf.ts), בשרת (document-pdf — הכנה ברקע, 211) ובעובד
 // (automation-worker — ברגע השידור, 204).
 // ‼ בלי שום import: pdf-lib ו-UPNG מוזרקים (`PdfLib`), כי בדפדפן הם חבילות
 // npm ו-Deno מייבא אותם מכתובת. כך אין שני מימושים שיכולים להיפרד.
@@ -13,8 +13,9 @@
 //   · כיוון: תג EXIF של JPEG מיושם במטריצה של הדף (בלי ראסטר מחדש).
 //   · שקיפות: משוטחת על רקע לבן — ועל רקע אפור כשהתוכן עצמו בהיר, כדי שלא ייעלם.
 //   · כמה חלקים (שני צדי תעודה) ⇒ PDF אחד, עמוד לכל חלק, באותו סדר.
-// ‼ פורמטים שאין להם מפענח כאן (HEIC, WebP, AVIF, GIF, BMP, TIFF) — הדפדפן מפענח
-// אותם ומעביר PNG (בלי אובדן נוסף). בשרת הם נכשלים בקוד 'needs_decoder', לא בשקט.
+// ‼ פורמטים שאין להם מפענח כאן (HEIC, WebP, AVIF, GIF, BMP) — Chrome מפענח אותם
+// (src/utils/imageToPdf.ts: בדפדפן, או בעובד האוטומציה במחשב המשרד) ומעביר פיקסלים
+// בלי אובדן נוסף. בשרת הם נכשלים בקוד 'needs_decoder', לא בשקט.
 
 /** מה שהליבה צריכה מ-pdf-lib. מבני בכוונה — ראה ההערה בראש הקובץ. */
 // deno-lint-ignore no-explicit-any
@@ -57,6 +58,11 @@ const A4_LONG = 841.89;
 const MARGIN = 24;
 /** מעל זה התמונה לא תפוענח (הגנה מקובץ שמתפוצץ בזיכרון). 100MP = צילום 12MP פי שמונה. */
 export const MAX_DECODE_PIXELS = 100_000_000;
+/**
+ * כמה תמונות/פריימים מקובץ אחד נכנסים כעמודים. מעבר לזה — כשל עם הסבר, לא
+ * «הראשון בלבד» בשקט (גיא: «לא לאבד תוכן בשקט בקובץ שמכיל כמה תמונות או פריימים»).
+ */
+export const MAX_FRAMES_PER_FILE = 10;
 
 // ─── זיהוי סוג ─────────────────────────────────────────────────────────
 
@@ -215,7 +221,7 @@ export function swapsAxes(orientation: number): boolean {
 
 export type ConversionErrorCode =
   | 'empty' | 'unsupported' | 'needs_decoder' | 'truncated' | 'corrupt'
-  | 'encrypted' | 'too_many_pixels' | 'too_large';
+  | 'encrypted' | 'too_many_pixels' | 'too_many_frames' | 'too_large';
 
 /**
  * שגיאת המרה בנוסח עברי מוכן להצגה. `next` — מה עושים עכשיו.
@@ -238,8 +244,8 @@ const REUPLOAD = 'להעלות שוב את הקובץ המקורי, או לצל�
 export function unsupportedFormatError(f: DetectedFormat): ImageConversionError {
   if (needsBrowserDecoder(f)) {
     return new ImageConversionError(
-      `קובץ ${FORMAT_NAME[f]} — כאן אין מפענח לסוג הזה, וההמרה תושלם בדפדפן.`, 'needs_decoder',
-      'ההמרה תושלם אוטומטית כשדף הבקשה ייפתח במשרד.');
+      `קובץ ${FORMAT_NAME[f]} — כאן אין מפענח לסוג הזה.`, 'needs_decoder',
+      'ההמרה תושלם אוטומטית במחשב המשרד.');
   }
   return new ImageConversionError(
     f === 'svg' ? 'קובץ SVG הוא שרטוט ולא צילום, ואי אפשר להגיש אותו כמסמך.'
@@ -268,10 +274,69 @@ function isTruncated(bytes: Uint8Array, kind: SupportedImageType): boolean {
 }
 
 /** מידות מתוך כותרת PNG (IHDR) — בלי לפענח. */
-function pngSize(bytes: Uint8Array): { w: number; h: number } | null {
+export function pngSize(bytes: Uint8Array): { w: number; h: number } | null {
   if (bytes.length < 24) return null;
   const v = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   return { w: v.getUint32(16, false), h: v.getUint32(20, false) };
+}
+
+/**
+ * כמה פריימים בקובץ — בלי לפענח. GIF: מתארי תמונה; WebP: מקטעי ANMF; PNG: acTL.
+ * כל השאר ⇒ 1. ‼ בשביל זה אין «הפריים הראשון בלבד» בשקט: מספר > 1 מחייב פענוח
+ * שמכיר פריימים, או כשל עם הסבר.
+ */
+export function animatedFrameCount(bytes: Uint8Array, fmt: DetectedFormat = sniffFormat(bytes)): number {
+  if (fmt === 'png') return pngFrameCount(bytes);
+  if (fmt === 'webp') {
+    let n = 0;
+    for (let o = 12; o + 8 <= bytes.length;) {
+      const type = ascii(bytes, o, 4);
+      const len = (bytes[o + 4] | (bytes[o + 5] << 8) | (bytes[o + 6] << 16) | (bytes[o + 7] << 24)) >>> 0;
+      if (type === 'ANMF') n++;
+      o += 8 + len + (len & 1);
+    }
+    return Math.max(1, n);
+  }
+  if (fmt === 'gif') {
+    if (bytes.length < 13) return 1;
+    let o = 13;
+    if (bytes[10] & 0x80) o += 3 * (1 << ((bytes[10] & 0x07) + 1));
+    let n = 0;
+    const skipSubBlocks = () => { while (o < bytes.length) { const sz = bytes[o++]; if (!sz) break; o += sz; } };
+    while (o < bytes.length) {
+      const b = bytes[o++];
+      if (b === 0x3b) break;                       // סוף הקובץ
+      if (b === 0x21) { o++; skipSubBlocks(); continue; }   // הרחבה
+      if (b !== 0x2c) break;                       // פגום — מה שנספר עד כאן
+      n++;
+      if (o + 9 > bytes.length) break;
+      const flags = bytes[o + 8];
+      o += 9;
+      if (flags & 0x80) o += 3 * (1 << ((flags & 0x07) + 1));
+      o++;                                          // LZW min code size
+      skipSubBlocks();
+    }
+    return Math.max(1, n);
+  }
+  return 1;
+}
+
+/**
+ * כמה פריימים ב-PNG: APNG מכריז על כך במקטע acTL לפני הנתונים. PNG רגיל ⇒ 1.
+ * ‼ pdf-lib מטמיע רק את התמונה הראשית — APNG חייב לעבור בפענוח שמכיר פריימים.
+ */
+export function pngFrameCount(bytes: Uint8Array): number {
+  for (let o = 8; o + 12 <= bytes.length;) {
+    const len = ((bytes[o] << 24) | (bytes[o + 1] << 16) | (bytes[o + 2] << 8) | bytes[o + 3]) >>> 0;
+    const type = ascii(bytes, o + 4, 4);
+    if (type === 'acTL' && o + 12 <= bytes.length) {
+      const n = ((bytes[o + 8] << 24) | (bytes[o + 9] << 16) | (bytes[o + 10] << 8) | bytes[o + 11]) >>> 0;
+      return Math.max(1, n);
+    }
+    if (type === 'IDAT' || type === 'IEND') return 1;
+    o += 12 + len;
+  }
+  return 1;
 }
 
 /** האם ל-PNG יש שקיפות — סוג צבע עם אלפא, או מקטע tRNS. */
@@ -349,10 +414,19 @@ export interface PartInfo {
   orientation?: number;
   /** שקיפות שוטחה — על איזה רקע. */
   flattened?: 'white' | 'grey';
-  /** נשמר כ-JPEG באיכות גבוהה ברזולוציה מלאה (רק בדפדפן, רק כשהגודל חרג). */
+  /** נשמר כ-JPEG ברזולוציה מלאה (רק ב-Chrome, רק כשהגודל חרג). */
   recompressed?: boolean;
-  /** הוקטן ל-300dpi (רק בדפדפן, רק כשגם JPEG ברזולוציה מלאה חרג). */
+  /** הוקטן (רק ב-Chrome, רק כשגם JPEG ברזולוציה מלאה חרג). */
   downscaled?: boolean;
+  /** איכות ה-JPEG כשנדחס (0–1). */
+  quality?: number;
+  /** המידות לפני ההקטנה. */
+  srcWidth?: number;
+  srcHeight?: number;
+  /** פריים/תמונה מתוך קובץ שיש בו כמה (GIF/WebP/APNG מונפש, HEIC עם כמה תמונות). */
+  frame?: { index: number; of: number };
+  /** מספר הקובץ המקורי (0-based) שממנו בא החלק — כשקובץ אחד נפרש לכמה עמודים. */
+  sourceIndex?: number;
 }
 
 /** מוסיף למסמך דף אחד מתצלום JPEG/PNG. זורק ImageConversionError בנוסח עברי מוכן. */
@@ -367,6 +441,11 @@ async function addImagePage(lib: PdfLib, pdf: PdfDoc, bytes: Uint8Array): Promis
   }
 
   if (kind === 'image/png') {
+    // ‼ APNG: pdf-lib מטמיע רק את התמונה הראשית — לא נשמיט פריימים בשקט.
+    if (pngFrameCount(bytes) > 1) {
+      throw new ImageConversionError('קובץ PNG מונפש (כמה פריימים) — כאן אין פענוח פריימים.', 'needs_decoder',
+        'ההמרה תושלם אוטומטית במחשב המשרד.');
+    }
     const dim = pngSize(bytes);
     if (dim && dim.w * dim.h > MAX_DECODE_PIXELS) {
       throw new ImageConversionError(`התמונה גדולה מדי לעיבוד (${Math.round(dim.w * dim.h / 1e6)} מגה-פיקסל).`,
@@ -412,8 +491,8 @@ async function addImagePage(lib: PdfLib, pdf: PdfDoc, bytes: Uint8Array): Promis
   return { format: fmt, pages: 1, width: natW, height: natH, orientation };
 }
 
-/** הצבה על דף A4 — משותף לתמונה מוטמעת ולפיקסלים גולמיים. */
-function fitOnA4(natW: number, natH: number) {
+/** הצבה על דף A4 — משותף לתמונה מוטמעת ולפיקסלים גולמיים, ולהשוואה במסך. */
+export function fitOnA4(natW: number, natH: number) {
   // דף לרוחב לתצלום רחב, לאורך לתצלום גבוה — כדי שהתמונה תמלא את הדף
   // במקום להצטמצם לרצועה עם שוליים ענקיים משני צדדיה.
   const landscape = natW > natH;
@@ -527,9 +606,14 @@ export async function buildDocumentPdfWith(
   }
   const notes: string[] = [];
   if (infos.some(p => p.flattened === 'grey')) notes.push('לתמונה היה רקע שקוף ותוכן בהיר — היא הונחה על רקע אפור כדי שהתוכן ייראה.');
-  if (infos.some(p => p.from === 'gif')) notes.push('מקובץ GIF נשמר רק הפריים הראשון.');
-  if (infos.some(p => p.recompressed && !p.downscaled)) notes.push('כדי לעמוד במגבלת הגודל של היעד התמונה נשמרה כ-JPEG באיכות גבוהה, ברזולוציה המלאה.');
-  if (infos.some(p => p.downscaled)) notes.push('כדי לעמוד במגבלת הגודל של היעד התמונה הוקטנה ל-300dpi (קריאה, אבל פחות חדה בהגדלה).');
+  for (const m of infos.filter(p => p.frame && p.frame.of > 1 && p.frame.index === 0)) {
+    const kind = FORMAT_NAME[m.from ?? m.format];
+    notes.push(m.from === 'heic'
+      ? `בקובץ ${kind} היו ${m.frame!.of} תמונות — כל אחת נכנסה כעמוד נפרד.`
+      : `בקובץ ${kind} היו ${m.frame!.of} פריימים — כל אחד נכנס כעמוד נפרד.`);
+  }
+  if (infos.some(p => p.recompressed && !p.downscaled)) notes.push('נשמר כ-JPEG ברזולוציה המלאה כדי לעמוד במגבלת הגודל.');
+  if (infos.some(p => p.downscaled)) notes.push('הוקטן כדי לעמוד במגבלת הגודל — פחות חד בהגדלה.');
   return { bytes, pageCount, parts: infos, lossless: !infos.some(p => p.downscaled || p.recompressed), notes };
 }
 
@@ -553,7 +637,7 @@ export async function imageToPdfBytesWith(lib: PdfLib, bytes: Uint8Array): Promi
 
 /**
  * מזהה ה-PDF שנגזר מקבוצת מקורות: pdf-<24 תווי sha256 של המזהים הממוינים>.
- * ‼ זהה בדפדפן, בשרת ובמסד (_pdf_build_id, 210) — שלושתם כותבים לאותה רשומה,
+ * ‼ זהה בדפדפן, בשרת ובמסד (_pdf_build_id, 211) — שלושתם כותבים לאותה רשומה,
  * ולכן אין קבצים כפולים גם כשכמה מסלולים בונים במקביל.
  */
 export async function pdfVersionIdFor(sourceIds: string[]): Promise<string> {

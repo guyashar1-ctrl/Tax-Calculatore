@@ -517,7 +517,7 @@ export interface ShaamRequiredDocument {
  * 204 · מצב השידור מול מסמכים ששע״ם דורשת — נכתב בשרת מתוצאת משימת השידור.
  *   awaiting_required_documents   · חסר מסמך; בקשה נפתחה ללקוח; ממשיך מעצמו כשמגיע.
  *   needs_document_assignment     · הת.ז. בכותרת שע״ם אינה אדם אחד בכרטיס.
- *   document_not_pdf_convertible  · המסמך בפורמט שאי אפשר להפוך ל-PDF.
+ *   document_not_pdf_convertible  · אין PDF תקין להגשה (בהכנה, ממתין לבדיקה, נפסל, או קובץ פגום).
  *   unsupported_required_document · צו ירושה / אפוטרופוס / שורה לא מוכרת — ידני.
  *   first_live_verification       · שומר המקרה החי הראשון: הכול מוכן, לא הועלה.
  *   required_document_unavailable · המסמך לא נקרא מהתיק.

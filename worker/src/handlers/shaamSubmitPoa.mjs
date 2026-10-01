@@ -107,6 +107,7 @@ function documentsStop(code, slots) {
   const lines = slots.map(slotLine).join(', ');
   // ‼ 208 · כל מה שחסר הוא אישור הלקוח (הצילום כבר בתיק) — לא «המסמך עדיין לא אצלנו».
   const onlyConfirm = slots.length > 0 && slots.every((x) => x.result?.error === 'not_confirmed');
+  const details = [...new Set(slots.map((x) => String(x.result?.detail ?? '').trim()).filter(Boolean))].join(' ');
   const text = {
     awaiting_required_documents: onlyConfirm
       ? `שע״ם דורשת לבקשה הזאת גם ${lines}. יש בתיק צילום, אבל הלקוח עוד לא אישר שהוא שלו - בקשת האישור ממתינה לו בדף האישי. ` +
@@ -116,9 +117,10 @@ function documentsStop(code, slots) {
     needs_document_assignment:
       'שע״ם דורשת מסמך מזהה נוסף, אבל לא ניתן לקבוע בוודאות של מי הוא: הת.ז. בכותרת הבקשה בשע״ם ' +
       'אינה תואמת בדיוק לאדם אחד בכרטיס. בדקו את מספרי הזהות בכרטיס. ',
+    // ‼ 211 · הסיבה מגיעה מהשרת: בהכנה / ממתין לבדיקת גרסת ההגשה / נפסל / קובץ פגום.
     document_not_pdf_convertible:
-      `שע״ם דורשת ${lines} כקובץ PDF, והקובץ שיש לנו בפורמט שאי אפשר להמיר (למשל HEIC/WEBP). ` +
-      'צרפו צילום בפורמט JPEG, PNG או PDF. ',
+      `שע״ם דורשת ${lines} כקובץ PDF, ועדיין אין PDF תקין להגשה` +
+      `${details ? `: ${details}` : '. צרפו צילום בפורמט JPEG, PNG, HEIC או PDF.'} `,
     required_document_unavailable:
       `שע״ם דורשת ${lines}, ולא הצלחתי לקרוא את המסמך מתיק הלקוח. `,
     first_live_verification:

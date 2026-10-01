@@ -48,6 +48,13 @@ function srcStampPlugin() {
 
 export default defineConfig({
   plugins: [react(), srcStampPlugin()],
+  build: {
+    rollupOptions: {
+      // ‼ 211 · דף ההמרה של עובד האוטומציה (Chrome ללא-ראש במחשב המשרד) —
+      // אותו קוד המרה כמו האתר, בדף נפרד בלי האפליקציה.
+      input: { main: 'index.html', pdfConverter: 'pdf-converter.html' },
+    },
+  },
   server: {
     watch: {
       // ‼ שני הדפוסים, ולא אחד — שני סשנים נתקלו באותה קריסה מכיוונים שונים

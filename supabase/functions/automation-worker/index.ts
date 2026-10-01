@@ -32,7 +32,8 @@ import {
 type Op =
   | "register"
   | "claim" | "heartbeat" | "complete" | "fail" | "status" | "progress" | "resolve_needs_human"
-  | "put_document" | "get_document" | "get_identity_document";
+  | "put_document" | "get_document" | "get_identity_document"
+  | "pdf_claim" | "pdf_complete" | "pdf_fail";
 
 interface Body {
   op: Op;
@@ -68,6 +69,18 @@ interface Body {
   /** 204 · get_identity_document — הת.ז. מכותרת המסך בשע״ם, וסוג השורה. */
   entityId?: string;
   slotKind?: string;
+  /** 211 · pdf_* — הכנת PDF ברקע במחשב המשרד. */
+  limit?: number;
+  buildId?: string;
+  fingerprint?: string;
+  pdfResult?: {
+    original?: Record<string, unknown> & { bytes?: number; pages?: number };
+    submission?: (Record<string, unknown> & { bytes?: number; pages?: number }) | null;
+  };
+  code?: string;
+  message?: string;
+  next?: string;
+  retry?: boolean;
 }
 
 // ‼ 204 · pdf-lib של Deno מוזרק לליבה המשותפת — אותו קוד כמו בדפדפן.
@@ -167,6 +180,117 @@ Deno.serve(async (req: Request) => {
       if (needsToken === true) return json({ ok: false, error: "workstation_requires_token" }, 401);
     }
     if (!body.workerId) return json({ ok: false, error: "bad_request" }, 400);
+
+    // ── 211 · PDF ברקע: העובד ממיר ב-Chrome מה שהשרת לא יכול (HEIC/WebP/פריימים/דחיסה) ──
+    // ‼ הגבול: רק בניות של החשבון שהמחשב רשום אליו (userId נגזר מהאסימון), ורק
+    // לנתיבים שהמסד קבע לטביעה הנוכחית. הקבצים עצמם עוברים בכתובות חתומות וקצרות —
+    // לא דרך השרת הזה ולא דרך תהליך העובד.
+    if (body.op === "pdf_claim" || body.op === "pdf_complete" || body.op === "pdf_fail") {
+      if (!body.userId) return json({ ok: false, error: "bad_request: userId required" }, 400);
+
+      if (body.op === "pdf_claim") {
+        const { data, error } = await admin.rpc("claim_worker_document_pdf_builds", {
+          p_user_id: body.userId, p_worker_id: body.workerId, p_limit: body.limit ?? 2,
+        });
+        if (error) return json({ ok: false, error: error.message }, 500);
+        type Claimed = {
+          id: string; fingerprint: string; slot: string; personName: string;
+          paths: { original: string; submission: string };
+          documents: { id: string; storagePath: string; fileName: string }[];
+        };
+        const out: unknown[] = [];
+        for (const b of (data ?? []) as Claimed[]) {
+          try {
+            const sources: { url: string; fileName: string }[] = [];
+            for (const d of b.documents) {
+              const { data: s, error: e } = await admin.storage.from(DOC_BUCKET).createSignedUrl(d.storagePath, 900);
+              if (e || !s?.signedUrl) throw new Error(e?.message ?? "sign_failed");
+              sources.push({ url: s.signedUrl, fileName: d.fileName });
+            }
+            const up = async (p: string) => {
+              const { data: u, error: e } = await admin.storage.from(DOC_BUCKET).createSignedUploadUrl(p, { upsert: true });
+              if (e || !u?.signedUrl) throw new Error(e?.message ?? "sign_failed");
+              return u.signedUrl;
+            };
+            out.push({
+              id: b.id, fingerprint: b.fingerprint, slot: b.slot, personName: b.personName, sources,
+              uploads: { original: await up(b.paths.original), submission: await up(b.paths.submission) },
+            });
+          } catch (e) {
+            await admin.rpc("fail_document_pdf_build", {
+              p_id: b.id, p_fingerprint: b.fingerprint, p_code: "transient", p_message: "תקלה זמנית בהכנת ה-PDF.",
+              p_next: "ניסיון נוסף יתבצע אוטומטית.", p_status: "retry", p_by: "worker",
+            });
+            console.error("pdf_claim sign", b.id, e instanceof Error ? e.message : e);
+          }
+        }
+        return json({ ok: true, builds: out });
+      }
+
+      if (!body.buildId || !body.fingerprint) return json({ ok: false, error: "bad_request: buildId+fingerprint required" }, 400);
+      const { data: b, error: bErr } = await admin.from("document_pdf_builds")
+        .select("id, user_id, client_id, person, slot, source_fingerprint").eq("id", body.buildId).maybeSingle();
+      if (bErr) return json({ ok: false, error: bErr.message }, 500);
+      // ‼ בנייה של חשבון אחר — כאילו לא קיימת.
+      if (!b || b.user_id !== body.userId) return json({ ok: false, error: "not_found" }, 404);
+
+      if (body.op === "pdf_fail") {
+        const { data, error } = await admin.rpc("fail_document_pdf_build", {
+          p_id: b.id, p_fingerprint: body.fingerprint, p_code: body.code ?? "worker_error",
+          p_message: body.message ?? "ההמרה נכשלה.", p_next: body.next ?? "",
+          p_status: body.retry ? "retry" : "failed", p_by: "worker",
+        });
+        if (error) return json({ ok: false, error: error.message }, 500);
+        return json(data);
+      }
+
+      // pdf_complete — ‼ לא סומכים על מה שהעובד מדווח: הקובץ חייב להיות באחסון, בגודל שדווח.
+      const r = body.pdfResult ?? {};
+      const { data: paths } = await admin.rpc("_pdf_build_paths", {
+        p_user: b.user_id, p_client: b.client_id, p_id: b.id, p_fingerprint: body.fingerprint,
+      });
+      const stored = async (path: string): Promise<number | null> => {
+        const slash = path.lastIndexOf("/");
+        const { data: list } = await admin.storage.from(DOC_BUCKET).list(path.slice(0, slash), { search: path.slice(slash + 1), limit: 20 });
+        const hit = (list ?? []).find((o: { name: string }) => o.name === path.slice(slash + 1)) as { metadata?: { size?: number } } | undefined;
+        return hit ? Number(hit.metadata?.size ?? -1) : null;
+      };
+      const oSize = await stored(paths.original);
+      if (!r.original || oSize === null || oSize !== Number(r.original.bytes)) {
+        return json({ ok: false, error: "original_not_stored", detail: `stored=${oSize} reported=${r.original?.bytes}` }, 400);
+      }
+      if (r.submission) {
+        const sSize = await stored(paths.submission);
+        if (sSize === null || sSize !== Number(r.submission.bytes)) {
+          return json({ ok: false, error: "submission_not_stored", detail: `stored=${sSize} reported=${r.submission.bytes}` }, 400);
+        }
+      }
+      const { data: c } = await admin.from("clients")
+        .select("first_name, last_name, spouse_first_name, spouse_last_name").eq("id", b.client_id).maybeSingle();
+      const who = (b.person === "spouse"
+        ? `${c?.spouse_first_name ?? ""} ${c?.spouse_last_name ?? ""}` : `${c?.first_name ?? ""} ${c?.last_name ?? ""}`).trim();
+      const label = ({ idOrLicense: "תעודה מזהה", passport: "דרכון" } as Record<string, string>)[b.slot] ?? "מסמך";
+      const result = {
+        original: { ...r.original, path: paths.original, fileName: `${label}${who ? ` - ${who}` : ""} (PDF).pdf` },
+        submission: r.submission
+          ? { ...r.submission, path: paths.submission, fileName: `${label}${who ? ` - ${who}` : ""} (PDF להגשה).pdf` }
+          : null,
+      };
+      const { data, error } = await admin.rpc("complete_document_pdf_build", {
+        p_id: b.id, p_fingerprint: body.fingerprint, p_built_by: "worker", p_result: result, p_worker_id: body.workerId,
+      });
+      if (error) return json({ ok: false, error: error.message }, 500);
+      if (!data?.ok) {
+        // ‼ המקור התחלף באמצע (stale) — מה שהועלה נבנה ממקור ישן ולעולם לא ישמש; מוחקים.
+        if (data?.error === "stale") await admin.storage.from(DOC_BUCKET).remove([paths.original, paths.submission]);
+        return json(data ?? { ok: false, error: "not_completed" });
+      }
+      const old = (data.oldPaths ?? []) as string[];
+      if (old.length) await admin.storage.from(DOC_BUCKET).remove(old);
+      // לא הייתה גרסה נפרדת — כתובת ההעלאה לה לא נוצלה; אם נשאר קובץ ישן בנתיב — מוחקים.
+      if (!r.submission) await admin.storage.from(DOC_BUCKET).remove([paths.submission]);
+      return json({ ok: true, submissionState: data.submissionState });
+    }
 
     if (body.op === "claim") {
       if (!body.userId) return json({ ok: false, error: "bad_request: userId required" }, 400);
@@ -349,39 +473,47 @@ Deno.serve(async (req: Request) => {
         return json({ ok: false, error: sel?.error ?? "selection_failed", person: sel?.person ?? null, personName: sel?.personName ?? null });
       }
       const docs = (sel.documents ?? []) as { documentId: string; fileName: string; storagePath: string }[];
-      // ‼ 210 · PDF שכבר הוכן ברקע מאותם מקורות בדיוק, ועדיין עדכני — הוא מה שעולה.
-      // זה גם המסלול היחיד ל-HEIC/WebP (פוענחו בדפדפן; כאן אין מפענח).
+      // ‼ 211 · כשיש בנייה ברקע לאותם מקורות בדיוק, ועדיין עדכנית — היא קובעת:
+      // מה שעולה הוא **גרסת ההגשה** (המקור כשהוא עומד במגבלה; אחרת הגרסה הנפרדת),
+      // ורק כשמותר (same/auto/approved). בהכנה / ממתין לבדיקה / נפסל / נכשל ⇒
+      // עצירה לפני נגיעה, עם ההסבר. אין נפילה להמרה על המקום שעוקפת את ההחלטה.
       {
-        const buildId = `pdf-${(await sha256Hex(docs.map((d) => d.documentId).sort().join("|"))).slice(0, 24)}`;
+        const ids = docs.map((d) => d.documentId);
+        const buildId = `pdf-${(await sha256Hex([...ids].sort().join("|"))).slice(0, 24)}`;
         const { data: b } = await admin.from("document_pdf_builds")
-          .select("id, status, source_fingerprint, page_count, error_message, error_next").eq("id", buildId).maybeSingle();
-        if (b?.status === "failed") {
-          const { data: fpNow } = await admin.rpc("_doc_fingerprint", { p_ids: docs.map((d) => d.documentId) });
-          // ‼ ההכנה ברקע כבר גילתה שהקובץ פגום — לא מגישים, ומוסרים את ההסבר שלה.
-          if (fpNow === b.source_fingerprint) {
-            return json({ ok: false, error: "not_pdf_convertible", detail: [b.error_message, b.error_next].filter(Boolean).join(" "),
-              person: sel.person, personName: sel.personName });
+          .select("id, status, source_fingerprint, page_count, error_message, error_next, submission_state, submission_document_id, submission_page_count")
+          .eq("id", buildId).maybeSingle();
+        const { data: fpNow } = b ? await admin.rpc("_doc_fingerprint", { p_ids: ids }) : { data: null };
+        if (b && b.status !== "superseded" && fpNow && b.source_fingerprint === fpNow) {
+          const notReady = (detail: string) => json({ ok: false, error: "not_pdf_convertible", detail, person: sel.person, personName: sel.personName });
+          if (b.status === "failed") return notReady([b.error_message, b.error_next].filter(Boolean).join(" "));
+          if (b.status !== "ready") return notReady("ה-PDF של הצילום עוד בהכנה במחשב המשרד. כשיהיה מוכן — השידור ימשיך מעצמו.");
+          const st = b.submission_state ?? "same";
+          if (st === "review") {
+            return notReady("ה-PDF באיכות המקור גדול מ-30MB, וגרסת ההגשה הוקטנה — היא ממתינה לבדיקתך ב«מסמכי הבקשה». אחרי האישור השידור ימשיך מעצמו.");
           }
-        }
-        if (b?.status === "ready") {
-          const { data: fp } = await admin.rpc("_doc_fingerprint", { p_ids: docs.map((d) => d.documentId) });
-          const { data: dd } = fp === b.source_fingerprint
-            ? await admin.from("documents").select("storage_path, file_name").eq("id", buildId).maybeSingle()
-            : { data: null };
-          if (dd?.storage_path) {
-            const { data: file } = await admin.storage.from(DOC_BUCKET).download(dd.storage_path);
-            if (file) {
-              const bytes = new Uint8Array(await file.arrayBuffer());
-              if (bytes.length <= MAX_DOC_BYTES && bytes[0] === 0x25 && bytes[1] === 0x50) {
-                return json({
-                  ok: true, person: sel.person, personName: sel.personName ?? null, docKind: sel.docKind,
-                  fileName: dd.file_name, pageCount: b.page_count ?? 1,
-                  sourceDocumentIds: docs.map((d) => d.documentId), derivedDocumentId: buildId,
-                  contentBase64: encodeBase64(bytes),
-                });
-              }
-            }
+          if (st === "rejected") return notReady("גרסת ההגשה המוקטנת נפסלה כלא קריאה — צריך צילום טוב יותר של המסמך.");
+          const docId = (b.submission_document_id as string | null) ?? b.id;
+          const { data: dd } = await admin.from("documents").select("storage_path, file_name, file_size").eq("id", docId).maybeSingle();
+          if (!dd?.storage_path) return json({ ok: false, error: "download_failed", detail: "קובץ ההגשה לא נמצא" }, 500);
+          const base = {
+            ok: true, person: sel.person, personName: sel.personName ?? null, docKind: sel.docKind,
+            fileName: dd.file_name, pageCount: b.submission_page_count ?? b.page_count ?? 1,
+            sourceDocumentIds: ids, derivedDocumentId: docId,
+          };
+          // ‼ מעל 20MB — כתובת הורדה חתומה וקצרה במקום base64 בגוף התשובה (זיכרון השרת).
+          if (Number(dd.file_size ?? 0) > MAX_DOC_BYTES) {
+            const { data: s, error: sErr } = await admin.storage.from(DOC_BUCKET).createSignedUrl(dd.storage_path, 600);
+            if (sErr || !s?.signedUrl) return json({ ok: false, error: "download_failed", detail: sErr?.message ?? "" }, 500);
+            return json({ ...base, downloadUrl: s.signedUrl, size: Number(dd.file_size) });
           }
+          const { data: file, error: dlErr } = await admin.storage.from(DOC_BUCKET).download(dd.storage_path);
+          if (dlErr || !file) return json({ ok: false, error: "download_failed", detail: dlErr?.message ?? "" }, 500);
+          const bytes = new Uint8Array(await file.arrayBuffer());
+          if (!(bytes[0] === 0x25 && bytes[1] === 0x50 && bytes[2] === 0x44 && bytes[3] === 0x46)) {
+            return json({ ok: false, error: "download_failed", detail: "קובץ ההגשה אינו PDF" }, 500);
+          }
+          return json({ ...base, contentBase64: encodeBase64(bytes) });
         }
       }
       const parts: Uint8Array[] = [];

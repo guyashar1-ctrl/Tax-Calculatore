@@ -73,7 +73,7 @@ import type { ViewerFile } from './DocumentViewerDialog';
 import { useDocumentPdfBuilds, pdfBuildFor } from '../hooks/useDocumentPdfBuilds';
 import { currentPoaVersion, noPoaReason, clientFieldsOf, type PoaVersion } from '../features/representation/poaVersion';
 import { burnSignaturesIntoPdf } from '../utils/signaturePdf';
-import { prepareForPdf, sniffFormat } from '../utils/imageToPdf';
+import { decodeForDisplay, sniffFormat } from '../utils/imageToPdf';
 import './repCenter.css';
 
 interface Props {
@@ -1036,10 +1036,10 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
   const inPrepare = plan.kind === 'prepare';
 
   // ── מסמכי הבקשה (01.10.2026): ייפוי הכוח בגרסה הנוכחית, והצילום המזהה + ה-PDF שלו ──
-  // ‼ ה-PDF מוכן ברקע (210): השרת בונה ברגע השיוך, והדפדפן משלים HEIC/WebP. אין «הכן PDF».
+  // ‼ ה-PDF מוכן ברקע (211): השרת בונה JPG/PNG ברגע השיוך, ועובד האוטומציה במחשב המשרד
+  // את השאר (HEIC/WebP/פריימים/גרסת הגשה). הדף הזה רק מציג ומחליט — לא ממיר. אין «הכן PDF».
   const pdf = useDocumentPdfBuilds({
-    requestId: request.id, clientId: linkedClient?.id, userId,
-    personName: role => nameOf(role) || '', identityKey: JSON.stringify(request.identityDocs ?? {}),
+    requestId: request.id, identityKey: JSON.stringify(request.identityDocs ?? {}),
     enabled: !!linkedClient && submissions.length > 0,
   });
   const loadDoc = async (id: string): Promise<ViewerFile> => {
@@ -1058,25 +1058,15 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
     const bytes = await burnSignaturesIntoPdf(buf, clientFieldsOf(doc.fields), request.signatureValues ?? {});
     return { bytes, fileName: v.fileName, mime: 'application/pdf' };
   };
-  /** HEIC/TIFF — הדפדפן לא מציג; מפענחים לתצוגה בלבד (המקור לא משתנה). */
-  const displayable = async (f: ViewerFile): Promise<ViewerFile> => {
+  /** HEIC — הדפדפן לא מציג; מפענחים לתצוגה בלבד (המקור לא משתנה), תמונה לכל עמוד שבקובץ. */
+  const displayable = async (f: ViewerFile): Promise<ViewerFile[]> => {
     const fmt = sniffFormat(f.bytes);
-    if (fmt === 'pdf') return { ...f, mime: 'application/pdf' };
-    if (fmt !== 'heic' && fmt !== 'tiff') return { ...f, mime: f.mime.startsWith('image/') ? f.mime : `image/${fmt === 'jpeg' ? 'jpeg' : fmt}` };
-    const prepared = await prepareForPdf(f.bytes);
-    const raw = prepared.part instanceof Uint8Array ? null : prepared.part;
-    if (!raw) return f;
-    const c = document.createElement('canvas');
-    c.width = raw.width; c.height = raw.height;
-    const ctx = c.getContext('2d')!;
-    const img = ctx.createImageData(raw.width, raw.height);
-    for (let i = 0, o = 0; o < raw.rgb.length; i += 4, o += 3) {
-      img.data[i] = raw.rgb[o]; img.data[i + 1] = raw.rgb[o + 1]; img.data[i + 2] = raw.rgb[o + 2]; img.data[i + 3] = 255;
-    }
-    ctx.putImageData(img, 0, 0);
-    const blob = await new Promise<Blob>(res => c.toBlob(b => res(b!), 'image/jpeg', 0.92));
-    return { bytes: new Uint8Array(await blob.arrayBuffer()), fileName: f.fileName, mime: 'image/jpeg',
-      original: { bytes: f.bytes, fileName: f.fileName, mime: fmt === 'heic' ? 'image/heic' : 'image/tiff' } };
+    if (fmt === 'pdf') return [{ ...f, mime: 'application/pdf' }];
+    if (fmt !== 'heic') return [{ ...f, mime: f.mime.startsWith('image/') ? f.mime : `image/${fmt === 'jpeg' ? 'jpeg' : fmt}` }];
+    const jpgs = await decodeForDisplay(f.bytes).catch(() => [] as Uint8Array[]);
+    if (!jpgs.length) return [f];
+    return jpgs.map(bytes => ({ bytes, fileName: f.fileName, mime: 'image/jpeg',
+      original: { bytes: f.bytes, fileName: f.fileName, mime: 'image/heic' } }));
   };
 
   const poaEntries: PoaEntry[] = poaDocs.length > 0
@@ -1774,6 +1764,7 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
       {/* ─────────── מסמכי הבקשה — צפייה בלחיצה אחת ─────────── */}
       <RepDocuments poa={poaEntries} ids={idEntries} loadDoc={loadDoc} composeClientSigned={composeClientSigned}
         displayable={displayable} onRetry={id => void pdf.retry(id)}
+        onDecide={pdf.decide} officeOnline={pdf.officeOnline}
         onRegenerateFinal={onRegenerateSignedPdf} regeneratingFinal={regeneratingSignedPdf} />
 
       {/* ─────────── מול הרשויות ─────────── */}

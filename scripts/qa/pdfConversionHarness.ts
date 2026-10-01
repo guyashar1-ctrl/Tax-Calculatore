@@ -5,7 +5,7 @@
 // משווה את מה שמופיע בדף למה שהיה צריך להופיע (מיושר, בלי חיתוך ומתיחה).
 // ‼ לא חלק מהאתר — אף קובץ באתר לא מייבא אותו.
 
-import { buildDocumentPdf, ImageConversionError, sniffFormat } from '../../src/utils/imageToPdf';
+import { buildDocumentPdf, buildDocumentPdfVersions, ImageConversionError, sniffFormat, fitOnA4, type FocusRegion } from '../../src/utils/imageToPdf';
 import { loadPdf } from '../../src/utils/pdfRender';
 import UPNG from '@pdf-lib/upng';
 import { PDFDocument, StandardFonts } from 'pdf-lib';
@@ -160,6 +160,51 @@ const textCrop = (c: Canvas) => {
   const t = canvas(w, h); t.getContext('2d')!.drawImage(c, x, y, w, h, 0, 0, w, h); return t.toDataURL('image/png');
 };
 
+/** APNG ממסגרות קנבס (acTL/fcTL/fdAT) — Chrome לא מייצר קבצים מונפשים בעצמו. */
+async function apngFrom(frames: Canvas[]): Promise<Uint8Array> {
+  const crcT = new Uint32Array(256).map((_, n) => { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; return c >>> 0; });
+  const crc = (d: Uint8Array) => { let c = 0xffffffff; for (const v of d) c = crcT[(c ^ v) & 255] ^ (c >>> 8); return (c ^ 0xffffffff) >>> 0; };
+  const chunk = (t: string, d: Uint8Array) => {
+    const o = new Uint8Array(12 + d.length); const v = new DataView(o.buffer);
+    v.setUint32(0, d.length); for (let i = 0; i < 4; i++) o[4 + i] = t.charCodeAt(i); o.set(d, 8);
+    v.setUint32(8 + d.length, crc(o.subarray(4, 8 + d.length))); return o;
+  };
+  const chunksOf = (p: Uint8Array) => {
+    const r: { t: string; d: Uint8Array }[] = []; const v = new DataView(p.buffer, p.byteOffset);
+    for (let o = 8; o < p.length;) { const len = v.getUint32(o); r.push({ t: String.fromCharCode(...p.subarray(o + 4, o + 8)), d: p.subarray(o + 8, o + 8 + len) }); o += 12 + len; }
+    return r;
+  };
+  const parsed = (await Promise.all(frames.map(f => toBytes(f, 'image/png')))).map(chunksOf);
+  const ihdr = parsed[0].find(c => c.t === 'IHDR')!.d; const iv = new DataView(ihdr.buffer, ihdr.byteOffset);
+  const w = iv.getUint32(0), h = iv.getUint32(4);
+  let seq = 0;
+  const fctl = () => { const d = new Uint8Array(26); const v = new DataView(d.buffer); v.setUint32(0, seq++); v.setUint32(4, w); v.setUint32(8, h); v.setUint16(20, 1); v.setUint16(22, 1); return chunk('fcTL', d); };
+  const actl = new Uint8Array(8); new DataView(actl.buffer).setUint32(0, frames.length);
+  const parts: Uint8Array[] = [new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), chunk('IHDR', ihdr), chunk('acTL', actl)];
+  parsed.forEach((cs, i) => {
+    parts.push(fctl());
+    for (const c of cs.filter(x => x.t === 'IDAT')) {
+      if (i === 0) parts.push(chunk('IDAT', c.d));
+      else { const d = new Uint8Array(4 + c.d.length); new DataView(d.buffer).setUint32(0, seq++); d.set(c.d, 4); parts.push(chunk('fdAT', d)); }
+    }
+  });
+  parts.push(chunk('IEND', new Uint8Array(0)));
+  const out = new Uint8Array(parts.reduce((n, p) => n + p.length, 0)); let o = 0; for (const p of parts) { out.set(p, o); o += p.length; }
+  return out;
+}
+
+/** אזור מעמוד ב-PDF, ברזולוציית המקור — כמו בחלון ההשוואה. */
+async function regionPng(pdfBytes: Uint8Array, r: FocusRegion, scale: number): Promise<string> {
+  const { doc } = await loadPdf(pdfBytes);
+  const page = await doc.getPage(r.page + 1);
+  const full = page.getViewport({ scale });
+  const x0 = Math.round(r.x * full.width), y0 = Math.round(r.y * full.height);
+  const w = Math.max(1, Math.round(r.w * full.width)), h = Math.max(1, Math.round(r.h * full.height));
+  const c = canvas(w, h);
+  await page.render({ canvasContext: c.getContext('2d')!, viewport: page.getViewport({ scale, offsetX: -x0, offsetY: -y0 }), canvas: c } as never).promise;
+  return c.toDataURL('image/png');
+}
+
 export interface QaCase {
   name: string; ok: boolean; detail: string; ms: number;
   pages?: number; bytes?: number; diffs?: number[]; expectThumb?: string; gotThumb?: string;
@@ -171,10 +216,10 @@ export async function runPdfConversionQa(heicBase64: string): Promise<QaCase[]> 
   const out: QaCase[] = [];
   const MAXB = 30 * 1024 * 1024;
 
-  async function convertCase(name: string, parts: Uint8Array[], expects: Canvas[], opts: { maxBytes?: number; allowReadableDownscale?: boolean; maxDiff?: number; expectNote?: RegExp } = {}) {
+  async function convertCase(name: string, parts: Uint8Array[], expects: Canvas[], opts: { maxBytes?: number; maxDiff?: number; expectNote?: RegExp } = {}) {
     const t0 = performance.now();
     try {
-      const r = await buildDocumentPdf(parts, { maxBytes: opts.maxBytes ?? MAXB, allowReadableDownscale: opts.allowReadableDownscale });
+      const r = await buildDocumentPdf(parts, { maxBytes: opts.maxBytes ?? MAXB });
       const diffs: number[] = []; let got: Canvas | null = null; let pageCanvas: Canvas | null = null;
       for (let i = 0; i < expects.length; i++) {
         const big = Math.max(expects[i].width, expects[i].height) > 2000 ? 1800 : 1400;
@@ -273,15 +318,21 @@ export async function runPdfConversionQa(heicBase64: string): Promise<QaCase[]> 
   const heic = Uint8Array.from(atob(heicBase64), ch => ch.charCodeAt(0));
   {
     // הצפוי: פענוח עצמאי של אותו קובץ (התמונה הראשית) ישר מ-libheif, בלי שום קוד שלנו בדרך.
+    // ‼ 211 · כל התמונות הראשיות שבקובץ — הראשית קודם. example.heic מכיל שתיים.
     const lib = (await import('libheif-js/libheif-wasm/libheif-bundle.mjs')).default();
     const imgs = new lib.HeifDecoder().decode(heic);
     const prim = imgs.find(i => i.is_primary()) ?? imgs[0];
-    const w = prim.get_width(), h = prim.get_height();
-    const target = { data: new Uint8ClampedArray(w * h * 4), width: w, height: h };
-    await new Promise(res => prim.display(target, res));
-    const expect = canvas(w, h); const ctx = expect.getContext('2d')!;
-    const id = ctx.createImageData(w, h); id.data.set(target.data); ctx.putImageData(id, 0, 0);
-    await convertCase(`HEIC · קובץ אמיתי (${w}×${h}), מול פענוח עצמאי`, [heic], [expect], { maxDiff: 0.02 });
+    const expects: Canvas[] = [];
+    for (const im of [prim, ...imgs.filter(i => i !== prim)]) {
+      const w = im.get_width(), h = im.get_height();
+      const target = { data: new Uint8ClampedArray(w * h * 4), width: w, height: h };
+      await new Promise(res => im.display(target, res));
+      const e = canvas(w, h); const ctx = e.getContext('2d')!;
+      const id = ctx.createImageData(w, h); id.data.set(target.data); ctx.putImageData(id, 0, 0);
+      expects.push(e);
+    }
+    await convertCase(`HEIC · קובץ אמיתי עם ${expects.length} תמונות ⇒ ${expects.length} עמודים, מול פענוח עצמאי`, [heic], expects,
+      { maxDiff: 0.02, expectNote: expects.length > 1 ? /תמונות/ : undefined });
   }
 
   // 8 · שני צדי תעודה ⇒ PDF אחד, לפי הסדר
@@ -306,37 +357,65 @@ export async function runPdfConversionQa(heicBase64: string): Promise<QaCase[]> 
   const pano = drawDoc(4000, 500);
   await convertCase('פנורמה 4000×500 (בלי חיתוך)', [await toBytes(pano, 'image/jpeg', 0.92)], [pano], { maxDiff: 0.05 });
 
-  // 11 · מגבלת גודל — סולם גלוי: בלי אובדן ⇒ JPEG באיכות גבוהה ברזולוציה מלאה ⇒ 300dpi
+  // 11 · ‼ 211 · שתי גרסאות: מקור (תמיד, בלי אובדן כשאפשר) + גרסת הגשה רק כשצריך.
+  // תקרה מוקטנת בכמה מקרים (מסומן בשם) — כדי לבדוק כל שלב בסולם בלי קבצים של 100MB.
+  async function versionsCase(name: string, files: Uint8Array[], maxBytes: number,
+    want: 'same' | 'auto' | 'review-recompressed' | 'review-downscaled' | 'too_large') {
+    const t0 = performance.now();
+    try {
+      const v = await buildDocumentPdfVersions(files, { maxBytes });
+      const sub = v.submission;
+      const got = !sub ? 'same' : !sub.needsReview ? 'auto' : sub.mode === 'downscaled' ? 'review-downscaled' : 'review-recompressed';
+      const checks: string[] = [];
+      if (sub && sub.result.pageCount !== v.original.pageCount) checks.push('מספר עמודים שונה');
+      if (sub && sub.result.bytes.length > maxBytes) checks.push('גרסת ההגשה מעל התקרה');
+      if (!sub && v.original.bytes.length > maxBytes) checks.push('המקור מעל התקרה ובכל זאת «same»');
+      if (sub?.mode === 'downscaled' && !sub.needsReview) checks.push('הקטנה עברה בלי בדיקה!');
+      if (sub && !sub.focus.length) checks.push('אין אזורים להשוואה');
+      const meta = sub ? sub.pagesMeta.map(p => `${p.srcW}×${p.srcH}⇠${p.outW}×${p.outH} q${Math.round(p.quality * 100)}`).join(', ') : '';
+      const c: QaCase = {
+        name, ok: got === want && !checks.length,
+        detail: `מקור ${(v.original.bytes.length / 1048576).toFixed(2)}MB${v.original.lossless ? ' בלי אובדן' : ''} · ${got}${sub ? ` · הגשה ${(sub.result.bytes.length / 1048576).toFixed(2)}MB, ${meta}` : ''}${checks.length ? ' · ✗ ' + checks.join('; ') : ''}`,
+        ms: Math.round(performance.now() - t0), notes: [...v.original.notes, ...(sub?.result.notes ?? [])],
+      };
+      if (sub?.focus[0]) {
+        const r = sub.focus[0]; const m = sub.pagesMeta.find(p => p.page === r.page) ?? sub.pagesMeta[0];
+        const scale = Math.min(12, m.srcW / fitOnA4(m.srcW, m.srcH).dw);
+        c.textExpect = await regionPng(v.original.bytes, r, scale); c.textGot = await regionPng(sub.result.bytes, r, scale);
+      }
+      out.push(c);
+    } catch (e) {
+      const err = e instanceof ImageConversionError ? { code: e.code, message: e.message, next: e.next } : { code: 'exception', message: String((e as Error)?.message ?? e), next: '' };
+      out.push({ name, ok: want === 'too_large' && err.code === 'too_large' && /מותר עד/.test(err.message), detail: `${err.code}: ${err.message} → ${err.next}`,
+        ms: Math.round(performance.now() - t0), error: err });
+    }
+  }
   {
-    // סריקת A4 ב-~600dpi עם מרקם נייר עדין — נכנסת בלי אובדן (ה-Flate של ה-PDF דוחס טוב מה-PNG).
-    const W = 5000, H = 7000; const scan = drawDoc(W, H); const g = scan.getContext('2d')!;
+    // סריקת A4 ב-600dpi עם טקסט קטן — בלי אובדן, עומדת בתקרה ⇒ המקור הוא קובץ ההגשה.
+    const W = 4961, H = 7016; const scan = drawDoc(W, H); const g = scan.getContext('2d')!;
     const img = g.getImageData(0, 0, W, H);
     for (let i = 0; i < img.data.length; i += 4) { const n = ((Math.random() - 0.5) * 22) | 0; img.data[i] += n; img.data[i + 1] += n; img.data[i + 2] += n; }
     g.putImageData(img, 0, 0);
     const scanPng = await toBytes(scan, 'image/png');
-    const lossless = await convertCase(`גודל · סריקת A4 ב-600dpi (${(scanPng.length / 1048576).toFixed(0)}MB PNG) ⇒ נכנסת בלי אובדן`, [scanPng], [scan], { maxDiff: 0.03 });
-    if (lossless && !lossless.lossless) { out[out.length - 1].ok = false; out[out.length - 1].detail += ' · היה צריך להישאר בלי אובדן'; }
-    // מרקם גס (צילום בתאורה חלשה) — בלי אובדן כבר לא נכנס ⇒ JPEG 95% ברזולוציה מלאה, מסומן.
-    const rough = drawDoc(W, H); const rg = rough.getContext('2d')!; const ri = rg.getImageData(0, 0, W, H);
-    for (let i = 0; i < ri.data.length; i += 4) { ri.data[i] += ((Math.random() - 0.5) * 70) | 0; ri.data[i + 1] += ((Math.random() - 0.5) * 70) | 0; ri.data[i + 2] += ((Math.random() - 0.5) * 70) | 0; }
-    rg.putImageData(ri, 0, 0);
-    const roughPng = await toBytes(rough, 'image/png');
-    await errorCase(`גודל · צילום מגורען (${(roughPng.length / 1048576).toFixed(0)}MB PNG) בלי היתר דחיסה ⇒ «גדול מדי» גלוי`, [roughPng], 'too_large');
-    await convertCase('גודל · אותו צילום עם היתר ⇒ JPEG 95% ברזולוציה מלאה, מסומן', [roughPng], [rough], { allowReadableDownscale: true, maxDiff: 0.06, expectNote: /JPEG באיכות גבוהה/ });
-    // JPEG מקורי ענק (רעש) — גם JPEG ברזולוציה מלאה לא נכנס ⇒ הקטנה ל-300dpi, מסומנת.
-    const N = 8500; const noise = canvas(N, N); const ng = noise.getContext('2d')!; const nd = ng.createImageData(N, N);
-    for (let i = 0; i < nd.data.length; i += 4) { nd.data[i] = Math.random() * 255; nd.data[i + 1] = Math.random() * 255; nd.data[i + 2] = Math.random() * 255; nd.data[i + 3] = 255; }
-    ng.putImageData(nd, 0, 0); ng.drawImage(drawDoc(N, N, { transparent: true }), 0, 0);
-    const hugeJpg = await toBytes(noise, 'image/jpeg', 0.98);
-    const t0 = performance.now();
-    try {
-      const r = await buildDocumentPdf([hugeJpg], { maxBytes: MAXB, allowReadableDownscale: true });
-      const ok = r.bytes.length <= MAXB && r.notes.some(n => /300dpi/.test(n)) && !r.lossless;
-      out.push({ name: `גודל · JPG מקורי ענק (${(hugeJpg.length / 1048576).toFixed(0)}MB, 72MP) ⇒ הקטנה ל-300dpi, מסומנת`, ok,
-        detail: `${r.pageCount} עמ׳ · ${(r.bytes.length / 1048576).toFixed(1)}MB · ${r.notes.join(' ')}`, ms: Math.round(performance.now() - t0), notes: r.notes });
-    } catch (e) {
-      out.push({ name: 'גודל · JPG מקורי ענק ⇒ הקטנה ל-300dpi', ok: false, detail: String((e as Error).message), ms: Math.round(performance.now() - t0) });
-    }
+    await versionsCase(`גרסאות · סריקת A4 600dpi (${(scanPng.length / 1048576).toFixed(0)}MB PNG) ⇒ המקור הוא גם קובץ ההגשה`, [scanPng], MAXB, 'same');
+    // אותה סריקה, תקרה נמוכה מהמקור: פיקסלים שפוענחו ⇒ JPEG 95% ברזולוציה מלאה — אוטומטי.
+    const limitAuto = 14 * 1048576;   // מתחת למקור (~21MB בלי אובדן), מעל JPEG 95%
+    await versionsCase(`גרסאות · אותה סריקה, תקרה ${(limitAuto / 1048576).toFixed(1)}MB ⇒ JPEG 95% ברזולוציה מלאה, אוטומטי`, [scanPng], limitAuto, 'auto');
+    // JPG מקורי מעל התקרה ⇒ דחיסה מחדש של JPEG מקורי — לא אוטומטי.
+    const jpg = await toBytes(scan, 'image/jpeg', 0.99);
+    await versionsCase(`גרסאות · JPG מקורי ${(jpg.length / 1048576).toFixed(1)}MB, תקרה ${(jpg.length * 0.8 / 1048576).toFixed(1)}MB ⇒ דחיסה מחדש, לבדיקה`, [jpg], Math.round(jpg.length * 0.8), 'review-recompressed');
+    // תקרה שרק הקטנה עומדת בה ⇒ מוקטן — תמיד לבדיקה.
+    await versionsCase(`גרסאות · תקרה ${(jpg.length * 0.25 / 1048576).toFixed(1)}MB ⇒ הקטנה ל-300dpi, תמיד לבדיקה`, [jpg], Math.round(jpg.length * 0.25), 'review-downscaled');
+    // גם הקטנה לא עומדת ⇒ שגיאה גלויה עם מספרים — לא PDF «שעובר».
+    await versionsCase('גרסאות · תקרה 0.2MB ⇒ «גדול מדי» גם אחרי הקטנה', [jpg], Math.round(0.2 * 1048576), 'too_large');
+  }
+
+  // 11ב · כמה פריימים בקובץ אחד — כל פריים עמוד; יותר מ-10 ⇒ הסבר. לעולם לא «הראשון» בשקט.
+  {
+    const fr = [0, 1, 2].map(i => { const c = drawDoc(900, 600); const g = c.getContext('2d')!; g.fillStyle = '#8e44ad'; g.font = 'bold 80px Arial'; g.fillText(`${i + 1}`, 420, 260); return c; });
+    await convertCase('APNG · 3 פריימים ⇒ 3 עמודים, בסדר', [await apngFrom(fr)], fr, { maxDiff: 0.04, expectNote: /3 פריימים/ });
+    const many = Array.from({ length: 12 }, () => drawDoc(200, 150));
+    await errorCase('APNG · 12 פריימים ⇒ הסבר, לא «הראשון»', [await apngFrom(many)], 'too_many_frames');
   }
 
   // 12 · קבצים פגומים / לא נתמכים — הסבר ודרך להמשך, בלי PDF חלקי

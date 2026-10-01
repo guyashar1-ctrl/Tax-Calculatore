@@ -3,12 +3,13 @@
 // לא Playwright, לא דפדפן, לא שע״ם — אבן דרך 1 מוכיחה רק את הצנרת. ראה
 // docs/PIVO-AUTOMATION-FOUNDATION.html לארכיטקטורה המלאה ול-worker/README.md
 // להרצה.
-import { USER_ID, WORKER_ID, POLL_SECONDS, LEASE_SECONDS, ONLY_ACTIONS, MONITOR_SCOPE } from './config.mjs';
+import { USER_ID, WORKER_ID, POLL_SECONDS, LEASE_SECONDS, ONLY_ACTIONS, MONITOR_SCOPE, PDF_ENABLED, PDF_ONLY } from './config.mjs';
 import { claim, heartbeat, complete, fail } from './apiClient.mjs';
 import { handlerFor, supportedActionTypes } from './dispatcher.mjs';
 import { NeedsHumanError, PermanentError } from './errors.mjs';
 import { tickConnectionMonitor, invalidateConnectionCache, checkBtlSoon, monitorSleepMs } from './connectionMonitor.mjs';
 import { acquireSingleInstance } from './singleInstance.mjs';
+import { startPdfLoop } from './pdfBuilds.mjs';
 
 const VERSION = '0.1.0';
 let stopping = false;
@@ -123,6 +124,15 @@ async function main() {
   const lock = await acquireSingleInstance(WORKER_ID);
   if (!lock.ok) process.exit(0);
   log(`עובד אוטומציה PIVO · worker=${WORKER_ID} · v${VERSION}`);
+  // ‼ 211 · הכנת PDF ברקע — לולאה נפרדת, Chrome נפרד (pdfBuilds.mjs).
+  const pdfLoop = PDF_ENABLED || PDF_ONLY ? startPdfLoop(log, () => stopping) : null;
+  if (PDF_ONLY) {
+    // ‼ עובד בדיקות: רק המרת PDF. לא תופס משימות, לא מנטר חיבור, לא נוגע בשע״ם/ב"ל.
+    log('מצב PDF בלבד — בלי משימות ובלי ניטור חיבור לרשויות');
+    await pdfLoop;
+    log('להתראות.');
+    return;
+  }
   const claimed = ONLY_ACTIONS.length ? supportedActionTypes().filter(a => ONLY_ACTIONS.includes(a)) : supportedActionTypes();
   log(`פעולות נתמכות: ${claimed.join(', ') || '(אין)'}${MONITOR_SCOPE === 'btl' ? ' · ניטור: ב״ל בלבד' : ''}`);
   log(`תשאול כל ${POLL_SECONDS}s · חכירה ${LEASE_SECONDS}s`);
@@ -135,6 +145,7 @@ async function main() {
     // ‼ 2 שניות בזמן המתנה להתחברות לב״ל ומיד אחריה — ראה btlLoginWatch.mjs.
     if (!found && !stopping) await sleep(monitorSleepMs(POLL_SECONDS * 1000));
   }
+  await pdfLoop;
   log('להתראות.');
 }
 

@@ -279,6 +279,7 @@
 .rc-doc-state[data-tone='done'] { color: var(--success-text); }
 .rc-doc-state[data-tone='wait'] { color: var(--warn); }
 .rc-doc-state[data-tone='danger'] { color: var(--danger); }
+.rc-doc-state[data-tone='attention'] { color: var(--warn); font-weight: 600; }
 .rc-doc-muted { color: var(--ink-3); }
 .rc-doc-next { font-size: 13px; color: var(--ink-3); margin-top: 3px; line-height: 1.55; }
 .rc-doc-acts { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px 12px; }
@@ -323,3 +324,26 @@
 .dv-badge { font-size: 12px; font-weight: 600; padding: 2px 9px; border-radius: 999px; background: var(--surface-2); color: var(--ink-2); }
 .dv-badge[data-tone='done'] { background: var(--chip-green-bg); color: var(--chip-green-tx); }
 .dv-badge[data-tone='wait'] { background: var(--chip-amber-bg); color: var(--chip-amber-tx); }
+
+/* ── 211 · השוואה: PDF באיכות המקור מול גרסת ההגשה ── */
+.pdfc { display: flex; flex-direction: column; gap: 16px; }
+.pdfc-row { display: flex; flex-direction: column; gap: 8px; }
+.pdfc-row + .pdfc-row { border-top: 1px solid var(--hairline-2); padding-top: 16px; }
+.pdfc-row-head { font-size: 13px; color: var(--ink-3); }
+.pdfc-pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.pdfc-side { margin: 0; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.pdfc-side figcaption { font-size: 13px; font-weight: 600; color: var(--ink-2); }
+/* ‼ פיקסל של המקור = פיקסל בקנבס; גדול מהעמודה ⇒ גלילה בתוך המסגרת, לא הקטנה. */
+.pdfc-crop { overflow: auto; max-height: 420px; border: 1px solid var(--hairline-1); border-radius: var(--radius); background: #fff; direction: ltr; }
+.pdfc-canvas { display: block; max-width: none; }
+.pdfc-wait { font-size: 13px; color: #5b6168; padding: 48px 12px; text-align: center; direction: rtl; }
+.pdfc-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; width: 100%; }
+.pdfc-downloads { margin-inline-start: auto; display: inline-flex; flex-wrap: wrap; gap: 6px 16px; }
+.pdfc-decided { font-size: 14px; font-weight: 600; }
+.pdfc-decided[data-tone='done'] { color: var(--success-text); }
+.pdfc-decided[data-tone='danger'] { color: var(--danger); }
+@media (max-width: 560px) {
+  .pdfc-pair { grid-template-columns: minmax(0, 1fr); }
+  .pdfc-crop { max-height: 300px; }
+  .pdfc-downloads { margin-inline-start: 0; }
+}

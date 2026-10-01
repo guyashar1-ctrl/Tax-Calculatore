@@ -52,8 +52,8 @@ const STATE_TEXT: Record<ShaamDocumentsGateState, { title: string; next: string;
     tone: 'attention',
   },
   document_not_pdf_convertible: {
-    title: 'המסמך שיש לנו בפורמט שאי אפשר לשלוח',
-    next: 'רשות המסים מקבלת PDF. צרפו צילום JPEG, PNG או PDF של אותו אדם — השידור ימשיך מעצמו.',
+    title: 'אין עדיין PDF תקין להגשה של המסמך',
+    next: 'הסיבה בשורת המסמך ב«מסמכי הבקשה»: בהכנה, ממתין לבדיקת גרסת ההגשה, או קובץ פגום (אז — לצרף צילום אחר). כשה-PDF יהיה תקין, השידור ימשיך מעצמו.',
     tone: 'attention',
   },
   unsupported_required_document: {
@@ -87,7 +87,7 @@ const PLAN_STATUS_TEXT: Record<string, string> = {
   ready: 'מוכן להעלאה',
   missing: 'חסר',
   needs_document_assignment: 'לא ניתן לשייך',
-  not_pdf_convertible: 'פורמט שאי אפשר להמיר',
+  not_pdf_convertible: 'אין PDF תקין להגשה',
   not_confirmed: 'יש בתיק - ממתין לאישור הלקוח',
 };
 
