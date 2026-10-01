@@ -111,4 +111,4 @@ const left = await fetch(`https://api.supabase.com/v1/projects/${REF}/database/q
   body: JSON.stringify({ query: `select count(*)::int n from public.clients where id like 'smoke6101-%'` }),
 }).then(x => x.json());
 console.log(`לקוחות עשן שנשארו במסד: ${left?.[0]?.n}`);
-process.exit(ok && left?.[0]?.n === 0 ? 0 : 1);
+process.exitCode = ok && left?.[0]?.n === 0 ? 0 : 1;
