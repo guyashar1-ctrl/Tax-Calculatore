@@ -158,6 +158,7 @@ export function useDocumentPdfBuilds(args: { requestId?: string; identityKey?: s
 /** ה-PDF של אדם ומשבצת (או של קבוצת מקורות). */
 export function pdfBuildFor(builds: PdfBuild[], person: 'client' | 'spouse', sourceIds?: string[]): PdfBuild | undefined {
   const same = (a: string[], b: string[]) => a.length === b.length && [...a].sort().join('|') === [...b].sort().join('|');
-  return builds.find(b => b.person === person && (!sourceIds || same(b.sourceIds, sourceIds)))
+  // ‼ קודם לפי המקורות עצמם: קובץ משותף לשני בני הזוג ⇒ בנייה אחת לשניהם (212).
+  return (sourceIds ? builds.find(b => same(b.sourceIds, sourceIds)) : undefined)
     ?? builds.find(b => b.person === person);
 }

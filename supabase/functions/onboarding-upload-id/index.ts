@@ -15,6 +15,7 @@
 // שהוא יימצא איפה שכל מסמך אחר של הלקוח נמצא.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { findIdenticalIdDoc, sha256Hex } from "../_shared/idDocDedupe.ts";
 
 const MAX_BYTES = 10 * 1024 * 1024;
 const MAX_PER_HOUR = 20;
@@ -101,9 +102,29 @@ Deno.serve(async (req: Request) => {
       .eq("client_id", clientId).gte("uploaded_at", hourAgo);
     if ((count ?? 0) >= MAX_PER_HOUR) return json({ error: "rate_limited" }, 429);
 
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    // ‼ 212 · אותו קובץ בדיוק כבר בתיק (למשל ספח משותף שהועלה קודם לבן/בת הזוג) —
+    // לא נשמר שוב; משויך גם לאדם הזה. כבר משויך לו ⇒ אין מה להוסיף.
+    const hash = await sha256Hex(bytes);
+    const sameDoc = await findIdenticalIdDoc(admin, clientId, bytes, hash);
+    if (sameDoc) {
+      const mine = ((reqRow.identity_docs ?? {}) as Record<string, { documentId?: string }[]>)[person] ?? [];
+      if (Array.isArray(mine) && mine.some((e) => e?.documentId === sameDoc)) {
+        return json({ ok: true, documentId: sameDoc, person, docKind, count: mine.length, deduped: true });
+      }
+      const { data: linked, error: linkErr } = await admin.rpc("onboarding_identity_doc_append", {
+        p_request_id: reqRow.id,
+        p_person: person,
+        p_entry: { documentId: sameDoc, docKind, fileName: file.name || "", at: new Date().toISOString() },
+      });
+      if (linkErr || !linked?.ok) {
+        return json({ error: "link_failed", detail: linkErr?.message || linked?.error || "" }, 500);
+      }
+      return json({ ok: true, documentId: sameDoc, person, docKind, count: linked.count, deduped: true });
+    }
+
     const docId = crypto.randomUUID();
     const path = `${reqRow.user_id}/${clientId}/${docId}`;
-    const bytes = new Uint8Array(await file.arrayBuffer());
 
     const { error: upErr } = await admin.storage
       .from("client-documents").upload(path, bytes, { contentType: type, upsert: false });
@@ -136,6 +157,7 @@ Deno.serve(async (req: Request) => {
       file_name: file.name || `${docKind}.jpg`,
       file_type: type,
       file_size: file.size,
+      content_sha256: hash,
       category: "id_card",
       year: "general",
       label_id: labelId,

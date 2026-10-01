@@ -416,6 +416,30 @@ Deno.serve(async (req: Request) => {
         return json({ ok: false, error: "not_a_pdf" }, 400);
       }
 
+      // ‼ 212 · טופס שהוחלף (208 רשם עליו «הוחלף») — הטופס החדש מגיע באותו מזהה ודורס
+      // אותו. לפני הדריסה נשמר עותק «-old-», שנכנס לבד לתיקיית «ייפוי כוח / ישן».
+      {
+        const { data: prev } = await admin.from("documents")
+          .select("id, storage_path, file_name, file_type, file_size, category, label_id, notes")
+          .eq("id", body.documentId).eq("user_id", userId).eq("client_id", clientId).maybeSingle();
+        if (prev?.storage_path && String(prev.notes ?? "").includes("הוחלף")) {
+          const stamp = new Date().toISOString().replace(/\D/g, "").slice(0, 12);
+          const oldId = `${body.documentId}-old-${stamp}`;
+          const oldPath = `${userId}/${clientId}/${oldId}`;
+          const { error: cpErr } = await admin.storage.from(DOC_BUCKET).copy(prev.storage_path, oldPath);
+          if (!cpErr) {
+            await admin.from("documents").insert({
+              id: oldId, user_id: userId, client_id: clientId, storage_path: oldPath,
+              file_name: prev.file_name, file_type: prev.file_type, file_size: prev.file_size,
+              category: prev.category ?? "other", year: "general", label_id: prev.label_id,
+              description: "ייפוי כוח - לחתימה (ישן)", notes: prev.notes, status: "received",
+            });
+          } else {
+            console.error("put_document: archive of replaced form failed", cpErr.message);
+          }
+        }
+      }
+
       const { error: upErr } = await admin.storage.from(DOC_BUCKET)
         .upload(path, bytes, { contentType: "application/pdf", upsert: true });
       if (upErr) return json({ ok: false, error: upErr.message }, 500);
