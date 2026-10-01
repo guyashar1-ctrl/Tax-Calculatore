@@ -54,18 +54,26 @@ export function layoutMixed(text: string): TextSegment[] {
   if (!hasHebrew(text)) return [{ rtl: false, text }];
   type Cls = 'R' | 'L' | 'N';
   const cls = (ch: string): Cls => isHebChar(ch) ? 'R' : /[A-Za-z0-9@]/.test(ch) ? 'L' : 'N';
-  const NUM_TRAIL = /[%,.:]/;   // 30% · 1,800 · 3.5 · 12:30 — נשארים מקשה אחת
+  // 30% · 1,800 · 3.5 · 12:30 — נשארים מקשה אחת. ‼ פסיק/נקודה/נקודתיים
+  // נצמדים רק כשאחריהם ספרה: «סעיף 3: עיסוק» ו«סכום 1,800.» — הסימן הוא
+  // פיסוק של המשפט העברי, ובהצמדה הוא נקרא לפני המספר (":3").
+  const NUM_SEP = /[,.:]/;
   const runs: { cls: Cls; text: string; atomic?: boolean }[] = [];
 
-  const pushChar = (ch: string) => {
+  const pushChar = (ch: string, next: string | undefined) => {
     const c = cls(ch);
     const prev = runs[runs.length - 1];
-    if (c === 'N' && NUM_TRAIL.test(ch) && prev?.cls === 'L' && !prev.atomic && /[0-9]$/.test(prev.text)) {
+    const trailsNumber = prev?.cls === 'L' && !prev.atomic && /[0-9]$/.test(prev.text);
+    if (c === 'N' && trailsNumber && (ch === '%' || (NUM_SEP.test(ch) && next !== undefined && /[0-9]/.test(next)))) {
       prev.text += ch;
       return;
     }
     if (prev && prev.cls === c && !prev.atomic) prev.text += ch;
     else runs.push({ cls: c, text: ch });
+  };
+  const pushSpan = (s: string) => {
+    const chars = [...s];
+    chars.forEach((ch, i) => pushChar(ch, chars[i + 1]));
   };
 
   // כתובת מייל / אתר היא יחידה אחת ואסור לפרק אותה: "guy@yasharcpa.co.il"
@@ -73,11 +81,11 @@ export function layoutMixed(text: string): TextSegment[] {
   // בכל שורה שהיה בה גם טקסט עברי (למשל כתובת המשרד לצד המייל).
   let last = 0;
   for (const m of text.matchAll(ATOMIC_LTR)) {
-    for (const ch of text.slice(last, m.index)) pushChar(ch);
+    pushSpan(text.slice(last, m.index));
     runs.push({ cls: 'L', text: m[0], atomic: true });
     last = (m.index ?? 0) + m[0].length;
   }
-  for (const ch of text.slice(last)) pushChar(ch);
+  pushSpan(text.slice(last));
 
   return runs.reverse().map(r => {
     if (r.cls === 'R') {
@@ -85,12 +93,16 @@ export function layoutMixed(text: string): TextSegment[] {
     }
     if (r.cls === 'N') {
       // מקטע ניטרלי מתהפך תו-תו יחד עם היפוך הרצפים — כדי ש"." שאחרי ")"
-      // יישאר בקצה השמאלי של המשפט ולא באמצעו
-      return { rtl: false, text: [...r.text].reverse().join('') };
+      // יישאר בקצה השמאלי של המשפט ולא באמצעו. ‼ וסוגריים מתהפכים גם בצורתם
+      // (bidi mirroring): בלי זה «(עמוד 4)» יוצא «)עמוד 4(».
+      return { rtl: false, text: [...r.text].reverse().map(ch => MIRROR[ch] ?? ch).join('') };
     }
     return { rtl: false, text: r.text };
   });
 }
+
+/** תווים שצורתם מתהפכת בהקשר מימין-לשמאל (Unicode Bidi_Mirrored). */
+const MIRROR: Record<string, string> = { '(': ')', ')': '(', '[': ']', ']': '[', '{': '}', '}': '{', '<': '>', '>': '<', '«': '»', '»': '«' };
 
 const segFont = (seg: TextSegment, fonts: PdfFonts): PDFFont => seg.rtl ? fonts.hebrew : fonts.latin;
 

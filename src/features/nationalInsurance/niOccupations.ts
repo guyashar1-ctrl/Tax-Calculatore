@@ -3,8 +3,8 @@
 // ועד מתי. עיסוקים **חופפים** מותרים (עצמאי וסטודנט באותה תקופה), ולא
 // נחתכים זה מול זה. «בלי תאריך סיום» = נמשך; לעולם לא מסיקים סיום מהיום.
 
-import type { NiOccupation, NiOccupationType } from '../../types';
-import { NI_OCCUPATION_TYPE_LABELS } from '../../types';
+import type { NiOccupation, NiOccupationBtlDetail, NiOccupationType } from '../../types';
+import { NI_HOURS_BAND_LABELS, NI_OCCUPATION_TYPE_LABELS } from '../../types';
 
 /**
  * השם כפי שביטוח לאומי קורא לו ⇒ הסוג ב-PIVO (שקובע אילו שדות נוספים
@@ -73,17 +73,21 @@ export interface BtlOccupationChain {
   fromDate: string;
   toDate: string | null;
   sourcePeriods: { fromDate: string; toDate: string | null }[];
+  /** «פירוט עיסוק» — רק כשנפתח ואומת בעובד (עצמאי בתוקף). */
+  detail?: NiOccupationBtlDetail;
 }
 
 /**
  * רצפי הפורטל ⇒ רשומות NiOccupation. ‼ שדות שהוזנו ביד על עיסוק מאותו סוג
  * (שעות, הכנסה להגדרה, מעסיק) נשמרים — הפורטל לא מחזיר אותם, ולכן אישור
- * העדכון לא אמור למחוק אותם.
+ * העדכון לא אמור למחוק אותם. ‼ «פירוט עיסוק» שלא נקרא הפעם (הפירוט נכשל)
+ * נשאר מהקריאה הקודמת כשהוא שייך לאותו רצף — כשל חלקי אינו «אין».
  */
 export function niOccupationsFromBtl(chains: readonly BtlOccupationChain[], existing: readonly NiOccupation[] = []): NiOccupation[] {
   return chains.map(c => {
     const type = niOccupationTypeFromBtl(c.sourceLabel);
     const prev = existing.find(o => (o.sourceLabel ?? '') === c.sourceLabel) ?? existing.find(o => o.type === type && !o.sourceLabel);
+    const keptDetail = prev?.btlDetail && prev.btlDetail.periodFrom >= c.fromDate ? prev.btlDetail : undefined;
     return {
       ...(prev ? {
         employerName: prev.employerName, withholdingFile: prev.withholdingFile,
@@ -96,19 +100,30 @@ export function niOccupationsFromBtl(chains: readonly BtlOccupationChain[], exis
       fromDate: c.fromDate,
       ...(c.toDate ? { toDate: c.toDate } : {}),
       sourcePeriods: c.sourcePeriods.map(p => ({ fromDate: p.fromDate, toDate: p.toDate })),
+      btlDetail: c.detail ?? keptDetail,
     };
   }).map(o => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined)) as unknown as NiOccupation);
 }
 
 /**
- * מפתח השוואה — מה שבאמת משנה לרו"ח: שם, התחלה, סוף. ‼ לא id ולא שדות
- * ידניים: עיסוק שהוזן ביד עם אותו שם ואותן תקופות **תואם** לפורטל.
+ * מפתח השוואה — מה שבאמת משנה לרו"ח: שם, התחלה, סוף, ומה שב"ל רשם בפירוט
+ * (טווח שעות, הכנסה להגדרה). ‼ לא id ולא שדות ידניים: עיסוק שהוזן ביד עם
+ * אותו שם ואותן תקופות **תואם** לפורטל כל עוד לפורטל אין פירוט.
  */
 export function niOccupationsKey(list: readonly NiOccupation[]): string {
   return list
-    .map(o => `${niOccupationLabel(o)}|${o.fromDate ?? ''}|${o.toDate ?? ''}`)
+    .map(o => `${niOccupationLabel(o)}|${o.fromDate ?? ''}|${o.toDate ?? ''}${o.btlDetail ? `|${o.btlDetail.hoursBand ?? ''}|${o.btlDetail.definitionIncome ?? ''}` : ''}`)
     .sort()
     .join(' ; ');
+}
+
+/** «20 שעות ומעלה בשבוע · הכנסה להגדרה 9,000 ₪» — מה שב"ל רשם, בלי המרה. */
+export function niBtlDetailText(d: NiOccupationBtlDetail | undefined): string {
+  if (!d) return '';
+  return [
+    d.hoursBand ? `${NI_HOURS_BAND_LABELS[d.hoursBand]} בשבוע` : '',
+    d.definitionIncome != null ? `הכנסה להגדרה ${Math.round(d.definitionIncome).toLocaleString('en-US')} ₪` : '',
+  ].filter(Boolean).join(' · ');
 }
 
 /**
@@ -121,7 +136,10 @@ export function niOccupationPeriodText(o: NiOccupation): string {
 }
 
 export function niOccupationsInline(list: readonly NiOccupation[]): string {
-  return niOccupationsForDisplay(list).map(o => `${niOccupationLabel(o)} ${niOccupationPeriodText(o)}`).join(' · ');
+  return niOccupationsForDisplay(list).map(o => {
+    const detail = niBtlDetailText(o.btlDetail);
+    return `${niOccupationLabel(o)} ${niOccupationPeriodText(o)}${detail ? ` (${detail})` : ''}`;
+  }).join(' · ');
 }
 
 /**

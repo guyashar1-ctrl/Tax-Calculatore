@@ -18,7 +18,7 @@
 // ‼ מה **לא** חי כאן: מחזור החיים של הבקשות. הרכיב מציג מצב ומפעיל
 // אוטומציה; פתיחת/סגירת שלבי יישור הקו נשארת אצל המארח (onOpenDetailed).
 
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import type { Client, TaxAuthority, NiOccupation } from '../../types';
 import { TAX_AUTHORITY_LABELS } from '../../types';
@@ -46,6 +46,8 @@ import { OccupationsEditor, newOccupationRow } from '../clientTabs/InstitutionAl
 import type { OccupationDraft } from '../clientTabs/InstitutionAlignment';
 import NiNextActionButton from '../NiNextActionButton';
 import AuthorityFieldHelp from './AuthorityFieldHelp';
+import BtlPortalRecordPanel from './BtlPortalRecordPanel';
+import { buildBtlRecordView, loadBtlPortalRecord, type BtlPortalRecord } from '../../features/nationalInsurance/btlPortalRecord';
 
 export interface AuthoritiesPanelProps {
   client: Client;
@@ -154,6 +156,24 @@ export default function AuthoritiesPanel({
   const liveJobOf = (a: TaxAuthority): AutomationJob | null =>
     (jobOverrides && a in jobOverrides ? jobOverrides[a] : authorityJobs[a]?.job) ?? null;
   authorityJobsRef.current = { income_tax: liveJobOf('income_tax'), vat: liveJobOf('vat'), national_insurance: liveJobOf('national_insurance') };
+
+  // ‼ (207) «מה ביטוח לאומי רושם» — נשמר בשרת בסוף כל קריאה מוצלחת; נטען מחדש
+  // כשמשימת ב"ל מסתיימת. לא נכתב מכאן ולא משנה את הכרטיס.
+  const niJobDone = liveJobOf('national_insurance');
+  const niJobKey = niJobDone?.status === 'succeeded' ? (niJobDone.finishedAt ?? niJobDone.updatedAt ?? '') : '';
+  const [btlRecord, setBtlRecord] = useState<BtlPortalRecord | null>(null);
+  useEffect(() => {
+    if (!client.id) return;
+    let alive = true;
+    void loadBtlPortalRecord(client.id).then(r => { if (alive) setBtlRecord(r); });
+    return () => { alive = false; };
+  }, [client.id, niJobKey]);
+  const btlPanel = (role: 'client' | 'spouse', facts: AuthorityRowFact[]) => {
+    if (!btlRecord) return null;
+    const rep = facts.find(f => f.k === 'ייצוג');
+    const view = buildBtlRecordView(btlRecord[role], { client, role, pivoRepresentation: rep ? { text: rep.v, active: rep.tone === 'ok' } : undefined });
+    return view.empty ? null : <BtlPortalRecordPanel view={view} />;
+  };
 
   // ‼ אישור מקובץ — פעם אחת לכרטיס, לא לשדה.
   const [approvingAuthority, setApprovingAuthority] = useState<TaxAuthority | null>(null);
@@ -590,6 +610,8 @@ export default function AuthoritiesPanel({
                       })}
                     </div>
 
+                    {row.authority === 'national_insurance' && !editingPerson && btlPanel(person.role, person.facts)}
+
                     {/* ‼ כשל של אדם אחד בריצה שהצליחה לאחר — כאן, בבלוק שלו, ולא בסיכום. */}
                     {check?.runErrorByPerson?.[person.role] && !editingPerson && (
                       <div className="txf-check-err txf-person-err">
@@ -665,6 +687,8 @@ export default function AuthoritiesPanel({
                 })}
               </div>
             )}
+
+            {!twoPersons && row.authority === 'national_insurance' && !editingThis && btlPanel(row.persons?.[0]?.role ?? 'client', row.persons?.[0]?.facts ?? row.facts)}
 
             {/* ‼ סיכום הבדיקה פעם אחת לכרטיס: מה נבדק, כמה שינויים, כפתור
                 אישור אחד — גם שגיאת ריצה וגם סיבת חסימה, לא ליד כל שדה. */}

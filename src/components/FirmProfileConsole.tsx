@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import SmartTemplatesCard from '../features/smartForms/SmartTemplatesCard';
+import '../features/smartForms/smartForms.css';
 import {
   FirmProfile,
   FirmBranding,
@@ -672,7 +674,7 @@ export default function FirmProfileConsole({ profile, clients, onSave }: Props) 
           )}
 
           {section === 'clientDocs' && (
-            <ClientDocumentsSection profile={draft} onChangeProfile={setDraft} />
+            <ClientDocumentsSection profile={draft} clients={clients} onChangeProfile={setDraft} />
           )}
 
           {section === 'emailActivity' && (
@@ -711,7 +713,7 @@ export default function FirmProfileConsole({ profile, clients, onSave }: Props) 
 // לקובץ העדכני, וההיסטוריה היא מה שמאפשר לדעת מה לקוח ראה בתאריך שרשום
 // על הבקשה שלו.
 
-function ClientDocumentsSection({ profile, onChangeProfile }: { profile: FirmProfile; onChangeProfile: (p: FirmProfile) => void }) {
+function ClientDocumentsSection({ profile, clients, onChangeProfile }: { profile: FirmProfile; clients: Client[]; onChangeProfile: (p: FirmProfile) => void }) {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
@@ -826,6 +828,8 @@ function ClientDocumentsSection({ profile, onChangeProfile }: { profile: FirmPro
         PDF עד 10MB. ‼ החלפת קובץ משנה מיד את מה שייפתח בכל הבקשות - גם אלה שכבר נשלחו.
         לשמירה יש ללחוץ «שמירת שינויים» למעלה.
       </div>
+
+      <SmartTemplatesCard clients={clients} />
 
       {err && <div style={{ marginTop: 10, color: 'var(--danger, var(--err))', fontSize: 'var(--fs-13)' }}>{err}</div>}
     </div>

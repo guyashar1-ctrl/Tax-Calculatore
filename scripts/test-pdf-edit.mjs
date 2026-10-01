@@ -304,6 +304,28 @@ console.log('\nטקסט נצרב — עברית, אנגלית ומעורב');
   check('טקסט ריק אינו מצייר', (await pageTexts(empty)).streams[0].length <= (await pageTexts(base)).streams[0].length + 40);
 }
 
+// ── 6ב. יישור טקסט (כפתורי ימין/מרכז/שמאל בסרגל) ─────────────────────────
+console.log('\nיישור טקסט');
+{
+  /** x של תחילת השורה הצרובה — מתוך מטריצת הטקסט (Tm) בזרם. */
+  const burnX = async (text, align) => {
+    const plan = Pages.buildInitialPlan(srcA);
+    const out = await Pages.buildPdfFromPlan(plan, bytesMap, [{
+      id: 't', pageId: plan[0].id, kind: 'text', xPct: .1, yPct: .1, widthPct: .8, heightPct: .1,
+      color: '#000000', text, fontPct: .03, ...(align ? { align } : {}),
+    }]);
+    // ‼ בלי הטקסט של עמוד המקור («A1» ב-y=500) — רק מה שנצרב
+    const m = [...(await pageTexts(out)).streams[0].matchAll(/1 0 0 1 ([-\d.]+) ([-\d.]+) Tm/g)].filter(x => +x[2] !== 500);
+    return m.length ? Math.min(...m.map(x => +x[1])) : NaN;
+  };
+  const L = await burnX('abc', 'left'), C = await burnX('abc', 'center'), R = await burnX('abc', 'right');
+  check('שמאל < מרכז < ימין', L < C && C < R, `${L} ${C} ${R}`);
+  check('מרכז = חצי המרווח', near(C - L, (R - L) / 2, 0.05), `${C - L} מול ${(R - L) / 2}`);
+  check('בלי יישור — לטינית לשמאל (כמו קודם)', near(await burnX('abc'), L, 0.01));
+  check('בלי יישור — עברית לימין (כמו קודם)', near(await burnX('שלום'), await burnX('שלום', 'right'), 0.01));
+  check('עברית ממורכזת זזה שמאלה מהימין', await burnX('שלום', 'center') < await burnX('שלום', 'right') - 1);
+}
+
 // ── 7. תמונה ─────────────────────────────────────────────────────────────
 console.log('\nתמונה מוטמעת');
 {

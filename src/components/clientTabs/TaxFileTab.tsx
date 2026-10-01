@@ -10,6 +10,7 @@
 // מקובלות על הלקוח — המלצה מחושבת מתוך ברירות מחדל הייתה מטעה.
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import SmartFilingsNote from '../../features/smartForms/SmartFilingsNote';
 import type { Client, RentalTaxTrack, TaxAuthority, NiTracking } from '../../types';
 import { FAMILY_STATUS_LABELS } from '../../types';
 import type { TaxFactChange } from '../../types/taxFacts';
@@ -225,6 +226,8 @@ function identityFieldError(def: EditField, raw: string): string | null {
   if (!v) return null;
   if (def.key === 'idNumber' && !isValidIsraeliId(v)) return 'מספר תעודת הזהות אינו תקין';
   if (def.key === 'email' && !isValidEmail(v)) return 'כתובת המייל אינה תקינה';
+  if (def.key === 'zipCode' && !/^d{5}(d{2})?$/.test(v.replace(/s/g, ''))) return 'מיקוד: 7 ספרות';
+  if (def.key === 'landlinePhone' && !/^0d{8,9}$/.test(v.replace(/D/g, ''))) return 'מספר טלפון קווי לא תקין';
   if (def.hebrew && hasNonHebrewLetters(v)) return HEBREW_ONLY_HINT;
   return null;
 }
@@ -980,13 +983,24 @@ export default function TaxFileTab({
                   return (
                     <KV key={f.key} k={f.label}
                       v={v
-                        ? (f.key === 'phone' || f.key === 'email' || f.key === 'idNumber'
+                        ? (f.key === 'phone' || f.key === 'email' || f.key === 'idNumber' || f.key === 'zipCode' || f.key === 'landlinePhone'
                             ? <span className="ltr-isolate">{editFieldDisplay(f, v)}</span>
                             : editFieldDisplay(f, v))
                         : <span style={{ color: 'var(--ink-4)' }}>טרם התקבל</span>} />
                   );
                 })}
           </div>
+          {editingSection !== 'identity' && client.mailingAddress && (
+            <div className="txf-kv">
+              <KV k="מען למכתבים" v={[
+                client.mailingAddress.recipient,
+                [client.mailingAddress.street, client.mailingAddress.houseNumber].filter(Boolean).join(' '),
+                client.mailingAddress.entrance && `כניסה ${client.mailingAddress.entrance}`,
+                client.mailingAddress.apartment && `דירה ${client.mailingAddress.apartment}`,
+                [client.mailingAddress.city, client.mailingAddress.zip].filter(Boolean).join(' '),
+              ].filter(Boolean).join(', ')} />
+            </div>
+          )}
           {editingSection === 'identity' && <EditActions />}
           <SrcLine label="מקור: כרטיס הלקוח"
             onEdit={editingSection === 'identity' || !onUpdateClientFields ? undefined
@@ -1022,6 +1036,7 @@ export default function TaxFileTab({
       {/* ‼ התצוגה הקומפקטית של הרשויות — רכיב אחד לכל ההקשרים (גם ב«בקשות»).
           כל מה שקשור לרשויות — אוטומציה, עריכה, ב"ל לכל אדם, «איפה
           מוצאים?», «תצוגה מפורטת» — חי שם ולא כאן. */}
+      {client.id && <SmartFilingsNote clientId={client.id} onOpenRequests={onOpenRequestStep} />}
       <AuthoritiesPanel
         client={client}
         spouseClient={spouseClient}
@@ -1108,7 +1123,8 @@ export default function TaxFileTab({
               >
                 <div className="txf-kv">
                   {businesses.length > 0 ? businesses.map(b => (
-                    <KV key={b.id} k={b.name} v={`${b.description || '-'}${b.revenueAnnual ? ` · מחזור ${money(b.revenueAnnual)}` : ''}`} />
+                    <KV key={b.id} k={b.name} v={`${b.description || '-'}${b.revenueAnnual ? ` · מחזור ${money(b.revenueAnnual)}` : ''}${b.address && (b.address.street || b.address.city)
+                      ? ` · ${[[b.address.street, b.address.houseNumber].filter(Boolean).join(' '), b.address.city].filter(Boolean).join(', ')}` : ''}`} />
                   )) : (
                     <>
                       <KV k="תיאור העיסוק" v={client.businessDescription || '-'} />

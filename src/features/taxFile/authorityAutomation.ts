@@ -400,7 +400,11 @@ interface BtlPersonResult {
   ok: boolean;
   error?: string;
   errorCode?: string;
-  representation?: { found: boolean; type?: string | null; receivedDate?: string | null };
+  /** מתוצאות «חיפוש מיוצגים». status/pendingAction/debitAuthorization — טקסט כלשונו, רק כשיש. */
+  representation?: {
+    found: boolean; type?: string | null; receivedDate?: string | null;
+    status?: string; pendingAction?: string; debitAuthorization?: string; benefitsAuthorization?: string;
+  };
   sections?: {
     advance?: BtlSection<BtlAdvanceValue>;
     occupations?: BtlSection<BtlOccupationChain[]>;
@@ -475,7 +479,13 @@ function interpretBtlFile(
     // ── ייצוג: ראיה בלבד ──
     push({
       fieldKey: repKey, label: 'ייצוג', status: 'info', currentValue: '',
-      authorityDisplay: `מופיע ברשימת המיוצגים${p.representation?.receivedDate ? ` · נקלט ${niDate(p.representation.receivedDate)}` : ''}`,
+      authorityDisplay: [
+        'מופיע ברשימת המיוצגים',
+        p.representation?.receivedDate ? `נקלט ${niDate(p.representation.receivedDate)}` : null,
+        // ‼ כלשון הפורטל («ממתין לאישור», «ממתין תוקף») — לא מתורגם למצב ב-PIVO.
+        p.representation?.status ? `סטטוס: ${p.representation.status}` : null,
+        p.representation?.pendingAction ? p.representation.pendingAction : null,
+      ].filter(Boolean).join(' · '),
       ...person,
     });
 
@@ -496,7 +506,9 @@ function interpretBtlFile(
           authorityValue: niOccupationsKey(next),
           patchValue: next,
           hint: earlier ? 'בסיכום של ביטוח לאומי הרצף מתחיל מוקדם יותר — ייתכן שחסרה רשומה קודמת.' : undefined,
-          provenance: 'עיסוקים והכנסות → רשימת עיסוקים → עיסוקים בתקופה',
+          provenance: next.some(o => o.btlDetail)
+            ? 'עיסוקים והכנסות → רשימת עיסוקים → עיסוקים בתקופה → פירוט עיסוק'
+            : 'עיסוקים והכנסות → רשימת עיסוקים → עיסוקים בתקופה',
           ...person,
         });
       }

@@ -76,7 +76,15 @@ function fakePortal({ people, failOn = {}, loseSessionOn } = {}) {
     },
     async readInfo() { return guard('info') ?? { ok: true, pairs: people[current].pairs }; },
     async openOccupationList() { return guard('occupations') ?? { ok: true, tables: [people[current].segments] }; },
-    async drillSegment(i) { const d = people[current].drill[i]; return d ? { ok: true, tables: [d], returned: true } : { ok: false, reason: 'x' }; },
+    async drillSegment(i, opts) {
+      const d = people[current].drill[i];
+      if (!d) return { ok: false, reason: 'x' };
+      // בלי פירוט מוגדר לאדם ⇒ הפורטל לא מחזיר פירוט בכלל (כמו לפני התוספת).
+      const want = opts?.detailRows && people[current].details ? opts.detailRows([d]) : [];
+      const details = want.map(index => people[current].details?.[`${i}:${index}`] ?? { index, ok: false, reason: 'record_detail_not_found' })
+        .map((x, k) => ({ index: want[k], ...x }));
+      return { ok: true, tables: [d], details, returned: true };
+    },
     async openIncomeList() { return guard('income') ?? { ok: true, tables: [people[current].income] }; },
     async openDebitAuthorizations() { return guard('debit') ?? { ok: true, tables: [DEBIT] }; },
     async openLedger() { return guard('ledger') ?? { ok: true, tables: [LEDGER] }; },
@@ -160,4 +168,65 @@ test('אם אף שורה בתוקף לא פורטה — העיסוקים «לא 
     { role: 'client', idNumber: '123456782' }, { asOf: AS_OF });
   assert.equal(p.sections.occupations.ok, false);
   assert.equal(p.sections.occupations.reason, 'occupation_detail_unavailable');
+});
+
+// ─── פירוט עיסוק דרך הזרימה המלאה (סינתטי) ─────────────────────────────────
+test('פירוט עיסוק: טווח השעות וההכנסה להגדרה מגיעים לרצף «עצמאי»; מה שלא אומת — לא', async () => {
+  const detail = {
+    ok: true, heading: 'עיסוק - עצמאי',
+    pairs: [
+      { label: 'זהות:', value: '123456782' },
+      { label: 'מתאריך', value: '01/06/2025' }, { label: 'עד תאריך', value: '' },
+      { label: 'תאריך רישום', value: '16/06/2025' }, { label: 'הכנסה להגדרה', value: '9000' },
+      { label: 'משלח יד', value: 'ייעוץ' },
+    ],
+    radios: [{ label: '1 עד 11 שעות', checked: false }, { label: '12 עד 19 שעות', checked: true }, { label: '20 שעות ומעלה', checked: false }],
+    lines: ['עצמאי לפי הגדרה של 12 שעות ו-15% מהשכר הממוצע', 'מצב: תקף'],
+  };
+  const person = { ...INSURED, details: { '0:0': detail, '1:1': detail } };
+  const p = await readInsured(fakePortal({ people: { 123456782: person } }), { role: 'client', idNumber: '123456782' }, { asOf: AS_OF });
+  const se = p.sections.occupations.value.find(o => o.sourceLabel === 'עצמאי');
+  assert.equal(se.detail.hoursBand, '12_19');
+  assert.equal(se.detail.definitionIncome, 9000);
+  assert.deepEqual(se.detail.definitionRule, { weeklyHours: 12, averageWagePct: 15 });
+  assert.equal(p.sections.occupations.value.find(o => o.sourceLabel !== 'עצמאי').detail, undefined);
+  assert.deepEqual(p.sections.occupations.warnings, []);
+
+  // אותו פירוט, אבל הכותרת בדף היא של אדם אחר ⇒ לא מוצמד, ויש אזהרה.
+  const wrong = { ...detail, pairs: detail.pairs.map(x => x.label === 'זהות:' ? { ...x, value: '300000007' } : x) };
+  const q = await readInsured(fakePortal({ people: { 123456782: { ...INSURED, details: { '0:0': wrong, '1:1': wrong } } } }), { role: 'client', idNumber: '123456782' }, { asOf: AS_OF });
+  assert.equal(q.sections.occupations.value.find(o => o.sourceLabel === 'עצמאי').detail, undefined);
+  assert.ok(q.sections.occupations.warnings.some(w => w.startsWith('detail_identity_unverified')));
+});
+
+// ─── המקטעים החדשים דרך הזרימה המלאה (סינתטי) ───────────────────────────────
+function portalWithScreens(screens) {
+  const base = fakePortal({ people: { 123456782: { ...INSURED, pairs: [...RIKUZ_PAIRS, { label: 'מצב משפחתי', value: 'רווק' }, { label: 'חובת תשלום', value: 'עצמאי' }] } } });
+  return { ...base, ...screens };
+}
+
+test('מקטעים חדשים: נקראים; מסך ריק ⇒ «אין» (ok:true, empty); כשל מסך ⇒ ok:false, והשאר לא נפגע', async () => {
+  const p = await readInsured(portalWithScreens({
+    async openDocuments() { return { ok: true, tables: [{ headerCells: ['', 'תאור', "עמ'", 'תאריך'], dataRows: [['', 'דין וחשבון', '3', '15/09/2026']] }], scanRefs: ['ab12'] }; },
+    async openNotices() { return { ok: false, reason: 'side_link_failed' }; },
+    async openBenefits() { return { ok: true, tables: [], empty: true }; },
+    async openAnnualContributions() { return { ok: true, empty: true, tables: [] }; },
+    async openCorrespondence() { return { ok: true, empty: true, tables: [] }; },
+    async openBenefitDebt() { return { ok: true, count: 2 }; },
+  }), { role: 'client', idNumber: '123456782' }, { asOf: AS_OF });
+  const s = p.sections;
+  assert.equal(s.summaryFacts.ok, true);
+  assert.equal(s.summaryFacts.value.familyStatus.code, 'single');
+  assert.deepEqual(s.documents.value.items, [{ description: 'דין וחשבון', date: '2026-09-15', pages: 3, scanRef: 'ab12' }]);
+  assert.deepEqual(s.notices, { ok: false, reason: 'side_link_failed' }, 'כשל ⇒ «לא נקרא», לא «אין הודעות»');
+  assert.deepEqual(s.reserveDuty, { ok: true, value: { rows: [], otherBenefitsCount: 0 }, empty: true });
+  assert.deepEqual(s.correspondence.value, { count: 0 });
+  assert.deepEqual(s.benefitDebt.value, { count: 2 });
+  assert.equal(s.advance.ok, true, 'המקטעים הקיימים לא נפגעו');
+});
+
+test('ריכוז המידע לא נקרא ⇒ גם העובדות ממנו «לא נקרא» (לא מנחשים מזוגות של מסך אחר)', async () => {
+  const p = await readInsured(fakePortal({ people: { 123456782: INSURED }, failOn: { '123456782:info': { ok: false, reason: 'summary_screen_not_reached' } } }),
+    { role: 'client', idNumber: '123456782' }, { asOf: AS_OF });
+  assert.deepEqual(p.sections.summaryFacts, { ok: false, reason: 'summary_unavailable' });
 });

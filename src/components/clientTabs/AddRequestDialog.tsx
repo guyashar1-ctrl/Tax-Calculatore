@@ -60,6 +60,9 @@ const CATALOG: { type: string; hint: string; once: boolean }[] = [
   // בן-בת-זוג) יש ייצוג נפרד, ולכן `once:false` והזמינות נגזרת בנפרד למטה
   // (authRepAvailable) מאותו רזולבר בדיוק כמו תיק המס.
   { type: 'authority_representation', hint: 'ביטוח לאומי - לפי אדם', once: false },
+  // 206 · טופס חכם: פתיחה/שינוי/סגירה של עצמאי ודיווח עיסוקים. ‼ הגשה פתוחה אחת
+  // ללקוח — השרת מחזיר את הקיימת, ולכן הפריט זמין תמיד.
+  { type: 'smart_form_btl6101', hint: 'ממולא מהכרטיס ומב"ל, נחתם במשרד או בקישור, ונשאר במעקב עד תשובת ב"ל', once: false },
 ];
 /* ‼ «אישור המייצג באזור האישי» ירד מכאן (הכרעת גיא, 2026-08-25). הוא אינו
    בקשה שמוסיפים אלא צעד בתוך ביצוע הייצוג: נוצר לבד כשהייצוג מוגש לשע"ם
@@ -189,11 +192,13 @@ interface Props {
    *  קריאה בדיוק כמו "בקש ייצוג" בתיק המס, כדי ששני נקודות הכניסה יתכנסו
    *  לאותה בקשה. */
   onRequestAuthorityRepresentation?: (role: 'client' | 'spouse') => Promise<{ error: string | null; stepId?: string }>;
+  /** פותח (או מחזיר) הגשת 6101 ומעביר למסך שלה. מחזיר הודעת שגיאה או null. */
+  onStartSmartForm?: () => Promise<string | null>;
   onClose: () => void;
   onCreated: () => void;
 }
 
-export default function AddRequestDialog({ clientId, steps, processPublished, awaitingQuoteApproval, intake, presetType, presetDocuments, prevAccountantEmail, onUseTemplate, client, niExecution, onRequestAuthorityRepresentation, onClose, onCreated }: Props) {
+export default function AddRequestDialog({ clientId, steps, processPublished, awaitingQuoteApproval, intake, presetType, presetDocuments, prevAccountantEmail, onUseTemplate, client, niExecution, onRequestAuthorityRepresentation, onStartSmartForm, onClose, onCreated }: Props) {
   /** יש בכלל קליטה שאפשר לחסום את סגירתה. */
   const requiredApplies = intakeAcceptsRequired(intake);
   const [mode, setMode] = useState<'catalog' | 'custom' | 'documents' | 'bank' | 'document' | 'authority_rep'>(
@@ -489,6 +494,8 @@ export default function AddRequestDialog({ clientId, steps, processPublished, aw
     ? prevMissing.length > 0
     : c.type === 'authority_representation'
     ? !!onRequestAuthorityRepresentation && authRepAvailable.length > 0
+    : c.type === 'smart_form_btl6101'
+    ? !!onStartSmartForm
     : !(c.once && existing.has(c.type as OnboardingStep['stepType'])));
   /** ‼ רק בקשות פתוחות. תלות בשלב שכבר הושלם אינה דוחה כלום — השרת פותח את
    *  הבקשה מיד — ולכן "ייפתח רק אחרי «ייצוג מול הרשויות»" על ייצוג שכבר
@@ -703,6 +710,11 @@ export default function AddRequestDialog({ clientId, steps, processPublished, aw
                     if (c.type === 'paperless_tax_authority') { void createTaxAuthority(); return; }
                     if (c.type === 'prev_accountant_track') { void createPrevTrack(); return; }
                     if (c.type === 'authority_representation') { setMode('authority_rep'); return; }
+                    if (c.type === 'smart_form_btl6101' && onStartSmartForm) {
+                      setBusy(true); setError(null);
+                      void onStartSmartForm().then(err => { setBusy(false); if (err) setError(err); });
+                      return;
+                    }
                     /* ‼ תוכן ברירת המחדל מגיע מתבנית מובנית ולא מ-{} ריק.
                        בקשה שנוצרה ריקה הגיעה ללקוח בלי ניסוח ובלי רשימה. */
                     void create(c.type, seedPayload(c.type));
@@ -715,6 +727,7 @@ export default function AddRequestDialog({ clientId, steps, processPublished, aw
                       : c.type === 'bank_debit' ? BANK_DEBIT_TITLE
                       : c.type === 'send_document' ? 'שליחת מסמכים ללקוח'
                       : c.type === 'authority_representation' ? 'ייצוג ברשות - לאדם'
+                      : c.type === 'smart_form_btl6101' ? 'דין וחשבון רב שנתי (6101) · ביטוח לאומי'
                       : STEP_TYPE_LABELS[c.type as OnboardingStep['stepType']]}
                   </span>
                   <span style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)' }}>

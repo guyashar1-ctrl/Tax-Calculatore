@@ -13,7 +13,7 @@ import {
   ANNOTATION_LABELS, DEFAULT_FONT_PCT, DEFAULT_THICKNESS_PCT,
   FONT_PCT_MAX, FONT_PCT_MIN, THICKNESS_STEPS,
   capsOf, fillColorOf, fillOpacityOf, strokeOpacityOf, strokeVisible,
-  type Annotation, type LatinFamily,
+  type Annotation, type LatinFamily, type TextAlign,
 } from '../../utils/pdfAnnotations';
 
 /** לוח הצבעים של העיצוב — דיו כהה, לבן להסתרה, וארבעה צבעי סימון. */
@@ -23,6 +23,22 @@ export const STYLE_PALETTE = [
 
 const FAMILY_ORDER: LatinFamily[] = ['sans', 'serif', 'mono'];
 const FAMILY_LABEL: Record<LatinFamily, string> = { sans: 'Aa', serif: 'Tt', mono: 'Mm' };
+
+const ALIGN_ORDER: TextAlign[] = ['right', 'center', 'left'];
+const ALIGN_LABEL: Record<TextAlign, string> = { right: 'יישור לימין', center: 'מרכוז', left: 'יישור לשמאל' };
+
+/** שלושה קווים באורכים שונים — הסמל המוכר ליישור. */
+function AlignIcon({ align }: { align: TextAlign }) {
+  const rows = [12, 8, 12, 6];
+  return (
+    <svg width="14" height="12" viewBox="0 0 14 12" aria-hidden="true">
+      {rows.map((w, i) => {
+        const x = align === 'left' ? 1 : align === 'right' ? 13 - w : (14 - w) / 2;
+        return <rect key={i} x={x} y={1 + i * 3} width={w} height="1.4" rx="0.5" fill="currentColor" />;
+      })}
+    </svg>
+  );
+}
 
 interface Props {
   ann: Annotation;
@@ -74,6 +90,16 @@ export default function PdfStyleBar({
           <button type="button" className="pdfe-sb" title="גופן לטיני" aria-label="גופן לטיני"
             onClick={() => onPatch({ fontFamily: FAMILY_ORDER[(FAMILY_ORDER.indexOf(family) + 1) % FAMILY_ORDER.length] })}
           >{FAMILY_LABEL[family]}</button>
+          {/* יישור: לחיצה על המסומן מחזירה לאוטומטי (עברית לימין, לטינית לשמאל) */}
+          <div className="pdfe-style-group" role="group" aria-label="יישור טקסט">
+            {ALIGN_ORDER.map(a => (
+              <button key={a} type="button" className={`pdfe-sb${ann.align === a ? ' is-on' : ''}`}
+                aria-pressed={ann.align === a} title={ALIGN_LABEL[a]} aria-label={ALIGN_LABEL[a]}
+                onClick={() => onPatch({ align: ann.align === a ? undefined : a })}>
+                <AlignIcon align={a} />
+              </button>
+            ))}
+          </div>
 
           <span className="pdfe-style-pop">
             <SwatchButton label="צבע טקסט" color={ann.color}

@@ -357,6 +357,36 @@ export interface NiOccupation {
    * לכל רשומה). `fromDate`/`toDate` למעלה הם הרצף; כאן — המקור.
    */
   sourcePeriods?: { fromDate: string; toDate?: string | null }[];
+  /**
+   * כפי שב"ל רשם את העיסוק («פירוט עיסוק» בפורטל המייצגים) — נקרא, לא הוזן.
+   * ‼ נפרד מ-weeklyHours/definitionIncome הידניים שלמעלה: השעות כאן **טווח**
+   * ולא מומרות למספר, וההכנסה היא «הכנסה להגדרה» כפי שנרשמה.
+   */
+  btlDetail?: NiOccupationBtlDetail;
+}
+
+/** טווח שעות עבודה שבועיות כפי שב"ל רושם (ובטופס 6101). */
+export type NiHoursBand = '1_11' | '12_19' | '20_plus';
+
+export const NI_HOURS_BAND_LABELS: Record<NiHoursBand, string> = {
+  '1_11': '1 עד 11 שעות',
+  '12_19': '12 עד 19 שעות',
+  '20_plus': '20 שעות ומעלה',
+};
+
+export interface NiOccupationBtlDetail {
+  hoursBand: NiHoursBand | null;
+  definitionIncome: number | null;
+  /** שורת ההגדרה כלשונה, למשל «עצמאי לפי הגדרה של 12 שעות ו-15% מהשכר הממוצע». */
+  definitionText: string | null;
+  /** מפורק רק בנוסח שנצפה; נוסח אחר ⇒ null והטקסט נשמר. */
+  definitionRule: { weeklyHours: number; averageWagePct: number } | null;
+  profession: string | null;
+  registeredDate: string | null;
+  status: string | null;
+  /** הרשומה שהפירוט שלה נקרא (תחילת הרשומה, לא בהכרח תחילת הרצף). */
+  periodFrom: string;
+  periodTo: string | null;
 }
 
 /**
@@ -405,6 +435,26 @@ export const BUSINESS_KIND_LABELS: Record<BusinessKind, string> = {
   freelance:      'פרילנס',
 };
 
+/** כתובת מובנית — כפי שטפסי הרשויות מבקשים אותה (תא לכל חלק). */
+export interface StructuredAddress {
+  street?: string;
+  houseNumber?: string;
+  entrance?: string;
+  apartment?: string;
+  city?: string;
+  zip?: string;
+}
+
+/** מען למכתבים (206) — כתובת + שם הנמען. */
+export interface MailingAddress extends StructuredAddress {
+  recipient?: string;
+}
+
+/** כתובת העסק (206, בתוך businesses[]) — כתובת + טלפון העסק. */
+export interface BusinessAddress extends StructuredAddress {
+  phone?: string;
+}
+
 export interface BusinessInfo {
   id: string;
   name: string;
@@ -414,6 +464,8 @@ export interface BusinessInfo {
   startYear?: number;
   isClosed?: boolean;
   closedYear?: number;
+  /** כתובת העסק (206) — לטופסי ב"ל (6101) ולרשויות. */
+  address?: BusinessAddress;
   vatFrequency?: 'monthly' | 'bi_monthly';
   notes?: string;
 
@@ -522,6 +574,12 @@ export interface Client {
   email: string;
   city: string;                     // עיר מגורים (dropdown)
   address: string;
+  /** מיקוד מגורים (206). חסר = לא ידוע — לא «אין». */
+  zipCode?: string;
+  /** טלפון קווי, נפרד מ-phone (שהוא בפועל הנייד) (206). */
+  landlinePhone?: string;
+  /** מען למכתבים כשהוא שונה מכתובת המגורים (206). null/חסר = אין מען נפרד ידוע. */
+  mailingAddress?: MailingAddress | null;
 
   // ── סיווג מס הכנסה (נפרד מביטוח לאומי) ──
   incomeTaxType: IncomeTaxType;

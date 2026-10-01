@@ -10,6 +10,7 @@ import { attachBtl, detachBtl, pickBtlPage, classifyBtlAuth, probeBtlSession } f
 import {
   BtlSessionLost, openRepresentedInsured, readInfoSummary, openOccupationList,
   drillOccupationSegment, openIncomeList, openDebitAuthorizations, openRealValueLedger, returnToRepresentedHome,
+  openDocuments, openNotices, openBenefits, openAnnualContributions, openCorrespondence, openBenefitDebt,
 } from '../btlInsuredSession.mjs';
 import { readSubjects, maskId } from '../btlFileSync.mjs';
 import { NeedsHumanError, PermanentError } from '../errors.mjs';
@@ -66,10 +67,16 @@ export async function run(ctx, input) {
       open: (id) => openRepresentedInsured(page, id),
       readInfo: () => readInfoSummary(page),
       openOccupationList: () => openOccupationList(page),
-      drillSegment: (i) => drillOccupationSegment(page, i),
+      drillSegment: (i, opts) => drillOccupationSegment(page, i, opts),
       openIncomeList: () => openIncomeList(page),
       openDebitAuthorizations: () => openDebitAuthorizations(page),
       openLedger: () => openRealValueLedger(page),
+      openDocuments: () => openDocuments(page),
+      openNotices: () => openNotices(page),
+      openBenefits: () => openBenefits(page),
+      openAnnualContributions: () => openAnnualContributions(page),
+      openCorrespondence: () => openCorrespondence(page),
+      openBenefitDebt: () => openBenefitDebt(page),
     };
 
     ctx.log(`קורא תיק מבוטח · ${subjects.map(s => `${s.role}:${maskId(s.idNumber)}`).join(' · ')} · נכון ל-${asOf}`);

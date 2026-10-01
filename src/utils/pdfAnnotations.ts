@@ -26,6 +26,17 @@ export type AnnotationKind =
 
 export type LatinFamily = 'sans' | 'serif' | 'mono';
 
+export type TextAlign = 'right' | 'center' | 'left';
+
+/** היסט השורה מתחילת התיבה, לפי היישור. חסר ⇒ עברית לימין, לטינית לשמאל. */
+export function lineOffset(align: TextAlign | undefined, line: string, boxWidth: number, textWidth: number): number {
+  const free = boxWidth - textWidth;
+  if (align === 'center') return free / 2;
+  if (align === 'right') return Math.max(0, free);
+  if (align === 'left') return 0;
+  return /[֐-׿]/.test(line) ? Math.max(0, free) : 0;
+}
+
 export interface Annotation {
   id: string;
   /** מזהה העמוד בתוכנית שאליו הסימון שייך — הוא נוסע איתו בסידור מחדש. */
@@ -55,6 +66,11 @@ export interface Annotation {
   /** משפחת הגופן ללטינית וספרות. העברית תמיד ב-Noto Hebrew. */
   fontFamily?: LatinFamily;
   bold?: boolean;
+  /**
+   * יישור השורה בתוך התיבה. חסר = אוטומטי (עברית לימין, לטינית לשמאל — כמו
+   * שהיה תמיד). ‼ טופס חכם צריך מרכוז בתא ויישור קבוע לשדה, בלי קשר לשפה.
+   */
+  align?: TextAlign;
   /** נקודות ציור חופשי, יחסית לתיבה (0..1). */
   points?: { x: number; y: number }[];
   /** עובי קו באחוז מרוחב העמוד המוצג. */
@@ -224,6 +240,23 @@ export interface PageBox {
   height: number;
   /** סיבוב העמוד כפי שהצופה מיישם אותו, במעלות עם כיוון השעון. */
   rotation: number;
+  /**
+   * ראשית האזור הגלוי (CropBox) במרחב העמוד. ‼ pdfjs מציג את ה-CropBox, ולכן
+   * מלבן שסומן על התצוגה יחסי אליו — ולא לפינה של ה-MediaBox. חסר ⇒ 0.
+   */
+  x?: number;
+  y?: number;
+}
+
+/** האזור שהצופה רואה: CropBox (חתוך ל-MediaBox) + הסיבוב. */
+export function visibleBox(page: PDFPage): PageBox {
+  const mb = page.getMediaBox();
+  const cb = page.getCropBox();
+  const x = Math.max(cb.x, mb.x), y = Math.max(cb.y, mb.y);
+  const x2 = Math.min(cb.x + cb.width, mb.x + mb.width), y2 = Math.min(cb.y + cb.height, mb.y + mb.height);
+  const ok = x2 > x && y2 > y;
+  return ok ? { x, y, width: x2 - x, height: y2 - y, rotation: page.getRotation().angle }
+    : { x: mb.x, y: mb.y, width: mb.width, height: mb.height, rotation: page.getRotation().angle };
 }
 
 export interface PlacedRect { x: number; y: number; width: number; height: number }
@@ -246,13 +279,16 @@ export function displayRectToPage(
   const dH = quarter ? box.width : box.height;
   const dx = xPct * dW, dy = yPct * dH, dw = wPct * dW, dh = hPct * dH;
   const W = box.width, H = box.height;
+  const ox = box.x ?? 0, oy = box.y ?? 0;
 
+  let r: PlacedRect;
   switch (rot) {
-    case 90: return { x: dy, y: dx, width: dh, height: dw };
-    case 180: return { x: W - dx - dw, y: dy, width: dw, height: dh };
-    case 270: return { x: W - dy - dh, y: H - dx - dw, width: dh, height: dw };
-    default: return { x: dx, y: H - dy - dh, width: dw, height: dh };
+    case 90: r = { x: dy, y: dx, width: dh, height: dw }; break;
+    case 180: r = { x: W - dx - dw, y: dy, width: dw, height: dh }; break;
+    case 270: r = { x: W - dy - dh, y: H - dx - dw, width: dh, height: dw }; break;
+    default: r = { x: dx, y: H - dy - dh, width: dw, height: dh };
   }
+  return ox || oy ? { ...r, x: r.x + ox, y: r.y + oy } : r;
 }
 
 /** נקודה בודדת מהתצוגה אל מרחב העמוד (לציור חופשי ולקווים). */
@@ -551,9 +587,8 @@ export async function drawAnnotations(
           if (!line.trim()) continue;
           const segs = layoutMixed(line);
           const tw = measureSafe(segs, size, fonts);
-          // שורה עברית נצמדת לימין התיבה, לטינית לשמאלה — בדיוק כמו השכבה
-          const rtl = /[֐-׿]/.test(line);
-          const offsetX = rtl ? Math.max(0, boxWDisplay - tw) : 0;
+          // ‼ בלי יישור מפורש: עברית נצמדת לימין התיבה, לטינית לשמאלה — בדיוק כמו השכבה
+          const offsetX = lineOffset(ann.align, line, boxWDisplay, tw);
           const topPct = ann.yPct + (i * lineHeight) / dH;
           const baselinePct = topPct + (size * 0.82) / dH;
           const anchor = displayPointToPage(box, ann.xPct + offsetX / dW, baselinePct);

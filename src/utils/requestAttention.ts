@@ -52,8 +52,27 @@ export function isOnRequestsSurface(step: Pick<OnboardingStep, 'stepType' | 'sta
 }
 
 /** משימה פנימית שהרו"ח הוסיף בעצמו — «העבודה שלי», לא בקשה מלקוח. */
-export const isManualInternal = (s: Pick<OnboardingStep, 'stepType' | 'ball'>): boolean =>
-  s.stepType === 'custom_request' && s.ball === 'me';
+export const isManualInternal = (s: Pick<OnboardingStep, 'stepType' | 'ball'> & { payload?: OnboardingStep['payload'] }): boolean =>
+  s.stepType === 'custom_request' && s.ball === 'me' && !s.payload?.smartForm;
+
+/**
+ * הגשת טופס חכם (206) — המצב נגזר ממה שהשרת כתב ב-payload.smartForm (היטל של
+ * smart_form_filings). ממתינים = אצל הלקוח/בן-הזוג/הרשות; כל השאר = פעולה שלי.
+ */
+function smartFormAttention(step: OnboardingStep): Attention {
+  const sf = step.payload?.smartForm as { state?: string; waitingOn?: string } | undefined;
+  switch (sf?.state) {
+    case 'waiting_client_info':
+    case 'awaiting_client_submission':
+      return { kind: 'waiting', tone: 'gray', waitingOn: 'client' };
+    case 'awaiting_signatures':
+      return { kind: 'waiting', tone: 'gray', waitingOn: sf.waitingOn === 'spouse' ? 'spouse' : 'client' };
+    case 'submitted':
+      return { kind: 'waiting', tone: 'gray', waitingOn: 'authority' };
+    default:
+      return { kind: 'mine', tone: 'blue' };
+  }
+}
 
 const todayIso = () => new Date().toISOString().slice(0, 10);
 
@@ -118,6 +137,7 @@ export function stepAttention(step: OnboardingStep, ctx: AttentionContext = {}):
       return { kind: 'waiting', tone: 'gray', waitingOn: 'paperless' };
 
     case 'custom_request':
+      if (step.payload?.smartForm) return smartFormAttention(step);
       if (isManualInternal(step)) return { kind: 'internal', tone: 'gray' };
       if (step.payload?.externalParty) {
         // מייל לגורם חיצוני: עד שיצא — הפעולה שלי; אחרי — ממתינים לו.

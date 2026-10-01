@@ -593,6 +593,8 @@ function AnnotationBox({
     lineHeight: 1.32,
     fontFamily: OVERLAY_FAMILY[ann.fontFamily ?? 'sans'],
     fontWeight: ann.bold ? 700 : 400,
+    // ‼ אותו יישור כמו בצריבה (lineOffset); חסר ⇒ לפי כיוון השורה, כמו תמיד.
+    ...(ann.align ? { textAlign: ann.align } : {}),
   };
 
   const taRef = useRef<HTMLTextAreaElement>(null);

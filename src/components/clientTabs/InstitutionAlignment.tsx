@@ -854,7 +854,8 @@ export function OccupationsEditor({ occupations, onChange }: { occupations: Occu
       const retyped = 'type' in patch && patch.type !== o.type;
       const redated = ('fromDate' in patch && patch.fromDate !== o.fromDate) || ('toDate' in patch && patch.toDate !== o.toDate);
       if (!retyped && !redated) return { ...o, ...patch };
-      const { sourceLabel, sourcePeriods, ...rest } = o;
+      // ‼ וגם «פירוט עיסוק» של ב"ל כבר לא מתאר את הרשומה הערוכה.
+      const { sourceLabel, sourcePeriods, btlDetail: _portalDetail, ...rest } = o;
       return {
         ...rest, ...patch,
         ...(o.source ? { source: 'manual' as const } : {}),
