@@ -6,10 +6,10 @@
 --
 -- ‼ מבנה בתיק המסמכים של הלקוח:
 --     📁 תעודת זהות - הדסה      הצילומים שהועלו להדסה + ה-PDF שנבנה מהם
---          📁 ישן                PDF מצילום שהוחלף
+--          📁 ישן                צילום שהוחלף (אינו נוכחי באף בקשה) + ה-PDF שנבנה ממנו
 --     📁 תעודת זהות - יאיר
 --     📁 ייפוי כוח              לחתימה · חתום (לקוח + משרד)
---          📁 ישן                טופס שהוחלף / בקשה שבוטלה
+--          📁 ישן                טופס שהוחלף / שירד מרשימת הטפסים
 -- ‼ שיוך לפי המקום שאליו הועלה הקובץ (identity_docs) — לא לפי התוכן. אותו קובץ
 --   שהועלה לנישום ולבן/בת הזוג הוא שתי רשומות, לכל אחד שיוך ואישור משלו (גיא:
 --   «אל תסיק בעלות מתוך זהות הקבצים בלבד»). רק כפילות אצל **אותו אדם** נמנעת
@@ -33,7 +33,7 @@ create index if not exists documents_client_sha_idx
 create table if not exists public.document_organize_log (
   id               bigserial primary key,
   run_id           text not null,
-  action           text not null check (action in ('doc', 'folder_created', 'folder_adopted', 'folder_deleted')),
+  action           text not null check (action in ('run', 'doc', 'folder_created', 'folder_adopted', 'folder_deleted')),
   doc_id           text,
   old_folder_id    text,
   old_description  text,
@@ -50,6 +50,12 @@ create table if not exists public.document_organize_log (
   at               timestamptz not null default now()
 );
 create index if not exists document_organize_log_run_idx on public.document_organize_log (run_id, id);
+-- ריצה ששוחזרה מסומנת — שחזור שני של אותה ריצה היה מחזיר שוב מצב ישן על שינויים שקרו מאז.
+alter table public.document_organize_log add column if not exists restored_at timestamptz;
+-- 'run' = סימון תחילת ריצה — גם ריצה שלא שינתה כלום רשומה (מזהה חד-פעמי, שחזור מוצא אותה).
+alter table public.document_organize_log drop constraint if exists document_organize_log_action_check;
+alter table public.document_organize_log add constraint document_organize_log_action_check
+  check (action in ('run', 'doc', 'folder_created', 'folder_adopted', 'folder_deleted'));
 alter table public.document_organize_log enable row level security;
 revoke all on public.document_organize_log from anon, authenticated;
 
@@ -209,6 +215,33 @@ end;
 $function$;
 
 -- ── ④ צילומים מזהים ──────────────────────────────────────────────────────
+-- ‼ צילום «הוחלף» = לא אושר, ואחריו אותו אדם קיבל צילום מאושר מאותו סוג (כך בדיוק
+--   גם הבנייה וההגשה בוחרות — shaam_confirmed_identity_documents_for). צילום שאושר
+--   נשאר נוכחי גם כשנוסף אחריו עוד אחד.
+-- מחזיר null (לא רשום) · 'current' (נוכחי אצל לפחות אדם אחד) · 'replaced'.
+create or replace function public._id_doc_state_in(p_ids jsonb, p_doc text)
+returns text
+language sql
+immutable
+as $function$
+  with e as (
+    select p.key as person, t.ord, t.v ->> 'documentId' as doc_id,
+           coalesce(nullif(t.v ->> 'docKind', ''), 'idCard') as kind,
+           nullif(t.v ->> 'clientConfirmedAt', '') is not null as confirmed
+      from jsonb_each(case when jsonb_typeof(p_ids) = 'object' then p_ids else '{}'::jsonb end) p
+      cross join lateral jsonb_array_elements(case when jsonb_typeof(p.value) = 'array' then p.value else '[]'::jsonb end)
+           with ordinality t(v, ord)
+     where p.key in ('client', 'spouse')
+  ), mine as (
+    select x.confirmed or not exists (select 1 from e y where y.person = x.person and y.kind = x.kind
+                                                          and y.ord > x.ord and y.confirmed) as current
+      from e x where x.doc_id = p_doc
+  )
+  select case when not exists (select 1 from mine) then null
+              when bool_or(current) then 'current' else 'replaced' end
+    from mine;
+$function$;
+
 create or replace function public.organize_identity_documents(p_request_id text)
 returns int
 language plpgsql
@@ -241,18 +274,31 @@ begin
              count(distinct person) > 1 as shared,
              min(pord * 100000 + ord) as pos
         from e group by doc_id
+    ), placed as (
+      -- ‼ «ישן» = הוחלף, ואינו נוכחי באף בקשה של הלקוח (גם לא בזו). נקבע על פני כל
+      -- הבקשות — אותה תשובה בלי קשר לאיזו בקשה מסודרת ראשונה.
+      select o.*, coalesce((
+               select bool_or(z.s = 'replaced') and not bool_or(z.s = 'current')
+                 from (select public._id_doc_state_in(r3.identity_docs, o.doc_id) as s
+                         from public.representation_requests r3 where r3.linked_client_id = r.linked_client_id) z
+                where z.s is not null), false) as old
+        from owners o join public.documents d on d.id = o.doc_id and d.client_id = r.linked_client_id
     )
-    select o.*, row_number() over (partition by o.owner, o.kind order by o.pos) as n,
-           count(*) over (partition by o.owner, o.kind) as total
-      from owners o join public.documents d on d.id = o.doc_id and d.client_id = r.linked_client_id
+    select p.*, row_number() over (partition by p.owner, p.kind, p.old order by p.pos) as n,
+           count(*) over (partition by p.owner, p.kind, p.old) as total
+      from placed p
   loop
     v_folder := public._ensure_system_folder(r.user_id, r.linked_client_id, null, 'id:' || x.owner || ':' || x.kind,
                   public._id_kind_label(x.kind) || ' - ' || public._doc_person_first(r.linked_client_id, x.owner));
+    if x.old then
+      v_folder := public._ensure_system_folder(r.user_id, r.linked_client_id, v_folder, 'id-old:' || x.owner || ':' || x.kind, 'ישן');
+    end if;
     v_desc := public._id_kind_label(x.kind) || ' - '
       || case when x.shared then public._doc_person_first(r.linked_client_id, 'client') || ' ו'
                                  || public._doc_person_first(r.linked_client_id, 'spouse')
               else public._doc_person_first(r.linked_client_id, x.owner) end
-      || ' · צילום' || case when x.total > 1 then ' ' || x.n else '' end;
+      || ' · צילום' || case when x.total > 1 then ' ' || x.n else '' end
+      || case when x.old then ' (ישן - הוחלף)' else '' end;
     if public._apply_doc_place(x.doc_id, v_folder, v_desc) then v_n := v_n + 1; end if;
   end loop;
   perform public._prune_empty_system_folders(r.linked_client_id);
@@ -424,11 +470,10 @@ begin
      where t.value ->> 'formDocumentId' = p_doc_id);
   v_multi := jsonb_typeof(rr.signature_documents) = 'array' and jsonb_array_length(rr.signature_documents) > 1;
 
-  -- ‼ ישן = טופס שהוחלף (נרשם «הוחלף» / עותק שמור «-old-»), טופס שירד מרשימת הטפסים
-  -- של הבקשה שלו, או בקשה שבוטלה. ייפוי כוח של בקשה קודמת שעדיין בתוקף — לא ישן.
+  -- ‼ ישן = טופס שהוחלף (נרשם «הוחלף» / עותק שמור «-old-»), או טופס שירד מרשימת הטפסים
+  -- של הבקשה שלו. ייפוי כוח של בקשה קודמת — לא ישן (לבקשת ייצוג אין מצב «בוטלה»).
   v_old := p_doc_id like '%-old-%'
         or (not v_signed and coalesce(p_notes, '') like '%הוחלף%')
-        or rr.status = 'cancelled'
         or (jsonb_typeof(rr.signature_documents) = 'array' and jsonb_array_length(rr.signature_documents) > 0
             and not v_listed and p_doc_id is distinct from rr.signed_pdf_path);
 
@@ -559,6 +604,11 @@ declare
   v_poa int := 0;
   v_pdf int := 0;
 begin
+  -- ‼ מזהה ריצה חד-פעמי: ריצה שנייה באותו מזהה הייתה מתערבבת ביומן של הראשונה, והשחזור היה מחזיר את שתיהן.
+  if exists (select 1 from public.document_organize_log where run_id = v_run) then
+    raise exception 'run_exists: %', v_run;
+  end if;
+  insert into public.document_organize_log (run_id, action) values (v_run, 'run');
   perform set_config('pivo.organize_run', v_run, true);
   for r in select id from public.representation_requests where linked_client_id is not null order by created_at loop
     v_id := v_id + public.organize_identity_documents(r.id);
@@ -583,8 +633,11 @@ security definer
 set search_path to 'public'
 as $function$
 declare
-  v jsonb;
+  v        jsonb;
+  v_office text[];
 begin
+  -- תיקיות שהמערכת לא יצרה (של המשרד, כולל כאלה שיאומצו) — חייבות להישאר כולן.
+  select coalesce(array_agg(id), '{}') into v_office from public.document_folders where not created_by_system;
   begin
     perform public.organize_all_request_documents('preview');
     select jsonb_build_object(
@@ -596,10 +649,8 @@ begin
       'foldersCreated', (select count(*) from public.document_organize_log where run_id = 'preview' and action = 'folder_created'),
       'foldersAdopted', (select count(*) from public.document_organize_log where run_id = 'preview' and action = 'folder_adopted'),
       'foldersDeleted', (select count(*) from public.document_organize_log where run_id = 'preview' and action = 'folder_deleted'),
-      'officeFoldersDeleted', (select count(*) from public.document_organize_log l
-                                 where l.run_id = 'preview' and l.action = 'folder_deleted'
-                                   and not exists (select 1 from public.document_organize_log c
-                                                    where c.run_id = 'preview' and c.action = 'folder_created' and c.folder_id = l.folder_id)),
+      'officeFoldersDeleted', (select count(*) from unnest(v_office) o(id)
+                                 where not exists (select 1 from public.document_folders f where f.id = o.id)),
       'clients', (select count(distinct d.client_id) from public.document_organize_log l join public.documents d on d.id = l.doc_id
                    where l.run_id = 'preview' and l.action = 'doc'),
       'docsInOfficeFoldersUntouched', (select count(*) from public.documents d join public.document_folders f on f.id = d.folder_id
@@ -641,6 +692,10 @@ declare
   v_fld int := 0;
 begin
   if coalesce(p_run_id, '') = '' or p_run_id = 'preview' then raise exception 'bad_run'; end if;
+  if not exists (select 1 from public.document_organize_log where run_id = p_run_id) then raise exception 'run_not_found: %', p_run_id; end if;
+  if exists (select 1 from public.document_organize_log where run_id = p_run_id and restored_at is not null) then
+    raise exception 'run_already_restored: %', p_run_id;
+  end if;
   perform set_config('pivo.organize_run', 'restore:' || p_run_id, true);
   for l in select * from public.document_organize_log where run_id = p_run_id order by id desc loop
     if l.action = 'doc' then
@@ -669,6 +724,7 @@ begin
       v_fld := v_fld + 1;
     end if;
   end loop;
+  update public.document_organize_log set restored_at = now() where run_id = p_run_id;
   perform set_config('pivo.organize_run', '', true);
   return jsonb_build_object('ok', true, 'docs', v_doc, 'folders', v_fld);
 end;
@@ -679,7 +735,7 @@ do $$
 declare fn text;
 begin
   foreach fn in array array[
-    'public._organize_run()',
+    'public._organize_run()', 'public._id_doc_state_in(jsonb, text)',
     'public._doc_person_first(text, text)', 'public._doc_person_full(text, text)',
     'public._ensure_system_folder(uuid, text, text, text, text)', 'public._doc_movable(text)',
     'public._apply_doc_place(text, text, text, text)', 'public._prune_empty_system_folders(text)',
