@@ -12,7 +12,6 @@ import { requestedSummary, KEY_LABELS, type Issue, type ProfessionalConfirmation
 import { BTL6101_PURPOSE_LABELS, type Btl6101Purpose } from './model';
 import { currentBtlState } from './resolve';
 import { formDate } from './layout6101';
-import { BTL6101_TEMPLATE } from './template';
 import {
   advanceFiling, attachSignedPdf, captureSignature, filingErrorText, issueSignLink, lockForSignature,
   newRevision, setAttachments, signLinkUrl, FILING_STATE_LABELS, type Attachment,
@@ -110,7 +109,7 @@ function ReviewStep({ ctx, resolved, blockers, purposes, dirty, editable, onStep
   const spouseSigns = purposes.includes('spouse_in_business');
 
   const lock = () => run(async () => {
-    const snapshot = snapshotFor(resolved, [], professional);
+    const snapshot = snapshotFor(resolved, [], professional, ctx.template);
     const signers: { role: 'client' | 'spouse'; name: string; idNumber?: string }[] = [{ role: 'client', name: `${resolved.data.firstName} ${resolved.data.lastName}`.trim(), idNumber: resolved.data.idNumber }];
     if (spouseSigns) signers.push({ role: 'spouse', name: `${resolved.data.spouseFirstName} ${resolved.data.spouseLastName}`.trim(), idNumber: resolved.data.spouseIdNumber });
     return lockForSignature(filing.id, rev.revision, snapshot, signers);
@@ -237,12 +236,13 @@ function SignStep({ ctx, onStep }: Props) {
       const clientSigned = rev.signers.find(s => s.role === 'client')?.signedAt;
       if (!clientSigned) throw new Error('חתימת המבוטח חסרה');
       // ‼ הקובץ מצויר בקוד הנוכחי: אם מיקום השדות השתנה אחרי החתימה, הוא היה שונה ממה שנחתם.
-      if (rev.mappingVersion !== BTL6101_TEMPLATE.mappingVersion) {
+      if (rev.mappingVersion !== ctx.template.mappingVersion) {
         throw new Error('מיקום השדות בטופס שופר אחרי החתימה, ולכן לא מפיקים קובץ שנראה אחרת ממה שנחתם. «ערוך — גרסה חדשה» ← חתימה מחדש (הערכים נשמרים).');
       }
       const declarationDate = israelDate(clientSigned);
       const sig = Object.fromEntries(Object.entries(rev.signatures).map(([k, v]) => [k, v?.png]));
       const { bytes } = await renderBtl6101({ ...rev.snapshot.data, declarationDate }, rev.purposes, {
+        template: ctx.template,
         signatures: sig, title: `טופס 6101 חתום — ${client.firstName} ${client.lastName} — גרסה ${rev.revision}`,
         date: new Date(rev.signedAt ?? clientSigned),
       });
@@ -289,7 +289,7 @@ function SignStep({ ctx, onStep }: Props) {
 
   // ‼ (209) גרסה שננעלה לפני שמיקום השדות בטופס עודכן — חותמים רק על מה שמוצג, ולכן
   // קודם גרסה חדשה במיקום המעודכן (השרת חוסם חתימה/קישור עליה: mapping_outdated).
-  if (rev.state === 'locked' && rev.mappingVersion !== BTL6101_TEMPLATE.mappingVersion) {
+  if (rev.state === 'locked' && rev.mappingVersion !== ctx.template.mappingVersion) {
     return (
       <div className="sf-section">
         <div className="sf-banner is-warn">
@@ -298,7 +298,7 @@ function SignStep({ ctx, onStep }: Props) {
         </div>
         <div className="sf-actions">
           <button type="button" className="btn btn-primary" disabled={busy}
-            onClick={() => void run(() => newRevision(filing.id, `שיפור מיקום השדות בטופס (מיפוי ${BTL6101_TEMPLATE.mappingVersion})`), () => onStep('review'))}>
+            onClick={() => void run(() => newRevision(filing.id, `שיפור מיקום השדות בטופס (מיפוי ${ctx.template.mappingVersion})`), () => onStep('review'))}>
             הכן מחדש לחתימה
           </button>
         </div>

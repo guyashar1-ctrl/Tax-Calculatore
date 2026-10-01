@@ -9,6 +9,7 @@ import { getPublicSigning, submitPublicSignature, type PublicSigning } from './a
 import { BTL6101_TEMPLATE } from './btl6101/template';
 import { israelDate, renderBtl6101 } from './btl6101/document';
 import { EmptySignatureError, trimSignature } from './signatureImage';
+import { applyMapping } from './mapping';
 import './smartForms.css';
 
 const REASONS: Record<string, string> = {
@@ -32,20 +33,25 @@ export default function PublicSmartFormSignPage({ token }: { token: string }) {
 
   useEffect(() => { void getPublicSigning(token).then(setInfo); }, [token]);
 
-  const templateOk = !!info?.ok && info.templateKey === BTL6101_TEMPLATE.key && info.templateSha256 === BTL6101_TEMPLATE.sha256
-    && info.mappingVersion === BTL6101_TEMPLATE.mappingVersion;
+  // (210) מציירים במיפוי של הגרסה שנחתמת (מהשרת). גרסה מתחת לבסיס הקוד — אין איך לצייר אותה;
+  // גרסה שאינה הפעילה — השרת ממילא חוסם את החתימה.
+  const template = useMemo(() => info?.ok && info.mappingVersion != null
+    ? applyMapping(BTL6101_TEMPLATE, { version: info.mappingVersion, fields: info.mapping ?? {} }) : null, [info]);
+  const templateOk = !!info?.ok && !!template && info.templateKey === BTL6101_TEMPLATE.key && info.templateSha256 === BTL6101_TEMPLATE.sha256
+    && (info.mappingVersion ?? 0) >= BTL6101_TEMPLATE.mappingVersion
+    && (info.activeMappingVersion == null || info.mappingVersion === info.activeMappingVersion);
 
   useEffect(() => {
-    if (!info?.ok || info.alreadySigned || !templateOk || !info.data) return;
+    if (!info?.ok || info.alreadySigned || !templateOk || !info.data || !template) return;
     void renderBtl6101({ ...info.data, declarationDate: info.clientSignedAt ? israelDate(info.clientSignedAt) : '' }, info.purposes ?? [], {
-      signatures: info.otherSignatures ?? {}, title: 'דין וחשבון רב שנתי (6101)',
+      signatures: info.otherSignatures ?? {}, title: 'דין וחשבון רב שנתי (6101)', template,
     }).then(r => setBytes(r.bytes)).catch(e => setError(e instanceof Error ? e.message : String(e)));
-  }, [info, templateOk]);
+  }, [info, templateOk, template]);
 
   const mySpot = useMemo<Hotspot[]>(() => {
-    const f = BTL6101_TEMPLATE.fields.find(x => x.kind === 'signature' && x.signer === info?.role);
+    const f = (template ?? BTL6101_TEMPLATE).fields.find(x => x.kind === 'signature' && x.signer === info?.role);
     return f ? [{ page: f.page, box: f.box, key: 'sig', tone: 'warn', title: 'כאן תופיע החתימה' }] : [];
-  }, [info?.role]);
+  }, [info?.role, template]);
 
   if (!info) return <div className="sf-public"><p className="sf-note">טוען…</p></div>;
   if (!info.ok) return <div className="sf-public"><h1>חתימה על טופס</h1><p>{REASONS[info.reason ?? ''] ?? 'הקישור אינו תקף.'}</p></div>;

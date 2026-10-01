@@ -224,6 +224,8 @@ export interface PublicSigning {
   ok: boolean; reason?: string; alreadySigned?: boolean;
   role?: 'client' | 'spouse'; signerName?: string; firmName?: string;
   templateKey?: string; templateVersion?: string; templateSha256?: string; mappingVersion?: number;
+  /** (210) תיקוני המיפוי של הגרסה שנחתמת, והגרסה הפעילה כרגע. */
+  mapping?: import('./mapping').MappingFields; activeMappingVersion?: number;
   purposes?: Btl6101Purpose[]; data?: Btl6101Data; contentSha256?: string;
   otherSignatures?: Partial<Record<'client' | 'spouse', string>>;
   /** מתי המבוטח חתם (אם כבר חתם) — תאריך ההצהרה בעמוד 3. */

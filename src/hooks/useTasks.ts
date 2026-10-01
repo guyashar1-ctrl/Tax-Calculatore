@@ -9,21 +9,26 @@ const DEV_SEED = import.meta.env.DEV && import.meta.env.VITE_DEV_BYPASS_AUTHZ ==
 
 export function useTasks(userId: string | undefined) {
   const [tasks, setTasks] = useState<Task[]>(DEV_SEED ? SAMPLE_TASKS : []);
-  const [loading, setLoading] = useState(true);
+  // ‼ «טוען» נגזר ממי שהרשימה נטענה עבורו, באותו רינדור שבו המשתמש מתחלף.
+  // דגל שנקבע בתוך האפקט הגיע רינדור אחד מאוחר: ברינדור הראשון אחרי ההתחברות
+  // הוא עוד אמר «נטען» מהמצב המנותק, הרשימה הריקה נראתה אמיתית, ו-App ניסה
+  // ליצור שוב את משימת הרבעון הקיימת — 409 בכל טעינה (tasks_system_unique_title).
+  // כשל טעינה משאיר «טוען», כדי שאיש לא יסיק "אין משימה" מרשימה שלא נקראה.
+  const [loadedFor, setLoadedFor] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const loading = DEV_SEED ? false : !!userId && loadedFor !== userId;
   // העותק העדכני ביותר שבזיכרון — הבסיס להשוואה "מה באמת השתנה" לפני כתיבה.
   const tasksRef = useRef(tasks);
   tasksRef.current = tasks;
 
   useEffect(() => {
-    if (DEV_SEED) { setTasks(SAMPLE_TASKS); setLoading(false); return; }
+    if (DEV_SEED) { setTasks(SAMPLE_TASKS); return; }
     if (!userId) {
       setTasks([]);
-      setLoading(false);
+      setLoadedFor(null);
       return;
     }
     let cancelled = false;
-    setLoading(true);
     (async () => {
       const { data, error } = await supabase
         .from('tasks')
@@ -32,12 +37,11 @@ export function useTasks(userId: string | undefined) {
       if (cancelled) return;
       if (error) {
         setError(error.message);
-        setLoading(false);
         return;
       }
       setTasks((data ?? []).map(taskFromDb));
       setError(null);
-      setLoading(false);
+      setLoadedFor(userId);
     })();
     return () => { cancelled = true; };
   }, [userId]);
