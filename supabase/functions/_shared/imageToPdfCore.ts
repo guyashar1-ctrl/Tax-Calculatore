@@ -39,6 +39,11 @@ export interface PdfLib {
    */
   // deno-lint-ignore no-explicit-any
   drawImageOp?: (name: any, o: any) => any[];
+  /**
+   * פיקסלים גולמיים: 'smallest' ⇒ מקודד גם בלי מסננים ושומר את הקטן (שניהם בלי אובדן) —
+   * פי שניים עבודה, ולכן רק ב-Chrome (העובד/הדפדפן), לא בשרת עם מגבלת המעבד שלו.
+   */
+  rawEncoding?: 'filtered' | 'smallest';
 }
 
 /**
@@ -504,6 +509,40 @@ export function fitOnA4(natW: number, natH: number) {
   return { pageW, pageH, dw, dh, bx: (pageW - dw) / 2, by: (pageH - dh) / 2 };
 }
 
+/**
+ * שורות RGB ⇒ שורות PNG: לכל שורה המסנן שנותן את השאריות הקטנות ביותר (None/Sub/Up/Paeth —
+ * כמו מקודד PNG רגיל). הפיכה מלאה בפענוח — בלי אובדן.
+ * ‼ מסנן אחד קבוע (Paeth) הגדיל סריקה רועשת ב-30% (נמצא בבדיקה) — לכן הבחירה לכל שורה.
+ */
+export function paethRows(rgb: Uint8Array, w: number, h: number): Uint8Array {
+  const stride = w * 3;
+  const out = new Uint8Array((stride + 1) * h);
+  const cand = [new Uint8Array(stride), new Uint8Array(stride), new Uint8Array(stride), new Uint8Array(stride)];
+  const types = [0, 1, 2, 4];
+  for (let y = 0; y < h; y++) {
+    const row = y * stride, prev = row - stride;
+    const score = [0, 0, 0, 0];
+    for (let x = 0; x < stride; x++) {
+      const v = rgb[row + x];
+      const a = x >= 3 ? rgb[row + x - 3] : 0;
+      const b = y > 0 ? rgb[prev + x] : 0;
+      const c = x >= 3 && y > 0 ? rgb[prev + x - 3] : 0;
+      const p = a + b - c, pa = Math.abs(p - a), pb = Math.abs(p - b), pc = Math.abs(p - c);
+      const r0 = v, r1 = (v - a) & 255, r2 = (v - b) & 255, r4 = (v - (pa <= pb && pa <= pc ? a : pb <= pc ? b : c)) & 255;
+      cand[0][x] = r0; cand[1][x] = r1; cand[2][x] = r2; cand[3][x] = r4;
+      // סכום ערכים מוחלטים כמספר עם סימן — ההיוריסטיקה הרגילה של מקודדי PNG.
+      score[0] += r0 < 128 ? r0 : 256 - r0; score[1] += r1 < 128 ? r1 : 256 - r1;
+      score[2] += r2 < 128 ? r2 : 256 - r2; score[3] += r4 < 128 ? r4 : 256 - r4;
+    }
+    let best = 0;
+    for (let k = 1; k < 4; k++) if (score[k] < score[best]) best = k;
+    const o = y * (stride + 1);
+    out[o] = types[best];
+    out.set(cand[best], o + 1);
+  }
+  return out;
+}
+
 /** פיקסלים גולמיים (כבר מיושרים ומשוטחים) ⇒ עמוד. Flate אחד, בלי אובדן. */
 function addRawPage(lib: PdfLib, pdf: PdfDoc, raw: RawImage): PartInfo {
   if (!lib.drawImageOp) throw new ImageConversionError('ההמרה אינה זמינה כאן.', 'needs_decoder', '');
@@ -515,9 +554,17 @@ function addRawPage(lib: PdfLib, pdf: PdfDoc, raw: RawImage): PartInfo {
     throw new ImageConversionError(`התמונה גדולה מדי לעיבוד (${Math.round(w * h / 1e6)} מגה-פיקסל).`,
       'too_many_pixels', 'לצלם או לסרוק מחדש ברזולוציה רגילה.');
   }
-  const xObject = pdf.context.flateStream(raw.rgb, {
-    Type: 'XObject', Subtype: 'Image', BitsPerComponent: 8, Width: w, Height: h, ColorSpace: 'DeviceRGB',
+  // ‼ מסנני PNG לפני Flate — עדיין בלי אובדן, אבל צילום נדחס כמו PNG ולא כמו
+  // פיקסלים גולמיים: מקור גדול יותר נשמר בלי אובדן ופחות קבצים צריכים גרסת הגשה.
+  const dict = { Type: 'XObject', Subtype: 'Image', BitsPerComponent: 8, Width: w, Height: h, ColorSpace: 'DeviceRGB' };
+  let xObject = pdf.context.flateStream(paethRows(raw.rgb, w, h), {
+    ...dict, DecodeParms: { Predictor: 15, Colors: 3, BitsPerComponent: 8, Columns: w },
   });
+  if (lib.rawEncoding === 'smallest') {
+    // רעש אקראי (סריקה גרעינית) נדחס טוב יותר בלי מסננים — נמצא בבדיקה (21MB מול 27MB).
+    const plain = pdf.context.flateStream(raw.rgb, dict);
+    if (plain.contents.length < xObject.contents.length) xObject = plain;
+  }
   const ref = pdf.context.register(xObject);
   const { pageW, pageH, dw, dh, bx, by } = fitOnA4(w, h);
   const page = pdf.addPage([pageW, pageH]);

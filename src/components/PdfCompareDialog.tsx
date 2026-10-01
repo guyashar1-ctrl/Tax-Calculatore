@@ -66,6 +66,13 @@ export default function PdfCompareDialog({ title, build, loadDoc, onDecide, onCl
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      // ‼ sameFile: אין PDF בלי אובדן — רק הקובץ הדחוס, צד אחד.
+      if (build.submissionSameFile) {
+        const s = await loadDoc(build.id);
+        const sd = await loadPdf(s.bytes);
+        if (!cancelled) setDocs({ original: sd.doc, submission: sd.doc, files: [s] });
+        return;
+      }
       const [o, s] = await Promise.all([loadDoc(build.id), loadDoc(build.submissionDocumentId ?? build.id)]);
       const [od, sd] = await Promise.all([loadPdf(o.bytes), loadPdf(s.bytes)]);
       if (!cancelled) setDocs({ original: od.doc, submission: sd.doc, files: [o, s] });
@@ -101,7 +108,11 @@ export default function PdfCompareDialog({ title, build, loadDoc, onDecide, onCl
     finally { setBusy(null); }
   };
 
-  const summary = downscaled
+  const single = build.submissionSameFile;
+  const summary = single
+    ? <>הצילום גדול מדי לשמירה כ-PDF <b>בלי אובדן</b>, ולכן ה-PDF נשמר בדחיסת JPEG {p0 ? `${Math.round(p0.quality * 100)}%` : ''} ברזולוציה המלאה
+        ({mb(build.submissionBytes)}). אין גרסה בלי אובדן להשוואה — בדקו שהטקסט הקטן קריא באזורים למטה. הצילום המקורי נפתח בכפתור «צילום» בשורת המסמך.</>
+    : downscaled
     ? <>ה-PDF באיכות המקור ({mb(build.pdfBytes)}) גדול ממגבלת ההעלאה ({limit}), ולכן גרסת ההגשה <b>הוקטנה</b>
         {p0 ? <> מ-{p0.srcW.toLocaleString('he-IL')}×{p0.srcH.toLocaleString('he-IL')} ל-{p0.outW.toLocaleString('he-IL')}×{p0.outH.toLocaleString('he-IL')} פיקסלים</> : null}
         {p0 ? (p0.quality >= 1 ? ', בלי דחיסה' : `, JPEG ${Math.round(p0.quality * 100)}%`) : ''}
@@ -131,9 +142,8 @@ export default function PdfCompareDialog({ title, build, loadDoc, onDecide, onCl
           </button>
         </>
       )}
-      {state === 'auto' && <span className="pdfc-decided" data-tone="done">רזולוציה מלאה — עוברת להגשה בלי החלטה נוספת</span>}
       <span className="pdfc-downloads">
-        {urls[0] && <a className="rc-link" href={urls[0]} download={docs?.files[0].fileName} data-testid="pc-dl-original">הורדת המקור</a>}
+        {urls[0] && <a className="rc-link" href={urls[0]} download={docs?.files[0].fileName} data-testid="pc-dl-original">{single ? 'הורדת ה-PDF' : 'הורדת המקור'}</a>}
         {urls[1] && <a className="rc-link" href={urls[1]} download={docs?.files[1].fileName} data-testid="pc-dl-submission">הורדת גרסת ההגשה</a>}
       </span>
     </div>
@@ -154,11 +164,13 @@ export default function PdfCompareDialog({ title, build, loadDoc, onDecide, onCl
             <div className="pdfc-row-head">
               {build.submissionFocus.length > 1 || (build.pageCount ?? 1) > 1 ? `עמוד ${r.page + 1} · ` : ''}אזור {i + 1} — הפרטים העדינים ביותר
             </div>
-            <div className="pdfc-pair">
-              <figure className="pdfc-side">
-                <figcaption>מקור</figcaption>
-                <Crop doc={docs.original} region={r} scale={scaleFor(r.page)} label={`מקור · אזור ${i + 1}`} />
-              </figure>
+            <div className="pdfc-pair" data-single={single ? 'true' : undefined}>
+              {!single && (
+                <figure className="pdfc-side">
+                  <figcaption>מקור</figcaption>
+                  <Crop doc={docs.original} region={r} scale={scaleFor(r.page)} label={`מקור · אזור ${i + 1}`} />
+                </figure>
+              )}
               <figure className="pdfc-side">
                 <figcaption>{downscaled ? 'להגשה (מוקטן)' : 'להגשה'}</figcaption>
                 <Crop doc={docs.submission} region={r} scale={scaleFor(r.page)} label={`להגשה · אזור ${i + 1}`} />

@@ -63,12 +63,14 @@ export function pdfLine(e: IdEntry, officeOnline?: boolean | null): { text: stri
   if (b.status === 'ready') {
     const pages = pagesText(b.pageCount);
     switch (b.submissionState) {
-      case 'auto':
-        return { text: `PDF מוכן${pages ? ` · ${pages}` : ''} · להגשה: דחוס ברזולוציה מלאה`, tone: 'done' };
       case 'review':
         return {
-          text: b.submissionMode === 'downscaled' ? 'גרסת ההגשה הוקטנה — לבדיקתך' : 'גרסת ההגשה נדחסה מחדש — לבדיקתך', tone: 'attention',
-          next: 'הקובץ המקורי גדול ממגבלת ההעלאה של שע״ם. בדקו בהשוואה שהטקסט הקטן קריא: אם כן — לאשר; אם לא — לבקש צילום טוב יותר. עד ההחלטה ההגשה ממתינה.',
+          text: b.submissionSameFile ? 'ה-PDF נדחס — לבדיקתך'
+            : b.submissionMode === 'downscaled' ? 'גרסת ההגשה הוקטנה — לבדיקתך' : 'גרסת ההגשה נדחסה — לבדיקתך',
+          tone: 'attention',
+          next: b.submissionSameFile
+            ? 'הצילום גדול מדי לשמירה כ-PDF בלי אובדן, ולכן נשמר דחוס. בדקו בהשוואה שהטקסט הקטן קריא: אם כן — לאשר; אם לא — לבקש צילום טוב יותר. עד ההחלטה ההגשה ממתינה.'
+            : 'הקובץ המקורי גדול ממגבלת ההעלאה של שע״ם. בדקו בהשוואה שהטקסט הקטן קריא: אם כן — לאשר; אם לא — לבקש צילום טוב יותר. עד ההחלטה ההגשה ממתינה.',
         };
       case 'approved':
         return { text: `PDF מוכן${pages ? ` · ${pages}` : ''} · להגשה: ${b.submissionMode === 'downscaled' ? 'מוקטן' : 'דחוס'}, אישרת שקריא`, tone: 'done' };
@@ -192,7 +194,7 @@ export default function RepDocuments({
                     PDF
                   </button>
                 )}
-                {separate && b && b.submissionState !== 'review' && (
+                {(separate || b?.submissionSameFile) && b && b.submissionState !== 'review' && (
                   <button type="button" className="rc-quiet" data-testid="rc-compare"
                     onClick={() => setCompare({ title: `${e.name} · השוואה`, build: b })}>
                     השוואה

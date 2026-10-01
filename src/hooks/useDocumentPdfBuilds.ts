@@ -15,8 +15,11 @@ import { WORKER_STALE_AFTER_MS } from '../types/automation';
 import type { FocusRegion } from '../utils/imageToPdf';
 
 export type PdfBuildStatus = 'pending' | 'ready' | 'needs_worker' | 'failed' | 'superseded';
-/** same = המקור הוא קובץ ההגשה · auto = דחוס ברזולוציה מלאה · review/approved/rejected = מוקטן, החלטת המשרד. */
-export type PdfSubmissionState = 'same' | 'auto' | 'review' | 'approved' | 'rejected';
+/**
+ * same = המקור בלי אובדן הוא קובץ ההגשה (מתקדם לבד).
+ * review/approved/rejected = קובץ ההגשה איבד מידע (דחיסה, גם 95%, או הקטנה) — החלטת המשרד.
+ */
+export type PdfSubmissionState = 'same' | 'review' | 'approved' | 'rejected';
 
 export interface PdfPageMeta { page: number; srcW: number; srcH: number; outW: number; outH: number; quality: number; downscaled: boolean }
 
@@ -48,6 +51,8 @@ export interface PdfBuild {
   submissionDecidedAt: string | null;
   /** תקרת ההגשה שהגרסה נבנתה מולה (שע״ם: 30MB). */
   submissionLimit: number | null;
+  /** המקור עצמו נדחס (גדול מדי לשמירה בלי אובדן) והוא קובץ ההגשה — אין PDF בלי אובדן להשוואה. */
+  submissionSameFile: boolean;
 }
 
 // deno-lint-ignore no-explicit-any
@@ -65,16 +70,17 @@ function fromRow(r: any): PdfBuild {
     submissionMode: meta.mode ?? null, submissionFocus: meta.focus ?? [], submissionPages: meta.pages ?? [],
     submissionDecidedAt: r.submission_decided_at ?? null,
     submissionLimit: typeof meta.limit === 'number' ? meta.limit : null,
+    submissionSameFile: meta.sameFile === true,
   };
 }
 
 /** האם יש גרסת הגשה נפרדת מהמקור. */
 export const hasSeparateSubmission = (b?: PdfBuild | null) =>
-  !!b && b.status === 'ready' && !!b.submissionState && b.submissionState !== 'same';
+  !!b && b.status === 'ready' && !!b.submissionDocumentId && b.submissionDocumentId !== b.id;
 
 /** האם מה שיוגש מוכן ומותר. */
 export const submissionUsable = (b?: PdfBuild | null) =>
-  !!b && b.status === 'ready' && (b.submissionState === 'same' || b.submissionState === 'auto' || b.submissionState === 'approved');
+  !!b && b.status === 'ready' && (b.submissionState === 'same' || b.submissionState === 'approved');
 
 /**
  * @param identityKey משתנה כשהצילומים המשויכים משתנים — מפעיל סנכרון מחדש.

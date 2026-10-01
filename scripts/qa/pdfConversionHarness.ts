@@ -359,14 +359,19 @@ export async function runPdfConversionQa(heicBase64: string): Promise<QaCase[]> 
 
   // 11 · ‼ 211 · שתי גרסאות: מקור (תמיד, בלי אובדן כשאפשר) + גרסת הגשה רק כשצריך.
   // תקרה מוקטנת בכמה מקרים (מסומן בשם) — כדי לבדוק כל שלב בסולם בלי קבצים של 100MB.
+  // ‼ 211 (גיא, 01.10): רק בלי אובדן מתקדם לבד. כל קובץ הגשה שאיבד מידע — לבדיקה.
   async function versionsCase(name: string, files: Uint8Array[], maxBytes: number,
-    want: 'same' | 'auto' | 'review-recompressed' | 'review-downscaled' | 'too_large') {
+    want: 'same' | 'review-original' | 'review-recompressed' | 'review-downscaled' | 'too_large', originalMaxBytes?: number) {
     const t0 = performance.now();
     try {
-      const v = await buildDocumentPdfVersions(files, { maxBytes });
+      const v = await buildDocumentPdfVersions(files, { maxBytes, originalMaxBytes });
       const sub = v.submission;
-      const got = !sub ? 'same' : !sub.needsReview ? 'auto' : sub.mode === 'downscaled' ? 'review-downscaled' : 'review-recompressed';
+      // מה המסד יקבע (complete_document_pdf_build): גרסה נפרדת ⇒ review; מקור דחוס ⇒ review; אחרת same.
+      const got = sub ? (sub.mode === 'downscaled' ? 'review-downscaled' : 'review-recompressed')
+        : v.original.lossless ? 'same' : 'review-original';
       const checks: string[] = [];
+      if (sub && !sub.needsReview) checks.push('גרסה דחוסה סומנה כעוברת לבד!');
+      if (!sub && !v.original.lossless && !v.originalReview?.focus.length) checks.push('מקור דחוס בלי אזורים להשוואה');
       if (sub && sub.result.pageCount !== v.original.pageCount) checks.push('מספר עמודים שונה');
       if (sub && sub.result.bytes.length > maxBytes) checks.push('גרסת ההגשה מעל התקרה');
       if (!sub && v.original.bytes.length > maxBytes) checks.push('המקור מעל התקרה ובכל זאת «same»');
@@ -398,9 +403,13 @@ export async function runPdfConversionQa(heicBase64: string): Promise<QaCase[]> 
     g.putImageData(img, 0, 0);
     const scanPng = await toBytes(scan, 'image/png');
     await versionsCase(`גרסאות · סריקת A4 600dpi (${(scanPng.length / 1048576).toFixed(0)}MB PNG) ⇒ המקור הוא גם קובץ ההגשה`, [scanPng], MAXB, 'same');
-    // אותה סריקה, תקרה נמוכה מהמקור: פיקסלים שפוענחו ⇒ JPEG 95% ברזולוציה מלאה — אוטומטי.
-    const limitAuto = 14 * 1048576;   // מתחת למקור (~21MB בלי אובדן), מעל JPEG 95%
-    await versionsCase(`גרסאות · אותה סריקה, תקרה ${(limitAuto / 1048576).toFixed(1)}MB ⇒ JPEG 95% ברזולוציה מלאה, אוטומטי`, [scanPng], limitAuto, 'auto');
+    // אותה סריקה, תקרה נמוכה מהמקור: JPEG 95% ברזולוציה מלאה — ‼ גם זה לבדיקה (מאבד מידע).
+    // התקרות נגזרות מהגודל האמיתי של המקור בלי אובדן — כדי שהבדיקה תפגע בדיוק בשלב.
+    const L = (await buildDocumentPdfVersions([scanPng])).original.bytes.length;
+    const limit95 = L - 65536;   // מרווח: מטא-נתונים של ה-PDF (תאריכים) משתנים בכמה בתים בין בנייה לבנייה
+    await versionsCase(`גרסאות · אותה סריקה, תקרה ${(limit95 / 1048576).toFixed(2)}MB (רגע מתחת למקור) ⇒ JPEG 95% ברזולוציה מלאה — לבדיקה, לא לבד`, [scanPng], limit95, 'review-recompressed');
+    // המקור עצמו גדול מדי לשמירה בלי אובדן ⇒ נשמר JPEG 95% — והוא לבדיקה גם כשהוא עומד בתקרה.
+    await versionsCase('גרסאות · מקור מעל תקרת השמירה ⇒ נשמר דחוס (JPEG 95%), ולבדיקה גם כשהוא בתוך 30MB', [scanPng], MAXB, 'review-original', L - 65536);
     // JPG מקורי מעל התקרה ⇒ דחיסה מחדש של JPEG מקורי — לא אוטומטי.
     const jpg = await toBytes(scan, 'image/jpeg', 0.99);
     await versionsCase(`גרסאות · JPG מקורי ${(jpg.length / 1048576).toFixed(1)}MB, תקרה ${(jpg.length * 0.8 / 1048576).toFixed(1)}MB ⇒ דחיסה מחדש, לבדיקה`, [jpg], Math.round(jpg.length * 0.8), 'review-recompressed');

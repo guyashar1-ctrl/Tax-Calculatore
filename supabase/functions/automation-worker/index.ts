@@ -475,7 +475,7 @@ Deno.serve(async (req: Request) => {
       const docs = (sel.documents ?? []) as { documentId: string; fileName: string; storagePath: string }[];
       // ‼ 211 · כשיש בנייה ברקע לאותם מקורות בדיוק, ועדיין עדכנית — היא קובעת:
       // מה שעולה הוא **גרסת ההגשה** (המקור כשהוא עומד במגבלה; אחרת הגרסה הנפרדת),
-      // ורק כשמותר (same/auto/approved). בהכנה / ממתין לבדיקה / נפסל / נכשל ⇒
+      // ורק כשמותר (same, או approved). בהכנה / ממתין לבדיקה / נפסל / נכשל ⇒
       // עצירה לפני נגיעה, עם ההסבר. אין נפילה להמרה על המקום שעוקפת את ההחלטה.
       {
         const ids = docs.map((d) => d.documentId);
@@ -489,10 +489,12 @@ Deno.serve(async (req: Request) => {
           if (b.status === "failed") return notReady([b.error_message, b.error_next].filter(Boolean).join(" "));
           if (b.status !== "ready") return notReady("ה-PDF של הצילום עוד בהכנה במחשב המשרד. כשיהיה מוכן — השידור ימשיך מעצמו.");
           const st = b.submission_state ?? "same";
+          // ‼ רק בלי אובדן (same) או גרסה שהמשרד אישר על הטביעה הזאת (approved).
           if (st === "review") {
-            return notReady("ה-PDF באיכות המקור גדול מ-30MB, וגרסת ההגשה הוקטנה — היא ממתינה לבדיקתך ב«מסמכי הבקשה». אחרי האישור השידור ימשיך מעצמו.");
+            return notReady("ה-PDF להגשה נדחס כדי לעמוד במגבלות, והוא ממתין לבדיקתך ב«מסמכי הבקשה» («השוואה והחלטה»). אחרי האישור השידור ימשיך מעצמו.");
           }
-          if (st === "rejected") return notReady("גרסת ההגשה המוקטנת נפסלה כלא קריאה — צריך צילום טוב יותר של המסמך.");
+          if (st === "rejected") return notReady("ה-PDF הדחוס נפסל כלא קריא — צריך צילום טוב יותר של המסמך.");
+          if (st !== "same" && st !== "approved") return notReady("ה-PDF להגשה עוד לא אושר.");
           const docId = (b.submission_document_id as string | null) ?? b.id;
           const { data: dd } = await admin.from("documents").select("storage_path, file_name, file_size").eq("id", docId).maybeSingle();
           if (!dd?.storage_path) return json({ ok: false, error: "download_failed", detail: "קובץ ההגשה לא נמצא" }, 500);

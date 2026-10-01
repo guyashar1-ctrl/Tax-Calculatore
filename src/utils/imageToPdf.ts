@@ -22,10 +22,12 @@
 // ‼ שתי גרסאות (buildDocumentPdfVersions, גיא 01.10.2026: «שמירה על קריאות חשובה
 // יותר מעמידה אוטומטית במגבלת הגודל»):
 //   · מקור — רזולוציה מלאה, בלי אובדן. רק כשגם זה גדול מדי לאחסון — JPEG 95%
-//     ברזולוציה מלאה לפיקסלים שפוענחו (JPEG מקורי לא נוגע), עם הערה.
-//   · הגשה — רק כשהמקור חורג מ-30MB:
-//       1. רזולוציה מלאה, פיקסלים שפוענחו ⇒ JPEG 95% (JPEG מקורי לא נוגע) — אוטומטי.
-//       2. רזולוציה מלאה, גם JPEG מקורי נדחס שוב (90%) — לבדיקת המשרד.
+//     ברזולוציה מלאה לפיקסלים שפוענחו (JPEG מקורי לא נוגע), עם הערה — ואז הוא
+//     עצמו לבדיקת המשרד לפני הגשה.
+//   · הגשה — רק כשהמקור חורג מ-30MB. ‼ כל גרסה כזאת היא לבדיקת המשרד (גיא, 01.10:
+//     «כל גרסת הגשה שעברה דחיסה מאבדת מידע או הקטנת רזולוציה» — גם 95%):
+//       1. רזולוציה מלאה, פיקסלים שפוענחו ⇒ JPEG 95% (JPEG מקורי לא נוגע).
+//       2. רזולוציה מלאה, גם JPEG מקורי נדחס שוב (90%).
 //       3. הקטנה ל-300dpi על A4 — קודם בלי דחיסה (Flate; למסמך טקסט קטן וחד יותר),
 //          ואז JPEG 92% — לבדיקת המשרד. ‼ הקטנה אינה ערובה שטקסט קטן נשאר.
 //     לכל גרסה שנדחסה — אזורי הפרטים העדינים לכל עמוד, להשוואה זה מול זה.
@@ -47,7 +49,7 @@ export {
   type SupportedImageType, type DetectedFormat, type DocumentPdfResult, type PartInfo,
 } from '../../supabase/functions/_shared/imageToPdfCore.ts';
 
-const LIB: PdfLib = { PDFDocument, degrees, UPNG, drawImageOp: drawImage } as unknown as PdfLib;
+const LIB: PdfLib = { PDFDocument, degrees, UPNG, drawImageOp: drawImage, rawEncoding: 'smallest' } as unknown as PdfLib;
 
 /** מקום אחסון (הגבלת האחסון היא 50MB לקובץ) — מעל זה המקור נשמר כ-JPEG 95% ברזולוציה מלאה. */
 export const ORIGINAL_MAX_BYTES = 45 * 1024 * 1024;
@@ -470,6 +472,11 @@ export interface DocumentPdfVersions {
   original: DocumentPdfResult;
   /** null ⇒ המקור עומד במגבלה והוא עצמו קובץ ההגשה. */
   submission: SubmissionVersion | null;
+  /**
+   * המקור עצמו נדחס (גדול מדי לשמירה בלי אובדן) — מה השתנה ואיפה להסתכל. כשהוא גם
+   * קובץ ההגשה, הוא לבדיקת המשרד כמו כל גרסה דחוסה. null ⇒ המקור בלי אובדן.
+   */
+  originalReview: SubmissionVersion | null;
 }
 
 const mbText = (n: number) => { const m = n / 1048576; return `${String(+m.toFixed(m >= 10 ? 1 : 2))}MB`; };
@@ -506,19 +513,22 @@ export async function buildDocumentPdfVersions(
   // ── המקור ──
   let original = await withIndex(() => build(prepared));
   let base = prepared;
+  let originalReview: SubmissionVersion | null = null;
   if (original.bytes.byteLength > originalMax) {
     const alt = await recompress(prepared, 0.95, { includeJpeg: false });
     if (!alt.changed) throw tooLargeError(original.bytes.byteLength, originalMax, 'גם לשמירה');
     original = await build(alt.parts);
     if (original.bytes.byteLength > originalMax) throw tooLargeError(original.bytes.byteLength, originalMax, 'גם לשמירה');
     original.notes.push('המקור גדול מדי לשמירה בלי דחיסה — נשמר כ-JPEG 95% ברזולוציה המלאה.');
+    originalReview = await describeSubmission(prepared, alt.parts, original, true);
     base = alt.parts;
   }
-  if (original.bytes.byteLength <= maxBytes) return { original, submission: null };
+  if (original.bytes.byteLength <= maxBytes) return { original, submission: null, originalReview };
 
   // ── גרסת הגשה ──
+  // ‼ כל שלב כאן מאבד מידע או רזולוציה ⇒ review בכולם. רק המקור בלי אובדן מתקדם לבד.
   const ladder: { q: number; includeJpeg: boolean; longSide?: number; lossless?: boolean; review: boolean }[] = [
-    { q: 0.95, includeJpeg: false, review: false },
+    { q: 0.95, includeJpeg: false, review: true },
     { q: 0.90, includeJpeg: true, review: true },
     { q: 1, includeJpeg: true, longSide: READABLE_LONG_SIDE, lossless: true, review: true },
     { q: 0.92, includeJpeg: true, longSide: READABLE_LONG_SIDE, review: true },
@@ -533,7 +543,7 @@ export async function buildDocumentPdfVersions(
     if (result.pageCount !== original.pageCount) {
       throw new ImageConversionError('גרסת ההגשה יצאה עם מספר עמודים שונה מהמקור, ולכן לא נשמרה.', 'corrupt', 'לנסות שוב.');
     }
-    return { original, submission: await describeSubmission(base, r.parts, result, step.review) };
+    return { original, submission: await describeSubmission(base, r.parts, result, step.review), originalReview };
   }
   throw tooLargeError(last, maxBytes, 'גם אחרי הקטנה ל-300dpi');
 }

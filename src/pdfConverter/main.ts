@@ -23,7 +23,11 @@ type PartMeta = Pick<DocumentPdfResult['parts'][number], 'format' | 'from' | 'pa
 export type ConverterResult =
   | {
       ok: true; ms: number;
-      original: { bytes: number; pages: number; lossless: boolean; notes: string[]; parts: PartMeta[] };
+      original: {
+        bytes: number; pages: number; lossless: boolean; notes: string[]; parts: PartMeta[];
+        /** המקור עצמו נדחס (גדול מדי לשמירה בלי אובדן) — אזורים להשוואה מול הצילום. */
+        review?: { mode: string; focus: unknown[]; pagesMeta: unknown[] };
+      };
       submission: null | {
         bytes: number; pages: number; mode: string; needsReview: boolean; notes: string[];
         focus: unknown[]; pagesMeta: unknown[]; limit: number;
@@ -75,6 +79,7 @@ export async function runConverterJob(job: ConverterJob): Promise<ConverterResul
       original: {
         bytes: v.original.bytes.byteLength, pages: v.original.pageCount, lossless: v.original.lossless,
         notes: v.original.notes, parts: partsMeta(v.original),
+        ...(v.originalReview ? { review: { mode: v.originalReview.mode, focus: v.originalReview.focus, pagesMeta: v.originalReview.pagesMeta } } : {}),
       },
       submission: v.submission ? {
         bytes: v.submission.result.bytes.byteLength, pages: v.submission.result.pageCount,

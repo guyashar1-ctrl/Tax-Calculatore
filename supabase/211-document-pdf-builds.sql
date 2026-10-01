@@ -18,13 +18,14 @@
 -- ‼ שתי גרסאות (גיא, 01.10.2026: «שמירה על קריאות חשובה יותר מעמידה אוטומטית
 --   במגבלת הגודל»):
 --   · מקור — PDF ברזולוציה המלאה, בלי אובדן כשאפשר. תמיד נשמר.
---   · הגשה — אותו קובץ כשהוא עומד במגבלת שע״ם (30MB): submission_state='same'.
---     חרג ⇒ גרסה נפרדת (<id>-s):
---       'auto'     רזולוציה מלאה, רק פיקסלים שפוענחו נדחסו (JPEG 95%); JPEG מקורי
---                  לא נגע. נחשב קריא.
---       'review'   הוקטן, או JPEG מקורי נדחס שוב ⇒ לא עובר אוטומטית. המשרד משווה
---                  ומחליט: 'approved' (קריא) או 'rejected' (צריך מקור טוב יותר).
---   ההגשה (ובדיקת «בר-המרה») משתמשת רק ב-same/auto/approved.
+--   · הגשה — אותו קובץ כשהוא בלי אובדן ועומד במגבלת שע״ם (30MB): 'same'.
+--     ‼ כל קובץ הגשה שאיבד מידע — דחיסה (גם 95% ברזולוציה מלאה) או הקטנה — הוא
+--     'review' (גיא, 01.10: «גרסה ללא אובדן מידע יכולה להתקדם אוטומטית»; כל השאר
+--     עובר «השוואה והחלטה»). המשרד מחליט: 'approved' (קריא) או 'rejected' (צריך
+--     מקור טוב יותר). הכלל נאכף כאן, בשרת — לא לפי מה שהממיר מדווח.
+--     · חרג מ-30MB ⇒ גרסה נפרדת (<id>-s), תמיד 'review'.
+--     · המקור עצמו נדחס (גדול מדי לשמירה בלי אובדן) ⇒ גם הוא 'review'.
+--   ההגשה (ובדיקת «בר-המרה») משתמשת רק ב-same/approved, ורק בטביעה שעליה הוחלט.
 --
 -- ‼ «PDF מוכן» אינו «הלקוח אישר». האישור נשאר clientConfirmedAt ב-identity_docs
 --   (208), והחסימות שלפני ההגשה לא משתנות.
@@ -88,9 +89,11 @@ alter table public.document_pdf_builds add constraint document_pdf_builds_status
 alter table public.document_pdf_builds drop constraint if exists document_pdf_builds_built_by_check;
 alter table public.document_pdf_builds add constraint document_pdf_builds_built_by_check
   check (built_by is null or built_by in ('server', 'worker', 'browser'));
+-- ‼ 'auto' (דחיסה שעברה לבד) בוטל — בנייה כזאת חוזרת להחלטת המשרד.
 alter table public.document_pdf_builds drop constraint if exists document_pdf_builds_submission_state_check;
+update public.document_pdf_builds set submission_state = 'review', submission_decided_at = null where submission_state = 'auto';
 alter table public.document_pdf_builds add constraint document_pdf_builds_submission_state_check
-  check (submission_state is null or submission_state in ('same', 'auto', 'review', 'approved', 'rejected'));
+  check (submission_state is null or submission_state in ('same', 'review', 'approved', 'rejected'));
 
 create index if not exists document_pdf_builds_request_idx on public.document_pdf_builds (request_id);
 create index if not exists document_pdf_builds_client_idx on public.document_pdf_builds (client_id);
@@ -476,6 +479,7 @@ declare
   v_o     jsonb := p_result -> 'original';
   v_s     jsonb := p_result -> 'submission';
   v_state text;
+  v_sep   boolean;
   v_old   text[] := '{}';
   v_label text;
 begin
@@ -505,11 +509,13 @@ begin
     return jsonb_build_object('ok', false, 'error', 'page_count_mismatch');
   end if;
 
+  -- ‼ בלי אובדן ⇒ same. כל דחיסה/הקטנה ⇒ review — בלי קשר למה שהממיר דיווח.
   v_state := case
-    when coalesce(jsonb_typeof(v_s), 'null') <> 'object' then 'same'
-    when coalesce((v_s ->> 'needsReview')::boolean, true) then 'review'
-    else 'auto' end;
+    when coalesce(jsonb_typeof(v_s), 'null') = 'object' then 'review'
+    when coalesce((v_o ->> 'lossless')::boolean, false) then 'same'
+    else 'review' end;
 
+  v_sep := coalesce(jsonb_typeof(v_s), 'null') = 'object';
   select * into v_src from public.documents where id = b.source_ids[1];
   select string_agg(d.file_name, ' + ' order by u.ord) into v_names
     from unnest(b.source_ids) with ordinality u(id, ord) join public.documents d on d.id = u.id;
@@ -520,7 +526,7 @@ begin
      where id = b.id and storage_path is not null and storage_path <> v_paths ->> 'original'
     union all
     select storage_path from public.documents
-     where id = b.id || '-s' and v_state <> 'same' and storage_path is not null and storage_path <> v_paths ->> 'submission'
+     where id = b.id || '-s' and v_sep and storage_path is not null and storage_path <> v_paths ->> 'submission'
   ) t;
 
   insert into public.documents
@@ -530,7 +536,8 @@ begin
     (b.id, b.user_id, b.client_id, v_paths ->> 'original', coalesce(v_o ->> 'fileName', 'מסמך (PDF).pdf'), 'application/pdf',
      (v_o ->> 'bytes')::bigint, coalesce(v_src.category, 'id_card'), 'general',
      case when v_state = 'same' then 'PDF לרשות המסים - נוצר אוטומטית מהצילום'
-          else 'PDF באיכות המקור - נוצר אוטומטית מהצילום' end,
+          when coalesce(jsonb_typeof(v_s), 'null') = 'object' then 'PDF באיכות המקור - נוצר אוטומטית מהצילום'
+          else 'PDF דחוס (המקור גדול מדי לשמירה בלי אובדן) - ממתין לבדיקה' end,
      'נוצר אוטומטית מ-' || coalesce(v_names, ''),
      v_src.label_id, v_src.folder_id, b.source_ids, 'received', now())
   on conflict (id) do update set
@@ -538,14 +545,13 @@ begin
     description = excluded.description, notes = excluded.notes,
     source_document_ids = excluded.source_document_ids, uploaded_at = now();
 
-  if v_state = 'same' then
+  if coalesce(jsonb_typeof(v_s), 'null') <> 'object' then
     -- ‼ גרסת הגשה נפרדת מבנייה קודמת אינה בתוקף — מסומנת, לא נמחקת.
     update public.documents
        set description = 'PDF ישן להגשה - הוחלף; המקור עומד במגבלה ומוגש כמו שהוא'
      where id = b.id || '-s';
   else
-    v_label := case when v_state = 'review' then 'PDF להגשה לרשות המסים - מוקטן, ממתין לבדיקה'
-                    else 'PDF להגשה לרשות המסים - דחוס ברזולוציה מלאה' end;
+    v_label := 'PDF להגשה לרשות המסים - דחוס, ממתין לבדיקה';
     insert into public.documents
       (id, user_id, client_id, storage_path, file_name, file_type, file_size, category, year,
        description, notes, label_id, folder_id, source_document_ids, status, uploaded_at)
@@ -567,22 +573,29 @@ begin
          notes = array(select jsonb_array_elements_text(coalesce(v_o -> 'notes', '[]'::jsonb))),
          original_path = v_paths ->> 'original', original_meta = v_o -> 'parts',
          submission_state = v_state,
-         submission_document_id = case when v_state = 'same' then b.id else b.id || '-s' end,
-         submission_path = case when v_state = 'same' then v_paths ->> 'original' else v_paths ->> 'submission' end,
-         submission_bytes = case when v_state = 'same' then (v_o ->> 'bytes')::bigint else (v_s ->> 'bytes')::bigint end,
-         submission_page_count = case when v_state = 'same' then (v_o ->> 'pages')::int else (v_s ->> 'pages')::int end,
-         submission_notes = case when v_state = 'same' then null
-                                 else array(select jsonb_array_elements_text(coalesce(v_s -> 'notes', '[]'::jsonb))) end,
-         submission_meta = case when v_state = 'same' then null
-                                else jsonb_build_object('mode', v_s -> 'mode', 'focus', coalesce(v_s -> 'focus', '[]'::jsonb),
-                                                        'pages', coalesce(v_s -> 'pagesMeta', '[]'::jsonb), 'limit', v_s -> 'limit') end,
+         submission_document_id = case when v_sep then b.id || '-s' else b.id end,
+         submission_path = case when v_sep then v_paths ->> 'submission' else v_paths ->> 'original' end,
+         submission_bytes = case when v_sep then (v_s ->> 'bytes')::bigint else (v_o ->> 'bytes')::bigint end,
+         submission_page_count = case when v_sep then (v_s ->> 'pages')::int else (v_o ->> 'pages')::int end,
+         submission_notes = case when v_sep then array(select jsonb_array_elements_text(coalesce(v_s -> 'notes', '[]'::jsonb)))
+                                 when v_state = 'review' then array(select jsonb_array_elements_text(coalesce(v_o -> 'notes', '[]'::jsonb)))
+                                 end,
+         -- ‼ sameFile: אין PDF בלי אובדן להשוואה (המקור עצמו נדחס) — משווים מול הצילום.
+         submission_meta = case when v_sep
+                                  then jsonb_build_object('mode', v_s -> 'mode', 'focus', coalesce(v_s -> 'focus', '[]'::jsonb),
+                                                          'pages', coalesce(v_s -> 'pagesMeta', '[]'::jsonb), 'limit', v_s -> 'limit')
+                                when v_state = 'review'
+                                  then jsonb_build_object('mode', coalesce(v_o #> '{review,mode}', '"recompressed"'::jsonb),
+                                                          'focus', coalesce(v_o #> '{review,focus}', '[]'::jsonb),
+                                                          'pages', coalesce(v_o #> '{review,pagesMeta}', '[]'::jsonb), 'sameFile', true)
+                                end,
          submission_decided_at = null,
          error_code = null, error_message = null, error_next = null, next_attempt_at = null,
          claimed_by = null, lease_until = null
    where id = p_id;
 
   -- הגשה שנעצרה על «אין PDF תקין» — עכשיו יש; אותו מסלול כמו מסמך שהגיע (204).
-  if v_state in ('same', 'auto') then
+  if v_state = 'same' then
     perform public.resume_shaam_submissions_for_client(b.client_id, 'identity_docs');
   end if;
   return jsonb_build_object('ok', true, 'submissionState', v_state, 'oldPaths', coalesce(to_jsonb(v_old), '[]'::jsonb));
@@ -704,10 +717,10 @@ begin
    where id = p_id;
   update public.documents
      set description = case v_to
-           when 'approved' then 'PDF להגשה לרשות המסים - מוקטן, נבדק ואושר כקריא'
+           when 'approved' then 'PDF להגשה לרשות המסים - דחוס, נבדק ואושר כקריא'
            when 'rejected' then 'PDF להגשה - נפסל (לא קריא מספיק); נדרש צילום טוב יותר'
-           else 'PDF להגשה לרשות המסים - מוקטן, ממתין לבדיקה' end
-   where id = b.id || '-s';
+           else 'PDF להגשה לרשות המסים - דחוס, ממתין לבדיקה' end
+   where id = coalesce(b.submission_document_id, b.id || '-s');
   if v_to = 'approved' then
     perform public.resume_shaam_submissions_for_client(b.client_id, 'identity_docs');
   end if;
@@ -745,7 +758,7 @@ end $$;
 
 -- ── ⑪ «בר-המרה» לפני הגשה ─────────────────────────────────────────────────
 -- ‼ כשיש בנייה לאותם מקורות בדיוק, היא קובעת: רק PDF מוכן, עדכני, וגרסת הגשה
--- שמותר להגיש (same/auto/approved). בהכנה / ממתין לבדיקה / נפסל / נכשל ⇒ לא.
+-- שמותר להגיש (same, או approved על הטביעה הזאת). בהכנה / ממתין לבדיקה / נפסל / נכשל ⇒ לא.
 -- בלי בנייה בכלל (נתונים ישנים) — הקירוב של 204 לפי הסוג.
 create or replace function public._shaam_docs_convertible(p_selection jsonb)
 returns boolean
@@ -768,7 +781,7 @@ begin
    where id = public._pdf_build_id(v_ids) and status <> 'superseded'
      and source_fingerprint = public._doc_fingerprint(v_ids);
   if b.id is not null then
-    return b.status = 'ready' and coalesce(b.submission_state, 'same') in ('same', 'auto', 'approved');
+    return b.status = 'ready' and coalesce(b.submission_state, 'same') in ('same', 'approved');
   end if;
   return v_simple;
 end;
