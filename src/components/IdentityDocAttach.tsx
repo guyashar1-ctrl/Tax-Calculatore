@@ -8,6 +8,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { identicalIdDocs, planOfficeUpload, sha256Hex } from '../features/representation/identityDedupe';
 import { useDocumentStore, DOC_CATEGORY_LABELS, type DocCategory } from '../hooks/useDocumentStore';
 
 type AttachKind = 'idOrLicense' | 'passport';
@@ -88,6 +89,16 @@ export default function IdentityDocAttach({ requestId, clientId, missing, usedDo
     setBusy(`${m.person}:upload`);
     setErr(null);
     try {
+      // ‼ 212 · בלי עותק כפול: זהה שכבר משויך לאדם הזה / יושב בתיק בלי שיוך — לא מעלים שוב.
+      // זהה שמשויך לאדם האחר — רשומה נפרדת (שיוך ואישור משלה). ראה identityDedupe.ts.
+      const data = await file.arrayBuffer();
+      const hash = await sha256Hex(data);
+      const { data: rq } = await supabase.from('representation_requests').select('identity_docs').eq('id', requestId).maybeSingle();
+      const ids = (p: string) => (((rq?.identity_docs ?? {}) as Record<string, { documentId?: string }[]>)[p] ?? [])
+        .map(e => e?.documentId ?? '').filter(Boolean);
+      const plan = planOfficeUpload(await identicalIdDocs(clientId, data, hash), ids(m.person), ids(m.person === 'client' ? 'spouse' : 'client'));
+      if (plan.kind === 'already') { onAttached(); return; }
+      if (plan.kind === 'reuse') { if (await attach(m, plan.documentId, 'id_card')) onAttached(); return; }
       const id = crypto.randomUUID();
       // ‼ הקובץ נשמר בתיק הלקוח קודם — הצירוף מצביע על מסמך אמיתי, לא על עותק.
       await saveDoc({
@@ -100,10 +111,11 @@ export default function IdentityDocAttach({ requestId, clientId, missing, usedDo
         uploadedAt: new Date().toISOString(),
         description: `צילום ${KIND_TEXT[m.kind]} - ${m.name}`,
         notes: '',
-        fileData: await file.arrayBuffer(),
+        fileData: data,
         folderId: null,
         labelId: null,
       });
+      await supabase.from('documents').update({ content_sha256: hash }).eq('id', id);
       if (await attach(m, id, 'id_card')) onAttached();
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));

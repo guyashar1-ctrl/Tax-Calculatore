@@ -10,7 +10,7 @@
 // ‼ העלאה לא נועלת ולא מחליפה את הסימון הידני של הרו"ח: החומרים עשויים להגיע
 //   גם במייל או בוואטסאפ, וגיא ממשיך לסמן פריטים בעצמו (הכרעת גיא 2026-08-05).
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-import { findIdenticalIdDoc, sha256Hex } from "../_shared/idDocDedupe.ts";
+import { findIdenticalAmong, personDocIds, sha256Hex } from "../_shared/idDocDedupe.ts";
 
 const MAX_BYTES = 10 * 1024 * 1024; // 10MB
 const MAX_PER_HOUR = 40;            // רשת ביטחון מול הצפה, לא מכסה עבודה אמיתית
@@ -167,10 +167,17 @@ Deno.serve(async (req: Request) => {
     // ── שמירה ב-Storage ואז ברשומת המסמכים ───────────────────────────────────
     const bytes = new Uint8Array(await file.arrayBuffer());
     const hash = await sha256Hex(bytes);
-    // ‼ 212 · צילום מזהה שכבר נמצא בתיק בדיוק (אותם בייטים) — לא נשמר שוב; הפריט
-    // מצביע על הקיים, והטריגר על השלב משייך אותו גם לאדם הזה.
-    const isIdItem = tokenKind !== "release" && !isBulk && CATEGORY_BY_KEY[itemKey] === "id_card";
-    const sameDoc = isIdItem ? await findIdenticalIdDoc(admin, clientId, bytes, hash) : null;
+    // ‼ 212 · צילום מזהה שכבר משויך **לאותו אדם** בדיוק (אותם בייטים) — לא נשמר שוב;
+    // הפריט מצביע על הקיים. לאדם האחר — רשומה נפרדת (שיוך ואישור משלה).
+    // «צילום אחר במקומו» (identity_replacement) — לא נוגעים: זו החלפה, לא העלאה.
+    const idPerson = tokenKind === "release" || isBulk ? null
+      : itemKey === "id_card" ? "client" : itemKey === "id_card_spouse" ? "spouse" : null;
+    let sameDoc: string | null = null;
+    if (idPerson) {
+      const { data: reqs } = await admin.from("representation_requests").select("identity_docs").eq("linked_client_id", clientId);
+      const mine = ((reqs ?? []) as { identity_docs: unknown }[]).flatMap((r) => personDocIds(r.identity_docs, idPerson));
+      sameDoc = await findIdenticalAmong(admin, mine, bytes, hash);
+    }
     const docId = sameDoc ?? crypto.randomUUID();
     const path = `${step.user_id}/${clientId}/${docId}`;
 

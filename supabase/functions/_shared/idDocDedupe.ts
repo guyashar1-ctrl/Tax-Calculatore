@@ -1,9 +1,9 @@
-// ─── אותו צילום מזהה בדיוק — נשמר פעם אחת ללקוח (212) ───────────────────────
-// גיא, 01.10.2026: «לשמור פעם אחת». לקוח שמעלה את אותו קובץ גם לעצמו וגם לבן/בת
-// הזוג (למשל ספח משותף) — הקובץ נשמר פעם אחת ומשויך לשניהם. הבעלות נקבעת לפי
-// המקום שאליו הועלה (identity_docs), לא לפי התוכן.
-// ‼ «זהה» = אותם בייטים בדיוק (sha256). קובץ דומה (צילום נוסף של אותה תעודה) —
-// קובץ אחר, נשמר כרגיל.
+// ─── אותו צילום מזהה, לאותו אדם — לא נשמר פעמיים (212) ─────────────────────
+// גיא, 01.10.2026: «קובץ זהה שהועלה לנישום ולבן הזוג אינו בהכרח מסמך תקין של
+// שניהם … יש לשמור שיוך ואישור נפרדים לכל אדם … אל תסיק בעלות מתוך זהות הקבצים».
+// ‼ לכן: כפילות = אותם בייטים בדיוק **שכבר משויכים לאותו אדם**. אותו קובץ לאדם אחר
+// הוא רשומה נפרדת (עותק משלה) — עם שיוך, אישור, שם ותיקייה משלה. אחסון לא משותף:
+// מחיקה/העברה של מסמך אצל אחד לא יכולה לשבור את המסמך של השני.
 
 // deno-lint-ignore no-explicit-any
 type Admin = any;
@@ -14,16 +14,16 @@ export async function sha256Hex(bytes: Uint8Array): Promise<string> {
 }
 
 /**
- * מסמך מזהה של אותו לקוח עם אותו תוכן בדיוק — המזהה שלו, או null.
+ * מבין המסמכים האלה (המשויכים לאדם) — אחד עם אותו תוכן בדיוק, או null.
  * מסמכים ישנים בלי טביעה נבדקים לפי גודל ואז לפי התוכן עצמו (ומקבלים טביעה).
  */
-export async function findIdenticalIdDoc(admin: Admin, clientId: string, bytes: Uint8Array, hash: string): Promise<string | null> {
-  const { data: byHash } = await admin.from("documents").select("id")
-    .eq("client_id", clientId).eq("category", "id_card").eq("content_sha256", hash).limit(1);
-  if (byHash?.[0]?.id) return byHash[0].id as string;
-  const { data: sameSize } = await admin.from("documents").select("id, storage_path")
-    .eq("client_id", clientId).eq("category", "id_card").is("content_sha256", null).eq("file_size", bytes.length).limit(5);
-  for (const d of (sameSize ?? []) as { id: string; storage_path: string }[]) {
+export async function findIdenticalAmong(admin: Admin, docIds: string[], bytes: Uint8Array, hash: string): Promise<string | null> {
+  const ids = [...new Set(docIds.filter(Boolean))];
+  if (!ids.length) return null;
+  const { data: rows } = await admin.from("documents").select("id, storage_path, file_size, content_sha256").in("id", ids);
+  for (const d of (rows ?? []) as { id: string; storage_path: string; file_size: number; content_sha256: string | null }[]) {
+    if (d.content_sha256) { if (d.content_sha256 === hash) return d.id; continue; }
+    if (Number(d.file_size) !== bytes.length || !d.storage_path) continue;
     const { data: file } = await admin.storage.from("client-documents").download(d.storage_path);
     if (!file) continue;
     const h = await sha256Hex(new Uint8Array(await file.arrayBuffer()));
@@ -31,4 +31,10 @@ export async function findIdenticalIdDoc(admin: Admin, clientId: string, bytes: 
     if (h === hash) return d.id;
   }
   return null;
+}
+
+/** המסמכים המשויכים לאדם ב-identity_docs של בקשה. */
+export function personDocIds(identityDocs: unknown, person: string): string[] {
+  const list = (identityDocs as Record<string, unknown> | null)?.[person];
+  return Array.isArray(list) ? list.map((e) => String((e as { documentId?: string })?.documentId ?? "")).filter(Boolean) : [];
 }
