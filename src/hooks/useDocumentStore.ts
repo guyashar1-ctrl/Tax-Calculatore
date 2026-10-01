@@ -72,6 +72,11 @@ export interface StoredDoc {
   folderId?: string | null;
   /** תווית מקצועית אחת (M3) — document_labels.id. חובה על כל פריט. */
   labelId?: string | null;
+  /**
+   * 208 · PDF שנוצר מקבצים אחרים (צילום, שני צדי תעודה) — המקורות, לפי הסדר.
+   * המקור נשאר בתיק לצד ה-PDF; זה רק הייחוס.
+   */
+  sourceDocumentIds?: string[] | null;
 }
 
 /** תיקייה בתוך מסמכי לקוח. ארגון לוגי בלבד — הקובץ ב-Storage לא זז. */
@@ -137,6 +142,7 @@ function rowToStoredDoc(row: any, withBytes?: ArrayBuffer): StoredDoc {
     linkedLabel: row.linked_label ?? undefined,
     folderId: row.folder_id ?? null,
     labelId: row.label_id ?? null,
+    sourceDocumentIds: row.source_document_ids ?? null,
   };
 }
 
@@ -221,6 +227,8 @@ export function useDocumentStore() {
       folder_id: doc.folderId ?? null,
       label_id: labelId,
       uploaded_at: doc.uploadedAt,
+      // ‼ רק כשנמסר — שמירה חוזרת של מטא-נתונים לא מוחקת את הייחוס.
+      ...(doc.sourceDocumentIds ? { source_document_ids: doc.sourceDocumentIds } : {}),
     };
     console.log('[useDocumentStore.saveDoc] inserting row:', row);
     const { data: ins, error } = await supabase

@@ -1107,7 +1107,21 @@ export interface RepresentationRequest {
    * רגילים בתיק הלקוח (category='id_card'); כאן רק המפתח, כדי לדעת מה הגיע.
    * נכתב ע"י `onboarding-upload-id` בלבד.
    */
-  identityDocs?: Partial<Record<RepTarget, { documentId: string; docKind: string; fileName?: string; at?: string }[]>> | null;
+  identityDocs?: Partial<Record<RepTarget, RepIdentityDocEntry[]>> | null;
+}
+
+/**
+ * מסמך מזהה שנרשם על אדם בבקשה (נכתב בשרת בלבד).
+ * ‼ 208 · clientConfirmedAt — הלקוח אישר שזה המסמך שלו (או העלה אותו בעצמו לבקשה
+ * של שע״ם). קיום הקובץ לבדו אינו אישור, ורק מסמך מאושר עולה לשע״ם.
+ */
+export interface RepIdentityDocEntry {
+  documentId: string;
+  docKind: string;
+  fileName?: string;
+  at?: string;
+  via?: string;
+  clientConfirmedAt?: string;
 }
 
 /** הגדרת מסמך החתימה — נוצרת בשלב "הפקת טופס" אצל הרו"ח */

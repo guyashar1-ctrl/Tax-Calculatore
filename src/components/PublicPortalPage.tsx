@@ -69,7 +69,10 @@ export interface PortalItem {
   /* ‼ 'message' — הודעה מהמשרד, בלי שום פעולה ובלי מונה. היא אינה יושבת תחת
      «מה צריך ממך» (אין מה לעשות) ולא תחת «בטיפול המשרד» (לא בהכרח מטפלים
      במשהו) — יש לה מקום שקט משלה. יורדת מהדף כשהמשרד סוגר אותה. */
-  kind?: 'documents' | 'prev_accountant' | 'custom' | 'paperless_signup' | 'guide' | 'info' | 'declare' | 'message';
+  kind?: 'documents' | 'prev_accountant' | 'custom' | 'paperless_signup' | 'guide' | 'info' | 'declare' | 'message'
+    /* ‼ 208 · שע״ם דורשת צילום תעודה, ובתיק כבר יש אחד: הלקוח רואה אותו ומאשר
+       שהוא שלו, או מעלה אחר. קיום הקובץ אינו אישור. */
+    | 'identity_confirm';
   /**
    * פרטי הרו״ח הקודם שכבר בכרטיס — מילוי-מראש לאישור. כמו businessName:
    * מקור האמת הוא הכרטיס, ומה שהלקוח שולח חוזר אליו (וגובר, מיגרציה 115).
@@ -235,9 +238,11 @@ async function confirmOpened(href: string | undefined | null): Promise<boolean> 
  * ‼ הקובץ נכנס ישירות לתיק של הלקוח אצל הרו"ח ומסמן את הפריט. אין שלב ביניים
  * של "ממתין לאישור" — מה שהגיע, הגיע, וההחלטה אם הוא תקין נשארת אצל הרו"ח.
  */
-function UploadItem({ token, tokenKind, stepId, itemKey, label, note, done, brand, accent, onDone }: {
+function UploadItem({ token, tokenKind, stepId, itemKey, label, note, done, brand, accent, onDone, accept }: {
   token: string; tokenKind: 'portal' | 'release';
   stepId: string; itemKey: string; label: string; note?: string; done: boolean;
+  /** סוגי הקבצים שמותר לבחור. ברירת מחדל: כל מה שהמשרד מקבל. */
+  accept?: string;
   brand: { ink: string; muted: string; border: string; radius: number };
   accent: string; onDone: () => void;
 }) {
@@ -279,7 +284,7 @@ function UploadItem({ token, tokenKind, stepId, itemKey, label, note, done, bran
         )}</span>
         {!done && !previewMode && (
           <>
-            <input id={inputId} type="file" accept={ACCEPT} disabled={busy}
+            <input id={inputId} type="file" accept={accept ?? ACCEPT} disabled={busy}
               style={{ display: 'none' }}
               onChange={e => { const f = e.target.files?.[0]; if (f) void upload(f); e.target.value = ''; }} />
             <label htmlFor={inputId} style={{
@@ -467,6 +472,7 @@ function progressLine(item: PortalItem): string | undefined {
   // ‼ חומר עזר אינו רשימה להשלמה: יש בו דרישה טכנית אחת (הפתיחה עצמה), ו-
   // "0 מתוך 1 הושלמו" הפך פעולה של לחיצה אחת למטלה עם מונה.
   if (item.kind === 'guide') return item.sub;
+  if (item.kind === 'identity_confirm') return undefined;
   if (item.checklist?.length) {
     const done = item.checklist.filter(c => c.done).length;
     return `${done} מתוך ${item.checklist.length} התקבלו`;
@@ -506,6 +512,7 @@ function ActionItem({ token, item, brand, accent, last, onDone }: {
   const info = item.kind === 'info';
   /** הוראות + הצהרה, הכל גלוי מיד: בלי ההוראות אין מה לאשר. */
   const declare = inPage && item.kind === 'declare';
+  const identity = inPage && item.kind === 'identity_confirm';
   const prog = progressLine(item);
 
   const primaryBtn: React.CSSProperties = {
@@ -553,6 +560,10 @@ function ActionItem({ token, item, brand, accent, last, onDone }: {
       ) : declare ? (
         <div style={{ marginTop: 11 }}>
           <DeclareBlock token={token} item={item} brand={brand} accent={accent} onDone={onDone} />
+        </div>
+      ) : identity ? (
+        <div style={{ marginTop: 11 }}>
+          <IdentityConfirmBlock token={token} item={item} brand={brand} accent={accent} onDone={onDone} />
         </div>
       ) : (
         <div style={{ marginTop: 11 }}>
@@ -1024,6 +1035,94 @@ function DeclareBlock({ token, item, brand, accent, onDone }: {
   );
 }
 
+/**
+ * 208 · צילום תעודה לרשות המסים — יש אחד בתיק, והלקוח מאשר שהוא שלו או מחליף.
+ * ‼ הצילום נפתח דרך portal-open-document (הקובץ פרטי). «זה הצילום שלי» נרשם
+ * בשרת כאישור הלקוח; העלאת צילום אחר נחשבת גם היא לאישור — של הצילום החדש.
+ * ‼ רק PDF/JPG/PNG: שע״ם מקבלת PDF, וצילום הופך ל-PDF לפני השידור.
+ */
+function IdentityConfirmBlock({ token, item, brand, accent, onDone }: {
+  token: string; item: PortalItem;
+  brand: { ink: string; muted: string; border: string; radius: number; cardBg: string };
+  accent: string; onDone: () => void;
+}) {
+  const previewMode = useContext(PreviewCtx);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [replacing, setReplacing] = useState(false);
+  const stepId = item.stepId || item.actionValue;
+
+  async function confirm() {
+    if (previewMode || !item.actionValue) return;
+    setBusy(true);
+    setError(null);
+    const { data, error: rpcError } = await supabase.rpc('portal_submit_step', {
+      p_token: token, p_step_id: item.actionValue, p_data: { key: 'identity_confirm' },
+    });
+    const res = data as { ok?: boolean; error?: string } | null;
+    setBusy(false);
+    if (rpcError || !res?.ok) {
+      setError('לא הצלחנו לשמור את האישור. אפשר לנסות שוב.');
+      return;
+    }
+    flushAccountantNotifications(token);
+    onDone();
+  }
+
+  const primary: React.CSSProperties = {
+    display: 'inline-block', cursor: previewMode || busy ? 'default' : 'pointer', border: 'none',
+    fontSize: 13.5, fontWeight: 600, padding: '9px 18px', color: '#fff', background: accent,
+    borderRadius: brand.radius, opacity: previewMode || busy ? .55 : 1,
+  };
+  const secondary: React.CSSProperties = {
+    background: 'none', border: 'none', padding: 0, font: 'inherit', fontSize: 13, fontWeight: 600,
+    color: accent, cursor: previewMode ? 'default' : 'pointer', textDecoration: 'underline',
+  };
+
+  return (
+    <div data-testid="portal-identity-confirm" style={{ display: 'grid', gap: 10 }}>
+      {item.sub && <p style={{ margin: 0, fontSize: 13, lineHeight: 1.7, color: brand.ink }}>{item.sub}</p>}
+      {!!item.resources?.length && (
+        <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'grid', gap: 4 }}>
+          {item.resources.map((r, i, all) => {
+            const href = resourceHref(token, stepId, r);
+            const what = `צילום${all.length > 1 ? ` ${i + 1}` : ''}${r.fileName ? ` (${r.fileName})` : ''}`;
+            return (
+              <li key={r.key} style={{ fontSize: 13 }}>
+                {href && !previewMode
+                  ? <a href={href} target="_blank" rel="noopener noreferrer" data-testid="portal-identity-view"
+                      style={{ color: accent, fontWeight: 600 }}>לצפייה ב{what} ←</a>
+                  : <span style={{ color: brand.muted }}>{what}</span>}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center' }}>
+        <button type="button" data-testid="portal-identity-confirm-btn" style={primary}
+          disabled={previewMode || busy} onClick={() => void confirm()}>
+          {busy ? 'רגע…' : (item.resources?.length ?? 0) > 1 ? 'אלה הצילומים שלי' : 'זה הצילום שלי'}
+        </button>
+        {!replacing && (
+          <button type="button" data-testid="portal-identity-replace" style={secondary}
+            disabled={previewMode} onClick={() => setReplacing(true)}>
+            להעלות צילום אחר
+          </button>
+        )}
+      </div>
+      {replacing && stepId && (
+        <ul style={{ margin: 0, padding: 0, listStyle: 'none', borderTop: `1px dashed ${brand.border}`, paddingTop: 8 }}>
+          <UploadItem token={token} tokenKind="portal" stepId={stepId} itemKey="identity_replacement"
+            label="צילום תעודת זהות או רישיון נהיגה (PDF, JPG או PNG)"
+            note="שני צדדים? אפשר קובץ PDF אחד עם שניהם."
+            done={false} brand={brand} accent={accent} onDone={onDone} accept=".pdf,.jpg,.jpeg,.png" />
+        </ul>
+      )}
+      {error && <div style={{ fontSize: 12.5, color: '#a63a3a' }}>{error}</div>}
+    </div>
+  );
+}
+
 /** טופס פרטי הרו"ח הקודם — הדבר היחיד שהלקוח כותב ישירות מהדף האישי. */
 function PrevAccountantForm({ token, stepId, prefill, brand, accent, onDone }: {
   token: string; stepId: string;
@@ -1157,7 +1256,8 @@ export function PortalView({ data, token = '', preview = false, embed = false, o
    * ‼ הגבול הסמנטי: מדריך ותיק שמבקש "עברתי עליו" **נשאר** ב"מה צריך ממך",
    * כי שם באמת מבקשים ממנו משהו. מה שנשלח בלי דרישה — יורד לכאן.
    */
-  const isSentDoc = (i: PortalItem) => !!i.resources?.length;
+  // ‼ 208 · צילום התעודה לאישור אינו מסמך שנשלח — הוא שאלה ללקוח, ונשאר ב«מה צריך ממך».
+  const isSentDoc = (i: PortalItem) => !!i.resources?.length && i.kind !== 'identity_confirm';
   /** מדריך ותיק שכבר הושלם — אין בו יותר דרישה, ולכן מקומו כאן. */
   const isDoneLegacyDoc = (i: PortalItem) => i.bucket === 'done' && !!i.resourceUrl && !isSentDoc(i);
 

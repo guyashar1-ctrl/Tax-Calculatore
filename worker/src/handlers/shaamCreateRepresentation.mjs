@@ -365,7 +365,7 @@ export async function run(ctx, input, deps = {}) {
     // ‼ שומרים את המזהה החיצוני **מיד**, לפני כל שלב נוסף: קריסה מכאן
     // והלאה חייבת להשאיר את המספר בידינו, אחרת ניסיון חוזר לא ידע שכבר
     // נוצרה בקשה והיה מנסה ליצור שנייה.
-    await progress.set({ requestNumber, stage: 'request_created', ...(confirmed.notice ? { creationNotice: confirmed.notice } : {}) });
+    await progress.set({ requestNumber, stage: 'request_created', ...(confirmed.notice ? { creationNotice: confirmed.notice } : {}), ...(confirmed.attach?.length ? { creationAttach: confirmed.attach } : {}) });
 
     // ── פרטי התקשרות + לכידת הטופס שמופק ─────────────────────────────────
     // ‼ מכאן הבקשה קיימת בשע״ם. כל עצירה אומרת את זה במפורש, עם המספר.
@@ -427,6 +427,8 @@ export async function run(ctx, input, deps = {}) {
         spousePhoneAsked: !!captured.spousePhoneAsked,
         // ‼ 28.09 · «לידיעתך» של שלב 2 כמו שהוא — מה שע״ם אמרה שיש לצרף.
         ...(confirmed.notice ? { creationNotice: confirmed.notice } : {}),
+        // ‼ 28.09 · «בהמשך תתבקש לצרף» כרשימה — השרת הופך אותה לדרישות המסמכים של הבקשה.
+        ...(confirmed.attach?.length ? { creationAttach: confirmed.attach } : {}),
       },
       artifacts: [{ kind: 'poa_form', documentId, fileName, source: form.source }],
     };

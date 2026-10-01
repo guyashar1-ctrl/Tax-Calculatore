@@ -908,6 +908,8 @@ export default function DocumentsWorkspace({ client, allClients, initialFolderId
         fileData,
         folderId: source.folderId ?? null,
         labelId: source.labelId ?? null,
+        // 208 · הייחוס נשמר גם כעמודה — כך מוצאים אחר כך את ה-PDF של המקור.
+        sourceDocumentIds: [source.id],
       };
       await db.saveDoc(created);
 

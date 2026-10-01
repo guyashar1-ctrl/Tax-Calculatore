@@ -34,6 +34,8 @@ const CATEGORY_BY_KEY: Record<string, string> = {
   vat_cert: "business_document",
   last_return: "tax_assessment",
   form106: "salary_slip",
+  // 208: «צילום אחר במקומו» בבקשת אישור הצילום לרשות המסים.
+  identity_replacement: "id_card",
 };
 
 Deno.serve(async (req: Request) => {

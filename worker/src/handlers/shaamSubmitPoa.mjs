@@ -105,9 +105,13 @@ const slotLine = (x) => `${KIND_TEXT[x.slot.kind] ?? x.slot.label}${x.result?.pe
 /** עצירה מבוקרת לפני נגיעה, שמסיימת את המשימה (failed) — לא «דרוש אדם». */
 function documentsStop(code, slots) {
   const lines = slots.map(slotLine).join(', ');
+  // ‼ 208 · כל מה שחסר הוא אישור הלקוח (הצילום כבר בתיק) — לא «המסמך עדיין לא אצלנו».
+  const onlyConfirm = slots.length > 0 && slots.every((x) => x.result?.error === 'not_confirmed');
   const text = {
-    awaiting_required_documents:
-      `שע״ם דורשת לבקשה הזאת גם ${lines}, והמסמך עדיין לא אצלנו. נפתחה ללקוח בקשת מסמך ` +
+    awaiting_required_documents: onlyConfirm
+      ? `שע״ם דורשת לבקשה הזאת גם ${lines}. יש בתיק צילום, אבל הלקוח עוד לא אישר שהוא שלו - בקשת האישור ממתינה לו בדף האישי. ` +
+        'כשיאשר (או יעלה צילום אחר) — השידור ימשיך מעצמו, פעם אחת. '
+      : `שע״ם דורשת לבקשה הזאת גם ${lines}, והמסמך עדיין לא אצלנו. נפתחה ללקוח בקשת מסמך ` +
       '(«נדרש על ידי רשות המסים להשלמת הייצוג»). כשהמסמך יגיע — השידור ימשיך מעצמו, פעם אחת. ',
     needs_document_assignment:
       'שע״ם דורשת מסמך מזהה נוסף, אבל לא ניתן לקבוע בוודאות של מי הוא: הת.ז. בכותרת הבקשה בשע״ם ' +

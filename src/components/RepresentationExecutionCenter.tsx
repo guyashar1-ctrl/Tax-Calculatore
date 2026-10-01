@@ -58,6 +58,13 @@ import { shaamPersonFacts } from '../features/representation/shaamPersonFacts';
 import type { NiRepresentationLine } from '../utils/niPersons';
 import { representationInsight } from '../utils/representationInsight';
 import ConfirmDialog from './ui/ConfirmDialog';
+import {
+  shaamPreSigningDocs, shaamClientDocumentsPending, shaamSendPreview, type ShaamPreSigningDoc,
+} from '../features/representation/shaamPreSigningDocs';
+import {
+  prepareRequestForSigning, preparedDocumentsSentence, confirmShaamRequestCancelled,
+} from '../lib/representationSigning';
+import ShaamPreSigningDocsList from './ShaamPreSigningDocsList';
 
 interface Props {
   request: RepresentationRequest;
@@ -142,6 +149,55 @@ function Notice({ tone, children, style }: { tone: NoticeTone; children: React.R
     }}>
       {children}
     </div>
+  );
+}
+
+/**
+ * 208 · רשות הוסרה מהבקשה אחרי שהבקשה כבר נפתחה בשע״ם.
+ * ‼ שע״ם מאפשרת לבטל לפני קבלת המסמכים רק את **כל** הבקשה (לא תיק אחד), ו-PIVO
+ * לא מבטלת בשע״ם. לכן: ביטול ידני שם ⇒ «בדוק קבלת הייצוג» רואה שבוטלה (או
+ * שהמשרד מאשר כאן) ⇒ הבקשה הישנה עוברת להיסטוריה ⇒ «הזן» פותח חדשה רק למה
+ * שנשאר. ‼ «הזן» בודק שוב ברשימת שע״ם — בקשה פתוחה שנשארה תעצור אותו.
+ */
+function ShaamReplacementNotice({ requestId, submissionKey, replacement, remaining, onChanged }: {
+  requestId: string;
+  submissionKey: string;
+  replacement: NonNullable<ShaamRequestTracking['replacement']>;
+  remaining: string;
+  onChanged: () => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  async function confirm() {
+    if (!window.confirm(`לאשר שבקשה ${replacement.requestNumber} בוטלה בשע״ם?\n\n`
+      + 'אחרי האישור «הזן ייפוי כוח בשע״ם» יפתח בקשה חדשה. הוא בודק קודם ברשימת הבקשות בשע״ם - '
+      + 'אם הבקשה הישנה עדיין פתוחה שם, לא תיפתח בקשה נוספת.')) return;
+    setBusy(true); setErr(null);
+    const e = await confirmShaamRequestCancelled(requestId, submissionKey);
+    setBusy(false);
+    if (e) setErr(e); else onChanged();
+  }
+  return (
+    <Notice tone="required" style={{ marginTop: '.45rem' }}>
+      <div data-testid="shaam-replacement-notice">
+        <b>{replacement.removed.join(' ו')}</b> הוסר מהבקשה, אבל בקשה <span className="ltr-isolate">{replacement.requestNumber}</span> בשע״ם
+        עדיין כוללת אותו. הטופס הישן בוטל ב-PIVO ולא יישלח לחתימה.
+      </div>
+      {replacement.stillOpenAt && (
+        <div data-testid="shaam-replacement-still-open" style={{ marginTop: '.25rem', fontWeight: 600 }}>
+          סומן שהבקשה בוטלה, אבל בבדיקה ב-{fmtDateTime(replacement.stillOpenAt)} היא עדיין הופיעה פתוחה בשע״ם - לכן לא נפתחה בקשה חדשה.
+        </div>
+      )}
+      <div style={{ marginTop: '.25rem' }}>
+        מה עושים: בשע״ם, ברשימת הבקשות - «ביטול הבקשה» (לפני שהמסמכים התקבלו שע״ם מבטלת את כל הבקשה).
+        אחר כך הבדיקה שליד הכותרת תזהה את הביטול (או סמנו כאן), ו«הזן ייפוי כוח בשע״ם» יפתח בקשה חדשה רק ל{remaining}.
+      </div>
+      <button type="button" className="btn btn-ghost btn-sm" disabled={busy} data-testid="shaam-confirm-cancelled"
+        style={{ padding: '0 .25rem', marginTop: '.2rem' }} onClick={() => void confirm()}>
+        {busy ? 'שומר…' : 'ביטלתי בשע״ם'}
+      </button>
+      {err && <div className="rep-track-next-err">{err}</div>}
+    </Notice>
   );
 }
 
@@ -410,6 +466,8 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
   const [previewSignerId, setPreviewSignerId] = useState<string | null>(null);
   const missingIds = representationInsight(request, linkedClient, steps).missingIdentity;
   const [confirmSendWithoutId, setConfirmSendWithoutId] = useState(false);
+  /** 208 · השליחה נעצרה: בתיק יש צילום תעודה שלא שויך לאף אדם. */
+  const [unassignedAsk, setUnassignedAsk] = useState<{ only?: string } | null>(null);
   /** null = לכל מי שיש לו מייל. מזהה חותם = רק אליו, והוא יעביר לשני. */
   const [sendOnlyTo, setSendOnlyTo] = useState<string | null>(null);
 
@@ -425,9 +483,19 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
    *
    * @param only מזהה חותם יחיד — "לשלוח רק ל-X, והוא יעביר לשני". ריק = לכולם.
    */
-  async function handleSendAll(only?: string) {
+  async function handleSendAll(only?: string, askUnassigned = false) {
     setBusy('send');
     setNote(null);
+    // ‼ 208 · לפני כל מייל: השרת מצרף לתהליך הלקוח את מה ששע״ם דורשת (העלאה /
+    // אישור צילום), ומעביר את הבקשה ל«ממתין לחתימה» — בלי זה דף החתימה דוחה.
+    const prep = await prepareRequestForSigning(request.id, { askUnassigned });
+    if (!prep.ok) {
+      if (prep.reason === 'unassigned_identity') setUnassignedAsk({ only });
+      else setNote({ kind: 'err', text: prep.error });
+      setBusy(null);
+      return;
+    }
+    const prepSentence = preparedDocumentsSentence(prep.documents, p => nameOf(p) || (p === 'spouse' ? 'בן/בת הזוג' : 'הנישום'));
     // חותם בלי מייל אינו תקלה (110): בן/בת זוג בלי כתובת חותם יחד עם הנישום
     // באותו מכשיר, או מקבל קישור אחרי שהנישום יזין את המייל בשלב החתימה.
     const chosen = only ? pendingSigners.filter(s => s.id === only) : pendingSigners;
@@ -469,7 +537,7 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
       kind: 'ok',
       text: `נשלח ל-${emailable.map(s => s.email).join(', ')}` + (skipped.length > 0
         ? ` · ל${skipped.map(s => s.name || 'בן/בת הזוג').join(', ')} לא נשלח - אפשר להזין מייל או להעתיק קישור בשורה שלו/ה`
-        : ''),
+        : '') + (prepSentence ? ` · ${prepSentence}` : ''),
     });
     setBusy(null);
     void reloadEmails();
@@ -498,6 +566,9 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
    * למבוטח" היה נשאר פתוח לנצח למי שלא מקבל מיילים.
    */
   async function markLinkHandedOver(role: 'client' | 'spouse') {
+    const prep = await prepareRequestForSigning(request.id);
+    if (!prep.ok) { setNote({ kind: 'err', text: prep.error }); return; }
+    if (prep.status !== status) onStepsChanged?.();
     const track = role === 'spouse' ? niSpouse : ni;
     if (!track.referenceNumber || track.instructionsSentAt) return;
     const now = new Date().toISOString();
@@ -639,10 +710,13 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
     const existing = signatureDocumentsOf(request);
     const pending = submissions.filter(sub => {
       const t = exec.shaam?.[sub.key];
-      return !!t?.formDocumentId && !existing.some(d => d.key === sub.key) && !preparedRef.current.has(sub.key);
+      return !!t?.formDocumentId && !existing.some(d => d.key === sub.key)
+        && !preparedRef.current.has(`${sub.key}:${t.formDocumentId}`);
     });
     if (pending.length === 0) return;
-    for (const sub of pending) preparedRef.current.add(sub.key);
+    // ‼ 208 · המפתח כולל את הטופס: אחרי «הסר מהבקשה» ובקשה חדשה בשע״ם מגיע טופס
+    // חדש לאותה הגשה, והוא חייב לקבל אזורי חתימה משלו.
+    for (const sub of pending) preparedRef.current.add(`${sub.key}:${exec.shaam![sub.key]!.formDocumentId}`);
     void (async () => {
       const additions: RepSignatureDocument[] = [];
       const problems: Record<string, string> = {};
@@ -705,7 +779,8 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
   // היעדר סימון ידני; הסימון הידני נשאר לשורה שאין לה ראיה.
   const shaamEvidenceAt = (key: string): string | undefined => {
     const t = exec.shaam?.[key];
-    if (!shaamRequestExists(t)) return undefined;
+    // ‼ 208 · בקשה שממתינה לביטול (רשות הוסרה) אינה «הוזן» — צריך לפתוח חדשה.
+    if (!shaamRequestExists(t) || t?.replacement) return undefined;
     return t?.createdAt || t?.foundBeforeCreateAt || t?.observedAt || t?.syncedAt || t?.submittedAt || undefined;
   };
   const enteredAtOf = (key: string, first: boolean) =>
@@ -756,8 +831,17 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
   // סטטוס ומאותו מצב אינטגרציה — כדי ששני המשטחים לא יסטו. המצב של הגשה
   // אחת לעולם אינו נגזר מהשנייה: `submissionKey` מפורש בכל מקום.
   const shaamTrack = (key: string): ShaamRequestTracking | undefined => exec.shaam?.[key];
+  // ‼ 208 · מה ששע״ם דרשה ביצירה, ומה מצבו — לכל הגשה. אותה נגזרת משמשת את
+  // הרשימה במסך, את «מה יישלח ללקוח», ואת החסימה של «שלח טופס חתום לשע״ם».
+  const preSigningDocsOf = (sub: ShaamSubmission): ShaamPreSigningDoc[] => shaamPreSigningDocs({
+    tracking: shaamTrack(sub.key), submissionKey: sub.key, request,
+    personName: sub.personName || nameOf(sub.target) || '', signed,
+  });
   const shaamActionFor = (sub: ShaamSubmission) =>
-    shaamRepresentationAction(status, shaamTrack(sub.key), stamped);
+    shaamRepresentationAction(status, shaamTrack(sub.key), stamped,
+      { clientDocumentsPending: shaamClientDocumentsPending(preSigningDocsOf(sub)) });
+  const sendPreview = [...new Set(submissions.flatMap(sub => shaamSendPreview(preSigningDocsOf(sub))))];
+  const shaamDemandsMissingId = submissions.some(sub => preSigningDocsOf(sub).some(d => d.status === 'missing'));
   const shaamNode = (sub: ShaamSubmission, only?: ShaamActionKind) => {
     // ‼ «בדוק» לעולם לא בעמודה — יש לו כפתור אחד ליד כותרת המרכז.
     const a = columnAction(shaamActionFor(sub));
@@ -962,6 +1046,14 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
                         : ''}
                     </div>
                   )}
+                  {shaamTrack(sub.key)?.replacement && (
+                    <ShaamReplacementNotice
+                      requestId={request.id} submissionKey={sub.key}
+                      replacement={shaamTrack(sub.key)!.replacement!}
+                      remaining={sub.authoritiesLabel}
+                      onChanged={() => onStepsChanged?.()}
+                    />
+                  )}
                 </Step>
               );
             })}
@@ -985,6 +1077,18 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
               <button className="btn btn-secondary btn-sm" onClick={onProduce}>
                 {formReady ? '↺ החלף טופס או ערוך אזורים' : 'העלה טופס וסמן אזורי חתימה'}
               </button>
+              {/* ‼ 208 · מה ששע״ם כתבה ביצירה שיידרש — גלוי כבר לפני השליחה לחתימה. */}
+              {!sentToShaam && submissions.map(sub => (
+                <ShaamPreSigningDocsList
+                  key={sub.key}
+                  items={preSigningDocsOf(sub)}
+                  title={submissions.length > 1 ? sub.title || sub.personName : undefined}
+                  clientId={linkedClient?.id}
+                  requestId={request.id}
+                  usedDocumentIds={Object.values(request.identityDocs ?? {}).flat().map(d => d?.documentId).filter((x): x is string => !!x)}
+                  onChanged={() => onStepsChanged?.()}
+                />
+              ))}
             </Step>
 
             {/* ‼ אין כאן כפתור. השליחה שייכת לשתי הרשויות גם יחד ולכן היא יושבת
@@ -1044,8 +1148,11 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
 
             <Step n={6 + extraEntries.length} title="נשלח לשע״ם" done={sentToShaam}
               // ‼ 204: כשהשידור ממתין למסמך של שע״ם הכפתור מושבת — לא להפנות אליו.
-              hint={stamped && !sentToShaam && !submissions.some(sub => shaamDocumentsBlocked(shaamTrack(sub.key)))
-                ? 'שדרו את הטופס החתום לשע״ם (הכפתור בראש העמודה)' : undefined}>
+              hint={!stamped || sentToShaam || submissions.some(sub => shaamDocumentsBlocked(shaamTrack(sub.key)))
+                ? undefined
+                // ‼ 208 · הכפתור חסום עד שהלקוח אישר/העלה — לא מפנים אליו, אומרים למה.
+                : submissions.map(sub => shaamClientDocumentsPending(preSigningDocsOf(sub))).find(Boolean)
+                  ?? 'שדרו את הטופס החתום לשע״ם (הכפתור בראש העמודה)'}>
               {/* ‼ אחרי ההגשה: שלוש עובדות מהמקור של שע״ם, לכל הגשה. בלי פרוזה,
                   בלי «בדקו שוב» (יש כפתור אחד למעלה), ובלי קריאה מלפני ההגשה. */}
               {submissions.map(sub => {
@@ -1256,6 +1363,13 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
 
           {formReady && !exec.signatureEmailSentAt && (
             <div style={{ marginTop: '.7rem' }}>
+              {/* ‼ 208 · מה הלקוח יתבקש לעשות — כולל מה ששע״ם דורשת, לפני הלחיצה. */}
+              {sendPreview.length > 0 && (
+                <div data-testid="send-preview" style={{ margin: '0 auto .6rem', maxWidth: 520, textAlign: 'start', fontSize: 'var(--fs-13)', color: 'var(--ink-2)', lineHeight: 1.7 }}>
+                  <div style={{ fontWeight: 600 }}>מה הלקוח יתבקש לעשות בדף האישי:</div>
+                  {sendPreview.map(line => <div key={line} data-testid="send-preview-line">· {line}</div>)}
+                </div>
+              )}
               <button className="btn btn-green" disabled={busy === 'send' || niRefMissing || pendingSigners.length === 0}
                 onClick={() => (missingIds.length > 0 ? setConfirmSendWithoutId(true) : void handleSendAll(sendOnlyTo ?? undefined))}>
                 {busy === 'send' ? 'שולח…'
@@ -1345,17 +1459,43 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
       {confirmSendWithoutId && (
         <ConfirmDialog
           tone="normal"
-          title="צילום התעודה שביקשנו טרם התקבל"
+          title={shaamDemandsMissingId ? 'רשות המסים דורשת צילום תעודה שעוד אין בתיק' : 'צילום התעודה שביקשנו טרם התקבל'}
           message={<>
             <div>טרם התקבל צילום תעודה של: <b>{missingIds.map(m => m.name).join(', ')}</b>.</div>
             {/* ‼ 204 · זו בקשה של המשרד, לא דרישה של רשות המסים: לא חוסמת שליחה,
                 חתימה או ייצוג. מה ששע״ם דורשת מתגלה בשידור, ומוצג בשלב «נשלח לשע״ם». */}
-            <div style={{ marginTop: '.4rem' }}>זו בקשה של המשרד - היא לא עוצרת את החתימה או את הייצוג.</div>
-            <div style={{ marginTop: '.4rem' }}>אפשר לשלוח לחתימה גם עכשיו; הצילום ימשיך להופיע כחסר עד שהלקוח יעלה אותו בדף האישי.</div>
+            {shaamDemandsMissingId ? (
+              /* ‼ 208 · כאן זו גם דרישה של רשות המסים (נכתבה ביצירת הבקשה). */
+              <>
+                <div style={{ marginTop: '.4rem' }}>רשות המסים דורשת את הצילום הזה לבקשה. בקשת ההעלאה תצורף לשליחה, והלקוח יראה אותה בדף האישי ליד החתימה.</div>
+                <div style={{ marginTop: '.4rem' }}>אפשר לשלוח לחתימה עכשיו; השידור לשע״ם ימתין עד שהצילום יגיע.</div>
+              </>
+            ) : (
+              <>
+                <div style={{ marginTop: '.4rem' }}>זו בקשה של המשרד - היא לא עוצרת את החתימה או את הייצוג.</div>
+                <div style={{ marginTop: '.4rem' }}>אפשר לשלוח לחתימה גם עכשיו; הצילום ימשיך להופיע כחסר עד שהלקוח יעלה אותו בדף האישי.</div>
+              </>
+            )}
           </>}
           confirmLabel="שלח בכל זאת"
           onCancel={() => setConfirmSendWithoutId(false)}
           onConfirm={() => { setConfirmSendWithoutId(false); void handleSendAll(sendOnlyTo ?? undefined); }}
+        />
+      )}
+
+      {unassignedAsk && (
+        <ConfirmDialog
+          tone="normal"
+          title="יש בתיק צילום תעודה שלא שויך לאף אדם"
+          message={<div data-testid="unassigned-identity-dialog" style={{ lineHeight: 1.7 }}>
+            <div>רשות המסים דורשת צילום תעודה, ובתיק יש צילום שלא ידוע של מי הוא. לא שלחנו עדיין כלום.</div>
+            <div style={{ marginTop: '.4rem' }}>· אם הוא של האדם הנכון - סגרו את החלון ושייכו אותו בשלב 2 («מה רשות המסים דורשת»). אחרי השיוך הלקוח יתבקש לאשר אותו.</div>
+            <div style={{ marginTop: '.4rem' }}>· אחרת - הלקוח יתבקש להעלות צילום בדף האישי, יחד עם בקשת החתימה.</div>
+          </div>}
+          confirmLabel="בקש מהלקוח צילום ושלח"
+          cancelLabel="אשייך קודם"
+          onCancel={() => setUnassignedAsk(null)}
+          onConfirm={() => { const o = unassignedAsk.only; setUnassignedAsk(null); void handleSendAll(o, true); }}
         />
       )}
 

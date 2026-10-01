@@ -37,6 +37,7 @@ import Icon from './components/ui/Icon';
 import AuthorityConnectionButtons from './components/AuthorityConnectionButtons';
 import { ShaamReadinessProvider } from './hooks/shaamReadiness';
 import { supabase } from './lib/supabase';
+import { repRequestToDb } from './lib/dbMappers';
 import { isRepresented } from './lib/clientState';
 import { edgeFunctionError } from './utils/functionError';
 import { effectiveNiCoversSpouse } from './utils/repSigners';
@@ -1711,7 +1712,13 @@ export default function App() {
    * מתעדכן ל-active — ייצוג ב"ל נפרד מהליך שע"ם ולכן גם מסתיים בנפרד ממנו.
    */
   async function handleSaveExecution(req: RepresentationRequest, execution: RepresentationExecution) {
-    await updateRequest({ ...req, execution });
+    // ‼ 208 · רק execution נכתב. שמירת השורה כולה מהעותק שבדפדפן החזירה את
+    // הסטטוס שהשרת קבע רגע קודם («שלח ללקוח» ⇒ «ממתין לחתימה») ל«ממתין לרו"ח»,
+    // ודף החתימה דחה את הלקוח. (מעקב שע״ם שבתוך execution שייך לשרת — 208.)
+    const { error: execErr } = await supabase
+      .from('representation_requests').update({ execution }).eq('id', req.id);
+    if (execErr) throw execErr;
+    await reloadRequest(req.id);
     const linkedClient = clients.find(c => c.id === req.linkedClientId);
     const niRegistered = linkedClient?.authorityRepresentations?.nationalInsurance;
     // ‼ ביטוח לאומי הוא "עבור מי" לכל דבר (31.8) — כולל המקרה שהוא התבקש
@@ -2858,7 +2865,12 @@ export default function App() {
               // משע״ם. בכוונה לא handleProduceFormWithSetup — הוא גם מקדם ל
               // «נשלח לחתימה», והבאת טופס אינה שליחה ללקוח.
               onAttachShaamForms={async docs => {
-                await updateRequest({ ...selectedRequest, ...withLegacyMirror(docs) });
+                // ‼ 208 · רק עמודות מסמכי החתימה. שמירת השורה כולה מעותק ישן
+                // דרסה סטטוס/היקף שהשרת כתב רגע קודם.
+                const { error: attachErr } = await supabase.from('representation_requests')
+                  .update(repRequestToDb(withLegacyMirror(docs))).eq('id', selectedRequest.id);
+                if (attachErr) throw attachErr;
+                await reloadRequest(selectedRequest.id);
               }}
             />
           ) : (
