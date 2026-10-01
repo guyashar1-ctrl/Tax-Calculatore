@@ -9,7 +9,7 @@
 // נדחסו לשורה אופקית אחת וכל מקטע כווץ למינימום, בדיוק "התוכן דחוס בשטח
 // צר" + "הרבה שטח ריק" שדווחו. tabpanel = flex column+gap, כמו כל טאב אחר.
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { Client } from '../../types';
 import { useDocumentStore, type StoredDoc, type DocFolder, type DocumentLabel } from '../../hooks/useDocumentStore';
 import { AVAILABLE_YEARS } from '../../data/taxData';
@@ -58,19 +58,139 @@ interface MetaDraft { year: string; labelId: string }
 /** ערך הבורר ל«ללא תווית» — לא מזהה של תווית אמיתית. */
 const NO_LABEL = '__none__';
 
+type Row = { kind: 'folder' | 'file'; folder?: DocFolder; doc?: StoredDoc; path?: string };
+
+// ─── מיון ───────────────────────────────────────────────────────────────
+// ‼ תיקיות תמיד לפני קבצים, והמיון פועל בתוך כל קבוצה (גיא, 01.10.2026).
+// ריק (בלי תווית/שנה) תמיד בסוף — בשני הכיוונים: ההיפוך הוא של הערכים, לא
+// של «אין ערך».
+type SortKey = 'name' | 'label' | 'year' | 'updated';
+type SortDir = 'asc' | 'desc';
+interface SortState { key: SortKey; dir: SortDir }
+const SORT_KEYS: SortKey[] = ['name', 'label', 'year', 'updated'];
+const SORT_LABEL: Record<SortKey, string> = { name: 'שם', label: 'תווית', year: 'שנה', updated: 'עודכן' };
+/** הכיוון בלחיצה הראשונה על עמודה — שנים ותאריכים מהחדש לישן. */
+const FIRST_DIR: Record<SortKey, SortDir> = { name: 'asc', label: 'asc', year: 'desc', updated: 'desc' };
+const SORT_STORE = 'pivo:docs-sort';
+const DEFAULT_SORT: SortState = { key: 'name', dir: 'asc' };
+/** numeric: «צילום 2» לפני «צילום 10». */
+const HE = new Intl.Collator('he', { numeric: true, sensitivity: 'base' });
+
+function readSort(): SortState {
+  try {
+    const v = JSON.parse(localStorage.getItem(SORT_STORE) || 'null');
+    if (v && SORT_KEYS.includes(v.key) && (v.dir === 'asc' || v.dir === 'desc')) return v;
+  } catch { /* דפדפן בלי אחסון — ברירת המחדל */ }
+  return DEFAULT_SORT;
+}
+
+/** נוסח הכיוון לכל עמודה — לבורר בטלפון ולתיאור הכפתור. */
+function sortDirText(key: SortKey, dir: SortDir): string {
+  if (key === 'year' || key === 'updated') return dir === 'desc' ? 'חדש קודם' : 'ישן קודם';
+  return dir === 'asc' ? 'א-ת' : 'ת-א';
+}
+
+// ─── ניווט בתיקיות ↔ היסטוריית הדפדפן ──────────────────────────────────
+// ‼ בלי זה «אחורה» יצא מהלקוח כולו (נראה בהקלטה של גיא, 01.10.2026): הכניסה
+// לתיקייה הייתה מצב פנימי בלבד. כל כניסה נרשמת כצעד באותה כתובת; App.tsx
+// מקבל את אותה כתובת ב-popstate ולא משנה דבר.
+const HIST_KEY = 'pivoDocs';
+interface DocsHist {
+  clientId: string;
+  folderId: string | null;
+  /** הצעד הקודם בהיסטוריה הוא התיקייה הזו — «חזרה» אליה = אחורה, בלי לנפח את ההיסטוריה. */
+  prev: string | null;
+  hasPrev: boolean;
+  /** המגירה פתוחה בצעד הזה — «אחורה» סוגר אותה ונשאר באותה תיקייה. */
+  drawer?: boolean;
+  /** כמה צעדים שלנו מעל צעד הבסיס של המסך. */
+  seq: number;
+}
+function readDocsHist(clientId: string): DocsHist | null {
+  const s = window.history.state as Record<string, unknown> | null;
+  const h = s && typeof s === 'object' ? (s[HIST_KEY] as DocsHist | undefined) : undefined;
+  return h && h.clientId === clientId ? h : null;
+}
+function writeDocsHist(h: Omit<DocsHist, 'seq'>, mode: 'push' | 'replace') {
+  const base = window.history.state && typeof window.history.state === 'object' ? window.history.state : {};
+  const cur = readDocsHist(h.clientId)?.seq ?? 0;
+  const seq = mode === 'push' ? cur + 1 : cur;
+  window.history[mode === 'push' ? 'pushState' : 'replaceState']({ ...base, [HIST_KEY]: { ...h, seq } }, '', window.location.href);
+}
+function scrollerOf(el: HTMLElement | null): HTMLElement {
+  let cur = el?.parentElement ?? null;
+  while (cur && cur !== document.body) {
+    const oy = getComputedStyle(cur).overflowY;
+    if ((oy === 'auto' || oy === 'scroll') && cur.scrollHeight > cur.clientHeight) return cur;
+    cur = cur.parentElement;
+  }
+  return (document.scrollingElement as HTMLElement) || document.documentElement;
+}
+
+/** חץ פתיחה: מצביע לכיוון הקריאה (שמאלה ב-RTL) כשסגור, ומטה כשפתוח. SVG ולא תו — תווים כמו ‹ מתהפכים ב-RTL. */
+function ChevronIcon() {
+  return (
+    <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+      <path d="M10 3.5 5.5 8 10 12.5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+function BackIcon() {
+  return (
+    <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+      <path d="M6 3.5 10.5 8 6 12.5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+function SortArrow({ dir }: { dir: SortDir }) {
+  return (
+    <svg className="docw-sort-arrow" viewBox="0 0 10 12" aria-hidden="true" focusable="false">
+      <path d={dir === 'asc' ? 'M5 10.5V1.8M1.8 4.8 5 1.6l3.2 3.2' : 'M5 1.5v8.7M1.8 7.2 5 10.4l3.2-3.2'}
+        fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 export default function DocumentsWorkspace({ client, allClients, initialFolderId }: Props) {
   const db = useDocumentStore();
   const [docs, setDocs] = useState<StoredDoc[]>([]);
   const [folders, setFolders] = useState<DocFolder[]>([]);
   const [labels, setLabels] = useState<DocumentLabel[]>([]);
   const [loading, setLoading] = useState(true);
-  const [currentFolderId, setCurrentFolderId] = useState<string | null>(initialFolderId ?? null);
+  // ‼ חזרה למסך מתוך מסך אחר («אחורה») — לאותה תיקייה שבה היינו, מתוך ההיסטוריה.
+  const [currentFolderId, setCurrentFolderId] = useState<string | null>(
+    () => initialFolderId ?? readDocsHist(client.id)?.folderId ?? null);
+  const currentFolderRef = useRef(currentFolderId);
+  currentFolderRef.current = currentFolderId;
 
   // ‼ קיצור מבחוץ פותח את התיקייה, ורק אותה. ניווט של המשתמש בתוך התיק
   // גובר — האפקט תלוי במזהה שמגיע מבחוץ ולא ברירת מחדל שרצה כל רינדור.
   useEffect(() => {
-    if (initialFolderId) setCurrentFolderId(initialFolderId);
+    if (!initialFolderId) return;
+    setCurrentFolderId(initialFolderId);
+    writeDocsHist({ clientId: client.id, folderId: initialFolderId, prev: null, hasPrev: false }, 'replace');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialFolderId]);
+
+  const [sort, setSort] = useState<SortState>(readSort);
+  function applySort(next: SortState) {
+    setSort(next);
+    try { localStorage.setItem(SORT_STORE, JSON.stringify(next)); } catch { /* נשאר לסשן הזה */ }
+  }
+  function toggleSort(key: SortKey) {
+    applySort(sort.key === key
+      ? { key, dir: sort.dir === 'asc' ? 'desc' : 'asc' }
+      : { key, dir: FIRST_DIR[key] });
+  }
+  /** תיקיות שנפתחו במקום (חץ) — נשמר גם כשנכנסים ויוצאים, עד שעוברים לקוח. */
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  function toggleExpanded(id: string) {
+    setExpanded(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
 
   const [search, setSearch] = useState('');
   const [filterLabel, setFilterLabel] = useState('');
@@ -170,8 +290,15 @@ export default function DocumentsWorkspace({ client, allClients, initialFolderId
   const fileInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
 
+  // ‼ איפוס התיקייה רק כשעוברים ללקוח אחר — לא בטעינה הראשונה. קודם האיפוס רץ
+  // גם בכניסה ודרס את התיקייה שהקיצור מבחוץ (או ההיסטוריה) כבר בחרו.
+  const loadedClientRef = useRef<string | null>(null);
   useEffect(() => {
-    setCurrentFolderId(null);
+    if (loadedClientRef.current !== null && loadedClientRef.current !== client.id) {
+      setCurrentFolderId(null);
+      setExpanded(new Set());
+    }
+    loadedClientRef.current = client.id;
     setSelectedIds(new Set());
     void loadAll();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -246,8 +373,46 @@ export default function DocumentsWorkspace({ client, allClients, initialFolderId
     return { year: parentFolder.year || '', labelId: inheritLabel };
   }
 
+  const compareRows = useMemo(() => {
+    const nameOf = (r: Row) => r.kind === 'folder' ? r.folder!.name : (r.doc!.description || r.doc!.fileName);
+    const labelOf = (r: Row) => {
+      const id = r.kind === 'folder' ? r.folder!.labelId : r.doc!.labelId;
+      return id ? labelsById.get(id)?.name ?? '' : '';
+    };
+    // «כללי» היא השנה הוותיקה ביותר; תיקייה בלי שנה — אין ערך (בסוף).
+    const yearOf = (r: Row): number | null => {
+      const y = r.kind === 'folder' ? (r.folder!.year || '') : r.doc!.year;
+      if (y === '' || y == null) return null;
+      if (y === 'general' || y === 'כללי') return 0;
+      const n = Number(y);
+      return Number.isFinite(n) ? n : null;
+    };
+    const timeOf = (r: Row) => new Date(r.kind === 'folder' ? r.folder!.createdAt : r.doc!.uploadedAt).getTime() || 0;
+    const idOf = (r: Row) => r.kind === 'folder' ? r.folder!.id : r.doc!.id;
+    const sign = sort.dir === 'asc' ? 1 : -1;
+    return (a: Row, b: Row): number => {
+      if (a.kind !== b.kind) return a.kind === 'folder' ? -1 : 1;
+      let c = 0;
+      if (sort.key === 'label') {
+        const la = labelOf(a), lb = labelOf(b);
+        if (!la !== !lb) return la ? -1 : 1;
+        c = HE.compare(la, lb);
+      } else if (sort.key === 'year') {
+        const ya = yearOf(a), yb = yearOf(b);
+        if ((ya === null) !== (yb === null)) return ya === null ? 1 : -1;
+        c = (ya ?? 0) - (yb ?? 0);
+      } else if (sort.key === 'updated') {
+        c = timeOf(a) - timeOf(b);
+      } else {
+        c = HE.compare(nameOf(a), nameOf(b));
+      }
+      if (c !== 0) return c * sign;
+      return HE.compare(nameOf(a), nameOf(b)) || idOf(a).localeCompare(idOf(b));
+    };
+  }, [sort, labelsById]);
+
   const q = search.trim().toLowerCase();
-  const rows: { kind: 'folder' | 'file'; folder?: DocFolder; doc?: StoredDoc; path?: string }[] = useMemo(() => {
+  const rows: Row[] = useMemo(() => {
     if (q) {
       const fileRows = docs
         .filter(d => {
@@ -259,15 +424,15 @@ export default function DocumentsWorkspace({ client, allClients, initialFolderId
       const folderRows = folders
         .filter(f => f.name.toLowerCase().includes(q))
         .map(f => ({ kind: 'folder' as const, folder: f, path: folderPathLabel(f.parentId, foldersById) }));
-      return [...folderRows, ...fileRows];
+      return [...folderRows, ...fileRows].sort(compareRows);
     }
     const hereFolders = folders.filter(f => (f.parentId ?? null) === currentFolderId);
     const hereDocs = docs.filter(d => (d.folderId ?? null) === currentFolderId);
     return [
       ...hereFolders.map(f => ({ kind: 'folder' as const, folder: f })),
       ...hereDocs.map(d => ({ kind: 'file' as const, doc: d })),
-    ];
-  }, [q, docs, folders, currentFolderId, foldersById, labelsById]);
+    ].sort(compareRows);
+  }, [q, docs, folders, currentFolderId, foldersById, labelsById, compareRows]);
 
   /* ‼ (168) "תווית חובה" נאכפת רק בהעלאה מהמסך הזה; דף הלקוח, מסלול הרו"ח
      הקודם ועוד כתריסר כותבים שומרים מסמכים בלי תווית — ובכוונה. בורר
@@ -275,7 +440,7 @@ export default function DocumentsWorkspace({ client, allClients, initialFolderId
      «ללא תווית» היא ערך בבורר כמו כל תווית. */
   const matchesLabel = (labelId: string | null | undefined) =>
     !filterLabel || (filterLabel === NO_LABEL ? !labelId : labelId === filterLabel);
-  const filteredRows = rows.filter(r => {
+  const passesFilters = (r: Row) => {
     if (r.kind === 'folder') {
       if (!matchesLabel(r.folder!.labelId)) return false;
       if (filterYear && (r.folder!.year || '') !== filterYear) return false;
@@ -286,11 +451,108 @@ export default function DocumentsWorkspace({ client, allClients, initialFolderId
     // "כללי" בסרגל הייתה מסתירה בדיוק את המסמכים הכלליים שביקשו לראות.
     if (filterYear && docYearLabel(r.doc!.year) !== filterYear) return false;
     return true;
-  });
+  };
+  const filteredRows = rows.filter(passesFilters);
 
-  function goRoot() { clearSelection(); setSearch(''); setCurrentFolderId(null); }
-  function goInto(id: string) { clearSelection(); setSearch(''); setCurrentFolderId(id); }
-  function goCrumb(index: number) { clearSelection(); setSearch(''); setCurrentFolderId(breadcrumb[index]?.id ?? null); }
+  /** התוכן של תיקייה שנפתחה במקום — אותו מיון ואותם מסננים כמו ברשימה עצמה. */
+  function childRows(folderId: string): Row[] {
+    return [
+      ...folders.filter(f => f.parentId === folderId).map(f => ({ kind: 'folder' as const, folder: f })),
+      ...docs.filter(d => d.folderId === folderId).map(d => ({ kind: 'file' as const, doc: d })),
+    ].filter(passesFilters).sort(compareRows);
+  }
+
+  // ─── ניווט: כניסה, חזרה, נתיב — ו«אחורה» של הדפדפן ──────────────────────
+  const pathBarRef = useRef<HTMLDivElement>(null);
+  /** מיקום הגלילה בכל תיקייה שיצאנו ממנה — כדי שהחזרה תנחת באותו מקום. */
+  const scrollMemo = useRef(new Map<string, number>());
+  const pendingScroll = useRef<'restore' | 'top' | null>(null);
+  const memoKey = (id: string | null) => id ?? '';
+  function rememberScroll(folderId: string | null) {
+    scrollMemo.current.set(memoKey(folderId), scrollerOf(pathBarRef.current).scrollTop);
+  }
+
+  useLayoutEffect(() => {
+    const mode = pendingScroll.current;
+    pendingScroll.current = null;
+    if (!mode) return;
+    const sc = scrollerOf(pathBarRef.current);
+    if (mode === 'restore') {
+      const y = scrollMemo.current.get(memoKey(currentFolderId));
+      if (y != null) sc.scrollTop = y;
+      return;
+    }
+    // כניסה: רק אם הנתיב כבר גלל אל מחוץ למסך — אחרת לא מזיזים את העין.
+    const bar = pathBarRef.current;
+    if (!bar) return;
+    const top = sc === document.scrollingElement ? 0 : sc.getBoundingClientRect().top;
+    const barTop = bar.getBoundingClientRect().top;
+    if (barTop < top) sc.scrollTop += barTop - top - 12;
+  }, [currentFolderId]);
+
+  function navigateTo(target: string | null, how: 'into' | 'up') {
+    clearSelection(); setSearch('');
+    if (target === currentFolderId) return;
+    rememberScroll(currentFolderId);
+    const h = readDocsHist(client.id);
+    // ‼ חזרה לתיקייה שממנה באנו = צעד אחורה אמיתי, לא צעד חדש. כך «חזרה»
+    // ו«אחורה» של הדפדפן הם אותה פעולה, וההיסטוריה לא מתנפחת בכל הלוך-חזור.
+    if (how === 'up' && h && !h.drawer && h.hasPrev && h.prev === target) {
+      window.history.back();
+      return;
+    }
+    writeDocsHist({ clientId: client.id, folderId: target, prev: currentFolderId, hasPrev: true }, 'push');
+    pendingScroll.current = how === 'into' ? 'top' : 'restore';
+    setCurrentFolderId(target);
+  }
+  function goRoot() { navigateTo(null, 'up'); }
+  function goInto(id: string) { navigateTo(id, 'into'); }
+  function goCrumb(index: number) { navigateTo(breadcrumb[index]?.id ?? null, 'up'); }
+  function goUp() { navigateTo(breadcrumb.length > 1 ? breadcrumb[breadcrumb.length - 2].id : null, 'up'); }
+
+  const drawerOpenRef = useRef(false);
+  useEffect(() => {
+    function onPop() {
+      const h = readDocsHist(client.id);
+      if (drawerOpenRef.current && !h?.drawer) resetDrawer();
+      const target = h?.folderId ?? null;
+      const prev = currentFolderRef.current;
+      if (prev === target) return;
+      rememberScroll(prev);
+      pendingScroll.current = 'restore';
+      setSelectedIds(new Set());
+      setSearch('');
+      setCurrentFolderId(target);
+    }
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [client.id]);
+
+  // ‼ מעבר ללשונית אחרת של הלקוח אינו משנה כתובת. בלי הגלגול הזה, «אחורה»
+  // מלשונית «בקשות» היה «אוכל» בשקט את צעדי התיקיות (לחיצות שלא עושות כלום).
+  // מעבר למסך אחר במערכת דוחף צעד משלו (App.tsx) — אז הצעד הנוכחי כבר אינו
+  // שלנו ואין מה לגלגל. ההשהיה: האפקט של App רץ אחרי הפירוק הזה.
+  const aliveRef = useRef(false);
+  useEffect(() => {
+    aliveRef.current = true;
+    const clientId = client.id;
+    return () => {
+      aliveRef.current = false;
+      const k = readDocsHist(clientId)?.seq ?? 0;
+      if (k <= 0) return;
+      const hash = window.location.hash;
+      window.setTimeout(() => {
+        if (aliveRef.current) return;          // StrictMode: פירוק והרכבה מיידיים — לא יציאה אמיתית
+        if (window.location.hash === hash && readDocsHist(clientId)?.seq === k) window.history.go(-k);
+      }, 80);
+    };
+  }, [client.id]);
+
+  // תיקייה שנמחקה/הועברה בזמן שהיינו בה (או צעד ישן בהיסטוריה) — חוזרים לשורש.
+  useEffect(() => {
+    if (!loading && currentFolderId && !foldersById.has(currentFolderId)) setCurrentFolderId(null);
+  }, [loading, currentFolderId, foldersById]);
 
   // ─── בחירה מרובה ────────────────────────────────────────────────────────
   // ‼ הבחירה שייכת לתצוגה הנוכחית בלבד. מסמך שסומן ואז יצא מהתצוגה (ניווט,
@@ -700,6 +962,12 @@ export default function DocumentsWorkspace({ client, allClients, initialFolderId
 
   // ─── מגירת פרטים ───────────────────────────────────────────────────────
   async function openDrawer(doc: StoredDoc) {
+    // ‼ המגירה היא צעד בהיסטוריה: «אחורה» (גם בטלפון) סוגר אותה ונשאר בתיקייה —
+    // בהקלטה של גיא «אחורה» מתוך המגירה יצא מהלקוח.
+    const h = readDocsHist(client.id);
+    if (h?.drawer) writeDocsHist(h, 'replace');
+    else writeDocsHist({ clientId: client.id, folderId: currentFolderId, prev: null, hasPrev: false, drawer: true }, 'push');
+    drawerOpenRef.current = true;
     setDrawerDoc(doc);
     const [clients, tasks] = await Promise.all([
       db.getLinkedClientIds(doc.id),
@@ -716,10 +984,16 @@ export default function DocumentsWorkspace({ client, allClients, initialFolderId
     setDocActionError(''); setConfirmDeleteDoc(false);
     setFileBusy(false); setFileError(''); setConvertError('');
   }
-  function closeDrawer() {
+  function resetDrawer() {
+    drawerOpenRef.current = false;
     setDrawerDoc(null); setDrawerLinkedClients([]); setDrawerLinkedTasks([]);
     setDocActionError(''); setConfirmDeleteDoc(false);
     setFileBusy(false); setFileError(''); setConvertError('');
+  }
+  function closeDrawer() {
+    resetDrawer();
+    // הצעד של המגירה יוצא מההיסטוריה — אחרת «אחורה» הבא היה «סוגר» מגירה שכבר סגורה.
+    if (readDocsHist(client.id)?.drawer) window.history.back();
   }
 
   async function saveDrawerMeta(patch: Partial<Pick<StoredDoc, 'labelId' | 'year' | 'description' | 'folderId'>>) {
@@ -1375,6 +1649,151 @@ export default function DocumentsWorkspace({ client, allClients, initialFolderId
   const hasActiveFilter = !!q.trim() || !!filterLabel || !!filterYear;
   const isFirstRun = !loading && !hasAnyContent && !hasActiveFilter && currentFolderId === null;
 
+  // ─── שורות הרשימה — עץ: תיקייה שנפתחה בחץ מציגה את התוכן שלה מתחתיה ─────
+  // ‼ שתי פעולות שונות על תיקייה, ושני אזורים שונים: החץ פותח/סוגר במקום;
+  // השם (וכל שאר השורה) נכנס לתיקייה. שורה פנימית (depth>0) אינה נבחרת
+  // ואינה נגררת — הבחירה שייכת לרמה שבה עומדים, כמו קודם. היא כן נפתחת,
+  // כן מקבלת גרירה לתוכה, ומסמך בה פותח את אותה מגירה (צפייה/הורדה).
+  function renderRows(list: Row[], depth: number, scope: string): React.ReactNode[] {
+    const out: React.ReactNode[] = [];
+    for (const r of list) {
+      if (r.kind === 'file') { out.push(renderDocRow(r.doc!, depth, r.path, scope)); continue; }
+      const f = r.folder!;
+      out.push(renderFolderRow(f, depth, r.path, scope));
+      if (!expanded.has(f.id) || depth > 12) continue;
+      const kids = childRows(f.id);
+      if (kids.length === 0) {
+        out.push(
+          <div key={`${scope}/${f.id}:empty`} className="docw-row is-nested docw-nest-empty"
+            style={{ '--docw-depth': depth + 1 } as React.CSSProperties}>
+            <span className="docw-sel" />
+            <span className="docw-name-cell"><span className="docw-twisty-slot" />
+              {hasActiveFilter ? 'אין כאן פריטים שמתאימים לסינון' : 'התיקייה ריקה'}</span>
+          </div>,
+        );
+      } else {
+        out.push(...renderRows(kids, depth + 1, `${scope}/${f.id}`));
+      }
+    }
+    return out;
+  }
+
+  function renderFolderRow(f: DocFolder, depth: number, path: string | undefined, scope: string) {
+    const label = f.labelId ? labelsById.get(f.labelId) : null;
+    const top = depth === 0;
+    const open = expanded.has(f.id);
+    const drag = canDrag && top;
+    return (
+      <div
+        key={`${scope}/${f.id}`}
+        className={`docw-row docw-folder-row${top ? '' : ' is-nested'}${open ? ' is-open' : ''}${selectedIds.has(f.id) ? ' is-selected' : ''}${dropFolderId === f.id ? ' is-drop-target' : ''}${dropInvalidId === f.id ? ' is-drop-invalid' : ''}${draggingIds.includes(f.id) ? ' is-dragging' : ''}${drag ? ' is-draggable' : ''}`}
+        style={{ '--docw-depth': depth } as React.CSSProperties}
+        role="button" tabIndex={0}
+        aria-label={`כניסה לתיקייה ${f.name}`}
+        onClick={() => goInto(f.id)}
+        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); goInto(f.id); } }}
+        draggable={drag}
+        onDragStart={drag ? e => handleItemDragStart(e, f.id) : undefined}
+        onDragEnd={drag ? handleDragEnd : undefined}
+        onDragOver={e => handleFolderDragOver(e, f.id)}
+        onDragLeave={() => handleFolderDragLeave(f.id)}
+        onDrop={e => handleFolderDrop(e, f)}
+      >
+        {/* ‼ אותה עמודה ואותה תיבה כמו במסמך — כך רואים בלי
+            להסביר שגם תיקייה נבחרת. stopPropagation כדי שסימון
+            לא ייכנס לתיקייה. */}
+        <span className="docw-sel" onClick={e => e.stopPropagation()}>
+          {top && (
+            <input
+              type="checkbox"
+              aria-label={`בחר את התיקייה ${f.name}`}
+              checked={selectedIds.has(f.id)}
+              onChange={() => toggleItem(f.id)}
+              onKeyDown={e => e.stopPropagation()}
+            />
+          )}
+        </span>
+        <span className="docw-name-cell">
+          <span className="docw-twisty-slot">
+            <button
+              type="button" className="docw-twisty"
+              aria-expanded={open}
+              aria-label={`${open ? 'סגירת' : 'פתיחת'} התיקייה ${f.name} במקום`}
+              title={open ? 'סגירה' : 'הצגת התוכן כאן, בלי להיכנס'}
+              onClick={e => { e.stopPropagation(); toggleExpanded(f.id); }}
+              onKeyDown={e => e.stopPropagation()}
+            ><ChevronIcon /></button>
+          </span>
+          <span className="docw-name">
+            📁 <span className="docw-name-text">{f.name}</span>
+            {path && <span className="docw-path-hint">{path}</span>}
+          </span>
+        </span>
+        <span>{label && <span className="ial-doc-label-chip">{label.name}</span>}</span>
+        <span className="docw-col-year">{f.year || '-'}</span>
+        <span className="docw-col-updated">
+          {fmtDate(f.createdAt)}
+          {/* פעולות התיקייה יושבות על השורה שלה — שם הן רלוונטיות */}
+          {/* ‼ "ערוך" חזר לשורה. כשהוא ישב רק בסרגל הבחירה, הדרך
+              היחידה לשנות שם או תווית של תיקייה הייתה לסמן אותה
+              בתיבה — ולחיצה על השורה נכנסת פנימה, כך שהמסך נקרא
+              כאילו אי אפשר לערוך תיקייה בכלל. */}
+          <span className="docw-folder-actions">
+            <button type="button" title="שם, תווית ושנה"
+              onClick={e => { e.stopPropagation(); openFolderEdit(f); }}>ערוך</button>
+            <button type="button" title="מחיקת התיקייה" style={{ color: 'var(--err)' }}
+              onClick={e => { e.stopPropagation(); setConfirmDeleteFolder(f); setFolderError(''); }}>מחק</button>
+          </span>
+        </span>
+      </div>
+    );
+  }
+
+  function renderDocRow(d: StoredDoc, depth: number, path: string | undefined, scope: string) {
+    const label = d.labelId ? labelsById.get(d.labelId) : null;
+    const top = depth === 0;
+    const drag = canDrag && top;
+    return (
+      <div
+        key={`${scope}/${d.id}`}
+        className={`docw-row docw-doc-row${top ? '' : ' is-nested'}${selectedIds.has(d.id) ? ' is-selected' : ''}${draggingIds.includes(d.id) ? ' is-dragging' : ''}${drag ? ' is-draggable' : ''}`}
+        style={{ '--docw-depth': depth } as React.CSSProperties}
+        role="button" tabIndex={0}
+        onClick={() => openDrawer(d)}
+        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openDrawer(d); } }}
+        draggable={drag}
+        onDragStart={drag ? e => handleItemDragStart(e, d.id) : undefined}
+        onDragEnd={drag ? handleDragEnd : undefined}
+      >
+        {/* ‼ stopPropagation: לחיצה על השורה פותחת את המגירה, וסימון
+            התיבה אינו אמור לפתוח אותה. */}
+        <span className="docw-sel" onClick={e => e.stopPropagation()}>
+          {top && (
+            <input
+              type="checkbox"
+              aria-label={`בחר את ${d.description || d.fileName}`}
+              checked={selectedIds.has(d.id)}
+              onChange={() => toggleItem(d.id)}
+              onKeyDown={e => e.stopPropagation()}
+            />
+          )}
+        </span>
+        <span className="docw-name-cell">
+          <span className="docw-twisty-slot" />
+          <span className="docw-name">
+            {d.description || d.fileName}
+            <span className="docw-path-hint">{path || d.fileName}</span>
+          </span>
+        </span>
+        <span>{label
+          ? <span className="ial-doc-label-chip">{label.name}</span>
+          : <span className="ial-doc-label-chip" style={{ opacity: .6 }}>ללא תווית</span>}</span>
+        <span className="docw-col-year">{d.year === 'general' ? 'כללי' : d.year}</span>
+        <span className="docw-col-updated">{fmtDate(d.uploadedAt)}</span>
+      </div>
+    );
+  }
+
   return (
     <div className="cw-tabpanel ial-docs" onClick={() => addMenuOpen && setAddMenuOpen(false)}>
       {!isFirstRun && (
@@ -1436,16 +1855,50 @@ export default function DocumentsWorkspace({ client, allClients, initialFolderId
       <>
       {/* ‼ המסמכים עצמם ראשוניים: הכלים למעלה קומפקטיים, הנתיב+הרשימה
           מיד מתחתיהם באותה מידה — לא עוד כרטיס נפרד עם ריפוד עצמאי. */}
-      <div className="docw-path">
-        <button type="button" className="ial-back" style={{ marginBottom: 0 }} onClick={goRoot}>כל המסמכים</button>
-        {!q && breadcrumb.map((f, i) => (
-          <span key={f.id} style={{ display: 'flex', gap: '.4rem', alignItems: 'center' }}>
-            <span style={{ color: 'var(--ink-4)' }}>/</span>
-            <button type="button" className="ial-back" style={{ marginBottom: 0 }} onClick={() => goCrumb(i)}>{f.name}</button>
-          </span>
-        ))}
-        {q && <span>תוצאות חיפוש בכל התיקיות</span>}
-        <span className="docw-path-count">{filteredRows.length} פריטים</span>
+      {/* ‼ «איפה אני» + «איך חוזרים» בשורה אחת: כפתור חזרה ברור לתיקיית האב,
+          ונתיב שכל חוליה בו לחיצה — חוץ מהמקום הנוכחי, שמודגש ואינו קישור. */}
+      <div className="docw-path" ref={pathBarRef}>
+        <div className="docw-where">
+        {q ? (
+          <span className="docw-crumb-here">תוצאות חיפוש בכל התיקיות</span>
+        ) : breadcrumb.length === 0 ? (
+          <span className="docw-crumb-here" aria-current="location">כל המסמכים</span>
+        ) : (
+          <>
+            <button type="button" className="docw-back" onClick={goUp}
+              title={`חזרה ל${breadcrumb.length > 1 ? breadcrumb[breadcrumb.length - 2].name : 'כל המסמכים'}`}>
+              <BackIcon />חזרה
+            </button>
+            <nav className="docw-crumbs" aria-label="המיקום בתיק המסמכים">
+              <button type="button" className="docw-crumb" onClick={goRoot}>כל המסמכים</button>
+              {breadcrumb.map((f, i) => (
+                <Fragment key={f.id}>
+                  <span className="docw-crumb-sep" aria-hidden="true"><ChevronIcon /></span>
+                  {i < breadcrumb.length - 1
+                    ? <button type="button" className="docw-crumb" onClick={() => goCrumb(i)}>{f.name}</button>
+                    : <span className="docw-crumb-here" aria-current="location">{f.name}</span>}
+                </Fragment>
+              ))}
+            </nav>
+          </>
+        )}
+        </div>
+        <div className="docw-path-tools">
+        <span className="docw-path-count">{filteredRows.length === 1 ? 'פריט אחד' : `${filteredRows.length} פריטים`}</span>
+        {/* בטלפון אין שורת כותרות — המיון עובר לבורר אחד קומפקטי */}
+        <label className="docw-sort-compact">
+          <span>מיון</span>
+          <select
+            aria-label="מיון הרשימה"
+            value={`${sort.key}:${sort.dir}`}
+            onChange={e => { const [key, dir] = e.target.value.split(':') as [SortKey, SortDir]; applySort({ key, dir }); }}
+          >
+            {SORT_KEYS.flatMap(k => [FIRST_DIR[k], FIRST_DIR[k] === 'asc' ? 'desc' : 'asc'].map(dir => (
+              <option key={`${k}:${dir}`} value={`${k}:${dir}`}>{SORT_LABEL[k]} ({sortDirText(k, dir as SortDir)})</option>
+            )))}
+          </select>
+        </label>
+        </div>
       </div>
 
       {/* ‼ סרגל הפעולה נולד מהבחירה ומת איתה. פס הורדה קבוע היה מתחרה
@@ -1514,97 +1967,26 @@ export default function DocumentsWorkspace({ client, allClients, initialFolderId
                 onChange={toggleAllVisible}
               />
             </span>
-            <span>שם</span><span>תווית</span><span>שנה</span><span>עודכן</span>
-          </div>
-          {filteredRows.map(r => {
-            if (r.kind === 'folder') {
-              const f = r.folder!;
-              const label = f.labelId ? labelsById.get(f.labelId) : null;
+            {SORT_KEYS.map(k => {
+              const active = sort.key === k;
+              const nextDir = active ? (sort.dir === 'asc' ? 'desc' : 'asc') : FIRST_DIR[k];
               return (
-                <div
-                  key={f.id}
-                  className={`docw-row docw-folder-row${selectedIds.has(f.id) ? ' is-selected' : ''}${dropFolderId === f.id ? ' is-drop-target' : ''}${dropInvalidId === f.id ? ' is-drop-invalid' : ''}${draggingIds.includes(f.id) ? ' is-dragging' : ''}${canDrag ? ' is-draggable' : ''}`}
-                  role="button" tabIndex={0}
-                  onClick={() => goInto(f.id)}
-                  onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); goInto(f.id); } }}
-                  draggable={canDrag}
-                  onDragStart={canDrag ? e => handleItemDragStart(e, f.id) : undefined}
-                  onDragEnd={canDrag ? handleDragEnd : undefined}
-                  onDragOver={e => handleFolderDragOver(e, f.id)}
-                  onDragLeave={() => handleFolderDragLeave(f.id)}
-                  onDrop={e => handleFolderDrop(e, f)}
+                <button
+                  key={k} type="button"
+                  className={`docw-sort${active ? ' is-active' : ''}${k === 'name' ? ' docw-sort-name' : ''}`}
+                  onClick={() => toggleSort(k)}
+                  aria-label={active
+                    ? `ממוין לפי ${SORT_LABEL[k]}, ${sortDirText(k, sort.dir)}. לחיצה תהפוך ל${sortDirText(k, nextDir)}`
+                    : `מיון לפי ${SORT_LABEL[k]}`}
+                  title={active ? `${SORT_LABEL[k]}: ${sortDirText(k, sort.dir)} · לחיצה להיפוך` : `מיון לפי ${SORT_LABEL[k]}`}
                 >
-                  {/* ‼ אותה עמודה ואותה תיבה כמו במסמך — כך רואים בלי
-                      להסביר שגם תיקייה נבחרת. stopPropagation כדי שסימון
-                      לא ייכנס לתיקייה. */}
-                  <span className="docw-sel" onClick={e => e.stopPropagation()}>
-                    <input
-                      type="checkbox"
-                      aria-label={`בחר את התיקייה ${f.name}`}
-                      checked={selectedIds.has(f.id)}
-                      onChange={() => toggleItem(f.id)}
-                      onKeyDown={e => e.stopPropagation()}
-                    />
-                  </span>
-                  <span className="docw-name">
-                    📁 {f.name}
-                    {r.path && <span className="docw-path-hint">{r.path}</span>}
-                  </span>
-                  <span>{label && <span className="ial-doc-label-chip">{label.name}</span>}</span>
-                  <span className="docw-col-year">{f.year || '-'}</span>
-                  <span className="docw-col-updated">
-                    {fmtDate(f.createdAt)}
-                    {/* פעולות התיקייה יושבות על השורה שלה — שם הן רלוונטיות */}
-                    {/* ‼ "ערוך" חזר לשורה. כשהוא ישב רק בסרגל הבחירה, הדרך
-                        היחידה לשנות שם או תווית של תיקייה הייתה לסמן אותה
-                        בתיבה — ולחיצה על השורה נכנסת פנימה, כך שהמסך נקרא
-                        כאילו אי אפשר לערוך תיקייה בכלל. */}
-                    <span className="docw-folder-actions">
-                      <button type="button" title="שם, תווית ושנה"
-                        onClick={e => { e.stopPropagation(); openFolderEdit(f); }}>ערוך</button>
-                      <button type="button" title="מחיקת התיקייה" style={{ color: 'var(--err)' }}
-                        onClick={e => { e.stopPropagation(); setConfirmDeleteFolder(f); setFolderError(''); }}>מחק</button>
-                    </span>
-                  </span>
-                </div>
+                  {SORT_LABEL[k]}
+                  <SortArrow dir={active ? sort.dir : FIRST_DIR[k]} />
+                </button>
               );
-            }
-            const d = r.doc!;
-            const label = d.labelId ? labelsById.get(d.labelId) : null;
-            return (
-              <div
-                key={d.id}
-                className={`docw-row docw-doc-row${selectedIds.has(d.id) ? ' is-selected' : ''}${draggingIds.includes(d.id) ? ' is-dragging' : ''}${canDrag ? ' is-draggable' : ''}`}
-                role="button" tabIndex={0}
-                onClick={() => openDrawer(d)}
-                onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openDrawer(d); } }}
-                draggable={canDrag}
-                onDragStart={canDrag ? e => handleItemDragStart(e, d.id) : undefined}
-                onDragEnd={canDrag ? handleDragEnd : undefined}
-              >
-                {/* ‼ stopPropagation: לחיצה על השורה פותחת את המגירה, וסימון
-                    התיבה אינו אמור לפתוח אותה. */}
-                <span className="docw-sel" onClick={e => e.stopPropagation()}>
-                  <input
-                    type="checkbox"
-                    aria-label={`בחר את ${d.description || d.fileName}`}
-                    checked={selectedIds.has(d.id)}
-                    onChange={() => toggleItem(d.id)}
-                    onKeyDown={e => e.stopPropagation()}
-                  />
-                </span>
-                <span className="docw-name">
-                  {d.description || d.fileName}
-                  <span className="docw-path-hint">{r.path || d.fileName}</span>
-                </span>
-                <span>{label
-                  ? <span className="ial-doc-label-chip">{label.name}</span>
-                  : <span className="ial-doc-label-chip" style={{ opacity: .6 }}>ללא תווית</span>}</span>
-                <span className="docw-col-year">{d.year === 'general' ? 'כללי' : d.year}</span>
-                <span className="docw-col-updated">{fmtDate(d.uploadedAt)}</span>
-              </div>
-            );
-          })}
+            })}
+          </div>
+          {renderRows(filteredRows, 0, 'top')}
         </div>
       )}
       <div className="csub" style={{ margin: '.5rem .2rem 0', fontSize: 'var(--fs-12)', color: 'var(--ink-3)' }}>

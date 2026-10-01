@@ -3030,6 +3030,73 @@ input.pg-search:focus { box-shadow: 0 0 0 2px var(--focus-ring); border-color: t
 .docw-drawer-err{color:var(--err);font-size:var(--fs-12);margin-top:.4rem;white-space:pre-line}
 .docw-drawer-foot{margin-top:1.1rem;padding-top:.6rem;border-top:1px solid var(--hairline-2)}
 .docw-empty{padding:18px 16px;color:var(--ink-3);font-size:var(--fs-13);text-align:center}
+
+/* ─── ניווט בתיקיות: חזרה, נתיב, פתיחה במקום, מיון (01.10.2026) ──────────
+   ‼ שתי פעולות על תיקייה ושני אזורים: החץ (משבצת משלו, לפני השם) פותח
+   במקום; השם וכל השורה נכנסים. התנועה מינימלית בכוונה — זו פעולה שחוזרת
+   עשרות פעמים ביום: רק סיבוב החץ (140ms), בלי אנימציית גובה לשורות. */
+.docw-path{min-height:34px}
+/* «איפה אני» נשאר שורה אחת עם כפתור החזרה; הנתיב נשבר בתוך עצמו, לידו.
+   הספירה והמיון יורדים לשורה הבאה רק כשאין מקום. */
+.docw-where{display:flex;align-items:center;gap:.4rem;min-width:0;flex:0 1 auto}
+.docw-where .docw-crumbs{flex:0 1 auto}
+.docw-path-tools{display:flex;align-items:center;gap:.6rem;margin-inline-start:auto}
+.docw-path-tools .docw-path-count{margin-inline-start:0}
+.docw-back{display:inline-flex;align-items:center;gap:3px;min-height:30px;padding:0 10px 0 8px;
+  border:1px solid var(--hairline-1);border-radius:8px;background:var(--surface-0);color:var(--ink-1);
+  font:inherit;font-size:var(--fs-12);font-weight:600;cursor:pointer;
+  transition:background-color .12s ease,transform .12s cubic-bezier(.23,1,.32,1)}
+.docw-back:hover{background:var(--surface-1)}
+.docw-back:active{transform:scale(.97)}
+.docw-back svg{width:14px;height:14px;flex:none}
+.docw-crumbs{display:flex;align-items:center;gap:0;flex-wrap:wrap;min-width:0}
+.docw-crumb{border:0;background:none;padding:4px 6px;border-radius:6px;color:var(--accent);
+  font:inherit;font-size:var(--fs-12);cursor:pointer;transition:background-color .12s ease}
+.docw-crumb:hover{background:var(--surface-1);text-decoration:underline;text-underline-offset:3px}
+.docw-crumb-here{padding:4px 6px;color:var(--ink-1);font-weight:600;font-size:var(--fs-13)}
+.docw-crumb-sep{display:inline-flex;color:var(--ink-4)}
+.docw-crumb-sep svg{width:12px;height:12px}
+.docw-back:focus-visible,.docw-crumb:focus-visible,.docw-twisty:focus-visible,.docw-sort:focus-visible{
+  outline:2px solid var(--accent);outline-offset:1px}
+
+/* עמודות ממוינות: הכותרת היא הכפתור. החץ קבוע על העמודה הפעילה, ובשאר רק בריחוף. */
+.docw-head-row{--docw-slot:26px}
+.docw-sort{display:inline-flex;align-items:center;gap:4px;justify-self:start;border:0;background:none;
+  padding:2px 4px;margin:-2px -4px;border-radius:5px;font:inherit;color:inherit;cursor:pointer}
+.docw-sort:hover{color:var(--ink-2);background:var(--surface-1)}
+.docw-sort.is-active{color:var(--ink-1)}
+.docw-sort-name{margin-inline-start:calc(var(--docw-slot) - 10px)}
+.docw-sort-arrow{width:10px;height:12px;flex:none;opacity:0;transition:opacity .12s ease}
+.docw-sort.is-active .docw-sort-arrow{opacity:1;color:var(--accent)}
+@media (hover:hover){.docw-sort:not(.is-active):hover .docw-sort-arrow{opacity:.4}}
+
+/* שם + משבצת החץ. הזחה לפי עומק: --docw-depth על השורה. */
+.docw-row{--docw-slot:26px;--docw-indent:22px}
+.docw-name-cell{display:flex;align-items:center;min-width:0;
+  padding-inline-start:calc(var(--docw-depth,0) * var(--docw-indent))}
+.docw-name-cell .docw-name{min-width:0}
+.docw-twisty-slot{flex:none;width:var(--docw-slot);display:flex;align-items:center;margin-inline-start:-4px}
+.docw-twisty{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;padding:0;
+  border:0;border-radius:6px;background:none;color:var(--ink-3);cursor:pointer;
+  transition:background-color .12s ease,color .12s ease,transform .12s cubic-bezier(.23,1,.32,1)}
+.docw-twisty:hover{background:var(--surface-2);color:var(--ink-1)}
+.docw-twisty:active{transform:scale(.9)}
+.docw-twisty svg{width:14px;height:14px;transition:transform .14s cubic-bezier(.23,1,.32,1)}
+.docw-twisty[aria-expanded="true"]{color:var(--ink-1)}
+.docw-twisty[aria-expanded="true"] svg{transform:rotate(-90deg)}
+/* השם של תיקייה הוא קישור כניסה — הקו מתחתיו בריחוף אומר את זה בלי מילים */
+@media (hover:hover){.docw-folder-row:hover .docw-name-text{text-decoration:underline;text-underline-offset:3px}}
+.docw-row.is-nested{font-size:var(--fs-13)}
+.docw-row.is-nested .docw-name{font-weight:500}
+.docw-nest-empty{cursor:default;color:var(--ink-4);font-size:var(--fs-12)}
+.docw-nest-empty .docw-name-cell{grid-column:2 / -1}
+.docw-nest-empty:hover{background:none}
+.docw-sort-compact{display:none;align-items:center;gap:6px;font-size:var(--fs-12);color:var(--ink-3)}
+.docw-sort-compact select{width:auto;min-width:0;padding:5px 8px;font:inherit;font-size:var(--fs-12);
+  color:var(--ink-1);background:var(--surface-0);border:1px solid var(--bd-strong);border-radius:var(--r-input)}
+@media (prefers-reduced-motion:reduce){
+  .docw-back,.docw-twisty,.docw-twisty svg,.docw-crumb,.docw-sort-arrow{transition:none}
+}
 @media (max-width:700px){
   /* ‼ שורת הכותרת מוסתרת במסך צר, ואיתה "בחר הכל" — לכן היא חוזרת
      כשורה משלה בתוך סרגל הבחירה, אחרת אין דרך לסמן הכל בנייד. */
@@ -3039,6 +3106,15 @@ input.pg-search:focus { box-shadow: 0 0 0 2px var(--focus-ring); border-color: t
   .docw-bulkbar-actions{margin-inline-start:0;width:100%}
   .docw-bulkbar-actions .btn{flex:1}
   .docw-bulkbar-all{display:inline}
+  /* ‼ אזורי לחיצה לאצבע: החץ 40px, חזרה 40px. ההזחה קטנה יותר כדי שהשם לא יידחק. */
+  .docw-row{--docw-slot:40px;--docw-indent:14px}
+  .docw-twisty{width:40px;height:40px;margin-block:-8px}
+  .docw-twisty svg{width:16px;height:16px}
+  .docw-back{min-height:40px;padding:0 12px 0 10px;font-size:var(--fs-13)}
+  .docw-crumb,.docw-crumb-here{padding:8px 6px}
+  .docw-path{gap:.2rem .4rem}
+  .docw-sort-compact{display:flex}
+  .docw-sort-compact select{min-height:36px}
 }
 
 .ial-doc-search{border:1px solid var(--bd-strong);border-radius:var(--r-input);padding:8px 10px;background:var(--surface-0);font:inherit}
