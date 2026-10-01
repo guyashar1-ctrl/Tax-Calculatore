@@ -26,7 +26,8 @@ import SignaturePad from './SignaturePad';
 import RepSignersStatus from './RepSignersStatus';
 import RepresentationAuthorityData from './RepresentationAuthorityData';
 import RepresentationExecutionCenter from './RepresentationExecutionCenter';
-import RemoveAuthorityBeforeSigning from './RemoveAuthorityBeforeSigning';
+import { edgeFunctionError } from '../utils/functionError';
+import RemoveAuthorityBeforeSigning, { canRemoveBeforeSigning } from './RemoveAuthorityBeforeSigning';
 import RepresentationNextStep from './RepresentationNextStep';
 import EmailPreviewDialog from './EmailActivity/EmailPreviewDialog';
 import { repSendPhase, representationStatusLabel } from '../utils/representationAction';
@@ -104,6 +105,8 @@ export default function RepresentationRequestReview({
 
   // Accountant sign mode
   const [signMode, setSignMode] = useState(false);
+  /** 208 · «הסרת רשות מהבקשה» — פקדי ההסרה גלויים רק כשפותחים אותם. */
+  const [editingScope, setEditingScope] = useState(false);
   const [partB, setPartB] = useState<AccountantPartB>(
     request.partB ?? {
       firmName: '',
@@ -246,7 +249,8 @@ export default function RepresentationRequestReview({
       const { data, error } = await supabase.functions.invoke('send-onboarding-email', {
         body: { requestId: request.id, stage: 'sign', signerId: signer.id },
       });
-      if (error) return error.message;
+      // ‼ הסיבה האמיתית בגוף התשובה (edgeFunctionError), לא «non-2xx status code».
+      if (error) return `המייל לא נשלח (${await edgeFunctionError(error, 'שליחה נכשלה')})`;
       if (!data?.ok) return data?.detail?.message || data?.error || 'שליחה נכשלה';
       return null;
     } catch (e) {
@@ -533,8 +537,91 @@ export default function RepresentationRequestReview({
     }
   }
 
+  // ‼ 28.09.2026 · בקשה שהלקוח כבר הגיש (כל הבקשות בזרימה החדשה): העמוד בנוי סביב
+  // כרטיס «מה עכשיו» של מרכז הייצוג. הכותרת היא הלקוח; ההיקף שורה אחת; כל השאר נפתח לפי דרישה.
+  const rcMode = isNewOnboarding && onboardingSubmitted;
+  const shaamAuthorityCount = scope.filter(x => ['incomeTax', 'vat', 'withholding'].includes(x.authority)).length;
+  const scopeRemovable = !!linkedClient && canRemoveBeforeSigning(request)
+    && scope.some(l => ['incomeTax', 'vat', 'withholding'].includes(l.authority)
+      && (shaamAuthorityCount > 1 || (l.authority !== 'incomeTax' && l.targets.length > 1)));
+  const requestPanel = (
+    <div className="rq-facts">
+      <div><span>מייל</span><b dir="ltr">{request.clientEmail || '-'}</b></div>
+      <div><span>סוג ייפוי כוח</span><b>ייפוי כוח ראשי (שע״ם)</b></div>
+      {idEvidence.length > 0 && (
+        <div><span>צילומי תעודות</span><b>{idEvidence.map(e => `${e.name} ${e.got ? '✓' : '- טרם התקבל'}`).join(' · ')}</b></div>
+      )}
+      {missingIdentityLine(insight) && (
+        <div className="rq-facts-wide"><span>צילום שהמשרד ביקש</span><b>{missingIdentityLine(insight)} <span className="rc-meta" data-testid="office-identity-nonblocking">בקשה של המשרד - לא עוצרת את החתימה או את הייצוג.</span></b></div>
+      )}
+      {spouseFillPending && (
+        <div className="rq-facts-wide"><span>בן/בת הזוג</span><b>ממלא/ת את הפרטים שלו/ה בקישור נפרד - טרם התקבלו</b></div>
+      )}
+      {request.notes && (
+        <div className="rq-facts-wide"><span>הערות שנשלחו ללקוח</span><b style={{ whiteSpace: 'pre-wrap' }}>{request.notes}</b></div>
+      )}
+    </div>
+  );
+
+  // ‼ ייפוי הכוח החתום — בזרימה החדשה באזור נפתח בתוך מרכז הייצוג (לא בראש העמוד).
+  const signedPanel = request.signedPdfStoredId && generatedPdfUrl && !signMode ? (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'center' }}>
+        <button className="btn btn-primary btn-sm" onClick={handleDownloadPdf}>הורדת PDF</button>
+        <a href={generatedPdfUrl} target="_blank" rel="noreferrer" className="rc-link">פתיחה בכרטיסייה חדשה</a>
+        <button type="button" className="rc-quiet" onClick={handleRegeneratePdf} disabled={generating}>
+          {generating ? 'מעדכן...' : 'יצירה מחדש'}
+        </button>
+      </div>
+      <iframe src={generatedPdfUrl} title="ייפוי כוח חתום"
+        style={{ width: '100%', height: '560px', border: '1px solid var(--hairline-1)', borderRadius: 'var(--radius)' }} />
+    </div>
+  ) : null;
+
   return (
-    <div>
+    <div className={rcMode ? 'rq-page' : undefined}>
+      {rcMode ? (
+        <header className="rq-head" data-testid="rq-head">
+          <div className="rq-head-top">
+            <button type="button" className="rc-quiet" onClick={onBack}>← חזרה</button>
+            <div className="rq-head-acts">
+              {request.linkedClientId && (
+                <button type="button" className="btn btn-secondary btn-sm" onClick={() => onOpenClientDocs(request.linkedClientId)}
+                  title="כרטיס הלקוח - מסמכים, פרטים ומשימות">מסמכי הלקוח</button>
+              )}
+              {request.status === 'awaiting_stamp' && setup && request.signedPdfStoredId && (
+                <button type="button" className="rc-quiet" onClick={() => void openStampRoom()} title="פתיחת חדר החתימה מחדש - מייצר PDF סופי חדש">חתימה מחדש</button>
+              )}
+              <button type="button" className="rc-quiet rq-danger"
+                onClick={() => {
+                  if (confirm('למחוק את הבקשה? פעולה זו תמחק את הקבצים שהועלו לבקשה. הלקוח המקושר יישאר בכרטיס שלו - רק שדות הייצוג יתאפסו.')) onDelete(request.id);
+                }}>מחיקה</button>
+            </div>
+          </div>
+          <div className="rq-eyebrow">בקשת ייצוג · נוצרה {new Date(request.createdAt).toLocaleDateString('he-IL')}</div>
+          <h1 className="rq-name">{request.clientName || request.clientEmail}</h1>
+          <div className="rq-scope" data-testid="rq-scope">
+            {scope.map(l => (
+              <span key={l.authority} className="rq-scope-item">
+                {l.authorityLabel}
+                {scopeIsPerPerson && <span className="rq-scope-who">{l.whoLabel}</span>}
+                {l.ownerNote && <span className="rq-scope-who">{l.ownerNote}</span>}
+                {/* ‼ 208 · לפני השליחה לחתימה בלבד — גלוי רק במצב עריכה. */}
+                {editingScope && linkedClient && (
+                  <RemoveAuthorityBeforeSigning request={request} line={l} people={people}
+                    shaamAuthorityCount={shaamAuthorityCount} onChanged={() => onStepsChanged?.()} />
+                )}
+              </span>
+            ))}
+            {scope.length === 0 && <span className="rq-scope-item">{authorityList}</span>}
+            {scopeRemovable && (
+              <button type="button" className="rc-quiet" data-testid="rq-scope-edit" onClick={() => setEditingScope(e => !e)}>
+                {editingScope ? 'סיום' : 'הסרת רשות מהבקשה'}
+              </button>
+            )}
+          </div>
+        </header>
+      ) : (
       <div className="pg-head">
         <div className="pg-head-main">
           <div className="doc-title-row">
@@ -587,13 +674,14 @@ export default function RepresentationRequestReview({
           >מחק</button>
         </div>
       </div>
+      )}
 
-      {isNewOnboarding && (
+      {isNewOnboarding && !rcMode && (
         <RepresentationNextStep request={request} niIncluded={niIncluded} niCoversSpouse={niCoversSpouse} insight={insight} />
       )}
 
       {/* סטטוס חתימות — נישום + בן/בת זוג */}
-      {isSpouseRequest(request) && (
+      {isSpouseRequest(request) && !rcMode && (
         <div className="card" style={{ marginBottom: '1rem' }}>
           <div className="card-header"><div className="card-title">סטטוס חתימות</div></div>
           <div className="card-body">
@@ -602,7 +690,8 @@ export default function RepresentationRequestReview({
         </div>
       )}
 
-      {/* פרטי הבקשה */}
+      {/* פרטי הבקשה — בזרימה החדשה הם נפתחים לפי דרישה בתוך מרכז הייצוג */}
+      {!rcMode && (
       <div className="card" style={{ marginBottom: '1rem' }}>
         <div className="card-header"><div className="card-title">הגדרות הבקשה</div></div>
         <div className="card-body">
@@ -694,6 +783,7 @@ export default function RepresentationRequestReview({
           </div>
         </div>
       </div>
+      )}
 
       {/* ─── מסך החתמה של המייצג ──────────────────────────────────────── */}
       {signMode && (
@@ -787,7 +877,7 @@ export default function RepresentationRequestReview({
       )}
 
       {/* ─── PDF סופי שנוצר ──────────────────────────────────────────── */}
-      {request.signedPdfStoredId && generatedPdfUrl && !signMode && (
+      {request.signedPdfStoredId && generatedPdfUrl && !signMode && !rcMode && (
         <div className="card" style={{ marginBottom: '1rem', borderColor: 'var(--green)' }}>
           <div className="card-header" style={{ background: 'transparent' }}>
             <div className="card-title">ייפוי כוח חתום (טופס 2279א'5)</div>
@@ -852,7 +942,6 @@ export default function RepresentationRequestReview({
           <>
             {/* אין כאן כרטיס "פרטי הזדהות" נפרד — אותם שדות בדיוק מוצגים בכרטיס
                 הנתונים שמתחת, שם הם גם ניתנים להעתקה. */}
-            <RepresentationAuthorityData request={request} niCoversSpouse={niCoversSpouse} linkedClient={linkedClient} />
 
             <RepresentationExecutionCenter
               request={request}
@@ -871,9 +960,12 @@ export default function RepresentationRequestReview({
               onStepsChanged={onStepsChanged}
               onUpdateClientFields={onUpdateClientFields}
               onAttachShaamForms={onAttachShaamForms}
+              dataPanel={<RepresentationAuthorityData request={request} niCoversSpouse={niCoversSpouse} linkedClient={linkedClient} />}
+              requestPanel={requestPanel}
+              signedPanel={signedPanel}
             />
 
-            {request.status === 'pending_signature' && setup && (
+            {request.status === 'pending_signature' && setup && !rcMode && (
               <div className="card" style={{ background: 'transparent', borderColor: 'var(--orange)', marginBottom: '1rem' }}>
                 <div className="card-body">
                   <div style={{ display: 'flex', alignItems: 'center', gap: '.6rem', marginBottom: '.6rem' }}>

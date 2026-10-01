@@ -71,7 +71,7 @@ const COPY: Record<Stage, { subject: string; heading: string; body: string; cta:
   sign_with_ni: {
     subject: "שתי פעולות אחרונות - חתימה ואישור בביטוח הלאומי",
     heading: "כמעט סיימנו",
-    body: "כדי שנוכל לייצג אתכם בפועל, נשארו שתי פעולות קצרות. שתיהן יחד לוקחות כשתי דקות.",
+    body: "נשארו שני צעדים קצרים כדי שנוכל לייצג אותך בפועל. שניהם יחד לוקחים כשתי דקות.",
     cta: "לחתימה על הטופס",
   },
   active: resolveRepMailTemplate("rep_active"),
@@ -333,27 +333,6 @@ Deno.serve(async (req: Request) => {
 
     const f = "Arial, sans-serif";
 
-    /**
-     * כרטיס פעולה ממוספר. שתי הפעולות חייבות להיראות שוות במשקל — בגרסה קודמת
-     * החתימה קיבלה כפתור גדול והביטוח הלאומי נראה כהערת שוליים, ולקוח שפספס
-     * אותה השאיר את הייצוג בב"ל ללא תוקף בלי לדעת.
-     */
-    const actionCard = (n: number, title: string, lead: string, inner: string, tone: string) => `
-      <tr><td dir="rtl" align="right" style="text-align:right;padding:10px 28px 0;">
-        <table dir="rtl" role="presentation" width="100%" cellpadding="0" cellspacing="0"
-               style="border:2px solid ${tone};border-radius:${brand.radius + 4}px;background:#ffffff;">
-          <tr><td dir="rtl" align="right" style="text-align:right;padding:20px 22px 22px;">
-            <table dir="rtl" role="presentation" cellpadding="0" cellspacing="0"><tr>
-              <td style="width:38px;height:38px;background:${tone};border-radius:50%;text-align:center;vertical-align:middle;
-                         font-family:${f};font-size:19px;font-weight:700;color:#ffffff;">${n}</td>
-              <td style="padding-right:12px;font-family:${f};font-size:21px;font-weight:700;color:${brand.ink};">${esc(title)}</td>
-            </tr></table>
-            <div style="font-family:${f};text-align:right;font-size:14.5px;color:${brand.muted};line-height:1.75;padding:14px 0 4px;">${lead}</div>
-            ${inner}
-          </td></tr>
-        </table>
-      </td></tr>`;
-
     /** תוכן כרטיס הביטוח הלאומי: האסמכתא בגדול, המועד, ושתי דרכי האישור. */
     const niCardInner = (ni: any): string => {
       const deadlineRow = ni.deadline
@@ -383,13 +362,13 @@ Deno.serve(async (req: Request) => {
      * ‼ נגזר מהדרישות ומהתיק (shaam_presign_client_actions), לא מהשלבים — כך
      * התצוגה המקדימה שלפני «שלח ללקוח» מציגה בדיוק את מה שיצא.
      */
-    let shaamDocsHtml = "";
-    // ‼ אחרי כפתור החתימה, לא לפניו — החתימה היא הפעולה הראשית של המייל.
+    let idActs: { person?: string; personName?: string; label?: string; action?: string }[] = [];
+    let portalHref = "";
     let afterCtaHtml = "";
     if (stage === "sign" && signerRole !== "spouse" && reqRow?.id) {
       const { data: acts } = await admin.rpc("shaam_presign_client_actions", { p_request_id: reqRow.id });
-      const list = Array.isArray(acts) ? acts as { personName?: string; label?: string; action?: string }[] : [];
-      if (list.length > 0 && reqRow.linked_client_id) {
+      idActs = Array.isArray(acts) ? acts as typeof idActs : [];
+      if (idActs.length > 0 && reqRow.linked_client_id) {
         const { data: pc } = await admin.from("clients").select("portal_token").eq("id", reqRow.linked_client_id).maybeSingle();
         let portalToken = String(pc?.portal_token || "").trim();
         if (!portalToken && !preview) {
@@ -398,27 +377,33 @@ Deno.serve(async (req: Request) => {
             .update({ portal_token: portalToken }).eq("id", reqRow.linked_client_id);
           if (portalErr) portalToken = "";
         }
-        const portalHref = portalToken ? `${APP_URL}/?portal=${portalToken}` : "";
-        const rows = list.map((a) => {
-          const who = a.personName ? ` של ${esc(a.personName)}` : "";
-          const what = a.action === "confirm"
-            ? `יש לנו בתיק צילום${who}. צריך לאשר שזה הצילום הנכון, או להעלות אחר.`
-            : `צריך להעלות צילום תעודת זהות או רישיון נהיגה${who}.`;
-          return `<div style="font-family:${f};text-align:right;font-size:14px;color:${brand.ink};line-height:1.8;padding-top:6px;">• ${what}</div>`;
-        }).join("");
-        shaamDocsHtml = `
-      <tr><td dir="rtl" align="right" style="text-align:right;padding:14px 28px 0;">
-        <div style="border:1px solid ${brand.border};border-radius:${brand.radius}px;padding:16px 18px;background:${brand.pageBg};">
-          <div style="font-family:${f};text-align:right;font-size:16px;font-weight:700;color:${brand.ink};">רשות המסים דורשת גם צילום תעודה</div>
-          ${rows}
-          <div style="font-family:${f};text-align:right;font-size:13px;color:${brand.muted};line-height:1.7;padding-top:8px;">
-            אפשר גם אחרי החתימה. את ייפוי הכוח נגיש לרשות המסים כשהצילום יגיע.
-          </div>
-          ${portalHref ? `<div style="font-family:${f};text-align:right;padding-top:10px;font-size:14px;"><a href="${esc(portalHref)}" style="color:${brand.accent};font-weight:700;">להעלאה או לאישור בדף האישי ←</a></div>` : ""}
-        </div>
-      </td></tr>`;
+        portalHref = portalToken ? `${APP_URL}/?portal=${portalToken}` : "";
       }
     }
+
+    /**
+     * 28.09.2026 · מייל החתימה = רשימה ממוספרת אחת של צעדים, כולם באותו משקל.
+     * ‼ קודם: באנר «2 פעולות - שתיהן חובה», שני כרטיסים במסגרות צבעוניות, ואחריהם
+     * כרטיס שלישי חלש (צילום התעודה) שדיבר על הלקוח בגוף שלישי. גיא: «נורא».
+     * עכשיו: המספר תואם את הרשימה, כל צעד כותרת + שורה + הפעולה שלו, ופנייה ישירה.
+     */
+    const stepRow = (n: number, title: string, lead: string, inner: string, last: boolean) => `
+      <tr><td dir="rtl" align="right" style="text-align:right;padding:0 40px;">
+        <table dir="rtl" role="presentation" width="100%" cellpadding="0" cellspacing="0"
+               style="${last ? '' : `border-bottom:1px solid ${brand.border};`}">
+          <tr>
+            <td valign="top" style="width:40px;padding:22px 0 22px;">
+              <div style="width:30px;height:30px;line-height:30px;border-radius:50%;background:${brand.accent};color:#ffffff;
+                          text-align:center;font-family:${f};font-size:15px;font-weight:700;">${n}</div>
+            </td>
+            <td dir="rtl" align="right" valign="top" style="text-align:right;padding:22px 12px 22px 0;">
+              <div style="font-family:${f};text-align:right;font-size:18px;font-weight:700;color:${brand.ink};line-height:1.4;">${esc(title)}</div>
+              <div style="font-family:${f};text-align:right;font-size:14.5px;color:${brand.muted};line-height:1.75;padding-top:4px;">${lead}</div>
+              ${inner}
+            </td>
+          </tr>
+        </table>
+      </td></tr>`;
 
     /** הבלוק העצמאי — כשההוראות נשלחות לבדן ולא יחד עם החתימה. */
     const niBlock = (ni: any): string =>
@@ -510,47 +495,86 @@ Deno.serve(async (req: Request) => {
             <div style="font-family:${f};text-align:right;font-size:16px;font-weight:700;color:${brand.ink};padding-top:4px;">${esc(missingLabels)}</div>
           </div>
         </td></tr>`;
-    } else if (stage === "sign" && !niData.referenceNumber) {
+    } else if (stage === "sign") {
       // ‼ שער: אם התבקש ייצוג בב"ל אך אין אסמכתא, מייל החתימה ייצא בלי חלק
       // הב"ל — והלקוח יקבל אחריו מייל שני. עדיף להיכשל מאשר לפצל את התהליך.
-      const { data: cli } = await admin
-        .from("clients").select("authority_representations")
-        .eq("id", reqRow.linked_client_id).maybeSingle();
-      if (cli?.authority_representations?.nationalInsurance) {
-        return json({
-          error: "ni_reference_missing",
-          detail: { message: "התבקש ייצוג בביטוח לאומי - יש להזין את מספר האסמכתא לפני השליחה, כדי שהלקוח יקבל מייל אחד." },
-        }, 400);
+      if (!niData.referenceNumber) {
+        const { data: cli } = await admin
+          .from("clients").select("authority_representations")
+          .eq("id", reqRow.linked_client_id).maybeSingle();
+        if (cli?.authority_representations?.nationalInsurance && niKey === "nationalInsurance") {
+          return json({
+            error: "ni_reference_missing",
+            detail: { message: "התבקש ייצוג בביטוח לאומי - יש להזין את מספר האסמכתא לפני השליחה, כדי שהלקוח יקבל מייל אחד." },
+          }, 400);
+        }
       }
-      ctaLabel = copy.cta;
-      afterCtaHtml = shaamDocsHtml;
-    } else if (stage === "sign") {
-      // ★ שתי פעולות במייל אחד. הן נבנות ככרטיסים ממוספרים ולא ככפתור אחד עם
-      //   נספח, כדי שלא ניתן יהיה לפספס את השנייה. לכן אין כאן CTA סטנדרטי.
-      copy = COPY.sign_with_ni;
-      const banner = `
-        <tr><td dir="rtl" align="right" style="text-align:right;padding:4px 28px 0;">
-          <div style="font-family:${f};text-align:center;background:${brand.accent};color:#ffffff;
-                      border-radius:${brand.radius}px;padding:12px 16px;font-size:16px;font-weight:700;">
-            נדרשות ממכם 2 פעולות - שתיהן חובה
-          </div>
-        </td></tr>`;
-      const signCard = actionCard(
-        1,
-        "חתימה על ייפוי הכוח",
-        "לייצוג מול מס הכנסה. החתימה דיגיטלית ולוקחת פחות מדקה, גם מהטלפון.",
-        `<div style="padding-top:10px;">${emailButton(brand, "לחתימה על הטופס", link, true)}</div>
-         <div dir="ltr" style="text-align:center;padding-top:8px;font-family:${f};font-size:11.5px;color:${brand.muted};word-break:break-all;">${esc(link)}</div>`,
-        brand.accent,
-      );
-      const niCard = actionCard(
-        2,
-        "אישור בביטוח הלאומי",
-        "הזנו עבורכם את ייפוי הכוח, אבל הביטוח הלאומי דורש שאתם תאשרו אותו בעצמכם. <strong style=\"color:" + brand.ink + ";\">בלי האישור הזה הייצוג בביטוח הלאומי אינו בתוקף.</strong>",
-        niCardInner(niData),
-        "#C2410C",
-      );
-      extraHtml = banner + signCard + niCard + shaamDocsHtml;
+      // ‼ 29.09.2026 · פנייה ביחיד, כמו «שלום עידו» שבראש המייל — בצורות שאינן מגדריות
+      // בכתב («שלך», «אותך», «לאשר»). בלי כתובת טכנית מתחת לכפתור, ועם כפתור לכל צעד:
+      // מלא לחתימה (הפעולה העיקרית), קווי לשאר — אותה צורה, משקל שונה.
+      const stepButton = (label: string, href: string) => `
+        <table dir="rtl" role="presentation" cellpadding="0" cellspacing="0" align="right" style="margin-top:14px;">
+          <tr><td style="border:1.5px solid ${brand.accent};border-radius:${brand.buttonStyle === "pill" ? 999 : Math.max(brand.radius, 8)}px;background:#ffffff;">
+            <a href="${esc(href)}" style="display:inline-block;padding:10px 20px;font-family:${f};font-size:15px;font-weight:700;color:${brand.accent};text-decoration:none;">${esc(label)}&nbsp;&nbsp;←</a>
+          </td></tr>
+        </table>`;
+      const steps: { title: string; lead: string; inner: string }[] = [];
+      steps.push({
+        title: "חתימה על ייפוי הכוח",
+        lead: "חתימה דיגיטלית, פחות מדקה, גם מהטלפון.",
+        inner: `<div style="padding-top:14px;">${emailButton(brand, "לחתימה על הטופס", link, true)}</div>`,
+      });
+      for (const a of idActs) {
+        // ‼ המייל הזה הולך לבעל הכרטיס; צילום של בן/בת הזוג נקרא בשמו/ה, שלו עצמו — «שלך».
+        const whose = a.person === "spouse" && a.personName ? ` של ${esc(a.personName)}` : " שלך";
+        steps.push({
+          title: a.action === "confirm" ? "אישור צילום תעודת הזהות" : "צילום תעודת זהות או רישיון נהיגה",
+          lead: a.action === "confirm"
+            ? `רשות המסים מבקשת צילום של תעודת הזהות או רישיון הנהיגה${whose}. יש לנו כבר צילום בתיק — צריך רק לאשר שהוא הנכון, או להעלות אחר.`
+            : `רשות המסים מבקשת צילום של תעודת הזהות או רישיון הנהיגה${whose}. אפשר לצלם ישר מהטלפון.`,
+          inner: portalHref ? stepButton(a.action === "confirm" ? "לאישור הצילום" : "להעלאת הצילום", portalHref) : "",
+        });
+      }
+      if (niData.referenceNumber) {
+        const deadline = niData.deadline ? new Date(niData.deadline).toLocaleDateString("he-IL") : "";
+        const cell = (label: string, value: string, color: string, divider: boolean, ltr: boolean) => `
+          <td dir="rtl" align="right" valign="top" style="text-align:right;padding:12px 16px;${divider ? `border-right:1px solid ${brand.border};` : ""}">
+            <div style="font-family:${f};text-align:right;font-size:12.5px;color:${brand.muted};">${label}</div>
+            <div ${ltr ? 'dir="ltr" ' : ""}style="font-family:${f};text-align:right;font-size:20px;font-weight:700;letter-spacing:.03em;color:${color};padding-top:2px;">${value}</div>
+          </td>`;
+        steps.push({
+          title: "אישור הייצוג בביטוח הלאומי",
+          lead: "את ייפוי הכוח כבר הזנו בביטוח הלאומי. נשאר רק לאשר אותו — בלי האישור הייצוג שם לא נכנס לתוקף.",
+          inner: `
+            <table dir="rtl" role="presentation" cellpadding="0" cellspacing="0" width="100%" style="margin-top:14px;border:1px solid ${brand.border};border-radius:${brand.radius}px;background:${brand.pageBg};">
+              <tr>
+                ${cell("מספר אסמכתא", esc(String(niData.referenceNumber)), brand.ink, false, true)}
+                ${deadline ? cell("לאשר עד", esc(deadline), "#8A4B00", true, false) : ""}
+              </tr>
+            </table>
+            ${stepButton("לאישור באתר הביטוח הלאומי", NI_SITE)}
+            <div style="clear:both;font-family:${f};text-align:right;font-size:13.5px;color:${brand.muted};line-height:1.7;padding-top:12px;">
+              באתר מקלידים תעודת זהות ואת מספר האסמכתא, ומזדהים בכרטיס אשראי או דרך הטלפון או המייל המעודכנים בביטוח הלאומי.
+            </div>
+            <div style="font-family:${f};text-align:right;font-size:13.5px;color:${brand.muted};line-height:1.7;padding-top:4px;">
+              אפשר גם בטלפון <span dir="ltr" style="color:${brand.ink};font-weight:700;white-space:nowrap;">${esc(NI_PHONE)}</span> (מענה קולי), עם מספר האסמכתא וקוד בן 6 ספרות שהביטוח הלאומי שולח בדואר או במייל.
+            </div>`,
+        });
+      }
+      if (steps.length === 1) {
+        // צעד אחד בלבד ⇒ המייל הרגיל (הנוסח של המשרד), עם כפתור אחד.
+        ctaLabel = copy.cta;
+      } else {
+        const n = steps.length;
+        copy = {
+          ...COPY.sign_with_ni,
+          subject: niData.referenceNumber && idActs.length === 0 ? COPY.sign_with_ni.subject
+            : `הצעדים האחרונים לייצוג - ${((xs: string[]) => xs.length > 1 ? `${xs.slice(0, -1).join(", ")} ו${xs[xs.length - 1]}` : xs[0])(["חתימה", ...(idActs.length ? ["צילום תעודה"] : []), ...(niData.referenceNumber ? ["אישור בביטוח הלאומי"] : [])])}`,
+          body: `נשארו ${n === 2 ? "שני צעדים קצרים" : `${n} צעדים קצרים`} כדי שנוכל לייצג אותך מול הרשויות. כולם נדרשים, ואפשר לבצע אותם בכל סדר.`,
+        };
+        extraHtml = `<tr><td style="padding-top:8px;"></td></tr>`
+          + steps.map((x, i) => stepRow(i + 1, x.title, x.lead, x.inner, i === n - 1)).join("");
+      }
     } else {
       ctaLabel = copy.cta;
     }
@@ -564,7 +588,8 @@ Deno.serve(async (req: Request) => {
       ctaLabel: ctaLabel || undefined,
       ctaHref: ctaLabel ? ctaHref : undefined,
       ctaArrow: true,
-      showLinkFallback: !!ctaLabel,
+      // ‼ 29.09.2026 · במייל החתימה בלי הכתובת הטכנית מתחת לכפתור (גיא: «כתובת חתימה טכנית ארוכה»).
+      showLinkFallback: !!ctaLabel && stage !== "sign",
       footerTagline: stage === "ni_approve" ? "אישור מול הביטוח הלאומי · כדקה" : undefined,
     });
 

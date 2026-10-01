@@ -1,0 +1,271 @@
+/* ─── מרכז הייצוג — «מה עכשיו», שלבים, רשויות ────────────────────────────────
+   ‼ היררכיה מגודל ומשקל, לא ממסגרות: כרטיס אחד לפעולה, רשימה אחת לרשויות.
+   ‼ צבע = מידע: כחול למי שהכדור אצלו (המשרד) ולפעולה הראשית, ענבר להמתנה ללקוח,
+   ירוק להושלם בלבד, אדום רק לחסימה. ורוד נשאר לכפתורי אוטומציה בלבד (btn-automation).
+   ‼ גדלים מהסקאלה הסגורה בלבד (12·13·14·15·17·20·24·34). ink-4 לא לטקסט שצריך לקרוא.
+   ‼ RTL מלא דרך מאפיינים לוגיים (inline-start/end), וטוקנים בלבד — גם למצב כהה. */
+
+.rc { display: flex; flex-direction: column; gap: 28px; margin-bottom: 1.5rem; }
+
+/* ── שפת הפעולות: כפתור ראשי אחד (כחול), משני במסגרת, קישור כחול, קישור שקט ── */
+.rc-link {
+  background: none; border: none; padding: 0; font: inherit; font-size: 14px; font-weight: 500;
+  color: var(--accent); cursor: pointer; text-decoration: none; text-align: start;
+}
+.rc-link:hover { text-decoration: underline; text-underline-offset: 3px; }
+.rc-link:disabled { color: var(--ink-3); cursor: default; text-decoration: none; }
+/* פעולת גיבוי / ידנית / נדירה: אפורה, עם קו תחתון עדין כדי שתיקרא כלחיצה */
+.rc-quiet {
+  background: none; border: none; padding: 0; font: inherit; font-size: 13px; color: var(--ink-3); cursor: pointer;
+  text-decoration: underline; text-decoration-color: var(--bd-strong); text-underline-offset: 3px; text-align: start;
+}
+.rc-quiet:hover { color: var(--ink-1); text-decoration-color: currentColor; }
+.rc-quiet:disabled { cursor: default; opacity: .6; }
+.rc-meta { font-size: 13px; color: var(--ink-3); line-height: 1.6; }
+.rc-err { font-size: 13px; color: var(--danger); line-height: 1.6; }
+
+/* ‼ כמו .pa-mat-cta: כשכפתור משני הוא הפעולה של השורה/הכרטיס — מסגרת דקה, כדי שייקרא כלחיץ
+   (במערכת כפתור משני מאבד מסגרת). לא מתחרה בצבע בכפתור הראשי. */
+.rc .btn-secondary, .rq-head .btn-secondary {
+  border: 1px solid var(--bd-strong); background: var(--card); color: var(--ink-1); font-weight: 600;
+}
+.rc .btn-secondary:hover:not(:disabled), .rq-head .btn-secondary:hover:not(:disabled) { background: var(--surface-2); border-color: var(--ink-4); }
+.rc .btn-primary { font-weight: 600; }
+
+/* ── «מה עכשיו» ─────────────────────────────────────────────────────────── */
+.rc-hero {
+  background: var(--card);
+  border: 1px solid var(--hairline-1);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+  padding: 24px 28px 28px;
+  position: relative;
+  overflow: hidden;
+}
+.rc-hero::before {
+  content: ''; position: absolute; inset-block: 0; inset-inline-start: 0; width: 4px;
+  background: var(--rc-ball, var(--accent));
+}
+.rc-hero[data-ball='office'] { --rc-ball: var(--accent); }
+.rc-hero[data-ball='client'] { --rc-ball: var(--warn); }
+.rc-hero[data-ball='authority'] { --rc-ball: var(--ink-3); }
+.rc-hero[data-ball='none'] { --rc-ball: var(--success); }
+.rc-hero[data-kind='blocked'] { --rc-ball: var(--danger); }
+
+/* ‼ 29.09.2026 · שני טורים: המצב (מימין) והפעולה (משמאל, תמיד באותו מקום).
+   בלי טור פעולה — טור אחד, והטקסט לא נמתח מעבר לרוחב קריאה. */
+.rc-hero-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 24px; margin-top: 22px; }
+.rc-hero-grid[data-aside='false'] .rc-hero-main { max-width: 680px; }
+@media (min-width: 900px) {
+  .rc-hero-grid[data-aside='true'] { grid-template-columns: minmax(0, 1fr) 280px; gap: 40px; align-items: start; }
+}
+.rc-hero-main { min-width: 0; }
+
+.rc-ball {
+  display: inline-flex; align-items: center; gap: 7px;
+  font-size: 13px; font-weight: 600; color: var(--rc-ball, var(--accent));
+}
+.rc-hero[data-ball='authority'] .rc-ball { color: var(--ink-2); }
+.rc-ball::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--rc-ball, currentColor); }
+
+.rc-headline {
+  margin: 8px 0 6px;
+  font-size: 24px; line-height: 1.3; font-weight: 700; letter-spacing: -.2px;
+  color: var(--ink-1); text-wrap: balance;
+}
+.rc-sub { margin: 0; max-width: 60ch; font-size: 15px; line-height: 1.65; color: var(--ink-2); }
+.rc-body { margin-top: 22px; }
+.rc-actions { margin-top: 20px; display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; }
+.rc-actions .btn { font-size: 15px; padding: 10px 22px; }
+.rc-actioncell { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+.rc-note { margin-top: 18px; font-size: 14px; line-height: 1.6; padding: 10px 14px; border-radius: var(--radius); }
+.rc-note[data-kind='ok'] { background: var(--chip-green-bg); color: var(--success-text); }
+.rc-note[data-kind='err'] { background: var(--chip-red-bg); color: var(--danger); }
+
+/* ── טור הפעולה ────────────────────────────────────────────────────────── */
+.rc-aside {
+  background: var(--surface-2); border-radius: var(--radius-lg); padding: 18px 20px 20px;
+  display: flex; flex-direction: column; align-items: stretch; gap: 12px; min-width: 0;
+}
+.rc-aside-title { font-size: 13px; font-weight: 600; color: var(--ink-3); }
+.rc-aside > .btn, .rc-aside .rc-actioncell > .btn, .rc-aside .rc-actioncell .btn-automation:not(.btn-sm) {
+  width: 100%; justify-content: center; font-size: 15px; padding: 11px 16px;
+}
+.rc-aside .rc-actioncell { align-items: stretch; }
+.rc-aside > .rc-link, .rc-aside > .rc-quiet { align-self: flex-start; }
+.rc-aside-line { font-size: 13px; color: var(--ink-3); line-height: 1.6; overflow-wrap: anywhere; }
+.rc-aside-line[data-tone='warn'] { color: var(--danger); }
+.rc-addr { color: var(--ink-2); }
+.rc-aside-radios { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--ink-2); }
+.rc-aside-radios label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+
+.rc-facts { margin: 0; display: flex; flex-direction: column; gap: 10px; }
+.rc-facts > div { display: flex; flex-direction: column; gap: 1px; }
+.rc-facts dt { font-size: 13px; color: var(--ink-3); }
+.rc-facts dd { margin: 0; font-size: 14px; font-weight: 500; color: var(--ink-1); line-height: 1.5; }
+.rc-facts-when { display: block; font-size: 13px; font-weight: 400; color: var(--ink-2); }
+
+.rc-signers { display: flex; flex-direction: column; gap: 16px; }
+.rc-signer { display: flex; flex-direction: column; gap: 3px; }
+.rc-signer + .rc-signer { border-top: 1px solid var(--hairline-1); padding-top: 14px; }
+.rc-signer-name { font-size: 14px; font-weight: 600; color: var(--ink-1); }
+.rc-signer-addr { font-size: 14px; color: var(--ink-1); overflow-wrap: anywhere; }
+.rc-signer-state { font-size: 13px; color: var(--ink-3); line-height: 1.6; }
+.rc-signer-state[data-tone='warn'] { color: var(--danger); }
+.rc-signer-state[data-tone='done'] { color: var(--success-text); font-weight: 600; }
+.rc-signer-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; margin-top: 10px; }
+
+/* ── שלבי המסע — פס אחד, ארבעה קטעים ───────────────────────────────────── */
+.rc-rail { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.rc-rail-seg { display: flex; flex-direction: column; gap: 7px; min-width: 0; }
+.rc-rail-bar { height: 4px; border-radius: 2px; background: var(--hairline-1); }
+.rc-rail-seg[data-state='done'] .rc-rail-bar { background: var(--success); }
+.rc-rail-seg[data-state='current'] .rc-rail-bar { background: var(--rc-ball, var(--accent)); }
+.rc-rail-label { font-size: 13px; color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rc-rail-seg[data-state='current'] .rc-rail-label { color: var(--ink-1); font-weight: 600; }
+.rc-rail-caption { display: none; }
+
+/* ── «מה הלקוח יתבקש» — רשימה ממוספרת אחת ─────────────────────────────── */
+.rc-asks-title { font-size: 13px; font-weight: 600; color: var(--ink-3); margin-bottom: 12px; }
+.rc-asks { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 14px; }
+.rc-ask { display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 12px; align-items: start; }
+.rc-ask-n {
+  width: 26px; height: 26px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px; font-weight: 700; color: var(--ink-2); background: var(--surface-2);
+  font-variant-numeric: tabular-nums;
+}
+.rc-ask[data-state='done'] .rc-ask-n { background: var(--success); color: var(--on-accent); }
+.rc-ask-title { font-size: 15px; font-weight: 600; color: var(--ink-1); line-height: 1.5; padding-top: 2px; }
+.rc-ask[data-state='done'] .rc-ask-title { color: var(--ink-3); font-weight: 500; }
+.rc-ask-detail { font-size: 14px; color: var(--ink-3); margin-top: 2px; line-height: 1.55; }
+.rc-ask-state {
+  display: inline-block; margin-inline-start: 10px; padding: 1px 9px; border-radius: 999px; vertical-align: 1px;
+  font-size: 12px; font-weight: 600; white-space: nowrap; color: var(--ink-3); background: var(--surface-2);
+}
+.rc-ask-state[data-tone='wait'] { color: var(--chip-amber-tx); background: var(--chip-amber-bg); }
+.rc-ask-state[data-tone='done'] { color: var(--chip-green-tx); background: var(--chip-green-bg); }
+
+/* ── רשימת «לפני השליחה» — כל שורה עם הפקד שלה ─────────────────────────── */
+.rc-checklist { display: flex; flex-direction: column; border-top: 1px solid var(--hairline-2); }
+/* ‼ הפקד יושב מתחת לשם הצעד, מיושר אליו — לא בקצה השני של השורה (שם הוא נקרא
+   כשייך לשורה אחרת, ודחס את שם הצעד לשתי שורות). */
+.rc-check {
+  display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 8px 14px; align-items: start;
+  padding: 14px 0; border-bottom: 1px solid var(--hairline-2);
+}
+.rc-check-icon {
+  margin-top: 2px; width: 20px; height: 20px; border-radius: 50%; border: 1.5px solid var(--ink-4);
+  display: flex; align-items: center; justify-content: center; font-size: 12px; color: var(--on-accent);
+}
+.rc-check[data-done='true'] .rc-check-icon { background: var(--success); border-color: var(--success); }
+.rc-check-label { font-size: 15px; font-weight: 600; color: var(--ink-1); line-height: 1.5; }
+.rc-check[data-done='true'] .rc-check-label { color: var(--ink-3); font-weight: 400; }
+.rc-check-detail { font-size: 14px; color: var(--ink-3); margin-top: 1px; }
+.rc-check-ctrl { grid-column: 2; display: flex; flex-wrap: wrap; align-items: baseline; justify-content: flex-start; gap: 8px 16px; }
+.rc-check-ctrl:empty { display: none; }
+.rc-check-body { grid-column: 2; }
+.rc-inline-form { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; }
+.rc-inline-form label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--ink-3); }
+.rc-inline-form input { min-width: 150px; }
+
+/* ── כותרות מקטע ורשימות (רשויות, פרטים ומסמכים) ─────────────────────────── */
+.rc-section-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 10px; flex-wrap: wrap; }
+.rc-section-title { font-size: 17px; font-weight: 700; color: var(--ink-1); margin: 0; }
+.rc-list { border: 1px solid var(--hairline-1); border-radius: var(--radius-lg); background: var(--card); overflow: hidden; }
+.rc-row + .rc-row { border-top: 1px solid var(--hairline-2); }
+.rc-row-head {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 16px; align-items: center;
+  width: 100%; padding: 15px 20px; background: none; border: none; font: inherit; text-align: start;
+  cursor: pointer; color: inherit;
+}
+.rc-row-head:hover { background: var(--surface-1); }
+.rc-row-head:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.rc-row-name { font-size: 15px; font-weight: 600; color: var(--ink-1); }
+.rc-row-scope { font-size: 13px; font-weight: 400; color: var(--ink-3); margin-inline-start: 8px; }
+.rc-row-status { font-size: 14px; color: var(--ink-2); margin-top: 3px; line-height: 1.55; }
+.rc-row-status[data-tone='attention'] { color: var(--warn); }
+.rc-row-status[data-tone='danger'] { color: var(--danger); }
+.rc-row-status[data-tone='done'] { color: var(--success-text); }
+.rc-row-meta { font-size: 13px; color: var(--ink-3); margin-top: 2px; }
+.rc-row-end { display: flex; align-items: center; color: var(--ink-3); }
+.rc-chevron { width: 18px; height: 18px; transition: transform .18s ease; }
+.rc-row[data-open='true'] > .rc-row-head .rc-chevron { transform: rotate(180deg); }
+.rc-row-body { padding: 4px 20px 20px; }
+.rc-more-body > .card { border: none; box-shadow: none; margin: 0 !important; }
+
+/* ── ציר השלבים בפירוט של רשות ─────────────────────────────────────────── */
+.rc-steps { display: flex; flex-direction: column; }
+.rc-step { display: grid; grid-template-columns: 20px minmax(0, 1fr); gap: 12px; padding: 7px 0; position: relative; }
+.rc-step::after {
+  content: ''; position: absolute; inset-inline-start: 9px; top: 29px; bottom: -7px; width: 2px;
+  background: var(--hairline-2);
+}
+.rc-step:last-child::after { display: none; }
+.rc-dot {
+  width: 20px; height: 20px; border-radius: 50%; margin-top: 1px;
+  border: 2px solid var(--hairline-1); background: var(--card); position: relative; z-index: 1;
+  display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; color: var(--on-accent);
+}
+.rc-step[data-done='true'] .rc-dot { background: var(--success); border-color: var(--success); }
+.rc-step[data-done='false']:first-child .rc-dot,
+.rc-step[data-done='true'] + .rc-step[data-done='false'] .rc-dot { border-color: var(--accent); box-shadow: 0 0 0 3px var(--soft); }
+.rc-step-title { font-size: 14px; font-weight: 500; color: var(--ink-1); line-height: 1.5; }
+.rc-step[data-done='true'] .rc-step-title { color: var(--ink-2); }
+.rc-step[data-done='false'] .rc-step-title { color: var(--ink-3); }
+.rc-step[data-done='false']:first-child .rc-step-title,
+.rc-step[data-done='true'] + .rc-step[data-done='false'] .rc-step-title { color: var(--ink-1); font-weight: 600; }
+.rc-step-hint { font-size: 13px; color: var(--ink-3); margin-top: 2px; line-height: 1.6; }
+.rc-step-body { margin-top: 8px; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+.rc-step-side { padding-inline-start: 32px; }
+.rc-step-tag { font-size: 12px; margin-inline-start: 6px; color: var(--ink-3); font-weight: 400; }
+.rc-step-tag[data-required='true'] { color: var(--warn); font-weight: 600; }
+
+/* ── מובייל ────────────────────────────────────────────────────────────── */
+@media (max-width: 640px) {
+  .rc { gap: 22px; }
+  .rc-hero { padding: 18px 18px 20px; border-radius: var(--radius); }
+  .rc-hero-grid { margin-top: 18px; gap: 20px; }
+  .rc-headline { font-size: 20px; }
+  .rc-rail-label { display: none; }
+  .rc-rail-caption { display: block; margin-top: 8px; font-size: 13px; font-weight: 600; color: var(--ink-2); }
+  .rc-aside { padding: 16px; }
+  .rc-row-head { padding: 14px 16px; }
+  .rc-row-body { padding: 4px 16px 16px; }
+  .rc-row-scope { display: block; margin-inline-start: 0; }
+}
+
+/* ── כותרת העמוד: הלקוח הוא הכותרת, ההיקף שורה אחת ────────────────────── */
+.rq-head { margin-bottom: 24px; }
+.rq-head-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+.rq-head-acts { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.rq-danger:hover { color: var(--danger); }
+.rq-eyebrow { font-size: 13px; color: var(--ink-3); }
+.rq-name { margin: 2px 0 12px; font-size: 34px; line-height: 1.15; font-weight: 700; letter-spacing: -.4px; color: var(--ink-1); }
+.rq-scope { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; }
+.rq-scope-item {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 3px 11px; border-radius: 999px; background: var(--surface-2);
+  font-size: 13px; font-weight: 500; color: var(--ink-2); white-space: nowrap;
+}
+.rq-scope-who { color: var(--ink-3); font-weight: 400; }
+.rq-scope-who::before { content: '·'; margin-inline-end: 6px; }
+.rq-scope .rc-quiet { margin-inline-start: 8px; }
+
+.rq-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 24px; }
+.rq-facts > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.rq-facts span { font-size: 13px; color: var(--ink-3); }
+.rq-facts b { font-size: 14px; font-weight: 500; color: var(--ink-1); overflow-wrap: anywhere; }
+.rq-facts-wide { grid-column: 1 / -1; }
+
+@media (max-width: 640px) {
+  .rq-name { font-size: 24px; }
+  .rq-facts { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* ‼ עמוד בקשה נקרא כמו מסמך: עמודה ממוקדת, לא רוחב מסך מלא. */
+.rq-page { max-width: 1000px; margin-inline: auto; }
+
+/* «פרטי הלקוח להזנה» בתוך שורה נפתחת — בלי כותרת כפולה ובלי מסגרת פנימית */
+.rc-more-body #rep-authority-data > .card-header { display: none; }
+.rc-more-body #rep-authority-data > .card-body { padding: 0; }

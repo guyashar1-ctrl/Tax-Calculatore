@@ -67,6 +67,13 @@
   .app > .main { max-width: none; padding-inline: 16px; }
 }
 
+/* ‼ 29.09.2026 · בטלפון יש סרגל ניווט תחתון קבוע (65px + אזור הבית של האייפון).
+   הכלל שב-index.css שמפנה לו מקום נדרס כאן (סלקטור חזק יותר, 48px), והתוכן
+   האחרון בכל עמוד ישב מתחת לסרגל. */
+@media (max-width: 760px) {
+  .app > .main { padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px)); }
+}
+
 /* קו אנכי אחד לכל המסך — הכל מיושר לאותו אינסט */
 .tasks-page .board-row,
 .tasks-page .ui-group-head,

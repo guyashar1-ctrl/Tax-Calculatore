@@ -245,7 +245,9 @@ export const TESTS: TestCase[] = [
   }),
 
   test('מסך · הכפתור צמוד לכותרת, ותוצאת ב״ל מוצגת פעם אחת', () => {
-    assert(/<RepresentationReconcileButton heading=\{<div className="card-title">/.test(CENTER_SOURCE), 'הכותרת עוברת אל שורת הכפתור');
+    assert(/<RepresentationReconcileButton heading=\{<div className="card-title[^"]*">/.test(CENTER_SOURCE), 'הכותרת עוברת אל שורת הכפתור');
+    // ‼ 28.09.2026 · הקריאה השמורה גרה בשורת הרשות — מתחת לכותרת רק מה שרץ עכשיו.
+    assert(/persistedLines=\{false\}/.test(CENTER_SOURCE), 'בלי כפילות של השורה השמורה');
     assert(!/justifyContent: 'space-between'[^\n]*\n[^\n]*card-title">ביצוע הייצוג/.test(CENTER_SOURCE), 'לא בקצה השני של השורה');
     assert(/external && view\.showExternalEvidence && !resultShownAbove/.test(CENTER_SOURCE), 'התיבה בשלב 4 יורדת כשהשורה למעלה קיימת');
   }),

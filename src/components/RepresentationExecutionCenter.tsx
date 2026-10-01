@@ -35,7 +35,6 @@ import type { RepApprovalStep } from '../hooks/useRepApprovalStep';
 import EmailStatusRow from './EmailActivity/EmailStatusRow';
 import EmailPreviewDialog from './EmailActivity/EmailPreviewDialog';
 import type { RepSigner } from '../types';
-import InfoLines from './ui/InfoLines';
 import { ShaamRequiredDocsList } from './ShaamRequiredDocsList';
 import ShaamDropAuthorityButton from './ShaamDropAuthorityButton';
 import RepresentationReconcileButton, { type ReconcileTarget } from './RepresentationReconcileButton';
@@ -59,12 +58,15 @@ import type { NiRepresentationLine } from '../utils/niPersons';
 import { representationInsight } from '../utils/representationInsight';
 import ConfirmDialog from './ui/ConfirmDialog';
 import {
-  shaamPreSigningDocs, shaamClientDocumentsPending, shaamSendPreview, type ShaamPreSigningDoc,
+  shaamPreSigningDocs, shaamClientDocumentsPending, type ShaamPreSigningDoc,
 } from '../features/representation/shaamPreSigningDocs';
 import {
   prepareRequestForSigning, preparedDocumentsSentence, confirmShaamRequestCancelled,
 } from '../lib/representationSigning';
 import ShaamPreSigningDocsList from './ShaamPreSigningDocsList';
+import { repCenterPlan, type RcPrepareItem } from '../features/representation/repCenterPlan';
+import { shaamSettled } from '../features/representation/shaamRepresentation';
+import './repCenter.css';
 
 interface Props {
   request: RepresentationRequest;
@@ -118,6 +120,12 @@ interface Props {
    * אינה שליחה ללקוח, והשליחה נשארת פעולה מפורשת של הרו"ח.
    */
   onAttachShaamForms?: (docs: RepSignatureDocument[]) => Promise<void>;
+  /** «פרטי הלקוח להזנה ברשויות» — נפתח מעצמו רק כשמזינים (שלב ההכנה). */
+  dataPanel?: React.ReactNode;
+  /** «פרטי הבקשה» (מייל, סוג ייפוי הכוח, הערות) — סגור כברירת מחדל. */
+  requestPanel?: React.ReactNode;
+  /** ייפוי הכוח החתום (הורדה / צפייה) — סגור כברירת מחדל, כדי שלא יידחוף את «מה עכשיו». */
+  signedPanel?: React.ReactNode;
 }
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
@@ -153,18 +161,179 @@ function Notice({ tone, children, style }: { tone: NoticeTone; children: React.R
 }
 
 /**
- * 208 · רשות הוסרה מהבקשה אחרי שהבקשה כבר נפתחה בשע״ם.
- * ‼ שע״ם מאפשרת לבטל לפני קבלת המסמכים רק את **כל** הבקשה (לא תיק אחד), ו-PIVO
- * לא מבטלת בשע״ם. לכן: ביטול ידני שם ⇒ «בדוק קבלת הייצוג» רואה שבוטלה (או
- * שהמשרד מאשר כאן) ⇒ הבקשה הישנה עוברת להיסטוריה ⇒ «הזן» פותח חדשה רק למה
- * שנשאר. ‼ «הזן» בודק שוב ברשימת שע״ם — בקשה פתוחה שנשארה תעצור אותו.
+ * שלב בציר של רשות. ‼ «נוכחי» = הראשון שלא הושלם — נקבע ב-CSS (repCenter.css),
+ * כדי שכל רשימה תסמן את השלב הבא שלה בלי שכל קורא יחשב אותו.
  */
-function ShaamReplacementNotice({ requestId, submissionKey, replacement, remaining, onChanged }: {
-  requestId: string;
-  submissionKey: string;
-  replacement: NonNullable<ShaamRequestTracking['replacement']>;
-  remaining: string;
-  onChanged: () => void;
+function Step({ title, done, hint, children }: {
+  n?: number; title: string; done: boolean; hint?: string; children?: React.ReactNode;
+}) {
+  return (
+    <div className="rc-step" data-done={done ? 'true' : 'false'}>
+      <div className="rc-dot" aria-hidden="true">{done ? '✓' : ''}</div>
+      <div style={{ minWidth: 0 }}>
+        <div className="rc-step-title">{title}</div>
+        {hint && <div className="rc-step-hint">{hint}</div>}
+        {children && <div className="rc-step-body">{children}</div>}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * נתיב מזורז — ענף של השלב שמעליו, לא שלב בשרשרת (בלי מספר, מוזח פנימה).
+ * ‼ 201 · כששע״ם דורשת אותו («ממתין לאישור לקוח») הוא «חובה», לא «אופציונלי».
+ */
+function SideStep({ title, done, hint, required, children }: {
+  title: string; done: boolean; tone?: 'wait' | 'attention'; hint?: string; required?: boolean; children?: React.ReactNode;
+}) {
+  return (
+    <div className="rc-step rc-step-side" data-done={done ? 'true' : 'false'}>
+      <div className="rc-dot" aria-hidden="true">{done ? '✓' : ''}</div>
+      <div style={{ minWidth: 0 }}>
+        <div className="rc-step-title">
+          {title}
+          <span className="rc-step-tag" data-required={required ? 'true' : 'false'}>{required ? 'חובה' : 'אופציונלי'}</span>
+        </div>
+        {hint && <div className="rc-step-hint">{hint}</div>}
+        {children && <div className="rc-step-body">{children}</div>}
+      </div>
+    </div>
+  );
+}
+
+function Chevron() {
+  return (
+    <svg className="rc-chevron" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+      <path d="M5 8l5 5 5-5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+/**
+ * שורת רשות אחת: שם, מצב במשפט אחד, והפירוט המלא רק בלחיצה.
+ * ‼ המצב הוא המידע; הצבע רק כשהוא אומר משהו (דורש תשומת לב / הושלם).
+ */
+function AuthRow({ name, scope, status, tone, defaultOpen, testId, children }: {
+  name: string; scope?: string; status: string; tone?: 'attention' | 'danger' | 'done';
+  defaultOpen?: boolean; testId?: string; children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(!!defaultOpen);
+  return (
+    <div className="rc-row" data-open={open ? 'true' : 'false'} data-testid={testId}>
+      <button type="button" className="rc-row-head" aria-expanded={open} onClick={() => setOpen(o => !o)}>
+        <div style={{ minWidth: 0 }}>
+          <div className="rc-row-name">{name}{scope && <span className="rc-row-scope">{scope}</span>}</div>
+          <div className="rc-row-status" data-tone={tone}>{status}</div>
+        </div>
+        <span className="rc-row-end"><Chevron /></span>
+      </button>
+      {open && <div className="rc-row-body">{children}</div>}
+    </div>
+  );
+}
+
+/**
+ * פתיחה לפי דרישה — אותה שורה בדיוק כמו שורת רשות (שם, שורה משנית, חץ).
+ * ‼ עד שהרו"ח לוחץ, הפתיחה עוקבת אחרי המצב (defaultOpen); אחרי לחיצה — הלחיצה גוברת.
+ * קודם זה נקבע ברינדור הראשון בלבד, ולכן טבלת ההעתקה נשארה פתוחה גם אחרי שההכנה נגמרה.
+ */
+function More({ title, meta, defaultOpen, testId, children }: {
+  title: string; meta?: string; defaultOpen?: boolean; testId?: string; children: React.ReactNode;
+}) {
+  const [userOpen, setUserOpen] = useState<boolean | null>(null);
+  const open = userOpen ?? !!defaultOpen;
+  return (
+    <div className="rc-row" data-open={open ? 'true' : 'false'} data-testid={testId}>
+      <button type="button" className="rc-row-head" aria-expanded={open} onClick={() => setUserOpen(!open)}>
+        <div style={{ minWidth: 0 }}>
+          <div className="rc-row-name">{title}</div>
+          {meta && <div className="rc-row-meta">{meta}</div>}
+        </div>
+        <span className="rc-row-end"><Chevron /></span>
+      </button>
+      {open && <div className="rc-row-body rc-more-body">{children}</div>}
+    </div>
+  );
+}
+
+/** פריט אחד ברשימת «מה הלקוח יתבקש» / «מה פתוח אצל הלקוח». */
+interface AskItem { key: string; title: string; detail?: string; state?: string; tone?: 'wait' | 'done'; done?: boolean }
+
+function AskList({ title, items }: { title?: string; items: AskItem[] }) {
+  if (items.length === 0) return null;
+  return (
+    <div data-testid="rc-asks">
+      {title && <div className="rc-asks-title">{title}</div>}
+      <ol className="rc-asks">
+        {items.map((a, i) => (
+          <li key={a.key} className="rc-ask" data-state={a.done ? 'done' : 'open'} data-testid="rc-ask">
+            <span className="rc-ask-n">{a.done ? '✓' : i + 1}</span>
+            <div style={{ minWidth: 0 }}>
+              <div className="rc-ask-title">{a.title}{a.state && <span className="rc-ask-state" data-tone={a.tone}>{a.state}</span>}</div>
+              {a.detail && <div className="rc-ask-detail">{a.detail}</div>}
+            </div>
+          </li>
+        ))}
+      </ol>
+    </div>
+  );
+}
+
+/** טופס האסמכתא של ב״ל — אותו רכיב בשורת «לפני השליחה» ובפירוט של ב״ל. */
+function NiRefForm({ ni, busy, onSave }: {
+  ni: NiTracking; busy: boolean; onSave: (ref: string, deadline?: string) => void;
+}) {
+  const [refNumber, setRefNumber] = useState(ni.referenceNumber || '');
+  const [deadline, setDeadline] = useState(ni.deadline || '');
+  // ‼ 195: useState קורא את הערך פעם אחת; מסתנכרנים כשהשרת שינה אותו.
+  useEffect(() => { setRefNumber(ni.referenceNumber || ''); }, [ni.referenceNumber]);
+  useEffect(() => { setDeadline(ni.deadline || ''); }, [ni.deadline]);
+  return (
+    <div className="rc-inline-form" data-testid="ni-ref-form">
+      <label>מספר אסמכתא
+        <input value={refNumber} dir="ltr" inputMode="numeric" placeholder="73882698"
+          onChange={e => setRefNumber(e.target.value.replace(/\D/g, ''))} style={{ textAlign: 'left' }} />
+      </label>
+      <label>מועד אחרון לאישור
+        <input type="date" value={deadline} min={todayISO()} onChange={e => setDeadline(e.target.value)} />
+      </label>
+      <button className="btn btn-primary btn-sm" disabled={busy || !refNumber.trim()}
+        onClick={() => onSave(refNumber.trim(), deadline || undefined)}>
+        {busy ? 'שומר…' : 'שמירה'}
+      </button>
+    </div>
+  );
+}
+
+/**
+ * 208 · רשות הוסרה אחרי שהבקשה נפתחה בשע״ם.
+ * ‼ שע״ם מאפשרת לבטל לפני קבלת המסמכים רק את **כל** הבקשה, ו-PIVO לא מבטלת שם.
+ * ביטול ידני ⇒ הבדיקה מול הרשויות רואה שבוטלה (או שהמשרד מאשר כאן) ⇒ הבקשה
+ * עוברת להיסטוריה ⇒ «הזן» פותח חדשה רק למה שנשאר (ובודק שוב שאין פתוחה).
+ */
+function ReplacementBody({ replacement, remaining }: {
+  replacement: NonNullable<ShaamRequestTracking['replacement']>; remaining: string;
+}) {
+  return (
+    <div data-testid="shaam-replacement-notice">
+      {replacement.stillOpenAt && (
+        <p className="rc-err" data-testid="shaam-replacement-still-open" style={{ margin: '0 0 12px', fontWeight: 600 }}>
+          סומן שהבקשה בוטלה, אבל בבדיקה ב-{fmtDateTime(replacement.stillOpenAt)} היא עדיין הופיעה פתוחה בשע״ם — לכן לא נפתחה בקשה חדשה.
+        </p>
+      )}
+      <AskList items={[
+        { key: 'cancel', title: `בשע״ם, ברשימת הבקשות: «ביטול הבקשה» ${replacement.requestNumber}`, detail: 'לפני שהמסמכים התקבלו, שע״ם מבטלת את כל הבקשה ולא תיק אחד.' },
+        { key: 'mark', title: 'לסמן כאן שבוטלה', detail: 'או להריץ את הבדיקה מול הרשויות — היא מזהה ביטול.' },
+        { key: 'new', title: `לפתוח בקשה חדשה רק ל${remaining}`, detail: 'הטופס החדש יגיע משע״ם ויסומן לחתימה אוטומטית.' },
+      ]} />
+    </div>
+  );
+}
+
+/** «ביטלתי בשע״ם» — בטור הפעולה, כמו כל פעולה ראשית במסך. */
+function ReplacementConfirm({ requestId, submissionKey, replacement, onChanged }: {
+  requestId: string; submissionKey: string;
+  replacement: NonNullable<ShaamRequestTracking['replacement']>; onChanged: () => void;
 }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -178,152 +347,17 @@ function ShaamReplacementNotice({ requestId, submissionKey, replacement, remaini
     if (e) setErr(e); else onChanged();
   }
   return (
-    <Notice tone="required" style={{ marginTop: '.45rem' }}>
-      <div data-testid="shaam-replacement-notice">
-        <b>{replacement.removed.join(' ו')}</b> הוסר מהבקשה, אבל בקשה <span className="ltr-isolate">{replacement.requestNumber}</span> בשע״ם
-        עדיין כוללת אותו. הטופס הישן בוטל ב-PIVO ולא יישלח לחתימה.
-      </div>
-      {replacement.stillOpenAt && (
-        <div data-testid="shaam-replacement-still-open" style={{ marginTop: '.25rem', fontWeight: 600 }}>
-          סומן שהבקשה בוטלה, אבל בבדיקה ב-{fmtDateTime(replacement.stillOpenAt)} היא עדיין הופיעה פתוחה בשע״ם - לכן לא נפתחה בקשה חדשה.
-        </div>
-      )}
-      <div style={{ marginTop: '.25rem' }}>
-        מה עושים: בשע״ם, ברשימת הבקשות - «ביטול הבקשה» (לפני שהמסמכים התקבלו שע״ם מבטלת את כל הבקשה).
-        אחר כך הבדיקה שליד הכותרת תזהה את הביטול (או סמנו כאן), ו«הזן ייפוי כוח בשע״ם» יפתח בקשה חדשה רק ל{remaining}.
-      </div>
-      <button type="button" className="btn btn-ghost btn-sm" disabled={busy} data-testid="shaam-confirm-cancelled"
-        style={{ padding: '0 .25rem', marginTop: '.2rem' }} onClick={() => void confirm()}>
+    <>
+      <button type="button" className="btn btn-primary" disabled={busy} data-testid="shaam-confirm-cancelled" onClick={() => void confirm()}>
         {busy ? 'שומר…' : 'ביטלתי בשע״ם'}
       </button>
-      {err && <div className="rep-track-next-err">{err}</div>}
-    </Notice>
+      <div className="rc-aside-line">PIVO לא מבטלת בשע״ם — רק מסמנת כאן שבוטלה.</div>
+      {err && <div className="rc-err">{err}</div>}
+    </>
   );
 }
 
-/**
- * נתיב מזורז — שלב ביניים שאינו חלק מהשרשרת.
- *
- * ‼ בלי מספר, ובכוונה: מספר היה הופך אותו לשלב שביעי שחייבים לעבור בו,
- * בעוד שהייצוג נכנס לתוקף גם בלעדיו. מוזח פנימה ונשען על קו, כדי שייקרא
- * כענף של השלב שמעליו ולא כשורה שווה לו.
- * ‼ גם אינו נספר במונה המסלול — "6 מתוך 8" היה מציג תהליך שלא הושלם
- * כשהוא למעשה הושלם.
- */
-function SideStep({ title, done, tone, hint, required, children }: {
-  title: string; done: boolean; tone?: 'wait' | 'attention';
-  hint?: string;
-  /** ‼ 201 · שע״ם דורשת את הצעד (למשל «ממתין לאישור לקוח») — אז הוא לא «אופציונלי». */
-  required?: boolean;
-  children?: React.ReactNode;
-}) {
-  const dot = done ? 'var(--success)'
-    : tone === 'attention' ? 'var(--orange)' : 'var(--ink-4)';
-  return (
-    <div style={{
-      display: 'flex', gap: '.65rem', padding: '.45rem 0 .45rem .9rem',
-      marginInlineStart: '.55rem', borderInlineStart: '2px solid var(--hairline-2)',
-    }}>
-      <div style={{
-        flex: '0 0 auto', width: 14, height: 14, borderRadius: '50%', marginTop: 4,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        fontSize: 9, fontWeight: 700,
-        background: done ? 'var(--success)' : 'transparent',
-        border: done ? 'none' : `1.5px solid ${dot}`,
-        color: 'var(--on-accent)',
-      }}>
-        {done ? '✓' : ''}
-      </div>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{
-          fontSize: 'var(--fs-13)', fontWeight: done ? 400 : 500,
-          color: done ? 'var(--ink-3)' : 'var(--ink-2)',
-        }}>
-          {title}
-          <span style={{
-            marginInlineStart: '.4rem', fontSize: 'var(--fs-11)',
-            fontWeight: required ? 600 : 400, color: required ? 'var(--chip-orange-tx)' : 'var(--ink-4)',
-          }}>
-            {required ? 'חובה' : 'אופציונלי'}
-          </span>
-        </div>
-        {hint && <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)', marginTop: 2 }}>{hint}</div>}
-        {children && <div style={{ marginTop: '.4rem' }}>{children}</div>}
-      </div>
-    </div>
-  );
-}
-
-function Step({ n, title, done, hint, children }: {
-  n: number; title: string; done: boolean; hint?: string; children?: React.ReactNode;
-}) {
-  return (
-    <div style={{ display: 'flex', gap: '.65rem', padding: '.55rem 0' }}>
-      <div style={{
-        flex: '0 0 auto', width: 22, height: 22, borderRadius: '50%', marginTop: 1,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        fontSize: 'var(--fs-12)', fontWeight: 600,
-        background: done ? 'var(--success)' : 'var(--surface-2)',
-        color: done ? 'var(--on-accent)' : 'var(--ink-4)',
-      }}>
-        {done ? '✓' : n}
-      </div>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 'var(--fs-14)', fontWeight: done ? 500 : 600, color: done ? 'var(--ink-3)' : 'var(--ink-1)' }}>
-          {title}
-        </div>
-        {hint && <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)', marginTop: 2 }}>{hint}</div>}
-        {children && <div style={{ marginTop: '.5rem' }}>{children}</div>}
-      </div>
-    </div>
-  );
-}
-
-function Track({ title, subtitle, done, total, tone, nextAction, children }: {
-  title: string; subtitle: string; done: number; total: number; tone: string;
-  /**
-   * ‼ פרק 17: תא «הפעולה הבאה» של הרשות — פקד אחד, בכותרת העמודה, מתחת
-   * לשם ולמונה. ב״ל: יצירה/בדיקה דרך העובד לאדם של העמודה הזאת. שע״ם: תא
-   * מוכן ומושבת עד שתיבנה האוטומציה. ריק ⇒ אין פעולה (למשל ייצוג פעיל).
-   */
-  nextAction?: React.ReactNode;
-  children: React.ReactNode;
-}) {
-  const complete = done >= total;
-  return (
-    /* עמודת רשות. "הושלם" הוא מידע ולכן הוא נושא צבע — אבל בקו העליון
-       ובמונה, לא במסגרת ירוקה סביב הכול ובראש ירוק מלא. */
-    <div style={{
-      flex: '1 1 320px', minWidth: 0,
-      borderTop: `1px solid ${complete ? 'var(--success)' : 'var(--hairline-1)'}`,
-    }}>
-      <div style={{ padding: '.65rem 0 .5rem', borderBottom: '1px solid var(--hairline-2)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem' }}>
-          <span style={{ fontSize: 'var(--fs-17)' }}>{tone}</span>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontWeight: 600, fontSize: 'var(--fs-14)', color: 'var(--ink-1)' }}>{title}</div>
-            <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-4)' }}>{subtitle}</div>
-          </div>
-          <span style={{
-            fontSize: 'var(--fs-13)', fontWeight: 500,
-            color: complete ? 'var(--success-text)' : 'var(--ink-3)',
-            fontVariantNumeric: 'tabular-nums',
-          }}>
-            {done}/{total}
-          </span>
-        </div>
-        {nextAction && (
-          <div className="rep-track-next" style={{ marginTop: '.5rem', display: 'flex', flexDirection: 'column', gap: '.25rem', alignItems: 'flex-start' }}>
-            {nextAction}
-          </div>
-        )}
-      </div>
-      <div style={{ padding: '.6rem 0 .8rem' }}>{children}</div>
-    </div>
-  );
-}
-
-export default function RepresentationExecutionCenter({ request, niIncluded, niCoversSpouse, onSaveExecution, onProduce, onStamp, onMarkSentToShaam, onMarkActive, onSendToSigner, userId, repApprovalOverride, linkedClient, onConfirmRegisteredSpouse, steps, onStepsChanged, onUpdateClientFields, onAttachShaamForms }: Props) {
+export default function RepresentationExecutionCenter({ request, niIncluded, niCoversSpouse, onSaveExecution, onProduce, onStamp, onMarkSentToShaam, onMarkActive, onSendToSigner, userId, repApprovalOverride, linkedClient, onConfirmRegisteredSpouse, steps, onStepsChanged, onUpdateClientFields, onAttachShaamForms, dataPanel, requestPanel, signedPanel }: Props) {
   const exec = request.execution || {};
   const it = exec.incomeTax || {};
   const ni = exec.nationalInsurance || {};
@@ -418,7 +452,6 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
   // הטופס הבא שממתין לחתימה+חותמת שלי, וכמה נשארו. ‼ נגזר מהמסמכים ולא
   // מהסטטוס: הסטטוס מתקדם רק כשכולם נצרבו.
   const nextToStamp = poaDocs.find(d => !d.signedPdfStoredId) ?? null;
-  const stampsLeft = poaDocs.filter(d => !d.signedPdfStoredId).length;
 
   /**
    * ביטול סימון ההזנה. ‼ אינו מבטל את ההכרעה מי הרשום: אלה שתי עובדות
@@ -555,6 +588,11 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
     const addr = s.email.trim().toLowerCase();
     return addr ? signatureEmails.find(m => m.toEmail.trim().toLowerCase() === addr) : undefined;
   };
+  /** כל הניסיונות לכתובת הזו, מהחדש לישן — «נשלח/נפתח» נקרא מהאחרון שבאמת יצא. */
+  const signerEmails = (s: RepSigner) => {
+    const addr = s.email.trim().toLowerCase();
+    return addr ? signatureEmails.filter(m => m.toEmail.trim().toLowerCase() === addr) : [];
+  };
   /** מסלול הב"ל של החותם — לפי תפקיד מפורש, לעולם לא "הראשון". */
   const niTrackFor = (s: RepSigner): NiTracking | undefined =>
     s.role === 'spouse' ? (niTargetsSpouse ? niSpouse : undefined) : (niTargetsClient ? ni : undefined);
@@ -631,7 +669,6 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
   );
   // ההזנה הראשונה היא שלב 1; השאר נספרים אחריה.
   const firstEntry = submissions[0] ?? null;
-  const extraEntries = submissions.slice(1);
 
   // ‼ שאלת "מי הרשום" יושבת בהזנה שנושאת את תיק מ"ה — שם היא נענית בפועל.
   const regRowKey = submissions.find(x => x.carriesIncomeTax)?.key ?? firstEntry?.key ?? null;
@@ -785,12 +822,10 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
   };
   const enteredAtOf = (key: string, first: boolean) =>
     (first ? it.enteredAt : entryAt(key)) || shaamEvidenceAt(key);
-  const itSteps = [!!(it.enteredAt || (firstEntry && shaamEvidenceAt(firstEntry.key))), ...extraEntries.map(s => !!enteredAtOf(s.key, false)), formReady, !!exec.signatureEmailSentAt, signed, stamped, sentToShaam, status === 'active'];
 
   // שמות המבוטחים לכותרות המסלולים — כשיש שניים, "ביטוח לאומי" לבדו לא מספיק
   const nameOf = (role: 'client' | 'spouse') =>
     signers.find(s => s.role === role)?.name?.trim();
-  const clientNiTitle = niTargetsSpouse ? `ב״ל - ${nameOf('client') || 'הנישום'}` : 'ביטוח לאומי';
 
   // ── הפעולה ההקשרית של ב״ל — לכל אדם בנפרד (פרק 17) ──────────────────────
   // ‼ אותה נגזרת בדיוק כמו בתיק המס (niRepresentationOf → niRepresentationAction),
@@ -840,9 +875,8 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
   const shaamActionFor = (sub: ShaamSubmission) =>
     shaamRepresentationAction(status, shaamTrack(sub.key), stamped,
       { clientDocumentsPending: shaamClientDocumentsPending(preSigningDocsOf(sub)) });
-  const sendPreview = [...new Set(submissions.flatMap(sub => shaamSendPreview(preSigningDocsOf(sub))))];
   const shaamDemandsMissingId = submissions.some(sub => preSigningDocsOf(sub).some(d => d.status === 'missing'));
-  const shaamNode = (sub: ShaamSubmission, only?: ShaamActionKind) => {
+  const shaamNode = (sub: ShaamSubmission, only?: ShaamActionKind, className = 'btn btn-sm') => {
     // ‼ «בדוק» לעולם לא בעמודה — יש לו כפתור אחד ליד כותרת המרכז.
     const a = columnAction(shaamActionFor(sub));
     if (!a || (only && a.kind !== only)) return null;
@@ -850,7 +884,7 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
       <ShaamNextActionButton
         request={request} linkedClient={linkedClient ?? null} submission={sub}
         action={a} tracking={shaamTrack(sub.key)} married={scopePeople.married}
-        onChanged={onStepsChanged} className="btn btn-sm" errorClassName="rep-track-next-err"
+        onChanged={onStepsChanged} className={className} errorClassName="rep-track-next-err"
       />
     );
   };
@@ -895,557 +929,705 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
         premature: !niInstructionsDelivered(niExecutionByRole[role]),
       };
     });
-  // ‼ «הזן» חי בשלב 1 של כל אדם — בראש העמודה רק מה שאין לו שלב משלו (שידור).
-  const shaamNextActionNode = shaamLeadSubmission && columnAction(shaamActionFor(shaamLeadSubmission))?.kind !== 'create'
-    ? shaamNode(shaamLeadSubmission) : null;
-  // מי מבין השניים תקוע בלי אסמכתא — כדי שהחסימה תגיד לאן ללכת, ולא רק שנחסם
-  const missingRefFor = !niTargetsSpouse ? '' : [
-    !ni.referenceNumber && (nameOf('client') || 'הנישום'),
-    !niSpouse.referenceNumber && (nameOf('spouse') || 'בן/בת הזוג'),
-  ].filter(Boolean).join(' ו-');
+  // ── «מה עכשיו» — החלטה אחת למסך כולו (repCenterPlan) ─────────────────────
+  // ‼ 28.09.2026 · במקום שני טורים של שלבים והפעולה בתחתית העמוד: כרטיס אחד
+  // בראש, שאומר אצל מי הכדור, מה המצב במשפט, והפעולה היחידה שנדרשת עכשיו.
+  // הפירוט המלא לכל רשות נשאר בשורה שלה, ונפתח לפי דרישה.
+  const firstName = (linkedClient?.firstName || request.clientName || '').trim().split(/\s+/)[0] || '';
+  const niRoles = (['client', 'spouse'] as const).filter(r => (r === 'client' ? niTargetsClient : niTargetsSpouse));
+  const niNameOf = (role: 'client' | 'spouse') => nameOf(role) || (role === 'spouse' ? 'בן/בת הזוג' : 'הנישום');
+  const prereqMissingOf = (st?: OnboardingStep | null) => !!st
+    && !['completed', 'verified', 'skipped', 'cancelled'].includes(st.status)
+    && (((st.payload?.prerequisites as { missing?: string[] } | undefined)?.missing) ?? []).length > 0;
+  const niStepOf = (role: 'client' | 'spouse') => (role === 'spouse' ? niSpouseStep : niClientStep);
+  const patchNi = (role: 'client' | 'spouse', p: Partial<NiTracking>, label: string) =>
+    patch({ ...exec, ...(role === 'spouse' ? { nationalInsuranceSpouse: { ...niSpouse, ...p } } : { nationalInsurance: { ...ni, ...p } }) }, label);
+  const allPreDocs = submissions.flatMap(sub => preSigningDocsOf(sub));
+  const idDocs = allPreDocs.filter(d => d.kind !== 'poa' && d.kind !== 'other');
+  const idDocsOpen = idDocs.filter(d => d.status === 'missing' || d.status === 'awaiting_confirmation');
+  const shaamFactsOf = (sub: ShaamSubmission) => shaamSubmittedFacts(shaamTrack(sub.key));
 
-  return (
-    <div id="rep-execution" className="card" style={{ marginBottom: '1rem' }}>
-      <div className="card-header" style={{ display: 'block' }}>
-        {/* ‼ הפעולה היחידה במסך שבודקת מול הרשויות. לא לשכפל בעמודה או בשלב.
-            הכותרת עוברת פנימה כדי שהכפתור ישב צמוד אליה (ולא בקצה השני). */}
-        <RepresentationReconcileButton heading={<div className="card-title">ביצוע הייצוג מול הרשויות</div>}
-          clientId={linkedClient?.id} shaam={shaamReconcile} btl={btlReconcile} onChanged={onStepsChanged} />
+  const plan = repCenterPlan({
+    status, firstName, formReady, formNeedsMarking: Object.keys(layoutProblems).length > 0,
+    sent: !!exec.signatureEmailSentAt, sentAt: exec.signatureEmailSentAt ?? null,
+    signed, stamped, submitted: sentToShaam,
+    shaam: submissions.map((sub, i) => {
+      const t = shaamTrack(sub.key);
+      const a = shaamActionFor(sub);
+      const gate = shaamDocumentsBlocked(t);
+      const f = shaamFactsOf(sub);
+      return {
+        key: sub.key, label: sub.authoritiesLabel,
+        entered: !!enteredAtOf(sub.key, i === 0),
+        replacementRequestNumber: t?.replacement?.requestNumber ?? null,
+        replacementRemoved: t?.replacement?.removed ?? [],
+        clientDocumentsPending: shaamClientDocumentsPending(preSigningDocsOf(sub)),
+        documentsBlockedReason: gate ? (a?.reason ?? null) : null,
+        documentsBlockedOfficeFix: !!gate && !!a && !a.disabled,
+        settled: shaamSettled(t),
+        awaitingClientApproval: !!f?.clientApprovalRequired,
+        submittedStatus: f?.status
+          ? `שע״ם: ${f.status}${f.suspensionEndsAt ? ` · צפי לסיום ההשהייה ${fmt(f.suspensionEndsAt)}` : ''}` : null,
+      };
+    }),
+    ni: niRoles.map(role => ({
+      role, name: niNameOf(role),
+      prereqMissing: prereqMissingOf(niStepOf(role)),
+      entered: !!niExecutionByRole[role].enteredAt,
+      hasRef: !!niExecutionByRole[role].referenceNumber,
+      delivered: niInstructionsDelivered(niExecutionByRole[role]),
+      final: niTrackView(niExecutionByRole[role], niLineFor(role)).final,
+    })),
+    clientOpenItems: [...new Set(idDocsOpen.map(d => (d.status === 'missing' ? 'להעלות צילום תעודה' : 'לאשר את צילום התעודה שבתיק')))],
+    clientApprovalRequiredOpen: !!repApproval && approvalRequired && !isRepApprovalClosed(repApproval),
+  });
+
+  // ── פקדים שמופיעים פעם אחת בדיוק (בכרטיס «מה עכשיו» או בפירוט — לא בשניהם) ──
+  const createCell = (sub: ShaamSubmission) => <div className="rc-actioncell">{shaamNode(sub, 'create')}</div>;
+  const inPrepare = plan.kind === 'prepare';
+  const regChoiceNode = (busyKey: string, mark: (owner?: 'client' | 'spouse') => void) => (
+    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+      {regNames.map(r => (
+        <button key={r.owner}
+          className={`btn btn-sm ${r.owner === regIntent ? 'btn-green' : 'btn-secondary'}`}
+          disabled={busy === busyKey}
+          title={regIntent === null ? 'טרם נקבע מי הרשום - הבחירה כאן היא שתקבע'
+            : r.owner === regIntent ? 'זו הכוונה שנרשמה בפתיחת הייצוג' : 'שונה מהכוונה שנרשמה - יעדכן את התיק'}
+          onClick={() => { setEditingKey(null); void mark(r.owner); }}>
+          {busy === busyKey ? 'שומר…' : r.label}
+        </button>
+      ))}
+    </div>
+  );
+  const entryCtl = (sub: ShaamSubmission) => {
+    const i = submissions.findIndex(s => s.key === sub.key);
+    const first = i === 0;
+    return {
+      busyKey: first ? 'it' : `entry-${sub.key}`,
+      manualAt: first ? it.enteredAt : entryAt(sub.key),
+      at: enteredAtOf(sub.key, first),
+      asksHere: regChoice && !regVerified && sub.key === regRowKey,
+      mark: (owner?: 'client' | 'spouse') => (first ? markEnteredInShaam(owner) : markEntry(sub.key, owner)),
+      unmark: () => unmarkEntry(sub.key, first),
+    };
+  };
+  const waitingForShaamForm = submissions.some(s => !!shaamTrack(s.key)?.requestNumber && !shaamTrack(s.key)?.formDocumentId);
+
+  // ── «לפני השליחה»: שורה לכל צעד, והפקד שלו לידו ─────────────────────────
+  const prepareRow = (item: RcPrepareItem) => {
+    let ctl: React.ReactNode = null;
+    let body: React.ReactNode = null;
+    if (item.key.startsWith('shaam:')) {
+      const sub = submissions.find(s => `shaam:${s.key}` === item.key);
+      if (sub) {
+        const c = entryCtl(sub);
+        const t = shaamTrack(sub.key);
+        if (c.asksHere) {
+          body = (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <span className="rc-meta">מי מבין השניים רשום/ה במס הכנסה? הבחירה מעדכנת את התיק בכרטיס.</span>
+              {regChoiceNode(c.busyKey, c.mark)}
+            </div>
+          );
+        } else if (item.done) {
+          ctl = <span className="rc-meta">{t?.requestNumber ? <>בקשה <span className="ltr-isolate">{t.requestNumber}</span></> : 'סומן כהוזן'}</span>;
+        } else {
+          ctl = (
+            <>
+              {createCell(sub)}
+              <button type="button" className="rc-quiet" disabled={busy === c.busyKey} onClick={() => void c.mark()}>
+                {busy === c.busyKey ? 'שומר…' : 'הוזן ידנית'}
+              </button>
+            </>
+          );
+        }
+      }
+    } else if (item.key === 'form') {
+      if (item.done) ctl = <button type="button" className="rc-quiet" onClick={onProduce}>צפייה ועריכה</button>;
+      else if (Object.keys(layoutProblems).length > 0) {
+        ctl = <button type="button" className="btn btn-secondary btn-sm" onClick={onProduce}>סימון אזורי חתימה</button>;
+        body = (
+          <span className="rc-meta" data-testid="form2279-layout-mismatch">
+            הטופס שהגיע משע״ם שונה מהתבנית המוכרת, ולכן אזורי החתימה לא סומנו אוטומטית.
+          </span>
+        );
+      } else {
+        // ‼ הטופס מגיע משע״ם עם פתיחת הבקשה ומסומן אוטומטית (194); העלאה ידנית היא הדרך השנייה.
+        ctl = <button type="button" className="rc-quiet" onClick={onProduce}>העלאה ידנית</button>;
+        body = <span className="rc-meta">{waitingForShaamForm ? 'מגיע משע״ם — אזורי החתימה יסומנו אוטומטית.' : 'מגיע משע״ם אחרי פתיחת הבקשה, ואזורי החתימה מסומנים אוטומטית.'}</span>;
+      }
+    } else if (item.key.startsWith('ni-')) {
+      const role = item.key.endsWith(':spouse') ? 'spouse' as const : 'client' as const;
+      const track = niExecutionByRole[role];
+      const k = role === 'spouse' ? 'nis' : 'ni';
+      if (item.key.startsWith('ni-prereq')) {
+        const st = niStepOf(role);
+        body = st ? (
+          <PrerequisiteGate step={st} currentValues={niPrereqValues} client={prereqClient} spouse={prereqSpouse}
+            onSaveEmail={prereqOnSaveEmail} onChanged={() => onStepsChanged?.()}>{null}</PrerequisiteGate>
+        ) : null;
+      } else if (item.key.startsWith('ni-enter')) {
+        ctl = item.done
+          ? <span className="rc-meta">{track.foundExternally ? 'נמצא קיים באתר ב״ל' : `סומן ב-${fmt(track.enteredAt)}`}</span>
+          : (
+            <>
+              <div className="rc-actioncell">{niNextActionNode(role)}</div>
+              <button type="button" className="rc-quiet" disabled={busy === `${k}-entered`}
+                onClick={() => patchNi(role, { enteredAt: new Date().toISOString() }, `${k}-entered`)}>
+                {busy === `${k}-entered` ? 'שומר…' : 'הוזן ידנית'}
+              </button>
+            </>
+          );
+      } else if (item.key.startsWith('ni-ref')) {
+        if (item.done) {
+          ctl = <span className="rc-meta"><span className="ltr-isolate">{track.referenceNumber}</span>{track.deadline ? ` · עד ${fmt(track.deadline)}` : ''}</span>;
+        } else {
+          body = <NiRefForm ni={track} busy={busy === `${k}-ref`}
+            onSave={(ref, deadline) => patchNi(role, { referenceNumber: ref, deadline }, `${k}-ref`)} />;
+        }
+      }
+    }
+    return (
+      <div key={item.key} className="rc-check" data-done={item.done ? 'true' : 'false'} data-testid="rc-prepare-item">
+        <span className="rc-check-icon" aria-hidden="true">{item.done ? '✓' : ''}</span>
+        <div style={{ minWidth: 0 }}>
+          <div className="rc-check-label">{item.label}</div>
+          {item.detail && <div className="rc-check-detail">{item.detail}</div>}
+        </div>
+        {body && <div className="rc-check-body">{body}</div>}
+        {ctl && <div className="rc-check-ctrl">{ctl}</div>}
       </div>
-      <div className="card-body">
-        <p style={{ marginTop: 0, fontSize: 'var(--fs-12)', color: 'var(--ink-3)', lineHeight: 1.6 }}>
-          העתיקו את הפרטים מהבלוק שמעל, הזינו אותם באתר של כל רשות, וסמנו כאן מה בוצע.
-        </p>
+    );
+  };
 
-        <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-          {/* ─────────── מס הכנסה ─────────── */}
-          <Track
-            title="מס הכנסה"
-            subtitle="שע״ם · ייפוי כוח בחתימה דיגיטלית"
-            done={itSteps.filter(Boolean).length}
-            total={itSteps.length}
-            tone="🏛"
-            nextAction={shaamNextActionNode}
-          >
-            {/* ‼ הזנה אחת לכל אדם, לא אחת לכל רשות: בשע״ם נכנסים עם ת.ז. אחת
-                ומזינים את כל המוסדות של אותו אדם בבת אחת. השלב מפרט מה נכנס
-                בהזנה הזאת, כדי שיהיה ברור מה כוסה בה.
-                ‼ שאלת "מי הרשום במ״ה" יושבת בהזנה שנושאת את תיק מס הכנסה —
-                שם היא נענית בפועל — והסימון של אותה הזנה **הוא** ההכרעה. */}
-            {submissions.map((sub, i) => {
-              const first = i === 0;
-              const manualAt = first ? it.enteredAt : entryAt(sub.key);
-              const at = enteredAtOf(sub.key, first);
-              const byEvidence = !manualAt && !!at;
-              const foundThere = !!shaamTrack(sub.key)?.foundBeforeCreateAt;
-              const asksHere = regChoice && !regVerified && sub.key === regRowKey;
-              const busyKey = first ? 'it' : `entry-${sub.key}`;
-              const mark = (owner?: 'client' | 'spouse') => first
-                ? markEnteredInShaam(owner)
-                : markEntry(sub.key, owner);
-              const what = sub.authoritiesLabel;
+  // ── מה הלקוח יתבקש / מה עוד פתוח אצלו ─────────────────────────────────────
+  const clientAsks = (withState: boolean): AskItem[] => {
+    const items: AskItem[] = [];
+    const signersLabel = signers.length > 1 ? signers.map(s => s.name).filter(Boolean).join(' ו') : '';
+    items.push({
+      key: 'sign', title: 'חתימה על ייפוי הכוח',
+      detail: signersLabel || 'חתימה דיגיטלית — כדקה, גם מהטלפון',
+      done: withState && signed,
+      state: withState ? (signed ? 'נחתם' : 'טרם נחתם') : undefined,
+      tone: withState ? (signed ? 'done' : 'wait') : undefined,
+    });
+    for (const d of idDocs) {
+      if (!withState && d.status === 'confirmed') continue;
+      const confirmed = d.status === 'confirmed';
+      items.push({
+        key: `doc:${d.key}`,
+        title: d.status === 'missing' ? 'העלאת צילום תעודת זהות או רישיון נהיגה'
+          : confirmed ? 'צילום התעודה אושר' : 'אישור צילום התעודה שבתיק',
+        detail: `${d.person === 'spouse' ? `של ${d.personName} · ` : ''}רשות המסים דורשת אותו${withState ? '' : ' · אפשר גם אחרי החתימה'}`,
+        done: withState && confirmed,
+        state: withState ? (confirmed ? 'אושר' : 'ממתין') : undefined,
+        tone: withState ? (confirmed ? 'done' : 'wait') : undefined,
+      });
+    }
+    for (const role of niRoles) {
+      const t = niExecutionByRole[role];
+      if (!t.referenceNumber) continue;
+      const final = niTrackView(t, niLineFor(role)).final;
+      if (!withState && final) continue;
+      items.push({
+        key: `ni:${role}`,
+        title: 'אישור הייצוג בביטוח הלאומי',
+        detail: `${niRoles.length > 1 ? `${niNameOf(role)} · ` : ''}אסמכתא ${t.referenceNumber}${t.deadline ? ` · לאישור עד ${fmt(t.deadline)}` : ''}`,
+        done: withState && final,
+        state: withState ? (final ? 'אושר' : niInstructionsDelivered(t) ? 'ממתין' : 'לא נמסר') : undefined,
+        tone: withState ? (final ? 'done' : 'wait') : undefined,
+      });
+    }
+    return items;
+  };
+
+  const sendClick = () => (missingIds.length > 0 ? setConfirmSendWithoutId(true) : void handleSendAll(sendOnlyTo ?? undefined));
+  const recipients = pendingSigners.filter(s => (sendOnlyTo ? s.id === sendOnlyTo : !!s.email.trim()));
+  const toFirst = firstName ? `ל${firstName}` : 'ללקוח';
+  const sendLabel = sendOnlyTo ? `שלח ל${pendingSigners.find(s => s.id === sendOnlyTo)?.name || 'חותם'}`
+    : `שלח ${toFirst}${emailableSigners.length > 1 ? ` (${emailableSigners.length} חותמים)` : ''}`;
+  const recipientLine = recipients.length > 0
+    ? <div className="rc-aside-line">אל {recipients.map(s => <span key={s.id} className="ltr-isolate rc-addr">{s.email.trim()}</span>)}</div>
+    : <div className="rc-aside-line" data-tone="warn">לאף חותם אין כתובת מייל</div>;
+
+  // ── גוף ופעולה לכל מצב ────────────────────────────────────────────────────
+  // ‼ 29.09.2026 · הכרטיס בשני טורים: מימין המצב (כותרת, משפט, רשימה), משמאל
+  // «הפעולה» — תמיד באותו מקום. «שלח» יושב שם כבר בהכנה (כבוי) ונדלק במקום
+  // כשהצעד האחרון נסגר. בטלפון הטור השמאלי יורד מתחת לגוף.
+  let heroBody: React.ReactNode = null;
+  let aside: { title: string; content: React.ReactNode } | null = null;
+  const replacementSub = submissions.find(s => !!shaamTrack(s.key)?.replacement);
+
+  switch (plan.kind) {
+    case 'prepare': {
+      const left = plan.prepare.filter(i => !i.done).length || 1;
+      heroBody = <div className="rc-checklist" data-testid="rc-prepare">{plan.prepare.map(prepareRow)}</div>;
+      aside = {
+        title: `המייל ${toFirst}`,
+        content: (
+          <>
+            <button className="btn btn-primary" disabled data-testid="rc-send-pending">{sendLabel}</button>
+            <div className="rc-aside-line">{left === 1 ? 'ייפתח אחרי הצעד האחרון' : `ייפתח אחרי ${left} הצעדים`}</div>
+            {recipients.length > 0 && recipientLine}
+          </>
+        ),
+      };
+      break;
+    }
+    case 'replacement':
+      heroBody = replacementSub ? (
+        <ReplacementBody replacement={shaamTrack(replacementSub.key)!.replacement!} remaining={replacementSub.authoritiesLabel} />
+      ) : null;
+      aside = replacementSub ? {
+        title: `בקשה ${shaamTrack(replacementSub.key)!.replacement!.requestNumber} בשע״ם`,
+        content: (
+          <ReplacementConfirm requestId={request.id} submissionKey={replacementSub.key}
+            replacement={shaamTrack(replacementSub.key)!.replacement!} onChanged={() => onStepsChanged?.()} />
+        ),
+      } : null;
+      break;
+    case 'send':
+      heroBody = <AskList title={`מה נבקש מ${firstName || 'הלקוח'}`} items={clientAsks(false)} />;
+      aside = {
+        title: `המייל ${toFirst}`,
+        content: (
+          <>
+            {emailableSigners.length > 1 && (
+              <div className="rc-aside-radios">
+                <label><input type="radio" name="send-to" checked={sendOnlyTo === null} onChange={() => setSendOnlyTo(null)} />לכל אחד מייל נפרד</label>
+                {emailableSigners.map(s => (
+                  <label key={s.id}><input type="radio" name="send-to" checked={sendOnlyTo === s.id} onChange={() => setSendOnlyTo(s.id)} />רק ל{s.name || s.email}</label>
+                ))}
+              </div>
+            )}
+            <button className="btn btn-primary" data-testid="rc-send"
+              disabled={busy === 'send' || niRefMissing || pendingSigners.length === 0} onClick={sendClick}>
+              {busy === 'send' ? 'שולח…' : sendLabel}
+            </button>
+            {recipientLine}
+            {pendingSigners.length > 0 && (
+              <button type="button" className="rc-link" onClick={() => setPreviewSignerId(pendingSigners[0].id)}>צפייה במייל לפני השליחה</button>
+            )}
+          </>
+        ),
+      };
+      break;
+    case 'waiting_client':
+      heroBody = <AskList items={clientAsks(true)} />;
+      aside = {
+        title: signers.length > 1 ? 'המיילים לחותמים' : `המייל ${toFirst}`,
+        content: (
+          <div className="rc-signers" data-testid="rc-signers">
+            {signers.map(s => {
+              // ‼ תזכורת = אותו מייל שוב לאותה כתובת. מספיק שהבקשה נשלחה — גם בלי רשומה ביומן לכתובת הזו.
+              const canRemind = !!s.email.trim() && (!!signerEmail(s) || !!exec.signatureEmailSentAt);
               return (
-                <Step
-                  key={sub.key}
-                  n={i + 1}
-                  title={sub.title
-                    ? `הפרטים הוזנו בשע״ם · ${sub.title}`
-                    : 'הפרטים הוזנו בשע״ם'}
-                  done={!!at}
-                  hint={at
-                    ? (asksHere ? undefined
-                        : sub.carriesIncomeTax && regVerified && regSentence
-                          ? `${what} · ${regSentence} · ${byEvidence ? 'נמצא בשע״ם' : 'סומן'} ב-${fmt(at)}`
-                          : byEvidence
-                            ? (foundThere
-                                ? `${what} · הבקשה כבר הייתה קיימת בשע״ם (הוזנה שם, לא מכאן) - לא נפתחה בקשה נוספת · נמצאה ב-${fmt(at)}`
-                                : `${what} · הבקשה קיימת בשע״ם · ${fmt(at)}`)
-                            : `${what} · סומן ב-${fmt(at)}`)
-                    : asksHere
-                      ? `${what}. מי מבין השניים רשום שם במס הכנסה?`
-                      : `${what} · הזנה אחת בשע״ם, על ת.ז. של ${sub.personName}`}
-                >
-                  {asksHere || editingKey === sub.key ? (
-                    <>
-                      {at && (
-                        <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)', marginBottom: '.4rem' }}>
-                          {editingKey === sub.key && regVerified
-                            ? 'מי רשום במס הכנסה? הבחירה תעדכן את הבעלים ואת מספר התיק בכרטיס.'
-                            : `סומן ב-${fmt(at)}, אבל טרם נרשם מי הרשום במ״ה. מי מבין השניים?`}
-                        </div>
-                      )}
-                      {editingKey === sub.key && (
-                        <button type="button" className="btn btn-ghost btn-sm" style={{ marginBottom: '.35rem' }}
-                          onClick={() => setEditingKey(null)}>
-                          ביטול
-                        </button>
-                      )}
-                      <div style={{ display: 'flex', gap: '.4rem', flexWrap: 'wrap' }}>
-                        {regNames.map(r => (
-                          <button
-                            key={r.owner}
-                            className={`btn btn-sm ${r.owner === regIntent ? 'btn-green' : 'btn-secondary'}`}
-                            disabled={busy === busyKey}
-                            title={regIntent === null
-                              ? 'טרם נקבע מי הרשום - הבחירה כאן היא שתקבע'
-                              : r.owner === regIntent
-                                ? 'זו הכוונה שנרשמה בפתיחת הייצוג'
-                                : 'שונה מהכוונה שנרשמה - יעדכן את התיק'}
-                            onClick={() => { setEditingKey(null); void mark(r.owner); }}
-                          >
-                            {busy === busyKey ? 'שומר…' : r.label}
-                          </button>
-                        ))}
-                      </div>
-                    </>
-                  ) : !at ? (
-                    /* ‼ שני מסלולים, ובמפורש: האוטומציה פותחת את הבקשה בשע״ם
-                       ומביאה את הטופס; «סמן כהוזן» נשאר למי שעשה את זה ביד.
-                       סימון ידני אינו מתחזה לראיה חיצונית — הוא לא כותב מספר
-                       בקשה, ולכן גם לא פותח את השידור האוטומטי. */
-                    <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap', alignItems: 'flex-start' }}>
-                      {/* ‼ 24.09.2026 · «הזן ייפוי כוח בשע״ם» יושב כאן, בשלב שהוא מבצע —
-                          אחד לכל אדם, ולא בראש העמודה (שם הוא היה מופיע פעמיים).
-                          הבדיקה שאין כבר בקשה בשע״ם רצה בתוכו, בעובד (202). */}
-                      {shaamNode(sub, 'create')}
-                      <button className="btn btn-ghost btn-sm" disabled={busy === busyKey}
-                        onClick={() => void mark()}>
-                        {busy === busyKey ? 'שומר…' : 'סמן כהוזן ידנית'}
-                      </button>
-                    </div>
-                  ) : (
-                    /* ‼ חזרה לאחור. קישורים שקטים ולא כפתורים: זו פעולת תיקון,
-                       והיא לא צריכה להתחרות בשלב הבא על תשומת הלב. */
-                    <div style={{ display: 'flex', gap: '.75rem', flexWrap: 'wrap' }}>
-                      {sub.carriesIncomeTax && regChoice && regVerified && (
-                        <button type="button" className="btn btn-ghost btn-sm" disabled={busy === busyKey}
-                          onClick={() => setEditingKey(sub.key)}>
-                          שינוי בן/בת הזוג הרשום/ה
-                        </button>
-                      )}
-                      {/* ראיה מהרשות אינה סימון, ואין מה לבטל בה. */}
-                      {manualAt && (
-                        <button type="button" className="btn btn-ghost btn-sm" disabled={busy === busyKey}
-                          onClick={() => void unmarkEntry(sub.key, first)}>
-                          {busy === busyKey ? 'שומר…' : 'ביטול הסימון'}
-                        </button>
-                      )}
-                    </div>
-                  )}
-                  {/* ‼ המזהה החיצוני מוצג ברגע שהוא קיים: ממנו נגזרת כל
-                      פעולה הבאה מול שע״ם, והוא גם מה שהרו"ח מחפש שם ידנית. */}
-                  {shaamRequestExists(shaamTrack(sub.key)) && (
-                    <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)', marginTop: '.4rem' }}>
-                      {shaamTrack(sub.key)?.requestNumber
-                        ? <>מספר בקשה בשע״ם: <span className="ltr-isolate">{shaamTrack(sub.key)!.requestNumber}</span></>
-                        : 'הבקשה נמצאה ברשימת הבקשות בשע״ם (מספר הבקשה לא מוצג שם)'}
-                      {shaamTrack(sub.key)?.formDocumentId ? ' · טופס ייפוי הכוח הובא לתיק הלקוח' : ''}
-                      {/* ‼ לפני ההגשה בלבד: אחריה המצב של שע״ם יושב בשלב 6, והקריאה הישנה לא מוצגת. */}
-                      {!shaamTrack(sub.key)?.submittedAt && shaamTrack(sub.key)?.rawRequestState
-                        ? ` · סטטוס בשע״ם: ${shaamTrack(sub.key)!.rawRequestState}`
-                        : ''}
-                    </div>
-                  )}
-                  {shaamTrack(sub.key)?.replacement && (
-                    <ShaamReplacementNotice
-                      requestId={request.id} submissionKey={sub.key}
-                      replacement={shaamTrack(sub.key)!.replacement!}
-                      remaining={sub.authoritiesLabel}
-                      onChanged={() => onStepsChanged?.()}
-                    />
-                  )}
-                </Step>
+                <SignerLine key={s.id} signer={s} showName={signers.length > 1}
+                  signed={effectiveSignStatus(request, s) === 'signed'}
+                  emails={signerEmails(s)} track={niTrackFor(s)}
+                  onRemind={canRemind ? () => handleRemind({ toEmail: s.email }) : undefined}
+                  batchSentAt={exec.signatureEmailSentAt}
+                  onCopiedLink={() => void markLinkHandedOver(s.role === 'spouse' ? 'spouse' : 'client')} />
               );
             })}
+          </div>
+        ),
+      };
+      break;
+    case 'stamp': {
+      heroBody = poaDocs.length > 1 ? (
+        <AskList items={poaDocs.map(d => ({ key: d.key, title: d.title, done: !!d.signedPdfStoredId, state: d.signedPdfStoredId ? 'נחתם' : 'ממתין', tone: d.signedPdfStoredId ? 'done' : 'wait' }))} />
+      ) : null;
+      const signedAt = signers.map(s => s.signedAt).filter((x): x is string => !!x).sort().pop();
+      aside = {
+        title: 'החתימה שלך',
+        content: (
+          <>
+            <button className="btn btn-primary" data-testid="rc-stamp" onClick={onStamp}>
+              {poaDocs.length > 1 && nextToStamp ? `חתימה וחותמת · ${nextToStamp.title}` : 'חתימה וחותמת'}
+            </button>
+            {signedAt && <div className="rc-aside-line">הטופס נחתם בידי {firstName || 'הלקוח'} ב-{fmt(signedAt)}</div>}
+          </>
+        ),
+      };
+      break;
+    }
+    case 'waiting_docs':
+    case 'blocked':
+      heroBody = (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {plan.kind === 'waiting_docs' && <AskList items={clientAsks(true).filter(a => a.key.startsWith('doc:'))} />}
+          {submissions.map(sub => (
+            <ShaamRequiredDocsList key={sub.key} tracking={shaamTrack(sub.key)} requestId={request.id} clientId={linkedClient?.id}
+              usedDocumentIds={Object.values(request.identityDocs ?? {}).flat().map(d => d?.documentId).filter((x): x is string => !!x)}
+              onAttached={() => onStepsChanged?.()} />
+          ))}
+        </div>
+      );
+      // ‼ כמו «שלח» בהכנה: ההגשה יושבת בטור הפעולה גם כשהיא ממתינה ללקוח (כבויה, עם הסיבה),
+      // כדי שיהיה ברור איפה היא תופיע ברגע שהצילום יאושר.
+      aside = shaamLeadSubmission
+        ? { title: 'ההגשה לשע״ם', content: <div className="rc-actioncell" data-testid="rc-submit">{shaamNode(shaamLeadSubmission, undefined, 'btn')}</div> }
+        : null;
+      break;
+    case 'submit':
+      aside = {
+        title: 'ההגשה לשע״ם',
+        content: (
+          <>
+            {shaamLeadSubmission && <div className="rc-actioncell" data-testid="rc-submit">{shaamNode(shaamLeadSubmission, undefined, 'btn')}</div>}
+            <button type="button" className="rc-quiet" onClick={onMarkSentToShaam}>הוגש ידנית בשע״ם</button>
+          </>
+        ),
+      };
+      break;
+    case 'waiting_authorities': {
+      const notes = submissions.map(sub => ({ sub, f: shaamFactsOf(sub) })).filter(x => x.f?.note || x.f?.officeAction);
+      const approvalOpen = !!repApproval && !isRepApprovalClosed(repApproval);
+      heroBody = notes.length > 0 || approvalOpen ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }} data-testid="rc-waiting-authorities">
+          {notes.map(({ sub, f }) => (
+            <div key={sub.key} className="rc-meta">
+              {f!.note && <div data-testid="shaam-facts-note">{f!.note}</div>}
+              {f!.officeAction && <Notice tone="required" style={{ marginTop: 6 }}>{f!.officeAction}</Notice>}
+            </div>
+          ))}
+          {approvalOpen && (
+            <span className="rc-meta">{declared ? `לפי ${firstName || 'הלקוח'}, האישור באזור האישי כבר ניתן — ממתין לאימות בשע״ם.` : 'הבקשה לאישור מופיעה בדף האישי של הלקוח.'}</span>
+          )}
+        </div>
+      ) : null;
+      // ‼ למה מחכים ועד מתי — שורה לכל רשות, במקום משפט אחד ארוך עם סוגריים.
+      const waits = [
+        ...submissions.filter(sub => !!shaamFactsOf(sub) && !shaamSettled(shaamTrack(sub.key))).map(sub => {
+          const f = shaamFactsOf(sub)!;
+          return {
+            key: sub.key, who: `שע״ם${submissions.length > 1 ? ` · ${sub.personName}` : ''}`,
+            what: f.clientApprovalRequired ? 'אישור הלקוח באזור האישי' : f.suspensionEndsAt ? 'סיום ההשהייה' : 'קליטת הייצוג',
+            when: !f.clientApprovalRequired && f.suspensionEndsAt ? `צפי ${fmt(f.suspensionEndsAt)}` : '',
+          };
+        }),
+        ...niRoles.filter(role => !niTrackView(niExecutionByRole[role], niLineFor(role)).final).map(role => {
+          const t = niExecutionByRole[role];
+          return { key: `ni:${role}`, who: 'ביטוח לאומי', what: `האישור של ${niNameOf(role).split(/\s+/)[0]}`, when: t.deadline ? `עד ${fmt(t.deadline)}` : '' };
+        }),
+      ];
+      aside = waits.length > 0 || status === 'awaiting_authorities' ? {
+        title: 'מה עוד פתוח',
+        content: (
+          <>
+            {waits.length > 0 && (
+              <dl className="rc-facts" data-testid="rc-waits">
+                {waits.map(w => <div key={w.key}><dt>{w.who}</dt><dd>{w.what}{w.when && <span className="rc-facts-when">{w.when}</span>}</dd></div>)}
+              </dl>
+            )}
+            {status === 'awaiting_authorities' && (
+              <button type="button" className="rc-quiet" onClick={onMarkActive}>סימון ידני כמיוצג פעיל</button>
+            )}
+          </>
+        ),
+      } : null;
+      break;
+    }
+    case 'active':
+      heroBody = activeEmails.length > 0 ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '.4rem' }}>
+          {activeEmails.map(m => <EmailStatusRow key={m.id} message={m} note="עדכון ללקוח: הייצוג אושר" onChanged={reloadEmails} />)}
+        </div>
+      ) : null;
+      aside = activeEmails.length > 0 ? null : {
+        title: `עדכון ${toFirst}`,
+        content: (
+          <>
+            <button className="btn btn-secondary" onClick={() => setPreviewActive(true)}>צפייה במייל ושליחה</button>
+            <div className="rc-aside-line">מייל קצר שהייצוג פעיל. לא יוצא אוטומטית.</div>
+          </>
+        ),
+      };
+      break;
+  }
 
-            <Step n={2 + extraEntries.length} title="טופס ייפוי הכוח הועלה ואזורי החתימה סומנו" done={formReady}
-              hint={formReady
-                ? (poaDocs.length > 1
-                    ? `${poaDocs.length} טפסים - מוכנים לשליחה`
-                    : `${poaDocs[0]?.pdfFileName || 'הטופס'} - מוכן לשליחה`)
-                : extraEntries.length
-                  ? 'טופס לכל אדם - כל אחד עם התיקים שלו'
-                  : 'העלו את קובץ ייפוי הכוח וסמנו איפה כל אחד חותם'}>
-              {/* ‼ 28.09 · הטופס הגיע משע״ם, אבל אינו תואם את התבנית שנמדדה — לא סומן אוטומטית. */}
-              {!formReady && Object.keys(layoutProblems).length > 0 && (
-                <Notice tone="warning" style={{ marginBottom: '.4rem' }}>
-                  <span data-testid="form2279-layout-mismatch">
-                    הטופס שהגיע משע״ם שונה מהתבנית המוכרת, ולכן אזורי החתימה לא סומנו אוטומטית. סמנו אותם ידנית בכפתור שמתחת.
-                  </span>
-                </Notice>
+  // ── שורות הרשויות ─────────────────────────────────────────────────────────
+  const shaamRowStatus = (sub: ShaamSubmission, i: number): { text: string; tone?: 'attention' | 'danger' | 'done' } => {
+    const t = shaamTrack(sub.key);
+    const f = shaamFactsOf(sub);
+    if (t?.replacement) return { text: `בקשה ${t.replacement.requestNumber} ממתינה לביטול בשע״ם`, tone: 'attention' };
+    if (shaamSettled(t) || (status === 'active' && !f)) return { text: 'הייצוג נקלט', tone: 'done' };
+    if (f) {
+      return {
+        text: [f.status ? `שע״ם: ${f.status}` : 'הוגש לשע״ם', f.suspensionEndsAt ? `צפי לסיום ההשהייה ${fmt(f.suspensionEndsAt)}` : ''].filter(Boolean).join(' · '),
+        tone: f.clientApprovalRequired || f.officeAction ? 'attention' : undefined,
+      };
+    }
+    if (shaamDocumentsBlocked(t)) return { text: 'השידור ממתין למסמך', tone: 'attention' };
+    if (!enteredAtOf(sub.key, i === 0)) return { text: 'טרם נפתחה בקשה' };
+    const docsPending = shaamClientDocumentsPending(preSigningDocsOf(sub));
+    const num = t?.requestNumber ? `בקשה ${t.requestNumber}` : 'הבקשה קיימת בשע״ם';
+    if (stamped && docsPending) return { text: `${t?.requestNumber ? `בקשה ${t.requestNumber} · ` : ''}חתום · ההגשה ממתינה לאישור הצילום`, tone: 'attention' };
+    const where = stamped ? 'חתום ומוכן להגשה' : signed ? 'נחתם בידי הלקוח' : exec.signatureEmailSentAt ? 'נשלח לחתימה'
+      : formReady ? 'הטופס מוכן לחתימה' : 'ממתין לטופס';
+    return { text: `${num} · ${where}` };
+  };
+  const niRowStatus = (role: 'client' | 'spouse'): { text: string; tone?: 'attention' | 'danger' | 'done' } => {
+    const t = niExecutionByRole[role];
+    const view = niTrackView(t, niLineFor(role));
+    if (view.final) return { text: 'הייצוג פעיל', tone: 'done' };
+    if (prereqMissingOf(niStepOf(role))) return { text: 'חסרים פרטים להזנה', tone: 'attention' };
+    if (!t.enteredAt) return { text: 'טרם הוזן' };
+    if (!t.referenceNumber) return { text: 'הוזן · חסר מספר אסמכתא', tone: 'attention' };
+    const base = `אסמכתא ${t.referenceNumber}${t.deadline ? ` · לאישור עד ${fmt(t.deadline)}` : ''}`;
+    if (!niInstructionsDelivered(t)) return { text: `${base} · תצא ללקוח עם בקשת החתימה` };
+    // ‼ הקריאה האחרונה מב״ל (מהנתון השמור) היא המצב — היא כבר לא מופיעה מתחת לכותרת.
+    const read = t.syncedAt && t.externalState ? niReconcileLine(t) : null;
+    if (read) return { text: read.text, tone: read.tone === 'success' ? 'done' : read.tone === 'warning' || read.tone === 'required' ? 'attention' : undefined };
+    return { text: `${base} · ממתין לאישור הלקוח`, tone: view.deadlineNotice?.tone === 'warning' ? 'attention' : undefined };
+  };
+
+  const shaamDetail = (sub: ShaamSubmission, i: number) => {
+    const c = entryCtl(sub);
+    const t = shaamTrack(sub.key);
+    const byEvidence = !c.manualAt && !!c.at;
+    const foundThere = !!t?.foundBeforeCreateAt;
+    const f = shaamFactsOf(sub);
+    const hasPreDocs = preSigningDocsOf(sub).length > 0;
+    return (
+      <div className="rc-steps">
+        <Step title="הבקשה נפתחה בשע״ם" done={!!c.at}
+          hint={c.at
+            ? [sub.carriesIncomeTax && regVerified && regSentence ? regSentence : '',
+                t?.requestNumber ? `בקשה ${t.requestNumber}` : '',
+                byEvidence ? (foundThere ? `הייתה קיימת בשע״ם (הוזנה שם) · נמצאה ב-${fmt(c.at)}` : fmt(c.at)) : `סומן ידנית ב-${fmt(c.at)}`,
+                !t?.submittedAt && t?.rawRequestState ? `סטטוס בשע״ם: ${t.rawRequestState}` : '',
+              ].filter(Boolean).join(' · ')
+            : `הזנה אחת בשע״ם, על ת.ז. של ${sub.personName}`}>
+          {(c.asksHere && !inPrepare) || editingKey === sub.key ? (
+            <>
+              {editingKey === sub.key && (
+                <span className="rc-meta">מי רשום/ה במס הכנסה? הבחירה תעדכן את הבעלים ואת מספר התיק בכרטיס.</span>
               )}
-              <button className="btn btn-secondary btn-sm" onClick={onProduce}>
-                {formReady ? '↺ החלף טופס או ערוך אזורים' : 'העלה טופס וסמן אזורי חתימה'}
-              </button>
-              {/* ‼ 208 · מה ששע״ם כתבה ביצירה שיידרש — גלוי כבר לפני השליחה לחתימה. */}
-              {!sentToShaam && submissions.map(sub => (
-                <ShaamPreSigningDocsList
-                  key={sub.key}
-                  items={preSigningDocsOf(sub)}
-                  title={submissions.length > 1 ? sub.title || sub.personName : undefined}
-                  clientId={linkedClient?.id}
-                  requestId={request.id}
-                  usedDocumentIds={Object.values(request.identityDocs ?? {}).flat().map(d => d?.documentId).filter((x): x is string => !!x)}
-                  onChanged={() => onStepsChanged?.()}
-                />
-              ))}
-            </Step>
-
-            {/* ‼ אין כאן כפתור. השליחה שייכת לשתי הרשויות גם יחד ולכן היא יושבת
-                בפס המשותף שמתחת לשתי המשבצות — כפתור אחד, במקום אחד. */}
-            <Step n={3 + extraEntries.length} title="נשלח לחתימת הלקוח" done={!!exec.signatureEmailSentAt}
-              hint={exec.signatureEmailSentAt ? undefined
-                : formReady ? 'השליחה בפס המשותף שמתחת - מייל אחד לשתי הרשויות'
-                  : 'אפשרי אחרי הפקת הטופס'} />
-
-            {/* ‼ שורה אחת לכל חותם שמספרת את כל הסיפור: מי הוא, לאן יצא (או
-                לא יצא) מייל, איזו אסמכתא שייכת לו, ומה אפשר לעשות עכשיו.
-                עד 23.09.2026 הופיע כאן שם בלבד, ורשימת הכתובות ישבה מתחת
-                לכפתור השליחה בלי שמות — ולכן "למי זה נשלח?" לא הייתה שאלה
-                שאפשר היה לענות עליה מהמסך. */}
-            <Step n={4 + extraEntries.length} title="כל החותמים חתמו" done={signed}>
-              {signers.length > 0 && !signed && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '.55rem' }}>
-                  {signers.map(s => (
-                    <SignerLine
-                      key={s.id}
-                      signer={s}
-                      signed={effectiveSignStatus(request, s) === 'signed'}
-                      email={signerEmail(s)}
-                      track={niTrackFor(s)}
-                      onCopiedLink={() => void markLinkHandedOver(s.role === 'spouse' ? 'spouse' : 'client')}
-                    />
-                  ))}
-                </div>
-              )}
-            </Step>
-
-            {/* החתימה והחותמת שלי — הטופס אינו שלם בלעדיהן, ואסור להגיש לשע״ם לפני.
-                ‼ כשיש כמה טפסים, כל אחד נחתם ונצרב בנפרד: השלב אומר על מה חותמים
-                עכשיו וכמה נשארו, אחרת נראה כאילו לחיצה אחת לא עשתה כלום. */}
-            <Step n={5 + extraEntries.length} title="חתמתי והוספתי חותמת" done={stamped}
-              hint={stamped
-                ? (poaDocs.length > 1 ? `${poaDocs.length} טפסים חתומים - מוכנים להגשה` : 'הטופס החתום מוכן להגשה')
-                : signed
-                  ? (nextToStamp && poaDocs.length > 1
-                      ? `נשארו ${stampsLeft} מתוך ${poaDocs.length} - הבא: ${nextToStamp.title}`
-                      : 'הלקוח חתם - נשארה החתימה והחותמת שלכם')
-                  : 'אפשרי אחרי שכל החותמים חתמו'}>
-              {signed && !stamped && (
-                <button className="btn btn-green btn-sm" onClick={onStamp}>
-                  {poaDocs.length > 1 && nextToStamp
-                    ? `חתום + הוסף חותמת · ${nextToStamp.title}`
-                    : 'חתום + הוסף חותמת'}
+              {regChoiceNode(c.busyKey, c.mark)}
+              {editingKey === sub.key && <button type="button" className="rc-quiet" onClick={() => setEditingKey(null)}>ביטול</button>}
+            </>
+          ) : !c.at ? (
+            !inPrepare ? (
+              <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+                {createCell(sub)}
+                <button type="button" className="rc-quiet" disabled={busy === c.busyKey} onClick={() => void c.mark()}>
+                  {busy === c.busyKey ? 'שומר…' : 'הוזן ידנית'}
+                </button>
+              </div>
+            ) : null
+          ) : (sub.carriesIncomeTax && regChoice && regVerified) || c.manualAt ? (
+            <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
+              {sub.carriesIncomeTax && regChoice && regVerified && (
+                <button type="button" className="rc-quiet" disabled={busy === c.busyKey} onClick={() => setEditingKey(sub.key)}>
+                  שינוי בן/בת הזוג הרשום/ה
                 </button>
               )}
-              {/* מה כבר נצרב — כדי שאחרי כל טופס יהיה חיווי שהוא נשמר */}
-              {poaDocs.length > 1 && poaDocs.some(d => d.signedPdfStoredId) && !stamped && (
-                <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)', marginTop: '.4rem' }}>
-                  {poaDocs.filter(d => d.signedPdfStoredId).map(d => `✓ ${d.title}`).join(' · ')}
-                </div>
+              {c.manualAt && (
+                <button type="button" className="rc-quiet" disabled={busy === c.busyKey} onClick={() => void c.unmark()}>
+                  {busy === c.busyKey ? 'שומר…' : 'ביטול הסימון'}
+                </button>
               )}
-            </Step>
+            </div>
+          ) : null}
+        </Step>
 
-            <Step n={6 + extraEntries.length} title="נשלח לשע״ם" done={sentToShaam}
-              // ‼ 204: כשהשידור ממתין למסמך של שע״ם הכפתור מושבת — לא להפנות אליו.
-              hint={!stamped || sentToShaam || submissions.some(sub => shaamDocumentsBlocked(shaamTrack(sub.key)))
-                ? undefined
-                // ‼ 208 · הכפתור חסום עד שהלקוח אישר/העלה — לא מפנים אליו, אומרים למה.
-                : submissions.map(sub => shaamClientDocumentsPending(preSigningDocsOf(sub))).find(Boolean)
-                  ?? 'שדרו את הטופס החתום לשע״ם (הכפתור בראש העמודה)'}>
-              {/* ‼ אחרי ההגשה: שלוש עובדות מהמקור של שע״ם, לכל הגשה. בלי פרוזה,
-                  בלי «בדקו שוב» (יש כפתור אחד למעלה), ובלי קריאה מלפני ההגשה. */}
-              {submissions.map(sub => {
-                const f = shaamSubmittedFacts(shaamTrack(sub.key));
-                // ‼ 204 · דרישות שע״ם להגשה הזו (ומצב ההמתנה) — לא בקשות של המשרד.
-                const docsTrack = shaamTrack(sub.key);
-                const hasDocs = (docsTrack?.requiredDocuments ?? []).length > 0 || !!docsTrack?.documentsGate;
-                if (!f && !hasDocs) return null;
+        <Step title="טופס ייפוי הכוח לחתימה" done={formReady}
+          hint={formReady
+            ? (poaDocs.length > 1 ? `${poaDocs.length} טפסים` : (poaDocs[0]?.pdfFileName || 'הטופס'))
+            : waitingForShaamForm ? 'מגיע משע״ם עם פתיחת הבקשה' : 'העלאת הטופס וסימון אזורי החתימה'}>
+          {!inPrepare && (
+            <button type="button" className="rc-quiet" onClick={onProduce}>{formReady ? 'החלפת טופס או עריכת אזורים' : 'העלאת טופס וסימון אזורים'}</button>
+          )}
+          {/* ‼ 208 · מה ששע״ם כתבה ביצירה שיידרש — רשימה מקבילה, לא שלב בשרשרת. */}
+          {hasPreDocs && !sentToShaam && (
+            <ShaamPreSigningDocsList
+              items={preSigningDocsOf(sub)}
+              clientId={linkedClient?.id}
+              requestId={request.id}
+              usedDocumentIds={Object.values(request.identityDocs ?? {}).flat().map(d => d?.documentId).filter((x): x is string => !!x)}
+              onChanged={() => onStepsChanged?.()}
+            />
+          )}
+        </Step>
+
+
+        <Step title="נשלח ללקוח לחתימה" done={!!exec.signatureEmailSentAt}
+          hint={exec.signatureEmailSentAt ? fmtDateTime(exec.signatureEmailSentAt) : undefined} />
+        <Step title="הלקוח חתם" done={signed} />
+        <Step title="החתימה והחותמת שלך" done={stamped}
+          hint={!stamped && poaDocs.length > 1 && poaDocs.some(d => d.signedPdfStoredId)
+            ? poaDocs.filter(d => d.signedPdfStoredId).map(d => `✓ ${d.title}`).join(' · ') : undefined} />
+
+        <Step title="הוגש לשע״ם" done={sentToShaam}
+          hint={f ? (f.submittedAt ? `הוגש ${fmtDateTime(f.submittedAt)}` : 'הוגש מחוץ ל-PIVO') : undefined}>
+          {f && (
+            <div data-testid="shaam-submitted-facts" style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 'var(--fs-13)', color: 'var(--ink-2)' }}>
+              {f.status && <div>סטטוס בשע״ם: <strong>{f.status}</strong></div>}
+              {f.suspensionEndsAt && <div>צפי לסיום ההשהייה: {fmt(f.suspensionEndsAt)}</div>}
+              {f.note && plan.kind !== 'waiting_authorities' && <div className="rc-meta">{f.note}</div>}
+              {f.officeAction && plan.kind !== 'waiting_authorities' && <Notice tone="required">{f.officeAction}</Notice>}
+              {f.missingFileSystems.map(m => {
+                const auth = m.authority && m.authority !== 'incomeTax' ? m.authority : undefined;
+                const canDrop = !!auth && !!linkedClient && !!linkedClient.authorityRepresentations?.[auth]
+                  && linkedClient.authorityRepresentations[auth]?.status !== 'active';
+                const dropped = !!auth && !!linkedClient && !linkedClient.authorityRepresentations?.[auth];
                 return (
-                  <div key={sub.key} data-testid="shaam-submitted-facts" style={{ marginBottom: '.4rem', fontSize: 'var(--fs-13)', color: 'var(--ink-2)', lineHeight: 1.7 }}>
-                    {sub.title && submissions.length > 1 && (
-                      <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)' }}>{sub.title}</div>
+                  <div key={m.label} data-testid="shaam-missing-file" className="rc-meta">
+                    {m.label}: אין תיק — {dropped ? 'הוסר מהבקשה ב-PIVO (בשע״ם נשאר עד שיבוטל שם)' : <>ייקלט מעצמו אם ייפתח{m.deadline ? ` (שע״ם מבטלת אם לא ייפתח עד ${fmt(m.deadline)})` : ''}</>}
+                    {canDrop && linkedClient && auth && (
+                      <div><ShaamDropAuthorityButton clientId={linkedClient.id} authority={auth} label={m.label} onChanged={() => onStepsChanged?.()} /></div>
                     )}
-                    {f && (
-                      <>
-                        {/* ‼ 28.09 · הוגש ידנית בשע״ם (לא דרך PIVO) — שע״ם עצמה אומרת שהמסמכים אצלה. */}
-                        <div>{f.submittedAt ? <>הוגש לשע״ם: {fmtDateTime(f.submittedAt)}</> : 'הוגש לשע״ם (לא דרך PIVO)'}</div>
-                        {f.status && <div>סטטוס בשע״ם: <strong>{f.status}</strong></div>}
-                        {f.suspensionEndsAt && <div>צפי לסיום ההשהייה: {fmt(f.suspensionEndsAt)}</div>}
-                        {f.note && <div data-testid="shaam-facts-note" style={{ color: 'var(--ink-3)' }}>{f.note}</div>}
-                        {f.officeAction && (
-                          <Notice tone="required" style={{ marginTop: '.3rem' }}>{f.officeAction}</Notice>
-                        )}
-                        {/* ‼ 28.09 · הכרעת גיא: רשות בלי תיק לא עוצרת. ייקלט מעצמו אם ייפתח תיק;
-                            ואם בסוף לא צריך — הסרה מהבקשה ב-PIVO (לא בשע״ם). */}
-                        {f.missingFileSystems.map(m => {
-                          const auth = m.authority && m.authority !== 'incomeTax' ? m.authority : undefined;
-                          const canDrop = !!auth && !!linkedClient
-                            && !!linkedClient.authorityRepresentations?.[auth]
-                            && linkedClient.authorityRepresentations[auth]?.status !== 'active';
-                          // ‼ הוסר ב-PIVO — השורה בשע״ם עדיין קיימת (עובדה של שע״ם), ולכן היא נשארת עם הערה.
-                          const dropped = !!auth && !!linkedClient && !linkedClient.authorityRepresentations?.[auth];
-                          return (
-                            <div key={m.label} data-testid="shaam-missing-file" style={{ color: 'var(--ink-3)' }}>
-                              {m.label}: אין תיק - {dropped ? 'הוסר מהבקשה ב-PIVO (בשע״ם נשאר עד שיבוטל שם)' : <>ייקלט מעצמו אם ייפתח{m.deadline ? ` (שע״ם מבטלת אם לא ייפתח עד ${fmt(m.deadline)})` : ''}</>}
-                              {canDrop && linkedClient && auth && (
-                                <div>
-                                  <ShaamDropAuthorityButton clientId={linkedClient.id} authority={auth} label={m.label}
-                                    onChanged={() => onStepsChanged?.()} />
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })}
-                        {/* ‼ פעולת החובה עצמה היא שלב האישור שמתחת. רק כשאין שלב כזה — היא כאן. */}
-                        {f.clientApprovalRequired && !repApproval && (
-                          <Notice tone="required" style={{ marginTop: '.3rem' }}>
-                            אישור הייצוג באזור האישי - נדרש: רשות המסים ממתינה לאישור הלקוח. בלי האישור הייצוג לא ייקלט.
-                          </Notice>
-                        )}
-                      </>
-                    )}
-                    <ShaamRequiredDocsList
-                      tracking={docsTrack}
-                      requestId={request.id}
-                      clientId={linkedClient?.id}
-                      usedDocumentIds={Object.values(request.identityDocs ?? {}).flat()
-                        .map(d => d?.documentId).filter((x): x is string => !!x)}
-                      onAttached={() => onStepsChanged?.()}
-                    />
                   </div>
                 );
               })}
-              {stamped && !sentToShaam && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '.5rem' }}>
-                  {/* ‼ הסימון הידני נשאר — אבל כקישור שקט, לא ככפתור ראשי:
-                      «נשלח לשע״ם» אמיתי נכתב רק מאישור קליטה של הרשות (194).
-                      מי שהגיש ביד עדיין צריך דרך לומר את זה. */}
-                  <button className="btn btn-ghost btn-sm" onClick={onMarkSentToShaam}>
-                    שודר ידנית - סמנו כנשלח
-                  </button>
-                </div>
+              {f.clientApprovalRequired && !repApproval && (
+                <Notice tone="required">רשות המסים ממתינה לאישור הלקוח באזור האישי. בלי האישור הייצוג לא ייקלט.</Notice>
               )}
-            </Step>
-
-            {/* ── נתיב מזורז: הלקוח מאשר אותנו באזור האישי ──────────────────
-                ‼ נפתח עם ההגשה לשע"ם ולא לפני — קודם לכן אין לו שם מה לאשר.
-                ‼ שני שלבי אימות: הצהרת הלקוח מזיזה את הכדור אלינו ואינה
-                סוגרת (אין לנו גישה לאזור האישי שלו), והסגירה קורית בכפתור
-                של שלב 7 — אותו כפתור, לא כפתור שני. */}
-            {repApproval && (
-              <SideStep
-                title={approvalRequired ? 'אישור הלקוח באזור האישי' : 'זירוז אישור הייצוג באזור האישי'}
-                required={approvalRequired}
-                done={isRepApprovalClosed(repApproval)}
-                tone={declared || approvalRequired ? 'attention' : 'wait'}
-                hint={
-                  isRepApprovalClosed(repApproval)
-                    ? undefined
-                    : declared
-                      ? 'הלקוח דיווח שאישר - ממתין לאימות בשע״ם'
-                      : approvalRequired
-                        ? 'נדרש - רשות המסים ממתינה לאישור הלקוח. בלי האישור הייצוג לא ייקלט. הבקשה מופיעה בדף האישי שלו'
-                        : 'ממתין ללקוח - הבקשה מופיעה בדף האישי שלו'
-                } />
-            )}
-
-            {/* ‼ שלב 7 הוא היעד. אין כאן «בדקו מול שע״ם» ואין מצב ביניים — המצב
-                הנוכחי של שע״ם בשלב 6, והבדיקה בכפתור אחד ליד הכותרת. */}
-            <Step n={7 + extraEntries.length} title="הייצוג פעיל" done={status === 'active'}>
-              {status === 'awaiting_authorities' && (
-                <button className="btn btn-ghost btn-sm" onClick={onMarkActive}>סמן ידנית כמיוצג פעיל</button>
-              )}
-
-              {/* ‼ הסימון לבדו לא שולח דבר. עד היום יצא כאן מייל אוטומטית והרו"ח
-                  לא ידע שיצא — עכשיו זו פעולה נפרדת, אחרי שרואים את המייל. */}
-              {status === 'active' && (
-                activeEmails.length > 0 ? (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '.4rem' }}>
-                    {activeEmails.map(m => (
-                      <EmailStatusRow key={m.id} message={m} note="עדכון ללקוח: הייצוג אושר" onChanged={reloadEmails} />
-                    ))}
-                  </div>
-                ) : (
-                  <div style={{ fontSize: 'var(--fs-13)', color: 'var(--ink-3)', lineHeight: 1.6 }}>
-                    <InfoLines style={{ marginBottom: '.4rem' }} items={[
-                      'ℹ הלקוח לא עודכן במייל',
-                      'המערכת לא שולחת מעצמה - אפשר לשלוח עדכון אחרי שרואים בדיוק מה ייצא',
-                    ]} />
-                    <button className="btn btn-secondary btn-sm" onClick={() => setPreviewActive(true)}>
-                      עדכון ללקוח - תצוגה מקדימה
-                    </button>
-                  </div>
-                )
-              )}
-            </Step>
-          </Track>
-
-          {/* ─────────── ביטוח לאומי ─────────── */}
-          {/* מסלול לכל מבוטח: בב"ל לכל אחד תיק ואסמכתא נפרדים, ואיחוד שלהם
-              לעמודה אחת היה מסתיר איזה מהשניים עדיין לא אושר. */}
-          {(niTargetsClient || niTargetsSpouse) ? (
-            <>
-              {niTargetsClient && (
-                <NiTrack
-                  title={clientNiTitle}
-                  ni={ni}
-                  line={niLineFor('client')}
-                  busy={busy}
-                  busyPrefix="ni"
-                  nextAction={niNextActionNode('client')}
-                  hasSignatureEmails={signatureEmails.length > 0}
-                  onPatch={(p, label) => patch({ ...exec, nationalInsurance: { ...ni, ...p } }, label)}
-                  resultShownAbove={btlReconcile.some(t => t.key === 'client' && !!t.last)}
-                  prereqStep={niClientStep}
-                  prereqCurrentValues={niPrereqValues}
-                  prereqClient={prereqClient}
-                  prereqSpouse={prereqSpouse}
-                  prereqOnSaveEmail={prereqOnSaveEmail}
-                  prereqOnChanged={() => onStepsChanged?.()}
-                />
-              )}
-              {niTargetsSpouse && (
-                <NiTrack
-                  title={`ב״ל - ${nameOf('spouse') || 'בן/בת הזוג'}`}
-                  ni={niSpouse}
-                  line={niLineFor('spouse')}
-                  busy={busy}
-                  busyPrefix="nis"
-                  nextAction={niNextActionNode('spouse')}
-                  hasSignatureEmails={signatureEmails.length > 0}
-                  onPatch={(p, label) => patch({ ...exec, nationalInsuranceSpouse: { ...niSpouse, ...p } }, label)}
-                  resultShownAbove={btlReconcile.some(t => t.key === 'spouse' && !!t.last)}
-                  prereqStep={niSpouseStep}
-                  prereqCurrentValues={niPrereqValues}
-                  prereqClient={prereqClient}
-                  prereqSpouse={prereqSpouse}
-                  prereqOnSaveEmail={prereqOnSaveEmail}
-                  prereqOnChanged={() => onStepsChanged?.()}
-                />
-              )}
-            </>
-          ) : (
-            <div style={{ flex: '1 1 320px', minWidth: 0, border: '1px dashed var(--hairline-1)', borderRadius: 'var(--radius)', padding: '1rem', color: 'var(--ink-3)', fontSize: 'var(--fs-13)', display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center' }}>
-              לא התבקש ייצוג בביטוח לאומי עבור לקוח זה.
             </div>
+          )}
+          {!['waiting_docs', 'blocked'].includes(plan.kind) && (
+            <ShaamRequiredDocsList tracking={t} requestId={request.id} clientId={linkedClient?.id}
+              usedDocumentIds={Object.values(request.identityDocs ?? {}).flat().map(d => d?.documentId).filter((x): x is string => !!x)}
+              onAttached={() => onStepsChanged?.()} />
+          )}
+          {stamped && !sentToShaam && plan.kind !== 'submit' && (
+            <button type="button" className="rc-quiet" onClick={onMarkSentToShaam}>הוגש ידנית בשע״ם</button>
+          )}
+        </Step>
+
+        {repApproval && i === 0 && (
+          <SideStep
+            title={approvalRequired ? 'אישור הלקוח באזור האישי' : 'זירוז אישור הייצוג באזור האישי'}
+            required={approvalRequired}
+            done={isRepApprovalClosed(repApproval)}
+            hint={isRepApprovalClosed(repApproval) ? undefined
+              : declared ? 'הלקוח דיווח שאישר - ממתין לאימות בשע״ם'
+              : approvalRequired ? 'נדרש - רשות המסים ממתינה לאישור הלקוח. הבקשה מופיעה בדף האישי שלו'
+              : 'ממתין ללקוח - הבקשה מופיעה בדף האישי שלו'} />
+        )}
+
+        <Step title="הייצוג נקלט" done={status === 'active' || shaamSettled(t)}>
+          {status === 'awaiting_authorities' && plan.kind !== 'waiting_authorities' && (
+            <button type="button" className="rc-quiet" onClick={onMarkActive}>סימון ידני כמיוצג פעיל</button>
+          )}
+        </Step>
+      </div>
+    );
+  };
+
+  return (
+    <div id="rep-execution" className="rc">
+      {/* ─────────── מה עכשיו ─────────── */}
+      <section className="rc-hero" data-ball={plan.ball} data-kind={plan.kind} data-testid="rc-hero">
+        <div className="rc-rail" aria-label="שלבי הייצוג">
+          {plan.phases.map(p => (
+            <div key={p.key} className="rc-rail-seg" data-state={p.state} aria-current={p.state === 'current' ? 'step' : undefined}>
+              <div className="rc-rail-bar" />
+              <span className="rc-rail-label">{p.label}</span>
+            </div>
+          ))}
+        </div>
+        {/* בטלפון: שורה אחת במקום תוויות דחוסות מתחת לכל קטע */}
+        {(() => {
+          const i = plan.phases.findIndex(p => p.state === 'current');
+          return i >= 0 ? <div className="rc-rail-caption">שלב {i + 1} מתוך {plan.phases.length} · {plan.phases[i].label}</div> : null;
+        })()}
+        <div className="rc-hero-grid" data-aside={aside ? 'true' : 'false'}>
+          <div className="rc-hero-main">
+            <span className="rc-ball" data-testid="rc-ball">{plan.ballLabel}</span>
+            <h2 className="rc-headline" data-testid="rc-headline">{plan.headline}</h2>
+            <p className="rc-sub">{plan.sub}</p>
+            {heroBody && <div className="rc-body">{heroBody}</div>}
+          </div>
+          {aside && (
+            <aside className="rc-aside" data-testid="rc-aside" aria-label={aside.title}>
+              <div className="rc-aside-title">{aside.title}</div>
+              {aside.content}
+            </aside>
           )}
         </div>
+        {note && <div className="rc-note" data-kind={note.kind}>{note.kind === 'ok' ? '✓ ' : ''}{note.text}</div>}
+      </section>
 
-        {/* ─────────── השליחה ללקוח — משותפת לשתי הרשויות ─────────── */}
-        {/* מייל אחד נושא את שתי הפעולות, ולכן הוא לא שייך לאף אחת מהעמודות.
-            פס רוחב מלא ביניהן, ממורכז, כדי שיהיה ברור שהוא של שתיהן. */}
-        <div style={{
-          marginTop: '1rem',
-          /* קו עליון אחד נושא את המצב: נשלח · מוכן לשליחה · עוד לא מוכן.
-             הקו המקווקו הוא הרמז שהמייל עדיין לא ניתן לשליחה. */
-          borderTop: `1px ${exec.signatureEmailSentAt ? 'solid var(--success)' : formReady ? 'solid var(--accent)' : 'dashed var(--hairline-1)'}`,
-          padding: '.9rem 0',
-          textAlign: 'center',
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '.5rem', flexWrap: 'wrap' }}>
-            <span style={{ fontSize: 'var(--fs-17)' }}>{exec.signatureEmailSentAt ? '✓' : '✉'}</span>
-            <span style={{ fontWeight: 600, fontSize: 'var(--fs-14)' }}>
-              {exec.signatureEmailSentAt ? 'המייל נשלח ללקוח' : 'שליחה ללקוח'}
-            </span>
-          </div>
-          <div style={{ fontSize: 'var(--fs-13)', color: 'var(--ink-3)', marginTop: 3, lineHeight: 1.6 }}>
-            {(niTargetsClient || niTargetsSpouse)
-              ? 'מייל אחד לשתי הרשויות - קישור אישי לחתימה על ייפוי הכוח, ומתחתיו האסמכתא והוראות האישור בביטוח הלאומי.'
-              : 'מייל עם קישור אישי לחתימה על ייפוי הכוח, לכל חותם.'}
-          </div>
-
-          {!formReady && (
-            <div style={{ fontSize: 'var(--fs-13)', color: 'var(--ink-3)', marginTop: '.5rem' }}>
-              יתאפשר אחרי שהטופס יופק ואזורי החתימה יסומנו (שלב 2 במס הכנסה).
-            </div>
+      {/* ─────────── מול הרשויות ─────────── */}
+      <section>
+        <div className="rc-section-head">
+          {/* ‼ הפעולה היחידה במסך שבודקת מול הרשויות — צמודה לכותרת, פעם אחת. */}
+          <RepresentationReconcileButton heading={<div className="card-title rc-section-title">מול הרשויות</div>}
+            clientId={linkedClient?.id} shaam={shaamReconcile} btl={btlReconcile} onChanged={onStepsChanged}
+            persistedLines={false} />
+        </div>
+        <div className="rc-list">
+          {submissions.map((sub, i) => {
+            const st = shaamRowStatus(sub, i);
+            return (
+              <AuthRow key={sub.key} testId="rc-row-shaam" name="רשות המסים · שע״ם"
+                scope={`${sub.authoritiesLabel}${submissions.length > 1 ? ` · ${sub.personName}` : ''}`}
+                status={st.text} tone={st.tone}>
+                {shaamDetail(sub, i)}
+              </AuthRow>
+            );
+          })}
+          {niRoles.map(role => {
+            const st = niRowStatus(role);
+            return (
+              <AuthRow key={role} testId="rc-row-ni" name="ביטוח לאומי" scope={niNameOf(role)} status={st.text} tone={st.tone}>
+                <NiDetail
+                  ni={niExecutionByRole[role]} line={niLineFor(role)} busy={busy} busyPrefix={role === 'spouse' ? 'nis' : 'ni'}
+                  inPrepare={inPrepare}
+                  nextAction={niNextActionNode(role)}
+                  onPatch={(p, label) => patchNi(role, p, label)}
+                  resultShownAbove={false}
+                  prereqStep={niStepOf(role)}
+                  prereqCurrentValues={niPrereqValues}
+                  prereqClient={prereqClient}
+                  prereqSpouse={prereqSpouse}
+                  prereqOnSaveEmail={prereqOnSaveEmail}
+                  prereqOnChanged={() => onStepsChanged?.()}
+                />
+              </AuthRow>
+            );
+          })}
+          {niRoles.length === 0 && submissions.length === 0 && (
+            <div className="rc-meta" style={{ padding: '14px 20px' }}>לא התבקש ייצוג ברשויות.</div>
           )}
+        </div>
+        {niRoles.length === 0 && submissions.length > 0 && (
+          <div className="rc-meta" style={{ marginTop: 8 }}>לא התבקש ייצוג בביטוח לאומי.</div>
+        )}
+      </section>
 
-          {formReady && !exec.signatureEmailSentAt && (
-            <div style={{ marginTop: '.7rem' }}>
-              {/* ‼ 208 · מה הלקוח יתבקש לעשות — כולל מה ששע״ם דורשת, לפני הלחיצה. */}
-              {sendPreview.length > 0 && (
-                <div data-testid="send-preview" style={{ margin: '0 auto .6rem', maxWidth: 520, textAlign: 'start', fontSize: 'var(--fs-13)', color: 'var(--ink-2)', lineHeight: 1.7 }}>
-                  <div style={{ fontWeight: 600 }}>מה הלקוח יתבקש לעשות בדף האישי:</div>
-                  {sendPreview.map(line => <div key={line} data-testid="send-preview-line">· {line}</div>)}
-                </div>
-              )}
-              <button className="btn btn-green" disabled={busy === 'send' || niRefMissing || pendingSigners.length === 0}
-                onClick={() => (missingIds.length > 0 ? setConfirmSendWithoutId(true) : void handleSendAll(sendOnlyTo ?? undefined))}>
-                {busy === 'send' ? 'שולח…'
-                  : sendOnlyTo
-                    ? `שלח ל${pendingSigners.find(s => s.id === sendOnlyTo)?.name || 'חותם'}`
-                    : `שלח ללקוח${emailableSigners.length > 1 ? ` (${emailableSigners.length} חותמים)` : ''}`}
-              </button>
-              {/* ‼ בחירת נמענים — קיימת רק כששני החותמים באמת יכולים לקבל.
-                  שליחה לאחד בלבד היא בחירה לגיטימית: הוא מעביר לשני מדף
-                  החתימה (חתימה יחד באותו מכשיר, מייל, או קישור). */}
-              {emailableSigners.length > 1 && !niRefMissing && (
-                <div style={{ marginTop: '.5rem', display: 'flex', gap: '.9rem', flexWrap: 'wrap', justifyContent: 'center', fontSize: 'var(--fs-13)', color: 'var(--ink-2)' }}>
-                  <label style={{ display: 'flex', gap: '.3rem', alignItems: 'center', cursor: 'pointer' }}>
-                    <input type="radio" name="send-to" checked={sendOnlyTo === null}
-                      onChange={() => setSendOnlyTo(null)} />
-                    לכל אחד מייל נפרד
-                  </label>
-                  {emailableSigners.map(s => (
-                    <label key={s.id} style={{ display: 'flex', gap: '.3rem', alignItems: 'center', cursor: 'pointer' }}>
-                      <input type="radio" name="send-to" checked={sendOnlyTo === s.id}
-                        onChange={() => setSendOnlyTo(s.id)} />
-                      רק ל{s.name || s.email}
-                    </label>
+      {/* ─────────── פרטים ומסמכים — רשימה אחת, כל שורה נפתחת לפי דרישה ─────────── */}
+      {(dataPanel || signedPanel || requestPanel || signatureEmails.length > 0) && (
+        <section>
+          <div className="rc-section-head"><div className="rc-section-title">פרטים ומסמכים</div></div>
+          <div className="rc-list">
+            {dataPanel && (
+              <More title="פרטי הלקוח להזנה ברשויות" meta="להעתקה לאתר של כל רשות" defaultOpen={inPrepare} testId="rc-data">
+                {dataPanel}
+              </More>
+            )}
+            {signedPanel && (
+              <More title="ייפוי הכוח החתום" meta="צפייה והורדה" testId="rc-signed">{signedPanel}</More>
+            )}
+            {signatureEmails.length > 0 && (
+              <More title="המיילים ללקוח" testId="rc-emails"
+                meta={signatureEmails.length === 1 ? 'מייל אחד · מסירה ופתיחה' : `${signatureEmails.length} מיילים · מסירה ופתיחה`}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '.4rem' }}>
+                  {signatureEmails.map(m => (
+                    <EmailStatusRow key={m.id} message={m} onRemind={() => handleRemind(m)} onChanged={reloadEmails} />
                   ))}
                 </div>
-              )}
-              {pendingSigners.length > 0 && !niRefMissing && (
-                <>
-                  <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)', marginTop: '.4rem', lineHeight: 1.6 }}>
-                    {pendingSigners.map(s => {
-                      const skip = sendOnlyTo ? s.id !== sendOnlyTo : !s.email.trim();
-                      return (
-                        <div key={s.id} style={{ opacity: skip ? 0.55 : 1 }}>
-                          {s.name || 'חותם'} — <span dir="ltr">{s.email.trim() || 'אין מייל'}</span>
-                          {skip ? ' · לא ייכלל' : ''}
-                        </div>
-                      );
-                    })}
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setPreviewSignerId(pendingSigners[0].id)}
-                    style={{
-                      background: 'none', border: 'none', padding: 0, marginTop: '.3rem', font: 'inherit',
-                      fontSize: 'var(--fs-13)', color: 'var(--accent)', textDecoration: 'underline', cursor: 'pointer',
-                    }}
-                  >
-                    לראות מה ייצא ללקוח
-                  </button>
-                </>
-              )}
-              {niRefMissing && (
-                <div style={{ margin: '.55rem auto 0', maxWidth: 460, padding: '.45rem .6rem', background: 'transparent', borderRadius: 'var(--radius)', fontSize: 'var(--fs-13)', color: 'var(--ink-1)', lineHeight: 1.6 }}>
-                  חסום עד להזנת מספר האסמכתא{missingRefFor ? ` של ${missingRefFor}` : ''} במשבצת הביטוח הלאומי -
-                  אחרת {niTargetsSpouse ? 'מי שחסרה לו אסמכתא יקבל מייל בלי חלק הב״ל' : 'הלקוח יקבל מייל בלי חלק הב״ל'}.
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* המייל שיצא — מוצג פעם אחת בלבד, כאן */}
-          {signatureEmails.length > 0 && (
-            <div style={{ marginTop: '.7rem', display: 'flex', flexDirection: 'column', gap: '.4rem', textAlign: 'start' }}>
-              {signatureEmails.map(m => (
-                <EmailStatusRow key={m.id} message={m} onRemind={() => handleRemind(m)} onChanged={reloadEmails} />
-              ))}
-            </div>
-          )}
-        </div>
-
-        {note && (
-          <Notice tone={note.kind === 'ok' ? 'success' : 'danger'} style={{ marginTop: '.9rem' }}>
-            {note.kind === 'ok' ? '✓ ' : '⚠ '}{note.text}
-          </Notice>
-        )}
-      </div>
+              </More>
+            )}
+            {requestPanel && (
+              <More title="פרטי הבקשה" meta="מייל, סוג ייפוי הכוח וצילומי תעודות" testId="rc-request">{requestPanel}</More>
+            )}
+          </div>
+        </section>
+      )}
 
       {previewActive && (
         <EmailPreviewDialog
@@ -1462,10 +1644,7 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
           title={shaamDemandsMissingId ? 'רשות המסים דורשת צילום תעודה שעוד אין בתיק' : 'צילום התעודה שביקשנו טרם התקבל'}
           message={<>
             <div>טרם התקבל צילום תעודה של: <b>{missingIds.map(m => m.name).join(', ')}</b>.</div>
-            {/* ‼ 204 · זו בקשה של המשרד, לא דרישה של רשות המסים: לא חוסמת שליחה,
-                חתימה או ייצוג. מה ששע״ם דורשת מתגלה בשידור, ומוצג בשלב «נשלח לשע״ם». */}
             {shaamDemandsMissingId ? (
-              /* ‼ 208 · כאן זו גם דרישה של רשות המסים (נכתבה ביצירת הבקשה). */
               <>
                 <div style={{ marginTop: '.4rem' }}>רשות המסים דורשת את הצילום הזה לבקשה. בקשת ההעלאה תצורף לשליחה, והלקוח יראה אותה בדף האישי ליד החתימה.</div>
                 <div style={{ marginTop: '.4rem' }}>אפשר לשלוח לחתימה עכשיו; השידור לשע״ם ימתין עד שהצילום יגיע.</div>
@@ -1489,7 +1668,7 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
           title="יש בתיק צילום תעודה שלא שויך לאף אדם"
           message={<div data-testid="unassigned-identity-dialog" style={{ lineHeight: 1.7 }}>
             <div>רשות המסים דורשת צילום תעודה, ובתיק יש צילום שלא ידוע של מי הוא. לא שלחנו עדיין כלום.</div>
-            <div style={{ marginTop: '.4rem' }}>· אם הוא של האדם הנכון - סגרו את החלון ושייכו אותו בשלב 2 («מה רשות המסים דורשת»). אחרי השיוך הלקוח יתבקש לאשר אותו.</div>
+            <div style={{ marginTop: '.4rem' }}>· אם הוא של האדם הנכון - סגרו את החלון ושייכו אותו בפירוט של רשות המסים («מה רשות המסים דורשת להגשה»). אחרי השיוך הלקוח יתבקש לאשר אותו.</div>
             <div style={{ marginTop: '.4rem' }}>· אחרת - הלקוח יתבקש להעלות צילום בדף האישי, יחד עם בקשת החתימה.</div>
           </div>}
           confirmLabel="בקש מהלקוח צילום ושלח"
@@ -1513,31 +1692,38 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
 }
 
 /**
- * שורת חותם אחד: מי הוא, מה קרה למייל שלו, איזו אסמכתא שייכת לו, ומה אפשר
- * לעשות עכשיו. ‼ השורה הזאת היא התשובה לשאלה "למי זה נשלח?" — שעד
- * 23.09.2026 לא הייתה לה תשובה בשום מסך.
- *
- * ‼ שתי עובדות נפרדות שאסור לערבב:
- *   · **המייל** (נמסר/נפתח) — מצב המסירה לכתובת. תיבה משותפת לשני בני הזוג
- *     תיראה כאן פעמיים, וזה בסדר: זו באמת אותה תיבה.
- *   · **האסמכתא** — האם ההוראות של **האדם הזה** יצאו. זו עובדה פר-אדם,
- *     והיא זו שחשפה שיאיר סומן כמי שקיבל בלי שיצא אליו דבר.
+ * חותם אחד בטור «המייל»: הכתובת, מה קרה למייל, ומה אפשר לעשות.
+ * ‼ שתי עובדות נפרדות: **המייל** (נמסר/נפתח — מצב הכתובת; תיבה משותפת תיראה
+ * פעמיים וזה נכון) ו**האסמכתא** (האם ההוראות של האדם הזה יצאו — עובדה פר-אדם).
+ * ‼ 29.09.2026 · «נשלח» נקרא ממקור אחד: הרשומה ביומן לכתובת הזו, ובלעדיה — מועד
+ * השליחה של הבקשה (נכתב רק אחרי שכל המיילים יצאו בהצלחה). כך הכותרת («המייל
+ * יצא») והשורה של החותם לעולם לא סותרות זו את זו.
  */
-function SignerLine({ signer, signed, email, track, onCopiedLink }: {
+function SignerLine({ signer, showName, signed, emails, track, onCopiedLink, onRemind, batchSentAt }: {
   signer: RepSigner;
+  showName: boolean;
   signed: boolean;
-  email?: { toEmail: string; sentAt: string; openedAt?: string; clickedAt?: string; status: string };
+  /** הניסיונות לכתובת הזו, מהחדש לישן. */
+  emails: { toEmail: string; sentAt: string; openedAt?: string; clickedAt?: string; status: string }[];
   track?: NiTracking;
   onCopiedLink: () => void;
+  onRemind?: () => Promise<string | null>;
+  batchSentAt?: string;
 }) {
   const [copied, setCopied] = useState(false);
+  const [reminded, setReminded] = useState<{ ok: boolean; text: string } | null>(null);
   const hasAddress = !!signer.email.trim();
+  // ‼ «נכשל» = השליחה שלנו לא יצאה (למשל תקלה בספק המייל) — לא «המייל חזר». המצב נקרא
+  // מהמייל האחרון שבאמת יצא, וניסיון אחרון שנכשל מוצג לצדו ולא במקומו.
+  const email = emails.find(m => m.status !== 'failed');
+  const lastFailed = emails[0]?.status === 'failed';
   const opened = !!email && (!!email.openedAt || ['opened', 'clicked'].includes(email.status));
-  const bounced = !!email && ['bounced', 'complained', 'failed'].includes(email.status);
+  const bounced = !!email && ['bounced', 'complained'].includes(email.status);
   const link = signer.signToken ? `${window.location.origin}/?sign=${signer.signToken}` : '';
   // ‼ האסמכתא לא נמסרה — הפער שאין לו שום סימן אחר במסך.
   const refPending = !!track?.referenceNumber && !track.instructionsSentAt;
   const handedByLink = track?.instructionsSentWith === 'link';
+  const sentAt = email?.sentAt ?? batchSentAt;
 
   const copy = async () => {
     if (!link) return;
@@ -1546,80 +1732,65 @@ function SignerLine({ signer, signed, email, track, onCopiedLink }: {
     window.setTimeout(() => setCopied(false), 2500);
     onCopiedLink();
   };
+  const remind = async () => {
+    if (!onRemind) return;
+    setReminded({ ok: true, text: 'שולח…' });
+    const err = await onRemind();
+    // ‼ השגיאה כבר אומרת «המייל לא נשלח (…)» — בלי קידומת שנייה.
+    setReminded(err ? { ok: false, text: err } : { ok: true, text: 'נשלח שוב ✓' });
+  };
 
-  const tone = signed ? 'var(--text-success, var(--success-text))'
-    : bounced || (!hasAddress && !handedByLink) || refPending ? 'var(--danger)'
-    : 'var(--ink-3)';
-
-  const detail = signed
-    ? 'חתם/ה'
-    : [
-        hasAddress ? signer.email : 'אין כתובת מייל',
-        email ? `נשלח ${fmtTime(email.sentAt)}${opened ? ' · נפתח ✓' : ''}${bounced ? ' · חזר ✗' : ''}` : (hasAddress ? 'טרם נשלח' : 'לא נשלח אליו דבר'),
-        handedByLink ? 'הקישור נמסר ידנית' : null,
-        track?.referenceNumber
-          ? (refPending ? `אסמכתא ${track.referenceNumber} טרם נמסרה` : `אסמכתא ${track.referenceNumber}`)
-          : null,
-      ].filter(Boolean).join(' · ');
+  const state = signed ? 'החתימה התקבלה'
+    : !hasAddress ? (handedByLink ? 'הקישור נמסר ידנית' : 'אין כתובת מייל')
+    : bounced ? 'המייל חזר — כדאי לבדוק את הכתובת'
+    : sentAt ? `נשלח ${fmtTime(sentAt)}${email ? (opened ? ' · נפתח' : ' · טרם נפתח') : ''}`
+    : 'טרם נשלח';
+  const tone = signed ? 'done' : bounced || (!hasAddress && !handedByLink) ? 'warn' : undefined;
 
   return (
-    <div style={{ display: 'flex', gap: '.5rem', alignItems: 'flex-start' }}>
-      <span style={{ color: tone, lineHeight: 1.5 }}>{signed ? '✓' : refPending || bounced || !hasAddress ? '⚠' : '⏳'}</span>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 'var(--fs-13)', color: 'var(--ink-1)' }}>{signer.name || signer.email}</div>
-        <div style={{ fontSize: 'var(--fs-12)', color: refPending ? 'var(--danger)' : 'var(--ink-3)', marginTop: 2, lineHeight: 1.6 }}>
-          {detail}
+    <div className="rc-signer" data-testid="rc-signer">
+      {showName && <div className="rc-signer-name">{signer.name || signer.email}</div>}
+      {hasAddress && <div className="rc-signer-addr"><span className="ltr-isolate">{signer.email.trim()}</span></div>}
+      <div className="rc-signer-state" data-tone={tone}>{state}</div>
+      {hasAddress && handedByLink && !signed && <div className="rc-meta">הקישור נמסר גם ידנית</div>}
+      {lastFailed && !signed && !reminded && <div className="rc-err">השליחה האחרונה נכשלה{emails[0]?.sentAt ? ` ${fmtTime(emails[0].sentAt)}` : ''}</div>}
+      {refPending && <div className="rc-err">אסמכתא {track!.referenceNumber} של ביטוח לאומי טרם נמסרה</div>}
+      {!signed && (onRemind || link) && (
+        <div className="rc-signer-acts">
+          {onRemind && <button type="button" className="btn btn-secondary btn-sm" onClick={() => void remind()}>שליחה חוזרת</button>}
+          {link && <button type="button" className="rc-link" onClick={() => void copy()}>{copied ? '✓ הועתק' : 'העתקת קישור אישי'}</button>}
         </div>
-        {!signed && link && (
-          <button type="button" onClick={() => void copy()}
-            style={{
-              background: 'none', border: 'none', padding: 0, marginTop: '.3rem', font: 'inherit',
-              fontSize: 'var(--fs-12)', color: 'var(--accent)', textDecoration: 'underline', cursor: 'pointer',
-            }}>
-            {copied ? '✓ הקישור הועתק' : 'העתק קישור חתימה אישי'}
-          </button>
-        )}
-      </div>
+      )}
+      {reminded && <div className={reminded.ok ? 'rc-meta' : 'rc-err'}>{reminded.text}</div>}
     </div>
   );
 }
 
-/** שעה קצרה לשורת החותם. */
+/** «28.9 בשעה 10:39» — לשורת החותם. */
 function fmtTime(iso: string) {
-  return new Date(iso).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
+  const d = new Date(iso);
+  return `ב-${d.toLocaleDateString('he-IL', { day: 'numeric', month: 'numeric' })} בשעה ${d.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}`;
 }
 
 /**
- * מסלול הביטוח הלאומי של מבוטח אחד. בב"ל לכל אדם תיק נפרד, ולכן זוג שמיוצג
- * בב"ל מקבל שני מסלולים כאלה — לכל אחד אסמכתא, מועד תפוגה ואישור משלו.
+ * הפירוט של ביטוח לאומי לאדם אחד. בב"ל לכל אדם תיק נפרד — לכל אחד אסמכתא,
+ * מועד תפוגה ואישור משלו.
+ * ‼ בזמן ההכנה, ההזנה והאסמכתא הן פקדים בכרטיס «מה עכשיו» — כאן הן רק מצב
+ * (אותו פקד לא מופיע פעמיים). אחרי ההכנה — עריכה לפי דרישה.
  */
-function NiTrack({
-  title, ni, line, busy, busyPrefix, nextAction, hasSignatureEmails, onPatch, resultShownAbove,
+function NiDetail({
+  ni, line, busy, busyPrefix, inPrepare, nextAction, onPatch, resultShownAbove,
   prereqStep, prereqCurrentValues, prereqClient, prereqSpouse, prereqOnSaveEmail, prereqOnChanged,
 }: {
-  title: string;
   ni: NiTracking;
-  /**
-   * מה שב״ל אמרה כבר מוצג בשורה שמתחת לכותרת המרכז (RepresentationReconcileButton).
-   * ‼ 27.09.2026: אותה עובדה הופיעה שלוש פעמים (שם, בכותרת-המשנה של שלב 4,
-   * ובתיבה אפורה בשלב 4). התיבה יורדת כשהשורה למעלה קיימת.
-   */
-  resultShownAbove?: boolean;
-  /** הראיה של הכרטיס (niRepresentationOf) — «פעיל» שם גובר על כל מצב ביניים. */
   line?: NiRepresentationLine | null;
   busy: string | null;
-  /** מבדיל בין מצבי ה"שומר…" של שני המסלולים, שלא יידלקו יחד */
   busyPrefix: string;
-  /** הפעולה ההקשרית של האדם הזה (פרק 17) — נגזרת בהורה לפי role מפורש. */
+  inPrepare: boolean;
   nextAction?: React.ReactNode;
-  hasSignatureEmails: boolean;
   onPatch: (p: Partial<NiTracking>, label: string) => void;
-  /**
-   * ‼ 165: שלב «בקשות» של המסלול הזה — כשיש תנאי-קדם חסרים, ארבעת הצעדים
-   * למטה (הזנה/אסמכתא/הוראות/אישור) מוחלפים בשער תנאי-הקדם. הכותרת, הגבול
-   * והמונה של העמודה עצמה (Track) נשארים — המסלול לא נעלם, רק הפקדים שלו.
-   * חסר (undefined/null) ⇒ אין תנאי-קדם ידועים, מתנהג כמו לפני 165.
-   */
+  /** מה שב״ל אמרה כבר מוצג בשורה שמתחת לכותרת «מול הרשויות» — לא חוזרים עליו. */
+  resultShownAbove?: boolean;
   prereqStep?: OnboardingStep | null;
   prereqCurrentValues?: Record<string, string | undefined>;
   prereqClient?: PrerequisitePerson;
@@ -1627,140 +1798,83 @@ function NiTrack({
   prereqOnSaveEmail?: (role: 'client' | 'spouse', email: string) => Promise<void>;
   prereqOnChanged?: () => void;
 }) {
-  const [refNumber, setRefNumber] = useState(ni.referenceNumber || '');
-  const [deadline, setDeadline] = useState(ni.deadline || '');
-
-  /* ‼ הבאג שהוליד את 195 בצד המסך: `useState(ni.x)` קורא את הערך **פעם
-     אחת**, ברינדור הראשון — ובו הבקשה עדיין נטענת ו-`ni` הוא `{}`. כשהערך
-     האמיתי הגיע (מהאוטומציה או משמירה), הצעד למעלה נצבע ירוק והשובל
-     "נותרו N ימים" הופיע — ושני השדות נשארו ריקים עם ה-placeholder
-     (73882698), כך שהם **נראו** ריקים גם אחרי רענון. כאן מסתנכרנים עם
-     הערך שהשרת מחזיק; התלות היא הערך עצמו, ולכן הקלדה של הרו"ח נדרסת רק
-     כשהשרת באמת שינה את הערך. ראה memory/stale-client-after-server-write. */
-  useEffect(() => { setRefNumber(ni.referenceNumber || ''); }, [ni.referenceNumber]);
-  useEffect(() => { setDeadline(ni.deadline || ''); }, [ni.deadline]);
-
+  const [editingRef, setEditingRef] = useState(false);
   const external = niExternalEvidence(ni);
   // ‼ סדר קדימות (representationCenter.niTrackView): סופי > נוכחי > היסטורי.
   const view = niTrackView(ni, line);
-  const steps = [!!ni.enteredAt, !!ni.referenceNumber, !!ni.instructionsSentAt, view.final];
   const sentWithSignature = ni.instructionsSentWith === 'signature';
   const k = (suffix: string) => `${busyPrefix}-${suffix}`;
 
-
   const executionSteps = (
-    <>
-      {/* ‼ `foundExternally` (195): הרישום נמצא קיים בב"ל ולא נוצר מכאן —
-          כמעט תמיד כי הוזן ידנית בפורטל. הצעד בוצע, אבל לא "סומן" על ידינו,
-          והמסך לא ייחס לעצמו פעולה שלא עשה. */}
-      <Step n={1} title="ייפוי הכוח הוזן באתר ב״ל" done={!!ni.enteredAt}
-        hint={!ni.enteredAt ? 'מסך "הוספת ייפוי כח מבוטח" - ארבעת השדות מהבלוק שמעל'
-          : ni.foundExternally ? `נמצא קיים באתר ב״ל (הוזן שם, לא מכאן) · אותר ב-${fmt(ni.enteredAt)}`
+    <div className="rc-steps">
+      {/* ‼ `foundExternally` (195): הרישום נמצא קיים בב"ל ולא נוצר מכאן. */}
+      <Step title="ייפוי הכוח הוזן באתר ב״ל" done={!!ni.enteredAt}
+        hint={!ni.enteredAt ? 'מסך «הוספת ייפוי כח מבוטח» — ארבעת השדות מ«פרטי הלקוח להזנה»'
+          : ni.foundExternally ? `נמצא קיים באתר ב״ל (הוזן שם, לא מכאן) · ${fmt(ni.enteredAt)}`
           : `סומן ב-${fmt(ni.enteredAt)}`}>
-        {!ni.enteredAt && (
-          <button className="btn btn-secondary btn-sm" disabled={busy === k('entered')}
-            onClick={() => onPatch({ enteredAt: new Date().toISOString() }, k('entered'))}>
-            {busy === k('entered') ? 'שומר…' : 'סמן כהוזן'}
-          </button>
+        {!ni.enteredAt && !inPrepare && (
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+            <div className="rc-actioncell">{nextAction}</div>
+            <button type="button" className="rc-quiet" disabled={busy === k('entered')}
+              onClick={() => onPatch({ enteredAt: new Date().toISOString() }, k('entered'))}>
+              {busy === k('entered') ? 'שומר…' : 'הוזן ידנית'}
+            </button>
+          </div>
         )}
       </Step>
 
-      <Step n={2} title="מספר אסמכתא ומועד אחרון לאישור" done={!!ni.referenceNumber}
-        hint={view.editableReference
-          ? 'ב״ל מציג אותם במסך שאחרי ההזנה'
-          : `אסמכתא ${ni.referenceNumber || '-'}${ni.deadline ? ` · מועד אחרון ${fmt(ni.deadline)}` : ''}`}>
+      <Step title="מספר אסמכתא ומועד אחרון לאישור" done={!!ni.referenceNumber}
+        hint={ni.referenceNumber ? `אסמכתא ${ni.referenceNumber}${ni.deadline ? ` · מועד אחרון ${fmt(ni.deadline)}` : ''}` : 'ב״ל מציג אותם במסך שאחרי ההזנה'}>
         {/* ‼ במצב סופי האסמכתא היא עובדה, לא טופס לעריכה. */}
-        {view.editableReference && (
-        <div style={{ display: 'flex', gap: '.4rem', flexWrap: 'wrap', alignItems: 'flex-end' }}>
-          <div style={{ flex: '1 1 130px' }}>
-            <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)' }}>מספר אסמכתא</div>
-            <input value={refNumber} dir="ltr" inputMode="numeric" placeholder="73882698"
-              onChange={e => setRefNumber(e.target.value.replace(/\D/g, ''))}
-              style={{ width: '100%', textAlign: 'left' }} />
-          </div>
-          <div style={{ flex: '1 1 130px' }}>
-            <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)' }}>מועד אחרון</div>
-            <input type="date" value={deadline} min={todayISO()}
-              onChange={e => setDeadline(e.target.value)} style={{ width: '100%' }} />
-          </div>
-          <button className="btn btn-primary btn-sm" disabled={busy === k('ref') || !refNumber.trim()}
-            onClick={() => onPatch({ referenceNumber: refNumber.trim(), deadline: deadline || undefined }, k('ref'))}>
-            {busy === k('ref') ? 'שומר…' : 'שמירה'}
-          </button>
-        </div>
+        {view.editableReference && (editingRef || (!ni.referenceNumber && !inPrepare)) && (
+          <NiRefForm ni={ni} busy={busy === k('ref')}
+            onSave={(ref, deadline) => { onPatch({ referenceNumber: ref, deadline }, k('ref')); setEditingRef(false); }} />
+        )}
+        {view.editableReference && ni.referenceNumber && !editingRef && (
+          <button type="button" className="rc-quiet" onClick={() => setEditingRef(true)}>עריכה</button>
         )}
         {view.deadlineNotice && (
-          <Notice tone={view.deadlineNotice.tone} style={{ marginTop: '.45rem' }}>
-            {view.deadlineNotice.text} {ni.deadline && `(${fmt(ni.deadline)})`}
-          </Notice>
+          <Notice tone={view.deadlineNotice.tone}>{view.deadlineNotice.text} {ni.deadline && `(${fmt(ni.deadline)})`}</Notice>
         )}
       </Step>
 
-      <Step n={3} title="ההוראות הגיעו למבוטח" done={sentWithSignature || !!ni.instructionsSentAt}
-        hint={
-          sentWithSignature ? 'נכללו במייל בקשת החתימה - מייל אחד לשתי הפעולות'
-          // ‼ קישור שנמסר ביד הוא ראיה חלשה יותר ממייל: יודעים שהוא יצא
-          // מכאן, לא שהוא הגיע. הצעד נסגר, אבל אומר בדיוק מה קרה.
-          : ni.instructionsSentWith === 'link' ? `הקישור האישי הועתק ונמסר ידנית ב-${fmt(ni.instructionsSentAt)}`
+      <Step title="ההוראות הגיעו למבוטח" done={sentWithSignature || !!ni.instructionsSentAt}
+        hint={sentWithSignature ? 'נכללו במייל בקשת החתימה'
+          : ni.instructionsSentWith === 'link' ? `הקישור האישי נמסר ידנית ב-${fmt(ni.instructionsSentAt)}`
           : ni.instructionsSentAt ? `נשלחו בנפרד ב-${fmt(ni.instructionsSentAt)}`
-          : `יישלחו יחד עם בקשת החתימה: אסמכתא, מועד אחרון, ואישור באתר ב״ל או בטלפון ${NI_APPROVAL_PHONE}`
-        }>
-        {/* ‼ אין כאן כפתור שליחה. ההוראות תמיד יוצאות עם מייל החתימה —
-            שליחה נפרדת גורמת למבוטח לקבל שני מיילים על אותו תהליך. */}
-        {/* ‼ הסבר «מה עוד יקרה» — רק כשזה עוד לא קרה. אחרי שההוראות יצאו (או
-            שהייצוג כבר פעיל) זה הסבר על עבר. */}
-        {/* ‼ בלי אסמכתא — השורה שמעל כבר אומרת בדיוק את זה; לא חוזרים עליה. */}
-        {!hasSignatureEmails && !sentWithSignature && !ni.instructionsSentAt && !view.final && ni.referenceNumber && (
-          <Notice tone="info">ℹ האסמכתא נשמרה. היא תיכלל במייל שנשלח מהפס המשותף שמתחת.</Notice>
-        )}
-      </Step>
+          : `יוצאות יחד עם בקשת החתימה: אסמכתא, מועד אחרון, ואישור באתר ב״ל או בטלפון ${NI_APPROVAL_PHONE}`} />
 
-      <Step n={4} title="אושר - הייצוג בב״ל פעיל" done={view.final}
+      <Step title="אושר — הייצוג בב״ל פעיל" done={view.final}
         hint={ni.confirmedAt ? `אושר ב-${fmt(ni.confirmedAt)}` : view.final ? 'פעיל לפי תיק ב״ל בכרטיס'
-          // ‼ בלי האסמכתא אין למבוטח מה לאשר — «ממתין לאישורו» מצביע על האדם הלא נכון.
-          : ni.referenceNumber && !niInstructionsDelivered(ni) ? 'המבוטח יוכל לאשר רק אחרי שיקבל את ההוראות (שלב 3)'
+          // ‼ בלי ההוראות אין למבוטח מה לאשר — «ממתין לאישורו» מצביע על האדם הלא נכון.
+          : ni.referenceNumber && !niInstructionsDelivered(ni) ? 'המבוטח יוכל לאשר רק אחרי שיקבל את ההוראות'
           : ni.referenceNumber ? 'ממתין לאישור המבוטח בב״ל' : undefined}>
-        {/* ‼ 195 — מה שביטוח לאומי **אמרה** בקריאה האחרונה, במילים שלה.
-            הצעד נשאר לא-מסומן עד שהמצב שנקרא היה «מאושר»; השורה הזאת קיימת
-            כדי שהמסך לא ישתוק על «ממתין לאישור» ויותיר את הרו"ח לנחש. */}
+        {/* ‼ 195 — מה שב״ל **אמרה** בקריאה האחרונה, במילים שלה (אם לא מוצג כבר למעלה). */}
         {external && view.showExternalEvidence && !resultShownAbove && (
-          <Notice tone={external.tone === 'warn' ? 'warning' : 'info'} style={{ marginBottom: '.45rem' }}>
-            ביטוח לאומי: <b>{external.label}</b>
-            {external.raw && ` ("${external.raw}")`}
-            {external.at && ` · נקרא ${fmt(external.at)}`}
+          <Notice tone={external.tone === 'warn' ? 'warning' : 'info'}>
+            ביטוח לאומי: <b>{external.label}</b>{external.raw && ` ("${external.raw}")`}{external.at && ` · נקרא ${fmt(external.at)}`}
           </Notice>
         )}
         {view.showManualConfirm && (
-          <button className="btn btn-secondary btn-sm" disabled={busy === k('conf')}
+          <button type="button" className="rc-quiet" disabled={busy === k('conf')}
             onClick={() => onPatch({ confirmedAt: new Date().toISOString() }, k('conf'))}>
-            {busy === k('conf') ? 'שומר…' : 'סמן כאושר'}
+            {busy === k('conf') ? 'שומר…' : 'סימון כאושר'}
           </button>
         )}
       </Step>
-    </>
+    </div>
   );
 
-  return (
-    <Track
-      title={title}
-      subtitle="הזנה ידנית · המבוטח מאשר את האסמכתא"
-      done={steps.filter(Boolean).length}
-      total={steps.length}
-      tone="🛡"
-      nextAction={nextAction}
+  return prereqStep && prereqClient && prereqSpouse ? (
+    <PrerequisiteGate
+      step={prereqStep}
+      currentValues={prereqCurrentValues ?? {}}
+      client={prereqClient}
+      spouse={prereqSpouse}
+      onSaveEmail={prereqOnSaveEmail ?? (async () => {})}
+      onChanged={() => prereqOnChanged?.()}
     >
-      {prereqStep && prereqClient && prereqSpouse ? (
-        <PrerequisiteGate
-          step={prereqStep}
-          currentValues={prereqCurrentValues ?? {}}
-          client={prereqClient}
-          spouse={prereqSpouse}
-          onSaveEmail={prereqOnSaveEmail ?? (async () => {})}
-          onChanged={() => prereqOnChanged?.()}
-        >
-          {executionSteps}
-        </PrerequisiteGate>
-      ) : executionSteps}
-    </Track>
-  );
+      {executionSteps}
+    </PrerequisiteGate>
+  ) : executionSteps;
 }
