@@ -103,7 +103,7 @@ Deno.serve(async (req: Request) => {
     if ((count ?? 0) >= MAX_PER_HOUR) return json({ error: "rate_limited" }, 429);
 
     const bytes = new Uint8Array(await file.arrayBuffer());
-    // ‼ 212 · אותו קובץ בדיוק כבר משויך **לאדם הזה** ⇒ לא נשמר שוב ולא נרשם שוב.
+    // ‼ 213 · אותו קובץ בדיוק כבר משויך **לאדם הזה** ⇒ לא נשמר שוב ולא נרשם שוב.
     // לאדם האחר (בן/בת הזוג) — רשומה נפרדת עם שיוך ואישור משלה; לא מסיקים בעלות מהתוכן.
     const hash = await sha256Hex(bytes);
     const mine = personDocIds(reqRow.identity_docs, person);

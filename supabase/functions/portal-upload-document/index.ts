@@ -167,7 +167,7 @@ Deno.serve(async (req: Request) => {
     // ── שמירה ב-Storage ואז ברשומת המסמכים ───────────────────────────────────
     const bytes = new Uint8Array(await file.arrayBuffer());
     const hash = await sha256Hex(bytes);
-    // ‼ 212 · צילום מזהה שכבר משויך **לאותו אדם** בדיוק (אותם בייטים) — לא נשמר שוב;
+    // ‼ 213 · צילום מזהה שכבר משויך **לאותו אדם** בדיוק (אותם בייטים) — לא נשמר שוב;
     // הפריט מצביע על הקיים. לאדם האחר — רשומה נפרדת (שיוך ואישור משלה).
     // «צילום אחר במקומו» (identity_replacement) — לא נוגעים: זו החלפה, לא העלאה.
     const idPerson = tokenKind === "release" || isBulk ? null

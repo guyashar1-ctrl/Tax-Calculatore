@@ -89,7 +89,7 @@ export default function IdentityDocAttach({ requestId, clientId, missing, usedDo
     setBusy(`${m.person}:upload`);
     setErr(null);
     try {
-      // ‼ 212 · בלי עותק כפול: זהה שכבר משויך לאדם הזה / יושב בתיק בלי שיוך — לא מעלים שוב.
+      // ‼ 213 · בלי עותק כפול: זהה שכבר משויך לאדם הזה / יושב בתיק בלי שיוך — לא מעלים שוב.
       // זהה שמשויך לאדם האחר — רשומה נפרדת (שיוך ואישור משלה). ראה identityDedupe.ts.
       const data = await file.arrayBuffer();
       const hash = await sha256Hex(data);
