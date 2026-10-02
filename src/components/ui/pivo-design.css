@@ -2974,7 +2974,20 @@ input.pg-search:focus { box-shadow: 0 0 0 2px var(--focus-ring); border-color: t
 .docw-head-row{color:var(--ink-4);font-size:11px;font-weight:700;border-bottom:1px solid var(--hairline-1)}
 .docw-row{border-top:1px solid var(--hairline-2);cursor:pointer;font-size:var(--fs-13)}
 .docw-row:first-of-type{border-top:0}
-.docw-row:hover{background:var(--surface-1)}
+/* ‼ ריחוף רק במכשיר עם עכבר: בטלפון ריחוף «נתקע» אחרי הקשה — ריבוע אפור סביב
+   החץ ושורה מודגשת שנשארים אחרי שהאצבע כבר עזבה. */
+@media (hover:hover) and (pointer:fine){
+  .docw-row:hover{background:var(--surface-1)}
+  .docw-back:hover{background:var(--surface-1)}
+  .docw-crumb:hover{background:var(--surface-1);text-decoration:underline;text-underline-offset:3px}
+  .docw-sort:hover{color:var(--ink-2);background:var(--surface-1)}
+  .docw-twisty:hover{background:var(--surface-2);color:var(--ink-1)}
+  .docw-folder-row:hover .docw-name-text{text-decoration:underline;text-underline-offset:3px}
+  .docw-tool-btn:hover{background:var(--surface-1)}
+  .docw-text-btn:hover{text-decoration:underline;text-underline-offset:3px}
+  .docw-chip button:hover{background:color-mix(in srgb, currentColor 12%, transparent)}
+  .docw-sort:hover .docw-sort-arrow.is-idle{opacity:.75}
+}
 .docw-name{font-weight:600;color:var(--ink-1)}
 .docw-path-hint{display:block;font-size:var(--fs-12);color:var(--ink-4);margin-top:2px;font-weight:400}
 .docw-col-year,.docw-col-updated{color:var(--ink-3);font-size:var(--fs-12)}
@@ -3046,13 +3059,11 @@ input.pg-search:focus { box-shadow: 0 0 0 2px var(--focus-ring); border-color: t
   border:1px solid var(--hairline-1);border-radius:8px;background:var(--surface-0);color:var(--ink-1);
   font:inherit;font-size:var(--fs-12);font-weight:600;cursor:pointer;
   transition:background-color .12s ease,transform .12s cubic-bezier(.23,1,.32,1)}
-.docw-back:hover{background:var(--surface-1)}
 .docw-back:active{transform:scale(.97)}
 .docw-back svg{width:14px;height:14px;flex:none}
 .docw-crumbs{display:flex;align-items:center;gap:0;flex-wrap:wrap;min-width:0}
 .docw-crumb{border:0;background:none;padding:4px 6px;border-radius:6px;color:var(--accent);
   font:inherit;font-size:var(--fs-12);cursor:pointer;transition:background-color .12s ease}
-.docw-crumb:hover{background:var(--surface-1);text-decoration:underline;text-underline-offset:3px}
 .docw-crumb-here{padding:4px 6px;color:var(--ink-1);font-weight:600;font-size:var(--fs-13)}
 .docw-crumb-sep{display:inline-flex;color:var(--ink-4)}
 .docw-crumb-sep svg{width:12px;height:12px}
@@ -3063,12 +3074,10 @@ input.pg-search:focus { box-shadow: 0 0 0 2px var(--focus-ring); border-color: t
 .docw-head-row{--docw-slot:26px}
 .docw-sort{display:inline-flex;align-items:center;gap:4px;justify-self:start;border:0;background:none;
   padding:2px 4px;margin:-2px -4px;border-radius:5px;font:inherit;color:inherit;cursor:pointer}
-.docw-sort:hover{color:var(--ink-2);background:var(--surface-1)}
 .docw-sort.is-active{color:var(--ink-1)}
 .docw-sort-name{margin-inline-start:calc(var(--docw-slot) - 10px)}
-.docw-sort-arrow{width:10px;height:12px;flex:none;opacity:0;transition:opacity .12s ease}
-.docw-sort.is-active .docw-sort-arrow{opacity:1;color:var(--accent)}
-@media (hover:hover){.docw-sort:not(.is-active):hover .docw-sort-arrow{opacity:.4}}
+.docw-sort-arrow{width:10px;height:12px;flex:none;transition:opacity .12s ease}
+.docw-sort.is-active .docw-sort-arrow{color:var(--accent)}
 
 /* שם + משבצת החץ. הזחה לפי עומק: --docw-depth על השורה. */
 .docw-row{--docw-slot:26px;--docw-indent:22px}
@@ -3079,13 +3088,11 @@ input.pg-search:focus { box-shadow: 0 0 0 2px var(--focus-ring); border-color: t
 .docw-twisty{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;padding:0;
   border:0;border-radius:6px;background:none;color:var(--ink-3);cursor:pointer;
   transition:background-color .12s ease,color .12s ease,transform .12s cubic-bezier(.23,1,.32,1)}
-.docw-twisty:hover{background:var(--surface-2);color:var(--ink-1)}
 .docw-twisty:active{transform:scale(.9)}
 .docw-twisty svg{width:14px;height:14px;transition:transform .14s cubic-bezier(.23,1,.32,1)}
 .docw-twisty[aria-expanded="true"]{color:var(--ink-1)}
 .docw-twisty[aria-expanded="true"] svg{transform:rotate(-90deg)}
 /* השם של תיקייה הוא קישור כניסה — הקו מתחתיו בריחוף אומר את זה בלי מילים */
-@media (hover:hover){.docw-folder-row:hover .docw-name-text{text-decoration:underline;text-underline-offset:3px}}
 .docw-row.is-nested{font-size:var(--fs-13)}
 .docw-row.is-nested .docw-name{font-weight:500}
 .docw-nest-empty{cursor:default;color:var(--ink-4);font-size:var(--fs-12)}
@@ -3094,8 +3101,63 @@ input.pg-search:focus { box-shadow: 0 0 0 2px var(--focus-ring); border-color: t
 .docw-sort-compact{display:none;align-items:center;gap:6px;font-size:var(--fs-12);color:var(--ink-3)}
 .docw-sort-compact select{width:auto;min-width:0;padding:5px 8px;font:inherit;font-size:var(--fs-12);
   color:var(--ink-1);background:var(--surface-0);border:1px solid var(--bd-strong);border-radius:var(--r-input)}
+.docw-name,.docw-path-hint{min-width:0;overflow-wrap:anywhere}
+/* התווית בשורת הרמז — רק בטלפון (במחשב יש לה עמודה) */
+.docw-hint-label{display:none}
+.docw-path-hint.is-label-only{display:none}
+
+/* ─── חיפוש · סינון · הוספה — שורה אחת (02.10.2026) ─────────────────────
+   ‼ תווית ושנה ירדו לחלון «סינון»: כשני בוררים קבועים הם תפסו שתי שורות
+   בטלפון. מה שמסונן גלוי בשבבים מתחת, כל אחד עם הסרה. */
+.docw-toolbar{flex-wrap:nowrap;gap:8px}
+.docw-search{position:relative;flex:1 1 auto;min-width:0}
+.docw-search-icon{position:absolute;inset-inline-start:11px;top:50%;width:15px;height:15px;
+  transform:translateY(-50%);color:var(--ink-4);pointer-events:none}
+.docw-toolbar .docw-search-input{width:100%;min-width:0;height:38px;margin:0;padding:0 10px;padding-inline-start:34px;
+  border:1px solid var(--bd-strong);border-radius:var(--r-input);background:var(--surface-0);
+  font:inherit;font-size:var(--fs-13);color:var(--ink-1);text-overflow:ellipsis}
+.docw-toolbar .docw-search-input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--soft)}
+.docw-tool-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:38px;padding:0 12px;
+  border:1px solid var(--bd-strong);border-radius:var(--r-input);background:var(--surface-0);color:var(--ink-1);
+  font:inherit;font-size:var(--fs-13);cursor:pointer;white-space:nowrap;
+  transition:background-color .12s ease,border-color .12s ease,transform .12s cubic-bezier(.23,1,.32,1)}
+.docw-tool-btn svg{width:15px;height:15px;flex:none}
+.docw-tool-btn:active{transform:scale(.97)}
+.docw-tool-btn.is-active{border-color:var(--accent);color:var(--accent);background:var(--soft)}
+.docw-tool-btn:focus-visible,.docw-add-btn:focus-visible,.docw-chip button:focus-visible,.docw-text-btn:focus-visible{
+  outline:2px solid var(--accent);outline-offset:1px}
+.docw-tool-count{min-width:18px;height:18px;padding:0 5px;border-radius:999px;background:var(--accent);
+  color:var(--on-accent,#fff);font-size:11px;font-weight:700;display:inline-flex;align-items:center;justify-content:center}
+.docw-add{position:relative;flex:none}
+.docw-add-btn{display:inline-flex;align-items:center;justify-content:center;gap:4px;height:38px;white-space:nowrap}
+.docw-add-btn svg{width:14px;height:14px;flex:none}
+.docw-add .ial-doc-menu{top:calc(100% + 6px)}
+.docw-filter-wrap{position:relative;flex:none}
+/* החלון נפתח מתחת לכפתור, ומתוכו (origin) — 140ms, כניסה בלבד; סגירה מיידית */
+.docw-filter-pop{position:absolute;top:calc(100% + 6px);inset-inline-start:0;z-index:12;width:280px;
+  display:flex;flex-direction:column;gap:10px;padding:12px;background:var(--surface-0);
+  border:1px solid var(--hairline-1);border-radius:var(--r-panel);box-shadow:0 10px 28px rgba(16,24,40,.14);
+  transform-origin:top right;opacity:1;transform:none;
+  transition:opacity .14s ease-out,transform .14s cubic-bezier(.23,1,.32,1)}
+@starting-style{.docw-filter-pop{opacity:0;transform:translateY(-4px) scale(.98)}}
+.docw-filter-field{display:flex;flex-direction:column;gap:4px;font-size:var(--fs-12);color:var(--ink-3)}
+.docw-toolbar .docw-filter-field select{width:100%;min-width:0;height:38px;font:inherit;font-size:var(--fs-13);color:var(--ink-1)}
+.docw-filter-foot{display:flex;align-items:center;justify-content:space-between}
+.docw-text-btn{border:0;background:none;padding:6px 4px;font:inherit;font-size:var(--fs-12);color:var(--accent);cursor:pointer}
+.docw-text-btn:disabled{color:var(--ink-4);cursor:default;text-decoration:none}
+.docw-chips{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:0 2px}
+.docw-chip{display:inline-flex;align-items:center;gap:2px;height:28px;padding-inline:10px 3px;border-radius:999px;
+  background:var(--soft);color:var(--accent);font-size:var(--fs-12)}
+.docw-chip button{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;padding:0;
+  border:0;border-radius:999px;background:none;color:inherit;cursor:pointer;transition:background-color .12s ease}
+.docw-chip svg{width:12px;height:12px}
+
+/* כל כותרת נראית לחיצה: סימן «ניתן למיון» קבוע; בעמודה הפעילה — חץ הכיוון בצבע */
+.docw-sort-arrow{opacity:1}
+.docw-sort-arrow.is-idle{opacity:.38}
+
 @media (prefers-reduced-motion:reduce){
-  .docw-back,.docw-twisty,.docw-twisty svg,.docw-crumb,.docw-sort-arrow{transition:none}
+  .docw-back,.docw-twisty,.docw-twisty svg,.docw-crumb,.docw-sort-arrow,.docw-tool-btn,.docw-filter-pop{transition:none}
 }
 @media (max-width:700px){
   /* ‼ שורת הכותרת מוסתרת במסך צר, ואיתה "בחר הכל" — לכן היא חוזרת
@@ -3106,10 +3168,36 @@ input.pg-search:focus { box-shadow: 0 0 0 2px var(--focus-ring); border-color: t
   .docw-bulkbar-actions{margin-inline-start:0;width:100%}
   .docw-bulkbar-actions .btn{flex:1}
   .docw-bulkbar-all{display:inline}
-  /* ‼ אזורי לחיצה לאצבע: החץ 40px, חזרה 40px. ההזחה קטנה יותר כדי שהשם לא יידחק. */
-  .docw-row{--docw-slot:40px;--docw-indent:14px}
-  .docw-twisty{width:40px;height:40px;margin-block:-8px}
+  /* ‼ אזורי לחיצה לאצבע: החץ 40px (המשבצת 30px והכפתור גולש לרווח), חזרה 40px.
+     עמודת התווית יורדת — התווית נקראת בשורה הקטנה שמתחת לשם — וההזחה קטנה
+     ונעצרת בעומק 3. כך שם ארוך בתיקייה מקוננת מקבל את כל רוחב השורה. */
+  .docw-row{--docw-slot:30px;--docw-indent:12px;grid-template-columns:22px minmax(0,1fr)}
+  .docw-name-cell{padding-inline-start:calc(min(var(--docw-depth,0), 3) * var(--docw-indent))}
+  .docw-row .docw-col-label{display:none}
+  /* שורת הרמז: התווית קודם (תמיד נראית), אחריה שם הקובץ בשורה אחת עם «…» —
+     שם קובץ ארוך היה חוזר על השם הראשי בעוד שלוש שורות. */
+  .docw-path-hint{display:flex;align-items:baseline;min-width:0}
+  .docw-path-hint.is-label-only{display:flex}
+  .docw-name-cell .docw-name{flex:1 1 auto}
+  .docw-hint-label{display:block;order:-1;flex:none;max-width:65%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .docw-path-hint.is-label-only .docw-hint-label{max-width:100%}
+  .docw-hint-path + .docw-hint-label::after{content:" · ";white-space:pre}
+  .docw-hint-path{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .docw-twisty{width:40px;height:40px;margin-block:-8px;margin-inline:-6px -4px}
   .docw-twisty svg{width:16px;height:16px}
+  /* שורת הכלים בטלפון: חיפוש גמיש, «סינון» עם מילה, «+» כאייקון. 44px לאגודל;
+     16px בשדה החיפוש — מתחת לזה ספארי מגדיל את הדף בכל הקשה. */
+  .docw-toolbar{gap:6px}
+  .docw-toolbar .docw-search-input{height:44px;font-size:16px}
+  .docw-tool-btn,.docw-add-btn{height:44px;min-width:44px;padding:0 11px}
+  .docw-add-btn .docw-tool-label{display:none}
+  .docw-filter-wrap{position:static}
+  .docw-toolbar{position:relative}
+  .docw-filter-pop{inset-inline:0;width:auto;transform-origin:top center}
+  .docw-toolbar .docw-filter-field select{height:44px;font-size:16px}
+  .docw-chip{height:32px}
+  .docw-chip button{width:30px;height:30px}
+  .ial-docs.cw-tabpanel{gap:.6rem}
   .docw-back{min-height:40px;padding:0 12px 0 10px;font-size:var(--fs-13)}
   .docw-crumb,.docw-crumb-here{padding:8px 6px}
   .docw-path{gap:.2rem .4rem}
@@ -4974,3 +5062,17 @@ input.pg-search:focus { box-shadow: 0 0 0 2px var(--focus-ring); border-color: t
 /* המונה על «שלח בקשות» — כמה נמענים */
 .ob-send-cnt { background: rgba(255,255,255,.22); border-radius: 999px; padding: 0 7px; font-size: 11px; margin-inline-start: 6px; }
 .ob-clientpage .btn-primary { font-weight: 600; }
+
+/* ─── כותרת הלקוח בטלפון (02.10.2026) ───────────────────────────────────
+   ‼ נמדד ב-360: הכותרת תפסה 314px לפני הלשוניות — «⋯» קיבל שורה שלמה
+   לבדו, ועוד ריפוד מסביב. עכשיו «לקוחות» ו«⋯» חולקים שורה אחת והזהות
+   מתחתם. אזורי הלחיצה (44px) נשארים כמו שהם. */
+@media (max-width:760px){
+  .cw-header{padding:.1rem .25rem .3rem;margin-bottom:.6rem}
+  .cw-header-top{display:grid;grid-template-columns:minmax(0,1fr) auto;
+    grid-template-areas:"back actions" "id id";align-items:center;column-gap:.5rem;row-gap:0;padding:0 0 .3rem}
+  .cw-header-top > .cw-back{grid-area:back;justify-self:start}
+  .cw-header-top > .cw-header-actions{grid-area:actions}
+  .cw-header-top > .cw-identity{grid-area:id;min-width:0}
+  .cw-name{font-size:20px}
+}

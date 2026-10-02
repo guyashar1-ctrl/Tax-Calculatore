@@ -142,11 +142,43 @@ function BackIcon() {
     </svg>
   );
 }
-function SortArrow({ dir }: { dir: SortDir }) {
+/** חץ מיון: כיוון לעמודה הפעילה; בשאר — סימן «ניתן למיון» (שני חצים), כדי שכל כותרת תיראה לחיצה. */
+function SortArrow({ dir }: { dir: SortDir | null }) {
+  const d = dir === 'asc' ? 'M5 10.5V1.8M1.8 4.8 5 1.6l3.2 3.2'
+    : dir === 'desc' ? 'M5 1.5v8.7M1.8 7.2 5 10.4l3.2-3.2'
+    : 'M2 4.6 5 1.6l3 3M2 7.4l3 3 3-3';
   return (
-    <svg className="docw-sort-arrow" viewBox="0 0 10 12" aria-hidden="true" focusable="false">
-      <path d={dir === 'asc' ? 'M5 10.5V1.8M1.8 4.8 5 1.6l3.2 3.2' : 'M5 1.5v8.7M1.8 7.2 5 10.4l3.2-3.2'}
-        fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    <svg className={`docw-sort-arrow${dir ? '' : ' is-idle'}`} viewBox="0 0 10 12" aria-hidden="true" focusable="false">
+      <path d={d} fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+function SearchIcon() {
+  return (
+    <svg className="docw-search-icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+      <circle cx="7" cy="7" r="4.6" fill="none" stroke="currentColor" strokeWidth="1.6" />
+      <path d="m10.5 10.5 3.2 3.2" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+    </svg>
+  );
+}
+function FilterIcon() {
+  return (
+    <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+      <path d="M2.5 4h11M4.5 8h7M6.5 12h3" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+    </svg>
+  );
+}
+function PlusIcon() {
+  return (
+    <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+      <path d="M8 3v10M3 8h10" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+function CloseIcon() {
+  return (
+    <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+      <path d="m4.5 4.5 7 7m0-7-7 7" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
     </svg>
   );
 }
@@ -195,6 +227,28 @@ export default function DocumentsWorkspace({ client, allClients, initialFolderId
   const [search, setSearch] = useState('');
   const [filterLabel, setFilterLabel] = useState('');
   const [filterYear, setFilterYear] = useState('');
+  const activeFilterCount = (filterLabel ? 1 : 0) + (filterYear ? 1 : 0);
+  const [filterOpen, setFilterOpen] = useState(false);
+  const filterWrapRef = useRef<HTMLDivElement>(null);
+  const filterFirstRef = useRef<HTMLSelectElement>(null);
+  function closeFilter(returnFocus: boolean) {
+    setFilterOpen(false);
+    if (returnFocus) filterWrapRef.current?.querySelector<HTMLButtonElement>('.docw-tool-btn')?.focus();
+  }
+  function resetFilters() { clearSelection(); setFilterLabel(''); setFilterYear(''); }
+  // חלון הסינון: נסגר בלחיצה מחוצה לו או ב-Escape; הפוקוס נכנס לבורר הראשון.
+  useEffect(() => {
+    if (!filterOpen) return;
+    filterFirstRef.current?.focus();
+    function onDown(e: PointerEvent) {
+      if (!filterWrapRef.current?.contains(e.target as Node)) setFilterOpen(false);
+    }
+    function onKey(e: KeyboardEvent) { if (e.key === 'Escape') closeFilter(true); }
+    document.addEventListener('pointerdown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => { document.removeEventListener('pointerdown', onDown); document.removeEventListener('keydown', onKey); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filterOpen]);
 
   const [addMenuOpen, setAddMenuOpen] = useState(false);
   const [uploadModal, setUploadModal] = useState<{ files: File[]; meta: MetaDraft } | null>(null);
@@ -1726,10 +1780,16 @@ export default function DocumentsWorkspace({ client, allClients, initialFolderId
           </span>
           <span className="docw-name">
             📁 <span className="docw-name-text">{f.name}</span>
-            {path && <span className="docw-path-hint">{path}</span>}
+            {/* בטלפון אין עמודת תווית — התווית נקראת כאן, בשורה הקטנה מתחת לשם */}
+            {(path || label) && (
+              <span className={`docw-path-hint${path ? '' : ' is-label-only'}`}>
+                {path && <span className="docw-hint-path">{path}</span>}
+                {label && <span className="docw-hint-label">{label.name}</span>}
+              </span>
+            )}
           </span>
         </span>
-        <span>{label && <span className="ial-doc-label-chip">{label.name}</span>}</span>
+        <span className="docw-col-label">{label && <span className="ial-doc-label-chip">{label.name}</span>}</span>
         <span className="docw-col-year">{f.year || '-'}</span>
         <span className="docw-col-updated">
           {fmtDate(f.createdAt)}
@@ -1782,10 +1842,13 @@ export default function DocumentsWorkspace({ client, allClients, initialFolderId
           <span className="docw-twisty-slot" />
           <span className="docw-name">
             {d.description || d.fileName}
-            <span className="docw-path-hint">{path || d.fileName}</span>
+            <span className="docw-path-hint">
+              <span className="docw-hint-path">{path || d.fileName}</span>
+              {label && <span className="docw-hint-label">{label.name}</span>}
+            </span>
           </span>
         </span>
-        <span>{label
+        <span className="docw-col-label">{label
           ? <span className="ial-doc-label-chip">{label.name}</span>
           : <span className="ial-doc-label-chip" style={{ opacity: .6 }}>ללא תווית</span>}</span>
         <span className="docw-col-year">{d.year === 'general' ? 'כללי' : d.year}</span>
@@ -1797,26 +1860,62 @@ export default function DocumentsWorkspace({ client, allClients, initialFolderId
   return (
     <div className="cw-tabpanel ial-docs" onClick={() => addMenuOpen && setAddMenuOpen(false)}>
       {!isFirstRun && (
+      <>
+      {/* ‼ שורה אחת: חיפוש · סינון · הוספה. התווית והשנה ירדו לחלון «סינון» —
+          הם לא בשימוש רוב הזמן, וכשני בוררים קבועים הם גזלו שתי שורות בטלפון.
+          המיון אינו כאן בכוונה: הוא חי ליד הרשימה (כותרות העמודות / בורר
+          בטלפון) — סינון מסתיר פריטים, מיון רק מסדר אותם. */}
       <div className="docw-toolbar">
-        <input
-          className="ial-doc-search"
-          style={{ flex: 1, minWidth: 180 }}
-          placeholder="חפש קובץ, תיקייה, תווית או שנה…"
-          value={search}
-          onChange={e => { clearSelection(); setSearch(e.target.value); }}
-        />
-        <select value={filterLabel} onChange={e => { clearSelection(); setFilterLabel(e.target.value); }}>
-          <option value="">כל התוויות</option>
-          {labels.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
-          <option value={NO_LABEL}>ללא תווית</option>
-        </select>
-        <select value={filterYear} onChange={e => { clearSelection(); setFilterYear(e.target.value); }}>
-          <option value="">כל השנים</option>
-          {yearOptions.map(y => <option key={y} value={y}>{y}</option>)}
-        </select>
-        <div style={{ position: 'relative' }}>
-          <button type="button" className="btn btn-sm btn-primary" onClick={e => { e.stopPropagation(); setAddMenuOpen(v => !v); }}>
-            הוסף ▾
+        <div className="docw-search">
+          <SearchIcon />
+          <input
+            type="search"
+            className="docw-search-input"
+            aria-label="חיפוש במסמכים"
+            placeholder="חיפוש קובץ, תיקייה, תווית או שנה…"
+            value={search}
+            onChange={e => { clearSelection(); setSearch(e.target.value); }}
+          />
+        </div>
+        <div className="docw-filter-wrap" ref={filterWrapRef}>
+          <button
+            type="button"
+            className={`docw-tool-btn${activeFilterCount ? ' is-active' : ''}`}
+            aria-haspopup="dialog" aria-expanded={filterOpen}
+            aria-label={activeFilterCount ? `סינון - ${activeFilterCount} פעילים` : 'סינון'}
+            onClick={e => { e.stopPropagation(); setAddMenuOpen(false); setFilterOpen(v => !v); }}
+          >
+            <FilterIcon /><span className="docw-tool-label">סינון</span>
+            {activeFilterCount > 0 && <span className="docw-tool-count" aria-hidden="true">{activeFilterCount}</span>}
+          </button>
+          {filterOpen && (
+            <div className="docw-filter-pop" role="dialog" aria-label="סינון המסמכים" onClick={e => e.stopPropagation()}>
+              <label className="docw-filter-field">
+                <span>תווית</span>
+                <select ref={filterFirstRef} value={filterLabel} onChange={e => { clearSelection(); setFilterLabel(e.target.value); }}>
+                  <option value="">כל התוויות</option>
+                  {labels.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+                  <option value={NO_LABEL}>ללא תווית</option>
+                </select>
+              </label>
+              <label className="docw-filter-field">
+                <span>שנה</span>
+                <select value={filterYear} onChange={e => { clearSelection(); setFilterYear(e.target.value); }}>
+                  <option value="">כל השנים</option>
+                  {yearOptions.map(y => <option key={y} value={y}>{y}</option>)}
+                </select>
+              </label>
+              <div className="docw-filter-foot">
+                <button type="button" className="docw-text-btn" disabled={!activeFilterCount} onClick={resetFilters}>איפוס</button>
+                <button type="button" className="btn btn-sm" onClick={() => closeFilter(true)}>סגירה</button>
+              </div>
+            </div>
+          )}
+        </div>
+        <div className="docw-add">
+          <button type="button" className="btn btn-sm btn-primary docw-add-btn" aria-label="הוספה" aria-haspopup="menu" aria-expanded={addMenuOpen}
+            onClick={e => { e.stopPropagation(); setFilterOpen(false); setAddMenuOpen(v => !v); }}>
+            <PlusIcon /><span className="docw-tool-label">הוסף</span>
           </button>
           {addMenuOpen && (
             <div className="ial-doc-menu" onClick={e => e.stopPropagation()}>
@@ -1839,6 +1938,26 @@ export default function DocumentsWorkspace({ client, allClients, initialFolderId
           {...({ webkitdirectory: '', directory: '' } as any)}
         />
       </div>
+      {/* מסננים פעילים — גלויים תמיד כשהם פועלים, כל אחד עם הסרה משלו. בלי
+          זה רשימה מסוננת נראית כמו רשימה חסרה. */}
+      {activeFilterCount > 0 && (
+        <div className="docw-chips" aria-label="מסננים פעילים">
+          {filterLabel && (
+            <span className="docw-chip">
+              תווית: {filterLabel === NO_LABEL ? 'ללא תווית' : (labelsById.get(filterLabel)?.name ?? '')}
+              <button type="button" aria-label="הסרת מסנן התווית" onClick={() => { clearSelection(); setFilterLabel(''); }}><CloseIcon /></button>
+            </span>
+          )}
+          {filterYear && (
+            <span className="docw-chip">
+              שנה: {filterYear}
+              <button type="button" aria-label="הסרת מסנן השנה" onClick={() => { clearSelection(); setFilterYear(''); }}><CloseIcon /></button>
+            </span>
+          )}
+          {activeFilterCount > 1 && <button type="button" className="docw-text-btn" onClick={resetFilters}>נקה הכל</button>}
+        </div>
+      )}
+      </>
       )}
 
       {isFirstRun ? (
@@ -1981,7 +2100,7 @@ export default function DocumentsWorkspace({ client, allClients, initialFolderId
                   title={active ? `${SORT_LABEL[k]}: ${sortDirText(k, sort.dir)} · לחיצה להיפוך` : `מיון לפי ${SORT_LABEL[k]}`}
                 >
                   {SORT_LABEL[k]}
-                  <SortArrow dir={active ? sort.dir : FIRST_DIR[k]} />
+                  <SortArrow dir={active ? sort.dir : null} />
                 </button>
               );
             })}
