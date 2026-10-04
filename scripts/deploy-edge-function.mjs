@@ -33,6 +33,13 @@ if (!ref || !name) {
   process.exit(1);
 }
 
+// ‼ פונקציות של סביבת הבדיקות בלבד — לעולם לא לייצור (גם הוורקפלו מדלג עליהן).
+const STAGING_ONLY = new Set(['fake-email-provider']);
+if (target === 'prod' && STAGING_ONLY.has(name)) {
+  console.error('✋ ' + name + ' היא פונקציה של סביבת הבדיקות בלבד — לא נפרסת לייצור.');
+  process.exit(1);
+}
+
 const fnDir = resolve(ROOT, 'supabase/functions', name);
 const entry = join(fnDir, 'index.ts');
 if (!existsSync(entry)) { console.error(`✋ ${relative(ROOT, entry)} לא נמצא`); process.exit(1); }

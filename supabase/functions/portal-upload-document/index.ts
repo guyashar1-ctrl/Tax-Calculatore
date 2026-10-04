@@ -38,6 +38,29 @@ const CATEGORY_BY_KEY: Record<string, string> = {
   identity_replacement: "id_card",
 };
 
+/**
+ * האם stepId הוא שלב החומרים של המכתב שהטוקן שלו — לפי _release_materials_step (217).
+ *   ok           — זה השלב.
+ *   wrong_step   — שלב אחר, או שלמכתב אין שלב חומרים.
+ *   fallback     — הפונקציה עוד לא קיימת במסד (נפרס לפני 217): הכלל הקודם, לפי לקוח.
+ *   lookup_failed — תקלה אחרת: לא מעלים לשלב שלא אומת.
+ * ‼ טהור — נבדק בבדיקות היחידה מתוך הקובץ הזה.
+ */
+function releaseStepVerdict(
+  stepId: string,
+  helper: { data: unknown; error: { code?: string; message?: string } | null },
+): "ok" | "wrong_step" | "fallback" | "lookup_failed" {
+  if (helper.error) {
+    const code = String(helper.error.code ?? "");
+    const msg = String(helper.error.message ?? "");
+    const missing = code === "PGRST202" || code === "42883"
+      || /could not find the function|function .* does not exist/i.test(msg);
+    return missing ? "fallback" : "lookup_failed";
+  }
+  const expected = typeof helper.data === "string" || typeof helper.data === "number" ? String(helper.data) : "";
+  return expected && expected === stepId ? "ok" : "wrong_step";
+}
+
 Deno.serve(async (req: Request) => {
   const cors: Record<string, string> = {
     "Access-Control-Allow-Origin": "*",
@@ -85,13 +108,25 @@ Deno.serve(async (req: Request) => {
       // ‼ מכתב שבוטל = הטוקן שלו מת — אותו תנאי כמו בפונקציות דף השחרור (165).
       const { data: rel } = await admin
         .from("onboarding_steps")
-        .select("client_id")
+        .select("id, client_id")
         .eq("step_type", "release_letter")
         .eq("payload->>releaseToken", token)
         .neq("status", "cancelled")
         .maybeSingle();
       if (!rel) return json({ error: "invalid_token" }, 403);
       clientId = rel.client_id;
+      // ‼ (217) הטוקן של מכתב מסוים מעלה רק לשלב החומרים **של המכתב הזה** — אותו
+      // שלב שדף השחרור מציג (_release_materials_step). בלי זה, טוקן של מכתב ישן
+      // שהושלם (רק ביטול הורג טוקן) העלה גם לשלב החומרים של קליטה חדשה ללקוח.
+      const helper = await admin.rpc("_release_materials_step", { p_letter_id: rel.id });
+      const verdict = releaseStepVerdict(stepId, helper);
+      if (verdict === "lookup_failed") {
+        console.error("[portal-upload] _release_materials_step failed", helper.error?.code, helper.error?.message);
+        return json({ error: "step_lookup_failed" }, 500);
+      }
+      if (verdict === "wrong_step") return json({ error: "step_not_found" }, 404);
+      // fallback — מסד שעוד לא קיבל את 217: הכלל הקודם (שלב חומרים של אותו לקוח), למטה.
+      if (verdict === "fallback") console.warn("[portal-upload] _release_materials_step missing — client-wide rule");
     } else {
       const { data: cli } = await admin
         .from("clients").select("id, portal_token_expires_at").eq("portal_token", token).maybeSingle();

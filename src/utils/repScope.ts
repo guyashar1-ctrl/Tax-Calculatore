@@ -20,8 +20,9 @@ export function authorityHasTargets(a: RepAuthorityKind): boolean {
 }
 
 /**
- * עבור מי התבקש הייצוג ברשות. מחזיר תמיד לפחות אדם אחד.
- * ‼ חסר ⇒ `['client']` (ראה כותרת הקובץ).
+ * עבור מי התבקש הייצוג ברשות. בלי רשומה — אף אחד.
+ * ‼ חסר ⇒ `['client']` (ראה כותרת הקובץ) — חוץ מרשומה שבוטל בה אדם (212),
+ * שבה רשימה ריקה היא «אף אחד».
  *
  * ‼ נפילה-לאחור לביטוח לאומי (31.8): לפני שהצטרף ל-`targets[]`, "עבור מי"
  * היה מבוטא בדגל `coversSpouse`. רשומה ישנה עם הדגל אבל בלי `targets` מתורגמת
@@ -34,6 +35,8 @@ export function targetsOf(areas: AuthorityRepresentations | undefined, a: RepAut
   if (!authorityHasTargets(a)) return ['client'];
   const t = rec.targets;
   if (t && t.length) return t;
+  // ‼ 212: מישהו בוטל ⇒ הרשימה היא התשובה גם כשהיא ריקה (ni_targets_of בשרת).
+  if (Array.isArray(t) && rec.cancelled && Object.keys(rec.cancelled).length) return [];
   if (a === 'nationalInsurance' && rec.coversSpouse) return ['client', 'spouse'];
   return ['client'];
 }

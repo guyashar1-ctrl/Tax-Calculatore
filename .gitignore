@@ -47,3 +47,6 @@ dist-review/
 scripts/design-export-*.mjs
 docs/PIVO-CLIENT-LIFECYCLE-VISUAL.*
 כל המסכים ב HTML/
+
+# צילומי מסך וסקריפטים של בדיקות מקומיות — לא לגיט
+docs/evidence/

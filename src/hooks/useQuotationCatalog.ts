@@ -9,6 +9,22 @@ import {
   DEFAULT_SERVICES, DEFAULT_TEMPLATES, TOP_UP_SEED_KEYS, buildTemplateRows,
 } from '../data/defaultServiceCatalog';
 
+// ‼ יש כמה מופעים של ה-hook (בונה ההצעה ב-App, «הצעות מחיר» בהגדרות), וכל
+// אחד טוען פעם אחת. שינוי שנשמר באחד מודיע לכל המופעים לטעון מחדש — אחרת
+// תבנית שנוספה בהגדרות לא מופיעה בבונה ההצעה עד רענון הדף.
+export const QUOTATION_CATALOG_EVENT = 'pivo:quotation-catalog';
+
+export function notifyQuotationCatalogChanged(): void {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(new Event(QUOTATION_CATALOG_EVENT));
+}
+
+export function onQuotationCatalogChanged(fn: () => void): () => void {
+  if (typeof window === 'undefined') return () => {};
+  window.addEventListener(QUOTATION_CATALOG_EVENT, fn);
+  return () => window.removeEventListener(QUOTATION_CATALOG_EVENT, fn);
+}
+
 // קטלוג שירותים + תבניות הצעה. נטענים יחד כי הזריעה הראשונית תלויה בשניהם:
 // התבניות מפנות למזהי שירותים, ולכן חייבות להיזרע אחרי שהשירותים קיבלו id.
 export function useQuotationCatalog(userId: string | undefined) {
@@ -17,16 +33,22 @@ export function useQuotationCatalog(userId: string | undefined) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const seedingRef = useRef(false);
+  const [reloadTick, setReloadTick] = useState(0);
+  const loadedUserRef = useRef<string | undefined>(undefined);
+
+  useEffect(() => onQuotationCatalogChanged(() => setReloadTick(t => t + 1)), []);
 
   useEffect(() => {
     if (!userId) {
+      loadedUserRef.current = undefined;
       setServices([]);
       setTemplates([]);
       setLoading(false);
       return;
     }
     let cancelled = false;
-    setLoading(true);
+    // טעינה חוזרת אחרי שמירה רצה בשקט — בלי להחליף את המסך במצב «טוען»
+    if (loadedUserRef.current !== userId) setLoading(true);
     (async () => {
       const [svcRes, tplRes] = await Promise.all([
         supabase.from('service_catalog').select('*').order('display_order', { ascending: true }),
@@ -71,9 +93,10 @@ export function useQuotationCatalog(userId: string | undefined) {
       setTemplates(tplRows);
       setError(null);
       setLoading(false);
+      loadedUserRef.current = userId;
     })();
     return () => { cancelled = true; };
-  }, [userId]);
+  }, [userId, reloadTick]);
 
   // ─── שירותים ───
 
@@ -84,6 +107,7 @@ export function useQuotationCatalog(userId: string | undefined) {
     if (error) throw error;
     const inserted = serviceCatalogFromDb(data);
     setServices(prev => [...prev, inserted].sort((a, b) => a.displayOrder - b.displayOrder));
+    notifyQuotationCatalogChanged();
     return inserted;
   }
 
@@ -97,6 +121,7 @@ export function useQuotationCatalog(userId: string | undefined) {
     if (error) throw error;
     const updated = serviceCatalogFromDb(data);
     setServices(prev => prev.map(s => s.id === updated.id ? updated : s));
+    notifyQuotationCatalogChanged();
     return updated;
   }
 
@@ -104,6 +129,7 @@ export function useQuotationCatalog(userId: string | undefined) {
     const { error } = await supabase.from('service_catalog').delete().eq('id', id);
     if (error) throw error;
     setServices(prev => prev.filter(s => s.id !== id));
+    notifyQuotationCatalogChanged();
   }
 
   // ─── תבניות ───
@@ -115,6 +141,7 @@ export function useQuotationCatalog(userId: string | undefined) {
     if (error) throw error;
     const inserted = quotationTemplateFromDb(data);
     setTemplates(prev => [...prev, inserted].sort((a, b) => a.displayOrder - b.displayOrder));
+    notifyQuotationCatalogChanged();
     return inserted;
   }
 
@@ -128,6 +155,7 @@ export function useQuotationCatalog(userId: string | undefined) {
     if (error) throw error;
     const updated = quotationTemplateFromDb(data);
     setTemplates(prev => prev.map(t => t.id === updated.id ? updated : t));
+    notifyQuotationCatalogChanged();
     return updated;
   }
 
@@ -135,6 +163,7 @@ export function useQuotationCatalog(userId: string | undefined) {
     const { error } = await supabase.from('quotation_templates').delete().eq('id', id);
     if (error) throw error;
     setTemplates(prev => prev.filter(t => t.id !== id));
+    notifyQuotationCatalogChanged();
   }
 
   return {

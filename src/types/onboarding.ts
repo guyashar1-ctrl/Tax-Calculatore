@@ -37,8 +37,94 @@ export interface Engagement {
   endedReason?: string;
   /** מי ביצע את הסיום. ריק = פעולת מערכת (חידוש/החלפה); לא ריק = end_engagement מפורשת (178, C7). */
   endedBy?: string;
+  /**
+   * בקשות שמחכות לסוג העוסק (engagements.kind_hold, 217). null = אין החזקה;
+   * undefined = סביבה בלי העמודה. נקרא דרך parseKindHold (engagementFromDb).
+   */
+  kindHold?: KindHold | null;
   createdAt?: string;
   updatedAt?: string;
+}
+
+// ─── סוג העוסק לא ידוע — בקשות שמחכות לו (engagements.kind_hold, 217) ────────
+// ‼ מצב נגזר בשרת של הקליטה — לא בקשה ולא `if` בכרטיס. מה שתלוי בסוג העוסק לא
+// נוצר (held), וכל השאר נפתח. כשסוג העוסק נקבע (clients.dealer_type / vat_status)
+// טריגר בשרת פותח את מה שחיכה — רק מה שמתאים לסוג; נכשל ⇒ failedAt, ואז
+// «לפתוח את הבקשות שחיכו» (retry_kind_hold). ‼ טיפוס אחד לכל המסכים: המגש, תיק
+// המס, רצועת המסלולים וחלון סגירת הקליטה.
+
+export interface KindHoldItem {
+  key: string;
+  /** אותו שם כמו בדף האישי (_client_step_title). */
+  title: string;
+  stepType?: string;
+  /** 'system' | 'office'. */
+  source?: string;
+}
+
+/** engagements.kind_hold — הצורה שבחוזה (r4), אחרי parseKindHold. */
+export interface KindHold {
+  since?: string;
+  keys: string[];
+  held: KindHoldItem[];
+  resolvedAt?: string;
+  resolvedKind?: string;
+  created: { key: string; stepId?: string }[];
+  notApplicable: string[];
+  failedAt?: string;
+  error?: string;
+}
+
+const khText = (v: unknown): string | undefined =>
+  (typeof v === 'string' && v.trim() ? v : undefined);
+const khList = (v: unknown): unknown[] => (Array.isArray(v) ? v : []);
+const khObj = (v: unknown): Record<string, unknown> | null =>
+  (v && typeof v === 'object' && !Array.isArray(v) ? v as Record<string, unknown> : null);
+
+/**
+ * קורא את kind_hold כפי שהגיע מהמסד. ‼ סלחני לצורה: עמודה שחסרה (סביבה
+ * לפני 217) או ערך פגום ⇒ null, כלומר «אין מה להציג» — לא קריסה ולא טענה.
+ */
+export function parseKindHold(raw: unknown): KindHold | null {
+  let src = raw;
+  if (typeof src === 'string') {
+    try { src = JSON.parse(src); } catch { return null; }
+  }
+  const o = khObj(src);
+  if (!o) return null;
+  const held: KindHoldItem[] = [];
+  for (const h of khList(o.held)) {
+    const r = khObj(h);
+    if (!r) continue;
+    const key = khText(r.key) ?? '';
+    const title = khText(r.title) ?? '';
+    if (!key && !title) continue;
+    held.push({ key, title, stepType: khText(r.stepType), source: khText(r.source) });
+  }
+  const created: { key: string; stepId?: string }[] = [];
+  for (const c of khList(o.created)) {
+    const r = khObj(c);
+    if (r && (khText(r.key) || khText(r.stepId))) created.push({ key: khText(r.key) ?? '', stepId: khText(r.stepId) });
+  }
+  return {
+    since: khText(o.since),
+    keys: khList(o.keys).filter((k): k is string => typeof k === 'string'),
+    held,
+    resolvedAt: khText(o.resolvedAt),
+    resolvedKind: khText(o.resolvedKind),
+    created,
+    notApplicable: khList(o.notApplicable).filter((k): k is string => typeof k === 'string'),
+    failedAt: khText(o.failedAt),
+    error: khText(o.error),
+  };
+}
+
+/** מה ש«ממתינה» צריכה לדעת — גם מצורה חלקית (המגש, בדיקות). */
+export interface KindHoldState { resolvedAt?: string | null; held?: unknown; failedAt?: string | null }
+
+/** יש בקשות שמחכות לסוג העוסק עכשיו = יש החזקה שעוד לא נפתחה (בלי resolvedAt). */
+export function kindHoldPending<T extends KindHoldState>(h: T | null | undefined): h is T {
+  return !!h && !h.resolvedAt;
 }
 
 export const ENGAGEMENT_STATUS_LABELS: Record<EngagementStatus, string> = {
@@ -91,7 +177,9 @@ export type OnboardingStepType =
 export const STEP_TYPE_LABELS: Record<OnboardingStepType, string> = {
   representation: 'ייצוג מול הרשויות',
   representation_upgrade: 'שדרוג לייצוג ראשי',
-  rep_client_approval: 'אישור המייצג באזור האישי',
+  // ‼ שם אחד בכל המשרד. «זירוז» הוא מצב (שורת משנה), לא חלק מהשם — כששע״ם
+  // ממתינה לאישור הלקוח אותו שלב הופך לחובה (201).
+  rep_client_approval: 'אישור הייצוג באזור האישי',
   file_opening: 'פתיחת תיקים ברשויות',
   release_letter: 'מכתב העברת טיפול לרו״ח הקודם',
   materials_received: 'קבלת חומרים מהרו״ח הקודם',
@@ -474,14 +562,17 @@ export function paperlessTaxAuthorityPayload(): Record<string, unknown> {
  *  ברישום ובהזדהות, לא בלחיצה על "אישור". */
 export const REP_CLIENT_APPROVAL = {
   title: 'זירוז אישור הייצוג באזור האישי',
-  sub: 'אופציונלי - שלוש דקות שמקצרות את ההמתנה לאישור הרשויות',
+  sub: 'אופציונלי - שתי דקות שמקצרות את ההמתנה לאישור הרשויות',
   cta: 'אישרתי באזור האישי',
   portalUrl: 'https://www.gov.il/he/service/personal_area_taxes',
   // ‼ הקישור מוביל למקום שבו הפעולה נעשית, לא למדריך — ולכן תווית משלו.
   portalLinkLabel: 'לכניסה לאזור האישי',
   note: [
     'יש לך כבר משתמש באזור האישי של רשות המסים?',
-    'כן - נכנסים בקישור, לוחצים "לכניסה למערכת" ומזדהים. מחפשים את הבקשה שבה מופיע שם המשרד כמייצג, ובוחרים אישור. שתי דקות.',
+    // ‼ «את כל הבקשות» ולא «את הבקשה»: שע״ם פותחת שורה לכל רשות (מס הכנסה, מע״מ,
+    // ניכויים), ומי שמאשר רק את הראשונה משאיר את השאר ממתינות. זהה תו-בתו ל-
+    // REP_PORTAL_CARD_DEFAULTS.note ולנוסח בשרת (ensure_rep_client_approval_step).
+    'כן - נכנסים בקישור, לוחצים "לכניסה למערכת" ומזדהים. מסמנים את כל הבקשות שבהן המשרד מופיע כמייצג, ולוחצים «אישור ייצוג». שתי דקות.',
     'לא - קודם צריך להירשם ולהזדהות מול רשות המסים. זה החלק שלוקח את הזמן, ובלעדיו אי אפשר לאשר.',
     'אם קיבלת מרשות המסים הודעת SMS על רישום מייצג - אפשר להיכנס ישירות מהקישור שבהודעה, וזה קצר יותר.',
   ],
@@ -749,6 +840,12 @@ export interface OnboardingStep {
   pendingSortOrder?: number | null;
   /** הבקשה תבוטל בפרסום הבא (מיגרציה 101). */
   pendingCancel?: boolean;
+  /** 215: הריצה, השלב והפריט במסלול שיצרו את הבקשה. חסר ⇒ בקשה שאינה ממסלול. */
+  flowRunId?: string | null;
+  flowStageKey?: string | null;
+  flowItemKey?: string | null;
+  /** 214: גרסת התוכן שהלקוח רואה — עולה בפרסום, בפתיחה מחדש ובפריט שנוסף. */
+  clientContentVersion?: number;
   needsAttention: boolean;
   payload: StepPayload;
   completionMethod: StepCompletionMethod;
@@ -912,4 +1009,42 @@ export function isStepSatisfiedForClose(step: OnboardingStep): boolean {
 /** מה חוסם סגירה רגילה — ורק זה. הרשימה שמוצגת בחלון הסגירה. */
 export function blockingStepsForClose(steps: OnboardingStep[]): OnboardingStep[] {
   return steps.filter(s => isStepRequiredForClose(s) && !isStepSatisfiedForClose(s));
+}
+
+/**
+ * בקשות שמחכות לסוג העוסק, כפי שהסגירה רואה אותן — בבואה של `kindHold` שמחזירה
+ * onboarding_close_readiness (217): {since, held, count, failedAt?}. null = אין החזקה פתוחה.
+ */
+export interface CloseKindHold {
+  since?: string;
+  held: KindHoldItem[];
+  count: number;
+  /** השחרור נכשל אחרי שסוג העוסק נקבע — «לפתוח את הבקשות שחיכו». */
+  failedAt?: string;
+}
+
+export function closeKindHold(engagement: Pick<Engagement, 'kindHold'> | null | undefined): CloseKindHold | null {
+  const h = engagement?.kindHold;
+  if (!kindHoldPending(h)) return null;
+  return { since: h.since, held: h.held, count: h.held.length, failedAt: h.failedAt };
+}
+
+export interface CloseReadiness {
+  /** שלבים שנדרשים לסגירה ועוד לא סופקו (blockingStepsForClose). */
+  blocking: OnboardingStep[];
+  /** בקשות שמחכות לסוג העוסק — חוסמות כל עוד ההחזקה פתוחה, גם כשאין שלב פתוח. */
+  kindHold: CloseKindHold | null;
+  ready: boolean;
+}
+
+/**
+ * מוכנות לסגירת הקליטה — בבואה של onboarding_close_readiness (217). ‼ לא «מוכנה» כל
+ * עוד יש החזקה פתוחה על סוג העוסק: הבקשות שמחכות לו עוד לא נוצרו, ולכן אינן ב-blocking.
+ */
+export function closeReadiness(
+  steps: OnboardingStep[], engagement: Pick<Engagement, 'kindHold'> | null | undefined,
+): CloseReadiness {
+  const blocking = blockingStepsForClose(steps);
+  const kindHold = closeKindHold(engagement);
+  return { blocking, kindHold, ready: blocking.length === 0 && !kindHold };
 }

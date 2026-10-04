@@ -380,7 +380,13 @@
   .client-row .ui-icon-btn { opacity: 1; }
 }
 
-.table-wrap { overflow-x: visible; }
+/* ‼ במחשב בלבד. בטלפון טבלה רחבה נגללת בתוך המסגרת שלה (index.css:
+   ‎.table-wrap { overflow-x: auto }‎). כשהכלל הזה חל גם בטלפון, טבלאות
+   השיעורים ב«ידע מס › ביטוח לאומי» (459px) הרחיבו את כל העמוד ל-475px —
+   התצוגה הוקטנה והסרגל התחתון נחתך. */
+@media (min-width: 761px) {
+  .table-wrap { overflow-x: visible; }
+}
 
 /* ═══════════════════════════════════════════════════════════════════════════
    כרטיס הלקוח — אותה שפה: קו שערה, אוויר, צבע רק כמידע
@@ -395,6 +401,13 @@
   background: transparent;
 }
 .cw-header { border-bottom: 1px solid var(--hairline-1); padding-bottom: .7rem; }
+/* בטלפון «⋯» לבדו תפס שורה שלמה מתחת לשם — עובר לפינה, בשורה של «לקוחות». כשיש
+   «שינויים לא שמורים» / «שמור» — נשאר בזרימה, כדי שלא יכסה אותם. */
+@media (max-width: 720px) {
+  .cw-header-top { position: relative; row-gap: 0; }
+  .cw-header-top > .cw-back { order: -1; flex-basis: 100%; justify-content: flex-start; min-height: 36px; }
+  .cw-header-actions:not(:has(.cw-dirty-flag)) { position: absolute; inset-inline-end: 4px; top: 6px; }
+}
 
 /* שם הלקוח הוא הדבר הכבד היחיד באזור הזהות */
 .cw-avatar { display: none; }
@@ -774,6 +787,15 @@ table thead th {
   letter-spacing: -.015em;
 }
 
+/* ‼ «הצעות מחיר» · אישור מחיקה בתחתית חלון השירות/התבנית (QuotationSettings.tsx).
+   במחשב שורה אחת; בטלפון הטקסט בשורה משלו והכפתורים מתחתיו. כשהיה שורה קשיחה,
+   «למחוק? …» גלש מחוץ לחלון ברוחב 360. */
+.qs-del-confirm {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end;
+  gap: 6px 8px; flex: 1 1 auto; min-width: 0;
+}
+.qs-del-text { flex: 1 1 14rem; }
+
 /* מרכז ידע מס · מסך 18 — מסילה 206px ופאנל, במרווח 32px */
 .tax-center.pg-split { grid-template-columns: 206px 1fr; gap: 32px; }
 /* הכלל הכללי ‎.pg-split‎ מקפל את המסילה מתחת ל-900px, אבל הבורר הזה
@@ -803,6 +825,58 @@ table thead th {
   cursor: pointer; text-align: start;
 }
 .pg-rail-back:hover { color: var(--ink-1); }
+
+/* ‼ ידע מס בטלפון — כמו «המשרד»: רשימת הכלים היא דף הכניסה, וכלי נפתח
+   במסך מלא עם «› ידע מס». כשהמסילה רק נערמה מעל התוכן, עשרה פריטים, השנה
+   ו«חזרה» מילאו את המסך הראשון, הכותרת ישבה ב-y≈700, והכלי שנבחר נפתח
+   מתחת לקפל — נגיעה בפריט נראתה כאילו לא קרה כלום.
+   ‎.has-tool‎ = נבחר כלי (TaxCenter.tsx). השנה והעדכניות עוברות לכותרת הכלי. */
+.tc-list-title, .tc-back, .tc-chev, .tc-year, .tc-head-fresh { display: none; }
+@media (max-width: 900px) {
+  .tax-center.has-tool > .pg-rail,
+  .tax-center:not(.has-tool) > .pg-pane { display: none; }
+
+  .tax-center .tc-list-title {
+    display: block; margin: 2px 0 14px;
+    font-size: var(--fs-24); font-weight: 600; letter-spacing: -.01em; color: var(--ink-1);
+  }
+  .tax-center .pg-rail { gap: 0; }
+  .tax-center .pg-rail-eyebrow,
+  .tax-center .pg-rail-foot,
+  .tax-center .pg-rail-year { display: none; }
+  .tax-center .pg-rail > .pg-rail-item {
+    min-height: 50px; padding: 10px 2px; border-radius: 0; align-items: center;
+    border-bottom: 1px solid var(--hairline-2);
+  }
+  .tax-center .pg-rail > .pg-rail-item:first-of-type { border-top: 1px solid var(--hairline-2); }
+  .tax-center .pg-rail > .pg-rail-item:hover,
+  .tax-center .pg-rail > .pg-rail-item.is-active { background: none; }
+  .tax-center .pg-rail > .pg-rail-item:active { background: var(--surface-1); }
+  .tax-center .pg-rail .pg-rail-name,
+  .tax-center .pg-rail .pg-rail-item.is-active .pg-rail-name { font-size: var(--fs-15); font-weight: 500; color: var(--ink-1); }
+  .tax-center .tc-chev { display: inline; color: var(--ink-quiet); font-size: 18px; line-height: 1; }
+  /* היציאה בטלפון היא סרגל הניווט (ובטאבלט — טאבי הראש), כמו ב«המשרד».
+     «← חזרה» כאן הוביל תמיד ללקוחות, וחץ הפוך מ«› ידע מס» שבתוך הכלי. */
+  .tax-center .pg-rail-back { display: none; }
+
+  .tax-center .tc-back {
+    display: inline-flex; align-items: center; gap: 4px; align-self: flex-start;
+    min-height: 44px; margin: -6px 0 2px; padding: 0 2px;
+    border: 0; background: none; font: inherit; font-size: var(--fs-14);
+    color: var(--accent); cursor: pointer;
+  }
+  .tax-center .tc-head-fresh { display: block; margin-top: 2px; }
+  .tax-center .tc-head-fresh .tc-fresh { justify-content: flex-start; margin: 0; }
+  .tax-center .tc-year {
+    display: flex; align-items: center; gap: 8px; flex-shrink: 0; white-space: nowrap;
+    font-size: var(--fs-12); color: var(--ink-4);
+  }
+  /* ‼ width: auto — הבסיס ב-index.css הוא 100%, וזה מעך את «שנת מס» לשתי שורות. */
+  .tax-center .tc-year select {
+    width: auto; border: 0; border-radius: var(--r-input); background: var(--surface-2);
+    padding: 6px 9px; font-family: inherit; font-size: var(--fs-13); color: var(--ink-1);
+  }
+}
 
 /* שלב שעדיין לא נפתח — קיים במסילה כדי שרואים את כל הרצף, אבל מושבת */
 .pg-rail-item:disabled { cursor: default; opacity: .4; }
@@ -846,8 +920,6 @@ table thead th {
 /* כותרת המסך מגיעה מ-‎.pg-head‎ עכשיו; הישנה יורדת כדי שלא תהיינה שתיים */
 .quotations-page .desk-header { display: none; }
 
-/* כותרת המשרד נשארת דביקה — השמירה חייבת להיות בהישג יד בכל מקטע */
-.fp-head { position: sticky; top: 0; z-index: 20; background: var(--surface-0); margin-bottom: 20px; }
 
 /* ═══════════════════════════════════════════════════════════════════════════
    מסך מצב שהלקוח רואה
@@ -1251,6 +1323,11 @@ input.pg-search:focus { box-shadow: 0 0 0 2px var(--focus-ring); border-color: t
   padding-bottom: 14px; border-bottom: 1px solid var(--hairline-1);
 }
 .ed-head-main { min-width: 0; }
+/* ‼ בטלפון «→ לכל ההוצאות» תפס עמודה ליד הכותרת, והכותרת והתקציר נדחסו לחצי
+   רוחב. הכפתור עולה מעל הכותרת, והטקסט מקבל את כל השורה. */
+@media (max-width: 600px) {
+  .ed-head { flex-direction: column-reverse; align-items: flex-start; gap: 10px; }
+}
 .ed-title-row { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
 .ed-emoji { font-size: var(--fs-20); }
 .ed-title { font-size: var(--fs-24); font-weight: 600; letter-spacing: -.015em; color: var(--ink-1); margin: 0; }
@@ -1463,6 +1540,11 @@ input.pg-search:focus { box-shadow: 0 0 0 2px var(--focus-ring); border-color: t
 
 /* המסך כולו כתב תוויות בלי גודל, וירש 16px מברירת המחדל של הדפדפן */
 .ni-section label, .ni-calc-body label { font-size: var(--fs-13); }
+
+/* ‼ ציר המדרגות לא נכנס לטלפון: מדרגה של 5% היא 17px, התוויות נדחסו זו על זו
+   («פטורמופחת»), ו«‎₪51,910+‎» דחף את העמוד 26px הצידה. אותם שיעורים וספים
+   כתובים בטבלה שמעליו — בטלפון היא לבדה. */
+@media (max-width: 600px) { .ni-axis { display: none; } }
 
 /* ═══════════════════════════════════════════════════════════════════════════
    כרטיס לקוח · לשונית התיק — מסך 08
@@ -1833,49 +1915,7 @@ input.pg-search:focus { box-shadow: 0 0 0 2px var(--focus-ring); border-color: t
 }
 .cse-field:focus { box-shadow: 0 0 0 2px var(--focus-ring); }
 
-/* ═══════════════════════════════════════════════════════════════════════════
-   פרופיל המשרד · מסילת הניווט
-   הפריטים היו ‎<div onClick>‎ ולא היו נגישים במקלדת, והפעיל נצבע בסגול
-   שאינו קיים בשום מקום אחר במוצר. עכשיו: כפתורים, וסימון בקו ובמשקל.
-   ═══════════════════════════════════════════════════════════════════════════ */
-/* ‼ המסילה והתוכן היו רשת קשיחה של ‎184px 1fr‎ בסגנון מוטבע, בלי שאילתת מדיה.
-   במסך צר זה גלש אופקית **בכל** מקטעי המשרד (נמדד: רוחב גלילה 458 על 375).
-   האסמכתא המאושרת (office-default-requests-v1) מפילה את המסילה מתחת ל-820px,
-   וזה בדיוק מה שקורה כאן. פתרון לכל המסך, לא רק למקטע החדש. */
-.fp-grid { display: grid; grid-template-columns: 184px 1fr; gap: 18px; align-items: start; }
-@media (max-width: 820px) {
-  .fp-grid { grid-template-columns: 1fr; gap: 0; }
-  .fp-grid > .fp-rail {
-    display: flex; flex-wrap: wrap; gap: 4px 10px;
-    padding-inline-end: 0; padding-bottom: 12px; margin-bottom: 14px;
-    border-inline-end: 0; border-bottom: 1px solid var(--hairline-2);
-  }
-  .fp-grid > .fp-rail .fp-rail-group { width: 100%; padding: 8px 0 2px; }
-  .fp-grid > .fp-rail .fp-rail-item { width: auto; margin-inline-start: 0; padding-inline-start: 6px; }
-}
-.fp-rail { padding-inline-end: 14px; border-inline-end: 1px solid var(--hairline-2); }
-.fp-rail-group {
-  font-size: var(--fs-12); letter-spacing: .06em; color: var(--ink-4);
-  padding: 14px 0 5px;
-}
-.fp-rail-item {
-  display: flex; align-items: center; gap: 9px; width: 100%;
-  padding: 7px 0; margin-bottom: 1px;
-  background: none; border: 0; border-inline-start: 2px solid transparent;
-  padding-inline-start: 9px; margin-inline-start: -11px;
-  cursor: pointer; font-family: inherit; font-size: var(--fs-13);
-  color: var(--ink-3); text-align: start;
-}
-.fp-rail-item:hover { color: var(--ink-1); }
-.fp-rail-item.is-active {
-  color: var(--ink-1); font-weight: 500;
-  border-inline-start-color: var(--accent);
-}
-.fp-rail-soon {
-  display: flex; align-items: center; gap: 9px;
-  padding: 6px 0; color: var(--ink-quiet); font-size: var(--fs-12);
-}
-.fp-rail-soon-tag { margin-inline-start: auto; font-size: var(--fs-12); color: var(--ink-quiet); }
+/* (1.10.2026) מסילת «המשרד» הישנה (fp-*) הוחלפה — ראה components/office/office.css */
 
 /* ── סטודיו העיצוב ──────────────────────────────────────────────────────────
    הפאנלים היו ‎background: 'white'‎ קבוע ולכן נשארו לבנים בערכה הכהה.
@@ -3229,6 +3269,7 @@ input.pg-search:focus { box-shadow: 0 0 0 2px var(--focus-ring); border-color: t
    עליו, וזה בדיוק מה שקרה — במובייל גם הכפתור בראש וגם הצף היו מוסתרים,
    ולא הייתה שום דרך ליצור משימה. */
 .tw-fab { display: none; }
+.tw-hint-touch { display: none; }
 
 /* ‼ במובייל הגרירה אינה אמינה, ולכן הידית מתחלפת בחיצים — בדיוק כמו במקור. */
 @media (max-width: 700px) {
@@ -3262,6 +3303,13 @@ input.pg-search:focus { box-shadow: 0 0 0 2px var(--focus-ring); border-color: t
     background: var(--accent); color: #fff; font-size: 26px;
     box-shadow: 0 6px 18px rgba(16,24,40,.22); z-index: 12; cursor: pointer;
   }
+  /* ‼ בסוף הגלילה הכפתור הצף (80px + 54px מתחתית המסך) ישב על שורת ההסבר
+     האחרונה, כי ‎.app > .main‎ שומר רק 96px לסרגל התחתון. 56px נוספים מעלים
+     את סוף הרשימה מעל הכפתור. */
+  .tasks-page.tw-wrap { padding-bottom: 56px; }
+  /* שורת ההסבר: בטלפון אין גרירה — מסדרים ב-▲▼ (TasksWorkspace.tsx, ‎.tw-hint‎). */
+  .tw-hint-drag { display: none; }
+  .tw-hint-touch { display: inline; }
 }
 
 /* ─── פעילות (M3) — נאמנות למקור: client-case-simplified-exploration-v3-final2
@@ -3873,8 +3921,10 @@ input.pg-search:focus { box-shadow: 0 0 0 2px var(--focus-ring); border-color: t
 .qb-quiet-v{flex:1;min-width:0;color:var(--ink-2)}
 
 /* ── פופאובר הקשרי ── */
-.qb-scrim{position:fixed;inset:0;z-index:50}
-.qb-pop{position:absolute;z-index:60;width:min(340px,calc(100vw - 28px));
+/* ‼ מעל הסרגל התחתון של הטלפון (.mobile-nav, z-index 120) — מתחתיו הבחירה האחרונה בגיליון
+   לא הייתה נלחצת; ומתחת לחלונות (.modal-backdrop, 1000). */
+.qb-scrim{position:fixed;inset:0;z-index:130}
+.qb-pop{position:absolute;z-index:131;width:min(340px,calc(100vw - 28px));
   background:var(--surface-0);border:1px solid var(--hairline-1);border-radius:var(--r-panel);
   box-shadow:var(--shadow-lg);padding:15px 16px}
 .qb-pop-h{font-size:var(--fs-14);font-weight:600;margin-bottom:3px}
@@ -3945,7 +3995,7 @@ input.pg-search:focus { box-shadow: 0 0 0 2px var(--focus-ring); border-color: t
   .qb-fld2{grid-template-columns:1fr}
   .qb-milestones{grid-template-columns:1fr}
   .qb-pop{position:fixed;inset-inline:0;bottom:0;top:auto;width:100%;max-height:82vh;
-    overflow:auto;border-radius:16px 16px 0 0;padding:18px 18px 22px;border:0}
+    overflow:auto;border-radius:16px 16px 0 0;padding:18px 18px calc(22px + env(safe-area-inset-bottom, 0px));border:0}
   .qb-srow{flex-wrap:wrap}
   .qb-sp{width:82px}
 }
@@ -4889,6 +4939,7 @@ input.pg-search:focus { box-shadow: 0 0 0 2px var(--focus-ring); border-color: t
 .srd-status.is-err { background: var(--err-bg); color: var(--err); }
 .srd-done { text-align: center; padding: 22px 10px 8px; }
 .srd-done-mark { font-size: 36px; color: var(--ok); }
+.srd-done-mark.is-failed { color: var(--err); }
 .srd-done h4 { margin: 8px 0 4px; font-size: var(--fs-15); }
 .srd-done p { margin: 0; font-size: var(--fs-13); color: var(--ink-3); }
 @media (max-width: 640px) {

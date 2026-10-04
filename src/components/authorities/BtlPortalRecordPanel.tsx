@@ -14,7 +14,7 @@ const day = (iso?: string) => (iso ? niDate(iso.slice(0, 10)) : '');
 export default function BtlPortalRecordPanel({ view }: { view: BtlRecordView }) {
   const [open, setOpen] = useState(false);
   if (view.empty) {
-    return <div className="btlr-empty">מה ביטוח לאומי רושם — עוד לא נשמרה קריאה. «עדכן נתונים מביטוח לאומי» ממלא את זה.</div>;
+    return <div className="btlr-empty">מה ביטוח לאומי רושם — עוד לא נשמרה קריאה. «קריאת התיק בביטוח לאומי» ממלאת את זה.</div>;
   }
   const n = view.conflicts.length;
   return (

@@ -9,10 +9,15 @@
 // ו-send-apply-link-email). "תפיסת" החיוב (pending→requested) קורית באמצעות
 // UPDATE מותנה בסטטוס הנוכחי (WHERE status='pending'), לפני שליחת המייל —
 // כך שני קליקים כפולים/ניסיון חוזר לא יכולים לשלוח שני מיילים: השני מקבל
-// 0 שורות ומוחזר לו already_requested בלי לשלוח שוב. אם השליחה עצמה נכשלת,
-// הסטטוס מוחזר ל-pending כדי לא "לשקר" שהבקשה יצאה.
+// 0 שורות ומוחזר לו already_requested בלי לשלוח שוב. אם הספק דחה את המייל בוודאות,
+// הסטטוס מוחזר ל-pending כדי לא "לשקר" שהבקשה יצאה. ‼ לא ידוע אם יצא (רשת, 5xx) —
+// הסטטוס נשאר requested, כדי שלא תצא דרישה שנייה; היומן מסמן «לא ידוע אם יצא».
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { resendEmailsUrl, postResend, unknownOutcomeReply } from "../_shared/resendResult.ts";
 import { resolveBrand, buildBrandedEmail, esc } from "../_shared/designSystem.ts";
+
+// ‼ ספק הדואר — Resend בייצור; ב-staging אפשר ספק מדומה שקולט (resendEmailsUrl).
+const RESEND_EMAILS = resendEmailsUrl(Deno.env.get("RESEND_API_URL"), Deno.env.get("SUPABASE_URL") ?? "");
 
 Deno.serve(async (req: Request) => {
   const cors: Record<string, string> = {
@@ -110,21 +115,28 @@ Deno.serve(async (req: Request) => {
     };
     if (replyTo) payload.reply_to = replyTo;
 
-    // גם fetch שזורק (רשת, timeout) — לא רק תשובת שגיאה מהספק — מחזיר את התפיסה.
-    let r: Response;
-    try {
-      r = await fetch("https://api.resend.com/emails", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-    } catch (e) {
-      await releaseClaim();
-      return json({ error: "resend_unreachable", detail: { message: String(e).slice(0, 300) } }, 502);
-    }
-    const body = await r.json().catch(() => ({}));
+    const call = await postResend(() => fetch(RESEND_EMAILS, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }));
+    const body = call.body;
 
-    if (!r.ok) {
+    if (call.result.outcome === "unknown") {
+      // ‼ לא ידוע אם דרישת התשלום יצאה (רשת שנפלה, 5xx, 2xx בלי מזהה). התפיסה
+      // **נשארת** (requested): החזרה ל-pending הייתה מציעה «שלח דרישת תשלום» שוב — ואם
+      // הקודמת הגיעה, הלקוח מקבל שתיים. השורה ביומן אומרת לברר עם הלקוח.
+      releaseOnThrow = null;
+      const reason = call.result.reason;
+      const { error: logErr } = await admin.from("email_messages").insert({
+        user_id: userId, client_id: claimed.client_id, to_email: toEmail, subject,
+        kind: "charge_payment_request", meta: { chargeId }, html,
+        status: "unknown", error: reason.slice(0, 500),
+      });
+      if (logErr) console.error("[send-charge-payment-request-email] unknown journal insert failed", logErr.code, logErr.message);
+      return json({ ...unknownOutcomeReply(reason), requestedAt: claimed.requested_at }, 502);
+    }
+    if (call.result.outcome === "failed") {
       // השליחה עצמה נכשלה — מחזירים ל-pending כדי לא לשקר שהבקשה יצאה.
       await releaseClaim();
       await admin.from("email_messages").insert({

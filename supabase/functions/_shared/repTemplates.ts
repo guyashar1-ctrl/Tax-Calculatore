@@ -107,8 +107,8 @@ export interface RepPortalCardOverride {
 }
 
 export const REP_PORTAL_CARD_DEFAULTS: Required<RepPortalCardOverride> = {
-  sub: 'אופציונלי - שלוש דקות שמקצרות את ההמתנה לאישור הרשויות',
-  note: 'יש לך כבר משתמש באזור האישי של רשות המסים?\n\nכן - נכנסים בקישור, לוחצים "לכניסה למערכת" ומזדהים. מחפשים את הבקשה שבה מופיע שם המשרד כמייצג, ובוחרים אישור. שתי דקות.\n\nלא - קודם צריך להירשם ולהזדהות מול רשות המסים. זה החלק שלוקח את הזמן, ובלעדיו אי אפשר לאשר.\n\nאם קיבלת מרשות המסים הודעת SMS על רישום מייצג - אפשר להיכנס ישירות מהקישור שבהודעה, וזה קצר יותר.',
+  sub: 'אופציונלי - שתי דקות שמקצרות את ההמתנה לאישור הרשויות',
+  note: 'יש לך כבר משתמש באזור האישי של רשות המסים?\n\nכן - נכנסים בקישור, לוחצים "לכניסה למערכת" ומזדהים. מסמנים את כל הבקשות שבהן המשרד מופיע כמייצג, ולוחצים «אישור ייצוג». שתי דקות.\n\nלא - קודם צריך להירשם ולהזדהות מול רשות המסים. זה החלק שלוקח את הזמן, ובלעדיו אי אפשר לאשר.\n\nאם קיבלת מרשות המסים הודעת SMS על רישום מייצג - אפשר להיכנס ישירות מהקישור שבהודעה, וזה קצר יותר.',
   noteAfter: 'ואם לא הסתדר - אין בעיה. הייצוג ייכנס לתוקף גם בלי זה, זה פשוט לוקח כמה ימים יותר.',
   linkLabel: 'לכניסה לאזור האישי',
 };
@@ -119,6 +119,28 @@ export const REP_PORTAL_CARD_FIXED = {
   cta: 'אישרתי באזור האישי',
   linkUrl: 'https://www.gov.il/he/service/personal_area_taxes',
 } as const;
+
+/**
+ * (H2.5b) מי ששע״ם ממתינה לאישור שלו, כפי שנאמר לבעל הכרטיס: «שלך», «של רחל», «שלך ושל רחל».
+ * הקלט — מה ש-_rep_approval_people (217) מחזירה: [{person, name, awaiting?}]. אף אחד לא
+ * מסומן כממתין (או אין נתון) ⇒ null, ומי שקורא נשאר בנוסח הקבוע.
+ * ‼ אותו כלל כמו _rep_approval_required_sub בשרת (שורת המשנה בדף).
+ */
+export function repApprovalRequiredWho(people: unknown): string | null {
+  if (!Array.isArray(people)) return null;
+  const waiting = people.filter((p): p is { person: string; name?: unknown; awaiting: unknown[] } =>
+    !!p && typeof p === 'object' && ((p as { person?: unknown }).person === 'client' || (p as { person?: unknown }).person === 'spouse')
+    && Array.isArray((p as { awaiting?: unknown }).awaiting) && ((p as { awaiting: unknown[] }).awaiting).length > 0);
+  if (waiting.length === 0) return null;
+  const parts: string[] = [];
+  if (waiting.some(p => p.person === 'client')) parts.push('שלך');
+  const spouse = waiting.find(p => p.person === 'spouse');
+  if (spouse) {
+    const name = typeof spouse.name === 'string' ? spouse.name.trim() : '';
+    parts.push(`של ${name || 'בן/בת הזוג'}`);
+  }
+  return parts.join(' ו');
+}
 
 export function resolveRepPortalCard(override?: RepPortalCardOverride | null): Required<RepPortalCardOverride> {
   if (!override) return { ...REP_PORTAL_CARD_DEFAULTS };

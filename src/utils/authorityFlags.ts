@@ -138,6 +138,8 @@ function niSpouseRepresentationFlag(
 
   const line = niRepresentationOf(spouse, client, spouseClient, niExecution);
   if (line.kind === 'active' || line.kind === 'elsewhere' || line.kind === 'unknown') return [];
+  // ‼ 212: הבקשה בוטלה בהחלטה — לא «דורש טיפול». «בקש ייצוג» נשאר בשורה בתיק.
+  if (line.kind === 'none' && client.authorityRepresentations?.nationalInsurance?.cancelled?.spouse) return [];
 
   // ‼ 157: יש כבר בקשה גלויה במשטח "בקשות" (`authority_representation`,
   // לא `custom_request`) ⇒ "בטיפול" בלי כפתור — לא דגל שני לאותה עבודה.

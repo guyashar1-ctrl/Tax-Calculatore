@@ -1543,6 +1543,13 @@ export const NI_FACT_KEYS: Record<PersonRole, Record<keyof NiPersonFacts, keyof 
  */
 export const REP_AUTHORITIES_WITH_TARGETS: RepAuthorityKind[] = ['vat', 'withholding', 'nationalInsurance'];
 
+/** 212 · בקשת ייצוג בב"ל שבוטלה לאדם. `stage` — האם כבר נשלחה אליו כשבוטלה. */
+export interface NiSubjectCancellation {
+  at: string;
+  stage: 'not_sent' | 'sent';
+  by?: string;
+}
+
 /** רשומת הייצוג מול רשות בודדת. מתוכננת להתרחב (היסטוריה, הגשות, מסמכים). */
 export interface AuthorityRepresentation {
   status: RepAreaStatus;
@@ -1562,6 +1569,13 @@ export interface AuthorityRepresentation {
    * ‼ שני יעדים = **שתי הגשות נפרדות**, כל אחת על התיק של אותו אדם.
    */
   targets?: RepTarget[];
+  /**
+   * 212 · ביטוח לאומי: מי שבקשת הייצוג שלו בוטלה ב-PIVO, ומתי/באיזה שלב.
+   * ‼ בנוכחות הסמן `targets` קובע גם כשהוא ריק — אחרת ריק היה מתפרש כ-['client']
+   * והלקוח «חוזר» לבד. נכתב רק בשרת (`cancel_authority_representation`), ויורד
+   * רק בבקשה חוזרת מפורשת לאותו אדם.
+   */
+  cancelled?: Partial<Record<RepTarget, NiSubjectCancellation>>;
   /**
    * 205 · שע״ם: הבקשה לרשות הזו «ממתין לפתיחת התיק» כי **אין** תיק במערך. לא
    * עוצרת את הייצוג (הכרעת גיא, 28.09.2026) — ייקלט מעצמו אם ייפתח תיק. נכתב בשרת.

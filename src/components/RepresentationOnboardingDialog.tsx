@@ -20,7 +20,8 @@ import { isValidEmail } from '../utils/email';
 import EmailInput from './ui/EmailInput';
 import InfoLines from './ui/InfoLines';
 
-interface CreateResult { link: string; emailSent: boolean; emailError?: string; }
+/** emailUnknown — השרת לא הכריע אם המייל יצא (unknown_outcome / אין תשובה / פג הזמן). */
+interface CreateResult { link: string; emailSent: boolean; emailError?: string; emailUnknown?: boolean; }
 
 // ‼ טלפון ומייל של בן/בת הזוג הם פרטי קשר קבועים של אדם, לא אמצעי חתימה
 // חד-פעמי: הם נשמרים על הכרטיס וממשיכים לשרת כל מה שדורש אותם אחר כך —
@@ -420,7 +421,17 @@ export default function RepresentationOnboardingDialog({
                 {'\u{1F4E7}'} הקישור גם נשלח במייל אל <span dir="ltr">{email.trim()}</span>.
               </div>
             )}
-            {!result.emailSent && result.emailError && (
+            {/* ‼ «לא ידוע אם יצא» אינו «לא נשלח»: ייתכן שהמייל כבר אצל הלקוח. כתום, לא
+                אדום — ובלי «שלח שוב»: הצעד הבטוח הוא אותו קישור בוואטסאפ, לא מייל שני. */}
+            {!result.emailSent && result.emailUnknown && (
+              <div role="status" style={{ padding: '.7rem .9rem', background: 'transparent', borderRadius: 'var(--radius)', color: 'var(--chip-amber-tx)', fontSize: 'var(--fs-13)', marginBottom: '1rem', lineHeight: 1.6 }}>
+                <InfoLines items={[
+                  <>לא ידוע אם המייל יצא{email.trim() && <> אל <span dir="ltr">{email.trim()}</span></>}</>,
+                  'ספק הדואר לא החזיר תשובה ברורה — אפשר לשלוח את אותו קישור בוואטסאפ',
+                ]} />
+              </div>
+            )}
+            {!result.emailSent && !result.emailUnknown && result.emailError && (
               <div style={{ padding: '.7rem .9rem', background: 'transparent', borderRadius: 'var(--radius)', color: 'var(--ink-1)', fontSize: 'var(--fs-13)', marginBottom: '1rem', lineHeight: 1.6 }}>
                 <InfoLines items={[
                   `⚠ המייל לא נשלח (${result.emailError})`,

@@ -11,7 +11,8 @@ import { useMemo, useState } from 'react';
 import type { Client } from '../types';
 import type { Engagement, OnboardingStep, OnboardingStepType } from '../types/onboarding';
 import { STEP_TYPE_LABELS, isStepOpen, paperlessSetupItems } from '../types/onboarding';
-import { NEXT_ACTION, isStuckStep, summarizeClientOnboarding } from '../utils/onboardingNext';
+import { isStuckStep, nextActionText, summarizeClientOnboarding } from '../utils/onboardingNext';
+import { isCreationProblem } from '../utils/requestAttention';
 import { EmptyState } from './ui/States';
 
 interface Props {
@@ -183,11 +184,14 @@ export default function OnboardingGrid({ clients, steps, engagements, onOpen }: 
               {shown.map(r => {
                 const c = byClient.get(r.clientId);
                 const name = `${c?.firstName ?? ''} ${c?.lastName ?? ''}`.trim() || 'לקוח ללא שם';
+                // ‼ «לא נוצרה» (217) — «לטפל בבקשה שלא נוצרה», לא «בקשה מהמשרד».
                 const action = r.step
-                  ? (r.stuck
+                  ? (isCreationProblem(r.step)
+                      ? nextActionText(r.step)
+                      : r.stuck
                       ? STEP_TYPE_LABELS[r.step.stepType]
                       : r.needsMe
-                        ? NEXT_ACTION[r.step.stepType]
+                        ? nextActionText(r.step)
                         : `${STEP_TYPE_LABELS[r.step.stepType]} - ${r.step.ball === 'client' ? 'אצל הלקוח' : 'ממתין'}`)
                   : 'הכל סגור';
                 return (

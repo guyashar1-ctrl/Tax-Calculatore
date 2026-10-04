@@ -42,8 +42,7 @@ export function registeredFileInfo(client: Client): RegisteredFileInfo | null {
   const file = (client.taxFiles ?? []).find((f) => f.authority === 'income_tax');
   if (!file) return null;
   const clientName = `${client.firstName} ${client.lastName}`.trim();
-  const spouseName = client.spouseName?.trim()
-    || (client.spouse ? `${client.spouse.firstName ?? ''} ${client.spouse.lastName ?? ''}`.trim() : '');
+  const spouseName = spouseNameOnCard(client);
   const isSpouse = file.owner === 'spouse';
   return {
     owner: file.owner,
@@ -69,10 +68,23 @@ export function clientDisplayName(client: Client): string {
   return `${client.firstName} ${client.lastName}`.trim() || 'הלקוח/ה';
 }
 
+/**
+ * שם בן/בת הזוג כפי שהוא בכרטיס היום: שם פרטי + משפחה, ואז «שם בן/בת הזוג».
+ * ‼ האובייקט הישן `client.spouse` נקרא רק בכרטיס שמעולם לא נשמרו בו השדות
+ * החדשים — אחרת שם שנמחק בתיק המס היה חוזר מהעותק הישן.
+ */
+export function spouseNameOnCard(client: Client): string {
+  const fromParts = `${client.spouseFirstName?.trim() ?? ''} ${client.spouseLastName?.trim() ?? ''}`.trim();
+  if (fromParts) return fromParts;
+  const flat = client.spouseName?.trim() ?? '';
+  if (flat) return flat;
+  const newModelTouched = client.spouseFirstName != null || client.spouseLastName != null || client.spouseName != null;
+  if (newModelTouched || !client.spouse) return '';
+  return `${client.spouse.firstName ?? ''} ${client.spouse.lastName ?? ''}`.trim();
+}
+
 export function spouseDisplayName(client: Client): string {
-  return client.spouseName?.trim()
-    || (client.spouse ? `${client.spouse.firstName ?? ''} ${client.spouse.lastName ?? ''}`.trim() : '')
-    || 'בן/בת הזוג';
+  return spouseNameOnCard(client) || 'בן/בת הזוג';
 }
 
 /**

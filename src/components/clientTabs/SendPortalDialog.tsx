@@ -4,11 +4,13 @@
 // הלקוח" (publish_case_changes), ואחריו PublishCasePrompt שואל אם לשלוח.
 // הפרמטר beforeSend שאיחד פרסום ושליחה הוסר במכוון — לא להחזיר אותו.
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import EmailPreviewDialog from '../EmailActivity/EmailPreviewDialog';
 import ConfirmDialog from '../ui/ConfirmDialog';
 import InfoLines from '../ui/InfoLines';
+import type { NoticeKind } from '../../features/flows/api';
+import { PAGE_EMAIL_KINDS, portalShareText, portalShareWelcome } from '../../utils/portalShareText';
 
 export type SendPortalMode = 'link' | 'email';
 
@@ -17,27 +19,66 @@ interface Props {
   clientName: string;
   /** בלי מייל בכרטיס אין מסלול "שליחה במייל" — נשאר הקישור. */
   clientEmail?: string;
-  /** איך להיפתח. ברירת המחדל נגזרת מקיום המייל. */
+  /** איך להיפתח. ברירת המחדל נגזרת מקיום המייל; בלי מייל — תמיד קישור. */
   initialMode?: SendPortalMode;
   /** כותרת החלון — "פתיחת התהליך" בבנייה, "שליחה ללקוח" אחר כך. */
   heading?: string;
   onClose: () => void;
   /** נקרא אחרי שהקישור הופק או שהמייל יצא. */
   onSent?: () => void;
+  /**
+   * 214: איזו הודעה יוצאת במייל. 'new' — מה שחדש בדף (ומסמן אותו כנמסר).
+   * 'update' — הקישור לדף ועדכון מצב, בלי לסמן שום דבר כחדש. 'reminder' —
+   * תזכורת על מה שנמסר ועדיין ממתין; נפתח ישר לתצוגת המייל, כי זו כבר הבחירה.
+   * ‼ חסר ⇒ ההתנהגות הישנה (השרת מניח 'new', בלי מפתח מהחלון) — לקוראים
+   * שעוד לא עברו לחוזה החדש.
+   */
+  emailKind?: NoticeKind;
+  /**
+   * יש ללקוח קליטה פתוחה (open_intake_engagement_id). קובע את הנוסח בוואטסאפ — כמו במייל:
+   * «פתחנו לך דף… תהליך ההצטרפות» רק בקליטה פתוחה ולפני מייל הדף הראשון.
+   */
+  openIntake?: boolean;
 }
 
 export default function SendPortalDialog({
-  clientId, clientName, clientEmail, initialMode, heading, onClose, onSent,
+  clientId, clientName, clientEmail, initialMode, heading, onClose, onSent, emailKind, openIntake = false,
 }: Props) {
   const hasEmail = !!clientEmail?.trim();
-  const [mode, setMode] = useState<SendPortalMode>(initialMode ?? (hasEmail ? 'email' : 'link'));
-  const [stage, setStage] = useState<'choose' | 'link' | 'email'>('choose');
+  // ‼ בלי מייל בכרטיס — תמיד קישור, גם כשהקורא ביקש מייל: כרטיס המייל כבוי,
+  // ובחירה מוקדמת בו הובילה לתצוגה מקדימה שיכולה רק להיכשל (no_email).
+  const [mode, setMode] = useState<SendPortalMode>(hasEmail ? (initialMode ?? 'email') : 'link');
+  // תזכורת, או «פרסם ושלח» שכבר בחר מייל — ישר לתצוגת המייל; אין מה לבחור שוב.
+  const [stage, setStage] = useState<'choose' | 'link' | 'email'>(
+    hasEmail && (emailKind === 'reminder' || (emailKind && initialMode === 'email')) ? 'email' : 'choose');
   const [link, setLink] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [confirmRotate, setConfirmRotate] = useState(false);
   const [rotateBusy, setRotateBusy] = useState(false);
+  // ‼ כמו _client_first_page_email (214): מייל דף שלא נכשל, או הודעה מרוכזת שנשלחה.
+  // לא נטען / נכשל ⇒ הנוסח הניטרלי — לא כותבים «פתחנו לך» בלי לדעת שזה הראשון.
+  const [hadPageEmail, setHadPageEmail] = useState<boolean | null>(null);
+  useEffect(() => {
+    if (stage !== 'link' || !openIntake || hadPageEmail !== null) return;
+    let live = true;
+    void (async () => {
+      try {
+        const [mails, notices] = await Promise.all([
+          supabase.from('email_messages').select('id').eq('client_id', clientId)
+            .in('kind', [...PAGE_EMAIL_KINDS]).not('status', 'in', '(failed,bounced)').limit(1),
+          supabase.from('client_notices').select('id').eq('client_id', clientId).eq('status', 'sent').limit(1),
+        ]);
+        if (!live) return;
+        if (mails.error || notices.error) { setHadPageEmail(true); return; }
+        setHadPageEmail((mails.data?.length ?? 0) > 0 || (notices.data?.length ?? 0) > 0);
+      } catch {
+        if (live) setHadPageEmail(true);
+      }
+    })();
+    return () => { live = false; };
+  }, [stage, openIntake, clientId, hadPageEmail]);
 
   async function rotate() {
     setRotateBusy(true);
@@ -75,10 +116,11 @@ export default function SendPortalDialog({
         /* ‼ לא "מייל פתיחת התהליך": השרת גוזר את המייל מהאירוע — מסמכים
            חדשים, בקשה שממתינה או עדכון סטטוס — וכותרת קבועה הייתה משקרת
            בשני מהשלושה. */
-        heading="מייל ללקוח"
+        heading={emailKind === 'reminder' ? 'תזכורת ללקוח' : 'מייל ללקוח'}
         fn="send-process-open-email"
         editable
         body={{ clientId }}
+        noticeKind={emailKind}
         onSent={() => onSent?.()}
         onClose={onClose}
       />
@@ -87,12 +129,7 @@ export default function SendPortalDialog({
 
   // ── הקישור מוכן ──
   if (stage === 'link') {
-    const first = clientName.trim().split(/\s+/)[0] || '';
-    const shareText =
-      `${first ? `היי ${first},` : 'היי,'}\n` +
-      `פתחנו לך דף אישי שבו מרוכז כל תהליך ההצטרפות - מה כבר הושלם, מה בטיפולנו, ומה ממתין לך:\n` +
-      `${link}\n` +
-      `הדף מתעדכן מעצמו, אפשר לחזור אליו מאותו קישור בכל שלב.`;
+    const shareText = portalShareText(clientName, link, portalShareWelcome(openIntake, hadPageEmail !== false));
     const waHref = `https://wa.me/?text=${encodeURIComponent(shareText)}`;
 
     return (
@@ -204,7 +241,9 @@ export default function SendPortalDialog({
 
           <p style={{ fontSize: 'var(--fs-13)', color: 'var(--ink-3)', lineHeight: 1.6, marginBottom: 0 }}>
             {mode === 'email'
-              ? 'המייל ייפתח לתצוגה מקדימה עם רשימת מה שממתין לו - אפשר לערוך לפני השליחה.'
+              ? (emailKind === 'update'
+                ? 'הקישור לדף ועדכון מצב - בלי לסמן כלום כחדש. המייל ייפתח לתצוגה מקדימה, ואפשר לערוך לפני השליחה.'
+                : 'המייל ייפתח לתצוגה מקדימה עם רשימת מה שממתין לו - אפשר לערוך לפני השליחה.')
               : 'הקישור יופק ויוצג כאן, מוכן להדבקה בוואטסאפ.'}
           </p>
 

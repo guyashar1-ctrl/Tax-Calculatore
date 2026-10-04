@@ -40,6 +40,13 @@ export interface RcShaamInput {
   awaitingClientApproval?: boolean;
   /** שורת מצב אחרי ההגשה, בלשון של שע״ם («השהיה עד 3.10»). */
   submittedStatus?: string | null;
+  /**
+   * ‼ H2.5a · על שם מי ההגשה («רחל לוי»). אצל זוג מס הכנסה יושב אצל בן/בת הזוג
+   * הרשום/ה — והאישור שחסר בשע״ם הוא שלו/ה, לא של בעל הכרטיס.
+   */
+  personName?: string;
+  /** מתי נקראה שע״ם בפעם האחרונה להגשה הזו (ISO) — להשוואה לדיווח של הלקוח. */
+  checkedAt?: string | null;
 }
 
 export interface RcNiInput {
@@ -71,6 +78,8 @@ export interface RcInput {
   clientOpenItems: string[];
   /** אישור המייצג באזור האישי: נדרש (201) ועדיין פתוח. */
   clientApprovalRequiredOpen?: boolean;
+  /** הלקוח דיווח בדף האישי שאישר באזור האישי (clientDeclaredAt), והשלב עוד פתוח. */
+  clientApprovalDeclaredAt?: string | null;
 }
 
 export interface RcPrepareItem {
@@ -95,6 +104,13 @@ export interface RcPlan {
   sub: string;
   phases: RcPhase[];
   prepare: RcPrepareItem[];
+  /**
+   * אחרי ההגשה, כששע״ם ממתינה לאישור הלקוח באזור האישי:
+   * 'needed' — טרם דווח · 'declared' — דווח, ואין עדיין בדיקה בשע״ם אחרי הדיווח ·
+   * 'still_waiting' — דווח, ובבדיקה שאחרי הדיווח שע״ם עדיין ממתינה.
+   * חסר ⇒ הכותרת אינה עוסקת באישור (גם כשיש כרטיס זירוז פתוח).
+   */
+  approval?: 'needed' | 'declared' | 'still_waiting';
 }
 
 const PHASE_LABELS: Record<RcPhaseKey, string> = {
@@ -123,6 +139,14 @@ function listSentence(parts: string[]): string {
   if (p.length <= 1) return p[0] ?? '';
   return `${p.slice(0, -1).join(', ')} ו${p[p.length - 1]}`;
 }
+
+/** «רחל לוי» ⇒ «רחל» — לכותרות, כמו firstName. */
+function firstWord(name?: string | null): string {
+  return String(name ?? '').trim().split(/\s+/)[0] ?? '';
+}
+
+/** זמן ISO למספר; לא תקין ⇒ NaN (וכל השוואה איתו false). */
+const ms = (iso?: string | null): number => (iso ? Date.parse(iso) : NaN);
 
 /** מה נשאר לעשות לפני שאפשר לשלוח ללקוח. סדר = סדר העבודה. */
 export function rcPrepareItems(input: RcInput): RcPrepareItem[] {
@@ -182,8 +206,8 @@ export function repCenterPlan(input: RcInput): RcPlan {
     state: doneFlags[k] && (currentIdx === -1 || i < currentIdx) ? 'done' : i === currentIdx ? 'current' : doneFlags[k] ? 'done' : 'todo',
   }));
 
-  const plan = (kind: RcKind, ball: RcBall, headline: string, sub: string): RcPlan =>
-    ({ kind, ball, ballLabel: BALL_LABELS[ball], headline, sub, phases, prepare });
+  const plan = (kind: RcKind, ball: RcBall, headline: string, sub: string, approval?: RcPlan['approval']): RcPlan =>
+    ({ kind, ball, ballLabel: BALL_LABELS[ball], headline, sub, phases, prepare, ...(approval ? { approval } : {}) });
 
   // ── סופי גובר ──────────────────────────────────────────────────────────
   if (acceptDone) {
@@ -239,13 +263,43 @@ export function repCenterPlan(input: RcInput): RcPlan {
       return plan('waiting_docs', 'client', `ממתינים לצילום התעודה של ${first}`,
         'הטופס חתום ומוכן. ההגשה לשע״ם תיפתח אחרי אישור הצילום שבתיק, או העלאת צילום אחר.');
     }
-    return plan('submit', 'office', 'מוכן להגשה לשע״ם', 'הטופס חתום ומוטבע. ההגשה נעשית אוטומטית מול שע״ם.');
+    // ‼ D2-4 · ההגשה היא לחיצה (automationCatalog: «בלחיצה במרכז הייצוג»), לא תהליך אוטומטי.
+    return plan('submit', 'office', 'מוכן להגשה לשע״ם',
+      'הטופס חתום ומוטבע. «שלח טופס חתום לשע״ם» מגיש אותו דרך מחשב העבודה במשרד.');
   }
 
   // ── הוגש — ממתינים ─────────────────────────────────────────────────────
-  if (input.clientApprovalRequiredOpen || input.shaam.some(s => s.awaitingClientApproval)) {
-    return plan('waiting_authorities', 'client', `נדרש אישור של ${first} ברשות המסים`,
-      `רשות המסים ממתינה לאישור הייצוג באזור האישי של ${first}. בלי האישור הייצוג לא ייקלט.`);
+  // ‼ H2.5a · של מי האישור: מי שההגשה שלו/ה ממתינה בשע״ם, לא בעל הכרטיס. בלי קריאה
+  // לאדם מסוים (רק השלב סומן כחובה) — בעל הכרטיס, כמו קודם.
+  const awaitingApproval = input.shaam.filter(s => s.awaitingClientApproval);
+  const namesOf = (subs: RcShaamInput[]) => [...new Set(subs.map(s => firstWord(s.personName)).filter(Boolean))];
+  if (input.clientApprovalRequiredOpen || awaitingApproval.length > 0) {
+    const names = namesOf(awaitingApproval);
+    const who = joinNames(names) || first;
+    const declaredAt = ms(input.clientApprovalDeclaredAt);
+    if (!Number.isNaN(declaredAt)) {
+      // ‼ H2:X-4 · הלקוח דיווח בדף. מה קובע — בדיקה בשע״ם **אחרי** הדיווח (PIVO לא בודקת לבד).
+      const checkedAfter = (s: RcShaamInput) => ms(s.checkedAt) > declaredAt;
+      const still = awaitingApproval.filter(checkedAfter);
+      if (still.length > 0) {
+        // ‼ לא מבוי סתום: הצעד הבא נוקב בפקדים האמיתיים — המדריך (בכרטיס) והבדיקה.
+        return plan('waiting_authorities', 'client', `שע״ם עדיין ממתינה לאישור של ${joinNames(namesOf(still)) || who}`,
+          `לפי ${first} האישור כבר ניתן, אבל גם בבדיקה שאחרי הדיווח שע״ם ממתינה. עוברים יחד על המדריך, ואז «בדוק קבלת הייצוג».`,
+          'still_waiting');
+      }
+      if (!input.shaam.some(checkedAfter)) {
+        return plan('waiting_authorities', 'office', 'דווח שהאישור ניתן — לבדוק בשע״ם',
+          `לפי ${first}, האישור באזור האישי כבר ניתן. «בדוק קבלת הייצוג» יראה אם שע״ם קלטה אותו.`,
+          'declared');
+      }
+      // בדיקה שאחרי הדיווח כבר לא מציגה «ממתין לאישור לקוח» ⇒ ממתינים לקליטה, כמו כל הגשה.
+    } else {
+      return plan('waiting_authorities', 'client', `נדרש אישור של ${who} ברשות המסים`,
+        names.length > 1
+          ? 'רשות המסים ממתינה לאישור הייצוג — כל אחד באזור האישי שלו. בלי האישור הייצוג לא ייקלט.'
+          : `רשות המסים ממתינה לאישור הייצוג באזור האישי של ${who}. בלי האישור הייצוג לא ייקלט.`,
+        'needed');
+    }
   }
   const niOpen = input.ni.filter(n => !n.final);
   if ((active || shaamSettled) && niOpen.length > 0) {
@@ -253,6 +307,8 @@ export function repCenterPlan(input: RcInput): RcPlan {
       'הייצוג ברשות המסים נקלט. בביטוח הלאומי הוא ייכנס לתוקף אחרי אישור האסמכתא.');
   }
   // ‼ למה מחכים ועד מתי — בטור «מה עוד פתוח», שורה לכל רשות (לא משפט עם סוגריים).
+  // ‼ D2-4 · אין בדיקה חוזרת ברקע (הכרעת גיא, 28.09) — רק אחת מיד אחרי ההגשה. המצב
+  // מתעדכן כשלוחצים, ולכן המשפט אומר את זה ולא מבטיח עדכון שלא יגיע.
   return plan('waiting_authorities', 'authority', 'הוגש — ממתינים לקליטה',
-    'בינתיים אין פעולה נדרשת ממך. המצב מתעדכן בכל בדיקה מול הרשויות.');
+    'אין פעולה נדרשת ממך עכשיו. PIVO לא בודקת לבד — «בדוק קבלת הייצוג» מעדכן את המצב.');
 }

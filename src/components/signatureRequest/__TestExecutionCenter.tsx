@@ -3,9 +3,11 @@
 
 import { useState } from 'react';
 import { RepresentationRequest, RepresentationExecution, Client } from '../../types';
+import type { Engagement, OnboardingStep } from '../../types/onboarding';
 import { EmailMessage } from '../../types/emailActivity';
 import RepresentationExecutionCenter from '../RepresentationExecutionCenter';
 import type { RepApprovalStep } from '../../hooks/useRepApprovalStep';
+import type { RepApprovalPerson } from '../portal/RepApprovalGuide';
 import EmailStatusRow from '../EmailActivity/EmailStatusRow';
 import { ClientEmailsList } from '../EmailActivity/ClientEmailsSection';
 
@@ -57,6 +59,8 @@ const REP_APPROVAL_STATES: Record<string, RepApprovalStep | null> = {
   none: null,
   pending: { id: 'ra1', status: 'pending', ball: 'client' },
   declared: { id: 'ra1', status: 'in_progress', ball: 'me', clientDeclaredAt: '2026-08-24T09:12:00.000Z' },
+  // ‼ H2:X-4 · דיווח **אחרי** הבדיקה האחרונה בשע״ם (24.09 07:00) — עוד לא נבדק אם נקלט.
+  'declared-fresh': { id: 'ra1', status: 'in_progress', ball: 'me', clientDeclaredAt: '2026-09-25T09:12:00.000Z', requiredBy: 'shaam' },
   done: { id: 'ra1', status: 'completed', ball: 'me', clientDeclaredAt: '2026-08-24T09:12:00.000Z' },
   // ‼ 201 · שע״ם הציגה «ממתין לאישור לקוח» — השלב הפך לחובה (shaam_require_client_approval).
   required: { id: 'ra1', status: 'pending', ball: 'client', requiredBy: 'shaam' },
@@ -66,11 +70,41 @@ const APPROVAL_LABELS: Record<string, string> = {
   none: 'אין נתיב מזורז',
   pending: 'ממתין ללקוח',
   declared: 'הלקוח דיווח',
+  'declared-fresh': 'דיווח אחרי הבדיקה',
   done: 'נסגר',
   required: 'נדרש (שע״ם)',
 };
 
-type Scenario = { key: string; label: string; req: RepresentationRequest };
+/* «מה מסמנים באזור האישי» (approvals מהשרת) — מוזרק, כמו הנתיב המזורז. ?people=<key>;
+   בתרחיש הזוג — ברירת המחדל 'couple'. בלי — אין רשימה, והמדריך בנוסח הכללי. */
+const APPROVAL_PEOPLE: Record<string, RepApprovalPerson[] | null> = {
+  none: null,
+  client: [{ person: 'client', name: 'הדסה', systems: ['מס הכנסה', 'מע״מ', 'ניכויים'], awaiting: ['מס הכנסה'] }],
+  couple: [
+    { person: 'client', name: 'דוד', systems: ['מע״מ'] },
+    { person: 'spouse', name: 'רחל', systems: ['מס הכנסה', 'מע״מ'], awaiting: ['מס הכנסה', 'מע״מ'] },
+  ],
+};
+
+/* ── השער של הדף האישי (הכרעות 03.10) ────────────────────────────────────────
+   ‼ ההתקשרות של הלקוח והשלב של כרטיס האישור — מוזרקים (אין כאן מסד). ברירת המחדל: הקליטה
+   פורסמה, ולכן כל התרחישים הקיימים נקראים כמו קודם. ?scenario=rep-unpublished (או
+   &intake=unpublished בכל תרחיש) — קליטה שטרם פורסמה: הכרטיס נולד בה ⇒ לא בדף.
+   &carried=1 — הכרטיס פורסם לפני שהקליטה נוצרה (לקוח שחוזר) ⇒ בדף, גם כשהקליטה טרם פורסמה. */
+const INTAKE_AT = '2026-09-20T08:00:00.000Z';
+const gateEngagements = (published: boolean): Engagement[] => [{
+  id: 'eng-1', clientId: 'client-1', status: 'onboarding', createdAt: INTAKE_AT,
+  ...(published ? { processPublishedAt: '2026-09-20T09:00:00.000Z' } : {}),
+} as Engagement];
+const approvalStep = (carried: boolean): OnboardingStep => ({
+  id: 'ra1', clientId: 'client-1', engagementId: 'eng-1', stepType: 'rep_client_approval', track: 'authorities',
+  scope: 'person', status: 'pending', ball: 'client', needsAttention: false, payload: {}, completionMethod: 'manual',
+  createdAt: carried ? '2026-05-01T08:00:00.000Z' : '2026-09-23T20:42:35.000Z',
+  publishedAt: carried ? '2026-05-01T08:00:00.000Z' : '2026-09-23T20:42:35.000Z',
+} as OnboardingStep);
+
+/** לתרחיש — כרטיס לקוח משלו ורשימת «מה מסמנים» משלו (בלי ?linked=1). */
+type Scenario = { key: string; label: string; req: RepresentationRequest; linked?: Client; people?: string };
 
 const withSetup = {
   signatureSetup: { pdfFileName: 'ייפוי כוח 2279.pdf', pdfDocId: 'doc-1', fields: [], createdAt: '2026-07-02T10:00:00.000Z' },
@@ -111,6 +145,33 @@ const shaamReq = (track: object, over: Partial<RepresentationRequest> = {}) => (
   ...over,
 }) as unknown as RepresentationRequest;
 
+// ── H2.5a · זוג: מס הכנסה רשום על שם רחל, ושע״ם ממתינה לאישור **שלה** ─────────────
+const COUPLE_SCOPE = { incomeTax: { status: 'in_process', level: 'primary' }, vat: { status: 'in_process', level: 'primary', targets: ['client', 'spouse'] } };
+const COUPLE_CLIENT = {
+  id: 'client-1', name: 'דוד לוי', firstName: 'דוד', lastName: 'לוי', idNumber: '000000018', familyStatus: 'married',
+  spouseName: 'רחל לוי', spouseFirstName: 'רחל', spouseLastName: 'לוי', spouseIdNumber: '000000026', registeredSpouseVerified: true,
+  taxFiles: [{ authority: 'income_tax', owner: 'spouse', fileNumber: '000000026' }],
+  representationStatus: 'awaiting_authorities', authorityRepresentations: COUPLE_SCOPE,
+} as unknown as Client;
+const coupleRow = (systemLabel: string, rawSystemState: string, requestNumber: string) =>
+  shaamRow(systemLabel, 'התקבלו המסמכים', rawSystemState, { clientName: 'לוי', requestNumber, fileNumber: '000000000' });
+const COUPLE_REQ = {
+  ...BASE, ...withSetup, status: 'awaiting_authorities', signedPdfStoredId: 'doc-signed', clientName: 'דוד לוי',
+  authorities: ['incomeTax'], scope: COUPLE_SCOPE,
+  signers: [
+    { id: 'client', role: 'client', source: 'client_self', name: 'דוד לוי', email: 'david@example.com', order: 1, signStatus: 'signed' },
+    { id: 'spouse', role: 'spouse', source: 'spouse', name: 'רחל לוי', email: 'rachel@example.com', order: 2, signStatus: 'signed' },
+  ],
+  execution: {
+    incomeTax: { enteredAt: '2026-09-23T09:00:00.000Z' }, signatureEmailSentAt: '2026-09-23T17:25:18.636Z',
+    shaam: {
+      'person:client': { ...SHAAM_RECONCILED, requestNumber: '2026000001', systems: [coupleRow('מעמ', 'השהייה', '2026000001')] },
+      'person:spouse': { ...SHAAM_RECONCILED, requestNumber: '2026000002', clientApprovalRequiredAt: '2026-09-24T07:00:05Z',
+        systems: [coupleRow('מס הכנסה', 'ממתין לאישור לקוח', '2026000002'), coupleRow('מעמ', 'ממתין לאישור לקוח', '2026000002')] },
+    },
+  },
+} as unknown as RepresentationRequest;
+
 const SCENARIOS: Scenario[] = [
   // ‼ 24.09.2026 · עידן רוקח: 0/7 בשע״ם, ב״ל באמצע. הפעולה הראשית בשלב 1
   // חייבת להיות «הזן ייפוי כוח בשע״ם» — לא «בדוק קבלת הייצוג».
@@ -135,6 +196,8 @@ const SCENARIOS: Scenario[] = [
   { key: 'shaam-before', label: 'שע״ם א. הוגש - הצילום הישן (לפני 201)', req: shaamReq(SHAAM_BEFORE) },
   { key: 'shaam-confirmed', label: 'שע״ם ב. הוגש + צפי ממסך האישור', req: shaamReq(SHAAM_CONFIRMED) },
   { key: 'shaam-suspended', label: 'שע״ם ג. התקבלו המסמכים / השהייה', req: shaamReq(SHAAM_RECONCILED) },
+  // ‼ הכרעה א (03.10): כרטיס «אישור הייצוג באזור האישי» של קליטה שטרם פורסמה — לא בדף.
+  { key: 'rep-unpublished', label: 'שע״ם ג2. כרטיס האישור — קליטה שטרם פורסמה', req: shaamReq(SHAAM_RECONCILED) },
   {
     key: 'shaam-client-approval', label: 'שע״ם ד. ממתין לאישור לקוח',
     req: shaamReq({ ...SHAAM_RECONCILED, clientApprovalRequiredAt: '2026-09-24T07:00:05Z', systems: [
@@ -143,6 +206,7 @@ const SCENARIOS: Scenario[] = [
       shaamRow('ניכויים', 'התקבלו המסמכים', 'ממתין לפתיחת תיק', { fileNumber: 'לא קיים תיק' }),
     ] }),
   },
+  { key: 'shaam-couple-approval', label: 'שע״ם ד2. זוג — ממתין לאישור של בת הזוג', req: COUPLE_REQ, linked: COUPLE_CLIENT, people: 'couple' },
   {
     key: 'shaam-file-opening', label: 'שע״ם ה. ממתין לפתיחת תיק',
     req: shaamReq({ ...SHAAM_RECONCILED, systems: [
@@ -182,6 +246,11 @@ const SCENARIOS: Scenario[] = [
     req: { ...BASE, status: 'pending_signature', authorities: ['incomeTax', 'nationalInsurance'],
       scope: { incomeTax: { status: 'in_process', level: 'primary' }, vat: { status: 'in_process', level: 'primary' }, withholding: { status: 'in_process', level: 'primary' } },
       execution: ni({ nationalInsurance: { enteredAt: '2026-09-24T09:00:00.000Z', referenceNumber: '75204909', deadline: '2026-11-23', externalState: 'pending', rawExternalState: 'ממתין לאישור', syncedAt: '2026-09-27T16:19:05.000Z' } }) } as unknown as RepresentationRequest,
+  },
+  // ‼ D2-4 · חתום ומוטבע, טרם הוגש — «מוכן להגשה»: ההגשה בלחיצה, לא אוטומטית.
+  {
+    key: 'shaam-ready-submit', label: 'שע״ם ז0. חתום ומוטבע — מוכן להגשה',
+    req: shaamReq({ ...SHAAM_BEFORE, submittedAt: undefined, createdAt: '2026-09-23T09:00:00.000Z' }, { status: 'awaiting_stamp' }),
   },
   {
     key: 'shaam-docs', label: 'שע״ם ז. דרישת ת.ז./דרכון',
@@ -304,16 +373,26 @@ export default function TestExecutionCenter() {
   const [approval, setApproval] = useState(
     approvalFromUrl && approvalFromUrl in REP_APPROVAL_STATES ? approvalFromUrl : 'pending');
   const sc = SCENARIOS.find(s => s.key === key)!;
+  // השער של הדף: rep-unpublished / &intake=unpublished — הקליטה טרם פורסמה; &carried=1 — הכרטיס מלפניה.
+  const qp = new URLSearchParams(window.location.search);
+  const intakeUnpublished = key === 'rep-unpublished' || qp.get('intake') === 'unpublished';
+  const approvalCarried = qp.get('carried') === '1';
   // ?linked=1 — כרטיס לקוח מדומה, כדי שכפתור «בדוק קבלת הייצוג» והשורה שמתחתיו
   // יופיעו (בלי כרטיס אין יעדים לבדיקה). ‼ לא ללחוץ עליו כאן: הלחיצה יוצרת
   // משימה אמיתית לעובד.
-  const linkedFixture = new URLSearchParams(window.location.search).get('linked') === '1'
+  // &nifile=active — שורת תיק ב״ל של הלקוח «פעיל», בלי confirmedAt על המסלול (H1.b: אין «ביטול הבקשה»).
+  const niFileActive = qp.get('nifile') === 'active';
+  const linkedFixture = sc.linked ?? (qp.get('linked') === '1'
     ? ({
         id: sc.req.linkedClientId ?? 'client-1', name: 'רותי לקוח', firstName: 'רותי', lastName: 'לקוח',
         idNumber: '318853694', representationStatus: sc.req.status,
         authorityRepresentations: { nationalInsurance: { targets: ['client'] } },
+        ...(niFileActive ? { taxFiles: [{ authority: 'national_insurance', owner: 'client', repStatus: 'active' }] } : {}),
       } as unknown as Client)
-    : undefined;
+    : undefined);
+  // ?people=couple|client|none — «מה מסמנים» כפי שהשרת היה שולח; ברירת מחדל — של התרחיש.
+  const peopleKey = qp.get('people') ?? sc.people ?? 'none';
+  const people = peopleKey in APPROVAL_PEOPLE ? APPROVAL_PEOPLE[peopleKey] : null;
 
   return (
     <div style={{ padding: '1.5rem', fontFamily: 'Heebo, sans-serif', direction: 'rtl' }}>
@@ -354,7 +433,12 @@ export default function TestExecutionCenter() {
         onSendToSigner={async () => null}
         userId={undefined}
         repApprovalOverride={realClientId ? undefined : REP_APPROVAL_STATES[approval]}
+        repApprovalPeopleOverride={realClientId ? undefined : people}
         linkedClient={linkedFixture}
+        /* ‼ עם ?client= — מהמסד (המרכז קורא בעצמו); אחרת מוזרק. השלב — רק כשהקליטה טרם
+           פורסמה, כדי שהכלל ייבדק לפי זמן הפרסום של הכרטיס עצמו. */
+        engagements={realClientId ? undefined : gateEngagements(!intakeUnpublished)}
+        steps={realClientId || !intakeUnpublished ? undefined : [approvalStep(approvalCarried)]}
       />
 
       <h2 style={{ marginTop: '2rem' }}>מיילים בכרטיס הלקוח</h2>

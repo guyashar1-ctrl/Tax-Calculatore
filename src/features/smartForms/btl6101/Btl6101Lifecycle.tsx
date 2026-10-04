@@ -497,7 +497,7 @@ function ReceiptEvidence({ filingId, canConfirm, updatedAt, onChanged }: { filin
     <div className="sf-section">
       <h3>קליטה בביטוח לאומי <span className="sf-hint">{read}</span></h3>
       {st.state === 'none' && (
-        <div className="sf-note">עוד לא נמצא «דין וחשבון» בתיק המסמכים של המבוטח בב"ל אחרי ההגשה. «עדכן נתונים מביטוח לאומי» בכרטיס ב"ל קורא אותו מחדש.</div>
+        <div className="sf-note">עוד לא נמצא «דין וחשבון» בתיק המסמכים של המבוטח בב"ל אחרי ההגשה. «קריאת התיק בביטוח לאומי» בכרטיס ב"ל קוראת אותו מחדש.</div>
       )}
       {cands.length > 0 && (
         <>

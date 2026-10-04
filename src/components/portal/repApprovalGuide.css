@@ -1,0 +1,112 @@
+/* ─── מדריך מצולם · אישור ייצוג באזור האישי ─────────────────────────────────
+   ‼ בטלפון: מסך מלא, הכותרת והכפתורים קבועים והתוכן נגלל ביניהם.
+   במחשב: חלון במרכז. אותו רכיב בדף האישי ובמשרד — ולכן הצבעים כאן משלו,
+   וצבע המשרד נכנס רק דרך --rag-accent. */
+.rag-root {
+  --rag-ink: #1d2733;
+  --rag-ink-2: #4a5563;
+  --rag-ink-3: #6b7480;
+  --rag-line: #e3e7ec;
+  --rag-soft: #f4f6f8;
+  --rag-acc: var(--rag-accent, #2f4b7c);
+  --rag-ease: cubic-bezier(0.23, 1, 0.32, 1);
+  position: fixed; inset: 0; z-index: 2000;
+  display: grid; place-items: center;
+  font-family: inherit; color: var(--rag-ink);
+}
+.rag-scrim { position: absolute; inset: 0; background: rgba(15, 22, 30, .48); }
+.rag {
+  position: relative; display: flex; flex-direction: column;
+  width: min(540px, calc(100vw - 32px)); max-height: min(860px, calc(100dvh - 32px));
+  background: #fff; border-radius: 14px; box-shadow: 0 18px 48px rgba(15, 22, 30, .28);
+  outline: none; overflow: hidden;
+  animation: rag-in 200ms var(--rag-ease);
+}
+@keyframes rag-in { from { opacity: 0; transform: scale(.97); } to { opacity: 1; transform: none; } }
+.rag-head { display: flex; align-items: flex-start; gap: 12px; padding: 16px 18px 10px; border-bottom: 1px solid var(--rag-line); }
+.rag-head-text { flex: 1; min-width: 0; }
+.rag-kicker { font-size: 12.5px; color: var(--rag-ink-3); }
+.rag-title { display: flex; align-items: center; gap: 9px; margin: 4px 0 0; font-size: 18px; font-weight: 650; line-height: 1.35; color: var(--rag-ink); }
+.rag-num {
+  flex-shrink: 0; display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 50%;
+  background: var(--rag-acc); color: #fff; font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums;
+}
+.rag-x {
+  flex-shrink: 0; width: 40px; height: 40px; margin: -6px -8px 0 0; border: 0; border-radius: 10px;
+  background: none; color: var(--rag-ink-2); font-size: 16px; cursor: pointer;
+}
+.rag-x:hover { background: var(--rag-soft); }
+.rag-body { flex: 1; min-height: 0; overflow-y: auto; padding: 12px 18px 6px; overscroll-behavior: contain; }
+.rag-count { margin: 0; font-size: 12.5px; color: var(--rag-ink-3); }
+.rag-text { margin: 4px 0 0; font-size: 16px; line-height: 1.65; color: var(--rag-ink); }
+.rag-extra { margin: 6px 0 0; font-size: 14px; line-height: 1.6; color: var(--rag-ink-2); }
+.rag-entry { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; margin: 8px 0 0; font-size: 14px; color: var(--rag-ink-2); }
+.rag-entry-link { color: var(--rag-acc); font-weight: 600; text-decoration: none; }
+.rag-entry-link:hover { text-decoration: underline; }
+.rag-entry-link.is-inert { cursor: default; text-decoration: none; }
+.rag-entry-host { font-size: 12.5px; color: var(--rag-ink-3); }
+.rag-entry-note { flex-basis: 100%; font-size: 12.5px; color: var(--rag-ink-3); }
+.rag-fig { margin: 12px 0 8px; }
+.rag-imgbtn {
+  position: relative; display: block; width: 100%; padding: 0; border: 1px solid var(--rag-line); border-radius: 10px;
+  background: var(--rag-soft); overflow: hidden; cursor: zoom-in;
+}
+.rag-imgbtn img { display: block; width: 100%; height: auto; }
+/* ‼ מתחת לצילום ולא עליו — תווית מעל התמונה כיסתה את החץ בצעד 5. */
+.rag-zoom-hint {
+  display: flex; align-items: center; justify-content: center; gap: 6px; padding: 7px 10px;
+  border-top: 1px solid var(--rag-line); background: #fff; color: var(--rag-ink-2); font-size: 13px;
+}
+.rag-foot { display: flex; align-items: center; gap: 10px; padding: 10px 18px; border-top: 1px solid var(--rag-line); }
+.rag-btn {
+  min-height: 44px; padding: 0 18px; border-radius: 10px; font: inherit; font-size: 15px; font-weight: 600; cursor: pointer;
+  transition: transform 160ms var(--rag-ease), background-color 160ms ease;
+}
+.rag-btn:active:not(:disabled) { transform: scale(.97); }
+.rag-btn.is-primary { border: 0; background: var(--rag-acc); color: #fff; }
+.rag-btn.is-ghost { border: 1px solid var(--rag-line); background: #fff; color: var(--rag-ink); }
+.rag-btn:disabled { opacity: .4; cursor: default; }
+.rag-dots { flex: 1; display: flex; justify-content: center; gap: 2px; list-style: none; margin: 0; padding: 0; }
+.rag-dot {
+  width: 24px; height: 32px; padding: 0; border: 0; background: none; cursor: pointer; position: relative;
+}
+.rag-dot::after {
+  content: ''; position: absolute; inset: 0; margin: auto; width: 8px; height: 8px; border-radius: 50%;
+  background: var(--rag-line); transition: background-color 160ms ease, width 160ms var(--rag-ease);
+}
+.rag-dot.is-on::after { background: var(--rag-acc); width: 18px; border-radius: 4px; }
+.rag-fine { margin: 0 0 10px; font-size: 12px; line-height: 1.5; color: var(--rag-ink-3); }
+.rag-x:focus-visible, .rag-btn:focus-visible, .rag-dot:focus-visible, .rag-imgbtn:focus-visible,
+.rag-entry-link:focus-visible, .rag-zoom-x:focus-visible, .rag-zoom-scroll:focus-visible, .rag-open:focus-visible {
+  outline: 2px solid var(--rag-acc); outline-offset: 2px;
+}
+
+/* הגדלה — הצילום בגודל המקורי, נגלל לשני הכיוונים, ממוקד על הפקד המסומן */
+.rag-zoom { position: fixed; inset: 0; z-index: 2001; display: flex; flex-direction: column; background: rgba(12, 18, 26, .94); }
+.rag-zoom-x {
+  align-self: flex-start; margin: 10px 12px; min-height: 44px; padding: 0 16px; border: 0; border-radius: 10px;
+  background: #fff; color: var(--rag-ink); font: inherit; font-size: 15px; font-weight: 600; cursor: pointer;
+}
+.rag-zoom-scroll { flex: 1; min-height: 0; overflow: auto; display: flex; padding: 0 12px 12px; outline: none; }
+.rag-zoom-scroll img { display: block; margin: auto; max-width: none; width: auto; height: auto; border-radius: 6px; background: #fff; }
+
+/* הכפתור שפותח את המדריך */
+.rag-open {
+  display: inline-flex; align-items: center; gap: 7px; min-height: 36px; padding: 0 2px;
+  border: 0; background: none; font: inherit; font-size: 13.5px; font-weight: 600; color: var(--rag-accent, #2f4b7c);
+  cursor: pointer; text-decoration: underline; text-underline-offset: 3px; text-decoration-thickness: 1px;
+}
+
+@media (max-width: 560px) {
+  .rag-root { place-items: stretch; }
+  .rag { width: 100vw; max-height: none; height: 100dvh; border-radius: 0; }
+  .rag-head { padding: 12px 14px 8px; }
+  .rag-body { padding: 10px 14px 4px; }
+  .rag-foot { padding: 8px 12px calc(8px + env(safe-area-inset-bottom)); }
+  .rag-btn { padding: 0 14px; }
+  .rag-dot { width: 20px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .rag { animation: none; }
+  .rag-btn, .rag-dot::after { transition: none; }
+}

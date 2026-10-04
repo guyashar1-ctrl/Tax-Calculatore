@@ -21,11 +21,16 @@
 //       וממנה נגזרים הרו"ח והבקשה. בלי המסלול הזה הלקוח היה מחכה לקישור עד
 //       שהרו"ח ייכנס למערכת — וזו כל הנקודה של האוטומציה.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { resendEmailsUrl, postResend, unknownOutcomeReply } from "../_shared/resendResult.ts";
+import { inFlightMessage, resendConflictKind } from "../_shared/resendConflict.ts";
 import { resolveBrand, buildBrandedEmail, emailButton, esc } from "../_shared/designSystem.ts";
 // 186: נוסח ברירת המחדל של מיילי הייצוג עבר ל-_shared/repTemplates.ts — אותו
 // טקסט בדיוק, רק שגם מסך "ניהול המשרד → ייצוג" קורא ממנו. resolveRepMailTemplate
 // ממזג override של המשרד (profile.settings.representation.templates) מעליו.
 import { RepMailKind, resolveRepMailTemplate } from "../_shared/repTemplates.ts";
+
+// ‼ ספק הדואר — Resend בייצור; ב-staging אפשר ספק מדומה שקולט (resendEmailsUrl).
+const RESEND_EMAILS = resendEmailsUrl(Deno.env.get("RESEND_API_URL"), Deno.env.get("SUPABASE_URL") ?? "");
 
 // sign_with_ni אינו נשלח מבחוץ — הוא נגזר מ-sign כשקיימת אסמכתת ביטוח לאומי.
 type Stage = "onboard" | "sign" | "active" | "intake" | "ni_approve" | "sign_with_ni" | "prerequisites";
@@ -409,7 +414,19 @@ Deno.serve(async (req: Request) => {
     const niBlock = (ni: any): string =>
       `<tr><td dir="rtl" align="right" style="text-align:right;padding:6px 40px 0;">${niCardInner(ni)}</td></tr>`;
 
-    const niData = (reqRow?.execution || {})[niKey] || {};
+    // ‼ 212: אדם שבקשת הב"ל שלו בוטלה — המסלול שלו (אסמכתא, מועד) הוא היסטוריה.
+    // לא נכנס למייל החתימה, ומייל הוראות עצמאי אליו נדחה.
+    let niCancelledForRole = false;
+    if (reqRow?.linked_client_id) {
+      const { data: niCli } = await admin
+        .from("clients").select("authority_representations")
+        .eq("id", reqRow.linked_client_id).maybeSingle();
+      const niRec = niCli?.authority_representations?.nationalInsurance;
+      const niRole = niKey === "nationalInsuranceSpouse" ? "spouse" : "client";
+      niCancelledForRole = !!niRec?.cancelled?.[niRole]
+        && !(Array.isArray(niRec?.targets) && niRec.targets.includes(niRole));
+    }
+    const niData = niCancelledForRole ? {} : ((reqRow?.execution || {})[niKey] || {});
     let extraHtml: string | undefined;
     let ctaHref = link;
     let ctaLabel: string | undefined;
@@ -470,6 +487,7 @@ Deno.serve(async (req: Request) => {
     }
 
     if (stage === "ni_approve") {
+      if (niCancelledForRole) return json({ error: "ni_subject_cancelled" }, 409);
       if (!niData.referenceNumber) return json({ error: "missing_reference_number" }, 400);
       ctaHref = NI_SITE;
       ctaLabel = copy.cta;
@@ -502,7 +520,13 @@ Deno.serve(async (req: Request) => {
         const { data: cli } = await admin
           .from("clients").select("authority_representations")
           .eq("id", reqRow.linked_client_id).maybeSingle();
-        if (cli?.authority_representations?.nationalInsurance && niKey === "nationalInsurance") {
+        const niRec = cli?.authority_representations?.nationalInsurance;
+        // ‼ 212: «התבקש» = הנישום ברשימה, לא «יש רשומה» (רשומה שכולם בוטלו בה נשארת).
+        const niCancelled = niRec?.cancelled && Object.keys(niRec.cancelled).length > 0;
+        const niTargets: string[] = !niRec ? []
+          : Array.isArray(niRec.targets) && (niRec.targets.length || niCancelled) ? niRec.targets
+          : niRec.coversSpouse ? ["client", "spouse"] : ["client"];
+        if (niTargets.includes("client") && niKey === "nationalInsurance") {
           return json({
             error: "ni_reference_missing",
             detail: { message: "התבקש ייצוג בביטוח לאומי - יש להזין את מספר האסמכתא לפני השליחה, כדי שהלקוח יקבל מייל אחד." },
@@ -640,10 +664,17 @@ Deno.serve(async (req: Request) => {
       }
     }
 
+    // ‼ כבר נשלח (אותו מפתח ביומן) ⇒ לא שולחים שוב. לחיצה שנייה / חלון שני / ניסיון
+    // חוזר אחרי תשובה שאבדה — המייל לא יוצא פעמיים (אישור ב"ל לאדם, פתיחה, פרטים חסרים).
+    if (idempotencyKey) {
+      const { data: prior } = await admin.from("email_messages").select("id")
+        .eq("idempotency_key", idempotencyKey).limit(1).maybeSingle();
+      if (prior) return json({ ok: true, alreadySent: true });
+    }
     const payload: Record<string, unknown> = { from: `${brand.firmName} <${fromAddress}>`, to: [toEmail], subject: copy.subject, html };
     if (replyTo) payload.reply_to = replyTo;
-    // ‼ 170: תביעה שנלקחה לפני השליחה משוחררת בכל כשל — גם כשהרשת נופלת
-    // (fetch שזורק), לא רק כש-Resend עונה בשגיאה. אחרת המסך אומר "נשלח" לנצח.
+    // ‼ 170: תביעה שנלקחה לפני השליחה משוחררת בכל כשל ודאי — אחרת המסך אומר
+    // "נשלח" לנצח. ‼ לא ידוע אם יצא (רשת שנפלה, 5xx) אינו כשל: שם היא נשארת.
     const releaseClaim = async (why: string) => {
       if (!claimQuotationId) return;
       await admin.from("quotations").update({
@@ -651,16 +682,39 @@ Deno.serve(async (req: Request) => {
         representation_error: why.slice(0, 300),
       }).eq("id", claimQuotationId);
     };
-    let r: Response;
-    let body: { id?: string; [k: string]: unknown };
-    try {
-      r = await fetch("https://api.resend.com/emails", { method: "POST", headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-      body = await r.json().catch(() => ({}));
-    } catch (e) {
-      await releaseClaim(String(e));
-      return json({ error: "resend_unreachable", detail: { message: String(e).slice(0, 300) } }, 502);
+    // ‼ אותו מפתח גם אצל הספק: שתי שליחות במקביל או ניסיון חוזר עם אותו מפתח ⇒ מייל אחד.
+    const call = await postResend(() => fetch(RESEND_EMAILS, { method: "POST", headers: {
+      Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json",
+      ...(idempotencyKey ? { "Idempotency-Key": `pivo-${idempotencyKey}` } : {}),
+    }, body: JSON.stringify(payload) }));
+    const body = call.body as { id?: string; [k: string]: unknown };
+    // 409 על המפתח: שליחה אחרת עם אותו מפתח בתנועה, או שהוא כבר שימש — ייתכן שהמייל
+    // יצא. לא רושמים כישלון ולא משחררים תביעה: «נשלח עכשיו מחלון אחר — רעננו».
+    // ‼ טקסט הספק (באנגלית) רק לקונסול; למסך — משפט בעברית (inFlightMessage).
+    if (call.status === 409 && idempotencyKey) {
+      console.warn("[send-onboarding-email] idempotency 409", idempotencyKey, JSON.stringify(body));
+      return json({ error: "in_flight", detail: { message: inFlightMessage(body), reason: resendConflictKind(body) } }, 409);
     }
-    if (!r.ok) {
+    if (call.result.outcome === "unknown") {
+      // ‼ לא ידוע אם יצא (רשת שנפלה, 5xx, 2xx בלי מזהה). שורה ביומן 'unknown' — בלי
+      // המפתח הייחודי, כדי שהשליחה החוזרת (אותו Idempotency-Key ⇒ הספק מחזיר את
+      // המקורי) תירשם כ«נשלח». התביעה על ההצעה **נשארת**: שחרור היה מזמין את רשת
+      // הביטחון לשלוח שוב בלי מפתח — ואולי פעמיים.
+      const reason = call.result.reason;
+      const { error: logErr } = await admin.from("email_messages").insert({
+        user_id: userId, client_id: logClientId, request_id: logRequestId, to_email: toEmail,
+        subject: copy.subject, kind: stage, html, status: "unknown", error: reason.slice(0, 500),
+        ...(logStepId ? { step_id: logStepId } : {}),
+        meta: stampStandaloneAfterSend ? { niRole } : {},
+      });
+      if (logErr) console.error("[send-onboarding-email] unknown journal insert failed", logErr.code, logErr.message);
+      // ניסיון חוזר בטוח רק כשהוא באמת יוצא באותו מפתח. כשנלקחה תביעה על ההצעה,
+      // הניסיון הבא נעצר עליה («כבר נשלח»), והשליחה היזומה (force) יוצאת בלי מפתח.
+      const retrySafe = !!idempotencyKey && !claimed;
+      claimed = false;
+      return json(unknownOutcomeReply(reason, retrySafe), 502);
+    }
+    if (call.result.outcome === "failed") {
       // ‼ שורת הכישלון נרשמת בלי המפתח הייחודי: אחרת הניסיון החוזר המוצלח היה
       // מתנגש בה, נחשב ל"כבר נשלח" — והמייל לא היה יוצא לעולם.
       await admin.from("email_messages").insert({

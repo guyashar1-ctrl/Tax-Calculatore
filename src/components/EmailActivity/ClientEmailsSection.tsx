@@ -5,7 +5,7 @@
 import { useMemo, useState } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { useEmailMessages, fetchEmailHtml } from '../../hooks/useEmailMessages';
-import { emailKindLabel, EmailMessage } from '../../types/emailActivity';
+import { emailMessageLabel, emailRowState, EmailMessage } from '../../types/emailActivity';
 import { belongsToClientCard } from '../../utils/clientEmailFilter';
 import SentEmailViewer from './SentEmailViewer';
 import { supabase } from '../../lib/supabase';
@@ -20,7 +20,8 @@ function Row({ m, onChanged }: { m: EmailMessage; onChanged: () => void }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  const failed = ['bounced', 'complained', 'failed'].includes(m.status);
+  // ‼ «לא ידוע אם יצא» — כתום, עם הסיבה והצעד הבטוח; לעולם לא «השליחה נכשלה».
+  const row = emailRowState(m);
   const opened = !!m.openedAt || ['opened', 'clicked'].includes(m.status);
   const delivered = !!m.deliveredAt || opened;
 
@@ -50,14 +51,16 @@ function Row({ m, onChanged }: { m: EmailMessage; onChanged: () => void }) {
   return (
     <div style={{ padding: '.4rem 0', borderBottom: '1px dashed var(--gray-100)' }}>
       <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap', alignItems: 'baseline', fontSize: '.82rem' }}>
-        <b>{emailKindLabel(m.kind)}</b>
+        <b>{emailMessageLabel(m)}</b>
         <span style={{ color: 'var(--gray-500)', fontSize: '.75rem' }}>{fmt(m.sentAt)}</span>
         <span style={{ color: 'var(--gray-500)', fontSize: '.75rem' }} dir="ltr">{m.toEmail}</span>
         <span style={{ flex: 1 }} />
         <span style={{ display: 'flex', gap: '.5rem', fontSize: '.75rem' }}>
-          {failed
-            ? <span style={{ color: 'var(--red)' }}>{m.status === 'bounced' ? 'חזר - כתובת שגויה' : 'השליחה נכשלה'}</span>
-            : <>{chip('הגיע', delivered)}{chip('נפתח', opened)}</>}
+          {row.tone === 'failed'
+            ? <span style={{ color: 'var(--red)' }}>{row.label}</span>
+            : row.tone === 'unknown'
+              ? <span style={{ color: 'var(--warn, #b26a00)', fontWeight: 600 }}>{row.label}</span>
+              : <>{chip('הגיע', delivered)}{chip('נפתח', opened)}</>}
         </span>
         <button
           type="button"
@@ -69,6 +72,7 @@ function Row({ m, onChanged }: { m: EmailMessage; onChanged: () => void }) {
         </button>
       </div>
       {m.subject && <div style={{ fontSize: '.75rem', color: 'var(--gray-500)' }}>{m.subject}</div>}
+      {row.tone === 'unknown' && <div style={{ fontSize: '.75rem', color: 'var(--warn, #b26a00)' }}>{row.hint}</div>}
       {err && <div style={{ fontSize: '.75rem', color: 'var(--red)' }}>{err}</div>}
       {viewing && <SentEmailViewer message={viewing} onClose={() => setViewing(null)} />}
     </div>

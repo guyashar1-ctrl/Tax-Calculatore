@@ -9,8 +9,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { fetchEmailHtml } from '../../hooks/useEmailMessages';
-import { emailKindLabel, EmailMessage } from '../../types/emailActivity';
+import { emailKindLabel, emailRowState, EmailMessage } from '../../types/emailActivity';
 import SentEmailViewer from '../EmailActivity/SentEmailViewer';
+import { failureReasonText } from '../../lib/providerErrorText';
 
 interface Props {
   quotationId: string;
@@ -84,7 +85,8 @@ function EmailRow({ m, onChanged }: { m: EmailMessage; onChanged: () => void }) 
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  const failed = ['bounced', 'complained', 'failed'].includes(m.status);
+  // ‼ «לא ידוע אם יצא» — כתום, עם הסיבה והצעד הבטוח; לא «נכשלה» ולא «הגיע/נפתח».
+  const row = emailRowState(m);
   const opened = !!m.openedAt || ['opened', 'clicked'].includes(m.status);
   const delivered = !!m.deliveredAt || opened;
 
@@ -123,9 +125,11 @@ function EmailRow({ m, onChanged }: { m: EmailMessage; onChanged: () => void }) 
         <span style={{ color: 'var(--gray-500)', fontSize: '.75rem' }} dir="ltr">{m.toEmail}</span>
         <span style={{ flex: 1 }} />
         <span style={{ display: 'flex', gap: '.5rem', fontSize: '.75rem' }}>
-          {failed
-            ? <span style={{ color: 'var(--red)' }}>{m.status === 'bounced' ? 'חזר - כתובת שגויה' : 'השליחה נכשלה'}</span>
-            : <>{chip('הגיע', delivered)}{chip('נפתח', opened)}</>}
+          {row.tone === 'failed'
+            ? <span style={{ color: 'var(--red)' }}>{row.label}</span>
+            : row.tone === 'unknown'
+              ? <span style={{ color: 'var(--chip-amber-tx)', fontWeight: 600 }} data-tone="unknown">{row.label}</span>
+              : <>{chip('הגיע', delivered)}{chip('נפתח', opened)}</>}
         </span>
         <button
           type="button"
@@ -135,7 +139,10 @@ function EmailRow({ m, onChanged }: { m: EmailMessage; onChanged: () => void }) 
           {busy ? 'פותח…' : 'צפייה'}
         </button>
       </div>
-      {m.error && <div style={{ color: 'var(--red)', fontSize: '.72rem' }}>{m.error}</div>}
+      {row.tone === 'unknown'
+        ? <div style={{ color: 'var(--chip-amber-tx)', fontSize: '.72rem' }}>{row.hint}</div>
+        // ‼ תשובת הספק הגולמית (JSON באנגלית) לא מוצגת — הסיבה במשפט. «חזר» כבר אומר את שלו.
+        : m.status === 'failed' && m.error && <div style={{ color: 'var(--red)', fontSize: '.72rem' }}>{failureReasonText(m.error)}</div>}
       {err && <div style={{ color: 'var(--red)', fontSize: '.72rem' }}>{err}</div>}
       {viewing && <SentEmailViewer message={viewing} onClose={() => setViewing(null)} />}
     </div>

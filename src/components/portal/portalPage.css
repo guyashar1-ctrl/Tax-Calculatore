@@ -1,0 +1,16 @@
+/* ─── הדף האישי של הלקוח — הריפוד של העמוד, המסגרת והכרטיסים ──────────────────
+   ‼ X-5 (ביקורת 03.10): בטלפון שלוש מסגרות מקוננות — עמוד 16, מסגרת 30, כרטיס 16
+   לכל צד — השאירו ב-360 טור טקסט של 232px, וכל פסקה נשברה לארבע שורות. בטלפון
+   הריפוד קטן; המבנה והמיתוג (הפס העליון בצבע המשרד) לא משתנים.
+   הצבעים והגופן נשארים ב-style של PortalView — הם של המשרד, לא של PIVO. */
+.pp-page { padding: 40px 16px; }
+.pp-page.is-embed { padding: 18px 12px; }
+.pp-card { padding: 30px 30px 22px; }
+.pp-item { padding: 15px 16px; }
+
+@media (max-width: 480px) {
+  .pp-page { padding: 16px 10px; }
+  .pp-page.is-embed { padding: 12px 8px; }
+  .pp-card { padding: 22px 16px 18px; }
+  .pp-item { padding: 14px 13px; }
+}

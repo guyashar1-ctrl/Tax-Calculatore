@@ -29,14 +29,33 @@
 // עדיין השווה למה שקראתי" — 0 שורות עודכנו = מישהו כבר תבע, מדלגים בלי
 // לשלוח. נכשלה השליחה בפועל (Resend) ⇒ משחררים את התביעה (release_*) כדי
 // שההרצה הבאה תוכל לנסות שוב, בלי לאבד את ההזדמנות היחידה לתזכורת הזאת.
+// ‼ «נכשלה» = הספק דחה בוודאות. לא ידוע אם יצאה (רשת שנפלה, 5xx, 2xx בלי מזהה) ⇒
+// התביעה **נשארת** ושורת היומן 'unknown': שחרור היה שולח בהרצה הבאה תזכורת שנייה —
+// ואם הראשונה הגיעה, הלקוח מקבל את אותה תזכורת פעמיים.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { resendEmailsUrl, postResend, type SendOutcome } from "../_shared/resendResult.ts";
 import { resolveBrand, buildBrandedEmail, esc } from "../_shared/designSystem.ts";
-import { RepReminderAudience, resolveRepReminderConfig } from "../_shared/repTemplates.ts";
+import { RepReminderAudience, repApprovalRequiredWho, resolveRepReminderConfig } from "../_shared/repTemplates.ts";
+
+// ‼ ספק הדואר — Resend בייצור; ב-staging אפשר ספק מדומה שקולט (resendEmailsUrl).
+const RESEND_EMAILS = resendEmailsUrl(Deno.env.get("RESEND_API_URL"), Deno.env.get("SUPABASE_URL") ?? "");
 
 type ClaimAudience = "sign" | "niClient" | "niSpouse";
 
 const NI_SITE = "https://b2b.btl.gov.il/BTL.ILG.PAYMENTS/IshurIpuyKoachInfo.aspx";
 const NI_PHONE = "02-5393740";
+
+/**
+ * גוף תזכורת «אישור הייצוג באזור האישי». ‼ 201: כששע״ם מציגה «ממתין לאישור לקוח»
+ * האישור הוא חובה, לא זירוז — ותזכורת שאומרת «אפשר לדלג» הייתה מטעה. בשתי הגרסאות
+ * המשפט על המדריך המצולם שבכרטיס בדף האישי (במקום «ההסבר המלא נמצא בדף האישי»).
+ */
+function portalReminderBody(required: boolean, who = "שלך"): string {
+  return (required
+    ? `רשות המסים ממתינה לאישור ${who} לבקשת הייצוג. בלי האישור הייצוג לא ייקלט.`
+    : "יש לכם פעולה אופציונלית ממתינה בדף האישי שלכם, שיכולה לקצר את ההמתנה לאישור הרשויות. אפשר גם לדלג עליה - הייצוג ייכנס לתוקף בכל מקרה.")
+    + " בדף האישי יש מדריך מצולם, צעד אחר צעד.";
+}
 
 function daysSince(iso: string | null | undefined, now: Date): number {
   if (!iso) return Infinity;
@@ -87,7 +106,7 @@ Deno.serve(async (req: Request) => {
 
     async function logMessage(row: {
       user_id: string; client_id?: string | null; request_id?: string | null; step_id?: string | null;
-      to_email: string; subject: string; kind: string; status: "sent" | "failed"; resend_id?: string; error?: string;
+      to_email: string; subject: string; kind: string; status: "sent" | "failed" | "unknown"; resend_id?: string; error?: string;
       meta?: Record<string, unknown>; idempotencyKey?: string;
     }) {
       // ‼ שכבת הגנה שנייה, כמו send-onboarding-email: email_messages_idempotency_key_idx
@@ -130,7 +149,7 @@ Deno.serve(async (req: Request) => {
       if (error) console.error("release_representation_portal_reminder_claim failed", error);
     }
 
-    async function sendMail(profile: any, toEmail: string, subject: string, html: string) {
+    async function sendMail(profile: any, toEmail: string, subject: string, html: string): Promise<SendOutcome> {
       const comm = profile?.communication || {};
       const fromAddress = (comm.senderEmail && String(comm.senderEmail).trim()) || "onboarding@resend.dev";
       const replyTo = (comm.replyTo && String(comm.replyTo).trim()) || profile?.email || undefined;
@@ -140,18 +159,17 @@ Deno.serve(async (req: Request) => {
       });
       const payload: Record<string, unknown> = { from: `${brand.firmName} <${fromAddress}>`, to: [toEmail], subject, html };
       if (replyTo) payload.reply_to = replyTo;
-      if (dryRun) return { ok: true, id: "dry-run" };
-      const r = await fetch("https://api.resend.com/emails", {
+      if (dryRun) return { outcome: "sent", id: "dry-run" };
+      // ‼ מסווג: נשלח / נדחה בוודאות / לא ידוע. חיבור שנפל אינו חריגה שמפילה את כל ההרצה.
+      const call = await postResend(() => fetch(RESEND_EMAILS, {
         method: "POST", headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
         body: JSON.stringify(payload),
-      });
-      const respBody = await r.json().catch(() => ({}));
-      if (!r.ok) return { ok: false, error: JSON.stringify(respBody) };
-      return { ok: true, id: respBody.id };
+      }));
+      return call.result;
     }
 
     const results: Record<string, unknown[]> = { sign: [], niClient: [], niSpouse: [], portal: [] };
-    let sent = 0, failed = 0, skippedDisabled = 0, skippedNotDue = 0, skippedCapped = 0, skippedRaced = 0;
+    let sent = 0, failed = 0, unknown = 0, skippedDisabled = 0, skippedNotDue = 0, skippedCapped = 0, skippedRaced = 0;
 
     // ── 1) חתימה על ייפוי הכוח ──────────────────────────────────────────────
     {
@@ -184,19 +202,23 @@ Deno.serve(async (req: Request) => {
         });
 
         const send = await sendMail(profile, toEmail, subject, html);
-        if (send.ok) {
+        if (send.outcome === "sent") {
           await logMessage({
             user_id: req.user_id, client_id: req.linked_client_id, request_id: req.id, to_email: toEmail, subject,
             kind: "representation_reminder_sign", status: "sent", resend_id: send.id, meta: { reminderCount: occurrence },
             idempotencyKey: `representation_reminder_sign:${req.id}:r${occurrence}`,
           });
           sent++; results.sign.push({ id: req.id, status: "sent", to: toEmail });
+        } else if (send.outcome === "unknown") {
+          // ‼ לא ידוע אם יצאה — התביעה נשארת (בלי תזכורת שנייה לבד), והיומן אומר «לא ידוע».
+          await logMessage({ user_id: req.user_id, client_id: req.linked_client_id, request_id: req.id, to_email: toEmail, subject, kind: "representation_reminder_sign", status: "unknown", error: send.reason, meta: { reminderCount: occurrence } });
+          unknown++; results.sign.push({ id: req.id, status: "unknown", to: toEmail });
         } else {
           // ‼ השליחה בפועל נכשלה — משחררים את התביעה כדי שההרצה הבאה תוכל
           // לנסות שוב, במקום לאבד את התזכורת הזאת לצמיתות.
           await releaseReminder(req.id, "sign", occurrence, rem.lastSentAt ?? null);
-          await logMessage({ user_id: req.user_id, client_id: req.linked_client_id, request_id: req.id, to_email: toEmail, subject, kind: "representation_reminder_sign", status: "failed", error: send.error, meta: { reminderCount: count } });
-          failed++; results.sign.push({ id: req.id, status: "failed", error: send.error });
+          await logMessage({ user_id: req.user_id, client_id: req.linked_client_id, request_id: req.id, to_email: toEmail, subject, kind: "representation_reminder_sign", status: "failed", error: send.reason, meta: { reminderCount: count } });
+          failed++; results.sign.push({ id: req.id, status: "failed", error: send.reason });
         }
       }
     }
@@ -226,9 +248,14 @@ Deno.serve(async (req: Request) => {
         // ‼ 200: מי שהוסר/ה מהייצוג בב"ל שומר/ת את מסלול הביצוע (אסמכתא, הוראות)
         // כהיסטוריה — ולכן המסלול לבדו אינו אומר «עדיין מבקשים». targets כן.
         // אותו נרמול כמו targetsOf() ב-src/utils/repScope.ts.
+        // ‼ 212: רשומה שבוטל בה אדם (סמן cancelled) — הרשימה קובעת גם כשהיא ריקה,
+        // ובלי רשומה בכלל אין מי לתזכר. השרת אוכף את אותו כלל בתביעה עצמה
+        // (claim_representation_reminder), כך שגם גרסה פרוסה ישנה לא תשלח.
         const niRec = client.authority_representations?.nationalInsurance;
-        const niTargets: string[] = Array.isArray(niRec?.targets) && niRec.targets.length
-          ? niRec.targets : niRec?.coversSpouse ? ["client", "spouse"] : ["client"];
+        const niCancelled = niRec?.cancelled && typeof niRec.cancelled === "object" && Object.keys(niRec.cancelled).length > 0;
+        const niTargets: string[] = !niRec ? []
+          : Array.isArray(niRec.targets) && (niRec.targets.length || niCancelled) ? niRec.targets
+          : niRec.coversSpouse ? ["client", "spouse"] : ["client"];
         if (!niTargets.includes(role)) continue;
         // ‼ הנמען נגזר מהכרטיס, לעולם לא מ-request.client_email — כלל §9.
         // audience ('niClient'/'niSpouse') ו-role ('client'/'spouse') נגזרים
@@ -253,17 +280,21 @@ Deno.serve(async (req: Request) => {
         });
 
         const send = await sendMail(profile, toEmail, subject, html);
-        if (send.ok) {
+        if (send.outcome === "sent") {
           await logMessage({
             user_id: req.user_id, client_id: req.linked_client_id, request_id: req.id, to_email: toEmail, subject,
             kind: `representation_reminder_${audience}`, status: "sent", resend_id: send.id, meta: { reminderCount: occurrence, role },
             idempotencyKey: `representation_reminder_${audience}:${req.id}:r${occurrence}`,
           });
           sent++; results[audience].push({ id: req.id, status: "sent", to: toEmail });
+        } else if (send.outcome === "unknown") {
+          // ‼ לא ידוע אם יצאה — התביעה נשארת, והיומן אומר «לא ידוע».
+          await logMessage({ user_id: req.user_id, client_id: req.linked_client_id, request_id: req.id, to_email: toEmail, subject, kind: `representation_reminder_${audience}`, status: "unknown", error: send.reason, meta: { reminderCount: occurrence, role } });
+          unknown++; results[audience].push({ id: req.id, status: "unknown", to: toEmail });
         } else {
           await releaseReminder(req.id, audience, occurrence, rem.lastSentAt ?? null);
-          await logMessage({ user_id: req.user_id, client_id: req.linked_client_id, request_id: req.id, to_email: toEmail, subject, kind: `representation_reminder_${audience}`, status: "failed", error: send.error, meta: { reminderCount: count, role } });
-          failed++; results[audience].push({ id: req.id, status: "failed", error: send.error });
+          await logMessage({ user_id: req.user_id, client_id: req.linked_client_id, request_id: req.id, to_email: toEmail, subject, kind: `representation_reminder_${audience}`, status: "failed", error: send.reason, meta: { reminderCount: count, role } });
+          failed++; results[audience].push({ id: req.id, status: "failed", error: send.reason });
         }
       }
     }
@@ -298,34 +329,45 @@ Deno.serve(async (req: Request) => {
         // ‼ 201 · כששע״ם מציגה «ממתין לאישור לקוח» האישור הוא חובה, לא זירוז —
         // ותזכורת שאומרת «אפשר לדלג» הייתה מטעה את הלקוח בדיוק ברגע הקובע.
         const required = s.payload?.requiredBy === "shaam";
+        // ‼ 217 (H2.5b) · של מי האישור — לפי מי ששע״ם ממתינה לו (_rep_approval_people, אותו
+        // מקור כמו הכרטיס בדף). אצל זוג זו לעתים בת הזוג, ו«נדרש אישור שלך» היה שולח את
+        // בעל הכרטיס לאזור האישי הלא נכון. בלי נתון — «שלך», כמו קודם.
+        let who = "שלך";
+        if (required) {
+          const { data: people, error: peopleErr } = await admin.rpc("_rep_approval_people", { p_client_id: s.client_id });
+          if (peopleErr) console.error("_rep_approval_people failed", peopleErr);
+          else who = repApprovalRequiredWho(people) ?? "שלך";
+        }
         const subject = required
-          ? "תזכורת - נדרש אישור שלך לבקשת הייצוג ברשות המסים"
+          ? `תזכורת - נדרש אישור ${who} לבקשת הייצוג ברשות המסים`
           : "תזכורת - יש לכם פעולה זמינה בדף האישי";
         const html = buildBrandedEmail(profileBrand, {
-          heading: required ? "נדרש אישור שלך" : "תזכורת קטנה",
-          bodyHtml: esc(required
-            ? "רשות המסים ממתינה לאישור שלך לבקשת הייצוג. בלי האישור הייצוג לא ייקלט. ההסבר המלא נמצא בדף האישי שלך."
-            : "יש לכם פעולה אופציונלית ממתינה בדף האישי שלכם, שיכולה לקצר את ההמתנה לאישור הרשויות. אפשר גם לדלג עליה - הייצוג ייכנס לתוקף בכל מקרה."),
+          heading: required ? `נדרש אישור ${who}` : "תזכורת קטנה",
+          bodyHtml: esc(portalReminderBody(required, who)),
           ctaLabel: "לדף האישי", ctaHref: link, ctaArrow: true, showLinkFallback: true,
         });
 
         const send = await sendMail(profile, toEmail, subject, html);
-        if (send.ok) {
+        if (send.outcome === "sent") {
           await logMessage({
             user_id: s.user_id, client_id: s.client_id, step_id: s.id, to_email: toEmail, subject,
             kind: "representation_reminder_portal", status: "sent", resend_id: send.id, meta: { reminderCount: occurrence },
             idempotencyKey: `representation_reminder_portal:${s.id}:r${occurrence}`,
           });
           sent++; results.portal.push({ id: s.id, status: "sent", to: toEmail });
+        } else if (send.outcome === "unknown") {
+          // ‼ לא ידוע אם יצאה — התביעה נשארת, והיומן אומר «לא ידוע».
+          await logMessage({ user_id: s.user_id, client_id: s.client_id, step_id: s.id, to_email: toEmail, subject, kind: "representation_reminder_portal", status: "unknown", error: send.reason, meta: { reminderCount: occurrence } });
+          unknown++; results.portal.push({ id: s.id, status: "unknown", to: toEmail });
         } else {
           await releasePortalReminder(s.id, occurrence, rem.lastSentAt ?? null);
-          await logMessage({ user_id: s.user_id, client_id: s.client_id, step_id: s.id, to_email: toEmail, subject, kind: "representation_reminder_portal", status: "failed", error: send.error, meta: { reminderCount: count } });
-          failed++; results.portal.push({ id: s.id, status: "failed", error: send.error });
+          await logMessage({ user_id: s.user_id, client_id: s.client_id, step_id: s.id, to_email: toEmail, subject, kind: "representation_reminder_portal", status: "failed", error: send.reason, meta: { reminderCount: count } });
+          failed++; results.portal.push({ id: s.id, status: "failed", error: send.reason });
         }
       }
     }
 
-    return json({ ok: true, sent, failed, skippedDisabled, skippedNotDue, skippedCapped, skippedRaced, dryRun, results });
+    return json({ ok: true, sent, failed, unknown, skippedDisabled, skippedNotDue, skippedCapped, skippedRaced, dryRun, results });
   } catch (e) {
     return json({ error: String(e) }, 500);
   }

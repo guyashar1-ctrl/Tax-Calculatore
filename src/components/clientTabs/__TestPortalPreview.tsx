@@ -118,12 +118,13 @@ export default function TestPortalPreview() {
       </section>
 
       {/* ‼ מצב preview מכבה כל פקד, ולכן הוא לא מראה איך הסימון נראה ומתנהג
-          אצל הלקוח. כאן אותם פריטים בלי preview — הטוקן ריק, ולכן לחיצה
-          מקבלת 'invalid' מהשרת ומציגה את הודעת השגיאה. שום נתון לא נוגע. */}
+          אצל הלקוח. כאן אותם פריטים בלי preview. ‼ טוקן ריק מכבה את הפקדים
+          (כמו preview), ולכן טוקן שאינו קיים — לחיצה מקבלת 'invalid' מהשרת
+          ומציגה את הודעת השגיאה. שום נתון לא נוגע. */}
       <section>
-        <h3>2 · אותם פריטים במצב חי (טוקן ריק - לחיצה נכשלת בכוונה)</h3>
+        <h3>2 · אותם פריטים במצב חי (טוקן לא קיים - לחיצה נכשלת בכוונה)</h3>
         <div className="pivo-light" style={{ border: '1px solid #ccc', borderRadius: 8, overflow: 'hidden' }}>
-          <PortalView data={{ ...FIXTURE, items: FIXTURE.items.filter(i => i.bucket === 'action') }} embed />
+          <PortalView data={{ ...FIXTURE, items: FIXTURE.items.filter(i => i.bucket === 'action') }} token="qa-invalid" embed />
         </div>
       </section>
 

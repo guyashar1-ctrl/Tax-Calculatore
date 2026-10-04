@@ -11,13 +11,14 @@
 // כמנגנון חירום, בדיוק כמו journeyUi. יוסר בשלב הניקוי.
 
 import { useMemo, useState } from 'react';
-import type { Client, Task } from '../types';
+import type { Client, Task, NiTracking } from '../types';
+import type { RepSendPhase } from '../utils/representationAction';
 import type { Lead, Quotation } from '../types/quotations';
 import type { OnboardingStep } from '../types/onboarding';
 import type { AdditionalCharge } from '../types/charges';
 import { buildPersonRows, searchPersonRows, type PersonRow } from '../utils/personDirectory';
 import { nextActionForClient, clientStepsOf } from '../utils/nextActionForClient';
-import { nextStepForClient, NEXT_ACTION } from '../utils/onboardingNext';
+import { nextStepForClient, nextActionText } from '../utils/onboardingNext';
 import { isStepOpen } from '../types/onboarding';
 import { getClientOpenTasks } from '../utils/clientDerived';
 import type { NextActionButton } from '../utils/journeyPresentation';
@@ -26,6 +27,7 @@ import PersonQuickView, { type QuickViewAction } from './PersonQuickView';
 import AddChargeDialog from './AddChargeDialog';
 import { useRecentDocuments } from '../hooks/useRecentDocuments';
 import { useToast } from './ui/Toast';
+import { isUnknownSendReply, sendErrorView } from '../types/emailActivity';
 
 interface Props {
   clients: Client[];
@@ -50,6 +52,11 @@ interface Props {
   /** פותח RepresentationOnboardingDialog עבור כרטיס שעדיין אין לו שום
    *  בקשת ייצוג (156). נפרד מ-onOpenRepresentation, שרק מנווט לבקשה קיימת. */
   onStartRepresentation: (clientId: string) => void;
+  /**
+   * ‼ ההקשר של הכרטיס ל«מה קורה עכשיו»: ב"ל לפי אדם ומייל חתימה שטרם יצא.
+   * בלעדיו התצוגה המהירה סתרה את לשונית «בקשות» (ב"ל שממתין למבוטח — «לטיפולך»).
+   */
+  repContextOf?: (clientId: string) => { niExecution?: { client?: NiTracking; spouse?: NiTracking }; repSendPhase?: RepSendPhase | null };
   /** שלב 4: "המשך טיפול" בליד שהגיע מקישור המילוי הציבורי — פותח את בורר המסלול. */
   onContinueLead: (lead: Lead) => void;
   /** מחיקת ליד שטרם הפך ללקוח. אין השפעה על כרטיס לקוח קיים. */
@@ -119,7 +126,12 @@ export default function PersonDirectory(p: Props) {
       await p.onRequestChargePayment(charge);
       showToast('דרישת התשלום נשלחה');
     } catch (e) {
-      showToast(e instanceof Error ? e.message : 'שליחת דרישת התשלום נכשלה');
+      // ‼ «לא ידוע אם יצאה» אינו «נכשלה». השרת השאיר אותה מסומנת כנשלחה (כדי שלא
+      // תצא פעמיים) — אומרים את זה, ומה עושים.
+      const msg = e instanceof Error ? e.message : '';
+      showToast(isUnknownSendReply(msg)
+        ? 'לא ידוע אם דרישת התשלום יצאה — ספק הדואר לא החזיר תשובה ברורה. כדי שלא תצא פעמיים היא לא תישלח שוב מכאן; כדאי לוודא עם הלקוח שקיבל אותה.'
+        : sendErrorView(msg, { what: 'המייל עם דרישת התשלום', recipient: 'הלקוח' }).text);
     } finally {
       setChargeBusyId(null);
     }
@@ -216,12 +228,15 @@ export default function PersonDirectory(p: Props) {
     const client = row.client!;
     const stage = client.lifecycleStage ?? 'active';
     const clientSteps = clientStepsOf(p.onboardingSteps, client.id);
+    const rep = p.repContextOf?.(client.id);
     const na = nextActionForClient({
       client,
       lead: p.leads.find(l => l.convertedClientId === client.id),
       quotations: p.quotations,
       openTasks: getClientOpenTasks(client.id, p.tasks),
       steps: p.onboardingSteps,
+      niExecution: rep?.niExecution,
+      repSendPhase: rep?.repSendPhase,
     });
 
     let now: { title: string; detail?: string };
@@ -235,7 +250,7 @@ export default function PersonDirectory(p: Props) {
       now = {
         title: STAGE_NOW_TITLE.onboarding,
         detail: next
-          ? `${NEXT_ACTION[next.stepType]} · ${done} מתוך ${clientSteps.length} הושלמו`
+          ? `${nextActionText(next)} · ${done} מתוך ${clientSteps.length} הושלמו`
           : 'הכול ממתין לצד אחר',
       };
       if (client.representationRequestId && client.representationStatus
@@ -246,7 +261,8 @@ export default function PersonDirectory(p: Props) {
         };
       }
     } else {
-      now = { title: STAGE_NOW_TITLE[stage] ?? stage, detail: na?.headline };
+      // ‼ דחוף נראה דחוף: «· תקועה» / «· באיחור 3 ימים» ליד הכותרת (NextAction.flag).
+      now = { title: STAGE_NOW_TITLE[stage] ?? stage, detail: na ? (na.flag ? `${na.headline} · ${na.flag}` : na.headline) : undefined };
       quickAction = mapButton(row, na?.buttons?.[0]);
     }
 
@@ -260,9 +276,11 @@ export default function PersonDirectory(p: Props) {
       quickAction = { label: 'שלח דרישת תשלום', run: () => handleRequestChargePayment(firstOpen) };
     } else if (firstOpen?.status === 'requested') {
       quickAction = { label: 'סמן כשולם', run: () => handleMarkChargePaid(firstOpen) };
-    } else if (stage === 'active' && charges.length === 0) {
+    } else if (stage === 'active' && charges.length === 0 && !quickAction && na?.tone === 'calm') {
       // "+ חיוב נוסף" כפעולה משנית — רק ללקוח פעיל רגוע בלי חיוב קיים; כשיש
       // חיוב, ההוספה עוברת לכותרת המקטע "חיובים נוספים" ולא נשארת כאן.
+      // ‼ «רגוע» באמת: הוא לא דורס את הפעולה של «מה קורה עכשיו» («פתח את
+      // המשימה», «התחלת ייצוג»), ולא מוצג ליד משהו תקוע.
       quickAction = { label: '+ חיוב נוסף', run: () => setChargeDialogFor(client) };
     }
 

@@ -150,9 +150,28 @@ try {
     ok('1 המורשה רואה את החיוב שלו', !mineRead.denied && mineRead.value?.[0]?.n === 1, mineRead.message || `n=${mineRead.value?.[0]?.n}`);
     const mineTpl = await tryRun((s) => asUser(U, s), `select count(*)::int as n from public.journey_templates where id = 'authz-tpl-mine'`);
     ok('1 המורשה רואה את תבנית המסע שלו', !mineTpl.denied && mineTpl.value?.[0]?.n === 1, mineTpl.message || `n=${mineTpl.value?.[0]?.n}`);
-    const mineWrite = await tryRun((s) => asUser(U, s),
-      `insert into public.office_journey_defaults (id, office_id, client_kind) values ('authz-ojd-mine', '${U}', 'tax_refund') on conflict (office_id, client_kind) do update set updated_at = now()`);
-    ok('1 המורשה כותב בברירות המחדל של המשרד', !mineWrite.denied, mineWrite.message);
+    // ‼ 216: «בקשות ללקוח חדש» נכתבות רק דרך שמירת מסלול הקליטה (save_office_flow) —
+    // כתיבה ישירה נסגרה לכולם, גם למורשה. מה שנשאר מוגן כאן: השער לא חוסם את המורשה —
+    // הוא קורא את הרשימות של המשרד שלו, ועובר את בדיקת ההרשאה של נתיב הכתיבה המורשה.
+    const myOffice = (await one(`select coalesce(office_id, id) as o from public.profiles where id = '${U}'`)).o;
+    const mineOjd = await tryRun((s) => asUser(U, s),
+      `select count(*)::int as n from public.office_journey_defaults where office_id = '${myOffice}'`);
+    const ojdTotal = (await one(`select count(*)::int as n from public.office_journey_defaults where office_id = '${myOffice}'`)).n;
+    ok('1 המורשה קורא את ברירות המחדל של המשרד שלו', !mineOjd.denied && ojdTotal > 0 && mineOjd.value?.[0]?.n === ojdTotal,
+      mineOjd.message || `n=${mineOjd.value?.[0]?.n}/${ojdTotal}`);
+    const mineDirect = await tryRun((s) => asUser(U, s),
+      `insert into public.office_journey_defaults (id, office_id, client_kind) values ('authz-ojd-mine', '${myOffice}', 'tax_refund') on conflict (office_id, client_kind) do update set updated_at = now()`);
+    ok('1 כתיבה ישירה בברירות המחדל נסגרה גם למורשה (216 — רק דרך שמירת המסלול)', mineDirect.denied, mineDirect.denied ? '' : 'הכתיבה עברה!');
+    // מזהה מסלול שאינו קיים: בלי לשנות את מסלול הקליטה האמיתי של המשרד — המורשה נעצר
+    // אחרי שער ההרשאה (flow_not_found), הלא-מורשה לפניו (forbidden).
+    const saveMine = await tryRun((s) => asUser(U, s),
+      `select public.save_office_flow('authz-no-flow', 1, '{}'::jsonb) as r`);
+    ok('1 המורשה עובר את שער ההרשאה של save_office_flow', saveMine.value?.[0]?.r?.error === 'flow_not_found',
+      saveMine.message || JSON.stringify(saveMine.value?.[0]?.r));
+    const saveOther = await tryRun((s) => asUser(other, s),
+      `select public.save_office_flow('authz-no-flow', 1, '{}'::jsonb) as r`);
+    ok('1 לא-מורשה נעצר בשער של save_office_flow', saveOther.denied || saveOther.value?.[0]?.r?.error === 'forbidden',
+      saveOther.message || JSON.stringify(saveOther.value?.[0]?.r));
   }
 
   // ─── 2 · PF11: הצעה מבוטלת / פגה ─────────────────────────────────────────

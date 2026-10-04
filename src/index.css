@@ -4116,3 +4116,25 @@ td.number, th.number { text-align: left; font-variant-numeric: tabular-nums; }
 @media (max-width: 900px) {
   .tc-split { grid-template-columns: 1fr !important; }
 }
+
+/* 212 · מחיקה/ביטול בקשת ייצוג בב"ל לאדם */
+.ni-cancel-link { background: none; border: 0; padding: 0; font: inherit; font-size: var(--fs-12); color: var(--ink-3); text-decoration: underline; cursor: pointer; }
+.ni-cancel-link:hover { color: var(--danger); }
+.ni-cancel-p { margin: 0 0 .4rem; }
+.ni-cancel-kept { color: var(--ink-3); font-size: var(--fs-13); }
+.ni-cancel-err { margin: .5rem 0 0; color: var(--danger); font-size: var(--fs-13); }
+.rc-row-foot { margin-top: 10px; }
+
+/* ‼ חמישה חלונות (הוספת בקשה, פרסום בדף, תבניות, שמירה כתבנית, הדף של הלקוח)
+   כתובים עם modal-head / modal-foot — שמות שלא היו מוגדרים, ולכן הכותרת נצמדה
+   לקצה החלון וכפתור הסגירה ישב מתחתיה. אותו מראה כמו .modal-header / .modal-footer. */
+.modal-head {
+  display: flex; justify-content: space-between; align-items: center; gap: .75rem;
+  padding: 1rem 1.25rem; border-bottom: 1px solid var(--gray-200);
+}
+.modal-head h3 { margin: 0; font-size: 17px; font-weight: 600; color: var(--gray-900); min-width: 0; overflow-wrap: anywhere; }
+.modal-foot {
+  flex-wrap: wrap; gap: .5rem; padding: 1rem 1.25rem;
+  border-top: 1px solid var(--gray-200); background: var(--gray-50);
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+}

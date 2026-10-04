@@ -264,7 +264,27 @@ export function niRepresentationOf(
     return { v: 'מיוצג/ת אצל רו״ח אחר', represented: false, kind: 'elsewhere' };
   }
 
+  // ‼ 212: הבקשה בוטלה ב-PIVO — «אין ייצוג» כמו קודם, ועוד מילה שאומרת למה,
+  // כדי ש«בקש ייצוג» שמופיע לידה לא ייראה כמו משהו שנשכח.
+  const cancelledText = niCancelledText(card.authorityRepresentations, owner);
+  if (cancelledText) {
+    return { v: 'אין ייצוג', represented: false, kind: 'none', detail: cancelledText };
+  }
+
   return unknownOrNone(person);
+}
+
+/**
+ * «הבקשה בוטלה ב-PIVO · 04.10.26» — האדם בוטל (212) ואינו עוד ברשימת ביטוח לאומי.
+ * null ⇒ לא בוטל, או שהתבקש שוב. ‼ אותו משפט בתיק המס ובפירוט «ייצוג מול הרשויות» ב«בקשות».
+ */
+export function niCancelledText(
+  areas: Client['authorityRepresentations'] | undefined, role: PersonRole,
+): string | null {
+  const cancelled = areas?.nationalInsurance?.cancelled?.[role];
+  if (!cancelled || targetsOf(areas, 'nationalInsurance').includes(role)) return null;
+  // ‼ ‏ (RLM) אחרי «PIVO»: בלעדיו «PIVO · 04.10.2026» הוא רצף LTR אחד, והשורה נקראת «ב-04.10.2026 · PIVO».
+  return `הבקשה בוטלה ב-PIVO${cancelled.at ? `‏ · ${shortDate(cancelled.at)}` : ''}`;
 }
 
 /**

@@ -72,18 +72,22 @@ export const TESTS: TestCase[] = [
     equal(p.sub, 'לא ניתן לשייך');
   }),
 
-  test('מוטבע ומאושר ⇒ מוכן להגשה', () => {
+  test('מוטבע ומאושר ⇒ מוכן להגשה — בלחיצה, לא «אוטומטית» (D2-4)', () => {
     const p = repCenterPlan(base({ status: 'awaiting_stamp', sent: true, signed: true, stamped: true }));
     equal(p.kind, 'submit');
     equal(p.headline, 'מוכן להגשה לשע״ם');
+    assert(!/אוטומטי/.test(p.sub), p.sub);
+    assert(p.sub.includes('«שלח טופס חתום לשע״ם»'), 'המשפט נוקב בכפתור האמיתי');
   }),
 
-  test('הוגש ⇒ ממתינים לרשויות, עם שורת המצב של שע״ם', () => {
+  test('הוגש ⇒ ממתינים לרשויות; לא מבטיח עדכון ברקע — נוקב ב«בדוק קבלת הייצוג» (D2-4)', () => {
     const p = repCenterPlan(base({ status: 'awaiting_authorities', sent: true, signed: true, stamped: true, submitted: true,
       ni: [{ ...NI, delivered: true }], shaam: [SHAAM] }));
     equal(p.kind, 'waiting_authorities');
     equal(p.ball, 'authority');
-    assert(p.sub.startsWith('בינתיים אין פעולה נדרשת ממך'), p.sub);
+    equal(p.sub, 'אין פעולה נדרשת ממך עכשיו. PIVO לא בודקת לבד — «בדוק קבלת הייצוג» מעדכן את המצב.');
+    assert(!/מתעדכן בכל בדיקה/.test(p.sub), p.sub);
+    equal(p.approval, undefined);
     equal(phaseStates(p), 'done,done,done,current');
   }),
 
@@ -92,6 +96,80 @@ export const TESTS: TestCase[] = [
       shaam: [{ ...SHAAM, awaitingClientApproval: true }] }));
     equal(p.ball, 'client');
     equal(p.headline, 'נדרש אישור של עידן ברשות המסים');
+    equal(p.approval, 'needed');
+  }),
+
+  // ── H2.5a · זוג: האישור שחסר הוא של מי שההגשה שלו ממתינה — לא של בעל הכרטיס ──
+  test('זוג, שע״ם ממתינה להגשה של בת הזוג ⇒ הכותרת נוקבת ברחל, לא בדוד', () => {
+    const p = repCenterPlan(base({ firstName: 'דוד', status: 'awaiting_authorities', sent: true, signed: true, stamped: true, submitted: true,
+      ni: [], clientOpenItems: [], clientApprovalRequiredOpen: true,
+      shaam: [
+        { ...SHAAM, key: 'person:client', label: 'מע"מ', personName: 'דוד לוי' },
+        { ...SHAAM, key: 'person:spouse', label: 'מס הכנסה, מע"מ', personName: 'רחל לוי', awaitingClientApproval: true },
+      ] }));
+    equal(p.ball, 'client');
+    equal(p.headline, 'נדרש אישור של רחל ברשות המסים');
+    equal(p.sub, 'רשות המסים ממתינה לאישור הייצוג באזור האישי של רחל. בלי האישור הייצוג לא ייקלט.');
+    assert(!p.headline.includes('דוד') && !p.sub.includes('דוד'), 'בעל הכרטיס אינו מי שחסר לו אישור');
+  }),
+
+  test('זוג, שניהם ממתינים ⇒ שני השמות, וכל אחד באזור האישי שלו', () => {
+    const p = repCenterPlan(base({ firstName: 'דוד', status: 'awaiting_authorities', sent: true, signed: true, stamped: true, submitted: true,
+      ni: [], clientOpenItems: [],
+      shaam: [
+        { ...SHAAM, key: 'person:client', personName: 'דוד לוי', awaitingClientApproval: true },
+        { ...SHAAM, key: 'person:spouse', personName: 'רחל לוי', awaitingClientApproval: true },
+      ] }));
+    equal(p.headline, 'נדרש אישור של דוד ורחל ברשות המסים');
+    assert(p.sub.includes('כל אחד באזור האישי שלו'), p.sub);
+  }),
+
+  test('השלב סומן כחובה אבל אין קריאה לאדם מסוים ⇒ בעל הכרטיס, כמו קודם', () => {
+    const p = repCenterPlan(base({ firstName: 'דוד', status: 'awaiting_authorities', sent: true, signed: true, stamped: true, submitted: true,
+      ni: [], clientOpenItems: [], clientApprovalRequiredOpen: true,
+      shaam: [{ ...SHAAM, personName: 'רחל לוי' }] }));
+    equal(p.headline, 'נדרש אישור של דוד ברשות המסים');
+  }),
+
+  // ── H2:X-4 · הלקוח דיווח שאישר — מה שקובע הוא בדיקה בשע״ם אחרי הדיווח ──
+  test('דווח, ובבדיקה שאחרי הדיווח שע״ם עדיין ממתינה ⇒ לא מבוי סתום: «עדיין ממתינה», הכדור אצל הלקוח', () => {
+    const p = repCenterPlan(base({ firstName: 'דוד', status: 'awaiting_authorities', sent: true, signed: true, stamped: true, submitted: true,
+      ni: [], clientOpenItems: [], clientApprovalRequiredOpen: true, clientApprovalDeclaredAt: '2026-09-24T09:12:00.000Z',
+      shaam: [
+        { ...SHAAM, key: 'person:client', personName: 'דוד לוי', checkedAt: '2026-09-24T10:00:00Z' },
+        { ...SHAAM, key: 'person:spouse', personName: 'רחל לוי', awaitingClientApproval: true, checkedAt: '2026-09-24T10:00:00Z' },
+      ] }));
+    equal(p.approval, 'still_waiting');
+    equal(p.ball, 'client');
+    equal(p.headline, 'שע״ם עדיין ממתינה לאישור של רחל');
+    assert(p.sub.startsWith('לפי דוד האישור כבר ניתן'), p.sub);
+    assert(p.sub.includes('המדריך') && p.sub.includes('«בדוק קבלת הייצוג»'), 'הצעד הבא — בפקדים האמיתיים');
+  }),
+
+  test('דווח, ואין בדיקה אחרי הדיווח ⇒ «לבדוק בשע״ם», הכדור אצל המשרד', () => {
+    const p = repCenterPlan(base({ firstName: 'הדסה', status: 'awaiting_authorities', sent: true, signed: true, stamped: true, submitted: true,
+      ni: [], clientOpenItems: [], clientApprovalRequiredOpen: true, clientApprovalDeclaredAt: '2026-09-24T09:12:00.000Z',
+      shaam: [{ ...SHAAM, awaitingClientApproval: true, checkedAt: '2026-09-24T07:00:00Z' }] }));
+    equal(p.approval, 'declared');
+    equal(p.ball, 'office');
+    equal(p.headline, 'דווח שהאישור ניתן — לבדוק בשע״ם');
+    assert(p.sub.includes('«בדוק קבלת הייצוג»'), p.sub);
+  }),
+
+  test('דווח, ובדיקה שאחרי הדיווח כבר לא מציגה «ממתין לאישור לקוח» ⇒ ממתינים לקליטה', () => {
+    const p = repCenterPlan(base({ status: 'awaiting_authorities', sent: true, signed: true, stamped: true, submitted: true,
+      ni: [], clientOpenItems: [], clientApprovalRequiredOpen: true, clientApprovalDeclaredAt: '2026-09-24T09:12:00.000Z',
+      shaam: [{ ...SHAAM, checkedAt: '2026-09-25T08:00:00Z' }] }));
+    equal(p.approval, undefined);
+    equal(p.ball, 'authority');
+    equal(p.headline, 'הוגש — ממתינים לקליטה');
+  }),
+
+  test('תאריך דיווח לא תקין ⇒ כאילו לא דווח (לא מסתירים את הבקשה)', () => {
+    const p = repCenterPlan(base({ status: 'awaiting_authorities', sent: true, signed: true, stamped: true, submitted: true,
+      ni: [], clientOpenItems: [], clientApprovalDeclaredAt: 'לא תאריך',
+      shaam: [{ ...SHAAM, awaitingClientApproval: true, checkedAt: '2026-09-25T08:00:00Z' }] }));
+    equal(p.approval, 'needed');
   }),
 
   test('שע״ם נקלטה, ב״ל עוד לא ⇒ לא «פעיל»: נשאר האישור בב״ל', () => {

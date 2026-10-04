@@ -14,7 +14,7 @@ import { QUOTATION_STATUS_LABELS } from '../types/quotations';
 import type { AdditionalCharge } from '../types/charges';
 import { formatILS } from '../utils/quotationCalc';
 import { supabase } from '../lib/supabase';
-import type { EmailMessage } from '../types/emailActivity';
+import { emailActivityView, isInternalEmailKind, type EmailMessage, type EmailRowTone } from '../types/emailActivity';
 
 function emailFromDb(row: Record<string, any>): EmailMessage {
   const out: Record<string, any> = {};
@@ -30,8 +30,14 @@ export interface ActivityEvent {
   cat: ActivityCategory;
   title: string;
   meta?: string;
-  /** מייל שנשלח — מאפשר "צפייה במייל שנשלח". */
+  /** מייל — מאפשר «צפייה במייל». */
   email?: EmailMessage;
+  /** מייל שלא יצא כרגיל: כתום (לא ידוע אם יצא) או אדום (לא נשלח / חזר). */
+  tone?: EmailRowTone;
+  /** מה יודעים ומה עושים — לצד tone. */
+  hint?: string;
+  /** הכתובת של הלקוח לא קיבלה את המייל — קישור לתיק המס, שם מתקנים אותה. */
+  fixAddress?: boolean;
 }
 
 interface Inputs {
@@ -83,12 +89,18 @@ export function useClientActivity({ client, clientSteps, events, quotations, cha
   const clientCharges = charges.filter(c => c.clientId === client.id);
 
   const items: ActivityEvent[] = [];
+  // ‼ התראה למשרד אינה תקשורת עם הלקוח — מקומה ביומן המיילים של המשרד (כמו ClientEmailsSection).
+  const clientEmails = emails.filter(m => !isInternalEmailKind(m.kind));
+  const emailIds = new Set(clientEmails.map(m => m.id));
 
   for (const ev of clientEvents) {
     // ‼ בדיקה לא-ריקה בלי trim מחמיצה מחרוזת רווח/שורה בלבד — "אמת" בבדיקת
     // Boolean, אבל ריקה בעין. אותה שורה "הערה · תהליך" בלי שום תוכן.
     // ראה docs/UX-CONVERGENCE-AUDIT-2026-08.md §12/§21 Phase 8.
     if (ev.type === 'note' && !ev.note?.trim()) continue;
+    // ‼ record_email_sent רושם גם אירוע «מייל נשלח» (meta.emailId). המייל עצמו כבר בציר —
+    // עם המצב האמיתי שלו (חזר / לא ידוע); אירוע שני היה ממשיך לומר «נשלח».
+    if (ev.type === 'email_sent' && emailIds.has(String(ev.meta?.emailId ?? ''))) continue;
     items.push({
       id: `ob-${ev.id}`, at: ev.at, cat: 'process',
       title: EVENT_TYPE_LABELS[ev.type] ?? ev.type,
@@ -96,12 +108,16 @@ export function useClientActivity({ client, clientSteps, events, quotations, cha
     });
   }
 
-  for (const m of emails) {
+  for (const m of clientEmails) {
+    // ‼ CLAUDE.md §9: «נשלח» רק עם ראיה — הכותרת לפי המצב שביומן (emailActivityView).
+    const view = emailActivityView(m, { email: client.email, spouseEmail: client.spouseEmail });
     items.push({
       id: `mail-${m.id}`, at: m.sentAt ?? m.createdAt ?? '', cat: 'mail',
-      title: 'נשלח מייל ללקוח',
+      title: view.title,
       meta: m.subject || undefined,
       email: m,
+      ...(view.tone !== 'normal' ? { tone: view.tone, hint: view.hint } : {}),
+      ...(view.fixAddressInTaxFile ? { fixAddress: true } : {}),
     });
   }
 
@@ -154,7 +170,8 @@ export function useClientActivity({ client, clientSteps, events, quotations, cha
   for (const a of client.activity ?? []) {
     if (!a.text || !a.text.trim()) continue;
     items.push({
-      id: `note-${a.id}`, at: a.at, cat: 'process',
+      // «מסמך חדש» — בסינון «מסמכים», לא עם הבקשות והמשימות.
+      id: `note-${a.id}`, at: a.at, cat: a.kind === 'doc_uploaded' ? 'docs' : 'process',
       title: a.kind === 'manual' ? a.text : (ACTIVITY_LABELS[a.kind] ?? 'הערה'),
       meta: a.kind === 'manual' ? undefined : a.text,
     });
@@ -162,7 +179,7 @@ export function useClientActivity({ client, clientSteps, events, quotations, cha
 
   items.sort((a, b) => (b.at || '').localeCompare(a.at || ''));
   return items;
-  }, [client.id, client.activity, clientSteps, events, quotations, charges, emails, taxChanges, docEvents]);
+  }, [client.id, client.email, client.spouseEmail, client.activity, clientSteps, events, quotations, charges, emails, taxChanges, docEvents]);
 
   return { items, loading };
 }

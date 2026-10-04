@@ -19,7 +19,11 @@
 //   process_open     – יש בקשות שממתינות ללקוח (וגם מייל הפתיחה הראשון)
 //   documents_sent   – המשרד שלח מסמכים, ואין מה שממתין ללקוח
 //   status_update    – אין בקשות ואין מסמכים חדשים; רק מה שבטיפולנו
-export const STEP_EMAIL_KINDS = ['paperless_invite', 'retainer_request', 'step_reminder', 'intake_questionnaire', 'process_open', 'documents_sent', 'status_update'] as const;
+//   portal_reminder  – (214) תזכורת על מה שכבר נמסר ועדיין פתוח. אינה «חדש».
+// ‼ לשני אירועים יש שתי גרסאות, ולכל גרסה נוסח שמור משלה (savedTemplateKey):
+//   process_open      – המייל הראשון («פתחנו לכם דף») / process_open_later — בקשות חדשות אחר כך.
+//   status_update     – אין מה שממתין ללקוח / status_update_actions — יש מה שממתין לו.
+export const STEP_EMAIL_KINDS = ['paperless_invite', 'retainer_request', 'step_reminder', 'intake_questionnaire', 'process_open', 'documents_sent', 'status_update', 'portal_reminder'] as const;
 
 export type StepEmailKind = typeof STEP_EMAIL_KINDS[number];
 
@@ -37,6 +41,7 @@ export const STEP_EMAIL_KIND_LABELS: Record<StepEmailKind, string> = {
   process_open: 'פתיחת התהליך - הדף האישי',
   documents_sent: 'שליחת מסמכים ללקוח',
   status_update: 'עדכון סטטוס - בלי פעולה נדרשת',
+  portal_reminder: 'תזכורת - מה שעוד ממתין בדף האישי',
 };
 
 /** השדות שיוחלפו בערכים אמיתיים. מוצג כמקרא במסך ההגדרות. */
@@ -63,6 +68,7 @@ export const PLACEHOLDERS_BY_KIND: Record<StepEmailKind, string[]> = {
   process_open: ['{{clientName}}', '{{firmName}}', '{{welcomeLine}}', '{{requestList}}'],
   documents_sent: ['{{clientName}}', '{{firmName}}', '{{documentsPhrase}}', '{{documentList}}'],
   status_update: ['{{clientName}}', '{{firmName}}', '{{statusList}}'],
+  portal_reminder: ['{{clientName}}', '{{firmName}}', '{{requestList}}'],
 };
 
 // ‼ הנוסחים נכתבים בגוף שני רבים ("אתם") כמו שאר המיילים ללקוחות במערכת.
@@ -134,7 +140,7 @@ const TEMPLATES: Record<StepEmailKind, StepEmailTemplate> = {
     body:
       '{{welcomeLine}}ריכזנו את כל תהליך ההצטרפות בדף אישי אחד: מה כבר הושלם, מה בטיפולנו, ומה ממתין לכם.\n' +
       '\n' +
-      'מה ממתין לכם כרגע:\n' +
+      'מה חדש עבורכם:\n' +
       '{{requestList}}\n' +
       '\n' +
       'אין צורך לשמור את המייל הזה - הדף מתעדכן מעצמו, ואפשר לחזור אליו מאותו קישור בכל שלב.',
@@ -142,12 +148,24 @@ const TEMPLATES: Record<StepEmailKind, StepEmailTemplate> = {
   // ‼ המסמכים הם הכותרת, לא הקליטה. הלקוח לא נדרש לשום דבר כאן, ולכן אין
   // במייל הזה שום ניסוח של מטלה, דחיפות או "ממתין לך". סטטוס הקליטה מגיע
   // כהקשר משני, בבלוק נפרד שהשרת מוסיף — ולא כפסקה שמתחרה במסמכים.
+  // ‼ מסמך אחד — DOCUMENTS_SENT_ONE (baseTemplateFor עם documentsCount: 1).
   documents_sent: {
-    subject: 'שלחנו לך {{documentsPhrase}}',
+    subject: 'שלחנו לכם {{documentsPhrase}}',
     body:
       '{{documentList}}\n' +
       '\n' +
       'המסמכים מחכים לכם בדף האישי - אפשר לצפות בהם ולהוריד אותם בכל שלב.',
+  },
+  // ‼ 214: תזכורת היא מייל נפרד, עם שם משלו — לא «שליחה חוזרת» של מייל הבקשות.
+  // היא מפרטת רק מה שכבר נמסר ועדיין פתוח, ואינה מסמנת דבר כחדש.
+  portal_reminder: {
+    subject: 'תזכורת - מה שעוד ממתין לכם',
+    body:
+      'רצינו להזכיר שהדברים הבאים עדיין ממתינים לכם בדף האישי:\n' +
+      '\n' +
+      '{{requestList}}\n' +
+      '\n' +
+      'אם כבר טיפלתם בזה - תודה, אפשר להתעלם מהמייל הזה. אם משהו לא ברור או לא עובד, אפשר להשיב למייל ונעזור.',
   },
   // ‼ אין בקשות ואין מסמכים חדשים: המייל היחיד שנשאר לומר הוא "מה קורה אצלנו".
   status_update: {
@@ -160,6 +178,232 @@ const TEMPLATES: Record<StepEmailKind, StepEmailTemplate> = {
       'כרגע אין צורך בפעולה מצידכם - נעדכן אתכם כאן ברגע שיהיה מה לעשות.',
   },
 };
+
+/**
+ * «מה חדש» ללקוח שכבר יש לו דף (דוח שנתי, בקשה שנוספה אחר כך) — בלי «פתחנו לכם דף»
+ * ובלי «תהליך ההצטרפות», שמתאימים רק למייל הראשון של הקליטה. נוסח שהמשרד שמר לגרסה
+ * הזו (commTemplates.process_open_later) — גובר. נוסח המייל הראשון לא נוגע בה.
+ * ‼ לקוח ותיק שזה מייל הדף הראשון שלו (firstPageEmailKind 'introduce') — השולח מוסיף בראש
+ * הגוף שורה אחת שמציגה את הדף (PAGE_INTRO_LINE; noticeWording.introLine), גם בנוסח של המשרד.
+ */
+export const PROCESS_OPEN_LATER: StepEmailTemplate = {
+  subject: 'יש בקשות חדשות בדף האישי שלכם',
+  body:
+    'יש בדף האישי שלכם דברים חדשים שמחכים לכם:\n' +
+    '{{requestList}}\n' +
+    '\n' +
+    'הכול מרוכז בדף האישי — אפשר לחזור אליו מאותו קישור בכל שלב.',
+};
+
+/** «שלחנו לכם מסמך חדש» — מסמך אחד, ביחיד. ‼ חל רק כשהמשרד לא שמר נוסח משלו. */
+export const DOCUMENTS_SENT_ONE: StepEmailTemplate = {
+  subject: 'שלחנו לכם {{documentsPhrase}}',
+  body:
+    '{{documentList}}\n' +
+    '\n' +
+    'המסמך מחכה לכם בדף האישי - אפשר לצפות בו ולהוריד אותו בכל שלב.',
+};
+
+/**
+ * «הקישור לדף» כשיש בקשות שממתינות ללקוח. ‼ נוסח נפרד: הנוסח של status_update
+ * אומר «כרגע אין צורך בפעולה מצידכם» — וכאן יש. {{requestList}} = מה שממתין לו.
+ * מה שבטיפולנו מתווסף בשרת בבלוק נפרד, אלא אם הנוסח כולל {{statusList}}.
+ */
+export const STATUS_UPDATE_WITH_ACTIONS: StepEmailTemplate = {
+  subject: 'הקישור לדף האישי שלכם',
+  body:
+    'הנה הקישור לדף האישי שלכם.\n' +
+    '\n' +
+    'מה שממתין לכם שם:\n' +
+    '{{requestList}}\n' +
+    '\n' +
+    'הדף מתעדכן מעצמו, ואפשר לחזור אליו מאותו קישור בכל שלב.',
+};
+
+/** גרסה של סוג מייל שיש לה נוסח שמור משלה. */
+export type TemplateVariantKey = 'process_open_later' | 'status_update_actions';
+/** המפתח תחת settings.commTemplates — סוג מייל, או גרסה שלו. */
+export type SavedTemplateKey = StepEmailKind | TemplateVariantKey;
+
+const VARIANT_OF: Record<TemplateVariantKey, StepEmailKind> = {
+  process_open_later: 'process_open',
+  status_update_actions: 'status_update',
+};
+
+const VARIANT_TEMPLATES: Record<TemplateVariantKey, StepEmailTemplate> = {
+  process_open_later: PROCESS_OPEN_LATER,
+  status_update_actions: STATUS_UPDATE_WITH_ACTIONS,
+};
+
+const VARIANT_PLACEHOLDERS: Record<TemplateVariantKey, string[]> = {
+  process_open_later: ['{{clientName}}', '{{firmName}}', '{{requestList}}'],
+  status_update_actions: ['{{clientName}}', '{{firmName}}', '{{requestList}}', '{{statusList}}'],
+};
+
+export function isTemplateVariant(key: string): key is TemplateVariantKey {
+  return Object.prototype.hasOwnProperty.call(VARIANT_OF, key);
+}
+
+/** סוג המייל של מפתח נוסח — לכפתור, ליעד הקישור ולסוג ביומן. */
+export function eventOfTemplateKey(key: SavedTemplateKey): StepEmailKind {
+  return isTemplateVariant(key) ? VARIANT_OF[key] : key;
+}
+
+export interface TemplateContext {
+  /** status_update: יש בדף בקשות שממתינות ללקוח. */
+  hasActions?: boolean;
+  /** documents_sent: כמה מסמכים במייל — מסמך אחד ⇒ הנוסח ביחיד (DOCUMENTS_SENT_ONE). */
+  documentsCount?: number;
+}
+
+/**
+ * ‼ איזה נוסח שמור חל על המייל — מקום אחד לשרת (send-process-open-email) ולתצוגה
+ * במסך (mailSample). נוסח שנשמר למייל הראשון לא דורס את המיילים שאחריו, ונוסח
+ * «אין צורך בפעולה» לא יוצא כשיש מה שממתין ללקוח.
+ */
+export function savedTemplateKey(kind: StepEmailKind, first: boolean, ctx: TemplateContext = {}): SavedTemplateKey {
+  if (kind === 'process_open' && !first) return 'process_open_later';
+  if (kind === 'status_update' && ctx.hasActions) return 'status_update_actions';
+  return kind;
+}
+
+/** נוסח ברירת המחדל של מפתח נוסח. מוחזר עותק, כדי שעריכה לא תדרוס את המקור. */
+export function templateForKey(key: SavedTemplateKey): StepEmailTemplate {
+  return isTemplateVariant(key) ? { ...VARIANT_TEMPLATES[key] } : defaultTemplate(key);
+}
+
+/** ברירת המחדל לאירוע — ‼ מקום אחד לשרת (send-process-open-email) ולתצוגה במסך (mailSample). */
+export function baseTemplateFor(kind: StepEmailKind, first: boolean, ctx: TemplateContext = {}): StepEmailTemplate {
+  const key = savedTemplateKey(kind, first, ctx);
+  if (key === 'documents_sent' && ctx.documentsCount === 1) return { ...DOCUMENTS_SENT_ONE };
+  return templateForKey(key);
+}
+
+// ─── המייל המרוכז ללקוח: איזה «ראשון», הכותרת והכפתור ─────────────────────────
+// ‼ מקום אחד לשולח (send-process-open-email) ולתצוגה בבונה (mailSample): מה שהשרת
+// כותב סביב הנוסח — הכותרת, שורת הפתיחה והכפתור — נגזר כאן, לא מועתק.
+
+/**
+ * איזה מייל דף ראשון:
+ *   · 'welcome' — קליטה פתוחה ועוד לא יצא ללקוח מייל דף: «ברוכים הבאים», «שמחים להתחיל»
+ *     ונוסח «תהליך ההצטרפות» (process_open);
+ *   · 'introduce' — לקוח ותיק (דוח שנתי, בקשה ידנית) שזה מייל הדף הראשון שלו: נוסח ההמשך
+ *     (process_open_later) ועוד שורה אחת שמציגה את הדף — לא «תהליך ההצטרפות»;
+ *   · null — כבר קיבל מייל דף.
+ * isFirst = _client_first_page_email; openIntake = open_intake_engagement_id (214).
+ */
+export type FirstPageEmail = 'welcome' | 'introduce' | null;
+
+export function firstPageEmailKind(isFirst: boolean, openIntake: boolean): FirstPageEmail {
+  if (!isFirst) return null;
+  return openIntake ? 'welcome' : 'introduce';
+}
+
+/** שורת הפתיחה של מייל הקליטה הראשון. */
+export const WELCOME_LINE = 'שמחים להתחיל לעבוד יחד.\n';
+/** השורה שמציגה את הדף ללקוח ותיק — מתחת לכותרת «פתחנו לכם דף אישי». */
+export const PAGE_INTRO_LINE = 'מעכשיו נרכז בו את כל מה שנצטרך מכם, והוא מתעדכן מעצמו.\n';
+
+export type ConsolidatedEvent = 'process_open' | 'documents_sent' | 'status_update' | 'portal_reminder';
+
+export interface NoticeWordingInput {
+  event: ConsolidatedEvent;
+  first: FirstPageEmail;
+  /** השם הפרטי של הלקוח — לכותרת. ריק ⇒ כותרת בלי שם. */
+  clientFirst: string;
+  /** כמה מסמכים חדשים (קבצים) במייל. */
+  documentsCount: number;
+  /** status_update: יש בדף מה שממתין ללקוח. */
+  hasActions?: boolean;
+}
+
+export interface NoticeWording {
+  /** הנוסח השמור שחל (savedTemplateKey) — שם השורה ב«מיילים». */
+  templateKey: SavedTemplateKey;
+  /** ברירת המחדל כשהמשרד לא שמר נוסח (כולל מסמך אחד ביחיד). */
+  base: StepEmailTemplate;
+  /** הערך של {{welcomeLine}}. */
+  welcomeLine: string;
+  /**
+   * 'introduce' — השורה שמציגה את הדף. ‼ נוסח בלי {{welcomeLine}} (ברירת המחדל של מייל ההמשך,
+   * או נוסח של המשרד) — היא בראש הגוף (withIntroLine), כדי שלא תיעלם.
+   */
+  introLine: string;
+  /** «מסמך חדש» / «3 מסמכים חדשים» — {{documentsPhrase}}. */
+  documentsPhrase: string;
+  heading: string;
+  ctaLabel: string;
+}
+
+/** ‼ פנייה ללקוח ברבים («לכם», «שלכם») — כמו כל הנוסחים כאן. */
+export function noticeWording(i: NoticeWordingInput): NoticeWording {
+  const name = i.clientFirst.trim();
+  const withName = (text: string) => (name ? `${name}, ${text}` : text);
+  const welcome = i.first === 'welcome';
+  const documentsPhrase = i.documentsCount === 1 ? 'מסמך חדש' : `${i.documentsCount} מסמכים חדשים`;
+  const ctx: TemplateContext = { hasActions: i.event === 'status_update' && !!i.hasActions, documentsCount: i.documentsCount };
+  const templateKey = savedTemplateKey(i.event, welcome, ctx);
+  const heading = i.event === 'documents_sent' ? withName(`שלחנו לכם ${documentsPhrase}`)
+    : i.event === 'status_update' && ctx.hasActions ? withName('הנה הקישור לדף שלכם')
+    : i.event === 'status_update' ? 'עדכון על התהליך' + (name ? `, ${name}` : '')
+    : i.event === 'portal_reminder' ? withName('תזכורת קטנה')
+    : welcome ? 'ברוכים הבאים' + (name ? `, ${name}` : '')
+    : i.first === 'introduce' ? withName('פתחנו לכם דף אישי')
+    : withName('יש משהו חדש בדף שלכם');
+  const introLine = i.event === 'process_open' && i.first === 'introduce' ? PAGE_INTRO_LINE : '';
+  return {
+    templateKey,
+    base: baseTemplateFor(i.event, welcome, ctx),
+    welcomeLine: i.event !== 'process_open' ? '' : welcome ? WELCOME_LINE : introLine,
+    introLine,
+    documentsPhrase,
+    heading,
+    ctaLabel: i.event === 'documents_sent'
+      ? (i.documentsCount === 1 ? 'לצפייה במסמך בדף האישי' : 'לצפייה במסמכים בדף האישי')
+      : 'לדף האישי שלכם',
+  };
+}
+
+/**
+ * הגוף אחרי renderTemplate, עם שורת ההצגה של הדף: נוסח שיש בו {{welcomeLine}} — כבר קיבל אותה
+ * במקום השדה; נוסח בלעדיו — היא בראש הגוף.
+ */
+export function withIntroLine(renderedBody: string, templateBody: string, w: Pick<NoticeWording, 'introLine'>): string {
+  return w.introLine && !templateUses(templateBody, 'welcomeLine') ? w.introLine + renderedBody : renderedBody;
+}
+
+export function placeholdersForKey(key: SavedTemplateKey): string[] {
+  return isTemplateVariant(key) ? [...VARIANT_PLACEHOLDERS[key]] : [...PLACEHOLDERS_BY_KIND[key]];
+}
+
+/** הנוסח משתמש בשדה (למשל requestList) — אחרת השרת מוסיף את התוכן בבלוק משלו. */
+export function templateUses(text: string, name: string): boolean {
+  return new RegExp('\\{\\{\\s*' + name + '\\s*\\}\\}').test(text);
+}
+
+/**
+ * ‼ שם השורה בעמוד «מיילים» — מקום אחד. «איך ייראה» במסלולים מפנה לשורה בשם
+ * הזה בדיוק; שם שונה שולח את המשתמש לחפש שורה שלא קיימת.
+ */
+export const EMAIL_TEMPLATE_TITLES: Partial<Record<SavedTemplateKey, string>> = {
+  process_open: 'מייל ראשון: פתחנו לכם דף אישי',
+  process_open_later: 'בקשות חדשות ללקוח שכבר קיבל מייל',
+  documents_sent: 'מסמכים חדשים בדף האישי',
+  status_update: 'עדכון מצב — בלי פעולה נדרשת',
+  status_update_actions: 'הקישור לדף — עם מה שממתין ללקוח',
+  step_reminder: 'תזכורת על בקשה',
+  portal_reminder: 'תזכורת על מה שממתין בדף',
+};
+
+export function emailTemplateTitle(key: SavedTemplateKey): string {
+  return EMAIL_TEMPLATE_TITLES[key] ?? STEP_EMAIL_KIND_LABELS[eventOfTemplateKey(key)];
+}
+
+/** השורות של «עדכונים ללקוח על הבקשות» בעמוד «מיילים», לפי הסדר. */
+export const REQUEST_UPDATE_TEMPLATE_KEYS: readonly SavedTemplateKey[] = [
+  'process_open', 'process_open_later', 'documents_sent', 'status_update', 'status_update_actions',
+  'portal_reminder', 'step_reminder', 'intake_questionnaire',
+];
 
 /** נוסח ברירת המחדל של סוג מייל. מוחזר עותק, כדי שעריכה לא תדרוס את המקור. */
 export function defaultTemplate(kind: StepEmailKind): StepEmailTemplate {

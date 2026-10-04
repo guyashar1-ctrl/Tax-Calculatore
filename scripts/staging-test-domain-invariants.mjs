@@ -10,13 +10,15 @@
  *   · לסגירת הקליטה יש כלל אחד — לכפתור ולמסלול האוטומטי.
  *   · הכרטיס והבקשה אינם יכולים להיפרד.
  *
- * ‼ דורש זריעה טרייה:
- *     node scripts/seed-staging.mjs && node scripts/staging-test-domain-invariants.mjs
+ * ‼ הלקוחות של החבילה נבנים בה (staging-fixtures.mjs, קידומת fxs-dom-) — לא לקוחות
+ *   הדמה המשותפים של seed-staging: חבילות אחרות סוגרות את הקליטה שלהם.
+ *     node scripts/staging-test-domain-invariants.mjs
  */
 import { createClient } from '@supabase/supabase-js';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { ROOT, loadEnv, writeStaging, assertTriggersEnabled } from './staging-lib.mjs';
+import { cleanupSuiteFixtures, makeIntakeFixture } from './staging-fixtures.mjs';
 
 await assertTriggersEnabled();
 const USER_ID = readFileSync(resolve(ROOT, 'STAGING_USER_ID'), 'utf8').trim();
@@ -32,13 +34,24 @@ const user = createClient(env.VITE_SUPABASE_URL, env.VITE_SUPABASE_ANON_KEY, {
 let pass = 0, fail = 0;
 const ok = (n, c, d = '') => { if (c) { pass++; console.log(`✓ ${n}`); } else { fail++; console.log(`✗ ${n}${d ? ' — ' + d : ''}`); } };
 const one = async (q) => (await writeStaging(q))[0];
-const cidOf = async (k) => (await one(`select client_id from public.quotations where id = 'fx-q-${k}'`)).client_id;
 const intakeOf = async (cid) => (await one(`select public.client_intake_state('${cid}') as r`)).r;
 const stepOf = async (id) => one(`select status, required_for_close, ball from public.onboarding_steps where id = '${id}'`);
 
-const F_OPEN = await cidOf('onb');    // קליטה פתוchה (התקשרות 'onboarding')
-const F_QUOTED = await cidOf('quote'); // הצעה נשלחה, טרם אושרה
-const F_CLOSE = await cidOf('close');  // קליטה שנייה — לבדיקות הסגירה
+const SUITE = 'dom';
+await cleanupSuiteFixtures(SUITE);
+const fx = (key, o = {}) => makeIntakeFixture({ suite: SUITE, key, user, userId: USER_ID, ...o });
+const F_OPEN = (await fx('onb')).clientId;                         // קליטה פתוחה (התקשרות 'onboarding')
+const F_QUOTED = (await fx('quote', { approve: false })).clientId; // הצעה נשלחה, טרם אושרה
+const F_CLOSE = (await fx('close')).clientId;                      // קליטה שנייה — לבדיקות הסגירה
+
+// ‼ דוח העקביות (בסוף) סורק את כל הסביבה המשותפת. שורות שנכתבו ביד בבדיקות ידניות
+// (למשל כרטיס שהוכנס ישירות במצב שהבקשה שלו לא הגיעה אליו) אינן תוצאה של המערכת ולא
+// של הריצה הזאת — נרשמות כאן, מדווחות כאזהרה, ורק מה שנוסף במהלך הריצה מכשיל.
+const DRIFT_SQL = `select id from public.clients c where c.lifecycle_stage is distinct from public.derive_lifecycle_stage(c.id)`;
+const preDrift = new Set((await writeStaging(DRIFT_SQL)).map((r) => r.id));
+const preReport = (await one(`select public.domain_consistency_report() as r`)).r;
+const preBehind = new Set(preReport.clientBehindRequest.map((x) => x.clientId));
+const preMulti = new Set(preReport.multipleOpenRepRequests);
 
 // ── לקוח מיוצג בלי שום התקשרות — בדיוק התרחיש שדווח ─────────────────────────
 // ‼ נבנה כאן ולא בזריעה: הוא ייחודי לבדיקה הזאת, והזריעה מזהה לקוחות דמה דרך
@@ -341,16 +354,22 @@ console.log('\n— המסך והשרת —');
 console.log('\n— דוח עקביות —');
 {
   const r = (await one(`select public.domain_consistency_report() as r`)).r;
-  ok('אין סחף בשלב החיים', r.lifecycleDrift === 0, String(r.lifecycleDrift));
-  ok('אין כרטיס שנשאר מאחורי הבקשה שלו', r.clientBehindRequest.length === 0,
-    JSON.stringify(r.clientBehindRequest));
+  const drift = (await writeStaging(DRIFT_SQL)).map((x) => x.id);
+  const newDrift = drift.filter((id) => !preDrift.has(id));
+  const newBehind = r.clientBehindRequest.filter((x) => !preBehind.has(x.clientId));
+  const newMulti = r.multipleOpenRepRequests.filter((x) => !preMulti.has(x));
+  if (preDrift.size || preBehind.size || preMulti.size) {
+    console.log(`  ⚠ קיים בסביבה לפני הריצה (נתוני בדיקה ידנית, לא נספר): סחף ${[...preDrift].join(',') || '—'} · ` +
+      `מאחורי הבקשה ${[...preBehind].join(',') || '—'} · כמה בקשות פתוחות ${[...preMulti].join(',') || '—'}`);
+  }
+  ok('אין סחף בשלב החיים', newDrift.length === 0 && r.lifecycleDrift === drift.length, JSON.stringify(newDrift));
+  ok('אין כרטיס שנשאר מאחורי הבקשה שלו', newBehind.length === 0, JSON.stringify(newBehind));
   // ‼ המחלקה השנייה אינה נכשלת: היא אינה ניתנת להסקה ומחכה להכרעה אנושית.
   //   מדווחת כדי שלא תיעלם — לא כדי להכשיל את הבנייה.
   if (r.clientAheadOfRequest.length > 0) {
     console.log(`  ⚠ דורש עין אנושית — כרטיס מיוצג שהבקשה שלו מאחור: ${JSON.stringify(r.clientAheadOfRequest)}`);
   }
-  ok('אין לקוח עם יותר מבקשת ייצוג פתוחה אחת', r.multipleOpenRepRequests.length === 0,
-    JSON.stringify(r.multipleOpenRepRequests));
+  ok('אין לקוח עם יותר מבקשת ייצוג פתוחה אחת', newMulti.length === 0, JSON.stringify(newMulti));
   console.log(`  · דגלים אינרטיים (ידוע, לא מזיק): ${r.inertRequiredFlags}`);
 }
 

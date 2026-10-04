@@ -2,6 +2,7 @@
 // כלל: תזכורת אחת, יום עסקים אחד לפני פקיעה, רק ל-sent/viewed שלא אושרו/בוטלו/פגו.
 // מניעת כפילות מוחלטת: תפיסה אטומית של auto_reminder_sent_at לפני השליחה.
 // כישלון: משחררים את התפיסה + מתעדים שגיאה (לא מסמנים שנשלח) → מוצג לרו"ח.
+// ‼ לא ידוע אם יצא (רשת, 5xx): התפיסה נשארת ושורת היומן 'unknown' — לא כישלון.
 // אימות: x-cron-secret (מה-cron) או Authorization: Bearer <service_role> (הרצה ידנית).
 //
 // ‼‼ שער ההגדרה (הכרעת גיא D2, 2026-08-07). המייל הזה יוצא **ללקוח** בלי
@@ -11,9 +12,13 @@
 // הייתה שורפת את ההזדמנות היחידה לשלוח, ואז גם הדלקת המתג לא הייתה עוזרת.
 // ראה docs/EMAIL-POLICY.md.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { resendEmailsUrl, postResend } from "../_shared/resendResult.ts";
 // ★ מערכת העיצוב המשותפת — אותו קובץ שהאתר צורך. אין כאן צבעים/מעטפת משלנו.
 import { resolveBrand, buildBrandedEmail, esc } from "../_shared/designSystem.ts";
 import { isNotificationEnabled } from "../_shared/accountantNotifications.ts";
+
+// ‼ ספק הדואר — Resend בייצור; ב-staging אפשר ספק מדומה שקולט (resendEmailsUrl).
+const RESEND_EMAILS = resendEmailsUrl(Deno.env.get("RESEND_API_URL"), Deno.env.get("SUPABASE_URL") ?? "");
 
 /** מפתח ההגדרה של תזכורת הפקיעה — חייב להיות זהה לקטלוג. */
 const REMINDER_KIND = "quotation_expiry_reminder";
@@ -87,7 +92,7 @@ Deno.serve(async (req: Request) => {
       return profileCache.get(uid);
     }
 
-    let sent = 0, failed = 0, skipped = 0, disabled = 0;
+    let sent = 0, failed = 0, skipped = 0, disabled = 0, unknown = 0;
     const results: any[] = [];
 
     for (const q of candidates ?? []) {
@@ -180,12 +185,22 @@ Deno.serve(async (req: Request) => {
 
       const payload: Record<string, unknown> = { from: `${firmName} <${fromAddress}>`, to: [toEmail], subject, html };
       if (replyTo) payload.reply_to = replyTo;
-      let r: Response;
-      try {
-        r = await fetch("https://api.resend.com/emails", { method: "POST", headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-      } catch (e) { await fail(`fetch_failed: ${e}`); continue; }
-      const respBody = await r.json().catch(() => ({}));
-      if (!r.ok) { await fail(JSON.stringify(respBody)); continue; }
+      const call = await postResend(() => fetch(RESEND_EMAILS, { method: "POST", headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" }, body: JSON.stringify(payload) }));
+      const respBody = call.body;
+      if (call.result.outcome === "unknown") {
+        // ‼ לא ידוע אם התזכורת יצאה — לא «נכשלה». התפיסה **נשארת** (אין תזכורת שנייה
+        // לבד, אולי כפולה), ולא נרשמת שגיאה שהמסך מציג כ«נכשלה». השורה ביומן
+        // («לא ידוע אם יצא») היא מה שהמשרד רואה.
+        const { error: logErr } = await admin.from("email_messages").insert({
+          user_id: q.user_id, client_id: q.client_id || null, to_email: toEmail, subject, kind: "quotation_reminder", html,
+          status: "unknown", error: call.result.reason.slice(0, 500),
+          meta: { quotationId: q.id, quotationNumber: q.quotation_number, auto: true },
+        });
+        if (logErr) console.error("[quotation-reminders] unknown journal insert failed", logErr.code, logErr.message);
+        unknown++; results.push({ id: q.id, status: "unknown", to: toEmail });
+        continue;
+      }
+      if (call.result.outcome === "failed") { await fail(JSON.stringify(respBody)); continue; }
 
       // הצלחה — תיעוד to+timestamp בהיסטוריה (כלל 5), ניקוי שגיאה קודמת.
       // ‼ המייל כבר יצא: מכאן כשל הוא כשל רישום ולא כשל שליחה, והתפיסה נשארת.
@@ -210,7 +225,7 @@ Deno.serve(async (req: Request) => {
     // ‼ disabled נספר ומוחזר במפורש. הרצה שלא שלחה כלום כי המתג כבוי חייבת
     //   להיראות אחרת מהרצה שלא מצאה מועמדים — אחרת אי אפשר לדעת אם השער
     //   עובד או שפשוט לא היה מה לשלוח.
-    return json({ ok: true, processed: (candidates ?? []).length, sent, failed, skipped, disabled, results });
+    return json({ ok: true, processed: (candidates ?? []).length, sent, failed, unknown, skipped, disabled, results });
   } catch (e) {
     return json({ error: String(e) }, 500);
   }

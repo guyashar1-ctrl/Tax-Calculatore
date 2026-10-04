@@ -8,6 +8,9 @@
 //
 // שני מסלולי הפעלה, שניהם רק *מפעילים* ולא מקבלים מידע:
 //   (א) JWT של הרו"ח — רשת הביטחון. בכל כניסה למערכת מרוקנים מה שלא יצא.
+//   (ג) 215: כותרת x-client-notice-secret מהדופק בשרת, עם userId בגוף — כדי
+//       שהודעה על שלב שהושלם מאירוע בשרת (בדיקה ברשות, קריאה של העובד) לא
+//       תחכה עד שהרו"ח יפתח את המערכת.
 //   (ב) token ציבורי (הצעה / השלמת פרטים / חתימה / דף אישי / דף שחרור) —
 //       הדפדפן של הלקוח מפעיל שליחה מיד עם האירוע, בלי להתחבר. הטוקן מזהה
 //       רו"ח אחד בדיוק, ולכן אי אפשר להפעיל שליחה של מישהו אחר. התשובה היא
@@ -18,8 +21,15 @@
 //
 // אבטחה: verify_jwt=false בשער + אימות פנימי בשני המסלולים.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { resendEmailsUrl, postResend, UNKNOWN_OUTCOME } from "../_shared/resendResult.ts";
+import { acctNotificationOn409 } from "../_shared/resendConflict.ts";
 import { resolveBrand, buildBrandedEmail, esc } from "../_shared/designSystem.ts";
-import { isNotificationEnabled } from "../_shared/accountantNotifications.ts";
+import {
+  isNotificationEnabled, requestNotCreatedText, kindHoldReleaseFailedText,
+} from "../_shared/accountantNotifications.ts";
+
+// ‼ ספק הדואר — Resend בייצור; ב-staging אפשר ספק מדומה שקולט (resendEmailsUrl).
+const RESEND_EMAILS = resendEmailsUrl(Deno.env.get("RESEND_API_URL"), Deno.env.get("SUPABASE_URL") ?? "");
 
 const MAX_ATTEMPTS = 3;
 const BATCH = 20;
@@ -70,7 +80,7 @@ Deno.serve(async (req: Request) => {
     new Response(JSON.stringify(b), { status: s, headers: { ...cors, "Content-Type": "application/json" } });
 
   try {
-    const { token } = await req.json().catch(() => ({}));
+    const { token, userId: bodyUserId } = await req.json().catch(() => ({}));
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
     const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY")!;
@@ -79,7 +89,12 @@ Deno.serve(async (req: Request) => {
 
     // ── מי הרו"ח שעבורו מרוקנים את התור ──
     let userId: string | null = null;
-    if (token) {
+    const internalSecret = req.headers.get("x-client-notice-secret");
+    if (internalSecret) {
+      const { data: okSecret } = await admin.rpc("verify_client_notice_secret", { p: internalSecret });
+      if (okSecret !== true) return json({ error: "unauthorized" }, 401);
+      userId = bodyUserId ? String(bodyUserId) : null;
+    } else if (token) {
       const { data } = await admin.rpc("user_id_for_public_token", { p_token: String(token) });
       userId = (data as string) ?? null;
     } else {
@@ -152,23 +167,67 @@ Deno.serve(async (req: Request) => {
         subject: built.subject,
         html: built.html,
       };
-      // ‼ fetch שזורק (רשת, timeout) נרשם כניסיון שנכשל — attempts כבר עלה
-      // בתפיסה, והניסיון הבא יבוא בהפעלה הבאה. לא קופצים החוצה מהלולאה.
-      let r: Response;
-      try {
-        r = await fetch("https://api.resend.com/emails", {
-          method: "POST",
-          headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
+      // ‼ חיבור שנפל / 5xx / 2xx בלי מזהה = לא ידוע אם יצא (classifyResendResponse),
+      // לא «נכשל». attempts כבר עלה בתפיסה; לא קופצים החוצה מהלולאה.
+      const call = await postResend(() => fetch(RESEND_EMAILS, {
+        method: "POST",
+        // ‼ 215: הדופק בשרת מרוקן את התור כל 5 דקות. אותה התראה = אותו מפתח,
+        // כך שניסיון חוזר אחרי תשובה שאבדה לא שולח מייל שני (הספק זוכר 24 שעות).
+        headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json",
+                   "Idempotency-Key": `acct-${n.id}` },
+        body: JSON.stringify(payload),
+      }));
+      const r = { status: call.status };
+      const body = call.body;
+
+      // 409 על המפתח — שני מצבים שונים (acctNotificationOn409):
+      //   בתנועה: ההפעלה המקבילה עוד לא יודעת אם יצא ⇒ לא מסמנים sent_at, והדופק
+      //     הבא שולח שוב באותו מפתח (הספק מחזיר את התשובה של המקורית, בלי מייל שני).
+      //   המפתח כבר שימש: ניסיון קודם יצא ותשובתו אבדה ⇒ שורה ביומן, ואז sent_at —
+      //     אחרת המייל לא מופיע ב«נשלחו לאחרונה» במשרד.
+      if (r.status === 409) {
+        console.warn("[notify-accountant] idempotency 409", n.id, JSON.stringify(body));
+        if (acctNotificationOn409(body) === "retry_later") {
+          await admin.from("accountant_notifications")
+            .update({ error: "in_flight" }).eq("id", n.id).is("sent_at", null);
+          continue;
+        }
+        const { error: insErr } = await admin.from("email_messages").insert({
+          user_id: userId, client_id: n.client_id, request_id: n.request_id,
+          to_email: toEmail, subject: built.subject, kind: `notify_${n.kind}`,
+          // ‼ בלי html: מה שנבנה עכשיו אינו בהכרח מה שיצא בניסיון הקודם.
+          html: null, status: "sent", resend_id: null,
+          meta: { idempotentReplay: true }, idempotency_key: `acct:${n.id}`,
         });
-      } catch (e) {
+        // 23505 = השורה כבר נרשמה (אותו מפתח ביומן) — זו בדיוק התוצאה הרצויה.
+        if (insErr && insErr.code !== "23505") {
+          console.error("[notify-accountant] replay journal insert failed", insErr.code, insErr.message);
+        }
         await admin.from("accountant_notifications")
-          .update({ error: `resend_unreachable: ${String(e)}`.slice(0, 300) }).eq("id", n.id);
+          .update({ sent_at: new Date().toISOString(), error: insErr && insErr.code !== "23505" ? "idempotent_replay_log_failed" : "idempotent_replay" })
+          .eq("id", n.id).is("sent_at", null);
         continue;
       }
-      const body = await r.json().catch(() => ({}));
 
-      if (!r.ok) {
+      if (call.result.outcome === "unknown") {
+        // ‼ לא ידוע אם יצאה. הניסיון הבא (הדופק / הכניסה הבאה) הוא אותו מפתח — אם היא
+        // כבר יצאה, הספק מחזיר את המקורית בלי מייל שני. הסימון unknown_outcome מבדיל
+        // אותה במסך מ«לא נשלחה»; ורק אחרי הניסיון האחרון — שורה ביומן «לא ידוע אם יצא»,
+        // כדי שלא יישארו ביומן ניסיונות ביניים שהספק הכריע אחר כך.
+        await admin.from("accountant_notifications")
+          .update({ error: `${UNKNOWN_OUTCOME}: ${call.result.reason}`.slice(0, 300) }).eq("id", n.id).is("sent_at", null);
+        if (Number(claimed.attempts ?? 0) >= MAX_ATTEMPTS) {
+          const { error: logErr } = await admin.from("email_messages").insert({
+            user_id: userId, client_id: n.client_id, request_id: n.request_id,
+            to_email: toEmail, subject: built.subject, kind: `notify_${n.kind}`, html: built.html,
+            status: "unknown", error: call.result.reason.slice(0, 500), meta: { notificationId: n.id },
+          });
+          if (logErr) console.error("[notify-accountant] unknown journal insert failed", logErr.code, logErr.message);
+        }
+        continue;
+      }
+
+      if (call.result.outcome === "failed") {
         await admin.from("accountant_notifications")
           .update({ error: JSON.stringify(body).slice(0, 300) }).eq("id", n.id);
         await admin.from("email_messages").insert({
@@ -510,6 +569,70 @@ async function buildEmail(
         heading: "תהליך הקליטה הושלם",
         bodyHtml: esc(`${name} עבר מקליטה לטיפול שוטף.`),
         extraHtml: card(brand, rows),
+        ctaLabel: "לכרטיס הלקוח",
+        ctaHref: `${appUrl}/`,
+        ctaArrow: true,
+        footerTagline: "התראה אוטומטית ממערכת הקליטה",
+      }),
+    };
+  }
+
+  // ── 215: מסלולים ───────────────────────────────────────────────────────
+  if (kind === "flow_stage_done" || kind === "flow_attach_failed") {
+    const { data: c } = n.client_id
+      ? await admin.from("clients").select("first_name,last_name").eq("id", n.client_id).maybeSingle()
+      : { data: null };
+    const clientName = [c?.first_name, c?.last_name].filter(Boolean).join(" ").trim() || "הלקוח";
+    if (kind === "flow_stage_done") {
+      const flow = String(p.flowName || "המסלול");
+      const stage = String(p.stageName || "שלב");
+      return {
+        subject: `☑️ ${clientName} - הושלם «${stage}»`,
+        html: buildBrandedEmail(brand, {
+          heading: "שלב במסלול הושלם",
+          bodyHtml: esc(`אצל ${clientName} הושלם השלב «${stage}» במסלול «${flow}». השלב הבא, אם יש, נפתח לפי המסלול.`),
+          extraHtml: card(brand, [row(brand, "לקוח", clientName), row(brand, "מסלול", flow), row(brand, "שלב", stage)].join("")),
+          ctaLabel: "לכרטיס הלקוח",
+          ctaHref: `${appUrl}/`,
+          ctaArrow: true,
+          footerTagline: "ההודעה מוגדרת בשלב עצמו - במשרד ← מסלולים",
+        }),
+      };
+    }
+    return {
+      subject: `⚠️ ${clientName} - מסלול הקליטה לא הוצמד`,
+      html: buildBrandedEmail(brand, {
+        heading: "מסלול הקליטה לא הוצמד",
+        bodyHtml: esc(`ההצעה של ${clientName} אושרה והבקשות נוצרו, אבל המסלול לא חובר ללקוח. אפשר להצמיד אותו מלשונית «בקשות» בכרטיס הלקוח.`),
+        extraHtml: card(brand, [row(brand, "לקוח", clientName), row(brand, "תקלה", String(p.error || ""))].join("")),
+        ctaLabel: "לכרטיס הלקוח",
+        ctaHref: `${appUrl}/`,
+        ctaArrow: true,
+        footerTagline: "התראה אוטומטית ממערכת הקליטה",
+      }),
+    };
+  }
+
+  // ── בקשות שהיו אמורות להיפתח ולא נפתחו ────────────────────────────────────
+  // request_not_created: המחולל (אישור הצעה) — payload {engagementId, titles}.
+  // kind_hold_release_failed: סוג העוסק נקבע והפתיחה נכשלה — payload {engagementId, titles?, held?}.
+  // ‼ הנוסח ב-_shared/accountantNotifications.ts; בלי טקסט התקלה הגולמי (באנגלית).
+  if (kind === "request_not_created" || kind === "kind_hold_release_failed") {
+    const { data: c } = n.client_id
+      ? await admin.from("clients").select("first_name,last_name").eq("id", n.client_id).maybeSingle()
+      : { data: null };
+    const clientName = [c?.first_name, c?.last_name].filter(Boolean).join(" ").trim() || "הלקוח";
+    const titles: unknown[] = Array.isArray(p.titles) ? p.titles
+      : Array.isArray(p.held) ? p.held.map((h: { title?: unknown }) => h?.title) : [];
+    const text = kind === "request_not_created"
+      ? requestNotCreatedText(clientName, titles)
+      : kindHoldReleaseFailedText(clientName, titles);
+    return {
+      subject: text.subject,
+      html: buildBrandedEmail(brand, {
+        heading: text.heading,
+        bodyHtml: esc(text.body),
+        extraHtml: card(brand, row(brand, "לקוח", clientName)),
         ctaLabel: "לכרטיס הלקוח",
         ctaHref: `${appUrl}/`,
         ctaArrow: true,

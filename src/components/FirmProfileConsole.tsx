@@ -1,1226 +1,374 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import ClientDocumentsSection from './office/ClientDocumentsSection';
-import {
-  FirmProfile,
-  FirmBranding,
-  FirmCommunication,
-  LogoSurface,
-  REP_TYPE_OPTIONS,
-  deriveMonogram,
-} from '../types/firmProfile';
-import LogoAssetsPanel, { type LogoUploadRequest } from './LogoAssetsPanel';
-import { Client } from '../types';
-import EmployeesPanel from './EmployeesPanel';
-import EmailActivityModule from './EmailActivity/EmailActivityModule';
-import RequestDefaultsSection from './office/RequestDefaultsSection';
-import RepresentationSettingsSection from './office/RepresentationSettingsSection';
-import ShaamWarmupSettingsSection from './office/ShaamWarmupSettingsSection';
-import ProcessCatalogSection from './office/ProcessCatalogSection';
-import QuotationSettings from './quotations/QuotationSettings';
-import QuotationDesignStudio from './quotations/QuotationDesignStudio';
-import { deriveQuotationBrand } from './quotations/quotationBranding';
-import { supabase } from '../lib/supabase';
-import { FIRM_PRIVATE_BUCKET, downloadPrivateDataUrl } from '../utils/privateAsset';
-import {
-  defaultTemplate,
-  PLACEHOLDERS_BY_KIND,
-  STEP_EMAIL_KIND_LABELS,
-  type StepEmailKind,
-} from '../../supabase/functions/_shared/stepTemplates.ts';
-import {
-  ACCOUNTANT_NOTIFICATIONS,
-  NOTIFICATION_GROUPS,
-  NOTIFICATION_SETTINGS_KEY,
-  readNotificationPrefs,
-  isNotificationEnabled,
-} from '../../supabase/functions/_shared/accountantNotifications.ts';
-import {
-  DEFAULT_RELEASE_TEMPLATE, RELEASE_TEMPLATE_KEY, RELEASE_TEMPLATE_VARS,
-  toggleHighlightAt, upgradeReleaseTemplateBody,
-} from '../utils/releaseLetter';
-import HighlightTextarea from './ui/HighlightTextarea';
-import EmailInput from './ui/EmailInput';
-import InfoLines from './ui/InfoLines';
+// ─── «המשרד» ─────────────────────────────────────────────────────────────────
+// מעטפת אחת לכל הגדרות המשרד: שמונה יעדים לפי מה שבאים לעשות
+// (officeModel.ts). כל הגדרה נערכת במקום אחד; כשהיא נחוצה גם בהקשר אחר
+// (קישור ההזמנה לפייפרלס, נוסח מייל מתוך בקשה) — אותו רכיב נפתח שם, לא עותק.
+//
+// ‼ שתי יחידות שמירה:
+//   · רשומת המשרד (profiles) — כל העמודים שעורכים אותה. כתיבה אחת, אטומית,
+//     מ«שמירה» בשורת השמירה.
+//   · מסלול (office_flows) — נשמר כגרסה חדשה מתוך המסלול עצמו, עם סיכום השינוי.
+//     הקונסולה רק יודעת שיש מסלול שלא נשמר: נקודה בתפריט, שורה בשורת השמירה,
+//     ושאלה ביציאה. (2.10.2026: «בקשות ללקוח חדש» לכל סוג — עברו למסלול הקליטה.)
+//   הצעות מחיר, עובדים ובקשות בספרייה נשמרים מיד בחלון העריכה שלהם.
+// ‼ שינויים שלא נשמרו מוגנים: מעבר בין עמודי המשרד שומר אותם בזיכרון; יציאה
+// מהמשרד, «אחורה» או סגירת הלשונית — שואלים קודם (lib/leaveGuard.ts).
+// ‼ (1.10.2026, סבב 3) 18 עמודים בשש קבוצות → 8 יעדים. ראה
+// docs/OFFICE-UX-ROUND3-2026-10-01.md. (2.10.2026) ספרייה · מסלולים · אוטומציות —
+// docs/PLAN-LIBRARY-FLOWS.md.
 
-const LOGO_BUCKET = 'firm-logos';           // לוגו — ציבורי (מוטבע במיילים ללקוחות)
-const SIGN_BUCKET = FIRM_PRIVATE_BUCKET;     // חתימה/חותמת — פרטי, גישה מאומתת בלבד
-const LOGO_MAX_BYTES = 2 * 1024 * 1024; // 2MB
-const LOGO_MIME = ['image/png', 'image/jpeg', 'image/svg+xml', 'image/webp'];
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { FirmProfile } from '../types/firmProfile';
+import type { Client } from '../types';
+import type { TabId as ClientTabId } from './ClientWorkspace';
+import EmployeesPanel from './EmployeesPanel';
+import QuotationSettings from './quotations/QuotationSettings';
+import ProfilePage from './office/pages/ProfilePage';
+import LibraryPage from './office/pages/LibraryPage';
+import { FlowsPage } from './office/pages/FlowsPage';
+import EmailsPage from './office/pages/EmailsPage';
+import ConnectionsPage from './office/pages/ConnectionsPage';
+import AutomationsPage from './office/pages/AutomationsPage';
+import ClientPicker from './office/pages/ClientPicker';
+import type { ActivityFilter } from './office/pages/activityFilter';
+import Modal from './ui/Modal';
+import {
+  DEFAULT_OFFICE_PAGE, NAV_BREAK_AFTER, OFFICE_PAGES, pageDef, resolveOfficeLocation,
+  type DirtyPart, type OfficePageId,
+} from './office/officeModel';
+import { useOfficeDraft } from './office/useOfficeDraft';
+import { setLeaveGuard } from '../lib/leaveGuard';
+import { setPendingIntent } from '../lib/pendingIntent';
+import './office/office.css';
 
 interface Props {
   profile: FirmProfile;
   clients: Client[];
   onSave: (p: FirmProfile) => Promise<void> | void;
+  /** העמוד מהכתובת (‎#/firm/{page}‎). בלי — המסך מנהל את העמוד בעצמו. */
+  page?: string | null;
+  onPageChange?: (page: string | null) => void;
+  /** פתיחת כרטיס לקוח: «פעילות» מיומן המיילים, «בקשות» מ«שליחה ללקוח».
+   *  'rep-center' — מרכז הייצוג (מ«אוטומציות»: הזנה/שליחה/בדיקה מול הרשות). */
+  onOpenClient?: (clientId: string, tab?: ClientTabId | 'rep-center') => void;
+  /** מה לפתוח בעמוד, מהכתובת (‎#/firm/library/request:…‎ / ‎#/firm/flows/flow:…‎). */
+  focus?: string | null;
 }
 
-type Section = 'identity' | 'branding' | 'design' | 'contact' | 'signature' | 'communication' | 'notifications' | 'processes' | 'paperless' | 'representation' | 'shaamWarmup' | 'requestDefaults' | 'clientDocs' | 'emailActivity' | 'quotations' | 'employees';
 
-// אייקוני הניווט כ-SVG מוטמע. (הפרויקט לא טוען את פונט Tabler, ולכן ה-<i class="ti">
-// שהיו כאן קודם פשוט לא הוצגו — זה מחליף אותם באייקונים שבאמת נראים.)
-const ICON_PATHS: Record<string, string> = {
-  identity: 'M4 5h16v14H4z M10 11a2 2 0 1 0 4 0a2 2 0 0 0 -4 0 M8.5 16.5c.4-1.3 1.8-2 3.5-2s3.1.7 3.5 2',
-  branding: 'M12 21a9 9 0 1 1 0-18 8 8 0 0 1 8 8h-3.5a2.5 2.5 0 0 0 0 5H18a2 2 0 0 1 0 5z M7.5 10.5h.01 M11 7.5h.01 M15 9h.01',
-  design: 'M4 20s3 .8 5-1.2c1.5-1.5 1-4 3-5l7-7-2-2-7 7c-1 2-3.5 1.5-5 3-2 2-1 5.2-1 5.2z',
-  contact: 'M6 3h13v18H6z M6 3v18 M11 10a2 2 0 1 0 4 0a2 2 0 0 0 -4 0 M10.5 16c.3-1.1 1.4-1.7 2.5-1.7s2.2.6 2.5 1.7',
-  signature: 'M3 19c3 0 5-2 6-5s2-6 4-6 2 3 0 6-4 4-6 4c3 0 6 1 8 1s3-1 3-1',
-  communication: 'M8 9h8 M8 13h5 M4 5h16v11H9l-5 4z',
-  bell: 'M10 5a2 2 0 1 1 4 0 7 7 0 0 1 4 6v3a4 4 0 0 0 2 3H4a4 4 0 0 0 2-3v-3a7 7 0 0 1 4-6 M9 17v1a3 3 0 0 0 6 0v-1',
-  emailActivity: 'M3 6h18v12H3z M3 7l9 6 9-6',
-  quotations: 'M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z M14 3v5h5 M9 13h6 M9 17h4',
-  employees: 'M9 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6z M3 20v-1a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v1 M17.5 5.2a3 3 0 0 1 0 5.6 M21 20v-1a4 4 0 0 0-3-3.85',
-  mailCog: 'M3 6h18v7 M3 7l9 6 9-6 M17.5 19a2 2 0 1 0 4 0a2 2 0 0 0 -4 0',
-  rep: 'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z M9 12l2 2 4-4',
-  shaam: 'M9 15 15 9 M8 16l-2 2a3 3 0 0 1-4-4l3-3a3 3 0 0 1 4 0 M16 8l2-2a3 3 0 0 1 4 4l-3 3a3 3 0 0 1-4 0',
-  requests: 'M9 4h6v3H9z M7 5H5v15h14V5h-2 M9 12h6 M9 16h4',
-  bolt: 'M13 2 4 14h7l-1 8 9-12h-7z',
-  userCheck: 'M9 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6z M3 20v-1a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v1 M16 12.5l2 2 4-4',
-  fileUpload: 'M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z M14 3v5h5 M12 17v-5 M9.5 14.5 12 12l2.5 2.5',
-  dashboard: 'M4 4h7v7H4z M13 4h7v4h-7z M13 10h7v10h-7z M4 13h7v7H4z',
-  shieldLock: 'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z M12 11v3',
-  photo: 'M4 5h16v14H4z M8.5 10.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3z M4 16l4.5-4.5 3 3L15 11l5 5',
-  trash: 'M4 7h16 M10 11v6 M14 11v6 M5.5 7l1 13h11l1-13 M9 7V4h6v3',
-  stamp: 'M9 10V6.5a3 3 0 0 1 6 0V10 M5 14h14v3.5H5z M4 20.5h16',
-  info: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z M12 11.5v4.5 M12 8h.01',
-  flow: 'M4 6h5v4H4z M15 4h5v4h-5z M15 16h5v4h-5z M9 8h3v6H9 M12 6h3 M12 18h3 M12 11v7',
-};
+export default function FirmProfileConsole({ profile, clients, onSave, page: routePage, onPageChange, onOpenClient, focus: routeFocus }: Props) {
+  const office = useOfficeDraft(profile, onSave);
+  const { draft, setDraft } = office;
 
-function NavIcon({ name, size = 16 }: { name: string; size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor"
-      strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ flexShrink: 0 }}>
-      <path d={ICON_PATHS[name] ?? ''} />
-    </svg>
-  );
-}
-
-const ACTIVE_NAV: { id: Section; label: string; icon: string }[] = [
-  { id: 'identity', label: 'זהות', icon: 'identity' },
-  { id: 'branding', label: 'מותג', icon: 'branding' },
-  { id: 'design', label: 'עיצוב עמודי לקוח', icon: 'design' },
-  { id: 'contact', label: 'פרטי קשר', icon: 'contact' },
-  { id: 'signature', label: 'חתימת מייל', icon: 'signature' },
-  { id: 'communication', label: 'ערוצי תקשורת', icon: 'communication' },
-  { id: 'notifications', label: 'התראות למשרד', icon: 'bell' },
-  // M2: «ממה מורכב כל תהליך» — הגדרה, לא מצב של לקוח. יושב לפני מקטעי ההגדרות
-  // של התהליכים עצמם (פייפרלס, ייצוג, בקשות), כי הוא ההסבר שלהם.
-  { id: 'processes', label: 'תהליכים', icon: 'flow' },
-  { id: 'paperless', label: 'פייפרלס ותקשורת', icon: 'mailCog' },
-  { id: 'representation', label: 'ייצוג', icon: 'rep' },
-  { id: 'shaamWarmup', label: 'חיבור לשע״ם', icon: 'shaam' },
-  { id: 'requestDefaults', label: 'בקשות מסמכים', icon: 'requests' },
-  { id: 'clientDocs', label: 'מסמכים ללקוחות', icon: 'fileUpload' },
-  { id: 'emailActivity', label: 'פעילות מייל', icon: 'emailActivity' },
-  { id: 'quotations', label: 'הצעות מחיר', icon: 'quotations' },
-];
-
-const SOON_GROUPS: { group: string; items: { label: string; icon: string }[] }[] = [
-  {
-    group: 'תקשורת ואוטומציה',
-    items: [
-      // ‼ "תבניות מייל" ירד מכאן ולא נבנה כמסך נפרד (הכרעת גיא 2026-08-05):
-      // הנוסח יושב על הבקשה עצמה, והמייל נגזר ממנו. מנהלים את התבניות מכפתור
-      // "תבניות" בדף המסע של כל לקוח. מסך שני היה מקור אמת שני שסותר אותו.
-      { label: 'אוטומציות', icon: 'bolt' },
-    ],
-  },
-  {
-    group: 'חוויות לקוח',
-    items: [
-      // ‼ «בקשות מסמכים» ירד מכאן ב-2026-08-25 — הוא נבנה, ויושב בסרגל הפעיל
-      // בין «פייפרלס ותקשורת» ל«מסמכים ללקוחות». שני פריטים לאותו דבר בלבלו.
-      { label: 'עמודי הזדהות', icon: 'userCheck' },
-      { label: 'חתימה דיגיטלית', icon: 'signature' },
-      { label: 'פורטל לקוחות', icon: 'dashboard' },
-    ],
-  },
-  {
-    group: 'מערכת',
-    items: [{ label: 'הרשאות ותפקידים', icon: 'shieldLock' }],
-  },
-];
-
-const ACCENT = 'var(--br)';
-
-export default function FirmProfileConsole({ profile, clients, onSave }: Props) {
-  const [draft, setDraft] = useState<FirmProfile>(profile);
-  const [section, setSection] = useState<Section>('identity');
-  /** איזה תהליך «תהליכים» פותח — כשמגיעים אליו ממקטע אחר. */
-  const [processKey, setProcessKey] = useState<string | undefined>(undefined);
-  const [busy, setBusy] = useState(false);
-  const [savedAt, setSavedAt] = useState<number | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [logoBusy, setLogoBusy] = useState<LogoSurface | null>(null);
-  const [stampBusy, setStampBusy] = useState(false);
-  const [sigBusy, setSigBusy] = useState(false);
-  // תצוגת החתימה/חותמת מהדלי הפרטי — data URL שנפתר מהנתיב (download מאומת)
-  const [stampSrc, setStampSrc] = useState<string | undefined>(undefined);
-  const [sigSrc, setSigSrc] = useState<string | undefined>(undefined);
-
-  // כל מקום-לוגו שמור בזוג שדות משלו (כתובת + נתיב), כדי שאפשר יהיה להחליף
-  // ולמחוק כל אחד בנפרד מבלי לגעת באחרים.
-  const LOGO_FIELDS: Record<LogoSurface, { url: keyof FirmBranding; path: keyof FirmBranding; prefix: string }> = {
-    app: { url: 'logoUrl', path: 'logoPath', prefix: 'logo' },
-    dark: { url: 'logoOnDarkUrl', path: 'logoOnDarkPath', prefix: 'logo-dark' },
-    email: { url: 'emailLogoUrl', path: 'emailLogoPath', prefix: 'logo-email' },
-  };
-
-  async function handleLogoUpload({ surface, file }: LogoUploadRequest) {
-    const fields = LOGO_FIELDS[surface];
-    setError(null);
-    setLogoBusy(surface);
-    try {
-      const ext = (file.name.split('.').pop() || 'png').toLowerCase();
-      // כל העלאה מקבלת שם ייחודי, ולכן אין צורך ב-upsert. חשוב שלא יהיה: מדיניות
-      // האבטחה של הדלי חוסמת בקשות upsert ומחזירה "new row violates RLS policy".
-      const path = `${profile.id}/${fields.prefix}-${Date.now()}.${ext}`;
-      const { error: upErr } = await supabase.storage
-        .from(LOGO_BUCKET)
-        .upload(path, file, { contentType: file.type });
-      if (upErr) throw upErr;
-      const { data: pub } = supabase.storage.from(LOGO_BUCKET).getPublicUrl(path);
-      const prevPath = draft.branding[fields.path] as string | undefined;
-      setDraft(d => ({ ...d, branding: { ...d.branding, [fields.url]: pub.publicUrl, [fields.path]: path } }));
-      if (prevPath && prevPath !== path) {
-        await supabase.storage.from(LOGO_BUCKET).remove([prevPath]);
-      }
-    } catch (e) {
-      setError(extractErr(e));
-    } finally {
-      setLogoBusy(null);
-    }
-  }
-
-  function handleLogoScale(scale: number) {
-    setDraft(d => ({ ...d, branding: { ...d.branding, logoScale: scale } }));
-  }
-
-  async function handleLogoRemove(surface: LogoSurface) {
-    const fields = LOGO_FIELDS[surface];
-    setError(null);
-    setLogoBusy(surface);
-    try {
-      const prevPath = draft.branding[fields.path] as string | undefined;
-      if (prevPath) await supabase.storage.from(LOGO_BUCKET).remove([prevPath]);
-      setDraft(d => ({ ...d, branding: { ...d.branding, [fields.url]: undefined, [fields.path]: undefined } }));
-    } catch (e) {
-      setError(extractErr(e));
-    } finally {
-      setLogoBusy(null);
-    }
-  }
-
-  async function handleStampFile(file: File | null) {
-    if (!file) return;
-    setError(null);
-    if (!LOGO_MIME.includes(file.type)) {
-      setError('פורמט לא נתמך - יש להעלות PNG, JPG, SVG או WEBP');
-      return;
-    }
-    if (file.size > LOGO_MAX_BYTES) {
-      setError('הקובץ גדול מדי - עד 2MB');
-      return;
-    }
-    setStampBusy(true);
-    try {
-      const ext = (file.name.split('.').pop() || 'png').toLowerCase();
-      const path = `${profile.id}/stamp-${Date.now()}.${ext}`;
-      const { error: upErr } = await supabase.storage
-        .from(SIGN_BUCKET)
-        .upload(path, file, { contentType: file.type });
-      if (upErr) throw upErr;
-      const prevPath = draft.branding.stampPath;
-      // דלי פרטי — שומרים נתיב בלבד, לא כתובת ציבורית. התצוגה נגזרת מהנתיב.
-      setDraft(d => ({ ...d, branding: { ...d.branding, stampUrl: undefined, stampPath: path } }));
-      setStampSrc(await downloadPrivateDataUrl(path));
-      if (prevPath && prevPath !== path) {
-        await supabase.storage.from(SIGN_BUCKET).remove([prevPath]);
-      }
-    } catch (e) {
-      setError(extractErr(e));
-    } finally {
-      setStampBusy(false);
-    }
-  }
-
-  async function handleStampRemove() {
-    setError(null);
-    setStampBusy(true);
-    try {
-      const prevPath = draft.branding.stampPath;
-      if (prevPath) await supabase.storage.from(SIGN_BUCKET).remove([prevPath]);
-      setDraft(d => ({ ...d, branding: { ...d.branding, stampUrl: undefined, stampPath: undefined } }));
-      setStampSrc(undefined);
-    } catch (e) {
-      setError(extractErr(e));
-    } finally {
-      setStampBusy(false);
-    }
-  }
-
-  async function handleSignatureFile(file: File | null) {
-    if (!file) return;
-    setError(null);
-    if (!LOGO_MIME.includes(file.type)) {
-      setError('פורמט לא נתמך - יש להעלות PNG, JPG, SVG או WEBP');
-      return;
-    }
-    if (file.size > LOGO_MAX_BYTES) {
-      setError('הקובץ גדול מדי - עד 2MB');
-      return;
-    }
-    setSigBusy(true);
-    try {
-      const ext = (file.name.split('.').pop() || 'png').toLowerCase();
-      const path = `${profile.id}/signature-${Date.now()}.${ext}`;
-      const { error: upErr } = await supabase.storage
-        .from(SIGN_BUCKET)
-        .upload(path, file, { contentType: file.type });
-      if (upErr) throw upErr;
-      const prevPath = draft.branding.signaturePath;
-      // דלי פרטי — שומרים נתיב בלבד, לא כתובת ציבורית. התצוגה נגזרת מהנתיב.
-      setDraft(d => ({ ...d, branding: { ...d.branding, signatureUrl: undefined, signaturePath: path } }));
-      setSigSrc(await downloadPrivateDataUrl(path));
-      if (prevPath && prevPath !== path) {
-        await supabase.storage.from(SIGN_BUCKET).remove([prevPath]);
-      }
-    } catch (e) {
-      setError(extractErr(e));
-    } finally {
-      setSigBusy(false);
-    }
-  }
-
-  async function handleSignatureRemove() {
-    setError(null);
-    setSigBusy(true);
-    try {
-      const prevPath = draft.branding.signaturePath;
-      if (prevPath) await supabase.storage.from(SIGN_BUCKET).remove([prevPath]);
-      setDraft(d => ({ ...d, branding: { ...d.branding, signatureUrl: undefined, signaturePath: undefined } }));
-      setSigSrc(undefined);
-    } catch (e) {
-      setError(extractErr(e));
-    } finally {
-      setSigBusy(false);
-    }
-  }
-
-  // השוואה ללא שדות שהשרת מנהל (updated_at משתנה בכל שמירה), ובאופן אדיש לסדר
-  // המפתחות — כי jsonb ב-Postgres מחזיר מפתחות בסדר אחר ואחרת dirty לעולם לא מתאפס.
-  const editableJson = (p: FirmProfile) => {
-    const { updatedAt: _u, createdAt: _c, ...rest } = p as FirmProfile & { updatedAt?: string; createdAt?: string };
-    return stableStringify(rest);
-  };
-  // ‼ שתי הסריאליזציות ממוזכרות על האובייקט שלהן: קודם כל הקשה בשדה הריצה
-  // stableStringify פעמיים על הפרופיל כולו (כולל ה-jsonb של המיתוג).
-  const draftJson = useMemo(() => editableJson(draft), [draft]);
-  const profileJson = useMemo(() => editableJson(profile), [profile]);
-  const dirty = draftJson !== profileJson;
-
-  // הטיוטה מאמצת את הפרופיל השמור כשאין שינויים פתוחים (אחרי שמירה, או אם
-  // הפרופיל התעדכן ממקום אחר). כך אין מצב של שתי אמיתות על אותה רשומה.
-  const dirtyRef = useRef(dirty);
-  dirtyRef.current = dirty;
+  // ── העמוד: מהכתובת כש-App מנהל אותו, אחרת פנימי ─────────────────────────
+  const [localPage, setLocalPage] = useState<string | null>(null);
+  const controlled = onPageChange !== undefined;
+  const rawPage = controlled ? (routePage ?? null) : localPage;
+  const location = resolveOfficeLocation(rawPage);
+  const page = location?.page ?? null;
+  const shown: OfficePageId = page ?? DEFAULT_OFFICE_PAGE;
+  // מה לפתוח בעמוד: מכתובת ישנה (‎#/firm/signature‎) או מקישור בעמוד אחר.
+  const [focus, setFocus] = useState<string | null>(routeFocus ?? location?.focus ?? null);
+  const go = useCallback((p: OfficePageId | null, f?: string) => {
+    setFocus(f ?? null);
+    if (controlled) onPageChange!(p);
+    else setLocalPage(p);
+  }, [controlled, onPageChange]);
+  // כתובת ישנה שמגיעה מבחוץ (קישור שמור) — הפוקוס שלה נקבע פעם אחת.
+  const lastRaw = useRef(rawPage);
   useEffect(() => {
-    if (!dirtyRef.current) setDraft(profile);
-  }, [profile]);
-
-  const updTop = <K extends keyof FirmProfile>(key: K, val: FirmProfile[K]) =>
-    setDraft(d => ({ ...d, [key]: val }));
-  const updBranding = <K extends keyof FirmBranding>(key: K, val: FirmBranding[K]) =>
-    setDraft(d => ({ ...d, branding: { ...d.branding, [key]: val } }));
-  const updComm = <K extends keyof FirmCommunication>(key: K, val: FirmCommunication[K]) =>
-    setDraft(d => ({ ...d, communication: { ...d.communication, [key]: val } }));
-
-  const monogram = (draft.branding.monogram || deriveMonogram(draft.firmName)).slice(0, 2);
-  // צבעי העיצוב האמיתיים של עמודי הלקוח — מהמערכת המרכזית (כולל תבנית הסטודיו)
-  const clientBrand = deriveQuotationBrand(draft);
-  const logoUrl = draft.branding.logoUrl;
-  const stampPath = draft.branding.stampPath;
-  const signaturePath = draft.branding.signaturePath;
-
-  // פותרים את החתימה/חותמת מהדלי הפרטי לפי הנתיב (download מאומת), כשמשתנה הנתיב
-  useEffect(() => {
-    let cancelled = false;
-    downloadPrivateDataUrl(stampPath).then(src => { if (!cancelled) setStampSrc(src); });
-    return () => { cancelled = true; };
-  }, [stampPath]);
-  useEffect(() => {
-    let cancelled = false;
-    downloadPrivateDataUrl(signaturePath).then(src => { if (!cancelled) setSigSrc(src); });
-    return () => { cancelled = true; };
-  }, [signaturePath]);
-
-  const completeness = useMemo(() => {
-    const checks = [
-      draft.firmName, draft.representativeNumber, draft.representativeType,
-      draft.email, draft.phone, draft.branding.docDesign?.preset,
-      draft.communication.emailSignature, draft.website,
-    ];
-    const filled = checks.filter(v => v && String(v).trim()).length;
-    return Math.round((filled / checks.length) * 100);
-  }, [draft]);
-
-  async function handleSave() {
-    setBusy(true);
-    setError(null);
-    try {
-      await onSave(draft);
-      setSavedAt(Date.now());
-    } catch (e) {
-      setError(extractErr(e));
-    } finally {
-      setBusy(false);
+    if (rawPage !== lastRaw.current) {
+      lastRaw.current = rawPage;
+      if (location?.focus) setFocus(location.focus);
     }
-  }
+  }, [rawPage, location?.focus]);
+  // קישור עמוק מכרטיס לקוח («פתח בספרייה» / «פתח את המסלול») — נוחת על הפריט.
+  // ‼ רק ערך חדש שאינו ריק: App מנקה את הפוקוס במעבר עמוד, ואסור שהניקוי ידרוס
+  // את הפוקוס ש-go() קבע זה עתה.
+  const lastRouteFocus = useRef(routeFocus ?? null);
+  useEffect(() => {
+    if ((routeFocus ?? null) !== lastRouteFocus.current) {
+      lastRouteFocus.current = routeFocus ?? null;
+      if (routeFocus) setFocus(routeFocus);
+    }
+  }, [routeFocus]);
 
-  // כל הלשוניות למעט אלו שאינן עורכות את הפרופיל חולקות את אותה טיוטה ואת
-  // אותו כפתור שמירה — מקור אמת אחד למסך.
-  const editsProfile = section !== 'employees' && section !== 'emailActivity';
+  // מעבר עמוד מתחיל מראש העמוד — אלא אם יש מה לפתוח בו (השורה גוללת לעצמה).
+  const focusRef = useRef(focus);
+  focusRef.current = focus;
+  useEffect(() => { if (!focusRef.current) window.scrollTo({ top: 0 }); }, [page]);
+
+  // רוחב מלא רק כשצריך: העיצוב (תצוגה מקדימה) ו«מה נשלח» (טבלה).
+  const [pageWide, setPageWide] = useState(false);
+  const [logFilter, setLogFilter] = useState<ActivityFilter | null>(null);
+  const [sendDoc, setSendDoc] = useState<{ id: string; label: string; fileName?: string } | null>(null);
+
+  // ── מסלול שנערך ולא נשמר ────────────────────────────────────────────────
+  // ‼ המסלול נשמר מתוך העמוד שלו (גרסה חדשה + סיכום השינוי), לא מכאן. העמוד
+  // מדווח שיש שינוי; כאן רק מגינים עליו: הוא נשאר טעון (מוסתר) כשעוברים לעמוד
+  // אחר במשרד — כמו כל טיוטה אחרת כאן — ונזרק רק ב«יציאה בלי לשמור».
+  const [flowsDirty, setFlowsDirty] = useState(false);
+  const [flowsResetKey, setFlowsResetKey] = useState(0);
+  // מפתח הרכבה: שינוי פוקוס (קישור «בשימוש ב» מהספרייה) פותח את המסלול הנכון —
+  // אבל לא כשיש שינוי פתוח, שאחרת היה נזרק בשקט.
+  const flowsFocusKey = useRef(focus ?? '');
+  const flowsFocusSeen = useRef(focus);
+  if (focus !== flowsFocusSeen.current) {
+    flowsFocusSeen.current = focus;
+    if (shown === 'flows' && !flowsDirty) flowsFocusKey.current = focus ?? '';
+  }
+  const discardFlows = useCallback(() => {
+    setFlowsDirty(false);
+    setFlowsResetKey(k => k + 1);
+  }, []);
+
+  // ── מה לא נשמר ──────────────────────────────────────────────────────────
+  const dirtyPages = new Set<string>(office.dirtyPages);
+  if (flowsDirty) dirtyPages.add('flows');
+  const anyDirty = office.dirty || flowsDirty;
+
+  // ── שמירה ───────────────────────────────────────────────────────────────
+  const saveOffice = useCallback(async (): Promise<boolean> => (office.dirty ? office.save() : true), [office]);
+
+  const discardAll = useCallback(() => {
+    office.discard();
+    if (flowsDirty) discardFlows();
+  }, [office, flowsDirty, discardFlows]);
+
+  // ── הגנה על שינויים: יציאה מהמשרד, «אחורה», סגירת הלשונית ───────────────
+  const [pendingLeave, setPendingLeave] = useState<(() => void) | null>(null);
+  const dirtyRef = useRef(anyDirty);
+  dirtyRef.current = anyDirty;
+  useEffect(() => {
+    setLeaveGuard(proceed => {
+      if (!dirtyRef.current) return true;
+      setPendingLeave(() => proceed);
+      return false;
+    });
+    return () => setLeaveGuard(null);
+  }, []);
+  useEffect(() => {
+    if (!anyDirty) return;
+    const h = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ''; };
+    window.addEventListener('beforeunload', h);
+    return () => window.removeEventListener('beforeunload', h);
+  }, [anyDirty]);
+
+  const def = pageDef(shown);
+  // ‼ «מסלולים» תמיד ברוחב מלא: הבונה ו«מה יקרה» יושבים זה לצד זה במחשב.
+  // «אוטומציות» — שלוש עמודות (מה קורה · מה מפעיל · תוצאה אחרונה) צריכות רוחב.
+  const wide = ((shown === 'profile' || shown === 'emails') && pageWide) || shown === 'flows' || shown === 'automations';
 
   return (
-    <div dir="rtl">
-      {/* כותרת דביקה — מצב השמירה והשמירה עצמה תמיד בהישג יד */}
-      <div className="pg-head fp-head">
-        <div className="pg-head-main">
-          <div className="pg-title pg-title-lg">המשרד</div>
-          <div className="pg-status">מקור האמת לזהות, למיתוג ולצוות של כל חוויות הלקוח</div>
-        </div>
-        {editsProfile && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <SaveState dirty={dirty} busy={busy} savedAt={savedAt} completeness={completeness} />
-            <button className="btn btn-primary" onClick={handleSave} disabled={busy || !dirty}>
-              {busy ? 'שומר…' : 'שמירת שינויים'}
-            </button>
-          </div>
-        )}
-      </div>
-
-      {error && (
-        <div style={{ marginBottom: 12, padding: '.65rem .85rem', background: 'var(--red-light)', color: 'var(--red)', borderRadius: 'var(--radius)', fontSize: '.875rem' }}>{error}</div>
-      )}
-
-      <div className="fp-grid">
-
-        {/* מסילת הניווט. הפריטים היו ‎<div onClick>‎ ולכן לא היו נגישים
-            במקלדת; עכשיו הם כפתורים. הסימון הפעיל הוא קו וּמשקל — לא
-            רחצה בסגול שלא קיים בשום מקום אחר במוצר. */}
-        <nav className="fp-rail" aria-label="ניווט בפרופיל המשרד">
-          <div className="fp-rail-group">המשרד</div>
-          {ACTIVE_NAV.map(item => (
-            <button
-              key={item.id}
-              type="button"
-              onClick={() => setSection(item.id)}
-              aria-current={section === item.id ? 'page' : undefined}
-              className={`fp-rail-item ${section === item.id ? 'is-active' : ''}`}
-            >
-              <NavIcon name={item.icon} />
-              {item.label}
-            </button>
-          ))}
-
-          <div className="fp-rail-group">צוות</div>
-          <button
-            type="button"
-            onClick={() => setSection('employees')}
-            aria-current={section === 'employees' ? 'page' : undefined}
-            className={`fp-rail-item ${section === 'employees' ? 'is-active' : ''}`}
-          >
-            <NavIcon name="employees" />
-            עובדים
-          </button>
-
-          {SOON_GROUPS.map(g => (
-            <div key={g.group}>
-              <div className="fp-rail-group">{g.group}</div>
-              {g.items.map(it => (
-                <div key={it.label} title="בקרוב - עדיין לא פעיל" className="fp-rail-soon">
-                  <NavIcon name={it.icon} />
-                  {it.label}
-                  <span className="fp-rail-soon-tag">בקרוב</span>
-                </div>
-              ))}
-            </div>
-          ))}
+    <div className="of" dir="rtl">
+      <div className={`of-shell${page ? ' has-page' : ''}`}>
+        <nav className="of-nav" aria-label="עמודי המשרד">
+          <h1 className="of-nav-title">המשרד</h1>
+          <ul className="of-nav-list">
+            {OFFICE_PAGES.map(p => {
+              const current = shown === p.id;
+              const unsaved = dirtyPages.has(p.id);
+              return (
+                <li key={p.id} className={NAV_BREAK_AFTER.has(p.id) ? 'has-break' : undefined}>
+                  <button type="button" className="of-nav-item"
+                    aria-current={current ? 'page' : undefined}
+                    onClick={() => go(p.id)}>
+                    <span className="of-nav-label">{p.label}</span>
+                    <span className="of-nav-blurb">{p.blurb}</span>
+                    <span className="of-nav-end">
+                      {unsaved && <span className="of-dot" title="יש כאן שינויים שלא נשמרו" aria-label="לא נשמר" />}
+                      <span className="of-chev" aria-hidden="true">‹</span>
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
         </nav>
 
-        {/* content */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        {/* ‼ section ולא main: המעטפת של האפליקציה כבר מחזיקה את ה-main היחיד בעמוד. */}
+        <section className={`of-main${wide ? ' is-wide' : ''}`} aria-labelledby="of-page-title">
+          <header className="of-page-head">
+            <button type="button" className="of-back" onClick={() => go(null)}>
+              <span aria-hidden="true">›</span> המשרד
+            </button>
+            <h1 className="of-h1" id="of-page-title">{def.label}</h1>
+            <p className="of-lead">{def.blurb}</p>
+          </header>
 
-          {section === 'identity' && (
-            <>
-              <div style={card}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-                  {logoUrl ? (
-                    <img src={logoUrl} alt="לוגו המשרד" style={{ width: 58, height: 58, borderRadius: 10, objectFit: 'contain', border: '1px solid var(--gray-200)', background: 'var(--card)' }} />
-                  ) : (
-                    <div style={{ width: 58, height: 58, borderRadius: '50%', border: `1.5px solid ${clientBrand.ink}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 'var(--fs-17)', fontWeight: 500, color: clientBrand.ink }}>{monogram}</div>
-                  )}
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 'var(--fs-15)', fontWeight: 500 }}>{draft.firmName || 'שם המשרד'}</div>
-                    <div style={{ fontSize: 'var(--fs-12)', color: 'var(--gray-500)', marginTop: 2 }}>
-                      {draft.representativeNumber ? `מספר מייצג ${draft.representativeNumber}` : 'מספר מייצג -'} · {draft.representativeType || 'רואה חשבון'}
-                    </div>
-                  </div>
-                  <button className="btn" onClick={() => setSection('branding')} style={{ fontSize: 'var(--fs-12)', padding: '5px 10px' }}>
-                    <NavIcon name="photo" size={14} />{logoUrl ? 'החלף לוגו' : 'הוסף לוגו'}
-                  </button>
-                </div>
-              </div>
-
-              <div style={card}>
-                <div style={cardTitle}>זהות</div>
-                <div style={grid2}>
-                  <Field label="שם המשרד (תצוגה)"><input value={draft.firmName ?? ''} onChange={e => updTop('firmName', e.target.value)} placeholder="משרד רואי חשבון…" /></Field>
-                  <Field label="שם משפטי"><input value={draft.legalName ?? ''} onChange={e => updTop('legalName', e.target.value)} placeholder="שם רשום" /></Field>
-                  <Field label="מספר מייצג"><input value={draft.representativeNumber ?? ''} onChange={e => updTop('representativeNumber', e.target.value)} dir="ltr" style={{ textAlign: 'right' }} /></Field>
-                  <Field label="סוג מייצג">
-                    <select value={draft.representativeType ?? REP_TYPE_OPTIONS[0]} onChange={e => updTop('representativeType', e.target.value)}>
-                      {REP_TYPE_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
-                    </select>
-                  </Field>
-                </div>
-              </div>
-
-              <DesignStudioPointer brand={clientBrand} onOpen={() => setSection('design')} />
-            </>
+          {shown === 'profile' && (
+            <ProfilePage key={`profile-${focus ?? ''}`} draft={draft} saved={profile} setDraft={setDraft}
+              noteUpload={office.noteUpload} focus={focus} onWide={setPageWide} />
           )}
-
-          {section === 'branding' && (
-            <>
-              <LogoAssetsPanel
-                branding={draft.branding}
-                darkBg={clientBrand.ink}
-                firmName={clientBrand.firmName}
-                busySurface={logoBusy}
-                onUpload={handleLogoUpload}
-                onRemove={handleLogoRemove}
-                onScaleChange={handleLogoScale}
-                onError={setError}
-              />
-
-              <div style={card}>
-                <div style={cardTitle}>חותמת המשרד</div>
-                <div style={{ fontSize: 'var(--fs-12)', color: 'var(--gray-500)', marginBottom: 14 }}>
-                  תוטבע על טפסי ייפוי הכוח החתומים, באזור החתימה של המייצג. מומלץ PNG עם רקע שקוף.
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-                  <div style={{ width: 96, height: 96, borderRadius: 'var(--r-panel)', border: '1px dashed var(--hairline-1)', background: 'var(--surface-2)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0 }}>
-                    {stampSrc
-                      ? <img src={stampSrc} alt="חותמת" style={{ maxWidth: '86%', maxHeight: '86%', objectFit: 'contain' }} />
-                      : <span style={{ color: 'var(--gray-400)', display: 'inline-flex' }}><NavIcon name="stamp" size={26} /></span>}
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-start' }}>
-                    <label className="btn btn-primary" style={{ cursor: stampBusy ? 'default' : 'pointer', opacity: stampBusy ? 0.6 : 1 }}>
-                      {stampBusy ? 'מעלה…' : stampPath ? 'החלף חותמת' : 'העלה חותמת'}
-                      <input
-                        type="file"
-                        accept="image/png,image/jpeg,image/svg+xml,image/webp"
-                        style={{ display: 'none' }}
-                        disabled={stampBusy}
-                        onChange={e => { const f = e.target.files?.[0] ?? null; void handleStampFile(f); e.target.value = ''; }}
-                      />
-                    </label>
-                    {stampPath && (
-                      <button className="btn" onClick={() => void handleStampRemove()} disabled={stampBusy} style={{ fontSize: 'var(--fs-13)' }}>
-                        <NavIcon name="trash" size={14} />הסר חותמת
-                      </button>
-                    )}
-                    <div style={{ fontSize: 'var(--fs-12)', color: 'var(--gray-400)' }}>PNG · JPG · SVG · WEBP · עד 2MB</div>
-                  </div>
-                </div>
-              </div>
-
-              {/* צבעים/פונטים/תבניות חיים בסטודיו העיצוב בלבד — כאן רק נכסי מותג.
-                  (סעיף "ערכת מותג" הישן הוסר: הוא הגדיר צבעים במקביל לסטודיו והציג
-                  ערכים שלא תאמו את מה שהלקוח באמת רואה.) */}
-              <div style={card}>
-                <div style={cardTitle}>מונוגרמה</div>
-                <div style={{ fontSize: 'var(--fs-12)', color: 'var(--gray-500)', marginBottom: 14 }}>
-                  ראשי התיבות שמוצגים ללקוח כשאין לוגו. אם ריק - נגזר משם המשרד.
-                </div>
-                <div style={{ maxWidth: 220 }}>
-                  <input value={draft.branding.monogram ?? ''} onChange={e => updBranding('monogram', e.target.value)} placeholder={deriveMonogram(draft.firmName)} maxLength={2} />
-                </div>
-              </div>
-              <DesignStudioPointer brand={clientBrand} onOpen={() => setSection('design')} />
-            </>
+          {shown === 'team' && <EmployeesPanel clients={clients} />}
+          {shown === 'library' && (
+            <LibraryPage key={`library-${focus ?? ''}`} focus={focus} draft={draft} saved={profile} setDraft={setDraft}
+              noteUpload={office.noteUpload} go={go}
+              onSendToClient={onOpenClient ? d => setSendDoc(d) : undefined} />
           )}
-
-          {section === 'contact' && (
-            <div style={card}>
-              <div style={cardTitle}>פרטי קשר</div>
-              <div style={grid2}>
-                <Field label="אימייל ראשי"><EmailInput value={draft.email ?? ''} onChange={e => updTop('email', e.target.value)} placeholder="office@example.co.il" /></Field>
-                <Field label="טלפון"><input value={draft.phone ?? ''} onChange={e => updTop('phone', e.target.value)} dir="ltr" style={{ textAlign: 'right' }} placeholder="03-1234567" /></Field>
-                <Field label="אתר"><input value={draft.website ?? ''} onChange={e => updTop('website', e.target.value)} dir="ltr" style={{ textAlign: 'right' }} placeholder="example.co.il" /></Field>
-                <Field label="כתובת"><input value={draft.address ?? ''} onChange={e => updTop('address', e.target.value)} placeholder="רחוב, עיר" /></Field>
-              </div>
+          {(shown === 'flows' || flowsDirty) && (
+            <div hidden={shown !== 'flows'}>
+              <FlowsPage key={`flows-${flowsResetKey}-${flowsFocusKey.current}`} draft={draft} saved={profile} setDraft={setDraft}
+                saveNow={office.saveNow} clients={clients} focus={focus ?? undefined} go={go}
+                onDirtyChange={setFlowsDirty}
+                onOpenClient={onOpenClient ? (id: string, tab?: 'journey') => onOpenClient(id, tab) : undefined} />
             </div>
           )}
-
-          {section === 'signature' && (
-            <>
-            <div style={card}>
-              <div style={cardTitle}>החתימה הדיגיטלית שלי</div>
-              <div style={{ fontSize: 'var(--fs-12)', color: 'var(--gray-500)', marginBottom: 14 }}>
-                תמונת החתימה שלך (סריקה או צילום, רצוי PNG עם רקע שקוף). בחדר החתימה תוכל להוסיף אותה בלחיצה על כל מקום שדורש את חתימתך - בלי לצייר מחדש.
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-                <div style={{ width: 150, height: 80, borderRadius: 'var(--r-panel)', border: '1px dashed var(--hairline-1)', background: 'var(--surface-2)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0 }}>
-                  {sigSrc
-                    ? <img src={sigSrc} alt="חתימה" style={{ maxWidth: '90%', maxHeight: '90%', objectFit: 'contain' }} />
-                    : <span style={{ color: 'var(--gray-400)', display: 'inline-flex' }}><NavIcon name="signature" size={26} /></span>}
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-start' }}>
-                  <label className="btn btn-primary" style={{ cursor: sigBusy ? 'default' : 'pointer', opacity: sigBusy ? 0.6 : 1 }}>
-                    {sigBusy ? 'מעלה…' : signaturePath ? 'החלף חתימה' : 'העלה חתימה'}
-                    <input
-                      type="file"
-                      accept="image/png,image/jpeg,image/svg+xml,image/webp"
-                      style={{ display: 'none' }}
-                      disabled={sigBusy}
-                      onChange={e => { const f = e.target.files?.[0] ?? null; void handleSignatureFile(f); e.target.value = ''; }}
-                    />
-                  </label>
-                  {signaturePath && (
-                    <button className="btn" onClick={() => void handleSignatureRemove()} disabled={sigBusy} style={{ fontSize: 'var(--fs-13)' }}>
-                      <NavIcon name="trash" size={14} />הסר חתימה
-                    </button>
-                  )}
-                  <div style={{ fontSize: 'var(--fs-12)', color: 'var(--gray-400)' }}>החותמת נשמרת בלשונית "מותג".</div>
-                </div>
-              </div>
-            </div>
-            <div style={card}>
-              <div style={cardTitle}>חתימת מייל</div>
-              <div style={{ fontSize: 'var(--fs-12)', color: 'var(--gray-500)', marginBottom: 8 }}>תופיע בתחתית כל מייל שנשלח ללקוח.</div>
-              <textarea
-                rows={4}
-                value={draft.communication.emailSignature ?? ''}
-                onChange={e => updComm('emailSignature', e.target.value)}
-                placeholder={'בברכה,\nגיא ישר, רו״ח\nמשרד רואי חשבון גיא ישר · 03-1234567'}
-                style={{ width: '100%', resize: 'vertical' }}
-              />
-              {draft.communication.emailSignature?.trim() && (
-                <div style={{ marginTop: 12 }}>
-                  <div style={{ fontSize: 'var(--fs-12)', letterSpacing: '.05em', color: 'var(--gray-400)', marginBottom: 6 }}>תצוגה מקדימה</div>
-                  <div style={{ background: 'var(--gray-50)', borderRadius: 8, padding: '12px 14px', fontSize: 'var(--fs-13)', lineHeight: 1.7, color: 'var(--gray-700)', whiteSpace: 'pre-line' }}>
-                    {draft.communication.emailSignature}
-                  </div>
-                </div>
-              )}
-            </div>
-            </>
+          {shown === 'pricing' && <QuotationSettings profile={draft} onOpenReminders={() => go('automations', 'rem-expiry')} />}
+          {shown === 'emails' && (
+            <EmailsPage key={`emails-${focus ?? ''}`} draft={draft} saveNow={office.saveNow} userId={profile.id}
+              clients={clients} onOpenClient={onOpenClient ? id => onOpenClient(id, 'log') : undefined}
+              focus={focus} logFilter={logFilter} onClearLogFilter={() => setLogFilter(null)} onWide={setPageWide} go={go} />
+          )}
+          {shown === 'automations' && (
+            <AutomationsPage key={`automations-${focus ?? ''}`} clients={clients} focus={focus} go={go}
+              onOpenClient={onOpenClient ? (id, tab, target) => onOpenClient(id, target === 'rep-center' ? 'rep-center' : tab) : undefined}
+              draft={draft} setDraft={setDraft}
+              openLog={f => { setLogFilter(f); go('emails', 'log'); }} />
+          )}
+          {shown === 'connections' && (
+            <ConnectionsPage key={`connections-${focus ?? ''}`} draft={draft} setDraft={setDraft} focus={focus} go={go} />
           )}
 
-          {section === 'communication' && (
-            <div style={card}>
-              <div style={cardTitle}>ערוצי תקשורת</div>
-              <InfoLines style={{ fontSize: 'var(--fs-12)', color: 'var(--gray-500)', marginBottom: 14 }} items={[
-                'מכאן נשלחים המיילים ללקוחות',
-                'השם שיוצג הוא שם המשרד',
-                'התשובות יגיעו לכתובת ה-Reply-To',
-              ]} />
-              <div style={grid2}>
-                <Field label="כתובת שולח (From)">
-                  <EmailInput value={draft.communication.senderEmail ?? ''} onChange={e => updComm('senderEmail', e.target.value)} placeholder="ברירת מחדל: כתובת מערכת" />
-                </Field>
-                <Field label="כתובת לתשובות (Reply-To)">
-                  <EmailInput value={draft.communication.replyTo ?? ''} onChange={e => updComm('replyTo', e.target.value)} placeholder={draft.email || 'office@example.co.il'} />
-                </Field>
-              </div>
-              <InfoLines
-                style={{ marginTop: 12, padding: '10px 12px', background: 'var(--gray-50)', borderRadius: 8, fontSize: 'var(--fs-12)', color: 'var(--gray-600)', lineHeight: 1.6 }}
-                items={[
-                  <><NavIcon name="info" size={14} /> כדי לשלוח מכתובת שולח משלך צריך לאמת את הדומיין אצל ספק המייל</>,
-                  'עד אז נשלח מכתובת מערכת עם שם המשרד שלך, והתשובות מגיעות אליך',
-                  'כשתאמת דומיין - פשוט עדכן כאן, בלי שינוי קוד',
-                ]} />
-            </div>
-          )}
-
-          {section === 'notifications' && (
-            <OfficeNotificationsSection profile={draft} onChangeProfile={setDraft} />
-          )}
-
-          {section === 'processes' && (
-            <ProcessCatalogSection profile={draft} initialKey={processKey}
-              onOpenSection={id => setSection(id)} />
-          )}
-
-          {section === 'paperless' && (
-            <PaperlessCommSection profile={draft} onChangeProfile={setDraft} />
-          )}
-
-          {section === 'representation' && (
-            <RepresentationSettingsSection profile={draft} onChangeProfile={setDraft}
-              onOpenProcess={() => { setProcessKey('representation'); setSection('processes'); }} />
-          )}
-
-          {section === 'shaamWarmup' && (
-            <ShaamWarmupSettingsSection profile={draft} onChangeProfile={setDraft} />
-          )}
-
-          {section === 'requestDefaults' && (
-            <RequestDefaultsSection profile={draft} />
-          )}
-
-          {section === 'clientDocs' && (
-            <ClientDocumentsSection profile={draft} onChangeProfile={setDraft} />
-          )}
-
-          {section === 'emailActivity' && (
-            <div style={card}><EmailActivityModule userId={profile.id} /></div>
-          )}
-
-          {section === 'design' && (
-            <QuotationDesignStudio
-              profile={draft}
-              onChange={dd => setDraft(d => ({ ...d, branding: { ...d.branding, docDesign: dd } }))}
-            />
-          )}
-
-          {section === 'quotations' && (
-            <QuotationSettings profile={draft} onChangeProfile={setDraft} />
-          )}
-
-          {section === 'employees' && (
-            <EmployeesPanel clients={clients} />
-          )}
-
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ───────────────────────── מסמכים ללקוחות ─────────────────────────
-// ‼ ספרייה, לא שדה אחד: כל מסמך שהמשרד מוסיף כאן זמין מיד ב«שליחת מסמך
-// ללקוח» בלשונית הבקשות. אין פריט קטלוג נפרד לכל קובץ.
-//
-// ‼ שורה לכל מסמך, בלי כרטיסים ובלי מסגרות — המסך הזה נועד להיסרק במבט,
-// לא להיקרא. הפעולות מופיעות בשורה עצמה.
-//
-// ‼ גרסה קודמת של קובץ אינה נמחקת מה-Storage: בקשות שכבר נשלחו נפתרות
-// לקובץ העדכני, וההיסטוריה היא מה שמאפשר לדעת מה לקוח ראה בתאריך שרשום
-// על הבקשה שלו.
-
-
-// ───────────────────────── התראות למשרד ─────────────────────────
-// ‼ המסך נגזר מהקטלוג המשותף ולא מרשימה שכתובה כאן. אירוע חדש שנוסף לקטלוג
-// מקבל תיבת סימון לבד, בלי לגעת בקובץ הזה — וזו בדיוק הנקודה: מקום אחד
-// שמחליט מה קיים, מה כתוב עליו, ומה ברירת המחדל שלו.
-//
-// נשמר רק מה שגיא שינה בפועל: תיבה שחוזרת לברירת המחדל נמחקת מההגדרות. כך
-// שינוי ברירת מחדל בעתיד יחול גם על מי שלא נגע בה.
-
-function OfficeNotificationsSection({ profile, onChangeProfile }: { profile: FirmProfile; onChangeProfile: (p: FirmProfile) => void }) {
-  const settings = profile.settings ?? {};
-  const prefs = readNotificationPrefs(settings);
-
-  const toggle = (kind: string, on: boolean) => {
-    const def = ACCOUNTANT_NOTIFICATIONS.find(n => n.kind === kind);
-    const next = { ...prefs };
-    if (def && on === def.defaultOn) delete next[kind];
-    else next[kind] = on;
-    onChangeProfile({ ...profile, settings: { ...settings, [NOTIFICATION_SETTINGS_KEY]: next } });
-  };
-
-  const onCount = ACCOUNTANT_NOTIFICATIONS.filter(n => isNotificationEnabled(settings, n.kind)).length;
-  const destination = (profile.email ?? '').trim();
-
-  return (
-    <div style={card}>
-      <div style={cardTitle}>התראות למשרד</div>
-      <div style={{ fontSize: 'var(--fs-12)', color: 'var(--gray-500)', marginBottom: 18, lineHeight: 1.7 }}>
-        אילו אירועים שולחים לך מייל. אלה ההתראות אליך בלבד - המיילים ללקוחות
-        אינם מושפעים מכאן.
-        {destination
-          ? <> נשלחות אל <span dir="ltr" style={{ unicodeBidi: 'isolate' }}>{destination}</span>, מהלשונית "פרטי קשר".</>
-          : <> <span style={{ color: 'var(--red)' }}>אין כתובת אימייל במשרד - בלעדיה שום התראה לא תישלח. יש למלא אותה בלשונית "פרטי קשר".</span></>}
-        {' '}דולקות כרגע: {onCount} מתוך {ACCOUNTANT_NOTIFICATIONS.length}.
+          <SaveBar office={office} flowsDirty={flowsDirty && shown !== 'flows'} onSave={saveOffice} go={go} />
+        </section>
       </div>
 
-      {NOTIFICATION_GROUPS.map(group => {
-        const items = ACCOUNTANT_NOTIFICATIONS.filter(n => n.group === group);
-        if (items.length === 0) return null;
-        // ‼ קבוצה שהנמען שלה הוא הלקוח מסומנת אחרת. כל השאר במסך הזה הם
-        // מיילים אלייך; מתג ששולח ללקוח בלי שתאשר כל פעם חייב להיראות
-        // שונה, אחרת הוא נדלק בטעות בתוך רשימה של התראות פנימיות.
-        const toClient = items.some(n => n.audience === 'client');
-        return (
-          <div key={group} style={{ marginBottom: 18 }}>
-            <div style={{ fontSize: 'var(--fs-12)', fontWeight: 600, color: 'var(--gray-500)', marginBottom: 8 }}>{group}</div>
-            {toClient && (
-              <div style={{
-                padding: '8px 10px', marginBottom: 8, borderRadius: 8,
-                background: 'var(--amber-50, #FFF8EC)', border: '1px solid var(--warn)',
-                fontSize: 'var(--fs-12)', color: 'var(--ink-2)', lineHeight: 1.6,
-              }}>
-                ‼ המתגים כאן שולחים מייל <strong>ללקוח עצמו</strong>, אוטומטית ובלי לשאול אותך בכל פעם.
-                כבויים כברירת מחדל.
-              </div>
-            )}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {items.map(n => {
-                const on = isNotificationEnabled(settings, n.kind);
-                return (
-                  <label key={n.kind} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', cursor: 'pointer' }}>
-                    <input
-                      type="checkbox"
-                      checked={on}
-                      onChange={e => toggle(n.kind, e.target.checked)}
-                      style={{ marginTop: 3, width: 15, height: 15, flexShrink: 0, accentColor: ACCENT }}
-                    />
-                    <span>
-                      <span style={{ fontSize: 'var(--fs-13)', color: 'var(--ink-1)' }}>{n.label}</span>
-                      <span style={{ display: 'block', fontSize: 'var(--fs-12)', color: 'var(--gray-500)', marginTop: 2, lineHeight: 1.6 }}>{n.hint}</span>
-                    </span>
-                  </label>
-                );
-              })}
-            </div>
-          </div>
-        );
-      })}
+      {sendDoc && onOpenClient && (
+        <ClientPicker clients={clients} title={`שליחת «${sendDoc.label}» ללקוח`}
+          onClose={() => setSendDoc(null)}
+          onPick={clientId => {
+            setPendingIntent({ kind: 'send-office-docs', clientId, docs: [{ officeId: sendDoc.id, label: sendDoc.label, fileName: sendDoc.fileName }] });
+            setSendDoc(null);
+            onOpenClient(clientId, 'journey');
+          }} />
+      )}
 
-      <div style={{ padding: '10px 12px', background: 'var(--gray-50)', borderRadius: 8, fontSize: 'var(--fs-12)', color: 'var(--gray-600)', lineHeight: 1.6 }}>
-        <NavIcon name="info" size={14} />
-        אירוע שכיביתָ עדיין נרשם ביומן ההתקדמות של הלקוח - רק המייל לא יוצא.
-        השינויים נשמרים עם כפתור השמירה למעלה.
-      </div>
-    </div>
-  );
-}
-
-// ───────────────────────── פייפרלס ותקשורת הקליטה ─────────────────────────
-// ‼ קישור ההזמנה הוא הגדרה של המשרד ולא קבוע בקוד: הוא נושא את מזהה המייצג,
-// והוא מה שמקשר את החשבון החדש של הלקוח אלינו. משרד אחר — קישור אחר.
-//
-// עורך מבוקר על אותה טיוטה של המסך — בלי שמירה משלו, כמו לשונית ההצעות.
-
-const TEMPLATE_EDITORS: StepEmailKind[] = ['process_open', 'documents_sent', 'status_update', 'paperless_invite', 'retainer_request', 'intake_questionnaire', 'step_reminder'];
-
-const TEMPLATE_HINT: Record<string, string> = {
-  process_open: 'נשלח ב"שלח ללקוח" כשממתינה ללקוח בקשה. רשימת מה שממתין נבנית מהדף האישי עצמו - אין צורך לפרט אותה בנוסח.',
-  documents_sent: 'נשלח באותו "שלח ללקוח", כשאין מה שממתין ללקוח אבל שלחת לו מסמכים שטרם פתח. שמות המסמכים וסטטוס הקליטה נבנים לבד.',
-  status_update: 'נשלח באותו "שלח ללקוח", כשאין בקשות ואין מסמכים חדשים - רק מה שבטיפולנו.',
-  paperless_invite: 'נשלח מכרטיס הלקוח, בשלב "הזמנה לפייפרלס". הקישור עצמו נוסף ככפתור בסוף המייל.',
-  retainer_request: 'נשלח בשלב "הרשאה לתשלום חודשי", אחרי שהוזן קישור ההרשאה מפייפרלס.',
-  intake_questionnaire: 'נשלח בשלב "עדכון סטטוס מס". קישור השאלון האישי נוסף ככפתור בסוף המייל.',
-  step_reminder: 'נשלח בלחיצה על "הכן תזכורת", בשלב שממתין ללקוח יותר מדי זמן.',
-};
-
-/**
- * ‼ שלוש מדרגות נוסח, לא שתיים:
- *   נוסח המערכת (בקוד) → נוסח המשרד (`firmDefault`) → מה שכרגע בעריכה.
- * `subject`/`body` הם מה שנשלח בפועל, ורק אותם השרת קורא. `firmDefault` הוא
- * עוגן חזרה בלבד — הנוסח שגיא קבע כשלו — וקיומו הוא מה שמאפשר להתנסות בלי
- * לאבד אותו: "שחזר ברירת מחדל" הישן היה מחזיר לנוסח המערכת ומוחק את עבודתו.
- */
-interface CommTemplate {
-  subject?: string;
-  body?: string;
-  firmDefault?: { subject: string; body: string };
-}
-
-/** מכתב ההעברה נשמר לצד תבניות מיילי השלבים, אבל אינו אחד מהם: הוא נשלח
- *  לרו״ח הקודם ולא ללקוח, והשרת של מיילי השלבים לא נוגע בו. */
-type TemplateKey = StepEmailKind | typeof RELEASE_TEMPLATE_KEY;
-
-/**
- * ‼ תבנית שנשמרה לפני שמשפט הפתיחה הפך לסעיף נגזר עדיין מחזיקה אותו ביחיד,
- * והיא גוברת על ברירת המחדל. משדרגים בקריאה — גם את הנוסח הפעיל וגם את עוגן
- * «נוסח המשרד», אחרת חזרה לעוגן הייתה מחזירה בדיוק את המשפט השבור.
- */
-function upgradedEntry(kind: TemplateKey, entry: CommTemplate): CommTemplate {
-  if (kind !== RELEASE_TEMPLATE_KEY) return entry;
-  const body = entry.body === undefined ? undefined : upgradeReleaseTemplateBody(entry.body);
-  const firmDefault = entry.firmDefault
-    ? { ...entry.firmDefault, body: upgradeReleaseTemplateBody(entry.firmDefault.body) }
-    : undefined;
-  if (body === entry.body && firmDefault?.body === entry.firmDefault?.body) return entry;
-  return { ...entry, ...(body !== undefined ? { body } : {}), ...(firmDefault ? { firmDefault } : {}) };
-}
-
-interface TemplateSpec {
-  key: TemplateKey;
-  title: string;
-  hint: React.ReactNode;
-  base: { subject: string; body: string };
-  vars: { label: string; hint?: string; section?: boolean }[];
-  bodyLabel: string;
-  rows: number;
-  /** עורך עם מרקר — רק במכתב ההעברה: שאר המיילים אינם מרנדרים `==`. */
-  marker?: boolean;
-}
-
-function templateSpecs(): TemplateSpec[] {
-  const steps: TemplateSpec[] = TEMPLATE_EDITORS.map(kind => ({
-    key: kind,
-    title: STEP_EMAIL_KIND_LABELS[kind],
-    hint: `${TEMPLATE_HINT[kind]} אפשר לערוך גם לכל שליחה בנפרד, בחלון התצוגה המקדימה.`,
-    base: defaultTemplate(kind),
-    vars: PLACEHOLDERS_BY_KIND[kind].map(p => ({ label: p })),
-    bodyLabel: 'גוף המייל',
-    rows: 10,
-  }));
-
-  return [...steps, {
-    key: RELEASE_TEMPLATE_KEY,
-    title: 'מכתב העברת טיפול - לרו״ח הקודם',
-    // ‼ שונה מחמשת האחרים: הנמען הוא הרו״ח הקודם, וארבעה מהסעיפים נגזרים ממה
-    // שסוכם עם הלקוח. משרד שיוכל לנסח אותם יוכל לשלוח מכתב שסותר את הסיכום.
-    hint: (
-      <>
-        נשלח לרו״ח הקודם, לא ללקוח. החלקים המשתנים - התקופה, העבודות הפתוחות ורשימת
-        החומרים - נבנים אוטומטית לכל לקוח, ולכן מופיעים כאן כשם בסוגריים כפולות
-        ואי אפשר לנסח אותם מכאן. אפשר להזיז אותם, למחוק אותם או לסמן אותם במרקר.
-        <br />
-        קטע שמסומן כאן במרקר יגיע מסומן בכל מכתב חדש - ואם במכתב מסוים לא תרצה
-        אותו, תסמן אותו שם ותלחץ שוב על מרקר.
-      </>
-    ),
-    base: DEFAULT_RELEASE_TEMPLATE,
-    vars: RELEASE_TEMPLATE_VARS.map(v => ({ label: `{{${v.name}}}`, hint: v.hint, section: v.section })),
-    bodyLabel: 'גוף המכתב',
-    rows: 18,
-    marker: true,
-  }];
-}
-
-function PaperlessCommSection({ profile, onChangeProfile }: {
-  profile: FirmProfile;
-  onChangeProfile: React.Dispatch<React.SetStateAction<FirmProfile>>;
-}) {
-  const settings = profile.settings ?? {};
-  const paperless = (settings.paperless as { inviteUrl?: string } | undefined) ?? {};
-  const templates = (settings.commTemplates as Record<string, CommTemplate> | undefined) ?? {};
-  const inviteUrl = paperless.inviteUrl ?? '';
-  const urlInvalid = inviteUrl.trim() !== '' && !inviteUrl.trim().startsWith('https://');
-
-  const patchSettings = (patch: Record<string, unknown>) =>
-    onChangeProfile(prev => ({ ...prev, settings: { ...(prev.settings ?? {}), ...patch } }));
-
-  /**
-   * החלפת רשומה שלמה — כך גם ביטול וגם חזרה לנוסח המערכת מדויקים: שדה שאינו
-   * קיים ברשומה החדשה נמחק, ורשומה שהתרוקנה לגמרי יורדת מההגדרות.
-   * ‼ הכל נגזר מהמצב הקודם ולא מהעותק שברינדור: שני שינויים שנופלים באותו
-   * batch של React (למשל לחיצה שגוררת עריכה) היו דורסים זה את זה.
-   */
-  const replaceTemplate = (kind: TemplateKey, update: (prev: CommTemplate) => CommTemplate) => {
-    onChangeProfile(prev => {
-      const prevSettings = prev.settings ?? {};
-      const all = { ...(prevSettings.commTemplates as Record<string, CommTemplate> | undefined) };
-      const entry = update(all[kind] ?? {});
-      const empty = entry.subject === undefined && entry.body === undefined && !entry.firmDefault;
-      if (empty) delete all[kind]; else all[kind] = entry;
-      return { ...prev, settings: { ...prevSettings, commTemplates: all } };
-    });
-  };
-
-  return (
-    <>
-      <div style={card}>
-        <div style={cardTitle}>קישור ההזמנה לפייפרלס</div>
-        <div style={{ fontSize: 'var(--fs-12)', color: 'var(--gray-500)', marginBottom: 14 }}>
-          הקישור מהחשבון שלך בפייפרלס, שדרכו לקוח חדש פותח חשבון ומתחבר אליך כמייצג. הוא מוטמע במייל ההזמנה שנשלח מכרטיס הלקוח.
-        </div>
-        <div style={{ maxWidth: 460 }}>
-          <input
-            value={inviteUrl}
-            onChange={e => patchSettings({ paperless: { ...paperless, inviteUrl: e.target.value } })}
-            dir="ltr"
-            style={{ textAlign: 'left', width: '100%' }}
-            placeholder="https://www.paperless.tax/invite?rid=Rtb0kamvcs7"
-          />
-          {urlInvalid && (
-            <div style={{ marginTop: 6, fontSize: 'var(--fs-12)', color: 'var(--red)' }}>
-              הקישור חייב להתחיל ב-https://
-            </div>
-          )}
-        </div>
-      </div>
-
-      {templateSpecs().map(spec => (
-        <TemplateCard
-          key={spec.key}
-          spec={spec}
-          entry={upgradedEntry(spec.key, templates[spec.key] ?? {})}
-          onReplace={update => replaceTemplate(spec.key, update)}
+      {pendingLeave && (
+        <LeaveDialog
+          officeParts={office.dirtyParts}
+          flowsDirty={flowsDirty}
+          onStay={() => { setPendingLeave(null); if (flowsDirty && !office.dirty) go('flows'); }}
+          onDiscard={() => { const go2 = pendingLeave; setPendingLeave(null); discardAll(); go2(); }}
+          onSave={async () => {
+            const go2 = pendingLeave;
+            const ok = await saveOffice();
+            setPendingLeave(null);
+            if (ok) go2();
+          }}
         />
-      ))}
-    </>
+      )}
+    </div>
   );
 }
 
-// ───────────────────────── כרטיס תבנית אחד לכל השישה ─────────────────────────
-// ‼ הפעולות מופיעות רק כשיש להן מה לעשות: כרטיס שלא נגעו בו מציג שורת הסבר
-// בלבד. זה מה שמחזיק שלוש מדרגות נוסח בלי לגדוש את המסך בארבעה כפתורים קבועים.
-//
-// ‼ "חזרה לנוסח המערכת" אינו מוחק את נוסח המשרד — הוא מוריד רק את מה שנשלח
-// בפועל. אחרת התנסות אחת הייתה מוחקת את הנוסח שגיא בנה, וזו בדיוק הסיבה
-// שהכפתור הישן היה מסוכן.
+// ─── שורת השמירה ─────────────────────────────────────────────────────────────
 
-const TEMPLATE_HISTORY_MAX = 50;
-/** הקלדה רצופה היא צעד אחד — "בטל" חוזר לפני הפסקה, לא תו אחורה. */
-const TYPING_BURST_MS = 700;
+function partNames(parts: DirtyPart[]): string {
+  return [...new Set(parts.map(p => p.label))].join(' · ');
+}
 
-function TemplateCard({ spec, entry, onReplace }: {
-  spec: TemplateSpec;
-  entry: CommTemplate;
-  onReplace: (update: (prev: CommTemplate) => CommTemplate) => void;
+function SaveBar({ office, flowsDirty, onSave, go }: {
+  office: ReturnType<typeof useOfficeDraft>;
+  /** מסלול שנערך ולא נשמר, כשאתה בעמוד אחר — נשמר רק מתוך המסלול. */
+  flowsDirty: boolean;
+  onSave: () => Promise<boolean>;
+  go: (p: OfficePageId) => void;
 }) {
-  const bodyRef = useRef<HTMLTextAreaElement | null>(null);
-  const [markerHint, setMarkerHint] = useState(false);
-  const [history, setHistory] = useState<CommTemplate[]>([]);
-  const lastChangeAt = useRef(0);
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
+  const showOffice = office.dirty || office.status === 'saving' || office.status === 'error' || office.status === 'saved';
+  const busy = office.status === 'saving';
+  useEffect(() => { if (!office.dirty) setConfirmDiscard(false); }, [office.dirty]);
 
-  const cur = { subject: entry.subject ?? spec.base.subject, body: entry.body ?? spec.base.body };
-  const firm = entry.firmDefault;
-  const isSystem = entry.subject === undefined && entry.body === undefined;
-  const sameAsFirm = !!firm && firm.subject === cur.subject && firm.body === cur.body;
-  const sameAsSystem = cur.subject === spec.base.subject && cur.body === spec.base.body;
-
-  /** כל שינוי עובר כאן — כדי שגם עריכה, גם מרקר וגם שחזור יהיו ניתנים לביטול. */
-  function apply(update: (prev: CommTemplate) => CommTemplate, checkpoint = false) {
-    const now = Date.now();
-    if (checkpoint || now - lastChangeAt.current > TYPING_BURST_MS) {
-      setHistory(h => [...h.slice(-(TEMPLATE_HISTORY_MAX - 1)), entry]);
-    }
-    lastChangeAt.current = checkpoint ? 0 : now;
-    onReplace(update);
-  }
-
-  function undo() {
-    const prev = history[history.length - 1];
-    if (!prev) return;
-    setHistory(h => h.slice(0, -1));
-    lastChangeAt.current = 0;
-    setMarkerHint(false);
-    onReplace(() => prev);
-  }
-
-  /** הנוסח שכרגע בעריכה, מחושב מהמצב הקודם — לא מהעותק שברינדור. */
-  const currentOf = (p: CommTemplate) => ({
-    subject: p.subject ?? spec.base.subject,
-    body: p.body ?? spec.base.body,
-  });
-
-  function toggleMarker() {
-    const el = bodyRef.current;
-    if (!el) return;
-    const result = toggleHighlightAt(cur.body, el.selectionStart ?? 0, el.selectionEnd ?? 0);
-    if (!result) { setMarkerHint(true); return; }
-    setMarkerHint(false);
-    apply(p => ({ ...p, body: result.text }), true);
-    requestAnimationFrame(() => { el.focus(); el.setSelectionRange(...result.selection); });
-  }
-
-  // סעיף שנמחק מהשלד לא יופיע במכתב — אזהרה, לא חסימה: יש מי שמנסח אחרת.
-  const missingSections = spec.vars
-    .filter(v => v.section && !cur.body.includes(v.label))
-    .map(v => v.hint ?? v.label);
-
-  const stateLabel = isSystem ? 'נוסח המערכת'
-    : sameAsFirm ? 'נוסח המשרד'
-      : firm ? 'שונה מנוסח המשרד'
-        : 'נוסח מותאם';
-
-  const act: React.CSSProperties = { fontSize: 'var(--fs-12)', color: 'var(--gray-600)' };
+  const officeText = useMemo(() => partNames(office.dirtyParts), [office.dirtyParts]);
+  if (!showOffice && !flowsDirty && !office.cleanupWarning) return null;
 
   return (
-    <div style={card}>
-      <details>
-        <summary style={{ cursor: 'pointer' }}>
-          <span style={{ fontSize: 'var(--fs-14)', fontWeight: 600, color: 'var(--ink-1)' }}>
-            {spec.title}
-          </span>
-          <span style={{
-            fontSize: 'var(--fs-12)', marginInlineStart: 8,
-            color: firm && !sameAsFirm ? 'var(--chip-amber-tx)' : 'var(--gray-400)',
-          }}>
-            {stateLabel}
-          </span>
-        </summary>
-
-        <div style={{ marginTop: 14, maxWidth: 640 }}>
-          <div style={{ fontSize: 'var(--fs-12)', color: 'var(--gray-500)', marginBottom: 10, lineHeight: 1.7 }}>
-            {spec.hint}
+    <div className="of-savebar" role="region" aria-label="שמירה">
+      {showOffice && (
+        <div className={`of-savebar-row${office.status === 'error' ? ' is-error' : ''}`} aria-live="polite">
+          <div className="of-savebar-text">
+            {office.status === 'saving' ? <>שומר…</>
+              : office.status === 'saved' && !office.dirty ? <span className="is-ok">✓ נשמר</span>
+                : <>
+                  <b>לא נשמר</b> · {officeText}
+                  {office.status === 'error' && (
+                    <span className="is-err" role="alert">השמירה נכשלה: {office.error}. השינויים עדיין כאן — אפשר לנסות שוב.</span>
+                  )}
+                </>}
           </div>
-
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 14 }}>
-            {spec.vars.map(v => (
-              <span key={v.label} title={v.hint}
-                style={{
-                  fontSize: 11.5, padding: '3px 8px', borderRadius: 6,
-                  background: v.section ? 'var(--orange-light)' : 'var(--gray-100)',
-                  color: v.section ? 'var(--chip-amber-tx)' : 'var(--gray-600)',
-                  fontFamily: 'monospace', direction: 'ltr',
-                }}>{v.label}</span>
-            ))}
-          </div>
-
-          <Field label="נושא המייל">
-            <input value={cur.subject} onChange={e => apply(p => ({ ...p, subject: e.target.value }))} />
-          </Field>
-
-          <div style={{ marginTop: 12 }}>
-            <label style={{ fontSize: 'var(--fs-12)', color: 'var(--gray-600)', display: 'block' }}>
-              <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                {spec.bodyLabel}
-                {spec.marker && (
-                  <button type="button" className="btn btn-sm btn-ghost" onClick={toggleMarker}
-                    title="מסמנים קטע בטקסט ולוחצים - הוא יופיע עם הדגשה צהובה">
-                    <span style={{ background: '#fdf3c4', padding: '0 5px', borderRadius: 3 }}>מרקר</span>
-                  </button>
-                )}
-              </span>
-              {spec.marker ? (
-                <HighlightTextarea
-                  ref={bodyRef} rows={spec.rows} value={cur.body}
-                  onChange={v => apply(p => ({ ...p, body: v }))}
-                  style={{ marginTop: 4 }}
-                />
-              ) : (
-                <textarea
-                  rows={spec.rows} value={cur.body}
-                  onChange={e => apply(p => ({ ...p, body: e.target.value }))}
-                  style={{ marginTop: 4, width: '100%', resize: 'vertical' }}
-                />
-              )}
-            </label>
-          </div>
-
-          {markerHint && (
-            <div style={{ marginTop: 6, fontSize: 'var(--fs-12)', color: 'var(--chip-amber-tx)' }}>
-              צריך לסמן קודם את הקטע שרוצים להדגיש.
+          {office.dirty && !confirmDiscard && (
+            <div className="of-savebar-acts">
+              <button type="button" className="btn btn-ghost btn-sm" disabled={busy} onClick={() => setConfirmDiscard(true)}>ביטול<span className="of-hide-sm"> השינויים</span></button>
+              <button type="button" className="btn btn-primary btn-sm" disabled={busy} onClick={() => void onSave()}>
+                {busy ? 'שומר…' : office.status === 'error' ? 'ניסיון חוזר' : 'שמירה'}
+              </button>
             </div>
           )}
-          {missingSections.length > 0 && (
-            <div style={{ marginTop: 6, fontSize: 'var(--fs-12)', color: 'var(--chip-amber-tx)', lineHeight: 1.6 }}>
-              המכתב ייצא בלי {missingSections.join(', ')}.
-            </div>
-          )}
+        </div>
+      )}
 
-          <div style={{ marginTop: 14, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-            {history.length > 0 && (
-              <button type="button" className="btn btn-sm btn-ghost" style={act} onClick={undo}>
-                ↶ בטל
-              </button>
-            )}
-            {!sameAsFirm && !(sameAsSystem && !firm) && (
-              <button type="button" className="btn btn-sm btn-ghost" style={act}
-                title="הנוסח שכרגע בעריכה ייקבע כנוסח הקבוע של המשרד, ותמיד אפשר יהיה לחזור אליו"
-                onClick={() => apply(p => {
-                  const c = currentOf(p);
-                  return { ...p, subject: c.subject, body: c.body, firmDefault: c };
-                }, true)}>
-                קבע כנוסח המשרד
-              </button>
-            )}
-            {firm && !sameAsFirm && (
-              <button type="button" className="btn btn-sm btn-ghost" style={act}
-                onClick={() => apply(p => (
-                  p.firmDefault ? { ...p, subject: p.firmDefault.subject, body: p.firmDefault.body } : p
-                ), true)}>
-                חזרה לנוסח המשרד
-              </button>
-            )}
-            {!sameAsSystem && (
-              <button type="button" className="btn btn-sm btn-ghost" style={act}
-                title="חוזר לנוסח המקורי של המערכת. נוסח המשרד שקבעת נשמר ואפשר לחזור אליו."
-                onClick={() => apply(p => (p.firmDefault ? { firmDefault: p.firmDefault } : {}), true)}>
-                חזרה לנוסח המערכת
-              </button>
-            )}
-            <span style={{ flex: 1 }} />
-            <span style={{ fontSize: 'var(--fs-12)', color: 'var(--gray-400)' }}>
-              נשמר עם כפתור השמירה למעלה
-            </span>
+      {flowsDirty && (
+        <div className="of-savebar-row" aria-live="polite">
+          <div className="of-savebar-text">
+            <b>{office.dirty ? 'וגם' : 'לא נשמר'}</b> · מסלול שנערך — נשמר מתוך המסלול, עם סיכום של מה השתנה.
+          </div>
+          <div className="of-savebar-acts">
+            <button type="button" className="btn btn-secondary btn-sm" onClick={() => go('flows')}>חזרה למסלול</button>
           </div>
         </div>
-      </details>
+      )}
+
+      {confirmDiscard && (
+        <div className="of-savebar-row">
+          <div className="of-savebar-text"><b>לבטל את השינויים שלא נשמרו?</b> מה שהוקלד או הועלה ולא נשמר — יימחק.</div>
+          <div className="of-savebar-acts">
+            <button type="button" className="btn btn-ghost btn-sm" onClick={() => setConfirmDiscard(false)} autoFocus>חזרה</button>
+            <button type="button" className="btn btn-danger btn-sm" onClick={() => { setConfirmDiscard(false); office.discard(); }}>ביטול<span className="of-hide-sm"> השינויים</span></button>
+          </div>
+        </div>
+      )}
+
+      {office.cleanupWarning && !showOffice && (
+        <div className="of-savebar-row"><div className="of-savebar-text of-muted">{office.cleanupWarning}</div></div>
+      )}
     </div>
   );
 }
 
-/** מצב השמירה של המסך — נקרא במבט: יש שינויים / נשמר / כמה מוגדר */
-function SaveState({ dirty, busy, savedAt, completeness }: { dirty: boolean; busy: boolean; savedAt: number | null; completeness: number }) {
-  const chip: React.CSSProperties = {
-    display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 'var(--fs-12)',
-    padding: '5px 11px', borderRadius: 20, whiteSpace: 'nowrap', fontWeight: 500,
-  };
-  if (busy) return <span style={{ ...chip, background: 'var(--gray-100)', color: 'var(--gray-600)' }}>שומר…</span>;
-  if (dirty) return (
-    <span style={{ ...chip, background: 'var(--orange-light)', color: 'var(--chip-amber-tx)' }}>
-      <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--orange)' }} />
-      שינויים שלא נשמרו
-    </span>
-  );
-  if (savedAt) return <span style={{ ...chip, background: 'var(--green-light)', color: 'var(--chip-green-tx)' }}>נשמר</span>;
-  return (
-    <span style={{ ...chip, background: 'var(--gray-100)', color: 'var(--gray-600)' }}>
-      <span style={{ width: 6, height: 6, borderRadius: '50%', background: ACCENT }} />
-      הפרופיל {completeness}% מוגדר
-    </span>
-  );
-}
+// ─── יציאה עם שינויים שלא נשמרו ──────────────────────────────────────────────
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function LeaveDialog({ officeParts, flowsDirty, onStay, onDiscard, onSave }: {
+  officeParts: DirtyPart[];
+  flowsDirty: boolean;
+  onStay: () => void;
+  onDiscard: () => void;
+  onSave: () => Promise<void>;
+}) {
+  const [busy, setBusy] = useState(false);
+  // ‼ מסלול לא נשמר מכאן: שמירה שלו היא גרסה חדשה עם סיכום, ולכן היא קורית רק
+  // בתוך המסלול. כשרק המסלול פתוח — «להישאר» מחזיר אליו, ואין «שמירה ויציאה».
+  const canSave = officeParts.length > 0;
   return (
-    <label style={{ fontSize: 'var(--fs-12)', color: 'var(--gray-600)', display: 'block' }}>
-      {label}
-      <div style={{ marginTop: 4 }}>{children}</div>
-    </label>
-  );
-}
-
-/** מצביע לסטודיו העיצוב — במקום מיני-תצוגה כפולה (וקפואה) של עמוד הלקוח.
- *  מציג את צבעי העיצוב האמיתיים מהמערכת המרכזית; לחיצה פותחת את הסטודיו. */
-function DesignStudioPointer({ brand, onOpen }: { brand: ReturnType<typeof deriveQuotationBrand>; onOpen: () => void }) {
-  return (
-    <div
-      onClick={onOpen}
-      style={{ borderTop: '1px solid var(--hairline-2)', padding: '14px 0', background: 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 14, width: '100%', textAlign: 'start', fontFamily: 'inherit' }}
-    >
-      <div style={{ display: 'flex', gap: 5, flexShrink: 0 }}>
-        <span style={{ width: 26, height: 26, borderRadius: 7, background: brand.ink }} />
-        <span style={{ width: 26, height: 26, borderRadius: 7, background: brand.accent }} />
-        <span style={{ width: 26, height: 26, borderRadius: 7, background: brand.pageBg, border: '1px solid var(--hairline-1)' }} />
+    <Modal title="יש שינויים שלא נשמרו" onClose={onStay} width={460}
+      footer={<>
+        <button type="button" className="ui-btn ui-btn-ghost" onClick={onStay} data-autofocus disabled={busy}>
+          {flowsDirty && !canSave ? 'חזרה למסלול' : 'להישאר'}
+        </button>
+        <button type="button" className="ui-btn ui-btn-ghost" style={{ color: 'var(--danger)' }} onClick={onDiscard} disabled={busy}>יציאה בלי לשמור</button>
+        {canSave && (
+          <button type="button" className="ui-btn ui-btn-primary" disabled={busy}
+            onClick={async () => { setBusy(true); await onSave(); setBusy(false); }}>
+            {busy ? 'שומר…' : flowsDirty ? 'שמירת המשרד ויציאה' : 'שמירה ויציאה'}
+          </button>
+        )}
+      </>}>
+      <div className="ui-confirm-text">
+        אם תצא עכשיו, השינויים האלה יאבדו:
+        <ul className="of-leave-list">
+          {officeParts.length > 0 && <li>{partNames(officeParts)}</li>}
+          {flowsDirty && <li>מסלול שנערך — {canSave ? 'לא נשמר ב«שמירת המשרד»; ' : ''}נשמר רק מתוך המסלול</li>}
+        </ul>
       </div>
-      <div style={{ flex: 1 }}>
-        <div style={{ fontSize: 'var(--fs-13)', fontWeight: 500 }}>עיצוב עמודי הלקוח והמיילים</div>
-        <div style={{ fontSize: 'var(--fs-12)', color: 'var(--gray-500)', marginTop: 2 }}>
-          תצוגה מקדימה חיה ועריכה מלאה - תבניות, צבעים, פונטים וכפתורים
-        </div>
-      </div>
-      <span style={{ color: ACCENT, fontSize: 'var(--fs-13)', fontWeight: 500, whiteSpace: 'nowrap' }}>לסטודיו ←</span>
-    </div>
+    </Modal>
   );
-}
-
-
-const card: React.CSSProperties = { borderTop: '1px solid var(--hairline-2)', padding: '16px 0 18px' };
-const cardTitle: React.CSSProperties = { fontSize: 'var(--fs-14)', fontWeight: 600, color: 'var(--ink-1)', marginBottom: 14 };
-const grid2: React.CSSProperties = { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 };
-
-/** JSON יציב — ממיין מפתחות רקורסיבית, כדי שהשוואת שינוי לא תושפע מסדר מפתחות של jsonb. */
-function stableStringify(v: unknown): string {
-  if (v === null || typeof v !== 'object') return JSON.stringify(v);
-  if (Array.isArray(v)) return '[' + v.map(stableStringify).join(',') + ']';
-  const obj = v as Record<string, unknown>;
-  return '{' + Object.keys(obj).sort().map(k => JSON.stringify(k) + ':' + stableStringify(obj[k])).join(',') + '}';
-}
-
-function extractErr(e: unknown): string {
-  if (typeof e === 'string') return e;
-  if (e && typeof e === 'object') {
-    const o = e as { message?: string; details?: string; hint?: string };
-    const parts = [o.message, o.details, o.hint].filter(Boolean);
-    if (parts.length) return parts.join(' - ');
-  }
-  return 'שגיאה בשמירת הפרופיל';
 }

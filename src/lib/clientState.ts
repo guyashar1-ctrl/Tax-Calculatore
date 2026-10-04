@@ -13,7 +13,8 @@
 //   בקשה אינה משנה אף אחד מהם, ולעולם לא מגדירה אותם מחדש.
 
 import type { Client, RepresentationStatus } from '../types/index';
-import type { Engagement, OnboardingStep } from '../types/onboarding';
+import type { Engagement, OnboardingStep, OnboardingStepType } from '../types/onboarding';
+import { isStepOpen } from '../types/onboarding';
 import { currentEngagement as selectCurrentEngagement } from '../utils/engagementSelectors';
 
 // ─── קליטה ───────────────────────────────────────────────────────────────────
@@ -23,8 +24,9 @@ import { currentEngagement as selectCurrentEngagement } from '../utils/engagemen
  * "עוד אין קליטה" לבין "אין ולא תהיה".
  *
  *   open    — יש התקשרות במצב קליטה. יש מה לסגור.
- *   pending — ליד/בהצעה: הקליטה עוד תיוולד, והשרת ממילא מחזיק את הבקשות עד
- *             אישור ההצעה. בקשה שמכינים עכשיו היא בקשת קליטה לכל דבר.
+ *   pending — ליד/בהצעה, או לקוח שחוזר (אין התקשרות נוכחית ונשלחה לו הצעה): הקליטה
+ *             עוד תיוולד, והשרת ממילא מחזיק את הבקשות עד אישור ההצעה
+ *             (requests_held_until_approval). בקשה שמכינים עכשיו היא בקשת קליטה לכל דבר.
  *   none    — מיוצג בלי התקשרות, התקשרות פעילה או שהסתיימה, לקוח ותיק.
  *             אין מה לסגור, ולכן אין משמעות ל"נדרש לסגירת הקליטה".
  *
@@ -53,15 +55,42 @@ export function currentEngagement(
   return selectCurrentEngagement(engagements ?? [], clientId);
 }
 
+/** הצעת מחיר כפי שההחזקה צריכה אותה — ללקוח (clientId) או לליד שהומר אליו (leadId). */
+export interface IntakeQuote { clientId?: string; leadId?: string; status: string }
+
+/** ההצעות של הלקוח — מה שצריך כדי לדעת אם הבקשות מוחזקות עד אישור (217, D2). */
+export interface IntakeQuotes {
+  /** הצעות המחיר (אפשר את כולן — מסוננות כאן לפי הלקוח והלידים שלו). */
+  quotations?: IntakeQuote[];
+  /** הלידים שהומרו ללקוח הזה (leads.converted_client_id). */
+  leadIds?: string[];
+}
+
+/**
+ * «הבקשות מוחזקות עד אישור ההצעה» — ‼ בבואה מדויקת של public.requests_held_until_approval
+ * (217, D2): ליד/בהצעה; או — אין התקשרות נוכחית, ויש הצעה שנשלחה/נצפתה, ללקוח עצמו
+ * או לליד שהומר אליו. צר במכוון: לקוח פעיל עם הצעה לעדכון הסכם — לא מוחזק.
+ * בלי quotes — רק הכלל הישן (ליד/בהצעה).
+ */
+export function requestsHeldUntilApproval(
+  client: Pick<Client, 'id' | 'lifecycleStage'>, engagements: Engagement[] | undefined, quotes?: IntakeQuotes,
+): boolean {
+  const stage = client.lifecycleStage;
+  if (stage === 'lead' || stage === 'quoted') return true;
+  if (currentEngagement(client.id, engagements)) return false;
+  const leads = new Set(quotes?.leadIds ?? []);
+  return (quotes?.quotations ?? []).some(q => (q.status === 'sent' || q.status === 'viewed')
+    && (q.clientId === client.id || (!!q.leadId && leads.has(q.leadId))));
+}
+
 export function intakeContext(
-  client: Pick<Client, 'id' | 'lifecycleStage'>, engagements: Engagement[] | undefined,
+  client: Pick<Client, 'id' | 'lifecycleStage'>, engagements: Engagement[] | undefined, quotes?: IntakeQuotes,
 ): IntakeContext {
   const open = (engagements ?? [])
     .filter(e => e.clientId === client.id && e.status === 'onboarding')
     .sort((a, b) => (b.createdAt ?? '').localeCompare(a.createdAt ?? ''))[0];
   if (open) return { state: 'open', engagementId: open.id };
-  const stage = client.lifecycleStage;
-  if (stage === 'lead' || stage === 'quoted') return { state: 'pending' };
+  if (requestsHeldUntilApproval(client, engagements, quotes)) return { state: 'pending' };
   return { state: 'none' };
 }
 
@@ -158,4 +187,66 @@ export function requestDefaults(opts: {
  */
 export function showsRequiredFlag(intake: IntakeContext, step: Pick<OnboardingStep, 'status'>): boolean {
   return intakeAcceptsRequired(intake) && step.status !== 'cancelled';
+}
+
+// ─── לקוח שחוזר: בקשה אחת לכל התקשרות (217) ───────────────────────────────
+
+/**
+ * סוגי בקשה שנפתחים מחדש בכל התקשרות (הכרעת גיא D4): מסמכים, שלושת חלקי
+ * «חומרים מרו״ח קודם», השאלון והרשאת התשלום. כל השאר — פעם אחת ללקוח.
+ * ‼ חייב להתאים ל-public.per_engagement_step_types() בשרת (217) — שינוי כאן, שם.
+ */
+export const PER_ENGAGEMENT_STEP_TYPES: OnboardingStepType[] = [
+  'client_documents', 'prev_accountant_details', 'release_letter', 'materials_received',
+  'intake_questionnaire', 'retainer_authorization',
+];
+
+const isPerEngagement = (type: string): boolean =>
+  (PER_ENGAGEMENT_STEP_TYPES as string[]).includes(type);
+
+/**
+ * השלב של העבודה **הנוכחית** מסוג מסוים: פתוח קודם, אחר כך של ההתקשרות הנוכחית,
+ * אחר כך החדש ביותר. ‼ במקום `steps.find(type)` — שאצל לקוח שחוזר תפס את השלב
+ * הישן שהושלם (המיון הוא לפי סדר ותאריך יצירה עולה).
+ */
+export function stepForCurrentWork(
+  steps: OnboardingStep[], type: string, currentEngagementId?: string | null,
+): OnboardingStep | undefined {
+  const rank = (s: OnboardingStep) =>
+    (isStepOpen(s.status) ? 2 : 0) + (currentEngagementId && s.engagementId === currentEngagementId ? 1 : 0);
+  return steps
+    .filter(s => s.stepType === type && s.status !== 'cancelled')
+    .sort((a, b) => rank(b) - rank(a) || (b.createdAt ?? '').localeCompare(a.createdAt ?? ''))[0];
+}
+
+/**
+ * האם אי אפשר להוסיף עוד בקשה מהסוג הזה (הקטלוג מסתיר אותה). ‼ אותו כלל כמו
+ * step_type_exists ב-create_onboarding_request (217): סוג שנפתח בכל התקשרות
+ * תפוס כשיש אחד פתוח, או אחד (לא מבוטל) בהתקשרות הנוכחית — ובלי התקשרות, אחד
+ * שעוד לא שויך. כל סוג אחר — תפוס כשיש אחד לא מבוטל, איפה שהוא.
+ */
+export function stepTypeTaken(
+  steps: OnboardingStep[], type: string, currentEngagementId?: string | null,
+): boolean {
+  const live = steps.filter(s => s.stepType === type && s.status !== 'cancelled');
+  if (!isPerEngagement(type)) return live.length > 0;
+  return live.some(s => isStepOpen(s.status)
+    || (currentEngagementId ? s.engagementId === currentEngagementId : !s.engagementId));
+}
+
+/**
+ * מכתב השחרור שנשאר פני הכרטיס אחרי שנסגר — כשהחומרים שלו עוד נאספים.
+ * ‼ «שלו»: החומרים שתלויים במכתב, ובלי תלות ידועה — מאותה התקשרות. מכתב ישן
+ * שהושלם בהתקשרות קודמת לא קם לתחייה כשנפתח מסלול חדש אצל לקוח שחוזר.
+ */
+export function releaseLetterAnchors(
+  letter: OnboardingStep, steps: OnboardingStep[], depParents?: Map<string, string[]>,
+): boolean {
+  if (letter.stepType !== 'release_letter' || isStepOpen(letter.status) || letter.status === 'cancelled') return false;
+  return steps.some(o => {
+    if (o.stepType !== 'materials_received' || !isStepOpen(o.status)) return false;
+    const parents = depParents?.get(o.id) ?? (o.dependsOnStepId ? [o.dependsOnStepId] : []);
+    if (parents.length > 0) return parents.includes(letter.id);
+    return (o.engagementId ?? null) === (letter.engagementId ?? null);
+  });
 }

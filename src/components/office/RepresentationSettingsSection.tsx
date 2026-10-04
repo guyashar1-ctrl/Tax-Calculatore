@@ -1,15 +1,14 @@
-// ─── «ייצוג» · ניהול המשרד ───────────────────────────────────────────────────
-// המימוש נאמן לאב-הטיפוס המאושר: docs/prototypes/representation-settings.html.
-// ציר המסע נגזר מהגדרת התהליך המשותפת (lib/representationJourney.ts — M2):
-// "מה קורה" (קריאה בלבד) מול "מה הלקוח מקבל" (עריכה). ההודעות והתזכורות
-// מקושרות לשלב לפי מפתח, לא לפי מספר — הרשימה ב«תהליכים» ובטופס הלקוח
-// היא אותה רשימה.
+// ─── ייצוג · הגדרות המשרד ────────────────────────────────────────────────────
+// ‼ (1.10.2026, סבב 3) כבר לא עמוד: שלושת החלקים יושבים איפה שמחפשים אותם —
+//   · מה נבחר מראש בבקשת ייצוג → «בקשות ללקוחות», בשורת הייצוג (RepDefaultsEditor).
+//   · הנוסח של כל הודעה בדרך → «מיילים», לצד שאר המיילים (RepMessageDrawer).
+//   · התזכורות האוטומטיות → «תזכורות והתראות» (repReminderConfig/withRepReminder).
+//   «מה קורה בכל שלב» מוצג בהקשר (ProcessSteps על REPRESENTATION_PROCESS).
 //
 // הכל נשמר תחת profile.settings.representation — עמודת jsonb קיימת, בלי
-// migration חדשה — וחולק את הטיוטה ואת כפתור השמירה של כל שאר "המשרד"
-// (אותו דפוס בדיוק כמו PaperlessCommSection).
+// migration — וחולק את הטיוטה ואת כפתור השמירה של כל שאר «המשרד».
 //
-// ‼ מה שהמסך הזה **אינו** עושה: אינו עורך את סטטוס/מחזור הבקשה, אינו נוגע
+// ‼ מה שהקוד הזה **אינו** עושה: אינו עורך את סטטוס/מחזור הבקשה, אינו נוגע
 // ב"אישרתי באזור האישי" או ביעד ה-gov.il (system-owned — ראה REP_PORTAL_CARD_FIXED),
 // ואינו מציע רמת ייצוג לביטוח לאומי (הרשות היחידה בלי "רמה" — REP_AUTHORITIES_WITH_LEVEL).
 import { useState } from 'react';
@@ -19,21 +18,16 @@ import {
   REP_AUTHORITY_ORDER, REP_AUTHORITIES_WITH_LEVEL, REP_AUTHORITY_LABELS, REP_LEVEL_LABELS,
 } from '../../types';
 import {
-  RepMailKind, RepMailOverride,
-  defaultRepMailTemplate, resolveRepMailTemplate,
-  RepPortalCardOverride, REP_PORTAL_CARD_DEFAULTS, REP_PORTAL_CARD_FIXED, resolveRepPortalCard,
+  RepMailKind, RepMailOverride, defaultRepMailTemplate,
+  RepPortalCardOverride, REP_PORTAL_CARD_DEFAULTS, REP_PORTAL_CARD_FIXED,
   RepReminderAudience, RepReminderConfig, resolveRepReminderConfig,
 } from '../../../supabase/functions/_shared/repTemplates.ts';
-import { REP_STAGES, type RepStageKey } from '../../lib/representationJourney';
-import { ACTOR_LABELS, numberStages } from '../../lib/processDefinition';
+import type { RepStageKey } from '../../lib/representationJourney';
 import './representationSettings.css';
-
-interface Props {
-  profile: FirmProfile;
-  onChangeProfile: React.Dispatch<React.SetStateAction<FirmProfile>>;
-  /** קפיצה להגדרת התהליך המלאה ב«תהליכים». */
-  onOpenProcess?: () => void;
-}
+import { LinkDestinationView } from './LinkDestinationView';
+import { repMessageDestinations } from '../../features/links/linkDestinations';
+import RepApprovalGuide, { RepApprovalGuideButton } from '../portal/RepApprovalGuide';
+import { PortalView, type PortalItem } from '../PublicPortalPage';
 
 // ── מודל הנתונים תחת settings.representation ────────────────────────────────
 export interface RepDefaultsSettings {
@@ -50,7 +44,7 @@ interface RepSettings {
 }
 
 // ‼ בדיוק ברירת המחדל הקשיחה הקיימת היום ב-RepresentationOnboardingDialog —
-// כך שמסך זה שמנוקה מהתאמות מציג בדיוק את מה שקורה כשלא נוגעים בכלום.
+// כך שבלי התאמות מוצג בדיוק מה שקורה כשלא נוגעים בכלום.
 const SYSTEM_DEFAULT_AUTHORITIES: Record<RepAuthorityKind, { on: boolean; level: RepLevel }> = {
   incomeTax: { on: true, level: 'primary' },
   withholding: { on: false, level: 'primary' },
@@ -60,7 +54,7 @@ const SYSTEM_DEFAULT_AUTHORITIES: Record<RepAuthorityKind, { on: boolean; level:
 const SYSTEM_DEFAULT_NI_SPOUSE = true;
 const SYSTEM_DEFAULT_DELIVERY: 'email' | 'link' = 'link';
 
-function repSettingsOf(profile: FirmProfile): RepSettings {
+export function repSettingsOf(profile: FirmProfile): RepSettings {
   return ((profile.settings ?? {}) as Record<string, unknown>).representation as RepSettings ?? {};
 }
 function currentAuthority(rep: RepSettings, a: RepAuthorityKind): { on: boolean; level: RepLevel } {
@@ -70,42 +64,49 @@ function currentAuthority(rep: RepSettings, a: RepAuthorityKind): { on: boolean;
 function currentNiSpouse(rep: RepSettings): boolean { return rep.defaults?.niSpouse ?? SYSTEM_DEFAULT_NI_SPOUSE; }
 function currentDelivery(rep: RepSettings): 'email' | 'link' { return rep.defaults?.delivery ?? SYSTEM_DEFAULT_DELIVERY; }
 
-// ── ציר המסע: מה הלקוח מקבל ואילו תזכורות — לפי מפתח השלב בהגדרה המשותפת ──
+/** עדכון חלק אחד של settings.representation, בלי לגעת בשאר. */
+function withRep(prev: FirmProfile, patch: Partial<RepSettings>): FirmProfile {
+  const prevSettings = (prev.settings ?? {}) as Record<string, unknown>;
+  const prevRep = (prevSettings.representation as RepSettings) ?? {};
+  return { ...prev, settings: { ...prevSettings, representation: { ...prevRep, ...patch } } };
+}
+
+// ── מה הלקוח מקבל בדרך — מיילים וכרטיס ─────────────────────────────────────
 type ArtifactType = 'mail' | 'portal';
-interface Artifact { id: string; stage: RepStageKey; type: ArtifactType; label: string; kind: RepMailKind | 'portalCard'; standalone?: string; }
-
-const ARTIFACTS: Artifact[] = [
-  { id: 'onboard', stage: 'open', type: 'mail', label: 'מייל הזיהוי', kind: 'rep_onboard' },
-  { id: 'sign', stage: 'sign', type: 'mail', label: 'מייל החתימה', kind: 'rep_sign' },
-  { id: 'ni_approve', stage: 'ni', type: 'mail', label: 'הוראות אישור בביטוח הלאומי', kind: 'rep_ni_approve', standalone: 'נשלח בנפרד רק כשההוראות לא נכנסו למייל החתימה' },
-  { id: 'prerequisites', stage: 'ni', type: 'mail', label: 'השלמת פרטים חסרים', kind: 'rep_prerequisites' },
-  { id: 'portal', stage: 'client_approval', type: 'portal', label: 'כרטיס בדף האישי', kind: 'portalCard' },
-  { id: 'active', stage: 'active', type: 'mail', label: 'מייל "הייצוג פעיל"', kind: 'rep_active' },
-];
-
-/** אילו תזכורות אוטומטיות שייכות לכל שלב. */
-const REMINDERS_BY_STAGE: Partial<Record<RepStageKey, RepReminderAudience[]>> = {
-  sign: ['sign'],
-  ni: ['niClient', 'niSpouse'],
-  client_approval: ['portal'],
-};
+interface Artifact { id: string; stage: RepStageKey; type: ArtifactType; label: string; when: string; kind: RepMailKind | 'portalCard'; }
 
 /**
- * הערות שהן של מסך ההגדרות ולא של הגדרת התהליך — מה שברירות המחדל כאן
- * משפיעות עליו. השאר ("מה קורה") נקרא מ-REP_STAGES.
+ * ההודעות של תהליך הייצוג, לפי סדר המסע. ‼ `when` הוא מה שמופיע ברשימת
+ * «מיילים» — מתי זה יוצא, במילים של משרד ולא של מנגנון.
  */
-const SETTINGS_NOTES: Partial<Record<RepStageKey, string>> = {
-  open: 'כשהצעת מחיר מאושרת כבר קבעה את היקף הייצוג - ההיקף הזה תמיד גובר. הברירות שכאן חלות רק כשפותחים ייצוג בלי היקף שנקבע מראש.',
-  sign: 'כשביטוח לאומי כלול ויש כבר אסמכתא, המערכת שולחת הודעה משולבת אחת עם שתי הפעולות. ההודעה המשולבת בנוסח קבוע ואינה נערכת כאן; מה שכן נערך הוא מייל החתימה הרגיל, לשאר המקרים.',
-  active: 'ההודעה ללקוח לא יוצאת מעצמה - המשרד שולח אותה בלחיצה, אחרי תצוגה מקדימה.',
+const ARTIFACTS: Artifact[] = [
+  { id: 'onboard', stage: 'open', type: 'mail', label: 'בקשת ייצוג — מילוי פרטים', when: 'כשפותחים בקשת ייצוג ושולחים ללקוח', kind: 'rep_onboard' },
+  { id: 'sign', stage: 'sign', type: 'mail', label: 'חתימה על ייפוי הכוח', when: 'כשייפוי הכוח מוכן לחתימה', kind: 'rep_sign' },
+  { id: 'ni_approve', stage: 'ni', type: 'mail', label: 'אישור הייצוג בביטוח לאומי', when: 'כשההוראות לא נכנסו למייל החתימה', kind: 'rep_ni_approve' },
+  { id: 'prerequisites', stage: 'ni', type: 'mail', label: 'השלמת פרטים חסרים', when: 'כשביטוח לאומי דורש פרטים שאין בכרטיס', kind: 'rep_prerequisites' },
+  { id: 'portal', stage: 'client_approval', type: 'portal', label: 'אישור הייצוג באזור האישי (כרטיס בדף הלקוח)', when: 'אחרי ההגשה לשע״ם — זירוז; חובה כששע״ם ממתינה לאישור הלקוח', kind: 'portalCard' },
+  { id: 'active', stage: 'active', type: 'mail', label: 'הייצוג פעיל', when: 'בלחיצה שלך, כשהייצוג אושר', kind: 'rep_active' },
+];
+
+export const REP_MESSAGES: { id: string; label: string; when: string; portal: boolean }[] =
+  ARTIFACTS.map(a => ({ id: a.id, label: a.label, when: a.when, portal: a.type === 'portal' }));
+
+/** סוג המייל ביומן — לשורה «נשלחו» ברשימת המיילים. */
+export const REP_MESSAGE_EMAIL_KINDS: Record<string, string[]> = {
+  onboard: ['onboard', 'onboarding'], sign: ['sign'], ni_approve: ['ni_approve'], prerequisites: ['prerequisites', 'rep_prerequisites'], active: ['active'], portal: [],
 };
 
-const REMINDER_LABEL: Record<RepReminderAudience, { audience: string | null; when: string }> = {
-  sign: { audience: null, when: 'אם לא כל החותמים חתמו' },
-  niClient: { audience: 'כשהלקוח עצמו הוא מי שצריך לאשר', when: 'אם הלקוח עדיין לא אישר בביטוח הלאומי' },
-  niSpouse: { audience: 'כשבן/בת הזוג הם מי שצריך לאשר', when: 'אם בן/בת הזוג עדיין לא אישרו בביטוח הלאומי' },
-  portal: { audience: null, when: 'אם הלקוח לא דיווח שאישר באזור האישי' },
-};
+function overrideFor(rep: RepSettings, art: Artifact): RepMailOverride | RepPortalCardOverride | undefined {
+  if (art.type === 'portal') return rep.templates?.portalCard;
+  return rep.templates?.[art.kind as RepMailKind];
+}
+
+export function isRepMessageCustom(profile: FirmProfile, id: string): boolean {
+  const art = ARTIFACTS.find(a => a.id === id);
+  if (!art) return false;
+  const ov = overrideFor(repSettingsOf(profile), art) as Record<string, string | undefined> | undefined;
+  return !!ov && Object.values(ov).some(v => v !== undefined && v !== '');
+}
 
 const FIELD_DEFS: Record<ArtifactType, [string, string, boolean?][]> = {
   mail: [['subject', 'נושא המייל'], ['heading', 'כותרת בגוף המייל'], ['body', 'טקסט', true], ['cta', 'טקסט הכפתור']],
@@ -113,360 +114,189 @@ const FIELD_DEFS: Record<ArtifactType, [string, string, boolean?][]> = {
   portal: [['sub', 'שורת משנה'], ['note', 'ההוראות ללקוח', true], ['linkLabel', 'טקסט הקישור לאזור האישי'], ['noteAfter', 'משפט מרגיע בסוף', true]],
 };
 
-export default function RepresentationSettingsSection({ profile, onChangeProfile, onOpenProcess }: Props) {
-  const [openStages, setOpenStages] = useState<Set<RepStageKey>>(new Set());
-  const [drawerArt, setDrawerArt] = useState<{ id: string; mode: 'edit' | 'preview' } | null>(null);
-  const [drawerTab, setDrawerTab] = useState<'edit' | 'preview'>('edit');
-  const [drawerValues, setDrawerValues] = useState<Record<string, string>>({});
+// ── מה נבחר מראש בבקשת ייצוג ───────────────────────────────────────────────
 
+/** שורת הסיכום של ברירת המחדל — «מס הכנסה, מע״מ, ביטוח לאומי (גם בן/בת זוג) · קישור להעתקה». */
+export function repDefaultsSummary(profile: FirmProfile): string {
   const rep = repSettingsOf(profile);
+  const names: string[] = [];
+  for (const a of REP_AUTHORITY_ORDER) {
+    const cur = currentAuthority(rep, a);
+    if (!cur.on) continue;
+    let n = REP_AUTHORITY_LABELS[a];
+    if (REP_AUTHORITIES_WITH_LEVEL.includes(a) && cur.level === 'secondary') n += ` (${REP_LEVEL_LABELS.secondary})`;
+    if (a === 'nationalInsurance' && currentNiSpouse(rep)) n += ' (גם בן/בת זוג)';
+    names.push(n);
+  }
+  const delivery = currentDelivery(rep) === 'email' ? 'נשלח במייל' : 'קישור להעתקה';
+  return `${names.length ? names.join(', ') : 'אף רשות לא מסומנת מראש'} · ${delivery}`;
+}
 
-  function patchRep(patch: Partial<RepSettings>) {
+/**
+ * מה מסומן מראש כשפותחים בקשת ייצוג. ‼ חל רק כשאין היקף שנקבע בהצעת מחיר
+ * מאושרת — היקף מההצעה תמיד גובר.
+ */
+export function RepDefaultsEditor({ profile, onChangeProfile }: {
+  profile: FirmProfile;
+  onChangeProfile: React.Dispatch<React.SetStateAction<FirmProfile>>;
+}) {
+  const rep = repSettingsOf(profile);
+  function patchDefaults(patch: Partial<RepDefaultsSettings>) {
     onChangeProfile(prev => {
-      const prevSettings = (prev.settings ?? {}) as Record<string, unknown>;
-      const prevRep = (prevSettings.representation as RepSettings) ?? {};
-      return { ...prev, settings: { ...prevSettings, representation: { ...prevRep, ...patch } } };
+      const r = repSettingsOf(prev);
+      const base: RepDefaultsSettings = {
+        authorities: r.defaults?.authorities ?? {},
+        niSpouse: currentNiSpouse(r),
+        delivery: currentDelivery(r),
+      };
+      return withRep(prev, { defaults: { ...base, ...patch } });
     });
   }
-  function patchDefaults(patch: Partial<RepDefaultsSettings>) {
-    const base: RepDefaultsSettings = {
-      authorities: rep.defaults?.authorities ?? {},
-      niSpouse: currentNiSpouse(rep),
-      delivery: currentDelivery(rep),
-    };
-    patchRep({ defaults: { ...base, ...patch } });
-  }
-  function setAuthorityOn(a: RepAuthorityKind, on: boolean) {
+  function setOn(a: RepAuthorityKind, on: boolean) {
     const authorities = { ...(rep.defaults?.authorities ?? {}) };
     authorities[a] = { on, level: currentAuthority(rep, a).level };
     patchDefaults({ authorities, niSpouse: a === 'nationalInsurance' && !on ? false : currentNiSpouse(rep) });
   }
-  function setAuthorityLevel(a: RepAuthorityKind, level: RepLevel) {
+  function setLevel(a: RepAuthorityKind, level: RepLevel) {
     const authorities = { ...(rep.defaults?.authorities ?? {}) };
     authorities[a] = { on: currentAuthority(rep, a).on, level };
     patchDefaults({ authorities });
   }
-
-  function overrideFor(art: Artifact): RepMailOverride | RepPortalCardOverride | undefined {
-    if (art.type === 'portal') return rep.templates?.portalCard;
-    return rep.templates?.[art.kind as RepMailKind];
-  }
-  function isCustom(art: Artifact): boolean {
-    const ov = overrideFor(art) as Record<string, string | undefined> | undefined;
-    return !!ov && Object.values(ov).some(v => v !== undefined && v !== '');
-  }
-  function valuesOf(art: Artifact): Record<string, string> {
-    if (art.type === 'portal') return resolveRepPortalCard(rep.templates?.portalCard) as unknown as Record<string, string>;
-    return resolveRepMailTemplate(art.kind as RepMailKind, rep.templates?.[art.kind as RepMailKind]) as unknown as Record<string, string>;
-  }
-  function systemValuesOf(art: Artifact): Record<string, string> {
-    if (art.type === 'portal') return { ...REP_PORTAL_CARD_DEFAULTS } as unknown as Record<string, string>;
-    return defaultRepMailTemplate(art.kind as RepMailKind) as unknown as Record<string, string>;
-  }
-
-  function toggleStage(n: RepStageKey) {
-    setOpenStages(prev => { const next = new Set(prev); next.has(n) ? next.delete(n) : next.add(n); return next; });
-  }
-
-  function openDrawer(id: string, mode: 'edit' | 'preview') {
-    const art = ARTIFACTS.find(a => a.id === id)!;
-    setDrawerValues({ ...(overrideFor(art) as Record<string, string> ?? {}) });
-    setDrawerArt({ id, mode });
-    setDrawerTab(mode);
-  }
-  function closeDrawer() { setDrawerArt(null); }
-  const drawingArt = drawerArt ? ARTIFACTS.find(a => a.id === drawerArt.id)! : null;
-  const drawerDirty = drawingArt
-    ? JSON.stringify(drawerValues) !== JSON.stringify(overrideFor(drawingArt) ?? {})
-    : false;
-
-  function applyDrawer() {
-    if (!drawingArt) return;
-    const cleaned = Object.fromEntries(Object.entries(drawerValues).filter(([, v]) => v.trim() !== ''));
-    if (drawingArt.type === 'portal') {
-      const templates: RepTemplatesSettings = { ...rep.templates };
-      if (Object.keys(cleaned).length) templates.portalCard = cleaned as RepPortalCardOverride; else delete templates.portalCard;
-      patchRep({ templates });
-    } else {
-      const templates: RepTemplatesSettings = { ...rep.templates };
-      const key = drawingArt.kind as RepMailKind;
-      if (Object.keys(cleaned).length) templates[key] = cleaned as RepMailOverride; else delete templates[key];
-      patchRep({ templates });
-    }
-    closeDrawer();
-  }
-  function resetDrawerToDefault() {
-    if (!window.confirm('לחזור לנוסח ברירת המחדל של המערכת? הנוסח של המשרד לפריט הזה יימחק כשתשמרו.')) return;
-    setDrawerValues({});
-  }
-
-  function reminderCfg(audience: RepReminderAudience): RepReminderConfig {
-    return resolveRepReminderConfig(audience, rep.reminders?.[audience]);
-  }
-  function patchReminder(audience: RepReminderAudience, patch: Partial<RepReminderConfig>) {
-    const reminders: RepRemindersSettings = { ...rep.reminders, [audience]: { ...reminderCfg(audience), ...patch } };
-    patchRep({ reminders });
-  }
-
-  // ── סיכומים ────────────────────────────────────────────────────────────
-  function authorityNames(): string[] {
-    const out: string[] = [];
-    for (const a of REP_AUTHORITY_ORDER) {
-      const cur = currentAuthority(rep, a);
-      if (!cur.on) continue;
-      out.push(REP_AUTHORITIES_WITH_LEVEL.includes(a) ? `${REP_AUTHORITY_LABELS[a]} (${REP_LEVEL_LABELS[cur.level]})` : REP_AUTHORITY_LABELS[a]);
-    }
-    return out;
-  }
-  function stageSummary(key: RepStageKey): string {
-    const arts = ARTIFACTS.filter(a => a.stage === key);
-    const reminders = REMINDERS_BY_STAGE[key];
-    const parts: string[] = [];
-    if (key === 'open') {
-      const names = authorityNames();
-      parts.push(`ברירות מחדל · ${names.length ? names.join(', ') : 'ללא רשות מסומנת מראש'}`);
-    }
-    if (arts.length === 0 && !reminders) return parts.join(' · ');
-    const custom = arts.filter(isCustom).length;
-    const mails = arts.filter(a => a.type === 'mail').length;
-    const cards = arts.filter(a => a.type === 'portal').length;
-    if (mails) parts.push(mails === 1 ? 'הודעה אחת' : `${mails} הודעות`);
-    if (cards) parts.push('כרטיס בדף האישי');
-    if (arts.length === 1) parts.push(custom ? 'מותאם' : 'ברירת מחדל');
-    else if (arts.length > 1) parts.push(custom === 0 ? 'ברירת מחדל' : custom === 1 ? 'אחת מותאמת' : `${custom} מותאמות`);
-    if (reminders) {
-      const on = reminders.map(k => reminderCfg(k).enabled);
-      parts.push(on.every(Boolean) ? (reminders.length > 1 ? 'תזכורות פעילות לשניהם' : 'תזכורות פעילות') : on.some(Boolean) ? 'תזכורת פעילה לאחד מהם' : 'תזכורות כבויות');
-    }
-    if (key === 'active') parts.push('נשלחת רק בלחיצה');
-    return parts.join(' · ');
-  }
-  const numbered = numberStages(REP_STAGES);
-  const totalArtifacts = ARTIFACTS.length;
-  const customCount = ARTIFACTS.filter(isCustom).length;
-  const remOnCount = (['sign', 'niClient', 'niSpouse', 'portal'] as RepReminderAudience[]).filter(a => reminderCfg(a).enabled).length;
-
+  const niOn = currentAuthority(rep, 'nationalInsurance').on;
+  const delivery = currentDelivery(rep);
   return (
-    <>
-      <div className="rs-intro">
-        <div className="rs-title">ייצוג</div>
-        <div className="rs-lead">כך מתנהל תהליך הייצוג מול הלקוח, מהפתיחה ועד שהייצוג פעיל. המערכת מובילה את השלבים; המשרד קובע מה הלקוח קורא ומקבל בדרך.</div>
-        <div className="rs-ref">
-          <span>ההודעות יוצאות עם השולח, החתימה והמיתוג שהוגדרו למשרד.</span>
-          {onOpenProcess && (
-            <>
-              <span className="sep">·</span>
-              <button type="button" onClick={onOpenProcess}
-                style={{ font: 'inherit', color: 'var(--br)', background: 'none', border: 0, padding: 0, cursor: 'pointer', textDecoration: 'underline' }}>
-                ההגדרה המלאה של התהליך ב«תהליכים» ←
-              </button>
-            </>
-          )}
-        </div>
-      </div>
-
-      <div className="rs-summary">
-        <span>{totalArtifacts} הודעות וכרטיסים ללקוח</span>
-        <span className="sep">·</span>
-        <span>{customCount ? `${customCount} מותאמים על ידי המשרד` : 'הכל בנוסח ברירת המחדל'}</span>
-        <span className="sep">·</span>
-        <span>{remOnCount ? `תזכורות אוטומטיות: פעילות ב-${remOnCount} מתוך 4` : 'תזכורות אוטומטיות: כבויות'}</span>
-      </div>
-
-      <div className="rs-spine">
-        {numbered.map(({ stage: st, n }) => {
-          const open = openStages.has(st.key);
-          const arts = ARTIFACTS.filter(a => a.stage === st.key);
-          const reminders = REMINDERS_BY_STAGE[st.key];
-          const note = SETTINGS_NOTES[st.key];
-          return (
-            <section key={st.key} className={`rs-stage ${open ? 'is-open' : ''}`}>
-              <button type="button" className="rs-stage-head" aria-expanded={open} onClick={() => toggleStage(st.key)}>
-                <span className="rs-stage-num" style={st.parallel ? { borderStyle: 'dashed' } : undefined}>{n ?? '∥'}</span>
-                <span className="rs-stage-name">
-                  {st.title}
-                  <span className="rs-stage-sum" style={{ marginInlineStart: 8 }}>{ACTOR_LABELS[st.actor]}{st.kind === 'conditional' ? ' · מותנה' : st.kind === 'optional' ? ' · אופציונלי' : ''}</span>
-                </span>
-                <span className="rs-stage-sum">{stageSummary(st.key)}</span>
-                <svg className="rs-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6" /></svg>
-              </button>
-              {open && (
-                <div className="rs-stage-body">
-                  <div className="rs-cols">
-                    <div>
-                      <div className="rs-col-label">מה קורה <span className="rs-tag">מנוהל על ידי המערכת</span></div>
-                      <div className="rs-happens">
-                        {st.when && <p className="rs-quiet">{st.when}</p>}
-                        <p>{st.what}</p>
-                        {st.substages?.map(sub => (
-                          <p key={sub.key}><strong style={{ fontWeight: 500 }}>{sub.title}:</strong> {sub.when ? `${sub.when} ` : ''}{sub.what}</p>
-                        ))}
-                        {st.deferrable && <p className="rs-quiet">אפשר לדחות: {st.deferrable}</p>}
-                        {st.blocks && <p className="rs-quiet">מה יכול לתקוע: {st.blocks}</p>}
-                        {note && <p className="rs-quiet">{note}</p>}
-                      </div>
-                    </div>
-                    <div>
-                      {st.key === 'open' ? (
-                        <DefaultsPanel rep={rep} onSetOn={setAuthorityOn} onSetLevel={setAuthorityLevel}
-                          niSpouse={currentNiSpouse(rep)} onNiSpouse={v => patchDefaults({ niSpouse: v })}
-                          delivery={currentDelivery(rep)} onDelivery={v => patchDefaults({ delivery: v })} />
-                      ) : arts.length > 0 || reminders ? (
-                        <>
-                          <div className="rs-col-label">מה הלקוח מקבל</div>
-                          {arts.map(a => (
-                            <ArtifactRow key={a.id} art={a} custom={isCustom(a)}
-                              title={a.type === 'mail' ? valuesOf(a).subject : REP_PORTAL_CARD_FIXED.title}
-                              onEdit={() => openDrawer(a.id, 'edit')} onPreview={() => openDrawer(a.id, 'preview')} />
-                          ))}
-                          {reminders?.map(k => (
-                            <ReminderBlock key={k} audience={k} cfg={reminderCfg(k)} onPatch={p => patchReminder(k, p)} />
-                          ))}
-                        </>
-                      ) : (
-                        <>
-                          <div className="rs-col-label">מה הלקוח מקבל</div>
-                          <div className="rs-happens rs-quiet">שלב של המשרד - הלקוח אינו מקבל בו הודעה.</div>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              )}
-            </section>
-          );
-        })}
-      </div>
-
-      {drawerArt && drawingArt && (
-        <Drawer
-          art={drawingArt}
-          tab={drawerTab} onTab={setDrawerTab}
-          values={drawerValues} onChange={(k, v) => setDrawerValues(prev => ({ ...prev, [k]: v }))}
-          systemValues={systemValuesOf(drawingArt)}
-          dirty={drawerDirty}
-          onClose={closeDrawer} onApply={applyDrawer} onResetDefault={resetDrawerToDefault}
-        />
-      )}
-    </>
-  );
-}
-
-// ── שלב 0: ברירות מחדל ───────────────────────────────────────────────────────
-function DefaultsPanel({ rep, onSetOn, onSetLevel, niSpouse, onNiSpouse, delivery, onDelivery }: {
-  rep: RepSettings;
-  onSetOn: (a: RepAuthorityKind, on: boolean) => void;
-  onSetLevel: (a: RepAuthorityKind, level: RepLevel) => void;
-  niSpouse: boolean; onNiSpouse: (v: boolean) => void;
-  delivery: 'email' | 'link'; onDelivery: (v: 'email' | 'link') => void;
-}) {
-  return (
-    <>
-      <div className="rs-col-label">מה נבחר מראש בפתיחת בקשה</div>
+    <div className="rs-defaults">
       <div className="rs-opt-list">
         {REP_AUTHORITY_ORDER.filter(a => a !== 'nationalInsurance').map(a => {
           const cur = currentAuthority(rep, a);
           return (
-            <div key={a}>
+            <div key={a} className="rs-opt-line">
               <label className="rs-opt">
-                <input type="checkbox" checked={cur.on} onChange={e => onSetOn(a, e.target.checked)} />
+                <input type="checkbox" checked={cur.on} onChange={e => setOn(a, e.target.checked)} />
                 <span>{REP_AUTHORITY_LABELS[a]}</span>
               </label>
               {cur.on && (
-                <div className="rs-level-row">
-                  <button type="button" className={`rs-pill ${cur.level === 'primary' ? 'is-on' : ''}`} onClick={() => onSetLevel(a, 'primary')}>{REP_LEVEL_LABELS.primary}</button>
-                  <button type="button" className={`rs-pill ${cur.level === 'secondary' ? 'is-on' : ''}`} onClick={() => onSetLevel(a, 'secondary')}>{REP_LEVEL_LABELS.secondary}</button>
+                <div className="rs-level-row" role="group" aria-label={`דרגת ייצוג · ${REP_AUTHORITY_LABELS[a]}`}>
+                  <button type="button" className={`rs-pill ${cur.level === 'primary' ? 'is-on' : ''}`} aria-pressed={cur.level === 'primary'} onClick={() => setLevel(a, 'primary')}>{REP_LEVEL_LABELS.primary}</button>
+                  <button type="button" className={`rs-pill ${cur.level === 'secondary' ? 'is-on' : ''}`} aria-pressed={cur.level === 'secondary'} onClick={() => setLevel(a, 'secondary')}>{REP_LEVEL_LABELS.secondary}</button>
                 </div>
               )}
             </div>
           );
         })}
         <label className="rs-opt">
-          <input type="checkbox" checked={currentAuthority(rep, 'nationalInsurance').on} onChange={e => onSetOn('nationalInsurance', e.target.checked)} />
-          <span>ביטוח לאומי <span className="rs-sub">אין דרגת ייצוג — מתנהל בנפרד לכל אדם</span></span>
+          <input type="checkbox" checked={niOn} onChange={e => setOn('nationalInsurance', e.target.checked)} />
+          <span>ביטוח לאומי</span>
         </label>
-      </div>
-      <div className="rs-opt-group">
-        <div className="rs-opt-group-title">ללקוח נשוי</div>
-        <label className="rs-opt">
-          <input type="checkbox" checked={niSpouse} disabled={!currentAuthority(rep, 'nationalInsurance').on} onChange={e => onNiSpouse(e.target.checked)} />
-          <span>לבקש ביטוח לאומי גם לבן/בת הזוג</span>
+        <label className="rs-opt rs-opt-nested">
+          <input type="checkbox" checked={currentNiSpouse(rep)} disabled={!niOn} onChange={e => patchDefaults({ niSpouse: e.target.checked })} />
+          <span>ללקוח נשוי — גם לבן/בת הזוג</span>
         </label>
       </div>
       <div className="rs-opt-group">
         <div className="rs-opt-group-title">איך הקישור מגיע ללקוח</div>
-        <div className="rs-opt-list">
-          <label className="rs-opt"><input type="radio" name="rs-delivery" checked={delivery === 'email'} onChange={() => onDelivery('email')} /><span>במייל <span className="rs-sub">מהכתובת של המשרד</span></span></label>
-          <label className="rs-opt"><input type="radio" name="rs-delivery" checked={delivery === 'link'} onChange={() => onDelivery('link')} /><span>קישור להעתקה <span className="rs-sub">לוואטסאפ או SMS — שליחה ידנית מהמכשיר שלכם</span></span></label>
+        <div className="rs-seg" role="radiogroup" aria-label="איך הקישור מגיע ללקוח">
+          <label className={`rs-seg-opt${delivery === 'link' ? ' is-on' : ''}`}>
+            <input type="radio" name="rs-delivery" checked={delivery === 'link'} onChange={() => patchDefaults({ delivery: 'link' })} />
+            קישור להעתקה (וואטסאפ / SMS)
+          </label>
+          <label className={`rs-seg-opt${delivery === 'email' ? ' is-on' : ''}`}>
+            <input type="radio" name="rs-delivery" checked={delivery === 'email'} onChange={() => patchDefaults({ delivery: 'email' })} />
+            במייל מהמשרד
+          </label>
         </div>
       </div>
-      <div className="rs-note">כשהיקף הייצוג כבר נקבע בהצעת מחיר שאושרה, ההיקף הזה תמיד גובר על הברירות שכאן — הן חלות רק על ייצוג שנפתח בלי הצעה שקדמה לו.</div>
-    </>
+      <p className="of-muted" style={{ margin: '12px 0 0' }}>כשהצעת מחיר מאושרת קבעה היקף ייצוג — ההיקף שבהצעה גובר.</p>
+    </div>
   );
 }
 
-function ArtifactRow({ art, custom, title, onEdit, onPreview }: {
-  art: Artifact; custom: boolean; title: string; onEdit: () => void; onPreview: () => void;
+// ── תזכורות הייצוג ──────────────────────────────────────────────────────────
+
+export function repReminderConfig(profile: FirmProfile, audience: RepReminderAudience): RepReminderConfig {
+  return resolveRepReminderConfig(audience, repSettingsOf(profile).reminders?.[audience]);
+}
+
+export function withRepReminder(prev: FirmProfile, audience: RepReminderAudience, patch: Partial<RepReminderConfig>): FirmProfile {
+  const rep = repSettingsOf(prev);
+  const reminders: RepRemindersSettings = { ...rep.reminders, [audience]: { ...repReminderConfig(prev, audience), ...patch } };
+  return withRep(prev, { reminders });
+}
+
+// ── עריכת הודעה אחת — מגירה ────────────────────────────────────────────────
+
+/**
+ * חלון עריכה של הודעה אחת בתהליך הייצוג. ‼ השינוי נכנס לטיוטת המשרד רק
+ * ב«החלה», וללקוחות — רק אחרי «שמירה». סגירה בלי «החלה» שואלת קודם.
+ */
+export function RepMessageDrawer({ profile, saveNow, id, onClose }: {
+  profile: FirmProfile;
+  /** שמירה מיידית (useOfficeDraft.saveNow) — החלון שומר בעצמו, כמו כל חלון עריכה. */
+  saveNow: (update: (p: FirmProfile) => FirmProfile) => Promise<string | null>;
+  id: string;
+  onClose: () => void;
 }) {
-  return (
-    <div className="rs-artifact">
-      <div className="rs-art-icon" aria-hidden="true">
-        <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round">
-          {art.type === 'mail' ? <path d="M3 6h18v12H3z M3 7l9 6 9-6" /> : <path d="M4 4h7v7H4z M13 4h7v4h-7z M13 10h7v10h-7z M4 13h7v7H4z" />}
-        </svg>
-      </div>
-      <div className="rs-art-main">
-        <div className="rs-art-kind">{art.type === 'mail' ? 'מייל' : 'כרטיס בדף האישי'}{art.standalone ? ` · ${art.standalone}` : ''}</div>
-        <div className="rs-art-title" title={title}>{title}</div>
-        <div className="rs-art-meta"><span className={`rs-state ${custom ? 'is-custom' : ''}`}>{custom ? 'מותאם' : 'ברירת מחדל'}</span></div>
-      </div>
-      <div className="rs-art-actions">
-        <button type="button" className="btn btn-ghost btn-sm" onClick={onPreview}>תצוגה מקדימה</button>
-        <button type="button" className="btn btn-sm" onClick={onEdit}>ערוך</button>
-      </div>
-    </div>
-  );
-}
+  const art = ARTIFACTS.find(a => a.id === id)!;
+  const rep = repSettingsOf(profile);
+  const [tab, setTab] = useState<'edit' | 'preview'>('edit');
+  const [values, setValues] = useState<Record<string, string>>({ ...(overrideFor(rep, art) as Record<string, string> ?? {}) });
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const dirty = JSON.stringify(values) !== JSON.stringify(overrideFor(rep, art) ?? {});
+  const systemValues = art.type === 'portal'
+    ? { ...REP_PORTAL_CARD_DEFAULTS } as unknown as Record<string, string>
+    : defaultRepMailTemplate(art.kind as RepMailKind) as unknown as Record<string, string>;
 
-function ReminderBlock({ audience, cfg, onPatch }: { audience: RepReminderAudience; cfg: RepReminderConfig; onPatch: (p: Partial<RepReminderConfig>) => void }) {
-  const meta = REMINDER_LABEL[audience];
+  function requestClose() {
+    if (busy) return;
+    if (dirty && !window.confirm('לסגור בלי לשמור את השינויים בנוסח?')) return;
+    onClose();
+  }
+  async function apply() {
+    const cleaned = Object.fromEntries(Object.entries(values).filter(([, v]) => v.trim() !== ''));
+    setBusy(true);
+    setError(null);
+    const err = await saveNow(prev => {
+      const r = repSettingsOf(prev);
+      const templates: RepTemplatesSettings = { ...r.templates };
+      if (art.type === 'portal') {
+        if (Object.keys(cleaned).length) templates.portalCard = cleaned as RepPortalCardOverride; else delete templates.portalCard;
+      } else {
+        const key = art.kind as RepMailKind;
+        if (Object.keys(cleaned).length) templates[key] = cleaned as RepMailOverride; else delete templates[key];
+      }
+      return withRep(prev, { templates });
+    });
+    setBusy(false);
+    if (err) { setError(err); return; }
+    onClose();
+  }
+  function resetToDefault() {
+    if (!window.confirm('לחזור לנוסח המערכת? הנוסח שלך לפריט הזה יימחק כשתשמרו.')) return;
+    setValues({});
+  }
+
   return (
-    <div className="rs-reminders">
-      <div className="rs-rem-head">
-        <span className="rs-rem-title">תזכורות אוטומטיות</span>
-        <span className="rs-new-tag">חדש</span>
-        {meta.audience && <span className="rs-rem-audience">· {meta.audience}</span>}
-        <label className="rs-switch">
-          <span>{cfg.enabled ? 'פעיל' : 'כבוי'}</span>
-          <input type="checkbox" checked={cfg.enabled} onChange={e => onPatch({ enabled: e.target.checked })} />
-          <span className="rs-sw" />
-        </label>
-      </div>
-      {cfg.enabled ? (
-        <div className="rs-rem-body">
-          {meta.when} אחרי{' '}
-          <input type="number" min={1} max={60} value={cfg.afterDays} onChange={e => onPatch({ afterDays: Number(e.target.value) || 1 })} aria-label="ימים" />
-          {' '}ימים — לשלוח תזכורת במייל, עד{' '}
-          <input type="number" min={1} max={5} value={cfg.maxReminders} onChange={e => onPatch({ maxReminders: Number(e.target.value) || 1 })} aria-label="מספר תזכורות" />
-          {' '}תזכורות.
-          <div className="rs-rem-note">התזכורת יוצאת באותו נוסח ומאותו שולח, ונרשמת ב"פעילות מייל". כשמי שצריך לאשר מגיב — התזכורות נעצרות מעצמן.</div>
-        </div>
-      ) : (
-        <div className="rs-rem-off-note">יכולת חדשה, כבויה כברירת מחדל. עד שתופעל, תזכורת יוצאת רק ידנית מכרטיס הלקוח ("שלח שוב").</div>
-      )}
-    </div>
+    <Drawer art={art} tab={tab} onTab={setTab} values={values}
+      onChange={(k, v) => setValues(prev => ({ ...prev, [k]: v }))}
+      systemValues={systemValues} dirty={dirty} busy={busy} error={error}
+      onClose={requestClose} onApply={() => void apply()} onResetDefault={resetToDefault} />
   );
 }
 
 // ── מגירת עריכה / תצוגה מקדימה ────────────────────────────────────────────────
-function Drawer({ art, tab, onTab, values, onChange, systemValues, dirty, onClose, onApply, onResetDefault }: {
+function Drawer({ art, tab, onTab, values, onChange, systemValues, dirty, busy, error, onClose, onApply, onResetDefault }: {
   art: Artifact; tab: 'edit' | 'preview'; onTab: (t: 'edit' | 'preview') => void;
   values: Record<string, string>; onChange: (k: string, v: string) => void; systemValues: Record<string, string>;
-  dirty: boolean; onClose: () => void; onApply: () => void; onResetDefault: () => void;
+  dirty: boolean; busy: boolean; error: string | null; onClose: () => void; onApply: () => void; onResetDefault: () => void;
 }) {
   const merged = (k: string) => (values[k] !== undefined ? values[k] : systemValues[k]);
   const hasCustom = Object.values(values).some(v => v !== undefined && v !== '');
   const fields = FIELD_DEFS[art.type];
+  const [guide, setGuide] = useState(false);
+  const dests = repMessageDestinations(art.id, merged('cta'));
+  // ‼ היעד מוצג מתחת לשדה שקובע את טקסט הכפתור — שם עולה השאלה «לאן זה מוביל».
+  const linkField = art.type === 'portal' ? 'linkLabel' : 'cta';
   const lockedItems: string[] =
     art.id === 'sign' ? [
       'לכל חותם קישור חתימה אישי.',
@@ -481,7 +311,7 @@ function Drawer({ art, tab, onTab, values, onChange, systemValues, dirty, onClos
       'נשלח רק בלחיצה מהמשרד, אחרי תצוגה מקדימה — לעולם לא כתופעת לוואי של סימון "פעיל".',
     ] : art.id === 'portal' ? [
       'כותרת הכרטיס וטקסט הכפתור ("אישרתי באזור האישי") הם חלק מהמנגנון עצמו — קבועים ולא ניתנים לעריכה.',
-      'יעד הקישור: gov.il — האזור האישי של רשות המסים. קבוע.',
+      'יעד הקישור קבוע — האזור האישי של רשות המסים (למעלה).',
       'לחיצה על "אישרתי" מחזירה את הכדור למשרד לבדיקה בשע"ם. הדיווח של הלקוח לבדו אינו מפעיל את הייצוג.',
     ] : ['כפתור המייל מוביל לדף האישי של הלקוח — קישור אחד קבוע לכל אורך הקשר.'];
 
@@ -511,30 +341,42 @@ function Drawer({ art, tab, onTab, values, onChange, systemValues, dirty, onClos
                   ) : (
                     <input type="text" value={merged(key)} onChange={e => onChange(key, e.target.value)} />
                   )}
+                  {key === linkField && <LinkDestinationView dests={dests} />}
                 </div>
               ))}
+              {art.type === 'portal' && (
+                <div className="rs-guide-row">
+                  <RepApprovalGuideButton onClick={() => setGuide(true)} />
+                  <span>מוצג ללקוח בכרטיס, מתחת להוראות. שלב אחד בכל פעם, והפרטים האישיים בצילומים מוסתרים.</span>
+                </div>
+              )}
               <div className="rs-locked">
                 <b>מה קבוע ולא משתנה כאן</b>
-                <ul>{lockedItems.map((l, i) => <li key={i}>{l}</li>)}<li>השולח, החתימה והמיתוג — לפי "ערוצי תקשורת", "חתימת מייל" ו"מותג".</li></ul>
+                <ul>{lockedItems.map((l, i) => <li key={i}>{l}</li>)}<li>השולח, החתימה והמיתוג — לפי «פרטי המשרד».</li></ul>
               </div>
             </>
           ) : (
-            <Preview art={art} values={{ ...systemValues, ...Object.fromEntries(Object.entries(values).filter(([, v]) => v !== undefined && v !== '')) }} />
+            <Preview art={art} dests={dests} values={{ ...systemValues, ...Object.fromEntries(Object.entries(values).filter(([, v]) => v !== undefined && v !== '')) }} />
           )}
         </div>
+        {error && <div className="rs-dr-error" role="alert">השמירה נכשלה: {error}. הנוסח עדיין כאן — אפשר לנסות שוב.</div>}
         <div className="rs-dr-foot">
-          <button type="button" className="btn btn-ghost btn-sm" style={{ visibility: hasCustom ? 'visible' : 'hidden' }} onClick={onResetDefault}>חזרה לברירת המחדל</button>
-          <span className="rs-dr-state">{hasCustom ? 'נוסח המשרד' : 'נוסח ברירת המחדל'}</span>
+          <button type="button" className="btn btn-ghost btn-sm" style={{ visibility: hasCustom ? 'visible' : 'hidden' }} onClick={onResetDefault}>חזרה לנוסח המערכת</button>
+          <span className="rs-dr-state">{hasCustom ? 'הנוסח שלך' : 'נוסח המערכת'}</span>
           <span className="rs-spacer" />
           <button type="button" className="btn btn-sm" onClick={onClose}>ביטול</button>
-          <button type="button" className="btn btn-primary btn-sm" disabled={!dirty} onClick={onApply}>החל</button>
+          <button type="button" className="btn btn-primary btn-sm" disabled={!dirty || busy} onClick={onApply}>{busy ? 'שומר…' : 'שמירה'}</button>
         </div>
       </aside>
+      {guide && <RepApprovalGuide onClose={() => setGuide(false)} entryUrl={REP_PORTAL_CARD_FIXED.linkUrl} entryInert />}
     </>
   );
 }
 
-function Preview({ art, values }: { art: Artifact; values: Record<string, string> }) {
+function Preview({ art, values, dests }: {
+  art: Artifact; values: Record<string, string>;
+  dests: ReturnType<typeof repMessageDestinations>;
+}) {
   if (art.type === 'mail') {
     return (
       <div className="rs-pv-wrap">
@@ -548,26 +390,27 @@ function Preview({ art, values }: { art: Artifact; values: Record<string, string
           {art.id === 'ni_approve' && <div className="rs-mail-block">מספר אסמכתא בביטוח הלאומי<b>A-XXXX-XXXX</b></div>}
           {art.id === 'prerequisites' && <div className="rs-mail-block">מה חסר לנו<b>לפי הבקשה הספציפית</b></div>}
           {values.cta && <span className="rs-mail-btn">{values.cta}</span>}
+          <div className="rs-mail-dest"><LinkDestinationView compact dests={dests} /></div>
           <div className="rs-mail-foot">בברכה, שם המשרד · שאלות? פשוט השיבו למייל הזה.</div>
         </div>
       </div>
     );
   }
+  // ‼ הכרטיס האמיתי של הדף האישי (DeclareBlock), במצב תצוגה — כך שינוי בכרטיס
+  // אצל הלקוח לא משאיר כאן העתק ישן. ההסבר המלא נפתח שם ב«עוד», כמו אצל הלקוח.
+  const item: PortalItem = {
+    bucket: 'action', key: 'rep_approval', kind: 'declare',
+    label: REP_PORTAL_CARD_FIXED.title, sub: values.sub,
+    note: values.note, noteAfter: values.noteAfter,
+    linkUrl: REP_PORTAL_CARD_FIXED.linkUrl, linkLabel: values.linkLabel,
+    cta: REP_PORTAL_CARD_FIXED.cta, actionKind: 'portal', actionValue: 'preview',
+  };
   return (
     <div className="rs-pv-wrap">
       <div className="rs-pv-hint">כך ייראה הכרטיס בדף האישי של הלקוח אחרי ההגשה למס הכנסה.</div>
-      <div className="rs-portal">
-        <div className="rs-portal-top"><div className="rs-mail-lockup">שם המשרד<small>הדף האישי של הלקוח</small></div></div>
-        <div className="rs-portal-sec">מה צריך ממך</div>
-        <div className="rs-pcard">
-          <div className="rs-pcard-t">{REP_PORTAL_CARD_FIXED.title}</div>
-          <div className="rs-pcard-s">{values.sub}</div>
-          <div className="rs-pcard-n">{values.note}</div>
-          <span className="rs-pcard-link">{values.linkLabel} ↗<small>gov.il · האזור האישי של רשות המסים</small></span>
-          <div className="rs-pcard-after">{values.noteAfter}</div>
-          <span className="rs-pcard-cta">{REP_PORTAL_CARD_FIXED.cta}</span>
-        </div>
-      </div>
+      <PortalView preview embed data={{
+        clientFirstName: '', firmName: 'שם המשרד', branding: {}, done: 0, total: 1, items: [item],
+      }} />
     </div>
   );
 }

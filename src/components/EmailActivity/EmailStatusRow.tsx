@@ -5,7 +5,7 @@
 import { useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { fetchEmailHtml } from '../../hooks/useEmailMessages';
-import { EmailMessage } from '../../types/emailActivity';
+import { EmailMessage, emailRowState } from '../../types/emailActivity';
 import SentEmailViewer from './SentEmailViewer';
 
 interface Props {
@@ -27,7 +27,8 @@ export default function EmailStatusRow({ message, note, onRemind, onChanged }: P
   const [busy, setBusy] = useState<'view' | 'remind' | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
-  const failed = ['bounced', 'complained', 'failed'].includes(message.status);
+  // ‼ «לא ידוע אם יצא» — כתום, עם הסיבה והצעד הבטוח; לעולם לא «השליחה נכשלה».
+  const row = emailRowState(message);
   const delivered = !!message.deliveredAt;
   const opened = !!message.openedAt || ['opened', 'clicked'].includes(message.status);
   // במייל חתימה "נלחץ" נרשם כשהלקוח באמת נחת בדף החתימה — חיווי ודאי, בניגוד
@@ -88,8 +89,10 @@ export default function EmailStatusRow({ message, note, onRemind, onChanged }: P
     }}>
       <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
         <span style={{ color: 'var(--gray-700)' }}>{fmt(message.sentAt)}</span>
-        {failed ? (
-          <span style={{ color: 'var(--red)' }}>{message.status === 'bounced' ? 'חזר - כתובת שגויה' : 'השליחה נכשלה'}</span>
+        {row.tone === 'failed' ? (
+          <span style={{ color: 'var(--red)' }}>{row.label}</span>
+        ) : row.tone === 'unknown' ? (
+          <span style={{ color: 'var(--warn, #b26a00)', fontWeight: 600 }}>{row.label}</span>
         ) : (
           <>
             {chip('הגיע', delivered)}
@@ -110,6 +113,7 @@ export default function EmailStatusRow({ message, note, onRemind, onChanged }: P
           </>
         )}
       </div>
+      {row.tone === 'unknown' && <div style={{ color: 'var(--warn, #b26a00)', fontSize: '.72rem' }}>{row.hint}</div>}
       {note && <div style={{ color: 'var(--gray-500)', fontSize: '.72rem' }}>{note}</div>}
       {err && <div style={{ color: 'var(--red)', fontSize: '.72rem' }}>{err}</div>}
       {viewing && <SentEmailViewer message={viewing} onClose={() => setViewing(null)} />}

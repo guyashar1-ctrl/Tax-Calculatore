@@ -394,9 +394,12 @@ console.log('\n— AT-5 · תזכורת פקיעת הצעה —');
 
 // ── AT-6 · משימות אוטומטיות (D3) — חמוש-בפרסום, בדיוק פעם אחת ───────────────
 // docs/EMAIL-POLICY.md §9. הביצוע: execute_automatic_step (מיגרציה 83) ⇒
-// net.http_post ⇒ send-step-email במסלול הסוד הפנימי. ב-staging אין מפתח
-// Resend, ולכן "ירייה" מסתיימת בכשל מבוקר: התביעה משתחררת ו-autoError נרשם —
-// בדיוק ההתנהגות של מייל הייצוג. ההצלחה עצמה מדומה בתביעה ידנית.
+// net.http_post ⇒ send-step-email במסלול הסוד הפנימי. ב-staging הספק מדומה
+// (fake-email-provider) ושליחה רגילה מצליחה — ולכן הבדיקה יוצרת לקוח משלה
+// שכתובתו מכילה ‎fail-always‎: הספק דוחה בוודאות (422), ו"ירייה" מסתיימת בכשל
+// מבוקר: התביעה משתחררת ו-autoError נרשם (EMAIL-POLICY §11 — שחרור רק על דחייה
+// ודאית; «לא ידוע» משאיר את התביעה — נבדק ב-staging-test-send-record SR-5u).
+// ההצלחה עצמה מדומה בתביעה ידנית.
 console.log('\n— AT-6 · משימות אוטומטיות: חמוש-בפרסום, בדיוק פעם אחת —');
 {
   const CLAIMS = `select set_config('request.jwt.claims', json_build_object('sub','${USER_ID}','role','authenticated')::text, false);`;
@@ -405,17 +408,26 @@ console.log('\n— AT-6 · משימות אוטומטיות: חמוש-בפרסו�
     return false;
   };
 
-  // לקוח העוגן: לקוח קיים של משתמש הבדיקה עם דף אישי. בלי מייל לרו"ח קודם —
-  // כדי לבדוק את דרישת-הקשר. שאריות מריצות קודמות מנוקות קודם.
-  const cli = await one(`select id from public.clients
-    where user_id = '${USER_ID}' and portal_token is not null limit 1`);
-  const cid = cli.id;
-  await writeStaging(`
-    delete from public.email_messages where subject like 'fx-at6%';
-    delete from public.onboarding_steps where client_id = '${cid}' and payload->>'title' like 'fx-at6%';
-    update public.clients set prev_accountant_email = null where id = '${cid}';
-    update public.engagements set process_published_at = coalesce(process_published_at, now())
-      where client_id = '${cid}';`);
+  // לקוח העוגן — של הבדיקה עצמה (לא לקוח קיים: נתוני ההדגמה ב-staging משתנים,
+  // והספק המדומה היה "שולח" אליו בהצלחה). כתובת ‎fail-always‎ ⇒ דחייה ודאית.
+  // בלי מייל לרו"ח קודם — כדי לבדוק את דרישת-הקשר. שאריות מריצות קודמות מנוקות קודם.
+  const AT6_LAST = 'FXAT6';
+  const at6Cleanup = () => writeStaging(`
+    delete from public.email_messages where subject like 'fx-at6%'
+       or client_id in (select id from public.clients where last_name = '${AT6_LAST}');
+    delete from public.client_notices where client_id in (select id from public.clients where last_name = '${AT6_LAST}');
+    delete from public.onboarding_events where step_id in (select id from public.onboarding_steps where client_id in (select id from public.clients where last_name = '${AT6_LAST}'));
+    delete from public.onboarding_events where engagement_id in (select id from public.engagements where client_id in (select id from public.clients where last_name = '${AT6_LAST}'));
+    delete from public.onboarding_steps where client_id in (select id from public.clients where last_name = '${AT6_LAST}');
+    delete from public.engagements where client_id in (select id from public.clients where last_name = '${AT6_LAST}');
+    delete from public.clients where last_name = '${AT6_LAST}';`);
+  await at6Cleanup();
+  const cid = (await one(`insert into public.clients (id, user_id, first_name, last_name, email, portal_token, prev_accountant_email)
+    values (replace(gen_random_uuid()::text,'-',''), '${USER_ID}', 'אוטומטי', '${AT6_LAST}', 'fail-always+at6@example.test',
+            replace(gen_random_uuid()::text,'-',''), null) returning id`)).id;
+  await writeStaging(`insert into public.engagements (user_id, client_id, status, process_published_at)
+    values ('${USER_ID}', '${cid}', 'onboarding', now());`);
+  try {
 
   const mk = async (payload, { published = false, owner = 'client', dependsOn = null } = {}) => {
     const r = await one(`${CLAIMS}
@@ -528,10 +540,10 @@ console.log('\n— AT-6 · משימות אוטומטיות: חמוש-בפרסו�
   await publish();
   ok('AT-6 · אחרי הפרסום הנטרול בתוקף', (await exec(man.stepId)).skipped === 'not_automatic');
 
-  // ניקוי
-  await writeStaging(`
-    delete from public.email_messages where subject like 'fx-at6%';
-    delete from public.onboarding_steps where client_id = '${cid}' and payload->>'title' like 'fx-at6%';`);
+  } finally {
+    // ניקוי
+    await at6Cleanup();
+  }
 }
 
 console.log(`\n${fail === 0 ? '✓' : '✗'} עברו ${pass} · נכשלו ${fail}`);

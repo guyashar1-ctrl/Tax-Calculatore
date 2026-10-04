@@ -30,15 +30,27 @@ const eq = (name, actual, expected) =>
 const one = async (q) => (await writeStaging(q))[0];
 const q = (s) => String(s).replace(/'/g, "''");
 
-const subject = await one(`
-  select c.id, c.representation_request_id as req, r.execution, r.status
-    from public.clients c
-    join public.representation_requests r on r.id = c.representation_request_id
-   order by c.created_at limit 1`);
-if (!subject?.id) { console.error('✋ אין ב-staging לקוח עם בקשת ייצוג. הרץ seed-staging.mjs.'); process.exit(1); }
-const CID = subject.id, REQ = subject.req;
-const ORIGINAL_EXECUTION = JSON.stringify(subject.execution ?? {});
-const ORIGINAL_STATUS = subject.status;
+// ‼ לקוח ובקשה משלנו. קודם נלקח "הלקוח הראשון עם בקשה" ב-staging — וכשחבילה
+// אחרת הביאה אותו ל-active (סופי, guard_representation_status) הבדיקה נפלה
+// עוד לפני הבדיקה הראשונה. נמחקים בסוף, גם בכישלון.
+const MARK = 'REQNUM198';
+const CID = `qa-reqnum198-client`, REQ = `qa-reqnum198-req`;
+async function cleanupFixture() {
+  await writeStaging(`
+    delete from public.automation_jobs where client_id = '${CID}' or id like 'fx-198-%' or id like 'fx-199-%';
+    delete from public.email_messages where request_id = '${REQ}' or client_id = '${CID}';
+    delete from public.tasks where client_id = '${CID}';
+    update public.clients set representation_request_id = null where id = '${CID}';
+    delete from public.representation_requests where id = '${REQ}';
+    delete from public.clients where id = '${CID}' and last_name = '${MARK}';`);
+}
+await cleanupFixture();
+await writeStaging(`
+  insert into public.clients (id, user_id, first_name, last_name, family_status, id_number, email)
+  values ('${CID}', '${USER_ID}', 'הדסה', '${MARK}', 'single', '034605212', 'delivered+reqnum198@resend.dev');
+  insert into public.representation_requests (id, user_id, linked_client_id, status, authorities, execution)
+  values ('${REQ}', '${USER_ID}', '${CID}', 'awaiting_stamp', array['incomeTax','vat','withholding'], '{}'::jsonb);
+  update public.clients set representation_request_id = '${REQ}' where id = '${CID}';`);
 console.log(`לקוח הבדיקה: ${CID} · בקשה: ${REQ}\n`);
 
 async function runJob(id, actionType, result) {
@@ -128,14 +140,11 @@ try {
   row = await progressJob('fx-199-d', 'shaam.submit_poa', { requestNumber: '12' });
   eq('מספר קצר מדי לא נכתב', track(row).requestNumber, '');
 } finally {
-  await writeStaging(`
-    delete from public.automation_jobs where id like 'fx-198-%' or id like 'fx-199-%'
-       or (client_id = '${CID}' and input ->> 'reason' = 'post_submission_reconciliation');
-    update public.representation_requests
-       set execution = '${q(ORIGINAL_EXECUTION)}'::jsonb, status = '${q(ORIGINAL_STATUS)}'
-     where id = '${REQ}';`);
-  const back = await one(`select execution, status from public.representation_requests where id = '${REQ}'`);
-  ok('הבקשה שוחזרה', JSON.stringify(back.execution ?? {}) === ORIGINAL_EXECUTION && back.status === ORIGINAL_STATUS);
+  await cleanupFixture();
+  const left = await one(`select (select count(*) from public.clients where id = '${CID}')
+                               + (select count(*) from public.representation_requests where id = '${REQ}')
+                               + (select count(*) from public.automation_jobs where client_id = '${CID}') as n`);
+  ok('הלקוח והבקשה של הבדיקה נמחקו', Number(left.n) === 0, `נשארו ${left.n}`);
 }
 
 console.log(`\n${pass} עברו, ${fail} נכשלו`);

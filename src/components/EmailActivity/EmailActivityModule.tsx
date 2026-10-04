@@ -1,39 +1,76 @@
-// מודול מרכז התקשורת — עצמאי. כרגע מוטמע ב-Firm Profile, אך ניתן לקדם
-// למסך עליון מלא בלי שינוי: פשוט לרנדר <EmailActivityModule userId={...} /> במקום אחר.
+// ─── יומן המיילים של המשרד ───────────────────────────────────────────────────
+// כל מייל שיצא מהמערכת: על איזה לקוח, למי, מה, מתי, ואם הגיע.
+// ‼ הלקוח בשורה הוא הקשר העבודה: לחיצה עליו פותחת את הכרטיס שלו. כתובת המייל
+// לבדה לא אומרת לרו"ח על מי מדובר.
+// ‼ הרשימה כאן היא 200 המיילים האחרונים (useEmailMessages). הספירות הן שלהם.
 import { useMemo, useState } from 'react';
 import { useEmailMessages } from '../../hooks/useEmailMessages';
 import { supabase } from '../../lib/supabase';
-import { EmailMessage, EmailStatus, EMAIL_STATUS_LABEL, EMAIL_STATUS_STYLE } from '../../types/emailActivity';
+import {
+  EmailMessage, EmailStatus, EMAIL_STATUS_LABEL, EMAIL_STATUS_STYLE, emailMessageLabel, isInternalEmailKind,
+  isFailedEmailStatus, isUnknownEmailStatus, emailRowState,
+} from '../../types/emailActivity';
+import type { Client } from '../../types';
+import { matchesFilter, type ActivityFilter } from '../office/pages/activityFilter';
 import SentEmailViewer from './SentEmailViewer';
 
 interface Props {
   userId: string;
-  clientId?: string; // סינון אופציונלי — למשל בכרטיס לקוח בעתיד
+  clientId?: string;
+  /** לשם הלקוח בשורה. בלי רשימה — מוצגת הכתובת בלבד. */
+  clients?: Client[];
+  onOpenClient?: (clientId: string) => void;
+  /** סינון שהגיע מעמוד אחר («מה יצא ←»). */
+  filter?: ActivityFilter | null;
+  onClearFilter?: () => void;
 }
+
+// ‼ «לא ידוע אם יצאו» הוא סינון נפרד מ«נכשלו»: מייל שאולי הגיע אינו כישלון.
+type View = 'all' | 'failed' | 'unknown' | 'clients' | 'office';
 
 function fmtTime(iso?: string): string {
   if (!iso) return '-';
-  const d = new Date(iso);
-  return d.toLocaleString('he-IL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+  return new Date(iso).toLocaleString('he-IL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 }
 
 function StatusChip({ status }: { status: EmailStatus }) {
   const s = EMAIL_STATUS_STYLE[status];
   return (
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, color: s.fg, fontSize: 'var(--fs-12)' }}>
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, color: s.fg, fontSize: 'var(--fs-12)', whiteSpace: 'nowrap' }}>
       <span style={{ width: 6, height: 6, borderRadius: '50%', background: s.dot }} />
       {EMAIL_STATUS_LABEL[status]}
     </span>
   );
 }
 
-export default function EmailActivityModule({ userId, clientId }: Props) {
-  // יומן המשרד — כאן כן מושכים את הגוף: הטבלה מציגה "צפייה" רק כשיש עותק,
-  // וסופרת כמה חסרים לשחזור מ-Resend.
+/**
+ * סיבת הקפצה בעברית — ספק המייל מחזיר אנגלית. מה שלא מוכר מוצג כמו שהוא
+ * (והמקור תמיד ברחיפה).
+ */
+const BOUNCE_HE: [RegExp, string][] = [
+  [/mailbox (does not exist|not found|unavailable)|no such user|user unknown|address.*(not|does not) exist/i, 'תיבת הדואר לא קיימת — כדאי לבדוק את הכתובת'],
+  [/mailbox (is )?full|quota/i, 'תיבת הדואר מלאה'],
+  [/domain.*(not found|does not exist)|no mx|dns/i, 'הדומיין של הכתובת לא קיים'],
+  [/spam|blocked|rejected|blacklist/i, 'השרת של הנמען חסם את המייל'],
+];
+function bounceReason(raw: string): string {
+  for (const [re, he] of BOUNCE_HE) if (re.test(raw)) return he;
+  return raw;
+}
+
+export default function EmailActivityModule({ userId, clientId, clients = [], onOpenClient, filter = null, onClearFilter }: Props) {
+  // יומן המשרד — כאן כן מושכים את הגוף: «צפייה» מוצגת רק כשיש עותק שמור.
   const { messages, loading, error, reload } = useEmailMessages(userId, { clientId, withHtml: true });
   const [viewing, setViewing] = useState<EmailMessage | null>(null);
   const [backfilling, setBackfilling] = useState(false);
   const [backfillNote, setBackfillNote] = useState<{ ok: boolean; text: string } | null>(null);
+  const [view, setView] = useState<View>('all');
+  const [q, setQ] = useState('');
+
+  const nameOf = useMemo(() => {
+    const m = new Map(clients.map(c => [c.id, `${c.firstName ?? ''} ${c.lastName ?? ''}`.trim()]));
+    return (id?: string) => (id ? m.get(id) : undefined);
+  }, [clients]);
 
   /** מושך מ-Resend את גוף המיילים שנשלחו לפני שהמערכת התחילה לשמור עותק. */
   async function handleBackfill() {
@@ -60,116 +97,129 @@ export default function EmailActivityModule({ userId, clientId }: Props) {
     }
   }
 
-  const rows = useMemo(
-    () => (clientId ? messages.filter(m => m.clientId === clientId) : messages),
-    [messages, clientId],
+  const base = useMemo(
+    () => (clientId ? messages.filter(m => m.clientId === clientId) : messages).filter(m => matchesFilter(m, filter)),
+    [messages, clientId, filter],
   );
+  const failedCount = base.filter(m => isFailedEmailStatus(m.status)).length;
+  const unknownCount = base.filter(m => isUnknownEmailStatus(m.status)).length;
 
-  const stats = useMemo(() => {
-    const isDelivered = (m: EmailMessage) => ['delivered', 'opened', 'clicked'].includes(m.status);
-    const isOpened = (m: EmailMessage) => !!m.openedAt || ['opened', 'clicked'].includes(m.status);
-    const isFailed = (m: EmailMessage) => ['bounced', 'complained', 'failed'].includes(m.status);
-    return {
-      total: rows.length,
-      delivered: rows.filter(isDelivered).length,
-      opened: rows.filter(isOpened).length,
-      failed: rows.filter(isFailed).length,
-    };
-  }, [rows]);
+  const rows = useMemo(() => {
+    const needle = q.trim().toLowerCase();
+    return base.filter(m => {
+      if (view === 'failed' && !isFailedEmailStatus(m.status)) return false;
+      if (view === 'unknown' && !isUnknownEmailStatus(m.status)) return false;
+      if (view === 'office' && !isInternalEmailKind(m.kind)) return false;
+      if (view === 'clients' && isInternalEmailKind(m.kind)) return false;
+      if (!needle) return true;
+      const hay = [m.toEmail, m.subject, nameOf(m.clientId), emailMessageLabel(m)].filter(Boolean).join(' ').toLowerCase();
+      return hay.includes(needle);
+    });
+  }, [base, view, q, nameOf]);
 
-  // כמה מהמיילים ברשימה עדיין בלי עותק שמור
-  const missingHtml = useMemo(() => rows.filter(m => !m.html && m.resendId).length, [rows]);
+  const missingHtml = useMemo(() => base.filter(m => !m.html && m.resendId).length, [base]);
 
-  const stat = (label: string, val: number, color?: string) => (
-    <div style={{ background: 'var(--gray-50, #F1EFE8)', borderRadius: 8, padding: '10px 14px', minWidth: 84 }}>
-      <div style={{ fontSize: 'var(--fs-12)', color: 'var(--gray-500)' }}>{label}</div>
-      <div style={{ fontSize: 'var(--fs-20)', fontWeight: 500, color: color || 'inherit' }}>{val}</div>
-    </div>
-  );
+  // הסינון «לא ידוע אם יצאו» מופיע רק כשיש כאלה — לא עוד כפתור ריק ברוב הימים.
+  const VIEWS: { id: View; label: string }[] = [
+    { id: 'all', label: 'הכל' },
+    { id: 'failed', label: failedCount ? `נכשלו · ${failedCount}` : 'נכשלו' },
+    ...(unknownCount > 0 || view === 'unknown'
+      ? [{ id: 'unknown' as View, label: unknownCount ? `לא ידוע אם יצאו · ${unknownCount}` : 'לא ידוע אם יצאו' }]
+      : []),
+    { id: 'clients', label: 'ללקוחות' },
+    { id: 'office', label: 'למשרד' },
+  ];
 
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 4 }}>
-        <div style={{ fontSize: 'var(--fs-14)', fontWeight: 500 }}>פעילות מייל</div>
-        <button className="btn btn-ghost btn-sm" onClick={reload} disabled={loading}>{loading ? '…' : '↻ רענון'}</button>
-      </div>
-      <div style={{ fontSize: 'var(--fs-12)', color: 'var(--gray-500)', marginBottom: 14 }}>
-        כל מייל שנשלח מהמערכת. סטטוסי מסירה/פתיחה מתעדכנים בזמן אמת מ-Resend.
+      {filter && (
+        <p className="of-note" style={{ marginTop: 0, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+          <span style={{ flex: 1 }}>מסנן: <b>{filter.label}</b> · {base.length} מיילים</span>
+          {onClearFilter && <button type="button" className="of-link" onClick={onClearFilter}>הצגת הכל</button>}
+        </p>
+      )}
+
+      <div className="of-filters">
+        <div className="of-seg" role="group" aria-label="סינון">
+          {VIEWS.map(v => (
+            <button key={v.id} type="button" aria-pressed={view === v.id} onClick={() => setView(v.id)}>{v.label}</button>
+          ))}
+        </div>
+        <input className="of-search" type="search" value={q} onChange={e => setQ(e.target.value)}
+          placeholder="חיפוש לקוח, כתובת או נושא" aria-label="חיפוש ביומן" />
+        <button className="btn btn-ghost btn-sm" onClick={() => void reload()} disabled={loading}>{loading ? 'טוען…' : 'רענון'}</button>
       </div>
 
-      {error && <div style={{ padding: '.6rem .8rem', background: 'var(--red-light)', color: 'var(--red)', borderRadius: 8, fontSize: '.85rem', marginBottom: 12 }}>{error}</div>}
+      {error && <div className="of-error-box" role="alert">טעינת היומן נכשלה: {error}</div>}
 
-      {/* מיילים שנשלחו לפני שהמערכת התחילה לשמור עותק — ניתן למשוך אותם מ-Resend */}
       {missingHtml > 0 && (
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', padding: '.6rem .8rem', background: 'var(--gray-50, #F1EFE8)', borderRadius: 8, marginBottom: 12 }}>
-          <span style={{ fontSize: 'var(--fs-13)', color: 'var(--gray-700)', flex: 1, minWidth: 200 }}>
-            ל-{missingHtml} מיילים ישנים אין עותק שמור. אפשר למשוך אותם מ-Resend.
-          </span>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', margin: '0 0 12px' }} className="of-quiet">
+          <span style={{ flex: 1, minWidth: 200 }}>ל-{missingHtml} מיילים ישנים אין עותק שמור לצפייה.</span>
           <button className="btn btn-secondary btn-sm" onClick={handleBackfill} disabled={backfilling}>
-            {backfilling ? 'מושך…' : '⤓ שחזור תוכן'}
+            {backfilling ? 'מושך…' : 'שחזור התוכן מ-Resend'}
           </button>
         </div>
       )}
       {backfillNote && (
-        <div style={{ padding: '.55rem .8rem', borderRadius: 8, fontSize: '.85rem', marginBottom: 12,
-                      background: backfillNote.ok ? 'var(--green-light, #eaf6f1)' : 'var(--red-light)',
-                      color: backfillNote.ok ? 'var(--ok, #17845b)' : 'var(--red)' }}>
-          {backfillNote.ok ? '✓ ' : '⚠ '}{backfillNote.text}
+        <div className={backfillNote.ok ? 'of-note' : 'of-error-box'} style={{ margin: '0 0 12px' }}>
+          {backfillNote.text}
         </div>
       )}
-
-      <div style={{ display: 'flex', gap: 12, marginBottom: 14, flexWrap: 'wrap' }}>
-        {stat('נשלחו', stats.total)}
-        {stat('נמסרו', stats.delivered, 'var(--ok)')}
-        {stat('נפתחו', stats.opened, 'var(--info)')}
-        {stat('נכשלו', stats.failed, 'var(--err)')}
-      </div>
 
       {rows.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '2rem 0', color: 'var(--ink-4)', borderTop: '1px solid var(--hairline-2)', fontSize: 'var(--fs-13)' }}>
-          {loading ? 'טוען…' : 'עדיין לא נשלחו מיילים.'}
+        <div className="of-empty" style={{ borderTop: '1px solid var(--hairline-2)' }}>
+          {loading ? 'טוען…' : messages.length === 0 ? 'עדיין לא נשלחו מיילים.' : 'אין מיילים שמתאימים לסינון.'}
         </div>
       ) : (
-        <div className="card" style={{ overflow: 'hidden', padding: 0 }}>
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 'var(--fs-13)' }}>
-              <thead>
-                <tr style={{ borderBottom: '1px solid var(--hairline-1)', color: 'var(--ink-4)', fontSize: 'var(--fs-12)' }}>
-                  <th style={{ textAlign: 'right', padding: '9px 12px', fontWeight: 500 }}>נמען</th>
-                  <th style={{ textAlign: 'right', padding: '9px 8px', fontWeight: 500 }}>נושא</th>
-                  <th style={{ textAlign: 'right', padding: '9px 8px', fontWeight: 500 }}>סטטוס</th>
-                  <th style={{ textAlign: 'right', padding: '9px 8px', fontWeight: 500 }}>נשלח</th>
-                  <th style={{ textAlign: 'right', padding: '9px 8px', fontWeight: 500 }}>המייל</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map(m => (
-                  <tr key={m.id} style={{ borderBottom: '0.5px solid var(--gray-100, #eee)' }}>
-                    <td style={{ padding: '10px 12px' }} dir="ltr" align="right">{m.toEmail}</td>
-                    <td style={{ padding: '10px 8px' }}>{m.subject || '-'}</td>
-                    <td style={{ padding: '10px 8px' }}>
-                      <StatusChip status={m.status} />
-                      {m.error && <div style={{ fontSize: 'var(--fs-12)', color: 'var(--err)', marginTop: 3 }}>{m.error}</div>}
-                    </td>
-                    <td style={{ padding: '10px 8px', color: 'var(--gray-500)', whiteSpace: 'nowrap' }}>{fmtTime(m.sentAt)}</td>
-                    <td style={{ padding: '10px 8px', whiteSpace: 'nowrap' }}>
-                      {m.html ? (
-                        <button className="btn btn-secondary btn-sm" onClick={() => setViewing(m)}>צפייה</button>
-                      ) : (
-                        <span style={{ fontSize: 'var(--fs-12)', color: 'var(--gray-400)' }} title="נשלח לפני שהמערכת התחילה לשמור עותק">-</span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+        <div role="table" aria-label="מיילים שנשלחו">
+          <div className="of-mail of-mail-head" role="row">
+            <span role="columnheader">לקוח / נמען</span>
+            <span role="columnheader">מייל</span>
+            <span role="columnheader">מצב</span>
+            <span role="columnheader">נשלח</span>
           </div>
+          {rows.map(m => {
+            const name = nameOf(m.clientId);
+            const internal = isInternalEmailKind(m.kind);
+            return (
+              <div key={m.id} className="of-mail of-mail-row" role="row">
+                <div className="of-mail-who" role="cell">
+                  {internal ? <span className="of-mail-client">למשרד</span>
+                    : name && m.clientId && onOpenClient
+                      ? <button type="button" className="of-link of-mail-client" onClick={() => onOpenClient(m.clientId!)}>{name}</button>
+                      : name ? <span className="of-mail-client">{name}</span> : null}
+                  <span className="of-mail-addr">{m.toEmail}</span>
+                </div>
+                <div className="of-mail-subj" role="cell">
+                  {m.subject || '-'}
+                  {(() => {
+                    const kind = internal ? 'התראה למשרד' : emailMessageLabel(m);
+                    // סוג שחוזר על הנושא (או «מייל» כללי) אינו מוסיף מידע
+                    return kind !== 'מייל' && kind !== m.subject ? <span className="of-mail-kind">{kind}</span> : null;
+                  })()}
+                </div>
+                <div className="of-mail-status" role="cell">
+                  <span>
+                    <StatusChip status={m.status} />
+                    {/* ‼ לא ידוע אם יצא — הסיבה והצעד הבטוח בכתום, לא טקסט הספק באדום. */}
+                    {isUnknownEmailStatus(m.status)
+                      ? <span style={{ display: 'block', fontSize: 'var(--fs-12)', color: 'var(--warn)', marginTop: 3 }}>{emailRowState(m).hint}</span>
+                      : m.error && <span style={{ display: 'block', fontSize: 'var(--fs-12)', color: 'var(--err)', marginTop: 3, overflowWrap: 'anywhere' }} title={m.error}>{bounceReason(m.error)}</span>}
+                  </span>
+                  {m.html
+                    ? <button className="btn btn-ghost btn-sm" onClick={() => setViewing(m)}>צפייה</button>
+                    : null}
+                </div>
+                <div className="of-mail-when" role="cell">{fmtTime(m.sentAt)}</div>
+              </div>
+            );
+          })}
         </div>
       )}
 
-      <div style={{ marginTop: 10, fontSize: 'var(--fs-12)', color: 'var(--gray-400)' }}>
-        ↩ עמודת "תשובות" תתווסף כשנחבר את Gmail (שלב עתידי).
-      </div>
+      <p className="of-muted" style={{ marginTop: 10 }}>
+        מוצגים {messages.length} המיילים האחרונים. מיילים של לקוח מסוים מופיעים גם בכרטיס שלו.
+      </p>
 
       {viewing && <SentEmailViewer message={viewing} onClose={() => setViewing(null)} />}
     </div>

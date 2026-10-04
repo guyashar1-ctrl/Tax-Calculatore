@@ -8,7 +8,7 @@ import type { Client, Task } from '../types';
 import type { Quotation, Lead } from '../types/quotations';
 import type { EmailMessage } from '../types/emailActivity';
 import type { AnnualReportSession } from '../features/annualReport/types';
-import { formatDate, daysLate } from './dateFormat';
+import { formatDate, daysLate, lateLabel } from './dateFormat';
 import { ballLabel, isOpenTask } from './taskUtils';
 
 // ─── עזרי תאריך ──────────────────────────────────────────────────────────────
@@ -48,6 +48,11 @@ export interface NextAction {
   headline: string;
   /** שורת ההקשר מתחת לכותרת — למה זו הפעולה, ומה המספרים שמאחוריה. */
   detail?: string;
+  /**
+   * מילת מצב קצרה לצד הכותרת («תקועה», «באיחור 3 ימים») — למשטח צר שמציג רק
+   * את הכותרת (התצוגה המהירה), כדי שדחוף לא ייקרא כמו שגרה.
+   */
+  flag?: string;
   tone: NextActionTone;
   buttons: NextActionButton[];
 }
@@ -208,6 +213,20 @@ export function deriveNextAction(ctx: NextActionCtx): NextAction | null {
   if (stage === 'onboarding') return null;
 
   // ── לקוח פעיל ──────────────────────────────────────────────────────────────
+  /* ‼ בקשה תקועה (אדומה בלשונית «בקשות») קודמת למשימה הדחופה ביותר: היא בעיה
+     אמיתית מול הלקוח או הרשות, ולשונית «בקשות» מסמנת אותה באדום. כשהמשימה
+     קדמה לה, «מה קורה עכשיו» אמר דבר אחד והכרטיס דבר אחר. */
+  const stuckRequest = openRequests.find(r => r.stuck);
+  if (stuckRequest) {
+    return {
+      headline: stuckRequest.title,
+      detail: `בקשה תקועה · ${stuckRequest.ball}`,
+      flag: 'תקועה',
+      tone: 'urgent',
+      buttons: [],
+    };
+  }
+
   const urgent = mostUrgentTask(openTasks);
   if (urgent) {
     const { task, lateDays } = urgent;
@@ -222,6 +241,7 @@ export function deriveNextAction(ctx: NextActionCtx): NextAction | null {
         task.dueDate ? `יעד ${formatDate(task.dueDate, 'list')}` : null,
         !stuck && lateDays > 0 ? `באיחור ${lateDays} ימים` : null,
       ].filter(Boolean).join(' · '),
+      flag: stuck ? 'תקועה' : lateLabel(task.dueDate) ?? undefined,
       tone: 'urgent',
       buttons: [{ label: 'פתח את המשימה', kind: 'secondary', action: 'openTask', taskId: task.id }],
     };
@@ -239,15 +259,6 @@ export function deriveNextAction(ctx: NextActionCtx): NextAction | null {
   /* ‼ "הכול מסודר" נאמר רק כשבאמת אין כלום. בקשה תקועה, בקשה פתוחה או
      ייצוג שלא הושלם — כל אחד מהם מבטל את המשפט הזה. משפט שקט על מסך שיש
      בו עבודה פתוחה הוא בדיוק סוג המסך שהמוצר הזה בא למנוע. */
-  const stuckRequest = openRequests.find(r => r.stuck);
-  if (stuckRequest) {
-    return {
-      headline: stuckRequest.title,
-      detail: `בקשה תקועה · ${stuckRequest.ball}`,
-      tone: 'urgent',
-      buttons: [],
-    };
-  }
   if (representationPending) return pendingRepAction();
   /**
    * ‼ (156) לקוח פעיל בלי שום בקשת ייצוג היה נופל בשקט ל"הכול מסודר" —

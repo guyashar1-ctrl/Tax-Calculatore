@@ -23,6 +23,11 @@
  *  בלי מסלול שני שה-cron האמיתי בפועל צריך (ראה docs/EMAIL-POLICY.md §5).
  *  בלעדיו אין דרך שמשימה מתוזמנת אמיתית תפעיל את הפונקציה בכלל.
  *
+ * ‼ 212: תזכורת ב"ל נתבעת רק לאדם שברשימת targets של רשומת הייצוג בב"ל בכרטיס
+ *   (clients.authority_representations.nationalInsurance, דרך ni_targets_of) —
+ *   ובלי רשומה בכלל אין מי לתזכר. לכן הלקוח של הבדיקה נושא רשומה כזו (targets=['client']),
+ *   ו-RQ_A מקושרת אליו; ובן/בת הזוג, שאינו/ה ברשימה, נדחה/ית (B1b).
+ *
  * הרצה:  node scripts/staging-test-representation-reminders-cas.mjs
  * דורש: מיגרציות 186/188/189 על staging, ופונקציית representation-reminders
  *       פרוסה שם (עם x-cron-secret נתמך).
@@ -67,10 +72,11 @@ await cleanup();
 
 try {
   await writeStaging(`
-    insert into public.clients (id, user_id, first_name, last_name, email, spouse_email, portal_token)
-    values (${q(CLIENT_A)}, '${USER_ID}', 'תביעה', 'RRCAS', 'delivered+rrcas@resend.dev', 'delivered+rrcasspouse@resend.dev', ${q('tok-' + randomBytes(8).toString('hex'))});
-    insert into public.representation_requests (id, user_id, status, client_email, execution, created_at, updated_at, onboarding_token)
-    values (${q(RQ_A)}, '${USER_ID}', 'pending_signature', 'delivered+rrcas@resend.dev', '{}'::jsonb, now(), now(), ${q('onb-' + randomBytes(8).toString('hex'))});`);
+    insert into public.clients (id, user_id, first_name, last_name, email, spouse_email, portal_token, authority_representations)
+    values (${q(CLIENT_A)}, '${USER_ID}', 'תביעה', 'RRCAS', 'delivered+rrcas@resend.dev', 'delivered+rrcasspouse@resend.dev', ${q('tok-' + randomBytes(8).toString('hex'))},
+            '{"nationalInsurance":{"status":"in_process","targets":["client"]}}'::jsonb);
+    insert into public.representation_requests (id, user_id, status, client_email, linked_client_id, execution, created_at, updated_at, onboarding_token)
+    values (${q(RQ_A)}, '${USER_ID}', 'pending_signature', 'delivered+rrcas@resend.dev', ${q(CLIENT_A)}, '{}'::jsonb, now(), now(), ${q('onb-' + randomBytes(8).toString('hex'))});`);
 
   // ═══════════════════════════════════════════════════════════════════════
   console.log('— A · claim על שורה טרייה: הפעם הראשונה חייבת להיכתב בפועל (188) —');
@@ -105,6 +111,9 @@ try {
     const cNi = (await one(`select public.claim_representation_reminder(${q(RQ_A)}, 'niClient', 0) as r;`)).r;
     const sNi = await one(`select execution->'reminders'->'niClient' as ni, execution->'reminders'->'sign' as sign from public.representation_requests where id = ${q(RQ_A)};`);
     ok('B1 claim על niClient נכתב בפועל, ושומר על sign הקיים לצדו', cNi === true && sNi.ni?.count === 1 && sNi.sign?.count === 0, JSON.stringify(sNi));
+    const cSp = (await one(`select public.claim_representation_reminder(${q(RQ_A)}, 'niSpouse', 0) as r;`)).r;
+    const sSp = await one(`select execution->'reminders'->'niSpouse' as sp from public.representation_requests where id = ${q(RQ_A)};`);
+    ok('B1b (212) claim על niSpouse נדחה — בן/בת הזוג אינו/ה ברשימת הייצוג בב"ל, ושום דבר לא נכתב', cSp === false && sSp.sp == null, JSON.stringify({ cSp, sSp }));
 
     await writeStaging(`
       insert into public.onboarding_steps (id, user_id, client_id, step_type, track, scope, status, ball, completion_method, payload, created_at, updated_at, published_at)

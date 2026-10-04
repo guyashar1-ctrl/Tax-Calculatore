@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import type { Session, User } from '@supabase/supabase-js';
-import { supabase } from '../lib/supabase';
+import { DEMO_ISOLATED_FROM_PRODUCTION, supabase } from '../lib/supabase';
 
 // Module-level flag so dev auto-login fires once across all useAuth callers.
 let devAutoLoginAttempted = false;
@@ -26,8 +26,9 @@ export interface AuthState {
  */
 export const AuthContext = createContext<AuthState | null>(null);
 
+// ‼ מסך הדגמה/בדיקה שהשרת שלו מכוון לייצור — לעולם לא מתחבר בעצמו (demoIsolation.ts).
 export const DEV_AUTO_LOGIN_ENABLED =
-  import.meta.env.DEV && import.meta.env.VITE_DEV_AUTO_LOGIN === 'true';
+  import.meta.env.DEV && import.meta.env.VITE_DEV_AUTO_LOGIN === 'true' && !DEMO_ISOLATED_FROM_PRODUCTION;
 
 // DEV-only: lets a local dev session view the app without being in the authorized_users
 // allowlist — for local visual QA only. Guarded by import.meta.env.DEV, so it is compiled

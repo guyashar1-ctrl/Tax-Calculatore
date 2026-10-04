@@ -7,8 +7,10 @@
  * SR-2  אותו מזהה ספק פעמיים ⇒ alreadyRecorded, שורה אחת, הסימון לא נדרס.
  * SR-3  מפתח קבוע (auto:step) ⇒ בדיוק פעם אחת גם עם מזהה ספק שונה.
  * SR-4  שלב של משרד אחר / בלי מזהה ספק ⇒ חריגה, ושום שורה לא נכתבת.
- * SR-5  send-step-email (אוטומטי): כשל אצל הספק משחרר את התביעה —
+ * SR-5  send-step-email (אוטומטי): דחייה ודאית אצל הספק משחררת את התביעה —
  *       autoExecutedAt ריק, autoError מלא, הסטטוס לא זז, אין שורת 'sent'.
+ * SR-5u send-step-email (אוטומטי): «לא ידוע אם יצא» (5xx) — התביעה **נשארת**
+ *       (EMAIL-POLICY §11), שורת 'unknown', 502 unknown_outcome, הסטטוס לא זז.
  * SR-6  send-step-email (ידני): כשל אצל הספק ⇒ 502, הסטטוס לא זז, שורת
  *       'failed' בלי מפתח ייחודי.
  * SR-7  cancel_automation_job: running שהחכירה פקעה ⇒ בוטל; running חי ⇒
@@ -16,15 +18,16 @@
  * SR-8  queue_accountant_notification: כפילות זהה בתור נבלעת; אחרי שליחה —
  *       אירוע חוזר מקבל שורה חדשה.
  * SR-9  representation_link_missing: מתקבל בתור, ו-notify-accountant בונה לו
- *       מייל (הכשל הוא של הספק, לא "לא נמצאו הנתונים").
+ *       מייל ושולח אותו (לא "לא נמצאו הנתונים").
  * SR-10 record_email_sent עם p_notification_id ⇒ sent_at על ההתראה + שורה.
  * SR-11 send-release-email: כשל אצל הספק ⇒ 502 ו-releaseSentAt נשאר ריק.
  * SR-12 record_email_sent עם p_quotation_id + p_request_track ⇒ representation_sent_at
  *       ו-execution.<track>.instructionsSentAt נכתבים פעם אחת ולא נדרסים.
  *
- * ‼ בסביבת הבדיקות אין מפתח Resend תקף, ולכן כל שליחה אמיתית נכשלת אצל
- *   הספק — וזה בדיוק מה שמאפשר לבדוק שכשל אינו משאיר סימון. מסלול ההצלחה
- *   נבדק ברמת ה-RPC (SR-1..3, SR-10).
+ * ‼ ב-staging הספק מדומה (fake-email-provider, scripts/staging-fake-email.mjs):
+ *   שליחה רגילה נקלטת ומצליחה, ולכן הכשלים נוצרים בכוונה לפי כתובת הנמען —
+ *   ‎fail-always‎ ⇒ 422 (דחייה ודאית), ‎fail-once‎ ⇒ 500 בניסיון הראשון («לא ידוע»).
+ *   שום מייל לא יוצא לאדם.
  * ‼ דורש פריסה של send-step-email, send-release-email ו-notify-accountant
  *   ל-staging (scripts/deploy-edge-function.mjs staging <name>).
  *
@@ -207,18 +210,41 @@ try {
 
   // ── SR-5 · send-step-email אוטומטי: כשל אצל הספק משחרר את התביעה ─────────
   const secret = (await one(`select decrypted_secret as v from vault.decrypted_secrets where name = 'internal_send_secret'`)).v;
+  // דחייה ודאית מהספק המדומה (422) — הדרך היחידה לבדוק שכשל אינו משאיר סימון.
+  await writeStaging(`update public.clients set email = 'fail-always@example.test' where id = '${cid}'`);
   const r5 = await callFn('send-step-email', { internalSecret: secret, stepId: autoStep, kind: 'step_reminder' }, { internal: true });
   const step5 = await one(`select status, ball, payload->>'autoExecutedAt' as executed, payload->>'autoError' as err
                              from public.onboarding_steps where id = '${autoStep}'`);
   const sent5 = await one(`select count(*)::int as n from public.email_messages where step_id::text = ('${autoStep}')::uuid::text and status = 'sent'`);
   const failed5 = await one(`select count(*)::int as n, bool_and(idempotency_key is null) as nokey
                                from public.email_messages where step_id::text = ('${autoStep}')::uuid::text and status = 'failed'`);
-  ok('SR-5 הספק נכשל ⇒ 502 resend_failed (לא 500, לא ok)',
+  ok('SR-5 הספק דחה ⇒ 502 resend_failed (לא 500, לא ok)',
     r5.status === 502 && r5.json?.error === 'resend_failed', `${r5.status} ${r5.text.slice(0, 200)}`);
   ok('SR-5 התביעה שוחררה: autoExecutedAt ריק, autoError מלא, הסטטוס לא זז',
     step5?.executed == null && !!step5?.err && step5?.status === 'pending' && step5?.ball === 'me', JSON.stringify(step5));
   ok('SR-5 אין שורת sent; שורת failed בלי מפתח ייחודי',
     sent5?.n === 0 && failed5?.n === 1 && failed5?.nokey === true, JSON.stringify({ sent5, failed5 }));
+
+  // ── SR-5u · «לא ידוע אם יצא» — התביעה נשארת (EMAIL-POLICY §11) ──────────
+  const unkStep = (await one(`
+    insert into public.onboarding_steps (user_id, client_id, step_type, track, scope, status, ball, published_at, payload)
+    values ('${USER_ID}', '${cid}', 'custom_request', 'custom', 'person', 'pending', 'me', now(),
+            '{"title":"בקשה לא-ידוע SENDREC","clientTitle":"בקשה SENDREC","autoAction":{"kind":"email"},
+              "requirements":[{"key":"a1","kind":"confirm","label":"אישור","done":false,"required":true}]}'::jsonb)
+    returning id;`)).id;
+  // כתובת ייחודית ⇒ הניסיון הראשון שלה אצל הספק המדומה הוא 500 (לא ידוע אם יצא)
+  await writeStaging(`update public.clients set email = 'fail-once+${unkStep}@example.test' where id = '${cid}'`);
+  const r5u = await callFn('send-step-email', { internalSecret: secret, stepId: unkStep, kind: 'step_reminder' }, { internal: true });
+  const step5u = await one(`select status, ball, payload->>'autoExecutedAt' as executed from public.onboarding_steps where id = '${unkStep}'`);
+  const rows5u = await one(`select count(*) filter (where status = 'unknown')::int as unknown,
+                                   count(*) filter (where status = 'sent')::int as sent
+                              from public.email_messages where step_id::text = ('${unkStep}')::uuid::text`);
+  ok('SR-5u לא ידוע ⇒ 502 unknown_outcome (לא resend_failed)',
+    r5u.status === 502 && r5u.json?.ok === false && r5u.json?.error === 'unknown_outcome', `${r5u.status} ${r5u.text.slice(0, 200)}`);
+  ok('SR-5u התביעה נשארה (autoExecutedAt מלא) והסטטוס לא זז — הטריגר הבא לא ישלח שוב',
+    step5u?.executed != null && step5u?.status === 'pending' && step5u?.ball === 'me', JSON.stringify(step5u));
+  ok('SR-5u שורת unknown אחת, בלי sent', rows5u?.unknown === 1 && rows5u?.sent === 0, JSON.stringify(rows5u));
+  await writeStaging(`update public.clients set email = 'fail-always@example.test' where id = '${cid}'`);
 
   // ── SR-6 · send-step-email ידני: כשל ⇒ 502 והסטטוס לא זז ───────────────
   const r6 = await callFn('send-step-email', { stepId: manualStep, kind: 'step_reminder' });
@@ -229,6 +255,7 @@ try {
   ok('SR-6 שליחה ידנית: 502 resend_failed', r6.status === 502 && r6.json?.error === 'resend_failed', `${r6.status} ${r6.text.slice(0, 200)}`);
   ok('SR-6 הסטטוס לא זז, אין שורת sent, יש שורת failed',
     step6?.status === 'pending' && rows6?.sent === 0 && rows6?.failed === 1, JSON.stringify({ step6, rows6 }));
+  await writeStaging(`update public.clients set email = 'delivered@resend.dev' where id = '${cid}'`);
 
   // ── SR-7 · cancel_automation_job ─────────────────────────────────────────
   const mkJob = async (status, lease) => (await one(`
@@ -277,11 +304,15 @@ try {
   const prof9 = await one(`select email from public.profiles where id = '${USER_ID}'`);
   const r9 = await callFn('notify-accountant', {});
   const n9b = await one(`select attempts, error, sent_at from public.accountant_notifications where id = '${n9.id}'`);
-  ok('SR-9 notify-accountant ניסה לשלוח (attempts=1) — הבונה החזיר מייל, הכשל הוא של הספק ולא "לא נמצאו הנתונים"',
-    r9.status === 200 && n9b?.attempts === 1 && !!n9b?.error && !/לא נמצאו הנתונים/.test(n9b.error) && n9b?.sent_at == null,
-    JSON.stringify({ r9: r9.json, n9b, profileEmail: prof9?.email }));
+  const row9 = await one(`select count(*)::int as n from public.email_messages
+                           where kind = 'notify_representation_link_missing' and client_id = '${cid}' and status = 'sent'`);
+  ok('SR-9 notify-accountant בנה ושלח מייל (attempts=1, sent_at, בלי שגיאה, שורת sent) — לא "לא נמצאו הנתונים"',
+    r9.status === 200 && n9b?.attempts === 1 && n9b?.error == null && n9b?.sent_at != null && row9?.n === 1,
+    JSON.stringify({ r9: r9.json, n9b, row9, profileEmail: prof9?.email }));
 
   // ── SR-10 · sent_at על ההתראה + שורה בקריאה אחת ─────────────────────────
+  // SR-9 כבר סימן אותה כנשלחה (הספק המדומה מצליח) — מחזירים למצב «נכשל» כדי לבדוק את ה-RPC.
+  await writeStaging(`update public.accountant_notifications set sent_at = null, error = 'sendrec-pre' where id = '${n9.id}'`);
   const rec10 = await jrpc(`public.record_email_sent(
     '${USER_ID}'::uuid, 'notify_representation_link_missing', 'office@example.com', 'התראה SENDREC', 'sendrec-n1',
     p_client_id => '${cid}', p_notification_id => '${n9.id}')`);
@@ -295,10 +326,10 @@ try {
   const releaseStep2 = releaseStep;
   await writeStaging(`update public.onboarding_steps set payload = payload - 'releaseSentAt' - 'releaseSentTo' where id = '${releaseStep2}';`);
   const r11 = await callFn('send-release-email', {
-    clientId: cid, to: 'prev@example.com', subject: 'מכתב SENDREC', html: '<p>x</p>', stepId: releaseStep2, markSent: true,
+    clientId: cid, to: 'fail-always@example.test', subject: 'מכתב SENDREC', html: '<p>x</p>', stepId: releaseStep2, markSent: true,
   });
   const step11 = await one(`select payload->>'releaseSentAt' as at, status from public.onboarding_steps where id = '${releaseStep2}'`);
-  ok('SR-11 הספק נכשל ⇒ 502 resend_failed', r11.status === 502 && r11.json?.error === 'resend_failed', `${r11.status} ${r11.text.slice(0, 200)}`);
+  ok('SR-11 הספק דחה ⇒ 502 resend_failed', r11.status === 502 && r11.json?.error === 'resend_failed', `${r11.status} ${r11.text.slice(0, 200)}`);
   ok('SR-11 releaseSentAt נשאר ריק אחרי כשל', step11?.at == null && step11?.status === 'pending', JSON.stringify(step11));
   const r11b = await callFn('send-release-email', {
     clientId: cid, to: 'prev@example.com', subject: 'מכתב SENDREC', html: '<p>x</p>', stepId: 'no-such-step',

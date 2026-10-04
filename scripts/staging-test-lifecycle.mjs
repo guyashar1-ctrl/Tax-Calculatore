@@ -81,6 +81,9 @@ const CID = (await one(`select client_id from public.quotations where id = 'fx-q
 ok('להצעה יש כרטיס', !!CID);
 const portalBefore = (await one(`select portal_token from public.clients where id = ${q(CID)}`)).portal_token;
 ok('נטבע טוקן דף אישי', !!portalBefore);
+// ‼ (217) סוג עוסק לא ידוע מחזיק את הבקשות שתלויות בו, והקליטה לא נסגרת עד שהוא נקבע —
+// כאן נבדקת סגירה רגילה, ולכן הסוג ידוע מראש (כמו אצל לקוח שהמשרד כבר סיווג).
+await writeStaging(`update public.clients set dealer_type = 'licensed' where id = ${q(CID)}`);
 
 // ‼ לקוחות קיימים אינם נרשמים ואינם מקבלים דבר בעקבות הזרימה הזאת.
 // הספירה מוציאה גם כרטיסי דמה של חבילות בדיקה אחרות (fx-q-*): final-round3

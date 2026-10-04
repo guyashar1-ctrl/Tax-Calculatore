@@ -15,6 +15,12 @@ export interface ReadyOwnerItem {
   publishedAt: string;
   /** תוכן שהשתנה אחרי הפרסום (פריט שנוסף, עריכה שפורסמה, פתיחה מחדש) — 192. */
   changedAt?: string;
+  /**
+   * איך הפריט מגיע ללקוח (שלב במסלול: auto / approve / hold; בלי — כמו approve).
+   * ‼ המייל שיוצא לבד כולל רק פריטים של 'auto' מריצה שאינה בעצירה (214) —
+   * כל השאר יוצאים רק במייל שהרו"ח שולח.
+   */
+  delivery?: string;
 }
 
 export interface ReadyPerson {
@@ -27,8 +33,68 @@ export interface ReadyPerson {
   deadline?: string;
 }
 
+/** 214: פריט בהודעה — מה שהשרת יפרט במייל (נבחר שם, לא בדפדפן). */
+export interface ReadyNoticeItem {
+  stepId: string;
+  stepType: string;
+  version: number;
+  title?: string;
+  isDocument?: boolean;
+  delivery?: string;
+}
+
+/**
+ * למה לא ידוע אם המייל יצא — נקבע בשרת (client_ready_to_send). ‼ אף אחת מהסיבות
+ * אינה «לא נשלח»: בכולן ייתכן שהמייל הגיע.
+ */
+export type UnknownCause = 'cut_off' | 'no_answer' | 'provider_error' | 'provider_busy' | 'accepted_no_id' | 'retry_rejected';
+
+/**
+ * הודעה ללקוח שלא ידוע אם יצאה. ‼ השדות שאחרי `items` חדשים (214, client_ready_to_send) —
+ * שרת ישן לא שולח אותם, ואז `at` הוא הניסיון האחרון והמגש נופל למסלול השמרני
+ * (unknownRowModel). ‼ השרת עוטף ב-jsonb_strip_nulls (רקורסיבי): שדה שערכו null
+ * (retryUntil, toEmail, subject…) מגיע חסר ולא null — ולכן כולם אופציונליים.
+ */
+export interface ReadyUnknownNotice {
+  noticeId: string;
+  /** הניסיון הראשון (שרת ישן: הניסיון האחרון). */
+  at: string;
+  kind: string;
+  subject?: string | null;
+  items: number;
+  /** הניסיון האחרון. */
+  lastTriedAt?: string | null;
+  /** עד מתי «שלח שוב (אותו מייל)» לא ישלח פעמיים (23 שעות מהניסיון הראשון). null — אין גוף לשלוח שוב. */
+  retryUntil?: string | null;
+  /** לאן נשלח (אם בכלל) — הכתובת שנתפסה בשליחה. */
+  toEmail?: string | null;
+  /** הכתובת בכרטיס שונה מ-toEmail (נקבע בשרת). */
+  recipientChanged?: boolean;
+  /** 'auto' — הופעלה לבד לפי המסלול; 'manual' — בלחיצה. */
+  origin?: string | null;
+  attempts?: number | null;
+  cause?: UnknownCause | string | null;
+  /** הבקשות שבמייל, ואם הן עדיין פתוחות. */
+  itemList?: { title: string; stillOpen: boolean }[];
+}
+
 export interface ReadyToSend {
-  owner: { email?: string; lastSentAt?: string | null; items: ReadyOwnerItem[] };
+  owner: {
+    email?: string;
+    lastSentAt?: string | null;
+    /** «חדש» — גרסה שטרם נמסרה ללקוח (214; קודם: השוואת זמנים, 192). */
+    items: ReadyOwnerItem[];
+    /** טביעת הפריטים — נשלחת בחזרה בשליחה; שונה ⇒ items_changed. */
+    fingerprint?: string;
+    /** מה שכבר נמסר ועדיין פתוח — לתזכורת. */
+    reminder?: { items: ReadyNoticeItem[]; fingerprint?: string; lastReminderAt?: string | null };
+    /** הודעה אוטומטית שממתינה בתור (שלב «לבד»). */
+    queued?: { noticeId: string; dueAt: string; kind: string; kickAttempts?: number; lastKickedAt?: string | null } | null;
+    /** הודעות שלא ידוע אם יצאו — חוסמות «חדש» עד הכרעה. */
+    unknown?: ReadyUnknownNotice[];
+    /** הודעה בתנועה עכשיו (חכירה חיה). */
+    inFlight?: boolean;
+  };
   persons: ReadyPerson[];
 }
 
@@ -85,7 +151,9 @@ export function createReadyToSendLoader(
         loading: false,
         error: null,
         ready: {
-          owner: { email: res.owner?.email, lastSentAt: res.owner?.lastSentAt ?? null, items: res.owner?.items ?? [] },
+          // ‼ כל שדות 214 עוברים (טביעה, תזכורת, תור, לא-ידוע, בתנועה) — העתקה
+          // של שלושה שדות בלבד השמיטה אותם בשקט, והמגש לא ראה הודעה שלא ידוע אם יצאה.
+          owner: { ...res.owner, email: res.owner?.email, lastSentAt: res.owner?.lastSentAt ?? null, items: res.owner?.items ?? [] },
           persons: res.persons ?? [],
         },
       });

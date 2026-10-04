@@ -10,36 +10,9 @@ import KnowledgeTopics from './KnowledgeTopics';
 import SavingsBenefits from './SavingsBenefits';
 import BookkeepingKnowledge from './bookkeeping/BookkeepingKnowledge';
 import { FreshnessBadge, FreshnessPanel } from './DataFreshness';
+import { OVERVIEW_LABEL, TOOLS, taxCenterHead, type Tool } from './taxCenterNav';
 
 const fmt = (n: number) => '₪' + n.toLocaleString('he-IL');
-
-type Tool =
-  | 'overview' | 'expenses' | 'savings' | 'bookkeeping' | 'wizard' | 'rental' | 'incomeTax' | 'ni' | 'settlements' | 'topics';
-
-const TOOLS: { key: Tool; label: string; desc: string }[] = [
-  { key: 'expenses',     label: 'הוצאות מוכרות',       desc: '"אפשר לנכות את זה?" - תשובה בשניות: מס הכנסה, מע"מ, מקורות ופסיקה' },
-  { key: 'savings',      label: 'פנסיה וקרן השתלמות',  desc: 'שתי ההטבות הגדולות של עצמאי - ניכוי, זיכוי ופטור ממס רווחי הון, כל אחד בנפרד' },
-  { key: 'bookkeeping',  label: 'ניהול ספרים',          desc: 'איזו תוספת ואילו ספרים כל עוסק חייב - אשף, 15 התוספות ומילון הספרים' },
-  { key: 'wizard',       label: 'אשף נקודות זיכוי',   desc: 'עונים על שאלות - המערכת קובעת את הנקודות ומסבירה למה' },
-  { key: 'rental',       label: 'מחשבון שכר דירה',     desc: 'השוואת פטור / 10% / שולי, כולל הפטור המתקפל ו-122(ו)' },
-  { key: 'incomeTax',    label: 'מדרגות ומס יסף',      desc: 'מדרגות עדכניות, מס יסף דו-שכבתי וחישוב מהיר' },
-  { key: 'ni',           label: 'ביטוח לאומי',          desc: 'שיעורים, תקרות ומחשבון לכל סוגי המבוטחים' },
-  { key: 'settlements',  label: 'יישובים מוטבים',       desc: 'הרשימה הרשמית המלאה + מחשבון זיכוי' },
-  { key: 'topics',       label: 'נושאים מקצועיים',      desc: 'פנסיה, פרישה, מע"מ, חברות, מקרקעין, מועדים ועוד' },
-];
-
-/** מיפוי כלי → מאגר הנתונים שמזין אותו (לתג העדכניות) */
-const TOOL_DATASET: Partial<Record<Tool, string>> = {
-  expenses: 'expenses',
-  savings: 'savings',
-  bookkeeping: 'bookkeeping',
-  wizard: 'taxData',
-  rental: 'taxData',
-  incomeTax: 'taxData',
-  ni: 'taxData',
-  settlements: 'settlements',
-  topics: 'topics',
-};
 
 interface Props {
   onBack: () => void;
@@ -49,14 +22,25 @@ interface Props {
 
 export default function TaxCenter({ onBack, freshnessTaskExists, onCreateFreshnessTask }: Props) {
   const [year, setYear] = useState<number>(2026);
-  const [tool, setTool] = useState<Tool>('overview');
+  /** הכלי שנבחר. null = עוד לא נבחר: במחשב מוצגת הסקירה, בטלפון רשימת הכלים. */
+  const [picked, setPicked] = useState<Tool | null>(null);
   /** נושא הוצאה שנפתח ישירות כשמגיעים מקישור במסך אחר */
   const [expenseJump, setExpenseJump] = useState<string | null>(null);
   const data = TAX_YEARS.find(t => t.year === year)!;
+  const head = taxCenterHead(picked, year);
+  const tool = head.tool;
+
+  // כלי חדש מתחיל מראש העמוד — בטלפון הרשימה גוללת, והכלי נפתח במקומה.
+  function open(next: Tool | null) {
+    setExpenseJump(null);
+    setPicked(next);
+    window.scrollTo({ top: 0 });
+  }
 
   function openExpenseTopic(topicId: string) {
     setExpenseJump(topicId);
-    setTool('expenses');
+    setPicked('expenses');
+    window.scrollTo({ top: 0 });
   }
 
   const keyValues = [
@@ -69,43 +53,50 @@ export default function TaxCenter({ onBack, freshnessTaskExists, onCreateFreshne
     ...(data.gamblingExemptionCeiling ? [{ label: 'פטור הגרלות', value: fmt(data.gamblingExemptionCeiling), sub: 'לזכייה' }] : []),
   ];
 
-  const current = TOOLS.find(t => t.key === tool);
+  const yearSelect = (
+    <select value={year} onChange={e => setYear(+e.target.value)}>
+      {AVAILABLE_YEARS.map(y => <option key={y} value={y}>{y}</option>)}
+    </select>
+  );
 
   return (
     /* מסילה ופאנל, לפי מסך 18. הסרגל האופקי של תשעה כלים הוחלף במסילה:
        שמונה שמות בשורה אחת נקראים כטאבים ("איפה אני"), ובעמודה הם
-       נקראים כמה שהם — תוכן עניינים של ספר עיון. */
-    <div className="tax-center pg-split">
+       נקראים כמה שהם — תוכן עניינים של ספר עיון.
+       ‼ בטלפון (מתחת ל-900px, כשהמסילה נערמת): הרשימה היא דף הכניסה וכלי
+       נפתח במסך מלא עם «› ידע מס» — אחרת עשרת הפריטים מילאו את המסך הראשון
+       והכלי שנבחר נפתח מתחת לקפל. */
+    <div className={`tax-center pg-split${picked ? ' has-tool' : ''}`}>
       <nav className="pg-rail" aria-label="כלי ידע המס">
+        <h1 className="tc-list-title">ידע מס</h1>
         <div className="pg-rail-eyebrow">ידע מס · {year}</div>
-        <button type="button" className={`pg-rail-item ${tool === 'overview' ? 'is-active' : ''}`} onClick={() => { setExpenseJump(null); setTool('overview'); }}>
-          <span className="pg-rail-name">סקירה</span>
+        <button type="button" className={`pg-rail-item ${tool === 'overview' ? 'is-active' : ''}`}
+          onClick={() => open('overview')} aria-current={tool === 'overview' ? 'true' : undefined}>
+          <span className="pg-rail-name">{OVERVIEW_LABEL}</span>
+          <span className="tc-chev" aria-hidden="true">‹</span>
         </button>
         {TOOLS.map(t => (
           <button
             key={t.key}
             type="button"
             className={`pg-rail-item ${tool === t.key ? 'is-active' : ''}`}
-            onClick={() => { setExpenseJump(null); setTool(t.key); }}
+            onClick={() => open(t.key)}
             aria-current={tool === t.key ? 'true' : undefined}
           >
             <span className="pg-rail-name">{t.label}</span>
+            <span className="tc-chev" aria-hidden="true">‹</span>
           </button>
         ))}
 
         {/* עדכניות הנתונים היא תכונה של המאגר כולו, לא של הכלי הפתוח.
             מקומה בתחתית המסילה, פעם אחת — ולא כתג מעל כל אחד מתשעת הכלים. */}
         <div className="pg-rail-foot">
-          {tool !== 'overview' && TOOL_DATASET[tool]
-            ? <FreshnessBadge datasetId={TOOL_DATASET[tool]!} />
-            : null}
+          {head.datasetId ? <FreshnessBadge datasetId={head.datasetId} /> : null}
         </div>
 
         <label className="pg-rail-year">
           שנת מס
-          <select value={year} onChange={e => setYear(+e.target.value)}>
-            {AVAILABLE_YEARS.map(y => <option key={y} value={y}>{y}</option>)}
-          </select>
+          {yearSelect}
         </label>
 
         <button type="button" className="pg-rail-back" onClick={onBack}>← חזרה</button>
@@ -114,11 +105,20 @@ export default function TaxCenter({ onBack, freshnessTaskExists, onCreateFreshne
       <div className="pg-pane">
         <div className="pg-head">
           <div className="pg-head-main">
-            <div className="pg-title pg-title-lg">{current ? current.label : 'מרכז ידע מס'}</div>
-            <div className="pg-status">
-              {current ? current.desc : 'כלי החלטה, מחשבונים ונתונים מאומתים - לא עוד דפדוף בטבלאות'}
-            </div>
+            <button type="button" className="tc-back" onClick={() => open(null)}>
+              <span aria-hidden="true">›</span> ידע מס
+            </button>
+            <div className="pg-title pg-title-lg">{head.title}</div>
+            <div className="pg-status">{head.status}</div>
+            {/* בטלפון המסילה מוסתרת כשכלי פתוח — העדכניות והשנה עוברות לכותרת. */}
+            {head.datasetId && <div className="tc-head-fresh"><FreshnessBadge datasetId={head.datasetId} /></div>}
           </div>
+          {head.usesYear && (
+            <label className="tc-year">
+              שנת מס
+              {yearSelect}
+            </label>
+          )}
         </div>
 
         {/* ── סקירה ── */}

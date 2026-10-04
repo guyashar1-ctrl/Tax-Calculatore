@@ -222,11 +222,17 @@ try {
 
     const mine = await jrpcAs(A, `public.delete_document_label('${labelA}')`);
     ok('8d הבעלים מוחק תווית רגילה', mine.ok === true, JSON.stringify(mine));
+    // ‼ מאז 179 לכל משתמש יש כבר תווית "לבדיקה" אמיתית (היישור יצר אותה), ו-
+    // ensure_reserved_document_label מחזירה את הקיימת — לא דווקא את זו שהבדיקה
+    // זרעה. לכן מודדים מול היעד שה-RPC מדווח, ומוודאים שהוא תווית שמורה של A.
+    const fallback = await one(`select id, user_id::text as uid, is_reserved from public.document_labels where id = '${mine.reassignedTo}';`);
+    ok('8d2 היעד הוא תווית שמורה של הבעלים עצמו',
+      fallback?.uid === A && fallback?.is_reserved === true, JSON.stringify(fallback));
     const moved = await one(`select label_id from public.documents where id = '${docA}';`);
     ok('8e המסמך הועבר לתווית השמורה ולא נשאר בלי תווית',
-      moved.label_id === labelAReserved, JSON.stringify(moved));
+      moved.label_id === mine.reassignedTo, JSON.stringify(moved));
     const folderMoved = await one(`select label_id from public.document_folders where id = '${folderA}';`);
-    ok('8f גם התיקייה הועברה לתווית השמורה', folderMoved.label_id === labelAReserved, JSON.stringify(folderMoved));
+    ok('8f גם התיקייה הועברה לתווית השמורה', folderMoved.label_id === mine.reassignedTo, JSON.stringify(folderMoved));
     const docSurvives = await one(`select count(*)::int as n from public.documents where id = '${docA}';`);
     ok('8g מחיקת תווית אינה מוחקת מסמכים', docSurvives.n === 1);
 

@@ -82,7 +82,7 @@ export const OFFICE_REQUEST_KINDS: OfficeKindSpec[] = [
     config: 'document',
     copy: {},
     items: [],
-    note: 'הקובץ עצמו מנוהל במסך «מסמכים ללקוחות».',
+    note: 'הקובץ עצמו מנוהל ב«ספריית מסמכים».',
   },
 ];
 

@@ -4,6 +4,10 @@
 // כדי שהמייל שנשלח יהיה זהה למה שהוצג (דרישת ה-PRD).
 // אבטחה: verify_jwt=false בשער + אימות פנימי; שולח רק על הצעות של המשתמש.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { resendEmailsUrl, postResend, unknownOutcomeReply } from "../_shared/resendResult.ts";
+
+// ‼ ספק הדואר — Resend בייצור; ב-staging אפשר ספק מדומה שקולט (resendEmailsUrl).
+const RESEND_EMAILS = resendEmailsUrl(Deno.env.get("RESEND_API_URL"), Deno.env.get("SUPABASE_URL") ?? "");
 
 const MAX_SUBJECT_CHARS = 300;
 const MAX_HTML_BYTES = 200 * 1024;
@@ -71,12 +75,12 @@ Deno.serve(async (req: Request) => {
     };
     if (replyTo) payload.reply_to = replyTo;
 
-    const r = await fetch("https://api.resend.com/emails", {
+    const call = await postResend(() => fetch(RESEND_EMAILS, {
       method: "POST",
       headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify(payload),
-    });
-    const body = await r.json();
+    }));
+    const body = call.body;
 
     // ‼ עותק ה-HTML נשמר יחד עם הרשומה, כמו בשאר המיילים. בלעדיו אי אפשר
     // לדעת בדיעבד מה הלקוח קיבל בפועל — מפתח ה-API של Resend מוגבל לשליחה.
@@ -84,7 +88,18 @@ Deno.serve(async (req: Request) => {
     // בטלפון נאלצה להסתמך על הסקה במקום על המייל עצמו.)
     const kind = isTest ? "quotation_test" : "quotation";
     const meta = { quotationId, quotationNumber: q.quotation_number, isTest: !!isTest };
-    if (!r.ok) {
+    if (call.result.outcome === "unknown") {
+      // ‼ לא ידוע אם יצא — לא «נכשל». ההצעה לא מסומנת «נשלחה» (הדפדפן מסמן רק
+      // על ok), והשורה ביומן אומרת למשרד לברר לפני שליחה חוזרת.
+      const reason = call.result.reason;
+      const { error: logErr } = await admin.from("email_messages").insert({
+        user_id: user.id, client_id: q.client_id || null, to_email: toEmail, subject: finalSubject, kind, meta, html,
+        status: "unknown", error: reason.slice(0, 500),
+      });
+      if (logErr) console.error("[send-quotation-email] unknown journal insert failed", logErr.code, logErr.message);
+      return json(unknownOutcomeReply(reason), 502);
+    }
+    if (call.result.outcome === "failed") {
       await admin.from("email_messages").insert({
         user_id: user.id, client_id: q.client_id || null, to_email: toEmail, subject: finalSubject, kind, meta, html,
         status: "failed", error: JSON.stringify(body).slice(0, 500),

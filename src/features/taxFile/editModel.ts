@@ -15,6 +15,13 @@
 
 import type { Client } from '../../types';
 import { FAMILY_STATUS_LABELS } from '../../types';
+import { isValidIsraeliId } from '../../utils/israeliId';
+import { isValidEmail } from '../../utils/email';
+import { hasNonHebrewLetters, HEBREW_ONLY_HINT } from '../../utils/hebrewText';
+import { engagementFromDb } from '../../lib/dbMappers';
+import { currentEngagement } from '../../utils/engagementSelectors';
+import { kindHoldPending, type KindHold } from '../../types/onboarding';
+import { retryKindHoldErrorText as kindHoldRetryErrorText } from '../flows/api';
 
 export type FamilyKey = 'auth' | 'income' | 'family' | 'assets' | 'deductions' | 'foreign';
 
@@ -105,6 +112,16 @@ const join = (...p: (string | number | false | null | undefined)[]) =>
  */
 const UNKNOWN = 'טרם ביררנו';
 
+/** סוג העוסק כפי שנשמר ב-clients.dealer_type. 'other' מגיע רק מהליד. */
+export type DealerKind = 'exempt' | 'licensed' | 'company';
+
+export const DEALER_KIND_LABELS: Record<DealerKind, string> = {
+  exempt: 'עוסק פטור', licensed: 'עוסק מורשה', company: 'חברה',
+};
+
+const DEALER_KIND_OPTIONS: [string, string][] =
+  (['exempt', 'licensed', 'company'] as DealerKind[]).map(k => [k, DEALER_KIND_LABELS[k]]);
+
 export const EDIT_SECTIONS: EditSection[] = [
   // ═══ 1 · זהות ומצב מול הרשויות ═══
   {
@@ -120,6 +137,11 @@ export const EDIT_SECTIONS: EditSection[] = [
       // 206 · כתובת ותקשורת כפי שטופסי הרשויות מבקשים אותן (6101 ואחרים).
       { key: 'zipCode', label: 'מיקוד', kind: 'text' },
       { key: 'landlinePhone', label: 'טלפון קווי', kind: 'text' },
+      // ‼ סוג העוסק — העמודה היחידה שיכולה לומר «חברה», והראשונה שהשרת קורא
+      // (resolve_client_kind). כשהוא לא ידוע, בקשות שתלויות בו מוחזקות עד
+      // שקובעים אותו כאן (217, kind_hold). אין ברירת מחדל: ריק = «טרם ביררנו».
+      { key: 'dealerType', label: 'סוג העוסק', kind: 'select',
+        options: DEALER_KIND_OPTIONS },
     ],
   },
   {
@@ -281,7 +303,10 @@ export const EDIT_SECTIONS: EditSection[] = [
       { key: 'familyStatus', label: 'מצב משפחתי', kind: 'select', credit: true, governed: true,
         options: [['single', 'רווק/ה'], ['married', 'נשוי/אה'], ['divorced', 'גרוש/ה'],
                   ['widowed', 'אלמן/ה'], ['singleParent', 'הורה עצמאי']] },
-      { key: 'spouseName', label: 'שם בן/בת הזוג', kind: 'text' },
+      // ‼ שם פרטי ושם משפחה — המקור היחיד שנערך. «שם בן/בת הזוג» (spouseName) נכתב
+      // כשרשור שלהם בשמירה (withSpouseFullName), כמו בקליטה (110) — כך השניים לא נפרדים.
+      { key: 'spouseFirstName', label: 'שם פרטי של בן/בת הזוג', kind: 'text' },
+      { key: 'spouseLastName', label: 'שם משפחה של בן/בת הזוג', kind: 'text' },
       { key: 'spouseWorking', label: 'בן/בת הזוג עובד/ת', kind: 'bool', governed: true },
       { key: 'spouseNoIncomeEligible', label: 'זכאות לנקודה — בן/בת זוג ללא הכנסה', kind: 'bool',
         credit: true, governed: true,
@@ -455,8 +480,35 @@ export const CREDIT_FIELDS: string[] =
 // (עריכה במקום) וגם העורך הישן משתמשים בהם. שכפול היה מאפשר לשני המסכים
 // לפרש את אותו שדה אחרת.
 
+/**
+ * שם בן/בת הזוג לשני השדות. ‼ כרטיס שנוצר מהצעה / מליד / מהטופס המלא נושא רק את השם
+ * המשורשר — אז המילה הראשונה היא השם הפרטי והשאר שם המשפחה (כמו המילוי של 110), כדי
+ * שהעריכה תיפתח עם מה שכתוב בכרטיס ולא עם שדות ריקים שנראים כמו «אין שם».
+ */
+export function spouseNameParts(c: Pick<Client, 'spouseFirstName' | 'spouseLastName' | 'spouseName'>): { first: string; last: string } {
+  const first = c.spouseFirstName?.trim() ?? '';
+  const last = c.spouseLastName?.trim() ?? '';
+  if (first || last) return { first, last };
+  const words = (c.spouseName ?? '').trim().split(/\s+/).filter(Boolean);
+  return { first: words[0] ?? '', last: words.slice(1).join(' ') };
+}
+
+/**
+ * שמירה של «משפחה ובן/בת זוג»: שם פרטי או שם משפחה שהשתנו ⇒ שניהם נשמרים, ו«שם בן/בת
+ * הזוג» = השרשור שלהם (110). כך שלושת השדות לא נפרדים — מה שהמסלולים, ביטוח לאומי והדף
+ * האישי קוראים (השם הפרטי) ומה שהתיק מציג (השם המלא) הם אותו שם.
+ */
+export function withSpouseFullName(patch: Partial<Client>, drafts: Record<string, string>): Partial<Client> {
+  if (!('spouseFirstName' in patch) && !('spouseLastName' in patch)) return patch;
+  const first = (drafts.spouseFirstName ?? '').trim();
+  const last = (drafts.spouseLastName ?? '').trim();
+  return { ...patch, spouseFirstName: first, spouseLastName: last, spouseName: `${first} ${last}`.trim() };
+}
+
 /** ערך לתצוגה בשדה. ‼ undefined ⇒ ריק, ולא 0 — «לא ידוע» אינו אפס. */
 export function editFieldValue(client: Client, f: EditField): string {
+  if (f.key === 'spouseFirstName') return spouseNameParts(client).first;
+  if (f.key === 'spouseLastName') return spouseNameParts(client).last;
   const raw = (client as unknown as Record<string, unknown>)[f.key];
   if (raw === undefined || raw === null) return '';
   if (typeof raw === 'boolean') return raw ? 'true' : 'false';
@@ -481,6 +533,25 @@ export function coerceEditField(f: EditField, v: string): unknown {
   return v;
 }
 
+/**
+ * בדיקת ערך לפני שמירה של פרט נישום. ‼ ת.ז. שגויה כאן אינה טעות הקלדה
+ * מקומית: היא נוסעת לייפוי הכוח ולבקשות הייצוג, והרשות דוחה אותה שם.
+ * שדה שרוקן במכוון עובר — «טרם ביררנו» הוא מצב לגיטימי.
+ * ‼ עבר לכאן מ-TaxFileTab כדי שייבדק: הלוכסנים ההפוכים בביטויים נשמטו שם
+ * (‎/^d{5}…/‎), וכל מיקוד וכל טלפון קווי נדחו — השורה כולה לא נשמרה.
+ */
+export function identityFieldError(def: EditField, raw: string): string | null {
+  const v = raw.trim();
+  if (!v) return null;
+  if (def.key === 'idNumber' && !isValidIsraeliId(v)) return 'מספר תעודת הזהות אינו תקין';
+  if (def.key === 'email' && !isValidEmail(v)) return 'כתובת המייל אינה תקינה';
+  if (def.key === 'zipCode' && !/^\d{5}(\d{2})?$/.test(v.replace(/\s/g, ''))) return 'מיקוד: 7 ספרות';
+  if (def.key === 'landlinePhone' && !/^0\d{8,9}$/.test(v.replace(/\D/g, ''))) return 'מספר טלפון קווי לא תקין';
+  if (def.key === 'dealerType' && !['exempt', 'licensed', 'company', 'other'].includes(v)) return 'בחר מהרשימה';
+  if (def.hebrew && hasNonHebrewLetters(v)) return HEBREW_ONLY_HINT;
+  return null;
+}
+
 /** תווית לתצוגה של ערך שנשמר — לשורת ההיסטוריה של שינוי עובדה. */
 export function editFieldDisplay(f: EditField, v: string): string {
   if (v === '' || v == null) return '—';
@@ -495,3 +566,164 @@ export function editFieldDisplay(f: EditField, v: string): string {
  */
 export const EDIT_FIELD_BY_KEY: Record<string, EditField> =
   Object.fromEntries(EDIT_SECTIONS.flatMap(s => s.fields).map(f => [f.key, f]));
+
+// ─── סוג העוסק והבקשות שמחכות לו (217) ──────────────────────────────────────
+// ‼ סוג עוסק חסר אינו «עוסק מורשה» בשקט: בקשות שתלויות בסוג מוחזקות על
+// ההתקשרות (engagements.kind_hold) עד שהמשרד קובע אותו כאן. השחרור קורה
+// בשרת, בטריגר על הכרטיס ובאותה שמירה — ולכן אחרי השמירה קוראים את
+// ההתקשרות מחדש, וכל הודעה כאן נגזרת רק ממה שהשרת רשם עליה.
+
+/**
+ * הסוג כפי שהשרת קורא אותו מהכרטיס — אותו סדר כמו resolve_client_kind
+ * (בלי תבנית ההצעה, שאינה על הכרטיס). null = לא ידוע, ולא «מורשה».
+ */
+export function cardDealerKind(c: Pick<Client, 'dealerType' | 'vatStatus'>): DealerKind | null {
+  if (c.dealerType === 'company') return 'company';
+  if (c.dealerType === 'licensed' || c.vatStatus === 'authorizedDealer') return 'licensed';
+  if (c.dealerType === 'exempt' || c.vatStatus === 'exemptDealer') return 'exempt';
+  return null;
+}
+
+/**
+ * «סוג העוסק» לקריאה. ‼ מציג את מה שהשרת יקרא, לא רק את השדה: עוסק פטור
+ * בשדה עם סיווג מע״מ «מורשה» נחשב מורשה, וזה נאמר במפורש. 'other' מהליד
+ * אינו סוג — הוא מוצג כ«טרם נקבע» ולא כקוד.
+ */
+export function dealerTypeDisplay(c: Pick<Client, 'dealerType' | 'vatStatus'>): { text: string; unknown: boolean } {
+  const kind = cardDealerKind(c);
+  if (!kind) return { text: c.dealerType === 'other' ? 'אחר — טרם נקבע' : UNKNOWN, unknown: true };
+  return {
+    text: c.dealerType === kind ? DEALER_KIND_LABELS[kind] : `${DEALER_KIND_LABELS[kind]} (לפי סיווג מע״מ)`,
+    unknown: false,
+  };
+}
+
+/** תווית לסוג שהשרת רשם (resolvedKind) — בשני הכתיבים שבשימוש. */
+export function dealerKindLabel(kind: string | null | undefined): string | null {
+  switch (kind) {
+    case 'exempt': case 'exempt_dealer': return DEALER_KIND_LABELS.exempt;
+    case 'licensed': case 'licensed_dealer': return DEALER_KIND_LABELS.licensed;
+    case 'company': return DEALER_KIND_LABELS.company;
+    default: return null;
+  }
+}
+
+// ‼ הטיפוס, הקריאה מהמסד ו«ממתינה» — מקור אחד ב-types/onboarding (גם המגש והסגירה
+// קוראים משם); כאן רק מייצאים מחדש, כדי שהמסך והבדיקות ימשיכו לייבא מכאן.
+export { parseKindHold, kindHoldPending } from '../../types/onboarding';
+export type { KindHold, KindHoldItem } from '../../types/onboarding';
+
+/**
+ * ההחזקה שעל ההתקשרות הנוכחית, מתוך שורות engagements כפי שהגיעו מהמסד.
+ * ‼ «נוכחית» לפי ההגדרה היחידה (engagementSelectors = current_engagement_id):
+ * החזקה על התקשרות שהסתיימה אינה ממתינה לאיש — השרת סוגר אותה בלי ליצור.
+ * engagementFromDb קורא את kind_hold (parseKindHold) — אין קריאה שנייה כאן.
+ */
+export function currentKindHold(rows: Record<string, unknown>[], clientId: string): KindHold | null {
+  return currentEngagement(rows.map(r => engagementFromDb(r)), clientId)?.kindHold ?? null;
+}
+
+/** כמה בקשות מחכות — לפי הרשימה הכנה של מה שהיה נוצר (held). */
+export function kindHoldCount(h: KindHold | null | undefined): number {
+  return kindHoldPending(h) ? h.held.length : 0;
+}
+
+/** שמות הבקשות שמחכות, בלי כפילויות. ‼ פריט בלי שם לא מוצג כמפתח. */
+export function kindHoldTitles(h: KindHold | null | undefined): string[] {
+  if (!h) return [];
+  return [...new Set(h.held.map(x => x.title.trim()).filter(Boolean))];
+}
+
+/** עד שלושה שמות, ואחריהם «ועוד N» — כדי שהמשפט יישאר משפט. */
+export function titleList(titles: string[]): string {
+  if (titles.length <= 3) return titles.join(', ');
+  return `${titles.slice(0, 3).join(', ')} ועוד ${titles.length - 3}`;
+}
+
+/**
+ * הסימון על שורת «פרטים אישיים» כשהיא סגורה. null = אין מה לומר.
+ * ‼ כשבכרטיס כבר יש סוג והבקשות עדיין מחכות (השחרור נכשל), «חסר סוג העוסק»
+ * היה שקר — אומרים שהבקשות עדיין מחכות.
+ */
+export function kindHoldRowException(h: KindHold | null | undefined, kindKnown = false): string | null {
+  const n = kindHoldCount(h);
+  if (n === 0) return null;
+  if (kindKnown) return n === 1 ? 'בקשה אחת עדיין מחכה לסוג העוסק' : `${n} בקשות עדיין מחכות לסוג העוסק`;
+  return n === 1 ? 'חסר סוג העוסק — בקשה אחת מחכה לו' : `חסר סוג העוסק — ${n} בקשות מחכות לו`;
+}
+
+/** ההסבר מתחת לשדה בזמן העריכה, כשיש בקשות שמחכות. */
+export function kindHoldFieldHint(h: KindHold | null | undefined): string | null {
+  const n = kindHoldCount(h);
+  if (n === 0) return null;
+  const t = titleList(kindHoldTitles(h));
+  const paren = t ? ` (${t})` : '';
+  return n === 1
+    ? `עם השמירה תיפתח הבקשה שחיכתה לסוג העוסק${paren} — רק אם היא מתאימה לסוג שבחרת.`
+    : `עם השמירה ייפתחו הבקשות שחיכו לסוג העוסק${paren} — רק אלה שמתאימות לסוג שבחרת.`;
+}
+
+export interface KindHoldNotice {
+  tone: 'ok' | 'warn';
+  text: string;
+  /** תווית לכפתור «לפתוח שוב» — רק כשהבקשות עדיין מחכות. */
+  retryLabel?: string;
+}
+
+/**
+ * מה לומר אחרי שמירה (או אחרי «לפתוח את הבקשות שחיכו»).
+ * ‼ נגזר רק ממה שהשרת רשם על ההתקשרות אחרי הפעולה:
+ *   · before  — המצב לפני; בלי בקשות שחיכו אין מה לדווח (null).
+ *   · after   — undefined = הקריאה נכשלה (אומרים שלא בדקנו), null = אין רישום.
+ * בקשה «נפתחה» רק כשהיא ב-created; «לא מתאימה» רק כשהשרת רשם notApplicable.
+ */
+export function kindHoldOutcome(
+  before: KindHold | null | undefined,
+  after: KindHold | null | undefined,
+  mode: 'save' | 'retry',
+  chosenKind?: string | null,
+): KindHoldNotice | null {
+  const n = kindHoldCount(before);
+  if (n === 0) return null;
+  const saved = mode === 'save' ? 'נשמר. ' : '';
+  if (after === undefined) {
+    return {
+      tone: 'warn',
+      text: `${saved}לא הצלחנו לבדוק אם ${n === 1 ? 'הבקשה שחיכתה' : 'הבקשות שחיכו'} לסוג העוסק ${n === 1 ? 'נפתחה' : 'נפתחו'} — בדוק בלשונית «בקשות».`,
+    };
+  }
+  if (after === null) return null;
+  if (after.resolvedAt) {
+    const created = after.created.length;
+    if (created === 1) return { tone: 'ok', text: `${saved}נפתחה בקשה אחת שחיכתה לסוג העוסק — היא בלשונית «בקשות».` };
+    if (created > 1) return { tone: 'ok', text: `${saved}נפתחו ${created} בקשות שחיכו לסוג העוסק — הן בלשונית «בקשות».` };
+    if (after.notApplicable.length > 0) {
+      const label = dealerKindLabel(after.resolvedKind) ?? dealerKindLabel(chosenKind);
+      const to = label ? `ל${label}` : 'לסוג שבחרת';
+      return {
+        tone: 'ok',
+        text: n === 1
+          ? `${saved}הבקשה שחיכתה לסוג העוסק לא מתאימה ${to} — לא נפתח דבר.`
+          : `${saved}אף אחת מהבקשות שחיכו לסוג העוסק לא מתאימה ${to} — לא נפתח דבר.`,
+      };
+    }
+    return { tone: 'ok', text: `${saved}סוג העוסק נקבע — לא נפתחו בקשות חדשות.` };
+  }
+  const what = n === 1 ? 'הבקשה שחיכתה לסוג העוסק' : 'הבקשות שחיכו לסוג העוסק';
+  const notOpened = n === 1 ? 'לא נפתחה' : 'לא נפתחו';
+  return {
+    tone: 'warn',
+    text: mode === 'save' ? `נשמר, אבל ${what} ${notOpened}.` : `${what} עדיין ${notOpened}.`,
+    retryLabel: n === 1 ? 'לפתוח את הבקשה שחיכתה' : 'לפתוח את הבקשות שחיכו',
+  };
+}
+
+/**
+ * שגיאה מ-retry_kind_hold — בעברית, בלי קודים. ‼ הטקסטים של הקודים במקום אחד
+ * (RETRY_KIND_HOLD_ERROR_TEXT ב-features/flows/api, גם למגש); כאן רק kind_unknown
+ * מנוסח למי שכבר עומד על השדה.
+ */
+export function retryKindHoldErrorText(error: string | null | undefined): string {
+  if (error === 'kind_unknown') return 'סוג העוסק עדיין לא נקבע בכרטיס — בחר אותו ושמור.';
+  return `${kindHoldRetryErrorText(error)}.`;
+}

@@ -4,12 +4,12 @@
 // ההרכבה יושבת כאן ושני המסכים קוראים לאותה פונקציה. שתי חזיתות שמחשבות
 // "מה עכשיו" בנפרד הן שתי חזיתות שיסתרו זו את זו ביום שאחת תתוקן.
 
-import type { Client, Task } from '../types';
-import { REPRESENTATION_STATUS_LABELS } from '../types';
+import type { Client, Task, NiTracking } from '../types';
+import { representationStatusLabel, type RepSendPhase } from './representationAction';
 import type { Quotation, Lead } from './../types/quotations';
 import type { OnboardingStep } from '../types/onboarding';
-import { isStepOpen, STEP_TYPE_LABELS, STEP_BALL_LABELS } from '../types/onboarding';
-import { stepNeedsMe, isOnRequestsSurface, isManualInternal } from './requestAttention';
+import { STEP_TYPE_LABELS, STEP_BALL_LABELS } from '../types/onboarding';
+import { requestRows, rowSummary, type AttentionContext } from './requestAttention';
 import type { AnnualReportSession } from '../features/annualReport/types';
 import { deriveNextAction, type NextAction } from './journeyPresentation';
 import { representationState } from '../lib/clientState';
@@ -25,8 +25,15 @@ export interface NextActionSources {
   /** כלל שלבי המסע — הסינון לפי הלקוח נעשה כאן. */
   steps: OnboardingStep[];
   taxSessions?: AnnualReportSession[];
-  /** תווית מצב הייצוג; אם לא סופקה — נגזרת מהכרטיס. */
+  /** תווית מצב הייצוג; אם לא סופקה — נגזרת מהכרטיס (לפי repSendPhase). */
   repStatusLabel?: string;
+  /**
+   * ‼ אותו הקשר כמו בכרטיס («בקשות» והתג): מסלולי הביצוע של ב"ל לפי אדם.
+   * בלעדיהם בקשת ב"ל שההוראות שלה כבר יצאו (ממתינה למבוטח) נקראה «לטיפולך».
+   */
+  niExecution?: { client?: NiTracking; spouse?: NiTracking };
+  /** מייל החתימה טרם יצא ('unsent') — «מוכן לשליחה ללקוח», לא «נשלח לחתימת הלקוח». */
+  repSendPhase?: RepSendPhase | null;
 }
 
 export function clientStepsOf(steps: OnboardingStep[], clientId: string): OnboardingStep[] {
@@ -45,8 +52,15 @@ export function nextActionForClient(src: NextActionSources): NextAction | null {
   const clientQuotations = clientQuotationsOf(src.quotations, client.id);
   const liveQuotation = clientQuotations.find(q => q.status === 'sent' || q.status === 'viewed');
   const clientSteps = clientStepsOf(src.steps, client.id);
+  // ‼ «נשלח לחתימת הלקוח» רק כשהמייל באמת יצא — representationStatusLabel, כמו בכרטיס.
   const repStatusLabel = src.repStatusLabel
-    ?? (client.representationStatus ? REPRESENTATION_STATUS_LABELS[client.representationStatus] : undefined);
+    ?? (client.representationStatus ? representationStatusLabel(client.representationStatus, src.repSendPhase) : undefined);
+  const repCtx: AttentionContext = {
+    niExecution: src.niExecution,
+    repStatus: client.representationStatus ?? undefined,
+    repSendPhase: src.repSendPhase ?? null,
+    representationRequestId: client.representationRequestId ?? null,
+  };
 
   return deriveNextAction({
     client,
@@ -57,15 +71,19 @@ export function nextActionForClient(src: NextActionSources): NextAction | null {
     openTasks: src.openTasks,
     latestSession: src.taxSessions?.[0] ?? null,
     /* ‼ v3: רק מה שמוצג במסך הבקשות, עם אותה הגדרה של "לטיפולי" (requestAttention).
-       שלבים מוסתרים ועבודה פנימית לא נספרים כאן — כמו בתג. */
-    openRequests: clientSteps
-      .filter(s => isStepOpen(s.status) && isOnRequestsSurface(s) && !isManualInternal(s))
-      .map(s => ({
-        title: String(s.payload?.title ?? '').trim() || STEP_TYPE_LABELS[s.stepType],
-        stuck: s.status === 'blocked' || s.status === 'failed',
-        ball: STEP_BALL_LABELS[s.ball],
-        mine: stepNeedsMe(s, { repStatus: client.representationStatus ?? undefined }),
-      })),
+       שלבים מוסתרים ועבודה פנימית לא נספרים כאן — כמו בתג.
+       ‼ סבב 4: תהליך אחד = בקשה אחת — אותו קיבוץ ואותו מצב-שורה של הרשימה
+       («ייצוג מול הרשויות» עם החלקים שלו הוא בקשה אחת, לא שלוש). */
+    openRequests: requestRows(clientSteps, repCtx).map(row => {
+      const sum = rowSummary(row, repCtx);
+      const who = sum.lead ?? sum.openParts[0] ?? row.primary;
+      return {
+        title: String(row.primary.payload?.title ?? '').trim() || STEP_TYPE_LABELS[row.primary.stepType],
+        stuck: sum.attn.tone === 'red' || sum.openParts.some(s => s.status === 'blocked' || s.status === 'failed'),
+        ball: STEP_BALL_LABELS[who.ball],
+        mine: sum.attn.kind === 'mine',
+      };
+    }),
     /* ‼ נגזר ממצב הייצוג, לא מהשוואת מחרוזת עברית. קודם ישב כאן
        `repStatusLabel !== 'מיוצג פעיל'` — שינוי ניסוח אחד בתווית היה הופך כל
        לקוח מיוצג ל"ייצוג בתהליך" בלי ששום דבר בקוד ייראה שבור. */

@@ -225,7 +225,7 @@ export default function SmartTemplateManager({ base, onClose }: { base: SmartFor
 
   async function discardDraft() {
     if (!edit) return;
-    if (!window.confirm(`למחוק את טיוטת המיפוי ${edit.version}? המיפוי הפעיל לא משתנה.`)) return;
+    if (!window.confirm(`למחוק את הטיוטה (גרסה ${edit.version})? הגרסה הפעילה לא משתנה.`)) return;
     window.clearTimeout(saveTimer.current);
     const r = await discardMappingDraft(base.key, edit.version);
     if (!r.ok) { setEditErr(mappingErrorText(r.error)); return; }
@@ -306,6 +306,19 @@ export default function SmartTemplateManager({ base, onClose }: { base: SmartFor
     return () => window.removeEventListener('keydown', key);
   });
 
+  // Escape סוגר את השכבה הפנימית ביותר: חלון הפרסום, אחר כך פרטי השדה, ואז המסך
+  useEffect(() => {
+    const esc = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape' || e.defaultPrevented) return;
+      e.preventDefault();
+      if (publishOpen) { setPublishOpen(false); return; }
+      if (selected) { setSelected(null); return; }
+      void close();
+    };
+    window.addEventListener('keydown', esc);
+    return () => window.removeEventListener('keydown', esc);
+  });
+
   function doUndo() {
     const prev = undo.current.pop();
     if (!prev) return;
@@ -339,7 +352,7 @@ export default function SmartTemplateManager({ base, onClose }: { base: SmartFor
     if (!r.ok) { setEditErr(mappingErrorText(r.error)); setPublishOpen(false); if (r.error === 'audit_stale') setAudit(null); return; }
     invalidateActiveMapping(base.key);
     setPublishOpen(false); setNote('');
-    setToast(`מיפוי ${edit.version} פורסם`);
+    setToast(`גרסה ${edit.version} פורסמה`);
     setEdit(null); setWork(null); setAudit(null);
     await reload();
   }
@@ -357,15 +370,15 @@ export default function SmartTemplateManager({ base, onClose }: { base: SmartFor
         </div>
         {state && (
           edit
-            ? <span className="sf-state is-wait">טיוטת מיפוי {edit.version}</span>
-            : <span className="sf-state is-done">מיפוי {state.active.version} · פעיל</span>
+            ? <span className="sf-state is-wait">טיוטה · גרסה {edit.version}</span>
+            : <span className="sf-state is-done">גרסה {state.active.version} · פעילה</span>
         )}
         <span style={{ flex: 1 }} />
         <button type="button" className="btn btn-sm btn-secondary" onClick={() => void close()}>סגירה</button>
       </div>
 
       <nav className="sf-steps tm-tabs" role="tablist" aria-label="חלקי התבנית">
-        {([['form', 'טופס ומיפוי'], ['questions', 'שאלון'], ['file', 'קובץ וגרסאות']] as const).map(([k, l]) => (
+        {([['form', 'הטופס והשדות'], ['questions', 'שאלון'], ['file', 'קובץ וגרסאות']] as const).map(([k, l]) => (
           <button key={k} type="button" role="tab" aria-selected={tab === k} className={`sf-step${tab === k ? ' is-current' : ''}`} onClick={() => setTab(k)}>{l}</button>
         ))}
       </nav>
@@ -396,7 +409,7 @@ export default function SmartTemplateManager({ base, onClose }: { base: SmartFor
               <span>{Math.round(zoom * 100)}%</span>
               <button type="button" className="tm-pill" onClick={() => setZoom(z => Math.min(3, r2(z + 0.5)))} aria-label="הגדלה">+</button>
             </div>
-            {!edit && !narrow && <button type="button" className="btn btn-primary btn-sm" disabled={busy} onClick={() => void beginEdit()}>{state.draft ? `המשך עריכה (טיוטה ${state.draft.version})` : 'עריכת מיפוי'}</button>}
+            {!edit && !narrow && <button type="button" className="btn btn-primary btn-sm" disabled={busy} onClick={() => void beginEdit()}>{state.draft ? `המשך עריכה (טיוטה ${state.draft.version})` : 'עריכת השדות'}</button>}
           </div>
 
           {edit && (
@@ -442,7 +455,7 @@ export default function SmartTemplateManager({ base, onClose }: { base: SmartFor
             </div>
           )}
           {editErr && <div className="sf-error tm-pad">{editErr}</div>}
-          {narrow && !edit && <div className="tm-quiet tm-pad">עריכת המיפוי זמינה במחשב; כאן אפשר לעיין בטופס ובשדות.</div>}
+          {narrow && !edit && <div className="tm-quiet tm-pad">עריכת השדות זמינה במחשב; כאן אפשר לעיין בטופס ובשדות.</div>}
 
           <div className={`tm-body${narrow && selectedField ? ' has-sheet' : ''}`}>
             <div className="tm-stage">
@@ -488,9 +501,9 @@ export default function SmartTemplateManager({ base, onClose }: { base: SmartFor
       )}
 
       {publishOpen && edit && (
-        <div className="tm-modal" role="dialog" aria-label="פרסום מיפוי">
+        <div className="tm-modal" role="dialog" aria-label="פרסום גרסה">
           <div className="tm-modal-card">
-            <h3>פרסום מיפוי {edit.version}</h3>
+            <h3>פרסום גרסה {edit.version}</h3>
             <p>מכאן כל טופס חדש יצויר במיקום החדש. טפסים שננעלו לחתימה ועוד לא נחתמו יצטרכו «הכן מחדש לחתימה» — הערכים נשמרים.</p>
             <label className="tm-field">מה שונה (לא חובה)
               <input value={note} onChange={e => setNote(e.target.value)} placeholder="למשל: מצב משפחתי — הזזה קלה ימינה" />
@@ -563,7 +576,7 @@ function Inspector({ f, base, editing, problems, onChange, onSnap, onReset, onCl
           {f.cells && <div className="tm-quiet">{f.cells.length - 1} תאי ספרות — זזים ונמתחים עם השדה</div>}
           <div className="sf-actions">
             <button type="button" className="btn btn-secondary btn-sm" onClick={onSnap}>הצמדה לטופס המודפס</button>
-            {changed && <button type="button" className="btn btn-ghost btn-sm" onClick={onReset}>חזרה למיפוי הפעיל</button>}
+            {changed && <button type="button" className="btn btn-ghost btn-sm" onClick={onReset}>חזרה לגרסה הפעילה</button>}
           </div>
         </div>
       )}
@@ -675,25 +688,25 @@ function FileTab({ base, state }: { base: SmartFormTemplate; state: MappingState
         </label>
         {check && (
           <div className={`sf-banner ${check.same ? 'is-info' : 'is-warn'}`} style={{ marginTop: 8 }}>
-            {check.same ? `«${check.name}» זהה לגרסה הממופה.`
-              : `«${check.name}» שונה מהגרסה הממופה${check.version ? ` (נראה כגרסה ${check.version})` : ''}${check.pages ? `, ${check.pages} עמודים` : ''}. המיפוי הקיים לא חל עליו — טפסים שכבר נוצרו לא משתנים.`}
+            {check.same ? `«${check.name}» זהה לטופס שהשדות מסודרים עליו.`
+              : `«${check.name}» שונה מהטופס שהשדות מסודרים עליו${check.version ? ` (נראה כגרסה ${check.version})` : ''}${check.pages ? `, ${check.pages} עמודים` : ''}. השדות הקיימים לא מתאימים לו — טפסים שכבר נוצרו לא משתנים.`}
           </div>
         )}
       </section>
       <section className="tm-q-sec">
-        <h3>גרסאות המיפוי</h3>
+        <h3>גרסאות השדות</h3>
         <ul className="tm-q-list">
-          {state.draft && <li><span className="tm-q-label">מיפוי {state.draft.version}</span><span className="tm-cat sm" style={{ background: '#d97706' }}>טיוטה</span><span className="tm-quiet">נשמר {fmt(state.draft.updatedAt)}</span></li>}
+          {state.draft && <li><span className="tm-q-label">גרסה {state.draft.version}</span><span className="tm-cat sm" style={{ background: '#d97706' }}>טיוטה</span><span className="tm-quiet">נשמר {fmt(state.draft.updatedAt)}</span></li>}
           {state.history.map(h => (
             <li key={h.version}>
-              <span className="tm-q-label">מיפוי {h.version}</span>
-              <span className={`tm-cat sm${h.status === 'published' ? '' : ' is-muted'}`} style={{ background: h.status === 'published' ? '#16a34a' : '#94a3b8' }}>{h.status === 'published' ? 'פעיל' : 'הוחלף'}</span>
+              <span className="tm-q-label">גרסה {h.version}</span>
+              <span className={`tm-cat sm${h.status === 'published' ? '' : ' is-muted'}`} style={{ background: h.status === 'published' ? '#16a34a' : '#94a3b8' }}>{h.status === 'published' ? 'פעילה' : 'הוחלפה'}</span>
               <span className="tm-quiet">פורסם {fmt(h.publishedAt)}{h.note ? ` · ${h.note}` : ''}</span>
             </li>
           ))}
           <li>
-            <span className="tm-q-label">מיפוי {state.codeBase}</span>
-            <span className={`tm-cat sm${state.active.version === state.codeBase ? '' : ' is-muted'}`} style={{ background: state.active.version === state.codeBase ? '#16a34a' : '#94a3b8' }}>{state.active.version === state.codeBase ? 'פעיל' : 'בסיס'}</span>
+            <span className="tm-q-label">גרסה {state.codeBase}</span>
+            <span className={`tm-cat sm${state.active.version === state.codeBase ? '' : ' is-muted'}`} style={{ background: state.active.version === state.codeBase ? '#16a34a' : '#94a3b8' }}>{state.active.version === state.codeBase ? 'פעילה' : 'בסיס'}</span>
             <span className="tm-quiet">הבסיס שנמדד מול הטופס המודפס</span>
           </li>
         </ul>

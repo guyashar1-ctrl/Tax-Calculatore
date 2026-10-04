@@ -13,9 +13,11 @@ import type { Task, Client } from '../types';
 import { TASK_CATEGORY_LABELS } from '../types';
 import type { OnboardingStep } from '../types/onboarding';
 import { STEP_TYPE_LABELS, WAITING_STATUS_LABEL_BY_BALL } from '../types/onboarding';
-import { summarizeClientOnboarding, NEXT_ACTION, type ClientOnboardingSummary } from '../utils/onboardingNext';
+import { nextActionText, type ClientOnboardingSummary } from '../utils/onboardingNext';
+import { isCreationProblem } from '../utils/requestAttention';
 import type { Quotation } from '../types/quotations';
 import { formatDueDate, lateLabel, isLateTask, isOpenTask } from '../utils/taskUtils';
+import { splitOpenTasks, splitJourneyRows, taskDisplayTitle } from '../utils/tasksPage';
 import { todayIso } from '../utils/dateFormat';
 import { relativeTime } from '../utils/clientDerived';
 import { useDocumentStore, type DocumentLabel } from '../hooks/useDocumentStore';
@@ -80,12 +82,14 @@ function orderedOpenTasks(tasks: Task[]): Task[] {
 
 function journeyLine(sum: ClientOnboardingSummary): string {
   if (sum.bucket === 'stuck' && sum.stuck) {
+    // ‼ «לא נוצרה» (217) — «לטפל בבקשה שלא נוצרה», לא «בקשה מהמשרד - דורש תשומת לב».
+    if (isCreationProblem(sum.stuck)) return nextActionText(sum.stuck);
     const name = STEP_TYPE_LABELS[sum.stuck.stepType];
     if (sum.stuck.status === 'blocked') return `${name} - חסום`;
     if (sum.stuck.status === 'failed') return `${name} - נכשל`;
     return `${name} - דורש תשומת לב`;
   }
-  if (sum.next) return NEXT_ACTION[sum.next.stepType];
+  if (sum.next) return nextActionText(sum.next);
   return 'הכול סגור';
 }
 
@@ -99,7 +103,8 @@ export default function TasksWorkspace({
   const [search, setSearch] = useState('');
   const [addMenuOpen, setAddMenuOpen] = useState(false);
   const [draggedId, setDraggedId] = useState<string | null>(null);
-  const [waitingOpen, setWaitingOpen] = useState(false);
+  // ‼ מהכרטיס («N משימות פתוחות ←») — כל הפתוחות של הלקוח גלויות, גם אלה שממתינות לאחרים.
+  const [waitingOpen, setWaitingOpen] = useState(!!clientFilter);
 
   const [reqModal, setReqModal] = useState<{ clientId: string; title: string; year: string; labelId: string } | null>(null);
   const [reqLabels, setReqLabels] = useState<DocumentLabel[]>([]);
@@ -122,19 +127,13 @@ export default function TasksWorkspace({
     return m;
   }, [clients]);
 
-  const knownClientIds = useMemo(() => new Set(clients.map(c => c.id)), [clients]);
-  const summaries = useMemo(
-    () => summarizeClientOnboarding(onboardingSteps).filter(s => knownClientIds.has(s.clientId)),
-    [onboardingSteps, knownClientIds]
+  // ‼ (04.10) «לטיפולי» = utils/tasksPage — אותה הגדרה כמו התג «משימות» בכותרת.
+  // משימה שהכדור בה אצל הלקוח או הרשות יורדת ל«ממתינים לאחרים», כמו בקשה שנשלחה.
+  const journeys = useMemo(
+    () => splitJourneyRows(onboardingSteps, clients, clientFilter),
+    [onboardingSteps, clients, clientFilter]
   );
-  const journeyMine = useMemo(() => summaries.filter(s => s.bucket === 'stuck' || s.bucket === 'mine'), [summaries]);
-  const journeyWaiting = useMemo(() => summaries.filter(s => s.bucket === 'others'), [summaries]);
-  const waitingQuotations = useMemo(
-    () => quotations.filter(q => q.clientId && (q.status === 'sent' || q.status === 'viewed')),
-    [quotations]
-  );
-
-  const openTasks = useMemo(() => tasks.filter(isOpenTask), [tasks]);
+  const openSplit = useMemo(() => splitOpenTasks(tasks, clients, clientFilter), [tasks, clients, clientFilter]);
   const doneTasks = useMemo(
     () => [...tasks.filter(t => !isOpenTask(t))]
       .sort((a, b) => (b.completedAt || b.updatedAt || '').localeCompare(a.completedAt || a.updatedAt || '')),
@@ -142,6 +141,11 @@ export default function TasksWorkspace({
   );
 
   const q = search.trim().toLowerCase();
+  /** שורה שכל מה שמזהה אותה הוא הלקוח (קליטה, הצעה) — הסינון והחיפוש לפי הלקוח. */
+  const matchesClient = (clientId: string | undefined) => {
+    if (clientFilter && clientId !== clientFilter) return false;
+    return !q || clientName(clientMap.get(clientId ?? '')).toLowerCase().includes(q);
+  };
   const matches = (t: Task) => {
     if (clientFilter && t.clientId !== clientFilter) return false;
     if (!q) return true;
@@ -149,8 +153,15 @@ export default function TasksWorkspace({
     return t.title.toLowerCase().includes(q) || (c && clientName(c).toLowerCase().includes(q));
   };
 
-  const orderedOpen = useMemo(() => orderedOpenTasks(openTasks).filter(matches), [openTasks, q, clientMap]);
-  const doneFiltered = useMemo(() => doneTasks.filter(matches), [doneTasks, q, clientMap]);
+  const journeyMine = useMemo(() => journeys.mine.filter(s => matchesClient(s.clientId)), [journeys, q, clientMap, clientFilter]);
+  const journeyWaiting = useMemo(() => journeys.waiting.filter(s => matchesClient(s.clientId)), [journeys, q, clientMap, clientFilter]);
+  const waitingQuotations = useMemo(
+    () => quotations.filter(qt => qt.clientId && (qt.status === 'sent' || qt.status === 'viewed') && matchesClient(qt.clientId)),
+    [quotations, q, clientMap, clientFilter]
+  );
+  const orderedOpen = useMemo(() => orderedOpenTasks(openSplit.mine).filter(matches), [openSplit, q, clientMap, clientFilter]);
+  const waitingTasks = useMemo(() => orderedOpenTasks(openSplit.waiting).filter(matches), [openSplit, q, clientMap, clientFilter]);
+  const doneFiltered = useMemo(() => doneTasks.filter(matches), [doneTasks, q, clientMap, clientFilter]);
 
   async function openRequestModal(presetClientId?: string) {
     setAddMenuOpen(false);
@@ -215,7 +226,7 @@ export default function TasksWorkspace({
 
   const totalCount = tasks.length;
 
-  if (totalCount === 0 && summaries.length === 0) {
+  if (totalCount === 0 && journeys.mine.length === 0 && journeys.waiting.length === 0) {
     return (
       <div className="tasks-page">
         <EmptyState
@@ -229,7 +240,7 @@ export default function TasksWorkspace({
   }
 
   const mineCount = orderedOpen.length + journeyMine.length;
-  const waitingCount = journeyWaiting.length + waitingQuotations.length;
+  const waitingCount = waitingTasks.length + journeyWaiting.length + waitingQuotations.length;
 
   /** שורה במבנה הרפרנס: ידית · (כותרת+תג / לקוח·תווית / מה הלאה) · זנב. */
   function Row({ id, title, pill, meta, next, onOpen, draggable: drag }: {
@@ -317,7 +328,9 @@ export default function TasksWorkspace({
         <>
           <div className="cw-section tw-list">
             {mineCount === 0 ? (
-              <EmptyState headline="אין משימות פתוחות" sentence={search.trim() ? `לא נמצאה משימה שתואמת ל״${search.trim()}״.` : undefined} />
+              <EmptyState
+                headline={waitingCount > 0 ? 'אין כרגע משימה שממתינה לך' : 'אין משימות פתוחות'}
+                sentence={search.trim() ? `לא נמצאה משימה שתואמת ל״${search.trim()}״.` : undefined} />
             ) : (
               <>
                 {/* ‼ שורה נגזרת אחת לכל קליטה — לא משימה שמורה, ולכן אינה נגררת. */}
@@ -352,7 +365,7 @@ export default function TasksWorkspace({
                         <Row
                           id={t.id}
                           draggable
-                          title={t.title || 'ללא כותרת'}
+                          title={taskDisplayTitle(t) || 'ללא כותרת'}
                           pill={rank === 1 ? { text: 'היום', tone: 'today' } : undefined}
                           meta={`${t.clientId === 'system' ? 'כללי' : clientName(c)} · ${TASK_CATEGORY_LABELS[t.category]}`}
                           next={rank === 0 && t.dueDate
@@ -367,8 +380,9 @@ export default function TasksWorkspace({
               </>
             )}
           </div>
+          {/* ‼ בטלפון אין גרירה — מסדרים ב-▲▼ (pivo-design.css מחליף בין השניים). */}
           <div className="tw-hint">
-            אפשר לגרור כדי לקבוע סדר - מה שלמעלה הוא מה שבחרת לקדם. תאריך שהגיע קופץ לראש מעצמו.
+            <span className="tw-hint-drag">אפשר לגרור כדי לקבוע סדר</span><span className="tw-hint-touch">▲▼ קובעים סדר</span> - מה שלמעלה הוא מה שבחרת לקדם. תאריך שהגיע קופץ לראש מעצמו.
           </div>
 
           {/* ‼ "ממתין לאחרים" הוא מקטע שקט ומתקפל, לא טאב שווה — הכדור לא אצלי,
@@ -384,6 +398,19 @@ export default function TasksWorkspace({
               {waitingOpen && (
                 <>
                   <div className="cw-section tw-list tw-waiting-list">
+                    {/* ‼ משימה שהכדור בה אצל הלקוח / הרשות — שלך, אבל אין בה מה לעשות
+                        עכשיו. היא חוזרת ל«לטיפולי» כשבמשימה בוחרים «הכדור אצל: אצלי». */}
+                    {waitingTasks.map(t => (
+                      <Row
+                        key={t.id}
+                        id={t.id}
+                        title={taskDisplayTitle(t) || 'ללא כותרת'}
+                        pill={{ text: t.ballWith === 'authority' ? 'ממתין לרשות' : 'ממתין ללקוח', tone: 'wait' }}
+                        meta={`${t.clientId === 'system' ? 'כללי' : clientName(clientMap.get(t.clientId))} · ${TASK_CATEGORY_LABELS[t.category]}`}
+                        next={t.dueDate ? <>יעד: {formatDueDate(t.dueDate)}</> : undefined}
+                        onOpen={() => onSelectTask(t.id)}
+                      />
+                    ))}
                     {journeyWaiting.map(sum => {
                       const ownerLabel = sum.next ? WAITING_STATUS_LABEL_BY_BALL[sum.next.ball] : 'ממתין';
                       return (
@@ -411,7 +438,7 @@ export default function TasksWorkspace({
                     ))}
                   </div>
                   <div className="tw-waiting-hint">
-                    אלה אינם על השולחן שלך - הם נגזרים ממה שכבר נשלח וממתין לתשובה. אין מה לעשות בהם עד שיחזור משהו.
+                    אין בהם מה לעשות עד שיחזור משהו. משימה חוזרת ל«לטיפולי» כשבוחרים בה «הכדור אצל: אצלי».
                   </div>
                 </>
               )}
@@ -431,7 +458,7 @@ export default function TasksWorkspace({
                 <Row
                   key={t.id}
                   id={t.id}
-                  title={t.title || 'ללא כותרת'}
+                  title={taskDisplayTitle(t) || 'ללא כותרת'}
                   pill={{ text: 'הושלם', tone: 'done' }}
                   meta={`${t.clientId === 'system' ? 'כללי' : clientName(c)} · ${TASK_CATEGORY_LABELS[t.category]}`}
                   next={t.completedAt ? <>הושלם {relativeTime(t.completedAt)}</> : undefined}

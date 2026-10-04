@@ -3,7 +3,8 @@
 // ומחזיר את הבייטים רק לבעלים — בלי כתובת ציבורית ובלי קישור חתום.
 import { supabase } from '../lib/supabase';
 
-export const FIRM_PRIVATE_BUCKET = 'firm-private';
+import { FIRM_PRIVATE_BUCKET } from './firmBuckets';
+export { FIRM_PRIVATE_BUCKET };
 
 /** מוריד קובץ פרטי לפי נתיב ומחזיר data URL (לתצוגה ב-<img> או להטבעה ב-PDF). */
 export async function downloadPrivateDataUrl(path?: string): Promise<string | undefined> {

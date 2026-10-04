@@ -13,8 +13,12 @@
 //
 // אימות: x-cron-secret (מה-cron) או Authorization: Bearer <service_role> (ידני).
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { postResend, resendEmailsUrl } from "../_shared/resendResult.ts";
 import { isNotificationEnabled } from "../_shared/accountantNotifications.ts";
 import { TABLES, TABLE_SCOPES, backupObjectName, chunk } from "./scope.ts";
+
+// ‼ ספק הדואר — Resend בייצור; ב-staging אפשר ספק מדומה שקולט (resendEmailsUrl).
+const RESEND_EMAILS = resendEmailsUrl(Deno.env.get("RESEND_API_URL"), Deno.env.get("SUPABASE_URL") ?? "");
 
 const PAGE = 1000;
 
@@ -79,7 +83,7 @@ Deno.serve(async (req: Request) => {
 
     const nowIso = new Date().toISOString();
     const dateStr = nowIso.slice(0, 10);
-    const results: Array<{ userId: string; filename: string; sizeKb: number; counts: Record<string, number>; uploadError: string | null; notified: { to: string; ok: boolean } | null }> = [];
+    const results: Array<{ userId: string; filename: string; sizeKb: number; counts: Record<string, number>; uploadError: string | null; notified: { to: string; ok: boolean; unknown?: boolean } | null }> = [];
     let anyUploadFailed = false;
 
     for (const p of profiles) {
@@ -102,7 +106,7 @@ Deno.serve(async (req: Request) => {
       const up = await admin.storage.from("backups").upload(filename, new Blob([payload], { type: "application/json" }), { upsert: true, contentType: "application/json" });
       const uploadFailed = !!up.error;
       anyUploadFailed ||= uploadFailed;
-      const entry = { userId: p.id, filename, sizeKb, counts, uploadError: up.error?.message ?? null, notified: null as { to: string; ok: boolean } | null };
+      const entry = { userId: p.id, filename, sizeKb, counts, uploadError: up.error?.message ?? null, notified: null as { to: string; ok: boolean; unknown?: boolean } | null };
       results.push(entry);
 
       // ‼ מי שכיבה את "דוח הגיבוי השבועי" במסך "המשרד" אינו מקבל את המייל.
@@ -127,19 +131,23 @@ Deno.serve(async (req: Request) => {
       // הדיווח נשלח מהכתובת השולחת של המשרד עצמו.
       const comm = (p.communication || {}) as Record<string, unknown>;
       const fromAddress = (typeof comm.senderEmail === "string" && comm.senderEmail.trim()) || "onboarding@resend.dev";
-      const r = await fetch("https://api.resend.com/emails", {
+      // ‼ postResend לעולם לא זורק: חיבור שנפל אצל משרד אחד לא מפיל את הדיווח של השאר.
+      const call = await postResend(() => fetch(RESEND_EMAILS, {
         method: "POST",
         headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
         body: JSON.stringify({ from: `גיבוי מערכת <${fromAddress}>`, to: [toEmail], subject, html }),
-      });
-      const respBody = await r.json().catch(() => ({}));
+      }));
       const logBase = { user_id: p.id, to_email: toEmail, subject, kind: "weekly_backup", html, meta: { filename, sizeKb, counts } };
-      if (!r.ok) {
-        await admin.from("email_messages").insert({ ...logBase, status: "failed", error: JSON.stringify(respBody).slice(0, 500) });
-        entry.notified = { to: toEmail, ok: false };
-      } else {
-        await admin.from("email_messages").insert({ ...logBase, status: "sent", resend_id: respBody.id });
+      if (call.result.outcome === "sent") {
+        await admin.from("email_messages").insert({ ...logBase, status: "sent", resend_id: call.result.id });
         entry.notified = { to: toEmail, ok: true };
+      } else if (call.result.outcome === "unknown") {
+        // ‼ רשת שנפלה / 5xx / 2xx בלי מזהה — ייתכן שהדיווח יצא: «לא ידוע», לא «נכשל».
+        await admin.from("email_messages").insert({ ...logBase, status: "unknown", error: call.result.reason.slice(0, 500) });
+        entry.notified = { to: toEmail, ok: false, unknown: true };
+      } else {
+        await admin.from("email_messages").insert({ ...logBase, status: "failed", error: JSON.stringify(call.body).slice(0, 500) });
+        entry.notified = { to: toEmail, ok: false };
       }
     }
 

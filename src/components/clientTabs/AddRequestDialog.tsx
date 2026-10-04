@@ -25,13 +25,16 @@ import {
   BUILT_IN_DOC_OPTIONS, allDocOptions, withDocOption, withoutDocOption,
 } from '../../lib/documentRequestOptions';
 import type { RequestTemplate } from '../../lib/requestTemplates';
-import { firstEntry, loadRequestTemplates, templateBySeed } from '../../lib/requestTemplates';
+import { cardLibraryRequests, firstEntry, loadRequestTemplates, templateBySeed } from '../../lib/requestTemplates';
+import { actorText, matchesQuery, searchTextOf, seesText, sortByName } from '../office/pages/library/libraryModel';
 import { createPrevAccountantTrack, missingPrevAccountantSteps } from '../../lib/prevAccountantTrack';
 import type { IntakeContext } from '../../lib/clientState';
-import { intakeAcceptsRequired } from '../../lib/clientState';
+import { intakeAcceptsRequired, stepForCurrentWork, stepTypeTaken } from '../../lib/clientState';
 import { supabase } from '../../lib/supabase';
 import type { Client, NiTracking } from '../../types';
 import { niPersons, niRepresentationAction, niRepresentationOf } from '../../utils/niPersons';
+import { loadOfficeFlows } from '../../features/flows/api';
+import { TRIGGER_LABELS, type FlowTrigger } from '../../features/flows/types';
 
 /** מה אפשר להוסיף ידנית. שלב הייצוג אינו כאן — הוא מסונכרן מבקשת הייצוג.
  *  'paperless_sequence', 'prev_accountant_track' ו-'bank_debit' אינם סוגי
@@ -165,6 +168,12 @@ interface Props {
    */
   intake: IntakeContext;
   /**
+   * ההתקשרות הנוכחית (בקליטה/פעילה). ‼ לקוח שחוזר (217): מסמכים, «חומרים מרו״ח
+   * קודם», השאלון והרשאת התשלום נפתחים מחדש בכל התקשרות — שלב שהושלם בהתקשרות
+   * קודמת אינו מסתיר אותם מהקטלוג (stepTypeTaken).
+   */
+  currentEngagementId?: string | null;
+  /**
    * סוג בקשה מסומן מראש — לנקודת כניסה הקשרית (למשל "עדכון סטטוס מס"
    * מתוך תיק מס). ‼ זו אינה זרימה שנייה: אותו חלון, אותו state, ואותה
    * קריאת create_onboarding_request. ההבדל היחיד הוא שמדלגים על הקטלוג.
@@ -175,8 +184,11 @@ interface Props {
    * ‼ אותו חלון ואותו RPC, רק בלי לעבור דרך הקטלוג ובלי לחפש את הקובץ:
    * המקום שבו חושבים "צריך לשלוח את זה" הוא המקום שבו הקובץ נמצא.
    * ‼ נשלח מיד כברירת מחדל — קיצור שמייצר טיוטה נחווה כאילו לא קרה כלום.
+   * ‼ גם קובץ מספריית המשרד (officeId) — «שליחה ללקוח» מתוך «המשרד ← מסמכים».
    */
-  presetDocuments?: { documentId: string; label: string; fileName?: string }[];
+  presetDocuments?: ({ documentId: string; label: string; fileName?: string } | { officeId: string; label: string; fileName?: string })[];
+  /** אחרי ההוספה ייפתח «שליחת מייל» (מ«המשרד ← מסמכים ← שליחה ללקוח»). רק לשם הכפתור. */
+  thenEmail?: boolean;
   /** האימייל שעל הכרטיס — קובע אם השאלה ב«חומרים מרו״ח קודם» היא מילוי או אישור. */
   prevAccountantEmail?: string | null;
   /** בחירת תבנית — נמסרת החוצה כדי שהקומפוזר ייפתח במקום שבו הבקשות חיות. */
@@ -194,11 +206,30 @@ interface Props {
   onRequestAuthorityRepresentation?: (role: 'client' | 'spouse') => Promise<{ error: string | null; stepId?: string }>;
   /** פותח (או מחזיר) הגשת 6101 ומעביר למסך שלה. מחזיר הודעת שגיאה או null. */
   onStartSmartForm?: () => Promise<string | null>;
+  /**
+   * הפעלת מסלול ידני/שנתי — פותח את חלון ההפעלה על המסלול שנבחר. ‼ החלון הזה
+   * לא מפעיל בעצמו: ההפעלה (תצוגה, שנה, פעולות מול רשות) חיה במקום אחד.
+   */
+  onStartFlow?: (flowId: string) => void;
   onClose: () => void;
   onCreated: () => void;
 }
 
-export default function AddRequestDialog({ clientId, steps, processPublished, awaitingQuoteApproval, intake, presetType, presetDocuments, prevAccountantEmail, onUseTemplate, client, niExecution, onRequestAuthorityRepresentation, onStartSmartForm, onClose, onCreated }: Props) {
+export default function AddRequestDialog({ clientId, steps, processPublished, awaitingQuoteApproval, intake, currentEngagementId, presetType, presetDocuments, thenEmail, prevAccountantEmail, onUseTemplate, client, niExecution, onRequestAuthorityRepresentation, onStartSmartForm, onStartFlow, onClose, onCreated }: Props) {
+  /** מסלולים ידניים/שנתיים של המשרד — לבלוק «מסלולים» בקטלוג. */
+  const [flows, setFlows] = useState<{ id: string; name: string; trigger: FlowTrigger; stages: number }[]>([]);
+  useEffect(() => {
+    if (!onStartFlow) return;
+    let alive = true;
+    void loadOfficeFlows().then(r => {
+      if (!alive || !r.ok) return;
+      setFlows(r.flows
+        .filter(f => f.status === 'active' && (f.trigger === 'manual' || f.trigger === 'annual'))
+        .map(f => ({ id: f.id, name: f.name, trigger: f.trigger, stages: f.definition.stages.length })));
+    });
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   /** יש בכלל קליטה שאפשר לחסום את סגירתה. */
   const requiredApplies = intakeAcceptsRequired(intake);
   const [mode, setMode] = useState<'catalog' | 'custom' | 'documents' | 'bank' | 'document' | 'authority_rep'>(
@@ -241,10 +272,9 @@ export default function AddRequestDialog({ clientId, steps, processPublished, aw
   /** מה שנבחר לשליחה, בסדר שבו ייראה אצל הלקוח. `uid` הוא מפתח תצוגה בלבד —
    *  המפתח שנשמר על הבקשה נקבע בשליחה, לפי המיקום ברשימה. */
   const [picked, setPicked] = useState<PickedFile[]>(
-    (presetDocuments ?? []).map(d => ({
-      uid: `client-${d.documentId}`, source: 'client',
-      documentId: d.documentId, label: d.label, fileName: d.fileName,
-    })));
+    (presetDocuments ?? []).map((d): PickedFile => ('officeId' in d
+      ? { uid: `office-${d.officeId}`, source: 'office', officeId: d.officeId, label: d.label, fileName: d.fileName }
+      : { uid: `client-${d.documentId}`, source: 'client', documentId: d.documentId, label: d.label, fileName: d.fileName })));
   const [message, setMessage] = useState('');
   /** איזה בורר פתוח כרגע. אחד בכל רגע — שניים פתוחים הם בדיוק הרעש שנמנע. */
   const [picker, setPicker] = useState<null | 'office' | 'client'>(null);
@@ -465,13 +495,26 @@ export default function AddRequestDialog({ clientId, steps, processPublished, aw
   // ‼ קיצור מתיקיית המסמכים נשלח מיד: מי שלוחץ "שליחה ללקוח" על קובץ מתכוון
   // לשלוח אותו, וטיוטה שקטה שם נחווית כאילו לא קרה כלום.
   const [sendNow, setSendNow] = useState(!processPublished || !!presetDocuments?.length);
+  /** האם הבקשה תופיע ללקוח כבר עכשיו — מה שקובע את שם הכפתור. ‼ «שליחת מסמכים»
+   *  מוסיפה לדף ולא שולחת מייל; המייל יוצא מ«שלח מייל» בבקשות, על כל מה שבדף. */
+  const willShow = !awaitingQuoteApproval && (processPublished ? sendNow : true);
+  const firstName = (client?.firstName ?? '').trim() || 'הלקוח';
+  /** קובץ שכבר בדף של הלקוח, בבקשה פתוחה — אזהרה, לא חסימה (אולי זו גרסה חדשה). */
+  const alreadyOpen = picked
+    .filter(f => !f.file && steps.some(s => !['completed', 'verified', 'skipped', 'cancelled'].includes(s.status)
+      && Array.isArray((s.payload as { clientResources?: unknown[] })?.clientResources)
+      && ((s.payload as { clientResources: { officeId?: string; documentId?: string }[] }).clientResources)
+        .some(r => (f.officeId && r.officeId === f.officeId) || (f.documentId && r.documentId === f.documentId))))
+    .map(f => f.label);
 
+  /** ‼ «כבר קיימת» = של העבודה הנוכחית (lib/clientState · stepTypeTaken, אותו כלל
+   *  כמו השרת): סוג שנפתח בכל התקשרות אינו נחסם בשלב שהושלם בהתקשרות קודמת. */
   const existing = useMemo(
-    () => new Set(steps.filter(s => s.status !== 'cancelled').map(s => s.stepType)),
-    [steps],
+    () => ({ has: (type: string) => stepTypeTaken(steps, type, currentEngagementId) }),
+    [steps, currentEngagementId],
   );
   const paperlessMissing = PAPERLESS_SEQUENCE.filter(p => !existing.has(p.type));
-  const prevMissing = missingPrevAccountantSteps(steps);
+  const prevMissing = missingPrevAccountantSteps(steps, currentEngagementId);
   /** ‼ אותו רזולבר בדיוק כמו תיק המס — אדם זמין רק כשיש לו/ה 'add' (בקשת
    *  ייצוג קיימת ללקוח, וטרם התבקש ייצוג ב"ל לאדם הזה), ואין כבר שלב
    *  «ייצוג ברשות» פתוח על שמו/ה — "לא ליצור כפילות" (157). השרת עצמו
@@ -515,9 +558,13 @@ export default function AddRequestDialog({ clientId, steps, processPublished, aw
       (d.description || '').toLowerCase().includes(q) ||
       (d.fileName || '').toLowerCase().includes(q)).slice(0, 60);
   }, [clientDocs, docSearch]);
-  /** ‼ המובנות אינן מוצגות כשורות: הן כבר ברירת המחדל של פריטי הקטלוג
-   *  שמעליהן, והצגתן פעמיים הייתה כפילות. */
-  const savedTemplates = templates.filter(t => t.officeId !== null && !!onUseTemplate);
+  /** ‼ (4.10.2026) «מהספרייה» — אותה רשימה ואותו ניסוח כמו בספרייה: בקשות חופשיות, של המשרד
+   *  ונוסחים מוכנים שלא נערכו יחד. סוג קבוע (מסמכים, פרטי הרו״ח הקודם) — רק בפריט הקטלוג
+   *  שמעל, שקורא את אותה שורה: מכאן הוא היה נפתח כבקשה חופשית ריקה. בלי התיאור השמור —
+   *  ברשומות שהועברו ב-216 הוא סימון פנימי («הועבר מבקשות ללקוח חדש (…)»). */
+  const libraryRequests = useMemo(() => (onUseTemplate ? sortByName(cardLibraryRequests(templates)) : []), [templates, onUseTemplate]);
+  const [libQuery, setLibQuery] = useState('');
+  const libShown = libQuery.trim() ? libraryRequests.filter(t => matchesQuery(searchTextOf(t), libQuery.trim())) : libraryRequests;
 
   async function rpcCreate(
     stepType: string,
@@ -564,7 +611,7 @@ export default function AddRequestDialog({ clientId, steps, processPublished, aw
     setBusy(true);
     setError(null);
     const res = await createPrevAccountantTrack({
-      clientId, steps, prevAccountantEmail, published: processPublished ? sendNow : true,
+      clientId, steps, prevAccountantEmail, published: processPublished ? sendNow : true, currentEngagementId,
     });
     setBusy(false);
     if (!res.ok) { setError(res.error); return; }
@@ -577,11 +624,10 @@ export default function AddRequestDialog({ clientId, steps, processPublished, aw
   async function createPaperlessSequence() {
     setBusy(true);
     setError(null);
-    const byType = new Map(
-      steps.filter(s => s.status !== 'cancelled').map(s => [s.stepType, s.id]));
     let prevId: string | null = null;
     for (const part of PAPERLESS_SEQUENCE) {
-      const existingId = byType.get(part.type);
+      const existingId = existing.has(part.type)
+        ? stepForCurrentWork(steps, part.type, currentEngagementId)?.id : undefined;
       if (existingId) { prevId = existingId; continue; }
       const res: { id: string } | { error: string } =
         await rpcCreate(part.type, part.payload, prevId, part.owner);
@@ -600,8 +646,7 @@ export default function AddRequestDialog({ clientId, steps, processPublished, aw
   async function createTaxAuthority() {
     setBusy(true);
     setError(null);
-    const connection = steps.find(
-      s => s.stepType === 'paperless_connection' && s.status !== 'cancelled');
+    const connection = stepForCurrentWork(steps, 'paperless_connection', currentEngagementId);
     const res = await rpcCreate(
       'paperless_tax_authority', paperlessTaxAuthorityPayload(),
       dependsOn || connection?.id || null, 'client');
@@ -659,7 +704,7 @@ export default function AddRequestDialog({ clientId, steps, processPublished, aw
         <div className="modal-head">
           <h3 style={{ margin: 0, fontSize: 'var(--fs-16)' }}>
             {presetType ? STEP_TYPE_LABELS[presetType]
-              : mode === 'catalog' ? 'הוספת בקשה'
+              : mode === 'catalog' ? 'בקשה חדשה'
               : mode === 'custom' ? 'בקשה חופשית'
               : mode === 'bank' ? BANK_DEBIT_TITLE
               : mode === 'document' ? 'שליחת מסמכים ללקוח'
@@ -751,21 +796,48 @@ export default function AddRequestDialog({ clientId, steps, processPublished, aw
                 </span>
               </button>
 
-              {/* ── תבניות שמורות ────────────────────────────────────────
-                  ‼ בחירה בתבנית פותחת עותק לעריכה, לא יוצרת בקשה מיד:
-                  התבנית היא נקודת התחלה, ומה שנשלח ללקוח הוא מה שערכת. */}
-              {savedTemplates.length > 0 && (
+              {/* ── מהספרייה ────────────────────────────────────────────
+                  ‼ בחירה פותחת עותק לעריכה, לא יוצרת בקשה מיד: הבקשה בספרייה היא
+                  נקודת התחלה, ומה שנשלח ללקוח הוא מה שערכת. */}
+              {libraryRequests.length > 0 && (
                 <>
                   <div style={{
                     fontSize: 'var(--fs-12)', color: 'var(--ink-4)',
                     marginTop: '.3rem', paddingTop: '.5rem', borderTop: '1px solid var(--hairline-2)',
-                  }}>תבניות של המשרד</div>
-                  {savedTemplates.map(t => (
+                  }}>מהספרייה</div>
+                  {/* ספרייה גדולה — חיפוש, באותו כלל כמו בספרייה (גרשיים, פריטים). */}
+                  {libraryRequests.length > 8 && (
+                    <input type="search" className="of-search" value={libQuery} onChange={e => setLibQuery(e.target.value)}
+                      placeholder="חיפוש בספרייה" aria-label="חיפוש בקשה בספרייה" style={{ minHeight: 36 }} />
+                  )}
+                  {libShown.length === 0 && <div className="cw-empty">אין בקשה כזו בספרייה.</div>}
+                  {libShown.map(t => (
                     <button key={t.id} type="button" disabled={busy} style={rowBtn}
                       onClick={() => onUseTemplate?.(t)}>
                       <span style={{ fontWeight: 600 }}>{t.name}</span>
                       <span style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)' }}>
-                        {t.description || 'תבנית שמורה - נפתחת לעריכה לפני היצירה'}
+                        {seesText(t) ?? actorText(t)}
+                      </span>
+                    </button>
+                  ))}
+                </>
+              )}
+
+              {/* ── מסלולים ──────────────────────────────────────────────────
+                  ‼ מסלול הוא כמה בקשות בשלבים, עם מה שקורה בכל שלב. הבחירה
+                  פותחת את חלון ההפעלה — שם רואים מה ייפתח לפני שמפעילים. */}
+              {onStartFlow && flows.length > 0 && (
+                <>
+                  <div style={{
+                    fontSize: 'var(--fs-12)', color: 'var(--ink-4)',
+                    marginTop: '.3rem', paddingTop: '.5rem', borderTop: '1px solid var(--hairline-2)',
+                  }}>מסלולים</div>
+                  {flows.map(f => (
+                    <button key={f.id} type="button" disabled={busy} style={rowBtn}
+                      onClick={() => onStartFlow(f.id)}>
+                      <span style={{ fontWeight: 600 }}>{f.name}</span>
+                      <span style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)' }}>
+                        {TRIGGER_LABELS[f.trigger].label} · {f.stages === 1 ? 'שלב אחד' : `${f.stages} שלבים`} · נפתח לתצוגה לפני ההפעלה
                       </span>
                     </button>
                   ))}
@@ -937,7 +1009,7 @@ export default function AddRequestDialog({ clientId, steps, processPublished, aw
                     <div className="cw-empty">טוען…</div>
                   ) : library.length === 0 ? (
                     <div className="cw-empty">
-                      ספריית המסמכים ריקה. מוסיפים מסמכים במסך המשרד ← «מסמכים ללקוחות».
+                      ספריית המסמכים ריקה. מוסיפים קבצים ב«המשרד» ← «ספריית מסמכים».
                     </div>
                   ) : library.map(d => {
                     const taken = picked.some(p => p.source === 'office' && p.officeId === d.id);
@@ -985,8 +1057,14 @@ export default function AddRequestDialog({ clientId, steps, processPublished, aw
                 </div>
               )}
 
+              {alreadyOpen.length > 0 && (
+                <div role="status" style={{ fontSize: 'var(--fs-12)', color: 'var(--chip-amber-tx)', lineHeight: 1.6 }}>
+                  {alreadyOpen.map(l => `«${l}»`).join(', ')} כבר בדף של {firstName}, בבקשה פתוחה.
+                </div>
+              )}
+
               <label style={lbl}>
-                כמה מילים ללקוח (לא חובה)
+                כמה מילים ללקוח
                 <textarea className="input" rows={3} value={message}
                   onChange={e => setMessage(e.target.value)}
                   placeholder="למשל: מצורף הדוח השנתי לחתימה. נשמח שתעבור עליו." />
@@ -1074,7 +1152,7 @@ export default function AddRequestDialog({ clientId, steps, processPublished, aw
                   <label style={lbl}>
                     כותרת
                     <input className="input" value={clientTitle} onChange={e => setClientTitle(e.target.value)}
-                      placeholder={ask.trim() || 'ריק ⇒ אותו טקסט כמו למעלה'} />
+                      placeholder={ask.trim() || 'ריק — כמו מה שכתבת למעלה'} />
                   </label>
                   <label style={lbl}>
                     משפט הסבר
@@ -1155,16 +1233,23 @@ export default function AddRequestDialog({ clientId, steps, processPublished, aw
               disabled={busy || uploading || (picked.length === 0 && !message.trim()) || missingLabel}
               onClick={() => { void submitSendDocuments(); }}>
               {uploading ? 'שומר בתיק…'
-                : busy ? 'שולח…'
-                : picked.length === 0 ? 'שלח הודעה'
-                : picked.length === 1 ? 'שלח מסמך'
-                : `שלח ${picked.length} מסמכים`}
+                : busy ? 'מוסיף…'
+                : !willShow ? 'שמירה כטיוטה'
+                : thenEmail ? 'הוספה לדף ושליחת מייל…'
+                : `הוספה לדף של ${firstName}`}
             </button>
           )}
         </div>
       </div>
     </div>
   );
+}
+
+/** שם בקשה ברשימת התלות — הכותרת שלה, ובלעדיה שם הסוג. */
+function stepOptionName(s: OnboardingStep): string {
+  const p = (s.payload ?? {}) as { title?: unknown; clientTitle?: unknown };
+  const t = String(p.title ?? p.clientTitle ?? '').trim() || STEP_TYPE_LABELS[s.stepType];
+  return t.length > 60 ? `${t.slice(0, 59)}…` : t;
 }
 
 /** שדות שמשותפים לכל סוגי הבקשות — יעד, תלות, ומתי הלקוח יראה. */
@@ -1183,23 +1268,31 @@ function Shared({
   /** ללקוח יש קליטה (פתוחה או שתיפתח) שאפשר לחסום את סגירתה. */
   requiredApplies: boolean;
 }) {
+  // ‼ רוב הבקשות בלי תאריך ובלי תלות — שני שדות ריקים בכל פתיחה היו רעש.
+  // קישור אחד חושף אותם; כשיש בהם ערך הם גלויים מההתחלה.
+  const [more, setMore] = useState(!!dueDate || !!dependsOn);
   return (
     <>
+      {!more ? (
+        <button type="button" className="ui-linkbtn" style={{ alignSelf: 'flex-start', fontSize: 'var(--fs-13)' }}
+          onClick={() => setMore(true)}>＋ תאריך יעד, או המתנה לבקשה אחרת</button>
+      ) : (
       <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap' }}>
         <label style={{ ...lbl, flex: 1, minWidth: 150 }}>
-          תאריך יעד (לא חובה)
+          תאריך יעד
           <input type="date" className="input" value={dueDate} onChange={e => setDueDate(e.target.value)} />
         </label>
         <label style={{ ...lbl, flex: 1, minWidth: 180 }}>
-          ייפתח רק אחרי (לא חובה)
+          מחכה לבקשה אחרת
           <select className="input" value={dependsOn} onChange={e => setDependsOn(e.target.value)}>
-            <option value="">- בלי תלות -</option>
+            <option value="">לא — נפתחת מיד</option>
             {dependencyOptions.map(s => (
-              <option key={s.id} value={s.id}>{STEP_TYPE_LABELS[s.stepType]}</option>
+              <option key={s.id} value={s.id}>{stepOptionName(s)}</option>
             ))}
           </select>
         </label>
       </div>
+      )}
 
       {/* ‼ בקרה אחת, שורה אחת: האם הבקשה חוסמת סגירת קליטה. אותו סוג בקשה
           יכול להיות חובה במסע אחד ורשות במסע אחר, ולכן זו החלטה לכל בקשה.
@@ -1209,21 +1302,21 @@ function Shared({
       {requiredApplies && (
         <label style={{ display: 'flex', gap: '.4rem', alignItems: 'center', fontSize: 'var(--fs-13)' }}>
           <input type="checkbox" checked={requiredForClose} onChange={e => setRequiredForClose(e.target.checked)} />
-          נדרש לסגירת הקליטה
-          <span style={{ color: 'var(--ink-4)', fontSize: 'var(--fs-12)' }}>
-            (לא מסומן ⇒ רשות - לא יחסום את הסגירה)
-          </span>
+          חייבת להסתיים לפני סגירת הקליטה
         </label>
       )}
 
       {processPublished && !awaitingQuoteApproval && (
         <label style={{ display: 'flex', gap: '.4rem', alignItems: 'center', fontSize: 'var(--fs-13)' }}>
           <input type="checkbox" checked={sendNow} onChange={e => setSendNow(e.target.checked)} />
-          לפתוח מיד ללקוח בדף האישי
-          <span style={{ color: 'var(--ink-4)', fontSize: 'var(--fs-12)' }}>
-            (לא מסומן ⇒ נשמר כטיוטה אצלך)
-          </span>
+          להציג ללקוח בדף שלו כבר עכשיו
         </label>
+      )}
+      {/* ‼ ההסבר מופיע רק כשהוא רלוונטי — כשהבקשה לא תוצג, ולכן נשמרת כטיוטה. */}
+      {processPublished && !awaitingQuoteApproval && !sendNow && (
+        <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)', marginTop: '-.2rem' }}>
+          תישמר כטיוטה אצלך. הלקוח יראה אותה כשתפרסם.
+        </div>
       )}
 
       {/* ‼ לפני אישור ההצעה אין בחירה - השרת מחזיק את הבקשה בכל מקרה

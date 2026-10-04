@@ -1,0 +1,200 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   «ספרייה» (2.10.2026; סבב 3 — 3.10.2026) · בקשות ומסמכים
+   ‼ אותה שפה כמו שאר המשרד: שורות על קו שערה, בלי כרטיסים. צבע רק כשהוא
+   אומר משהו — «בשימוש ב» הוא קישור, «עוד לא באף מסלול» ו«נוסח מוכן» אפורים.
+   ‼ שורה = שתי שורות טקסט (שם; מה הלקוח רואה · מי עושה · בשימוש ב), כדי
+   שספרייה של מאה בקשות לא תהפוך לקיר. אות מעל כל קבוצה מ-12 שורות.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.lb-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin-bottom: 10px; }
+.lb-search { flex: 1 1 160px; max-width: 280px; min-height: 32px; }
+.lb-sub { margin: 0 0 16px; font-size: var(--fs-13); color: var(--ink-3); line-height: 1.6; max-width: 66ch; }
+.lb-sub.is-warn { color: var(--chip-amber-tx); }
+.lb-flash { margin: -6px 0 14px; font-size: var(--fs-13); color: var(--success-text); font-weight: 500; }
+.lb-results { margin: -4px 0 10px; font-size: var(--fs-13); color: var(--ink-3); }
+.lb-results .of-link { font-size: var(--fs-13); }
+
+.lb-group + .lb-group { margin-top: 28px; }
+.lb-group-title { margin: 0 0 6px; font-size: var(--fs-13); font-weight: 600; color: var(--ink-3); }
+.lb-empty { margin: 0; padding: 12px 2px; font-size: var(--fs-13); color: var(--ink-3); border-top: 1px solid var(--hairline-2); border-bottom: 1px solid var(--hairline-2); }
+
+/* ── הרשימה האחת ─────────────────────────────────────────────────────────── */
+.lb-nowrap { white-space: nowrap; }
+/* ‼ אינדקס האותיות צמוד מתחת לכותרת האפליקציה (52px) עד סוף הרשימה (.lb-az) —
+   בספרייה של מאה בקשות, אחרי קפיצה ל«מ» האות הבאה לא במרחק אלפי פיקסלים. */
+.lb-index {
+  position: sticky; top: 52px; z-index: 5; display: flex; flex-wrap: wrap; gap: 4px;
+  margin: 0 0 8px; padding: 6px 0; background: var(--surface-0); border-bottom: 1px solid var(--hairline-2);
+}
+.lb-index-btn {
+  min-width: 30px; min-height: 30px; padding: 0 6px; border: 0; border-radius: 6px;
+  background: var(--surface-2); color: var(--ink-2); font: inherit; font-size: var(--fs-13); font-weight: 500; cursor: pointer;
+}
+.lb-index-btn:hover { background: var(--surface-2-active); color: var(--ink-1); }
+.lb-index-btn:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
+.lb-letter-group + .lb-letter-group { margin-top: 18px; }
+.lb-letter {
+  margin: 0 0 4px; padding-inline-start: 2px; scroll-margin-top: 112px;
+  font-size: var(--fs-13); font-weight: 600; color: var(--ink-3); line-height: 1.4;
+}
+.lb-list { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--hairline-2); }
+/* שם + פעולה בשורה הראשונה; מה הלקוח רואה ומי עושה מתחת. בטלפון השורות
+   שמתחת תופסות את כל הרוחב (הכפתור לא «אוכל» להן טור). */
+.lb-row {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 12px; align-items: start;
+  padding: 9px 2px; border-bottom: 1px solid var(--hairline-2); scroll-margin-top: 90px;
+  transition: background-color 600ms ease;
+}
+.lb-row > .lb-row-title, .lb-row > .lb-row-meta { grid-column: 1; min-width: 0; }
+.lb-row > .lb-edit { grid-column: 2; grid-row: 1 / span 3; align-self: center; }
+.lb-row.is-focus, .lb-auto-list li.is-focus { background: var(--chip-yellow-bg); box-shadow: 0 0 0 4px var(--chip-yellow-bg); border-radius: 4px; }
+.lb-row-title { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 8px; }
+.lb-name { font-size: var(--fs-14); font-weight: 500; color: var(--ink-1); overflow-wrap: anywhere; }
+.lb-preset {
+  font-size: 11.5px; line-height: 1.5; color: var(--ink-4); white-space: nowrap;
+  padding: 0 6px; border: 1px solid var(--hairline-1); border-radius: 999px;
+}
+.lb-row-meta { margin-top: 2px; font-size: var(--fs-12); color: var(--ink-3); line-height: 1.55; overflow-wrap: anywhere; }
+/* ‼ «·» בין קטעים, שלא נשאר בתחילת שורה ולא בסופה: כל קטע נושא את הנקודה שלפניו,
+   והיא יושבת ברווח שבין הקטעים. קטע שפותח שורה — הנקודה שלו מחוץ למיכל ונחתכת
+   (overflow-x: clip; 3px לטבעת המיקוד של קישור בתחילת שורה). */
+.lb-segs {
+  display: flex; flex-wrap: wrap; align-items: baseline;
+  overflow-x: clip; padding-inline-start: 3px; margin-inline-start: -3px;
+}
+.lb-seg { position: relative; min-width: 0; margin-inline-end: 15px; }
+.lb-seg:last-child { margin-inline-end: 0; }
+.lb-seg + .lb-seg::before {
+  content: "·"; position: absolute; inset-inline-start: -15px; width: 15px; text-align: center; color: var(--ink-4);
+}
+.lb-edit { flex-shrink: 0; }
+.lb-sees { color: var(--ink-2); }
+.lb-used-label { color: var(--ink-4); margin-inline-end: 4px; }
+.lb-used .of-link { font-size: var(--fs-12); text-align: start; }
+.lb-unused { color: var(--ink-4); }
+.lb-gap { color: var(--chip-amber-tx); }
+
+/* ── נפתחות אוטומטית בקליטה — מקופל, מידע משני ─────────────────────────── */
+.lb-auto { margin-top: 28px; }
+.lb-auto-sum {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px;
+  min-height: 44px; padding: 10px 2px; cursor: pointer; list-style: none;
+  border-top: 1px solid var(--hairline-1);
+}
+.lb-auto-sum::-webkit-details-marker { display: none; }
+.lb-auto-sum::before { content: "‹"; display: inline-block; color: var(--ink-4); transition: transform 160ms ease; }
+.lb-auto[open] > .lb-auto-sum::before { transform: rotate(-90deg); }
+.lb-auto-sum:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; border-radius: 6px; }
+.lb-auto-title { font-size: var(--fs-14); font-weight: 600; color: var(--ink-1); }
+.lb-auto-count { font-size: var(--fs-12); color: var(--ink-4); }
+.lb-auto-hint { flex-basis: 100%; padding-inline-start: 16px; font-size: var(--fs-12); color: var(--ink-3); line-height: 1.5; }
+.lb-auto-list { list-style: none; margin: 4px 0 0; padding: 0; }
+.lb-auto-list li {
+  display: flex; align-items: baseline; gap: 4px 12px;
+  padding: 8px 2px; border-top: 1px solid var(--hairline-2);
+}
+.lb-auto-list li:last-child { border-bottom: 1px solid var(--hairline-2); }
+.lb-auto-main { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 10px; }
+.lb-auto-name { font-size: var(--fs-13); font-weight: 500; color: var(--ink-1); overflow-wrap: anywhere; }
+.lb-auto-when { font-size: var(--fs-12); color: var(--ink-3); line-height: 1.5; overflow-wrap: anywhere; }
+.lb-auto-link { flex-shrink: 0; font-size: var(--fs-12); white-space: nowrap; }
+/* לא במסלול הקליטה — לא נפתחת: שקט יותר, אבל קריא */
+.lb-auto-list li.is-off .lb-auto-name { color: var(--ink-3); font-weight: 400; }
+.lb-auto-list li.is-off .lb-auto-when { color: var(--ink-4); }
+
+/* מסמכים: איפה כל מסמך בשימוש — רשימה קומפקטית מעל הספרייה */
+.lb-docuses { margin-bottom: 22px; }
+.lb-docuse-list { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--hairline-2); }
+.lb-docuse-list li {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 14px;
+  padding: 8px 2px; border-bottom: 1px solid var(--hairline-2); font-size: var(--fs-13);
+}
+/* ‼ שורה אחת — הפניה לקובץ שמופיע במלואו ברשימה שמתחת, לא כפילות של שמו הארוך */
+.lb-docuse-name {
+  flex: 0 1 auto; min-width: 0; max-width: 100%; color: var(--ink-1); font-weight: 500;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+/* ── עורך בקשה ───────────────────────────────────────────────────────────── */
+.lb-editor { display: flex; flex-direction: column; gap: 16px; }
+.lb-note-line { display: block; margin-top: 4px; }
+.lb-note { margin: 0; padding: 8px 12px; border-radius: var(--r-input); background: var(--surface-1); font-size: var(--fs-13); color: var(--ink-2); line-height: 1.6; }
+.lb-fieldset { border: 0; margin: 0; padding: 0; min-width: 0; display: flex; flex-direction: column; gap: 10px; }
+.lb-legend { padding: 0; margin-bottom: 2px; font-size: var(--fs-14); font-weight: 600; color: var(--ink-1); }
+.lb-fieldset .of-seg { align-self: flex-start; }
+/* «בדף של הלקוח» — מה שהשדות למטה מייצרים, בזמן הקלדה */
+.lb-preview {
+  display: flex; flex-direction: column; gap: 2px; align-self: stretch; max-width: 440px;
+  padding: 10px 14px; border: 1px solid var(--hairline-1); border-radius: 10px; background: var(--surface-0);
+}
+.lb-preview-tag { font-size: 11px; color: var(--ink-4); }
+.lb-preview-title { font-size: var(--fs-14); font-weight: 600; color: var(--ink-1); overflow-wrap: anywhere; }
+.lb-preview-sub { font-size: var(--fs-12); color: var(--ink-3); line-height: 1.5; overflow-wrap: anywhere; }
+.lb-preview-cta {
+  align-self: flex-start; margin-top: 6px; padding: 3px 12px; border-radius: 999px;
+  font-size: var(--fs-12); font-weight: 500; background: var(--accent-fill); color: #fff;
+}
+.lb-items { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; counter-reset: lb-item; }
+.lb-item { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.lb-item::before {
+  counter-increment: lb-item; content: counter(lb-item);
+  width: 18px; flex-shrink: 0; text-align: center; font-size: var(--fs-12); color: var(--ink-4);
+}
+.lb-item-label { flex: 1 1 auto; min-width: 0; }
+.lb-item-kind { flex: 0 0 auto; width: auto; max-width: 9.5em; }
+.lb-item-acts { display: inline-flex; gap: 2px; flex-shrink: 0; }
+.lb-icon {
+  width: 30px; height: 30px; display: inline-grid; place-items: center; border: 0; border-radius: 6px;
+  background: none; color: var(--ink-3); font: inherit; font-size: 15px; cursor: pointer;
+}
+.lb-icon:hover:not(:disabled) { background: var(--surface-2); color: var(--ink-1); }
+.lb-icon:disabled { opacity: .35; cursor: default; }
+.lb-icon:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
+.lb-add-item { align-self: flex-start; font-size: var(--fs-13); }
+.lb-check { border-top: 1px solid var(--hairline-2); }
+.lb-where { display: flex; flex-direction: column; gap: 4px; font-size: var(--fs-12); color: var(--ink-3); line-height: 1.55; }
+.lb-feedback { display: flex; flex-direction: column; gap: 10px; scroll-margin-bottom: 12px; }
+.lb-feedback:empty { display: none; }
+.lb-error { margin: 0; font-size: var(--fs-13); color: var(--danger); }
+.lb-confirm { padding: 10px 12px; border-radius: var(--r-input); background: var(--surface-1); font-size: var(--fs-13); color: var(--ink-1); line-height: 1.6; }
+.lb-confirm p { margin: 0 0 8px; }
+.lb-confirm-acts { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
+
+@media (max-width: 760px) {
+  .lb-search { max-width: none; flex-basis: 100%; order: 3; min-height: 40px; }
+  .lb-toolbar .btn { min-height: 40px; }
+  .lb-new { margin-inline-start: auto; }
+  .lb-row { padding-block: 10px; row-gap: 2px; }
+  .lb-row > .lb-row-meta { grid-column: 1 / -1; }
+  .lb-row > .lb-edit { grid-row: 1; align-self: start; min-height: 32px; padding-block: 0; }
+  .lb-row-title { min-height: 32px; align-items: center; }
+  /* «בשימוש ב» בשורה משלו — לא נשבר באמצע «מה הלקוח רואה» (הנקודה שלפניו נחתכת) */
+  .lb-row-meta > .lb-row-used { flex-basis: 100%; }
+  .lb-used .of-link { min-height: 26px; }
+  /* אינדקס: פס אחד שנגלל לרוחב, לא שלוש שורות של כפתורים שתופסות את המסך */
+  .lb-index { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; overscroll-behavior-x: contain; }
+  .lb-index::-webkit-scrollbar { display: none; }
+  .lb-index-btn { flex: 0 0 auto; min-width: 36px; min-height: 36px; }
+  /* ‼ בלי פס גלילה, אות שנחתכה בקצה («ת» ב-360) נראתה כאילו אינה קיימת. דהייה בקצה
+     אומרת «יש עוד» — רק כשבאמת יש עוד לגלול: היא קשורה לגלילה של הפס עצמו, ונעלמת
+     בסופו. פס שלא נגלל (הכול נכנס) — אין דהייה. בדפדפן בלי scroll-timeline — כמו קודם. */
+  .lb-index { scroll-timeline: --lb-index inline; }
+  .lb-index::after {
+    content: ''; position: sticky; inset-inline-end: 0; flex: 0 0 32px; margin-inline-start: -36px; /* ‏-36 = רוחבו + הרווח (gap) — לא מוסיף רוחב לפס */
+    align-self: stretch; pointer-events: none; opacity: 0;
+    background: linear-gradient(to right, var(--surface-0) 25%, transparent);
+  }
+  @supports (animation-timeline: scroll()) {
+    .lb-index::after { animation: lb-index-more linear both; animation-timeline: --lb-index; }
+  }
+  @keyframes lb-index-more { 0%, 92% { opacity: 1; } 100% { opacity: 0; } }
+  .lb-auto-list li { flex-direction: column; align-items: stretch; gap: 2px; }
+  /* ‼ בעמודה, baseline מיישר את השם לשמאל — flex-start הוא הימין ב-RTL */
+  .lb-auto-main { flex-direction: column; align-items: flex-start; gap: 1px; }
+  .lb-auto-link { align-self: flex-start; min-height: 32px; display: inline-flex; align-items: center; }
+  /* בטלפון: שם הפריט בשורה מלאה, הסוג והפעולות מתחתיו */
+  .lb-item { flex-wrap: wrap; padding-bottom: 6px; border-bottom: 1px solid var(--hairline-2); }
+  .lb-item-label { flex-basis: calc(100% - 24px); min-height: 40px; }
+  .lb-item-kind { margin-inline-start: 24px; min-height: 36px; }
+  .lb-item-acts { margin-inline-start: auto; }
+  .lb-icon { width: 40px; height: 40px; }
+}

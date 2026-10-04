@@ -16,6 +16,7 @@ import type { Client, NiInsuranceBasis, NiOccupation, PersonRole, TaxAuthority }
 import { NI_FACT_KEYS } from '../../types';
 import type { AutomationJob } from '../../types/automation';
 import { SHAAM_SYNC_INCOME_TAX_ACTION_TYPE, BTL_SYNC_FILE_ACTION_TYPE } from '../../types/automation';
+import { FLOW_ACTION_NAMES } from '../flows/types';
 import { SHAAM_READ_134, SHAAM_READ_VAT, BTL_READ_FILE } from '../../hooks/shaamReadiness';
 import { EDIT_FIELD_BY_KEY, editFieldValue } from './editModel';
 import { incomeTaxFileType } from '../../data/incomeTaxFileTypes';
@@ -620,9 +621,10 @@ function interpretBtlFile(
 export const AUTHORITY_AUTOMATION: Partial<Record<TaxAuthority, AuthorityAutomationSpec>> = {
   income_tax: {
     authority: 'income_tax',
-    // ‼ «עדכן נתונים» ולא «בדוק»: זו קריאת נתוני התיק (134), לא בדיקת ייצוג.
+    // ‼ «קריאת תיק» ולא «בדוק»: זו קריאת נתוני התיק (134), לא בדיקת ייצוג.
     // בדיקת קבלת הייצוג היא פעולה אחרת, על כרטיס הייצוג/האדם (NiNextActionButton).
-    actionLabel: 'עדכן נתונים משע״ם',
+    // ‼ אותו שם כמו במסלולים, ברצועה בכרטיס ובעמוד האוטומציות (FLOW_ACTION_NAMES).
+    actionLabel: FLOW_ACTION_NAMES[SHAAM_SYNC_INCOME_TAX_ACTION_TYPE],
     sourceLabel: 'שע״ם',
     available: true,
     actionType: SHAAM_SYNC_INCOME_TAX_ACTION_TYPE,
@@ -653,7 +655,7 @@ export const AUTHORITY_AUTOMATION: Partial<Record<TaxAuthority, AuthorityAutomat
   // supportedFieldKeys, ו-interpret. שום שינוי במסך.
   vat: {
     authority: 'vat',
-    actionLabel: 'עדכן נתונים משע״ם',
+    actionLabel: 'קריאת תיק מע״מ מהשע״ם',
     sourceLabel: 'שע״ם',
     available: false,
     capability: SHAAM_READ_VAT,
@@ -671,7 +673,7 @@ export const AUTHORITY_AUTOMATION: Partial<Record<TaxAuthority, AuthorityAutomat
   // נגזרת ממוכנות שע״ם, ולהפך.
   national_insurance: {
     authority: 'national_insurance',
-    actionLabel: 'עדכן נתונים מביטוח לאומי',
+    actionLabel: FLOW_ACTION_NAMES[BTL_SYNC_FILE_ACTION_TYPE],
     sourceLabel: 'ב״ל',
     available: true,
     actionType: BTL_SYNC_FILE_ACTION_TYPE,

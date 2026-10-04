@@ -17,7 +17,8 @@
 
 import { useRef, useState } from 'react';
 import { supabase } from '../../lib/supabase';
-import { edgeFunctionError } from '../../utils/functionError';
+import { isUnknownSendReply, unknownSendText } from '../../types/emailActivity';
+import { errorTextFromBody, isUnknownEmailFailure } from '../../features/flows/noticeText';
 import { useDocumentStore } from '../../hooks/useDocumentStore';
 import type { QuotationBrand } from './quotationBranding';
 import type { ReleaseDraft, ReleaseMaterial, TransitionOutstandingItem, TransitionOutstandingKind } from '../../utils/releaseLetter';
@@ -89,6 +90,27 @@ function addBusinessDays(from: Date, days: number): string {
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
 
+/** תשובות השרת שאומרות במפורש שהמכתב **לא** יצא. */
+const RELEASE_SEND_ERRORS: Record<string, string> = {
+  unauthorized: 'פג תוקף ההתחברות — התחברו מחדש ושלחו שוב. המכתב לא נשלח.',
+  'not found': 'הלקוח לא נמצא — המכתב לא נשלח.',
+  step_not_found: 'הבקשה של מכתב ההעברה לא נמצאה — רעננו את הדף. המכתב לא נשלח.',
+  'missing clientId/to/subject/html': 'חסרים פרטים למכתב — הוא לא נשלח.',
+  resend_failed: 'ספק הדואר דחה את המייל — המכתב לא נשלח.',
+};
+
+/** גוף התשובה של פונקציית שרת שענתה בשגיאה. null — אין גוף (החיבור נפל, או תשובה שאינה JSON). */
+async function replyBody(error: unknown): Promise<{ error?: string; detail?: { message?: string } } | null> {
+  const ctx = (error as { context?: { clone?: () => Response } } | null)?.context;
+  if (!ctx || typeof ctx.clone !== 'function') return null;
+  try { return await ctx.clone().json(); } catch { return null; }
+}
+
+const replyStatus = (error: unknown): number | null => {
+  const s = (error as { context?: { status?: unknown } } | null)?.context?.status;
+  return typeof s === 'number' ? s : null;
+};
+
 export default function ReleaseLetterDialog({
   clientId, clientName, taxFileNumber, spouse, clientEmail, prevAccountant, brand,
   onSent, onClose, stepId, draft, onSaveDraft, template, mode = 'letter', followUpItems = [],
@@ -130,8 +152,10 @@ export default function ReleaseLetterDialog({
   // ברגע שהרו"ח נגע בנוסח, המערכת מפסיקה לדרוס אותו. יש כפתור לבנות מחדש.
   const [edited, setEdited] = useState(followUp ? true : (draft?.bodyEdited ?? false));
   const [busy, setBusy] = useState(false);
-  const [notice, setNotice] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
+  const [notice, setNotice] = useState<{ kind: 'ok' | 'err' | 'unknown'; text: string } | null>(null);
   const [done, setDone] = useState(false);
+  /** ניסיון קודם שלא ידוע אם יצא — שליחה נוספת רק אחרי אישור (אחרת אולי פעמיים). */
+  const [unknownTried, setUnknownTried] = useState(false);
 
   const fromLabel = `${brand.firmName}${brand.email ? ` <${brand.email}>` : ''}`;
   const locked = busy || done;
@@ -240,6 +264,11 @@ export default function ReleaseLetterDialog({
   const hasBlocking = outstandingItems.some(i => isBlockingOutstanding(i) && i.label.trim());
 
   async function handleSend() {
+    // ‼ הניסיון הקודם אולי כבר הגיע — שליחה נוספת עלולה להגיע פעמיים (אין כאן מפתח
+    // שמונע כפילות). שולחים שוב רק אחרי שהרו"ח אמר את זה במפורש.
+    if (unknownTried && !window.confirm(
+      `לא ידוע אם ${followUp ? 'העדכון הקודם' : 'המכתב הקודם'} יצא. אם הוא כבר הגיע, הרו״ח הקודם יקבל אותו פעמיים.\n\nלשלוח שוב?`,
+    )) return;
     setNotice(null);
     if (!toEmail.trim()) { setNotice({ kind: 'err', text: 'חסר מייל של הרו״ח הקודם.' }); return; }
     if (!followUp && !/^\d{4}-\d{2}$/.test(lastPeriodPrev)) {
@@ -282,10 +311,21 @@ export default function ReleaseLetterDialog({
       if (error || !res?.ok) {
         // ‼ error.message הוא תמיד "non-2xx status code" — משפט שאי אפשר
         // לפעול לפיו. הסיבה האמיתית יושבת בגוף התשובה.
-        const why = error
-          ? await edgeFunctionError(error)
-          : (res?.detail?.message || res?.error || 'שגיאה');
-        setNotice({ kind: 'err', text: `השליחה נכשלה: ${why}` });
+        const b = res ?? await replyBody(error);
+        const what = followUp ? 'העדכון' : 'המכתב';
+        // ‼ לא ידוע אם יצא (unknown_outcome, או אין תשובה / 5xx בלי קוד מוכר) — כתום,
+        // לעולם לא «השליחה נכשלה». הצעד הבטוח: לברר עם הרו״ח הקודם לפני ששולחים שוב.
+        if (isUnknownSendReply(b) || isUnknownEmailFailure(b, replyStatus(error), RELEASE_SEND_ERRORS)) {
+          setUnknownTried(true);
+          setNotice({
+            kind: 'unknown',
+            text: b
+              ? unknownSendText({ what, recipient: 'הרו״ח הקודם' })
+              : `השרת לא החזיר תשובה — לא ידוע אם ${what} יצא. לפני ששולחים שוב — כדאי לברר עם הרו״ח הקודם אם קיבל אותו.`,
+          });
+          return;
+        }
+        setNotice({ kind: 'err', text: errorTextFromBody(b, RELEASE_SEND_ERRORS, `השליחה נכשלה — ${what} לא נשלח.`) });
         return;
       }
 
@@ -569,7 +609,8 @@ export default function ReleaseLetterDialog({
           </label>
 
           {notice && (
-            <div className={`alert ${notice.kind === 'ok' ? 'alert-info' : 'alert-warning'}`}>{notice.text}</div>
+            <div className={`alert ${notice.kind === 'ok' ? 'alert-info' : 'alert-warning'}`}
+              role="status" data-testid="release-notice" data-kind={notice.kind}>{notice.text}</div>
           )}
         </div>
         <div className="modal-footer">
@@ -582,7 +623,7 @@ export default function ReleaseLetterDialog({
                 {followUp ? 'ביטול' : 'שמור טיוטה וסגור'}
               </button>
               <button className="btn btn-primary" onClick={handleSend} disabled={busy}>
-                {busy ? 'שולח…' : followUp ? 'שלח עדכון לרו״ח הקודם' : 'שלח לרו״ח הקודם'}
+                {busy ? 'שולח…' : unknownTried ? 'שלח שוב' : followUp ? 'שלח עדכון לרו״ח הקודם' : 'שלח לרו״ח הקודם'}
               </button>
             </>
           )}

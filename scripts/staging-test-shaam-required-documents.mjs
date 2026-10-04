@@ -9,8 +9,9 @@
  *      באותו מפתח סומן «הושלם» בלי מסמך (נפתח מחדש במקום, לא שכפול).
  *   ③ מסמך של אדם אחד אינו מספק דרישה של אחר.
  *   ④ idOrLicense: רישיון נהיגה של אותו אדם מספק.
- *   ⑤ המשימה שעצרה על מסמך ⇒ documentsGate עמיד; המסמך הנכון מגיע ⇒ **בדיוק**
- *      משימת שידור חדשה אחת; מסמך נוסף אחר כך ⇒ לא שנייה.
+ *   ⑤ המשימה שעצרה על מסמך ⇒ documentsGate עמיד; המסמך הנכון מגיע ⇒ בנייה
+ *      ברקע (211) ועדיין בלי משימה; ה-PDF מוכן בלי אובדן ⇒ **בדיוק** משימת שידור
+ *      חדשה אחת; מסמך נוסף אחר כך ⇒ לא שנייה.
  *   ⑥ משימה שנגעה בשע״ם (externalAttempt) לעולם אינה בסיס להמשך.
  *   ⑦ באג ה-NULL של 191: צילום של אחד לא סוגר את הפריט של השני.
  *   ⑧ צירוף במשרד: לאדם שנבחר; מסמך שרשום לאחד לא יירשם לשני.
@@ -41,6 +42,7 @@ declare
   v_doc_pass   text := v_client || '-d-pass';
   v_job    text;
   v_job2   text;
+  v_build  public.document_pdf_builds;
   r        record;
   j        jsonb;
   cl       jsonb;
@@ -137,6 +139,23 @@ begin
    where id = v_step;
   select identity_docs->'spouse'->0->>'docKind' into v_txt from public.representation_requests where id = v_req;
   if v_txt is distinct from 'driverLicense' then raise exception 'FAIL docKind from category: %', v_txt; end if;
+  -- ‼ 211 (בפרודקשן מ-01.10): לשע״ם עולה רק PDF מוכן. הצילום הגיע ⇒ נפתחת בנייה
+  -- ברקע, וההמשך מחכה לה (_shaam_docs_convertible). עדיין לא משימה, והשער לא זז.
+  select count(*) into v_n from public.automation_jobs
+   where client_id = v_client and action_type = 'shaam.submit_poa' and status = 'queued';
+  if v_n <> 0 then raise exception 'FAIL resumed before the PDF build was ready: %', v_n; end if;
+  select execution #>> '{shaam,person:spouse,documentsGate,state}' into v_txt from public.representation_requests where id = v_req;
+  if v_txt is distinct from 'awaiting_required_documents' then raise exception 'FAIL gate moved before PDF: %', v_txt; end if;
+  select * into v_build from public.document_pdf_builds
+   where client_id = v_client and person = 'spouse' and status <> 'superseded' limit 1;
+  if v_build.id is null or v_build.status not in ('pending', 'needs_worker') or v_build.source_ids <> array[v_doc_lic] then
+    raise exception 'FAIL expected a pending PDF build for the spouse license: %', to_jsonb(v_build); end if;
+  -- הבנייה מסתיימת בלי אובדן ('same') ⇒ זה הרגע שבו ההמשך נפתח.
+  j := public.complete_document_pdf_build(v_build.id, v_build.source_fingerprint, 'server',
+         jsonb_build_object('original', jsonb_build_object(
+           'path', public._pdf_build_paths(v_build.user_id, v_build.client_id, v_build.id, v_build.source_fingerprint) ->> 'original',
+           'bytes', 1000, 'pages', 1, 'lossless', true, 'fileName', 'spouse-license.pdf')));
+  if (j->>'ok')::boolean is not true or j->>'submissionState' is distinct from 'same' then raise exception 'FAIL build completion: %', j; end if;
   select count(*) into v_n from public.automation_jobs
    where client_id = v_client and action_type = 'shaam.submit_poa' and status = 'queued'
      and input->>'resumedFromJobId' = v_job and input->>'submissionKey' = 'person:spouse';

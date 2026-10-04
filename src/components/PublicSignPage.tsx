@@ -12,6 +12,7 @@ import NiApprovalNotice from './ui/NiApprovalNotice';
 import { isValidEmail } from '../utils/email';
 import EmailInput from './ui/EmailInput';
 import InfoLines from './ui/InfoLines';
+import { isUnknownSendReply } from '../types/emailActivity';
 
 interface Session {
   /** ממתין לחותם הזה אישור ייפוי כוח בב"ל — null כשאין, או כשכבר אישר. */
@@ -50,6 +51,8 @@ function SpouseNextStep({ token, spouseName }: { token: string; spouseName: stri
   const [email, setEmail] = useState('');
   const [busy, setBusy] = useState<'handoff' | 'send' | 'link' | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  /** לא ידוע אם המייל יצא — לאיזו כתובת. */
+  const [unknownTo, setUnknownTo] = useState<string | null>(null);
   const [copiedLink, setCopiedLink] = useState('');
   const name = spouseName.trim() || 'בן/בת הזוג';
 
@@ -94,11 +97,23 @@ function SpouseNextStep({ token, spouseName }: { token: string; spouseName: stri
     }
     setBusy('send');
     setErr(null);
+    setUnknownTo(null);
     try {
       const { data, error } = await supabase.functions.invoke('signing-session', {
         body: { action: 'invite_spouse', token, email: email.trim() },
       });
-      if (error || !data?.ok) throw new Error(error?.message || data?.error || 'failed');
+      if (error || !data?.ok) {
+        // ‼ לא ידוע אם המייל יצא (ספק הדואר לא הכריע, או שלא הגיעה תשובה בכלל) —
+        // לא «השליחה נכשלה»: ייתכן שהוא כבר אצל בן/בת הזוג. אומרים מה יודעים ומה עושים.
+        const ctx = (error as { context?: { status?: unknown; clone?: () => Response } } | null)?.context;
+        let body: unknown = data;
+        if (!body && ctx && typeof ctx.clone === 'function') {
+          try { body = await ctx.clone().json(); } catch { body = null; }
+        }
+        const noAnswer = !!error && typeof ctx?.status !== 'number';
+        if (noAnswer || isUnknownSendReply(body)) { setUnknownTo(email.trim()); return; }
+        throw new Error(error?.message || data?.error || 'failed');
+      }
       setMode('sent');
     } catch {
       setErr('שליחת המייל נכשלה. אפשר לנסות שוב - או שהמשרד ישלח את הקישור.');
@@ -189,6 +204,12 @@ function SpouseNextStep({ token, spouseName }: { token: string; spouseName: stri
 
       {err && (
         <div style={{ marginTop: 10, padding: '9px 11px', background: '#FCEBEB', color: '#A32D2D', borderRadius: 9, fontSize: 12.5 }}>{err}</div>
+      )}
+      {unknownTo && (
+        <div role="status" style={{ marginTop: 10, padding: '9px 11px', background: '#FFF4E0', color: '#8A5300', borderRadius: 9, fontSize: 12.5, lineHeight: 1.6 }}>
+          לא ברור אם המייל יצא אל <span dir="ltr">{unknownTo}</span> — ייתכן שהוא כבר בדרך.
+          כדאי לבדוק עם {name} שהגיע לפני ששולחים שוב. אפשר גם לחזור ולהעתיק את הקישור.
+        </div>
       )}
     </div>
   );

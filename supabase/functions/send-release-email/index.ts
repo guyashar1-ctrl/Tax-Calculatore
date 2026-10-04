@@ -8,6 +8,10 @@
 // חוזרת שלחה אותו לרו"ח הקודם פעמיים. stepId הוא אופציונלי (עדכון המשך
 // לרו"ח הקודם נרשם על השלב בלי לסמן אותו כ"נשלח" — markSent=false).
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { resendEmailsUrl, postResend, unknownOutcomeReply } from "../_shared/resendResult.ts";
+
+// ‼ ספק הדואר — Resend בייצור; ב-staging אפשר ספק מדומה שקולט (resendEmailsUrl).
+const RESEND_EMAILS = resendEmailsUrl(Deno.env.get("RESEND_API_URL"), Deno.env.get("SUPABASE_URL") ?? "");
 
 const MAX_SUBJECT_CHARS = 300;
 const MAX_HTML_BYTES = 200 * 1024;
@@ -75,22 +79,29 @@ Deno.serve(async (req: Request) => {
     if (ccAddress) payload.cc = [ccAddress];
     if (replyTo) payload.reply_to = replyTo;
 
-    let r: Response;
-    try {
-      r = await fetch("https://api.resend.com/emails", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-    } catch (e) {
-      return json({ error: "resend_unreachable", detail: { message: String(e).slice(0, 300) } }, 502);
-    }
-    const body = await r.json().catch(() => ({}));
+    const call = await postResend(() => fetch(RESEND_EMAILS, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }));
+    const body = call.body;
 
     // עותק הגוף נשמר יחד עם הרשומה, כמו בשאר המיילים. מכתב שחרור הוא המסמך
     // שמעביר את התיק — בלי עותק אין דרך להוכיח בדיעבד מה בדיוק נשלח.
     const meta = { from: `${firmName} <${fromAddress}>`, cc: ccAddress };
-    if (!r.ok) {
+    if (call.result.outcome === "unknown") {
+      // ‼ לא ידוע אם המכתב יצא — לא «נכשל». השלב לא מסומן «נשלח» (אין ראיה), והשורה
+      // ביומן — על השלב, כדי שתופיע ליד המכתב — אומרת לברר לפני שליחה חוזרת.
+      const reason = call.result.reason;
+      const { error: logErr } = await admin.from("email_messages").insert({
+        user_id: user.id, client_id: clientId, to_email: to, subject, kind: "release", html, meta,
+        ...(releaseStepId ? { step_id: releaseStepId } : {}),
+        status: "unknown", error: reason.slice(0, 500),
+      });
+      if (logErr) console.error("[send-release-email] unknown journal insert failed", logErr.code, logErr.message);
+      return json(unknownOutcomeReply(reason), 502);
+    }
+    if (call.result.outcome === "failed") {
       await admin.from("email_messages").insert({
         user_id: user.id, client_id: clientId, to_email: to, subject, kind: "release", html, meta,
         status: "failed", error: JSON.stringify(body).slice(0, 500),

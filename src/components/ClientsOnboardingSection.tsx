@@ -17,8 +17,9 @@ import {
   STEP_TYPE_LABELS, STEP_BALL_LABELS, isStepOpen, stepStatusLabel, compareStepsForOffice,
 } from '../types/onboarding';
 import {
-  NEXT_ACTION, isStuckStep, summarizeClientOnboarding,
+  isStuckStep, nextActionText, summarizeClientOnboarding,
 } from '../utils/onboardingNext';
+import { isCreationProblem } from '../utils/requestAttention';
 
 interface Props {
   clients: Client[];
@@ -140,8 +141,9 @@ export default function ClientsOnboardingSection({ clients, steps, engagements, 
           // ‼ הפעולה נוסחת עשייה כשהיא אצלי, ונוסחת המתנה כשהיא אצל מישהו אחר.
           const action = !r.step
             ? 'הכול ממתין למשהו אחר'
-            : r.priority === 1
-              ? NEXT_ACTION[r.step.stepType]
+            // ‼ «לא נוצרה» (217) היא בקשה מסוג «בקשה מהמשרד» אבל המשמעות הפוכה — nextActionText.
+            : r.priority === 1 || isCreationProblem(r.step)
+              ? nextActionText(r.step)
               : STEP_TYPE_LABELS[r.step.stepType];
 
           const ball = r.priority === 1

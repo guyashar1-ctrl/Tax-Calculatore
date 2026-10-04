@@ -5,7 +5,7 @@
 
 import type { OnboardingStep, OnboardingStepType } from '../types/onboarding';
 import { isStepOpen } from '../types/onboarding';
-import { countRequestsNeedingMe, isOnRequestsSurface, isManualInternal, stepNeedsMe } from './requestAttention';
+import { countRequestsNeedingMe, isCreationProblem, isRequestRowStep, stepNeedsMe } from './requestAttention';
 
 /** מה הפעולה הבאה כשהכדור אצלי — ניסוח של עשייה, לא של סטטוס. */
 export const NEXT_ACTION: Record<OnboardingStepType, string> = {
@@ -37,6 +37,16 @@ export const NEXT_ACTION: Record<OnboardingStepType, string> = {
   authority_representation: 'להמשיך את הייצוג ברשות',
 };
 
+/**
+ * הפעולה הבאה של שלב — NEXT_ACTION לפי הסוג, חוץ מ«לא נוצרה» (217), שהיא בקשה
+ * מסוג «בקשה מהמשרד» אבל המשמעות שלה הפוכה: הבקשה **לא** קיימת.
+ * ‼ מסכים שמציגים «עכשיו: …» קוראים מכאן, לא מ-NEXT_ACTION ישירות.
+ */
+export function nextActionText(step: Pick<OnboardingStep, 'stepType' | 'ball' | 'payload'>): string {
+  if (isCreationProblem(step)) return 'לטפל בבקשה שלא נוצרה';
+  return NEXT_ACTION[step.stepType];
+}
+
 /** תאריך יעד רק אם הוא בטווח שבועיים — אחרת הוא אינו שיקול דחיפות. */
 const SOON_DAYS = 14;
 
@@ -48,7 +58,7 @@ export function soonDue(due?: string | null): string | null {
 
 /** דירוג דחיפות. נמוך = דחוף יותר. */
 export function urgency(step: OnboardingStep): number {
-  if (step.status === 'blocked' || step.status === 'failed') return 0;
+  if (step.status === 'blocked' || step.status === 'failed' || isCreationProblem(step)) return 0;
   if (step.needsAttention) return 1;
   if (step.status === 'locked') return 5;
   if (step.ball === 'me') return 2;
@@ -68,7 +78,7 @@ export function nextStepForClient(steps: OnboardingStep[]): OnboardingStep | nul
   const actionable = open.filter(s => s.status !== 'locked');
   /* ‼ v3: מה שמוצג במסך הבקשות ודורש לחיצה קודם לכל שלב מוסתר — אחרת "עכשיו:
      לבצע את ביקורת החודש הראשון" הצביע על שלב שהמסך בכוונה לא מראה. */
-  const rank = (s: OnboardingStep) => (isOnRequestsSurface(s) && !isManualInternal(s) && stepNeedsMe(s) ? 0 : 1);
+  const rank = (s: OnboardingStep) => (isRequestRowStep(s) && stepNeedsMe(s) ? 0 : 1);
   return (actionable.length > 0 ? actionable : open).slice().sort((a, b) => {
     const r = rank(a) - rank(b);
     if (r !== 0) return r;
@@ -83,11 +93,11 @@ export function nextStepForClient(steps: OnboardingStep[]): OnboardingStep | nul
   })[0];
 }
 
-/** שלב תקוע = בעיה אמיתית: חסום או נכשל. ‼ v3: needs_attention לבדו אינו
- *  "תקוע" — השרת מרים אותו גם כש"הלקוח סיים, לבדיקה", וזו פעולה (כחול),
- *  לא תקלה (אדום). */
+/** שלב תקוע = בעיה אמיתית: חסום, נכשל, או בקשה שלא נוצרה (217). ‼ v3:
+ *  needs_attention לבדו אינו "תקוע" — השרת מרים אותו גם כש"הלקוח סיים, לבדיקה",
+ *  וזו פעולה (כחול), לא תקלה (אדום). */
 export function isStuckStep(s: OnboardingStep): boolean {
-  return isStepOpen(s.status) && (s.status === 'blocked' || s.status === 'failed');
+  return isStepOpen(s.status) && (s.status === 'blocked' || s.status === 'failed' || isCreationProblem(s));
 }
 
 /** לאיזה מקטע בשולחן שייך הלקוח. תקוע גובר על הכול. */

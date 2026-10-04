@@ -11,7 +11,7 @@ import {
   FAMILY_STATUS_YEAR_LABELS,
   ONBOARDING_SECONDARY_LABELS,
 } from '../types';
-import { requestScope, shaamSubmissions, type ScopePeople } from '../utils/repScope';
+import { requestScope, shaamSubmissions, targetsOf, type ScopePeople } from '../utils/repScope';
 import { registeredOwnerOf } from '../features/annualReport/profile';
 
 interface Row {
@@ -127,6 +127,9 @@ export default function RepresentationAuthorityData({ request, niCoversSpouse, l
 }) {
   const id = request.identification;
   if (!id) return null;
+  const niTargets = linkedClient ? targetsOf(linkedClient.authorityRepresentations, 'nationalInsurance') : null;
+  const niForClient = niTargets ? niTargets.includes('client') : true;
+  const niForSpouse = niTargets ? !!niCoversSpouse && niTargets.includes('spouse') : !!niCoversSpouse;
 
   // מה שהרו"ח מילא בהפקת הקישור משלים את מה שהלקוח לא מילא — אחרת ת.ז. של
   // בן/בת זוג שהוזנה מראש לא הייתה מגיעה לכאן בכלל.
@@ -271,12 +274,16 @@ export default function RepresentationAuthorityData({ request, niCoversSpouse, l
             </>
           );
         })()}
-        <Block
-          title={niCoversSpouse ? `ביטוח לאומי - ${firstName || 'הנישום'}` : 'ביטוח לאומי'}
-          subtitle="בדיוק ארבעת השדות של ״הוספת ייפוי כח מבוטח״, לפי הסדר"
-          rows={niRows}
-        />
-        {niCoversSpouse && (
+        {/* ‼ 212: מי שבקשת הב"ל שלו בוטלה — אין לו מה להזין. בלי כרטיס מקושר
+            (בדיקות) נשארים עם ההתנהגות הקודמת: הנישום תמיד. */}
+        {niForClient && (
+          <Block
+            title={niForSpouse ? `ביטוח לאומי - ${firstName || 'הנישום'}` : 'ביטוח לאומי'}
+            subtitle="בדיוק ארבעת השדות של ״הוספת ייפוי כח מבוטח״, לפי הסדר"
+            rows={niRows}
+          />
+        )}
+        {niForSpouse && (
           <Block
             title={`ביטוח לאומי - ${spouseFirst || 'בן/בת הזוג'}`}
             subtitle="ייפוי כוח שני, נפרד - בב״ל לכל מבוטח תיק משלו"

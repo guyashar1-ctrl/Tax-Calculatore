@@ -9,8 +9,9 @@
 // הושמט במכוון: חישוב אמין דורש הוצאות/פחת/מדרגת מס שוליים שאינם עובדות
 // מקובלות על הלקוח — המלצה מחושבת מתוך ברירות מחדל הייתה מטעה.
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import SmartFilingsNote from '../../features/smartForms/SmartFilingsNote';
+import { supabase } from '../../lib/supabase';
 import type { Client, RentalTaxTrack, TaxAuthority, NiTracking } from '../../types';
 import { FAMILY_STATUS_LABELS } from '../../types';
 import type { TaxFactChange } from '../../types/taxFacts';
@@ -22,8 +23,11 @@ import { getTaxYearData } from '../../data/taxData';
 import { calcCreditPoints } from '../../utils/taxCalculations';
 import {
   EDIT_FIELD_BY_KEY, EDIT_SECTIONS, editFieldValue, coerceEditField, editFieldDisplay,
+  DEALER_KIND_LABELS, cardDealerKind, dealerTypeDisplay, currentKindHold, kindHoldPending,
+  kindHoldRowException, kindHoldFieldHint, kindHoldOutcome, retryKindHoldErrorText,
+  identityFieldError, withSpouseFullName,
 } from '../../features/taxFile/editModel';
-import type { EditField, FamilyKey } from '../../features/taxFile/editModel';
+import type { EditField, FamilyKey, KindHold, KindHoldNotice } from '../../features/taxFile/editModel';
 import { LIST_SPECS, cleanList } from '../../features/taxFile/listModel';
 import type { ListKey, ListItem } from '../../features/taxFile/listModel';
 import ListEditor from '../../features/taxFile/ListEditor';
@@ -39,9 +43,6 @@ import { findUnsyncedSession, syncIntakeSession } from '../../lib/intakeSync';
 import type { IntakeSyncResult } from '../../lib/intakeSync';
 import NiInstructionsDialog from '../NiInstructionsDialog';
 import SpouseRelationshipCard from './SpouseRelationshipCard';
-import { isValidIsraeliId } from '../../utils/israeliId';
-import { isValidEmail } from '../../utils/email';
-import { hasNonHebrewLetters, HEBREW_ONLY_HINT } from '../../utils/hebrewText';
 
 interface Props {
   client: Client;
@@ -103,6 +104,15 @@ interface Props {
   onNiInstructionsSent?: () => Promise<void>;
   /** מסלולי הביצוע של ב"ל בבקשת הייצוג המקושרת — לצורך שורת "ייצוג" פר-אדם. */
   niExecution?: { client?: NiTracking; spouse?: NiTracking };
+  /**
+   * נחיתה על שדה מסוים: «פרטי הנישום» נפתחת בעריכה והפוקוס על השדה. מגיע
+   * מ«לקביעת סוג העוסק» ב«בקשות» — אותו שדה, לא מסך שני.
+   */
+  focusField?: 'dealerType';
+  /** נקרא אחרי שהנחיתה בוצעה — כדי שמעבר רגיל לתיק המס לא ייפתח שוב בעריכה. */
+  onFocusConsumed?: () => void;
+  /** השרת פתח בקשות (שחרור הבקשות שחיכו לסוג העוסק) — לרענן את «בקשות». */
+  onRequestsChanged?: () => void;
 }
 
 const RENTAL_TRACK_LABELS: Record<RentalTaxTrack, string> = {
@@ -125,8 +135,10 @@ function monthYear(iso?: string): string {
 
 /** משפט פתיחה אחד — רק מתוך עובדות אמיתיות; סעיף חסר פשוט לא נכנס למשפט. */
 function buildSentence(client: Client): string {
-  const vatPart = client.vatStatus === 'authorizedDealer' ? 'עוסק מורשה'
-    : client.vatStatus === 'exemptDealer' ? 'עוסק פטור' : null;
+  // ‼ אותו סדר שהשרת קורא (resolve_client_kind) — כדי שהמשפט ושדה «סוג העוסק»
+  // לא יגידו שני דברים שונים. קודם נקרא כאן רק סיווג המע״מ, ו«חברה» לא הופיעה.
+  const kind = cardDealerKind(client);
+  const vatPart = kind ? DEALER_KIND_LABELS[kind] : null;
   const lead = vatPart
     ? `${vatPart}${client.businessDescription ? ` (${client.businessDescription})` : ''}`
     : client.incomeTaxType === 'employee' ? 'שכיר'
@@ -174,23 +186,26 @@ function SectHead({ family, title, why, children }: {
   );
 }
 
-function KV({ k, v }: { k: string; v: React.ReactNode }) {
-  return <div><div className="k">{k}</div><div className="v">{v}</div></div>;
+function KV({ k, v, field }: { k: string; v: React.ReactNode; field?: string }) {
+  return <div data-field={field}><div className="k">{k}</div><div className="v">{v}</div></div>;
 }
 
 
 
 
 /** תא שדה-ערך שלם — תווית + פקד + הערה. אותה צורה בכל שורת עריכה. */
-function EditableKV({ def, value, onChange }: {
+function EditableKV({ def, value, onChange, hint }: {
   def: EditField; value: string; onChange: (v: string) => void;
+  /** הסבר שתלוי במצב (למשל בקשות שמחכות לשדה) — מתחת להערה הקבועה. */
+  hint?: string | null;
 }) {
   return (
-    <div>
+    <div data-field={def.key}>
       <div className="k">{def.label}</div>
       <div className="v txf-inline-edit">
         <EditControl def={def} value={value} onChange={onChange} />
         {def.note && <div className="txf-note">{def.note}</div>}
+        {hint && <div className="txf-note" style={{ color: 'var(--warn)' }}>{hint}</div>}
       </div>
     </div>
   );
@@ -216,27 +231,26 @@ function identityFields(): EditField[] {
   return EDIT_SECTIONS.find(s => s.id === 'identity')?.fields ?? [];
 }
 
+const SPOUSE_NAME_KEYS = new Set(['spouseFirstName', 'spouseLastName']);
+
 /**
- * בדיקת ערך לפני שמירה של פרט נישום. ‼ ת.ז. שגויה כאן אינה טעות הקלדה
- * מקומית: היא נוסעת לייפוי הכוח ולבקשות הייצוג, והרשות דוחה אותה שם.
- * שדה שרוקן במכוון עובר — «טרם ביררנו» הוא מצב לגיטימי.
+ * «משפחה ובן/בת זוג» — העובדות המנוהלות, ועוד שם פרטי ושם משפחה של בן/בת הזוג (במסלול
+ * הרגיל; «שם בן/בת הזוג» נכתב כשרשור שלהם — withSpouseFullName). ‼ לבן/בת זוג עם כרטיס
+ * משלו — השם נערך בכרטיס שלו/ה, לא כאן.
  */
-function identityFieldError(def: EditField, raw: string): string | null {
-  const v = raw.trim();
-  if (!v) return null;
-  if (def.key === 'idNumber' && !isValidIsraeliId(v)) return 'מספר תעודת הזהות אינו תקין';
-  if (def.key === 'email' && !isValidEmail(v)) return 'כתובת המייל אינה תקינה';
-  if (def.key === 'zipCode' && !/^d{5}(d{2})?$/.test(v.replace(/s/g, ''))) return 'מיקוד: 7 ספרות';
-  if (def.key === 'landlinePhone' && !/^0d{8,9}$/.test(v.replace(/D/g, ''))) return 'מספר טלפון קווי לא תקין';
-  if (def.hebrew && hasNonHebrewLetters(v)) return HEBREW_ONLY_HINT;
-  return null;
+function familyFields(client: Client): EditField[] {
+  const spouseNames = client.spouseClientId ? []
+    : (EDIT_SECTIONS.find(s => s.id === 'famStatus')?.fields ?? []).filter(f => SPOUSE_NAME_KEYS.has(f.key));
+  return [...fieldsOf('famStatus'), ...spouseNames];
 }
+
 
 export default function TaxFileTab({
   client, spouseClient, onCreateSpouseClient, onOpenSpouseClient,
   onClientPersisted, onSendQuestionnaire, onOpenDetails,
   onRunAlignment, alignBusy, onOpenDetailedAlignment, alignedAt, steps, onCreateTask, onCreateRequest, creatingRequestKey,
   onOpenRepresentation, onAddNiTarget, onOpenRequestStep, onUpdateClientFields, onNiInstructionsSent, niExecution,
+  focusField, onFocusConsumed, onRequestsChanged,
 }: Props) {
   const { pending, refresh, acceptFact, rejectFact, recordManualEdit } = useTaxFacts(client.id || undefined);
   const [openRows, setOpenRows] = useState<Set<string>>(new Set());
@@ -299,12 +313,105 @@ export default function TaxFileTab({
   const [sectionListKeys, setSectionListKeys] = useState<ListKey[]>([]);
   const [sectionListDrafts, setSectionListDrafts] = useState<Record<string, ListItem[]>>({});
 
+  // ─── סוג העוסק והבקשות שמחכות לו (217) ─────────────────────────────────────
+  // ‼ ההתקשרות הנוכחית נקראת כאן ישירות, ולא מהעותק שבזיכרון: השחרור קורה
+  // בשרת באותה שמירה, ורק קריאה מחדש אומרת מה הוא רשם בפועל
+  // (stale-client-after-server-write). undefined = טרם נקרא או שהקריאה
+  // נכשלה; null = אין התקשרות נוכחית או שאין עליה החזקה.
+  const [kindHold, setKindHold] = useState<KindHold | null | undefined>(undefined);
+  const [kindNotice, setKindNotice] = useState<KindHoldNotice | null>(null);
+  const [kindRetryBusy, setKindRetryBusy] = useState(false);
+  const [kindRetryError, setKindRetryError] = useState<string | null>(null);
+  const cardKindKnown = cardDealerKind(client) !== null;
+
+  const readKindHold = useCallback(async (): Promise<KindHold | null | undefined> => {
+    if (!client.id) return null;
+    try {
+      // ‼ select('*') ולא רשימת עמודות: בסביבה בלי 217 העמודה פשוט חסרה —
+      // אין מה להציג, ולא שגיאת רשת בכל פתיחה של תיק מס.
+      const { data, error } = await supabase.from('engagements').select('*').eq('client_id', client.id);
+      if (error) return undefined;
+      return currentKindHold((data ?? []) as Record<string, unknown>[], client.id);
+    } catch {
+      return undefined;
+    }
+  }, [client.id]);
+
+  useEffect(() => {
+    let alive = true;
+    setKindNotice(null);
+    setKindRetryError(null);
+    void readKindHold().then(h => { if (alive) setKindHold(h); });
+    return () => { alive = false; };
+  }, [readKindHold]);
+
+  /**
+   * «לפתוח את הבקשות שחיכו» — retry_kind_hold, ואז קריאה מחדש של ההתקשרות.
+   * ‼ ההודעה נגזרת ממה שנרשם אחרי הקריאה, לא מתשובת הפונקציה: תשובה שאבדה
+   * בדרך לא תהפוך ל«נכשל», והצלחה לא תיטען בלי שורות שנוצרו.
+   */
+  async function retryKindHold() {
+    if (kindRetryBusy || !client.id) return;
+    const before = kindHold;
+    setKindRetryBusy(true);
+    setKindRetryError(null);
+    try {
+      let failure: string | null = null;
+      try {
+        const { data, error } = await supabase.rpc('retry_kind_hold', { p_client_id: client.id });
+        const res = (data ?? {}) as { ok?: boolean; error?: string };
+        if (error || !res.ok) failure = retryKindHoldErrorText(error ? null : res.error);
+      } catch {
+        failure = retryKindHoldErrorText(null);
+      }
+      const after = await readKindHold();
+      if (after !== undefined) setKindHold(after);
+      const notice = kindHoldOutcome(before, after, 'retry');
+      setKindNotice(notice);
+      setKindRetryError(notice?.retryLabel ? failure : null);
+      if (after?.resolvedAt && after.created.length > 0) onRequestsChanged?.();
+    } finally {
+      setKindRetryBusy(false);
+    }
+  }
+
+  // ─── נחיתה על שדה (focusField) ─────────────────────────────────────────────
+  // ‼ הפוקוס עובר רק אחרי שהשורה נפתחה והשדה צויר — ולכן שני שלבים: קודם
+  // פותחים ומתחילים עריכה, ואחר כך (ברינדור שבו השדה כבר קיים) ממקדים.
+  const rootRef = useRef<HTMLDivElement>(null);
+  const [focusPending, setFocusPending] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (focusField !== 'dealerType') return;
+    setOpenRows(s => (s.has('identity') ? s : new Set(s).add('identity')));
+    if (onUpdateClientFields && editingSection !== 'identity') startSectionEdit('identity', identityFields());
+    setFocusPending(focusField);
+    onFocusConsumed?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusField, client.id]);
+
+  useEffect(() => {
+    if (!focusPending) return;
+    const box = rootRef.current?.querySelector<HTMLElement>(`[data-field="${focusPending}"]`);
+    if (!box) return;
+    box.scrollIntoView({ block: 'center' });
+    box.querySelector<HTMLElement>('select, input')?.focus({ preventScroll: true });
+    setFocusPending(null);
+  }, [focusPending, editingSection, openRows]);
+
   // ‼ עובדות הרשויות (מספרי תיקים, עיסוקים בב"ל) נערכות ב-AuthoritiesPanel —
   // כאן נשאר המנגנון לשאר תמונת המס בלבד.
   function startSectionEdit(
     id: string, fields: EditField[],
     opts?: { lists?: ListKey[] },
   ) {
+    if (id === 'identity') {
+      // ‼ ההסבר מתחת ל«סוג העוסק» חייב לשקף את המצב עכשיו, לא את מה שנקרא
+      // כשהלשונית נפתחה — בינתיים לשונית אחרת יכלה כבר לקבוע את הסוג.
+      setKindNotice(null);
+      setKindRetryError(null);
+      void readKindHold().then(h => { if (h !== undefined) setKindHold(h); });
+    }
     const drafts: Record<string, string> = {};
     for (const f of fields) drafts[f.key] = editFieldValue(client, f);
     setSectionDrafts(drafts);
@@ -339,7 +446,7 @@ export default function TaxFileTab({
     // ‼ שדות שאינם עובדות מנוהלות (פרטי הנישום) נשמרים במסלול הרגיל ובבת
     // אחת: מסלול העובדות דוחה אותם — הם אינם ב-allowlist של השרת — ואין להם
     // פרובננס לשמור. הבדיקה היא על ההגדרה ולא על שם השדה.
-    const plain: Partial<Client> = {};
+    let plain: Partial<Client> = {};
     for (const [key, raw] of Object.entries(sectionDrafts)) {
       const def = EDIT_FIELD_BY_KEY[key];
       if (!def || def.governed) continue;
@@ -352,11 +459,22 @@ export default function TaxFileTab({
       }
       (plain as Record<string, unknown>)[def.key] = coerceEditField(def, raw);
     }
+    // שם בן/בת הזוג: שני השדות, ו«שם בן/בת הזוג» כשרשור שלהם — שלא ייפרדו (110).
+    plain = withSpouseFullName(plain, sectionDrafts);
     if (Object.keys(plain).length > 0) {
       if (!onUpdateClientFields) {
         setSectionError('השמירה אינה זמינה במסך הזה');
         setSectionSaving(false);
         return;
+      }
+      // ‼ «סוג העוסק» השתנה ⇒ הטריגר בשרת עשוי לפתוח את הבקשות שחיכו לו,
+      // באותה שמירה. קוראים את ההתקשרות לפני ואחרי, ומדווחים רק מה שנרשם.
+      const nextDealer = (plain as Record<string, unknown>).dealerType;
+      const dealerChanged = 'dealerType' in plain;
+      let holdBefore: KindHold | null | undefined = kindHold;
+      if (dealerChanged && nextDealer) {
+        const fresh = await readKindHold();
+        if (fresh !== undefined) holdBefore = fresh;
       }
       try {
         await onUpdateClientFields(plain);
@@ -367,6 +485,16 @@ export default function TaxFileTab({
         setSectionError(e instanceof Error ? e.message : 'השמירה נכשלה');
         setSectionSaving(false);
         return;
+      }
+      if (dealerChanged) {
+        const after = await readKindHold();
+        if (after !== undefined) setKindHold(after);
+        const notice = nextDealer
+          ? kindHoldOutcome(holdBefore, after, 'save', String(nextDealer))
+          : null;
+        setKindNotice(notice);
+        setKindRetryError(null);
+        if (after?.resolvedAt && after.created.length > 0) onRequestsChanged?.();
       }
     }
 
@@ -773,7 +901,7 @@ export default function TaxFileTab({
 
   return (
     <>
-    <div className="txf-root">
+    <div className="txf-root" ref={rootRef}>
       <div className="txf-head">
         <div>
           <h2>תיק מס</h2>
@@ -969,16 +1097,28 @@ export default function TaxFileTab({
           summary={[
             client.idNumber ? `ת.ז. ${client.idNumber}` : 'אין ת.ז.',
             client.phone, client.city,
+            !dealerTypeDisplay(client).unknown && dealerTypeDisplay(client).text,
           ].filter(Boolean).join(' · ')}
+          exception={kindHoldPending(kindHold) && kindHold.held.length > 0
+            ? { text: kindHoldRowException(kindHold, cardKindKnown) ?? '', tone: 'warn' }
+            : null}
           open={openRows.has('identity')} onToggle={toggleRow}
         >
           <div className="txf-kv">
             {editingSection === 'identity'
               ? identityFields().map(f => (
                   <EditableKV key={f.key} def={f} value={sectionDrafts[f.key] ?? ''}
-                    onChange={v => setSectionDrafts(d => ({ ...d, [f.key]: v }))} />
+                    onChange={v => setSectionDrafts(d => ({ ...d, [f.key]: v }))}
+                    hint={f.key === 'dealerType' && !cardKindKnown ? kindHoldFieldHint(kindHold) : null} />
                 ))
               : identityFields().map(f => {
+                  if (f.key === 'dealerType') {
+                    const d = dealerTypeDisplay(client);
+                    return (
+                      <KV key={f.key} k={f.label} field={f.key}
+                        v={d.unknown ? <span style={{ color: 'var(--ink-4)' }}>{d.text}</span> : d.text} />
+                    );
+                  }
                   const v = editFieldValue(client, f);
                   return (
                     <KV key={f.key} k={f.label}
@@ -990,6 +1130,32 @@ export default function TaxFileTab({
                   );
                 })}
           </div>
+          {/* ‼ מה שהשרת רשם אחרי קביעת סוג העוסק — או, כשהבקשות עדיין מחכות
+              אף שבכרטיס כבר יש סוג, הדרך לפתוח אותן שוב. בלי ראיה אין «נפתחו». */}
+          {(() => {
+            if (editingSection === 'identity') return null;
+            const notice = kindNotice
+              ?? (cardKindKnown && kindHoldPending(kindHold) && kindHold.held.length > 0
+                ? kindHoldOutcome(kindHold, kindHold, 'retry')
+                : null);
+            if (!notice) return null;
+            const ok = notice.tone === 'ok';
+            return (
+              <div className="txf-note" role="status" style={{
+                color: ok ? 'var(--ok)' : 'var(--warn)', background: ok ? 'var(--ok-bg)' : 'var(--warn-bg)',
+                display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8,
+              }}>
+                <span>{notice.text}</span>
+                {notice.retryLabel && (
+                  <button type="button" className="ui-btn ui-btn-sm" disabled={kindRetryBusy}
+                    onClick={() => { void retryKindHold(); }}>
+                    {kindRetryBusy ? 'פותח…' : notice.retryLabel}
+                  </button>
+                )}
+                {kindRetryError && <span className="txf-editor-err" style={{ marginInlineStart: 0 }}>{kindRetryError}</span>}
+              </div>
+            );
+          })()}
           {editingSection !== 'identity' && client.mailingAddress && (
             <div className="txf-kv">
               <KV k="מען למכתבים" v={[
@@ -1247,12 +1413,15 @@ export default function TaxFileTab({
           >
             <div className="txf-kv">
               {editingSection === 'family'
-                ? fieldsOf('famStatus').map(f => (
-                    <EditableKV key={f.key} def={f} value={sectionDrafts[f.key] ?? ''}
-                      onChange={v => setSectionDrafts(d => ({ ...d, [f.key]: v }))} />
-                  ))
+                ? familyFields(client)
+                    // שם בן/בת הזוג — רק כשבעריכה מסומן «נשוי/אה».
+                    .filter(f => !SPOUSE_NAME_KEYS.has(f.key) || (sectionDrafts.familyStatus ?? client.familyStatus) === 'married')
+                    .map(f => (
+                      <EditableKV key={f.key} def={f} value={sectionDrafts[f.key] ?? ''}
+                        onChange={v => setSectionDrafts(d => ({ ...d, [f.key]: v }))} />
+                    ))
                 : <KV k="מצב משפחתי" v={FAMILY_STATUS_LABELS[client.familyStatus]} />}
-              {married && <KV k="בן/בת הזוג" v={spouseName} />}
+              {married && (editingSection !== 'family' || !!client.spouseClientId) && <KV k="בן/בת הזוג" v={spouseName} />}
               {/* ‼ תיק מס הכנסה אחד לזוג (150) — לא "שדה על הכרטיס הזה" אלא
                   קריאה דרך household, כדי שהוא יופיע זהה משני הכרטיסים. */}
               {married && household.represented && (() => {
@@ -1290,7 +1459,7 @@ export default function TaxFileTab({
             {editingSection === 'family' && <EditActions />}
             <SrcLine label="מקור: כרטיס הלקוח"
               onEdit={editingSection === 'family' ? undefined
-                : () => startSectionEdit('family', fieldsOf('famStatus'), { lists: ['children'] })} />
+                : () => startSectionEdit('family', familyFields(client), { lists: ['children'] })} />
           </TRow>
         )}
 

@@ -11,6 +11,7 @@
 //                          הזוג — רק ברגע הזה המייל נאסף — ונשלח קישור אישי.
 // אבטחה: verify_jwt=false בשער; הזיהוי הוא הטוקן האקראי (32 hex) עצמו, כמו onboarding.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { isUnknownOutcome, unknownOutcomeReply } from "../_shared/resendResult.ts";
 
 Deno.serve(async (req: Request) => {
   const cors: Record<string, string> = {
@@ -117,7 +118,16 @@ Deno.serve(async (req: Request) => {
       //   בן/בת הזוג מקבל/ת את האסמכתא שלו/ה ולא של הנישום.
       const niKey = me.role === "spouse" ? "nationalInsuranceSpouse" : "nationalInsurance";
       const niRow = (reqRow.execution || {})[niKey] || {};
-      const ni = niRow.referenceNumber && !niRow.confirmedAt
+      // ‼ 212: אדם שבקשת הב"ל שלו בוטלה לא מקבל במסך הסיום אסמכתא «לאשר».
+      let niCancelled = false;
+      if (reqRow.linked_client_id) {
+        const { data: niCli } = await admin.from("clients").select("authority_representations")
+          .eq("id", reqRow.linked_client_id).maybeSingle();
+        const niRec = niCli?.authority_representations?.nationalInsurance;
+        const niRole = me.role === "spouse" ? "spouse" : "client";
+        niCancelled = !!niRec?.cancelled?.[niRole] && !(Array.isArray(niRec?.targets) && niRec.targets.includes(niRole));
+      }
+      const ni = !niCancelled && niRow.referenceNumber && !niRow.confirmedAt
         ? { referenceNumber: String(niRow.referenceNumber), deadline: niRow.deadline || null }
         : null;
 
@@ -231,16 +241,29 @@ Deno.serve(async (req: Request) => {
         }
       }
 
-      const sendRes = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/send-onboarding-email`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
-        },
-        body: JSON.stringify({ requestId: reqRow.id, stage: "sign", signerId: sp.id }),
-      });
+      let sendRes: Response;
+      try {
+        sendRes = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/send-onboarding-email`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+          },
+          body: JSON.stringify({ requestId: reqRow.id, stage: "sign", signerId: sp.id }),
+        });
+      } catch (e) {
+        // ‼ הקריאה לפונקציית המייל נפלה באמצע — ייתכן שהמייל כבר יצא. לא «נכשל».
+        return json(unknownOutcomeReply("network: " + String((e as Error)?.message ?? e)), 502);
+      }
       const sendBody = await sendRes.json().catch(() => ({}));
       if (!sendRes.ok || !sendBody?.ok) {
+        // ‼ לא ידוע אם יצא (unknown_outcome, או 5xx בלי קוד) — מעבירים את הקוד כמו
+        // שהוא, כדי שהדף יאמר «לא ברור אם המייל יצא» ולא «נכשלה».
+        if (isUnknownOutcome(sendBody) || sendBody?.error === "resend_unreachable"
+          || (sendRes.status >= 500 && !sendBody?.error)) {
+          const reason = String(sendBody?.detail?.reason || sendBody?.error || `http ${sendRes.status}`);
+          return json(unknownOutcomeReply(reason, sendBody?.retrySafe === true), 502);
+        }
         // המייל נכשל אבל הכתובת כבר נשמרה — הרו"ח יכול לשלוח שוב ממרכז הביצוע.
         return json({ error: "send_failed", detail: sendBody?.detail?.message || sendBody?.error || "" }, 502);
       }

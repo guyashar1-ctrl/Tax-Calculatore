@@ -26,6 +26,8 @@ const greenHeader: React.CSSProperties = {
 
 const greenSubHeader: React.CSSProperties = {
   padding: '6px 12px',
+  // ‼ כותרות המדרגות נשברות לשורות: ב-th הכללי יש nowrap, והטבלה (459px) לא נכנסה לטלפון.
+  whiteSpace: 'normal',
   fontWeight: 500,
   fontSize: 'var(--fs-12)',
   color: 'var(--ink-4)',
@@ -88,7 +90,7 @@ function AxisDiagram({ zones }: {
 }) {
   const maxVal = zones.reduce((m, z) => Math.max(m, z.to ?? m), 0);
   return (
-    <div style={{ margin: '1.25rem 0 .5rem', padding: '0 .5rem' }}>
+    <div className="ni-axis" style={{ margin: '1.25rem 0 .5rem', padding: '0 .5rem' }}>
       {/* Rate labels above the line */}
       <div style={{ display: 'flex', marginBottom: 6 }}>
         {zones.map((z, i) => {

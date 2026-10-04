@@ -14,8 +14,15 @@ import {
   NI_APPROVAL_PHONE,
   Client,
 } from '../types';
-import type { OnboardingStep } from '../types/onboarding';
+import type { Engagement, OnboardingStep } from '../types/onboarding';
+import { isStepOpen } from '../types/onboarding';
 import PrerequisiteGate, { type PrerequisitePerson } from './PrerequisiteGate';
+import { supabase } from '../lib/supabase';
+import { engagementFromDb } from '../lib/dbMappers';
+import { formatRoute } from '../lib/appRoute';
+import {
+  clientProcessPublished, engagementsOf, isPublishedStep, openIntake, visibleOnClientPage,
+} from '../utils/clientPageGate';
 import {
   registeredFileInfo, registeredSpouseSentence, hasRegisteredSpouseChoice, registeredOwnerOf,
   clientDisplayName, spouseDisplayName,
@@ -34,12 +41,14 @@ import {
 import type { RepApprovalStep } from '../hooks/useRepApprovalStep';
 import EmailStatusRow from './EmailActivity/EmailStatusRow';
 import EmailPreviewDialog from './EmailActivity/EmailPreviewDialog';
+import { isUnknownEmailStatus, isUnknownSendReply, unknownSendText } from '../types/emailActivity';
+import { UNKNOWN_OUTCOME_TEXT } from '../../supabase/functions/_shared/resendResult.ts';
 import type { RepSigner } from '../types';
 import { ShaamRequiredDocsList } from './ShaamRequiredDocsList';
 import ShaamDropAuthorityButton from './ShaamDropAuthorityButton';
 import RepresentationReconcileButton, { type ReconcileTarget } from './RepresentationReconcileButton';
 import NiNextActionButton from './NiNextActionButton';
-import NiDropSubjectButton from './NiDropSubjectButton';
+import NiCancelRequest from './NiCancelRequest';
 import { niPersons, niRepresentationOf, niRepresentationAction, niExternalEvidence } from '../utils/niPersons';
 import { shaamRepresentationAction } from '../features/taxFile/shaamRepresentationAction';
 import type { ShaamActionKind } from '../features/taxFile/shaamRepresentationAction';
@@ -74,6 +83,8 @@ import { useDocumentPdfBuilds, pdfBuildFor } from '../hooks/useDocumentPdfBuilds
 import { currentPoaVersion, noPoaReason, clientFieldsOf, type PoaVersion } from '../features/representation/poaVersion';
 import { burnSignaturesIntoPdf } from '../utils/signaturePdf';
 import { decodeForDisplay, sniffFormat } from '../utils/imageToPdf';
+import RepApprovalGuide, { RepApprovalGuideButton, repApprovalSummary, type RepApprovalPerson } from './portal/RepApprovalGuide';
+import { REP_PORTAL_CARD_FIXED } from '../../supabase/functions/_shared/repTemplates.ts';
 import './repCenter.css';
 
 interface Props {
@@ -101,6 +112,11 @@ interface Props {
    * ‼ לא להשתמש בזה בקוד אמיתי: המקור היחיד הוא onboarding_steps.
    */
   repApprovalOverride?: RepApprovalStep | null;
+  /**
+   * «מה מסמנים באזור האישי» — למסך הבדיקה בלבד, כמו repApprovalOverride. `undefined` =
+   * מהשרת (הפריט rep_approval בדף, approvals). ‼ לא בקוד אמיתי.
+   */
+  repApprovalPeopleOverride?: RepApprovalPerson[] | null;
   /** הלקוח המקושר — לשמות בני הזוג ולמצב "מי הרשום במ"ה". */
   linkedClient?: Client;
   /**
@@ -117,6 +133,12 @@ interface Props {
    * INFORMATION-COLLECTION.md.
    */
   steps?: OnboardingStep[];
+  /**
+   * ‼ 03.10 · ההתקשרויות של הלקוח (אותו מקור כמו steps — onboarding.engagements) — כדי
+   * שהמרכז יאמר «מופיע בדף האישי» רק כשהשער של הדף באמת פתוח (clientPageGate, התאום של
+   * client_step_gate_open). חסר ⇒ נקראות כאן פעם אחת (קריאה בלבד), כמו useRepApprovalStep.
+   */
+  engagements?: Engagement[];
   /** נקרא אחרי שתנאי-קדם הושלמו (משרד/קישור-משתתף) — לרענון onboarding.steps. */
   onStepsChanged?: () => void;
   /** לשמירת כתובת מייל קנונית מתוך דיאלוג קישור-המשתתף (165). */
@@ -159,6 +181,17 @@ function fmt(dateish?: string): string {
  * הודעה במרכז. ‼ הצבע נגזר מ-NoticeTone בלבד (representationCenter) — ורוד
  * שמור לכפתורי אוטומציה, ולכן הודעה לעולם לא נראית כמו פעולה.
  */
+/**
+ * «לא ידוע אם המייל יצא» — גם כשהמארח עטף את המשפט של השרת במשפט משלו
+ * («המייל לא נשלח (…)»). ‼ זה לעולם לא «נכשל»: ייתכן שהמייל כבר אצל הנמען.
+ */
+function isUnknownSendError(err: string | null | undefined): boolean {
+  return !!err && (isUnknownSendReply(err) || err.includes(UNKNOWN_OUTCOME_TEXT));
+}
+
+/** צבע «לא ידוע אם יצא» — כתום, לא אדום (הכלל של EMAIL_STATUS_STYLE.unknown). */
+const UNKNOWN_TEXT_STYLE: React.CSSProperties = { color: 'var(--chip-amber-tx)' };
+
 function Notice({ tone, children, style }: { tone: NoticeTone; children: React.ReactNode; style?: React.CSSProperties }) {
   const t = NOTICE_STYLES[tone];
   return (
@@ -406,7 +439,7 @@ function ReplacementConfirm({ requestId, submissionKey, replacement, onChanged }
   );
 }
 
-export default function RepresentationExecutionCenter({ request, niIncluded, niCoversSpouse, onSaveExecution, onProduce, onStamp, onMarkSentToShaam, onMarkActive, onSendToSigner, userId, repApprovalOverride, linkedClient, onConfirmRegisteredSpouse, steps, onStepsChanged, onUpdateClientFields, onAttachShaamForms, dataPanel, requestPanel, onRegenerateSignedPdf, regeneratingSignedPdf }: Props) {
+export default function RepresentationExecutionCenter({ request, niIncluded, niCoversSpouse, onSaveExecution, onProduce, onStamp, onMarkSentToShaam, onMarkActive, onSendToSigner, userId, repApprovalOverride, repApprovalPeopleOverride, linkedClient, onConfirmRegisteredSpouse, steps, engagements, onStepsChanged, onUpdateClientFields, onAttachShaamForms, dataPanel, requestPanel, onRegenerateSignedPdf, regeneratingSignedPdf }: Props) {
   const exec = request.execution || {};
   const it = exec.incomeTax || {};
   const ni = exec.nationalInsurance || {};
@@ -470,7 +503,7 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
    * ומשנה את הבעלים ומספר התיק בכרטיס. טעות בלחיצה חייבת להיות הפיכה.
    */
   const [editingKey, setEditingKey] = useState<string | null>(null);
-  const [note, setNote] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
+  const [note, setNote] = useState<{ kind: 'ok' | 'err' | 'unknown'; text: string } | null>(null);
 
   const status = request.status;
   const signers = getRequestSigners(request);
@@ -548,10 +581,14 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
   const [previewSignerId, setPreviewSignerId] = useState<string | null>(null);
   const missingIds = representationInsight(request, linkedClient, steps).missingIdentity;
   const [confirmSendWithoutId, setConfirmSendWithoutId] = useState(false);
+  /** «שלח» אחרי ניסיון שלא ידוע אם יצא — אישור שמסביר את הסיכון לכפילות. */
+  const [confirmResendUnknown, setConfirmResendUnknown] = useState(false);
   /** 208 · השליחה נעצרה: בתיק יש צילום תעודה שלא שויך לאף אדם. */
   const [unassignedAsk, setUnassignedAsk] = useState<{ only?: string } | null>(null);
   /** null = לכל מי שיש לו מייל. מזהה חותם = רק אליו, והוא יעביר לשני. */
   const [sendOnlyTo, setSendOnlyTo] = useState<string | null>(null);
+  /** המדריך המצולם שהלקוח רואה בכרטיס — כדי שהמשרד יוכל ללוות אותו בטלפון. */
+  const [approvalGuideOpen, setApprovalGuideOpen] = useState(false);
 
   /**
    * שולח לחותמים שנבחרו, ומתעד שההוראות לב"ל יצאו — **רק למי שבאמת נשלח
@@ -585,14 +622,26 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
     const skipped = pendingSigners.filter(s => !emailable.some(e => e.id === s.id));
     const sentIds = new Set<string>();
     const failures: string[] = [];
+    /** ‼ לא ידוע אם יצא — לא «נכשל», ולא «נשלח». */
+    const unknowns: RepSigner[] = [];
     for (const s of emailable) {
       const err = await onSendToSigner(s);
-      if (err) failures.push(`${s.name || s.email}: ${err}`);
-      else sentIds.add(s.id);
+      if (!err) sentIds.add(s.id);
+      else if (isUnknownSendError(err)) unknowns.push(s);
+      else failures.push(`${s.name || s.email}: ${err}`);
     }
-    if (failures.length > 0) {
-      setNote({ kind: 'err', text: failures.join(' · ') });
+    if (failures.length > 0 || unknowns.length > 0) {
+      const sentTo = emailable.filter(s => sentIds.has(s.id)).map(s => s.email);
+      const unknownLine = unknowns.length === 0 ? null
+        : `לא ידוע אם המייל יצא אל ${unknowns.map(s => s.email.trim()).join(', ')} — ספק הדואר לא החזיר תשובה ברורה. `
+          + `לפני ששולחים שוב — כדאי לברר עם ${unknowns.map(s => s.name || 'הנמען').join(' ועם ')} אם קיבל אותו.`;
+      setNote({
+        kind: failures.length > 0 ? 'err' : 'unknown',
+        text: [sentTo.length ? `נשלח ל-${sentTo.join(', ')}` : null, ...failures, unknownLine].filter(Boolean).join(' · '),
+      });
       setBusy(null);
+      // ‼ השרת רשם את הניסיון ביומן — השורה של החותם מציגה אותו (נשלח / לא ידוע אם יצא).
+      void reloadEmails();
       return;
     }
     if (emailable.length === 0) {
@@ -666,13 +715,26 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
     });
   }
 
-  /** תזכורת = אותו מייל שוב, לאותו חותם. בלי גרסה חלקית שתבלבל את הלקוח. */
-  async function handleRemind(m: { toEmail: string }) {
+  /**
+   * הניסיון האחרון לכתובת של החותם — «לא ידוע אם יצא», ואין אחריו מייל שיצא.
+   * ‼ שליחה נוספת עלולה להגיע פעמיים (במייל החתימה אין מפתח שמונע כפילות),
+   * ולכן היא עוברת אישור מפורש.
+   */
+  const lastAttemptUnknown = (s: RepSigner) => isUnknownEmailStatus(signerEmails(s)[0]?.status);
+
+  /**
+   * תזכורת = אותו מייל שוב, לאותו חותם. בלי גרסה חלקית שתבלבל את הלקוח.
+   * ‼ «לא ידוע אם יצא» חוזר כמשפט משלו (בלי «לא נשלח»), ומסומן — השורה מציגה אותו כתום.
+   */
+  async function handleRemind(m: { toEmail: string }): Promise<{ text: string; unknown: boolean } | null> {
     const signer = signers.find(s => s.email === m.toEmail) || signers[0];
-    if (!signer) return 'לא נמצא חותם לשליחה';
+    if (!signer) return { text: 'לא נמצא חותם לשליחה', unknown: false };
     const err = await onSendToSigner(signer);
-    if (!err) void reloadEmails();
-    return err;
+    void reloadEmails();
+    if (!err) return null;
+    return isUnknownSendError(err)
+      ? { text: unknownSendText({ recipient: signer.name || 'הנמען' }), unknown: true }
+      : { text: err, unknown: false };
   }
 
   async function patch(next: RepresentationExecution, label: string) {
@@ -848,7 +910,8 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
 
   // ‼ הנתיב המזורז נטען כאן ואינו מגיע כ-prop — ראה useRepApprovalStep.
   // מרוענן כשהסטטוס משתנה, כי המעבר ל-awaiting_authorities הוא שיוצר אותו.
-  const { step: loadedRepApproval, reload: reloadRepApproval } = useRepApprovalStep(request.linkedClientId);
+  // ‼ כרטיס שהגיע מבחוץ (מסך הבדיקה) — לא נטען שוב מהמסד.
+  const { step: loadedRepApproval, reload: reloadRepApproval } = useRepApprovalStep(repApprovalOverride !== undefined ? null : request.linkedClientId);
   const repApproval = repApprovalOverride !== undefined ? repApprovalOverride : loadedRepApproval;
   const declared = isRepApprovalDeclared(repApproval);
   // ‼ 201 · «ממתין לאישור לקוח» בשע״ם ⇒ האישור הוא חובה, לא זירוז. שני מקורות,
@@ -856,6 +919,95 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
   const approvalRequired = repApproval?.requiredBy === 'shaam'
     || submissions.some(sub => !!shaamSubmittedFacts(exec.shaam?.[sub.key])?.clientApprovalRequired);
   useEffect(() => { void reloadRepApproval(); }, [status, reloadRepApproval]);
+
+  // ── H2.2 · «מה מסמנים באזור האישי» — אותה רשימה שהלקוח רואה בכרטיס ─────────────
+  // ‼ מהשרת בלבד (build_client_portal ⇐ _rep_approval_people, approvals בפריט rep_approval);
+  // לא מחשבים כאן שוב. 'preview' — גם כשהכרטיס עוד לא פורסם בדף. נקרא רק כשהאישור פתוח.
+  // בלי רשימה (נכשל / השרת לא יודע / הלקוח כבר דיווח) — המדריך בנוסח הכללי, כמו בדף.
+  const approvalPeopleClientId = linkedClient?.id ?? request.linkedClientId ?? null;
+  const approvalPeopleWanted = repApprovalPeopleOverride === undefined && !!approvalPeopleClientId
+    && !!repApproval && !isRepApprovalClosed(repApproval) && !declared;
+  const [loadedApprovalPeople, setLoadedApprovalPeople] = useState<RepApprovalPerson[] | null>(null);
+  useEffect(() => {
+    if (!approvalPeopleWanted || !approvalPeopleClientId) return;
+    let cancelled = false;
+    void supabase.rpc('get_client_portal_preview', { p_client_id: approvalPeopleClientId, p_mode: 'preview' })
+      .then(({ data, error }) => {
+        if (cancelled) return;
+        const row = data as { ok?: boolean; items?: { key?: string; approvals?: RepApprovalPerson[] }[] } | null;
+        setLoadedApprovalPeople(!error && row?.ok
+          ? (row.items ?? []).find(i => i.key === 'rep_approval')?.approvals ?? null
+          : null);
+      });
+    return () => { cancelled = true; };
+  }, [approvalPeopleWanted, approvalPeopleClientId, status]);
+  const approvalPeople = repApprovalPeopleOverride !== undefined ? repApprovalPeopleOverride
+    : approvalPeopleWanted ? loadedApprovalPeople : null;
+
+  // ── האם זה באמת בדף האישי? (הכרעות גיא 03.10) ─────────────────────────────
+  // ‼ «מופיע בדף האישי» רק כשהשער של הדף פתוח לבקשה שמאחורי השורה — clientPageGate, התאום
+  // של client_step_gate_open. כרטיס אישור / בקשת צילום שנולדו בקליטה חדשה שטרם פורסמה —
+  // לא בדף (ולא בתזכורת) עד «פרסם בדף» ב«בקשות». אין כאן מצב חדש: ההתקשרויות מהמארח,
+  // ובלעדיהן — קריאה אחת מהמסד (כמו useRepApprovalStep). לא ידוע ⇒ בלי טענה על הדף.
+  const pageClientId = linkedClient?.id ?? request.linkedClientId ?? undefined;
+  const [loadedEngagements, setLoadedEngagements] = useState<Engagement[] | null>(null);
+  useEffect(() => {
+    if (engagements !== undefined || !pageClientId) return;
+    let cancelled = false;
+    void supabase.from('engagements').select('id, client_id, status, process_published_at, created_at')
+      .eq('client_id', pageClientId)
+      .then(({ data, error }) => {
+        if (!cancelled) setLoadedEngagements(error ? null : (data ?? []).map(r => engagementFromDb(r as Record<string, unknown>)));
+      });
+    return () => { cancelled = true; };
+  }, [engagements, pageClientId, status]);
+  const gateEngagements: Engagement[] | null = engagements !== undefined
+    ? engagementsOf(engagements, pageClientId) : loadedEngagements;
+  /** השלבים של הלקוח המקושר (מ«בקשות»), שלא בוטלו. */
+  const pageSteps = (steps ?? []).filter(s => (!pageClientId || s.clientId === pageClientId) && s.status !== 'cancelled');
+  /**
+   * 'shown' — בדף עכשיו · 'intake' — יופיע כשהקליטה תפורסם · 'draft' — יופיע אחרי «פרסם בדף» ·
+   * null — לא ידוע. בלי השלב (טרם נטען, או שייווצר עכשיו ויתפרסם עכשיו) — השער ברמת הלקוח.
+   */
+  const pageStateOf = (step: OnboardingStep | null | undefined): 'shown' | 'intake' | 'draft' | null => {
+    if (!gateEngagements) return null;
+    const shown = step ? visibleOnClientPage(step, gateEngagements) : clientProcessPublished(gateEngagements);
+    if (shown) return 'shown';
+    const intake = openIntake(gateEngagements);
+    return (!step || isPublishedStep(step)) && intake && !intake.processPublishedAt ? 'intake' : 'draft';
+  };
+  /** «יופיע בדף האישי כשתפרסם את הקליטה» — הסיומת של שורה שהלקוח עוד לא רואה. */
+  const notYetOnPage = (st: 'intake' | 'draft') =>
+    st === 'intake' ? 'כשתפרסם את הקליטה' : 'אחרי «פרסם בדף»';
+  /** קישור שקט ל«בקשות» של הלקוח — שם «פרסם בדף». */
+  const requestsLink = pageClientId ? (
+    <a className="rc-quiet" data-testid="rc-to-requests"
+      href={`#${formatRoute({ view: 'form', clientId: pageClientId, clientTab: 'journey' })}`}>לבקשות ←</a>
+  ) : null;
+  // כרטיס «אישור הייצוג באזור האישי» — השלב עצמו מ«בקשות» (בו זמן הפרסום); חסר ⇒ השער ברמת הלקוח.
+  const repApprovalPage = repApproval ? pageStateOf(pageSteps.find(s => s.id === repApproval.id)) : null;
+  /**
+   * בקשת צילום התעודה (208) — באיזה שלב היא יושבת: אישור הצילום שבתיק = «צילום תעודה לרשות
+   * המסים» (shaamIdentity.key); צילום שאין = פריט ב«מסמכים מהלקוח» האחרונה (ensure_shaam_identity_
+   * document_request). עוד לא נוצר ⇒ ייווצר ויתפרסם עכשיו ⇒ השער ברמת הלקוח.
+   */
+  const latestDocsStep = pageSteps.filter(s => s.stepType === 'client_documents')
+    .sort((a, b) => (b.createdAt ?? '').localeCompare(a.createdAt ?? ''))[0];
+  /** בקשת העלאת צילום (אין בתיק) — הפריט נכתב ב«מסמכים מהלקוח» האחרונה, או בחדשה. */
+  const uploadPage = pageStateOf(latestDocsStep);
+  const idRequestPage = (d: ShaamPreSigningDoc) => {
+    if (d.status === 'awaiting_confirmation') {
+      const key = `${request.id}:${d.person}:${d.kind}`;
+      return pageStateOf(pageSteps.find(s => s.stepType === 'custom_request' && isStepOpen(s.status)
+        && (s.payload?.shaamIdentity as { key?: string } | undefined)?.key === key));
+    }
+    return uploadPage;
+  };
+  /** «האישור באזור האישי» — מה המשרד יודע על הכרטיס בדף. null ⇒ לא אומרים כלום על הדף. */
+  const approvalPageLine = (lead: string): React.ReactNode =>
+    repApprovalPage === 'shown' ? `${lead} מופיעה בדף האישי של הלקוח.`
+      : repApprovalPage ? <>{`האישור יופיע בדף האישי ${notYetOnPage(repApprovalPage)}.`}{requestsLink && <> {requestsLink}</>}</>
+      : null;
 
   // ── ספירת שלבים שהושלמו, להצגה בכותרת כל מסלול ──
   // ‼ הנתיב המזורז אינו כאן: הוא אופציונלי, וספירתו הייתה מציגה מסלול שהושלם
@@ -893,21 +1045,23 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
     if (!person || !line) return null;
     return niRepresentationAction(person, linkedClient, line, niExecutionByRole[role]);
   };
-  // ‼ 200: «הסר מהבקשה» רק כששני האנשים בב"ל — הסרת האחרון אינה הסרה (השרת דוחה).
   const niNextActionNode = (role: 'client' | 'spouse') => linkedClient ? (
-    <>
-      <NiNextActionButton
-        client={linkedClient} role={role} action={columnAction(niActionFor(role))} track={niExecutionByRole[role]}
-        onChanged={onStepsChanged} className="btn btn-sm" errorClassName="rep-track-next-err"
-      />
-      {niTargetsClient && niTargetsSpouse && (
-        <NiDropSubjectButton
-          clientId={linkedClient.id} role={role} track={niExecutionByRole[role]}
-          name={nameOf(role) || (role === 'spouse' ? 'בן/בת הזוג' : 'הנישום')}
-          onChanged={onStepsChanged}
-        />
-      )}
-    </>
+    <NiNextActionButton
+      client={linkedClient} role={role} action={columnAction(niActionFor(role))} track={niExecutionByRole[role]}
+      onChanged={onStepsChanged} className="btn btn-sm" errorClassName="rep-track-next-err"
+    />
+  ) : null;
+  // ‼ 212: מחיקה (לא נשלח) / ביטול (נשלח) — לכל אדם, גם היחיד, עד שסומן כאושר.
+  // לא תלוי בשלב ההזנה: אחרי שיש אסמכתא זה בדיוק המקרה שבו צריך אותו.
+  // ‼ H1.b · «אושר» כמו בשרת (ni_subject_stage): confirmedAt **או** תיק ב״ל פעיל בכרטיס —
+  // אותה נגזרת שאומרת «הייצוג פעיל» בשורה (niTrackView). פעיל ⇒ אין «ביטול הבקשה».
+  const niCancelNode = (role: 'client' | 'spouse') => linkedClient ? (
+    <NiCancelRequest
+      clientId={linkedClient.id} role={role} track={niExecutionByRole[role]}
+      approved={niTrackView(niExecutionByRole[role], niLineFor(role)).final}
+      name={nameOf(role) || (role === 'spouse' ? 'בן/בת הזוג' : 'הנישום')}
+      onChanged={onStepsChanged}
+    />
   ) : null;
 
   // ── שע״ם: הפעולה ההקשרית, לכל הגשה בנפרד (194) ──────────────────────────
@@ -1017,6 +1171,13 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
         awaitingClientApproval: !!f?.clientApprovalRequired,
         submittedStatus: f?.status
           ? `שע״ם: ${f.status}${f.suspensionEndsAt ? ` · צפי לסיום ההשהייה ${fmt(f.suspensionEndsAt)}` : ''}` : null,
+        // ‼ H2.5a · של מי ההגשה — הכותרת נוקבת במי שהאישור שלו/ה חסר, לא בבעל הכרטיס.
+        // בעל הכרטיס — אותו שם כמו בשאר הכותרות; בן/בת הזוג — מהכרטיס, אחרת מהחותם.
+        // (sub.personName לבדו נופל ל«הלקוח/ה» כשאין כרטיס מקושר.)
+        personName: sub.target === 'spouse'
+          ? (scopePeople.spouseName.trim() || nameOf('spouse') || 'בן/בת הזוג')
+          : firstName,
+        checkedAt: t?.observedAt || t?.syncedAt || null,
       };
     }),
     ni: niRoles.map(role => ({
@@ -1029,6 +1190,7 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
     })),
     clientOpenItems: [...new Set(idDocsOpen.map(d => (d.status === 'missing' ? 'להעלות צילום תעודה' : 'לאשר את צילום התעודה שבתיק')))],
     clientApprovalRequiredOpen: !!repApproval && approvalRequired && !isRepApprovalClosed(repApproval),
+    clientApprovalDeclaredAt: declared ? repApproval?.clientDeclaredAt ?? null : null,
   });
 
   // ── פקדים שמופיעים פעם אחת בדיוק (בכרטיס «מה עכשיו» או בפירוט — לא בשניהם) ──
@@ -1268,8 +1430,11 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
     return items;
   };
 
-  const sendClick = () => (missingIds.length > 0 ? setConfirmSendWithoutId(true) : void handleSendAll(sendOnlyTo ?? undefined));
   const recipients = pendingSigners.filter(s => (sendOnlyTo ? s.id === sendOnlyTo : !!s.email.trim()));
+  /** נמענים שהניסיון האחרון אליהם «לא ידוע אם יצא» — שליחה נוספת רק אחרי אישור. */
+  const unknownRecipients = recipients.filter(lastAttemptUnknown);
+  const proceedSend = () => (missingIds.length > 0 ? setConfirmSendWithoutId(true) : void handleSendAll(sendOnlyTo ?? undefined));
+  const sendClick = () => (unknownRecipients.length > 0 ? setConfirmResendUnknown(true) : proceedSend());
   const toFirst = firstName ? `ל${firstName}` : 'ללקוח';
   const sendLabel = sendOnlyTo ? `שלח ל${pendingSigners.find(s => s.id === sendOnlyTo)?.name || 'חותם'}`
     : `שלח ${toFirst}${emailableSigners.length > 1 ? ` (${emailableSigners.length} חותמים)` : ''}`;
@@ -1332,6 +1497,16 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
               {busy === 'send' ? 'שולח…' : sendLabel}
             </button>
             {recipientLine}
+            {unknownRecipients.length > 0 && (
+              <div className="rc-aside-line" style={UNKNOWN_TEXT_STYLE} data-testid="rc-send-unknown">
+                {unknownRecipients.map(s => (
+                  <div key={s.id}>
+                    המייל {fmtTime(signerEmails(s)[0].sentAt)} אל <span className="ltr-isolate">{s.email.trim()}</span> — לא ידוע אם יצא.
+                  </div>
+                ))}
+                <div>לפני ששולחים שוב — כדאי לברר אם הגיע.</div>
+              </div>
+            )}
             {pendingSigners.length > 0 && (
               <button type="button" className="rc-link" onClick={() => setPreviewSignerId(pendingSigners[0].id)}>צפייה במייל לפני השליחה</button>
             )}
@@ -1411,7 +1586,15 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
     case 'waiting_authorities': {
       const notes = submissions.map(sub => ({ sub, f: shaamFactsOf(sub) })).filter(x => x.f?.note || x.f?.officeAction);
       const approvalOpen = !!repApproval && !isRepApprovalClosed(repApproval);
-      heroBody = notes.length > 0 || approvalOpen ? (
+      // ‼ H2:X-4 · הדיווח של הלקוח כבר בכותרת (plan.approval) — לא שוב כאן. דיווח על זירוז
+      // (לא חובה — הכותרת לא עוסקת בו) נשאר שורה אחת, כמו קודם.
+      const declaredLine = approvalOpen && declared && !plan.approval;
+      // ‼ המדריך — כשעוד צריך לסמן: לפני הדיווח, או כששע״ם עדיין ממתינה אחרי הדיווח.
+      const guideNow = approvalOpen && (!declared || plan.approval === 'still_waiting');
+      // ‼ H2.2 · מה מסמנים — אותה רשימה שבכרטיס של הלקוח (מהשרת), כדי ללוות אותו בטלפון.
+      const what = guideNow ? repApprovalSummary(approvalPeople) : null;
+      const pageLine = approvalOpen && !declared && repApprovalPage;
+      heroBody = notes.length > 0 || declaredLine || guideNow || pageLine ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }} data-testid="rc-waiting-authorities">
           {notes.map(({ sub, f }) => (
             <div key={sub.key} className="rc-meta">
@@ -1419,8 +1602,23 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
               {f!.officeAction && <Notice tone="required" style={{ marginTop: 6 }}>{f!.officeAction}</Notice>}
             </div>
           ))}
-          {approvalOpen && (
-            <span className="rc-meta">{declared ? `לפי ${firstName || 'הלקוח'}, האישור באזור האישי כבר ניתן — ממתין לאימות בשע״ם.` : 'הבקשה לאישור מופיעה בדף האישי של הלקוח.'}</span>
+          {/* ‼ 03.10: «מופיעה בדף האישי» רק כשהכרטיס באמת בדף (pageStateOf); קליטה שטרם
+              פורסמה — «יופיע… כשתפרסם את הקליטה» וקישור ל«בקשות». המדריך נשאר. */}
+          {pageLine && (
+            <span className="rc-meta" data-testid="rc-approval-page">{approvalPageLine('הבקשה לאישור')}</span>
+          )}
+          {declaredLine && (
+            <span className="rc-meta" data-testid="rc-approval-page">{`לפי ${firstName || 'הלקוח'}, האישור באזור האישי כבר ניתן — ממתין לאימות בשע״ם.`}</span>
+          )}
+          {what && (
+            <div className="rc-meta" data-testid="rc-approval-what">
+              <div>מה מסמנים באזור האישי:</div>
+              {what.lines.map(l => <div key={l} style={{ color: 'var(--ink-1)' }}>{l}</div>)}
+            </div>
+          )}
+          {/* ‼ אותו מדריך שהלקוח רואה בכרטיס — כדי ללוות אותו בטלפון. */}
+          {guideNow && (
+            <div><RepApprovalGuideButton onClick={() => setApprovalGuideOpen(true)} accent="var(--accent)" /></div>
           )}
         </div>
       ) : null;
@@ -1430,7 +1628,7 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
           const f = shaamFactsOf(sub)!;
           return {
             key: sub.key, who: `שע״ם${submissions.length > 1 ? ` · ${sub.personName}` : ''}`,
-            what: f.clientApprovalRequired ? 'אישור הלקוח באזור האישי' : f.suspensionEndsAt ? 'סיום ההשהייה' : 'קליטת הייצוג',
+            what: f.clientApprovalRequired ? 'אישור הייצוג באזור האישי' : f.suspensionEndsAt ? 'סיום ההשהייה' : 'קליטת הייצוג',
             when: !f.clientApprovalRequired && f.suspensionEndsAt ? `צפי ${fmt(f.suspensionEndsAt)}` : '',
           };
         }),
@@ -1462,7 +1660,9 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
           {activeEmails.map(m => <EmailStatusRow key={m.id} message={m} note="עדכון ללקוח: הייצוג אושר" onChanged={reloadEmails} />)}
         </div>
       ) : null;
-      aside = activeEmails.length > 0 ? null : {
+      // ‼ ניסיון שנכשל בוודאות (failed) לא מסתיר את השליחה; «לא ידוע אם יצא» כן —
+      // השורה שלמעלה אומרת לברר קודם, ושליחה נוספת עלולה להגיע פעמיים.
+      aside = activeEmails.some(m => m.status !== 'failed') ? null : {
         title: `עדכון ${toFirst}`,
         content: (
           <>
@@ -1606,15 +1806,25 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
           )}
         </Step>
 
+        {/* ‼ שם אחד בכל מקום (STEP_TYPE_LABELS); «זירוז» הוא שורת המשנה כשאינו חובה. */}
         {repApproval && i === 0 && (
           <SideStep
-            title={approvalRequired ? 'אישור הלקוח באזור האישי' : 'זירוז אישור הייצוג באזור האישי'}
+            title="אישור הייצוג באזור האישי"
             required={approvalRequired}
             done={isRepApprovalClosed(repApproval)}
             hint={isRepApprovalClosed(repApproval) ? undefined
-              : declared ? 'הלקוח דיווח שאישר - ממתין לאימות בשע״ם'
-              : approvalRequired ? 'נדרש - רשות המסים ממתינה לאישור הלקוח. הבקשה מופיעה בדף האישי שלו'
-              : 'ממתין ללקוח - הבקשה מופיעה בדף האישי שלו'} />
+              : declared ? (plan.approval === 'still_waiting'
+                ? 'הלקוח דיווח שאישר, אבל בבדיקה שאחרי הדיווח שע״ם עדיין ממתינה'
+                : 'הלקוח דיווח שאישר - ממתין לאימות בשע״ם')
+              : [approvalRequired ? 'נדרש - רשות המסים ממתינה לאישור הלקוח' : 'זירוז - מקצר את ההמתנה, והייצוג ייקלט גם בלעדיו',
+                 repApprovalPage === 'shown' ? (approvalRequired ? 'הבקשה מופיעה בדף האישי שלו' : 'הבקשה מופיעה בדף האישי של הלקוח')
+                   : repApprovalPage ? `יופיע בדף האישי ${notYetOnPage(repApprovalPage)}` : null,
+                ].filter(Boolean).join('. ')}>
+            {!isRepApprovalClosed(repApproval) && (
+              <RepApprovalGuideButton onClick={() => setApprovalGuideOpen(true)} accent="var(--accent)" />
+            )}
+            {!isRepApprovalClosed(repApproval) && !declared && repApprovalPage && repApprovalPage !== 'shown' && requestsLink}
+          </SideStep>
         )}
 
         <Step title="הייצוג נקלט" done={status === 'active' || shaamSettled(t)}>
@@ -1649,18 +1859,31 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
             </button>
           </div>
         )}
-        {missing.map(d => (
+        {missing.map(d => {
+          // ‼ 03.10: «מופיעה בדף האישי» רק כשהבקשה באמת בדף (idRequestPage); לא ידוע ⇒ בלי טענה.
+          const pg = idRequestPage(d);
+          const hidden = pg === 'intake' || pg === 'draft';
+          const page = d.status === 'missing'
+            ? (exec.signatureEmailSentAt
+              ? (pg === 'shown' ? 'הבקשה להעלות מופיעה בדף האישי של הלקוח.' : hidden ? `הבקשה להעלות תופיע בדף האישי ${notYetOnPage(pg)}.` : '')
+              : hidden ? `הלקוח יתבקש להעלות בדף האישי ${notYetOnPage(pg)}.` : 'הלקוח יתבקש להעלות יחד עם בקשת החתימה.')
+            : (exec.signatureEmailSentAt
+              ? (pg === 'shown' ? 'הבקשה מופיעה בדף האישי של הלקוח.' : hidden ? `הבקשה תופיע בדף האישי ${notYetOnPage(pg)}.` : '')
+              : hidden ? `הלקוח יתבקש לאשר בדף האישי ${notYetOnPage(pg)}.` : 'הלקוח יתבקש לאשר יחד עם בקשת החתימה.');
+          return (
           <div key={d.key} className="rc-now-line" data-testid="rc-now-missing">
             {d.status === 'missing'
-              ? <>צילום תעודה מזהה של {d.personName} — אין בתיק. {exec.signatureEmailSentAt ? 'הבקשה להעלות מופיעה בדף האישי של הלקוח.' : 'הלקוח יתבקש להעלות יחד עם בקשת החתימה.'}</>
-              : <>צילום תעודה מזהה של {d.personName} — ממתין לאישור הלקוח. {exec.signatureEmailSentAt ? 'הבקשה מופיעה בדף האישי של הלקוח.' : 'הלקוח יתבקש לאשר יחד עם בקשת החתימה.'}</>}
+              ? <>צילום תעודה מזהה של {d.personName} — אין בתיק.{page && ` ${page}`}</>
+              : <>צילום תעודה מזהה של {d.personName} — ממתין לאישור הלקוח.{page && ` ${page}`}</>}
+            {hidden && requestsLink && <> {requestsLink}</>}
             {d.status === 'missing' && linkedClient && (
               <IdentityDocAttach requestId={request.id} clientId={linkedClient.id}
                 missing={[{ person: d.person, name: d.personName, kind: d.kind === 'passport' ? 'passport' : 'idOrLicense' }]}
                 usedDocumentIds={usedIdDocIds} onAttached={() => onStepsChanged?.()} />
             )}
           </div>
-        ))}
+          );
+        })}
         {gate && (
           <ShaamRequiredDocsList tracking={t} requestId={request.id} clientId={linkedClient?.id}
             usedDocumentIds={usedIdDocIds} onAttached={() => onStepsChanged?.()} />
@@ -1758,7 +1981,12 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
             </aside>
           )}
         </div>
-        {note && <div className="rc-note" data-kind={note.kind}>{note.kind === 'ok' ? '✓ ' : ''}{note.text}</div>}
+        {note && (
+          <div className="rc-note" data-kind={note.kind} role="status"
+            style={note.kind === 'unknown' ? { background: 'var(--chip-amber-bg)', ...UNKNOWN_TEXT_STYLE } : undefined}>
+            {note.kind === 'ok' ? '✓ ' : ''}{note.text}
+          </div>
+        )}
       </section>
 
       {/* ─────────── מסמכי הבקשה — צפייה בלחיצה אחת ─────────── */}
@@ -1808,6 +2036,8 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
                   prereqOnChanged={() => onStepsChanged?.()}
                 />
                 </History>
+                {/* ‼ 212: מחיקה/ביטול — מחוץ להיסטוריה המקופלת, כדי שלא יוסתר. */}
+                <div className="rc-row-foot">{niCancelNode(role)}</div>
               </AuthRow>
             );
           })}
@@ -1834,9 +2064,16 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
               <More title="המיילים ללקוח" testId="rc-emails"
                 meta={signatureEmails.length === 1 ? 'מייל אחד · מסירה ופתיחה' : `${signatureEmails.length} מיילים · מסירה ופתיחה`}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '.4rem' }}>
-                  {signatureEmails.map(m => (
-                    <EmailStatusRow key={m.id} message={m} onRemind={() => handleRemind(m)} onChanged={reloadEmails} />
-                  ))}
+                  {signatureEmails.map(m => {
+                    // ‼ הניסיון האחרון לכתובת הזו «לא ידוע אם יצא» — בלי «תזכורת» בלחיצה אחת:
+                    // השליחה מחדש עוברת אישור (בכרטיס «מה עכשיו» / בשורת החותם).
+                    const addr = m.toEmail.trim().toLowerCase();
+                    const latest = signatureEmails.find(x => x.toEmail.trim().toLowerCase() === addr);
+                    return (
+                      <EmailStatusRow key={m.id} message={m} onChanged={reloadEmails}
+                        onRemind={isUnknownEmailStatus(latest?.status) ? undefined : async () => (await handleRemind(m))?.text ?? null} />
+                    );
+                  })}
                 </div>
               </More>
             )}
@@ -1856,6 +2093,25 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
         />
       )}
 
+      {confirmResendUnknown && (
+        <ConfirmDialog
+          tone="normal"
+          title="לא ידוע אם המייל הקודם יצא"
+          message={<div data-testid="resend-unknown-dialog" style={{ lineHeight: 1.7 }}>
+            {unknownRecipients.map(s => (
+              <div key={s.id}>
+                המייל {fmtTime(signerEmails(s)[0].sentAt)} אל <span className="ltr-isolate">{s.email.trim()}</span> — ספק הדואר לא החזיר תשובה ברורה.
+              </div>
+            ))}
+            <div style={{ marginTop: '.4rem' }}>אם הוא כבר הגיע, שליחה נוספת תגיע פעמיים. כדאי לברר קודם עם {unknownRecipients.map(s => s.name || 'הנמען').join(' ועם ')}.</div>
+          </div>}
+          confirmLabel="שלח שוב בכל זאת"
+          cancelLabel="אברר קודם"
+          onCancel={() => setConfirmResendUnknown(false)}
+          onConfirm={() => { setConfirmResendUnknown(false); proceedSend(); }}
+        />
+      )}
+
       {confirmSendWithoutId && (
         <ConfirmDialog
           tone="normal"
@@ -1864,7 +2120,9 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
             <div>טרם התקבל צילום תעודה של: <b>{missingIds.map(m => m.name).join(', ')}</b>.</div>
             {shaamDemandsMissingId ? (
               <>
-                <div style={{ marginTop: '.4rem' }}>רשות המסים דורשת את הצילום הזה לבקשה. בקשת ההעלאה תצורף לשליחה, והלקוח יראה אותה בדף האישי ליד החתימה.</div>
+                <div style={{ marginTop: '.4rem' }}>{uploadPage === 'intake' || uploadPage === 'draft'
+                  ? `רשות המסים דורשת את הצילום הזה לבקשה. בקשת ההעלאה תצורף לשליחה, ותופיע בדף האישי ${notYetOnPage(uploadPage)}.`
+                  : 'רשות המסים דורשת את הצילום הזה לבקשה. בקשת ההעלאה תצורף לשליחה, והלקוח יראה אותה בדף האישי ליד החתימה.'}</div>
                 <div style={{ marginTop: '.4rem' }}>אפשר לשלוח לחתימה עכשיו; השידור לשע״ם ימתין עד שהצילום יגיע.</div>
               </>
             ) : (
@@ -1887,13 +2145,20 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
           message={<div data-testid="unassigned-identity-dialog" style={{ lineHeight: 1.7 }}>
             <div>רשות המסים דורשת צילום תעודה, ובתיק יש צילום שלא ידוע של מי הוא. לא שלחנו עדיין כלום.</div>
             <div style={{ marginTop: '.4rem' }}>· אם הוא של האדם הנכון - סגרו את החלון ושייכו אותו בפירוט של רשות המסים («מה רשות המסים דורשת להגשה»). אחרי השיוך הלקוח יתבקש לאשר אותו.</div>
-            <div style={{ marginTop: '.4rem' }}>· אחרת - הלקוח יתבקש להעלות צילום בדף האישי, יחד עם בקשת החתימה.</div>
+            <div style={{ marginTop: '.4rem' }}>{uploadPage === 'intake' || uploadPage === 'draft'
+              ? `· אחרת - הלקוח יתבקש להעלות צילום בדף האישי ${notYetOnPage(uploadPage)}.`
+              : '· אחרת - הלקוח יתבקש להעלות צילום בדף האישי, יחד עם בקשת החתימה.'}</div>
           </div>}
           confirmLabel="בקש מהלקוח צילום ושלח"
           cancelLabel="אשייך קודם"
           onCancel={() => setUnassignedAsk(null)}
           onConfirm={() => { const o = unassignedAsk.only; setUnassignedAsk(null); void handleSendAll(o, true); }}
         />
+      )}
+
+      {approvalGuideOpen && (
+        <RepApprovalGuide onClose={() => setApprovalGuideOpen(false)} entryUrl={REP_PORTAL_CARD_FIXED.linkUrl}
+          approvals={approvalPeople} />
       )}
 
       {previewSignerId && (
@@ -1925,16 +2190,21 @@ function SignerLine({ signer, showName, signed, emails, track, onCopiedLink, onR
   emails: { toEmail: string; sentAt: string; openedAt?: string; clickedAt?: string; status: string }[];
   track?: NiTracking;
   onCopiedLink: () => void;
-  onRemind?: () => Promise<string | null>;
+  onRemind?: () => Promise<{ text: string; unknown: boolean } | null>;
   batchSentAt?: string;
 }) {
   const [copied, setCopied] = useState(false);
-  const [reminded, setReminded] = useState<{ ok: boolean; text: string } | null>(null);
+  const [reminded, setReminded] = useState<{ ok: boolean; unknown?: boolean; text: string } | null>(null);
+  /** «שליחה חוזרת» אחרי ניסיון שלא ידוע אם יצא — שואלים פעם אחת לפני ששולחים. */
+  const [confirmAgain, setConfirmAgain] = useState(false);
   const hasAddress = !!signer.email.trim();
   // ‼ «נכשל» = השליחה שלנו לא יצאה (למשל תקלה בספק המייל) — לא «המייל חזר». המצב נקרא
   // מהמייל האחרון שבאמת יצא, וניסיון אחרון שנכשל מוצג לצדו ולא במקומו.
-  const email = emails.find(m => m.status !== 'failed');
-  const lastFailed = emails[0]?.status === 'failed';
+  // ‼ «לא ידוע אם יצא» (unknown) גם אינו «נשלח»: הוא לא נספר כמייל שיצא, ומוצג כתום לצדו.
+  const email = emails.find(m => m.status !== 'failed' && !isUnknownEmailStatus(m.status));
+  const latest = emails[0];
+  const lastFailed = latest?.status === 'failed';
+  const lastUnknown = isUnknownEmailStatus(latest?.status);
   const opened = !!email && (!!email.openedAt || ['opened', 'clicked'].includes(email.status));
   const bounced = !!email && ['bounced', 'complained'].includes(email.status);
   const link = signer.signToken ? `${window.location.origin}/?sign=${signer.signToken}` : '';
@@ -1942,6 +2212,7 @@ function SignerLine({ signer, showName, signed, emails, track, onCopiedLink, onR
   const refPending = !!track?.referenceNumber && !track.instructionsSentAt;
   const handedByLink = track?.instructionsSentWith === 'link';
   const sentAt = email?.sentAt ?? batchSentAt;
+  const who = signer.name?.trim().split(/\s+/)[0] || 'הנמען';
 
   const copy = async () => {
     if (!link) return;
@@ -1952,34 +2223,58 @@ function SignerLine({ signer, showName, signed, emails, track, onCopiedLink, onR
   };
   const remind = async () => {
     if (!onRemind) return;
+    setConfirmAgain(false);
     setReminded({ ok: true, text: 'שולח…' });
-    const err = await onRemind();
+    const r = await onRemind();
     // ‼ השגיאה כבר אומרת «המייל לא נשלח (…)» — בלי קידומת שנייה.
-    setReminded(err ? { ok: false, text: err } : { ok: true, text: 'נשלח שוב ✓' });
+    setReminded(!r ? { ok: true, text: 'נשלח שוב ✓' } : { ok: false, unknown: r.unknown, text: r.text });
   };
 
   const state = signed ? 'החתימה התקבלה'
     : !hasAddress ? (handedByLink ? 'הקישור נמסר ידנית' : 'אין כתובת מייל')
     : bounced ? 'המייל חזר — כדאי לבדוק את הכתובת'
     : sentAt ? `נשלח ${fmtTime(sentAt)}${email ? (opened ? ' · נפתח' : ' · טרם נפתח') : ''}`
+    : lastUnknown ? 'לא ידוע אם המייל יצא'
     : 'טרם נשלח';
   const tone = signed ? 'done' : bounced || (!hasAddress && !handedByLink) ? 'warn' : undefined;
+  const stateUnknown = !signed && hasAddress && !bounced && !sentAt && lastUnknown;
 
   return (
     <div className="rc-signer" data-testid="rc-signer">
       {showName && <div className="rc-signer-name">{signer.name || signer.email}</div>}
       {hasAddress && <div className="rc-signer-addr"><span className="ltr-isolate">{signer.email.trim()}</span></div>}
-      <div className="rc-signer-state" data-tone={tone}>{state}</div>
+      <div className="rc-signer-state" data-tone={stateUnknown ? 'unknown' : tone}
+        style={stateUnknown ? UNKNOWN_TEXT_STYLE : undefined}>{state}</div>
       {hasAddress && handedByLink && !signed && <div className="rc-meta">הקישור נמסר גם ידנית</div>}
-      {lastFailed && !signed && !reminded && <div className="rc-err">השליחה האחרונה נכשלה{emails[0]?.sentAt ? ` ${fmtTime(emails[0].sentAt)}` : ''}</div>}
+      {lastFailed && !signed && !reminded && <div className="rc-err">השליחה האחרונה נכשלה{latest?.sentAt ? ` ${fmtTime(latest.sentAt)}` : ''}</div>}
+      {lastUnknown && !signed && !reminded && (
+        <div className="rc-meta" style={UNKNOWN_TEXT_STYLE} data-testid="rc-signer-unknown">
+          {sentAt ? 'לא ידוע אם השליחה החוזרת' : 'ניסיון'} {fmtTime(latest.sentAt)}{sentAt ? ' יצאה' : ' — ספק הדואר לא החזיר תשובה ברורה'}.
+          {' '}לפני ששולחים שוב — כדאי לברר עם {who} אם קיבל אותו.
+        </div>
+      )}
       {refPending && <div className="rc-err">אסמכתא {track!.referenceNumber} של ביטוח לאומי טרם נמסרה</div>}
       {!signed && (onRemind || link) && (
         <div className="rc-signer-acts">
-          {onRemind && <button type="button" className="btn btn-secondary btn-sm" onClick={() => void remind()}>שליחה חוזרת</button>}
+          {onRemind && (
+            <button type="button" className="btn btn-secondary btn-sm"
+              onClick={() => (lastUnknown && !confirmAgain ? setConfirmAgain(true) : void remind())}>
+              {lastUnknown && confirmAgain ? 'שלח שוב בכל זאת' : 'שליחה חוזרת'}
+            </button>
+          )}
           {link && <button type="button" className="rc-link" onClick={() => void copy()}>{copied ? '✓ הועתק' : 'העתקת קישור אישי'}</button>}
         </div>
       )}
-      {reminded && <div className={reminded.ok ? 'rc-meta' : 'rc-err'}>{reminded.text}</div>}
+      {confirmAgain && (
+        <div className="rc-meta" style={UNKNOWN_TEXT_STYLE} data-testid="rc-signer-confirm">
+          אם המייל הקודם כבר הגיע, {who} יקבל אותו פעמיים.{' '}
+          <button type="button" className="rc-link" onClick={() => setConfirmAgain(false)}>ביטול</button>
+        </div>
+      )}
+      {reminded && (
+        <div className={reminded.ok ? 'rc-meta' : reminded.unknown ? 'rc-meta' : 'rc-err'}
+          style={reminded.unknown ? UNKNOWN_TEXT_STYLE : undefined}>{reminded.text}</div>
+      )}
     </div>
   );
 }

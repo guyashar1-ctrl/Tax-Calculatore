@@ -25,10 +25,21 @@ import { documentLibrary } from '../../lib/clientGuide';
 import type { FirmProfile } from '../../types/firmProfile';
 import type { InstitutionKey } from '../../types/onboarding';
 import { INSTITUTION_DEBIT_CODES } from '../../types/onboarding';
-import { useJourneyDefaults } from '../../hooks/useJourneyDefaults';
+import { entriesOf, type IntakeDraft } from './useIntakeDraft';
+import ProcessSteps, { processForEntry } from './ProcessSteps';
 import './requestDefaults.css';
 
-interface Props { profile: FirmProfile }
+interface Props {
+  profile: FirmProfile;
+  /** הטיוטה חיה ברמת «המשרד» — כדי שמעבר לעמוד אחר לא ימחק אותה. */
+  intake: IntakeDraft;
+  /** קפיצה לספריית המסמכים (כשבקשת «שליחת מסמך» צריכה קובץ). */
+  onOpenLibrary?: () => void;
+  /** אבן הדרך «ייצוג מול הרשויות» — מה נבחר מראש, ואיך זה עובד. נבנה בעמוד. */
+  representation?: React.ReactNode;
+  /** המייל שבקשה שולחת — לפי סוג השלב. פותח את חלון הנוסח במקום. */
+  emailFor?: (stepType: string) => { label: string; open: () => void; warn?: string } | null;
+}
 
 /**
  * שם, תנאי ובעלים — לבקשת מערכת מ-REQUEST_META, לבקשה של המשרד מהמפרט שלה.
@@ -83,12 +94,8 @@ function toTree(entries: DefaultEntry[]): Node[] {
 const flatten = (nodes: Node[]): DefaultEntry[] =>
   nodes.flatMap(n => [n.entry, ...flatten(n.kids)]);
 
-export default function RequestDefaultsSection({ profile }: Props) {
-  const officeId = profile.id;
-  const { byKind, loading, error, saving, save } = useJourneyDefaults(officeId);
-  const [kind, setKind] = useState<ClientKind>('licensed_dealer');
-  const [draft, setDraft] = useState<Partial<Record<ClientKind, DefaultEntry[]>>>({});
-  const [dirty, setDirty] = useState<Partial<Record<ClientKind, boolean>>>({});
+export default function RequestDefaultsSection({ profile, intake, onOpenLibrary, representation, emailFor }: Props) {
+  const { kind, setKind, loading, loadError: error } = intake;
   const [open, setOpen] = useState<Set<string>>(new Set());
   const [vsel, setVsel] = useState<Record<string, number>>({});
   const [addItemFor, setAddItemFor] = useState<string | null>(null);
@@ -97,25 +104,21 @@ export default function RequestDefaultsSection({ profile }: Props) {
   const [whyOpen, setWhyOpen] = useState<Set<string>>(new Set());
   const [drawer, setDrawer] = useState<{ internal: boolean }>({ internal: false });
   const [notice, setNotice] = useState<string | null>(null);
-  const [saveErr, setSaveErr] = useState<string | null>(null);
   const listRef = useRef<HTMLDivElement | null>(null);
   const dragRef = useRef<string | null>(null);
 
-  useEffect(() => { setDraft(byKind); }, [byKind]);
   useEffect(() => {
     if (!notice) return;
     const t = setTimeout(() => setNotice(null), 2600);
     return () => clearTimeout(t);
   }, [notice]);
 
-  const entries = draft[kind] ?? [];
+  const entries = entriesOf(intake.draft, intake.saved, kind);
   const tree = useMemo(() => toTree(entries), [entries]);
+  const dirtyKinds = new Set(intake.dirtyKinds);
 
-  const isDirty = !!dirty[kind];
-
-  function mutate(next: DefaultEntry[], markDirty = true) {
-    setDraft(d => ({ ...d, [kind]: next }));
-    if (markDirty) setDirty(d => ({ ...d, [kind]: true }));
+  function mutate(next: DefaultEntry[]) {
+    intake.mutate(kind, next);
   }
 
   function patch(key: string, fn: (e: DefaultEntry) => DefaultEntry) {
@@ -267,7 +270,7 @@ export default function RequestDefaultsSection({ profile }: Props) {
     }]);
     setCatalogOpen(false);
     setOpen(s => new Set(s).add(stepType));
-    setNotice(`«${meta.name}» נוספה לברירת המחדל`);
+    setNotice(`«${meta.name}» נוספה — תישמר ב«שמירה»`);
   }
 
   /** בקשה חופשית של המשרד — נולדת מהמפרט, ונשמרת כ-custom_request. */
@@ -284,7 +287,7 @@ export default function RequestDefaultsSection({ profile }: Props) {
     }]);
     setCatalogOpen(false);
     setOpen(s => new Set(s).add(spec.key));
-    setNotice(`«${spec.name}» נוספה לברירת המחדל`);
+    setNotice(`«${spec.name}» נוספה — תישמר ב«שמירה»`);
   }
   /** ‼ הרשויות נשמרות ברשומה; ה-payload נבנה מהן ברגע השמירה. */
   function setAuthorities(key: string, a: InstitutionKey[]) {
@@ -294,14 +297,6 @@ export default function RequestDefaultsSection({ profile }: Props) {
     patch(key, e => ({ ...e, documentId: id || undefined }));
   }
 
-
-  async function doSave() {
-    setSaveErr(null);
-    const err = await save(kind, entries, profile);
-    if (err) { setSaveErr(err); return; }
-    setDirty(d => ({ ...d, [kind]: false }));
-    setNotice(`נשמר · יחול על לקוחות חדשים מסוג «${CLIENT_KIND_LABELS[kind]}»`);
-  }
 
   /* אותו אוסף פעולות לשתי הרשימות — הפעילה והמגירה של הכבויות. */
   const rowApi: RowApi = {
@@ -321,7 +316,8 @@ export default function RequestDefaultsSection({ profile }: Props) {
 
   return (
     <div className="ojd">
-      <div className="ojd-top">
+      {/* סוג הלקוח — בחירה אחת. נקודה = יש בסוג הזה שינוי שעוד לא נשמר. */}
+      <div className="ojd-top" role="group" aria-label="סוג לקוח">
         <div className="ojd-types">
           {CLIENT_KIND_ORDER.map(k => (
             <button key={k} type="button"
@@ -329,44 +325,19 @@ export default function RequestDefaultsSection({ profile }: Props) {
               aria-pressed={k === kind}
               onClick={() => { setKind(k); setOpen(new Set()); setAddItemFor(null); }}>
               {CLIENT_KIND_LABELS[k]}
+              {dirtyKinds.has(k) && <span className="ojd-chip-dot" aria-label="(לא נשמר)" />}
             </button>
           ))}
         </div>
-        {/* ‼ כפתור נפרד ומופיע-רק-כשצריך: הכפתור שבראש המסך שומר את פרופיל
-            המשרד, וברירת המחדל יושבת בטבלה אחרת. שני כפתורים זהים במנוחה
-            נקראו כשכפול; כאן הוא מופיע רק כשיש מה לשמור, ואומר מה הוא שומר. */}
-        {isDirty && (
-          <div className="ojd-save">
-            <span className="ojd-dirty">יש שינויים שלא נשמרו</span>
-            <button className="btn btn-primary" disabled={saving} onClick={() => void doSave()}>
-              {saving ? 'שומר…' : 'שמור ברירת מחדל'}
-            </button>
-          </div>
-        )}
       </div>
 
-      {saveErr && <div className="alert alert-warning" style={{ marginTop: 10 }}>השמירה נכשלה: {saveErr}</div>}
-
-      <div className="ojd-head">
-        <h2>ברירת המחדל — {CLIENT_KIND_LABELS[kind]}</h2>
-        <div className="ojd-lead">
-          אלו הבקשות שייכנסו אוטומטית למסע של לקוח חדש מסוג זה.
-          הסוג נקבע מתבנית ההצעה, ובהיעדר הצעה - מסוג העוסק שעל כרטיס הלקוח.
-        </div>
-        <div className="ojd-life">
-          מסע שכבר נפתח ממשיך לפי ברירת המחדל שהייתה בפתיחתו · שינוי כאן אינו חוזר אחורה
-        </div>
-      </div>
+      <p className="ojd-lead">
+        לקוח חדש מסוג «{CLIENT_KIND_LABELS[kind]}» מקבל את הבקשות האלה לבד, כשההצעה שלו מאושרת.
+        <span className="ojd-lead-quiet"> הסוג נקבע לפי ההצעה שאושרה. לקוחות קיימים לא מושפעים.</span>
+      </p>
 
       <div className="ojd-flow">
-        {hasMilestone && (
-          <div className="ojd-milestone">
-            <div className="ojd-ms-t"><span className="ojd-ms-mark">אבן דרך</span>ייצוג מול הרשויות</div>
-            <div className="ojd-ms-m">
-              כשההצעה כוללת ייצוג · מוצגת מעל הבקשות ולא כבקשה, ולכן אינה נכבית מכאן
-            </div>
-          </div>
-        )}
+        {hasMilestone && representation}
 
         {tree.length === 0 ? (
           <div className="ojd-state">אין בקשות בברירת המחדל לסוג הזה. אפשר להוסיף מהקטלוג.</div>
@@ -374,7 +345,7 @@ export default function RequestDefaultsSection({ profile }: Props) {
           <div ref={listRef} onPointerMove={onListMove} onPointerUp={onListUp} onPointerCancel={onListUp}>
             {tree.map((n, i) => (
               <Row key={n.entry.key} node={n} depth={0} last={i === tree.length - 1}
-                   state={{ open, vsel, addItemFor, whyOpen, profile }}
+                   state={{ open, vsel, addItemFor, whyOpen, profile, onOpenLibrary, emailFor }}
                    api={rowApi} />
             ))}
           </div>
@@ -408,29 +379,40 @@ export default function RequestDefaultsSection({ profile }: Props) {
           onClose={() => setCatalogOpen(false)}>
           {/* ‼ שתי משפחות באותו קטלוג: בקשות שהמערכת יוצרת מתנאי, ובקשות
               שהמשרד מוסיף בעצמו. ההפרדה היא בכותרת, לא בלשונית. */}
-          <div className="ojd-cat-group">בקשות של המערכת</div>
-          {CATALOG_STEP_TYPES.map(t => {
-            const used = entries.some(e => e.stepType === t && e.source === 'system');
-            const meta = metaFor(t);
+          {(() => {
+            // ‼ (סבב 3) קודם תשעה פריטים אפורים «כבר בברירת המחדל» מילאו את המסך הראשון,
+            // ומה שאפשר באמת להוסיף ירד מתחת לקפל. עכשיו: רק מה שאפשר להוסיף, ושורה אחת למה שכבר ברשימה.
+            const sysFree = CATALOG_STEP_TYPES.filter(t => !entries.some(e => e.stepType === t && e.source === 'system'));
+            const sysUsed = CATALOG_STEP_TYPES.filter(t => entries.some(e => e.stepType === t && e.source === 'system'));
+            const offFree = OFFICE_REQUEST_KINDS.filter(spec => !entries.some(e => e.key === spec.key));
+            const offUsed = OFFICE_REQUEST_KINDS.filter(spec => entries.some(e => e.key === spec.key));
+            const usedNames = [...sysUsed.map(t => metaFor(t).name), ...offUsed.map(spec => spec.name)];
             return (
-              <button key={t} type="button" className="ojd-choice" disabled={used}
-                onClick={() => addSystemFromCatalog(t)}>
-                <b>{meta.name}</b>
-                <span>{used ? 'כבר בברירת המחדל' : meta.hint}</span>
-              </button>
+              <>
+                {sysFree.length > 0 && <div className="ojd-cat-group">בקשות של המערכת</div>}
+                {sysFree.map(t => {
+                  const meta = metaFor(t);
+                  return (
+                    <button key={t} type="button" className="ojd-choice" onClick={() => addSystemFromCatalog(t)}>
+                      <b>{meta.name}</b>
+                      <span>{meta.hint}</span>
+                    </button>
+                  );
+                })}
+                {offFree.length > 0 && <div className="ojd-cat-group">בקשות שהמשרד מוסיף</div>}
+                {offFree.map(spec => (
+                  <button key={spec.key} type="button" className="ojd-choice" onClick={() => addOfficeFromCatalog(spec.key)}>
+                    <b>{spec.name}</b>
+                    <span>{spec.hint}</span>
+                  </button>
+                ))}
+                {sysFree.length + offFree.length === 0 && <div className="ojd-state">כל הבקשות כבר ברשימה של הסוג הזה.</div>}
+                {usedNames.length > 0 && (
+                  <div className="ojd-cat-used">כבר ברשימה: {usedNames.join(' · ')}</div>
+                )}
+              </>
             );
-          })}
-          <div className="ojd-cat-group">בקשות שהמשרד מוסיף</div>
-          {OFFICE_REQUEST_KINDS.map(spec => {
-            const used = entries.some(e => e.key === spec.key);
-            return (
-              <button key={spec.key} type="button" className="ojd-choice" disabled={used}
-                onClick={() => addOfficeFromCatalog(spec.key)}>
-                <b>{spec.name}</b>
-                <span>{used ? 'כבר בברירת המחדל' : spec.hint}</span>
-              </button>
-            );
-          })}
+          })()}
         </Modal>
       )}
 
@@ -466,6 +448,8 @@ interface RowState {
   addItemFor: string | null;
   whyOpen: Set<string>;
   profile: FirmProfile;
+  onOpenLibrary?: () => void;
+  emailFor?: Props['emailFor'];
 }
 interface RowApi {
   toggleOpen: (k: string) => void;
@@ -494,6 +478,7 @@ function Row({ node, depth, last, state, api }:
   // ‼ בקשה של המשרד שהתצורה שלה חסרה לא תיווצר — נאמר את זה בשורה עצמה,
   // ולא נחכה שהמשרד יגלה את זה כשלקוח לא יקבל אותה.
   const incomplete = e.source === 'office' && e.enabled && !officeEntryReady(e, state.profile);
+  const rowWarn = e.source === 'system' ? state.emailFor?.(e.stepType)?.warn : undefined;
 
   const metaLine = dependent
     ? <><span>נפתחת אחרי «{metaFor(e.dependsOn!).name}»</span> · {meta.owner}</>
@@ -526,6 +511,7 @@ function Row({ node, depth, last, state, api }:
               {meta.name}
               {e.source === 'office' && <span className="ojd-byoffice">נוסף על ידך</span>}
               {incomplete && <span className="ojd-incomplete">חסרה תצורה</span>}
+              {rowWarn && <span className="ojd-incomplete">{rowWarn}</span>}
             </div>
             <div className="ojd-rowmeta">{metaLine}</div>
           </div>
@@ -566,12 +552,18 @@ function Body({ entry, state, api }: { entry: DefaultEntry; state: RowState; api
   const pv = built
     ? { t: String(built.clientTitle ?? ''), s: String(built.clientSub ?? ''), c: String(built.clientCta ?? '') }
     : meta.derivedCopy
-      ? { t: `להעלות ${items.length} מסמכים`, s: items.map(i => i.label).join(' · '), c: 'להעלאה' }
+      ? (items.length
+        ? { t: items.length === 1 ? 'להעלות מסמך אחד' : `להעלות ${items.length} מסמכים`, s: items.map(i => i.label).join(' · '), c: 'להעלאה' }
+        // ‼ בלי פריטים הלקוח לא יקבל כלום — «להעלות 0 מסמכים» נראה כמו תקלה
+        : { t: 'עוד אין מה להעלות', s: 'מוסיפים פריט ב«＋ פריט»', c: '' })
       : v.copy
         ? { t: v.copy.clientTitle ?? '', s: v.copy.clientSub ?? '', c: v.copy.clientCta ?? '' }
         : null;
 
   const docs = spec?.config === 'document' ? documentLibrary(state.profile) : [];
+  const email = entry.source === 'system' ? state.emailFor?.(entry.stepType) ?? null : null;
+  const process = processForEntry(entry.stepType, entry.source === 'office' ? entry.key : undefined);
+  const [howOpen, setHowOpen] = useState(false);
 
   return (
     <div className="ojd-body" onClick={ev => ev.stopPropagation()}>
@@ -641,7 +633,10 @@ function Body({ entry, state, api }: { entry: DefaultEntry; state: RowState; api
           <div className="ojd-lab">איזה מסמך</div>
           {docs.length === 0 ? (
             <div className="ojd-warn">
-              ספריית המסמכים ריקה. מוסיפים מסמכים ב«מסמכים ללקוחות», ואז חוזרים לכאן.
+              ספריית המסמכים ריקה. מוסיפים קובץ ב«ספריית מסמכים», ואז חוזרים לכאן.
+              {state.onOpenLibrary && (
+                <> <button type="button" className="ojd-link" onClick={state.onOpenLibrary}>לספריית המסמכים ←</button></>
+              )}
             </div>
           ) : (
             <select value={entry.documentId ?? ''} className="ojd-select"
@@ -664,7 +659,7 @@ function Body({ entry, state, api }: { entry: DefaultEntry; state: RowState; api
               <div className="ojd-preview">
                 <div className="ojd-pv-t">{pv.t}</div>
                 <div className="ojd-pv-s">{pv.s}</div>
-                <div className="ojd-pv-c">{pv.c}</div>
+                {pv.c && <div className="ojd-pv-c">{pv.c}</div>}
               </div>
               {meta.derivedCopy && (
                 <div className="ojd-pv-derived">הכותרת והשורה שמתחתיה נגזרות מהרשימה</div>
@@ -730,15 +725,29 @@ function Body({ entry, state, api }: { entry: DefaultEntry; state: RowState; api
         </div>
       )}
 
+      {email && (
+        <div className="ojd-email">
+          <span>המייל שיוצא: «{email.label}»</span>
+          <button type="button" className="ojd-link" onClick={email.open}>עריכת הנוסח</button>
+          {email.warn && <span className="ojd-warn" style={{ margin: 0 }}>{email.warn}</span>}
+        </div>
+      )}
+
       <div className="ojd-note">
         {entry.source === 'system'
-          ? <>נוצרת על ידי המערכת — <b style={{ fontWeight: 500 }}>{meta.cond}</b>. את התנאי אי אפשר לשנות מכאן; אפשר לכבות את הבקשה, לשנות את מקומה ולערוך את מה שהיא מבקשת.</>
-          : <>בקשה שהמשרד הוסיף — אין לה תנאי מערכת, והיא תיווצר לכל לקוח חדש מסוג זה.</>}
-        {entry.enabled && entry.source === 'system' && meta.cond !== 'תמיד' && (
-          <><br />אם התנאי יתקיים רק בהמשך, הבקשה תיוולד אז - במקום הזה במסלול של הלקוח ולא בסופו.</>
-        )}
-        {meta.note && <><br />{meta.note}</>}
+          ? <>נפתחת {meta.cond === 'תמיד' ? 'לכל לקוח חדש מהסוג הזה' : <b style={{ fontWeight: 500 }}>{meta.cond}</b>}.</>
+          : <>נוספה על ידך — נפתחת לכל לקוח חדש מהסוג הזה.</>}
+        {meta.note && <> {meta.note}</>}
       </div>
+
+      {process && (
+        <div className="ojd-how">
+          <button type="button" className="ojd-link mute" aria-expanded={howOpen} onClick={() => setHowOpen(v => !v)}>
+            {howOpen ? 'הסתרת השלבים' : 'איך זה עובד'}
+          </button>
+          {howOpen && <ProcessSteps def={process} />}
+        </div>
+      )}
 
       <div className="ojd-acts">
         {!multi && entry.source === 'system' && (

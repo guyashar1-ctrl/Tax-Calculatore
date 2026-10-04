@@ -6,7 +6,8 @@
  *
  *  JF18  המחולל מכבד הסרה, יעד (dueInDays), חובה/רשות, תלות ומקום מהצילום —
  *        גם ל«עדכון סטטוס מס» (intake_questionnaire).
- *  JF19  סוג לקוח שאינו ניתן להכרעה ⇒ עדיין יש צילום (kindFallback).
+ *  JF19  סוג לקוח שאינו ניתן להכרעה ⇒ עדיין יש צילום (kindFallback) — אבל הסוג ריק,
+ *        ומה ששונה בין עוסק פטור, עוסק מורשה וחברה מחכה לסוג (217, kind_hold).
  *  JF4   «מוחזק עד אישור» — פרדיקט אחד: לקוח quoted מוחזק, לקוח בקליטה לא.
  *  JF25  «קבלת חומרים» שנוצרת מ«+ בקשה» בלי רשימה מקבלת את 9 הפריטים.
  *  JF12  בקשה שהמשרד הסיר אינה נולדת מחדש בהרצה חוזרת של המחולל.
@@ -240,12 +241,22 @@ try {
   const snapB = await one(`select journey_default_snapshot is not null as has_snap,
                                   journey_default_facts->>'kindFallback' as kf,
                                   journey_default_facts->>'kind' as kind,
+                                  journey_default_facts->>'snapshotKind' as snap_kind,
+                                  journey_default_facts->>'kindPending' as pending,
+                                  kind_hold->'held' as held,
+                                  kind_hold->>'resolvedAt' as resolved_at,
                                   public.resolve_client_kind(quotation_id, client_id) as resolved
                              from public.engagements where id = ${q(B.eng)}`);
-  ok('JF19 · resolve_client_kind ריק ⇒ צילום מסוג הנופל-אחורה ועובדה kindFallback',
-    snapB.resolved === null && snapB.has_snap === true && snapB.kf === 'true' && snapB.kind === 'licensed_dealer', JSON.stringify(snapB));
-  ok('JF19 · ברירת המחדל הערוכה של המשרד חלה גם עליו (יעד 5 ימים על המסמכים)',
-    (await step(B.cid, 'client_documents'))?.due_date === plusDays(5));
+  // ‼ 217: סוג לא ידוע אינו «עוסק מורשה» — הצילום מרשימת המורשה (תמיד יש צילום), אבל הסוג ריק וממתין.
+  ok('JF19 · resolve_client_kind ריק ⇒ צילום מרשימת המורשה, הסוג ריק (לא «מורשה» בשקט) וממתין',
+    snapB.resolved === null && snapB.has_snap === true && snapB.kf === 'true' && snapB.kind === null
+    && snapB.snap_kind === 'licensed_dealer' && snapB.pending === 'true', JSON.stringify(snapB));
+  // JF18 ערך את רשימת המורשה בלבד (יעד 5 ימים ורשות למסמכים, בלי תלות לתשלום, בקשת משרד) —
+  // ולכן אלה שונים בין סוגי העוסק: מחכים לסוג, ולא נוצרים לפי ניחוש. הם נפתחים כשהסוג נקבע.
+  const heldB = (typeof snapB.held === 'string' ? JSON.parse(snapB.held) : (snapB.held ?? [])).map((h) => h.key);
+  ok('JF19 · מה ששונה בין הסוגים (המסמכים — יעד 5 ימים רק למורשה) מחכה לסוג העוסק ולא נוצר בניחוש',
+    snapB.resolved_at === null && heldB.includes('client_documents') && !(await step(B.cid, 'client_documents')),
+    JSON.stringify(snapB.held));
 
   // ═══ JF12 · הוסרה ⇒ לא נולדת מחדש, לכל סוג בנפרד ═══════════════════════════
   console.log('\n— JF12 · הסרה לפי סוג —');

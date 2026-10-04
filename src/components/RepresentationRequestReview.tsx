@@ -26,7 +26,9 @@ import SignaturePad from './SignaturePad';
 import RepSignersStatus from './RepSignersStatus';
 import RepresentationAuthorityData from './RepresentationAuthorityData';
 import RepresentationExecutionCenter from './RepresentationExecutionCenter';
-import { edgeFunctionError } from '../utils/functionError';
+import { isUnknownSendReply } from '../types/emailActivity';
+import { errorTextFromBody, isUnknownEmailFailure } from '../features/flows/noticeText';
+import { UNKNOWN_OUTCOME_TEXT } from '../../supabase/functions/_shared/resendResult.ts';
 import RemoveAuthorityBeforeSigning, { canRemoveBeforeSigning } from './RemoveAuthorityBeforeSigning';
 import RepresentationNextStep from './RepresentationNextStep';
 import EmailPreviewDialog from './EmailActivity/EmailPreviewDialog';
@@ -74,6 +76,50 @@ const REP_TYPE_OPTIONS = [
   'יועץ מס',
   'עורך דין',
 ];
+
+/**
+ * מייל החתימה (send-onboarding-email · stage sign) — דחיות ודאיות בלבד, כסיבה קצרה
+ * («המייל לא נשלח (…)»). כל השאר — אין תשובה, שער, 5xx בלי קוד — לא ידוע אם יצא.
+ */
+const SIGN_SEND_ERRORS: Record<string, string> = {
+  unauthorized: 'פג תוקף ההתחברות — התחברו מחדש',
+  'not found': 'הבקשה לא נמצאה — רעננו את הדף',
+  'missing requestId': 'הבקשה לא נמצאה — רעננו את הדף',
+  'no client email': 'אין כתובת מייל בבקשה',
+  'signer not found': 'לחותם אין כתובת מייל או קישור חתימה',
+  resend_failed: 'ספק הדואר דחה את המייל',
+};
+
+type SendReplyBody = { ok?: unknown; error?: string; detail?: { message?: string } | null } | null;
+
+/** גוף התשובה — גם כשהשרת ענה בקוד שאינו 2xx. null — אין גוף (החיבור נפל, או HTML משער). */
+async function signReplyBody(data: unknown, error: unknown): Promise<SendReplyBody> {
+  if (data && typeof data === 'object') return data as SendReplyBody;
+  const ctx = (error as { context?: { clone?: () => { json: () => Promise<unknown> } } } | null)?.context;
+  if (!ctx || typeof ctx.clone !== 'function') return null;
+  try {
+    const b = await ctx.clone().json();
+    return b && typeof b === 'object' && !Array.isArray(b) ? b as SendReplyBody : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * מה החותם יקבל משליחה אחת: null — יצא. UNKNOWN_OUTCOME_TEXT **לבדו** — לא ידוע אם יצא;
+ * מרכז הייצוג מציג אותו כתום עם הצעד הבטוח (לברר עם הנמען), ולא «נכשל».
+ * «המייל לא נשלח (…)» — רק כשהשרת דחה בוודאות.
+ */
+async function signatureSendResult(data: unknown, error: unknown): Promise<string | null> {
+  const body = await signReplyBody(data, error);
+  if (!error && body?.ok === true) return null;
+  const status = (error as { context?: { status?: unknown } } | null)?.context?.status;
+  if (isUnknownSendReply(body) || isUnknownEmailFailure(body, typeof status === 'number' ? status : null, SIGN_SEND_ERRORS)) {
+    return UNKNOWN_OUTCOME_TEXT;
+  }
+  const why = errorTextFromBody(body, SIGN_SEND_ERRORS, 'השרת דחה את השליחה');
+  return body?.error === 'in_flight' ? why : `המייל לא נשלח (${why})`;
+}
 
 export default function RepresentationRequestReview({
   request,
@@ -249,12 +295,12 @@ export default function RepresentationRequestReview({
       const { data, error } = await supabase.functions.invoke('send-onboarding-email', {
         body: { requestId: request.id, stage: 'sign', signerId: signer.id },
       });
-      // ‼ הסיבה האמיתית בגוף התשובה (edgeFunctionError), לא «non-2xx status code».
-      if (error) return `המייל לא נשלח (${await edgeFunctionError(error, 'שליחה נכשלה')})`;
-      if (!data?.ok) return data?.detail?.message || data?.error || 'שליחה נכשלה';
-      return null;
-    } catch (e) {
-      return e instanceof Error ? e.message : String(e);
+      // ‼ הסיבה האמיתית בגוף התשובה, לא «non-2xx status code» — ותשובה שלא מכריעה
+      // (רשת, שער, 5xx בלי קוד) היא «לא ידוע אם יצא», לא «המייל לא נשלח».
+      return await signatureSendResult(data, error);
+    } catch {
+      // הקריאה נפלה באמצע — אין תשובה מהשרת, ולכן גם לא «לא נשלח».
+      return UNKNOWN_OUTCOME_TEXT;
     }
   }
 

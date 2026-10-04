@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { formatRoute, parseHash, type View as AppRouteView } from './lib/appRoute';
+import { requestLeave } from './lib/leaveGuard';
 import { resolveListedEntity } from './lib/routeEntity';
 import RouteEntityFallback from './components/RouteEntityFallback';
-import WorkstationPairingDialog from './components/WorkstationPairingDialog';
+import { useToast } from './components/ui/Toast';
 import {
   Client,
   RepresentationRequest,
@@ -40,6 +41,9 @@ import { supabase } from './lib/supabase';
 import { repRequestToDb } from './lib/dbMappers';
 import { isRepresented } from './lib/clientState';
 import { edgeFunctionError } from './utils/functionError';
+import { isUnknownSendReply } from './types/emailActivity';
+import { errorTextFromBody, isUnknownEmailFailure } from './features/flows/noticeText';
+import { UNKNOWN_OUTCOME_TEXT, isUnknownOutcome } from '../supabase/functions/_shared/resendResult.ts';
 import { effectiveNiCoversSpouse } from './utils/repSigners';
 import { targetsOf } from './utils/repScope';
 import { representationInsight, onboardingProgressLine, missingIdentityLine } from './utils/representationInsight';
@@ -67,7 +71,7 @@ import { RELEASE_MATERIALS, readReleaseDraft, releaseTemplateFrom } from './util
 import { unfiledBlocking } from './types/onboarding';
 import { applySecondaryLevels } from './types/quotations';
 import { currentEngagement } from './utils/engagementSelectors';
-import { countTasksNeedingMe } from './utils/taskUtils';
+import { tasksPageMineCount } from './utils/tasksPage';
 import { linkLeadToClient } from './lib/leadLink';
 import { deriveQuotationBrand } from './components/quotations/quotationBranding';
 import { calcTotals } from './utils/quotationCalc';
@@ -122,6 +126,9 @@ import TestExecutionCenter from './components/signatureRequest/__TestExecutionCe
 import TestRepDocs from './components/signatureRequest/__TestRepDocs';
 import TestOnboarding from './components/clientTabs/__TestOnboarding';
 import TestJourney from './components/clientTabs/__TestJourney';
+import TestRequests from './components/clientTabs/__TestRequests';
+import DemoHub from './components/__DemoHub';
+import FlowsDemo from './prototypes/flows/FlowsDemo';
 import TestInstitutions from './components/clientTabs/__TestInstitutions';
 import TestAlignmentStatus from './components/clientTabs/__TestAlignmentStatus';
 import TestTaxFileV6 from './components/clientTabs/__TestTaxFileV6';
@@ -148,6 +155,7 @@ import PublicSmartFormSignPage from './features/smartForms/PublicSmartFormSignPa
 import ErrorBoundary from './components/ErrorBoundary';
 import LegacyMigrationBanner from './components/LegacyMigrationBanner';
 import FailedNotificationsBanner from './components/FailedNotificationsBanner';
+import DemoBar from './components/demo/DemoBar';
 import { useAuth } from './hooks/useAuth';
 import AnnualReport from './features/annualReport/AnnualReport';
 
@@ -309,6 +317,95 @@ function standardFileName(lastName: string, firstName: string, docLabel: string,
   return ext ? `${baseName}.${ext}` : baseName;
 }
 
+// ─── מייל שלא יצא בבירור — מה החלון מקבל ──────────────────────────────────
+// ‼ החלונות (NewPersonDialog, PersonDirectory) מקבלים רק משפט (Error.message) ומכריעים
+// לפיו: «לא ידוע אם יצא» = המשפט של השרת (isUnknownSendReply) → כתום; משפט בעברית
+// → אדום, כמו שהוא; קוד באנגלית → כתום «לא התקבלה תשובה ברורה» (sendErrorView).
+// לכן כאן: דחייה ודאית של השרת → משפט בעברית שאומר שלא נשלח; unknown → המשפט של השרת.
+
+const AUTH_EXPIRED_TEXT = 'פג תוקף ההתחברות — התחברו מחדש ושלחו שוב.';
+
+const APPLY_LINK_SEND_ERRORS: Record<string, string> = {
+  missing_token: 'אין קישור לשליחה — סגרו את החלון ופתחו אותו שוב.',
+  invalid_email: 'כתובת האימייל לא תקינה — הקישור לא נשלח.',
+  forbidden: 'הקישור הוחלף בינתיים — סגרו את החלון ופתחו אותו שוב.',
+  unauthorized: AUTH_EXPIRED_TEXT,
+  resend_failed: 'ספק הדואר דחה את המייל — הקישור לא נשלח.',
+};
+
+const CHARGE_SEND_ERRORS: Record<string, string> = {
+  missing_charge_id: 'החיוב לא נמצא — רעננו את הדף.',
+  not_found: 'החיוב לא נמצא — ייתכן שנמחק. רעננו את הדף.',
+  already_requested: 'דרישת התשלום כבר נשלחה קודם (אולי מחלון אחר) — רעננו את הדף.',
+  missing_client_email: 'בכרטיס הלקוח אין כתובת מייל — דרישת התשלום לא נשלחה.',
+  client_not_found: 'הלקוח לא נמצא — דרישת התשלום לא נשלחה.',
+  unauthorized: AUTH_EXPIRED_TEXT,
+  resend_failed: 'ספק הדואר דחה את המייל — דרישת התשלום לא נשלחה.',
+};
+
+/** גוף התשובה של פונקציית שרת שענתה בשגיאה. null — אין גוף (החיבור נפל, או תשובה שאינה JSON). */
+async function functionReplyBody(data: unknown, error: unknown): Promise<Record<string, unknown> | null> {
+  if (data && typeof data === 'object') return data as Record<string, unknown>;
+  const ctx = (error as { context?: { clone?: () => Response } } | null)?.context;
+  if (!ctx || typeof ctx.clone !== 'function') return null;
+  try {
+    const b: unknown = await ctx.clone().json();
+    return b && typeof b === 'object' && !Array.isArray(b) ? b as Record<string, unknown> : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * המשפט שהחלון יקבל. ‼ unknown_outcome לעולם לא הופך ל«נכשל»; וגם תשובה בלי קוד
+ * מוכר לא — היא עוברת כמו שהיא (באנגלית, או ריקה), והחלון מציג «לא התקבלה תשובה ברורה».
+ */
+async function emailSendErrorText(
+  body: Record<string, unknown> | null, error: unknown, table: Record<string, string>,
+): Promise<string> {
+  if (isUnknownSendReply(body)) return UNKNOWN_OUTCOME_TEXT;
+  const code = typeof body?.error === 'string' ? body.error : '';
+  if (code && table[code]) return table[code];
+  return error ? edgeFunctionError(error, '') : code;
+}
+
+/** קוד ה-HTTP של תשובת שגיאה מפונקציית שרת. null — לא התקבלה תשובה (החיבור נפל). */
+function functionReplyStatus(error: unknown): number | null {
+  const status = (error as { context?: { status?: unknown } } | null)?.context?.status;
+  return typeof status === 'number' ? status : null;
+}
+
+/**
+ * ‼ «לא ידוע אם המייל יצא»: השרת אמר unknown_outcome, או שלא ענה בכלל (רשת שנפלה,
+ * שער שהחזיר HTML), או 5xx בלי קוד מוכר. אף אחד מאלה אינו «לא נשלח» — ייתכן
+ * שהמייל כבר אצל הנמען. רק קוד מוכר מהטבלה (או 4xx) הוא דחייה ודאית.
+ */
+function isUncertainSendReply(body: Record<string, unknown> | null, error: unknown, table: Record<string, string>): boolean {
+  return isUnknownSendReply(body)
+    || isUnknownEmailFailure(body as { error?: string } | null, functionReplyStatus(error), table);
+}
+
+/** תזכורת להצעת מחיר (send-quotation-email) — דחיות ודאיות בלבד. */
+const QUOTE_REMINDER_SEND_ERRORS: Record<string, string> = {
+  unauthorized: AUTH_EXPIRED_TEXT,
+  'not found': 'ההצעה לא נמצאה — רעננו את הדף. התזכורת לא נשלחה.',
+  'no recipient email': 'אין כתובת מייל לנמען — התזכורת לא נשלחה.',
+  'missing quotationId/html/subject': 'התזכורת לא נטענה — סגרו את החלון ופתחו אותו שוב.',
+  resend_failed: 'ספק הדואר דחה את המייל — התזכורת לא נשלחה.',
+};
+
+/**
+ * קישור הייצוג במייל (send-onboarding-email, stage onboard) — דחיות ודאיות בלבד.
+ * ‼ סיבה קצרה: החלון עוטף אותה ב«המייל לא נשלח (…)».
+ */
+const ONBOARD_LINK_SEND_ERRORS: Record<string, string> = {
+  unauthorized: 'פג תוקף ההתחברות',
+  'not found': 'הבקשה לא נמצאה',
+  'missing requestId': 'הבקשה לא נמצאה',
+  'no client email': 'אין כתובת מייל בבקשה',
+  resend_failed: 'ספק הדואר דחה את המייל',
+};
+
 export default function App() {
   // דפי בדיקה של עורך החתימה — פיתוח בלבד. מקומפלים החוצה מהאתר החי.
   if (import.meta.env.DEV && typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('test-sig')) {
@@ -332,6 +429,16 @@ export default function App() {
   }
   if (import.meta.env.DEV && typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('test-journeyball')) {
     return <TestJourneyBall />;
+  }
+  // ‼ אב-טיפוס «ספרייה · מסלולים · אצל הלקוח» — נתונים מדומים בלבד, DEV בלבד.
+  if (import.meta.env.DEV && typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('flows-demo')) {
+    return <FlowsDemo />;
+  }
+  if (import.meta.env.DEV && typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('demo')) {
+    return <DemoHub />;
+  }
+  if (import.meta.env.DEV && typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('test-requests')) {
+    return <TestRequests />;
   }
   if (import.meta.env.DEV && typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('test-journey')) {
     return <TestJourney />;
@@ -369,7 +476,7 @@ export default function App() {
   if (import.meta.env.DEV && typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('test-signdone')) {
     return <TestSignDone />;
   }
-  if (import.meta.env.DEV && typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('test-firm-notifications')) {
+  if (import.meta.env.DEV && typeof window !== 'undefined' && (new URLSearchParams(window.location.search).has('test-firm-notifications') || new URLSearchParams(window.location.search).has('test-office'))) {
     return <TestFirmNotifications />;
   }
   if (import.meta.env.DEV && typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('test-representation-settings')) {
@@ -434,6 +541,7 @@ export default function App() {
   }
 
   const { user, loading: authLoading, authorized, displayName, avatarUrl, signOut } = useAuth();
+  const { showToast } = useToast();
 
   const { clients, loading: clientsLoading, error: clientsError, addClient, updateClient, deleteClient: removeClient, bulkAddClients, setClientLifecycleStage, applyClientLocally, refreshClient, refreshClients, linkSpouseClients } = useClients(user?.id);
   const { tasks, loading: tasksLoading, addTask, updateTask, bulkUpdateTasks, deleteTask: removeTask, bulkAddTasks, reloadTasks } = useTasks(user?.id);
@@ -577,7 +685,24 @@ export default function App() {
   const { theme, toggleTheme } = useTheme();
   // המסך שבו נמצאים נקרא מהכתובת, כדי שרענון (F5) יחזיר לאותו מקום
   const initialRoute = useRef(parseHash(window.location.hash)).current;
-  const [view, setView] = useState<View>(initialRoute.view);
+  const [view, setViewRaw] = useState<View>(initialRoute.view);
+  /** העמוד בתוך «המשרד» — חלק מהכתובת, כדי ש«אחורה» ו-F5 יחזירו אליו. */
+  const [officePage, setOfficePage] = useState<string | null>(initialRoute.officePage ?? null);
+  /** מה לפתוח בעמוד המשרד (‎#/firm/library/request:…‎, ‎#/firm/flows/flow:…‎) — קישור עמוק מבקשה תקועה. */
+  const [officeFocus, setOfficeFocus] = useState<string | null>(initialRoute.officeFocus ?? null);
+  const viewRef = useRef(view);
+  viewRef.current = view;
+  /**
+   * ‼ כל מעבר מסך עובר כאן. יציאה מ«המשרד» עם שינויים שלא נשמרו נעצרת, והמשרד
+   * שואל אם לשמור (lib/leaveGuard.ts). המעבר מתבצע רק אחרי הבחירה.
+   */
+  const setView = (v: View) => {
+    if (viewRef.current === 'firmProfile' && v !== 'firmProfile') {
+      requestLeave(() => setViewRaw(v));
+      return;
+    }
+    setViewRaw(v);
+  };
   /** סינון מסך המשימות ללקוח מסוים — מגיע מהקיצור בכרטיס הלקוח. */
   const [tasksClientFilter, setTasksClientFilter] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(initialRoute.clientId ?? null);
@@ -653,7 +778,6 @@ export default function App() {
   );
   // תפריט החשבון נפתח מהאווטאר — כדי ש"המשרד" ו"התנתק" לא יתפסו מקום בסרגל
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
-  const [showWorkstationPairing, setShowWorkstationPairing] = useState(false);
   const db = useDocumentDB();
 
   // ── הכתובת בשורת הכתובת ↔ המסך שמוצג ──────────────────────────────────────
@@ -668,6 +792,8 @@ export default function App() {
     quotationId: editingQuotationId ?? undefined,
     annualClientId: annualRoute?.clientId,
     annualTaxYear: annualRoute?.taxYear,
+    officePage: view === 'firmProfile' ? officePage ?? undefined : undefined,
+    officeFocus: view === 'firmProfile' ? officeFocus ?? undefined : undefined,
   });
   const syncedPath = useRef<string | null>(null);
 
@@ -682,29 +808,61 @@ export default function App() {
   useEffect(() => {
     function onPop() {
       const route = parseHash(window.location.hash);
-      // ‼ מסמנים כמסונכרן לפני העדכון, אחרת האפקט שלמעלה היה דוחף את אותו
-      // מסך שוב להיסטוריה ו"אחורה" היה נתקע במקום
-      syncedPath.current = formatRoute(route);
-      setView(route.view);
-      setSelectedId(route.clientId ?? null);
-      setClientInitialTab(clientTabFromRoute(route.clientTab));
-      setQuickViewId(route.quickId ?? null);
-      setSelectedRequestId(route.requestId ?? null);
-      setEditingQuotationId(route.quotationId ?? null);
-      setAnnualRoute(
-        route.annualClientId && route.annualTaxYear
-          ? { clientId: route.annualClientId, taxYear: route.annualTaxYear }
-          : null
-      );
-      setAnnualReportSelection(
-        route.annualClientId && route.annualTaxYear
-          ? { clientId: route.annualClientId, taxYear: route.annualTaxYear }
-          : null
-      );
+      const apply = (deferred: boolean) => {
+        // ‼ מסמנים כמסונכרן לפני העדכון, אחרת האפקט שלמעלה היה דוחף את אותו
+        // מסך שוב להיסטוריה ו"אחורה" היה נתקע במקום. מעבר שנדחה (אחרי חלון
+        // «שינויים שלא נשמרו») דווקא כן צריך להיכתב מחדש בכתובת.
+        if (!deferred) syncedPath.current = formatRoute(route);
+        setViewRaw(route.view);
+        setOfficePage(route.officePage ?? null);
+        setOfficeFocus(route.officeFocus ?? null);
+        setSelectedId(route.clientId ?? null);
+        setClientInitialTab(clientTabFromRoute(route.clientTab));
+        setQuickViewId(route.quickId ?? null);
+        setSelectedRequestId(route.requestId ?? null);
+        setEditingQuotationId(route.quotationId ?? null);
+        setAnnualRoute(
+          route.annualClientId && route.annualTaxYear
+            ? { clientId: route.annualClientId, taxYear: route.annualTaxYear }
+            : null
+        );
+        setAnnualReportSelection(
+          route.annualClientId && route.annualTaxYear
+            ? { clientId: route.annualClientId, taxYear: route.annualTaxYear }
+            : null
+        );
+      };
+      // ‼ «אחורה» שיוצא מ«המשרד» עם שינויים שלא נשמרו: הכתובת חוזרת למשרד,
+      // והמעבר קורה רק אחרי הבחירה בחלון.
+      if (viewRef.current === 'firmProfile' && route.view !== 'firmProfile') {
+        let immediate = true;
+        const moved = requestLeave(() => apply(!immediate));
+        immediate = false;
+        if (!moved && syncedPath.current) window.history.pushState(null, '', '#' + syncedPath.current);
+        return;
+      }
+      apply(false);
     }
     window.addEventListener('popstate', onPop);
     return () => window.removeEventListener('popstate', onPop);
   }, []);
+
+  /**
+   * ‼ כרטיס לקוח ומרכז ייצוג נפתחים מלמעלה. האפליקציה גוללת את החלון עצמו, ולכן
+   * מעבר מסך השאיר את הגלילה של המסך הקודם: מ«אוטומציות» (גלול למטה) הכרטיס נפתח
+   * בתחתית תיק המס — בלי השם, בלי הלשוניות ובלי הכרטיס שבו התוצאה.
+   */
+  const pageKey = view === 'form' ? `form:${selectedId ?? ''}`
+    : view === 'requestReview' ? `req:${selectedRequestId ?? ''}` : null;
+  const lastPageKey = useRef<string | null>(pageKey);
+  useLayoutEffect(() => {
+    const prev = lastPageKey.current;
+    lastPageKey.current = pageKey;
+    if (!pageKey || prev === pageKey) return;
+    // לקוח חדש שזה עתה נשמר — אותו מסך, רק המזהה נולד: נשארים במקום.
+    if (prev === 'form:' && pageKey.startsWith('form:')) return;
+    window.scrollTo(0, 0);
+  }, [pageKey]);
 
   useEffect(() => {
     if (!accountMenuOpen) return;
@@ -850,12 +1008,13 @@ export default function App() {
   // 191: שורה אחת לכרטיס הייצוג של הלקוח הפתוח — מהשורה הרזה שכבר נטענה
   // (identification ו-identity_docs ב-LEAN_COLUMNS), בלי שליפה נוספת.
   // ‼ «נשלח לחתימת הלקוח» רק כשהמייל באמת יצא — ראה repSendPhase.
-  const selectedRepSendPhase = (() => {
-    if (!selectedClient) return null;
-    const req = requests.filter(r => r.linkedClientId === selectedClient.id)
+  /** ‼ אותה הכרעה לכרטיס הפתוח ולתצוגה המהירה במסך הלקוחות — לא שתי גרסאות. */
+  function clientRepSendPhase(clientId: string) {
+    const req = requests.filter(r => r.linkedClientId === clientId)
       .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''))[0];
     return repSendPhase(req);
-  })();
+  }
+  const selectedRepSendPhase = selectedClient ? clientRepSendPhase(selectedClient.id) : null;
   const selectedRepNote = (() => {
     if (!selectedClient) return undefined;
     const req = requests.filter(r => r.linkedClientId === selectedClient.id)
@@ -896,9 +1055,18 @@ export default function App() {
       ?? requests.find(r => r.linkedClientId === clientId);
   }
 
+  /** יש ללקוח בקשת ייצוג — רק אז «למרכז הייצוג» הוא פעולה שעושה משהו. */
+  const selectedHasRepRequest = !!selectedClient && !!findClientRepresentationRequest(selectedClient.id);
+
   function handleOpenClientRepresentation(clientId: string) {
     const req = findClientRepresentationRequest(clientId);
-    if (req) handleSelectRequest(req.id);
+    if (req) { handleSelectRequest(req.id); return; }
+    // ‼ אין בקשת ייצוג — לא שותקים. לחיצה שלא עושה כלום נראית כמו מערכת תקועה;
+    // ללקוח שעוד לא מיוצג — הדרך לפתוח אחת, באותה הודעה.
+    const c = clients.find(x => x.id === clientId);
+    showToast(c && !isRepresented(c)
+      ? { message: 'ללקוח הזה עוד אין בקשת ייצוג.', actionLabel: 'בקשת ייצוג חדשה', onAction: () => handleStartRepresentation(clientId) }
+      : 'ללקוח הזה אין בקשת ייצוג במערכת.');
   }
 
   /** מסלולי הביצוע של ב"ל (לקוח/בן-בת-זוג) בבקשת הייצוג המקושרת — לתיק המס. */
@@ -1015,6 +1183,23 @@ export default function App() {
     setView('form');
   }
 
+  /**
+   * מ«המשרד» אל הלקוח — ישר למקום שבו רואים את התוצאה, מראש המסך (ראה pageKey).
+   * מיומן המיילים — «פעילות»; מ«מסמכים ← שליחה ללקוח» — «בקשות», שם נפתח חלון
+   * השליחה; מ«אוטומציות» — הלשונית של הפעולה. 'rep-center' — מרכז הייצוג (הזנה,
+   * שליחה ובדיקה מול הרשות רושמות שם את התוצאה); ללקוח בלי בקשת ייצוג — «בקשות».
+   */
+  function openClientFromOffice(clientId: string, tab?: ClientTabId | 'rep-center') {
+    if (tab === 'rep-center') {
+      const req = findClientRepresentationRequest(clientId);
+      if (req) { handleSelectRequest(req.id); return; }
+      tab = journeyUi ? 'journey' : 'onboarding';
+    }
+    setSelectedId(clientId);
+    setClientInitialTab(tab ?? 'log');
+    setView('form');
+  }
+
   function handleAddNew() {
     setShowNewPerson(true);
   }
@@ -1121,7 +1306,10 @@ export default function App() {
     const { data, error } = await supabase.functions.invoke('send-apply-link-email', {
       body: { token, recipientEmail },
     });
-    if (error || !data?.ok) throw new Error(error?.message || data?.error || 'שליחת המייל נכשלה');
+    if (error || !data?.ok) {
+      // ‼ לא «non-2xx status code»: החלון צריך לדעת אם המייל לא יצא, או שלא ידוע אם יצא.
+      throw new Error(await emailSendErrorText(await functionReplyBody(data, error), error, APPLY_LINK_SEND_ERRORS));
+    }
   }
 
   /**
@@ -1133,7 +1321,15 @@ export default function App() {
       body: { chargeId: charge.id },
     });
     if (error || !data?.ok) {
-      throw new Error(error?.message || data?.error || 'שליחת דרישת התשלום נכשלה');
+      const body = await functionReplyBody(data, error);
+      if (isUnknownOutcome(body)) {
+        // ‼ לא ידוע אם יצאה — השרת השאיר את החיוב «נשלחה» (כדי שלא תצא פעמיים).
+        // גם כאן: אחרת השורה מציעה שוב «שלח דרישת תשלום» עד רענון.
+        // (resend_unreachable מגרסת שרת ישנה החזיר את החיוב לממתין — לא נוגעים.)
+        const at = typeof body?.requestedAt === 'string' ? body.requestedAt : new Date().toISOString();
+        replaceCharge({ ...charge, status: 'requested', requestedAt: at });
+      }
+      throw new Error(await emailSendErrorText(body, error, CHARGE_SEND_ERRORS));
     }
     replaceCharge({ ...charge, status: 'requested', requestedAt: data.requestedAt as string });
   }
@@ -1313,7 +1509,7 @@ export default function App() {
    */
   async function saveRepresentationRequest(
     clientId: string, reqId: string, data: CreateRepresentationInput,
-  ): Promise<{ link: string; emailSent: boolean; emailError?: string; clientId: string }> {
+  ): Promise<{ link: string; emailSent: boolean; emailError?: string; emailUnknown?: boolean; clientId: string }> {
     const { name, email, areas, spouse, prefill, sendEmail } = data;
     const onboardingToken = crypto.randomUUID().replace(/-/g, '');
     const now = new Date().toISOString();
@@ -1367,19 +1563,32 @@ export default function App() {
     if (!sendEmail) return { link, emailSent: false, clientId };
     let emailSent = false;
     let emailError: string | undefined;
+    // ‼ לא ידוע אם יצא (השרת ענה unknown_outcome, או שלא ענה בזמן) ≠ «לא נשלח».
+    let emailUnknown = false;
     try {
       // מגבלת זמן — שהחלון לא ייתקע על "יוצר…" אם שרת המייל איטי/לא מגיב.
       // force — שליחה יזומה מהחלון. אין לה מה להתנגש בתביעה האוטומטית של השרת.
       const invoke = supabase.functions.invoke('send-onboarding-email', { body: { requestId: reqId, force: true } });
-      const timeout = new Promise<never>((_, reject) => setTimeout(() => reject(new Error('פג הזמן לשליחת המייל')), 12000));
+      const timeout = new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), 12000));
       const { data: res, error } = await Promise.race([invoke, timeout]);
-      if (error) emailError = error.message;
-      else if (res?.ok) emailSent = true;
-      else emailError = res?.detail?.message || res?.error || 'שגיאה לא ידועה';
+      if (!error && res?.ok) emailSent = true;
+      else {
+        const body = await functionReplyBody(res, error);
+        // ‼ גם בלי תשובה בכלל (רשת / שער) ו-5xx בלי קוד מוכר — לא ידוע, לא «לא נשלח».
+        emailUnknown = isUnknownSendReply(body)
+          || isUnknownEmailFailure(body as { error?: string } | null, functionReplyStatus(error), ONBOARD_LINK_SEND_ERRORS);
+        emailError = emailUnknown ? UNKNOWN_OUTCOME_TEXT
+          : errorTextFromBody(body as { error?: string; detail?: { message?: string } } | null, ONBOARD_LINK_SEND_ERRORS, 'השרת דחה את השליחה');
+      }
     } catch (e) {
-      emailError = e instanceof Error ? e.message : String(e);
+      // ‼ פג הזמן — הבקשה אולי עוד רצה בשרת, ולכן גם המייל אולי יצא.
+      const timedOut = e instanceof Error && e.message === 'timeout';
+      emailUnknown = timedOut;
+      emailError = timedOut
+        ? 'השרת לא ענה תוך 12 שניות — לא ידוע אם המייל יצא. כדאי לבדוק ברשימת המיילים של הלקוח לפני ששולחים שוב.'
+        : e instanceof Error ? e.message : String(e);
     }
-    return { link, emailSent, emailError, clientId };
+    return { link, emailSent, emailError, emailUnknown, clientId };
   }
 
   /**
@@ -1387,7 +1596,7 @@ export default function App() {
    * קישור לשליחה בוואטסאפ. שם ומייל אינם חובה — מה שלא הוזן כאן, הלקוח ממלא
    * בעצמו בקישור. המערכת יוצרת: לקוח חדש ("טרם מיוצג") + התקשרות ייצוג.
    */
-  async function handleCreateRepresentation(data: CreateRepresentationInput): Promise<{ link: string; emailSent: boolean; emailError?: string; clientId: string }> {
+  async function handleCreateRepresentation(data: CreateRepresentationInput): Promise<{ link: string; emailSent: boolean; emailError?: string; emailUnknown?: boolean; clientId: string }> {
     const { name, email, areas, spouse, prefill, hasPreviousAccountant, prevAccountant } = data;
     const nameParts = name.trim().split(/\s+/).filter(Boolean);
     const clientId = crypto.randomUUID();
@@ -1717,7 +1926,14 @@ export default function App() {
     // ודף החתימה דחה את הלקוח. (מעקב שע״ם שבתוך execution שייך לשרת — 208.)
     const { error: execErr } = await supabase
       .from('representation_requests').update({ execution }).eq('id', req.id);
-    if (execErr) throw execErr;
+    if (execErr) {
+      // ‼ 212: «אושר» לאדם שבקשת הב"ל שלו בוטלה נדחה בשרת — אומרים את זה במילים.
+      if (execErr.message === 'ni_subject_cancelled') {
+        await reloadRequest(req.id);
+        throw new Error('בקשת הייצוג בביטוח לאומי לאדם הזה בוטלה, ולכן לא סומנה כמאושרת.');
+      }
+      throw new Error(execErr.message || 'השמירה נכשלה');
+    }
     await reloadRequest(req.id);
     const linkedClient = clients.find(c => c.id === req.linkedClientId);
     const niRegistered = linkedClient?.authorityRepresentations?.nationalInsurance;
@@ -2178,24 +2394,42 @@ export default function App() {
     return Promise.resolve({ ok: true, deferred: true });
   }
 
-  /** השליחה בפועל של התזכורת, מתוך התצוגה המקדימה. null = הצליח. */
+  /**
+   * השליחה בפועל של התזכורת, מתוך התצוגה המקדימה. null = הצליח.
+   * ‼ החלון מקבל רק משפט: UNKNOWN_OUTCOME_TEXT ⇒ כתום «לא ידוע אם יצא»; כל משפט
+   * אחר ⇒ אדום «לא נשלח». ולכן תשובה שלא מכריעה (אין תשובה, שער, 5xx בלי קוד)
+   * חוזרת כמשפט של «לא ידוע» — לעולם לא כטקסט הגולמי באנגלית.
+   */
   async function sendQuotationReminder(): Promise<string | null> {
     const p = remindPreview;
     if (!p) return 'התזכורת לא נטענה.';
+    let res: { ok?: boolean } | null = null;
+    let error: unknown = null;
     try {
-      const { data: res, error } = await supabase.functions.invoke('send-quotation-email', {
+      ({ data: res, error } = await supabase.functions.invoke('send-quotation-email', {
         body: { quotationId: p.quotation.id, isTest: false, html: p.html, subject: p.subject },
-      });
-      if (error) return await edgeFunctionError(error);
-      if (!res?.ok) return res?.detail?.message || res?.error || 'שגיאה';
+      }));
+    } catch {
+      // הקריאה נפלה באמצע — אין תשובה מהשרת, ולכן גם לא «לא נשלח».
+      return UNKNOWN_OUTCOME_TEXT;
+    }
+    if (error || !res?.ok) {
+      const body = await functionReplyBody(res, error);
+      if (isUncertainSendReply(body, error, QUOTE_REMINDER_SEND_ERRORS)) return UNKNOWN_OUTCOME_TEXT;
+      return errorTextFromBody(body as { error?: string; detail?: { message?: string } } | null,
+        QUOTE_REMINDER_SEND_ERRORS, 'השרת דחה את השליחה — התזכורת לא נשלחה.');
+    }
+    // ‼ המייל כבר יצא. כשל ברישום האירוע על ההצעה אינו כשל שליחה — אחרת החלון
+    // היה אומר «לא נשלח», והלחיצה הבאה הייתה שולחת את התזכורת פעמיים.
+    try {
       await updateQuotation({
         ...p.quotation,
         events: [...p.quotation.events, { type: 'reminder_sent', at: new Date().toISOString() }],
       });
-      return null;
     } catch (e) {
-      return e instanceof Error ? e.message : String(e);
+      console.warn('[quotation-reminder] reminder_sent event not saved', e);
     }
+    return null;
   }
 
   /** onCreate של דיאלוג הייצוג בזרימת ההמרה — יוצר ייצוג ואז מקשר ליד+הצעה ללקוח. */
@@ -2294,7 +2528,9 @@ export default function App() {
 
   // ‼ (168) הפרדיקט המקומי שהיה כאן הוחלף בהגדרה האחת ב-utils/taskUtils, והיא
   // גם מוציאה משימות של לקוחות בארכיון — אלה לא נספרו החוצה בשום מונה.
-  const openTasksCount = countTasksNeedingMe(tasks, clients);
+  // ‼ (04.10) התג = מספר השורות ב«לטיפולי» במסך המשימות (utils/tasksPage): משימות
+  // שדורשות אותי ושורות קליטה שדורשות אותי. קודם התג אמר 27 והלשונית 40.
+  const openTasksCount = tasksPageMineCount(tasks, clients, onboarding.steps);
 
   // הסרגל נושא רק את שלושת המקומות שבהם העבודה חיה (§4.1).
   // "ידע מס" יושב באשכול הכלים בקצה, מופרד בקו — הוא עזר, לא מקום עבודה (D9).
@@ -2321,6 +2557,7 @@ export default function App() {
     // אותו מסך — ירוק בכותרת מול "לא מוכן" בשדה.
     <ShaamReadinessProvider userId={user?.id}>
     <div className="app">
+      <DemoBar />
       <header className="header">
         {/* אלמנט שאפשר ללחוץ עליו חייב להיות נגיש גם במקלדת (§6.4) */}
         <button type="button" className="header-logo" onClick={goHome} aria-label="חזרה למשימות">
@@ -2447,17 +2684,37 @@ export default function App() {
                     ולכן הם לא תופסים מקום בסרגל שבו העבודה היומיומית חיה. */}
                 <button
                   type="button"
-                  className={`account-menu-item ${view === 'firmProfile' ? 'is-active' : ''}`}
+                  className={`account-menu-item ${view === 'firmProfile' && officePage !== 'activity' && officePage !== 'connections' ? 'is-active' : ''}`}
                   aria-current={view === 'firmProfile' ? 'page' : undefined}
                   onClick={() => {
                     setAccountMenuOpen(false);
                     setView('firmProfile');
+                    setOfficePage(null);
+                    setOfficeFocus(null);
                     setSelectedId(null);
                     setSelectedRequestId(null);
                   }}
                 >
                   <Icon name="building" size={14} />
                   <span>המשרד</span>
+                </button>
+                {/* יומן המיילים הוא כלי עבודה יומי (מה יצא, מה נכשל) — קיצור ישיר
+                    אליו, בלי לעבור דרך ההגדרות של המשרד. */}
+                <button
+                  type="button"
+                  className={`account-menu-item ${view === 'firmProfile' && officePage === 'activity' ? 'is-active' : ''}`}
+                  onClick={() => {
+                    setAccountMenuOpen(false);
+                    setView('firmProfile');
+                    setOfficePage('activity');
+                    setOfficeFocus(null);
+                    setSelectedId(null);
+                    setSelectedRequestId(null);
+                  }}
+                >
+                  <Icon name="mail" size={14} />
+                  {/* ‼ אותו שם כמו הלשונית שבה נוחתים: «מיילים» ← «מה נשלח». */}
+                  <span>מה נשלח במייל</span>
                 </button>
                 <button
                   type="button"
@@ -2474,14 +2731,27 @@ export default function App() {
                   <Icon name="book" size={14} />
                   <span>ידע מס</span>
                 </button>
-                {/* 203 · הוספת מחשב שיריץ אוטומציה — קוד צימוד חד-פעמי. */}
+                {/* ‼ «חיבורים» — מצב מחשב העבודה, שע״ם וביטוח לאומי, ומה עושים כשמשהו
+                    לא זמין. כאן ישב «חיבור מחשב עבודה» שפתח ישר קוד צימוד למחשב
+                    חדש — ומי שמחשב העבודה שלו כבוי קרא אותו כתיקון. הוספת מחשב
+                    חדש נשארה בשורת «מחשב העבודה» שבעמוד, ליד המצב שלו. */}
                 <button
                   type="button"
-                  className="account-menu-item"
-                  onClick={() => { setAccountMenuOpen(false); setShowWorkstationPairing(true); }}
+                  className={`account-menu-item ${view === 'firmProfile' && officePage === 'connections' ? 'is-active' : ''}`}
+                  onClick={() => {
+                    setAccountMenuOpen(false);
+                    setView('firmProfile');
+                    setOfficePage('connections');
+                    setOfficeFocus(null);
+                    setSelectedId(null);
+                    setSelectedRequestId(null);
+                  }}
                 >
-                  <Icon name="plus" size={14} />
-                  <span>חיבור מחשב עבודה</span>
+                  <svg width={14} height={14} viewBox="0 0 16 16" fill="none" stroke="currentColor"
+                    strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M6 2.5V5.2M10 2.5V5.2M4.6 5.2h6.8v2.4a3.4 3.4 0 01-6.8 0z M8 11v2.5" />
+                  </svg>
+                  <span>חיבורים</span>
                 </button>
 
                 <span className="account-menu-sep" aria-hidden="true" />
@@ -2558,6 +2828,9 @@ export default function App() {
             onOpenTask={openEditTaskModal}
             onOpenRepresentation={handleOpenClientRepresentation}
             onStartRepresentation={handleStartRepresentation}
+            /* ‼ «מה קורה עכשיו» בתצוגה המהירה — אותו הקשר כמו בכרטיס (ב"ל לפי אדם,
+               מייל חתימה שטרם יצא), אחרת שני המסכים סותרים זה את זה. */
+            repContextOf={(clientId) => ({ niExecution: clientNiExecution(clientId), repSendPhase: clientRepSendPhase(clientId) })}
             onContinueLead={handleContinueLead}
             onDeleteLead={async (lead) => { await deleteLead(lead.id); }}
             charges={charges}
@@ -2653,7 +2926,9 @@ export default function App() {
             advanceOnboardingStep={onboarding.advance}
             refreshOnboarding={onboarding.refresh}
             onOpenReleaseLetter={(clientId, stepId, mode) => openReleaseLetter(clientId, stepId, mode)}
-            onOpenRepresentation={handleOpenClientRepresentation}
+            /* ‼ «למרכז הייצוג» רק כשיש לאן: בלי בקשת ייצוג הפריט בתפריט «עוד
+               פעולות» (ובקישורים בתיק המס) נסגר בלי שקרה דבר — עכשיו הוא לא מוצג. */
+            onOpenRepresentation={selectedHasRepRequest ? handleOpenClientRepresentation : undefined}
             onStartRepresentation={handleStartRepresentation}
             onAddNiTarget={(clientId, role) => handleRequestAuthorityRepresentation(clientId, role, 'tax_file')}
             onRequestAuthorityRepresentationFromCatalog={(clientId, role) => handleRequestAuthorityRepresentation(clientId, role, 'catalog')}
@@ -2815,6 +3090,10 @@ export default function App() {
               profile={firmProfile}
               clients={clients}
               onSave={async (p: FirmProfile) => { await saveProfile(p); }}
+              page={officePage}
+              focus={officeFocus}
+              onPageChange={(p: string | null) => { setOfficePage(p); setOfficeFocus(null); }}
+              onOpenClient={openClientFromOffice}
             />
           ) : (
             <div className="app-loading">טוען את פרופיל המשרד…</div>
@@ -2843,7 +3122,9 @@ export default function App() {
               onDelete={handleDeleteRequest}
               onOpenFill={handleOpenFill}
               onOpenClientDocs={handleOpenClientDocs}
-              niIncluded={!!clients.find(c => c.id === selectedRequest.linkedClientId)?.authorityRepresentations?.nationalInsurance}
+              // ‼ 212: «כולל ב"ל» = יש מישהו ברשימה, לא «יש רשומה» — רשומה שכל
+              // האנשים בה בוטלו נשארת כהיסטוריה.
+              niIncluded={targetsOf(clients.find(c => c.id === selectedRequest.linkedClientId)?.authorityRepresentations, 'nationalInsurance').length > 0}
               niCoversSpouse={effectiveNiCoversSpouse(clients.find(c => c.id === selectedRequest.linkedClientId))}
               onSaveExecution={handleSaveExecution}
               linkedClient={clients.find(c => c.id === selectedRequest.linkedClientId)}
@@ -2901,8 +3182,6 @@ export default function App() {
         )}
         </ErrorBoundary>
       </main>
-
-      {showWorkstationPairing && <WorkstationPairingDialog onClose={() => setShowWorkstationPairing(false)} />}
 
       {/* סרגל ניווט תחתון — מופיע רק במסכי טלפון */}
       <nav className="mobile-nav">

@@ -11,7 +11,8 @@ import type { Client } from '../types';
 import type { OnboardingStep } from '../types/onboarding';
 import { STEP_BALL_LABELS, STEP_STATUS_LABELS, STEP_TYPE_LABELS } from '../types/onboarding';
 import type { ClientOnboardingSummary } from '../utils/onboardingNext';
-import { NEXT_ACTION, summarizeClientOnboarding } from '../utils/onboardingNext';
+import { nextActionText, summarizeClientOnboarding } from '../utils/onboardingNext';
+import { isCreationProblem } from '../utils/requestAttention';
 
 interface Props {
   steps: OnboardingStep[];
@@ -23,6 +24,8 @@ interface Props {
 
 /** מה כתוב בשורה של לקוח תקוע — הסיבה, לא רק העובדה. */
 function stuckLine(s: OnboardingStep): string {
+  // ‼ «לא נוצרה» (217) — הבקשה לא קיימת; «בקשה מהמשרד - …» היה אומר ההפך.
+  if (isCreationProblem(s)) return nextActionText(s);
   const name = STEP_TYPE_LABELS[s.stepType];
   if (s.status === 'blocked') return `${name} - חסום`;
   if (s.status === 'failed') return `${name} - נכשל`;
@@ -69,7 +72,7 @@ export default function OnboardingWaitingSection({ steps, clients, onOpen, onRem
           color: tone === 'stuck' ? 'var(--err)' : 'var(--ink-2)',
           fontWeight: tone === 'stuck' ? 600 : undefined,
         }}>
-          {tone === 'stuck' ? stuckLine(step) : NEXT_ACTION[step.stepType]}
+          {tone === 'stuck' ? stuckLine(step) : nextActionText(step)}
         </span>
         <span style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)', whiteSpace: 'nowrap' }}>
           {sum.done}/{sum.total} הושלמו

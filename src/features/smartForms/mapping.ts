@@ -31,7 +31,10 @@ const call = async (fn: string, args: Record<string, unknown>): Promise<Rpc> => 
 
 export async function fetchMappingState(key: string): Promise<MappingState> {
   const r = await call('get_smart_form_mapping', { p_template_key: key });
-  if (!r.ok) throw new Error(r.error === 'forbidden' ? 'אין הרשאה לקרוא את מיפוי הטופס' : `טעינת מיפוי הטופס נכשלה (${r.error})`);
+  if (!r.ok) {
+    if (r.error !== 'forbidden') console.warn('[smartForms] get_smart_form_mapping:', r.error);
+    throw new Error(r.error === 'forbidden' ? 'אין הרשאה לקרוא את השדות של הטופס' : 'טעינת השדות של הטופס נכשלה');
+  }
   return r as unknown as MappingState;
 }
 export const startMappingDraft = (key: string) => call('smart_form_mapping_draft_start', { p_template_key: key });
@@ -44,13 +47,15 @@ export const publishMapping = (key: string, version: number, audit: unknown, not
 
 export function mappingErrorText(code?: string): string {
   switch (code) {
-    case 'stale': return 'המיפוי נשמר בינתיים ממקום אחר — רעננו ונסו שוב';
+    case 'stale': return 'השדות של הטופס נשמרו בינתיים ממקום אחר — רעננו ונסו שוב';
     case 'invalid': return 'אחד השדות יצא מגבולות העמוד או קיבל מידה לא תקינה';
     case 'audit_required': return 'פרסום מחייב בדיקת יישור שעברה';
-    case 'audit_stale': return 'המיפוי השתנה אחרי הבדיקה — יש לבדוק שוב לפני פרסום';
+    case 'audit_stale': return 'השדות של הטופס השתנו אחרי הבדיקה — יש לבדוק שוב לפני פרסום';
     case 'not_draft': return 'אין טיוטה פתוחה (אולי פורסמה או בוטלה בינתיים)';
     case 'forbidden': return 'אין הרשאה';
-    default: return code ? `הפעולה נכשלה (${code})` : 'הפעולה נכשלה';
+    default:
+      if (code) console.warn('[smartForms] קוד שגיאה בלי טקסט:', code);
+      return 'הפעולה נכשלה';
   }
 }
 
@@ -89,8 +94,11 @@ export function loadMappingVersion(key: string, version: number, codeBase: numbe
     p = (async () => {
       const { data, error } = await supabase.from('smart_form_mappings').select('version, fields, status')
         .eq('template_key', key).eq('version', version).maybeSingle();
-      if (error) throw new Error(`טעינת מיפוי ${version} נכשלה (${error.message})`);
-      if (!data || data.status === 'draft') throw new Error(`מיפוי ${version} לא נמצא`);
+      if (error) {
+        console.warn('[smartForms] smart_form_mappings:', error.message);
+        throw new Error(`טעינת השדות של הטופס (גרסה ${version}) נכשלה`);
+      }
+      if (!data || data.status === 'draft') throw new Error(`גרסה ${version} של השדות של הטופס לא נמצאה`);
       return { version, fields: (data.fields ?? {}) as MappingFields };
     })();
     p.catch(() => versionCache.delete(ck));

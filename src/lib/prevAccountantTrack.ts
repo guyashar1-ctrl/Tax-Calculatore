@@ -8,6 +8,7 @@
 
 import type { OnboardingStep } from '../types/onboarding';
 import { supabase } from './supabase';
+import { stepForCurrentWork, stepTypeTaken } from './clientState';
 
 /** שלושת השלבים, בסדר היצירה. הסדר הוא גם סדר התלות. */
 export const PREV_ACCOUNTANT_STEP_TYPES: string[] = [
@@ -22,17 +23,22 @@ export interface PrevAccountantTrackOptions {
   clientId: string;
   /** כל שלבי הלקוח — לזיהוי מה כבר קיים (לא מבוטל). */
   steps: OnboardingStep[];
+  /**
+   * ההתקשרות הנוכחית (בקליטה/פעילה). ‼ לקוח שחוזר (217): שלבים שהושלמו בהתקשרות
+   * קודמת אינם «קיימים» — המסלול נפתח מחדש בהתקשרות הזאת.
+   */
+  currentEngagementId?: string | null;
   /** האימייל שעל הכרטיס. קיים ⇒ השאלה ללקוח היא אישור בלבד. */
   prevAccountantEmail?: string | null;
   /** false ⇒ השלבים נולדים כטיוטה ולא מופיעים ללקוח עד הפרסום הבא. */
   published: boolean;
 }
 
-/** מה עוד חסר מהבקשה אצל הלקוח. ריק ⇒ הכול קיים. */
-export function missingPrevAccountantSteps(steps: OnboardingStep[]): string[] {
-  const live = new Set(
-    steps.filter(s => s.status !== 'cancelled').map(s => s.stepType as string));
-  return PREV_ACCOUNTANT_STEP_TYPES.filter(t => !live.has(t));
+/** מה עוד חסר מהבקשה אצל הלקוח. ריק ⇒ הכול קיים.
+ *  ‼ «קיים» = של העבודה הנוכחית (stepTypeTaken): אצל לקוח שחוזר, מסלול שהושלם
+ *  בהתקשרות הקודמת אינו מסתיר את «חומרים מרו״ח קודם» מהקטלוג. */
+export function missingPrevAccountantSteps(steps: OnboardingStep[], currentEngagementId?: string | null): string[] {
+  return PREV_ACCOUNTANT_STEP_TYPES.filter(t => !stepTypeTaken(steps, t, currentEngagementId));
 }
 
 /**
@@ -43,9 +49,10 @@ export function missingPrevAccountantSteps(steps: OnboardingStep[]): string[] {
 export async function createPrevAccountantTrack(
   opts: PrevAccountantTrackOptions,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  const { clientId, steps, published } = opts;
-  const live = steps.filter(s => s.status !== 'cancelled');
-  const idOf = (t: string) => live.find(s => s.stepType === t)?.id ?? null;
+  const { clientId, steps, published, currentEngagementId } = opts;
+  // ‼ עוגן לתלות רק מהעבודה הנוכחית — לא שלב ישן שהושלם בהתקשרות קודמת.
+  const idOf = (t: string) => (stepTypeTaken(steps, t, currentEngagementId)
+    ? stepForCurrentWork(steps, t, currentEngagementId)?.id ?? null : null);
 
   // ‼ בלי מייל אין למי לשלוח את המכתב, ולכן הוא תלוי בשאלה ונולד נעול.
   // עם מייל — השאלה היא בקשת אישור בלבד: לא נועלת את המכתב ולא חוסמת סגירה.

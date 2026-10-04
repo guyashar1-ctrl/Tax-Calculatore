@@ -5,13 +5,17 @@
  * שרשרת אחת: תבנית ⇢ שלב שנוצר ⇢ עריכה אחרי כן ⇢ נשמר ⇢ והמוכנות מכבדת אותו
  * בדיוק אותו דבר במסך וב-RPC. מריץ מול ה-RPC האמיתי, על לקוחות דמה בלבד.
  *
- * ‼ דורש זריעה טרייה לפני כל הרצה — הבדיקות משנות מצב בכוונה (מסמנות רשות,
- *   שומרות תבנית, מחילות אותה). הרצה שנייה ברצף תיפול, וזה נכון: היא הייתה
- *   בודקת מצב שכבר אינו נקודת המוצא.
- *     node scripts/seed-staging.mjs && node scripts/staging-test-required-model.mjs
+ * ‼ הבדיקות משנות מצב בכוונה (מסמנות רשות, שומרות תבנית, מחילות אותה) — ולכן
+ *   החבילה בונה לעצמה בכל ריצה לקוחות דמה חדשים (staging-fixtures.mjs, קידומת
+ *   fxs-req-), באותו מסלול כמו seed-staging. לא fx-q-onb המשותף: חבילת הסגירה
+ *   סוגרת אותו, וסגירה מכבה את «נדרש לסגירה» — מאז כל ריצה כאן נפלה.
+ *     node scripts/staging-test-required-model.mjs
  */
 import { createClient } from '@supabase/supabase-js';
-import { STAGING_REF, loadEnv, writeStaging, assertTriggersEnabled } from './staging-lib.mjs';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { ROOT, STAGING_REF, loadEnv, writeStaging, assertTriggersEnabled } from './staging-lib.mjs';
+import { cleanupSuiteFixtures, makeIntakeFixture } from './staging-fixtures.mjs';
 
 await assertTriggersEnabled();
 const env = loadEnv('.env.staging');
@@ -26,10 +30,22 @@ const user = createClient(env.VITE_SUPABASE_URL, env.VITE_SUPABASE_ANON_KEY, {
 let pass = 0, fail = 0;
 const ok = (n, c, d = '') => { if (c) { pass++; console.log(`✓ ${n}`); } else { fail++; console.log(`✗ ${n}${d ? ' — ' + d : ''}`); } };
 const one = async (q) => (await writeStaging(q))[0];
-const cidOf = async (k) => (await one(`select client_id from public.quotations where id = 'fx-q-${k}'`)).client_id;
 
-const F3 = await cidOf('onb');
-const F6 = await cidOf('tpl');
+const USER_ID = readFileSync(resolve(ROOT, 'STAGING_USER_ID'), 'utf8').trim();
+const SUITE = 'req';
+await cleanupSuiteFixtures(SUITE);
+// F3 · קליטה מלאה (פייפרלס + הרשאת תשלום + רו"ח קודם + ייצוג); F6 · קליטה נקייה — יעד לתבנית.
+const F3 = (await makeIntakeFixture({ suite: SUITE, key: 'onb', user, userId: USER_ID })).clientId;
+const F6 = (await makeIntakeFixture({ suite: SUITE, key: 'tpl', user, userId: USER_ID,
+  withPrevAccountant: false, monthly: false, withRep: false })).clientId;
+// כמו seed-staging: בקשה חופשית על F3, דרך ה-RPC האמיתי (נקודת המוצא של סעיף ד).
+{
+  const { data, error } = await user.rpc('create_onboarding_request', {
+    p_client_id: F3, p_step_type: 'custom_request',
+    p_payload: { title: 'בקשה חופשית לבדיקה', requirements: [{ kind: 'confirm', key: 'ack', label: 'לאשר' }] },
+    p_published: true });
+  if (error || data?.ok !== true) throw new Error('create_onboarding_request: ' + (error?.message ?? JSON.stringify(data)));
+}
 
 // ── א · המחולל קובע ערכים מפורשים (מיגרציה 70) ─────────────────────────────
 console.log('— המחולל —');
@@ -139,8 +155,11 @@ console.log('\n— תבנית המסע —');
   //   שכבר קיים אצל הלקוח (היא מוסיפה, לעולם לא דורסת), ולכן שלב רגיל היה
   //   נבדק על העותק הישן ולא על מה שהתבנית יצרה. בקשה חופשית היא רב-פעמית
   //   ולכן תמיד נוספת.
+  // ‼ הבקשה החופשית שהחבילה יצרה — לא «custom_request ראשונה»: מסלול הקליטה של המשרד
+  //   יכול להוסיף בקשות משלו (אותה כותרת תיווצר גם אצל F6, והבדיקה הייתה קוראת אותה).
   const a = await one(`select id from public.onboarding_steps
-     where client_id = '${F3}' and step_type = 'custom_request' limit 1`);
+     where client_id = '${F3}' and step_type = 'custom_request'
+       and payload->>'title' = 'בקשה חופשית לבדיקה' limit 1`);
   await user.rpc('set_onboarding_step_required', { p_step_id: a.id, p_required: false });
   const title = (await one(`select payload->>'title' as t from public.onboarding_steps where id = '${a.id}'`)).t;
 
@@ -152,7 +171,7 @@ console.log('\n— תבנית המסע —');
   const entries = t.entries;
   ok('כל הרשומות נושאות requiredForClose',
     entries.every((e) => typeof e.requiredForClose === 'boolean'), JSON.stringify(entries.map((e) => e.stepType)));
-  const docs = entries.find((e) => e.stepType === 'custom_request');
+  const docs = entries.find((e) => e.stepType === 'custom_request' && e.payload?.title === title);
   ok('הבקשה החופשית נשמרה בתבנית כרשות', docs?.requiredForClose === false, JSON.stringify(docs?.requiredForClose));
   const pap = entries.find((e) => e.stepType === 'paperless_invite');
   ok('רשומת פייפרלס נשמרה כנדרשת', pap?.requiredForClose === true, JSON.stringify(pap?.requiredForClose));

@@ -19,6 +19,7 @@
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { FirmProfile } from '../../types/firmProfile';
+import { isNotificationEnabled } from '../../../supabase/functions/_shared/accountantNotifications.ts';
 import type { Client } from '../../types';
 import type { Engagement } from '../../types/onboarding';
 import type {
@@ -45,6 +46,7 @@ import QuotationRepresentationEditor, {
 import type { RepAuthorityKind } from '../../types';
 import { findSpouseClient, resolvePersonAuthority, resolveIncomeTaxHousehold, spousePersonAuthorities } from '../../utils/personRepresentation';
 import Modal from '../ui/Modal';
+import { isUnknownSendReply, unknownSendText } from '../../types/emailActivity';
 
 const MONTH_NAMES = ['ינואר', 'פברואר', 'מרץ', 'אפריל', 'מאי', 'יוני',
   'יולי', 'אוגוסט', 'ספטמבר', 'אוקטובר', 'נובמבר', 'דצמבר'];
@@ -428,7 +430,7 @@ export default function QuotationBuilder({
   const [panel, setPanel] = useState<'services' | 'future' | 'rep' | 'review' | 'recipient' | null>(null);
   const [saving, setSaving] = useState(false);
   const [sending, setSending] = useState<'test' | 'send' | null>(null);
-  const [notice, setNotice] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
+  const [notice, setNotice] = useState<{ kind: 'ok' | 'err' | 'warn'; text: string } | null>(null);
   const [savedAt, setSavedAt] = useState<number | null>(null);
 
   const deal = useMemo(() => computeDeal(items, plan, vatRate), [items, plan, vatRate]);
@@ -582,6 +584,12 @@ export default function QuotationBuilder({
       if (res.ok) {
         setNotice({ kind: 'ok', text: isTest ? 'מייל בדיקה נשלח אליך.' : 'ההצעה נשלחה ללקוח.' });
         if (!isTest) setTimeout(onBack, 900);
+      } else if (isUnknownSendReply(res.error)) {
+        // ‼ לא ידוע אם יצאה — לא «נכשלה». ההצעה נשארה טיוטה (מסומנת «נשלחה» רק עם
+        // ראיה), ולכן לחיצה נוספת עלולה לשלוח אותה פעמיים: קודם לברר עם הלקוח.
+        setNotice({ kind: 'warn', text: isTest
+          ? 'לא ידוע אם מייל הבדיקה יצא — ספק הדואר לא החזיר תשובה ברורה. כדאי לבדוק בתיבת הדואר שלך אם הגיע.'
+          : `${unknownSendText({ what: 'המייל עם ההצעה', recipient: 'הלקוח' })} ההצעה נשארה טיוטה.` });
       } else {
         setNotice({ kind: 'err', text: `השליחה נכשלה: ${res.error ?? 'שגיאה'}` });
       }
@@ -630,7 +638,8 @@ export default function QuotationBuilder({
       </div>
 
       {notice && (
-        <div className={`qb-notice ${notice.kind === 'err' ? 'err' : 'ok'}`} role="status">{notice.text}</div>
+        <div className={`qb-notice ${notice.kind === 'err' ? 'err' : notice.kind === 'warn' ? 'warn' : 'ok'}`} role="status"
+          style={notice.kind === 'warn' ? { background: 'var(--warn-bg, #fff4e0)', color: 'var(--warn, #b26a00)' } : undefined}>{notice.text}</div>
       )}
 
       <div className="qb-doc">
@@ -886,7 +895,8 @@ export default function QuotationBuilder({
           isRenewal={isRenewal} effectiveFrom={effectiveFrom} onEffectiveFrom={setEffectiveFrom}
           sending={sending} blocker={sendBlocker(false)}
           onSend={() => handleSend(false)} onTest={() => handleSend(true)}
-          onPdf={downloadPreviewPdf} onClose={() => setPanel(null)} />
+          onPdf={downloadPreviewPdf} onClose={() => setPanel(null)}
+          expiryReminderOn={isNotificationEnabled(profile?.settings ?? {}, 'quotation_expiry_reminder')} />
       )}
     </div>
   );
@@ -1335,7 +1345,7 @@ function FuturePanel({ services, items, selected, templateName, templateDefaults
 function ReviewPanel({
   data, brand, totals, deal, vatRate, message, onMessage, subject, onSubject,
   internalNotes, onInternalNotes, expiresAt, onExpires, isRenewal, effectiveFrom, onEffectiveFrom,
-  sending, blocker, onSend, onTest, onPdf, onClose,
+  sending, blocker, onSend, onTest, onPdf, onClose, expiryReminderOn,
 }: {
   data: React.ComponentProps<typeof QuotationWebView>['data'];
   brand: ReturnType<typeof deriveQuotationBrand>;
@@ -1347,6 +1357,8 @@ function ReviewPanel({
   isRenewal: boolean; effectiveFrom?: string; onEffectiveFrom: (v: string) => void;
   sending: 'test' | 'send' | null; blocker: string | null;
   onSend: () => void; onTest: () => void; onPdf: () => void; onClose: () => void;
+  /** ‼ התזכורת ללקוח כבויה כברירת מחדל (המשרד ← מחירון והצעות) — המסך אומר את המצב האמיתי. */
+  expiryReminderOn: boolean;
 }) {
   const [settings, setSettings] = useState(false);
   return (
@@ -1380,8 +1392,11 @@ function ReviewPanel({
           placeholder="למשל: אחרי שדיברנו הבנתי שהדבר הדחוף אצלך הוא לסגור את השנים הפתוחות - התחלתי מזה." />
       </label>
       <div className="qb-note">
-        המייל עצמו לא מציג מחירים - הם מחכים בעמוד ההצעה. תוקף: עד {new Date(expiresAt).toLocaleDateString('he-IL')},
-        ותזכורת אוטומטית יום עסקים לפני הפקיעה. מע״מ {vatRate}% מוצג בעמוד בכל סעיף.
+        המייל עצמו לא מציג מחירים - הם מחכים בעמוד ההצעה. תוקף: עד {new Date(expiresAt).toLocaleDateString('he-IL')}
+        {expiryReminderOn
+          ? ', ותזכורת אוטומטית ללקוח יום עסקים לפני הפקיעה.'
+          : '. תזכורת אוטומטית לפני הפקיעה כבויה (המשרד ← מחירון והצעות).'}
+        {' '}מע״מ {vatRate}% מוצג בעמוד בכל סעיף.
       </div>
 
       {settings ? (

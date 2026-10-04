@@ -42,7 +42,7 @@ const INTAKE: ProcessDefinition = {
       what: 'המשרד בונה את ההצעה (שירותים, מחירים, ייצוג, שירותים עתידיים) ושולח. ברגע השליחה נולדים כרטיס לקוח ודף אישי קבוע.',
       requires: ['שירותים ומחירים', 'האם כולל ייצוג ובאיזה היקף'],
       done: 'ההצעה נשלחה; נצפתה כשהלקוח פתח אותה.',
-      configureIn: 'quotations',
+      configureIn: 'pricing',
     },
     {
       key: 'approve', title: 'אישור ההצעה', actor: 'client',
@@ -53,7 +53,7 @@ const INTAKE: ProcessDefinition = {
       key: 'journey', title: 'המסלול נולד מברירת המחדל', actor: 'system',
       what: 'לפי סוג הלקוח (עוסק פטור / מורשה / חברה / החזר מס / ייצוג בלבד) והעובדות מההצעה והכרטיס, המערכת יוצרת את הבקשות: מסמכים מהלקוח, מסלול הרו״ח הקודם, רצף הפייפרלס, הרשאת תשלום, עדכון סטטוס מס, ועבודה פנימית. ההגדרה מצולמת להתקשרות — שינוי ברירת המחדל אחר כך אינו נוגע במסע שכבר נולד.',
       done: 'הבקשות קיימות בכרטיס כטיוטה.',
-      configureIn: 'requestDefaults',
+      configureIn: 'intake',
     },
     {
       key: 'publish', title: 'פתיחת הדף האישי ללקוח', actor: 'office',
@@ -71,7 +71,7 @@ const INTAKE: ProcessDefinition = {
       done: 'ההתקשרות פעילה. בקשות שנשארו פתוחות (ביקורת חודש ראשון, שדרוג ייצוג) ממשיכות ברקע.',
     },
   ],
-  configurable: { text: 'אילו בקשות נולדות לכל סוג לקוח, סדרן והניסוח שלהן — ב«בקשות מסמכים».', section: 'requestDefaults' },
+  configurable: { text: 'אילו בקשות נולדות לכל סוג לקוח, סדרן והניסוח שלהן — ב«בקשות ללקוח חדש».', section: 'intake' },
 };
 
 // ── פייפרלס ───────────────────────────────────────────────────────────────
@@ -89,9 +89,9 @@ const PAPERLESS: ProcessDefinition = {
     {
       key: 'invite', title: STEP_TYPE_LABELS.paperless_invite, actor: 'client', stepType: 'paperless_invite',
       kind: 'configurable',
-      what: 'הלקוח נרשם לפייפרלס דרך קישור ההזמנה של המשרד (מ«פייפרלס ותקשורת») ומאשר בדף האישי «נרשמתי».',
+      what: 'הלקוח נרשם לפייפרלס דרך קישור ההזמנה של המשרד (מעמוד «פייפרלס») ומאשר בדף האישי «נרשמתי».',
       done: 'הלקוח דיווח שנרשם. זו הצהרה — אין אימות מול פייפרלס.',
-      configureIn: 'requestDefaults',
+      configureIn: 'intake',
     },
     {
       key: 'connection', title: STEP_TYPE_LABELS.paperless_connection, actor: 'office', stepType: 'paperless_connection',
@@ -100,7 +100,7 @@ const PAPERLESS: ProcessDefinition = {
       requires: ['הלקוח נרשם (השלב נעול עד אז)'],
       blocks: 'בלי הרשמה אין חשבון להיכנס אליו.',
       done: 'חמשת הסעיפים סומנו. הסעיף החמישי נגזר גם מחותמת «הכרטיס הוזן» שבבקשת התשלום.',
-      configureIn: 'requestDefaults',
+      configureIn: 'intake',
     },
     {
       key: 'tax_authority', title: STEP_TYPE_LABELS.paperless_tax_authority, actor: 'client', stepType: 'paperless_tax_authority',
@@ -108,7 +108,7 @@ const PAPERLESS: ProcessDefinition = {
       when: 'רק למי שמוציא חשבונית מס וצריך מספר הקצאה: נולד כשתבנית ההצעה היא «עוסק מורשה» או «חברה», או כשעל הכרטיס רשום עוסק מורשה/חברה או סיווג מע״מ «עוסק מורשה». עוסק פטור אינו מקבל אותו — ואם יהפוך למורשה, הבקשה נולדת מעצמה. בקשה שהוסרה ביד אינה חוזרת.',
       what: 'הלקוח מחבר את פייפרלס לרשות המסים — ההזדהות היא בתעודת הזהות ובקוד הקבוע שלו, ולכן זה שלו ולא שלנו. תלוי בחיבור (צריך שם עסק ומשיכת עוסקים בחשבון).',
       done: 'הלקוח דיווח «ביצעתי את החיבור». החיבור תקף לשלושה חודשים; החידוש עדיין ידני.',
-      configureIn: 'requestDefaults',
+      configureIn: 'intake',
     },
     {
       key: 'retainer', title: STEP_TYPE_LABELS.retainer_authorization, actor: 'office', stepType: 'retainer_authorization',
@@ -117,10 +117,10 @@ const PAPERLESS: ProcessDefinition = {
       what: 'המשרד מקים בפייפרלס הרשאה קבועה על הסכום שסוכם; הלקוח מזין כרטיס אשראי כשפייפרלס מבקש; המשרד מסמן שהריטיינר חויב. שלוש חותמות — כולן הצהרות של המשרד, אין אינטגרציה.',
       requires: ['החיבור לפייפרלס הושלם (השלב נעול עד אז)'],
       done: 'ההרשאה נוצרה, הכרטיס הוזן, הריטיינר חויב.',
-      configureIn: 'requestDefaults',
+      configureIn: 'intake',
     },
   ],
-  configurable: { text: 'קישור ההזמנה ונוסח המיילים — ב«פייפרלס ותקשורת»; אילו מארבע הבקשות נולדות לכל סוג לקוח וסדרן — ב«בקשות מסמכים».', section: 'requestDefaults' },
+  configurable: { text: 'קישור ההזמנה — ב«פייפרלס»; נוסח המיילים — ב«נוסחי מיילים»; אילו מארבע הבקשות נולדות לכל סוג לקוח וסדרן — ב«בקשות ללקוח חדש».', section: 'intake' },
 };
 
 // ── מעבר מרו״ח קודם ────────────────────────────────────────────────────────
@@ -141,7 +141,7 @@ const PREV_ACCOUNTANT: ProcessDefinition = {
       what: 'הלקוח ממלא בדף האישי שם, מייל וטלפון של הרו״ח הקודם — או רק מאשר אותם כשכבר רשומים בכרטיס.',
       blocks: 'בלי מייל אין למי לשלוח את המכתב — ולכן המכתב נעול עד שיש כתובת. כשהכתובת כבר בכרטיס השאלה היא אישור בלבד ואינה חוסמת.',
       done: 'הפרטים נכנסו לכרטיס.',
-      configureIn: 'requestDefaults',
+      configureIn: 'intake',
     },
     {
       key: 'release', title: STEP_TYPE_LABELS.release_letter, actor: 'office', stepType: 'release_letter',
@@ -149,14 +149,14 @@ const PREV_ACCOUNTANT: ProcessDefinition = {
       what: 'המשרד עורך את מכתב העברת הטיפול (תבנית המשרד + ארבעה סעיפים שנגזרים מההצעה: גבול הטיפול השוטף, עבודות שנשארו אצל הקודם, רשימת החומרים) ושולח אותו במייל עם קישור לדף משלו. הלקוח מכותב ואינו חותם.',
       requires: ['מייל של הרו״ח הקודם', 'תקופת הדיווח האחרונה בטיפולו'],
       done: 'המכתב נשלח. הרו״ח הקודם משיב, מסתייג או שותק — שתיקה עד תום חלון ההתייחסות היא הסכמה (כלל עבודה פנימי).',
-      configureIn: 'paperless',
+      configureIn: 'messages',
     },
     {
       key: 'materials', title: STEP_TYPE_LABELS.materials_received, actor: 'external', stepType: 'materials_received',
       kind: 'configurable',
       what: 'הרו״ח הקודם מעלה את החומרים בדף שלו — לפי פריט, או במרוכז ואז מצהיר מה כלל המשלוח. הכול מתויק בתיקייה אחת בתיק הלקוח, והמשרד מקבל סימן בכותרת.',
       done: 'כל הפריטים המבוקשים סומנו כהתקבלו. «חומר נוסף לפי שיקול דעתך» אינו נספר.',
-      configureIn: 'requestDefaults',
+      configureIn: 'intake',
     },
     {
       key: 'upgrade', title: STEP_TYPE_LABELS.representation_upgrade, actor: 'system', stepType: 'representation_upgrade',
@@ -166,7 +166,7 @@ const PREV_ACCOUNTANT: ProcessDefinition = {
       done: 'המשרד רשום כמייצג ראשי בכל הרשויות.',
     },
   ],
-  configurable: { text: 'נוסח המכתב — ב«פייפרלס ותקשורת»; רשימת החומרים המבוקשים — בכרטיס הלקוח לפני השליחה.', section: 'paperless' },
+  configurable: { text: 'נוסח המכתב — ב«נוסחי מיילים»; רשימת החומרים המבוקשים — בכרטיס הלקוח לפני השליחה.', section: 'messages' },
 };
 
 // ── ייצוג בביטוח לאומי לאדם (תת-תהליך, וגם עצמאי) ──────────────────────────
@@ -222,9 +222,9 @@ const CLIENT_DOCUMENTS: ProcessDefinition = {
     key: 'upload', title: 'הלקוח מעלה כל פריט', actor: 'client', stepType: 'client_documents', kind: 'configurable',
     what: 'לכל פריט כפתור העלאה בדף האישי (גם מהטלפון). המשרד יכול לסמן פריט ביד כשהמסמך הגיע בדרך אחרת. ההעלאה מתויקת בתיק המסמכים עם תווית.',
     done: 'כל הפריטים סומנו.',
-    configureIn: 'requestDefaults',
+    configureIn: 'intake',
   }],
-  configurable: { text: 'רשימת המסמכים לכל סוג לקוח — ב«בקשות מסמכים»; לכל לקוח — בעריכת הבקשה בכרטיס.', section: 'requestDefaults' },
+  configurable: { text: 'רשימת המסמכים לכל סוג לקוח — ב«בקשות ללקוח חדש»; לכל לקוח — בעריכת הבקשה בכרטיס.', section: 'intake' },
 };
 
 const INTAKE_QUESTIONNAIRE: ProcessDefinition = {
@@ -241,7 +241,7 @@ const INTAKE_QUESTIONNAIRE: ProcessDefinition = {
     what: 'שאלה אחת בכל מסך, בדף האישי או בקישור נפרד. «לא בטוח/ה» מסמן את השאלה לבירור עם המשרד. אפשר לעצור ולחזור — השאלון נפתח באותה שאלה.',
     deferrable: 'הכול: השאלון ניתן להמשך בכל זמן.',
     done: 'השאלון הוגש.',
-    configureIn: 'requestDefaults',
+    configureIn: 'intake',
   }],
 };
 
@@ -258,9 +258,9 @@ const CUSTOM_REQUEST: ProcessDefinition = {
     key: 'fulfil', title: 'הלקוח משלים את הדרישות', actor: 'client', stepType: 'custom_request', kind: 'configurable',
     what: 'כל דרישה והפעולה שלה בדף האישי. בקשה עם הכדור אצל המשרד היא משימה פנימית ואינה מוצגת ללקוח.',
     done: 'דרישות החובה סומנו.',
-    configureIn: 'requestDefaults',
+    configureIn: 'intake',
   }],
-  configurable: { text: 'ארבע בקשות מוכנות של המשרד — ב«בקשות מסמכים».', section: 'requestDefaults' },
+  configurable: { text: 'ארבע בקשות מוכנות של המשרד — ב«בקשות ללקוח חדש».', section: 'intake' },
 };
 
 const BANK_DEBIT: ProcessDefinition = {
@@ -276,7 +276,7 @@ const BANK_DEBIT: ProcessDefinition = {
     key: 'authorize', title: 'הלקוח מקים את ההרשאה ומעלה אסמכתה', actor: 'client', stepType: 'custom_request', kind: 'configurable',
     what: 'ההוראות וקודי המוסד מוצגים בדף האישי; לכל רשות כפתור העלאה משלה.',
     done: 'כל האסמכתאות הועלו.',
-    configureIn: 'requestDefaults',
+    configureIn: 'intake',
   }],
 };
 
@@ -293,9 +293,9 @@ const SEND_DOCUMENT: ProcessDefinition = {
     key: 'review', title: 'הלקוח פותח ומאשר', actor: 'client', stepType: 'custom_request', kind: 'configurable',
     what: 'כפתור פתיחה אחד בדף האישי, ואחריו אישור. המשרד יכול לפתוח את הבקשה מחדש.',
     done: 'סומן «עברתי על המסמך».',
-    configureIn: 'clientDocs',
+    configureIn: 'library',
   }],
-  configurable: { text: 'ספריית המסמכים של המשרד — ב«מסמכים ללקוחות».', section: 'clientDocs' },
+  configurable: { text: 'ספריית המסמכים של המשרד — ב«ספריית מסמכים».', section: 'library' },
 };
 
 // ── עבודה פנימית ───────────────────────────────────────────────────────────
@@ -362,5 +362,5 @@ export const NOT_A_PROCESS: { what: string; why: string }[] = [
   { what: 'ייבוא היסטוריה ואימות נתונים בפייפרלס', why: 'שלבים פנימיים שנפתחים רק כשהמשרד קובע מסלול נתונים; אינם מוצגים ללקוח.' },
   { what: 'חידוש/סיום התקשרות', why: 'אירוע במחזור חיי ההסכם, לא תהליך מול הלקוח.' },
   { what: 'הדוח השנתי (שאלון המשרד)', why: 'כלי עבודה של המשרד; הצד של הלקוח הוא «עדכון סטטוס מס».' },
-  { what: 'חיבור המשרד לשע״ם / ביטוח לאומי (אוטומציה)', why: 'תשתית של המשרד, לא תהליך של לקוח — מקטע «חיבור לשע״ם».' },
+  { what: 'חיבור המשרד לשע״ם / ביטוח לאומי (אוטומציה)', why: 'תשתית של המשרד, לא תהליך של לקוח — עמוד «שע״ם וביטוח לאומי» ו«מה רץ אוטומטית».' },
 ];

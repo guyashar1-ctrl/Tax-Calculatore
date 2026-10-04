@@ -32,6 +32,13 @@ export interface AppRoute {
   quotationId?: string;
   annualClientId?: string;
   annualTaxYear?: number;
+  /** העמוד בתוך «המשרד» — ‎#/firm/{page}‎. בלי עמוד: רשימת העמודים (בטלפון) או העמוד הראשון. */
+  officePage?: string;
+  /**
+   * מה לפתוח בעמוד — ‎#/firm/{page}/{focus}‎: ‎'request:<id>'‎ בספרייה, ‎'flow:<id>:<stage>[:<item>]'‎
+   * במסלולים. ‼ קישור משורה בכרטיס נוחת על הפריט עצמו, לא בראש העמוד.
+   */
+  officeFocus?: string;
 }
 
 const SLUG_BY_VIEW: Record<View, string> = {
@@ -88,6 +95,12 @@ export function formatRoute(route: AppRoute): string {
         parts.push(route.annualClientId, String(route.annualTaxYear));
       }
       break;
+    case 'firmProfile':
+      if (route.officePage) {
+        parts.push(route.officePage);
+        if (route.officeFocus) parts.push(route.officeFocus);
+      }
+      break;
     default:
       break;
   }
@@ -131,6 +144,9 @@ export function parseHash(hash: string): AppRoute {
       if (!rest[0] || !Number.isFinite(year)) return { view };
       return { view, annualClientId: rest[0], annualTaxYear: year };
     }
+    case 'firmProfile':
+      if (!rest[0]) return { view };
+      return rest[1] ? { view, officePage: rest[0], officeFocus: rest[1] } : { view, officePage: rest[0] };
     default:
       return { view };
   }

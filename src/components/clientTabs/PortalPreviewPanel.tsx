@@ -52,7 +52,7 @@ export default function PortalPreviewPanel({ clientId, mode, onModeChange, refre
                 draftCount > 0 ? `${draftCount} יתווספו` : null,
                 editedCount > 0 ? `${editedCount} ישתנו` : null,
                 removingCount > 0 ? `${removingCount} יוסרו` : null,
-              ].filter(Boolean).join(' · ') + ' - אחרי "עדכן את דף הלקוח"'
+              ].filter(Boolean).join(' · ') + ' - אחרי «פרסם בדף»'
             : 'אין שינויים ממתינים - זהה למה שהלקוח כבר רואה.'}
       </div>
       <div className="pivo-light" style={{

@@ -64,7 +64,7 @@ export interface ProcessStage {
 }
 
 export type OfficeSectionId =
-  | 'representation' | 'requestDefaults' | 'paperless' | 'quotations' | 'clientDocs';
+  | 'representation' | 'intake' | 'paperless' | 'messages' | 'pricing' | 'library';
 
 export type ProcessClassification =
   /** תהליך רב-שלבי אמיתי — יש לו סדר, שלבים ותנאים. */

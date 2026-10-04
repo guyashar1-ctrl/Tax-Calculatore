@@ -1,0 +1,273 @@
+/* ═══ משטח הבקשות · סבב פישוט שני (1.10.2026) ═══════════════════════════════
+   גיא: «לזהות מיד מה הבקשות, בלי לקרוא פסקאות».
+   ‼ שורה אחת לבקשה: שם קצר · מצב קצר בעמודה קבועה · כפתור רק כשהתור שלי.
+   בלי תאריכים, ספירות, תגיות, ⋯ ושלבים עתידיים בשורה הסגורה — כולם בפתיחה.
+   צבע רק במצב ובנקודה, ורק כשהוא אומר משהו. הכול בטוקנים (מצב כהה). */
+
+.rl { display: flex; flex-direction: column; max-width: 860px; }
+
+/* ── פס עליון ──────────────────────────────────────────────────────────────── */
+.rl-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; max-width: 860px; }
+.rl-bar-gap { flex: 1; }
+.rl-flash { font-size: var(--fs-12); color: var(--ok); font-weight: 600; }
+.rl-link {
+  appearance: none; border: 0; background: none; font: inherit; cursor: pointer;
+  font-size: var(--fs-13); font-weight: 600; color: var(--ink-2);
+  padding: 6px 8px; border-radius: 8px; min-height: 36px;
+}
+.rl-link:hover, .rl-link:focus-visible { background: var(--surface-2); color: var(--ink-1); }
+.rl-more {
+  appearance: none; border: 1px solid transparent; background: none; cursor: pointer;
+  color: var(--ink-3); font: inherit; font-size: 18px; line-height: 1;
+  width: 36px; height: 36px; border-radius: 8px;
+}
+.rl-more:hover, .rl-more:focus-visible, .rl-more[aria-expanded="true"] { background: var(--surface-2); color: var(--ink-1); }
+.rl-head-menu { min-width: 240px; }
+.rl-menu-note {
+  font-size: var(--fs-12); color: var(--ink-3); line-height: 1.55;
+  padding: .35rem .6rem .45rem; white-space: normal; max-width: 280px; display: grid; gap: 4px;
+}
+
+/* ── «עוד לא הגיע ל…» — פרסום ושליחה, שני צעדים ─────────────────────────── */
+.rl-out {
+  margin: 12px 0 4px; padding: 10px 14px 6px; border-radius: 12px;
+  background: var(--surface-1, #fbfcfe); border: 1px solid var(--hairline-1);
+}
+.rl-out-title { font-size: var(--fs-12); font-weight: 700; color: var(--ink-3); margin-bottom: 2px; }
+.rl-out-row { display: flex; align-items: center; gap: 12px; padding: 8px 0; }
+.rl-out-row + .rl-out-row { border-top: 1px solid var(--hairline-2); }
+.rl-out-n {
+  flex-shrink: 0; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center;
+  font-size: 12px; font-weight: 700; background: var(--chip-blue-bg); color: var(--chip-blue-tx);
+}
+.rl-out-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.rl-out-text strong { font-size: var(--fs-14); font-weight: 650; color: var(--ink-1); }
+.rl-out-text span { font-size: var(--fs-12); color: var(--ink-3); }
+.rl-out-acts { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
+.rl-link-s {
+  appearance: none; border: 0; background: none; font: inherit; cursor: pointer;
+  font-size: var(--fs-12); color: var(--ink-3); padding: 6px; border-radius: 6px;
+}
+.rl-link-s:hover:not(:disabled) { color: var(--ink-1); text-decoration: underline; }
+
+/* ── הרשימה ───────────────────────────────────────────────────────────────── */
+.rl-list { display: flex; flex-direction: column; margin-top: 10px; border-top: 1px solid var(--hairline-1); }
+.rl-item { position: relative; display: flex; align-items: flex-start; gap: 10px; border-bottom: 1px solid var(--hairline-1); }
+/* נקודה רק כשהיא אומרת משהו: כחול = התור שלי, אדום = בעיה. */
+.rl-dot { flex-shrink: 0; width: 8px; height: 8px; border-radius: 50%; margin-top: 21px; background: transparent; }
+.rl-item.is-mine > .rl-dot { background: var(--accent); }
+.rl-item.is-red > .rl-dot { background: var(--err); }
+
+.rl-row { flex: 1; min-width: 0; }
+.rl-row.is-highlight { animation: rl-flash 2.4s ease; }
+@keyframes rl-flash { 0%, 40% { background: var(--surface-2); } 100% { background: transparent; } }
+
+.rl-line { display: flex; align-items: center; gap: 10px; min-height: 48px; padding: 3px 0; }
+.rl-hit {
+  appearance: none; border: 0; background: none; font: inherit; color: inherit; text-align: start;
+  padding: 8px 0; margin: 0; cursor: pointer; flex: 1; min-width: 0;
+  display: flex; align-items: baseline; gap: 16px;
+}
+.rl-hit.is-static { cursor: default; }
+.rl-hit:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 4px; }
+/* ‼ השם — שורה אחת, הדבר הראשון שהעין פוגשת. */
+.rl-name {
+  flex: 1; min-width: 0; font-size: var(--fs-15); font-weight: 600; color: var(--ink-1); line-height: 1.35;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.rl-row.is-locked .rl-name { color: var(--ink-3); font-weight: 500; }
+/* ‼ המצב — עמודה קבועה, כדי שהעין תרד בה כמו ברשימה ולא תחפש. */
+.rl-state { flex: 0 0 9.5rem; font-size: var(--fs-13); color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rl-state.is-red { color: var(--err); font-weight: 600; }
+.rl-state.is-amber { color: var(--warn); font-weight: 600; }
+.rl-state.is-blue { color: var(--accent); font-weight: 600; }
+
+.rl-act { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+.rl .rl-act .btn-primary {
+  background: var(--chip-blue-bg); color: var(--chip-blue-tx); border-color: transparent; font-weight: 700;
+}
+.rl .rl-act .btn-primary:hover:not(:disabled) { filter: brightness(.97); }
+.rl-edit { display: flex; align-items: center; gap: 2px; flex-shrink: 0; }
+.rl-edit .ob-more {
+  border: 0; background: none; color: var(--ink-3); cursor: pointer; font: inherit; font-size: 16px;
+  width: 30px; height: 30px; border-radius: 8px; padding: 0;
+}
+.rl-edit .ob-more:hover { background: var(--surface-2); color: var(--ink-1); }
+
+.rl-chev {
+  appearance: none; border: 0; background: none; cursor: pointer; color: var(--ink-4);
+  width: 28px; height: 28px; border-radius: 8px; display: grid; place-items: center; flex-shrink: 0; padding: 0; opacity: .55;
+}
+.rl-row:hover > .rl-line > .rl-chev, .rl-chev:focus-visible { opacity: 1; background: var(--surface-2); color: var(--ink-1); }
+.rl-chev svg { transition: transform .15s ease; }
+.rl-chev[aria-expanded="true"] { opacity: 1; }
+.rl-chev[aria-expanded="true"] svg { transform: rotate(180deg); }
+
+/* ── בקשה פתוחה ─────────────────────────────────────────────────────────── */
+.rl-body {
+  padding: 2px 0 16px; font-size: var(--fs-13); color: var(--ink-2);
+  display: flex; flex-direction: column; gap: 8px; max-width: 680px;
+}
+.rl-body > button, .rl-body > .ui-linkbtn { align-self: flex-start; }
+.rl-detail { margin: 0; font-size: var(--fs-14); color: var(--ink-1); line-height: 1.55; }
+.rl-facts { font-size: var(--fs-12); color: var(--ink-3); }
+.rl-notes { margin: 0; padding: 0; list-style: none; display: grid; gap: 2px; font-size: var(--fs-12); color: var(--ink-3); }
+.rl-notes li::before { content: "· "; color: var(--ink-4); }
+.rl-steps { border-inline-start: 2px solid var(--hairline-1); padding-inline-start: 12px; margin-top: 4px; }
+.rl-steps-title { font-size: var(--fs-12); font-weight: 700; color: var(--ink-3); padding-top: 2px; }
+.rl-steps .rl-line { min-height: 38px; }
+.rl-steps .rl-name { font-size: var(--fs-14); font-weight: 500; color: var(--ink-2); }
+.rl-steps .rl-state { flex-basis: 8rem; font-size: var(--fs-12); }
+.rl-steps .rl-row + .rl-row { border-top: 1px dashed var(--hairline-1); }
+.rl-foot { padding-top: 6px; border-top: 1px solid var(--hairline-2); display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.rl-links { display: flex; flex-wrap: wrap; gap: 2px 14px; }
+.rl-links .rl-link {
+  appearance: none; border: 0; background: none; font: inherit; cursor: pointer; min-height: 32px;
+  font-size: var(--fs-12); font-weight: 600; color: var(--ink-3); padding: 4px 0;
+}
+.rl-links .rl-link:hover:not(:disabled) { color: var(--ink-1); text-decoration: underline; background: none; }
+.rl-links .rl-link.is-danger { color: var(--err); }
+
+.rl-empty { padding: 18px 0; color: var(--ink-3); font-size: var(--fs-13); }
+
+/* ── מקטעים מקופלים בתחתית ─────────────────────────────────────────────────── */
+.rl-fold { margin-top: 16px; }
+.rl-fold-head {
+  appearance: none; border: 0; background: none; font: inherit; cursor: pointer;
+  display: flex; align-items: center; gap: 8px; width: 100%; text-align: start;
+  padding: 8px 0; color: var(--ink-3); min-height: 40px;
+}
+.rl-fold-head:hover .rl-fold-title, .rl-fold-head:focus-visible .rl-fold-title { color: var(--ink-1); }
+.rl-fold-title { font-size: var(--fs-13); font-weight: 700; color: var(--ink-2); }
+.rl-fold-cnt { font-size: var(--fs-12); color: var(--ink-4); font-weight: 600; }
+.rl-fold-hint { font-size: var(--fs-12); color: var(--ink-4); }
+.rl-fold-chev { margin-inline-start: auto; transition: transform .15s ease; color: var(--ink-4); }
+.rl-fold-head[aria-expanded="true"] .rl-fold-chev { transform: rotate(180deg); }
+.rl-fold-body { border-top: 1px solid var(--hairline-1); }
+.rl-add-quiet {
+  appearance: none; border: 0; background: none; font: inherit; cursor: pointer;
+  font-size: var(--fs-12); font-weight: 600; color: var(--ink-4); padding: 10px 0;
+}
+.rl-add-quiet:hover { color: var(--ink-2); text-decoration: underline; }
+.rl-context { padding: 10px 0 6px; font-size: var(--fs-12); color: var(--ink-3); display: grid; gap: 4px; }
+.rl-ok { color: var(--ok); font-weight: 700; }
+.rl-done {
+  display: flex; align-items: center; gap: 8px; padding: 7px 0;
+  font-size: var(--fs-13); color: var(--ink-3); border-bottom: 1px solid var(--hairline-2);
+}
+.rl-done-mark { color: var(--ok); width: 14px; flex-shrink: 0; }
+.rl-done-title { flex: 1; min-width: 0; color: var(--ink-2); overflow-wrap: anywhere; }
+.rl-done-state { font-size: var(--fs-12); color: var(--ink-4); }
+.rl-status { font-size: var(--fs-12); color: var(--ink-3); }
+
+/* ── מגירת «הדף של …» ── */
+.rl-sheet-head {
+  display: flex; align-items: center; gap: 10px; padding: 14px 18px;
+  border-bottom: 1px solid var(--hairline-1); flex-shrink: 0;
+}
+.rl-sheet-title { font-size: var(--fs-15); font-weight: 700; color: var(--ink-1); }
+.rl-sheet-body { flex: 1; overflow-y: auto; padding: 12px 14px 24px; }
+.rl-sheet-body .cw-section { position: static !important; }
+
+.rl .ni-cancel-link { color: var(--ink-3); }
+
+/* ── טלפון ───────────────────────────────────────────────────────────────── */
+@media (max-width: 640px) {
+  .rl-line { flex-wrap: wrap; row-gap: 0; min-height: 0; padding: 4px 0; }
+  .rl-hit { flex: 1 1 0; flex-direction: column; align-items: stretch; gap: 1px; padding: 6px 0; }
+  .rl-state { flex-basis: auto; font-size: var(--fs-12); }
+  .rl-chev { order: 2; }
+  .rl-act { order: 3; flex-basis: 100%; padding-bottom: 8px; }
+  .rl-edit { order: 1; }
+  .rl-dot { margin-top: 17px; }
+  .rl-out { padding: 8px 12px 4px; }
+  .rl-out-row { flex-wrap: wrap; gap: 8px; }
+  .rl-out-text { flex-basis: calc(100% - 34px); }
+  .rl-out-acts { flex-basis: 100%; justify-content: flex-start; padding-inline-start: 34px; }
+  .rl-out-row:not(:has(.rl-out-n)) .rl-out-acts { padding-inline-start: 0; }
+  .rl-out-row:not(:has(.rl-out-n)) .rl-out-text { flex-basis: 100%; }
+  .rl-bar .rl-link { padding-inline: 4px; }
+  .rl-fold-hint { display: none; }
+}
+
+/* ── יישור עמודות בדסקטופ: שם | מצב | פעולה ───────────────────────────────
+   ‼ לעמודת הפעולה רוחב קבוע גם כשאין בה כפתור — אחרת המצב «קופץ» לפי אם יש
+   כפתור בשורה, והעין מאבדת את העמודה. */
+@media (min-width: 641px) {
+  .rl-list .rl-act, .rl-list .rl-act-slot { flex: 0 0 10.5rem; justify-content: flex-start; }
+}
+.rl-act-slot { display: block; }
+/* «שלח מייל…» כשהוא הצעד השני — כפתור עם קו, לא קישור. */
+.rl .rl-btn-line { background: var(--surface-0); border: 1px solid var(--bd-strong); color: var(--ink-1); font-weight: 600; }
+.rl .rl-btn-line:hover:not(:disabled) { background: var(--surface-2); }
+/* «מחיקת/ביטול הבקשה» בתחתית הבקשה הפתוחה — לצד «הוספת הערה». */
+.rl-foot .ni-cancel-link {
+  font-size: var(--fs-12); font-weight: 600; color: var(--err); text-decoration: none; min-height: 32px; padding: 4px 0;
+}
+.rl-foot .ni-cancel-link:hover { text-decoration: underline; }
+@media (max-width: 640px) {
+  /* ‼ בטלפון השם והמצב בעמודה — רוחב עמודת המצב (flex-basis) היה הופך לגובה. */
+  .rl-steps .rl-state, .rl-list .rl-state { flex-basis: auto; }
+}
+
+/* ── סבב 4: תהליך אחד בשורה אחת ─────────────────────────────────────────────
+   ‼ שורה שמקבצת כמה חלקים (ייצוג מול הרשויות, שרשרת) אומרת מתחת לשם איזה חלק
+   דורש אותך עכשיו — «ביטוח לאומי · רותם · ועוד 1 לטיפולך». שורה שקטה, שבורה
+   לשורות בטלפון, בלי לגעת בעמודת המצב. */
+.rl-namecol { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.rl-namecol .rl-name { flex: none; }
+.rl-sub { font-size: var(--fs-12); color: var(--ink-3); line-height: 1.45; overflow-wrap: anywhere; }
+
+/* «לפי רשות ואדם» — שורות של חלקים שאין להם כרטיס (ההורה, קריאה בלבד, הושלם). */
+.rl-part {
+  display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
+  min-height: 34px; padding: 6px 0; font-size: var(--fs-13);
+}
+.rl-steps .rl-part + .rl-row, .rl-steps .rl-row + .rl-part, .rl-steps .rl-part + .rl-part { border-top: 1px dashed var(--hairline-1); }
+.rl-part-name { flex: 1; min-width: 0; font-weight: 500; color: var(--ink-2); overflow-wrap: anywhere; }
+.rl-part-state { flex: 0 1 auto; font-size: var(--fs-12); color: var(--ink-3); overflow-wrap: anywhere; }
+.rl-part.is-done .rl-part-name, .rl-part.is-done .rl-part-state { color: var(--ink-4); }
+.rl-steps > .rl-part-center { margin: 6px 0 2px; }
+.rl-part-context { margin: 0; font-size: var(--fs-12); color: var(--ink-3); line-height: 1.6; }
+
+/* «לא נוצרה — «X»» — הסיבה, מה עושים, והכפתורים. */
+.rl-problem { display: grid; gap: 6px; }
+.rl-problem p { margin: 0; line-height: 1.6; }
+.rl-problem-why { color: var(--err); font-weight: 600; }
+.rl-problem-next { color: var(--ink-2); }
+.rl-problem-acts { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.rl-row-note { margin: 0; font-size: var(--fs-12); color: var(--ok); font-weight: 600; }
+.rl-row-note.is-err { color: var(--warn); }
+
+/* ── סבב 5: תוצאות, הערות, חסימה ─────────────────────────────────────────────
+   ‼ תוצאה של פעולה נאמרת איפה שהעין נמצאת: בשורה עצמה, ואם השורה נסגרה — מעל הרשימה. */
+.rl-list-note {
+  margin: 10px 0 0; padding: 8px 12px; border-radius: 10px; display: flex; align-items: center; gap: 8px;
+  font-size: var(--fs-13); font-weight: 600; color: var(--ok); background: var(--surface-2);
+}
+.rl-list-note.is-err { color: var(--warn); }
+.rl-list-note .rl-link-s { margin-inline-start: auto; }
+/* «הוספת הערה» — שדה בתוך הבקשה, לא חלון הדפדפן. */
+.rl-note-edit { display: grid; gap: 6px; max-width: 560px; }
+.rl-note-input { width: 100%; min-height: 64px; resize: vertical; font: inherit; font-size: var(--fs-13); }
+.rl-note-acts { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+/* «חסום: …» — הסיבה, בשורה הסגורה ובפתיחה. */
+.rl-sub.rl-block { color: var(--err); }
+.rl-block-note { margin: 0; font-size: var(--fs-13); color: var(--err); font-weight: 600; line-height: 1.55; overflow-wrap: anywhere; }
+/* «לא ידוע אם המייל יצא» — למה, ומה הצעד הבטוח (כתום, לא אדום). */
+.rl-warn-note { margin: 0; font-size: var(--fs-12); color: var(--warn); line-height: 1.6; }
+/* כפתור בשורת חלק בפירוט («שלח הוראות», «מדריך מצולם»). */
+.rl-part .rl-part-btn { flex-shrink: 0; }
+.rl-part .rl-part-guide { flex-shrink: 0; font-size: var(--fs-12); }
+.rl-done-sub { display: block; font-size: var(--fs-12); color: var(--ink-4); line-height: 1.5; }
+
+@media (max-width: 640px) {
+  /* ‼ בטלפון: שם, מצב, ואז השורה השקטה (נשברת) — ואחריהם הכפתור ברוחב מלא. */
+  .rl-hit .rl-namecol { display: contents; }
+  .rl-hit .rl-name { order: 0; }
+  .rl-hit .rl-state { order: 1; }
+  .rl-hit .rl-sub { order: 2; }
+  .rl-act > .btn, .rl-act > a.btn { flex: 1 1 auto; justify-content: center; }
+  .rl-part { gap: 2px 10px; }
+  .rl-part-state { flex-basis: 100%; }
+}

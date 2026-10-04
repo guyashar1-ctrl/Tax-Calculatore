@@ -49,6 +49,7 @@ const SAMPLE: QuotationWebViewData = {
 export default function QuotationDesignStudio({ profile, onChange }: Props) {
   const [surface, setSurface] = useState<Surface>('quotation');
   const [device, setDevice] = useState<Device>('desktop');
+  const [pickOpen, setPickOpen] = useState(false);
 
   const dd: FirmDocDesign = profile.branding?.docDesign ?? {};
 
@@ -67,78 +68,101 @@ export default function QuotationDesignStudio({ profile, onChange }: Props) {
 
   // בחירת תבנית מאפסת כיוונונים אישיים — נקודת פתיחה נקייה
   const applyPreset = (id: string) => onChange({ preset: id });
+  const currentPreset = DESIGN_PRESETS.find(p => p.id === dd.preset);
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(272px, 320px) 1fr', gap: 20, alignItems: 'start' }}>
+    <div className="ds-grid">
 
       {/* ── בקרות ── */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-        <Group title="תבנית עיצוב" hint="נקודת פתיחה - אפשר לכוונן כל פרט אחריה">
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-            {DESIGN_PRESETS.map(p => {
-              const selected = dd.preset === p.id && !hasOverrides(dd);
-              return (
-                <button
-                  key={p.id} onClick={() => applyPreset(p.id)} title={p.description}
-                  aria-pressed={selected}
-                  style={{
-                    textAlign: 'start', padding: 9, borderRadius: 'var(--r-input)', cursor: 'pointer',
-                    background: 'transparent', fontFamily: 'inherit',
-                    /* שלוש משבצות הצבע הן התצוגה של התבנית — הן שנושאות
-                       את הזהות. הכפתור עצמו נשאר שקוף, והבחירה מסומנת בקו. */
-                    border: selected ? '1px solid var(--ink-2)' : '1px solid var(--hairline-1)',
-                    transition: 'border-color .12s',
-                  }}
-                >
-                  <span style={{ display: 'flex', gap: 4, marginBottom: 7 }}>
-                    <span style={{ width: 20, height: 20, borderRadius: 5, background: p.ink }} />
-                    <span style={{ width: 20, height: 20, borderRadius: 5, background: p.accent }} />
-                    <span style={{ width: 20, height: 20, borderRadius: 5, background: p.pageBg, border: '1px solid var(--hairline-1)' }} />
-                  </span>
-                  <span style={{ fontSize: 12, fontWeight: 600, display: 'block' }}>{p.label}</span>
-                </button>
-              );
-            })}
+        <Group title="תבנית עיצוב" hint="נקודת פתיחה — אפשר לכוונן כל פרט אחריה">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <span style={{ display: 'flex', gap: 4 }} aria-hidden="true">
+              <span style={{ width: 22, height: 22, borderRadius: 5, background: brand.ink }} />
+              <span style={{ width: 22, height: 22, borderRadius: 5, background: brand.accent }} />
+              <span style={{ width: 22, height: 22, borderRadius: 5, background: brand.pageBg, border: '1px solid var(--hairline-1)' }} />
+            </span>
+            <span style={{ flex: 1, minWidth: 0, fontSize: 'var(--fs-14)', fontWeight: 500 }}>
+              {currentPreset?.label ?? 'תבנית ברירת המחדל'}
+              {hasOverrides(dd) && <span className="of-tag is-warn" style={{ marginInlineStart: 6 }}>עם כיוונונים</span>}
+            </span>
+            <button type="button" className="btn btn-secondary btn-sm" aria-expanded={pickOpen} onClick={() => setPickOpen(o => !o)}>
+              {pickOpen ? 'סגירה' : 'החלפת תבנית'}
+            </button>
           </div>
+          {pickOpen && (
+            <div style={{ marginTop: 12 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                {DESIGN_PRESETS.map(p => {
+                  const selected = dd.preset === p.id && !hasOverrides(dd);
+                  return (
+                    <button
+                      key={p.id} onClick={() => applyPreset(p.id)} title={p.description}
+                      aria-pressed={selected}
+                      style={{
+                        textAlign: 'start', padding: 9, borderRadius: 'var(--r-input)', cursor: 'pointer',
+                        background: 'transparent', fontFamily: 'inherit',
+                        /* שלוש משבצות הצבע הן התצוגה של התבנית — הן שנושאות
+                           את הזהות. הכפתור עצמו נשאר שקוף, והבחירה מסומנת בקו. */
+                        border: selected ? '1px solid var(--ink-2)' : '1px solid var(--hairline-1)',
+                        transition: 'border-color .12s',
+                      }}
+                    >
+                      <span style={{ display: 'flex', gap: 4, marginBottom: 7 }}>
+                        <span style={{ width: 20, height: 20, borderRadius: 5, background: p.ink }} />
+                        <span style={{ width: 20, height: 20, borderRadius: 5, background: p.accent }} />
+                        <span style={{ width: 20, height: 20, borderRadius: 5, background: p.pageBg, border: '1px solid var(--hairline-1)' }} />
+                      </span>
+                      <span style={{ fontSize: 12, fontWeight: 600, display: 'block' }}>{p.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+                  <p className="ds-hint" style={{ marginTop: 8 }}>בחירת תבנית מחליפה גם את הכיוונונים שעשית.</p>
+            </div>
+          )}
         </Group>
 
-        <Group title="צבעים">
-          <ColorField label="אקסנט - כפתורים ומחירים" value={brand.accent} onChange={v => set('accent', v)} />
-          <ColorField label="כהה - כותרות ומשטח האישור" value={brand.ink} onChange={v => set('ink', v)} />
-          <ColorField label="רקע העמוד" value={brand.pageBg} onChange={v => set('pageBg', v)} last />
-        </Group>
+        <details className="ds-adv">
+          <summary>כיוונון מתקדם — צבעים, פונט, כותרת וכפתור</summary>
+          <Group title="צבעים">
+            <ColorField label="אקסנט - כפתורים ומחירים" value={brand.accent} onChange={v => set('accent', v)} />
+            <ColorField label="כהה - כותרות ומשטח האישור" value={brand.ink} onChange={v => set('ink', v)} />
+            <ColorField label="רקע העמוד" value={brand.pageBg} onChange={v => set('pageBg', v)} last />
+          </Group>
 
-        <Group title="טיפוגרפיה וסגנון">
-          <Field label="פונט">
-            <select value={brand.font} onChange={e => set('font', e.target.value)}>
-              {FONT_CHOICES.map(f => <option key={f} value={f}>{f}</option>)}
-            </select>
-          </Field>
-          <Field label="כותרת">
-            <select value={brand.headerStyle} onChange={e => set('headerStyle', e.target.value as HeaderStyle)}>
-              {(Object.keys(HEADER_STYLE_LABELS) as HeaderStyle[]).map(k => <option key={k} value={k}>{HEADER_STYLE_LABELS[k]}</option>)}
-            </select>
-          </Field>
-          <Field label="כפתור">
-            <select value={brand.buttonStyle} onChange={e => set('buttonStyle', e.target.value as ButtonStyle)}>
-              {(Object.keys(BUTTON_STYLE_LABELS) as ButtonStyle[]).map(k => <option key={k} value={k}>{BUTTON_STYLE_LABELS[k]}</option>)}
-            </select>
-          </Field>
-          <Field label="פינות" last>
-            <select value={cornerOf(dd, brand.radius)} onChange={e => set('corner', e.target.value as CornerStyle)}>
-              {(Object.keys(CORNER_STYLE_LABELS) as CornerStyle[]).map(k => <option key={k} value={k}>{CORNER_STYLE_LABELS[k]}</option>)}
-            </select>
-          </Field>
-        </Group>
+          <Group title="טיפוגרפיה וסגנון">
+            <Field label="פונט">
+              <select value={brand.font} onChange={e => set('font', e.target.value)}>
+                {FONT_CHOICES.map(f => <option key={f} value={f}>{f}</option>)}
+              </select>
+            </Field>
+            <Field label="כותרת">
+              <select value={brand.headerStyle} onChange={e => set('headerStyle', e.target.value as HeaderStyle)}>
+                {(Object.keys(HEADER_STYLE_LABELS) as HeaderStyle[]).map(k => <option key={k} value={k}>{HEADER_STYLE_LABELS[k]}</option>)}
+              </select>
+            </Field>
+            <Field label="כפתור">
+              <select value={brand.buttonStyle} onChange={e => set('buttonStyle', e.target.value as ButtonStyle)}>
+                {(Object.keys(BUTTON_STYLE_LABELS) as ButtonStyle[]).map(k => <option key={k} value={k}>{BUTTON_STYLE_LABELS[k]}</option>)}
+              </select>
+            </Field>
+            <Field label="פינות" last>
+              <select value={cornerOf(dd, brand.radius)} onChange={e => set('corner', e.target.value as CornerStyle)}>
+                {(Object.keys(CORNER_STYLE_LABELS) as CornerStyle[]).map(k => <option key={k} value={k}>{CORNER_STYLE_LABELS[k]}</option>)}
+              </select>
+            </Field>
+          </Group>
+
+          </details>
 
         <p className="ds-hint">
-          העיצוב חל על עמוד ההצעה, בקשת הייצוג וכל מייל ללקוח. הלוגו והחתימה נערכים
-          בלשוניות <b>מותג</b> ו<b>חתימת מייל</b>. השינויים נשמרים עם כפתור השמירה למעלה.
+          העיצוב חל על עמוד ההצעה, בקשת הייצוג וכל מייל ללקוח. הלוגו נערך ב<b>«לוגו»</b> וחתימת המייל ב<b>«שולח וחתימת מייל»</b>. הלקוחות יראו את השינוי אחרי «שמירה».
         </p>
       </div>
 
       {/* ── תצוגה מקדימה חיה ── */}
-      <div style={{ position: 'sticky', top: 12 }}>
+      <div className="ds-preview">
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
           <div className="tabs" style={{ margin: 0 }}>
             <button className={`tab ${surface === 'quotation' ? 'active' : ''}`} onClick={() => setSurface('quotation')}>הצעת מחיר</button>
@@ -154,7 +178,7 @@ export default function QuotationDesignStudio({ profile, onChange }: Props) {
         </div>
 
         {/* תצוגה מקדימה של מסמך שהלקוח יקבל — נשארת בהירה גם במצב כהה */}
-        <div className="pivo-light" style={{ border: '1px solid var(--gray-200)', borderRadius: 14, overflow: 'hidden', background: brand.pageBg, height: 'calc(100vh - 190px)', minHeight: 540 }}>
+        <div className="pivo-light" style={{ border: '1px solid var(--gray-200)', borderRadius: 14, overflow: 'hidden', background: brand.pageBg, height: 'var(--ds-pv-h, calc(100vh - 190px))', minHeight: 'var(--ds-pv-min, 540px)' }}>
           <div style={{ height: '100%', overflowY: 'auto', display: 'flex', justifyContent: 'center' }}>
             <div style={{ width: device === 'mobile' && surface !== 'email' ? 400 : '100%', maxWidth: '100%', transition: 'width .2s' }}>
               {surface === 'quotation' && <QuotationWebView data={SAMPLE} brand={brand} compact={device === 'mobile'} />}

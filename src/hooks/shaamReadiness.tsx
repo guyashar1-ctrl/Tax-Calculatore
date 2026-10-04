@@ -52,7 +52,7 @@ const POLL_MS = 4000;
  * ‼ ברמת המודול ולא בתוך הרכיב: גם המשיכה וגם החישוב קוראים לה, ופונקציה
  * שנוצרת מחדש בכל רינדור הייתה מחזירה את בעיית הזהות מהדלת האחורית.
  */
-const freshLayer = (layer?: { ready: boolean; checkedAt?: string }): boolean => {
+export const freshLayer = (layer?: { ready: boolean; checkedAt?: string }): boolean => {
   if (!layer?.ready || !layer.checkedAt) return false;
   return Date.now() - new Date(layer.checkedAt).getTime() < SUBSYSTEM_STALE_AFTER_MS;
 };

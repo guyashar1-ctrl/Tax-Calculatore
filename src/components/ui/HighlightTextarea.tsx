@@ -21,10 +21,11 @@ interface Props {
   lineHeight?: number;
   className?: string;
   style?: CSSProperties;
+  id?: string;
 }
 
 const HighlightTextarea = forwardRef<HTMLTextAreaElement, Props>(
-  function HighlightTextarea({ value, onChange, rows = 12, disabled, lineHeight = 1.7, className, style }, ref) {
+  function HighlightTextarea({ value, onChange, rows = 12, disabled, lineHeight = 1.7, className, style, id }, ref) {
     const backdrop = useRef<HTMLDivElement | null>(null);
 
     const painted: React.ReactNode[] = [];
@@ -46,6 +47,7 @@ const HighlightTextarea = forwardRef<HTMLTextAreaElement, Props>(
         <div className="hl-editor__backdrop" ref={backdrop} aria-hidden="true">{painted}</div>
         <textarea
           ref={ref}
+          id={id}
           rows={rows}
           value={value}
           disabled={disabled}

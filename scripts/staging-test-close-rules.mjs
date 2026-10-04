@@ -7,12 +7,16 @@
  * הפונקציה האמיתית. `verify-close-rules.mjs` בודק שהמסך והשרת *מנוסחים* אותו
  * דבר; הקובץ הזה בודק שהשרת באמת מתנהג כך.
  *
- * רץ אך ורק על לקוחות הדמה (fx-q-…). העותק המבני של הנתונים האמיתיים אינו נוגע.
+ * רץ אך ורק על לקוחות דמה שהחבילה בונה לעצמה (staging-fixtures.mjs, קידומת fxs-close-).
+ * ‼ לא על fx-q-onb / fx-q-close המשותפים: החבילה הזאת סוגרת את שתי הקליטות שלה (כולל
+ * בכוח), וכשהן היו משותפות — כל ריצה שנייה, וכל חבילה אחרת שקראה אותן, נכשלו.
+ * העותק המבני של הנתונים האמיתיים אינו נוגע.
  */
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { createClient } from '@supabase/supabase-js';
 import { ROOT, STAGING_REF, loadEnv, writeStaging, assertTriggersEnabled } from './staging-lib.mjs';
+import { cleanupSuiteFixtures, makeIntakeFixture } from './staging-fixtures.mjs';
 
 await assertTriggersEnabled();
 const env = loadEnv('.env.staging');
@@ -31,12 +35,14 @@ const ok = (name, cond, detail = '') => {
 };
 const one = async (q) => (await writeStaging(q))[0];
 
-const cidOf = async (key) => (await one(`select client_id from public.quotations where id = 'fx-q-${key}'`)).client_id;
 const engOf = async (cid) => (await one(`select id from public.engagements where client_id = '${cid}' order by created_at desc limit 1`)).id;
 const readiness = async (eng) => (await one(`select public.onboarding_close_readiness('${eng}') as r`)).r;
 
-const F3 = await cidOf('onb');
-const F4 = await cidOf('close');
+const USER_ID = readFileSync(resolve(ROOT, 'STAGING_USER_ID'), 'utf8').trim();
+const SUITE = 'close';
+await cleanupSuiteFixtures(SUITE);
+const F3 = (await makeIntakeFixture({ suite: SUITE, key: 'onb', user, userId: USER_ID })).clientId;
+const F4 = (await makeIntakeFixture({ suite: SUITE, key: 'close', user, userId: USER_ID })).clientId;
 const E4 = await engOf(F4);
 console.log(`לקוח סגירה ${F4} · התקשרות ${E4}\n`);
 

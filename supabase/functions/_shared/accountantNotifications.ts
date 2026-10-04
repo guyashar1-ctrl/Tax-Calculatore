@@ -41,6 +41,11 @@ export interface AccountantNotificationDef {
    * הפנימיות. ראה docs/EMAIL-POLICY.md.
    */
   audience?: 'firm' | 'client';
+  /**
+   * ‼ 215: ההתראה מוגדרת במקום אחר (בשלב של מסלול), ולכן במסך המשרד היא רק
+   * מוצגת עם קישור — לא מתג שני שסותר את הראשון.
+   */
+  definedIn?: 'flows';
 }
 
 export const NOTIFICATION_GROUPS =
@@ -146,6 +151,39 @@ export const ACCOUNTANT_NOTIFICATIONS: AccountantNotificationDef[] = [
     audience: 'client',
   },
   {
+    kind: 'flow_stage_done',
+    label: 'שלב במסלול הושלם',
+    hint: 'נשלח רק בשלבים שסומן בהם «הודעה אליך כשהשלב הושלם». ההגדרה בשלב עצמו - במשרד ← מסלולים.',
+    group: 'תהליך הקליטה',
+    defaultOn: true,
+    definedIn: 'flows',
+  },
+  {
+    // ‼ רק מהמחולל (אישור הצעה, בלי שהרו"ח ליד המסך). כשהמשרד מפעיל מסלול בעצמו
+    // הוא רואה את מה שלא נוצר מיד בחלון — אין מייל.
+    kind: 'request_not_created',
+    label: 'בקשה מהקליטה לא נוצרה',
+    hint: 'ההצעה אושרה, אבל בקשה שהקליטה הייתה אמורה לפתוח לא נוצרה. היא מופיעה באדום בלשונית «בקשות» של הלקוח, עם הסיבה ומה עושים.',
+    group: 'תהליך הקליטה',
+    defaultOn: true,
+  },
+  {
+    // ‼ סוג העוסק נקבע בכרטיס, והבקשות שחיכו לו היו אמורות להיפתח לבד — ולא נפתחו.
+    // שמירת הכרטיס עצמה הצליחה; רק הפתיחה נכשלה, ואפשר לנסות שוב מהכרטיס.
+    kind: 'kind_hold_release_failed',
+    label: 'הבקשות שחיכו לסוג העוסק לא נפתחו',
+    hint: 'סוג העוסק נקבע בכרטיס, אבל הבקשות שחיכו לו לא נפתחו בגלל תקלה. אפשר לפתוח אותן מלשונית «בקשות» של הלקוח — «לפתוח את הבקשות שחיכו».',
+    group: 'תהליך הקליטה',
+    defaultOn: true,
+  },
+  {
+    kind: 'flow_attach_failed',
+    label: 'מסלול הקליטה לא הוצמד ללקוח',
+    hint: 'תקלה: ההצעה אושרה והבקשות נוצרו, אבל המסלול לא חובר. אפשר להצמיד מכרטיס הלקוח.',
+    group: 'המערכת',
+    defaultOn: true,
+  },
+  {
     // ‼ לא עובר בתור: הגיבוי השבועי שולח ישירות מהמתזמן. הוא רשום כאן כי
     // ההבטחה היא שכל מייל אל המשרד ניתן לכיבוי מהמסך הזה, ולא רק אלה שבתור.
     kind: 'weekly_backup',
@@ -173,6 +211,53 @@ export function readNotificationPrefs(settings: unknown): NotificationPrefs {
     if (typeof v === 'boolean') out[k] = v;
   }
   return out;
+}
+
+// ─── נוסח המייל של שתי התראות הקליטה שמדווחות על בקשות שלא נפתחו ────────────
+//  טהור: notify-accountant בונה מכאן את המייל, ובדיקות היחידה בודקות את אותו קוד.
+//  ‼ בלי קוד ובלי טקסט שגיאה באנגלית — הסיבה ומה עושים מופיעים בשורה עצמה.
+
+function cleanTitles(titles: readonly unknown[] | null | undefined): string[] {
+  return [...new Set((Array.isArray(titles) ? titles : []).map(t => String(t ?? '').trim()).filter(Boolean))];
+}
+
+/** «א», «ב» ועוד 3 — כותרות הבקשות במייל, בלי ריקים ובלי כפילויות. */
+export function quotedTitles(titles: readonly unknown[] | null | undefined, max = 4): string {
+  const list = cleanTitles(titles);
+  const shown = list.slice(0, max).map(t => `«${t}»`).join(', ');
+  return list.length > max ? `${shown} ועוד ${list.length - max}` : shown;
+}
+
+export interface OfficeMailText { subject: string; heading: string; body: string }
+
+/** request_not_created — ההצעה אושרה, ובקשה שהקליטה הייתה אמורה לפתוח לא נוצרה. */
+export function requestNotCreatedText(clientName: string, titles: readonly unknown[] | null | undefined): OfficeMailText {
+  const name = clientName.trim() || 'הלקוח';
+  const list = cleanTitles(titles);
+  const what = list.length === 0 ? 'בקשה שהקליטה הייתה אמורה לפתוח לא נוצרה'
+    : list.length === 1 ? `${quotedTitles(list)} לא נוצרה`
+    : `${list.length} בקשות לא נוצרו: ${quotedTitles(list)}`;
+  return {
+    subject: list.length > 1 ? `⚠️ ${name} - ${list.length} בקשות לא נוצרו` : `⚠️ ${name} - בקשה לא נוצרה`,
+    heading: list.length > 1 ? 'בקשות מהקליטה לא נוצרו' : 'בקשה מהקליטה לא נוצרה',
+    body: `ההצעה של ${name} אושרה, אבל ${what}. בלשונית «בקשות» בכרטיס הלקוח מופיעה הסיבה, ואפשר ללחוץ «צור שוב» או «אין צורך».`,
+  };
+}
+
+/** kind_hold_release_failed — סוג העוסק נקבע, והבקשות שחיכו לו לא נפתחו. */
+export function kindHoldReleaseFailedText(clientName: string, titles: readonly unknown[] | null | undefined): OfficeMailText {
+  const name = clientName.trim() || 'הלקוח';
+  const list = cleanTitles(titles);
+  const what = list.length === 0 ? 'הבקשות שחיכו לו לא נפתחו בגלל תקלה'
+    : list.length === 1 ? `${quotedTitles(list)}, שחיכתה לו, לא נפתחה בגלל תקלה`
+    : `${list.length} בקשות שחיכו לו לא נפתחו בגלל תקלה: ${quotedTitles(list)}`;
+  return {
+    subject: list.length === 1
+      ? `⚠️ ${name} - בקשה שחיכתה לסוג העוסק לא נפתחה`
+      : `⚠️ ${name} - הבקשות שחיכו לסוג העוסק לא נפתחו`,
+    heading: 'הבקשות שחיכו לסוג העוסק לא נפתחו',
+    body: `סוג העוסק של ${name} נקבע בכרטיס, אבל ${what}. הכרטיס עצמו נשמר. בלשונית «בקשות» בכרטיס הלקוח אפשר ללחוץ «לפתוח את הבקשות שחיכו».`,
+  };
 }
 
 /** האם לשלוח את ההתראה הזו. אירוע לא מוכר — נשלח (ראה ההערה בראש הקובץ). */

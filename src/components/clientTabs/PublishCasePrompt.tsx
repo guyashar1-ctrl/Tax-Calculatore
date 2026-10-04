@@ -21,13 +21,17 @@ import InfoLines from '../ui/InfoLines';
 type Choice = 'update' | 'send' | 'copy';
 
 export default function PublishCasePrompt({
-  clientId, clientName, clientEmail, pendingCount, onPublished, onClose,
+  clientId, clientName, clientEmail, pendingCount, pendingNames, onPublished, onClose, openIntake,
 }: {
   clientId: string;
   clientName: string;
   clientEmail?: string;
+  /** קליטה פתוחה — לנוסח בוואטסאפ (SendPortalDialog). */
+  openIntake?: boolean;
   /** כמה שינויים ממתינים — נאמר מראש, כדי שהלחיצה לא תהיה באמונה. */
   pendingCount?: number;
+  /** ‼ ובשמות: הפרסום הוא של הדף כולו, ולכן אומרים בדיוק מה ייכנס אליו. */
+  pendingNames?: string[];
   /** נקרא מיד אחרי פרסום מוצלח, כדי שהמסך יציג את המצב החדש. */
   onPublished?: () => void;
   onClose: () => void;
@@ -37,6 +41,24 @@ export default function PublishCasePrompt({
   const [sending, setSending] = useState(false);
   const [link, setLink] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  /** פורסם, אבל אין ללקוח דבר חדש להודיע עליו — מייל «מה חדש» היה נכשל. */
+  const [nothingNew, setNothingNew] = useState(false);
+  /** «שליחת הקישור לדף» — המסלול הקיים (מייל עדכון בלי «חדש», או קישור לוואטסאפ). */
+  const [sendingUpdate, setSendingUpdate] = useState(false);
+  const hasEmail = !!clientEmail?.trim();
+
+  /**
+   * ‼ פרסום יכול להיות רק סידור מחדש או הסרה, או שלב «בדף, בלי מייל» — ואז אין
+   * ללקוח שום דבר «חדש», והשרת ידחה מייל «מה חדש» (nothing_to_announce) אחרי
+   * תצוגה מקדימה ריקה. שואלים את השרת לפני שפותחים אותה. תקלה בשאלה ⇒ פותחים
+   * כרגיל, והחלון עצמו יגיד מה קרה.
+   */
+  async function hasSomethingNew(): Promise<boolean> {
+    const { data, error: rpcError } = await supabase.rpc('client_notice_preview', { p_client_id: clientId, p_kind: 'new' });
+    const res = data as { ok?: boolean; items?: unknown[] } | null;
+    if (rpcError || !res?.ok || !Array.isArray(res.items)) return true;
+    return res.items.length > 0;
+  }
 
   async function publish(): Promise<boolean> {
     const { data, error: rpcError } = await supabase.rpc('publish_case_changes', { p_client_id: clientId });
@@ -76,21 +98,35 @@ export default function PublishCasePrompt({
     }
 
     const ok = await publish();
+    if (!ok) { setBusy(null); return; }
+    if (choice === 'send') {
+      const go = !hasEmail || await hasSomethingNew();
+      setBusy(null);
+      if (go) setSending(true); else setNothingNew(true);
+      return;
+    }
     setBusy(null);
-    if (!ok) return;
-    if (choice === 'send') { setSending(true); return; }
     onClose();
   }
 
-  if (sending) {
+  if (sending || sendingUpdate) {
     return (
       <SendPortalDialog
         clientId={clientId}
         clientName={clientName}
         clientEmail={clientEmail}
-        heading="שליחת הקישור לדף המעודכן"
+        openIntake={openIntake}
+        heading={sendingUpdate ? 'שליחת הקישור לדף' : hasEmail ? 'מייל על מה שפורסם' : 'הקישור לדף שפורסם'}
+        // ‼ 214: מה שפורסם עכשיו הוא «חדש» — מייל «חדש» (נתפס בשרת, מסומן כנמסר), לא
+        // ההתנהגות הישנה בלי מפתח ולא «תזכורת». כשאין מה להודיע — רק «עדכון»
+        // (הקישור ומצב, בלי לסמן כלום כחדש), ורק אם הרו"ח בחר בו.
+        emailKind={sendingUpdate ? 'update' : 'new'}
+        // ‼ בלי מייל בכרטיס — נוחתים על «קישור לשליחה»; עם מייל — ישר לתצוגת המייל.
+        initialMode={sendingUpdate ? undefined : hasEmail ? 'email' : 'link'}
         onClose={onClose}
-        onSent={onClose}
+        // ‼ לא סוגרים כאן: החלון מראה מה קרה (נשלח / כבר נשלח / לא ידוע), או את
+        // הקישור כשאין מייל בכרטיס. רק מרעננים את המסך שמאחור.
+        onSent={() => onPublished?.()}
       />
     );
   }
@@ -102,12 +138,14 @@ export default function PublishCasePrompt({
     background: 'transparent', color: 'var(--ink-1)', cursor: 'pointer',
   };
   const sub: React.CSSProperties = { fontSize: 'var(--fs-12)', color: 'var(--ink-3)' };
+  // שם פרטי בכותרת ובהסברים — שם מלא ארוך שבר את ראש החלון.
+  const firstName = clientName.trim().split(/\s+/)[0] || clientName;
 
   return (
     <div className="modal-backdrop" onClick={() => { if (!busy) onClose(); }}>
       <div className="modal" style={{ width: 460, maxWidth: '94vw' }} onClick={e => e.stopPropagation()}>
         <div className="modal-head">
-          <h3 style={{ margin: 0, fontSize: 'var(--fs-16)' }}>עדכון דף הלקוח</h3>
+          <h3 style={{ margin: 0, fontSize: 'var(--fs-16)' }}>פרסום בדף של {firstName}</h3>
           <button type="button" className="btn btn-sm btn-ghost" onClick={onClose} aria-label="סגירה">✕</button>
         </div>
 
@@ -116,12 +154,18 @@ export default function PublishCasePrompt({
             style={{ margin: 0, fontSize: 'var(--fs-13)', color: 'var(--ink-2)', lineHeight: 1.7 }}
             items={[
               pendingCount === 1
-                ? `שינוי אחד ממתין - הוא ייכנס לדף האישי של ${clientName}`
+                ? `שינוי אחד ייכנס לדף האישי של ${firstName}`
                 : pendingCount
-                  ? `${pendingCount} שינויים ממתינים - הם ייכנסו לדף האישי של ${clientName}`
-                  : `השינויים ייכנסו לדף האישי של ${clientName}`,
+                  ? `${pendingCount} שינויים ייכנסו לדף האישי של ${firstName}`
+                  : `השינויים ייכנסו לדף האישי של ${firstName}`,
               'לדף יש כתובת אחת קבועה, והיא לא משתנה',
             ]} />
+          {pendingNames && pendingNames.length > 0 && (
+            <ul style={{ margin: 0, paddingInlineStart: 18, fontSize: 'var(--fs-13)', color: 'var(--ink-1)', lineHeight: 1.7 }}>
+              {pendingNames.slice(0, 6).map((nm, i) => <li key={i}>{nm}</li>)}
+              {pendingNames.length > 6 && <li>ועוד {pendingNames.length - 6}</li>}
+            </ul>
+          )}
 
           {error && (
             <div style={{
@@ -130,7 +174,18 @@ export default function PublishCasePrompt({
             }}>⚠ {error}</div>
           )}
 
-          {link ? (
+          {nothingNew ? (
+            <>
+              <div style={{ fontSize: 'var(--fs-13)', color: 'var(--ok, #17845b)' }}>
+                ✓ פורסם. אין משהו חדש שמצדיק מייל.
+              </div>
+              <span style={sub}>{firstName} יראה את השינויים בדף בכניסה הבאה.</span>
+              <button type="button" style={rowBtn} onClick={() => setSendingUpdate(true)}>
+                <span style={{ fontWeight: 600 }}>שליחת הקישור לדף בכל זאת…</span>
+                <span style={sub}>מייל עם הקישור ומה שעוד ממתין — בלי לסמן דבר כחדש. או קישור לוואטסאפ.</span>
+              </button>
+            </>
+          ) : link ? (
             <>
               <div style={{ fontSize: 'var(--fs-13)', color: 'var(--ok, #17845b)' }}>
                 {copied ? '✓ הקישור הועתק' : 'הקישור מוכן להעתקה'}
@@ -142,18 +197,20 @@ export default function PublishCasePrompt({
           ) : (
             <>
               <button type="button" style={rowBtn} disabled={!!busy} onClick={() => void choose('update')}>
-                <span style={{ fontWeight: 600 }}>{busy === 'update' ? 'מעדכן…' : 'רק לעדכן'}</span>
-                <span style={sub}>הדף מתעדכן. לא נשלח שום דבר - הלקוח יראה בכניסה הבאה.</span>
+                <span style={{ fontWeight: 600 }}>{busy === 'update' ? 'מפרסם…' : 'רק לפרסם'}</span>
+                <span style={sub}>לא נשלח מייל — הבקשות יחכו בדף, ו{firstName} יראה אותן בכניסה הבאה.</span>
               </button>
 
               <button type="button" style={rowBtn} disabled={!!busy} onClick={() => void choose('send')}>
-                <span style={{ fontWeight: 600 }}>{busy === 'send' ? 'מעדכן…' : 'לעדכן ולשלוח קישור'}</span>
-                <span style={sub}>מתעדכן, ואז נפתחת השליחה - מייל או וואטסאפ, לאותו קישור קבוע.</span>
+                <span style={{ fontWeight: 600 }}>{busy === 'send' ? 'מפרסם…' : hasEmail ? 'לפרסם ולשלוח מייל' : 'לפרסם ולשלוח קישור'}</span>
+                <span style={sub}>{hasEmail
+                  ? 'אחרי הפרסום נפתח המייל לתצוגה מקדימה — בודקים ושולחים.'
+                  : 'אין מייל בכרטיס — אחרי הפרסום מפיקים את הקישור לדף, לוואטסאפ.'}</span>
               </button>
 
               <button type="button" style={rowBtn} disabled={!!busy} onClick={() => void choose('copy')}>
-                <span style={{ fontWeight: 600 }}>{busy === 'copy' ? 'מכין…' : 'העתק קישור'}</span>
-                <span style={sub}>הקישור הקבוע ללוח, בלי לשלוח ובלי לעדכן.</span>
+                <span style={{ fontWeight: 600 }}>{busy === 'copy' ? 'מכין…' : 'רק להעתיק את הקישור'}</span>
+                <span style={sub}>הקישור הקבוע ללוח — בלי לפרסם ובלי לשלוח.</span>
               </button>
             </>
           )}
@@ -161,7 +218,7 @@ export default function PublishCasePrompt({
 
         <div className="modal-foot" style={{ display: 'flex', justifyContent: 'flex-end' }}>
           <button type="button" className="btn btn-ghost" onClick={onClose} disabled={!!busy}>
-            {link ? 'סיום' : 'ביטול'}
+            {link || nothingNew ? 'סיום' : 'ביטול'}
           </button>
         </div>
       </div>

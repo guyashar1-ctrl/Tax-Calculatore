@@ -32,6 +32,12 @@ interface Props {
 
 type Authority = 'shaam' | 'btl';
 
+/** אירוע חלון: «התחברות» מעמוד «חיבורים» — מפעיל את הכפתור שבכותרת. */
+export const AUTHORITY_CONNECT_EVENT = 'pivo:authority-connect';
+export function requestAuthorityConnect(authority: Authority) {
+  window.dispatchEvent(new CustomEvent(AUTHORITY_CONNECT_EVENT, { detail: { authority } }));
+}
+
 const AUTHORITY_LABEL: Record<Authority, string> = { shaam: 'שע״ם', btl: 'ביטוח לאומי' };
 
 const PHASE_CLASS: Record<ConnPhase, string> = {
@@ -159,6 +165,20 @@ export default function AuthorityConnectionButtons({ userId }: Props) {
     return () => document.removeEventListener('mousedown', onDocClick);
   }, [openPopover]);
 
+  // ‼ «חיבורים» במשרד לוחץ על אותו כפתור בדיוק (אירוע חלון) — לא מסלול חיבור
+  // שני. כך ההתקדמות וההוראות («בחלון שע״ם: בחרו אישור דיגיטלי…») מופיעות
+  // באותו מקום, ומצב אחד בלבד מנהל את החיבור.
+  const clickRef = useRef<(a: Authority) => void>(() => {});
+  clickRef.current = (a: Authority) => handleClick(a, a === 'shaam' ? shaam : btl);
+  useEffect(() => {
+    const h = (e: Event) => {
+      const a = (e as CustomEvent<{ authority?: string }>).detail?.authority;
+      if (a === 'shaam' || a === 'btl') clickRef.current(a);
+    };
+    window.addEventListener(AUTHORITY_CONNECT_EVENT, h);
+    return () => window.removeEventListener(AUTHORITY_CONNECT_EVENT, h);
+  }, []);
+
   function handleClick(authority: Authority, state: AuthorityConnState) {
     if (state.busy) return;
     if (openPopover && openPopover !== authority) setOpenPopover(null);
@@ -206,7 +226,10 @@ export default function AuthorityConnectionButtons({ userId }: Props) {
   function renderPopoverContent(authority: Authority, state: AuthorityConnState) {
     if (state.workerOffline) {
       return (
-        <p>אין כרגע מחשב עבודה פעיל עם PIVO. כשאחד ממחשבי העבודה יופעל, אפשר יהיה להתחבר מכאן.</p>
+        <>
+          <p>אין כרגע מחשב עבודה פעיל עם PIVO. מה לעשות: להדליק את מחשב העבודה ולוודא ש-PIVO פתוח בו.</p>
+          <p><a className="authconn-popover-link" href="#/firm/connections">כל החיבורים ←</a></p>
+        </>
       );
     }
     if (authority === 'shaam' && state.phase === 'connecting') {

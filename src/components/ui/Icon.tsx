@@ -8,7 +8,7 @@ import { SVGProps } from 'react';
 export type IconName =
   | 'close' | 'chevron-down' | 'chevron-start' | 'check' | 'plus'
   | 'search' | 'edit' | 'external' | 'drag' | 'moon' | 'phone'
-  | 'building' | 'book' | 'logout';
+  | 'building' | 'book' | 'logout' | 'mail';
 
 const PATHS: Record<IconName, JSX.Element> = {
   'close': <path d="M4 4l8 8M12 4l-8 8" />,
@@ -32,6 +32,7 @@ const PATHS: Record<IconName, JSX.Element> = {
     <path d="M2.2 13.8h11.6" />
     <path d="M5.6 5.1h2M5.6 7.6h2M5.6 10.1h2" />
   </g>,
+  'mail': <g><rect x="2.2" y="3.6" width="11.6" height="8.8" rx="1.2" /><path d="M2.6 4.4L8 8.6l5.4-4.2" /></g>,
   'book': <g>
     <path d="M13 2H4.5A1.5 1.5 0 003 3.5v9A1.5 1.5 0 014.5 11H13z" />
     <path d="M4.5 11H13v3H4.5A1.5 1.5 0 013 12.5" />

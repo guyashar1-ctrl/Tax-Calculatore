@@ -17,6 +17,7 @@ import { differsFromTemplate, saveRequestTemplate, updateRequestTemplate } from 
 import type { IntakeContext } from '../../lib/clientState';
 import { intakeAcceptsRequired } from '../../lib/clientState';
 import EmailInput from '../ui/EmailInput';
+import { isManualInternal, neverOnClientPage } from '../../utils/clientFacingRows';
 
 /** שם הבקשה בשביל צ'יפ התלות ורשימת הבחירה.
  *  ‼ היה כאן נפילה ל-stepType הגולמי, ולכן תלות בשלב מובנה הוצגה לרו"ח
@@ -29,7 +30,7 @@ function depLabel(s: OnboardingStep): string {
     || s.stepType;
 }
 
-type Owner = 'client' | 'me' | 'external';
+export type Owner = 'client' | 'me' | 'external';
 
 interface InputRow {
   key: string;
@@ -54,7 +55,113 @@ const ERRORS: Record<string, string> = {
   dependency_cycle: 'התלות הזאת יוצרת מעגל.',
   step_terminal: 'הבקשה כבר נסגרה - אי אפשר לערוך אותה.',
   not_editable: 'את הבקשה הזאת עורכים במסך שלה.',
+  personal_confirm_for_subject: `«${REQUIREMENT_KIND_LABELS.confirm}» בבקשה בשם בן/בת הזוג הוא אישור אישי שלו/ה - אי אפשר לבקש אותו בדף של בעל הכרטיס. שנו את סוג הפריט או הסירו אותו.`,
 };
+
+/**
+ * סוגי הפריט שמוצעים בשורה.
+ * ‼ בבקשה בשם בן/בת הזוג (subjectRole 'spouse') אין «לקרוא ולאשר»: הבקשה יושבת
+ * בדף של בעל הכרטיס, ואישור שם היה נותן לו לאשר במקום בן/בת הזוג (§9). שורה
+ * ישנה שכבר מסומנת כך נשארת בתפריט שלה כדי שהבחירה לא תתחלף בשקט — והשמירה
+ * נחסמת עד שמשנים אותה.
+ */
+export function requirementKindsFor(subjectRole: unknown, current?: CustomRequirementKind): CustomRequirementKind[] {
+  if (subjectRole !== 'spouse') return KIND_ORDER;
+  return KIND_ORDER.filter(k => k !== 'confirm' || current === 'confirm');
+}
+
+/**
+ * הנושא של בקשה קיימת. ‼ «צילום תעודה לרשות המסים» (208) שומר את האדם ב-shaamIdentity.person
+ * ולא ב-subjectRole — צילום של בן/בת הזוג הוא בקשה בשם בן/בת הזוג לכל דבר (§9).
+ */
+export function subjectRoleOf(content: Record<string, unknown> | null | undefined): unknown {
+  if (!content) return undefined;
+  if (content.subjectRole) return content.subjectRole;
+  const sid = content.shaamIdentity as { person?: unknown } | undefined;
+  return sid && typeof sid === 'object' && sid.person === 'spouse' ? 'spouse' : undefined;
+}
+
+/** אותו כלל בשמירה — לפני שהשרת דוחה (personal_confirm_for_subject). */
+export function spouseConfirmError(subjectRole: unknown, kinds: CustomRequirementKind[], who: string): string | null {
+  if (subjectRole !== 'spouse' || !kinds.includes('confirm')) return null;
+  return `«${REQUIREMENT_KIND_LABELS.confirm}» הוא אישור אישי של ${who} - אי אפשר לבקש אותו בדף של בעל הכרטיס. שנו את סוג הפריט או הסירו אותו.`;
+}
+
+/**
+ * סימון משימה פנימית — רק ביצירה עם «אני».
+ * ‼ לא נגזר מהכדור: בקשה של הלקוח שהושלמה עוברת גם היא לכדור של המשרד, וסינון
+ * לפי הכדור היה מוריד אותה מהדף. השרת משאיר משימה מסומנת מחוץ לדף האישי.
+ * בעריכה לא שולחים כלום — המיזוג בשרת שומר את הסימון שכבר נשמר.
+ */
+export function internalTaskMarker(owner: Owner, editing: boolean): { internalTask?: true } {
+  return owner === 'me' && !editing ? { internalTask: true } : {};
+}
+
+/**
+ * «אני» — משימה פנימית נולדת מפורסמת: היא לעולם לא בדף ולא במייל של הלקוח (השרת
+ * מסנן internalTask), ולכן אין לה «טיוטה» ואין מה לפרסם. ‼ הסימון internalTask נשאר
+ * (internalTaskMarker): הטריגר בשרת מסמן רק בקשת משרד בלי דרישות. בקשה ללקוח ולגורם
+ * חיצוני — נולדת טיוטה (D4).
+ */
+export const bornPublished = (owner: Owner): boolean => owner === 'me';
+
+/**
+ * שורה שלעולם לא מופיעה בדף הלקוח — משימה פנימית (internalTask) או משימת האישור
+ * האישי של בן/בת הזוג (personalConfirmFor). ‼ ההגדרה ב-utils/clientFacingRows (מקור
+ * אחד גם לספירה ולמקטעים); כאן רק מייצאים הלאה.
+ */
+export { neverOnClientPage };
+
+/**
+ * מי מטפל בבקשה קיימת — לעריכה. ‼ (סבב 4) לא לפי הכדור לבדו: בקשה של הלקוח
+ * שהלקוח השלים (הכדור עבר למשרד) היא עדיין בקשה ללקוח — הקומפוזר היה פותח אותה
+ * כ«אני» ומשמיט את הפריטים. ומשימה פנימית שהועברה ל«ממתין ללקוח» — עדיין פנימית.
+ */
+export function editOwnerOf(step: OnboardingStep): Owner {
+  if (step.payload.externalParty) return 'external';
+  return isManualInternal(step) ? 'me' : 'client';
+}
+
+/** הנוסח הקבוע במקום בחירת «מי מטפל» בעריכה — השרת לא מחליף בעלים בעריכה. */
+export const EDIT_OWNER_TEXT: Record<Owner, string> = {
+  me: 'משימה פנימית - לא מופיעה בדף של הלקוח',
+  client: 'בקשה ללקוח',
+  external: 'בקשה לגורם חיצוני',
+};
+
+// ─── «דלג על הבקשה» ───────────────────────────────────────────────────────────
+// ‼ כאן ולא במסך הבקשות, כדי שאפשר יהיה לבדוק אותו בלי לטעון את כל המסך.
+
+/** סיבות הדילוג שהשרת מכיר (step_satisfies_dependency, 168) — בשפה של המסך. */
+const KNOWN_SKIP_REASON_TEXT: Record<string, string> = {
+  not_applicable: 'אין צורך',
+  not_applicable_history: 'אין צורך',
+  already_connected: 'הלקוח כבר מחובר',
+  transferred_rep: 'הועבר ממייצג אחר',
+};
+
+/**
+ * מה נשלח לשרת ב«דלג על הבקשה» (לא פייפרלס). null = לא הוקלדה סיבה.
+ * ‼ בקשה של מסלול (flowRunId): השרת סופר דילוג כ«בוצע» רק עם סיבה מוכרת. סיבה
+ * חופשית השאירה את השלב במסלול פתוח לתמיד — השלב הבא לא נפתח, והספירה כבר
+ * הראתה «הושלם». לכן במסלול הסיבה היא 'not_applicable', ומה שהוקלד נשמר כהערה.
+ * בקשה מחוץ למסלול — כמו קודם.
+ */
+export function skipPayloadFor(step: { flowRunId?: string | null }, text: string | null | undefined): Record<string, string> | null {
+  const t = (text ?? '').trim();
+  if (!t) return null;
+  return step.flowRunId
+    ? { reason: 'not_applicable', note: t, skipNote: t }
+    : { reason: t, note: t };
+}
+
+/** «דולג · …» ברשימת «הושלמו»: מה שהוקלד, אחרת שם הסיבה. קוד פנימי לא מוצג. */
+export function skippedLabel(payload: { skipReason?: unknown; skipNote?: unknown } | null | undefined): string {
+  const note = typeof payload?.skipNote === 'string' ? payload.skipNote.trim() : '';
+  const reason = typeof payload?.skipReason === 'string' ? payload.skipReason.trim() : '';
+  const why = note || KNOWN_SKIP_REASON_TEXT[reason] || (/^[a-z_]+$/.test(reason) ? '' : reason);
+  return why ? `דולג · ${why}` : 'דולג';
+}
 
 let nextTempKey = 1;
 const freshKey = () => `r${Date.now().toString(36)}${nextTempKey++}`;
@@ -99,13 +206,19 @@ export default function InlineComposer({
   const editContent: Record<string, unknown> | null = edit
     ? { ...edit.payload, ...(edit.draftPayload ?? {}) }
     : (initialContent ?? null);
+  /** הנושא של הבקשה (לא הבעלים) — 'spouse' כשהיא בשם בן/בת הזוג. */
+  const subjectRole = subjectRoleOf(editContent);
+  const subjectWho = String(editContent?.subjectName ?? '').trim() || 'בן/בת הזוג';
 
-  const [name, setName] = useState(String(editContent?.title ?? editContent?.clientTitle ?? ''));
-  const [owner, setOwner] = useState<Owner>(() => {
-    if (!edit) return initialOwner ?? 'client';
-    if (edit.payload.externalParty) return 'external';
-    return edit.ball === 'me' ? 'me' : 'client';
+  const startOwner: Owner = edit ? editOwnerOf(edit) : initialOwner ?? 'client';
+  /* ‼ בקשה שהלקוח רואה — השם מתחיל ממה שהוא רואה (clientTitle), לא מהשם הפנימי: השמירה כותבת
+     את השם לשניהם, ושם פנימי שונה היה דורס בשקט את מה שבדף. משימה פנימית — השם הפנימי. */
+  const [name, setName] = useState(() => {
+    const own = String(editContent?.title ?? '').trim();
+    const seen = String(editContent?.clientTitle ?? '').trim();
+    return startOwner === 'me' ? (own || seen) : (seen || own);
   });
+  const [owner, setOwner] = useState<Owner>(startOwner);
   const [rows, setRows] = useState<InputRow[]>(() => {
     if (editContent) {
       const r = (editContent?.requirements as CustomRequirement[] | undefined) ?? [];
@@ -218,6 +331,8 @@ export default function InlineComposer({
         if (opts.length < 2) return { error: ERRORS.select_needs_options };
       }
     }
+    const confirmErr = spouseConfirmError(subjectRole, activeRows.map(r => r.kind), subjectWho);
+    if (confirmErr) return { error: confirmErr };
 
     const requirements: CustomRequirement[] = activeRows.map(r => ({
       key: r.key,
@@ -251,6 +366,7 @@ export default function InlineComposer({
       clientCta: clientCta.trim(),
       ...(requirements.length ? { requirements } : {}),
       ...(externalParty ? { externalParty } : {}),
+      ...internalTaskMarker(owner, !!edit),
       /* ‼ null מפורש ולא היעדר, מאותה סיבה כמו autoAction: מיזוג הפרסום
          שומר מפתחות שלא נשלחו, ולכן מחיקת נוסח שנשמר חייבת לדרוס אותו. */
       ...(owner === 'external' ? {
@@ -313,12 +429,13 @@ export default function InlineComposer({
       p_payload: payload,
       p_due_date: dueDate || null,
       p_depends_on: deps[0] ?? null,
-      p_published: false,                    // ‼ הכול נולד טיוטה (D4)
+      // ‼ בקשה ללקוח/לגורם חיצוני נולדת טיוטה (D4); משימה פנימית — מפורסמת (bornPublished).
+      p_published: bornPublished(owner),
       p_required_for_close: requiredForClose,
       p_owner: owner,
       p_stage_id: stageId ?? null,
     });
-    const res = data as { ok?: boolean; error?: string; stepId?: string; status?: string } | null;
+    const res = data as { ok?: boolean; error?: string; stepId?: string; status?: string; heldUntilApproval?: boolean } | null;
     if (rpcErr || !res?.ok || !res.stepId) {
       setBusy(false);
       setError(ERRORS[res?.error ?? ''] ?? rpcErr?.message ?? 'היצירה נכשלה.');
@@ -342,6 +459,8 @@ export default function InlineComposer({
     }
 
     setBusy(false);
+    // ‼ לפני אישור ההצעה השרת מחזיק הכול לא-מפורסם (requests_held_until_approval).
+    const published = bornPublished(owner) && !res.heldUntilApproval;
     onSaved({
       id: res.stepId,
       clientId,
@@ -355,9 +474,9 @@ export default function InlineComposer({
       requiredForClose,
       dueDate: dueDate || undefined,
       stageId: stageId ?? null,
-      publishedAt: null,
+      publishedAt: published ? new Date().toISOString() : null,
       needsAttention: false,
-      payload: { ...(payload as object), published: false },
+      payload: { ...(payload as object), ...(published ? {} : { published: false }) },
       completionMethod: 'manual',
     });
   }
@@ -391,15 +510,28 @@ export default function InlineComposer({
           onChange={e => setName(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter') void save(); if (e.key === 'Escape') onCancel(); }}
         />
-        <span role="group" aria-label="מי מטפל" style={{ display: 'inline-flex', gap: '.3rem' }}>
-          <button type="button" style={pill(owner === 'client')} aria-pressed={owner === 'client'}
-            onClick={() => setOwner('client')}>לקוח</button>
-          <button type="button" style={pill(owner === 'me')} aria-pressed={owner === 'me'}
-            onClick={() => setOwner('me')}>אני</button>
-          <button type="button" style={pill(owner === 'external')} aria-pressed={owner === 'external'}
-            onClick={() => setOwner('external')}>גורם חיצוני</button>
-        </span>
+        {/* ‼ (סבב 4) בעריכה אין בחירה: השרת לא מחליף בעלים בעריכה, וכפתורים פעילים
+            הבטיחו מעבר שלא קורה (משימה שהועברה ל«לקוח» נשארה מוסתרת מהדף). */}
+        {edit ? (
+          <span style={{ fontSize: 'var(--fs-13)', fontWeight: 600, color: 'var(--ink-2)' }}>
+            {EDIT_OWNER_TEXT[owner]}
+          </span>
+        ) : (
+          <span role="group" aria-label="מי מטפל" style={{ display: 'inline-flex', gap: '.3rem' }}>
+            <button type="button" style={pill(owner === 'client')} aria-pressed={owner === 'client'}
+              onClick={() => setOwner('client')}>לקוח</button>
+            <button type="button" style={pill(owner === 'me')} aria-pressed={owner === 'me'}
+              onClick={() => setOwner('me')}>אני</button>
+            <button type="button" style={pill(owner === 'external')} aria-pressed={owner === 'external'}
+              onClick={() => setOwner('external')}>גורם חיצוני</button>
+          </span>
+        )}
       </div>
+      {edit && (
+        <span style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)' }}>
+          כדי להעביר את הבקשה למישהו אחר - הסר אותה וצור חדשה
+        </span>
+      )}
 
       {/* ── לקוח: מה אני מצפה לקבל ── */}
       {owner === 'client' && (
@@ -407,6 +539,11 @@ export default function InlineComposer({
           <span style={{ fontSize: 'var(--fs-13)', fontWeight: 600, color: 'var(--ink-2)' }}>
             מה אני מצפה לקבל מהלקוח?
           </span>
+          {subjectRole === 'spouse' && (
+            <span style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)', lineHeight: 1.6 }}>
+              «{REQUIREMENT_KIND_LABELS.confirm}» לא מוצע כאן: זה אישור אישי של {subjectWho}, ואי אפשר לתת אותו בדף של בעל הכרטיס.
+            </span>
+          )}
           {rows.map((r, i) => (
             <div key={r.key} style={{ display: 'flex', gap: '.35rem', alignItems: 'center', flexWrap: 'wrap' }}>
               <span style={{ display: 'inline-flex', gap: 1 }}>
@@ -430,7 +567,7 @@ export default function InlineComposer({
                 aria-label="סוג הפריט"
                 onChange={e => setRow(i, { kind: e.target.value as CustomRequirementKind })}
               >
-                {KIND_ORDER.map(k => <option key={k} value={k}>{REQUIREMENT_KIND_LABELS[k]}</option>)}
+                {requirementKindsFor(subjectRole, r.kind).map(k => <option key={k} value={k}>{REQUIREMENT_KIND_LABELS[k]}</option>)}
               </select>
               <button
                 type="button"
@@ -638,7 +775,7 @@ export default function InlineComposer({
             <label style={{ display: 'flex', gap: '.4rem', alignItems: 'center', fontSize: 'var(--fs-13)', color: 'var(--ink-2)' }}>
               <input type="checkbox" checked={requiredForClose}
                 onChange={e => setRequiredForClose(e.target.checked)} />
-              נדרש לסגירת הקליטה
+              חייבת להסתיים לפני סגירת הקליטה
             </label>
           )}
 
@@ -661,7 +798,7 @@ export default function InlineComposer({
                       {owner === 'external'
                         ? (extKind === 'prev_accountant' ? ' לרו״ח הקודם' : ` ל${extContact.name.trim() || 'גורם'}`)
                         : ' ללקוח'}.
-                      {' '}נחמש רק אחרי ״עדכן את דף הלקוח״ - טיוטה לא שולחת.</>
+                      {' '}נחמש רק אחרי «פרסם בדף» - טיוטה לא שולחת.</>
                   : 'כשהתנאים יתמלאו הבקשה תסומן כמוכנה, והשליחה תישאר בידיים שלך.'}
               </span>
             </div>
@@ -717,12 +854,12 @@ export default function InlineComposer({
 
       <div style={{ display: 'flex', gap: '.4rem', alignItems: 'center' }}>
         <button type="button" className="btn btn-sm btn-primary" disabled={busy} onClick={() => void save()}>
-          {busy ? 'שומר…' : edit ? 'שמירה' : 'שמור כטיוטה'}
+          {busy ? 'שומר…' : edit ? 'שמירה' : owner === 'me' ? 'הוסף משימה' : 'שמור כטיוטה'}
         </button>
         <button type="button" className="btn btn-sm btn-ghost" disabled={busy} onClick={onCancel}>ביטול</button>
         {!edit && (
           <span style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)' }}>
-            הלקוח לא יראה עד "עדכן את דף הלקוח"
+            {owner === 'me' ? 'משימה פנימית - לא מופיעה בדף של הלקוח' : 'הלקוח לא יראה עד «פרסם בדף»'}
           </span>
         )}
       </div>

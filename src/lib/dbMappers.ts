@@ -12,6 +12,7 @@ import type {
   Quotation,
 } from '../types/quotations';
 import type { Engagement, OnboardingStep, OnboardingEvent } from '../types/onboarding';
+import { parseKindHold } from '../types/onboarding';
 import type { AdditionalCharge } from '../types/charges';
 import type { TaxFactChange } from '../types/taxFacts';
 import type { AutomationJob, AutomationWorker } from '../types/automation';
@@ -355,11 +356,17 @@ export function engagementFromDb(row: Record<string, any>): Engagement {
   if (e.monthlyTotal !== undefined) e.monthlyTotal = Number(e.monthlyTotal);
   if (e.vatRateAtSigning != null) e.vatRateAtSigning = Number(e.vatRateAtSigning);
   if (e.monthlyTotalWithVat != null) e.monthlyTotalWithVat = Number(e.monthlyTotalWithVat);
+  // ‼ 217: kind_hold (jsonb) — נקרא לצורה אחת; עמודה שחסרה (סביבה לפני 217) נשארת undefined.
+  if ('kind_hold' in row) e.kindHold = parseKindHold(row.kind_hold);
   return e;
 }
 
 export function stepFromDb(row: Record<string, any>): OnboardingStep {
   const s = rowToObject<OnboardingStep>(row);
+  // ‼ published_at ריק במסד = טיוטה (הלקוח לא רואה). rowToObject הופך null ל-undefined,
+  // ו-undefined פירושו «נתון ישן בלי עמודה» — כך טיוטות אמיתיות נראו כמפורסמות
+  // (בלי «טיוטה» ובלי בקשה לפרסם). שומרים את ה-null.
+  if ('published_at' in row && row.published_at === null) s.publishedAt = null;
   if (!s.payload) s.payload = {};
   if (s.needsAttention === undefined) s.needsAttention = false;
   return s;

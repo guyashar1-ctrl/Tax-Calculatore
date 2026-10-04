@@ -2,6 +2,7 @@
 // מרונדר ב-iframe עם sandbox ריק: זה HTML שיצא לצד שלישי, ואין סיבה לתת לו
 // להריץ סקריפטים או לגעת באפליקציה.
 
+import { useEffect } from 'react';
 import { EmailMessage } from '../../types/emailActivity';
 import { EMAIL_PREVIEW_SANDBOX, withExternalLinks } from '../../utils/emailPreviewHtml';
 
@@ -11,9 +12,15 @@ function fmtTime(iso?: string): string {
 }
 
 export default function SentEmailViewer({ message, onClose }: { message: EmailMessage; onClose: () => void }) {
+  // Esc סוגר — כמו כל חלון אחר במערכת
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', h);
+    return () => window.removeEventListener('keydown', h);
+  }, [onClose]);
   return (
     <div className="modal-backdrop" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="modal" style={{ width: 760, maxWidth: '100%', display: 'flex', flexDirection: 'column', maxHeight: '90vh' }}>
+      <div className="modal" role="dialog" aria-modal="true" aria-label={message.subject || 'מייל שנשלח'} style={{ width: 760, maxWidth: '100%', display: 'flex', flexDirection: 'column', maxHeight: '90vh' }}>
         <div className="modal-header">
           <div style={{ flex: 1, minWidth: 0 }}>
             <h3 style={{ margin: 0, fontSize: '1rem' }}>{message.subject || 'מייל שנשלח'}</h3>

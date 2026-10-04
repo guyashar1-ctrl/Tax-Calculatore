@@ -18,6 +18,7 @@
 // לפני הרשאת תשלום" נאכפת ב-advance_onboarding_step, והשער הזה מונע דלת
 // אחורית שבה המייל יוצא לפני שהשלב בכלל נפתח.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { resendEmailsUrl, postResend, unknownOutcomeReply } from "../_shared/resendResult.ts";
 import { resolveBrand, buildBrandedEmail, esc } from "../_shared/designSystem.ts";
 import {
   defaultTemplate,
@@ -26,6 +27,9 @@ import {
   type StepEmailKind,
   type StepEmailTemplate,
 } from "../_shared/stepTemplates.ts";
+
+// ‼ ספק הדואר — Resend בייצור; ב-staging אפשר ספק מדומה שקולט (resendEmailsUrl).
+const RESEND_EMAILS = resendEmailsUrl(Deno.env.get("RESEND_API_URL"), Deno.env.get("SUPABASE_URL") ?? "");
 
 /** איזה מייל מותר לאיזה שלב. תזכורת מותרת לכל שלב.
  *  ‼ retainer_authorization איבד את 'retainer_request' (הכרעת גיא §8): אין
@@ -316,21 +320,31 @@ Deno.serve(async (req: Request) => {
 
     const resendPayload: Record<string, unknown> = { from, to: [toEmail], subject: rendered.subject, html };
     if (replyTo) resendPayload.reply_to = replyTo;
-    // ‼ fetch שזורק (רשת, timeout) אינו "נשלח": התביעה משוחררת בדיוק כמו
-    // בתשובת שגיאה מהספק, והמסך מקבל שגיאה מפורשת ולא 500 סתמי.
-    let r: Response;
-    try {
-      r = await fetch("https://api.resend.com/emails", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
-        body: JSON.stringify(resendPayload),
-      });
-    } catch (e) {
-      return await bail({ error: "resend_unreachable", detail: { message: String(e).slice(0, 300) } }, 502);
-    }
-    const body = await r.json().catch(() => ({}));
+    // ‼ התשובה מסווגת (classifyResendResponse): נשלח / נדחה בוודאות / לא ידוע.
+    const call = await postResend(() => fetch(RESEND_EMAILS, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify(resendPayload),
+    }));
+    const body = call.body;
 
-    if (!r.ok) {
+    if (call.result.outcome === "unknown") {
+      // ‼ לא ידוע אם יצא (רשת שנפלה, 5xx, 2xx בלי מזהה) — ייתכן שהמייל אצל הנמען.
+      // לכן: שורה ביומן 'unknown' (בלי מפתח ייחודי — כדי שאישור מאוחר יירשם), והתביעה
+      // האוטומטית **נשארת**: שחרור היה מזמין את הטריגר הבא לשלוח שוב, אולי פעמיים.
+      // ההכרעה אצל המשרד, מול השורה בשלב.
+      claimedStepId = null;
+      const reason = call.result.reason;
+      const { error: logErr } = await admin.from("email_messages").insert({
+        user_id: userId, client_id: client.id, step_id: step.id, to_email: toEmail,
+        subject: rendered.subject, kind, html, status: "unknown", error: reason.slice(0, 500),
+        meta: { automatic: isAuto },
+      });
+      if (logErr) console.error("[send-step-email] unknown journal insert failed", logErr.code, logErr.message);
+      return json(unknownOutcomeReply(reason), 502);
+    }
+
+    if (call.result.outcome === "failed") {
       // ‼ שורת הכישלון נרשמת בלי מפתח ייחודי: אחרת הניסיון החוזר המוצלח היה
       // מתנגש בה ונחשב ל"כבר נשלח" — והמייל לא היה יוצא לעולם.
       await admin.from("email_messages").insert({

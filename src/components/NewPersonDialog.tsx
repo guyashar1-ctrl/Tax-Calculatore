@@ -18,6 +18,7 @@ import Modal from './ui/Modal';
 import InfoLines from './ui/InfoLines';
 import EmailInput from './ui/EmailInput';
 import { isValidEmail } from '../utils/email';
+import { sendErrorView } from '../types/emailActivity';
 
 export interface NewPersonBasics {
   firstName: string;
@@ -98,6 +99,8 @@ export default function NewPersonDialog({
   const [sendEmailValue, setSendEmailValue] = useState('');
   const [emailSending, setEmailSending] = useState(false);
   const [emailSendError, setEmailSendError] = useState<string | null>(null);
+  /** לא ידוע אם המייל יצא — לא שגיאה אדומה. */
+  const [emailSendUnknown, setEmailSendUnknown] = useState<string | null>(null);
   const [emailSentTo, setEmailSentTo] = useState<string | null>(null);
 
   const applyLink = applyToken ? `${APPLY_ORIGIN}/?apply=${applyToken}` : '';
@@ -139,13 +142,17 @@ export default function NewPersonDialog({
     if (!addr || !isValidEmail(addr)) { setEmailSendError('כתובת אימייל לא תקינה'); return; }
     setEmailSending(true);
     setEmailSendError(null);
+    setEmailSendUnknown(null);
     try {
       await onSendApplyLinkEmail(applyToken, addr);
       setEmailSentTo(addr);
       setEmailFormOpen(false);
       showToast(`הקישור נשלח ל-${addr}`);
     } catch (e) {
-      setEmailSendError(e instanceof Error ? e.message : 'שליחת המייל נכשלה');
+      // ‼ «לא ידוע אם יצא» (או תשובה בלי סיבה בעברית) אינו «נכשל»: כתום, עם הצעד הבטוח.
+      const view = sendErrorView(e instanceof Error ? e.message : '', { what: 'המייל עם הקישור' });
+      if (view.tone === 'unknown') setEmailSendUnknown(view.text);
+      else setEmailSendError(view.text);
     } finally {
       setEmailSending(false);
     }
@@ -155,7 +162,7 @@ export default function NewPersonDialog({
     setStep('choose');
     setFullName(''); setPhone(''); setEmail(''); setIdNumber('');
     setFieldError(null); setDuplicate(null); setLinkSpouse(true); setRoute(null); setBusyError(null);
-    setEmailFormOpen(false); setSendEmailValue(''); setEmailSendError(null); setEmailSentTo(null);
+    setEmailFormOpen(false); setSendEmailValue(''); setEmailSendError(null); setEmailSendUnknown(null); setEmailSentTo(null);
   }
 
   function handleManualContinue() {
@@ -267,7 +274,7 @@ export default function NewPersonDialog({
                       שיתוף
                     </button>
                   )}
-                  <button type="button" onClick={() => { setEmailFormOpen(v => !v); setEmailSendError(null); }}>
+                  <button type="button" onClick={() => { setEmailFormOpen(v => !v); setEmailSendError(null); setEmailSendUnknown(null); }}>
                     שליחה במייל
                   </button>
                 </div>
@@ -287,6 +294,9 @@ export default function NewPersonDialog({
                   </div>
                 )}
                 {emailSendError && <div className="np-error">{emailSendError}</div>}
+                {emailSendUnknown && (
+                  <div role="status" style={{ marginTop: 8, fontSize: 'var(--fs-12)', color: 'var(--warn)' }}>{emailSendUnknown}</div>
+                )}
                 {emailSentTo && !emailFormOpen && (
                   <div className="pd-small" style={{ marginTop: 8 }}>נשלח מייל ל-{emailSentTo}</div>
                 )}

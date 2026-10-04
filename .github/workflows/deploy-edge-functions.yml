@@ -59,7 +59,14 @@ jobs:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: |
           set -euo pipefail
-          supabase functions deploy --project-ref "${SUPABASE_PROJECT_REF}"
+          # ‼ פונקציות של סביבת הבדיקות בלבד (ספק הדואר המדומה) לעולם לא נפרסות לייצור.
+          STAGING_ONLY=" fake-email-provider "
+          for dir in supabase/functions/*/; do
+            name=$(basename "$dir")
+            case "$name" in _shared) continue ;; esac
+            case "$STAGING_ONLY" in *" $name "*) echo "מדלג על $name (סביבת בדיקות בלבד)"; continue ;; esac
+            supabase functions deploy "$name" --project-ref "${SUPABASE_PROJECT_REF}"
+          done
 
       - name: Report what is now live
         env:

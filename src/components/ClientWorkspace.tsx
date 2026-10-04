@@ -5,6 +5,7 @@
 // ארבע לשוניות סביב "המסע"; כבוי — חמש הלשוניות הישנות חוזרות, כולל "קליטה".
 
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { useMediaQuery } from '../hooks/useMediaQuery';
 import { Client, Task, REPRESENTATION_STATUS_BADGE, LifecycleStage, LIFECYCLE_STAGE_LABELS, NiTracking } from '../types';
 import { ActivityEntry, ClientAlert } from '../types/clientWorkspace';
 import { useEmployees } from '../hooks/useEmployees';
@@ -51,7 +52,7 @@ import InfoLines from './ui/InfoLines';
 export type TabId = 'overview' | 'dossier' | 'docs' | 'tasks' | 'onboarding' | 'journey' | 'taxfile' | 'pay' | 'log' | 'checks';
 
 // שמות הלשוניות נושאים את המשמעות; האייקון ירד (§3.16)
-const TABS: { id: TabId; label: string }[] = [
+const TABS: { id: TabId; label: string; short?: string }[] = [
   { id: 'overview',   label: 'מרכז שליטה' },
   { id: 'dossier',    label: 'התיק' },
   { id: 'onboarding', label: 'בקשות' },   // אותו משטח כמו journey — שם אחד לשניהם
@@ -73,11 +74,13 @@ const TABS: { id: TabId; label: string }[] = [
 // ‼ הלשונית נקראת "בקשות" (ולא "המסע"/"תהליך"). זה משטח קבוע לכל אורך הקשר
 // עם הלקוח — הבקשות ממשיכות להיווצר גם שנה אחרי הקליטה — ו"תהליך" תיאר משהו
 // שמתחיל ונגמר. השם הוא האובייקט שעל המסך: בקשה.
-const JOURNEY_TABS: { id: TabId; label: string }[] = [
+// ‼ `short` — השם בטלפון צר (עד 440px): חמש הלשוניות נכנסות בשורה אחת, ו«פעילות»
+// לא נדחקת אל מחוץ למסך בלי שום סימן שהיא קיימת. השם המלא נשאר ב-aria-label.
+const JOURNEY_TABS: { id: TabId; label: string; short?: string }[] = [
   { id: 'journey',  label: 'בקשות' },
   { id: 'taxfile',  label: 'תיק מס' },
   { id: 'docs',     label: 'מסמכים' },
-  { id: 'pay',      label: 'הסכם ותשלומים' },
+  { id: 'pay',      label: 'הסכם ותשלומים', short: 'הסכם' },
   { id: 'log',      label: 'פעילות' },
 ];
 
@@ -85,7 +88,7 @@ const JOURNEY_TABS: { id: TabId; label: string }[] = [
 // כברירת מחדל), לא לשונית שישית "מאושרת" באותו מובן כמו החמש שמעליה. ראה
 // docs/PIVO-AUTOMATION-FOUNDATION.html §A: מקומה הקבוע (אם בכלל) ייקבע אחרי
 // שיש שתי אוטומציות ולא אחת. מיד אחרי "פעילות", כמבוקש.
-const CHECKS_TAB: { id: TabId; label: string } = { id: 'checks', label: 'בדיקות' };
+const CHECKS_TAB: { id: TabId; label: string; short?: string } = { id: 'checks', label: 'בדיקות' };
 
 interface Props {
   client: Client | null;
@@ -309,6 +312,15 @@ export default function ClientWorkspace({
   const [alignRerunBusy, setAlignRerunBusy] = useState(false);
   /** «תצוגה מפורטת» שהתבקשה מתיק המס — נמסרת ללשונית הבקשות (ראה OnboardingTab). */
   const [detailedAlignment, setDetailedAlignment] = useState<{ key: InstitutionKey | null; origin: 'taxfile' | 'journey'; tick: number }>({ key: null, origin: 'journey', tick: 0 });
+  /**
+   * נחיתה על שדה בתיק המס — «לקביעת סוג העוסק» במגש הבקשות (217) פותח את «פרטי
+   * הנישום» בעריכה על «סוג העוסק». מתאפס כשתיק המס מדווח שהנחיתה בוצעה.
+   */
+  const [taxFileFocus, setTaxFileFocus] = useState<'dealerType' | undefined>(undefined);
+  const openTaxFile = useCallback((focus?: 'dealerType') => {
+    setTaxFileFocus(focus === 'dealerType' ? 'dealerType' : undefined);
+    setTab('taxfile');
+  }, []);
 
   const db = useDocumentDB();
   const { employees, findEmployee } = useEmployees();
@@ -511,6 +523,25 @@ export default function ClientWorkspace({
       : TABS.filter(t => t.id !== 'onboarding' || hasOnboarding),
     [journeyUi, hasOnboarding, checksTabEnabled]);
 
+  // ── שורת הלשוניות בטלפון ──────────────────────────────────────────────────
+  // ‼ ב-360/390 «פעילות» נדחקה אל מחוץ למסך (גלילה צידית בלי שום סימן). בטלפון
+  // צר — שמות קצרים ורווח קטן יותר, וחמש הלשוניות נכנסות בשורה אחת.
+  const compactTabs = useMediaQuery('(max-width: 440px)');
+  const tabsRef = useRef<HTMLDivElement>(null);
+  // ‼ ואם בכל זאת אין מקום (מסך צר יותר, גופן מוגדל) — הלשונית שנבחרה, גם כשנחתו
+  // עליה מקישור («אוטומציות» ← «פעילות»), נגללת לתוך השורה. אופקית בלבד: לא
+  // מזיזים את הדף.
+  useEffect(() => {
+    const bar = tabsRef.current;
+    if (!bar || bar.scrollWidth <= bar.clientWidth + 1) return;
+    const active = bar.querySelector<HTMLElement>('.cw-tab.active');
+    if (!active) return;
+    const b = bar.getBoundingClientRect();
+    const a = active.getBoundingClientRect();
+    if (a.left < b.left) bar.scrollBy({ left: a.left - b.left - 12 });
+    else if (a.right > b.right) bar.scrollBy({ left: a.right - b.right + 12 });
+  }, [tab, visibleTabs, compactTabs]);
+
   // ── התג על לשונית «המסע» ──────────────────────────────────────────────────
   // ‼ סופר רק מה שאפשר לעשות עכשיו. תג שסופר גם שלבים נעולים מבטיח עבודה
   // שהמסך עצמו חוסם, ואז לומדים להתעלם ממנו — וזה בדיוק מה שהתג בא למנוע.
@@ -519,17 +550,31 @@ export default function ClientWorkspace({
   // "תקוע" = בעיה אמיתית (אדום), לא "הלקוח סיים - לבדיקה".
   // ‼ כשלשונית הבקשות מורכבת היא מדווחת את המונה שלה — כולל מצב משימות ב"ל
   // (PIVO רץ ⇒ הכרטיס ב«ממתינים» ולא נספר). בלי הדיווח, התג ספר אותו כ"אצלי".
-  const [reported, setReported] = useState<{ clientId: string; n: number; red: boolean } | null>(null);
-  const onAttentionSummary = useCallback((s: { n: number; red: boolean }) => setReported({ clientId: client.id, ...s }), [client.id]);
+  // ‼ הדיווח תקף רק למצב שעליו נספר. «בקשות» אינה מורכבת כשעומדים על לשונית
+  // אחרת — ופעולה משם («בקש ייצוג» בתיק המס, ב"ל שאושר) משנה את השלבים. בלי
+  // המפתח התג נשאר על המספר הישן עד שנכנסים שוב ל«בקשות». כשהשלבים או הקשר
+  // הייצוג משתנים — המפתח משתנה, החישוב המקומי חוזר, והלשונית (אם מורכבת)
+  // מדווחת מחדש: הפונקציה שהיא מקבלת התחלפה.
+  const attentionKey = useMemo(() => JSON.stringify([
+    (onboardingSteps ?? []).filter(s => s.clientId === client.id)
+      .map(s => [s.id, s.status, s.ball, s.needsAttention, s.updatedAt ?? null]),
+    niExecution ?? null, client.representationStatus ?? null, client.representationRequestId ?? null, repSendPhase ?? null,
+  ]), [onboardingSteps, client.id, niExecution, client.representationStatus, client.representationRequestId, repSendPhase]);
+  const [reported, setReported] = useState<{ clientId: string; key: string; n: number; red: boolean } | null>(null);
+  const onAttentionSummary = useCallback(
+    (s: { n: number; red: boolean }) => setReported({ clientId: client.id, key: attentionKey, ...s }),
+    [client.id, attentionKey]);
   const journeyBadge = useMemo(() => {
-    if (reported && reported.clientId === client.id) return { n: reported.n, stuck: reported.red };
+    if (reported && reported.clientId === client.id && reported.key === attentionKey) return { n: reported.n, stuck: reported.red };
     const mine = (onboardingSteps ?? []).filter(s => s.clientId === client.id);
-    const ctx = { niExecution, repStatus: client.representationStatus ?? undefined };
+    // ‼ אותו הקשר כמו הרשימה עצמה: מה מתקבץ תחת הייצוג, ומייל חתימה שלא יצא.
+    const ctx = { niExecution, repStatus: client.representationStatus ?? undefined, repSendPhase,
+      representationRequestId: client.representationRequestId ?? null };
     return {
       n: countRequestsNeedingMe(mine, ctx),
       stuck: hasRedRequest(mine, ctx),
     };
-  }, [onboardingSteps, client.id, niExecution, client.representationStatus, reported]);
+  }, [onboardingSteps, client.id, niExecution, client.representationStatus, client.representationRequestId, repSendPhase, reported, attentionKey]);
 
   const clientCharges = useMemo(
     () => (charges ?? []).filter(c => c.clientId === client.id),
@@ -616,10 +661,13 @@ export default function ClientWorkspace({
   const activeEngagement = useMemo(
     () => currentEngagement(client.id, engagements),
     [engagements, client.id]);
-  /** הקשר הקליטה — מקור אחד, בבואה של client_intake_state בשרת. */
+  /** הקשר הקליטה — מקור אחד, בבואה של client_intake_state בשרת. ‼ 217 (D2): גם הצעה
+   *  שנשלחה ללקוח שחוזר (בלי התקשרות נוכחית) מחזיקה את הבקשות — לכן ההצעות והליד. */
+  const leadIds = useMemo(() => (lead?.id ? [lead.id] : undefined), [lead?.id]);
   const intake = useMemo(
-    () => intakeContext({ id: client.id, lifecycleStage: client.lifecycleStage }, engagements),
-    [client.id, client.lifecycleStage, engagements]);
+    () => intakeContext({ id: client.id, lifecycleStage: client.lifecycleStage }, engagements,
+      { quotations, leadIds }),
+    [client.id, client.lifecycleStage, engagements, quotations, leadIds]);
   /** תג תשומת-לב על "הסכם ותשלומים" — מועד תשלום שהגיע ועדיין לא סומן שולם. */
   const overdueChargeCount = useMemo(() => {
     const today = new Date().toISOString().slice(0, 10);
@@ -814,7 +862,7 @@ export default function ClientWorkspace({
         )}
 
         {/* Header — tabs */}
-        <div className="cw-tabs">
+        <div className="cw-tabs" ref={tabsRef} style={compactTabs ? { gap: '1rem' } : undefined}>
           {visibleTabs.map(t => (
             <button
               key={t.id}
@@ -822,9 +870,10 @@ export default function ClientWorkspace({
                  אף לשונית לא הייתה מודגשת בזמן העריכה, והרו"ח היה מאבד את
                  התשובה לשאלה "איפה אני". */
               className={`cw-tab ${tab === t.id || (t.id === 'taxfile' && tab === 'dossier') ? 'active' : ''}`}
+              aria-label={compactTabs && t.short ? t.label : undefined}
               onClick={() => { tabPickedByUser.current = true; setTab(t.id); }}
             >
-              <span>{t.label}</span>
+              <span>{compactTabs && t.short ? t.short : t.label}</span>
               {t.id === 'tasks' && openTasks.length > 0 && (
                 <span className="cw-tab-badge">{openTasks.length}</span>
               )}
@@ -834,8 +883,8 @@ export default function ClientWorkspace({
                 <span
                   className={`cw-tab-dot ${journeyBadge.stuck ? 'is-stuck' : ''}`}
                   title={journeyBadge.stuck
-                    ? `${journeyBadge.n} דברים אצלך · יש משהו תקוע`
-                    : `${journeyBadge.n} דברים מחכים לך`}
+                    ? `${journeyBadge.n === 1 ? 'דבר אחד אצלך' : `${journeyBadge.n} דברים אצלך`} · יש משהו תקוע`
+                    : journeyBadge.n === 1 ? 'דבר אחד מחכה לך' : `${journeyBadge.n} דברים מחכים לך`}
                 >{journeyBadge.n}</span>
               )}
               {t.id === 'pay' && overdueChargeCount > 0 && (
@@ -889,7 +938,7 @@ export default function ClientWorkspace({
             onOpenYear={openYear}
             onSelectTask={onSelectTask}
             onClientPersisted={adoptPersisted}
-            onOpenTaxFile={() => setTab('taxfile')}
+            onOpenTaxFile={openTaxFile}
             niExecution={niExecution}
             onUpdateClientFields={onUpdateClientFields ? (patch: Partial<Client>) => onUpdateClientFields(client.id, patch) : undefined}
             onNiInstructionsSent={onNiInstructionsSent ? () => onNiInstructionsSent(client.id) : undefined}
@@ -910,6 +959,11 @@ export default function ClientWorkspace({
             onCreateSpouseClient={onCreateSpouseClient ? () => onCreateSpouseClient(client) : undefined}
             onOpenSpouseClient={onOpenClient}
             onClientPersisted={adoptPersisted}
+            /* ‼ 217: «לקביעת סוג העוסק» מהבקשות — «פרטי הנישום» נפתחת בעריכה על השדה. */
+            focusField={taxFileFocus}
+            onFocusConsumed={() => setTaxFileFocus(undefined)}
+            /* השרת פתח את הבקשות שחיכו לסוג העוסק — «בקשות» צריכה לקרוא מחדש. */
+            onRequestsChanged={() => refreshOnboarding?.()}
             onSendQuestionnaire={() => setIntakeModalOpen(true)}
             /* ‼ `onOpenDetails` ו-`onEditFamily` **אינם מועברים יותר, בכוונה.**
                שניהם ניווטו לעורך «התיק» הישן — מסך עם עשרים קבוצות שדות
@@ -964,6 +1018,7 @@ export default function ClientWorkspace({
             events={onboardingEvents ?? []}
             quotations={quotations ?? []}
             charges={clientCharges}
+            onOpenTaxFile={() => openTaxFile()}
           />
         )}
 
@@ -1043,6 +1098,7 @@ export default function ClientWorkspace({
             clientDisplayName={`${client.firstName} ${client.lastName ?? ''}`.trim()}
             clientEmail={client.email}
             quotations={quotations ?? []}
+            clientLeadIds={leadIds}
             onOpenDocuments={(folderId) => {
               tabPickedByUser.current = true;
               setDocsFolderId(folderId ?? null);
@@ -1100,8 +1156,9 @@ export default function ClientWorkspace({
           clientId={client.id}
           steps={clientSteps}
           processPublished={!!activeEngagement?.processPublishedAt}
-          awaitingQuoteApproval={client.lifecycleStage === 'quoted' || client.lifecycleStage === 'lead'}
+          awaitingQuoteApproval={intake.state === 'pending'}
           intake={intake}
+          currentEngagementId={activeEngagement?.id}
           prevAccountantEmail={client.prevAccountantEmail}
           presetType="intake_questionnaire"
           onClose={() => setIntakeModalOpen(false)}

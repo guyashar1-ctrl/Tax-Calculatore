@@ -10,12 +10,16 @@
 // ‼ מיתוג המשרד, לא PIVO — כמו כל מה שהלקוח רואה.
 
 import { createContext, useContext, useEffect, useState } from 'react';
-import { supabase } from '../lib/supabase';
+import { supabase, SUPABASE_URL } from '../lib/supabase';
 import { flushAccountantNotifications } from '../lib/notifyAccountant';
 import { FirmBranding } from '../types/firmProfile';
 import { MESSAGE_DEFAULT_TITLE } from '../lib/sendDocuments';
 import { deriveQuotationBrand } from './quotations/quotationBranding';
 import EmailInput from './ui/EmailInput';
+import RepApprovalGuide, { RepApprovalGuideButton, repApprovalCard, type RepApprovalPerson } from './portal/RepApprovalGuide';
+import { linkHost } from '../features/links/linkDestinations';
+import { REP_PORTAL_CARD_FIXED } from '../../supabase/functions/_shared/repTemplates.ts';
+import './portal/portalPage.css';
 
 interface Props {
   token: string;
@@ -141,6 +145,8 @@ export interface PortalItem {
   removing?: boolean;
   /** מסומן רק בתצוגה המקדימה — בקשה מפורסמת שיש עליה עריכה שטרם פורסמה (172). */
   edited?: boolean;
+  /** אישור הייצוג באזור האישי (rep_approval): מה כל אדם מסמן — מהשרת. חסר ⇒ נוסח כללי. */
+  approvals?: RepApprovalPerson[];
 }
 
 /** מה שהדף מרשה להעלות. אותה רשימה נאכפת שוב בשרת — כאן זה רק כדי לחסוך
@@ -198,7 +204,7 @@ function resourceHref(
 ): string | null {
   if (r.url) return r.url;
   if (!r.documentId || !stepId) return null;
-  const base = import.meta.env.VITE_SUPABASE_URL;
+  const base = SUPABASE_URL;
   const q = new URLSearchParams({ token, stepId, docId: r.documentId });
   return `${base}/functions/v1/portal-open-document?${q}`;
 }
@@ -220,7 +226,7 @@ function resourceHref(
  */
 async function confirmOpened(href: string | undefined | null): Promise<boolean> {
   if (!href) return false;
-  const base = String(import.meta.env.VITE_SUPABASE_URL || '');
+  const base = String(SUPABASE_URL || '');
   if (!base || !href.startsWith(base)) return true;
   try {
     const r = await fetch(href, { method: 'GET', credentials: 'omit', cache: 'no-store' });
@@ -529,8 +535,8 @@ function ActionItem({ token, item, brand, accent, last, onDone }: {
   );
 
   return (
-    <div style={{
-      padding: '15px 16px', marginBottom: last ? 0 : 10,
+    <div className="pp-item" style={{
+      marginBottom: last ? 0 : 10,
       background: brand.cardBg, border: `1px solid ${brand.border}`, borderRadius: brand.radius + 2,
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -965,8 +971,23 @@ function PaperlessSignupBlock({ token, item, brand, accent, onDone }: {
           disabled={previewMode || busy} onClick={() => void confirm()}>
           {busy ? 'רגע…' : (item.cta || 'נרשמתי')}
         </button>
+        {item.linkUrl && <LinkHostNote url={item.linkUrl} brand={brand} />}
         {error && <div style={{ width: '100%', fontSize: 12.5, color: '#a63a3a' }}>{error}</div>}
       </div>
+    </div>
+  );
+}
+
+/**
+ * ‼ ליד כל קישור יוצא — לאן הוא מוביל, כדי שהלקוח לא ילחץ על כפתור עיוור.
+ * שם האתר בלבד (gov.il), לא כתובת ארוכה.
+ */
+function LinkHostNote({ url, extra, brand }: { url: string; extra?: string; brand: { muted: string } }) {
+  const host = linkHost(url);
+  if (!host) return null;
+  return (
+    <div style={{ width: '100%', fontSize: 12, color: brand.muted, lineHeight: 1.5 }}>
+      נפתח באתר <span dir="ltr" style={{ unicodeBidi: 'isolate' }}>{host}</span>{extra ? ` · ${extra}` : ''}
     </div>
   );
 }
@@ -988,6 +1009,8 @@ function DeclareBlock({ token, item, brand, accent, onDone }: {
   const previewMode = useContext(PreviewCtx);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [guideOpen, setGuideOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
 
   async function confirm() {
     if (previewMode || !item.actionValue) return;
@@ -1018,19 +1041,78 @@ function DeclareBlock({ token, item, brand, accent, onDone }: {
     opacity: previewMode || busy ? .55 : 1,
   };
 
+  // ‼ אישור הייצוג באזור האישי — עם מדריך מצולם. המדריך פתוח גם בתצוגה
+  // המקדימה במשרד: הוא תוכן לקריאה בלבד, בלי שום פעולה.
+  const isRepApproval = item.key === 'rep_approval';
+  // ‼ X-3 / E:X-4 · הכרטיס הזה היה ארבע פסקאות לפני הכפתור הראשון (בטלפון — מתחת
+  // לקפל). עכשיו: משפט אחד + מה מסמנים (מהשרת, approvals — לא מנחשים כאן), המדריך,
+  // הכפתורים; «אין לך משתמש?» ו-SMS נפתחים בלחיצה. ראה repApprovalCard.
+  const card = isRepApproval ? repApprovalCard(item.approvals, item.note, item.noteAfter) : null;
+
+  const actions = (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+      {item.linkUrl && (previewMode
+        ? <span style={{ ...linkBtn, opacity: .55, pointerEvents: 'none' }}>{item.linkLabel || 'למדריך המלא'} ←</span>
+        : <a href={item.linkUrl} target="_blank" rel="noopener noreferrer" style={linkBtn}>{item.linkLabel || 'למדריך המלא'} ←</a>)}
+      <button type="button" style={confirmBtn} disabled={previewMode || busy}
+        onClick={() => void confirm()}>
+        {busy ? 'רגע…' : (item.cta || 'ביצעתי')}
+      </button>
+      {item.linkUrl && (
+        <LinkHostNote url={item.linkUrl} brand={brand}
+          extra={isRepApproval ? 'האזור האישי של רשות המסים — נדרשות כניסה והזדהות' : undefined} />
+      )}
+      {error && <div style={{ width: '100%', fontSize: 12.5, color: '#a63a3a' }}>{error}</div>}
+    </div>
+  );
+
+  if (card) {
+    return (
+      <div style={{ display: 'grid', gap: 12 }}>
+        <div data-testid="rep-approval-what" style={{ display: 'grid', gap: 3, overflowWrap: 'anywhere' }}>
+          <div style={{ fontSize: 13.5, lineHeight: 1.6, color: brand.ink }}>{card.lead}</div>
+          {card.lines.map(l => (
+            <div key={l.key} style={{ fontSize: 13.5, lineHeight: 1.6, fontWeight: 650, color: brand.ink }}>
+              {l.text}
+              {/* ‼ H2.5b · אצל זוג — למי שע״ם ממתינה (awaiting מהשרת). */}
+              {l.awaiting && <span data-testid="rep-approval-awaiting" style={{ fontWeight: 600, color: '#b45309' }}> · {l.awaiting}</span>}
+            </div>
+          ))}
+        </div>
+        <div><RepApprovalGuideButton onClick={() => setGuideOpen(true)} accent={accent} /></div>
+        {actions}
+        {card.more.length > 0 && (
+          <div>
+            {/* ‼ מידע, לא פעולה — נפתח גם בתצוגה במשרד. */}
+            <button type="button" aria-expanded={moreOpen} data-testid="rep-approval-more-toggle"
+              onClick={() => setMoreOpen(o => !o)}
+              style={{
+                background: 'none', border: 'none', padding: '4px 0', font: 'inherit', fontSize: 13, fontWeight: 600,
+                color: brand.muted, cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 3, textAlign: 'start',
+              }}>
+              {card.moreLabel}
+            </button>
+            {moreOpen && (
+              <div data-testid="rep-approval-more" style={{ display: 'grid', gap: 6, marginTop: 4 }}>
+                {card.more.map((p, i) => (
+                  <p key={i} style={{ margin: 0, fontSize: 13, lineHeight: 1.7, color: brand.ink }}>{p}</p>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+        {guideOpen && (
+          <RepApprovalGuide onClose={() => setGuideOpen(false)} accent={accent}
+            entryUrl={item.linkUrl} entryInert={previewMode} approvals={item.approvals} />
+        )}
+      </div>
+    );
+  }
+
   return (
     <div style={{ display: 'grid', gap: 10 }}>
       <RequestGuide item={item} brand={brand} />
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
-        {item.linkUrl && (previewMode
-          ? <span style={{ ...linkBtn, opacity: .55, pointerEvents: 'none' }}>{item.linkLabel || 'למדריך המלא'} ←</span>
-          : <a href={item.linkUrl} target="_blank" rel="noopener noreferrer" style={linkBtn}>{item.linkLabel || 'למדריך המלא'} ←</a>)}
-        <button type="button" style={confirmBtn} disabled={previewMode || busy}
-          onClick={() => void confirm()}>
-          {busy ? 'רגע…' : (item.cta || 'ביצעתי')}
-        </button>
-        {error && <div style={{ width: '100%', fontSize: 12.5, color: '#a63a3a' }}>{error}</div>}
-      </div>
+      {actions}
     </div>
   );
 }
@@ -1179,6 +1261,7 @@ function PrevAccountantForm({ token, stepId, prefill, brand, accent, onDone }: {
  * גוף הדף — מפריד בין "מאיפה הנתונים" ל"איך זה נראה", כדי שהתצוגה המקדימה
  * של הרו"ח תרנדר את אותו עמוד בדיוק (get_client_portal_preview) ולא חיקוי.
  * preview=true: הפעולות כבויות, טיוטות מסומנות. embed=true: בלי גובה עמוד מלא.
+ * בלי token (כל תצוגה במשרד) — הפעולות כבויות גם בלי preview.
  */
 export function PortalView({ data, token = '', preview = false, embed = false, onReload = () => {} }: {
   data: PortalData;
@@ -1196,16 +1279,21 @@ export function PortalView({ data, token = '', preview = false, embed = false, o
   const ink = brand.ink;
   const accent = brand.accent;
 
+  // ‼ X-5 · הריפוד של העמוד, המסגרת והכרטיסים — ב-portalPage.css (pp-*), כדי שבטלפון
+  // יהיה צר יותר: שלוש מסגרות מקוננות השאירו ב-360 טור טקסט של 232px.
   const page: React.CSSProperties = {
     minHeight: embed ? undefined : '100vh', background: brand.pageBg,
     display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
-    padding: embed ? '18px 12px' : '40px 16px',
     fontFamily: `'${brand.font}', sans-serif`, direction: 'rtl',
   };
   const card: React.CSSProperties = {
     width: 560, maxWidth: '100%', background: brand.cardBg, border: `1px solid ${brand.border}`,
-    borderRadius: brand.radius + 4, padding: '30px 30px 22px', borderTop: `4px solid ${accent}`,
+    borderRadius: brand.radius + 4, borderTop: `4px solid ${accent}`,
   };
+  // ‼ X-2 · בלי טוקן אין פעולה של הלקוח שיכולה להצליח — זו תצוגה במשרד («הדף של …»,
+  // התצוגה המקדימה). הפקדים כבויים גם ב«חי · עכשיו»: המשרד מסתכל, לא פועל בשם הלקוח.
+  // הדף האמיתי (?portal=) תמיד מגיע עם טוקן.
+  const inert = preview || !token;
   const sectionTitle: React.CSSProperties = {
     fontSize: 12.5, fontWeight: 700, color: brand.muted, margin: '20px 0 4px', letterSpacing: '.02em',
   };
@@ -1261,7 +1349,11 @@ export function PortalView({ data, token = '', preview = false, embed = false, o
   /** מדריך ותיק שכבר הושלם — אין בו יותר דרישה, ולכן מקומו כאן. */
   const isDoneLegacyDoc = (i: PortalItem) => i.bucket === 'done' && !!i.resourceUrl && !isSentDoc(i);
 
-  const actions  = data.items.filter(i => i.bucket === 'action' && !isSentDoc(i));
+  // ‼ X-3 · כרטיס הזירוז (אופציונלי — הכותרת הקבועה שלו) אחרי מה שבאמת נדרש, לא ראשון
+  // ב«מה צריך ממך». כשהאישור חובה (201) הכותרת אחרת, והכרטיס נשאר במקומו.
+  const optionalLast = (i: PortalItem) => (i.key === 'rep_approval' && i.label === REP_PORTAL_CARD_FIXED.title ? 1 : 0);
+  const actions  = data.items.filter(i => i.bucket === 'action' && !isSentDoc(i))
+    .sort((a, b) => optionalLast(a) - optionalLast(b));
   // ‼ הודעה מהמשרד אינה "בטיפול המשרד": אין מאחוריה עבודה שמתבצעת, ולכן היא
   // יוצאת מהקבוצה הזאת ומקבלת מקום משלה. אחרת היא נקראת כמו הבטחה לטיפול.
   const messages = data.items.filter(i => i.kind === 'message');
@@ -1300,9 +1392,9 @@ export function PortalView({ data, token = '', preview = false, embed = false, o
   const firstName = data.clientFirstName;
 
   return (
-    <PreviewCtx.Provider value={preview}>
-    <div style={page}>
-      <div style={card}>
+    <PreviewCtx.Provider value={inert}>
+    <div className={`pp-page${embed ? ' is-embed' : ''}`} style={page}>
+      <div className="pp-card" style={card}>
         <Header />
 
         <div style={{ fontSize: 19, fontWeight: 650, color: brand.ink, marginBottom: 3 }}>
@@ -1389,6 +1481,7 @@ export function PortalView({ data, token = '', preview = false, embed = false, o
                       {item.linkLabel || 'לפתיחת הקישור'} ←
                     </a>
                   )}
+                  {item.linkUrl && <LinkHostNote url={item.linkUrl} brand={brand} />}
                 </div>
               );
             })}

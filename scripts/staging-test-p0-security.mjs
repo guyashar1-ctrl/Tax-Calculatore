@@ -66,6 +66,11 @@ const PUBLIC_SURFACE = new Set([
   // 191: שמירת שלב בטופס הקליטה ו«הקישור נפתח» — נפתרים מטוקן הקליטה בלבד,
   // כותבים רק identification.draft ורק כל עוד הבקשה ב-pending_fill.
   'save_onboarding_step', 'touch_onboarding',
+  // 206 (טופס 6101, בפרודקשן מ-01.10): דף החתימה המרוחקת של החותם. שתיהן
+  // עוברות קודם ב-_smart_form_by_token — טוקן hex באורך 40+ שה-sha256 שלו
+  // רשום ב-sign_tokens של גרסה נעולה, לא פג, לתפקיד אחד; נמחק אחרי חתימה.
+  // אותה רשימה כמו v_anon_ok ב-assert_domain_function_invariants (206).
+  'get_smart_form_signing', 'submit_smart_form_signature',
 ]);
 
 async function cleanup() {
@@ -133,6 +138,17 @@ try {
   const portal = await tryRun(asAnon, `select public.get_client_portal(${q(portalTok)}) as r`);
   ok('4 anon עדיין פותח את הדף האישי עם טוקן',
     !portal.denied && portal.value?.[0]?.r != null, portal.message || 'לא הוחזר מידע');
+
+  // דף החתימה על טופס חכם פתוח ל-anon — ולכן הטוקן הוא כל ההגנה: טוקן שאינו
+  // רשום (או בפורמט שגוי) חייב להיענות not_found, בלי מידע ובלי כתיבה.
+  const sfBogus = await tryRun(asAnon, `select
+      public.get_smart_form_signing(repeat('ab', 32))::text as g,
+      public.get_smart_form_signing('not-a-token')::text as gf,
+      public.submit_smart_form_signature(repeat('ab', 32), 'x', 'y', true)::text as s`);
+  const sfRow = sfBogus.value?.[0] ?? {};
+  ok('4 דף החתימה (6101) דוחה טוקן לא רשום/שגוי ל-anon',
+    !sfBogus.denied && [sfRow.g, sfRow.gf, sfRow.s].every(v => v && JSON.parse(v).ok === false && JSON.parse(v).reason === 'not_found'),
+    sfBogus.message || JSON.stringify(sfRow));
 
   // ─── 5 · פונקציה חדשה נולדת סגורה ─────────────────────────────────────────
   await writeStaging(`create or replace function public.__p0sec_probe() returns int language sql as $q$ select 1 $q$;`);

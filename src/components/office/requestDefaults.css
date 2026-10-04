@@ -75,7 +75,7 @@
 }
 .ojd-rowaside { display: flex; align-items: center; gap: 10px; flex-shrink: 0; align-self: center; }
 .ojd-toggle {
-  font-size: var(--fs-12); color: var(--ink-4); opacity: 0; transition: opacity .12s;
+  font-size: var(--fs-12); color: var(--ink-4); opacity: .7; transition: opacity .12s;
   white-space: nowrap; padding: 3px 7px; border-radius: var(--r-chip); cursor: pointer;
   background: none; border: 0; font-family: inherit;
 }
@@ -253,3 +253,26 @@
   background: var(--chip-amber-bg); border-radius: var(--r-chip);
   padding: 1px 6px; margin-inline-start: 6px; font-weight: 400; vertical-align: 1px; white-space: nowrap;
 }
+
+/* ── «המשרד» החדש (1.10.2026): נקודת «לא נשמר» על סוג, והסבר נפתח במקום שלוש שורות קבועות ── */
+.ojd-chip { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; }
+.ojd-chip-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--warn); flex-shrink: 0; }
+.ojd-chip.on .ojd-chip-dot { background: var(--on-accent-fill); }
+.ojd-head { margin: 14px 0 2px; }
+.ojd-more { margin-top: 6px; font-size: var(--fs-13); color: var(--ink-3); max-width: 62ch; }
+.ojd-more > summary { cursor: pointer; color: var(--ink-3); width: fit-content; }
+.ojd-more > summary:hover { color: var(--ink-1); }
+.ojd-more > p { margin: 6px 0 0; line-height: 1.65; }
+@media (max-width: 760px) {
+  .ojd-chip { flex-shrink: 0; min-height: 36px; }
+  .ojd-milestone { padding-inline-start: 24px; }
+}
+
+/* סבב 3: שורה אחת במקום פסקה, «איך זה עובד» והמייל של הבקשה — בהקשר */
+p.ojd-lead { margin: 14px 0 0; font-size: var(--fs-13); color: var(--ink-2); max-width: 66ch; }
+.ojd-lead-quiet { color: var(--ink-4); }
+.ojd-email { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; margin-top: 12px; font-size: var(--fs-13); color: var(--ink-2); }
+.ojd-how { margin-top: 10px; }
+.ojd-how .ojd-link { min-height: 28px; }
+
+.ojd-cat-used { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--hairline-2); font-size: var(--fs-12); color: var(--ink-4); line-height: 1.6; }
