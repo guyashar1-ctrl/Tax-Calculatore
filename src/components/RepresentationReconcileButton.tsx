@@ -59,6 +59,11 @@ interface Props {
    * false ⇒ מתחת לכפתור רק מה שקורה עכשיו (רץ / תוצאה טרייה / שגיאה), בלי כפילות.
    */
   persistedLines?: boolean;
+  /**
+   * למה רשות מסוימת לא נבדקת עכשיו («שע״ם: הטופס טרם הוגש — אין עדיין מה לבדוק»).
+   * ‼ הכפתור אומר מה הוא בודק; מה שלא — כאן, ולא בשתיקה.
+   */
+  notChecked?: string | null;
 }
 
 /** מה קרה בבדיקה שרצה עכשיו (בזיכרון בלבד — הנתון השמור הוא `last`). */
@@ -97,6 +102,13 @@ function useReconcileQueue(clientId: string | undefined, actionType: string, fie
     started.current = key;
     setJobId(null);
     void hook.run(t.input).then(r => {
+      // ‼ 04.10.2026 · משימה פתוחה של יעד אחר (נפתחה ממסך אחר) — התור היה מחכה לה לנצח,
+      // כי היא לעולם לא «שלו». אומרים מה קרה וממשיכים ליעד הבא.
+      if (r.job && keyOf(r.job, field) !== key) {
+        setResults(x => ({ ...x, [key]: { kind: 'error', text: 'בדיקה אחרת רצה עכשיו ללקוח הזה — אפשר לבדוק שוב בעוד רגע' } }));
+        setQueue(q => q.slice(1));
+        return;
+      }
       if (r.job) setJobId(r.job.id);
       if (!r.ok && !r.job) {
         setResults(x => ({ ...x, [key]: { kind: 'error', text: hook.error ?? 'הבדיקה לא יצאה' } }));
@@ -135,7 +147,7 @@ function useReconcileQueue(clientId: string | undefined, actionType: string, fie
     gate.runOrConnect(() => setQueue(targets.map(t => t.key)));
   };
   const running = queue.length > 0 || hook.busy;
-  return { runAll, running, results, gate, currentKey: current };
+  return { runAll, running, results, gate, currentKey: current, has: targets.length > 0 };
 }
 
 /** מה מוצג בשורה של יעד אחד. null ⇒ אין שורה (עוד לא נבדק ולא רץ עכשיו). */
@@ -153,13 +165,18 @@ function lineFor(t: ReconcileTarget, r: RunResult | undefined, live: boolean): {
   return null;
 }
 
-export default function RepresentationReconcileButton({ heading, clientId, shaam, btl, onChanged, persistedLines = true }: Props) {
+export default function RepresentationReconcileButton({ heading, clientId, shaam, btl, onChanged, persistedLines = true, notChecked }: Props) {
   const sh = useReconcileQueue(clientId, SHAAM_CHECK_REPRESENTATION_ACTION_TYPE, 'submissionKey', shaam, onChanged);
   const bt = useReconcileQueue(clientId, BTL_CHECK_REPRESENTATION_ACTION_TYPE, 'role', btl, onChanged);
   if (shaam.length === 0 && btl.length === 0) return <>{heading}</>;
 
   const running = sh.running || bt.running;
   const connecting = sh.gate.connecting || bt.gate.connecting;
+  // ‼ 04.10.2026 · כל רשות לעצמה: חיבור שע״ם שממתין לא חוסם בדיקה בב״ל (ולהפך). הכפתור
+  // כבוי רק כשאין אף רשות פנויה, והלחיצה מפעילה רק את הפנויות.
+  const parts = [sh, bt].filter(q => q.has);
+  const idle = parts.filter(q => !q.running && !q.gate.connecting);
+  const scope = [shaam.length ? 'שע״ם' : '', btl.length ? 'ביטוח לאומי' : ''].filter(Boolean);
   // ‼ «רך» רק כשאף מערכת שצריך לבדוק אינה מחוברת — אותה שפה כמו כל כפתור אוטומציה.
   const soft = !running && !connecting
     && (shaam.length === 0 || !sh.gate.ready) && (btl.length === 0 || !bt.gate.ready);
@@ -176,12 +193,13 @@ export default function RepresentationReconcileButton({ heading, clientId, shaam
       <div style={{ display: 'flex', alignItems: 'center', gap: '.75rem', flexWrap: 'wrap' }}>
         {heading}
         <button type="button" className={`btn btn-sm btn-automation ${quiet ? 'is-quiet' : soft ? 'is-soft' : ''}`}
-          disabled={running || connecting} aria-busy={running || undefined}
-          title={quiet ? `ההוראות עוד לא נשלחו למבוטח - סביר שעדיין אין מה לבדוק. ${readOnly}` : readOnly}
-          onClick={() => { sh.runAll(); bt.runAll(); }}>
-          {running ? 'בודק…' : connecting ? 'ממתין לחיבור…' : 'בדוק קבלת הייצוג'}
+          disabled={idle.length === 0} aria-busy={running || undefined} data-scope={scope.join(',')}
+          title={[quiet ? 'ההוראות עוד לא נשלחו למבוטח - סביר שעדיין אין מה לבדוק.' : '', readOnly, notChecked ?? ''].filter(Boolean).join(' ')}
+          onClick={() => idle.forEach(q => q.runAll())}>
+          {idle.length === 0 ? (running ? 'בודק…' : 'ממתין לחיבור…') : `בדוק קבלת הייצוג · ${scope.join(' ו')}`}
         </button>
       </div>
+      {notChecked && <div className="rep-track-next-err" data-testid="rep-reconcile-not-checked" style={{ color: NOTICE_STYLES.info.color }}>{notChecked}</div>}
       {lines.map(({ t, shown }) => (
         <div key={`${t.label}`} className="rep-track-next-err" data-testid={`rep-reconcile-line-${t.key}`}
           style={shown!.color ? { color: shown!.color } : undefined}>

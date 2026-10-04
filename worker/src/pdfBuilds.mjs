@@ -62,6 +62,31 @@ async function convert(job) {
   }
 }
 
+/**
+ * ‼ 218 · בדיקת התאמה של טופס 2279 שהגיע משע״ם — בדף ההמרה של האתר, כלומר באותו קוד
+ * שהדפדפן במשרד מריץ (verifyForm2279Layout). Chrome נפרד, בלי פרופיל שע״ם.
+ * לעולם לא זורק: כשל בהרצה ⇒ ok:null (הבדיקה לא רצה), והמשרד יבדוק בדפדפן.
+ * @returns {{ ok: boolean|null, problems?: string[], numPages?: number, error?: string }}
+ */
+export async function verifyFormLayoutInSite(buffer) {
+  let page;
+  try {
+    const ctx = await ensureContext();
+    page = await ctx.newPage();
+    const resp = await page.goto(CONVERTER_URL, { waitUntil: 'load', timeout: 60_000 });
+    if (!resp || !resp.ok()) return { ok: null, error: `converter_page_${resp?.status() ?? 'no_response'}` };
+    await page.waitForFunction(() => typeof window.pivoPdfConverter?.verifyForm2279 === 'function', null, { timeout: 30_000 });
+    const b64 = Buffer.from(buffer).toString('base64');
+    const r = await page.evaluate((s) => window.pivoPdfConverter.verifyForm2279(s), b64);
+    return { ok: !!r?.ok, problems: Array.isArray(r?.problems) ? r.problems : [], numPages: r?.numPages ?? 0 };
+  } catch (e) {
+    return { ok: null, error: e?.message ?? String(e) };
+  } finally {
+    await page?.close().catch(() => {});
+    lastUsed = Date.now();
+  }
+}
+
 /** סבב אחד. @returns true כשהייתה עבודה (מיד סבב נוסף). */
 export async function tickPdfBuilds(log) {
   progressLog = log;

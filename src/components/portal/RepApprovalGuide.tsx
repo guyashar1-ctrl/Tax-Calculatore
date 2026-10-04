@@ -88,6 +88,10 @@ export const REP_APPROVAL_GUIDE_STEPS: GuideStep[] = [
 
 export const REP_APPROVAL_GUIDE_LENGTH = REP_APPROVAL_GUIDE_STEPS.length;
 
+/** המדריך כפי שהמשרד רואה אותו בלי לקוח — לא ההוראות האישיות של אף אחד. */
+export const REP_APPROVAL_GUIDE_GENERIC_NOTE =
+  'המדריך הכללי. אצל כל לקוח, בדף האישי ובמרכז הייצוג, הוא נפתח עם ההוראות האישיות: מי מאשר ובאילו רשויות.';
+
 /** «א» · «א וב» · «א, ב וג». */
 export function hebrewList(items: readonly string[]): string {
   const xs = items.map(s => String(s ?? '').trim()).filter(Boolean);
@@ -254,7 +258,7 @@ export function RepApprovalGuideButton({ onClick, accent, className }: {
   );
 }
 
-export default function RepApprovalGuide({ onClose, accent, entryUrl, entryInert, approvals }: {
+export default function RepApprovalGuide({ onClose, accent, entryUrl, entryInert, approvals, scopeNote }: {
   onClose: () => void;
   /** צבע המשרד בדף האישי; במשרד — ברירת המחדל. */
   accent?: string;
@@ -264,6 +268,11 @@ export default function RepApprovalGuide({ onClose, accent, entryUrl, entryInert
   entryInert?: boolean;
   /** מה כל אדם מסמן — מהשרת. חסר ⇒ הנוסח הכללי. */
   approvals?: readonly RepApprovalPerson[] | null;
+  /**
+   * ‼ 04.10.2026 · במשרד, בלי לקוח: משפט אחד שאומר שזה המדריך הכללי — ההוראות האישיות
+   * (מי מאשר, באילו רשויות) נוספות אצל כל לקוח מהשרת, בדף שלו ובמרכז הייצוג.
+   */
+  scopeNote?: string;
 }) {
   const [i, setI] = useState(0);
   const [zoom, setZoom] = useState(false);
@@ -351,6 +360,7 @@ export default function RepApprovalGuide({ onClose, accent, entryUrl, entryInert
 
         <div className="rag-body">
           <p className="rag-count" aria-live="polite">צעד {i + 1} מתוך {n}</p>
+          {scopeNote && <p className="rag-fine rag-scope" data-testid="rag-scope-note">{scopeNote}</p>}
           <p className="rag-text">{step.text}</p>
           {i === 0 && entryUrl && (
             <p className="rag-entry">

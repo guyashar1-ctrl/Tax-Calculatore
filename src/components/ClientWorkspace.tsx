@@ -10,6 +10,7 @@ import { Client, Task, REPRESENTATION_STATUS_BADGE, LifecycleStage, LIFECYCLE_ST
 import { ActivityEntry, ClientAlert } from '../types/clientWorkspace';
 import { useEmployees } from '../hooks/useEmployees';
 import { representationStatusLabel, type RepSendPhase } from '../utils/representationAction';
+import type { RepPrepFacts } from '../features/representation/repPreparation';
 import { useDocumentDB } from '../hooks/useIndexedDB';
 import { computeClientAlerts, getClientOpenTasks, getUpcomingDebts } from '../utils/clientDerived';
 // הלשוניות הישנות הוחלפו ב-ClientCockpitTab + ClientDossierTab; הטפסים
@@ -134,6 +135,8 @@ interface Props {
   repNote?: string;
   /** הטופס מוכן אבל המייל לא יצא — «נשלח» יהיה שקר. */
   repSendPhase?: RepSendPhase | null;
+  /** מצב כל הגשה לפי אדם ורשות — אותן עובדות כמו במרכז הייצוג (repPreparation). */
+  repFacts?: RepPrepFacts | null;
   onboardingEvents?: OnboardingEvent[];
   onboardingLoading?: boolean;
   advanceOnboardingStep?: (stepId: string, action: string, payload?: Record<string, unknown>) => Promise<AdvanceResult>;
@@ -239,6 +242,7 @@ export default function ClientWorkspace({
   onboardingSteps,
   repNote,
   repSendPhase,
+  repFacts,
   onboardingEvents,
   onboardingLoading,
   advanceOnboardingStep,
@@ -771,7 +775,7 @@ export default function ClientWorkspace({
                 onOpenRepresentation ? (
                   <button
                     type="button"
-                    className={`cw-rep-line ${status === 'awaiting_accountant' || status === 'awaiting_stamp' || repSendPhase === 'unsent' ? 'is-mine' : ''}`}
+                    className={`cw-rep-line ${status === 'awaiting_accountant' || status === 'awaiting_stamp' || !!repSendPhase ? 'is-mine' : ''}`}
                     onClick={() => onOpenRepresentation(client.id)}
                     style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', cursor: 'pointer', textAlign: 'start' }}
                     title="למרכז הייצוג"
@@ -779,7 +783,7 @@ export default function ClientWorkspace({
                     בקשת ייצוג · {representationStatusLabel(status, repSendPhase)} ←
                   </button>
                 ) : (
-                  <div className={`cw-rep-line ${status === 'awaiting_accountant' || status === 'awaiting_stamp' || repSendPhase === 'unsent' ? 'is-mine' : ''}`}>
+                  <div className={`cw-rep-line ${status === 'awaiting_accountant' || status === 'awaiting_stamp' || !!repSendPhase ? 'is-mine' : ''}`}>
                     בקשת ייצוג · {representationStatusLabel(status, repSendPhase)}
                   </div>
                 )
@@ -930,6 +934,7 @@ export default function ClientWorkspace({
             repStatus={client.representationStatus ?? undefined}
             repNote={repNote}
             repSendPhase={repSendPhase}
+            repFacts={repFacts}
             onPinNote={(note) => update('pinnedNote', note)}
             onAddNote={(text) => appendActivity({ kind: 'note', text })}
             onGotoTab={(t) => { if (t === 'tasks') { onOpenClientTasks?.(client.id); return; } setTab(t); }}
@@ -1092,6 +1097,7 @@ export default function ClientWorkspace({
             repStatus={client.representationStatus ?? undefined}
             repNote={repNote}
             repSendPhase={repSendPhase}
+            repFacts={repFacts}
             onOpenRepresentation={onOpenRepresentation
               ? () => onOpenRepresentation(client.id)
               : undefined}

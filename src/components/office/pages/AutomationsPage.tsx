@@ -451,7 +451,8 @@ export default function AutomationsPage({ clients, focus, go, onOpenClient, draf
           {/* ‼ השרת לא שולח אותן כשמסלול הקליטה של הלקוח בעצירה (נבדק בכל תזכורת, לפני היציאה). */}
           <p className="of-muted of-autop-more">עצירת מסלול הקליטה אצל הלקוח עוצרת גם אותן.</p>
           <p className="of-muted of-autop-more">
-            מה הלקוח רואה כשצריך לאשר באזור האישי — <GoTo onClick={() => goTo('emails', 'rep:portal')}>הכרטיס והמדריך המצולם ←</GoTo>
+            מה הלקוח רואה כשצריך לאשר באזור האישי — <GoTo onClick={() => goTo('emails', 'rep:portal')}>הכרטיס ←</GoTo>
+            {' · '}<GoTo onClick={() => goTo('emails', 'rep:guide')}>המדריך המצולם ←</GoTo>
           </p>
           {eventResults(r, 'עוד לא יצאה תזכורת.', {
             noteOf: e => (e.email?.kind ? REP_NAME_BY_KIND[e.email.kind] : undefined),

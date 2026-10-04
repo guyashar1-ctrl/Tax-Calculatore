@@ -431,6 +431,16 @@ export interface ShaamRequestTracking {
   formDocumentId?: string;
   /** שם הקובץ כפי שנשמר — להצגה ולרשומת מסמך החתימה. */
   formFileName?: string;
+  /**
+   * ‼ 218 · בדיקת התאמת הטופס לתבנית 2279 — רצה כשהטופס מגיע (העובד מריץ את קוד האתר,
+   * verifyForm2279Layout), או בדפדפן המשרד כשהעובד לא בדק. ok=null ⇒ הבדיקה לא רצה.
+   */
+  formLayout?: { ok: boolean | null; problems?: string[]; by?: string; at?: string; error?: string };
+  /**
+   * ‼ 218 · מה קרה בהכנת מקומות החתימה בשרת: prepared — נוצרו; layout_mismatch — הטופס שונה
+   * מהתבנית (סימון ידני); held_sent — הבקשה כבר נשלחה ללקוח, טופס חדש לא צורף בשקט.
+   */
+  formPreparation?: { state: 'prepared' | 'layout_mismatch' | 'held_sent'; at?: string; problems?: string[] };
   formFetchedAt?: string;
   /** הטופס החתום הועלה **ושע״ם אישרה את הקליטה**. זה, ורק זה, «נשלח לשע״ם». */
   submittedAt?: string;

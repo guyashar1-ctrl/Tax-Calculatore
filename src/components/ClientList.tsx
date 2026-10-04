@@ -498,6 +498,10 @@ export default function ClientList({
           steps={onboardingSteps}
           engagements={engagements}
           onOpen={onOpenOnboarding}
+          repPhaseOf={clientId => {
+            const c = clients.find(x => x.id === clientId);
+            return repSendPhase(c?.representationRequestId ? requestById.get(c.representationRequestId) : undefined, c ?? null);
+          }}
         />
       )}
 
@@ -733,7 +737,7 @@ export default function ClientList({
                   const linkedReq = client.representationRequestId ? requestById.get(client.representationRequestId) : undefined;
                   const idSubmitted = linkedReq?.onboardingStatus === 'submitted' && status !== 'active';
                   // ‼ «נשלח לחתימה» רק כשהמייל יצא.
-                  const sendPhase = repSendPhase(linkedReq);
+                  const sendPhase = repSendPhase(linkedReq, client);
                   const pc = getPrimaryContact(client);
                   // אם הראשי הוא לא הנישום, נציג שם של הראשי כדי שגיא יבין את מי הוא רואה
                   const primaryNote = !pc.isClient ? pc.name : '';

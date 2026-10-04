@@ -11,7 +11,7 @@
 
 import { useMemo, useState } from 'react';
 import type { Client } from '../types';
-import { REPRESENTATION_STATUS_LABELS } from '../types';
+import { representationStatusLabel, type RepSendPhase } from '../utils/representationAction';
 import type { Engagement, OnboardingStep } from '../types/onboarding';
 import {
   STEP_TYPE_LABELS, STEP_BALL_LABELS, isStepOpen, stepStatusLabel, compareStepsForOffice,
@@ -27,6 +27,11 @@ interface Props {
   engagements: Engagement[];
   /** פתיחת דף המסע של הלקוח. */
   onOpen: (clientId: string) => void;
+  /**
+   * ‼ 04.10.2026 · מצב הטופס לפני השליחה (repSendPhase) — אותה הכרעה כמו בכרטיס ובמרכז
+   * הייצוג. בלעדיו awaiting_accountant היה נקרא «דורש הפקת טופס» גם כשהטופס כבר מוכן.
+   */
+  repPhaseOf?: (clientId: string) => RepSendPhase | null;
 }
 
 /** כמה שורות לפני ש"הצג הכל" נדרש. מעבר לזה המקטע בולע את המסך. */
@@ -62,7 +67,7 @@ function isOverdue(s: OnboardingStep): boolean {
    ולכן בדיקת הכדור קודמת לבדיקת התקיעות. */
 type Priority = 1 | 2 | 3 | 4;
 
-export default function ClientsOnboardingSection({ clients, steps, engagements, onOpen }: Props) {
+export default function ClientsOnboardingSection({ clients, steps, engagements, onOpen, repPhaseOf }: Props) {
   const [showAll, setShowAll] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
 
@@ -163,7 +168,7 @@ export default function ClientsOnboardingSection({ clients, steps, engagements, 
           const waitLabel = waited !== null && waited >= 3 ? `${waited} ימים` : null;
 
           const rep = r.client.representationStatus && r.client.representationStatus !== 'active'
-            ? REPRESENTATION_STATUS_LABELS[r.client.representationStatus]
+            ? representationStatusLabel(r.client.representationStatus, repPhaseOf?.(r.clientId) ?? null)
             : null;
 
           return (

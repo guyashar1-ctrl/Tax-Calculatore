@@ -29,6 +29,7 @@ import InstitutionAlignmentGroup, { InstitutionFocus } from './InstitutionAlignm
 import AuthoritiesPanel from '../authorities/AuthoritiesPanel';
 import { nextActionText, nextStepForClient } from '../../utils/onboardingNext';
 import { representationAction, type RepSendPhase } from '../../utils/representationAction';
+import { shaamPrepLine, type RepPrepFacts } from '../../features/representation/repPreparation';
 import { relativeTime } from '../../utils/clientDerived';
 import { formatDate } from '../../utils/dateFormat';
 import { calcTotals, formatILS } from '../../utils/quotationCalc';
@@ -153,6 +154,11 @@ interface Props {
   repNote?: string;
   /** הטופס מוכן אבל המייל לא יצא — ראה repSendPhase. */
   repSendPhase?: RepSendPhase | null;
+  /**
+   * ‼ 04.10.2026 · מצב כל הגשה לשע״ם לפי אדם ורשות — אותן עובדות כמו במרכז הייצוג. בלעדיו
+   * הפירוט «לפי רשות ואדם» מציג שורת רשות מסים אחת לכל משק הבית.
+   */
+  repFacts?: RepPrepFacts | null;
   /** קפיצה למרכז הייצוג — המסך שבו העבודה באמת נעשית. */
   onOpenRepresentation?: () => void;
   /** מעבר ללשונית המסמכים — משם ניגשים למה שהרו"ח הקודם שלח. */
@@ -461,7 +467,7 @@ const COLLECTION_METHODS = ['הוראת קבע בבנק', 'כרטיס אשראי
 
 export default function OnboardingTab({
   clientId, client, onClientPersisted, engagements, steps, events, loading, advance, refresh,
-  prevAccountant, onPrepareReleaseLetter, quotations, clientLeadIds, repStatusLabel, repStatus, repNote, repSendPhase, onOpenRepresentation,
+  prevAccountant, onPrepareReleaseLetter, quotations, clientLeadIds, repStatusLabel, repStatus, repNote, repSendPhase, repFacts, onOpenRepresentation,
   onOpenDocuments,
   clientDisplayName, clientEmail, embedded, ballFilter, onOpenTaxFile,
   niExecution, onUpdateClientFields, onRequestAuthorityRepresentation, onNiInstructionsSent, onAttentionSummary,
@@ -2884,6 +2890,10 @@ export default function OnboardingTab({
           const parent = row.primary;
           const parts = row.members.filter(m => m.id !== parent.id);
           const act = repStatus ? representationAction(repStatus, repSendPhase) : null;
+          // לפני השליחה בלבד: אחריה המצב הוא של הלקוח/הרשויות, והשורה האחת אומרת אותו.
+          const shaamPrepRows = repFacts && repFacts.shaam.length > 0 && !approvalActive
+            && (repStatus === 'awaiting_accountant' || (repStatus === 'pending_signature' && !!repSendPhase))
+            ? repFacts.shaam : null;
           /* ‼ ב"ל בלי שלב — רק מי שברשימת ביטוח לאומי (niTrackOnlyRoles). מי שבוטל — שורה אפורה עם
              מה שקרה («הבקשה בוטלה ב-PIVO · …»), לא «ממתין לאישור» מתוך ההיסטוריה של המסלול. */
           const niLines = niTrackOnlyRoles
@@ -2899,6 +2909,14 @@ export default function OnboardingTab({
           repBreakdownIds.add(parent.id);
           return (
             <>
+              {/* ‼ 04.10.2026 · לפני השליחה — שורה לכל הגשה בשע״ם (אדם + רשויות), מאותן עובדות
+                  כמו במרכז הייצוג. אחרי השליחה / בלי עובדות — השורה האחת של משק הבית, כמו קודם. */}
+              {shaamPrepRows ? shaamPrepRows.map(f => (
+                <div key={`shaam-${f.key}`} className="rl-part" data-testid="rl-shaam-part">
+                  <span className="rl-part-name">רשות המסים · {shaamPrepRows.length > 1 ? `${f.personName} · ` : ''}{f.authoritiesLabel}</span>
+                  <span className="rl-part-state">{shaamPrepLine(f)}</span>
+                </div>
+              )) : (
               <div className="rl-part">
                 <span className="rl-part-name">{taxAuthorityScopeLine(client.authorityRepresentations as Record<string, { status?: string } | undefined> | undefined)}</span>
                 {/* ‼ (H2) שע״ם ממתינה לאישור באזור האישי — זה מה שמחזיק עכשיו, לא «ממתין לאישור הרשויות». */}
@@ -2907,6 +2925,7 @@ export default function OnboardingTab({
                   <RepApprovalGuideButton onClick={() => setApprovalGuideOpen(true)} className="rl-part-guide" />
                 )}
               </div>
+              )}
               {parts.map(p => renderStep(p))}
               {niLines.map(x => (
                 <div key={`ni-${x.r}`} className="rl-part">

@@ -25,7 +25,7 @@ import { generateSignedPoaPdf, downloadPdfBytes, toPureArrayBuffer } from '../ut
 import SignaturePad from './SignaturePad';
 import RepSignersStatus from './RepSignersStatus';
 import RepresentationAuthorityData from './RepresentationAuthorityData';
-import RepresentationExecutionCenter from './RepresentationExecutionCenter';
+import RepresentationExecutionCenter, { type ShaamFormLayouts } from './RepresentationExecutionCenter';
 import { isUnknownSendReply } from '../types/emailActivity';
 import { errorTextFromBody, isUnknownEmailFailure } from '../features/flows/noticeText';
 import { UNKNOWN_OUTCOME_TEXT } from '../../supabase/functions/_shared/resendResult.ts';
@@ -67,8 +67,8 @@ interface Props {
   steps?: OnboardingStep[];
   onStepsChanged?: () => void;
   onUpdateClientFields?: (patch: Partial<Client>) => Promise<void>;
-  /** 194 · מסמכי החתימה אחרי שטופס 2279 הובא משע״ם — ראה מרכז הביצוע. */
-  onAttachShaamForms?: (docs: RepSignatureDocument[]) => Promise<void>;
+  /** 218 · הכנת מקומות החתימה בשרת כשהעובד לא בדק את התבנית — ראה מרכז הביצוע. */
+  onPrepareShaamForms?: (layouts: ShaamFormLayouts) => Promise<Record<string, string> | null>;
 }
 
 const REP_TYPE_OPTIONS = [
@@ -140,7 +140,7 @@ export default function RepresentationRequestReview({
   steps,
   onStepsChanged,
   onUpdateClientFields,
-  onAttachShaamForms,
+  onPrepareShaamForms,
 }: Props) {
   const db = useDocumentDB();
   const { user } = useAuth();
@@ -992,7 +992,7 @@ export default function RepresentationRequestReview({
               steps={steps}
               onStepsChanged={onStepsChanged}
               onUpdateClientFields={onUpdateClientFields}
-              onAttachShaamForms={onAttachShaamForms}
+              onPrepareShaamForms={onPrepareShaamForms}
               dataPanel={<RepresentationAuthorityData request={request} niCoversSpouse={niCoversSpouse} linkedClient={linkedClient} />}
               requestPanel={requestPanel}
               onRegenerateSignedPdf={request.signedPdfStoredId && !signMode ? () => void handleRegeneratePdf() : undefined}

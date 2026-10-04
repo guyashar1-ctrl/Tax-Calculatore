@@ -31,6 +31,7 @@ import {
 import { reportedRows, allRowsAccepted } from './shaamCheckRepresentation.mjs';
 import { NeedsHumanError, PermanentError } from '../errors.mjs';
 import { putDocument } from '../apiClient.mjs';
+import { verifyFormLayoutInSite } from '../pdfBuilds.mjs';
 import {
   progressTracker, assertNotAlreadyAttempted, detectBlockingSignal, blockingError,
   captureDiagnostics, unknownScreenError,
@@ -121,6 +122,7 @@ export function validate(input) {
  */
 export const DEFAULT_DEPS = {
   attach, detach, detectBlockingSignal, openRepresentationSystem, findRequestRows, startNewRequest, verifyEntity, readExistingRepresentations, selectRequestedSystems, confirmSystemsStep, fillContactDetailsAndCaptureForm, putDocument, captureDiagnostics, progressTracker,
+  verifyFormLayout: verifyFormLayoutInSite,
 };
 
 export async function run(ctx, input, deps = {}) {
@@ -415,6 +417,14 @@ export async function run(ctx, input, deps = {}) {
     }
 
     ctx.log(`הטופס נשמר בתיק הלקוח · ${stored.size} בתים · מסמך ${documentId}`);
+    // ‼ 218 · בדיקת התאמה לתבנית 2279 — כאן, עם קבלת הטופס, כדי שהשרת יכין את מקומות
+    // החתימה בלי שמישהו יפתח את מרכז הייצוג. כשל בבדיקה לא מכשיל את המשימה: הבקשה
+    // והטופס כבר קיימים; ok:null ⇒ המשרד יבדוק בדפדפן.
+    const layout = await Promise.resolve(d.verifyFormLayout ? d.verifyFormLayout(form.buffer) : { ok: null, error: 'no_checker' })
+      .catch((e) => ({ ok: null, error: e?.message ?? String(e) }));
+    ctx.log(layout.ok === true ? 'הטופס תואם לתבנית 2279 — מקומות החתימה יוכנו בשרת'
+      : layout.ok === false ? `הטופס שונה מהתבנית (${(layout.problems ?? []).join(', ')}) — יסומן ידנית במשרד`
+      : `בדיקת התבנית לא רצה (${layout.error ?? 'unknown'}) — תיבדק בדפדפן המשרד`);
     return {
       result: {
         submissionKey: v.submissionKey,
@@ -423,6 +433,7 @@ export async function run(ctx, input, deps = {}) {
         formDocumentId: documentId,
         formFileName: fileName,
         formBytes: stored.size,
+        formLayout: { ok: layout.ok, ...(layout.problems?.length ? { problems: layout.problems } : {}), ...(layout.error ? { error: String(layout.error).slice(0, 200) } : {}), by: 'worker' },
         systems: v.systems.map(s => s.screenLabel),
         spousePhoneAsked: !!captured.spousePhoneAsked,
         // ‼ 28.09 · «לידיעתך» של שלב 2 כמו שהוא — מה שע״ם אמרה שיש לצרף.

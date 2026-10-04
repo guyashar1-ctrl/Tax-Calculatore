@@ -8,6 +8,8 @@
 import {
   buildDocumentPdfVersions, ImageConversionError, SHAAM_UPLOAD_MAX_BYTES, type DocumentPdfResult,
 } from '../utils/imageToPdf';
+import { readForm2279Layout } from '../utils/form2279Layout';
+import { verifyForm2279Layout } from '../features/representation/shaamRepresentation';
 
 export const CONVERTER_VERSION = 1;
 
@@ -97,7 +99,25 @@ export async function runConverterJob(job: ConverterJob): Promise<ConverterResul
   }
 }
 
-declare global {
-  interface Window { pivoPdfConverter?: { version: number; run: typeof runConverterJob } }
+/**
+ * ‼ 218 · בדיקת התאמה של טופס 2279 שהגיע משע״ם — אותו קוד בדיוק כמו בדפדפן המשרד
+ * (readForm2279Layout + verifyForm2279Layout). העובד מריץ אותה מיד כשהטופס מגיע, והשרת
+ * מכין את מקומות החתימה רק כשהיא עברה. הקובץ מגיע מהעובד (base64), לא נשמר כאן.
+ */
+export async function verifyForm2279(base64: string): Promise<{ ok: boolean; problems: string[]; numPages: number }> {
+  const bin = atob(base64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  try {
+    const layout = await readForm2279Layout(bytes);
+    const v = verifyForm2279Layout(layout);
+    return { ok: v.ok, problems: v.problems, numPages: layout.numPages };
+  } catch {
+    return { ok: false, problems: ['form_not_read'], numPages: 0 };
+  }
 }
-window.pivoPdfConverter = { version: CONVERTER_VERSION, run: runConverterJob };
+
+declare global {
+  interface Window { pivoPdfConverter?: { version: number; run: typeof runConverterJob; verifyForm2279?: typeof verifyForm2279 } }
+}
+window.pivoPdfConverter = { version: CONVERTER_VERSION, run: runConverterJob, verifyForm2279 };

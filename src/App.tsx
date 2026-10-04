@@ -38,7 +38,6 @@ import Icon from './components/ui/Icon';
 import AuthorityConnectionButtons from './components/AuthorityConnectionButtons';
 import { ShaamReadinessProvider } from './hooks/shaamReadiness';
 import { supabase } from './lib/supabase';
-import { repRequestToDb } from './lib/dbMappers';
 import { isRepresented } from './lib/clientState';
 import { edgeFunctionError } from './utils/functionError';
 import { isUnknownSendReply } from './types/emailActivity';
@@ -48,6 +47,7 @@ import { effectiveNiCoversSpouse } from './utils/repSigners';
 import { targetsOf } from './utils/repScope';
 import { representationInsight, onboardingProgressLine, missingIdentityLine } from './utils/representationInsight';
 import { repSendPhase } from './utils/representationAction';
+import { repPreparationFacts } from './features/representation/repPreparation';
 import {
   seedClientFromEmbeddedSpouse, findSpouseClient, resolvePersonAuthority, resolveIncomeTaxHousehold,
   spousePersonAuthorities,
@@ -124,6 +124,7 @@ import TestSignaturePage from './components/signatureRequest/__TestSignaturePage
 import TestSigningRoom from './components/signatureRequest/__TestSigningRoom';
 import TestExecutionCenter from './components/signatureRequest/__TestExecutionCenter';
 import TestRepDocs from './components/signatureRequest/__TestRepDocs';
+import TestPoaReadiness from './components/signatureRequest/__TestPoaReadiness';
 import TestOnboarding from './components/clientTabs/__TestOnboarding';
 import TestJourney from './components/clientTabs/__TestJourney';
 import TestRequests from './components/clientTabs/__TestRequests';
@@ -420,6 +421,10 @@ export default function App() {
   // 194 · מחזור חיי בקשת הייצוג בשע״ם, בכל מצביו.
   if (import.meta.env.DEV && typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('test-shaam-rep')) {
     return <TestShaamRepresentation />;
+  }
+  // 04.10.2026 · מוכנות ייפוי הכוח לחתימה ומקומות החתימה על הטופס.
+  if (import.meta.env.DEV && typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('test-poa-readiness')) {
+    return <TestPoaReadiness />;
   }
   if (import.meta.env.DEV && typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('test-repdocs')) {
     return <TestRepDocs />;
@@ -1009,12 +1014,17 @@ export default function App() {
   // (identification ו-identity_docs ב-LEAN_COLUMNS), בלי שליפה נוספת.
   // ‼ «נשלח לחתימת הלקוח» רק כשהמייל באמת יצא — ראה repSendPhase.
   /** ‼ אותה הכרעה לכרטיס הפתוח ולתצוגה המהירה במסך הלקוחות — לא שתי גרסאות. */
-  function clientRepSendPhase(clientId: string) {
-    const req = requests.filter(r => r.linkedClientId === clientId)
+  // ‼ 04.10.2026 · עם הכרטיס — ההגשות לפי אדם ורשות, בדיוק כמו במרכז הייצוג (repPreparation).
+  function latestRequestOf(clientId: string) {
+    return requests.filter(r => r.linkedClientId === clientId)
       .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''))[0];
-    return repSendPhase(req);
+  }
+  function clientRepSendPhase(clientId: string) {
+    return repSendPhase(latestRequestOf(clientId), clients.find(c => c.id === clientId) ?? null);
   }
   const selectedRepSendPhase = selectedClient ? clientRepSendPhase(selectedClient.id) : null;
+  const selectedRepRequest = selectedClient ? latestRequestOf(selectedClient.id) : undefined;
+  const selectedRepFacts = selectedClient && selectedRepRequest ? repPreparationFacts(selectedRepRequest, selectedClient) : null;
   const selectedRepNote = (() => {
     if (!selectedClient) return undefined;
     const req = requests.filter(r => r.linkedClientId === selectedClient.id)
@@ -2921,6 +2931,7 @@ export default function App() {
             onboardingSteps={onboarding.steps}
             repNote={selectedRepNote}
             repSendPhase={selectedRepSendPhase}
+            repFacts={selectedRepFacts}
             onboardingEvents={onboarding.events}
             onboardingLoading={onboarding.loading}
             advanceOnboardingStep={onboarding.advance}
@@ -3142,16 +3153,15 @@ export default function App() {
                 void reloadRequest(selectedRequest.id);
               }}
               onUpdateClientFields={patch => handleUpdateClientFields(selectedRequest.linkedClientId, patch)}
-              // ‼ 194: כתיבה שקטה של מסמכי החתימה בלבד, אחרי שטופס 2279 הובא
-              // משע״ם. בכוונה לא handleProduceFormWithSetup — הוא גם מקדם ל
-              // «נשלח לחתימה», והבאת טופס אינה שליחה ללקוח.
-              onAttachShaamForms={async docs => {
-                // ‼ 208 · רק עמודות מסמכי החתימה. שמירת השורה כולה מעותק ישן
-                // דרסה סטטוס/היקף שהשרת כתב רגע קודם.
-                const { error: attachErr } = await supabase.from('representation_requests')
-                  .update(repRequestToDb(withLegacyMirror(docs))).eq('id', selectedRequest.id);
-                if (attachErr) throw attachErr;
+              // ‼ 218: השרת בונה את מסמך החתימה (אותו בונה כמו עם קבלת הטופס), והדפדפן רק
+              // מוסר את בדיקת התבנית כשהעובד לא בדק. לא כותבים signature_documents מכאן.
+              onPrepareShaamForms={async layouts => {
+                const { data, error: prepErr } = await supabase.rpc('prepare_shaam_signature_documents', {
+                  p_request_id: selectedRequest.id, p_layouts: layouts,
+                });
+                const res = data as { ok?: boolean; results?: Record<string, string> } | null;
                 await reloadRequest(selectedRequest.id);
+                return prepErr || !res?.ok ? null : (res.results ?? {});
               }}
             />
           ) : (

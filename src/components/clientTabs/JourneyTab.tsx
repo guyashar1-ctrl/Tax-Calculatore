@@ -11,6 +11,7 @@
 import { useMemo } from 'react';
 import type { Client, NiTracking, Task, RepresentationStatus } from '../../types';
 import type { RepSendPhase } from '../../utils/representationAction';
+import type { RepPrepFacts } from '../../features/representation/repPreparation';
 import type { InstitutionKey } from '../../types/onboarding';
 import type { ClientAlert } from '../../types/clientWorkspace';
 import type { Engagement, OnboardingEvent, OnboardingStep } from '../../types/onboarding';
@@ -63,6 +64,7 @@ interface Props {
   /** 191: שורת הקליטה — מועברת כמו שהיא לכרטיס הייצוג. */
   repNote?: string;
   repSendPhase?: RepSendPhase | null;
+  repFacts?: RepPrepFacts | null;
   // ── מרכז השליטה ──
   onPinNote: (text: string) => void;
   onAddNote: (text: string) => void;
@@ -371,6 +373,7 @@ export default function JourneyTab(p: Props) {
           repStatus={p.repStatus}
           repNote={p.repNote}
           repSendPhase={p.repSendPhase}
+          repFacts={p.repFacts}
           onOpenRepresentation={p.onOpenRepresentation}
           onOpenTaxFile={p.onOpenTaxFile}
           niExecution={p.niExecution}

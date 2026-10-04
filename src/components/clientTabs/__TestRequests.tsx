@@ -63,6 +63,7 @@ import type { ClientFlowRun, RunActionState, RunStage } from '../../features/flo
 import type { FlowDefinition, FlowTrigger, OfficeFlow } from '../../features/flows/types';
 import OnboardingTab from './OnboardingTab';
 import { representationStatusLabel } from '../../utils/representationAction';
+import type { RepPrepFacts, ShaamPrepFact } from '../../features/representation/repPreparation';
 
 const CLIENT_ID = 'rq-client';
 const ENG_ID = 'rq-eng';
@@ -1112,6 +1113,21 @@ const RETURNING_QUOTATIONS = [
   { id: 'rq-quote-old', clientId: CLIENT_ID, status: 'approved', approvedAt: ago(700), items: [], vatRate: 18 },
 ] as unknown as Quotation[];
 
+/**
+ * &facts=couple-pending|couple-waiting|couple-ready — מצב ההגשות לפי אדם ורשות (repPreparation),
+ * כפי ש-App מעביר. בלי — כמו קודם (שורת רשות מסים אחת).
+ */
+function factsFor(name: string | null): RepPrepFacts | null {
+  const part = (key: string, target: 'client' | 'spouse', personName: string, authoritiesLabel: string, entered: boolean, requestNumber: string | undefined, form: ShaamPrepFact['form']): ShaamPrepFact =>
+    ({ key, target, personName, authoritiesLabel, entered, requestNumber, form, problems: [] });
+  const first = part('person:client', 'client', 'שרון לקוחה', 'מס הכנסה, מע"מ', true, '2026000006', 'ready');
+  const shaam = name === 'couple-pending' ? [first, part('person:spouse', 'spouse', 'אבי לקוח', 'מע"מ', false, undefined, 'none')]
+    : name === 'couple-waiting' ? [first, part('person:spouse', 'spouse', 'אבי לקוח', 'מע"מ', true, '2026000007', 'none')]
+    : name === 'couple-ready' ? [first, part('person:spouse', 'spouse', 'אבי לקוח', 'מע"מ', true, '2026000007', 'ready')]
+    : null;
+  return shaam ? { shaam, ni: [], generalProblems: [], problems: [], anyForm: true, signed: false } : null;
+}
+
 export default function TestRequests() {
   useState(() => { install(); return 0; });
   const s = useSyncExternalStore(subscribe, () => store);
@@ -1121,7 +1137,10 @@ export default function TestRequests() {
   const niExecution = useMemo(() => ({ client: s.ni.client, spouse: s.ni.spouse }), [s.ni]);
 
   const rep = repStatusFor();
-  const sendPhase = qs().get('send') === 'unsent' && rep === 'pending_signature' ? 'unsent' as const : null;
+  // &send=unsent|prep_open|form_incomplete — מה repSendPhase היה מחזיר (גם ב-awaiting_accountant: הטופס הגיע וסומן).
+  const sendQ = qs().get('send');
+  const sendPhase = (sendQ === 'unsent' || sendQ === 'prep_open' || sendQ === 'form_arrived' || sendQ === 'form_incomplete')
+    && (rep === 'pending_signature' || rep === 'awaiting_accountant') ? sendQ : null;
   return (
     <div style={{ padding: '1rem', maxWidth: 1000, margin: '0 auto' }} dir="rtl">
       <div className="rq-harness-note" style={{ fontSize: 12, color: 'var(--ink-4)', marginBottom: '.75rem' }}>
@@ -1152,6 +1171,7 @@ export default function TestRequests() {
         repStatusLabel={`בקשת ייצוג · ${representationStatusLabel(rep, sendPhase)}`}
         repStatus={rep}
         repSendPhase={sendPhase}
+        repFacts={factsFor(qs().get('facts'))}
         onOpenRepresentation={() => window.__rqCalls.push({ fn: 'openRepresentation', args: null, res: null })}
         onOpenTaxFile={focus => { window.__rqCalls.push({ fn: 'openTaxFile', args: focus ?? null, res: null }); setTaxFileAt(focus ?? 'tax-file'); }}
         niExecution={niExecution}

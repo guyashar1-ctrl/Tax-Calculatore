@@ -234,7 +234,8 @@ export const TESTS: TestCase[] = [
   // ── בדיקות מקור: המבנה שחוסם את סוגי הבאגים ─────────────────────────────
   test('מסך · «בדוק קבלת הייצוג» מופיע כטקסט רק בכפתור המרכזי', () => {
     equal((code(CENTER_SOURCE).match(/בדוק קבלת הייצוג/g) ?? []).length, 0, 'לא בתוך המרכז עצמו');
-    equal((RECONCILE_SOURCE.match(/'בדוק קבלת הייצוג'/g) ?? []).length, 1, 'כפתור אחד');
+    // ‼ 04.10.2026 · הכפתור אומר מה הוא בודק: «בדוק קבלת הייצוג · ביטוח לאומי».
+    equal((RECONCILE_SOURCE.match(/בדוק קבלת הייצוג · \$\{scope\.join/g) ?? []).length, 1, 'כפתור אחד, עם הרשויות שהוא בודק');
     equal((CENTER_SOURCE.match(/<RepresentationReconcileButton/g) ?? []).length, 1, 'מוצג פעם אחת, ליד הכותרת');
   }),
 

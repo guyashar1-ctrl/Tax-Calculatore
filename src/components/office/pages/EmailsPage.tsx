@@ -34,7 +34,8 @@ import type { OfficePageId } from '../officeModel';
 import { Field } from '../officeUi';
 import type { ActivityFilter } from './activityFilter';
 import { LinkDestinationView } from '../LinkDestinationView';
-import { STEP_EMAIL_CTA, stepEmailDestinations } from '../../../features/links/linkDestinations';
+import { STEP_EMAIL_CTA, stepEmailDestinations, TAX_PERSONAL_AREA, linkHost } from '../../../features/links/linkDestinations';
+import RepApprovalGuide, { RepApprovalGuideButton, REP_APPROVAL_GUIDE_GENERIC_NOTE } from '../../portal/RepApprovalGuide';
 
 interface CommTemplate {
   subject?: string;
@@ -216,10 +217,12 @@ export default function EmailsPage({ draft, saveNow, userId, clients, onOpenClie
       const key = focus.slice(4);
       return GROUPS.flatMap(g => g.items).find(i => i.type === 'step' && i.spec.key === key) ?? null;
     }
-    const id = focus?.startsWith('rep:') ? focus.slice(4) : null;
+    const id = focus?.startsWith('rep:') && focus !== 'rep:guide' ? focus.slice(4) : null;
     const m = id ? REP_MESSAGES.find(r => r.id === id) : undefined;
     return m ? { type: 'rep', id: m.id, label: m.label, when: m.when } : null;
   });
+  // ‼ 04.10.2026 · המדריך המצולם — נפתח ישירות מהשורה (או מקישור ‎rep:guide‎), בלי חלון העריכה.
+  const [guideOpen, setGuideOpen] = useState(focus === 'rep:guide');
   // ‼ «נשלחו N ב-30 יום» — שאילתה על סוגי המייל של העמוד ב-30 הימים האחרונים,
   // לא 200 המיילים האחרונים של המשרד (שבהם מייל נדיר נעלם).
   const [messages, setMessages] = useState<EmailMessage[] | null>(null);
@@ -261,11 +264,19 @@ export default function EmailsPage({ draft, saveNow, userId, clients, onOpenClie
                           {title}
                           {custom && <span className="of-tag is-on">הנוסח שלך</span>}
                           {missingLink && <span className="of-tag is-warn">חסר קישור הזמנה</span>}
-                          {/* ‼ המדריך המצולם (התמונות המעובדות) נפתח מתוך העריכה של הכרטיס — בלי
-                              התגית, מי שמחפש «מדריך» לא היה מוצא אותו כאן. */}
-                          {item.type === 'rep' && item.id === 'portal' && <span className="of-tag">עם מדריך מצולם</span>}
                         </div>
                         <div className="of-mrow-when">{when}</div>
+                        {/* ‼ 04.10.2026 · המדריך המצולם שהלקוח מקבל — אותו רכיב ואותן תמונות כמו בדף
+                            האישי ובמרכז הייצוג, בנוסח הכללי (בלי לקוח). קודם נפתח רק מתוך חלון העריכה. */}
+                        {item.type === 'rep' && item.id === 'portal' && (
+                          <div className="of-guide-line" data-testid="office-rep-guide">
+                            <RepApprovalGuideButton onClick={() => setGuideOpen(true)} />
+                            <a className="of-link" href={TAX_PERSONAL_AREA.url} target="_blank" rel="noopener noreferrer"
+                              title={TAX_PERSONAL_AREA.access}>
+                              {TAX_PERSONAL_AREA.name} ↗ <span dir="ltr" className="of-muted">{linkHost(TAX_PERSONAL_AREA.url)}</span>
+                            </a>
+                          </div>
+                        )}
                         {/* ‼ היומן לא שמר איזה נוסח יצא — הספירה כאן כוללת גם את השורה שמתחת. */}
                         {sent.mixed && variantKey && sent.messages && sent.messages.length > 0 && (
                           <span className="of-sent">יחד עם «{emailTemplateTitle(variantKey)}»:</span>
@@ -307,6 +318,10 @@ export default function EmailsPage({ draft, saveNow, userId, clients, onOpenClie
         </>
       )}
 
+      {guideOpen && (
+        <RepApprovalGuide onClose={() => setGuideOpen(false)} entryUrl={TAX_PERSONAL_AREA.url}
+          scopeNote={REP_APPROVAL_GUIDE_GENERIC_NOTE} />
+      )}
       {editing?.type === 'rep' && (
         <RepMessageDrawer profile={draft} saveNow={saveNow} id={editing.id} onClose={() => setEditing(null)} />
       )}

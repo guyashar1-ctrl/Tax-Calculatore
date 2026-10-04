@@ -143,7 +143,13 @@ export function moreMineLabel(parts: { label: string; state?: string | null }[])
  * שרק מנווט). null ⇒ הבקשה לא אצלך. ‼ הנוסח המלא — representationAction, בפתיחה.
  */
 export function repShortAction(status: string | null | undefined, phase?: string | null): string | null {
-  if (status === 'pending_signature' && phase === 'unsent') return 'לשלוח ללקוח לחתימה';
+  // ‼ 04.10.2026 · הטופס כבר הגיע וסומן ⇒ לא «להפיק»; ראה repSendPhase.
+  if (status === 'awaiting_accountant' || status === 'pending_signature') {
+    if (phase === 'form_incomplete') return 'להשלים מקומות חתימה';
+    if (phase === 'form_arrived') return 'להכין את הטופס לחתימה';
+    if (phase === 'prep_open') return 'להשלים לפני השליחה';
+    if (phase === 'unsent') return 'לשלוח ללקוח לחתימה';
+  }
   if (status === 'awaiting_accountant') return 'להזין ולהפיק טופס';
   if (status === 'awaiting_stamp') return 'לחתום ולהוסיף חותמת';
   return null;

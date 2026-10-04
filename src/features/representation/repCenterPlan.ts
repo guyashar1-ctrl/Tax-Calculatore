@@ -65,8 +65,10 @@ export interface RcInput {
   /** שם פרטי לכותרות («מוכן לשליחה לעידן»). ריק ⇒ «הלקוח». */
   firstName: string;
   formReady: boolean;
-  /** אזורי החתימה לא סומנו אוטומטית (הטופס שונה מהתבנית). */
+  /** אזורי החתימה לא סומנו אוטומטית (הטופס שונה מהתבנית), או שחסר בהם מקום/שיוך. */
   formNeedsMarking?: boolean;
+  /** מה חסר בטופס הקיים (signatureReadiness) — מוצג בשורת הטופס. */
+  formProblems?: string[];
   sent: boolean;
   sentAt?: string | null;
   signed: boolean;
@@ -165,6 +167,7 @@ export function rcPrepareItems(input: RcInput): RcPrepareItem[] {
       key: 'form',
       label: input.formReady ? 'טופס ייפוי הכוח מוכן לחתימה'
         : input.formNeedsMarking ? 'לסמן את אזורי החתימה בטופס' : 'טופס ייפוי הכוח לחתימה',
+      detail: !input.formReady && input.formProblems?.length ? input.formProblems.join(' ') : undefined,
       done: input.formReady,
     });
   }

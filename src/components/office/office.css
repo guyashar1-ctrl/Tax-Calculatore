@@ -123,6 +123,8 @@
   cursor: pointer; text-decoration: none;
 }
 .of-link:hover { text-decoration: underline; }
+/* «מיילים» › ייצוג: המדריך המצולם והאזור האישי — ישירות מהשורה (04.10.2026) */
+.of-guide-line { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 18px; margin-top: 6px; font-size: 13px; }
 .of-link:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; border-radius: 3px; }
 .of-quiet { color: var(--ink-3); font-size: var(--fs-13); }
 .of-muted { color: var(--ink-4); font-size: var(--fs-12); }

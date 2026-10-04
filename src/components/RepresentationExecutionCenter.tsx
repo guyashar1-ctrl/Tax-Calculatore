@@ -30,10 +30,10 @@ import {
 import { getRequestSigners, effectiveSignStatus } from '../utils/repSigners';
 import { shaamSubmissions, requestScope, peopleFromClient, targetsOf } from '../utils/repScope';
 import { signatureDocumentsOf, allDocumentsStamped } from '../utils/repDocuments';
-import type { RepSignatureDocument, RepIdentityDocEntry } from '../types';
-import { buildForm2279Fields, form2279BothSign, matchRegisteredPersonName, verifyForm2279Layout } from '../features/representation/shaamRepresentation';
+import type { RepIdentityDocEntry } from '../types';
+import { form2279BothSign, matchRegisteredPersonName, verifyForm2279Layout } from '../features/representation/shaamRepresentation';
 import { readForm2279Layout } from '../utils/form2279Layout';
-import { useDocumentDB } from '../hooks/useIndexedDB';
+import { useDocumentDB, type StoredDoc } from '../hooks/useIndexedDB';
 import { useEmailMessages } from '../hooks/useEmailMessages';
 import {
   useRepApprovalStep, isRepApprovalClosed, isRepApprovalDeclared,
@@ -55,7 +55,7 @@ import type { ShaamActionKind } from '../features/taxFile/shaamRepresentationAct
 import ShaamNextActionButton from './ShaamNextActionButton';
 import type { ShaamSubmission } from '../utils/repScope';
 import {
-  shaamRequestExists, shaamDocumentsBlocked,
+  shaamDocumentsBlocked,
   type ShaamRequestTracking,
 } from '../features/representation/shaamRepresentation';
 import {
@@ -75,7 +75,9 @@ import {
 import ShaamPreSigningDocsList from './ShaamPreSigningDocsList';
 import { repCenterPlan, type RcPrepareItem } from '../features/representation/repCenterPlan';
 import { shaamSettled } from '../features/representation/shaamRepresentation';
-import RepDocuments, { type PoaEntry, type IdEntry } from './RepDocuments';
+import RepDocuments, { PoaViewer, type PoaEntry, type IdEntry } from './RepDocuments';
+import { signatureReadiness, placesSentence } from '../features/representation/signatureReadiness';
+import { repPreparationFacts, shaamEnteredAt, type ShaamPrepFact } from '../features/representation/repPreparation';
 import IdentityDocAttach from './IdentityDocAttach';
 import { shaamDocumentsView } from '../features/representation/shaamDocumentsGate';
 import type { ViewerFile } from './DocumentViewerDialog';
@@ -149,7 +151,12 @@ interface Props {
    * `onProduceWithSetup`, שגם מקדם את הסטטוס ל«נשלח לחתימה»: הבאת הטופס
    * אינה שליחה ללקוח, והשליחה נשארת פעולה מפורשת של הרו"ח.
    */
-  onAttachShaamForms?: (docs: RepSignatureDocument[]) => Promise<void>;
+  /**
+   * ‼ 218 · השרת מכין את מקומות החתימה כשהטופס מגיע (העובד בודק את התבנית). כשהעובד לא
+   * בדק — המרכז בודק כאן ושולח את התוצאה, והשרת בונה (prepare_shaam_signature_documents).
+   * מחזיר את מה שקרה לכל הגשה, או null כשהקריאה נכשלה.
+   */
+  onPrepareShaamForms?: (layouts: ShaamFormLayouts) => Promise<Record<string, string> | null>;
   /** «פרטי הלקוח להזנה ברשויות» — נפתח מעצמו רק כשמזינים (שלב ההכנה). */
   dataPanel?: React.ReactNode;
   /** «פרטי הבקשה» (מייל, סוג ייפוי הכוח, הערות) — סגור כברירת מחדל. */
@@ -160,6 +167,11 @@ interface Props {
    */
   onRegenerateSignedPdf?: () => void;
   regeneratingSignedPdf?: boolean;
+  /**
+   * מסך בדיקה בלבד: מאיפה נקראים הקבצים (טופס, צילום). במסך האמיתי — מאגר המסמכים.
+   * ‼ בלי זה מסך בדיקה מבודד (בלי מסד) לא יכול להציג את הטופס ואת מקומות החתימה.
+   */
+  documentSourceOverride?: { getDoc: (id: string) => Promise<StoredDoc | undefined> };
 }
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
@@ -439,7 +451,13 @@ function ReplacementConfirm({ requestId, submissionKey, replacement, onChanged }
   );
 }
 
-export default function RepresentationExecutionCenter({ request, niIncluded, niCoversSpouse, onSaveExecution, onProduce, onStamp, onMarkSentToShaam, onMarkActive, onSendToSigner, userId, repApprovalOverride, repApprovalPeopleOverride, linkedClient, onConfirmRegisteredSpouse, steps, engagements, onStepsChanged, onUpdateClientFields, onAttachShaamForms, dataPanel, requestPanel, onRegenerateSignedPdf, regeneratingSignedPdf }: Props) {
+/** בדיקת התבנית שהמרכז שולח לשרת — לכל הגשה שהעובד לא בדק. */
+export type ShaamFormLayouts = Record<string, { ok: boolean; problems: string[]; bothSign: boolean; title: string }>;
+
+/** מה שהשרת החזיר ואינו «הסתיים» — וההכנה נשארה פתוחה. */
+const PREP_DONE = new Set(['prepared', 'exists', 'layout_mismatch', 'held_sent', 'signed_untouched']);
+
+export default function RepresentationExecutionCenter({ request, niIncluded, niCoversSpouse, onSaveExecution, onProduce, onStamp, onMarkSentToShaam, onMarkActive, onSendToSigner, userId, repApprovalOverride, repApprovalPeopleOverride, linkedClient, onConfirmRegisteredSpouse, steps, engagements, onStepsChanged, onUpdateClientFields, onPrepareShaamForms, dataPanel, requestPanel, onRegenerateSignedPdf, regeneratingSignedPdf, documentSourceOverride }: Props) {
   const exec = request.execution || {};
   const it = exec.incomeTax || {};
   const ni = exec.nationalInsurance || {};
@@ -515,7 +533,24 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
   // ‼ "הופק" ו"הוחתם" הם **כל** הטפסים: בקשה עם מע"מ לשני בני הזוג מולידה
   // שני טפסים, ומסך שמראה "מוכן" אחרי אחד מהם היה שולח חצי בקשה.
   const poaDocs = signatureDocumentsOf(request);
-  const formReady = (poaDocs.length > 0 && poaDocs.every(d => !!d.pdfDocId)) || signed;
+  // ‼ 04.10.2026 · «מוכן לחתימה» = signatureReadiness: קובץ, מקום חתימה לכל חותם, שיוך
+  // לחותם שקיים, ומקום לחתימה ולחותמת של המשרד. אותה הכרעה קובעת את מסך הבקשות
+  // (repSendPhase), והשרת אוכף אותה לפני שליחה (218). קודם «יש קובץ» הספיק.
+  const readiness = signatureReadiness(request);
+  // ‼ 04.10.2026 · עם הכרטיס — אותן עובדות לפי אדם ורשות שהשורה ב«בקשות» קוראת (repPreparation):
+  // טופס של בן/בת זוג שעוד לא הגיע אינו «חסר מקום חתימה», וטופס שחסר להגשה שנפתחה אינו «מוכן».
+  const repFacts = linkedClient ? repPreparationFacts(request, linkedClient) : null;
+  const readinessProblems = repFacts ? repFacts.problems : readiness.problems;
+  const formReady = signed || (repFacts
+    ? poaDocs.length > 0 && readinessProblems.length === 0
+      && repFacts.shaam.every(f => !f.entered || f.form === 'ready' || f.form === 'signed')
+    : readiness.state === 'ready');
+  // מה חסר בטופס שכבר קיים. ‼ «עוד לא נוצרו מקומות» לבדו אינו תקלה — השרת מכין אותם עם
+  // קבלת הטופס (218), ובלעדיו ההכנה למטה (או layoutProblems כשהתבנית שונה).
+  const formProblems = signed ? [] : readinessProblems.filter(p => p.code !== 'not_prepared');
+  /** הטופס הגיע משע״ם ועוד אין לו מקומות חתימה (ההכנה רצה, או נעצרה על תבנית שונה). */
+  const formArrivedUnprepared = !signed && readinessProblems.some(p => p.code === 'not_prepared');
+  const factOf = (key: string): ShaamPrepFact | undefined => repFacts?.shaam.find(f => f.key === key);
   // ה-PDF הסופי (חתימות + חותמת המשרד) נוצר ונשמר
   const stamped = allDocumentsStamped(request) || sentToShaam;
   // בלי אסמכתא המייל ייצא בלי חלק הב"ל, והמבוטח יזדקק למייל שני. כשגם בן/בת
@@ -579,6 +614,7 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
   // תצוגה מקדימה של מייל החתימה. השליחה עצמה נשארת בכפתור המשותף, שגם מסמן
   // שההוראות לב"ל יצאו — ולכן כאן צפייה בלבד.
   const [previewSignerId, setPreviewSignerId] = useState<string | null>(null);
+  const [heroPoa, setHeroPoa] = useState<PoaEntry | null>(null);
   const missingIds = representationInsight(request, linkedClient, steps).missingIdentity;
   const [confirmSendWithoutId, setConfirmSendWithoutId] = useState(false);
   /** «שלח» אחרי ניסיון שלא ידוע אם יצא — אישור שמסביר את הסיכון לכפילות. */
@@ -603,6 +639,12 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
    * @param only מזהה חותם יחיד — "לשלוח רק ל-X, והוא יעביר לשני". ריק = לכולם.
    */
   async function handleSendAll(only?: string, askUnassigned = false) {
+    // ‼ 04.10.2026 · טופס שחסר בו מקום חתימה או ששויך לחותם שאינו ברשימה — לא נשלח.
+    // השרת (218) עוצר גם הוא; כאן אומרים מה חסר לפני שמנסים.
+    if (!formReady) {
+      setNote({ kind: 'err', text: formProblems.length ? `הטופס לא מוכן לחתימה: ${formProblems.map(p => p.text).join(' ')}` : 'הטופס לא מוכן לחתימה.' });
+      return;
+    }
     setBusy('send');
     setNote(null);
     // ‼ 208 · לפני כל מייל: השרת מצרף לתהליך הלקוח את מה ששע״ם דורשת (העלאה /
@@ -846,67 +888,63 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
   // ‼ רץ פעם אחת לכל הגשה, עם שומר ref: StrictMode מריץ אפקטים פעמיים,
   // וכתיבה כפולה כאן הייתה יוצרת שני מסמכים לאותו טופס.
   const preparedRef = useRef<Set<string>>(new Set());
-  const formDocs = useDocumentDB();
-  // ‼ 28.09.2026 · טופס שלא עבר את בדיקת התבנית — לא מסומן אוטומטית; המשרד מסמן ידנית.
-  const [layoutProblems, setLayoutProblems] = useState<Record<string, string>>({});
+  const docStore = useDocumentDB();
+  const formDocs = documentSourceOverride ?? docStore;
+  // ‼ 218 · השרת מכין את המקומות עם קבלת הטופס. כאן — רק כשהעובד לא בדק את התבנית (גרסה ישנה /
+  // הבדיקה לא רצה): בודקים בדפדפן באותו קוד, ושולחים לשרת שיבנה. השרת לבדו כותב — בלי מסמך כפול.
+  // ‼ 28.09.2026 · נמצא בבדיקה בדפדפן: ההכנה רצה לפני שכרטיס הלקוח נטען, ולכן «נשוי» נקרא
+  // כ-false וזוג קיבל טופס עם חתימה אחת. בלי כרטיס לא שולחים (bothSign נגזר ממנו).
+  const [prepIssue, setPrepIssue] = useState<Record<string, string>>({});
+  const [prepRound, setPrepRound] = useState(0);
   useEffect(() => {
-    if (!onAttachShaamForms) return;
-    // ‼ 28.09.2026 · נמצא בבדיקה בדפדפן: ההכנה רצה לפני שכרטיס הלקוח נטען, ולכן
-    // «נשוי» נקרא כ-false וזוג קיבל טופס עם חתימה אחת. מי חותם נגזר מהכרטיס —
-    // בלי כרטיס לא מכינים (ההכנה חד-פעמית, ולכן אסור לה לרוץ על מידע חלקי).
-    if (!linkedClient) return;
+    if (!onPrepareShaamForms || !linkedClient) return;
     const existing = signatureDocumentsOf(request);
     const pending = submissions.filter(sub => {
       const t = exec.shaam?.[sub.key];
-      return !!t?.formDocumentId && !existing.some(d => d.key === sub.key)
-        && !preparedRef.current.has(`${sub.key}:${t.formDocumentId}`);
+      // ‼ השרת כבר הכריע (formPreparation) — לא חוזרים על זה מכאן.
+      return !!t?.formDocumentId && !t.replacement && !t.formPreparation && !existing.some(d => d.key === sub.key)
+        && !preparedRef.current.has(`${sub.key}:${t.formDocumentId}:${prepRound}`);
     });
     if (pending.length === 0) return;
-    // ‼ 208 · המפתח כולל את הטופס: אחרי «הסר מהבקשה» ובקשה חדשה בשע״ם מגיע טופס
-    // חדש לאותה הגשה, והוא חייב לקבל אזורי חתימה משלו.
-    for (const sub of pending) preparedRef.current.add(`${sub.key}:${exec.shaam![sub.key]!.formDocumentId}`);
+    // ‼ 208 · המפתח כולל את הטופס: אחרי «הסר מהבקשה» ובקשה חדשה בשע״ם מגיע טופס חדש לאותה הגשה.
+    for (const sub of pending) preparedRef.current.add(`${sub.key}:${exec.shaam![sub.key]!.formDocumentId}:${prepRound}`);
     void (async () => {
-      const additions: RepSignatureDocument[] = [];
-      const problems: Record<string, string> = {};
+      const layouts: ShaamFormLayouts = {};
       for (const sub of pending) {
         const t = exec.shaam![sub.key]!;
-        // ‼ לפני שמסמנים לפי תבנית — הטופס שהגיע הוא באמת הטופס שהתבנית נמדדה עליו.
         let check: { ok: boolean; problems: string[] };
-        try {
-          const stored = await formDocs.getDoc(t.formDocumentId!);
-          check = stored && stored.fileData.byteLength > 0
-            ? verifyForm2279Layout(await readForm2279Layout(stored.fileData.slice(0)))
-            : { ok: false, problems: ['form_not_loaded'] };
-        } catch {
-          check = { ok: false, problems: ['form_not_read'] };
+        if (typeof t.formLayout?.ok === 'boolean') {
+          check = { ok: t.formLayout.ok, problems: t.formLayout.problems ?? [] };
+        } else {
+          try {
+            const stored = await formDocs.getDoc(t.formDocumentId!);
+            check = stored && stored.fileData.byteLength > 0
+              ? verifyForm2279Layout(await readForm2279Layout(stored.fileData.slice(0)))
+              : { ok: false, problems: ['form_not_loaded'] };
+          } catch {
+            check = { ok: false, problems: ['form_not_read'] };
+          }
         }
-        if (!check.ok) {
-          problems[sub.key] = check.problems.join(', ');
-          continue;
-        }
-        additions.push({
-          key: sub.key,
+        layouts[sub.key] = {
+          ...check,
+          bothSign: form2279BothSign(sub, scopePeople.married),
           title: sub.title ? `${sub.title} · ${sub.authoritiesLabel}` : sub.authoritiesLabel,
-          pdfDocId: t.formDocumentId!,
-          pdfFileName: t.formFileName || 'ייפוי כוח לחתימה.pdf',
-          fields: buildForm2279Fields(
-            // ‼ מי חותם/ת ב«בן זוג רשום»: ההכרעה כשהיא קיימת, אחרת בעל/ת
-            // ההגשה — הטופס הופק על שמו/ה, וזו התשובה הכי קרובה לוודאית.
-            regOwner ?? sub.target,
-            form2279BothSign(sub, scopePeople.married),
-          ),
-          createdAt: new Date().toISOString(),
-          signedPdfStoredId: null,
-        });
+        };
       }
-      if (Object.keys(problems).length) setLayoutProblems(p => ({ ...p, ...problems }));
-      if (additions.length === 0) return;
-      // ‼ מסמכים שכבר נשמרו בינתיים (לשונית אחרת) — לא מוסיפים שוב אותו מפתח.
-      const now = signatureDocumentsOf(request);
-      const fresh = additions.filter(a => !now.some(d => d.key === a.key));
-      if (fresh.length) await onAttachShaamForms([...now, ...fresh]);
+      const res = await onPrepareShaamForms(layouts).catch(() => null);
+      const issues: Record<string, string> = {};
+      for (const sub of pending) {
+        const s = res?.[sub.key];
+        if (!res) issues[sub.key] = 'השרת לא הגיב';
+        else if (s && !PREP_DONE.has(s)) issues[sub.key] = s;
+      }
+      setPrepIssue(p => ({ ...p, ...issues }));
     })();
-  }, [request, exec.shaam, submissions, regOwner, scopePeople.married, onAttachShaamForms, formDocs, linkedClient]);
+  }, [request, exec.shaam, submissions, scopePeople.married, onPrepareShaamForms, formDocs, linkedClient, prepRound]);
+  const retryPreparation = () => { setPrepIssue({}); setPrepRound(n => n + 1); };
+  // ‼ טופס שלא עבר את בדיקת התבנית — נרשם בשרת (formPreparation) ומוצג מהמוכנות.
+  const layoutProblems: Record<string, string> = Object.fromEntries(
+    readinessProblems.filter(p => p.code === 'layout_mismatch' && p.docKey).map(p => [p.docKey!, p.text]));
 
   // ‼ הנתיב המזורז נטען כאן ואינו מגיע כ-prop — ראה useRepApprovalStep.
   // מרוענן כשהסטטוס משתנה, כי המעבר ל-awaiting_authorities הוא שיוצר אותו.
@@ -1015,14 +1053,8 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
   // ‼ 24.09.2026 · «הפרטים הוזנו בשע״ם» הושלם גם על ראיה מהרשות — בקשה שנוצרה
   // מכאן, או שנמצאה שם (הוזנה ידנית; «הזן» בדק ומצא, 202). ראיה גוברת על
   // היעדר סימון ידני; הסימון הידני נשאר לשורה שאין לה ראיה.
-  const shaamEvidenceAt = (key: string): string | undefined => {
-    const t = exec.shaam?.[key];
-    // ‼ 208 · בקשה שממתינה לביטול (רשות הוסרה) אינה «הוזן» — צריך לפתוח חדשה.
-    if (!shaamRequestExists(t) || t?.replacement) return undefined;
-    return t?.createdAt || t?.foundBeforeCreateAt || t?.observedAt || t?.syncedAt || t?.submittedAt || undefined;
-  };
-  const enteredAtOf = (key: string, first: boolean) =>
-    (first ? it.enteredAt : entryAt(key)) || shaamEvidenceAt(key);
+  // ‼ אותה הכרעה כמו בשורה ב«בקשות» (repPreparation.shaamEnteredAt).
+  const enteredAtOf = (key: string, first: boolean) => shaamEnteredAt(exec, key, first);
 
   // שמות המבוטחים לכותרות המסלולים — כשיש שניים, "ביטוח לאומי" לבדו לא מספיק
   const nameOf = (role: 'client' | 'spouse') =>
@@ -1132,6 +1164,19 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
         premature: !niInstructionsDelivered(niExecutionByRole[role]),
       };
     });
+  // ‼ 04.10.2026 · כל רשות במצב שלה: הכפתור אומר מה הוא בודק, וכאן — מה לא, ולמה.
+  // הפקת טופס אינה הגשה: בקשה שנפתחה בשע״ם ולא הוגשה אינה יעד לבדיקה, וזה לא חוסם את ב״ל.
+  const shaamSkipped = submissions.filter(sub => !shaamReconcile.some(t => t.key === sub.key)
+    && !shaamSettled(shaamTrack(sub.key)) && status !== 'active');
+  const btlSkipped = (['client', 'spouse'] as const).filter(role => (role === 'client' ? niTargetsClient : niTargetsSpouse)
+    && !btlReconcile.some(t => t.key === role) && !niExecutionByRole[role].confirmedAt);
+  const reconcileNotChecked = [
+    shaamSkipped.length > 0 && btlReconcile.length > 0
+      ? `שע״ם לא נבדקת עכשיו: ${sentToShaam ? 'אין בקשה מוגשת לבדוק שם' : 'ייפוי הכוח עוד לא הוגש לשע״ם, ולכן אין שם מה לבדוק'}.` : '',
+    btlSkipped.length > 0 && shaamReconcile.length > 0
+      ? 'ביטוח לאומי לא נבדק עכשיו: אין עדיין רישום שמור לבדוק שם.' : '',
+  ].filter(Boolean).join(' ') || null;
+
   // ── «מה עכשיו» — החלטה אחת למסך כולו (repCenterPlan) ─────────────────────
   // ‼ 28.09.2026 · במקום שני טורים של שלבים והפעולה בתחתית העמוד: כרטיס אחד
   // בראש, שאומר אצל מי הכדור, מה המצב במשפט, והפעולה היחידה שנדרשת עכשיו.
@@ -1151,7 +1196,14 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
   const shaamFactsOf = (sub: ShaamSubmission) => shaamSubmittedFacts(shaamTrack(sub.key));
 
   const plan = repCenterPlan({
-    status, firstName, formReady, formNeedsMarking: Object.keys(layoutProblems).length > 0,
+    status, firstName, formReady, formNeedsMarking: Object.keys(layoutProblems).length > 0 || formProblems.length > 0,
+    // ‼ אצל זוג — של מי הטופס שעוד לא מוכן, ולמה (אותן עובדות כמו בשורה ב«בקשות»).
+    formProblems: [
+      ...formProblems.map(p => p.text),
+      ...(repFacts && repFacts.shaam.length > 1 ? repFacts.shaam
+        .filter(f => f.entered && (f.form === 'none' || f.form === 'arrived'))
+        .map(f => `${f.form === 'none' ? 'ממתין לטופס' : 'מכין את הטופס'} של ${f.personName} (${f.authoritiesLabel}) משע״ם.`) : []),
+    ],
     sent: !!exec.signatureEmailSentAt, sentAt: exec.signatureEmailSentAt ?? null,
     signed, stamped, submitted: sentToShaam,
     shaam: submissions.map((sub, i) => {
@@ -1240,7 +1292,31 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
           legacyFinalId: poaDocs.length === 1 ? request.signedPdfStoredId : null, clientName: firstName,
         }) : null,
         noneReason: d.pdfDocId ? undefined : noPoaReason({ entered: true }),
+        doc: d,
+        // ‼ 218 · נאמר מאיפה המקומות: נוצרו בשרת עם קבלת הטופס, או סומנו כאן.
+        placesLine: placesSentence(readiness.docs.find(x => x.key === d.key) ?? { key: d.key, title: d.title, places: [] })
+          + (exec.shaam?.[d.key]?.formPreparation?.state === 'prepared' ? ' · נוצרו אוטומטית עם קבלת הטופס' : ''),
+        problems: formProblems.filter(p => !p.docKey || p.docKey === d.key).map(p => p.text),
       }))
+    // ‼ הטופס הגיע ואין לו מסמך חתימה (בהכנה, נכשל, או שונה מהתבנית) — מציגים אותו כמו שהגיע.
+    : submissions.some(s => !!shaamTrack(s.key)?.formDocumentId && !shaamTrack(s.key)?.replacement)
+      ? submissions.filter(s => !!shaamTrack(s.key)?.formDocumentId && !shaamTrack(s.key)?.replacement).map(s => {
+          const t = shaamTrack(s.key)!;
+          // ‼ הקובץ כפי שהגיע, בלי סימונים — אין עדיין מקומות חתימה לצייר.
+          return {
+            key: s.key, name: submissions.length > 1 ? `ייפוי כוח · ${s.authoritiesLabel}` : 'ייפוי הכוח',
+            version: {
+              kind: 'to_sign' as const, label: 'הגיע משע״ם - מקומות החתימה טרם סומנו', documentId: t.formDocumentId!,
+              burnClientSignatures: false, fileName: t.formFileName || 'ייפוי כוח לחתימה.pdf',
+              caption: 'הטופס כפי שהגיע משע״ם. מקומות החתימה עוד לא סומנו עליו.',
+            },
+            ...(layoutProblems[s.key]
+              ? { problems: [layoutProblems[s.key]] }
+              : prepIssue[s.key]
+                ? { problems: [`הכנת מקומות החתימה לא הושלמה (${prepIssue[s.key]}). אפשר לנסות שוב, או לסמן ידנית.`] }
+                : { placesLine: 'נוצרים עכשיו אוטומטית…' }),
+          };
+        })
     : submissions.length > 0
       ? [{
           key: 'poa-none', name: 'ייפוי הכוח', version: null,
@@ -1332,8 +1408,38 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
         }
       }
     } else if (item.key === 'form') {
-      if (item.done) ctl = <button type="button" className="rc-quiet" onClick={onProduce}>צפייה ועריכה</button>;
-      else if (Object.keys(layoutProblems).length > 0) {
+      if (item.done) {
+        ctl = (
+          <>
+            {poaEntries[0]?.version && (
+              <button type="button" className="rc-link" data-testid="rc-prepare-view-poa" onClick={() => setHeroPoa(poaEntries[0])}>צפייה במקומות החתימה</button>
+            )}
+            <button type="button" className="rc-quiet" onClick={onProduce}>עריכה</button>
+          </>
+        );
+      } else if (formProblems.length > 0) {
+        // ‼ טופס קיים שחסר בו מקום חתימה / שיוך שגוי — אומרים מה, ונותנים את הדרך לתקן.
+        ctl = (
+          <>
+            {poaEntries[0]?.version && (
+              <button type="button" className="rc-link" onClick={() => setHeroPoa(poaEntries[0])}>צפייה</button>
+            )}
+            <button type="button" className="btn btn-secondary btn-sm" data-testid="rc-fix-places-prepare" onClick={onProduce}>תיקון מקומות החתימה</button>
+          </>
+        );
+      } else if (Object.keys(prepIssue).length > 0) {
+        ctl = (
+          <>
+            <button type="button" className="btn btn-secondary btn-sm" data-testid="rc-prep-retry" onClick={retryPreparation}>נסה שוב</button>
+            <button type="button" className="rc-quiet" onClick={onProduce}>סימון ידני</button>
+          </>
+        );
+        body = (
+          <span className="rc-meta" data-testid="rc-prep-issue">
+            הכנת מקומות החתימה לא הושלמה ({Object.values(prepIssue).join(', ')}).
+          </span>
+        );
+      } else if (Object.keys(layoutProblems).length > 0) {
         ctl = <button type="button" className="btn btn-secondary btn-sm" onClick={onProduce}>סימון אזורי חתימה</button>;
         body = (
           <span className="rc-meta" data-testid="form2279-layout-mismatch">
@@ -1479,7 +1585,16 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
       } : null;
       break;
     case 'send':
-      heroBody = <AskList title={`מה נבקש מ${firstName || 'הלקוח'}`} items={clientAsks(false)} />;
+      heroBody = (
+        <>
+          <AskList title={`מה נבקש מ${firstName || 'הלקוח'}`} items={clientAsks(false)} />
+          {poaEntries.filter(p => p.version).map(p => (
+            <button key={p.key} type="button" className="rc-link" data-testid="rc-hero-view-poa" onClick={() => setHeroPoa(p)}>
+              {poaEntries.length > 1 ? `צפייה ב${p.name} ובמקומות החתימה` : 'צפייה בטופס ובמקומות החתימה'}
+            </button>
+          ))}
+        </>
+      );
       aside = {
         title: `המייל ${toFirst}`,
         content: (
@@ -1675,6 +1790,22 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
   }
 
   // ── שורות הרשויות ─────────────────────────────────────────────────────────
+  /** מצב הטופס של הגשה אחת לפני השליחה — מהעובדות לפי אדם (כשיש כרטיס). */
+  const sentFormWhere = (key: string): string => {
+    const f = factOf(key);
+    if (!f) {
+      return formReady ? 'הטופס מוכן לחתימה' : formProblems.length > 0 ? 'הטופס דורש השלמה'
+        : formArrivedUnprepared ? 'הטופס הגיע · מקומות החתימה טרם סומנו' : 'ממתין לטופס';
+    }
+    switch (f.form) {
+      case 'ready': return formProblems.length > 0 ? 'הטופס דורש השלמה' : 'הטופס מוכן לחתימה';
+      case 'incomplete': return 'הטופס דורש השלמה';
+      case 'layout_mismatch': return 'הטופס שונה מהתבנית — לסמן מקומות חתימה';
+      case 'arrived': return 'הטופס הגיע · מקומות החתימה בהכנה';
+      case 'signed': return 'נחתם';
+      default: return 'ממתין לטופס משע״ם';
+    }
+  };
   const shaamRowStatus = (sub: ShaamSubmission, i: number): { text: string; tone?: 'attention' | 'danger' | 'done' } => {
     const t = shaamTrack(sub.key);
     const f = shaamFactsOf(sub);
@@ -1692,7 +1823,7 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
     const num = t?.requestNumber ? `בקשה ${t.requestNumber}` : 'הבקשה קיימת בשע״ם';
     if (stamped && docsPending) return { text: `${t?.requestNumber ? `בקשה ${t.requestNumber} · ` : ''}חתום · ההגשה ממתינה לאישור הצילום`, tone: 'attention' };
     const where = stamped ? 'חתום ומוכן להגשה' : signed ? 'נחתם בידי הלקוח' : exec.signatureEmailSentAt ? 'נשלח לחתימה'
-      : formReady ? 'הטופס מוכן לחתימה' : 'ממתין לטופס';
+      : sentFormWhere(sub.key);
     return { text: `${num} · ${where}` };
   };
   const niRowStatus = (role: 'client' | 'spouse'): { text: string; tone?: 'attention' | 'danger' | 'done' } => {
@@ -1904,6 +2035,8 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
         label: 'ייפוי הכוח',
         value: stamped ? 'חתום ומוחתם' : signed ? 'חתום על ידי הלקוח · נשארו החתימה והחותמת שלך'
           : formReady ? (exec.signatureEmailSentAt ? `נשלח לחתימה ב-${fmt(exec.signatureEmailSentAt)}` : 'מוכן לחתימה')
+          : formProblems.length > 0 ? 'הטופס דורש השלמה'
+          : formArrivedUnprepared ? 'הגיע משע״ם · מקומות החתימה טרם סומנו'
           : t?.replacement ? 'הטופס הקודם בוטל' : waitingForShaamForm ? 'ממתין לטופס משע״ם' : 'טרם הגיע',
         tone: stamped ? 'done' as const : undefined,
       },
@@ -1990,7 +2123,9 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
       </section>
 
       {/* ─────────── מסמכי הבקשה — צפייה בלחיצה אחת ─────────── */}
-      <RepDocuments poa={poaEntries} ids={idEntries} loadDoc={loadDoc} composeClientSigned={composeClientSigned}
+      {/* ‼ «תיקון מקומות החתימה» נמצא כבר בשורת הטופס בהכנה — כאן רק כשאין הכנה (נשלח וכו'). */}
+      <RepDocuments poa={poaEntries} signers={signers} signatureValues={request.signatureValues} onFixPlaces={inPrepare ? undefined : onProduce}
+        ids={idEntries} loadDoc={loadDoc} composeClientSigned={composeClientSigned}
         displayable={displayable} onRetry={id => void pdf.retry(id)}
         onDecide={pdf.decide} officeOnline={pdf.officeOnline}
         onRegenerateFinal={onRegenerateSignedPdf} regeneratingFinal={regeneratingSignedPdf} />
@@ -2001,7 +2136,7 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
           {/* ‼ הפעולה היחידה במסך שבודקת מול הרשויות — צמודה לכותרת, פעם אחת. */}
           <RepresentationReconcileButton heading={<div className="card-title rc-section-title">מול הרשויות</div>}
             clientId={linkedClient?.id} shaam={shaamReconcile} btl={btlReconcile} onChanged={onStepsChanged}
-            persistedLines={false} />
+            persistedLines={false} notChecked={reconcileNotChecked} />
         </div>
         <div className="rc-list">
           {submissions.map((sub, i) => {
@@ -2161,6 +2296,10 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
           approvals={approvalPeople} />
       )}
 
+      {heroPoa && (
+        <PoaViewer entry={heroPoa} signers={signers} values={request.signatureValues} loadDoc={loadDoc}
+          composeClientSigned={composeClientSigned} onClose={() => setHeroPoa(null)} />
+      )}
       {previewSignerId && (
         <EmailPreviewDialog
           readOnly

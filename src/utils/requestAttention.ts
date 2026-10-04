@@ -50,7 +50,7 @@ export interface AttentionContext {
   niExecution?: { client?: NiTracking; spouse?: NiTracking };
   /** מצב בקשת הייצוג — מקור המצב של שלב «ייצוג מול הרשויות». */
   repStatus?: RepresentationStatus | null;
-  /** הטופס מוכן אבל מייל החתימה לא יצא ('unsent') — הפעולה אצלך, לא אצל הלקוח. */
+  /** מייל החתימה לא יצא (repSendPhase לא ריק) — הפעולה אצלך, לא אצל הלקוח. */
   repSendPhase?: RepSendPhase | null;
   /**
    * בקשת הייצוג הנוכחית של הלקוח — קובעת מה מתקבץ תחת «ייצוג מול הרשויות».
@@ -122,7 +122,7 @@ const todayIso = () => new Date().toISOString().slice(0, 10);
  */
 export function niRidesWithSignature(ctx: Pick<AttentionContext, 'repStatus' | 'repSendPhase'>): boolean {
   const s = ctx.repStatus;
-  return s === 'pending_fill' || s === 'awaiting_accountant' || (s === 'pending_signature' && ctx.repSendPhase === 'unsent');
+  return s === 'pending_fill' || s === 'awaiting_accountant' || (s === 'pending_signature' && !!ctx.repSendPhase);
 }
 
 function niTrackAttention(track: NiTracking | undefined, job: AutomationJob | null | undefined, ridesWithSignature: boolean): Attention {
@@ -147,7 +147,7 @@ function repStatusAttention(status: RepresentationStatus, phase?: RepSendPhase |
     case 'awaiting_accountant':
     case 'awaiting_stamp': return { kind: 'mine', tone: 'blue' };
     // ‼ הטופס מוכן והמייל לא יצא ⇒ «לשלוח ללקוח לחתימה» — אצלך, לא אצל הלקוח.
-    case 'pending_signature': return phase === 'unsent' ? { kind: 'mine', tone: 'blue' } : { kind: 'waiting', tone: 'gray', waitingOn: 'client' };
+    case 'pending_signature': return phase ? { kind: 'mine', tone: 'blue' } : { kind: 'waiting', tone: 'gray', waitingOn: 'client' };
     case 'pending_fill': return { kind: 'waiting', tone: 'gray', waitingOn: 'client' };
     case 'awaiting_authorities': return { kind: 'waiting', tone: 'gray', waitingOn: 'authority' };
     case 'active': return { kind: 'done', tone: 'gray' };

@@ -53,6 +53,8 @@ function harness(found, over = {}) {
     confirmSystemsStep: spy('confirmSystemsStep', { ok: true, requestNumber: '2026599999' }),
     fillContactDetailsAndCaptureForm: spy('fillContactDetailsAndCaptureForm', { ok: true, spousePhoneAsked: false, form: { ok: true, buffer: Buffer.from('%PDF-'), source: 'window_open' } }),
     putDocument: spy('putDocument', { ok: true, size: 5 }),
+    // ‼ 218 · בדיקת התבנית בדף האתר — מדומה כאן (בלי Chrome ובלי רשת).
+    verifyFormLayout: spy('verifyFormLayout', { ok: true, problems: [], numPages: 1 }),
     captureDiagnostics: spy('captureDiagnostics', {}),
     progressTracker: () => {
       const state = {};
@@ -180,6 +182,22 @@ test('F · זרימה מלאה: האימות מקבל את needsVerification, ה
   assert.equal(out.result.requestNumber, '2026599999');
   assert.ok(h.progressWrites.some((p) => p.requestNumber === '2026599999'), 'מספר הבקשה נשמר מיד');
   assert.ok(h.calls.indexOf('confirmSystemsStep') < h.calls.indexOf('fillContactDetailsAndCaptureForm'));
+});
+
+test('218 · הטופס נבדק מול התבנית מיד אחרי שנשמר, והתוצאה יוצאת לשרת (formLayout)', async () => {
+  const h = harness(EMPTY, { verifyFormLayout: async () => ({ ok: false, problems: ['anchor:registered_word'] }) });
+  const out = await h.go();
+  assert.equal(h.args.verifyFormLayout.length, 1, 'נבדק פעם אחת');
+  assert.equal(String(h.args.verifyFormLayout[0][0]), '%PDF-', 'הקובץ שהתקבל משע״ם');
+  assert.deepEqual(out.result.formLayout, { ok: false, problems: ['anchor:registered_word'], by: 'worker' });
+});
+
+test('218 · בדיקת תבנית שנכשלה בהרצה לא מכשילה את המשימה — ok:null, והמשרד יבדוק', async () => {
+  const h = harness(EMPTY, { verifyFormLayout: async () => { throw new Error('converter down'); } });
+  const out = await h.go();
+  assert.equal(out.result.formDocumentId, 'poa-pdf-req-1-person-client');
+  assert.equal(out.result.formLayout.ok, null);
+  assert.match(out.result.formLayout.error, /converter down/);
 });
 
 test('F · שע״ם דילגה על האימות (יש ייצוג פעיל) ⇒ העובד לא ממציא אימות', async () => {
