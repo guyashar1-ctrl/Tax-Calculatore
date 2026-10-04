@@ -15,6 +15,7 @@
 // שהוא יימצא איפה שכל מסמך אחר של הלקוח נמצא.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { findIdenticalAmong, personDocIds, sha256Hex } from "../_shared/idDocDedupe.ts";
 
 const MAX_BYTES = 10 * 1024 * 1024;
 const MAX_PER_HOUR = 20;
@@ -101,9 +102,18 @@ Deno.serve(async (req: Request) => {
       .eq("client_id", clientId).gte("uploaded_at", hourAgo);
     if ((count ?? 0) >= MAX_PER_HOUR) return json({ error: "rate_limited" }, 429);
 
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    // ‼ 213 · אותו קובץ בדיוק כבר משויך **לאדם הזה** ⇒ לא נשמר שוב ולא נרשם שוב.
+    // לאדם האחר (בן/בת הזוג) — רשומה נפרדת עם שיוך ואישור משלה; לא מסיקים בעלות מהתוכן.
+    const hash = await sha256Hex(bytes);
+    const mine = personDocIds(reqRow.identity_docs, person);
+    const sameDoc = await findIdenticalAmong(admin, mine, bytes, hash);
+    if (sameDoc) {
+      return json({ ok: true, documentId: sameDoc, person, docKind, count: mine.length, deduped: true });
+    }
+
     const docId = crypto.randomUUID();
     const path = `${reqRow.user_id}/${clientId}/${docId}`;
-    const bytes = new Uint8Array(await file.arrayBuffer());
 
     const { error: upErr } = await admin.storage
       .from("client-documents").upload(path, bytes, { contentType: type, upsert: false });
@@ -136,6 +146,7 @@ Deno.serve(async (req: Request) => {
       file_name: file.name || `${docKind}.jpg`,
       file_type: type,
       file_size: file.size,
+      content_sha256: hash,
       category: "id_card",
       year: "general",
       label_id: labelId,

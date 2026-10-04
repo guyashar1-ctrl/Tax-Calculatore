@@ -10,6 +10,7 @@
 // ‼ העלאה לא נועלת ולא מחליפה את הסימון הידני של הרו"ח: החומרים עשויים להגיע
 //   גם במייל או בוואטסאפ, וגיא ממשיך לסמן פריטים בעצמו (הכרעת גיא 2026-08-05).
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { findIdenticalAmong, personDocIds, sha256Hex } from "../_shared/idDocDedupe.ts";
 
 const MAX_BYTES = 10 * 1024 * 1024; // 10MB
 const MAX_PER_HOUR = 40;            // רשת ביטחון מול הצפה, לא מכסה עבודה אמיתית
@@ -199,15 +200,28 @@ Deno.serve(async (req: Request) => {
     const itemLabel = isBulk ? "חומרים מהרו״ח הקודם" : String(list[idx]?.label || itemKey);
 
     // ── שמירה ב-Storage ואז ברשומת המסמכים ───────────────────────────────────
-    const docId = crypto.randomUUID();
-    const path = `${step.user_id}/${clientId}/${docId}`;
     const bytes = new Uint8Array(await file.arrayBuffer());
+    const hash = await sha256Hex(bytes);
+    // ‼ 213 · צילום מזהה שכבר משויך **לאותו אדם** בדיוק (אותם בייטים) — לא נשמר שוב;
+    // הפריט מצביע על הקיים. לאדם האחר — רשומה נפרדת (שיוך ואישור משלה).
+    // «צילום אחר במקומו» (identity_replacement) — לא נוגעים: זו החלפה, לא העלאה.
+    const idPerson = tokenKind === "release" || isBulk ? null
+      : itemKey === "id_card" ? "client" : itemKey === "id_card_spouse" ? "spouse" : null;
+    let sameDoc: string | null = null;
+    if (idPerson) {
+      const { data: reqs } = await admin.from("representation_requests").select("identity_docs").eq("linked_client_id", clientId);
+      const mine = ((reqs ?? []) as { identity_docs: unknown }[]).flatMap((r) => personDocIds(r.identity_docs, idPerson));
+      sameDoc = await findIdenticalAmong(admin, mine, bytes, hash);
+    }
+    const docId = sameDoc ?? crypto.randomUUID();
+    const path = `${step.user_id}/${clientId}/${docId}`;
 
+    const source = tokenKind === "release" ? "רואה החשבון הקודם" : "הלקוח";
+
+    if (!sameDoc) {
     const { error: upErr } = await admin.storage
       .from("client-documents").upload(path, bytes, { contentType: type, upsert: false });
     if (upErr) return json({ error: "storage_failed", detail: upErr.message }, 500);
-
-    const source = tokenKind === "release" ? "רואה החשבון הקודם" : "הלקוח";
 
     // ‼ כל מה שמגיע מדף הרו"ח הקודם מתויק בתיקייה אחת יציבה ללקוח, ולא
     // בשורש התיק. תיקייה אחת ולא אחת לכל בקשה — ראה מיגרציה 120. כישלון
@@ -254,6 +268,7 @@ Deno.serve(async (req: Request) => {
       file_name: file.name || `${itemKey}.pdf`,
       file_type: type,
       file_size: file.size,
+      content_sha256: hash,
       category: tokenKind === "release" ? "business_document" : (CATEGORY_BY_KEY[itemKey] || "other"),
       year: String(payload?.documentYear ?? "general"),
       label_id: labelId,
@@ -269,6 +284,7 @@ Deno.serve(async (req: Request) => {
       await admin.storage.from("client-documents").remove([path]);
       return json({ error: "record_failed", detail: docErr.message }, 500);
     }
+    } // !sameDoc
     // ‼ תמיכה מוכנה, בלי יצרן כרגע: "בקשת מסמכים" הגלובלית אינה משויכת למשימה
     // מסוימת ולכן אינה שולחת linkedTaskId. ברגע שתיווצר בקשה מתוך משימה, הקובץ
     // שיתקבל יתקשר אליה כאן — קישור, לא כפילות קובץ.
