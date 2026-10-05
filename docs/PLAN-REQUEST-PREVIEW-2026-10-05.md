@@ -80,7 +80,7 @@
 | D11 | **«＋ בקשה חדשה» ובונה הכללים** מקבלים את אותו «צפייה» ואותה מגירה; בתיק הלקוח הכפתור הראשי בתחתית — «הוספה ל{שם}» — ממשיך את נתיב ההוספה הקיים. הצפייה תמיד על דוגמה (הדף האמיתי של הלקוח כבר זמין ב«איך זה ייראה»). | עקרון 8. |
 | D12 | **מסמך שנוצר לכל לקוח** (ייפוי כוח, מכתב העברה כ-PDF, 6101) — הסבר במשפט; דוגמה רק אם נוצרת באותו מחולל, עם סימן מים «דוגמה», ובלי רשת. קובץ מספריית המשרד — נפתח האמיתי. קובץ מהתיק של לקוח — «נפתח רק אצל הלקוח». | עקרון 4. |
 | D13 | **עריכה וצפייה מופרדות:** המגירה לקריאה בלבד, הכותרת «צפייה». בתחתית — הפעולה האמיתית במקומה: «עריכה» (עורך הספרייה) / «עריכת הנוסח ב«מיילים» ←» / «מתי נפתחת? ←» / «הוספה לכלל ←». בקשה בלי עריכה — עדיין נצפית. | עקרון 7; G4. |
-| D14 | **מספר מיגרציה:** 221 (פנוי ב-05.10 בכל הענפים וה-worktrees). לבדוק שוב לפני מיזוג (`migration-number-collisions`). | — |
+| D14 | **מספר מיגרציה: 222.** 221 שמור לתוכנית המקבילה «תביעת מילואים» (`docs/PLAN-RESERVE-DUTY-CLAIM.md`, worktree `pivo-wt/reserve-duty-claim`), שגם היא מגדירה מחדש את `build_client_portal` (גוף 220 + שורת `photoGuide` בענף `custom_request`). ראה §6.0. לבדוק שוב לפני מיזוג (`migration-number-collisions`). | שתי תוכניות על אותה פונקציה — מי שנוחת שני בונה על הגוף של הראשון. |
 
 **אין הכרעה עסקית פתוחה.**
 
@@ -149,11 +149,19 @@
 
 ## 6. הארכיטקטורה
 
-### 6.1 שרת — מיגרציה `supabase/221-request-preview.sql`
+### 6.0 תיאום עם «תביעת מילואים» (חובה לפני שלב א׳)
+
+התוכנית המקבילה (`docs/PLAN-RESERVE-DUTY-CLAIM.md`) מוסיפה: מיגרציה 221 (`build_client_portal` = 220 + `'photoGuide', nullif(s.payload->>'clientPhotoGuide','')` בענף `custom_request`),
+`src/components/portal/photoGuides.ts` + רכיב מדריך מצולם גנרי שמחולץ מ-`RepApprovalGuide`, ותיקון ב-`InlineComposer` (העותק מהספרייה מעביר `clientNote`/`clientNoteAfter`/`clientRefs`/`clientPhotoGuide`).
+- **הבסיס של הגוף «מילה במילה»** = ההגדרה האחרונה של `build_client_portal` בין `origin/master` לענף של תביעת המילואים. אם 221 כבר במאסטר — הבסיס הוא 221 (כולל `photoGuide`), ו-P.1 משווה מולו. אם עדיין לא — לעשות rebase על הענף שלה לפני A1, או לעצור ולשאול את גיא איזה נוחת קודם. **לא** לשכפל את השורה ידנית בגוף אחר.
+- **מדריכים מצולמים בצפייה** — אוטומטי: הפריט מגיע מאותו בונה, ו-`PortalView` מצייר את המדריך. בדיקת הדפדפן (§10.3) מוודאת שכל תמונה במדריך נטענת (200).
+- **«＋ בקשה חדשה» עם תבנית מהספרייה** — ה-payload לצפייה הוא הפלט של `buildPayload` של `InlineComposer` (לייצא כפונקציה טהורה אם צריך), **לא** ה-payload הגולמי של התבנית. אחרת, אם הקומפוזר משמיט שדות, הצפייה תראה יותר ממה שנוצר בפועל.
+
+### 6.1 שרת — מיגרציה `supabase/222-request-preview.sql`
 
 1. **`_portal_rep_item(req representation_requests) returns jsonb`** — ענפי `req.status` שלפני הלולאה, מילה במילה.
 2. **`_portal_step_items(s onboarding_steps, c clients, p profiles, req representation_requests, p_rep_item jsonb, p_ctx jsonb default '{}') returns jsonb`**
-   → `{items, repSeen, prevOpen, prevDone}`. הגוף = `case s.step_type … end case` מ-220 **מילה במילה**; `v_items := v_items || x` כותב למערך מקומי; כל `continue` הופך ל-`return` של מה שנצבר עד אותה נקודה (‼ בענף `identity` נוסף פריט **לפני** ה-`continue`).
+   → `{items, repSeen, prevOpen, prevDone}`. הגוף = `case s.step_type … end case` מההגדרה האחרונה (§6.0 — 220, או 221 אם תביעת המילואים נחתה) **מילה במילה**; `v_items := v_items || x` כותב למערך מקומי; כל `continue` הופך ל-`return` של מה שנצבר עד אותה נקודה (‼ בענף `identity` נוסף פריט **לפני** ה-`continue`).
    שלושה «תפרים» מפורשים בלבד, ובכולם `p_ctx = '{}'` ⇒ התנהגות זהה:
    `p_ctx ? 'approvals'` במקום `_rep_approval_people(c.id)` · `p_ctx->>'lockReason'` לפני `portal_lock_reason(s.id)` · `p_ctx ? 'homeOffice'` במקום הקריאה מ-`client_home_office_answers`.
    `STABLE SECURITY DEFINER`, `revoke all … from public, anon, authenticated` (פנימית).
@@ -262,7 +270,7 @@
 
 ## 8. היקף השינויים
 
-**חדש:** `supabase/221-request-preview.sql` · `scripts/sql/test-221-request-preview.sql` · `src/components/portal/portalActions.ts` ·
+**חדש:** `supabase/222-request-preview.sql` · `scripts/sql/test-222-request-preview.sql` · `src/components/portal/portalActions.ts` ·
 `src/features/requestPreview/*` (§6.3) + `__tests__/registry.test.ts`, `__tests__/portalModes.test.ts` ·
 `scripts/capture-request-preview-fixtures.mjs` · `scripts/qa-request-preview.mjs` · `src/components/office/__fixtures__/requestPreview.json`.
 
@@ -281,14 +289,14 @@
 כל משימה נסגרת רק כשהקריטריונים שלה נבדקו בפועל.
 
 **שלב 0 — הכנה**
-- 0.1 `git fetch`; אם `origin/master` זז — rebase של `plan/request-preview`; ענף עבודה `feature/request-preview`. לוודא ש-221 פנוי (D14). לא לגעת בתיקייה הראשית (סשנים מקבילים — `git add` רק לקבצים שלך).
+- 0.1 `git fetch`; אם `origin/master` זז — rebase של `plan/request-preview`; ענף עבודה `feature/request-preview`. לוודא את המספר ואת בסיס הגוף (D14, §6.0). לא לגעת בתיקייה הראשית (סשנים מקבילים — `git add` רק לקבצים שלך).
 - 0.2 להפעיל `request-preview` (5210) ו-`request-preview-staging` (5211); לאמת בדפדפן שהספרייה נטענת בשניהם.
 
 **שלב א׳ — שרת** (קבלה: P.1–P.6 עוברות ב-staging בהרצה מתבטלת)
 - A1 `_portal_rep_item` + `_portal_step_items` + `build_client_portal` חדש (§6.1.1–3).
 - A2 פונקציות ה-payload של היוצרים (§6.1.4), והיוצרים קוראים להן.
 - A3 `preview_request_sample` (§6.1.5).
-- A4 `scripts/sql/test-221-request-preview.sql` (§10.2) והרצה: `node scripts/staging-dryrun-flows.mjs --tests scripts/sql/test-221-request-preview.sql` — וגם `test-notices-flows.sql`, `test-r4-engine.sql`, `test-r4-notices.sql`, `test-220-business-details.sql`.
+- A4 `scripts/sql/test-222-request-preview.sql` (§10.2) והרצה: `node scripts/staging-dryrun-flows.mjs --tests scripts/sql/test-222-request-preview.sql` — וגם `test-notices-flows.sql`, `test-r4-engine.sql`, `test-r4-notices.sql`, `test-220-business-details.sql`.
 
 **שלב ב׳ — הדף האישי** (קבלה: `live` זהה; `sample` בלי רשת; `officeView` מראה תוכן)
 - B1 `portalActions.ts` + מעבר כל הקריאות. B2 `PortalModeCtx` ושלושת המצבים. B3 עדכון `PortalPreviewPanel`, `ClientPagePreviewDialog`, `RepresentationSettingsSection`, `__TestPortalPreview`.
@@ -320,9 +328,9 @@
 - **בלי רשת בדוגמה** (`portalModes.test.ts`): ב-`PublicPortalPage.tsx` אין `supabase.` מחוץ ל-`portalActions.ts`; `samplePortalActions` לא מייבא את `lib/supabase`; הדף הציבורי (`PublicPortalPage`) לא יכול לקבל `sample`.
 - **כתובות:** `targets` הלוך-חזור לכל סוג יעד.
 
-### 10.2 SQL — `scripts/sql/test-221-request-preview.sql` (staging, מתבטל)
-- **P.1 זהות הדף:** לפני החלת 221 — טבלה זמנית עם `build_client_portal(id,'live')` ו-`(id,'preview')` לכל לקוח; אחרי — השוואה. **אפס הבדלים.**
-- **P.2 דוגמה = אמת:** לקוח QA בתוך העסקה; לכל רשומה × וריאנט עיקרי — יוצרים שלב אמיתי בנתיב האמיתי (`create_onboarding_request` מתבנית; `ensure_rep_client_approval_step`; `shaam_require_client_approval`; המחולל ל-QA; `_flow_materialize` לפריט מערכת), ומשווים את הפריט שלו ב-`build_client_portal` לפריט מ-`preview_request_sample`. נרמול: `key`/`actionValue`/`stepId`/טוקנים/שמות. **שוויון.**
+### 10.2 SQL — `scripts/sql/test-222-request-preview.sql` (staging, מתבטל)
+- **P.1 זהות הדף:** לפני החלת 222 — טבלה זמנית עם `build_client_portal(id,'live')` ו-`(id,'preview')` לכל לקוח; אחרי — השוואה. **אפס הבדלים.**
+- **P.2 דוגמה = אמת:** לקוח QA בתוך העסקה; לכל רשומה × וריאנט עיקרי — יוצרים שלב אמיתי בנתיב האמיתי (`create_onboarding_request` מתבנית — וגם עם הפלט של `buildPayload` של הקומפוזר, הנתיב של «＋ בקשה חדשה»; `ensure_rep_client_approval_step`; `shaam_require_client_approval`; המחולל ל-QA; `_flow_materialize` לפריט מערכת), ומשווים את הפריט שלו ב-`build_client_portal` לפריט מ-`preview_request_sample`. נרמול: `key`/`actionValue`/`stepId`/טוקנים/שמות. **שוויון.**
 - **P.3 אין כתיבה:** `provolatile = 's'` ל-`preview_request_sample` ול-`_portal_step_items`; ספירות `clients`, `onboarding_steps`, `onboarding_events`, `email_messages`, `client_step_notice_state`, `automation_jobs`, `net.http_request_queue` לפני ואחרי 50 קריאות — זהות.
 - **P.4 הרשאות:** anon — אין הרשאה; משתמש לא מורשה — נדחה; תבנית של משרד אחר — `library_item_missing`; הפלט בלי טוקנים אמיתיים (רק `'sample'`).
 - **P.5 קצוות:** `not_repeatable`, `library_item_missing`, משימה פנימית (`internal: true`, אפס פריטים), וריאנט לא מוכר — שגיאה ברורה.
@@ -348,7 +356,7 @@
 ```
 שורה בטבלה §12.5:
 ```
-| מה הלקוח רואה בבקשה — בדף, בצפייה בספרייה ובתצוגות במשרד | ענף ב-`_portal_step_items` (221) — **המקום היחיד**; `build_client_portal` ו-`preview_request_sample` קוראים לו. רשומה ב-`features/requestPreview/registry.ts`. פעולה חדשה בדף — רק דרך `PortalActions` (`portal/portalActions.ts`), עם התנהגות `sample` שלא פונה לרשת | `run-unit-tests.mjs` (registry, portalModes), `test-221-request-preview.sql` (P.1–P.5), `scripts/qa-request-preview.mjs` |
+| מה הלקוח רואה בבקשה — בדף, בצפייה בספרייה ובתצוגות במשרד | ענף ב-`_portal_step_items` (222) — **המקום היחיד**; `build_client_portal` ו-`preview_request_sample` קוראים לו. רשומה ב-`features/requestPreview/registry.ts`. פעולה חדשה בדף — רק דרך `PortalActions` (`portal/portalActions.ts`), עם התנהגות `sample` שלא פונה לרשת | `run-unit-tests.mjs` (registry, portalModes), `test-222-request-preview.sql` (P.1–P.5), `scripts/qa-request-preview.mjs` |
 ```
 ומקטע קצר §12.6 «צפייה» — שלושת המצבים (D4), «דוגמה מסומנת», «אין בצפייה שליחה/שמירה/חתימה/אישור/אוטומציה», ו«בקשה חדשה = ענף + רשומה + וריאנטים + P.2».
 
@@ -364,9 +372,9 @@
 
 1. `npx tsc --noEmit` · `npm run test:unit` · `vite build`.
 2. staging מתבטל: `staging-dryrun-flows.mjs --tests …` (§9 A4) — הכול עובר.
-3. **החלה על staging — רק אחרי אישור קצר של גיא.** לפני: גיבוי הגדרות הפונקציות שמשתנות (`build_client_portal`, `ensure_rep_client_approval_step`, `shaam_require_client_approval`, `generate_onboarding_steps`) ל-`docs/evidence/request-preview-2026-10-05/staging-before-221.json`. אחרי: `verify-migration-functions.mjs supabase/221-request-preview.sql` (staging), `staging-test-onboarding-roundtrip.mjs real|synthetic`, `staging-test-single-source.mjs` (E המעודכנת), `capture-request-preview-fixtures.mjs`, `qa-request-preview.mjs`.
-4. **ייצור — הכנה בלבד:** `prod-dryrun-6101-migrations.mjs --files supabase/221-request-preview.sql` עם בדיקת P.1 על כל לקוחות הייצור (הכול מתבטל — קריאה בלבד בפועל). לוודא שהעמודות שהפונקציות קוראות קיימות בייצור (`prod-behind-staging-drift`).
-5. סדר השחרור לכשיאושר: גיבוי (`prod-backup-before-migration.mjs`) → 221 (`prod-apply-migration.mjs`) → `verify-migration-functions.mjs supabase/221-request-preview.sql --prod` + `verify-migration-ownership.mjs --target=prod` → האתר (push ל-master — באישור) → בדיקה חיה של הספרייה (קריאה בלבד). **אין** פונקציות Edge לפרוס, **אין** cron.
+3. **החלה על staging — רק אחרי אישור קצר של גיא.** לפני: גיבוי הגדרות הפונקציות שמשתנות (`build_client_portal`, `ensure_rep_client_approval_step`, `shaam_require_client_approval`, `generate_onboarding_steps`) ל-`docs/evidence/request-preview-2026-10-05/staging-before-222.json`. אחרי: `verify-migration-functions.mjs supabase/222-request-preview.sql` (staging), `staging-test-onboarding-roundtrip.mjs real|synthetic`, `staging-test-single-source.mjs` (E המעודכנת), `capture-request-preview-fixtures.mjs`, `qa-request-preview.mjs`.
+4. **ייצור — הכנה בלבד:** `prod-dryrun-6101-migrations.mjs --files supabase/222-request-preview.sql` עם בדיקת P.1 על כל לקוחות הייצור (הכול מתבטל — קריאה בלבד בפועל). לוודא שהעמודות שהפונקציות קוראות קיימות בייצור (`prod-behind-staging-drift`).
+5. סדר השחרור לכשיאושר: גיבוי (`prod-backup-before-migration.mjs`) → 222 (`prod-apply-migration.mjs`) → `verify-migration-functions.mjs supabase/222-request-preview.sql --prod` + `verify-migration-ownership.mjs --target=prod` → האתר (push ל-master — באישור) → בדיקה חיה של הספרייה (קריאה בלבד). **אין** פונקציות Edge לפרוס, **אין** cron.
 6. דוח לגיא (עברית): מה נבנה, מה נבדק ואיך (צילומים 1280/390/360), מה לא נבדק (מכשיר אמיתי, משתמש חדש אמיתי), פערים שנשארו (למשל מסך בשלב ה׳ שלא הושלם), ומה דרוש לשחרור.
 
 ---
