@@ -255,12 +255,16 @@ export const SEQ_STEPS: Record<string, AutomationJob | null> = {
 HISTORIES['live-sequence'] = [histJob(3, histPerson('client', completeIncome([DECL])))];
 
 const DELAY_MS = Number(new URLSearchParams(window.location.search).get('delay') ?? 0);
-setIncomeEvidenceFetcherForHarness(() => async (offset, limit) => {
-  if (CASE === 'evidence-loading') await new Promise(() => { /* לעולם לא מסתיים */ });
-  if (DELAY_MS) await new Promise(r => setTimeout(r, DELAY_MS));
-  if (CASE === 'evidence-error') return { jobs: [], error: 'מדומה' };
-  return { jobs: (HISTORIES[CASE] ?? []).slice(offset, offset + limit) };
-});
+// ‼ מותקן רק כשמסך הבדיקה הזה פתוח בשרת פיתוח. App.tsx מייבא את הקובץ בכל
+// טעינה — התקנה ברמת המודול החליפה את ההיסטוריה האמיתית בריקה בכל המערכת.
+if (import.meta.env.DEV && new URLSearchParams(window.location.search).has('test-btl-sync')) {
+  setIncomeEvidenceFetcherForHarness(() => async (offset, limit) => {
+    if (CASE === 'evidence-loading') await new Promise(() => { /* לעולם לא מסתיים */ });
+    if (DELAY_MS) await new Promise(r => setTimeout(r, DELAY_MS));
+    if (CASE === 'evidence-error') return { jobs: [], error: 'מדומה' };
+    return { jobs: (HISTORIES[CASE] ?? []).slice(offset, offset + limit) };
+  });
+}
 
 export default function TestBtlSync() {
   const [uid, setUid] = useState<string | undefined>(undefined);

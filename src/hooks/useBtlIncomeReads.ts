@@ -18,7 +18,11 @@ export type { NiIncomeReads };
 
 /** ‼ למסכי בדיקה בלבד (?test-*): מקור משימות מדומה, בלי מסד. בייצור — תמיד null. */
 let harnessFetcher: ((clientId: string) => FetchIncomeJobsPage) | null = null;
-export function setIncomeEvidenceFetcherForHarness(f: ((clientId: string) => FetchIncomeJobsPage) | null) { harnessFetcher = f; }
+// ‼ רק בשרת פיתוח. App.tsx מייבא את מסכי הבדיקה בכל טעינה (גם בבנייה לייצור) —
+// מקור מדומה שהותקן בטעות היה מחזיר לכל לקוח היסטוריה ריקה. (נמצא ב-staging, 05.10.)
+export function setIncomeEvidenceFetcherForHarness(f: ((clientId: string) => FetchIncomeJobsPage) | null) {
+  harnessFetcher = import.meta.env.DEV ? f : null;
+}
 
 const CLIENT_ONLY: readonly PersonRole[] = ['client'];
 const CLIENT_AND_SPOUSE: readonly PersonRole[] = ['client', 'spouse'];
@@ -62,7 +66,8 @@ export function useBtlIncomeReads(
     if (!clientId) return;
     let alive = true;
     void collectIncomeEvidence(
-      harnessFetcher?.(clientId) ?? ((offset, limit) => fetchSucceededJobsPage(clientId, BTL_SYNC_FILE_ACTION_TYPE, offset, limit)), roles,
+      (import.meta.env.DEV ? harnessFetcher?.(clientId) : null)
+        ?? ((offset, limit) => fetchSucceededJobsPage(clientId, BTL_SYNC_FILE_ACTION_TYPE, offset, limit)), roles,
     )
       .then(reads => { if (alive) setState({ key, status: 'ready', reads }); })
       .catch(() => { if (alive) setState({ key, status: 'error' }); });
