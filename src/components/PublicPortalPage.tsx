@@ -17,6 +17,9 @@ import { MESSAGE_DEFAULT_TITLE } from '../lib/sendDocuments';
 import { deriveQuotationBrand } from './quotations/quotationBranding';
 import EmailInput from './ui/EmailInput';
 import RepApprovalGuide, { RepApprovalGuideButton, repApprovalCard, type RepApprovalPerson } from './portal/RepApprovalGuide';
+import { PhotoGuideButton } from './portal/PhotoGuide';
+import PhotoGuideDialog from './portal/PhotoGuideDialog';
+import { photoGuideFor } from './portal/photoGuides';
 import { linkHost } from '../features/links/linkDestinations';
 import { REP_PORTAL_CARD_FIXED } from '../../supabase/functions/_shared/repTemplates.ts';
 import './portal/portalPage.css';
@@ -155,6 +158,11 @@ export interface PortalItem {
   edited?: boolean;
   /** אישור הייצוג באזור האישי (rep_approval): מה כל אדם מסמן — מהשרת. חסר ⇒ נוסח כללי. */
   approvals?: RepApprovalPerson[];
+  /**
+   * 221 · מפתח של מדריך מצולם בבקשה חופשית (clientPhotoGuide בבקשה) — לא הצעדים ולא הקישור: אלה קבועים
+   * בקוד (portal/photoGuides.ts). ‼ מפתח לא מוכר ⇒ הדף פשוט לא מציג מדריך.
+   */
+  photoGuide?: string;
 }
 
 /** מה שהדף מרשה להעלות. אותה רשימה נאכפת שוב בשרת — כאן זה רק כדי לחסוך
@@ -411,6 +419,46 @@ function CustomRequestBlock({ token, item, brand, accent, onDone }: {
           );
         }
         if (r.kind === 'select') {
+          // ‼ 221 · עד חמש תשובות — רשימה גלויה ולא תפריט נפתח. בתפריט סגור תשובה ארוכה נחתכת (ב-360px:
+          // «כל תקופות המילואים מופיעות -…») והלקוח לא רואה מה בחר לפני «שליחה». כל תשובה בשורה משלה,
+          // עם הטקסט המלא, ושטח לחיצה של 44px. יותר מחמש — תפריט כמו קודם.
+          const opts = r.options ?? [];
+          if (opts.length >= 2 && opts.length <= 5) {
+            const chosen = text[r.key] ?? '';
+            const locked = busyKey === r.key || previewMode;
+            const groupId = `pp-q-${stepId}-${r.key}`;
+            return (
+              <div key={r.key} style={{ display: 'grid', gap: 6 }}>
+                <span id={groupId} style={{ fontSize: 13, color: brand.ink }}>{labelOf(r)}</span>
+                <div role="radiogroup" aria-labelledby={groupId} data-testid="portal-choices" style={{ display: 'grid', gap: 6 }}>
+                  {opts.map(o => {
+                    const on = chosen === o;
+                    return (
+                      <label key={o} className={`pp-choice${locked ? ' is-locked' : ''}`} style={{
+                        display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 12px', fontSize: 13.5, lineHeight: 1.55,
+                        color: brand.ink, background: on ? `color-mix(in srgb, ${accent} 7%, #fff)` : '#fff',
+                        border: `1px solid ${on ? accent : brand.border}`, borderRadius: brand.radius,
+                        boxShadow: on ? `inset 0 0 0 1px ${accent}` : 'none',
+                      }}>
+                        <input type="radio" name={groupId} value={o} checked={on} disabled={locked}
+                          onChange={() => setText(t => ({ ...t, [r.key]: o }))}
+                          style={{ accentColor: accent, marginTop: 4, flexShrink: 0 }} />
+                        <span style={{ flex: 1, minWidth: 0, overflowWrap: 'anywhere' }}>{o}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+                <div>
+                  <button type="button"
+                    disabled={previewMode || busyKey === r.key || !chosen.trim()}
+                    onClick={() => void submit(r.key, chosen)}
+                    style={btn(accent, brand.radius, busyKey === r.key || previewMode)}>
+                    {busyKey === r.key ? 'שומר…' : 'שליחה'}
+                  </button>
+                </div>
+              </div>
+            );
+          }
           return (
             <div key={r.key} style={{ display: 'grid', gap: 4 }}>
               <span style={{ fontSize: 13, color: brand.ink }}>{labelOf(r)}</span>
@@ -492,6 +540,9 @@ function progressLine(item: PortalItem): string | undefined {
     return `${done} מתוך ${item.checklist.length} התקבלו`;
   }
   if (item.requirements?.length) {
+    // ‼ 221 · דרישה חובה אחת — «0 מתוך 1 הושלמו» הוא מונה על שאלה אחת, וגם מחביא את הניסוח שהמשרד כתב
+    // מתחת לכותרת. השרת כבר שולח אותו כ-sub (clientSub) בדיוק במצב הזה, ומונה רק מדרישה שנייה (build_client_portal).
+    if (item.requirements.filter(r => r.required !== false).length <= 1) return item.sub;
     const done = item.requirements.filter(r => r.done).length;
     return `${done} מתוך ${item.requirements.length} הושלמו`;
   }
@@ -594,9 +645,11 @@ function ActionItem({ token, item, brand, accent, last, onDone }: {
           {href && (previewMode
             ? <span style={inertBtn}>להמשך ←</span>
             : <a href={href} style={primaryBtn}>להמשך ←</a>)}
-          {expandable && (previewMode
+          {/* ‼ בקשה חופשית נפתחת גם בתצוגה במשרד: ההסבר, המדריך והשאלה הם מה שהלקוח רואה, והפקדים שבפנים
+              כבויים (CustomRequestBlock). שאר הסוגים (מסמכים, רו״ח קודם) — הטפסים שבהם חיים, ולכן נשארים כבויים. */}
+          {expandable && (previewMode && item.kind !== 'custom'
             ? <span style={inertBtn}>{primaryLabel}</span>
-            : <button type="button" onClick={() => setOpen(o => !o)} style={primaryBtn}>{primaryLabel}</button>)}
+            : <button type="button" onClick={() => setOpen(o => !o)} style={primaryBtn} aria-expanded={open}>{primaryLabel}</button>)}
         </div>
       )}
 
@@ -616,6 +669,7 @@ function ActionItem({ token, item, brand, accent, last, onDone }: {
       {open && inPage && item.kind === 'custom' && item.actionValue && (
         <div style={{ borderTop: `1px dashed ${brand.border}`, paddingTop: 8, marginTop: 12 }}>
           <RequestGuide item={item} brand={brand} />
+          <PhotoGuideRow item={item} brand={brand} accent={accent} />
           <CustomRequestBlock token={token} item={item} brand={brand} accent={accent} onDone={onDone} />
         </div>
       )}
@@ -860,6 +914,43 @@ function GuideOpenButton({ token, item, brand, accent, onDone }: {
       style={style} onClick={() => { void record(); }}>
       {item.cta || 'לפתיחת המדריך'}
     </a>
+  );
+}
+
+/**
+ * 221 · מדריך מצולם בבקשה חופשית — כפתור שפותח את המדריך, וקישור לאתר שבו הלקוח פועל.
+ *
+ * ‼ שניהם קריאה וניווט בלבד: אף אחד מהם לא קורא ל-portal_submit_step ולא מסמן כלום. הבקשה מושלמת
+ * רק בתשובה של הלקוח (CustomRequestBlock) — מי שפתח את המדריך או את האתר עוד לא סיים.
+ * ‼ המפתח (item.photoGuide) מהשרת; הצעדים והקישור קבועים בקוד (photoGuides.ts) — לא clientLinkUrl,
+ * ששם בקשה חופשית הופכת ל«חומר עזר» שנסגר בפתיחה.
+ * ‼ הקישור הוא כפתור משני (מסגרת, לא מילוי): הכפתור המלא בכרטיס הוא «שליחה» של התשובה.
+ * ‼ במשרד (תצוגה מקדימה) המדריך נפתח בקריאה בלבד, והקישור אינרטי — כמו אישור הייצוג.
+ * שורה אחת עם flexWrap: בטלפון נשברת לשתי שורות, בלי גלילה אופקית.
+ */
+function PhotoGuideRow({ item, brand, accent }: {
+  item: PortalItem;
+  brand: { ink: string; muted: string; border: string; radius: number };
+  accent: string;
+}) {
+  const previewMode = useContext(PreviewCtx);
+  const [open, setOpen] = useState(false);
+  const guide = photoGuideFor(item.photoGuide);
+  if (!guide) return null;
+  const linkStyle: React.CSSProperties = {
+    display: 'inline-flex', alignItems: 'center', textDecoration: 'none',
+    fontSize: 13.5, fontWeight: 600, padding: '8px 16px', color: accent,
+    border: `1px solid ${accent}`, background: 'transparent', borderRadius: brand.radius,
+  };
+  return (
+    <div className="pp-photo-row" data-testid="photo-guide-row">
+      <PhotoGuideButton steps={guide.steps.length} onClick={() => setOpen(true)} accent={accent} />
+      {previewMode
+        ? <span className="pp-site-link is-inert" style={{ ...linkStyle, opacity: .55, cursor: 'default' }}>{guide.siteLabel} ↗</span>
+        : <a className="pp-site-link" href={guide.entry.url} target="_blank" rel="noopener noreferrer" style={linkStyle}>{guide.siteLabel} ↗</a>}
+      <LinkHostNote url={guide.entry.url} extra="נדרשות כניסה והזדהות" brand={brand} />
+      {open && <PhotoGuideDialog guide={guide} onClose={() => setOpen(false)} accent={accent} entryInert={previewMode} />}
+    </div>
   );
 }
 

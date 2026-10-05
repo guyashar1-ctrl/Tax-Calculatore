@@ -755,6 +755,12 @@ export interface StepPayload {
    * רק שהיעד הוא כתובת ולא קובץ. השרת בוחר ביניהם ב-build_client_portal.
    */
   clientLinkUrl?: string;
+  /**
+   * מפתח של מדריך מצולם (components/portal/photoGuides.ts) — הדף האישי מציג כפתור «מדריך מצולם»
+   * וקישור לאתר שבו הלקוח פועל. ‼ המפתח בלבד: הצעדים, התמונות והקישור קבועים בקוד.
+   * ‼ לא clientLinkUrl: שם בקשה חופשית הופכת ל«חומר עזר» (kind='guide') שנסגרת בפתיחה.
+   */
+  clientPhotoGuide?: string;
   /** מזהה יציב לבקשה שהמערכת יוצרת בעצמה, כדי לא ליצור אותה פעמיים. */
   guideKey?: string;
   /** מפתחות הרשויות שעדיין רשומות כמייצג משני (RepAuthorityKind). */

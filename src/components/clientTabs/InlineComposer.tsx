@@ -13,7 +13,8 @@ import { supabase } from '../../lib/supabase';
 import type { CustomRequirement, CustomRequirementKind, ExternalPartyConfig, OnboardingStep } from '../../types/onboarding';
 import { REQUIREMENT_KIND_LABELS, STEP_TYPE_LABELS } from '../../types/onboarding';
 import type { TemplateEntry } from '../../lib/requestTemplates';
-import { differsFromTemplate, saveRequestTemplate, updateRequestTemplate } from '../../lib/requestTemplates';
+import { differsFromTemplate, saveRequestTemplate, templateCarryOver, updateRequestTemplate } from '../../lib/requestTemplates';
+import TemplateCarryNote from '../portal/TemplateCarryNote';
 import type { IntakeContext } from '../../lib/clientState';
 import { intakeAcceptsRequired } from '../../lib/clientState';
 import EmailInput from '../ui/EmailInput';
@@ -364,6 +365,10 @@ export default function InlineComposer({
       clientTitle: title,
       clientSub: clientSub.trim(),
       clientCta: clientCta.trim(),
+      /* ‼ מה שהנוסח בספרייה נושא ללקוח ושאינו שדה כאן — ההסבר והמדריך המצולם. בלעדיו הבקשה
+         הייתה מגיעה ללקוח בלי הסבר (נזרק בשקט). רק ביצירה ורק בבקשה ללקוח: משימה פנימית וגורם
+         חיצוני לא נושאים הסבר ללקוח, ובעריכה המיזוג בשרת שומר את המפתחות שכבר נשמרו. */
+      ...(!edit && owner === 'client' ? templateCarryOver(initialContent) : {}),
       ...(requirements.length ? { requirements } : {}),
       ...(externalParty ? { externalParty } : {}),
       ...internalTaskMarker(owner, !!edit),
@@ -531,6 +536,11 @@ export default function InlineComposer({
         <span style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)' }}>
           כדי להעביר את הבקשה למישהו אחר - הסר אותה וצור חדשה
         </span>
+      )}
+      {/* ‼ מה שהלקוח יקבל ואינו שדה כאן — ההסבר והמדריך המצולם מהספרייה. רק בבקשה ללקוח (המשימה
+          הפנימית והגורם החיצוני לא נושאים אותם). «הצגה» פותחת את המדריך בקריאה בלבד. */}
+      {owner === 'client' && (
+        <TemplateCarryNote content={editContent} lead={edit ? 'מצורף ללקוח:' : 'מצורף ללקוח מהספרייה:'} />
       )}
 
       {/* ── לקוח: מה אני מצפה לקבל ── */}

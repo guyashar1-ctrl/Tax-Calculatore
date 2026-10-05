@@ -45,3 +45,30 @@
   .pp-group-kid { flex-wrap: wrap; padding: 11px 12px; gap: 4px; }
   .pp-group-kid-tag { flex-basis: 100%; }
 }
+
+/* ─── מדריך מצולם בבקשה חופשית (221) ──────────────────────────────────────────
+   ‼ שורה אחת עם flexWrap — בטלפון נשברת לשתי שורות בלי גלילה אופקית. הקישור לאתר הוא כפתור משני
+   (מסגרת, לא מילוי): הכפתור המלא בכרטיס הוא «שליחה» של התשובה. הצבעים — של המשרד, ב-style. */
+.pp-photo-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; margin: 10px 0 2px; }
+.pp-site-link {
+  box-sizing: border-box; min-height: 40px; touch-action: manipulation; -webkit-user-select: none; user-select: none;
+  transition: transform 160ms cubic-bezier(.23, 1, .32, 1), background-color 160ms ease;
+}
+.pp-site-link:active:not(.is-inert) { transform: scale(.97); }
+.pp-site-link:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+@media (hover: hover) and (pointer: fine) { .pp-site-link:hover:not(.is-inert) { background-color: rgba(0, 0, 0, .04); } }
+@media (pointer: coarse) { .pp-site-link, .pp-photo-row .rag-open { min-height: 44px; } }
+@media (prefers-reduced-motion: reduce) { .pp-site-link { transition: none; } }
+
+/* ─── בחירה בבקשה חופשית: עד חמש תשובות כרשימה גלויה (221) ─────────────────────
+   ‼ שורה לכל תשובה עם הטקסט המלא — תפריט סגור חותך תשובה ארוכה בטלפון. הצבעים — של המשרד, ב-style. */
+.pp-choice {
+  cursor: pointer; box-sizing: border-box; min-height: 44px; touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+}
+.pp-choice.is-locked { cursor: default; opacity: .6; }
+.pp-choice:has(input:focus-visible) { outline: 2px solid currentColor; outline-offset: 2px; }
+@media (hover: hover) and (pointer: fine) { .pp-choice:hover:not(.is-locked) { background-color: rgba(0, 0, 0, .03); } }
+@media (prefers-reduced-motion: reduce) { .pp-choice { transition: none; } }
+.pp-choice input:focus-visible { outline: none; }

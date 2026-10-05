@@ -131,6 +131,25 @@ export const templateBySeed = (list: RequestTemplate[], seedKey: string) =>
 export const firstEntry = (t: RequestTemplate): TemplateEntry | undefined => t.entries[0];
 
 /**
+ * מה שהנוסח בספרייה נושא ללקוח מעבר למה שהקומפוזר עורך — עובר הלאה כמו שהוא.
+ * ‼ הקומפוזר בונה את ה-payload מהשדות שעל המסך בלבד; בלי המפתחות האלה בקשה שנוצרה מהספרייה
+ * הגיעה ללקוח בלי ההסבר ובלי המדריך המצולם (כך נזרק גם ההסבר של «הקמת הרשאה לחיוב חשבון»).
+ */
+export const TEMPLATE_CARRY_KEYS = ['clientNote', 'clientNoteAfter', 'clientRefs', 'clientPhotoGuide'] as const;
+
+/** ערך שיש בו תוכן, לפי הסוג של המפתח: clientRefs — רשימה לא ריקה; האחרים — מחרוזת לא ריקה. */
+export const hasCarryValue = (key: typeof TEMPLATE_CARRY_KEYS[number], v: unknown): boolean =>
+  key === 'clientRefs' ? Array.isArray(v) && v.length > 0 : typeof v === 'string' && v.trim() !== '';
+
+/** רק מפתחות קיימים ולא ריקים, בערך המקורי. תוכן חסר ⇒ {}. */
+export function templateCarryOver(content: Record<string, unknown> | null | undefined): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  if (!content || typeof content !== 'object') return out;
+  for (const k of TEMPLATE_CARRY_KEYS) if (hasCarryValue(k, content[k])) out[k] = content[k];
+  return out;
+}
+
+/**
  * האם התוכן שנוצר שונה ממה שהתבנית נתנה. ‼ משווים רק את מה שהמשתמש יכול
  * לערוך בפועל — כותרת, ניסוחים והפריטים — ולא את כל ה-payload: שדות שנוספים
  * בדרך (published, templateOrigin) היו הופכים כל בקשה ל"שונה".

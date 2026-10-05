@@ -46,6 +46,22 @@
 .rag-entry-link.is-inert { cursor: default; text-decoration: none; }
 .rag-entry-host { font-size: 12.5px; color: var(--rag-ink-3); }
 .rag-entry-note { flex-basis: 100%; font-size: 12.5px; color: var(--rag-ink-3); }
+/* נוסח להעתקה בתוך צעד (תוכן פנייה באתר אחר) — תיבה שקטה עם כפתור משני. הטקסט ניתן לסימון ידני. */
+.rag-copy { margin: 10px 0 0; padding: 10px 12px 12px; border: 1px solid var(--rag-line); border-radius: 10px; background: var(--rag-soft); }
+.rag-copy-label { font-size: 12.5px; color: var(--rag-ink-3); }
+.rag-copy-text { margin: 4px 0 10px; font-size: 14.5px; line-height: 1.7; color: var(--rag-ink); -webkit-user-select: text; user-select: text; overflow-wrap: anywhere; }
+.rag-copy-btn {
+  min-height: 40px; padding: 0 16px; border: 1px solid var(--rag-acc); border-radius: 10px; background: #fff; color: var(--rag-acc);
+  font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; touch-action: manipulation;
+  transition: transform 160ms var(--rag-ease), background-color 160ms ease;
+}
+.rag-copy-btn:active { transform: scale(.97); }
+.rag-copy-btn:focus-visible { outline: 2px solid var(--rag-acc); outline-offset: 2px; }
+@media (hover: hover) and (pointer: fine) { .rag-copy-btn:hover { background: var(--rag-soft); } }
+@media (pointer: coarse) { .rag-copy-btn { min-height: 44px; } }
+/* קישור בתוך צעד (למשל הטופס באתר אחר) — כמו קישור הכניסה, עם שטח לחיצה נוח. */
+.rag-step-link { margin-top: 10px; }
+.rag-step-link .rag-entry-link { display: inline-flex; align-items: center; min-height: 40px; touch-action: manipulation; }
 .rag-fig { margin: 12px 0 8px; }
 .rag-imgbtn {
   position: relative; display: block; width: 100%; padding: 0; border: 1px solid var(--rag-line); border-radius: 10px;

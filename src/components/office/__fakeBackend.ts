@@ -18,6 +18,7 @@ import { supabase } from '../../lib/supabase';
 import type { FirmProfile } from '../../types/firmProfile';
 import { profileToDb } from '../../lib/dbMappers';
 import { seedRequestGroupsDemo, rgRpc, rgSetBusinessNameBehindPortal } from './__fakeRequestGroups';
+import { reserveDutyPayload, reserveDutyTemplateRow, reserveDutyPortalItem, reserveDutySubmit } from './__fakeReserveDuty';
 import { REP_PORTAL_CARD_FIXED, resolveRepPortalCard, type RepPortalCardOverride } from '../../../supabase/functions/_shared/repTemplates.ts';
 
 type Row = Record<string, unknown>;
@@ -162,6 +163,8 @@ const tables: Record<string, Row[]> = {
       entries: [{ key: 'e1', stepType: 'custom_request', owner: 'client', requiredForClose: true, payload: {
         title: 'אישורי ניכוי מס במקור', clientTitle: 'אישורי ניכוי מס במקור מהלקוחות', clientSub: 'קובץ אחד לכל משלם', clientCta: 'להעלאה',
         requirements: [{ key: 'r1', kind: 'files', label: 'אישורי ניכוי במקור', required: true, done: false }] } }] },
+    // 05.10 · «תביעת מילואים בביטוח לאומי» — נוסח מוכן עם מדריך מצולם (221). ‼ רק בהדגמה — לא בחבילת הייצוג.
+    ...(FAKE_ACTIVE ? [reserveDutyTemplateRow()] : []),
     { id: 'jt3', name: 'קליטה מלאה — חברה בע״מ', description: 'מסמכים, רו״ח קודם ופייפרלס', kind: 'journey', office_id: FIRM_ID, seed_key: null, entries: [{}, {}, {}, {}] },
     ...(BIG ? bigTemplates() : []),
   ],
@@ -265,11 +268,26 @@ if (FAKE_ACTIVE && !EMPTY) {
     st('d-kyc', 'kyc_identification', 'completed', 'me', { track: 'internal', completed_at: iso(day * 19) }),
     st('d-id', 'custom_request', 'completed', 'client', { completed_at: iso(day * 12), payload: { title: 'צילום תעודת זהות' } }),
   ];
+  // 05.10 · «תביעת מילואים» פתוחה אצל דוד — רק בדף האישי המדומה (‎?portal=demo‎), שהוא מה שהלקוח רואה. ‼ לא ברשימת
+  // הבקשות במשרד: שם בקשה כזו נוצרת מהספרייה (＋ בקשה חדשה ← מהספרייה), והמסלול נבדק בדיוק כך.
+  if (params.get('portal') === 'demo') {
+    tables.onboarding_steps.push(st('d-reserve', 'custom_request', 'waiting_client', 'client', {
+      sort_order: 12, published_at: iso(day * 2), updated_at: iso(day * 2), payload: reserveDutyPayload() }));
+  }
 }
 // 05.10 · קבוצות קבועות + פרטי העסק — לקוח הדגמה שני (יוסי, sample-3), בזיכרון בלבד.
 if (FAKE_ACTIVE && !EMPTY) seedRequestGroupsDemo(tables, FIRM_ID);
 if (FAKE_ACTIVE && typeof window !== 'undefined') {
   (window as unknown as { __rgSetBusinessName?: (n: string) => void }).__rgSetBusinessName = rgSetBusinessNameBehindPortal;
+  // ‼ בדיקות בלבד: «הלקוח עונה» על הבקשה האחרונה של דוד שיש בה דרישות — אותה פונקציה כמו portal_submit_step
+  // בדף האישי המדומה, כדי לראות במשרד (באותה אפליקציה, בלי רענון) את מה שנענה.
+  (window as unknown as { __reserveDutyAnswer?: (key: string, value: string) => unknown }).__reserveDutyAnswer = (key, value) => {
+    const rows = (tables.onboarding_steps ?? []).filter(r => r.client_id === DEMO_CLIENT && r.step_type === 'custom_request'
+      && Array.isArray((r.payload as Row | undefined)?.requirements) && ((r.payload as Row).requirements as Row[]).length > 0
+      && !['completed', 'verified', 'skipped', 'cancelled'].includes(String(r.status)));
+    const row = rows[rows.length - 1];
+    return row ? reserveDutySubmit(row, { key, value }) : { ok: false, error: 'no_open_request' };
+  };
 }
 const CLOSED_OR_LOCKED = ['completed', 'verified', 'skipped', 'cancelled', 'locked'];
 /**
@@ -386,14 +404,26 @@ function demoPortalLabel(r: Row): string {
   const pick = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim() : '');
   return pick(p.clientTitle) || pick(p.title) || DEMO_PORTAL_TYPE_LABEL[String(r.step_type)] || 'בקשה מהמשרד';
 }
-function demoPortal(): Row {
+function demoPortal(mode = 'live'): Row {
+  // ‼ בקשה חופשית עם דרישות (למשל «תביעת מילואים», 221) — בצורה של השרת (220 + 221), גם אחרי שהושלמה
+  // (אז הכדור אצל המשרד, והיא נשארת «הושלם»). שאר הבקשות — מינימליות כמו תמיד.
+  // ‼ «אחרי עדכון» (preview) כולל גם טיוטות של הלקוח, מסומנות draft — כמו get_client_portal_preview בשרת;
+  // בלי זה «איך זה ייראה» לא מראה בקשה שרק נוספה מהספרייה ועוד לא פורסמה.
+  const preview = mode === 'preview';
   const items = (tables.onboarding_steps ?? [])
-    .filter(r => r.client_id === DEMO_CLIENT && r.ball === 'client' && r.published_at && r.status !== 'cancelled')
-    .map(r => ({
-      bucket: r.status === 'completed' ? 'done' : 'action', key: String(r.id),
-      label: demoPortalLabel(r), sub: r.status === 'completed' ? 'הושלם' : 'ממתין לך',
-    }));
-  items.unshift(demoRepItem() as typeof items[number]);
+    .filter(r => r.client_id === DEMO_CLIENT && r.status !== 'cancelled'
+      && (r.published_at || (preview && r.ball === 'client' && ['pending', 'in_progress', 'waiting_client'].includes(String(r.status)))))
+    .flatMap((r): Row[] => {
+      const draft = r.published_at ? {} : { draft: true };
+      const rich = reserveDutyPortalItem(r, demoPortalLabel(r));
+      if (rich) return [{ ...rich, ...draft }];
+      if (r.ball !== 'client') return [];
+      return [{
+        bucket: r.status === 'completed' ? 'done' : 'action', key: String(r.id),
+        label: demoPortalLabel(r), sub: r.status === 'completed' ? 'הושלם' : 'ממתין לך', ...draft,
+      }];
+    });
+  items.unshift(demoRepItem());
   return { ok: true, clientFirstName: 'דוד', firmName: FIXTURE_PROFILE.firmName, branding: {}, done: items.filter(i => i.bucket === 'done').length, total: items.length, items };
 }
 
@@ -627,19 +657,19 @@ function upsertLibraryRequest(args: Row): Row {
   const description = String(args.p_description ?? '').trim() || null;
   if (t && t.office_id === FIRM_ID) {
     Object.assign(t, { name, description, entries: [nextEntry] });
-    logWrite('rpc.upsert_library_request', { templateId: t.id });
+    logWrite('rpc.upsert_library_request', { templateId: t.id, payload: nextEntry.payload });
     return { ok: true, templateId: t.id };
   }
   // מובנית ⇒ עותק של המשרד (או עדכון העותק שכבר קיים).
   const copy = t?.seed_key ? rows.find(r => r.office_id === FIRM_ID && r.seed_key === t.seed_key) : undefined;
   if (copy) {
     Object.assign(copy, { name, description, entries: [nextEntry] });
-    logWrite('rpc.upsert_library_request', { templateId: copy.id, copiedFromSeed: true });
+    logWrite('rpc.upsert_library_request', { templateId: copy.id, copiedFromSeed: true, payload: nextEntry.payload });
     return { ok: true, templateId: copy.id, copiedFromSeed: true };
   }
   const id = `jt-${Date.now().toString(36)}`;
   rows.push({ id, name, description, kind: 'request', office_id: FIRM_ID, seed_key: t?.seed_key ?? null, entries: [nextEntry] });
-  logWrite('rpc.upsert_library_request', { templateId: id, copiedFromSeed: !!t });
+  logWrite('rpc.upsert_library_request', { templateId: id, copiedFromSeed: !!t, payload: nextEntry.payload });
   return { ok: true, templateId: id, copiedFromSeed: !!t };
 }
 
@@ -858,13 +888,22 @@ export function installFakeBackend() {
     }
     if (name === 'upsert_library_request') return { data: upsertLibraryRequest(args), error: null };
     if (name === 'delete_library_request') return { data: deleteLibraryRequest(args), error: null };
-    if (name === 'get_client_portal_preview') return { data: demoPortal(), error: null };
+    if (name === 'get_client_portal_preview') return { data: demoPortal(String(args.p_mode ?? 'live')), error: null };
     // הדף האישי עצמו (‎?portal=demo&office-app‎) — רק לטוקן הדמו.
     if (name === 'get_client_portal') return { data: args.p_token === 'demo' ? demoPortal() : { ok: false }, error: null };
     if (name === 'portal_submit_step' && args.p_step_id === DEMO_REP_STEP) {
       demoRepDeclared = true;
       logWrite('rpc.portal_submit_step', { stepId: DEMO_REP_STEP });
       return { data: { ok: true }, error: null };
+    }
+    // ‼ תשובה של לקוח ההדגמה לבקשה חופשית (208) — רק עם טוקן ההדגמה, ורק לבקשה שלו.
+    if (name === 'portal_submit_step' && args.p_token === 'demo') {
+      const row = (tables.onboarding_steps ?? []).find(r => r.id === args.p_step_id && r.client_id === DEMO_CLIENT);
+      if (row) {
+        const res = reserveDutySubmit(row, (args.p_data ?? {}) as Row);
+        logWrite('rpc.portal_submit_step', { stepId: row.id, ok: res.ok, error: res.error });
+        return { data: res, error: null };
+      }
     }
     if (name === 'publish_case_changes' && args.p_client_id === DEMO_CLIENT) {
       for (const r of tables.onboarding_steps ?? []) {

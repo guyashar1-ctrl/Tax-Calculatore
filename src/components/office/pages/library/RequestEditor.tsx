@@ -10,6 +10,7 @@ import { metaFor } from '../../../../types/journeyDefaults';
 import { serverErrorText, upsertLibraryRequest, deleteLibraryRequest } from '../../../../features/flows/api';
 import { libraryEntryGap } from '../../../../features/flows/compile';
 import { templateEntryOwner } from '../../../../utils/templateEntryOwner';
+import TemplateCarryNote from '../../../portal/TemplateCarryNote';
 import { entryOf, listOf, canRevertToPreset, canBeInFlow } from './libraryModel';
 import { UsedIn, type GoFn, type LibraryUse } from './usedIn';
 
@@ -264,6 +265,9 @@ export default function RequestEditor({ template, initialName, uses, onClose, on
               {previewSub && <span className="lb-preview-sub">{previewSub}</span>}
               <span className="lb-preview-cta">{(meta.derivedCopy ? String(orig.clientCta ?? '') : clientCta.trim()) || (meta.derivedCopy ? 'להעלאה' : 'למילוי')}</span>
             </div>
+            {/* ‼ ההסבר והמדריך המצולם עוברים לבקשה כמו שהם (payload נשמר כולו, `{ ...orig }`) ואינם שדות
+                כאן — השורה אומרת מה מצורף, ו«הצגה» פותחת את המדריך. המפתח עצמו אינו נערך. */}
+            <TemplateCarryNote content={orig} />
             {showCopy && (
               <>
                 <label className="of-field-wrap">

@@ -154,3 +154,22 @@ export function repShortAction(status: string | null | undefined, phase?: string
   if (status === 'awaiting_stamp') return 'לחתום ולהוסיף חותמת';
   return null;
 }
+
+/**
+ * מה הלקוח ענה בבקשה חופשית שהושלמה — שורת משנה ב«הושלמו» (סבב 05.10, «תביעת מילואים»).
+ * ‼ התשובה היא כל הסיבה לשאלה («מה מצאתם באזור האישי?»): בלעדיה הבקשה נראית «הושלם» והמשרד
+ * היה צריך לשאול את הלקוח כדי לדעת מה נענה. דרישה אחת מסוג בחירה — התשובה בלבד (האפשרויות
+ * מספרות את הסיפור); אחרת — «שאלה: תשובה», כדי שמספר או תאריך לא יופיעו בלי הקשר.
+ * קבצים ואישורים (בלי value) לא נכנסים. ריק ⇒ [].
+ */
+export function requestAnswers(
+  requirements: readonly { label?: string | null; kind?: string | null; value?: string | null }[] | null | undefined,
+): string[] {
+  if (!Array.isArray(requirements)) return [];
+  const answered = requirements
+    .map(r => ({ label: String(r?.label ?? '').trim(), kind: r?.kind ?? '', value: String(r?.value ?? '').trim() }))
+    .filter(r => r.value !== '');
+  if (answered.length === 0) return [];
+  if (requirements.length === 1 && answered[0].kind === 'select') return [answered[0].value];
+  return answered.map(r => (r.label ? `${r.label}: ${r.value}` : r.value));
+}

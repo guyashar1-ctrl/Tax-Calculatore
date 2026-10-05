@@ -69,7 +69,7 @@ import { useHomeOffice } from '../../features/requests/useHomeOffice';
 import HomeOfficePanel from '../../features/requests/HomeOfficePanel';
 import { confirmHomeOfficeInPaperless } from '../../features/requests/api';
 import {
-  splitRequestTitle, rowStateFor, groupWaitingState, moreMineLabel, repShortAction, lamed, MINE_STATE_TEXT,
+  splitRequestTitle, rowStateFor, groupWaitingState, moreMineLabel, repShortAction, lamed, MINE_STATE_TEXT, requestAnswers,
   type RowState,
 } from '../../utils/requestPresentation';
 import {
@@ -3563,12 +3563,15 @@ export default function OnboardingTab({
                 /* ‼ חלק של הייצוג — בשם הקצר והנוכחי («ביטוח לאומי · שרון»), לא בכותרת ששמורה על השלב. */
                 const partLabel = representationPartLabel(s, partNames);
                 const extras = isRep ? repDoneExtras(s) : [];
+                /* ‼ מה הלקוח ענה — בבקשה חופשית שהושלמה. בלי זה «הושלם» לא אומר מה נמצא. */
+                const answers = !skipped && s.stepType === 'custom_request' ? requestAnswers(s.payload.requirements) : [];
                 return (
                   <div key={s.id} className="rl-done">
                     <span className="rl-done-mark" aria-hidden="true">{skipped ? '↷' : '✓'}</span>
                     <span className="rl-done-title">
                       {partLabel ?? rowTitle(s)}
                       {extras.length > 0 && <span className="rl-done-sub">{extras.join(' · ')}</span>}
+                      {answers.length > 0 && <span className="rl-done-sub rl-done-answer" data-testid="rl-done-answer">{answers.join(' · ')}</span>}
                     </span>
                     <span className="rl-done-state">
                       {skipped ? skippedLabel(s.payload) : isRep ? doneRepState(s) : partLabel ? donePartText(s) : stepStatusLabel(s)}

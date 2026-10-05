@@ -12,9 +12,11 @@
 // וממוקדת על הפקד המסומן.
 // ‼ «אישרתי» הוא דיווח של הלקוח שמחזיר את הבקשה לבדיקה — לא הוכחה שהייצוג
 // פעיל. השלב האחרון אומר את זה במפורש, ומשמר את התנאי שבהודעת הרשות.
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
-import './repApprovalGuide.css';
+// ‼ 05.10.2026 · החלון עצמו (שלב בכל פעם, הגדלה, מקלדת, פוקוס) עבר ל-PhotoGuide — רכיב גנרי
+// שגם «תביעת מילואים» משתמשת בו. כאן נשאר רק מה שמיוחד לאישור הייצוג: הצעדים, מי מסמן מה
+// והנוסח של הכרטיס. ה-exports וה-props כאן לא השתנו.
+import { useMemo } from 'react';
+import PhotoGuide, { PhotoGuideButton, type PhotoGuideStep } from './PhotoGuide';
 
 /** אדם אחד ומה הוא מסמן באזור האישי שלו — כפי שהשרת שולח (שמות בלבד, בלי מספרים). */
 export interface RepApprovalPerson {
@@ -239,24 +241,21 @@ export function repApprovalGuideSteps(approvals?: readonly RepApprovalPerson[] |
   return steps;
 }
 
-function imageUrl(i: number): string {
-  return `${import.meta.env.BASE_URL}guides/rep-approval/step-${i + 1}.webp`;
-}
+/** ‼ הצילום של צעד לפי המיקום שלו — כל שבעת הצעדים כאן עם צילום, ולכן step-N ברצף. */
+const imageUrl = (i: number): string => `${import.meta.env.BASE_URL}guides/rep-approval/step-${i + 1}.webp`;
+
+const REP_APPROVAL_KICKER = 'מדריך מצולם · אישור הייצוג באזור האישי';
+const REP_APPROVAL_FINE = 'הצילומים להמחשה, ופרטים אישיים הוסתרו בהם. המסכים באתר רשות המסים עשויים להשתנות.';
 
 /** הכפתור שפותח את המדריך — אותו נוסח בדף האישי ובמשרד. */
 export function RepApprovalGuideButton({ onClick, accent, className }: {
   onClick: () => void; accent?: string; className?: string;
 }) {
-  return (
-    <button type="button" className={`rag-open${className ? ` ${className}` : ''}`} onClick={onClick}
-      style={accent ? { color: accent } : undefined}>
-      <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <rect x="3" y="5" width="18" height="14" rx="2" /><circle cx="12" cy="12" r="3.2" /><path d="M8 5l1.5-2h5L16 5" />
-      </svg>
-      מדריך מצולם · {REP_APPROVAL_GUIDE_LENGTH} צעדים
-    </button>
-  );
+  return <PhotoGuideButton steps={REP_APPROVAL_GUIDE_LENGTH} onClick={onClick} accent={accent} className={className} />;
 }
+
+/** הצעד כפי שהרכיב הגנרי מכיר אותו. */
+const asPhotoStep = ({ alt, w, h, focus, ...rest }: GuideStep): PhotoGuideStep => ({ ...rest, image: { alt, w, h, focus } });
 
 export default function RepApprovalGuide({ onClose, accent, entryUrl, entryInert, approvals, scopeNote }: {
   onClose: () => void;
@@ -274,142 +273,11 @@ export default function RepApprovalGuide({ onClose, accent, entryUrl, entryInert
    */
   scopeNote?: string;
 }) {
-  const [i, setI] = useState(0);
-  const [zoom, setZoom] = useState(false);
-  const titleId = useId();
-  const dialogRef = useRef<HTMLDivElement>(null);
-  const zoomRef = useRef<HTMLDivElement>(null);
-  const openerRef = useRef<Element | null>(null);
-  const steps = useMemo(() => repApprovalGuideSteps(approvals), [approvals]);
-  const n = steps.length;
-  const step = steps[i];
-  const last = i === n - 1;
-
-  const next = useCallback(() => setI(v => Math.min(n - 1, v + 1)), [n]);
-  const prev = useCallback(() => setI(v => Math.max(0, v - 1)), []);
-
-  // פוקוס: נכנס לחלון, וחוזר למי שפתח אותו.
-  useEffect(() => {
-    openerRef.current = document.activeElement;
-    dialogRef.current?.focus();
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = prevOverflow;
-      (openerRef.current as HTMLElement | null)?.focus?.();
-    };
-  }, []);
-
-  // הצעד הבא נטען מראש, כדי שהמעבר לא יחכה לרשת.
-  useEffect(() => {
-    if (i + 1 < n) { const img = new Image(); img.src = imageUrl(i + 1); }
-  }, [i, n]);
-
-  // ההגדלה ממוקדת על הפקד המסומן.
-  useEffect(() => {
-    if (!zoom) return;
-    const box = zoomRef.current;
-    if (!box) return;
-    const [fx, fy] = step.focus;
-    box.scrollLeft = Math.max(0, fx - box.clientWidth / 2);
-    box.scrollTop = Math.max(0, fy - box.clientHeight / 2);
-    box.focus();
-  }, [zoom, step]);
-
-  useEffect(() => {
-    const h = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        if (zoom) setZoom(false); else onClose();
-        return;
-      }
-      if (zoom) return;
-      const t = e.target as HTMLElement | null;
-      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA')) return;
-      // ‼ RTL: שמאלה = קדימה.
-      if (e.key === 'ArrowLeft') { e.preventDefault(); next(); }
-      else if (e.key === 'ArrowRight') { e.preventDefault(); prev(); }
-      else if (e.key === 'Tab' && dialogRef.current) {
-        const f = Array.from(dialogRef.current.querySelectorAll<HTMLElement>('button:not([disabled]), a[href]'));
-        if (f.length === 0) return;
-        const first = f[0], lastEl = f[f.length - 1];
-        if (e.shiftKey && (document.activeElement === first || document.activeElement === dialogRef.current)) { e.preventDefault(); lastEl.focus(); }
-        else if (!e.shiftKey && document.activeElement === lastEl) { e.preventDefault(); first.focus(); }
-      }
-    };
-    window.addEventListener('keydown', h);
-    return () => window.removeEventListener('keydown', h);
-  }, [zoom, next, prev, onClose]);
-
-  const style = accent ? ({ '--rag-accent': accent } as React.CSSProperties) : undefined;
-
-  return createPortal(
-    <div className="rag-root" dir="rtl" style={style}>
-      <div className="rag-scrim" onClick={onClose} />
-      <div className="rag" role="dialog" aria-modal="true" aria-labelledby={titleId} ref={dialogRef} tabIndex={-1}>
-        <header className="rag-head">
-          <div className="rag-head-text">
-            <div className="rag-kicker">מדריך מצולם · אישור הייצוג באזור האישי</div>
-            <h2 className="rag-title" id={titleId}>
-              <span className="rag-num" aria-hidden="true">{i + 1}</span>
-              {step.title}
-            </h2>
-          </div>
-          <button type="button" className="rag-x" onClick={onClose} aria-label="סגירת המדריך">✕</button>
-        </header>
-
-        <div className="rag-body">
-          <p className="rag-count" aria-live="polite">צעד {i + 1} מתוך {n}</p>
-          {scopeNote && <p className="rag-fine rag-scope" data-testid="rag-scope-note">{scopeNote}</p>}
-          <p className="rag-text">{step.text}</p>
-          {i === 0 && entryUrl && (
-            <p className="rag-entry">
-              עוד לא נכנסתם?{' '}
-              {entryInert
-                ? <span className="rag-entry-link is-inert">לכניסה לאזור האישי ↗</span>
-                : <a className="rag-entry-link" href={entryUrl} target="_blank" rel="noopener noreferrer">לכניסה לאזור האישי ↗</a>}
-              <span className="rag-entry-host" dir="ltr">gov.il</span>
-              <span className="rag-entry-note">נדרשות כניסה והזדהות.</span>
-            </p>
-          )}
-          {step.extra && <p className="rag-extra" style={{ whiteSpace: 'pre-line' }}>{step.extra}</p>}
-          <figure className="rag-fig">
-            <button type="button" className="rag-imgbtn" onClick={() => setZoom(true)} aria-label={`הגדלת הצילום של צעד ${i + 1}`}>
-              <img key={i} src={imageUrl(i)} alt={step.alt} width={step.w} height={step.h} decoding="async" />
-              <span className="rag-zoom-hint" aria-hidden="true">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><circle cx="10.5" cy="10.5" r="6.5" /><path d="M15.5 15.5L21 21M10.5 7.5v6M7.5 10.5h6" /></svg>
-                לחיצה על הצילום מגדילה אותו
-              </span>
-            </button>
-          </figure>
-          <p className="rag-fine">הצילומים להמחשה, ופרטים אישיים הוסתרו בהם. המסכים באתר רשות המסים עשויים להשתנות.</p>
-        </div>
-
-        <footer className="rag-foot">
-          <button type="button" className="rag-btn is-ghost" onClick={prev} disabled={i === 0}>→ הקודם</button>
-          <ol className="rag-dots" aria-label="צעדים">
-            {steps.map((s, k) => (
-              <li key={k}>
-                <button type="button" className={`rag-dot${k === i ? ' is-on' : ''}`} onClick={() => setI(k)}
-                  aria-label={`צעד ${k + 1}: ${s.title}`} aria-current={k === i ? 'step' : undefined} />
-              </li>
-            ))}
-          </ol>
-          {last
-            ? <button type="button" className="rag-btn is-primary" onClick={onClose}>סיום</button>
-            : <button type="button" className="rag-btn is-primary" onClick={next}>הבא ←</button>}
-        </footer>
-      </div>
-
-      {zoom && (
-        <div className="rag-zoom" role="dialog" aria-modal="true" aria-label={`הצילום של צעד ${i + 1} בגודל מלא`}>
-          <button type="button" className="rag-zoom-x" onClick={() => setZoom(false)}>סגירת ההגדלה ✕</button>
-          <div className="rag-zoom-scroll" ref={zoomRef} tabIndex={0} dir="ltr">
-            <img src={imageUrl(i)} alt={step.alt} width={step.w} height={step.h} />
-          </div>
-        </div>
-      )}
-    </div>,
-    document.body,
+  const steps = useMemo(() => repApprovalGuideSteps(approvals).map(asPhotoStep), [approvals]);
+  const entry = useMemo(() => (entryUrl
+    ? { url: entryUrl, label: 'לכניסה לאזור האישי ↗', host: 'gov.il', note: 'נדרשות כניסה והזדהות.' } : undefined), [entryUrl]);
+  return (
+    <PhotoGuide onClose={onClose} accent={accent} kicker={REP_APPROVAL_KICKER} steps={steps} imageUrl={imageUrl}
+      entry={entry} entryInert={entryInert} fine={REP_APPROVAL_FINE} scopeNote={scopeNote} />
   );
 }
