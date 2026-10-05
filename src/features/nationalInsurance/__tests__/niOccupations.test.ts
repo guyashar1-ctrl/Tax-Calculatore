@@ -25,7 +25,11 @@ const personResult = (role: 'client' | 'spouse', advance: number, extra: Record<
   sections: {
     advance: { ok: true, value: { year: 2026, fromMonth: 7, toMonth: 9, months: 3, basisCategory: 'עצמאי', periodBasis: 47583, advanceMonthly: advance } },
     occupations: { ok: true, value: CHAINS, warnings: [] },
-    directIncome: { ok: true, value: { year: 2025, monthlyAmount: 16500, infoSource: 'הצהרה', incomeSource: 'עצמאי', receivedDate: '2025-06-15', fromMonth: 6, toMonth: 6 } },
+    directIncome: {
+      ok: true,
+      value: { year: 2025, amount: 16500, monthlyAmount: 16500, infoSource: 'הצהרה', incomeSource: 'עצמאי', receivedDate: '2025-06-15', fromMonth: 6, toMonth: 6, status: 'תקף' },
+      records: [{ year: 2025, amount: 16500, infoSource: 'הצהרה', incomeSource: 'עצמאי', receivedDate: '2025-06-15', fromMonth: 6, toMonth: 6, status: 'תקף' }],
+    },
     debitAuthorization: { ok: true, value: true, source: 'table' },
     balance: { ok: true, value: 0, source: 'ledger' },
     ...extra,
@@ -109,7 +113,7 @@ export const TESTS: TestCase[] = [
     const basis = by('niInsuranceBasis');
     equal(basis.status, 'changed');
     equal((basis.patchValue as { periodBasis: number }).periodBasis, 47583);
-    equal((basis.patchValue as { sourceIncomeYear: number }).sourceIncomeYear, 2025, 'שנת המקור מההכנסה הישירה');
+    equal((basis.patchValue as { sourceIncomeYear?: number }).sourceIncomeYear, undefined, 'שנת המקור אינה נגזרת מההכנסה שנבחרה (219)');
     assert(!check.fields.some(f => f.patchValue === 47583 && f.fieldKey === 'niIncomeBasisMonthly'), 'הבסיס לא נכתב לשדה ההכנסה');
   }),
 
@@ -136,7 +140,7 @@ export const TESTS: TestCase[] = [
     const client = { id: 'c', niBalance: 500, niIncomeBasisMonthly: 16500 } as unknown as Client;
     const check = buildAuthorityCheck(spec, job([personResult('client', 2062, {
       balance: { ok: false, reason: 'ledger_table_not_found' },
-      directIncome: { ok: true, value: null },
+      directIncome: { ok: true, value: null, records: [] },
     })]), client, ALL_KEYS)!;
     const bal = check.fields.find(f => f.fieldKey === 'niBalance')!;
     equal(bal.status, 'failed');
@@ -150,7 +154,7 @@ export const TESTS: TestCase[] = [
     const client = { id: 'c', familyStatus: 'married' } as unknown as Client;
     const cardFields = [...ALL_KEYS, { label: 'מספר תיק' }];
     const check = buildAuthorityCheck(spec, job([personResult('client', 2062)]), client, cardFields)!;
-    equal(check.summary.notChecked, 7, 'שבעת השדות של בן/בת הזוג');
+    equal(check.summary.notChecked, 8, 'שמונת השדות של בן/בת הזוג (כולל רשימת ההכנסות, 219)');
     equal(check.summary.unsupported, 1, 'רק השורה שאין לה מקור');
   }),
 
@@ -159,7 +163,7 @@ export const TESTS: TestCase[] = [
     const check = buildAuthorityCheck(spec, job([personResult('client', 2062),
       { role: 'spouse', ok: false, errorCode: 'navigation_failed', error: 'לא הצלחתי לפתוח את התיק בביטוח לאומי' }]), client, ALL_KEYS)!;
     const spouseFields = check.fields.filter(f => f.person === 'spouse');
-    assert(spouseFields.length === 7 && spouseFields.every(f => f.status === 'failed' && !f.error), 'אדום בלי משפט חוזר');
+    assert(spouseFields.length === 8 && spouseFields.every(f => f.status === 'failed' && !f.error), 'אדום בלי משפט חוזר');
     equal(check.runErrorByPerson?.spouse, 'לא הצלחתי לפתוח את התיק בביטוח לאומי');
   }),
 

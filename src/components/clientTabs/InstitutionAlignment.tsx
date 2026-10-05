@@ -99,6 +99,11 @@ interface InstitutionConfig {
   exceptions: AlignmentException[];
   /** ביטוח לאומי בלבד — רשימת העיסוקים היא בלוק נפרד, ולכן ההסבר שלה נשמר כאן. */
   occupationsWhere?: WherePath[];
+  /**
+   * ביטוח לאומי בלבד — עובדות שנקראות מהפורטל ואין להן שדה הזנה במסך הזה
+   * (219), אבל יש להן מסלול מתועד: מפתח שדה בכרטיס → איפה מוצאים.
+   */
+  readOnlyWhere?: Record<string, WherePath[]>;
   /** הבהרות נגזרות משדה "מה להעתיק" עצמו, לא מ-exceptions (למשל ניהול ספרים לא תקף). */
   derivedClarifications?: (collected: Record<string, unknown>) => string[];
 }
@@ -116,6 +121,12 @@ const BALANCE_NOTE = 'כפי שמופיע בפורטל: מספר חיובי = ח
 const INSTITUTIONS: Record<InstitutionKey, InstitutionConfig> = {
   btl: {
     occupationsWhere: ['פרטים כלליים → ריכוז מידע → עיסוק', 'עיסוקים והכנסות → רשימת עיסוקים'],
+    // ‼ אותם מסכים שהעובד קורא (btlInsuredSession.mjs: readInfoSummary,
+    // openIncomeList) — לא מסלול שהומצא.
+    readOnlyWhere: {
+      niInsuranceBasis: ['פרטים כלליים → ריכוז מידע → דמי ביטוח'],
+      niIncomeList: ['עיסוקים והכנסות → רשימת הכנסות → שורה שמקור המידע שלה «שומה»'],
+    },
     sections: [
       {
         kicker: 'מצב חשבון',
@@ -130,9 +141,11 @@ const INSTITUTIONS: Record<InstitutionKey, InstitutionConfig> = {
         kicker: 'מקדמות',
         where: ['דמי ביטוח → דמי ביטוח שנתיים → פירוט חודשים'],
         fields: [
-          { key: 'incomeBasisMonthly', label: 'בסיס הכנסה למקדמות (לחודש)', type: 'number',
+          { key: 'incomeBasisMonthly', label: 'הכנסה חודשית מוצהרת', type: 'number',
             governedKey: 'niIncomeBasisMonthly',
-            where: ['עיסוקים והכנסות → רשימת הכנסות → סכום הכנסה'],
+            where: ['עיסוקים והכנסות → רשימת הכנסות → שורה שמקור המידע שלה «הצהרה» → סכום הכנסה'],
+            // ‼ (219) «סכום הכנסה» בשורת «שומה» הוא הכנסה שנתית — לא לכאן.
+            note: 'רק שורת «הצהרה» היא הכנסה לחודש. «שומה» לינואר–דצמבר היא הכנסה שנתית — אין להעתיק אותה לכאן.',
             toPatchValue: v => v === '' ? null : Number(v) },
           { key: 'niAdvanceMonthly', label: 'מקדמה חודשית', type: 'number', governedKey: 'niAdvanceMonthly',
             toPatchValue: v => v === '' ? null : Number(v) },

@@ -30,8 +30,12 @@ export function BtlNow({ btl }: { btl: CurrentBtlState }) {
     <div style={{ display: 'grid', gap: '.3rem', fontSize: 'var(--fs-13)' }}>
       <div><b>סיווג:</b> {btl.classificationLabel}</div>
       {btl.declaredIncomeMonthly != null && (
-        <div><b>הכנסה חודשית מוצהרת:</b> {btl.declaredIncomeMonthly.toLocaleString('en-US')} ₪{btl.declaredIncomeYear ? ` (${btl.declaredIncomeYear})` : ''}</div>
+        <div><b>הכנסה חודשית מוצהרת:</b> {btl.declaredIncomeMonthly.toLocaleString('en-US')} ₪{btl.declaredIncomeSource ? <span className="sf-hint"> · {btl.declaredIncomeSource}</span> : null}</div>
       )}
+      {btl.declaredIncomeUnverified != null && (
+        <div><b>הכנסה חודשית מוצהרת:</b> {btl.declaredIncomeUnverified.toLocaleString('en-US')} ₪ <span className="sf-hint">· {btl.declaredIncomeUnverifiedNote ?? 'טעון אימות'} — לא נכנס לטופס</span></div>
+      )}
+      {btl.assessmentText && <div><b>שומה אחרונה:</b> {btl.assessmentText}</div>}
       {btl.advanceMonthly != null && <div><b>מקדמה חודשית:</b> {btl.advanceMonthly.toLocaleString('en-US')} ₪</div>}
       {btl.recorded?.paymentObligation && (
         <div><b>חובת תשלום:</b> {btl.recorded.paymentObligation.value}

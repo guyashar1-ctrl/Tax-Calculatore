@@ -97,7 +97,9 @@ test('אדם אחד: כל המקטעים נקראים, ו-47,583 נשאר בסי
   const s = p.sections;
   assert.equal(s.advance.value.periodBasis, 47583);
   assert.equal(s.advance.value.advanceMonthly, 2062);
-  assert.equal(s.directIncome.value.monthlyAmount, 16500, 'ההכנסה הישירה — מקור נפרד');
+  assert.equal(s.directIncome.value.amount, 16500, 'ההצהרה — מקור נפרד');
+  assert.equal(s.directIncome.records.length, 1, 'השורות הגולמיות נשמרות לפירוש ב-PIVO');
+  assert.equal(s.directIncome.records[0].infoSource, 'הצהרה');
   assert.deepEqual(s.occupations.value.map(o => [o.sourceLabel, o.fromDate, o.toDate]), [
     ['תלמיד להשכלה גבוהה', '2023-10-01', '2026-09-30'],
     ['עצמאי', '2025-06-01', null],

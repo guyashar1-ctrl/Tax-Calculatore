@@ -25,6 +25,7 @@ import Btl6101Lifecycle from './Btl6101Lifecycle';
 import type { LayoutIssue } from '../types';
 import { BtlNow, formatDay, formatIl, type WorkspaceCtx } from './ui';
 import { loadBtlPortalRecord, type BtlPortalRecord } from '../../nationalInsurance/btlPortalRecord';
+import { useBtlIncomeReads } from '../../../hooks/useBtlIncomeReads';
 import { useActiveTemplate, useTemplateVersion } from '../mapping';
 import '../smartForms.css';
 
@@ -112,8 +113,12 @@ export default function Btl6101Workspace({ filingId, client: clientProp, onClose
   const asOf = useMemo(todayIso, []);
 
   const subjectRecord = btlRecord?.[filing?.subjectRole ?? 'client'];
-  const resolved = useMemo(() => resolve6101({ client, purposes, entered, confirmed, asOf, flags, professional, btlRecord: subjectRecord }),
-    [client, purposes, entered, confirmed, asOf, flags, professional, subjectRecord]);
+  // ‼ (219) «הכנסה לפני» נקראת מעובדות ההכנסה של האדם שההגשה עליו — ומול הקריאה שלו.
+  const subjectRole: 'client' | 'spouse' = filing?.subjectRole === 'spouse' ? 'spouse' : 'client';
+  const incomeReads = useBtlIncomeReads(clientProp.id, undefined, subjectRole === 'spouse');
+  const btlIncomeRead = incomeReads[subjectRole] ?? null;
+  const resolved = useMemo(() => resolve6101({ client, purposes, entered, confirmed, asOf, flags, professional, btlRecord: subjectRecord, btlIncomeRead, subjectRole }),
+    [client, purposes, entered, confirmed, asOf, flags, professional, subjectRecord, btlIncomeRead, subjectRole]);
 
   // ── שמירה אוטומטית (רק טיוטה) ──
   const saveTimer = useRef<number | null>(null);

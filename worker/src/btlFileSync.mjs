@@ -644,6 +644,12 @@ export function parseAnnualContributions(rows) {
 
 const INCOME_HEADERS = ['שנה', 'מחודש', 'עד חודש', 'מקור מידע', 'מקור הכנסה', 'סכום הכנסה', 'תאריך קבלה', 'סטטוס'];
 
+/**
+ * «רשימת הכנסות» — כל שורה **כלשונה**. ‼ `amount` הוא «סכום הכנסה» בלי
+ * יחידה: «הצהרה» היא הכנסה חודשית (16,500), «שומה עצמי» לינואר–דצמבר היא
+ * הכנסה שנתית (47,800). עד 219 השדה נקרא monthlyAmount — וכך שומה שנתית
+ * נרשמה «לחודש». הפירוש נעשה ב-PIVO (niIncome.ts), לא כאן.
+ */
 export function parseIncomeList(tables) {
   const t = pickTable(tables, INCOME_HEADERS);
   if (!t.ok) return { ok: false, reason: t.reason };
@@ -658,7 +664,7 @@ export function parseIncomeList(tables) {
       toMonth: parseMonth(cell(r, t.cols['עד חודש'])),
       infoSource: cell(r, t.cols['מקור מידע']) || null,
       incomeSource: cell(r, t.cols['מקור הכנסה']) || null,
-      monthlyAmount: amount,
+      amount,
       receivedDate: parseBtlDate(cell(r, t.cols['תאריך קבלה'])),
       status: cell(r, t.cols['סטטוס']) || null,
     });
@@ -666,20 +672,59 @@ export function parseIncomeList(tables) {
   return { ok: true, rows };
 }
 
+const incomeSortKey = (r) => [String(r.year).padStart(4, '0'), String(r.toMonth ?? 0).padStart(2, '0'),
+  String(r.fromMonth ?? 0).padStart(2, '0'), r.receivedDate ?? ''].join('|');
+
 /**
- * ההכנסה הישירה שעליה נשענות המקדמות: רשומה **תקפה**, מהשנה האחרונה, ואם
- * יש כמה — זו שהתקבלה אחרונה. עצמאי קודם לשאר מקורות. ‼ אין רשומה תקפה ⇒
- * null («אין ערך במקור»), לא 0.
+ * ההצהרה החודשית האחרונה של העצמאי — **רק** «מקור מידע: הצהרה», «מקור
+ * הכנסה: עצמאי», «תקף». ‼ שומה אינה הצהרה ואינה נבחרת כאן גם כשהיא חדשה
+ * יותר; שכיר אינו עצמאי. שתי הצהרות לאותה תקופה באותו יום בסכום שונה ⇒
+ * לא בוחרים (ambiguous). אין ⇒ null, לא 0.
+ *
+ * ‼ הצורה (`monthlyAmount`) נשמרת לאתר שלפני 219, שקורא רק אותה: כך הוא
+ * לעולם לא מקבל שומה שנתית בתור הכנסה חודשית.
  */
-export function selectDirectIncome(rows) {
-  const valid = (rows ?? []).filter(r => r.status === 'תקף');
-  if (valid.length === 0) return null;
-  const maxYear = Math.max(...valid.map(r => r.year));
-  const ofYear = valid.filter(r => r.year === maxYear);
-  const pool = ofYear.some(r => r.incomeSource === 'עצמאי') ? ofYear.filter(r => r.incomeSource === 'עצמאי') : ofYear;
-  pool.sort((a, b) => (b.receivedDate ?? '').localeCompare(a.receivedDate ?? ''));
+export function selectDeclaredIncome(rows) {
+  const pool = (rows ?? []).filter(r => norm(r.status) === 'תקף' && norm(r.incomeSource) === 'עצמאי'
+    && /הצהרה/.test(norm(r.infoSource)) && Number.isFinite(r.amount) && r.amount >= 0);
+  if (pool.length === 0) return null;
+  pool.sort((a, b) => incomeSortKey(b).localeCompare(incomeSortKey(a)));
+  const tied = pool.filter(r => incomeSortKey(r) === incomeSortKey(pool[0]));
+  if (new Set(tied.map(r => r.amount)).size > 1) return null;
   const pick = pool[0];
-  return { ...pick, alternatives: pool.length - 1 };
+  return { ...pick, monthlyAmount: pick.amount, alternatives: pool.length - 1 };
+}
+
+/**
+ * כמה שורות נשמרות בתוצאה. ‼ הבחירה ב-PIVO (הצהרה/שומה, תחרות בין שורות)
+ * נשענת על **כל** שורות «הצהרה»/«שומה» — הן נשמרות כולן (עד תקרה שלא
+ * צפויה להיחצות: שורה לשנה). רק שורות הקשר אחרות (שכיר, מקור אחר) נחתכות.
+ */
+export const MAX_INCOME_CANDIDATES = 200;
+export const MAX_INCOME_CONTEXT = 40;
+
+/**
+ * הראיה מרשימת ההכנסות כפי שנשלחת ל-PIVO — בלתי תלויה בסדר הטבלה.
+ * `candidatesComplete:false` ⇒ אפילו שורות הבחירה נחתכו: PIVO אינו מסיק
+ * מזה «אין» ואינו מציע לנקות. `omitted` — כמה שורות לא נשלחו בכלל.
+ */
+export function incomeEvidence(rows) {
+  const all = rows ?? [];
+  const isCandidate = (r) => /הצהרה|שומה/.test(norm(r.infoSource));
+  // ‼ סדר מלא (לא רק תקופה): שורות עם אותה תקופה מוכרעות לפי תוכנן, כדי
+  // שאותה טבלה בסדר אחר תשלח בדיוק את אותן שורות.
+  const full = (r) => [incomeSortKey(r), String(r.amount ?? '').padStart(12, '0'),
+    norm(r.infoSource), norm(r.incomeSource), norm(r.status)].join('|');
+  const byNewest = (a, b) => full(b).localeCompare(full(a));
+  const candidates = all.filter(isCandidate).sort(byNewest);
+  const context = all.filter(r => !isCandidate(r)).sort(byNewest);
+  const records = [...candidates.slice(0, MAX_INCOME_CANDIDATES), ...context.slice(0, MAX_INCOME_CONTEXT)];
+  return {
+    records,
+    rows: all.length,
+    omitted: all.length - records.length,
+    candidatesComplete: candidates.length <= MAX_INCOME_CANDIDATES,
+  };
 }
 
 // ─── הרשאות לחיוב ───────────────────────────────────────────────────────────
@@ -860,10 +905,12 @@ export async function readInsured(portal, subject, { asOf, log = () => {} } = {}
   await run('directIncome', async () => {
     const r = await portal.openIncomeList();
     if (!r.ok) return { ok: false, reason: r.reason };
-    if (r.empty) return { ok: true, value: null, rows: 0, empty: true };
+    if (r.empty) return { ok: true, value: null, records: [], rows: 0, omitted: 0, candidatesComplete: true, empty: true };
     const list = parseIncomeList(r.tables);
     if (!list.ok) return { ok: false, reason: list.reason };
-    return { ok: true, value: selectDirectIncome(list.rows), rows: list.rows.length };
+    // ‼ records — השורות כלשונן (219); PIVO בוחר ומפרש. value — ההצהרה
+    // בלבד, לאתר שלפני 219 (נבחרת מכל השורות, לא מהחתך).
+    return { ok: true, value: selectDeclaredIncome(list.rows), ...incomeEvidence(list.rows) };
   });
   await run('debitAuthorization', async () => {
     const r = await portal.openDebitAuthorizations();

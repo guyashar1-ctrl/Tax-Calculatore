@@ -18,6 +18,7 @@ import {
   receiptCandidates, confirmReceipt, type ReceiptState,
 } from '../api';
 import { BtlNow, formatDay, formatIl, type WorkspaceCtx } from './ui';
+import { useBtlIncomeReads } from '../../../hooks/useBtlIncomeReads';
 
 /**
  * פותח את המסמך החתום **כפי שנשמר** (מהאחסון, לא רינדור מחדש) ומאמת את
@@ -552,7 +553,9 @@ function SubmitStep({ ctx, onStep }: Props) {
 
   const attachments: Attachment[] = filing.attachments.length ? filing.attachments : (rev.snapshot?.requiredAttachments ?? []);
   const missingAttach = attachments.filter(a => a.required && !a.documentId);
-  const btlNow = useMemo(() => currentBtlState(client, israelDate(new Date().toISOString()), ctx.btlRecord), [client, ctx.btlRecord]);
+  const subjectRole: 'client' | 'spouse' = filing.subjectRole === 'spouse' ? 'spouse' : 'client';
+  const incomeRead = useBtlIncomeReads(client.id, undefined, subjectRole === 'spouse')[subjectRole] ?? null;
+  const btlNow = useMemo(() => currentBtlState(client, israelDate(new Date().toISOString()), ctx.btlRecord, incomeRead, subjectRole), [client, ctx.btlRecord, incomeRead, subjectRole]);
   const syncedAfterSubmit = !!(filing.submission?.submittedAt && btlNow.syncedAt && btlNow.syncedAt.slice(0, 10) >= filing.submission.submittedAt);
   const docOptions = docs.filter(d => d.id !== rev.signedDocumentId);
 

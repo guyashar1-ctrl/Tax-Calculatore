@@ -8,8 +8,8 @@
 // כל שדה מקבל סטטוס: מאומת · ישן · סותר · נגזר · חסר · לא רלוונטי · לאישור
 // הלקוח · הוזן בהגשה. ‼ ריק ≠ אפס ≠ לא רלוונטי.
 
-import type { Client, NiOccupation, NiOccupationBtlDetail } from '../../../types';
-import { NI_HOURS_BAND_LABELS } from '../../../types';
+import type { Client, NiIncomeList, NiOccupation, NiOccupationBtlDetail, PersonRole } from '../../../types';
+import { NI_FACT_KEYS, NI_HOURS_BAND_LABELS } from '../../../types';
 import type { FieldMeta } from '../../../types/clientWorkspace';
 import { FIELD_SOURCE_LABELS } from '../../../types/clientWorkspace';
 import { isValidIsraeliId } from '../../../utils/israeliId';
@@ -18,6 +18,10 @@ import type { BtlPortalPerson } from '../../nationalInsurance/btlPortalRecord';
 import type { Btl6101Data, Btl6101Purpose, MaritalStatus6101, OccupationRow6101 } from './model';
 import { EMPTY_6101, sectionApplies } from './model';
 import { parseHebrewAddress } from './address';
+import {
+  niClientIncomeTrust, niIncomeMonthly, niIncomeSourceText, niIncomeTrusted, niIncomeUnit, niUnverifiedIncomeNote,
+} from '../../nationalInsurance/niIncome';
+import type { NiIncomeRead } from '../../nationalInsurance/niIncome';
 import { bandFromHours, evaluateSelfEmployedDefinition, hoursFromBand, type DefinitionVerdict } from './definition';
 import { formDate, formMoney } from './layout6101';
 
@@ -67,9 +71,22 @@ export interface CurrentBtlState {
    * לעולם לא נכתב לטופס כערך מבוקש.
    */
   currentSelfEmployed?: { label: string; from?: string; qualifying: boolean; source: 'btl_portal' | 'manual'; weeklyHours?: number; btlDetail?: NiOccupationBtlDetail };
+  /**
+   * ההכנסה החודשית המוצהרת — **רק** כשאפשר לסמוך עליה (הצהרה מאומתת או
+   * הזנה ידנית). ‼ (219) ערך «טעון אימות» אינו כאן — ראה `declaredIncomeUnverified`.
+   */
   declaredIncomeMonthly?: number;
+  /** שנת ההצהרה — מההצהרה עצמה (רשימת ההכנסות), לא מהבסיס. */
   declaredIncomeYear?: number;
   declaredIncomeAt?: string;
+  /** «הצהרה · יוני 2025». */
+  declaredIncomeSource?: string;
+  /** יש בכרטיס סכום «לחודש» שנקרא בלי לדעת אם זו הצהרה — לא נכנס לטופס. */
+  declaredIncomeUnverified?: number;
+  /** למה טעון אימות — קריאה ישנה, או קריאה אחרונה שלא מצאה את ההצהרה. */
+  declaredIncomeUnverifiedNote?: string;
+  /** השומה האחרונה ברשימת ההכנסות — הקשר בלבד, לעולם לא «הכנסה לפני». */
+  assessmentText?: string;
   advanceMonthly?: number;
   classificationLabel: string;
   /** (207) ריכוז המידע ודמי הביטוח השנתיים, כפי שנקראו מב"ל — המצב הרשום. */
@@ -99,6 +116,13 @@ export interface Resolve6101Input {
    * (get_btl_portal_record). ‼ מקור נוסף להשוואה ולהשלמה, לא דריסה של הכרטיס.
    */
   btlRecord?: BtlPortalPerson;
+  /**
+   * (219) הקריאה האחרונה שהצליחה מ«רשימת הכנסות» ללקוח. קריאה שלמה שלא מצאה
+   * את ההצהרה השמורה ⇒ «הכנסה לפני» אינה מאומתת, גם לפני שאושר העדכון בכרטיס.
+   */
+  btlIncomeRead?: NiIncomeRead | null;
+  /** על מי ההגשה (ברירת מחדל: הלקוח). קובע של מי עובדות ההכנסה והראיה. */
+  subjectRole?: PersonRole;
 }
 
 /**
@@ -197,14 +221,27 @@ export function recordedBtl(rec?: BtlPortalPerson): CurrentBtlState['recorded'] 
   };
 }
 
-export function currentBtlState(client: Client, asOf: string, rec?: BtlPortalPerson): CurrentBtlState {
+/**
+ * `subjectRole` — על מי ההגשה. ‼ «הכנסה לפני» נשענת על עובדות ההכנסה של **אותו אדם**
+ * (בן/בת זוג: spouseNi*), לעולם לא של הלקוח. שאר עובדות העיסוק כאן עדיין של הלקוח —
+ * פער קיים שנרשם בנפרד (docs/CLAUDE-NI-INCOME-REVIEW2-RESULT).
+ */
+export function currentBtlState(client: Client, asOf: string, rec?: BtlPortalPerson, incomeRead?: NiIncomeRead | null, subjectRole: PersonRole = 'client'): CurrentBtlState {
+  const incKeys = NI_FACT_KEYS[subjectRole];
   const occs = client.niOccupations ?? [];
   const meta = metaOf(client, 'niOccupations');
   const fromPortal = occs.some(o => o.source === 'btl_portal');
   const open = occs
     .filter(o => (o.type === 'self_employed' || o.type === 'self_employed_non_qualifying') && (!o.toDate || o.toDate >= asOf))
     .sort((a, b) => (b.fromDate ?? '').localeCompare(a.fromDate ?? ''))[0];
-  const incMeta = metaOf(client, 'niIncomeBasisMonthly');
+  const incMeta = metaOf(client, incKeys.incomeBasisMonthly);
+  const trust = niClientIncomeTrust(client, incomeRead, subjectRole);
+  const incomeValue = client[incKeys.incomeBasisMonthly] as number | undefined;
+  const assessment = (client[incKeys.incomeList] as NiIncomeList | undefined)?.assessment ?? null;
+  const assessmentAvg = assessment ? niIncomeMonthly(assessment) : null;
+  const assessmentText = assessment
+    ? `${niIncomeSourceText(assessment)}: ${Math.round(assessment.amount).toLocaleString('en-US')} ₪${niIncomeUnit(assessment) === 'annual' ? ' לשנה' : ''}${assessmentAvg ? ` (ממוצע מחושב ≈ ${Math.round(assessmentAvg.amount).toLocaleString('en-US')} ₪ לחודש)` : ''}`
+    : undefined;
   const classificationLabel = open
     ? `${open.type === 'self_employed' ? 'עצמאי' : 'עצמאי שאינו עונה להגדרה'}${open.fromDate ? ` מ-${formDate(open.fromDate)}` : ''}`
     : occs.length ? 'לא רשום כעצמאי כרגע' : 'לא ידוע — לא נקרא מב"ל';
@@ -221,9 +258,17 @@ export function currentBtlState(client: Client, asOf: string, rec?: BtlPortalPer
       source: open.source === 'btl_portal' ? 'btl_portal' : 'manual', weeklyHours: open.weeklyHours,
       ...(open.btlDetail ? { btlDetail: open.btlDetail } : {}),
     } : undefined,
-    declaredIncomeMonthly: client.niIncomeBasisMonthly,
-    declaredIncomeYear: client.niInsuranceBasis?.sourceIncomeYear,
-    declaredIncomeAt: incMeta?.syncedAt,
+    ...(niIncomeTrusted(trust) ? {
+      declaredIncomeMonthly: incomeValue,
+      declaredIncomeAt: incMeta?.syncedAt,
+      ...(trust.kind === 'declaration'
+        ? { declaredIncomeYear: trust.entry.year, declaredIncomeSource: niIncomeSourceText(trust.entry) }
+        : {}),
+    } : {}),
+    ...(trust.kind === 'unverified'
+      ? { declaredIncomeUnverified: incomeValue, declaredIncomeUnverifiedNote: niUnverifiedIncomeNote(trust) ?? undefined }
+      : {}),
+    ...(assessmentText ? { assessmentText } : {}),
     advanceMonthly: client.niAdvanceMonthly,
     classificationLabel,
     ...(recordedBtl(rec) ? { recorded: recordedBtl(rec) } : {}),
@@ -236,7 +281,7 @@ export function resolve6101(input: Resolve6101Input): Resolve6101Result {
   const { client, purposes, entered, asOf } = input;
   const confirmed = input.confirmed ?? {};
   const flags = input.flags ?? {};
-  const btl = currentBtlState(client, asOf, input.btlRecord);
+  const btl = currentBtlState(client, asOf, input.btlRecord, input.btlIncomeRead, input.subjectRole);
   const rec = input.btlRecord?.facts ?? {};
   const btlSrc = (screen: string, at?: string) => `ב"ל · ${screen}${at ? ` (נקרא ${formDate(at.slice(0, 10))})` : ''}`;
   const fields: Record<string, FieldState> = {};
@@ -392,9 +437,16 @@ export function resolve6101(input: Resolve6101Input): Resolve6101Result {
   if (recorded?.definitionIncome != null) {
     hint('incomeBefore', `ב"ל רשם (פירוט עיסוק): הכנסה להגדרה ${Math.round(recorded.definitionIncome).toLocaleString('en-US')} ₪ — לא מועתק לטופס`);
   }
-  if (client.niIncomeBasisMonthly != null) {
-    put('incomeBefore', String(client.niIncomeBasisMonthly), 'verified', `ב"ל · ההכנסה המוצהרת${btl.declaredIncomeYear ? ` (${btl.declaredIncomeYear})` : ''}`, { sourceAt: btl.declaredIncomeAt });
+  // ‼ (219) «הכנסה לפני» = ההכנסה החודשית המוצהרת, רק כשאפשר לסמוך עליה.
+  // סכום «טעון אימות» (כך נכתבה שומה שנתית «לחודש») וממוצע של שומה — רמזים
+  // בלבד; השדה נשאר חסר ומושלם בזרימה הרגילה.
+  if (btl.declaredIncomeMonthly != null) {
+    const src = btl.declaredIncomeSource ? `ב"ל · ${btl.declaredIncomeSource}` : metaSourceLabel(metaOf(client, NI_FACT_KEYS[input.subjectRole ?? 'client'].incomeBasisMonthly), 'הכרטיס · הכנסה מוצהרת');
+    put('incomeBefore', String(btl.declaredIncomeMonthly), 'verified', src, { sourceAt: btl.declaredIncomeAt });
+  } else if (btl.declaredIncomeUnverified != null) {
+    hint('incomeBefore', `בכרטיס ${btl.declaredIncomeUnverified.toLocaleString('en-US')} ₪ «לחודש» — ${btl.declaredIncomeUnverifiedNote ?? 'טעון אימות'}. לא הועתק לטופס.`);
   }
+  if (btl.assessmentText) hint('incomeBefore', `${btl.assessmentText} — הכנסה של שנה שהסתיימה, לא בהכרח ההכנסה לפני השינוי. לא הועתק לטופס.`);
   const deductions = (client.taxFiles ?? []).find(t => t.authority === 'deductions' && t.owner !== 'spouse' && t.fileNumber);
   const btlWithholding = ((rec.withholdingFile?.value as BtlRaw | undefined)?.raw ?? '').replace(/\D/g, '');
   if (deductions?.fileNumber) {
@@ -426,7 +478,7 @@ export function resolve6101(input: Resolve6101Input): Resolve6101Result {
     if (b.revenueAnnual != null) hint('monthlyIncome', `בכרטיס: מחזור שנתי בעסק «${b.name}» ${b.revenueAnnual.toLocaleString('en-US')} ₪ — לא מומר לחודשי`);
     if (b.netIncome != null) hint('monthlyIncome', `בכרטיס: רווח שנתי בעסק «${b.name}» ${b.netIncome.toLocaleString('en-US')} ₪ — לא מומר לחודשי`);
   }
-  if (client.niIncomeBasisMonthly != null) hint('monthlyIncome', `בב"ל מוצהרת כרגע הכנסה חודשית של ${client.niIncomeBasisMonthly.toLocaleString('en-US')} ₪`);
+  if (btl.declaredIncomeMonthly != null) hint('monthlyIncome', `בכרטיס: הכנסה חודשית מוצהרת ${btl.declaredIncomeMonthly.toLocaleString('en-US')} ₪${btl.declaredIncomeSource ? ` (${btl.declaredIncomeSource})` : ''}`);
   // (207) החיוב השנתי בב"ל לפי סיווג — בדיקת עקביות לטבלת השנתיים (רמז, לא ערך).
   for (const y of ((rec.annualContributions?.value as BtlYears | undefined)?.years ?? [])) {
     if (y.year < year - 2 || y.year > year) continue;
@@ -516,6 +568,15 @@ export function resolve6101(input: Resolve6101Input): Resolve6101Result {
     if (st.status === 'missing' && st.required) issues.push({ key: k, severity: 'blocker', code: 'missing', message: `חסר: ${KEY_LABELS[k] ?? k}` });
     if (st.status === 'conflict') issues.push({ key: k, severity: 'blocker', code: 'conflict', message: `${KEY_LABELS[k] ?? k}: ${st.note ?? 'ערכים סותרים'}` });
     if (st.status === 'stale' && st.required) issues.push({ key: k, severity: 'warning', code: 'stale', message: `${KEY_LABELS[k] ?? k}: ${st.note ?? 'הנתון ישן'}` });
+  }
+  // ‼ (219, ביקורת 05.10) 6101 לבן/בת זוג: רק «הכנסה לפני» נלקחת מעובדות
+  // בן/בת הזוג; זהות, כתובת, עיסוקים, מקדמה ושאר הטופס — עדיין מכרטיס הלקוח.
+  // טופס מעורב כזה לעולם אינו «מוכן»: חוסם ⇒ «נעל» מושבת, והשרת דוחה נעילה עם
+  // has_blockers — ולכן אין חתימה ואין הגשה. (smart_form_start מ-206 ממילא
+  // דוחה subject_role שאינו 'client'; זו הגנה כפולה עד לתמיכה מלאה.)
+  if (input.subjectRole === 'spouse') {
+    issues.push({ key: 'subject', severity: 'blocker', code: 'subject_not_supported',
+      message: 'טופס 6101 לבן/בת זוג עדיין לא נתמך: רוב הפרטים בטופס נלקחים מכרטיס הלקוח. אין לנעול, לחתום או להגיש.' });
   }
   if (data.idNumber && !isValidIsraeliId(data.idNumber)) issues.push({ key: 'idNumber', severity: 'blocker', code: 'bad_id', message: 'ת"ז המבוטח אינה תקינה' });
   if (sectionVisible('spouse', data, flags) && data.spouseIdNumber && !isValidIsraeliId(data.spouseIdNumber)) {

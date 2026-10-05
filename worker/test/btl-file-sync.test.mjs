@@ -15,7 +15,7 @@ import {
   parseBtlDate, parseMoney, parseMonth, pickTable,
   parseOccupationSegments, parseOccupationRecords, segmentsToDrill,
   buildOccupationChains, extensionTargets, parseOccupationSummary, compareWithSummary,
-  parseAdvanceLine, parseInsuredHeader, parseIncomeList, selectDirectIncome,
+  parseAdvanceLine, parseInsuredHeader, parseIncomeList, selectDeclaredIncome, incomeEvidence,
   parseDebitAuthorizations, parseLedgerBalance, findRepresentedRow, maskId,
   hoursBandFromLabel, recordsToDetail, parseOccupationDetail, attachDetails,
   parseSummaryFacts, familyStatusCode, parseDocumentList, isReportDocument, parseNoticeList, noticeCategory,
@@ -206,31 +206,76 @@ test('כותרת המבוטח: ת.ז., יתרה, סוג הרשאת החיוב', 
   assert.deepEqual(h, { idNumber: '123456782', balance: 0, debitType: 'חשבון בנק' });
 });
 
-test('רשימת הכנסות: הרשומה הישירה — 2025 · הצהרה · עצמאי · 16,500 · 15/06/2025 · תקף', () => {
+const INCOME_HEAD = ['שנה', 'מחודש', 'עד חודש', 'מקור מידע', 'מקור הכנסה', 'סכום הכנסה', 'תאריך קבלה', 'תיקון מקדמות', 'סטטוס'];
+
+test('רשימת הכנסות: הצהרה — 2025 · יוני · עצמאי · 16,500 · 15/06/2025 · תקף ⇒ הכנסה חודשית', () => {
   const r = parseIncomeList([{
-    headerCells: ['שנה', 'מחודש', 'עד חודש', 'מקור מידע', 'מקור הכנסה', 'סכום הכנסה', 'תאריך קבלה', 'תיקון מקדמות', 'סטטוס'],
+    headerCells: INCOME_HEAD,
     dataRows: [['2025', 'יוני', 'יוני', 'הצהרה', 'עצמאי', '16500', '15/06/2025', '', 'תקף']],
   }]);
   assert.ok(r.ok);
-  const d = selectDirectIncome(r.rows);
+  assert.equal(r.rows[0].amount, 16500, 'הסכום כלשונו');
+  assert.ok(!('monthlyAmount' in r.rows[0]), 'השורה הגולמית אינה טוענת «לחודש»');
+  const d = selectDeclaredIncome(r.rows);
   assert.equal(d.year, 2025);
-  assert.equal(d.monthlyAmount, 16500);
+  assert.equal(d.amount, 16500);
+  assert.equal(d.monthlyAmount, 16500, 'הצורה לאתר שלפני 219');
   assert.equal(d.infoSource, 'הצהרה');
   assert.equal(d.incomeSource, 'עצמאי');
   assert.equal(d.receivedDate, '2025-06-15');
   assert.equal(d.fromMonth, 6);
+  assert.equal(d.toMonth, 6);
 });
 
-test('רשימת הכנסות: רשומה שאינה תקפה אינה נבחרת; השנה האחרונה והקבלה האחרונה גוברות', () => {
-  const d = selectDirectIncome([
-    { year: 2024, monthlyAmount: 9000, status: 'תקף', incomeSource: 'עצמאי', receivedDate: '2024-03-01' },
-    { year: 2025, monthlyAmount: 12000, status: 'מבוטל', incomeSource: 'עצמאי', receivedDate: '2025-08-01' },
-    { year: 2025, monthlyAmount: 15000, status: 'תקף', incomeSource: 'עצמאי', receivedDate: '2025-02-01' },
-    { year: 2025, monthlyAmount: 16500, status: 'תקף', incomeSource: 'עצמאי', receivedDate: '2025-06-15' },
-  ]);
-  assert.equal(d.monthlyAmount, 16500);
-  assert.equal(d.alternatives, 1);
-  assert.equal(selectDirectIncome([{ year: 2025, monthlyAmount: 1, status: 'מבוטל' }]), null, 'אין תקפה ⇒ אין ערך');
+// ‼ המקרה האמיתי (05.10.2026): שומה שנתית 47,800 נבחרה כ«47,800 לחודש».
+const ASSESSMENT_TABLE = {
+  headerCells: INCOME_HEAD,
+  dataRows: [
+    ['2025', 'ינואר', 'דצמבר', 'שומה עצמי', 'עצמאי', '47800', '05/09/2026', '', 'תקף'],
+    ['2024', 'ינואר', 'דצמבר', 'שומה עצמי', 'עצמאי', '21327', '05/01/2026', '', 'תקף'],
+    ['2023', 'ינואר', 'דצמבר', 'שומה עצמי', 'עצמאי', '0', '05/12/2025', '', 'תקף'],
+    ['2022', 'ינואר', 'דצמבר', 'שומה עצמי', 'עצמאי', '46800', '05/08/2023', '', 'תקף'],
+    ['2021', 'ינואר', 'דצמבר', 'שומה עצמי', 'עצמאי', '36400', '05/11/2022', '', 'תקף'],
+    ['2021', '', '', '', 'עובד', '4860', '', '', ''],
+    ['2020', 'ינואר', 'דצמבר', 'שומה עצמי', 'עצמאי', '28487', '15/11/2021', '', 'תקף'],
+    ['2020', 'ינואר', 'דצמבר', 'שומה עצמי', 'עצמאי', '19487', '05/08/2021', '', 'תקף'],
+  ],
+};
+
+test('רשימת הכנסות: שומות בלבד ⇒ אין הצהרה חודשית; כל השורות נשמרות כלשונן', () => {
+  const r = parseIncomeList([ASSESSMENT_TABLE]);
+  assert.ok(r.ok);
+  assert.equal(r.rows.length, 8, 'כולל שורת השכיר ושורת האפס');
+  assert.deepEqual(
+    { year: r.rows[0].year, from: r.rows[0].fromMonth, to: r.rows[0].toMonth, info: r.rows[0].infoSource, amount: r.rows[0].amount },
+    { year: 2025, from: 1, to: 12, info: 'שומה עצמי', amount: 47800 },
+  );
+  assert.equal(r.rows[2].amount, 0, 'אפס תקף הוא ערך, לא «חסר»');
+  assert.equal(r.rows[5].incomeSource, 'עובד');
+  assert.equal(r.rows[5].status, null);
+  assert.equal(selectDeclaredIncome(r.rows), null, 'שומה אינה הצהרה — גם כשהיא האחרונה');
+});
+
+test('רשימת הכנסות: הצהרה נבחרת לפי תקופה, לא לפי סדר; שכיר/מבוטל/שומה אינם הצהרה', () => {
+  const rows = [
+    { year: 2025, fromMonth: 1, toMonth: 12, infoSource: 'שומה עצמי', incomeSource: 'עצמאי', amount: 47800, status: 'תקף', receivedDate: '2026-09-05' },
+    { year: 2025, fromMonth: 6, toMonth: 6, infoSource: 'הצהרה', incomeSource: 'עצמאי', amount: 16500, status: 'תקף', receivedDate: '2025-06-15' },
+    { year: 2025, fromMonth: 2, toMonth: 2, infoSource: 'הצהרה', incomeSource: 'עצמאי', amount: 15000, status: 'תקף', receivedDate: '2025-02-01' },
+    { year: 2025, fromMonth: 9, toMonth: 9, infoSource: 'הצהרה', incomeSource: 'עצמאי', amount: 12000, status: 'מבוטל', receivedDate: '2025-09-01' },
+    { year: 2026, fromMonth: 1, toMonth: 1, infoSource: 'הצהרה', incomeSource: 'עובד', amount: 9000, status: 'תקף', receivedDate: '2026-01-10' },
+  ];
+  for (const order of [rows, [...rows].reverse()]) {
+    const d = selectDeclaredIncome(order);
+    assert.equal(d.amount, 16500);
+    assert.equal(d.alternatives, 1);
+  }
+  assert.equal(selectDeclaredIncome([{ year: 2025, amount: 1, status: 'מבוטל', infoSource: 'הצהרה', incomeSource: 'עצמאי' }]), null, 'אין תקפה ⇒ אין ערך');
+});
+
+test('רשימת הכנסות: שתי הצהרות מתחרות (אותה תקופה, אותו יום, סכום שונה) ⇒ לא בוחרים', () => {
+  const base = { year: 2025, fromMonth: 6, toMonth: 6, infoSource: 'הצהרה', incomeSource: 'עצמאי', status: 'תקף', receivedDate: '2025-06-15' };
+  assert.equal(selectDeclaredIncome([{ ...base, amount: 16500 }, { ...base, amount: 9000 }]), null);
+  assert.equal(selectDeclaredIncome([{ ...base, amount: 16500 }, { ...base, amount: 16500 }]).amount, 16500, 'כפילות זהה אינה תחרות');
 });
 
 test('הרשאות לחיוב: שורה «פתוח» ⇒ פעילה; פרטי החשבון לא נקראים בכלל', () => {
@@ -499,4 +544,18 @@ test('דמי ביטוח שנתיים: כותרת כפולה ⇒ לכל שנה ס
   ] });
   assert.deepEqual(r.years[0].classes, []);
   assert.equal(parseAnnualContributions([rows[1], rows[2]]).reason, 'group_mismatch', 'בלי שורת קבוצות — לא מנחשים שיוך');
+});
+
+test('רשימת הכנסות: יותר מ-40 שורות — כל שורות «הצהרה»/«שומה» נשלחות, רק שורות הקשר נחתכות; לא תלוי בסדר', () => {
+  const ctx = Array.from({ length: 70 }, (_, i) => ({ year: 1990 + (i % 30), incomeSource: 'עובד', infoSource: null, amount: i, status: null }));
+  const decl = { year: 2025, fromMonth: 6, toMonth: 6, infoSource: 'הצהרה', incomeSource: 'עצמאי', amount: 16500, status: 'תקף', receivedDate: '2025-06-15' };
+  const rows = [...ctx.slice(0, 50), decl, ...ctx.slice(50)];
+  const ev = incomeEvidence(rows);
+  assert.equal(ev.rows, 71);
+  assert.equal(ev.records.length, 41, 'שורת הבחירה + 40 שורות הקשר');
+  assert.equal(ev.omitted, 30);
+  assert.equal(ev.candidatesComplete, true);
+  assert.ok(ev.records.some(r => r.amount === 16500), 'ההצהרה בשורה 51 נשמרה');
+  assert.deepEqual(incomeEvidence([...rows].reverse()).records, ev.records, 'סדר הפוך — אותן שורות, באותו סדר');
+  assert.equal(selectDeclaredIncome(rows).amount, 16500);
 });

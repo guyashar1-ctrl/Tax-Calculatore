@@ -219,7 +219,7 @@ export const EDIT_SECTIONS: EditSection[] = [
     summary: c => join(c.niAdvanceMonthly && `מקדמה ${money(c.niAdvanceMonthly)}`) || UNKNOWN,
     fields: [
       { key: 'niAdvanceMonthly', label: 'מקדמה חודשית', kind: 'money', authority: true, governed: true },
-      { key: 'niIncomeBasisMonthly', label: 'בסיס הכנסה לחודש', kind: 'money', authority: true, governed: true },
+      { key: 'niIncomeBasisMonthly', label: 'הכנסה מוצהרת לחודש', kind: 'money', authority: true, governed: true, note: 'מהצהרה ברשימת ההכנסות. שומה שנתית אינה הכנסה לחודש.' },
       { key: 'niBalance', label: 'יתרה', kind: 'money', authority: true, governed: true },
       { key: 'niDebitAuthorization', label: 'הרשאה לחיוב', kind: 'bool', authority: true, governed: true },
     ],
@@ -233,7 +233,7 @@ export const EDIT_SECTIONS: EditSection[] = [
     summary: c => join(c.spouseNiAdvanceMonthly && `מקדמה ${money(c.spouseNiAdvanceMonthly)}`) || UNKNOWN,
     fields: [
       { key: 'spouseNiAdvanceMonthly', label: 'מקדמה חודשית', kind: 'money', authority: true, governed: true },
-      { key: 'spouseNiIncomeBasisMonthly', label: 'בסיס הכנסה לחודש', kind: 'money', authority: true, governed: true },
+      { key: 'spouseNiIncomeBasisMonthly', label: 'הכנסה מוצהרת לחודש', kind: 'money', authority: true, governed: true, note: 'מהצהרה ברשימת ההכנסות. שומה שנתית אינה הכנסה לחודש.' },
       { key: 'spouseNiBalance', label: 'יתרה', kind: 'money', authority: true, governed: true },
       { key: 'spouseNiDebitAuthorization', label: 'הרשאה לחיוב', kind: 'bool', authority: true, governed: true },
     ],

@@ -10,14 +10,20 @@
 
 import type { Client, NiOccupation, TaxAuthority, TaxFileInfo } from '../types';
 import { niOccupationsCountText } from '../features/nationalInsurance/niOccupations';
-import { niBasisView } from '../features/nationalInsurance/niBasisDisplay';
+import { niBasisExplain, niBasisView } from '../features/nationalInsurance/niBasisDisplay';
+import type { NiHelpSection } from '../features/nationalInsurance/niBasisDisplay';
+import {
+  niIncomeMonthly, niIncomePeriodText, niIncomeSourceText, niIncomeTrust, niIncomeUnit,
+  niUnverifiedIncomeNote,
+} from '../features/nationalInsurance/niIncome';
+import type { NiIncomeRead } from '../features/nationalInsurance/niIncome';
 import { BTL_REPRESENTATION_KEY } from '../features/nationalInsurance/btlFieldKeys';
 import { TAX_AUTHORITY_LABELS, TAX_FILE_REP_STATUS_LABELS } from '../types';
 import { VAT_FREQ_LABELS, SHAAM_STATUS_LABELS } from '../types/clientWorkspace';
 import { shortDate } from './clientDerived';
 import { resolvePersonAuthority, resolveIncomeTaxHousehold } from './personRepresentation';
 import {
-  niPersons, niFactsOf, niFileOf, niFieldKeys, niEditable, niRepresentationOf, niRepresentationAction,
+  niPersons, niFactsOf, niFactMetaOf, niFileOf, niFieldKeys, niEditable, niRepresentationOf, niRepresentationAction,
 } from './niPersons';
 import type { NiExecutionByRole, NiRepresentationAction } from './niPersons';
 import { registeredFileInfo } from '../features/annualReport/profile';
@@ -102,6 +108,11 @@ export interface AuthorityRowFact {
   /** שורות משנה קטנות מתחת לערך (למשל הבסיס לחודש ושחזור ההכנסה). */
   sub?: string[];
   /**
+   * הסבר הערכים של הלקוח הזה מאחורי ה-«?» — מה נקרא, מה חושב, מה הוערך
+   * (219). קיים היום על «בסיס לדמי ביטוח» בלבד.
+   */
+  explain?: NiHelpSection[];
+  /**
    * עיסוקי ב"ל של האדם — קיים רק על שורת «עיסוקים». הערך (`v`) הוא הספירה;
    * הרשימה נפתחת מתחתיה בחשיפה הדרגתית.
    */
@@ -153,6 +164,11 @@ function join(parts: (string | null | undefined)[]): string {
  */
 export function buildAuthorityRows(
   client: Client, spouseClient?: Client, niExecution?: NiExecutionByRole,
+  /**
+   * (219) הקריאה האחרונה שהצליחה מב"ל, לפי אדם בכרטיס **הזה**. קריאה שלמה
+   * שלא מצאה הצהרה שמורה שוללת ממנה את «מאומת» — עוד לפני האישור.
+   */
+  niIncomeReads?: Partial<Record<'client' | 'spouse', NiIncomeRead>>,
 ): AuthorityRow[] {
   const files = client.taxFiles ?? [];
   const filesOf = (a: TaxAuthority) => files.filter(f => f.authority === a);
@@ -349,6 +365,7 @@ export function buildAuthorityRows(
       return {
         person,
         pf: niFactsOf(person, client),
+        meta: niFactMetaOf(person, client),
         file: niFileOf(person, client),
         rep,
         niAction: niRepresentationAction(person, client, rep, track),
@@ -357,7 +374,7 @@ export function buildAuthorityRows(
       };
     });
 
-    const personRows: AuthorityRowPerson[] = built.map(({ person, pf, file, rep, niAction, editable, keys }) => {
+    const personRows: AuthorityRowPerson[] = built.map(({ person, pf, meta, file, rep, niAction, editable, keys }) => {
       const bal = balanceText(pf.balance);
       const auth = authText(pf.debitAuthorization);
       const facts: AuthorityRow['facts'] = [];
@@ -383,26 +400,69 @@ export function buildAuthorityRows(
         k: 'עיסוקים', v: niOccupationsCountText(pf.occupations.length) || EMPTY, helpKey: 'niOccupations',
         occupations: pf.occupations, ...sync('occupations'),
       });
-      // ‼ ההכנסה המוצהרת (רשימת הכנסות) — ולא «בסיס»: בביטוח לאומי «בסיס»
-      // הוא 47,583 לרבעון, אחרי קידום וניכוי. שני מספרים שונים, שני שמות.
+      // ‼ ההכנסה המוצהרת (הצהרה ברשימת הכנסות, או ביד) — ולא «בסיס»: בב"ל
+      // «בסיס» הוא 47,583 לרבעון, אחרי קידום וניכוי. ‼ (219) ערך שנכתב בעבר
+      // מקריאה אוטומטית בלי לדעת אם זו הצהרה — «טעון אימות», ולא נכנס לשום
+      // חישוב או השוואה (כך נרשמה שומה שנתית 47,800 «לחודש»).
+      // ‼ אדם מקושר מתעדכן מהכרטיס שלו/ה — הקריאה של הכרטיס הזה אינה עליו/ה.
+      const trust = niIncomeTrust(pf.incomeBasisMonthly, meta.incomeBasisMonthly, pf.incomeList,
+        editable ? niIncomeReads?.[person.role] : undefined);
+      const listDecl = pf.incomeList?.declaration ?? null;
+      const incomeSub = trust.kind === 'declaration' ? [niIncomeSourceText(trust.entry)]
+        : trust.kind === 'unverified' ? [niUnverifiedIncomeNote(trust)!]
+        : trust.kind === 'manual' && listDecl && listDecl.amount !== pf.incomeBasisMonthly
+          ? [`בב"ל: ${money(listDecl.amount)} לחודש · ${niIncomeSourceText(listDecl)}`]
+        : [];
       facts.push({
         k: 'הכנסה מוצהרת',
         v: pf.incomeBasisMonthly != null ? `${money(pf.incomeBasisMonthly)} לחודש` : EMPTY,
+        ...(trust.kind === 'unverified' && trust.reason !== 'checking' ? { tone: 'warn' as const } : {}),
+        ...(incomeSub.length ? { sub: incomeSub } : {}),
         helpKey: 'niIncomeBasisMonthly',
         ...(editable ? { editKey: keys.incomeBasisMonthly } : {}),
         ...sync('incomeBasisMonthly'),
       });
+      // ‼ השומה — עובדה נפרדת: הכנסה **שנתית**, והממוצע החודשי שלה הוא חישוב.
+      // מוצגת כשיש שומה, או כשאפשר לקרוא אותה מכאן (כדי שהקריאה תציע אותה).
+      const assessment = pf.incomeList?.assessment ?? null;
+      const assessmentAmbiguous = !!pf.incomeList?.ambiguous?.includes('assessment');
+      if (assessment || assessmentAmbiguous || editable) {
+        const avg = assessment ? niIncomeMonthly(assessment) : null;
+        const unit = assessment ? niIncomeUnit(assessment) : null;
+        facts.push({
+          k: 'הכנסה לפי שומה',
+          v: assessment
+            ? unit === 'annual'
+              ? `${money(assessment.amount)} לשנה (${assessment.year})`
+              : `${money(assessment.amount)} · ${niIncomePeriodText(assessment)}`
+            : assessmentAmbiguous ? 'שורות סותרות' : EMPTY,
+          ...(assessmentAmbiguous && !assessment ? { tone: 'warn' as const } : {}),
+          ...(avg ? { sub: [`ממוצע מחושב ≈ ${money(avg.amount)} לחודש`] }
+            : assessment ? { sub: ['לא ידוע אם הסכום לשנה או לחודש'] } : {}),
+          helpKey: 'niIncomeList',
+          ...sync('incomeList'),
+        });
+      }
       if (pf.insuranceBasis) {
+        const declaration = trust.kind === 'declaration' ? trust.entry : null;
         const view = niBasisView(pf.insuranceBasis, {
-          directMonthlyIncome: pf.incomeBasisMonthly ?? null,
+          declaration,
           statusesCount: pf.occupations.length || undefined,
         });
+        // ‼ רק «קרוב» נאמר כאן. «לא קרוב» אינו פסק דין — ההסבר ב-«?».
         const recon = view.reconstructionText
-          ? `${view.reconstructionText}${view.matchesDirect === true ? ' · תואם להצהרה' : view.matchesDirect === false ? ' · שונה מההצהרה' : ''}`
+          ? `${view.reconstructionText}${view.nearDeclaration === true ? ' · קרוב להצהרה' : ''}`
           : view.reconstructionNote;
         facts.push({
           k: 'בסיס לדמי ביטוח', v: view.periodText, helpKey: 'niInsuranceBasis',
           sub: [view.monthlyText, recon].filter((x): x is string => !!x),
+          explain: niBasisExplain(pf.insuranceBasis, {
+            declaration,
+            declarationUnverified: trust.kind === 'unverified',
+            assessment,
+            statusesCount: pf.occupations.length || undefined,
+            basisMeta: meta.insuranceBasis,
+          }),
           ...sync('insuranceBasis'),
         });
       } else {
@@ -457,7 +517,7 @@ export function buildAuthorityRows(
     // "יש מה להציג" גם ברשות none — בדיוק ההתנהגות הקודמת, ש-`repOf` כבר
     // סיפקה כשהחזירה «אין ייצוג» עבור תיק ריק.
     const present = built.some(({ pf, file, rep }) =>
-      !!file || pf.occupations.length > 0 || pf.incomeBasisMonthly != null
+      !!file || pf.occupations.length > 0 || pf.incomeBasisMonthly != null || !!pf.incomeList
       || pf.advanceMonthly != null || pf.balance != null || pf.debitAuthorization != null
       || rep.represented);
 

@@ -411,8 +411,49 @@ export interface NiInsuranceBasis {
   category?: string;
   /** המקדמה החודשית שהפורטל הציג לצד הבסיס. */
   advanceMonthly?: number;
-  /** שנת ההכנסה שעליה נשען הבסיס, כשהיא ידועה (מרשימת ההכנסות). */
+  /**
+   * ‼ היסטורי — עד 219 נגזר מ«שנת ההכנסה שנבחרה» ולא מקשר מבוסס. אינו נכתב
+   * עוד ואינו נקרא בחישוב: ביטוח לאומי לא מציג על איזו הכנסה נשען הבסיס.
+   */
   sourceIncomeYear?: number;
+}
+
+/**
+ * שורה אחת מ«עיסוקים והכנסות → רשימת הכנסות», כלשונה (219).
+ *
+ * ‼ `amount` הוא «סכום הכנסה» כפי שמוצג — **בלי** יחידה מובנית. המשמעות
+ * תלויה ב«מקור מידע»: «הצהרה» היא הכנסה חודשית (16,500 לחודש), «שומה עצמי»
+ * לינואר–דצמבר היא הכנסה שנתית (47,800 לשנה). הפירוש —
+ * features/nationalInsurance/niIncome.ts, ולעולם לא כאן.
+ */
+export interface NiIncomeEntry {
+  year: number;
+  fromMonth: number | null;
+  toMonth: number | null;
+  /** «מקור מידע» כלשונו: «הצהרה», «שומה עצמי». */
+  infoSource: string | null;
+  /** «מקור הכנסה» כלשונו: «עצמאי», «עובד». */
+  incomeSource: string | null;
+  amount: number;
+  receivedDate: string | null;
+  status: string | null;
+}
+
+/**
+ * מה רשימת ההכנסות בב"ל אומרת על העצמאי — לכל אדם (219). ‼ ההצהרה והשומה
+ * הן שתי עובדות שונות ונשמרות בנפרד; אף אחת אינה «ההכנסה הנוכחית» מעצם
+ * היותה האחרונה. null = אין שורה תקפה מהסוג הזה.
+ */
+export interface NiIncomeList {
+  declaration: NiIncomeEntry | null;
+  assessment: NiIncomeEntry | null;
+  /** סוגים שבהם שתי שורות תקפות מתחרות באותה תקופה בסכום שונה — לא נבחרה אף אחת. */
+  ambiguous?: ('declaration' | 'assessment')[];
+  /**
+   * נבנה מקריאה שלפני 219, שהחזירה שורה אחת בלבד — null כאן אינו «אין»,
+   * אלא «לא נקרא». קריאה חוזרת מחליפה.
+   */
+  partial?: boolean;
 }
 
 // ─── עסקים — לעצמאי עם 2+ עסקים ────────────────────────────────────────
@@ -854,8 +895,14 @@ export interface Client {
   niBalance?: number;
   niOccupations?: NiOccupation[];
   niDebitAuthorization?: boolean;
-  /** בסיס הכנסה למקדמות בביטוח לאומי — לחודש. עובדה מקצועית מאושרת (M2 fix, לא רק תיעוד). */
+  /**
+   * הכנסה חודשית **מוצהרת** בביטוח לאומי — מהצהרה ברשימת ההכנסות או הוזנה
+   * ביד. ‼ שומה שנתית אינה נכתבת לכאן (219); היא ב-`niIncomeList`.
+   */
   niIncomeBasisMonthly?: number;
+  /** מה רשימת ההכנסות אומרת — הצהרה ושומה, כלשונן (219). */
+  niIncomeList?: NiIncomeList;
+  spouseNiIncomeList?: NiIncomeList;
 
   /**
    * חמשת שדות הב"ל התפעוליים — עותק מקביל לבן/בת הזוג (154, docs/PLAN-BTL-PER-PERSON.md).
@@ -1508,6 +1555,7 @@ export interface NiPersonFacts {
   balance?: number;
   debitAuthorization?: boolean;
   insuranceBasis?: NiInsuranceBasis;
+  incomeList?: NiIncomeList;
 }
 
 /**
@@ -1520,12 +1568,12 @@ export const NI_FACT_KEYS: Record<PersonRole, Record<keyof NiPersonFacts, keyof 
   client: {
     occupations: 'niOccupations', incomeBasisMonthly: 'niIncomeBasisMonthly',
     advanceMonthly: 'niAdvanceMonthly', balance: 'niBalance', debitAuthorization: 'niDebitAuthorization',
-    insuranceBasis: 'niInsuranceBasis',
+    insuranceBasis: 'niInsuranceBasis', incomeList: 'niIncomeList',
   },
   spouse: {
     occupations: 'spouseNiOccupations', incomeBasisMonthly: 'spouseNiIncomeBasisMonthly',
     advanceMonthly: 'spouseNiAdvanceMonthly', balance: 'spouseNiBalance', debitAuthorization: 'spouseNiDebitAuthorization',
-    insuranceBasis: 'spouseNiInsuranceBasis',
+    insuranceBasis: 'spouseNiInsuranceBasis', incomeList: 'spouseNiIncomeList',
   },
 };
 

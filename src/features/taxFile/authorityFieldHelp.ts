@@ -51,6 +51,7 @@ function build(): Record<string, AuthorityFieldHelp> {
       put(exc.extraFieldWhenBad?.governedKey, institution, exc.extraFieldWhenBad?.where ?? exc.where, exc.guide);
     }
     if (cfg.occupationsWhere) put('niOccupations', institution, cfg.occupationsWhere);
+    for (const [key, where] of Object.entries(cfg.readOnlyWhere ?? {})) put(key, institution, where);
   }
   return out;
 }

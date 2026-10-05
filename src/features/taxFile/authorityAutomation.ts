@@ -12,7 +12,7 @@
 // ‼ מציע ולא כותב: שום דבר כאן לא נוגע ב-clients. הסט הזה הוא מה שהרו"ח
 // **רואה**; הכתיבה קורית רק דרך מסלול העובדות המנוהלות, אחרי לחיצה מפורשת.
 
-import type { Client, NiInsuranceBasis, NiOccupation, PersonRole, TaxAuthority } from '../../types';
+import type { Client, NiIncomeEntry, NiIncomeList, NiInsuranceBasis, NiOccupation, PersonRole, TaxAuthority } from '../../types';
 import { NI_FACT_KEYS } from '../../types';
 import type { AutomationJob } from '../../types/automation';
 import { SHAAM_SYNC_INCOME_TAX_ACTION_TYPE, BTL_SYNC_FILE_ACTION_TYPE } from '../../types/automation';
@@ -26,6 +26,10 @@ import {
 } from '../nationalInsurance/niOccupations';
 import type { BtlOccupationChain } from '../nationalInsurance/niOccupations';
 import { niBasisView, niBasisPeriodText, niMonthsText } from '../nationalInsurance/niBasisDisplay';
+import {
+  niIncomeKind, niIncomeListEmpty, niIncomeListKey, niIncomeReadOf, niIncomeSourceText, niIncomeUnit,
+} from '../nationalInsurance/niIncome';
+import type { NiIncomeSection } from '../nationalInsurance/niIncome';
 import { BTL_REPRESENTATION_KEY } from '../nationalInsurance/btlFieldKeys';
 
 /**
@@ -390,10 +394,12 @@ interface BtlAdvanceValue {
   basisCategory: string | null; periodBasis: number; advanceMonthly: number;
 }
 
-interface BtlDirectIncome {
-  year: number; monthlyAmount: number; infoSource: string | null; incomeSource: string | null;
-  receivedDate: string | null; fromMonth: number | null; toMonth: number | null;
-}
+/**
+ * מקטע «רשימת הכנסות» כפי שהעובד מחזיר. ‼ מ-219: `records` — כל השורות
+ * כלשונן. לפני 219: רק `value` — שורה אחת שנבחרה לפי שנה בלבד, עם
+ * `monthlyAmount` שהיה בפועל «סכום הכנסה» בלי יחידה.
+ */
+type BtlIncomeSection = NiIncomeSection;
 
 interface BtlPersonResult {
   role: PersonRole;
@@ -409,7 +415,7 @@ interface BtlPersonResult {
   sections?: {
     advance?: BtlSection<BtlAdvanceValue>;
     occupations?: BtlSection<BtlOccupationChain[]>;
-    directIncome?: BtlSection<BtlDirectIncome | null>;
+    directIncome?: BtlIncomeSection;
     debitAuthorization?: BtlSection<boolean>;
     balance?: BtlSection<number>;
   };
@@ -418,8 +424,20 @@ interface BtlPersonResult {
 export const BTL_FIELD_KEYS: readonly string[] = (['client', 'spouse'] as const).flatMap(r => [
   NI_FACT_KEYS[r].occupations, NI_FACT_KEYS[r].incomeBasisMonthly, NI_FACT_KEYS[r].advanceMonthly,
   NI_FACT_KEYS[r].balance, NI_FACT_KEYS[r].debitAuthorization, NI_FACT_KEYS[r].insuranceBasis,
-  BTL_REPRESENTATION_KEY[r],
+  NI_FACT_KEYS[r].incomeList, BTL_REPRESENTATION_KEY[r],
 ]);
+
+/** «הצהרה · יוני 2025: 16,500 ₪ לחודש · שומה עצמי · ינואר–דצמבר 2025: 47,800 ₪ לשנה». */
+export function niIncomeListText(l: NiIncomeList): string {
+  const one = (e: NiIncomeEntry) => {
+    const unit = niIncomeUnit(e);
+    return `${niIncomeSourceText(e)}: ${ils(e.amount)}${unit === 'monthly' ? ' לחודש' : unit === 'annual' ? ' לשנה' : ''}`;
+  };
+  const parts = [l.declaration ? one(l.declaration) : null, l.assessment ? one(l.assessment) : null]
+    .filter((x): x is string => !!x);
+  if (l.ambiguous?.length) parts.push('שורות סותרות — לא נבחרו');
+  return parts.join(' · ') || 'אין הצהרה או שומה תקפה של עצמאי';
+}
 
 function btlPersons(job: AutomationJob | null): BtlPersonResult[] {
   if (job?.status !== 'succeeded') return [];
@@ -464,7 +482,7 @@ function interpretBtlFile(
     if (!p.ok) {
       // ‼ כשל של אדם שלם: סמן אדום לכל שדה, אבל **ההסבר פעם אחת** — בבלוק
       // של האדם (runErrorByPerson), לא אותו משפט מתחת לשישה שדות.
-      for (const k of [keys.occupations, keys.incomeBasisMonthly, keys.advanceMonthly, keys.balance, keys.debitAuthorization, keys.insuranceBasis]) {
+      for (const k of [keys.occupations, keys.incomeBasisMonthly, keys.incomeList, keys.advanceMonthly, keys.balance, keys.debitAuthorization, keys.insuranceBasis]) {
         push({ fieldKey: k, label: k, status: 'failed', currentValue: String(c[k] ?? ''), ...person });
       }
       // ‼ «לא נמצא ברשימת המיוצגים» היא תשובה, לא תקלה — מוצגת ליד «ייצוג».
@@ -515,23 +533,93 @@ function interpretBtlFile(
       }
     }
 
-    // ── הכנסה מוצהרת (ישירה) — רשימת הכנסות ──
-    const direct = s.directIncome?.ok ? s.directIncome.value ?? null : undefined;
+    // ── רשימת ההכנסות — הצהרה ושומה, כלשונן (219) ──
+    // ‼ «סכום הכנסה» אינו נושא יחידה: הצהרה = לחודש, שומה לינואר–דצמבר =
+    // לשנה. רק הצהרה נכתבת ל«הכנסה מוצהרת»; השומה נשמרת כעובדה נפרדת.
+    // ‼ רק קריאה **שלמה** רשאית לומר «אין», לסתור את השמור או להציע לנקות.
+    // חלקית (עובד ישן) או חתוכה ⇒ מה שנמצא מוצג, מה שלא נמצא — לא ידוע.
+    const income = niIncomeReadOf(s.directIncome);
+    const truncated = income.ok && !income.partial && !income.complete;
+    const TRUNCATED = 'רשימת ההכנסות לא נקראה במלואה — לא הוסקה ממנה מסקנה';
+    const PARTIAL = 'לא ידוע — הקריאה הקודמת החזירה שורה אחת בלבד';
+    {
+      const k = keys.incomeList;
+      const current = c[k] as NiIncomeList | undefined;
+      const info = (authorityDisplay: string) =>
+        push({ fieldKey: k, label: k, status: 'info', currentValue: niIncomeListKey(current), authorityDisplay, ...person });
+      if (!income.ok) push(failed(k, 'directIncome'));
+      else if (truncated) info(TRUNCATED);
+      else if (niIncomeListEmpty(income.list)) {
+        if (income.complete && current && !niIncomeListEmpty(current)) {
+          // ‼ קריאה שלמה שלא מצאה דבר תקף — סותרת את מה שנשמר. מוצע לעדכן
+          // (דרך האישור, עם הישן ביומן); עד אז האמון נשלל ב-niIncomeTrust.
+          const empty: NiIncomeList = { declaration: null, assessment: null };
+          push({
+            fieldKey: k, label: k, status: 'changed',
+            currentValue: niIncomeListKey(current), currentDisplay: niIncomeListText(current),
+            authorityDisplay: niIncomeListText(empty), authorityValue: niIncomeListKey(empty), patchValue: empty,
+            hint: 'מה שנשמר קודם לא נמצא כתקף בקריאה הזו.',
+            provenance: 'עיסוקים והכנסות → רשימת הכנסות · אין שורה תקפה של עצמאי',
+            ...person,
+          });
+        } else info(income.partial ? PARTIAL : 'אין הצהרה או שומה תקפה של עצמאי ברשימת ההכנסות');
+      } else {
+        const next = income.list;
+        push({
+          fieldKey: k, label: k, status: niIncomeListKey(current) === niIncomeListKey(next) ? 'match' : 'changed',
+          currentValue: niIncomeListKey(current),
+          currentDisplay: current && !niIncomeListEmpty(current) ? niIncomeListText(current) : '—',
+          authorityDisplay: niIncomeListText(next),
+          authorityValue: niIncomeListKey(next),
+          patchValue: next,
+          hint: income.partial ? 'מקריאה ישנה שהחזירה שורה אחת בלבד — קריאה חוזרת תשלים את הרשימה.' : undefined,
+          provenance: 'עיסוקים והכנסות → רשימת הכנסות',
+          ...person,
+        });
+      }
+    }
+
+    // ── הכנסה מוצהרת — **רק** מהצהרה ──
     {
       const k = keys.incomeBasisMonthly;
       const current = c[k] as number | undefined;
-      if (!s.directIncome?.ok) push(failed(k, 'directIncome'));
-      else if (direct == null) {
-        push({ fieldKey: k, label: k, status: 'info', currentValue: String(current ?? ''), authorityDisplay: 'אין הכנסה תקפה ברשימת ההכנסות', ...person });
-      } else {
-        const prov = [`רשימת הכנסות · ${direct.year}`, direct.infoSource, direct.incomeSource,
-          direct.receivedDate ? `התקבל ${niDate(direct.receivedDate)}` : null].filter(Boolean).join(' · ');
+      const info = (authorityDisplay: string) =>
+        push({ fieldKey: k, label: k, status: 'info', currentValue: String(current ?? ''), authorityDisplay, ...person });
+      const d = income.ok && !truncated ? income.list.declaration : null;
+      if (!income.ok) push(failed(k, 'directIncome'));
+      else if (truncated) info(TRUNCATED);
+      else if (d) {
+        const prov = `רשימת הכנסות · ${niIncomeSourceText(d)}${d.incomeSource ? ` · ${d.incomeSource}` : ''}${d.receivedDate ? ` · התקבל ${niDate(d.receivedDate)}` : ''}`;
         push({
-          fieldKey: k, label: k, status: current != null && Number(current) === direct.monthlyAmount ? 'match' : 'changed',
+          fieldKey: k, label: k, status: current != null && Number(current) === d.amount ? 'match' : 'changed',
           currentValue: String(current ?? ''),
-          authorityDisplay: `${ils(direct.monthlyAmount)} לחודש`, authorityValue: String(direct.monthlyAmount),
-          patchValue: direct.monthlyAmount, hint: prov, provenance: prov, ...person,
+          authorityDisplay: `${ils(d.amount)} לחודש · ${niIncomeSourceText(d)}`, authorityValue: String(d.amount),
+          patchValue: d.amount, hint: prov, provenance: prov, ...person,
         });
+      } else if (!income.complete) info(PARTIAL);
+      else if (income.list.ambiguous?.includes('declaration')) info('שתי הצהרות סותרות לאותה תקופה — לא נבחרה אף אחת');
+      else {
+        // ‼ קריאה שלמה, ואין הצהרה תקפה. ערך שנכתב בעבר מקריאה אוטומטית —
+        // שומה שנקראה «לחודש», או הצהרה שכבר אינה תקפה — מוצע לנקות, דרך
+        // האישור הרגיל וביומן. ערך שהוזן ביד — לא נוגעים.
+        const meta = client.fieldMeta?.[k];
+        if (current != null && meta?.source === 'automation') {
+          const misread = income.raw.find(r => niIncomeKind(r) !== 'declaration' && r.amount === Number(current));
+          const stored = (c[keys.incomeList] as NiIncomeList | undefined)?.declaration;
+          const why = misread
+            ? `«${niIncomeSourceText(misread)}» — ${niIncomeUnit(misread) === 'annual' ? 'הכנסה שנתית' : 'סכום שאינו הצהרה חודשית'} שנקראה בעבר כהכנסה חודשית. השומה נשמרת בנפרד.`
+            : stored && stored.amount === Number(current)
+              ? `ההצהרה (${niIncomeSourceText(stored)}) כבר לא מופיעה כתקפה ברשימת ההכנסות.`
+              : 'נקרא בעבר מקריאה אוטומטית, ואין היום הצהרה תקפה שתומכת בו.';
+          push({
+            fieldKey: k, label: k, status: 'changed',
+            currentValue: String(current), currentDisplay: `${ils(Number(current))} לחודש`,
+            authorityDisplay: 'אין הצהרה חודשית — השדה יתרוקן', authorityValue: '', patchValue: null,
+            hint: `${ils(Number(current))} שבכרטיס: ${why}`,
+            provenance: `רשימת הכנסות · אין הצהרה תקפה${misread ? ` · ${niIncomeSourceText(misread)}` : ''}`,
+            ...person,
+          });
+        } else info('אין הצהרה חודשית ברשימת ההכנסות');
       }
     }
 
@@ -553,12 +641,15 @@ function interpretBtlFile(
           year: a.year, fromMonth: a.fromMonth, toMonth: a.toMonth, months: a.months,
           periodBasis: a.periodBasis, advanceMonthly: a.advanceMonthly,
           ...(a.basisCategory ? { category: a.basisCategory } : {}),
-          // ‼ שנת המקור — רק מההכנסה הישירה, ורק כשהיא לפני שנת הביטוח.
-          ...(direct && direct.year < a.year ? { sourceIncomeYear: direct.year } : {}),
+          // ‼ (219) בלי sourceIncomeYear: ב"ל אינו מציג על איזו הכנסה נשען
+          // הבסיס, ו«השנה של ההכנסה שנבחרה» אינה קשר מבוסס.
         };
         const curBasis = c[kBasis] as NiInsuranceBasis | undefined;
         const occupations = s.occupations?.ok ? s.occupations.value ?? [] : [];
-        const view = niBasisView(basis, { directMonthlyIncome: direct?.monthlyAmount ?? null, statusesCount: occupations.length || undefined });
+        const view = niBasisView(basis, {
+          declaration: income.ok && !truncated ? income.list.declaration : null,
+          statusesCount: occupations.length || undefined,
+        });
         push({
           fieldKey: kBasis, label: kBasis, status: sameBasis(curBasis, basis) ? 'match' : 'changed',
           currentValue: curBasis ? `${curBasis.periodBasis}|${niBasisPeriodText(curBasis)}` : '',

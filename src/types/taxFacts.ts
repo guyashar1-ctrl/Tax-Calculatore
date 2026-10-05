@@ -100,6 +100,8 @@ export const GOVERNED_FACT_KEYS: ReadonlySet<string> = new Set([
   'spouseNiIncomeBasisMonthly', 'spouseNiAdvanceMonthly',
   // ── 197 — בסיס דמי הביטוח לתקופה, לכל אדם. ‼ לא הכנסה. ──
   'niInsuranceBasis', 'spouseNiInsuranceBasis',
+  // ── 219 — רשימת ההכנסות: הצהרה ושומה כלשונן, לכל אדם. ‼ שומה אינה «לחודש». ──
+  'niIncomeList', 'spouseNiIncomeList',
 ]);
 
 export const GOVERNED_FIELD_LABELS: Record<string, string> = {
@@ -131,7 +133,7 @@ export const GOVERNED_FIELD_LABELS: Record<string, string> = {
   incomeTaxUnit: 'חוליה', incomeTaxEconomicIndustry: 'ענף כלכלי',
   incomeTaxDebitAuthorization: 'הרשאת חיוב - מס הכנסה', withholdingDetail: 'פירוט ניכוי במקור',
   capitalDeclarationRequired: 'דרישת הצהרת הון פתוחה', capitalDeclarationDeadline: 'מועד להגשת הצהרת הון',
-  niIncomeBasisMonthly: 'בסיס הכנסה למקדמות - ביטוח לאומי', incomeTaxReportingStatus: 'מצב דיווחים',
+  niIncomeBasisMonthly: 'הכנסה חודשית מוצהרת - ביטוח לאומי', incomeTaxReportingStatus: 'מצב דיווחים',
   withholdingStatus: 'מצב ניכוי במקור',
   otherIncome: 'הכנסה אחרת', rentalExpenses: 'הוצאות על נכס מושכר',
   selfEmployedPensionAmount: 'הפקדת עצמאי לפנסיה', krenHashtalmutSE: 'הפקדת עצמאי לקרן השתלמות',
@@ -148,10 +150,12 @@ export const GOVERNED_FIELD_LABELS: Record<string, string> = {
   hasDisabilityInsurance: 'ביטוח אובדן כושר עבודה', hasMedicalInsurance: 'ביטוח בריאות',
   spouseNiBalance: 'יתרה בביטוח לאומי - בן/בת הזוג', spouseNiOccupations: 'עיסוקים בביטוח לאומי - בן/בת הזוג',
   spouseNiDebitAuthorization: 'הרשאת חיוב - ביטוח לאומי (בן/בת הזוג)',
-  spouseNiIncomeBasisMonthly: 'בסיס הכנסה למקדמות - ביטוח לאומי (בן/בת הזוג)',
+  spouseNiIncomeBasisMonthly: 'הכנסה חודשית מוצהרת - ביטוח לאומי (בן/בת הזוג)',
   spouseNiAdvanceMonthly: 'מקדמה חודשית בביטוח לאומי - בן/בת הזוג',
   niInsuranceBasis: 'בסיס דמי ביטוח לתקופה - ביטוח לאומי',
   spouseNiInsuranceBasis: 'בסיס דמי ביטוח לתקופה - ביטוח לאומי (בן/בת הזוג)',
+  niIncomeList: 'רשימת הכנסות (הצהרה ושומה) - ביטוח לאומי',
+  spouseNiIncomeList: 'רשימת הכנסות (הצהרה ושומה) - ביטוח לאומי (בן/בת הזוג)',
 };
 
 /** השוואה עמוקה מספיק לשדות מנוהלים — כולל מערכים/אובייקטים (ילדים, מעבידים וכו'). */

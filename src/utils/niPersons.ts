@@ -9,11 +9,12 @@
 // ‼ «אדם» הוא PersonRole ('client'|'spouse') — לא שם, לא מגדר.
 
 import type {
-  Client, NiExternalState, NiInsuranceBasis, NiOccupation, NiTracking, PersonRole, TaxAuthority, TaxFileInfo,
+  Client, NiExternalState, NiIncomeList, NiInsuranceBasis, NiOccupation, NiTracking, PersonRole, TaxAuthority, TaxFileInfo,
 } from '../types';
 import {
   NI_FACT_KEYS, NI_EXTERNAL_STATE_LABELS, TAX_FILE_REP_STATUS_LABELS, REP_AREA_STATUS_LABELS,
 } from '../types';
+import type { FieldMeta } from '../types/clientWorkspace';
 import { targetsOf } from './repScope';
 import { resolvePersonAuthority } from './personRepresentation';
 import { clientDisplayName, spouseDisplayName } from '../features/annualReport/profile';
@@ -28,6 +29,7 @@ export interface NiPersonFactsValue {
   balance?: number;
   debitAuthorization?: boolean;
   insuranceBasis?: NiInsuranceBasis;
+  incomeList?: NiIncomeList;
 }
 
 export interface NiPerson {
@@ -84,7 +86,23 @@ export function niFactsOf(person: NiPerson, client: Client): NiPersonFactsValue 
     balance: c[keys.balance] as number | undefined,
     debitAuthorization: c[keys.debitAuthorization] as boolean | undefined,
     insuranceBasis: c[keys.insuranceBasis] as NiInsuranceBasis | undefined,
+    incomeList: c[keys.incomeList] as NiIncomeList | undefined,
   };
+}
+
+/**
+ * field_meta של עובדות הב"ל של האדם — מאותו כרטיס שבו הן יושבות (niHome).
+ * ‼ (219) מכאן יודעים אם «הכנסה מוצהרת» נכתבה ביד או מקריאה אוטומטית.
+ */
+export function niFactMetaOf(person: NiPerson, client: Client): Partial<Record<keyof NiPersonFactsValue, FieldMeta>> {
+  const { card, owner } = niHome(person, client);
+  const keys = NI_FACT_KEYS[owner];
+  const out: Partial<Record<keyof NiPersonFactsValue, FieldMeta>> = {};
+  for (const k of Object.keys(keys) as (keyof NiPersonFactsValue)[]) {
+    const m = card.fieldMeta?.[keys[k]];
+    if (m) out[k] = m;
+  }
+  return out;
 }
 
 export interface NiPersonIdentity {

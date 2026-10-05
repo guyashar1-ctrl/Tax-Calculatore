@@ -46,6 +46,7 @@ import { OccupationsEditor, newOccupationRow } from '../clientTabs/InstitutionAl
 import type { OccupationDraft } from '../clientTabs/InstitutionAlignment';
 import NiNextActionButton from '../NiNextActionButton';
 import AuthorityFieldHelp from './AuthorityFieldHelp';
+import { useBtlIncomeReads } from '../../hooks/useBtlIncomeReads';
 import BtlPortalRecordPanel from './BtlPortalRecordPanel';
 import { buildBtlRecordView, loadBtlPortalRecord, type BtlPortalRecord } from '../../features/nationalInsurance/btlPortalRecord';
 
@@ -119,10 +120,6 @@ export default function AuthoritiesPanel({
   }
   const factsChanged = () => { void refreshFacts(); onFactsChanged?.(); };
 
-  const authorityRows = useMemo(
-    () => buildAuthorityRows(client, spouseClient, niExecution),
-    [client, spouseClient, niExecution],
-  );
   const niTrackOf = (role: 'client' | 'spouse') => (role === 'spouse' ? niExecution?.spouse : niExecution?.client);
 
   // ‼ «בקש ייצוג» — נעילה בזמן הכתיבה ושגיאה גלויה.
@@ -156,6 +153,14 @@ export default function AuthoritiesPanel({
   const liveJobOf = (a: TaxAuthority): AutomationJob | null =>
     (jobOverrides && a in jobOverrides ? jobOverrides[a] : authorityJobs[a]?.job) ?? null;
   authorityJobsRef.current = { income_tax: liveJobOf('income_tax'), vat: liveJobOf('vat'), national_insurance: liveJobOf('national_insurance') };
+
+  // ‼ (219) הקריאה האחרונה שהצליחה מב"ל — הצהרה שמורה שקריאה שלמה לא מצאה
+  // אינה «מאומתת» בכרטיס, עוד לפני שאושרה ההצעה לעדכן.
+  const niIncomeReads = useBtlIncomeReads(client.id || undefined, liveJobOf('national_insurance'), client.familyStatus === 'married' && !spouseClient);
+  const authorityRows = useMemo(
+    () => buildAuthorityRows(client, spouseClient, niExecution, niIncomeReads),
+    [client, spouseClient, niExecution, niIncomeReads],
+  );
 
   // ‼ (207) «מה ביטוח לאומי רושם» — נשמר בשרת בסוף כל קריאה מוצלחת; נטען מחדש
   // כשמשימת ב"ל מסתיימת. לא נכתב מכאן ולא משנה את הכרטיס.
@@ -410,7 +415,7 @@ export default function AuthoritiesPanel({
     return (
       <div className="k">
         {status}{f.k}
-        {help && <AuthorityFieldHelp help={help} />}
+        {(help || f.explain?.length) && <AuthorityFieldHelp help={help} explain={f.explain} label={f.k} />}
       </div>
     );
   }

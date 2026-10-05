@@ -115,6 +115,34 @@ export async function fetchLatestAutomationJob(
   return { job: data ? automationJobFromDb(data) : null };
 }
 
+/**
+ * עמוד משימות **שהצליחו** לאותו (לקוח, פעולה), מהחדשה לישנה — רק מה שנחוץ
+ * לקריאת רשימת ההכנסות (`result.persons`). ‼ (219) ראיה מהרשות לכל אדם נשלפת
+ * מההיסטוריה (btlIncomeEvidence), לא ממשימה אחת: קריאה שנכשלה/חלקית/של אדם
+ * אחר אינה מבטלת קריאה שלמה קודמת.
+ */
+export async function fetchSucceededJobsPage(
+  clientId: string,
+  actionType: string,
+  offset: number,
+  limit: number,
+): Promise<{ jobs: { finishedAt?: string; updatedAt?: string; result?: unknown }[]; error?: string }> {
+  const { data, error } = await supabase.from('automation_jobs')
+    .select('id, finished_at, updated_at, persons:result->persons')
+    .eq('client_id', clientId)
+    .eq('action_type', actionType)
+    .eq('status', 'succeeded')
+    .order('finished_at', { ascending: false, nullsFirst: false })
+    .order('id', { ascending: false })
+    .range(offset, offset + limit - 1);
+  if (error) return { jobs: [], error: error.message };
+  return {
+    jobs: (data ?? []).map((r: Record<string, any>) => ({
+      finishedAt: r.finished_at ?? undefined, updatedAt: r.updated_at ?? undefined, result: { persons: r.persons },
+    })),
+  };
+}
+
 /** מתי לאחרונה נראה כל עובד רשום למשתמש הזה — כדי להבחין "רץ" מ"המחשב כבוי". */
 export async function fetchAutomationWorkers(): Promise<{ workers: AutomationWorker[]; error?: string }> {
   const { data, error } = await supabase.from('automation_workers')

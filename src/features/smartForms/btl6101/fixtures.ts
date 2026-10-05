@@ -44,6 +44,11 @@ export const FX_FULL: Client = base({
     btlOcc({ type: 'employee', sourceLabel: 'עובד', fromDate: '2022-09-01', toDate: '2025-01-16' }),
   ],
   niIncomeBasisMonthly: 16500,
+  // ‼ (219) ההצהרה ששמורה לצד הסכום — בלעדיה 16,500 מקריאה אוטומטית «טעון אימות».
+  niIncomeList: {
+    declaration: { year: 2025, fromMonth: 6, toMonth: 6, infoSource: 'הצהרה', incomeSource: 'עצמאי', amount: 16500, receivedDate: '2025-06-15', status: 'תקף' },
+    assessment: null,
+  },
   niAdvanceMonthly: 2062,
   fieldMeta: {
     niOccupations: { source: 'automation', syncedAt: '2026-09-23T17:30:00Z' },

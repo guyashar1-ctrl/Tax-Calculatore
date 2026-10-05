@@ -19,6 +19,9 @@ import { INSTITUTION_NAMES } from '../../types/onboarding';
 import type { InstitutionKey } from '../../types/onboarding';
 import { NI_OCCUPATION_TYPE_LABELS } from '../../types';
 import { incomeTaxFileType } from '../../data/incomeTaxFileTypes';
+import { niClientIncomeTrust } from '../../features/nationalInsurance/niIncome';
+import type { NiIncomeRead } from '../../features/nationalInsurance/niIncome';
+import { useBtlIncomeReads } from '../../hooks/useBtlIncomeReads';
 import { computeAuthorityFlags, actionableFlagCount } from '../../utils/authorityFlags';
 import type { AuthorityFlag } from '../../utils/authorityFlags';
 import { shortDate } from '../../utils/clientDerived';
@@ -91,13 +94,18 @@ function fileTypeCell(code: string | undefined): React.ReactNode {
 
 /** שורות הרשות — רק ממה שבאמת קיים על הלקוח. שדה ריק אינו שורה.
  *  ‼ פרט למס הכנסה, שבו כל שדה נרשם תמיד — ראה ההערה שם. */
-function rowsFor(key: InstitutionKey, client: Client): Row[] {
+function rowsFor(key: InstitutionKey, client: Client, incomeRead?: NiIncomeRead | null): Row[] {
   const out: (Row | null)[] = [];
 
   if (key === 'btl') {
     out.push(balanceRow('יתרה', client.niBalance, 'niBalance'));
     if (client.niIncomeBasisMonthly != null) {
-      out.push({ k: 'בסיס הכנסה למקדמות', v: `${money(client.niIncomeBasisMonthly)} לחודש`,
+      // ‼ (219) ערך שנקרא אוטומטית בלי לדעת אם זו הצהרה — מסומן, לא מוצג כנתון.
+      const trust = niClientIncomeTrust(client, incomeRead);
+      const unverified = trust.kind === 'unverified';
+      out.push({ k: 'הכנסה חודשית מוצהרת',
+        v: `${money(client.niIncomeBasisMonthly)} לחודש${unverified ? (trust.reason === 'checking' ? ' · בודק מול ב"ל…' : ' · טעון אימות') : ''}`,
+        ...(unverified && trust.reason !== 'checking' ? { tone: 'warn' as const } : {}),
         diffKey: 'incomeBasisMonthly', formatPrev: formatMoneyPrev });
     }
     if (client.niAdvanceMonthly != null) {
@@ -264,6 +272,8 @@ export default function AlignmentStatusView({
   client, steps, allSteps, returnLabel, onClose, onRerun, rerunBusy,
   onCreateTask, onCreateRequest, creatingRequestKey,
 }: Props) {
+  // ‼ (219) אותה ראיה כמו בכרטיס הרשויות — הצהרה שקריאה שלמה סתרה אינה «מוצגת כנתון».
+  const incomeReads = useBtlIncomeReads(client.id || undefined);
   const stepByKey = useMemo(() => {
     const m = new Map<InstitutionKey, OnboardingStep>();
     for (const s of steps) {
@@ -339,7 +349,7 @@ export default function AlignmentStatusView({
           <div className="alst-auths">
             {ORDER.map(k => {
               const step = stepByKey.get(k);
-              const rows = rowsFor(k, client);
+              const rows = rowsFor(k, client, incomeReads.client);
               const at = step?.payload.checkedAt;
               return (
                 <div className="alst-auth" key={k}>
