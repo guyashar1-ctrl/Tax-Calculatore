@@ -1,0 +1,6289 @@
+{
+ "capturedAt": "2026-10-05T20:10:21.057Z",
+ "source": "staging evdfxjqrkgugssfrdoxd",
+ "fixtures": {
+  "{\"samples\":[{\"key\":\"a\",\"ref\":{\"kind\":\"template\",\"templateId\":\"jt1\"},\"repeatable\":false}]}": {
+   "ok": true,
+   "done": 0,
+   "items": [
+    {
+     "key": "docs",
+     "sub": "0 מתוך 3 התקבלו",
+     "kind": "documents",
+     "label": "להעלות מסמכים לפתיחת התיק",
+     "bucket": "action",
+     "canUpload": true,
+     "checklist": [
+      {
+       "label": "צילום תעודת זהות"
+      },
+      {
+       "label": "אישור ניהול חשבון"
+      },
+      {
+       "label": "תעודת עוסק"
+      }
+     ],
+     "actionKind": "portal",
+     "actionValue": "sample-a"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "a",
+     "owner": "client",
+     "title": "להעלות מסמכים לפתיחת התיק",
+     "internal": false,
+     "itemKeys": [
+      "docs"
+     ],
+     "stepType": "client_documents"
+    }
+   ],
+   "total": 1,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"samples\":[{\"key\":\"a\",\"markDone\":2,\"ref\":{\"kind\":\"template\",\"templateId\":\"jt1\"},\"repeatable\":false}]}": {
+   "ok": true,
+   "done": 0,
+   "items": [
+    {
+     "key": "docs",
+     "sub": "2 מתוך 3 התקבלו",
+     "kind": "documents",
+     "label": "להעלות מסמכים לפתיחת התיק",
+     "bucket": "action",
+     "canUpload": true,
+     "checklist": [
+      {
+       "done": true,
+       "label": "צילום תעודת זהות"
+      },
+      {
+       "done": true,
+       "label": "אישור ניהול חשבון"
+      },
+      {
+       "label": "תעודת עוסק"
+      }
+     ],
+     "actionKind": "portal",
+     "actionValue": "sample-a"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "a",
+     "owner": "client",
+     "title": "להעלות מסמכים לפתיחת התיק",
+     "internal": false,
+     "itemKeys": [
+      "docs"
+     ],
+     "stepType": "client_documents"
+    }
+   ],
+   "total": 1,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"samples\":[{\"key\":\"a\",\"ref\":{\"kind\":\"template\",\"templateId\":\"jt1\"},\"repeatable\":false,\"status\":\"completed\"}]}": {
+   "ok": true,
+   "done": 1,
+   "items": [
+    {
+     "key": "docs",
+     "label": "להעלות מסמכים לפתיחת התיק",
+     "bucket": "done"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "a",
+     "owner": "client",
+     "title": "להעלות מסמכים לפתיחת התיק",
+     "internal": false,
+     "itemKeys": [
+      "docs"
+     ],
+     "stepType": "client_documents"
+    }
+   ],
+   "total": 1,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"samples\":[{\"key\":\"a\",\"lockAfter\":[\"הבקשה הקודמת\"],\"ref\":{\"kind\":\"template\",\"templateId\":\"jt1\"},\"repeatable\":false,\"status\":\"locked\"}]}": {
+   "ok": true,
+   "done": 0,
+   "items": [
+    {
+     "key": "docs",
+     "sub": "ייפתח אחרי הבקשה הקודמת",
+     "label": "להעלות מסמכים לפתיחת התיק",
+     "bucket": "future"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "a",
+     "owner": "client",
+     "title": "להעלות מסמכים לפתיחת התיק",
+     "internal": false,
+     "itemKeys": [
+      "docs"
+     ],
+     "stepType": "client_documents"
+    }
+   ],
+   "total": 0,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":false},\"samples\":[{\"key\":\"a\",\"ref\":{\"kind\":\"template\",\"templateId\":\"jt4\"}}]}": {
+   "ok": true,
+   "done": 0,
+   "items": [
+    {
+     "cta": "למילוי",
+     "key": "custom_sample-a",
+     "sub": "קריאה קצרה ואישור - שתי דקות",
+     "kind": "custom",
+     "label": "אישור תנאי ההתקשרות",
+     "bucket": "action",
+     "canUpload": false,
+     "actionKind": "portal",
+     "actionValue": "sample-a",
+     "requirements": [
+      {
+       "key": "r1",
+       "done": false,
+       "kind": "confirm",
+       "label": "קראתי ואני מאשר את תנאי שכר הטרחה",
+       "required": true,
+       "fileCount": 0
+      }
+     ]
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "a",
+     "owner": "client",
+     "title": "אישור תנאי שכר טרחה",
+     "internal": false,
+     "itemKeys": [
+      "custom_sample-a"
+     ],
+     "stepType": "custom_request"
+    }
+   ],
+   "total": 1,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":true},\"samples\":[{\"key\":\"a\",\"ref\":{\"kind\":\"template\",\"templateId\":\"jt4\"}}]}": {
+   "ok": true,
+   "done": 0,
+   "items": [
+    {
+     "cta": "למילוי",
+     "key": "custom_sample-a",
+     "sub": "קריאה קצרה ואישור - שתי דקות",
+     "kind": "custom",
+     "label": "אישור תנאי ההתקשרות",
+     "bucket": "action",
+     "canUpload": false,
+     "actionKind": "portal",
+     "actionValue": "sample-a",
+     "requirements": [
+      {
+       "key": "r1",
+       "done": false,
+       "kind": "confirm",
+       "label": "קראתי ואני מאשר את תנאי שכר הטרחה",
+       "required": true,
+       "fileCount": 0
+      }
+     ]
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "a",
+     "owner": "client",
+     "title": "אישור תנאי שכר טרחה",
+     "internal": false,
+     "itemKeys": [
+      "custom_sample-a"
+     ],
+     "stepType": "custom_request"
+    }
+   ],
+   "total": 1,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":false},\"samples\":[{\"key\":\"a\",\"ref\":{\"kind\":\"template\",\"templateId\":\"jt4\"},\"status\":\"completed\"}]}": {
+   "ok": true,
+   "done": 1,
+   "items": [
+    {
+     "key": "custom_sample-a",
+     "label": "אישור תנאי ההתקשרות",
+     "bucket": "done"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "a",
+     "owner": "client",
+     "title": "אישור תנאי שכר טרחה",
+     "internal": false,
+     "itemKeys": [
+      "custom_sample-a"
+     ],
+     "stepType": "custom_request"
+    }
+   ],
+   "total": 1,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":true},\"samples\":[{\"key\":\"a\",\"ref\":{\"kind\":\"template\",\"templateId\":\"jt4\"},\"status\":\"completed\"}]}": {
+   "ok": true,
+   "done": 1,
+   "items": [
+    {
+     "key": "custom_sample-a",
+     "label": "אישור תנאי ההתקשרות",
+     "bucket": "done"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "a",
+     "owner": "client",
+     "title": "אישור תנאי שכר טרחה",
+     "internal": false,
+     "itemKeys": [
+      "custom_sample-a"
+     ],
+     "stepType": "custom_request"
+    }
+   ],
+   "total": 1,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":false},\"samples\":[{\"key\":\"a\",\"lockAfter\":[\"הבקשה הקודמת\"],\"ref\":{\"kind\":\"template\",\"templateId\":\"jt4\"},\"status\":\"locked\"}]}": {
+   "ok": true,
+   "done": 0,
+   "items": [
+    {
+     "key": "custom_sample-a",
+     "sub": "ייפתח אחרי הבקשה הקודמת",
+     "label": "אישור תנאי ההתקשרות",
+     "bucket": "future"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "a",
+     "owner": "client",
+     "title": "אישור תנאי שכר טרחה",
+     "internal": false,
+     "itemKeys": [
+      "custom_sample-a"
+     ],
+     "stepType": "custom_request"
+    }
+   ],
+   "total": 0,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":true},\"samples\":[{\"key\":\"a\",\"lockAfter\":[\"הבקשה הקודמת\"],\"ref\":{\"kind\":\"template\",\"templateId\":\"jt4\"},\"status\":\"locked\"}]}": {
+   "ok": true,
+   "done": 0,
+   "items": [
+    {
+     "key": "custom_sample-a",
+     "sub": "ייפתח אחרי הבקשה הקודמת",
+     "label": "אישור תנאי ההתקשרות",
+     "bucket": "future"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "a",
+     "owner": "client",
+     "title": "אישור תנאי שכר טרחה",
+     "internal": false,
+     "itemKeys": [
+      "custom_sample-a"
+     ],
+     "stepType": "custom_request"
+    }
+   ],
+   "total": 0,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":false},\"samples\":[{\"key\":\"a\",\"ref\":{\"kind\":\"template\",\"templateId\":\"jt5\"}}]}": {
+   "ok": true,
+   "done": 0,
+   "items": [
+    {
+     "cta": "להעלאה",
+     "key": "custom_sample-a",
+     "sub": "קובץ אחד לכל משלם",
+     "kind": "custom",
+     "label": "אישורי ניכוי מס במקור מהלקוחות",
+     "bucket": "action",
+     "canUpload": true,
+     "actionKind": "portal",
+     "actionValue": "sample-a",
+     "requirements": [
+      {
+       "key": "r1",
+       "done": false,
+       "kind": "files",
+       "label": "אישורי ניכוי במקור",
+       "required": true,
+       "fileCount": 0
+      }
+     ]
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "a",
+     "owner": "client",
+     "title": "אישורי ניכוי מס במקור",
+     "internal": false,
+     "itemKeys": [
+      "custom_sample-a"
+     ],
+     "stepType": "custom_request"
+    }
+   ],
+   "total": 1,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":false},\"samples\":[{\"key\":\"a\",\"ref\":{\"kind\":\"template\",\"templateId\":\"jt5\"},\"status\":\"completed\"}]}": {
+   "ok": true,
+   "done": 1,
+   "items": [
+    {
+     "key": "custom_sample-a",
+     "label": "אישורי ניכוי מס במקור מהלקוחות",
+     "bucket": "done"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "a",
+     "owner": "client",
+     "title": "אישורי ניכוי מס במקור",
+     "internal": false,
+     "itemKeys": [
+      "custom_sample-a"
+     ],
+     "stepType": "custom_request"
+    }
+   ],
+   "total": 1,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":false},\"samples\":[{\"key\":\"a\",\"lockAfter\":[\"הבקשה הקודמת\"],\"ref\":{\"kind\":\"template\",\"templateId\":\"jt5\"},\"status\":\"locked\"}]}": {
+   "ok": true,
+   "done": 0,
+   "items": [
+    {
+     "key": "custom_sample-a",
+     "sub": "ייפתח אחרי הבקשה הקודמת",
+     "label": "אישורי ניכוי מס במקור מהלקוחות",
+     "bucket": "future"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "a",
+     "owner": "client",
+     "title": "אישורי ניכוי מס במקור",
+     "internal": false,
+     "itemKeys": [
+      "custom_sample-a"
+     ],
+     "stepType": "custom_request"
+    }
+   ],
+   "total": 0,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":false},\"samples\":[{\"key\":\"a\",\"ref\":{\"kind\":\"template\",\"templateId\":\"jt6\"}}]}": {
+   "ok": true,
+   "done": 0,
+   "items": [
+    {
+     "key": "custom_sample-a",
+     "sub": "בודקים שכל תקופות המילואים שולמו - ומגישים תביעה על מה שחסר",
+     "kind": "custom",
+     "note": "ביטוח לאומי משלם לעצמאים תגמול מילואים לפי הדיווח של צה״ל, בדרך כלל בלי שצריך להגיש תביעה. כדאי לוודא באזור האישי שכל תקופה ששירתם מופיעה ושולמה - ואם תקופה חסרה, להגיש עליה תביעה. אם המערכת לא מאפשרת להגיש - פונים דרך «צור קשר». המדריך המצולם מראה כל לחיצה.",
+     "label": "תביעת מילואים בביטוח לאומי",
+     "bucket": "action",
+     "canUpload": false,
+     "noteAfter": "עבדתם גם כשכירים? ההגשה אצלכם בטופס 502 המקוון - הפרטים והקישור בצעד האחרון של המדריך.",
+     "actionKind": "portal",
+     "photoGuide": "reserve_duty_claim",
+     "actionValue": "sample-a",
+     "requirements": [
+      {
+       "key": "outcome",
+       "done": false,
+       "kind": "select",
+       "label": "מה מצאתם באזור האישי?",
+       "options": [
+        "כל תקופות המילואים מופיעות - לא היה צריך להגיש",
+        "חסרה תקופה - הגשתי עליה תביעה",
+        "המערכת לא אפשרה להגיש - פניתי דרך «צור קשר»",
+        "עבדתי גם כשכיר/ה - הגשתי בטופס 502"
+       ],
+       "required": true,
+       "fileCount": 0
+      }
+     ]
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "a",
+     "owner": "client",
+     "title": "תביעת מילואים בביטוח לאומי",
+     "internal": false,
+     "itemKeys": [
+      "custom_sample-a"
+     ],
+     "stepType": "custom_request"
+    }
+   ],
+   "total": 1,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":false},\"samples\":[{\"key\":\"a\",\"ref\":{\"kind\":\"template\",\"templateId\":\"jt6\"},\"status\":\"completed\"}]}": {
+   "ok": true,
+   "done": 1,
+   "items": [
+    {
+     "key": "custom_sample-a",
+     "label": "תביעת מילואים בביטוח לאומי",
+     "bucket": "done"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "a",
+     "owner": "client",
+     "title": "תביעת מילואים בביטוח לאומי",
+     "internal": false,
+     "itemKeys": [
+      "custom_sample-a"
+     ],
+     "stepType": "custom_request"
+    }
+   ],
+   "total": 1,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":false},\"samples\":[{\"key\":\"a\",\"lockAfter\":[\"הבקשה הקודמת\"],\"ref\":{\"kind\":\"template\",\"templateId\":\"jt6\"},\"status\":\"locked\"}]}": {
+   "ok": true,
+   "done": 0,
+   "items": [
+    {
+     "key": "custom_sample-a",
+     "sub": "ייפתח אחרי הבקשה הקודמת",
+     "label": "תביעת מילואים בביטוח לאומי",
+     "bucket": "future"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "a",
+     "owner": "client",
+     "title": "תביעת מילואים בביטוח לאומי",
+     "internal": false,
+     "itemKeys": [
+      "custom_sample-a"
+     ],
+     "stepType": "custom_request"
+    }
+   ],
+   "total": 0,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"samples\":[{\"key\":\"a\",\"ref\":{\"docId\":\"doc-expenses\",\"kind\":\"document\"}}]}": {
+   "ok": true,
+   "done": 0,
+   "items": [
+    {
+     "cta": "לפתיחת המסמך",
+     "key": "custom_sample-a",
+     "sub": "מסמך מהמשרד - כמה דקות קריאה",
+     "kind": "guide",
+     "label": "מדריך הוצאות מוכרות לעצמאים — מה מותר לקזז, מה צריך לשמור ואיך מתעדים נכון (מהדורת 2026)",
+     "bucket": "action",
+     "canUpload": false,
+     "actionKind": "portal",
+     "actionValue": "sample-a",
+     "resourceKey": "doc-expenses",
+     "resourceUrl": "/fixtures/missing.pdf",
+     "requirements": [
+      {
+       "key": "opened",
+       "done": false,
+       "kind": "confirm",
+       "label": "פתיחת המדריך",
+       "required": false,
+       "fileCount": 0
+      },
+      {
+       "key": "reviewed",
+       "done": false,
+       "kind": "confirm",
+       "label": "עברתי על המדריך",
+       "required": true,
+       "fileCount": 0
+      }
+     ]
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "a",
+     "owner": "client",
+     "title": "מדריך הוצאות מוכרות לעצמאים — מה מותר לקזז, מה צריך לשמור ואיך מתעדים נכון (מהדורת 2026)",
+     "internal": false,
+     "itemKeys": [
+      "custom_sample-a"
+     ],
+     "stepType": "custom_request"
+    }
+   ],
+   "total": 1,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"samples\":[{\"key\":\"a\",\"markDone\":1,\"ref\":{\"docId\":\"doc-expenses\",\"kind\":\"document\"}}]}": {
+   "ok": true,
+   "done": 0,
+   "items": [
+    {
+     "cta": "לפתיחת המסמך",
+     "key": "custom_sample-a",
+     "sub": "מסמך מהמשרד - כמה דקות קריאה",
+     "kind": "guide",
+     "label": "מדריך הוצאות מוכרות לעצמאים — מה מותר לקזז, מה צריך לשמור ואיך מתעדים נכון (מהדורת 2026)",
+     "bucket": "action",
+     "canUpload": false,
+     "actionKind": "portal",
+     "actionValue": "sample-a",
+     "resourceKey": "doc-expenses",
+     "resourceUrl": "/fixtures/missing.pdf",
+     "requirements": [
+      {
+       "key": "opened",
+       "done": true,
+       "kind": "confirm",
+       "label": "פתיחת המדריך",
+       "required": false,
+       "fileCount": 0
+      },
+      {
+       "key": "reviewed",
+       "done": false,
+       "kind": "confirm",
+       "label": "עברתי על המדריך",
+       "required": true,
+       "fileCount": 0
+      }
+     ]
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "a",
+     "owner": "client",
+     "title": "מדריך הוצאות מוכרות לעצמאים — מה מותר לקזז, מה צריך לשמור ואיך מתעדים נכון (מהדורת 2026)",
+     "internal": false,
+     "itemKeys": [
+      "custom_sample-a"
+     ],
+     "stepType": "custom_request"
+    }
+   ],
+   "total": 1,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"samples\":[{\"key\":\"a\",\"ref\":{\"docId\":\"doc-expenses\",\"kind\":\"document\"},\"status\":\"completed\"}]}": {
+   "ok": true,
+   "done": 1,
+   "items": [
+    {
+     "key": "custom_sample-a",
+     "label": "מדריך הוצאות מוכרות לעצמאים — מה מותר לקזז, מה צריך לשמור ואיך מתעדים נכון (מהדורת 2026)",
+     "bucket": "done",
+     "resourceKey": "doc-expenses",
+     "resourceUrl": "/fixtures/missing.pdf"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "a",
+     "owner": "client",
+     "title": "מדריך הוצאות מוכרות לעצמאים — מה מותר לקזז, מה צריך לשמור ואיך מתעדים נכון (מהדורת 2026)",
+     "internal": false,
+     "itemKeys": [
+      "custom_sample-a"
+     ],
+     "stepType": "custom_request"
+    }
+   ],
+   "total": 1,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"samples\":[{\"key\":\"a\",\"ref\":{\"docId\":\"doc-paperless\",\"kind\":\"document\"}}]}": {
+   "ok": true,
+   "done": 0,
+   "items": [
+    {
+     "cta": "לפתיחת המסמך",
+     "key": "custom_sample-a",
+     "sub": "מסמך מהמשרד - כמה דקות קריאה",
+     "kind": "guide",
+     "label": "איך עובדים עם פייפרלס",
+     "bucket": "action",
+     "canUpload": false,
+     "actionKind": "portal",
+     "actionValue": "sample-a",
+     "resourceKey": "doc-paperless",
+     "resourceUrl": "/fixtures/missing.pdf",
+     "requirements": [
+      {
+       "key": "opened",
+       "done": false,
+       "kind": "confirm",
+       "label": "פתיחת המסמך",
+       "required": false,
+       "fileCount": 0
+      },
+      {
+       "key": "reviewed",
+       "done": false,
+       "kind": "confirm",
+       "label": "עברתי על המסמך",
+       "required": true,
+       "fileCount": 0
+      }
+     ]
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "a",
+     "owner": "client",
+     "title": "איך עובדים עם פייפרלס",
+     "internal": false,
+     "itemKeys": [
+      "custom_sample-a"
+     ],
+     "stepType": "custom_request"
+    }
+   ],
+   "total": 1,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"samples\":[{\"key\":\"a\",\"markDone\":1,\"ref\":{\"docId\":\"doc-paperless\",\"kind\":\"document\"}}]}": {
+   "ok": true,
+   "done": 0,
+   "items": [
+    {
+     "cta": "לפתיחת המסמך",
+     "key": "custom_sample-a",
+     "sub": "מסמך מהמשרד - כמה דקות קריאה",
+     "kind": "guide",
+     "label": "איך עובדים עם פייפרלס",
+     "bucket": "action",
+     "canUpload": false,
+     "actionKind": "portal",
+     "actionValue": "sample-a",
+     "resourceKey": "doc-paperless",
+     "resourceUrl": "/fixtures/missing.pdf",
+     "requirements": [
+      {
+       "key": "opened",
+       "done": true,
+       "kind": "confirm",
+       "label": "פתיחת המסמך",
+       "required": false,
+       "fileCount": 0
+      },
+      {
+       "key": "reviewed",
+       "done": false,
+       "kind": "confirm",
+       "label": "עברתי על המסמך",
+       "required": true,
+       "fileCount": 0
+      }
+     ]
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "a",
+     "owner": "client",
+     "title": "איך עובדים עם פייפרלס",
+     "internal": false,
+     "itemKeys": [
+      "custom_sample-a"
+     ],
+     "stepType": "custom_request"
+    }
+   ],
+   "total": 1,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"samples\":[{\"key\":\"a\",\"ref\":{\"docId\":\"doc-paperless\",\"kind\":\"document\"},\"status\":\"completed\"}]}": {
+   "ok": true,
+   "done": 1,
+   "items": [
+    {
+     "key": "custom_sample-a",
+     "label": "איך עובדים עם פייפרלס",
+     "bucket": "done",
+     "resourceKey": "doc-paperless",
+     "resourceUrl": "/fixtures/missing.pdf"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "a",
+     "owner": "client",
+     "title": "איך עובדים עם פייפרלס",
+     "internal": false,
+     "itemKeys": [
+      "custom_sample-a"
+     ],
+     "stepType": "custom_request"
+    }
+   ],
+   "total": 1,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":false},\"rep\":{\"approvals\":\"single\",\"status\":\"pending_fill\"},\"samples\":[{\"ball\":\"me\",\"key\":\"a\",\"ref\":{\"kind\":\"system\",\"stepType\":\"representation\"},\"status\":\"in_progress\"}]}": {
+   "ok": true,
+   "done": 0,
+   "items": [
+    {
+     "key": "rep_fill",
+     "sub": "הפרטים שנדרשים כדי לייצג אותך מול רשויות המס · כמה דקות",
+     "label": "מילוי פרטים וייפוי כוח",
+     "bucket": "action",
+     "actionKind": "onboard",
+     "actionValue": "sample"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "a",
+     "owner": null,
+     "title": null,
+     "internal": false,
+     "itemKeys": [
+      "rep_fill"
+     ],
+     "stepType": "representation"
+    }
+   ],
+   "total": 1,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":true},\"rep\":{\"approvals\":\"couple\",\"status\":\"pending_fill\"},\"samples\":[{\"ball\":\"me\",\"key\":\"a\",\"ref\":{\"kind\":\"system\",\"stepType\":\"representation\"},\"status\":\"in_progress\"}]}": {
+   "ok": true,
+   "done": 0,
+   "items": [
+    {
+     "key": "rep_fill",
+     "sub": "הפרטים שנדרשים כדי לייצג אותך מול רשויות המס · כמה דקות",
+     "label": "מילוי פרטים וייפוי כוח",
+     "bucket": "action",
+     "actionKind": "onboard",
+     "actionValue": "sample"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "a",
+     "owner": null,
+     "title": null,
+     "internal": false,
+     "itemKeys": [
+      "rep_fill"
+     ],
+     "stepType": "representation"
+    }
+   ],
+   "total": 1,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":false},\"rep\":{\"approvals\":\"single\",\"status\":\"pending_signature\"},\"samples\":[{\"ball\":\"me\",\"key\":\"a\",\"ref\":{\"kind\":\"system\",\"stepType\":\"representation\"},\"status\":\"in_progress\"}]}": {
+   "ok": true,
+   "done": 0,
+   "items": [
+    {
+     "key": "rep_sign",
+     "sub": "הטופס מוכן - נשארה חתימה · כדקה",
+     "label": "חתימה על ייפוי הכוח",
+     "bucket": "action",
+     "actionKind": "sign",
+     "actionValue": "sample"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "a",
+     "owner": null,
+     "title": null,
+     "internal": false,
+     "itemKeys": [
+      "rep_sign"
+     ],
+     "stepType": "representation"
+    }
+   ],
+   "total": 1,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":true},\"rep\":{\"approvals\":\"couple\",\"status\":\"pending_signature\"},\"samples\":[{\"ball\":\"me\",\"key\":\"a\",\"ref\":{\"kind\":\"system\",\"stepType\":\"representation\"},\"status\":\"in_progress\"}]}": {
+   "ok": true,
+   "done": 0,
+   "items": [
+    {
+     "key": "rep_sign",
+     "sub": "הטופס מוכן - נשארה חתימה · כדקה",
+     "label": "חתימה על ייפוי הכוח",
+     "bucket": "action",
+     "actionKind": "sign",
+     "actionValue": "sample"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "a",
+     "owner": null,
+     "title": null,
+     "internal": false,
+     "itemKeys": [
+      "rep_sign"
+     ],
+     "stepType": "representation"
+    }
+   ],
+   "total": 1,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":false},\"rep\":{\"approvals\":\"single\",\"signed\":true,\"status\":\"awaiting_accountant\"},\"samples\":[{\"ball\":\"me\",\"key\":\"a\",\"ref\":{\"kind\":\"system\",\"stepType\":\"representation\"},\"status\":\"in_progress\"}]}": {
+   "ok": true,
+   "done": 0,
+   "items": [
+    {
+     "key": "rep_office",
+     "sub": "נחתם על ידך - עכשיו בבדיקה ובחתימה אצלנו",
+     "label": "ייפוי הכוח",
+     "bucket": "office"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "a",
+     "owner": null,
+     "title": null,
+     "internal": false,
+     "itemKeys": [
+      "rep_office"
+     ],
+     "stepType": "representation"
+    }
+   ],
+   "total": 1,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":true},\"rep\":{\"approvals\":\"couple\",\"signed\":true,\"status\":\"awaiting_accountant\"},\"samples\":[{\"ball\":\"me\",\"key\":\"a\",\"ref\":{\"kind\":\"system\",\"stepType\":\"representation\"},\"status\":\"in_progress\"}]}": {
+   "ok": true,
+   "done": 0,
+   "items": [
+    {
+     "key": "rep_office",
+     "sub": "נחתם על ידך - עכשיו בבדיקה ובחתימה אצלנו",
+     "label": "ייפוי הכוח",
+     "bucket": "office"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "a",
+     "owner": null,
+     "title": null,
+     "internal": false,
+     "itemKeys": [
+      "rep_office"
+     ],
+     "stepType": "representation"
+    }
+   ],
+   "total": 1,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":false},\"rep\":{\"approvals\":\"single\",\"niReference\":true,\"status\":\"awaiting_authorities\"},\"samples\":[{\"ball\":\"me\",\"key\":\"a\",\"ref\":{\"kind\":\"system\",\"stepType\":\"representation\"},\"status\":\"in_progress\"}]}": {
+   "ok": true,
+   "done": 0,
+   "items": [
+    {
+     "key": "rep_authorities",
+     "sub": "נחתם והוגש לרשויות המס - ממתינים לאישור",
+     "label": "ייפוי הכוח",
+     "bucket": "office"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "a",
+     "owner": null,
+     "title": null,
+     "internal": false,
+     "itemKeys": [
+      "rep_authorities"
+     ],
+     "stepType": "representation"
+    }
+   ],
+   "total": 1,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":true},\"rep\":{\"approvals\":\"couple\",\"niReference\":true,\"status\":\"awaiting_authorities\"},\"samples\":[{\"ball\":\"me\",\"key\":\"a\",\"ref\":{\"kind\":\"system\",\"stepType\":\"representation\"},\"status\":\"in_progress\"}]}": {
+   "ok": true,
+   "done": 0,
+   "items": [
+    {
+     "key": "rep_authorities",
+     "sub": "נחתם והוגש לרשויות המס - ממתינים לאישור",
+     "label": "ייפוי הכוח",
+     "bucket": "office"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "a",
+     "owner": null,
+     "title": null,
+     "internal": false,
+     "itemKeys": [
+      "rep_authorities"
+     ],
+     "stepType": "representation"
+    }
+   ],
+   "total": 1,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":false},\"rep\":{\"approvals\":\"single\",\"niReference\":true,\"status\":\"active\"},\"samples\":[{\"ball\":\"me\",\"key\":\"a\",\"ref\":{\"kind\":\"system\",\"stepType\":\"representation\"},\"status\":\"completed\"}]}": {
+   "ok": true,
+   "done": 1,
+   "items": [
+    {
+     "key": "rep_done",
+     "label": "הייצוג מול רשויות המס אושר",
+     "bucket": "done"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "a",
+     "owner": null,
+     "title": null,
+     "internal": false,
+     "itemKeys": [
+      "rep_done"
+     ],
+     "stepType": "representation"
+    }
+   ],
+   "total": 1,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":true},\"rep\":{\"approvals\":\"couple\",\"niReference\":true,\"status\":\"active\"},\"samples\":[{\"ball\":\"me\",\"key\":\"a\",\"ref\":{\"kind\":\"system\",\"stepType\":\"representation\"},\"status\":\"completed\"}]}": {
+   "ok": true,
+   "done": 1,
+   "items": [
+    {
+     "key": "rep_done",
+     "label": "הייצוג מול רשויות המס אושר",
+     "bucket": "done"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "a",
+     "owner": null,
+     "title": null,
+     "internal": false,
+     "itemKeys": [
+      "rep_done"
+     ],
+     "stepType": "representation"
+    }
+   ],
+   "total": 1,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":false,\"prevKnown\":false},\"samples\":[{\"key\":\"a\",\"ref\":{\"kind\":\"system\",\"stepType\":\"client_documents\"}}]}": {
+   "ok": true,
+   "done": 0,
+   "items": [
+    {
+     "key": "docs",
+     "kind": "documents",
+     "label": "להעלות 0 מסמכים",
+     "bucket": "action",
+     "canUpload": true,
+     "actionKind": "portal",
+     "actionValue": "sample-a"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "a",
+     "owner": "client",
+     "title": "להעלות 0 מסמכים",
+     "internal": false,
+     "itemKeys": [
+      "docs"
+     ],
+     "stepType": "client_documents"
+    }
+   ],
+   "total": 1,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":false,\"prevKnown\":false},\"samples\":[{\"key\":\"a\",\"ref\":{\"kind\":\"system\",\"stepType\":\"client_documents\"},\"status\":\"completed\"}]}": {
+   "ok": true,
+   "done": 1,
+   "items": [
+    {
+     "key": "docs",
+     "label": "להעלות 0 מסמכים",
+     "bucket": "done"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "a",
+     "owner": "client",
+     "title": "להעלות 0 מסמכים",
+     "internal": false,
+     "itemKeys": [
+      "docs"
+     ],
+     "stepType": "client_documents"
+    }
+   ],
+   "total": 1,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":false,\"prevKnown\":false},\"samples\":[{\"key\":\"a\",\"lockAfter\":[\"הבקשה הקודמת\"],\"ref\":{\"kind\":\"system\",\"stepType\":\"client_documents\"},\"status\":\"locked\"}]}": {
+   "ok": true,
+   "done": 0,
+   "items": [
+    {
+     "key": "docs",
+     "sub": "ייפתח אחרי הבקשה הקודמת",
+     "label": "להעלות 0 מסמכים",
+     "bucket": "future"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "a",
+     "owner": "client",
+     "title": "להעלות 0 מסמכים",
+     "internal": false,
+     "itemKeys": [
+      "docs"
+     ],
+     "stepType": "client_documents"
+    }
+   ],
+   "total": 0,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":false,\"prevKnown\":false},\"samples\":[{\"key\":\"a\",\"ref\":{\"kind\":\"system\",\"stepType\":\"custom_request\"}}]}": {
+   "ok": true,
+   "done": 0,
+   "items": [
+    {
+     "key": "custom_sample-a",
+     "kind": "custom",
+     "label": "בקשה מהמשרד",
+     "bucket": "action",
+     "canUpload": false,
+     "actionKind": "portal",
+     "actionValue": "sample-a"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "a",
+     "owner": null,
+     "title": "custom_request",
+     "internal": false,
+     "itemKeys": [
+      "custom_sample-a"
+     ],
+     "stepType": "custom_request"
+    }
+   ],
+   "total": 1,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":false,\"prevKnown\":false},\"samples\":[{\"key\":\"a\",\"ref\":{\"kind\":\"system\",\"stepType\":\"custom_request\"},\"status\":\"completed\"}]}": {
+   "ok": true,
+   "done": 1,
+   "items": [
+    {
+     "key": "custom_sample-a",
+     "label": "בקשה מהמשרד",
+     "bucket": "done"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "a",
+     "owner": null,
+     "title": "custom_request",
+     "internal": false,
+     "itemKeys": [
+      "custom_sample-a"
+     ],
+     "stepType": "custom_request"
+    }
+   ],
+   "total": 1,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":false,\"prevKnown\":false},\"samples\":[{\"key\":\"a\",\"lockAfter\":[\"הבקשה הקודמת\"],\"ref\":{\"kind\":\"system\",\"stepType\":\"custom_request\"},\"status\":\"locked\"}]}": {
+   "ok": true,
+   "done": 0,
+   "items": [
+    {
+     "key": "custom_sample-a",
+     "sub": "ייפתח אחרי הבקשה הקודמת",
+     "label": "בקשה מהמשרד",
+     "bucket": "future"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "a",
+     "owner": null,
+     "title": "custom_request",
+     "internal": false,
+     "itemKeys": [
+      "custom_sample-a"
+     ],
+     "stepType": "custom_request"
+    }
+   ],
+   "total": 0,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":false,\"prevKnown\":false},\"samples\":[{\"key\":\"a\",\"ref\":{\"kind\":\"system\",\"stepType\":\"prev_accountant_details\"}}]}": {
+   "ok": true,
+   "done": 0,
+   "items": [
+    {
+     "key": "prev_details",
+     "sub": "הפרטים שאצלנו מוצגים למילוי מראש - רק לוודא שהם נכונים",
+     "kind": "prev_accountant",
+     "label": "לאשר את פרטי רואה החשבון הקודם",
+     "bucket": "action",
+     "actionKind": "portal",
+     "actionValue": "sample-a"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "a",
+     "owner": "client",
+     "title": "לאשר את פרטי רואה החשבון הקודם",
+     "internal": false,
+     "itemKeys": [
+      "prev_details"
+     ],
+     "stepType": "prev_accountant_details"
+    }
+   ],
+   "total": 1,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":false,\"prevKnown\":true},\"samples\":[{\"key\":\"a\",\"ref\":{\"kind\":\"system\",\"stepType\":\"prev_accountant_details\"}}]}": {
+   "ok": true,
+   "done": 0,
+   "items": [
+    {
+     "key": "prev_details",
+     "sub": "הפרטים שאצלנו מוצגים למילוי מראש - רק לוודא שהם נכונים",
+     "kind": "prev_accountant",
+     "label": "לאשר את פרטי רואה החשבון הקודם",
+     "bucket": "action",
+     "prefill": {
+      "name": "רו״ח לדוגמה",
+      "email": "prev-accountant@example.test",
+      "phone": "050-0000000"
+     },
+     "actionKind": "portal",
+     "actionValue": "sample-a"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "a",
+     "owner": "client",
+     "title": "לאשר את פרטי רואה החשבון הקודם",
+     "internal": false,
+     "itemKeys": [
+      "prev_details"
+     ],
+     "stepType": "prev_accountant_details"
+    }
+   ],
+   "total": 1,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":false,\"prevKnown\":false},\"samples\":[{\"key\":\"a\",\"ref\":{\"kind\":\"system\",\"stepType\":\"prev_accountant_details\"},\"status\":\"completed\"}]}": {
+   "ok": true,
+   "done": 1,
+   "items": [
+    {
+     "key": "prev_details",
+     "label": "לאשר את פרטי רואה החשבון הקודם",
+     "bucket": "done"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "a",
+     "owner": "client",
+     "title": "לאשר את פרטי רואה החשבון הקודם",
+     "internal": false,
+     "itemKeys": [
+      "prev_details"
+     ],
+     "stepType": "prev_accountant_details"
+    }
+   ],
+   "total": 1,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":false,\"prevKnown\":true},\"samples\":[{\"key\":\"a\",\"ref\":{\"kind\":\"system\",\"stepType\":\"prev_accountant_details\"},\"status\":\"completed\"}]}": {
+   "ok": true,
+   "done": 1,
+   "items": [
+    {
+     "key": "prev_details",
+     "label": "לאשר את פרטי רואה החשבון הקודם",
+     "bucket": "done"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "a",
+     "owner": "client",
+     "title": "לאשר את פרטי רואה החשבון הקודם",
+     "internal": false,
+     "itemKeys": [
+      "prev_details"
+     ],
+     "stepType": "prev_accountant_details"
+    }
+   ],
+   "total": 1,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":false,\"prevKnown\":false},\"samples\":[{\"key\":\"a\",\"lockAfter\":[\"הבקשה הקודמת\"],\"ref\":{\"kind\":\"system\",\"stepType\":\"prev_accountant_details\"},\"status\":\"locked\"}]}": {
+   "ok": true,
+   "done": 0,
+   "items": [
+    {
+     "key": "prev_details",
+     "sub": "ייפתח אחרי הבקשה הקודמת",
+     "label": "לאשר את פרטי רואה החשבון הקודם",
+     "bucket": "future"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "a",
+     "owner": "client",
+     "title": "לאשר את פרטי רואה החשבון הקודם",
+     "internal": false,
+     "itemKeys": [
+      "prev_details"
+     ],
+     "stepType": "prev_accountant_details"
+    }
+   ],
+   "total": 0,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":false,\"prevKnown\":true},\"samples\":[{\"key\":\"a\",\"lockAfter\":[\"הבקשה הקודמת\"],\"ref\":{\"kind\":\"system\",\"stepType\":\"prev_accountant_details\"},\"status\":\"locked\"}]}": {
+   "ok": true,
+   "done": 0,
+   "items": [
+    {
+     "key": "prev_details",
+     "sub": "ייפתח אחרי הבקשה הקודמת",
+     "label": "לאשר את פרטי רואה החשבון הקודם",
+     "bucket": "future"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "a",
+     "owner": "client",
+     "title": "לאשר את פרטי רואה החשבון הקודם",
+     "internal": false,
+     "itemKeys": [
+      "prev_details"
+     ],
+     "stepType": "prev_accountant_details"
+    }
+   ],
+   "total": 0,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":false,\"prevKnown\":false},\"samples\":[{\"inputs\":{\"paperlessStatus\":\"unknown\"},\"key\":\"a\",\"ref\":{\"kind\":\"system\",\"stepType\":\"paperless_invite\"}}]}": {
+   "ok": true,
+   "done": 0,
+   "items": [
+    {
+     "cta": "נרשמתי לפייפרלס",
+     "key": "paperless_signup",
+     "sub": "שתי דקות, ומשם רק מצלמים קבלות מהטלפון",
+     "kind": "paperless_signup",
+     "label": "הרשמה לפייפרלס",
+     "bucket": "action",
+     "linkUrl": "https://app.paperless.co.il/signup/demo",
+     "actionKind": "portal",
+     "actionValue": "sample-a",
+     "businessName": "ישראלי ייעוץ (דוגמה)",
+     "needsBusinessName": true
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "a",
+     "owner": "client",
+     "title": "הרשמה לפייפרלס",
+     "internal": false,
+     "itemKeys": [
+      "paperless_signup"
+     ],
+     "stepType": "paperless_invite"
+    }
+   ],
+   "total": 1,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":false,\"prevKnown\":false},\"samples\":[{\"inputs\":{\"paperlessStatus\":\"self\"},\"key\":\"a\",\"ref\":{\"kind\":\"system\",\"stepType\":\"paperless_invite\"}}]}": {
+   "ok": true,
+   "done": 0,
+   "items": [
+    {
+     "cta": "קישרתי את המשרד",
+     "key": "paperless_signup",
+     "sub": "בחשבון הפייפרלס שלך: הוסיפו את המשרד כמייצג",
+     "kind": "paperless_signup",
+     "label": "קישור חשבון הפייפרלס למשרד",
+     "bucket": "action",
+     "actionKind": "portal",
+     "actionValue": "sample-a",
+     "businessName": "ישראלי ייעוץ (דוגמה)",
+     "needsBusinessName": true
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "a",
+     "owner": "client",
+     "title": "הרשמה לפייפרלס",
+     "internal": false,
+     "itemKeys": [
+      "paperless_signup"
+     ],
+     "stepType": "paperless_invite"
+    }
+   ],
+   "total": 1,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":false,\"prevKnown\":false},\"samples\":[{\"inputs\":{\"paperlessStatus\":\"other_rep\"},\"key\":\"a\",\"ref\":{\"kind\":\"system\",\"stepType\":\"paperless_invite\"}}]}": {
+   "ok": true,
+   "done": 0,
+   "items": [],
+   "specs": [
+    {
+     "ok": true,
+     "key": "a",
+     "owner": "client",
+     "title": "הרשמה לפייפרלס",
+     "internal": false,
+     "itemKeys": [],
+     "stepType": "paperless_invite"
+    }
+   ],
+   "total": 0,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":false,\"prevKnown\":false},\"samples\":[{\"inputs\":{\"paperlessStatus\":\"unknown\"},\"key\":\"a\",\"ref\":{\"kind\":\"system\",\"stepType\":\"paperless_invite\"},\"status\":\"completed\"}]}": {
+   "ok": true,
+   "done": 1,
+   "items": [
+    {
+     "key": "paperless_signup",
+     "label": "הרשמה לפייפרלס",
+     "bucket": "done"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "a",
+     "owner": "client",
+     "title": "הרשמה לפייפרלס",
+     "internal": false,
+     "itemKeys": [
+      "paperless_signup"
+     ],
+     "stepType": "paperless_invite"
+    }
+   ],
+   "total": 1,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":false,\"prevKnown\":false},\"samples\":[{\"inputs\":{\"paperlessStatus\":\"self\"},\"key\":\"a\",\"ref\":{\"kind\":\"system\",\"stepType\":\"paperless_invite\"},\"status\":\"completed\"}]}": {
+   "ok": true,
+   "done": 1,
+   "items": [
+    {
+     "key": "paperless_signup",
+     "label": "הרשמה לפייפרלס",
+     "bucket": "done"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "a",
+     "owner": "client",
+     "title": "הרשמה לפייפרלס",
+     "internal": false,
+     "itemKeys": [
+      "paperless_signup"
+     ],
+     "stepType": "paperless_invite"
+    }
+   ],
+   "total": 1,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":false,\"prevKnown\":false},\"samples\":[{\"inputs\":{\"paperlessStatus\":\"other_rep\"},\"key\":\"a\",\"ref\":{\"kind\":\"system\",\"stepType\":\"paperless_invite\"},\"status\":\"completed\"}]}": {
+   "ok": true,
+   "done": 0,
+   "items": [],
+   "specs": [
+    {
+     "ok": true,
+     "key": "a",
+     "owner": "client",
+     "title": "הרשמה לפייפרלס",
+     "internal": false,
+     "itemKeys": [],
+     "stepType": "paperless_invite"
+    }
+   ],
+   "total": 0,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":false,\"prevKnown\":false},\"samples\":[{\"inputs\":{\"paperlessStatus\":\"unknown\"},\"key\":\"a\",\"lockAfter\":[\"הבקשה הקודמת\"],\"ref\":{\"kind\":\"system\",\"stepType\":\"paperless_invite\"},\"status\":\"locked\"}]}": {
+   "ok": true,
+   "done": 0,
+   "items": [
+    {
+     "key": "paperless_signup",
+     "sub": "ייפתח אחרי הבקשה הקודמת",
+     "label": "הרשמה לפייפרלס",
+     "bucket": "future"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "a",
+     "owner": "client",
+     "title": "הרשמה לפייפרלס",
+     "internal": false,
+     "itemKeys": [
+      "paperless_signup"
+     ],
+     "stepType": "paperless_invite"
+    }
+   ],
+   "total": 0,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":false,\"prevKnown\":false},\"samples\":[{\"inputs\":{\"paperlessStatus\":\"self\"},\"key\":\"a\",\"lockAfter\":[\"הבקשה הקודמת\"],\"ref\":{\"kind\":\"system\",\"stepType\":\"paperless_invite\"},\"status\":\"locked\"}]}": {
+   "ok": true,
+   "done": 0,
+   "items": [
+    {
+     "key": "paperless_signup",
+     "sub": "ייפתח אחרי הבקשה הקודמת",
+     "label": "הרשמה לפייפרלס",
+     "bucket": "future"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "a",
+     "owner": "client",
+     "title": "הרשמה לפייפרלס",
+     "internal": false,
+     "itemKeys": [
+      "paperless_signup"
+     ],
+     "stepType": "paperless_invite"
+    }
+   ],
+   "total": 0,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":false,\"prevKnown\":false},\"samples\":[{\"inputs\":{\"paperlessStatus\":\"other_rep\"},\"key\":\"a\",\"lockAfter\":[\"הבקשה הקודמת\"],\"ref\":{\"kind\":\"system\",\"stepType\":\"paperless_invite\"},\"status\":\"locked\"}]}": {
+   "ok": true,
+   "done": 0,
+   "items": [],
+   "specs": [
+    {
+     "ok": true,
+     "key": "a",
+     "owner": "client",
+     "title": "הרשמה לפייפרלס",
+     "internal": false,
+     "itemKeys": [],
+     "stepType": "paperless_invite"
+    }
+   ],
+   "total": 0,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":false,\"prevKnown\":false},\"samples\":[{\"ball\":\"me\",\"key\":\"a\",\"lockAfter\":[\"הרשמה לפייפרלס\"],\"patch\":{\"paperlessStatus\":\"unknown\"},\"ref\":{\"kind\":\"system\",\"stepType\":\"paperless_connection\"},\"status\":\"locked\"}]}": {
+   "ok": true,
+   "done": 0,
+   "items": [
+    {
+     "key": "paperless_connect",
+     "sub": "ייפתח אחרי הרשמה לפייפרלס",
+     "label": "חיבור לפייפרלס",
+     "bucket": "future"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "a",
+     "owner": "me",
+     "title": "חיבור לפייפרלס",
+     "internal": false,
+     "itemKeys": [
+      "paperless_connect"
+     ],
+     "stepType": "paperless_connection"
+    }
+   ],
+   "total": 0,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":false,\"prevKnown\":false},\"samples\":[{\"ball\":\"me\",\"key\":\"a\",\"lockAfter\":[\"הרשמה לפייפרלס\"],\"patch\":{\"paperlessStatus\":\"self\"},\"ref\":{\"kind\":\"system\",\"stepType\":\"paperless_connection\"},\"status\":\"locked\"}]}": {
+   "ok": true,
+   "done": 0,
+   "items": [
+    {
+     "key": "paperless_connect",
+     "sub": "ייפתח אחרי הרשמה לפייפרלס",
+     "label": "חיבור לפייפרלס",
+     "bucket": "future"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "a",
+     "owner": "me",
+     "title": "חיבור לפייפרלס",
+     "internal": false,
+     "itemKeys": [
+      "paperless_connect"
+     ],
+     "stepType": "paperless_connection"
+    }
+   ],
+   "total": 0,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":false,\"prevKnown\":false},\"samples\":[{\"ball\":\"me\",\"key\":\"a\",\"lockAfter\":[\"הרשמה לפייפרלס\"],\"patch\":{\"paperlessStatus\":\"other_rep\"},\"ref\":{\"kind\":\"system\",\"stepType\":\"paperless_connection\"},\"status\":\"locked\"}]}": {
+   "ok": true,
+   "done": 0,
+   "items": [
+    {
+     "key": "paperless_transfer",
+     "sub": "אנחנו מושכים את החשבון מהמייצג הקודם. אין צורך לעשות דבר.",
+     "label": "העברת חשבון הפייפרלס אלינו",
+     "bucket": "office"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "a",
+     "owner": "me",
+     "title": "חיבור לפייפרלס",
+     "internal": false,
+     "itemKeys": [
+      "paperless_transfer"
+     ],
+     "stepType": "paperless_connection"
+    }
+   ],
+   "total": 1,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":false,\"prevKnown\":false},\"samples\":[{\"ball\":\"me\",\"key\":\"a\",\"patch\":{\"paperlessStatus\":\"unknown\"},\"ref\":{\"kind\":\"system\",\"stepType\":\"paperless_connection\"},\"status\":\"pending\"}]}": {
+   "ok": true,
+   "done": 0,
+   "items": [
+    {
+     "key": "paperless_connect",
+     "sub": "בימים הקרובים ניכנס לחשבון הפייפרלס ונשלים את החיבור. אין צורך לעשות דבר כרגע.",
+     "label": "חיבור לפייפרלס",
+     "bucket": "office"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "a",
+     "owner": "me",
+     "title": "חיבור לפייפרלס",
+     "internal": false,
+     "itemKeys": [
+      "paperless_connect"
+     ],
+     "stepType": "paperless_connection"
+    }
+   ],
+   "total": 1,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":false,\"prevKnown\":false},\"samples\":[{\"ball\":\"me\",\"key\":\"a\",\"patch\":{\"paperlessStatus\":\"self\"},\"ref\":{\"kind\":\"system\",\"stepType\":\"paperless_connection\"},\"status\":\"pending\"}]}": {
+   "ok": true,
+   "done": 0,
+   "items": [
+    {
+     "key": "paperless_connect",
+     "sub": "בימים הקרובים ניכנס לחשבון הפייפרלס ונשלים את החיבור. אין צורך לעשות דבר כרגע.",
+     "label": "חיבור לפייפרלס",
+     "bucket": "office"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "a",
+     "owner": "me",
+     "title": "חיבור לפייפרלס",
+     "internal": false,
+     "itemKeys": [
+      "paperless_connect"
+     ],
+     "stepType": "paperless_connection"
+    }
+   ],
+   "total": 1,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":false,\"prevKnown\":false},\"samples\":[{\"ball\":\"me\",\"key\":\"a\",\"patch\":{\"paperlessStatus\":\"other_rep\"},\"ref\":{\"kind\":\"system\",\"stepType\":\"paperless_connection\"},\"status\":\"pending\"}]}": {
+   "ok": true,
+   "done": 0,
+   "items": [
+    {
+     "key": "paperless_transfer",
+     "sub": "אנחנו מושכים את החשבון מהמייצג הקודם. אין צורך לעשות דבר.",
+     "label": "העברת חשבון הפייפרלס אלינו",
+     "bucket": "office"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "a",
+     "owner": "me",
+     "title": "חיבור לפייפרלס",
+     "internal": false,
+     "itemKeys": [
+      "paperless_transfer"
+     ],
+     "stepType": "paperless_connection"
+    }
+   ],
+   "total": 1,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":false,\"prevKnown\":false},\"samples\":[{\"ball\":\"me\",\"key\":\"a\",\"patch\":{\"paperlessStatus\":\"unknown\"},\"ref\":{\"kind\":\"system\",\"stepType\":\"paperless_connection\"},\"status\":\"completed\"}]}": {
+   "ok": true,
+   "done": 1,
+   "items": [
+    {
+     "key": "paperless",
+     "label": "חיבור לפייפרלס",
+     "bucket": "done"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "a",
+     "owner": "me",
+     "title": "חיבור לפייפרלס",
+     "internal": false,
+     "itemKeys": [
+      "paperless"
+     ],
+     "stepType": "paperless_connection"
+    }
+   ],
+   "total": 1,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":false,\"prevKnown\":false},\"samples\":[{\"ball\":\"me\",\"key\":\"a\",\"patch\":{\"paperlessStatus\":\"self\"},\"ref\":{\"kind\":\"system\",\"stepType\":\"paperless_connection\"},\"status\":\"completed\"}]}": {
+   "ok": true,
+   "done": 1,
+   "items": [
+    {
+     "key": "paperless",
+     "label": "חיבור לפייפרלס",
+     "bucket": "done"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "a",
+     "owner": "me",
+     "title": "חיבור לפייפרלס",
+     "internal": false,
+     "itemKeys": [
+      "paperless"
+     ],
+     "stepType": "paperless_connection"
+    }
+   ],
+   "total": 1,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":false,\"prevKnown\":false},\"samples\":[{\"ball\":\"me\",\"key\":\"a\",\"patch\":{\"paperlessStatus\":\"other_rep\"},\"ref\":{\"kind\":\"system\",\"stepType\":\"paperless_connection\"},\"status\":\"completed\"}]}": {
+   "ok": true,
+   "done": 1,
+   "items": [
+    {
+     "key": "paperless",
+     "label": "חיבור לפייפרלס",
+     "bucket": "done"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "a",
+     "owner": "me",
+     "title": "חיבור לפייפרלס",
+     "internal": false,
+     "itemKeys": [
+      "paperless"
+     ],
+     "stepType": "paperless_connection"
+    }
+   ],
+   "total": 1,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":false,\"prevKnown\":false},\"rep\":{\"approvals\":\"single\",\"status\":\"awaiting_authorities\"},\"samples\":[{\"key\":\"a\",\"ref\":{\"kind\":\"system\",\"stepType\":\"rep_client_approval\"},\"required\":false}]}": {
+   "ok": true,
+   "done": 0,
+   "items": [
+    {
+     "cta": "אישרתי באזור האישי",
+     "key": "rep_approval",
+     "sub": "אופציונלי - שתי דקות שמקצרות את ההמתנה לאישור הרשויות",
+     "kind": "declare",
+     "note": "יש לך כבר משתמש באזור האישי של רשות המסים?\n\nכן - נכנסים בקישור, לוחצים \"לכניסה למערכת\" ומזדהים. מסמנים את כל הבקשות שבהן המשרד מופיע כמייצג, ולוחצים «אישור ייצוג». שתי דקות.\n\nלא - קודם צריך להירשם ולהזדהות מול רשות המסים. זה החלק שלוקח את הזמן, ובלעדיו אי אפשר לאשר.\n\nאם קיבלת מרשות המסים הודעת SMS על רישום מייצג - אפשר להיכנס ישירות מהקישור שבהודעה, וזה קצר יותר.",
+     "label": "זירוז אישור הייצוג באזור האישי",
+     "bucket": "action",
+     "linkUrl": "https://www.gov.il/he/service/personal_area_taxes",
+     "approvals": [
+      {
+       "name": "ישראל",
+       "person": "client",
+       "systems": [
+        "מס הכנסה",
+        "מע״מ"
+       ]
+      }
+     ],
+     "linkLabel": "לכניסה לאזור האישי",
+     "noteAfter": "ואם לא הסתדר - אין בעיה. הייצוג ייכנס לתוקף גם בלי זה, זה פשוט לוקח כמה ימים יותר.",
+     "actionKind": "portal",
+     "actionValue": "sample-a"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "a",
+     "owner": "client",
+     "title": "זירוז אישור הייצוג באזור האישי",
+     "internal": false,
+     "itemKeys": [
+      "rep_approval"
+     ],
+     "stepType": "rep_client_approval"
+    }
+   ],
+   "total": 1,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":false,\"prevKnown\":false},\"rep\":{\"approvals\":\"single\",\"awaiting\":\"client\",\"status\":\"awaiting_authorities\"},\"samples\":[{\"key\":\"a\",\"ref\":{\"kind\":\"system\",\"stepType\":\"rep_client_approval\"},\"required\":true}]}": {
+   "ok": true,
+   "done": 0,
+   "items": [
+    {
+     "cta": "אישרתי באזור האישי",
+     "key": "rep_approval",
+     "sub": "נדרש - רשות המסים ממתינה לאישור שלך",
+     "kind": "declare",
+     "note": "יש לך כבר משתמש באזור האישי של רשות המסים?\n\nכן - נכנסים בקישור, לוחצים \"לכניסה למערכת\" ומזדהים. מסמנים את כל הבקשות שבהן המשרד מופיע כמייצג, ולוחצים «אישור ייצוג». שתי דקות.\n\nלא - קודם צריך להירשם ולהזדהות מול רשות המסים. זה החלק שלוקח את הזמן, ובלעדיו אי אפשר לאשר.\n\nאם קיבלת מרשות המסים הודעת SMS על רישום מייצג - אפשר להיכנס ישירות מהקישור שבהודעה, וזה קצר יותר.",
+     "label": "אישור הייצוג באזור האישי",
+     "bucket": "action",
+     "linkUrl": "https://www.gov.il/he/service/personal_area_taxes",
+     "approvals": [
+      {
+       "name": "ישראל",
+       "person": "client",
+       "systems": [
+        "מס הכנסה",
+        "מע״מ"
+       ],
+       "awaiting": [
+        "מס הכנסה",
+        "מע״מ"
+       ]
+      }
+     ],
+     "linkLabel": "לכניסה לאזור האישי",
+     "noteAfter": "בלי האישור הזה רשות המסים לא תקלוט את הייצוג, והטיפול מולה לא יוכל להתקדם.",
+     "actionKind": "portal",
+     "actionValue": "sample-a"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "a",
+     "owner": "client",
+     "title": "אישור הייצוג באזור האישי",
+     "internal": false,
+     "itemKeys": [
+      "rep_approval"
+     ],
+     "stepType": "rep_client_approval"
+    }
+   ],
+   "total": 1,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":true,\"prevKnown\":false},\"rep\":{\"approvals\":\"couple\",\"status\":\"awaiting_authorities\"},\"samples\":[{\"key\":\"a\",\"ref\":{\"kind\":\"system\",\"stepType\":\"rep_client_approval\"},\"required\":false}]}": {
+   "ok": true,
+   "done": 0,
+   "items": [
+    {
+     "cta": "אישרתי באזור האישי",
+     "key": "rep_approval",
+     "sub": "אופציונלי - שתי דקות שמקצרות את ההמתנה לאישור הרשויות",
+     "kind": "declare",
+     "note": "יש לך כבר משתמש באזור האישי של רשות המסים?\n\nכן - נכנסים בקישור, לוחצים \"לכניסה למערכת\" ומזדהים. מסמנים את כל הבקשות שבהן המשרד מופיע כמייצג, ולוחצים «אישור ייצוג». שתי דקות.\n\nלא - קודם צריך להירשם ולהזדהות מול רשות המסים. זה החלק שלוקח את הזמן, ובלעדיו אי אפשר לאשר.\n\nאם קיבלת מרשות המסים הודעת SMS על רישום מייצג - אפשר להיכנס ישירות מהקישור שבהודעה, וזה קצר יותר.",
+     "label": "זירוז אישור הייצוג באזור האישי",
+     "bucket": "action",
+     "linkUrl": "https://www.gov.il/he/service/personal_area_taxes",
+     "approvals": [
+      {
+       "name": "ישראל",
+       "person": "client",
+       "systems": [
+        "מע״מ"
+       ]
+      },
+      {
+       "name": "ישראלה",
+       "person": "spouse",
+       "systems": [
+        "מס הכנסה",
+        "מע״מ"
+       ]
+      }
+     ],
+     "linkLabel": "לכניסה לאזור האישי",
+     "noteAfter": "ואם לא הסתדר - אין בעיה. הייצוג ייכנס לתוקף גם בלי זה, זה פשוט לוקח כמה ימים יותר.",
+     "actionKind": "portal",
+     "actionValue": "sample-a"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "a",
+     "owner": "client",
+     "title": "זירוז אישור הייצוג באזור האישי",
+     "internal": false,
+     "itemKeys": [
+      "rep_approval"
+     ],
+     "stepType": "rep_client_approval"
+    }
+   ],
+   "total": 1,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":true,\"prevKnown\":false},\"rep\":{\"approvals\":\"couple\",\"awaiting\":\"spouse\",\"status\":\"awaiting_authorities\"},\"samples\":[{\"key\":\"a\",\"ref\":{\"kind\":\"system\",\"stepType\":\"rep_client_approval\"},\"required\":true}]}": {
+   "ok": true,
+   "done": 0,
+   "items": [
+    {
+     "cta": "אישרתי באזור האישי",
+     "key": "rep_approval",
+     "sub": "נדרש - רשות המסים ממתינה לאישור של ישראלה",
+     "kind": "declare",
+     "note": "יש לך כבר משתמש באזור האישי של רשות המסים?\n\nכן - נכנסים בקישור, לוחצים \"לכניסה למערכת\" ומזדהים. מסמנים את כל הבקשות שבהן המשרד מופיע כמייצג, ולוחצים «אישור ייצוג». שתי דקות.\n\nלא - קודם צריך להירשם ולהזדהות מול רשות המסים. זה החלק שלוקח את הזמן, ובלעדיו אי אפשר לאשר.\n\nאם קיבלת מרשות המסים הודעת SMS על רישום מייצג - אפשר להיכנס ישירות מהקישור שבהודעה, וזה קצר יותר.",
+     "label": "אישור הייצוג באזור האישי",
+     "bucket": "action",
+     "linkUrl": "https://www.gov.il/he/service/personal_area_taxes",
+     "approvals": [
+      {
+       "name": "ישראל",
+       "person": "client",
+       "systems": [
+        "מע״מ"
+       ]
+      },
+      {
+       "name": "ישראלה",
+       "person": "spouse",
+       "systems": [
+        "מס הכנסה",
+        "מע״מ"
+       ],
+       "awaiting": [
+        "מס הכנסה",
+        "מע״מ"
+       ]
+      }
+     ],
+     "linkLabel": "לכניסה לאזור האישי",
+     "noteAfter": "בלי האישור הזה רשות המסים לא תקלוט את הייצוג, והטיפול מולה לא יוכל להתקדם.",
+     "actionKind": "portal",
+     "actionValue": "sample-a"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "a",
+     "owner": "client",
+     "title": "אישור הייצוג באזור האישי",
+     "internal": false,
+     "itemKeys": [
+      "rep_approval"
+     ],
+     "stepType": "rep_client_approval"
+    }
+   ],
+   "total": 1,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":false,\"prevKnown\":false},\"rep\":{\"approvals\":\"single\",\"status\":\"awaiting_authorities\"},\"samples\":[{\"key\":\"a\",\"patch\":{\"clientDeclaredAt\":\"2026-10-05T10:00:00Z\"},\"ref\":{\"kind\":\"system\",\"stepType\":\"rep_client_approval\"},\"required\":false}]}": {
+   "ok": true,
+   "done": 0,
+   "items": [
+    {
+     "key": "rep_approval",
+     "sub": "תודה. אנחנו בודקים שהאישור נקלט אצל רשות המסים.",
+     "label": "זירוז אישור הייצוג באזור האישי",
+     "bucket": "office"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "a",
+     "owner": "client",
+     "title": "זירוז אישור הייצוג באזור האישי",
+     "internal": false,
+     "itemKeys": [
+      "rep_approval"
+     ],
+     "stepType": "rep_client_approval"
+    }
+   ],
+   "total": 1,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":false,\"prevKnown\":false},\"rep\":{\"approvals\":\"single\",\"awaiting\":\"client\",\"status\":\"awaiting_authorities\"},\"samples\":[{\"key\":\"a\",\"patch\":{\"clientDeclaredAt\":\"2026-10-05T10:00:00Z\"},\"ref\":{\"kind\":\"system\",\"stepType\":\"rep_client_approval\"},\"required\":true}]}": {
+   "ok": true,
+   "done": 0,
+   "items": [
+    {
+     "key": "rep_approval",
+     "sub": "תודה. אנחנו בודקים שהאישור נקלט אצל רשות המסים.",
+     "label": "אישור הייצוג באזור האישי",
+     "bucket": "office"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "a",
+     "owner": "client",
+     "title": "אישור הייצוג באזור האישי",
+     "internal": false,
+     "itemKeys": [
+      "rep_approval"
+     ],
+     "stepType": "rep_client_approval"
+    }
+   ],
+   "total": 1,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":true,\"prevKnown\":false},\"rep\":{\"approvals\":\"couple\",\"status\":\"awaiting_authorities\"},\"samples\":[{\"key\":\"a\",\"patch\":{\"clientDeclaredAt\":\"2026-10-05T10:00:00Z\"},\"ref\":{\"kind\":\"system\",\"stepType\":\"rep_client_approval\"},\"required\":false}]}": {
+   "ok": true,
+   "done": 0,
+   "items": [
+    {
+     "key": "rep_approval",
+     "sub": "תודה. אנחנו בודקים שהאישור נקלט אצל רשות המסים.",
+     "label": "זירוז אישור הייצוג באזור האישי",
+     "bucket": "office"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "a",
+     "owner": "client",
+     "title": "זירוז אישור הייצוג באזור האישי",
+     "internal": false,
+     "itemKeys": [
+      "rep_approval"
+     ],
+     "stepType": "rep_client_approval"
+    }
+   ],
+   "total": 1,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":true,\"prevKnown\":false},\"rep\":{\"approvals\":\"couple\",\"awaiting\":\"spouse\",\"status\":\"awaiting_authorities\"},\"samples\":[{\"key\":\"a\",\"patch\":{\"clientDeclaredAt\":\"2026-10-05T10:00:00Z\"},\"ref\":{\"kind\":\"system\",\"stepType\":\"rep_client_approval\"},\"required\":true}]}": {
+   "ok": true,
+   "done": 0,
+   "items": [
+    {
+     "key": "rep_approval",
+     "sub": "תודה. אנחנו בודקים שהאישור נקלט אצל רשות המסים.",
+     "label": "אישור הייצוג באזור האישי",
+     "bucket": "office"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "a",
+     "owner": "client",
+     "title": "אישור הייצוג באזור האישי",
+     "internal": false,
+     "itemKeys": [
+      "rep_approval"
+     ],
+     "stepType": "rep_client_approval"
+    }
+   ],
+   "total": 1,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":false,\"prevKnown\":false},\"rep\":{\"approvals\":\"single\",\"status\":\"awaiting_authorities\"},\"samples\":[{\"key\":\"a\",\"ref\":{\"kind\":\"system\",\"stepType\":\"rep_client_approval\"},\"required\":false,\"status\":\"completed\"}]}": {
+   "ok": true,
+   "done": 1,
+   "items": [
+    {
+     "key": "rep_approval",
+     "label": "זירוז אישור הייצוג באזור האישי",
+     "bucket": "done"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "a",
+     "owner": "client",
+     "title": "זירוז אישור הייצוג באזור האישי",
+     "internal": false,
+     "itemKeys": [
+      "rep_approval"
+     ],
+     "stepType": "rep_client_approval"
+    }
+   ],
+   "total": 1,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":false,\"prevKnown\":false},\"rep\":{\"approvals\":\"single\",\"awaiting\":\"client\",\"status\":\"awaiting_authorities\"},\"samples\":[{\"key\":\"a\",\"ref\":{\"kind\":\"system\",\"stepType\":\"rep_client_approval\"},\"required\":true,\"status\":\"completed\"}]}": {
+   "ok": true,
+   "done": 1,
+   "items": [
+    {
+     "key": "rep_approval",
+     "label": "אישור הייצוג באזור האישי",
+     "bucket": "done"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "a",
+     "owner": "client",
+     "title": "אישור הייצוג באזור האישי",
+     "internal": false,
+     "itemKeys": [
+      "rep_approval"
+     ],
+     "stepType": "rep_client_approval"
+    }
+   ],
+   "total": 1,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":true,\"prevKnown\":false},\"rep\":{\"approvals\":\"couple\",\"status\":\"awaiting_authorities\"},\"samples\":[{\"key\":\"a\",\"ref\":{\"kind\":\"system\",\"stepType\":\"rep_client_approval\"},\"required\":false,\"status\":\"completed\"}]}": {
+   "ok": true,
+   "done": 1,
+   "items": [
+    {
+     "key": "rep_approval",
+     "label": "זירוז אישור הייצוג באזור האישי",
+     "bucket": "done"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "a",
+     "owner": "client",
+     "title": "זירוז אישור הייצוג באזור האישי",
+     "internal": false,
+     "itemKeys": [
+      "rep_approval"
+     ],
+     "stepType": "rep_client_approval"
+    }
+   ],
+   "total": 1,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":true,\"prevKnown\":false},\"rep\":{\"approvals\":\"couple\",\"awaiting\":\"spouse\",\"status\":\"awaiting_authorities\"},\"samples\":[{\"key\":\"a\",\"ref\":{\"kind\":\"system\",\"stepType\":\"rep_client_approval\"},\"required\":true,\"status\":\"completed\"}]}": {
+   "ok": true,
+   "done": 1,
+   "items": [
+    {
+     "key": "rep_approval",
+     "label": "אישור הייצוג באזור האישי",
+     "bucket": "done"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "a",
+     "owner": "client",
+     "title": "אישור הייצוג באזור האישי",
+     "internal": false,
+     "itemKeys": [
+      "rep_approval"
+     ],
+     "stepType": "rep_client_approval"
+    }
+   ],
+   "total": 1,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":false,\"prevKnown\":false},\"samples\":[{\"key\":\"a\",\"ref\":{\"kind\":\"system\",\"stepType\":\"paperless_tax_authority\"}}]}": {
+   "ok": true,
+   "done": 0,
+   "items": [
+    {
+     "cta": "ביצעתי את החיבור",
+     "key": "paperless_tax",
+     "sub": "כדי שהחשבוניות שלך יקבלו מספר הקצאה",
+     "kind": "declare",
+     "note": "1. בפייפרלס: הגדרות ← חיבורים והרשאות, ולחיצה על אייקון הקישור.\n2. נפתח אתר רשות המסים ומבקש הזדהות - תעודת זהות וקוד קבוע (לא כרטיס חכם). מאשרים את ההרשאה.\n3. חוזרים לפייפרלס ולוחצים \"המשך\".",
+     "label": "חיבור פייפרלס לרשות המסים",
+     "bucket": "action",
+     "linkUrl": "https://academy-bu.paperless.tax/he/articles/11424861-%D7%97%D7%99%D7%91%D7%95%D7%A8-%D7%94%D7%9E%D7%A2%D7%A8%D7%9B%D7%AA-%D7%9C%D7%A8%D7%A9%D7%95%D7%AA-%D7%94%D7%9E%D7%99%D7%A1%D7%99%D7%9D",
+     "noteAfter": "החיבור תקף לשלושה חודשים ואז צריך לחדש אותו - נזכיר לך כשיגיע הזמן. אם החיבור נכשל, ממתינים כשלוש שעות ומנסים שוב.",
+     "actionKind": "portal",
+     "actionValue": "sample-a"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "a",
+     "owner": "client",
+     "title": "חיבור פייפרלס לרשות המסים",
+     "internal": false,
+     "itemKeys": [
+      "paperless_tax"
+     ],
+     "stepType": "paperless_tax_authority"
+    }
+   ],
+   "total": 1,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":false,\"prevKnown\":false},\"samples\":[{\"key\":\"a\",\"ref\":{\"kind\":\"system\",\"stepType\":\"paperless_tax_authority\"},\"status\":\"completed\"}]}": {
+   "ok": true,
+   "done": 1,
+   "items": [
+    {
+     "key": "paperless_tax",
+     "label": "חיבור פייפרלס לרשות המסים",
+     "bucket": "done"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "a",
+     "owner": "client",
+     "title": "חיבור פייפרלס לרשות המסים",
+     "internal": false,
+     "itemKeys": [
+      "paperless_tax"
+     ],
+     "stepType": "paperless_tax_authority"
+    }
+   ],
+   "total": 1,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":false,\"prevKnown\":false},\"samples\":[{\"key\":\"a\",\"lockAfter\":[\"הבקשה הקודמת\"],\"ref\":{\"kind\":\"system\",\"stepType\":\"paperless_tax_authority\"},\"status\":\"locked\"}]}": {
+   "ok": true,
+   "done": 0,
+   "items": [
+    {
+     "key": "paperless_tax",
+     "sub": "ייפתח אחרי הבקשה הקודמת",
+     "label": "חיבור פייפרלס לרשות המסים",
+     "bucket": "future"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "a",
+     "owner": "client",
+     "title": "חיבור פייפרלס לרשות המסים",
+     "internal": false,
+     "itemKeys": [
+      "paperless_tax"
+     ],
+     "stepType": "paperless_tax_authority"
+    }
+   ],
+   "total": 0,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":false,\"prevKnown\":false},\"samples\":[{\"ball\":\"me\",\"key\":\"a\",\"lockAfter\":[\"חיבור לפייפרלס\"],\"ref\":{\"kind\":\"system\",\"stepType\":\"retainer_authorization\"},\"status\":\"locked\"}]}": {
+   "ok": true,
+   "done": 0,
+   "items": [
+    {
+     "key": "retainer_future",
+     "sub": "ייפתח אחרי חיבור לפייפרלס",
+     "label": "הרשאת התשלום החודשי",
+     "bucket": "future"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "a",
+     "owner": "me",
+     "title": "להזין אמצעי תשלום",
+     "internal": false,
+     "itemKeys": [
+      "retainer_future"
+     ],
+     "stepType": "retainer_authorization"
+    }
+   ],
+   "total": 0,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":false,\"prevKnown\":false},\"samples\":[{\"ball\":\"me\",\"key\":\"a\",\"patch\":{\"authorizationCreatedAt\":\"2026-10-01\"},\"ref\":{\"kind\":\"system\",\"stepType\":\"retainer_authorization\"},\"status\":\"pending\"}]}": {
+   "ok": true,
+   "done": 0,
+   "items": [
+    {
+     "key": "retainer_card",
+     "sub": "פייפרלס תשלח לכם הודעה להזנת כרטיס אשראי לחיוב החודשי שסיכמנו - או שייפתח לכם חלון להזנת הכרטיס בכניסה הבאה לאפליקציה.",
+     "kind": "info",
+     "note": "ייתכן שתראו חיוב אימות בסך 1 ₪ - הוא נועד לוודא שהכרטיס תקין, ואינו החיוב החודשי.\nאין מה לאשר כאן: ברגע שהכרטיס יוזן, נראה את זה מצידנו ונעדכן.",
+     "label": "הזנת כרטיס אשראי בפייפרלס",
+     "bucket": "action"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "a",
+     "owner": "me",
+     "title": "להזין אמצעי תשלום",
+     "internal": false,
+     "itemKeys": [
+      "retainer_card"
+     ],
+     "stepType": "retainer_authorization"
+    }
+   ],
+   "total": 1,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":false,\"prevKnown\":false},\"samples\":[{\"ball\":\"me\",\"key\":\"a\",\"patch\":{\"cardEnteredAt\":\"2026-10-01\"},\"ref\":{\"kind\":\"system\",\"stepType\":\"retainer_authorization\"},\"status\":\"pending\"}]}": {
+   "ok": true,
+   "done": 0,
+   "items": [
+    {
+     "key": "retainer_charge",
+     "sub": "פרטי הכרטיס התקבלו. נשלים את החיוב החודשי ונעדכן כאן.",
+     "label": "החיוב החודשי",
+     "bucket": "office"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "a",
+     "owner": "me",
+     "title": "להזין אמצעי תשלום",
+     "internal": false,
+     "itemKeys": [
+      "retainer_charge"
+     ],
+     "stepType": "retainer_authorization"
+    }
+   ],
+   "total": 1,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":false,\"prevKnown\":false},\"samples\":[{\"ball\":\"me\",\"key\":\"a\",\"ref\":{\"kind\":\"system\",\"stepType\":\"retainer_authorization\"},\"status\":\"completed\"}]}": {
+   "ok": true,
+   "done": 1,
+   "items": [
+    {
+     "key": "retainer",
+     "label": "החיוב החודשי הוסדר",
+     "bucket": "done"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "a",
+     "owner": "me",
+     "title": "להזין אמצעי תשלום",
+     "internal": false,
+     "itemKeys": [
+      "retainer"
+     ],
+     "stepType": "retainer_authorization"
+    }
+   ],
+   "total": 1,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":false,\"prevKnown\":false},\"samples\":[{\"key\":\"a\",\"ref\":{\"kind\":\"system\",\"stepType\":\"business_details\"}}]}": {
+   "ok": true,
+   "done": 0,
+   "items": [
+    {
+     "cta": "העברה למשרד",
+     "key": "business_details",
+     "sub": "נשאר להשלים מידע על עבודה מהבית",
+     "kind": "business_details",
+     "label": "פרטי העסק",
+     "bucket": "action",
+     "actionKind": "portal",
+     "actionValue": "sample-a",
+     "businessName": "ישראלי ייעוץ (דוגמה)"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "a",
+     "owner": null,
+     "title": "business_details",
+     "internal": false,
+     "itemKeys": [
+      "business_details"
+     ],
+     "stepType": "business_details"
+    }
+   ],
+   "total": 1,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":false,\"prevKnown\":false},\"samples\":[{\"ball\":\"me\",\"key\":\"a\",\"ref\":{\"kind\":\"system\",\"stepType\":\"business_details\"},\"status\":\"in_progress\"}]}": {
+   "ok": true,
+   "done": 0,
+   "items": [
+    {
+     "key": "business_details",
+     "sub": "קיבלנו את הפרטים ואנחנו בודקים אותם. אין צורך לעשות דבר כרגע.",
+     "label": "פרטי העסק",
+     "bucket": "office"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "a",
+     "owner": null,
+     "title": "business_details",
+     "internal": false,
+     "itemKeys": [
+      "business_details"
+     ],
+     "stepType": "business_details"
+    }
+   ],
+   "total": 1,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":false,\"prevKnown\":false},\"samples\":[{\"key\":\"a\",\"ref\":{\"kind\":\"system\",\"stepType\":\"business_details\"},\"status\":\"completed\"}]}": {
+   "ok": true,
+   "done": 1,
+   "items": [
+    {
+     "key": "business_details",
+     "label": "פרטי העסק",
+     "bucket": "done"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "a",
+     "owner": null,
+     "title": "business_details",
+     "internal": false,
+     "itemKeys": [
+      "business_details"
+     ],
+     "stepType": "business_details"
+    }
+   ],
+   "total": 1,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":false,\"prevKnown\":false},\"samples\":[{\"key\":\"a\",\"lockAfter\":[\"הרשמה לפייפרלס\"],\"ref\":{\"kind\":\"system\",\"stepType\":\"business_details\"},\"status\":\"locked\"}]}": {
+   "ok": true,
+   "done": 0,
+   "items": [
+    {
+     "key": "business_details",
+     "sub": "ייפתח אחרי הרשמה לפייפרלס",
+     "label": "פרטי העסק",
+     "bucket": "future"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "a",
+     "owner": null,
+     "title": "business_details",
+     "internal": false,
+     "itemKeys": [
+      "business_details"
+     ],
+     "stepType": "business_details"
+    }
+   ],
+   "total": 0,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":false,\"prevKnown\":false},\"samples\":[{\"key\":\"a\",\"ref\":{\"kind\":\"system\",\"stepType\":\"intake_questionnaire\"},\"status\":\"waiting_client\"}]}": {
+   "ok": true,
+   "done": 0,
+   "items": [
+    {
+     "key": "intake_fill",
+     "sub": "עונים רק על מה שרלוונטי · אפשר לעצור ולהמשיך",
+     "label": "עדכון סטטוס מיסויי",
+     "bucket": "action",
+     "actionKind": "intake",
+     "actionValue": "sample"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "a",
+     "owner": null,
+     "title": "intake_questionnaire",
+     "internal": false,
+     "itemKeys": [
+      "intake_fill"
+     ],
+     "stepType": "intake_questionnaire"
+    }
+   ],
+   "total": 1,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":false,\"prevKnown\":false},\"samples\":[{\"key\":\"a\",\"ref\":{\"kind\":\"system\",\"stepType\":\"intake_questionnaire\"},\"status\":\"completed\"}]}": {
+   "ok": true,
+   "done": 1,
+   "items": [
+    {
+     "key": "intake",
+     "label": "עדכון סטטוס מיסויי",
+     "bucket": "done"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "a",
+     "owner": null,
+     "title": "intake_questionnaire",
+     "internal": false,
+     "itemKeys": [
+      "intake"
+     ],
+     "stepType": "intake_questionnaire"
+    }
+   ],
+   "total": 1,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":false,\"prevKnown\":false},\"samples\":[{\"key\":\"a\",\"lockAfter\":[\"הבקשה הקודמת\"],\"ref\":{\"kind\":\"system\",\"stepType\":\"intake_questionnaire\"},\"status\":\"locked\"}]}": {
+   "ok": true,
+   "done": 0,
+   "items": [
+    {
+     "key": "intake_future",
+     "sub": "ייפתח אחרי הבקשה הקודמת",
+     "label": "עדכון סטטוס מיסויי",
+     "bucket": "future"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "a",
+     "owner": null,
+     "title": "intake_questionnaire",
+     "internal": false,
+     "itemKeys": [
+      "intake_future"
+     ],
+     "stepType": "intake_questionnaire"
+    }
+   ],
+   "total": 0,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":false,\"prevKnown\":false},\"samples\":[{\"ball\":\"me\",\"key\":\"a\",\"ref\":{\"kind\":\"system\",\"stepType\":\"release_letter\"},\"status\":\"pending\"}]}": {
+   "ok": true,
+   "done": 0,
+   "items": [
+    {
+     "key": "prev_accountant",
+     "sub": "ביקשנו את התיק - בתהליך",
+     "label": "קבלת החומרים מרואה החשבון הקודם",
+     "bucket": "office"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "a",
+     "owner": null,
+     "title": "release_letter",
+     "internal": false,
+     "itemKeys": [],
+     "stepType": "release_letter"
+    }
+   ],
+   "total": 1,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":false,\"prevKnown\":false},\"samples\":[{\"ball\":\"me\",\"key\":\"a\",\"ref\":{\"kind\":\"system\",\"stepType\":\"release_letter\"},\"status\":\"completed\"}]}": {
+   "ok": true,
+   "done": 1,
+   "items": [
+    {
+     "key": "prev_accountant",
+     "label": "החומרים מרואה החשבון הקודם התקבלו",
+     "bucket": "done"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "a",
+     "owner": null,
+     "title": "release_letter",
+     "internal": false,
+     "itemKeys": [],
+     "stepType": "release_letter"
+    }
+   ],
+   "total": 1,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":false,\"prevKnown\":false},\"samples\":[{\"ball\":\"prev_accountant\",\"key\":\"a\",\"ref\":{\"kind\":\"system\",\"stepType\":\"materials_received\"},\"status\":\"pending\"}]}": {
+   "ok": true,
+   "done": 0,
+   "items": [
+    {
+     "key": "prev_accountant",
+     "sub": "ביקשנו את התיק - בתהליך",
+     "label": "קבלת החומרים מרואה החשבון הקודם",
+     "bucket": "office"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "a",
+     "owner": null,
+     "title": "materials_received",
+     "internal": false,
+     "itemKeys": [],
+     "stepType": "materials_received"
+    }
+   ],
+   "total": 1,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":false,\"prevKnown\":false},\"samples\":[{\"ball\":\"prev_accountant\",\"key\":\"a\",\"ref\":{\"kind\":\"system\",\"stepType\":\"materials_received\"},\"status\":\"completed\"}]}": {
+   "ok": true,
+   "done": 1,
+   "items": [
+    {
+     "key": "prev_accountant",
+     "label": "החומרים מרואה החשבון הקודם התקבלו",
+     "bucket": "done"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "a",
+     "owner": null,
+     "title": "materials_received",
+     "internal": false,
+     "itemKeys": [],
+     "stepType": "materials_received"
+    }
+   ],
+   "total": 1,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":false,\"prevKnown\":false},\"samples\":[{\"ball\":\"me\",\"key\":\"a\",\"ref\":{\"kind\":\"system\",\"stepType\":\"file_opening\"},\"status\":\"pending\"}]}": {
+   "ok": true,
+   "done": 0,
+   "items": [
+    {
+     "key": "files_office",
+     "sub": "מע\"מ, מס הכנסה וביטוח לאומי - בטיפולנו",
+     "label": "פתיחת התיקים ברשויות",
+     "bucket": "office"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "a",
+     "owner": null,
+     "title": "file_opening",
+     "internal": false,
+     "itemKeys": [
+      "files_office"
+     ],
+     "stepType": "file_opening"
+    }
+   ],
+   "total": 1,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":false,\"prevKnown\":false},\"samples\":[{\"ball\":\"me\",\"key\":\"a\",\"ref\":{\"kind\":\"system\",\"stepType\":\"file_opening\"},\"status\":\"completed\"}]}": {
+   "ok": true,
+   "done": 1,
+   "items": [
+    {
+     "key": "files",
+     "label": "פתיחת התיקים ברשויות",
+     "bucket": "done"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "a",
+     "owner": null,
+     "title": "file_opening",
+     "internal": false,
+     "itemKeys": [
+      "files"
+     ],
+     "stepType": "file_opening"
+    }
+   ],
+   "total": 1,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":false},\"rep\":{\"niReference\":true,\"status\":\"awaiting_authorities\"},\"samples\":[{\"ball\":\"me\",\"key\":\"ni-client\",\"patch\":{\"subjectRole\":\"client\",\"title\":\"ייצוג בביטוח לאומי — ישראל\"},\"ref\":{\"kind\":\"system\",\"stepType\":\"authority_representation\"},\"status\":\"in_progress\"}]}": {
+   "ok": true,
+   "done": 0,
+   "items": [
+    {
+     "key": "authrep_sample-ni-client",
+     "sub": "האסמכתא התקבלה — נשלח הוראות אישור בקרוב",
+     "label": "ייצוג בביטוח לאומי — ישראל",
+     "bucket": "office"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "ni-client",
+     "owner": null,
+     "title": null,
+     "internal": false,
+     "itemKeys": [
+      "authrep_sample-ni-client"
+     ],
+     "stepType": "authority_representation"
+    }
+   ],
+   "total": 1,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":false},\"rep\":{\"niReference\":true,\"status\":\"awaiting_authorities\"},\"samples\":[{\"ball\":\"client\",\"key\":\"ni-client\",\"patch\":{\"subjectRole\":\"client\",\"title\":\"ייצוג בביטוח לאומי — ישראל\"},\"ref\":{\"kind\":\"system\",\"stepType\":\"authority_representation\"},\"status\":\"waiting_client\"}]}": {
+   "ok": true,
+   "done": 0,
+   "items": [
+    {
+     "key": "authrep_sample-ni-client",
+     "kind": "message",
+     "note": "האסמכתא: A-0000-0000\nיש לאשר עד 19.10.2026\nניתן לאשר באתר הביטוח הלאומי או בטלפון 02-5393740. אם ההודעה לא הגיעה - אפשר להעביר את ההוראות.",
+     "label": "ייצוג בביטוח לאומי — ישראל",
+     "bucket": "office",
+     "linkUrl": "https://b2b.btl.gov.il/BTL.ILG.PAYMENTS/IshurIpuyKoachInfo.aspx",
+     "linkLabel": "לאתר הביטוח הלאומי"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "ni-client",
+     "owner": null,
+     "title": null,
+     "internal": false,
+     "itemKeys": [
+      "authrep_sample-ni-client"
+     ],
+     "stepType": "authority_representation"
+    }
+   ],
+   "total": 0,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":false},\"rep\":{\"niReference\":true,\"status\":\"awaiting_authorities\"},\"samples\":[{\"ball\":\"me\",\"key\":\"ni-client\",\"patch\":{\"subjectRole\":\"client\",\"title\":\"ייצוג בביטוח לאומי — ישראל\"},\"ref\":{\"kind\":\"system\",\"stepType\":\"authority_representation\"},\"status\":\"completed\"}]}": {
+   "ok": true,
+   "done": 1,
+   "items": [
+    {
+     "key": "authrep_sample-ni-client",
+     "label": "ייצוג בביטוח לאומי — ישראל · אושר",
+     "bucket": "done"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "ni-client",
+     "owner": null,
+     "title": null,
+     "internal": false,
+     "itemKeys": [
+      "authrep_sample-ni-client"
+     ],
+     "stepType": "authority_representation"
+    }
+   ],
+   "total": 1,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":true},\"rep\":{\"niReference\":true,\"status\":\"awaiting_authorities\"},\"samples\":[{\"ball\":\"me\",\"key\":\"ni-client\",\"patch\":{\"subjectRole\":\"client\",\"title\":\"ייצוג בביטוח לאומי — ישראל\"},\"ref\":{\"kind\":\"system\",\"stepType\":\"authority_representation\"},\"status\":\"in_progress\"},{\"ball\":\"me\",\"key\":\"ni-spouse\",\"patch\":{\"subjectRole\":\"spouse\",\"title\":\"ייצוג בביטוח לאומי — ישראלה\"},\"ref\":{\"kind\":\"system\",\"stepType\":\"authority_representation\"},\"status\":\"in_progress\"}]}": {
+   "ok": true,
+   "done": 0,
+   "items": [
+    {
+     "key": "authrep_sample-ni-client",
+     "sub": "האסמכתא התקבלה — נשלח הוראות אישור בקרוב",
+     "label": "ייצוג בביטוח לאומי — ישראל",
+     "bucket": "office"
+    },
+    {
+     "key": "authrep_sample-ni-spouse",
+     "sub": "האסמכתא התקבלה — נשלח הוראות אישור בקרוב",
+     "label": "ייצוג בביטוח לאומי — ישראלה",
+     "bucket": "office"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "ni-client",
+     "owner": null,
+     "title": null,
+     "internal": false,
+     "itemKeys": [
+      "authrep_sample-ni-client"
+     ],
+     "stepType": "authority_representation"
+    },
+    {
+     "ok": true,
+     "key": "ni-spouse",
+     "owner": null,
+     "title": null,
+     "internal": false,
+     "itemKeys": [
+      "authrep_sample-ni-spouse"
+     ],
+     "stepType": "authority_representation"
+    }
+   ],
+   "total": 2,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":true},\"rep\":{\"niReference\":true,\"status\":\"awaiting_authorities\"},\"samples\":[{\"ball\":\"client\",\"key\":\"ni-client\",\"patch\":{\"subjectRole\":\"client\",\"title\":\"ייצוג בביטוח לאומי — ישראל\"},\"ref\":{\"kind\":\"system\",\"stepType\":\"authority_representation\"},\"status\":\"waiting_client\"},{\"ball\":\"client\",\"key\":\"ni-spouse\",\"patch\":{\"subjectRole\":\"spouse\",\"title\":\"ייצוג בביטוח לאומי — ישראלה\"},\"ref\":{\"kind\":\"system\",\"stepType\":\"authority_representation\"},\"status\":\"waiting_client\"}]}": {
+   "ok": true,
+   "done": 0,
+   "items": [
+    {
+     "key": "authrep_sample-ni-client",
+     "kind": "message",
+     "note": "האסמכתא: A-0000-0000\nיש לאשר עד 19.10.2026\nניתן לאשר באתר הביטוח הלאומי או בטלפון 02-5393740. אם ההודעה לא הגיעה - אפשר להעביר את ההוראות.",
+     "label": "ייצוג בביטוח לאומי — ישראל",
+     "bucket": "office",
+     "linkUrl": "https://b2b.btl.gov.il/BTL.ILG.PAYMENTS/IshurIpuyKoachInfo.aspx",
+     "linkLabel": "לאתר הביטוח הלאומי"
+    },
+    {
+     "key": "authrep_sample-ni-spouse",
+     "kind": "message",
+     "note": "האסמכתא: A-0000-0000\nיש לאשר עד 19.10.2026\nניתן לאשר באתר הביטוח הלאומי או בטלפון 02-5393740. אם ההודעה לא הגיעה - אפשר להעביר את ההוראות.",
+     "label": "ייצוג בביטוח לאומי — ישראלה",
+     "bucket": "office",
+     "linkUrl": "https://b2b.btl.gov.il/BTL.ILG.PAYMENTS/IshurIpuyKoachInfo.aspx",
+     "linkLabel": "לאתר הביטוח הלאומי"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "ni-client",
+     "owner": null,
+     "title": null,
+     "internal": false,
+     "itemKeys": [
+      "authrep_sample-ni-client"
+     ],
+     "stepType": "authority_representation"
+    },
+    {
+     "ok": true,
+     "key": "ni-spouse",
+     "owner": null,
+     "title": null,
+     "internal": false,
+     "itemKeys": [
+      "authrep_sample-ni-spouse"
+     ],
+     "stepType": "authority_representation"
+    }
+   ],
+   "total": 0,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":true},\"rep\":{\"niReference\":true,\"status\":\"awaiting_authorities\"},\"samples\":[{\"ball\":\"me\",\"key\":\"ni-client\",\"patch\":{\"subjectRole\":\"client\",\"title\":\"ייצוג בביטוח לאומי — ישראל\"},\"ref\":{\"kind\":\"system\",\"stepType\":\"authority_representation\"},\"status\":\"completed\"},{\"ball\":\"me\",\"key\":\"ni-spouse\",\"patch\":{\"subjectRole\":\"spouse\",\"title\":\"ייצוג בביטוח לאומי — ישראלה\"},\"ref\":{\"kind\":\"system\",\"stepType\":\"authority_representation\"},\"status\":\"completed\"}]}": {
+   "ok": true,
+   "done": 2,
+   "items": [
+    {
+     "key": "authrep_sample-ni-client",
+     "label": "ייצוג בביטוח לאומי — ישראל · אושר",
+     "bucket": "done"
+    },
+    {
+     "key": "authrep_sample-ni-spouse",
+     "label": "ייצוג בביטוח לאומי — ישראלה · אושר",
+     "bucket": "done"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "ni-client",
+     "owner": null,
+     "title": null,
+     "internal": false,
+     "itemKeys": [
+      "authrep_sample-ni-client"
+     ],
+     "stepType": "authority_representation"
+    },
+    {
+     "ok": true,
+     "key": "ni-spouse",
+     "owner": null,
+     "title": null,
+     "internal": false,
+     "itemKeys": [
+      "authrep_sample-ni-spouse"
+     ],
+     "stepType": "authority_representation"
+    }
+   ],
+   "total": 2,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":false,\"prevKnown\":false},\"samples\":[{\"key\":\"a\",\"ref\":{\"kind\":\"system\",\"stepType\":\"representation_upgrade\"}}]}": {
+   "ok": true,
+   "done": 0,
+   "items": [],
+   "specs": [
+    {
+     "ok": true,
+     "key": "a",
+     "owner": null,
+     "title": null,
+     "internal": false,
+     "itemKeys": [],
+     "stepType": "representation_upgrade"
+    }
+   ],
+   "total": 0,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":false,\"prevKnown\":false},\"samples\":[{\"key\":\"a\",\"ref\":{\"kind\":\"system\",\"stepType\":\"representation_upgrade\"},\"status\":\"completed\"}]}": {
+   "ok": true,
+   "done": 0,
+   "items": [],
+   "specs": [
+    {
+     "ok": true,
+     "key": "a",
+     "owner": null,
+     "title": null,
+     "internal": false,
+     "itemKeys": [],
+     "stepType": "representation_upgrade"
+    }
+   ],
+   "total": 0,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":false,\"prevKnown\":false},\"samples\":[{\"key\":\"a\",\"lockAfter\":[\"הבקשה הקודמת\"],\"ref\":{\"kind\":\"system\",\"stepType\":\"representation_upgrade\"},\"status\":\"locked\"}]}": {
+   "ok": true,
+   "done": 0,
+   "items": [],
+   "specs": [
+    {
+     "ok": true,
+     "key": "a",
+     "owner": null,
+     "title": null,
+     "internal": false,
+     "itemKeys": [],
+     "stepType": "representation_upgrade"
+    }
+   ],
+   "total": 0,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":false,\"prevKnown\":false},\"samples\":[{\"inputs\":{\"paperlessStatus\":\"unknown\"},\"key\":\"paperless_invite\",\"ref\":{\"kind\":\"system\",\"stepType\":\"paperless_invite\"},\"status\":\"pending\"},{\"key\":\"business_details\",\"ref\":{\"kind\":\"system\",\"stepType\":\"business_details\"},\"status\":\"pending\"},{\"key\":\"paperless_connection\",\"lockAfter\":[\"הרשמה לפייפרלס\"],\"patch\":{\"paperlessStatus\":\"unknown\"},\"ref\":{\"kind\":\"system\",\"stepType\":\"paperless_connection\"},\"status\":\"locked\"},{\"ball\":\"me\",\"key\":\"retainer_authorization\",\"lockAfter\":[\"חיבור לפייפרלס\"],\"ref\":{\"kind\":\"system\",\"stepType\":\"retainer_authorization\"},\"status\":\"locked\"},{\"key\":\"paperless_tax_authority\",\"lockAfter\":[\"חיבור לפייפרלס\"],\"ref\":{\"kind\":\"system\",\"stepType\":\"paperless_tax_authority\"},\"status\":\"locked\"}]}": {
+   "ok": true,
+   "done": 0,
+   "items": [
+    {
+     "cta": "נרשמתי לפייפרלס",
+     "key": "paperless_signup",
+     "sub": "שתי דקות, ומשם רק מצלמים קבלות מהטלפון",
+     "kind": "paperless_signup",
+     "label": "הרשמה לפייפרלס",
+     "bucket": "action",
+     "linkUrl": "https://app.paperless.co.il/signup/demo",
+     "actionKind": "portal",
+     "actionValue": "sample-paperless_invite",
+     "businessName": "ישראלי ייעוץ (דוגמה)",
+     "needsBusinessName": true
+    },
+    {
+     "cta": "העברה למשרד",
+     "key": "business_details",
+     "sub": "נשאר להשלים מידע על עבודה מהבית",
+     "kind": "business_details",
+     "label": "פרטי העסק",
+     "bucket": "action",
+     "actionKind": "portal",
+     "actionValue": "sample-business_details",
+     "businessName": "ישראלי ייעוץ (דוגמה)"
+    },
+    {
+     "key": "paperless_connect",
+     "sub": "ייפתח אחרי הרשמה לפייפרלס",
+     "label": "חיבור לפייפרלס",
+     "bucket": "future"
+    },
+    {
+     "key": "retainer_future",
+     "sub": "ייפתח אחרי חיבור לפייפרלס",
+     "label": "הרשאת התשלום החודשי",
+     "bucket": "future"
+    },
+    {
+     "key": "paperless_tax",
+     "sub": "ייפתח אחרי חיבור לפייפרלס",
+     "label": "חיבור פייפרלס לרשות המסים",
+     "bucket": "future"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "paperless_invite",
+     "owner": "client",
+     "title": "הרשמה לפייפרלס",
+     "internal": false,
+     "itemKeys": [
+      "paperless_signup"
+     ],
+     "stepType": "paperless_invite"
+    },
+    {
+     "ok": true,
+     "key": "business_details",
+     "owner": null,
+     "title": "business_details",
+     "internal": false,
+     "itemKeys": [
+      "business_details"
+     ],
+     "stepType": "business_details"
+    },
+    {
+     "ok": true,
+     "key": "paperless_connection",
+     "owner": "me",
+     "title": "חיבור לפייפרלס",
+     "internal": false,
+     "itemKeys": [
+      "paperless_connect"
+     ],
+     "stepType": "paperless_connection"
+    },
+    {
+     "ok": true,
+     "key": "retainer_authorization",
+     "owner": "me",
+     "title": "להזין אמצעי תשלום",
+     "internal": false,
+     "itemKeys": [
+      "retainer_future"
+     ],
+     "stepType": "retainer_authorization"
+    },
+    {
+     "ok": true,
+     "key": "paperless_tax_authority",
+     "owner": "client",
+     "title": "חיבור פייפרלס לרשות המסים",
+     "internal": false,
+     "itemKeys": [
+      "paperless_tax"
+     ],
+     "stepType": "paperless_tax_authority"
+    }
+   ],
+   "total": 2,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":false,\"prevKnown\":false},\"samples\":[{\"inputs\":{\"paperlessStatus\":\"self\"},\"key\":\"paperless_invite\",\"ref\":{\"kind\":\"system\",\"stepType\":\"paperless_invite\"},\"status\":\"pending\"},{\"key\":\"business_details\",\"ref\":{\"kind\":\"system\",\"stepType\":\"business_details\"},\"status\":\"pending\"},{\"key\":\"paperless_connection\",\"lockAfter\":[\"הרשמה לפייפרלס\"],\"patch\":{\"paperlessStatus\":\"self\"},\"ref\":{\"kind\":\"system\",\"stepType\":\"paperless_connection\"},\"status\":\"locked\"},{\"ball\":\"me\",\"key\":\"retainer_authorization\",\"lockAfter\":[\"חיבור לפייפרלס\"],\"ref\":{\"kind\":\"system\",\"stepType\":\"retainer_authorization\"},\"status\":\"locked\"},{\"key\":\"paperless_tax_authority\",\"lockAfter\":[\"חיבור לפייפרלס\"],\"ref\":{\"kind\":\"system\",\"stepType\":\"paperless_tax_authority\"},\"status\":\"locked\"}]}": {
+   "ok": true,
+   "done": 0,
+   "items": [
+    {
+     "cta": "קישרתי את המשרד",
+     "key": "paperless_signup",
+     "sub": "בחשבון הפייפרלס שלך: הוסיפו את המשרד כמייצג",
+     "kind": "paperless_signup",
+     "label": "קישור חשבון הפייפרלס למשרד",
+     "bucket": "action",
+     "actionKind": "portal",
+     "actionValue": "sample-paperless_invite",
+     "businessName": "ישראלי ייעוץ (דוגמה)",
+     "needsBusinessName": true
+    },
+    {
+     "cta": "העברה למשרד",
+     "key": "business_details",
+     "sub": "נשאר להשלים מידע על עבודה מהבית",
+     "kind": "business_details",
+     "label": "פרטי העסק",
+     "bucket": "action",
+     "actionKind": "portal",
+     "actionValue": "sample-business_details",
+     "businessName": "ישראלי ייעוץ (דוגמה)"
+    },
+    {
+     "key": "paperless_connect",
+     "sub": "ייפתח אחרי הרשמה לפייפרלס",
+     "label": "חיבור לפייפרלס",
+     "bucket": "future"
+    },
+    {
+     "key": "retainer_future",
+     "sub": "ייפתח אחרי חיבור לפייפרלס",
+     "label": "הרשאת התשלום החודשי",
+     "bucket": "future"
+    },
+    {
+     "key": "paperless_tax",
+     "sub": "ייפתח אחרי חיבור לפייפרלס",
+     "label": "חיבור פייפרלס לרשות המסים",
+     "bucket": "future"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "paperless_invite",
+     "owner": "client",
+     "title": "הרשמה לפייפרלס",
+     "internal": false,
+     "itemKeys": [
+      "paperless_signup"
+     ],
+     "stepType": "paperless_invite"
+    },
+    {
+     "ok": true,
+     "key": "business_details",
+     "owner": null,
+     "title": "business_details",
+     "internal": false,
+     "itemKeys": [
+      "business_details"
+     ],
+     "stepType": "business_details"
+    },
+    {
+     "ok": true,
+     "key": "paperless_connection",
+     "owner": "me",
+     "title": "חיבור לפייפרלס",
+     "internal": false,
+     "itemKeys": [
+      "paperless_connect"
+     ],
+     "stepType": "paperless_connection"
+    },
+    {
+     "ok": true,
+     "key": "retainer_authorization",
+     "owner": "me",
+     "title": "להזין אמצעי תשלום",
+     "internal": false,
+     "itemKeys": [
+      "retainer_future"
+     ],
+     "stepType": "retainer_authorization"
+    },
+    {
+     "ok": true,
+     "key": "paperless_tax_authority",
+     "owner": "client",
+     "title": "חיבור פייפרלס לרשות המסים",
+     "internal": false,
+     "itemKeys": [
+      "paperless_tax"
+     ],
+     "stepType": "paperless_tax_authority"
+    }
+   ],
+   "total": 2,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":false,\"prevKnown\":false},\"samples\":[{\"inputs\":{\"paperlessStatus\":\"other_rep\"},\"key\":\"paperless_invite\",\"ref\":{\"kind\":\"system\",\"stepType\":\"paperless_invite\"},\"status\":\"pending\"},{\"key\":\"business_details\",\"ref\":{\"kind\":\"system\",\"stepType\":\"business_details\"},\"status\":\"pending\"},{\"key\":\"paperless_connection\",\"lockAfter\":[\"הרשמה לפייפרלס\"],\"patch\":{\"paperlessStatus\":\"other_rep\"},\"ref\":{\"kind\":\"system\",\"stepType\":\"paperless_connection\"},\"status\":\"locked\"},{\"ball\":\"me\",\"key\":\"retainer_authorization\",\"lockAfter\":[\"חיבור לפייפרלס\"],\"ref\":{\"kind\":\"system\",\"stepType\":\"retainer_authorization\"},\"status\":\"locked\"},{\"key\":\"paperless_tax_authority\",\"lockAfter\":[\"חיבור לפייפרלס\"],\"ref\":{\"kind\":\"system\",\"stepType\":\"paperless_tax_authority\"},\"status\":\"locked\"}]}": {
+   "ok": true,
+   "done": 0,
+   "items": [
+    {
+     "cta": "העברה למשרד",
+     "key": "business_details",
+     "sub": "נשאר להשלים מידע על עבודה מהבית",
+     "kind": "business_details",
+     "label": "פרטי העסק",
+     "bucket": "action",
+     "actionKind": "portal",
+     "actionValue": "sample-business_details",
+     "businessName": "ישראלי ייעוץ (דוגמה)"
+    },
+    {
+     "key": "paperless_transfer",
+     "sub": "אנחנו מושכים את החשבון מהמייצג הקודם. אין צורך לעשות דבר.",
+     "label": "העברת חשבון הפייפרלס אלינו",
+     "bucket": "office"
+    },
+    {
+     "key": "retainer_future",
+     "sub": "ייפתח אחרי חיבור לפייפרלס",
+     "label": "הרשאת התשלום החודשי",
+     "bucket": "future"
+    },
+    {
+     "key": "paperless_tax",
+     "sub": "ייפתח אחרי חיבור לפייפרלס",
+     "label": "חיבור פייפרלס לרשות המסים",
+     "bucket": "future"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "paperless_invite",
+     "owner": "client",
+     "title": "הרשמה לפייפרלס",
+     "internal": false,
+     "itemKeys": [],
+     "stepType": "paperless_invite"
+    },
+    {
+     "ok": true,
+     "key": "business_details",
+     "owner": null,
+     "title": "business_details",
+     "internal": false,
+     "itemKeys": [
+      "business_details"
+     ],
+     "stepType": "business_details"
+    },
+    {
+     "ok": true,
+     "key": "paperless_connection",
+     "owner": "me",
+     "title": "חיבור לפייפרלס",
+     "internal": false,
+     "itemKeys": [
+      "paperless_transfer"
+     ],
+     "stepType": "paperless_connection"
+    },
+    {
+     "ok": true,
+     "key": "retainer_authorization",
+     "owner": "me",
+     "title": "להזין אמצעי תשלום",
+     "internal": false,
+     "itemKeys": [
+      "retainer_future"
+     ],
+     "stepType": "retainer_authorization"
+    },
+    {
+     "ok": true,
+     "key": "paperless_tax_authority",
+     "owner": "client",
+     "title": "חיבור פייפרלס לרשות המסים",
+     "internal": false,
+     "itemKeys": [
+      "paperless_tax"
+     ],
+     "stepType": "paperless_tax_authority"
+    }
+   ],
+   "total": 2,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":false,\"prevKnown\":false},\"samples\":[{\"inputs\":{\"paperlessStatus\":\"unknown\"},\"key\":\"paperless_invite\",\"ref\":{\"kind\":\"system\",\"stepType\":\"paperless_invite\"},\"status\":\"completed\"},{\"key\":\"business_details\",\"ref\":{\"kind\":\"system\",\"stepType\":\"business_details\"},\"status\":\"pending\"},{\"ball\":\"me\",\"key\":\"paperless_connection\",\"patch\":{\"paperlessStatus\":\"unknown\"},\"ref\":{\"kind\":\"system\",\"stepType\":\"paperless_connection\"},\"status\":\"pending\"},{\"ball\":\"me\",\"key\":\"retainer_authorization\",\"lockAfter\":[\"חיבור לפייפרלס\"],\"ref\":{\"kind\":\"system\",\"stepType\":\"retainer_authorization\"},\"status\":\"locked\"},{\"key\":\"paperless_tax_authority\",\"lockAfter\":[\"חיבור לפייפרלס\"],\"ref\":{\"kind\":\"system\",\"stepType\":\"paperless_tax_authority\"},\"status\":\"locked\"}]}": {
+   "ok": true,
+   "done": 1,
+   "items": [
+    {
+     "key": "paperless_signup",
+     "label": "הרשמה לפייפרלס",
+     "bucket": "done"
+    },
+    {
+     "cta": "העברה למשרד",
+     "key": "business_details",
+     "sub": "נשאר להשלים מידע על עבודה מהבית",
+     "kind": "business_details",
+     "label": "פרטי העסק",
+     "bucket": "action",
+     "actionKind": "portal",
+     "actionValue": "sample-business_details",
+     "businessName": "ישראלי ייעוץ (דוגמה)"
+    },
+    {
+     "key": "paperless_connect",
+     "sub": "בימים הקרובים ניכנס לחשבון הפייפרלס ונשלים את החיבור. אין צורך לעשות דבר כרגע.",
+     "label": "חיבור לפייפרלס",
+     "bucket": "office"
+    },
+    {
+     "key": "retainer_future",
+     "sub": "ייפתח אחרי חיבור לפייפרלס",
+     "label": "הרשאת התשלום החודשי",
+     "bucket": "future"
+    },
+    {
+     "key": "paperless_tax",
+     "sub": "ייפתח אחרי חיבור לפייפרלס",
+     "label": "חיבור פייפרלס לרשות המסים",
+     "bucket": "future"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "paperless_invite",
+     "owner": "client",
+     "title": "הרשמה לפייפרלס",
+     "internal": false,
+     "itemKeys": [
+      "paperless_signup"
+     ],
+     "stepType": "paperless_invite"
+    },
+    {
+     "ok": true,
+     "key": "business_details",
+     "owner": null,
+     "title": "business_details",
+     "internal": false,
+     "itemKeys": [
+      "business_details"
+     ],
+     "stepType": "business_details"
+    },
+    {
+     "ok": true,
+     "key": "paperless_connection",
+     "owner": "me",
+     "title": "חיבור לפייפרלס",
+     "internal": false,
+     "itemKeys": [
+      "paperless_connect"
+     ],
+     "stepType": "paperless_connection"
+    },
+    {
+     "ok": true,
+     "key": "retainer_authorization",
+     "owner": "me",
+     "title": "להזין אמצעי תשלום",
+     "internal": false,
+     "itemKeys": [
+      "retainer_future"
+     ],
+     "stepType": "retainer_authorization"
+    },
+    {
+     "ok": true,
+     "key": "paperless_tax_authority",
+     "owner": "client",
+     "title": "חיבור פייפרלס לרשות המסים",
+     "internal": false,
+     "itemKeys": [
+      "paperless_tax"
+     ],
+     "stepType": "paperless_tax_authority"
+    }
+   ],
+   "total": 3,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":false,\"prevKnown\":false},\"samples\":[{\"inputs\":{\"paperlessStatus\":\"self\"},\"key\":\"paperless_invite\",\"ref\":{\"kind\":\"system\",\"stepType\":\"paperless_invite\"},\"status\":\"completed\"},{\"key\":\"business_details\",\"ref\":{\"kind\":\"system\",\"stepType\":\"business_details\"},\"status\":\"pending\"},{\"ball\":\"me\",\"key\":\"paperless_connection\",\"patch\":{\"paperlessStatus\":\"self\"},\"ref\":{\"kind\":\"system\",\"stepType\":\"paperless_connection\"},\"status\":\"pending\"},{\"ball\":\"me\",\"key\":\"retainer_authorization\",\"lockAfter\":[\"חיבור לפייפרלס\"],\"ref\":{\"kind\":\"system\",\"stepType\":\"retainer_authorization\"},\"status\":\"locked\"},{\"key\":\"paperless_tax_authority\",\"lockAfter\":[\"חיבור לפייפרלס\"],\"ref\":{\"kind\":\"system\",\"stepType\":\"paperless_tax_authority\"},\"status\":\"locked\"}]}": {
+   "ok": true,
+   "done": 1,
+   "items": [
+    {
+     "key": "paperless_signup",
+     "label": "הרשמה לפייפרלס",
+     "bucket": "done"
+    },
+    {
+     "cta": "העברה למשרד",
+     "key": "business_details",
+     "sub": "נשאר להשלים מידע על עבודה מהבית",
+     "kind": "business_details",
+     "label": "פרטי העסק",
+     "bucket": "action",
+     "actionKind": "portal",
+     "actionValue": "sample-business_details",
+     "businessName": "ישראלי ייעוץ (דוגמה)"
+    },
+    {
+     "key": "paperless_connect",
+     "sub": "בימים הקרובים ניכנס לחשבון הפייפרלס ונשלים את החיבור. אין צורך לעשות דבר כרגע.",
+     "label": "חיבור לפייפרלס",
+     "bucket": "office"
+    },
+    {
+     "key": "retainer_future",
+     "sub": "ייפתח אחרי חיבור לפייפרלס",
+     "label": "הרשאת התשלום החודשי",
+     "bucket": "future"
+    },
+    {
+     "key": "paperless_tax",
+     "sub": "ייפתח אחרי חיבור לפייפרלס",
+     "label": "חיבור פייפרלס לרשות המסים",
+     "bucket": "future"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "paperless_invite",
+     "owner": "client",
+     "title": "הרשמה לפייפרלס",
+     "internal": false,
+     "itemKeys": [
+      "paperless_signup"
+     ],
+     "stepType": "paperless_invite"
+    },
+    {
+     "ok": true,
+     "key": "business_details",
+     "owner": null,
+     "title": "business_details",
+     "internal": false,
+     "itemKeys": [
+      "business_details"
+     ],
+     "stepType": "business_details"
+    },
+    {
+     "ok": true,
+     "key": "paperless_connection",
+     "owner": "me",
+     "title": "חיבור לפייפרלס",
+     "internal": false,
+     "itemKeys": [
+      "paperless_connect"
+     ],
+     "stepType": "paperless_connection"
+    },
+    {
+     "ok": true,
+     "key": "retainer_authorization",
+     "owner": "me",
+     "title": "להזין אמצעי תשלום",
+     "internal": false,
+     "itemKeys": [
+      "retainer_future"
+     ],
+     "stepType": "retainer_authorization"
+    },
+    {
+     "ok": true,
+     "key": "paperless_tax_authority",
+     "owner": "client",
+     "title": "חיבור פייפרלס לרשות המסים",
+     "internal": false,
+     "itemKeys": [
+      "paperless_tax"
+     ],
+     "stepType": "paperless_tax_authority"
+    }
+   ],
+   "total": 3,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":false,\"prevKnown\":false},\"samples\":[{\"inputs\":{\"paperlessStatus\":\"other_rep\"},\"key\":\"paperless_invite\",\"ref\":{\"kind\":\"system\",\"stepType\":\"paperless_invite\"},\"status\":\"completed\"},{\"key\":\"business_details\",\"ref\":{\"kind\":\"system\",\"stepType\":\"business_details\"},\"status\":\"pending\"},{\"ball\":\"me\",\"key\":\"paperless_connection\",\"patch\":{\"paperlessStatus\":\"other_rep\"},\"ref\":{\"kind\":\"system\",\"stepType\":\"paperless_connection\"},\"status\":\"pending\"},{\"ball\":\"me\",\"key\":\"retainer_authorization\",\"lockAfter\":[\"חיבור לפייפרלס\"],\"ref\":{\"kind\":\"system\",\"stepType\":\"retainer_authorization\"},\"status\":\"locked\"},{\"key\":\"paperless_tax_authority\",\"lockAfter\":[\"חיבור לפייפרלס\"],\"ref\":{\"kind\":\"system\",\"stepType\":\"paperless_tax_authority\"},\"status\":\"locked\"}]}": {
+   "ok": true,
+   "done": 0,
+   "items": [
+    {
+     "cta": "העברה למשרד",
+     "key": "business_details",
+     "sub": "נשאר להשלים מידע על עבודה מהבית",
+     "kind": "business_details",
+     "label": "פרטי העסק",
+     "bucket": "action",
+     "actionKind": "portal",
+     "actionValue": "sample-business_details",
+     "businessName": "ישראלי ייעוץ (דוגמה)"
+    },
+    {
+     "key": "paperless_transfer",
+     "sub": "אנחנו מושכים את החשבון מהמייצג הקודם. אין צורך לעשות דבר.",
+     "label": "העברת חשבון הפייפרלס אלינו",
+     "bucket": "office"
+    },
+    {
+     "key": "retainer_future",
+     "sub": "ייפתח אחרי חיבור לפייפרלס",
+     "label": "הרשאת התשלום החודשי",
+     "bucket": "future"
+    },
+    {
+     "key": "paperless_tax",
+     "sub": "ייפתח אחרי חיבור לפייפרלס",
+     "label": "חיבור פייפרלס לרשות המסים",
+     "bucket": "future"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "paperless_invite",
+     "owner": "client",
+     "title": "הרשמה לפייפרלס",
+     "internal": false,
+     "itemKeys": [],
+     "stepType": "paperless_invite"
+    },
+    {
+     "ok": true,
+     "key": "business_details",
+     "owner": null,
+     "title": "business_details",
+     "internal": false,
+     "itemKeys": [
+      "business_details"
+     ],
+     "stepType": "business_details"
+    },
+    {
+     "ok": true,
+     "key": "paperless_connection",
+     "owner": "me",
+     "title": "חיבור לפייפרלס",
+     "internal": false,
+     "itemKeys": [
+      "paperless_transfer"
+     ],
+     "stepType": "paperless_connection"
+    },
+    {
+     "ok": true,
+     "key": "retainer_authorization",
+     "owner": "me",
+     "title": "להזין אמצעי תשלום",
+     "internal": false,
+     "itemKeys": [
+      "retainer_future"
+     ],
+     "stepType": "retainer_authorization"
+    },
+    {
+     "ok": true,
+     "key": "paperless_tax_authority",
+     "owner": "client",
+     "title": "חיבור פייפרלס לרשות המסים",
+     "internal": false,
+     "itemKeys": [
+      "paperless_tax"
+     ],
+     "stepType": "paperless_tax_authority"
+    }
+   ],
+   "total": 2,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":false,\"prevKnown\":false},\"samples\":[{\"inputs\":{\"paperlessStatus\":\"unknown\"},\"key\":\"paperless_invite\",\"ref\":{\"kind\":\"system\",\"stepType\":\"paperless_invite\"},\"status\":\"completed\"},{\"ball\":\"me\",\"key\":\"business_details\",\"ref\":{\"kind\":\"system\",\"stepType\":\"business_details\"},\"status\":\"in_progress\"},{\"ball\":\"me\",\"key\":\"paperless_connection\",\"patch\":{\"paperlessStatus\":\"unknown\"},\"ref\":{\"kind\":\"system\",\"stepType\":\"paperless_connection\"},\"status\":\"pending\"},{\"ball\":\"me\",\"key\":\"retainer_authorization\",\"patch\":{\"authorizationCreatedAt\":\"2026-10-01\"},\"ref\":{\"kind\":\"system\",\"stepType\":\"retainer_authorization\"},\"status\":\"pending\"},{\"key\":\"paperless_tax_authority\",\"lockAfter\":[\"חיבור לפייפרלס\"],\"ref\":{\"kind\":\"system\",\"stepType\":\"paperless_tax_authority\"},\"status\":\"locked\"}]}": {
+   "ok": true,
+   "done": 1,
+   "items": [
+    {
+     "key": "paperless_signup",
+     "label": "הרשמה לפייפרלס",
+     "bucket": "done"
+    },
+    {
+     "key": "business_details",
+     "sub": "קיבלנו את הפרטים ואנחנו בודקים אותם. אין צורך לעשות דבר כרגע.",
+     "label": "פרטי העסק",
+     "bucket": "office"
+    },
+    {
+     "key": "paperless_connect",
+     "sub": "בימים הקרובים ניכנס לחשבון הפייפרלס ונשלים את החיבור. אין צורך לעשות דבר כרגע.",
+     "label": "חיבור לפייפרלס",
+     "bucket": "office"
+    },
+    {
+     "key": "retainer_card",
+     "sub": "פייפרלס תשלח לכם הודעה להזנת כרטיס אשראי לחיוב החודשי שסיכמנו - או שייפתח לכם חלון להזנת הכרטיס בכניסה הבאה לאפליקציה.",
+     "kind": "info",
+     "note": "ייתכן שתראו חיוב אימות בסך 1 ₪ - הוא נועד לוודא שהכרטיס תקין, ואינו החיוב החודשי.\nאין מה לאשר כאן: ברגע שהכרטיס יוזן, נראה את זה מצידנו ונעדכן.",
+     "label": "הזנת כרטיס אשראי בפייפרלס",
+     "bucket": "action"
+    },
+    {
+     "key": "paperless_tax",
+     "sub": "ייפתח אחרי חיבור לפייפרלס",
+     "label": "חיבור פייפרלס לרשות המסים",
+     "bucket": "future"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "paperless_invite",
+     "owner": "client",
+     "title": "הרשמה לפייפרלס",
+     "internal": false,
+     "itemKeys": [
+      "paperless_signup"
+     ],
+     "stepType": "paperless_invite"
+    },
+    {
+     "ok": true,
+     "key": "business_details",
+     "owner": null,
+     "title": "business_details",
+     "internal": false,
+     "itemKeys": [
+      "business_details"
+     ],
+     "stepType": "business_details"
+    },
+    {
+     "ok": true,
+     "key": "paperless_connection",
+     "owner": "me",
+     "title": "חיבור לפייפרלס",
+     "internal": false,
+     "itemKeys": [
+      "paperless_connect"
+     ],
+     "stepType": "paperless_connection"
+    },
+    {
+     "ok": true,
+     "key": "retainer_authorization",
+     "owner": "me",
+     "title": "להזין אמצעי תשלום",
+     "internal": false,
+     "itemKeys": [
+      "retainer_card"
+     ],
+     "stepType": "retainer_authorization"
+    },
+    {
+     "ok": true,
+     "key": "paperless_tax_authority",
+     "owner": "client",
+     "title": "חיבור פייפרלס לרשות המסים",
+     "internal": false,
+     "itemKeys": [
+      "paperless_tax"
+     ],
+     "stepType": "paperless_tax_authority"
+    }
+   ],
+   "total": 4,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":false,\"prevKnown\":false},\"samples\":[{\"inputs\":{\"paperlessStatus\":\"self\"},\"key\":\"paperless_invite\",\"ref\":{\"kind\":\"system\",\"stepType\":\"paperless_invite\"},\"status\":\"completed\"},{\"ball\":\"me\",\"key\":\"business_details\",\"ref\":{\"kind\":\"system\",\"stepType\":\"business_details\"},\"status\":\"in_progress\"},{\"ball\":\"me\",\"key\":\"paperless_connection\",\"patch\":{\"paperlessStatus\":\"self\"},\"ref\":{\"kind\":\"system\",\"stepType\":\"paperless_connection\"},\"status\":\"pending\"},{\"ball\":\"me\",\"key\":\"retainer_authorization\",\"patch\":{\"authorizationCreatedAt\":\"2026-10-01\"},\"ref\":{\"kind\":\"system\",\"stepType\":\"retainer_authorization\"},\"status\":\"pending\"},{\"key\":\"paperless_tax_authority\",\"lockAfter\":[\"חיבור לפייפרלס\"],\"ref\":{\"kind\":\"system\",\"stepType\":\"paperless_tax_authority\"},\"status\":\"locked\"}]}": {
+   "ok": true,
+   "done": 1,
+   "items": [
+    {
+     "key": "paperless_signup",
+     "label": "הרשמה לפייפרלס",
+     "bucket": "done"
+    },
+    {
+     "key": "business_details",
+     "sub": "קיבלנו את הפרטים ואנחנו בודקים אותם. אין צורך לעשות דבר כרגע.",
+     "label": "פרטי העסק",
+     "bucket": "office"
+    },
+    {
+     "key": "paperless_connect",
+     "sub": "בימים הקרובים ניכנס לחשבון הפייפרלס ונשלים את החיבור. אין צורך לעשות דבר כרגע.",
+     "label": "חיבור לפייפרלס",
+     "bucket": "office"
+    },
+    {
+     "key": "retainer_card",
+     "sub": "פייפרלס תשלח לכם הודעה להזנת כרטיס אשראי לחיוב החודשי שסיכמנו - או שייפתח לכם חלון להזנת הכרטיס בכניסה הבאה לאפליקציה.",
+     "kind": "info",
+     "note": "ייתכן שתראו חיוב אימות בסך 1 ₪ - הוא נועד לוודא שהכרטיס תקין, ואינו החיוב החודשי.\nאין מה לאשר כאן: ברגע שהכרטיס יוזן, נראה את זה מצידנו ונעדכן.",
+     "label": "הזנת כרטיס אשראי בפייפרלס",
+     "bucket": "action"
+    },
+    {
+     "key": "paperless_tax",
+     "sub": "ייפתח אחרי חיבור לפייפרלס",
+     "label": "חיבור פייפרלס לרשות המסים",
+     "bucket": "future"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "paperless_invite",
+     "owner": "client",
+     "title": "הרשמה לפייפרלס",
+     "internal": false,
+     "itemKeys": [
+      "paperless_signup"
+     ],
+     "stepType": "paperless_invite"
+    },
+    {
+     "ok": true,
+     "key": "business_details",
+     "owner": null,
+     "title": "business_details",
+     "internal": false,
+     "itemKeys": [
+      "business_details"
+     ],
+     "stepType": "business_details"
+    },
+    {
+     "ok": true,
+     "key": "paperless_connection",
+     "owner": "me",
+     "title": "חיבור לפייפרלס",
+     "internal": false,
+     "itemKeys": [
+      "paperless_connect"
+     ],
+     "stepType": "paperless_connection"
+    },
+    {
+     "ok": true,
+     "key": "retainer_authorization",
+     "owner": "me",
+     "title": "להזין אמצעי תשלום",
+     "internal": false,
+     "itemKeys": [
+      "retainer_card"
+     ],
+     "stepType": "retainer_authorization"
+    },
+    {
+     "ok": true,
+     "key": "paperless_tax_authority",
+     "owner": "client",
+     "title": "חיבור פייפרלס לרשות המסים",
+     "internal": false,
+     "itemKeys": [
+      "paperless_tax"
+     ],
+     "stepType": "paperless_tax_authority"
+    }
+   ],
+   "total": 4,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":false,\"prevKnown\":false},\"samples\":[{\"inputs\":{\"paperlessStatus\":\"other_rep\"},\"key\":\"paperless_invite\",\"ref\":{\"kind\":\"system\",\"stepType\":\"paperless_invite\"},\"status\":\"completed\"},{\"ball\":\"me\",\"key\":\"business_details\",\"ref\":{\"kind\":\"system\",\"stepType\":\"business_details\"},\"status\":\"in_progress\"},{\"ball\":\"me\",\"key\":\"paperless_connection\",\"patch\":{\"paperlessStatus\":\"other_rep\"},\"ref\":{\"kind\":\"system\",\"stepType\":\"paperless_connection\"},\"status\":\"pending\"},{\"ball\":\"me\",\"key\":\"retainer_authorization\",\"patch\":{\"authorizationCreatedAt\":\"2026-10-01\"},\"ref\":{\"kind\":\"system\",\"stepType\":\"retainer_authorization\"},\"status\":\"pending\"},{\"key\":\"paperless_tax_authority\",\"lockAfter\":[\"חיבור לפייפרלס\"],\"ref\":{\"kind\":\"system\",\"stepType\":\"paperless_tax_authority\"},\"status\":\"locked\"}]}": {
+   "ok": true,
+   "done": 0,
+   "items": [
+    {
+     "key": "business_details",
+     "sub": "קיבלנו את הפרטים ואנחנו בודקים אותם. אין צורך לעשות דבר כרגע.",
+     "label": "פרטי העסק",
+     "bucket": "office"
+    },
+    {
+     "key": "paperless_transfer",
+     "sub": "אנחנו מושכים את החשבון מהמייצג הקודם. אין צורך לעשות דבר.",
+     "label": "העברת חשבון הפייפרלס אלינו",
+     "bucket": "office"
+    },
+    {
+     "key": "retainer_card",
+     "sub": "פייפרלס תשלח לכם הודעה להזנת כרטיס אשראי לחיוב החודשי שסיכמנו - או שייפתח לכם חלון להזנת הכרטיס בכניסה הבאה לאפליקציה.",
+     "kind": "info",
+     "note": "ייתכן שתראו חיוב אימות בסך 1 ₪ - הוא נועד לוודא שהכרטיס תקין, ואינו החיוב החודשי.\nאין מה לאשר כאן: ברגע שהכרטיס יוזן, נראה את זה מצידנו ונעדכן.",
+     "label": "הזנת כרטיס אשראי בפייפרלס",
+     "bucket": "action"
+    },
+    {
+     "key": "paperless_tax",
+     "sub": "ייפתח אחרי חיבור לפייפרלס",
+     "label": "חיבור פייפרלס לרשות המסים",
+     "bucket": "future"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "paperless_invite",
+     "owner": "client",
+     "title": "הרשמה לפייפרלס",
+     "internal": false,
+     "itemKeys": [],
+     "stepType": "paperless_invite"
+    },
+    {
+     "ok": true,
+     "key": "business_details",
+     "owner": null,
+     "title": "business_details",
+     "internal": false,
+     "itemKeys": [
+      "business_details"
+     ],
+     "stepType": "business_details"
+    },
+    {
+     "ok": true,
+     "key": "paperless_connection",
+     "owner": "me",
+     "title": "חיבור לפייפרלס",
+     "internal": false,
+     "itemKeys": [
+      "paperless_transfer"
+     ],
+     "stepType": "paperless_connection"
+    },
+    {
+     "ok": true,
+     "key": "retainer_authorization",
+     "owner": "me",
+     "title": "להזין אמצעי תשלום",
+     "internal": false,
+     "itemKeys": [
+      "retainer_card"
+     ],
+     "stepType": "retainer_authorization"
+    },
+    {
+     "ok": true,
+     "key": "paperless_tax_authority",
+     "owner": "client",
+     "title": "חיבור פייפרלס לרשות המסים",
+     "internal": false,
+     "itemKeys": [
+      "paperless_tax"
+     ],
+     "stepType": "paperless_tax_authority"
+    }
+   ],
+   "total": 3,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":false,\"prevKnown\":false},\"samples\":[{\"inputs\":{\"paperlessStatus\":\"unknown\"},\"key\":\"paperless_invite\",\"ref\":{\"kind\":\"system\",\"stepType\":\"paperless_invite\"},\"status\":\"completed\"},{\"key\":\"business_details\",\"ref\":{\"kind\":\"system\",\"stepType\":\"business_details\"},\"status\":\"completed\"},{\"ball\":\"me\",\"key\":\"paperless_connection\",\"patch\":{\"paperlessStatus\":\"unknown\"},\"ref\":{\"kind\":\"system\",\"stepType\":\"paperless_connection\"},\"status\":\"completed\"},{\"ball\":\"me\",\"key\":\"retainer_authorization\",\"ref\":{\"kind\":\"system\",\"stepType\":\"retainer_authorization\"},\"status\":\"completed\"},{\"key\":\"paperless_tax_authority\",\"ref\":{\"kind\":\"system\",\"stepType\":\"paperless_tax_authority\"},\"status\":\"completed\"}]}": {
+   "ok": true,
+   "done": 5,
+   "items": [
+    {
+     "key": "paperless_signup",
+     "label": "הרשמה לפייפרלס",
+     "bucket": "done"
+    },
+    {
+     "key": "business_details",
+     "label": "פרטי העסק",
+     "bucket": "done"
+    },
+    {
+     "key": "paperless",
+     "label": "חיבור לפייפרלס",
+     "bucket": "done"
+    },
+    {
+     "key": "retainer",
+     "label": "החיוב החודשי הוסדר",
+     "bucket": "done"
+    },
+    {
+     "key": "paperless_tax",
+     "label": "חיבור פייפרלס לרשות המסים",
+     "bucket": "done"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "paperless_invite",
+     "owner": "client",
+     "title": "הרשמה לפייפרלס",
+     "internal": false,
+     "itemKeys": [
+      "paperless_signup"
+     ],
+     "stepType": "paperless_invite"
+    },
+    {
+     "ok": true,
+     "key": "business_details",
+     "owner": null,
+     "title": "business_details",
+     "internal": false,
+     "itemKeys": [
+      "business_details"
+     ],
+     "stepType": "business_details"
+    },
+    {
+     "ok": true,
+     "key": "paperless_connection",
+     "owner": "me",
+     "title": "חיבור לפייפרלס",
+     "internal": false,
+     "itemKeys": [
+      "paperless"
+     ],
+     "stepType": "paperless_connection"
+    },
+    {
+     "ok": true,
+     "key": "retainer_authorization",
+     "owner": "me",
+     "title": "להזין אמצעי תשלום",
+     "internal": false,
+     "itemKeys": [
+      "retainer"
+     ],
+     "stepType": "retainer_authorization"
+    },
+    {
+     "ok": true,
+     "key": "paperless_tax_authority",
+     "owner": "client",
+     "title": "חיבור פייפרלס לרשות המסים",
+     "internal": false,
+     "itemKeys": [
+      "paperless_tax"
+     ],
+     "stepType": "paperless_tax_authority"
+    }
+   ],
+   "total": 5,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":false,\"prevKnown\":false},\"samples\":[{\"inputs\":{\"paperlessStatus\":\"self\"},\"key\":\"paperless_invite\",\"ref\":{\"kind\":\"system\",\"stepType\":\"paperless_invite\"},\"status\":\"completed\"},{\"key\":\"business_details\",\"ref\":{\"kind\":\"system\",\"stepType\":\"business_details\"},\"status\":\"completed\"},{\"ball\":\"me\",\"key\":\"paperless_connection\",\"patch\":{\"paperlessStatus\":\"self\"},\"ref\":{\"kind\":\"system\",\"stepType\":\"paperless_connection\"},\"status\":\"completed\"},{\"ball\":\"me\",\"key\":\"retainer_authorization\",\"ref\":{\"kind\":\"system\",\"stepType\":\"retainer_authorization\"},\"status\":\"completed\"},{\"key\":\"paperless_tax_authority\",\"ref\":{\"kind\":\"system\",\"stepType\":\"paperless_tax_authority\"},\"status\":\"completed\"}]}": {
+   "ok": true,
+   "done": 5,
+   "items": [
+    {
+     "key": "paperless_signup",
+     "label": "הרשמה לפייפרלס",
+     "bucket": "done"
+    },
+    {
+     "key": "business_details",
+     "label": "פרטי העסק",
+     "bucket": "done"
+    },
+    {
+     "key": "paperless",
+     "label": "חיבור לפייפרלס",
+     "bucket": "done"
+    },
+    {
+     "key": "retainer",
+     "label": "החיוב החודשי הוסדר",
+     "bucket": "done"
+    },
+    {
+     "key": "paperless_tax",
+     "label": "חיבור פייפרלס לרשות המסים",
+     "bucket": "done"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "paperless_invite",
+     "owner": "client",
+     "title": "הרשמה לפייפרלס",
+     "internal": false,
+     "itemKeys": [
+      "paperless_signup"
+     ],
+     "stepType": "paperless_invite"
+    },
+    {
+     "ok": true,
+     "key": "business_details",
+     "owner": null,
+     "title": "business_details",
+     "internal": false,
+     "itemKeys": [
+      "business_details"
+     ],
+     "stepType": "business_details"
+    },
+    {
+     "ok": true,
+     "key": "paperless_connection",
+     "owner": "me",
+     "title": "חיבור לפייפרלס",
+     "internal": false,
+     "itemKeys": [
+      "paperless"
+     ],
+     "stepType": "paperless_connection"
+    },
+    {
+     "ok": true,
+     "key": "retainer_authorization",
+     "owner": "me",
+     "title": "להזין אמצעי תשלום",
+     "internal": false,
+     "itemKeys": [
+      "retainer"
+     ],
+     "stepType": "retainer_authorization"
+    },
+    {
+     "ok": true,
+     "key": "paperless_tax_authority",
+     "owner": "client",
+     "title": "חיבור פייפרלס לרשות המסים",
+     "internal": false,
+     "itemKeys": [
+      "paperless_tax"
+     ],
+     "stepType": "paperless_tax_authority"
+    }
+   ],
+   "total": 5,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":false,\"prevKnown\":false},\"samples\":[{\"inputs\":{\"paperlessStatus\":\"other_rep\"},\"key\":\"paperless_invite\",\"ref\":{\"kind\":\"system\",\"stepType\":\"paperless_invite\"},\"status\":\"completed\"},{\"key\":\"business_details\",\"ref\":{\"kind\":\"system\",\"stepType\":\"business_details\"},\"status\":\"completed\"},{\"ball\":\"me\",\"key\":\"paperless_connection\",\"patch\":{\"paperlessStatus\":\"other_rep\"},\"ref\":{\"kind\":\"system\",\"stepType\":\"paperless_connection\"},\"status\":\"completed\"},{\"ball\":\"me\",\"key\":\"retainer_authorization\",\"ref\":{\"kind\":\"system\",\"stepType\":\"retainer_authorization\"},\"status\":\"completed\"},{\"key\":\"paperless_tax_authority\",\"ref\":{\"kind\":\"system\",\"stepType\":\"paperless_tax_authority\"},\"status\":\"completed\"}]}": {
+   "ok": true,
+   "done": 4,
+   "items": [
+    {
+     "key": "business_details",
+     "label": "פרטי העסק",
+     "bucket": "done"
+    },
+    {
+     "key": "paperless",
+     "label": "חיבור לפייפרלס",
+     "bucket": "done"
+    },
+    {
+     "key": "retainer",
+     "label": "החיוב החודשי הוסדר",
+     "bucket": "done"
+    },
+    {
+     "key": "paperless_tax",
+     "label": "חיבור פייפרלס לרשות המסים",
+     "bucket": "done"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "paperless_invite",
+     "owner": "client",
+     "title": "הרשמה לפייפרלס",
+     "internal": false,
+     "itemKeys": [],
+     "stepType": "paperless_invite"
+    },
+    {
+     "ok": true,
+     "key": "business_details",
+     "owner": null,
+     "title": "business_details",
+     "internal": false,
+     "itemKeys": [
+      "business_details"
+     ],
+     "stepType": "business_details"
+    },
+    {
+     "ok": true,
+     "key": "paperless_connection",
+     "owner": "me",
+     "title": "חיבור לפייפרלס",
+     "internal": false,
+     "itemKeys": [
+      "paperless"
+     ],
+     "stepType": "paperless_connection"
+    },
+    {
+     "ok": true,
+     "key": "retainer_authorization",
+     "owner": "me",
+     "title": "להזין אמצעי תשלום",
+     "internal": false,
+     "itemKeys": [
+      "retainer"
+     ],
+     "stepType": "retainer_authorization"
+    },
+    {
+     "ok": true,
+     "key": "paperless_tax_authority",
+     "owner": "client",
+     "title": "חיבור פייפרלס לרשות המסים",
+     "internal": false,
+     "itemKeys": [
+      "paperless_tax"
+     ],
+     "stepType": "paperless_tax_authority"
+    }
+   ],
+   "total": 4,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":false,\"prevKnown\":false},\"samples\":[{\"inputs\":{\"needsDetails\":true},\"key\":\"prev_accountant_details\",\"ref\":{\"kind\":\"system\",\"stepType\":\"prev_accountant_details\"},\"status\":\"pending\"},{\"ball\":\"me\",\"key\":\"release_letter\",\"lockAfter\":[\"פרטי רואה החשבון הקודם\"],\"ref\":{\"kind\":\"system\",\"stepType\":\"release_letter\"},\"status\":\"locked\"},{\"ball\":\"prev_accountant\",\"key\":\"materials_received\",\"lockAfter\":[\"מכתב העברת טיפול\"],\"ref\":{\"kind\":\"system\",\"stepType\":\"materials_received\"},\"status\":\"locked\"}]}": {
+   "ok": true,
+   "done": 0,
+   "items": [
+    {
+     "key": "prev_details",
+     "sub": "שם, אימייל וטלפון - כדי שנפנה אליו בשמך",
+     "kind": "prev_accountant",
+     "label": "פרטי רואה החשבון הקודם שלך",
+     "bucket": "action",
+     "actionKind": "portal",
+     "actionValue": "sample-prev_accountant_details"
+    },
+    {
+     "key": "prev_accountant",
+     "sub": "ביקשנו את התיק - בתהליך",
+     "label": "קבלת החומרים מרואה החשבון הקודם",
+     "bucket": "office"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "prev_accountant_details",
+     "owner": "client",
+     "title": "פרטי רואה החשבון הקודם שלך",
+     "internal": false,
+     "itemKeys": [
+      "prev_details"
+     ],
+     "stepType": "prev_accountant_details"
+    },
+    {
+     "ok": true,
+     "key": "release_letter",
+     "owner": null,
+     "title": "release_letter",
+     "internal": false,
+     "itemKeys": [],
+     "stepType": "release_letter"
+    },
+    {
+     "ok": true,
+     "key": "materials_received",
+     "owner": null,
+     "title": "materials_received",
+     "internal": false,
+     "itemKeys": [],
+     "stepType": "materials_received"
+    }
+   ],
+   "total": 2,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":false,\"prevKnown\":true},\"samples\":[{\"inputs\":{\"needsDetails\":true},\"key\":\"prev_accountant_details\",\"ref\":{\"kind\":\"system\",\"stepType\":\"prev_accountant_details\"},\"status\":\"pending\"},{\"ball\":\"me\",\"key\":\"release_letter\",\"lockAfter\":[\"פרטי רואה החשבון הקודם\"],\"ref\":{\"kind\":\"system\",\"stepType\":\"release_letter\"},\"status\":\"locked\"},{\"ball\":\"prev_accountant\",\"key\":\"materials_received\",\"lockAfter\":[\"מכתב העברת טיפול\"],\"ref\":{\"kind\":\"system\",\"stepType\":\"materials_received\"},\"status\":\"locked\"}]}": {
+   "ok": true,
+   "done": 0,
+   "items": [
+    {
+     "key": "prev_details",
+     "sub": "שם, אימייל וטלפון - כדי שנפנה אליו בשמך",
+     "kind": "prev_accountant",
+     "label": "פרטי רואה החשבון הקודם שלך",
+     "bucket": "action",
+     "prefill": {
+      "name": "רו״ח לדוגמה",
+      "email": "prev-accountant@example.test",
+      "phone": "050-0000000"
+     },
+     "actionKind": "portal",
+     "actionValue": "sample-prev_accountant_details"
+    },
+    {
+     "key": "prev_accountant",
+     "sub": "ביקשנו את התיק - בתהליך",
+     "label": "קבלת החומרים מרואה החשבון הקודם",
+     "bucket": "office"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "prev_accountant_details",
+     "owner": "client",
+     "title": "פרטי רואה החשבון הקודם שלך",
+     "internal": false,
+     "itemKeys": [
+      "prev_details"
+     ],
+     "stepType": "prev_accountant_details"
+    },
+    {
+     "ok": true,
+     "key": "release_letter",
+     "owner": null,
+     "title": "release_letter",
+     "internal": false,
+     "itemKeys": [],
+     "stepType": "release_letter"
+    },
+    {
+     "ok": true,
+     "key": "materials_received",
+     "owner": null,
+     "title": "materials_received",
+     "internal": false,
+     "itemKeys": [],
+     "stepType": "materials_received"
+    }
+   ],
+   "total": 2,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":false,\"prevKnown\":false},\"samples\":[{\"key\":\"prev_accountant_details\",\"ref\":{\"kind\":\"system\",\"stepType\":\"prev_accountant_details\"},\"status\":\"completed\"},{\"ball\":\"me\",\"key\":\"release_letter\",\"ref\":{\"kind\":\"system\",\"stepType\":\"release_letter\"},\"status\":\"pending\"},{\"ball\":\"prev_accountant\",\"key\":\"materials_received\",\"lockAfter\":[\"מכתב העברת טיפול\"],\"ref\":{\"kind\":\"system\",\"stepType\":\"materials_received\"},\"status\":\"locked\"}]}": {
+   "ok": true,
+   "done": 1,
+   "items": [
+    {
+     "key": "prev_details",
+     "label": "לאשר את פרטי רואה החשבון הקודם",
+     "bucket": "done"
+    },
+    {
+     "key": "prev_accountant",
+     "sub": "ביקשנו את התיק - בתהליך",
+     "label": "קבלת החומרים מרואה החשבון הקודם",
+     "bucket": "office"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "prev_accountant_details",
+     "owner": "client",
+     "title": "לאשר את פרטי רואה החשבון הקודם",
+     "internal": false,
+     "itemKeys": [
+      "prev_details"
+     ],
+     "stepType": "prev_accountant_details"
+    },
+    {
+     "ok": true,
+     "key": "release_letter",
+     "owner": null,
+     "title": "release_letter",
+     "internal": false,
+     "itemKeys": [],
+     "stepType": "release_letter"
+    },
+    {
+     "ok": true,
+     "key": "materials_received",
+     "owner": null,
+     "title": "materials_received",
+     "internal": false,
+     "itemKeys": [],
+     "stepType": "materials_received"
+    }
+   ],
+   "total": 2,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":false,\"prevKnown\":true},\"samples\":[{\"key\":\"prev_accountant_details\",\"ref\":{\"kind\":\"system\",\"stepType\":\"prev_accountant_details\"},\"status\":\"completed\"},{\"ball\":\"me\",\"key\":\"release_letter\",\"ref\":{\"kind\":\"system\",\"stepType\":\"release_letter\"},\"status\":\"pending\"},{\"ball\":\"prev_accountant\",\"key\":\"materials_received\",\"lockAfter\":[\"מכתב העברת טיפול\"],\"ref\":{\"kind\":\"system\",\"stepType\":\"materials_received\"},\"status\":\"locked\"}]}": {
+   "ok": true,
+   "done": 1,
+   "items": [
+    {
+     "key": "prev_details",
+     "label": "לאשר את פרטי רואה החשבון הקודם",
+     "bucket": "done"
+    },
+    {
+     "key": "prev_accountant",
+     "sub": "ביקשנו את התיק - בתהליך",
+     "label": "קבלת החומרים מרואה החשבון הקודם",
+     "bucket": "office"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "prev_accountant_details",
+     "owner": "client",
+     "title": "לאשר את פרטי רואה החשבון הקודם",
+     "internal": false,
+     "itemKeys": [
+      "prev_details"
+     ],
+     "stepType": "prev_accountant_details"
+    },
+    {
+     "ok": true,
+     "key": "release_letter",
+     "owner": null,
+     "title": "release_letter",
+     "internal": false,
+     "itemKeys": [],
+     "stepType": "release_letter"
+    },
+    {
+     "ok": true,
+     "key": "materials_received",
+     "owner": null,
+     "title": "materials_received",
+     "internal": false,
+     "itemKeys": [],
+     "stepType": "materials_received"
+    }
+   ],
+   "total": 2,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":false,\"prevKnown\":false},\"samples\":[{\"key\":\"prev_accountant_details\",\"ref\":{\"kind\":\"system\",\"stepType\":\"prev_accountant_details\"},\"status\":\"completed\"},{\"ball\":\"me\",\"key\":\"release_letter\",\"ref\":{\"kind\":\"system\",\"stepType\":\"release_letter\"},\"status\":\"completed\"},{\"ball\":\"prev_accountant\",\"key\":\"materials_received\",\"ref\":{\"kind\":\"system\",\"stepType\":\"materials_received\"},\"status\":\"completed\"}]}": {
+   "ok": true,
+   "done": 2,
+   "items": [
+    {
+     "key": "prev_details",
+     "label": "לאשר את פרטי רואה החשבון הקודם",
+     "bucket": "done"
+    },
+    {
+     "key": "prev_accountant",
+     "label": "החומרים מרואה החשבון הקודם התקבלו",
+     "bucket": "done"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "prev_accountant_details",
+     "owner": "client",
+     "title": "לאשר את פרטי רואה החשבון הקודם",
+     "internal": false,
+     "itemKeys": [
+      "prev_details"
+     ],
+     "stepType": "prev_accountant_details"
+    },
+    {
+     "ok": true,
+     "key": "release_letter",
+     "owner": null,
+     "title": "release_letter",
+     "internal": false,
+     "itemKeys": [],
+     "stepType": "release_letter"
+    },
+    {
+     "ok": true,
+     "key": "materials_received",
+     "owner": null,
+     "title": "materials_received",
+     "internal": false,
+     "itemKeys": [],
+     "stepType": "materials_received"
+    }
+   ],
+   "total": 2,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":false,\"prevKnown\":true},\"samples\":[{\"key\":\"prev_accountant_details\",\"ref\":{\"kind\":\"system\",\"stepType\":\"prev_accountant_details\"},\"status\":\"completed\"},{\"ball\":\"me\",\"key\":\"release_letter\",\"ref\":{\"kind\":\"system\",\"stepType\":\"release_letter\"},\"status\":\"completed\"},{\"ball\":\"prev_accountant\",\"key\":\"materials_received\",\"ref\":{\"kind\":\"system\",\"stepType\":\"materials_received\"},\"status\":\"completed\"}]}": {
+   "ok": true,
+   "done": 2,
+   "items": [
+    {
+     "key": "prev_details",
+     "label": "לאשר את פרטי רואה החשבון הקודם",
+     "bucket": "done"
+    },
+    {
+     "key": "prev_accountant",
+     "label": "החומרים מרואה החשבון הקודם התקבלו",
+     "bucket": "done"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "prev_accountant_details",
+     "owner": "client",
+     "title": "לאשר את פרטי רואה החשבון הקודם",
+     "internal": false,
+     "itemKeys": [
+      "prev_details"
+     ],
+     "stepType": "prev_accountant_details"
+    },
+    {
+     "ok": true,
+     "key": "release_letter",
+     "owner": null,
+     "title": "release_letter",
+     "internal": false,
+     "itemKeys": [],
+     "stepType": "release_letter"
+    },
+    {
+     "ok": true,
+     "key": "materials_received",
+     "owner": null,
+     "title": "materials_received",
+     "internal": false,
+     "itemKeys": [],
+     "stepType": "materials_received"
+    }
+   ],
+   "total": 2,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":false,\"prevKnown\":false},\"rep\":{\"approvals\":\"single\",\"status\":\"pending_fill\"},\"samples\":[{\"ball\":\"me\",\"key\":\"representation\",\"ref\":{\"kind\":\"system\",\"stepType\":\"representation\"},\"status\":\"in_progress\"}]}": {
+   "ok": true,
+   "done": 0,
+   "items": [
+    {
+     "key": "rep_fill",
+     "sub": "הפרטים שנדרשים כדי לייצג אותך מול רשויות המס · כמה דקות",
+     "label": "מילוי פרטים וייפוי כוח",
+     "bucket": "action",
+     "actionKind": "onboard",
+     "actionValue": "sample"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "representation",
+     "owner": null,
+     "title": null,
+     "internal": false,
+     "itemKeys": [
+      "rep_fill"
+     ],
+     "stepType": "representation"
+    }
+   ],
+   "total": 1,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":true,\"prevKnown\":false},\"rep\":{\"approvals\":\"couple\",\"status\":\"pending_fill\"},\"samples\":[{\"ball\":\"me\",\"key\":\"representation\",\"ref\":{\"kind\":\"system\",\"stepType\":\"representation\"},\"status\":\"in_progress\"}]}": {
+   "ok": true,
+   "done": 0,
+   "items": [
+    {
+     "key": "rep_fill",
+     "sub": "הפרטים שנדרשים כדי לייצג אותך מול רשויות המס · כמה דקות",
+     "label": "מילוי פרטים וייפוי כוח",
+     "bucket": "action",
+     "actionKind": "onboard",
+     "actionValue": "sample"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "representation",
+     "owner": null,
+     "title": null,
+     "internal": false,
+     "itemKeys": [
+      "rep_fill"
+     ],
+     "stepType": "representation"
+    }
+   ],
+   "total": 1,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":false,\"prevKnown\":false},\"rep\":{\"approvals\":\"single\",\"status\":\"pending_signature\"},\"samples\":[{\"ball\":\"me\",\"key\":\"representation\",\"ref\":{\"kind\":\"system\",\"stepType\":\"representation\"},\"status\":\"in_progress\"}]}": {
+   "ok": true,
+   "done": 0,
+   "items": [
+    {
+     "key": "rep_sign",
+     "sub": "הטופס מוכן - נשארה חתימה · כדקה",
+     "label": "חתימה על ייפוי הכוח",
+     "bucket": "action",
+     "actionKind": "sign",
+     "actionValue": "sample"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "representation",
+     "owner": null,
+     "title": null,
+     "internal": false,
+     "itemKeys": [
+      "rep_sign"
+     ],
+     "stepType": "representation"
+    }
+   ],
+   "total": 1,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":true,\"prevKnown\":false},\"rep\":{\"approvals\":\"couple\",\"status\":\"pending_signature\"},\"samples\":[{\"ball\":\"me\",\"key\":\"representation\",\"ref\":{\"kind\":\"system\",\"stepType\":\"representation\"},\"status\":\"in_progress\"}]}": {
+   "ok": true,
+   "done": 0,
+   "items": [
+    {
+     "key": "rep_sign",
+     "sub": "הטופס מוכן - נשארה חתימה · כדקה",
+     "label": "חתימה על ייפוי הכוח",
+     "bucket": "action",
+     "actionKind": "sign",
+     "actionValue": "sample"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "representation",
+     "owner": null,
+     "title": null,
+     "internal": false,
+     "itemKeys": [
+      "rep_sign"
+     ],
+     "stepType": "representation"
+    }
+   ],
+   "total": 1,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":false,\"prevKnown\":false},\"rep\":{\"approvals\":\"single\",\"signed\":true,\"status\":\"awaiting_accountant\"},\"samples\":[{\"ball\":\"me\",\"key\":\"representation\",\"ref\":{\"kind\":\"system\",\"stepType\":\"representation\"},\"status\":\"in_progress\"}]}": {
+   "ok": true,
+   "done": 0,
+   "items": [
+    {
+     "key": "rep_office",
+     "sub": "נחתם על ידך - עכשיו בבדיקה ובחתימה אצלנו",
+     "label": "ייפוי הכוח",
+     "bucket": "office"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "representation",
+     "owner": null,
+     "title": null,
+     "internal": false,
+     "itemKeys": [
+      "rep_office"
+     ],
+     "stepType": "representation"
+    }
+   ],
+   "total": 1,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":true,\"prevKnown\":false},\"rep\":{\"approvals\":\"couple\",\"signed\":true,\"status\":\"awaiting_accountant\"},\"samples\":[{\"ball\":\"me\",\"key\":\"representation\",\"ref\":{\"kind\":\"system\",\"stepType\":\"representation\"},\"status\":\"in_progress\"}]}": {
+   "ok": true,
+   "done": 0,
+   "items": [
+    {
+     "key": "rep_office",
+     "sub": "נחתם על ידך - עכשיו בבדיקה ובחתימה אצלנו",
+     "label": "ייפוי הכוח",
+     "bucket": "office"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "representation",
+     "owner": null,
+     "title": null,
+     "internal": false,
+     "itemKeys": [
+      "rep_office"
+     ],
+     "stepType": "representation"
+    }
+   ],
+   "total": 1,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":false,\"prevKnown\":false},\"rep\":{\"approvals\":\"single\",\"niReference\":true,\"status\":\"awaiting_authorities\"},\"samples\":[{\"ball\":\"me\",\"key\":\"representation\",\"ref\":{\"kind\":\"system\",\"stepType\":\"representation\"},\"status\":\"in_progress\"},{\"key\":\"rep_client_approval\",\"ref\":{\"kind\":\"system\",\"stepType\":\"rep_client_approval\"},\"required\":false,\"status\":\"pending\"},{\"ball\":\"me\",\"key\":\"ni-client\",\"patch\":{\"subjectRole\":\"client\",\"title\":\"ייצוג בביטוח לאומי — ישראל\"},\"ref\":{\"kind\":\"system\",\"stepType\":\"authority_representation\"},\"status\":\"in_progress\"},{\"ball\":\"me\",\"key\":\"file_opening\",\"ref\":{\"kind\":\"system\",\"stepType\":\"file_opening\"},\"status\":\"pending\"}]}": {
+   "ok": true,
+   "done": 0,
+   "items": [
+    {
+     "key": "rep_authorities",
+     "sub": "נחתם והוגש לרשויות המס - ממתינים לאישור",
+     "label": "ייפוי הכוח",
+     "bucket": "office"
+    },
+    {
+     "cta": "אישרתי באזור האישי",
+     "key": "rep_approval",
+     "sub": "אופציונלי - שתי דקות שמקצרות את ההמתנה לאישור הרשויות",
+     "kind": "declare",
+     "note": "יש לך כבר משתמש באזור האישי של רשות המסים?\n\nכן - נכנסים בקישור, לוחצים \"לכניסה למערכת\" ומזדהים. מסמנים את כל הבקשות שבהן המשרד מופיע כמייצג, ולוחצים «אישור ייצוג». שתי דקות.\n\nלא - קודם צריך להירשם ולהזדהות מול רשות המסים. זה החלק שלוקח את הזמן, ובלעדיו אי אפשר לאשר.\n\nאם קיבלת מרשות המסים הודעת SMS על רישום מייצג - אפשר להיכנס ישירות מהקישור שבהודעה, וזה קצר יותר.",
+     "label": "זירוז אישור הייצוג באזור האישי",
+     "bucket": "action",
+     "linkUrl": "https://www.gov.il/he/service/personal_area_taxes",
+     "approvals": [
+      {
+       "name": "ישראל",
+       "person": "client",
+       "systems": [
+        "מס הכנסה",
+        "מע״מ"
+       ]
+      }
+     ],
+     "linkLabel": "לכניסה לאזור האישי",
+     "noteAfter": "ואם לא הסתדר - אין בעיה. הייצוג ייכנס לתוקף גם בלי זה, זה פשוט לוקח כמה ימים יותר.",
+     "actionKind": "portal",
+     "actionValue": "sample-rep_client_approval"
+    },
+    {
+     "key": "authrep_sample-ni-client",
+     "sub": "האסמכתא התקבלה — נשלח הוראות אישור בקרוב",
+     "label": "ייצוג בביטוח לאומי — ישראל",
+     "bucket": "office"
+    },
+    {
+     "key": "files_office",
+     "sub": "מע\"מ, מס הכנסה וביטוח לאומי - בטיפולנו",
+     "label": "פתיחת התיקים ברשויות",
+     "bucket": "office"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "representation",
+     "owner": null,
+     "title": null,
+     "internal": false,
+     "itemKeys": [
+      "rep_authorities"
+     ],
+     "stepType": "representation"
+    },
+    {
+     "ok": true,
+     "key": "rep_client_approval",
+     "owner": "client",
+     "title": "זירוז אישור הייצוג באזור האישי",
+     "internal": false,
+     "itemKeys": [
+      "rep_approval"
+     ],
+     "stepType": "rep_client_approval"
+    },
+    {
+     "ok": true,
+     "key": "ni-client",
+     "owner": null,
+     "title": null,
+     "internal": false,
+     "itemKeys": [
+      "authrep_sample-ni-client"
+     ],
+     "stepType": "authority_representation"
+    },
+    {
+     "ok": true,
+     "key": "file_opening",
+     "owner": null,
+     "title": "file_opening",
+     "internal": false,
+     "itemKeys": [
+      "files_office"
+     ],
+     "stepType": "file_opening"
+    }
+   ],
+   "total": 4,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":false,\"prevKnown\":false},\"rep\":{\"approvals\":\"single\",\"awaiting\":\"client\",\"niReference\":true,\"status\":\"awaiting_authorities\"},\"samples\":[{\"ball\":\"me\",\"key\":\"representation\",\"ref\":{\"kind\":\"system\",\"stepType\":\"representation\"},\"status\":\"in_progress\"},{\"key\":\"rep_client_approval\",\"ref\":{\"kind\":\"system\",\"stepType\":\"rep_client_approval\"},\"required\":true,\"status\":\"pending\"},{\"ball\":\"me\",\"key\":\"ni-client\",\"patch\":{\"subjectRole\":\"client\",\"title\":\"ייצוג בביטוח לאומי — ישראל\"},\"ref\":{\"kind\":\"system\",\"stepType\":\"authority_representation\"},\"status\":\"in_progress\"},{\"ball\":\"me\",\"key\":\"file_opening\",\"ref\":{\"kind\":\"system\",\"stepType\":\"file_opening\"},\"status\":\"pending\"}]}": {
+   "ok": true,
+   "done": 0,
+   "items": [
+    {
+     "key": "rep_authorities",
+     "sub": "נחתם והוגש לרשויות המס - ממתינים לאישור",
+     "label": "ייפוי הכוח",
+     "bucket": "office"
+    },
+    {
+     "cta": "אישרתי באזור האישי",
+     "key": "rep_approval",
+     "sub": "נדרש - רשות המסים ממתינה לאישור שלך",
+     "kind": "declare",
+     "note": "יש לך כבר משתמש באזור האישי של רשות המסים?\n\nכן - נכנסים בקישור, לוחצים \"לכניסה למערכת\" ומזדהים. מסמנים את כל הבקשות שבהן המשרד מופיע כמייצג, ולוחצים «אישור ייצוג». שתי דקות.\n\nלא - קודם צריך להירשם ולהזדהות מול רשות המסים. זה החלק שלוקח את הזמן, ובלעדיו אי אפשר לאשר.\n\nאם קיבלת מרשות המסים הודעת SMS על רישום מייצג - אפשר להיכנס ישירות מהקישור שבהודעה, וזה קצר יותר.",
+     "label": "אישור הייצוג באזור האישי",
+     "bucket": "action",
+     "linkUrl": "https://www.gov.il/he/service/personal_area_taxes",
+     "approvals": [
+      {
+       "name": "ישראל",
+       "person": "client",
+       "systems": [
+        "מס הכנסה",
+        "מע״מ"
+       ],
+       "awaiting": [
+        "מס הכנסה",
+        "מע״מ"
+       ]
+      }
+     ],
+     "linkLabel": "לכניסה לאזור האישי",
+     "noteAfter": "בלי האישור הזה רשות המסים לא תקלוט את הייצוג, והטיפול מולה לא יוכל להתקדם.",
+     "actionKind": "portal",
+     "actionValue": "sample-rep_client_approval"
+    },
+    {
+     "key": "authrep_sample-ni-client",
+     "sub": "האסמכתא התקבלה — נשלח הוראות אישור בקרוב",
+     "label": "ייצוג בביטוח לאומי — ישראל",
+     "bucket": "office"
+    },
+    {
+     "key": "files_office",
+     "sub": "מע\"מ, מס הכנסה וביטוח לאומי - בטיפולנו",
+     "label": "פתיחת התיקים ברשויות",
+     "bucket": "office"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "representation",
+     "owner": null,
+     "title": null,
+     "internal": false,
+     "itemKeys": [
+      "rep_authorities"
+     ],
+     "stepType": "representation"
+    },
+    {
+     "ok": true,
+     "key": "rep_client_approval",
+     "owner": "client",
+     "title": "אישור הייצוג באזור האישי",
+     "internal": false,
+     "itemKeys": [
+      "rep_approval"
+     ],
+     "stepType": "rep_client_approval"
+    },
+    {
+     "ok": true,
+     "key": "ni-client",
+     "owner": null,
+     "title": null,
+     "internal": false,
+     "itemKeys": [
+      "authrep_sample-ni-client"
+     ],
+     "stepType": "authority_representation"
+    },
+    {
+     "ok": true,
+     "key": "file_opening",
+     "owner": null,
+     "title": "file_opening",
+     "internal": false,
+     "itemKeys": [
+      "files_office"
+     ],
+     "stepType": "file_opening"
+    }
+   ],
+   "total": 4,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":true,\"prevKnown\":false},\"rep\":{\"approvals\":\"couple\",\"niReference\":true,\"status\":\"awaiting_authorities\"},\"samples\":[{\"ball\":\"me\",\"key\":\"representation\",\"ref\":{\"kind\":\"system\",\"stepType\":\"representation\"},\"status\":\"in_progress\"},{\"key\":\"rep_client_approval\",\"ref\":{\"kind\":\"system\",\"stepType\":\"rep_client_approval\"},\"required\":false,\"status\":\"pending\"},{\"ball\":\"me\",\"key\":\"ni-client\",\"patch\":{\"subjectRole\":\"client\",\"title\":\"ייצוג בביטוח לאומי — ישראל\"},\"ref\":{\"kind\":\"system\",\"stepType\":\"authority_representation\"},\"status\":\"in_progress\"},{\"key\":\"ni-spouse\",\"patch\":{\"subjectRole\":\"spouse\",\"title\":\"ייצוג בביטוח לאומי — ישראלה\"},\"ref\":{\"kind\":\"system\",\"stepType\":\"authority_representation\"},\"status\":\"waiting_client\"},{\"ball\":\"me\",\"key\":\"file_opening\",\"ref\":{\"kind\":\"system\",\"stepType\":\"file_opening\"},\"status\":\"pending\"}]}": {
+   "ok": true,
+   "done": 0,
+   "items": [
+    {
+     "key": "rep_authorities",
+     "sub": "נחתם והוגש לרשויות המס - ממתינים לאישור",
+     "label": "ייפוי הכוח",
+     "bucket": "office"
+    },
+    {
+     "cta": "אישרתי באזור האישי",
+     "key": "rep_approval",
+     "sub": "אופציונלי - שתי דקות שמקצרות את ההמתנה לאישור הרשויות",
+     "kind": "declare",
+     "note": "יש לך כבר משתמש באזור האישי של רשות המסים?\n\nכן - נכנסים בקישור, לוחצים \"לכניסה למערכת\" ומזדהים. מסמנים את כל הבקשות שבהן המשרד מופיע כמייצג, ולוחצים «אישור ייצוג». שתי דקות.\n\nלא - קודם צריך להירשם ולהזדהות מול רשות המסים. זה החלק שלוקח את הזמן, ובלעדיו אי אפשר לאשר.\n\nאם קיבלת מרשות המסים הודעת SMS על רישום מייצג - אפשר להיכנס ישירות מהקישור שבהודעה, וזה קצר יותר.",
+     "label": "זירוז אישור הייצוג באזור האישי",
+     "bucket": "action",
+     "linkUrl": "https://www.gov.il/he/service/personal_area_taxes",
+     "approvals": [
+      {
+       "name": "ישראל",
+       "person": "client",
+       "systems": [
+        "מע״מ"
+       ]
+      },
+      {
+       "name": "ישראלה",
+       "person": "spouse",
+       "systems": [
+        "מס הכנסה",
+        "מע״מ"
+       ]
+      }
+     ],
+     "linkLabel": "לכניסה לאזור האישי",
+     "noteAfter": "ואם לא הסתדר - אין בעיה. הייצוג ייכנס לתוקף גם בלי זה, זה פשוט לוקח כמה ימים יותר.",
+     "actionKind": "portal",
+     "actionValue": "sample-rep_client_approval"
+    },
+    {
+     "key": "authrep_sample-ni-client",
+     "sub": "האסמכתא התקבלה — נשלח הוראות אישור בקרוב",
+     "label": "ייצוג בביטוח לאומי — ישראל",
+     "bucket": "office"
+    },
+    {
+     "key": "authrep_sample-ni-spouse",
+     "kind": "message",
+     "note": "האסמכתא: A-0000-0000\nיש לאשר עד 19.10.2026\nניתן לאשר באתר הביטוח הלאומי או בטלפון 02-5393740. אם ההודעה לא הגיעה - אפשר להעביר את ההוראות.",
+     "label": "ייצוג בביטוח לאומי — ישראלה",
+     "bucket": "office",
+     "linkUrl": "https://b2b.btl.gov.il/BTL.ILG.PAYMENTS/IshurIpuyKoachInfo.aspx",
+     "linkLabel": "לאתר הביטוח הלאומי"
+    },
+    {
+     "key": "files_office",
+     "sub": "מע\"מ, מס הכנסה וביטוח לאומי - בטיפולנו",
+     "label": "פתיחת התיקים ברשויות",
+     "bucket": "office"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "representation",
+     "owner": null,
+     "title": null,
+     "internal": false,
+     "itemKeys": [
+      "rep_authorities"
+     ],
+     "stepType": "representation"
+    },
+    {
+     "ok": true,
+     "key": "rep_client_approval",
+     "owner": "client",
+     "title": "זירוז אישור הייצוג באזור האישי",
+     "internal": false,
+     "itemKeys": [
+      "rep_approval"
+     ],
+     "stepType": "rep_client_approval"
+    },
+    {
+     "ok": true,
+     "key": "ni-client",
+     "owner": null,
+     "title": null,
+     "internal": false,
+     "itemKeys": [
+      "authrep_sample-ni-client"
+     ],
+     "stepType": "authority_representation"
+    },
+    {
+     "ok": true,
+     "key": "ni-spouse",
+     "owner": null,
+     "title": null,
+     "internal": false,
+     "itemKeys": [
+      "authrep_sample-ni-spouse"
+     ],
+     "stepType": "authority_representation"
+    },
+    {
+     "ok": true,
+     "key": "file_opening",
+     "owner": null,
+     "title": "file_opening",
+     "internal": false,
+     "itemKeys": [
+      "files_office"
+     ],
+     "stepType": "file_opening"
+    }
+   ],
+   "total": 4,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":true,\"prevKnown\":false},\"rep\":{\"approvals\":\"couple\",\"awaiting\":\"spouse\",\"niReference\":true,\"status\":\"awaiting_authorities\"},\"samples\":[{\"ball\":\"me\",\"key\":\"representation\",\"ref\":{\"kind\":\"system\",\"stepType\":\"representation\"},\"status\":\"in_progress\"},{\"key\":\"rep_client_approval\",\"ref\":{\"kind\":\"system\",\"stepType\":\"rep_client_approval\"},\"required\":true,\"status\":\"pending\"},{\"ball\":\"me\",\"key\":\"ni-client\",\"patch\":{\"subjectRole\":\"client\",\"title\":\"ייצוג בביטוח לאומי — ישראל\"},\"ref\":{\"kind\":\"system\",\"stepType\":\"authority_representation\"},\"status\":\"in_progress\"},{\"key\":\"ni-spouse\",\"patch\":{\"subjectRole\":\"spouse\",\"title\":\"ייצוג בביטוח לאומי — ישראלה\"},\"ref\":{\"kind\":\"system\",\"stepType\":\"authority_representation\"},\"status\":\"waiting_client\"},{\"ball\":\"me\",\"key\":\"file_opening\",\"ref\":{\"kind\":\"system\",\"stepType\":\"file_opening\"},\"status\":\"pending\"}]}": {
+   "ok": true,
+   "done": 0,
+   "items": [
+    {
+     "key": "rep_authorities",
+     "sub": "נחתם והוגש לרשויות המס - ממתינים לאישור",
+     "label": "ייפוי הכוח",
+     "bucket": "office"
+    },
+    {
+     "cta": "אישרתי באזור האישי",
+     "key": "rep_approval",
+     "sub": "נדרש - רשות המסים ממתינה לאישור של ישראלה",
+     "kind": "declare",
+     "note": "יש לך כבר משתמש באזור האישי של רשות המסים?\n\nכן - נכנסים בקישור, לוחצים \"לכניסה למערכת\" ומזדהים. מסמנים את כל הבקשות שבהן המשרד מופיע כמייצג, ולוחצים «אישור ייצוג». שתי דקות.\n\nלא - קודם צריך להירשם ולהזדהות מול רשות המסים. זה החלק שלוקח את הזמן, ובלעדיו אי אפשר לאשר.\n\nאם קיבלת מרשות המסים הודעת SMS על רישום מייצג - אפשר להיכנס ישירות מהקישור שבהודעה, וזה קצר יותר.",
+     "label": "אישור הייצוג באזור האישי",
+     "bucket": "action",
+     "linkUrl": "https://www.gov.il/he/service/personal_area_taxes",
+     "approvals": [
+      {
+       "name": "ישראל",
+       "person": "client",
+       "systems": [
+        "מע״מ"
+       ]
+      },
+      {
+       "name": "ישראלה",
+       "person": "spouse",
+       "systems": [
+        "מס הכנסה",
+        "מע״מ"
+       ],
+       "awaiting": [
+        "מס הכנסה",
+        "מע״מ"
+       ]
+      }
+     ],
+     "linkLabel": "לכניסה לאזור האישי",
+     "noteAfter": "בלי האישור הזה רשות המסים לא תקלוט את הייצוג, והטיפול מולה לא יוכל להתקדם.",
+     "actionKind": "portal",
+     "actionValue": "sample-rep_client_approval"
+    },
+    {
+     "key": "authrep_sample-ni-client",
+     "sub": "האסמכתא התקבלה — נשלח הוראות אישור בקרוב",
+     "label": "ייצוג בביטוח לאומי — ישראל",
+     "bucket": "office"
+    },
+    {
+     "key": "authrep_sample-ni-spouse",
+     "kind": "message",
+     "note": "האסמכתא: A-0000-0000\nיש לאשר עד 19.10.2026\nניתן לאשר באתר הביטוח הלאומי או בטלפון 02-5393740. אם ההודעה לא הגיעה - אפשר להעביר את ההוראות.",
+     "label": "ייצוג בביטוח לאומי — ישראלה",
+     "bucket": "office",
+     "linkUrl": "https://b2b.btl.gov.il/BTL.ILG.PAYMENTS/IshurIpuyKoachInfo.aspx",
+     "linkLabel": "לאתר הביטוח הלאומי"
+    },
+    {
+     "key": "files_office",
+     "sub": "מע\"מ, מס הכנסה וביטוח לאומי - בטיפולנו",
+     "label": "פתיחת התיקים ברשויות",
+     "bucket": "office"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "representation",
+     "owner": null,
+     "title": null,
+     "internal": false,
+     "itemKeys": [
+      "rep_authorities"
+     ],
+     "stepType": "representation"
+    },
+    {
+     "ok": true,
+     "key": "rep_client_approval",
+     "owner": "client",
+     "title": "אישור הייצוג באזור האישי",
+     "internal": false,
+     "itemKeys": [
+      "rep_approval"
+     ],
+     "stepType": "rep_client_approval"
+    },
+    {
+     "ok": true,
+     "key": "ni-client",
+     "owner": null,
+     "title": null,
+     "internal": false,
+     "itemKeys": [
+      "authrep_sample-ni-client"
+     ],
+     "stepType": "authority_representation"
+    },
+    {
+     "ok": true,
+     "key": "ni-spouse",
+     "owner": null,
+     "title": null,
+     "internal": false,
+     "itemKeys": [
+      "authrep_sample-ni-spouse"
+     ],
+     "stepType": "authority_representation"
+    },
+    {
+     "ok": true,
+     "key": "file_opening",
+     "owner": null,
+     "title": "file_opening",
+     "internal": false,
+     "itemKeys": [
+      "files_office"
+     ],
+     "stepType": "file_opening"
+    }
+   ],
+   "total": 4,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":false,\"prevKnown\":false},\"rep\":{\"approvals\":\"single\",\"niReference\":true,\"status\":\"active\"},\"samples\":[{\"ball\":\"me\",\"key\":\"representation\",\"ref\":{\"kind\":\"system\",\"stepType\":\"representation\"},\"status\":\"completed\"},{\"key\":\"rep_client_approval\",\"ref\":{\"kind\":\"system\",\"stepType\":\"rep_client_approval\"},\"required\":false,\"status\":\"completed\"},{\"ball\":\"me\",\"key\":\"ni-client\",\"patch\":{\"subjectRole\":\"client\",\"title\":\"ייצוג בביטוח לאומי — ישראל\"},\"ref\":{\"kind\":\"system\",\"stepType\":\"authority_representation\"},\"status\":\"completed\"},{\"ball\":\"me\",\"key\":\"file_opening\",\"ref\":{\"kind\":\"system\",\"stepType\":\"file_opening\"},\"status\":\"completed\"}]}": {
+   "ok": true,
+   "done": 4,
+   "items": [
+    {
+     "key": "rep_done",
+     "label": "הייצוג מול רשויות המס אושר",
+     "bucket": "done"
+    },
+    {
+     "key": "rep_approval",
+     "label": "זירוז אישור הייצוג באזור האישי",
+     "bucket": "done"
+    },
+    {
+     "key": "authrep_sample-ni-client",
+     "label": "ייצוג בביטוח לאומי — ישראל · אושר",
+     "bucket": "done"
+    },
+    {
+     "key": "files",
+     "label": "פתיחת התיקים ברשויות",
+     "bucket": "done"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "representation",
+     "owner": null,
+     "title": null,
+     "internal": false,
+     "itemKeys": [
+      "rep_done"
+     ],
+     "stepType": "representation"
+    },
+    {
+     "ok": true,
+     "key": "rep_client_approval",
+     "owner": "client",
+     "title": "זירוז אישור הייצוג באזור האישי",
+     "internal": false,
+     "itemKeys": [
+      "rep_approval"
+     ],
+     "stepType": "rep_client_approval"
+    },
+    {
+     "ok": true,
+     "key": "ni-client",
+     "owner": null,
+     "title": null,
+     "internal": false,
+     "itemKeys": [
+      "authrep_sample-ni-client"
+     ],
+     "stepType": "authority_representation"
+    },
+    {
+     "ok": true,
+     "key": "file_opening",
+     "owner": null,
+     "title": "file_opening",
+     "internal": false,
+     "itemKeys": [
+      "files"
+     ],
+     "stepType": "file_opening"
+    }
+   ],
+   "total": 4,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":false,\"prevKnown\":false},\"rep\":{\"approvals\":\"single\",\"awaiting\":\"client\",\"niReference\":true,\"status\":\"active\"},\"samples\":[{\"ball\":\"me\",\"key\":\"representation\",\"ref\":{\"kind\":\"system\",\"stepType\":\"representation\"},\"status\":\"completed\"},{\"key\":\"rep_client_approval\",\"ref\":{\"kind\":\"system\",\"stepType\":\"rep_client_approval\"},\"required\":true,\"status\":\"completed\"},{\"ball\":\"me\",\"key\":\"ni-client\",\"patch\":{\"subjectRole\":\"client\",\"title\":\"ייצוג בביטוח לאומי — ישראל\"},\"ref\":{\"kind\":\"system\",\"stepType\":\"authority_representation\"},\"status\":\"completed\"},{\"ball\":\"me\",\"key\":\"file_opening\",\"ref\":{\"kind\":\"system\",\"stepType\":\"file_opening\"},\"status\":\"completed\"}]}": {
+   "ok": true,
+   "done": 4,
+   "items": [
+    {
+     "key": "rep_done",
+     "label": "הייצוג מול רשויות המס אושר",
+     "bucket": "done"
+    },
+    {
+     "key": "rep_approval",
+     "label": "אישור הייצוג באזור האישי",
+     "bucket": "done"
+    },
+    {
+     "key": "authrep_sample-ni-client",
+     "label": "ייצוג בביטוח לאומי — ישראל · אושר",
+     "bucket": "done"
+    },
+    {
+     "key": "files",
+     "label": "פתיחת התיקים ברשויות",
+     "bucket": "done"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "representation",
+     "owner": null,
+     "title": null,
+     "internal": false,
+     "itemKeys": [
+      "rep_done"
+     ],
+     "stepType": "representation"
+    },
+    {
+     "ok": true,
+     "key": "rep_client_approval",
+     "owner": "client",
+     "title": "אישור הייצוג באזור האישי",
+     "internal": false,
+     "itemKeys": [
+      "rep_approval"
+     ],
+     "stepType": "rep_client_approval"
+    },
+    {
+     "ok": true,
+     "key": "ni-client",
+     "owner": null,
+     "title": null,
+     "internal": false,
+     "itemKeys": [
+      "authrep_sample-ni-client"
+     ],
+     "stepType": "authority_representation"
+    },
+    {
+     "ok": true,
+     "key": "file_opening",
+     "owner": null,
+     "title": "file_opening",
+     "internal": false,
+     "itemKeys": [
+      "files"
+     ],
+     "stepType": "file_opening"
+    }
+   ],
+   "total": 4,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":true,\"prevKnown\":false},\"rep\":{\"approvals\":\"couple\",\"niReference\":true,\"status\":\"active\"},\"samples\":[{\"ball\":\"me\",\"key\":\"representation\",\"ref\":{\"kind\":\"system\",\"stepType\":\"representation\"},\"status\":\"completed\"},{\"key\":\"rep_client_approval\",\"ref\":{\"kind\":\"system\",\"stepType\":\"rep_client_approval\"},\"required\":false,\"status\":\"completed\"},{\"ball\":\"me\",\"key\":\"ni-client\",\"patch\":{\"subjectRole\":\"client\",\"title\":\"ייצוג בביטוח לאומי — ישראל\"},\"ref\":{\"kind\":\"system\",\"stepType\":\"authority_representation\"},\"status\":\"completed\"},{\"key\":\"ni-spouse\",\"patch\":{\"subjectRole\":\"spouse\",\"title\":\"ייצוג בביטוח לאומי — ישראלה\"},\"ref\":{\"kind\":\"system\",\"stepType\":\"authority_representation\"},\"status\":\"completed\"},{\"ball\":\"me\",\"key\":\"file_opening\",\"ref\":{\"kind\":\"system\",\"stepType\":\"file_opening\"},\"status\":\"completed\"}]}": {
+   "ok": true,
+   "done": 5,
+   "items": [
+    {
+     "key": "rep_done",
+     "label": "הייצוג מול רשויות המס אושר",
+     "bucket": "done"
+    },
+    {
+     "key": "rep_approval",
+     "label": "זירוז אישור הייצוג באזור האישי",
+     "bucket": "done"
+    },
+    {
+     "key": "authrep_sample-ni-client",
+     "label": "ייצוג בביטוח לאומי — ישראל · אושר",
+     "bucket": "done"
+    },
+    {
+     "key": "authrep_sample-ni-spouse",
+     "label": "ייצוג בביטוח לאומי — ישראלה · אושר",
+     "bucket": "done"
+    },
+    {
+     "key": "files",
+     "label": "פתיחת התיקים ברשויות",
+     "bucket": "done"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "representation",
+     "owner": null,
+     "title": null,
+     "internal": false,
+     "itemKeys": [
+      "rep_done"
+     ],
+     "stepType": "representation"
+    },
+    {
+     "ok": true,
+     "key": "rep_client_approval",
+     "owner": "client",
+     "title": "זירוז אישור הייצוג באזור האישי",
+     "internal": false,
+     "itemKeys": [
+      "rep_approval"
+     ],
+     "stepType": "rep_client_approval"
+    },
+    {
+     "ok": true,
+     "key": "ni-client",
+     "owner": null,
+     "title": null,
+     "internal": false,
+     "itemKeys": [
+      "authrep_sample-ni-client"
+     ],
+     "stepType": "authority_representation"
+    },
+    {
+     "ok": true,
+     "key": "ni-spouse",
+     "owner": null,
+     "title": null,
+     "internal": false,
+     "itemKeys": [
+      "authrep_sample-ni-spouse"
+     ],
+     "stepType": "authority_representation"
+    },
+    {
+     "ok": true,
+     "key": "file_opening",
+     "owner": null,
+     "title": "file_opening",
+     "internal": false,
+     "itemKeys": [
+      "files"
+     ],
+     "stepType": "file_opening"
+    }
+   ],
+   "total": 5,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"persona\":{\"couple\":true,\"prevKnown\":false},\"rep\":{\"approvals\":\"couple\",\"awaiting\":\"spouse\",\"niReference\":true,\"status\":\"active\"},\"samples\":[{\"ball\":\"me\",\"key\":\"representation\",\"ref\":{\"kind\":\"system\",\"stepType\":\"representation\"},\"status\":\"completed\"},{\"key\":\"rep_client_approval\",\"ref\":{\"kind\":\"system\",\"stepType\":\"rep_client_approval\"},\"required\":true,\"status\":\"completed\"},{\"ball\":\"me\",\"key\":\"ni-client\",\"patch\":{\"subjectRole\":\"client\",\"title\":\"ייצוג בביטוח לאומי — ישראל\"},\"ref\":{\"kind\":\"system\",\"stepType\":\"authority_representation\"},\"status\":\"completed\"},{\"key\":\"ni-spouse\",\"patch\":{\"subjectRole\":\"spouse\",\"title\":\"ייצוג בביטוח לאומי — ישראלה\"},\"ref\":{\"kind\":\"system\",\"stepType\":\"authority_representation\"},\"status\":\"completed\"},{\"ball\":\"me\",\"key\":\"file_opening\",\"ref\":{\"kind\":\"system\",\"stepType\":\"file_opening\"},\"status\":\"completed\"}]}": {
+   "ok": true,
+   "done": 5,
+   "items": [
+    {
+     "key": "rep_done",
+     "label": "הייצוג מול רשויות המס אושר",
+     "bucket": "done"
+    },
+    {
+     "key": "rep_approval",
+     "label": "אישור הייצוג באזור האישי",
+     "bucket": "done"
+    },
+    {
+     "key": "authrep_sample-ni-client",
+     "label": "ייצוג בביטוח לאומי — ישראל · אושר",
+     "bucket": "done"
+    },
+    {
+     "key": "authrep_sample-ni-spouse",
+     "label": "ייצוג בביטוח לאומי — ישראלה · אושר",
+     "bucket": "done"
+    },
+    {
+     "key": "files",
+     "label": "פתיחת התיקים ברשויות",
+     "bucket": "done"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "representation",
+     "owner": null,
+     "title": null,
+     "internal": false,
+     "itemKeys": [
+      "rep_done"
+     ],
+     "stepType": "representation"
+    },
+    {
+     "ok": true,
+     "key": "rep_client_approval",
+     "owner": "client",
+     "title": "אישור הייצוג באזור האישי",
+     "internal": false,
+     "itemKeys": [
+      "rep_approval"
+     ],
+     "stepType": "rep_client_approval"
+    },
+    {
+     "ok": true,
+     "key": "ni-client",
+     "owner": null,
+     "title": null,
+     "internal": false,
+     "itemKeys": [
+      "authrep_sample-ni-client"
+     ],
+     "stepType": "authority_representation"
+    },
+    {
+     "ok": true,
+     "key": "ni-spouse",
+     "owner": null,
+     "title": null,
+     "internal": false,
+     "itemKeys": [
+      "authrep_sample-ni-spouse"
+     ],
+     "stepType": "authority_representation"
+    },
+    {
+     "ok": true,
+     "key": "file_opening",
+     "owner": null,
+     "title": "file_opening",
+     "internal": false,
+     "itemKeys": [
+      "files"
+     ],
+     "stepType": "file_opening"
+    }
+   ],
+   "total": 5,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"samples\":[{\"key\":\"a\",\"payload\":{\"bankDebitAuthorities\":[\"income\",\"vat\",\"btl\"],\"clientCta\":\"להקמת ההרשאה\",\"clientNote\":\"כדי שנוכל לבצע עבורך תשלומים לרשויות בצורה פשוטה ומהירה, יש להקים הרשאה לחיוב חשבון עבור הרשויות שמופיעות מטה.\\n\\nאיך עושים את זה?\\nנכנסים לאפליקציה או לאתר הבנק, מחפשים «הקמת הרשאה לחיוב חשבון», ומקימים הרשאה לפי קוד המוסד המתאים:\",\"clientNoteAfter\":\"לאחר שסיימת, פשוט מעלים כאן צילום מסך או אישור מהבנק עבור כל הרשאה.\\n\\nאנחנו כבר נדאג לכל השאר 🙂\",\"clientRefs\":[{\"label\":\"מס הכנסה\",\"value\":\"קוד מוסד 2760\"},{\"label\":\"מע״מ\",\"value\":\"קוד מוסד 2761\"},{\"label\":\"ביטוח לאומי\",\"value\":\"קוד מוסד 28900\"}],\"clientSub\":\"מעבר לתשלומים מקוונים למוסדות - בלי שיקים\",\"clientTitle\":\"הקמת הרשאה לחיוב חשבון במוסדות\",\"requirements\":[{\"done\":false,\"key\":\"debit_income\",\"kind\":\"file\",\"label\":\"אסמכתה - מס הכנסה\",\"required\":true},{\"done\":false,\"key\":\"debit_vat\",\"kind\":\"file\",\"label\":\"אסמכתה - מע״מ\",\"required\":true},{\"done\":false,\"key\":\"debit_btl\",\"kind\":\"file\",\"label\":\"אסמכתה - ביטוח לאומי\",\"required\":true}],\"title\":\"הקמת הרשאה לחיוב חשבון במוסדות\"},\"stepType\":\"custom_request\"}]}": {
+   "ok": true,
+   "done": 0,
+   "items": [
+    {
+     "cta": "להקמת ההרשאה",
+     "key": "custom_sample-a",
+     "sub": "0 מתוך 3 הושלמו",
+     "kind": "custom",
+     "note": "כדי שנוכל לבצע עבורך תשלומים לרשויות בצורה פשוטה ומהירה, יש להקים הרשאה לחיוב חשבון עבור הרשויות שמופיעות מטה.\n\nאיך עושים את זה?\nנכנסים לאפליקציה או לאתר הבנק, מחפשים «הקמת הרשאה לחיוב חשבון», ומקימים הרשאה לפי קוד המוסד המתאים:",
+     "refs": [
+      {
+       "label": "מס הכנסה",
+       "value": "קוד מוסד 2760"
+      },
+      {
+       "label": "מע״מ",
+       "value": "קוד מוסד 2761"
+      },
+      {
+       "label": "ביטוח לאומי",
+       "value": "קוד מוסד 28900"
+      }
+     ],
+     "label": "הקמת הרשאה לחיוב חשבון במוסדות",
+     "bucket": "action",
+     "canUpload": true,
+     "noteAfter": "לאחר שסיימת, פשוט מעלים כאן צילום מסך או אישור מהבנק עבור כל הרשאה.\n\nאנחנו כבר נדאג לכל השאר 🙂",
+     "actionKind": "portal",
+     "actionValue": "sample-a",
+     "requirements": [
+      {
+       "key": "debit_income",
+       "done": false,
+       "kind": "file",
+       "label": "אסמכתה - מס הכנסה",
+       "required": true,
+       "fileCount": 0
+      },
+      {
+       "key": "debit_vat",
+       "done": false,
+       "kind": "file",
+       "label": "אסמכתה - מע״מ",
+       "required": true,
+       "fileCount": 0
+      },
+      {
+       "key": "debit_btl",
+       "done": false,
+       "kind": "file",
+       "label": "אסמכתה - ביטוח לאומי",
+       "required": true,
+       "fileCount": 0
+      }
+     ]
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "a",
+     "owner": "client",
+     "title": "הקמת הרשאה לחיוב חשבון במוסדות",
+     "internal": false,
+     "itemKeys": [
+      "custom_sample-a"
+     ],
+     "stepType": "custom_request"
+    }
+   ],
+   "total": 1,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"samples\":[{\"key\":\"a\",\"payload\":{\"bankDebitAuthorities\":[\"income\",\"vat\",\"btl\"],\"clientCta\":\"להקמת ההרשאה\",\"clientNote\":\"כדי שנוכל לבצע עבורך תשלומים לרשויות בצורה פשוטה ומהירה, יש להקים הרשאה לחיוב חשבון עבור הרשויות שמופיעות מטה.\\n\\nאיך עושים את זה?\\nנכנסים לאפליקציה או לאתר הבנק, מחפשים «הקמת הרשאה לחיוב חשבון», ומקימים הרשאה לפי קוד המוסד המתאים:\",\"clientNoteAfter\":\"לאחר שסיימת, פשוט מעלים כאן צילום מסך או אישור מהבנק עבור כל הרשאה.\\n\\nאנחנו כבר נדאג לכל השאר 🙂\",\"clientRefs\":[{\"label\":\"מס הכנסה\",\"value\":\"קוד מוסד 2760\"},{\"label\":\"מע״מ\",\"value\":\"קוד מוסד 2761\"},{\"label\":\"ביטוח לאומי\",\"value\":\"קוד מוסד 28900\"}],\"clientSub\":\"מעבר לתשלומים מקוונים למוסדות - בלי שיקים\",\"clientTitle\":\"הקמת הרשאה לחיוב חשבון במוסדות\",\"requirements\":[{\"done\":false,\"key\":\"debit_income\",\"kind\":\"file\",\"label\":\"אסמכתה - מס הכנסה\",\"required\":true},{\"done\":false,\"key\":\"debit_vat\",\"kind\":\"file\",\"label\":\"אסמכתה - מע״מ\",\"required\":true},{\"done\":false,\"key\":\"debit_btl\",\"kind\":\"file\",\"label\":\"אסמכתה - ביטוח לאומי\",\"required\":true}],\"title\":\"הקמת הרשאה לחיוב חשבון במוסדות\"},\"status\":\"completed\",\"stepType\":\"custom_request\"}]}": {
+   "ok": true,
+   "done": 1,
+   "items": [
+    {
+     "key": "custom_sample-a",
+     "label": "הקמת הרשאה לחיוב חשבון במוסדות",
+     "bucket": "done"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "a",
+     "owner": "client",
+     "title": "הקמת הרשאה לחיוב חשבון במוסדות",
+     "internal": false,
+     "itemKeys": [
+      "custom_sample-a"
+     ],
+     "stepType": "custom_request"
+    }
+   ],
+   "total": 1,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"samples\":[{\"key\":\"a\",\"payload\":{\"clientCta\":\"לפתיחת המסמך\",\"clientResources\":[{\"documentId\":\"sample\",\"fileName\":\"מסמך-לדוגמה.pdf\",\"key\":\"a1\",\"label\":\"מסמך לדוגמה\",\"source\":\"client\"}],\"clientSub\":\"מסמך מהמשרד\",\"clientTitle\":\"מסמך לדוגמה\",\"requirements\":[{\"done\":false,\"key\":\"a1\",\"kind\":\"confirm\",\"label\":\"פתיחת מסמך לדוגמה\",\"required\":true}],\"title\":\"מסמך לדוגמה\"},\"stepType\":\"custom_request\"}]}": {
+   "ok": true,
+   "done": 0,
+   "items": [
+    {
+     "key": "custom_sample-a",
+     "sub": "מסמך מהמשרד",
+     "kind": "guide",
+     "label": "מסמך לדוגמה",
+     "bucket": "action",
+     "stepId": "sample-a",
+     "resources": [
+      {
+       "key": "a1",
+       "done": false,
+       "label": "מסמך לדוגמה",
+       "fileName": "מסמך-לדוגמה.pdf",
+       "documentId": "sample"
+      }
+     ],
+     "actionKind": "portal",
+     "actionValue": "sample-a"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "a",
+     "owner": "client",
+     "title": "מסמך לדוגמה",
+     "internal": false,
+     "itemKeys": [
+      "custom_sample-a"
+     ],
+     "stepType": "custom_request"
+    }
+   ],
+   "total": 1,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"samples\":[{\"key\":\"a\",\"markDone\":1,\"payload\":{\"clientCta\":\"לפתיחת המסמך\",\"clientResources\":[{\"documentId\":\"sample\",\"fileName\":\"מסמך-לדוגמה.pdf\",\"key\":\"a1\",\"label\":\"מסמך לדוגמה\",\"source\":\"client\"}],\"clientSub\":\"מסמך מהמשרד\",\"clientTitle\":\"מסמך לדוגמה\",\"requirements\":[{\"done\":false,\"key\":\"a1\",\"kind\":\"confirm\",\"label\":\"פתיחת מסמך לדוגמה\",\"required\":true}],\"title\":\"מסמך לדוגמה\"},\"stepType\":\"custom_request\"}]}": {
+   "ok": true,
+   "done": 0,
+   "items": [
+    {
+     "key": "custom_sample-a",
+     "sub": "מסמך מהמשרד",
+     "kind": "guide",
+     "label": "מסמך לדוגמה",
+     "bucket": "action",
+     "stepId": "sample-a",
+     "resources": [
+      {
+       "key": "a1",
+       "done": true,
+       "label": "מסמך לדוגמה",
+       "fileName": "מסמך-לדוגמה.pdf",
+       "documentId": "sample"
+      }
+     ],
+     "actionKind": "portal",
+     "actionValue": "sample-a"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "a",
+     "owner": "client",
+     "title": "מסמך לדוגמה",
+     "internal": false,
+     "itemKeys": [
+      "custom_sample-a"
+     ],
+     "stepType": "custom_request"
+    }
+   ],
+   "total": 1,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"samples\":[{\"key\":\"a\",\"payload\":{\"checklist\":[{\"done\":false,\"key\":\"d1\",\"label\":\"מסמך ראשון\"},{\"done\":false,\"key\":\"d2\",\"label\":\"מסמך שני\"}],\"clientCta\":\"להעלאה\",\"clientSub\":\"מסמך ראשון · מסמך שני\",\"clientTitle\":\"להעלות 2 מסמכים\"},\"stepType\":\"client_documents\"}]}": {
+   "ok": true,
+   "done": 0,
+   "items": [
+    {
+     "key": "docs",
+     "sub": "0 מתוך 2 התקבלו",
+     "kind": "documents",
+     "label": "להעלות 2 מסמכים",
+     "bucket": "action",
+     "canUpload": true,
+     "checklist": [
+      {
+       "key": "d1",
+       "done": false,
+       "label": "מסמך ראשון"
+      },
+      {
+       "key": "d2",
+       "done": false,
+       "label": "מסמך שני"
+      }
+     ],
+     "actionKind": "portal",
+     "actionValue": "sample-a"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "a",
+     "owner": "client",
+     "title": "להעלות 2 מסמכים",
+     "internal": false,
+     "itemKeys": [
+      "docs"
+     ],
+     "stepType": "client_documents"
+    }
+   ],
+   "total": 1,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"samples\":[{\"key\":\"a\",\"markDone\":1,\"payload\":{\"checklist\":[{\"done\":false,\"key\":\"d1\",\"label\":\"מסמך ראשון\"},{\"done\":false,\"key\":\"d2\",\"label\":\"מסמך שני\"}],\"clientCta\":\"להעלאה\",\"clientSub\":\"מסמך ראשון · מסמך שני\",\"clientTitle\":\"להעלות 2 מסמכים\"},\"stepType\":\"client_documents\"}]}": {
+   "ok": true,
+   "done": 0,
+   "items": [
+    {
+     "key": "docs",
+     "sub": "1 מתוך 2 התקבלו",
+     "kind": "documents",
+     "label": "להעלות 2 מסמכים",
+     "bucket": "action",
+     "canUpload": true,
+     "checklist": [
+      {
+       "key": "d1",
+       "done": true,
+       "label": "מסמך ראשון"
+      },
+      {
+       "key": "d2",
+       "done": false,
+       "label": "מסמך שני"
+      }
+     ],
+     "actionKind": "portal",
+     "actionValue": "sample-a"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "a",
+     "owner": "client",
+     "title": "להעלות 2 מסמכים",
+     "internal": false,
+     "itemKeys": [
+      "docs"
+     ],
+     "stepType": "client_documents"
+    }
+   ],
+   "total": 1,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"samples\":[{\"key\":\"a\",\"payload\":{\"checklist\":[{\"done\":false,\"key\":\"d1\",\"label\":\"מסמך ראשון\"},{\"done\":false,\"key\":\"d2\",\"label\":\"מסמך שני\"}],\"clientCta\":\"להעלאה\",\"clientSub\":\"מסמך ראשון · מסמך שני\",\"clientTitle\":\"להעלות 2 מסמכים\"},\"status\":\"completed\",\"stepType\":\"client_documents\"}]}": {
+   "ok": true,
+   "done": 1,
+   "items": [
+    {
+     "key": "docs",
+     "label": "להעלות 2 מסמכים",
+     "bucket": "done"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "a",
+     "owner": "client",
+     "title": "להעלות 2 מסמכים",
+     "internal": false,
+     "itemKeys": [
+      "docs"
+     ],
+     "stepType": "client_documents"
+    }
+   ],
+   "total": 1,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"samples\":[{\"ball\":\"client\",\"key\":\"p0\",\"owner\":\"client\",\"payload\":{\"clientCta\":\"נרשמתי לפייפרלס\",\"clientSub\":\"שתי דקות, ומשם רק מצלמים קבלות מהטלפון\",\"clientTitle\":\"הרשמה לפייפרלס\",\"dataSource\":\"unknown\",\"paperlessStatus\":\"unknown\"},\"stepType\":\"paperless_invite\"},{\"ball\":\"me\",\"key\":\"p1\",\"lockAfter\":[\"הרשמה לפייפרלס\"],\"owner\":\"me\",\"payload\":{\"clientSub\":\"בימים הקרובים ניכנס לחשבון ונשלים את החיבור. אין צורך לעשות דבר כרגע.\",\"clientTitle\":\"חיבור לפייפרלס\"},\"status\":\"locked\",\"stepType\":\"paperless_connection\"},{\"ball\":\"me\",\"key\":\"p2\",\"lockAfter\":[\"חיבור לפייפרלס\"],\"owner\":\"me\",\"payload\":{\"clientCta\":\"להזנה\",\"clientSub\":\"הסכום שסוכם בהצעה, כהרשאה קבועה\",\"clientTitle\":\"להזין אמצעי תשלום\"},\"status\":\"locked\",\"stepType\":\"retainer_authorization\"}]}": {
+   "ok": true,
+   "done": 0,
+   "items": [
+    {
+     "cta": "נרשמתי לפייפרלס",
+     "key": "paperless_signup",
+     "sub": "שתי דקות, ומשם רק מצלמים קבלות מהטלפון",
+     "kind": "paperless_signup",
+     "label": "הרשמה לפייפרלס",
+     "bucket": "action",
+     "linkUrl": "https://app.paperless.co.il/signup/demo",
+     "actionKind": "portal",
+     "actionValue": "sample-p0",
+     "businessName": "ישראלי ייעוץ (דוגמה)",
+     "needsBusinessName": true
+    },
+    {
+     "key": "paperless_connect",
+     "sub": "ייפתח אחרי הרשמה לפייפרלס",
+     "label": "חיבור לפייפרלס",
+     "bucket": "future"
+    },
+    {
+     "key": "retainer_future",
+     "sub": "ייפתח אחרי חיבור לפייפרלס",
+     "label": "הרשאת התשלום החודשי",
+     "bucket": "future"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "p0",
+     "owner": "client",
+     "title": "הרשמה לפייפרלס",
+     "internal": false,
+     "itemKeys": [
+      "paperless_signup"
+     ],
+     "stepType": "paperless_invite"
+    },
+    {
+     "ok": true,
+     "key": "p1",
+     "owner": "me",
+     "title": "חיבור לפייפרלס",
+     "internal": false,
+     "itemKeys": [
+      "paperless_connect"
+     ],
+     "stepType": "paperless_connection"
+    },
+    {
+     "ok": true,
+     "key": "p2",
+     "owner": "me",
+     "title": "להזין אמצעי תשלום",
+     "internal": false,
+     "itemKeys": [
+      "retainer_future"
+     ],
+     "stepType": "retainer_authorization"
+    }
+   ],
+   "total": 1,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"samples\":[{\"ball\":\"client\",\"key\":\"p0\",\"owner\":\"client\",\"payload\":{\"clientCta\":\"נרשמתי לפייפרלס\",\"clientSub\":\"שתי דקות, ומשם רק מצלמים קבלות מהטלפון\",\"clientTitle\":\"הרשמה לפייפרלס\",\"dataSource\":\"unknown\",\"paperlessStatus\":\"unknown\"},\"status\":\"completed\",\"stepType\":\"paperless_invite\"},{\"ball\":\"me\",\"key\":\"p1\",\"owner\":\"me\",\"payload\":{\"clientSub\":\"בימים הקרובים ניכנס לחשבון ונשלים את החיבור. אין צורך לעשות דבר כרגע.\",\"clientTitle\":\"חיבור לפייפרלס\"},\"status\":\"completed\",\"stepType\":\"paperless_connection\"},{\"ball\":\"me\",\"key\":\"p2\",\"owner\":\"me\",\"payload\":{\"clientCta\":\"להזנה\",\"clientSub\":\"הסכום שסוכם בהצעה, כהרשאה קבועה\",\"clientTitle\":\"להזין אמצעי תשלום\"},\"status\":\"completed\",\"stepType\":\"retainer_authorization\"}]}": {
+   "ok": true,
+   "done": 3,
+   "items": [
+    {
+     "key": "paperless_signup",
+     "label": "הרשמה לפייפרלס",
+     "bucket": "done"
+    },
+    {
+     "key": "paperless",
+     "label": "חיבור לפייפרלס",
+     "bucket": "done"
+    },
+    {
+     "key": "retainer",
+     "label": "החיוב החודשי הוסדר",
+     "bucket": "done"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "p0",
+     "owner": "client",
+     "title": "הרשמה לפייפרלס",
+     "internal": false,
+     "itemKeys": [
+      "paperless_signup"
+     ],
+     "stepType": "paperless_invite"
+    },
+    {
+     "ok": true,
+     "key": "p1",
+     "owner": "me",
+     "title": "חיבור לפייפרלס",
+     "internal": false,
+     "itemKeys": [
+      "paperless"
+     ],
+     "stepType": "paperless_connection"
+    },
+    {
+     "ok": true,
+     "key": "p2",
+     "owner": "me",
+     "title": "להזין אמצעי תשלום",
+     "internal": false,
+     "itemKeys": [
+      "retainer"
+     ],
+     "stepType": "retainer_authorization"
+    }
+   ],
+   "total": 3,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"samples\":[{\"key\":\"a\",\"payload\":{\"clientCta\":\"ביצעתי את החיבור\",\"clientLinkUrl\":\"https://academy-bu.paperless.tax/he/articles/11424861-%D7%97%D7%99%D7%91%D7%95%D7%A8-%D7%94%D7%9E%D7%A2%D7%A8%D7%9B%D7%AA-%D7%9C%D7%A8%D7%A9%D7%95%D7%AA-%D7%94%D7%9E%D7%99%D7%A1%D7%99%D7%9D\",\"clientNote\":\"1. בפייפרלס: הגדרות ← חיבורים והרשאות, ולחיצה על אייקון הקישור.\\n2. נפתח אתר רשות המסים ומבקש הזדהות - תעודת זהות וקוד קבוע (לא כרטיס חכם). מאשרים את ההרשאה.\\n3. חוזרים לפייפרלס ולוחצים \\\"המשך\\\".\",\"clientNoteAfter\":\"החיבור תקף לשלושה חודשים ואז צריך לחדש אותו - נזכיר לך כשיגיע הזמן. אם החיבור נכשל, ממתינים כשלוש שעות ומנסים שוב.\",\"clientSub\":\"כדי שהחשבוניות שלך יקבלו מספר הקצאה\",\"clientTitle\":\"חיבור פייפרלס לרשות המסים\"},\"stepType\":\"paperless_tax_authority\"}]}": {
+   "ok": true,
+   "done": 0,
+   "items": [
+    {
+     "cta": "ביצעתי את החיבור",
+     "key": "paperless_tax",
+     "sub": "כדי שהחשבוניות שלך יקבלו מספר הקצאה",
+     "kind": "declare",
+     "note": "1. בפייפרלס: הגדרות ← חיבורים והרשאות, ולחיצה על אייקון הקישור.\n2. נפתח אתר רשות המסים ומבקש הזדהות - תעודת זהות וקוד קבוע (לא כרטיס חכם). מאשרים את ההרשאה.\n3. חוזרים לפייפרלס ולוחצים \"המשך\".",
+     "label": "חיבור פייפרלס לרשות המסים",
+     "bucket": "action",
+     "linkUrl": "https://academy-bu.paperless.tax/he/articles/11424861-%D7%97%D7%99%D7%91%D7%95%D7%A8-%D7%94%D7%9E%D7%A2%D7%A8%D7%9B%D7%AA-%D7%9C%D7%A8%D7%A9%D7%95%D7%AA-%D7%94%D7%9E%D7%99%D7%A1%D7%99%D7%9D",
+     "noteAfter": "החיבור תקף לשלושה חודשים ואז צריך לחדש אותו - נזכיר לך כשיגיע הזמן. אם החיבור נכשל, ממתינים כשלוש שעות ומנסים שוב.",
+     "actionKind": "portal",
+     "actionValue": "sample-a"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "a",
+     "owner": "client",
+     "title": "חיבור פייפרלס לרשות המסים",
+     "internal": false,
+     "itemKeys": [
+      "paperless_tax"
+     ],
+     "stepType": "paperless_tax_authority"
+    }
+   ],
+   "total": 1,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"samples\":[{\"key\":\"a\",\"payload\":{\"clientCta\":\"ביצעתי את החיבור\",\"clientLinkUrl\":\"https://academy-bu.paperless.tax/he/articles/11424861-%D7%97%D7%99%D7%91%D7%95%D7%A8-%D7%94%D7%9E%D7%A2%D7%A8%D7%9B%D7%AA-%D7%9C%D7%A8%D7%A9%D7%95%D7%AA-%D7%94%D7%9E%D7%99%D7%A1%D7%99%D7%9D\",\"clientNote\":\"1. בפייפרלס: הגדרות ← חיבורים והרשאות, ולחיצה על אייקון הקישור.\\n2. נפתח אתר רשות המסים ומבקש הזדהות - תעודת זהות וקוד קבוע (לא כרטיס חכם). מאשרים את ההרשאה.\\n3. חוזרים לפייפרלס ולוחצים \\\"המשך\\\".\",\"clientNoteAfter\":\"החיבור תקף לשלושה חודשים ואז צריך לחדש אותו - נזכיר לך כשיגיע הזמן. אם החיבור נכשל, ממתינים כשלוש שעות ומנסים שוב.\",\"clientSub\":\"כדי שהחשבוניות שלך יקבלו מספר הקצאה\",\"clientTitle\":\"חיבור פייפרלס לרשות המסים\"},\"status\":\"completed\",\"stepType\":\"paperless_tax_authority\"}]}": {
+   "ok": true,
+   "done": 1,
+   "items": [
+    {
+     "key": "paperless_tax",
+     "label": "חיבור פייפרלס לרשות המסים",
+     "bucket": "done"
+    }
+   ],
+   "specs": [
+    {
+     "ok": true,
+     "key": "a",
+     "owner": "client",
+     "title": "חיבור פייפרלס לרשות המסים",
+     "internal": false,
+     "itemKeys": [
+      "paperless_tax"
+     ],
+     "stepType": "paperless_tax_authority"
+    }
+   ],
+   "total": 1,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  },
+  "{\"samples\":[{\"key\":\"a\",\"payload\":{},\"stepType\":\"data_import\"}]}": {
+   "ok": true,
+   "done": 0,
+   "items": [],
+   "specs": [
+    {
+     "ok": true,
+     "key": "a",
+     "owner": "client",
+     "title": null,
+     "internal": false,
+     "itemKeys": [],
+     "stepType": "data_import"
+    }
+   ],
+   "total": 0,
+   "sample": true,
+   "journeyStage": "setup",
+   "clientFirstName": "ישראל"
+  }
+ }
+}

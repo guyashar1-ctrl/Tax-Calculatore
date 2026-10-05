@@ -22,6 +22,7 @@ import { BTL6101_TEMPLATE } from '../../features/smartForms/btl6101/template';
 import { fetchMappingState, type MappingState } from '../../features/smartForms/mapping';
 import { assetRef, type AssetRef } from './officeModel';
 import { UsedIn, focusOfUse, type GoFn, type LibraryUse } from './pages/library/usedIn';
+import PreviewButton from '../../features/requestPreview/PreviewButton';
 import './clientDocs.css';
 
 const MAX_BYTES = 10 * 1024 * 1024;
@@ -83,9 +84,11 @@ interface Props {
   go: GoFn;
   /** «שליחה ללקוח» — בוחרים לקוח, ונפתח אצלו חלון השליחה עם הקובץ. */
   onSendToClient?: (doc: { id: string; label: string; fileName?: string }) => void;
+  /** «צפייה» — איך הלקוח מקבל את המסמך (הבקשה בדף שלו). */
+  onPreview?: (doc: { id: string; label: string }) => void;
 }
 
-export default function ClientDocumentsSection({ profile, saved, setDraft, noteUpload, usesOf, go, onSendToClient }: Props) {
+export default function ClientDocumentsSection({ profile, saved, setDraft, noteUpload, usesOf, go, onSendToClient, onPreview }: Props) {
   const docs = documentLibrary(profile);
   const savedDocs = new Map(documentLibrary(saved).map(d => [d.id, d]));
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -239,7 +242,9 @@ export default function ClientDocumentsSection({ profile, saved, setDraft, noteU
                       {/* «בשימוש ב» בשורה עצמה — כמו בבקשות, ולא רשימה נפרדת שחוזרת על שמות הקבצים. */}
                       {uses.length > 0 && <div className="cdx-meta"><UsedIn uses={uses} go={go} loading={false} /></div>}
                     </div>
-                    <a className="btn btn-ghost btn-sm" href={d.url} target="_blank" rel="noopener noreferrer">צפייה</a>
+                    {/* ‼ «צפייה» שמורה למה שהלקוח מקבל (הבקשה בדף שלו); הקובץ עצמו — «פתיחת הקובץ». */}
+                    {onPreview && <PreviewButton name={d.label} onClick={() => onPreview({ id: d.id, label: d.label })} />}
+                    <a className="btn btn-ghost btn-sm" href={d.url} target="_blank" rel="noopener noreferrer">פתיחת הקובץ</a>
                     {onSendToClient && (
                       <button type="button" className="btn btn-secondary btn-sm"
                         disabled={!!pending} title={pending ? 'אפשר לשלוח אחרי «שמירה»' : undefined}

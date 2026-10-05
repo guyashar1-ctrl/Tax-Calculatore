@@ -52,10 +52,15 @@ interface Props {
   onOpenClient?: (clientId: string, tab?: ClientTabId | 'rep-center') => void;
   /** מה לפתוח בעמוד, מהכתובת (‎#/firm/library/request:…‎ / ‎#/firm/flows/flow:…‎). */
   focus?: string | null;
+  /**
+   * ‼ «צפייה» בספרייה (‎#/firm/library/view:…‎): מה שפתוח במגירה נכתב לכתובת, כך שרענון ו«אחורה» עובדים.
+   * replace = שינוי בחירה בלבד (בלי צעד חדש בהיסטוריה).
+   */
+  onFocusChange?: (focus: string | null, replace?: boolean) => void;
 }
 
 
-export default function FirmProfileConsole({ profile, clients, onSave, page: routePage, onPageChange, onOpenClient, focus: routeFocus }: Props) {
+export default function FirmProfileConsole({ profile, clients, onSave, page: routePage, onPageChange, onOpenClient, focus: routeFocus, onFocusChange }: Props) {
   const office = useOfficeDraft(profile, onSave);
   const { draft, setDraft } = office;
 
@@ -67,7 +72,11 @@ export default function FirmProfileConsole({ profile, clients, onSave, page: rou
   const page = location?.page ?? null;
   const shown: OfficePageId = page ?? DEFAULT_OFFICE_PAGE;
   // מה לפתוח בעמוד: מכתובת ישנה (‎#/firm/signature‎) או מקישור בעמוד אחר.
-  const [focus, setFocus] = useState<string | null>(routeFocus ?? location?.focus ?? null);
+  // ‼ ‎view:…‎ (מגירת «צפייה») אינו נחיתה בעמוד: הוא לא נכנס ל-focus ולא מרכיב מחדש את הספרייה.
+  const isViewFocus = (f: string | null | undefined) => !!f && f.startsWith('view:');
+  const [focus, setFocus] = useState<string | null>(isViewFocus(routeFocus ?? location?.focus) ? null : routeFocus ?? location?.focus ?? null);
+  const [localView, setLocalView] = useState<string | null>(null);
+  const viewFocus = controlled && onFocusChange ? (isViewFocus(routeFocus) ? routeFocus ?? null : null) : localView;
   const go = useCallback((p: OfficePageId | null, f?: string) => {
     setFocus(f ?? null);
     if (controlled) onPageChange!(p);
@@ -78,7 +87,7 @@ export default function FirmProfileConsole({ profile, clients, onSave, page: rou
   useEffect(() => {
     if (rawPage !== lastRaw.current) {
       lastRaw.current = rawPage;
-      if (location?.focus) setFocus(location.focus);
+      if (location?.focus && !isViewFocus(location.focus)) setFocus(location.focus);
     }
   }, [rawPage, location?.focus]);
   // קישור עמוק מכרטיס לקוח («פתח בספרייה» / «פתח את המסלול») — נוחת על הפריט.
@@ -88,7 +97,7 @@ export default function FirmProfileConsole({ profile, clients, onSave, page: rou
   useEffect(() => {
     if ((routeFocus ?? null) !== lastRouteFocus.current) {
       lastRouteFocus.current = routeFocus ?? null;
-      if (routeFocus) setFocus(routeFocus);
+      if (routeFocus && !isViewFocus(routeFocus)) setFocus(routeFocus);
     }
   }, [routeFocus]);
 
@@ -202,6 +211,8 @@ export default function FirmProfileConsole({ profile, clients, onSave, page: rou
           {shown === 'team' && <EmployeesPanel clients={clients} />}
           {shown === 'library' && (
             <LibraryPage key={`library-${focus ?? ''}`} focus={focus} draft={draft} saved={profile} setDraft={setDraft}
+              viewFocus={viewFocus}
+              onViewFocusChange={controlled && onFocusChange ? onFocusChange : f => setLocalView(f)}
               noteUpload={office.noteUpload} go={go}
               onSendToClient={onOpenClient ? d => setSendDoc(d) : undefined} />
           )}

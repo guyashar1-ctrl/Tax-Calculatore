@@ -74,10 +74,10 @@ for (const [w, h] of SIZES) {
   });
   ok(`${tag} כרטיס: כותרת, מדריך, קישור, אתר, «אישרתי»`, /אישור הייצוג באזור האישי/.test(card) && /מדריך מצולם · 7 צעדים/.test(card)
     && /לכניסה לאזור האישי/.test(card) && /נפתח באתר gov\.il/.test(card) && /נדרשות כניסה והזדהות/.test(card) && /אישרתי באזור האישי/.test(card), card.replace(/\s+/g, ' ').slice(0, 120));
-  ok(`${tag} נוסח: «את כל הבקשות», בלי «\\n» כטקסט`, /מסמנים את כל הבקשות שבהן המשרד מופיע כמייצג, ולוחצים «אישור ייצוג»/.test(card) && !card.includes('\\n') && !/את הבקשה שבה/.test(card));
+  ok(`${tag} נוסח: «את כל הבקשות», בלי «\\n» כטקסט`, /מסמן את כל הבקשות שלנו ולוחץ «אישור ייצוג»/.test(card) && !card.includes('\\n') && !/את הבקשה שבה/.test(card));
   const what = await page.$eval('[data-testid="rep-approval-what"]', e => e.innerText).catch(() => '');
-  ok(`${tag} «מה מסמנים באזור האישי» — שורה לכל אחד, ומי נכנס לאיפה`, /מה מסמנים באזור האישי/.test(what) && /דוד: מע״מ/.test(what)
-    && /רחל: מס הכנסה ומע״מ/.test(what) && /כל אחד נכנס לאזור האישי שלו ומאשר את הבקשות שעל שמו/.test(what), what.replace(/\s+/g, ' '));
+  ok(`${tag} מה כל אחד מסמן באזור האישי — משפט פתיחה, ושורה לכל אחד`, /כל אחד נכנס לאזור האישי שלו, מסמן את כל הבקשות שלנו ולוחץ «אישור ייצוג»/.test(what) && /דוד: מע״מ/.test(what)
+    && /רחל: מס הכנסה ומע״מ/.test(what) && !what.includes('\\n'), what.replace(/\s+/g, ' '));
   const whatBox = await page.$eval('[data-testid="rep-approval-what"]', e => { const r = e.getBoundingClientRect(); return { l: Math.round(r.left), r: Math.round(r.right) }; }).catch(() => null);
   ok(`${tag} הבלוק בתוך המסך`, !!whatBox && whatBox.l >= 0 && whatBox.r <= w, JSON.stringify(whatBox));
   const bareTitles = await page.evaluate(() => [...document.querySelectorAll('div, span, h3, h4, p')]

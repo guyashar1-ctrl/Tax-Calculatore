@@ -150,6 +150,7 @@ import TestSpouseLink from './components/__TestSpouseLink';
 import TestAddRequestDialog from './components/__TestAddRequestDialog';
 import TestRegisteredSpouse from './components/__TestRegisteredSpouse';
 import TestPoaStamp from './components/__TestPoaStamp';
+import TestLinkedScreens from './components/linkedScreens/__TestLinkedScreens';
 import TestShaamRepresentation from './components/__TestShaamRepresentation';
 import PublicSignPage from './components/PublicSignPage';
 import PublicSmartFormSignPage from './features/smartForms/PublicSmartFormSignPage';
@@ -505,6 +506,10 @@ export default function App() {
   if (import.meta.env.DEV && typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('test-poastamp')) {
     return <TestPoaStamp />;
   }
+  // 05.10.2026 · המסכים שהלקוח מגיע אליהם בקישור אישי, בתצוגה לדוגמה («צפייה» בבקשה).
+  if (import.meta.env.DEV && typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('test-linked')) {
+    return <TestLinkedScreens />;
+  }
   // עמוד הזדהות ציבורי ללקוח — נטען ללא התחברות לפי טוקן.
   if (typeof window !== 'undefined') {
     // הדפים שהלקוח רואה נשארים תמיד בהירים — הם נושאים את מיתוג המשרד,
@@ -801,13 +806,16 @@ export default function App() {
     officeFocus: view === 'firmProfile' ? officeFocus ?? undefined : undefined,
   });
   const syncedPath = useRef<string | null>(null);
+  /** ‼ שינוי בחירה ב«צפייה» בספרייה מחליף את הרשומה בהיסטוריה — לא צעד חדש. */
+  const replaceNextRoute = useRef(false);
 
   useEffect(() => {
     if (syncedPath.current === currentPath) return;
     const first = syncedPath.current === null;
     syncedPath.current = currentPath;
     // הכניסה הראשונה מחליפה את הרשומה הקיימת; משם והלאה כל מסך הוא צעד חדש
-    window.history[first ? 'replaceState' : 'pushState'](null, '', '#' + currentPath);
+    window.history[first || replaceNextRoute.current ? 'replaceState' : 'pushState'](null, '', '#' + currentPath);
+    replaceNextRoute.current = false;
   }, [currentPath]);
 
   useEffect(() => {
@@ -3104,6 +3112,7 @@ export default function App() {
               page={officePage}
               focus={officeFocus}
               onPageChange={(p: string | null) => { setOfficePage(p); setOfficeFocus(null); }}
+              onFocusChange={(f: string | null, replace?: boolean) => { replaceNextRoute.current = !!replace; setOfficeFocus(f); }}
               onOpenClient={openClientFromOffice}
             />
           ) : (

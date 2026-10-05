@@ -291,7 +291,7 @@ export default function FlowBuilder({ flow, templates, profile, focusStage, focu
       )}
       {openItem && itemStage && (
         <ItemSheet def={def} trigger={flow.trigger} stage={itemStage} item={openItem} title={title}
-          actor={itemActor(openItem, templates)} issues={shownIssues.filter(x => x.itemKey === openItem.key)}
+          actor={itemActor(openItem, templates)} templates={templates} profile={profile} issues={shownIssues.filter(x => x.itemKey === openItem.key)}
           personalConfirm={personalConfirmOf(openItem, lib)} openList={listOpenFor === openItem.key}
           inLibrary={openItem.ref.kind === 'template' ? !!lib.template(openItem.ref.templateId)
             : openItem.ref.kind === 'document' ? !!lib.document(openItem.ref.docId) : false}
@@ -299,7 +299,7 @@ export default function FlowBuilder({ flow, templates, profile, focusStage, focu
           onChange={setDef} onClose={() => { setItemSheet(null); setListOpenFor(null); }} />
       )}
       {addStageObj && (
-        <AddSheet def={def} trigger={flow.trigger} stage={addStageObj} templates={templates} docs={docs}
+        <AddSheet def={def} trigger={flow.trigger} stage={addStageObj} templates={templates} docs={docs} profile={profile}
           onAdd={item => { setDef(d => ({ ...d, stages: d.stages.map(s => s.key === addStageObj.key ? { ...s, items: [...s.items, item] } : s) })); setAddTo(null); }}
           onClose={() => setAddTo(null)} onOpenLibrary={leaveTo(() => onOpenLibrary())} />
       )}

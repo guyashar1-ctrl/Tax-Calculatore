@@ -20,8 +20,12 @@
 // (פייפרלס, העברת טיפול, ייצוג) — קבוצה קבועה עם הבקשות שבה. אין יותר רשימה נפרדת «נפתחות
 // אוטומטית»: בקשת מערכת היא שורה רגילה, עם «מתי נפתחת?» אל כלל הפתיחה ועם הגבלות העריכה שלה.
 //
+// ‼ (5.10.2026) «צפייה» — כל שורה (בקשה, בקשת מערכת, קבוצה וכל בקשה בתוכה, מסמך) פותחת מגירה שמראה בדיוק מה שהלקוח מקבל, על נתוני
+// דוגמה מסומנים (features/requestPreview). היא לא שולחת, לא שומרת ולא חותמת; הפעולה הקיימת בשורה נשארת.
+//
 // focus: 'requests' | 'documents' | 'request:<templateId>' (נוחת על השורה; גם מזהה
 // של מובנית שהמשרד ערך) | 'auto' | 'auto:<stepType>' (פותח את קטע הקליטה).
+// viewFocus: 'view:<יעד>[@<בחירה>]' — מה שפתוח במגירה (בכתובת, כדי שרענון ו«אחורה» יעבדו).
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import type { FirmProfile } from '../../../types/firmProfile';
 import type { AssetRef, OfficePageId } from '../officeModel';
@@ -42,6 +46,10 @@ import RequestEditor from './library/RequestEditor';
 import type { AutoRow } from './library/AutoSection';
 import GroupEntry, { type GroupChildModel } from './library/GroupEntry';
 import { GROUP_ORDER, REQUEST_GROUPS, type RequestGroupKey } from '../../../features/requests/requestGroups';
+import RequestPreviewSheet from '../../../features/requestPreview/RequestPreviewSheet';
+import PreviewButton from '../../../features/requestPreview/PreviewButton';
+import type { EditHint } from '../../../features/requestPreview/registry';
+import { parseViewFocus, resolveFocus, targetKey, targetOfTemplate, targetToFocus, type PreviewTarget, type Selection } from '../../../features/requestPreview/targets';
 import './library.css';
 import '../../../features/requests/requestGroups.css';
 
@@ -58,13 +66,17 @@ interface Props {
   onSendToClient?: (doc: { id: string; label: string; fileName?: string }) => void;
   /** ראה למעלה — המדף, השורה או קטע הקליטה שנפתחים. */
   focus?: string | null;
+  /** «צפייה» שפתוחה — מהכתובת. */
+  viewFocus?: string | null;
+  /** מדווחת לכתובת מה פתוח (replace = שינוי בחירה בלבד, בלי צעד חדש בהיסטוריה). בלי — המגירה מקומית. */
+  onViewFocusChange?: (focus: string | null, replace?: boolean) => void;
   go: (page: OfficePageId | null, focus?: string) => void;
 }
 
 /** הבקשות שהמערכת יוצרת במסלול הקליטה — מוצגות, לא נערכות כאן. */
 const SYSTEM_ROWS = ['representation', ...CATALOG_STEP_TYPES];
 
-export default function LibraryPage({ draft, saved, setDraft, noteUpload, onSendToClient, focus, go }: Props) {
+export default function LibraryPage({ draft, saved, setDraft, noteUpload, onSendToClient, focus, viewFocus, onViewFocusChange, go }: Props) {
   const [shelf, setShelf] = useState<Shelf>(focus === 'documents' ? 'documents' : 'requests');
   const [templates, setTemplates] = useState<RequestTemplate[] | null>(null);
   const [flows, setFlows] = useState<OfficeFlow[] | null>(null);
@@ -75,6 +87,23 @@ export default function LibraryPage({ draft, saved, setDraft, noteUpload, onSend
   const [flash, setFlash] = useState<string | null>(null);
   const [highlight, setHighlight] = useState<string | null>(null);
   const [onlyGaps, setOnlyGaps] = useState(false);
+  // ── «צפייה» ──
+  const [view, setView] = useState<{ target: PreviewTarget; sel: Selection } | null>(null);
+  const [viewMissing, setViewMissing] = useState(false);
+  const urlBacked = !!onViewFocusChange;
+  /** נפתחה בצעד חדש בהיסטוריה — סגירה היא «אחורה», כך שהכפתור «אחורה» והסגירה זהים. */
+  const pushedRef = useRef(false);
+  const openView = useCallback((target: PreviewTarget, sel: Selection = {}) => {
+    setViewMissing(false);
+    setView({ target, sel });
+    const f = targetToFocus(target, sel);
+    if (f && onViewFocusChange) { pushedRef.current = true; onViewFocusChange(f); }
+  }, [onViewFocusChange]);
+  const closeView = useCallback(() => {
+    if (urlBacked && pushedRef.current) { pushedRef.current = false; window.history.back(); return; }
+    setView(null);
+    onViewFocusChange?.(null);
+  }, [urlBacked, onViewFocusChange]);
 
   const reloadTemplates = useCallback(async () => {
     const l = await loadRequestTemplates();
@@ -104,6 +133,19 @@ export default function LibraryPage({ draft, saved, setDraft, noteUpload, onSend
   // השם של קובץ שהוסר רק בטיוטה — מהשמור (לפריט במסלול אין תמיד עותק של השם).
   const savedDocLabels = useMemo(() => new Map(documentLibrary(saved).map(d => [d.id, d.label])), [saved]);
   const onboarding = flowList.find(f => f.trigger === 'quote_approved') ?? null;
+
+  // ‼ מהכתובת: רענון או «אחורה». נסגר כשהכתובת נקייה; נפתח כשיש בה יעד שקיים בספרייה (נמחק ⇒ משפט, לא מגירה ריקה).
+  useEffect(() => {
+    const parsed = parseViewFocus(viewFocus);
+    if (!parsed) { if (urlBacked) setView(v => (v ? null : v)); return; }
+    if (!templates) return;
+    const t = resolveFocus(parsed, {
+      templates, docs: docs.map(d => ({ id: d.id, label: d.label })), systemName: autoLabel,
+      groupTitle: g => REQUEST_GROUPS[g].title, catalogName: c => c,
+    });
+    if (!t) { setViewMissing(true); onViewFocusChange?.(null, true); return; }
+    setView(v => (v && targetKey(v.target) === targetKey(t) ? v : { target: t, sel: parsed.selection }));
+  }, [viewFocus, templates, docs, urlBacked, onViewFocusChange]);
 
   // ── הרשימה האחת ──
   const all = useMemo(() => sortByName((templates ?? []).map(t => ({
@@ -178,10 +220,13 @@ export default function LibraryPage({ draft, saved, setDraft, noteUpload, onSend
     } else if (auto?.focus) {
       action = { label: 'מתי נפתחת?', onClick: () => go('flows', auto.focus ?? 'onboarding') };
     }
+    // ‼ G4 · כרטיס «אישור הייצוג באזור האישי»: השורה, ההסבר, משפט הסיום ותווית הקישור נערכים ב«מיילים» — לא «נוסח קבוע».
+    const inEmails = m.stepType === 'rep_client_approval';
     return {
       key: m.stepType, title: m.title, actor: m.actor, when,
-      hint: tRow ? m.hint : `${m.hint} · נוסח קבוע של המערכת`,
-      action,
+      hint: inEmails ? `${m.hint} · הנוסח נערך ב«מיילים»` : tRow ? m.hint : `${m.hint} · נוסח קבוע של המערכת`,
+      action: inEmails ? { label: 'עריכת הנוסח ב«מיילים» ←', onClick: () => go('emails', 'rep:portal'), aria: `עריכת הנוסח ב«מיילים»: ${m.title}` } : action,
+      onPreview: () => openView({ kind: 'system', stepType: m.stepType, name: m.title }),
     };
   });
   // ‼ חיפוש שמוצא מסמך ולא בקשה — אומרים איפה הוא, במקום להציע ליצור בקשה באותו שם.
@@ -251,6 +296,27 @@ export default function LibraryPage({ draft, saved, setDraft, noteUpload, onSend
   }, [flowList, usesUnknown, docs, savedDocLabels]);
   const editingUses = editing?.template && !usesUnknown ? libraryUses(flowList, byLibraryRow(editing.template)) : null;
 
+  /** מה «עריכה» שבתחתית המגירה עושה — אותה פעולה כמו הכפתור בשורה, באותו מקום שבו עורכים. */
+  const onPreviewEdit = (hint: EditHint) => {
+    const t = view?.target;
+    if (hint.kind === 'editor' && t?.kind === 'template') {
+      const row = all.find(r => r.t.id === t.templateId);
+      if (!row) return;
+      const route = intakeRoute(row.t, row.uses);
+      setView(null); pushedRef.current = false;
+      if (route) { onViewFocusChange?.(null); go('flows', route); } else { onViewFocusChange?.(null); setEditing({ template: row.t }); }
+      return;
+    }
+    setView(null); pushedRef.current = false; onViewFocusChange?.(null);
+    if (hint.kind === 'emails') go('emails', hint.focus || undefined);
+    else if (hint.kind === 'docsShelf') setShelf('documents');
+    else if (hint.kind === 'rules') {
+      if (t?.kind === 'group') go('flows', t.group === 'representation' ? 'representation' : 'onboarding');
+      else if (t?.kind === 'system') go('flows', autoByType.get(t.stepType)?.focus ?? addFocus);
+      else go('flows', addFocus);
+    }
+  };
+
   return (
     <div className="lb">
       <div className="lb-toolbar">
@@ -274,6 +340,7 @@ export default function LibraryPage({ draft, saved, setDraft, noteUpload, onSend
 
       {flowsError && <p className="lb-sub is-warn">לא הצלחתי לטעון את המסלולים — «בשימוש ב» לא מוצג כרגע.</p>}
       {flash && <p className="lb-flash" role="status">✓ {flash}</p>}
+      {viewMissing && <p className="lb-sub is-warn" role="status">הבקשה הזאת כבר לא בספרייה — אין מה להציג.</p>}
 
       {shelf === 'requests' && (
         templates === null ? <div className="of-empty">טוען את הספרייה…</div> : (
@@ -334,6 +401,7 @@ export default function LibraryPage({ draft, saved, setDraft, noteUpload, onSend
                       return (
                         <li key={rowId} className="lb-group-li">
                           <GroupEntry groupKey={e.key} kids={kidsOf(e.key)} rowId={rowId} highlight={highlight === rowId}
+                            onPreview={() => openView({ kind: 'group', group: e.key, name: REQUEST_GROUPS[e.key].title })}
                             defaultOpen={e.key === 'paperless' || !!term}
                             onRules={() => go('flows', e.key === 'representation' ? 'representation' : 'onboarding')} />
                         </li>
@@ -346,11 +414,15 @@ export default function LibraryPage({ draft, saved, setDraft, noteUpload, onSend
                       return (
                         <li key={rowId} id={rowId} className={`lb-row${highlight === rowId ? ' is-focus' : ''}`}>
                           <div className="lb-row-title">
-                            <span className="lb-name">{r.label}</span>
+                            <button type="button" className="lb-name lb-name-btn" aria-label={`צפייה: ${r.label}`}
+                              onClick={() => openView({ kind: 'system', stepType: r.stepType, name: r.label })}>{r.label}</button>
                             <span className="lb-preset">בקשה אחת · של המערכת</span>
                           </div>
-                          <button type="button" className="btn btn-secondary btn-sm lb-edit"
-                            aria-label={`מתי נפתחת: ${r.label}`} onClick={() => go('flows', r.focus ?? addFocus)}>מתי נפתחת?</button>
+                          <div className="lb-acts">
+                            <PreviewButton name={r.label} onClick={() => openView({ kind: 'system', stepType: r.stepType, name: r.label })} />
+                            <button type="button" className="btn btn-secondary btn-sm lb-edit"
+                              aria-label={`מתי נפתחת: ${r.label}`} onClick={() => go('flows', r.focus ?? addFocus)}>מתי נפתחת?</button>
+                          </div>
                           <div className="lb-row-meta lb-segs">
                             <span className="lb-seg">{off ? 'לא בכלל הקליטה — נפתחת רק ידנית מכרטיס הלקוח' : r.when}</span>
                             <span className="lb-seg">נוסח קבוע של המערכת</span>
@@ -368,16 +440,20 @@ export default function LibraryPage({ draft, saved, setDraft, noteUpload, onSend
                     return (
                       <li key={t.id} id={rowId} className={`lb-row${highlight === rowId ? ' is-focus' : ''}`}>
                         <div className="lb-row-title">
-                          <span className="lb-name">{t.name}</span>
+                          <button type="button" className="lb-name lb-name-btn" aria-label={`צפייה: ${t.name}`}
+                            onClick={() => openView(targetOfTemplate(t))}>{t.name}</button>
                           <span className="lb-preset">{!route && isPreset(t) ? 'בקשה אחת · נוסח מוכן' : 'בקשה אחת'}</span>
                         </div>
-                        {route ? (
-                          <button type="button" className="btn btn-secondary btn-sm lb-edit"
-                            aria-label={`עריכה במסלול הקליטה: ${t.name}`} onClick={() => go('flows', route)}>עריכה ←</button>
-                        ) : (
-                          <button type="button" className="btn btn-secondary btn-sm lb-edit"
-                            aria-label={`עריכה: ${t.name}`} onClick={() => setEditing({ template: t })}>עריכה</button>
-                        )}
+                        <div className="lb-acts">
+                          <PreviewButton name={t.name} onClick={() => openView(targetOfTemplate(t))} />
+                          {route ? (
+                            <button type="button" className="btn btn-secondary btn-sm lb-edit"
+                              aria-label={`עריכה במסלול הקליטה: ${t.name}`} onClick={() => go('flows', route)}>עריכה ←</button>
+                          ) : (
+                            <button type="button" className="btn btn-secondary btn-sm lb-edit"
+                              aria-label={`עריכה: ${t.name}`} onClick={() => setEditing({ template: t })}>עריכה</button>
+                          )}
+                        </div>
                         <div className="lb-row-meta lb-segs">
                           {sees && <span className="lb-seg lb-sees">{sees}</span>}
                           <span className="lb-seg lb-actor">{actor}</span>
@@ -414,12 +490,24 @@ export default function LibraryPage({ draft, saved, setDraft, noteUpload, onSend
             </p>
           ))}
           <ClientDocumentsSection profile={draft} saved={saved} setDraft={setDraft}
-            noteUpload={noteUpload} usesOf={usesOfDoc} go={go} onSendToClient={onSendToClient} />
+            noteUpload={noteUpload} usesOf={usesOfDoc} go={go} onSendToClient={onSendToClient}
+            onPreview={d => openView({ kind: 'doc', docId: d.id, name: d.label })} />
         </>
       )}
 
+      {view && (
+        <RequestPreviewSheet key={targetKey(view.target)} target={view.target} selection={view.sel} profile={saved}
+          onClose={closeView}
+          onSelectionChange={sel => {
+            setView(v => (v ? { ...v, sel } : v));
+            const f = targetToFocus(view.target, sel);
+            if (f) onViewFocusChange?.(f, true);
+          }}
+          onEdit={onPreviewEdit} />
+      )}
+
       {editing && (
-        <RequestEditor template={editing.template} initialName={editing.name} go={go}
+        <RequestEditor template={editing.template} initialName={editing.name} profile={saved} go={go}
           uses={editingUses}
           onClose={() => setEditing(null)}
           onSaved={nm => { setEditing(null); setFlash(`נשמר · ${nm}`); void reloadTemplates().then(() => setLandOn(nm)); }}

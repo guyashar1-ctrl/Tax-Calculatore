@@ -66,7 +66,7 @@ export default function PortalPreviewPanel({ clientId, mode, onModeChange, refre
           <div role="alert" style={{ padding: '1.6rem', textAlign: 'center', color: 'var(--err)' }}>⚠ {error}</div>
         )}
         {!loading && !error && data && (
-          <PortalView data={data} preview={mode === 'preview'} embed />
+          <PortalView data={data} mode="officeView" embed />
         )}
       </div>
     </div>

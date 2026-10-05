@@ -19,6 +19,10 @@ import type { FirmProfile } from '../../types/firmProfile';
 import { profileToDb } from '../../lib/dbMappers';
 import { seedRequestGroupsDemo, rgRpc, rgSetBusinessNameBehindPortal } from './__fakeRequestGroups';
 import { reserveDutyPayload, reserveDutyTemplateRow, reserveDutyPortalItem, reserveDutySubmit } from './__fakeReserveDuty';
+import { previewRpc } from './__fakeRequestPreview';
+import type { PreviewRequest } from '../../features/requestPreview/types';
+import { mergeOfficeOverrides, type RequestTemplate, type TemplateEntry } from '../../lib/requestTemplates';
+import { documentLibrary } from '../../lib/clientGuide';
 import { REP_PORTAL_CARD_FIXED, resolveRepPortalCard, type RepPortalCardOverride } from '../../../supabase/functions/_shared/repTemplates.ts';
 
 type Row = Record<string, unknown>;
@@ -867,6 +871,8 @@ export function installFakeBackend() {
     // 05.10 · פרטי העסק, עבודה מהבית ודף ההדגמה של יוסי (__fakeRequestGroups).
     const rg = rgRpc(tables, name, args, FIXTURE_PROFILE.firmName ?? "המשרד", logWrite);
     if (rg) return rg;
+    // 05.10 · «צפייה» בבקשה — תשובה שנלכדה מ-staging (ראה __fakeRequestPreview).
+    if (name === 'preview_request_sample') return previewRpc(args.p_request as PreviewRequest, { firmName: FIXTURE_PROFILE.firmName ?? 'המשרד', branding: FIXTURE_PROFILE.branding ?? {} });
     if (name === 'client_ready_to_send') return { data: readyFor(args.p_client_id), error: null };
     if (name === 'client_notice_preview') {
       const ready = readyFor(args.p_client_id);
@@ -1006,6 +1012,21 @@ export function installFakeBackend() {
   };
   s.channel = () => ({ on() { return this; }, subscribe() { return this; }, unsubscribe() { /* */ } });
   s.removeChannel = () => undefined;
+}
+
+/**
+ * ספריית ההדגמה כפי שהספרייה מציגה אותה (תבניות בקשה + מסמכים) — ללכידת «צפייה» (features/requestPreview/captureCases.ts).
+ * ‼ אותה מיפוי כמו loadRequestTemplates, על אותן שורות.
+ */
+export function demoLibraryForPreview() {
+  const rows = (tables.journey_templates ?? []).filter(r => r.kind === 'request');
+  const templates: RequestTemplate[] = mergeOfficeOverrides(rows.map(r => ({
+    id: r.id as string, name: r.name as string, description: (r.description as string | null) ?? null, kind: 'request' as const,
+    officeId: (r.office_id as string | null) ?? null, seedKey: (r.seed_key as string | null) ?? null,
+    entries: Array.isArray(r.entries) ? (r.entries as TemplateEntry[]) : [],
+  })));
+  const docs = documentLibrary(FIXTURE_PROFILE).map(d => ({ id: d.id, label: d.label, url: d.url, path: d.path, fileName: d.fileName }));
+  return { templates, docs };
 }
 
 export const FAKE_FAIL = FAIL;

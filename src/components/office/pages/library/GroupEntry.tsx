@@ -4,6 +4,7 @@
 // «מתי נפתחת?» אל כלל הפתיחה. בקשת מערכת שהנוסח שלה קבוע אומרת זאת, לא מסתתרת.
 import { useState } from 'react';
 import { GROUP_ACTOR_LABEL, REQUEST_GROUPS, type RequestGroupKey, type GroupActor } from '../../../../features/requests/requestGroups';
+import PreviewButton from '../../../../features/requestPreview/PreviewButton';
 
 export interface GroupChildModel {
   key: string;
@@ -13,12 +14,16 @@ export interface GroupChildModel {
   /** מתי נפתחת — מכלל הפתיחה, או «נפתחת יחד עם …». */
   when?: string | null;
   action?: { label: string; onClick: () => void; aria?: string } | null;
+  /** «צפייה» — מה הלקוח מקבל מהבקשה הזאת. */
+  onPreview?: () => void;
 }
 
-export default function GroupEntry({ groupKey, kids, onRules, rowId, highlight, defaultOpen }: {
+export default function GroupEntry({ groupKey, kids, onRules, onPreview, rowId, highlight, defaultOpen }: {
   groupKey: RequestGroupKey;
   kids: GroupChildModel[];
   onRules?: () => void;
+  /** «צפייה» בקבוצה כולה — «התהליך». */
+  onPreview?: () => void;
   rowId: string;
   highlight?: boolean;
   defaultOpen?: boolean;
@@ -28,16 +33,19 @@ export default function GroupEntry({ groupKey, kids, onRules, rowId, highlight, 
   return (
     <section id={rowId} className={`rg-group lb-group-card${highlight ? ' is-focus' : ''}`} data-open={open ? 'true' : 'false'}
       data-group={groupKey} aria-label={g.title}>
-      <button type="button" className="rg-head" aria-expanded={open} onClick={() => setOpen(o => !o)}>
-        <span className="rg-namecol">
-          <span className="rg-name">{g.title}</span>
-          <span className="rg-hint">קבוצה קבועה · {kids.length} בקשות קשורות · {g.summary}</span>
-        </span>
-        <span className="rg-tag is-mine">בקשה מורכבת</span>
-        <span className="rg-chev" aria-hidden="true">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
-        </span>
-      </button>
+      <div className="lb-grp-head">
+        <button type="button" className="rg-head" aria-expanded={open} onClick={() => setOpen(o => !o)}>
+          <span className="rg-namecol">
+            <span className="rg-name">{g.title}</span>
+            <span className="rg-hint">קבוצה קבועה · {kids.length} בקשות קשורות · {g.summary}</span>
+          </span>
+          <span className="rg-tag is-mine">בקשה מורכבת</span>
+          <span className="rg-chev" aria-hidden="true">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
+          </span>
+        </button>
+        {onPreview && <PreviewButton name={g.title} onClick={onPreview} />}
+      </div>
       {open && (
         <>
           <div className="rg-kids">
@@ -48,10 +56,13 @@ export default function GroupEntry({ groupKey, kids, onRules, rowId, highlight, 
                   <span className="lb-kid-hint">{[k.hint, k.when].filter(Boolean).join(' · ')}</span>
                 </span>
                 <span className="lb-kid-actor">{GROUP_ACTOR_LABEL[k.actor]}</span>
-                {k.action ? (
-                  <button type="button" className="btn btn-secondary btn-sm lb-kid-act" aria-label={k.action.aria ?? `${k.action.label}: ${k.title}`}
-                    onClick={k.action.onClick}>{k.action.label}</button>
-                ) : <span className="lb-kid-act" aria-hidden="true" />}
+                <span className="lb-kid-acts lb-kid-act">
+                  {k.onPreview && <PreviewButton name={k.title} onClick={k.onPreview} />}
+                  {k.action && (
+                    <button type="button" className="btn btn-secondary btn-sm" aria-label={k.action.aria ?? `${k.action.label}: ${k.title}`}
+                      onClick={k.action.onClick}>{k.action.label}</button>
+                  )}
+                </span>
               </div>
             ))}
           </div>

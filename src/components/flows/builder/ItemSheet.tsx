@@ -7,9 +7,16 @@ import type { FlowDefinition, FlowItem, FlowStage, FlowTrigger } from '../../../
 import { actionTypeOf } from '../../../features/flows/types';
 import { AUTOMATION_ACTIONS, FLOW_AUTO_FALLBACK, FLOW_AUTO_GATES } from '../../../features/automation/automationCatalog';
 import type { OfficePageId } from '../../office/officeModel';
+import type { RequestTemplate } from '../../../lib/requestTemplates';
+import type { FirmProfile } from '../../../types/firmProfile';
+import PreviewButton from '../../../features/requestPreview/PreviewButton';
+import type { EditHint } from '../../../features/requestPreview/registry';
 import { ConditionField } from './ConditionEditor';
 import VariantsEditor from './VariantsEditor';
 import { FlSeg, FlSheet } from './ui';
+import { useBuilderPreview } from './BuilderPreview';
+import { previewTargetOfItem } from './previewTarget';
+import './builderPreview.css';
 import {
   ACTOR_LABELS, dependentsOfItem, fixedGateChip, moveInList, moveItemToStage, patchItem, patchStage, perPersonHint, removeItem,
   type Actor, type PersonalConfirm,
@@ -26,7 +33,7 @@ export const AUTO_ACTION_GATES =
 export { PER_PERSON_TEXT } from './model';
 
 export default function ItemSheet({ def, trigger, stage, item, title, actor, issues, personalConfirm = false, openList = false,
-  inLibrary = false, onOpen, onChange, onClose }: {
+  inLibrary = false, templates, profile, onOpen, onChange, onClose }: {
   def: FlowDefinition;
   trigger: FlowTrigger;
   stage: FlowStage;
@@ -43,6 +50,10 @@ export default function ItemSheet({ def, trigger, stage, item, title, actor, iss
   openList?: boolean;
   /** הבקשה/המסמך עדיין בספרייה — רק אז יש לאן לקשר. */
   inLibrary?: boolean;
+  /** בקשות הספרייה — לעובדות של «צפייה» (צירי המצב). בלעדיהן: מהעותק השמור בפריט. */
+  templates?: readonly RequestTemplate[];
+  /** פרופיל המשרד — ללשונית «במייל» שבמגירת «צפייה». */
+  profile?: FirmProfile;
   /** מעבר לעמוד אחר במשרד (ספרייה / אוטומציות) — הבונה סוגר את היריעה ושומר את הטיוטה. */
   onOpen?: (page: OfficePageId, focus?: string) => void;
   onChange: (next: FlowDefinition) => void;
@@ -68,15 +79,32 @@ export default function ItemSheet({ def, trigger, stage, item, title, actor, iss
     : automationId ? { label: 'מה קרה בפעם האחרונה — באוטומציות ←', go: () => onOpen('automations', automationId) }
     : null;
 
+  // ‼ «צפייה» — מה הלקוח מקבל מהפריט הזה. פעולה מול רשות: הלקוח לא רואה אותה, ולכן אין.
+  const previewTarget = previewTargetOfItem(item, { templates, title });
+  // «עריכה» במגירה: אותה פעולה כמו הקישור שלמעלה, ורק כשיש לאן — בקשה/מסמך שנמחקו מהספרייה אין להם עריכה.
+  const canEditSource = !!onOpen && (isSystem || inLibrary);
+  const preview = useBuilderPreview(profile, canEditSource ? (hint: EditHint, close: () => void) => {
+    // ‼ «מתי נפתחת?» (rules) — זה מה שהיריעה הזאת מגדירה: רק סוגרים את המגירה ונשארים כאן. כל השאר — סוגרים ועוברים.
+    close();
+    if (hint.kind === 'emails') onOpen?.('emails', hint.focus || undefined);
+    else if (hint.kind === 'docsShelf') onOpen?.('library', 'documents');
+    else if (hint.kind === 'editor') onOpen?.('library', previewTarget?.kind === 'template' ? `request:${previewTarget.templateId}` : undefined);
+  } : undefined);
+  const viewRow = previewTarget && (
+    <div className="bp-item-view"><PreviewButton name={title(item)} onClick={() => preview.open(previewTarget)} /></div>
+  );
+
   if (item.fixed) {
     return (
       <FlSheet title={title(item)} sub={`בשלב «${stage.name}»`} onClose={onClose}
         foot={<><span className="fl-spacer" /><button type="button" className="btn btn-primary" onClick={onClose}>סגירה</button></>}>
+        {viewRow}
         <p className="fl-sub">
           מוצג כאן כדי שהמסלול יהיה שלם. נוצר מהצעת המחיר, לפי היקף הייצוג שבה — לא מהמסלול, ולכן אין מה לערוך כאן.
           הלקוח ממלא וחותם; ההגשה לרשויות נעשית במרכז הייצוג.
         </p>
         {gate && <span className="of-tag">{gate}</span>}
+        {preview.node}
       </FlSheet>
     );
   }
@@ -90,6 +118,7 @@ export default function ItemSheet({ def, trigger, stage, item, title, actor, iss
         <span className="fl-spacer" />
         <button type="button" className="btn btn-primary" onClick={onClose}>סיום</button>
       </>}>
+      {viewRow}
       {issues.length > 0 && (
         <ul className="fl-issues">{issues.map((x, k) => <li key={k}>{x.message}</li>)}</ul>
       )}
@@ -193,6 +222,7 @@ export default function ItemSheet({ def, trigger, stage, item, title, actor, iss
         )}
       </div>
       <p className="fl-hint">הסדר הוא רק סדר ההצגה בדף. מה שבאותו שלב נפתח במקביל, אלא אם נבחר «אחרי».</p>
+      {preview.node}
     </FlSheet>
   );
 }

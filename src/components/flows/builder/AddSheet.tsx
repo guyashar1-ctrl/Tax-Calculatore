@@ -14,6 +14,12 @@ import { FLOW_ACTIONS, actionTypeOf } from '../../../features/flows/types';
 import { REPEATABLE_STEP_TYPES } from '../../../features/flows/compile';
 import { templateEntryOwner } from '../../../utils/templateEntryOwner';
 import { matchesQuery, normalizeForSearch } from '../../office/pages/library/libraryModel';
+import type { FirmProfile } from '../../../types/firmProfile';
+import PreviewButton from '../../../features/requestPreview/PreviewButton';
+import { targetOfTemplate } from '../../../features/requestPreview/targets';
+import { useBuilderPreview } from './BuilderPreview';
+import { systemPreviewTarget } from './previewTarget';
+import './builderPreview.css';
 
 type Shelf = 'requests' | 'documents' | 'actions';
 
@@ -26,18 +32,21 @@ function autoWhen(stepType: string, kinds: ClientKind[]): string {
   return kinds.length === CLIENT_KIND_ORDER.length ? when : `${when} · ${kindsPhrase(kinds)}`;
 }
 
-export default function AddSheet({ def, trigger, stage, templates, docs, onAdd, onClose, onOpenLibrary }: {
+export default function AddSheet({ def, trigger, stage, templates, docs, profile, onAdd, onClose, onOpenLibrary }: {
   def: FlowDefinition;
   trigger: FlowTrigger;
   stage: FlowStage;
   templates: RequestTemplate[];
   docs: ClientDocument[];
+  /** פרופיל המשרד — ללשונית «במייל» שבמגירת «צפייה». */
+  profile?: FirmProfile;
   onAdd: (item: FlowItem) => void;
   onClose: () => void;
   onOpenLibrary: () => void;
 }) {
   const [shelf, setShelf] = useState<Shelf>('requests');
   const [q, setQ] = useState('');
+  const preview = useBuilderPreview(profile);
   // ‼ אותו חיפוש כמו בספרייה: «רו"ח», «רוח» ו«רו״ח» — אותו דבר למי שמקליד.
   const needle = q.trim();
   const hit = (name: string) => !needle || matchesQuery(normalizeForSearch(name), needle);
@@ -67,6 +76,7 @@ export default function AddSheet({ def, trigger, stage, templates, docs, onAdd, 
   ].filter(r => hit(r.name))
     .sort((a, b) => a.name.localeCompare(b.name, 'he'));
 
+  const addLabel = `הוספה ל«${stage.name}»`;
   const addTemplate = (t: RequestTemplate) => onAdd({
     key: newKey('i'), ref: { kind: 'template', templateId: t.id },
     ...(t.entries[0]?.requiredForClose === false ? { optional: true } : {}),
@@ -106,22 +116,27 @@ export default function AddSheet({ def, trigger, stage, templates, docs, onAdd, 
           ) : (
             <ul className="fl-pick">
               {rows.map(r => r.sys ? (
-                <li key={'sys:' + r.sys.t}>
+                <li key={'sys:' + r.sys.t} className="bp-pick">
                   <button type="button" className="fl-pick-row" onClick={() => addSystem(r.sys!.t, r.sys!.kinds)}>
                     <span>{r.name}<small className="fl-pick-sub">{REQUEST_META[r.sys.t]?.hint}</small></span>
                     <small>{autoWhen(r.sys.t, r.sys.kinds)}</small>
                   </button>
+                  <PreviewButton name={r.name} onClick={() => preview.open(
+                    systemPreviewTarget(r.sys!.t, r.name, templates),
+                    { label: addLabel, onClick: () => addSystem(r.sys!.t, r.sys!.kinds) })} />
                 </li>
               ) : (() => {
                 const t = r.tpl!;
                 const here = whereIs(i => i.ref.kind === 'template' && refersTo(t, i.ref.templateId));
                 return (
-                  <li key={t.id}>
+                  <li key={t.id} className="bp-pick">
                     <button type="button" className="fl-pick-row" disabled={here === 'כבר בשלב'} onClick={() => addTemplate(t)}>
                       <span>{t.name}</span>
                       {/* ‼ מי יבצע בפועל — אותו כלל כמו בשרת (templateEntryOwner). */}
                       <small>{here ?? OWNER_LABEL[templateEntryOwner(t.entries[0])] ?? 'הלקוח'}</small>
                     </button>
+                    <PreviewButton name={t.name} onClick={() => preview.open(targetOfTemplate(t),
+                      { label: here === 'כבר בשלב' ? here : addLabel, disabled: here === 'כבר בשלב', onClick: () => addTemplate(t) })} />
                   </li>
                 );
               })())}
@@ -139,10 +154,12 @@ export default function AddSheet({ def, trigger, stage, templates, docs, onAdd, 
             {docs.filter(d => hit(d.label)).map(d => {
               const here = whereIs(i => i.ref.kind === 'document' && i.ref.docId === d.id);
               return (
-                <li key={d.id}>
+                <li key={d.id} className="bp-pick">
                   <button type="button" className="fl-pick-row" disabled={here === 'כבר בשלב'} onClick={() => addDocument(d)}>
                     <span>{d.label}</span><small>{here ?? 'הלקוח קורא ומאשר'}</small>
                   </button>
+                  <PreviewButton name={d.label} onClick={() => preview.open({ kind: 'doc', docId: d.id, name: d.label },
+                    { label: here === 'כבר בשלב' ? here : addLabel, disabled: here === 'כבר בשלב', onClick: () => addDocument(d) })} />
                 </li>
               );
             })}
@@ -155,6 +172,7 @@ export default function AddSheet({ def, trigger, stage, templates, docs, onAdd, 
           <p className="fl-sub">
             קריאה בלבד — PIVO נכנס לרשות וקורא את התיק; התוצאה מוצגת בתיק המס כהצעה. ברירת המחדל: ממתין ללחיצה שלך.
             הזנת ייפוי כוח והגשה אינן חלק ממסלול — הן במרכז הייצוג.
+            הלקוח לא רואה פעולה כזו בדף שלו, ולכן אין לה «צפייה».
           </p>
           <ul className="fl-pick">
             {FLOW_ACTIONS.map(a => {
@@ -171,6 +189,7 @@ export default function AddSheet({ def, trigger, stage, templates, docs, onAdd, 
           </ul>
         </>
       )}
+      {preview.node}
     </FlSheet>
   );
 }

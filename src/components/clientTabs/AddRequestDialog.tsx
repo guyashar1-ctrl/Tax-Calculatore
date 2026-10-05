@@ -28,6 +28,7 @@ import type { RequestTemplate } from '../../lib/requestTemplates';
 import { cardLibraryRequests, firstEntry, loadRequestTemplates, templateBySeed } from '../../lib/requestTemplates';
 import { actorText, matchesQuery, searchTextOf, seesText, sortByName } from '../office/pages/library/libraryModel';
 import { createPrevAccountantTrack, missingPrevAccountantSteps } from '../../lib/prevAccountantTrack';
+import { PAPERLESS_SEQUENCE } from '../../lib/paperlessSequence';
 import type { IntakeContext } from '../../lib/clientState';
 import { intakeAcceptsRequired, stepForCurrentWork, stepTypeTaken } from '../../lib/clientState';
 import { supabase } from '../../lib/supabase';
@@ -35,6 +36,12 @@ import type { Client, NiTracking } from '../../types';
 import { niPersons, niRepresentationAction, niRepresentationOf } from '../../utils/niPersons';
 import { loadOfficeFlows } from '../../features/flows/api';
 import { TRIGGER_LABELS, type FlowTrigger } from '../../features/flows/types';
+import { profileFromDb } from '../../lib/dbMappers';
+import type { FirmProfile } from '../../types/firmProfile';
+import PreviewButton from '../../features/requestPreview/PreviewButton';
+import RequestPreviewSheet from '../../features/requestPreview/RequestPreviewSheet';
+import { CATALOG_TYPES, type CatalogType, type PreviewTarget } from '../../features/requestPreview/targets';
+import { EMPTY_FIRM_PROFILE, composerPreviewOfTemplate } from './InlineComposer';
 
 /** מה אפשר להוסיף ידנית. שלב הייצוג אינו כאן — הוא מסונכרן מבקשת הייצוג.
  *  'paperless_sequence', 'prev_accountant_track' ו-'bank_debit' אינם סוגי
@@ -50,7 +57,7 @@ import { TRIGGER_LABELS, type FlowTrigger } from '../../features/flows/types';
    לחזור ולפתוח את ההמשך. עכשיו לחיצה אחת מביאה את הבקשה כולה, בדיוק כמו
    שהכפתור בדף המסע עושה. ‼ הזמינות אינה תלויה ב-hasPreviousAccountant:
    גיא מסמן "אין רו״ח קודם" ואחר כך מגלה שיש, וזו בקשה ככל בקשה. */
-const CATALOG: { type: string; hint: string; once: boolean }[] = [
+export const ADD_REQUEST_CATALOG: { type: string; hint: string; once: boolean }[] = [
   { type: 'bank_debit',             hint: 'הלקוח פותח הרשאה בבנק ומעלה אסמכתה - לרשויות שתבחר', once: false },
   { type: 'send_document',          hint: 'מספריית המשרד, מהתיקייה של הלקוח או מהמחשב - וגם הודעה', once: false },
   { type: 'client_documents',       hint: 'רשימת מסמכים שהלקוח מעלה בדף האישי', once: true },
@@ -75,41 +82,6 @@ const CATALOG: { type: string; hint: string; once: boolean }[] = [
    ונסגר לבד כשהוא מסומן כפעיל, ומנוהל בבלוק "מס הכנסה" שבמרכז הביצוע.
    פריט קטלוג היה מאפשר להוסיף אותו ללקוח שאין לו ייצוג בדרך לרשויות —
    כלומר לשלוח אותו לאשר משהו שאינו קיים. */
-
-/** רצף הפייפרלס — תבנית מוכרת, לא תצורה. שלושה שלבים, ובעלות שונה לכל אחד:
- *
- *   1. הרשמה לפייפרלס   — הלקוח. הוא נרשם ומאשר בעצמו בדף האישי.
- *   2. חיבור לפייפרלס    — המשרד. נכנסים לחשבון ומשלימים את ההגדרה (שם
- *      פייפרלס מבקשת את פרטי האשראי) — ולכן זו פעולה שלנו, לא שלו.
- *   3. הרשאה לתשלום חודשי — נפתחת אחרי (2).
- *
- * ‼ הבעלות היא מה שקובע מי רואה כפתור: הלקוח מקבל פעולה רק על (1), ורואה
- * את (2) כ"בטיפול המשרד" בלי שום פקד. הכדור והניסוחים זהים למה שהמנוע
- * בשרת יוצר מהצעת מחיר, כדי שרצף ידני ורצף מהצעה יתנהגו אותו דבר. */
-const PAPERLESS_SEQUENCE: {
-  type: OnboardingStep['stepType'];
-  owner: 'client' | 'me';
-  payload: Record<string, unknown>;
-}[] = [
-  { type: 'paperless_invite', owner: 'client',
-    payload: {
-      paperlessStatus: 'unknown', dataSource: 'unknown',
-      clientTitle: 'הרשמה לפייפרלס',
-      clientSub: 'שתי דקות, ומשם רק מצלמים קבלות מהטלפון',
-      clientCta: 'נרשמתי לפייפרלס',
-    } },
-  { type: 'paperless_connection', owner: 'me',
-    payload: {
-      clientTitle: 'חיבור לפייפרלס',
-      clientSub: 'בימים הקרובים ניכנס לחשבון ונשלים את החיבור. אין צורך לעשות דבר כרגע.',
-    } },
-  { type: 'retainer_authorization', owner: 'me',
-    payload: {
-      clientTitle: 'להזין אמצעי תשלום',
-      clientSub: 'הסכום שסוכם בהצעה, כהרשאה קבועה',
-      clientCta: 'להזנה',
-    } },
-];
 
 const KINDS: CustomRequirementKind[] = ['confirm', 'text', 'file'];
 
@@ -152,6 +124,16 @@ const CTA_BY_KIND: Partial<Record<CustomRequirementKind, string>> & { [k: string
   text: 'למענה',
   file: 'להעלאה',
 };
+
+/** מה פתוח ב«צפייה» — ומאיפה ממשיכים כשלוחצים «הוספה». */
+type PreviewSpec = { target: PreviewTarget; badge?: string } & (
+  | { via: 'catalog'; type: string }
+  | { via: 'library'; template: RequestTemplate }
+  | { via: 'custom' }
+);
+
+/** פריטי קטלוג שלפני היצירה צריכים קלט במסך הזה (רשויות, קבצים, מסמכים, אדם) — «הוספה» מחזירה לשם, לא יוצרת. */
+const CATALOG_NEEDS_INPUT = new Set(['bank_debit', 'send_document', 'client_documents', 'authority_representation']);
 
 interface Props {
   clientId: string;
@@ -295,8 +277,9 @@ export default function AddRequestDialog({ clientId, steps, processPublished, aw
   useEffect(() => {
     let alive = true;
     void (async () => {
+      // ‼ הפרופיל כולו ולא רק id+settings: «צפייה» צריכה את הממשק של המשרד (לשונית «במייל»). אותה שאילתה, אותה שורה.
       const [{ data: prof }, tpls] = await Promise.all([
-        supabase.from('profiles').select('id,settings').limit(1).maybeSingle(),
+        supabase.from('profiles').select('*').limit(1).maybeSingle(),
         loadRequestTemplates(),
       ]);
       if (!alive) return;
@@ -305,11 +288,16 @@ export default function AddRequestDialog({ clientId, steps, processPublished, aw
       setTemplates(tpls);
       setProfileId((prof?.id as string | undefined) ?? null);
       setDocOptions(allDocOptions(settings));
+      if (prof) setFirm(profileFromDb(prof as Record<string, unknown>));
     })();
     return () => { alive = false; };
   }, []);
 
   const [templates, setTemplates] = useState<RequestTemplate[]>([]);
+  /** הפרופיל של המשרד — ללשונית «במייל» בצפייה. ריק עד שנטען (או אם נכשל): מייל לא ממותג, לא תקלה. */
+  const [firm, setFirm] = useState<FirmProfile>(EMPTY_FIRM_PROFILE);
+  /** «צפייה» פתוחה. ‼ נשמר מה שנבחר, והפעולה הראשית נגזרת בכל רינדור — לא פונקציה שנתפסה בלחיצה. */
+  const [preview, setPreview] = useState<PreviewSpec | null>(null);
 
   function openDocumentMode() {
     setMode('document');
@@ -534,7 +522,7 @@ export default function AddRequestDialog({ clientId, steps, processPublished, aw
         return niRepresentationAction(p, client, line)?.kind === 'add';
       })
     : [];
-  const available = CATALOG.filter(c => c.type === 'paperless_sequence'
+  const available = ADD_REQUEST_CATALOG.filter(c => c.type === 'paperless_sequence'
     ? paperlessMissing.length > 0
     : c.type === 'prev_accountant_track'
     ? prevMissing.length > 0
@@ -659,6 +647,24 @@ export default function AddRequestDialog({ clientId, steps, processPublished, aw
     onClose();
   }
 
+  /** מה שהטופס יוצר — גם ל«צפייה». ‼ דרישה נוספת בלי תיאור נשמטת כאן; השמירה חוסמת אותה קודם (submitCustom). */
+  function customPayload(): Record<string, unknown> {
+    const main = ask.trim();
+    const requirements: CustomRequirement[] = [
+      { key: 'r1', kind: askKind, label: main, done: false },
+      ...extraReqs.filter(r => r.label.trim()).map((r, i) => ({
+        key: `r${i + 2}`, kind: r.kind, label: r.label.trim(), done: false,
+      })),
+    ];
+    return {
+      title: main,
+      clientTitle: clientTitle.trim() || main,
+      clientSub: clientSub.trim() || undefined,
+      clientCta: clientCta.trim() || CTA_BY_KIND[askKind],
+      requirements,
+    };
+  }
+
   function submitCustom() {
     const main = ask.trim();
     if (!main) { setError('צריך לכתוב מה מבקשים מהלקוח.'); return; }
@@ -666,19 +672,7 @@ export default function AddRequestDialog({ clientId, steps, processPublished, aw
       setError('לכל דרישה צריך תיאור - מה בדיוק הלקוח צריך לעשות.');
       return;
     }
-    const requirements: CustomRequirement[] = [
-      { key: 'r1', kind: askKind, label: main, done: false },
-      ...extraReqs.map((r, i) => ({
-        key: `r${i + 2}`, kind: r.kind, label: r.label.trim(), done: false,
-      })),
-    ];
-    void create('custom_request', {
-      title: main,
-      clientTitle: clientTitle.trim() || main,
-      clientSub: clientSub.trim() || undefined,
-      clientCta: clientCta.trim() || CTA_BY_KIND[askKind],
-      requirements,
-    });
+    void create('custom_request', customPayload());
   }
 
   function submitBankDebit() {
@@ -701,7 +695,77 @@ export default function AddRequestDialog({ clientId, steps, processPublished, aw
     });
   }
 
+  /** מה שהלחיצה על פריט בקטלוג עושה — מקור אחד לשורה ולכפתור «הוספה» שבתוך «צפייה». */
+  function startCatalogItem(type: string) {
+    if (type === 'client_documents') { openDocumentsMode(); return; }
+    if (type === 'bank_debit') { setMode('bank'); return; }
+    if (type === 'send_document') { openDocumentMode(); return; }
+    if (type === 'paperless_sequence') { void createPaperlessSequence(); return; }
+    if (type === 'paperless_tax_authority') { void createTaxAuthority(); return; }
+    // ‼ 220 · של הלקוח (ממלא בדף האישי) — הבעלים במפורש; הסוג אינו ברשימת «של הלקוח» בשרת.
+    if (type === 'business_details') {
+      void create('business_details', { clientTitle: 'פרטי העסק', clientSub: 'שם העסק ושאלה קצרה על עבודה מהבית' }, { owner: 'client' });
+      return;
+    }
+    if (type === 'prev_accountant_track') { void createPrevTrack(); return; }
+    if (type === 'authority_representation') { setMode('authority_rep'); return; }
+    if (type === 'smart_form_btl6101' && onStartSmartForm) {
+      setBusy(true); setError(null);
+      void onStartSmartForm().then(err => { setBusy(false); if (err) setError(err); });
+      return;
+    }
+    /* ‼ תוכן ברירת המחדל מגיע מתבנית מובנית ולא מ-{} ריק.
+       בקשה שנוצרה ריקה הגיעה ללקוח בלי ניסוח ובלי רשימה. */
+    void create(type, seedPayload(type));
+  }
+
+  /** השם של פריט הקטלוג כפי שמופיע בשורה. */
+  const catalogTitle = (type: string) =>
+    type === 'paperless_sequence' ? 'פייפרלס'
+    : type === 'prev_accountant_track' ? 'חומרים מרו״ח קודם'
+    : type === 'bank_debit' ? BANK_DEBIT_TITLE
+    : type === 'send_document' ? 'שליחת מסמכים ללקוח'
+    : type === 'authority_representation' ? 'ייצוג ברשות - לאדם'
+    : type === 'smart_form_btl6101' ? 'דין וחשבון רב שנתי (6101) · ביטוח לאומי'
+    : STEP_TYPE_LABELS[type as OnboardingStep['stepType']];
+
+  // ─── «צפייה» ─────────────────────────────────────────────────────────────────────────────────────
+  // ‼ תמיד נתוני דוגמה: הדף האמיתי של הלקוח כבר ב«איך זה ייראה», והצפייה כאן לא שואלת ולא מציגה דבר מהלקוח הזה.
+  // ‼ אין כאן יצירה: «הוספה» ממשיכה את נתיב ההוספה הקיים של אותו פריט (אותה פונקציה בדיוק כמו לחיצה על השורה).
+  const addTo = client?.firstName?.trim() ? `ל${client.firstName.trim()}` : 'ללקוח';
+  const openCatalogPreview = (type: string) => {
+    if (!(CATALOG_TYPES as readonly string[]).includes(type)) return;
+    setPreview({ via: 'catalog', type, target: { kind: 'catalog', type: type as CatalogType, name: catalogTitle(type) } });
+  };
+  /** ‼ בקשה מהספרייה: מה שהקומפוזר יוצר מהנוסח (composerPreviewOfTemplate), לא ה-payload הגולמי של הנוסח. */
+  const openLibraryPreview = (t: RequestTemplate) => {
+    const { owner, payload } = composerPreviewOfTemplate(firstEntry(t));
+    setPreview({
+      via: 'library', template: t, badge: 'נפתחת לעריכה לפני השמירה',
+      target: { kind: 'draft', name: t.name, stepType: 'custom_request', owner, payload },
+    });
+  };
+  const openCustomPreview = () => setPreview({
+    via: 'custom', badge: 'טיוטה — לא נשמר',
+    target: { kind: 'draft', name: clientTitle.trim() || ask.trim(), stepType: 'custom_request', owner: 'client', payload: customPayload() },
+  });
+  function previewPrimary(p: PreviewSpec): { label: string; onClick: () => void; disabled?: boolean } | undefined {
+    if (p.via === 'custom') return undefined;
+    if (p.via === 'library') {
+      return { label: `המשך להוספה ${addTo}`, disabled: busy, onClick: () => { setPreview(null); onUseTemplate?.(p.template); } };
+    }
+    const type = p.type;
+    return {
+      label: CATALOG_NEEDS_INPUT.has(type) ? `המשך להוספה ${addTo}` : `הוספה ${addTo}`,
+      // ‼ אם בינתיים הפריט כבר אינו זמין (הוסף במקום אחר) — לא יוצרים כפילות.
+      disabled: busy || !available.some(c => c.type === type),
+      onClick: () => { setPreview(null); startCatalogItem(type); },
+    };
+  }
+  const previewPrimaryNow = preview ? previewPrimary(preview) : undefined;
+
   return (
+    <>
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal" style={{ maxWidth: 560 }} onClick={e => e.stopPropagation()}>
         <div className="modal-head">
@@ -746,55 +810,25 @@ export default function AddRequestDialog({ clientId, steps, processPublished, aw
                 <div className="cw-empty">כל הבקשות מהקטלוג כבר קיימות אצל הלקוח.</div>
               )}
               {available.map(c => (
-                <button
-                  key={c.type}
-                  type="button"
-                  disabled={busy}
-                  onClick={() => {
-                    if (c.type === 'client_documents') { openDocumentsMode(); return; }
-                    if (c.type === 'bank_debit') { setMode('bank'); return; }
-                    if (c.type === 'send_document') { openDocumentMode(); return; }
-                    if (c.type === 'paperless_sequence') { void createPaperlessSequence(); return; }
-                    if (c.type === 'paperless_tax_authority') { void createTaxAuthority(); return; }
-                    // ‼ 220 · של הלקוח (ממלא בדף האישי) — הבעלים במפורש; הסוג אינו ברשימת «של הלקוח» בשרת.
-                    if (c.type === 'business_details') {
-                      void create('business_details', { clientTitle: 'פרטי העסק', clientSub: 'שם העסק ושאלה קצרה על עבודה מהבית' }, { owner: 'client' });
-                      return;
-                    }
-                    if (c.type === 'prev_accountant_track') { void createPrevTrack(); return; }
-                    if (c.type === 'authority_representation') { setMode('authority_rep'); return; }
-                    if (c.type === 'smart_form_btl6101' && onStartSmartForm) {
-                      setBusy(true); setError(null);
-                      void onStartSmartForm().then(err => { setBusy(false); if (err) setError(err); });
-                      return;
-                    }
-                    /* ‼ תוכן ברירת המחדל מגיע מתבנית מובנית ולא מ-{} ריק.
-                       בקשה שנוצרה ריקה הגיעה ללקוח בלי ניסוח ובלי רשימה. */
-                    void create(c.type, seedPayload(c.type));
-                  }}
-                  style={rowBtn}
-                >
-                  <span style={{ fontWeight: 600 }}>
-                    {c.type === 'paperless_sequence' ? 'פייפרלס'
-                      : c.type === 'prev_accountant_track' ? 'חומרים מרו״ח קודם'
-                      : c.type === 'bank_debit' ? BANK_DEBIT_TITLE
-                      : c.type === 'send_document' ? 'שליחת מסמכים ללקוח'
-                      : c.type === 'authority_representation' ? 'ייצוג ברשות - לאדם'
-                      : c.type === 'smart_form_btl6101' ? 'דין וחשבון רב שנתי (6101) · ביטוח לאומי'
-                      : STEP_TYPE_LABELS[c.type as OnboardingStep['stepType']]}
-                  </span>
-                  <span style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)' }}>
-                    {c.type === 'paperless_sequence'
-                      ? (paperlessMissing.length === PAPERLESS_SEQUENCE.length
-                        ? 'הרשמה, פרטי העסק, הקמה והרשאה לתשלום חודשי — קבוצה אחת, כל בקשה נפתחת כשאפשר להתקדם בה'
-                        : `משלים את הרצף: ${paperlessMissing.map(p => STEP_TYPE_LABELS[p.type]).join(' · ')}`)
-                      : c.type === 'prev_accountant_track'
-                      ? (prevMissing.length === 3
-                        ? 'הלקוח מוסר מי הקודם, אנחנו שולחים מכתב ועוקבים אחרי החומרים'
-                        : `משלים את החסר: ${prevMissing.map(t => STEP_TYPE_LABELS[t as OnboardingStep['stepType']]).join(' · ')}`)
-                      : c.hint}
-                  </span>
-                </button>
+                <div key={c.type} style={rowWrap}>
+                  <button type="button" disabled={busy} onClick={() => startCatalogItem(c.type)} style={rowMain}>
+                    <span style={{ fontWeight: 600 }}>{catalogTitle(c.type)}</span>
+                    <span style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)' }}>
+                      {c.type === 'paperless_sequence'
+                        ? (paperlessMissing.length === PAPERLESS_SEQUENCE.length
+                          ? 'הרשמה, פרטי העסק, הקמה והרשאה לתשלום חודשי — קבוצה אחת, כל בקשה נפתחת כשאפשר להתקדם בה'
+                          : `משלים את הרצף: ${paperlessMissing.map(p => STEP_TYPE_LABELS[p.type]).join(' · ')}`)
+                        : c.type === 'prev_accountant_track'
+                        ? (prevMissing.length === 3
+                          ? 'הלקוח מוסר מי הקודם, אנחנו שולחים מכתב ועוקבים אחרי החומרים'
+                          : `משלים את החסר: ${prevMissing.map(t => STEP_TYPE_LABELS[t as OnboardingStep['stepType']]).join(' · ')}`)
+                        : c.hint}
+                    </span>
+                  </button>
+                  {(CATALOG_TYPES as readonly string[]).includes(c.type) && (
+                    <PreviewButton name={catalogTitle(c.type)} onClick={() => openCatalogPreview(c.type)} />
+                  )}
+                </div>
               ))}
 
               <button type="button" disabled={busy} onClick={() => setMode('custom')} style={rowBtn}>
@@ -820,13 +854,16 @@ export default function AddRequestDialog({ clientId, steps, processPublished, aw
                   )}
                   {libShown.length === 0 && <div className="cw-empty">אין בקשה כזו בספרייה.</div>}
                   {libShown.map(t => (
-                    <button key={t.id} type="button" disabled={busy} style={rowBtn}
-                      onClick={() => onUseTemplate?.(t)}>
-                      <span style={{ fontWeight: 600 }}>{t.name}</span>
-                      <span style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)' }}>
-                        {seesText(t) ?? actorText(t)}
-                      </span>
-                    </button>
+                    <div key={t.id} style={rowWrap}>
+                      <button type="button" disabled={busy} style={rowMain}
+                        onClick={() => onUseTemplate?.(t)}>
+                        <span style={{ fontWeight: 600 }}>{t.name}</span>
+                        <span style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)' }}>
+                          {seesText(t) ?? actorText(t)}
+                        </span>
+                      </button>
+                      <PreviewButton name={t.name} onClick={() => openLibraryPreview(t)} />
+                    </div>
                   ))}
                 </>
               )}
@@ -1143,6 +1180,13 @@ export default function AddRequestDialog({ clientId, steps, processPublished, aw
                 </select>
               </label>
 
+              {/* ‼ «צפייה» במה שנכתב עד כה — טיוטה, לא נשמר. מופיעה רק כשיש מה לראות (נכתב מה מבקשים). */}
+              {ask.trim() && (
+                <div style={{ alignSelf: 'flex-start' }}>
+                  <PreviewButton name={clientTitle.trim() || ask.trim()} onClick={openCustomPreview} />
+                </div>
+              )}
+
               {/* ‼ הניסוחים הנוספים מוסתרים בכוונה: הם דרשו להקליד את אותו
                   טקסט שלוש פעמים כדי לבקש דבר אחד. מי שצריך — פותח. */}
               {!advanced ? (
@@ -1250,6 +1294,16 @@ export default function AddRequestDialog({ clientId, steps, processPublished, aw
         </div>
       </div>
     </div>
+
+    {/* ‼ אחי של החלון ולא בתוכו, ועם עצירת הבועה: אירועי React עולים דרך העץ גם מפורטל, ולחיצה בתוך המגירה לא אמורה
+        להגיע ל-onClick של הרקע (שסוגר את החלון). Esc סוגר רק את המגירה — היא מאזינה לו לפני כולם. */}
+    {preview && (
+      <div style={{ display: 'contents' }} onClick={e => e.stopPropagation()}>
+        <RequestPreviewSheet target={preview.target} profile={firm} badge={preview.badge}
+          primary={previewPrimaryNow} onClose={() => setPreview(null)} />
+      </div>
+    )}
+    </>
   );
 }
 
@@ -1370,6 +1424,14 @@ const rowBtn: React.CSSProperties = {
   border: '1px solid var(--hairline-2)', background: 'transparent',
   color: 'var(--ink-1)', cursor: 'pointer', font: 'inherit', width: '100%',
 };
+
+/** שורה שאפשר גם להוסיף וגם לצפות בה: המסגרת על העטיפה, הפעולה (כל השורה) והכפתור השקט «צפייה» זה לצד זה —
+ *  כפתור בתוך כפתור אינו חוקי, ולכן שניים נפרדים. */
+const rowWrap: React.CSSProperties = {
+  display: 'flex', alignItems: 'center', gap: '.25rem', paddingInlineEnd: '.3rem',
+  border: '1px solid var(--hairline-2)', borderRadius: 'var(--radius)',
+};
+const rowMain: React.CSSProperties = { ...rowBtn, border: 'none', width: 'auto', flex: 1, minWidth: 0 };
 
 /** שגיאת מסד גולמית באנגלית אינה אומרת כלום לרו"ח. מה שאין לו תרגום — נאמר בכלליות. */
 function friendly(dbMessage?: string): string {

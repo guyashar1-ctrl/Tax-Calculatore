@@ -3,9 +3,12 @@
 // עותק של המשרד, בשקט; «חזרה לנוסח המוכן» מוחקת את העותק (delete_library_request),
 // ואם פריט במסלול מצביע על העותק עצמו (מחיקה הייתה נדחית) — מחזירה את הנוסח
 // המוכן לתוך העותק, כדי שהמסלול לא יישבר.
-import { useEffect, useRef, useState } from 'react';
+// ‼ (5.10.2026) «מה הלקוח רואה» הוא הכרטיס האמיתי של הדף האישי (EditorLiveCard) על הטיוטה — לא חיקוי בנוי ביד.
+// ה-payload של הטיוטה נבנה באותה פונקציה ששמירה משתמשת בה (editorPayload.ts), ו«תצוגה מלאה» פותחת את מגירת «צפייה».
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Modal from '../../../ui/Modal';
 import { isSeedTemplate, type RequestTemplate } from '../../../../lib/requestTemplates';
+import type { FirmProfile } from '../../../../types/firmProfile';
 import { metaFor } from '../../../../types/journeyDefaults';
 import { serverErrorText, upsertLibraryRequest, deleteLibraryRequest } from '../../../../features/flows/api';
 import { libraryEntryGap } from '../../../../features/flows/compile';
@@ -13,6 +16,12 @@ import { templateEntryOwner } from '../../../../utils/templateEntryOwner';
 import TemplateCarryNote from '../../../portal/TemplateCarryNote';
 import { entryOf, listOf, canRevertToPreset, canBeInFlow } from './libraryModel';
 import { UsedIn, type GoFn, type LibraryUse } from './usedIn';
+import { writeEditorFields } from './editorPayload';
+import EditorLiveCard from './EditorLiveCard';
+import RequestPreviewSheet from '../../../../features/requestPreview/RequestPreviewSheet';
+import { viewOf } from '../../../../features/requestPreview/registry';
+import { targetOfTemplate, type PreviewTarget } from '../../../../features/requestPreview/targets';
+import { EMPTY_PROFILE } from '../../../flows/builder/previewTarget';
 
 type ReqKind = 'confirm' | 'file' | 'files' | 'text' | 'email' | 'phone' | 'number' | 'date' | 'select';
 const KIND_LABELS: Record<ReqKind, string> = {
@@ -34,6 +43,9 @@ interface EditItem {
   rest: Record<string, unknown>;
 }
 
+/** ‼ קבוע, לא `{}` חדש בכל רינדור: ה-payload של הטיוטה ממוזכר עליו, והצפייה החיה מסתמכת על זהות יציבה. */
+const EMPTY_PAYLOAD: Record<string, unknown> = {};
+
 let keySeq = 0;
 const newItemKey = () => `r${Date.now().toString(36)}${(keySeq++).toString(36)}`;
 
@@ -48,6 +60,8 @@ export interface RequestEditorProps {
    * (בלי פסקת הסבר כאן).
    */
   uses: LibraryUse[] | null;
+  /** פרופיל המשרד — ללשונית «במייל» שבמגירת «תצוגה מלאה». בלעדיו: פרופיל ריק (הדף עצמו אינו תלוי בו). */
+  profile?: FirmProfile;
   onClose: () => void;
   onSaved: (name: string) => void;
   onDeleted: (name: string) => void;
@@ -55,9 +69,9 @@ export interface RequestEditorProps {
   go: GoFn;
 }
 
-export default function RequestEditor({ template, initialName, uses, onClose, onSaved, onDeleted, onReverted, go }: RequestEditorProps) {
+export default function RequestEditor({ template, initialName, uses, profile, onClose, onSaved, onDeleted, onReverted, go }: RequestEditorProps) {
   const entry = template ? entryOf(template) : undefined;
-  const orig = (entry?.payload ?? {}) as Record<string, unknown>;
+  const orig = (entry?.payload ?? EMPTY_PAYLOAD) as Record<string, unknown>;
   const stepType = entry?.stepType || 'custom_request';
   const custom = stepType === 'custom_request';
   const meta = metaFor(stepType);
@@ -94,6 +108,8 @@ export default function RequestEditor({ template, initialName, uses, onClose, on
   const [error, setError] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<'delete' | 'revert' | null>(null);
   const [inUse, setInUse] = useState<string[] | null>(null);
+  /** «תצוגה מלאה» פתוחה: טיוטה (עם תווית) או הבקשה השמורה כמות שהיא. */
+  const [full, setFull] = useState<{ target: PreviewTarget; draft: boolean } | null>(null);
   // ‼ השגיאה/האישור יושבים בתחתית החלון — בטלפון הם מחוץ למסך, ולחיצה נראתה כמו «לא קרה כלום».
   const feedbackRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -130,10 +146,36 @@ export default function RequestEditor({ template, initialName, uses, onClose, on
     return n;
   });
 
-  const kept = items.filter(x => x.label.trim());
-  // ‼ «הכותרת שהלקוח רואה נגזרת מהרשימה» — כמו במחולל. בלי זה נשאר «להעלות 2 מסמכים»
-  // אחרי שהרשימה גדלה ל-4, והטקסט הישן הגיע לדף ולמייל.
-  const derivedTitle = kept.length === 1 ? 'להעלות מסמך אחד' : 'להעלות ' + kept.length + ' מסמכים';
+  // ‼ ה-payload שהטופס כותב — לשמירה ולתצוגה החיה כאחד (editorPayload.ts), כדי שמה שרואים הוא מה שיישמר.
+  const draftPayload = useMemo(() => {
+    const payload: Record<string, unknown> = { ...orig };
+    return writeEditorFields(payload, { custom, showCopy, derivedCopy: !!meta.derivedCopy, listKey, name, clientTitle, clientSub, clientCta, items });
+  }, [orig, custom, showCopy, meta.derivedCopy, listKey, name, clientTitle, clientSub, clientCta, items]);
+  const draftRequest = useMemo(
+    () => viewOf({ kind: 'draft', name: '', stepType, owner, payload: draftPayload }).build({}),
+    [stepType, owner, draftPayload],
+  );
+  // ‼ בלי שינויים בטופס הלקוח מקבל את הבקשה השמורה — לא את מה ש«שמירה» הייתה כותבת (היא מחילה ברירות מחדל,
+  // למשל «למילוי» בכפתור). לכן בלי שינויים הכרטיס נבנה מהספרייה (כמו המגירה), ועם שינויים — מהטיוטה.
+  const savedRequest = useMemo(() => {
+    if (!template) return null;
+    const v = viewOf(targetOfTemplate(template));
+    return v.build(v.defaults);
+  }, [template]);
+  const savedLive = template && !dirty ? savedRequest : null;
+  const showingDraft = !savedLive;
+  const liveRequest = savedLive ?? draftRequest;
+  // בקשה שהשרת לא ייצור (בלי שם, בלי פריטים) — אומרים למה, במקום לצייר כרטיס שלא יגיע ללקוח.
+  const draftGap = libraryEntryGap(stepType, owner, draftPayload);
+  const liveBlock = !(name.trim() || clientTitle.trim())
+    ? 'כשנותנים שם לבקשה — היא תופיע כאן כמו שהלקוח יראה אותה.'
+    : draftGap ? `${serverErrorText(draftGap === 'no_items' ? 'no_requirements' : 'no_documents')} — בלי זה הבקשה לא תופיע ללקוח.` : null;
+
+  const openFull = () => {
+    // ‼ בלי שינויים בטופס זו הבקשה השמורה — עם צירי המצב שלה. עם שינויים: הטיוטה, מסומנת «לא נשמר».
+    if (template && !dirty) { setFull({ target: targetOfTemplate(template), draft: false }); return; }
+    setFull({ target: { kind: 'draft', name: name.trim() || 'בקשה חדשה', stepType, owner, payload: draftPayload }, draft: true });
+  };
 
   const save = async () => {
     setError(null);
@@ -142,24 +184,9 @@ export default function RequestEditor({ template, initialName, uses, onClose, on
     if (template && !dirty) { onClose(); return; }
     const nm = name.trim();
     if (!nm) { setError(serverErrorText('missing_name') + '.'); return; }
-    const payload: Record<string, unknown> = { ...orig };
-    if (custom) payload.title = nm;
-    if (showCopy) {
-      payload.clientTitle = clientTitle.trim() || nm;
-      payload.clientSub = clientSub.trim();
-      payload.clientCta = clientCta.trim() || 'למילוי';
-    }
-    if (listKey === 'checklist') {
-      payload.checklist = kept.map(x => ({ key: x.key, label: x.label.trim(), done: false }));
-      if (meta.derivedCopy) {
-        payload.clientTitle = derivedTitle;
-        payload.clientSub = kept.map(x => x.label.trim()).join(' · ');
-      }
-    } else if (listKey === 'requirements') {
-      payload.requirements = kept.map(x => ({ required: true, ...x.rest, key: x.key, kind: x.kind, label: x.label.trim(), done: false }));
-    }
+    const payload = draftPayload;
     // בקשה שאין בה מה ליצור — אותו כלל כמו בבונה ובשרת (libraryEntryGap / upsert_library_request).
-    const gap = libraryEntryGap(stepType, owner, payload);
+    const gap = draftGap;
     if (gap) { setError(serverErrorText(gap === 'no_items' ? 'no_requirements' : 'no_documents') + '.'); return; }
     setBusy(true);
     const r = await upsertLibraryRequest(template?.id ?? null, nm, template?.description ?? null, {
@@ -218,10 +245,9 @@ export default function RequestEditor({ template, initialName, uses, onClose, on
   };
 
   const presetTitle = template?.preset ? String((template.preset.entries[0]?.payload ?? {}).clientTitle ?? template.preset.name) : '';
-  const previewTitle = meta.derivedCopy ? derivedTitle : (clientTitle.trim() || name.trim() || 'כותרת הבקשה');
-  const previewSub = meta.derivedCopy ? kept.map(x => x.label.trim()).join(' · ') : clientSub.trim();
 
   return (
+    <>
     <Modal title={template ? template.name : 'בקשה חדשה בספרייה'} onClose={onClose} dirty={dirty && !busy} width={620}
       footer={<>
         {revertable && !confirm && (
@@ -259,12 +285,9 @@ export default function RequestEditor({ template, initialName, uses, onClose, on
         {owner !== 'me' && !meta.extern && (
           <fieldset className="lb-fieldset">
             <legend className="lb-legend">מה הלקוח רואה</legend>
-            <div className="lb-preview" aria-label="כך זה ייראה בדף של הלקוח">
-              <span className="lb-preview-tag">בדף של הלקוח</span>
-              <span className="lb-preview-title">{previewTitle}</span>
-              {previewSub && <span className="lb-preview-sub">{previewSub}</span>}
-              <span className="lb-preview-cta">{(meta.derivedCopy ? String(orig.clientCta ?? '') : clientCta.trim()) || (meta.derivedCopy ? 'להעלאה' : 'למילוי')}</span>
-            </div>
+            {liveBlock
+              ? <div className="rp-problem" data-testid="lb-live-blocked"><p>{liveBlock}</p></div>
+              : <EditorLiveCard request={liveRequest} draft={showingDraft} onFull={openFull} />}
             {/* ‼ ההסבר והמדריך המצולם עוברים לבקשה כמו שהם (payload נשמר כולו, `{ ...orig }`) ואינם שדות
                 כאן — השורה אומרת מה מצורף, ו«הצגה» פותחת את המדריך. המפתח עצמו אינו נערך. */}
             <TemplateCarryNote content={orig} />
@@ -400,5 +423,10 @@ export default function RequestEditor({ template, initialName, uses, onClose, on
         </div>
       </div>
     </Modal>
+    {full && (
+      <RequestPreviewSheet target={full.target} profile={profile ?? EMPTY_PROFILE}
+        badge={full.draft ? 'טיוטה — לא נשמר' : undefined} onClose={() => setFull(null)} />
+    )}
+    </>
   );
 }

@@ -4,8 +4,8 @@
 //     (rpc / portal_submit_step / fetch / supabase). הבקשה מושלמת רק בתשובה של הלקוח.
 //   · השורה בדף: אחרי ההסבר ולפני השאלה, כפתור המדריך + קישור משני לאתר (target=_blank, noopener),
 //     אינרטי בתצוגה המקדימה (והמדריך נפתח שם), ומפתח לא מוכר ⇒ כלום.
-//   · בקשה חופשית נפתחת גם בתצוגה במשרד (אחרת אי אפשר לראות את ההסבר והמדריך בתצוגה המקדימה);
-//     שאר הסוגים נשארים כבויים שם.
+//   · כל סוגי הבקשות נפתחים בתצוגה במשרד (G2 — אחרת אי אפשר לראות את ההסבר, הרשימה והשדות);
+//     הפקדים שבפנים כבויים שם (readOnly).
 //   · Esc במדריך לא סוגר חלון שמתחתיו (עורך הבקשה בספרייה), וההגדלה והשלבים בלי תמונה בטוחים.
 //   · אישור הייצוג ממשיך לעבוד דרך אותו רכיב גנרי: עטיפה דקה עם אותם exports.
 
@@ -53,9 +53,9 @@ export const TESTS: TestCase[] = [
     assert(/<PhotoGuideButton steps=\{guide\.steps\.length\}/.test(row), 'כפתור «מדריך מצולם · N צעדים»');
     assert(/href=\{guide\.entry\.url\} target="_blank" rel="noopener noreferrer"/.test(row), 'קישור לאתר בלשונית חדשה');
     assert(/\{guide\.siteLabel\} ↗/.test(row), 'התווית «לאזור האישי בביטוח לאומי ↗»');
-    assert(/previewMode\s*\?\s*<span className="pp-site-link is-inert"/.test(row), 'בתצוגה המקדימה — span אינרטי');
+    assert(/readOnly\s*\?\s*<span className="pp-site-link is-inert"/.test(row), 'בתצוגה במשרד — span אינרטי');
     assert(/<LinkHostNote url=\{guide\.entry\.url\} extra="נדרשות כניסה והזדהות"/.test(row), 'לאן הקישור מוביל');
-    assert(/entryInert=\{previewMode\}/.test(row), 'המדריך נפתח גם בתצוגה המקדימה, והקישורים שבתוכו אינרטיים');
+    assert(/entryInert=\{readOnly\}/.test(row), 'המדריך נפתח גם בתצוגה במשרד, והקישורים שבתוכו אינרטיים (בדוגמה — חיים)');
     assert(!/clientLinkUrl|linkUrl/.test(row), '‼ לא clientLinkUrl — שם הבקשה הופכת לחומר עזר שנסגר בפתיחה');
     assert(!/background: accent/.test(row), 'הקישור הוא כפתור משני (מסגרת), לא מילוי — המילוי הוא «שליחה»');
   }),
@@ -70,13 +70,17 @@ export const TESTS: TestCase[] = [
     equal(/photoGuide/.test(body('DeclareBlock')), false, 'אישור הייצוג (declare) לא נגע');
   }),
 
-  test('בקשה חופשית נפתחת גם בתצוגה במשרד; מסמכים ורו״ח קודם — כבויים שם', () => {
+  test('כל סוגי הבקשות נפתחים בתצוגה במשרד (G2); הפקדים שבפנים כבויים שם', () => {
     const open = body('ActionItem');
-    assert(/expandable && \(previewMode && item\.kind !== 'custom'/.test(open), 'רק kind=custom עוקף את הכיבוי');
-    assert(/aria-expanded=\{open\}/.test(open), 'מצב הפתיחה מוכרז');
-    // הפקדים שבתוך הבקשה כבויים בתצוגה (previewMode) — כך פתיחה בקריאה בלבד.
+    assert(!/item\.kind !== 'custom'/.test(open), 'אין עקיפה לפי סוג — מסמכים ורו״ח קודם נפתחים גם הם');
+    assert(!/expandable && \(readOnly/.test(open), 'הפתיחה אינה תלויה ב-readOnly');
+    assert(/\{expandable && \(\s*<button type="button" onClick=\{\(\) => setOpen\(o => !o\)\}[^>]*aria-expanded=\{open\}/.test(open), 'כפתור פתיחה אמיתי, ומצב הפתיחה מוכרז');
+    assert(/\{!open && <button type="button" onClick=\{\(\) => setOpen\(true\)\}[^>]*>מילוי פרטים<\/button>\}/.test(open), '«פרטי העסק» נפתח גם הוא');
+    // הפקדים שבתוך הבקשה כבויים בתצוגה במשרד (readOnly) — כך פתיחה בקריאה בלבד.
     const custom = body('CustomRequestBlock');
-    assert(/disabled=\{busyKey === r\.key \|\| previewMode\}/.test(custom) && /disabled=\{previewMode \|\| busyKey === r\.key/.test(custom), 'השאלה והשליחה כבויות בתצוגה');
+    assert(/disabled=\{busyKey === r\.key \|\| readOnly\}/.test(custom) && /disabled=\{readOnly \|\| busyKey === r\.key/.test(custom), 'השאלה והשליחה כבויות בתצוגה');
+    assert(/disabled=\{readOnly \|\| busy\}/.test(body('PrevAccountantForm')), 'טופס הרו״ח הקודם: שדות וכפתור כבויים בתצוגה (קודם לא טופלו כלל)');
+    assert(/disabled=\{readOnly \|\| busy\}/.test(body('BusinessDetailsBlock')), '«פרטי העסק»: שדות וכפתור כבויים בתצוגה');
   }),
 
   test('PortalItem נושא photoGuide כמפתח בלבד', () => {

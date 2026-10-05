@@ -1,11 +1,12 @@
 // ─── מסך בדיקה: תצוגה מקדימה של הדף האישי (?test-portal-preview) ─────────────
 // DEV בלבד — נקמפל החוצה מפרודקשן. שני חלקים:
-// 1. PortalView על נתוני דמה — אימות ויזואלי של מצב preview (טיוטות, פעולות
-//    כבויות) בלי רשת.
+// 1. PortalView על נתוני דמה — אימות ויזואלי של תצוגה במשרד (officeView: טיוטות,
+//    פקדים כבויים, הכול נפתח לקריאה) ושל מצב דוגמה (sample: הכול מגיב מקומית,
+//    שום דבר לא נשלח) — בלי רשת.
 // 2. הדיאלוג האמיתי מול לקוחות ה-DB של משתמש הפיתוח המחובר (RLS מחזיר רק
 //    את שלו) — אימות מסלול ה-RPC המלא.
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { PortalView, PortalData } from '../PublicPortalPage';
 import ClientPagePreviewDialog from './ClientPagePreviewDialog';
@@ -75,7 +76,74 @@ const FIXTURE: PortalData = {
   ],
 };
 
+/**
+ * ‼ כל סוגי הבקשות בדף אחד — כדי לראות שבתצוגה במשרד הכול נפתח לקריאה (G2) ושבדוגמה כל פעולה
+ * «מבוצעת» בלי לשלוח. מפתחות הפריטים כמו בשרת, כדי שהקיבוץ לקבוצות (פייפרלס / רו״ח קודם) יפעל כמו אצל הלקוח.
+ */
+const ALL_KINDS: PortalData = {
+  clientFirstName: 'נועה',
+  firmName: 'משרד רו"ח בדיקה',
+  branding: {},
+  done: 0,
+  total: 9,
+  items: [
+    { bucket: 'action', key: 'k_docs', label: 'מסמכים לפתיחת התיק', sub: '1 מתוך 3 התקבלו',
+      actionKind: 'portal', actionValue: 's-docs', kind: 'documents', canUpload: true,
+      checklist: [
+        { key: 'd1', label: 'אישור ניהול חשבון בנק', done: true },
+        { key: 'd2', label: 'דוח שנתי אחרון', done: false, note: 'נדרש על ידי רשות המסים' },
+        { key: 'd3', label: 'טופס 106', done: false },
+      ] },
+    { bucket: 'action', key: 'k_free', label: 'פרטים לדוח השנתי', sub: 'כמה שאלות',
+      actionKind: 'portal', actionValue: 's-free', kind: 'custom', cta: 'מאשר/ת',
+      note: 'כדי להגיש את הדוח צריך כמה פרטים.\n\nאפשר לענות מהטלפון.',
+      refs: [{ label: 'מספר תיק במס הכנסה', value: '123456789' }],
+      photoGuide: 'reserve_duty_claim',
+      requirements: [
+        { key: 'q_text', kind: 'text', label: 'שם הבנק', done: false },
+        { key: 'q_choice', kind: 'select', label: 'מצב משפחתי', done: false, options: ['רווק/ה', 'נשוי/ה', 'גרוש/ה'] },
+        { key: 'q_file', kind: 'file', label: 'צילום תעודת זהות', done: false },
+        { key: 'q_ok', kind: 'confirm', label: 'קראתי ואני מאשר/ת', done: false },
+        { key: 'q_done', kind: 'text', label: 'טלפון', done: true, value: '050-0000000' },
+      ] },
+    { bucket: 'action', key: 'prev_accountant', label: 'פרטי רואה החשבון הקודם', sub: 'כדי שנבקש ממנו את החומרים',
+      actionKind: 'portal', actionValue: 's-prev', kind: 'prev_accountant',
+      prefill: { name: 'דנה כהן - רו"ח', email: 'dana@example.com', phone: '0501234567' } },
+    { bucket: 'action', key: 'paperless_signup', label: 'הרשמה לפייפרלס', sub: 'שם העסק והרשמה',
+      actionKind: 'portal', actionValue: 's-signup', kind: 'paperless_signup', needsBusinessName: true, businessName: 'נועה עיצובים',
+      linkUrl: 'https://paperless.example/signup', linkLabel: 'לפתיחת החשבון' },
+    { bucket: 'action', key: 'business_details', label: 'פרטי העסק', sub: 'שם העסק ועבודה מהבית',
+      actionKind: 'portal', actionValue: 's-biz', kind: 'business_details', businessName: 'נועה עיצובים',
+      homeOffice: { hasDedicatedRoom: true, totalRooms: 4, businessRooms: 1, note: null } },
+    { bucket: 'action', key: 'k_declare', label: 'חיבור פייפרלס לרשות המסים', sub: 'עושים באתר ומאשרים כאן',
+      actionKind: 'portal', actionValue: 's-declare', kind: 'declare', cta: 'ביצעתי',
+      note: 'נכנסים לאזור האישי ברשות המסים ומאשרים את החיבור.', linkUrl: 'https://www.gov.il/he/service/personal_area_taxes', linkLabel: 'לאזור האישי' },
+    { bucket: 'action', key: 'k_identity', label: 'אישור צילום התעודה', sub: 'מצאנו אצלנו צילום שנשלח בעבר.',
+      actionKind: 'portal', actionValue: 's-identity', stepId: 's-identity', kind: 'identity_confirm',
+      resources: [{ key: 'id1', label: 'צילום תעודה', documentId: 'doc-private-1', fileName: 'id.pdf', done: false }] },
+    { bucket: 'action', key: 'k_guide', label: 'מדריך הוצאות מוכרות', sub: 'מסמך מהמשרד',
+      actionKind: 'portal', actionValue: 's-guide', kind: 'guide', cta: 'לפתיחת המדריך', resourceUrl: 'https://example.com/guide.pdf',
+      requirements: [
+        { key: 'opened', kind: 'confirm', label: 'פתיחת המדריך', done: false, required: false },
+        { key: 'reviewed', kind: 'confirm', label: 'עברתי על המדריך', done: false, required: true },
+      ] },
+    { bucket: 'action', key: 'k_onboard', label: 'מילוי פרטים וייפוי כוח', sub: 'כשלוש דקות',
+      actionKind: 'onboard', actionValue: 'sample-onboard' },
+    { bucket: 'action', key: 'k_ext', label: 'כניסה לאתר רשות המסים', actionKind: 'external', actionValue: 'https://www.gov.il/he/service/personal_area_taxes' },
+    { bucket: 'action', key: 'k_sent', label: '2 מסמכים מהמשרד', sub: '2 קבצים', stepId: 's-sent',
+      actionKind: 'portal', actionValue: 's-sent', kind: 'guide', note: 'מצורפים שני מסמכים. אין צורך להחזיר כלום.',
+      resources: [
+        { key: 'a1', label: 'נוהל העבודה במשרד', url: 'https://example.com/policy.pdf', done: false },
+        { key: 'a2', label: 'אישור ניהול ספרים (מהתיק שלך)', documentId: 'doc-private-2', done: false },
+      ] },
+  ],
+};
+
 export default function TestPortalPreview() {
+  const [linked, setLinked] = useState<string[]>([]);
+  const sampleHooks = useMemo(() => ({
+    onOpenLinked: (kind: string, value?: string) => setLinked(l => [...l, `${kind}:${value ?? ''}`]),
+  }), []);
   const [clients, setClients] = useState<{ id: string; name: string }[]>([]);
   const [openId, setOpenId] = useState<string | null>(null);
   const [promptId, setPromptId] = useState<string | null>(null);
@@ -107,13 +175,28 @@ export default function TestPortalPreview() {
   }, [sessionReady]);
 
   return (
-    <div style={{ padding: '1rem', display: 'grid', gap: '1rem', maxWidth: '100vw', overflowX: 'hidden' }}>
+    <div style={{ padding: '1rem', display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: '1rem', maxWidth: '100vw', overflowX: 'hidden' }}>
       <h2 style={{ margin: 0 }}>בדיקת תצוגה מקדימה של הדף האישי</h2>
 
       <section>
-        <h3>1 · PortalView על נתוני דמה - מצב preview (פעולות כבויות, טיוטות מסומנות)</h3>
+        <h3>1 · PortalView על נתוני דמה - תצוגה במשרד (פעולות כבויות, טיוטות מסומנות)</h3>
         <div className="pivo-light" style={{ border: '1px solid #ccc', borderRadius: 8, overflow: 'hidden' }}>
-          <PortalView data={FIXTURE} preview embed />
+          <PortalView data={FIXTURE} mode="officeView" embed />
+        </div>
+      </section>
+
+      <section>
+        <h3>1א · כל סוגי הבקשות - תצוגה במשרד (הכול נפתח לקריאה, הפקדים כבויים)</h3>
+        <div className="pivo-light" data-testid="tpp-officeview" style={{ border: '1px solid #ccc', borderRadius: 8, overflow: 'hidden' }}>
+          <PortalView data={ALL_KINDS} mode="officeView" embed />
+        </div>
+      </section>
+
+      <section>
+        <h3>1ב · אותם פריטים - מצב דוגמה (הכול מגיב מקומית, שום דבר לא נשלח; קישור עם טוקן קורא ל-openLinked)</h3>
+        <div data-testid="tpp-linked-log" style={{ fontSize: 13, marginBottom: 6 }}>פתיחות של מסך מקושר: {linked.join(', ') || 'אין'}</div>
+        <div className="pivo-light" data-testid="tpp-sample" style={{ border: '1px solid #ccc', borderRadius: 8, overflow: 'hidden' }}>
+          <PortalView data={ALL_KINDS} mode="sample" sampleHooks={sampleHooks} embed />
         </div>
       </section>
 

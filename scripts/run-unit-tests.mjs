@@ -82,6 +82,10 @@ if (failed > 0) process.exit(1);
       setup(b) {
         b.onResolve({ filter: /\?raw$/ }, (args) => ({ path: resolve(args.resolveDir, args.path.replace(/\?raw$/, '')), namespace: 'raw' }));
         b.onLoad({ filter: /.*/, namespace: 'raw' }, async (args) => ({ contents: (await import('node:fs')).readFileSync(args.path, 'utf8'), loader: 'text' }));
+        // ‼ `?url` (כמו ב-vite): נכס שנטען בדפדפן בלבד — למשל עובד ה-PDF של pdf.js, שנמשך בעצלות מ«המסך שנפתח» בצפייה.
+        // הבדיקות לא מריצות אותו; מספיק שהייבוא ייפתר.
+        b.onResolve({ filter: /\?url$/ }, (args) => ({ path: args.path, namespace: 'url-stub' }));
+        b.onLoad({ filter: /.*/, namespace: 'url-stub' }, () => ({ contents: 'export default "";', loader: 'js' }));
       },
     }],
     // ‼ מודולים משותפים (למשל מתאמי האוטומציה) מייבאים בעקיפין את לקוח

@@ -2,7 +2,7 @@
 // הלקוח (או בן/בת הזוג) מגיע לכאן מקישור אישי (?sign=<token>), רואה את ה-PDF
 // האמיתי עם אזורי החתימה שלו מסומנים, וחותם דרך חדר החתימה. ללא התחברות.
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { SignatureField, SignatureValue, Signer } from '../types';
 import { supabase } from '../lib/supabase';
 import { flushAccountantNotifications } from '../lib/notifyAccountant';
@@ -13,8 +13,11 @@ import { isValidEmail } from '../utils/email';
 import EmailInput from './ui/EmailInput';
 import InfoLines from './ui/InfoLines';
 import { isUnknownSendReply } from '../types/emailActivity';
+import SampleSimulatedNote from './linkedScreens/SampleNote';
+import { samplePublicSignActions } from './linkedScreens/sampleSignActions';
+import type { SimulatedResult } from './linkedScreens/sampleActions';
 
-interface Session {
+export interface Session {
   /** ממתין לחותם הזה אישור ייפוי כוח בב"ל — null כשאין, או כשכבר אישר. */
   ni: { referenceNumber: string; deadline: string | null } | null;
   signerId: string;
@@ -39,14 +42,78 @@ interface Session {
   spouseName?: string;
 }
 
-type Phase = 'loading' | 'invalid' | 'already' | 'sign' | 'submitting' | 'done' | 'error';
+/**
+ * כל מה שמסך החתימה עושה מול העולם. בעמוד האמיתי — השרת (signing-session);
+ * בתצוגה לדוגמה — פעולות שאינן נוגעות בכלום (linkedScreens/sampleSignActions.ts).
+ * ‼ פעולה שנכשלת **זורקת** — המסך תופס ואומר ללקוח ניסוח אחד; לא «מחזירה ok:false».
+ */
+export interface PublicSignActions {
+  /** מוריד את ה-PDF של טופס אחד. */
+  loadDocument(pdfUrl: string): Promise<ArrayBuffer>;
+  /** שליחת כל חתימות החותם — פעם אחת, בסוף כל הטפסים. */
+  submit(values: Record<string, SignatureValue>):
+    Promise<{ status: 'submitted'; spousePending: boolean; spouseName: string } | SimulatedResult>;
+  /** «ביטול» בחדר החתימה ו«נסו שוב» אחרי תקלה — טעינה מחדש של הדף. */
+  restart(): void;
+  /** מעבר לדף החתימה של בן/בת הזוג באותו מכשיר. */
+  navigate(url: string): void;
+  spouse: {
+    /** מפיק את הקישור האישי של בן/בת הזוג (משמש גם «ממשיכים עכשיו» וגם «העתקת קישור»). */
+    handoff(): Promise<{ status: 'ok'; url: string } | SimulatedResult>;
+    invite(email: string): Promise<{ status: 'sent' } | { status: 'unknown' } | SimulatedResult>;
+  };
+}
+
+export function livePublicSignActions(token: string): PublicSignActions {
+  return {
+    async loadDocument(pdfUrl) {
+      const res = await fetch(pdfUrl);
+      if (!res.ok) throw new Error('טעינת המסמך נכשלה');
+      return res.arrayBuffer();
+    },
+    async submit(mine) {
+      const { data, error } = await supabase.functions.invoke('signing-session', { body: { action: 'submit', token, values: mine } });
+      if (error || !data?.ok) throw new Error(error?.message || data?.error || 'שליחה נכשלה');
+      // ההתראה לרו"ח כבר בתור; כאן רק מבקשים לרוקן אותו מיד. לא חוסם.
+      flushAccountantNotifications(token);
+      return { status: 'submitted', spousePending: !!data.spousePending, spouseName: data.spouseName || '' };
+    },
+    restart() { window.location.reload(); },
+    navigate(url) { window.location.href = url; },
+    spouse: {
+      async handoff() {
+        const { data, error } = await supabase.functions.invoke('signing-session', { body: { action: 'handoff', token } });
+        if (error || !data?.ok || !data?.spouseToken) throw new Error(error?.message || data?.error || 'failed');
+        return { status: 'ok', url: `${window.location.origin}/?sign=${data.spouseToken}` };
+      },
+      async invite(email) {
+        const { data, error } = await supabase.functions.invoke('signing-session', {
+          body: { action: 'invite_spouse', token, email },
+        });
+        if (error || !data?.ok) {
+          // ‼ לא ידוע אם המייל יצא (ספק הדואר לא הכריע, או שלא הגיעה תשובה בכלל) —
+          // לא «השליחה נכשלה»: ייתכן שהוא כבר אצל בן/בת הזוג. אומרים מה יודעים ומה עושים.
+          const ctx = (error as { context?: { status?: unknown; clone?: () => Response } } | null)?.context;
+          let body: unknown = data;
+          if (!body && ctx && typeof ctx.clone === 'function') {
+            try { body = await ctx.clone().json(); } catch { body = null; }
+          }
+          const noAnswer = !!error && typeof ctx?.status !== 'number';
+          if (noAnswer || isUnknownSendReply(body)) return { status: 'unknown' };
+          throw new Error(error?.message || data?.error || 'failed');
+        }
+        return { status: 'sent' };
+      },
+    },
+  };
+}
 
 /**
  * בחירת המשך אחרי חתימת הנישום, כשחתימת בן/בת הזוג עוד ממתינה: לחתום יחד
  * עכשיו (אותו מכשיר, בלי מייל) או לשלוח קישור אישי במייל — ורק אז מבקשים
  * מהנישום את כתובת המייל של בן/בת הזוג.
  */
-function SpouseNextStep({ token, spouseName }: { token: string; spouseName: string }) {
+function SpouseNextStep({ spouseName, actions }: { spouseName: string; actions: PublicSignActions }) {
   const [mode, setMode] = useState<'choice' | 'email' | 'sent'>('choice');
   const [email, setEmail] = useState('');
   const [busy, setBusy] = useState<'handoff' | 'send' | 'link' | null>(null);
@@ -54,15 +121,19 @@ function SpouseNextStep({ token, spouseName }: { token: string; spouseName: stri
   /** לא ידוע אם המייל יצא — לאיזו כתובת. */
   const [unknownTo, setUnknownTo] = useState<string | null>(null);
   const [copiedLink, setCopiedLink] = useState('');
+  /** באיזה פקד נלחץ משהו שבתצוגה לדוגמה לא בוצע. */
+  const [simKey, setSimKey] = useState<string | null>(null);
+  const simNote = (key: string) => (simKey === key ? <SampleSimulatedNote /> : null);
   const name = spouseName.trim() || 'בן/בת הזוג';
 
   async function handleTogether() {
     setBusy('handoff');
     setErr(null);
+    setSimKey(null);
     try {
-      const { data, error } = await supabase.functions.invoke('signing-session', { body: { action: 'handoff', token } });
-      if (error || !data?.ok || !data?.spouseToken) throw new Error(error?.message || data?.error || 'failed');
-      window.location.href = `${window.location.origin}/?sign=${data.spouseToken}`;
+      const r = await actions.spouse.handoff();
+      if (r.status === 'simulated') { setSimKey('handoff'); setBusy(null); return; }
+      actions.navigate(r.url);
     } catch {
       setErr('לא הצלחנו לפתוח את החתימה כרגע. נסו שוב, או פנו למשרד.');
       setBusy(null);
@@ -77,10 +148,11 @@ function SpouseNextStep({ token, spouseName }: { token: string; spouseName: stri
   async function handleCopyLink() {
     setBusy('link');
     setErr(null);
+    setSimKey(null);
     try {
-      const { data, error } = await supabase.functions.invoke('signing-session', { body: { action: 'handoff', token } });
-      if (error || !data?.ok || !data?.spouseToken) throw new Error(error?.message || data?.error || 'failed');
-      const url = `${window.location.origin}/?sign=${data.spouseToken}`;
+      const r = await actions.spouse.handoff();
+      if (r.status === 'simulated') { setSimKey('link'); return; }
+      const url = r.url;
       try { await navigator.clipboard.writeText(url); } catch { /* נציג את הקישור לבחירה ידנית */ }
       setCopiedLink(url);
     } catch {
@@ -98,22 +170,11 @@ function SpouseNextStep({ token, spouseName }: { token: string; spouseName: stri
     setBusy('send');
     setErr(null);
     setUnknownTo(null);
+    setSimKey(null);
     try {
-      const { data, error } = await supabase.functions.invoke('signing-session', {
-        body: { action: 'invite_spouse', token, email: email.trim() },
-      });
-      if (error || !data?.ok) {
-        // ‼ לא ידוע אם המייל יצא (ספק הדואר לא הכריע, או שלא הגיעה תשובה בכלל) —
-        // לא «השליחה נכשלה»: ייתכן שהוא כבר אצל בן/בת הזוג. אומרים מה יודעים ומה עושים.
-        const ctx = (error as { context?: { status?: unknown; clone?: () => Response } } | null)?.context;
-        let body: unknown = data;
-        if (!body && ctx && typeof ctx.clone === 'function') {
-          try { body = await ctx.clone().json(); } catch { body = null; }
-        }
-        const noAnswer = !!error && typeof ctx?.status !== 'number';
-        if (noAnswer || isUnknownSendReply(body)) { setUnknownTo(email.trim()); return; }
-        throw new Error(error?.message || data?.error || 'failed');
-      }
+      const r = await actions.spouse.invite(email.trim());
+      if (r.status === 'simulated') { setSimKey('send'); return; }
+      if (r.status === 'unknown') { setUnknownTo(email.trim()); return; }
       setMode('sent');
     } catch {
       setErr('שליחת המייל נכשלה. אפשר לנסות שוב - או שהמשרד ישלח את הקישור.');
@@ -161,6 +222,7 @@ function SpouseNextStep({ token, spouseName }: { token: string; spouseName: stri
             style={{ ...btn, background: '#1A1A1A', color: '#fff', border: 'none', opacity: busy === 'handoff' ? 0.7 : 1 }}>
             {busy === 'handoff' ? 'פותח…' : `${name} כאן? ממשיכים עכשיו`}
           </button>
+          {simNote('handoff')}
           <button type="button" onClick={() => { setErr(null); setMode('email'); }} disabled={busy !== null}
             style={{ ...btn, background: '#fff', color: '#1A1A1A', border: '1px solid #D9D8D3' }}>
             ✉ שליחת הקישור במייל
@@ -169,6 +231,7 @@ function SpouseNextStep({ token, spouseName }: { token: string; spouseName: stri
             style={{ ...btn, background: '#fff', color: '#1A1A1A', border: '1px solid #D9D8D3', opacity: busy === 'link' ? 0.7 : 1 }}>
             {busy === 'link' ? 'מפיק…' : '🔗 העתקת קישור לשליחה בוואטסאפ'}
           </button>
+          {simNote('link')}
           {copiedLink && (
             <div style={{ padding: '10px 12px', background: '#fff', border: '1px solid #D9D8D3', borderRadius: 10 }}>
               <div style={{ fontSize: 12.5, color: '#111', fontWeight: 600, marginBottom: 5 }}>✓ הקישור הועתק</div>
@@ -199,6 +262,7 @@ function SpouseNextStep({ token, spouseName }: { token: string; spouseName: stri
               {busy === 'send' ? 'שולח…' : 'שליחת הקישור'}
             </button>
           </div>
+          {simNote('send')}
         </div>
       )}
 
@@ -215,39 +279,111 @@ function SpouseNextStep({ token, spouseName }: { token: string; spouseName: stri
   );
 }
 
+/** מסך «משהו השתבש» — משותף לטעינה הראשונה ולשגיאות שאחריה. */
+function SignErrorState({ message, onRetry }: { message: string; onRetry: () => void }) {
+  return (
+    <ClientPageState
+      mark="⚠"
+      title="משהו השתבש"
+      body={message}
+      action={<button className="btn btn-primary" onClick={onRetry}>נסו שוב</button>}
+    />
+  );
+}
+
+export type PublicSignViewPhase = 'sign' | 'already' | 'done';
+
+/** כל מה שמסך החתימה צריך כדי להיצייר — בלי טעינה ובלי רשת. */
+export interface PublicSignViewData {
+  session: Session;
+  /** ה-PDF של הטופס הראשון. חסר (null) רק כשהחתימה כבר התקבלה — אז אין מה לצייר. */
+  pdfBytes: ArrayBuffer | null;
+  phase: PublicSignViewPhase;
+  spouse: { pending: boolean; name: string };
+}
+
+type SignLoadState =
+  | { kind: 'loading' }
+  | { kind: 'invalid' }
+  | { kind: 'error'; message: string }
+  | { kind: 'ready'; data: PublicSignViewData };
+
 export default function PublicSignPage({ token }: { token: string }) {
-  const [phase, setPhase] = useState<Phase>('loading');
-  const [session, setSession] = useState<Session | null>(null);
-  const [pdfBytes, setPdfBytes] = useState<ArrayBuffer | null>(null);
-  /** על איזה טופס חותמים עכשיו, ומה נאסף עד כה מכולם. */
-  const [docIndex, setDocIndex] = useState(0);
-  const [collected, setCollected] = useState<Record<string, SignatureValue>>({});
-  const [errMsg, setErrMsg] = useState('');
-  // מצב בן/בת הזוג מתעדכן גם מתשובת submit — לא רק מהטעינה הראשונה
-  const [spouse, setSpouse] = useState<{ pending: boolean; name: string }>({ pending: false, name: '' });
+  const [loaded, setLoaded] = useState<SignLoadState>({ kind: 'loading' });
+  const actions = useMemo(() => livePublicSignActions(token), [token]);
 
   useEffect(() => {
     (async () => {
       try {
         const { data, error } = await supabase.functions.invoke('signing-session', { body: { action: 'get', token } });
-        if (error || !data?.ok) { setPhase('invalid'); return; }
-        setSession(data as Session);
-        setSpouse({ pending: !!data.spousePending, name: data.spouseName || '' });
-        if (data.alreadySigned || data.requestStatus !== 'pending_signature') { setPhase('already'); return; }
+        if (error || !data?.ok) { setLoaded({ kind: 'invalid' }); return; }
+        const session = data as Session;
+        // מצב בן/בת הזוג מתעדכן גם מתשובת submit — לא רק מהטעינה הראשונה
+        const spouse = { pending: !!data.spousePending, name: data.spouseName || '' };
+        if (data.alreadySigned || data.requestStatus !== 'pending_signature') {
+          setLoaded({ kind: 'ready', data: { session, pdfBytes: null, phase: 'already', spouse } });
+          return;
+        }
         const first = (data.documents?.[0]?.pdfUrl) || data.pdfUrl;
-        const res = await fetch(first);
-        if (!res.ok) throw new Error('טעינת המסמך נכשלה');
-        setPdfBytes(await res.arrayBuffer());
-        setPhase('sign');
+        const pdfBytes = await actions.loadDocument(first);
+        setLoaded({ kind: 'ready', data: { session, pdfBytes, phase: 'sign', spouse } });
       } catch (e) {
         // ‼ הלקוח לא רואה את הטקסט הטכני: הוא לרוב באנגלית, לא אומר לו כלום,
         //   ולפעמים חושף פרטי שרת. הפירוט נשאר ב-console לצורך אבחון.
         console.error('[PublicSignPage] טעינת המסמך נכשלה', e);
-        setErrMsg('לא הצלחנו לטעון את המסמך. נסו לרענן את הדף, ואם זה חוזר - פנו למשרד.');
-        setPhase('error');
+        setLoaded({ kind: 'error', message: 'לא הצלחנו לטעון את המסמך. נסו לרענן את הדף, ואם זה חוזר - פנו למשרד.' });
       }
     })();
-  }, [token]);
+  }, [token, actions]);
+
+  if (loaded.kind === 'loading') return <ClientPageState quiet body="טוען את המסמך…" />;
+  if (loaded.kind === 'invalid') return (
+    <ClientPageState
+      mark="🔗"
+      title="הקישור אינו תקף"
+      body="ייתכן שהקישור שגוי או שהתהליך הסתיים. פנו למשרד לקבלת קישור חדש."
+    />
+  );
+  if (loaded.kind === 'error') return <SignErrorState message={loaded.message} onRetry={() => actions.restart()} />;
+  return <PublicSignView data={loaded.data} actions={actions} />;
+}
+
+export type PublicSignViewProps = { data: PublicSignViewData } & (
+  | { mode?: 'live'; actions: PublicSignActions }
+  /** בתצוגה לדוגמה אפשר להשמיט את `actions` — ברירת המחדל לא נוגעת בכלום. */
+  | { mode: 'sample'; actions?: PublicSignActions }
+);
+
+type SignPhase = 'loading' | 'already' | 'sign' | 'submitting' | 'done' | 'error';
+
+/**
+ * מסך החתימה עצמו, בלי טעינה: כל הנתונים נכנסים ב-`data` וכל מה שיוצא החוצה
+ * עובר ב-`actions`. כך אותו מסך בדיוק משמש את הקישור האמיתי ואת «צפייה» במשרד.
+ * ‼ חדר החתימה הוא שכבת `position: fixed` — בתוך עמוד אחר יש לעטוף ב-LinkedScreenFrame.
+ */
+export function PublicSignView(props: PublicSignViewProps) {
+  const { data } = props;
+  const sample = props.mode === 'sample';
+  const actions: PublicSignActions = props.actions ?? samplePublicSignActions;
+  const session = data.session;
+  const [phase, setPhase] = useState<SignPhase>(data.phase);
+  const [pdfBytes, setPdfBytes] = useState<ArrayBuffer | null>(data.pdfBytes);
+  /** על איזה טופס חותמים עכשיו, ומה נאסף עד כה מכולם. */
+  const [docIndex, setDocIndex] = useState(0);
+  const [collected, setCollected] = useState<Record<string, SignatureValue>>({});
+  const [errMsg, setErrMsg] = useState('');
+  // מצב בן/בת הזוג מתעדכן גם מתשובת submit — לא רק מהטעינה הראשונה
+  const [spouse, setSpouse] = useState<{ pending: boolean; name: string }>(data.spouse);
+  /** בתצוגה לדוגמה: «סיום וחתימה» נלחץ ולא נשלח דבר — החדר נשאר פתוח. */
+  const [simNote, setSimNote] = useState(false);
+  /** בתצוגה לדוגמה «ביטול» מאפס את החדר במקום לטעון את הדף מחדש. */
+  const [roomKey, setRoomKey] = useState(0);
+
+  useEffect(() => {
+    if (!simNote) return;
+    const t = setTimeout(() => setSimNote(false), 9000);
+    return () => clearTimeout(t);
+  }, [simNote]);
 
   /** רשימת המסמכים, עם נפילה-לאחור לשרת שעוד לא מכיר ריבוי טפסים. */
   function docsOf(sess: Session) {
@@ -269,9 +405,7 @@ export default function PublicSignPage({ token }: { token: string }) {
       setCollected(merged);
       setPhase('loading');
       try {
-        const res = await fetch(list[docIndex + 1].pdfUrl);
-        if (!res.ok) throw new Error('טעינת המסמך נכשלה');
-        setPdfBytes(await res.arrayBuffer());
+        setPdfBytes(await actions.loadDocument(list[docIndex + 1].pdfUrl));
         setDocIndex(docIndex + 1);
         setPhase('sign');
       } catch (e) {
@@ -281,17 +415,16 @@ export default function PublicSignPage({ token }: { token: string }) {
       }
       return;
     }
-    setPhase('submitting');
+    // ‼ בתצוגה לדוגמה לא עוברים ל«שולח…»: זה היה מפרק את חדר החתימה ומוחק את מה שנחתם בו.
+    if (!sample) setPhase('submitting');
     try {
       // שולחים רק את הערכים של השדות שלי, מכל הטפסים
       const myFieldIds = new Set(list.flatMap(d => d.fields).filter(f => f.signerId === session.signerId).map(f => f.id));
       const mine: Record<string, SignatureValue> = {};
       for (const [k, v] of Object.entries(merged)) if (myFieldIds.has(k)) mine[k] = v;
-      const { data, error } = await supabase.functions.invoke('signing-session', { body: { action: 'submit', token, values: mine } });
-      if (error || !data?.ok) throw new Error(error?.message || data?.error || 'שליחה נכשלה');
-      setSpouse({ pending: !!data.spousePending, name: data.spouseName || '' });
-      // ההתראה לרו"ח כבר בתור; כאן רק מבקשים לרוקן אותו מיד. לא חוסם.
-      flushAccountantNotifications(token);
+      const res = await actions.submit(mine);
+      if (res.status === 'simulated') { setSimNote(true); return; }
+      setSpouse({ pending: res.spousePending, name: res.spouseName });
       setPhase('done');
     } catch (e) {
       console.error('[PublicSignPage] שליחת החתימה נכשלה', e);
@@ -302,20 +435,13 @@ export default function PublicSignPage({ token }: { token: string }) {
 
   if (phase === 'loading') return <ClientPageState quiet body="טוען את המסמך…" />;
   if (phase === 'submitting') return <ClientPageState quiet body="שולח את החתימה…" />;
-  if (phase === 'invalid') return (
-    <ClientPageState
-      mark="🔗"
-      title="הקישור אינו תקף"
-      body="ייתכן שהקישור שגוי או שהתהליך הסתיים. פנו למשרד לקבלת קישור חדש."
-    />
-  );
   // ‼ שני מסכי הסיום מתפצלים לפי אישור הב"ל. כשהוא עוד ממתין אסור שייאמר כאן
   //   "אין צורך בפעולה נוספת" או "נמשיך מכאן" — זה בדיוק הרגע שבו הלקוח סוגר
   //   את החלון ומשאיר את הייצוג בב"ל ללא תוקף בלי לדעת.
   //   מאותה סיבה, כשחתימת בן/בת הזוג ממתינה — הנישום מקבל כאן את הבחירה
   //   "יחד או בנפרד" ולא הודעת "סיימנו": בלעדיה ייפוי הכוח נשאר חצי-חתום.
   const hi = session?.signerName ? `, ${session.signerName}` : '';
-  const spouseBlock = spouse.pending ? <SpouseNextStep token={token} spouseName={spouse.name} /> : null;
+  const spouseBlock = spouse.pending ? <SpouseNextStep actions={actions} spouseName={spouse.name} /> : null;
   if (phase === 'already') return (session?.ni || spouseBlock) ? (
     <ClientPageState
       wide
@@ -352,14 +478,7 @@ export default function PublicSignPage({ token }: { token: string }) {
       body={`תודה${hi}! ${session?.firmName || 'המשרד'} יגיש עכשיו את בקשת הייצוג לרשויות ויעדכן אתכם.`}
     />
   );
-  if (phase === 'error') return (
-    <ClientPageState
-      mark="⚠"
-      title="משהו השתבש"
-      body={errMsg}
-      action={<button className="btn btn-primary" onClick={() => window.location.reload()}>נסו שוב</button>}
-    />
-  );
+  if (phase === 'error') return <SignErrorState message={errMsg} onRetry={() => actions.restart()} />;
 
   // phase === 'sign'
   if (!session || !pdfBytes) return null;
@@ -371,25 +490,37 @@ export default function PublicSignPage({ token }: { token: string }) {
   const current = list[docIndex];
   const many = list.length > 1;
   return (
-    <SigningRoom
-      key={current.key}
-      pdfBytes={pdfBytes.slice(0)}
-      pdfFileName={current.pdfFileName}
-      fields={current.fields}
-      signers={signers}
-      activeSignerId={session.signerId}
-      // הלקוח רואה רק איפה הוא (ובן/בת זוגו) חותמים. מקום החתימה של הרו"ח
-      // אינו עניינו, ורק מעלה שאלות על טופס שנראה חסר.
-      hiddenSignerIds={['accountant']}
-      initialValues={{ ...session.values, ...collected }}
-      /* ‼ כשיש כמה טפסים הכותרת אומרת על מה חותמים ואיפה זה עומד — אחרת
-         נראה כאילו אותו מסך חוזר על עצמו בלי סיבה. */
-      title={many
-        ? `✍ טופס ${docIndex + 1} מתוך ${list.length} · ${current.title}`
-        : `✍ חתימה על ייפוי כוח - ${session.signerName}`}
-      completeLabel={many && docIndex < list.length - 1 ? 'המשך לטופס הבא' : undefined}
-      onComplete={handleComplete}
-      onCancel={() => window.location.reload()}
-    />
+    <>
+      <SigningRoom
+        key={sample ? `${current.key}#${roomKey}` : current.key}
+        pdfBytes={pdfBytes.slice(0)}
+        pdfFileName={current.pdfFileName}
+        fields={current.fields}
+        signers={signers}
+        activeSignerId={session.signerId}
+        // הלקוח רואה רק איפה הוא (ובן/בת זוגו) חותמים. מקום החתימה של הרו"ח
+        // אינו עניינו, ורק מעלה שאלות על טופס שנראה חסר.
+        hiddenSignerIds={['accountant']}
+        initialValues={{ ...session.values, ...collected }}
+        /* ‼ כשיש כמה טפסים הכותרת אומרת על מה חותמים ואיפה זה עומד — אחרת
+           נראה כאילו אותו מסך חוזר על עצמו בלי סיבה. */
+        title={many
+          ? `✍ טופס ${docIndex + 1} מתוך ${list.length} · ${current.title}`
+          : `✍ חתימה על ייפוי כוח - ${session.signerName}`}
+        completeLabel={many && docIndex < list.length - 1 ? 'המשך לטופס הבא' : undefined}
+        onComplete={handleComplete}
+        onCancel={() => (sample ? setRoomKey(k => k + 1) : actions.restart())}
+      />
+      {/* ‼ הכפתור «סיום וחתימה» חי בתוך חדר החתימה, ולכן המשפט עומד מעל תחתיתו —
+          לא בתוך הפקד. לחיצה עליו סוגרת אותו. */}
+      {simNote && (
+        <div
+          onClick={() => setSimNote(false)}
+          style={{ position: 'fixed', insetInline: 16, bottom: 76, zIndex: 1300, display: 'flex', justifyContent: 'center', cursor: 'pointer' }}
+        >
+          <SampleSimulatedNote style={{ marginTop: 0, maxWidth: 520, boxShadow: '0 4px 18px rgba(0,0,0,.18)' }} />
+        </div>
+      )}
+    </>
   );
 }

@@ -396,7 +396,7 @@ function Preview({ art, values, dests }: {
       </div>
     );
   }
-  // ‼ הכרטיס האמיתי של הדף האישי (DeclareBlock), במצב תצוגה — כך שינוי בכרטיס
+  // ‼ הכרטיס האמיתי של הדף האישי (DeclareBlock), במצב דוגמה (שום דבר לא נשלח) — כך שינוי בכרטיס
   // אצל הלקוח לא משאיר כאן העתק ישן. ההסבר המלא נפתח שם ב«עוד», כמו אצל הלקוח.
   const item: PortalItem = {
     bucket: 'action', key: 'rep_approval', kind: 'declare',
@@ -408,7 +408,7 @@ function Preview({ art, values, dests }: {
   return (
     <div className="rs-pv-wrap">
       <div className="rs-pv-hint">כך ייראה הכרטיס בדף האישי של הלקוח אחרי ההגשה למס הכנסה.</div>
-      <PortalView preview embed data={{
+      <PortalView mode="sample" embed data={{
         clientFirstName: '', firmName: 'שם המשרד', branding: {}, done: 0, total: 1, items: [item],
       }} />
     </div>

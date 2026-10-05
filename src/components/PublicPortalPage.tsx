@@ -9,9 +9,7 @@
 //
 // ‼ מיתוג המשרד, לא PIVO — כמו כל מה שהלקוח רואה.
 
-import { createContext, useContext, useEffect, useState } from 'react';
-import { supabase, SUPABASE_URL } from '../lib/supabase';
-import { flushAccountantNotifications } from '../lib/notifyAccountant';
+import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { FirmBranding } from '../types/firmProfile';
 import { MESSAGE_DEFAULT_TITLE } from '../lib/sendDocuments';
 import { deriveQuotationBrand } from './quotations/quotationBranding';
@@ -25,8 +23,11 @@ import { REP_PORTAL_CARD_FIXED } from '../../supabase/functions/_shared/repTempl
 import './portal/portalPage.css';
 import HomeOfficeForm from '../features/requests/HomeOfficeForm';
 import type { ValidHomeOffice } from '../features/requests/homeOffice';
-import { portalSubmitBusinessDetails } from '../features/requests/api';
 import { groupPortalItems, portalChildTitle, portalGroupStatus, type PortalGroup } from '../features/requests/requestGroups';
+import {
+  livePortalActions, loadClientPortal, officeViewActions, samplePortalActions, SAMPLE_SIMULATED_TEXT,
+  type PortalActions, type PortalLinkedKind, type PortalMode,
+} from './portal/portalActions';
 
 interface Props {
   token: string;
@@ -34,8 +35,26 @@ interface Props {
 
 type Bucket = 'action' | 'office' | 'done' | 'future';
 
-/** תצוגה מקדימה לרו"ח: אותו עמוד בדיוק, בלי פעולות חיות. */
-const PreviewCtx = createContext(false);
+/**
+ * ‼ שלושה מצבים לאותו עמוד (D4):
+ *   live       — הלקוח האמיתי. הדף הציבורי (ברירת המחדל שמיוצאת מכאן) תמיד כזה, ואינו יכול לקבל sample.
+ *   sample     — «צפייה» בספרייה: הכול נפתח ומגיב מקומית; שום פעולה לא יוצאת (portalActions.samplePortalActions).
+ *   officeView — הרו"ח בתיק של לקוח אמיתי: הכול נפתח לקריאה, כל הפקדים כבויים.
+ */
+const PortalModeCtx = createContext<PortalMode>('officeView');
+/** כל פעולה של הלקוח עוברת כאן — הרכיבים אינם פונים לשרת בעצמם. */
+const PortalActionsCtx = createContext<PortalActions>(officeViewActions);
+
+function usePortal() {
+  const mode = useContext(PortalModeCtx);
+  const actions = useContext(PortalActionsCtx);
+  return { mode, actions, readOnly: mode === 'officeView', sample: mode === 'sample' };
+}
+
+/** ‼ המשפט שמתחת לכפתור שנלחץ בדוגמה — «כאן הלקוח היה שולח», בלי להישמע כשגיאה. */
+function SimulatedNote({ color }: { color: string }) {
+  return <span data-testid="portal-simulated" role="status" style={{ display: 'block', fontSize: 12.5, lineHeight: 1.5, color }}>{SAMPLE_SIMULATED_TEXT}</span>;
+}
 
 /** תג טיוטה — מופיע רק בתצוגה המקדימה, על בקשות שטרם פורסמו. */
 function DraftChip() {
@@ -207,50 +226,11 @@ function actionHref(item: PortalItem): string | null {
   }
 }
 
-/**
- * הכתובת שפותחת קובץ אחד שנשלח ללקוח.
- *
- * ‼ קובץ מספריית המשרד נפתח ישירות — הוא ציבורי ממילא. קובץ מהתיק של הלקוח
- * עובר דרך portal-open-document, שהוא היחיד שיכול לחתום קישור אל ה-bucket
- * הפרטי, ורק אחרי שווידא שהקובץ באמת נשלח ללקוח הזה.
- */
-function resourceHref(
-  token: string, stepId: string | undefined,
-  r: NonNullable<PortalItem['resources']>[number],
-): string | null {
-  if (r.url) return r.url;
-  if (!r.documentId || !stepId) return null;
-  const base = SUPABASE_URL;
-  const q = new URLSearchParams({ token, stepId, docId: r.documentId });
-  return `${base}/functions/v1/portal-open-document?${q}`;
-}
-
-/**
- * ‼ (170) «נפתח» נרשם רק אחרי שהקובץ באמת נפתח — לא במקביל ללחיצה.
- *
- * עד כה הרישום (portal_submit_step) רץ יחד עם פתיחת הלשונית, ולכן קובץ שנמחק
- * מהתיק הציג ללקוח דף שגיאה — והבקשה אצל הרו"ח נסגרה כ"נפתח". כאן הדפדפן
- * מבקש את אותה כתובת בדיוק (portal-open-document ⇒ 302 ⇒ Storage) ורושם
- * רק כשהתשובה היא 2xx. הגוף לא מורד פעם שנייה — ברגע שהכותרות הגיעו
- * הזרם מבוטל.
- *
- * ‼ רק קישורים אצלנו נבדקים: הפונקציה וה-Storage מחזירים כותרות CORS, אבל
- * מדריך באתר חיצוני (יוטיוב, אתר רשות) לא — ושם fetch נכשל גם כשהדף תקין.
- * קישור חיצוני נרשם כמו קודם, על סמך הלחיצה.
- * דף השגיאה של הפונקציה חוזר בלי כותרות CORS ולכן fetch זורק — וזו בדיוק
- * התשובה הנכונה: לא נפתח, לא נרשם, השורה נשארת פתוחה לניסיון הבא.
- */
-async function confirmOpened(href: string | undefined | null): Promise<boolean> {
-  if (!href) return false;
-  const base = String(SUPABASE_URL || '');
-  if (!base || !href.startsWith(base)) return true;
-  try {
-    const r = await fetch(href, { method: 'GET', credentials: 'omit', cache: 'no-store' });
-    try { await r.body?.cancel(); } catch { /* הגוף כבר לא מעניין */ }
-    return r.ok;
-  } catch {
-    return false;
-  }
+/** קישור עם טוקן למסך אחר (קליטה, חתימה, שאלון, הצעה). בדוגמה הוא אינו מנווט — הוא פותח את המסך המקושר. */
+function linkedKind(item: PortalItem): PortalLinkedKind | null {
+  if (!item.actionValue) return null;
+  return item.actionKind === 'onboard' || item.actionKind === 'sign' || item.actionKind === 'intake' || item.actionKind === 'quote'
+    ? item.actionKind : null;
 }
 
 /**
@@ -260,38 +240,38 @@ async function confirmOpened(href: string | undefined | null): Promise<boolean> 
  * ‼ הקובץ נכנס ישירות לתיק של הלקוח אצל הרו"ח ומסמן את הפריט. אין שלב ביניים
  * של "ממתין לאישור" — מה שהגיע, הגיע, וההחלטה אם הוא תקין נשארת אצל הרו"ח.
  */
-function UploadItem({ token, tokenKind, stepId, itemKey, label, note, done, brand, accent, onDone, accept }: {
-  token: string; tokenKind: 'portal' | 'release';
+function UploadItem({ tokenKind = 'portal', stepId, itemKey, label, note, done, brand, accent, onDone, accept }: {
+  tokenKind?: 'portal' | 'release';
   stepId: string; itemKey: string; label: string; note?: string; done: boolean;
   /** סוגי הקבצים שמותר לבחור. ברירת מחדל: כל מה שהמשרד מקבל. */
   accept?: string;
   brand: { ink: string; muted: string; border: string; radius: number };
   accent: string; onDone: () => void;
 }) {
-  const previewMode = useContext(PreviewCtx);
+  const { actions, readOnly, sample } = usePortal();
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [simulated, setSimulated] = useState(false);
   const inputId = `up-${stepId}-${itemKey}`;
 
   async function upload(file: File) {
     setErr(null);
+    setSimulated(false);
     setBusy(true);
-    const form = new FormData();
-    form.append('token', token);
-    form.append('tokenKind', tokenKind);
-    form.append('stepId', stepId);
-    form.append('itemKey', itemKey);
-    form.append('file', file);
-    const { data, error } = await supabase.functions.invoke('portal-upload-document', { body: form });
+    const res = await actions.uploadDocument({ stepId, itemKey, file, tokenKind });
     setBusy(false);
-    const res = data as { ok?: boolean; error?: string } | null;
-    if (error || !res?.ok) {
-      setErr(UPLOAD_ERRORS[res?.error ?? ''] ?? 'ההעלאה נכשלה. אפשר לנסות שוב.');
+    if (res.simulated) { setSimulated(true); return; }
+    if (!res.ok) {
+      setErr(UPLOAD_ERRORS[res.error ?? ''] ?? 'ההעלאה נכשלה. אפשר לנסות שוב.');
       return;
     }
-    flushAccountantNotifications(token);
+    actions.notifyAccountant();
     onDone();
   }
+
+  const uploadLink: React.CSSProperties = {
+    flexShrink: 0, fontSize: 12.5, fontWeight: 600, padding: '2px 0', color: accent,
+  };
 
   return (
     <li style={{ display: 'grid', gap: 4, padding: '3px 0' }}>
@@ -304,14 +284,24 @@ function UploadItem({ token, tokenKind, stepId, itemKey, label, note, done, bran
         }}>{label}{note && !done && (
           <span data-testid="upload-item-note" style={{ display: 'block', fontSize: 12, color: brand.muted, textDecoration: 'none' }}>{note}</span>
         )}</span>
-        {!done && !previewMode && (
+        {/* ‼ בדוגמה אין בוחר קבצים: לחיצה אחת אומרת מה היה קורה, בלי לפתוח כלום ובלי קובץ אמיתי. */}
+        {!done && readOnly && (
+          <span aria-disabled="true" style={{ ...uploadLink, cursor: 'default', opacity: .55 }}>העלאה</span>
+        )}
+        {!done && sample && (
+          <button type="button" disabled={busy}
+            onClick={() => void upload(new File([], 'דוגמה.pdf'))}
+            style={{ ...uploadLink, background: 'none', border: 'none', font: 'inherit', cursor: busy ? 'default' : 'pointer', opacity: busy ? .6 : 1 }}>
+            {busy ? 'מעלה…' : 'העלאה'}
+          </button>
+        )}
+        {!done && !readOnly && !sample && (
           <>
             <input id={inputId} type="file" accept={accept ?? ACCEPT} disabled={busy}
               style={{ display: 'none' }}
               onChange={e => { const f = e.target.files?.[0]; if (f) void upload(f); e.target.value = ''; }} />
             <label htmlFor={inputId} style={{
-              flexShrink: 0, cursor: busy ? 'default' : 'pointer',
-              fontSize: 12.5, fontWeight: 600, padding: '2px 0',
+              ...uploadLink, cursor: busy ? 'default' : 'pointer',
               color: busy ? brand.muted : accent, opacity: busy ? .6 : 1,
             }}>{busy ? 'מעלה…' : 'העלאה'}</label>
           </>
@@ -322,31 +312,33 @@ function UploadItem({ token, tokenKind, stepId, itemKey, label, note, done, bran
           {err}
         </span>
       )}
+      {simulated && <div style={{ paddingInlineStart: 18 }}><SimulatedNote color={brand.muted} /></div>}
     </li>
   );
 }
 
 /** בקשה חופשית — כל דרישה והפעולה שלה. */
-function CustomRequestBlock({ token, item, brand, accent, onDone }: {
-  token: string; item: PortalItem;
+function CustomRequestBlock({ item, brand, accent, onDone }: {
+  item: PortalItem;
   brand: { ink: string; muted: string; border: string; radius: number };
   accent: string; onDone: () => void;
 }) {
-  const previewMode = useContext(PreviewCtx);
+  const { actions, readOnly } = usePortal();
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const [text, setText] = useState<Record<string, string>>({});
   const [err, setErr] = useState<string | null>(null);
+  /** בדוגמה: איזו דרישה נלחצה — המשפט «כאן הלקוח היה שולח» מופיע מתחתיה. */
+  const [simKey, setSimKey] = useState<string | null>(null);
   const stepId = item.actionValue!;
 
   async function submit(key: string, value?: string) {
     setErr(null);
+    setSimKey(null);
     setBusyKey(key);
-    const { data, error } = await supabase.rpc('portal_submit_step', {
-      p_token: token, p_step_id: stepId, p_data: value !== undefined ? { key, value } : { key },
-    });
+    const res = await actions.submitStep(stepId, value !== undefined ? { key, value } : { key });
     setBusyKey(null);
-    const res = data as { ok?: boolean; error?: string } | null;
-    if (error || !res?.ok) {
+    if (res.simulated) { setSimKey(key); return; }
+    if (!res.ok) {
       const messages: Record<string, string> = {
         missing_value: 'צריך למלא תשובה.',
         bad_email: 'כתובת האימייל לא נראית תקינה.',
@@ -355,10 +347,10 @@ function CustomRequestBlock({ token, item, brand, accent, onDone }: {
         bad_date: 'התאריך לא נראה תקין.',
         bad_choice: 'צריך לבחור אחת מהאפשרויות.',
       };
-      setErr(messages[res?.error ?? ''] ?? 'לא הצלחנו לשמור. אפשר לנסות שוב.');
+      setErr(messages[res.error ?? ''] ?? 'לא הצלחנו לשמור. אפשר לנסות שוב.');
       return;
     }
-    flushAccountantNotifications(token);
+    actions.notifyAccountant();
     onDone();
   }
 
@@ -393,7 +385,7 @@ function CustomRequestBlock({ token, item, brand, accent, onDone }: {
               )}
               {canAddMore && (
                 <ul style={{ margin: 0, padding: 0, listStyle: 'none' }}>
-                  <UploadItem token={token} tokenKind="portal" stepId={stepId} itemKey={r.key}
+                  <UploadItem stepId={stepId} itemKey={r.key}
                     label={count > 0 ? 'קובץ נוסף' : r.label} done={false}
                     brand={brand} accent={accent} onDone={onDone} />
                 </ul>
@@ -413,7 +405,7 @@ function CustomRequestBlock({ token, item, brand, accent, onDone }: {
         if (r.kind === 'file') {
           return (
             <ul key={r.key} style={{ margin: 0, padding: 0, listStyle: 'none' }}>
-              <UploadItem token={token} tokenKind="portal" stepId={stepId} itemKey={r.key}
+              <UploadItem stepId={stepId} itemKey={r.key}
                 label={r.label} done={false} brand={brand} accent={accent} onDone={onDone} />
             </ul>
           );
@@ -425,7 +417,7 @@ function CustomRequestBlock({ token, item, brand, accent, onDone }: {
           const opts = r.options ?? [];
           if (opts.length >= 2 && opts.length <= 5) {
             const chosen = text[r.key] ?? '';
-            const locked = busyKey === r.key || previewMode;
+            const locked = busyKey === r.key || readOnly;
             const groupId = `pp-q-${stepId}-${r.key}`;
             return (
               <div key={r.key} style={{ display: 'grid', gap: 6 }}>
@@ -450,12 +442,13 @@ function CustomRequestBlock({ token, item, brand, accent, onDone }: {
                 </div>
                 <div>
                   <button type="button"
-                    disabled={previewMode || busyKey === r.key || !chosen.trim()}
+                    disabled={readOnly || busyKey === r.key || !chosen.trim()}
                     onClick={() => void submit(r.key, chosen)}
-                    style={btn(accent, brand.radius, busyKey === r.key || previewMode)}>
+                    style={btn(accent, brand.radius, busyKey === r.key || readOnly)}>
                     {busyKey === r.key ? 'שומר…' : 'שליחה'}
                   </button>
                 </div>
+                {simKey === r.key && <SimulatedNote color={brand.muted} />}
               </div>
             );
           }
@@ -463,18 +456,19 @@ function CustomRequestBlock({ token, item, brand, accent, onDone }: {
             <div key={r.key} style={{ display: 'grid', gap: 4 }}>
               <span style={{ fontSize: 13, color: brand.ink }}>{labelOf(r)}</span>
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                <select style={field} value={text[r.key] ?? ''} disabled={busyKey === r.key || previewMode}
+                <select style={field} value={text[r.key] ?? ''} disabled={busyKey === r.key || readOnly}
                   onChange={e => setText(t => ({ ...t, [r.key]: e.target.value }))}>
                   <option value="" disabled>בחרו…</option>
                   {(r.options ?? []).map(o => <option key={o} value={o}>{o}</option>)}
                 </select>
                 <button type="button"
-                  disabled={previewMode || busyKey === r.key || !(text[r.key] ?? '').trim()}
+                  disabled={readOnly || busyKey === r.key || !(text[r.key] ?? '').trim()}
                   onClick={() => void submit(r.key, text[r.key])}
-                  style={btn(accent, brand.radius, busyKey === r.key || previewMode)}>
+                  style={btn(accent, brand.radius, busyKey === r.key || readOnly)}>
                   {busyKey === r.key ? 'שומר…' : 'שליחה'}
                 </button>
               </div>
+              {simKey === r.key && <SimulatedNote color={brand.muted} />}
             </div>
           );
         }
@@ -492,27 +486,31 @@ function CustomRequestBlock({ token, item, brand, accent, onDone }: {
                   style={{ ...field, ...(ltr ? { direction: 'ltr' as const, textAlign: 'right' as const } : {}) }}
                   type={inputType}
                   inputMode={r.kind === 'number' ? 'decimal' : r.kind === 'phone' ? 'tel' : undefined}
-                  value={text[r.key] ?? ''} disabled={busyKey === r.key || previewMode}
+                  value={text[r.key] ?? ''} disabled={busyKey === r.key || readOnly}
                   onChange={e => setText(t => ({ ...t, [r.key]: e.target.value }))} />
                 <button type="button"
-                  disabled={previewMode || busyKey === r.key || !(text[r.key] ?? '').trim()}
+                  disabled={readOnly || busyKey === r.key || !(text[r.key] ?? '').trim()}
                   onClick={() => void submit(r.key, text[r.key])}
-                  style={btn(accent, brand.radius, busyKey === r.key || previewMode)}>
+                  style={btn(accent, brand.radius, busyKey === r.key || readOnly)}>
                   {busyKey === r.key ? 'שומר…' : 'שליחה'}
                 </button>
               </div>
+              {simKey === r.key && <SimulatedNote color={brand.muted} />}
             </div>
           );
         }
         return (
-          <div key={r.key} style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-            <span aria-hidden="true" style={{ color: brand.muted }}>○</span>
-            <span style={{ flex: 1, minWidth: 120, fontSize: 13, color: brand.ink }}>{labelOf(r)}</span>
-            <button type="button" disabled={busyKey === r.key || previewMode}
-              onClick={() => void submit(r.key)}
-              style={btn(accent, brand.radius, busyKey === r.key || previewMode)}>
-              {busyKey === r.key ? 'שומר…' : (item.cta || 'מאשר/ת')}
-            </button>
+          <div key={r.key} style={{ display: 'grid', gap: 4 }}>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+              <span aria-hidden="true" style={{ color: brand.muted }}>○</span>
+              <span style={{ flex: 1, minWidth: 120, fontSize: 13, color: brand.ink }}>{labelOf(r)}</span>
+              <button type="button" disabled={busyKey === r.key || readOnly}
+                onClick={() => void submit(r.key)}
+                style={btn(accent, brand.radius, busyKey === r.key || readOnly)}>
+                {busyKey === r.key ? 'שומר…' : (item.cta || 'מאשר/ת')}
+              </button>
+            </div>
+            {simKey === r.key && <SimulatedNote color={brand.muted} />}
           </div>
         );
       })}
@@ -555,14 +553,15 @@ function progressLine(item: PortalItem): string | undefined {
  * הרו"ח הקודם נפתחים רק בלחיצה. גרסה קודמת פרשה את כל השורות תמיד — שבע
  * שורות מסמכים גלויות מיד הן בדיוק העומס שהמודל המאוחד בא לצמצם.
  */
-function ActionItem({ token, item, brand, accent, last, onDone }: {
-  token: string; item: PortalItem; last: boolean;
+function ActionItem({ item, brand, accent, last, onDone }: {
+  item: PortalItem; last: boolean;
   brand: { ink: string; muted: string; border: string; radius: number; cardBg: string };
   accent: string; onDone: () => void;
 }) {
-  const previewMode = useContext(PreviewCtx);
+  const { actions, readOnly, sample } = usePortal();
   const [open, setOpen] = useState(false);
   const href = actionHref(item);
+  const linked = linkedKind(item);
   const inPage = item.actionKind === 'portal';
   const expandable = inPage && (item.kind === 'documents' || item.kind === 'custom' || item.kind === 'prev_accountant');
   const signup = inPage && item.kind === 'paperless_signup';
@@ -602,8 +601,8 @@ function ActionItem({ token, item, brand, accent, last, onDone }: {
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <span style={{ flex: 1, fontSize: 14.5, fontWeight: 650, color: brand.ink }}>{item.label}</span>
-        {previewMode && item.draft && <DraftChip />}
-        {previewMode && item.removing && <RemovingChip />}
+        {readOnly && item.draft && <DraftChip />}
+        {readOnly && item.removing && <RemovingChip />}
       </div>
       {prog && <div style={{ fontSize: 12.5, color: brand.muted, marginTop: 3 }}>{prog}</div>}
 
@@ -618,38 +617,41 @@ function ActionItem({ token, item, brand, accent, last, onDone }: {
         ) : null
       ) : guide ? (
         <div style={{ marginTop: 11 }}>
-          <GuideBlock token={token} item={item} brand={brand} accent={accent} onDone={onDone} />
+          <GuideBlock item={item} brand={brand} accent={accent} onDone={onDone} />
         </div>
       ) : signup ? (
         <div style={{ marginTop: 11 }}>
-          <PaperlessSignupBlock token={token} item={item} brand={brand} accent={accent} onDone={onDone} />
+          <PaperlessSignupBlock item={item} brand={brand} accent={accent} onDone={onDone} />
         </div>
       ) : declare ? (
         <div style={{ marginTop: 11 }}>
-          <DeclareBlock token={token} item={item} brand={brand} accent={accent} onDone={onDone} />
+          <DeclareBlock item={item} brand={brand} accent={accent} onDone={onDone} />
         </div>
       ) : identity ? (
         <div style={{ marginTop: 11 }}>
-          <IdentityConfirmBlock token={token} item={item} brand={brand} accent={accent} onDone={onDone} />
+          <IdentityConfirmBlock item={item} brand={brand} accent={accent} onDone={onDone} />
         </div>
       ) : bizDetails ? (
         <div style={{ marginTop: 11 }}>
-          {!open && (previewMode
-            ? <span style={inertBtn}>מילוי פרטים</span>
-            : <button type="button" onClick={() => setOpen(true)} style={primaryBtn} aria-expanded={false}>מילוי פרטים</button>)}
-          {open && <BusinessDetailsBlock token={token} item={item} brand={brand} accent={accent} onDone={onDone}
+          {!open && <button type="button" onClick={() => setOpen(true)} style={primaryBtn} aria-expanded={false}>מילוי פרטים</button>}
+          {open && <BusinessDetailsBlock item={item} brand={brand} accent={accent} onDone={onDone}
             onCancel={() => setOpen(false)} />}
         </div>
       ) : (
         <div style={{ marginTop: 11 }}>
-          {href && (previewMode
+          {/* ‼ בדוגמה קישור עם טוקן אינו מנווט — הוא מבקש מהספרייה לפתוח את המסך המקושר; קישור ציבורי (gov.il וכד׳) נפתח בלשונית חדשה. */}
+          {href && (readOnly
             ? <span style={inertBtn}>להמשך ←</span>
-            : <a href={href} style={primaryBtn}>להמשך ←</a>)}
-          {/* ‼ בקשה חופשית נפתחת גם בתצוגה במשרד: ההסבר, המדריך והשאלה הם מה שהלקוח רואה, והפקדים שבפנים
-              כבויים (CustomRequestBlock). שאר הסוגים (מסמכים, רו״ח קודם) — הטפסים שבהם חיים, ולכן נשארים כבויים. */}
-          {expandable && (previewMode && item.kind !== 'custom'
-            ? <span style={inertBtn}>{primaryLabel}</span>
-            : <button type="button" onClick={() => setOpen(o => !o)} style={primaryBtn} aria-expanded={open}>{primaryLabel}</button>)}
+            : sample && linked
+              ? <button type="button" onClick={() => actions.openLinked(linked, item.actionValue)} style={primaryBtn}>להמשך ←</button>
+              : sample
+                ? <a href={href} target="_blank" rel="noopener noreferrer" style={primaryBtn}>להמשך ←</a>
+                : <a href={href} style={primaryBtn}>להמשך ←</a>)}
+          {/* ‼ G2 · כל סוגי הבקשות נפתחים — גם בתצוגה במשרד ובדוגמה: ההסבר, הרשימה והשדות הם מה שהלקוח רואה.
+              בתצוגה במשרד הפקדים שבפנים כבויים (readOnly); בדוגמה הם עובדים מקומית ולא שולחים דבר. */}
+          {expandable && (
+            <button type="button" onClick={() => setOpen(o => !o)} style={primaryBtn} aria-expanded={open}>{primaryLabel}</button>
+          )}
         </div>
       )}
 
@@ -659,7 +661,7 @@ function ActionItem({ token, item, brand, accent, last, onDone }: {
       {open && inPage && item.kind === 'documents' && !!item.checklist?.length && item.actionValue && (
         <ul style={{ margin: '12px 0 0', padding: 0, listStyle: 'none', display: 'grid', gap: 2, borderTop: `1px dashed ${brand.border}`, paddingTop: 8 }}>
           {item.checklist.map(ci => (
-            <UploadItem key={ci.key ?? ci.label} token={token} tokenKind="portal"
+            <UploadItem key={ci.key ?? ci.label}
               stepId={item.actionValue!} itemKey={ci.key} label={ci.label} note={ci.note} done={ci.done}
               brand={brand} accent={accent} onDone={onDone} />
           ))}
@@ -670,13 +672,13 @@ function ActionItem({ token, item, brand, accent, last, onDone }: {
         <div style={{ borderTop: `1px dashed ${brand.border}`, paddingTop: 8, marginTop: 12 }}>
           <RequestGuide item={item} brand={brand} />
           <PhotoGuideRow item={item} brand={brand} accent={accent} />
-          <CustomRequestBlock token={token} item={item} brand={brand} accent={accent} onDone={onDone} />
+          <CustomRequestBlock item={item} brand={brand} accent={accent} onDone={onDone} />
         </div>
       )}
 
       {open && inPage && item.kind === 'prev_accountant' && item.actionValue && (
         <div style={{ borderTop: `1px dashed ${brand.border}`, paddingTop: 8, marginTop: 12 }}>
-          <PrevAccountantForm token={token} stepId={item.actionValue}
+          <PrevAccountantForm stepId={item.actionValue}
             prefill={item.prefill} brand={brand} accent={accent} onDone={onDone} />
         </div>
       )}
@@ -695,8 +697,8 @@ function ActionItem({ token, item, brand, accent, last, onDone }: {
  * ‼ תאימות לאחור: בקשה שנשלחה לפני השינוי נושאת רק את דרישת הפתיחה, ואז
  * אין כאן שורת סימון כלל — הכפתור סוגר אותה כמו קודם.
  */
-function GuideBlock({ token, item, brand, accent, onDone }: {
-  token: string; item: PortalItem;
+function GuideBlock({ item, brand, accent, onDone }: {
+  item: PortalItem;
   brand: { ink: string; muted: string; border: string; radius: number };
   accent: string; onDone: () => void;
 }) {
@@ -706,9 +708,9 @@ function GuideBlock({ token, item, brand, accent, onDone }: {
   const marks = (item.requirements ?? []).filter(r => r.kind === 'confirm' && r.key !== 'opened');
   return (
     <div style={{ display: 'grid', gap: 10, justifyItems: 'start' }}>
-      <GuideOpenButton token={token} item={item} brand={brand} accent={accent} onDone={onDone} />
+      <GuideOpenButton item={item} brand={brand} accent={accent} onDone={onDone} />
       {marks.map(r => (
-        <GuideCheck key={r.key} token={token} item={item} req={r}
+        <GuideCheck key={r.key} item={item} req={r}
           brand={brand} accent={accent} onDone={onDone} />
       ))}
     </div>
@@ -741,27 +743,28 @@ export interface PortalDocFile {
  * רץ אחרי הלחיצה, ורק אחרי שאותה כתובת ענתה 2xx (confirmOpened) — קובץ
  * שנמחק מציג דף שגיאה ולא נרשם. כישלון רישום משאיר את השורה פתוחה לניסיון הבא.
  */
-function DocumentRow({ token, file, brand, accent, onDone }: {
-  token: string; file: PortalDocFile;
+function DocumentRow({ file, brand, accent, onDone }: {
+  file: PortalDocFile;
   brand: { ink: string; muted: string; border: string; radius: number };
   accent: string; onDone: () => void;
 }) {
-  const previewMode = useContext(PreviewCtx);
+  const { actions, readOnly, sample } = usePortal();
   const [busy, setBusy] = useState(false);
+  const [simulated, setSimulated] = useState(false);
   const { item, res, opened } = file;
 
   async function record() {
-    if (previewMode || busy || opened || !res || !item.actionValue) return;
+    if (readOnly || busy || opened || !res || !item.actionValue) return;
+    setSimulated(false);
     setBusy(true);
     try {
-      if (!(await confirmOpened(file.href))) return;
-      await supabase.rpc('portal_submit_step', {
-        p_token: token, p_step_id: item.actionValue, p_data: { key: res.key },
-      });
+      if (!(await actions.confirmOpened(file.href))) return;
+      const r = await actions.submitStep(item.actionValue, { key: res.key });
+      if (r.simulated) { setSimulated(true); return; }
     } finally {
       setBusy(false);
     }
-    flushAccountantNotifications(token);
+    actions.notifyAccountant();
     onDone();
   }
 
@@ -769,9 +772,11 @@ function DocumentRow({ token, file, brand, accent, onDone }: {
     display: 'flex', alignItems: 'baseline', gap: 9, width: '100%',
     padding: '11px 0', textDecoration: 'none', boxSizing: 'border-box',
     borderTop: `1px solid ${brand.border}`,
-    cursor: previewMode ? 'default' : 'pointer',
-    opacity: previewMode ? .6 : 1, pointerEvents: previewMode ? 'none' : undefined,
+    cursor: readOnly ? 'default' : 'pointer',
+    opacity: readOnly ? .6 : 1, pointerEvents: readOnly ? 'none' : undefined,
   };
+  // ‼ קובץ מהתיק של הלקוח פרטי: נפתח רק עם הטוקן של הלקוח עצמו. בדוגמה ובתצוגה במשרד אין לו כתובת — ואומרים את זה.
+  const privateOnly = (sample || readOnly) && !file.href && !!res?.documentId;
 
   const body = (
     <>
@@ -800,40 +805,48 @@ function DocumentRow({ token, file, brand, accent, onDone }: {
       )}
       {/* תגיות התצוגה המקדימה צמודות לשורה שהן מדברות עליה — תגית שצפה
           לבדה מתחת לכותרת הקטע לא אמרה על מה היא חלה. */}
-      {previewMode && item.draft && <DraftChip />}
-      {previewMode && item.removing && <RemovingChip />}
+      {readOnly && item.draft && <DraftChip />}
+      {readOnly && item.removing && <RemovingChip />}
     </>
   );
 
-  if (!file.href) return <div style={{ ...style, cursor: 'default' }}>{body}</div>;
+  const row = !file.href
+    ? <div style={{ ...style, cursor: 'default' }}>{body}</div>
+    : (
+      <a href={file.href} target="_blank" rel="noopener noreferrer" style={style}
+        onClick={() => { void record(); }}>{body}</a>
+    );
   return (
-    <a href={file.href} target="_blank" rel="noopener noreferrer" style={style}
-      onClick={() => { void record(); }}>{body}</a>
+    <>
+      {row}
+      {privateOnly && <div data-testid="portal-private-file" style={{ fontSize: 12.5, color: brand.muted, paddingBottom: 8 }}>נפתח רק אצל הלקוח</div>}
+      {simulated && <div style={{ paddingBottom: 8 }}><SimulatedNote color={brand.muted} /></div>}
+    </>
   );
 }
 
 /** הסימון עצמו — תיבה אחת שנשלחת בלחיצה. אין ביטול: הרו"ח פותח מחדש. */
-function GuideCheck({ token, item, req, brand, accent, onDone }: {
-  token: string; item: PortalItem;
+function GuideCheck({ item, req, brand, accent, onDone }: {
+  item: PortalItem;
   req: NonNullable<PortalItem['requirements']>[number];
   brand: { ink: string; muted: string; border: string; radius: number };
   accent: string; onDone: () => void;
 }) {
-  const previewMode = useContext(PreviewCtx);
+  const { actions, readOnly } = usePortal();
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [simulated, setSimulated] = useState(false);
 
   async function mark() {
-    if (previewMode || req.done || busy || !item.actionValue) return;
+    if (readOnly || req.done || busy || !item.actionValue) return;
     setBusy(true);
     setErr(null);
-    const { data, error } = await supabase.rpc('portal_submit_step', {
-      p_token: token, p_step_id: item.actionValue, p_data: { key: req.key },
-    });
+    setSimulated(false);
+    const res = await actions.submitStep(item.actionValue, { key: req.key });
     setBusy(false);
-    const res = data as { ok?: boolean } | null;
-    if (error || !res?.ok) { setErr('לא הצלחנו לשמור את הסימון. אפשר לנסות שוב.'); return; }
-    flushAccountantNotifications(token);
+    if (res.simulated) { setSimulated(true); return; }
+    if (!res.ok) { setErr('לא הצלחנו לשמור את הסימון. אפשר לנסות שוב.'); return; }
+    actions.notifyAccountant();
     onDone();
   }
 
@@ -841,12 +854,12 @@ function GuideCheck({ token, item, req, brand, accent, onDone }: {
   return (
     <div style={{ display: 'grid', gap: 3 }}>
       <button type="button" role="checkbox" aria-checked={checked}
-        disabled={previewMode || checked || busy} onClick={() => void mark()}
+        disabled={readOnly || checked || busy} onClick={() => void mark()}
         style={{
           display: 'flex', alignItems: 'center', gap: 9, padding: 0,
           border: 'none', background: 'transparent', font: 'inherit',
-          cursor: previewMode || checked || busy ? 'default' : 'pointer',
-          opacity: previewMode ? .55 : 1,
+          cursor: readOnly || checked || busy ? 'default' : 'pointer',
+          opacity: readOnly ? .55 : 1,
         }}>
         <span aria-hidden="true" style={{
           width: 18, height: 18, flexShrink: 0, borderRadius: 4,
@@ -860,6 +873,7 @@ function GuideCheck({ token, item, req, brand, accent, onDone }: {
         </span>
       </button>
       {err && <span style={{ fontSize: 12, color: '#a63a3a' }}>{err}</span>}
+      {simulated && <SimulatedNote color={brand.muted} />}
     </div>
   );
 }
@@ -875,45 +889,49 @@ function GuideCheck({ token, item, req, brand, accent, onDone }: {
  * קופצים בולעים אותו. הרישום בשרת רץ במקביל, ואם הוא נכשל — הקובץ כבר
  * נפתח, והבקשה פשוט תישאר פתוחה לניסיון הבא.
  */
-function GuideOpenButton({ token, item, brand, accent, onDone }: {
-  token: string; item: PortalItem;
-  brand: { radius: number };
+function GuideOpenButton({ item, brand, accent, onDone }: {
+  item: PortalItem;
+  brand: { radius: number; muted: string };
   accent: string; onDone: () => void;
 }) {
-  const previewMode = useContext(PreviewCtx);
+  const { actions, readOnly } = usePortal();
   const [busy, setBusy] = useState(false);
+  const [simulated, setSimulated] = useState(false);
 
   const style: React.CSSProperties = {
     display: 'inline-block', flexShrink: 0, textDecoration: 'none', cursor: 'pointer', border: 'none',
     fontSize: 13.5, fontWeight: 600, padding: '9px 18px', color: '#fff',
-    background: accent, borderRadius: brand.radius, opacity: previewMode ? .55 : 1,
-    pointerEvents: previewMode ? 'none' : undefined,
+    background: accent, borderRadius: brand.radius, opacity: readOnly ? .55 : 1,
+    pointerEvents: readOnly ? 'none' : undefined,
   };
 
   async function record() {
-    if (previewMode || !item.actionValue || busy) return;
+    if (readOnly || !item.actionValue || busy) return;
+    setSimulated(false);
     setBusy(true);
     // ‼ אין טיפול בשגיאה במסך: הלקוח כבר קיבל את מה שרצה. חזרה על לחיצה
     // אינה מזיקה — portal_submit_step מחזיר noop על בקשה שכבר הושלמה.
     // ‼ (170) קובץ אצלנו נרשם רק אחרי שהכתובת ענתה 2xx (confirmOpened);
     // מדריך באתר חיצוני נרשם על סמך הלחיצה, כמו קודם.
     try {
-      if (!(await confirmOpened(item.resourceUrl))) return;
-      await supabase.rpc('portal_submit_step', {
-        p_token: token, p_step_id: item.actionValue, p_data: { key: 'opened' },
-      });
+      if (!(await actions.confirmOpened(item.resourceUrl))) return;
+      const r = await actions.submitStep(item.actionValue, { key: 'opened' });
+      if (r.simulated) { setSimulated(true); return; }
     } finally {
       setBusy(false);
     }
-    flushAccountantNotifications(token);
+    actions.notifyAccountant();
     onDone();
   }
 
   return (
-    <a href={item.resourceUrl} target="_blank" rel="noopener noreferrer"
-      style={style} onClick={() => { void record(); }}>
-      {item.cta || 'לפתיחת המדריך'}
-    </a>
+    <>
+      <a href={item.resourceUrl} target="_blank" rel="noopener noreferrer"
+        style={style} onClick={() => { void record(); }}>
+        {item.cta || 'לפתיחת המדריך'}
+      </a>
+      {simulated && <SimulatedNote color={brand.muted} />}
+    </>
   );
 }
 
@@ -933,7 +951,7 @@ function PhotoGuideRow({ item, brand, accent }: {
   brand: { ink: string; muted: string; border: string; radius: number };
   accent: string;
 }) {
-  const previewMode = useContext(PreviewCtx);
+  const { readOnly } = usePortal();
   const [open, setOpen] = useState(false);
   const guide = photoGuideFor(item.photoGuide);
   if (!guide) return null;
@@ -945,11 +963,11 @@ function PhotoGuideRow({ item, brand, accent }: {
   return (
     <div className="pp-photo-row" data-testid="photo-guide-row">
       <PhotoGuideButton steps={guide.steps.length} onClick={() => setOpen(true)} accent={accent} />
-      {previewMode
+      {readOnly
         ? <span className="pp-site-link is-inert" style={{ ...linkStyle, opacity: .55, cursor: 'default' }}>{guide.siteLabel} ↗</span>
         : <a className="pp-site-link" href={guide.entry.url} target="_blank" rel="noopener noreferrer" style={linkStyle}>{guide.siteLabel} ↗</a>}
       <LinkHostNote url={guide.entry.url} extra="נדרשות כניסה והזדהות" brand={brand} />
-      {open && <PhotoGuideDialog guide={guide} onClose={() => setOpen(false)} accent={accent} entryInert={previewMode} />}
+      {open && <PhotoGuideDialog guide={guide} onClose={() => setOpen(false)} accent={accent} entryInert={readOnly} />}
     </div>
   );
 }
@@ -1009,32 +1027,31 @@ function RequestGuide({ item, brand }: {
  * היחיד שבו הלקוח ממילא עוסק בפייפרלס. ידוע ⇒ מוצג לאישור; לא ידוע ⇒ נשאל.
  * מה שנשלח נשמר ב-clients.business_name בלבד — אין עותק שני על הבקשה.
  */
-function PaperlessSignupBlock({ token, item, brand, accent, onDone }: {
-  token: string; item: PortalItem;
+function PaperlessSignupBlock({ item, brand, accent, onDone }: {
+  item: PortalItem;
   brand: { ink: string; muted: string; border: string; radius: number; cardBg: string };
   accent: string; onDone: () => void;
 }) {
-  const previewMode = useContext(PreviewCtx);
+  const { actions, readOnly } = usePortal();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [simulated, setSimulated] = useState(false);
   const [businessName, setBusinessName] = useState(item.businessName ?? '');
 
   const asksBusiness = !!item.needsBusinessName;
   const missingBusiness = asksBusiness && businessName.trim() === '';
 
   async function confirm() {
-    if (previewMode || !item.actionValue) return;
+    if (readOnly || !item.actionValue) return;
     if (missingBusiness) { setError('צריך למלא את שם העסק לפני האישור.'); return; }
     setBusy(true);
     setError(null);
-    const { data, error: rpcError } = await supabase.rpc('portal_submit_step', {
-      p_token: token, p_step_id: item.actionValue,
-      p_data: asksBusiness ? { businessName: businessName.trim() } : {},
-    });
-    const res = data as { ok?: boolean; error?: string } | null;
+    setSimulated(false);
+    const res = await actions.submitStep(item.actionValue, asksBusiness ? { businessName: businessName.trim() } : {});
     setBusy(false);
-    if (rpcError || !res?.ok) {
-      setError(res?.error === 'missing_business_name'
+    if (res.simulated) { setSimulated(true); return; }
+    if (!res.ok) {
+      setError(res.error === 'missing_business_name'
         ? 'צריך למלא את שם העסק לפני האישור.'
         : 'לא הצלחנו לשמור את האישור. אפשר לנסות שוב.');
       return;
@@ -1048,10 +1065,10 @@ function PaperlessSignupBlock({ token, item, brand, accent, onDone }: {
     color: '#fff', background: accent, border: 'none',
   };
   const confirmBtn: React.CSSProperties = {
-    display: 'inline-block', cursor: previewMode || busy ? 'default' : 'pointer',
+    display: 'inline-block', cursor: readOnly || busy ? 'default' : 'pointer',
     fontSize: 13.5, fontWeight: 600, padding: '9px 18px', borderRadius: brand.radius,
     color: brand.ink, background: 'transparent', border: `1px solid ${brand.border}`,
-    opacity: previewMode || busy ? .55 : 1,
+    opacity: readOnly || busy ? .55 : 1,
   };
 
   return (
@@ -1064,7 +1081,7 @@ function PaperlessSignupBlock({ token, item, brand, accent, onDone }: {
           <input
             value={businessName}
             onChange={e => setBusinessName(e.target.value)}
-            disabled={previewMode || busy}
+            disabled={readOnly || busy}
             placeholder="השם שהעסק מוכר בו"
             style={{
               width: '100%', padding: '9px 11px', fontSize: 14, color: brand.ink,
@@ -1073,13 +1090,14 @@ function PaperlessSignupBlock({ token, item, brand, accent, onDone }: {
         </label>
       )}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
-        {item.linkUrl && (previewMode
+        {item.linkUrl && (readOnly
           ? <span style={{ ...linkBtn, opacity: .55, pointerEvents: 'none' }}>לפתיחת החשבון ←</span>
           : <a href={item.linkUrl} target="_blank" rel="noopener noreferrer" style={linkBtn}>לפתיחת החשבון ←</a>)}
         <button type="button" style={{ ...confirmBtn, opacity: missingBusiness ? .55 : confirmBtn.opacity }}
-          disabled={previewMode || busy} onClick={() => void confirm()}>
+          disabled={readOnly || busy} onClick={() => void confirm()}>
           {busy ? 'רגע…' : (item.cta || 'נרשמתי')}
         </button>
+        {simulated && <div style={{ width: '100%' }}><SimulatedNote color={brand.muted} /></div>}
         {item.linkUrl && <LinkHostNote url={item.linkUrl} brand={brand} />}
         {error && <div style={{ width: '100%', fontSize: 12.5, color: '#a63a3a' }}>{error}</div>}
       </div>
@@ -1093,12 +1111,12 @@ function PaperlessSignupBlock({ token, item, brand, accent, onDone }: {
  * ‼ «השם השתנה בינתיים במשרד» (stale) — לא דורסים: מציגים את השם הנוכחי ומבקשים לאשר שוב.
  * ‼ היחס שמוצג הוא אומדן; האחוז נקבע אצל המשרד ולא נאמר כאן.
  */
-function BusinessDetailsBlock({ token, item, brand, accent, onDone, onCancel }: {
-  token: string; item: PortalItem;
+function BusinessDetailsBlock({ item, brand, accent, onDone, onCancel }: {
+  item: PortalItem;
   brand: { ink: string; muted: string; border: string; radius: number; cardBg: string };
   accent: string; onDone: () => void; onCancel: () => void;
 }) {
-  const previewMode = useContext(PreviewCtx);
+  const { actions, readOnly } = usePortal();
   const [businessName, setBusinessName] = useState(item.businessName ?? '');
   const [expected, setExpected] = useState(item.businessName ?? '');
   const [homeOffice, setHomeOffice] = useState<ValidHomeOffice | null>(null);
@@ -1106,23 +1124,25 @@ function BusinessDetailsBlock({ token, item, brand, accent, onDone, onCancel }: 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
+  const [simulated, setSimulated] = useState(false);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (previewMode || !item.actionValue || busy) return;
+    if (readOnly || !item.actionValue || busy) return;
     setTried(true);
     if (!businessName.trim()) { setError('צריך למלא את שם העסק.'); return; }
     if (!homeOffice) { setError('יש להשלים את התשובות ולוודא שמספר החדרים תקין.'); return; }
-    setBusy(true); setError(null);
-    const r = await portalSubmitBusinessDetails(token, item.actionValue, { businessName, expectedBusinessName: expected, homeOffice });
+    setBusy(true); setError(null); setSimulated(false);
+    const r = await actions.submitBusinessDetails(item.actionValue, { businessName, expectedBusinessName: expected, homeOffice });
     setBusy(false);
+    if (r.simulated) { setSimulated(true); return; }
     if (!r.ok) {
       if (r.error === 'stale') { setBusinessName(r.businessName ?? ''); setExpected(r.businessName ?? ''); }
       setError(r.message);
       return;
     }
     setSent(true);
-    void flushAccountantNotifications(token);
+    actions.notifyAccountant();
     onDone();
   }
 
@@ -1137,23 +1157,24 @@ function BusinessDetailsBlock({ token, item, brand, accent, onDone, onCancel }: 
         <span style={{ fontSize: 13, fontWeight: 600, color: brand.ink }}>
           שם העסק{item.businessName ? ' - לאישור או לתיקון' : ''}
         </span>
-        <input value={businessName} onChange={e => { setBusinessName(e.target.value); setError(null); }} disabled={previewMode || busy}
+        <input value={businessName} onChange={e => { setBusinessName(e.target.value); setError(null); }} disabled={readOnly || busy}
           placeholder="השם שהעסק מוכר בו" autoComplete="organization" maxLength={200} style={input} />
       </label>
-      <HomeOfficeForm audience="client" initial={item.homeOffice ?? null} disabled={previewMode || busy}
+      <HomeOfficeForm audience="client" initial={item.homeOffice ?? null} disabled={readOnly || busy}
         onChange={v => { setHomeOffice(v); setError(null); }} showErrors={tried} />
       {error && <div role="alert" style={{ fontSize: 13, color: '#a63a3a', fontWeight: 600 }}>{error}</div>}
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-        <button type="submit" disabled={previewMode || busy} style={{
+        <button type="submit" disabled={readOnly || busy} style={{
           fontSize: 14, fontWeight: 600, padding: '10px 18px', minHeight: 44, borderRadius: brand.radius,
-          color: '#fff', background: accent, border: 'none', cursor: previewMode || busy ? 'default' : 'pointer',
-          opacity: previewMode || busy ? .6 : 1,
+          color: '#fff', background: accent, border: 'none', cursor: readOnly || busy ? 'default' : 'pointer',
+          opacity: readOnly || busy ? .6 : 1,
         }}>{busy ? 'שולח…' : (item.cta || 'העברה למשרד')}</button>
         <button type="button" onClick={onCancel} disabled={busy} style={{
           fontSize: 13.5, padding: '10px 14px', minHeight: 44, borderRadius: brand.radius, color: brand.muted,
           background: 'transparent', border: `1px solid ${brand.border}`, cursor: 'pointer',
         }}>סגירה</button>
       </div>
+      {simulated && <SimulatedNote color={brand.muted} />}
       <div style={{ fontSize: 12, color: brand.muted, lineHeight: 1.6 }}>
         המשרד יבדוק את הפרטים. האחוז לעבודה מהבית נקבע אצלנו, ונעדכן אותך אם נצטרך פרט נוסף.
       </div>
@@ -1184,31 +1205,31 @@ function LinkHostNote({ url, extra, brand }: { url: string; extra?: string; bran
  * ‼ הצהרה ולא אימות, בדיוק כמו "נרשמתי לפייפרלס": אין לנו גישה לחשבון
  * שלו ברשות המסים, והרו"ח יכול לפתוח את הבקשה מחדש אם התברר אחרת.
  */
-function DeclareBlock({ token, item, brand, accent, onDone }: {
-  token: string; item: PortalItem;
+function DeclareBlock({ item, brand, accent, onDone }: {
+  item: PortalItem;
   brand: { ink: string; muted: string; border: string; radius: number; cardBg: string };
   accent: string; onDone: () => void;
 }) {
-  const previewMode = useContext(PreviewCtx);
+  const { actions, readOnly } = usePortal();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [simulated, setSimulated] = useState(false);
   const [guideOpen, setGuideOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
 
   async function confirm() {
-    if (previewMode || !item.actionValue) return;
+    if (readOnly || !item.actionValue) return;
     setBusy(true);
     setError(null);
-    const { data, error: rpcError } = await supabase.rpc('portal_submit_step', {
-      p_token: token, p_step_id: item.actionValue, p_data: {},
-    });
-    const res = data as { ok?: boolean; error?: string } | null;
+    setSimulated(false);
+    const res = await actions.submitStep(item.actionValue, {});
     setBusy(false);
-    if (rpcError || !res?.ok) {
+    if (res.simulated) { setSimulated(true); return; }
+    if (!res.ok) {
       setError('לא הצלחנו לשמור את האישור. אפשר לנסות שוב.');
       return;
     }
-    flushAccountantNotifications(token);
+    actions.notifyAccountant();
     onDone();
   }
 
@@ -1218,10 +1239,10 @@ function DeclareBlock({ token, item, brand, accent, onDone }: {
     color: '#fff', background: accent, border: 'none',
   };
   const confirmBtn: React.CSSProperties = {
-    display: 'inline-block', cursor: previewMode || busy ? 'default' : 'pointer',
+    display: 'inline-block', cursor: readOnly || busy ? 'default' : 'pointer',
     fontSize: 13.5, fontWeight: 600, padding: '9px 18px', borderRadius: brand.radius,
     color: brand.ink, background: 'transparent', border: `1px solid ${brand.border}`,
-    opacity: previewMode || busy ? .55 : 1,
+    opacity: readOnly || busy ? .55 : 1,
   };
 
   // ‼ אישור הייצוג באזור האישי — עם מדריך מצולם. המדריך פתוח גם בתצוגה
@@ -1232,15 +1253,16 @@ function DeclareBlock({ token, item, brand, accent, onDone }: {
   // הכפתורים; «אין לך משתמש?» ו-SMS נפתחים בלחיצה. ראה repApprovalCard.
   const card = isRepApproval ? repApprovalCard(item.approvals, item.note, item.noteAfter) : null;
 
-  const actions = (
+  const buttons = (
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
-      {item.linkUrl && (previewMode
+      {item.linkUrl && (readOnly
         ? <span style={{ ...linkBtn, opacity: .55, pointerEvents: 'none' }}>{item.linkLabel || 'למדריך המלא'} ←</span>
         : <a href={item.linkUrl} target="_blank" rel="noopener noreferrer" style={linkBtn}>{item.linkLabel || 'למדריך המלא'} ←</a>)}
-      <button type="button" style={confirmBtn} disabled={previewMode || busy}
+      <button type="button" style={confirmBtn} disabled={readOnly || busy}
         onClick={() => void confirm()}>
         {busy ? 'רגע…' : (item.cta || 'ביצעתי')}
       </button>
+      {simulated && <div style={{ width: '100%' }}><SimulatedNote color={brand.muted} /></div>}
       {item.linkUrl && (
         <LinkHostNote url={item.linkUrl} brand={brand}
           extra={isRepApproval ? 'האזור האישי של רשות המסים — נדרשות כניסה והזדהות' : undefined} />
@@ -1263,7 +1285,7 @@ function DeclareBlock({ token, item, brand, accent, onDone }: {
           ))}
         </div>
         <div><RepApprovalGuideButton onClick={() => setGuideOpen(true)} accent={accent} /></div>
-        {actions}
+        {buttons}
         {card.more.length > 0 && (
           <div>
             {/* ‼ מידע, לא פעולה — נפתח גם בתצוגה במשרד. */}
@@ -1286,7 +1308,7 @@ function DeclareBlock({ token, item, brand, accent, onDone }: {
         )}
         {guideOpen && (
           <RepApprovalGuide onClose={() => setGuideOpen(false)} accent={accent}
-            entryUrl={item.linkUrl} entryInert={previewMode} approvals={item.approvals} />
+            entryUrl={item.linkUrl} entryInert={readOnly} approvals={item.approvals} />
         )}
       </div>
     );
@@ -1295,7 +1317,7 @@ function DeclareBlock({ token, item, brand, accent, onDone }: {
   return (
     <div style={{ display: 'grid', gap: 10 }}>
       <RequestGuide item={item} brand={brand} />
-      {actions}
+      {buttons}
     </div>
   );
 }
@@ -1306,42 +1328,42 @@ function DeclareBlock({ token, item, brand, accent, onDone }: {
  * בשרת כאישור הלקוח; העלאת צילום אחר נחשבת גם היא לאישור — של הצילום החדש.
  * ‼ רק PDF/JPG/PNG: שע״ם מקבלת PDF, וצילום הופך ל-PDF לפני השידור.
  */
-function IdentityConfirmBlock({ token, item, brand, accent, onDone }: {
-  token: string; item: PortalItem;
+function IdentityConfirmBlock({ item, brand, accent, onDone }: {
+  item: PortalItem;
   brand: { ink: string; muted: string; border: string; radius: number; cardBg: string };
   accent: string; onDone: () => void;
 }) {
-  const previewMode = useContext(PreviewCtx);
+  const { actions, readOnly } = usePortal();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [simulated, setSimulated] = useState(false);
   const [replacing, setReplacing] = useState(false);
   const stepId = item.stepId || item.actionValue;
 
   async function confirm() {
-    if (previewMode || !item.actionValue) return;
+    if (readOnly || !item.actionValue) return;
     setBusy(true);
     setError(null);
-    const { data, error: rpcError } = await supabase.rpc('portal_submit_step', {
-      p_token: token, p_step_id: item.actionValue, p_data: { key: 'identity_confirm' },
-    });
-    const res = data as { ok?: boolean; error?: string } | null;
+    setSimulated(false);
+    const res = await actions.submitStep(item.actionValue, { key: 'identity_confirm' });
     setBusy(false);
-    if (rpcError || !res?.ok) {
+    if (res.simulated) { setSimulated(true); return; }
+    if (!res.ok) {
       setError('לא הצלחנו לשמור את האישור. אפשר לנסות שוב.');
       return;
     }
-    flushAccountantNotifications(token);
+    actions.notifyAccountant();
     onDone();
   }
 
   const primary: React.CSSProperties = {
-    display: 'inline-block', cursor: previewMode || busy ? 'default' : 'pointer', border: 'none',
+    display: 'inline-block', cursor: readOnly || busy ? 'default' : 'pointer', border: 'none',
     fontSize: 13.5, fontWeight: 600, padding: '9px 18px', color: '#fff', background: accent,
-    borderRadius: brand.radius, opacity: previewMode || busy ? .55 : 1,
+    borderRadius: brand.radius, opacity: readOnly || busy ? .55 : 1,
   };
   const secondary: React.CSSProperties = {
     background: 'none', border: 'none', padding: 0, font: 'inherit', fontSize: 13, fontWeight: 600,
-    color: accent, cursor: previewMode ? 'default' : 'pointer', textDecoration: 'underline',
+    color: accent, cursor: readOnly ? 'default' : 'pointer', textDecoration: 'underline',
   };
 
   return (
@@ -1350,14 +1372,14 @@ function IdentityConfirmBlock({ token, item, brand, accent, onDone }: {
       {!!item.resources?.length && (
         <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'grid', gap: 4 }}>
           {item.resources.map((r, i, all) => {
-            const href = resourceHref(token, stepId, r);
+            const href = actions.resourceHref(stepId, r);
             const what = `צילום${all.length > 1 ? ` ${i + 1}` : ''}${r.fileName ? ` (${r.fileName})` : ''}`;
             return (
               <li key={r.key} style={{ fontSize: 13 }}>
-                {href && !previewMode
+                {href && !readOnly
                   ? <a href={href} target="_blank" rel="noopener noreferrer" data-testid="portal-identity-view"
                       style={{ color: accent, fontWeight: 600 }}>לצפייה ב{what} ←</a>
-                  : <span style={{ color: brand.muted }}>{what}</span>}
+                  : <span style={{ color: brand.muted }}>{what}{!href && !!r.documentId && !r.url && ' · נפתח רק אצל הלקוח'}</span>}
               </li>
             );
           })}
@@ -1365,36 +1387,38 @@ function IdentityConfirmBlock({ token, item, brand, accent, onDone }: {
       )}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center' }}>
         <button type="button" data-testid="portal-identity-confirm-btn" style={primary}
-          disabled={previewMode || busy} onClick={() => void confirm()}>
+          disabled={readOnly || busy} onClick={() => void confirm()}>
           {busy ? 'רגע…' : (item.resources?.length ?? 0) > 1 ? 'אלה הצילומים שלי' : 'זה הצילום שלי'}
         </button>
         {!replacing && (
           <button type="button" data-testid="portal-identity-replace" style={secondary}
-            disabled={previewMode} onClick={() => setReplacing(true)}>
+            disabled={readOnly} onClick={() => setReplacing(true)}>
             להעלות צילום אחר
           </button>
         )}
       </div>
       {replacing && stepId && (
         <ul style={{ margin: 0, padding: 0, listStyle: 'none', borderTop: `1px dashed ${brand.border}`, paddingTop: 8 }}>
-          <UploadItem token={token} tokenKind="portal" stepId={stepId} itemKey="identity_replacement"
+          <UploadItem stepId={stepId} itemKey="identity_replacement"
             label="צילום תעודת זהות או רישיון נהיגה (PDF, JPG או PNG)"
             note="שני צדדים? אפשר קובץ PDF אחד עם שניהם."
             done={false} brand={brand} accent={accent} onDone={onDone} accept=".pdf,.jpg,.jpeg,.png" />
         </ul>
       )}
       {error && <div style={{ fontSize: 12.5, color: '#a63a3a' }}>{error}</div>}
+      {simulated && <SimulatedNote color={brand.muted} />}
     </div>
   );
 }
 
 /** טופס פרטי הרו"ח הקודם — הדבר היחיד שהלקוח כותב ישירות מהדף האישי. */
-function PrevAccountantForm({ token, stepId, prefill, brand, accent, onDone }: {
-  token: string; stepId: string;
+function PrevAccountantForm({ stepId, prefill, brand, accent, onDone }: {
+  stepId: string;
   prefill?: { name?: string; email?: string; phone?: string };
   brand: { ink: string; muted: string; border: string; radius: number };
   accent: string; onDone: () => void;
 }) {
+  const { actions, readOnly } = usePortal();
   // הפרטים שכבר בכרטיס ממולאים מראש — הלקוח מאשר או מתקן, לא מקליד מאפס.
   const [name, setName] = useState(prefill?.name ?? '');
   const [email, setEmail] = useState(prefill?.email ?? '');
@@ -1402,18 +1426,19 @@ function PrevAccountantForm({ token, stepId, prefill, brand, accent, onDone }: {
   const hasPrefill = !!(prefill?.name || prefill?.email || prefill?.phone);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [simulated, setSimulated] = useState(false);
 
   async function submit() {
+    if (readOnly) return;
     setErr(null);
+    setSimulated(false);
     if (!name.trim() && !email.trim()) { setErr('צריך לפחות שם או אימייל.'); return; }
     setBusy(true);
-    const { data, error } = await supabase.rpc('portal_submit_step', {
-      p_token: token, p_step_id: stepId, p_data: { name, email, phone },
-    });
+    const res = await actions.submitStep(stepId, { name, email, phone });
     setBusy(false);
-    const res = data as { ok?: boolean } | null;
-    if (error || !res?.ok) { setErr('לא הצלחנו לשמור. אפשר לנסות שוב.'); return; }
-    flushAccountantNotifications(token);
+    if (res.simulated) { setSimulated(true); return; }
+    if (!res.ok) { setErr('לא הצלחנו לשמור. אפשר לנסות שוב.'); return; }
+    actions.notifyAccountant();
     onDone();
   }
 
@@ -1425,17 +1450,18 @@ function PrevAccountantForm({ token, stepId, prefill, brand, accent, onDone }: {
   return (
     <div style={{ display: 'grid', gap: 8, marginTop: 10, maxWidth: 420 }}>
       <input style={field} value={name} onChange={e => setName(e.target.value)}
-        placeholder="שם רואה החשבון או המשרד" disabled={busy} />
+        placeholder="שם רואה החשבון או המשרד" disabled={readOnly || busy} />
       <EmailInput style={field} value={email}
-        onChange={e => setEmail(e.target.value)} placeholder="אימייל" disabled={busy} />
+        onChange={e => setEmail(e.target.value)} placeholder="אימייל" disabled={readOnly || busy} />
       <input style={{ ...field, direction: 'ltr', textAlign: 'right' }} value={phone} type="tel"
-        onChange={e => setPhone(e.target.value)} placeholder="טלפון (אופציונלי)" disabled={busy} />
+        onChange={e => setPhone(e.target.value)} placeholder="טלפון (אופציונלי)" disabled={readOnly || busy} />
       {err && <span style={{ fontSize: 12.5, color: '#a63a3a' }}>{err}</span>}
-      <button type="button" onClick={() => void submit()} disabled={busy} style={{
-        justifySelf: 'start', border: 'none', cursor: 'pointer',
+      <button type="button" onClick={() => void submit()} disabled={readOnly || busy} style={{
+        justifySelf: 'start', border: 'none', cursor: readOnly || busy ? 'default' : 'pointer',
         fontSize: 13.5, fontWeight: 600, padding: '9px 20px',
-        color: '#fff', background: accent, borderRadius: brand.radius,
+        color: '#fff', background: accent, borderRadius: brand.radius, opacity: readOnly ? .55 : 1,
       }}>{busy ? 'שומר…' : hasPrefill ? 'הפרטים נכונים - אישור' : 'שליחה'}</button>
+      {simulated && <SimulatedNote color={brand.muted} />}
     </div>
   );
 }
@@ -1443,16 +1469,36 @@ function PrevAccountantForm({ token, stepId, prefill, brand, accent, onDone }: {
 /**
  * גוף הדף — מפריד בין "מאיפה הנתונים" ל"איך זה נראה", כדי שהתצוגה המקדימה
  * של הרו"ח תרנדר את אותו עמוד בדיוק (get_client_portal_preview) ולא חיקוי.
- * preview=true: הפעולות כבויות, טיוטות מסומנות. embed=true: בלי גובה עמוד מלא.
- * בלי token (כל תצוגה במשרד) — הפעולות כבויות גם בלי preview.
+ * embed=true: בלי גובה עמוד מלא.
+ *
+ * ‼ המצב (mode) נקבע כאן, פעם אחת:
+ *   · לא נמסר ⇒ התאימות לאחור: preview או בלי טוקן ⇒ officeView (הפעולות כבויות, טיוטות מסומנות);
+ *     אחרת live. «preview» נשאר כינוי ל-officeView.
+ *   · sample — רק מי שמבקש אותו במפורש (הספרייה). הדף הציבורי אינו מעביר mode ולכן אינו יכול להגיע אליו.
+ *   · actions — ברירת המחדל לפי המצב; מי שמזריק פעולות אחרות (בדיקות) מקבל אותן.
  */
-export function PortalView({ data, token = '', preview = false, embed = false, onReload = () => {} }: {
+export function PortalView({ data, token = '', preview = false, embed = false, onReload = () => {}, mode: modeProp, actions: actionsProp, sampleHooks }: {
   data: PortalData;
   token?: string;
   preview?: boolean;
   embed?: boolean;
   onReload?: () => void;
+  mode?: PortalMode;
+  actions?: PortalActions;
+  sampleHooks?: { onOpenLinked?: (kind: PortalLinkedKind, value?: string) => void };
 }) {
+  // ‼ X-2 · בלי טוקן אין פעולה של הלקוח שיכולה להצליח — זו תצוגה במשרד («הדף של …»,
+  // התצוגה המקדימה). הפקדים כבויים גם ב«חי · עכשיו»: המשרד מסתכל, לא פועל בשם הלקוח.
+  // לכן גם mode="live" בלי טוקן הופך לתצוגה במשרד. הדף האמיתי (?portal=) תמיד מגיע עם טוקן.
+  const mode: PortalMode = modeProp
+    ? (modeProp === 'live' && !token ? 'officeView' : modeProp)
+    : (preview || !token ? 'officeView' : 'live');
+  const portalActions = useMemo(
+    () => actionsProp ?? (mode === 'live' ? livePortalActions(token)
+      : mode === 'sample' ? samplePortalActions(sampleHooks)
+      : officeViewActions),
+    [actionsProp, mode, token, sampleHooks],
+  );
   const reload = onReload;
   const brand = deriveQuotationBrand({
     id: '', firmName: data.firmName, branding: data.branding ?? {},
@@ -1473,10 +1519,8 @@ export function PortalView({ data, token = '', preview = false, embed = false, o
     width: 560, maxWidth: '100%', background: brand.cardBg, border: `1px solid ${brand.border}`,
     borderRadius: brand.radius + 4, borderTop: `4px solid ${accent}`,
   };
-  // ‼ X-2 · בלי טוקן אין פעולה של הלקוח שיכולה להצליח — זו תצוגה במשרד («הדף של …»,
-  // התצוגה המקדימה). הפקדים כבויים גם ב«חי · עכשיו»: המשרד מסתכל, לא פועל בשם הלקוח.
-  // הדף האמיתי (?portal=) תמיד מגיע עם טוקן.
-  const inert = preview || !token;
+  /** טיוטה / «יוסר» — רק מי שמסתכל בתיק של לקוח אמיתי. */
+  const officeView = mode === 'officeView';
   const sectionTitle: React.CSSProperties = {
     fontSize: 12.5, fontWeight: 700, color: brand.muted, margin: '20px 0 4px', letterSpacing: '.02em',
   };
@@ -1556,8 +1600,7 @@ export function PortalView({ data, token = '', preview = false, embed = false, o
   /** מה ממתין ללקוח — בשורה אחת מעל הכול (גם בתוך קבוצות). */
   const waitingForYou = [...actions, ...itemGroups.flatMap(g => g.items.filter(i => i.bucket === 'action'))];
   const renderGroup = (x: { g: PortalGroup<PortalItem>; st: ReturnType<typeof portalGroupStatus> }) => (
-    <PortalGroupCard key={`g-${x.g.key}`} group={x.g} status={x.st} token={token} brand={brand} accent={accent} onDone={reload}
-      preview={preview} />
+    <PortalGroupCard key={`g-${x.g.key}`} group={x.g} status={x.st} brand={brand} accent={accent} onDone={reload} />
   );
 
   /**
@@ -1574,7 +1617,7 @@ export function PortalView({ data, token = '', preview = false, embed = false, o
       files: i.resources?.length
         ? i.resources.map(f => ({
             key: `${i.key}-${f.key}`, label: f.label, opened: f.done,
-            href: resourceHref(token, i.stepId ?? i.actionValue, f),
+            href: portalActions.resourceHref(i.stepId ?? i.actionValue, f),
             item: i, res: f,
           }))
         : [{
@@ -1589,7 +1632,8 @@ export function PortalView({ data, token = '', preview = false, embed = false, o
   const firstName = data.clientFirstName;
 
   return (
-    <PreviewCtx.Provider value={inert}>
+    <PortalModeCtx.Provider value={mode}>
+    <PortalActionsCtx.Provider value={portalActions}>
     <div className={`pp-page${embed ? ' is-embed' : ''}`} style={page}>
       <div className="pp-card" style={card}>
         <Header />
@@ -1614,7 +1658,7 @@ export function PortalView({ data, token = '', preview = false, embed = false, o
             <div style={{ ...sectionTitle, color: accent, marginTop: 16, marginBottom: 8 }}>מה צריך ממך</div>
             {groupsIn('action').map(renderGroup)}
             {actions.map((item, i) => (
-              <ActionItem key={item.key} token={token} item={item} brand={brand} accent={accent}
+              <ActionItem key={item.key} item={item} brand={brand} accent={accent}
                 last={i === actions.length - 1} onDone={reload} />
             ))}
           </>
@@ -1663,15 +1707,15 @@ export function PortalView({ data, token = '', preview = false, embed = false, o
                   background: brand.cardBg, border: `1px solid ${brand.border}`,
                   borderRadius: brand.radius + 2,
                 }}>
-                  {(named || (preview && (item.draft || item.removing))) && (
+                  {(named || (officeView && (item.draft || item.removing))) && (
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
                       {named && (
                         <span style={{ flex: 1, fontSize: 14, fontWeight: 600, color: brand.ink }}>
                           {item.label}
                         </span>
                       )}
-                      {preview && item.draft && <DraftChip />}
-                      {preview && item.removing && <RemovingChip />}
+                      {officeView && item.draft && <DraftChip />}
+                      {officeView && item.removing && <RemovingChip />}
                     </div>
                   )}
                   {item.note && (
@@ -1718,7 +1762,7 @@ export function PortalView({ data, token = '', preview = false, embed = false, o
                   }}>{g.note}</p>
                 )}
                 {g.files.map(f => (
-                  <DocumentRow key={f.key} token={token} file={f} brand={brand} accent={accent}
+                  <DocumentRow key={f.key} file={f} brand={brand} accent={accent}
                     onDone={reload} />
                 ))}
               </div>
@@ -1744,8 +1788,8 @@ export function PortalView({ data, token = '', preview = false, embed = false, o
                 <div style={{ minWidth: 0 }}>
                   <div style={{ fontSize: 14, color: brand.ink }}>
                     {item.label}
-                    {preview && item.draft && <DraftChip />}
-                    {preview && item.removing && <RemovingChip />}
+                    {officeView && item.draft && <DraftChip />}
+                    {officeView && item.removing && <RemovingChip />}
                   </div>
                   {item.sub && (
                     <div style={{ fontSize: 12, color: brand.muted, marginTop: 2, lineHeight: 1.55 }}>
@@ -1776,8 +1820,8 @@ export function PortalView({ data, token = '', preview = false, embed = false, o
                 <div style={{ minWidth: 0 }}>
                   <div style={{ fontSize: 14, color: brand.muted }}>
                     {item.label}
-                    {preview && item.draft && <DraftChip />}
-                    {preview && item.removing && <RemovingChip />}
+                    {officeView && item.draft && <DraftChip />}
+                    {officeView && item.removing && <RemovingChip />}
                   </div>
                   {item.sub && (
                     <div style={{ fontSize: 12, color: brand.muted, opacity: .85, marginTop: 2 }}>
@@ -1817,7 +1861,8 @@ export function PortalView({ data, token = '', preview = false, embed = false, o
         </div>
       </div>
     </div>
-    </PreviewCtx.Provider>
+    </PortalActionsCtx.Provider>
+    </PortalModeCtx.Provider>
   );
 }
 
@@ -1826,13 +1871,13 @@ export function PortalView({ data, token = '', preview = false, embed = false, o
  * ‼ בקשה שממתינה ללקוח — אותו ActionItem כמו בשורה בודדת (אותם טפסים ופעולות); השאר —
  * שורה שקטה עם המצב שלה. בלי פקדים של המשרד ובלי הערות פנימיות: רק מה שהשרת שלח לדף.
  */
-function PortalGroupCard({ group, status, token, brand, accent, onDone, preview }: {
+function PortalGroupCard({ group, status, brand, accent, onDone }: {
   group: PortalGroup<PortalItem>;
   status: ReturnType<typeof portalGroupStatus>;
-  token: string;
   brand: { ink: string; muted: string; border: string; radius: number; cardBg: string; pageBg: string };
-  accent: string; onDone: () => void; preview: boolean;
+  accent: string; onDone: () => void;
 }) {
+  const { readOnly } = usePortal();
   const [open, setOpen] = useState(status.tone === 'action');
   const hint = status.tone === 'action' ? group.summary
     : status.tone === 'office' ? 'בטיפול המשרד · אין צורך בפעולה שלך'
@@ -1858,15 +1903,15 @@ function PortalGroupCard({ group, status, token, brand, accent, onDone, preview 
       {open && (
         <div className="pp-group-kids" style={{ background: brand.pageBg }}>
           {group.items.map(it => it.bucket === 'action'
-            ? <ActionItem key={it.key} token={token} item={{ ...it, label: portalChildTitle(it) }} brand={brand} accent={accent}
+            ? <ActionItem key={it.key} item={{ ...it, label: portalChildTitle(it) }} brand={brand} accent={accent}
                 last={it === actionKids[actionKids.length - 1]} onDone={onDone} />
             : (
               <div key={it.key} className="pp-group-kid" style={{ background: brand.cardBg, border: `1px solid ${brand.border}`, borderRadius: brand.radius + 2 }}>
                 <div style={{ minWidth: 0 }}>
                   <div style={{ fontSize: 14, fontWeight: 600, color: it.bucket === 'future' ? brand.muted : brand.ink }}>
                     {portalChildTitle(it)}
-                    {preview && it.draft && <DraftChip />}
-                    {preview && it.removing && <RemovingChip />}
+                    {readOnly && it.draft && <DraftChip />}
+                    {readOnly && it.removing && <RemovingChip />}
                   </div>
                   {it.sub && <div style={{ fontSize: 12.5, color: brand.muted, marginTop: 2, lineHeight: 1.55 }}>{it.sub}</div>}
                 </div>
@@ -1890,10 +1935,9 @@ export default function PublicPortalPage({ token }: Props) {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const { data: res, error } = await supabase.rpc('get_client_portal', { p_token: token });
+      const row = await loadClientPortal<PortalData & { ok?: boolean }>(token);
       if (cancelled) return;
-      const row = res as (PortalData & { ok?: boolean }) | null;
-      if (error || !row?.ok) { setPhase('invalid'); return; }
+      if (!row) { setPhase('invalid'); return; }
       setData(row);
       setPhase('ready');
     })();

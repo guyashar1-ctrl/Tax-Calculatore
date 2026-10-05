@@ -177,6 +177,7 @@ declare
   vars jsonb := $vars$${variantsJson}$vars$::jsonb;
   v jsonb; cid text; eid text; sid text; rid text; i int := 0;
   rep jsonb; out jsonb := '[]'::jsonb;
+  suid uuid; tid text; smoke jsonb;
 begin
   -- 1 · לקוחות אמיתיים
   for r in select id from public.clients order by id loop
@@ -191,6 +192,29 @@ begin
     end loop;
   end loop;
   out := out || jsonb_build_object('t', 'P.1 · לקוחות אמיתיים: ' || n_real || ' דפים (לקוחות × שני מצבים) — ' || d_real || ' הבדלים', 'pass', d_real = 0 and n_real > 0, 'got', ex);
+
+  -- 1ב · «צפייה» — עישון קריאה בלבד על הסכימה האמיתית: משתמש מורשה אמיתי, בלי שום כתיבה (STABLE).
+  -- ‼ תופס עמודה שחסרה בסביבה (prod-behind-staging-drift) לפני שמגיע למשתמש.
+  select p.id into suid from public.profiles p join auth.users u on u.id = p.id
+    join public.authorized_users a on lower(a.email) = lower(u.email) and a.active order by p.created_at limit 1;
+  select id into tid from public.journey_templates where kind = 'request' and office_id is null limit 1;
+  if suid is null then
+    out := out || jsonb_build_object('t', 'P.7 · עישון «צפייה»: אין משתמש מורשה בסביבה', 'pass', false, 'got', null);
+  else
+    perform set_config('request.jwt.claim.sub', suid::text, true);
+    perform set_config('request.jwt.claims', json_build_object('sub', suid, 'role', 'authenticated')::text, true);
+    smoke := public.preview_request_sample(jsonb_build_object('persona', jsonb_build_object('couple', true),
+      'rep', jsonb_build_object('status', 'awaiting_authorities', 'approvals', 'couple', 'niReference', true),
+      'samples', jsonb_build_array(
+        jsonb_build_object('key', 'a', 'ref', jsonb_build_object('kind', 'system', 'stepType', 'rep_client_approval'), 'required', true),
+        jsonb_build_object('key', 'b', 'ref', jsonb_build_object('kind', 'system', 'stepType', 'representation'), 'status', 'in_progress', 'ball', 'me'),
+        jsonb_build_object('key', 'c', 'ref', jsonb_build_object('kind', 'system', 'stepType', 'paperless_invite')),
+        jsonb_build_object('key', 'd', 'ref', jsonb_build_object('kind', 'system', 'stepType', 'business_details')),
+        jsonb_build_object('key', 'e', 'ref', jsonb_build_object('kind', 'template', 'templateId', tid)),
+        jsonb_build_object('key', 'f', 'stepType', 'custom_request', 'payload', jsonb_build_object('clientTitle', 'x', 'requirements', jsonb_build_array(jsonb_build_object('key', 'q', 'kind', 'text', 'label', 'שאלה', 'done', false, 'required', true))), 'markDone', 1))));
+    out := out || jsonb_build_object('t', 'P.7 · עישון «צפייה» (preview_request_sample כמשתמש מורשה): ok, ' || coalesce(jsonb_array_length(smoke->'items'), 0) || ' פריטים', 'pass',
+      coalesce((smoke->>'ok')::boolean, false) and jsonb_array_length(smoke->'items') >= 4 and not exists (select 1 from jsonb_array_elements(smoke->'specs') s where not coalesce((s->>'ok')::boolean, false)), 'got', left(smoke::text, 500));
+  end if;
 
   ${prod ? '' : `
   -- 2 · לקוחות סינתטיים — כל סוג × מצב

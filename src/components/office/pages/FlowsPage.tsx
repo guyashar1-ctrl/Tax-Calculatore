@@ -270,7 +270,7 @@ export function FlowsPage({ draft, saved, saveNow, clients, focus, go, onDirtyCh
       <div className="fr-list">
         {onboardingFlow ? (
           <RuleCard name={onboardingFlow.name} trigger="quote_approved" def={onboardingFlow.definition}
-            runsText={runsWord(activeRuns(onboardingFlow))} title={title} defaultOpen
+            runsText={runsWord(activeRuns(onboardingFlow))} title={title} templates={templates} profile={draft} defaultOpen
             onEdit={() => setOpenId(onboardingFlow.id)} />
         ) : (
           <p className="fl-hint">כלל הקליטה עוד לא נוצר במשרד הזה — הוא נוצר עם אישור ההצעה הראשון.</p>
@@ -295,7 +295,7 @@ export function FlowsPage({ draft, saved, saveNow, clients, focus, go, onDirtyCh
         </section>
         {others.map(f => (
           <RuleCard key={f.id} name={f.name} trigger={f.trigger} def={f.definition}
-            runsText={runsWord(activeRuns(f))} title={title}
+            runsText={runsWord(activeRuns(f))} title={title} templates={templates} profile={draft}
             onEdit={() => setOpenId(f.id)} onStart={() => setStartFor(f.id)} />
         ))}
         <section className="rg-group fr-rule fr-static" aria-label="הוספה ידנית ללקוח">

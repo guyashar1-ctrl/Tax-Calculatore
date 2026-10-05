@@ -15,13 +15,16 @@
 //
 // ‼ מיתוג המשרד, לא PIVO — כמו כל מה שגורם חיצוני רואה.
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { flushAccountantNotifications } from '../lib/notifyAccountant';
 import { FirmBranding } from '../types/firmProfile';
 import { isOptionalMaterialKey } from '../types/onboarding';
 import { splitHighlights } from '../utils/releaseLetter';
 import { deriveQuotationBrand } from './quotations/quotationBranding';
+import SampleSimulatedNote from './linkedScreens/SampleNote';
+import { samplePublicReleaseActions } from './linkedScreens/sampleReleaseActions';
+import type { SimulatedResult } from './linkedScreens/sampleActions';
 
 interface Props {
   token: string;
@@ -123,37 +126,85 @@ const UPLOAD_ERRORS: Record<string, string> = {
   rate_limited: 'הועלו הרבה קבצים בזמן קצר. אפשר לנסות שוב בעוד כמה דקות.',
 };
 
+export type { ReleaseData, ReleaseMaterialRow, ReleaseUploadRow };
+
+/**
+ * כל מה שהדף עושה מול העולם. בעמוד האמיתי — השרת; בתצוגה לדוגמה — פעולות
+ * שאינן נוגעות בכלום (linkedScreens/sampleReleaseActions.ts).
+ * ‼ אחרי פעולה מוצלחת הדף האמיתי קורא מחדש את הנתונים (`onReload`); התשובות כאן
+ * אומרות רק מה קרה, לא מה מוצג.
+ */
+export interface PublicReleaseActions {
+  setItem(key: string, done: boolean): Promise<{ status: 'ok' } | { status: 'failed'; code?: string } | SimulatedResult>;
+  sendNote(note: string, name: string | null): Promise<{ status: 'ok' } | { status: 'failed' } | SimulatedResult>;
+  removeUpload(documentId: string): Promise<{ status: 'ok' } | { status: 'failed' } | SimulatedResult>;
+  markItems(keys: string[]): Promise<{ status: 'ok' } | { status: 'failed' } | SimulatedResult>;
+  uploadFile(stepId: string, file: File): Promise<{ status: 'ok' } | { status: 'failed'; code?: string } | SimulatedResult>;
+  /** בקשה לרוקן את תור ההתראות למשרד — אחרי אירוע שהמשרד אמור לדעת עליו. */
+  flush(): void;
+}
+
+export function livePublicReleaseActions(token: string): PublicReleaseActions {
+  return {
+    async setItem(key, done) {
+      const { data: res, error } = await supabase.rpc('release_portal_set_item', {
+        p_token: token, p_key: key, p_done: done,
+      });
+      const r = res as { ok?: boolean; error?: string } | null;
+      if (error || !r?.ok) return { status: 'failed', code: r?.error };
+      flushAccountantNotifications(token);
+      return { status: 'ok' };
+    },
+    async sendNote(note, name) {
+      const { data: res, error } = await supabase.rpc('release_portal_respond', {
+        p_token: token, p_note: note, p_name: name,
+      });
+      const r = res as { ok?: boolean } | null;
+      if (error || !r?.ok) return { status: 'failed' };
+      flushAccountantNotifications(token);
+      return { status: 'ok' };
+    },
+    async removeUpload(id) {
+      const { data, error } = await supabase.rpc('release_portal_remove_upload', {
+        p_token: token, p_document_id: id,
+      });
+      const res = data as { ok?: boolean } | null;
+      if (error || !res?.ok) return { status: 'failed' };
+      return { status: 'ok' };
+    },
+    async markItems(keys) {
+      const { data, error } = await supabase.rpc('release_portal_mark_items', {
+        p_token: token, p_keys: keys,
+      });
+      const res = data as { ok?: boolean } | null;
+      if (error || !res?.ok) return { status: 'failed' };
+      flushAccountantNotifications(token);
+      return { status: 'ok' };
+    },
+    async uploadFile(stepId, file) {
+      const form = new FormData();
+      form.append('token', token);
+      form.append('tokenKind', 'release');
+      form.append('stepId', stepId);
+      form.append('itemKey', BULK_KEY);
+      form.append('file', file);
+      const { data, error } = await supabase.functions.invoke('portal-upload-document', { body: form });
+      const res = data as { ok?: boolean; error?: string } | null;
+      if (error || !res?.ok) return { status: 'failed', code: res?.error };
+      return { status: 'ok' };
+    },
+    flush() { flushAccountantNotifications(token); },
+  };
+}
+
 export default function PublicReleasePage({ token }: Props) {
   const [phase, setPhase] = useState<'loading' | 'invalid' | 'ready'>('loading');
   const [data, setData] = useState<ReleaseData | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
   const reload = () => setReloadKey(k => k + 1);
-
-  const [letterOpen, setLetterOpen] = useState(false);
-  // ── הערה / הסתייגות ────────────────────────────────────────────────────────
-  // ‼ ניסוח ניטרלי בכוונה: הדף אינו קובע מה מותר או אסור לרו"ח הקודם. הוא רק
-  // פותח ערוץ מסודר לומר משהו — ושומר את מה שנאמר כראיה אצל הרו"ח החדש.
-  const [noteOpen, setNoteOpen] = useState(false);
-  const [noteText, setNoteText] = useState('');
-  const [noteName, setNoteName] = useState('');
-  const [noteBusy, setNoteBusy] = useState(false);
-  const [noteErr, setNoteErr] = useState<string | null>(null);
-  /** נפתח אחרי העלאה מוצלחת — ורק אז. שאלה, לא שלב חובה. */
-  const [justUploaded, setJustUploaded] = useState(0);
-  /** גוררים קבצים מעל העמוד — כרטיס השליחה נדלק כיעד אחד גדול. */
-  const [dropActive, setDropActive] = useState(false);
-  /**
-   * אישור הקבלה שיושב ליד הכפתור. ‼ נפרד מ-justUploaded בכוונה: אותו state
-   * נסגר כשעונים על שאלת ההמשך, והאישור חייב להישאר. בלעדיו הרגע היחיד
-   * שאומר "קיבלנו" היה הכרטיס של שאלת ההמשך — שכלל לא מופיע כשאין פריטים
-   * פתוחים, ואז שליחה מוצלחת עברה בלי שום סימן.
-   */
-  const [receipt, setReceipt] = useState(0);
   /** מזהי הקבצים שכבר היו כאן בכניסה — מה שמעבר להם נשלח עכשיו. */
   const seenUploadIds = useRef<Set<string> | null>(null);
-  /** סימון/ביטול של פריט ברשימת מה שביקשנו. */
-  const [markBusy, setMarkBusy] = useState<string | null>(null);
-  const [markErr, setMarkErr] = useState<string | null>(null);
+  const actions = useMemo(() => livePublicReleaseActions(token), [token]);
 
   useEffect(() => {
     let cancelled = false;
@@ -185,6 +236,57 @@ export default function PublicReleasePage({ token }: Props) {
     );
   }
 
+  return <PublicReleaseView data={data} seenUploadIds={seenUploadIds.current} onReload={reload} actions={actions} />;
+}
+
+export type PublicReleaseViewProps = {
+  data: ReleaseData;
+  /** מה שכבר היה כאן בכניסה (לסימון «נשלח עכשיו»). בתצוגה לדוגמה — null. */
+  seenUploadIds: Set<string> | null;
+  /** אחרי שינוי מוצלח הדף האמיתי קורא מחדש מהשרת. בתצוגה לדוגמה אין שינוי ולכן אין קריאה. */
+  onReload: () => void;
+} & (
+  | { mode?: 'live'; actions: PublicReleaseActions }
+  /** בתצוגה לדוגמה אפשר להשמיט את `actions` — ברירת המחדל לא נוגעת בכלום. */
+  | { mode: 'sample'; actions?: PublicReleaseActions }
+);
+
+/**
+ * דף הרו"ח הקודם עצמו, בלי טעינה: כל הנתונים נכנסים ב-`data` וכל מה שיוצא
+ * החוצה עובר ב-`actions`. כך אותו דף בדיוק משמש את הקישור האמיתי ואת «צפייה» במשרד.
+ */
+export function PublicReleaseView(props: PublicReleaseViewProps) {
+  const { data, seenUploadIds, onReload } = props;
+  const sample = props.mode === 'sample';
+  const actions: PublicReleaseActions = props.actions ?? samplePublicReleaseActions;
+
+  const [letterOpen, setLetterOpen] = useState(false);
+  // ── הערה / הסתייגות ────────────────────────────────────────────────────────
+  // ‼ ניסוח ניטרלי בכוונה: הדף אינו קובע מה מותר או אסור לרו"ח הקודם. הוא רק
+  // פותח ערוץ מסודר לומר משהו — ושומר את מה שנאמר כראיה אצל הרו"ח החדש.
+  const [noteOpen, setNoteOpen] = useState(false);
+  const [noteText, setNoteText] = useState('');
+  const [noteName, setNoteName] = useState('');
+  const [noteBusy, setNoteBusy] = useState(false);
+  const [noteErr, setNoteErr] = useState<string | null>(null);
+  /** נפתח אחרי העלאה מוצלחת — ורק אז. שאלה, לא שלב חובה. */
+  const [justUploaded, setJustUploaded] = useState(0);
+  /** גוררים קבצים מעל העמוד — כרטיס השליחה נדלק כיעד אחד גדול. */
+  const [dropActive, setDropActive] = useState(false);
+  /**
+   * אישור הקבלה שיושב ליד הכפתור. ‼ נפרד מ-justUploaded בכוונה: אותו state
+   * נסגר כשעונים על שאלת ההמשך, והאישור חייב להישאר. בלעדיו הרגע היחיד
+   * שאומר "קיבלנו" היה הכרטיס של שאלת ההמשך — שכלל לא מופיע כשאין פריטים
+   * פתוחים, ואז שליחה מוצלחת עברה בלי שום סימן.
+   */
+  const [receipt, setReceipt] = useState(0);
+  /** סימון/ביטול של פריט ברשימת מה שביקשנו. */
+  const [markBusy, setMarkBusy] = useState<string | null>(null);
+  const [markErr, setMarkErr] = useState<string | null>(null);
+  /** בתצוגה לדוגמה: אחד הפקדים נלחץ ולא נשלח דבר — ליד איזה פקד. */
+  const [simKey, setSimKey] = useState<string | null>(null);
+  const simNote = (key: string) => (simKey === key ? <SampleSimulatedNote /> : null);
+
   const brand = deriveQuotationBrand({ firmName: data.firmName, branding: data.branding } as never);
   const accent = brand.accent;
 
@@ -194,36 +296,33 @@ export default function PublicReleasePage({ token }: Props) {
    */
   async function setItem(key: string, done: boolean) {
     setMarkErr(null);
+    setSimKey(null);
     setMarkBusy(key);
-    const { data: res, error } = await supabase.rpc('release_portal_set_item', {
-      p_token: token, p_key: key, p_done: done,
-    });
+    const res = await actions.setItem(key, done);
     setMarkBusy(null);
-    const r = res as { ok?: boolean; error?: string } | null;
-    if (error || !r?.ok) {
-      setMarkErr(r?.error === 'not_yours'
+    if (res.status === 'failed') {
+      setMarkErr(res.code === 'not_yours'
         ? 'הפריט הזה סומן על ידי המשרד - אי אפשר לבטל אותו מכאן.'
         : 'לא הצלחנו לעדכן את הסימון. אפשר לנסות שוב.');
       return;
     }
-    flushAccountantNotifications(token);
-    reload();
+    if (res.status === 'simulated') { setSimKey('mark'); return; }
+    onReload();
   }
 
   async function sendNote() {
     setNoteErr(null);
     if (!noteText.trim()) { setNoteErr('צריך לכתוב את ההערה.'); return; }
+    setSimKey(null);
     setNoteBusy(true);
-    const { data: res, error } = await supabase.rpc('release_portal_respond', {
-      p_token: token, p_note: noteText.trim(), p_name: noteName.trim() || null,
-    });
+    const res = await actions.sendNote(noteText.trim(), noteName.trim() || null);
     setNoteBusy(false);
-    const r = res as { ok?: boolean } | null;
-    if (error || !r?.ok) { setNoteErr('לא הצלחנו לשלוח את ההערה. אפשר לנסות שוב.'); return; }
-    flushAccountantNotifications(token);
+    if (res.status === 'failed') { setNoteErr('לא הצלחנו לשלוח את ההערה. אפשר לנסות שוב.'); return; }
+    // ‼ לא סוגרים ולא מנקים: בתצוגה לדוגמה ההערה נשארת מול העיניים.
+    if (res.status === 'simulated') { setSimKey('note'); return; }
     setNoteText('');
     setNoteOpen(false);
-    reload();
+    onReload();
   }
 
   // הפריט הפתוח ("חומר נוסף לפי שיקול דעתך") אינו דרישה ואינו נספר. במודל
@@ -287,11 +386,12 @@ export default function PublicReleasePage({ token }: Props) {
         }}>
           <div style={title}>שליחת החומרים</div>
           <BulkUpload
-            token={token}
+            actions={actions}
+            sample={sample}
             stepId={data.materialsStepId}
             brand={brand}
             accent={accent}
-            onUploaded={n => { setJustUploaded(n); setReceipt(n); reload(); }}
+            onUploaded={n => { setJustUploaded(n); setReceipt(n); onReload(); }}
             onUploadStart={() => setReceipt(0)}
             onDragActive={setDropActive}
           />
@@ -315,12 +415,12 @@ export default function PublicReleasePage({ token }: Props) {
                 </div>
               )}
               <SentFiles
-                token={token}
+                actions={actions}
                 files={data.uploads ?? []}
-                newIds={seenUploadIds.current}
+                newIds={seenUploadIds}
                 brand={brand}
                 accent={accent}
-                onRemoved={reload}
+                onRemoved={onReload}
               />
               <p style={{ margin: '14px 0 0', fontSize: 12.5, color: brand.muted, lineHeight: 1.75 }}>
                 אפשר לשלוח בכמה פעמים - הקישור נשאר פעיל.
@@ -333,11 +433,11 @@ export default function PublicReleasePage({ token }: Props) {
         {/* ── 2. אחרי העלאה: מה כלל המשלוח (רשות) ── */}
         {justUploaded > 0 && openItems.length > 0 && data.materialsStepId && (
           <WhatWasSent
-            token={token}
+            actions={actions}
             items={openItems}
             brand={brand}
             accent={accent}
-            onDone={() => { setJustUploaded(0); reload(); }}
+            onDone={() => { setJustUploaded(0); onReload(); }}
             onSkip={() => setJustUploaded(0)}
           />
         )}
@@ -365,6 +465,7 @@ export default function PublicReleasePage({ token }: Props) {
             {markErr && (
               <div style={{ marginTop: 10, fontSize: 12.5, color: '#a63a3a' }}>{markErr}</div>
             )}
+            {simNote('mark')}
           </section>
         )}
 
@@ -468,6 +569,7 @@ export default function PublicReleasePage({ token }: Props) {
                   fontFamily: 'inherit', resize: 'vertical',
                 }} />
               {noteErr && <span style={{ fontSize: 12.5, color: '#a63a3a' }}>{noteErr}</span>}
+              {simNote('note')}
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 <button type="button" onClick={() => void sendNote()} disabled={noteBusy} style={{
                   border: 'none', cursor: noteBusy ? 'default' : 'pointer',
@@ -643,8 +745,8 @@ function MaterialCheckRow({ item, busy, brand, accent, onToggle }: {
  * אם הקובץ שהוא עומד לשלוח כבר נשלח, והתוצאה היא כפילויות אצלנו.
  * ‼ ההסרה רכה — היא מורידה מהרשימה שלו ולא מוחקת אצלנו. ראה מיגרציה 119.
  */
-function SentFiles({ token, files, newIds, brand, accent, onRemoved }: {
-  token: string; files: ReleaseUploadRow[];
+function SentFiles({ actions, files, newIds, brand, accent, onRemoved }: {
+  actions: PublicReleaseActions; files: ReleaseUploadRow[];
   /** מה שכבר היה כאן בכניסה. מה שלא ברשימה — נשלח בביקור הזה. */
   newIds: Set<string> | null;
   brand: { ink: string; muted: string; border: string; radius: number };
@@ -653,19 +755,19 @@ function SentFiles({ token, files, newIds, brand, accent, onRemoved }: {
   const [confirming, setConfirming] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [simulated, setSimulated] = useState(false);
 
   if (files.length === 0) return null;
 
   async function remove(id: string) {
     setErr(null);
+    setSimulated(false);
     setBusyId(id);
-    const { data, error } = await supabase.rpc('release_portal_remove_upload', {
-      p_token: token, p_document_id: id,
-    });
+    const res = await actions.removeUpload(id);
     setBusyId(null);
     setConfirming(null);
-    const res = data as { ok?: boolean } | null;
-    if (error || !res?.ok) { setErr('לא הצלחנו להסיר את הקובץ. אפשר לנסות שוב.'); return; }
+    if (res.status === 'failed') { setErr('לא הצלחנו להסיר את הקובץ. אפשר לנסות שוב.'); return; }
+    if (res.status === 'simulated') { setSimulated(true); return; }
     onRemoved();
   }
 
@@ -726,6 +828,7 @@ function SentFiles({ token, files, newIds, brand, accent, onRemoved }: {
       {err && (
         <div style={{ marginTop: 8, fontSize: 12.5, color: '#a63a3a' }}>{err}</div>
       )}
+      {simulated && <SampleSimulatedNote />}
       <div style={{ marginTop: 8, fontSize: 12, color: brand.muted, lineHeight: 1.7 }}>
         הסרה מורידה את הקובץ מהרשימה כאן. אם הסרת בטעות - אפשר פשוט לשלוח שוב.
       </div>
@@ -745,8 +848,8 @@ function SentFiles({ token, files, newIds, brand, accent, onRemoved }: {
  * ‼ הגרירה נתפסת על כל העמוד ולא רק על הכרטיס: שחרור קובץ מחוץ ליעד גורם
  * לדפדפן לפתוח את הקובץ במקום הדף, והרו"ח הקודם מאבד את הקישור.
  */
-function BulkUpload({ token, stepId, brand, accent, onUploaded, onUploadStart, onDragActive }: {
-  token: string; stepId?: string;
+function BulkUpload({ actions, sample, stepId, brand, accent, onUploaded, onUploadStart, onDragActive }: {
+  actions: PublicReleaseActions; sample: boolean; stepId?: string;
   brand: { ink: string; muted: string; border: string; radius: number };
   accent: string; onUploaded: (count: number) => void;
   onUploadStart: () => void;
@@ -757,20 +860,15 @@ function BulkUpload({ token, stepId, brand, accent, onUploaded, onUploadStart, o
   const [busy, setBusy] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [skipped, setSkipped] = useState(0);
+  /** בתצוגה לדוגמה: נבחרו קבצים ולא נשלח דבר. */
+  const [simulated, setSimulated] = useState(false);
   const busyRef = useRef(false);
   const dragDepth = useRef(0);
 
   async function uploadOne(file: File): Promise<string | null> {
     if (file.size > MAX_BYTES) return UPLOAD_ERRORS.too_large;
-    const form = new FormData();
-    form.append('token', token);
-    form.append('tokenKind', 'release');
-    form.append('stepId', stepId!);
-    form.append('itemKey', BULK_KEY);
-    form.append('file', file);
-    const { data, error } = await supabase.functions.invoke('portal-upload-document', { body: form });
-    const res = data as { ok?: boolean; error?: string } | null;
-    if (error || !res?.ok) return UPLOAD_ERRORS[res?.error ?? ''] ?? 'ההעלאה נכשלה.';
+    const res = await actions.uploadFile(stepId!, file);
+    if (res.status === 'failed') return UPLOAD_ERRORS[res.code ?? ''] ?? 'ההעלאה נכשלה.';
     return null;
   }
 
@@ -779,7 +877,10 @@ function BulkUpload({ token, stepId, brand, accent, onUploaded, onUploadStart, o
     const usable = incoming.filter(f => f.size > 0);
     const files = dropped ? usable.filter(f => isAccepted(f.name)) : usable;
     setSkipped(dropped ? usable.length - files.length : 0);
+    setSimulated(false);
     if (files.length === 0) return;
+    // ‼ בתצוגה לדוגמה לא מתחילים תור העלאה: אין «מעלה…», אין «התקבל אצלנו», ואין קובץ ברשימה.
+    if (sample) { setSimulated(true); return; }
     onUploadStart();
     setRows(files.map(f => ({ name: f.name, status: 'pending' as const })));
     busyRef.current = true;
@@ -794,11 +895,13 @@ function BulkUpload({ token, stepId, brand, accent, onUploaded, onUploadStart, o
     }
     busyRef.current = false;
     setBusy(false);
-    if (succeeded > 0) { flushAccountantNotifications(token); onUploaded(succeeded); }
+    if (succeeded > 0) { actions.flush(); onUploaded(succeeded); }
   }
 
   useEffect(() => {
-    if (!stepId) return;
+    // ‼ בתצוגה לדוגמה אין האזנה לגרירה על כל החלון: היא הייתה תופסת קבצים שנגררים
+    //   לכל מקום באפליקציית המשרד. הגרירה נתפסת רק על אזור ההעלאה עצמו (ראה למטה).
+    if (!stepId || sample) return;
     const carriesFiles = (e: DragEvent) =>
       Array.from(e.dataTransfer?.types ?? []).includes('Files');
 
@@ -832,7 +935,7 @@ function BulkUpload({ token, stepId, brand, accent, onUploaded, onUploadStart, o
       window.removeEventListener('dragleave', onLeave);
       window.removeEventListener('drop', onDrop);
     };
-  }, [stepId]);
+  }, [stepId, sample]);
 
   const failed = rows.filter(r => r.status === 'err').length;
   const okCount = rows.filter(r => r.status === 'ok').length;
@@ -880,7 +983,12 @@ function BulkUpload({ token, stepId, brand, accent, onUploaded, onUploadStart, o
   }
 
   return (
-    <div>
+    <div
+      {...(sample ? {
+        onDragOver: (e: React.DragEvent) => e.preventDefault(),
+        onDrop: (e: React.DragEvent) => { e.preventDefault(); setSimulated(true); },
+      } : {})}
+    >
       <input id="bulk-files" type="file" accept={ACCEPT} multiple disabled={busy}
         style={{ display: 'none' }}
         onChange={e => { void handleFiles(Array.from(e.target.files ?? [])); e.target.value = ''; }} />
@@ -892,6 +1000,8 @@ function BulkUpload({ token, stepId, brand, accent, onUploaded, onUploadStart, o
       <div className="release-drop-hint" style={{ fontSize: 12.5, color: brand.muted, marginTop: 10 }}>
         אפשר גם לגרור לכאן קבצים או תיקייה שלמה
       </div>
+
+      {simulated && <SampleSimulatedNote />}
 
       {skipped > 0 && (
         <div style={{ marginTop: 10, fontSize: 12.5, color: brand.muted, lineHeight: 1.7 }}>
@@ -944,14 +1054,15 @@ function BulkUpload({ token, stepId, brand, accent, onUploaded, onUploadStart, o
  * אמון בדיוק כמו ההעלאה פר-פריט שהייתה כאן קודם (גם שם איש לא בדק שהקובץ הוא
  * באמת מה שביקשנו). המשרד רואה שהסימון הוא הצהרה, ויכול לתקן.
  */
-function WhatWasSent({ token, items, brand, accent, onDone, onSkip }: {
-  token: string; items: ReleaseMaterialRow[];
+function WhatWasSent({ actions, items, brand, accent, onDone, onSkip }: {
+  actions: PublicReleaseActions; items: ReleaseMaterialRow[];
   brand: { ink: string; muted: string; border: string; radius: number; cardBg: string };
   accent: string; onDone: () => void; onSkip: () => void;
 }) {
   const [picked, setPicked] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [simulated, setSimulated] = useState(false);
 
   const toggle = (key: string) =>
     setPicked(p => (p.includes(key) ? p.filter(k => k !== key) : [...p, key]));
@@ -960,13 +1071,11 @@ function WhatWasSent({ token, items, brand, accent, onDone, onSkip }: {
     setErr(null);
     if (picked.length === 0) { onSkip(); return; }
     setBusy(true);
-    const { data, error } = await supabase.rpc('release_portal_mark_items', {
-      p_token: token, p_keys: picked,
-    });
+    setSimulated(false);
+    const res = await actions.markItems(picked);
     setBusy(false);
-    const res = data as { ok?: boolean } | null;
-    if (error || !res?.ok) { setErr('לא הצלחנו לשמור את הסימון. אפשר לדלג - הקבצים כבר הגיעו.'); return; }
-    flushAccountantNotifications(token);
+    if (res.status === 'failed') { setErr('לא הצלחנו לשמור את הסימון. אפשר לדלג - הקבצים כבר הגיעו.'); return; }
+    if (res.status === 'simulated') { setSimulated(true); return; }
     onDone();
   }
 
@@ -1002,6 +1111,7 @@ function WhatWasSent({ token, items, brand, accent, onDone, onSkip }: {
         ))}
       </ul>
       {err && <div style={{ marginTop: 8, fontSize: 12.5, color: '#a63a3a' }}>{err}</div>}
+      {simulated && <SampleSimulatedNote />}
       <div style={{ display: 'flex', gap: 8, marginTop: 14, flexWrap: 'wrap' }}>
         <button type="button" onClick={() => void submit()} disabled={busy} style={{
           border: 'none', cursor: busy ? 'default' : 'pointer',

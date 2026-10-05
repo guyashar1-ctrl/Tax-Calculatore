@@ -102,7 +102,7 @@ export default function ClientPagePreviewDialog({ clientId, clientName, onClose 
               <div role="alert" style={{ padding: '2.2rem', textAlign: 'center', color: 'var(--err)' }}>⚠ {error}</div>
             )}
             {!loading && !error && data && (
-              <PortalView data={data} preview embed />
+              <PortalView data={data} mode="officeView" embed />
             )}
           </div>
         </div>

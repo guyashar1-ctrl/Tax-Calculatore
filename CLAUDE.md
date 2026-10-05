@@ -350,6 +350,7 @@ src/
 6. **בעלים/נושא** — בן/בת זוג: לכל אדם, עם שם; הנמען נפתר בשרת.
 7. **שינוי באמצע** — שינוי הגדרה חל על חדשים; קיים מתעדכן בבחירה. שינוי נתוני לקוח מציע, לא פועל לבד.
 8. **מחשב וטלפון** — מסלול מלא נבדק ב-360/390 ובמחשב (§1).
+9. **צפייה** — לסוג/תבנית/מסמך יש רשומה ב-`features/requestPreview/registry.ts` עם המצבים, המיילים, המסמכים והמסך שנפתח; «צפייה» בספרייה מראה בדיוק את מה שהלקוח מקבל (`preview_request_sample` → `_portal_step_items`, אותו קוד כמו הדף). בדיקת הכיסוי (`registry.test.ts`) נופלת על סוג בלי רשומה.
 
 ### 12.5 איפה זה חי — ומה מריצים כשנוגעים בו
 
@@ -361,6 +362,7 @@ src/
 | מייל ללקוח מהדף | `send-process-open-email` → `claim/mark/complete/fail_client_notice`. **אין** שליחה בלי תפיסה, ואין «נשלח» בלי תשובת הצלחה. «לא ידוע אם יצא» חוסם «חדש» עד הכרעה: הראשי — «שלח שוב (אותו מייל)» בתוך חלון הספק; שחרור לשליחה מחדש — משני, רק מאחורי אישור שמסביר את הכפילות (`unknownConfirm` ב-`noticeText.ts`) | `staging-test-notices-edge.mjs`, `run-unit-tests.mjs` (unknownNotice) |
 | מחזור חיים של בקשה | `unlock_dependent_steps` (שער מסלול + עצירה) · `execute_automatic_step` (עצירה) · `publish_case_changes` (שלב «הכול באישורך» שטרם נפתח) | `staging-test-flows-notices.mjs` |
 | פעולה מול רשות מתוך מסלול | `_flow_run_action` + `_flow_authority_ready` (שערים), `runIsAuto` מכיר `flow_stage_opened` | `run-unit-tests.mjs automation` |
+| מה הלקוח רואה בבקשה — בדף, בצפייה בספרייה ובתצוגות במשרד | ענף ב-`_portal_step_items` (222) — **המקום היחיד**; `build_client_portal` ו-`preview_request_sample` קוראים לו. רשומה ב-`features/requestPreview/registry.ts`. פעולה חדשה בדף — רק דרך `PortalActions` (`portal/portalActions.ts`), עם התנהגות `sample` שלא פונה לרשת. אחרי שינוי בגוף שלו: `node scripts/verify-222-body.mjs` (האזורים הנגזרים מ-221/216/217) | `run-unit-tests.mjs` (registry, portalModes), `test-222-request-preview.sql` (P.2–P.5), `qa-222-identity.mjs` (P.1), `scripts/qa-request-preview.mjs` |
 | טקסט שהלקוח רואה בבקשה | ראה `visible-text-three-surfaces`: קוד, נתונים שמורים, וגוף פונקציות ה-SQL (`_client_step_title` = שמות הדף האישי) | — |
 | טקסט לקוד מהשרת / למה פריט לא נוצר / שנת מס | `serverErrorText`, `skipReasonText`, `defaultTaxYear` ב-`features/flows/api.ts` — אין מפה שנייה במסכים | `npm run test:unit` |
 | מה נוצר מבקשה בספרייה | `libraryEntryGap`, `REPEATABLE_STEP_TYPES`, `hasPersonalConfirm` ב-`features/flows/compile.ts` = `_flow_item_spec`, `_flow_has_personal_confirm`, `_library_template` בשרת; השנה בכותרת — `_flow_materialize` | `staging-test-flows-notices.mjs` (10.2א, 13.6, 15.x) |
@@ -384,3 +386,14 @@ src/
 | מסכי הדגמה ובדיקה בשרת פיתוח | ‼ לעולם לא מול הייצור, איך שלא הופעל השרת: `lib/demoIsolation.ts` + `lib/supabase.ts` (‎?test-*‎, ‎?office-app‎, ‎?demo‎, ‎?flows-demo‎, ‎?portal=demo‎ + כתובת ייצור ⇒ כתובת מבודדת, fetch חסום, בלי התחברות אוטומטית). שרתי ההדגמה רק דרך launch.json (5196 officeux, 5198 staging) | מבחן המלכודת: vite עם ‎--mode prodsim‎ על פורט פנוי + בדיקת דפדפן שכל מסכי ההדגמה שולחים 0 בקשות לייצור |
 | פריסת פונקציות שרת וגיבוי לפני מיגרציה | ידנית: `deploy-edge-function.mjs prod <שם>` (מסרב ל-`fake-email-provider`); הוורקפלו `deploy-edge-functions.yml` מדלג על פונקציות סביבת הבדיקות. לפני מיגרציה בייצור: `prod-backup-before-migration.mjs` (סכימת `backup_<tag>` + קבצים), וחזרה מתגלגלת `prod-dryrun-6101-migrations.mjs --files …` | `verify-migration-ownership.mjs --target=prod`, `verify-migration-functions.mjs <file> --prod` |
 
+### 12.6 «צפייה» בבקשה — מה חייב להישמר (05.10.2026)
+
+> «צפייה» בספרייה (ובמקומות שבהם בוחרים בקשה) מראה בדיוק מה שהלקוח מקבל: הכרטיס בדף, המייל שמפנה אליו, המסמכים והמסך שנפתח.
+> התוכנית: `docs/PLAN-REQUEST-PREVIEW-2026-10-05.md`.
+
+- **שלושה מצבים לדף האישי** (`PortalView`): `live` (הלקוח, עם טוקן; `?portal=` תמיד כזה) · `sample` (צפייה בספרייה — הכול נפתח ומגיב מקומית, שום דבר לא נשלח ולא נשמר, **ואין פנייה לרשת**) · `officeView` (תיק אמיתי במשרד — הכול נפתח לקריאה, פקדים כבויים). כל פעולה של הלקוח עוברת דרך `PortalActions` (`portal/portalActions.ts`); `samplePortalActions` לא נוגע בלקוח המסד.
+- **נתוני דוגמה מסומנים:** «ישראל ישראלי» · «ישראלה» · «ישראלי ייעוץ (דוגמה)» · «רו״ח לדוגמה» · אסמכתה A-0000-0000, טוקנים `'sample'`; תג קבוע «דוגמה — לא לקוח אמיתי». שם הבקשה הקודמת ב«בהמשך» הוא קלט, לא נוסח.
+- **אין בצפייה** שליחה, שמירה, חתימה, אישור ייצוג או אוטומציה. `preview_request_sample` היא STABLE (Postgres עצמו אוסר בה כתיבה), רק למשרד מורשה; תבנית של משרד אחר ⇒ `library_item_missing`.
+- **בקשה חדשה = ענף ב-`_portal_step_items` + רשומה ב-registry + צירי מצב + בדיקת P.2** (הפריט בדף == הפריט בצפייה). נוסח שהיוצר כותב בתוך הגוף שלו (אישור הייצוג, המחולל) — בפונקציית payload שגם הצפייה קוראת לה (`_rep_client_approval_payload`, `_onboarding_system_payload`), לא עותק.
+- **בקשה שנבנית בדפדפן** (קטלוג «＋ בקשה חדשה», בקשה חופשית, עורך) — הצפייה שולחת את ה-payload של אותה פונקציית בנייה שהיצירה משתמשת בה (D3).
+- **הדגמה (`?office-app`)** מחזירה תשובות שנלכדו מ-staging (`scripts/capture-request-preview-fixtures.mjs`); בקשה שלא נלכדה — «אין דוגמה בהדגמה», לא ציור מומצא.

@@ -65,6 +65,19 @@ VITE_DEV_USER_PASSWORD=...           # נכתב ע"י הסקריפט (אקראי
 9. אימות מבנה הנתונים במסד (כשאפשר).
 10. אימות שאין Regression לפונקציונליות קיימת.
 
+## צפייה בבקשה (05.10.2026)
+
+«צפייה» בספרייה מראה בדיוק מה שהלקוח מקבל, על נתוני דוגמה מסומנים. שלוש שכבות בדיקה — כולן חובה לפני שחרור:
+
+1. **יחידה** — `npm run test:unit`: `features/requestPreview/__tests__/registry.test.ts` (כיסוי: כל סוג בדף, כל פריט בקטלוג «＋ בקשה חדשה», כל חבר בקבוצה — יש לו רשומה או `clientSees: nothing` עם נימוק; הכתובת הלוך-חזור), `portal/__tests__/portalModes.test.ts` (בדוגמה אין פנייה לרשת).
+2. **SQL, בהרצה שמתבטלת** — `node scripts/staging-dryrun-flows.mjs --tests-only scripts/sql/test-222-request-preview.sql`:
+   P.2 הפריט בדף == הפריט בצפייה (מכל מקור: אישור ייצוג, נוסח מהספרייה, מסמך, בקשה חופשית, בקשות המחולל, ייצוג בכל מצב), P.3 אין כתיבה (STABLE + ספירות לפני ואחרי), P.4 הרשאות, P.5 קצוות.
+   **זהות הדף** (P.1 — שהפירוק של `build_client_portal` לא שינה דבר): `node scripts/qa-222-identity.mjs` (staging) ו-`--target prod` (קריאה בלבד); `node scripts/verify-222-body.mjs` מוודא שהקטעים הנגזרים בקובץ 222 זהים למקור.
+   הרצות נוספות שחובה אחרי שינוי: `test-notices-flows.sql`, `test-r4-engine.sql`, `test-r4-notices.sql`, `test-220-business-details.sql`, `test-221-reserve-duty-claim.sql`, `staging-test-onboarding-roundtrip.mjs real|synthetic`, `staging-test-single-source.mjs`.
+3. **דפדפן** — `node scripts/qa-request-preview.mjs` (playwright-core; staging 5211 + הדגמה 5210): כל שורה בספרייה נפתחת, כל לשונית וכל מצב מתחלפים, **מלכודת רשת** (בזמן הצפייה אף בקשה שכותבת/שולחת), לקוח QA מול הצפייה (אותו טקסט בדיוק בדף האישי האמיתי), «＋ בקשה חדשה» בכרטיס הלקוח (צפייה לא יוצרת; «הוספה ל…» יוצרת בדיוק אחת), «המסך שנפתח» (המסכים האמיתיים על דוגמה), כללי הפתיחה/הבונה/העורך, מסלולים מלאים במחשב ובטלפון (1280/390/360), בלי גלישה אופקית, מצב כהה, ופוקוס חוזר. פרקים: a b c d e f g h i j k (`--only`). לקוחות ה-QA נוצרים ונמחקים באותה הרצה; אם ההרצה נקטעה — ההרצה הבאה מנקה אותם בתחילתה (קידומת `qa222p`).
+
+הדגמה (`?office-app`): `node scripts/capture-request-preview-fixtures.mjs` לוכד מ-staging את התשובות לכל יעד × בחירה בספריית ההדגמה (מצטבר; `--force` מחדש).
+
 ## צעדים הבאים (שכבות שנוסיף)
 
 - **Playwright + Storage State** — חבילת בדיקות regression אוטומטית: התחברות חד-פעמית כמשתמש הבדיקה, שמירת ה-session (storageState), והרצת תרחישים חוזרים בלי התחברות מחדש.

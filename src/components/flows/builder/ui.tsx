@@ -22,7 +22,13 @@ export function FlSheet({ title, sub, onClose, children, foot, wide }: {
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     const h = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') { e.stopPropagation(); closeRef.current(); return; }
+      if (e.key === 'Escape') {
+        // ‼ רק החלון העליון נסגר: מדריך מצולם, גיליון נוסף (צפייה מתוך גיליון) או חלון אחר שנפתח מעליי מטפל ב-Esc בעצמו —
+        // שני המאזינים רשומים על window, ו-stopPropagation לא עוצר את המאזין השני.
+        const dialogs = document.querySelectorAll('[role="dialog"][aria-modal="true"]');
+        if (dialogs.length && dialogs[dialogs.length - 1] !== ref.current) return;
+        e.stopPropagation(); closeRef.current(); return;
+      }
       if (e.key !== 'Tab' || !ref.current) return;
       const nodes = Array.from(ref.current.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(n => n.offsetParent !== null);
       if (!nodes.length) return;

@@ -8,10 +8,12 @@
 // ‼ גורם חיצוני: מוכנות פרטי הקשר היא דרישת-מערכת, לא תלות — היא מוצגת
 //   ומוסברת, אבל אי אפשר "להסיר" אותה (Correction 1).
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '../../lib/supabase';
+import { profileFromDb } from '../../lib/dbMappers';
 import type { CustomRequirement, CustomRequirementKind, ExternalPartyConfig, OnboardingStep } from '../../types/onboarding';
 import { REQUIREMENT_KIND_LABELS, STEP_TYPE_LABELS } from '../../types/onboarding';
+import type { FirmProfile } from '../../types/firmProfile';
 import type { TemplateEntry } from '../../lib/requestTemplates';
 import { differsFromTemplate, saveRequestTemplate, templateCarryOver, updateRequestTemplate } from '../../lib/requestTemplates';
 import TemplateCarryNote from '../portal/TemplateCarryNote';
@@ -19,6 +21,10 @@ import type { IntakeContext } from '../../lib/clientState';
 import { intakeAcceptsRequired } from '../../lib/clientState';
 import EmailInput from '../ui/EmailInput';
 import { isManualInternal, neverOnClientPage } from '../../utils/clientFacingRows';
+import { templateEntryOwner } from '../../utils/templateEntryOwner';
+import PreviewButton from '../../features/requestPreview/PreviewButton';
+import RequestPreviewSheet from '../../features/requestPreview/RequestPreviewSheet';
+import type { PreviewTarget } from '../../features/requestPreview/targets';
 
 /** שם הבקשה בשביל צ'יפ התלות ורשימת הבחירה.
  *  ‼ היה כאן נפילה ל-stepType הגולמי, ולכן תלות בשלב מובנה הוצגה לרו"ח
@@ -171,6 +177,161 @@ function emptyRow(): InputRow {
   return { key: freshKey(), kind: 'file', label: '', required: true, optionsText: '', maxFiles: '' };
 }
 
+// ─── מה הקומפוזר יוצר — פונקציות טהורות ───────────────────────────────────────
+// ‼ «צפייה» ב«＋ בקשה חדשה» מראה את הפלט של אותה בנייה (לא את ה-payload הגולמי של הנוסח בספרייה):
+// הקומפוזר בונה מהשדות שעל המסך בלבד (+ ארבעת מפתחות ההעברה), ולכן מה שנוצר בפועל יכול להיות
+// פחות ממה שהנוסח נושא (למשל קובץ/קישור שצורפו לנוסח). מקור אחד לשניהם — הרכיב וה«צפייה».
+
+/** מה שהקומפוזר מחזיק על המסך, חוץ מהבעלים. */
+export interface ComposerFields {
+  name: string;
+  rows: InputRow[];
+  extKind: 'prev_accountant' | 'other';
+  extContact: { name: string; email: string; phone: string };
+  emailSubject: string;
+  emailBody: string;
+  internalNote: string;
+  clientSub: string;
+  clientCta: string;
+  auto: boolean;
+}
+
+/** מצב הפתיחה מתוכן קיים — בקשה שנערכת, או נוסח מהספרייה. */
+export function composerFieldsFromContent(content: Record<string, unknown> | null | undefined, startOwner: Owner): ComposerFields {
+  const ext = content?.externalParty as ExternalPartyConfig | undefined;
+  const reqs = (content?.requirements as CustomRequirement[] | undefined) ?? [];
+  const own = String(content?.title ?? '').trim();
+  const seen = String(content?.clientTitle ?? '').trim();
+  return {
+    /* ‼ בקשה שהלקוח רואה — השם מתחיל ממה שהוא רואה (clientTitle), לא מהשם הפנימי: השמירה כותבת
+       את השם לשניהם, ושם פנימי שונה היה דורס בשקט את מה שבדף. משימה פנימית — השם הפנימי. */
+    name: startOwner === 'me' ? (own || seen) : (seen || own),
+    rows: reqs.length ? reqs.map(x => ({
+      key: x.key, kind: x.kind, label: x.label, required: x.required !== false,
+      optionsText: (x.options ?? []).join(', '), maxFiles: x.maxFiles ? String(x.maxFiles) : '',
+    })) : [emptyRow()],
+    extKind: ext?.kind ?? 'prev_accountant',
+    extContact: { name: ext?.contact?.name ?? '', email: ext?.contact?.email ?? '', phone: ext?.contact?.phone ?? '' },
+    emailSubject: String(content?.emailSubject ?? ''),
+    emailBody: String(content?.emailBody ?? ''),
+    internalNote: String(content?.internalNote ?? ''),
+    clientSub: String(content?.clientSub ?? ''),
+    clientCta: String(content?.clientCta ?? ''),
+    auto: content?.autoAction != null && (content.autoAction as { kind?: string }).kind === 'email',
+  };
+}
+
+export interface ComposerPayloadInput extends ComposerFields {
+  owner: Owner;
+  /** עריכה של בקשה קיימת — ולא יצירה. */
+  edit: boolean;
+  /** תוכן הפתיחה (נוסח מהספרייה) — ממנו עוברים ההסבר והמדריך המצולם. */
+  initialContent?: Record<string, unknown>;
+  /** הנושא של הבקשה (לא הבעלים) — 'spouse' כשהיא בשם בן/בת הזוג. */
+  subjectRole: unknown;
+  subjectWho: string;
+}
+
+/** למה אי אפשר לשמור את מה שעל המסך. null = אפשר. ‼ הסדר זהה לסדר הבדיקות שהיה ב-buildPayload. */
+export function composerProblem(f: ComposerPayloadInput): string | null {
+  if (!f.name.trim()) return 'צריך שם לבקשה - הוא גם מה שהלקוח יראה.';
+  const activeRows = f.owner === 'client' ? f.rows.filter(r => r.label.trim()) : [];
+  if (f.owner === 'client' && activeRows.length === 0) return ERRORS.no_requirements;
+  for (const r of activeRows) {
+    if (r.kind === 'select') {
+      const opts = r.optionsText.split(',').map(s => s.trim()).filter(Boolean);
+      if (opts.length < 2) return ERRORS.select_needs_options;
+    }
+  }
+  return spouseConfirmError(f.subjectRole, activeRows.map(r => r.kind), f.subjectWho);
+}
+
+/** ה-payload שהקומפוזר שולח — בלי בדיקות (ל«צפייה» בטיוטה שעוד לא שלמה). שמירה: composerProblem קודם. */
+export function composerPayload(f: ComposerPayloadInput): Record<string, unknown> {
+  const { name, owner, rows, extKind, extContact, emailSubject, emailBody, internalNote, clientSub, clientCta, auto, edit, initialContent } = f;
+  const title = name.trim();
+  const activeRows = owner === 'client' ? rows.filter(r => r.label.trim()) : [];
+
+  const requirements: CustomRequirement[] = activeRows.map(r => ({
+    key: r.key,
+    kind: r.kind,
+    label: r.label.trim(),
+    done: false,
+    ...(r.required ? {} : { required: false }),
+    ...(r.kind === 'select'
+      ? { options: r.optionsText.split(',').map(s => s.trim()).filter(Boolean) } : {}),
+    ...(r.kind === 'files' && Number(r.maxFiles) > 0
+      ? { maxFiles: Number(r.maxFiles) } : {}),
+  }));
+
+  const externalParty: ExternalPartyConfig | undefined = owner === 'external'
+    ? (extKind === 'prev_accountant'
+        ? { kind: 'prev_accountant' }
+        : {
+            kind: 'other',
+            contact: {
+              name: extContact.name.trim() || undefined,
+              email: extContact.email.trim() || undefined,
+              phone: extContact.phone.trim() || undefined,
+            },
+          })
+    : undefined;
+
+  return {
+    title,
+    clientTitle: title,
+    clientSub: clientSub.trim(),
+    clientCta: clientCta.trim(),
+    /* ‼ מה שהנוסח בספרייה נושא ללקוח ושאינו שדה כאן — ההסבר והמדריך המצולם. בלעדיו הבקשה
+       הייתה מגיעה ללקוח בלי הסבר (נזרק בשקט). רק ביצירה ורק בבקשה ללקוח: משימה פנימית וגורם
+       חיצוני לא נושאים הסבר ללקוח, ובעריכה המיזוג בשרת שומר את המפתחות שכבר נשמרו. */
+    ...(!edit && owner === 'client' ? templateCarryOver(initialContent) : {}),
+    ...(requirements.length ? { requirements } : {}),
+    ...(externalParty ? { externalParty } : {}),
+    ...internalTaskMarker(owner, !!edit),
+    /* ‼ null מפורש ולא היעדר, מאותה סיבה כמו autoAction: מיזוג הפרסום
+       שומר מפתחות שלא נשלחו, ולכן מחיקת נוסח שנשמר חייבת לדרוס אותו. */
+    ...(owner === 'external' ? {
+      emailSubject: emailSubject.trim() || null,
+      emailBody: emailBody.trim() || null,
+      internalNote: internalNote.trim() || null,
+    } : {}),
+    // ‼ null מפורש ולא היעדר: ביטול אוטומציה על בקשה שפורסמה חייב לדרוס
+    // את המפתח בפרסום (merge שומר מפתחות שלא נשלחו).
+    // ‼ גורם חיצוני בלבד — ראה ההערה ליד הפקד.
+    autoAction: (auto && owner === 'external') ? { kind: 'email' } : null,
+  };
+}
+
+/** מה שנשלח לשמירה, או למה אי אפשר. */
+export function buildComposerPayload(f: ComposerPayloadInput): Record<string, unknown> | { error: string } {
+  const problem = composerProblem(f);
+  return problem ? { error: problem } : composerPayload(f);
+}
+
+/**
+ * מה הקומפוזר יוצר מנוסח בספרייה שנפתח בו ללא שינוי — ל«צפייה» ב«＋ בקשה חדשה».
+ * ‼ הבעלים כמו ב-OnboardingTab (templateEntryOwner), והנושא כמו בקומפוזר (subjectRoleOf).
+ */
+export function composerPreviewOfTemplate(entry: TemplateEntry | undefined): { owner: Owner; payload: Record<string, unknown> } {
+  const content = (entry?.payload ?? {}) as Record<string, unknown>;
+  const owner = templateEntryOwner(entry);
+  const payload = composerPayload({
+    ...composerFieldsFromContent(content, owner),
+    owner, edit: false, initialContent: content,
+    subjectRole: subjectRoleOf(content),
+    subjectWho: String(content.subjectName ?? '').trim() || 'בן/בת הזוג',
+  });
+  return { owner, payload };
+}
+
+/** הפרופיל של המשרד — ללשונית «במייל» בצפייה. כשל ⇒ פרופיל ריק (מייל לא ממותג), לא תקלה. */
+export const EMPTY_FIRM_PROFILE: FirmProfile = { id: '', branding: {}, communication: {}, settings: {} };
+export async function loadFirmProfile(): Promise<FirmProfile> {
+  const { data, error } = await supabase.from('profiles').select('*').limit(1).maybeSingle();
+  return error || !data ? EMPTY_FIRM_PROFILE : profileFromDb(data as Record<string, unknown>);
+}
+
 export default function InlineComposer({
   clientId, stageId, editStep, initialContent, sourceTemplate, initialDeps, initialOwner, existingSteps, prevAccountant, intake, onSaved, onCancel,
 }: {
@@ -212,31 +373,13 @@ export default function InlineComposer({
   const subjectWho = String(editContent?.subjectName ?? '').trim() || 'בן/בת הזוג';
 
   const startOwner: Owner = edit ? editOwnerOf(edit) : initialOwner ?? 'client';
-  /* ‼ בקשה שהלקוח רואה — השם מתחיל ממה שהוא רואה (clientTitle), לא מהשם הפנימי: השמירה כותבת
-     את השם לשניהם, ושם פנימי שונה היה דורס בשקט את מה שבדף. משימה פנימית — השם הפנימי. */
-  const [name, setName] = useState(() => {
-    const own = String(editContent?.title ?? '').trim();
-    const seen = String(editContent?.clientTitle ?? '').trim();
-    return startOwner === 'me' ? (own || seen) : (seen || own);
-  });
+  // ‼ מצב הפתיחה נגזר פעם אחת בפונקציה המשותפת (composerFieldsFromContent) — אותה שבה «צפייה» ב«＋ בקשה חדשה» בונה את מה שייווצר.
+  const [init] = useState(() => composerFieldsFromContent(editContent, startOwner));
+  const [name, setName] = useState(init.name);
   const [owner, setOwner] = useState<Owner>(startOwner);
-  const [rows, setRows] = useState<InputRow[]>(() => {
-    if (editContent) {
-      const r = (editContent?.requirements as CustomRequirement[] | undefined) ?? [];
-      return r.length ? r.map(x => ({
-        key: x.key, kind: x.kind, label: x.label, required: x.required !== false,
-        optionsText: (x.options ?? []).join(', '), maxFiles: x.maxFiles ? String(x.maxFiles) : '',
-      })) : [emptyRow()];
-    }
-    return [emptyRow()];
-  });
-  const [extKind, setExtKind] = useState<'prev_accountant' | 'other'>(
-    (editContent?.externalParty as ExternalPartyConfig | undefined)?.kind ?? 'prev_accountant');
-  const [extContact, setExtContact] = useState(() => ({
-    name: (editContent?.externalParty as ExternalPartyConfig | undefined)?.contact?.name ?? '',
-    email: (editContent?.externalParty as ExternalPartyConfig | undefined)?.contact?.email ?? '',
-    phone: (editContent?.externalParty as ExternalPartyConfig | undefined)?.contact?.phone ?? '',
-  }));
+  const [rows, setRows] = useState<InputRow[]>(init.rows);
+  const [extKind, setExtKind] = useState<'prev_accountant' | 'other'>(init.extKind);
+  const [extContact, setExtContact] = useState(init.extContact);
   /* ‼ בקשת המשך נולדת עם תלות מסומנת — ולכן ההגדרות נפתחות מיד. התנאי הוא
      כל הסיבה שהבקשה הזאת נוצרה, ולהסתיר אותו מאחורי "עוד הגדרות" היה מבקש
      מהרו"ח לאמת באמונה שמה שביקש באמת נשמר. */
@@ -247,12 +390,12 @@ export default function InlineComposer({
      אחת ונשלח אחרי שהתנאי מתקיים — לפעמים שבועות אחר כך, ולפעמים בתזכורת
      שנייה ושלישית. נוסח שחי רק ברגע השליחה היה נכתב מחדש בכל פעם.
      ריק ⇒ נופלים לנוסח הנגזר בשרת, בדיוק כמו כל הבקשות שנוצרו עד היום. */
-  const [emailSubject, setEmailSubject] = useState(String(editContent?.emailSubject ?? ''));
-  const [emailBody, setEmailBody] = useState(String(editContent?.emailBody ?? ''));
+  const [emailSubject, setEmailSubject] = useState(init.emailSubject);
+  const [emailBody, setEmailBody] = useState(init.emailBody);
   /** לעיניים של הרו"ח בלבד — לא נכנס למייל ולא לדף הלקוח. */
-  const [internalNote, setInternalNote] = useState(String(editContent?.internalNote ?? ''));
-  const [clientSub, setClientSub] = useState(String(editContent?.clientSub ?? ''));
-  const [clientCta, setClientCta] = useState(String(editContent?.clientCta ?? ''));
+  const [internalNote, setInternalNote] = useState(init.internalNote);
+  const [clientSub, setClientSub] = useState(init.clientSub);
+  const [clientCta, setClientCta] = useState(init.clientCta);
   /** ‼ ללא הקשר קליטה — תמיד false ובלי פקד, בדיוק כמו בחלון הקטלוג. */
   const requiredApplies = intakeAcceptsRequired(intake);
   const [requiredForClose, setRequiredForClose] = useState(
@@ -268,8 +411,7 @@ export default function InlineComposer({
       ? initialDeps
       : (edit?.dependsOnStepId ? [edit.dependsOnStepId] : []));
   /** ביצוע אוטומטי (D3): ברירת המחדל ידני. נחמש רק אחרי "עדכן את דף הלקוח". */
-  const [auto, setAuto] = useState(editContent?.autoAction != null
-    && (editContent.autoAction as { kind?: string }).kind === 'email');
+  const [auto, setAuto] = useState(init.auto);
   const [depsOpen, setDepsOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -318,72 +460,35 @@ export default function InlineComposer({
     });
   }
 
+  /** מה שעל המסך כעת — הקלט של הבנייה (composerPayload / composerProblem). */
+  const composerInput = (): ComposerPayloadInput => ({
+    name, owner, rows, extKind, extContact, emailSubject, emailBody, internalNote, clientSub, clientCta, auto,
+    edit: !!edit, initialContent, subjectRole, subjectWho,
+  });
+
   function buildPayload(): Record<string, unknown> | { error: string } {
-    const title = name.trim();
-    if (!title) return { error: 'צריך שם לבקשה - הוא גם מה שהלקוח יראה.' };
+    return buildComposerPayload(composerInput());
+  }
 
-    const activeRows = owner === 'client' ? rows.filter(r => r.label.trim()) : [];
-    if (owner === 'client' && activeRows.length === 0) {
-      return { error: ERRORS.no_requirements };
-    }
-    for (const r of activeRows) {
-      if (r.kind === 'select') {
-        const opts = r.optionsText.split(',').map(s => s.trim()).filter(Boolean);
-        if (opts.length < 2) return { error: ERRORS.select_needs_options };
-      }
-    }
-    const confirmErr = spouseConfirmError(subjectRole, activeRows.map(r => r.kind), subjectWho);
-    if (confirmErr) return { error: confirmErr };
-
-    const requirements: CustomRequirement[] = activeRows.map(r => ({
-      key: r.key,
-      kind: r.kind,
-      label: r.label.trim(),
-      done: false,
-      ...(r.required ? {} : { required: false }),
-      ...(r.kind === 'select'
-        ? { options: r.optionsText.split(',').map(s => s.trim()).filter(Boolean) } : {}),
-      ...(r.kind === 'files' && Number(r.maxFiles) > 0
-        ? { maxFiles: Number(r.maxFiles) } : {}),
-    }));
-
-    const externalParty: ExternalPartyConfig | undefined = owner === 'external'
-      ? (extKind === 'prev_accountant'
-          ? { kind: 'prev_accountant' }
-          : {
-              kind: 'other',
-              contact: {
-                name: extContact.name.trim() || undefined,
-                email: extContact.email.trim() || undefined,
-                phone: extContact.phone.trim() || undefined,
-              },
-            })
-      : undefined;
-
-    return {
-      title,
-      clientTitle: title,
-      clientSub: clientSub.trim(),
-      clientCta: clientCta.trim(),
-      /* ‼ מה שהנוסח בספרייה נושא ללקוח ושאינו שדה כאן — ההסבר והמדריך המצולם. בלעדיו הבקשה
-         הייתה מגיעה ללקוח בלי הסבר (נזרק בשקט). רק ביצירה ורק בבקשה ללקוח: משימה פנימית וגורם
-         חיצוני לא נושאים הסבר ללקוח, ובעריכה המיזוג בשרת שומר את המפתחות שכבר נשמרו. */
-      ...(!edit && owner === 'client' ? templateCarryOver(initialContent) : {}),
-      ...(requirements.length ? { requirements } : {}),
-      ...(externalParty ? { externalParty } : {}),
-      ...internalTaskMarker(owner, !!edit),
-      /* ‼ null מפורש ולא היעדר, מאותה סיבה כמו autoAction: מיזוג הפרסום
-         שומר מפתחות שלא נשלחו, ולכן מחיקת נוסח שנשמר חייבת לדרוס אותו. */
-      ...(owner === 'external' ? {
-        emailSubject: emailSubject.trim() || null,
-        emailBody: emailBody.trim() || null,
-        internalNote: internalNote.trim() || null,
-      } : {}),
-      // ‼ null מפורש ולא היעדר: ביטול אוטומציה על בקשה שפורסמה חייב לדרוס
-      // את המפתח בפרסום (merge שומר מפתחות שלא נשלחו).
-      // ‼ גורם חיצוני בלבד — ראה ההערה ליד הפקד.
-      autoAction: (auto && owner === 'external') ? { kind: 'email' } : null,
-    };
+  // ─── «צפייה» — מה הלקוח יראה ממה שעל המסך (טיוטה, לא נשמר) ──────────────────────────────────
+  // ‼ רק בבקשה ללקוח: משימה פנימית וגורם חיצוני אינם בדף. הדוגמה תמיד נתוני דוגמה — הדף של הלקוח עצמו ב«איך זה ייראה».
+  // ‼ בעריכה מראים את המיזוג שהשרת עושה (התוכן השמור + מה שעל המסך), לא את מה שעל המסך לבדו.
+  const [preview, setPreview] = useState<PreviewTarget | null>(null);
+  const [wantPreview, setWantPreview] = useState(false);
+  const [firm, setFirm] = useState<FirmProfile | null>(null);
+  useEffect(() => {
+    if (!wantPreview || firm) return;
+    let alive = true;
+    void loadFirmProfile().then(p => { if (alive) setFirm(p); });
+    return () => { alive = false; };
+  }, [wantPreview, firm]);
+  function openPreview() {
+    const built = composerPayload(composerInput());
+    setPreview({
+      kind: 'draft', name: name.trim() || 'בקשה חדשה', stepType: 'custom_request', owner,
+      payload: edit ? { ...(editContent ?? {}), ...built } : built,
+    });
+    setWantPreview(true);
   }
 
   async function save() {
@@ -862,17 +967,29 @@ export default function InlineComposer({
         </div>
       )}
 
-      <div style={{ display: 'flex', gap: '.4rem', alignItems: 'center' }}>
+      <div style={{ display: 'flex', gap: '.4rem', alignItems: 'center', flexWrap: 'wrap' }}>
         <button type="button" className="btn btn-sm btn-primary" disabled={busy} onClick={() => void save()}>
           {busy ? 'שומר…' : edit ? 'שמירה' : owner === 'me' ? 'הוסף משימה' : 'שמור כטיוטה'}
         </button>
         <button type="button" className="btn btn-sm btn-ghost" disabled={busy} onClick={onCancel}>ביטול</button>
+        {owner === 'client' && name.trim() && (
+          <PreviewButton name={name.trim()} onClick={openPreview} />
+        )}
         {!edit && (
           <span style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)' }}>
             {owner === 'me' ? 'משימה פנימית - לא מופיעה בדף של הלקוח' : 'הלקוח לא יראה עד «פרסם בדף»'}
           </span>
         )}
       </div>
+
+      {/* ‼ display:contents + עצירת הבועה: המגירה היא פורטל, אבל אירועי React עולים דרך העץ — בלי זה לחיצה בתוכה
+          הגיעה להורים של הקומפוזר (כרטיס שנפתח/נסגר). */}
+      {preview && firm && (
+        <div style={{ display: 'contents' }} onClick={e => e.stopPropagation()}>
+          <RequestPreviewSheet target={preview} profile={firm} badge="טיוטה — לא נשמר"
+            onClose={() => setPreview(null)} />
+        </div>
+      )}
     </div>
   );
 }

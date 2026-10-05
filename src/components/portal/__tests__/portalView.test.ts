@@ -1,7 +1,8 @@
 // ─── בדיקות מבנה: הדף האישי (PortalView) — תצוגה במשרד, כרטיס האישור, טלפון ─────────
 // ‼ מה נעול כאן:
 //   · X-2 — בלי טוקן (כל תצוגה במשרד: «הדף של …» ב«חי · עכשיו» ובתצוגה המקדימה) הפקדים
-//     של הלקוח כבויים. הדף האמיתי (?portal=) תמיד מגיע עם טוקן.
+//     של הלקוח כבויים (officeView). הדף האמיתי (?portal=) תמיד מגיע עם טוקן ו-live.
+//     שלושת המצבים והפעולות המוזרקות — ראה portalModes.test.ts.
 //   · X-3 — כרטיס האישור נבנה מ-repApprovalCard (משפט + מה מסמנים, השאר בלחיצה), ולא
 //     מקיר ההסבר השמור; כרטיס הזירוז (אופציונלי) אחרי מה שבאמת נדרש.
 //   · X-5 — בטלפון הריפוד של העמוד/המסגרת/הכרטיסים קטן (portalPage.css), לא style קבוע.
@@ -25,8 +26,10 @@ function body(name: string): string {
 export const TESTS: TestCase[] = [
   test('X-2 · בלי טוקן — הפקדים כבויים בכל תצוגה במשרד, גם ב«חי · עכשיו»', () => {
     const view = body('PortalView');
-    assert(/const inert = preview \|\| !token;/.test(view), 'inert נגזר מהיעדר טוקן');
-    assert(/<PreviewCtx\.Provider value=\{inert\}>/.test(view), 'ההקשר שמכבה פקדים מקבל inert, לא רק preview');
+    assert(/\(preview \|\| !token \? 'officeView' : 'live'\)/.test(view), 'ברירת המחדל: preview או בלי טוקן ⇒ officeView');
+    assert(/modeProp === 'live' && !token \? 'officeView'/.test(view), 'גם mode="live" בלי טוקן ⇒ תצוגה במשרד (אין פעולה שיכולה להצליח)');
+    assert(/<PortalModeCtx\.Provider value=\{mode\}>/.test(view), 'ההקשר שמכבה פקדים מקבל את המצב המלא, לא רק preview');
+    assert(/<PortalActionsCtx\.Provider value=\{portalActions\}>/.test(view), 'וההקשר של הפעולות המוזרקות');
     assert(/<PortalView data=\{data\} token=\{token\}/.test(PAGE_SOURCE), 'הדף האמיתי מעביר טוקן');
   }),
 
