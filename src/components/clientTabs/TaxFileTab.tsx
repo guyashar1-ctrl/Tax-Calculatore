@@ -43,6 +43,9 @@ import { findUnsyncedSession, syncIntakeSession } from '../../lib/intakeSync';
 import type { IntakeSyncResult } from '../../lib/intakeSync';
 import NiInstructionsDialog from '../NiInstructionsDialog';
 import SpouseRelationshipCard from './SpouseRelationshipCard';
+import HomeOfficePanel from '../../features/requests/HomeOfficePanel';
+import { useHomeOffice } from '../../features/requests/useHomeOffice';
+import { deriveHomeOffice, homeOfficeLine } from '../../features/requests/homeOffice';
 
 interface Props {
   client: Client;
@@ -108,7 +111,7 @@ interface Props {
    * נחיתה על שדה מסוים: «פרטי הנישום» נפתחת בעריכה והפוקוס על השדה. מגיע
    * מ«לקביעת סוג העוסק» ב«בקשות» — אותו שדה, לא מסך שני.
    */
-  focusField?: 'dealerType';
+  focusField?: 'dealerType' | 'businessName';
   /** נקרא אחרי שהנחיתה בוצעה — כדי שמעבר רגיל לתיק המס לא ייפתח שוב בעריכה. */
   onFocusConsumed?: () => void;
   /** השרת פתח בקשות (שחרור הבקשות שחיכו לסוג העוסק) — לרענן את «בקשות». */
@@ -229,6 +232,11 @@ function fieldsOf(...sectionIds: string[]): EditField[] {
  */
 function identityFields(): EditField[] {
   return EDIT_SECTIONS.find(s => s.id === 'identity')?.fields ?? [];
+}
+
+/** פרטי העסק (05.10) — שם העסק הקנוני. כמו פרטי הנישום: לא עובדה מנוהלת, במסלול הרגיל. */
+function businessFields(): EditField[] {
+  return EDIT_SECTIONS.find(s => s.id === 'businessDetails')?.fields ?? [];
 }
 
 const SPOUSE_NAME_KEYS = new Set(['spouseFirstName', 'spouseLastName']);
@@ -382,6 +390,14 @@ export default function TaxFileTab({
   const [focusPending, setFocusPending] = useState<string | null>(null);
 
   useEffect(() => {
+    if (focusField === 'businessName') {
+      // ‼ 05.10 · «עריכה בתיק המס ←» מבקשת «פרטי העסק» — אותו שדה, לא עותק בבקשה.
+      setOpenRows(s => (s.has('business') ? s : new Set(s).add('business')));
+      if (onUpdateClientFields && editingSection !== 'businessDetails') startSectionEdit('businessDetails', businessFields());
+      setFocusPending(focusField);
+      onFocusConsumed?.();
+      return;
+    }
     if (focusField !== 'dealerType') return;
     setOpenRows(s => (s.has('identity') ? s : new Set(s).add('identity')));
     if (onUpdateClientFields && editingSection !== 'identity') startSectionEdit('identity', identityFields());
@@ -481,6 +497,9 @@ export default function TaxFileTab({
         // ‼ הכרטיס שבמסך הוא עותק: בלי האימוץ הזה הערך החדש נשמר בשרת
         //   והמסך ממשיך להציג את הישן עד רענון.
         onClientPersisted({ ...client, ...plain });
+        // ‼ 05.10 (סבב 2): שם עסק שנשמר כאן עשוי לסגור בשרת בקשת «פרטי העסק» שחיכתה רק לו
+        // (_clients_business_name_changed, 220) — הבקשות נקראות מחדש, אחרת «לטיפולך» נשאר עד רענון.
+        if ('businessName' in plain) onRequestsChanged?.();
       } catch (e) {
         setSectionError(e instanceof Error ? e.message : 'השמירה נכשלה');
         setSectionSaving(false);
@@ -583,6 +602,9 @@ export default function TaxFileTab({
    * ‼ facts_synced_at על הסשן מבטיח שזה קורה פעם אחת בלבד.
    */
   const [intakeResult, setIntakeResult] = useState<IntakeSyncResult | null>(null);
+  /** 05.10 · עבודה מהבית (220) — האחוז שהמשרד אישר, והאישור עצמו (אותו רכיב כמו בבקשה). */
+  const homeOfficeLoad = useHomeOffice(client.id || undefined);
+  const homeOfficeState = deriveHomeOffice(homeOfficeLoad.history);
   const syncTried = useRef<string | null>(null);
 
   useEffect(() => {
@@ -1171,6 +1193,56 @@ export default function TaxFileTab({
           <SrcLine label="מקור: כרטיס הלקוח"
             onEdit={editingSection === 'identity' || !onUpdateClientFields ? undefined
               : () => startSectionEdit('identity', identityFields())} />
+        </TRow>
+      </div>
+
+      {/* ═══ פרטי העסק (05.10.2026) ═══════════════════════════════════════
+          ‼ שם העסק הקנוני ועבודה מהבית — מה שמוזן בפייפרלס. «פרטי העסק» בבקשות מפנה לכאן
+          לעריכת השם, והאישור של אחוז המשרד הביתי הוא אותו רכיב בשני המקומות. */}
+      <SectHead family="auth" title="פרטי העסק"
+        why="שם העסק ועבודה מהבית — כפי שמוזנים בפייפרלס" />
+      <div className="txf-sect">
+        <TRow
+          id="business" name="שם העסק ומשרד ביתי"
+          summary={[
+            client.businessName?.trim() || 'אין שם עסק',
+            homeOfficeLoad.error ? 'עבודה מהבית: הקריאה נכשלה' : homeOfficeLoad.history ? homeOfficeLine(homeOfficeState) : null,
+          ].filter(Boolean).join(' · ')}
+          exception={homeOfficeState.phase === 'stale' || homeOfficeState.phase === 'awaitingApproval'
+            ? { text: homeOfficeState.phase === 'stale' ? 'אחוז המשרד הביתי ממתין לבדיקה מחדש' : 'אחוז המשרד הביתי ממתין לאישורך', tone: 'warn' }
+            : null}
+          open={openRows.has('business')} onToggle={toggleRow}
+        >
+          <div className="txf-kv">
+            {editingSection === 'businessDetails'
+              ? businessFields().map(f => (
+                  <EditableKV key={f.key} def={f} value={sectionDrafts[f.key] ?? ''}
+                    onChange={v => setSectionDrafts(d => ({ ...d, [f.key]: v }))} />
+                ))
+              : businessFields().map(f => {
+                  const v = editFieldValue(client, f);
+                  return (
+                    <KV key={f.key} k={f.label} field={f.key}
+                      v={v ? v : <span style={{ color: 'var(--ink-4)' }}>אין שם עסק בתיק</span>} />
+                  );
+                })}
+          </div>
+          {editingSection === 'businessDetails' && <EditActions />}
+          <SrcLine label="מקור: כרטיס הלקוח · שינוי כאן אינו משנה את השם בפייפרלס"
+            onEdit={editingSection === 'businessDetails' || !onUpdateClientFields ? undefined
+              : () => startSectionEdit('businessDetails', businessFields())} />
+          <div className="txf-kv-block">
+            <div className="txf-subhead">עבודה מהבית</div>
+            <HomeOfficePanel
+              clientId={client.id}
+              clientFirstName={(client.firstName || '').trim().split(/\s+/)[0] || 'הלקוח'}
+              history={homeOfficeLoad.history}
+              loading={homeOfficeLoad.loading}
+              loadError={homeOfficeLoad.error}
+              onReload={homeOfficeLoad.reload}
+              onUpdated={h => { homeOfficeLoad.setHistory(h); onRequestsChanged?.(); }}
+            />
+          </div>
         </TRow>
       </div>
 

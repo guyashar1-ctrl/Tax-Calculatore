@@ -20,6 +20,10 @@ import RepApprovalGuide, { RepApprovalGuideButton, repApprovalCard, type RepAppr
 import { linkHost } from '../features/links/linkDestinations';
 import { REP_PORTAL_CARD_FIXED } from '../../supabase/functions/_shared/repTemplates.ts';
 import './portal/portalPage.css';
+import HomeOfficeForm from '../features/requests/HomeOfficeForm';
+import type { ValidHomeOffice } from '../features/requests/homeOffice';
+import { portalSubmitBusinessDetails } from '../features/requests/api';
+import { groupPortalItems, portalChildTitle, portalGroupStatus, type PortalGroup } from '../features/requests/requestGroups';
 
 interface Props {
   token: string;
@@ -76,7 +80,9 @@ export interface PortalItem {
   kind?: 'documents' | 'prev_accountant' | 'custom' | 'paperless_signup' | 'guide' | 'info' | 'declare' | 'message'
     /* ‼ 208 · שע״ם דורשת צילום תעודה, ובתיק כבר יש אחד: הלקוח רואה אותו ומאשר
        שהוא שלו, או מעלה אחר. קיום הקובץ אינו אישור. */
-    | 'identity_confirm';
+    | 'identity_confirm'
+    /* ‼ 220 · «פרטי העסק» — שם העסק ושאלון עבודה מהבית, נשלחים יחד למשרד. */
+    | 'business_details';
   /**
    * פרטי הרו״ח הקודם שכבר בכרטיס — מילוי-מראש לאישור. כמו businessName:
    * מקור האמת הוא הכרטיס, ומה שהלקוח שולח חוזר אליו (וגובר, מיגרציה 115).
@@ -115,6 +121,8 @@ export interface PortalItem {
    */
   needsBusinessName?: boolean;
   businessName?: string;
+  /** 220 · התשובות האחרונות על עבודה מהבית — מילוי-מראש לתיקון. */
+  homeOffice?: { hasDedicatedRoom: boolean; totalRooms: number | null; businessRooms: number | null; note: string | null } | null;
   /** רשימת המסמכים שביקשנו — מה התקבל ומה עוד חסר. */
   checklist?: { key: string; label: string; done: boolean; /** 204 · למה מבקשים — למשל «נדרש על ידי רשות המסים להשלמת הייצוג». */ note?: string }[];
   /** דרישות של בקשה חופשית — שדות בתוך בקשה אחת, כל אחד עם סוג ו-חובה/רשות. */
@@ -519,6 +527,8 @@ function ActionItem({ token, item, brand, accent, last, onDone }: {
   /** הוראות + הצהרה, הכל גלוי מיד: בלי ההוראות אין מה לאשר. */
   const declare = inPage && item.kind === 'declare';
   const identity = inPage && item.kind === 'identity_confirm';
+  /** 220 · «פרטי העסק» — הטופס נפתח בלחיצה («מילוי פרטים»), כמו בהדמיה המאושרת. */
+  const bizDetails = inPage && item.kind === 'business_details';
   const prog = progressLine(item);
 
   const primaryBtn: React.CSSProperties = {
@@ -570,6 +580,14 @@ function ActionItem({ token, item, brand, accent, last, onDone }: {
       ) : identity ? (
         <div style={{ marginTop: 11 }}>
           <IdentityConfirmBlock token={token} item={item} brand={brand} accent={accent} onDone={onDone} />
+        </div>
+      ) : bizDetails ? (
+        <div style={{ marginTop: 11 }}>
+          {!open && (previewMode
+            ? <span style={inertBtn}>מילוי פרטים</span>
+            : <button type="button" onClick={() => setOpen(true)} style={primaryBtn} aria-expanded={false}>מילוי פרטים</button>)}
+          {open && <BusinessDetailsBlock token={token} item={item} brand={brand} accent={accent} onDone={onDone}
+            onCancel={() => setOpen(false)} />}
         </div>
       ) : (
         <div style={{ marginTop: 11 }}>
@@ -979,6 +997,80 @@ function PaperlessSignupBlock({ token, item, brand, accent, onDone }: {
 }
 
 /**
+ * «פרטי העסק» (220) — שם העסק ושאלון עבודה מהבית, בשליחה אחת למשרד.
+ * ‼ שם העסק נשמר בכרטיס בלבד (clients.business_name), והתשובות בהיסטוריה — לא על הבקשה.
+ * ‼ «השם השתנה בינתיים במשרד» (stale) — לא דורסים: מציגים את השם הנוכחי ומבקשים לאשר שוב.
+ * ‼ היחס שמוצג הוא אומדן; האחוז נקבע אצל המשרד ולא נאמר כאן.
+ */
+function BusinessDetailsBlock({ token, item, brand, accent, onDone, onCancel }: {
+  token: string; item: PortalItem;
+  brand: { ink: string; muted: string; border: string; radius: number; cardBg: string };
+  accent: string; onDone: () => void; onCancel: () => void;
+}) {
+  const previewMode = useContext(PreviewCtx);
+  const [businessName, setBusinessName] = useState(item.businessName ?? '');
+  const [expected, setExpected] = useState(item.businessName ?? '');
+  const [homeOffice, setHomeOffice] = useState<ValidHomeOffice | null>(null);
+  const [tried, setTried] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [sent, setSent] = useState(false);
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (previewMode || !item.actionValue || busy) return;
+    setTried(true);
+    if (!businessName.trim()) { setError('צריך למלא את שם העסק.'); return; }
+    if (!homeOffice) { setError('יש להשלים את התשובות ולוודא שמספר החדרים תקין.'); return; }
+    setBusy(true); setError(null);
+    const r = await portalSubmitBusinessDetails(token, item.actionValue, { businessName, expectedBusinessName: expected, homeOffice });
+    setBusy(false);
+    if (!r.ok) {
+      if (r.error === 'stale') { setBusinessName(r.businessName ?? ''); setExpected(r.businessName ?? ''); }
+      setError(r.message);
+      return;
+    }
+    setSent(true);
+    void flushAccountantNotifications(token);
+    onDone();
+  }
+
+  const input: React.CSSProperties = {
+    width: '100%', padding: '10px 11px', fontSize: 16, color: brand.ink, minHeight: 42,
+    border: `1px solid ${brand.border}`, borderRadius: brand.radius, background: '#fff',
+  };
+  if (sent) return <div role="status" style={{ fontSize: 13.5, color: brand.ink }}>תודה — הפרטים הועברו למשרד.</div>;
+  return (
+    <form onSubmit={e => void submit(e)} noValidate style={{ display: 'grid', gap: 14, borderTop: `1px dashed ${brand.border}`, paddingTop: 12 }}>
+      <label style={{ display: 'grid', gap: 5, maxWidth: 420 }}>
+        <span style={{ fontSize: 13, fontWeight: 600, color: brand.ink }}>
+          שם העסק{item.businessName ? ' - לאישור או לתיקון' : ''}
+        </span>
+        <input value={businessName} onChange={e => { setBusinessName(e.target.value); setError(null); }} disabled={previewMode || busy}
+          placeholder="השם שהעסק מוכר בו" autoComplete="organization" maxLength={200} style={input} />
+      </label>
+      <HomeOfficeForm audience="client" initial={item.homeOffice ?? null} disabled={previewMode || busy}
+        onChange={v => { setHomeOffice(v); setError(null); }} showErrors={tried} />
+      {error && <div role="alert" style={{ fontSize: 13, color: '#a63a3a', fontWeight: 600 }}>{error}</div>}
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+        <button type="submit" disabled={previewMode || busy} style={{
+          fontSize: 14, fontWeight: 600, padding: '10px 18px', minHeight: 44, borderRadius: brand.radius,
+          color: '#fff', background: accent, border: 'none', cursor: previewMode || busy ? 'default' : 'pointer',
+          opacity: previewMode || busy ? .6 : 1,
+        }}>{busy ? 'שולח…' : (item.cta || 'העברה למשרד')}</button>
+        <button type="button" onClick={onCancel} disabled={busy} style={{
+          fontSize: 13.5, padding: '10px 14px', minHeight: 44, borderRadius: brand.radius, color: brand.muted,
+          background: 'transparent', border: `1px solid ${brand.border}`, cursor: 'pointer',
+        }}>סגירה</button>
+      </div>
+      <div style={{ fontSize: 12, color: brand.muted, lineHeight: 1.6 }}>
+        המשרד יבדוק את הפרטים. האחוז לעבודה מהבית נקבע אצלנו, ונעדכן אותך אם נצטרך פרט נוסף.
+      </div>
+    </form>
+  );
+}
+
+/**
  * ‼ ליד כל קישור יוצא — לאן הוא מוביל, כדי שהלקוח לא ילחץ על כפתור עיוור.
  * שם האתר בלבד (gov.il), לא כתובת ארוכה.
  */
@@ -1352,16 +1444,30 @@ export function PortalView({ data, token = '', preview = false, embed = false, o
   // ‼ X-3 · כרטיס הזירוז (אופציונלי — הכותרת הקבועה שלו) אחרי מה שבאמת נדרש, לא ראשון
   // ב«מה צריך ממך». כשהאישור חובה (201) הכותרת אחרת, והכרטיס נשאר במקומו.
   const optionalLast = (i: PortalItem) => (i.key === 'rep_approval' && i.label === REP_PORTAL_CARD_FIXED.title ? 1 : 0);
-  const actions  = data.items.filter(i => i.bucket === 'action' && !isSentDoc(i))
+  /* ‼ 05.10 · קבוצות קבועות (הדמיה מאושרת): פייפרלס, העברת טיפול וייצוג — קבוצה אחת עם כל
+     הבקשות שלה, בסדר קבוע, גם כשחלק הושלם וחלק בטיפולנו. הקבוצה עומדת במקטע של המצב שלה
+     (יש משהו בשבילך ⇒ «מה צריך ממך»). זיהוי לפי מפתח הפריט מהשרת, לא לפי כותרת. */
+  const { groups: itemGroups } = groupPortalItems(data.items.filter(i => !isSentDoc(i) && i.kind !== 'message' && !isDoneLegacyDoc(i)));
+  const groupedKeys = new Set(itemGroups.flatMap(g => g.items.map(i => i.key)));
+  const free = (i: PortalItem) => !groupedKeys.has(i.key);
+  const groupCards = itemGroups.map(g => ({ g, st: portalGroupStatus(g.items) }));
+  const groupsIn = (tone: 'action' | 'office' | 'future' | 'done') => groupCards.filter(x => x.st.tone === tone);
+  const actions  = data.items.filter(i => i.bucket === 'action' && !isSentDoc(i) && free(i))
     .sort((a, b) => optionalLast(a) - optionalLast(b));
   // ‼ הודעה מהמשרד אינה "בטיפול המשרד": אין מאחוריה עבודה שמתבצעת, ולכן היא
   // יוצאת מהקבוצה הזאת ומקבלת מקום משלה. אחרת היא נקראת כמו הבטחה לטיפול.
   const messages = data.items.filter(i => i.kind === 'message');
-  const office   = data.items.filter(i => i.bucket === 'office' && i.kind !== 'message');
+  const office   = data.items.filter(i => i.bucket === 'office' && i.kind !== 'message' && free(i));
   // בקשת מסמכים נעולה נשארת ב"בהמשך" — היא עדיין לא נשלחה.
-  const future   = data.items.filter(i => i.bucket === 'future');
+  const future   = data.items.filter(i => i.bucket === 'future' && free(i));
   const done     = data.items.filter(i =>
-    i.bucket === 'done' && !isSentDoc(i) && !isDoneLegacyDoc(i));
+    i.bucket === 'done' && !isSentDoc(i) && !isDoneLegacyDoc(i) && free(i));
+  /** מה ממתין ללקוח — בשורה אחת מעל הכול (גם בתוך קבוצות). */
+  const waitingForYou = [...actions, ...itemGroups.flatMap(g => g.items.filter(i => i.bucket === 'action'))];
+  const renderGroup = (x: { g: PortalGroup<PortalItem>; st: ReturnType<typeof portalGroupStatus> }) => (
+    <PortalGroupCard key={`g-${x.g.key}`} group={x.g} status={x.st} token={token} brand={brand} accent={accent} onDone={reload}
+      preview={preview} />
+  );
 
   /**
    * בית אחד לכל מה שהמשרד שלח — שנפתח ושלא. הלקוח מחפש מסמך, לא בקשה,
@@ -1401,9 +1507,21 @@ export function PortalView({ data, token = '', preview = false, embed = false, o
           שלום{firstName ? ` ${firstName}` : ''},
         </div>
 
-        {actions.length > 0 ? (
+        {/* ‼ 05.10 · שורת סיכום אחת: מה ממתין לך עכשיו — גם כשזה בתוך קבוצה. */}
+        {waitingForYou.length > 0 && (
+          <div role="status" style={{
+            margin: '12px 0 4px', padding: '11px 14px', borderRadius: brand.radius + 2, fontSize: 13.5, lineHeight: 1.55,
+            background: brand.pageBg, color: brand.ink, border: `1px solid ${brand.border}`,
+          }}>
+            {waitingForYou.length === 1
+              ? <>יש בקשה אחת שממתינה לך: <strong>{portalChildTitle(waitingForYou[0])}</strong>.</>
+              : <>יש {waitingForYou.length} בקשות שממתינות לך.</>}
+          </div>
+        )}
+        {actions.length > 0 || groupsIn('action').length > 0 ? (
           <>
             <div style={{ ...sectionTitle, color: accent, marginTop: 16, marginBottom: 8 }}>מה צריך ממך</div>
+            {groupsIn('action').map(renderGroup)}
             {actions.map((item, i) => (
               <ActionItem key={item.key} token={token} item={item} brand={brand} accent={accent}
                 last={i === actions.length - 1} onDone={reload} />
@@ -1419,7 +1537,8 @@ export function PortalView({ data, token = '', preview = false, embed = false, o
               ? 'המשרד שלח לך מסמך חדש.'
               : `המשרד שלח לך ${unopenedCount} מסמכים חדשים.`}
           </div>
-        ) : done.length > 0 && future.length === 0 && office.length === 0 ? (
+        ) : (done.length > 0 || groupsIn('done').length > 0) && future.length === 0 && office.length === 0
+            && groupsIn('office').length === 0 && groupsIn('future').length === 0 ? (
           /* ‼ "הכול הושלם" רק כשבאמת אין המשך. עם שלב עתידי נעול או עם משהו
              שבטיפולנו זה היה שקר קטן שמייצר פנייה: הלקוח קורא שסיים, ואז
              נפתח לו עוד שלב. מסמך שטרם נפתח כבר נתפס בענף שמעל. */
@@ -1519,11 +1638,12 @@ export function PortalView({ data, token = '', preview = false, embed = false, o
         {/* ── בטיפול המשרד ────────────────────────────────────────────────
             מה שאנחנו עושים עכשיו. שקט ובלי פקדים — זו תשובה לשאלה "ומה
             עכשיו?", לא עוד רשימת מטלות. */}
-        {office.length > 0 && (
+        {(office.length > 0 || groupsIn('office').length > 0) && (
           <>
             <div style={{ ...sectionTitle, marginTop: (actions.length > 0 || messages.length > 0 || docGroups.length > 0) ? 20 : 16 }}>
               בטיפול המשרד
             </div>
+            {groupsIn('office').map(renderGroup)}
             {office.map(item => (
               <div key={item.key} style={{
                 display: 'flex', alignItems: 'flex-start', gap: 8,
@@ -1550,11 +1670,12 @@ export function PortalView({ data, token = '', preview = false, embed = false, o
         {/* ── בהמשך: שלבים שפורסמו ועדיין נעולים ──────────────────────────
             שקט בכוונה — אפור, בלי כפתור, בלי מסגרת מודגשת. זו מפת דרכים,
             לא רשימת מטלות: אסור שתתחרה ב"מה צריך ממך" שמעליה. */}
-        {future.length > 0 && (
+        {(future.length > 0 || groupsIn('future').length > 0) && (
           <>
             <div style={{ ...sectionTitle, marginTop: (actions.length > 0 || office.length > 0 || messages.length > 0 || docGroups.length > 0) ? 20 : 16 }}>
               בהמשך - ייפתח אוטומטית
             </div>
+            {groupsIn('future').map(renderGroup)}
             {future.map(item => (
               <div key={item.key} style={{
                 display: 'flex', alignItems: 'flex-start', gap: 8,
@@ -1583,6 +1704,10 @@ export function PortalView({ data, token = '', preview = false, embed = false, o
 
         {/* ‼ תזכורת שקטה שכבר קרה משהו — לא רשימה. "מה קורה עכשיו" הוא
             השאלה של העמוד הזה; "מה קרה" שייך לרו"ח בלבד. */}
+        {/* ‼ קבוצה שהושלמה כולה — מקופלת, ואפשר לפתוח ולראות את הבקשות שבה. */}
+        {groupsIn('done').length > 0 && (
+          <div style={{ marginTop: 16 }}>{groupsIn('done').map(renderGroup)}</div>
+        )}
         {done.length > 0 && (
           <div style={{ fontSize: 12, color: brand.muted, marginTop: (actions.length > 0 || future.length > 0) ? 16 : 4 }}>
             ✓ {done.length === 1 ? 'דבר אחד שכבר הושלם' : `${done.length} דברים שכבר הושלמו`}
@@ -1602,6 +1727,66 @@ export function PortalView({ data, token = '', preview = false, embed = false, o
       </div>
     </div>
     </PreviewCtx.Provider>
+  );
+}
+
+/**
+ * קבוצה קבועה בדף האישי (05.10) — כותרת עם מצב, ומתחת כל בקשה בשורה משלה, בסדר קבוע.
+ * ‼ בקשה שממתינה ללקוח — אותו ActionItem כמו בשורה בודדת (אותם טפסים ופעולות); השאר —
+ * שורה שקטה עם המצב שלה. בלי פקדים של המשרד ובלי הערות פנימיות: רק מה שהשרת שלח לדף.
+ */
+function PortalGroupCard({ group, status, token, brand, accent, onDone, preview }: {
+  group: PortalGroup<PortalItem>;
+  status: ReturnType<typeof portalGroupStatus>;
+  token: string;
+  brand: { ink: string; muted: string; border: string; radius: number; cardBg: string; pageBg: string };
+  accent: string; onDone: () => void; preview: boolean;
+}) {
+  const [open, setOpen] = useState(status.tone === 'action');
+  const hint = status.tone === 'action' ? group.summary
+    : status.tone === 'office' ? 'בטיפול המשרד · אין צורך בפעולה שלך'
+    : status.tone === 'future' ? 'ייפתח בהמשך'
+    : group.summary;
+  const tagColor = status.tone === 'action' ? accent : status.tone === 'done' ? '#2f6b4f' : brand.muted;
+  const actionKids = group.items.filter(i => i.bucket === 'action');
+  return (
+    <section className="pp-group" data-group={group.key} style={{
+      border: `1px solid ${brand.border}`, borderRadius: brand.radius + 4, background: brand.cardBg, marginBottom: 10, overflow: 'hidden',
+    }}>
+      <button type="button" className="pp-group-head" aria-expanded={open} onClick={() => setOpen(o => !o)}
+        style={{ color: brand.ink, borderBottom: open ? `1px solid ${brand.border}` : 'none' }}>
+        <span className="pp-group-namecol">
+          <span className="pp-group-name">{group.title}</span>
+          <span className="pp-group-hint" style={{ color: brand.muted }}>{hint}</span>
+        </span>
+        <span className="pp-group-tag" style={{ color: tagColor }}>{status.tag}</span>
+        <span className="pp-group-chev" aria-hidden="true" style={{ color: brand.muted }}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
+        </span>
+      </button>
+      {open && (
+        <div className="pp-group-kids" style={{ background: brand.pageBg }}>
+          {group.items.map(it => it.bucket === 'action'
+            ? <ActionItem key={it.key} token={token} item={{ ...it, label: portalChildTitle(it) }} brand={brand} accent={accent}
+                last={it === actionKids[actionKids.length - 1]} onDone={onDone} />
+            : (
+              <div key={it.key} className="pp-group-kid" style={{ background: brand.cardBg, border: `1px solid ${brand.border}`, borderRadius: brand.radius + 2 }}>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: it.bucket === 'future' ? brand.muted : brand.ink }}>
+                    {portalChildTitle(it)}
+                    {preview && it.draft && <DraftChip />}
+                    {preview && it.removing && <RemovingChip />}
+                  </div>
+                  {it.sub && <div style={{ fontSize: 12.5, color: brand.muted, marginTop: 2, lineHeight: 1.55 }}>{it.sub}</div>}
+                </div>
+                <span className="pp-group-kid-tag" style={{ color: it.bucket === 'done' ? '#2f6b4f' : brand.muted }}>
+                  {it.bucket === 'done' ? 'הושלם' : it.bucket === 'office' ? 'בטיפול המשרד' : 'בהמשך'}
+                </span>
+              </div>
+            ))}
+        </div>
+      )}
+    </section>
   );
 }
 

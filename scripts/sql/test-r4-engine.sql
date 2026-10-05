@@ -1054,8 +1054,8 @@ begin
 
   -- ══ R · לקוח שחוזר (הכרעות D1–D4) ═══════════════════════════════════════════
   begin
-  out := out || jsonb_build_object('t', 'R.0 ששת הסוגים «לכל התקשרות»: הרשימה בשרת זהה לרשימה בשלושת האינדקסים', 'pass',
-    cardinality(public.per_engagement_step_types()) = 6
+  out := out || jsonb_build_object('t', 'R.0 שבעת הסוגים «לכל התקשרות» (220: פרטי העסק): הרשימה בשרת זהה לרשימה בשלושת האינדקסים', 'pass',
+    cardinality(public.per_engagement_step_types()) = 7
     and (select bool_and(position(quote_literal(t) in pg_get_indexdef('public.onboarding_steps_person_type_open_idx'::regclass)) > 0
                      and position(quote_literal(t) in pg_get_indexdef('public.onboarding_steps_unassigned_type_idx'::regclass)) > 0
                      and position(quote_literal(t) in pg_get_indexdef('public.onboarding_steps_person_type_idx'::regclass)) > 0)

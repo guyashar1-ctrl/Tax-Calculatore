@@ -151,6 +151,9 @@ export type OnboardingStepType =
   // ‼ הפעולה היחידה בפייפרלס שהיא של הלקוח ולא שלנו — ההזדהות מול רשות
   // המסים היא בת"ז ובקוד האישי שלו. לעוסק מורשה ולחברה בלבד.
   | 'paperless_tax_authority'
+  // ‼ 220 — שם העסק ועבודה מהבית. של הלקוח, בקבוצת פייפרלס; נפתחת יחד עם ההרשמה.
+  // האחוז שהמשרד מאשר חי בטבלאות ההיסטוריה (client_home_office_*), לא על הבקשה.
+  | 'business_details'
   | 'data_import'
   | 'data_verification'
   | 'retainer_authorization'
@@ -188,6 +191,7 @@ export const STEP_TYPE_LABELS: Record<OnboardingStepType, string> = {
   paperless_invite: 'הרשמה לפייפרלס',
   paperless_connection: 'חיבור לפייפרלס',
   paperless_tax_authority: 'חיבור פייפרלס לרשות המסים',
+  business_details: 'פרטי העסק',
   data_import: 'ייבוא היסטוריה',
   data_verification: 'אימות הנתונים',
   retainer_authorization: 'הרשאה לתשלום חודשי',
@@ -217,7 +221,7 @@ export const STEP_TYPE_LABELS: Record<OnboardingStepType, string> = {
 export const PORTAL_STEP_TYPES: readonly OnboardingStepType[] = [
   'representation', 'client_documents', 'custom_request', 'prev_accountant_details',
   'paperless_invite', 'paperless_connection', 'rep_client_approval', 'paperless_tax_authority',
-  'retainer_authorization', 'intake_questionnaire', 'release_letter', 'materials_received',
+  'retainer_authorization', 'business_details', 'intake_questionnaire', 'release_letter', 'materials_received',
   'file_opening', 'authority_representation',
 ];
 

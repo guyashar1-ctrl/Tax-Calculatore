@@ -18,6 +18,8 @@ export const NEXT_ACTION: Record<OnboardingStepType, string> = {
   paperless_invite: 'ממתינים שהלקוח יירשם לפייפרלס',
   paperless_connection: 'להיכנס לחשבון הפייפרלס ולהשלים את החיבור',
   paperless_tax_authority: 'ממתינים שהלקוח יחבר את פייפרלס לרשות המסים',
+  // ‼ אצלי רק אחרי שהלקוח מסר: בדיקת אחוז המשרד הביתי (או שם עסק חסר).
+  business_details: 'לבדוק ולאשר את פרטי העסק',
   data_import: 'לייבא את ההיסטוריה לפייפרלס',
   data_verification: 'לאמת את הנתונים בפייפרלס',
   retainer_authorization: 'להקים את הרשאת התשלום החודשי',

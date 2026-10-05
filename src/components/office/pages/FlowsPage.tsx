@@ -29,6 +29,8 @@ import { RepDefaultsEditor, repDefaultsSummary, repSettingsOf } from '../Represe
 import ProcessSteps from '../ProcessSteps';
 import { SumRow } from './ProfilePage';
 import '../../flows/flows.css';
+import '../../../features/requests/requestGroups.css';
+import RuleCard from './flows/RuleCard';
 
 export interface FlowsPageProps {
   draft: FirmProfile;
@@ -253,12 +255,6 @@ export function FlowsPage({ draft, saved, saveNow, clients, focus, go, onDirtyCh
   }
 
   const activeRuns = (f: OfficeFlowRow) => f.activeRuns ?? Object.values(f.runsByVersion ?? {}).reduce((a, n) => a + n, 0);
-  const stagesWord = (f: OfficeFlowRow) => {
-    const k = f.definition.stages.length;
-    return k === 1 ? 'שלב אחד' : `${k} שלבים`;
-  };
-  // ‼ בשורה שלצידה «הפעלה ללקוחות…» — לא «מפעילים מכרטיס הלקוח» בלבד, שסותר את הכפתור.
-  const triggerWord = (t: FlowTrigger) => (t === 'manual' ? 'מפעילים כאן או מכרטיס הלקוח' : TRIGGER_LABELS[t].label);
   const runsWord = (n: number) => n === 0 ? 'אין לקוחות באמצע' : n === 1 ? 'לקוח אחד באמצע' : `${n} לקוחות באמצע`;
   const legacyLeft = legacy.filter(s => !convertedIds.has(s.id));
 
@@ -267,55 +263,68 @@ export function FlowsPage({ draft, saved, saveNow, clients, focus, go, onDirtyCh
       {notice && <div className="fl-notice" role="status">{notice}</div>}
       {loadErr && <div className="of-error-box" role="alert">טעינת המסלולים נכשלה: {loadErr}</div>}
 
-      <ul className="fl-list">
+      {/* ── 05.10 · «מתי פותחים בקשות?» (הדמיה מאושרת) ─────────────────────────
+          ‼ כל מסלול נקרא ככלל: מתי, למי, מה נפתח (קבוצה — בשמה), ואיך מגיע ללקוח.
+          הבונה (שלבים, תלויות, גרסאות, עצירה) — ב«עריכת הכלל», בלי שינוי במנוע. */}
+      <p className="fl-hint fr-intro">את תוכן הבקשות עורכים <span className="fl-nb">ב<button type="button" className="fl-link" onClick={() => go('library')}>ספרייה</button>.</span></p>
+      <div className="fr-list">
         {onboardingFlow ? (
-          <li className="fl-row is-pinned">
-            <button type="button" className="fl-row-btn" onClick={() => setOpenId(onboardingFlow.id)}>
-              <span className="fl-row-main">
-                <span className="fl-row-title">{onboardingFlow.name}</span>
-                <span className="fl-row-meta">
-                  {TRIGGER_LABELS.quote_approved.label} · {stagesWord(onboardingFlow)} · {runsWord(activeRuns(onboardingFlow))}
-                </span>
-              </span>
-              <RowEnd />
-            </button>
-          </li>
+          <RuleCard name={onboardingFlow.name} trigger="quote_approved" def={onboardingFlow.definition}
+            runsText={runsWord(activeRuns(onboardingFlow))} title={title} defaultOpen
+            onEdit={() => setOpenId(onboardingFlow.id)} />
         ) : (
-          <li className="fl-row"><span className="fl-row-main"><span className="fl-row-meta">מסלול הקליטה עוד לא נוצר במשרד הזה — הוא נוצר עם אישור ההצעה הראשון.</span></span></li>
+          <p className="fl-hint">כלל הקליטה עוד לא נוצר במשרד הזה — הוא נוצר עם אישור ההצעה הראשון.</p>
         )}
+        {/* ‼ ההמשך בתוך פייפרלס — מה שהמערכת אוכפת (unlock_dependent_steps / advance_onboarding_step),
+            לא הגדרה שנערכת כאן. */}
+        <section className="rg-group fr-rule fr-static" aria-label="המשך בתוך פייפרלס">
+          <div className="rg-head is-static">
+            <span className="rg-namecol">
+              <span className="rg-name">המשך בתוך פייפרלס</span>
+              <span className="rg-hint">כל בקשה בקבוצה נפתחת כשאפשר להתקדם בה</span>
+            </span>
+            <span className="rg-tag">תנאי התקדמות</span>
+            <span />
+          </div>
+          <div className="fr-body">
+            <div className="fr-line"><span className="fr-lead">במקביל</span><b>הרשמה לפייפרלס ופרטי העסק</b></div>
+            <div className="fr-line"><span className="fr-lead">אחרי ההרשמה</span><b>הקמת העסק בפייפרלס — אצל המשרד, וכדאי שפרטי העסק כבר יהיו</b></div>
+            <div className="fr-line"><span className="fr-lead">אחרי ההקמה</span><b>הסדרת התשלום, וחיבור לרשות המסים לעוסק מורשה או חברה</b></div>
+            <p className="fl-hint">סדר קבוע של המערכת. פרטי העסק אינם חוסמים את ההקמה — הם מוצגים בה כ«ממתין גם…».</p>
+          </div>
+        </section>
         {others.map(f => (
-          <li key={f.id} className="fl-row">
-            <button type="button" className="fl-row-btn" onClick={() => setOpenId(f.id)}>
-              <span className="fl-row-main">
-                <span className="fl-row-title">{f.name}</span>
-                <span className="fl-row-meta">
-                  {triggerWord(f.trigger)} · {stagesWord(f)} · {runsWord(activeRuns(f))}
-                </span>
-              </span>
-              <RowEnd />
-            </button>
-            <button type="button" className="btn btn-sm btn-secondary fl-row-act" onClick={() => setStartFor(f.id)}>הפעלה ללקוחות…</button>
-          </li>
+          <RuleCard key={f.id} name={f.name} trigger={f.trigger} def={f.definition}
+            runsText={runsWord(activeRuns(f))} title={title}
+            onEdit={() => setOpenId(f.id)} onStart={() => setStartFor(f.id)} />
         ))}
-      </ul>
-      <button type="button" className="btn btn-secondary fl-new" onClick={() => setNewOpen(true)}>＋ מסלול חדש</button>
+        <section className="rg-group fr-rule fr-static" aria-label="הוספה ידנית ללקוח">
+          <div className="rg-head is-static">
+            <span className="rg-namecol">
+              <span className="rg-name">הוספה ידנית ללקוח</span>
+              <span className="rg-hint">כל בקשה או קבוצה זמינה גם בלי כלל — «＋ בקשה חדשה» בתיק הלקוח</span>
+            </span>
+            <span className="rg-tag">תמיד זמין</span>
+            <span />
+          </div>
+          <div className="fr-body">
+            <p className="fl-hint" style={{ margin: 0 }}>בוחרים בקשה או קבוצה מהספרייה מתוך תיק הלקוח. בקשה שכבר פתוחה מוצגת להמשך טיפול ולא נוצרת שוב.</p>
+          </div>
+        </section>
+      </div>
+      <button type="button" className="btn btn-secondary fl-new" onClick={() => setNewOpen(true)}>＋ כלל חדש</button>
+      <p className="fl-hint fr-foot">שינוי כלל חל על בקשות חדשות. לקוחות שכבר באמצע ממשיכים בגרסה שלהם — עדכון תיק קיים נעשה בבחירה מפורשת בכרטיס הלקוח.</p>
       {/* ‼ «מה כאן» כבר בכותרת העמוד; כאן רק איפה מפעילים ואיפה הבקשות עצמן.
           ‼ «ב» צמודה לקישור (fl-nb) — בטלפון היא נשארה לבד בסוף שורה. */}
-      <p className="fl-hint fl-where">
-        {others.length === 0
-          ? 'מסלול ידני — למשל «פתיחת תיק במע״מ» — מפעילים מכרטיס הלקוח; מסלול שנתי — לשנת מס. '
-          : 'מפעילים כאן («הפעלה ללקוחות…») או מכרטיס הלקוח, ושם רואים מה קרה. '}
-        את הבקשות עצמן עורכים <span className="fl-nb">ב<button type="button" className="fl-link" onClick={() => go('library')}>ספרייה</button>.</span>
-      </p>
 
       {/* ‼ מידע משני — מקופל. משרד עם עשרות סטים לא צריך לגלול עליהם בכל כניסה. */}
       {legacyLeft.length > 0 && (
         <details className="fl-legacy">
           <summary className="fl-legacy-sum">
             <span className="fl-h2">סטים ישנים ({legacyLeft.length})</span>
-            <span className="fl-hint"> · מלפני המסלולים — אפשר להפוך כל סט למסלול ידני</span>
+            <span className="fl-hint"> · מלפני כללי הפתיחה — אפשר להפוך כל סט לכלל ידני</span>
           </summary>
-          <p className="fl-hint">כמה בקשות שנשמרו יחד. הופכים סט למסלול ידני — והבקשות שבו נכנסות לספרייה.</p>
+          <p className="fl-hint">כמה בקשות שנשמרו יחד. הופכים סט לכלל ידני — והבקשות שבו נכנסות לספרייה.</p>
           <ul className="fl-list">
             {legacyLeft.map(s => (
               <li key={s.id} className="fl-row">
@@ -324,7 +333,7 @@ export function FlowsPage({ draft, saved, saveNow, clients, focus, go, onDirtyCh
                   <span className="fl-row-meta">{s.count === 1 ? 'בקשה אחת' : `${s.count} בקשות יחד`}{s.description ? ` · ${s.description}` : ''}</span>
                 </span>
                 <button type="button" className="btn btn-sm btn-secondary fl-row-act" disabled={busy === s.id} onClick={() => void convert(s.id)}>
-                  {busy === s.id ? 'מעביר…' : 'הפוך למסלול'}
+                  {busy === s.id ? 'מעביר…' : 'הפוך לכלל'}
                 </button>
               </li>
             ))}
@@ -349,19 +358,6 @@ export function FlowsPage({ draft, saved, saveNow, clients, focus, go, onDirtyCh
 }
 
 export default FlowsPage;
-
-/**
- * סוף השורה: «עריכה ←» במחשב, וחץ ‹ בטלפון — כמו שורות «המשרד». ‼ בלי סימן בכלל
- * השורות בטלפון נקראו כטקסט, והכפתור היחיד שנראה היה «הפעלה ללקוחות…».
- */
-function RowEnd() {
-  return (
-    <span className="fl-row-end">
-      <span className="fl-row-end-word">עריכה ←</span>
-      <span className="fl-row-chev" aria-hidden="true">‹</span>
-    </span>
-  );
-}
 
 function NewFlowSheet({ onClose, onCreated }: { onClose: () => void; onCreated: (flowId: string) => void }) {
   const [name, setName] = useState('');

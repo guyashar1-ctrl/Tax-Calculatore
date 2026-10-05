@@ -1,0 +1,136 @@
+/* ═══ בקשות בשורות ברורות וקבוצות קבועות (הדמיה מאושרת, 05.10.2026) ═══════════
+   docs/prototypes/requests-approved-2026-10-05/reference.html
+   ‼ מלבן לכל בקשה; בקשה מורכבת = מלבן עם כותרת, ומתחתיה מלבני הבקשות שלה על רקע
+   שקט. הכול בטוקנים (מצב כהה). מעבר פתיחה/קיפול — בלי אנימציה: לחיצה שחוזרת עשרות
+   פעמים ביום (emil-design-eng: «tens of times/day → remove or reduce»). */
+
+/* ── הרשימה במלבנים ─────────────────────────────────────────────────────────── */
+.rl-list.rg-cards { border-top: 0; display: grid; gap: 10px; }
+.rl-list.rg-cards > .rl-item {
+  border: 1px solid var(--hairline-1); border-radius: 9px; background: var(--surface-0);
+  padding: 4px 14px 4px 12px;
+}
+.rl-list.rg-cards > .rl-item.is-red { border-color: color-mix(in srgb, var(--err) 35%, var(--hairline-1)); }
+
+/* ── קבוצה ──────────────────────────────────────────────────────────────────── */
+.rg-group { border: 1px solid var(--hairline-1); border-radius: 9px; background: var(--surface-0); overflow: hidden; }
+.rg-head {
+  appearance: none; border: 0; background: none; font: inherit; color: inherit; text-align: start; cursor: pointer;
+  width: 100%; display: grid; grid-template-columns: minmax(0, 1fr) 11rem 28px; align-items: center; gap: 12px;
+  padding: 14px 16px; min-height: 64px;
+}
+.rg-head:focus-visible { outline: 2px solid var(--accent); outline-offset: -3px; border-radius: 9px; }
+.rg-head:hover .rg-chev { background: var(--surface-2); color: var(--ink-1); }
+.rg-group[data-open="true"] > .rg-head { border-bottom: 1px solid var(--hairline-1); }
+.rg-namecol { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.rg-name { font-size: var(--fs-15); font-weight: 700; color: var(--ink-1); line-height: 1.35; overflow-wrap: anywhere; }
+.rg-hint { font-size: var(--fs-13); color: var(--ink-3); line-height: 1.45; overflow-wrap: anywhere; }
+.rg-tag { font-size: var(--fs-13); color: var(--ink-3); }
+.rg-tag.is-mine { color: var(--accent); font-weight: 600; }
+.rg-tag.is-done { color: var(--ok); font-weight: 600; }
+.rg-chev {
+  width: 28px; height: 28px; border-radius: 8px; display: grid; place-items: center; color: var(--ink-4);
+}
+.rg-chev svg { transition: transform .12s ease-out; }
+.rg-group[data-open="true"] .rg-chev svg { transform: rotate(180deg); }
+@media (prefers-reduced-motion: reduce) { .rg-chev svg { transition: none; } }
+
+.rg-kids { display: grid; gap: 8px; padding: 10px; background: var(--surface-2); }
+.rg-kids > .rl-item {
+  border: 1px solid var(--hairline-1); border-radius: 7px; background: var(--surface-0); padding: 2px 12px 2px 10px;
+}
+.rg-kids > .rl-item .rl-line { min-height: 52px; }
+.rg-kids > .rl-item .rl-name { font-size: var(--fs-14); }
+.rg-foot { padding: 10px 16px 12px; font-size: var(--fs-12); color: var(--ink-3); display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; }
+
+@media (min-width: 641px) {
+  .rg-kids .rl-act, .rg-kids .rl-act-slot { flex: 0 0 9.5rem; }
+}
+@media (max-width: 640px) {
+  .rg-head { grid-template-columns: minmax(0, 1fr) 28px; padding: 12px; gap: 4px 8px; }
+  .rg-head .rg-tag { grid-row: 2; grid-column: 1; }
+  .rg-head .rg-chev { grid-column: 2; grid-row: 1 / 3; }
+  .rg-kids { padding: 8px; }
+  .rl-list.rg-cards > .rl-item, .rg-kids > .rl-item { padding-inline: 10px 8px; }
+}
+
+/* ── עבודה מהבית ───────────────────────────────────────────────────────────── */
+.ho-panel { display: grid; gap: 8px; font-size: var(--fs-13); color: var(--ink-2); }
+.ho-state { font-weight: 600; color: var(--ink-1); }
+.ho-facts { margin: 0; display: grid; gap: 4px; }
+.ho-facts > div { display: grid; grid-template-columns: 6.5rem minmax(0, 1fr); gap: 8px; }
+.ho-facts dt { color: var(--ink-3); }
+.ho-facts dd { margin: 0; color: var(--ink-1); overflow-wrap: anywhere; }
+.ho-quote { font-style: normal; color: var(--ink-2) !important; }
+.ho-cap, .ho-stale { color: var(--warn); font-weight: 600; }
+.ho-muted { color: var(--ink-3); }
+.ho-note { margin: 0; padding: 8px 10px; border-radius: 7px; background: var(--surface-2); color: var(--ink-1); line-height: 1.55; }
+.ho-acts { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.ho-hist-btn { font-size: var(--fs-12); }
+.ho-history { margin: 0; padding: 0; list-style: none; display: grid; gap: 3px; font-size: var(--fs-12); color: var(--ink-2); }
+.ho-err { margin: 0; color: var(--err); font-weight: 600; }
+.ho-ok { margin: 0; color: var(--ok); font-weight: 600; }
+.ho-approve { display: grid; gap: 10px; padding: 10px; border: 1px solid var(--hairline-1); border-radius: 8px; background: var(--surface-0); max-width: 560px; }
+
+.ho-form { display: grid; gap: 12px; }
+.ho-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.ho-field { display: grid; gap: 5px; }
+.ho-label { font-size: var(--fs-13); font-weight: 600; color: var(--ink-1); }
+.ho-opt { font-weight: 400; color: var(--ink-3); }
+.ho-field input, .ho-field select, .ho-field textarea {
+  width: 100%; min-width: 0; min-height: 42px; padding: 8px 10px; border: 1px solid var(--bd-strong, var(--hairline-1));
+  border-radius: 7px; background: var(--surface-0); color: var(--ink-1); font: inherit; font-size: 16px;
+}
+.ho-field textarea { min-height: 64px; resize: vertical; }
+.ho-help { margin: -4px 0 0; font-size: var(--fs-12); color: var(--ink-3); line-height: 1.5; }
+.ho-ratio { margin: 0; font-size: var(--fs-13); color: var(--ink-2); }
+@media (max-width: 640px) {
+  .ho-pair { grid-template-columns: 1fr; }
+  .ho-facts > div { grid-template-columns: 1fr; gap: 0; }
+}
+
+/* ── בדיקת הגדרות בפייפרלס ─────────────────────────────────────────────────── */
+.ps-review { display: grid; gap: 2px; margin-top: 10px; }
+.ps-review-title { font-weight: 600; color: var(--ink-2); margin-bottom: 4px; }
+.ps-row {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 10px; align-items: center;
+  padding: 6px 0; border-top: 1px dashed var(--hairline-1);
+}
+.ps-row:first-of-type { border-top: 0; }
+.ps-name { color: var(--ink-1); }
+.ps-pivo { font-size: var(--fs-12); color: var(--ink-3); }
+.ps-pivo.is-unknown { font-style: italic; }
+.ps-acts { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
+.ps-acts .btn { min-height: 34px; }
+.ps-mark { font-size: var(--fs-12); color: var(--ok); font-weight: 600; }
+.ps-mark.is-na { color: var(--ink-3); }
+@media (max-width: 640px) {
+  .ps-row { grid-template-columns: 1fr; }
+  .ps-acts { justify-content: flex-start; }
+}
+
+/* ── תיק המס · פרטי העסק ───────────────────────────────────────────────────── */
+.txf-kv-block { margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--hairline-1); }
+.txf-subhead { font-size: var(--fs-13); font-weight: 700; color: var(--ink-2); margin-bottom: 6px; }
+
+/* ── כללי פתיחה (FlowsPage · RuleCard) ─────────────────────────────────────── */
+.fr-intro { margin: 0 0 12px; }
+.fr-list { display: grid; gap: 10px; max-width: 860px; }
+.fr-body { display: grid; gap: 10px; padding: 14px 16px; }
+.fr-stage { display: grid; gap: 7px; }
+.fr-stage + .fr-stage { padding-top: 10px; border-top: 1px dashed var(--hairline-1); }
+.fr-stage-name { font-size: var(--fs-12); font-weight: 700; color: var(--ink-3); }
+.fr-line { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; font-size: var(--fs-14); }
+.fr-lead { min-width: 7.5rem; color: var(--ink-3); font-size: var(--fs-13); }
+.fr-line b { font-weight: 500; color: var(--ink-1); overflow-wrap: anywhere; }
+.fr-reach { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 2px; padding-top: 8px; border-top: 1px solid var(--hairline-2); font-size: var(--fs-13); }
+.fr-reach-k { min-width: 7.5rem; font-weight: 600; color: var(--ink-2); }
+.fr-reach-v { color: var(--ink-2); }
+.fr-acts { display: flex; gap: 8px; flex-wrap: wrap; }
+.fr-static .rg-head.is-static { cursor: default; border-bottom: 1px solid var(--hairline-1); }
+.fr-foot { margin-top: 14px; }
+@media (max-width: 640px) {
+  .fr-body { padding: 12px; }
+  .fr-lead, .fr-reach-k { min-width: 0; flex-basis: 100%; }
+}
+.ps-block { flex-basis: 100%; font-size: var(--fs-12); color: var(--warn); font-weight: 600; line-height: 1.55; }

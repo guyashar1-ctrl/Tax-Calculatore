@@ -144,6 +144,18 @@ export const EDIT_SECTIONS: EditSection[] = [
         options: DEALER_KIND_OPTIONS },
     ],
   },
+  // ═══ 1א · פרטי העסק (05.10.2026) ═══
+  // ‼ שם העסק הקנוני (clients.business_name) — אותו שדה שהלקוח ממלא בדף האישי (הרשמה
+  // לפייפרלס / «פרטי העסק»). לא עובדה מנוהלת: נשמר במסלול הרגיל עם בדיקת «השתנה בינתיים»
+  // (update_client_fields). ‼ תיקון כאן אינו מתקן את השם בפייפרלס — זה צעד נפרד בהקמה.
+  {
+    id: 'businessDetails', family: 'auth', title: 'פרטי העסק',
+    summary: c => c.businessName?.trim() || 'אין שם עסק',
+    fields: [
+      { key: 'businessName', label: 'שם העסק', kind: 'text',
+        note: 'השם שהעסק מוכר בו — כך הוא מוזן בפייפרלס ומופיע בחשבוניות.' },
+    ],
+  },
   {
     id: 'authIncomeTax', family: 'auth', title: 'מס הכנסה — תפעולי',
     summary: c => join(

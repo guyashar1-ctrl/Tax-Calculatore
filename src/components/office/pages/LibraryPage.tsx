@@ -16,6 +16,10 @@
 // ‼ «בשימוש ב» נגזר מהגרסה הנוכחית של כל מסלול פעיל — אותו מקור שהשרת בודק
 // כשמוחקים (delete_library_request), כדי שהמסך והסירוב יגידו אותו דבר.
 //
+// ‼ (5.10.2026, הדמיה מאושרת) קטלוג אחד: בקשות המשרד ובקשות המערכת באותה רשימה, ובקשה מורכבת
+// (פייפרלס, העברת טיפול, ייצוג) — קבוצה קבועה עם הבקשות שבה. אין יותר רשימה נפרדת «נפתחות
+// אוטומטית»: בקשת מערכת היא שורה רגילה, עם «מתי נפתחת?» אל כלל הפתיחה ועם הגבלות העריכה שלה.
+//
 // focus: 'requests' | 'documents' | 'request:<templateId>' (נוחת על השורה; גם מזהה
 // של מובנית שהמשרד ערך) | 'auto' | 'auto:<stepType>' (פותח את קטע הקליטה).
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
@@ -28,15 +32,18 @@ import { CATALOG_STEP_TYPES } from '../../../types/journeyDefaults';
 import { loadOfficeFlows } from '../../../features/flows/api';
 import type { OfficeFlow } from '../../../features/flows/types';
 import {
-  actorText, autoLabel, autoResultText, autoWhenText, canBeInFlow, editsInIntake, gapsLineText, gapText, groupByLetter,
+  actorText, autoLabel, autoWhenText, canBeInFlow, editsInIntake, gapsLineText, gapText, groupByLetter,
   GROUP_FROM, isPreset, matchesQuery, normalizeForSearch, searchTextOf, seesText, sortByName, systemTypeOf,
 } from './library/libraryModel';
 import {
   UsedIn, byDoc, byLibraryRow, bySystem, flowItemFocus, flowStageFocus, libraryUses, type LibraryUse,
 } from './library/usedIn';
 import RequestEditor from './library/RequestEditor';
-import AutoSection, { type AutoRow } from './library/AutoSection';
+import type { AutoRow } from './library/AutoSection';
+import GroupEntry, { type GroupChildModel } from './library/GroupEntry';
+import { GROUP_ORDER, REQUEST_GROUPS, type RequestGroupKey } from '../../../features/requests/requestGroups';
 import './library.css';
+import '../../../features/requests/requestGroups.css';
 
 export { libraryUses, type LibraryUse } from './library/usedIn';
 
@@ -66,7 +73,6 @@ export default function LibraryPage({ draft, saved, setDraft, noteUpload, onSend
   const term = useDeferredValue(q.trim());
   const [editing, setEditing] = useState<{ template: RequestTemplate | null; name?: string } | null>(null);
   const [flash, setFlash] = useState<string | null>(null);
-  const [autoOpen, setAutoOpen] = useState(!!focus && focus.startsWith('auto'));
   const [highlight, setHighlight] = useState<string | null>(null);
   const [onlyGaps, setOnlyGaps] = useState(false);
 
@@ -103,13 +109,9 @@ export default function LibraryPage({ draft, saved, setDraft, noteUpload, onSend
   const all = useMemo(() => sortByName((templates ?? []).map(t => ({
     t, name: t.name, hay: searchTextOf(t), uses: libraryUses(flowList, byLibraryRow(t)),
   }))), [templates, flowList]);
-  // ‼ בקשה שלא תיפתח כמו שהיא (gapText) — בספרייה גדולה נמצאת רק בגלילה; שורה למעלה מסננת אליהן.
-  const gapRows = useMemo(() => all.filter(r => gapText(r.t)), [all]);
-  const gapsOn = onlyGaps && gapRows.length > 0;
-  const shown = useMemo(() => (term ? all.filter(r => matchesQuery(r.hay, term)) : gapsOn ? gapRows : all), [all, term, gapsOn, gapRows]);
-  // ריק — בלי רשימה בכלל (אחרת נשארים שני קווי שערה ריקים מעל קטע הקליטה).
-  const groups = useMemo(() => (shown.length >= GROUP_FROM ? groupByLetter(shown)
-    : shown.length ? [{ letter: '', items: shown }] : []), [shown]);
+  // ‼ בקשה שלא תיפתח כמו שהיא (gapText) — בספרייה גדולה נמצאת רק בגלילה; שורה למעלה מסננת אליהן
+  // (gapEntries, למטה — על הקטלוג המאוחד).
+  const gapsOn = onlyGaps;
 
   // ── נפתחות אוטומטית בקליטה ──
   const stages = useMemo(() => onboarding?.definition?.stages ?? [], [onboarding]);
@@ -132,12 +134,56 @@ export default function LibraryPage({ draft, saved, setDraft, noteUpload, onSend
       inFlow: rep || uses.length > 0, delivery: stage?.delivery ?? null,
     };
   }), [owned, onboarding, stages, startStage]);
-  const autoShown = term ? autoRows.filter(r => matchesQuery(normalizeForSearch(`${r.label} ${r.when}`), term)) : autoRows;
-  // בחיפוש — הקטע נפתח כשיש בו תוצאה, כדי שלא «ייעלם» מה שמחפשים.
-  const forcedOpen = !!term && autoShown.length > 0;
-  const autoIsOpen = autoOpen || forcedOpen;
-  // ‼ פתיחה שהחיפוש כפה אינה בחירה של המשתמש — אחרי שמנקים את החיפוש הקטע חוזר להיות מקופל.
-  const onAutoToggle = (o: boolean) => { if (!forcedOpen) setAutoOpen(o); };
+
+  /* ── 05.10 · קטלוג אחד ────────────────────────────────────────────────────
+     ‼ שורה בודדת: בקשה של המשרד, נוסח מוכן, או בקשת מערכת שאינה חלק מקבוצה. קבוצה: כל
+     הבקשות שלה בפנים — כולל נוסח מוכן מסוג שבקבוצה («פרטי הרו״ח הקודם»), שלא מופיע פעמיים. */
+  const memberTypes = useMemo(() => new Map<string, RequestGroupKey>(GROUP_ORDER.flatMap(g =>
+    REQUEST_GROUPS[g].members.map(m => [m.stepType, g] as [string, RequestGroupKey]))), []);
+  const autoByType = useMemo(() => new Map(autoRows.map(r => [r.stepType, r])), [autoRows]);
+  const templateOfType = useMemo(() => new Map(all.map(r => [systemTypeOf(r.t), r] as const).filter(([k]) => !!k) as [string, typeof all[number]][]), [all]);
+  type Entry =
+    | { kind: 'template'; name: string; hay: string; t: RequestTemplate; uses: LibraryUse[] }
+    | { kind: 'system'; name: string; hay: string; row: AutoRow }
+    | { kind: 'group'; name: string; hay: string; key: RequestGroupKey };
+  const entries = useMemo<Entry[]>(() => sortByName([
+    ...all.filter(r => !memberTypes.has(systemTypeOf(r.t) ?? '')).map(r => ({ kind: 'template' as const, name: r.name, hay: r.hay, t: r.t, uses: r.uses })),
+    ...autoRows.filter(r => !memberTypes.has(r.stepType)).map(r => ({ kind: 'system' as const, name: r.label, hay: normalizeForSearch(`${r.label} ${r.when}`), row: r })),
+    ...GROUP_ORDER.map(g => ({
+      kind: 'group' as const, name: REQUEST_GROUPS[g].title, key: g,
+      hay: normalizeForSearch([REQUEST_GROUPS[g].title, REQUEST_GROUPS[g].summary, ...REQUEST_GROUPS[g].members.map(m => m.title)].join(' ')),
+    })),
+  ]), [all, autoRows, memberTypes]);
+  const gapEntries = useMemo(() => entries.filter(e => e.kind === 'template' && gapText(e.t)), [entries]);
+  const shownEntries = useMemo(() => (term ? entries.filter(e => matchesQuery(e.hay, term)) : onlyGaps && gapEntries.length > 0 ? gapEntries : entries),
+    [entries, term, onlyGaps, gapEntries]);
+  const entryGroups = useMemo(() => (shownEntries.length >= GROUP_FROM ? groupByLetter(shownEntries)
+    : shownEntries.length ? [{ letter: '', items: shownEntries }] : []), [shownEntries]);
+
+  /** הבקשות שבקבוצה — כל אחת עם הפעולה שמתאימה לה. */
+  const kidsOf = (g: RequestGroupKey): GroupChildModel[] => REQUEST_GROUPS[g].members.map(m => {
+    const tRow = templateOfType.get(m.stepType);
+    const auto = autoByType.get(m.stepType);
+    const when = m.stepType === 'business_details' ? 'נפתחת יחד עם ההרשמה לפייפרלס'
+      : m.stepType === 'authority_representation' ? 'נפתחת מבקשת הייצוג או מתיק המס, לכל רשות ואדם'
+      : m.stepType === 'rep_client_approval' || m.stepType === 'representation_upgrade' ? 'נפתחת לבד מתוך בקשת הייצוג'
+      : auto ? (autoKnown && !auto.inFlow ? 'לא בכלל הקליטה — רק ידנית' : auto.when) : (m.when ?? null);
+    let action: GroupChildModel['action'] = null;
+    if (tRow) {
+      const route = intakeRoute(tRow.t, tRow.uses);
+      action = route ? { label: 'עריכה ←', onClick: () => go('flows', route), aria: `עריכה בכלל הקליטה: ${m.title}` }
+        : { label: 'עריכה', onClick: () => setEditing({ template: tRow.t }) };
+    } else if (auto && autoKnown && !auto.inFlow && m.stepType !== 'representation') {
+      action = { label: 'הוספה לכלל ←', onClick: () => go('flows', addFocus), aria: `הוספה לכלל הקליטה: ${m.title}` };
+    } else if (auto?.focus) {
+      action = { label: 'מתי נפתחת?', onClick: () => go('flows', auto.focus ?? 'onboarding') };
+    }
+    return {
+      key: m.stepType, title: m.title, actor: m.actor, when,
+      hint: tRow ? m.hint : `${m.hint} · נוסח קבוע של המערכת`,
+      action,
+    };
+  });
   // ‼ חיפוש שמוצא מסמך ולא בקשה — אומרים איפה הוא, במקום להציע ליצור בקשה באותו שם.
   const docMatches = term ? docs.filter(d => matchesQuery(normalizeForSearch(d.label), term)).length : 0;
 
@@ -204,15 +250,13 @@ export default function LibraryPage({ draft, saved, setDraft, noteUpload, onSend
     return out;
   }, [flowList, usesUnknown, docs, savedDocLabels]);
   const editingUses = editing?.template && !usesUnknown ? libraryUses(flowList, byLibraryRow(editing.template)) : null;
-  const autoOpenMatches = autoShown.filter(r => !autoKnown || r.inFlow).length;
-  const autoOffMatches = autoShown.length - autoOpenMatches;
 
   return (
     <div className="lb">
       <div className="lb-toolbar">
         <div className="of-seg" role="group" aria-label="מדף">
           <button type="button" aria-pressed={shelf === 'requests'} onClick={() => setShelf('requests')}>
-            בקשות{templates ? ` · ${all.length}` : ''}
+            בקשות{templates ? ` · ${entries.length}` : ''}
           </button>
           <button type="button" aria-pressed={shelf === 'documents'} onClick={() => setShelf('documents')}>
             מסמכים · {docs.length}
@@ -236,17 +280,10 @@ export default function LibraryPage({ draft, saved, setDraft, noteUpload, onSend
           <>
             {term ? (
               <p className="lb-results" role="status">
-                {shown.length > 0 ? (
+                {shownEntries.length > 0 ? (
                   <>
-                    {shown.length === 1 ? 'בקשה אחת' : `${shown.length} בקשות`}
+                    {shownEntries.length === 1 ? 'תוצאה אחת' : `${shownEntries.length} תוצאות`}
                     {docMatches > 0 && <> · יש גם מסמך בשם הזה <button type="button" className="of-link" onClick={() => setShelf('documents')}>← מסמכים</button></>}
-                  </>
-                  // ‼ מה שהמערכת פותחת לבד אינו «אין» — אחרת המשתמש יוצר עותק כפול של בקשת מערכת.
-                ) : autoShown.length > 0 ? (
-                  <>
-                    {autoResultText(autoOpenMatches, autoOffMatches)}{' '}
-                    <button type="button" className="of-link"
-                      onClick={() => document.getElementById('lb-auto')?.scrollIntoView({ block: 'start', behavior: 'smooth' })}>למטה ↓</button>
                   </>
                 ) : docMatches > 0 ? (
                   <>
@@ -260,11 +297,11 @@ export default function LibraryPage({ draft, saved, setDraft, noteUpload, onSend
                   </>
                 )}
               </p>
-            ) : gapRows.length > 0 && (
+            ) : gapEntries.length > 0 && (
               <p className="lb-results lb-gap" role="status">
                 {gapsOn ? <>מוצגות רק בקשות שלא ייפתחו כמו שהן.{' '}
                   <button type="button" className="of-link" onClick={() => setOnlyGaps(false)}>הצגת הכול</button></>
-                  : <>{gapsLineText(gapRows.length)} —{' '}
+                  : <>{gapsLineText(gapEntries.length)} —{' '}
                     <button type="button" className="of-link" onClick={() => setOnlyGaps(true)}>הצגה</button></>}
               </p>
             )}
@@ -276,9 +313,9 @@ export default function LibraryPage({ draft, saved, setDraft, noteUpload, onSend
             {/* ‼ ספרייה גדולה: אינדקס אותיות במקום גלילה על מאה שורות. נשאר צמוד למעלה עד סוף
                 הרשימה — אחרי קפיצה לאות, האות הבאה במרחק נגיעה. */}
             <div className="lb-az">
-            {groups.length > 1 && (
+            {entryGroups.length > 1 && (
               <nav className="lb-index" aria-label="קפיצה לפי אות">
-                {groups.map(g => (
+                {entryGroups.map(g => (
                   <button key={g.letter} type="button" className="lb-index-btn"
                     aria-label={`${g.letter} — ${g.items.length === 1 ? 'בקשה אחת' : `${g.items.length} בקשות`}`}
                     onClick={() => document.getElementById(`lb-letter-${g.letter}`)?.scrollIntoView({ block: 'start' })}>
@@ -287,11 +324,41 @@ export default function LibraryPage({ draft, saved, setDraft, noteUpload, onSend
                 ))}
               </nav>
             )}
-            {groups.map(g => (
+            {entryGroups.map(g => (
               <section key={g.letter || 'all'} className="lb-letter-group" aria-label={g.letter ? `אות ${g.letter}` : 'בקשות'}>
                 {g.letter && <h2 className="lb-letter" id={`lb-letter-${g.letter}`}>{g.letter}</h2>}
-                <ul className="lb-list">
-                  {g.items.map(({ t, uses }) => {
+                <ul className="lb-list lb-cards">
+                  {g.items.map(e => {
+                    if (e.kind === 'group') {
+                      const rowId = `lb-group-${e.key}`;
+                      return (
+                        <li key={rowId} className="lb-group-li">
+                          <GroupEntry groupKey={e.key} kids={kidsOf(e.key)} rowId={rowId} highlight={highlight === rowId}
+                            defaultOpen={e.key === 'paperless' || !!term}
+                            onRules={() => go('flows', e.key === 'representation' ? 'representation' : 'onboarding')} />
+                        </li>
+                      );
+                    }
+                    if (e.kind === 'system') {
+                      const r = e.row;
+                      const rowId = `lb-auto-${r.stepType}`;
+                      const off = autoKnown && !r.inFlow;
+                      return (
+                        <li key={rowId} id={rowId} className={`lb-row${highlight === rowId ? ' is-focus' : ''}`}>
+                          <div className="lb-row-title">
+                            <span className="lb-name">{r.label}</span>
+                            <span className="lb-preset">בקשה אחת · של המערכת</span>
+                          </div>
+                          <button type="button" className="btn btn-secondary btn-sm lb-edit"
+                            aria-label={`מתי נפתחת: ${r.label}`} onClick={() => go('flows', r.focus ?? addFocus)}>מתי נפתחת?</button>
+                          <div className="lb-row-meta lb-segs">
+                            <span className="lb-seg">{off ? 'לא בכלל הקליטה — נפתחת רק ידנית מכרטיס הלקוח' : r.when}</span>
+                            <span className="lb-seg">נוסח קבוע של המערכת</span>
+                          </div>
+                        </li>
+                      );
+                    }
+                    const { t, uses } = e;
                     const gap = gapText(t);
                     const route = intakeRoute(t, uses);
                     // ‼ הנוסח שבשורה לא מגיע לאף לקוח — לא מציגים אותו (ולא «נוסח מוכן») כאילו הוא מה שהלקוח רואה.
@@ -302,7 +369,7 @@ export default function LibraryPage({ draft, saved, setDraft, noteUpload, onSend
                       <li key={t.id} id={rowId} className={`lb-row${highlight === rowId ? ' is-focus' : ''}`}>
                         <div className="lb-row-title">
                           <span className="lb-name">{t.name}</span>
-                          {!route && isPreset(t) && <span className="lb-preset">נוסח מוכן</span>}
+                          <span className="lb-preset">{!route && isPreset(t) ? 'בקשה אחת · נוסח מוכן' : 'בקשה אחת'}</span>
                         </div>
                         {route ? (
                           <button type="button" className="btn btn-secondary btn-sm lb-edit"
@@ -330,10 +397,6 @@ export default function LibraryPage({ draft, saved, setDraft, noteUpload, onSend
             ))}
             </div>
 
-            <AutoSection rows={autoShown} total={autoRows.length} inFlowTotal={autoRows.filter(r => r.inFlow).length}
-              searching={!!term} open={autoIsOpen} onToggle={onAutoToggle}
-              go={go} highlight={highlight?.startsWith('lb-auto-') ? highlight.slice('lb-auto-'.length) : null}
-              known={autoKnown} delivery={startStage?.delivery ?? null} addFocus={addFocus} />
           </>
         )
       )}

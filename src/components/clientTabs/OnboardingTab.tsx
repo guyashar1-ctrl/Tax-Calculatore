@@ -58,6 +58,16 @@ import OnboardingJourneyMap from './OnboardingJourneyMap';
 import Modal from '../ui/Modal';
 import Sheet from '../ui/Sheet';
 import './requestsSurface.css';
+import '../../features/requests/requestGroups.css';
+import {
+  buildStepGroups, groupProgress, groupStatus, memberDef, REQUEST_GROUPS,
+  type GroupChildView, type StepGroup,
+} from '../../features/requests/requestGroups';
+import { paperlessSignupEvidence, connectionIntro, paperlessSettingsItems, settingsReviewCount, type SettingsReview, type SettingsReviewKey } from '../../features/requests/paperlessEvidence';
+import { deriveHomeOffice, homeOfficeLine, type HomeOfficeHistory, type HomeOfficeState } from '../../features/requests/homeOffice';
+import { useHomeOffice } from '../../features/requests/useHomeOffice';
+import HomeOfficePanel from '../../features/requests/HomeOfficePanel';
+import { confirmHomeOfficeInPaperless } from '../../features/requests/api';
 import {
   splitRequestTitle, rowStateFor, groupWaitingState, moreMineLabel, repShortAction, lamed, MINE_STATE_TEXT,
   type RowState,
@@ -183,7 +193,7 @@ interface Props {
    * פותח את תיק המס — היעד היחיד של יישור הקו. focus='dealerType' — «פרטי הנישום»
    * נפתחת בעריכה על «סוג העוסק» (מ«לקביעת סוג העוסק» במגש, 217).
    */
-  onOpenTaxFile?: (focus?: 'dealerType') => void;
+  onOpenTaxFile?: (focus?: 'dealerType' | 'businessName') => void;
   /** מסלולי הביצוע של ב"ל (לקוח/בן-בת-זוג) — לכרטיס «ייצוג ברשות» (157). */
   niExecution?: { client?: NiTracking; spouse?: NiTracking };
   /** עדכון שדה פשוט על הכרטיס (spouseEmail) — לדיאלוג הוראות האישור העצמאיות. */
@@ -276,6 +286,13 @@ const RowOpenContext = createContext<{
    * שטרם פורסמה (clientPageGate.awaitsPublication, התאום של client_step_gate_open).
    */
   awaitingPublish?: Set<string>;
+  /** 05.10 · השם של בקשה בתוך קבוצה קבועה («הקמת העסק בפייפרלס») — לפי הסוג, לא לפי הכותרת. */
+  groupNames?: Map<string, string>;
+  /** 05.10 · עבודה מהבית (220) — לכרטיס «פרטי העסק» ולבדיקת ההגדרות בפייפרלס. */
+  homeOffice?: {
+    clientId: string; firstName: string; state: HomeOfficeState; history: HomeOfficeHistory | null;
+    loading: boolean; error: string | null; reload: () => void; onUpdated: (h: HomeOfficeHistory) => void;
+  };
 }>({ openId: null, toggle: () => {} });
 
 /** מה השורה הסגורה מציגה כשהמצב הוא של הקבוצה ולא של החלק הראשי. */
@@ -1170,6 +1187,22 @@ export default function OnboardingTab({
   const [internalComposerOpen, setInternalComposerOpen] = useState(false);
   /** חלון הסגירה — נפתח רק כשהשרת חוסם, ונסגר איתו. */
   const [closeGate, setCloseGate] = useState<CloseReadiness | null>(null);
+  /**
+   * 05.10 · קבוצה פתוחה/מקופלת — בחירת המשתמש, לכל לקוח בדפדפן הזה (נוחות בלבד).
+   * ‼ בלי בחירה: קבוצה עם עבודה פתוחה — פתוחה; קבוצה שהושלמה — מקופלת. מצב הבקשות
+   * לעולם לא מקפל ילד: הקיפול הוא של הקבוצה כולה, ובידי המשתמש.
+   */
+  const groupPrefKey = `pivo.requests.groups.${clientId}`;
+  const [groupOpenPref, setGroupOpenPref] = useState<Record<string, boolean>>(() => {
+    try { return JSON.parse(window.localStorage.getItem(groupPrefKey) ?? '{}') as Record<string, boolean>; } catch { return {}; }
+  });
+  const setGroupOpen = (key: string, v: boolean) => setGroupOpenPref(prev => {
+    const next = { ...prev, [key]: v };
+    try { window.localStorage.setItem(groupPrefKey, JSON.stringify(next)); } catch { /* נוחות בלבד */ }
+    return next;
+  });
+  /** 05.10 · עבודה מהבית (220) — היסטוריה מהשרת; נטענת מחדש עם כל שינוי בבקשות. */
+  const homeOfficeLoad = useHomeOffice(embedded ? clientId : undefined, portalRefreshKey);
 
   /**
    * קפיצה לשלב אחר בעמוד, עם הדגשה קצרה — כדי שברור לאן הגענו.
@@ -1378,8 +1411,15 @@ export default function OnboardingTab({
 
   /* v3: הייצוג שהושלם עלה לרצועת ההקשר, ולכן הוא גם ב«עבר» כמו כל בקשה
      שנסגרה — שם הוא היסטוריה, לא כרטיס. */
+  /* ‼ 05.10 · קבוצות קבועות (הדמיה מאושרת): פייפרלס והעברת טיפול מחזיקות את כל הבקשות
+     שלהן — פתוחות, נעולות ושהושלמו — בסדר קבוע. מה שבקבוצה לא «עובר» ל«הושלמו» ולא מופיע
+     פעמיים. הקבוצה היא תצוגה: כל בקשה בה שומרת מחזור, כפתורים והיסטוריה משלה. */
+  const { groups: stepGroups, grouped: groupedIds } = embedded
+    ? buildStepGroups(visibleSteps)
+    : { groups: [] as StepGroup[], grouped: new Set<string>() };
+
   const doneSteps = visibleSteps.filter(
-    s => !isStepOpen(s.status) && !releaseAnchor.some(a => a.id === s.id));
+    s => !isStepOpen(s.status) && !releaseAnchor.some(a => a.id === s.id) && !groupedIds.has(s.id));
 
   /**
    * הזזת שורה בסדר התצוגה. מסדרים את כל הפתוחות, לא רק את מה שמסונן.
@@ -1560,6 +1600,19 @@ export default function OnboardingTab({
   const doneRepParent = clientSteps
     .filter(s => s.stepType === 'representation' && (s.status === 'completed' || s.status === 'verified'))
     .sort((a, b) => (b.completedAt ?? '').localeCompare(a.completedAt ?? ''))[0];
+  /* ‼ 05.10 (סבב 2) · «ייצוג מול הרשויות» — קבוצה קבועה. כשבקשת הייצוג נסגרה: ההורה ההיסטורי
+     נשאר בקבוצה כשורה שהושלמה (לא נפתח מחדש), וכל חלק — פתוח, נעול או שהושלם, גם מבקשה קודמת —
+     שורה משלו באותה קבוצה, עם הכרטיס והפעולות שלו. כשהבקשה פתוחה: השורה הקיימת (עם «לפי רשות
+     ואדם») היא הבקשה שבקבוצה, וחלקים של בקשה קודמת — לצידה. */
+  const repMode: 'open' | 'closed' | null = embedded ? (openRepParent ? 'open' : doneRepParent ? 'closed' : null) : null;
+  const repGroupParts = repMode
+    ? visibleSteps.filter(s => s.status !== 'cancelled' && isRepresentationPart(s) && !isCreationProblem(s)
+        && (repMode === 'closed' || !ofCurrentRequest(s)))
+    : [];
+  const repGroupedIds = new Set<string>([
+    ...(repMode === 'closed' && doneRepParent ? [doneRepParent.id] : []),
+    ...repGroupParts.map(s => s.id),
+  ]);
   /**
    * חלק שעומד לבדו (ההורה נסגר / חסר / שייך לבקשה אחרת) — שורת ההקשר שלו.
    * null ⇒ החלק מתקבץ תחת «ייצוג מול הרשויות» ואין צורך בהקשר.
@@ -1912,6 +1965,22 @@ export default function OnboardingTab({
                   {extAlreadySent ? 'שלח תזכורת' : 'פתח טיוטת מייל לשליחה'}
                 </button>
               ) : null;
+
+              // ‼ 05.10 · «פרטי העסק» (220): שם העסק מהכרטיס (עריכה בתיק המס), ועבודה מהבית —
+              // התשובות, האישור עד 25%, ו«הוזן בפייפרלס». המצב נגזר בשרת; אין כאן «סמן כהושלם».
+              if (step.stepType === 'business_details') {
+                return (
+                  <BusinessDetailsCard
+                    key={step.id}
+                    step={step}
+                    stepById={stepById}
+                    client={client}
+                    highlight={highlightStepId === step.id}
+                    menu={menu}
+                    onOpenTaxFile={onOpenTaxFile ? () => onOpenTaxFile('businessName') : undefined}
+                  />
+                );
+              }
 
               if (step.stepType === 'paperless_invite' || step.stepType === 'paperless_connection') {
                 return (
@@ -2487,6 +2556,16 @@ export default function OnboardingTab({
   const nestedTitleMap = new Map<string, string>();
   /** סבב 4 — מצב השורה כולה כשהוא לא של החלק הראשי (נבנה ברינדור הרשימה). */
   const groupViewMap = new Map<string, GroupRowView>();
+  /** 05.10 — שם הבקשה בתוך קבוצה קבועה (נבנה ברינדור הרשימה). */
+  const groupNamesMap = new Map<string, string>();
+  /** 05.10 — עבודה מהבית (220): המצב הנגזר מההיסטוריה. */
+  const hoState = deriveHomeOffice(homeOfficeLoad.history);
+  const onHomeOfficeUpdated = (h: HomeOfficeHistory) => {
+    homeOfficeLoad.setHistory(h);
+    // ‼ האישור/התשובות מזיזים את הבקשה בשרת (_settle_business_details_step) — מרעננים אותה.
+    refresh?.();
+    setReadyTick(t => t + 1);
+  };
 
   /* «אצל מי» לכל שלב ממתין — משפט המצב של השורה מתחיל בו. מחליף את תת-הכותרות
      של הקבוצות («אצל שרון — בדף האישי», «אצל הרשות»…) שירדו. */
@@ -2540,7 +2619,7 @@ export default function OnboardingTab({
      אותו אישור הופיע עד שלוש פעמים על אותו מסך. */
   const foldedRepPart = (s: OnboardingStep) =>
     isRepresentationPart(s) && ofCurrentRequest(s) && (!!openRepParent || !!doneRepParent);
-  const doneList = doneSteps.filter(s => !foldedRepPart(s));
+  const doneList = doneSteps.filter(s => !foldedRepPart(s) && !repGroupedIds.has(s.id));
   /** מה שמקופל לשורה של הייצוג שהושלם: החלקים שנסגרו, וב"ל של מי שאין לו שלב ואושר. */
   const repDoneExtras = (parent: OnboardingStep): string[] => {
     if (openRepParent || parent.id !== doneRepParent?.id) return [];
@@ -2595,6 +2674,12 @@ export default function OnboardingTab({
       blockNotes: blockNoteByStep,
       rowNote,
       noteEditor: noteDraft ? { stepId: noteDraft.stepId, node: noteEditorNode } : null,
+      groupNames: groupNamesMap,
+      homeOffice: {
+        clientId, firstName: clientFirstOrClient, state: hoState, history: homeOfficeLoad.history,
+        loading: homeOfficeLoad.loading, error: homeOfficeLoad.error, reload: homeOfficeLoad.reload,
+        onUpdated: onHomeOfficeUpdated,
+      },
     }}>
     <div className="cw-tabpanel">
       {error && (
@@ -2862,7 +2947,8 @@ export default function OnboardingTab({
         /* ‼ סבב 4: «ייצוג מול הרשויות» הוא תהליך אחד — ב"ל לכל אדם וצילום התעודה
            לשע״ם של אותה בקשת ייצוג יורדים לתוכו (clientFacingRows). */
         const clientRows = buildClientFacingRows(
-          [...openVisible, ...releaseAnchor].filter(s => !isManualInternalTask(s) || isSpouseConfirmTask(s) || isCreationProblem(s)),
+          [...openVisible, ...releaseAnchor].filter(s => !groupedIds.has(s.id) && !repGroupedIds.has(s.id))
+            .filter(s => !isManualInternalTask(s) || isSpouseConfirmTask(s) || isCreationProblem(s)),
           depParents, { representationRequestId: client.representationRequestId ?? null });
         const alignSteps = clientSteps.filter(s => s.stepType.startsWith('institution_alignment_'));
 
@@ -3091,17 +3177,166 @@ export default function OnboardingTab({
           return sum;
         };
 
-        type Placed = { key: string; step: OnboardingStep; attn: Attention; node: React.ReactNode };
+        /* ── קבוצה קבועה (05.10, הדמיה מאושרת) ────────────────────────────────
+           ‼ כותרת עם מצב נגזר («1 מתוך 4 הושלמו», «לטיפולך: … · ממתין לאילן: …»), ומתחתיה
+           כל בקשה כשורה מלאה משלה — אותו כרטיס, אותם כפתורים, אותה היסטוריה כמו בשורה בודדת.
+           ‼ מה שהושלם או נעול נשאר במקומו בקבוצה; רק המשתמש מקפל אותה. */
+        const childWho = (s: OnboardingStep): Pick<GroupChildView, 'actor' | 'who'> => {
+          if (!isStepOpen(s.status)) return { actor: 'done' };
+          if (s.status === 'locked') return { actor: 'locked' };
+          const a = attnOf(s);
+          if (a.kind === 'mine' || a.kind === 'internal') return { actor: 'me' };
+          switch (a.waitingOn) {
+            case 'locked': return { actor: 'locked' };
+            case 'prev_accountant': return { actor: 'external', who: 'רו״ח קודם' };
+            case 'authority': return { actor: 'authority', who: 'הרשות' };
+            case 'spouse': return { actor: 'client', who: spouseFirstName };
+            case 'paperless': return { actor: 'external', who: 'פייפרלס' };
+            case 'external': return { actor: 'external', who: 'גורם חיצוני' };
+            case 'pivo': return { actor: 'external', who: 'PIVO' };
+            default: return { actor: 'client', who: clientFirstOrClient };
+          }
+        };
+        /** שורת המשנה של בקשה בתוך הקבוצה — על מה המצב נשען (ראיה, מה חסר). */
+        const childHint = (s: OnboardingStep, g: StepGroup): string | undefined => {
+          if (s.stepType === 'paperless_invite') {
+            const ev = paperlessSignupEvidence(s);
+            return ev.done ? ev.line : undefined;
+          }
+          if (s.stepType === 'business_details') {
+            const hasName = !!client.businessName?.trim();
+            if (!isStepOpen(s.status)) return homeOfficeLine(hoState);
+            if (s.ball === 'client' || s.ball == null) {
+              return hoState.phase === 'unanswered'
+                ? (hasName ? 'שם העסק התקבל · חסר מידע על עבודה מהבית' : 'חסרים שם העסק ומידע על עבודה מהבית')
+                : homeOfficeLine(hoState);
+            }
+            return !hasName ? 'חסר שם עסק בתיק המס' : homeOfficeLine(hoState);
+          }
+          if (s.stepType === 'paperless_connection' && isStepOpen(s.status)) {
+            const bd = g.steps.find(x => x.stepType === 'business_details' && isStepOpen(x.status));
+            if (bd && s.status !== 'locked') return 'ממתין גם להשלמת פרטי העסק';
+          }
+          return undefined;
+        };
+        const renderGroup = (g: StepGroup) => {
+          const kids = g.steps.map(s => ({
+            s, view: { id: s.id, title: memberDef(g.key, s.stepType)?.title ?? rowTitle(s), ...childWho(s) } as GroupChildView,
+          }));
+          const status = groupStatus(kids.map(k => k.view), groupProgress(g.steps));
+          const open = groupOpenPref[g.key] ?? status.tone !== 'done';
+          for (const k of kids) {
+            groupNamesMap.set(k.s.id, k.view.title);
+            const hint = childHint(k.s, g);
+            if (hint) groupViewMap.set(k.s.id, { sub: hint });
+          }
+          const red = kids.some(k => isStepOpen(k.s.status) && attnOf(k.s).tone === 'red');
+          return {
+            rank: status.rank === 0 ? (red ? 0 : 1) : status.rank === 1 ? 2 : status.rank === 2 ? 3 : 4,
+            node: (
+              <section key={`group-${g.key}`} className={`rg-group is-${status.tone}`} data-open={open ? 'true' : 'false'}
+                data-group={g.key} aria-label={g.title}>
+                <button type="button" className="rg-head" aria-expanded={open} onClick={() => setGroupOpen(g.key, !open)}>
+                  <span className="rg-namecol">
+                    <span className="rg-name">{REQUEST_GROUPS[g.key].title}</span>
+                    {status.hint && <span className="rg-hint">{status.hint}</span>}
+                  </span>
+                  <span className={`rg-tag is-${status.tone}`}>{status.tag}</span>
+                  <span className="rg-chev" aria-hidden="true">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
+                  </span>
+                </button>
+                {open && (
+                  <div className="rg-kids">
+                    {kids.map(k => flowItem(k.s, renderStep(k.s), isStepOpen(k.s.status) ? attnOf(k.s) : { kind: 'done', tone: 'gray' }))}
+                  </div>
+                )}
+              </section>
+            ),
+          };
+        };
+        const groupPlaced = stepGroups.map(renderGroup);
+
+        type Placed = { key: string; step: OnboardingStep; attn: Attention; node: React.ReactNode; kind: ClientFacingRow['kind'] };
         const placed: Placed[] = clientRows.map(row => {
           const sum = summarize(row);
-          return { key: row.primary.id, step: row.primary, attn: sum.attn, node: renderRow(row) };
+          return { key: row.primary.id, step: row.primary, attn: sum.attn, node: renderRow(row), kind: row.kind };
         });
-        /* סדר אחד: דורש טיפול (אדום) → לטיפולי → אצל אחרים → נעול. בתוך כל
-           דרגה — הסדר שנקבע לבקשות (sort_order), כמו קודם. */
+
+        /* ── «ייצוג מול הרשויות» — אותה מעטפת קבוצה (05.10, סבב 2) ─────────────────── */
+        const repTitle = (st: OnboardingStep): string => st.stepType === 'representation'
+          ? (memberDef('representation', 'representation')?.title ?? 'בקשת ייצוג')
+          : (representationPartLabel(st, partNames) ?? rowTitle(st));
+        const repOrder = (a: OnboardingStep, b: OnboardingStep) =>
+          (a.stepType === 'representation' ? 0 : 1) - (b.stepType === 'representation' ? 0 : 1)
+          || (isStepOpen(b.status) ? 1 : 0) - (isStepOpen(a.status) ? 1 : 0)
+          || String(a.createdAt ?? '').localeCompare(String(b.createdAt ?? ''));
+        const renderRepGroup = (parentNode: React.ReactNode | null, members: OnboardingStep[],
+          opts: { countAlso?: OnboardingStep[]; extra?: React.ReactNode } = {}) => {
+          const kids = [...members].sort(repOrder);
+          for (const k of kids) groupNamesMap.set(k.id, repTitle(k));
+          // ‼ חלקי הבקשה הפתוחה מוצגים בפירוט שלה — אבל נספרים במצב הקבוצה.
+          const counted = [...kids, ...(opts.countAlso ?? [])];
+          const views = counted.map(k => ({ id: k.id, title: repTitle(k), ...childWho(k) }) as GroupChildView);
+          const status = groupStatus(views, groupProgress(counted));
+          const open = groupOpenPref.representation ?? status.tone !== 'done';
+          const red = kids.some(k => isStepOpen(k.status) && attnOf(k).tone === 'red');
+          return {
+            rank: status.rank === 0 ? (red ? 0 : 1) : status.rank === 1 ? 2 : status.rank === 2 ? 3 : 4,
+            node: (
+              <section key="group-representation" className={`rg-group is-${status.tone}`} data-open={open ? 'true' : 'false'}
+                data-group="representation" aria-label={REQUEST_GROUPS.representation.title}>
+                <button type="button" className="rg-head" aria-expanded={open} onClick={() => setGroupOpen('representation', !open)}>
+                  <span className="rg-namecol">
+                    <span className="rg-name">{REQUEST_GROUPS.representation.title}</span>
+                    {status.hint && <span className="rg-hint">{status.hint}</span>}
+                  </span>
+                  <span className={`rg-tag is-${status.tone}`}>{status.tag}</span>
+                  <span className="rg-chev" aria-hidden="true">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
+                  </span>
+                </button>
+                {open && (
+                  <div className="rg-kids">
+                    {parentNode}
+                    {opts.extra}
+                    {kids.filter(k => !parentNode || k.stepType !== 'representation')
+                      .map(k => flowItem(k, renderStep(k), isStepOpen(k.status) ? attnOf(k) : { kind: 'done', tone: 'gray' }))}
+                  </div>
+                )}
+              </section>
+            ),
+          };
+        };
+        const repGroupPlaced = repMode === 'closed' && doneRepParent
+          ? renderRepGroup(null, [doneRepParent, ...repGroupParts], {
+              // ‼ ב"ל לאדם בלי שלב (קליטה ראשונה) שאושר — שורת קריאה, כמו שהייתה ב«הושלמו».
+              extra: niTargetRoles.filter(r => !hasCurrentNiStep(r) && !!niExecution?.[r]?.confirmedAt).map(r => (
+                <div key={`ni-done-${r}`} className="rl-item"><span className="rl-dot" aria-hidden="true" />
+                  <div className="rl-part is-done" style={{ flex: 1 }}>
+                    <span className="rl-part-name">ביטוח לאומי · {partNames[r]}</span>
+                    <span className="rl-part-state">אושר {formatDate(String(niExecution?.[r]?.confirmedAt), 'list')}</span>
+                  </div>
+                </div>)),
+            }) : null;
+        /* סדר אחד: דורש טיפול (אדום) → לטיפולי → אצל אחרים → נעול → קבוצה שהושלמה. בתוך כל
+           דרגה — הסדר שנקבע לבקשות (sort_order), כמו קודם. קבוצה — לפי המצב הנגזר שלה. */
         const rank = (p: Placed) => p.attn.kind === 'mine' ? (p.attn.tone === 'red' ? 0 : 1)
           : p.attn.waitingOn === 'locked' ? 3 : 2;
-        const ordered = placed.map((p, i) => ({ p, i }))
-          .sort((a, b) => rank(a.p) - rank(b.p) || a.i - b.i).map(x => x.p);
+        const ordered = [
+          ...placed.map((p, i) => {
+            if (p.kind === 'representation') {
+              // ‼ הבקשה הפתוחה — השורה הקיימת (עם «לפי רשות ואדם») בתוך מעטפת הקבוצה.
+              const g = renderRepGroup(flowItem(p.step, p.node, p.attn), [p.step, ...repGroupParts], {
+                countAlso: visibleSteps.filter(x => x.status !== 'cancelled' && isRepresentationPart(x) && ofCurrentRequest(x) && !isCreationProblem(x)),
+              });
+              return { r: rank(p), i, node: g.node, isGroup: true };
+            }
+            return { r: rank(p), i, node: flowItem(p.step, p.node, p.attn), isGroup: false };
+          }),
+          ...groupPlaced.map((g, i) => ({ r: g.rank, i: -100 + i, node: g.node, isGroup: true })),
+          ...(repGroupPlaced ? [{ r: repGroupPlaced.rank, i: -50, node: repGroupPlaced.node, isGroup: true }] : []),
+        ].sort((a, b) => a.r - b.r || a.i - b.i);
         /* ‼ «2 ממתינים לדוד» בשורת המסלול נספר לפי השורות שכאן: תהליך מקופל הוא שורה
            אחת, ומצבו — של השורה כולה (summarizeRow), בדיוק מה שהשורה מציגה. */
         const rowTop = new Map<string, OnboardingStep>();
@@ -3141,7 +3376,7 @@ export default function OnboardingTab({
                 <button type="button" className="rl-link-s" onClick={() => setListNote(null)} aria-label="סגירת ההודעה">✕</button>
               </p>
             )}
-            <div className="rl-list">
+            <div className="rl-list rg-cards">
               {/* ‼ ידוע שיש רו״ח קודם ואין מסלול — פותחים את אותו מסלול בדיוק
                   (create_onboarding_request). החלטה של המשרד ⇒ בראש הרשימה. */}
               {needsPrevTrack && (
@@ -3166,7 +3401,7 @@ export default function OnboardingTab({
                   </div>
                 </div>
               )}
-              {ordered.map(p => flowItem(p.step, p.node, p.attn))}
+              {ordered.map(x => x.node)}
               {ordered.length === 0 && !needsPrevTrack && !loading && (
                 <div className="rl-empty">
                   אין בקשות פתוחות.{' '}
@@ -3776,7 +4011,7 @@ interface PaperlessCardProps {
 
 function PaperlessStepCard(p: PaperlessCardProps) {
   const { step, stepById, busy, highlight, showTriage } = p;
-  const { awaitingPublish } = useContext(RowOpenContext);
+  const { awaitingPublish, homeOffice } = useContext(RowOpenContext);
   const [status, setStatus] = useState<PaperlessStatus | ''>((step.payload.paperlessStatus as PaperlessStatus) || '');
   const [source, setSource] = useState<PaperlessDataSource | ''>(
     step.payload.dataSource === 'other_software' ? 'other_software'
@@ -3797,6 +4032,15 @@ function PaperlessStepCard(p: PaperlessCardProps) {
   const cardPending = !isInvite && path !== 'not_applicable' && retainerIsDigital
     && !paperlessSetupItems(step, p.retainer).find(i => i.key === CARD_ENTERED_KEY)?.done;
   const canSubmit = status !== '' && (status !== 'none' || source !== '');
+  /* ‼ 05.10 (סבב 2) · תנאי ההשלמה של ההקמה — אותו כלל כמו בשרת (_paperless_setup_block_reason, 220):
+     «פרטי העסק» פתוחה, או אחוז מאושר שטרם סומן כמוזן בפייפרלס ⇒ אין «סיימתי». העבודה במקביל
+     (סעיפי ההקמה, הכרטיס) ממשיכה. השרת אוכף גם אם המסך ישן. */
+  const bdOpen = [...stepById.values()].some(x => x.stepType === 'business_details' && isStepOpen(x.status));
+  const hoNotEntered = homeOffice?.state.phase === 'approved' && homeOffice.state.paperless === 'pending';
+  const setupBlock = isInvite || !open ? null
+    : bdOpen ? 'ההקמה תסומן כהושלמה אחרי «פרטי העסק» — שם העסק ותשובה על עבודה מהבית (ואישור האחוז כשיש חדר).'
+    : hoNotEntered ? 'אחוז המשרד הביתי שאושר עוד לא סומן כמוזן בפייפרלס — מסמנים «הוזן בפייפרלס» בבדיקת ההגדרות.'
+    : null;
   // "לא יעבוד עם פייפרלס" מייתר את שאלת ההיסטוריה — אין לאן לייבא אותה.
   const asksHistory = status === 'none';
 
@@ -3856,10 +4100,11 @@ function PaperlessStepCard(p: PaperlessCardProps) {
       ) : (
         <>
           {isInvite ? (
-            <InviteBody path={path} status={step.status} awaitingPublish={!!awaitingPublish?.has(step.id)} />
+            <InviteBody path={path} status={step.status} awaitingPublish={!!awaitingPublish?.has(step.id)} step={step} />
           ) : (
             <ConnectionBody path={path} softwareName={String(step.payload.softwareName ?? '')}
               step={step} client={p.client} retainer={p.retainer} busy={busy} onRun={p.onRun}
+              invite={[...stepById.values()].find(s => s.stepType === 'paperless_invite' && s.status !== 'cancelled')}
               onRetainerCardSet={p.onRetainerCardSet} onCardEntered={p.onCardEntered} />
           )}
 
@@ -3888,8 +4133,11 @@ function PaperlessStepCard(p: PaperlessCardProps) {
                 הפעולה שסוגרת את ההקמה היא «סמן כבוצע» שבשורה עצמה, וכפתור
                 ראשי שני — מושבת — רק מתחרה בו על העין. הוא חוזר ברגע שהכרטיס
                 סומן והשלב עדיין פתוח, כלומר בדיוק כשצריך מסלול סיום ידני. */}
+            {setupBlock && step.status !== 'locked' && (
+              <div className="ps-block" role="note">{setupBlock}</div>
+            )}
             {!isInvite && open && step.status !== 'locked' && !cardPending && (
-              <button type="button" className="btn btn-sm btn-primary" disabled={busy}
+              <button type="button" className="btn btn-sm btn-primary" disabled={busy || !!setupBlock}
                 onClick={() => p.onConfirm(
                   path === 'other_rep' ? 'אישור השלמת ההעברה' : 'סיום החיבור לפייפרלס',
                   // ‼ הניסוח הישן שאל "כולל פרטי האשראי שפייפרלס ביקשה" — זה
@@ -3927,9 +4175,67 @@ function PaperlessStepCard(p: PaperlessCardProps) {
   );
 }
 
+/**
+ * «פרטי העסק» (220) — בקשה של הלקוח בקבוצת פייפרלס, שהמשרד בודק.
+ * ‼ שם העסק נקרא מהכרטיס ונערך בתיק המס (מקור אחד); עבודה מהבית — HomeOfficePanel,
+ * אותו רכיב כמו בתיק המס. הבקשה נסגרת בשרת כשיש שם, ותשובה «אין חדר» או אחוז מאושר.
+ */
+function BusinessDetailsCard({ step, stepById, client, highlight, menu, onOpenTaxFile }: {
+  step: OnboardingStep;
+  stepById: Map<string, OnboardingStep>;
+  client: Client;
+  highlight: boolean;
+  menu: React.ReactNode;
+  onOpenTaxFile?: () => void;
+}) {
+  const { homeOffice, toggle, openId } = useContext(RowOpenContext);
+  const name = client.businessName?.trim();
+  const open = isStepOpen(step.status);
+  const atClient = open && step.status !== 'locked' && (step.ball === 'client' || !step.ball);
+  const st = homeOffice?.state;
+  const needsMe = open && !atClient && (st?.phase === 'awaitingApproval' || st?.phase === 'stale' || !name);
+  return (
+    <StepCardShell step={step} stepById={stepById} highlight={highlight} menu={menu}
+      primary={needsMe && openId !== step.id ? (
+        <button type="button" className="btn btn-sm btn-primary" onClick={() => toggle(step.id)}>
+          {!name ? 'השלמת שם העסק' : 'בדיקה ואישור'}
+        </button>
+      ) : undefined}>
+      <div className="ho-panel">
+        <dl className="ho-facts">
+          <div>
+            <dt>שם העסק</dt>
+            <dd>
+              {name ?? <span className="ho-cap">חסר בתיק המס</span>}
+              {onOpenTaxFile && <> · <button type="button" className="ui-linkbtn" onClick={onOpenTaxFile}>עריכה בתיק המס ←</button></>}
+            </dd>
+          </div>
+        </dl>
+        {atClient && (
+          <p className="ho-muted">
+            בדף האישי {homeOffice?.firstName ?? 'הלקוח'} מתבקש/ת לאשר את שם העסק ולענות על עבודה מהבית.
+            אפשר גם למלא כאן במקומו/ה.
+          </p>
+        )}
+        {homeOffice && (
+          <HomeOfficePanel
+            clientId={homeOffice.clientId}
+            clientFirstName={homeOffice.firstName}
+            history={homeOffice.history}
+            loading={homeOffice.loading}
+            loadError={homeOffice.error}
+            onReload={homeOffice.reload}
+            onUpdated={homeOffice.onUpdated}
+          />
+        )}
+      </div>
+    </StepCardShell>
+  );
+}
+
 /** מה קורה בשלב ההזמנה, לפי המסלול שנבחר.
  *  ‼ awaitingPublish — הקליטה טרם פורסמה: מה שבדף «יופיע», לא «מופיע» (clientPageGate). */
-function InviteBody({ path, status, awaitingPublish }: { path?: PaperlessStatus; status: string; awaitingPublish?: boolean }) {
+function InviteBody({ path, status, awaitingPublish, step }: { path?: PaperlessStatus; status: string; awaitingPublish?: boolean; step: OnboardingStep }) {
   if (path === 'not_applicable') {
     return (
       <div style={cardNote}>
@@ -3961,7 +4267,9 @@ function InviteBody({ path, status, awaitingPublish }: { path?: PaperlessStatus;
         ? (awaitingPublish
           ? 'קישור ההרשמה יופיע ללקוח בדף האישי אחרי «פרסם בדף», יחד עם כפתור «נרשמתי לפייפרלס». ברגע שילחץ, שלב החיבור ייפתח אצלך מעצמו.'
           : 'קישור ההרשמה מופיע ללקוח בדף האישי, יחד עם כפתור «נרשמתי לפייפרלס». ברגע שילחץ, שלב החיבור ייפתח אצלך מעצמו.')
-        : 'הלקוח נרשם. אפשר להיכנס לחשבון שלו ולהשלים את החיבור.'}
+        /* ‼ 05.10: לא «הלקוח נרשם» כשמי שסימן הוא המשרד — על מה זה נשען, ומתי. אין
+           אינטגרציה עם פייפרלס: זו הצהרה של הלקוח או של המשרד, לא בדיקה. */
+        : `${paperlessSignupEvidence(step).detail} אפשר להיכנס לחשבון ולהשלים את ההקמה.`}
     </div>
   );
 }
@@ -3975,11 +4283,13 @@ function InviteBody({ path, status, awaitingPublish }: { path?: PaperlessStatus;
  * ‼ הת״ז ושם העסק מוצגים כאן להעתקה — מכרטיס הלקוח עצמו. אין עותק שלהם על
  * השלב: מה שיוצג הוא תמיד מה שבכרטיס, גם אם תוקן אחרי שהשלב נוצר.
  */
-function ConnectionBody({ path, softwareName, step, client, retainer, busy, onRun, onRetainerCardSet, onCardEntered }: {
+function ConnectionBody({ path, softwareName, step, client, retainer, busy, onRun, onRetainerCardSet, onCardEntered, invite }: {
   path?: PaperlessStatus;
   softwareName: string;
   step: OnboardingStep;
   client: Client;
+  /** ההרשמה — על מה «נרשם» נשען (הלקוח / המשרד), לפתיח. */
+  invite?: OnboardingStep;
   /** שלב התשלום — נושא את החותמות, וקיומו הוא התנאי לסעיף החמישי. */
   retainer?: OnboardingStep;
   busy: boolean;
@@ -4000,11 +4310,9 @@ function ConnectionBody({ path, softwareName, step, client, retainer, busy, onRu
 
   const items = paperlessSetupItems(step, retainer);
   const doneCount = items.filter(i => i.done).length;
-  const intro = path === 'other_rep'
-    ? 'הלקוח קיים בפייפרלס אצל המייצג הקודם. נכנסים לחשבון, מושכים אותו אלינו, ומשלימים את ההקמה.'
-    : path === 'self'
-      ? 'ללקוח יש חשבון משלו והוא הוסיף אותנו כמייצג. נכנסים לחשבון ומשלימים את ההקמה.'
-      : 'הלקוח נרשם. נכנסים לחשבון שלו בפייפרלס ומשלימים את ההקמה.';
+  /* ‼ 05.10: הפתיח אומר על מה «נרשם» נשען — הלקוח אישר בדף, או המשרד סימן — ולא קובע
+     «הלקוח נרשם» כשאין לזה ראיה. המונה למטה סופר סימונים של המשרד, לא קיום חשבון. */
+  const intro = connectionIntro(path, paperlessSignupEvidence(invite));
 
   /** שלושת הראשונים — התנאי לסעיף הרביעי. */
   const setupReady = items
@@ -4115,6 +4423,102 @@ function ConnectionBody({ path, softwareName, step, client, retainer, busy, onRu
           ההיסטוריה מ{softwareName} מיובאת בשלב נפרד ואינה מעכבת.
         </div>
       )}
+
+      <PaperlessSettingsReview step={step} client={client} busy={busy} onRun={onRun} />
+    </div>
+  );
+}
+
+/**
+ * בדיקת ההגדרות בחשבון הפייפרלס (05.10.2026) — סימון ידני של המשרד, לכל הגדרה.
+ * ‼ לא כותב לתיק ולא לפייפרלס: «בדקתי שמוגדר נכון» או «לא רלוונטי», עם מי ומתי, על בקשת
+ * ההקמה (payload.settingsReview, דרך advance 'note' — נרשם ביומן). מה ש-PIVO יודע מוצג
+ * להשוואה; מה שלא ידוע ב-PIVO נאמר כך — לא כאפס. ‼ אחוז המשרד הביתי: הסימון הוא האישור
+ * הנפרד «הוזן בפייפרלס» של האחוז המאושר (220) — מקור אחד, לא סימון שני.
+ * ‼ אינו חוסם «סיימתי»: תנאי הסגירה של ההקמה לא משתנים כאן.
+ */
+function PaperlessSettingsReview({ step, client, busy, onRun }: {
+  step: OnboardingStep;
+  client: Client;
+  busy: boolean;
+  onRun: (action: string, payload?: Record<string, unknown>) => void;
+}) {
+  const { homeOffice } = useContext(RowOpenContext);
+  const [hoBusy, setHoBusy] = useState(false);
+  const [hoErr, setHoErr] = useState<string | null>(null);
+  const review = (step.payload.settingsReview ?? {}) as SettingsReview;
+  const ho = homeOffice?.state ?? null;
+  const items = paperlessSettingsItems(client, ho);
+  const hoEntered = ho?.paperless === 'entered';
+  const count = settingsReviewCount(items, review, hoEntered);
+  const readonly = !isStepOpen(step.status);
+
+  const mark = (key: SettingsReviewKey, state: 'checked' | 'na' | null, label: string) => {
+    const next: SettingsReview = { ...review };
+    if (state) next[key] = { state, at: new Date().toISOString() };
+    else delete next[key];
+    onRun('note', {
+      settingsReview: next,
+      note: state === 'checked' ? `נבדק בפייפרלס: ${label}` : state === 'na' ? `לא רלוונטי: ${label}` : `בוטל סימון בדיקה: ${label}`,
+    });
+  };
+  async function hoEnteredNow() {
+    if (!ho?.current || !homeOffice) return;
+    setHoBusy(true); setHoErr(null);
+    const r = await confirmHomeOfficeInPaperless(ho.current.id);
+    setHoBusy(false);
+    if (!r.ok) { setHoErr(r.message); return; }
+    homeOffice.onUpdated({ answers: r.answers, approvals: r.approvals });
+  }
+
+  return (
+    <div className="ps-review">
+      <div className="ps-review-title">בדיקת הגדרות בפייפרלס · {count.marked} מתוך {count.total}</div>
+      {items.map(it => {
+        const m = review[it.key];
+        const isHo = it.key === 'home_office';
+        const done = isHo ? hoEntered || m?.state === 'na' : !!m;
+        return (
+          <div key={it.key} className="ps-row" data-key={it.key}>
+            <div>
+              <div className="ps-name">{it.label}</div>
+              <div className={`ps-pivo${it.pivo ? '' : ' is-unknown'}`} title={it.compareHint}>
+                ב-PIVO: {it.pivo ?? 'לא ידוע'}
+              </div>
+            </div>
+            <div className="ps-acts">
+              {isHo ? (
+                hoEntered ? <span className="ps-mark">הוזן בפייפרלס</span>
+                  : m?.state === 'na' ? <span className="ps-mark is-na">לא רלוונטי</span>
+                  : ho?.phase === 'approved' && !readonly ? (
+                    <button type="button" className="btn btn-sm btn-secondary" disabled={busy || hoBusy}
+                      onClick={() => void hoEnteredNow()} title="אישור ידני — אין בדיקה מול פייפרלס">
+                      {hoBusy ? 'שומר…' : 'הוזן בפייפרלס'}
+                    </button>
+                  ) : (
+                    <span className="ps-pivo">{ho?.phase === 'stale' ? 'ממתין לאישור מחדש' : ho?.phase === 'noRoom' || ho?.phase === 'unanswered' ? '' : 'אחרי אישור האחוז'}</span>
+                  )
+              ) : done ? (
+                <span className={`ps-mark${m?.state === 'na' ? ' is-na' : ''}`}>{m?.state === 'na' ? 'לא רלוונטי' : 'נבדק'}</span>
+              ) : null}
+              {!readonly && !done && !isHo && (
+                <>
+                  <button type="button" className="btn btn-sm btn-secondary" disabled={busy} onClick={() => mark(it.key, 'checked', it.label)}>נבדק</button>
+                  <button type="button" className="btn btn-sm btn-ghost" disabled={busy} onClick={() => mark(it.key, 'na', it.label)}>לא רלוונטי</button>
+                </>
+              )}
+              {!readonly && isHo && !hoEntered && !m && (ho?.phase === 'noRoom' || ho?.phase === 'unanswered') && (
+                <button type="button" className="btn btn-sm btn-ghost" disabled={busy} onClick={() => mark(it.key, 'na', it.label)}>לא רלוונטי</button>
+              )}
+              {!readonly && m && (
+                <button type="button" className="rl-link-s" disabled={busy} onClick={() => mark(it.key, null, it.label)}>ביטול</button>
+              )}
+            </div>
+          </div>
+        );
+      })}
+      {hoErr && <p className="ho-err" role="alert">{hoErr}</p>}
+      <p className="ps-pivo">סימונים ידניים של המשרד. אינם משנים את פייפרלס ואינם משנים נתונים בתיק המס.</p>
     </div>
   );
 }
@@ -5311,7 +5715,8 @@ function ReleaseStepCard(p: ReleaseCardProps) {
     : responseOpen ? { text: 'הערה חדשה', tone: 'red' }
     : newUploads.length > 0 ? { text: 'קבצים חדשים', tone: 'blue' }
     : letterUnknown ? { text: 'לא ידוע אם יצא', tone: 'amber' }
-    : !sent && !email && !detailsOpen ? { text: 'חסר אימייל', tone: 'amber' }
+    // ‼ 05.10: מכתב שכבר הושלם (נשלח/נחתם) — «חסר אימייל» אינו המצב שלו; הוא שורה שהושלמה בקבוצה.
+    : !closed && !sent && !email && !detailsOpen ? { text: 'חסר אימייל', tone: 'amber' }
     : undefined;
 
   return (
@@ -5970,7 +6375,7 @@ function JourneyRow({ step, stepById, highlight, danger, statusLabel, noteLine, 
   menu: React.ReactNode;
   children: React.ReactNode;
 }) {
-  const { openId, toggle, depParents, depChildren, nestedByStep, requiredApplies, compact, attnByStep, firstNames, editing, childOpenId, toggleChild, groupViewByStep, nestedTitleByStep, autoEmailUnknown, awaitingPublish, blockNotes, rowNote, noteEditor } = useContext(RowOpenContext);
+  const { openId, toggle, depParents, depChildren, nestedByStep, requiredApplies, compact, attnByStep, firstNames, editing, childOpenId, toggleChild, groupViewByStep, nestedTitleByStep, autoEmailUnknown, awaitingPublish, blockNotes, rowNote, noteEditor, groupNames } = useContext(RowOpenContext);
   const isNested = useContext(NestedRowContext);
   /** סיבת החסימה (מהיומן) — רק כשהשלב באמת חסום. */
   const blockNote = step.status === 'blocked' ? blockNotes?.get(step.id) : undefined;
@@ -6047,7 +6452,7 @@ function JourneyRow({ step, stepById, highlight, danger, statusLabel, noteLine, 
        בלי תאריכים, ספירות, תגיות, ⋯ ושלבים עתידיים. כל אלה — בפתיחה, יחד עם
        הניסוח המלא, הגוף של הכרטיס ושאר הפעולות. שום מידע לא ירד. */
     const draftForClient = isDraft && portalShowsStep(step.stepType);
-    const shownName = isNested && nestedName ? nestedName : name;
+    const shownName = isNested && nestedName ? nestedName : name ?? groupNames?.get(step.id);
     const split = shownName ? { name: shownName, detail: undefined as string | undefined } : splitRequestTitle(rowTitle(step));
     const a = attnByStep?.get(step.id);
     /* ‼ סבב 4: שורה שמקבצת כמה חלקים — המצב, השורה שמתחת לשם והכפתור של החלק

@@ -320,9 +320,9 @@ export default function ClientWorkspace({
    * נחיתה על שדה בתיק המס — «לקביעת סוג העוסק» במגש הבקשות (217) פותח את «פרטי
    * הנישום» בעריכה על «סוג העוסק». מתאפס כשתיק המס מדווח שהנחיתה בוצעה.
    */
-  const [taxFileFocus, setTaxFileFocus] = useState<'dealerType' | undefined>(undefined);
-  const openTaxFile = useCallback((focus?: 'dealerType') => {
-    setTaxFileFocus(focus === 'dealerType' ? 'dealerType' : undefined);
+  const [taxFileFocus, setTaxFileFocus] = useState<'dealerType' | 'businessName' | undefined>(undefined);
+  const openTaxFile = useCallback((focus?: 'dealerType' | 'businessName') => {
+    setTaxFileFocus(focus === 'dealerType' || focus === 'businessName' ? focus : undefined);
     setTab('taxfile');
   }, []);
 

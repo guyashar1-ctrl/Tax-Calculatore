@@ -56,6 +56,9 @@ const CATALOG: { type: string; hint: string; once: boolean }[] = [
   { type: 'client_documents',       hint: 'רשימת מסמכים שהלקוח מעלה בדף האישי', once: true },
   { type: 'prev_accountant_track',  hint: '', once: true },
   { type: 'paperless_sequence',     hint: '', once: true },
+  // ‼ 220 · ללקוח קיים (בקליטה חדשה היא נפתחת לבד עם ההרשמה לפייפרלס). פתוחה אחת ללקוח — השרת אוכף.
+  { type: 'business_details',
+    hint: 'שם העסק ושאלה קצרה על עבודה מהבית — הלקוח ממלא בדף האישי, והמשרד מאשר את אחוז המשרד הביתי', once: true },
   { type: 'paperless_tax_authority',
     hint: 'לעוסק מורשה - הלקוח מחבר את פייפרלס לרשות המסים, ומשם החשבוניות מקבלות מספר הקצאה', once: true },
   { type: 'intake_questionnaire',   hint: 'רענון תיק המס - שאלון ומסמכים לפי מה שחסר', once: true },
@@ -753,6 +756,11 @@ export default function AddRequestDialog({ clientId, steps, processPublished, aw
                     if (c.type === 'send_document') { openDocumentMode(); return; }
                     if (c.type === 'paperless_sequence') { void createPaperlessSequence(); return; }
                     if (c.type === 'paperless_tax_authority') { void createTaxAuthority(); return; }
+                    // ‼ 220 · של הלקוח (ממלא בדף האישי) — הבעלים במפורש; הסוג אינו ברשימת «של הלקוח» בשרת.
+                    if (c.type === 'business_details') {
+                      void create('business_details', { clientTitle: 'פרטי העסק', clientSub: 'שם העסק ושאלה קצרה על עבודה מהבית' }, { owner: 'client' });
+                      return;
+                    }
                     if (c.type === 'prev_accountant_track') { void createPrevTrack(); return; }
                     if (c.type === 'authority_representation') { setMode('authority_rep'); return; }
                     if (c.type === 'smart_form_btl6101' && onStartSmartForm) {
@@ -778,7 +786,7 @@ export default function AddRequestDialog({ clientId, steps, processPublished, aw
                   <span style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)' }}>
                     {c.type === 'paperless_sequence'
                       ? (paperlessMissing.length === PAPERLESS_SEQUENCE.length
-                        ? 'הזמנה, חיבור והרשאה לתשלום חודשי - כל שלב נפתח אחרי הקודם'
+                        ? 'הרשמה, פרטי העסק, הקמה והרשאה לתשלום חודשי — קבוצה אחת, כל בקשה נפתחת כשאפשר להתקדם בה'
                         : `משלים את הרצף: ${paperlessMissing.map(p => STEP_TYPE_LABELS[p.type]).join(' · ')}`)
                       : c.type === 'prev_accountant_track'
                       ? (prevMissing.length === 3

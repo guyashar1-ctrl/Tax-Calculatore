@@ -17,6 +17,7 @@
 import { supabase } from '../../lib/supabase';
 import type { FirmProfile } from '../../types/firmProfile';
 import { profileToDb } from '../../lib/dbMappers';
+import { seedRequestGroupsDemo, rgRpc, rgSetBusinessNameBehindPortal } from './__fakeRequestGroups';
 import { REP_PORTAL_CARD_FIXED, resolveRepPortalCard, type RepPortalCardOverride } from '../../../supabase/functions/_shared/repTemplates.ts';
 
 type Row = Record<string, unknown>;
@@ -264,6 +265,11 @@ if (FAKE_ACTIVE && !EMPTY) {
     st('d-kyc', 'kyc_identification', 'completed', 'me', { track: 'internal', completed_at: iso(day * 19) }),
     st('d-id', 'custom_request', 'completed', 'client', { completed_at: iso(day * 12), payload: { title: 'צילום תעודת זהות' } }),
   ];
+}
+// 05.10 · קבוצות קבועות + פרטי העסק — לקוח הדגמה שני (יוסי, sample-3), בזיכרון בלבד.
+if (FAKE_ACTIVE && !EMPTY) seedRequestGroupsDemo(tables, FIRM_ID);
+if (FAKE_ACTIVE && typeof window !== 'undefined') {
+  (window as unknown as { __rgSetBusinessName?: (n: string) => void }).__rgSetBusinessName = rgSetBusinessNameBehindPortal;
 }
 const CLOSED_OR_LOCKED = ['completed', 'verified', 'skipped', 'cancelled', 'locked'];
 /**
@@ -828,6 +834,9 @@ export function installFakeBackend() {
   s.rpc = async (name: string, args: Row = {}) => {
     await wait();
     if (name === 'is_authorized') return { data: true, error: null };
+    // 05.10 · פרטי העסק, עבודה מהבית ודף ההדגמה של יוסי (__fakeRequestGroups).
+    const rg = rgRpc(tables, name, args, FIXTURE_PROFILE.firmName ?? "המשרד", logWrite);
+    if (rg) return rg;
     if (name === 'client_ready_to_send') return { data: readyFor(args.p_client_id), error: null };
     if (name === 'client_notice_preview') {
       const ready = readyFor(args.p_client_id);

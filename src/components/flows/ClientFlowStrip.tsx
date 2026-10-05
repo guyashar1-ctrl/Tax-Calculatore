@@ -89,6 +89,19 @@ export default function ClientFlowStrip({
   const needsReattach = !loading && onboardingOpen && steps.length > 0
     && !runs.some(r => r.trigger === 'quote_approved');
   const [reattach, setReattach] = useState<{ busy: boolean; msg: string | null }>({ busy: false, msg: null });
+  /** 05.10 · לפני החיבור — מה יקרה ומה לא, ואם הכלל שולח מייל לבד (נבדק מהכלל עצמו). */
+  const [reattachAsk, setReattachAsk] = useState<{ loading: boolean; autoMail: boolean | null; laterStages: boolean } | null>(null);
+  async function askReattach() {
+    setReattachAsk({ loading: true, autoMail: null, laterStages: false });
+    const r = await loadOfficeFlows();
+    const onb = r.flows.find(f => f.trigger === 'quote_approved' && f.status === 'active');
+    const stages = onb?.definition.stages ?? [];
+    setReattachAsk({
+      loading: false,
+      autoMail: r.ok ? stages.some(st => st.delivery === 'auto') : null,
+      laterStages: stages.some(st => (st.opens as { after?: string } | undefined)?.after && (st.opens as { after?: string }).after !== 'start'),
+    });
+  }
   const [openId, setOpenId] = useState<string | null>(null);
   const [endedOpen, setEndedOpen] = useState(false);
   // ‼ החלון ותוצאת הפעולה חיים כאן, לא בשורה: ביטול מוריד את השורה מהרשימה, ואיתה
@@ -150,10 +163,10 @@ export default function ClientFlowStrip({
     const r = await reattachOnboardingFlow(clientId);
     if (r.ok === false || r.skipped) {
       setReattach({ busy: false, msg: r.error === 'no_onboarding' || r.skipped === 'not_onboarding'
-        ? 'אין קליטה פתוחה להצמיד אליה.' : serverErrorText(r.error, 'ההצמדה לא הצליחה — אפשר לנסות שוב') + '.' });
+        ? 'אין קליטה פתוחה לחבר.' : serverErrorText(r.error, 'החיבור לא הצליח — אפשר לנסות שוב') + '.' });
       return;
     }
-    setReattach({ busy: false, msg: r.matched != null ? `הוצמד · ${r.matched} בקשות שויכו לשלבים` : 'הוצמד' });
+    setReattach({ busy: false, msg: r.matched != null ? `חובר · ${r.matched} בקשות שויכו לשלבים` : 'חובר' });
     onChanged();
   }
 
@@ -181,13 +194,38 @@ export default function ClientFlowStrip({
       {strayNotes.map(([id, n]) => (
         <div key={id} className={`cf-flash${n.warn ? ' is-warn' : ''}`} role="status">{n.warn ? '⚠' : '✓'} {n.text}</div>
       ))}
+      {/* ‼ 05.10 · קליטה ישנה בלי כלל הקליטה — ההשלכה בשפה של המשרד, ופעולת תיקון עם אישור
+          שאומר מה קורה. החיבור (reattach_onboarding_flow_run → attach, p_new=false) משייך בקשות
+          קיימות בלבד: לא יוצר בקשות, לא פותח מה שהושלם, לא משנה את מה שבדף ולא שולח עכשיו. */}
       {needsReattach && (
         <div className="cf-quiet">
-          <span>מסלול הקליטה לא מחובר ללקוח הזה — בלי זה השלבים והתזכורות שלו לא פועלים.</span>
-          <button type="button" className="cf-link" disabled={reattach.busy} onClick={() => void doReattach()}>
-            {reattach.busy ? 'מצמיד…' : 'הצמד'}
-          </button>
+          <span>הבקשות של הקליטה הזו נפתחו לפני שהיו כללי פתיחה — ולכן תזכורות ושלבים אוטומטיים של «קליטת לקוח חדש» לא חלים עליהן.</span>
+          {!reattachAsk && (
+            <button type="button" className="cf-link" disabled={reattach.busy} onClick={() => void askReattach()}>
+              חיבור לכלל הקליטה…
+            </button>
+          )}
           {reattach.msg && <span role="status">{reattach.msg}</span>}
+        </div>
+      )}
+      {needsReattach && reattachAsk && (
+        <div className="cf-callout" role="dialog" aria-label="חיבור לכלל הקליטה">
+          {reattachAsk.loading ? <p>בודק את הכלל…</p> : (
+            <>
+              <p><strong>מה יקרה:</strong> הבקשות הקיימות של הקליטה ישויכו לשלבים של «קליטת לקוח חדש», ויקבלו את אופן ההגעה והתזכורות של השלב.</p>
+              <p><strong>מה לא יקרה:</strong> לא תיווצר אף בקשה חדשה, בקשה שהושלמה לא תיפתח, מה שהלקוח רואה בדף לא ישתנה, ושום מייל לא נשלח עכשיו.</p>
+              {reattachAsk.laterStages && <p>בקשה פתוחה ששייכת לשלב מאוחר תחכה לשלב שלפניה.</p>}
+              {reattachAsk.autoMail === true && (
+                <p className="cf-warn">‼ בכלל הזה מוגדר «מייל לבד»: בקשות שעוד לא נשלח עליהן מייל ייכללו במייל המרוכז הבא שיוצא לבד.</p>
+              )}
+              {reattachAsk.autoMail === null && <p className="cf-warn">לא הצלחנו לקרוא את הכלל — לא ידוע אם הוא שולח מייל לבד.</p>}
+              <div className="cf-callout-acts">
+                <button type="button" className="btn btn-sm btn-primary" disabled={reattach.busy}
+                  onClick={() => { setReattachAsk(null); void doReattach(); }}>{reattach.busy ? 'מחבר…' : 'חיבור'}</button>
+                <button type="button" className="btn btn-sm btn-ghost" onClick={() => setReattachAsk(null)}>ביטול</button>
+              </div>
+            </>
+          )}
         </div>
       )}
       {otherEnded.length > 0 && (
