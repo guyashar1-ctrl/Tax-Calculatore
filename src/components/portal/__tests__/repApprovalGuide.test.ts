@@ -41,9 +41,9 @@ function migrationFiles(): string[] {
 }
 
 /** גוף ההגדרה האחרונה (בין תגי ה-$ שאחרי AS). */
-function lastDefinitionBody(): { file: string; body: string } | null {
+function lastDefinitionBody(fn: string = FN): { file: string; body: string } | null {
   let found: { file: string; body: string } | null = null;
-  const head = new RegExp(`create\\s+or\\s+replace\\s+function\\s+(?:public\\.)?${FN}\\s*\\(`, 'gi');
+  const head = new RegExp(`create\\s+or\\s+replace\\s+function\\s+(?:public\\.)?${fn}\\s*\\(`, 'gi');
   for (const name of migrationFiles()) {
     const sql = readFileSync(join(SUPA, name), 'utf8');
     for (const m of sql.matchAll(head)) {
@@ -242,8 +242,15 @@ export const TESTS: TestCase[] = [
   }),
 
   test('בשרת: ensure_rep_client_approval_step (ההגדרה האחרונה) כותב את אותו נוסח, עם ירידות שורה אמיתיות', () => {
-    const def = lastDefinitionBody();
-    assert(!!def, `לא נמצאה הגדרה של ${FN}`);
+    // ‼ 222: הנוסח עבר מגוף היוצר ל-_rep_client_approval_payload (שגם «צפייה» בבקשה קוראת לה); היוצר קורא לה.
+    const creator = lastDefinitionBody();
+    assert(!!creator, `לא נמצאה הגדרה של ${FN}`);
+    const payloadFn = lastDefinitionBody('_rep_client_approval_payload');
+    if (payloadFn) {
+      assert(/_rep_client_approval_payload\s*\(/.test(creator!.body), `${creator!.file}: היוצר לא קורא ל-_rep_client_approval_payload`);
+      assert(!sqlLiterals(creator!.body).some(l => l.value.startsWith('יש לך כבר משתמש באזור האישי')), `${creator!.file}: הנוסח עדיין מועתק בגוף היוצר`);
+    }
+    const def = payloadFn ?? creator;
     const lits = sqlLiterals(def!.body);
     const bad = lits.filter(l => l.escaped && /\\\\n/.test(l.raw));
     equal(bad.length, 0, `${def!.file}: E'…\\\\n…' שומר לוכסן ו-n במקום ירידת שורה`);

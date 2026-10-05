@@ -164,8 +164,10 @@ begin
     vb := false; vt := sqlerrm;
   end;
   out := out || jsonb_build_object('t', '5.2 assert_domain_function_invariants עובר', 'pass', vb, 'got', vt);
-  out := out || jsonb_build_object('t', '5.3 הגוף החי מכיל את שדה המדריך פעם אחת', 'pass',
-    array_length(string_to_array(pg_get_functiondef('public.build_client_portal(text,text)'::regprocedure), '''photoGuide'''), 1) - 1 = 1, 'got', null);
+  -- ‼ 222: ענפי הסוגים עברו ל-_portal_step_items — שם השדה, פעם אחת; build_client_portal כבר לא נושאת אותו.
+  out := out || jsonb_build_object('t', '5.3 הגוף החי מכיל את שדה המדריך פעם אחת (ב-_portal_step_items אחרי 222, אחרת ב-build_client_portal)', 'pass',
+    (select sum(array_length(string_to_array(pg_get_functiondef(p.oid), '''photoGuide'''), 1) - 1) = 1
+       from pg_proc p where p.pronamespace = 'public'::regnamespace and p.proname in ('build_client_portal', '_portal_step_items')), 'got', null);
 
   raise exception 'RESULTS:%', out::text;
 end;

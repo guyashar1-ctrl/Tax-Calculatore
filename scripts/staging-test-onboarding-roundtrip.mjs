@@ -10,7 +10,7 @@
  *
  * שימוש:  node scripts/staging-test-onboarding-roundtrip.mjs [real|synthetic]
  */
-import { readFileSync, mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { readFileSync, readdirSync, mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { pathToFileURL } from 'node:url';
@@ -19,7 +19,11 @@ import { ROOT, STAGING_REF, loadEnv, assertTriggersEnabled } from './staging-lib
 
 await assertTriggersEnabled();
 const USER_ID = readFileSync(resolve(ROOT, 'STAGING_USER_ID'), 'utf8').trim();
-const MIGRATIONS = ['supabase/214-client-notices.sql', 'supabase/215-flows.sql', 'supabase/216-flows-onboarding-integration.sql']
+// ‼ 222: גם הקבצים שאחרי 216 (217–229) — המחולל החי הוא הגרסה של 222 (קורא ל-_onboarding_system_payload), ובלעדיהם
+// הבדיקה הייתה מגדירה מחדש את הגרסה של 216 ובודקת אותה במקום את מה שרץ.
+const LATER = readdirSync(resolve(ROOT, 'supabase')).filter(f => /^2(1[7-9]|2\d)-.*\.sql$/.test(f))
+  .sort((a, b) => parseInt(a) - parseInt(b)).map(f => 'supabase/' + f);
+const MIGRATIONS = ['supabase/214-client-notices.sql', 'supabase/215-flows.sql', 'supabase/216-flows-onboarding-integration.sql', ...LATER]
   .map(f => readFileSync(resolve(ROOT, f), 'utf8')).join('\n');
 const MODE = process.argv[2] === 'synthetic' ? 'synthetic' : 'real';
 const TEST = readFileSync(resolve(ROOT, 'scripts/sql/test-onboarding-roundtrip.sql'), 'utf8')

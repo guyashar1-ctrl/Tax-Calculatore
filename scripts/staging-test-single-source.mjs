@@ -19,7 +19,7 @@
  *  D  שלב «עדכון סטטוס מיסויי» נגזר מסשן השאלון: התחלה ⇒ ממתין ללקוח,
  *     סיום ⇒ הושלם, פתיחה מחדש ⇒ ממתין ללקוח, מחיקת הסשן ⇒ חזרה אחורה.
  *
- *  E  PORTAL_STEP_TYPES ב-TS שווה תו-בתו לענפי `when '…'` של build_client_portal
+ *  E  PORTAL_STEP_TYPES ב-TS שווה תו-בתו לענפי `when '…'` של הדף האישי (_portal_step_items מ-222; לפניה build_client_portal)
  *     בפרודקשן (קריאה בלבד).
  *
  * הרצה:  node scripts/staging-test-single-source.mjs
@@ -260,17 +260,21 @@ try {
     ok('D6 השלמה ידנית של המשרד לא נפתחת מחדש ע"י סשן חדש', st?.status === 'completed' && st.completion_method === 'manual', JSON.stringify(st));
   }
 
-  // ─── E · PORTAL_STEP_TYPES מול build_client_portal בפרודקשן ───────────────
+  // ─── E · PORTAL_STEP_TYPES מול ענפי הסוגים של הדף האישי בפרודקשן ───────────────
   console.log('\n— E · רשימת הסוגים של הדף האישי —');
   {
-    const def = (await readProd(`select pg_get_functiondef(oid) as d from pg_proc
-      where proname = 'build_client_portal' and pronamespace = 'public'::regnamespace;`))[0]?.d ?? '';
+    // ‼ 222: ענפי הסוגים עברו מ-build_client_portal ל-_portal_step_items (המקום היחיד; הדף והצפייה קוראים לו).
+    // לפני 222 הם עדיין בתוך build_client_portal — מחפשים את הפונקציה שמכילה אותם.
+    const defs = await readProd(`select pg_get_functiondef(oid) as d from pg_proc
+      where proname in ('_portal_step_items', 'build_client_portal') and pronamespace = 'public'::regnamespace
+      order by (proname = '_portal_step_items') desc;`);
+    const def = defs.map(r => r.d).find(d => d.includes('case s.step_type')) ?? '';
     const caseBody = def.slice(def.indexOf('case s.step_type'));
     const sqlTypes = [...caseBody.matchAll(/when '([a-z_]+)' then/g)].map(m => m[1]);
     const ts = readFileSync(resolve(ROOT, 'src/types/onboarding.ts'), 'utf8');
     const block = ts.match(/PORTAL_STEP_TYPES[^=]*=\s*\[([\s\S]*?)\];/)?.[1] ?? '';
     const tsTypes = [...block.matchAll(/'([a-z_]+)'/g)].map(m => m[1]);
-    ok('E1 הרשימה ב-TS זהה תו-בתו (וסדר) לענפי build_client_portal בפרודקשן',
+    ok('E1 הרשימה ב-TS זהה תו-בתו (וסדר) לענפי הסוגים של הדף בפרודקשן (_portal_step_items; לפני 222 — build_client_portal)',
       sqlTypes.length > 0 && JSON.stringify(sqlTypes) === JSON.stringify(tsTypes),
       `sql=${sqlTypes.join(',')} · ts=${tsTypes.join(',')}`);
   }
