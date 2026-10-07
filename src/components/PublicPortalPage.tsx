@@ -24,6 +24,7 @@ import './portal/portalPage.css';
 import HomeOfficeForm from '../features/requests/HomeOfficeForm';
 import type { ValidHomeOffice } from '../features/requests/homeOffice';
 import { groupPortalItems, portalChildTitle, portalGroupStatus, type PortalGroup } from '../features/requests/requestGroups';
+import { lamed } from '../utils/requestPresentation';
 import {
   livePortalActions, loadClientPortal, officeViewActions, samplePortalActions, SAMPLE_SIMULATED_TEXT,
   type PortalActions, type PortalLinkedKind, type PortalMode,
@@ -104,7 +105,17 @@ export interface PortalItem {
        שהוא שלו, או מעלה אחר. קיום הקובץ אינו אישור. */
     | 'identity_confirm'
     /* ‼ 220 · «פרטי העסק» — שם העסק ושאלון עבודה מהבית, נשלחים יחד למשרד. */
-    | 'business_details';
+    | 'business_details'
+    /* ‼ 224 · אישור ייפוי הכוח בביטוח הלאומי — פעולה של האדם עצמו באתר ב"ל. אין פקד
+       שסוגר: ההשלמה נגזרת מהבדיקה מול ב"ל, לא מהצהרה. */
+    | 'ni_approval';
+  /**
+   * 224 · הפעולה של אדם אחר במשק הבית (בן/בת הזוג) — השם הפרטי שלו. הדף משותף
+   * לזוג, ולכן פריט כזה יושב בקטע «מה צריך מ{שם}» ולא נספר ב«ממתין לך».
+   */
+  forPerson?: string;
+  /** 224 · משפט שמונע בלבול בין בני הזוג — «האישור של הדסה כבר התקבל…». מהשרת, לפי ראיה. */
+  assurance?: string;
   /**
    * פרטי הרו״ח הקודם שכבר בכרטיס — מילוי-מראש לאישור. כמו businessName:
    * מקור האמת הוא הכרטיס, ומה שהלקוח שולח חוזר אליו (וגובר, מיגרציה 115).
@@ -579,6 +590,7 @@ function ActionItem({ item, brand, accent, last, onDone }: {
   const identity = inPage && item.kind === 'identity_confirm';
   /** 220 · «פרטי העסק» — הטופס נפתח בלחיצה («מילוי פרטים»), כמו בהדמיה המאושרת. */
   const bizDetails = inPage && item.kind === 'business_details';
+  const niApproval = item.kind === 'ni_approval';
   const prog = progressLine(item);
 
   const primaryBtn: React.CSSProperties = {
@@ -615,6 +627,8 @@ function ActionItem({ item, brand, accent, last, onDone }: {
             whiteSpace: 'pre-line',
           }}>{item.note}</p>
         ) : null
+      ) : niApproval ? (
+        <NiApprovalBlock item={item} brand={brand} accent={accent} />
       ) : guide ? (
         <div style={{ marginTop: 11 }}>
           <GuideBlock item={item} brand={brand} accent={accent} onDone={onDone} />
@@ -1009,6 +1023,38 @@ function RequestGuide({ item, brand }: {
       )}
       {item.noteAfter && (
         <p style={{ margin: 0, fontSize: 12.5, lineHeight: 1.6, color: brand.muted, whiteSpace: 'pre-line' }}>{item.noteAfter}</p>
+      )}
+    </div>
+  );
+}
+
+/**
+ * 224 · אישור ייפוי הכוח בביטוח הלאומי. הסדר הוא סדר השאלות של מי שקורא דף
+ * משותף: של מי זה (המשפט הירוק), איזה מספר ועד מתי, איך — ואז הכפתור.
+ */
+function NiApprovalBlock({ item, brand, accent }: {
+  item: PortalItem;
+  brand: { ink: string; muted: string; border: string; radius: number };
+  accent: string;
+}) {
+  return (
+    <div style={{ marginTop: 9, display: 'grid', gap: 8 }}>
+      {item.assurance && (
+        <div style={{ fontSize: 13, lineHeight: 1.6, color: '#2f6b4f' }}>
+          <span aria-hidden="true">✓ </span>{item.assurance}
+        </div>
+      )}
+      <RequestGuide item={item} brand={brand} />
+      {item.linkUrl && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
+          <a href={item.linkUrl} target="_blank" rel="noopener noreferrer" style={{
+            display: 'inline-block', textDecoration: 'none', fontSize: 13.5, fontWeight: 600,
+            padding: '9px 18px', color: '#fff', background: accent, borderRadius: brand.radius,
+          }}>
+            {item.linkLabel || 'לפתיחת הקישור'} ←
+          </a>
+          <LinkHostNote url={item.linkUrl} brand={brand} />
+        </div>
       )}
     </div>
   );
@@ -1582,12 +1628,24 @@ export function PortalView({ data, token = '', preview = false, embed = false, o
   /* ‼ 05.10 · קבוצות קבועות (הדמיה מאושרת): פייפרלס, העברת טיפול וייצוג — קבוצה אחת עם כל
      הבקשות שלה, בסדר קבוע, גם כשחלק הושלם וחלק בטיפולנו. הקבוצה עומדת במקטע של המצב שלה
      (יש משהו בשבילך ⇒ «מה צריך ממך»). זיהוי לפי מפתח הפריט מהשרת, לא לפי כותרת. */
-  const { groups: itemGroups } = groupPortalItems(data.items.filter(i => !isSentDoc(i) && i.kind !== 'message' && !isDoneLegacyDoc(i)));
+  /* ‼ 224 · פעולה של אדם אחר במשק הבית (בן/בת הזוג). הדף משותף לזוג — ולכן היא לא
+     «ממתינה לך», לא נבלעת בקבוצה (שהייתה מסמנת «נדרש ממך»), ויש לה קטע בשם שלו. */
+  const othersByPerson = new Map<string, PortalItem[]>();
+  for (const i of data.items) {
+    if (!i.forPerson) continue;
+    othersByPerson.set(i.forPerson, [...(othersByPerson.get(i.forPerson) ?? []), i]);
+  }
+  const others = [...othersByPerson.entries()].map(([name, items]) => ({ name, items }));
+  /** הכותרת בלי «יאיר — » — בשורת הסיכום השם כבר נאמר. */
+  const otherTitle = (i: PortalItem) => i.forPerson && i.label.startsWith(`${i.forPerson} — `)
+    ? i.label.slice(i.forPerson.length + 3) : i.label;
+  const { groups: itemGroups } = groupPortalItems(data.items.filter(i =>
+    !isSentDoc(i) && i.kind !== 'message' && !isDoneLegacyDoc(i) && !i.forPerson));
   const groupedKeys = new Set(itemGroups.flatMap(g => g.items.map(i => i.key)));
   const free = (i: PortalItem) => !groupedKeys.has(i.key);
   const groupCards = itemGroups.map(g => ({ g, st: portalGroupStatus(g.items) }));
   const groupsIn = (tone: 'action' | 'office' | 'future' | 'done') => groupCards.filter(x => x.st.tone === tone);
-  const actions  = data.items.filter(i => i.bucket === 'action' && !isSentDoc(i) && free(i))
+  const actions  = data.items.filter(i => i.bucket === 'action' && !isSentDoc(i) && free(i) && !i.forPerson)
     .sort((a, b) => optionalLast(a) - optionalLast(b));
   // ‼ הודעה מהמשרד אינה "בטיפול המשרד": אין מאחוריה עבודה שמתבצעת, ולכן היא
   // יוצאת מהקבוצה הזאת ומקבלת מקום משלה. אחרת היא נקראת כמו הבטחה לטיפול.
@@ -1642,15 +1700,24 @@ export function PortalView({ data, token = '', preview = false, embed = false, o
           שלום{firstName ? ` ${firstName}` : ''},
         </div>
 
-        {/* ‼ 05.10 · שורת סיכום אחת: מה ממתין לך עכשיו — גם כשזה בתוך קבוצה. */}
-        {waitingForYou.length > 0 && (
+        {/* ‼ 05.10 · שורת סיכום אחת: מה ממתין לך עכשיו — גם כשזה בתוך קבוצה.
+            ‼ 224 · ומה ממתין לבן/בת הזוג, בשמו — הדף והמייל משותפים לזוג. */}
+        {(waitingForYou.length > 0 || others.length > 0) && (
           <div role="status" style={{
             margin: '12px 0 4px', padding: '11px 14px', borderRadius: brand.radius + 2, fontSize: 13.5, lineHeight: 1.55,
             background: brand.pageBg, color: brand.ink, border: `1px solid ${brand.border}`,
           }}>
             {waitingForYou.length === 1
               ? <>יש בקשה אחת שממתינה לך: <strong>{portalChildTitle(waitingForYou[0])}</strong>.</>
-              : <>יש {waitingForYou.length} בקשות שממתינות לך.</>}
+              : waitingForYou.length > 1 ? <>יש {waitingForYou.length} בקשות שממתינות לך.</> : null}
+            {others.map(o => (
+              <span key={o.name}>
+                {waitingForYou.length > 0 ? ' ' : ''}
+                {o.items.length === 1
+                  ? <>{waitingForYou.length > 0 ? `ומ${o.name}: ` : `יש בקשה אחת שממתינה ${lamed(o.name)}: `}<strong>{otherTitle(o.items[0])}</strong>.</>
+                  : <>{waitingForYou.length > 0 ? `ו${o.items.length} בקשות שממתינות ${lamed(o.name)}.` : `יש ${o.items.length} בקשות שממתינות ${lamed(o.name)}.`}</>}
+              </span>
+            ))}
           </div>
         )}
         {actions.length > 0 || groupsIn('action').length > 0 ? (
@@ -1673,7 +1740,7 @@ export function PortalView({ data, token = '', preview = false, embed = false, o
               : `המשרד שלח לך ${unopenedCount} מסמכים חדשים.`}
           </div>
         ) : (done.length > 0 || groupsIn('done').length > 0) && future.length === 0 && office.length === 0
-            && groupsIn('office').length === 0 && groupsIn('future').length === 0 ? (
+            && groupsIn('office').length === 0 && groupsIn('future').length === 0 && others.length === 0 ? (
           /* ‼ "הכול הושלם" רק כשבאמת אין המשך. עם שלב עתידי נעול או עם משהו
              שבטיפולנו זה היה שקר קטן שמייצר פנייה: הלקוח קורא שסיים, ואז
              נפתח לו עוד שלב. מסמך שטרם נפתח כבר נתפס בענף שמעל. */
@@ -1688,13 +1755,25 @@ export function PortalView({ data, token = '', preview = false, embed = false, o
           </div>
         )}
 
+        {/* ── מה צריך מ{שם} (224) ─────────────────────────────────────────
+            ‼ אותו משקל כמו «מה צריך ממך» ומיד אחריו: שני אנשים, שתי רשימות. */}
+        {others.map(o => (
+          <div key={`for-${o.name}`}>
+            <div style={{ ...sectionTitle, color: accent, marginTop: 20, marginBottom: 8 }}>מה צריך מ{o.name}</div>
+            {o.items.map((item, i) => (
+              <ActionItem key={item.key} item={item} brand={brand} accent={accent}
+                last={i === o.items.length - 1} onDone={reload} />
+            ))}
+          </div>
+        ))}
+
         {/* ── הודעה מהמשרד ────────────────────────────────────────────────
             ‼ מלל בלבד, בלי שום פקד: אין כאן מה לאשר ואין מה לפתוח. היא
             יושבת מתחת ל"מה צריך ממך" כדי לא להתחרות בו, ומעל השאר כדי
             שתיקרא. יורדת מהדף כשהמשרד סוגר אותה. */}
         {messages.length > 0 && (
           <>
-            <div style={{ ...sectionTitle, marginTop: actions.length > 0 ? 20 : 16 }}>
+            <div style={{ ...sectionTitle, marginTop: (actions.length > 0 || others.length > 0) ? 20 : 16 }}>
               {messages.length === 1 ? 'הודעה מהמשרד' : 'הודעות מהמשרד'}
             </div>
             {messages.map(item => {
@@ -1749,7 +1828,7 @@ export function PortalView({ data, token = '', preview = false, embed = false, o
             ולא בצבע ההדגשה), כדי שסדר הסריקה יישאר: קודם מה שצריך ממני. */}
         {docGroups.length > 0 && (
           <>
-            <div style={{ ...sectionTitle, marginTop: (actions.length > 0 || messages.length > 0) ? 20 : 16 }}>
+            <div style={{ ...sectionTitle, marginTop: (actions.length > 0 || others.length > 0 || messages.length > 0) ? 20 : 16 }}>
               מסמכים מהמשרד
             </div>
             {docGroups.map(g => (
@@ -1775,7 +1854,7 @@ export function PortalView({ data, token = '', preview = false, embed = false, o
             עכשיו?", לא עוד רשימת מטלות. */}
         {(office.length > 0 || groupsIn('office').length > 0) && (
           <>
-            <div style={{ ...sectionTitle, marginTop: (actions.length > 0 || messages.length > 0 || docGroups.length > 0) ? 20 : 16 }}>
+            <div style={{ ...sectionTitle, marginTop: (actions.length > 0 || others.length > 0 || messages.length > 0 || docGroups.length > 0) ? 20 : 16 }}>
               בטיפול המשרד
             </div>
             {groupsIn('office').map(renderGroup)}
@@ -1807,7 +1886,7 @@ export function PortalView({ data, token = '', preview = false, embed = false, o
             לא רשימת מטלות: אסור שתתחרה ב"מה צריך ממך" שמעליה. */}
         {(future.length > 0 || groupsIn('future').length > 0) && (
           <>
-            <div style={{ ...sectionTitle, marginTop: (actions.length > 0 || office.length > 0 || messages.length > 0 || docGroups.length > 0) ? 20 : 16 }}>
+            <div style={{ ...sectionTitle, marginTop: (actions.length > 0 || others.length > 0 || office.length > 0 || messages.length > 0 || docGroups.length > 0) ? 20 : 16 }}>
               בהמשך - ייפתח אוטומטית
             </div>
             {groupsIn('future').map(renderGroup)}

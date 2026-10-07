@@ -172,6 +172,49 @@ export const REP_REMINDER_DEFAULTS: Record<RepReminderAudience, RepReminderConfi
   portal: { enabled: false, afterDays: 10, maxReminders: 1 },
 };
 
+/**
+ * 224 · תזכורת «אישור ייפוי הכוח בביטוח הלאומי» — הנוסח. טקסט בלבד (בלי HTML); הפונקציה
+ * ששולחת מסמנת ומעטפת. ‼ כשבני הזוג מיוצגים שניהם בב"ל המייל לרוב משותף, ותזכורת בלי שם
+ * נקראת כשל השני — ולכן אז היא אומרת של מי האישור, של מי המספר, ושלכל אחד מספר משלו.
+ * ‼ בלי מין דקדוקי («של יאיר»): בכרטיס אין מין לבן/בת הזוג.
+ */
+export function niReminderCopy(input: {
+  referenceNumber: string;
+  /** תאריך מוכן לתצוגה (dd.mm.yyyy), או ריק. */
+  deadline?: string;
+  /** השם הפרטי של האדם שהאסמכתא שלו. */
+  personFirst?: string;
+  /** שני בני הזוג מיוצגים בב"ל. */
+  couple: boolean;
+}): { subject: string; heading: string; lines: string[] } {
+  const who = String(input.personFirst ?? '').trim();
+  const named = input.couple && !!who;
+  const ref = String(input.referenceNumber ?? '').trim();
+  const deadline = input.deadline ? `יש לאשר עד ${input.deadline}.` : '';
+  if (!named) {
+    return {
+      subject: 'תזכורת - אישור ייפוי הכוח בביטוח הלאומי עדיין ממתין',
+      heading: 'תזכורת קטנה',
+      lines: [
+        `אישור ייפוי הכוח מול הביטוח הלאומי עדיין לא התקבל. מספר האסמכתא: ${ref}.`,
+        ...(deadline ? [deadline] : []),
+        '',
+        'אפשר לאשר באתר הביטוח הלאומי, או בטלפון 02-5393740.',
+      ],
+    };
+  }
+  return {
+    subject: `תזכורת - אישור ייפוי הכוח של ${who} בביטוח הלאומי עדיין ממתין`,
+    heading: `תזכורת קטנה, ${who}`,
+    lines: [
+      `אישור ייפוי הכוח של ${who} מול הביטוח הלאומי עדיין לא התקבל. מספר האסמכתא של ${who}: ${ref}.`,
+      ...(deadline ? [deadline] : []),
+      '',
+      `לכל אחד מבני הזוג מספר אסמכתא נפרד ואישור נפרד. מאשרים באתר הביטוח הלאומי עם תעודת הזהות של ${who} ומספר האסמכתא, או בטלפון 02-5393740.`,
+    ],
+  };
+}
+
 export function resolveRepReminderConfig(
   audience: RepReminderAudience,
   override?: Partial<RepReminderConfig> | null,
