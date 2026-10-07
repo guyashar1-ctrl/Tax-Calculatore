@@ -1,3 +1,12 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex">
+<!-- מפת הדרך לעצמאות · הלשונית «מפת הדרך» ב-PIVO מציגה את הדף הזה במסגרת ושומרת ב-vision_docs (227).
+     הסבר מלא: docs/vision/README.md -->
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
 <title>מפת הדרך לעצמאות</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -575,7 +584,8 @@ button.jrow:hover{background:var(--sunk)}
   *,*::before,*::after{animation-duration:.01ms !important;animation-iteration-count:1 !important;animation-delay:0ms !important;transition-duration:.01ms !important}
 }
 </style>
-
+</head>
+<body>
 <div class="banner" id="banner" hidden></div>
 <main class="wrap" id="main">
   <header class="hero" id="hero"></header>
@@ -598,6 +608,17 @@ button.jrow:hover{background:var(--sunk)}
 <script>
 (() => {
 'use strict';
+
+/* ═══ איפה הדף רץ ════════════════════════════════════════════════
+   בתוך PIVO: הלשונית «מפת הדרך» מציגה את הדף במסגרת ונותנת לו מקום לשמור (vision_docs, 227).
+   ב-Claude: window.claude. לבד (קובץ או בדיקה): בדפדפן בלבד. */
+function pivoHost() { try { return window.parent !== window && window.parent.__pivoVision ? window.parent.__pivoVision : null; } catch (_) { return null; } }
+const HOST = pivoHost() ? 'pivo' : window.claude && typeof window.claude.use === 'function' ? 'claude' : 'file';
+const hostApi = () => HOST === 'pivo' ? pivoHost() : HOST === 'claude' ? window.claude : null;
+// נפתח ישירות מהשרת של PIVO, לא בתוך הלשונית: אין כאן שמירה, אז עוברים ללשונית
+if (HOST === 'file' && /^\/vision(\/|$)/.test(location.pathname)) { location.replace('/#/vision'); return; }
+// הערכה הכהה/הבהירה של PIVO חלה גם כאן
+if (HOST === 'pivo') { try { const pd = window.parent.document.documentElement, sync = () => { if (pd.dataset.theme) document.documentElement.dataset.theme = pd.dataset.theme; else delete document.documentElement.dataset.theme; }; sync(); new MutationObserver(sync).observe(pd, {attributes: true, attributeFilter: ['data-theme']}); } catch (_) {} }
 
 /* ═══ עזרים ═══════════════════════════════════════════════════════ */
 const $ = (s, el = document) => el.querySelector(s);
@@ -676,7 +697,7 @@ const planCoPaying = m => m <= M_DEC26 ? 0 : planCo(m);
 const planMRR = m => planIndiv(m) * 400 + planCoPaying(m) * 1000;
 const GOALS = {2026: {indiv: 8, co: 1, mrr: 3200, end: '2026-12-31', tI: 8, tC: 1}, 2027: {indiv: 32, co: 5, mrr: 17800, end: '2027-12-31', tI: 24, tC: 4}};
 const TARGETS = {leads: 3, meets: 2, quotes: 1};
-const WHY0 = 'לבנות פעם אחת ונכון, כדי שהזמן שלי יהיה שלי.';
+const WHY0 = 'בונים נכון. מעזים יותר. מרוויחים יותר';
 const TYPE = {patur: 'עוסק פטור', murshe: 'עוסק מורשה', company: 'חברה'};
 
 const PHASES = [
@@ -778,9 +799,8 @@ async function flush() {
     const keys = [...Store.dirty];
     Store.dirty.clear();
     try {
-      if (Store.mode === 'db') {
-        for (const k of keys) { const body = pack(k); Store.echo[k] = JSON.stringify(body); await Store.db.doc('vision/' + k).set(body); }
-      } else localWrite();
+      if (Store.mode === 'db') await Promise.all(keys.map(send));
+      else localWrite();
     } catch (e) { failed = e || {}; keys.forEach(k => Store.dirty.add(k)); }
   }
   Store.writing = false;
@@ -792,23 +812,40 @@ async function flush() {
   Store.retry = 0;
   setStatus(Store.mode === 'local' ? 'local' : 'saved');
 }
-function flushNow() { if (Store.dirty.size && Store.mode !== 'loading' && !UI.readOnly) { clearTimeout(Store.timer); flush(); } }
+function send(k) { const body = pack(k); Store.echo[k] = JSON.stringify(body); return Store.db.doc('vision/' + k).set(body); }
+// ‼ הדף עלול להיעלם עכשיו: ב-PIVO מעבר ללשונית אחרת מסיר את המסגרת, ומה שחיכה בתוכה לא ממשיך.
+//   לכן כל מה שעוד לא נשמר יוצא מיד, במכה אחת. PIVO שומר על הסדר של כל מסמך.
+function flushNow() {
+  if (!Store.dirty.size || Store.mode === 'loading' || UI.readOnly) return;
+  clearTimeout(Store.timer);
+  if (HOST !== 'pivo' || Store.mode !== 'db') { flush(); return; }
+  const keys = [...Store.dirty];
+  Store.dirty.clear();
+  Promise.all(keys.map(send)).then(
+    () => { if (!Store.dirty.size && !Store.writing) setStatus('saved'); },
+    () => { keys.forEach(k => Store.dirty.add(k)); flush(); });
+}
 addEventListener('pagehide', flushNow);
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flushNow(); });
+// ‼ מאזינים של דף שנסגר או נטען מחדש לא נשארים אצל המארח
+const unsubs = [];
+addEventListener('pagehide', () => { unsubs.splice(0).forEach(u => { try { u(); } catch (_) {} }); });
+addEventListener('pageshow', e => { if (e.persisted && Store.mode === 'db' && !unsubs.length) subscribe(); });
 function subscribe() {
   for (const k of Store.docs) {
-    Store.db.doc('vision/' + k).onSnapshot(snap => {
+    unsubs.push(Store.db.doc('vision/' + k).onSnapshot(snap => {
       if (snap.metadata.hasPendingWrites || snap.metadata.fromCache) return;
       const body = snap.exists ? snap.data() : null, txt = body ? JSON.stringify(body) : null;
       if (txt === Store.echo[k] || Store.dirty.has(k) || Store.writing) return;
       Store.echo[k] = txt;
       unpack(k, body);
       requestRender();
-    }, () => {});
+    }, () => {}));
   }
 }
 function setStatus(s) { Store.status = s; const el = $('#saveState'); if (el) el.outerHTML = statusHTML(); }
 function statusHTML() {
+  if (Store.status === 'failed') return '<span class="saved error" id="saveState" role="status"><i aria-hidden="true"></i>לא הצלחתי לטעון את הנתונים. בדוק את החיבור ונסה שוב.</span>';
   if (UI.readOnly) return '';
   const map = {loading: ['saving', 'טוען את הנתונים שלך…'], saving: ['saving', 'שומר…'], saved: ['', 'נשמר'], idle: ['', 'הכול נשמר'],
     local: ['local', Store.outside ? 'כאן הנתונים נשמרים רק בדפדפן הזה. מה ששמור בחשבון שלך מופיע כשפותחים את הדף מתוך Claude.' : 'נשמר בדפדפן הזה בלבד'], error: ['error', 'השמירה לא הצליחה. השינויים עדיין על המסך; נסה שוב בעוד רגע.'], full: ['error', 'אין מקום לשמור עוד.']};
@@ -1411,7 +1448,7 @@ function renderLog() {
   const shown = UI.logAll ? weeks : weeks.slice(0, 8);
   let rows = '', lastM = null;
   for (const w of shown) { const mk = w.slice(0, 7); if (mk !== lastM) { rows += monthRowHTML(mk); lastM = mk; } rows += weekRowHTML(w); }
-  el.innerHTML = `<div class="sec-head"><div><h2 class="sec-title" id="t-log">היומן השבועי</h2><p class="sec-sub">כל שבוע שנסגר בחמישי: ההצלחה שלו, ומי הצטרף.</p></div></div>
+  el.innerHTML = `<div class="sec-head"><div><h2 class="sec-title" id="t-log">היומן השבועי</h2>${weeks.length ? '<p class="sec-sub">כל שבוע שנסגר בחמישי: ההצלחה שלו, ומי הצטרף.</p>' : ''}</div></div>
     ${weeks.length ? `<ul class="journal">${rows}</ul>` : UI.ready ? '<p class="log-first">כאן יופיע כל שבוע שתסגור בחמישי: ההצלחה שלו, מה עשית, ומי הצטרף ובאיזה סכום.</p>' : ''}
     ${weeks.length > 8 ? `<div class="log-foot"><button class="btn ghost sm" type="button" data-act="logAll">${UI.logAll ? 'הצג רק את 8 השבועות האחרונים' : `הצג את כל ${weeks.length} השבועות`}</button></div>` : ''}`;
   UI.flashWeek = null;
@@ -1419,7 +1456,7 @@ function renderLog() {
 
 /* ═══ תחתית ═══════════════════════════════════════════════════════ */
 function renderFoot() {
-  $('#foot').innerHTML = `${statusHTML()}${UI.readOnly ? '<span>הדף הזה אישי; הנתונים מוצגים רק לבעלים.</span>' : `<span class="foot-actions"><button class="linkbtn quiet" type="button" data-act="print">${ICON.print}גרסה להדפסה</button><button class="linkbtn quiet" type="button" data-act="reset">להתחיל מחדש</button></span>`}`;
+  $('#foot').innerHTML = `${statusHTML()}${Store.status === 'failed' ? '<span class="foot-actions"><button class="linkbtn quiet" type="button" data-act="retryLoad">נסה שוב</button></span>' : UI.readOnly ? '<span>הדף הזה אישי; הנתונים מוצגים רק לבעלים.</span>' : `<span class="foot-actions"><button class="linkbtn quiet" type="button" data-act="print">${ICON.print}גרסה להדפסה</button><button class="linkbtn quiet" type="button" data-act="reset">להתחיל מחדש</button></span>`}`;
 }
 
 /* ═══ חלונות ══════════════════════════════════════════════════════ */
@@ -1925,8 +1962,8 @@ function openPrint() {
   $('#toast').classList.remove('show');
   const host = $('#pviewHost');
   host.innerHTML = `<div class="pview" role="dialog" aria-modal="true" aria-labelledby="pvTitle">
-    <div class="pbar"><div><div class="pbar-t" id="pvTitle">גרסה להדפסה · עמוד A4 אחד</div><p class="sec-sub">מורידים את הקובץ, פותחים אותו, וחלון ההדפסה נפתח לבד. נשאר קריא גם בשחור־לבן.</p></div>
-      <div class="pbar-actions"><button class="btn primary" type="button" id="pvDown">${ICON.down}הורד קובץ להדפסה</button><button class="btn" type="button" id="pvClose">סגור</button></div></div>
+    <div class="pbar"><div><div class="pbar-t" id="pvTitle">גרסה להדפסה · עמוד A4 אחד</div><p class="sec-sub">${HOST === 'claude' ? 'מורידים את הקובץ, פותחים אותו, וחלון ההדפסה נפתח לבד.' : 'חלון ההדפסה של הדפדפן ייפתח; אפשר להדפיס או לשמור כ־PDF.'} נשאר קריא גם בשחור־לבן.</p></div>
+      <div class="pbar-actions"><button class="btn primary" type="button" id="pvDown">${HOST === 'claude' ? `${ICON.down}הורד קובץ להדפסה` : `${ICON.print}הדפס`}</button><button class="btn" type="button" id="pvClose">סגור</button></div></div>
     <div class="pstage" id="pstage"><div class="a4-holder" id="a4h"></div></div></div>`;
   const holder = $('#a4h'); fillSheet(holder);
   const fit = () => { const st = $('#pstage'); if (!st) return; const a4 = holder.querySelector('.a4'); const w = a4.offsetWidth, h = a4.offsetHeight; const s = Math.min(1, (st.clientWidth - 32) / w); a4.style.transform = `scale(${s})`; holder.style.width = w * s + 'px'; holder.style.height = h * s + 'px'; };
@@ -1937,8 +1974,8 @@ function openPrint() {
 }
 async function downloadPrint() {
   const name = `מפת-הדרך-${V.asOf}.html`, html = printDoc();
-  const C = window.claude;
-  if (C && typeof C.use === 'function') {
+  const C = HOST === 'claude' ? window.claude : null;
+  if (C) {
     const dl = await C.use('downloads').catch(() => null);
     if (dl) {
       try { await dl.save({filename: name, data: html}); toast('הקובץ ירד. פתח אותו, וחלון ההדפסה ייפתח.'); }
@@ -2037,6 +2074,7 @@ document.addEventListener('click', e => {
   else if (act === 'row') { const w = t.dataset.w, o = new Set(openSet()); o.has(w) ? o.delete(w) : o.add(w); UI.openWeeks = o; renderLog(); $(`#log .jrow[data-w="${w}"]`)?.focus({preventScroll: true}); }
   else if (act === 'logAll') { UI.logAll = !UI.logAll; renderLog(); }
   else if (act === 'print') openPrint();
+  else if (act === 'retryLoad') location.reload();
   else if (act === 'startReal') openConfirm('להתחיל עם הנתונים שלך?', 'נתוני הדוגמה יימחקו, והדף יחכה ללקוחות, לתהליכים ולשבועות שלך.', 'מחק את הדוגמה והתחל', resetAll);
   else if (act === 'reset') openConfirm('להתחיל מחדש?', 'כל מה שבדף יימחק: לקוחות, תהליכים, סיכומים ואבני דרך שסימנת. אי אפשר לבטל את זה.', 'מחק הכול והתחל מחדש', resetAll);
 });
@@ -2080,8 +2118,8 @@ document.addEventListener('change', e => {
   if (t.dataset.act === 'ms') { S.ms[t.dataset.id] = t.checked ? V.asOf : 'none'; save('meta'); renderAll(); if (t.checked) toast('אבן דרך סומנה כהושגה.'); }
   if (t.dataset.act === 'msSub') { S.ms[`${t.dataset.id}:${t.dataset.i}`] = t.checked ? V.asOf : 'none'; save('meta'); renderAll(); }
 });
-let whyT;
-document.addEventListener('input', e => { if (e.target.id === 'why') { S.why = e.target.textContent.trim() || null; clearTimeout(whyT); whyT = setTimeout(() => save('meta'), 600); } });
+// ‼ נכנס לתור השמירה מיד (save ממתין חצי שנייה בעצמו) — מה שעוד חיכה כאן היה נעלם ביציאה מהדף
+document.addEventListener('input', e => { if (e.target.id === 'why') { S.why = e.target.textContent.trim() || null; save('meta'); } });
 document.addEventListener('focusout', e => { if (e.target.id === 'why') { fillSheet($('#printRoot')); if (!S.why) setTimeout(renderHero, 0); } });
 
 // טולטיפים
@@ -2119,9 +2157,9 @@ setInterval(() => { const c = clock(); if (V && (c.date !== V.asOf || (c.time >=
 const a4style = document.createElement('style'); a4style.textContent = A4_CSS; document.head.append(a4style);
 async function boot() {
   renderAll();
-  const C = window.claude;
+  const C = hostApi();
   let db = null, user = null;
-  if (C && typeof C.use === 'function') {
+  if (C) {
     [db, user] = await Promise.all([C.use('db').catch(() => null), C.use('user').catch(() => null)]);
   }
   if (db) {
@@ -2133,11 +2171,17 @@ async function boot() {
       Store.docs = docs;
       Store.db = db; Store.mode = 'db'; Store.status = 'idle';
       subscribe();
-    } catch (_) { Store.mode = 'local'; Store.status = 'local'; Store.outside = true; localRead(); }
-  } else { Store.mode = 'local'; Store.status = 'local'; Store.outside = !!(C && typeof C.use === 'function'); localRead(); }
+    } catch (_) {
+      // ‼ ב-PIVO אסור ליפול בשקט לשמירה בדפדפן: מה שייכתב כאן ייעלם מהטלפון ומהמחשב השני
+      if (HOST === 'pivo') { Store.mode = 'failed'; Store.status = 'failed'; UI.readOnly = true; }
+      else { Store.mode = 'local'; Store.status = 'local'; Store.outside = true; localRead(); }
+    }
+  } else { Store.mode = 'local'; Store.status = 'local'; Store.outside = HOST === 'claude'; localRead(); }
   UI.ready = true; UI.anim = {ring: true, wall: true, hero: false};
   renderAll();
 }
 boot();
 })();
 </script>
+</body>
+</html>

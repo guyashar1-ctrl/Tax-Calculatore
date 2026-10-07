@@ -18,7 +18,9 @@ export type View =
   | 'requestReview'
   | 'requestFill'
   | 'quotations'
-  | 'quotationBuilder';
+  | 'quotationBuilder'
+  /** מפת הדרך לעצמאות — הדף האישי (public/vision, 227) */
+  | 'vision';
 
 export interface AppRoute {
   view: View;
@@ -56,6 +58,7 @@ const SLUG_BY_VIEW: Record<View, string> = {
   requestFill: 'request-fill',
   quotations: 'quotations',
   quotationBuilder: 'quotation',
+  vision: 'vision',
 };
 
 const VIEW_BY_SLUG = Object.fromEntries(

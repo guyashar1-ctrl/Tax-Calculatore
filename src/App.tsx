@@ -109,6 +109,7 @@ import RepresentationRequestReview from './components/RepresentationRequestRevie
 // ל-DocumentsWorkspace, אבל מסך המסמכים הגלובלי (view === 'documents') עדיין
 // מרנדר אותו. אל תמחק אותו בהסתמך על ההערה הזו.
 import TasksWorkspace from './components/TasksWorkspace';
+import VisionPage from './components/VisionPage';
 import TaskForm from './components/TaskForm';
 import LoginScreen from './components/LoginScreen';
 import NoAccessScreen from './components/NoAccessScreen';
@@ -701,6 +702,10 @@ export default function App() {
   // המסך שבו נמצאים נקרא מהכתובת, כדי שרענון (F5) יחזיר לאותו מקום
   const initialRoute = useRef(parseHash(window.location.hash)).current;
   const [view, setViewRaw] = useState<View>(initialRoute.view);
+  // ‼ «מפת הדרך» (227) נשארת פתוחה ברקע אחרי הביקור הראשון: מעבר ללשונית אחרת לא
+  // מוחק סיכום שבוע שבאמצע כתיבה, והחזרה אליה מיידית ובאותו מקום.
+  const [visionKept, setVisionKept] = useState(view === 'vision');
+  if (view === 'vision' && !visionKept) setVisionKept(true);
   /** העמוד בתוך «המשרד» — חלק מהכתובת, כדי ש«אחורה» ו-F5 יחזירו אליו. */
   const [officePage, setOfficePage] = useState<string | null>(initialRoute.officePage ?? null);
   /** מה לפתוח בעמוד המשרד (‎#/firm/library/request:…‎, ‎#/firm/flows/flow:…‎) — קישור עמוק מבקשה תקועה. */
@@ -2582,11 +2587,13 @@ export default function App() {
     ? [
         { id: 'list', label: 'לקוחות' },
         { id: 'tasks', label: 'משימות', badge: openTasksCount > 0 ? openTasksCount : undefined },
+        { id: 'vision', label: 'מפת הדרך' },
       ]
     : [
         { id: 'tasks', label: 'משימות', badge: openTasksCount > 0 ? openTasksCount : undefined },
         { id: 'list', label: 'לקוחות' },
         { id: 'quotations', label: 'הצעות ולידים' },
+        { id: 'vision', label: 'מפת הדרך' },
       ];
 
   return (
@@ -2820,10 +2827,12 @@ export default function App() {
         </div>
       </header>
 
-      <main className="main">
+      <main className={view === 'vision' ? 'main main--bleed' : 'main'}>
         <ErrorBoundary resetKey={view}>
         <LegacyMigrationBanner knownClientIds={new Set(clients.map(c => c.id))} />
         <FailedNotificationsBanner failures={failedNotifications} />
+
+        {visionKept && <VisionPage userId={user.id} active={view === 'vision'} />}
 
         {view === 'tasks' && (
           <TasksWorkspace
