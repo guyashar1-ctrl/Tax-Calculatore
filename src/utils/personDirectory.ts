@@ -12,6 +12,7 @@ import type { Lead } from '../types/quotations';
 import type { AdditionalCharge } from '../types/charges';
 import { CHARGE_STATUS_LABELS } from '../types/charges';
 import { squash, normalizePhone, normalizeEmail, normalizeIdNumber } from './identity';
+import { cueEmailKey } from '../features/meetings/meetingModel';
 
 export type PersonBadgeCls = 'active' | 'rep' | 'quote' | 'new' | 'gray';
 
@@ -126,6 +127,7 @@ function chargesCue(charges: AdditionalCharge[]): string | null {
 /**
  * meetingCues — הפגישה הקרובה לכל לקוח/ליד (features/meetings/meetingModel.meetingCueByPerson).
  * ‼ ליד שנוצר מזימון בוואטסאפ נראה ברשימה עם «שיחת היכרות · יום ה׳…» ולא רק «נוצר היום».
+ * ‼ לקוח שהומר מליד — גם פגישה שנקבעה עוד כשהיה ליד; ליד שהופרד מפנייה משותפת — לפי המייל.
  */
 export function buildPersonRows(clients: Client[], leads: Lead[], charges: AdditionalCharge[] = [],
   meetingCues: Map<string, string> = new Map()): PersonRow[] {
@@ -160,7 +162,9 @@ export function buildPersonRows(clients: Client[], leads: Lead[], charges: Addit
       phone: c.phone || undefined,
       email: c.email || undefined,
       badge: clientBadge(c),
-      cue: chargesCue(clientCharges) ?? meetingCues.get(c.id) ?? relativeCue('עודכן', c.updatedAt ?? c.createdAt),
+      cue: chargesCue(clientCharges) ?? meetingCues.get(c.id)
+        ?? (c.mergedFromLeadId ? meetingCues.get(c.mergedFromLeadId) : undefined)
+        ?? relativeCue('עודכן', c.updatedAt ?? c.createdAt),
       hidden: c.lifecycleStage === 'archived',
       possibleMatch: false,
       client: c,
@@ -183,14 +187,15 @@ export function buildPersonRows(clients: Client[], leads: Lead[], charges: Addit
       phone: l.phone || undefined,
       email: l.email || undefined,
       badge: leadBadge(l),
-      cue: meetingCues.get(l.id) ?? relativeCue('נוצר', l.createdAt),
+      cue: meetingCues.get(l.id) ?? (l.email ? meetingCues.get(cueEmailKey(l.email)) : undefined) ?? relativeCue('נוצר', l.createdAt),
       hidden: l.status === 'closed',
       possibleMatch: !!l.matchClientId,
       matchClientId: l.matchClientId,
       lead: l,
       charges: [],
+      // ‼ האנשים הנוספים בפנייה (224) נמצאים בחיפוש — מי שמחפש את «מיכל» מוצא את הפנייה של אבי.
       haystack: buildHaystack(name, undefined, l.phone, l.email, undefined,
-        [l.businessName ?? '']),
+        [l.businessName ?? '', ...(l.companions ?? []).flatMap(c => [c.name ?? '', c.email])]),
     });
   }
 

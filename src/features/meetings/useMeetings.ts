@@ -5,9 +5,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { meetingFromDb, meetingErrorText, type GoogleConnection, type Meeting } from './meetingModel';
+import type { PeopleOutcome } from '../../../supabase/functions/_shared/meetingCore';
 
 export type MeetingReply =
-  | { ok: true; meeting: Meeting }
+  | { ok: true; meeting: Meeting; people?: PeopleOutcome }
   | { ok: false; error: string; text: string };
 
 async function replyBody(data: unknown, error: unknown): Promise<Record<string, any> | null> {
@@ -89,7 +90,7 @@ export function useMeetings(userId: string | undefined): MeetingsApi {
     const r = await callMeetingFunction({ action, ...body });
     // ‼ גם בכישלון — השורה בשרת אולי השתנתה (נכשל / לא ידוע), והרשימה צריכה להראות את זה.
     await refresh();
-    if (r.ok && r.meeting) return { ok: true, meeting: meetingFromDb(r.meeting) };
+    if (r.ok && r.meeting) return { ok: true, meeting: meetingFromDb(r.meeting), ...(r.people ? { people: r.people as PeopleOutcome } : {}) };
     return { ok: false, error: String(r.error ?? ''), text: meetingErrorText(r) };
   }, [refresh]);
 

@@ -31,6 +31,21 @@
 .mt-guest-mail { font-size: var(--fs-14); overflow-wrap: anywhere; text-align: start; }
 .mt-guest-who { font-size: var(--fs-12); color: var(--ink-3); }
 .mt-guest-who.is-known { color: var(--accent); }
+/* (224) שורה שנייה במוזמן: הקשר בפנייה / «שמור כאיש קשר» — לכל הרוחב. */
+.mt-guest-extra { grid-column: 1 / -1; display: grid; gap: 6px; font-size: var(--fs-13); color: var(--ink-2); }
+label.mt-guest-extra { grid-template-columns: auto minmax(0, 1fr); align-items: center; }
+.mt-check-line { display: flex; align-items: center; gap: 8px; cursor: pointer; min-height: 32px; }
+.mt-check-line input { width: 18px; height: 18px; margin: 0; flex: none; }
+.mt-contact-fields { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--sp-2); }
+
+/* חיפוש לפי שם בתיבת «עם מי?» */
+.mt-name-hits { display: grid; gap: 4px; }
+.mt-name-hit {
+  display: grid; gap: 2px; text-align: start; padding: 8px 10px; cursor: pointer; font: inherit; color: var(--ink-1);
+  border: 1px solid var(--hairline-1); border-radius: var(--r-input); background: var(--surface-0); min-height: 44px;
+}
+.mt-name-hit:hover, .mt-name-hit:focus-visible { border-color: var(--accent); }
+.mt-name-hit small { font-size: var(--fs-12); color: var(--ink-3); }
 
 .mt-seg { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
 .mt-seg button {
@@ -147,7 +162,8 @@
   .mt-when-row { grid-template-columns: 1fr 1fr; }
   .mt-when-row .mt-field:first-child { grid-column: 1 / -1; }
   .mt-guest { grid-template-columns: minmax(0, 1fr) auto; }
-  .mt-guest .inp { grid-column: 1 / -1; grid-row: 2; }
+  .mt-guest > .inp { grid-column: 1 / -1; grid-row: 2; }
+  label.mt-guest-extra, .mt-contact-fields { grid-template-columns: minmax(0, 1fr); }
   .mt-row { grid-template-columns: 52px minmax(0, 1fr); align-items: start; }
   .mt-row > .mt-row-acts { grid-column: 1 / -1; }
   .mt-row > .mt-row-acts .ui-btn { flex: 1 1 auto; min-height: 36px; }

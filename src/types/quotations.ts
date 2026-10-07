@@ -40,8 +40,22 @@ export interface Lead {
    */
   matchClientId?: string;
   matchKind?: 'email';
+  /**
+   * האנשים הנוספים באותה פנייה (224) — שותף/ה, בן/בת זוג… נשמרים מזימון לשיחת היכרות
+   * עם כמה מיילים. «הפרד לליד נפרד» (split_lead_companion) הופך אדם לליד משלו;
+   * בהמרה ללקוח הם עוברים ל«אנשי קשר נוספים» בכרטיס.
+   */
+  companions?: LeadCompanion[];
+  /** ליד שהופרד מפנייה משותפת — הליד שממנו בא. */
+  splitFromLeadId?: string;
   createdAt?: string;
   updatedAt?: string;
+}
+
+export interface LeadCompanion {
+  email: string;
+  name?: string;
+  relation: import('../../supabase/functions/_shared/meetingCore').CompanionRelation;
 }
 
 export const LEAD_STATUS_LABELS: Record<LeadStatus, string> = {

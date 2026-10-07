@@ -76,7 +76,8 @@ import { unfiledBlocking } from './types/onboarding';
 import { applySecondaryLevels } from './types/quotations';
 import { currentEngagement } from './utils/engagementSelectors';
 import { tasksPageMineCount } from './utils/tasksPage';
-import { linkLeadToClient } from './lib/leadLink';
+import { linkLeadToClient, splitLeadCompanion } from './lib/leadLink';
+import { useContacts } from './features/contacts/useContacts';
 import { deriveQuotationBrand } from './components/quotations/quotationBranding';
 import { calcTotals } from './utils/quotationCalc';
 import { buildQuotationEmailHtml } from './utils/quotationEmailHtml';
@@ -708,6 +709,8 @@ export default function App() {
   const meetingsApi = useMeetings(user?.id);
   const [meetingDialog, setMeetingDialog] = useState<MeetingDialogMode | null>(null);
   const meetingCues = useMemo(() => meetingCueByPerson(meetingsApi.meetings), [meetingsApi.meetings]);
+  // ── אנשי קשר (224): רו״ח אחר, עו״ד… — לשונית בתוך «לקוחות», ומוכרים בחלון הפגישה ──
+  const contactsApi = useContacts(user?.id);
   const viewRef = useRef(view);
   viewRef.current = view;
   /**
@@ -2882,6 +2885,14 @@ export default function App() {
             onRequestChargePayment={requestChargePayment}
             onMarkChargePaid={async (charge) => { await markChargePaid(charge); }}
             meetingCues={meetingCues}
+            contactsApi={contactsApi}
+            meetings={meetingsApi.meetings}
+            onNewMeeting={(preset) => setMeetingDialog({ kind: 'new', ...preset })}
+            onSplitCompanion={async (lead, email, name) => {
+              const r = await splitLeadCompanion(lead.id, email, name);
+              if (r.ok || r.error === 'is_client') await refreshLeads();
+              return r;
+            }}
           />
         )}
 
@@ -2946,7 +2957,10 @@ export default function App() {
             onAddTaskForClient={(clientId, presetTitle) => openNewTaskModal(clientId, presetTitle)}
             onNewMeeting={(clientId) => setMeetingDialog({ kind: 'new', clientId })}
             nextMeetingLabel={(() => {
-              const next = upcomingMeetings(meetingsApi.meetings).find(m => m.clientId === selectedClient?.id);
+              // ‼ גם פגישה שנקבעה כשהכרטיס עוד היה ליד (הפגישה שייכת לליד המקורי).
+              const fromLead = selectedClient ? leadIdByClient.get(selectedClient.id) ?? selectedClient.mergedFromLeadId : undefined;
+              const next = upcomingMeetings(meetingsApi.meetings)
+                .find(m => m.clientId === selectedClient?.id || (!!fromLead && m.leadId === fromLead));
               return next ? `${next.kind === 'intro' ? 'שיחת היכרות' : 'פגישה'} · ${meetingWhen(next).label}` : undefined;
             })()}
             onSelectTask={openEditTaskModal}
@@ -3271,13 +3285,15 @@ export default function App() {
 
       {meetingDialog && (
         <MeetingDialog
-          key={meetingDialog.kind === 'move' ? meetingDialog.meeting.id : `new-${meetingDialog.clientId ?? ''}`}
+          key={meetingDialog.kind === 'move' ? meetingDialog.meeting.id
+            : `new-${meetingDialog.clientId ?? ''}-${meetingDialog.leadId ?? ''}-${meetingDialog.contactId ?? ''}`}
           mode={meetingDialog}
           clients={clients}
           leads={leads}
+          contacts={contactsApi.contacts}
           profile={firmProfile ?? null}
           api={meetingsApi}
-          onClose={() => { setMeetingDialog(null); void refreshLeads(); }}
+          onClose={() => { setMeetingDialog(null); void refreshLeads(); void contactsApi.refresh(); }}
           onOpenConnections={openGoogleConnections}
         />
       )}

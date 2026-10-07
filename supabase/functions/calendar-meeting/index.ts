@@ -7,7 +7,8 @@
 //   לשוניות או רשת שנפלה לא יוצרות אירוע שני: Google עונה 409 וקוראים את הקיים.
 // ‼ הנוסח נבנה כאן מ-_shared/meetingInvite.ts — אותו קוד שמצייר את התצוגה המקדימה.
 // ‼ ליד נוצר רק אחרי ש-Google קיבל, ורק במעבר הראשון ל-scheduled (עדכון מותנה) —
-//   שתי בקשות במקביל לא יוצרות שני לידים.
+//   שתי בקשות במקביל לא יוצרות שני לידים. באותו מעבר: האנשים הנוספים נשמרים בפנייה,
+//   ליד סגור חוזר להיות «חדש» (שיחת היכרות), ואנשי קשר שסומנו נשמרים (224).
 //
 // אבטחה: verify_jwt=false בשער; הרו"ח מזוהה מה-JWT ונבדק מול is_authorized.
 // כל פעולה על פגישה בודקת שהיא של אותו רו"ח.
@@ -21,8 +22,8 @@ import {
   type GoogleEndpoints, type GoogleEvent, type GoogleOutcome,
 } from "../_shared/googleCalendar.ts";
 import {
-  parseCreate, parseMove, matchPeople, syncFromEvent,
-  type HistoryEntry, type StoredGuest, type ClientRow, type LeadRow,
+  parseCreate, parseMove, matchPeople, mergeCompanions, syncFromEvent,
+  type HistoryEntry, type StoredGuest, type ClientRow, type LeadRow, type PeopleOutcome,
 } from "../_shared/meetingCore.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
@@ -267,26 +268,56 @@ Deno.serve(async (req: Request) => {
       if (!won) return reply(await loadMeeting(m.id));
 
       let final = won as MeetingRow;
+      const people: PeopleOutcome = { leadCreated: false, leadReopened: false, companionsAdded: 0, contactsSaved: 0 };
+      // ‼ אנשי קשר קודם: מי שנשמר כאיש קשר לא נעשה ליד ולא «אדם נוסף» בפנייה.
+      for (const c of input.saveContacts) {
+        const { error: cErr } = await admin.from("contacts").insert({
+          user_id: userId, full_name: c.fullName, email: c.email,
+          role: c.role || null, organization: c.organization || null,
+        });
+        if (!cErr) people.contactsSaved++;
+        else if (cErr.code !== "23505") console.error("[calendar-meeting] contact insert failed", cErr.code, cErr.message);
+      }
       if (!final.client_id) {
-        const [{ data: clients }, { data: leads }] = await Promise.all([
+        const [{ data: clients }, { data: leads }, { data: contacts }] = await Promise.all([
           admin.from("clients").select("id, email, spouse_email").eq("user_id", userId),
-          admin.from("leads").select("id, email, status").eq("user_id", userId),
+          admin.from("leads").select("id, email, status, companions, converted_client_id").eq("user_id", userId),
+          admin.from("contacts").select("email").eq("user_id", userId).not("email", "is", null),
         ]);
+        const leadRows = (leads ?? []) as LeadRow[];
         const match = matchPeople({
           kind: final.kind,
           guests: final.guests,
           clients: (clients ?? []) as ClientRow[],
-          leads: (leads ?? []) as LeadRow[],
+          leads: leadRows,
           explicitClientId: null,
+          contactEmails: ((contacts ?? []) as { email: string }[]).map(c => c.email),
+          relations: input.relations,
         });
         let leadId = match.leadId;
         if (match.newLead) {
           const { data: lead, error: leadErr } = await admin.from("leads").insert({
             user_id: userId, full_name: match.newLead.fullName, email: match.newLead.email,
-            status: "new", source: "accountant",
+            status: "new", source: "accountant", companions: match.newLead.companions,
           }).select("id").maybeSingle();
           if (leadErr) console.error("[calendar-meeting] lead insert failed", leadErr.code, leadErr.message);
           leadId = (lead?.id as string) ?? null;
+          people.leadCreated = !!leadId;
+          people.companionsAdded = leadId ? match.newLead.companions.length : 0;
+        } else if (leadId && (match.addCompanions.length || match.reopenLead)) {
+          const current = leadRows.find(l => l.id === leadId);
+          const patch: Record<string, unknown> = {};
+          if (match.addCompanions.length) patch.companions = mergeCompanions(current?.companions, match.addCompanions);
+          // ‼ רק סגור ⇒ חדש. ליד בשלב «נשלחה הצעה» לא חוזר אחורה.
+          if (match.reopenLead) patch.status = "new";
+          let q = admin.from("leads").update(patch).eq("id", leadId).eq("user_id", userId);
+          if (match.reopenLead) q = q.eq("status", "closed");
+          const { data: upd, error: updErr } = await q.select("id").maybeSingle();
+          if (updErr) console.error("[calendar-meeting] lead update failed", updErr.code, updErr.message);
+          if (upd) {
+            people.leadReopened = match.reopenLead;
+            people.companionsAdded = match.addCompanions.length;
+          }
         }
         if (match.clientId || leadId) {
           const { data: linked } = await admin.from("meetings")
@@ -294,7 +325,7 @@ Deno.serve(async (req: Request) => {
           if (linked) final = linked as MeetingRow;
         }
       }
-      return reply(final);
+      return json({ ok: true, meeting: final, people });
     }
 
     // ── שינוי מועד ────────────────────────────────────────────────────────────

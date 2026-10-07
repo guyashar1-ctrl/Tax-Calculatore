@@ -61,6 +61,21 @@ interface Props {
    * לא רק "טרם נטען" — התצוגה נופלת בחזרה לשדות השטוחים הישנים.
    */
   spouseClient?: Client;
+  /**
+   * «אנשים בפנייה» (224) — רק לליד: מי עוד הגיע איתו (שותף/ה, בן/בת זוג…), עם «הפרד לליד
+   * נפרד». ‼ ההפרדה אינה עריכה של הליד הזה — היא יוצרת ליד חדש (בשרת, באותה פעולה).
+   */
+  companions?: {
+    email: string;
+    name: string;
+    relation: string;
+    typedName: string;
+    onTypeName: (v: string) => void;
+    busy: boolean;
+    onSplit?: () => void;
+  }[];
+  /** ליד שהופרד מפנייה משותפת — שם הפונה המקורי. */
+  splitFrom?: string;
 }
 
 /** ‼ ההסבר המלא יושב ב-title ולא על המסך: מי שצריך אותו מרחף, ומי שלא —
@@ -211,6 +226,38 @@ export default function PersonQuickView(p: Props) {
 
         {niViaSpouseLine && (
           <div className="pd-regline">{niViaSpouseLine}</div>
+        )}
+
+        {p.splitFrom && <div className="pd-regline">הופרד/ה מהפנייה של <b>{p.splitFrom}</b></div>}
+
+        {row.kind === 'lead' && !!p.companions?.length && (
+          <div className="pd-section">
+            <div className="pd-st">אנשים בפנייה</div>
+            <div className="pd-people">
+              {p.companions.map(c => (
+                <div className="pd-person-card" key={c.email}>
+                  <div className="pd-person-top">
+                    <b>{c.name || 'בלי שם'}</b>
+                    {c.relation && <span className="pd-badge gray">{c.relation}</span>}
+                  </div>
+                  <div className="pd-person-mail pd-ltr">{c.email}</div>
+                  {c.onSplit && (
+                    <div className="pd-person-split">
+                      {!c.name && (
+                        <input className="inp" placeholder="שם מלא — כדי להפריד" aria-label={`שם עבור ${c.email}`}
+                          value={c.typedName} onChange={e => c.onTypeName(e.target.value)} />
+                      )}
+                      <button type="button" className="ui-linkbtn" disabled={c.busy || (!c.name && !c.typedName.trim())}
+                        onClick={c.onSplit}>
+                        {c.busy ? 'מפריד…' : 'הפרד לליד נפרד'}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+            <div className="pd-small">כשהפנייה מבשילה ורוצים לטפל בכל אחד בנפרד — מפרידים. אם הליד הופך ללקוח, הם עוברים ל«אנשי קשר נוספים» בכרטיס.</div>
+          </div>
         )}
 
         {row.kind === 'client' && !!p.charges?.length && (

@@ -7,6 +7,8 @@
 //   · state חתום: זיוף / תפוגה / חזרה לאתר זר — נדחים.
 //   · מזהה האירוע נגזר ממזהה הפגישה (לחיצה כפולה = אירוע אחד).
 //   · שיוך: לקוח קיים (גם במייל של בן/בת הזוג) גובר; ליד קיים לא משוכפל; ליד חדש רק בהיכרות ועם שם.
+//   · פנייה משותפת (224): האדם השני נשמר בליד («שותפים עסקיים» כברירת מחדל), מייל שלו מוביל
+//     לאותו ליד, ליד סגור נפתח בשיחת היכרות חדשה, ליד שהומר ⇒ הכרטיס, איש קשר שמור לא נעשה ליד.
 //   · עדכון מהיומן: תשובות, הזזה שנעשתה ביומן, ואירוע שנמחק ביומן.
 
 import { test, equal, assert, deepEqual } from '../../../testkit/tinyTest';
@@ -14,7 +16,7 @@ import type { TestCase } from '../../../testkit/tinyTest';
 import {
   googleCall, googleEndpoints, refreshAccessToken, signState, verifyState, safeReturnTo, eventIdFor, eventBody, rsvpFromGoogle,
 } from '../../../../supabase/functions/_shared/googleCalendar';
-import { parseCreate, parseMove, matchPeople, syncFromEvent } from '../../../../supabase/functions/_shared/meetingCore';
+import { parseCreate, parseMove, matchPeople, mergeCompanions, syncFromEvent } from '../../../../supabase/functions/_shared/meetingCore';
 
 const res = (status: number, body?: unknown) => async () => new Response(body === undefined ? null : JSON.stringify(body), { status });
 const PROD = 'https://uoweoqtuiettozagwgdw.supabase.co';
@@ -121,22 +123,89 @@ export const TESTS: TestCase[] = [
   test('שיוך: מייל של בן/בת זוג של לקוח ⇒ הכרטיס של הלקוח', () => {
     const m = matchPeople({ kind: 'intro', guests: [{ email: 'new@x.com', name: 'חדש' }, { email: 'spouse@x.com' }],
       clients: [{ id: 'c1', email: 'c@x.com', spouse_email: 'Spouse@X.com' }], leads: [], explicitClientId: null });
-    deepEqual(m, { clientId: 'c1', leadId: null, newLead: null });
+    deepEqual(m, { clientId: 'c1', leadId: null, newLead: null, addCompanions: [], reopenLead: false });
   }),
   test('שיוך: ליד קיים לא משוכפל; פתוח גובר על סגור', () => {
     const m = matchPeople({ kind: 'intro', guests: [{ email: 'd@x.com', name: 'דני' }], clients: [],
       leads: [{ id: 'l-closed', email: 'd@x.com', status: 'closed' }, { id: 'l-open', email: 'D@x.com', status: 'new' }], explicitClientId: null });
-    deepEqual(m, { clientId: null, leadId: 'l-open', newLead: null });
+    equal(m.leadId, 'l-open');
+    equal(m.newLead, null);
+    equal(m.reopenLead, false);
   }),
   test('שיוך: אדם חדש בשיחת היכרות עם שם ⇒ ליד חדש; בלי שם או בפגישת עבודה ⇒ לא', () => {
     const g = [{ email: 'd@x.com', name: 'דני לוי' }];
-    deepEqual(matchPeople({ kind: 'intro', guests: g, clients: [], leads: [], explicitClientId: null }).newLead, { fullName: 'דני לוי', email: 'd@x.com' });
+    deepEqual(matchPeople({ kind: 'intro', guests: g, clients: [], leads: [], explicitClientId: null }).newLead, { fullName: 'דני לוי', email: 'd@x.com', companions: [] });
     equal(matchPeople({ kind: 'intro', guests: [{ email: 'd@x.com' }], clients: [], leads: [], explicitClientId: null }).newLead, null);
     equal(matchPeople({ kind: 'work', guests: g, clients: [], leads: [], explicitClientId: null }).newLead, null);
   }),
   test('שיוך: לקוח שנבחר מהכרטיס גובר על הכול', () => {
     deepEqual(matchPeople({ kind: 'work', guests: [{ email: 'x@x.com' }], clients: [], leads: [], explicitClientId: 'c9' }),
-      { clientId: 'c9', leadId: null, newLead: null });
+      { clientId: 'c9', leadId: null, newLead: null, addCompanions: [], reopenLead: false });
+  }),
+  test('פנייה משותפת: האדם השני נשמר בליד החדש — «שותפים עסקיים» כברירת מחדל, או מה שנבחר', () => {
+    const m = matchPeople({ kind: 'intro', clients: [], leads: [], explicitClientId: null,
+      guests: [{ email: 'avi@x.com', name: 'אבי' }, { email: 'michal@x.com', name: 'מיכל' }, { email: 'ruth@x.com' }],
+      relations: { 'ruth@x.com': 'spouse' } });
+    deepEqual(m.newLead, { fullName: 'אבי', email: 'avi@x.com', companions: [
+      { email: 'michal@x.com', name: 'מיכל', relation: 'partner' },
+      { email: 'ruth@x.com', relation: 'spouse' },
+    ] });
+  }),
+  test('פנייה משותפת: מייל של אדם נוסף בפנייה ⇒ אותו ליד, בלי ליד שני', () => {
+    const leads = [{ id: 'l1', email: 'avi@x.com', status: 'new', companions: [{ email: 'Michal@x.com', name: 'מיכל', relation: 'partner' }] }];
+    const m = matchPeople({ kind: 'intro', guests: [{ email: 'michal@x.com', name: 'מיכל' }], clients: [], leads, explicitClientId: null });
+    equal(m.leadId, 'l1');
+    equal(m.newLead, null);
+    deepEqual(m.addCompanions, []);
+  }),
+  test('פנייה משותפת: אדם חדש בשיחה עם ליד קיים מצטרף לפנייה; מי שיש לו ליד משלו — לא', () => {
+    const leads = [{ id: 'l1', email: 'avi@x.com', status: 'new' }, { id: 'l2', email: 'dana@x.com', status: 'new' }];
+    const m = matchPeople({ kind: 'intro', clients: [], leads, explicitClientId: null,
+      guests: [{ email: 'avi@x.com' }, { email: 'new@x.com', name: 'חדש' }, { email: 'dana@x.com' }] });
+    equal(m.leadId, 'l1');
+    deepEqual(m.addCompanions, [{ email: 'new@x.com', name: 'חדש', relation: 'partner' }]);
+    deepEqual(matchPeople({ kind: 'work', clients: [], leads, explicitClientId: null,
+      guests: [{ email: 'avi@x.com' }, { email: 'new@x.com' }] }).addCompanions, [], 'בפגישת עבודה לא מוסיפים לפנייה');
+  }),
+  test('ליד סגור: שיחת היכרות חדשה ⇒ נפתח מחדש; פגישת עבודה ⇒ לא', () => {
+    const leads = [{ id: 'l1', email: 'avi@x.com', status: 'closed' }];
+    equal(matchPeople({ kind: 'intro', guests: [{ email: 'avi@x.com' }], clients: [], leads, explicitClientId: null }).reopenLead, true);
+    equal(matchPeople({ kind: 'work', guests: [{ email: 'avi@x.com' }], clients: [], leads, explicitClientId: null }).reopenLead, false);
+    equal(matchPeople({ kind: 'intro', guests: [{ email: 'avi@x.com' }], clients: [], leads: [{ ...leads[0], status: 'quoted' }], explicitClientId: null }).reopenLead, false);
+  }),
+  test('ליד שהומר ⇒ הפגישה בכרטיס שנוצר ממנו', () => {
+    const m = matchPeople({ kind: 'intro', guests: [{ email: 'avi@x.com', name: 'אבי' }], clients: [], explicitClientId: null,
+      leads: [{ id: 'l1', email: 'avi@x.com', status: 'converted', converted_client_id: 'c7' }] });
+    equal(m.clientId, 'c7');
+    equal(m.newLead, null);
+  }),
+  test('איש קשר שמור לא נעשה ליד, ולא נכנס כאדם נוסף בפנייה', () => {
+    const m = matchPeople({ kind: 'intro', clients: [], leads: [], explicitClientId: null, contactEmails: ['CPA@x.com'],
+      guests: [{ email: 'cpa@x.com', name: 'דנה רו״ח' }] });
+    equal(m.newLead, null);
+    const m2 = matchPeople({ kind: 'intro', clients: [], leads: [], explicitClientId: null, contactEmails: ['cpa@x.com'],
+      guests: [{ email: 'avi@x.com', name: 'אבי' }, { email: 'cpa@x.com', name: 'דנה' }] });
+    deepEqual(m2.newLead?.companions, []);
+  }),
+  test('איחוד אנשים בפנייה: בלי כפילות, מה שנשמר נשאר', () => {
+    deepEqual(mergeCompanions([{ email: 'A@x.com', name: 'א', relation: 'spouse' }], [
+      { email: 'a@x.com', relation: 'partner' }, { email: 'b@x.com', relation: 'other' },
+    ]), [{ email: 'a@x.com', name: 'א', relation: 'spouse' }, { email: 'b@x.com', relation: 'other' }]);
+  }),
+  test('קלט: הקשר נקרא רק למוזמן השני והלאה; איש קשר דורש שם', () => {
+    const base = { id: UUID, kind: 'work', date: '2026-10-08', time: '10:00', durationMin: 30 };
+    const p = parseCreate({ ...base, guests: [
+      { email: 'a@x.com', relation: 'spouse' },
+      { email: 'b@x.com', relation: 'spouse' },
+      { email: 'c@x.com', name: 'דנה', contact: { role: 'רו״ח', organization: 'משרד כהן' } },
+    ] }, NOW);
+    assert(p.ok, 'תקין');
+    if (p.ok) {
+      deepEqual(p.value.relations, { 'b@x.com': 'spouse' });
+      deepEqual(p.value.saveContacts, [{ email: 'c@x.com', fullName: 'דנה', role: 'רו״ח', organization: 'משרד כהן' }]);
+    }
+    const bad = parseCreate({ ...base, guests: [{ email: 'a@x.com' }, { email: 'c@x.com', contact: { role: 'רו״ח' } }] }, NOW);
+    assert(!bad.ok && bad.field === 'contactName', 'איש קשר בלי שם');
   }),
 
   test('עדכון מהיומן: תשובות לפי מייל, בלי לגעת בשם', () => {

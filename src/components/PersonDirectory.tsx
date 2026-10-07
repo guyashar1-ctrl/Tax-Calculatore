@@ -9,8 +9,11 @@
 //
 // המסך הישן (ClientList) חי מאחורי הדגל settings.flags.personDirectory=false
 // כמנגנון חירום, בדיוק כמו journeyUi. יוסר בשלב הניקוי.
+//
+// (224) לשונית שנייה, «אנשי קשר» — מי שאינו לקוח ואינו ליד (רו״ח אחר, עו״ד…). לא לשונית
+// שלב: ישות אחרת, בהחלטת גיא (07.10.2026). החיפוש אחד לשתי הלשוניות.
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { Client, Task, NiTracking } from '../types';
 import type { RepSendPhase } from '../utils/representationAction';
 import type { Lead, Quotation } from '../types/quotations';
@@ -28,6 +31,12 @@ import AddChargeDialog from './AddChargeDialog';
 import { useRecentDocuments } from '../hooks/useRecentDocuments';
 import { useToast } from './ui/Toast';
 import { isUnknownSendReply, sendErrorView } from '../types/emailActivity';
+import ContactsPanel from '../features/contacts/ContactsPanel';
+import { NEW_CONTACT_ID } from '../features/contacts/contactModel';
+import type { ContactsApi } from '../features/contacts/useContacts';
+import type { Meeting } from '../features/meetings/meetingModel';
+import type { SplitCompanionResult } from '../lib/leadLink';
+import { COMPANION_RELATION_LABELS } from '../../supabase/functions/_shared/meetingCore';
 
 interface Props {
   clients: Client[];
@@ -70,7 +79,16 @@ interface Props {
   onMarkChargePaid: (charge: AdditionalCharge) => Promise<void>;
   /** הפגישה הקרובה לכל לקוח/ליד — רמז בקצה השורה (features/meetings). */
   meetingCues?: Map<string, string>;
+  /** «אנשי קשר» (224). בלי — אין לשונית. */
+  contactsApi?: ContactsApi;
+  meetings?: Meeting[];
+  /** «קבע פגישה» מליד (עם כל מי שבפנייה) או מאיש קשר. */
+  onNewMeeting?: (preset: { leadId?: string; contactId?: string }) => void;
+  /** «הפרד לליד נפרד» — אדם מהפנייה המשותפת נעשה ליד משלו. */
+  onSplitCompanion?: (lead: Lead, email: string, name?: string) => Promise<SplitCompanionResult>;
 }
+
+const TAB_KEY = 'pivo.people.tab';
 
 const STAGE_NOW_TITLE: Record<string, string> = {
   lead: 'ליד',
@@ -82,6 +100,29 @@ const STAGE_NOW_TITLE: Record<string, string> = {
 
 export default function PersonDirectory(p: Props) {
   const [query, setQuery] = useState('');
+  const isContactId = (id: string | null) => !!id && (id === NEW_CONTACT_ID || !!p.contactsApi?.contacts.some(c => c.id === id));
+  const [tabRaw, setTabRaw] = useState<'people' | 'contacts'>(() => {
+    if (isContactId(p.quickViewId)) return 'contacts';
+    try { return sessionStorage.getItem(TAB_KEY) === 'contacts' ? 'contacts' : 'people'; } catch { return 'people'; }
+  });
+  // ‼ קישור ישיר למגירה פותח את הלשונית שלה, גם אם נבחרה אחרת: איש קשר ⇒ «אנשי קשר»,
+  //   לקוח/ליד (למשל הליד שנוצר בהפרדה) ⇒ «לקוחות ולידים».
+  const tab = !p.contactsApi ? 'people'
+    : isContactId(p.quickViewId) ? 'contacts'
+      : p.quickViewId ? 'people' : tabRaw;
+  const setTab = (t: 'people' | 'contacts') => {
+    setTabRaw(t);
+    try { sessionStorage.setItem(TAB_KEY, t); } catch { /* רק נוחות */ }
+    if (p.quickViewId) p.onQuickView(null);
+  };
+  // מגירה שנפתחה מקישור קובעת את הלשונית גם אחרי שנסגרת — לא קופצים חזרה ללשונית אחרת.
+  useEffect(() => {
+    if (tab === tabRaw) return;
+    setTabRaw(tab);
+    try { sessionStorage.setItem(TAB_KEY, tab); } catch { /* רק נוחות */ }
+  }, [tab, tabRaw]);
+  const [splitNames, setSplitNames] = useState<Record<string, string>>({});
+  const [splitBusy, setSplitBusy] = useState<string | null>(null);
   const [chargeDialogFor, setChargeDialogFor] = useState<Client | null>(null);
   const [chargeBusyId, setChargeBusyId] = useState<string | null>(null);
   const { showToast } = useToast();
@@ -111,6 +152,30 @@ export default function PersonDirectory(p: Props) {
     if (!window.confirm(`למחוק את "${name}"? הפעולה אינה הפיכה.`)) return;
     await p.onDeleteLead(lead);
     p.onQuickView(null);
+  }
+
+  /** «הפרד לליד נפרד» — עם אישור, ואז פותחים את הליד החדש כדי שיראו מה נוצר. */
+  async function handleSplit(lead: Lead, email: string, name: string) {
+    if (!p.onSplitCompanion || splitBusy) return;
+    const who = name || email;
+    if (!window.confirm(`להפריד את ${who} לליד נפרד?\n${who} ייצא/תצא מהפנייה של ${lead.fullName} ויופיע/תופיע ברשימה בשורה משלו/ה. הפגישות שכבר נקבעו לא משתנות.`)) return;
+    setSplitBusy(email);
+    try {
+      const r = await p.onSplitCompanion(lead, email, name || undefined);
+      if (r.ok) {
+        showToast(r.already ? `${who} כבר הופרד/ה — הנה הליד` : `נוצר ליד נפרד: ${who}`);
+        p.onQuickView(r.leadId);
+      } else if (r.error === 'is_client') {
+        showToast(`${who} כבר לקוח/ה — לא נוצר ליד נוסף.`);
+        if (r.clientId) p.onOpenFullCase(r.clientId);
+      } else if (r.error === 'name_required') {
+        showToast('כתבו שם לפני ההפרדה.');
+      } else {
+        showToast('ההפרדה לא הצליחה. שום דבר לא השתנה — נסו שוב.');
+      }
+    } finally {
+      setSplitBusy(null);
+    }
   }
 
   async function handleAddChargeSubmit(description: string, amount: number, dueDate: string) {
@@ -220,7 +285,10 @@ export default function PersonDirectory(p: Props) {
 
       return {
         now,
-        quickAction: null,
+        // ‼ הכפתור היחיד שנוסף לליד (כלל שלושת הכפתורים): «קבע פגישה» — עם כל מי שבפנייה.
+        quickAction: p.onNewMeeting && lead.email
+          ? { label: 'קבע פגישה', run: () => p.onNewMeeting!({ leadId: lead.id }) } as QuickViewAction
+          : null,
         onRequestMaterials: undefined,
         primary,
         charges: [] as AdditionalCharge[],
@@ -307,9 +375,22 @@ export default function PersonDirectory(p: Props) {
           <p className="wp-sub">חפש אדם קיים או התחל לעבוד עם אדם חדש</p>
         </div>
         <div className="wp-actions">
-          <button type="button" className="ui-btn ui-btn-primary" onClick={p.onAdd}>+ אדם חדש</button>
+          {tab === 'contacts'
+            ? <button type="button" className="ui-btn ui-btn-primary" onClick={() => p.onQuickView(NEW_CONTACT_ID)}>+ איש קשר</button>
+            : <button type="button" className="ui-btn ui-btn-primary" onClick={p.onAdd}>+ אדם חדש</button>}
         </div>
       </header>
+
+      {p.contactsApi && (
+        <div className="pd-tabs" role="tablist" aria-label="מי ברשימה">
+          <button type="button" role="tab" className="pd-tab" aria-selected={tab === 'people'} onClick={() => setTab('people')}>
+            לקוחות ולידים
+          </button>
+          <button type="button" role="tab" className="pd-tab" aria-selected={tab === 'contacts'} onClick={() => setTab('contacts')}>
+            אנשי קשר <span className="pd-count">({p.contactsApi.contacts.length})</span>
+          </button>
+        </div>
+      )}
 
       <div className="wp-tools">
         <div className="pd-search wp-search">
@@ -317,13 +398,21 @@ export default function PersonDirectory(p: Props) {
           <input
             value={query}
             onChange={e => setQuery(e.target.value)}
-            placeholder="חיפוש לפי שם, ת״ז, טלפון או מייל"
+            placeholder={tab === 'contacts' ? 'חיפוש לפי שם, תפקיד, מקום עבודה, טלפון או מייל' : 'חיפוש לפי שם, ת״ז, טלפון או מייל'}
             autoComplete="off"
-            aria-label="חיפוש אנשים"
+            aria-label={tab === 'contacts' ? 'חיפוש אנשי קשר' : 'חיפוש אנשים'}
           />
         </div>
       </div>
 
+      {tab === 'contacts' && p.contactsApi && (
+        <ContactsPanel api={p.contactsApi} clients={p.clients} leads={p.leads} meetings={p.meetings ?? []}
+          meetingCues={p.meetingCues ?? new Map()} query={query}
+          openId={isContactId(p.quickViewId) ? p.quickViewId : null} onOpen={p.onQuickView}
+          onNewMeeting={contactId => p.onNewMeeting?.({ contactId })} />
+      )}
+
+      {tab === 'people' && <>
       {newSelfIntakeCount > 0 && (
         <div className="pd-notice">
           {newSelfIntakeCount === 1
@@ -379,8 +468,9 @@ export default function PersonDirectory(p: Props) {
           <p>אפשר להוסיף אדם חדש או לשלוח לו קישור למילוי פרטים.</p>
         </div>
       )}
+      </>}
 
-      {selected && (() => {
+      {tab === 'people' && selected && (() => {
         const content = quickViewContent(selected);
         return (
           <Sheet onClose={() => p.onQuickView(null)} ariaLabel="תצוגה מהירה">
@@ -401,6 +491,22 @@ export default function PersonDirectory(p: Props) {
               chargeBusyId={chargeBusyId}
               spouseClient={selected.client?.spouseClientId
                 ? p.clients.find(c => c.id === selected.client!.spouseClientId)
+                : undefined}
+              companions={selected.kind === 'lead' && selected.lead!.companions?.length
+                ? selected.lead!.companions.map(c => ({
+                    email: c.email,
+                    name: c.name ?? '',
+                    relation: COMPANION_RELATION_LABELS[c.relation] ?? '',
+                    typedName: splitNames[c.email] ?? '',
+                    onTypeName: (v: string) => setSplitNames(n => ({ ...n, [c.email]: v })),
+                    busy: splitBusy === c.email,
+                    onSplit: p.onSplitCompanion
+                      ? () => handleSplit(selected.lead!, c.email, (c.name || splitNames[c.email] || '').trim())
+                      : undefined,
+                  }))
+                : undefined}
+              splitFrom={selected.kind === 'lead' && selected.lead!.splitFromLeadId
+                ? p.leads.find(l => l.id === selected.lead!.splitFromLeadId)?.fullName
                 : undefined}
               onClose={() => p.onQuickView(null)}
             />

@@ -43,7 +43,13 @@ export default function Sheet({ onClose, ariaLabel, children }: SheetProps) {
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') { e.stopPropagation(); requestClose(); return; }
+      if (e.key === 'Escape') {
+        // ‼ חלון שנפתח מעל המגירה (פגישה, חיוב) מחזיק את הפוקוס — Esc סוגר אותו, לא את
+        // המגירה שמתחתיו. נמצא בבדיקת דפדפן (07.10.2026): Esc ראשון סגר את המגירה.
+        const active = document.activeElement;
+        if (active && active !== document.body && !panelRef.current?.contains(active)) return;
+        e.stopPropagation(); requestClose(); return;
+      }
       if (e.key !== 'Tab') return;
       const nodes = Array.from(panelRef.current?.querySelectorAll<HTMLElement>(FOCUSABLE) || [])
         .filter(n => n.offsetParent !== null);

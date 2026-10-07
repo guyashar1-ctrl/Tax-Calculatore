@@ -121,14 +121,38 @@ export function upcomingMeetings(list: Meeting[], now: Date = new Date()): Meeti
     .sort((a, b) => a.startsAt.localeCompare(b.startsAt));
 }
 
-/** רמז לשורה ברשימת האנשים: הפגישה הקרובה של כל לקוח/ליד. */
+/** המפתח לפי מייל במפת הרמזים — לליד שהופרד מפנייה משותפת ולאיש קשר. */
+export const cueEmailKey = (email: string) => `email:${email.trim().toLowerCase()}`;
+
+/**
+ * רמז לשורה ברשימת האנשים: הפגישה הקרובה של כל לקוח/ליד — לפי המזהה, וגם לפי המייל של
+ * כל מוזמן (cueEmailKey). ‼ כך ליד שהופרד מפנייה משותפת, או ליד שהומר ללקוח, ממשיכים
+ * לראות את הפגישה שנקבעה לפני כן — הפגישה עצמה שייכת לרשומה המקורית.
+ */
 export function meetingCueByPerson(list: Meeting[], now: Date = new Date()): Map<string, string> {
   const out = new Map<string, string>();
   for (const m of upcomingMeetings(list, now)) {
     const cue = `${m.kind === 'intro' ? MEETING_KIND_LABELS.intro : 'פגישה'} · ${meetingWhen(m).label}`;
     for (const id of [m.clientId, m.leadId]) if (id && !out.has(id)) out.set(id, cue);
+    for (const g of m.guests) {
+      const k = cueEmailKey(g.email);
+      if (!out.has(k)) out.set(k, cue);
+    }
   }
   return out;
+}
+
+/** הפגישות שהמייל הזה הוזמן אליהן — הקרובות קודם, ואחריהן מה שכבר היה (מהחדש לישן). */
+export function meetingsWithEmail(list: Meeting[], email: string | undefined, now: Date = new Date()): { upcoming: Meeting[]; past: Meeting[] } {
+  const e = (email ?? '').trim().toLowerCase();
+  if (!e) return { upcoming: [], past: [] };
+  const mine = list.filter(m => m.guests.some(g => g.email.toLowerCase() === e));
+  const upcoming = upcomingMeetings(mine, now);
+  const t = now.getTime();
+  const past = mine
+    .filter(m => m.status === 'scheduled' && Date.parse(m.startsAt) + m.durationMin * 60000 <= t)
+    .sort((a, b) => b.startsAt.localeCompare(a.startsAt));
+  return { upcoming, past };
 }
 
 /** מה כתוב ביומן הפעילות על כל רישום בפגישה. */
@@ -163,6 +187,7 @@ export const MEETING_ERRORS: Record<string, string> = {
 
 const PAST_FIELD: Record<string, string> = {
   past: 'המועד כבר עבר.',
+  contactName: 'כתבו שם לאיש הקשר שנשמר.',
   guests: 'אחת מכתובות המייל לא תקינה.',
   date: 'בחרו תאריך.',
   time: 'בחרו שעה.',

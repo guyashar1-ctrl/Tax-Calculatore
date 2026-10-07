@@ -4,11 +4,20 @@
 // ‼ מה שבתצוגה הוא מה שנשלח: אותו inviteBlocks בדפדפן ובשרת, אותם קלטים.
 // ‼ מזהה הפגישה נקבע פעם אחת לחלון — «שלח» פעמיים או שליחה חוזרת אחרי «לא ידוע» לא
 //   יוצרים פגישה שנייה (השרת גוזר ממנו את מזהה האירוע ב-Google).
+// ‼ (224) מי שכבר מוכר — לקוח, ליד, אדם נוסף בפנייה, איש קשר — מזוהה לפי מייל, ואפשר
+//   למצוא אותו גם לפי שם בתיבה. בשיחת היכרות: האדם השני נשמר בפנייה («שותף/ה עסקי/ת»
+//   כברירת מחדל). בפגישת עבודה: מוזמן לא מוכר — «שמור כאיש קשר», עם תפקיד ומקום עבודה.
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Modal from '../../components/ui/Modal';
 import type { Client } from '../../types';
 import type { Lead } from '../../types/quotations';
+import { squash } from '../../utils/identity';
+import { contactSubtitle, CONTACT_ROLE_SUGGESTIONS, type Contact } from '../contacts/contactModel';
+import {
+  COMPANION_RELATIONS, COMPANION_RELATION_LABELS, DEFAULT_COMPANION_RELATION,
+  type CompanionRelation, type PeopleOutcome,
+} from '../../../supabase/functions/_shared/meetingCore';
 import type { FirmProfile } from '../../types/firmProfile';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
 import {
@@ -23,13 +32,14 @@ import type { MeetingsApi } from './useMeetings';
 import './meetings.css';
 
 export type MeetingDialogMode =
-  | { kind: 'new'; clientId?: string }
+  | { kind: 'new'; clientId?: string; leadId?: string; contactId?: string }
   | { kind: 'move'; meeting: Meeting };
 
 interface Props {
   mode: MeetingDialogMode;
   clients: Client[];
   leads: Lead[];
+  contacts: Contact[];
   profile: FirmProfile | null;
   api: MeetingsApi;
   onClose: () => void;
@@ -59,6 +69,45 @@ export function nextWorkday(today: string): string {
 const lower = (s?: string | null) => (s ?? '').trim().toLowerCase();
 const clientName = (c: Client) => `${c.firstName ?? ''} ${c.lastName ?? ''}`.trim();
 
+/** מי זה ב-PIVO — לפי מייל. */
+interface Known {
+  label: string;
+  name: string;
+  clientId?: string;
+  leadId?: string;
+  contactId?: string;
+  /** ליד סגור — בשיחת היכרות הוא נפתח מחדש (השרת, 224). */
+  closedLead?: boolean;
+}
+
+/** כתובת מייל בתוך טקסט — כדי למצוא את «מה שנכתב אחרי המיילים» בשורה האחרונה. */
+const EMAIL_IN_TEXT = /[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}/g;
+
+/**
+ * מה שמקלידים בסוף התיבה, בלי המיילים — לחיפוש לפי שם. ‼ רק השורה האחרונה, ורק כשיש בה
+ * אות: הודעת וואטסאפ שהודבקה כולה לא תציף הצעות, ומספר טלפון אינו שם.
+ */
+export function nameQueryOf(text: string): string {
+  const last = (text.split('\n').pop() ?? '').replace(EMAIL_IN_TEXT, ' ').trim();
+  return last.length >= 2 && last.length <= 40 && /\p{L}/u.test(last) && !last.includes('@') ? last : '';
+}
+
+/**
+ * מה קרה לליד — רק מה שהשרת אמר שנשמר (people). ‼ בלי people (שרת ישן) לא טוענים «נוצר»:
+ * הפגישה פשוט נרשמה אצל הליד.
+ */
+export function peopleLine(people: PeopleOutcome | null, leadName: string): string {
+  const n = people?.companionsAdded ?? 0;
+  const added = n === 1 ? 'ונוסף לפנייה אדם אחד' : n > 1 ? `ונוספו לפנייה ${n} אנשים` : '';
+  if (people?.leadCreated) {
+    return `נוצר ליד: ${leadName}${n ? `, עם ${n === 1 ? 'אדם נוסף אחד' : `${n} אנשים נוספים`} בפנייה` : ''} — ברשימת הלקוחות.`;
+  }
+  if (people?.leadReopened) return `הליד ${leadName} נפתח מחדש וחזר לרשימת הלקוחות${added ? `, ${added}` : ''}.`;
+  return `נרשם בפנייה של ${leadName}${added ? `, ${added}` : ''}.`;
+}
+
+/** «אנשים בפנייה» + «איש קשר» — מה שהשרת צריך לדעת על כל מוזמן מעבר למייל ולשם. */
+interface GuestExtra { relation?: CompanionRelation; contact?: { role: string; organization: string } }
 type Phase = 'edit' | 'preview' | 'sending' | 'done';
 
 /** ‼ כל טווח מבודד לחוד: רשימה שלמה בכיוון שמאל-לימין נקראת בעברית מהסוף להתחלה. */
@@ -66,26 +115,33 @@ function Ranges({ list }: { list: { start: string; end: string }[] }) {
   return <>{list.map((s, i) => <span key={i}>{i > 0 && ' · '}<span className="ltr-isolate">{s.start}–{s.end}</span></span>)}</>;
 }
 
-export default function MeetingDialog({ mode, clients, leads, profile, api, onClose, onOpenConnections }: Props) {
+export default function MeetingDialog({ mode, clients, leads, contacts, profile, api, onClose, onOpenConnections }: Props) {
   const wide = useMediaQuery('(min-width: 900px)');
   const org = useMemo(() => orgOf(profile), [profile]);
   const today = israelToday();
   const isMove = mode.kind === 'move';
   const presetClient = mode.kind === 'new' && mode.clientId ? clients.find(c => c.id === mode.clientId) : undefined;
+  const presetLead = mode.kind === 'new' && mode.leadId ? leads.find(l => l.id === mode.leadId) : undefined;
+  const presetContact = mode.kind === 'new' && mode.contactId ? contacts.find(c => c.id === mode.contactId) : undefined;
+  // ‼ פגישה מליד — עם כל מי שבפנייה; מאיש קשר / מכרטיס לקוח — פגישת עבודה.
+  const initialText = presetClient?.email
+    ?? (presetLead ? [presetLead.email, ...(presetLead.companions ?? []).map(c => c.email)].filter(Boolean).join('\n') : undefined)
+    ?? presetContact?.email ?? '';
+  const workByDefault = !!presetClient || !!presetContact;
   const moving = mode.kind === 'move' ? mode.meeting : null;
   const movingWhen = moving ? meetingWhen(moving) : null;
 
   const [id] = useState(() => (moving ? moving.id : crypto.randomUUID()));
-  const [text, setText] = useState(() => presetClient?.email ?? '');
+  const [text, setText] = useState(initialText);
   const [names, setNames] = useState<Record<string, string>>({});
   const [removed, setRemoved] = useState<Set<string>>(new Set());
-  const [kind, setKind] = useState<MeetingKind>(moving?.kind ?? (presetClient ? 'work' : 'intro'));
+  const [kind, setKind] = useState<MeetingKind>(moving?.kind ?? (workByDefault ? 'work' : 'intro'));
   const [topic, setTopic] = useState(moving?.topic ?? '');
   const [prep, setPrep] = useState(moving?.prep ?? '');
   const [note, setNote] = useState(moving?.note ?? '');
   const [date, setDate] = useState(movingWhen?.date ?? nextWorkday(today));
   const [time, setTime] = useState(movingWhen?.time ?? '10:00');
-  const [duration, setDuration] = useState(moving?.durationMin ?? MEETING_DEFAULT_MINUTES[presetClient ? 'work' : 'intro']);
+  const [duration, setDuration] = useState(moving?.durationMin ?? MEETING_DEFAULT_MINUTES[workByDefault ? 'work' : 'intro']);
   const [askedBy, setAskedBy] = useState<MoveAskedBy>('office');
   const [moveNote, setMoveNote] = useState(MOVE_NOTE_DEFAULT.office);
   const [moveNoteDirty, setMoveNoteDirty] = useState(false);
@@ -93,24 +149,54 @@ export default function MeetingDialog({ mode, clients, leads, profile, api, onCl
   const [error, setError] = useState<{ code: string; text: string } | null>(null);
   const [unknown, setUnknown] = useState(false);
   const [result, setResult] = useState<Meeting | null>(null);
+  const [people, setPeople] = useState<PeopleOutcome | null>(null);
+  const [extras, setExtras] = useState<Record<string, GuestExtra>>({});
   const [busy, setBusy] = useState<{ date: string; slots: { start: string; end: string }[] | null } | null>(null);
   const pasteRef = useRef<HTMLTextAreaElement>(null);
   const connected = !!api.connection?.connected;
 
   // ── מי המוזמנים, ומי הם ב-PIVO ──────────────────────────────────────────
   const known = useMemo(() => {
-    const m = new Map<string, { label: string; name: string; clientId?: string; leadId?: string }>();
+    const m = new Map<string, Known>();
+    const put = (email: string | undefined, k: Known) => { if (email && !m.has(lower(email))) m.set(lower(email), k); };
     for (const c of clients) {
-      if (c.email) m.set(lower(c.email), { label: `לקוח: ${clientName(c)}`, name: clientName(c), clientId: c.id });
-      if (c.spouseEmail && !m.has(lower(c.spouseEmail))) {
-        m.set(lower(c.spouseEmail), { label: `בן/בת הזוג של ${clientName(c)}`, name: c.spouseName ?? '', clientId: c.id });
+      put(c.email, { label: `לקוח: ${clientName(c)}`, name: clientName(c), clientId: c.id });
+      put(c.spouseEmail, { label: `בן/בת הזוג של ${clientName(c)}`, name: c.spouseName ?? '', clientId: c.id });
+    }
+    const openLeads = leads.filter(l => !l.convertedClientId && l.status !== 'converted');
+    for (const l of openLeads) put(l.email, { label: `ליד: ${l.fullName}`, name: l.fullName, leadId: l.id, closedLead: l.status === 'closed' });
+    for (const l of openLeads) {
+      for (const c of l.companions ?? []) {
+        put(c.email, { label: `${COMPANION_RELATION_LABELS[c.relation] ?? ''} בפנייה של ${l.fullName}`.trim(), name: c.name ?? '', leadId: l.id, closedLead: l.status === 'closed' });
       }
     }
-    for (const l of leads) {
-      if (l.email && !l.convertedClientId && !m.has(lower(l.email))) m.set(lower(l.email), { label: `ליד: ${l.fullName}`, name: l.fullName, leadId: l.id });
+    for (const c of contacts) {
+      const sub = contactSubtitle(c);
+      put(c.email, { label: `איש קשר: ${c.fullName}${sub ? ` · ${sub}` : ''}`, name: c.fullName, contactId: c.id });
     }
     return m;
-  }, [clients, leads]);
+  }, [clients, leads, contacts]);
+
+  /** ‼ התווית תלויה בסוג הפגישה: ליד סגור נפתח מחדש רק בשיחת היכרות. */
+  const knownLabel = (k: Known) => (!k.closedLead ? k.label : kind === 'intro' ? `${k.label} · סגור, ייפתח מחדש` : `${k.label} · סגור`);
+
+  // ── חיפוש לפי שם: לקוחות, לידים, אנשים בפנייה ואנשי קשר — כל מי שיש לו מייל ──
+  const nameQuery = isMove ? '' : nameQueryOf(text);
+  const nameMatches = useMemo(() => {
+    if (!nameQuery) return [];
+    const q = squash(nameQuery);
+    const inText = new Set(extractEmails(text));
+    return [...known.entries()]
+      .filter(([email, k]) => !inText.has(email) && (squash(k.name).includes(q) || squash(k.label).includes(q)))
+      .slice(0, 6)
+      .map(([email, k]) => ({ email, k }));
+  }, [nameQuery, known, text]);
+
+  function pickByName(email: string) {
+    const at = text.lastIndexOf(nameQuery);
+    setText(at >= 0 ? `${text.slice(0, at)}${email}${text.slice(at + nameQuery.length)}` : `${text.trim()}\n${email}`);
+    pasteRef.current?.focus();
+  }
 
   const suggested = useMemo(() => suggestNameFromWhatsApp(text), [text]);
   const guests = useMemo(() => {
@@ -126,6 +212,13 @@ export default function MeetingDialog({ mode, clients, leads, profile, api, onCl
 
   const firstIsNew = !!guests[0] && !guests[0].known;
   const needsName = !isMove && kind === 'intro' && firstIsNew && !guests[0].name;
+  const extraOf = (email: string): GuestExtra => extras[email] ?? {};
+  const setExtra = (email: string, patch: GuestExtra) => setExtras(x => ({ ...x, [email]: { ...x[email], ...patch } }));
+  /** מוזמן חדש בשיחת היכרות, לא הראשון ⇒ נשמר בפנייה, עם הקשר שנבחר. */
+  const asksRelation = (g: { known?: Known }, i: number) => !isMove && kind === 'intro' && i > 0 && !g.known;
+  /** מוזמן חדש בפגישת עבודה ⇒ אפשר לשמור כאיש קשר. */
+  const offersContact = (g: { known?: Known }) => !isMove && kind === 'work' && !g.known;
+  const contactWithoutName = guests.some(g => offersContact(g) && extraOf(g.email).contact && !g.name);
 
   // ── «פנוי?» מול היומן ───────────────────────────────────────────────────
   useEffect(() => {
@@ -161,6 +254,7 @@ export default function MeetingDialog({ mode, clients, leads, profile, api, onCl
   const problems: string[] = [];
   if (!isMove && guests.length === 0) problems.push('הדביקו או כתבו לפחות כתובת מייל אחת.');
   if (needsName) problems.push('כתבו שם לאדם החדש — כך הזימון ייפתח בשמו, והוא יישמר כליד.');
+  if (contactWithoutName) problems.push('כתבו שם לאיש הקשר שנשמר.');
   if (past) problems.push('המועד כבר עבר.');
   if (isMove && movingWhen && date === movingWhen.date && time === movingWhen.time && duration === moving!.durationMin) {
     problems.push('בחרו מועד חדש.');
@@ -169,7 +263,7 @@ export default function MeetingDialog({ mode, clients, leads, profile, api, onCl
   // ‼ «לצאת בלי לשמור?» רק כשבאמת הוקלד משהו — לא בכל פתיחה מכרטיס לקוח או לשינוי מועד.
   const edited = isMove
     ? (date !== movingWhen!.date || time !== movingWhen!.time || duration !== moving!.durationMin)
-    : (text.trim() !== (presetClient?.email ?? '') || !!note.trim() || !!topic.trim());
+    : (text.trim() !== initialText.trim() || !!note.trim() || !!topic.trim());
 
   async function pasteFromClipboard() {
     try {
@@ -187,9 +281,17 @@ export default function MeetingDialog({ mode, clients, leads, profile, api, onCl
       ? await api.send('move', { id, date, time, durationMin: duration, askedBy, note: moveNote })
       : await api.send('create', {
         id, kind, date, time, durationMin: duration, topic, prep, note,
-        guests: input.guests, ...(presetClient ? { clientId: presetClient.id } : {}),
+        guests: guests.map((g, i) => {
+          const x = extraOf(g.email);
+          return {
+            email: g.email, ...(g.name ? { name: g.name } : {}),
+            ...(asksRelation(g, i) ? { relation: x.relation ?? DEFAULT_COMPANION_RELATION } : {}),
+            ...(offersContact(g) && x.contact ? { contact: x.contact } : {}),
+          };
+        }),
+        ...(presetClient ? { clientId: presetClient.id } : {}),
       });
-    if (r.ok) { setResult(r.meeting); setPhase('done'); setUnknown(false); return; }
+    if (r.ok) { setResult(r.meeting); setPeople(r.people ?? null); setPhase('done'); setUnknown(false); return; }
     setUnknown(r.error === 'unknown_outcome');
     setError({ code: r.error, text: r.text });
     setPhase(wide ? 'edit' : 'preview');
@@ -211,7 +313,14 @@ export default function MeetingDialog({ mode, clients, leads, profile, api, onCl
               : <>הזימון יצא מהיומן שלך אל {result.guests.length === 1 ? 'נמען אחד' : `${result.guests.length} נמענים`}, והפגישה נכנסה ליומן שלך ל{longDay(w.date)} ב-<span className="ltr-isolate">{w.time}</span>.</>}
           </p>
           {!isMove && client && <p className="mt-muted">נרשם בפעילות של {clientName(client)}.</p>}
-          {!isMove && !client && result.leadId && <p className="mt-muted">נוצר ליד: {lead?.fullName ?? first?.name} — ברשימת הלקוחות.</p>}
+          {!isMove && !client && result.leadId && (
+            <p className="mt-muted">{peopleLine(people, lead?.fullName ?? first?.name ?? '')}</p>
+          )}
+          {!isMove && !!people?.contactsSaved && (
+            <p className="mt-muted">
+              נשמר באנשי הקשר: {guests.filter(g => offersContact(g) && extraOf(g.email).contact).map(g => g.name).join(', ')}.
+            </p>
+          )}
           {result.meetLink && (
             <p className="mt-muted">קישור הפגישה: <a href={result.meetLink} target="_blank" rel="noreferrer" className="ltr-isolate">{result.meetLink.replace(/^https:\/\//, '')}</a></p>
           )}
@@ -238,14 +347,24 @@ export default function MeetingDialog({ mode, clients, leads, profile, api, onCl
           <label className="mt-label" htmlFor="mt-paste">עם מי?</label>
           <div className="mt-paste-row">
             <textarea id="mt-paste" ref={pasteRef} className="inp" rows={3} value={text} disabled={unknown}
-              placeholder="הדביקו כאן את ההודעה מהוואטסאפ, או כתבו כתובת מייל"
+              placeholder="הדביקו כאן את ההודעה מהוואטסאפ, או כתבו כתובת מייל או שם"
               onChange={e => { setText(e.target.value); if (error?.code === 'paste') setError(null); }} />
             {!unknown && typeof navigator !== 'undefined' && !!navigator.clipboard?.readText && (
               <button type="button" className="ui-btn ui-btn-ghost mt-paste-btn" onClick={pasteFromClipboard}>הדבקה</button>
             )}
           </div>
+          {nameMatches.length > 0 && !unknown && (
+            <div className="mt-name-hits" role="list" aria-label="נמצאו לפי שם">
+              {nameMatches.map(({ email, k }) => (
+                <button key={email} type="button" role="listitem" className="mt-name-hit" onClick={() => pickByName(email)}>
+                  <b>{k.name || email}</b>
+                  <small>{knownLabel(k)} · <span className="ltr-isolate">{email}</span></small>
+                </button>
+              ))}
+            </div>
+          )}
           <span className="mt-hint">
-            {guests.length === 0 ? 'כל כתובת מייל בטקסט תזוהה לבד — גם כמה בהודעה אחת.'
+            {guests.length === 0 ? 'כל כתובת מייל בטקסט תזוהה לבד — גם כמה בהודעה אחת. אפשר גם לכתוב שם של מי שכבר שמור.'
               : guests.length === 1 ? 'נמצאה כתובת אחת.' : `נמצאו ${guests.length} כתובות.`}
           </span>
           {presetClient?.spouseEmail && !guests.some(g => g.email === lower(presetClient.spouseEmail)) && !unknown && (
@@ -260,8 +379,9 @@ export default function MeetingDialog({ mode, clients, leads, profile, api, onCl
                   <div className="mt-guest-id">
                     <span className="mt-guest-mail ltr-isolate">{g.email}</span>
                     <span className={`mt-guest-who ${g.known ? 'is-known' : ''}`}>
-                      {g.known ? g.known.label
-                        : kind === 'intro' && i === 0 ? (g.name ? 'חדש · יישמר כליד' : 'חדש · כתבו שם כדי לשמור כליד') : 'חדש'}
+                      {g.known ? knownLabel(g.known)
+                        : kind === 'intro' && i === 0 ? (g.name ? 'חדש · יישמר כליד' : 'חדש · כתבו שם כדי לשמור כליד')
+                          : asksRelation(g, i) ? 'חדש · יישמר בפנייה' : 'חדש'}
                     </span>
                   </div>
                   <input className="inp" aria-label={`שם עבור ${g.email}`} placeholder="שם לפנייה" value={names[g.email] ?? g.name}
@@ -271,10 +391,39 @@ export default function MeetingDialog({ mode, clients, leads, profile, api, onCl
                     <button type="button" className="ui-icon-btn" aria-label={`הסרת ${g.email}`}
                       onClick={() => setRemoved(s => new Set(s).add(g.email))}>✕</button>
                   )}
+                  {asksRelation(g, i) && (
+                    <label className="mt-guest-extra">
+                      <span>מה הקשר ל{guests[0].name || 'פונה הראשון'}?</span>
+                      <select className="inp" value={extraOf(g.email).relation ?? DEFAULT_COMPANION_RELATION} disabled={unknown}
+                        onChange={e => setExtra(g.email, { relation: e.target.value as CompanionRelation })}>
+                        {COMPANION_RELATIONS.map(r => <option key={r} value={r}>{COMPANION_RELATION_LABELS[r]}</option>)}
+                      </select>
+                    </label>
+                  )}
+                  {offersContact(g) && (
+                    <div className="mt-guest-extra mt-guest-contact">
+                      <label className="mt-check-line">
+                        <input type="checkbox" checked={!!extraOf(g.email).contact} disabled={unknown}
+                          onChange={e => setExtra(g.email, { contact: e.target.checked ? { role: '', organization: '' } : undefined })} />
+                        שמור כאיש קשר — כדי לקבוע איתו מהר בפעם הבאה
+                      </label>
+                      {extraOf(g.email).contact && (
+                        <div className="mt-contact-fields">
+                          <input className="inp" list="mt-roles" placeholder="תפקיד (למשל רו״ח)" aria-label={`תפקיד של ${g.email}`}
+                            value={extraOf(g.email).contact!.role} disabled={unknown}
+                            onChange={e => setExtra(g.email, { contact: { ...extraOf(g.email).contact!, role: e.target.value } })} />
+                          <input className="inp" placeholder="איפה עובד/ת" aria-label={`מקום העבודה של ${g.email}`}
+                            value={extraOf(g.email).contact!.organization} disabled={unknown}
+                            onChange={e => setExtra(g.email, { contact: { ...extraOf(g.email).contact!, organization: e.target.value } })} />
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </li>
               ))}
             </ul>
           )}
+          <datalist id="mt-roles">{CONTACT_ROLE_SUGGESTIONS.map(r => <option key={r} value={r} />)}</datalist>
           {!isValidEmail(text.trim()) && text.includes('@') && guests.length === 0 && (
             <span className="mt-warn">הכתובת לא נראית שלמה.</span>
           )}

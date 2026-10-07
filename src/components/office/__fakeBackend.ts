@@ -24,7 +24,7 @@ import type { PreviewRequest } from '../../features/requestPreview/types';
 import { mergeOfficeOverrides, type RequestTemplate, type TemplateEntry } from '../../lib/requestTemplates';
 import { documentLibrary } from '../../lib/clientGuide';
 import { REP_PORTAL_CARD_FIXED, resolveRepPortalCard, type RepPortalCardOverride } from '../../../supabase/functions/_shared/repTemplates.ts';
-import { seedMeetings, fakeGoogleStatus, fakeMeetingsInvoke } from '../../features/meetings/__fakeMeetings';
+import { seedMeetings, seedPeople, fakeSplitLeadCompanion, fakeGoogleStatus, fakeMeetingsInvoke } from '../../features/meetings/__fakeMeetings';
 
 type Row = Record<string, unknown>;
 
@@ -238,7 +238,13 @@ const MEETING_ORG = {
   fullName: FIXTURE_PROFILE.fullName, firmName: FIXTURE_PROFILE.firmName, representativeType: FIXTURE_PROFILE.representativeType,
   phone: FIXTURE_PROFILE.phone, whatsapp: FIXTURE_PROFILE.communication?.whatsapp, website: FIXTURE_PROFILE.website,
 };
-if (FAKE_ACTIVE && !EMPTY) tables.meetings = seedMeetings(FIRM_ID, MEETING_ORG);
+if (FAKE_ACTIVE && !EMPTY) {
+  tables.meetings = seedMeetings(FIRM_ID, MEETING_ORG);
+  // 07.10 · (224) פנייה משותפת, ליד סגור ואנשי קשר.
+  const people = seedPeople(FIRM_ID);
+  tables.leads = people.leads;
+  tables.contacts = people.contacts;
+}
 
 // ─── «בקשות» בהדגמה המלאה (office-app) ─────────────────────────────────────
 // ‼ לקוח אחד — דוד כהן (sample-1) — עם בקשות בכל המצבים, כדי שאפשר יהיה לנווט
@@ -877,6 +883,11 @@ export function installFakeBackend() {
     await wait();
     if (name === 'is_authorized') return { data: true, error: null };
     if (name === 'google_calendar_status') return { data: fakeGoogleStatus(), error: null };
+    if (name === 'split_lead_companion') {
+      const r = fakeSplitLeadCompanion(tables, FIRM_ID, args);
+      logWrite('rpc.split_lead_companion', r);
+      return { data: r, error: null };
+    }
     // 05.10 · פרטי העסק, עבודה מהבית ודף ההדגמה של יוסי (__fakeRequestGroups).
     const rg = rgRpc(tables, name, args, FIXTURE_PROFILE.firmName ?? "המשרד", logWrite);
     if (rg) return rg;
