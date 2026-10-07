@@ -240,7 +240,7 @@ const MEETING_ORG = {
 };
 if (FAKE_ACTIVE && !EMPTY) {
   tables.meetings = seedMeetings(FIRM_ID, MEETING_ORG);
-  // 07.10 · (224) פנייה משותפת, ליד סגור ואנשי קשר.
+  // 07.10 · (226) פנייה משותפת, ליד סגור ואנשי קשר.
   const people = seedPeople(FIRM_ID);
   tables.leads = people.leads;
   tables.contacts = people.contacts;

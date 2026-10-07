@@ -5,7 +5,7 @@
 //   GET  ?code&state                 (Google מחזיר לכאן)  ⇒ 302 חזרה ל-PIVO עם ?google=connected|error
 //   POST {action:'disconnect'}       (JWT)  ⇒ ביטול ההרשאה ב-Google ומחיקת המפתח
 //
-// ‼ המפתח (refresh token) נשמר רק ב-google_calendar_connections, שהדפדפן לא קורא (223).
+// ‼ המפתח (refresh token) נשמר רק ב-google_calendar_connections, שהדפדפן לא קורא (225).
 // ‼ החזרה מ-Google מגיעה בלי JWT — הזהות היא state חתום (HMAC, 15 דקות), ולכן
 //   הפונקציה פתוחה בשער (config.toml) ואינה סומכת על שום דבר אחר בבקשה.
 // ‼ בחשבון Google Workspace מגדירים את האפליקציה «פנימית» — בלי אישור של Google

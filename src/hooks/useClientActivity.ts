@@ -160,7 +160,7 @@ export function useClientActivity({ client, clientSteps, events, quotations, cha
     if (q.sentAt) items.push({ id: `q-${q.id}-sent`, at: q.sentAt, cat: 'mail', title: 'נשלחה הצעת מחיר', meta: q.quotationNumber ? `#${q.quotationNumber}` : undefined });
   }
 
-  // ‼ «נשלח זימון» רק עם ראיה: רישום 'sent' נכתב בשרת רק אחרי ש-Google קיבל (223).
+  // ‼ «נשלח זימון» רק עם ראיה: רישום 'sent' נכתב בשרת רק אחרי ש-Google קיבל (225).
   for (const m of meetings) {
     const when = meetingWhen(m).label;
     for (const h of m.history) {

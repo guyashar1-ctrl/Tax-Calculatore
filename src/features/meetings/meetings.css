@@ -31,7 +31,7 @@
 .mt-guest-mail { font-size: var(--fs-14); overflow-wrap: anywhere; text-align: start; }
 .mt-guest-who { font-size: var(--fs-12); color: var(--ink-3); }
 .mt-guest-who.is-known { color: var(--accent); }
-/* (224) שורה שנייה במוזמן: הקשר בפנייה / «שמור כאיש קשר» — לכל הרוחב. */
+/* (226) שורה שנייה במוזמן: הקשר בפנייה / «שמור כאיש קשר» — לכל הרוחב. */
 .mt-guest-extra { grid-column: 1 / -1; display: grid; gap: 6px; font-size: var(--fs-13); color: var(--ink-2); }
 label.mt-guest-extra { grid-template-columns: auto minmax(0, 1fr); align-items: center; }
 .mt-check-line { display: flex; align-items: center; gap: 8px; cursor: pointer; min-height: 32px; }

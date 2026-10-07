@@ -81,7 +81,7 @@ export default function ConnectionsPage({ draft, setDraft, focus, go }: {
   return (
     <>
       <ul className="of-conns">
-        {/* פגישות ב-Google Meet (223) — הזימון יוצא מהיומן הזה. */}
+        {/* פגישות ב-Google Meet (225) — הזימון יוצא מהיומן הזה. */}
         <GoogleCalendarCard />
 
         <li className="of-conn" data-focus={focusOf('worker')}>

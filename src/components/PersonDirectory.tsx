@@ -10,7 +10,7 @@
 // המסך הישן (ClientList) חי מאחורי הדגל settings.flags.personDirectory=false
 // כמנגנון חירום, בדיוק כמו journeyUi. יוסר בשלב הניקוי.
 //
-// (224) לשונית שנייה, «אנשי קשר» — מי שאינו לקוח ואינו ליד (רו״ח אחר, עו״ד…). לא לשונית
+// (226) לשונית שנייה, «אנשי קשר» — מי שאינו לקוח ואינו ליד (רו״ח אחר, עו״ד…). לא לשונית
 // שלב: ישות אחרת, בהחלטת גיא (07.10.2026). החיפוש אחד לשתי הלשוניות.
 
 import { useEffect, useMemo, useState } from 'react';
@@ -79,7 +79,7 @@ interface Props {
   onMarkChargePaid: (charge: AdditionalCharge) => Promise<void>;
   /** הפגישה הקרובה לכל לקוח/ליד — רמז בקצה השורה (features/meetings). */
   meetingCues?: Map<string, string>;
-  /** «אנשי קשר» (224). בלי — אין לשונית. */
+  /** «אנשי קשר» (226). בלי — אין לשונית. */
   contactsApi?: ContactsApi;
   meetings?: Meeting[];
   /** «קבע פגישה» מליד (עם כל מי שבפנייה) או מאיש קשר. */

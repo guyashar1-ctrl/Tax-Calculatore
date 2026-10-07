@@ -5,7 +5,7 @@
 // כשלים מתוכננים לפי כתובת המוזמן: ‎fail-always‎ — Google דוחה; ‎lost-reply‎ — «לא ידוע»
 // בפעם הראשונה ואז מצליח; ‎accepts‎ / ‎declines‎ — כך המוזמן «עונה» בעדכון הבא.
 // ‎&nogoogle‎ בכתובת — היומן לא מחובר.
-// (224) גם: לידים עם «אנשים בפנייה», ליד סגור, אנשי קשר, ו«הפרד לליד נפרד» — באותה
+// (226) גם: לידים עם «אנשים בפנייה», ליד סגור, אנשי קשר, ו«הפרד לליד נפרד» — באותה
 // התנהגות כמו בשרת (matchPeople / mergeCompanions / split_lead_companion).
 
 import {
@@ -64,7 +64,7 @@ export function seedPeople(userId: string): { leads: Row[]; contacts: Row[] } {
   };
 }
 
-/** «הפרד לליד נפרד» בהדגמה — אותם כללים כמו split_lead_companion (224). */
+/** «הפרד לליד נפרד» בהדגמה — אותם כללים כמו split_lead_companion (226). */
 export function fakeSplitLeadCompanion(tables: Record<string, Row[]>, userId: string, args: Row): Row {
   const leads = (tables.leads ??= []);
   const l = leads.find(x => x.id === args.p_lead_id);

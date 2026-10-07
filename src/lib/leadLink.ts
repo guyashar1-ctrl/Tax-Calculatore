@@ -21,7 +21,7 @@ export type SplitCompanionResult =
   | { ok: false; error: 'name_required' | 'is_client' | 'companion_not_found' | 'lead_not_found' | 'forbidden' | 'failed'; clientId?: string };
 
 /**
- * «הפרד לליד נפרד» (224) — אדם מהפנייה המשותפת נעשה ליד משלו, באותה פעולה שמוציאה
+ * «הפרד לליד נפרד» (226) — אדם מהפנייה המשותפת נעשה ליד משלו, באותה פעולה שמוציאה
  * אותו מהפנייה. לחיצה כפולה ⇒ אותו ליד (השרת נועל את הפנייה).
  */
 export async function splitLeadCompanion(leadId: string, email: string, name?: string): Promise<SplitCompanionResult> {

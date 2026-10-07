@@ -705,11 +705,11 @@ export default function App() {
   const [officePage, setOfficePage] = useState<string | null>(initialRoute.officePage ?? null);
   /** מה לפתוח בעמוד המשרד (‎#/firm/library/request:…‎, ‎#/firm/flows/flow:…‎) — קישור עמוק מבקשה תקועה. */
   const [officeFocus, setOfficeFocus] = useState<string | null>(initialRoute.officeFocus ?? null);
-  // ── פגישות ב-Google Meet (223): הזימון יוצא מהיומן של הרו"ח דרך calendar-meeting ──
+  // ── פגישות ב-Google Meet (225): הזימון יוצא מהיומן של הרו"ח דרך calendar-meeting ──
   const meetingsApi = useMeetings(user?.id);
   const [meetingDialog, setMeetingDialog] = useState<MeetingDialogMode | null>(null);
   const meetingCues = useMemo(() => meetingCueByPerson(meetingsApi.meetings), [meetingsApi.meetings]);
-  // ── אנשי קשר (224): רו״ח אחר, עו״ד… — לשונית בתוך «לקוחות», ומוכרים בחלון הפגישה ──
+  // ── אנשי קשר (226): רו״ח אחר, עו״ד… — לשונית בתוך «לקוחות», ומוכרים בחלון הפגישה ──
   const contactsApi = useContacts(user?.id);
   const viewRef = useRef(view);
   viewRef.current = view;

@@ -10,9 +10,9 @@ import {
 } from './meetingInvite.ts';
 import { rsvpFromGoogle, type GoogleEvent, type Rsvp } from './googleCalendar.ts';
 
-// ─── מי עוד בפנייה (224) ─────────────────────────────────────────────────────
+// ─── מי עוד בפנייה (226) ─────────────────────────────────────────────────────
 // ‼ אותם שמות בתפקיד «אנשי קשר נוספים» שהטריגר tg_carry_lead_companions כותב בכרטיס
-//   כשהליד נעשה לקוח (supabase/224-lead-companions-contacts.sql) — לשנות בשני המקומות.
+//   כשהליד נעשה לקוח (supabase/226-lead-companions-contacts.sql) — לשנות בשני המקומות.
 export const COMPANION_RELATIONS = ['partner', 'spouse', 'other'] as const;
 export type CompanionRelation = typeof COMPANION_RELATIONS[number];
 export const COMPANION_RELATION_LABELS: Record<CompanionRelation, string> = {

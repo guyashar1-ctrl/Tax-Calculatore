@@ -193,7 +193,7 @@ export function buildPersonRows(clients: Client[], leads: Lead[], charges: Addit
       matchClientId: l.matchClientId,
       lead: l,
       charges: [],
-      // ‼ האנשים הנוספים בפנייה (224) נמצאים בחיפוש — מי שמחפש את «מיכל» מוצא את הפנייה של אבי.
+      // ‼ האנשים הנוספים בפנייה (226) נמצאים בחיפוש — מי שמחפש את «מיכל» מוצא את הפנייה של אבי.
       haystack: buildHaystack(name, undefined, l.phone, l.email, undefined,
         [l.businessName ?? '', ...(l.companions ?? []).flatMap(c => [c.name ?? '', c.email])]),
     });
