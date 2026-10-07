@@ -13,7 +13,7 @@ export interface ContactsApi {
   add: (c: Omit<Contact, 'id'>) => Promise<Contact>;
   update: (c: Partial<Contact> & { id: string }) => Promise<Contact>;
   remove: (id: string) => Promise<void>;
-  /** (228) «העבר ללידים» — הליד נוצר (או נמצא) ואיש הקשר יוצא מהרשימה, בפעולה אחת בשרת. */
+  /** (228) «העבר ללידים» — הליד נוצר (או נמצא) ואיש הקשר מסומן «עבר ללידים» ויוצא מהרשימה, בפעולה אחת בשרת. */
   moveToLead: (id: string) => Promise<MoveToLeadResult>;
 }
 
@@ -33,7 +33,9 @@ export function useContacts(userId: string | undefined): ContactsApi {
 
   const refresh = useCallback(async () => {
     if (!userId) return;
-    const { data, error } = await supabase.from('contacts').select('*').order('full_name', { ascending: true });
+    // ‼ (228) מי שעבר ללידים לא נמחק — הוא מסומן ונעלם מהרשימה.
+    const { data, error } = await supabase.from('contacts').select('*').is('moved_to_lead_id', null)
+      .order('full_name', { ascending: true });
     if (!error) setContacts((data ?? []).map(contactFromDb));
     setLoading(false);
   }, [userId]);

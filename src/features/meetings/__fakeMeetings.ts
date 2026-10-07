@@ -69,11 +69,12 @@ export function seedPeople(userId: string): { leads: Row[]; contacts: Row[] } {
 }
 
 /** «הפרד לליד נפרד» בהדגמה — אותם כללים כמו split_lead_companion (226). */
-/** (228) «העבר ללידים» — כמו move_contact_to_lead: לקוח ⇒ סירוב; ליד פתוח באותו מייל ⇒ אותו ליד. */
+/** (228) «העבר ללידים» — כמו move_contact_to_lead: לקוח ⇒ סירוב; ליד פתוח באותו מייל ⇒ אותו ליד; לא נמחק. */
 export function fakeMoveContactToLead(tables: Record<string, Row[]>, userId: string, args: Row): Row {
   const contacts = (tables.contacts ??= []);
   const c = contacts.find(x => x.id === args.p_contact_id);
   if (!c) return { ok: false, error: 'contact_not_found' };
+  if (c.moved_to_lead_id) return { ok: true, leadId: c.moved_to_lead_id, existing: true, already: true };
   const email = low(c.email);
   const client = email ? SAMPLE_CLIENTS.find(x => low(x.email) === email || low(x.spouseEmail) === email) : undefined;
   if (client) return { ok: false, error: 'is_client', clientId: client.id };
@@ -87,7 +88,8 @@ export function fakeMoveContactToLead(tables: Record<string, Row[]>, userId: str
     leads.unshift({ id: leadId, user_id: userId, full_name: c.full_name, email: email || null, phone: c.phone ?? null, notes,
       status: 'new', source: 'accountant', has_previous_accountant: false, companions: [], created_at: now, updated_at: now });
   }
-  tables.contacts = contacts.filter(x => x.id !== c.id);
+  // ‼ כמו בשרת: לא נמחק — מסומן «עבר ללידים».
+  Object.assign(c, { moved_to_lead_id: leadId, moved_at: new Date().toISOString() });
   return { ok: true, leadId, existing: !!existing };
 }
 
@@ -240,6 +242,7 @@ export function fakeMeetingsInvoke(name: string, body: Row, tables: Record<strin
     const people: PeopleOutcome = { leadCreated: false, leadReopened: false, companionsAdded: 0, contactsSaved: 0, extraLeadsCreated: 0 };
     const contacts = (tables.contacts ??= []);
     for (const c of input.saveContacts) {
+      // ‼ כמו האינדקס הייחודי בשרת: גם מי שעבר ללידים תופס את המייל.
       if (contacts.some(x => low(x.email) === c.email)) continue;
       contacts.push({ id: `ct-${Date.now()}-${people.contactsSaved}`, user_id: userId, full_name: c.fullName, email: c.email,
         role: c.role || null, organization: c.organization || null, phone: null, notes: null, created_at: nowIso, updated_at: nowIso });
@@ -251,7 +254,7 @@ export function fakeMeetingsInvoke(name: string, body: Row, tables: Record<strin
       const match = matchPeople({
         kind: row.kind, guests: row.guests, clients, explicitClientId: row.client_id ?? null,
         leads: leads.map(l => ({ id: l.id, email: l.email, status: l.status, companions: l.companions, converted_client_id: l.converted_client_id })),
-        contactEmails: contacts.map(c => c.email), relations: input.relations, saveAs: input.saveAs,
+        contactEmails: contacts.filter(c => !c.moved_to_lead_id).map(c => c.email), relations: input.relations, saveAs: input.saveAs,
       });
       if (match.clientId) row.client_id = match.clientId;
       if (match.newLead) {

@@ -319,7 +319,8 @@ Deno.serve(async (req: Request) => {
       const [{ data: clients }, { data: leads }, { data: contacts }] = await Promise.all([
         admin.from("clients").select("id, email, spouse_email").eq("user_id", userId),
         admin.from("leads").select("id, email, status, companions, converted_client_id").eq("user_id", userId),
-        admin.from("contacts").select("email").eq("user_id", userId).not("email", "is", null),
+        // ‼ (228) מי שעבר ללידים כבר אינו איש קשר — הוא ליד.
+        admin.from("contacts").select("email").eq("user_id", userId).not("email", "is", null).is("moved_to_lead_id", null),
       ]);
       const leadRows = (leads ?? []) as LeadRow[];
       const match = matchPeople({

@@ -6,16 +6,28 @@
 --   לקוח. איש קשר שמתברר כלקוח פוטנציאלי עובר ללידים, ומשם כמו כל ליד.
 -- התיעוד: docs/MEETINGS-GOOGLE-CALENDAR.md (סבב 3).
 --
--- מה נוסף: move_contact_to_lead — באותה פעולה נוצר הליד (או נמצא ליד פתוח באותו מייל)
---   ואיש הקשר יוצא מאנשי הקשר. ‼ אדם אחד = רשומה אחת: לא נשאר גם איש קשר וגם ליד.
---   · כבר לקוח (מייל של לקוח או של בן/בת הזוג) ⇒ סירוב עם הכרטיס הקיים, ואיש הקשר נשאר.
---   · לחיצה כפולה / שתי לשוניות ⇒ השנייה מחכה לנעילה ומוצאת שאיש הקשר כבר עבר — אותו ליד.
---   · התפקיד, מקום העבודה וההערות עוברים להערות הליד — לא לשם העסק (מקום העבודה של
---     יועץ פנסיוני הוא חברת הביטוח, לא העסק שלו).
---   · הפגישות שנקבעו איתו נשארות: הן מזוהות לפי מייל (meetings.guests), גם בכרטיס הליד.
+-- מה נוסף:
+--   1. contacts.moved_to_lead_id / moved_at — איש קשר שעבר ללידים. ‼ הוא לא נמחק: הרשומה
+--      נשארת (תפקיד, מקום עבודה, הערות) עם הפניה לליד, ונעלמת מרשימת אנשי הקשר ומהשיוך
+--      בזימון. כך אין שני אנשים פעילים לאותו אדם, ואין מידע שאבד — אפשר לשחזר.
+--   2. move_contact_to_lead — באותה פעולה נוצר הליד (או נמצא ליד פתוח באותו מייל) ואיש
+--      הקשר מסומן «עבר ללידים».
+--      · כבר לקוח (מייל של לקוח או של בן/בת הזוג) ⇒ סירוב עם הכרטיס הקיים; איש הקשר נשאר.
+--      · לחיצה כפולה / שתי לשוניות ⇒ השנייה מחכה לנעילה ומוצאת שכבר עבר — אותו ליד.
+--      · התפקיד, מקום העבודה וההערות עוברים להערות הליד — לא לשם העסק (מקום העבודה של
+--        יועץ פנסיוני הוא חברת הביטוח, לא העסק שלו).
+--      · הפגישות שנקבעו איתו נשארות: הן מזוהות לפי מייל (meetings.guests), גם בכרטיס הליד.
 --
--- ‼ שום טבלה או פונקציה קיימת לא משתנה.
+-- ‼ תוספת בלבד: עמודות חדשות שמתחילות ריקות ופונקציה חדשה. שום פונקציה קיימת לא משתנה.
+--   האינדקס הייחודי על המייל (226) נשאר: מייל של מי שעבר ללידים לא נשמר שוב כאיש קשר —
+--   הוא כבר ליד.
 -- ═══════════════════════════════════════════════════════════════════════════
+
+alter table public.contacts
+  add column if not exists moved_to_lead_id text references public.leads(id) on delete set null;
+
+alter table public.contacts
+  add column if not exists moved_at timestamptz;
 
 create or replace function public.move_contact_to_lead(p_contact_id text)
 returns jsonb
@@ -29,14 +41,18 @@ declare
   v_email text;
   v_id    text;
   v_notes text;
+  v_existing boolean := true;
 begin
   if v_uid is null or not public.is_authorized() then
     return jsonb_build_object('ok', false, 'error', 'forbidden');
   end if;
-  -- ‼ נעילה: שתי לחיצות במקביל עוברות בתור; השנייה כבר לא מוצאת את איש הקשר.
+  -- ‼ נעילה: שתי לחיצות במקביל עוברות בתור; השנייה מוצאת שכבר עבר.
   select * into c from public.contacts where id = p_contact_id and user_id = v_uid for update;
   if c.id is null then
     return jsonb_build_object('ok', false, 'error', 'contact_not_found');
+  end if;
+  if c.moved_to_lead_id is not null then
+    return jsonb_build_object('ok', true, 'leadId', c.moved_to_lead_id, 'existing', true, 'already', true);
   end if;
 
   v_email := lower(btrim(coalesce(c.email, '')));
@@ -54,18 +70,17 @@ begin
   end if;
 
   if v_id is null then
+    v_existing := false;
     v_notes := nullif(concat_ws(E'\n',
       nullif(concat_ws(' · ', 'הועבר מאנשי הקשר', nullif(btrim(c.role), ''), nullif(btrim(c.organization), '')), ''),
       nullif(btrim(c.notes), '')), '');
     insert into public.leads (user_id, full_name, email, phone, notes, status, source)
     values (v_uid, c.full_name, nullif(v_email, ''), nullif(btrim(c.phone), ''), v_notes, 'new', 'accountant')
     returning id into v_id;
-    delete from public.contacts where id = c.id;
-    return jsonb_build_object('ok', true, 'leadId', v_id, 'existing', false);
   end if;
 
-  delete from public.contacts where id = c.id;
-  return jsonb_build_object('ok', true, 'leadId', v_id, 'existing', true);
+  update public.contacts set moved_to_lead_id = v_id, moved_at = now() where id = c.id;
+  return jsonb_build_object('ok', true, 'leadId', v_id, 'existing', v_existing);
 end;
 $$;
 
