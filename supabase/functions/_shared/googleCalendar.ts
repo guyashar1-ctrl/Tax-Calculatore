@@ -134,25 +134,30 @@ export function refreshAccessToken(fetchFn: FetchFn, ep: GoogleEndpoints, a: { r
   });
 }
 
-export function authorizeUrl(ep: GoogleEndpoints, a: { clientId: string; redirectUri: string; state: string; loginHint?: string }): string {
+/**
+ * ‼ בלי login_hint, ועם בחירת חשבון בכל חיבור: היומן הוא של חשבון המשרד ב-Workspace, ולא
+ * בהכרח המייל שמתחברים איתו ל-PIVO (למשל Gmail פרטי — שאפליקציה «פנימית» דוחה). נמצא בבדיקה
+ * מול Google האמיתי (07.10.2026): הרמז מילא מראש את המייל של PIVO.
+ */
+export function authorizeUrl(ep: GoogleEndpoints, a: { clientId: string; redirectUri: string; state: string }): string {
   const q = new URLSearchParams({
     client_id: a.clientId,
     redirect_uri: a.redirectUri,
     response_type: 'code',
     scope: GOOGLE_SCOPES.join(' '),
-    // offline + consent: כדי לקבל refresh token גם בחיבור חוזר.
+    // offline + consent: כדי לקבל refresh token גם בחיבור חוזר. select_account: תמיד בוחרים חשבון.
     access_type: 'offline',
-    prompt: 'consent',
+    prompt: 'select_account consent',
     include_granted_scopes: 'true',
     state: a.state,
   });
-  if (a.loginHint) q.set('login_hint', a.loginHint);
   return `${ep.authorize}?${q.toString()}`;
 }
 
 // ─── state חתום לחיבור ─────────────────────────────────────────────────────
 // ‼ החזרה מ-Google מגיעה בלי JWT. ה-state נושא את זהות הרו"ח ואת כתובת החזרה,
-// חתום ב-HMAC ותקף 15 דקות — כך שאי אפשר לחבר יומן לחשבון של מישהו אחר.
+// חתום ב-HMAC ותקף 30 דקות — כך שאי אפשר לחבר יומן לחשבון של מישהו אחר.
+// (30 ולא 15: בבדיקה הראשונה הקישור פג לפני שמסך ההרשאות של Google אושר.)
 
 const b64url = (bytes: Uint8Array) => {
   let s = '';

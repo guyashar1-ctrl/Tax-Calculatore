@@ -15,6 +15,7 @@ import { test, equal, assert, deepEqual } from '../../../testkit/tinyTest';
 import type { TestCase } from '../../../testkit/tinyTest';
 import {
   googleCall, googleEndpoints, refreshAccessToken, signState, verifyState, safeReturnTo, eventIdFor, eventBody, rsvpFromGoogle,
+  authorizeUrl,
 } from '../../../../supabase/functions/_shared/googleCalendar';
 import { parseCreate, parseMove, matchPeople, mergeCompanions, syncFromEvent } from '../../../../supabase/functions/_shared/meetingCore';
 
@@ -78,6 +79,14 @@ export const TESTS: TestCase[] = [
     equal(safeReturnTo('http://localhost:5173/', app, true), 'http://localhost:5173/');
   }),
 
+  test('קישור החיבור: בוחרים חשבון בכל פעם, ובלי למלא מראש את המייל של PIVO', () => {
+    const ep = googleEndpoints({ supabaseUrl: PROD, clientIdConfigured: true });
+    const u = new URL(authorizeUrl(ep, { clientId: 'c', redirectUri: 'https://x/cb', state: 's' }));
+    equal(u.origin + u.pathname, 'https://accounts.google.com/o/oauth2/v2/auth');
+    equal(u.searchParams.get('login_hint'), null);
+    equal(u.searchParams.get('prompt'), 'select_account consent');
+    equal(u.searchParams.get('access_type'), 'offline');
+  }),
   test('מזהה אירוע: נגזר מהפגישה, תווים ש-Google מקבל', () => {
     equal(eventIdFor(UUID), 'pivo0f6c2a8e3b1d4e5f9a7b1c2d3e4f5a6b');
     assert(/^[a-v0-9]{5,1024}$/.test(eventIdFor(UUID)), 'base32hex');

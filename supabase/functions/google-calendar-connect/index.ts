@@ -95,8 +95,8 @@ Deno.serve(async (req: Request) => {
     if (body.action === "start") {
       if (!clientId) return json({ ok: false, error: "google_not_configured" }, 500);
       const returnTo = safeReturnTo(typeof body.returnTo === "string" ? body.returnTo : undefined, APP_URL, !IS_PROD);
-      const state = await signState(STATE_SECRET, { userId: user.id, returnTo, exp: Date.now() + 15 * 60000 });
-      return json({ ok: true, url: authorizeUrl(EP, { clientId, redirectUri: REDIRECT_URI, state, loginHint: user.email ?? undefined }) });
+      const state = await signState(STATE_SECRET, { userId: user.id, returnTo, exp: Date.now() + 30 * 60000 });
+      return json({ ok: true, url: authorizeUrl(EP, { clientId, redirectUri: REDIRECT_URI, state }) });
     }
 
     if (body.action === "disconnect") {
