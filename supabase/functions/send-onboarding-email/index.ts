@@ -352,11 +352,11 @@ Deno.serve(async (req: Request) => {
         <div style="font-family:${f};text-align:right;font-size:14px;color:${brand.muted};line-height:1.85;">${body}</div>`;
       return `
         <div style="border:1px solid ${brand.border};border-radius:${brand.radius}px;padding:18px;background:${brand.pageBg};margin-top:6px;">
-          <div style="font-family:${f};text-align:center;font-size:13px;color:${brand.muted};">מספר האסמכתא שלכם</div>
+          <div style="font-family:${f};text-align:center;font-size:13px;color:${brand.muted};">מספר האסמכתא ${esc(niWhose())}</div>
           <div dir="ltr" style="font-family:${f};text-align:center;font-size:40px;font-weight:700;letter-spacing:.06em;color:${brand.accent};padding-top:4px;">${esc(String(ni.referenceNumber))}</div>
           ${deadlineRow}
         </div>
-        ${option("א.", "באתר הביטוח הלאומי", `נכנסים ל<a href="${esc(NI_SITE)}" style="color:${brand.accent};font-weight:700;">${esc(NI_SITE_LABEL)}</a> ← מקלידים את מספר תעודת הזהות ואת מספר האסמכתא שלמעלה ← מזדהים בכרטיס אשראי על שמכם, או בטלפון/מייל המעודכנים בביטוח הלאומי ← מאשרים במסך. <strong style="color:${brand.ink};">הייצוג נכנס לתוקף מיד.</strong>`)}
+        ${option("א.", "באתר הביטוח הלאומי", `נכנסים ל<a href="${esc(NI_SITE)}" style="color:${brand.accent};font-weight:700;">${esc(NI_SITE_LABEL)}</a> ← מקלידים את מספר תעודת הזהות ${esc(niWhose())} ואת מספר האסמכתא שלמעלה ← מזדהים בכרטיס אשראי ${esc(niWhose())}, או בטלפון/מייל המעודכנים בביטוח הלאומי ← מאשרים במסך. <strong style="color:${brand.ink};">הייצוג נכנס לתוקף מיד.</strong>`)}
         ${option("ב.", "בטלפון", `מתקשרים ל-<strong dir="ltr" style="color:${brand.ink};font-size:16px;">${esc(NI_PHONE)}</strong> (מענה קולי) ומאשרים באמצעות מספר האסמכתא ובאמצעות קוד בן 6 ספרות שהביטוח הלאומי ישלח אליכם בדואר או במייל. מתאים למי שאין לו כרטיס אשראי או מייל מאומת בביטוח הלאומי.`)}`;
     };
 
@@ -417,6 +417,9 @@ Deno.serve(async (req: Request) => {
     // ‼ 212: אדם שבקשת הב"ל שלו בוטלה — המסלול שלו (אסמכתא, מועד) הוא היסטוריה.
     // לא נכנס למייל החתימה, ומייל הוראות עצמאי אליו נדחה.
     let niCancelledForRole = false;
+    // ‼ 224 · שני בני הזוג מיוצגים בב"ל ⇒ לכל אחד אסמכתא ואישור משלו, והמייל לרוב
+    // משותף. ואז «מספר האסמכתא» לבדו נקרא כ«שלנו» — נאמר במפורש של מי.
+    let niCouple = false;
     if (reqRow?.linked_client_id) {
       const { data: niCli } = await admin
         .from("clients").select("authority_representations")
@@ -425,7 +428,14 @@ Deno.serve(async (req: Request) => {
       const niRole = niKey === "nationalInsuranceSpouse" ? "spouse" : "client";
       niCancelledForRole = !!niRec?.cancelled?.[niRole]
         && !(Array.isArray(niRec?.targets) && niRec.targets.includes(niRole));
+      const niHasCancelled = niRec?.cancelled && Object.keys(niRec.cancelled).length > 0;
+      const niTargetsAll: string[] = !niRec ? []
+        : Array.isArray(niRec.targets) && (niRec.targets.length || niHasCancelled) ? niRec.targets
+        : niRec.coversSpouse ? ["client", "spouse"] : ["client"];
+      niCouple = niTargetsAll.includes("client") && niTargetsAll.includes("spouse");
     }
+    /** «של הדסה» כשבני הזוג חולקים את התהליך, אחרת «שלך». clientFirst = האדם שהאסמכתא שלו. */
+    const niWhose = () => (niCouple && clientFirst ? `של ${clientFirst}` : "שלך");
     const niData = niCancelledForRole ? {} : ((reqRow?.execution || {})[niKey] || {});
     let extraHtml: string | undefined;
     let ctaHref = link;
@@ -566,19 +576,21 @@ Deno.serve(async (req: Request) => {
             <div style="font-family:${f};text-align:right;font-size:12.5px;color:${brand.muted};">${label}</div>
             <div ${ltr ? 'dir="ltr" ' : ""}style="font-family:${f};text-align:right;font-size:20px;font-weight:700;letter-spacing:.03em;color:${color};padding-top:2px;">${value}</div>
           </td>`;
+        const coupleNi = niCouple && !!clientFirst;
         steps.push({
           title: "אישור הייצוג בביטוח הלאומי",
-          lead: "את ייפוי הכוח כבר הזנו בביטוח הלאומי. נשאר רק לאשר אותו — בלי האישור הייצוג שם לא נכנס לתוקף.",
+          lead: "את ייפוי הכוח כבר הזנו בביטוח הלאומי. נשאר רק לאשר אותו — בלי האישור הייצוג שם לא נכנס לתוקף."
+            + (coupleNi ? " לכל אחד מבני הזוג מספר אסמכתא נפרד ואישור נפרד." : ""),
           inner: `
             <table dir="rtl" role="presentation" cellpadding="0" cellspacing="0" width="100%" style="margin-top:14px;border:1px solid ${brand.border};border-radius:${brand.radius}px;background:${brand.pageBg};">
               <tr>
-                ${cell("מספר אסמכתא", esc(String(niData.referenceNumber)), brand.ink, false, true)}
+                ${cell(coupleNi ? `מספר האסמכתא של ${esc(clientFirst)}` : "מספר אסמכתא", esc(String(niData.referenceNumber)), brand.ink, false, true)}
                 ${deadline ? cell("לאשר עד", esc(deadline), "#8A4B00", true, false) : ""}
               </tr>
             </table>
             ${stepButton("לאישור באתר הביטוח הלאומי", NI_SITE)}
             <div style="clear:both;font-family:${f};text-align:right;font-size:13.5px;color:${brand.muted};line-height:1.7;padding-top:12px;">
-              באתר מקלידים תעודת זהות ואת מספר האסמכתא, ומזדהים בכרטיס אשראי או דרך הטלפון או המייל המעודכנים בביטוח הלאומי.
+              באתר מקלידים ${coupleNi ? `את תעודת הזהות של ${esc(clientFirst)}` : "תעודת זהות"} ואת מספר האסמכתא, ומזדהים בכרטיס אשראי או דרך הטלפון או המייל המעודכנים בביטוח הלאומי.
             </div>
             <div style="font-family:${f};text-align:right;font-size:13.5px;color:${brand.muted};line-height:1.7;padding-top:4px;">
               אפשר גם בטלפון <span dir="ltr" style="color:${brand.ink};font-weight:700;white-space:nowrap;">${esc(NI_PHONE)}</span> (מענה קולי), עם מספר האסמכתא וקוד בן 6 ספרות שהביטוח הלאומי שולח בדואר או במייל.
