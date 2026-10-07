@@ -98,3 +98,16 @@ verify_jwt = false
 
 [functions.document-pdf]
 verify_jwt = false
+
+# פגישות ב-Google Meet (223). הרו"ח מזוהה מה-JWT בתוך הפונקציה ונבדק מול is_authorized.
+[functions.calendar-meeting]
+verify_jwt = false
+
+# חיבור יומן Google. ‼ חייבת להיות פתוחה: Google מחזיר אליה את הדפדפן בלי JWT.
+# הזיהוי בחזרה הוא state חתום (HMAC, 15 דקות) שנוצר כשהרו"ח המחובר לחץ «חבר».
+[functions.google-calendar-connect]
+verify_jwt = false
+
+# Google המדומה — סביבת הבדיקות בלבד; מסרבת לרוץ בייצור ואינה נפרסת אליו.
+[functions.fake-google-calendar]
+verify_jwt = false
