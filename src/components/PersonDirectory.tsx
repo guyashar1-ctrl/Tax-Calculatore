@@ -68,6 +68,8 @@ interface Props {
   onRequestChargePayment: (charge: AdditionalCharge) => Promise<void>;
   /** "סמן כשולם" — סימון ידני בלבד. */
   onMarkChargePaid: (charge: AdditionalCharge) => Promise<void>;
+  /** הפגישה הקרובה לכל לקוח/ליד — רמז בקצה השורה (features/meetings). */
+  meetingCues?: Map<string, string>;
 }
 
 const STAGE_NOW_TITLE: Record<string, string> = {
@@ -85,8 +87,8 @@ export default function PersonDirectory(p: Props) {
   const { showToast } = useToast();
 
   const rows = useMemo(
-    () => buildPersonRows(p.clients, p.leads, p.charges),
-    [p.clients, p.leads, p.charges],
+    () => buildPersonRows(p.clients, p.leads, p.charges, p.meetingCues),
+    [p.clients, p.leads, p.charges, p.meetingCues],
   );
   const visible = useMemo(() => searchPersonRows(rows, query), [rows, query]);
   const selected = useMemo(

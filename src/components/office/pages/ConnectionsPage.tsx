@@ -17,6 +17,8 @@ import WorkstationPairingDialog from '../../WorkstationPairingDialog';
 import PaperlessLinkField, { paperlessInviteUrl, withPaperlessInviteUrl } from './PaperlessLinkField';
 import { GoTo } from '../officeUi';
 import type { OfficePageId } from '../officeModel';
+import GoogleCalendarCard from '../../../features/meetings/GoogleCalendarCard';
+import '../../../features/meetings/meetings.css';
 
 type LayerState = { ready: boolean; checkedAt?: string } | undefined;
 type Tone = 'on' | 'off' | 'warn';
@@ -79,6 +81,9 @@ export default function ConnectionsPage({ draft, setDraft, focus, go }: {
   return (
     <>
       <ul className="of-conns">
+        {/* פגישות ב-Google Meet (223) — הזימון יוצא מהיומן הזה. */}
+        <GoogleCalendarCard />
+
         <li className="of-conn" data-focus={focusOf('worker')}>
           <div className="of-conn-head">
             <h2 className="of-conn-name">מחשב העבודה</h2>

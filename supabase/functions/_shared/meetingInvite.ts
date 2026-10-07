@@ -255,6 +255,16 @@ export function whatsappReminderText(args: { guest: MeetingGuest; date: string; 
   return `היי${first ? ' ' + first : ''}, תזכורת קטנה: נדבר ${when} ב-${args.time} ב-Google Meet. הקישור נמצא בהזמנה ששלחתי במייל. נתראה${sign ? ', ' + sign : '!'}`;
 }
 
+/**
+ * «שלחתי לך זימון» להעתקה לוואטסאפ, מיד אחרי השליחה. ‼ האדם פנה בוואטסאפ — שם הוא
+ * מחכה לתשובה; וזימון ממי שעוד לא מכיר נוחת לפעמים בקידומי מכירות או בספאם.
+ */
+export function whatsappSentText(args: { guest: MeetingGuest; kind: MeetingKind; date: string; time: string }): string {
+  const first = firstName(args.guest);
+  const what = args.kind === 'intro' ? 'לשיחת היכרות' : 'לפגישה';
+  return `היי${first ? ' ' + first : ''}, שלחתי לך למייל זימון ${what} ב${longDay(args.date)} ב-${args.time}. הקישור ל-Google Meet נמצא בזימון. אם לא הגיע, שווה להציץ בספאם. נתראה!`;
+}
+
 /** הודעת ביטול להעתקה לוואטסאפ — גוגל שולח הודעת ביטול רשמית; זו המילה האישית. */
 export function whatsappCancelText(args: { guest: MeetingGuest; date: string; time: string }): string {
   const first = firstName(args.guest);

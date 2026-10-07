@@ -123,7 +123,12 @@ function chargesCue(charges: AdditionalCharge[]): string | null {
   return `${first.description} · ${CHARGE_STATUS_LABELS[first.status]}${extra}`;
 }
 
-export function buildPersonRows(clients: Client[], leads: Lead[], charges: AdditionalCharge[] = []): PersonRow[] {
+/**
+ * meetingCues — הפגישה הקרובה לכל לקוח/ליד (features/meetings/meetingModel.meetingCueByPerson).
+ * ‼ ליד שנוצר מזימון בוואטסאפ נראה ברשימה עם «שיחת היכרות · יום ה׳…» ולא רק «נוצר היום».
+ */
+export function buildPersonRows(clients: Client[], leads: Lead[], charges: AdditionalCharge[] = [],
+  meetingCues: Map<string, string> = new Map()): PersonRow[] {
   const rows: PersonRow[] = [];
 
   const chargesByClient = new Map<string, AdditionalCharge[]>();
@@ -155,7 +160,7 @@ export function buildPersonRows(clients: Client[], leads: Lead[], charges: Addit
       phone: c.phone || undefined,
       email: c.email || undefined,
       badge: clientBadge(c),
-      cue: chargesCue(clientCharges) ?? relativeCue('עודכן', c.updatedAt ?? c.createdAt),
+      cue: chargesCue(clientCharges) ?? meetingCues.get(c.id) ?? relativeCue('עודכן', c.updatedAt ?? c.createdAt),
       hidden: c.lifecycleStage === 'archived',
       possibleMatch: false,
       client: c,
@@ -178,7 +183,7 @@ export function buildPersonRows(clients: Client[], leads: Lead[], charges: Addit
       phone: l.phone || undefined,
       email: l.email || undefined,
       badge: leadBadge(l),
-      cue: relativeCue('נוצר', l.createdAt),
+      cue: meetingCues.get(l.id) ?? relativeCue('נוצר', l.createdAt),
       hidden: l.status === 'closed',
       possibleMatch: !!l.matchClientId,
       matchClientId: l.matchClientId,

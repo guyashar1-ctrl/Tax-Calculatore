@@ -47,7 +47,7 @@ export const OFFICE_PAGES: OfficePageDef[] = [
   { id: 'pricing', label: 'הצעות מחיר', blurb: 'שירותים, מחירים ותבניות הצעה.' },
   { id: 'emails', label: 'מיילים', blurb: 'הנוסח של כל מייל, ומה נשלח.' },
   { id: 'automations', label: 'אוטומציות', blurb: 'מה קורה לבד, מה מפעיל את זה, ומה קרה בפעם האחרונה.' },
-  { id: 'connections', label: 'חיבורים', blurb: 'שע״ם, ביטוח לאומי, מחשב העבודה ופייפרלס.' },
+  { id: 'connections', label: 'חיבורים', blurb: 'יומן Google, שע״ם, ביטוח לאומי, מחשב העבודה ופייפרלס.' },
 ];
 
 /** קו מפריד בתפריט אחרי העמודים האלה. */

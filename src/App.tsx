@@ -56,6 +56,10 @@ import { useClients } from './hooks/useClients';
 import { useTasks } from './hooks/useTasks';
 import { useRepresentationRequests } from './hooks/useRepresentationRequests';
 import { useFirmProfile } from './hooks/useFirmProfile';
+import { useMeetings } from './features/meetings/useMeetings';
+import MeetingDialog, { type MeetingDialogMode } from './features/meetings/MeetingDialog';
+import UpcomingMeetings from './features/meetings/UpcomingMeetings';
+import { meetingCueByPerson, upcomingMeetings, meetingWhen } from './features/meetings/meetingModel';
 import { useFailedNotifications } from './hooks/useFailedNotifications';
 import { useLivePulse } from './hooks/useLivePulse';
 import { useLeads } from './hooks/useLeads';
@@ -700,6 +704,10 @@ export default function App() {
   const [officePage, setOfficePage] = useState<string | null>(initialRoute.officePage ?? null);
   /** מה לפתוח בעמוד המשרד (‎#/firm/library/request:…‎, ‎#/firm/flows/flow:…‎) — קישור עמוק מבקשה תקועה. */
   const [officeFocus, setOfficeFocus] = useState<string | null>(initialRoute.officeFocus ?? null);
+  // ── פגישות ב-Google Meet (223): הזימון יוצא מהיומן של הרו"ח דרך calendar-meeting ──
+  const meetingsApi = useMeetings(user?.id);
+  const [meetingDialog, setMeetingDialog] = useState<MeetingDialogMode | null>(null);
+  const meetingCues = useMemo(() => meetingCueByPerson(meetingsApi.meetings), [meetingsApi.meetings]);
   const viewRef = useRef(view);
   viewRef.current = view;
   /**
@@ -718,6 +726,15 @@ export default function App() {
   const [selectedId, setSelectedId] = useState<string | null>(initialRoute.clientId ?? null);
   const [selectedRequestId, setSelectedRequestId] = useState<string | null>(initialRoute.requestId ?? null);
   useEffect(() => { if (selectedRequestId) void hydrateRequest(selectedRequestId); }, [selectedRequestId, hydrateRequest]);
+  /** «לחיבור היומן» מחלון הפגישה — אותו עמוד «חיבורים» שבתפריט החשבון. */
+  const openGoogleConnections = () => {
+    setMeetingDialog(null);
+    setView('firmProfile');
+    setOfficePage('connections');
+    setOfficeFocus(null);
+    setSelectedId(null);
+    setSelectedRequestId(null);
+  };
   // התצוגה המהירה במסך הלקוחות — חיה בכתובת (#/clients/p/{id}) כדי ש"אחורה" יסגור
   const [quickViewId, setQuickViewId] = useState<string | null>(initialRoute.quickId ?? null);
   /**
@@ -2820,6 +2837,15 @@ export default function App() {
             onLoadSampleTasks={handleLoadSampleTasks}
             clientFilter={tasksClientFilter}
             onClearClientFilter={() => setTasksClientFilter(null)}
+            onNewMeeting={() => setMeetingDialog({ kind: 'new' })}
+            meetingsSlot={!tasksClientFilter && (
+              <UpcomingMeetings
+                api={meetingsApi}
+                signer={(firmProfile?.fullName ?? '').trim().split(/\s+/)[0] || undefined}
+                onMove={m => setMeetingDialog({ kind: 'move', meeting: m })}
+                onOpenConnections={openGoogleConnections}
+              />
+            )}
           />
         )}
 
@@ -2855,6 +2881,7 @@ export default function App() {
             onAddCharge={async (clientId, description, amount, dueDate) => { await addCharge(clientId, description, amount, dueDate); }}
             onRequestChargePayment={requestChargePayment}
             onMarkChargePaid={async (charge) => { await markChargePaid(charge); }}
+            meetingCues={meetingCues}
           />
         )}
 
@@ -2917,6 +2944,11 @@ export default function App() {
             onDelete={handleDelete}
             onSetLifecycleStage={async (id, stage) => { await setClientLifecycleStage(id, stage); }}
             onAddTaskForClient={(clientId, presetTitle) => openNewTaskModal(clientId, presetTitle)}
+            onNewMeeting={(clientId) => setMeetingDialog({ kind: 'new', clientId })}
+            nextMeetingLabel={(() => {
+              const next = upcomingMeetings(meetingsApi.meetings).find(m => m.clientId === selectedClient?.id);
+              return next ? `${next.kind === 'intro' ? 'שיחת היכרות' : 'פגישה'} · ${meetingWhen(next).label}` : undefined;
+            })()}
             onSelectTask={openEditTaskModal}
             onToggleTaskDone={handleToggleTaskDone}
             onChangeTaskStatus={handleChangeTaskStatus}
@@ -3234,6 +3266,19 @@ export default function App() {
           onCancel={() => setTaskModalState(null)}
           onDelete={handleDeleteTask}
           onUpdateClient={updateClient}
+        />
+      )}
+
+      {meetingDialog && (
+        <MeetingDialog
+          key={meetingDialog.kind === 'move' ? meetingDialog.meeting.id : `new-${meetingDialog.clientId ?? ''}`}
+          mode={meetingDialog}
+          clients={clients}
+          leads={leads}
+          profile={firmProfile ?? null}
+          api={meetingsApi}
+          onClose={() => { setMeetingDialog(null); void refreshLeads(); }}
+          onOpenConnections={openGoogleConnections}
         />
       )}
 

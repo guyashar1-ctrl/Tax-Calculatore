@@ -107,6 +107,10 @@ interface Props {
   onSetLifecycleStage?: (id: string, stage: LifecycleStage) => Promise<void>;
   /** presetTitle — דגל בתמונת המצב פותח את הטופס עם כותרת מוכנה, לא יוצר בשקט. */
   onAddTaskForClient: (clientId: string, presetTitle?: string) => void;
+  /** «קבע פגישה» — זימון ב-Google Meet ממולא במייל של הלקוח (features/meetings). */
+  onNewMeeting?: (clientId: string) => void;
+  /** הפגישה הקרובה, כבר מנוסחת («פגישה · יום ה׳, 8 באוק׳ · 10:00–10:45»). */
+  nextMeetingLabel?: string;
   onSelectTask: (id: string) => void;
   onToggleTaskDone: (id: string) => void;
   // הועבר מה-TaskBoard הראשי כדי להציג גם בלשונית של הלקוח
@@ -227,6 +231,8 @@ export default function ClientWorkspace({
   onDelete,
   onSetLifecycleStage,
   onAddTaskForClient,
+  onNewMeeting,
+  nextMeetingLabel,
   onSelectTask,
   onToggleTaskDone,
   onChangeTaskStatus,
@@ -728,7 +734,8 @@ export default function ClientWorkspace({
   const showRepBadge = !!client.representationStatus;
   const employee = findEmployee(client.assignedAccountantId);
   const hasHeaderChips = !!employee || (client.tags ?? []).length > 0
-    || (!isNew && openTasks.length > 0 && !!onOpenClientTasks);
+    || (!isNew && openTasks.length > 0 && !!onOpenClientTasks)
+    || (!isNew && !!nextMeetingLabel);
 
   return (
     <div className="cw-root">
@@ -821,6 +828,11 @@ export default function ClientWorkspace({
                 >⋯</button>
                 {moreOpen && (
                   <div className="cw-more-menu">
+                    {onNewMeeting && (
+                      <button type="button" onClick={() => { setMoreOpen(false); onNewMeeting(client.id); }}>
+                        קבע פגישה ב-Google Meet
+                      </button>
+                    )}
                     {onSetLifecycleStage && (
                       <button type="button" onClick={() => { setMoreOpen(false); setConfirmArchive(true); }}>
                         {isArchived ? 'החזר מארכיון' : 'העבר לארכיון'}
@@ -862,6 +874,8 @@ export default function ClientWorkspace({
                 {openTasks.length} משימות פתוחות ←
               </button>
             )}
+
+            {!isNew && nextMeetingLabel && <span className="cw-tag">{nextMeetingLabel}</span>}
           </div>
         )}
 

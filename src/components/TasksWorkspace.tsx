@@ -42,6 +42,10 @@ interface Props {
   /** סינון ללקוח מסוים — הקיצור "N משימות פתוחות ←" מכרטיס הלקוח. */
   clientFilter?: string | null;
   onClearClientFilter?: () => void;
+  /** «+ חדש ← פגישה» — זימון ב-Google Meet (features/meetings). */
+  onNewMeeting?: () => void;
+  /** «פגישות קרובות» — מוצג מעל «לטיפולי»; אין פגישות ⇒ לא מוצג כלום. */
+  meetingsSlot?: React.ReactNode;
 }
 
 // ‼ אין כאן onToggleDone/onDeleteTask/onRemindStep בכוונה. ברפרנס השורה היא
@@ -96,7 +100,7 @@ function journeyLine(sum: ClientOnboardingSummary): string {
 export default function TasksWorkspace({
   tasks, clients, onSelectTask, onAddTask,
   onReorderOpen, onSelectClient, onboardingSteps, onOpenOnboarding, quotations, onOpenQuotation,
-  onLoadSampleTasks, clientFilter, onClearClientFilter,
+  onLoadSampleTasks, clientFilter, onClearClientFilter, onNewMeeting, meetingsSlot,
 }: Props) {
   const db = useDocumentStore();
   const [bucket, setBucket] = useState<BucketKey>('mine');
@@ -229,6 +233,7 @@ export default function TasksWorkspace({
   if (totalCount === 0 && journeys.mine.length === 0 && journeys.waiting.length === 0) {
     return (
       <div className="tasks-page">
+        {meetingsSlot}
         <EmptyState
           headline="עוד אין משימות"
           sentence="משימה קושרת אותך ללקוח ומסמנת אצל מי הכדור - אצלך, אצלו, או אצל הרשות."
@@ -326,6 +331,7 @@ export default function TasksWorkspace({
 
       {bucket === 'mine' && (
         <>
+          {meetingsSlot}
           <div className="cw-section tw-list">
             {mineCount === 0 ? (
               <EmptyState
@@ -484,6 +490,11 @@ export default function TasksWorkspace({
               <button type="button" onClick={() => openRequestModal()}>
                 <b>בקשת מסמכים</b><span>בקשה מהלקוח - נכנסת לדף הלקוח ול״ממתין לאחרים״</span>
               </button>
+              {onNewMeeting && (
+                <button type="button" onClick={() => { setAddMenuOpen(false); onNewMeeting(); }}>
+                  <b>פגישה ב-Google Meet</b><span>זימון מהיומן שלך - גם למי שרק שלח מייל בוואטסאפ</span>
+                </button>
+              )}
             </div>
             <div className="foot">
               <button type="button" className="btn" onClick={() => setAddMenuOpen(false)}>ביטול</button>

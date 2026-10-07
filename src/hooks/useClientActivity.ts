@@ -15,6 +15,7 @@ import type { AdditionalCharge } from '../types/charges';
 import { formatILS } from '../utils/quotationCalc';
 import { supabase } from '../lib/supabase';
 import { emailActivityView, isInternalEmailKind, type EmailMessage, type EmailRowTone } from '../types/emailActivity';
+import { meetingFromDb, meetingWhen, historyTitle, type Meeting } from '../features/meetings/meetingModel';
 
 function emailFromDb(row: Record<string, any>): EmailMessage {
   const out: Record<string, any> = {};
@@ -52,6 +53,7 @@ export function useClientActivity({ client, clientSteps, events, quotations, cha
   const [emails, setEmails] = useState<EmailMessage[]>([]);
   const [taxChanges, setTaxChanges] = useState<{ label: string; newDisplay: string; source: string; decidedAt: string }[]>([]);
   const [docEvents, setDocEvents] = useState<{ fileName: string; label: string; uploadedAt: string }[]>([]);
+  const [meetings, setMeetings] = useState<Meeting[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -59,12 +61,17 @@ export function useClientActivity({ client, clientSteps, events, quotations, cha
     let cancelled = false;
     setLoading(true);
     (async () => {
-      const [emailRes, taxRes, docRes] = await Promise.all([
+      // ‼ פגישות: של הכרטיס, וגם של הליד שממנו נולד — שיחת ההיכרות לפני ההצעה היא חלק מהסיפור.
+      const meetingFilter = client.mergedFromLeadId
+        ? `client_id.eq.${client.id},lead_id.eq.${client.mergedFromLeadId}`
+        : `client_id.eq.${client.id}`;
+      const [emailRes, taxRes, docRes, meetingRes] = await Promise.all([
         supabase.from('email_messages').select('*').eq('client_id', client.id).order('sent_at', { ascending: false }).limit(100),
         supabase.from('tax_fact_changes').select('label, new_value, source, decided_at')
           .eq('client_id', client.id).eq('status', 'accepted').order('decided_at', { ascending: false }).limit(100),
         supabase.from('documents').select('file_name, description, uploaded_at')
           .eq('client_id', client.id).order('uploaded_at', { ascending: false }).limit(100),
+        supabase.from('meetings').select('*').or(meetingFilter).order('starts_at', { ascending: false }).limit(50),
       ]);
       if (cancelled) return;
       setEmails((emailRes.data ?? []).map(emailFromDb));
@@ -74,10 +81,11 @@ export function useClientActivity({ client, clientSteps, events, quotations, cha
       setDocEvents((docRes.data ?? []).map((r: any) => ({
         fileName: r.file_name, label: r.description || r.file_name, uploadedAt: r.uploaded_at,
       })));
+      setMeetings((meetingRes.data ?? []).map(meetingFromDb));
       setLoading(false);
     })();
     return () => { cancelled = true; };
-  }, [client.id]);
+  }, [client.id, client.mergedFromLeadId]);
 
   // ‼ הצבירה ממוזכרת על הקלטים: קודם היא רצה מחדש בכל רינדור של הלשונית
   // (כולל כל פעימה חיה), מיינה מאות שורות והחזירה מערך חדש לכל צרכן.
@@ -152,6 +160,15 @@ export function useClientActivity({ client, clientSteps, events, quotations, cha
     if (q.sentAt) items.push({ id: `q-${q.id}-sent`, at: q.sentAt, cat: 'mail', title: 'נשלחה הצעת מחיר', meta: q.quotationNumber ? `#${q.quotationNumber}` : undefined });
   }
 
+  // ‼ «נשלח זימון» רק עם ראיה: רישום 'sent' נכתב בשרת רק אחרי ש-Google קיבל (223).
+  for (const m of meetings) {
+    const when = meetingWhen(m).label;
+    for (const h of m.history) {
+      const at = h.kind === 'moved' && h.to ? meetingWhen({ startsAt: h.to, durationMin: m.durationMin }).label : when;
+      items.push({ id: `meet-${m.id}-${h.kind}-${h.at}`, at: h.at, cat: 'mail', title: historyTitle(h), meta: `${m.title} · ${at}` });
+    }
+  }
+
   for (const c of clientCharges) {
     if (c.paidAt) {
       items.push({ id: `charge-paid-${c.id}`, at: c.paidAt, cat: 'commercial', title: 'תשלום סומן כשולם', meta: `${c.description} · ${formatILS(c.amount)}` });
@@ -179,7 +196,7 @@ export function useClientActivity({ client, clientSteps, events, quotations, cha
 
   items.sort((a, b) => (b.at || '').localeCompare(a.at || ''));
   return items;
-  }, [client.id, client.email, client.spouseEmail, client.activity, clientSteps, events, quotations, charges, emails, taxChanges, docEvents]);
+  }, [client.id, client.email, client.spouseEmail, client.activity, clientSteps, events, quotations, charges, emails, taxChanges, docEvents, meetings]);
 
   return { items, loading };
 }

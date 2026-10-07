@@ -24,6 +24,7 @@ import type { PreviewRequest } from '../../features/requestPreview/types';
 import { mergeOfficeOverrides, type RequestTemplate, type TemplateEntry } from '../../lib/requestTemplates';
 import { documentLibrary } from '../../lib/clientGuide';
 import { REP_PORTAL_CARD_FIXED, resolveRepPortalCard, type RepPortalCardOverride } from '../../../supabase/functions/_shared/repTemplates.ts';
+import { seedMeetings, fakeGoogleStatus, fakeMeetingsInvoke } from '../../features/meetings/__fakeMeetings';
 
 type Row = Record<string, unknown>;
 
@@ -231,6 +232,13 @@ const tables: Record<string, Row[]> = {
 // רשומת המשרד כפי שהיא במסד — בשביל office-app, שבו האפליקציה טוענת אותה בעצמה.
 // ‼ FAKE_ACTIVE קבוע false בבנייה לייצור — כך גם הזריעה וגם הנתונים יוצאים מהחבילה.
 if (FAKE_ACTIVE) tables.profiles.push({ ...profileToDb(FIXTURE_PROFILE), id: FIRM_ID });
+
+// 07.10 · פגישות ב-Google Meet (features/meetings/__fakeMeetings) — שלוש פגישות קרובות לדוגמה.
+const MEETING_ORG = {
+  fullName: FIXTURE_PROFILE.fullName, firmName: FIXTURE_PROFILE.firmName, representativeType: FIXTURE_PROFILE.representativeType,
+  phone: FIXTURE_PROFILE.phone, whatsapp: FIXTURE_PROFILE.communication?.whatsapp, website: FIXTURE_PROFILE.website,
+};
+if (FAKE_ACTIVE && !EMPTY) tables.meetings = seedMeetings(FIRM_ID, MEETING_ORG);
 
 // ─── «בקשות» בהדגמה המלאה (office-app) ─────────────────────────────────────
 // ‼ לקוח אחד — דוד כהן (sample-1) — עם בקשות בכל המצבים, כדי שאפשר יהיה לנווט
@@ -868,6 +876,7 @@ export function installFakeBackend() {
   s.rpc = async (name: string, args: Row = {}) => {
     await wait();
     if (name === 'is_authorized') return { data: true, error: null };
+    if (name === 'google_calendar_status') return { data: fakeGoogleStatus(), error: null };
     // 05.10 · פרטי העסק, עבודה מהבית ודף ההדגמה של יוסי (__fakeRequestGroups).
     const rg = rgRpc(tables, name, args, FIXTURE_PROFILE.firmName ?? "המשרד", logWrite);
     if (rg) return rg;
@@ -984,7 +993,10 @@ export function installFakeBackend() {
   s.functions = {
     invoke: async (name: string, opts?: { body?: Row }) => {
       await wait();
-      logWrite(`functions.${name}`);
+      logWrite(`functions.${name}`, opts?.body);
+      if (name === 'calendar-meeting' || name === 'google-calendar-connect') {
+        return fakeMeetingsInvoke(name, opts?.body ?? {}, tables, FIRM_ID, MEETING_ORG);
+      }
       // ‼ התצוגה המקדימה של המייל המרוכז (214) — צורה כמו בשרת, כדי שחלון השליחה
       // יציג פריטים וטביעה. השליחה עצמה ממשיכה למטה (בזיכרון בלבד).
       if (name === 'send-process-open-email' && opts?.body?.preview) {
