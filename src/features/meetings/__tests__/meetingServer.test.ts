@@ -41,6 +41,10 @@ export const TESTS: TestCase[] = [
     const ep = googleEndpoints({ supabaseUrl: PROD, clientIdConfigured: true });
     const a = await refreshAccessToken(res(400, { error: 'invalid_grant' }), ep, { refreshToken: 'r', clientId: 'c', clientSecret: 's' });
     assert(!a.ok && a.reconnect, 'invalid_grant');
+    // כך Google עונה בפועל — קוד + הסבר. נמצא בבדיקת staging: ההסבר לבד הסתיר את הקוד.
+    const real = await refreshAccessToken(res(400, { error: 'invalid_grant', error_description: 'Token has been expired or revoked.' }), ep,
+      { refreshToken: 'r', clientId: 'c', clientSecret: 's' });
+    assert(!real.ok && real.reconnect, 'invalid_grant עם הסבר');
     const b = await refreshAccessToken(res(503, {}), ep, { refreshToken: 'r', clientId: 'c', clientSecret: 's' });
     assert(!b.ok && !b.reconnect, '503 אינו ניתוק');
     const c = await refreshAccessToken(res(200, { access_token: 'at' }), ep, { refreshToken: 'r', clientId: 'c', clientSecret: 's' });

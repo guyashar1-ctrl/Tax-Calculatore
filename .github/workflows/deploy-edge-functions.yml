@@ -60,7 +60,7 @@ jobs:
         run: |
           set -euo pipefail
           # ‼ פונקציות של סביבת הבדיקות בלבד (ספק הדואר המדומה) לעולם לא נפרסות לייצור.
-          STAGING_ONLY=" fake-email-provider "
+          STAGING_ONLY=" fake-email-provider fake-google-calendar "
           for dir in supabase/functions/*/; do
             name=$(basename "$dir")
             case "$name" in _shared) continue ;; esac

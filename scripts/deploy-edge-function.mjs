@@ -34,7 +34,7 @@ if (!ref || !name) {
 }
 
 // ‼ פונקציות של סביבת הבדיקות בלבד — לעולם לא לייצור (גם הוורקפלו מדלג עליהן).
-const STAGING_ONLY = new Set(['fake-email-provider']);
+const STAGING_ONLY = new Set(['fake-email-provider', 'fake-google-calendar']);
 if (target === 'prod' && STAGING_ONLY.has(name)) {
   console.error('✋ ' + name + ' היא פונקציה של סביבת הבדיקות בלבד — לא נפרסת לייצור.');
   process.exit(1);

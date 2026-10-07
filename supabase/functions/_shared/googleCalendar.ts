@@ -74,8 +74,12 @@ type FetchFn = (url: string, init?: RequestInit) => Promise<Response>;
 function errorMessage(body: unknown, status: number): string {
   const b = body as { error?: { message?: string } | string; error_description?: string } | null;
   if (b && typeof b.error === 'object' && b.error?.message) return String(b.error.message);
+  // ‼ OAuth מחזיר קוד + הסבר ({error:'invalid_grant', error_description:'Token has been…'}).
+  // הקוד חייב להישאר בהודעה — לפיו מזהים «צריך לחבר מחדש» (נמצא בבדיקת staging, 07.10.2026).
+  if (b && typeof b.error === 'string') {
+    return typeof b.error_description === 'string' ? `${b.error}: ${b.error_description}` : b.error;
+  }
   if (b && typeof b.error_description === 'string') return b.error_description;
-  if (b && typeof b.error === 'string') return b.error;
   return `HTTP ${status}`;
 }
 

@@ -238,7 +238,7 @@ Deno.serve(async (req: Request) => {
         startUtc: m.starts_at, endUtc: endUtc(m.starts_at, m.duration_min),
         guests: m.guests.map(g => ({ email: g.email, name: g.name })),
       };
-      let r = await gcall(tok.token, "POST", cal(`/events?conferenceDataVersion=1&sendUpdates=all`), eventBody(spec));
+      const r = await gcall(tok.token, "POST", cal(`/events?conferenceDataVersion=1&sendUpdates=all`), eventBody(spec));
       let event: GoogleEvent | null = null;
       if (r.kind === "ok") event = r.data;
       else if (r.kind === "conflict") event = await readEvent(tok.token, eventIdFor(m.id));
