@@ -1,0 +1,34 @@
+{
+ "list": [
+  {
+   "id": "c01",
+   "name": "אורי לוי",
+   "type": "murshe",
+   "monthly": 450,
+   "approved": "2026-07-14",
+   "from": "2026-08",
+   "laid": true,
+   "ended": null
+  },
+  {
+   "id": "c02",
+   "name": "מיכל אברהם",
+   "type": "murshe",
+   "monthly": 350,
+   "approved": "2026-08-20",
+   "from": "2026-09",
+   "laid": true,
+   "ended": null
+  },
+  {
+   "id": "c03",
+   "name": "נועה כהן",
+   "type": "murshe",
+   "monthly": 500,
+   "approved": "2026-10-05",
+   "from": "2026-10",
+   "laid": false,
+   "ended": null
+  }
+ ]
+}
