@@ -196,6 +196,7 @@ ul{padding:0;list-style:none}
 .one.done .one-text,.one.done .one-text .day{color:var(--ink-3)}
 .one-done{font-size:14px;color:var(--done-ink);font-weight:500;margin-top:4px}
 .one-form{display:grid;gap:8px}
+.one-help{margin:-4px 0 2px;font-size:13px;color:var(--ink-4);line-height:1.45}
 .one-row{display:flex;gap:8px;flex-wrap:wrap}
 .one-row input{flex:1 1 260px;min-width:0;height:46px;padding:0 14px;border:1px solid var(--line-strong);border-radius:11px;background:var(--surface);color:var(--ink);font-size:17px}
 .one-row select{height:46px;padding:0 10px;border:1px solid var(--line-strong);border-radius:11px;background:var(--surface);color:var(--ink)}
@@ -207,6 +208,12 @@ ul{padding:0;list-style:none}
 .zone-h b{font-weight:500;color:var(--ink-2);font-size:13.5px}
 .zone-h span{text-wrap:pretty}
 .ctl{display:grid;align-content:start;gap:0}
+.won{display:grid;grid-template-columns:8.5em minmax(0,1fr);align-items:baseline;gap:2px 8px;margin-top:10px;padding-top:10px;border-top:1px solid var(--hair);font-size:14px;color:var(--ink-2)}
+.won-l{font-weight:500}
+.won-v{color:var(--ink-3)}
+.won-v b{font-size:16px;font-weight:600;color:var(--ink-2)}
+.won.has .won-v b{color:var(--done-ink)}
+.won-names{grid-column:2;font-size:13px;color:var(--ink-3);overflow-wrap:anywhere}
 .ctr{display:grid;grid-template-columns:8.5em auto auto;justify-content:start;align-items:center;gap:8px;font-size:14px;color:var(--ink-2)}
 .notes{display:grid;align-content:start;gap:6px;min-width:0}
 .nlist{display:grid}
@@ -249,6 +256,8 @@ ul{padding:0;list-style:none}
 .track{display:flex;flex-direction:column;gap:18px;min-width:0;padding-inline-end:40px}
 .track + .track{padding-inline:40px 0;border-inline-start:1px solid var(--hair)}
 @media (max-width:980px){.tracks{grid-template-columns:1fr;gap:60px}.track,.track + .track{padding-inline:0;border-inline-start:0}}
+/* רשימת התהליכים ארוכה מהקיר: הקיר נשאר מול העיניים בזמן שגוללים בה */
+@media (min-width:981px){#money{align-self:start;position:sticky;top:20px}}
 .big{display:flex;align-items:baseline;gap:4px 8px;flex-wrap:wrap}
 .big-num{font-size:48px;font-weight:600;letter-spacing:-.025em;line-height:1;color:var(--ink)}
 .big-cur{font-size:24px;font-weight:500;color:var(--ink-3)}
@@ -380,6 +389,25 @@ ul{padding:0;list-style:none}
 .sh-body{flex:1;overflow:auto;padding:16px 24px 28px;display:grid;gap:18px;align-content:start}
 .sh-stats{display:flex;flex-wrap:wrap;gap:6px}
 .plist{display:grid}
+/* ריכוז כל התהליכים: התחנות לפי הסדר, וכל תהליך גלוי */
+.pmap{display:grid;gap:4px;margin:0;padding:0;list-style:none}
+.pst{display:grid;gap:2px;padding:12px 0 8px;border-top:1px solid var(--hair);border-radius:4px}
+.pst:first-child{border-top:0;padding-top:4px}
+.pst.flash{animation:rowflash 1.6s ease-out}
+.pst-h{display:grid;grid-template-columns:24px minmax(0,1fr) auto auto;align-items:center;gap:10px}
+.pst-n{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;font-size:12.5px;font-weight:600;color:var(--accent);background:var(--accent-soft);font-variant-numeric:tabular-nums}
+.pst.done .pst-n{color:var(--done-ink);background:var(--done-soft)}
+.pst.office .pst-n{background:none;box-shadow:inset 0 0 0 1.5px var(--accent-line)}
+.pst-name{margin:0;font-size:16px;font-weight:600;color:var(--ink);line-height:1.3}
+.pst-stat{font-size:12.5px;color:var(--ink-3);white-space:nowrap}
+.pst.done .pst-stat{color:var(--done-ink)}
+.pst-add{width:28px;height:28px;padding:0;border-radius:50%;border:1px solid var(--accent-line);background:var(--surface);color:var(--accent);display:grid;place-items:center;cursor:pointer;transition:background .15s,color .15s}
+.pst-add:hover,.pst-add[aria-expanded="true"]{background:var(--fill);border-color:var(--fill);color:var(--on-fill)}
+.pst-add .ico{width:13px;height:13px;stroke-width:2.2}
+.pst .plist{padding-inline-start:34px}
+.pst .prow{padding:7px 0}
+.pst-empty{margin:0;padding-inline-start:34px;font-size:13.5px;color:var(--ink-4);line-height:1.5;text-wrap:pretty}
+.pst-form,.pst .ideas{margin:6px 0 4px;padding-inline-start:34px}
 .prow{display:grid;grid-template-columns:auto minmax(0,1fr) auto auto;gap:12px;align-items:center;padding:10px 0;border-top:1px solid var(--hair)}
 .prow:first-child{border-top:0}
 .prow.bump{animation:rowflash 1.2s ease-out}
@@ -699,6 +727,7 @@ const GOALS = {2026: {indiv: 8, co: 1, mrr: 3200, end: '2026-12-31', tI: 8, tC: 
 const TARGETS = {leads: 3, meets: 2, quotes: 1};
 const WHY0 = 'בונים נכון. מעזים יותר. מרוויחים יותר';
 const TYPE = {patur: 'עוסק פטור', murshe: 'עוסק מורשה', company: 'חברה'};
+const typeName = t => TYPE[t] || 'לקוח';
 
 const PHASES = [
   {n: '1', name: 'תשתית ולמידה', from: '2026-10-01', to: '2026-12-31', dates: 'אוקטובר עד דצמבר 2026',
@@ -748,17 +777,22 @@ const BASE_DOCS = ['meta', 'clients', 'procs'];
 const weeksDoc = w => 'weeks-' + w.slice(0, 4);
 const weekDocs = () => { const out = [], y1 = Math.max(2026, +clock().date.slice(0, 4) + 1); for (let y = 2026; y <= y1; y++) out.push('weeks-' + y); return out; };
 const LS_KEY = 'pivo-vision-v1';
-const blank = () => ({why: null, example: false, started: null, ms: {}, monthAction: {}, live: {}, clients: [], procs: [], weeks: {}});
+const blank = () => ({why: null, example: false, started: null, ms: {}, monthAction: {}, live: {}, clients: [], procs: [], weeks: {}, laid: {}, pivoSince: null});
 let S = blank();
 const UI = {ready: false, readOnly: false, sheet: null, sheetAnim: false, seed: null, capture: false, freshProc: null, bumpProc: null, popCtr: null, flashWeek: null,
-  openWeeks: null, logAll: false, editThing: false, roadReset: false, anim: {ring: false, wall: false, hero: true}, pendingRender: false};
+  openWeeks: null, logAll: false, editThing: false, roadReset: false, anim: {ring: false, wall: false, hero: true}, pendingRender: false, addSt: null, flashSt: null};
 const Store = {mode: 'loading', db: null, docs: [], dirty: new Set(), timer: null, writing: false, echo: {}, retry: 0, status: 'loading'};
 let V = null;
 let prevBig = {mrr: null, hrs: null};
+/* ב-PIVO: הלקוחות עם ריטיינר בהסכם, לקריאה בלבד. כאן נשמר רק מתי הונחה כל לבנה (S.laid).
+   מה שאושר לפני החיבור הראשון כבר בקיר; מה שאושר מאז מחכה מעל הקיר שתניח אותו. */
+let PIVO = null, OFFICE_LIST = [];
+const officeClients = () => OFFICE_LIST.map(c => ({...c, laid: !!S.laid[c.id] || (!!S.pivoSince && c.approved < S.pivoSince)}));
 
 function pack(k) {
-  if (k === 'meta') return {v: 1, why: S.why, example: !!S.example, started: S.started, ms: S.ms, monthAction: S.monthAction, live: pruneLive(S.live)};
-  if (k === 'clients') return {list: S.clients};
+  if (k === 'meta') return {v: 1, why: S.why, example: !!S.example, started: S.started, ms: S.ms, monthAction: S.monthAction, live: pruneLive(S.live), laid: S.laid, pivoSince: S.pivoSince};
+  // ב-PIVO הלקוחות באים מההסכמים ולא נשמרים כאן
+  if (k === 'clients') return {list: PIVO ? [] : S.clients};
   if (k === 'procs') return {list: S.procs};
   const y = k.slice(6), map = {};
   for (const [w, v] of Object.entries(S.weeks)) if (w.startsWith(y)) map[w] = v;
@@ -766,7 +800,7 @@ function pack(k) {
 }
 function unpack(k, body) {
   const b = body ? clone(body) : null;
-  if (k === 'meta') { S.why = b?.why ?? null; S.example = !!b?.example; S.started = b?.started ?? null; S.ms = b?.ms || {}; S.monthAction = b?.monthAction || {}; S.live = b?.live || {}; }
+  if (k === 'meta') { S.why = b?.why ?? null; S.example = !!b?.example; S.started = b?.started ?? null; S.ms = b?.ms || {}; S.monthAction = b?.monthAction || {}; S.live = b?.live || {}; S.laid = b?.laid || {}; S.pivoSince = b?.pivoSince ?? null; }
   else if (k === 'clients') S.clients = Array.isArray(b?.list) ? b.list : [];
   else if (k === 'procs') S.procs = Array.isArray(b?.list) ? b.list : [];
   else {
@@ -842,6 +876,7 @@ function subscribe() {
       requestRender();
     }, () => {}));
   }
+  if (PIVO) unsubs.push(PIVO.onClients(list => { OFFICE_LIST = list; requestRender(); }));
 }
 function setStatus(s) { Store.status = s; const el = $('#saveState'); if (el) el.outerHTML = statusHTML(); }
 function statusHTML() {
@@ -855,6 +890,7 @@ function statusHTML() {
 
 /* ═══ חישוב המצב היום ═════════════════════════════════════════════ */
 function derive() {
+  if (PIVO) S.clients = officeClients();
   const {date: asOf, time} = clock();
   const mNow = mIdx(asOf), year = +asOf.slice(0, 4);
   const seen = S.clients.filter(c => c.approved <= asOf);
@@ -988,7 +1024,7 @@ function notesHTML(w, off) {
     ${shown.length ? `<ul class="nlist">${shown.map(n => `<li${UI.freshNote === n.id ? ' class="fresh"' : ''}><span>${esc(n.t)}</span>${UI.readOnly ? '' : `<button class="nx" type="button" data-act="noteDel" data-id="${n.id}" aria-label="${esc('מחק את הנקודה: ' + n.t)}">${ICON.close}</button>`}</li>`).join('')}</ul>` : ''}
     ${UI.readOnly ? '' : `<form class="nform" id="noteForm" autocomplete="off"><label class="sr" for="noteIn">נקודה למה עשיתי השבוע</label><input id="noteIn" type="text" maxlength="160" enterkeyhint="done" placeholder="נקודה קצרה"><button class="btn ghost sm" type="submit"${off}>${ICON.plus}הוסף</button></form>`}</div>`;
 }
-// היום שנבחר לדבר האחד: «היום» כשזה היום. יום שעבר פשוט לא מופיע; בלי תזכורת למה שפוספס.
+// היום שנבחר לצעד של השבוע: «היום» כשזה היום. יום שעבר פשוט לא מופיע; בלי תזכורת למה שפוספס.
 function dayHTML(day, isNext, res) {
   if (!day || res === 'done') return '';
   const di = DAYS.indexOf(day), td = dow(V.asOf);
@@ -1009,13 +1045,14 @@ function renderWeek() {
   if (!UI.ready) html += `<p class="loading">טוען את הנתונים שלך…</p>`;
   if (t && !UI.editThing) {
     html += `<div class="one${res === 'done' ? ' done' : ''}">
-      <label class="one-box"><input type="checkbox" id="oneDone" data-act="oneDone" data-w="${w}" ${res === 'done' ? 'checked' : ''} aria-label="סמן שעשית את הדבר האחד"${UI.readOnly ? ' disabled' : ''}><i aria-hidden="true">${ICON.check}</i></label>
-      <div><div class="one-label">הדבר האחד ${isNext ? 'לשבוע הבא' : 'לשבוע הזה'}</div><p class="one-text">${dayHTML(t.day, isNext, res)}${esc(t.text)}</p>${res === 'done' ? '<p class="one-done">עשית את מה שאמרת שתעשה.</p>' : ''}</div>
-      ${UI.readOnly ? '' : `<button class="iconbtn quiet" type="button" data-act="editThing" aria-label="שנה את הדבר האחד" title="שנה">${ICON.pen}</button>`}</div>`;
+      <label class="one-box"><input type="checkbox" id="oneDone" data-act="oneDone" data-w="${w}" ${res === 'done' ? 'checked' : ''} aria-label="סמן שעשית את הצעד של השבוע"${UI.readOnly ? ' disabled' : ''}><i aria-hidden="true">${ICON.check}</i></label>
+      <div><div class="one-label">${isNext ? 'הצעד לשבוע הבא' : 'הצעד של השבוע'}</div><p class="one-text">${dayHTML(t.day, isNext, res)}${esc(t.text)}</p>${res === 'done' ? '<p class="one-done">עשית את מה שאמרת שתעשה.</p>' : ''}</div>
+      ${UI.readOnly ? '' : `<button class="iconbtn quiet" type="button" data-act="editThing" aria-label="שנה את הצעד" title="שנה">${ICON.pen}</button>`}</div>`;
   } else if (!UI.readOnly) {
     const td = dow(V.asOf), dayOpts = DAYS.map((d, i) => [d, !isNext && i === td ? 'היום' : `ביום ${d}`, i]).filter(x => isNext || x[2] >= td);
-    html += `<form class="one-form" id="thingForm" autocomplete="off"><label class="one-label" for="thingIn">הדבר האחד ${isNext ? 'לשבוע הבא' : 'לשבוע הזה'}</label>
-      <div class="one-row"><input id="thingIn" type="text" maxlength="120" placeholder="מה הדבר האחד שיקדם אותך השבוע?" value="${esc(t ? t.text : '')}">
+    html += `<form class="one-form" id="thingForm" autocomplete="off"><label class="one-label" for="thingIn">${isNext ? 'הצעד לשבוע הבא' : 'הצעד של השבוע'}</label>
+      <p class="one-help" id="thingHelp">פעולה אחת שתקרב אותך לעצמאות. קובעים לה יום, ובחמישי מסמנים אם נעשתה.</p>
+      <div class="one-row"><input id="thingIn" type="text" maxlength="120" aria-describedby="thingHelp" placeholder="למשל: להתקשר לשלושה לקוחות לשעבר ולבקש המלצה" value="${esc(t ? t.text : '')}">
         ${dayOpts.length ? `<select id="thingDay" aria-label="באיזה יום"><option value="">באיזה יום?</option>${dayOpts.map(([d, l]) => `<option value="${d}" ${t && t.day === d ? 'selected' : ''}>${l}</option>`).join('')}</select>` : ''}
         <button class="btn primary" type="submit"${off}>קבע</button>${t ? '<button class="btn ghost" type="button" data-act="cancelThing">ביטול</button>' : ''}</div></form>`;
   }
@@ -1024,8 +1061,13 @@ function renderWeek() {
     const pips = Array.from({length: len}, (_, i) => `<button type="button" class="pip${i < n ? ' on' : ''}${UI.popCtr === k && i === n - 1 ? ' pop' : ''}" data-act="pip" data-k="${k}" data-n="${i + 1}" aria-label="${esc(`${label}: ${i + 1}`)}"${off}><i></i></button>`).join('');
     return `<span class="ctr${n >= tg ? ' hit' : ''}"><span class="ctr-l">${label}</span><span class="pips" role="group" aria-label="${esc(`${label}: ${n} מתוך יעד של ${tg}`)}">${pips}</span><button class="ctr-add" type="button" data-act="ctr" data-k="${k}" aria-label="${esc(`הוסף ${one}. עד עכשיו ${n} מתוך ${tg}`)}"${off}>${ICON.plus}</button></span>`;
   };
+  // גיא, 7.10: «לא כתוב פה כמה לקוחות סגרתי השבוע». נגזר מהקיר (ב-PIVO: הסכם עם ריטיינר
+  // שאושר השבוע) — לא מונה ידני שני. אחרי שלושת הצעדים שבשליטה, כתוצאה שלהם.
+  const won = S.clients.filter(c => c.approved && c.approved <= V.asOf && inWeek(c.approved, w));
+  const wonAmt = won.reduce((a, c) => a + (+c.monthly || 0), 0);
+  const wonHTML = `<div class="won${won.length ? ' has' : ''}"><span class="won-l">לקוחות שנסגרו</span><span class="won-v"><b class="num">${won.length}</b>${won.length ? ` · <span class="num">${money(wonAmt)}</span> בחודש` : ''}</span>${won.length ? `<span class="won-names">${won.map(c => esc(c.name)).join(', ')}</span>` : ''}</div>`;
   html += `<div class="zones">${notesHTML(w, off)}<div class="ctl"><div class="zone-h"><b>מה שבשליטתי ${isNext ? 'בשבוע הבא' : 'השבוע'}</b><span>אי אפשר להחליט מי יחתום. אפשר להחליט עם כמה אנשים לדבר.</span></div>
-    ${ctr('leads', 'פניות', 'פנייה')}${ctr('meets', 'פגישות היכרות', 'פגישה')}${ctr('quotes', 'הצעות מחיר', 'הצעת מחיר')}</div></div>`;
+    ${ctr('leads', 'פניות', 'פנייה')}${ctr('meets', 'פגישות היכרות', 'פגישה')}${ctr('quotes', 'הצעות מחיר', 'הצעת מחיר')}${wonHTML}</div></div>`;
   el.innerHTML = html;
   UI.popCtr = null; UI.freshNote = null;
 }
@@ -1047,8 +1089,8 @@ function renderMoney() {
   const off = UI.ready && !UI.readOnly ? '' : ' aria-disabled="true"';
   const started = V.laid.length > 0;
   el.innerHTML = `
-    <div class="sec-head"><div><h2 class="sec-title" id="t-money">המשרד מכניס</h2><p class="sec-sub">ריטיינר חודשי, לפני מע״מ · היעד לסוף ${yearLbl}: <span class="num">${money(g.mrr)}</span></p></div>
-      ${UI.readOnly ? '' : `<button class="btn ghost sm" type="button" data-act="addClient"${off}>${ICON.plus}לקוח חדש</button>`}</div>
+    <div class="sec-head"><div><h2 class="sec-title" id="t-money">המשרד מכניס</h2><p class="sec-sub">ריטיינר חודשי, לפני מע״מ${PIVO ? ', מההסכמים ב־PIVO' : ''} · היעד לסוף ${yearLbl}: <span class="num">${money(g.mrr)}</span></p></div>
+      ${UI.readOnly || PIVO ? '' : `<button class="btn ghost sm" type="button" data-act="addClient"${off}>${ICON.plus}לקוח חדש</button>`}</div>
     <div class="big"><span class="big-num num" id="bigMrr">${num(V.paying)}</span><span class="big-cur">₪</span><span class="big-unit">בחודש</span></div>
     <div id="wallHost"></div>
     ${started ? `<p class="pace">${paceText()}</p>` : ''}`;
@@ -1105,13 +1147,13 @@ function brickHTML(it, k, target) {
   const c = it.c;
   const gone = isGone(c), notYet = !gone && mIdx(c.from) > V.mNow;
   const cls = ['brick', c.type === 'company' ? 'co' : '', notYet ? 'pend' : '', gone ? 'gone' : ''].filter(Boolean).join(' ');
-  return `<button type="button" class="${cls}${b}"${d} data-act="client" data-tipc="${c.id}" data-id="${c.id}" aria-label="${esc(`${c.name}, ${TYPE[c.type]}, ${money(c.monthly)} בחודש. לחץ לעריכה`)}"><span class="bn">${esc(firstName(c))}</span><span class="ba">${money(c.monthly)}</span></button>`;
+  return `<button type="button" class="${cls}${b}"${d} data-act="client" data-tipc="${c.id}" data-id="${c.id}" aria-label="${esc(`${c.name}, ${typeName(c.type)}, ${money(c.monthly)} בחודש. ${PIVO ? 'לחץ כדי לפתוח את הכרטיס' : 'לחץ לעריכה'}`)}"><span class="bn">${esc(firstName(c))}</span><span class="ba">${money(c.monthly)}</span></button>`;
 }
 function renderWall() {
   const host = $('#wallHost');
   const pend = V.pending[0];
   const empty = !V.laid.length && !pend;
-  host.innerHTML = `${empty && UI.ready ? `<div class="wall-empty"><span>כל לקוח שאישר הצעת מחיר הוא לבנה בקיר. המקומות המקווקווים הם התוכנית.</span>${UI.readOnly ? '' : `<button class="btn primary sm" type="button" data-act="addClient">${ICON.plus}הוסף את הלקוחות שכבר משלמים לך</button>`}</div>` : ''}
+  host.innerHTML = `${empty && UI.ready ? `<div class="wall-empty">${PIVO ? '<span>כל לקוח שיש לו ריטיינר חודשי בהסכם ב־PIVO הוא לבנה בקיר, לבד. המקומות המקווקווים הם התוכנית.</span>' : `<span>כל לקוח שאישר הצעת מחיר הוא לבנה בקיר. המקומות המקווקווים הם התוכנית.</span>${UI.readOnly ? '' : `<button class="btn primary sm" type="button" data-act="addClient">${ICON.plus}הוסף את הלקוחות שכבר משלמים לך</button>`}`}</div>` : ''}
     <div class="wall-stage${pend ? ' has-float' : ''}" id="wallStage"><div class="wall" id="wall"></div></div><div class="wall-legend" id="wallLegend" aria-hidden="true"></div>`;
   const wall = $('#wall');
   const W = wall.clientWidth || 480;
@@ -1156,7 +1198,7 @@ function countUp(id, key, to, dec) {
   if (UI.ready) prevBig[key] = to;
 }
 
-/* ═══ 3ב. המשרד רץ בלעדיי: המעגל ═══════════════════════════════════ */
+/* ═══ 3ב. ריכוז כל התהליכים (המעגל — לגרסה להדפסה) ═════════════════ */
 const G = {W: 480, H: 416, cx: 240, cy: 206, R: 98, SW: 16, RL: 182};
 const P2 = (a, r) => [G.cx + r * Math.sin(a * Math.PI / 180), G.cy - r * Math.cos(a * Math.PI / 180)];
 function arcD(a0, a1, r) { const [x0, y0] = P2(a0, r), [x1, y1] = P2(a1, r); return `M${x0.toFixed(2)},${y0.toFixed(2)}A${r},${r} 0 ${a1 - a0 > 180 ? 1 : 0} 1 ${x1.toFixed(2)},${y1.toFixed(2)}`; }
@@ -1210,29 +1252,53 @@ function ringSVG(o = {}) {
   return s + '</svg>';
 }
 const rkeyHTML = () => `<span><i style="border-color:var(--r0);background:var(--surface)"></i>רשום</span><span><i style="background:var(--fill)"></i>בדרך: נלמד, כתוב, במערכת</span><span><i style="background:var(--done)"></i>רץ בלעדיי</span>`;
+/* גיא, 7.10: «ריכוז כל התהליכים … בסוף ארצה לראות את כל התהליכים מול העיניים». כל התחנות
+   לפי הסדר, מגיוס ועד עזיבה, וכל תהליך בשמו ובמדרגה שלו — בלי לרחף עם העכבר. המעגל נשאר
+   רק בגרסה להדפסה, כתמונה מסכמת. */
+function procRowHTML(x) {
+  const steps = [0, 1, 2, 3, 4].map(k => `<i style="${k <= x.r ? `background:${x.r === 4 ? 'var(--done)' : 'var(--fill)'};box-shadow:none` : ''}"></i>`).join('');
+  const ctrl = UI.readOnly ? '' : x.r < 4 ? `<button class="climb" type="button" data-act="rung" data-id="${x.p.id}" data-n="${x.r + 1}" aria-label="${esc(`העלה את ${quote(x.p.name)} ל«${RUNGS[x.r + 1]}»`)}" title="${esc(`העלה ל«${RUNGS[x.r + 1]}»`)}">${ICON.up}</button>` : `<span class="topmark" aria-hidden="true">${ICON.check}</span>`;
+  const lvl = x.r === 4 ? (V.est(x.p) > 0 ? `<span class="psave">${hours(V.est(x.p))} ש׳ בחודש</span>` : UI.readOnly ? '<span class="plevel">רץ בלעדיי</span>' : `<button class="linkbtn plevel" type="button" data-act="freed" data-id="${x.p.id}">כמה זמן זה חוסך?</button>`) : `<span class="plevel">${RUNGS[x.r]}</span>`;
+  return `<li class="prow${UI.bumpProc === x.p.id || UI.freshProc === x.p.id ? ' bump' : ''}"><span class="steps" role="img" aria-label="${esc(`מדרגה: ${RUNGS[x.r]}`)}">${steps}</span><button class="pname" type="button" data-act="proc" data-id="${x.p.id}">${esc(x.p.name)}</button>${lvl}${ctrl}</li>`;
+}
+function stationHTML(st) {
+  const n = st.xs.length, isOffice = st.k === 'office', adding = UI.addSt === st.k;
+  const stat = !n ? '' : st.done ? 'הכול רץ בלעדיי' : st.top ? `${st.top} מתוך ${n} רצים בלעדיי` : plural(n, 'תהליך אחד', 'תהליכים');
+  const have = new Set(S.procs.map(p => p.name));
+  const ideas = (CATALOG[st.k] || []).filter(([nm]) => !have.has(nm));
+  const form = adding ? `<form class="capture pst-form" data-st="${st.k}" autocomplete="off"><label class="sr" for="add-${st.k}">תהליך חדש ב${st.name}</label><input id="add-${st.k}" type="text" maxlength="80" placeholder="תהליך חדש ב«${st.name}»"><button class="btn primary" type="submit">רשום</button><button class="btn ghost" type="button" data-act="addClose">סגור</button></form>
+    ${ideas.length ? `<div class="ideas"><span class="ideas-t">רעיונות שכיחים כאן. לחיצה רושמת:</span><div class="st-chips">${ideas.map(([nm]) => `<button type="button" data-act="idea" data-st="${st.k}" data-name="${esc(nm)}">${ICON.plus}${esc(nm)}</button>`).join('')}</div></div>` : ''}` : '';
+  return `<li class="pst${isOffice ? ' office' : ''}${st.done ? ' done' : ''}${UI.flashSt === st.k ? ' flash' : ''}" id="st-${st.k}">
+    <div class="pst-h"><span class="pst-n" aria-hidden="true">${isOffice ? '' : st.n}</span><h3 class="pst-name">${st.name}</h3>${stat ? `<span class="pst-stat">${stat}</span>` : ''}
+      ${UI.readOnly ? '' : `<button class="pst-add" type="button" data-act="addIn" data-st="${st.k}" aria-expanded="${adding}" aria-label="${esc(`תהליך חדש ב${st.name}`)}" title="תהליך חדש">${ICON.plus}</button>`}</div>
+    ${n ? `<ul class="plist">${st.xs.map(procRowHTML).join('')}</ul>` : adding ? '' : `<p class="pst-empty">${isOffice ? 'מה שלא שייך ללקוח אחד: שיווק, צוות, המערכת והכספים של המשרד.' : st.desc}</p>`}
+    ${form}
+  </li>`;
+}
 function renderSystem() {
   const el = $('#system');
-  const ringW = Math.min(470, Math.max(260, el.clientWidth || 470));
   const off = UI.ready && !UI.readOnly ? '' : ' aria-disabled="true"';
   const f = V.focus;
   let line;
-  if (!V.procs.length) line = 'המעגל עוד ריק. כל תהליך שתרשום נכנס לתחנה שלו, ומשם עולה מדרגה אחר מדרגה עד שהוא רץ בלעדיך.';
-  else if (V.circle >= .999 || !f) line = '<b>המעגל סגור.</b> כל התהליכים רצים בלעדיי.';
+  if (!V.procs.length) line = 'עוד אין כאן תהליכים. כל תהליך שתרשום נכנס לתחנה שלו, ומשם עולה מדרגה אחר מדרגה עד שהוא רץ בלעדיך.';
+  else if (V.circle >= .999 || !f) line = '<b>כל התהליכים רצים בלעדיי.</b>';
   else line = `<b>התחנה הבאה לחזק:</b> <button class="linkbtn" type="button" data-act="station" data-st="${f.k}">${f.name}</button>${f.load > 0 ? '. שם הולך עכשיו רוב הזמן שלי.' : '.'}`;
   el.innerHTML = `
-    <div class="sec-head"><div><h2 class="sec-title" id="t-system">המשרד רץ בלעדיי</h2><p class="sec-sub">שעות בחודש שהמשרד עושה בלעדיי</p></div>
+    <div class="sec-head"><div><h2 class="sec-title" id="t-system">ריכוז כל התהליכים</h2><p class="sec-sub">מגיוס ועד עזיבה, ומה מהם כבר רץ בלעדיי</p></div>
       ${UI.readOnly ? '' : `<button class="btn ghost sm" type="button" data-act="capture"${off}>${ICON.plus}תהליך</button>`}</div>
-    <div class="big"><span class="big-num num" id="bigHrs">${hours(V.hrs)}</span><span class="big-unit">שעות בחודש</span></div>
+    <div class="big"><span class="big-num num" id="bigHrs">${hours(V.hrs)}</span><span class="big-unit">שעות בחודש שהמשרד עושה בלעדיי</span></div>
     <div id="captureZone"></div>
-    <div class="ring-wrap">${ringSVG({scale: ringW / G.W})}</div>
-    <p class="pace">${line}</p>`;
+    <p class="pace">${line}</p>
+    <ol class="pmap" aria-label="התחנות, מגיוס ועד עזיבה">${[...V.stations, V.office].map(stationHTML).join('')}</ol>
+    ${V.procs.length ? `<div class="rkey">${rkeyHTML()}</div>` : ''}`;
   renderCapture();
   countUp('bigHrs', 'hrs', V.hrs, true);
+  UI.flashSt = null;
 }
 function renderCapture() {
   const z = $('#captureZone'); if (!z) return;
   if (UI.seed) {
-    z.innerHTML = `<div class="placer"><div class="placer-text">${esc(quote(UI.seed))} מחכה למקום במעגל. ${coarse ? 'בחר לו תחנה:' : 'גרור את הנקודה לתחנה שלו, או בחר:'}</div>
+    z.innerHTML = `<div class="placer"><div class="placer-text">באיזו תחנה ${esc(quote(UI.seed))}?</div>
       <div class="st-chips">${[...STATIONS, OFFICE].map(s => `<button type="button" data-act="place" data-st="${s.k}">${s.name}</button>`).join('')}<button type="button" class="quiet" data-act="unseed">ביטול</button></div></div>`;
   } else if (UI.capture) {
     z.innerHTML = `<form class="capture" id="captureForm" autocomplete="off"><label class="sr" for="capIn">שם התהליך</label><input id="capIn" type="text" maxlength="80" placeholder="איזה תהליך עלה לך? רשום אותו, ואז בחר לו תחנה"><button class="btn primary" type="submit">רשום</button><button class="btn ghost" type="button" data-act="capClose">ביטול</button></form>`;
@@ -1250,7 +1316,8 @@ function placeSeed(k) {
   addProc(name, k, known ? known[1] : null);
   UI.seed = null;
   save('procs'); renderAll();
-  toast(`${quote(name)} נרשם ב«${stationName(k)}». המעגל גדל, והתהליך כבר לא מחכה בראש שלך.`);
+  toast(`${quote(name)} נרשם ב«${stationName(k)}». עכשיו הוא כבר לא מחכה בראש שלך.`);
+  UI.flashSt = k; setTimeout(() => $(`#st-${k}`)?.scrollIntoView({behavior: reduced ? 'auto' : 'smooth', block: 'nearest'}), 60);
 }
 function moveProc(id, k) {
   const p = S.procs.find(x => x.id === id); if (!p || p.st === k) return;
@@ -1270,7 +1337,7 @@ function changeRung(id, k) {
   setRung(p, k); UI.bumpProc = id;
   save('procs'); renderAll();
   const st2 = stationByKey(p.st), gained = V.hrs - before;
-  if (V.circle >= .999 && circleBefore < .999) toast('המעגל סגור. המשרד רץ בלעדיך.');
+  if (V.circle >= .999 && circleBefore < .999) toast('כל התהליכים רצים בלעדיך. המשרד רץ בלעדיך.');
   else if (st2.done && !wasDone) toast(`התחנה «${st2.name}» סגורה: כל התהליכים שלה רצים בלעדיך.`);
   else if (k === 4) toast(`${quote(p.name)} רץ עכשיו בלעדיך${gained > 0 ? `: עוד ${hoursTxt(gained)} בחודש שלא עליך.` : '.'}`);
   else if (k > r) toast(`${quote(p.name)} עלה ל«${RUNGS[k]}».`);
@@ -1428,7 +1495,7 @@ function weekRowHTML(w) {
   html += `<div class="jdet"><dl class="e-body">
     ${rest.length ? `<dt>${win ? 'מה עשיתי' : 'ועוד'}</dt><dd>${rest.length > 1 ? `<ul class="dlist">${rest.map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : esc(rest[0])}</dd>` : ''}
     <dt>צעדי גיוס</dt><dd>${steps || '—'}</dd>
-    ${t ? `<dt>הדבר האחד</dt><dd>${r ? `<span class="res ${r[0]}">${r[0] === 'done' ? ICON.check : ''}${r[1]}</span> · ` : ''}${esc(t.text)}</dd>` : ''}
+    ${t ? `<dt>הצעד של השבוע</dt><dd>${r ? `<span class="res ${r[0]}">${r[0] === 'done' ? ICON.check : ''}${r[1]}</span> · ` : ''}${esc(t.text)}</dd>` : ''}
     ${filled(s.block) ? `<dt>מה עיכב</dt><dd>${esc(s.block)}</dd>` : ''}
     ${s.next ? `<dt>לשבוע הבא</dt><dd>${s.day ? `ביום ${s.day} · ` : ''}${esc(s.next)}</dd>` : ''}
     ${ma ? `<dt>הפעולה ל${MONTHS[(mIdx(mk) + 1) % 12]}</dt><dd>${esc(ma)}</dd>` : ''}</dl>
@@ -1486,6 +1553,8 @@ function openConfirm(title, text, yes, run) {
 }
 
 function openClient(id) {
+  // ב-PIVO הלבנה היא הלקוח: לחיצה פותחת את הכרטיס שלו, ב«הסכם ותשלומים»
+  if (PIVO) { if (id) PIVO.openClient(id); return; }
   if (UI.readOnly) return;
   const c = id ? S.clients.find(x => x.id === id) : null;
   const months = []; for (let i = V.mNow - 12; i <= V.mNow + 6; i++) months.push(i);
@@ -1535,11 +1604,11 @@ function openProc(id) {
     <p class="lead">נרשם ב־${dmy(p.hist[0][0])}. הזמן והתדירות עוזרים להחליט מה להעלות קודם: מה שחוזר הרבה ולוקח זמן.</p>
     <div class="dform">
       <div class="field"><label for="pName">שם</label><input id="pName" name="name" type="text" value="${esc(p.name)}" required maxlength="80"></div>
-      <div class="field"><span class="flabel" id="sLbl">איפה הוא במעגל</span><div class="radios" role="radiogroup" aria-labelledby="sLbl">${[...STATIONS, OFFICE].map(s => `<label><input type="radio" name="st" value="${s.k}" ${p.st === s.k ? 'checked' : ''}>${s.name}</label>`).join('')}</div></div>
+      <div class="field"><span class="flabel" id="sLbl">באיזו תחנה</span><div class="radios" role="radiogroup" aria-labelledby="sLbl">${[...STATIONS, OFFICE].map(s => `<label><input type="radio" name="st" value="${s.k}" ${p.st === s.k ? 'checked' : ''}>${s.name}</label>`).join('')}</div></div>
       <div class="field"><span class="flabel" id="rLbl">מדרגה</span><div class="radios" role="radiogroup" aria-labelledby="rLbl">${RUNGS.map((g, k) => `<label><input type="radio" name="rung" value="${k}" ${k === r ? 'checked' : ''}>${g}</label>`).join('')}</div></div>
       <div class="field-row">
-        <div class="field"><label for="pMin">כמה דקות כל פעם</label><input id="pMin" name="min" type="number" min="0" step="5" value="${est.min}"></div>
-        <div class="field"><label for="pTimes">כמה פעמים בחודש</label><input id="pTimes" name="times" type="number" min="0" step="0.25" value="${est.times === '' ? '' : Math.round(est.times * 100) / 100}"></div>
+        <div class="field"><label for="pMin">כמה דקות כל פעם</label><input id="pMin" name="min" type="number" inputmode="numeric" min="0" step="any" value="${est.min}"></div>
+        <div class="field"><label for="pTimes">כמה פעמים בחודש</label><input id="pTimes" name="times" type="number" inputmode="decimal" min="0" step="any" value="${est.times === '' ? '' : Math.round(est.times * 1000) / 1000}"></div>
       </div>
       <label class="check"><input type="checkbox" name="per" id="pPer" ${est.per ? 'checked' : ''}>לכל לקוח (הזמן גדל עם מספר הלקוחות)</label>
       <p class="calc" id="pCalc" aria-live="polite"></p>
@@ -1559,7 +1628,7 @@ function openProc(id) {
     save('procs'); renderAll(); toast('נשמר.');
   }, f => {
     ['min', 'times', 'per'].forEach(n => f.elements[n].addEventListener('input', calc)); calc();
-    twoStep(f.querySelector('#pDel'), 'לחץ שוב כדי למחוק', () => { S.procs = S.procs.filter(x => x.id !== p.id); save('procs'); closeDialog(true); renderAll(); toast(`${quote(p.name)} נמחק מהמעגל.`); });
+    twoStep(f.querySelector('#pDel'), 'לחץ שוב כדי למחוק', () => { S.procs = S.procs.filter(x => x.id !== p.id); save('procs'); closeDialog(true); renderAll(); toast(`${quote(p.name)} נמחק מהרשימה.`); });
   });
 }
 
@@ -1571,8 +1640,8 @@ function openFreed(id) {
     <p class="lead">כמה זמן זה היה לוקח לך? כך השעות שהתפנו ייכנסו למספר הגדול.</p>
     <div class="dform">
       <div class="field-row">
-        <div class="field"><label for="fMin">כמה דקות כל פעם</label><input id="fMin" name="min" type="number" inputmode="numeric" min="0" step="5" value="${est.min}" autofocus></div>
-        <div class="field"><label for="fTimes">כמה פעמים בחודש</label><input id="fTimes" name="times" type="number" inputmode="decimal" min="0" step="0.25" value="${est.times === '' ? '' : Math.round(est.times * 100) / 100}"></div>
+        <div class="field"><label for="fMin">כמה דקות כל פעם</label><input id="fMin" name="min" type="number" inputmode="numeric" min="0" step="any" value="${est.min}" autofocus></div>
+        <div class="field"><label for="fTimes">כמה פעמים בחודש</label><input id="fTimes" name="times" type="number" inputmode="decimal" min="0" step="any" value="${est.times === '' ? '' : Math.round(est.times * 1000) / 1000}"></div>
       </div>
       <label class="check"><input type="checkbox" name="per" ${est.per ? 'checked' : ''}>לכל לקוח (הזמן גדל עם מספר הלקוחות)</label>
       <p class="calc" id="fCalc" aria-live="polite"></p>
@@ -1601,14 +1670,14 @@ function openSummary(w) {
   const gains = V.laid.filter(c => inWeek(c.approved, w)), add = gains.reduce((a, c) => a + (+c.monthly || 0), 0);
   const {mrr} = weekMoney(w);
   const pf = procFacts(w);
-  // שואלים על הדבר האחד רק כשהשבוע שאחריו עוד לפניך (או כשכבר נכתב); לשבוע ישן לא ממציאים תוכנית
+  // שואלים על הצעד הבא רק כשהשבוע שאחריו עוד לפניך (או כשכבר נכתב); לשבוע ישן לא ממציאים תוכנית
   const nextW = addDays(w, 7), askNext = (nextW >= V.thu && !(S.live[nextW] && S.live[nextW].thing)) || !!(s && s.next);
   const total = askNext || isLast ? 3 : 2;
   const moved = [
     gains.length ? `<b>${gains.length === 1 ? 'לקוח חדש' : `${gains.length} לקוחות חדשים`}:</b> ${gains.map(c => esc(c.name)).join(', ')} · <bdi dir="ltr">+${money(add)}</bdi> בחודש` : 'השבוע לא נכנס לקוח חדש. זה קורה; הצעדים הם החלק שבשליטתך.',
     `<b>ריטיינר:</b> ${money(mrr)} בחודש`,
   ];
-  if (pf.cap || pf.climbed) moved.push(`<b>במעגל:</b> ${[pf.cap ? plural(pf.cap, 'תהליך נרשם', 'תהליכים נרשמו') : '', pf.climbed ? plural(pf.climbed, 'עלייה במדרגה', 'עליות מדרגה') : ''].filter(Boolean).join(' · ')}`);
+  if (pf.cap || pf.climbed) moved.push(`<b>בתהליכים:</b> ${[pf.cap ? plural(pf.cap, 'תהליך נרשם', 'תהליכים נרשמו') : '', pf.climbed ? plural(pf.climbed, 'עלייה במדרגה', 'עליות מדרגה') : ''].filter(Boolean).join(' · ')}`);
   const stepper = (name, val, label, af) => `<span class="stepper"><button type="button" data-sd="${name}" aria-label="${esc(label + ', פחות')}">−</button><input type="number" name="${name}" id="st-${name}" value="${val}" min="0" max="99" inputmode="numeric" aria-label="${esc(label)}"><button type="button" data-su="${name}" aria-label="${esc(label + ', יותר')}"${af ? ' autofocus' : ''}>+</button></span>`;
   let monthBox = '';
   if (isLast) {
@@ -1619,7 +1688,7 @@ function openSummary(w) {
       <p class="fhint">${gap}. זה החמישי האחרון של החודש, אז נוסף כאן הסיכום החודשי.</p>
       <div class="field"><label for="sAct">הפעולה ל${MONTHS[(m + 1) % 12]}</label><input id="sAct" name="act" type="text" maxlength="140" placeholder="הצעד שהכי יקרב אותך לתוכנית" value="${esc(S.monthAction[mk] || '')}"></div></div>`;
   }
-  // הפעולה של החודש עוזרת לבחור את הדבר האחד, ולכן היא מופיעה כאן ולא בראש הדף
+  // הפעולה של החודש עוזרת לבחור את הצעד, ולכן היא מופיעה כאן ולא בראש הדף
   const nm = mIdx(nextW.slice(0, 7)), monthAct = !isLast ? S.monthAction[mKey(nm - 1)] : null;
   const v = k => s && s[k] && s[k] !== '—' ? esc(s[k]) : '';
   const notes = notesOf(w).map(n => n.t), fromNotes = !s && notes.length > 0;
@@ -1652,7 +1721,7 @@ function openSummary(w) {
       <h3 class="wz-title" id="wz3"><span class="wz-n">3</span>${askNext ? (nextW === V.thu ? 'השבוע הזה' : 'השבוע הבא') : 'סוף החודש'}</h3>
       ${monthBox}
       ${askNext ? `${monthAct ? `<p class="month-act"><b>הפעולה של ${MONTHS[nm % 12]}:</b> ${esc(monthAct)}</p>` : ''}
-      <div class="field"><label for="sNext">הדבר האחד ${nextW === V.thu ? 'לשבוע הזה' : 'לשבוע הבא'}</label><input id="sNext" name="next" type="text" required maxlength="120" placeholder="למשל: להתקשר לשלושה לידים מההמלצות" value="${s ? esc(s.next || '') : ''}"><span class="fhint">יופיע למעלה כל השבוע, עם עיגול לסמן שעשית.</span></div>
+      <div class="field"><label for="sNext">הצעד ${nextW === V.thu ? 'לשבוע הזה' : 'לשבוע הבא'}</label><input id="sNext" name="next" type="text" required maxlength="120" placeholder="למשל: להתקשר לשלושה לידים מההמלצות" value="${s ? esc(s.next || '') : ''}"><span class="fhint">יופיע למעלה כל השבוע, עם עיגול לסמן שעשית.</span></div>
       <div class="field"><span class="flabel" id="dayLbl">באיזה יום תעשה אותו?</span><div class="radios" role="radiogroup" aria-labelledby="dayLbl">${DAYS.map(x => `<label><input type="radio" name="day" value="${x}" ${s && s.day === x ? 'checked' : ''}>${x}</label>`).join('')}</div><span class="fhint">לא חובה, אבל יום קבוע מגדיל מאוד את הסיכוי שזה יקרה.</span></div>` : ''}
     </section>` : ''}
     <div class="dactions"><button class="btn primary" type="button" data-wz="next">המשך</button><button class="btn primary" type="submit" data-wz="save" hidden>${w < V.thu || s ? 'שמור' : 'סגור את השבוע'}</button><button class="btn" type="button" data-wz="back" hidden>חזרה</button><button class="btn ghost" type="button" data-close>ביטול</button></div>`,
@@ -1718,8 +1787,8 @@ function layBrick(id, fromDrop) {
   setTimeout(() => {
     const fb = $('.float-brick');
     const first = fb ? fb.querySelector('.brick').getBoundingClientRect() : null;
-    c.laid = true;
-    save('clients'); renderAll();
+    if (PIVO) { S.laid = {...S.laid, [id]: V.asOf}; save('meta'); } else { c.laid = true; save('clients'); }
+    renderAll();
     const el = $(`#wall [data-id="${id}"]`);
     if (el && first && !reduced) {
       const last = el.getBoundingClientRect(), dx = first.left - last.left, dy = first.top - last.top;
@@ -1931,7 +2000,7 @@ function sheetHTML() {
       <div class="a4-box"><div class="a4-lbl">המשרד מכניס · ריטיינר חודשי</div><div class="a4-big">${money(V.paying)} <small>בחודש</small></div>
         <div class="a4-bar"><i style="width:${pPay}%"></i>${pPend > 0 ? `<i class="p" style="inset-inline-start:calc(${pPay}% + 1px);width:${pPend}%"></i>` : ''}</div>
         <div class="a4-small">${V.active.length} לקוחות פעילים · יעד סוף ${yearLbl}: ${money(g.mrr)}</div></div>
-      <div class="a4-box"><div class="a4-lbl">המשרד רץ בלעדיי · המעגל סגור ב־${pct(V.circle)}</div>
+      <div class="a4-box"><div class="a4-lbl">ריכוז כל התהליכים · ${plural(V.procs.length, 'תהליך אחד', 'תהליכים')}, ${pct(V.circle)} מהדרך</div>
         <div class="a4-sys" data-ring="1"><div class="a4-st"><div class="a4-big">${hours(V.hrs)} <small>שעות בחודש</small></div>${V.stations.map(s => `<span>${s.name}: <b>${s.xs.length ? pct(s.m) : 'ריקה'}</b></span>`).join('')}</div></div></div>
     </div>
     <div class="a4-chart"><div class="a4-sec">תוכנית מול בפועל<span>ריטיינר חודשי · קו אפור: תוכנית · קו כהה: בפועל</span></div><div data-chart="1"></div></div>
@@ -2058,13 +2127,15 @@ document.addEventListener('click', e => {
   else if (act === 'cancelThing') { UI.editThing = false; renderWeek(); }
   else if (act === 'capture') { UI.capture = true; renderCapture(); setTimeout(() => $('#capIn')?.focus(), 20); }
   else if (act === 'capClose') { UI.capture = false; renderCapture(); }
-  else if (act === 'station') openSheet(t.dataset.st);
+  else if (act === 'station') { const k = t.dataset.st; UI.flashSt = k; renderSystem(); $(`#st-${k}`)?.scrollIntoView({behavior: reduced ? 'auto' : 'smooth', block: 'center'}); }
+  else if (act === 'addIn') { const k = t.dataset.st; UI.addSt = UI.addSt === k ? null : k; renderSystem(); if (UI.addSt) setTimeout(() => $(`#add-${k}`)?.focus(), 20); else $(`#st-${k} .pst-add`)?.focus({preventScroll: true}); }
+  else if (act === 'addClose') { const k = UI.addSt; UI.addSt = null; renderSystem(); $(`#st-${k} .pst-add`)?.focus({preventScroll: true}); }
   else if (act === 'closeSheet') closeSheet();
   else if (act === 'proc') openProc(t.dataset.id);
   else if (act === 'rung') changeRung(t.dataset.id, +t.dataset.n);
   else if (act === 'freed') openFreed(t.dataset.id);
   else if (act === 'idea') {
-    const name = t.dataset.name, st = UI.sheet, item = (CATALOG[st] || []).find(([n]) => n === name);
+    const name = t.dataset.name, st = t.dataset.st || UI.sheet, item = (CATALOG[st] || []).find(([n]) => n === name);
     const id = addProc(name, st, item ? item[1] : null); UI.bumpProc = id;
     save('procs'); renderAll();
     toast(`${quote(name)} נרשם ב«${stationName(st)}».`);
@@ -2076,18 +2147,19 @@ document.addEventListener('click', e => {
   else if (act === 'print') openPrint();
   else if (act === 'retryLoad') location.reload();
   else if (act === 'startReal') openConfirm('להתחיל עם הנתונים שלך?', 'נתוני הדוגמה יימחקו, והדף יחכה ללקוחות, לתהליכים ולשבועות שלך.', 'מחק את הדוגמה והתחל', resetAll);
-  else if (act === 'reset') openConfirm('להתחיל מחדש?', 'כל מה שבדף יימחק: לקוחות, תהליכים, סיכומים ואבני דרך שסימנת. אי אפשר לבטל את זה.', 'מחק הכול והתחל מחדש', resetAll);
+  else if (act === 'reset') openConfirm('להתחיל מחדש?', PIVO ? 'כל מה שכתבת בדף יימחק: תהליכים, סיכומים ואבני דרך שסימנת. הלקוחות נשארים ב־PIVO. אי אפשר לבטל את זה.' : 'כל מה שבדף יימחק: לקוחות, תהליכים, סיכומים ואבני דרך שסימנת. אי אפשר לבטל את זה.', 'מחק הכול והתחל מחדש', resetAll);
 });
 function resetAll() {
   const old = S;
   S = blank(); UI.openWeeks = null; UI.sheet = null; UI.seed = null; UI.editThing = false; UI.roadReset = true;
+  if (PIVO) S.pivoSince = clock().date;
   prevBig = {mrr: null, hrs: null};
   const years = new Set([...Store.docs.filter(k => k.startsWith('weeks-')), ...Object.keys(old.weeks).map(weeksDoc)]);
   [...BASE_DOCS, ...years].forEach(k => Store.dirty.add(k));
   UI.anim = {ring: true, wall: true, hero: false};
   renderAll(); setStatus('saving'); clearTimeout(Store.timer); Store.timer = setTimeout(flush, 200);
   window.scrollTo({top: 0, behavior: reduced ? 'auto' : 'smooth'});
-  toast('הדף מוכן לנתונים שלך. מתחילים בדבר האחד לשבוע הזה.');
+  toast('הדף מוכן לנתונים שלך. מתחילים בצעד של השבוע.');
 }
 document.addEventListener('submit', e => {
   if (e.target.id === 'thingForm') {
@@ -2096,7 +2168,7 @@ document.addEventListener('submit', e => {
     const w = V.activeW, l = S.live[w] = {...S.live[w]};
     l.thing = {text, day: $('#thingDay')?.value || null};
     UI.editThing = false; save('meta'); V = derive(); renderWeek(); renderLog();
-    toast('נקבע. זה הדבר האחד שלך לשבוע.');
+    toast('נקבע. זה הצעד שלך לשבוע.');
   } else if (e.target.id === 'noteForm') {
     e.preventDefault();
     const v = $('#noteIn').value.trim(); if (!v) { $('#noteIn').focus(); return; }
@@ -2104,11 +2176,19 @@ document.addEventListener('submit', e => {
     l.notes = [...(l.notes || []), n]; UI.freshNote = n.id;
     save('meta'); renderWeek();
     $('#noteIn')?.focus({preventScroll: true});
+  } else if (e.target.classList.contains('pst-form')) {
+    e.preventDefault();
+    const k = e.target.dataset.st, inp = e.target.querySelector('input'), v = inp.value.trim(); if (!v) { inp.focus(); return; }
+    const known = (CATALOG[k] || []).find(([n]) => n === v);
+    addProc(v, k, known ? known[1] : null);
+    save('procs'); renderAll();
+    toast(`${quote(v)} נרשם ב«${stationName(k)}».`);
+    setTimeout(() => $(`#add-${k}`)?.focus(), 30);
   } else if (e.target.id === 'captureForm') {
     e.preventDefault();
     const v = $('#capIn').value.trim(); if (!v) { $('#capIn').focus(); return; }
     UI.seed = v; UI.capture = false; renderAll();
-    toast('נרשם. עכשיו תן לו מקום במעגל.');
+    toast('נרשם. עכשיו בחר לו תחנה.');
     setTimeout(() => $('#captureZone .st-chips button')?.focus({preventScroll: true}), 60);
   }
 });
@@ -2127,7 +2207,7 @@ function tipFor(t) {
   const x = t.closest('[data-tipx]');
   if (x) return [x, [tipLine('', x.dataset.tipx)]];
   const b = t.closest('[data-tipc]');
-  if (b) { const c = S.clients.find(y => y.id === b.dataset.tipc); if (!c) return null; const gone = isGone(c); return [b, [tipLine(money(c.monthly), 'בחודש'), tipLine('', `${c.name} · ${TYPE[c.type]}`), tipLine('', `הצעת המחיר אושרה ב־${dmy(c.approved)}`), tipLine('', gone ? `ההתקשרות הסתיימה ב־${dmy(c.ended)}` : c.ended ? `ההתקשרות מסתיימת ב־${dmy(c.ended)}` : mIdx(c.from) > V.mNow ? `התשלום מתחיל ב${monthLong(mIdx(c.from))}` : `בתשלום מ${monthLong(mIdx(c.from))}`)]]; }
+  if (b) { const c = S.clients.find(y => y.id === b.dataset.tipc); if (!c) return null; const gone = isGone(c); return [b, [tipLine(money(c.monthly), 'בחודש'), tipLine('', `${c.name} · ${typeName(c.type)}`), tipLine('', `הצעת המחיר אושרה ב־${dmy(c.approved)}`), tipLine('', gone ? `ההתקשרות הסתיימה ב־${dmy(c.ended)}` : c.ended ? `ההתקשרות מסתיימת ב־${dmy(c.ended)}` : mIdx(c.from) > V.mNow ? `התשלום מתחיל ב${monthLong(mIdx(c.from))}` : `בתשלום מ${monthLong(mIdx(c.from))}`)].concat(PIVO ? [tipLine('', 'לחיצה פותחת את הכרטיס')] : [])]; }
   const m = t.closest('[data-tipm]');
   if (m) { const ms = MILESTONES.find(y => y.id === m.dataset.tipm), st = msStatus(ms); return [m, [tipLine(st.done ? 'הושג' : `עד ${dmy(ms.due)}`, ''), tipLine('', ms.title)]]; }
   const p = t.closest('[data-tipp]');
@@ -2170,6 +2250,14 @@ async function boot() {
       snaps.forEach((s, i) => { const k = docs[i], body = s.exists ? s.data() : null; unpack(k, body); Store.echo[k] = body ? JSON.stringify(body) : null; });
       Store.docs = docs;
       Store.db = db; Store.mode = 'db'; Store.status = 'idle';
+      if (HOST === 'pivo') {
+        PIVO = await C.use('pivo').catch(() => null);
+        if (PIVO) {
+          OFFICE_LIST = PIVO.clients();
+          // החיבור הראשון: מה שכבר אושר עד היום נכנס לקיר כמו שהוא
+          if (!S.pivoSince && !UI.readOnly) { S.pivoSince = clock().date; save('meta'); }
+        }
+      }
       subscribe();
     } catch (_) {
       // ‼ ב-PIVO אסור ליפול בשקט לשמירה בדפדפן: מה שייכתב כאן ייעלם מהטלפון ומהמחשב השני
