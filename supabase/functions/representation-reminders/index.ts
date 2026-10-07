@@ -35,7 +35,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { resendEmailsUrl, postResend, type SendOutcome } from "../_shared/resendResult.ts";
 import { resolveBrand, buildBrandedEmail, esc } from "../_shared/designSystem.ts";
-import { RepReminderAudience, repApprovalRequiredWho, resolveRepReminderConfig } from "../_shared/repTemplates.ts";
+import { RepReminderAudience, niReminderCopy, repApprovalRequiredWho, resolveRepReminderConfig } from "../_shared/repTemplates.ts";
 
 // ‼ ספק הדואר — Resend בייצור; ב-staging אפשר ספק מדומה שקולט (resendEmailsUrl).
 const RESEND_EMAILS = resendEmailsUrl(Deno.env.get("RESEND_API_URL"), Deno.env.get("SUPABASE_URL") ?? "");
@@ -43,7 +43,6 @@ const RESEND_EMAILS = resendEmailsUrl(Deno.env.get("RESEND_API_URL"), Deno.env.g
 type ClaimAudience = "sign" | "niClient" | "niSpouse";
 
 const NI_SITE = "https://b2b.btl.gov.il/BTL.ILG.PAYMENTS/IshurIpuyKoachInfo.aspx";
-const NI_PHONE = "02-5393740";
 
 /**
  * גוף תזכורת «אישור הייצוג באזור האישי». ‼ 201: כששע״ם מציגה «ממתין לאישור לקוח»
@@ -268,32 +267,46 @@ Deno.serve(async (req: Request) => {
         if (!claimed) { skippedRaced++; results[audience].push({ id: req.id, status: "raced" }); continue; }
         const occurrence = count + 1;
 
+        // ‼ 224 · התקשורת שייכת לפריט העבודה שגרם לה (יסודות §9) — הבקשה «ייצוג בביטוח
+        // לאומי — X» של אותו אדם. בלי שלב פתוח — נרשם כמו קודם, על בקשת הייצוג בלבד.
+        const { data: niStep } = await admin.from("onboarding_steps").select("id")
+          .eq("client_id", req.linked_client_id).eq("step_type", "authority_representation")
+          .eq("payload->>authority", "national_insurance").eq("payload->>subjectRole", role)
+          .not("status", "in", '("cancelled","skipped")')
+          .order("created_at", { ascending: false }).limit(1).maybeSingle();
+        const stepId = (niStep as { id?: string } | null)?.id ?? null;
+
         const profileBrand = resolveBrand({ firmName: profile?.firm_name, branding: profile?.branding || {}, email: profile?.email, phone: profile?.phone, emailSignature: profile?.communication?.emailSignature });
-        const deadlineLine = track.deadline
-          ? `<br>יש לאשר עד ${esc(new Date(track.deadline).toLocaleDateString("he-IL"))}.` : "";
-        const subject = "תזכורת - אישור ייפוי הכוח בביטוח הלאומי עדיין ממתין";
+        const copy = niReminderCopy({
+          referenceNumber: String(track.referenceNumber || ""),
+          deadline: track.deadline ? new Date(track.deadline).toLocaleDateString("he-IL") : "",
+          personFirst: role === "spouse"
+            ? (String(client.spouse_first_name || "").trim() || String(client.spouse_name || "").trim().split(/\s+/)[0] || "")
+            : String(client.first_name || "").trim(),
+          couple: niTargets.includes("client") && niTargets.includes("spouse"),
+        });
+        const subject = copy.subject;
         const html = buildBrandedEmail(profileBrand, {
-          heading: "תזכורת קטנה",
-          bodyHtml: esc(`אישור ייפוי הכוח מול הביטוח הלאומי עדיין לא התקבל. מספר האסמכתא: ${String(track.referenceNumber || "")}.`) + deadlineLine
-            + `<br><br>אפשר לאשר באתר הביטוח הלאומי, או בטלפון ${esc(NI_PHONE)}.`,
+          heading: copy.heading,
+          bodyHtml: copy.lines.map((l) => esc(l)).join("<br>"),
           ctaLabel: "לאישור באתר הביטוח הלאומי", ctaHref: NI_SITE, ctaArrow: true, showLinkFallback: true,
         });
 
         const send = await sendMail(profile, toEmail, subject, html);
         if (send.outcome === "sent") {
           await logMessage({
-            user_id: req.user_id, client_id: req.linked_client_id, request_id: req.id, to_email: toEmail, subject,
+            user_id: req.user_id, client_id: req.linked_client_id, request_id: req.id, step_id: stepId, to_email: toEmail, subject,
             kind: `representation_reminder_${audience}`, status: "sent", resend_id: send.id, meta: { reminderCount: occurrence, role },
             idempotencyKey: `representation_reminder_${audience}:${req.id}:r${occurrence}`,
           });
           sent++; results[audience].push({ id: req.id, status: "sent", to: toEmail });
         } else if (send.outcome === "unknown") {
           // ‼ לא ידוע אם יצאה — התביעה נשארת, והיומן אומר «לא ידוע».
-          await logMessage({ user_id: req.user_id, client_id: req.linked_client_id, request_id: req.id, to_email: toEmail, subject, kind: `representation_reminder_${audience}`, status: "unknown", error: send.reason, meta: { reminderCount: occurrence, role } });
+          await logMessage({ user_id: req.user_id, client_id: req.linked_client_id, request_id: req.id, step_id: stepId, to_email: toEmail, subject, kind: `representation_reminder_${audience}`, status: "unknown", error: send.reason, meta: { reminderCount: occurrence, role } });
           unknown++; results[audience].push({ id: req.id, status: "unknown", to: toEmail });
         } else {
           await releaseReminder(req.id, audience, occurrence, rem.lastSentAt ?? null);
-          await logMessage({ user_id: req.user_id, client_id: req.linked_client_id, request_id: req.id, to_email: toEmail, subject, kind: `representation_reminder_${audience}`, status: "failed", error: send.reason, meta: { reminderCount: count, role } });
+          await logMessage({ user_id: req.user_id, client_id: req.linked_client_id, request_id: req.id, step_id: stepId, to_email: toEmail, subject, kind: `representation_reminder_${audience}`, status: "failed", error: send.reason, meta: { reminderCount: count, role } });
           failed++; results[audience].push({ id: req.id, status: "failed", error: send.reason });
         }
       }
