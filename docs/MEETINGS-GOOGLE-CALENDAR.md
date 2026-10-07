@@ -98,13 +98,26 @@
 4. «Data access» ← **Add or remove scopes** ← מסמנים: `.../auth/calendar.events`,
    `.../auth/calendar.freebusy`, `openid`, `.../auth/userinfo.email` ← Save.
 5. «Clients» ← **Create client** ← סוג: **Web application**, שם: PIVO ←
-   ב-**Authorized redirect URIs** מוסיפים בדיוק:
+   ב-**Authorized redirect URIs** מוסיפים בדיוק את שתי הכתובות (הייצור, וסביבת הבדיקות — כדי
+   לבדוק את החיבור לפני העלאה):
    `https://uoweoqtuiettozagwgdw.supabase.co/functions/v1/google-calendar-connect`
-   ← Create. מעתיקים את **Client ID** ואת **Client secret**.
-6. ב-Supabase (הפרויקט של הייצור) ← «Edge Functions ← Secrets» ← מוסיפים:
+   `https://evdfxjqrkgugssfrdoxd.supabase.co/functions/v1/google-calendar-connect`
+   ← Create. מעתיקים את **Client ID** ואת **Client secret** — ‼ Google מציג את הסוד פעם אחת בלבד.
+6. ב-Supabase ← «Edge Functions ← Secrets» — **בשני הפרויקטים** (הייצור `uoweoqtuiettozagwgdw`
+   וסביבת הבדיקות `evdfxjqrkgugssfrdoxd`) ← מוסיפים:
    `GOOGLE_OAUTH_CLIENT_ID` ו-`GOOGLE_OAUTH_CLIENT_SECRET`.
-   ‼ לא מדביקים אותם בצ'אט, במייל או בקוד.
+   ‼ לא מדביקים אותם בצ'אט, במייל או בקוד. בייצור אין עדיין קוד שקורא אותם — הם מחכים להעלאה.
+   ‼ מרגע שיש מפתחות בסביבת הבדיקות, היא פונה ל-Google האמיתי (לא למדומה). לבדיקות עם המדומה:
+   סוד `GOOGLE_API_FAKE_URL` = `https://evdfxjqrkgugssfrdoxd.supabase.co/functions/v1/fake-google-calendar`.
 7. ב-PIVO: «המשרד ← חיבורים ← יומן Google ← חיבור יומן Google» ← בוחרים את חשבון המשרד ← מאשרים.
+
+### בדיקת החיבור לפני העלאה (סביבת הבדיקות)
+
+1. Claude מפיק קישור חיבור חד-פעמי (תקף 15 דקות) למשתמש הבדיקה `qa-meetings@pivo.test`.
+2. גיא פותח אותו, בוחר `guy@yasharcpa.co.il` ומאשר. בסוף נפתח האתר הרגיל — זה צפוי.
+3. Claude מוודא: החיבור שמור (`google_calendar_status`), קריאת שעות תפוסות מהיומן (קריאה בלבד),
+   ואירוע ניסיון שבו המוזמן היחיד הוא `guy@yasharcpa.co.il` (המארגן — Google לא שולח לו מייל)
+   עם קישור Meet — ונמחק מיד. שום הזמנה לא יוצאת לאף אחד אחר.
 
 **בפגישה הראשונה:** מוזמן שנכנס עם חשבון Google של המייל שהוזמן — נכנס ישר; מוזמן אחר
 «מבקש להצטרף», ומאשרים אותו בחלון ה-Meet.
