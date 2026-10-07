@@ -110,6 +110,7 @@ import RepresentationRequestReview from './components/RepresentationRequestRevie
 // מרנדר אותו. אל תמחק אותו בהסתמך על ההערה הזו.
 import TasksWorkspace from './components/TasksWorkspace';
 import VisionPage from './components/VisionPage';
+import { visionClients } from './components/visionOffice';
 import TaskForm from './components/TaskForm';
 import LoginScreen from './components/LoginScreen';
 import NoAccessScreen from './components/NoAccessScreen';
@@ -706,6 +707,8 @@ export default function App() {
   // מוחק סיכום שבוע שבאמצע כתיבה, והחזרה אליה מיידית ובאותו מקום.
   const [visionKept, setVisionKept] = useState(view === 'vision');
   if (view === 'vision' && !visionKept) setVisionKept(true);
+  // הלבנים בקיר «המשרד מכניס» — הלקוחות עם ריטיינר בהסכם (components/visionOffice.ts)
+  const visionOffice = useMemo(() => visionClients(clients, onboarding.engagements), [clients, onboarding.engagements]);
   /** העמוד בתוך «המשרד» — חלק מהכתובת, כדי ש«אחורה» ו-F5 יחזירו אליו. */
   const [officePage, setOfficePage] = useState<string | null>(initialRoute.officePage ?? null);
   /** מה לפתוח בעמוד המשרד (‎#/firm/library/request:…‎, ‎#/firm/flows/flow:…‎) — קישור עמוק מבקשה תקועה. */
@@ -2587,13 +2590,11 @@ export default function App() {
     ? [
         { id: 'list', label: 'לקוחות' },
         { id: 'tasks', label: 'משימות', badge: openTasksCount > 0 ? openTasksCount : undefined },
-        { id: 'vision', label: 'מפת הדרך' },
       ]
     : [
         { id: 'tasks', label: 'משימות', badge: openTasksCount > 0 ? openTasksCount : undefined },
         { id: 'list', label: 'לקוחות' },
         { id: 'quotations', label: 'הצעות ולידים' },
-        { id: 'vision', label: 'מפת הדרך' },
       ];
 
   return (
@@ -2725,6 +2726,23 @@ export default function App() {
                   <div className="account-menu-name">{displayName || user.email}</div>
                   <div className="account-menu-firm">{firmProfile?.firmName || 'גיא ישר · רואה חשבון'}</div>
                 </div>
+                {/* ‼ «מפת הדרך» (227) — הדף האישי של גיא. גיא, 7.10: מעל «המשרד», ולא בסרגל. */}
+                <button
+                  type="button"
+                  className={`account-menu-item ${view === 'vision' ? 'is-active' : ''}`}
+                  aria-current={view === 'vision' ? 'page' : undefined}
+                  onClick={() => {
+                    setAccountMenuOpen(false);
+                    setView('vision');
+                    setSelectedId(null);
+                    setSelectedRequestId(null);
+                    setEditingQuotationId(null);
+                    setQuickViewId(null);
+                  }}
+                >
+                  <Icon name="map" size={14} />
+                  <span>מפת הדרך</span>
+                </button>
                 {/* כלי המערכת — המשרד וידע מס. שניהם שלי ולא של לקוח מסוים,
                     ולכן הם לא תופסים מקום בסרגל שבו העבודה היומיומית חיה. */}
                 <button
@@ -2832,7 +2850,15 @@ export default function App() {
         <LegacyMigrationBanner knownClientIds={new Set(clients.map(c => c.id))} />
         <FailedNotificationsBanner failures={failedNotifications} />
 
-        {visionKept && <VisionPage userId={user.id} active={view === 'vision'} />}
+        {visionKept && (
+          <VisionPage
+            key={user.id}
+            userId={user.id}
+            active={view === 'vision'}
+            office={visionOffice}
+            onOpenClient={id => { setSelectedId(id); setClientInitialTab('pay'); setView('form'); }}
+          />
+        )}
 
         {view === 'tasks' && (
           <TasksWorkspace

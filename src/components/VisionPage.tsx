@@ -1,12 +1,15 @@
-// ─── מפת הדרך לעצמאות · הלשונית ─────────────────────────────────────────────
+// ─── מפת הדרך לעצמאות · הדף בתוך PIVO (מהתפריט שבתמונה, מעל «המשרד») ─────────────
 // הדף עצמו הוא public/vision/index.html: דף עצמאי, שנבנה ונבדק כך (docs/vision/README.md).
 // כאן הוא רץ במסגרת, והלשונית נותנת לו מקום לשמור: מסמכי JSON לכל משתמש ב-vision_docs (227).
 // ‼ הדף מדבר עם הלשונית באותו ממשק שהוא מקבל כשהוא רץ ב-Claude
 //   (use('db') → doc(path).get / set / onSnapshot), ולכן הוא לא יודע כלום על Supabase.
-// ‼ אין כאן נתוני משרד: «הלקוחות» בדף הם לבנים בקיר של התוכנית האישית, לא רשומות ב-clients.
+// ‼ הלקוחות בקיר «המשרד מכניס» הם הלקוחות של PIVO עם ריטיינר בהסכם (visionOffice.ts).
+//   הדף מקבל אותם לקריאה בלבד (use('pivo')), ולוחץ על לבנה ⇒ כרטיס הלקוח ב«הסכם ותשלומים».
+//   מה שנשמר ב-vision_docs הוא רק מה שאישי לדף: מתי הנחת כל לבנה.
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import type { VisionClient } from './visionOffice';
 import './VisionPage.css';
 
 type Body = Record<string, unknown>;
@@ -25,6 +28,9 @@ export interface VisionHost {
   use(name: string): Promise<unknown>;
   /** קורא שוב את המסמכים שהדף מאזין להם — כשחוזרים ללשונית מהטלפון או מחלון אחר */
   refresh(): Promise<void>;
+  /** הלקוחות של PIVO השתנו — הדף מקבל את הרשימה החדשה */
+  setOffice(list: VisionClient[]): void;
+  setOpenClient(fn: (id: string) => void): void;
 }
 
 declare global {
@@ -123,13 +129,39 @@ export function createVisionHost(userId: string): VisionHost {
   const db = { doc };
   // הדף אישי: מי שנכנס הוא הבעלים של הנתונים שלו (ההרשאה נאכפת במסד, 227)
   const user = { isOwner: async () => true, canEdit: async () => true, can: async () => true };
+
+  let office: VisionClient[] = [];
+  let openClient: (id: string) => void = () => {};
+  const officeListeners = new Set<(list: VisionClient[]) => void>();
+  const pivo = {
+    clients: () => office.map(c => ({ ...c })),
+    onClients(cb: (list: VisionClient[]) => void) {
+      officeListeners.add(cb);
+      return () => { officeListeners.delete(cb); };
+    },
+    openClient: (id: string) => openClient(id),
+  };
+
   return {
-    use: async (name: string) => (name === 'db' ? db : name === 'user' ? user : null),
+    use: async (name: string) => (name === 'db' ? db : name === 'user' ? user : name === 'pivo' ? pivo : null),
     refresh,
+    setOffice(list) {
+      if (canon(list) === canon(office)) return;
+      office = list;
+      officeListeners.forEach(cb => { try { cb(pivo.clients()); } catch { /* מאזין של דף שכבר נסגר */ } });
+    },
+    setOpenClient(fn) { openClient = fn; },
   };
 }
 
-export default function VisionPage({ userId, active }: { userId: string; active: boolean }) {
+interface Props {
+  userId: string;
+  active: boolean;
+  office: VisionClient[];
+  onOpenClient: (id: string) => void;
+}
+
+export default function VisionPage({ userId, active, office, onOpenClient }: Props) {
   // ‼ הדף במסגרת מחפש את window.parent.__pivoVision ברגע שהוא עולה — לכן הוא נקבע כבר
   // ברינדור, לפני שהמסגרת נטענת.
   const host = useMemo(() => {
@@ -137,6 +169,9 @@ export default function VisionPage({ userId, active }: { userId: string; active:
     window.__pivoVision = h;
     return h;
   }, [userId]);
+  // הלקוחות והמעבר לכרטיס — לפני שהמסגרת (שנטענת מהרשת) מבקשת אותם, וכל פעם שהם משתנים
+  useLayoutEffect(() => { host.setOffice(office); }, [host, office]);
+  useLayoutEffect(() => { host.setOpenClient(onOpenClient); }, [host, onOpenClient]);
   const activeRef = useRef(active);
   activeRef.current = active;
 
