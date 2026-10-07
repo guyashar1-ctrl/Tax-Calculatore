@@ -29,6 +29,14 @@ export interface Companion {
   relation: CompanionRelation;
 }
 
+/**
+ * «מי זה?» לאדם חדש בחלון (סבב 3, 07.10.2026): לקוח פוטנציאלי ⇒ ליד (או אדם נוסף בפנייה של
+ * מי שבא איתו), איש מקצוע ⇒ אנשי קשר, או רק מוזמן — לא נשמר. ‼ בלי saveAs (גרסה ישנה של
+ * המסך) — ההתנהגות של סבב 2: ליד רק בשיחת היכרות, ואנשים נוספים בפנייה.
+ */
+export const SAVE_AS = ['lead', 'contact', 'none'] as const;
+export type SaveAs = typeof SAVE_AS[number];
+
 /** איש קשר שנשמר מהזימון — מי שאינו לקוח ואינו ליד (רו״ח אחר, עו״ד…). */
 export interface NewContact {
   email: string;
@@ -43,6 +51,8 @@ export interface CreateInput {
   guests: MeetingGuest[];
   /** הקשר של כל מוזמן נוסף לראשון — לפי מייל. */
   relations: Record<string, CompanionRelation>;
+  /** «מי זה?» שנבחר לאדם חדש — לפי מייל. */
+  saveAs: Record<string, SaveAs>;
   saveContacts: NewContact[];
   date: string;
   time: string;
@@ -90,6 +100,7 @@ export function parseCreate(body: unknown, nowMs: number): Parsed<CreateInput> {
   if (!Array.isArray(b.guests) || b.guests.length === 0 || b.guests.length > 10) return { ok: false, field: 'guests' };
   const guests: MeetingGuest[] = [];
   const relations: Record<string, CompanionRelation> = {};
+  const saveAs: Record<string, SaveAs> = {};
   const saveContacts: NewContact[] = [];
   for (const g of b.guests as Record<string, unknown>[]) {
     const email = str(g?.email, 254).toLowerCase();
@@ -99,11 +110,17 @@ export function parseCreate(body: unknown, nowMs: number): Parsed<CreateInput> {
     if (guests.length > 0 && COMPANION_RELATIONS.includes(g?.relation as CompanionRelation)) {
       relations[email] = g.relation as CompanionRelation;
     }
+    if (SAVE_AS.includes(g?.saveAs as SaveAs)) saveAs[email] = g.saveAs as SaveAs;
+    // ‼ ליד בלי שם הוא רק כתובת — leads.full_name חובה.
+    if (saveAs[email] === 'lead' && !name) return { ok: false, field: 'leadName' };
     const c = g?.contact as Record<string, unknown> | undefined;
     if (c && typeof c === 'object') {
       // ‼ איש קשר בלי שם הוא רק כתובת — contacts.full_name חובה.
       if (!name) return { ok: false, field: 'contactName' };
       saveContacts.push({ email, fullName: name, role: str(c.role, 60), organization: str(c.organization, 120) });
+      saveAs[email] = 'contact';
+    } else if (saveAs[email] === 'contact') {
+      return { ok: false, field: 'contact' };
     }
     guests.push(name ? { email, name } : { email });
   }
@@ -113,7 +130,7 @@ export function parseCreate(body: unknown, nowMs: number): Parsed<CreateInput> {
   return {
     ok: true,
     value: {
-      id, kind, guests, relations, saveContacts, ...when.value,
+      id, kind, guests, relations, saveAs, saveContacts, ...when.value,
       topic: str(b.topic, 120), prep: str(b.prep, 1000), note: str(b.note, 500), clientId,
     },
   };
@@ -150,6 +167,11 @@ export interface PeopleMatch {
   addCompanions: Companion[];
   /** ליד סגור שנקבעה איתו שיחת היכרות חדשה — חוזר להיות «חדש». */
   reopenLead: boolean;
+  /**
+   * (סבב 3) אנשים שסומנו «לקוח פוטנציאלי» ואינם בפנייה של ליד בפגישה הזו — כל אחד ליד משלו.
+   * למשל לקוח קיים שמביא איתו חבר לפגישת עבודה.
+   */
+  extraLeads: { fullName: string; email: string }[];
 }
 
 /** מה קרה לאנשים אחרי שהזימון יצא — למסך «נשלח». נכתב רק במה שבאמת נשמר. */
@@ -158,11 +180,13 @@ export interface PeopleOutcome {
   leadReopened: boolean;
   companionsAdded: number;
   contactsSaved: number;
+  /** (סבב 3) לידים נוספים שנוצרו — extraLeads. חסר בשרת ישן. */
+  extraLeadsCreated?: number;
 }
 
 const low = (s: string | null | undefined) => (s ?? '').trim().toLowerCase();
 
-const NONE: PeopleMatch = { clientId: null, leadId: null, newLead: null, addCompanions: [], reopenLead: false };
+const NONE: PeopleMatch = { clientId: null, leadId: null, newLead: null, addCompanions: [], reopenLead: false, extraLeads: [] };
 
 /** הליד שהמייל הזה שייך לו — כראשי או כאדם נוסף בפנייה. פתוח גובר על סגור, וסגור על שהומר. */
 export function leadForEmail(leads: LeadRow[], email: string): LeadRow | undefined {
@@ -181,6 +205,8 @@ export function leadForEmail(leads: LeadRow[], email: string): LeadRow | undefin
  * נשמרים בפנייה שלו (relation, ברירת מחדל «שותפים עסקיים») — עד שמפרידים אותם.
  * בפגישת עבודה לא נוצר ליד ולא נוספים אנשים לפנייה: אדם לא מוכר שם הוא לרוב מנהל חשבונות,
  * רו״ח אחר או שותף — לשם כך «שמור כאיש קשר». איש קשר שמור לעולם אינו נעשה ליד מעצמו.
+ * (סבב 3) «מי זה?» גובר: «לקוח פוטנציאלי» נעשה ליד גם בפגישת עבודה — בפנייה של מי שבא איתו
+ * כשיש פנייה בשיחת היכרות, ואחרת ליד משלו (extraLeads); «רק מוזמן» לא נשמר בשום מקום.
  */
 export function matchPeople(a: {
   kind: MeetingKind;
@@ -190,11 +216,24 @@ export function matchPeople(a: {
   explicitClientId: string | null;
   contactEmails?: string[];
   relations?: Record<string, CompanionRelation>;
+  saveAs?: Record<string, SaveAs>;
 }): PeopleMatch {
-  if (a.explicitClientId) return { ...NONE, clientId: a.explicitClientId };
+  const contacts = new Set((a.contactEmails ?? []).map(low));
+  const said = (email: string) => a.saveAs?.[low(email)];
+  const clientOf = (email: string) => a.clients.find(x => low(x.email) === low(email) || low(x.spouse_email) === low(email));
+  /** «לקוח פוטנציאלי» שאינו מוכר בשום מקום ⇒ ליד משלו. */
+  const extraLeads = (skip: Set<string>) => a.guests
+    .filter(g => {
+      const e = low(g.email);
+      return said(e) === 'lead' && !!g.name?.trim() && !skip.has(e)
+        && !clientOf(e) && !leadForEmail(a.leads, e) && !contacts.has(e);
+    })
+    .map(g => ({ fullName: g.name!.trim(), email: low(g.email) }));
+
+  if (a.explicitClientId) return { ...NONE, clientId: a.explicitClientId, extraLeads: extraLeads(new Set()) };
   for (const g of a.guests) {
-    const c = a.clients.find(x => low(x.email) === low(g.email) || low(x.spouse_email) === low(g.email));
-    if (c) return { ...NONE, clientId: c.id };
+    const c = clientOf(g.email);
+    if (c) return { ...NONE, clientId: c.id, extraLeads: extraLeads(new Set()) };
   }
   const primary = a.guests[0];
   if (!primary) return NONE;
@@ -204,9 +243,8 @@ export function matchPeople(a: {
     lead = leadForEmail(a.leads, g.email);
     if (lead) break;
   }
-  if (lead?.converted_client_id) return { ...NONE, clientId: lead.converted_client_id };
+  if (lead?.converted_client_id) return { ...NONE, clientId: lead.converted_client_id, extraLeads: extraLeads(new Set()) };
 
-  const contacts = new Set((a.contactEmails ?? []).map(low));
   const taken = new Set<string>([
     low(lead?.email),
     ...(lead?.companions ?? []).map(c => low(c?.email)),
@@ -215,6 +253,7 @@ export function matchPeople(a: {
     .filter(g => {
       const e = low(g.email);
       if (e === skip || taken.has(e) || contacts.has(e)) return false;
+      if (said(e) === 'none' || said(e) === 'contact') return false;
       // ‼ מי שיש לו ליד משלו נשאר בליד שלו — לא נעשה «אדם נוסף» בפנייה של אחר.
       const own = leadForEmail(a.leads, e);
       return !own || own.id === lead?.id;
@@ -226,18 +265,27 @@ export function matchPeople(a: {
     }));
 
   if (lead) {
+    const addCompanions = companionsFrom('');
     return {
       ...NONE,
       leadId: lead.id,
-      addCompanions: companionsFrom(''),
+      addCompanions,
       reopenLead: a.kind === 'intro' && lead.status === 'closed',
+      extraLeads: extraLeads(new Set([...taken, ...addCompanions.map(c => c.email)])),
     };
   }
   const name = (primary.name ?? '').trim();
-  if (a.kind === 'intro' && name && !contacts.has(low(primary.email))) {
-    return { ...NONE, newLead: { fullName: name, email: low(primary.email), companions: companionsFrom(low(primary.email)) } };
+  const p = low(primary.email);
+  const primaryIsLead = said(p) === 'lead' || (a.kind === 'intro' && !said(p));
+  if (primaryIsLead && name && !contacts.has(p)) {
+    const companions = companionsFrom(p);
+    return {
+      ...NONE,
+      newLead: { fullName: name, email: p, companions },
+      extraLeads: extraLeads(new Set([p, ...companions.map(c => c.email)])),
+    };
   }
-  return NONE;
+  return { ...NONE, extraLeads: extraLeads(new Set()) };
 }
 
 /** האנשים בפנייה אחרי הוספה — בלי כפילויות לפי מייל; מה שכבר נשמר לא משתנה. */
@@ -294,4 +342,83 @@ export function syncFromEvent(
     if (dur >= 10 && dur <= 240 && dur !== m.duration_min) patch.duration_min = dur;
   }
   return { patch, history };
+}
+
+// ─── היומן (סבב 3): האירועים ביומן Google לטווח תאריכים ───────────────────
+// ‼ לקריאה בלבד: לשונית «יומן» ו«היום שלך ביומן» בחלון. Google הוא מקור האמת; פגישה של PIVO
+//   מזוהה לפי מזהה האירוע שנגזר ממזהה הפגישה (eventIdFor) — או pivoMeetingId שנשמר באירוע.
+
+export interface GoogleListItem {
+  id?: string;
+  status?: string;
+  summary?: string;
+  htmlLink?: string;
+  transparency?: string;
+  start?: { dateTime?: string; date?: string };
+  end?: { dateTime?: string; date?: string };
+  attendees?: { self?: boolean; responseStatus?: string }[];
+  extendedProperties?: { private?: Record<string, string> };
+}
+
+export interface CalendarEvent {
+  id: string;
+  title: string;
+  allDay: boolean;
+  /** אירוע עם שעה — רגע מוחלט (ISO). */
+  startsAt: string | null;
+  endsAt: string | null;
+  /** אירוע של יום שלם — תאריך התחלה ותאריך סיום (לא כולל), כמו ב-Google. */
+  startDate: string | null;
+  endDate: string | null;
+  /** «פנוי» ב-Google (transparent) — מוצג, אבל לא תופס את הזמן. */
+  busy: boolean;
+  /** פגישה שנקבעה מ-PIVO — מזהה השורה ב-meetings. */
+  meetingId: string | null;
+  htmlLink: string | null;
+}
+
+const UUID_FROM_EVENT = /^pivo([0-9a-f]{8})([0-9a-f]{4})([0-9a-f]{4})([0-9a-f]{4})([0-9a-f]{12})$/;
+
+/** מזהה הפגישה ב-PIVO מתוך מזהה האירוע (eventIdFor הפוך) — או null. */
+export function meetingIdFromEventId(eventId: string | undefined): string | null {
+  const m = (eventId ?? '').match(UUID_FROM_EVENT);
+  return m ? `${m[1]}-${m[2]}-${m[3]}-${m[4]}-${m[5]}` : null;
+}
+
+/**
+ * מה שמוצג ביומן. ‼ אירוע שבוטל או שסירבת לו — לא מוצג (כך גם ב-Google). מזהה פגישה מוחזר רק
+ * כשהוא באמת שורה של הרו״ח הזה (known) — אירוע שמישהו אחר יצר עם מזהה דומה אינו «של PIVO».
+ */
+export function calendarEventsFrom(items: GoogleListItem[], known: Set<string>): CalendarEvent[] {
+  const out: CalendarEvent[] = [];
+  for (const e of items) {
+    if (!e.id || e.status === 'cancelled') continue;
+    if ((e.attendees ?? []).some(x => x.self && x.responseStatus === 'declined')) continue;
+    const allDay = !e.start?.dateTime && !!e.start?.date;
+    if (!allDay && !e.start?.dateTime) continue;
+    const mid = e.extendedProperties?.private?.pivoMeetingId ?? meetingIdFromEventId(e.id);
+    out.push({
+      id: e.id,
+      title: (e.summary ?? '').trim() || '(ללא כותרת)',
+      allDay,
+      startsAt: allDay ? null : new Date(e.start!.dateTime!).toISOString(),
+      endsAt: allDay ? null : new Date(e.end?.dateTime ?? e.start!.dateTime!).toISOString(),
+      startDate: allDay ? e.start!.date! : null,
+      endDate: allDay ? (e.end?.date ?? e.start!.date!) : null,
+      busy: e.transparency !== 'transparent',
+      meetingId: mid && known.has(mid) ? mid : null,
+      htmlLink: e.htmlLink ?? null,
+    });
+  }
+  return out;
+}
+
+/** טווח תאריכים ליומן — עד 6 שבועות, כדי שבקשה אחת לא תמשוך שנה שלמה. */
+export function parseRange(b: Record<string, unknown>): { ok: true; from: string; to: string } | { ok: false; field: string } {
+  const from = str(b.from, 10), to = str(b.to, 10);
+  if (!DATE_RE.test(from)) return { ok: false, field: 'from' };
+  if (!DATE_RE.test(to) || to <= from) return { ok: false, field: 'to' };
+  const days = (Date.parse(`${to}T12:00:00Z`) - Date.parse(`${from}T12:00:00Z`)) / 86400000;
+  if (days > 42) return { ok: false, field: 'to' };
+  return { ok: true, from, to };
 }

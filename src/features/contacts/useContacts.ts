@@ -1,6 +1,6 @@
 // ─── אנשי קשר — טעינה ושמירה ────────────────────────────────────────────────
 // הדפדפן כותב ישירות (RLS: רק לבעלים, ורק למשתמש מורשה — 226). גם calendar-meeting
-// שומר איש קשר כשמסמנים «שמור כאיש קשר» בזימון; לכן רענון אחרי שליחת זימון.
+// שומר איש קשר כשבזימון בוחרים לאדם חדש «מי זה? איש מקצוע»; לכן רענון אחרי שליחת זימון.
 
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
@@ -13,7 +13,13 @@ export interface ContactsApi {
   add: (c: Omit<Contact, 'id'>) => Promise<Contact>;
   update: (c: Partial<Contact> & { id: string }) => Promise<Contact>;
   remove: (id: string) => Promise<void>;
+  /** (228) «העבר ללידים» — הליד נוצר (או נמצא) ואיש הקשר יוצא מהרשימה, בפעולה אחת בשרת. */
+  moveToLead: (id: string) => Promise<MoveToLeadResult>;
 }
+
+export type MoveToLeadResult =
+  | { ok: true; leadId: string; existing: boolean }
+  | { ok: false; error: string; clientId?: string };
 
 /** ‼ 23505 = אותו מייל כבר שמור (אינדקס ייחודי) — אומרים את זה בעברית. */
 function friendly(error: { code?: string; message?: string }): Error {
@@ -61,5 +67,13 @@ export function useContacts(userId: string | undefined): ContactsApi {
     setContacts(prev => prev.filter(x => x.id !== id));
   }, []);
 
-  return { contacts, loading, refresh, add, update, remove };
+  const moveToLead = useCallback(async (id: string): Promise<MoveToLeadResult> => {
+    const { data, error } = await supabase.rpc('move_contact_to_lead', { p_contact_id: id });
+    const r = (data ?? {}) as Record<string, unknown>;
+    if (error || r.ok !== true) return { ok: false, error: String(r.error ?? 'failed'), ...(r.clientId ? { clientId: String(r.clientId) } : {}) };
+    setContacts(prev => prev.filter(x => x.id !== id));
+    return { ok: true, leadId: String(r.leadId), existing: r.existing === true };
+  }, []);
+
+  return { contacts, loading, refresh, add, update, remove, moveToLead };
 }

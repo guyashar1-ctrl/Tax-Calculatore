@@ -50,17 +50,22 @@ import RequestPreviewSheet from '../../../features/requestPreview/RequestPreview
 import PreviewButton from '../../../features/requestPreview/PreviewButton';
 import type { EditHint } from '../../../features/requestPreview/registry';
 import { parseViewFocus, resolveFocus, targetKey, targetOfTemplate, targetToFocus, type PreviewTarget, type Selection } from '../../../features/requestPreview/targets';
+import MeetingsLibraryShelf, { meetingKindFromFocus } from '../../../features/meetings/MeetingsLibraryShelf';
+import { MEETING_KINDS } from '../../../../supabase/functions/_shared/meetingInvite';
 import './library.css';
 import '../../../features/requests/requestGroups.css';
 
 export { libraryUses, type LibraryUse } from './library/usedIn';
 
-type Shelf = 'requests' | 'documents';
+// ‼ (07.10.2026, הדמיה מאושרת) «פגישות» — נוסח ההזמנות שיוצאות מהיומן (features/meetings).
+type Shelf = 'requests' | 'documents' | 'meetings';
 
 interface Props {
   draft: FirmProfile;
   saved: FirmProfile;
   setDraft: React.Dispatch<React.SetStateAction<FirmProfile>>;
+  /** חלונות עריכה ששומרים מיד (useOfficeDraft.saveNow) — נוסח ההזמנה לפגישה. */
+  saveNow?: (update: (p: FirmProfile) => FirmProfile) => Promise<string | null>;
   noteUpload: (r: AssetRef) => void;
   /** «שליחה ללקוח» ממסמך — הקונסולה פותחת בחירת לקוח. */
   onSendToClient?: (doc: { id: string; label: string; fileName?: string }) => void;
@@ -76,8 +81,9 @@ interface Props {
 /** הבקשות שהמערכת יוצרת במסלול הקליטה — מוצגות, לא נערכות כאן. */
 const SYSTEM_ROWS = ['representation', ...CATALOG_STEP_TYPES];
 
-export default function LibraryPage({ draft, saved, setDraft, noteUpload, onSendToClient, focus, viewFocus, onViewFocusChange, go }: Props) {
-  const [shelf, setShelf] = useState<Shelf>(focus === 'documents' ? 'documents' : 'requests');
+export default function LibraryPage({ draft, saved, setDraft, saveNow, noteUpload, onSendToClient, focus, viewFocus, onViewFocusChange, go }: Props) {
+  const [shelf, setShelf] = useState<Shelf>(
+    focus === 'documents' ? 'documents' : focus === 'meetings' || meetingKindFromFocus(focus) ? 'meetings' : 'requests');
   const [templates, setTemplates] = useState<RequestTemplate[] | null>(null);
   const [flows, setFlows] = useState<OfficeFlow[] | null>(null);
   const [flowsError, setFlowsError] = useState(false);
@@ -327,6 +333,9 @@ export default function LibraryPage({ draft, saved, setDraft, noteUpload, onSend
           <button type="button" aria-pressed={shelf === 'documents'} onClick={() => setShelf('documents')}>
             מסמכים · {docs.length}
           </button>
+          <button type="button" aria-pressed={shelf === 'meetings'} onClick={() => setShelf('meetings')}>
+            פגישות · {MEETING_KINDS.length}
+          </button>
         </div>
         {shelf === 'requests' && (
           <>
@@ -475,6 +484,11 @@ export default function LibraryPage({ draft, saved, setDraft, noteUpload, onSend
 
           </>
         )
+      )}
+
+      {shelf === 'meetings' && (
+        <MeetingsLibraryShelf draft={draft} saveNow={saveNow} focusKind={meetingKindFromFocus(focus)}
+          onEmails={() => go('emails', 'meetings')} />
       )}
 
       {shelf === 'documents' && (

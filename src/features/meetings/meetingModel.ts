@@ -188,6 +188,8 @@ export const MEETING_ERRORS: Record<string, string> = {
 const PAST_FIELD: Record<string, string> = {
   past: 'המועד כבר עבר.',
   contactName: 'כתבו שם לאיש הקשר שנשמר.',
+  leadName: 'כתבו שם לאדם החדש — כך הוא יישמר כליד.',
+  contact: 'חסרים פרטי איש הקשר.',
   guests: 'אחת מכתובות המייל לא תקינה.',
   date: 'בחרו תאריך.',
   time: 'בחרו שעה.',

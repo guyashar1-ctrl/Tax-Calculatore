@@ -20,7 +20,9 @@ export type View =
   | 'quotations'
   | 'quotationBuilder'
   /** מפת הדרך לעצמאות — הדף האישי (public/vision, 227) */
-  | 'vision';
+  | 'vision'
+  /** היומן ב-Google, עם הפגישות שנקבעו מ-PIVO (סבב 3 של הפגישות, 07.10.2026) */
+  | 'calendar';
 
 export interface AppRoute {
   view: View;
@@ -59,6 +61,7 @@ const SLUG_BY_VIEW: Record<View, string> = {
   quotations: 'quotations',
   quotationBuilder: 'quotation',
   vision: 'vision',
+  calendar: 'calendar',
 };
 
 const VIEW_BY_SLUG = Object.fromEntries(

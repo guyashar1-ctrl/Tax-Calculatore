@@ -59,6 +59,7 @@ import { useFirmProfile } from './hooks/useFirmProfile';
 import { useMeetings } from './features/meetings/useMeetings';
 import MeetingDialog, { type MeetingDialogMode } from './features/meetings/MeetingDialog';
 import UpcomingMeetings from './features/meetings/UpcomingMeetings';
+import CalendarPage from './features/meetings/CalendarPage';
 import { meetingCueByPerson, upcomingMeetings, meetingWhen } from './features/meetings/meetingModel';
 import { useFailedNotifications } from './hooks/useFailedNotifications';
 import { useLivePulse } from './hooks/useLivePulse';
@@ -740,6 +741,15 @@ export default function App() {
     setView('firmProfile');
     setOfficePage('connections');
     setOfficeFocus(null);
+    setSelectedId(null);
+    setSelectedRequestId(null);
+  };
+  /** «עריכת הנוסח» מחלון הפגישה — ספריית הבקשות ← פגישות, על הנוסח של סוג הפגישה. */
+  const openMeetingWording = (kind: string) => {
+    setMeetingDialog(null);
+    setView('firmProfile');
+    setOfficePage('library');
+    setOfficeFocus(`meetings:${kind}`);
     setSelectedId(null);
     setSelectedRequestId(null);
   };
@@ -2587,12 +2597,15 @@ export default function App() {
     ? [
         { id: 'list', label: 'לקוחות' },
         { id: 'tasks', label: 'משימות', badge: openTasksCount > 0 ? openTasksCount : undefined },
+        // ‼ (07.10.2026, הדמיה מאושרת) לשונית משלו — לא בתוך «משימות», שעוד משתנה.
+        { id: 'calendar', label: 'יומן' },
         { id: 'vision', label: 'מפת הדרך' },
       ]
     : [
         { id: 'tasks', label: 'משימות', badge: openTasksCount > 0 ? openTasksCount : undefined },
         { id: 'list', label: 'לקוחות' },
         { id: 'quotations', label: 'הצעות ולידים' },
+        { id: 'calendar', label: 'יומן' },
         { id: 'vision', label: 'מפת הדרך' },
       ];
 
@@ -2856,8 +2869,20 @@ export default function App() {
                 signer={(firmProfile?.fullName ?? '').trim().split(/\s+/)[0] || undefined}
                 onMove={m => setMeetingDialog({ kind: 'move', meeting: m })}
                 onOpenConnections={openGoogleConnections}
+                onOpenCalendar={() => setView('calendar')}
               />
             )}
+          />
+        )}
+
+        {view === 'calendar' && (
+          <CalendarPage
+            api={meetingsApi}
+            signer={(firmProfile?.fullName ?? '').trim().split(/\s+/)[0] || undefined}
+            onNewMeeting={(date, time) => setMeetingDialog({ kind: 'new', date, time })}
+            onMove={m => setMeetingDialog({ kind: 'move', meeting: m })}
+            onOpenPerson={id => { setView('list'); setQuickViewId(id); }}
+            onOpenConnections={openGoogleConnections}
           />
         )}
 
@@ -2897,6 +2922,7 @@ export default function App() {
             contactsApi={contactsApi}
             meetings={meetingsApi.meetings}
             onNewMeeting={(preset) => setMeetingDialog({ kind: 'new', ...preset })}
+            onContactMovedToLead={async (leadId) => { await refreshLeads(); setQuickViewId(leadId); }}
             onSplitCompanion={async (lead, email, name) => {
               const r = await splitLeadCompanion(lead.id, email, name);
               if (r.ok || r.error === 'is_client') await refreshLeads();
@@ -3295,7 +3321,7 @@ export default function App() {
       {meetingDialog && (
         <MeetingDialog
           key={meetingDialog.kind === 'move' ? meetingDialog.meeting.id
-            : `new-${meetingDialog.clientId ?? ''}-${meetingDialog.leadId ?? ''}-${meetingDialog.contactId ?? ''}`}
+            : `new-${meetingDialog.clientId ?? ''}-${meetingDialog.leadId ?? ''}-${meetingDialog.contactId ?? ''}-${meetingDialog.date ?? ''}-${meetingDialog.time ?? ''}`}
           mode={meetingDialog}
           clients={clients}
           leads={leads}
@@ -3304,6 +3330,7 @@ export default function App() {
           api={meetingsApi}
           onClose={() => { setMeetingDialog(null); void refreshLeads(); void contactsApi.refresh(); }}
           onOpenConnections={openGoogleConnections}
+          onOpenWording={openMeetingWording}
         />
       )}
 

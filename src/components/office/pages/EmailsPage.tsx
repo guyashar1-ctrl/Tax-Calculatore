@@ -6,7 +6,7 @@
 // ‼ שלוש מדרגות נוסח במיילי הבקשות (מערכת → נוסח המשרד → בעריכה) נשמרו כמו
 // שהיו; ראה TemplateEditor. המכתב לרו״ח הקודם — עם מרקר, וסעיפים נגזרים.
 // ‼ «מה נשלח» הוא היומן עצמו (EmailActivityModule) — לקריאה בלבד.
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { FirmProfile } from '../../../types/firmProfile';
 import type { Client } from '../../../types';
 import {
@@ -14,10 +14,9 @@ import {
   templateForKey, WELCOME_LINE, type SavedTemplateKey, type StepEmailKind,
 } from '../../../../supabase/functions/_shared/stepTemplates.ts';
 import {
-  DEFAULT_RELEASE_TEMPLATE, RELEASE_TEMPLATE_KEY, RELEASE_TEMPLATE_VARS,
-  toggleHighlightAt, upgradeReleaseTemplateBody,
+  DEFAULT_RELEASE_TEMPLATE, RELEASE_TEMPLATE_KEY, RELEASE_TEMPLATE_VARS, upgradeReleaseTemplateBody,
 } from '../../../utils/releaseLetter';
-import HighlightTextarea from '../../ui/HighlightTextarea';
+import { TemplateEditor, type CommTemplate, type EditorSpec } from './TemplateEditor';
 import EmailActivityModule from '../../EmailActivity/EmailActivityModule';
 import { REP_MESSAGES, REP_MESSAGE_EMAIL_KINDS, RepMessageDrawer, isRepMessageCustom } from '../RepresentationSettingsSection';
 import PaperlessLinkField, { paperlessInviteUrl, withPaperlessInviteUrl } from './PaperlessLinkField';
@@ -26,22 +25,16 @@ import { REP_REMINDERS, EXPIRY_SUBJECT } from './reminderSpecs';
 import { repReminderConfig } from '../RepresentationSettingsSection';
 import { isNotificationEnabled } from '../../../../supabase/functions/_shared/accountantNotifications.ts';
 import { expiryState, repRemindersState } from '../../../features/automation/automationList';
-import {
-  emailTemplateKeyOf, templateFromLabels, templateToLabels, TEMPLATE_FIELD_LABELS, type EmailMessage,
-} from '../../../types/emailActivity';
+import { emailTemplateKeyOf, type EmailMessage } from '../../../types/emailActivity';
 import { GoTo } from '../officeUi';
 import type { OfficePageId } from '../officeModel';
-import { Field } from '../officeUi';
 import type { ActivityFilter } from './activityFilter';
 import { LinkDestinationView } from '../LinkDestinationView';
 import { STEP_EMAIL_CTA, stepEmailDestinations, TAX_PERSONAL_AREA, linkHost } from '../../../features/links/linkDestinations';
 import RepApprovalGuide, { RepApprovalGuideButton, REP_APPROVAL_GUIDE_GENERIC_NOTE } from '../../portal/RepApprovalGuide';
+import MeetingTemplateDrawer, { MEETING_TEMPLATE_TITLES, MEETING_TEMPLATE_WHEN, isMeetingTemplateCustom } from '../../../features/meetings/MeetingTemplateDrawer';
+import { MEETING_KINDS, MEETING_TEMPLATE_KEY, type MeetingKind } from '../../../../supabase/functions/_shared/meetingInvite';
 
-interface CommTemplate {
-  subject?: string;
-  body?: string;
-  firmDefault?: { subject: string; body: string };
-}
 
 type TemplateKey = SavedTemplateKey | typeof RELEASE_TEMPLATE_KEY;
 export type EmailKey = TemplateKey;
@@ -66,20 +59,12 @@ function upgradedEntry(kind: TemplateKey, entry: CommTemplate): CommTemplate {
   return { ...entry, ...(body !== undefined ? { body } : {}), ...(firmDefault ? { firmDefault } : {}) };
 }
 
-interface TemplateSpec {
+interface TemplateSpec extends EditorSpec {
   key: TemplateKey;
   title: string;
   /** מתי המייל יוצא — שורה אחת ברשימה. */
   when: string;
   recipient: string;
-  base: { subject: string; body: string };
-  vars: { label: string; hint?: string; section?: boolean }[];
-  /** שם אחר לשדה במייל הזה — למשל {{clientName}} במייל לגורם חיצוני הוא שם הנמען. */
-  varLabels?: Record<string, string>;
-  bodyLabel: string;
-  rows: number;
-  /** עורך עם מרקר — רק במכתב ההעברה: שאר המיילים אינם מרנדרים `==`. */
-  marker?: boolean;
   /** סוגי המייל ביומן — לשורה «נשלחו». */
   logKinds: string[];
 }
@@ -158,7 +143,9 @@ const RELEASE_SPEC: TemplateSpec = {
 
 type Item =
   | { type: 'step'; spec: TemplateSpec }
-  | { type: 'rep'; id: string; label: string; when: string };
+  | { type: 'rep'; id: string; label: string; when: string }
+  // ‼ (07.10.2026) ההזמנה לפגישה — אותו נוסח ואותו חלון כמו בספריית הבקשות ← פגישות.
+  | { type: 'meeting'; kind: MeetingKind };
 
 const GROUPS: { title: string; items: Item[] }[] = [
   {
@@ -178,10 +165,16 @@ const GROUPS: { title: string; items: Item[] }[] = [
     title: 'לרו״ח הקודם ולגורם חיצוני',
     items: [{ type: 'step', spec: RELEASE_SPEC }, { type: 'step', spec: stepSpec('step_reminder') }],
   },
+  {
+    title: 'פגישות',
+    items: MEETING_KINDS.map(kind => ({ type: 'meeting' as const, kind })),
+  },
 ];
 
 /** כל סוגי המייל שיש להם שורה בעמוד — לשאילתה אחת של «נשלחו לאחרונה». */
-const SENT_KINDS = [...new Set(GROUPS.flatMap(g => g.items.flatMap(i => (i.type === 'step' ? i.spec.logKinds : REP_MESSAGE_EMAIL_KINDS[i.id] ?? []))))];
+// ‼ הזמנה לפגישה יוצאת מ-Google, לא מספק הדואר — אין לה שורה ביומן המיילים.
+const SENT_KINDS = [...new Set(GROUPS.flatMap(g => g.items.flatMap(i => (
+  i.type === 'step' ? i.spec.logKinds : i.type === 'rep' ? REP_MESSAGE_EMAIL_KINDS[i.id] ?? [] : []))))];
 
 function templatesOf(p: FirmProfile): Record<string, CommTemplate> {
   return ((p.settings ?? {}).commTemplates as Record<string, CommTemplate> | undefined) ?? {};
@@ -215,12 +208,18 @@ export default function EmailsPage({ draft, saveNow, userId, clients, onOpenClie
   const [editing, setEditing] = useState<Item | null>(() => {
     if (focus?.startsWith('tpl:')) {
       const key = focus.slice(4);
-      return GROUPS.flatMap(g => g.items).find(i => i.type === 'step' && i.spec.key === key) ?? null;
+      return GROUPS.flatMap(g => g.items).find(i => (i.type === 'step' && i.spec.key === key)
+        || (i.type === 'meeting' && MEETING_TEMPLATE_KEY[i.kind] === key)) ?? null;
     }
     const id = focus?.startsWith('rep:') && focus !== 'rep:guide' ? focus.slice(4) : null;
     const m = id ? REP_MESSAGES.find(r => r.id === id) : undefined;
     return m ? { type: 'rep', id: m.id, label: m.label, when: m.when } : null;
   });
+  // ‼ ‎focus='meetings'‎ — מהספרייה («אותו נוסח נפתח גם מ«מיילים»»): נוחתים על קבוצת הפגישות.
+  useEffect(() => {
+    if (focus !== 'meetings') return;
+    requestAnimationFrame(() => document.getElementById('of-mgroup-meetings')?.scrollIntoView({ block: 'start' }));
+  }, [focus]);
   // ‼ 04.10.2026 · המדריך המצולם — נפתח ישירות מהשורה (או מקישור ‎rep:guide‎), בלי חלון העריכה.
   const [guideOpen, setGuideOpen] = useState(focus === 'rep:guide');
   // ‼ «נשלחו N ב-30 יום» — שאילתה על סוגי המייל של העמוד ב-30 הימים האחרונים,
@@ -245,10 +244,27 @@ export default function EmailsPage({ draft, saveNow, userId, clients, onOpenClie
       ) : (
         <>
           {GROUPS.map(g => (
-            <section key={g.title} className="of-mgroup" aria-label={g.title}>
+            <section key={g.title} className="of-mgroup" aria-label={g.title}
+              id={g.title === 'פגישות' ? 'of-mgroup-meetings' : undefined}>
               <h2 className="of-mgroup-title">{g.title}</h2>
               <ul className="of-mrows">
                 {g.items.map(item => {
+                  if (item.type === 'meeting') {
+                    const title = MEETING_TEMPLATE_TITLES[item.kind];
+                    return (
+                      <li key={item.kind} className="of-mrow">
+                        <div className="of-mrow-main">
+                          <div className="of-mrow-title">
+                            {title}
+                            {isMeetingTemplateCustom(draft, item.kind) && <span className="of-tag is-on">הנוסח שלך</span>}
+                          </div>
+                          <div className="of-mrow-when">{MEETING_TEMPLATE_WHEN[item.kind]} · אותו נוסח בספריית הבקשות ← פגישות</div>
+                        </div>
+                        <button type="button" className="btn btn-secondary btn-sm" onClick={() => setEditing(item)}
+                          aria-label={`עריכת הנוסח · ${title}`}>עריכה</button>
+                      </li>
+                    );
+                  }
                   const key = item.type === 'step' ? item.spec.key : item.id;
                   const title = item.type === 'step' ? item.spec.title : item.label;
                   const when = item.type === 'step' ? item.spec.when : item.when;
@@ -328,6 +344,9 @@ export default function EmailsPage({ draft, saveNow, userId, clients, onOpenClie
       {editing?.type === 'step' && (
         <StepEmailDrawer spec={editing.spec} draft={draft} saveNow={saveNow} onClose={() => setEditing(null)} />
       )}
+      {editing?.type === 'meeting' && (
+        <MeetingTemplateDrawer kind={editing.kind} draft={draft} saveNow={saveNow} onClose={() => setEditing(null)} />
+      )}
     </>
   );
 }
@@ -336,14 +355,6 @@ export default function EmailsPage({ draft, saveNow, userId, clients, onOpenClie
 // ‼ אותה מעטפת כמו הודעות הייצוג (rs-drawer), ואותה התנהגות: העריכה מקומית,
 // ו«שמירה» שומרת מיד — כמו כל חלון עריכה במשרד (מחירון, עובדים). קודם היו כאן
 // שני שלבים («החלה» ואז «שמירה» בתחתית), וביקורת השימושיות מצאה שזה לא ברור.
-
-/**
- * השם בעברית של שדה שמתמלא לבד — בצ'יפ, ובטקסט עצמו בסוגריים מרובעים ([שורת פתיחה]).
- * מקור אחד לשמות: TEMPLATE_FIELD_LABELS (גם חלון השליחה קורא משם).
- */
-function fieldLabel(spec: TemplateSpec, v: { label: string; hint?: string }): string {
-  return spec.varLabels?.[v.label] ?? TEMPLATE_FIELD_LABELS[v.label] ?? v.hint ?? v.label;
-}
 
 /** ערכים לדוגמה — לתצוגה המקדימה בלבד. */
 function sampleValues(firmName: string): Record<string, string> {
@@ -468,157 +479,5 @@ export function StepEmailDrawer({ spec, draft, saveNow, onClose }: {
         </div>
       </aside>
     </>
-  );
-}
-
-// ─── העורך עצמו ──────────────────────────────────────────────────────────────
-// ‼ "חזרה לנוסח המערכת" אינו מוחק את נוסח המשרד — הוא מוריד רק את מה שנשלח
-// בפועל. אחרת התנסות אחת הייתה מוחקת את הנוסח שגיא בנה.
-
-const TEMPLATE_HISTORY_MAX = 50;
-/** הקלדה רצופה היא צעד אחד — "בטל" חוזר לפני הפסקה, לא תו אחורה. */
-const TYPING_BURST_MS = 700;
-
-function TemplateEditor({ spec, entry, onReplace }: {
-  spec: TemplateSpec;
-  entry: CommTemplate;
-  onReplace: (update: (prev: CommTemplate) => CommTemplate) => void;
-}) {
-  const bodyRef = useRef<HTMLTextAreaElement | null>(null);
-  const [markerHint, setMarkerHint] = useState(false);
-  const [history, setHistory] = useState<CommTemplate[]>([]);
-  const lastChangeAt = useRef(0);
-
-  const cur = { subject: entry.subject ?? spec.base.subject, body: entry.body ?? spec.base.body };
-  const firm = entry.firmDefault;
-  const sameAsFirm = !!firm && firm.subject === cur.subject && firm.body === cur.body;
-  const sameAsSystem = cur.subject === spec.base.subject && cur.body === spec.base.body;
-
-  // ‼ בעורך השדות בעברית ([רשימת הבקשות]) — אותו שם כמו בצ'יפ. נשמר ונשלח כקוד ({{requestList}}).
-  // גם שדה מוכר שאין לו צ'יפ במייל הזה (נוסח ישן) — בעברית, לא בקוד.
-  const labels = useMemo<Record<string, string>>(
-    () => ({ ...TEMPLATE_FIELD_LABELS, ...Object.fromEntries(spec.vars.map(v => [v.label, fieldLabel(spec, v)])) }),
-    [spec]);
-  const show = (t: string) => templateToLabels(t, labels);
-  const store = (t: string) => templateFromLabels(t, labels);
-  const shownBody = show(cur.body);
-
-  function apply(update: (prev: CommTemplate) => CommTemplate, checkpoint = false) {
-    const now = Date.now();
-    if (checkpoint || now - lastChangeAt.current > TYPING_BURST_MS) {
-      setHistory(h => [...h.slice(-(TEMPLATE_HISTORY_MAX - 1)), entry]);
-    }
-    lastChangeAt.current = checkpoint ? 0 : now;
-    onReplace(update);
-  }
-
-  function undo() {
-    const prev = history[history.length - 1];
-    if (!prev) return;
-    setHistory(h => h.slice(0, -1));
-    lastChangeAt.current = 0;
-    setMarkerHint(false);
-    onReplace(() => prev);
-  }
-
-  const currentOf = (p: CommTemplate) => ({ subject: p.subject ?? spec.base.subject, body: p.body ?? spec.base.body });
-
-  // ‼ המיקומים (סמן, בחירה) הם של הטקסט שמוצג — עם השמות בעברית. עובדים עליו, וממירים בסוף.
-  function toggleMarker() {
-    const el = bodyRef.current;
-    if (!el) return;
-    const result = toggleHighlightAt(shownBody, el.selectionStart ?? 0, el.selectionEnd ?? 0);
-    if (!result) { setMarkerHint(true); return; }
-    setMarkerHint(false);
-    apply(p => ({ ...p, body: store(result.text) }), true);
-    requestAnimationFrame(() => { el.focus(); el.setSelectionRange(...result.selection); });
-  }
-
-  /** לחיצה על שדה — נכנס לטקסט במקום הסמן (בסוף, אם הסמן לא בטקסט). */
-  function insertVar(token: string) {
-    const el = bodyRef.current;
-    const shown = labels[token] ? `[${labels[token]}]` : token;
-    const at = el && document.activeElement === el ? el.selectionStart ?? shownBody.length : shownBody.length;
-    const end = el && document.activeElement === el ? el.selectionEnd ?? at : at;
-    const text = shownBody.slice(0, at) + shown + shownBody.slice(end);
-    apply(p => ({ ...p, body: store(text) }), true);
-    requestAnimationFrame(() => { if (el) { el.focus(); el.setSelectionRange(at + shown.length, at + shown.length); } });
-  }
-
-  // סעיף שנמחק מהשלד לא יופיע במכתב — אזהרה, לא חסימה.
-  const missingSections = spec.vars
-    .filter(v => v.section && !cur.body.includes(v.label))
-    .map(v => v.hint ?? v.label);
-
-  return (
-    <div className="of-tpl-editor">
-      <div className="of-vars-label">שדות שמתמלאים לבד — לחיצה מכניסה לטקסט</div>
-      <div className="of-vars">
-        {spec.vars.map(v => (
-          <button key={v.label} type="button" className={`of-var${v.section ? ' is-section' : ''}`}
-            onMouseDown={e => e.preventDefault()} onClick={() => insertVar(v.label)}>
-            {labels[v.label]}
-          </button>
-        ))}
-      </div>
-      {spec.marker && (
-        <p className="of-muted" style={{ margin: '0 0 10px' }}>
-          החלקים הכתומים נבנים לכל לקוח — אפשר להזיז, למחוק או לסמן אותם במרקר, לא לנסח אותם.
-        </p>
-      )}
-
-      <Field label="נושא המייל">
-        <input value={show(cur.subject)} onChange={e => apply(p => ({ ...p, subject: store(e.target.value) }))} />
-      </Field>
-
-      <div className="of-field" style={{ marginTop: 12 }}>
-        <div className="of-tpl-body-head">
-          <label className="of-field-label" htmlFor={`tpl-body-${spec.key}`}>{spec.bodyLabel}</label>
-          {spec.marker && (
-            <button type="button" className="btn btn-sm btn-ghost" onClick={toggleMarker}
-              title="מסמנים קטע בטקסט ולוחצים - הוא יופיע עם הדגשה צהובה">
-              <span className="of-marker-chip">מרקר</span>
-            </button>
-          )}
-        </div>
-        {spec.marker ? (
-          <HighlightTextarea ref={bodyRef} rows={spec.rows} value={shownBody} id={`tpl-body-${spec.key}`}
-            onChange={v => apply(p => ({ ...p, body: store(v) }))} />
-        ) : (
-          <textarea ref={bodyRef} id={`tpl-body-${spec.key}`} rows={spec.rows} value={shownBody}
-            onChange={e => apply(p => ({ ...p, body: store(e.target.value) }))}
-            style={{ width: '100%', resize: 'vertical' }} />
-        )}
-      </div>
-
-      {markerHint && <div className="of-field-hint is-warn" style={{ marginTop: 6 }}>צריך לסמן קודם את הקטע שרוצים להדגיש.</div>}
-      {missingSections.length > 0 && (
-        <div className="of-field-hint is-warn" style={{ marginTop: 6 }}>המכתב ייצא בלי {missingSections.join(', ')}.</div>
-      )}
-
-      <div className="of-tpl-acts">
-        {history.length > 0 && <button type="button" className="btn btn-sm btn-ghost" onClick={undo}>↶ בטל</button>}
-        {!sameAsFirm && !(sameAsSystem && !firm) && (
-          <button type="button" className="btn btn-sm btn-ghost"
-            title="הנוסח הזה יישמר גם כנקודת חזרה קבועה של המשרד — גם אם תשנה אותו בהמשך"
-            onClick={() => apply(p => { const c = currentOf(p); return { ...p, subject: c.subject, body: c.body, firmDefault: c }; }, true)}>
-            לזכור כנוסח הקבוע שלי
-          </button>
-        )}
-        {firm && !sameAsFirm && (
-          <button type="button" className="btn btn-sm btn-ghost"
-            onClick={() => apply(p => (p.firmDefault ? { ...p, subject: p.firmDefault.subject, body: p.firmDefault.body } : p), true)}>
-            חזרה לנוסח הקבוע שלי
-          </button>
-        )}
-        {!sameAsSystem && (
-          <button type="button" className="btn btn-sm btn-ghost"
-            title="חוזר לנוסח המקורי של המערכת. הנוסח הקבוע שלך נשמר ואפשר לחזור אליו."
-            onClick={() => apply(p => (p.firmDefault ? { firmDefault: p.firmDefault } : {}), true)}>
-            חזרה לנוסח המערכת
-          </button>
-        )}
-      </div>
-    </div>
   );
 }

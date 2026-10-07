@@ -18,25 +18,61 @@
 .mt-conn { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: var(--fs-13); color: var(--ink-3); }
 .mt-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); display: inline-block; }
 
-.mt-paste-row { display: flex; gap: var(--sp-2); align-items: stretch; }
-.mt-paste-row textarea { flex: 1; min-width: 0; }
-.mt-paste-btn { align-self: flex-start; min-height: 40px; }
+/* (סבב 3) «עם מי?» — חיפוש, «+ אדם חדש» / «הדבקה מוואטסאפ», ומי בפגישה */
+.mt-add-row { display: flex; flex-wrap: wrap; gap: var(--sp-2); align-items: center; }
+.mt-card {
+  display: grid; gap: var(--sp-3); padding: 12px; border-radius: var(--r-panel);
+  border: 1px dashed var(--hairline-1); background: var(--surface-1, var(--surface-0));
+}
+.mt-two { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--sp-2); }
+@media (max-width: 560px) { .mt-two { grid-template-columns: minmax(0, 1fr); } }
+.mt-sublabel { font-size: var(--fs-13); font-weight: 600; color: var(--ink-2); }
+.mt-seg.mt-seg-3 button { flex-basis: 120px; }
 
-.mt-guests { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--sp-2); }
-.mt-guest {
-  display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; gap: var(--sp-2); align-items: center;
+.mt-people { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--sp-2); }
+.mt-person {
+  display: grid; grid-template-columns: 36px minmax(0, 1fr) auto; gap: 4px 10px; align-items: center;
   border: 1px solid var(--hairline-1); border-radius: var(--r-input); padding: 8px 10px; background: var(--surface-0);
 }
-.mt-guest-id { display: grid; min-width: 0; }
-.mt-guest-mail { font-size: var(--fs-14); overflow-wrap: anywhere; text-align: start; }
-.mt-guest-who { font-size: var(--fs-12); color: var(--ink-3); }
-.mt-guest-who.is-known { color: var(--accent); }
-/* (226) שורה שנייה במוזמן: הקשר בפנייה / «שמור כאיש קשר» — לכל הרוחב. */
-.mt-guest-extra { grid-column: 1 / -1; display: grid; gap: 6px; font-size: var(--fs-13); color: var(--ink-2); }
-label.mt-guest-extra { grid-template-columns: auto minmax(0, 1fr); align-items: center; }
-.mt-check-line { display: flex; align-items: center; gap: 8px; cursor: pointer; min-height: 32px; }
-.mt-check-line input { width: 18px; height: 18px; margin: 0; flex: none; }
-.mt-contact-fields { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--sp-2); }
+.mt-person.is-new { border-style: dashed; }
+.mt-person-av {
+  width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--soft); color: var(--accent); font-weight: 700; font-size: var(--fs-13);
+}
+.mt-person-id { display: grid; gap: 2px; min-width: 0; }
+.mt-person-name { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-width: 0; }
+.mt-person-name b { font-size: var(--fs-15); color: var(--ink-1); }
+.mt-person-input { flex: 1 1 140px; min-width: 0; min-height: 36px; }
+.mt-person-mail { font-size: var(--fs-13); color: var(--ink-3); overflow-wrap: anywhere; justify-self: start; }
+.mt-tag { display: inline-block; font-size: var(--fs-12); border-radius: 999px; padding: 1px 8px; background: var(--surface-2); color: var(--ink-2); }
+.mt-tag.is-known { background: var(--soft); color: var(--accent); }
+.mt-tag.is-new { background: var(--warn-bg); color: var(--warn); }
+.mt-person-extra { grid-column: 1 / -1; display: grid; gap: 6px; padding-top: 4px; border-top: 1px solid var(--hairline-1); }
+.mt-inline-field { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px; align-items: center; font-size: var(--fs-13); color: var(--ink-2); }
+.mt-person-fate { font-size: var(--fs-12); color: var(--ink-3); }
+.mt-why-line { font-size: var(--fs-13); color: var(--ink-3); background: var(--surface-2); border-radius: var(--r-input); padding: 6px 10px; }
+.mt-name-hit.is-new b { color: var(--accent); }
+
+/* «היום שלך ביומן» — פס יום אחד, 07:00–21:00, משמאל לימין */
+.mt-strip-wrap { display: grid; gap: 2px; }
+.mt-strip {
+  position: relative; height: 40px; border-radius: var(--r-input); border: 1px solid var(--hairline-1);
+  background: var(--surface-0); cursor: copy; overflow: hidden;
+}
+.mt-strip.is-off { cursor: default; opacity: .7; }
+.mt-strip-tick { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--hairline-1); }
+.mt-strip-ev {
+  position: absolute; top: 5px; bottom: 5px; border-radius: 5px; background: var(--surface-2); color: var(--ink-2);
+  font-size: 11px; line-height: 30px; padding-inline: 4px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+  border: 1px solid var(--hairline-1); min-width: 3px;
+}
+.mt-strip-ev.is-pivo { background: var(--soft); color: var(--accent); border-color: transparent; }
+.mt-strip-ev.is-free { background: transparent; border-style: dashed; }
+.mt-strip-ev-t { pointer-events: none; }
+.mt-strip-pick { position: absolute; top: 2px; bottom: 2px; border: 2px solid var(--accent); border-radius: 6px; pointer-events: none; min-width: 6px; }
+.mt-strip-axis { position: relative; height: 16px; font-size: 11px; color: var(--ink-3); }
+.mt-strip-axis span { position: absolute; transform: translateX(-50%); white-space: nowrap; }
+.mt-strip-axis span:last-child { transform: translateX(-100%); }
 
 /* חיפוש לפי שם בתיבת «עם מי?» */
 .mt-name-hits { display: grid; gap: 4px; }
@@ -60,7 +96,6 @@ label.mt-guest-extra { grid-template-columns: auto minmax(0, 1fr); align-items: 
 .mt-check { font-size: var(--fs-13); border-radius: var(--r-input); padding: 8px 12px; background: var(--surface-2); color: var(--ink-2); }
 .mt-check.is-ok { background: var(--ok-bg); color: var(--ok); }
 .mt-check.is-warn { background: var(--warn-bg); color: var(--warn); }
-.mt-busy { margin-top: 4px; color: var(--ink-3); }
 
 .mt-banner {
   display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2) var(--sp-3);
@@ -108,14 +143,11 @@ label.mt-guest-extra { grid-template-columns: auto minmax(0, 1fr); align-items: 
 .mt-rsvp span { border: 1px solid var(--hairline-1); border-radius: 6px; padding: 1px 12px; }
 .mt-body { padding: 4px 14px 14px; display: grid; gap: 10px; max-width: 62ch; }
 .mt-blk { margin: 0; font-size: var(--fs-14); color: var(--ink-1); line-height: 1.6; white-space: pre-line; position: relative; }
-.mt-mark {
-  display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 50%;
-  background: var(--warn); color: var(--surface-0); font-size: 11px; font-weight: 700; margin-inline-end: 6px; vertical-align: 1px;
-}
-.mt-why-toggle { justify-self: start; font-size: var(--fs-13); }
+.mt-nowrap { white-space: nowrap; }
+/* «למה כתוב כך?» — בעורך הנוסח (ספרייה ← פגישות) */
 .mt-why { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
-.mt-why li { display: grid; grid-template-columns: 24px minmax(0, 1fr); gap: 4px; font-size: var(--fs-13); color: var(--ink-2); line-height: 1.55; }
-.mt-why li b { color: var(--ink-1); }
+.mt-why li { font-size: var(--fs-13); color: var(--ink-2); line-height: 1.55; }
+.mt-why li b { color: var(--ink-1); margin-inline-end: 4px; }
 
 /* ── «פגישות קרובות» ──────────────────────────────────────────────────── */
 .mt-upcoming { display: grid; gap: var(--sp-2); margin-block: var(--sp-2) var(--sp-4); }

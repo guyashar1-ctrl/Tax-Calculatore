@@ -5,25 +5,27 @@
 // ‼ «נשלח» (status='scheduled' + sent_at) נכתב רק אחרי ש-Google קיבל את האירוע.
 // ‼ מזהה הפגישה נוצר בדפדפן ומזהה האירוע נגזר ממנו (eventIdFor) — לחיצה כפולה, שתי
 //   לשוניות או רשת שנפלה לא יוצרות אירוע שני: Google עונה 409 וקוראים את הקיים.
-// ‼ הנוסח נבנה כאן מ-_shared/meetingInvite.ts — אותו קוד שמצייר את התצוגה המקדימה.
+// ‼ הנוסח נבנה כאן מ-_shared/meetingInvite.ts — אותו קוד שמצייר את התצוגה המקדימה, עם אותה
+//   תבנית: נוסח המשרד מ-profiles.settings.commTemplates (ספריית הבקשות ← פגישות), או נוסח המערכת.
 // ‼ ליד נוצר רק אחרי ש-Google קיבל, ורק במעבר הראשון ל-scheduled (עדכון מותנה) —
 //   שתי בקשות במקביל לא יוצרות שני לידים. באותו מעבר: האנשים הנוספים נשמרים בפנייה,
 //   ליד סגור חוזר להיות «חדש» (שיחת היכרות), ואנשי קשר שסומנו נשמרים (226).
 //
 // אבטחה: verify_jwt=false בשער; הרו"ח מזוהה מה-JWT ונבדק מול is_authorized.
 // כל פעולה על פגישה בודקת שהיא של אותו רו"ח.
+// (סבב 3) events — האירועים ביומן לטווח תאריכים, לקריאה בלבד: לשונית «יומן» ו«היום שלך ביומן».
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import {
-  inviteDescription, meetingTitle, israelToUtcIso, utcToIsrael, MOVE_NOTE_DEFAULT,
-  type InviteOrg, type InviteInput,
+  inviteDescription, meetingTitle, meetingTemplateFor, israelToUtcIso, utcToIsrael, MOVE_NOTE_DEFAULT,
+  type InviteOrg, type InviteInput, type MeetingKind, type MeetingTemplate,
 } from "../_shared/meetingInvite.ts";
 import {
   googleEndpoints, googleCall, refreshAccessToken, eventBody, eventTimes, eventIdFor, meetLinkOf,
   type GoogleEndpoints, type GoogleEvent, type GoogleOutcome,
 } from "../_shared/googleCalendar.ts";
 import {
-  parseCreate, parseMove, matchPeople, mergeCompanions, syncFromEvent,
-  type HistoryEntry, type StoredGuest, type ClientRow, type LeadRow, type PeopleOutcome,
+  parseCreate, parseMove, parseRange, matchPeople, mergeCompanions, syncFromEvent, calendarEventsFrom,
+  type HistoryEntry, type StoredGuest, type ClientRow, type LeadRow, type PeopleOutcome, type GoogleListItem,
 } from "../_shared/meetingCore.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
@@ -66,6 +68,12 @@ function orgFromProfile(p: Record<string, unknown> | null): InviteOrg {
     whatsapp: (comm.whatsapp as string) ?? undefined,
     website: (p?.website as string) ?? undefined,
   };
+}
+
+/** הנוסח שהמשרד שמר לסוג הפגישה (או נוסח המערכת) — אותה פונקציה שהתצוגה בחלון קוראת לה. */
+function templateFromProfile(p: Record<string, unknown> | null, kind: MeetingKind): MeetingTemplate {
+  const settings = (p?.settings ?? {}) as Record<string, unknown>;
+  return meetingTemplateFor(kind, settings.commTemplates);
 }
 
 function inviteInputOf(m: Pick<MeetingRow, "kind" | "guests" | "duration_min" | "topic" | "prep" | "note">): InviteInput {
@@ -180,6 +188,35 @@ Deno.serve(async (req: Request) => {
       return json({ ok: true, busy });
     }
 
+    // ── היומן: האירועים לטווח תאריכים (שעון ישראל, «עד» לא כולל) ─────────────
+    if (action === "events") {
+      const rg = parseRange(body);
+      if (!rg.ok) return fail("bad_input", 400, { field: rg.field });
+      const tok = await accessTokenFor(admin, userId);
+      if (!tok.ok) return fail(tok.code, tok.status);
+      const timeMin = israelToUtcIso(rg.from, "00:00");
+      const timeMax = israelToUtcIso(rg.to, "00:00");
+      const items: GoogleListItem[] = [];
+      let pageToken = "";
+      // ‼ עד 4 עמודים (1000 אירועים) — יומן עמוס בשבוע אחד לא מגיע לזה; לא לולאה בלי סוף.
+      for (let page = 0; page < 4; page++) {
+        const q = new URLSearchParams({
+          timeMin, timeMax, singleEvents: "true", orderBy: "startTime", maxResults: "250", timeZone: "Asia/Jerusalem",
+          ...(pageToken ? { pageToken } : {}),
+        });
+        const r = await gcall<{ items?: GoogleListItem[]; nextPageToken?: string }>(tok.token, "GET", cal(`/events?${q.toString()}`));
+        if (r.kind !== "ok") return fail("google_unavailable", 502);
+        items.push(...(r.data.items ?? []));
+        pageToken = r.data.nextPageToken ?? "";
+        if (!pageToken) break;
+      }
+      const { data: mine } = await admin.from("meetings").select("id")
+        .eq("user_id", userId).gte("starts_at", new Date(new Date(timeMin).getTime() - 86400000).toISOString())
+        .lt("starts_at", timeMax);
+      const known = new Set(((mine ?? []) as { id: string }[]).map(x => x.id));
+      return json({ ok: true, from: rg.from, to: rg.to, events: calendarEventsFrom(items, known) });
+    }
+
     // ── פגישה חדשה ────────────────────────────────────────────────────────────
     if (action === "create") {
       const p = parseCreate(body, now.getTime());
@@ -193,6 +230,7 @@ Deno.serve(async (req: Request) => {
 
       const { data: profile } = await admin.from("profiles").select("*").eq("id", userId).maybeSingle();
       const org = orgFromProfile(profile);
+      const tpl = templateFromProfile(profile, input.kind);
       const startUtc = israelToUtcIso(input.date, input.time);
       const fresh = {
         kind: input.kind,
@@ -202,8 +240,8 @@ Deno.serve(async (req: Request) => {
         starts_at: startUtc,
         duration_min: input.durationMin,
         guests: input.guests.map(g => ({ ...g, rsvp: "none" })),
-        title: meetingTitle(input, org),
-        description: inviteDescription({ ...input }, org),
+        title: meetingTitle(input, org, tpl),
+        description: inviteDescription({ ...input }, org, undefined, tpl),
       };
 
       let m = await loadMeeting(input.id);
@@ -268,7 +306,7 @@ Deno.serve(async (req: Request) => {
       if (!won) return reply(await loadMeeting(m.id));
 
       let final = won as MeetingRow;
-      const people: PeopleOutcome = { leadCreated: false, leadReopened: false, companionsAdded: 0, contactsSaved: 0 };
+      const people: PeopleOutcome = { leadCreated: false, leadReopened: false, companionsAdded: 0, contactsSaved: 0, extraLeadsCreated: 0 };
       // ‼ אנשי קשר קודם: מי שנשמר כאיש קשר לא נעשה ליד ולא «אדם נוסף» בפנייה.
       for (const c of input.saveContacts) {
         const { error: cErr } = await admin.from("contacts").insert({
@@ -278,52 +316,62 @@ Deno.serve(async (req: Request) => {
         if (!cErr) people.contactsSaved++;
         else if (cErr.code !== "23505") console.error("[calendar-meeting] contact insert failed", cErr.code, cErr.message);
       }
-      if (!final.client_id) {
-        const [{ data: clients }, { data: leads }, { data: contacts }] = await Promise.all([
-          admin.from("clients").select("id, email, spouse_email").eq("user_id", userId),
-          admin.from("leads").select("id, email, status, companions, converted_client_id").eq("user_id", userId),
-          admin.from("contacts").select("email").eq("user_id", userId).not("email", "is", null),
-        ]);
-        const leadRows = (leads ?? []) as LeadRow[];
-        const match = matchPeople({
-          kind: final.kind,
-          guests: final.guests,
-          clients: (clients ?? []) as ClientRow[],
-          leads: leadRows,
-          explicitClientId: null,
-          contactEmails: ((contacts ?? []) as { email: string }[]).map(c => c.email),
-          relations: input.relations,
-        });
-        let leadId = match.leadId;
-        if (match.newLead) {
-          const { data: lead, error: leadErr } = await admin.from("leads").insert({
-            user_id: userId, full_name: match.newLead.fullName, email: match.newLead.email,
-            status: "new", source: "accountant", companions: match.newLead.companions,
-          }).select("id").maybeSingle();
-          if (leadErr) console.error("[calendar-meeting] lead insert failed", leadErr.code, leadErr.message);
-          leadId = (lead?.id as string) ?? null;
-          people.leadCreated = !!leadId;
-          people.companionsAdded = leadId ? match.newLead.companions.length : 0;
-        } else if (leadId && (match.addCompanions.length || match.reopenLead)) {
-          const current = leadRows.find(l => l.id === leadId);
-          const patch: Record<string, unknown> = {};
-          if (match.addCompanions.length) patch.companions = mergeCompanions(current?.companions, match.addCompanions);
-          // ‼ רק סגור ⇒ חדש. ליד בשלב «נשלחה הצעה» לא חוזר אחורה.
-          if (match.reopenLead) patch.status = "new";
-          let q = admin.from("leads").update(patch).eq("id", leadId).eq("user_id", userId);
-          if (match.reopenLead) q = q.eq("status", "closed");
-          const { data: upd, error: updErr } = await q.select("id").maybeSingle();
-          if (updErr) console.error("[calendar-meeting] lead update failed", updErr.code, updErr.message);
-          if (upd) {
-            people.leadReopened = match.reopenLead;
-            people.companionsAdded = match.addCompanions.length;
-          }
+      const [{ data: clients }, { data: leads }, { data: contacts }] = await Promise.all([
+        admin.from("clients").select("id, email, spouse_email").eq("user_id", userId),
+        admin.from("leads").select("id, email, status, companions, converted_client_id").eq("user_id", userId),
+        admin.from("contacts").select("email").eq("user_id", userId).not("email", "is", null),
+      ]);
+      const leadRows = (leads ?? []) as LeadRow[];
+      const match = matchPeople({
+        kind: final.kind,
+        guests: final.guests,
+        clients: (clients ?? []) as ClientRow[],
+        leads: leadRows,
+        // ‼ פגישה מכרטיס לקוח — שם היא נרשמת; עדיין נוצרים לידים למי שסומן «לקוח פוטנציאלי».
+        explicitClientId: final.client_id,
+        contactEmails: ((contacts ?? []) as { email: string }[]).map(c => c.email),
+        relations: input.relations,
+        saveAs: input.saveAs,
+      });
+      let leadId = match.leadId;
+      if (match.newLead) {
+        const { data: lead, error: leadErr } = await admin.from("leads").insert({
+          user_id: userId, full_name: match.newLead.fullName, email: match.newLead.email,
+          status: "new", source: "accountant", companions: match.newLead.companions,
+        }).select("id").maybeSingle();
+        if (leadErr) console.error("[calendar-meeting] lead insert failed", leadErr.code, leadErr.message);
+        leadId = (lead?.id as string) ?? null;
+        people.leadCreated = !!leadId;
+        people.companionsAdded = leadId ? match.newLead.companions.length : 0;
+      } else if (leadId && (match.addCompanions.length || match.reopenLead)) {
+        const current = leadRows.find(l => l.id === leadId);
+        const patch: Record<string, unknown> = {};
+        if (match.addCompanions.length) patch.companions = mergeCompanions(current?.companions, match.addCompanions);
+        // ‼ רק סגור ⇒ חדש. ליד בשלב «נשלחה הצעה» לא חוזר אחורה.
+        if (match.reopenLead) patch.status = "new";
+        let q = admin.from("leads").update(patch).eq("id", leadId).eq("user_id", userId);
+        if (match.reopenLead) q = q.eq("status", "closed");
+        const { data: upd, error: updErr } = await q.select("id").maybeSingle();
+        if (updErr) console.error("[calendar-meeting] lead update failed", updErr.code, updErr.message);
+        if (upd) {
+          people.leadReopened = match.reopenLead;
+          people.companionsAdded = match.addCompanions.length;
         }
-        if (match.clientId || leadId) {
-          const { data: linked } = await admin.from("meetings")
-            .update({ client_id: match.clientId, lead_id: leadId }).eq("id", final.id).select("*").maybeSingle();
-          if (linked) final = linked as MeetingRow;
-        }
+      }
+      // (סבב 3) «לקוח פוטנציאלי» שאינו בפנייה — ליד משלו. ‼ אותו מעבר מותנה ל-scheduled ⇒ פעם אחת.
+      for (const x of match.extraLeads) {
+        const { data: lead, error: leadErr } = await admin.from("leads").insert({
+          user_id: userId, full_name: x.fullName, email: x.email, status: "new", source: "accountant",
+        }).select("id").maybeSingle();
+        if (leadErr) { console.error("[calendar-meeting] extra lead insert failed", leadErr.code, leadErr.message); continue; }
+        people.extraLeadsCreated = (people.extraLeadsCreated ?? 0) + 1;
+        leadId ??= (lead?.id as string) ?? null;
+      }
+      const clientId = match.clientId ?? final.client_id;
+      if (clientId !== final.client_id || (leadId ?? null) !== final.lead_id) {
+        const { data: linked } = await admin.from("meetings")
+          .update({ client_id: clientId, lead_id: leadId }).eq("id", final.id).select("*").maybeSingle();
+        if (linked) final = linked as MeetingRow;
       }
       return json({ ok: true, meeting: final, people });
     }
@@ -341,7 +389,9 @@ Deno.serve(async (req: Request) => {
       const org = orgFromProfile(profile);
       const note = mv.note || MOVE_NOTE_DEFAULT[mv.askedBy];
       const base = { ...m, duration_min: mv.durationMin };
-      const description = inviteDescription(inviteInputOf(base), org, { date: mv.date, time: mv.time, note });
+      // ‼ העדכון יוצא בנוסח של היום — אותו נוסח שחלון «שינוי מועד» מציג לפני השליחה.
+      const description = inviteDescription(inviteInputOf(base), org, { date: mv.date, time: mv.time, note },
+        templateFromProfile(profile, m.kind));
       const startUtc = israelToUtcIso(mv.date, mv.time);
 
       const tok = await accessTokenFor(admin, userId);

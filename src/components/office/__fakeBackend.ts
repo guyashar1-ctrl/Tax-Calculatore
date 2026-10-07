@@ -24,7 +24,7 @@ import type { PreviewRequest } from '../../features/requestPreview/types';
 import { mergeOfficeOverrides, type RequestTemplate, type TemplateEntry } from '../../lib/requestTemplates';
 import { documentLibrary } from '../../lib/clientGuide';
 import { REP_PORTAL_CARD_FIXED, resolveRepPortalCard, type RepPortalCardOverride } from '../../../supabase/functions/_shared/repTemplates.ts';
-import { seedMeetings, seedPeople, fakeSplitLeadCompanion, fakeGoogleStatus, fakeMeetingsInvoke } from '../../features/meetings/__fakeMeetings';
+import { seedMeetings, seedPeople, fakeSplitLeadCompanion, fakeMoveContactToLead, fakeGoogleStatus, fakeMeetingsInvoke } from '../../features/meetings/__fakeMeetings';
 
 type Row = Record<string, unknown>;
 
@@ -886,6 +886,11 @@ export function installFakeBackend() {
     if (name === 'split_lead_companion') {
       const r = fakeSplitLeadCompanion(tables, FIRM_ID, args);
       logWrite('rpc.split_lead_companion', r);
+      return { data: r, error: null };
+    }
+    if (name === 'move_contact_to_lead') {
+      const r = fakeMoveContactToLead(tables, FIRM_ID, args);
+      logWrite('rpc.move_contact_to_lead', r);
       return { data: r, error: null };
     }
     // 05.10 · פרטי העסק, עבודה מהבית ודף ההדגמה של יוסי (__fakeRequestGroups).

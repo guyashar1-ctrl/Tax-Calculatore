@@ -2,7 +2,9 @@
 // רו״ח אחר, עו״ד, יועץ… שם, תפקיד, איפה עובד/ת. המטרה: «קבע פגישה» מהר בפעם הבאה.
 // ‼ אותה שפה כמו רשימת האנשים (pd-*): חיפוש, שורות, מגירה בדסקטופ / יריעה בטלפון.
 // ‼ הבחירה חיה בכתובת (‎#/clients/p/{id}‎, כמו לקוח/ליד) — «אחורה» בטלפון סוגר.
-// ‼ אין כאן «בעלים» אחרים: איש קשר נערך רק כאן (ובזימון — «שמור כאיש קשר»).
+// ‼ אין כאן «בעלים» אחרים: איש קשר נערך רק כאן (ובזימון — «מי זה? איש מקצוע»).
+// ‼ (228) «העבר ללידים» — איש קשר שמתברר כלקוח פוטנציאלי: הדרך ללקוח נשארת אחת (ליד ← הצעת
+//   מחיר ← לקוח). הליד נפתח מיד, ואיש הקשר יוצא מהרשימה — אדם אחד, רשומה אחת.
 
 import { useMemo, useState } from 'react';
 import Sheet from '../../components/ui/Sheet';
@@ -28,13 +30,15 @@ interface Props {
   openId: string | null;
   onOpen: (id: string | null) => void;
   onNewMeeting: (contactId: string) => void;
+  /** אחרי «העבר ללידים» — לרענן את הלידים ולפתוח את הליד. */
+  onMovedToLead?: (leadId: string) => void | Promise<void>;
   query: string;
 }
 
 type Draft = Omit<Contact, 'id' | 'createdAt' | 'updatedAt'>;
 const EMPTY: Draft = { fullName: '', role: '', organization: '', email: '', phone: '', notes: '' };
 
-export default function ContactsPanel({ api, clients, leads, meetings, meetingCues, openId, onOpen, onNewMeeting, query }: Props) {
+export default function ContactsPanel({ api, clients, leads, meetings, meetingCues, openId, onOpen, onNewMeeting, onMovedToLead, query }: Props) {
   const visible = useMemo(() => searchContacts(api.contacts, query), [api.contacts, query]);
   const selected = openId && openId !== NEW_CONTACT_ID ? api.contacts.find(c => c.id === openId) ?? null : null;
 
@@ -74,7 +78,7 @@ export default function ContactsPanel({ api, clients, leads, meetings, meetingCu
             <>
               <h3>עוד אין אנשי קשר</h3>
               <p>רו״ח אחר, עו״ד, יועץ — מי שאינו לקוח. שומרים פעם אחת, ובפעם הבאה קובעים איתו פגישה בלחיצה.</p>
-              <p>אפשר גם לסמן «שמור כאיש קשר» בזימון לפגישת עבודה.</p>
+              <p>אפשר גם בזימון לפגישה: «+ אדם חדש» ← «מי זה? איש מקצוע».</p>
             </>
           ) : (
             <>
@@ -88,14 +92,15 @@ export default function ContactsPanel({ api, clients, leads, meetings, meetingCu
       {(openId === NEW_CONTACT_ID || selected) && (
         <Sheet onClose={() => onOpen(null)} ariaLabel={selected ? `איש קשר: ${selected.fullName}` : 'איש קשר חדש'}>
           <ContactSheet key={selected?.id ?? 'new'} contact={selected} api={api} clients={clients} leads={leads}
-            meetings={meetings} onClose={() => onOpen(null)} onSaved={id => onOpen(id)} onNewMeeting={onNewMeeting} />
+            meetings={meetings} onClose={() => onOpen(null)} onSaved={id => onOpen(id)} onNewMeeting={onNewMeeting}
+            onMovedToLead={onMovedToLead} />
         </Sheet>
       )}
     </>
   );
 }
 
-function ContactSheet({ contact, api, clients, leads, meetings, onClose, onSaved, onNewMeeting }: {
+function ContactSheet({ contact, api, clients, leads, meetings, onClose, onSaved, onNewMeeting, onMovedToLead }: {
   contact: Contact | null;
   api: ContactsApi;
   clients: Client[];
@@ -104,6 +109,7 @@ function ContactSheet({ contact, api, clients, leads, meetings, onClose, onSaved
   onClose: () => void;
   onSaved: (id: string) => void;
   onNewMeeting: (contactId: string) => void;
+  onMovedToLead?: (leadId: string) => void | Promise<void>;
 }) {
   const { showToast } = useToast();
   const [editing, setEditing] = useState(!contact);
@@ -142,6 +148,23 @@ function ContactSheet({ contact, api, clients, leads, meetings, onClose, onSaved
     } finally {
       setSaving(false);
     }
+  }
+
+  const [moving, setMoving] = useState(false);
+  async function moveToLead() {
+    if (!contact || moving) return;
+    if (!window.confirm(`להעביר את ${contact.fullName} ללידים? הרשומה תעבור מאנשי הקשר לרשימת הלקוחות כליד, ומשם — הצעת מחיר והפיכה ללקוח. פגישות שכבר נקבעו נשארות.`)) return;
+    setMoving(true);
+    const r = await api.moveToLead(contact.id);
+    setMoving(false);
+    if (r.ok) {
+      showToast(r.existing ? `${contact.fullName} כבר היה ליד — איש הקשר צורף אליו` : `${contact.fullName} עבר ללידים`);
+      await onMovedToLead?.(r.leadId);
+      return;
+    }
+    showToast(r.error === 'is_client' ? 'המייל הזה שייך ללקוח קיים — אין צורך בליד.'
+      : r.error === 'contact_not_found' ? 'איש הקשר כבר לא ברשימה — אולי הועבר מחלון אחר.'
+        : 'ההעברה נכשלה. נסו שוב.');
   }
 
   async function remove() {
@@ -254,6 +277,9 @@ function ContactSheet({ contact, api, clients, leads, meetings, onClose, onSaved
 
             <div className="pd-qv-actions">
               <button type="button" className="pd-act" onClick={() => setEditing(true)}>עריכה</button>
+              <button type="button" className="pd-act" disabled={moving} onClick={() => void moveToLead()}>
+                {moving ? 'מעביר…' : 'העבר ללידים'}
+              </button>
               <button type="button" className="pd-act pd-act-main" disabled={!contact.email}
                 onClick={() => onNewMeeting(contact.id)}>קבע פגישה</button>
             </div>

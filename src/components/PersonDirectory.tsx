@@ -81,6 +81,8 @@ interface Props {
   meetingCues?: Map<string, string>;
   /** «אנשי קשר» (226). בלי — אין לשונית. */
   contactsApi?: ContactsApi;
+  /** (228) איש קשר עבר ללידים — לרענן את הלידים ולפתוח את הליד. */
+  onContactMovedToLead?: (leadId: string) => void | Promise<void>;
   meetings?: Meeting[];
   /** «קבע פגישה» מליד (עם כל מי שבפנייה) או מאיש קשר. */
   onNewMeeting?: (preset: { leadId?: string; contactId?: string }) => void;
@@ -409,7 +411,8 @@ export default function PersonDirectory(p: Props) {
         <ContactsPanel api={p.contactsApi} clients={p.clients} leads={p.leads} meetings={p.meetings ?? []}
           meetingCues={p.meetingCues ?? new Map()} query={query}
           openId={isContactId(p.quickViewId) ? p.quickViewId : null} onOpen={p.onQuickView}
-          onNewMeeting={contactId => p.onNewMeeting?.({ contactId })} />
+          onNewMeeting={contactId => p.onNewMeeting?.({ contactId })}
+          onMovedToLead={p.onContactMovedToLead} />
       )}
 
       {tab === 'people' && <>

@@ -5,7 +5,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { meetingFromDb, meetingErrorText, type GoogleConnection, type Meeting } from './meetingModel';
-import type { PeopleOutcome } from '../../../supabase/functions/_shared/meetingCore';
+import type { CalendarEvent, PeopleOutcome } from '../../../supabase/functions/_shared/meetingCore';
 
 export type MeetingReply =
   | { ok: true; meeting: Meeting; people?: PeopleOutcome }
@@ -44,6 +44,11 @@ export interface MeetingsApi {
   syncFromGoogle: () => Promise<void>;
   send: (action: 'create' | 'move' | 'cancel', body: Record<string, unknown>) => Promise<MeetingReply>;
   freebusy: (date: string) => Promise<{ start: string; end: string }[] | null>;
+  /**
+   * (סבב 3) האירועים ביומן Google לטווח (שעון ישראל, «עד» לא כולל) — לשונית «יומן» ו«היום שלך
+   * ביומן». null ⇒ לא הצלחנו לקרוא (לא «אין אירועים»). error — הקוד מהשרת, להסבר במסך.
+   */
+  events: (from: string, to: string) => Promise<{ events: CalendarEvent[] } | { events: null; error: string }>;
 }
 
 export function useMeetings(userId: string | undefined): MeetingsApi {
@@ -99,5 +104,12 @@ export function useMeetings(userId: string | undefined): MeetingsApi {
     return r.ok && Array.isArray(r.busy) ? r.busy as { start: string; end: string }[] : null;
   }, []);
 
-  return { meetings, connection, loading, refresh, syncFromGoogle, send, freebusy };
+  const events = useCallback(async (from: string, to: string) => {
+    const r = await callMeetingFunction({ action: 'events', from, to });
+    return r.ok && Array.isArray(r.events)
+      ? { events: r.events as CalendarEvent[] }
+      : { events: null, error: String(r.error ?? 'unknown_outcome') };
+  }, []);
+
+  return { meetings, connection, loading, refresh, syncFromGoogle, send, freebusy, events };
 }

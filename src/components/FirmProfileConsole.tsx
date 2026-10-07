@@ -211,6 +211,7 @@ export default function FirmProfileConsole({ profile, clients, onSave, page: rou
           {shown === 'team' && <EmployeesPanel clients={clients} />}
           {shown === 'library' && (
             <LibraryPage key={`library-${focus ?? ''}`} focus={focus} draft={draft} saved={profile} setDraft={setDraft}
+              saveNow={office.saveNow}
               viewFocus={viewFocus}
               onViewFocusChange={controlled && onFocusChange ? onFocusChange : f => setLocalView(f)}
               noteUpload={office.noteUpload} go={go}

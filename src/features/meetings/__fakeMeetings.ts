@@ -7,12 +7,16 @@
 // ‎&nogoogle‎ בכתובת — היומן לא מחובר.
 // (226) גם: לידים עם «אנשים בפנייה», ליד סגור, אנשי קשר, ו«הפרד לליד נפרד» — באותה
 // התנהגות כמו בשרת (matchPeople / mergeCompanions / split_lead_companion).
+// (סבב 3) גם: «מי זה?» (saveAs), והיומן (events) — הפגישות של PIVO ועוד כמה אירועים «אישיים»
+// שאינם מ-PIVO (ישיבת צוות, ארוחת צהריים, יום שלם), כדי שלשונית «יומן» תיראה כמו ביומן אמיתי.
 
 import {
-  inviteDescription, meetingTitle, israelToUtcIso, utcToIsrael, MOVE_NOTE_DEFAULT, type InviteOrg,
+  inviteDescription, meetingTitle, meetingTemplateFor, israelToUtcIso, utcToIsrael, MOVE_NOTE_DEFAULT,
+  type InviteOrg, type MeetingKind,
 } from '../../../supabase/functions/_shared/meetingInvite';
 import {
-  parseCreate, parseMove, matchPeople, mergeCompanions, type PeopleOutcome,
+  parseCreate, parseMove, parseRange, matchPeople, mergeCompanions, calendarEventsFrom,
+  type PeopleOutcome, type GoogleListItem,
 } from '../../../supabase/functions/_shared/meetingCore';
 import { SAMPLE_CLIENTS } from '../../data/sampleClients';
 
@@ -65,6 +69,28 @@ export function seedPeople(userId: string): { leads: Row[]; contacts: Row[] } {
 }
 
 /** «הפרד לליד נפרד» בהדגמה — אותם כללים כמו split_lead_companion (226). */
+/** (228) «העבר ללידים» — כמו move_contact_to_lead: לקוח ⇒ סירוב; ליד פתוח באותו מייל ⇒ אותו ליד. */
+export function fakeMoveContactToLead(tables: Record<string, Row[]>, userId: string, args: Row): Row {
+  const contacts = (tables.contacts ??= []);
+  const c = contacts.find(x => x.id === args.p_contact_id);
+  if (!c) return { ok: false, error: 'contact_not_found' };
+  const email = low(c.email);
+  const client = email ? SAMPLE_CLIENTS.find(x => low(x.email) === email || low(x.spouseEmail) === email) : undefined;
+  if (client) return { ok: false, error: 'is_client', clientId: client.id };
+  const leads = (tables.leads ??= []);
+  const existing = email ? leads.find(l => low(l.email) === email && !l.converted_client_id && l.status !== 'closed') : undefined;
+  let leadId = existing?.id as string | undefined;
+  if (!leadId) {
+    const now = new Date().toISOString();
+    const notes = [['הועבר מאנשי הקשר', c.role, c.organization].filter(Boolean).join(' · '), c.notes].filter(Boolean).join('\n');
+    leadId = `lead-${Date.now()}`;
+    leads.unshift({ id: leadId, user_id: userId, full_name: c.full_name, email: email || null, phone: c.phone ?? null, notes,
+      status: 'new', source: 'accountant', has_previous_accountant: false, companions: [], created_at: now, updated_at: now });
+  }
+  tables.contacts = contacts.filter(x => x.id !== c.id);
+  return { ok: true, leadId, existing: !!existing };
+}
+
 export function fakeSplitLeadCompanion(tables: Record<string, Row[]>, userId: string, args: Row): Row {
   const leads = (tables.leads ??= []);
   const l = leads.find(x => x.id === args.p_lead_id);
@@ -139,6 +165,8 @@ export function fakeMeetingsInvoke(name: string, body: Row, tables: Record<strin
   }
 
   const meetings = (tables.meetings ??= []);
+  // ‼ כמו בשרת: הנוסח שהמשרד שמר (settings.commTemplates) — מהפרופיל של ההדגמה.
+  const tpl = (kind: MeetingKind) => meetingTemplateFor(kind, (tables.profiles?.[0]?.settings as Row | undefined)?.commTemplates);
   const now = new Date();
   const nowIso = now.toISOString();
   if (!connected && body.action !== 'sync') return fail('google_not_connected');
@@ -153,6 +181,31 @@ export function fakeMeetingsInvoke(name: string, body: Row, tables: Record<strin
     // אירוע שאינו מ-PIVO — כדי שיהיה מה לראות ב«תפוס».
     busy.push({ start: '13:00', end: '14:00' });
     return ok({ ok: true, busy });
+  }
+
+  if (body.action === 'events') {
+    const rg = parseRange(body);
+    if (!rg.ok) return fail('bad_input', { field: rg.field });
+    const items: GoogleListItem[] = meetings.filter(m => m.status === 'scheduled').map(m => ({
+      id: m.google_event_id ?? `pivo${String(m.id).replace(/-/g, '')}`, status: 'confirmed', summary: m.title,
+      start: { dateTime: m.starts_at }, end: { dateTime: new Date(Date.parse(m.starts_at) + m.duration_min * 60000).toISOString() },
+    }));
+    // אירועים שאינם מ-PIVO — בכל יום עבודה בטווח.
+    for (let d = rg.from; d < rg.to; d = new Date(Date.parse(`${d}T12:00:00Z`) + 86400000).toISOString().slice(0, 10)) {
+      const wd = new Date(`${d}T12:00:00Z`).getUTCDay();
+      if (wd === 6) continue;
+      const at = (t: string) => israelToUtcIso(d, t);
+      if (wd === 0) items.push({ id: `g-team-${d}`, summary: 'ישיבת צוות', start: { dateTime: at('09:00') }, end: { dateTime: at('09:30') } });
+      if (wd >= 1 && wd <= 4) items.push({ id: `g-lunch-${d}`, summary: 'ארוחת צהריים', start: { dateTime: at('13:00') }, end: { dateTime: at('14:00') } });
+      if (wd === 2) items.push({ id: `g-bank-${d}`, summary: 'פגישה בבנק', start: { dateTime: at('10:00') }, end: { dateTime: at('11:00') } });
+      if (wd === 3) items.push({ id: `g-kids-${d}`, summary: 'איסוף ילדים', start: { dateTime: at('16:30') }, end: { dateTime: at('17:00') }, transparency: 'transparent' });
+      if (wd === 4) items.push({ id: `g-vat-${d}`, summary: 'מועד דיווח מע״מ', start: { date: d }, end: { date: new Date(Date.parse(`${d}T12:00:00Z`) + 86400000).toISOString().slice(0, 10) } });
+    }
+    const known = new Set(meetings.map(m => String(m.id)));
+    const t0 = israelToUtcIso(rg.from, '00:00'), t1 = israelToUtcIso(rg.to, '00:00');
+    const inRange = items.filter(e => (e.start?.date ? e.start.date >= rg.from && e.start.date < rg.to
+      : String(e.start?.dateTime) < t1 && String(e.end?.dateTime) > t0));
+    return ok({ ok: true, from: rg.from, to: rg.to, events: calendarEventsFrom(inRange, known) });
   }
 
   if (body.action === 'create') {
@@ -170,7 +223,8 @@ export function fakeMeetingsInvoke(name: string, body: Row, tables: Record<strin
       id: input.id, user_id: userId, client_id: input.clientId, lead_id: null, kind: input.kind,
       topic: input.topic || null, prep: input.prep || null, note: input.note || null,
       starts_at: israelToUtcIso(input.date, input.time), duration_min: input.durationMin,
-      guests: input.guests.map(g => ({ ...g, rsvp: 'none' })), title: meetingTitle(input, org), description: inviteDescription(input, org),
+      guests: input.guests.map(g => ({ ...g, rsvp: 'none' })),
+      title: meetingTitle(input, org, tpl(input.kind)), description: inviteDescription(input, org, undefined, tpl(input.kind)),
       status: 'sending', history: [], created_at: nowIso,
     };
     if (!existing) meetings.push(row);
@@ -183,7 +237,7 @@ export function fakeMeetingsInvoke(name: string, body: Row, tables: Record<strin
       status: 'scheduled', sent_at: nowIso, google_event_id: `pivo${input.id.replace(/-/g, '')}`,
       meet_link: `https://meet.google.com/new-${input.id.slice(0, 4)}-dem`, history: [...(row.history ?? []), { at: nowIso, kind: 'sent' }],
     });
-    const people: PeopleOutcome = { leadCreated: false, leadReopened: false, companionsAdded: 0, contactsSaved: 0 };
+    const people: PeopleOutcome = { leadCreated: false, leadReopened: false, companionsAdded: 0, contactsSaved: 0, extraLeadsCreated: 0 };
     const contacts = (tables.contacts ??= []);
     for (const c of input.saveContacts) {
       if (contacts.some(x => low(x.email) === c.email)) continue;
@@ -191,16 +245,16 @@ export function fakeMeetingsInvoke(name: string, body: Row, tables: Record<strin
         role: c.role || null, organization: c.organization || null, phone: null, notes: null, created_at: nowIso, updated_at: nowIso });
       people.contactsSaved++;
     }
-    if (!row.client_id) {
+    {
       const clients = SAMPLE_CLIENTS.map(c => ({ id: c.id, email: c.email ?? null, spouse_email: c.spouseEmail ?? null }));
       const leads = (tables.leads ??= []);
       const match = matchPeople({
-        kind: row.kind, guests: row.guests, clients, explicitClientId: null,
+        kind: row.kind, guests: row.guests, clients, explicitClientId: row.client_id ?? null,
         leads: leads.map(l => ({ id: l.id, email: l.email, status: l.status, companions: l.companions, converted_client_id: l.converted_client_id })),
-        contactEmails: contacts.map(c => c.email), relations: input.relations,
+        contactEmails: contacts.map(c => c.email), relations: input.relations, saveAs: input.saveAs,
       });
       if (match.clientId) row.client_id = match.clientId;
-      else if (match.newLead) {
+      if (match.newLead) {
         const lead = { id: `lead-${Date.now()}`, user_id: userId, full_name: match.newLead.fullName, email: match.newLead.email, status: 'new', source: 'accountant', has_previous_accountant: false, companions: match.newLead.companions, created_at: nowIso, updated_at: nowIso };
         leads.unshift(lead);
         row.lead_id = lead.id;
@@ -212,6 +266,12 @@ export function fakeMeetingsInvoke(name: string, body: Row, tables: Record<strin
         if (l && match.addCompanions.length) { l.companions = mergeCompanions(l.companions, match.addCompanions); people.companionsAdded = match.addCompanions.length; }
         if (l && match.reopenLead && l.status === 'closed') { l.status = 'new'; people.leadReopened = true; }
       }
+      match.extraLeads.forEach((x, i) => {
+        const lead = { id: `lead-${Date.now()}-${i}`, user_id: userId, full_name: x.fullName, email: x.email, status: 'new', source: 'accountant', has_previous_accountant: false, companions: [], created_at: nowIso, updated_at: nowIso };
+        leads.unshift(lead);
+        row.lead_id ??= lead.id;
+        people.extraLeadsCreated = (people.extraLeadsCreated ?? 0) + 1;
+      });
     }
     return ok({ ok: true, meeting: row, people });
   }
@@ -225,7 +285,7 @@ export function fakeMeetingsInvoke(name: string, body: Row, tables: Record<strin
     const to = israelToUtcIso(p.value.date, p.value.time);
     const input = { kind: row.kind, guests: row.guests, durationMin: p.value.durationMin, topic: row.topic ?? '', prep: row.prep ?? '', note: row.note ?? '' };
     Object.assign(row, {
-      description: inviteDescription(input, org, { date: p.value.date, time: p.value.time, note: p.value.note || MOVE_NOTE_DEFAULT[p.value.askedBy] }),
+      description: inviteDescription(input, org, { date: p.value.date, time: p.value.time, note: p.value.note || MOVE_NOTE_DEFAULT[p.value.askedBy] }, tpl(row.kind)),
       history: [...row.history, { at: nowIso, kind: 'moved', from: row.starts_at, to, askedBy: p.value.askedBy }],
       starts_at: to, duration_min: p.value.durationMin,
     });

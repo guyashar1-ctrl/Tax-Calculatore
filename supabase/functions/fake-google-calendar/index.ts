@@ -86,6 +86,18 @@ Deno.serve(async (req) => {
   if (!m) return gErr(404, "Not Found");
   const id = m[1];
 
+  // ‼ (סבב 3) רשימת אירועים לטווח — לשונית «יומן». כמו Google: בלי מבוטלים, לפי שעת התחלה.
+  if (!id && req.method === "GET") {
+    const timeMin = url.searchParams.get("timeMin") ?? "";
+    const timeMax = url.searchParams.get("timeMax") ?? "";
+    const { data } = await admin.from("test_fake_google_events").select("event");
+    const items = (data ?? []).map(r => withRsvp(r.event as Ev))
+      .filter(e => e.status !== "cancelled" && e.start?.dateTime && e.end?.dateTime
+        && (!timeMax || e.start.dateTime < timeMax) && (!timeMin || e.end.dateTime > timeMin))
+      .sort((a, b) => String(a.start?.dateTime).localeCompare(String(b.start?.dateTime)));
+    return json({ kind: "calendar#events", items });
+  }
+
   if (!id && req.method === "POST") {
     const e = await req.json() as Ev;
     const emails = (e.attendees ?? []).map(a => a.email).join(" ");

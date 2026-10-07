@@ -10,6 +10,9 @@
 //   · פנייה משותפת (226): האדם השני נשמר בליד («שותפים עסקיים» כברירת מחדל), מייל שלו מוביל
 //     לאותו ליד, ליד סגור נפתח בשיחת היכרות חדשה, ליד שהומר ⇒ הכרטיס, איש קשר שמור לא נעשה ליד.
 //   · עדכון מהיומן: תשובות, הזזה שנעשתה ביומן, ואירוע שנמחק ביומן.
+//   · (סבב 3) «מי זה?»: לקוח פוטנציאלי ⇒ ליד גם בפגישת עבודה (בפנייה כשיש פנייה בהיכרות,
+//     אחרת ליד משלו); רק מוזמן ⇒ לא נשמר; ליד ואיש קשר דורשים שם. היומן: מבוטל/שסירבת לו
+//     לא מוצג, «פנוי» לא תופס, פגישה של PIVO מזוהה רק כשהיא באמת של הרו״ח, טווח עד 6 שבועות.
 
 import { test, equal, assert, deepEqual } from '../../../testkit/tinyTest';
 import type { TestCase } from '../../../testkit/tinyTest';
@@ -17,7 +20,9 @@ import {
   googleCall, googleEndpoints, refreshAccessToken, signState, verifyState, safeReturnTo, eventIdFor, eventBody, rsvpFromGoogle,
   authorizeUrl,
 } from '../../../../supabase/functions/_shared/googleCalendar';
-import { parseCreate, parseMove, matchPeople, mergeCompanions, syncFromEvent } from '../../../../supabase/functions/_shared/meetingCore';
+import {
+  parseCreate, parseMove, parseRange, matchPeople, mergeCompanions, syncFromEvent, calendarEventsFrom, meetingIdFromEventId,
+} from '../../../../supabase/functions/_shared/meetingCore';
 
 const res = (status: number, body?: unknown) => async () => new Response(body === undefined ? null : JSON.stringify(body), { status });
 const PROD = 'https://uoweoqtuiettozagwgdw.supabase.co';
@@ -132,7 +137,7 @@ export const TESTS: TestCase[] = [
   test('שיוך: מייל של בן/בת זוג של לקוח ⇒ הכרטיס של הלקוח', () => {
     const m = matchPeople({ kind: 'intro', guests: [{ email: 'new@x.com', name: 'חדש' }, { email: 'spouse@x.com' }],
       clients: [{ id: 'c1', email: 'c@x.com', spouse_email: 'Spouse@X.com' }], leads: [], explicitClientId: null });
-    deepEqual(m, { clientId: 'c1', leadId: null, newLead: null, addCompanions: [], reopenLead: false });
+    deepEqual(m, { clientId: 'c1', leadId: null, newLead: null, addCompanions: [], reopenLead: false, extraLeads: [] });
   }),
   test('שיוך: ליד קיים לא משוכפל; פתוח גובר על סגור', () => {
     const m = matchPeople({ kind: 'intro', guests: [{ email: 'd@x.com', name: 'דני' }], clients: [],
@@ -149,7 +154,7 @@ export const TESTS: TestCase[] = [
   }),
   test('שיוך: לקוח שנבחר מהכרטיס גובר על הכול', () => {
     deepEqual(matchPeople({ kind: 'work', guests: [{ email: 'x@x.com' }], clients: [], leads: [], explicitClientId: 'c9' }),
-      { clientId: 'c9', leadId: null, newLead: null, addCompanions: [], reopenLead: false });
+      { clientId: 'c9', leadId: null, newLead: null, addCompanions: [], reopenLead: false, extraLeads: [] });
   }),
   test('פנייה משותפת: האדם השני נשמר בליד החדש — «שותפים עסקיים» כברירת מחדל, או מה שנבחר', () => {
     const m = matchPeople({ kind: 'intro', clients: [], leads: [], explicitClientId: null,
@@ -235,5 +240,81 @@ export const TESTS: TestCase[] = [
   test('עדכון מהיומן: נמחק ביומן ⇒ בוטלה', () => {
     equal(syncFromEvent({ starts_at: 'x', duration_min: 30, guests: [] }, 'gone', 'n').patch.status, 'canceled');
     equal(syncFromEvent({ starts_at: 'x', duration_min: 30, guests: [] }, { status: 'cancelled' }, 'n').history?.kind, 'canceled_in_google');
+  }),
+
+  test('«מי זה?»: לקוח קיים מביא חבר שסומן «לקוח פוטנציאלי» ⇒ ליד משלו; «רק מוזמן» ⇒ כלום', () => {
+    const m = matchPeople({ kind: 'work', clients: [{ id: 'c1', email: 'david@x.com', spouse_email: null }], leads: [], explicitClientId: null,
+      guests: [{ email: 'david@x.com', name: 'דוד' }, { email: 'dani@x.com', name: 'דני לוי' }, { email: 'bk@x.com', name: 'מנה״ח' }],
+      saveAs: { 'dani@x.com': 'lead', 'bk@x.com': 'none' } });
+    equal(m.clientId, 'c1');
+    deepEqual(m.extraLeads, [{ fullName: 'דני לוי', email: 'dani@x.com' }]);
+  }),
+  test('«מי זה?»: גם מכרטיס לקוח (לקוח שנבחר) — לקוח פוטנציאלי נעשה ליד', () => {
+    const m = matchPeople({ kind: 'work', clients: [], leads: [], explicitClientId: 'c9',
+      guests: [{ email: 'c9@x.com' }, { email: 'dani@x.com', name: 'דני' }], saveAs: { 'dani@x.com': 'lead' } });
+    deepEqual(m, { clientId: 'c9', leadId: null, newLead: null, addCompanions: [], reopenLead: false, extraLeads: [{ fullName: 'דני', email: 'dani@x.com' }] });
+  }),
+  test('«מי זה?»: אדם חדש שסומן «לקוח פוטנציאלי» נעשה ליד גם בפגישת עבודה', () => {
+    const m = matchPeople({ kind: 'work', clients: [], leads: [], explicitClientId: null,
+      guests: [{ email: 'd@x.com', name: 'דני לוי' }], saveAs: { 'd@x.com': 'lead' } });
+    deepEqual(m.newLead, { fullName: 'דני לוי', email: 'd@x.com', companions: [] });
+  }),
+  test('«מי זה?»: בשיחת היכרות — «רק מוזמן» ו«איש מקצוע» לא נכנסים לפנייה; ראשון «רק מוזמן» לא נעשה ליד', () => {
+    const m = matchPeople({ kind: 'intro', clients: [], leads: [], explicitClientId: null,
+      guests: [{ email: 'avi@x.com', name: 'אבי' }, { email: 'kid@x.com', name: 'בן' }, { email: 'p@x.com', name: 'מיכל' }],
+      saveAs: { 'avi@x.com': 'lead', 'kid@x.com': 'none', 'p@x.com': 'lead' } });
+    deepEqual(m.newLead, { fullName: 'אבי', email: 'avi@x.com', companions: [{ email: 'p@x.com', name: 'מיכל', relation: 'partner' }] });
+    deepEqual(m.extraLeads, []);
+    equal(matchPeople({ kind: 'intro', clients: [], leads: [], explicitClientId: null,
+      guests: [{ email: 'x@x.com', name: 'רק מוזמן' }], saveAs: { 'x@x.com': 'none' } }).newLead, null);
+  }),
+  test('«מי זה?»: מי שכבר ליד או לקוח לא נעשה ליד שני גם אם סומן', () => {
+    const m = matchPeople({ kind: 'work', clients: [{ id: 'c1', email: 'c@x.com', spouse_email: null }], explicitClientId: null,
+      leads: [{ id: 'l1', email: 'old@x.com', status: 'new' }],
+      guests: [{ email: 'c@x.com' }, { email: 'old@x.com', name: 'ישן' }], saveAs: { 'old@x.com': 'lead' } });
+    deepEqual(m.extraLeads, []);
+  }),
+  test('קלט: «מי זה?» נקרא; ליד בלי שם ואיש קשר בלי פרטים — נדחים', () => {
+    const base = { id: UUID, kind: 'work', date: '2026-10-08', time: '10:00', durationMin: 45 };
+    const ok = parseCreate({ ...base, guests: [{ email: 'a@x.com', name: 'א', saveAs: 'lead' }, { email: 'b@x.com', saveAs: 'none' }] }, NOW);
+    assert(ok.ok, 'תקין');
+    deepEqual(ok.ok ? ok.value.saveAs : null, { 'a@x.com': 'lead', 'b@x.com': 'none' });
+    deepEqual(parseCreate({ ...base, guests: [{ email: 'a@x.com', saveAs: 'lead' }] }, NOW), { ok: false, field: 'leadName' });
+    deepEqual(parseCreate({ ...base, guests: [{ email: 'a@x.com', name: 'א', saveAs: 'contact' }] }, NOW), { ok: false, field: 'contact' });
+    const c = parseCreate({ ...base, guests: [{ email: 'a@x.com', name: 'א', saveAs: 'contact', contact: { role: 'רו״ח', organization: '' } }] }, NOW);
+    deepEqual(c.ok ? c.value.saveAs : null, { 'a@x.com': 'contact' });
+    const junk = parseCreate({ ...base, guests: [{ email: 'a@x.com', saveAs: 'boss' }] }, NOW);
+    deepEqual(junk.ok ? junk.value.saveAs : null, {});
+  }),
+
+  test('יומן: מזהה פגישה מתוך מזהה האירוע — הפוך של eventIdFor', () => {
+    equal(meetingIdFromEventId(eventIdFor(UUID)), UUID);
+    equal(meetingIdFromEventId('abc123'), null);
+    equal(meetingIdFromEventId(undefined), null);
+  }),
+  test('יומן: מבוטל ושסירבת לו לא מוצגים; «פנוי» לא תופס; יום שלם נשמר כתאריכים', () => {
+    const list = calendarEventsFrom([
+      { id: 'a', summary: 'ישיבה', start: { dateTime: '2026-10-08T06:00:00Z' }, end: { dateTime: '2026-10-08T07:00:00Z' } },
+      { id: 'b', status: 'cancelled', summary: 'בוטל', start: { dateTime: '2026-10-08T08:00:00Z' }, end: { dateTime: '2026-10-08T09:00:00Z' } },
+      { id: 'c', summary: 'סירבתי', attendees: [{ self: true, responseStatus: 'declined' }], start: { dateTime: '2026-10-08T08:00:00Z' }, end: { dateTime: '2026-10-08T09:00:00Z' } },
+      { id: 'd', summary: 'איסוף', transparency: 'transparent', start: { dateTime: '2026-10-08T13:30:00Z' }, end: { dateTime: '2026-10-08T14:00:00Z' } },
+      { id: 'e', summary: 'מע״מ', start: { date: '2026-10-08' }, end: { date: '2026-10-09' } },
+      { id: 'f', start: { dateTime: '2026-10-08T10:00:00Z' }, end: { dateTime: '2026-10-08T10:30:00Z' } },
+    ], new Set());
+    deepEqual(list.map(e => e.id), ['a', 'd', 'e', 'f']);
+    equal(list[1].busy, false);
+    deepEqual([list[2].allDay, list[2].startDate, list[2].endDate, list[2].startsAt], [true, '2026-10-08', '2026-10-09', null]);
+    equal(list[3].title, '(ללא כותרת)');
+  }),
+  test('יומן: פגישה של PIVO מזוהה רק כשהיא שורה של הרו״ח הזה', () => {
+    const ev = { id: eventIdFor(UUID), summary: 'שיחת היכרות', start: { dateTime: '2026-10-08T06:00:00Z' }, end: { dateTime: '2026-10-08T06:30:00Z' } };
+    equal(calendarEventsFrom([ev], new Set([UUID]))[0].meetingId, UUID);
+    equal(calendarEventsFrom([ev], new Set())[0].meetingId, null);
+  }),
+  test('יומן: טווח — תאריכים תקינים, «עד» אחרי «מ», ועד 6 שבועות', () => {
+    deepEqual(parseRange({ from: '2026-10-04', to: '2026-10-11' }), { ok: true, from: '2026-10-04', to: '2026-10-11' });
+    deepEqual(parseRange({ from: '2026-10-04', to: '2026-10-04' }), { ok: false, field: 'to' });
+    deepEqual(parseRange({ from: 'x', to: '2026-10-11' }), { ok: false, field: 'from' });
+    deepEqual(parseRange({ from: '2026-10-01', to: '2026-12-01' }), { ok: false, field: 'to' });
   }),
 ];

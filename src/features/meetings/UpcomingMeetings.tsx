@@ -1,6 +1,6 @@
 // ─── «פגישות קרובות» בראש מסך הבית ──────────────────────────────────────────
-// ‼ לא יומן שני: רק פגישות שנקבעו מ-PIVO, עם מה ש-PIVO יודע עליהן — מי אישר,
-// קישור הצטרפות, שינוי מועד, ביטול ותזכורת בוואטסאפ. היומן המלא נשאר ב-Google.
+// ‼ רק פגישות שנקבעו מ-PIVO, עם מה ש-PIVO יודע עליהן — מי אישר, קישור הצטרפות, שינוי
+// מועד, ביטול ותזכורת בוואטסאפ. היומן המלא (גם אירועים שאינם מ-PIVO) — בלשונית «יומן».
 // ‼ אין פגישות קרובות ⇒ המקטע לא מוצג בכלל (פגישה חדשה — ב«+ חדש»).
 
 import { useState } from 'react';
@@ -17,6 +17,8 @@ interface Props {
   signer?: string;
   onMove: (m: Meeting) => void;
   onOpenConnections: () => void;
+  /** «לכל היומן» — לשונית «יומן». */
+  onOpenCalendar?: () => void;
 }
 
 function rowTitle(m: Meeting): string {
@@ -25,7 +27,7 @@ function rowTitle(m: Meeting): string {
   return [label, names.length > 2 ? `${names[0]} ועוד ${names.length - 1}` : names.join(' ו')].filter(Boolean).join(' · ');
 }
 
-export default function UpcomingMeetings({ api, signer, onMove, onOpenConnections }: Props) {
+export default function UpcomingMeetings({ api, signer, onMove, onOpenConnections, onOpenCalendar }: Props) {
   const [open, setOpen] = useState<{ id: string; panel: 'remind' | 'cancel' } | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [notice, setNotice] = useState<{ id: string; tone: 'ok' | 'err' | 'warn'; text: string; cancelText?: string } | null>(null);
@@ -62,6 +64,7 @@ export default function UpcomingMeetings({ api, signer, onMove, onOpenConnection
     <section className="mt-upcoming" aria-label="פגישות קרובות">
       <div className="mt-up-head">
         <h2 className="mt-up-title">פגישות קרובות</h2>
+        {onOpenCalendar && <button type="button" className="ui-linkbtn" onClick={onOpenCalendar}>לכל היומן ←</button>}
         {api.connection?.lastError === 'reconnect' && (
           <button type="button" className="ui-linkbtn mt-up-warn" onClick={onOpenConnections}>החיבור ליומן Google נותק · לחיבור מחדש</button>
         )}

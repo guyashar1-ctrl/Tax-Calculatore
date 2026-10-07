@@ -1,17 +1,19 @@
 // ─── «כך זה יגיע» — ההזמנה כפי שהמוזמן יקבל אותה ─────────────────────────────
 // ‼ הכותרת והטקסט נבנים מ-_shared/meetingInvite.ts — אותה פונקציה שהשרת שולח ממנה,
-// עם אותם קלטים. המסגרת (שורת הנושא, כפתור ההצטרפות, כן/לא/אולי) היא של Google,
-// ומצוירת כאן בקירוב בלבד, וכך גם כתוב מעליה.
+// עם אותם קלטים ואותה תבנית (נוסח המשרד מספריית הבקשות ← פגישות, או נוסח המערכת).
+// המסגרת (שורת הנושא, כפתור ההצטרפות, כן/לא/אולי) היא של Google, ומצוירת כאן בקירוב
+// בלבד, וכך גם כתוב מעליה. משמש את חלון הפגישה ואת «צפייה» בספרייה (נתוני דוגמה).
 
-import { useState } from 'react';
 import {
-  inviteBlocks, meetingTitle, organizerTitle, shortDay, addMinutes, INVITE_WHY,
-  type InviteInput, type InviteMove, type InviteOrg,
+  inviteParagraphs, meetingTitle, organizerTitle, shortDay, addMinutes,
+  type InviteInput, type InviteMove, type InviteOrg, type MeetingTemplate,
 } from '../../../supabase/functions/_shared/meetingInvite';
 
 interface Props {
   input: InviteInput;
   org: InviteOrg;
+  /** הנוסח שיוצא — meetingTemplateFor(kind, settings.commTemplates). */
+  tpl: MeetingTemplate;
   /** מאיפה ההזמנה יוצאת — המייל שחובר ב«חיבורים». */
   fromEmail?: string;
   date: string;
@@ -19,12 +21,21 @@ interface Props {
   /** שינוי מועד: המועד הקודם מוצג מחוק, ושורת העדכון בראש הטקסט. */
   move?: InviteMove & { fromDate: string; fromTime: string; fromDuration: number };
   meetLink?: string;
+  /** «עריכת הנוסח» — לספריית הבקשות ← פגישות. בלי — אין קישור (למשל בתוך הספרייה עצמה). */
+  onEditWording?: () => void;
+  /** «נתוני דוגמה» — בצפייה בספרייה. */
+  sample?: boolean;
 }
 
-export default function InvitePreview({ input, org, fromEmail, date, time, move, meetLink }: Props) {
-  const [why, setWhy] = useState(false);
-  const title = meetingTitle(input, org);
-  const blocks = inviteBlocks(input, org, move);
+/** ‼ מספר טלפון בשורה עברית נשבר במקף לשתי שורות («‎-052‎») — נמצא בהדמיה. כאן הוא נשאר יחד. */
+function Phones({ text }: { text: string }) {
+  const parts = text.split(/(\+?\d[\d-]{6,}\d)/);
+  return <>{parts.map((p, i) => (i % 2 ? <span key={i} className="ltr-isolate mt-nowrap">{p}</span> : p))}</>;
+}
+
+export default function InvitePreview({ input, org, tpl, fromEmail, date, time, move, meetLink, onEditWording, sample }: Props) {
+  const title = meetingTitle(input, org, tpl);
+  const paragraphs = inviteParagraphs(input, org, move, tpl);
   // ‼ רק טווח השעות מבודד משמאל-לימין; יום ותאריך זורמים בעברית. בידוד של כל המחרוזת
   // הפך את סדר הקריאה («12:30–12:00, 8 באוק׳») — נמצא בבדיקה בדפדפן.
   const range = (t: string, d: number) => <span className="ltr-isolate">{t}–{addMinutes(t, d)}</span>;
@@ -34,9 +45,12 @@ export default function InvitePreview({ input, org, fromEmail, date, time, move,
   const sender = organizerTitle(org) || 'המשרד';
 
   return (
-    <div className={`mt-preview ${why ? 'is-why' : ''}`}>
+    <div className="mt-preview">
       <p className="mt-preview-note">
-        המסגרת (שורת הנושא, כפתור ההצטרפות, כן/לא/אולי) היא של יומן Google. הכותרת והטקסט — בדיוק כפי שיישלחו.
+        {sample
+          ? <>דוגמה — לא לקוח אמיתי. המסגרת (שורת הנושא, כפתור ההצטרפות, כן/לא/אולי) היא של יומן Google; הכותרת והטקסט — בנוסח שיוצא.</>
+          : <>המסגרת (שורת הנושא, כפתור ההצטרפות, כן/לא/אולי) היא של יומן Google. הכותרת והטקסט — בדיוק כפי שיישלחו.</>}
+        {onEditWording && <> <button type="button" className="ui-linkbtn" onClick={onEditWording}>עריכת הנוסח ←</button></>}
       </p>
       <div className="mt-mail">
         <div className="mt-mail-head">
@@ -52,7 +66,7 @@ export default function InvitePreview({ input, org, fromEmail, date, time, move,
           </div>
         </div>
         <div className="mt-frame">
-          <div className="mt-frame-title">{why && <span className="mt-mark">1</span>}{title}</div>
+          <div className="mt-frame-title">{title}</div>
           <div className="mt-when">
             {move && <span className="mt-changed">השתנה</span>} {when} (שעון ישראל)
             {move && <div><s>{old}</s></div>}
@@ -65,21 +79,9 @@ export default function InvitePreview({ input, org, fromEmail, date, time, move,
           <div className="mt-rsvp">להגיע? <span>כן</span><span>אולי</span><span>לא</span></div>
         </div>
         <div className="mt-body">
-          {blocks.map((b, i) => (
-            <p key={b.key} className="mt-blk">{why && <span className="mt-mark">{i + 2}</span>}{b.text}</p>
-          ))}
+          {paragraphs.map((t, i) => <p key={i} className="mt-blk"><Phones text={t} /></p>)}
         </div>
       </div>
-      <button type="button" className="ui-linkbtn mt-why-toggle" aria-expanded={why} onClick={() => setWhy(w => !w)}>
-        {why ? 'הסתרת ההסברים' : 'למה כתוב כך?'}
-      </button>
-      {why && (
-        <ol className="mt-why">
-          {(['title', ...blocks.map(b => b.key)] as (keyof typeof INVITE_WHY)[]).map((k, i) => (
-            <li key={k}><span className="mt-mark">{i + 1}</span><span><b>{INVITE_WHY[k].label}</b> {INVITE_WHY[k].why}</span></li>
-          ))}
-        </ol>
-      )}
     </div>
   );
 }

@@ -5,13 +5,16 @@
 //   · שם מוצע מהעתקת וואטסאפ — לעולם לא מספר טלפון.
 //   · הנוסח: פנייה בשם, «ללא עלות» רק בהיכרות, שורת עדכון בראש בשינוי מועד,
 //     והחתימה מפרטי המשרד (בלי וואטסאפ — בלי מספר).
+//   · (סבב 3) הנוסח הוא תבנית: נוסח המשרד גובר, שדה ריק בשורה משלו מוריד את הפסקה,
+//     ונוסח המערכת מפיק בדיוק את הטקסט שיצא לפני שהתבנית נוספה.
 
 import { test, equal, assert, deepEqual } from '../../../testkit/tinyTest';
 import type { TestCase } from '../../../testkit/tinyTest';
 import {
   israelToUtcIso, utcToIsrael, addMinutes, extractEmails, suggestNameFromWhatsApp, isValidEmail,
-  meetingTitle, greeting, inviteBlocks, inviteDescription, organizerTitle, whatsappReminderText,
-  MOVE_NOTE_DEFAULT, INVITE_WHY, type InviteOrg,
+  meetingTitle, greeting, inviteParagraphs, inviteDescription, organizerTitle, whatsappReminderText,
+  meetingTemplateFor, fillInviteBody, fillInviteTitle, MEETING_TEMPLATE_DEFAULTS, MEETING_TEMPLATE_FIELDS,
+  MOVE_NOTE_DEFAULT, type InviteOrg,
 } from '../../../../supabase/functions/_shared/meetingInvite';
 
 const ORG: InviteOrg = { fullName: 'גיא ישר', firmName: 'ישר רואי חשבון', representativeType: 'רואה חשבון', phone: '050-0000000', whatsapp: '050-1111111', website: 'yasharcpa.co.il' };
@@ -78,12 +81,16 @@ export const TESTS: TestCase[] = [
     assert(d.endsWith('נתראה,\nגיא ישר, רו״ח\nישר רואי חשבון\n050-0000000 · yasharcpa.co.il'), 'חתימה');
   }),
   test('עבודה: נושא ומה להכין; בלי «ללא עלות»', () => {
-    const keys = inviteBlocks({ kind: 'work', guests: [], durationMin: 45, topic: 'דוח שנתי', prep: 'טופס 106\n\nאישור ניכוי' }, ORG).map(b => b.key);
-    deepEqual(keys, ['greet', 'whatWork', 'prepWork', 'join', 'confirm', 'reschedule', 'sign']);
-    const d = inviteDescription({ kind: 'work', guests: [], durationMin: 45, topic: 'דוח שנתי', prep: 'טופס 106\n\nאישור ניכוי' }, ORG);
+    const ps = inviteParagraphs({ kind: 'work', guests: [], durationMin: 45, topic: 'דוח שנתי', prep: 'טופס 106\n\nאישור ניכוי' }, ORG);
+    equal(ps.length, 7, 'פנייה · נושא · מה להכין · איך מצטרפים · לאשר · לשנות · חתימה');
+    const d = ps.join('\n\n');
     assert(d.includes('בנושא דוח שנתי. היא תימשך 45 דקות.'), 'נושא ומשך');
     assert(d.includes('מה כדאי להכין:\n• טופס 106\n• אישור ניכוי'), 'רשימה בלי שורות ריקות');
     assert(!d.includes('ללא עלות'), 'פגישת עבודה אינה «ללא עלות»');
+  }),
+  test('עבודה בלי מה להכין: הכותרת «מה כדאי להכין:» לא נשארת לבד', () => {
+    const d = inviteDescription({ kind: 'work', guests: [], durationMin: 45, topic: 'דוח שנתי' }, ORG);
+    assert(!d.includes('מה כדאי להכין'), 'בלי רשימה — בלי כותרת');
   }),
   test('בלי וואטסאפ וטלפון במשרד: אין מספר ריק בטקסט', () => {
     const d = inviteDescription({ kind: 'intro', guests: [], durationMin: 30 }, { fullName: 'רו״ח לדוגמה' });
@@ -91,18 +98,47 @@ export const TESTS: TestCase[] = [
     assert(!d.includes('בוואטסאפ'), 'בלי וואטסאפ');
   }),
   test('שינוי מועד: שורת העדכון בראש, ואז מי ביקש, ואז ההזמנה', () => {
-    const blocks = inviteBlocks({ kind: 'intro', guests: [{ email: 'a@x.com', name: 'דני' }], durationMin: 30 }, ORG,
+    const ps = inviteParagraphs({ kind: 'intro', guests: [{ email: 'a@x.com', name: 'דני' }], durationMin: 30 }, ORG,
       { date: '2026-10-08', time: '12:00', note: MOVE_NOTE_DEFAULT.guest });
-    equal(blocks[0].text, 'עדכון: הפגישה עברה ליום חמישי, 8 באוקטובר בשעה 12:00.');
-    equal(blocks[1].text, 'כפי שסיכמנו, קבענו מועד חדש. נתראה!');
-    equal(blocks[2].key, 'greet');
+    equal(ps[0], 'עדכון: הפגישה עברה ליום חמישי, 8 באוקטובר בשעה 12:00.');
+    equal(ps[1], 'כפי שסיכמנו, קבענו מועד חדש. נתראה!');
+    equal(ps[2], 'שלום דני,');
   }),
-  test('לכל פסקה יש הסבר «למה כתוב כך»', () => {
-    const all = [
-      ...inviteBlocks({ kind: 'intro', guests: [], durationMin: 30, note: 'x' }, ORG, { date: '2026-10-08', time: '10:00', note: 'y' }),
-      ...inviteBlocks({ kind: 'work', guests: [], durationMin: 45, prep: 'a' }, ORG),
-    ];
-    for (const b of all) assert(INVITE_WHY[b.key], `חסר הסבר ל-${b.key}`);
+
+  test('תבנית: נוסח המשרד גובר; שדה ריק או רווחים — נוסח המערכת', () => {
+    const saved = { meeting_intro: { subject: 'פגישת היכרות · [x] · {{names}}', body: '{{greeting}}\n\nשמחתי שפניתם!' }, meeting_work: { subject: '  ', body: '' } };
+    deepEqual(meetingTemplateFor('intro', saved), saved.meeting_intro);
+    deepEqual(meetingTemplateFor('work', saved), MEETING_TEMPLATE_DEFAULTS.work);
+    deepEqual(meetingTemplateFor('intro', null), MEETING_TEMPLATE_DEFAULTS.intro);
+    deepEqual(meetingTemplateFor('work', 'garbage'), MEETING_TEMPLATE_DEFAULTS.work);
+  }),
+  test('תבנית: מה שהמשרד כתב יוצא, עם השדות ממולאים', () => {
+    const tpl = { subject: 'פגישה עם {{names}}', body: '{{greeting}}\n\nשמחתי שפניתם! נדבר {{duration}}.\n\nנתראה,\n{{signature}}' };
+    const input = { kind: 'intro' as const, guests: [{ email: 'a@x.com', name: 'דני לוי' }], durationMin: 30 };
+    equal(meetingTitle(input, ORG, tpl), 'פגישה עם דני לוי');
+    equal(inviteDescription(input, ORG, undefined, tpl),
+      'שלום דני,\n\nשמחתי שפניתם! נדבר 30 דקות.\n\nנתראה,\nגיא ישר, רו״ח\nישר רואי חשבון\n050-0000000 · yasharcpa.co.il');
+  }),
+  test('תבנית: שדה ריק בשורה משלו מוריד את כל הפסקה; שדה ריק באמצע משפט — רק נעלם', () => {
+    const ps = fillInviteBody('שלום\n\n{{note}}\n\nלהכין:\n{{prepList}}\n\nכתבו ל-{{whatsapp}} או השיבו', { note: '', prepList: '', whatsapp: '' });
+    deepEqual(ps, ['שלום', 'כתבו ל- או השיבו']);
+  }),
+  test('תבנית: שדה לא מוכר נמחק — לא נשאר «{{…}}» אצל המוזמן', () => {
+    deepEqual(fillInviteBody('שלום {{nope}} דני', {}), ['שלום דני']);
+  }),
+  test('כותרת מתבנית: בלי שמות אין «·  ·», ושורה אחת', () => {
+    equal(fillInviteTitle('{{kind}} · {{names}} · {{organizer}}', { kind: 'שיחת היכרות', names: '', organizer: 'גיא' }), 'שיחת היכרות · גיא');
+    equal(fillInviteTitle('א\nב', {}), 'א ב');
+  }),
+  test('כותרת ריקה בתבנית ⇒ כותרת המערכת (לאירוע ביומן חייבת להיות כותרת)', () => {
+    equal(meetingTitle({ kind: 'intro', guests: [{ email: 'd@x.com', name: 'דני' }] }, ORG, { subject: '{{note}}', body: 'x' }),
+      'שיחת היכרות · דני · גיא ישר, רו״ח');
+  }),
+  test('לכל שדה בנוסח המערכת יש שם בעברית בעורך', () => {
+    const known = new Set(MEETING_TEMPLATE_FIELDS.map(f => f.token));
+    for (const t of Object.values(MEETING_TEMPLATE_DEFAULTS)) {
+      for (const m of `${t.subject}\n${t.body}`.match(/\{\{[a-zA-Z]+\}\}/g) ?? []) assert(known.has(m), `חסר שם ל-${m}`);
+    }
   }),
   test('תזכורת וואטסאפ: היום / מחר / יום בשבוע', () => {
     const g = { email: 'a@x.com', name: 'נועה כהן' };
