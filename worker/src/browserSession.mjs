@@ -34,6 +34,12 @@ const CDP_URL = 'http://localhost:9222';
 const SHAAM_ROOT = 'https://shaam.taxes.gov.il/';
 const SHAAM_ORIGIN = 'https://shaam.taxes.gov.il';
 
+// Preserve the separate Citrix origin used for manual terminal sessions.
+export function isShaamCitrixUrl(url) {
+  try { return new URL(url).origin === 'https://shaam-mf-emulator.taxes.gov.il'; }
+  catch { return false; }
+}
+
 // ‼ מחוץ לריפו בכוונה: הפרופיל מחזיק סשן מחובר חי. בתוך הריפו הוא היה נצפה
 // על ידי שרת הפיתוח (קרס ב-EBUSY על קובץ Cookies נעול — קרה בפועל), נראה
 // ל-git, ונגרר עם עותקי קוד.
@@ -85,7 +91,7 @@ export function launchDedicatedChrome() {
  */
 export async function focusShaamWindow(page) {
   try { await page.bringToFront(); } catch { /* לא קריטי — החלון עדיין נפתח */ }
-  if (!page.url().startsWith(SHAAM_ORIGIN)) {
+  if (!page.url().startsWith(SHAAM_ORIGIN) && !isShaamCitrixUrl(page.url())) {
     // ניווט רק כשהחלון עומד במקום אחר לגמרי (למשל about:blank אחרי פתיחה).
     await page.goto(SHAAM_ROOT, { waitUntil: 'domcontentloaded', timeout: 12000 })
       .catch(() => { /* דיאלוג אישור חוסם — זה בדיוק המצב שמחכים לו */ });
@@ -123,7 +129,8 @@ export async function attach() {
   // לאישור" נראים זהים — ואז היינו שולחים את הרו"ח לפתוח חלון שכבר פתוח.
   const running = await isDebugEndpointUp();
   try {
-    const browser = await chromium.connectOverCDP(CDP_URL, { timeout: 5000 });
+    // Preserve native downloads in this shared, human-operated Chrome profile.
+    const browser = await chromium.connectOverCDP(CDP_URL, { timeout: 5000, noDefaults: true });
     const context = browser.contexts()[0];
     if (!context) {
       await detach(browser);
@@ -168,6 +175,9 @@ export async function detach(browser) {
  * הוא כבר הראייה שהדומיין מגיב.
  */
 export async function detectShaam(page, { timeoutMs = 12000 } = {}) {
+  if (isShaamCitrixUrl(page.url())) {
+    return { reachable: true, detail: 'citrix_manual_work', title: await safeTitle(page), url: page.url() };
+  }
   if (page.url().startsWith(SHAAM_ORIGIN)) {
     return { reachable: true, detail: 'already_on_shaam', title: await safeTitle(page), url: page.url() };
   }
@@ -199,6 +209,7 @@ const NETWORK_FAILURE = /net::ERR_NAME_NOT_RESOLVED|net::ERR_CONNECTION_REFUSED|
 export async function classifyShaamAuth(page, { timeoutMs = 12000 } = {}) {
   const probe = await detectShaam(page, { timeoutMs });
   if (!probe.reachable) return { authenticated: false, state: 'unreachable', detail: probe.detail };
+  if (probe.detail === 'citrix_manual_work') return { authenticated: false, state: 'unknown', detail: probe.detail };
   if (probe.detail === 'navigation_blocked_likely_dialog') {
     return { authenticated: false, state: 'auth_required', detail: 'navigation_blocked' };
   }
@@ -1163,6 +1174,7 @@ const gmfState = (s) => {
  * שהרו"ח נשלח להסתכל בו נעלם לפני שהספיק להביט בו.
  */
 export async function isOnWorkScreen(page) {
+  if (isShaamCitrixUrl(page.url())) return true;
   const s = await snapPage(page);
   return /^\/gmf-(?!main-menu)/.test(s.pathname);
 }
