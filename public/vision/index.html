@@ -759,7 +759,9 @@ const STATIONS = [
   {k: 'leave', name: 'עזיבה', angle: 324, n: 5, desc: 'סוגרים מסודר, ומכאן המעגל חוזר לגיוס: לקוח שחוזר, או המלצה.'},
 ];
 const OFFICE = {k: 'office', name: 'המשרד', desc: 'מה שלא שייך ללקוח אחד: שיווק, צוות, המערכת והכספים של המשרד.'};
-const RUNGS = ['רשום', 'נלמד', 'כתוב', 'במערכת', 'רץ בלעדיי'];
+const RUNGS = ['רשום', 'מובן', 'כתוב', 'במערכת', 'רץ בלעדיי'];
+// גיא, 10.10: לכל מדרגה מבחן שאפשר לבדוק — מתי אתה שם
+const RUNG_TEST = ['אני יודע שהתהליך קיים. עוד לא ברור לי איך עושים אותו.', 'עשיתי אותו לפחות פעם אחת מתחילה ועד סוף, ואני יודע מה צריך בשבילו ומה יוצא ממנו.', 'יש הוראות שמישהו אחר יכול לעבוד לפיהן בלי לשאול אותי.', 'PIVO מנהל אותו: יודע מתי, שולח, מזכיר, ורואים איפה זה עומד.', 'רץ חודש שלם בלי שנגעתי בו. אם משהו נתקע, אני מקבל התראה.'];
 const E = (min, times, per) => ({min, times, per: !!per});
 /* רעיונות לתהליכים שכיחים, עם הערכת זמן התחלתית שאפשר לשנות */
 const CATALOG = {
@@ -1251,13 +1253,13 @@ function ringSVG(o = {}) {
   if (UI.seed && !o.print) s += `<g class="seed-g idle" data-drag="seed" tabindex="0" role="button" aria-label="${esc(`${UI.seed} מחכה למקום במעגל. גרור לתחנה`)}"><circle class="seed-halo" cx="${cx}" cy="${cy - 66}" r="13"/><circle class="seed" cx="${cx}" cy="${cy - 66}" r="7.5"/></g>`;
   return s + '</svg>';
 }
-const rkeyHTML = () => `<span><i style="border-color:var(--r0);background:var(--surface)"></i>רשום</span><span><i style="background:var(--fill)"></i>בדרך: נלמד, כתוב, במערכת</span><span><i style="background:var(--done)"></i>רץ בלעדיי</span>`;
+const rkeyHTML = () => `<span><i style="border-color:var(--r0);background:var(--surface)"></i>רשום</span><span><i style="background:var(--fill)"></i>בדרך: מובן, כתוב, במערכת</span><span><i style="background:var(--done)"></i>רץ בלעדיי</span>`;
 /* גיא, 7.10: «ריכוז כל התהליכים … בסוף ארצה לראות את כל התהליכים מול העיניים». כל התחנות
    לפי הסדר, מגיוס ועד עזיבה, וכל תהליך בשמו ובמדרגה שלו — בלי לרחף עם העכבר. המעגל נשאר
    רק בגרסה להדפסה, כתמונה מסכמת. */
 function procRowHTML(x) {
   const steps = [0, 1, 2, 3, 4].map(k => `<i style="${k <= x.r ? `background:${x.r === 4 ? 'var(--done)' : 'var(--fill)'};box-shadow:none` : ''}"></i>`).join('');
-  const ctrl = UI.readOnly ? '' : x.r < 4 ? `<button class="climb" type="button" data-act="rung" data-id="${x.p.id}" data-n="${x.r + 1}" aria-label="${esc(`העלה את ${quote(x.p.name)} ל«${RUNGS[x.r + 1]}»`)}" title="${esc(`העלה ל«${RUNGS[x.r + 1]}»`)}">${ICON.up}</button>` : `<span class="topmark" aria-hidden="true">${ICON.check}</span>`;
+  const ctrl = UI.readOnly ? '' : x.r < 4 ? `<button class="climb" type="button" data-act="rung" data-id="${x.p.id}" data-n="${x.r + 1}" aria-label="${esc(`העלה את ${quote(x.p.name)} ל«${RUNGS[x.r + 1]}»`)}" title="${esc(`העלה ל«${RUNGS[x.r + 1]}»: ${RUNG_TEST[x.r + 1]}`)}">${ICON.up}</button>` : `<span class="topmark" aria-hidden="true">${ICON.check}</span>`;
   const lvl = x.r === 4 ? (V.est(x.p) > 0 ? `<span class="psave">${hours(V.est(x.p))} ש׳ בחודש</span>` : UI.readOnly ? '<span class="plevel">רץ בלעדיי</span>' : `<button class="linkbtn plevel" type="button" data-act="freed" data-id="${x.p.id}">כמה זמן זה חוסך?</button>`) : `<span class="plevel">${RUNGS[x.r]}</span>`;
   return `<li class="prow${UI.bumpProc === x.p.id || UI.freshProc === x.p.id ? ' bump' : ''}"><span class="steps" role="img" aria-label="${esc(`מדרגה: ${RUNGS[x.r]}`)}">${steps}</span><button class="pname" type="button" data-act="proc" data-id="${x.p.id}">${esc(x.p.name)}</button>${lvl}${ctrl}</li>`;
 }
@@ -1605,7 +1607,7 @@ function openProc(id) {
     <div class="dform">
       <div class="field"><label for="pName">שם</label><input id="pName" name="name" type="text" value="${esc(p.name)}" required maxlength="80"></div>
       <div class="field"><span class="flabel" id="sLbl">באיזו תחנה</span><div class="radios" role="radiogroup" aria-labelledby="sLbl">${[...STATIONS, OFFICE].map(s => `<label><input type="radio" name="st" value="${s.k}" ${p.st === s.k ? 'checked' : ''}>${s.name}</label>`).join('')}</div></div>
-      <div class="field"><span class="flabel" id="rLbl">מדרגה</span><div class="radios" role="radiogroup" aria-labelledby="rLbl">${RUNGS.map((g, k) => `<label><input type="radio" name="rung" value="${k}" ${k === r ? 'checked' : ''}>${g}</label>`).join('')}</div></div>
+      <div class="field"><span class="flabel" id="rLbl">מדרגה</span><div class="radios" role="radiogroup" aria-labelledby="rLbl">${RUNGS.map((g, k) => `<label title="${esc(RUNG_TEST[k])}"><input type="radio" name="rung" value="${k}" ${k === r ? 'checked' : ''}>${g}</label>`).join('')}</div><p class="fhint" id="rTest">${esc(RUNG_TEST[r])}</p></div>
       <div class="field-row">
         <div class="field"><label for="pMin">כמה דקות כל פעם</label><input id="pMin" name="min" type="number" inputmode="numeric" min="0" step="any" value="${est.min}"></div>
         <div class="field"><label for="pTimes">כמה פעמים בחודש</label><input id="pTimes" name="times" type="number" inputmode="decimal" min="0" step="any" value="${est.times === '' ? '' : Math.round(est.times * 1000) / 1000}"></div>
@@ -1628,6 +1630,7 @@ function openProc(id) {
     save('procs'); renderAll(); toast('נשמר.');
   }, f => {
     ['min', 'times', 'per'].forEach(n => f.elements[n].addEventListener('input', calc)); calc();
+    f.querySelectorAll('input[name="rung"]').forEach(x => x.addEventListener('change', () => { $('#rTest').textContent = RUNG_TEST[+x.value]; }));
     twoStep(f.querySelector('#pDel'), 'לחץ שוב כדי למחוק', () => { S.procs = S.procs.filter(x => x.id !== p.id); save('procs'); closeDialog(true); renderAll(); toast(`${quote(p.name)} נמחק מהרשימה.`); });
   });
 }
