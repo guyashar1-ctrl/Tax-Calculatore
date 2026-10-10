@@ -32,6 +32,11 @@
   --shadow-lg:0 18px 40px -24px rgba(28,30,34,.35),0 4px 10px -6px rgba(28,30,34,.1);
   --lift:0 14px 26px -12px rgba(28,30,34,.45);
   --focus:rgba(63,95,143,.45); --glow:rgba(63,95,143,.28);
+  --w-me:#3f5f8f; --w-me-soft:#e8eef5; --w-me-ink:#34507a;
+  --w-client:#b5761c; --w-client-soft:#fbf1e1; --w-client-ink:#8a5a12;
+  --w-pivo:#2f9463; --w-pivo-soft:#e7f3ec; --w-pivo-ink:#24654e;
+  --w-ext:#7b5ea7; --w-ext-soft:#f1ecf7; --w-ext-ink:#5d4685;
+  --warn:#b5761c; --warn-soft:#fbf4e6;
   --font:'Heebo','Assistant',system-ui,-apple-system,'Segoe UI',sans-serif;
   --serif:'Frank Ruhl Libre','David Libre',Georgia,serif;
   --ease:cubic-bezier(.2,.8,.2,1); --spring:cubic-bezier(.3,1.45,.5,1);
@@ -55,6 +60,11 @@
     --shadow-lg:0 18px 40px -24px rgba(0,0,0,.8),0 4px 10px -6px rgba(0,0,0,.5);
     --lift:0 14px 26px -12px rgba(0,0,0,.8);
     --focus:rgba(154,182,230,.45); --glow:rgba(154,182,230,.3);
+    --w-me:#9ab6e6; --w-me-soft:#1e2734; --w-me-ink:#b4c9ee;
+    --w-client:#e0a85a; --w-client-soft:#2e2416; --w-client-ink:#ecc188;
+    --w-pivo:#57b98c; --w-pivo-soft:#152c25; --w-pivo-ink:#63c79c;
+    --w-ext:#b39ae0; --w-ext-soft:#261f33; --w-ext-ink:#c9b6ee;
+    --warn:#e0a85a; --warn-soft:#2a2215;
   }
 }
 :root[data-theme="dark"]{
@@ -75,6 +85,11 @@
   --shadow-lg:0 18px 40px -24px rgba(0,0,0,.8),0 4px 10px -6px rgba(0,0,0,.5);
   --lift:0 14px 26px -12px rgba(0,0,0,.8);
   --focus:rgba(154,182,230,.45); --glow:rgba(154,182,230,.3);
+  --w-me:#9ab6e6; --w-me-soft:#1e2734; --w-me-ink:#b4c9ee;
+  --w-client:#e0a85a; --w-client-soft:#2e2416; --w-client-ink:#ecc188;
+  --w-pivo:#57b98c; --w-pivo-soft:#152c25; --w-pivo-ink:#63c79c;
+  --w-ext:#b39ae0; --w-ext-soft:#261f33; --w-ext-ink:#c9b6ee;
+  --warn:#e0a85a; --warn-soft:#2a2215;
 }
 
 *,*::before,*::after{box-sizing:border-box}
@@ -564,6 +579,87 @@ details.est .est-body{display:grid;gap:10px;margin-top:8px}
 .dactions .push{margin-inline-start:auto}
 .calc{font-size:14px;color:var(--done-ink);font-weight:500}
 .hist{font-size:13px;color:var(--ink-3);line-height:1.7}
+/* ═══ מפת תהליך: צבע לכל מי שעושה ═══ */
+[data-who="me"]{--wc:var(--w-me);--wsoft:var(--w-me-soft);--wink:var(--w-me-ink)}
+[data-who="client"]{--wc:var(--w-client);--wsoft:var(--w-client-soft);--wink:var(--w-client-ink)}
+[data-who="pivo"]{--wc:var(--w-pivo);--wsoft:var(--w-pivo-soft);--wink:var(--w-pivo-ink)}
+[data-who="ext"]{--wc:var(--w-ext);--wsoft:var(--w-ext-soft);--wink:var(--w-ext-ink)}
+.dialog.wide{width:min(700px,100%)}
+.pm-head{display:grid;gap:6px}
+.pm-kicker{display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:13px;color:var(--ink-3)}
+.pm-rung{padding:2px 10px;border-radius:999px;background:var(--accent-soft);color:var(--accent);font-weight:500}
+.pm-rung.top{background:var(--done-soft);color:var(--done-ink)}
+.pm-cast{display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center;margin-top:14px;font-size:13.5px;color:var(--ink-3)}
+.pm-cast b{color:var(--ink-2);font-weight:600}
+.pm-cast-w,.pm-cast-h{display:inline-flex;align-items:center;gap:6px}
+.pm-cast-w i{width:9px;height:9px;border-radius:50%;background:var(--wc)}
+.pm-cast-h .ico{width:14px;height:14px}
+.pm-flow{list-style:none;margin:22px 0 0;padding:0}
+.pm-flow > li{position:relative;display:grid;grid-template-columns:34px minmax(0,1fr);column-gap:14px}
+.pm-flow > li::before{content:'';position:absolute;inset-inline-start:16px;top:34px;bottom:0;width:2px;border-radius:2px;background:var(--wc,var(--line-strong))}
+.pm-flow > li.pm-hand::before{top:0}
+.pm-flow > li:last-child::before{display:none}
+.pm-node{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;background:var(--wsoft);color:var(--wink);border:1.5px solid var(--wc);font-weight:700;font-size:14.5px;position:relative;z-index:1}
+.pm-io .pm-node{--wc:var(--line-strong);--wsoft:var(--sunk);--wink:var(--ink-3)}
+.pm-io.end .pm-node{--wc:var(--done);--wsoft:var(--done-soft);--wink:var(--done-ink)}
+.pm-io .pm-node .ico{width:15px;height:15px}
+.pm-io.end .pm-node .ico{stroke-width:2.2}
+.pm-body{padding:6px 0 24px;min-width:0;display:grid;gap:6px;justify-items:start}
+.pm-io.end .pm-body{padding-bottom:0}
+.pm-meta{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.pm-who{font-size:12.5px;font-weight:600;color:var(--wink)}
+.pm-if{font-size:12.5px;color:var(--ink-2);border:1px dashed var(--line-strong);border-radius:999px;padding:1px 9px}
+.pm-what{margin:0;font-size:15.5px;font-weight:500;color:var(--ink);line-height:1.5;text-wrap:pretty}
+.pm-lbl{font-size:12.5px;color:var(--ink-3);font-weight:500}
+.pm-io-t{margin:0;font-size:15px;color:var(--ink);font-weight:500;line-height:1.5;text-wrap:pretty}
+.pm-where{display:flex;flex-wrap:wrap;align-items:center;gap:4px}
+.crumb{display:inline-flex;align-items:center;min-height:26px;padding:2px 9px;border:1px solid var(--line-strong);border-bottom-width:2px;border-radius:7px;background:var(--surface);font-size:13px;color:var(--ink-2);line-height:1.35}
+.crumb-g{display:inline-flex;align-items:center;gap:4px}
+.crumb-sep{display:inline-grid;color:var(--ink-4)}
+.crumb-sep .ico{width:12px;height:12px}
+.pm-off{display:inline-flex;gap:6px;align-items:center;font-size:13px;color:var(--w-ext-ink);background:var(--w-ext-soft);border-radius:7px;padding:3px 9px;line-height:1.4}
+.pm-off .ico{width:13px;height:13px}
+.pm-tip{display:flex;gap:8px;align-items:flex-start;margin:2px 0 0;font-size:13.5px;color:var(--ink-2);background:var(--warn-soft);border-radius:9px;padding:7px 11px;line-height:1.5}
+.pm-tip .ico{color:var(--warn);margin-top:3px}
+.pm-hand{align-items:center;margin-top:-14px;padding-bottom:8px;min-height:38px}
+.pm-or{margin:-14px 0 0;padding-bottom:10px}
+.pm-or::before{background:repeating-linear-gradient(var(--line-strong) 0 4px,transparent 4px 8px)!important;top:0!important}
+.pm-or span{grid-column:2;justify-self:start;font-size:12.5px;font-weight:600;color:var(--ink-3);background:var(--sunk);border-radius:999px;padding:2px 12px;letter-spacing:.02em}
+.pm-hand-dot{justify-self:center;display:grid;place-items:center;width:24px;height:24px;border-radius:50%;background:var(--surface);color:var(--wc);position:relative;z-index:1}
+.pm-hand-dot .ico{width:16px;height:16px}
+.pm-hand-t{font-size:12.5px;color:var(--wink);font-weight:500}
+.pm-nudge{display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-top:8px;padding:10px 12px;border-radius:12px;background:var(--accent-soft);color:var(--accent-strong);font-size:13.5px}
+.pm-notes{margin-top:16px;font-size:14px;color:var(--ink-2)}
+.pm-notes summary{cursor:pointer;color:var(--ink-3);font-size:13.5px}
+.pm-notes p{white-space:pre-wrap;margin:8px 0 0;line-height:1.6}
+.pm-has{display:inline-grid;color:var(--ink-4);margin-inline-start:7px;vertical-align:-2px}
+.pm-has .ico{width:14px;height:14px}
+.pe-list{list-style:none;margin:0;padding:0;display:grid;gap:10px}
+.pe-step{display:grid;gap:8px;padding:12px;border:1px solid var(--line);border-radius:12px;background:var(--surface)}
+.pe-opt{display:flex;align-items:center;gap:10px}
+.pe-opt-l{flex:none;min-width:56px;font-size:13px;font-weight:500;color:var(--ink-3)}
+.pe-top{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.pe-n{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;background:var(--wsoft);color:var(--wink);font-size:13px;font-weight:700;flex:none}
+.pe-who{display:flex;gap:4px;flex-wrap:wrap}
+.pe-who label{position:relative;display:inline-flex;align-items:center;height:28px;padding:0 10px;border:1px solid var(--line-strong);border-radius:999px;font-size:13px;color:var(--ink-3);cursor:pointer;background:var(--surface)}
+.pe-who input{position:absolute;opacity:0;pointer-events:none}
+.pe-who label:has(input:checked){border-color:var(--wc);background:var(--wsoft);color:var(--wink);font-weight:600}
+.pe-who label:has(input:focus-visible){outline:2px solid var(--focus);outline-offset:2px}
+.pe-tools{display:flex;gap:2px;margin-inline-start:auto}
+.pe-t{width:30px;height:30px;border:0;border-radius:8px;background:none;display:grid;place-items:center;color:var(--ink-3);cursor:pointer}
+.pe-t:hover{background:var(--sunk);color:var(--ink)}
+.pe-t:disabled{opacity:.3;cursor:default;background:none}
+.pe-t.down .ico{transform:rotate(180deg)}
+.pe-in{width:100%;height:38px;padding:0 11px;border:1px solid var(--line-strong);border-radius:9px;background:var(--surface);color:var(--ink);font-size:14px;min-width:0}
+.pe-in.pe-what{height:42px;font-size:15px;font-weight:500}
+.pe-in::placeholder{color:var(--ink-4);font-weight:400}
+.pe-where-row{display:flex;gap:10px;align-items:center}
+.pe-where-row .pe-in{flex:1}
+.check.sm{font-size:13px;gap:7px;white-space:nowrap}
+.pe-more{display:flex;gap:16px;font-size:13px}
+.pe-more:empty{display:none}
+.pe-add{justify-self:start}
+@media (max-width:520px){.pe-where-row{flex-wrap:wrap}.pe-tools{margin-inline-start:0}}
 .wz-bar{display:flex;gap:6px;margin-top:16px}
 .wz-bar span{flex:1;height:4px;border-radius:2px;background:var(--sunk);transition:background .3s}
 .wz-bar span.on{background:var(--fill)}
@@ -724,6 +820,11 @@ const ICON = {
   plus: '<svg class="ico" viewBox="0 0 16 16"><path d="M8 3v10M3 8h10"/></svg>',
   print: '<svg class="ico" viewBox="0 0 16 16"><path d="M4.5 6V2.5h7V6M4.5 11.5h-2v-5h11v5h-2M4.5 9.5h7v4h-7z"/></svg>',
   close: '<svg class="ico" viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8"/></svg>',
+  play: '<svg class="ico" viewBox="0 0 16 16"><path d="M11 3.8v8.4L4.8 8z"/></svg>',
+  ball: '<svg class="ico" viewBox="0 0 16 16"><circle cx="8" cy="8" r="5"/><circle cx="8" cy="8" r="1.6" fill="currentColor"/></svg>',
+  ext: '<svg class="ico" viewBox="0 0 16 16"><path d="M9 3h4v4M13 3L7.5 8.5M11 9.5V13H3V5h3.5"/></svg>',
+  info: '<svg class="ico" viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.8"/><path d="M8 7.4v3.6M8 5.2v.1"/></svg>',
+  map: '<svg class="ico" viewBox="0 0 16 16"><path d="M2.5 4l3.5-1.5 4 1.5 3.5-1.5v9.5L10 13.5 6 12l-3.5 1.5zM6 2.5V12M10 4v9.5"/></svg>',
   chev: '<svg class="ico chev" viewBox="0 0 16 16"><path d="M10 4L6 8l4 4"/></svg>',
   pen: '<svg class="ico" viewBox="0 0 16 16"><path d="M10.5 3l2.5 2.5L6.5 12H4v-2.5z"/></svg>',
   bars: '<svg class="ico" viewBox="0 0 16 16"><path d="M3.5 13V9M8 13V4M12.5 13V7"/></svg>',
@@ -1281,7 +1382,7 @@ function procRowHTML(x) {
   const steps = [0, 1, 2, 3, 4].map(k => `<i style="${k <= x.r ? `background:${x.r === 4 ? 'var(--done)' : 'var(--fill)'};box-shadow:none` : ''}"></i>`).join('');
   const ctrl = UI.readOnly ? '' : x.r < 4 ? `<button class="climb" type="button" data-act="rung" data-id="${x.p.id}" data-n="${x.r + 1}" aria-label="${esc(`העלה את ${quote(x.p.name)} ל«${RUNGS[x.r + 1]}»`)}" title="${esc(`העלה ל«${RUNGS[x.r + 1]}»: ${RUNG_TEST[x.r + 1]}`)}">${ICON.up}</button>` : `<span class="topmark" aria-hidden="true">${ICON.check}</span>`;
   const lvl = `<span class="${x.r === 4 ? 'psave' : 'plevel'}">${RUNGS[x.r]}</span>`;
-  return `<li class="prow${UI.bumpProc === x.p.id || UI.freshProc === x.p.id ? ' bump' : ''}" id="pr-${x.p.id}"><span class="steps" role="img" aria-label="${esc(`מדרגה: ${RUNGS[x.r]}`)}">${steps}</span><button class="pname" type="button" data-act="proc" data-id="${x.p.id}">${esc(x.p.name)}</button>${lvl}${ctrl}</li>`;
+  return `<li class="prow${UI.bumpProc === x.p.id || UI.freshProc === x.p.id ? ' bump' : ''}" id="pr-${x.p.id}"><span class="steps" role="img" aria-label="${esc(`מדרגה: ${RUNGS[x.r]}`)}">${steps}</span><button class="pname" type="button" data-act="proc" data-id="${x.p.id}">${esc(x.p.name)}${hasFlow(x.p) ? `<span class="pm-has" title="יש מפה">${ICON.map}<span class="sr">, יש מפה</span></span>` : ''}</button>${lvl}${ctrl}</li>`;
 }
 function stationHTML(st) {
   const n = st.xs.length, isOffice = st.k === 'office', adding = UI.addSt === st.k;
@@ -1416,7 +1517,7 @@ function renderSheet() {
     const steps = [0, 1, 2, 3, 4].map(k => `<i style="${k <= x.r ? `background:${x.r === 4 ? 'var(--done)' : 'var(--fill)'};box-shadow:none` : ''}"></i>`).join('');
     const ctrl = x.r < 4 ? `<button class="climb" type="button" data-act="rung" data-id="${x.p.id}" data-n="${x.r + 1}" aria-label="${esc(`העלה את ${quote(x.p.name)} ל«${RUNGS[x.r + 1]}»`)}" title="העלה מדרגה">${ICON.up}</button>` : `<span class="topmark" aria-hidden="true">${ICON.check}</span>`;
     const lvl = x.r === 4 ? (V.est(x.p) > 0 ? `<span class="psave">${hours(V.est(x.p))} ש׳ בחודש</span>` : `<button class="linkbtn plevel" type="button" data-act="freed" data-id="${x.p.id}">כמה זמן זה חוסך?</button>`) : `<span class="plevel">${RUNGS[x.r]}</span>`;
-    return `<li class="prow${UI.bumpProc === x.p.id ? ' bump' : ''}"><span class="steps" role="img" aria-label="${esc(`מדרגה: ${RUNGS[x.r]}`)}">${steps}</span><button class="pname" type="button" data-act="proc" data-id="${x.p.id}">${esc(x.p.name)}</button>${lvl}${ctrl}</li>`;
+    return `<li class="prow${UI.bumpProc === x.p.id ? ' bump' : ''}"><span class="steps" role="img" aria-label="${esc(`מדרגה: ${RUNGS[x.r]}`)}">${steps}</span><button class="pname" type="button" data-act="proc" data-id="${x.p.id}">${esc(x.p.name)}${hasFlow(x.p) ? `<span class="pm-has" title="יש מפה">${ICON.map}<span class="sr">, יש מפה</span></span>` : ''}</button>${lvl}${ctrl}</li>`;
   }).join('');
   const have = new Set(S.procs.map(p => p.name));
   const ideas = (CATALOG[st.k] || []).filter(([n]) => !have.has(n));
@@ -1575,16 +1676,18 @@ function renderFoot() {
 
 /* ═══ חלונות ══════════════════════════════════════════════════════ */
 let lastFocus = null;
-function openDialog(html, onSubmit, init) {
+function openDialog(html, onSubmit, init, cls) {
   lastFocus = document.activeElement;
-  $('#dlgHost').innerHTML = `<div class="scrim" id="scrim"><div class="dialog" role="dialog" aria-modal="true" aria-labelledby="dlgTitle"><form id="dlgForm" autocomplete="off" novalidate>${html}</form></div></div>`;
+  $('#dlgHost').innerHTML = `<div class="scrim" id="scrim"><div class="dialog${cls ? ' ' + cls : ''}" role="dialog" aria-modal="true" aria-labelledby="dlgTitle"><form id="dlgForm" autocomplete="off" novalidate>${html}</form></div></div>`;
   const form = $('#dlgForm');
   form.addEventListener('submit', e => { e.preventDefault(); if (!form.checkValidity()) { form.reportValidity(); return; } if (onSubmit(new FormData(form), form) !== false) closeDialog(true); });
-  $('#scrim').addEventListener('pointerdown', e => { if (e.target.id === 'scrim') closeDialog(); });
+  $('#scrim').addEventListener('pointerdown', e => { if (e.target.id === 'scrim') softClose(); });
   form.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', () => closeDialog()));
   init && init(form);
   setTimeout(() => (form.querySelector('[autofocus]') || form.querySelector('input,textarea,button'))?.focus(), 30);
 }
+// מפה בעריכה לא נסגרת בלחיצה בצד או ב-Esc: עבודה של כמה דקות לא נעלמת בטעות
+function softClose() { if ($('#dlgForm')?.dataset.dirty) { toast('יש שינויים שלא נשמרו. «שמור» או «ביטול».'); return; } closeDialog(); }
 function closeDialog(submitted) { $('#dlgHost').innerHTML = ''; if (!submitted) lastFocus?.focus?.(); if (UI.pendingRender) { UI.pendingRender = false; renderAll(); } }
 /* מחיקה בשתי לחיצות, בלי חלון נוסף */
 function twoStep(btn, label, run) {
@@ -1642,46 +1745,162 @@ function openClient(id) {
     if (del) twoStep(del, 'לחץ שוב כדי למחוק', () => { S.clients = S.clients.filter(x => x.id !== c.id); save('clients'); closeDialog(true); renderAll(); toast(`הלבנה של ${c.name} הוסרה מהקיר.`); });
   });
 }
-function openProc(id) {
+/* ═══ מפת תהליך (גיא, 10.10): «שמי שעובר על זה יגיד וואו, הבנתי הכול».
+   כל צעד עונה על שלוש שאלות: מי עושה, מה בדיוק, ואיפה לוחצים. כשהצעד עובר ממישהו
+   למישהו, המפה אומרת «הכדור עובר», כמו «אצל מי הכדור» במשימות של PIVO. */
+const WHO = {
+  me: {name: 'אני', label: 'אני / המשרד', to: 'חוזר אליי'},
+  client: {name: 'הלקוח', label: 'הלקוח', to: 'עובר ללקוח'},
+  pivo: {name: 'PIVO לבד', label: 'PIVO לבד', to: 'עובר ל-PIVO'},
+  ext: {name: 'גורם חוץ', label: 'רשות / גורם חוץ', to: 'עובר לגורם חוץ'},
+};
+const WHO_KEYS = Object.keys(WHO);
+const cleanStep = s => ({who: WHO[s?.who] ? s.who : 'me', what: String(s?.what || '').trim(), where: String(s?.where || '').trim(), off: !!s?.off, cond: String(s?.cond || '').trim(), tip: String(s?.tip || '').trim()});
+const flowOf = p => p.flow && Array.isArray(p.flow.steps) ? {start: p.flow.start || '', end: p.flow.end || '', steps: p.flow.steps.map(cleanStep).filter(s => s.what)} : null;
+const hasFlow = p => !!flowOf(p)?.steps.length;
+// «לקוחות > + אדם חדש» → שני כפתורים עם חץ ביניהם. מקבל גם › ← <
+const crumbs = s => String(s || '').split(/\s*(?:›|‹|>|<|←|→)\s*/).map(x => x.trim()).filter(Boolean);
+const crumbsHTML = s => { const xs = crumbs(s); return xs.length ? `<div class="pm-where" aria-label="איפה ב-PIVO">${xs.map((x, i) => i ? `<span class="crumb-g"><span class="crumb-sep" aria-hidden="true">${ICON.chev}</span><span class="crumb">${esc(x)}</span></span>` : `<span class="crumb">${esc(x)}</span>`).join('')}</div>` : ''; };
+
+function flowViewHTML(f) {
+  const steps = f.steps, count = {};
+  steps.forEach(s => { count[s.who] = (count[s.who] || 0) + 1; });
+  // «הכדור עובר» רק בין צעדים באותו מסלול; בין «רק אם…» שונים זו חלופה, לא מסירה
+  const handAt = i => i > 0 && steps[i].who !== steps[i - 1].who && steps[i].cond === steps[i - 1].cond;
+  const hands = steps.filter((s, i) => handAt(i)).length;
+  const cast = `<p class="pm-cast"><b>${plural(steps.length, 'צעד אחד', 'צעדים')}</b>${WHO_KEYS.filter(k => count[k]).map(k => `<span class="pm-cast-w" data-who="${k}"><i></i>${WHO[k].name}: ${count[k]}</span>`).join('')}${hands ? `<span class="pm-cast-h">${ICON.ball}הכדור מחליף ידיים ${hands === 1 ? 'פעם אחת' : `${hands} פעמים`}</span>` : ''}</p>`;
+  const io = (cls, icon, lbl, t) => `<li class="pm-io ${cls}"><span class="pm-node" aria-hidden="true">${icon}</span><div class="pm-body"><span class="pm-lbl">${lbl}</span><p class="pm-io-t">${t ? esc(t) : '<span class="muted">לא נכתב</span>'}</p></div></li>`;
+  let li = io('start', ICON.play, 'מתחיל כש…', f.start);
+  steps.forEach((s, i) => {
+    if (i && s.cond && steps[i - 1].cond && s.cond !== steps[i - 1].cond) li += `<li class="pm-or" aria-hidden="true"><span>או</span></li>`;
+    if (handAt(i)) li += `<li class="pm-hand" data-who="${s.who}"><span class="pm-hand-dot" aria-hidden="true">${ICON.ball}</span><span class="pm-hand-t">הכדור ${WHO[s.who].to}</span></li>`;
+    li += `<li class="pm-step" data-who="${s.who}"><span class="pm-node num" aria-hidden="true">${i + 1}</span><div class="pm-body">
+      <div class="pm-meta"><span class="pm-who"><span class="sr">צעד ${i + 1}: </span>${WHO[s.who].label}</span>${s.cond ? `<span class="pm-if">רק אם ${esc(s.cond)}</span>` : ''}</div>
+      <p class="pm-what">${esc(s.what)}</p>
+      ${s.off ? `<span class="pm-off">${ICON.ext}מחוץ ל-PIVO${s.where ? ` · ${esc(s.where)}` : ''}</span>` : crumbsHTML(s.where)}
+      ${s.tip ? `<p class="pm-tip">${ICON.info}<span>${esc(s.tip)}</span></p>` : ''}
+    </div></li>`;
+  });
+  li += io('end', ICON.check, 'נגמר כש…', f.end);
+  return cast + `<ol class="pm-flow">${li}</ol>`;
+}
+const procHeadHTML = (p, r) => `<div class="pm-kicker"><span>${esc(stationByKey(p.st)?.name || '')}</span><span class="pm-rung${r === 4 ? ' top' : ''}">${RUNGS[r]}</span></div>`;
+// אחרי רענון מהשרת S.procs מתחלף; שומרים תמיד על העותק החי
+const liveProc = p => S.procs.find(x => x.id === p.id);
+
+function openProc(id, mode) {
   if (UI.readOnly) return;
   const p = S.procs.find(x => x.id === id); if (!p) return;
-  const r = V.rungOf(p), est = p.est || {min: '', times: '', per: false};
+  if (mode === 'edit' || !hasFlow(p)) openProcEdit(p); else openProcView(p);
+}
+function openProcView(p) {
+  const r = V.rungOf(p), f = flowOf(p);
+  const nudge = r < 2 && f.steps.length >= 2 ? `<div class="pm-nudge"><span>יש מפה שמישהו אחר יכול לעבוד לפיה בלי לשאול אותך? זו המדרגה «כתוב».</span><button class="btn sm" type="button" id="pmClimb">העלה ל«כתוב»</button></div>` : '';
+  openDialog(`<header class="pm-head">${procHeadHTML(p, r)}<h2 id="dlgTitle">${esc(p.name)}</h2></header>
+    ${flowViewHTML(f)}${nudge}
+    ${p.notes ? `<details class="pm-notes"><summary>הערות</summary><p>${esc(p.notes)}</p></details>` : ''}
+    <div class="dactions"><button class="btn primary" type="submit" autofocus>סגור</button><button class="btn" type="button" id="pmEdit">${ICON.pen}ערוך את המפה</button></div>`,
+  () => {}, form => {
+    form.querySelector('#pmEdit').addEventListener('click', () => { closeDialog(true); openProcEdit(liveProc(p) || p); });
+    form.querySelector('#pmClimb')?.addEventListener('click', () => { const q = liveProc(p); if (!q) return; closeDialog(true); changeRung(q.id, 2); openProcView(q); });
+  }, 'wide');
+}
+
+const stepEdHTML = (s, i, n) => `<li class="pe-step" data-who="${s.who}" data-i="${i}">
+  <div class="pe-top"><span class="pe-n num" aria-hidden="true">${i + 1}</span>
+    <div class="pe-who" role="radiogroup" aria-label="מי עושה את צעד ${i + 1}">${WHO_KEYS.map(k => `<label data-who="${k}"><input type="radio" name="who${i}" value="${k}" data-f="who" ${s.who === k ? 'checked' : ''}>${WHO[k].name}</label>`).join('')}</div>
+    <div class="pe-tools"><button type="button" class="pe-t" data-op="up" ${i === 0 ? 'disabled' : ''} aria-label="הזז את צעד ${i + 1} למעלה" title="למעלה">${ICON.up}</button><button type="button" class="pe-t down" data-op="down" ${i === n - 1 ? 'disabled' : ''} aria-label="הזז את צעד ${i + 1} למטה" title="למטה">${ICON.up}</button><button type="button" class="pe-t" data-op="del" aria-label="מחק את צעד ${i + 1}" title="מחק צעד">${ICON.close}</button></div></div>
+  <input class="pe-in pe-what" data-f="what" maxlength="200" value="${esc(s.what)}" placeholder="מה עושים? למשל: שולחים ללקוח קישור למילוי פרטים" aria-label="צעד ${i + 1}: מה עושים">
+  <div class="pe-where-row"><input class="pe-in" data-f="where" maxlength="160" value="${esc(s.where)}" placeholder="${s.off ? 'איפה? למשל: אתר ביטוח לאומי' : 'איפה ב-PIVO? למשל: לקוחות > + אדם חדש'}" aria-label="צעד ${i + 1}: איפה"><label class="check sm"><input type="checkbox" data-f="off" ${s.off ? 'checked' : ''}>מחוץ ל-PIVO</label></div>
+  ${s.cond || s.showCond ? `<div class="pe-opt"><span class="pe-opt-l">רק אם</span><input class="pe-in" data-f="cond" maxlength="120" value="${esc(s.cond)}" placeholder="למשל: הלקוח ממלא בעצמו" aria-label="צעד ${i + 1}: רק אם"></div>` : ''}
+  ${s.tip || s.showTip ? `<div class="pe-opt"><span class="pe-opt-l">שים לב</span><input class="pe-in" data-f="tip" maxlength="200" value="${esc(s.tip)}" placeholder="למשל: בלי מייל בכרטיס אי אפשר לשלוח" aria-label="צעד ${i + 1}: שים לב"></div>` : ''}
+  <div class="pe-more">${s.cond || s.showCond ? '' : `<button type="button" class="linkbtn quiet" data-op="cond">+ רק אם…</button>`}${s.tip || s.showTip ? '' : `<button type="button" class="linkbtn quiet" data-op="tip">+ שים לב</button>`}</div>
+</li>`;
+
+function openProcEdit(p) {
+  const r = V.rungOf(p), est = p.est || {min: '', times: '', per: false}, f0 = flowOf(p), had = hasFlow(p);
+  const blankStep = who => ({who: who || 'me', what: '', where: '', off: false, cond: '', tip: ''});
+  const draft = f0 && f0.steps.length ? f0.steps.map(s => ({...s})) : [blankStep()];
   const calc = () => { const f = $('#dlgForm'); if (!f) return; const mi = +f.elements.min.value, ti = +f.elements.times.value, per = f.elements.per.checked; $('#pCalc').textContent = mi && ti ? `היום זה בערך ${hoursTxt(mi * ti * (per ? V.active.length : 1) / 60)} בחודש${per ? ` (${V.active.length} לקוחות פעילים)` : ''}.` : 'מלא זמן ותדירות, והדף יחשב כמה שעות בחודש זה לוקח.'; };
-  openDialog(`<h2 id="dlgTitle">${esc(p.name)}</h2>
-    <p class="lead">נרשם ב־${dmy(p.hist[0][0])}.</p>
+  openDialog(`<h2 id="dlgTitle">${had ? 'עריכת המפה' : 'מיפוי התהליך'}: ${esc(p.name)}</h2>
+    <p class="lead">צעד טוב עונה על שלוש שאלות: <b>מי</b> עושה, <b>מה</b> בדיוק, ו<b>איפה</b> לוחצים. אחד ליד השני, מההתחלה עד הסוף.</p>
     <div class="dform">
-      <div class="field"><label for="pName">שם</label><input id="pName" name="name" type="text" value="${esc(p.name)}" required maxlength="80"></div>
-      <div class="field"><span class="flabel" id="sLbl">באיזו תחנה</span><div class="radios" role="radiogroup" aria-labelledby="sLbl">${[...STATIONS, OFFICE].map(s => `<label><input type="radio" name="st" value="${s.k}" ${p.st === s.k ? 'checked' : ''}>${s.name}</label>`).join('')}</div></div>
-      <div class="field"><span class="flabel" id="rLbl">מדרגה</span><div class="radios" role="radiogroup" aria-labelledby="rLbl">${RUNGS.map((g, k) => `<label title="${esc(RUNG_TEST[k])}"><input type="radio" name="rung" value="${k}" ${k === r ? 'checked' : ''}>${g}</label>`).join('')}</div><p class="fhint" id="rTest">${esc(RUNG_TEST[r])}</p></div>
-      <div class="field"><label for="pNotes">איך עושים</label><textarea id="pNotes" name="notes" maxlength="1500" placeholder="צעד אחר צעד, קישורים, למי פונים">${esc(p.notes)}</textarea></div>
-      <details class="est"><summary>כמה זמן זה לוקח? (לא חובה)</summary><div class="est-body">
+      <div class="field"><label for="pName">שם התהליך</label><input id="pName" name="name" type="text" value="${esc(p.name)}" required maxlength="80"></div>
       <div class="field-row">
-        <div class="field"><label for="pMin">כמה דקות כל פעם</label><input id="pMin" name="min" type="number" inputmode="numeric" min="0" step="any" value="${est.min}"></div>
-        <div class="field"><label for="pTimes">כמה פעמים בחודש</label><input id="pTimes" name="times" type="number" inputmode="decimal" min="0" step="any" value="${est.times === '' ? '' : Math.round(est.times * 1000) / 1000}"></div>
+        <div class="field"><label for="pmStart">מתחיל כש…</label><input id="pmStart" name="start" type="text" maxlength="160" value="${esc(f0?.start || '')}" placeholder="למשל: לקוח אישר הצעת מחיר"></div>
+        <div class="field"><label for="pmEnd">נגמר כש…</label><input id="pmEnd" name="end" type="text" maxlength="160" value="${esc(f0?.end || '')}" placeholder="למשל: בשורה כתוב «הושלם»"></div>
       </div>
-      <label class="check"><input type="checkbox" name="per" id="pPer" ${est.per ? 'checked' : ''}>לכל לקוח (הזמן גדל עם מספר הלקוחות)</label>
-      <p class="calc" id="pCalc" aria-live="polite"></p>
+      <div class="field"><span class="flabel">הצעדים, לפי הסדר</span><ol class="pe-list" id="peList"></ol><button class="btn ghost pe-add" type="button" id="peAdd">${ICON.plus}צעד</button></div>
+      <details class="est"><summary>תחנה, מדרגה, זמן והערות</summary><div class="est-body">
+        <div class="field"><span class="flabel" id="sLbl">באיזו תחנה</span><div class="radios" role="radiogroup" aria-labelledby="sLbl">${[...STATIONS, OFFICE].map(s => `<label><input type="radio" name="st" value="${s.k}" ${p.st === s.k ? 'checked' : ''}>${s.name}</label>`).join('')}</div></div>
+        <div class="field"><span class="flabel" id="rLbl">מדרגה</span><div class="radios" role="radiogroup" aria-labelledby="rLbl">${RUNGS.map((g, k) => `<label title="${esc(RUNG_TEST[k])}"><input type="radio" name="rung" value="${k}" ${k === r ? 'checked' : ''}>${g}</label>`).join('')}</div><p class="fhint" id="rTest">${esc(RUNG_TEST[r])}</p></div>
+        <div class="field"><label for="pNotes">הערות</label><textarea id="pNotes" name="notes" maxlength="1500" placeholder="קישורים, למי פונים, מה עוד חשוב לדעת">${esc(p.notes)}</textarea></div>
+        <div class="field-row">
+          <div class="field"><label for="pMin">כמה דקות כל פעם</label><input id="pMin" name="min" type="number" inputmode="numeric" min="0" step="any" value="${est.min}"></div>
+          <div class="field"><label for="pTimes">כמה פעמים בחודש</label><input id="pTimes" name="times" type="number" inputmode="decimal" min="0" step="any" value="${est.times === '' ? '' : Math.round(est.times * 1000) / 1000}"></div>
+        </div>
+        <label class="check"><input type="checkbox" name="per" id="pPer" ${est.per ? 'checked' : ''}>לכל לקוח (הזמן גדל עם מספר הלקוחות)</label>
+        <p class="calc" id="pCalc" aria-live="polite"></p>
+        <div class="hist">נרשם ב־${dmy(p.hist[0][0])}. היסטוריה: ${p.hist.filter(([d]) => d <= V.asOf).map(([d, k]) => `${RUNGS[k]} ${dmy(d)}`).join(' · ')}</div>
       </div></details>
-      <div class="hist">היסטוריה: ${p.hist.filter(([d]) => d <= V.asOf).map(([d, k]) => `${RUNGS[k]} ${dmy(d)}`).join(' · ')}</div>
     </div>
-    <div class="dactions"><button class="btn primary" type="submit">שמור</button><button class="btn" type="button" data-close>סגור</button><button class="btn ghost danger push" type="button" id="pDel">מחק את התהליך</button></div>`,
-  fd => {
-    p.name = (fd.get('name') || p.name).trim() || p.name;
+    <div class="dactions"><button class="btn primary" type="submit">שמור</button><button class="btn" type="button" id="peCancel">ביטול</button><button class="btn ghost danger push" type="button" id="pDel">מחק את התהליך</button></div>`,
+  (fd, form) => {
+    const q = liveProc(p); if (!q) { toast('התהליך כבר לא ברשימה.'); return; }
+    const half = draft.findIndex(s => !s.what.trim() && (s.where.trim() || s.cond.trim() || s.tip.trim()));
+    if (half >= 0) { form.querySelector(`.pe-step[data-i="${half}"] .pe-what`).focus(); toast(`בצעד ${half + 1} חסר «מה עושים».`); return false; }
+    const steps = draft.map(cleanStep).filter(s => s.what), start = String(fd.get('start') || '').trim(), end = String(fd.get('end') || '').trim();
+    q.name = String(fd.get('name') || q.name).trim() || q.name;
+    q.flow = steps.length || start || end ? {start, end, steps} : null;
+    q.notes = fd.get('notes') || '';
     const mi = +fd.get('min'), ti = +fd.get('times');
-    p.est = mi && ti ? {min: mi, times: ti, per: !!fd.get('per')} : null;
-    p.notes = fd.get('notes') || '';
+    q.est = mi && ti ? {min: mi, times: ti, per: !!fd.get('per')} : null;
     const nr = +fd.get('rung'), ns = fd.get('st');
-    if (nr !== r) setRung(p, nr);
-    if (ns && ns !== p.st) { p.st = ns; UI.freshProc = p.id; }
-    UI.bumpProc = p.id;
-    save('procs'); renderAll(); toast('נשמר.');
-  }, f => {
-    ['min', 'times', 'per'].forEach(n => f.elements[n].addEventListener('input', calc)); calc();
-    const ta = f.elements.notes, fit = () => { ta.style.height = 'auto'; ta.style.height = Math.min(ta.scrollHeight + 2, Math.round(innerHeight * .45)) + 'px'; };
-    ta.addEventListener('input', fit); requestAnimationFrame(fit);
-    f.querySelectorAll('input[name="rung"]').forEach(x => x.addEventListener('change', () => { $('#rTest').textContent = RUNG_TEST[+x.value]; }));
-    twoStep(f.querySelector('#pDel'), 'לחץ שוב כדי למחוק', () => { S.procs = S.procs.filter(x => x.id !== p.id); save('procs'); closeDialog(true); renderAll(); toast(`${quote(p.name)} נמחק מהרשימה.`); });
-  });
+    if (nr !== V.rungOf(q)) setRung(q, nr);
+    if (ns && ns !== q.st) { q.st = ns; UI.freshProc = q.id; }
+    UI.bumpProc = q.id;
+    save('procs'); renderAll();
+    if (hasFlow(q)) setTimeout(() => openProcView(q), 0); else toast('נשמר.');
+  }, form => {
+    const list = form.querySelector('#peList');
+    const dirty = () => { form.dataset.dirty = '1'; };
+    const draw = (focus) => {
+      list.innerHTML = draft.map((s, i) => stepEdHTML(s, i, draft.length)).join('');
+      if (focus) list.querySelector(focus)?.focus();
+    };
+    draw();
+    list.addEventListener('input', e => {
+      const el = e.target, li = el.closest('.pe-step'); if (!li || !el.dataset.f) return;
+      const s = draft[+li.dataset.i], k = el.dataset.f;
+      if (k === 'off') { s.off = el.checked; li.querySelector('[data-f="where"]').placeholder = s.off ? 'איפה? למשל: אתר ביטוח לאומי' : 'איפה ב-PIVO? למשל: לקוחות > + אדם חדש'; }
+      else if (k === 'who') { s.who = el.value; li.dataset.who = el.value; }
+      else s[k] = el.value;
+      dirty();
+    });
+    list.addEventListener('click', e => {
+      const b = e.target.closest('[data-op]'); if (!b) return;
+      const i = +b.closest('.pe-step').dataset.i, op = b.dataset.op;
+      if (op === 'up' || op === 'down') { const j = op === 'up' ? i - 1 : i + 1; [draft[i], draft[j]] = [draft[j], draft[i]]; draw(`.pe-step[data-i="${j}"] [data-op="${op}"]:not(:disabled), .pe-step[data-i="${j}"] .pe-what`); }
+      else if (op === 'del') { if (draft.length === 1) draft[0] = blankStep(); else draft.splice(i, 1); draw(`.pe-step[data-i="${Math.min(i, draft.length - 1)}"] .pe-what`); }
+      else if (op === 'cond') { draft[i].showCond = true; draw(`.pe-step[data-i="${i}"] [data-f="cond"]`); }
+      else if (op === 'tip') { draft[i].showTip = true; draw(`.pe-step[data-i="${i}"] [data-f="tip"]`); }
+      dirty();
+    });
+    // Enter בשדה של צעד לא שומר את כל החלון; בצעד האחרון הוא פותח צעד חדש
+    list.addEventListener('keydown', e => {
+      if (e.key !== 'Enter' || !e.target.classList.contains('pe-in')) return;
+      e.preventDefault();
+      const i = +e.target.closest('.pe-step').dataset.i;
+      if (i === draft.length - 1 && draft[i].what.trim()) { draft.push(blankStep(draft[i].who)); draw(`.pe-step[data-i="${i + 1}"] .pe-what`); dirty(); }
+    });
+    form.querySelector('#peAdd').addEventListener('click', () => { draft.push(blankStep(draft.at(-1)?.who)); draw(`.pe-step[data-i="${draft.length - 1}"] .pe-what`); dirty(); });
+    form.querySelector('#peCancel').addEventListener('click', () => { closeDialog(); if (had) openProcView(liveProc(p) || p); });
+    form.querySelectorAll('#pName, #pmStart, #pmEnd, #pNotes, [name="st"], [name="rung"], [name="min"], [name="times"], [name="per"]').forEach(x => x.addEventListener('input', dirty));
+    ['min', 'times', 'per'].forEach(n => form.elements[n].addEventListener('input', calc)); calc();
+    form.querySelectorAll('input[name="rung"]').forEach(x => x.addEventListener('change', () => { $('#rTest').textContent = RUNG_TEST[+x.value]; }));
+    twoStep(form.querySelector('#pDel'), 'לחץ שוב כדי למחוק', () => { S.procs = S.procs.filter(x => x.id !== p.id); save('procs'); closeDialog(true); renderAll(); toast(`${quote(p.name)} נמחק מהרשימה.`); });
+    if (!had) setTimeout(() => list.querySelector('.pe-what')?.focus(), 40);
+  }, 'wide');
 }
 
 function openFreed(id) {
@@ -2130,7 +2349,7 @@ function flushRender() { if (UI.pendingRender && !drag) { UI.pendingRender = fal
 
 /* ═══ אירועים ═════════════════════════════════════════════════════ */
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') { if ($('#dlgHost').innerHTML) closeDialog(); else if ($('#pviewHost').innerHTML) closePrint(); else if (UI.sheet) closeSheet(); else if (UI.editThing) { UI.editThing = false; renderWeek(); } }
+  if (e.key === 'Escape') { if ($('#dlgHost').innerHTML) softClose(); else if ($('#pviewHost').innerHTML) closePrint(); else if (UI.sheet) closeSheet(); else if (UI.editThing) { UI.editThing = false; renderWeek(); } }
   const trap = $('#dlgHost').innerHTML ? '#dlgHost' : UI.sheet ? '#sheetHost' : $('#pviewHost').innerHTML ? '#pviewHost' : null;
   if (e.key === 'Tab' && trap) {
     const f = $$(`${trap} button, ${trap} input, ${trap} textarea, ${trap} select`).filter(x => !x.disabled && x.offsetParent);
