@@ -391,6 +391,22 @@ ul{padding:0;list-style:none}
 .plist{display:grid}
 /* ריכוז כל התהליכים: התחנות לפי הסדר, וכל תהליך גלוי */
 .pmap{display:grid;gap:4px;margin:0;padding:0;list-style:none}
+.sys-top{display:flex;align-items:center;justify-content:space-between;gap:12px 20px;flex-wrap:wrap}
+.sys-top .big{flex-direction:column;align-items:flex-start;gap:6px;max-width:12em}
+.cyc{width:254px;height:200px;flex:none;max-width:100%}
+.cyc-st{cursor:pointer;outline:none}
+.cyc-hit{fill:none;stroke:transparent;stroke-width:34}
+.cyc-track{fill:none;stroke:var(--ring-track);stroke-width:13;stroke-linecap:butt;transition:stroke .2s}
+.cyc-fill{fill:none;stroke:var(--fill);stroke-width:13}
+.cyc-fill.done{stroke:var(--done)}
+.cyc-st:hover .cyc-track,.cyc-st:focus-visible .cyc-track{stroke:var(--accent-line)}
+.cyc-name{font-size:13px;font-weight:600;fill:var(--ink-2)}
+.cyc-arrow{fill:var(--ink-4)}
+.cyc-core{fill:var(--surface);stroke:var(--ring-track);stroke-width:5}
+.cyc-core-arc{fill:none;stroke:var(--fill);stroke-width:5}
+.cyc-core-arc.done{stroke:var(--done)}
+.cyc-core-t{font-size:12px;fill:var(--ink-3)}
+@media (max-width:640px){.cyc{width:240px;height:189px;margin-inline:auto}}
 .pst{display:grid;gap:2px;padding:12px 0 8px;border-top:1px solid var(--hair);border-radius:4px}
 .pst:first-child{border-top:0;padding-top:4px}
 .pst.flash{animation:rowflash 1.6s ease-out}
@@ -1277,6 +1293,29 @@ function stationHTML(st) {
     ${form}
   </li>`;
 }
+/* מעגל קטן מעל הרשימה (גיא, 10.10): התמונה, לא מקום העבודה. חמש קשתות לפי סדר המחזור,
+   כל אחת מתמלאת לפי כמה מהתחנה כבר רץ בלעדיי; השמות גלויים; לחיצה מקפיצה לתחנה ברשימה. */
+function cycleSVG() {
+  const W = 300, H = 236, c = W / 2, cy = H / 2, R = 62;
+  const pt = (a, r) => [c + r * Math.sin(a * Math.PI / 180), cy - r * Math.cos(a * Math.PI / 180)];
+  const arc = (a0, a1, r) => { const [x0, y0] = pt(a0, r), [x1, y1] = pt(a1, r); return `M${x0.toFixed(1)},${y0.toFixed(1)}A${r},${r} 0 ${a1 - a0 > 180 ? 1 : 0} 1 ${x1.toFixed(1)},${y1.toFixed(1)}`; };
+  let s = `<svg class="cyc" viewBox="0 0 ${W} ${H}" role="group" aria-label="${esc('המעגל: ' + V.stations.map(x => `${x.name} ${x.xs.length ? pct(x.m) : 'ריקה'}`).join(', '))}">`;
+  V.stations.forEach(st => {
+    const a0 = st.angle - 31, a1 = st.angle + 31, [lx, ly] = pt(st.angle, R + 33);
+    const anchor = Math.abs(lx - c) < 12 ? 'middle' : lx > c ? 'end' : 'start';
+    s += `<g class="cyc-st" data-act="station" data-st="${st.k}" role="button" tabindex="0" aria-label="${esc(`${st.name}: ${st.xs.length ? pct(st.m) + ' מהדרך' : 'ריקה'}. קפוץ לתחנה`)}">`;
+    s += `<path class="cyc-hit" d="${arc(a0, a1, R)}"/><path class="cyc-track" d="${arc(a0, a1, R)}"/>`;
+    if (st.m > 0) s += `<path class="cyc-fill${st.done ? ' done' : ''}" d="${arc(a0, a0 + (a1 - a0) * Math.max(st.m, .03), R)}"/>`;
+    s += `<text class="cyc-name" x="${lx.toFixed(1)}" y="${(ly + 4).toFixed(1)}" text-anchor="${anchor}">${st.name}</text></g>`;
+  });
+  const [ax, ay] = pt(0, R);
+  s += `<path class="cyc-arrow" d="M${ax - 4},${ay - 5}L${ax + 4},${ay}L${ax - 4},${ay + 5}Z"/>`;
+  const of = V.office;
+  s += `<g class="cyc-st" data-act="station" data-st="office" role="button" tabindex="0" aria-label="${esc(`המשרד: ${of.xs.length ? pct(of.m) + ' מהדרך' : 'ריק'}. קפוץ לתחנה`)}"><circle class="cyc-core" cx="${c}" cy="${cy}" r="33"/>`;
+  if (of.m > 0) s += `<path class="cyc-core-arc${of.done ? ' done' : ''}" d="${of.m >= .999 ? `M${c},${cy - 37}A37,37 0 1 1 ${c - .01},${cy - 37}` : arc(0, 360 * of.m, 37)}"/>`;
+  s += `<text class="cyc-core-t" x="${c}" y="${cy + 4}" text-anchor="middle">המשרד</text></g>`;
+  return s + '</svg>';
+}
 function renderSystem() {
   const el = $('#system');
   const off = UI.ready && !UI.readOnly ? '' : ' aria-disabled="true"';
@@ -1288,7 +1327,7 @@ function renderSystem() {
   el.innerHTML = `
     <div class="sec-head"><div><h2 class="sec-title" id="t-system">ריכוז כל התהליכים</h2><p class="sec-sub">מגיוס ועד עזיבה, ומה מהם כבר רץ בלעדיי</p></div>
       ${UI.readOnly ? '' : `<button class="btn ghost sm" type="button" data-act="capture"${off}>${ICON.plus}תהליך</button>`}</div>
-    <div class="big"><span class="big-num num" id="bigHrs">${hours(V.hrs)}</span><span class="big-unit">שעות בחודש שהמשרד עושה בלעדיי</span></div>
+    <div class="sys-top"><div class="big"><span class="big-num num" id="bigHrs">${hours(V.hrs)}</span><span class="big-unit">שעות בחודש שהמשרד עושה בלעדיי</span></div>${cycleSVG()}</div>
     <div id="captureZone"></div>
     <p class="pace">${line}</p>
     <ol class="pmap" aria-label="התחנות, מגיוס ועד עזיבה">${[...V.stations, V.office].map(stationHTML).join('')}</ol>
@@ -2089,6 +2128,7 @@ document.addEventListener('keydown', e => {
     if (e.shiftKey && document.activeElement === f[0]) { f.at(-1).focus(); e.preventDefault(); }
     else if (!e.shiftKey && document.activeElement === f.at(-1)) { f[0].focus(); e.preventDefault(); }
   }
+  if ((e.key === 'Enter' || e.key === ' ') && e.target.matches?.('.cyc-st')) { e.preventDefault(); e.target.dispatchEvent(new MouseEvent('click', {bubbles: true})); }
   if ((e.key === 'Enter' || e.key === ' ') && e.target.matches?.('.st, .bud-g, .seed-g')) {
     e.preventDefault();
     if (e.target.classList.contains('st')) openSheet(e.target.dataset.st);
