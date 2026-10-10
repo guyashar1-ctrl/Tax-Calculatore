@@ -330,7 +330,7 @@ try {
     const sc = await import(pathToFileURL(resolve(ROOT, 'supabase/functions/weekly-backup/scope.ts')).href);
     ok('F1 שם האובייקט מתחיל במזהה המשתמש', sc.backupObjectName(USER_ID, '2026-09-15') === `${USER_ID}/backup-2026-09-15.json`);
     ok('F2 מזהה משתמש פסול נדחה', (() => { try { sc.backupObjectName('../x', '2026-09-15'); return false; } catch { return true; } })());
-    ok('F3 כל 18 הטבלאות מתוחמות', sc.TABLES.length === 18 && sc.TABLES.every((t) => sc.TABLE_SCOPES[t]?.kind));
+    ok('F3 כל הטבלאות מתוחמות (הבקשות, הספרייה והמסלולים בפנים)', sc.TABLES.length >= 50 && sc.TABLES.every((t) => sc.TABLE_SCOPES[t]?.kind) && ['onboarding_steps', 'office_flows', 'journey_templates'].every((t) => t in sc.TABLE_SCOPES));
     ok('F4 authorized_users מתוחמת לכתובת של הפרופיל בלבד', sc.TABLE_SCOPES.authorized_users.kind === 'own_email');
     ok('F5 chunk מפצל רשימות ארוכות', sc.chunk([1, 2, 3, 4, 5], 2).length === 3);
 

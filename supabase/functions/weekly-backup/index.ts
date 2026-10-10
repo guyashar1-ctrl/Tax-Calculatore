@@ -15,26 +15,43 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { postResend, resendEmailsUrl } from "../_shared/resendResult.ts";
 import { isNotificationEnabled } from "../_shared/accountantNotifications.ts";
-import { TABLES, TABLE_SCOPES, backupObjectName, chunk } from "./scope.ts";
+import { EXCLUDED, TABLES, TABLE_SCOPES, backupObjectName, chunk, rowKey, type TableScope } from "./scope.ts";
 
 // ‼ ספק הדואר — Resend בייצור; ב-staging אפשר ספק מדומה שקולט (resendEmailsUrl).
 const RESEND_EMAILS = resendEmailsUrl(Deno.env.get("RESEND_API_URL"), Deno.env.get("SUPABASE_URL") ?? "");
 
 const PAGE = 1000;
 
-/** כל שורות הטבלה עבור פרופיל אחד, עם עימוד (ברירת המחדל מוגבלת ל-1000). */
+type Profile = { id: string; email: string | null; office_id: string | null };
+
+/** כל שורות הטבלה עבור פרופיל אחד, עם עימוד (ברירת המחדל מוגבלת ל-1000).
+ *  via קורא את מזהי ההורה מתוך מה שכבר נאסף (dump), ולכן ההורה מופיע קודם ב-TABLE_SCOPES. */
 // deno-lint-ignore no-explicit-any
-async function fetchScoped(admin: any, table: string, profile: { id: string; email: string | null }, sessionIds: string[]): Promise<unknown[] | null> {
-  const scope = TABLE_SCOPES[table];
+async function fetchScoped(admin: any, table: string, scope: TableScope, profile: Profile, dump: Record<string, unknown[]>): Promise<unknown[] | null> {
+  if (scope.kind === "any") {
+    const seen = new Map<string, unknown>();
+    for (const part of scope.of) {
+      const rows = await fetchScoped(admin, table, part, profile, dump);
+      if (rows === null) return null;
+      for (const r of rows) seen.set(rowKey(r as Record<string, unknown>), r);
+    }
+    return [...seen.values()];
+  }
+  // deno-lint-ignore no-explicit-any
   const filters: Array<(q: any) => any> = [];
-  if (scope.kind === "user_id") filters.push((q) => q.eq("user_id", profile.id));
+  if (scope.kind === "user_id") { const col = scope.column ?? "user_id"; filters.push((q) => q.eq(col, profile.id)); }
   else if (scope.kind === "profile_id") filters.push((q) => q.eq("id", profile.id));
-  else if (scope.kind === "own_email") {
+  else if (scope.kind === "office") {
+    if (!profile.office_id) return [];
+    filters.push((q) => q.eq("office_id", profile.office_id));
+  } else if (scope.kind === "own_email") {
     if (!profile.email) return [];
     filters.push((q) => q.eq("email", profile.email));
-  } else if (scope.kind === "session") {
-    if (!sessionIds.length) return [];
-    for (const ids of chunk(sessionIds)) filters.push((q) => q.in("session_id", ids));
+  } else if (scope.kind === "via") {
+    const ids = (dump[scope.parent] ?? []).map((r) => (r as { id?: unknown }).id).filter((v) => v != null);
+    if (!ids.length) return [];
+    const col = scope.column;
+    for (const part of chunk(ids)) filters.push((q) => q.in(col, part));
   }
 
   const rows: unknown[] = [];
@@ -78,27 +95,25 @@ Deno.serve(async (req: Request) => {
     // ‼ מי שכיבה את "דוח הגיבוי השבועי" במסך "המשרד" אינו מקבל את המייל.
     // הגיבוי עצמו נוצר ונשמר בכל מקרה — הכיבוי נוגע לדיווח בלבד.
     const { data: profileRows } = await admin
-      .from("profiles").select("id,email,communication,settings").limit(50);
-    const profiles = (profileRows ?? []) as Array<{ id: string; email: string | null; communication: unknown; settings: unknown }>;
+      .from("profiles").select("id,email,office_id,communication,settings").limit(50);
+    const profiles = (profileRows ?? []) as Array<Profile & { communication: unknown; settings: unknown }>;
 
     const nowIso = new Date().toISOString();
     const dateStr = nowIso.slice(0, 10);
-    const results: Array<{ userId: string; filename: string; sizeKb: number; counts: Record<string, number>; uploadError: string | null; notified: { to: string; ok: boolean; unknown?: boolean } | null }> = [];
-    let anyUploadFailed = false;
+    const results: Array<{ userId: string; filename: string; sizeKb: number; counts: Record<string, number>; unreadable: string[]; uploadError: string | null; notified: { to: string; ok: boolean; unknown?: boolean } | null }> = [];
+    let anyUploadFailed = false, anyUnreadable = false;
 
     for (const p of profiles) {
       // ── איסוף הטבלאות של הפרופיל הזה בלבד ──
-      const { data: sessRows } = await admin.from("annual_report_sessions").select("id").eq("user_id", p.id);
-      const sessionIds = (sessRows ?? []).map((s: { id: string }) => s.id);
       const dump: Record<string, unknown[]> = {};
       const counts: Record<string, number> = {};
       for (const t of TABLES) {
-        const rows = await fetchScoped(admin, t, p, sessionIds);
+        const rows = await fetchScoped(admin, t, TABLE_SCOPES[t], p, dump);
         dump[t] = rows ?? [];
         counts[t] = rows ? rows.length : -1;
       }
 
-      const payload = JSON.stringify({ generatedAt: nowIso, userId: p.id, counts, tables: dump }, null, 0);
+      const payload = JSON.stringify({ generatedAt: nowIso, userId: p.id, counts, excluded: EXCLUDED, tables: dump }, null, 0);
       const filename = backupObjectName(p.id, dateStr);
       const sizeKb = Math.round(payload.length / 1024);
 
@@ -106,7 +121,10 @@ Deno.serve(async (req: Request) => {
       const up = await admin.storage.from("backups").upload(filename, new Blob([payload], { type: "application/json" }), { upsert: true, contentType: "application/json" });
       const uploadFailed = !!up.error;
       anyUploadFailed ||= uploadFailed;
-      const entry = { userId: p.id, filename, sizeKb, counts, uploadError: up.error?.message ?? null, notified: null as { to: string; ok: boolean; unknown?: boolean } | null };
+      // ‼ טבלה שלא נקראה = גיבוי חלקי, לא «הושלם»
+      const unreadable = TABLES.filter((t) => counts[t] === -1);
+      anyUnreadable ||= unreadable.length > 0;
+      const entry = { userId: p.id, filename, sizeKb, counts, unreadable, uploadError: up.error?.message ?? null, notified: null as { to: string; ok: boolean; unknown?: boolean } | null };
       results.push(entry);
 
       // ‼ מי שכיבה את "דוח הגיבוי השבועי" במסך "המשרד" אינו מקבל את המייל.
@@ -116,16 +134,18 @@ Deno.serve(async (req: Request) => {
 
       // ── דיווח מצב במייל — בלי נתונים, בלי קובץ מצורף, ורק על הגיבוי של המשרד הזה ──
       const summaryLines = TABLES.map((t) => `${t}: ${counts[t]}`).join("\n");
-      const subject = `${uploadFailed ? "גיבוי שבועי נכשל" : "גיבוי שבועי הושלם"} - ${dateStr}`;
+      const subject = `${uploadFailed ? "גיבוי שבועי נכשל" : unreadable.length ? "גיבוי שבועי חלקי" : "גיבוי שבועי הושלם"} - ${dateStr}`;
       const statusLine = uploadFailed
         ? `<p style="color:#B42318;font-weight:700;">הגיבוי לא נשמר. שגיאה: ${up.error?.message ?? "לא ידועה"}</p>`
-        : `<p style="color:#067647;font-weight:700;">הגיבוי נשמר בדלי הפרטי "backups".</p>`;
+        : unreadable.length
+          ? `<p style="color:#B54708;font-weight:700;">הגיבוי נשמר, אבל ${unreadable.length === 1 ? "טבלה אחת לא נקראה" : `${unreadable.length} טבלאות לא נקראו`}: <span dir="ltr">${unreadable.join(", ")}</span></p>`
+          : `<p style="color:#067647;font-weight:700;">הגיבוי נשמר בדלי הפרטי "backups".</p>`;
       const html = `<div dir="rtl" style="font-family:Arial,sans-serif;font-size:14px;color:#1a1a1a;">
       <h2 style="margin:0 0 8px;">גיבוי שבועי - ${dateStr}</h2>
       ${statusLine}
       <p style="color:#555;">שם הקובץ: <strong dir="ltr">${filename}</strong> (${sizeKb}KB)</p>
       <pre style="background:#f5f5f5;padding:12px;border-radius:8px;font-size:12px;line-height:1.6;">${summaryLines}</pre>
-      <p style="color:#888;font-size:12px;">המייל הזה הוא דיווח בלבד - הנתונים עצמם אינם נשלחים במייל. הגיבוי אינו כולל את הקבצים עצמם (מסמכים/PDF).</p>
+      <p style="color:#888;font-size:12px;">המייל הזה הוא דיווח בלבד - הנתונים עצמם אינם נשלחים במייל. הגיבוי אינו כולל את הקבצים עצמם (מסמכים/PDF), ולא את חיבור היומן ומחשב העבודה — אחרי שחזור מחברים אותם מחדש.</p>
     </div>`;
 
       // הדיווח נשלח מהכתובת השולחת של המשרד עצמו.
@@ -151,7 +171,7 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    return json({ ok: !anyUploadFailed, dryRun, date: dateStr, backups: results });
+    return json({ ok: !anyUploadFailed && !anyUnreadable, dryRun, date: dateStr, backups: results });
   } catch (e) {
     return json({ error: String(e) }, 500);
   }
