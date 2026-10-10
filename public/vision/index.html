@@ -1677,6 +1677,8 @@ function openProc(id) {
     save('procs'); renderAll(); toast('נשמר.');
   }, f => {
     ['min', 'times', 'per'].forEach(n => f.elements[n].addEventListener('input', calc)); calc();
+    const ta = f.elements.notes, fit = () => { ta.style.height = 'auto'; ta.style.height = Math.min(ta.scrollHeight + 2, Math.round(innerHeight * .45)) + 'px'; };
+    ta.addEventListener('input', fit); requestAnimationFrame(fit);
     f.querySelectorAll('input[name="rung"]').forEach(x => x.addEventListener('change', () => { $('#rTest').textContent = RUNG_TEST[+x.value]; }));
     twoStep(f.querySelector('#pDel'), 'לחץ שוב כדי למחוק', () => { S.procs = S.procs.filter(x => x.id !== p.id); save('procs'); closeDialog(true); renderAll(); toast(`${quote(p.name)} נמחק מהרשימה.`); });
   });
