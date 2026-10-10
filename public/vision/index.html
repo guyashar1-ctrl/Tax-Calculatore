@@ -579,87 +579,67 @@ details.est .est-body{display:grid;gap:10px;margin-top:8px}
 .dactions .push{margin-inline-start:auto}
 .calc{font-size:14px;color:var(--done-ink);font-weight:500}
 .hist{font-size:13px;color:var(--ink-3);line-height:1.7}
-/* ═══ מפת תהליך: צבע לכל מי שעושה ═══ */
+/* ═══ מפת תהליך: צבע המספר = מי שעושה ═══ */
 [data-who="me"]{--wc:var(--w-me);--wsoft:var(--w-me-soft);--wink:var(--w-me-ink)}
 [data-who="client"]{--wc:var(--w-client);--wsoft:var(--w-client-soft);--wink:var(--w-client-ink)}
 [data-who="pivo"]{--wc:var(--w-pivo);--wsoft:var(--w-pivo-soft);--wink:var(--w-pivo-ink)}
 [data-who="ext"]{--wc:var(--w-ext);--wsoft:var(--w-ext-soft);--wink:var(--w-ext-ink)}
-.dialog.wide{width:min(700px,100%)}
-.pm-head{display:grid;gap:6px}
-.pm-kicker{display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:13px;color:var(--ink-3)}
-.pm-rung{padding:2px 10px;border-radius:999px;background:var(--accent-soft);color:var(--accent);font-weight:500}
-.pm-rung.top{background:var(--done-soft);color:var(--done-ink)}
-.pm-cast{display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center;margin-top:14px;font-size:13.5px;color:var(--ink-3)}
-.pm-cast b{color:var(--ink-2);font-weight:600}
-.pm-cast-w,.pm-cast-h{display:inline-flex;align-items:center;gap:6px}
-.pm-cast-w i{width:9px;height:9px;border-radius:50%;background:var(--wc)}
-.pm-cast-h .ico{width:14px;height:14px}
-.pm-flow{list-style:none;margin:22px 0 0;padding:0}
-.pm-flow > li{position:relative;display:grid;grid-template-columns:34px minmax(0,1fr);column-gap:14px}
-.pm-flow > li::before{content:'';position:absolute;inset-inline-start:16px;top:34px;bottom:0;width:2px;border-radius:2px;background:var(--wc,var(--line-strong))}
-.pm-flow > li.pm-hand::before{top:0}
-.pm-flow > li:last-child::before{display:none}
-.pm-node{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;background:var(--wsoft);color:var(--wink);border:1.5px solid var(--wc);font-weight:700;font-size:14.5px;position:relative;z-index:1}
-.pm-io .pm-node{--wc:var(--line-strong);--wsoft:var(--sunk);--wink:var(--ink-3)}
-.pm-io.end .pm-node{--wc:var(--done);--wsoft:var(--done-soft);--wink:var(--done-ink)}
-.pm-io .pm-node .ico{width:15px;height:15px}
-.pm-io.end .pm-node .ico{stroke-width:2.2}
-.pm-body{padding:6px 0 24px;min-width:0;display:grid;gap:6px;justify-items:start}
-.pm-io.end .pm-body{padding-bottom:0}
-.pm-meta{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
-.pm-who{font-size:12.5px;font-weight:600;color:var(--wink)}
-.pm-if{font-size:12.5px;color:var(--ink-2);border:1px dashed var(--line-strong);border-radius:999px;padding:1px 9px}
-.pm-what{margin:0;font-size:15.5px;font-weight:500;color:var(--ink);line-height:1.5;text-wrap:pretty}
-.pm-lbl{font-size:12.5px;color:var(--ink-3);font-weight:500}
-.pm-io-t{margin:0;font-size:15px;color:var(--ink);font-weight:500;line-height:1.5;text-wrap:pretty}
-.pm-where{display:flex;flex-wrap:wrap;align-items:center;gap:4px}
-.crumb{display:inline-flex;align-items:center;min-height:26px;padding:2px 9px;border:1px solid var(--line-strong);border-bottom-width:2px;border-radius:7px;background:var(--surface);font-size:13px;color:var(--ink-2);line-height:1.35}
-.crumb-g{display:inline-flex;align-items:center;gap:4px}
-.crumb-sep{display:inline-grid;color:var(--ink-4)}
-.crumb-sep .ico{width:12px;height:12px}
-.pm-off{display:inline-flex;gap:6px;align-items:center;font-size:13px;color:var(--w-ext-ink);background:var(--w-ext-soft);border-radius:7px;padding:3px 9px;line-height:1.4}
-.pm-off .ico{width:13px;height:13px}
-.pm-tip{display:flex;gap:8px;align-items:flex-start;margin:2px 0 0;font-size:13.5px;color:var(--ink-2);background:var(--warn-soft);border-radius:9px;padding:7px 11px;line-height:1.5}
-.pm-tip .ico{color:var(--warn);margin-top:3px}
-.pm-hand{align-items:center;margin-top:-14px;padding-bottom:8px;min-height:38px}
-.pm-or{margin:-14px 0 0;padding-bottom:10px}
-.pm-or::before{background:repeating-linear-gradient(var(--line-strong) 0 4px,transparent 4px 8px)!important;top:0!important}
-.pm-or span{grid-column:2;justify-self:start;font-size:12.5px;font-weight:600;color:var(--ink-3);background:var(--sunk);border-radius:999px;padding:2px 12px;letter-spacing:.02em}
-.pm-hand-dot{justify-self:center;display:grid;place-items:center;width:24px;height:24px;border-radius:50%;background:var(--surface);color:var(--wc);position:relative;z-index:1}
-.pm-hand-dot .ico{width:16px;height:16px}
-.pm-hand-t{font-size:12.5px;color:var(--wink);font-weight:500}
-.pm-nudge{display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-top:8px;padding:10px 12px;border-radius:12px;background:var(--accent-soft);color:var(--accent-strong);font-size:13.5px}
+.dialog.wide{width:min(620px,100%)}
+.pm-head{display:flex;gap:12px;align-items:flex-end;justify-content:space-between}
+.pm-head h2{margin-top:4px}
+.pm-kicker{font-size:13px;color:var(--ink-3)}
+.pm-all{flex:none;font-size:13px;text-decoration:none;padding-bottom:3px}
+.pm-edge{display:flex;gap:10px;align-items:baseline;margin:22px 0 0;font-size:14.5px;color:var(--ink-2);line-height:1.5}
+.pm-edge > span:first-of-type{flex:none;font-size:13px;color:var(--ink-3)}
+.pm-edge.end{margin-top:10px}
+.pm-edge.end .ico{flex:none;align-self:center;color:var(--done);stroke-width:2.2}
+.pm-flow{list-style:none;margin:12px 0 0;padding:0;border-block:1px solid var(--hair)}
+.pm-step{display:grid;grid-template-columns:26px minmax(0,1fr);gap:12px;align-items:start}
+.pm-step + .pm-step{border-top:1px solid var(--hair)}
+.pm-num{width:26px;height:26px;margin-top:9px;border-radius:50%;display:grid;place-items:center;background:var(--wsoft);color:var(--wink);font-size:13px;font-weight:700}
+.pm-line{position:relative;display:block;width:100%;margin:0;padding:11px 0;border:0;background:none;text-align:start;font:inherit;font-size:15.5px;color:var(--ink);line-height:1.5}
+button.pm-line{cursor:pointer;padding-inline-end:26px}
+@media (hover:hover){button.pm-line:hover{color:var(--accent-strong)}}
+button.pm-line .ico{position:absolute;inset-inline-end:2px;top:16px;width:14px;height:14px;color:var(--ink-4);transform:rotate(-90deg);transition:transform .15s}
+button.pm-line[aria-expanded="true"] .ico{transform:rotate(90deg)}
+.pm-who{font-weight:600;color:var(--wink)}
+.pm-if{color:var(--ink-3)}
+.pm-det{display:grid;gap:5px;padding:0 0 12px;font-size:13.5px;color:var(--ink-3);line-height:1.5}
+.pm-path{color:var(--ink-2)}
+.pm-path .ico,.pm-tip .ico{width:14px;height:14px;vertical-align:-2px;margin-inline-end:5px}
+.pm-path .ico{color:var(--w-ext)}
+.pm-tip .ico{color:var(--warn)}
+.pm-arr{color:var(--ink-4)}
+.pm-or{padding:2px 0 2px 0;padding-inline-start:38px;font-size:12.5px;color:var(--ink-4);border-top:1px solid var(--hair)}
+.pm-or + .pm-step{border-top:0}
+.pm-nudge{display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-top:16px;padding:10px 12px;border-radius:12px;background:var(--accent-soft);color:var(--accent-strong);font-size:13.5px}
 .pm-notes{margin-top:16px;font-size:14px;color:var(--ink-2)}
 .pm-notes summary{cursor:pointer;color:var(--ink-3);font-size:13.5px}
 .pm-notes p{white-space:pre-wrap;margin:8px 0 0;line-height:1.6}
 .pm-has{display:inline-grid;color:var(--ink-4);margin-inline-start:7px;vertical-align:-2px}
 .pm-has .ico{width:14px;height:14px}
-.pe-list{list-style:none;margin:0;padding:0;display:grid;gap:10px}
-.pe-step{display:grid;gap:8px;padding:12px;border:1px solid var(--line);border-radius:12px;background:var(--surface)}
-.pe-opt{display:flex;align-items:center;gap:10px}
-.pe-opt-l{flex:none;min-width:56px;font-size:13px;font-weight:500;color:var(--ink-3)}
-.pe-top{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.pe-n{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;background:var(--wsoft);color:var(--wink);font-size:13px;font-weight:700;flex:none}
-.pe-who{display:flex;gap:4px;flex-wrap:wrap}
-.pe-who label{position:relative;display:inline-flex;align-items:center;height:28px;padding:0 10px;border:1px solid var(--line-strong);border-radius:999px;font-size:13px;color:var(--ink-3);cursor:pointer;background:var(--surface)}
-.pe-who input{position:absolute;opacity:0;pointer-events:none}
-.pe-who label:has(input:checked){border-color:var(--wc);background:var(--wsoft);color:var(--wink);font-weight:600}
-.pe-who label:has(input:focus-visible){outline:2px solid var(--focus);outline-offset:2px}
-.pe-tools{display:flex;gap:2px;margin-inline-start:auto}
-.pe-t{width:30px;height:30px;border:0;border-radius:8px;background:none;display:grid;place-items:center;color:var(--ink-3);cursor:pointer}
+.pe-list{list-style:none;margin:0;padding:0;border-top:1px solid var(--hair)}
+.pe-step{display:grid;grid-template-columns:24px auto minmax(0,1fr) auto;gap:8px;align-items:center;padding:10px 0;border-bottom:1px solid var(--hair)}
+.pe-n{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;background:var(--wsoft);color:var(--wink);font-size:13px;font-weight:700}
+.pe-who{height:38px;padding:0 8px;border:1px solid var(--line-strong);border-radius:9px;background:var(--wsoft);color:var(--wink);font:inherit;font-size:13.5px;font-weight:600;cursor:pointer}
+.pe-tools{display:flex}
+.pe-t{width:28px;height:28px;border:0;border-radius:7px;background:none;display:grid;place-items:center;color:var(--ink-4);cursor:pointer}
 .pe-t:hover{background:var(--sunk);color:var(--ink)}
 .pe-t:disabled{opacity:.3;cursor:default;background:none}
+.pe-t .ico{width:14px;height:14px}
 .pe-t.down .ico{transform:rotate(180deg)}
 .pe-in{width:100%;height:38px;padding:0 11px;border:1px solid var(--line-strong);border-radius:9px;background:var(--surface);color:var(--ink);font-size:14px;min-width:0}
-.pe-in.pe-what{height:42px;font-size:15px;font-weight:500}
-.pe-in::placeholder{color:var(--ink-4);font-weight:400}
-.pe-where-row{display:flex;gap:10px;align-items:center}
-.pe-where-row .pe-in{flex:1}
+.pe-in.pe-what{font-size:15px}
+.pe-in::placeholder{color:var(--ink-4)}
+.pe-sub{grid-column:3/5;display:grid;gap:6px}
+.pe-sub .pe-in{height:34px;font-size:13.5px;border-color:var(--line)}
+.pe-where{display:flex;gap:12px;align-items:center}
+.pe-where .linkbtn{font-size:13px;flex:none}
+.pe-opt{display:flex;align-items:center;gap:10px}
+.pe-opt-l{flex:none;min-width:48px;font-size:13px;color:var(--ink-3)}
 .check.sm{font-size:13px;gap:7px;white-space:nowrap}
-.pe-more{display:flex;gap:16px;font-size:13px}
-.pe-more:empty{display:none}
-.pe-add{justify-self:start}
-@media (max-width:520px){.pe-where-row{flex-wrap:wrap}.pe-tools{margin-inline-start:0}}
+.pe-add{justify-self:start;margin-top:4px}
+@media (max-width:520px){.pe-step{grid-template-columns:24px 1fr auto}.pe-what{grid-column:1/-1;grid-row:2}.pe-sub{grid-column:1/-1}}
 .wz-bar{display:flex;gap:6px;margin-top:16px}
 .wz-bar span{flex:1;height:4px;border-radius:2px;background:var(--sunk);transition:background .3s}
 .wz-bar span.on{background:var(--fill)}
@@ -820,8 +800,6 @@ const ICON = {
   plus: '<svg class="ico" viewBox="0 0 16 16"><path d="M8 3v10M3 8h10"/></svg>',
   print: '<svg class="ico" viewBox="0 0 16 16"><path d="M4.5 6V2.5h7V6M4.5 11.5h-2v-5h11v5h-2M4.5 9.5h7v4h-7z"/></svg>',
   close: '<svg class="ico" viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8"/></svg>',
-  play: '<svg class="ico" viewBox="0 0 16 16"><path d="M11 3.8v8.4L4.8 8z"/></svg>',
-  ball: '<svg class="ico" viewBox="0 0 16 16"><circle cx="8" cy="8" r="5"/><circle cx="8" cy="8" r="1.6" fill="currentColor"/></svg>',
   ext: '<svg class="ico" viewBox="0 0 16 16"><path d="M9 3h4v4M13 3L7.5 8.5M11 9.5V13H3V5h3.5"/></svg>',
   info: '<svg class="ico" viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.8"/><path d="M8 7.4v3.6M8 5.2v.1"/></svg>',
   map: '<svg class="ico" viewBox="0 0 16 16"><path d="M2.5 4l3.5-1.5 4 1.5 3.5-1.5v9.5L10 13.5 6 12l-3.5 1.5zM6 2.5V12M10 4v9.5"/></svg>',
@@ -1745,46 +1723,38 @@ function openClient(id) {
     if (del) twoStep(del, 'לחץ שוב כדי למחוק', () => { S.clients = S.clients.filter(x => x.id !== c.id); save('clients'); closeDialog(true); renderAll(); toast(`הלבנה של ${c.name} הוסרה מהקיר.`); });
   });
 }
-/* ═══ מפת תהליך (גיא, 10.10): «שמי שעובר על זה יגיד וואו, הבנתי הכול».
-   כל צעד עונה על שלוש שאלות: מי עושה, מה בדיוק, ואיפה לוחצים. כשהצעד עובר ממישהו
-   למישהו, המפה אומרת «הכדור עובר», כמו «אצל מי הכדור» במשימות של PIVO. */
+/* ═══ מפת תהליך (גיא, 10.10): «שמי שעובר על זה יגיד וואו, הבנתי הכול» — ואחר כך «עמוס לי».
+   במבט ראשון: משפט אחד לכל צעד, ומספר בצבע של מי שעושה אותו. איפה לוחצים ומה לשים לב
+   נפתחים בלחיצה על הצעד, או כולם יחד ב«כל הפרטים». */
 const WHO = {
-  me: {name: 'אני', label: 'אני / המשרד', to: 'חוזר אליי'},
-  client: {name: 'הלקוח', label: 'הלקוח', to: 'עובר ללקוח'},
-  pivo: {name: 'PIVO לבד', label: 'PIVO לבד', to: 'עובר ל-PIVO'},
-  ext: {name: 'גורם חוץ', label: 'רשות / גורם חוץ', to: 'עובר לגורם חוץ'},
+  me: {name: 'אני'},
+  client: {name: 'הלקוח'},
+  pivo: {name: 'PIVO'},
+  ext: {name: 'גורם חוץ'},
 };
 const WHO_KEYS = Object.keys(WHO);
 const cleanStep = s => ({who: WHO[s?.who] ? s.who : 'me', what: String(s?.what || '').trim(), where: String(s?.where || '').trim(), off: !!s?.off, cond: String(s?.cond || '').trim(), tip: String(s?.tip || '').trim()});
 const flowOf = p => p.flow && Array.isArray(p.flow.steps) ? {start: p.flow.start || '', end: p.flow.end || '', steps: p.flow.steps.map(cleanStep).filter(s => s.what)} : null;
 const hasFlow = p => !!flowOf(p)?.steps.length;
-// «לקוחות > + אדם חדש» → שני כפתורים עם חץ ביניהם. מקבל גם › ← <
+// «לקוחות > + אדם חדש» → «לקוחות ← + אדם חדש». מקבל גם › ← <
 const crumbs = s => String(s || '').split(/\s*(?:›|‹|>|<|←|→)\s*/).map(x => x.trim()).filter(Boolean);
-const crumbsHTML = s => { const xs = crumbs(s); return xs.length ? `<div class="pm-where" aria-label="איפה ב-PIVO">${xs.map((x, i) => i ? `<span class="crumb-g"><span class="crumb-sep" aria-hidden="true">${ICON.chev}</span><span class="crumb">${esc(x)}</span></span>` : `<span class="crumb">${esc(x)}</span>`).join('')}</div>` : ''; };
+const hasDet = s => !!(s.where || s.tip || s.off);
 
-function flowViewHTML(f) {
-  const steps = f.steps, count = {};
-  steps.forEach(s => { count[s.who] = (count[s.who] || 0) + 1; });
-  // «הכדור עובר» רק בין צעדים באותו מסלול; בין «רק אם…» שונים זו חלופה, לא מסירה
-  const handAt = i => i > 0 && steps[i].who !== steps[i - 1].who && steps[i].cond === steps[i - 1].cond;
-  const hands = steps.filter((s, i) => handAt(i)).length;
-  const cast = `<p class="pm-cast"><b>${plural(steps.length, 'צעד אחד', 'צעדים')}</b>${WHO_KEYS.filter(k => count[k]).map(k => `<span class="pm-cast-w" data-who="${k}"><i></i>${WHO[k].name}: ${count[k]}</span>`).join('')}${hands ? `<span class="pm-cast-h">${ICON.ball}הכדור מחליף ידיים ${hands === 1 ? 'פעם אחת' : `${hands} פעמים`}</span>` : ''}</p>`;
-  const io = (cls, icon, lbl, t) => `<li class="pm-io ${cls}"><span class="pm-node" aria-hidden="true">${icon}</span><div class="pm-body"><span class="pm-lbl">${lbl}</span><p class="pm-io-t">${t ? esc(t) : '<span class="muted">לא נכתב</span>'}</p></div></li>`;
-  let li = io('start', ICON.play, 'מתחיל כש…', f.start);
-  steps.forEach((s, i) => {
-    if (i && s.cond && steps[i - 1].cond && s.cond !== steps[i - 1].cond) li += `<li class="pm-or" aria-hidden="true"><span>או</span></li>`;
-    if (handAt(i)) li += `<li class="pm-hand" data-who="${s.who}"><span class="pm-hand-dot" aria-hidden="true">${ICON.ball}</span><span class="pm-hand-t">הכדור ${WHO[s.who].to}</span></li>`;
-    li += `<li class="pm-step" data-who="${s.who}"><span class="pm-node num" aria-hidden="true">${i + 1}</span><div class="pm-body">
-      <div class="pm-meta"><span class="pm-who"><span class="sr">צעד ${i + 1}: </span>${WHO[s.who].label}</span>${s.cond ? `<span class="pm-if">רק אם ${esc(s.cond)}</span>` : ''}</div>
-      <p class="pm-what">${esc(s.what)}</p>
-      ${s.off ? `<span class="pm-off">${ICON.ext}מחוץ ל-PIVO${s.where ? ` · ${esc(s.where)}` : ''}</span>` : crumbsHTML(s.where)}
-      ${s.tip ? `<p class="pm-tip">${ICON.info}<span>${esc(s.tip)}</span></p>` : ''}
-    </div></li>`;
+function flowViewHTML(f, open) {
+  let li = '';
+  f.steps.forEach((s, i) => {
+    const prev = f.steps[i - 1];
+    if (prev && s.cond && prev.cond && s.cond !== prev.cond) li += `<li class="pm-or">או</li>`;
+    const head = `${s.cond ? `<span class="pm-if">אם ${esc(s.cond)}:</span> ` : ''}${s.who === 'me' ? '' : `<b class="pm-who">${WHO[s.who].name}</b> `}${esc(s.what)}`;
+    const where = s.off ? `<span class="pm-path">${ICON.ext}מחוץ ל-PIVO${s.where ? `: ${esc(s.where)}` : ''}</span>` : s.where ? `<span class="pm-path">${crumbs(s.where).map(esc).join('<span class="pm-arr" aria-hidden="true"> ← </span>')}</span>` : '';
+    const det = hasDet(s) ? `<div class="pm-det"${open ? '' : ' hidden'}>${where}${s.tip ? `<span class="pm-tip">${ICON.info}${esc(s.tip)}</span>` : ''}</div>` : '';
+    li += `<li class="pm-step" data-who="${s.who}"><span class="pm-num num" aria-hidden="true">${i + 1}</span><div class="pm-body">${hasDet(s) ? `<button type="button" class="pm-line" aria-expanded="${open}">${head}${ICON.chev}</button>` : `<p class="pm-line">${head}</p>`}${det}</div></li>`;
   });
-  li += io('end', ICON.check, 'נגמר כש…', f.end);
-  return cast + `<ol class="pm-flow">${li}</ol>`;
+  return `<p class="pm-edge"><span>מתחיל כש</span>${f.start ? esc(f.start) : '<span class="muted">לא נכתב</span>'}</p>
+    <ol class="pm-flow">${li}</ol>
+    <p class="pm-edge end">${ICON.check}<span>נגמר כש</span>${f.end ? esc(f.end) : '<span class="muted">לא נכתב</span>'}</p>`;
 }
-const procHeadHTML = (p, r) => `<div class="pm-kicker"><span>${esc(stationByKey(p.st)?.name || '')}</span><span class="pm-rung${r === 4 ? ' top' : ''}">${RUNGS[r]}</span></div>`;
+const procHeadHTML = (p, r) => `<div class="pm-kicker">${esc(stationByKey(p.st)?.name || '')} · ${RUNGS[r]}</div>`;
 // אחרי רענון מהשרת S.procs מתחלף; שומרים תמיד על העותק החי
 const liveProc = p => S.procs.find(x => x.id === p.id);
 
@@ -1794,28 +1764,36 @@ function openProc(id, mode) {
   if (mode === 'edit' || !hasFlow(p)) openProcEdit(p); else openProcView(p);
 }
 function openProcView(p) {
-  const r = V.rungOf(p), f = flowOf(p);
+  const r = V.rungOf(p), f = flowOf(p), anyDet = f.steps.some(hasDet);
   const nudge = r < 2 && f.steps.length >= 2 ? `<div class="pm-nudge"><span>יש מפה שמישהו אחר יכול לעבוד לפיה בלי לשאול אותך? זו המדרגה «כתוב».</span><button class="btn sm" type="button" id="pmClimb">העלה ל«כתוב»</button></div>` : '';
-  openDialog(`<header class="pm-head">${procHeadHTML(p, r)}<h2 id="dlgTitle">${esc(p.name)}</h2></header>
-    ${flowViewHTML(f)}${nudge}
+  openDialog(`<header class="pm-head"><div>${procHeadHTML(p, r)}<h2 id="dlgTitle">${esc(p.name)}</h2></div>${anyDet ? `<button type="button" class="linkbtn quiet pm-all" id="pmAll" aria-pressed="${!!UI.pmAll}">${UI.pmAll ? 'הסתר פרטים' : 'כל הפרטים'}</button>` : ''}</header>
+    ${flowViewHTML(f, !!UI.pmAll)}${nudge}
     ${p.notes ? `<details class="pm-notes"><summary>הערות</summary><p>${esc(p.notes)}</p></details>` : ''}
-    <div class="dactions"><button class="btn primary" type="submit" autofocus>סגור</button><button class="btn" type="button" id="pmEdit">${ICON.pen}ערוך את המפה</button></div>`,
+    <div class="dactions"><button class="btn primary" type="submit" autofocus>סגור</button><button class="btn" type="button" id="pmEdit">${ICON.pen}ערוך</button></div>`,
   () => {}, form => {
+    const setOpen = (btn, on) => { btn.setAttribute('aria-expanded', on); btn.nextElementSibling.hidden = !on; };
+    form.querySelectorAll('button.pm-line').forEach(b => b.addEventListener('click', () => setOpen(b, b.getAttribute('aria-expanded') !== 'true')));
+    form.querySelector('#pmAll')?.addEventListener('click', e => { UI.pmAll = !UI.pmAll; e.currentTarget.textContent = UI.pmAll ? 'הסתר פרטים' : 'כל הפרטים'; e.currentTarget.setAttribute('aria-pressed', UI.pmAll); form.querySelectorAll('button.pm-line').forEach(b => setOpen(b, UI.pmAll)); });
     form.querySelector('#pmEdit').addEventListener('click', () => { closeDialog(true); openProcEdit(liveProc(p) || p); });
     form.querySelector('#pmClimb')?.addEventListener('click', () => { const q = liveProc(p); if (!q) return; closeDialog(true); changeRung(q.id, 2); openProcView(q); });
   }, 'wide');
 }
 
-const stepEdHTML = (s, i, n) => `<li class="pe-step" data-who="${s.who}" data-i="${i}">
-  <div class="pe-top"><span class="pe-n num" aria-hidden="true">${i + 1}</span>
-    <div class="pe-who" role="radiogroup" aria-label="מי עושה את צעד ${i + 1}">${WHO_KEYS.map(k => `<label data-who="${k}"><input type="radio" name="who${i}" value="${k}" data-f="who" ${s.who === k ? 'checked' : ''}>${WHO[k].name}</label>`).join('')}</div>
-    <div class="pe-tools"><button type="button" class="pe-t" data-op="up" ${i === 0 ? 'disabled' : ''} aria-label="הזז את צעד ${i + 1} למעלה" title="למעלה">${ICON.up}</button><button type="button" class="pe-t down" data-op="down" ${i === n - 1 ? 'disabled' : ''} aria-label="הזז את צעד ${i + 1} למטה" title="למטה">${ICON.up}</button><button type="button" class="pe-t" data-op="del" aria-label="מחק את צעד ${i + 1}" title="מחק צעד">${ICON.close}</button></div></div>
-  <input class="pe-in pe-what" data-f="what" maxlength="200" value="${esc(s.what)}" placeholder="מה עושים? למשל: שולחים ללקוח קישור למילוי פרטים" aria-label="צעד ${i + 1}: מה עושים">
-  <div class="pe-where-row"><input class="pe-in" data-f="where" maxlength="160" value="${esc(s.where)}" placeholder="${s.off ? 'איפה? למשל: אתר ביטוח לאומי' : 'איפה ב-PIVO? למשל: לקוחות > + אדם חדש'}" aria-label="צעד ${i + 1}: איפה"><label class="check sm"><input type="checkbox" data-f="off" ${s.off ? 'checked' : ''}>מחוץ ל-PIVO</label></div>
-  ${s.cond || s.showCond ? `<div class="pe-opt"><span class="pe-opt-l">רק אם</span><input class="pe-in" data-f="cond" maxlength="120" value="${esc(s.cond)}" placeholder="למשל: הלקוח ממלא בעצמו" aria-label="צעד ${i + 1}: רק אם"></div>` : ''}
-  ${s.tip || s.showTip ? `<div class="pe-opt"><span class="pe-opt-l">שים לב</span><input class="pe-in" data-f="tip" maxlength="200" value="${esc(s.tip)}" placeholder="למשל: בלי מייל בכרטיס אי אפשר לשלוח" aria-label="צעד ${i + 1}: שים לב"></div>` : ''}
-  <div class="pe-more">${s.cond || s.showCond ? '' : `<button type="button" class="linkbtn quiet" data-op="cond">+ רק אם…</button>`}${s.tip || s.showTip ? '' : `<button type="button" class="linkbtn quiet" data-op="tip">+ שים לב</button>`}</div>
+const stepEdHTML = (s, i, n) => {
+  const more = s.open || s.cond || s.tip || s.off;
+  return `<li class="pe-step" data-who="${s.who}" data-i="${i}">
+  <span class="pe-n num" aria-hidden="true">${i + 1}</span>
+  <select class="pe-who" data-f="who" aria-label="מי עושה את צעד ${i + 1}">${WHO_KEYS.map(k => `<option value="${k}" ${s.who === k ? 'selected' : ''}>${WHO[k].name}</option>`).join('')}</select>
+  <input class="pe-in pe-what" data-f="what" maxlength="200" value="${esc(s.what)}" placeholder="מה עושים?" aria-label="צעד ${i + 1}: מה עושים">
+  <div class="pe-tools"><button type="button" class="pe-t" data-op="up" ${i === 0 ? 'disabled' : ''} aria-label="הזז את צעד ${i + 1} למעלה" title="למעלה">${ICON.up}</button><button type="button" class="pe-t down" data-op="down" ${i === n - 1 ? 'disabled' : ''} aria-label="הזז את צעד ${i + 1} למטה" title="למטה">${ICON.up}</button><button type="button" class="pe-t" data-op="del" aria-label="מחק את צעד ${i + 1}" title="מחק">${ICON.close}</button></div>
+  <div class="pe-sub">
+    <div class="pe-where"><input class="pe-in" data-f="where" maxlength="160" value="${esc(s.where)}" placeholder="${s.off ? 'איפה? למשל: אתר ביטוח לאומי' : 'איפה לוחצים? למשל: לקוחות > + אדם חדש'}" aria-label="צעד ${i + 1}: איפה">${more ? '' : `<button type="button" class="linkbtn quiet" data-op="more">עוד</button>`}</div>
+    ${more ? `<div class="pe-opt"><span class="pe-opt-l">רק אם</span><input class="pe-in" data-f="cond" maxlength="120" value="${esc(s.cond)}" placeholder="למשל: הלקוח ממלא בעצמו" aria-label="צעד ${i + 1}: רק אם"></div>
+    <div class="pe-opt"><span class="pe-opt-l">שים לב</span><input class="pe-in" data-f="tip" maxlength="200" value="${esc(s.tip)}" placeholder="למשל: בלי מייל בכרטיס אי אפשר לשלוח" aria-label="צעד ${i + 1}: שים לב"></div>
+    <label class="check sm"><input type="checkbox" data-f="off" ${s.off ? 'checked' : ''}>קורה מחוץ ל-PIVO</label>` : ''}
+  </div>
 </li>`;
+};
 
 function openProcEdit(p) {
   const r = V.rungOf(p), est = p.est || {min: '', times: '', per: false}, f0 = flowOf(p), had = hasFlow(p);
@@ -1823,7 +1801,7 @@ function openProcEdit(p) {
   const draft = f0 && f0.steps.length ? f0.steps.map(s => ({...s})) : [blankStep()];
   const calc = () => { const f = $('#dlgForm'); if (!f) return; const mi = +f.elements.min.value, ti = +f.elements.times.value, per = f.elements.per.checked; $('#pCalc').textContent = mi && ti ? `היום זה בערך ${hoursTxt(mi * ti * (per ? V.active.length : 1) / 60)} בחודש${per ? ` (${V.active.length} לקוחות פעילים)` : ''}.` : 'מלא זמן ותדירות, והדף יחשב כמה שעות בחודש זה לוקח.'; };
   openDialog(`<h2 id="dlgTitle">${had ? 'עריכת המפה' : 'מיפוי התהליך'}: ${esc(p.name)}</h2>
-    <p class="lead">צעד טוב עונה על שלוש שאלות: <b>מי</b> עושה, <b>מה</b> בדיוק, ו<b>איפה</b> לוחצים. אחד ליד השני, מההתחלה עד הסוף.</p>
+    <p class="lead">לכל צעד: מי עושה, מה עושים, ואיפה לוחצים.</p>
     <div class="dform">
       <div class="field"><label for="pName">שם התהליך</label><input id="pName" name="name" type="text" value="${esc(p.name)}" required maxlength="80"></div>
       <div class="field-row">
@@ -1882,8 +1860,7 @@ function openProcEdit(p) {
       const i = +b.closest('.pe-step').dataset.i, op = b.dataset.op;
       if (op === 'up' || op === 'down') { const j = op === 'up' ? i - 1 : i + 1; [draft[i], draft[j]] = [draft[j], draft[i]]; draw(`.pe-step[data-i="${j}"] [data-op="${op}"]:not(:disabled), .pe-step[data-i="${j}"] .pe-what`); }
       else if (op === 'del') { if (draft.length === 1) draft[0] = blankStep(); else draft.splice(i, 1); draw(`.pe-step[data-i="${Math.min(i, draft.length - 1)}"] .pe-what`); }
-      else if (op === 'cond') { draft[i].showCond = true; draw(`.pe-step[data-i="${i}"] [data-f="cond"]`); }
-      else if (op === 'tip') { draft[i].showTip = true; draw(`.pe-step[data-i="${i}"] [data-f="tip"]`); }
+      else if (op === 'more') { draft[i].open = true; draw(`.pe-step[data-i="${i}"] [data-f="cond"]`); }
       dirty();
     });
     // Enter בשדה של צעד לא שומר את כל החלון; בצעד האחרון הוא פותח צעד חדש
