@@ -397,8 +397,10 @@ ul{padding:0;list-style:none}
 .cyc-st{cursor:pointer;outline:none}
 .cyc-hit{fill:none;stroke:transparent;stroke-width:34}
 .cyc-track{fill:none;stroke:var(--ring-track);stroke-width:13;stroke-linecap:butt;transition:stroke .2s}
-.cyc-fill{fill:none;stroke:var(--fill);stroke-width:13}
-.cyc-fill.done{stroke:var(--done)}
+.cyc-seg{fill:none;stroke-width:13;cursor:pointer;transition:stroke-width .15s}
+.cyc-seg.core{stroke-width:6}
+.cyc-seg:hover{stroke-width:17}.cyc-seg.core:hover{stroke-width:9}
+.cyc-seg.r0{stroke:var(--r0)}.cyc-seg.r1{stroke:var(--r1)}.cyc-seg.r2{stroke:var(--r2)}.cyc-seg.r3{stroke:var(--r3)}.cyc-seg.r4{stroke:var(--done)}
 .cyc-st:hover .cyc-track,.cyc-st:focus-visible .cyc-track{stroke:var(--accent-line)}
 .cyc-name{font-size:13px;font-weight:600;fill:var(--ink-2)}
 .cyc-arrow{fill:var(--ink-4)}
@@ -547,6 +549,8 @@ button.jrow:hover{background:var(--sunk)}
 .field{display:grid;gap:6px}
 .field > label,.field > .flabel{font-size:14px;font-weight:500;color:var(--ink-2)}
 .fhint{font-size:13px;color:var(--ink-3)}
+details.est summary{cursor:pointer;font-size:13.5px;color:var(--ink-3);padding-block:4px}
+details.est .est-body{display:grid;gap:10px;margin-top:8px}
 .field input[type=text],.field input[type=number],.field input[type=date],.field select,.field textarea{width:100%;height:42px;padding:0 12px;border:1px solid var(--line-strong);border-radius:10px;background:var(--surface);color:var(--ink)}
 .field textarea{height:auto;min-height:76px;padding:10px 12px;resize:vertical;line-height:1.55}
 .field-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
@@ -1276,8 +1280,8 @@ const rkeyHTML = () => `<span><i style="border-color:var(--r0);background:var(--
 function procRowHTML(x) {
   const steps = [0, 1, 2, 3, 4].map(k => `<i style="${k <= x.r ? `background:${x.r === 4 ? 'var(--done)' : 'var(--fill)'};box-shadow:none` : ''}"></i>`).join('');
   const ctrl = UI.readOnly ? '' : x.r < 4 ? `<button class="climb" type="button" data-act="rung" data-id="${x.p.id}" data-n="${x.r + 1}" aria-label="${esc(`העלה את ${quote(x.p.name)} ל«${RUNGS[x.r + 1]}»`)}" title="${esc(`העלה ל«${RUNGS[x.r + 1]}»: ${RUNG_TEST[x.r + 1]}`)}">${ICON.up}</button>` : `<span class="topmark" aria-hidden="true">${ICON.check}</span>`;
-  const lvl = x.r === 4 ? (V.est(x.p) > 0 ? `<span class="psave">${hours(V.est(x.p))} ש׳ בחודש</span>` : UI.readOnly ? '<span class="plevel">רץ בלעדיי</span>' : `<button class="linkbtn plevel" type="button" data-act="freed" data-id="${x.p.id}">כמה זמן זה חוסך?</button>`) : `<span class="plevel">${RUNGS[x.r]}</span>`;
-  return `<li class="prow${UI.bumpProc === x.p.id || UI.freshProc === x.p.id ? ' bump' : ''}"><span class="steps" role="img" aria-label="${esc(`מדרגה: ${RUNGS[x.r]}`)}">${steps}</span><button class="pname" type="button" data-act="proc" data-id="${x.p.id}">${esc(x.p.name)}</button>${lvl}${ctrl}</li>`;
+  const lvl = `<span class="${x.r === 4 ? 'psave' : 'plevel'}">${RUNGS[x.r]}</span>`;
+  return `<li class="prow${UI.bumpProc === x.p.id || UI.freshProc === x.p.id ? ' bump' : ''}" id="pr-${x.p.id}"><span class="steps" role="img" aria-label="${esc(`מדרגה: ${RUNGS[x.r]}`)}">${steps}</span><button class="pname" type="button" data-act="proc" data-id="${x.p.id}">${esc(x.p.name)}</button>${lvl}${ctrl}</li>`;
 }
 function stationHTML(st) {
   const n = st.xs.length, isOffice = st.k === 'office', adding = UI.addSt === st.k;
@@ -1299,20 +1303,23 @@ function cycleSVG() {
   const W = 300, H = 236, c = W / 2, cy = H / 2, R = 62;
   const pt = (a, r) => [c + r * Math.sin(a * Math.PI / 180), cy - r * Math.cos(a * Math.PI / 180)];
   const arc = (a0, a1, r) => { const [x0, y0] = pt(a0, r), [x1, y1] = pt(a1, r); return `M${x0.toFixed(1)},${y0.toFixed(1)}A${r},${r} 0 ${a1 - a0 > 180 ? 1 : 0} 1 ${x1.toFixed(1)},${y1.toFixed(1)}`; };
+  // גיא, 10.10: «פס קטן על כל תהליך, ובעכבר כתוב התהליך». הצבע הוא המדרגה; הלחיצה מראה אותו ברשימה.
+  const segsHTML = (xs, a0, a1, r) => { const gap = Math.min(1.8, (a1 - a0) / xs.length / 3), w = (a1 - a0 - gap * (xs.length - 1)) / xs.length;
+    return xs.map((x, i) => `<path class="cyc-seg r${x.r}" data-act="procRow" data-id="${x.p.id}" data-tipp="${x.p.id}" d="${arc(a0 + i * (w + gap), a0 + i * (w + gap) + w, r)}"/>`).join(''); };
   let s = `<svg class="cyc" viewBox="0 0 ${W} ${H}" role="group" aria-label="${esc('המעגל: ' + V.stations.map(x => `${x.name} ${x.xs.length ? pct(x.m) : 'ריקה'}`).join(', '))}">`;
   V.stations.forEach(st => {
     const a0 = st.angle - 31, a1 = st.angle + 31, [lx, ly] = pt(st.angle, R + 33);
     const anchor = Math.abs(lx - c) < 12 ? 'middle' : lx > c ? 'end' : 'start';
     s += `<g class="cyc-st" data-act="station" data-st="${st.k}" role="button" tabindex="0" aria-label="${esc(`${st.name}: ${st.xs.length ? pct(st.m) + ' מהדרך' : 'ריקה'}. קפוץ לתחנה`)}">`;
-    s += `<path class="cyc-hit" d="${arc(a0, a1, R)}"/><path class="cyc-track" d="${arc(a0, a1, R)}"/>`;
-    if (st.m > 0) s += `<path class="cyc-fill${st.done ? ' done' : ''}" d="${arc(a0, a0 + (a1 - a0) * Math.max(st.m, .03), R)}"/>`;
+    s += `<path class="cyc-hit" d="${arc(a0, a1, R)}"/>`;
+    s += st.xs.length ? segsHTML(st.xs, a0, a1, R) : `<path class="cyc-track" d="${arc(a0, a1, R)}"/>`;
     s += `<text class="cyc-name" x="${lx.toFixed(1)}" y="${(ly + 4).toFixed(1)}" text-anchor="${anchor}">${st.name}</text></g>`;
   });
   const [ax, ay] = pt(0, R);
   s += `<path class="cyc-arrow" d="M${ax - 4},${ay - 5}L${ax + 4},${ay}L${ax - 4},${ay + 5}Z"/>`;
   const of = V.office;
   s += `<g class="cyc-st" data-act="station" data-st="office" role="button" tabindex="0" aria-label="${esc(`המשרד: ${of.xs.length ? pct(of.m) + ' מהדרך' : 'ריק'}. קפוץ לתחנה`)}"><circle class="cyc-core" cx="${c}" cy="${cy}" r="33"/>`;
-  if (of.m > 0) s += `<path class="cyc-core-arc${of.done ? ' done' : ''}" d="${of.m >= .999 ? `M${c},${cy - 37}A37,37 0 1 1 ${c - .01},${cy - 37}` : arc(0, 360 * of.m, 37)}"/>`;
+  if (of.xs.length) s += segsHTML(of.xs, 2, 358, 37).replace(/class="cyc-seg/g, 'class="cyc-seg core');
   s += `<text class="cyc-core-t" x="${c}" y="${cy + 4}" text-anchor="middle">המשרד</text></g>`;
   return s + '</svg>';
 }
@@ -1327,13 +1334,13 @@ function renderSystem() {
   el.innerHTML = `
     <div class="sec-head"><div><h2 class="sec-title" id="t-system">ריכוז כל התהליכים</h2><p class="sec-sub">מגיוס ועד עזיבה, ומה מהם כבר רץ בלעדיי</p></div>
       ${UI.readOnly ? '' : `<button class="btn ghost sm" type="button" data-act="capture"${off}>${ICON.plus}תהליך</button>`}</div>
-    <div class="sys-top"><div class="big"><span class="big-num num" id="bigHrs">${hours(V.hrs)}</span><span class="big-unit">שעות בחודש שהמשרד עושה בלעדיי</span></div>${cycleSVG()}</div>
+    <div class="sys-top"><div class="big"><span class="big-num num" id="bigHrs">${V.top.length}</span><span class="big-unit">מתוך ${plural(V.procs.length, 'תהליך אחד', 'תהליכים')} רצים בלעדיי${V.hrs > 0 ? ` · חוסך בערך ${hoursTxt(V.hrs)} בחודש` : ''}</span></div>${cycleSVG()}</div>
     <div id="captureZone"></div>
     <p class="pace">${line}</p>
     <ol class="pmap" aria-label="התחנות, מגיוס ועד עזיבה">${[...V.stations, V.office].map(stationHTML).join('')}</ol>
     ${V.procs.length ? `<div class="rkey">${rkeyHTML()}</div>` : ''}`;
   renderCapture();
-  countUp('bigHrs', 'hrs', V.hrs, true);
+  countUp('bigHrs', 'hrs', V.top.length, false);
   UI.flashSt = null;
 }
 function renderCapture() {
@@ -1383,7 +1390,6 @@ function changeRung(id, k) {
   else if (k === 4) toast(`${quote(p.name)} רץ עכשיו בלעדיך${gained > 0 ? `: עוד ${hoursTxt(gained)} בחודש שלא עליך.` : '.'}`);
   else if (k > r) toast(`${quote(p.name)} עלה ל«${RUNGS[k]}».`);
   else toast(`${quote(p.name)} עכשיו ב«${RUNGS[k]}».`);
-  if (k === 4 && !(V.est(p) > 0)) setTimeout(() => openFreed(id), 450);
 }
 
 /* ═══ הצומת: יריעת צד לתחנה ═══════════════════════════════════════ */
@@ -1642,18 +1648,20 @@ function openProc(id) {
   const r = V.rungOf(p), est = p.est || {min: '', times: '', per: false};
   const calc = () => { const f = $('#dlgForm'); if (!f) return; const mi = +f.elements.min.value, ti = +f.elements.times.value, per = f.elements.per.checked; $('#pCalc').textContent = mi && ti ? `היום זה בערך ${hoursTxt(mi * ti * (per ? V.active.length : 1) / 60)} בחודש${per ? ` (${V.active.length} לקוחות פעילים)` : ''}.` : 'מלא זמן ותדירות, והדף יחשב כמה שעות בחודש זה לוקח.'; };
   openDialog(`<h2 id="dlgTitle">${esc(p.name)}</h2>
-    <p class="lead">נרשם ב־${dmy(p.hist[0][0])}. הזמן והתדירות עוזרים להחליט מה להעלות קודם: מה שחוזר הרבה ולוקח זמן.</p>
+    <p class="lead">נרשם ב־${dmy(p.hist[0][0])}.</p>
     <div class="dform">
       <div class="field"><label for="pName">שם</label><input id="pName" name="name" type="text" value="${esc(p.name)}" required maxlength="80"></div>
       <div class="field"><span class="flabel" id="sLbl">באיזו תחנה</span><div class="radios" role="radiogroup" aria-labelledby="sLbl">${[...STATIONS, OFFICE].map(s => `<label><input type="radio" name="st" value="${s.k}" ${p.st === s.k ? 'checked' : ''}>${s.name}</label>`).join('')}</div></div>
       <div class="field"><span class="flabel" id="rLbl">מדרגה</span><div class="radios" role="radiogroup" aria-labelledby="rLbl">${RUNGS.map((g, k) => `<label title="${esc(RUNG_TEST[k])}"><input type="radio" name="rung" value="${k}" ${k === r ? 'checked' : ''}>${g}</label>`).join('')}</div><p class="fhint" id="rTest">${esc(RUNG_TEST[r])}</p></div>
+      <div class="field"><label for="pNotes">איך עושים</label><textarea id="pNotes" name="notes" maxlength="1500" placeholder="צעד אחר צעד, קישורים, למי פונים">${esc(p.notes)}</textarea></div>
+      <details class="est"><summary>כמה זמן זה לוקח? (לא חובה)</summary><div class="est-body">
       <div class="field-row">
         <div class="field"><label for="pMin">כמה דקות כל פעם</label><input id="pMin" name="min" type="number" inputmode="numeric" min="0" step="any" value="${est.min}"></div>
         <div class="field"><label for="pTimes">כמה פעמים בחודש</label><input id="pTimes" name="times" type="number" inputmode="decimal" min="0" step="any" value="${est.times === '' ? '' : Math.round(est.times * 1000) / 1000}"></div>
       </div>
       <label class="check"><input type="checkbox" name="per" id="pPer" ${est.per ? 'checked' : ''}>לכל לקוח (הזמן גדל עם מספר הלקוחות)</label>
       <p class="calc" id="pCalc" aria-live="polite"></p>
-      <div class="field"><label for="pNotes">איך עושים</label><textarea id="pNotes" name="notes" maxlength="1500" placeholder="צעד אחר צעד, קישורים, למי פונים">${esc(p.notes)}</textarea></div>
+      </div></details>
       <div class="hist">היסטוריה: ${p.hist.filter(([d]) => d <= V.asOf).map(([d, k]) => `${RUNGS[k]} ${dmy(d)}`).join(' · ')}</div>
     </div>
     <div class="dactions"><button class="btn primary" type="submit">שמור</button><button class="btn" type="button" data-close>סגור</button><button class="btn ghost danger push" type="button" id="pDel">מחק את התהליך</button></div>`,
@@ -2043,7 +2051,7 @@ function sheetHTML() {
         <div class="a4-bar"><i style="width:${pPay}%"></i>${pPend > 0 ? `<i class="p" style="inset-inline-start:calc(${pPay}% + 1px);width:${pPend}%"></i>` : ''}</div>
         <div class="a4-small">${V.active.length} לקוחות פעילים · יעד סוף ${yearLbl}: ${money(g.mrr)}</div></div>
       <div class="a4-box"><div class="a4-lbl">ריכוז כל התהליכים · ${plural(V.procs.length, 'תהליך אחד', 'תהליכים')}, ${pct(V.circle)} מהדרך</div>
-        <div class="a4-sys" data-ring="1"><div class="a4-st"><div class="a4-big">${hours(V.hrs)} <small>שעות בחודש</small></div>${V.stations.map(s => `<span>${s.name}: <b>${s.xs.length ? pct(s.m) : 'ריקה'}</b></span>`).join('')}</div></div></div>
+        <div class="a4-sys" data-ring="1"><div class="a4-st"><div class="a4-big">${V.top.length} <small>מתוך ${V.procs.length} רצים בלעדיי</small></div>${V.stations.map(s => `<span>${s.name}: <b>${s.xs.length ? pct(s.m) : 'ריקה'}</b></span>`).join('')}</div></div></div>
     </div>
     <div class="a4-chart"><div class="a4-sec">תוכנית מול בפועל<span>ריטיינר חודשי · קו אפור: תוכנית · קו כהה: בפועל</span></div><div data-chart="1"></div></div>
     <div><div class="a4-sec">הדרך<span>המועד הוא נקודת בדיקה. מסמנים רק אחרי שהמדד הושג.</span></div><div class="a4-phases">${phases}</div><div class="a4-ms">${ms}</div></div>
@@ -2172,6 +2180,7 @@ document.addEventListener('click', e => {
   else if (act === 'capClose') { UI.capture = false; renderCapture(); }
   else if (act === 'station') { const k = t.dataset.st; UI.flashSt = k; renderSystem(); $(`#st-${k}`)?.scrollIntoView({behavior: reduced ? 'auto' : 'smooth', block: 'center'}); }
   else if (act === 'addIn') { const k = t.dataset.st; UI.addSt = UI.addSt === k ? null : k; renderSystem(); if (UI.addSt) setTimeout(() => $(`#add-${k}`)?.focus(), 20); else $(`#st-${k} .pst-add`)?.focus({preventScroll: true}); }
+  else if (act === 'procRow') { const id = t.dataset.id; UI.bumpProc = id; renderSystem(); hideTip(); $(`#pr-${id}`)?.scrollIntoView({behavior: reduced ? 'auto' : 'smooth', block: 'center'}); }
   else if (act === 'addClose') { const k = UI.addSt; UI.addSt = null; renderSystem(); $(`#st-${k} .pst-add`)?.focus({preventScroll: true}); }
   else if (act === 'closeSheet') closeSheet();
   else if (act === 'proc') openProc(t.dataset.id);
@@ -2254,7 +2263,7 @@ function tipFor(t) {
   const m = t.closest('[data-tipm]');
   if (m) { const ms = MILESTONES.find(y => y.id === m.dataset.tipm), st = msStatus(ms); return [m, [tipLine(st.done ? 'הושג' : `עד ${dmy(ms.due)}`, ''), tipLine('', ms.title)]]; }
   const p = t.closest('[data-tipp]');
-  if (p) { const pr = S.procs.find(y => y.id === p.dataset.tipp); if (!pr) return null; const r = V.rungOf(pr); const ls = [tipLine(pr.name, ''), tipLine('', `${stationName(pr.st)} · ${RUNGS[r]}`)]; if (r === 4 && V.est(pr) > 0) ls.push(tipLine('', `חוסך בערך ${hoursTxt(V.est(pr))} בחודש`)); ls.push(tipLine('', 'לחץ לפרטים, או גרור לתחנה אחרת')); return [p, ls]; }
+  if (p) { const pr = S.procs.find(y => y.id === p.dataset.tipp); if (!pr) return null; const r = V.rungOf(pr); const ls = [tipLine(pr.name, ''), tipLine('', `${stationName(pr.st)} · ${RUNGS[r]}`)]; if (r === 4 && V.est(pr) > 0) ls.push(tipLine('', `חוסך בערך ${hoursTxt(V.est(pr))} בחודש`)); ls.push(tipLine('', p.closest('.cyc') ? 'לחיצה מראה אותו ברשימה' : 'לחץ לפרטים')); return [p, ls]; }
   const s = t.closest('[data-tips]');
   if (s) { const st = stationByKey(s.dataset.tips); return [s, [tipLine(st.name, st.xs.length ? '' : '· עוד ריקה'), tipLine('', `${plural(st.xs.length, 'תהליך אחד', 'תהליכים')} · ${st.top} רצים בלעדיי`), tipLine('', 'לחץ כדי לפתוח את הצומת')]]; }
   return null;
