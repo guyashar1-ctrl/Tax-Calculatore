@@ -266,8 +266,14 @@ export default function PersonDirectory(p: Props) {
         .filter(q => q.leadId === lead.id)
         .sort((a, b) => (b.updatedAt ?? '').localeCompare(a.updatedAt ?? ''))[0];
 
+      // ‼ טיוטה שנשמרה היא עבודה פתוחה — עד 11.10.2026 הכרטיס אמר "טרם נשלחה
+      // הצעה" ו"המשך טיפול" פתח הצעה חדשה, והטיוטה לא הייתה נגישה משום מקום.
+      const leadDraft = lead.status !== 'quoted' && leadQuotation?.status === 'draft' ? leadQuotation : undefined;
+
       const now = lead.status === 'quoted'
         ? { title: 'הצעת מחיר', detail: 'ההצעה נשלחה - ממתינים לתשובת הלקוח' }
+        : leadDraft
+        ? { title: 'הצעת מחיר', detail: `טיוטה ${leadDraft.quotationNumber} שמורה - טרם נשלחה` }
         : lead.status === 'closed'
           ? { title: 'ליד', detail: 'הליד סגור' }
           : {
@@ -283,6 +289,8 @@ export default function PersonDirectory(p: Props) {
       // הצעה שכבר נשלחה היא היוצא היחיד — שם הפעולה היא לפתוח אותה עצמה.
       const primary: QuickViewAction = lead.status === 'quoted' && leadQuotation
         ? { label: 'פתח את ההצעה', run: () => p.onOpenQuotation(leadQuotation.id) }
+        : leadDraft
+        ? { label: 'המשך את ההצעה', run: () => p.onOpenQuotation(leadDraft.id) }
         : { label: 'המשך טיפול', run: () => p.onContinueLead(lead) };
 
       return {

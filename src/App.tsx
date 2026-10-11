@@ -770,6 +770,7 @@ export default function App() {
     clientTabFromRoute(initialRoute.clientTab)
   );
   const [editingQuotationId, setEditingQuotationId] = useState<string | null>(initialRoute.quotationId ?? null);
+  const [builderKey, setBuilderKey] = useState(0);
   // ליד שהגיעו אליו מחיפוש במסך הלקוחות — מסך הלידים נפתח עליו
   const [focusLeadId, setFocusLeadId] = useState<string | null>(null);
   const [openNewLead, setOpenNewLead] = useState(false);
@@ -1400,7 +1401,12 @@ export default function App() {
 
   async function handleContinueLeadQuote(lead: Lead) {
     setContinuationLead(null);
-    handleNewQuotationForLead(lead);
+    // טיוטה שמורה לאותו ליד היא אותה עבודה — ממשיכים אותה, לא פותחים שנייה
+    const draft = quotations
+      .filter(q => q.leadId === lead.id && q.status === 'draft')
+      .sort((a, b) => (b.updatedAt ?? '').localeCompare(a.updatedAt ?? ''))[0];
+    if (draft) handleOpenQuotation(draft);
+    else handleNewQuotationForLead(lead);
   }
 
   /**
@@ -2096,6 +2102,8 @@ export default function App() {
   }
 
   function handleOpenQuotation(q: Quotation) {
+    // הבונה מאתחל את השדות פעם אחת; מעבר מהצעה פתוחה להצעה אחרת חייב לבנות אותו מחדש
+    setBuilderKey(k => k + 1);
     setEditingQuotationId(q.id);
     setNewQuotationLeadId(null);
     setNewQuotationClientId(null);
@@ -3176,6 +3184,7 @@ export default function App() {
             />
           ) : (
           <QuotationBuilder
+            key={builderKey}
             profile={firmProfile}
             services={catalogServices}
             templates={quotationTemplates}
@@ -3190,6 +3199,7 @@ export default function App() {
             checkRepEmailConflict={repEmailConflictMessage}
             onSaveDraft={handleSaveQuotationDraft}
             onSend={handleSendQuotation}
+            onOpenQuotation={handleOpenQuotation}
             onBack={() => {
               setEditingQuotationId(null);
               // אחרי שליחה — נוחתים על הכרטיס שההצעה יצאה אליו: שם רואים את

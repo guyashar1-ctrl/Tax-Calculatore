@@ -131,6 +131,8 @@ interface Props {
   onSaveDraft: (payload: SaveDraftPayload) => Promise<void>;
   onSend: (payload: SaveDraftPayload, isTest: boolean) => Promise<{ ok: boolean; error?: string; link?: string }>;
   onBack: () => void;
+  /** פתיחת הצעה אחרת שכבר קיימת לאותו נמען — כדי שהאזהרה תוביל אליה */
+  onOpenQuotation?: (quotation: Quotation) => void;
 }
 
 export interface SaveDraftPayload {
@@ -312,7 +314,7 @@ function Pop({ anchor, onClose, children }: {
 export default function QuotationBuilder({
   profile, services, templates, leads, clients, existing, initialLeadId, initialClientId,
   initialKind, currentEngagement, existingQuotations, checkRepEmailConflict,
-  onSaveDraft, onSend, onBack,
+  onSaveDraft, onSend, onBack, onOpenQuotation,
 }: Props) {
   const brand = useMemo(() => deriveQuotationBrand(profile), [profile]);
 
@@ -664,7 +666,16 @@ export default function QuotationBuilder({
           </button>
         </h1>
         {openWarning && (
-          <div className="qb-warn">כבר קיימת הצעה ({openWarning.quotationNumber}) פתוחה לנמען הזה.</div>
+          <div className="qb-warn">
+            {openWarning.status === 'draft' ? 'כבר שמורה טיוטה' : 'כבר קיימת הצעה פתוחה'} ({openWarning.quotationNumber}) לנמען הזה.
+            {/* ‼ בלי הקישור האזהרה אומרת שיש הצעה ולא נותנת להגיע אליה (גיא, 11.10.2026) */}
+            {onOpenQuotation && (
+              <>{' '}<button className="qb-link" onClick={() => {
+                if (!existing && items.length > 0 && !window.confirm('ההצעה שבעריכה כאן לא נשמרה ותיסגר. לפתוח את ' + openWarning.quotationNumber + '?')) return;
+                onOpenQuotation(openWarning);
+              }}>פתח אותה</button></>
+            )}
+          </div>
         )}
 
         {/* הגיבור — העסקה */}
