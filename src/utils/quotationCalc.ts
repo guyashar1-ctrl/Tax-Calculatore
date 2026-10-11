@@ -370,6 +370,114 @@ export function deferredDetailLines(b: DeferredBreakdown, itemName?: string): { 
   ];
 }
 
+// ─── ההצעה כפי שהלקוח קורא אותה: שנה, מה ומתי משלמים, כמה חסך ───────────────
+// מקור אחד לעמוד ההצעה ול-PDF — אחרת המסמך שנחתם מספר סיפור אחר מהעמוד שנקרא.
+
+// שנת הליווי שההצעה מתמחרת. ‼ החלטת גיא (11.10.2026): כל שנה מתומחרת מחדש,
+// ולכן ההצעה אומרת לאיזו שנה היא. נגזרת מהשורות שהוקפאו עם ההצעה ולא נשמרת
+// בנפרד: חודש החיוב הראשון ← שנת מס של שורה חוזרת ← שנת התוקף. הצעה בלי שירות
+// חוזר (רק השלמת שנים פתוחות, למשל) אינה "לשנה" — אין לה מה לחדש.
+export function quotationServiceYear(items: QuotationItem[], fallbackIso?: string): number | undefined {
+  const recurring = items.filter(i => i.category === 'monthly' || i.category === 'annual');
+  if (recurring.length === 0) return undefined;
+  const starts = recurring
+    .map(i => Number(i.billingStartMonth?.split('-')[0]))
+    .filter(y => Number.isFinite(y) && y > 2000);
+  if (starts.length > 0) return Math.min(...starts);
+  const years = recurring.map(i => i.year).filter((y): y is number => !!y);
+  if (years.length > 0) return Math.max(...years);
+  const d = fallbackIso ? new Date(fallbackIso) : new Date();
+  return Number.isNaN(d.getTime()) ? new Date().getFullYear() : d.getFullYear();
+}
+
+/** הסעיף השנתי — אותו נוסח בעמוד, ב-PDF ובמייל. ‼ "גם כשלא השתנה דבר" הוא
+ *  העיקר: העדכון השנתי הוא שגרה שקורית תמיד, ולכן הגעתו אינה רמז להתייקרות. */
+export function serviceYearClause(year: number): string {
+  return `ההצעה מתייחסת לשנת ${year}. לקראת כל שנה חדשה אשלח לך עדכון קצר, גם כשלא השתנה דבר.`;
+}
+
+export interface PaymentRow {
+  key: string;
+  label: string;           // "כל חודש", "עם הגשת הדוח השנתי"…
+  sub?: string;            // מתי / כמה תשלומים
+  /** תשלום אחר מחודש מסוים — רק כשהרו"ח הזין אותו במפורש (ראה monthlyPlan).
+   *  נשמר כנתונים: העמוד מנסח עם ₪, וה-PDF עם ש״ח ובלי נקודתיים בין שני מספרים. */
+  changesTo?: { from: string; amount: number };
+  amount: number;          // כולל מע"מ — מה שיורד מהחשבון
+  deferred?: boolean;      // לא נגבה עכשיו
+}
+
+// "מה ומתי משלמים" — תשובה אחת לשאלה של הלקוח. כל הסכומים כוללים מע"מ, כי
+// זה מה שיורד לו מהחשבון; הפירוט לפני מע"מ נשאר ב"איך חושב".
+export function paymentSchedule(items: QuotationItem[], vatRate: number): PaymentRow[] {
+  const t = calcTotals(items, vatRate);
+  const rows: PaymentRow[] = [];
+  if (t.monthly.withVat > 0) {
+    const first = items.filter(i => i.category === 'monthly').map(monthlyPlan)[0];
+    const range = first ? formatMonthRange(first.startMonth, first.endMonth) : '';
+    const sub = t.hasPartialTerm && t.installments
+      ? `${t.installments} תשלומים${range ? ` · ${range}` : ''}`
+      : first?.startMonth ? `החל מ${formatMonth(first.startMonth)}` : undefined;
+    const changesTo = t.changesAfterPeriod
+      ? { from: first?.nextMonth ? `החל מ${formatMonth(first.nextMonth)}` : 'לאחר מכן', amount: t.monthlyOngoing.withVat }
+      : undefined;
+    rows.push({ key: 'monthly', label: 'כל חודש', sub, changesTo, amount: t.monthly.withVat });
+  }
+  if (t.annual.withVat > 0) rows.push({ key: 'annual', label: 'פעם בשנה', amount: t.annual.withVat });
+  if (t.oneTime.withVat > 0) rows.push({ key: 'one_time', label: 'חד־פעמי', amount: t.oneTime.withVat });
+  for (const g of deferredGroups(items, vatRate)) {
+    rows.push({ key: `deferred:${g.trigger}`, label: g.trigger, sub: 'לא נגבה עכשיו', amount: g.total.withVat, deferred: true });
+  }
+  return rows;
+}
+
+// כמה הלקוח חסך — כולל מע"מ, כמו כל סכום בסיכום. כל שורה בסקאלה הטבעית שלה:
+// שורה שתומחרה שנתית — על השנה (כולל ההנחה על היתרה); ריטיינר — על התשלומים
+// שבהצעה; חד־פעמי ושנתי — על השורה. ‼ לא calcTotals.totalDiscount: הוא מחבר
+// הנחה לחודש עם הנחה לשנה, וזה מספר שאינו מתאר שום דבר.
+export interface SavingsLine {
+  name: string;
+  amount: number;
+  /** ריטיינר — ההנחה בכל תשלום. "₪708 על ליווי חודשי" נקרא כהנחה חד־פעמית. */
+  perMonth?: number;
+}
+
+export function quotationSavings(items: QuotationItem[], vatRate: number): { total: number; lines: SavingsLine[] } {
+  const lines: SavingsLine[] = [];
+  const withVat = (item: QuotationItem, n: number) => round2(item.vatFlag ? n * (1 + vatRate / 100) : n);
+  for (const item of items) {
+    if (item.category === 'included') continue;
+    const def = itemDeferred(item, vatRate);
+    const annual = itemAnnualAnchor(item);
+    let before: number;
+    let perMonth: number | undefined;
+    if (def) before = def.totalDiscount;
+    else if (annual) before = annual.list - annual.value;
+    else {
+      const perUnit = itemOriginalPrice(item) - itemFinalPrice(item);
+      if (item.category === 'monthly') {
+        before = perUnit * monthlyPlan(item).installments;
+        perMonth = withVat(item, perUnit);
+      } else before = perUnit;
+    }
+    if (before < 1) continue;
+    lines.push({ name: itemDisplayName(item), amount: withVat(item, before), perMonth });
+  }
+  return { total: round2(lines.reduce((s, l) => s + l.amount, 0)), lines };
+}
+
+/** משפט ההנחה — אותו נוסח בעמוד וב-PDF; money מנסח מטבע (₪ בעמוד, ש״ח ב-PDF). */
+export function savingsSentence(s: { total: number; lines: SavingsLine[] }, money: (n: number) => string): string | null {
+  if (s.total < 1) return null;
+  if (s.lines.length === 1) {
+    const [l] = s.lines;
+    return l.perMonth != null && l.perMonth >= 1
+      ? `קיבלת הנחה של ${money(Math.round(l.perMonth))} בכל חודש על ${l.name}`
+      : `קיבלת הנחה של ${money(Math.round(l.amount))} על ${l.name}`;
+  }
+  return `קיבלת הנחה של ${money(Math.round(s.total))} בסך הכול`;
+}
+
 // ─── עבודה עם חודשים בפורמט 'YYYY-MM' ───
 
 export function currentMonthKey(): string {

@@ -13,7 +13,7 @@
 // מפורשת, וזה גם מה שמייצר את הקליק שמסמן לנו "נצפתה".
 
 import type { QuotationItem } from '../types/quotations';
-import { itemDisplayName } from './quotationCalc';
+import { itemDisplayName, quotationServiceYear } from './quotationCalc';
 import type { QuotationBrand } from '../components/quotations/quotationBranding';
 import { buildBrandedEmail, emailFont, emailTint, esc } from './brandedEmail';
 
@@ -31,6 +31,9 @@ export interface QuotationEmailData {
 
 export function buildQuotationEmailHtml(data: QuotationEmailData, brand: QuotationBrand): string {
   const firstName = (data.recipientName || '').trim().split(/\s+/)[0] || '';
+  // כל שנה מתומחרת מחדש (גיא, 11.10.2026) — המייל אומר לאיזו שנה ההצעה; הסעיף
+  // על העדכון השנתי נמצא בעמוד ובמסמך שנחתם, לא כאן.
+  const year = quotationServiceYear(data.items, data.expiresAt);
   const f = emailFont(brand);
   const rad = brand.radius;
   const cardTint = emailTint(brand.pageBg);
@@ -99,7 +102,7 @@ export function buildQuotationEmailHtml(data: QuotationEmailData, brand: Quotati
 
   return buildBrandedEmail(brand, {
     heading: `${firstName ? esc(firstName) + ', ' : ''}זו ההצעה שהכנתי עבורך.`,
-    bodyHtml: `ההצעה מבוססת על מה שסיכמנו ומותאמת לצרכים של ${data.businessName ? esc(data.businessName) : 'העסק שלך'}. הפרטים המלאים והאישור נמצאים בעמוד ההצעה.`,
+    bodyHtml: `${year ? `ההצעה לשנת ${year}` : 'ההצעה'} מבוססת על מה שסיכמנו ומותאמת לצרכים של ${data.businessName ? esc(data.businessName) : 'העסק שלך'}. הפרטים המלאים והאישור נמצאים בעמוד ההצעה.`,
     tag: `הצעה מס׳ ${data.quotationNumber}`,
     extraHtml: servicesCard + messageBlock + availability + pricePointer + portalPointer,
     ctaLabel: 'צפייה ואישור ההצעה',

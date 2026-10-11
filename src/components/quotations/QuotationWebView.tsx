@@ -2,17 +2,21 @@
 // ובסטודיו העיצוב) ולעמוד הציבורי (שלב 3). Mobile-first, אישור בלבד.
 // כל הצבעים/פינות/כותרת/כפתור/פונט מגיעים מ-brand (טוקני עיצוב) — כך שהסטודיו
 // שולט במראה בזמן אמת בלי לגעת בקוד.
+//
+// ‼ מבנה העמוד (גיא, 11.10.2026): הלקוח שואל שתי שאלות — "מה אני מקבל" ו"כמה
+// ומתי יורד לי מהחשבון". כל כסף מוצג פעם אחת: "מה ומתי משלמים" כולל מע"מ,
+// ההנחה בשורה אחת, ופירוט החישוב (לפני מע"מ) מקופל ב"איך חושב". רשימת השירותים
+// בלי מחירים. עד אז אותו כסף הוצג שלוש פעמים, בשלושה מספרים שונים.
 
 import { useState } from 'react';
 import type { QuotationItem, ServiceCategory, FutureService, QuotationRepresentation } from '../../types/quotations';
-import { SERVICE_CATEGORY_LABELS } from '../../types/quotations';
 import type { RepAuthorityKind } from '../../types';
 import { REP_AUTHORITY_ORDER } from '../../types';
 import type { QuotationBrand } from './quotationBranding';
 import {
-  calcTotals, itemFinalPrice, itemOriginalPrice, itemAnnualAnchor, formatILS, itemDisplayName,
-  monthlyPlan, formatMonth, formatMonthRange,
-  itemDeferred, deferredGroups, deferredDetailLines,
+  itemFinalPrice, itemOriginalPrice, itemAnnualAnchor, formatILS, itemDisplayName,
+  monthlyPlan, itemDeferred, deferredDetailLines,
+  paymentSchedule, quotationSavings, quotationServiceYear, serviceYearClause, savingsSentence,
 } from '../../utils/quotationCalc';
 import SignaturePad from '../SignaturePad';
 
@@ -58,14 +62,7 @@ interface Props {
   nextStepAuto?: boolean;
 }
 
-const CATEGORY_BLURB: Record<ServiceCategory, string> = {
-  monthly: 'תשלום חודשי קבוע',
-  annual: 'תשלום שנתי',
-  one_time: 'תשלום חד־פעמי',
-  included: 'כלול ללא תוספת תשלום',
-};
-
-// תדירות ליד מחיר בשירותים העתידיים — בלי זה "₪350" נקרא כמחיר חד־פעמי
+// תדירות ליד מחיר — בלי זה "₪350" נקרא כמחיר חד־פעמי
 const CATEGORY_PRICE_SUFFIX: Record<ServiceCategory, string> = {
   monthly: 'לחודש',
   annual: 'לשנה',
@@ -73,21 +70,24 @@ const CATEGORY_PRICE_SUFFIX: Record<ServiceCategory, string> = {
   included: '',
 };
 
+const GREEN = '#047857';
+const GREEN_BG = 'rgba(16,185,129,.1)';
+
 export default function QuotationWebView({
   data, brand, compact, interactive, status, onApprove, approving, approveError, onDownloadPdf, nextStepLink, nextStepAuto,
 }: Props) {
-  const totals = calcTotals(data.items, data.vatRate);
   const repAuthorities = representationAuthorities(data.representation);
   const hasRep = repAuthorities.length > 0;
   const [signature, setSignature] = useState('');
   const [signerName, setSignerName] = useState('');
-  const pad = compact ? 22 : 44;
-  const maxW = compact ? '100%' : 640;
+  const pad = compact ? 20 : 40;
+  const maxW = compact ? '100%' : 600;
   const cardRadius = brand.radius + 4;
   const font = `'${brand.font}', system-ui, sans-serif`;
 
   const priced = data.items.filter(i => i.category !== 'included');
   const included = data.items.filter(i => i.category === 'included');
+  const year = quotationServiceYear(data.items, data.expiresAt);
 
   const isApproved = status === 'approved';
   const isDead = status === 'cancelled' || status === 'expired';
@@ -144,26 +144,32 @@ export default function QuotationWebView({
     );
   }
 
-  const introPadTop = brand.headerStyle === 'minimal' ? 0 : compact ? 16 : 22;
+  const introPadTop = brand.headerStyle === 'minimal' ? 4 : compact ? 18 : 24;
+  const bodyText = { fontSize: compact ? 13.5 : 14.5, color: brand.ink, lineHeight: 1.7 } as const;
 
   return (
-    <div style={{ background: brand.pageBg, minHeight: '100%', padding: compact ? 12 : 28, fontFamily: font, color: brand.ink, direction: 'rtl' }}>
+    <div style={{ background: brand.pageBg, minHeight: '100%', padding: compact ? 12 : 24, fontFamily: font, color: brand.ink, direction: 'rtl' }}>
       <div style={{ maxWidth: maxW, margin: '0 auto' }}>
         <div style={{ background: brand.cardBg, borderRadius: cardRadius, overflow: 'hidden', boxShadow: '0 12px 44px rgba(0,0,0,.09)', border: `1px solid ${brand.border}` }}>
 
           <Header />
 
           {/* פתיח */}
-          <div style={{ padding: `${introPadTop}px ${pad}px ${compact ? 20 : 28}px` }}>
-            <div style={{ fontSize: compact ? 23 : 30, fontWeight: 600, letterSpacing: '-.02em', marginBottom: 7, lineHeight: 1.15 }}>
-              {firstName ? `${firstName}, זו ההצעה שהכנתי עבורך.` : 'ההצעה שהכנתי עבורך.'}
+          <div style={{ padding: `${introPadTop}px ${pad}px ${compact ? 18 : 24}px` }}>
+            {year && (
+              <div style={{ display: 'inline-block', marginBottom: 10, padding: '3px 11px', borderRadius: 999, background: alpha(brand.accent, .1), color: brand.accent, fontSize: 12, fontWeight: 600 }}>
+                הצעת ליווי לשנת המס {year}
+              </div>
+            )}
+            <div style={{ fontSize: compact ? 22 : 28, fontWeight: 600, letterSpacing: '-.02em', lineHeight: 1.2 }}>
+              {firstName ? `${firstName}, זו ההצעה שהכנתי עבורך` : 'ההצעה שהכנתי עבורך'}
             </div>
-            <div style={{ fontSize: compact ? 14 : 15.5, color: brand.muted, lineHeight: 1.7 }}>
-              ההצעה מבוססת על מה שסיכמנו ומותאמת לצרכים של {data.businessName || 'העסק שלך'}.
+            <div style={{ fontSize: compact ? 13.5 : 15, color: brand.muted, lineHeight: 1.6, marginTop: 6 }}>
+              מבוססת על מה שסיכמנו ומותאמת לצרכים של {data.businessName || 'העסק שלך'}.
             </div>
 
             {isApproved && (
-              <div style={{ marginTop: 16, background: 'rgba(16,185,129,.1)', color: '#065f46', borderRadius: brand.radius, padding: '11px 15px', fontSize: 13.5, fontWeight: 600 }}>
+              <div style={{ marginTop: 16, background: GREEN_BG, color: '#065f46', borderRadius: brand.radius, padding: '11px 15px', fontSize: 13.5, fontWeight: 600 }}>
                 {/* בלי קישור השלמה אין צעד נוסף ללקוח — למשל כשכבר השלים
                     את פרטי הזיהוי בתהליך ייצוג קודם. */}
                 {hasRep && nextStepLink
@@ -178,104 +184,51 @@ export default function QuotationWebView({
             )}
           </div>
 
-          {/* שירותים */}
-          <div style={{ padding: `0 ${pad}px ${compact ? 18 : 24}px` }}>
-            <SectionLabel brand={brand}>מה תקבל במסגרת הליווי</SectionLabel>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 12 }}>
-              {priced.length === 0 && <div style={{ color: brand.muted, fontSize: 13.5 }}>טרם נוספו שירותים להצעה.</div>}
-              {priced.map(item => <ServiceCard key={item.id} item={item} brand={brand} compact={compact} vatRate={data.vatRate} />)}
-            </div>
-
-            {included.length > 0 && (
-              <>
-                <div style={{ height: 18 }} />
-                <SectionLabel brand={brand}>כלול בליווי - ללא תוספת תשלום</SectionLabel>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 12 }}>
-                  {included.map(item => (
-                    <div key={item.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: brand.pageBg, borderRadius: 999, padding: '7px 14px', fontSize: 12.5, color: brand.ink, fontWeight: 500, border: `1px solid ${brand.border}` }}>
-                      <span style={{ color: brand.accent, fontWeight: 600 }}>✓</span>{itemDisplayName(item)}
-                      {/* שירות כלול שיש לו מחיר — הערך מוצג מחוק, אחרת ההטבה
-                          שקופה ללקוח והוא לא יודע שקיבל משהו */}
-                      {itemFinalPrice(item) >= 1 && (
-                        <span style={{ color: brand.muted, textDecoration: 'line-through', textDecorationColor: '#dc2626', fontWeight: 400, fontVariantNumeric: 'tabular-nums' }}>
-                          {formatILS(Math.round(itemFinalPrice(item)))}
-                        </span>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
+          {/* מה ומתי משלמים */}
+          <div style={{ padding: `0 ${compact ? 14 : pad - 8}px` }}>
+            <PaymentSummary items={data.items} vatRate={data.vatRate} brand={brand} compact={compact} />
           </div>
 
-          {/* שני משפטים בלבד: איך מתחילים, ומי איש הקשר. ההערה האישית פר-לקוח
-              נכנסת ביניהם כשהיא קיימת. בלי סיסמאות ובלי הבטחות שיווקיות. */}
-          <div style={{ padding: `${compact ? 4 : 6}px ${pad}px ${compact ? 18 : 24}px`, display: 'flex', flexDirection: 'column', gap: compact ? 16 : 18 }}>
-            <div>
-              <SectionLabel brand={brand}>איך מתחילים</SectionLabel>
-              <div style={{ marginTop: 9, fontSize: compact ? 13.5 : 14.5, color: brand.ink, opacity: .88, lineHeight: 1.75 }}>
-                בתחילת הדרך אבדוק את התיק שלך, אשלים כל מה שנדרש ואוודא שהכול מסודר להמשך.
-              </div>
-            </div>
-            {data.notesForClient?.trim() && (
-              <div>
-                <SectionLabel brand={brand}>הערה אישית</SectionLabel>
-                <div style={{ marginTop: 9, fontSize: compact ? 13.5 : 14.5, color: brand.ink, opacity: .88, lineHeight: 1.75, whiteSpace: 'pre-line' }}>
-                  {data.notesForClient}
-                </div>
-              </div>
+          {/* מה כלול — שמות, תיאורים והערות; בלי מחירים */}
+          <div style={{ padding: `${compact ? 22 : 28}px ${pad}px 4px` }}>
+            <SectionLabel brand={brand}>מה כלול</SectionLabel>
+            {priced.length === 0 && included.length === 0 && (
+              <div style={{ color: brand.muted, fontSize: 13.5, marginTop: 8 }}>טרם נוספו שירותים להצעה.</div>
             )}
-            <div>
-              <SectionLabel brand={brand}>איש הקשר שלך</SectionLabel>
-              <div style={{ marginTop: 9, fontSize: compact ? 13.5 : 14.5, color: brand.ink, opacity: .88, lineHeight: 1.75 }}>
-                אני אהיה איש הקשר שלך לאורך כל הדרך.
-                לכל שאלה או התלבטות אפשר לפנות אליי ישירות בטלפון או בוואטסאפ.
-              </div>
-            </div>
-          </div>
-
-          {/* תמחור */}
-          <div style={{ padding: `${compact ? 18 : 22}px ${pad}px`, background: tint(brand.pageBg), borderTop: `1px solid ${brand.border}`, borderBottom: `1px solid ${brand.border}` }}>
-            <SectionLabel brand={brand}>סיכום התמחור</SectionLabel>
-            <div style={{ marginTop: 9, fontSize: compact ? 13 : 14, color: brand.ink, opacity: .88, lineHeight: 1.7 }}>
-              זה המחיר שסיכמנו, והוא כולל את כל השירותים המפורטים בהצעה.
-            </div>
-            <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 14 }}>
-              {totals.monthly.withVat > 0 && (
-                <PriceBlock brand={brand} label="חודשי" t={totals.monthly} vatRate={data.vatRate} suffix="לחודש" compact={compact}
-                  footnote={<MonthlyTerms data={data} totals={totals} brand={brand} />} />
-              )}
-              {totals.annual.withVat > 0 && <PriceBlock brand={brand} label="שנתי" t={totals.annual} vatRate={data.vatRate} suffix="לשנה" compact={compact} />}
-              {totals.oneTime.withVat > 0 && <PriceBlock brand={brand} label="חד־פעמי" t={totals.oneTime} vatRate={data.vatRate} suffix="" compact={compact} />}
-              {/* ‼ יתרה לתשלום מאוחר היא בלוק נפרד ולעולם לא חלק מ"חד־פעמי":
-                  "חד־פעמי" נקרא כמשהו שמשלמים עכשיו, וזה בדיוק מה שזה לא.
-                  קבוצה לכל מועד גבייה — הדוח השנתי והצהרת ההון אינם אותו תשלום. */}
-              {deferredGroups(data.items, data.vatRate).map(g => (
-                <PriceBlock key={g.trigger} brand={brand} label={`לתשלום ${g.trigger}`} t={g.total}
-                  vatRate={data.vatRate} suffix="" compact={compact}
-                  tone="deferred"
-                  headerStrip={`לא נגבה עכשיו · ייגבה ${g.trigger}`}
-                  rows={deferredSummaryRows(g)} />
+            <div style={{ marginTop: 6 }}>
+              {[...priced, ...included].map((item, i) => (
+                <div key={item.id} style={{ display: 'flex', gap: 10, padding: '11px 0', borderTop: i ? `1px solid ${brand.border}` : 'none' }}>
+                  <span aria-hidden style={{ color: brand.accent, fontWeight: 700, lineHeight: 1.5 }}>✓</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: compact ? 14 : 15, fontWeight: 600, lineHeight: 1.5 }}>{itemDisplayName(item)}</div>
+                    {item.category === 'included' && (
+                      <div style={{ fontSize: 12, fontWeight: 600, color: GREEN, lineHeight: 1.5 }}>ללא תוספת תשלום</div>
+                    )}
+                    {item.description && <div style={{ fontSize: 12.5, color: brand.muted, lineHeight: 1.55 }}>{item.description}</div>}
+                    {item.clientNote && <div style={{ fontSize: 12.5, color: brand.accent, marginTop: 3, lineHeight: 1.55 }}>{item.clientNote}</div>}
+                  </div>
+                </div>
               ))}
-              {priced.length === 0 && <div style={{ color: brand.muted, fontSize: 13.5 }}>-</div>}
-            </div>
-            <div style={{ marginTop: 14, fontSize: 11.5, color: brand.muted, lineHeight: 1.6 }}>
-              חיוב חודשי, שנתי וחד־פעמי מוצגים בנפרד{totals.deferred.withVat > 0 ? ', וכך גם סכום שנגבה במועד מאוחר' : ''}. הסכומים הסופיים כוללים מע״מ.
             </div>
           </div>
 
-          {/* מחירון שירותים עתידיים — מקופל כברירת מחדל.
-              השקיפות מסופקת ע"י עצם קיום השורה ("מחירון · N שירותים"), בלי
-              שקיר של מחירים שלא ביקשו ידרוך על רגע ההחלטה. עד 3 שירותים —
-              נשאר פתוח; לקפל שלוש שורות זו התחכמות מיותרת. */}
+          {data.notesForClient?.trim() && (
+            <div style={{ padding: `${compact ? 14 : 18}px ${pad}px 0` }}>
+              <SectionLabel brand={brand}>הערה אישית</SectionLabel>
+              <div style={{ ...bodyText, marginTop: 8, whiteSpace: 'pre-line' }}>{data.notesForClient}</div>
+            </div>
+          )}
+
+          {/* מחירון "אם וכאשר" — תמיד מקופל: עצם קיום השורה הוא השקיפות, בלי
+              קיר מחירים שלא ביקשו ליד רגע ההחלטה. */}
           {(data.futureServices?.length ?? 0) > 0 && (
             <FutureServices services={data.futureServices!} brand={brand} compact={compact} pad={pad} />
           )}
 
           {/* צעדים הבאים */}
-          <div style={{ padding: `${compact ? 18 : 22}px ${pad}px`, borderTop: `1px solid ${brand.border}` }}>
+          <div style={{ padding: `${compact ? 20 : 26}px ${pad}px ${compact ? 22 : 28}px` }}>
             <SectionLabel brand={brand}>מה קורה אחרי האישור</SectionLabel>
-            <ol style={{ marginTop: 12, paddingInlineStart: 18, display: 'flex', flexDirection: 'column', gap: 8, fontSize: 13.5, color: brand.ink, opacity: .85, lineHeight: 1.65 }}>
+            <ol style={{ margin: '10px 0 0', paddingInlineStart: 18, display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13.5, color: brand.ink, lineHeight: 1.6 }}>
               {hasRep ? (
                 <>
                   <li>מיד עם האישור תועבר למסך קצר להשלמת פרטי הזיהוי.</li>
@@ -290,6 +243,9 @@ export default function QuotationWebView({
                 </>
               )}
             </ol>
+            <div style={{ fontSize: 13, color: brand.muted, marginTop: 12, lineHeight: 1.6 }}>
+              לכל שאלה אפשר לפנות אליי ישירות בטלפון או בוואטסאפ.
+            </div>
           </div>
 
           {/* אישור + חתימה */}
@@ -301,19 +257,19 @@ export default function QuotationWebView({
 
             {!isApproved && !isDead && (
               <div style={{ background: '#fff', borderRadius: brand.radius + 2, padding: compact ? 14 : 18, marginBottom: 14, textAlign: 'start' }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: '#1f2937', marginBottom: 10 }}>אישור וחתימה</div>
                 <label style={{ display: 'block', fontSize: 12, color: '#6b7280', marginBottom: 10 }}>
                   שם מלא של החותם
                   <input
                     value={signerName}
                     onChange={e => setSignerName(e.target.value)}
                     placeholder={data.recipientName}
-                    style={{ display: 'block', width: '100%', marginTop: 4, padding: '9px 11px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 14, fontFamily: 'inherit', boxSizing: 'border-box' }}
+                    style={{ display: 'block', width: '100%', marginTop: 4, padding: '10px 11px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 16, fontFamily: 'inherit', boxSizing: 'border-box' }}
                   />
                 </label>
                 <SignaturePad value={signature} onChange={setSignature} height={compact ? 110 : 140} />
-                <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 8, lineHeight: 1.6 }}>
-                  החתימה מהווה אישור להצעת המחיר ולתנאיה כפי שמפורטים בעמוד זה.
+                <div style={{ fontSize: 11.5, color: '#6b7280', marginTop: 10, lineHeight: 1.6 }}>
+                  {year && <>{serviceYearClause(year)}<br /></>}
+                  החתימה מהווה אישור להצעה ולתנאיה כפי שמפורטים בעמוד זה.
                 </div>
               </div>
             )}
@@ -390,6 +346,108 @@ export default function QuotationWebView({
   );
 }
 
+// "מה ומתי משלמים" — הסכום החודשי, החד־פעמי ומה שנגבה מאוחר, כל אחד בשורה
+// אחת וכולל מע"מ; ההנחה בשורה ירוקה אחת; הפירוט המלא נפתח לפי בקשה.
+function PaymentSummary({ items, vatRate, brand, compact }: {
+  items: QuotationItem[]; vatRate: number; brand: QuotationBrand; compact?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const rows = paymentSchedule(items, vatRate);
+  const savingsText = savingsSentence(quotationSavings(items, vatRate), formatILS);
+  const priced = items.filter(i => i.category !== 'included');
+  const anyVat = priced.some(i => i.vatFlag);
+  if (priced.length === 0) return null;
+
+  const rowPad = compact ? '12px 14px' : '14px 18px';
+  return (
+    <div style={{ border: `1px solid ${brand.border}`, borderRadius: brand.radius + 2, overflow: 'hidden', background: brand.cardBg }}>
+      <div style={{ padding: compact ? '10px 14px' : '11px 18px', fontSize: 12, fontWeight: 600, color: brand.muted, borderBottom: `1px solid ${brand.border}`, background: tint(brand.pageBg) }}>
+        מה ומתי משלמים
+      </div>
+      {rows.map((r, i) => (
+        <div key={r.key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, padding: rowPad, borderTop: i ? `1px solid ${brand.border}` : 'none' }}>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: compact ? 14.5 : 15.5, fontWeight: 600 }}>{r.label}</div>
+            {r.sub && <div style={{ fontSize: 12, color: brand.muted, marginTop: 1 }}>{r.sub}</div>}
+            {r.changesTo && <div style={{ fontSize: 12, color: brand.ink, marginTop: 2 }}>{r.changesTo.from}: {formatILS(Math.round(r.changesTo.amount))} לחודש</div>}
+          </div>
+          <div style={{ fontSize: compact ? 21 : 24, fontWeight: 600, fontVariantNumeric: 'tabular-nums', letterSpacing: '-.01em', whiteSpace: 'nowrap', color: r.deferred ? brand.muted : brand.ink }}>
+            {formatILS(Math.round(r.amount))}
+          </div>
+        </div>
+      ))}
+      {savingsText && (
+        <div style={{ padding: compact ? '9px 14px' : '10px 18px', background: GREEN_BG, color: GREEN, fontSize: 13, fontWeight: 600, borderTop: `1px solid ${brand.border}` }}>
+          {savingsText}
+        </div>
+      )}
+      <button
+        onClick={() => setOpen(o => !o)}
+        aria-expanded={open}
+        style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, minHeight: 44, padding: compact ? '8px 14px' : '8px 18px', background: 'transparent', border: 'none', borderTop: `1px solid ${brand.border}`, fontFamily: 'inherit', cursor: 'pointer', textAlign: 'start' }}
+      >
+        <span style={{ fontSize: 12, color: brand.muted }}>{anyVat ? 'כל הסכומים כוללים מע״מ' : ''}</span>
+        <span style={{ fontSize: 12.5, fontWeight: 600, color: brand.accent }}>{open ? 'הסתרת הפירוט ▲' : 'איך חושב ▼'}</span>
+      </button>
+      {open && (
+        <div style={{ padding: compact ? '4px 14px 12px' : '4px 18px 14px', borderTop: `1px solid ${brand.border}`, background: tint(brand.cardBg) }}>
+          {priced.map((item, i) => <BreakdownRow key={item.id} item={item} vatRate={vatRate} brand={brand} first={i === 0} />)}
+          {anyVat && (
+            <div style={{ fontSize: 11.5, color: brand.muted, marginTop: 10 }}>
+              הסכומים בפירוט לפני מע״מ. מע״מ {vatRate}% מתווסף אליהם.
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// שורת שירות בפירוט: המחיר בשורה, ההנחה עליו, ובשורת יתרה — הדרך מהמחיר
+// המלא לסכום שנגבה במועד. זה הנוסח שגיא מקריא ללקוח בטלפון.
+function BreakdownRow({ item, vatRate, brand, first }: { item: QuotationItem; vatRate: number; brand: QuotationBrand; first: boolean }) {
+  const final = itemFinalPrice(item);
+  const original = itemOriginalPrice(item);
+  const deferred = itemDeferred(item, vatRate);
+  const spread = item.category === 'monthly' && item.priceBasis === 'annual' ? monthlyPlan(item) : null;
+  // ‼ "במקום 120" ליד 100 נקרא כהנחה של 20 ₪, בזמן שההנחה ניתנה על השנה —
+  // בשורה שתומחרה שנתית מציגים את העוגן השנתי. בשורת יתרה הפירוט אומר זאת במלואו.
+  const annual = !deferred && original - final >= 1 ? itemAnnualAnchor(item) : null;
+  const was = !deferred && original - final >= 1
+    ? annual && annual.list - annual.value >= 1
+      ? `${formatILS(Math.round(annual.value))} לשנה במקום ${formatILS(Math.round(annual.list))}`
+      : `במקום ${formatILS(Math.round(original))}`
+    : null;
+  // התדירות כבר כתובה ליד המחיר; כאן רק מה שהיא לא אומרת
+  const meta = [
+    spread ? `${spread.installments} תשלומים` : '',
+    item.billingType === 'per_unit' && item.quantity > 1 ? `${item.quantity} × ${item.unitLabel || 'יחידה'}` : '',
+    item.vatFlag ? '' : 'ללא מע״מ',
+  ].filter(Boolean).join(' · ');
+  return (
+    <div style={{ padding: '10px 0', borderTop: first ? 'none' : `1px dashed ${brand.border}` }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
+        <span style={{ fontSize: 13, fontWeight: 600, color: brand.ink }}>{itemDisplayName(item)}</span>
+        <span style={{ fontSize: 13, fontWeight: 600, color: brand.ink, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
+          {formatILS(Math.round(final))} {CATEGORY_PRICE_SUFFIX[item.category]}
+        </span>
+      </div>
+      {meta && <div style={{ fontSize: 11.5, color: brand.muted, marginTop: 1 }}>{meta}</div>}
+      {was && <div style={{ fontSize: 12, color: GREEN, marginTop: 2 }}>{was}</div>}
+      {deferred && (
+        <div style={{ marginTop: 6 }}>
+          {deferredDetailLines(deferred, item.name).map(r => (
+            <div key={r.label} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, padding: '1px 0', fontSize: 12.5, fontVariantNumeric: 'tabular-nums', fontWeight: r.strong ? 600 : 400, color: r.strong ? brand.ink : r.negative ? GREEN : brand.muted }}>
+              <span>{r.label}</span>
+              <span>{r.negative ? '−' : ''}{formatILS(Math.round(r.amount))}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ApproveButton({ brand, compact, isApproved, isDead, approving, enabled, needsSignature, onClick }: {
   brand: QuotationBrand; compact?: boolean; isApproved: boolean; isDead: boolean; approving?: boolean; enabled: boolean; needsSignature?: boolean; onClick?: () => void;
 }) {
@@ -417,322 +475,57 @@ function greetingName(fullName: string): string {
 function FutureServices({ services, brand, compact, pad }: {
   services: FutureService[]; brand: QuotationBrand; compact?: boolean; pad: number;
 }) {
-  const alwaysOpen = services.length <= 3;
-  const [open, setOpen] = useState(alwaysOpen);
-
-  const list = (
-    <div style={{ marginTop: 12, borderRadius: brand.radius, border: `1px solid ${brand.border}`, overflow: 'hidden' }}>
-      {services.map((fs, i) => (
-        <div key={fs.id} style={{ display: 'flex', alignItems: 'baseline', gap: 10, padding: compact ? '10px 12px' : '11px 14px', borderTop: i ? `1px solid ${brand.border}` : 'none', background: i % 2 ? tint(brand.cardBg) : brand.cardBg }}>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 13.5, fontWeight: 600, color: brand.ink }}>{fs.name}</div>
-            {fs.description && <div style={{ fontSize: 11.5, color: brand.muted, marginTop: 2 }}>{fs.description}</div>}
-          </div>
-          <div style={{ textAlign: 'end', whiteSpace: 'nowrap', color: brand.muted }}>
-            <span style={{ fontSize: 13, fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{formatILS(fs.price)}</span>
-            <span style={{ fontSize: 11, marginInlineStart: 4 }}>
-              {CATEGORY_PRICE_SUFFIX[fs.category] ? `${CATEGORY_PRICE_SUFFIX[fs.category]} ` : ''}
-              {fs.vatFlag ? '+ מע״מ' : ''}{fs.billingType === 'per_unit' ? ` / ${fs.unitLabel || 'יחידה'}` : ''}
-            </span>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-
+  const [open, setOpen] = useState(false);
   return (
-    <div style={{ padding: `${compact ? 18 : 22}px ${pad}px`, borderTop: `1px solid ${brand.border}` }}>
-      {alwaysOpen ? (
-        <>
-          <SectionLabel brand={brand}>שירותים נוספים</SectionLabel>
-          <div style={{ marginTop: 8, fontSize: 12.5, color: brand.muted, lineHeight: 1.6 }}>
-            אינם כלולים בהצעה. תחויב רק אם תבקש אותם.
-          </div>
-          {list}
-        </>
-      ) : (
-        <>
-          <button
-            onClick={() => setOpen(o => !o)}
-            style={{
-              width: '100%', display: 'flex', alignItems: 'center', gap: 10, textAlign: 'start',
-              background: open ? 'transparent' : tint(brand.pageBg), cursor: 'pointer',
-              border: `1px solid ${brand.border}`, borderRadius: brand.radius,
-              padding: compact ? '12px 14px' : '14px 16px', fontFamily: 'inherit', color: brand.ink,
-            }}
-          >
-            <span style={{ flex: 1, minWidth: 0 }}>
-              <span style={{ display: 'block', fontSize: compact ? 13.5 : 14.5, fontWeight: 600 }}>
-                מחירון שירותים נוספים · {services.length} שירותים
-              </span>
-              <span style={{ display: 'block', fontSize: 11.5, color: brand.muted, marginTop: 2, lineHeight: 1.5 }}>
-                אינם כלולים בהצעה. המחירים ידועים מראש, למקרה שתצטרך.
-              </span>
-            </span>
-            <span style={{ fontSize: 11, color: brand.muted }}>{open ? '▲' : '▼'}</span>
-          </button>
-          {open && list}
-        </>
+    <div style={{ padding: `${compact ? 16 : 20}px ${pad}px 0` }}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        aria-expanded={open}
+        style={{
+          width: '100%', display: 'flex', alignItems: 'center', gap: 10, textAlign: 'start',
+          background: 'transparent', cursor: 'pointer', minHeight: 44,
+          border: `1px solid ${brand.border}`, borderRadius: brand.radius,
+          padding: compact ? '10px 14px' : '12px 16px', fontFamily: 'inherit', color: brand.ink,
+        }}
+      >
+        <span style={{ flex: 1, minWidth: 0 }}>
+          <span style={{ display: 'block', fontSize: compact ? 13.5 : 14, fontWeight: 600 }}>
+            שירותים נוספים לפי צורך · {services.length}
+          </span>
+          <span style={{ display: 'block', fontSize: 11.5, color: brand.muted, marginTop: 2, lineHeight: 1.5 }}>
+            אינם כלולים בהצעה. המחירים ידועים מראש, למקרה שתצטרך.
+          </span>
+        </span>
+        <span style={{ fontSize: 11, color: brand.muted }}>{open ? '▲' : '▼'}</span>
+      </button>
+      {open && (
+        <div style={{ marginTop: 8, borderRadius: brand.radius, border: `1px solid ${brand.border}`, overflow: 'hidden' }}>
+          {services.map((fs, i) => (
+            <div key={fs.id} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', columnGap: 10, rowGap: 2, padding: compact ? '10px 12px' : '11px 14px', borderTop: i ? `1px solid ${brand.border}` : 'none' }}>
+              <div style={{ flex: '1 1 180px', minWidth: 0 }}>
+                <div style={{ fontSize: 13.5, fontWeight: 600, color: brand.ink }}>{fs.name}</div>
+                {fs.description && <div style={{ fontSize: 11.5, color: brand.muted, marginTop: 2 }}>{fs.description}</div>}
+              </div>
+              <div style={{ textAlign: 'end', whiteSpace: 'nowrap', color: brand.muted }}>
+                <span style={{ fontSize: 13, fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{formatILS(fs.price)}</span>
+                <span style={{ fontSize: 11, marginInlineStart: 4 }}>
+                  {CATEGORY_PRICE_SUFFIX[fs.category] ? `${CATEGORY_PRICE_SUFFIX[fs.category]} ` : ''}
+                  {fs.vatFlag ? '+ מע״מ' : ''}{fs.billingType === 'per_unit' ? ` / ${fs.unitLabel || 'יחידה'}` : ''}
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
       )}
     </div>
   );
 }
 
 function SectionLabel({ children, brand }: { children: React.ReactNode; brand: QuotationBrand }) {
-  return <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '.08em', color: brand.muted }}>{children}</div>;
+  return <div style={{ fontSize: 12, fontWeight: 600, color: brand.muted }}>{children}</div>;
 }
 
-function ServiceCard({ item, brand, compact, vatRate }: { item: QuotationItem; brand: QuotationBrand; compact?: boolean; vatRate: number }) {
-  const finalBeforeVat = itemFinalPrice(item);
-  const deferred = itemDeferred(item, vatRate);
-  const original = itemOriginalPrice(item);
-  // עוגן מחיר: מציגים את המחיר המלא מחוק לצד המחיר שאחרי ההנחה
-  const hasDiscount = original - finalBeforeVat >= 1;
-  const discountPct = hasDiscount ? Math.round((1 - finalBeforeVat / original) * 100) : 0;
-  const perUnit = item.billingType === 'per_unit';
-  // שורה שתומחרה שנתית ונגבית חודשית — מציינים כמה תשלומים, ולא את הסכום
-  // השנתי. החלטת גיא: הלקוח רואה מחיר אחד, מה שהוא משלם בחודש.
-  const spread = item.category === 'monthly' && item.priceBasis === 'annual' ? monthlyPlan(item) : null;
-  // ‼ "הנחה 17%" ליד 120 ← 100 נקרא כהנחה של 20 ₪, בזמן שההנחה ניתנה על השנה
-  // (1,440 ← 1,200). בשורת יתרה הפירוט שמתחת כבר מספר את זה במלואו, ולכן
-  // השורה הזו מופיעה רק כשאין פירוט — אחרת אותו משפט נאמר פעמיים בכרטיס אחד.
-  const annual = !deferred && hasDiscount ? itemAnnualAnchor(item) : null;
-  return (
-    <div style={{ border: `1px solid ${brand.border}`, borderRadius: brand.radius, padding: compact ? 14 : 16, background: brand.cardBg }}>
-      <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: compact ? 14.5 : 15.5, fontWeight: 600, marginBottom: 3, color: brand.ink }}>{itemDisplayName(item)}</div>
-          {item.description && <div style={{ fontSize: 12.5, color: brand.muted, lineHeight: 1.55 }}>{item.description}</div>}
-          {item.clientNote && <div style={{ fontSize: 12, color: brand.accent, marginTop: 5 }}>{item.clientNote}</div>}
-          <div style={{ fontSize: 11, color: brand.muted, marginTop: 6, opacity: .8 }}>
-            {SERVICE_CATEGORY_LABELS[item.category]} · {spread
-              ? `${spread.installments} תשלומים`
-              : CATEGORY_BLURB[item.category]}
-            {perUnit && item.quantity > 1 ? ` · ${item.quantity} × ${item.unitLabel || 'יחידה'}` : ''}
-          </div>
-        </div>
-        {/* סדר קריאה קבוע: מחיר מלא מחוק ← תגית הנחה ← מחיר סופי גדול */}
-        <div style={{ textAlign: 'end', whiteSpace: 'nowrap' }}>
-          {hasDiscount && (
-            <>
-              <div style={{ fontSize: 13, color: brand.muted, textDecoration: 'line-through', textDecorationColor: '#dc2626', fontVariantNumeric: 'tabular-nums' }}>
-                {formatILS(Math.round(original))}
-              </div>
-              <div style={{ display: 'inline-block', margin: '3px 0', background: 'rgba(16,185,129,.12)', color: '#047857', borderRadius: 999, padding: '2px 10px', fontSize: 11, fontWeight: 600 }}>
-                הנחה {discountPct}%
-              </div>
-            </>
-          )}
-          <div style={{ fontSize: compact ? 17 : 19, fontWeight: 600, fontVariantNumeric: 'tabular-nums', color: hasDiscount ? '#047857' : brand.ink, letterSpacing: '-.01em' }}>
-            {formatILS(Math.round(finalBeforeVat))}
-          </div>
-          <div style={{ fontSize: 10.5, color: brand.muted }}>{item.vatFlag ? '+ מע״מ' : 'ללא מע״מ'}</div>
-          {annual && annual.list - annual.value >= 1 && (
-            <div style={{ fontSize: 11, color: '#047857', marginTop: 4 }}>
-              {formatILS(Math.round(annual.value))} לשנה במקום {formatILS(Math.round(annual.list))}
-            </div>
-          )}
-        </div>
-      </div>
-      {deferred && <DeferredDetail b={deferred} itemName={item.name} brand={brand} compact={compact} />}
-    </div>
-  );
-}
-
-// פירוט היתרה מתחת לשורת השירות: מה מחיר השירות, איזו הנחה ניתנה עליו, מה
-// כבר כלול בחודשי, ומה נשאר לתשלום. זה הנוסח שגיא מקריא ללקוח בטלפון.
-function DeferredDetail({ b, itemName, brand, compact }: {
-  b: NonNullable<ReturnType<typeof itemDeferred>>; itemName?: string; brand: QuotationBrand; compact?: boolean;
-}) {
-  const rows = deferredDetailLines(b, itemName);
-  return (
-    <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px dashed ${brand.border}` }}>
-      {rows.map(r => (
-        <div key={r.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10, padding: '2px 0' }}>
-          <span style={{
-            fontSize: compact ? 12 : 12.5,
-            fontWeight: r.strong ? 600 : 400,
-            color: r.strong ? brand.ink : r.negative ? '#047857' : brand.muted,
-          }}>{r.label}</span>
-          <span style={{
-            fontSize: compact ? 12.5 : 13,
-            fontWeight: r.strong ? 600 : 400,
-            fontVariantNumeric: 'tabular-nums',
-            color: r.strong ? brand.ink : r.negative ? '#047857' : brand.muted,
-          }}>{r.negative ? '−' : ''}{formatILS(Math.round(r.amount))}</span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-// פריסת התשלומים כפי שהלקוח צריך להבין אותה: כמה תשלומים, עד מתי, כמה בסך
-// הכול — ובעיקר מה יקרה כשהתקופה תיגמר. בלי השורה האחרונה הלקוח מניח שהתשלום
-// החודשי שראה הוא המחיר לתמיד, וזה מקור לוויכוח בהמשך.
-function MonthlyTerms({ data, totals, brand }: {
-  data: QuotationWebViewData; totals: ReturnType<typeof calcTotals>; brand: QuotationBrand;
-}) {
-  if (!totals.hasPartialTerm && !totals.changesAfterPeriod) return null;
-  const monthlyItems = data.items.filter(i => i.category === 'monthly');
-  const plans = monthlyItems.map(monthlyPlan);
-  const first = plans[0];
-  const range = first ? formatMonthRange(first.startMonth, first.endMonth) : '';
-
-  return (
-    <div style={{ marginTop: 8, paddingTop: 8, borderTop: `1px dashed ${brand.border}`, fontSize: 12.5, color: brand.muted, lineHeight: 1.65 }}>
-      {/* בלי סה"כ לתקופה — סכום שנתי מצטבר רק מגדיל את המספר בראש של הלקוח */}
-      {totals.hasPartialTerm && totals.installments && (
-        <div>
-          <b style={{ color: brand.ink }}>{totals.installments} תשלומים</b>
-          {range ? ` · ${range}` : ''}
-        </div>
-      )}
-      {totals.changesAfterPeriod && (
-        <div style={{ marginTop: 3 }}>
-          {first?.nextMonth ? `החל מ${formatMonth(first.nextMonth)}` : 'לאחר מכן'}:{' '}
-          <b style={{ color: brand.ink }}>{formatILS(Math.round(totals.monthlyOngoing.withVat))} לחודש</b> (12 תשלומים בשנה).
-        </div>
-      )}
-    </div>
-  );
-}
-
-// שורת פירוט בבלוק סיכום. amount שלילי מוצג עם מינוס ובירוק; strike מוחק את
-// המספר (העוגן שלפני ההנחה); strong הוא השורה שמסכמת את החישוב.
-interface PriceRow { label: string; amount: number; negative?: boolean; strike?: boolean; strong?: boolean }
-
-// לאן הלכו 1,800 ₪ — לקוח שקורא רק את הסיכום חייב לראות את כל המסלול:
-// מחיר מלא ← ההנחה שקיבל (האחוזים + ההנחה על היתרה גם יחד) ← מה שכבר משולם
-// בשכר החודשי ← מה שנשאר. "מחיר מלא 840" היה היתרה, לא המחיר.
-function deferredSummaryRows(g: { listPrice: number; totalDiscount: number; includedInMonthly: number; total: { beforeVat: number } }): PriceRow[] | undefined {
-  if (g.totalDiscount < 1 && g.includedInMonthly < 1) return undefined;
-  return [
-    { label: 'מחיר מלא', amount: g.listPrice, strike: true },
-    ...(g.totalDiscount >= 1 ? [{ label: 'הנחה', amount: g.totalDiscount, negative: true }] : []),
-    ...(g.includedInMonthly >= 1 ? [{ label: 'כלול בשכר החודשי', amount: g.includedInMonthly, negative: true }] : []),
-    { label: 'נותר לתשלום', amount: g.total.beforeVat, strong: true },
-  ];
-}
-
-// גוון הבלוק. 'accent' — כסף שנגבה עכשיו, בצבע המותג. 'deferred' — כסף שלא
-// נגבה עכשיו, בגוון ענבר מאופק: אותו רכיב בדיוק, רק שהוא לא מתחרה על העין
-// עם הסכומים שכן משלמים היום.
-type BlockTone = 'accent' | 'deferred';
-const DEFERRED_TONE = {
-  ink: '#92400e',
-  cardBg: 'rgba(180,120,20,.05)',
-  border: 'rgba(180,120,20,.32)',
-  barBg: 'rgba(180,120,20,.13)',
-  barBorder: 'rgba(180,120,20,.4)',
-  stripBg: 'rgba(180,120,20,.16)',
-};
-
-// עוגן התנהגותי בסדר קבוע ובלתי ניתן לפספוס: מחיר מלא (מחוק) ← הנחה (שורה
-// ירוקה בולטת) ← מחיר אחרי הנחה ← מע"מ ← "סה״כ לתשלום" ענק על רקע צבע המותג.
-// ההנחה צריכה להרגיש כמו רווח של הלקוח, והמחיר הסופי — כמו השורה התחתונה.
-function PriceBlock({ label, t, vatRate, suffix, brand, compact, footnote, tone = 'accent', headerStrip, rows }: {
-  label: string; t: { fullBeforeVat: number; discount: number; beforeVat: number; vat: number; withVat: number };
-  vatRate: number; suffix: string; brand: QuotationBrand; compact?: boolean;
-  footnote?: React.ReactNode;
-  tone?: BlockTone;
-  /** פס עליון — העובדה הכי חשובה על הבלוק, לפני כל מספר */
-  headerStrip?: string;
-  /** פירוט חלופי במקום מחיר מלא/הנחה/אחרי הנחה */
-  rows?: PriceRow[];
-}) {
-  const muted = tone === 'deferred';
-  const barColor = muted ? DEFERRED_TONE.ink : brand.accent;
-  const hasDiscount = t.discount >= 1;
-  const pct = hasDiscount ? Math.round((t.discount / t.fullBeforeVat) * 100) : 0;
-  return (
-    <div style={{
-      background: muted ? DEFERRED_TONE.cardBg : brand.cardBg,
-      border: `1px solid ${muted ? DEFERRED_TONE.border : brand.border}`,
-      borderRadius: brand.radius, overflow: 'hidden',
-      boxShadow: muted ? 'none' : '0 1px 4px rgba(0,0,0,.04)',
-    }}>
-      {headerStrip && (
-        <div style={{ background: DEFERRED_TONE.stripBg, padding: `${compact ? 8 : 9}px 16px`, display: 'flex', alignItems: 'center', gap: 7, fontSize: compact ? 12.5 : 13, fontWeight: 600, color: DEFERRED_TONE.ink, lineHeight: 1.4 }}>
-          <span aria-hidden style={{ fontSize: 14 }}>⏳</span>{headerStrip}
-        </div>
-      )}
-      <div style={{ padding: `${compact ? 10 : 12}px 16px 0`, fontSize: 11.5, fontWeight: 600, letterSpacing: '.06em', color: muted ? DEFERRED_TONE.ink : brand.muted }}>{label}</div>
-
-      <div style={{ padding: `6px 16px ${compact ? 10 : 12}px` }}>
-        {rows
-          ? rows.map(r => (
-            <div key={r.label} style={{
-              display: 'flex', justifyContent: 'space-between', alignItems: 'baseline',
-              padding: r.negative ? '6px 10px' : '3px 0',
-              margin: r.negative ? '3px -10px' : undefined,
-              background: r.negative ? 'rgba(16,185,129,.1)' : undefined,
-              borderRadius: r.negative ? 8 : undefined,
-            }}>
-              <span style={{ fontSize: 13, fontWeight: r.strong || r.negative ? 600 : 400, color: r.negative ? '#047857' : r.strong ? brand.ink : brand.muted }}>{r.label}</span>
-              <span style={{
-                fontSize: 15, fontWeight: r.strong || r.negative ? 600 : 400,
-                fontVariantNumeric: 'tabular-nums',
-                color: r.negative ? '#047857' : r.strong ? brand.ink : brand.muted,
-                textDecoration: r.strike ? 'line-through' : undefined,
-                textDecorationColor: r.strike ? '#dc2626' : undefined,
-              }}>{r.negative ? '−' : ''}{formatILS(Math.round(r.amount))}</span>
-            </div>
-          ))
-          : <>
-            {hasDiscount && (
-              <>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '3px 0' }}>
-                  <span style={{ fontSize: 13, color: brand.muted }}>מחיר מלא</span>
-                  <span style={{ fontSize: 15, color: brand.muted, textDecoration: 'line-through', textDecorationColor: '#dc2626', fontVariantNumeric: 'tabular-nums' }}>
-                    {formatILS(Math.round(t.fullBeforeVat))}
-                  </span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(16,185,129,.1)', borderRadius: 8, padding: '6px 10px', margin: '3px -10px' }}>
-                  <span style={{ fontSize: 13, fontWeight: 600, color: '#047857' }}>הנחה {pct}%</span>
-                  <span style={{ fontSize: 15, fontWeight: 600, color: '#047857', fontVariantNumeric: 'tabular-nums' }}>−{formatILS(Math.round(t.discount))}</span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '4px 0 2px' }}>
-                  <span style={{ fontSize: 13, fontWeight: 600, color: brand.ink }}>מחיר אחרי הנחה</span>
-                  <span style={{ fontSize: 15, fontWeight: 600, color: brand.ink, fontVariantNumeric: 'tabular-nums' }}>{formatILS(Math.round(t.beforeVat))}</span>
-                </div>
-              </>
-            )}
-            {!hasDiscount && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '3px 0' }}>
-                <span style={{ fontSize: 13, color: brand.muted }}>מחיר</span>
-                <span style={{ fontSize: 14.5, fontWeight: 600, color: brand.ink, fontVariantNumeric: 'tabular-nums' }}>{formatILS(Math.round(t.beforeVat))}</span>
-              </div>
-            )}
-          </>}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '2px 0' }}>
-          <span style={{ fontSize: 12, color: brand.muted }}>+ מע״מ ({vatRate}%)</span>
-          <span style={{ fontSize: 12.5, color: brand.muted, fontVariantNumeric: 'tabular-nums' }}>{formatILS(Math.round(t.vat))}</span>
-        </div>
-      </div>
-
-      {/* השורה התחתונה — הכי גדולה בעמוד, על רקע צבע המותג */}
-      <div style={{
-        background: muted ? DEFERRED_TONE.barBg : alpha(brand.accent, .1),
-        borderTop: `1.5px solid ${muted ? DEFERRED_TONE.barBorder : alpha(brand.accent, .35)}`,
-        padding: `${compact ? 10 : 12}px 16px`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10,
-      }}>
-        <div>
-          <div style={{ fontSize: compact ? 13.5 : 14.5, fontWeight: 600, color: muted ? DEFERRED_TONE.ink : brand.ink }}>
-            {muted ? 'סכום שייגבה' : 'סה״כ לתשלום'}{suffix ? ` ${suffix}` : ''}
-          </div>
-          <div style={{ fontSize: 10.5, color: brand.muted }}>{muted ? 'כולל מע״מ · אינו חלק מהתשלום החודשי' : 'כולל מע״מ'}</div>
-        </div>
-        <div style={{ fontSize: compact ? 22 : 26, fontWeight: 600, color: barColor, fontVariantNumeric: 'tabular-nums', letterSpacing: '-.01em' }}>
-          {formatILS(Math.round(t.withVat))}
-        </div>
-      </div>
-
-      {footnote && <div style={{ padding: `0 16px ${compact ? 10 : 12}px` }}>{footnote}</div>}
-    </div>
-  );
-}
-
-// גוון שקוף של צבע המותג — לרקע שורת הסה"כ
+// גוון שקוף של צבע המותג
 function alpha(hex: string, a: number): string {
   const m = /^#?([0-9a-f]{6})$/i.exec((hex || '').trim());
   if (!m) return hex;
@@ -740,7 +533,7 @@ function alpha(hex: string, a: number): string {
   return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
 }
 
-// גוון עדין כהה יותר מרקע העמוד — לאזור הסיכום
+// גוון עדין כהה יותר מהרקע — לכותרת הסיכום ולפירוט
 function tint(hex: string): string {
   const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
   if (!m) return hex;

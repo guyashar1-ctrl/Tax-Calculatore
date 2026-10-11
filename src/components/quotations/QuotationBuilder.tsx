@@ -35,6 +35,7 @@ import {
   calcTotals, formatILS, itemFinalPrice, itemOriginalPrice, itemDisplayName,
   clampInstallments, currentMonthKey, monthsLeftInYear, formatMonthRange,
   addMonths, deferredBase, itemDeferred, DEFAULT_DEFERRED_TRIGGER,
+  paymentSchedule, quotationServiceYear,
 } from '../../utils/quotationCalc';
 import { deriveQuotationBrand } from './quotationBranding';
 import { generateQuotationPdf, downloadPdf } from '../../utils/quotationPdf';
@@ -393,10 +394,14 @@ export default function QuotationBuilder({
   });
 
   const [vatRate] = useState<number>(existing?.vatRate ?? DEFAULT_VAT_RATE);
-  const [emailSubject, setEmailSubject] = useState(existing?.emailSubject ?? 'הצעת מחיר מהמשרד');
+  // נושא שלא נערך נגזר מההצעה — "הצעת ליווי לשנת 2026" — ומתעדכן כשהשנה משתנה;
+  // מרגע שהרו"ח כתב נושא משלו, הוא שלו.
+  const [subjectDraft, setEmailSubject] = useState<string | null>(existing?.emailSubject ?? null);
   const [emailMessage, setEmailMessage] = useState(existing?.emailMessage || existing?.notesForClient || '');
   const [internalNotes, setInternalNotes] = useState(existing?.internalNotes ?? '');
   const [expiresAt, setExpiresAt] = useState(existing?.expiresAt ?? businessDaysExpiry(DEFAULT_EXPIRY_BUSINESS_DAYS));
+  const subjectYear = quotationServiceYear(items, expiresAt);
+  const emailSubject = subjectDraft ?? (subjectYear ? `הצעת ליווי לשנת ${subjectYear}` : 'הצעת מחיר מהמשרד');
   const [representation, setRepresentation] = useState<QuotationRepresentation>(() => {
     if (existing?.representation) return existing.representation;
     const base = defaultQuotationRepresentation(isTransferRecipient(initialRecipient, leads, clients));
@@ -887,7 +892,7 @@ export default function QuotationBuilder({
             items, futureServices, vatRate, notesForClient: emailMessage, expiresAt,
             representation,
           }}
-          brand={brand} totals={totals} deal={deal} vatRate={vatRate}
+          brand={brand} totals={totals} vatRate={vatRate}
           message={emailMessage} onMessage={setEmailMessage}
           subject={emailSubject} onSubject={setEmailSubject}
           internalNotes={internalNotes} onInternalNotes={setInternalNotes}
@@ -1343,13 +1348,13 @@ function FuturePanel({ services, items, selected, templateName, templateDefaults
 
 /** סקירה — כאן, ורק כאן, מע״מ מפורט, הודעה אישית ותוקף. */
 function ReviewPanel({
-  data, brand, totals, deal, vatRate, message, onMessage, subject, onSubject,
+  data, brand, totals, vatRate, message, onMessage, subject, onSubject,
   internalNotes, onInternalNotes, expiresAt, onExpires, isRenewal, effectiveFrom, onEffectiveFrom,
   sending, blocker, onSend, onTest, onPdf, onClose, expiryReminderOn,
 }: {
   data: React.ComponentProps<typeof QuotationWebView>['data'];
   brand: ReturnType<typeof deriveQuotationBrand>;
-  totals: ReturnType<typeof calcTotals>; deal: Deal; vatRate: number;
+  totals: ReturnType<typeof calcTotals>; vatRate: number;
   message: string; onMessage: (v: string) => void;
   subject: string; onSubject: (v: string) => void;
   internalNotes: string; onInternalNotes: (v: string) => void;
@@ -1366,8 +1371,11 @@ function ReviewPanel({
       footer={
         <div className="qb-review-foot">
           <span className="qb-review-sum">
-            {formatILS(totals.monthly.withVat)} לחודש כולל מע״מ
-            {deal.completionCharge >= 1 && ` · ${formatILS(deal.completionCharge)} ${deal.trigger}`}
+            {/* אותם סכומים בדיוק כמו ב"מה ומתי משלמים" — כולם כוללים מע"מ */}
+            {paymentSchedule(data.items, vatRate)
+              .map(r => `${formatILS(Math.round(r.amount))} ${r.key === 'monthly' ? 'לחודש' : r.label}`)
+              .join(' · ')}
+            {totals.monthly.withVat + totals.oneTime.withVat + totals.annual.withVat + totals.deferred.withVat > 0 && ' · כולל מע״מ'}
           </span>
           <span className="qb-review-acts">
             <button className="btn btn-sm" onClick={onTest} disabled={!!sending}>
@@ -1396,7 +1404,7 @@ function ReviewPanel({
         {expiryReminderOn
           ? ', ותזכורת אוטומטית ללקוח יום עסקים לפני הפקיעה.'
           : '. תזכורת אוטומטית לפני הפקיעה כבויה (המשרד ← מחירון והצעות).'}
-        {' '}מע״מ {vatRate}% מוצג בעמוד בכל סעיף.
+        {' '}כל הסכומים בעמוד כוללים מע״מ {vatRate}%; הפירוט לפני מע״מ נפתח ב"איך חושב".
       </div>
 
       {settings ? (

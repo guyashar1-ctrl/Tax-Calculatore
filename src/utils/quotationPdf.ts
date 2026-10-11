@@ -1,5 +1,6 @@
 // ─── הפקת PDF להצעת מחיר ────────────────────────────────────────────────────
-// תואם לעמוד ההצעה: כותרת ממותגת, שירותים, סיכומים נפרדים, הערות, פרטי קשר.
+// תואם לעמוד ההצעה: כותרת ממותגת ושנת הליווי, מה ומתי משלמים, מה כלול, פירוט
+// החישוב (פתוח — זה המסמך שנחתם), הערות, הסעיף השנתי, פרטי קשר.
 // עברית/RTL דרך pdfHebrew (אותם פונטים של ייפוי הכוח). מיישר לימין ידנית.
 // הערה: המטבע נכתב "ש״ח" ולא ₪ — הסימבול לא קיים בכל הפונטים העבריים.
 
@@ -7,11 +8,10 @@ import { PDFDocument, PDFPage, rgb, type RGB } from 'pdf-lib';
 import fontkit from '@pdf-lib/fontkit';
 import { embedPdfFonts, layoutMixed, measureMixed, type PdfFonts } from './pdfHebrew';
 import type { QuotationItem, FutureService, QuotationRepresentation } from '../types/quotations';
-import { SERVICE_CATEGORY_LABELS } from '../types/quotations';
 import { REP_AUTHORITY_LABELS, REP_AUTHORITY_ORDER } from '../types';
 import {
-  calcTotals, itemFinalPrice, itemOriginalPrice, itemAnnualAnchor, itemDisplayName, monthlyPlan, formatMonth, formatMonthRange,
-  itemDeferred, deferredGroups, deferredDetailLines,
+  itemFinalPrice, itemOriginalPrice, itemAnnualAnchor, itemDisplayName, monthlyPlan,
+  itemDeferred, deferredDetailLines, paymentSchedule, quotationSavings, quotationServiceYear, serviceYearClause, savingsSentence,
 } from './quotationCalc';
 import type { QuotationBrand } from '../components/quotations/quotationBranding';
 
@@ -100,154 +100,106 @@ export async function generateQuotationPdf(data: QuotationPdfData, brand: Quotat
   rtl(data.recipientName ? `${data.recipientName}, זו ההצעה שהכנתי עבורך.` : 'הצעת מחיר', 18, ink, y);
   y -= 20;
   if (data.businessName) { rtl(data.businessName, 11, gray, y); y -= 16; }
+  const serviceYear = quotationServiceYear(data.items, data.expiresAt ?? data.approval?.approvedAt);
+  if (serviceYear) { rtl(`הצעת ליווי לשנת המס ${serviceYear}`, 10.5, accent, y); y -= 16; }
   y -= 8;
 
-  const totals = calcTotals(data.items, data.vatRate);
   const priced = data.items.filter(i => i.category !== 'included');
   const included = data.items.filter(i => i.category === 'included');
 
-  // ── שירותים ──
-  sectionLine('מה תקבל במסגרת הליווי');
-  for (const item of priced) {
-    ensureSpace(38);
-    rtl(itemDisplayName(item), 11.5, ink, y);
-    // עוגן מחיר: כשיש הנחה מציינים את המחיר המלא לצד המחיר שאחרי ההנחה
-    const orig = itemOriginalPrice(item);
-    const finalP = itemFinalPrice(item);
-    const before = orig - finalP >= 1 ? ` (במקום ${money(orig)})` : '';
-    ltr(`${money(finalP)}${item.vatFlag ? ' + מע״מ' : ''}${before}`, 11.5, ink, y);
-    y -= 15;
-    // פירוט היתרה — אותו נוסח בדיוק כמו בעמוד ההצעה
-    const def = itemDeferred(item, data.vatRate);
-    // ‼ "במקום 120" נקרא כהנחה של 20 ₪, בזמן שההנחה ניתנה על השנה
-    // (1,440 ← 1,200). בשורת יתרה הפירוט שמתחת אומר זאת במלואו.
-    const annual = !def && orig - finalP >= 1 ? itemAnnualAnchor(item) : null;
-    const annualNote = annual && annual.list - annual.value >= 1
-      ? ` · ${money(annual.value)} לשנה במקום ${money(annual.list)}` : '';
-    const meta = `${SERVICE_CATEGORY_LABELS[item.category]}${item.billingType === 'per_unit' && item.quantity > 1 ? ` · ${item.quantity} × ${item.unitLabel || 'יחידה'}` : ''}${item.description ? ` · ${item.description}` : ''}${annualNote}`;
-    rtl(meta, 8.5, gray, y);
-    y -= 15;
-    // ההערה שהרו"ח כתב לשורה מוצגת בעמוד ההצעה — ולכן חייבת להופיע גם במסמך
-    // שנחתם, אחרת נחתם משהו אחר ממה שנקרא.
-    if (item.clientNote?.trim()) {
-      for (const line of wrapText(item.clientNote, 95)) {
-        ensureSpace(14);
-        rtl(line, 9, accent, y);
-        y -= 12;
-      }
-    }
-    if (def) {
-      for (const r of deferredDetailLines(def, item.name)) {
-        ensureSpace(14);
-        const size = r.strong ? 9.5 : 9;
-        const color = r.strong ? ink : gray;
-        rtl(r.label, size, color, y);
-        // המינוס בסוף ולא בהתחלה — כמו בשורת ההנחה בסיכום; מנוע ה-bidi הפשוט
-        // מזיז סימן שפותח שורה מעורבת
-        ltr(r.negative ? `${money(r.amount)}-` : money(r.amount), size, color, y);
-        y -= 12;
-      }
-    }
-    y -= 3;
-  }
-
-  if (included.length > 0) {
-    y -= 6;
-    sectionLine('כלול בליווי - ללא תוספת תשלום');
-    for (const item of included) {
-      ensureSpace(16);
-      rtl(`•  ${itemDisplayName(item)}`, 10.5, bodyGray, y);
-      y -= 15;
-    }
-  }
-
-  // ── סיכום: לפני מע"מ, מע"מ בנפרד, סה"כ ──
-  y -= 10;
-  sectionLine('סיכום התמחור');
-  interface SummaryBlock {
-    label: string;
-    t: typeof totals.monthly;
-    suffix: string;
-    /** פס עליון — העובדה הכי חשובה על הבלוק, לפני כל מספר */
-    strip?: string;
-    /** פירוט חלופי במקום מחיר מלא/הנחה/אחרי הנחה */
-    rows?: { label: string; amount: number; negative?: boolean; strike?: boolean; strong?: boolean }[];
-    /** גוון ענבר מאופק — כסף שלא נגבה עכשיו, כדי שלא ייקרא כתשלום נוסף היום */
-    deferredTone?: boolean;
-  }
-  const blocks: SummaryBlock[] = [];
-  if (totals.monthly.withVat > 0) blocks.push({ label: 'חודשי', t: totals.monthly, suffix: 'לחודש' });
-  if (totals.annual.withVat > 0) blocks.push({ label: 'שנתי', t: totals.annual, suffix: 'לשנה' });
-  if (totals.oneTime.withVat > 0) blocks.push({ label: 'חד־פעמי', t: totals.oneTime, suffix: '' });
-  // ‼ בלוק נפרד לכל מועד גבייה, אחרון ברשימה ולעולם לא מאוחד עם "חד־פעמי" —
-  // חד־פעמי נקרא כמשהו שמשלמים עכשיו, והיתרה היא בדיוק ההפך
-  for (const g of deferredGroups(data.items, data.vatRate)) {
-    blocks.push({
-      label: `לתשלום ${g.trigger}`, t: g.total, suffix: '', deferredTone: true,
-      strip: `לא נגבה עכשיו · ייגבה ${g.trigger} · אינו חלק מהתשלום החודשי`,
-      // לאן הלך המחיר המלא: 1,800 פחות ההנחה פחות מה שכבר משולם בחודשי
-      rows: g.totalDiscount < 1 && g.includedInMonthly < 1 ? undefined : [
-        { label: 'מחיר מלא', amount: g.listPrice, strike: true },
-        ...(g.totalDiscount >= 1 ? [{ label: 'הנחה', amount: g.totalDiscount, negative: true }] : []),
-        ...(g.includedInMonthly >= 1 ? [{ label: 'כלול בשכר החודשי', amount: g.includedInMonthly, negative: true }] : []),
-        { label: 'נותר לתשלום', amount: g.total.beforeVat, strong: true },
-      ],
-    });
-  }
+  // ── מה ומתי משלמים — אותה תשובה כמו בראש עמוד ההצעה, כולל מע"מ ──
   const green = rgb(0.02, 0.47, 0.34);
-  const amber = rgb(0.573, 0.251, 0.055);
-  for (const { label, t, suffix, strip, rows, deferredTone } of blocks) {
-    ensureSpace(strip ? 106 : 88);
-    const barColor = deferredTone ? amber : accent;
-    if (strip) {
-      // פס עליון בגוון הבלוק — מה שהלקוח חייב לדעת עוד לפני שהוא רואה סכום
-      page.drawRectangle({ x: LEFT, y: y - 5, width: A4.w - MARGIN * 2, height: 18, color: amber, opacity: 0.14 });
-      rtl(strip, 9.5, amber, y);
+  if (priced.length > 0) {
+    sectionLine('מה ומתי משלמים');
+    for (const r of paymentSchedule(data.items, data.vatRate)) {
+      ensureSpace(36);
+      rtl(r.label, 11.5, ink, y);
+      ltr(money(r.amount), 14, r.deferred ? gray : ink, y);
+      y -= 14;
+      if (r.sub) { rtl(r.sub, 9, gray, y); y -= 12; }
+      // בלי נקודתיים בין שני מספרים ("2027: 162") — מנוע ה-bidi מדביק אותם;
+      // מקף עברי מפריד בין הרצפים ושומר על הסדר הנכון.
+      if (r.changesTo) { rtl(`${r.changesTo.from} ־ ${money(r.changesTo.amount)} לחודש`, 9, ink, y); y -= 12; }
+      y -= 6;
+    }
+    const savingsText = savingsSentence(quotationSavings(data.items, data.vatRate), money);
+    if (savingsText) {
+      ensureSpace(24);
+      page.drawRectangle({ x: LEFT, y: y - 5, width: A4.w - MARGIN * 2, height: 18, color: green, opacity: 0.1 });
+      rtl(savingsText, 10, green, y);
       y -= 22;
     }
-    rtl(label, 11.5, deferredTone ? amber : ink, y); y -= 15;
-    // סדר קבוע כמו בעמוד: מחיר מלא ← הנחה ← אחרי הנחה ← מע"מ ← סה"כ
-    if (rows) {
-      for (const r of rows) {
-        const size = r.strong || r.negative ? 10.5 : 9.5;
-        const color = r.negative ? green : r.strong ? ink : gray;
-        // מחיר מחוק אינו אפשרי בקו טקסט פשוט — מסומן במילה "במקור"
-        rtl(r.strike ? `${r.label} במקור` : r.label, size, color, y);
-        ltr(r.negative ? `${money(r.amount)}-` : money(r.amount), size, color, y);
-        y -= 13;
-      }
-    } else if (t.discount >= 1) {
-      rtl('מחיר מלא', 9.5, gray, y); ltr(money(t.fullBeforeVat), 9.5, gray, y); y -= 13;
-      rtl(`הנחה ${Math.round((t.discount / t.fullBeforeVat) * 100)}%`, 10.5, green, y); ltr(`${money(t.discount)}-`, 10.5, green, y); y -= 14;
-      rtl('מחיר אחרי הנחה', 10, ink, y); ltr(money(t.beforeVat), 10, ink, y); y -= 13;
-    } else {
-      rtl('מחיר', 9.5, gray, y); ltr(money(t.beforeVat), 9.5, gray, y); y -= 13;
-    }
-    rtl(`+ מע״מ (${data.vatRate}%)`, 9.5, gray, y); ltr(money(t.vat), 9.5, gray, y); y -= 15;
-    // שורת הסה"כ — פס מודגש בצבע המותג, המספר הגדול בעמוד
-    page.drawRectangle({ x: LEFT, y: y - 5, width: A4.w - MARGIN * 2, height: 22, color: barColor, opacity: deferredTone ? 0.13 : 0.09 });
-    rtl(
-      deferredTone
-        ? 'סכום שייגבה במועד (כולל מע״מ)'
-        : suffix ? `סה״כ לתשלום ${suffix} (כולל מע״מ)` : 'סה״כ לתשלום (כולל מע״מ)',
-      11.5, deferredTone ? amber : ink, y,
-    );
-    ltr(money(t.withVat), 15, barColor, y);
-    y -= 22;
-    // תנאי הפריסה מודפסים מתחת לסכום החודשי — זה מה שיישאר בידי הלקוח
-    if (label === 'חודשי') {
-      for (const line of monthlyTermLines(data, totals)) {
-        ensureSpace(16);
-        rtl(line, 9, gray, y);
-        y -= 13;
-      }
-    }
-    y -= 4;
+    if (priced.some(i => i.vatFlag)) { rtl('כל הסכומים כוללים מע״מ.', 8.5, gray, y); y -= 14; }
+    y -= 8;
   }
-  rtl(totals.deferred.withVat > 0
-    ? 'חיוב חודשי, שנתי וחד־פעמי מוצגים בנפרד, וכך גם סכום שנגבה במועד מאוחר. הסכומים הסופיים כוללים מע״מ.'
-    : 'חיוב חודשי, שנתי וחד־פעמי מוצגים בנפרד. הסכומים הסופיים כוללים מע״מ.', 8.5, gray, y);
-  y -= 20;
+
+  // ── מה כלול — שמות, תיאורים והערות; המחירים בסעיף הקודם ובפירוט ──
+  if (priced.length + included.length > 0) {
+    sectionLine('מה כלול');
+    for (const item of [...priced, ...included]) {
+      ensureSpace(30);
+      rtl(itemDisplayName(item), 11, ink, y);
+      y -= 14;
+      const meta = [item.description, item.category === 'included' ? 'ללא תוספת תשלום' : ''].filter(Boolean).join(' · ');
+      if (meta) { rtl(meta, 8.5, gray, y); y -= 12; }
+      // ההערה שהרו"ח כתב לשורה מוצגת בעמוד ההצעה — ולכן חייבת להופיע גם במסמך
+      // שנחתם, אחרת נחתם משהו אחר ממה שנקרא.
+      if (item.clientNote?.trim()) {
+        for (const line of wrapText(item.clientNote, 95)) {
+          ensureSpace(14);
+          rtl(line, 9, accent, y);
+          y -= 12;
+        }
+      }
+      y -= 4;
+    }
+    y -= 6;
+  }
+
+  // ── פירוט החישוב — לפני מע"מ; במסמך שנחתם הוא פתוח, בעמוד הוא מקופל ──
+  if (priced.length > 0) {
+    sectionLine('פירוט החישוב');
+    for (const item of priced) {
+      ensureSpace(30);
+      const finalP = itemFinalPrice(item);
+      const orig = itemOriginalPrice(item);
+      const suffix = item.category === 'monthly' ? ' לחודש' : item.category === 'annual' ? ' לשנה' : ' חד־פעמי';
+      rtl(itemDisplayName(item), 10, ink, y);
+      ltr(`${money(finalP)}${suffix}${item.vatFlag ? ' + מע״מ' : ''}`, 10, ink, y);
+      y -= 13;
+      const def = itemDeferred(item, data.vatRate);
+      // ‼ "במקום 120" נקרא כהנחה של 20 ₪, בזמן שההנחה ניתנה על השנה
+      // (1,440 ← 1,200). בשורת יתרה הפירוט שמתחת אומר זאת במלואו.
+      const annual = !def && orig - finalP >= 1 ? itemAnnualAnchor(item) : null;
+      const plan = item.category === 'monthly' && item.priceBasis === 'annual' ? monthlyPlan(item) : null;
+      const was = !def && orig - finalP >= 1
+        ? annual && annual.list - annual.value >= 1
+          ? `${money(annual.value)} לשנה במקום ${money(annual.list)}`
+          : `במקום ${money(orig)}`
+        : '';
+      const meta = [
+        plan ? `${plan.installments} תשלומים` : '',
+        item.billingType === 'per_unit' && item.quantity > 1 ? `${item.quantity} × ${item.unitLabel || 'יחידה'}` : '',
+        item.vatFlag ? '' : 'ללא מע״מ',
+        was,
+      ].filter(Boolean).join(' · ');
+      if (meta) { rtl(meta, 8.5, gray, y); y -= 12; }
+      if (def) {
+        for (const r of deferredDetailLines(def, item.name)) {
+          ensureSpace(14);
+          const size = r.strong ? 9.5 : 9;
+          const color = r.strong ? ink : r.negative ? green : gray;
+          rtl(r.label, size, color, y);
+          // המינוס בסוף ולא בהתחלה — מנוע ה-bidi הפשוט מזיז סימן שפותח שורה מעורבת
+          ltr(r.negative ? `${money(r.amount)}-` : money(r.amount), size, color, y);
+          y -= 12;
+        }
+      }
+      y -= 5;
+    }
+    if (priced.some(i => i.vatFlag)) { rtl(`הסכומים בפירוט לפני מע״מ. מע״מ ${data.vatRate}% מתווסף אליהם.`, 8.5, gray, y); y -= 14; }
+    y -= 8;
+  }
 
   // ── שירותים עתידיים (מחירון ידוע מראש) ──
   const future = data.futureServices ?? [];
@@ -307,6 +259,22 @@ export async function generateQuotationPdf(data: QuotationPdfData, brand: Quotat
     y -= 8;
   }
 
+  // ── תקופת ההצעה: השנה שהיא מתמחרת ותוקפה — חלק מהתנאים שהחתימה מאשרת ──
+  const expiryText = data.expiresAt && !data.approval
+    ? `ההצעה בתוקף עד ${new Date(data.expiresAt).toLocaleDateString('he-IL', { day: 'numeric', month: 'long', year: 'numeric' })}.`
+    : '';
+  const termLines = [serviceYear ? serviceYearClause(serviceYear) : '', expiryText].filter(Boolean);
+  if (termLines.length > 0) {
+    ensureSpace(26 + termLines.length * 14);
+    sectionLine('תקופת ההצעה');
+    for (const line of termLines.flatMap(l => wrapText(l, 95))) {
+      ensureSpace(14);
+      rtl(line, 9.5, bodyGray, y);
+      y -= 13;
+    }
+    y -= 8;
+  }
+
   // ── אישור וחתימת הלקוח — הופך את המסמך להסכם התקשרות ──
   if (data.approval && (data.approval.signatureDataUrl || data.approval.signerName)) {
     ensureSpace(60);
@@ -335,19 +303,15 @@ export async function generateQuotationPdf(data: QuotationPdfData, brand: Quotat
   }
 
   // ── תוקף + פרטי קשר בתחתית ──
-  ensureSpace(46);
-  if (data.expiresAt && !data.approval) {
-    const d = new Date(data.expiresAt).toLocaleDateString('he-IL', { day: 'numeric', month: 'long', year: 'numeric' });
-    rtl(`ההצעה בתוקף עד ${d}.`, 9.5, gray, y);
-    y -= 20;
-  }
   // מי אחראי על ההצעה ומה מספר הרישיון — נדרש על מסמך שיוצא ללקוח
   const who = [
     brand.accountantName && `${brand.representativeType || 'רואה חשבון'} ${brand.accountantName}`,
     brand.licenseNumber && `מספר מייצג ${brand.licenseNumber}`,
   ].filter(Boolean).join(' · ');
-  if (who) { rtl(who, 9, gray, y); y -= 13; }
   const contact = [brand.phone, brand.email, brand.address, brand.website].filter(Boolean).join(' · ');
+  // עמוד חדש רק כשיש מה להדפיס בו — אחרת נשאר עמוד ריק בסוף המסמך
+  if (who || contact) ensureSpace(30);
+  if (who) { rtl(who, 9, gray, y); y -= 13; }
   if (contact) { rtl(contact, 9, gray, y); y -= 14; }
 
   return doc.save();
@@ -359,25 +323,6 @@ export async function generateQuotationPdf(data: QuotationPdfData, brand: Quotat
     page.drawRectangle({ x: LEFT, y: y, width: A4.w - MARGIN * 2, height: 0.6, color: lineGray });
     y -= 16;
   }
-}
-
-// שורות תנאי הפריסה: כמה תשלומים, עד מתי, וכמה יעלה אחרי התקופה
-function monthlyTermLines(data: QuotationPdfData, totals: ReturnType<typeof calcTotals>): string[] {
-  if (!totals.hasPartialTerm && !totals.changesAfterPeriod) return [];
-  const first = data.items.filter(i => i.category === 'monthly').map(monthlyPlan)[0];
-  const out: string[] = [];
-  // בלי סה"כ לתקופה — סכום מצטבר רק מגדיל את המספר בראש של הלקוח
-  if (totals.hasPartialTerm && totals.installments) {
-    const range = first ? formatMonthRange(first.startMonth, first.endMonth) : '';
-    out.push(`${totals.installments} תשלומים${range ? ` · ${range}` : ''}`);
-  }
-  if (totals.changesAfterPeriod) {
-    // בלי נקודתיים בין שני מספרים ("2027: 162") — מנוע ה-bidi מדביק אותם;
-    // מקף עברי מפריד בין הרצפים ושומר על הסדר הנכון.
-    const from = first?.nextMonth ? `החל מ${formatMonth(first.nextMonth)}` : 'לאחר מכן';
-    out.push(`${from} ־ ${money(totals.monthlyOngoing.withVat)} לחודש, 12 תשלומים בשנה.`);
-  }
-  return out;
 }
 
 // גרסה צבעונית של drawMixedVisual (המקורי מצייר בשחור בלבד)

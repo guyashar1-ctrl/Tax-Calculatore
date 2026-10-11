@@ -4,6 +4,10 @@
 // מדומה, כדי לבדוק את המספרים ואת התצוגה בלי לגעת במסד.
 //
 // פתיחה:  http://localhost:5173/?test-deferred   (DEV בלבד)
+//         &scenario=video — ההצעה מההקלטה של גיא (11.10.2026): כניסה באוקטובר,
+//         ₪236 לחודש, ₪1,062 עם הגשת הדוח; &scenario=plain — בלי שום יתרה;
+//         &scenario=catchup — רק השלמת שנים פתוחות, בלי שירות חוזר (אין "שנה").
+//         &compact — כמו בתצוגה המקדימה בבונה.
 //
 // התרחיש (השורה האמיתית של גיא): לקוח שנכנס באוגוסט. ריטיינר 450 ₪, דוח שנתי
 // שמחירו 1,800 ₪ עם הנחה של 20%, שנגבה 150 ₪ בחודש על פני 5 תשלומים, וסוכם
@@ -117,7 +121,41 @@ const DATA: QuotationWebViewData = {
   expiresAt: '2026-08-10T20:59:00Z',
 };
 
+// ההצעה מההקלטה: 1,800 ₪ לדוח, 150 ₪ בחודש × 3 (אוקטובר–דצמבר) = 450 כלולים,
+// הנחה 450 ₪ על היתרה ⇒ 900 ₪ + מע"מ = 1,062 ₪ עם ההגשה. ועוד 50 ₪ ליווי ⇒ 236 ₪.
+const VIDEO_ITEMS: QuotationItem[] = [
+  { id: 'v-ret', name: 'ליווי שוטף ודיווחים', description: 'דיווחים למע״מ ולמס הכנסה וזמינות לשאלות', category: 'monthly', billingType: 'fixed', quantity: 1, catalogPrice: 50, clientPrice: 50, vatFlag: true, installments: 3, billingStartMonth: '2026-10' },
+  { id: 'v-rep', name: 'דוח שנתי', description: 'הכנת הדוח השנתי והגשתו', category: 'monthly', billingType: 'fixed', quantity: 1, catalogPrice: 1800, clientPrice: 150, vatFlag: true, year: 2026, priceBasis: 'annual', annualPrice: 1800, installments: 3, billingStartMonth: '2026-10', prorationMode: 'deferred', deferredChargeAmount: 900 },
+  { id: 'v-inc', name: 'ייצוג מול הרשויות', category: 'included', billingType: 'fixed', quantity: 1, catalogPrice: 0, clientPrice: 0, vatFlag: true },
+];
+const VIDEO_FUTURE = [
+  { id: 'f1', name: 'מעבר מעוסק פטור לעוסק מורשה', description: 'טיפול מלא בשינוי הסיווג מול הרשויות', category: 'one_time' as const, billingType: 'fixed' as const, price: 200, vatFlag: true },
+  { id: 'f2', name: 'הצהרת הון', category: 'one_time' as const, billingType: 'fixed' as const, price: 1500, vatFlag: true },
+];
+// מיוצא לבדיקת ה-PDF (מרנדרים את המסמך מאותם נתונים בדיוק)
+export const __SCENARIOS: Record<string, QuotationWebViewData> = {
+  video: { quotationNumber: '2026-031', recipientName: 'דנה לוי', businessName: 'דנה לוי עיצוב פנים', items: VIDEO_ITEMS, futureServices: VIDEO_FUTURE, vatRate: VAT_RATE, expiresAt: '2026-10-14T20:59:00Z', representation: { enabled: true, areas: { incomeTax: true, vat: true, nationalInsurance: true } } as unknown as QuotationWebViewData['representation'] },
+  plain: { quotationNumber: '2026-032', recipientName: 'יוסי כהן', items: [
+    { id: 'p-ret', name: 'ליווי חשבונאי חודשי', category: 'monthly', billingType: 'fixed', quantity: 1, catalogPrice: 450, clientPrice: 400, vatFlag: true, billingStartMonth: '2027-01' },
+    { id: 'p-one', name: 'פתיחת תיקים ברשויות', category: 'one_time', billingType: 'fixed', quantity: 1, catalogPrice: 600, clientPrice: 600, vatFlag: true },
+  ], vatRate: VAT_RATE, expiresAt: '2026-12-20T20:59:00Z' },
+  catchup: { quotationNumber: '2026-033', recipientName: 'רונית לוי', items: [
+    { id: 'c-23', name: 'דוח שנתי', category: 'one_time', billingType: 'fixed', quantity: 1, catalogPrice: 1800, clientPrice: 1500, vatFlag: true, year: 2023 },
+    { id: 'c-24', name: 'דוח שנתי', category: 'one_time', billingType: 'fixed', quantity: 1, catalogPrice: 1800, clientPrice: 1500, vatFlag: true, year: 2024 },
+  ], vatRate: VAT_RATE, expiresAt: '2026-10-20T20:59:00Z' },
+};
+
 export default function TestDeferred() {
+  const params = new URLSearchParams(window.location.search);
+  const scenario = __SCENARIOS[params.get('scenario') ?? ''];
+  if (scenario) {
+    return (
+      <div dir="rtl" className="pivo-light" style={{ minHeight: '100vh' }}>
+        <QuotationWebView data={scenario} brand={fallbackBrand()} status="sent" compact={params.has('compact') || window.innerWidth < 640} />
+      </div>
+    );
+  }
+
   const guy = itemDeferred(DEFERRED, VAT_RATE);
   const nextYear = itemDeferred(DEFERRED_FULL_YEAR, VAT_RATE);
   const rows: [string, string, string][] = guy ? [
