@@ -99,3 +99,39 @@ test('דפדפן · שתי בקשות לאותו אדם (אחת בוטלה) ⇒ 
   assert.equal(cur.requestNumber, '2026900035');
   assert.ok(reportedRows(cur.rows).every((r) => r.systemStateCode === 5));
 });
+
+// ── 11.10.2026 · הבדיקה של הדסה נפלה פעמיים (04.10, 11.10) ─────────────────
+// ‼ נצפה חי: הסינון «מספר ישות» הוצג מיד, אבל הטבלה עוד החזיקה את כל 26 הבקשות
+// של המייצג (ההמתנה ל«מוצגים N תיקים» נענתה מהטקסט הישן). העובד פתח את הפירוט
+// של 8 שורות בבת אחת, שע״ם עברה ל«תקלה זמנית במערכת», והקריאה השנייה מצאה
+// null ⇒ «Cannot read properties of null (reading 'total')».
+
+test('דפדפן · טבלה שעוד לא התעדכנה אחרי החיפוש: ממתינים לנתונים, ופותחים רק את השורות שלנו', { skip: !HAVE_CHROME }, async () => {
+  const page = await pageWith({ searchDelayMs: 1500, detailDelayMs: 300, crashOnConcurrentExpand: true });
+  const found = await findRequestRows(page, { entityId: SUSPENDED, expectedClientName: 'אלון בדיקה', expandDetails: true });
+  assert.equal(found.ok, true, JSON.stringify(found));
+  assert.equal(found.rows.length, 3);
+  assert.ok(found.rows.every((r) => r.detail.entityId.replace(/^0+/, '') === SUSPENDED.replace(/^0+/, '')));
+  const events = await log(page);
+  assert.ok(!events.includes('crash'), 'שע״ם לא נפלה');
+  const expanded = events.filter((x) => x.startsWith('expand:'));
+  assert.equal(expanded.length, 3, `נפתחו רק שלוש השורות של הבקשה: ${expanded}`);
+  assert.ok(expanded.every((x) => x === 'expand:2026900000'));
+  assert.ok(found.rows.every((r) => r.detail.systemUpdatedAt), 'הפירוט נקרא');
+});
+
+test('דפדפן · הטבלה נעלמה אחרי פתיחת הפירוט ⇒ לא קורסים; נתוני הטבלה שנקראו הם התוצאה', { skip: !HAVE_CHROME }, async () => {
+  const page = await pageWith({ crashOnExpand: true });
+  const found = await findRequestRows(page, { entityId: SUSPENDED, expectedClientName: 'אלון בדיקה', expandDetails: true });
+  assert.equal(found.ok, true, JSON.stringify(found));
+  assert.deepEqual([found.rows.length, found.detailsUnavailable], [3, true]);
+  const w = found.rows.find((r) => r.codes.system === 5);
+  assert.deepEqual([w.codes.systemState, w.detail.suspensionEnds], [2, '06/10/2026'], 'המצב והצפי מנתוני הטבלה');
+});
+
+test('דפדפן · הטבלה לא התעדכנה כלל אחרי החיפוש ⇒ עוצרים (search_result_stale), בלי לפתוח שום פירוט', { skip: !HAVE_CHROME }, async () => {
+  const page = await pageWith({ searchDelayMs: 60000 });
+  const found = await findRequestRows(page, { entityId: SUSPENDED, expectedClientName: 'אלון בדיקה', expandDetails: true });
+  assert.deepEqual([found.ok, found.reason], [false, 'search_result_stale']);
+  assert.ok(!(await log(page)).some((x) => x.startsWith('expand:')));
+});

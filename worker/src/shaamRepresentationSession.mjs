@@ -1107,6 +1107,11 @@ export async function findRequestRows(page, { requestNumber, entityId, expectedC
     () => /מוצגים\s+\d+\s+תיק|לא\s+נמצאו\s+רשומות/.test(document.body.innerText || ''),
     { timeout: 8000 },
   ).catch(() => {});
+  // ‼ 11.10.2026 · נצפה חי (הדסה): «מוצגים 26 תיקים» שנשאר מלפני החיפוש עונה
+  // על ההמתנה, והסינון כבר מוצג — אבל הטבלה עדיין מחזיקה את כל הבקשות של
+  // המייצג. ממתינים שהנתונים עצמם יתאימו לחיפוש.
+  const searchValue = searched.by === 'entityId' ? entityId : requestNumber;
+  await waitForGridToMatchSearch(page, searched.by, searchValue);
 
   const expectEcho = searched.by === 'requestNumber' ? 'מספר בקשה' : 'מספר ישות';
   let state = await readListState(page);
@@ -1121,35 +1126,48 @@ export async function findRequestRows(page, { requestNumber, entityId, expectedC
   }
 
   if (state.grid) {
+    if (!gridMatchesSearch(state.grid.items, searched.by, searchValue)) {
+      return { ok: false, reason: 'search_result_stale', detail: `rows=${state.grid.total}`, step: 'list_search' };
+    }
+    const listed = { count: state.grid.total, noRecords: state.grid.total === 0, filter: state.echo };
+    const rowsOf = (grid) => {
+      const rows = gridItemsToRows(grid.items);
+      for (const r of rows) {
+        const pos = r.uid ? grid.positions[r.uid] : null;
+        if (pos && pos.tableIndex >= 0 && pos.trIndex >= 0) { r.tableIndex = pos.tableIndex; r.trIndex = pos.trIndex; }
+        const detailText = r.uid ? grid.details[r.uid] : '';
+        if (detailText) {
+          const parsed = parseRequestDetailText(detailText);
+          r.detail = { ...parsed, ...r.detail, ...(parsed.systemUpdatedAt ? { systemUpdatedAt: parsed.systemUpdatedAt } : {}) };
+          r.tik91 = /תיק\s*החזר\s*מס\s*\(91\)/.test(detailText);
+        }
+      }
+      return rows;
+    };
+    const attribute = (rows) => attributeRows(rows, { requestNumber, entityId, searchedBy: searched.by, expectedClientName });
+
+    const rows = rowsOf(state.grid);
+    let attributed = attribute(rows);
+    if (!attributed.ok) return { ...attributed, step: 'list_read' };
+
     // ‼ 201 · הפירוט (צפי לסיום השהייה, «תיק החזר מס (91)») נפתח רק בבדיקה.
     // פתיחת תצוגה בלבד — לא פעולה אצל הרשות.
-    if (expandDetails) {
-      const expanded = await expandVisibleRows(page);
+    // ‼ 11.10.2026 · פתיחת 8 פירוטים בבת אחת הפילה את שע״ם ל«תקלה זמנית
+    // במערכת» (shaamErrors). לכן: רק השורות ששויכו לבקשה שלנו, אחת-אחת. ואם
+    // הטבלה נעלמה בכל זאת — נתוני הטבלה שכבר נקראו הם הראיה, בלי הפירוט.
+    if (expandDetails && attributed.rows.length > 0) {
+      const uids = attributed.rows.map((r) => r.uid).filter(Boolean);
+      const expanded = await expandRows(page, uids);
       if (expanded > 0) {
-        await page.waitForFunction(() => document.querySelectorAll('tr.k-detail-row').length > 0, { timeout: 6000 }).catch(() => {});
         await settle(page, { idleMs: 8000 });
-        state = await readListState(page);
+        const after = await readListState(page);
+        const again = after.grid && gridMatchesSearch(after.grid.items, searched.by, searchValue)
+          ? attribute(rowsOf(after.grid)) : null;
+        if (again?.ok) attributed = again;
+        else return { ok: true, rows: attributed.rows, total: rows.length, searchedBy: searched.by, source: 'grid', listed, detailsUnavailable: true };
       }
     }
-    const rows = gridItemsToRows(state.grid?.items ?? []);
-    for (const r of rows) {
-      const pos = r.uid ? state.grid.positions[r.uid] : null;
-      if (pos && pos.tableIndex >= 0 && pos.trIndex >= 0) { r.tableIndex = pos.tableIndex; r.trIndex = pos.trIndex; }
-      const detailText = r.uid ? state.grid.details[r.uid] : '';
-      if (detailText) {
-        const parsed = parseRequestDetailText(detailText);
-        r.detail = { ...parsed, ...r.detail, ...(parsed.systemUpdatedAt ? { systemUpdatedAt: parsed.systemUpdatedAt } : {}) };
-        r.tik91 = /תיק\s*החזר\s*מס\s*\(91\)/.test(detailText);
-      }
-    }
-    const attributed = attributeRows(rows, {
-      requestNumber, entityId, searchedBy: searched.by, expectedClientName,
-    });
-    if (!attributed.ok) return { ...attributed, step: 'list_read' };
-    return {
-      ok: true, rows: attributed.rows, total: rows.length, searchedBy: searched.by, source: 'grid',
-      listed: { count: state.grid.total, noRecords: state.grid.total === 0, filter: state.echo },
-    };
+    return { ok: true, rows: attributed.rows, total: rows.length, searchedBy: searched.by, source: 'grid', listed };
   }
 
   // ── נפילה לקריאה מה-DOM (טבלה בלי נתוני Kendo) — כמו קודם ──────────────────
@@ -1210,6 +1228,60 @@ export async function findRequestRows(page, { requestNumber, entityId, expectedC
   });
   if (!attributed.ok) return { ...attributed, step: 'list_read' };
   return { ok: true, rows: attributed.rows, total: rows.total, searchedBy: searched.by, source: 'dom', listed };
+}
+
+/**
+ * טהורה: נתוני הטבלה הם תוצאת החיפוש שביקשנו — כל שורה נושאת את הישות (או
+ * מספר הבקשה) שחיפשנו. טבלה ריקה אינה התאמה: «אין תוצאות» נראה כהתראה.
+ */
+export function gridMatchesSearch(items, by, value) {
+  const bare = (v) => String(v ?? '').replace(/\D/g, '').replace(/^0+/, '');
+  const want = bare(value);
+  const key = by === 'entityId' ? 'misMuzag' : 'asmachta';
+  return !!want && Array.isArray(items) && items.length > 0 && items.every((it) => bare(it?.[key]) === want);
+}
+
+/** ממתין שהטבלה תחזיק את תוצאת החיפוש (או «לא נמצאו»). false ⇒ לא קרה בזמן. */
+async function waitForGridToMatchSearch(page, by, value, timeout = 20000) {
+  return page.waitForFunction(({ by, value }) => {
+    const clean = (s) => (s || '').replace(/\s+/g, ' ').trim();
+    const vis = (e) => !!e && e.offsetParent !== null;
+    if ([...document.querySelectorAll('.alert-info, .alert')].some((e) => vis(e) && /לא\s+נמצאו\s+רשומות/.test(clean(e.textContent)))) return true;
+    const $ = window.jQuery;
+    if (!$) return true; // אין נתוני Kendo — הקריאה מה-DOM מכריעה בעצמה
+    const bare = (v) => String(v ?? '').replace(/\D/g, '').replace(/^0+/, '');
+    const key = by === 'entityId' ? 'misMuzag' : 'asmachta';
+    for (const g of document.querySelectorAll('[data-role=grid], [kendo-grid]')) {
+      const w = vis(g) && $(g).data('kendoGrid');
+      if (!w || !w.dataSource || !(w.columns || []).some((c) => c.field === 'statusTikKod')) continue;
+      const items = [...(w.dataSource.data() || [])];
+      return items.length > 0 && items.every((it) => bare(it[key]) === bare(value));
+    }
+    return false;
+  }, { by, value: String(value ?? '') }, { timeout }).then(() => true, () => false);
+}
+
+/** פותח את הפירוט של שורות מסוימות (לפי uid), אחת-אחת. תצוגה בלבד. */
+async function expandRows(page, uids) {
+  let opened = 0;
+  for (const uid of uids) {
+    const clicked = await page.evaluate((uid) => {
+      const tr = [...document.querySelectorAll('tr.k-master-row')].find((t) => t.getAttribute('data-uid') === uid);
+      if (!tr || tr.nextElementSibling?.classList.contains('k-detail-row')) return false;
+      const icon = [...tr.querySelectorAll('td.k-hierarchy-cell a, a.k-i-expand, .k-icon.k-i-expand, a.k-plus, .k-i-plus')]
+        .find((e) => e.offsetParent !== null && !/k-i-collapse|k-minus/.test(String(e.className || '')));
+      if (!icon) return false;
+      icon.click();
+      return true;
+    }, uid).catch(() => false);
+    if (!clicked) continue;
+    opened++;
+    await page.waitForFunction((uid) => {
+      const tr = [...document.querySelectorAll('tr.k-master-row')].find((t) => t.getAttribute('data-uid') === uid);
+      return !tr || !!tr.nextElementSibling?.classList.contains('k-detail-row');
+    }, uid, { timeout: 6000 }).catch(() => {});
+  }
+  return opened;
 }
 
 /** פותח את פירוט השורות הגלויות (חץ Kendo). תצוגה בלבד. */

@@ -15,8 +15,15 @@
  * @param o.tik91      asmachta שלהם הפירוט מציג «תיק החזר מס (91)» גלוי
  * @param o.brokenClear «ניקוי» לא מנקה את השדות (לבדיקת עצירה)
  * @param o.prefill    ערכים שנשארו בטופס מחיפוש קודם: {yeshut, num}
+ * @param o.searchDelayMs  (11.10, נצפה חי) הסינון מוצג מיד, אבל הטבלה — כולל
+ *                     «מוצגים N תיקים» — מתעדכנת רק אחרי ההשהיה
+ * @param o.detailDelayMs  הפירוט נטען אחרי השהיה (בקשה לשרת)
+ * @param o.crashOnConcurrentExpand  (11.10, נצפה חי) פתיחת פירוט בזמן שאחר עוד
+ *                     נטען ⇒ שע״ם עוברת ל«תקלה זמנית במערכת» והטבלה נעלמת
+ * @param o.crashOnExpand  כל פתיחת פירוט מפילה את הדף (הטבלה נעלמת)
  */
-export function requestsListHtml({ rows = [], tik91 = [], brokenClear = false, prefill = {}, today = '2026-09-28' } = {}) {
+export function requestsListHtml({ rows = [], tik91 = [], brokenClear = false, prefill = {}, today = '2026-09-28',
+  searchDelayMs = 0, detailDelayMs = 0, crashOnConcurrentExpand = false, crashOnExpand = false } = {}) {
   const data = JSON.stringify(rows);
   return `<!doctype html><html dir="rtl"><head><meta charset="utf-8">
   <style>.ng-hide{display:none!important}</style></head><body>
@@ -38,6 +45,9 @@ export function requestsListHtml({ rows = [], tik91 = [], brokenClear = false, p
     const TODAY = Date.parse('${today}T00:00:00Z');
     const recent = (r) => TODAY - Date.parse(r.tarHazana.slice(0, 10) + 'T00:00:00Z') <= 30 * 86400000;
     const log = (window.__log = []);
+    const SEARCH_DELAY = ${searchDelayMs}, DETAIL_DELAY = ${detailDelayMs};
+    const CRASH_ON_CONCURRENT = ${crashOnConcurrentExpand ? 'true' : 'false'}, CRASH_ON_EXPAND = ${crashOnExpand ? 'true' : 'false'};
+    let loading = 0, crashed = false;
     let view = ALL.map((r, i) => ({ ...r, uid: 'u' + i }));
     const grid = document.getElementById('grid');
     const mkData = () => { const a = view.map((r) => ({ ...r })); a.toJSON = () => view.map((r) => { const { uid, ...rest } = r; return rest; }); return a; };
@@ -61,16 +71,27 @@ export function requestsListHtml({ rows = [], tik91 = [], brokenClear = false, p
         tr.querySelector('a.k-i-expand').addEventListener('click', (e) => {
           e.preventDefault();
           log.push('expand:' + r.asmachta);
+          if (CRASH_ON_EXPAND || (CRASH_ON_CONCURRENT && loading > 0)) { crash(); return; }
+          const icon = e.target;
+          loading++;
+          setTimeout(() => { loading--; if (!crashed) showDetail(tr, r, icon); }, DETAIL_DELAY);
+        });
+        tb.appendChild(tr);
+      }
+    }
+    function crash() {
+      crashed = true;
+      log.push('crash');
+      document.getElementById('app').innerHTML = '<h1>מסך תקלה</h1><p>תקלה זמנית במערכת, נסו שנית מאוחר יותר</p>';
+    }
+    function showDetail(tr, r, icon) {
           const d = document.createElement('tr');
           d.className = 'k-detail-row';
           const is91 = TIK91.has(String(r.asmachta)) && r.kodMaarach === 1;
           d.innerHTML = '<td class="k-hierarchy-cell"></td><td colspan="8"><p>מספר בקשה</p><p>' + r.asmachta + '</p><p>ת.עדכון מערך</p><p>18/08/2026</p><p>צפי לסיום השהייה</p><p>' + r.dateTzefiSyumHashaya + '</p>'
             + '<div class="' + (is91 ? '' : 'ng-hide') + '"><p>תיק החזר מס (91)</p></div><p>שם תיק</p><p>' + r.shemMuzag + '</p></td>';
           tr.after(d);
-          e.target.className = 'k-icon k-i-collapse';
-        });
-        tb.appendChild(tr);
-      }
+          icon.className = 'k-icon k-i-collapse';
     }
     document.getElementById('btnSearch').addEventListener('click', () => {
       const y = document.getElementById('yeshut').value.replace(/\\D/g, '');
@@ -82,9 +103,10 @@ export function requestsListHtml({ rows = [], tik91 = [], brokenClear = false, p
       const echo = document.getElementById('echo');
       echo.textContent = 'סינון לפי : ' + parts.join(' + ');
       echo.style.display = parts.length ? '' : 'none';
-      view = ALL.map((r, i) => ({ ...r, uid: 'u' + i }))
+      const next = ALL.map((r, i) => ({ ...r, uid: 'u' + i }))
         .filter((r) => (!y || String(r.misMuzag).replace(/^0+/, '') === y.replace(/^0+/, '')) && (!n || (String(r.asmachta) === n && recent(r))));
-      render();
+      const apply = () => { view = next; render(); };
+      if (SEARCH_DELAY) setTimeout(apply, SEARCH_DELAY); else apply();
     });
     document.getElementById('btnClear').addEventListener('click', () => {
       log.push('clear');

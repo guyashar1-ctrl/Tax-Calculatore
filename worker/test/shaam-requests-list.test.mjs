@@ -146,3 +146,13 @@ test('קוד שע״ם · «לא נמצאו רשומות» הוא טקסט מהש
   assert.ok(h.includes('txt-no-resultes="vm.txtNoResultes"'));
   assert.ok(h.includes('<p ng-show="vm.isShowSinunBy" class="fontbold">סינון לפי : {{vm.sinunBy}}</p>'));
 });
+
+test('gridMatchesSearch · כל שורה נושאת את הישות/המספר שחיפשנו; ריק או שורה זרה ⇒ לא', async () => {
+  const { gridMatchesSearch } = await import('../src/shaamRepresentationSession.mjs');
+  const mine = [{ misMuzag: 34605212, asmachta: 2026538930 }, { misMuzag: '034605212', asmachta: 2026538930 }];
+  assert.equal(gridMatchesSearch(mine, 'entityId', '034605212'), true, 'אפסים מובילים לא משנים');
+  assert.equal(gridMatchesSearch([...mine, { misMuzag: 318853694 }], 'entityId', '034605212'), false);
+  assert.equal(gridMatchesSearch(mine, 'requestNumber', '2026538930'), true);
+  assert.equal(gridMatchesSearch([], 'entityId', '034605212'), false);
+  assert.equal(gridMatchesSearch(mine, 'entityId', ''), false);
+});
