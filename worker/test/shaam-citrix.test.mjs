@@ -30,3 +30,17 @@ test('ordinary blank window still navigates to SHAAM on explicit focus', async (
   await focusShaamWindow({url: () => 'about:blank', bringToFront: async () => {}, goto: async url => { destination = url; }});
   assert.equal(destination, 'https://shaam.taxes.gov.il/');
 });
+
+test('focus emulation: restored for SHAAM tabs (clicks hang in a background window without it), never sent to the Citrix tab', async () => {
+  const { enableFocusEmulation } = await import('../src/browserSession.mjs');
+  const sent = [];
+  const fakePage = (url) => ({
+    url: () => url,
+    context: () => ({ newCDPSession: async () => ({ send: async (method, params) => { sent.push([url, method, params]); } }) }),
+  });
+  assert.equal(await enableFocusEmulation(fakePage('https://shaam.taxes.gov.il/srmyzgipuykoach/#/process')), true);
+  assert.equal(await enableFocusEmulation(fakePage('https://shaam-mf-emulator.taxes.gov.il/Citrix/CTSWeb/')), false);
+  assert.deepEqual(sent, [['https://shaam.taxes.gov.il/srmyzgipuykoach/#/process', 'Emulation.setFocusEmulationEnabled', { enabled: true }]]);
+  const broken = { url: () => 'about:blank', context: () => ({ newCDPSession: async () => { throw new Error('target closed'); } }) };
+  assert.equal(await enableFocusEmulation(broken), false, 'a closed tab does not fail the attach');
+});

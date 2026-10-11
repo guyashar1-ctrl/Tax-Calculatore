@@ -136,6 +136,12 @@ export async function attach() {
       await detach(browser);
       return { ok: false, reason: 'no_context', detail: 'no_browser_context' };
     }
+    // ‼ 11.10.2026 · noDefaults מוותר גם על הדמיית המיקוד של Playwright. בלעדיה
+    // חלון ברקע לא מריץ requestAnimationFrame, וכל click נתקע על «stable» —
+    // כך נכשלו מ-09.10 כל בדיקות הייצוג בשע״ם (click_failed «בקשות בתהליך»).
+    // מחזירים רק אותה, לכל לשונית שאינה Citrix, כולל לשוניות שייפתחו בהמשך.
+    await Promise.all(context.pages().map(enableFocusEmulation));
+    context.on('page', (p) => { enableFocusEmulation(p); });
     const page = context.pages()[0] ?? await context.newPage();
     return { ok: true, browser, page };
   } catch (e) {
@@ -145,6 +151,18 @@ export async function attach() {
       reason: running ? 'blocked' : 'not_running',
       detail: detail.slice(0, 200),
     };
+  }
+}
+
+/** ההגדרה בטלה לבד כשהחיבור נסגר (detach) — היא שייכת לסשן ה-CDP שלנו בלבד. */
+export async function enableFocusEmulation(page) {
+  if (isShaamCitrixUrl(page.url())) return false;
+  try {
+    const session = await page.context().newCDPSession(page);
+    await session.send('Emulation.setFocusEmulationEnabled', { enabled: true });
+    return true;
+  } catch {
+    return false;
   }
 }
 
