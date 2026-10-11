@@ -1122,8 +1122,13 @@ export async function verifyFileDetailsFor(page, fileNumber) {
       // ‼ ההשוואה היא מול **טקסט** המסך בלבד. ערכים של שדות קלט מוחרגים
       // בכוונה: לתוך אחד מהם אנחנו עצמנו הקלדנו את המספר, ולכן הוא היה
       // מאשר את עצמו ומדווח הצלחה גם כשלא נפתח כלום. זה קרה בפועל.
-      const fileNumberInScreenText =
-        digits.length > 0 && text.replace(/[^\d]/g, '').includes(digits);
+      // ‼ 11.10.2026 · GMF מציגה את מספר התיק בלי אפסים מובילים (34605212),
+      // ו-PIVO שולחת 9 ספרות (034605212). מספר שעומד לבדו במסך ושווה בלי
+      // האפסים — הוא אותו תיק.
+      const bare = digits.replace(/^0+/, '');
+      const fileNumberInScreenText = digits.length > 0 && (
+        text.replace(/[^\d]/g, '').includes(digits)
+        || (bare.length >= 5 && (text.match(/\d+/g) || []).some((run) => run.replace(/^0+/, '') === bare)));
 
       return {
         matchesRequestedFile: leftMenu && onFileDetailsScreen && fileNumberInScreenText,
