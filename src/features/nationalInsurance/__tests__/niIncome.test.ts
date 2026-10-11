@@ -12,7 +12,7 @@ import {
   niIncomeEntryFromWorker, niClientIncomeTrust, niIncomeReadOf, niIncomeReadsFromJob,
 } from '../niIncome';
 // @ts-ignore — מודול העובד (JS בלי טיפוסים); הבדיקה מריצה את הקוד האמיתי שלו.
-import { incomeEvidence, selectDeclaredIncome } from '../../../../worker/src/btlFileSync.mjs';
+import { incomeEvidence, selectDeclaredIncome, parseAdvanceLine } from '../../../../worker/src/btlFileSync.mjs';
 import { niBasisView, niBasisExplain } from '../niBasisDisplay';
 import { AUTHORITY_AUTOMATION, buildAuthorityCheck } from '../../taxFile/authorityAutomation';
 import { buildAuthorityRows } from '../../../utils/authorityRows';
@@ -315,6 +315,29 @@ export const TESTS: TestCase[] = [
     equal(v.nearDeclaration, null, 'בלי הצהרה — אין השוואה');
     const ex = niBasisExplain({ ...BASIS_B, year: 2031 });
     assert(ex[2].lines.some(l => /לא ניתן להעריך/.test(l.text)), 'שנה בלי פרמטרים ⇒ אי-ודאות כנה');
+  }),
+
+  // ‼ 11.10.2026 · הדסה: «2026 / 12-10 בסיסים , עובד 10,326 ד"ב : 0» — לפני התיקון «שורת דמי הביטוח לא נקראה».
+  test('בסיס עובד: מקדמה 0 נקראת ונשמרת; הבסיס מוצג כבסיס עובד, בלי בסיס חודשי ובלי הערכת הכנסה', () => {
+    const a = parseAdvanceLine('2026 / 12-10 בסיסים , עובד 10,326 ד"ב : 0');
+    const p = person('client', { ok: true, value: null, records: [] });
+    p.sections.advance = { ok: true, value: a };
+    const client = { id: 'c' } as unknown as Client;
+    const check = buildAuthorityCheck(spec, job([p]), client, ALL_KEYS)!;
+    const adv = check.fields.find(f => f.fieldKey === 'niAdvanceMonthly')!;
+    deepEqual([adv.status, adv.patchValue], ['changed', 0]);
+    const basis = check.fields.find(f => f.fieldKey === 'niInsuranceBasis')!;
+    equal((basis.patchValue as NiInsuranceBasis).category, 'עובד');
+    assert(!/הערכת הכנסה/.test(basis.hint ?? ''), 'אין שחזור הכנסה משיעורי עצמאי');
+
+    const saved = { id: 'c', niAdvanceMonthly: 0, niInsuranceBasis: basis.patchValue,
+      fieldMeta: { niInsuranceBasis: AUTO, niAdvanceMonthly: AUTO } } as unknown as Client;
+    const facts = niFacts(saved);
+    const b = fact(facts, 'בסיס לדמי ביטוח');
+    assert(/10,326/.test(b.v) && /אוקטובר–דצמבר 2026/.test(b.v), b.v);
+    deepEqual(b.sub, ['בסיס עובד']);
+    assert(!/[≈÷]/.test(JSON.stringify(b.explain)), 'ההסבר לא מחשב מבסיס עובד');
+    assert(fact(facts, 'מקדמה חודשית').v !== '—', 'מקדמה 0 מוצגת, לא ריק');
   }),
 
   test('בסיס: הצהרה משנה אחרת ⇒ לא «קרוב» ולא «רחוק»', () => {

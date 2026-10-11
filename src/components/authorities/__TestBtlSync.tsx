@@ -8,7 +8,7 @@
 // אמיתי לביטוח לאומי, השני שולח הצעות לשרת על לקוח שאינו קיים.
 //
 // פתיחה:  http://localhost:5173/?test-btl-sync&case=synced|before|couple|couple-partial|running|failed|single-occ|none
-//          (219) |assessment-legacy|assessment-fixed|declaration|legacy-unverified|partial-assessment|declaration-gone|form-6101
+//          (219) |assessment-legacy|assessment-fixed|declaration|legacy-unverified|partial-assessment|declaration-gone|form-6101|employee-basis
 
 import { useEffect, useState } from 'react';
 import type { Client, NiIncomeEntry, NiInsuranceBasis, NiOccupation } from '../../types';
@@ -170,6 +170,11 @@ function job(status: AutomationJob['status'], result?: Record<string, unknown>, 
 
 const CASES: Record<string, { client: Client; job: AutomationJob | null; title: string }> = {
   synced: { client: SYNCED, job: null, title: 'אחרי עדכון — הכרטיס כפי שנשמר' },
+  // 11.10.2026 · הדסה: «2026 / 12-10 בסיסים , עובד 10,326 ד"ב : 0».
+  'employee-basis': {
+    client: { ...SYNCED, niAdvanceMonthly: 0, niInsuranceBasis: { year: 2026, fromMonth: 10, toMonth: 12, months: 3, periodBasis: 10_326, category: 'עובד', advanceMonthly: 0 } },
+    job: null, title: 'שכירה — בסיס עובד, מקדמה 0',
+  },
   before: { client: BEFORE, job: job('succeeded', { system: 'btl', persons: [INSURED_RESULT] }), title: 'המצב של היום + קריאה חדשה מהפורטל' },
   'single-occ': { client: SINGLE_OCC, job: null, title: 'עיסוק אחד' },
   couple: {

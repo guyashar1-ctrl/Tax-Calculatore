@@ -198,6 +198,20 @@ test('דמי ביטוח: «2026 / 7-9 בסיס : עצמאי 47,583 ד"ב : 2026/
   assert.equal(parseAdvanceLine('2026 / 7-9'), null, 'בלי בסיס וסכום ⇒ אין ערך');
 });
 
+test('דמי ביטוח של שכירה: «2026 / 12-10 בסיסים , עובד 10,326 ד"ב : 0» ⇒ מקדמה 0, בסיס עובד (נצפה חי, הדסה)', () => {
+  const a = parseAdvanceLine('2026 / 12-10 בסיסים , עובד 10,326 ד"ב : 0');
+  assert.ok(a, 'השורה נקראת');
+  assert.deepEqual([a.year, a.fromMonth, a.toMonth, a.months], [2026, 10, 12, 3]);
+  assert.equal(a.advanceMonthly, 0);
+  assert.equal(a.basisCategory, 'עובד');
+  assert.equal(a.periodBasis, 10326);
+  // «ד"ב : 2026/1» הוא תקופה ולא סכום — בלי «סכום» אין ערך.
+  assert.equal(parseAdvanceLine('2026 / 7-9 בסיס : עצמאי 47,583 ד"ב : 2026/1'), null);
+  // כמה בסיסים — המקדמה נגזרת מהבסיס של העצמאי.
+  const both = parseAdvanceLine('2026 / 7-9 בסיסים , עובד 10,326 , עצמאי 30,000 ד"ב : 2026/1 סכום : 1180');
+  assert.deepEqual([both.basisCategory, both.periodBasis, both.advanceMonthly, both.bases.length], ['עצמאי', 30000, 1180, 2]);
+});
+
 test('כותרת המבוטח: ת.ז., יתרה, סוג הרשאת החיוב', () => {
   const h = parseInsuredHeader([
     { label: 'זהות:', value: '123456782' }, { label: 'טלפון:', value: '054-5538494' },

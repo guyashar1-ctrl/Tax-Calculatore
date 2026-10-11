@@ -60,8 +60,24 @@ export interface NiBasisContext {
   statusesCount?: number;
 }
 
+/**
+ * ‼ 11.10.2026 · ב"ל רושם בשורה גם בסיס של עובד («בסיסים , עובד 10,326 ד"ב : 0»).
+ * בסיס חודשי ושחזור ההכנסה בנויים על שיעורי עצמאי — לבסיס אחר הם היו מספר שגוי.
+ */
+export function niIsSelfEmployedBasis(b: NiInsuranceBasis): boolean {
+  return !b.category || /עצמאי/.test(b.category);
+}
+
 export function niBasisView(b: NiInsuranceBasis, ctx: NiBasisContext = {}): NiBasisView {
   const monthly = b.periodBasis / Math.max(1, b.months);
+  if (!niIsSelfEmployedBasis(b)) {
+    return {
+      periodText: `${ils(b.periodBasis)} · ${niBasisPeriodText(b)}`,
+      monthlyText: `בסיס ${b.category}`,
+      monthlyBasis: monthly,
+      reconstructionText: null, reconstructionNote: null, nearDeclaration: null, reconstruction: null,
+    };
+  }
   const base = {
     periodText: `${ils(b.periodBasis)} · ${niBasisPeriodText(b)}`,
     // ‼ «בסיס חודשי» ולא «X לחודש»: ליד «הכנסה מוצהרת 16,500 ₪ לחודש»,
@@ -138,6 +154,13 @@ export function niBasisExplain(b: NiInsuranceBasis, ctx: NiBasisExplainContext =
   if (ctx.basisMeta?.source === 'automation') read.push({ text: `נשמר בכרטיס מקריאה של ביטוח לאומי${saved ? ` ב-${saved}` : ''}` });
   else if (ctx.basisMeta?.source) read.push({ text: `הוזן בכרטיס${saved ? ` ב-${saved}` : ''} — לא מקריאה אוטומטית` });
   sections.push({ kind: 'read', title: 'נקרא מביטוח לאומי', lines: read });
+
+  if (!niIsSelfEmployedBasis(b)) {
+    sections.push({ kind: 'estimate', title: 'הערכה של PIVO — לא נתון של ביטוח לאומי', lines: [
+      { text: `זה בסיס ${b.category}, לא בסיס עצמאי. בסיס חודשי והערכת הכנסה מחושבים ב-PIVO רק לבסיס עצמאי, ולכן לא חושבו כאן.` },
+    ] });
+    return sections;
+  }
 
   // ── חישוב ──
   const calc: NiHelpLine[] = b.months > 1

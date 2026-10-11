@@ -407,14 +407,26 @@ export function parseAdvanceLine(text) {
   else { a = Number(period[1]); b = Number(period[2]); year = Number(period[3]); }
   const fromMonth = Math.min(a, b), toMonth = Math.max(a, b);
   if (fromMonth < 1 || toMonth > 12) return null;
-  const basis = t.match(/בסיס\s*:\s*([^\d:]*?)\s*(\d{1,3}(?:,\d{3})+|\d+)/);
-  const amount = t.match(/סכום\s*:\s*(\d{1,3}(?:,\d{3})+|\d+)/);
-  if (!basis || !amount) return null;
+  // ‼ 11.10.2026 · נצפה חי (הדסה, שכירה + «עצמאי לא עונה להגדרה»):
+  // «2026 / 12-10 בסיסים , עובד 10,326 ד"ב : 0» — רבים ופסיק, ובלי «סכום».
+  // שם «ד"ב : 0» הוא הסכום; ב«ד"ב : 2026/1 סכום : 2062» הוא תקופה.
+  const basesText = t.match(/בסיס(?:ים)?\s*[:,]\s*(.*?)(?=ד["״']?ב\s*:|סכום\s*:|$)/);
+  const bases = basesText
+    ? [...basesText[1].matchAll(/([^\d,:]+?)\s*(\d{1,3}(?:,\d{3})+|\d+)/g)]
+      .map(m => ({ category: norm(m[1].replace(/^[\s,]+|[\s,]+$/g, '')), amount: parseMoney(m[2]) }))
+      .filter(x => x.amount != null)
+    : [];
+  const amount = t.match(/סכום\s*:\s*(\d{1,3}(?:,\d{3})+|\d+)/)
+    ?? t.match(/ד["״']?ב\s*:\s*(\d{1,3}(?:,\d{3})+|\d+)(?!\s*[\d,/])/);
+  if (bases.length === 0 || !amount) return null;
+  // הבסיס שעליו נגזרת המקדמה הוא של העצמאי; בלעדיו — הבסיס היחיד שנרשם.
+  const basis = bases.find(x => /עצמאי/.test(x.category)) ?? bases[0];
   return {
     year, fromMonth, toMonth, months: toMonth - fromMonth + 1,
-    basisCategory: norm(basis[1]) || null,
-    periodBasis: parseMoney(basis[2]),
+    basisCategory: basis.category || null,
+    periodBasis: basis.amount,
     advanceMonthly: parseMoney(amount[1]),
+    ...(bases.length > 1 ? { bases } : {}),
     raw: t,
   };
 }
