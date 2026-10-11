@@ -17,7 +17,8 @@ import {
   addDays, dayLetter, dayNumber, eventRange, eventsByDay, hourRange, israelNow, rangeLabel, timeAtY, toTime,
   visibleDays, weekStart, type Placed,
 } from './calendarModel';
-import { israelToday, meetingErrorText, RSVP_LABELS, RSVP_TONE, type Meeting } from './meetingModel';
+import { israelToday, inviteSentInfo, meetingErrorText, REMIND_HINT, RSVP_LABELS, RSVP_TONE, type Meeting } from './meetingModel';
+import InviteSentLine from './InviteSentLine';
 import type { MeetingsApi } from './useMeetings';
 import './calendar.css';
 
@@ -355,6 +356,7 @@ function Detail({ e, meeting, api, signer, today, onMove, onOpenPerson, onClose 
           );
         })}
       </ul>
+      <InviteSentLine info={inviteSentInfo(meeting, today)} />
       {notice && (
         <div className={`mt-banner is-${notice.tone}`} role="status">
           {notice.text}
@@ -379,9 +381,9 @@ function Detail({ e, meeting, api, signer, today, onMove, onOpenPerson, onClose 
         <div className="mt-inline">
           {pending.map(g => (
             <CopyBox key={g.email} label={`להעתיק ולשלוח ל${g.name || g.email} בוואטסאפ`}
-              text={whatsappReminderText({ guest: g, date, time: utcToIsrael(meeting.startsAt).time, today, signer })} />
+              text={whatsappReminderText({ guest: g, date, time: utcToIsrael(meeting.startsAt).time, today, signer, meetLink: meeting.meetLink, organizerEmail: api.connection?.email })} />
           ))}
-          <span className="mt-hint">לא נשלח מייל. תזכורת בערוץ שבו הם כבר מדברים איתך עובדת טוב יותר.</span>
+          <span className="mt-hint">{REMIND_HINT}</span>
         </div>
       )}
       {panel === 'cancel' && (

@@ -8,7 +8,8 @@ import {
   utcToIsrael, whatsappReminderText, whatsappCancelText, MEETING_KIND_LABELS,
 } from '../../../supabase/functions/_shared/meetingInvite';
 import CopyBox from './CopyBox';
-import { dayHeading, israelToday, meetingWhen, upcomingMeetings, RSVP_LABELS, RSVP_TONE, type Meeting } from './meetingModel';
+import { dayHeading, israelToday, inviteSentInfo, meetingWhen, upcomingMeetings, REMIND_HINT, RSVP_LABELS, RSVP_TONE, type Meeting } from './meetingModel';
+import InviteSentLine from './InviteSentLine';
 import type { MeetingsApi } from './useMeetings';
 import './meetings.css';
 
@@ -101,6 +102,7 @@ export default function UpcomingMeetings({ api, signer, onMove, onOpenConnection
                     );
                   })}
                 </div>
+                <InviteSentLine info={inviteSentInfo(m, today)} />
               </div>
               {m.status === 'scheduled' && (
                 <div className="mt-row-acts">
@@ -129,9 +131,9 @@ export default function UpcomingMeetings({ api, signer, onMove, onOpenConnection
                   <div className="mt-inline">
                     {pending.map(g => (
                       <CopyBox key={g.email} label={`להעתיק ולשלוח ל${g.name || g.email} בוואטסאפ`}
-                        text={whatsappReminderText({ guest: g, date: w.date, time: w.time, today, signer })} />
+                        text={whatsappReminderText({ guest: g, date: w.date, time: w.time, today, signer, meetLink: m.meetLink, organizerEmail: api.connection?.email })} />
                     ))}
-                    <span className="mt-hint">לא נשלח מייל. תזכורת בערוץ שבו הם כבר מדברים איתך עובדת טוב יותר.</span>
+                    <span className="mt-hint">{REMIND_HINT}</span>
                   </div>
                 )}
                 {isOpen('cancel') && (

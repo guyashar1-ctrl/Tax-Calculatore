@@ -339,23 +339,62 @@ export function inviteDescription(input: InviteInput, org: InviteOrg, move?: Inv
   return inviteParagraphs(input, org, move, tpl).join('\n\n');
 }
 
-/** תזכורת להעתקה לוואטסאפ — למי שעוד לא אישר. לא נשלח מייל. */
-export function whatsappReminderText(args: { guest: MeetingGuest; date: string; time: string; today: string; signer?: string }): string {
+/**
+ * איך מוצאים את הזימון בתיבה — לוואטסאפ. ‼ הכתובת שאליה נשלח כתובה במפורש: כך מי
+ * שהכתובת שלו נרשמה עם טעות אומר «זה לא המייל שלי». מחפשים את כתובת היומן של המשרד
+ * (היא מופיעה בזימון גם כשהכותרת נערכה), וזימון ממי שעוד לא מכירים נוחת לפעמים בספאם
+ * או בקידומי מכירות; «לא ספאם» שם הוא מה שמכניס לתיבה גם את המיילים הבאים.
+ * ‼ כל כתובת בסוף שורה משלה, בלי פיסוק אחריה: כתובת לטינית באמצע משפט עברי מתהפכת
+ * (הפסיק קופץ לצד השני) — גם בוואטסאפ — ומי שמעתיק אותה לחיפוש מעתיק גם את הפיסוק.
+ */
+function findInviteLines(guestEmail: string, organizerEmail?: string): string[] {
+  const org = (organizerEmail ?? '').trim();
+  return [
+    `הזימון נשלח למייל: ${guestEmail.trim()}`,
+    ...(org ? [`לא מוצאים אותו? כדאי לחפש בתיבה: ${org}`, 'ולבדוק גם בספאם ובקידומי מכירות.']
+      : ['לא מוצאים אותו? כדאי לבדוק גם בספאם ובקידומי מכירות.']),
+    'אם הוא שם, כדאי לסמן «לא ספאם», כדי שגם המיילים הבאים ממני יגיעו לתיבה.',
+  ];
+}
+
+/**
+ * תזכורת להעתקה לוואטסאפ — למי שעוד לא אישר. לא נשלח מייל. ‼ עם קישור ה-Meet עצמו:
+ * מי שלא אישר הוא לרוב מי שהזימון לא הגיע אליו, ו«הקישור בזימון» לא עוזר לו.
+ */
+export function whatsappReminderText(args: {
+  guest: MeetingGuest; date: string; time: string; today: string; signer?: string; meetLink?: string; organizerEmail?: string;
+}): string {
   const first = firstName(args.guest);
   const diff = Math.round((noon(args.date).getTime() - noon(args.today).getTime()) / 86400000);
   const when = diff === 0 ? 'היום' : diff === 1 ? 'מחר' : `ב${longDay(args.date).split(',')[0]}`;
   const sign = (args.signer ?? '').trim();
-  return `היי${first ? ' ' + first : ''}, תזכורת קטנה: נדבר ${when} ב-${args.time} ב-Google Meet. הקישור נמצא בהזמנה ששלחתי במייל. נתראה${sign ? ', ' + sign : '!'}`;
+  const link = (args.meetLink ?? '').trim();
+  return [
+    `היי${first ? ' ' + first : ''}, תזכורת קטנה: נדבר ${when} ב-${args.time} ב-Google Meet.`,
+    link ? `להצטרפות: ${link}` : 'הקישור נמצא בהזמנה ששלחתי במייל.',
+    '',
+    ...findInviteLines(args.guest.email, args.organizerEmail),
+    `נתראה${sign ? ', ' + sign : '!'}`,
+  ].join('\n');
 }
 
 /**
  * «שלחתי לך זימון» להעתקה לוואטסאפ, מיד אחרי השליחה. ‼ האדם פנה בוואטסאפ — שם הוא
  * מחכה לתשובה; וזימון ממי שעוד לא מכיר נוחת לפעמים בקידומי מכירות או בספאם.
  */
-export function whatsappSentText(args: { guest: MeetingGuest; kind: MeetingKind; date: string; time: string }): string {
+export function whatsappSentText(args: {
+  guest: MeetingGuest; kind: MeetingKind; date: string; time: string; meetLink?: string; organizerEmail?: string;
+}): string {
   const first = firstName(args.guest);
   const what = args.kind === 'intro' ? 'לשיחת היכרות' : 'לפגישה';
-  return `היי${first ? ' ' + first : ''}, שלחתי לך למייל זימון ${what} ב${longDay(args.date)} ב-${args.time}. הקישור ל-Google Meet נמצא בזימון. אם לא הגיע, שווה להציץ בספאם. נתראה!`;
+  const link = (args.meetLink ?? '').trim();
+  return [
+    `היי${first ? ' ' + first : ''}, שלחתי לך זימון ${what} ב${longDay(args.date)} ב-${args.time}, ב-Google Meet.`,
+    link ? `להצטרפות: ${link}` : 'הקישור להצטרפות נמצא בזימון.',
+    '',
+    ...findInviteLines(args.guest.email, args.organizerEmail),
+    'נתראה!',
+  ].join('\n');
 }
 
 /** הודעת ביטול להעתקה לוואטסאפ — גוגל שולח הודעת ביטול רשמית; זו המילה האישית. */

@@ -221,15 +221,19 @@ export function fakeMeetingsInvoke(name: string, body: Row, tables: Record<strin
       if (!existing) meetings.push({ id: input.id, user_id: userId, status: 'failed', kind: input.kind, guests: input.guests, starts_at: israelToUtcIso(input.date, input.time), duration_min: input.durationMin, title: '', description: '', history: [] });
       return fail('google_failed', { message: 'Invalid attendee email.', status: 400 });
     }
-    const row: Row = existing ?? {
-      id: input.id, user_id: userId, client_id: input.clientId, lead_id: null, kind: input.kind,
-      topic: input.topic || null, prep: input.prep || null, note: input.note || null,
+    const fresh: Row = {
+      kind: input.kind, topic: input.topic || null, prep: input.prep || null, note: input.note || null,
       starts_at: israelToUtcIso(input.date, input.time), duration_min: input.durationMin,
       guests: input.guests.map(g => ({ ...g, rsvp: 'none' })),
       title: meetingTitle(input, org, tpl(input.kind)), description: inviteDescription(input, org, undefined, tpl(input.kind)),
+    };
+    const row: Row = existing ?? {
+      id: input.id, user_id: userId, client_id: input.clientId, lead_id: null, ...fresh,
       status: 'sending', history: [], created_at: nowIso,
     };
     if (!existing) meetings.push(row);
+    // ‼ כמו בשרת: נדחה בוודאות ⇒ שולחים את מה שבחלון עכשיו (כתובת שתוקנה), לא את מה שנדחה.
+    else if (existing.status === 'failed') Object.assign(row, fresh, { status: 'sending', last_error: null });
     if (/lost-reply/.test(emails) && !lostOnce.has(input.id)) {
       lostOnce.add(input.id);
       row.status = 'unknown';

@@ -10,7 +10,7 @@
 import { test, equal, assert, deepEqual } from '../../../testkit/tinyTest';
 import type { TestCase } from '../../../testkit/tinyTest';
 import {
-  meetingWhen, upcomingMeetings, meetingCueByPerson, meetingErrorText, dayHeading, historyTitle, meetingsWithEmail, cueEmailKey,
+  meetingWhen, upcomingMeetings, meetingCueByPerson, meetingErrorText, dayHeading, historyTitle, meetingsWithEmail, cueEmailKey, inviteSentInfo,
   type Meeting,
 } from '../meetingModel';
 import { nextWorkday, nameQueryOf, peopleLine } from '../MeetingDialog';
@@ -98,5 +98,21 @@ export const TESTS: TestCase[] = [
   test('יום העבודה הבא: מחמישי — ראשון, לא שישי ושבת', () => {
     equal(nextWorkday('2026-10-08'), '2026-10-11');
     equal(nextWorkday('2026-10-06'), '2026-10-07');
+  }),
+  // המקרה האמיתי (11.10): זימון ב-09:07, ושינוי מועד מ-PIVO חצי דקה אחרי ⇒ האחרון שיצא הוא ההזמנה המעודכנת.
+  test('«נשלח אל»: האחרון שיצא, לאיזו כתובת, ובשעון ישראל', () => {
+    const m = mk('a', '2026-10-11T17:00:00Z', {
+      guests: [{ email: 'amir@gmail.com', name: 'אמיר' }], sentAt: '2026-10-11T06:07:47Z',
+      history: [{ at: '2026-10-11T06:07:47Z', kind: 'sent' }, { at: '2026-10-11T06:08:18Z', kind: 'moved', askedBy: 'office' }],
+    });
+    deepEqual(inviteSentInfo(m, '2026-10-11'), { label: 'ההזמנה המעודכנת נשלחה אל', emails: ['amir@gmail.com'], when: 'היום 09:08' });
+    equal(inviteSentInfo({ ...m, history: [m.history[0]] }, '2026-10-12')?.when, 'אתמול 09:07');
+    // שינוי ישירות ביומן Google — לא ידוע אם Google שלח עדכון, ולכן לא נספר כ«נשלח».
+    equal(inviteSentInfo({ ...m, history: [m.history[0], { at: '2026-10-11T07:00:00Z', kind: 'changed_in_google' }] }, '2026-10-11')?.label, 'הזימון נשלח אל');
+  }),
+  test('«נשלח אל»: לא ידוע / נכשל / בלי ראיה ⇒ לא מוצג', () => {
+    equal(inviteSentInfo(mk('u', '2026-10-11T17:00:00Z', { status: 'unknown', sentAt: '2026-10-11T06:00:00Z' }), '2026-10-11'), null);
+    equal(inviteSentInfo(mk('f', '2026-10-11T17:00:00Z', { status: 'failed' }), '2026-10-11'), null);
+    equal(inviteSentInfo(mk('n', '2026-10-11T17:00:00Z'), '2026-10-11'), null);
   }),
 ];

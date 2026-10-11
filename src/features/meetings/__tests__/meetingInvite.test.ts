@@ -12,7 +12,7 @@ import { test, equal, assert, deepEqual } from '../../../testkit/tinyTest';
 import type { TestCase } from '../../../testkit/tinyTest';
 import {
   israelToUtcIso, utcToIsrael, addMinutes, extractEmails, suggestNameFromWhatsApp, isValidEmail,
-  meetingTitle, greeting, inviteParagraphs, inviteDescription, organizerTitle, whatsappReminderText,
+  meetingTitle, greeting, inviteParagraphs, inviteDescription, organizerTitle, whatsappReminderText, whatsappSentText,
   meetingTemplateFor, fillInviteBody, fillInviteTitle, MEETING_TEMPLATE_DEFAULTS, MEETING_TEMPLATE_FIELDS,
   MOVE_NOTE_DEFAULT, type InviteOrg,
 } from '../../../../supabase/functions/_shared/meetingInvite';
@@ -142,9 +142,32 @@ export const TESTS: TestCase[] = [
   }),
   test('תזכורת וואטסאפ: היום / מחר / יום בשבוע', () => {
     const g = { email: 'a@x.com', name: 'נועה כהן' };
-    equal(whatsappReminderText({ guest: g, date: '2026-10-07', time: '09:30', today: '2026-10-07', signer: 'גיא' }),
-      'היי נועה, תזכורת קטנה: נדבר היום ב-09:30 ב-Google Meet. הקישור נמצא בהזמנה ששלחתי במייל. נתראה, גיא');
+    const t = whatsappReminderText({ guest: g, date: '2026-10-07', time: '09:30', today: '2026-10-07', signer: 'גיא' });
+    assert(t.startsWith('היי נועה, תזכורת קטנה: נדבר היום ב-09:30 ב-Google Meet.'), t);
+    assert(t.endsWith('נתראה, גיא'), 'חתימה');
     assert(whatsappReminderText({ guest: g, date: '2026-10-08', time: '09:30', today: '2026-10-07' }).includes('נדבר מחר'), 'מחר');
     assert(whatsappReminderText({ guest: g, date: '2026-10-11', time: '09:30', today: '2026-10-07' }).includes('נדבר ביום ראשון'), 'יום בשבוע');
+  }),
+  // מי שלא אישר הוא לרוב מי שהזימון לא הגיע אליו: הקישור עצמו, הכתובת שאליה נשלח, ומה לחפש.
+  test('תזכורת וואטסאפ: קישור Meet, הכתובת שאליה נשלח ומה לחפש בתיבה', () => {
+    const g = { email: 'noa@gmail.com', name: 'נועה כהן' };
+    const t = whatsappReminderText({ guest: g, date: '2026-10-07', time: '09:30', today: '2026-10-07',
+      meetLink: 'https://meet.google.com/abc-defg-hij', organizerEmail: 'guy@yasharcpa.co.il' });
+    assert(t.includes('להצטרפות: https://meet.google.com/abc-defg-hij'), 'קישור');
+    assert(!t.includes('הקישור נמצא בהזמנה'), 'לא מפנה למייל כשיש קישור');
+    // כתובת באמצע משפט עברי מתהפכת בוואטסאפ ⇒ כל כתובת בסוף שורה משלה.
+    assert(t.includes('הזימון נשלח למייל: noa@gmail.com\n'), 'הכתובת בסוף שורה');
+    assert(t.includes('לחפש בתיבה: guy@yasharcpa.co.il\n'), 'מה לחפש — בסוף שורה');
+    assert(t.includes('בספאם') && t.includes('«לא ספאם»'), 'ספאם');
+    const bare = whatsappReminderText({ guest: g, date: '2026-10-07', time: '09:30', today: '2026-10-07' });
+    assert(bare.includes('הקישור נמצא בהזמנה ששלחתי במייל'), 'בלי קישור — מפנה לזימון');
+    assert(!bare.includes('לחפש בתיבה'), 'בלי כתובת יומן — בלי מה לחפש');
+  }),
+  test('«שלחתי לך זימון»: קישור Meet והכתובת', () => {
+    const t = whatsappSentText({ guest: { email: 'dan@x.com', name: 'דני לוי' }, kind: 'intro', date: '2026-10-11', time: '20:00',
+      meetLink: 'https://meet.google.com/abc', organizerEmail: 'guy@yasharcpa.co.il' });
+    assert(t.startsWith('היי דני, שלחתי לך זימון לשיחת היכרות'), t);
+    assert(t.includes('להצטרפות: https://meet.google.com/abc'), 'קישור');
+    assert(t.includes('הזימון נשלח למייל: dan@x.com') && t.includes('guy@yasharcpa.co.il'), 'כתובת ומה לחפש');
   }),
 ];

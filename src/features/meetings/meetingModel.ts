@@ -112,6 +112,35 @@ export const RSVP_TONE: Record<Rsvp, 'ok' | 'warn' | 'err' | 'muted'> = {
   yes: 'ok', maybe: 'warn', no: 'err', none: 'muted',
 };
 
+/**
+ * «הזימון נשלח אל … · היום 09:07» — הראיה שהזימון יצא, ולאיזו כתובת.
+ * ‼ «נשלח» = Google קיבל את האירוע (sent_at / רישום ביומן הפגישה), לא «הגיע לתיבה»: Google
+ * לא מדווח על מסירה. הכתובת מוצגת כדי שטעות בה תיתפס בעין. שינוי מועד מ-PIVO שולח הזמנה
+ * מעודכנת (sendUpdates=all); שינוי ישירות ב-Google — לא ידוע אם נשלח, ולכן לא נספר.
+ */
+export function inviteSentInfo(m: Meeting, today: string): { label: string; emails: string[]; when: string } | null {
+  if (m.status !== 'scheduled') return null;
+  const sends = m.history.filter(h => h.kind === 'sent' || h.kind === 'moved').sort((a, b) => a.at.localeCompare(b.at));
+  const last = sends[sends.length - 1];
+  const at = last?.at ?? m.sentAt;
+  if (!at) return null;
+  const { date, time } = utcToIsrael(at);
+  const diff = Math.round((Date.parse(`${today}T12:00:00Z`) - Date.parse(`${date}T12:00:00Z`)) / 86400000);
+  const day = diff === 0 ? 'היום' : diff === 1 ? 'אתמול' : shortDay(date);
+  return {
+    label: last?.kind === 'moved' ? 'ההזמנה המעודכנת נשלחה אל' : 'הזימון נשלח אל',
+    emails: m.guests.map(g => g.email),
+    when: `${day} ${time}`,
+  };
+}
+
+/**
+ * מתחת לתזכורת בוואטסאפ. ‼ «לא חזר» אינו «הגיע»: Google שולח את הזימון עם כתובת החזרה של
+ * שרתי היומן שלו (calendar-server.bounces.google.com), כך שגם זימון שנדחה לא מחזיר הודעה
+ * לתיבה של המשרד ואין ממה להסיק מסירה. ההוכחה היחידה שהגיע — תשובה (כן/לא/אולי).
+ */
+export const REMIND_HINT = 'PIVO יודע שהזימון נשלח, לא אם הגיע לתיבה — Google לא מדווח על זה. תשובה בהזמנה («כן») היא הסימן שהגיע. התזכורת לא נשלחת במייל: מעתיקים ושולחים בוואטסאפ.';
+
 /** פגישות שעוד לא עברו (כולל אחת שמתקיימת עכשיו), לפי מועד. */
 export function upcomingMeetings(list: Meeting[], now: Date = new Date()): Meeting[] {
   const t = now.getTime();

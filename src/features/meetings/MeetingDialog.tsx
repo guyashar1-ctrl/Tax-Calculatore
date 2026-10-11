@@ -332,7 +332,7 @@ export default function MeetingDialog({ mode, clients, leads, contacts, profile,
           )}
           {!isMove && firstGuest && (
             <CopyBox label="הודעה קצרה לוואטסאפ — שידעו שהזימון במייל"
-              text={whatsappSentText({ guest: firstGuest, kind: result.kind, date: w.date, time: w.time })} />
+              text={whatsappSentText({ guest: firstGuest, kind: result.kind, date: w.date, time: w.time, meetLink: result.meetLink, organizerEmail: api.connection?.email })} />
           )}
         </div>
       </Modal>
