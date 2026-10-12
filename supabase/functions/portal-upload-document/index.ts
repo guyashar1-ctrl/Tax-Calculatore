@@ -31,6 +31,9 @@ const CATEGORY_BY_KEY: Record<string, string> = {
   // 191: צילום התעודה של בן/בת הזוג שנדחה בקליטת הייצוג — אותה קטגוריה.
   // הרישום ב-identity_docs של הבקשה נעשה בטריגר על השלב (client_documents_to_identity_docs_trg).
   id_card_spouse: "id_card",
+  // 235: רישיון נהיגה כפריט משלו (עסק חדש: ת.ז. וגם רישיון). הטריגר רושם אותו כ-driverLicense.
+  drivers_license: "drivers_license",
+  drivers_license_spouse: "drivers_license",
   bank_confirm: "business_document",
   vat_cert: "business_document",
   last_return: "tax_assessment",
@@ -206,7 +209,8 @@ Deno.serve(async (req: Request) => {
     // הפריט מצביע על הקיים. לאדם האחר — רשומה נפרדת (שיוך ואישור משלה).
     // «צילום אחר במקומו» (identity_replacement) — לא נוגעים: זו החלפה, לא העלאה.
     const idPerson = tokenKind === "release" || isBulk ? null
-      : itemKey === "id_card" ? "client" : itemKey === "id_card_spouse" ? "spouse" : null;
+      : itemKey === "id_card" || itemKey === "drivers_license" ? "client"
+      : itemKey === "id_card_spouse" || itemKey === "drivers_license_spouse" ? "spouse" : null;
     let sameDoc: string | null = null;
     if (idPerson) {
       const { data: reqs } = await admin.from("representation_requests").select("identity_docs").eq("linked_client_id", clientId);

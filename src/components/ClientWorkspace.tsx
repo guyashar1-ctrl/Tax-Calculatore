@@ -39,6 +39,7 @@ import ActivityTab from './clientTabs/ActivityTab';
 import ChecksTab from './clientTabs/ChecksTab';
 import type { AuthorityFlag } from '../utils/authorityFlags';
 import InfoLines from './ui/InfoLines';
+import type { RepIdAttach } from './IdentityDocAttach';
 
 // ארבע לשוניות קבועות — יכולת חדשה בעתיד נכנסת כקטע בתוך "התיק" או אות
 // במרכז השליטה, אף פעם לא כלשונית (ראה הצעת הארכיטקטורה שאושרה 15.07.2026).
@@ -137,6 +138,9 @@ interface Props {
   onboardingSteps?: OnboardingStep[];
   /** 191: שורת הקליטה של בקשת הייצוג — מחושבת ב-App, מוצגת בכרטיס הייצוג. */
   repNote?: string;
+  /** 235: מה שחסר בצילומי התעודה — להעלאה מהמשרד מתוך כרטיס הייצוג. */
+  repIdAttach?: RepIdAttach;
+  onRepIdAttached?: () => void;
   /** הטופס מוכן אבל המייל לא יצא — «נשלח» יהיה שקר. */
   repSendPhase?: RepSendPhase | null;
   /** מצב כל הגשה לפי אדם ורשות — אותן עובדות כמו במרכז הייצוג (repPreparation). */
@@ -247,6 +251,8 @@ export default function ClientWorkspace({
   engagements,
   onboardingSteps,
   repNote,
+  repIdAttach,
+  onRepIdAttached,
   repSendPhase,
   repFacts,
   onboardingEvents,
@@ -947,6 +953,8 @@ export default function ClientWorkspace({
             repStatusLabel={client.representationStatus ? representationStatusLabel(client.representationStatus, repSendPhase) : undefined}
             repStatus={client.representationStatus ?? undefined}
             repNote={repNote}
+            repIdAttach={repIdAttach}
+            onRepIdAttached={onRepIdAttached}
             repSendPhase={repSendPhase}
             repFacts={repFacts}
             onPinNote={(note) => update('pinnedNote', note)}
@@ -1110,6 +1118,8 @@ export default function ClientWorkspace({
               : undefined}
             repStatus={client.representationStatus ?? undefined}
             repNote={repNote}
+            repIdAttach={repIdAttach}
+            onRepIdAttached={onRepIdAttached}
             repSendPhase={repSendPhase}
             repFacts={repFacts}
             onOpenRepresentation={onOpenRepresentation

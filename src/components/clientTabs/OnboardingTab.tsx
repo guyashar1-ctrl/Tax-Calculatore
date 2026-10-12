@@ -127,6 +127,7 @@ import {
 } from '../../features/flows/api';
 import { formatRoute } from '../../lib/appRoute';
 import { awaitsPublication, carriedFromLine, engagementsOf, openIntake } from '../../utils/clientPageGate';
+import IdentityDocAttach, { type RepIdAttach } from '../IdentityDocAttach';
 
 interface Props {
   clientId: string;
@@ -162,6 +163,9 @@ interface Props {
   repStatus?: RepresentationStatus;
   /** 191: שורה אחת על הקליטה — עד איפה הלקוח הגיע / צילום תעודה שחסר. */
   repNote?: string;
+  /** 235: מה שחסר בצילומי התעודה — העלאה מהמשרד בכרטיס הייצוג. */
+  repIdAttach?: RepIdAttach;
+  onRepIdAttached?: () => void;
   /** הטופס מוכן אבל המייל לא יצא — ראה repSendPhase. */
   repSendPhase?: RepSendPhase | null;
   /**
@@ -484,7 +488,7 @@ const COLLECTION_METHODS = ['הוראת קבע בבנק', 'כרטיס אשראי
 
 export default function OnboardingTab({
   clientId, client, onClientPersisted, engagements, steps, events, loading, advance, refresh,
-  prevAccountant, onPrepareReleaseLetter, quotations, clientLeadIds, repStatusLabel, repStatus, repNote, repSendPhase, repFacts, onOpenRepresentation,
+  prevAccountant, onPrepareReleaseLetter, quotations, clientLeadIds, repStatusLabel, repStatus, repNote, repIdAttach, onRepIdAttached, repSendPhase, repFacts, onOpenRepresentation,
   onOpenDocuments,
   clientDisplayName, clientEmail, embedded, ballFilter, onOpenTaxFile,
   niExecution, onUpdateClientFields, onRequestAuthorityRepresentation, onNiInstructionsSent, onAttentionSummary,
@@ -2095,6 +2099,9 @@ export default function OnboardingTab({
                     statusLabel={repStatusLabel}
                     repStatus={repStatus}
                     repNote={repNote}
+                    repIdAttach={repIdAttach}
+                    clientId={clientId}
+                    onRepIdAttached={onRepIdAttached}
                     repSendPhase={repSendPhase}
                     onOpen={onOpenRepresentation}
                     /* ‼ עם חלקים — «למרכז הייצוג ←» יושב בתחתית «לפי רשות ואדם». */
@@ -4847,8 +4854,11 @@ function RepresentationUpgradeCard(p: UpgradeCardProps) {
 // מה שכן יש: הדלת למרכז הייצוג, כי משם עושים את העבודה — וגיא צדק שלא
 // הגיוני לצאת למסך הלקוחות כדי למצוא אותה.
 
-function RepresentationStepCard({ step, stepById, highlight, statusLabel, repStatus, repNote, repSendPhase, onOpen, hasBreakdown, approvalNeeded, menu }: {
+function RepresentationStepCard({ step, stepById, highlight, statusLabel, repStatus, repNote, repIdAttach, clientId, onRepIdAttached, repSendPhase, onOpen, hasBreakdown, approvalNeeded, menu }: {
   step: OnboardingStep;
+  repIdAttach?: RepIdAttach;
+  clientId: string;
+  onRepIdAttached?: () => void;
   stepById: Map<string, OnboardingStep>;
   highlight: boolean;
   statusLabel?: string;
@@ -4906,6 +4916,11 @@ function RepresentationStepCard({ step, stepById, highlight, statusLabel, repSta
         <div style={{ ...cardNote, color: repNote.startsWith('חסר') ? '#8A4B00' : undefined }}>
           {repNote.startsWith('חסר') ? '⚠ ' : '⏱ '}{repNote}
         </div>
+      )}
+      {/* ‼ 235: הצילום הגיע למשרד (וואטסאפ, פגישה) — מעלים כאן, והחוסר נסגר גם ב«מסמכים מהלקוח». */}
+      {open && repIdAttach && repIdAttach.missing.length > 0 && (
+        <IdentityDocAttach requestId={repIdAttach.requestId} clientId={clientId}
+          missing={repIdAttach.missing} onAttached={() => onRepIdAttached?.()} />
       )}
       {onOpen && !open && (
         <div style={{ marginTop: '.55rem' }}>

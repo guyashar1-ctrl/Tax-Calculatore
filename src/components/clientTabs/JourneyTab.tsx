@@ -29,6 +29,7 @@ import {
 } from '../../utils/journeyPresentation';
 import { nextActionForClient } from '../../utils/nextActionForClient';
 import OnboardingTab from './OnboardingTab';
+import type { RepIdAttach } from '../IdentityDocAttach';
 
 interface Props {
   client: Client;
@@ -63,6 +64,8 @@ interface Props {
   repStatus?: RepresentationStatus;
   /** 191: שורת הקליטה — מועברת כמו שהיא לכרטיס הייצוג. */
   repNote?: string;
+  repIdAttach?: RepIdAttach;
+  onRepIdAttached?: () => void;
   repSendPhase?: RepSendPhase | null;
   repFacts?: RepPrepFacts | null;
   // ── מרכז השליטה ──
@@ -372,6 +375,8 @@ export default function JourneyTab(p: Props) {
           repStatusLabel={p.repStatusLabel}
           repStatus={p.repStatus}
           repNote={p.repNote}
+          repIdAttach={p.repIdAttach}
+          onRepIdAttached={p.onRepIdAttached}
           repSendPhase={p.repSendPhase}
           repFacts={p.repFacts}
           onOpenRepresentation={p.onOpenRepresentation}

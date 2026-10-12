@@ -11,13 +11,17 @@ import { supabase } from '../lib/supabase';
 import { identicalIdDocs, planOfficeUpload, sha256Hex } from '../features/representation/identityDedupe';
 import { useDocumentStore, DOC_CATEGORY_LABELS, type DocCategory } from '../hooks/useDocumentStore';
 
-type AttachKind = 'idOrLicense' | 'passport';
+// ‼ 235: idCard / driverLicense — עסק חדש דורש את שתיהן בנפרד, ולכן המשרד מעלה כל אחת לסוג שלה.
+export type AttachKind = 'idOrLicense' | 'passport' | 'idCard' | 'driverLicense';
 
-interface MissingPerson {
+export interface MissingPerson {
   person: 'client' | 'spouse';
   name: string;
   kind: AttachKind;
 }
+
+/** מה שחסר בבקשת ייצוג אחת — מה שהכרטיס צריך כדי להציע העלאה מהמשרד (235). */
+export interface RepIdAttach { requestId: string; missing: MissingPerson[] }
 
 interface Props {
   requestId: string;
@@ -30,7 +34,11 @@ interface Props {
 }
 
 const ID_CATEGORIES: DocCategory[] = ['id_card', 'drivers_license'];
-const KIND_TEXT: Record<AttachKind, string> = { idOrLicense: 'תעודת זהות או רישיון נהיגה', passport: 'דרכון' };
+const KIND_TEXT: Record<AttachKind, string> = {
+  idOrLicense: 'תעודת זהות או רישיון נהיגה', passport: 'דרכון', idCard: 'תעודת זהות', driverLicense: 'רישיון נהיגה',
+};
+/** הקטגוריה בתיק המסמכים לקובץ שהמשרד מעלה — רישיון כרישיון, כל השאר כתעודה מזהה. */
+const uploadCategory = (k: AttachKind): DocCategory => (k === 'driverLicense' ? 'drivers_license' : 'id_card');
 
 const REASONS: Record<string, string> = {
   forbidden: 'אין הרשאה לבקשה הזו',
@@ -42,7 +50,7 @@ const REASONS: Record<string, string> = {
 
 /** docKind שנרשם: דרכון מפורש; אחרת לפי הקטגוריה (רישיון) — השרת מכריע גם כך. */
 function docKindFor(kind: AttachKind, category?: DocCategory): 'idCard' | 'driverLicense' | 'passport' {
-  if (kind === 'passport') return 'passport';
+  if (kind === 'passport' || kind === 'idCard' || kind === 'driverLicense') return kind;
   return category === 'drivers_license' ? 'driverLicense' : 'idCard';
 }
 
@@ -98,7 +106,7 @@ export default function IdentityDocAttach({ requestId, clientId, missing, usedDo
         .map(e => e?.documentId ?? '').filter(Boolean);
       const plan = planOfficeUpload(await identicalIdDocs(clientId, data, hash), ids(m.person), ids(m.person === 'client' ? 'spouse' : 'client'));
       if (plan.kind === 'already') { onAttached(); return; }
-      if (plan.kind === 'reuse') { if (await attach(m, plan.documentId, 'id_card')) onAttached(); return; }
+      if (plan.kind === 'reuse') { if (await attach(m, plan.documentId, uploadCategory(m.kind))) onAttached(); return; }
       const id = crypto.randomUUID();
       // ‼ הקובץ נשמר בתיק הלקוח קודם — הצירוף מצביע על מסמך אמיתי, לא על עותק.
       await saveDoc({
@@ -106,7 +114,7 @@ export default function IdentityDocAttach({ requestId, clientId, missing, usedDo
         fileName: file.name,
         fileType: file.type || 'application/octet-stream',
         fileSize: file.size,
-        category: 'id_card',
+        category: uploadCategory(m.kind),
         year: 'general',
         uploadedAt: new Date().toISOString(),
         description: `צילום ${KIND_TEXT[m.kind]} - ${m.name}`,
@@ -116,7 +124,7 @@ export default function IdentityDocAttach({ requestId, clientId, missing, usedDo
         labelId: null,
       });
       await supabase.from('documents').update({ content_sha256: hash }).eq('id', id);
-      if (await attach(m, id, 'id_card')) onAttached();
+      if (await attach(m, id, uploadCategory(m.kind))) onAttached();
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
     } finally { setBusy(null); }
@@ -139,9 +147,13 @@ export default function IdentityDocAttach({ requestId, clientId, missing, usedDo
               onClick={() => fileRefs.current[key]?.click()}>
               {busy === `${m.person}:upload` ? 'מעלה…' : 'העלאה מהמחשב'}
             </button>
-            <input ref={el => { fileRefs.current[key] = el; }} type="file" accept="image/jpeg,image/png,application/pdf"
+            {/* ‼ 235: כמה קבצים יחד — תעודה היא שני צדדים. כל קובץ נשמר ומצורף בנפרד; ה-PDF לשע״ם נבנה מהם (208). */}
+            <input ref={el => { fileRefs.current[key] = el; }} type="file" accept="image/jpeg,image/png,application/pdf" multiple
               style={{ display: 'none' }}
-              onChange={e => { const f = e.target.files?.[0]; e.target.value = ''; if (f) void upload(m, f); }} />
+              onChange={e => {
+                const fs = Array.from(e.target.files ?? []); e.target.value = '';
+                void (async () => { for (const f of fs) await upload(m, f); })();
+              }} />
             {offer.length > 0 && (
               <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)' }}>
                 או מתיק המסמכים:{' '}

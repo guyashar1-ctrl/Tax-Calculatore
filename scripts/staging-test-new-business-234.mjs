@@ -12,6 +12,7 @@
  *  N6  עסק חדש בלי ייצוג ⇒ ת.ז. נשארת ברשימת המסמכים (אין מי שיאסוף אותה).
  *  N7  «האם תעבוד גם מהבית?» — לא ⇒ תקין בלי שאלת החדר, ונשמר works_from_home=false.
  *  N8  «אין לי רישיון נהיגה» — נשמר על הבקשה וחוזר ב-get_onboarding.
+ *  N9  (235) «אעלה מאוחר יותר» בעסק חדש ⇒ פריט ת.ז. ופריט רישיון; צירוף מהמשרד סוגר כל אחד בנפרד.
  *
  * ‼ לקוחות דמה בלבד (שם משפחה NB234, הצעות nb234-*), נמחקים בהתחלה ובסוף.
  * הרצה:  node scripts/staging-test-new-business-234.mjs
@@ -75,6 +76,7 @@ async function cleanup() {
     update public.clients set representation_request_id = null where last_name = 'NB234';
     delete from public.representation_requests where linked_client_id in (select id from public.clients where last_name = 'NB234')
        or id in (select representation_request_id from public.quotations where id like 'nb234-%');
+    delete from public.documents where client_id in (select id from public.clients where last_name = 'NB234');
     delete from public.clients where last_name = 'NB234';
     delete from public.quotations where id like 'nb234-%';
     delete from public.leads where id like 'nb234-lead-%';`);
@@ -211,6 +213,29 @@ try {
   ok('N8 · חוזר ב-prefill.noDriverLicense.client', gob2?.[0]?.prefill?.noDriverLicense?.client === true, JSON.stringify(gob2?.[0]?.prefill));
   const { data: nlBad } = await pure.rpc('onboarding_set_no_license', { p_token: 'nope', p_person: 'client', p_value: true });
   ok('N8 · טוקן לא קיים נדחה', nlBad?.ok === false);
+  await pure.rpc('onboarding_set_no_license', { p_token: tok.t, p_person: 'client', p_value: false });
+
+  // ═══ N9 (235) ═════════════════════════════════════════════════════════════
+  console.log('— N9 · «אעלה מאוחר יותר» בעסק חדש ⇒ ת.ז. ורישיון; העלאה מהמשרד סוגרת כל אחד בנפרד —');
+  const reqA = (await one(`select representation_request_id r from public.clients where id = ${q(A.cid)}`)).r;
+  await sqlq(`select public.ensure_identity_document_requests(${q(reqA)}, array['client'])`);
+  const docsA = await step(A.cid, 'client_documents');
+  const keysA = (docsA?.payload?.checklist ?? []).map((i) => `${i.key}:${i.docKind ?? ''}`).join(',');
+  ok('N9 · נוספו ת.ז. (idCard) ורישיון (driverLicense)', keysA.includes('id_card:idCard') && keysA.includes('drivers_license:driverLicense'), keysA);
+  const label = (await one(`select public.ensure_reserved_document_label('${USER_ID}') l`)).l;
+  const mkDoc = async (cat) => (await one(`insert into public.documents (id, user_id, client_id, storage_path, file_name, file_type, file_size, category, label_id)
+    values (replace(gen_random_uuid()::text,'-',''), '${USER_ID}', ${q(A.cid)}, 'nb234/none', 'nb234.jpg', 'image/jpeg', 1, ${q(cat)}, ${q(label)}) returning id`)).id;
+  const licDoc = await mkDoc('drivers_license');
+  const { data: at1, error: at1e } = await user.rpc('office_attach_identity_doc', { p_request_id: reqA, p_person: 'client', p_document_id: licDoc, p_doc_kind: 'driverLicense' });
+  ok('N9 · המשרד צירף רישיון', !at1e && at1?.ok === true, at1e?.message ?? JSON.stringify(at1));
+  const after1 = (await step(A.cid, 'client_documents'))?.payload?.checklist ?? [];
+  const st = (k) => after1.find((i) => i.key === k)?.done === true;
+  ok('N9 · פריט הרישיון נסגר, פריט הת.ז. לא', st('drivers_license') && !st('id_card'), JSON.stringify(after1.map((i) => [i.key, i.done])));
+  const idDoc = await mkDoc('id_card');
+  await user.rpc('office_attach_identity_doc', { p_request_id: reqA, p_person: 'client', p_document_id: idDoc, p_doc_kind: 'idCard' });
+  const after2 = (await step(A.cid, 'client_documents'))?.payload?.checklist ?? [];
+  ok('N9 · אחרי ת.ז. — גם פריט הת.ז. נסגר', after2.find((i) => i.key === 'id_card')?.done === true, JSON.stringify(after2.map((i) => [i.key, i.done])));
+  await sqlq(`delete from public.documents where id in (${q(licDoc)}, ${q(idDoc)})`);
 } catch (e) {
   fail++;
   console.error('✗ חריגה:', e.message);

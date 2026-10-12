@@ -46,6 +46,7 @@ import { UNKNOWN_OUTCOME_TEXT, isUnknownOutcome } from '../supabase/functions/_s
 import { effectiveNiCoversSpouse } from './utils/repSigners';
 import { targetsOf } from './utils/repScope';
 import { representationInsight, onboardingProgressLine, missingIdentityLine } from './utils/representationInsight';
+import type { AttachKind } from './components/IdentityDocAttach';
 import { repSendPhase } from './utils/representationAction';
 import { repPreparationFacts } from './features/representation/repPreparation';
 import {
@@ -1081,6 +1082,23 @@ export default function App() {
     if (req.status === 'pending_fill' && req.onboardingStatus !== 'submitted') return onboardingProgressLine(insight);
     if (req.status !== 'active') return missingIdentityLine(insight) || undefined;
     return undefined;
+  })();
+  // ‼ 235: מה שחסר — כדי שהמשרד יעלה במקום הלקוח מתוך כרטיס הלקוח (office_attach_identity_doc
+  // מסנכרן לבד את «מסמכים מהלקוח»). רישיון ות.ז. בעסק חדש — כל אחד לסוג שלו.
+  const selectedRepIdAttach = (() => {
+    if (!selectedClient) return undefined;
+    const req = requests.filter(r => r.linkedClientId === selectedClient.id)
+      .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''))[0];
+    if (!req || req.status === 'active') return undefined;
+    const missing = representationInsight(req, selectedClient, onboarding.steps).missingIdentity;
+    if (missing.length === 0) return undefined;
+    return {
+      requestId: req.id,
+      missing: missing.map(m => ({
+        person: m.person, name: m.personName,
+        kind: (m.exact ? m.kind : m.kind === 'passport' ? 'passport' : 'idOrLicense') as AttachKind,
+      })),
+    };
   })();
 
   function handleSelectClient(id: string) {
@@ -3068,6 +3086,11 @@ export default function App() {
             engagements={onboarding.engagements}
             onboardingSteps={onboarding.steps}
             repNote={selectedRepNote}
+            repIdAttach={selectedRepIdAttach}
+            onRepIdAttached={() => {
+              if (selectedRepIdAttach) void reloadRequest(selectedRepIdAttach.requestId);
+              onboarding.refresh?.();
+            }}
             repSendPhase={selectedRepSendPhase}
             repFacts={selectedRepFacts}
             onboardingEvents={onboarding.events}
