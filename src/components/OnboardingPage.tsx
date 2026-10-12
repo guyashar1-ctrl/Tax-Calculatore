@@ -17,9 +17,10 @@ import {
 } from '../types';
 import { shaamSubmissions, type ScopePeople } from '../utils/repScope';
 import {
-  docsForRequirement, identityReqKey, identityRequirements, missingIdentity,
+  docsForRequirement, identityReqKey, identityRequirements, missingIdentity, IDENTITY_DOC_LABELS,
   type IdentityRequirement, type IdentityDocsMap,
 } from '../utils/identityEvidence';
+import IdentitySidesPicker from '../features/identity/IdentitySidesPicker';
 import { FirmBranding } from '../types/firmProfile';
 import { deriveQuotationBrand } from './quotations/quotationBranding';
 import SignaturePad from './SignaturePad';
@@ -367,6 +368,8 @@ export function OnboardingView(props: OnboardingViewProps) {
   //   מאמצעי הזיהוי שנבחר. ראה utils/identityEvidence.
   const [idDocs, setIdDocs] = useState<IdentityDocsMap>(data.idDocs);
   const [uploading, setUploading] = useState<string | null>(null);
+  /** בוחר הצדדים פתוח מחדש על דרישה שכבר התקבלה («להחליף או להוסיף»). */
+  const [pickerOpen, setPickerOpen] = useState<Record<string, boolean>>({});
   // ‼ 234: «אין לי רישיון נהיגה» — בחירה מפורשת, נשמרת בשרת (לא ברירת מחדל ולא היעדר העלאה).
   const [noLicense, setNoLicense] = useState<Partial<Record<RepTarget, boolean>>>(info?.prefill?.noDriverLicense ?? {});
   const licenseKit = !!info?.prefill?.newBusiness;
@@ -506,7 +509,8 @@ export function OnboardingView(props: OnboardingViewProps) {
     }
   }
 
-  async function uploadIdDoc(r: IdentityRequirement, file: File) {
+  /** ‼ נקרא רק מ«אישור ושליחה» של בוחר הצדדים — הקובץ כבר PDF אחד. מחזיר שגיאה או null. */
+  async function uploadIdDoc(r: IdentityRequirement, file: File): Promise<string | null> {
     setUploading(identityReqKey(r));
     setError(null);
     setSimKey(null);
@@ -514,19 +518,18 @@ export function OnboardingView(props: OnboardingViewProps) {
       const res = await actions.uploadIdDoc(r, file);
       if (res.status === 'failed') {
         const code = res.code;
-        setError(
-          code === 'too_large' ? 'הקובץ גדול מדי - עד 10MB'
-            : code === 'type_not_allowed' ? 'אפשר לצרף תמונה או PDF בלבד'
-              : code === 'rate_limited' ? 'הועלו יותר מדי קבצים. נסו שוב בעוד שעה'
-                : 'ההעלאה לא הצליחה. נסו שוב, ואם זה חוזר - פנו למשרד.',
-        );
-        return;
+        return code === 'too_large' ? 'הקובץ גדול מדי - עד 10MB'
+          : code === 'type_not_allowed' ? 'אפשר לצרף תמונה או PDF בלבד'
+            : code === 'rate_limited' ? 'הועלו יותר מדי קבצים. נסו שוב בעוד שעה'
+              : 'ההעלאה לא הצליחה. נסו שוב, ואם זה חוזר - פנו למשרד.';
       }
-      if (res.status === 'simulated') { setSimKey(`upload:${identityReqKey(r)}`); return; }
+      if (res.status === 'simulated') { setSimKey(`upload:${identityReqKey(r)}`); return null; }
       setIdDocs(prev => ({
         ...prev,
         [r.person]: [...(prev[r.person] ?? []), { documentId: res.documentId, docKind: r.kind, fileName: file.name }],
       }));
+      setPickerOpen(p => ({ ...p, [identityReqKey(r)]: false }));
+      return null;
     } finally {
       setUploading(null);
     }
@@ -557,7 +560,7 @@ export function OnboardingView(props: OnboardingViewProps) {
       // מאוחר יותר» עובר, והצילום נדרש ממנו בדף האישי. מי שלא בחר — חסום,
       // והשגיאה נוקבת בשם: "יש לצרף צילום" סתמי שולח לחפש איפה.
       const m = missingIdentity(idRequirements, idDocs).filter(r => !idDeferred[r.person]);
-      if (m.length) return `יש לצרף ${m[0].prompt} של ${m[0].personName} - או לסמן שתעלו אותו מאוחר יותר`;
+      if (m.length) return `יש לצרף ${m[0].prompt} של ${m[0].personName} ולאשר ב«אישור ושליחה» - או לסמן שתעלו אותו מאוחר יותר`;
     }
     if (s === 3) {
       if (!familyStatus) return 'יש לבחור מצב משפחתי';
@@ -1290,25 +1293,11 @@ export function OnboardingView(props: OnboardingViewProps) {
                     של {r.personName}
                   </div>
 
-                  {/* ‼ גיא (12.10.2026): תעודת זהות היא שתי תמונות — מקדימה ומאחור. אומרים את זה
-                      מראש, ואחרי צד אחד מזכירים את השני (בלי לחסום: יש תעודות בעמוד אחד). */}
-                  {!deferred && (
-                    <div style={{ fontSize: 12.5, color: '#6B6B68', marginTop: -6, marginBottom: 10, lineHeight: 1.5 }}>
-                      {r.kind === 'idCard'
-                        ? 'שני הצדדים - מקדימה ומאחור (ואם יש ספח, גם אותו). אפשר לבחור כמה תמונות יחד, מהגלריה או מהמצלמה.'
-                        : 'אפשר לבחור כמה תמונות יחד - למשל צד קדמי ואחורי - מהגלריה או מהמצלמה.'}
-                    </div>
-                  )}
                   {have.map(d => (
                     <div key={d.documentId} style={{ fontSize: 12.5, color: '#2E7D53', marginBottom: 6 }}>
                       {'✓'} {d.fileName || 'הקובץ התקבל'}
                     </div>
                   ))}
-                  {have.length === 1 && r.kind !== 'passport' && (
-                    <div style={{ fontSize: 12.5, color: '#6B5A2E', marginBottom: 8 }}>
-                      התקבל צד אחד. אם יש לתעודה צד נוסף - צרפו גם אותו.
-                    </div>
-                  )}
 
                   {deferred ? (
                     /* ‼ דחייה היא בחירה, לא שגיאה: צבע חם ולא אדום, ומשפט שאומר
@@ -1329,27 +1318,24 @@ export function OnboardingView(props: OnboardingViewProps) {
                     </div>
                   ) : (
                     <>
-                      <label style={{
-                        display: 'inline-block', cursor: busyMe ? 'default' : 'pointer',
-                        border: `1px solid ${ink}`, borderRadius: btnRadius, padding: '9px 16px',
-                        fontSize: 13.5, color: ink, opacity: busyMe ? 0.6 : 1,
-                      }}>
-                        {busyMe ? 'מעלה…' : have.length ? 'צירוף הצד השני / צילום נוסף' : `${'\u{1F4F7}'} צילום או תמונה מהגלריה`}
-                        {/* ‼ בלי capture: הוא פותח בטלפון את המצלמה בלבד, ולקוח שכבר צילם את התעודה
-                            לא יכול היה לבחור תמונה מהגלריה (12.10.2026). בלעדיו הטלפון מציע מצלמה וגם גלריה. */}
-                        <input
-                          type="file"
-                          accept="image/*,application/pdf"
-                          multiple
+                      {/* ‼ גיא (12.10.2026): צד אחד ואז השני (גם בשתי פעולות), או קובץ אחד עם שני
+                          הצדדים; מצלמה, גלריה או קובץ. שום דבר לא עולה עד «אישור ושליחה» — ואז PDF אחד. */}
+                      {have.length > 0 && !pickerOpen[identityReqKey(r)] ? (
+                        <button type="button" disabled={busyMe}
+                          onClick={() => setPickerOpen(p => ({ ...p, [identityReqKey(r)]: true }))}
+                          style={{ border: 'none', background: 'transparent', padding: 0, cursor: 'pointer',
+                            font: 'inherit', fontSize: 12.5, color: ink, textDecoration: 'underline' }}>
+                          להחליף או לצרף שוב
+                        </button>
+                      ) : (
+                        <IdentitySidesPicker
+                          kind={r.kind === 'idCard' && !r.exact ? 'idOrLicense' : r.kind}
+                          fileName={`${IDENTITY_DOC_LABELS[r.kind]} - ${r.personName}`}
                           disabled={busyMe}
-                          style={{ display: 'none' }}
-                          onChange={e => {
-                            const files = Array.from(e.target.files ?? []);
-                            e.target.value = '';
-                            void (async () => { for (const f of files) await uploadIdDoc(r, f); })();
-                          }}
-                        />
-                      </label>
+                          tone={{ ink, muted: '#6B6B68', border: '#E3E2DD', accent: ink, radius: btnRadius }}
+                          onConfirm={pdf => uploadIdDoc(r, pdf)}
+                          onCancel={have.length > 0 ? () => setPickerOpen(p => ({ ...p, [identityReqKey(r)]: false })) : undefined} />
+                      )}
                       {simNote(`upload:${identityReqKey(r)}`)}
                       {/* ── מוצא, ולא קיר (191) ─────────────────────────────────
                           ‼ מי שאין לו את התעודה ביד לא צריך לאבד את מה שמילא.

@@ -25,6 +25,8 @@ import HomeOfficeForm from '../features/requests/HomeOfficeForm';
 import type { ValidHomeOffice } from '../features/requests/homeOffice';
 import { groupPortalItems, portalChildTitle, portalGroupStatus, type PortalGroup } from '../features/requests/requestGroups';
 import { lamed } from '../utils/requestPresentation';
+import IdentitySidesPicker from '../features/identity/IdentitySidesPicker';
+import type { IdDocKind } from '../features/identity/idSides';
 import {
   livePortalActions, loadClientPortal, officeViewActions, samplePortalActions, SAMPLE_SIMULATED_TEXT,
   type PortalActions, type PortalLinkedKind, type PortalMode,
@@ -251,6 +253,14 @@ function linkedKind(item: PortalItem): PortalLinkedKind | null {
  * ‼ הקובץ נכנס ישירות לתיק של הלקוח אצל הרו"ח ומסמן את הפריט. אין שלב ביניים
  * של "ממתין לאישור" — מה שהגיע, הגיע, וההחלטה אם הוא תקין נשארת אצל הרו"ח.
  */
+/** פריטי «מסמכים מהלקוח» שהם תעודה מזהה — ומה הבוחר מבקש בהם. */
+const ID_ITEM_KINDS: Record<string, IdDocKind> = {
+  id_card: 'idOrLicense', id_card_spouse: 'idOrLicense',
+  drivers_license: 'driverLicense', drivers_license_spouse: 'driverLicense',
+  passport: 'passport', passport_spouse: 'passport',
+  identity_replacement: 'idOrLicense',
+};
+
 function UploadItem({ tokenKind = 'portal', stepId, itemKey, label, note, done, brand, accent, onDone, accept }: {
   tokenKind?: 'portal' | 'release';
   stepId: string; itemKey: string; label: string; note?: string; done: boolean;
@@ -264,6 +274,23 @@ function UploadItem({ tokenKind = 'portal', stepId, itemKey, label, note, done, 
   const [err, setErr] = useState<string | null>(null);
   const [simulated, setSimulated] = useState(false);
   const inputId = `up-${stepId}-${itemKey}`;
+  // ‼ פריט תעודה מזהה (גיא, 12.10.2026): בוחר צדדים — צד ואז צד, תצוגה מקדימה, החלפה;
+  // רק «אישור ושליחה» מעלה, ואז PDF אחד. הפריט נסגר רק אז — לא בצד הראשון.
+  const idKind = tokenKind === 'portal' ? ID_ITEM_KINDS[itemKey] : undefined;
+  const [pickerOpen, setPickerOpen] = useState(false);
+
+  /** העלאה מבוחר הצדדים — מחזירה שגיאה או null. */
+  async function uploadId(file: File): Promise<string | null> {
+    setErr(null);
+    setSimulated(false);
+    const res = await actions.uploadDocument({ stepId, itemKey, file, tokenKind });
+    if (res.simulated) { setSimulated(true); setPickerOpen(false); return null; }
+    if (!res.ok) return UPLOAD_ERRORS[res.error ?? ''] ?? 'ההעלאה נכשלה. אפשר לנסות שוב.';
+    setPickerOpen(false);
+    actions.notifyAccountant();
+    onDone();
+    return null;
+  }
 
   async function upload(file: File) {
     setErr(null);
@@ -318,14 +345,20 @@ function UploadItem({ tokenKind = 'portal', stepId, itemKey, label, note, done, 
         {!done && readOnly && (
           <span aria-disabled="true" style={{ ...uploadLink, cursor: 'default', opacity: .55 }}>העלאה</span>
         )}
-        {!done && sample && (
+        {!done && sample && !idKind && (
           <button type="button" disabled={busy}
             onClick={() => void upload(new File([], 'דוגמה.pdf'))}
             style={{ ...uploadLink, background: 'none', border: 'none', font: 'inherit', cursor: busy ? 'default' : 'pointer', opacity: busy ? .6 : 1 }}>
             {busy ? 'מעלה…' : 'העלאה'}
           </button>
         )}
-        {!done && !readOnly && !sample && (
+        {!done && !readOnly && idKind && (
+          <button type="button" aria-expanded={pickerOpen} onClick={() => setPickerOpen(o => !o)}
+            style={{ ...uploadLink, background: 'none', border: 'none', font: 'inherit', cursor: 'pointer' }}>
+            {pickerOpen ? 'סגירה' : 'העלאה'}
+          </button>
+        )}
+        {!done && !readOnly && !sample && !idKind && (
           <>
             {/* ‼ multiple: תעודה היא שני צדדים (גיא, 12.10.2026). כמה תמונות שנבחרו יחד ⇒ PDF אחד,
                 כדי שהצד הראשון לא יסגור את הבקשה לפני שהשני עלה. בלי capture — גלריה וגם מצלמה. */}
@@ -339,6 +372,13 @@ function UploadItem({ tokenKind = 'portal', stepId, itemKey, label, note, done, 
           </>
         )}
       </div>
+      {idKind && pickerOpen && !done && (
+        <div style={{ paddingInlineStart: 18 }}>
+          <IdentitySidesPicker kind={idKind} fileName={label}
+            tone={{ ink: brand.ink, muted: brand.muted, border: brand.border, accent, radius: brand.radius }}
+            onConfirm={uploadId} onCancel={() => setPickerOpen(false)} />
+        </div>
+      )}
       {err && (
         <span style={{ fontSize: 12, color: '#a63a3a', paddingInlineStart: 18 }}>
           {err}

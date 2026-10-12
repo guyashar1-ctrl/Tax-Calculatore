@@ -147,7 +147,8 @@ Deno.serve(async (req: Request) => {
       file_type: type,
       file_size: file.size,
       content_sha256: hash,
-      category: "id_card",
+      // 235: רישיון נהיגה מתויק כרישיון (התיק והתיקיות לפי הסוג), השאר כתעודה מזהה.
+      category: docKind === "driverLicense" ? "drivers_license" : "id_card",
       year: "general",
       label_id: labelId,
       uploaded_at: new Date().toISOString(),

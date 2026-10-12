@@ -6,7 +6,8 @@
 // לשע״ם שממתין לו ממשיך מעצמו.
 // ‼ מסמך שכבר רשום לאדם אחד לא מוצע לשני: צילום של אחד אינו של השני.
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
+import IdentitySidesPicker from '../features/identity/IdentitySidesPicker';
 import { supabase } from '../lib/supabase';
 import { identicalIdDocs, planOfficeUpload, sha256Hex } from '../features/representation/identityDedupe';
 import { useDocumentStore, DOC_CATEGORY_LABELS, type DocCategory } from '../hooks/useDocumentStore';
@@ -59,7 +60,7 @@ export default function IdentityDocAttach({ requestId, clientId, missing, usedDo
   const [existing, setExisting] = useState<{ id: string; name: string; category: DocCategory }[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
-  const fileRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  const [openKey, setOpenKey] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -93,7 +94,8 @@ export default function IdentityDocAttach({ requestId, clientId, missing, usedDo
     } finally { setBusy(null); }
   }
 
-  async function upload(m: MissingPerson, file: File) {
+  /** ‼ נקרא מ«אישור ושליחה» של בוחר הצדדים — הקובץ כבר PDF אחד (גיא, 12.10.2026). שגיאה או null. */
+  async function upload(m: MissingPerson, file: File): Promise<string | null> {
     setBusy(`${m.person}:upload`);
     setErr(null);
     try {
@@ -105,8 +107,11 @@ export default function IdentityDocAttach({ requestId, clientId, missing, usedDo
       const ids = (p: string) => (((rq?.identity_docs ?? {}) as Record<string, { documentId?: string }[]>)[p] ?? [])
         .map(e => e?.documentId ?? '').filter(Boolean);
       const plan = planOfficeUpload(await identicalIdDocs(clientId, data, hash), ids(m.person), ids(m.person === 'client' ? 'spouse' : 'client'));
-      if (plan.kind === 'already') { onAttached(); return; }
-      if (plan.kind === 'reuse') { if (await attach(m, plan.documentId, uploadCategory(m.kind))) onAttached(); return; }
+      if (plan.kind === 'already') { setOpenKey(null); onAttached(); return null; }
+      if (plan.kind === 'reuse') {
+        if (!(await attach(m, plan.documentId, uploadCategory(m.kind)))) return 'הצירוף נכשל';
+        setOpenKey(null); onAttached(); return null;
+      }
       const id = crypto.randomUUID();
       // ‼ הקובץ נשמר בתיק הלקוח קודם — הצירוף מצביע על מסמך אמיתי, לא על עותק.
       await saveDoc({
@@ -124,9 +129,12 @@ export default function IdentityDocAttach({ requestId, clientId, missing, usedDo
         labelId: null,
       });
       await supabase.from('documents').update({ content_sha256: hash }).eq('id', id);
-      if (await attach(m, id, uploadCategory(m.kind))) onAttached();
+      if (!(await attach(m, id, uploadCategory(m.kind)))) return 'הצירוף נכשל';
+      setOpenKey(null);
+      onAttached();
+      return null;
     } catch (e) {
-      setErr(e instanceof Error ? e.message : String(e));
+      return e instanceof Error ? e.message : String(e);
     } finally { setBusy(null); }
   }
 
@@ -143,17 +151,16 @@ export default function IdentityDocAttach({ requestId, clientId, missing, usedDo
         return (
           <div key={key} style={{ marginTop: '.2rem' }}>
             <span>צילום {KIND_TEXT[m.kind]} של {m.name} אצלכם? </span>
-            <button type="button" style={link} disabled={!!busy}
-              onClick={() => fileRefs.current[key]?.click()}>
-              {busy === `${m.person}:upload` ? 'מעלה…' : 'העלאה מהמחשב'}
+            <button type="button" style={link} disabled={!!busy} aria-expanded={openKey === key}
+              onClick={() => setOpenKey(k => (k === key ? null : key))}>
+              {openKey === key ? 'סגירה' : 'העלאה'}
             </button>
-            {/* ‼ 235: כמה קבצים יחד — תעודה היא שני צדדים. כל קובץ נשמר ומצורף בנפרד; ה-PDF לשע״ם נבנה מהם (208). */}
-            <input ref={el => { fileRefs.current[key] = el; }} type="file" accept="image/jpeg,image/png,application/pdf" multiple
-              style={{ display: 'none' }}
-              onChange={e => {
-                const fs = Array.from(e.target.files ?? []); e.target.value = '';
-                void (async () => { for (const f of fs) await upload(m, f); })();
-              }} />
+            {/* ‼ בוחר הצדדים: צד ואז צד, תצוגה מקדימה, החלפה — ובאישור PDF אחד בתיק הלקוח. */}
+            {openKey === key && (
+              <IdentitySidesPicker kind={m.kind} fileName={`${KIND_TEXT[m.kind]} - ${m.name}`}
+                maxBytes={30 * 1024 * 1024} disabled={!!busy}
+                onConfirm={pdf => upload(m, pdf)} onCancel={() => setOpenKey(null)} />
+            )}
             {offer.length > 0 && (
               <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)' }}>
                 או מתיק המסמכים:{' '}
