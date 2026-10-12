@@ -369,6 +369,7 @@ Deno.serve(async (req: Request) => {
      */
     let idActs: { person?: string; personName?: string; label?: string; action?: string }[] = [];
     let portalHref = "";
+    const previewPhotoHref: Record<string, string> = {};
     let afterCtaHtml = "";
     if (stage === "sign" && signerRole !== "spouse" && reqRow?.id) {
       const { data: acts } = await admin.rpc("shaam_presign_client_actions", { p_request_id: reqRow.id });
@@ -383,6 +384,21 @@ Deno.serve(async (req: Request) => {
           if (portalErr) portalToken = "";
         }
         portalHref = portalToken ? `${APP_URL}/?portal=${portalToken}` : "";
+      }
+      // ‼ תצוגה מקדימה בלבד: פריט «זה הצילום שלי» נוצר בדף רק ברגע השליחה, ולכן
+      // הקישור לדף עוד לא מוביל אליו (אירוע 12.10). המשרד רואה כאן את הצילום עצמו.
+      if (preview && reqRow.linked_client_id) {
+        for (const a of idActs) {
+          if (a.action !== "confirm" || !a.person || previewPhotoHref[a.person]) continue;
+          const { data: found } = await admin.rpc("shaam_identity_documents_for", {
+            p_client_id: reqRow.linked_client_id, p_person: a.person, p_kind: "idOrLicense",
+          });
+          const docs = Array.isArray(found?.documents) ? found.documents : [];
+          const path = docs.length ? String(docs[docs.length - 1]?.storagePath || "") : "";
+          if (!path) continue;
+          const { data: signed } = await admin.storage.from("client-documents").createSignedUrl(path, 3600);
+          if (signed?.signedUrl) previewPhotoHref[a.person] = signed.signedUrl;
+        }
       }
     }
 
@@ -566,7 +582,10 @@ Deno.serve(async (req: Request) => {
           lead: a.action === "confirm"
             ? `רשות המסים מבקשת צילום של תעודת הזהות או רישיון הנהיגה${whose}. יש לנו כבר צילום בתיק — צריך רק לאשר שהוא הנכון, או להעלות אחר.`
             : `רשות המסים מבקשת צילום של תעודת הזהות או רישיון הנהיגה${whose}. אפשר לצלם ישר מהטלפון.`,
-          inner: portalHref ? stepButton(a.action === "confirm" ? "לאישור הצילום" : "להעלאת הצילום", portalHref) : "",
+          inner: (portalHref ? stepButton(a.action === "confirm" ? "לאישור הצילום" : "להעלאת הצילום", portalHref) : "")
+            + (a.person && previewPhotoHref[a.person]
+              ? `<div style="clear:both;font-family:${f};text-align:right;font-size:12.5px;color:${brand.muted};padding-top:10px;">תצוגה מקדימה בלבד: בדף של ${esc(clientFirst || "הלקוח")} יופיעו הצילום והכפתור «זה הצילום שלי» מרגע השליחה. <a href="${esc(previewPhotoHref[a.person])}" target="_blank" style="color:${brand.accent};font-weight:700;">לצפייה בצילום ←</a></div>`
+              : ""),
         });
       }
       if (niData.referenceNumber) {
