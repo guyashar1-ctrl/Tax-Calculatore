@@ -287,6 +287,8 @@ export function FlowsPage({ draft, saved, saveNow, clients, focus, go, onDirtyCh
             <span />
           </div>
           <div className="fr-body">
+            {/* ‼ 234: עסק חדש שהמשרד פותח — ההרשמה נעולה על «פתיחת התיקים ברשויות» (המחולל). */}
+            <div className="fr-line"><span className="fr-lead">בעסק חדש</span><b>קודם פתיחת התיקים ברשויות (אצל המשרד) ופרטי העסק. ההרשמה לפייפרלס נפתחת אחרי שהתיקים נפתחו - או ב«פתח עכשיו» בכרטיס הלקוח</b></div>
             <div className="fr-line"><span className="fr-lead">במקביל</span><b>הרשמה לפייפרלס ופרטי העסק</b></div>
             <div className="fr-line"><span className="fr-lead">אחרי ההרשמה</span><b>הקמת העסק בפייפרלס — אצל המשרד, וכדאי שפרטי העסק כבר יהיו</b></div>
             <div className="fr-line"><span className="fr-lead">אחרי ההקמה</span><b>הסדרת התשלום, וחיבור לרשות המסים לעוסק מורשה או חברה</b></div>

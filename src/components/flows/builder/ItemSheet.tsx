@@ -13,6 +13,7 @@ import PreviewButton from '../../../features/requestPreview/PreviewButton';
 import type { EditHint } from '../../../features/requestPreview/registry';
 import { ConditionField } from './ConditionEditor';
 import VariantsEditor from './VariantsEditor';
+import { REQUEST_META } from '../../../types/journeyDefaults';
 import { FlSeg, FlSheet } from './ui';
 import { useBuilderPreview } from './BuilderPreview';
 import { previewTargetOfItem } from './previewTarget';
@@ -124,6 +125,9 @@ export default function ItemSheet({ def, trigger, stage, item, title, actor, iss
       )}
       {deps.length > 0 && <p className="fl-hint">אי אפשר להסיר: {deps.join(', ')} מחכה לו.</p>}
       {source && <p className="fl-hint"><button type="button" className="fl-link" onClick={source.go}>{source.label}</button></p>}
+      {onboarding && isSystem && item.ref.kind === 'system' && REQUEST_META[item.ref.stepType]?.note && (
+        <p className="fl-hint">{REQUEST_META[item.ref.stepType]?.note}</p>
+      )}
 
       <ConditionField label="למי" extra={gate ? gate.replace(/^רק /, '').replace(' · קבוע', '') : null} value={item.when} onChange={w => set(x => ({ ...x, when: w }))}
         kindsOnly={onboarding && isSystem}

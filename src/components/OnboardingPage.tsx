@@ -17,7 +17,7 @@ import {
 } from '../types';
 import { shaamSubmissions, type ScopePeople } from '../utils/repScope';
 import {
-  identityRequirements, missingIdentity,
+  docsForRequirement, identityReqKey, identityRequirements, missingIdentity,
   type IdentityRequirement, type IdentityDocsMap,
 } from '../utils/identityEvidence';
 import { FirmBranding } from '../types/firmProfile';
@@ -114,6 +114,9 @@ export interface OnboardingActions {
     Promise<{ status: 'created'; link: string } | { status: 'failed' } | SimulatedResult>;
   uploadIdDoc(r: IdentityRequirement, file: File):
     Promise<{ status: 'uploaded'; documentId: string } | { status: 'failed'; code?: string } | SimulatedResult>;
+  /** 234: «אין לי רישיון נהיגה» — נשמר על הבקשה, כדי שהמשרד יראה ושהטופס יזכור. */
+  setNoLicense(person: RepTarget, value: boolean):
+    Promise<{ status: 'saved' } | { status: 'failed' } | SimulatedResult>;
 }
 
 /** הפרמטרים של submit_onboarding_full, בלי הטוקן (הוא של הפעולה החיה). */
@@ -147,6 +150,11 @@ export function liveOnboardingActions(token: string): OnboardingActions {
       const row = Array.isArray(data) ? data[0] : data;
       if (e || !row?.spouse_token) return { status: 'failed' };
       return { status: 'created', link: `${window.location.origin}/?spousefill=${row.spouse_token}` };
+    },
+    async setNoLicense(person, value) {
+      const { data, error } = await supabase.rpc('onboarding_set_no_license', { p_token: token, p_person: person, p_value: value });
+      if (error || !data?.ok) return { status: 'failed' };
+      return { status: 'saved' };
     },
     async uploadIdDoc(r, file) {
       const body = new FormData();
@@ -358,7 +366,10 @@ export function OnboardingView(props: OnboardingViewProps) {
   // ‼ הזנת המספר אינה מספיקה. ממי מבקשים נגזר מהיקף הייצוג, ואיזו תעודה —
   //   מאמצעי הזיהוי שנבחר. ראה utils/identityEvidence.
   const [idDocs, setIdDocs] = useState<IdentityDocsMap>(data.idDocs);
-  const [uploading, setUploading] = useState<RepTarget | null>(null);
+  const [uploading, setUploading] = useState<string | null>(null);
+  // ‼ 234: «אין לי רישיון נהיגה» — בחירה מפורשת, נשמרת בשרת (לא ברירת מחדל ולא היעדר העלאה).
+  const [noLicense, setNoLicense] = useState<Partial<Record<RepTarget, boolean>>>(info?.prefill?.noDriverLicense ?? {});
+  const licenseKit = !!info?.prefill?.newBusiness;
   // ── «אין לי את זה זמין כרגע» ─────────────────────────────────────────────
   // ‼ בחירה מפורשת לכל אדם, לא ברירת מחדל: הצילום עדיין נדרש, רק לא עכשיו.
   //   מי שנדחה מקבל פריט העלאה בדף האישי, והמשרד רואה שחסר. ראה מיגרציה 191.
@@ -419,12 +430,15 @@ export function OnboardingView(props: OnboardingViewProps) {
   const idRequirements = identityRequirements(info?.scope, scopePeople, {
     client: secondaryType,
     ...(spouseSub ? { spouse: spouseSecondaryType } : {}),
-  }).filter(r => !(spouseDelegated && r.person === 'spouse'));
+  }, { newBusinessKit: licenseKit, noLicense }).filter(r => !(spouseDelegated && r.person === 'spouse'));
+  /** בערכת עסק חדש — האם להציג את «אין לי רישיון נהיגה» (רק כשבעל העסק בכלל נדרש לצלם). */
+  const showNoLicense = licenseKit && identityRequirements(info?.scope, scopePeople, { client: secondaryType })
+    .some(r => r.person === 'client');
   const idMissing = missingIdentity(idRequirements, idDocs);
   /** מי חסר *ולא* נדחה — רק אלה חוסמים את השליחה. */
   const idBlocking = idMissing.filter(r => !idDeferred[r.person]);
   /** מי נדחה ועדיין חסר — מה שנשלח לשרת ומה שמופיע במסך הסיום. */
-  const idDeferredPersons = idMissing.filter(r => !!idDeferred[r.person]).map(r => r.person);
+  const idDeferredPersons = [...new Set(idMissing.filter(r => !!idDeferred[r.person]).map(r => r.person))];
 
   /**
    * שמירת השלב בשרת — במעבר «המשך» בלבד (191). כותב רק את שדות השלב;
@@ -481,8 +495,19 @@ export function OnboardingView(props: OnboardingViewProps) {
     }
   }
 
+  async function toggleNoLicense(value: boolean) {
+    setError(null);
+    const prev = noLicense;
+    setNoLicense(p => ({ ...p, client: value }));
+    const res = await actions.setNoLicense('client', value);
+    if (res.status === 'failed') {
+      setNoLicense(prev);
+      setError('לא הצלחנו לשמור את הבחירה. נסו שוב.');
+    }
+  }
+
   async function uploadIdDoc(r: IdentityRequirement, file: File) {
-    setUploading(r.person);
+    setUploading(identityReqKey(r));
     setError(null);
     setSimKey(null);
     try {
@@ -497,7 +522,7 @@ export function OnboardingView(props: OnboardingViewProps) {
         );
         return;
       }
-      if (res.status === 'simulated') { setSimKey(`upload:${r.person}`); return; }
+      if (res.status === 'simulated') { setSimKey(`upload:${identityReqKey(r)}`); return; }
       setIdDocs(prev => ({
         ...prev,
         [r.person]: [...(prev[r.person] ?? []), { documentId: res.documentId, docKind: r.kind, fileName: file.name }],
@@ -1248,11 +1273,11 @@ export function OnboardingView(props: OnboardingViewProps) {
             )}
 
             {idRequirements.map(r => {
-              const have = idDocs[r.person] ?? [];
-              const busyMe = uploading === r.person;
+              const have = docsForRequirement(r, idDocs);
+              const busyMe = uploading === identityReqKey(r);
               const deferred = !have.length && !!idDeferred[r.person];
               return (
-                <div key={r.person} style={{
+                <div key={identityReqKey(r)} style={{
                   marginBottom: 14, padding: '14px 14px 12px', borderRadius: 10,
                   border: `1px solid ${have.length ? '#CFE3D4' : deferred ? '#EAD9B8' : '#E3E2DD'}`,
                   background: have.length ? '#F5FAF6' : deferred ? '#FFFBF2' : '#fff',
@@ -1265,11 +1290,25 @@ export function OnboardingView(props: OnboardingViewProps) {
                     של {r.personName}
                   </div>
 
+                  {/* ‼ גיא (12.10.2026): תעודת זהות היא שתי תמונות — מקדימה ומאחור. אומרים את זה
+                      מראש, ואחרי צד אחד מזכירים את השני (בלי לחסום: יש תעודות בעמוד אחד). */}
+                  {!deferred && (
+                    <div style={{ fontSize: 12.5, color: '#6B6B68', marginTop: -6, marginBottom: 10, lineHeight: 1.5 }}>
+                      {r.kind === 'idCard'
+                        ? 'שני הצדדים - מקדימה ומאחור (ואם יש ספח, גם אותו). אפשר לבחור כמה תמונות יחד, מהגלריה או מהמצלמה.'
+                        : 'אפשר לבחור כמה תמונות יחד - למשל צד קדמי ואחורי - מהגלריה או מהמצלמה.'}
+                    </div>
+                  )}
                   {have.map(d => (
                     <div key={d.documentId} style={{ fontSize: 12.5, color: '#2E7D53', marginBottom: 6 }}>
                       {'✓'} {d.fileName || 'הקובץ התקבל'}
                     </div>
                   ))}
+                  {have.length === 1 && r.kind !== 'passport' && (
+                    <div style={{ fontSize: 12.5, color: '#6B5A2E', marginBottom: 8 }}>
+                      התקבל צד אחד. אם יש לתעודה צד נוסף - צרפו גם אותו.
+                    </div>
+                  )}
 
                   {deferred ? (
                     /* ‼ דחייה היא בחירה, לא שגיאה: צבע חם ולא אדום, ומשפט שאומר
@@ -1283,7 +1322,7 @@ export function OnboardingView(props: OnboardingViewProps) {
                         <button type="button"
                           onClick={() => setIdDeferred(prev => ({ ...prev, [r.person]: false }))}
                           style={{ border: 'none', background: 'transparent', padding: 0, cursor: 'pointer',
-                            fontSize: 12.5, color: ink, textDecoration: 'underline', font: 'inherit' }}>
+                            font: 'inherit', fontSize: 12.5, color: ink, textDecoration: 'underline' }}>
                           בכל זאת יש לי - לצרף עכשיו
                         </button>
                       </div>
@@ -1295,22 +1334,23 @@ export function OnboardingView(props: OnboardingViewProps) {
                         border: `1px solid ${ink}`, borderRadius: btnRadius, padding: '9px 16px',
                         fontSize: 13.5, color: ink, opacity: busyMe ? 0.6 : 1,
                       }}>
-                        {busyMe ? 'מעלה…' : have.length ? 'צירוף צילום נוסף' : `${'\u{1F4F7}'} צילום או קובץ`}
-                        {/* capture — בטלפון נפתחת המצלמה ישירות, במחשב בוחר קובץ */}
+                        {busyMe ? 'מעלה…' : have.length ? 'צירוף הצד השני / צילום נוסף' : `${'\u{1F4F7}'} צילום או תמונה מהגלריה`}
+                        {/* ‼ בלי capture: הוא פותח בטלפון את המצלמה בלבד, ולקוח שכבר צילם את התעודה
+                            לא יכול היה לבחור תמונה מהגלריה (12.10.2026). בלעדיו הטלפון מציע מצלמה וגם גלריה. */}
                         <input
                           type="file"
                           accept="image/*,application/pdf"
-                          capture="environment"
+                          multiple
                           disabled={busyMe}
                           style={{ display: 'none' }}
                           onChange={e => {
-                            const f = e.target.files?.[0];
+                            const files = Array.from(e.target.files ?? []);
                             e.target.value = '';
-                            if (f) void uploadIdDoc(r, f);
+                            void (async () => { for (const f of files) await uploadIdDoc(r, f); })();
                           }}
                         />
                       </label>
-                      {simNote(`upload:${r.person}`)}
+                      {simNote(`upload:${identityReqKey(r)}`)}
                       {/* ── מוצא, ולא קיר (191) ─────────────────────────────────
                           ‼ מי שאין לו את התעודה ביד לא צריך לאבד את מה שמילא.
                           הבחירה מפורשת ולכל אדם בנפרד; המשרד רואה שחסר. */}
@@ -1319,7 +1359,7 @@ export function OnboardingView(props: OnboardingViewProps) {
                           <button type="button" disabled={busyMe}
                             onClick={() => { setError(null); setIdDeferred(prev => ({ ...prev, [r.person]: true })); }}
                             style={{ border: 'none', background: 'transparent', padding: 0, cursor: 'pointer',
-                              fontSize: 12.5, color: '#6B6B68', textDecoration: 'underline', font: 'inherit' }}>
+                              font: 'inherit', fontSize: 12.5, color: '#6B6B68', textDecoration: 'underline' }}>
                             אין לי את המסמך זמין כרגע - אעלה אותו מאוחר יותר
                           </button>
                         </div>
@@ -1330,9 +1370,19 @@ export function OnboardingView(props: OnboardingViewProps) {
               );
             })}
 
+            {/* ‼ 234: עסק חדש — רישיון נדרש אלא אם סומן במפורש שאין. הסימון נשמר והמשרד רואה אותו. */}
+            {showNoLicense && (
+              <label style={{ display: 'flex', gap: 8, alignItems: 'flex-start', fontSize: 13, color: '#3D3D3A',
+                marginBottom: 16, cursor: 'pointer', lineHeight: 1.5 }}>
+                <input type="checkbox" checked={!!noLicense.client} style={{ marginTop: 3, width: 18, height: 18 }}
+                  onChange={e => void toggleNoLicense(e.target.checked)} />
+                <span>אין לי רישיון נהיגה{noLicense.client ? ' - מספיק צילום תעודת הזהות' : ''}</span>
+              </label>
+            )}
+
             {idBlocking.length > 0 && idRequirements.length > 1 && (
               <div style={{ fontSize: 12.5, color: '#6B6B68', marginTop: 4, marginBottom: 18 }}>
-                נשאר לצרף: {idBlocking.map(m => m.personName).join(', ')}
+                נשאר לצרף: {idBlocking.map(m => licenseKit ? `${m.prompt.replace(/^צילום /, '')} של ${m.personName}` : m.personName).join(', ')}
               </div>
             )}
           </>

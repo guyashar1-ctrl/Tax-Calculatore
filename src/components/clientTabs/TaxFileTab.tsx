@@ -25,7 +25,7 @@ import {
   EDIT_FIELD_BY_KEY, EDIT_SECTIONS, editFieldValue, coerceEditField, editFieldDisplay,
   DEALER_KIND_LABELS, cardDealerKind, dealerTypeDisplay, currentKindHold, kindHoldPending,
   kindHoldRowException, kindHoldFieldHint, kindHoldOutcome, retryKindHoldErrorText,
-  identityFieldError, withSpouseFullName,
+  identityFieldError, withSpouseFullName, withBusinessSituation,
 } from '../../features/taxFile/editModel';
 import type { EditField, FamilyKey, KindHold, KindHoldNotice } from '../../features/taxFile/editModel';
 import { LIST_SPECS, cleanList } from '../../features/taxFile/listModel';
@@ -477,6 +477,7 @@ export default function TaxFileTab({
     }
     // שם בן/בת הזוג: שני השדות, ו«שם בן/בת הזוג» כשרשור שלהם — שלא ייפרדו (110).
     plain = withSpouseFullName(plain, sectionDrafts);
+    plain = withBusinessSituation(plain);
     if (Object.keys(plain).length > 0) {
       if (!onUpdateClientFields) {
         setSectionError('השמירה אינה זמינה במסך הזה');
@@ -1223,7 +1224,7 @@ export default function TaxFileTab({
                   const v = editFieldValue(client, f);
                   return (
                     <KV key={f.key} k={f.label} field={f.key}
-                      v={v ? v : <span style={{ color: 'var(--ink-4)' }}>אין שם עסק בתיק</span>} />
+                      v={v ? editFieldDisplay(f, v) : <span style={{ color: 'var(--ink-4)' }}>{f.key === 'businessName' ? 'אין שם עסק בתיק' : 'לא סומן'}</span>} />
                   );
                 })}
           </div>

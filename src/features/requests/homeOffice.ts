@@ -11,7 +11,15 @@ export const HOME_OFFICE_CAP_PERCENT = 25;
 export const ROOM_COUNT_HELP = 'מספר החדרים הכולל כולל גם את חדרי העסק. לא כולל מטבח, חדרי רחצה ושירותים.';
 export const ROOM_NOTE_HELP = 'חדרים בגדלים שונים מאוד, או חדר שמשמש גם למטרה אחרת? כתבו כאן — המשרד יבדוק.';
 
+/**
+ * ההסבר הקצר שמופיע אחרי «כן, אעבוד גם מהבית» (גיא, 12.10.2026). ‼ התקרה היא כלל המשרד,
+ * לא קביעה בחוק; ה-30% של עסק זעיר הוא ניכוי קבוע שבא במקום הוצאות בפועל (87ד).
+ */
+export const HOME_OFFICE_EXPLAIN = `כשיש חדר שמשמש רק לעסק, אפשר להכיר בחלק מהוצאות הבית - חשמל, ארנונה, שכירות או ריבית משכנתא - לפי החלק של החדר בבית, ועד ${HOME_OFFICE_CAP_PERCENT}%. במסלול עסק זעיר (30% הוצאות קבועות מההכנסה) זה כבר כלול, ואין ניכוי נוסף.`;
+
 export interface HomeOfficeInput {
+  /** «האם תעבוד גם מהבית?» — null בתשובות מלפני 12.10.2026 (השאלה לא נשאלה). */
+  worksFromHome?: boolean | null;
   hasDedicatedRoom: boolean | null;
   totalRooms: number | string | null;
   businessRooms: number | string | null;
@@ -19,10 +27,11 @@ export interface HomeOfficeInput {
 }
 
 export type HomeOfficeError =
-  | 'missing_has_room' | 'missing_rooms' | 'rooms_not_numeric' | 'rooms_not_positive'
+  | 'missing_works_from_home' | 'missing_has_room' | 'missing_rooms' | 'rooms_not_numeric' | 'rooms_not_positive'
   | 'rooms_too_many' | 'rooms_precision' | 'business_rooms_exceed_total';
 
 export const HOME_OFFICE_ERROR_TEXT: Record<HomeOfficeError, string> = {
+  missing_works_from_home: 'צריך לבחור אם תעבוד גם מהבית.',
   missing_has_room: 'צריך לבחור אם יש חדר שמשמש רק לעסק.',
   missing_rooms: 'צריך למלא את שני מספרי החדרים.',
   rooms_not_numeric: 'מספר החדרים צריך להיות מספר.',
@@ -42,13 +51,17 @@ const toNum = (v: number | string | null | undefined): number | null => {
 
 const isHalfStep = (n: number) => Math.abs(n * 2 - Math.round(n * 2)) < 1e-9;
 
-export interface ValidHomeOffice { hasDedicatedRoom: boolean; totalRooms: number | null; businessRooms: number | null; note: string | null }
+export interface ValidHomeOffice { worksFromHome?: boolean; hasDedicatedRoom: boolean; totalRooms: number | null; businessRooms: number | null; note: string | null }
 
 export function validateHomeOffice(input: HomeOfficeInput):
   { ok: true; value: ValidHomeOffice } | { ok: false; error: HomeOfficeError } {
-  if (input.hasDedicatedRoom === null || input.hasDedicatedRoom === undefined) return { ok: false, error: 'missing_has_room' };
   const note = (input.note ?? '').trim().slice(0, 1000) || null;
-  if (!input.hasDedicatedRoom) return { ok: true, value: { hasDedicatedRoom: false, totalRooms: null, businessRooms: null, note } };
+  // ‼ «לא» ⇒ אין שאלת חדר ואין אחוז. undefined = מסך שלא שואל את השאלה (שומר על ההתנהגות הקודמת).
+  if (input.worksFromHome === false) return { ok: true, value: { worksFromHome: false, hasDedicatedRoom: false, totalRooms: null, businessRooms: null, note } };
+  if (input.worksFromHome === null) return { ok: false, error: 'missing_works_from_home' };
+  const works = input.worksFromHome === true ? { worksFromHome: true } : {};
+  if (input.hasDedicatedRoom === null || input.hasDedicatedRoom === undefined) return { ok: false, error: 'missing_has_room' };
+  if (!input.hasDedicatedRoom) return { ok: true, value: { ...works, hasDedicatedRoom: false, totalRooms: null, businessRooms: null, note } };
   const total = toNum(input.totalRooms);
   const biz = toNum(input.businessRooms);
   if (total === null || biz === null) return { ok: false, error: 'missing_rooms' };
@@ -57,7 +70,7 @@ export function validateHomeOffice(input: HomeOfficeInput):
   if (total > 50) return { ok: false, error: 'rooms_too_many' };
   if (!isHalfStep(total) || !isHalfStep(biz)) return { ok: false, error: 'rooms_precision' };
   if (biz > total) return { ok: false, error: 'business_rooms_exceed_total' };
-  return { ok: true, value: { hasDedicatedRoom: true, totalRooms: total, businessRooms: biz, note } };
+  return { ok: true, value: { ...works, hasDedicatedRoom: true, totalRooms: total, businessRooms: biz, note } };
 }
 
 /** היחס לפי מספר החדרים, בעשירית אחוז. null כשאין חדר בלעדי או שהקלט חלקי. */
@@ -79,6 +92,8 @@ export const formatPercent = (n: number | null | undefined): string =>
 export interface HomeOfficeAnswersRow {
   id: string;
   source: 'client' | 'office';
+  /** null = תשובה מלפני 234 (השאלה לא נשאלה). */
+  works_from_home?: boolean | null;
   has_dedicated_room: boolean;
   total_rooms: number | null;
   business_rooms: number | null;
@@ -150,7 +165,9 @@ export function deriveHomeOffice(h: HomeOfficeHistory | null | undefined): HomeO
 export function homeOfficeLine(st: HomeOfficeState): string {
   switch (st.phase) {
     case 'unanswered': return 'טרם נמסר מידע על עבודה מהבית';
-    case 'noRoom': return st.lastApproval ? 'אין חדר שמשמש רק לעסק' : 'אין חדר שמשמש רק לעסק · אין אחוז לאישור';
+    case 'noRoom':
+      if (st.latest?.works_from_home === false) return 'לא עובד מהבית · אין אחוז לאישור';
+      return st.lastApproval ? 'אין חדר שמשמש רק לעסק' : 'אין חדר שמשמש רק לעסק · אין אחוז לאישור';
     case 'awaitingApproval': return `יחס לפי חדרים ${formatPercent(st.ratio)}${st.aboveCap ? ` · מעל התקרה (${HOME_OFFICE_CAP_PERCENT}%)` : ''} · ממתין לאישורך`;
     case 'approved': return `אושר ${formatPercent(st.current?.approved_percent)}${st.paperless === 'entered' ? ' · הוזן בפייפרלס' : ' · טרם סומן שהוזן בפייפרלס'}`;
     case 'stale': return `התשובות השתנו מאז שאושר ${formatPercent(st.lastApproval?.approved_percent)} — נדרשת בדיקה`;

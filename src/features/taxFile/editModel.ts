@@ -18,6 +18,9 @@ import { FAMILY_STATUS_LABELS } from '../../types';
 import { isValidIsraeliId } from '../../utils/israeliId';
 import { isValidEmail } from '../../utils/email';
 import { hasNonHebrewLetters, HEBREW_ONLY_HINT } from '../../utils/hebrewText';
+import {
+  BUSINESS_SITUATION_LABELS, BUSINESS_SITUATION_ORDER, businessSituationFields, businessSituationOf,
+} from '../../utils/businessSituation';
 import { engagementFromDb } from '../../lib/dbMappers';
 import { currentEngagement } from '../../utils/engagementSelectors';
 import { kindHoldPending, type KindHold } from '../../types/onboarding';
@@ -150,10 +153,15 @@ export const EDIT_SECTIONS: EditSection[] = [
   // (update_client_fields). ‼ תיקון כאן אינו מתקן את השם בפייפרלס — זה צעד נפרד בהקמה.
   {
     id: 'businessDetails', family: 'auth', title: 'פרטי העסק',
-    summary: c => c.businessName?.trim() || 'אין שם עסק',
+    summary: c => join(c.businessName?.trim() || 'אין שם עסק',
+      (() => { const s = businessSituationOf(c); return s ? BUSINESS_SITUATION_LABELS[s] : ''; })()),
     fields: [
       { key: 'businessName', label: 'שם העסק', kind: 'text',
         note: 'השם שהעסק מוכר בו — כך הוא מוזן בפייפרלס ומופיע בחשבוניות.' },
+      // ‼ 234: שדה אחד במסך, שתי עמודות במסד (businessSituation.ts) — editFieldValue / withBusinessSituation.
+      { key: 'businessTransfer', label: 'מצב העסק בקליטה', kind: 'select',
+        options: BUSINESS_SITUATION_ORDER.map(k => [k, BUSINESS_SITUATION_LABELS[k]] as [string, string]),
+        note: 'קובע אילו בקשות נוצרות בקליטה: עסק חדש ⇒ פתיחת תיקים, ופייפרלס אחריה; עובר מרו״ח אחר ⇒ מכתב העברה. לא משנה בקשות קיימות.' },
     ],
   },
   {
@@ -517,10 +525,20 @@ export function withSpouseFullName(patch: Partial<Client>, drafts: Record<string
   return { ...patch, spouseFirstName: first, spouseLastName: last, spouseName: `${first} ${last}`.trim() };
 }
 
+/** «מצב העסק בקליטה» נשמר כשתי עמודות — הבחירה ⇒ businessTransfer + hasPreviousAccountant. */
+export function withBusinessSituation(patch: Partial<Client>): Partial<Client> {
+  if (!('businessTransfer' in patch)) return patch;
+  const raw = (patch as Record<string, unknown>).businessTransfer;
+  const s = raw === 'new' || raw === 'transfer' || raw === 'existing' ? raw : undefined;
+  const f = businessSituationFields(s);
+  return { ...patch, businessTransfer: f.businessTransfer ?? (null as unknown as undefined), hasPreviousAccountant: f.hasPreviousAccountant };
+}
+
 /** ערך לתצוגה בשדה. ‼ undefined ⇒ ריק, ולא 0 — «לא ידוע» אינו אפס. */
 export function editFieldValue(client: Client, f: EditField): string {
   if (f.key === 'spouseFirstName') return spouseNameParts(client).first;
   if (f.key === 'spouseLastName') return spouseNameParts(client).last;
+  if (f.key === 'businessTransfer') return businessSituationOf(client) ?? '';
   const raw = (client as unknown as Record<string, unknown>)[f.key];
   if (raw === undefined || raw === null) return '';
   if (typeof raw === 'boolean') return raw ? 'true' : 'false';

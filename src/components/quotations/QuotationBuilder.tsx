@@ -32,6 +32,10 @@ import {
 } from '../../types/quotations';
 import { businessDaysExpiry } from '../../utils/businessDays';
 import {
+  BUSINESS_SITUATION_HINTS, BUSINESS_SITUATION_LABELS, BUSINESS_SITUATION_ORDER,
+  businessSituationFields, businessSituationOf, type BusinessSituation,
+} from '../../utils/businessSituation';
+import {
   calcTotals, formatILS, itemFinalPrice, itemOriginalPrice, itemDisplayName,
   clampInstallments, currentMonthKey, monthsLeftInYear, formatMonthRange,
   addMonths, deferredBase, itemDeferred, DEFAULT_DEFERRED_TRIGGER,
@@ -648,19 +652,22 @@ export default function QuotationBuilder({
   const prevFacts: PrevFacts | null = recipient.kind === 'new' && recipient.fullName.trim()
     ? {
         businessTransfer: recipient.businessTransfer ?? (recipient.hasPreviousAccountant ? true : undefined),
+        hasPrev: recipient.hasPreviousAccountant,
         name: recipient.prevAccountantName, email: recipient.prevAccountantEmail, phone: recipient.prevAccountantPhone,
       }
     : recipientLead
       ? {
           businessTransfer: recipientLead.businessTransfer ?? (recipientLead.hasPreviousAccountant ? true : undefined),
+          hasPrev: recipientLead.hasPreviousAccountant,
           name: recipientLead.prevAccountantName, email: recipientLead.prevAccountantEmail, phone: recipientLead.prevAccountantPhone,
         }
       : null;
 
   async function savePrevFacts(next: PrevFacts) {
-    const has = next.businessTransfer === true;
+    const f = businessSituationFields(businessSituationOf({ businessTransfer: next.businessTransfer, hasPreviousAccountant: next.hasPrev }));
+    const has = f.hasPreviousAccountant;
     const patch = {
-      businessTransfer: next.businessTransfer,
+      businessTransfer: f.businessTransfer,
       hasPreviousAccountant: has,
       prevAccountantName: has ? next.name?.trim() || undefined : undefined,
       prevAccountantEmail: has ? next.email?.trim() || undefined : undefined,
@@ -844,7 +851,7 @@ export default function QuotationBuilder({
         {repConflict && <div className="qb-warn">{repConflict}</div>}
         {prevFacts && (
           <div className="qb-quiet">
-            <span className="qb-quiet-k">רו״ח קודם</span>
+            <span className="qb-quiet-k">מצב העסק</span>
             <span className="qb-quiet-v">{prevAccountantSummary(prevFacts)}</span>
             <button className="qb-link mute" onClick={() => setPanel('prev')}>שינוי</button>
           </div>
@@ -973,21 +980,23 @@ export default function QuotationBuilder({
   );
 }
 
-/** אותה עובדה כמו בכרטיס הליד: «עסק חדש» (false) / «העברה מרו״ח אחר» (true) / לא סומן. */
+/** אותה עובדה כמו בכרטיס הליד — מצב העסק (businessSituation.ts) ופרטי הרו״ח הקודם. */
 interface PrevFacts {
   businessTransfer?: boolean;
+  hasPrev?: boolean;
   name?: string;
   email?: string;
   phone?: string;
 }
 
 function prevAccountantSummary(f: PrevFacts): string {
-  if (f.businessTransfer === true) {
+  const s = businessSituationOf({ businessTransfer: f.businessTransfer, hasPreviousAccountant: f.hasPrev });
+  if (s === 'transfer') {
     const who = f.name?.trim() ? `עובר מ${f.name.trim()}` : 'עובר מרו״ח אחר';
     return f.email?.trim() ? who : `${who} · חסר מייל למכתב ההעברה`;
   }
-  if (f.businessTransfer === false) return 'אין · עסק חדש';
-  return 'לא סומן';
+  if (s) return BUSINESS_SITUATION_LABELS[s];
+  return 'לא סומן · לא תיפתח פתיחת תיקים';
 }
 
 function PrevAccountantPanel({ value, isNewRecipient, onSave, onClose }: {
@@ -998,9 +1007,13 @@ function PrevAccountantPanel({ value, isNewRecipient, onSave, onClose }: {
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   // כמו בכרטיס הליד: לחיצה על הבחירה המסומנת מבטלת אותה ומחזירה ל«לא סומן».
-  const pick = (next: boolean) => setV(p => p.businessTransfer === next
-    ? { businessTransfer: undefined }
-    : next ? { ...p, businessTransfer: true } : { businessTransfer: false });
+  const situation = businessSituationOf({ businessTransfer: v.businessTransfer, hasPreviousAccountant: v.hasPrev });
+  const pick = (next: BusinessSituation) => setV(p => {
+    const f = businessSituationFields(situation === next ? undefined : next);
+    return f.hasPreviousAccountant
+      ? { ...p, businessTransfer: f.businessTransfer, hasPrev: true }
+      : { businessTransfer: f.businessTransfer, hasPrev: false };
+  });
 
   async function save() {
     setSaving(true); setErr(null);
@@ -1010,22 +1023,25 @@ function PrevAccountantPanel({ value, isNewRecipient, onSave, onClose }: {
   }
 
   return (
-    <Modal title="רו״ח קודם" onClose={onClose} width={520}
+    <Modal title="מצב העסק" onClose={onClose} width={520}
       footer={<>
         <button className="btn btn-secondary" onClick={onClose} disabled={saving}>ביטול</button>
         <button className="btn btn-primary" onClick={() => void save()} disabled={saving}>{saving ? 'שומר…' : 'שמירה'}</button>
       </>}>
       <div className="qb-panel-s">
-        לקוח שעובר מרו״ח אחר מקבל עם אישור ההצעה גם את קבוצת העברת הטיפול מהרו״ח הקודם.
+        הבחירה קובעת אילו בקשות הלקוח יקבל עם אישור ההצעה.
         {isNewRecipient ? ' נשמר בליד שייווצר עם ההצעה.' : ' נשמר בכרטיס הליד.'}
       </div>
-      <div className="qb-chips" role="group" aria-label="עסק חדש או העברה מרו״ח אחר">
-        <button type="button" className={`qb-chip${v.businessTransfer === false ? ' on' : ''}`}
-          aria-pressed={v.businessTransfer === false} onClick={() => pick(false)}>עסק חדש</button>
-        <button type="button" className={`qb-chip${v.businessTransfer === true ? ' on' : ''}`}
-          aria-pressed={v.businessTransfer === true} onClick={() => pick(true)}>העברה מרו״ח אחר</button>
+      <div className="qb-chips" role="group" aria-label="מצב העסק">
+        {BUSINESS_SITUATION_ORDER.map(k => (
+          <button key={k} type="button" className={`qb-chip${situation === k ? ' on' : ''}`}
+            aria-pressed={situation === k} onClick={() => pick(k)}>{BUSINESS_SITUATION_LABELS[k]}</button>
+        ))}
       </div>
-      {v.businessTransfer === true && (
+      <div className="qb-note" style={{ marginTop: 8 }}>
+        {situation ? BUSINESS_SITUATION_HINTS[situation] : 'לא סומן - לא תיפתח פתיחת תיקים ולא מכתב העברה.'}
+      </div>
+      {situation === 'transfer' && (
         <div className="qb-newlead" style={{ marginTop: 12 }}>
           <input placeholder="שם הרו״ח הקודם" aria-label="שם הרו״ח הקודם" value={v.name ?? ''}
             onChange={e => setV(p => ({ ...p, name: e.target.value }))} />

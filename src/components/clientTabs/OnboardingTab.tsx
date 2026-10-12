@@ -838,6 +838,22 @@ export default function OnboardingTab({
   }
 
   /**
+   * «פתח עכשיו» (234) — בקשה שממתינה לבקשה אחרת נפתחת ביד, עם שורה ביומן. ‼ לא שולח
+   * ולא מפרסם: הלקוח רואה אותה אחרי «עדכן את דף הלקוח», כמו כל שינוי.
+   */
+  async function openNow(step: OnboardingStep) {
+    setBusyStepId(step.id);
+    setError(null);
+    setMenuStepId(null);
+    const { data, error: rpcError } = await supabase.rpc('office_open_locked_step', { p_step_id: step.id });
+    if (rpcError || data?.ok === false) {
+      setError(data?.error === 'run_paused' ? 'המסלול של הלקוח מושהה - אי אפשר לפתוח בקשה בתוכו.' : 'לא הצלחנו לפתוח את הבקשה.');
+    }
+    setBusyStepId(null);
+    refresh?.();
+  }
+
+  /**
    * הקמת יישור קו ללקוח שאין לו שלבי מוסדות (הקמת תיק במערכת), או ריצה מחדש
    * ללקוח שכבר יש לו — בלי לפתוח קליטה חדשה. שתי הפעולות דרך RPC ייעודי
    * (92-institution-alignment.sql) ולא UPDATE ישיר — עקבי עם שאר המסך.
@@ -1835,6 +1851,11 @@ export default function OnboardingTab({
                                 : 'סמן שהתקבל / בוצע'}
                             </button>
                           )}
+                          {locked && (
+                            <button type="button" role="menuitem" className={mi} disabled={busy}
+                              title="הבקשה תיפתח בלי לחכות לבקשה שלפניה. הלקוח יראה אותה אחרי «עדכן את דף הלקוח»."
+                              onClick={() => void openNow(step)}>פתח עכשיו</button>
+                          )}
                           <button type="button" role="menuitem" className={mi}
                             onClick={() => { setMenuStepId(null); handleNote(step); }}>הוסף הערה</button>
                           {editing && !problem && (
@@ -1924,6 +1945,11 @@ export default function OnboardingTab({
                   {waitingCompleteLabel && (
                     <button type="button" className="rl-link" disabled={busy}
                       onClick={() => void run(step, 'complete')}>{waitingCompleteLabel}</button>
+                  )}
+                  {locked && (
+                    <button type="button" className="rl-link" disabled={busy}
+                      title="הבקשה תיפתח בלי לחכות לבקשה שלפניה. הלקוח יראה אותה אחרי «עדכן את דף הלקוח»."
+                      onClick={() => void openNow(step)}>פתח עכשיו</button>
                   )}
                   {editable && (
                     <button type="button" className="rl-link" onClick={() => setEditingStepId(step.id)}>עריכה</button>

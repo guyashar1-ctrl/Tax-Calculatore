@@ -400,7 +400,8 @@ export function leadKnownFacts(lead: Lead): KnownFact[] {
     label: 'רו״ח קודם',
     value: lead.hasPreviousAccountant
       ? (lead.prevAccountantName || 'יש - השם טרם נרשם')
-      : lead.businessTransfer === false ? 'אין - עסק חדש' : 'אין',
+      : lead.businessTransfer === false ? 'אין - עסק חדש שאנחנו פותחים'
+      : lead.businessTransfer === true ? 'אין - עסק קיים' : 'לא סומן',
   });
   if (lead.referralSource) out.push({ label: 'מאיפה הגיע', value: lead.referralSource });
   if (lead.notes) out.push({ label: 'מה ביקש', value: lead.notes });

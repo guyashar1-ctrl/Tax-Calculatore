@@ -7,6 +7,10 @@ import type { Lead, LeadStatus, LeadDealerType, Quotation } from '../../types/qu
 import { LEAD_STATUS_LABELS, LEAD_DEALER_TYPE_LABELS } from '../../types/quotations';
 import { EmptyState, CalmEmpty } from '../ui/States';
 import EmailInput from '../ui/EmailInput';
+import {
+  BUSINESS_SITUATION_HINTS, BUSINESS_SITUATION_LABELS, BUSINESS_SITUATION_ORDER,
+  businessSituationFields, businessSituationOf, type BusinessSituation,
+} from '../../utils/businessSituation';
 
 /** עדכון ליד — רק השדות שהשתנו, לצד המזהה. ראה ההערה ב-LeadForm.submit. */
 export type LeadPatch = Partial<Lead> & { id: string };
@@ -243,16 +247,14 @@ export function LeadForm({ lead, onSave, onCancel }: {
 
   const set = (patch: Partial<typeof v>) => setV(prev => ({ ...prev, ...patch }));
 
-  // ‼ "עסק חדש או העברה?" ו"עובר מרו״ח אחר?" הן אותה עובדה, ולכן פקד אחד כותב
-  // את שני השדות: businessTransfer מפעיל את מסלול העסק החדש, ו-hasPreviousAccountant
-  // מרכיב את מסלול הרו"ח הקודם בקליטה.
-  function setTransfer(next: boolean | undefined) {
-    if (next === true) { set({ businessTransfer: true, hasPreviousAccountant: true }); return; }
-    set({
-      businessTransfer: next,
-      hasPreviousAccountant: next === false ? false : undefined,
-      prevAccountantName: '', prevAccountantEmail: '', prevAccountantPhone: '',
-    });
+  // ‼ פקד אחד כותב את שני השדות (businessSituation.ts): businessTransfer מפעיל את
+  // מסלול העסק החדש, ו-hasPreviousAccountant מרכיב את מסלול הרו"ח הקודם בקליטה.
+  const situation = businessSituationOf(v);
+  function setSituation(next: BusinessSituation | undefined) {
+    const f = businessSituationFields(next);
+    set(f.hasPreviousAccountant
+      ? f
+      : { ...f, prevAccountantName: '', prevAccountantEmail: '', prevAccountantPhone: '' });
   }
 
   async function submit() {
@@ -333,24 +335,22 @@ export function LeadForm({ lead, onSave, onCancel }: {
             <input value={v.referralSource} onChange={e => set({ referralSource: e.target.value })}
               placeholder="המלצה, גוגל, לקוח קיים…" style={{ marginTop: 4 }} />
           </label>
-          <div>
-            <div style={label}>עסק חדש או העברה?</div>
-            <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
-              <button type="button"
-                className={`btn btn-sm ${v.businessTransfer === false ? 'btn-primary' : 'btn-secondary'}`}
-                onClick={() => setTransfer(v.businessTransfer === false ? undefined : false)}>
-                עסק חדש
-              </button>
-              <button type="button"
-                className={`btn btn-sm ${v.businessTransfer === true ? 'btn-primary' : 'btn-secondary'}`}
-                onClick={() => setTransfer(v.businessTransfer === true ? undefined : true)}>
-                העברה מרו״ח אחר
-              </button>
+          <div style={{ gridColumn: '1 / -1' }}>
+            <div style={label}>מצב העסק</div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 4 }} role="group" aria-label="מצב העסק">
+              {BUSINESS_SITUATION_ORDER.map(k => (
+                <button key={k} type="button" aria-pressed={situation === k}
+                  className={`btn btn-sm ${situation === k ? 'btn-primary' : 'btn-secondary'}`}
+                  onClick={() => setSituation(situation === k ? undefined : k)}>
+                  {BUSINESS_SITUATION_LABELS[k]}
+                </button>
+              ))}
             </div>
+            {situation && <div style={{ fontSize: 11, color: 'var(--gray-500)', marginTop: 4 }}>{BUSINESS_SITUATION_HINTS[situation]}</div>}
           </div>
         </div>
 
-        {v.businessTransfer === true && (
+        {situation === 'transfer' && (
           <div style={{ border: '1px solid var(--gray-200)', borderRadius: 8, padding: 10, marginTop: 10, background: 'var(--blue-light)' }}>
             <div style={{ ...label, fontWeight: 500, color: 'var(--gray-700)' }}>פרטי הרו״ח הקודם</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8 }}>

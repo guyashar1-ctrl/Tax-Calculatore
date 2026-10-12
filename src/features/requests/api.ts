@@ -26,7 +26,7 @@ export const loadHomeOffice = (clientId: string) => call('get_home_office', { p_
 
 export const saveHomeOfficeAnswers = (clientId: string, v: ValidHomeOffice) => call('save_home_office_answers', {
   p_client_id: clientId,
-  p_data: { hasDedicatedRoom: v.hasDedicatedRoom, totalRooms: v.totalRooms, businessRooms: v.businessRooms, note: v.note },
+  p_data: { ...(v.worksFromHome !== undefined ? { worksFromHome: v.worksFromHome } : {}), hasDedicatedRoom: v.hasDedicatedRoom, totalRooms: v.totalRooms, businessRooms: v.businessRooms, note: v.note },
 });
 
 export const approveHomeOffice = (clientId: string, answersId: string, percent: number, effectiveFrom: string, note: string) =>

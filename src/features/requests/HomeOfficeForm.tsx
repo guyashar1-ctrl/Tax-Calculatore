@@ -5,7 +5,7 @@ import './requestGroups.css';
 // לבדיקת המשרד — לא זכאות. חדרים חריגים — בהערה.
 import { useId, useState } from 'react';
 import {
-  HOME_OFFICE_ERROR_TEXT, ROOM_COUNT_HELP, ROOM_NOTE_HELP, roomRatioPercent, validateHomeOffice, formatPercent,
+  HOME_OFFICE_ERROR_TEXT, HOME_OFFICE_EXPLAIN, ROOM_COUNT_HELP, ROOM_NOTE_HELP, roomRatioPercent, validateHomeOffice, formatPercent,
   type HomeOfficeInput, type ValidHomeOffice,
 } from './homeOffice';
 
@@ -24,17 +24,21 @@ const fmtInit = (v: unknown) => (v === null || v === undefined ? '' : String(v))
 
 export default function HomeOfficeForm({ initial, audience, disabled, onChange, showErrors }: HomeOfficeFormProps) {
   const uid = useId();
+  // ‼ 234: קודם «האם תעבוד גם מהבית?». תשובה ישנה עם חדר ⇒ «כן»; ישנה בלי חדר ⇒ לא ידוע (נשאל שוב).
+  const [works, setWorks] = useState<'' | 'yes' | 'no'>(
+    initial?.worksFromHome === true || initial?.hasDedicatedRoom === true ? 'yes' : initial?.worksFromHome === false ? 'no' : '');
   const [has, setHas] = useState<'' | 'yes' | 'no'>(
     initial?.hasDedicatedRoom === true ? 'yes' : initial?.hasDedicatedRoom === false ? 'no' : '');
   const [total, setTotal] = useState(fmtInit(initial?.totalRooms));
   const [biz, setBiz] = useState(fmtInit(initial?.businessRooms));
   const [note, setNote] = useState(fmtInit(initial?.note));
 
-  const input: HomeOfficeInput = { hasDedicatedRoom: has === '' ? null : has === 'yes', totalRooms: total, businessRooms: biz, note };
+  const tri = (x: '' | 'yes' | 'no') => (x === '' ? null : x === 'yes');
+  const input: HomeOfficeInput = { worksFromHome: tri(works), hasDedicatedRoom: tri(has), totalRooms: total, businessRooms: biz, note };
   const v = validateHomeOffice(input);
-  const emit = (next: Partial<{ has: typeof has; total: string; biz: string; note: string }>) => {
-    const n = { has, total, biz, note, ...next };
-    const r = validateHomeOffice({ hasDedicatedRoom: n.has === '' ? null : n.has === 'yes', totalRooms: n.total, businessRooms: n.biz, note: n.note });
+  const emit = (next: Partial<{ works: typeof works; has: typeof has; total: string; biz: string; note: string }>) => {
+    const n = { works, has, total, biz, note, ...next };
+    const r = validateHomeOffice({ worksFromHome: tri(n.works), hasDedicatedRoom: tri(n.has), totalRooms: n.total, businessRooms: n.biz, note: n.note });
     onChange(r.ok ? r.value : null);
   };
   const ratio = v.ok && v.value.hasDedicatedRoom ? roomRatioPercent(v.value.totalRooms, v.value.businessRooms) : null;
@@ -47,6 +51,17 @@ export default function HomeOfficeForm({ initial, audience, disabled, onChange, 
   return (
     <div className="ho-form">
       <label className="ho-field">
+        <span className="ho-label">{audience === 'client' ? 'האם תעבוד גם מהבית?' : 'האם הלקוח עובד גם מהבית?'}</span>
+        <select value={works} disabled={disabled} aria-describedby={works === 'yes' ? `${uid}-why` : undefined}
+          onChange={e => { const x = e.target.value as typeof works; setWorks(x); emit({ works: x }); }}>
+          <option value="">בחירה</option>
+          <option value="yes">כן</option>
+          <option value="no">לא</option>
+        </select>
+      </label>
+      {works === 'yes' && <p className="ho-help" id={`${uid}-why`}>{HOME_OFFICE_EXPLAIN}</p>}
+      {works === 'yes' && (
+      <label className="ho-field">
         <span className="ho-label">האם יש בבית חדר שמשמש רק לעבודה בעסק?</span>
         <select value={has} disabled={disabled} aria-describedby={shownErr ? `${uid}-err` : undefined}
           onChange={e => { const x = e.target.value as typeof has; setHas(x); emit({ has: x }); }}>
@@ -55,7 +70,8 @@ export default function HomeOfficeForm({ initial, audience, disabled, onChange, 
           <option value="no">לא</option>
         </select>
       </label>
-      {has === 'yes' && (
+      )}
+      {works === 'yes' && has === 'yes' && (
         <>
           <div className="ho-pair">
             <label className="ho-field">

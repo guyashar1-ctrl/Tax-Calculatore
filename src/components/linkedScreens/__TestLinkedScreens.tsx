@@ -1,6 +1,6 @@
 // ─── מסך בדיקה: המסכים שהלקוח מגיע אליהם בקישור אישי, בתצוגה לדוגמה ─────────────
 // DEV בלבד.   ?test-linked&screen=onboard|sign|release|intake|signform&couple=1
-// אפשרויות:   &auth=incomeTax,vat,withholding,nationalInsurance  &phase=…  &step=1..4  &frame=1
+// אפשרויות:   &auth=incomeTax,vat,withholding,nationalInsurance  &phase=…  &step=1..4  &frame=1  &nb=1 (עסק חדש)
 // ‼ אין כאן שום חיבור למסד: כל המסכים מקבלים פעולות «לדוגמה» ולא נוגעים ברשת.
 
 import { useEffect, useState, type ReactNode } from 'react';
@@ -44,9 +44,13 @@ export default function TestLinkedScreens() {
   if (screen === 'onboard') {
     const base = sampleOnboardingData(opts);
     // ?reg=spouse — מס הכנסה על שם בן/בת הזוג, כלומר להם יש הגשה משלהם בשע״ם.
-    const data = q.get('reg') === 'spouse'
+    const reg = q.get('reg') === 'spouse'
       ? { ...base, info: { ...base.info, prefill: { ...base.info.prefill, registeredSpouse: 'spouse' as const } } }
       : base;
+    // ?nb=1 — עסק חדש שהמשרד פותח (234): ת.ז. וגם רישיון נהיגה מבעל העסק.
+    const data = q.get('nb') === '1'
+      ? { ...reg, info: { ...reg.info, prefill: { ...reg.info.prefill, newBusiness: true } } }
+      : reg;
     const phase = q.get('phase') as OnboardingViewPhase | null;
     const step = Number(q.get('step') ?? 0);
     node = <OnboardingView

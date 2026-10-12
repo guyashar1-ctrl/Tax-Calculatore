@@ -107,6 +107,10 @@ export default function VariantsEditor({ stepType, value, onChange }: {
       )}
 
       <div className="fl-cond-l">{derivedCopy ? 'מה הלקוח מעלה' : 'מה נדרש'}</div>
+      {/* ‼ 234: הכלל רץ בשרת (generate_onboarding_steps) — כאן רק אומרים אותו, כדי שהמשרד יידע. */}
+      {stepType === 'client_documents' && (
+        <div className="fl-hint">צילום תעודת זהות לא יתבקש כאן כשבקשת הייצוג כבר אוספת אותו (מס הכנסה, מע״מ או ניכויים). בעסק חדש שאנחנו פותחים - הלקוח מעלה בייצוג גם רישיון נהיגה.</div>
+      )}
       <ul className="fl-var-items">
         {items.map((it, j) => (
           <li key={`${it.key ?? it.label}-${j}`}>

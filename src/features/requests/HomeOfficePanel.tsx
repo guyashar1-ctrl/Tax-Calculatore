@@ -119,9 +119,10 @@ export default function HomeOfficePanel({ clientId, clientFirstName, history, lo
       {latest && (
         <dl className="ho-facts">
           <div><dt>התשובות</dt><dd>
-            {latest.has_dedicated_room
-              ? `יש חדר שמשמש רק לעסק · ${latest.business_rooms} מתוך ${latest.total_rooms} חדרים`
-              : 'אין חדר שמשמש רק לעסק'}
+            {latest.works_from_home === false ? 'לא עובד מהבית'
+              : latest.has_dedicated_room
+              ? `${latest.works_from_home ? 'עובד גם מהבית · ' : ''}יש חדר שמשמש רק לעסק · ${latest.business_rooms} מתוך ${latest.total_rooms} חדרים`
+              : `${latest.works_from_home ? 'עובד גם מהבית · ' : ''}אין חדר שמשמש רק לעסק`}
           </dd></div>
           <div><dt>מקור</dt><dd>{answersSourceText(latest)} · {dateIL(latest.created_at)}</dd></div>
           {latest.note && <div><dt>הערה</dt><dd className="ho-quote">{latest.note}</dd></div>}
@@ -186,7 +187,7 @@ export default function HomeOfficePanel({ clientId, clientFirstName, history, lo
       ) : editing ? (
         <div className="ho-approve">
           <HomeOfficeForm audience="office" initial={latest ? {
-            hasDedicatedRoom: latest.has_dedicated_room, totalRooms: latest.total_rooms, businessRooms: latest.business_rooms, note: latest.note,
+            worksFromHome: latest.works_from_home ?? null, hasDedicatedRoom: latest.has_dedicated_room, totalRooms: latest.total_rooms, businessRooms: latest.business_rooms, note: latest.note,
           } : null} disabled={busy !== null} onChange={setDraft} showErrors={tried} />
           <div className="ho-acts">
             <button type="button" className="btn btn-sm btn-primary" disabled={busy !== null} onClick={() => void save()}>
@@ -208,7 +209,7 @@ export default function HomeOfficePanel({ clientId, clientFirstName, history, lo
               {busy === 'paperless' ? 'שומר…' : 'סמנתי: הוזן בפייפרלס'}
             </button>
           )}
-          {st.phase === 'noRoom' && (
+          {st.phase === 'noRoom' && latest?.works_from_home !== false && (
             <button type="button" className="btn btn-sm btn-ghost" disabled={busy !== null} onClick={() => openApprove(0)}>
               אישור 0% (אין חדר בלעדי)
             </button>

@@ -1254,6 +1254,8 @@ export interface OnboardingIdentification {
   /** מי בחר/ה «אעלה מאוחר יותר» בשלב צילום התעודה (191). ריק = לא נדחה. */
   identityDeferred?: RepTarget[];
   identityDeferredAt?: string;
+  /** 234: «אין לי רישיון נהיגה» — מה שהלקוח סימן בטופס (עסק חדש: ת.ז. + רישיון). */
+  noDriverLicense?: Partial<Record<RepTarget, boolean>>;
 }
 
 /** הטיוטה של טופס הקליטה — נכתבת רק ב-save_onboarding_step / touch_onboarding. */
@@ -1435,6 +1437,13 @@ export interface OnboardingPrefill {
    * (`spouseKnown`), בלי תלות בדגל הזה.
    */
   spouseHasBusiness?: boolean;
+  /**
+   * ‼ 234: נגזר בשרת (get_onboarding ← _client_is_new_business), לא נכתב מהמשרד: עסק חדש
+   * שהמשרד פותח ⇒ הטופס מבקש מבעל העסק ת.ז. וגם רישיון נהיגה.
+   */
+  newBusiness?: boolean;
+  /** ‼ 234: מה שהלקוח סימן בטופס — «אין לי רישיון נהיגה» (onboarding_set_no_license). */
+  noDriverLicense?: Partial<Record<'client' | 'spouse', boolean>>;
 }
 
 export type OnboardingSecondaryType = 'parentId' | 'driverLicense' | 'passport';

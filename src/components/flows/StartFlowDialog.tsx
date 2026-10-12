@@ -77,6 +77,8 @@ export function clientFactsFromCard(c: Client): ClientFacts {
     // ‼ בן/בת זוג עם כרטיס משלו — העבודה עליו/ה נוצרת מהכרטיס שלו/ה, לא מכאן.
     hasSpouse: married && !!spouseFirstNameOf(c) && !c.spouseClientId,
     has_prev: !!c.hasPreviousAccountant,
+    // ‼ רק «עסק חדש» מסומן במפורש (businessSituation.ts) — לא נגזר מהיעדר רו״ח קודם.
+    new_business: c.businessTransfer === false,
     no_prev_email: !c.prevAccountantEmail?.trim(),
     licensed: c.dealerType === 'licensed' || c.dealerType === 'company' || c.vatStatus === 'authorizedDealer',
     rep: !!c.representationStatus || !!c.representationRequestId,

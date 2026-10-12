@@ -112,6 +112,7 @@ function settle(tables: Record<string, Row[]>, clientId: string, actor: 'client'
 
 function insertAnswers(tables: Record<string, Row[]>, clientId: string, source: 'client' | 'office', data: Row): string | null {
   const v = validateHomeOffice({
+    ...(typeof data.worksFromHome === 'boolean' ? { worksFromHome: data.worksFromHome } : {}),
     hasDedicatedRoom: typeof data.hasDedicatedRoom === 'boolean' ? data.hasDedicatedRoom : null,
     totalRooms: (data.totalRooms ?? null) as number | null, businessRooms: (data.businessRooms ?? null) as number | null, note: (data.note ?? null) as string | null,
   });
@@ -119,6 +120,7 @@ function insertAnswers(tables: Record<string, Row[]>, clientId: string, source: 
   const id = `hoa-${++seq}`;
   tables.client_home_office_answers.push({
     id, seq, client_id: clientId, step_id: openBd(tables, clientId)?.id ?? null, source,
+    works_from_home: v.value.worksFromHome ?? null,
     has_dedicated_room: v.value.hasDedicatedRoom, total_rooms: v.value.totalRooms, business_rooms: v.value.businessRooms,
     ratio_percent: roomRatioPercent(v.value.totalRooms, v.value.businessRooms), note: v.value.note,
     created_at: new Date().toISOString(),
@@ -138,7 +140,7 @@ export function rgPortal(tables: Record<string, Row[]>, firmName: string): Row {
   const bd = openBd(tables, RG_CLIENT) ?? steps.filter(s => s.step_type === 'business_details').slice(-1)[0];
   if (bd) {
     const a = state(tables, RG_CLIENT).answers[0];
-    const ho = a ? { hasDedicatedRoom: a.has_dedicated_room, totalRooms: a.total_rooms, businessRooms: a.business_rooms, note: a.note } : undefined;
+    const ho = a ? { worksFromHome: a.works_from_home ?? null, hasDedicatedRoom: a.has_dedicated_room, totalRooms: a.total_rooms, businessRooms: a.business_rooms, note: a.note } : undefined;
     if (bd.status === 'completed') items.push({ bucket: 'done', key: 'business_details', label: 'פרטי העסק' });
     else if (bd.ball !== 'client') items.push({ bucket: 'office', key: 'business_details', label: 'פרטי העסק',
       sub: 'קיבלנו את הפרטים ואנחנו בודקים אותם. אין צורך לעשות דבר כרגע.' });
@@ -233,7 +235,8 @@ export function rgRpc(tables: Record<string, Row[]>, name: string, args: Row, fi
     if (['completed', 'verified', 'skipped', 'cancelled'].includes(String(s.status))) return ok({ ok: true, noop: true });
     const d = (args.p_data ?? {}) as Row;
     const ho = (d.homeOffice ?? {}) as Row;
-    const v = validateHomeOffice({ hasDedicatedRoom: typeof ho.hasDedicatedRoom === 'boolean' ? ho.hasDedicatedRoom : null,
+    const v = validateHomeOffice({ ...(typeof ho.worksFromHome === 'boolean' ? { worksFromHome: ho.worksFromHome } : {}),
+      hasDedicatedRoom: typeof ho.hasDedicatedRoom === 'boolean' ? ho.hasDedicatedRoom : null,
       totalRooms: (ho.totalRooms ?? null) as number | null, businessRooms: (ho.businessRooms ?? null) as number | null });
     if (!v.ok) return ok({ ok: false, error: v.error });
     const biz = String(d.businessName ?? '').trim() || null;

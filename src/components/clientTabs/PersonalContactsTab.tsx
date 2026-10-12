@@ -33,6 +33,10 @@ import Employer106Details from './Employer106Details';
 import InvestmentAccount867Details from './InvestmentAccount867Details';
 import Business1320Details from './Business1320Details';
 import ChildTaxDetails from './ChildTaxDetails';
+import {
+  BUSINESS_SITUATION_HINTS, BUSINESS_SITUATION_LABELS, BUSINESS_SITUATION_ORDER,
+  businessSituationFields, businessSituationOf,
+} from '../../utils/businessSituation';
 
 // צבעים ייחודיים לכל סעיף — בהמשך לפלטה של לשונית מיסוי
 const COLOR_IDENTITY   = 'var(--br)';  // כחול — זהות רשמית
@@ -1804,11 +1808,26 @@ export default function PersonalContactsTab({
                 placeholder="המלצה, גוגל, לקוח קיים…" />
             </div>
             <div className="form-group span-full">
-              <label className="checkbox-row">
-                <input type="checkbox" checked={client.hasPreviousAccountant ?? false}
-                  onChange={e => update('hasPreviousAccountant', e.target.checked)} />
-                הלקוח הגיע מרו״ח אחר
-              </label>
+              <label id="business-situation-label">מצב העסק בקליטה</label>
+              <div className="chip-row" role="group" aria-labelledby="business-situation-label"
+                style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {BUSINESS_SITUATION_ORDER.map(k => {
+                  const on = businessSituationOf(client) === k;
+                  return (
+                    <button key={k} type="button" aria-pressed={on}
+                      className={`btn btn-sm ${on ? 'btn-primary' : 'btn-secondary'}`}
+                      onClick={() => {
+                        patch(businessSituationFields(on ? undefined : k));
+                      }}>
+                      {BUSINESS_SITUATION_LABELS[k]}
+                    </button>
+                  );
+                })}
+              </div>
+              <div style={{ fontSize: '12px', color: 'var(--gray-500)', marginTop: 4 }}>
+                {(() => { const s = businessSituationOf(client); return s ? BUSINESS_SITUATION_HINTS[s] : 'לא סומן'; })()}
+                {' '}משפיע על בקשות שנוצרות מכאן והלאה - לא משנה בקשות קיימות.
+              </div>
             </div>
             {client.hasPreviousAccountant && (
               <>

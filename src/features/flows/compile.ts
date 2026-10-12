@@ -26,8 +26,10 @@ import { FLOW_ACTION_TYPES, actionTypeOf } from './types';
  */
 export const BUILT_IN_VARIANTS: Record<string, DefaultVariant[]> = {
   client_documents: [
+    // ‼ 234: עסק חדש שהמשרד פותח — בלי «תעודת עוסק» (תוצר הפתיחה). ת.ז. יורדת מהרשימה בשרת
+    // כשבקשת הייצוג אוספת אותה (מ"ה/מע"מ/ניכויים), בכל אחת מהרשימות.
     { key: 'new_business', fact: 'new_business', items: [
-      { key: 'vat_cert', label: 'תעודת עוסק' }, { key: 'id_card', label: 'צילום תעודת זהות' }, { key: 'bank_confirm', label: 'אישור ניהול חשבון בנק' }] },
+      { key: 'id_card', label: 'צילום תעודת זהות' }, { key: 'bank_confirm', label: 'אישור ניהול חשבון בנק' }] },
     { key: 'has_prev', fact: 'has_prev', items: [
       { key: 'bank_confirm', label: 'אישור ניהול חשבון בנק' }, { key: 'last_return', label: 'דוח שנתי אחרון' }, { key: 'form106', label: 'טופס 106' }] },
     { key: 'default', fact: null, items: [

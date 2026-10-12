@@ -155,7 +155,7 @@ export interface PortalItem {
   needsBusinessName?: boolean;
   businessName?: string;
   /** 220 · התשובות האחרונות על עבודה מהבית — מילוי-מראש לתיקון. */
-  homeOffice?: { hasDedicatedRoom: boolean; totalRooms: number | null; businessRooms: number | null; note: string | null } | null;
+  homeOffice?: { worksFromHome?: boolean | null; hasDedicatedRoom: boolean; totalRooms: number | null; businessRooms: number | null; note: string | null } | null;
   /** רשימת המסמכים שביקשנו — מה התקבל ומה עוד חסר. */
   checklist?: { key: string; label: string; done: boolean; /** 204 · למה מבקשים — למשל «נדרש על ידי רשות המסים להשלמת הייצוג». */ note?: string }[];
   /** דרישות של בקשה חופשית — שדות בתוך בקשה אחת, כל אחד עם סוג ו-חובה/רשות. */
@@ -280,6 +280,25 @@ function UploadItem({ tokenKind = 'portal', stepId, itemKey, label, note, done, 
     onDone();
   }
 
+  async function uploadMany(files: File[]) {
+    if (files.length === 1) { await upload(files[0]); return; }
+    setErr(null);
+    setBusy(true);
+    let merged: File;
+    try {
+      const { buildDocumentPdf } = await import('../utils/imageToPdf');
+      const parts = await Promise.all(files.map(async f => new Uint8Array(await f.arrayBuffer())));
+      const pdf = await buildDocumentPdf(parts, { maxBytes: 10 * 1024 * 1024 });
+      merged = new File([pdf.bytes as BlobPart], `${label}.pdf`, { type: 'application/pdf' });
+    } catch {
+      setBusy(false);
+      setErr('לא הצלחנו לחבר את התמונות לקובץ אחד. אפשר להעלות אותן אחת-אחת, או לנסות קבצים אחרים.');
+      return;
+    }
+    setBusy(false);
+    await upload(merged);
+  }
+
   const uploadLink: React.CSSProperties = {
     flexShrink: 0, fontSize: 12.5, fontWeight: 600, padding: '2px 0', color: accent,
   };
@@ -308,9 +327,11 @@ function UploadItem({ tokenKind = 'portal', stepId, itemKey, label, note, done, 
         )}
         {!done && !readOnly && !sample && (
           <>
-            <input id={inputId} type="file" accept={accept ?? ACCEPT} disabled={busy}
+            {/* ‼ multiple: תעודה היא שני צדדים (גיא, 12.10.2026). כמה תמונות שנבחרו יחד ⇒ PDF אחד,
+                כדי שהצד הראשון לא יסגור את הבקשה לפני שהשני עלה. בלי capture — גלריה וגם מצלמה. */}
+            <input id={inputId} type="file" accept={accept ?? ACCEPT} disabled={busy} multiple
               style={{ display: 'none' }}
-              onChange={e => { const f = e.target.files?.[0]; if (f) void upload(f); e.target.value = ''; }} />
+              onChange={e => { const fs = Array.from(e.target.files ?? []); e.target.value = ''; if (fs.length) void uploadMany(fs); }} />
             <label htmlFor={inputId} style={{
               ...uploadLink, cursor: busy ? 'default' : 'pointer',
               color: busy ? brand.muted : accent, opacity: busy ? .6 : 1,
@@ -1205,6 +1226,7 @@ function BusinessDetailsBlock({ item, brand, accent, onDone, onCancel }: {
         </span>
         <input value={businessName} onChange={e => { setBusinessName(e.target.value); setError(null); }} disabled={readOnly || busy}
           placeholder="השם שהעסק מוכר בו" autoComplete="organization" maxLength={200} style={input} />
+        <span style={{ fontSize: 12, color: brand.muted }}>אין לעסק שם מיוחד? אפשר לכתוב את השם שלך.</span>
       </label>
       <HomeOfficeForm audience="client" initial={item.homeOffice ?? null} disabled={readOnly || busy}
         onChange={v => { setHomeOffice(v); setError(null); }} showErrors={tried} />

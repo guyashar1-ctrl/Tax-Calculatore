@@ -9,7 +9,7 @@
 
 import type { Client, RepresentationRequest } from '../types';
 import type { OnboardingStep } from '../types/onboarding';
-import { identityRequirements, missingIdentity } from './identityEvidence';
+import { identityKitFor, identityReqName, identityRequirements, missingIdentity } from './identityEvidence';
 import { peopleFromClient, requestScope } from './repScope';
 import { noOpenInfoLine } from '../lib/onboardingTracking';
 
@@ -50,9 +50,9 @@ export function representationInsight(
   const reqs = identityRequirements(requestScope(request, client), people, {
     client: submitted ? ident.secondaryType : draft.values?.secondaryType,
     spouse: submitted ? ident.spouseSecondaryType : draft.values?.spouseSecondaryType,
-  });
+  }, identityKitFor(request, client));
   const missing = missingIdentity(reqs, request.identityDocs ?? undefined)
-    .map(r => ({ person: r.person, name: r.personName, prompt: r.prompt }));
+    .map(r => ({ person: r.person, name: identityReqName(r), prompt: r.prompt }));
 
   const docsStep = (steps ?? []).find(s =>
     s.clientId === request.linkedClientId && s.stepType === 'client_documents' && s.status !== 'cancelled');
