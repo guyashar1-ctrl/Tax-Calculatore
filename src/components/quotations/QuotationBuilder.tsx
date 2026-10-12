@@ -71,6 +71,7 @@ interface RecipientDraft {
   prevAccountantName?: string;
   prevAccountantEmail?: string;
   prevAccountantPhone?: string;
+  businessTransfer?: boolean;
 }
 
 function isTransferRecipient(r: RecipientDraft, leads: Lead[], clients: Client[]): boolean {
@@ -133,6 +134,8 @@ interface Props {
   onBack: () => void;
   /** פתיחת הצעה אחרת שכבר קיימת לאותו נמען — כדי שהאזהרה תוביל אליה */
   onOpenQuotation?: (quotation: Quotation) => void;
+  /** עדכון חלקי של הליד — שורת «רו״ח קודם» כותבת לכרטיס הליד עצמו, לא להצעה. */
+  onSaveLead?: (patch: Partial<Lead> & { id: string }) => Promise<void>;
 }
 
 export interface SaveDraftPayload {
@@ -314,7 +317,7 @@ function Pop({ anchor, onClose, children }: {
 export default function QuotationBuilder({
   profile, services, templates, leads, clients, existing, initialLeadId, initialClientId,
   initialKind, currentEngagement, existingQuotations, checkRepEmailConflict,
-  onSaveDraft, onSend, onBack, onOpenQuotation,
+  onSaveDraft, onSend, onBack, onOpenQuotation, onSaveLead,
 }: Props) {
   const brand = useMemo(() => deriveQuotationBrand(profile), [profile]);
 
@@ -434,7 +437,7 @@ export default function QuotationBuilder({
 
   // ── מצב מסך ──
   const [pop, setPop] = useState<{ kind: PopKind; anchor: HTMLElement | null; itemId?: string }>({ kind: null, anchor: null });
-  const [panel, setPanel] = useState<'services' | 'future' | 'rep' | 'review' | 'recipient' | null>(null);
+  const [panel, setPanel] = useState<'services' | 'future' | 'rep' | 'review' | 'recipient' | 'prev' | null>(null);
   const [saving, setSaving] = useState(false);
   const [sending, setSending] = useState<'test' | 'send' | null>(null);
   const [notice, setNotice] = useState<{ kind: 'ok' | 'err' | 'warn'; text: string } | null>(null);
@@ -627,6 +630,35 @@ export default function QuotationBuilder({
         && ['draft', 'sent', 'viewed'].includes(q.status))
     : undefined;
 
+  // ‼ שער הקליטה קורא «רו״ח קודם» מהליד ברגע האישור (216), ולכן השורה כאן היא חלון
+  // לכרטיס הליד ולא עותק על ההצעה. ללקוח קיים השער קורא מהכרטיס שלו — אין שורה.
+  const recipientLead = recipient.kind === 'lead' ? leads.find(l => l.id === recipient.id) : undefined;
+  const prevFacts: PrevFacts | null = recipient.kind === 'new' && recipient.fullName.trim()
+    ? {
+        businessTransfer: recipient.businessTransfer ?? (recipient.hasPreviousAccountant ? true : undefined),
+        name: recipient.prevAccountantName, email: recipient.prevAccountantEmail, phone: recipient.prevAccountantPhone,
+      }
+    : recipientLead
+      ? {
+          businessTransfer: recipientLead.businessTransfer ?? (recipientLead.hasPreviousAccountant ? true : undefined),
+          name: recipientLead.prevAccountantName, email: recipientLead.prevAccountantEmail, phone: recipientLead.prevAccountantPhone,
+        }
+      : null;
+
+  async function savePrevFacts(next: PrevFacts) {
+    const has = next.businessTransfer === true;
+    const patch = {
+      businessTransfer: next.businessTransfer,
+      hasPreviousAccountant: has,
+      prevAccountantName: has ? next.name?.trim() || undefined : undefined,
+      prevAccountantEmail: has ? next.email?.trim() || undefined : undefined,
+      prevAccountantPhone: has ? next.phone?.trim() || undefined : undefined,
+    };
+    if (recipient.kind === 'new') { setRecipient(r => ({ ...r, ...patch })); return; }
+    if (!recipientLead || !onSaveLead) throw new Error('אי אפשר לעדכן את הליד מכאן.');
+    await onSaveLead({ id: recipientLead.id, ...patch });
+  }
+
   const instTxt = deal.installments === 12 ? '12 תשלומים'
     : deal.installments === 1 ? 'תשלום אחד השנה'
     : `${deal.installments} תשלומים השנה`;
@@ -798,6 +830,13 @@ export default function QuotationBuilder({
           <button className="qb-link mute" onClick={() => setPanel('rep')}>שינוי</button>
         </div>
         {repConflict && <div className="qb-warn">{repConflict}</div>}
+        {prevFacts && (
+          <div className="qb-quiet">
+            <span className="qb-quiet-k">רו״ח קודם</span>
+            <span className="qb-quiet-v">{prevAccountantSummary(prevFacts)}</span>
+            <button className="qb-link mute" onClick={() => setPanel('prev')}>שינוי</button>
+          </div>
+        )}
 
         <div className="qb-addrow">
           <button className="qb-link mute" onClick={e => openPop('oneTime', e)}>+ הוספת חיוב חד־פעמי</button>
@@ -880,6 +919,10 @@ export default function QuotationBuilder({
             spouseAlreadyRepresented={spouseRepresentedForRecipient(recipient, clients)} />
         </Modal>
       )}
+      {panel === 'prev' && prevFacts && (
+        <PrevAccountantPanel value={prevFacts} isNewRecipient={recipient.kind === 'new'}
+          onSave={savePrevFacts} onClose={() => setPanel(null)} />
+      )}
       {panel === 'recipient' && (
         <Modal title="נמען ההצעה" onClose={() => setPanel(null)} width={520} footer={null}>
           <RecipientPicker leads={leads} clients={clients} value={recipient}
@@ -915,6 +958,76 @@ export default function QuotationBuilder({
           expiryReminderOn={isNotificationEnabled(profile?.settings ?? {}, 'quotation_expiry_reminder')} />
       )}
     </div>
+  );
+}
+
+/** אותה עובדה כמו בכרטיס הליד: «עסק חדש» (false) / «העברה מרו״ח אחר» (true) / לא סומן. */
+interface PrevFacts {
+  businessTransfer?: boolean;
+  name?: string;
+  email?: string;
+  phone?: string;
+}
+
+function prevAccountantSummary(f: PrevFacts): string {
+  if (f.businessTransfer === true) {
+    const who = f.name?.trim() ? `עובר מ${f.name.trim()}` : 'עובר מרו״ח אחר';
+    return f.email?.trim() ? who : `${who} · חסר מייל למכתב ההעברה`;
+  }
+  if (f.businessTransfer === false) return 'אין · עסק חדש';
+  return 'לא סומן';
+}
+
+function PrevAccountantPanel({ value, isNewRecipient, onSave, onClose }: {
+  value: PrevFacts; isNewRecipient: boolean;
+  onSave: (next: PrevFacts) => Promise<void>; onClose: () => void;
+}) {
+  const [v, setV] = useState<PrevFacts>(value);
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  // כמו בכרטיס הליד: לחיצה על הבחירה המסומנת מבטלת אותה ומחזירה ל«לא סומן».
+  const pick = (next: boolean) => setV(p => p.businessTransfer === next
+    ? { businessTransfer: undefined }
+    : next ? { ...p, businessTransfer: true } : { businessTransfer: false });
+
+  async function save() {
+    setSaving(true); setErr(null);
+    try { await onSave(v); onClose(); }
+    catch (e) { setErr(e instanceof Error ? e.message : 'השמירה נכשלה'); }
+    finally { setSaving(false); }
+  }
+
+  return (
+    <Modal title="רו״ח קודם" onClose={onClose} width={520}
+      footer={<>
+        <button className="btn btn-secondary" onClick={onClose} disabled={saving}>ביטול</button>
+        <button className="btn btn-primary" onClick={() => void save()} disabled={saving}>{saving ? 'שומר…' : 'שמירה'}</button>
+      </>}>
+      <div className="qb-panel-s">
+        לקוח שעובר מרו״ח אחר מקבל עם אישור ההצעה גם את קבוצת העברת הטיפול מהרו״ח הקודם.
+        {isNewRecipient ? ' נשמר בליד שייווצר עם ההצעה.' : ' נשמר בכרטיס הליד.'}
+      </div>
+      <div className="qb-chips" role="group" aria-label="עסק חדש או העברה מרו״ח אחר">
+        <button type="button" className={`qb-chip${v.businessTransfer === false ? ' on' : ''}`}
+          aria-pressed={v.businessTransfer === false} onClick={() => pick(false)}>עסק חדש</button>
+        <button type="button" className={`qb-chip${v.businessTransfer === true ? ' on' : ''}`}
+          aria-pressed={v.businessTransfer === true} onClick={() => pick(true)}>העברה מרו״ח אחר</button>
+      </div>
+      {v.businessTransfer === true && (
+        <div className="qb-newlead" style={{ marginTop: 12 }}>
+          <input placeholder="שם הרו״ח הקודם" aria-label="שם הרו״ח הקודם" value={v.name ?? ''}
+            onChange={e => setV(p => ({ ...p, name: e.target.value }))} />
+          <div className="qb-fld2">
+            <input placeholder="מייל הרו״ח הקודם" aria-label="מייל הרו״ח הקודם" type="email" dir="ltr" value={v.email ?? ''}
+              onChange={e => setV(p => ({ ...p, email: e.target.value }))} />
+            <input placeholder="טלפון" aria-label="טלפון הרו״ח הקודם" dir="ltr" value={v.phone ?? ''}
+              onChange={e => setV(p => ({ ...p, phone: e.target.value }))} />
+          </div>
+          <div className="qb-note">לאחר שהלקוח יאשר, נכין מכתב העברת טיפול לרו״ח הקודם.</div>
+        </div>
+      )}
+      {err && <div className="qb-warn" role="alert">{err}</div>}
+    </Modal>
   );
 }
 
@@ -1642,6 +1755,7 @@ function RecipientPicker({ leads, clients, value, onPick }: {
               phone: nl.phone.trim() || undefined, email: nl.email.trim() || undefined,
               businessName: nl.businessName.trim() || undefined,
               hasPreviousAccountant: hasPrev,
+              ...(hasPrev ? { businessTransfer: true } : {}),
               prevAccountantName: hasPrev ? prev.name.trim() || undefined : undefined,
               prevAccountantEmail: hasPrev ? prev.email.trim() || undefined : undefined,
               prevAccountantPhone: hasPrev ? prev.phone.trim() || undefined : undefined,

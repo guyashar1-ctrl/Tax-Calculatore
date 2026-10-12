@@ -9,10 +9,12 @@
 // &s=renewal               — עדכון התקשרות ללקוח עם הסכם קיים
 // &rep=none                — אותו לקוח, בלי ייצוג קיים (בודק את ברירת המחדל)
 // &prev=1                  — הנמען עובר מרו"ח אחר
+// &prev=new                — הנמען עסק חדש
 
 import type { Client } from '../../types';
 import type { Engagement } from '../../types/onboarding';
 import type { Lead, Quotation, QuotationTemplate, ServiceCatalogItem, QuotationKind } from '../../types/quotations';
+import { useState } from 'react';
 import QuotationBuilder from './QuotationBuilder';
 
 const svc = (
@@ -115,7 +117,8 @@ export default function TestBuilder() {
   const s = p.get('s') ?? '';
   const kind: QuotationKind = s === 'onetime' ? 'one_time' : 'engagement';
   const forClient = s === 'onetime' || s === 'renewal';
-  const lead: Lead = p.get('prev') === '1' ? { ...LEAD, hasPreviousAccountant: true } : LEAD;
+  const [lead, setLead] = useState<Lead>(() => p.get('prev') === '1' ? { ...LEAD, hasPreviousAccountant: true }
+    : p.get('prev') === 'new' ? { ...LEAD, businessTransfer: false } : LEAD);
   const spouseMode = p.get('spouse') === '1';
   const client = p.get('rep') === 'none'
     ? ({ ...CLIENT, representationStatus: undefined } as Client)
@@ -140,6 +143,7 @@ export default function TestBuilder() {
         onSaveDraft={async () => { window.alert('שמירת טיוטה'); }}
         onSend={async (_payload, isTest) => { window.alert(isTest ? 'מייל בדיקה' : 'שליחה ללקוח'); return { ok: true }; }}
         onBack={() => window.alert('חזרה')}
+        onSaveLead={async patch => { setLead(l => ({ ...l, ...patch })); }}
       />
     </div>
   );

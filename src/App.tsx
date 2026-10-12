@@ -2151,6 +2151,7 @@ export default function App() {
         prevAccountantName: payload.recipient.prevAccountantName,
         prevAccountantEmail: payload.recipient.prevAccountantEmail,
         prevAccountantPhone: payload.recipient.prevAccountantPhone,
+        businessTransfer: payload.recipient.businessTransfer,
         status: 'new',
       });
       leadId = lead.id;
@@ -3200,6 +3201,7 @@ export default function App() {
             onSaveDraft={handleSaveQuotationDraft}
             onSend={handleSendQuotation}
             onOpenQuotation={handleOpenQuotation}
+            onSaveLead={async l => { await updateLead(l); }}
             onBack={() => {
               setEditingQuotationId(null);
               // אחרי שליחה — נוחתים על הכרטיס שההצעה יצאה אליו: שם רואים את
