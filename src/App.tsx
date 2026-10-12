@@ -2200,9 +2200,10 @@ export default function App() {
     });
   }
 
-  async function handleSaveQuotationDraft(payload: SaveDraftPayload) {
+  async function handleSaveQuotationDraft(payload: SaveDraftPayload): Promise<{ leadId?: string }> {
     const saved = await persistQuotation(payload);
     setEditingQuotationId(saved.id);
+    return { leadId: saved.leadId };
   }
 
   /**
@@ -2210,8 +2211,21 @@ export default function App() {
    * מייצר טוקן ציבורי, ובונה את ה-HTML באותו מחולל של התצוגה המקדימה — כדי
    * שהמייל יהיה זהה למה שהוצג. מחזיר תוצאה להצגה בבונה.
    */
-  async function handleSendQuotation(payload: SaveDraftPayload, isTest: boolean): Promise<{ ok: boolean; error?: string; link?: string }> {
+  async function handleSendQuotation(payload: SaveDraftPayload, isTest: boolean): Promise<{ ok: boolean; error?: string; link?: string; leadId?: string }> {
     const saved = await persistQuotation(payload);
+    let res: { ok: boolean; error?: string; link?: string } | undefined;
+    try {
+      res = await sendSavedQuotation(payload, saved, isTest);
+      return { ...res, leadId: saved.leadId };
+    } finally {
+      // ‼ ההצעה (וליד חדש) כבר נשמרו. בלי זה הבונה נשאר על «הצעה חדשה», ושליחה או
+      // שמירה נוספת אחרי מייל בדיקה או כישלון יצרו הצעה שנייה וליד כפול. אחרי שליחה
+      // מוצלחת ללקוח הבונה נסגר — שם ההצעה כבר לא טיוטה ואין מה להמשיך לערוך.
+      if (isTest || !res?.ok) setEditingQuotationId(saved.id);
+    }
+  }
+
+  async function sendSavedQuotation(payload: SaveDraftPayload, saved: Quotation, isTest: boolean): Promise<{ ok: boolean; error?: string; link?: string }> {
     const token = saved.publicToken || crypto.randomUUID().replace(/-/g, '');
     const link = `${window.location.origin}/?quote=${token}`;
     const now = new Date().toISOString();

@@ -129,8 +129,9 @@ interface Props {
   currentEngagement?: Engagement;
   existingQuotations: Quotation[];
   checkRepEmailConflict?: (email: string) => string | null;
-  onSaveDraft: (payload: SaveDraftPayload) => Promise<void>;
-  onSend: (payload: SaveDraftPayload, isTest: boolean) => Promise<{ ok: boolean; error?: string; link?: string }>;
+  /** מחזיר את הליד שההצעה שמורה עליו — כדי שנמען «ליד חדש» לא ייווצר שוב בשמירה הבאה. */
+  onSaveDraft: (payload: SaveDraftPayload) => Promise<{ leadId?: string } | void>;
+  onSend: (payload: SaveDraftPayload, isTest: boolean) => Promise<{ ok: boolean; error?: string; link?: string; leadId?: string }>;
   onBack: () => void;
   /** פתיחת הצעה אחרת שכבר קיימת לאותו נמען — כדי שהאזהרה תוביל אליה */
   onOpenQuotation?: (quotation: Quotation) => void;
@@ -552,6 +553,15 @@ export default function QuotationBuilder({
     };
   }
 
+  /**
+   * ‼ «ליד חדש» נוצר בשמירה הראשונה. מכאן הנמען הוא הליד הזה — אחרת כל שמירה או
+   * שליחה נוספת יוצרת ליד נוסף לאותו אדם, וההצעה עוברת אליו והראשון נשאר יתום.
+   */
+  function adoptSavedLead(leadId: string | undefined) {
+    if (!leadId) return;
+    setRecipient(r => (r.kind === 'new' ? { ...r, kind: 'lead', id: leadId } : r));
+  }
+
   function buildPayload(): SaveDraftPayload {
     return {
       id: existing?.id,
@@ -568,7 +578,8 @@ export default function QuotationBuilder({
     if (!recipient.fullName.trim()) { setPanel('recipient'); return; }
     setSaving(true);
     try {
-      await onSaveDraft(buildPayload());
+      const saved = await onSaveDraft(buildPayload());
+      adoptSavedLead(saved?.leadId);
       setSavedAt(Date.now());
     } catch (e) {
       setNotice({ kind: 'err', text: e instanceof Error ? e.message : 'שמירה נכשלה' });
@@ -591,6 +602,7 @@ export default function QuotationBuilder({
     setNotice(null);
     try {
       const res = await onSend(buildPayload(), isTest);
+      adoptSavedLead(res.leadId);
       if (res.ok) {
         setNotice({ kind: 'ok', text: isTest ? 'מייל בדיקה נשלח אליך.' : 'ההצעה נשלחה ללקוח.' });
         if (!isTest) setTimeout(onBack, 900);
