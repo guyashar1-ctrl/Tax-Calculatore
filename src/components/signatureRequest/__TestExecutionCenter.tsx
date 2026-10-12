@@ -269,6 +269,23 @@ const SCENARIOS: Scenario[] = [
     label: '2. הטופס מוכן, חסרה אסמכתא ב״ל (חסום)',
     req: { ...BASE, ...withSetup, execution: ni({ incomeTax: { enteredAt: '2026-07-02T08:00:00.000Z' }, nationalInsurance: { enteredAt: '2026-07-02T09:00:00.000Z' } }) } as RepresentationRequest,
   },
+  // ── 237 · אמיר ויסמרק (12.10): ההצעה ביקשה ב״ל «לשני בני הזוג, אם נשוי», והלקוח
+  // הצהיר «גרוש». targets נשאר עם 'spouse' — המסך אסור שיציע עבודה לבת זוג שאינה קיימת.
+  {
+    key: 'divorced-ni-spouse', label: '237א. גרוש, ב״ל נשאר «לשני בני הזוג»',
+    req: { ...BASE, ...withSetup, clientName: 'אמיר ויסמרק', execution: ni({ incomeTax: { enteredAt: '2026-10-12T08:00:00.000Z' }, nationalInsurance: { enteredAt: '2026-10-12T14:49:07.164Z', referenceNumber: '75538009', deadline: '2026-12-11' } }) } as RepresentationRequest,
+    linked: { id: 'client-1', name: 'אמיר ויסמרק', firstName: 'אמיר', lastName: 'ויסמרק', idNumber: '000000018', birthDate: '1995-02-25',
+      familyStatus: 'divorced', divorceYear: 2025, representationStatus: 'awaiting_accountant',
+      authorityRepresentations: { incomeTax: { status: 'in_process', level: 'primary' }, nationalInsurance: { status: 'in_process', targets: ['client', 'spouse'] } } } as unknown as Client,
+  },
+  // ── 237 · נשוי באמת, אבל לבת הזוג אין שם ות.ז. — לא מציעים «הזן ידנית».
+  {
+    key: 'married-spouse-no-details', label: '237ב. נשוי, לבת הזוג חסרים פרטים',
+    req: { ...BASE, ...withSetup, execution: ni({ incomeTax: { enteredAt: '2026-10-12T08:00:00.000Z' }, nationalInsurance: { enteredAt: '2026-10-12T09:00:00.000Z', referenceNumber: '73882698', deadline: '2026-12-11' } }) } as RepresentationRequest,
+    linked: { id: 'client-1', name: 'רותי לקוח', firstName: 'רותי', lastName: 'לקוח', idNumber: '318853694', birthDate: '1980-01-01',
+      familyStatus: 'married', representationStatus: 'awaiting_accountant',
+      authorityRepresentations: { incomeTax: { status: 'in_process', level: 'primary' }, nationalInsurance: { status: 'in_process', targets: ['client', 'spouse'] } } } as unknown as Client,
+  },
   {
     key: 'ready',
     label: '3. מוכן לשליחה',

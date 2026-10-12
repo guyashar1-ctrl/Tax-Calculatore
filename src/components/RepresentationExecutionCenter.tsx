@@ -49,7 +49,7 @@ import ShaamDropAuthorityButton from './ShaamDropAuthorityButton';
 import RepresentationReconcileButton, { type ReconcileTarget } from './RepresentationReconcileButton';
 import NiNextActionButton from './NiNextActionButton';
 import NiCancelRequest from './NiCancelRequest';
-import { niPersons, niRepresentationOf, niRepresentationAction, niExternalEvidence } from '../utils/niPersons';
+import { niPersons, niPersonIdentity, niRepresentationOf, niRepresentationAction, niExternalEvidence } from '../utils/niPersons';
 import { shaamRepresentationAction } from '../features/taxFile/shaamRepresentationAction';
 import type { ShaamActionKind } from '../features/taxFile/shaamRepresentationAction';
 import ShaamNextActionButton from './ShaamNextActionButton';
@@ -471,7 +471,12 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
    */
   const niTargets = linkedClient ? targetsOf(linkedClient.authorityRepresentations, 'nationalInsurance') : null;
   const niTargetsClient = niTargets ? niTargets.includes('client') : niIncluded;
-  const niTargetsSpouse = niTargets ? niTargets.includes('spouse') : !!niCoversSpouse;
+  // ‼ 237: בן/בת זוג קיים/ת רק אצל לקוח נשוי — אותו תנאי של niPersons. 'spouse'
+  // שנשאר ב-targets מברירת המחדל של ההצעה («אם נשוי») אינו עדות לבן/בת זוג;
+  // מסלול שכבר התחיל הוא כן, ולא מסתירים עבודה אמיתית.
+  const niSpouseStarted = !!(niSpouse.enteredAt || niSpouse.referenceNumber || niSpouse.confirmedAt);
+  const niTargetsSpouse = (niTargets ? niTargets.includes('spouse') : !!niCoversSpouse)
+    && (!linkedClient || linkedClient.familyStatus === 'married' || niSpouseStarted);
 
   /**
    * ‼ 165: הבקשה של כל מסלול ב"ל — לתנאי-הקדם. חיפוש ולא payload על
@@ -1188,6 +1193,25 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
     && !['completed', 'verified', 'skipped', 'cancelled'].includes(st.status)
     && (((st.payload?.prerequisites as { missing?: string[] } | undefined)?.missing) ?? []).length > 0;
   const niStepOf = (role: 'client' | 'spouse') => (role === 'spouse' ? niSpouseStep : niClientStep);
+  /**
+   * ‼ ב"ל שרץ בתוך בקשת הקליטה אין לו שורת «בקשות» לאדם — ולכן אין תנאי-קדם
+   * מהשרת. ארבעת שדות «הוספת ייפוי כח מבוטח» עדיין חובה: בלעדיהם לא מציעים
+   * הזנה ולא שדה אסמכתא (אירוע 12.10: «הזן ידנית» לבת זוג בלי שם ות.ז.).
+   */
+  const niIdentityMissing = (role: 'client' | 'spouse'): string[] => {
+    if (!linkedClient || niStepOf(role) || niExecutionByRole[role].enteredAt) return [];
+    const person = niPersons(linkedClient).find(p => p.role === role);
+    if (!person) return [];
+    const id = niPersonIdentity(person, linkedClient);
+    return [
+      !person.idNumber && 'תעודת זהות',
+      !id?.firstName.trim() && 'שם פרטי',
+      !id?.lastName.trim() && 'שם משפחה',
+      !id?.birthYear && 'שנת לידה',
+    ].filter((x): x is string => !!x);
+  };
+  const niPrereqMissing = (role: 'client' | 'spouse') =>
+    prereqMissingOf(niStepOf(role)) || niIdentityMissing(role).length > 0;
   const patchNi = (role: 'client' | 'spouse', p: Partial<NiTracking>, label: string) =>
     patch({ ...exec, ...(role === 'spouse' ? { nationalInsuranceSpouse: { ...niSpouse, ...p } } : { nationalInsurance: { ...ni, ...p } }) }, label);
   const allPreDocs = submissions.flatMap(sub => preSigningDocsOf(sub));
@@ -1234,7 +1258,7 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
     }),
     ni: niRoles.map(role => ({
       role, name: niNameOf(role),
-      prereqMissing: prereqMissingOf(niStepOf(role)),
+      prereqMissing: niPrereqMissing(role),
       entered: !!niExecutionByRole[role].enteredAt,
       hasRef: !!niExecutionByRole[role].referenceNumber,
       delivered: niInstructionsDelivered(niExecutionByRole[role]),
@@ -1460,7 +1484,7 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
         body = st ? (
           <PrerequisiteGate step={st} currentValues={niPrereqValues} client={prereqClient} spouse={prereqSpouse}
             onSaveEmail={prereqOnSaveEmail} onChanged={() => onStepsChanged?.()}>{null}</PrerequisiteGate>
-        ) : null;
+        ) : <NiIdentityMissingNote missing={niIdentityMissing(role)} />;
       } else if (item.key.startsWith('ni-enter')) {
         ctl = item.done
           ? <span className="rc-meta">{track.foundExternally ? 'נמצא קיים באתר ב״ל' : `סומן ב-${fmt(track.enteredAt)}`}</span>
@@ -1830,7 +1854,7 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
     const t = niExecutionByRole[role];
     const view = niTrackView(t, niLineFor(role));
     if (view.final) return { text: 'הייצוג פעיל', tone: 'done' };
-    if (prereqMissingOf(niStepOf(role))) return { text: 'חסרים פרטים להזנה', tone: 'attention' };
+    if (niPrereqMissing(role)) return { text: 'חסרים פרטים להזנה', tone: 'attention' };
     if (!t.enteredAt) return { text: 'טרם הוזן' };
     if (!t.referenceNumber) return { text: 'הוזן · חסר מספר אסמכתא', tone: 'attention' };
     const base = `אסמכתא ${t.referenceNumber}${t.deadline ? ` · לאישור עד ${fmt(t.deadline)}` : ''}`;
@@ -2080,7 +2104,7 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
   /** ב״ל: כשצריך לפעול בתוך הציר (פרטים חסרים, הזנה, אסמכתא) — הוא נפתח מעצמו. */
   const niNeedsHands = (role: 'client' | 'spouse') => {
     const t = niExecutionByRole[role];
-    return !inPrepare && (prereqMissingOf(niStepOf(role)) || !t.enteredAt || !t.referenceNumber);
+    return !inPrepare && (niPrereqMissing(role) || !t.enteredAt || !t.referenceNumber);
   };
 
   return (
@@ -2164,6 +2188,7 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
                   onPatch={(p, label) => patchNi(role, p, label)}
                   resultShownAbove={false}
                   prereqStep={niStepOf(role)}
+                  identityMissing={niIdentityMissing(role)}
                   prereqCurrentValues={niPrereqValues}
                   prereqClient={prereqClient}
                   prereqSpouse={prereqSpouse}
@@ -2424,6 +2449,15 @@ function fmtTime(iso: string) {
   return `ב-${d.toLocaleDateString('he-IL', { day: 'numeric', month: 'numeric' })} בשעה ${d.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}`;
 }
 
+function NiIdentityMissingNote({ missing }: { missing: string[] }) {
+  if (!missing.length) return null;
+  return (
+    <span className="rc-meta" data-testid="ni-identity-missing">
+      חסרים לטופס בב״ל: {missing.join(', ')}. משלימים בכרטיס הלקוח, ואז אפשר להזין.
+    </span>
+  );
+}
+
 /**
  * הפירוט של ביטוח לאומי לאדם אחד. בב"ל לכל אדם תיק נפרד — לכל אחד אסמכתא,
  * מועד תפוגה ואישור משלו.
@@ -2432,7 +2466,7 @@ function fmtTime(iso: string) {
  */
 function NiDetail({
   ni, line, busy, busyPrefix, inPrepare, nextAction, onPatch, resultShownAbove,
-  prereqStep, prereqCurrentValues, prereqClient, prereqSpouse, prereqOnSaveEmail, prereqOnChanged,
+  prereqStep, prereqCurrentValues, prereqClient, prereqSpouse, prereqOnSaveEmail, prereqOnChanged, identityMissing,
 }: {
   ni: NiTracking;
   line?: NiRepresentationLine | null;
@@ -2449,6 +2483,8 @@ function NiDetail({
   prereqSpouse?: PrerequisitePerson;
   prereqOnSaveEmail?: (role: 'client' | 'spouse', email: string) => Promise<void>;
   prereqOnChanged?: () => void;
+  /** פרטי זהות חסרים כשאין שורת «בקשות» לאדם — ראה niIdentityMissing. */
+  identityMissing?: string[];
 }) {
   const [editingRef, setEditingRef] = useState(false);
   const external = niExternalEvidence(ni);
@@ -2516,6 +2552,8 @@ function NiDetail({
       </Step>
     </div>
   );
+
+  if (identityMissing?.length) return <NiIdentityMissingNote missing={identityMissing} />;
 
   return prereqStep && prereqClient && prereqSpouse ? (
     <PrerequisiteGate
