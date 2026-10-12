@@ -22,7 +22,7 @@
 //   (ב) כותרת x-client-notice-secret (מהדופק בשרת) — רק עם noticeId שכבר בתור.
 // הנמען נקבע בשרת מהכרטיס בלבד.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-import { resolveBrand, buildBrandedEmail, emailFont, esc } from "../_shared/designSystem.ts";
+import { resolveBrand, buildBrandedEmail, emailButton, emailFont, esc } from "../_shared/designSystem.ts";
 import {
   firstPageEmailKind, noticeWording, renderTemplate, templateUses, withIntroLine, type StepEmailTemplate,
 } from "../_shared/stepTemplates.ts";
@@ -34,12 +34,18 @@ const RESEND_EMAILS = resendEmailsUrl(Deno.env.get("RESEND_API_URL"), Deno.env.g
 
 const PROD_REF = "uoweoqtuiettozagwgdw";
 
+// אותם יעדים כמו במייל החתימה (send-onboarding-email).
+const NI_SITE = "https://b2b.btl.gov.il/BTL.ILG.PAYMENTS/IshurIpuyKoachInfo.aspx";
+const NI_SITE_LABEL = "מסך אישור ייפוי כוח למייצג";
+const NI_PHONE = "02-5393740";
+
 type NoticeKind = "new" | "reminder" | "update";
 type EmailEvent = "process_open" | "documents_sent" | "status_update" | "portal_reminder";
 
 interface PortalRes { key?: string; label?: string; done?: boolean }
 interface PortalItem {
   bucket?: string; key?: string; label?: string; sub?: string; kind?: string;
+  actionValue?: string;
   resources?: PortalRes[];
 }
 interface NoticeItem { stepId: string; stepType: string; title?: string; isDocument?: boolean; portalKey?: string }
@@ -365,11 +371,50 @@ Deno.serve(async (req: Request) => {
       if (text) afterCta += block("תהליך הקליטה שלכם", text);
     }
 
+    // ── 239 · החתימה על ייפוי הכוח — ראשונה במייל, עם כפתור ישיר לחתימה ─────
+    // ‼ מייל אחד ללקוח (הכרעת גיא 12.10): החתימה כבר לא יוצאת במייל נפרד, אלא כחלק
+    // מעדכון הדף. היא הפעולה הדחופה, ולכן יושבת מעל הכפתור לדף — עם האסמכתא של
+    // ב"ל כשיש. complete_client_notice (239) מסמן «נשלח לחתימה» רק אם הקישור הזה
+    // באמת במייל, ו«ההוראות נמסרו» רק אם מספר האסמכתא באמת במייל.
+    let signingHtml = "";
+    const repSign = byKey.get("rep_sign");
+    if (kind !== "update" && repSign?.actionValue && items.some(i => i.portalKey === "rep_sign")) {
+      const f = emailFont(brand);
+      const signHref = `${APP_URL}/?sign=${encodeURIComponent(String(repSign.actionValue))}`;
+      const { data: repReq } = await admin.rpc("representation_request_for_client", { p_client_id: client.id });
+      const ni = ((repReq as { execution?: Record<string, any> } | null)?.execution ?? {}).nationalInsurance ?? {};
+      const niRef = String(ni?.referenceNumber ?? "").trim();
+      const niDeadline = ni?.deadline ? new Date(ni.deadline).toLocaleDateString("he-IL") : "";
+      const niCard = !niRef ? "" : `
+          <div style="font-family:${f};text-align:right;font-size:16px;font-weight:700;color:${brand.ink};padding-top:22px;">ואחרי החתימה: אישור הייצוג בביטוח הלאומי</div>
+          <div style="font-family:${f};text-align:right;font-size:14px;color:${brand.muted};line-height:1.7;padding-top:4px;">את ייפוי הכוח כבר הזנו בביטוח הלאומי. נשאר רק לאשר אותו - בלי האישור הייצוג לא נכנס לתוקף.</div>
+          <div style="border:1px solid ${brand.border};border-radius:${brand.radius}px;padding:14px;background:#ffffff;margin-top:10px;">
+            <div style="font-family:${f};text-align:center;font-size:12.5px;color:${brand.muted};">מספר האסמכתא שלך</div>
+            <div dir="ltr" style="font-family:${f};text-align:center;font-size:30px;font-weight:700;letter-spacing:.06em;color:${brand.accent};padding-top:2px;">${esc(niRef)}</div>
+            ${niDeadline ? `<div style="font-family:${f};text-align:center;font-size:13.5px;color:#8A4B00;padding-top:6px;">יש לאשר עד <strong style="color:#7A3E00;">${esc(niDeadline)}</strong></div>` : ""}
+          </div>
+          <div style="font-family:${f};text-align:right;font-size:14px;color:${brand.muted};line-height:1.85;padding-top:12px;">
+            <strong style="color:${brand.ink};">באתר:</strong> נכנסים ל<a href="${esc(NI_SITE)}" style="color:${brand.accent};font-weight:700;">${esc(NI_SITE_LABEL)}</a>, מקלידים את מספר תעודת הזהות שלך ואת מספר האסמכתא, מזדהים בכרטיס אשראי או בטלפון/מייל המעודכנים בביטוח הלאומי, ומאשרים. הייצוג נכנס לתוקף מיד.<br />
+            <strong style="color:${brand.ink};">בטלפון:</strong> <span dir="ltr">${esc(NI_PHONE)}</span> (מענה קולי) - עם מספר האסמכתא וקוד בן 6 ספרות שהביטוח הלאומי שולח בדואר או במייל.
+          </div>`;
+      signingHtml = `
+        <tr><td dir="rtl" align="right" style="text-align:right;padding:18px 40px 6px;">
+          <div style="border:1.5px solid ${brand.accent};border-radius:${brand.radius + 2}px;padding:18px 18px 20px;background:${brand.pageBg};">
+            <div style="font-family:${f};text-align:right;font-size:12.5px;font-weight:700;color:${brand.accent};">קודם כל</div>
+            <div style="font-family:${f};text-align:right;font-size:18px;font-weight:700;color:${brand.ink};padding-top:3px;">חתימה על ייפוי הכוח</div>
+            <div style="font-family:${f};text-align:right;font-size:14px;color:${brand.muted};line-height:1.7;padding-top:4px;">הטופס מוכן. חתימה דיגיטלית, פחות מדקה, גם מהטלפון.</div>
+            <div style="padding-top:14px;">${emailButton(brand, "לחתימה על הטופס", signHref, true)}</div>
+            ${niCard}
+          </div>
+        </td></tr>`;
+    }
+
     const waiting = kind === "new" ? items.filter(i => !i.isDocument).length + otherActions.length
       : kind === "reminder" ? items.length : actions.length;
     const html = buildBrandedEmail(brand, {
       heading,
       bodyHtml: esc(rendered.body).replace(/\n/g, "<br />"),
+      extraHtml: signingHtml || undefined,
       afterCtaHtml: afterCta,
       ctaLabel: wording.ctaLabel,
       ctaHref: portalUrl,

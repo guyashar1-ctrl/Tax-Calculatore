@@ -41,6 +41,7 @@ import {
 import type { RepApprovalStep } from '../hooks/useRepApprovalStep';
 import EmailStatusRow from './EmailActivity/EmailStatusRow';
 import EmailPreviewDialog from './EmailActivity/EmailPreviewDialog';
+import SendPortalDialog from './clientTabs/SendPortalDialog';
 import { isUnknownEmailStatus, isUnknownSendReply, unknownSendText } from '../types/emailActivity';
 import { UNKNOWN_OUTCOME_TEXT } from '../../supabase/functions/_shared/resendResult.ts';
 import type { RepSigner } from '../types';
@@ -484,6 +485,13 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
    * representation_requests (שני מקורות אמת נפרדים בכוונה — ראה 157/165).
    * status !== 'cancelled' כמו כל צריכה אחרת של שלבי «בקשות».
    */
+  /**
+   * 239 · יש ללקוח דף אישי שהייצוג הוא שורה בו ⇒ החתימה יוצאת עם עדכון הדף.
+   * בלי שלב ייצוג מפורסם (בקשה ישנה, בלי קליטה) — מייל החתימה הנפרד, כמו קודם.
+   */
+  const pageChannel = !!linkedClient && !!steps?.some(s => s.clientId === linkedClient.id
+    && s.stepType === 'representation' && !!s.publishedAt && !['cancelled', 'skipped'].includes(s.status));
+
   const niClientStep = linkedClient
     ? steps?.find(s => s.clientId === linkedClient.id && s.stepType === 'authority_representation'
         && s.payload?.authority === 'national_insurance' && s.payload?.subjectRole !== 'spouse'
@@ -628,8 +636,76 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
   const [unassignedAsk, setUnassignedAsk] = useState<{ only?: string } | null>(null);
   /** null = לכל מי שיש לו מייל. מזהה חותם = רק אליו, והוא יעביר לשני. */
   const [sendOnlyTo, setSendOnlyTo] = useState<string | null>(null);
+  /**
+   * ‼ 239 · מייל אחד ללקוח (הכרעת גיא 12.10): ללקוח עם דף אישי, החתימה יוצאת עם
+   * עדכון הדף — לא במייל נפרד. החלון הוא חלון השליחה של הדף עצמו.
+   */
+  const [pageSend, setPageSend] = useState<'new' | 'reminder' | null>(null);
+  /** פעם אחת לכל פתיחה של החלון — המייל לבן/בת הזוג לא יוצא פעמיים. */
+  const pageSentHandled = useRef(false);
   /** המדריך המצולם שהלקוח רואה בכרטיס — כדי שהמשרד יוכל ללוות אותו בטלפון. */
   const [approvalGuideOpen, setApprovalGuideOpen] = useState(false);
+
+  /**
+   * 239 · «שלח» ללקוח שיש לו דף אישי: מכינים לחתימה (208), מפרסמים את הדף כיחידה,
+   * ופותחים את מייל הדף — שבו החתימה ראשונה. «נשלח לחתימה» נרשם בשרת רק אם המייל
+   * שיצא נשא את קישור החתימה (239), ולכן לא נכתב מכאן.
+   */
+  async function handleSendViaPage(askUnassigned = false) {
+    if (!linkedClient) return;
+    if (!formReady) {
+      setNote({ kind: 'err', text: formProblems.length ? `הטופס לא מוכן לחתימה: ${formProblems.map(p => p.text).join(' ')}` : 'הטופס לא מוכן לחתימה.' });
+      return;
+    }
+    setBusy('send');
+    setNote(null);
+    const prep = await prepareRequestForSigning(request.id, { askUnassigned });
+    if (!prep.ok) {
+      if (prep.reason === 'unassigned_identity') setUnassignedAsk({});
+      else setNote({ kind: 'err', text: prep.error });
+      setBusy(null);
+      return;
+    }
+    const { data, error: pubErr } = await supabase.rpc('publish_case_changes', { p_client_id: linkedClient.id });
+    const pub = data as { ok?: boolean; error?: string } | null;
+    setBusy(null);
+    onStepsChanged?.();
+    if (pubErr || !pub?.ok) {
+      setNote({ kind: 'err', text: pub?.error === 'quotation_not_approved'
+        ? 'ההצעה עוד לא אושרה - הדף ייפתח ללקוח כשיאשר אותה.'
+        : 'עדכון הדף נכשל. אפשר לנסות שוב.' });
+      return;
+    }
+    pageSentHandled.current = false;
+    setPageSend('new');
+  }
+
+  /**
+   * אחרי שמייל הדף יצא: בן/בת זוג שחותם/ת — אין לו/ה דף, ולכן מייל חתימה אישי
+   * (החריג המכוון). הוראות ב"ל שלו/ה «נמסרו» רק אם המייל אליו/ה באמת יצא.
+   */
+  async function afterPageSent() {
+    if (pageSentHandled.current) return;
+    pageSentHandled.current = true;
+    const spouses = pendingSigners.filter(s => s.role === 'spouse' && s.email.trim());
+    const failures: string[] = [];
+    let spouseSent = false;
+    for (const s of spouses) {
+      const err = await onSendToSigner(s);
+      if (!err) spouseSent = true;
+      else failures.push(`${s.name || s.email}: ${err}`);
+    }
+    if (spouseSent && niTargetsSpouse && niSpouse.referenceNumber && !niSpouse.instructionsSentAt) {
+      await onSaveExecution({
+        ...exec,
+        nationalInsuranceSpouse: { ...niSpouse, instructionsSentAt: new Date().toISOString(), instructionsSentWith: 'signature' },
+      });
+    }
+    onStepsChanged?.();
+    void reloadEmails();
+    if (failures.length) setNote({ kind: 'err', text: `המייל ל${firstName || 'לקוח'} יצא. לא נשלח: ${failures.join(' · ')}` });
+    else if (spouseSent) setNote({ kind: 'ok', text: `יצא מייל ל${firstName || 'לקוח'}, ומייל חתימה אישי ל${spouses.map(s => s.name || s.email).join(', ')}` });
+  }
 
   /**
    * שולח לחותמים שנבחרו, ומתעד שההוראות לב"ל יצאו — **רק למי שבאמת נשלח
@@ -1563,11 +1639,27 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
   const recipients = pendingSigners.filter(s => (sendOnlyTo ? s.id === sendOnlyTo : !!s.email.trim()));
   /** נמענים שהניסיון האחרון אליהם «לא ידוע אם יצא» — שליחה נוספת רק אחרי אישור. */
   const unknownRecipients = recipients.filter(lastAttemptUnknown);
-  const proceedSend = () => (missingIds.length > 0 ? setConfirmSendWithoutId(true) : void handleSendAll(sendOnlyTo ?? undefined));
-  const sendClick = () => (unknownRecipients.length > 0 ? setConfirmResendUnknown(true) : proceedSend());
+  const doSend = (only?: string, askUnassigned = false) =>
+    (pageChannel ? handleSendViaPage(askUnassigned) : handleSendAll(only, askUnassigned));
+  const proceedSend = () => (missingIds.length > 0 ? setConfirmSendWithoutId(true) : void doSend(sendOnlyTo ?? undefined));
+  const sendClick = () => (!pageChannel && unknownRecipients.length > 0 ? setConfirmResendUnknown(true) : proceedSend());
   const toFirst = firstName ? `ל${firstName}` : 'ללקוח';
   const sendLabel = sendOnlyTo ? `שלח ל${pendingSigners.find(s => s.id === sendOnlyTo)?.name || 'חותם'}`
     : `שלח ${toFirst}${emailableSigners.length > 1 ? ` (${emailableSigners.length} חותמים)` : ''}`;
+  const clientMail = linkedClient?.email?.trim() ?? '';
+  const spouseMailSigners = pendingSigners.filter(s => s.role === 'spouse' && s.email.trim());
+  /** 239 · מה יוצא כשלוחצים — במילים, לפני הלחיצה. */
+  const pageSendLines = (
+    <>
+      <div className="rc-aside-line">מייל אחד: החתימה ראשונה, ואיתה מה שעוד ממתין {firstName ? `ל${firstName}` : 'ללקוח'} בדף</div>
+      {clientMail
+        ? <div className="rc-aside-line">אל <span className="ltr-isolate rc-addr">{clientMail}</span></div>
+        : <div className="rc-aside-line" data-tone="warn">אין מייל בכרטיס - יופק קישור לדף, לוואטסאפ</div>}
+      {spouseMailSigners.map(s => (
+        <div key={s.id} className="rc-aside-line">ול{s.name || 'בן/בת הזוג'} - מייל חתימה אישי</div>
+      ))}
+    </>
+  );
   const recipientLine = recipients.length > 0
     ? <div className="rc-aside-line">אל {recipients.map(s => <span key={s.id} className="ltr-isolate rc-addr">{s.email.trim()}</span>)}</div>
     : <div className="rc-aside-line" data-tone="warn">לאף חותם אין כתובת מייל</div>;
@@ -1585,12 +1677,14 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
       const left = plan.prepare.filter(i => !i.done).length || 1;
       heroBody = <div className="rc-checklist" data-testid="rc-prepare">{plan.prepare.map(prepareRow)}</div>;
       aside = {
-        title: `המייל ${toFirst}`,
+        title: pageChannel ? `הדף של ${firstName || 'הלקוח'}` : `המייל ${toFirst}`,
         content: (
           <>
-            <button className="btn btn-primary" disabled data-testid="rc-send-pending">{sendLabel}</button>
+            <button className="btn btn-primary" disabled data-testid="rc-send-pending">{pageChannel ? `שלח ${toFirst}` : sendLabel}</button>
             <div className="rc-aside-line">{left === 1 ? 'ייפתח אחרי הצעד האחרון' : `ייפתח אחרי ${left} הצעדים`}</div>
-            {recipients.length > 0 && recipientLine}
+            {pageChannel
+              ? (clientMail ? <div className="rc-aside-line">אל <span className="ltr-isolate rc-addr">{clientMail}</span></div> : null)
+              : recipients.length > 0 && recipientLine}
           </>
         ),
       };
@@ -1609,6 +1703,32 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
       } : null;
       break;
     case 'send':
+      if (pageChannel) {
+        heroBody = (
+          <>
+            <AskList title={`מה נבקש מ${firstName || 'הלקוח'}`} items={clientAsks(false)} />
+            {poaEntries.filter(p => p.version).map(p => (
+              <button key={p.key} type="button" className="rc-link" data-testid="rc-hero-view-poa" onClick={() => setHeroPoa(p)}>
+                {poaEntries.length > 1 ? `צפייה ב${p.name} ובמקומות החתימה` : 'צפייה בטופס ובמקומות החתימה'}
+              </button>
+            ))}
+          </>
+        );
+        aside = {
+          title: `הדף של ${firstName || 'הלקוח'}`,
+          content: (
+            <>
+              <button className="btn btn-primary" data-testid="rc-send"
+                disabled={busy === 'send' || niRefMissing || pendingSigners.length === 0} onClick={sendClick}>
+                {busy === 'send' ? 'מכין…' : `שלח ${toFirst}`}
+              </button>
+              {pageSendLines}
+              <div className="rc-aside-line">המייל ייפתח לתצוגה מקדימה לפני השליחה</div>
+            </>
+          ),
+        };
+        break;
+      }
       heroBody = (
         <>
           <AskList title={`מה נבקש מ${firstName || 'הלקוח'}`} items={clientAsks(false)} />
@@ -1656,7 +1776,8 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
     case 'waiting_client':
       heroBody = <AskList items={clientAsks(true)} />;
       aside = {
-        title: signers.length > 1 ? 'המיילים לחותמים' : `המייל ${toFirst}`,
+        title: pageChannel ? `הדף של ${firstName || 'הלקוח'}`
+          : signers.length > 1 ? 'המיילים לחותמים' : `המייל ${toFirst}`,
         content: (
           <div className="rc-signers" data-testid="rc-signers">
             {signers.map(s => {
@@ -1666,7 +1787,9 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
                 <SignerLine key={s.id} signer={s} showName={signers.length > 1}
                   signed={effectiveSignStatus(request, s) === 'signed'}
                   emails={signerEmails(s)} track={niTrackFor(s)}
-                  onRemind={canRemind ? () => handleRemind({ toEmail: s.email }) : undefined}
+                  onRemind={canRemind && !(pageChannel && s.role !== 'spouse') ? () => handleRemind({ toEmail: s.email }) : undefined}
+                  onRemindViaPage={pageChannel && s.role !== 'spouse' && !!clientMail
+                    ? () => { pageSentHandled.current = true; setPageSend('reminder'); } : undefined}
                   batchSentAt={exec.signatureEmailSentAt}
                   onCopiedLink={() => void markLinkHandedOver(s.role === 'spouse' ? 'spouse' : 'client')} />
               );
@@ -2294,7 +2417,7 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
           </>}
           confirmLabel="שלח בכל זאת"
           onCancel={() => setConfirmSendWithoutId(false)}
-          onConfirm={() => { setConfirmSendWithoutId(false); void handleSendAll(sendOnlyTo ?? undefined); }}
+          onConfirm={() => { setConfirmSendWithoutId(false); void doSend(sendOnlyTo ?? undefined); }}
         />
       )}
 
@@ -2312,7 +2435,7 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
           confirmLabel="בקש מהלקוח צילום ושלח"
           cancelLabel="אשייך קודם"
           onCancel={() => setUnassignedAsk(null)}
-          onConfirm={() => { const o = unassignedAsk.only; setUnassignedAsk(null); void handleSendAll(o, true); }}
+          onConfirm={() => { const o = unassignedAsk.only; setUnassignedAsk(null); void doSend(o, true); }}
         />
       )}
 
@@ -2324,6 +2447,18 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
       {heroPoa && (
         <PoaViewer entry={heroPoa} signers={signers} values={request.signatureValues} loadDoc={loadDoc}
           composeClientSigned={composeClientSigned} onClose={() => setHeroPoa(null)} />
+      )}
+      {pageSend && linkedClient && (
+        <SendPortalDialog
+          clientId={linkedClient.id}
+          clientName={clientDisplayName(linkedClient)}
+          clientEmail={linkedClient.email}
+          emailKind={pageSend}
+          initialMode="email"
+          heading={pageSend === 'reminder' ? 'תזכורת ללקוח' : `שליחה ${toFirst}`}
+          onSent={() => { if (pageSend === 'new') void afterPageSent(); else { onStepsChanged?.(); void reloadEmails(); } }}
+          onClose={() => { setPageSend(null); onStepsChanged?.(); }}
+        />
       )}
       {previewSignerId && (
         <EmailPreviewDialog
@@ -2346,7 +2481,7 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
  * השליחה של הבקשה (נכתב רק אחרי שכל המיילים יצאו בהצלחה). כך הכותרת («המייל
  * יצא») והשורה של החותם לעולם לא סותרות זו את זו.
  */
-function SignerLine({ signer, showName, signed, emails, track, onCopiedLink, onRemind, batchSentAt }: {
+function SignerLine({ signer, showName, signed, emails, track, onCopiedLink, onRemind, onRemindViaPage, batchSentAt }: {
   signer: RepSigner;
   showName: boolean;
   signed: boolean;
@@ -2355,6 +2490,8 @@ function SignerLine({ signer, showName, signed, emails, track, onCopiedLink, onR
   track?: NiTracking;
   onCopiedLink: () => void;
   onRemind?: () => Promise<{ text: string; unknown: boolean } | null>;
+  /** 239 · ללקוח עם דף: התזכורת היא תזכורת הדף (חלון השליחה של הדף), לא מייל חתימה נפרד. */
+  onRemindViaPage?: () => void;
   batchSentAt?: string;
 }) {
   const [copied, setCopied] = useState(false);
@@ -2418,8 +2555,13 @@ function SignerLine({ signer, showName, signed, emails, track, onCopiedLink, onR
         </div>
       )}
       {refPending && <div className="rc-err">אסמכתא {track!.referenceNumber} של ביטוח לאומי טרם נמסרה</div>}
-      {!signed && (onRemind || link) && (
+      {!signed && (onRemind || onRemindViaPage || link) && (
         <div className="rc-signer-acts">
+          {onRemindViaPage && (
+            <button type="button" className="btn btn-secondary btn-sm" data-testid="rc-signer-remind-page" onClick={onRemindViaPage}>
+              תזכורת בדף
+            </button>
+          )}
           {onRemind && (
             <button type="button" className="btn btn-secondary btn-sm"
               onClick={() => (lastUnknown && !confirmAgain ? setConfirmAgain(true) : void remind())}>
