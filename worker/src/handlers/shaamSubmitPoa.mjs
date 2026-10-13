@@ -42,17 +42,12 @@ import {
 
 export const actionType = 'shaam.submit_poa';
 
-/**
- * ‼ שומר ההפעלה של המקרה החי הראשון — **זמני**.
- * שורות 2–5 במסך «טעינת מסמכים» טרם נצפו גלויות בהרצה חיה; ההתנהגות שלהן
- * נגזרת מקוד האפליקציה של שע״ם. עד שמקרה אמיתי אחד יאומת, כשמופיעה שורה
- * נוספת — העובד מזהה, מסווג, משייך לאדם, בוחר את המסמך, בודק את הדיאלוג
- * (תצוגה בלבד), מדווח את תוכנית ההעלאה — ו**עוצר לפני שמעלה**. זה לא כשל
- * ולא «חסר מסמך»: המשימה מסתיימת בקוד `first_live_verification`.
- * שידור של טופס בלבד (בלי שורה נוספת) אינו מושפע.
- * להסרה: רק אחרי אימות חי של מקרה אחד, בשינוי קוד מכוון (לא הגדרה).
- */
-export const EXTRA_DOCUMENT_UPLOAD_LIVE_VERIFIED = false;
+// ‼ 13.10.2026 · שומר «עצירת אימות ראשון» הוסר. המקרה החי (אמיר ויסמרק, משימה
+// 5d97010b) הוכיח את כל מה שלפני ההעלאה: שורה 2 נקראה, ה-PDF של האדם שבכותרת
+// נמצא, והדיאלוג dialogTeinatTzilumTz נפתח ונמצא תואם — ואז השומר עצר את כל
+// ההגשה, כולל הטופס החתום. ההעלאה עצמה עוברת באותו רכיב shaam-file-upload של
+// שורה 1, שכבר הוגשה חיה (הדסה סלע, 23.09). הקוד first_live_verification נשאר
+// מוכר בשרת ובמסך רק לעצירות ישנות — ומשם «שלח טופס חתום לשע״ם» שוב.
 
 const NOT_READY =
   'מערכת רישום הייצוג בשע״ם אינה מוכנה. לחצו על "שע״ם" בכותרת, השלימו את ' +
@@ -123,10 +118,6 @@ function documentsStop(code, slots) {
       `${details ? `: ${details}` : '. צרפו צילום בפורמט JPEG, PNG, HEIC או PDF.'} `,
     required_document_unavailable:
       `שע״ם דורשת ${lines}, ולא הצלחתי לקרוא את המסמך מתיק הלקוח. `,
-    first_live_verification:
-      `עצירת אימות ראשון (לא תקלה): שע״ם מציגה שורה נוספת — ${lines}. המסמך נמצא והתוכנית ` +
-      'נשמרה, אבל העלאה אוטומטית של מסמך נוסף עוד לא אומתה מול שע״ם החיה. השלימו את ההגשה ' +
-      'ידנית בשע״ם לפי התוכנית שבמרכז הייצוג, ואז «שודר ידנית - סמנו כנשלח». ',
   }[code] ?? '';
   return new PermanentError(`${text}${NOTHING_SENT}`, code);
 }
@@ -273,7 +264,7 @@ export async function run(ctx, input) {
       const r = await getIdentityDocument(ctx.workerId, ctx.job.id, { entityId: plan.entityId, slotKind: slot.kind });
       return { slot, result: r ?? { ok: false, error: 'no_response' } };
     }));
-    const decision = documentsSubmissionDecision(resolved, { extraUploadVerified: EXTRA_DOCUMENT_UPLOAD_LIVE_VERIFIED });
+    const decision = documentsSubmissionDecision(resolved);
     const planReport = (evidence = []) => ({
       entityId: plan.entityId,
       decision: decision.ok ? 'upload' : decision.code,
@@ -291,7 +282,7 @@ export async function run(ctx, input) {
       at: new Date().toISOString(),
     });
 
-    if (!decision.ok && decision.code !== 'first_live_verification') {
+    if (!decision.ok) {
       await progress.set({ shaamDocumentsPlan: planReport() });
       ctx.log(`עצירה לפני טעינה: ${decision.code}`);
       throw documentsStop(decision.code, decision.slots);
@@ -312,12 +303,6 @@ export async function run(ctx, input) {
       evidence.push({ slotId: x.slot.id, dialog: seen.dialog, title: seen.title });
     }
 
-    if (!decision.ok) {
-      // first_live_verification — ראה EXTRA_DOCUMENT_UPLOAD_LIVE_VERIFIED.
-      await progress.set({ shaamDocumentsPlan: planReport(evidence) });
-      ctx.log('עצירת אימות ראשון: שורה נוספת זוהתה, המסמך נמצא, התוכנית נשמרה — לא מעלים');
-      throw documentsStop('first_live_verification', decision.slots);
-    }
     await progress.set({ shaamDocumentsPlan: planReport(evidence) });
 
     // ── «+» ⇒ דיאלוג «טופס ייפוי כוח» — תצוגה בלבד, עדיין לפני הנגיעה ──────

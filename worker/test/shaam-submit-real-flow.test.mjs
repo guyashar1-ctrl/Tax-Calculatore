@@ -206,7 +206,7 @@ test('שלב 5 · בלי המעבר, בלי הכותרת, או לקוח אחר �
 
 // ── הגבול, פעם אחת, ו«נשלח» רק על ראיה ─────────────────────────────────────
 
-test('סדר · זהות ותוכנית → מסמכים (שרת) → בדיקת דיאלוגים → שומר → סימן נגיעה → העלאה → «המשך» אחד', () => {
+test('סדר · זהות ותוכנית → מסמכים (שרת) → בדיקת דיאלוגים → סימן נגיעה → העלאה → «המשך» אחד', () => {
   const at = (needle) => { const i = HANDLER.indexOf(needle); assert.ok(i > 0, `חסר: ${needle}`); return i; };
   const gate = at('assertNotAlreadyAttempted(progress');
   const open = at('await openRequestForDocuments(');
@@ -215,13 +215,12 @@ test('סדר · זהות ותוכנית → מסמכים (שרת) → בדיקת
   const docs = at('getIdentityDocument(ctx.workerId, ctx.job.id');
   const decide = at('documentsSubmissionDecision(resolved');
   const inspect = at('await inspectSlotDialog(page, x.slot)');
-  const guard = at("throw documentsStop('first_live_verification'");
   const poaDlg = at('await openSlotUploadDialog(page, poaSlot)');
   const mark = at("markExternalAttempt('upload_signed_form')");
   const upload = at('await uploadIntoSlot(page, poaSlot');
   const confirm = at('await confirmDocumentsStep(');
   assert.ok(gate < open && open < report && report < plan && plan < docs && docs < decide
-    && decide < inspect && inspect < guard && guard < poaDlg && poaDlg < mark && mark < upload && upload < confirm);
+    && decide < inspect && inspect < poaDlg && poaDlg < mark && mark < upload && upload < confirm);
   assert.equal((HANDLER.match(/await confirmDocumentsStep\(/g) || []).length, 1);
   // ‼ אין לולאת ניסיונות: הלולאות היחידות עוברות על שורות המסמכים, פעם אחת כל אחת.
   assert.ok(!/while\s*\(|\.retry|attempt\s*\+\+|attempts\s*\+/.test(HANDLER), 'אין לולאת ניסיון חוזר');

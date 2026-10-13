@@ -45,8 +45,8 @@ export const TESTS: TestCase[] = [
     equal(shaamLifecycleStage('pending_signature', gate('awaiting_required_documents'), false), 'signatures_pending');
   }),
 
-  test('פעולה: ממתין למסמך / המרה / לא נתמך / אימות ראשון ⇒ מושבת (לא «נסה שוב»)', () => {
-    for (const s of ['awaiting_required_documents', 'document_not_pdf_convertible', 'unsupported_required_document', 'first_live_verification']) {
+  test('פעולה: ממתין למסמך / המרה / לא נתמך ⇒ מושבת (לא «נסה שוב»)', () => {
+    for (const s of ['awaiting_required_documents', 'document_not_pdf_convertible', 'unsupported_required_document']) {
       const a = shaamRepresentationAction('awaiting_stamp', gate(s), true)!;
       equal(a.kind, 'submit', s);
       equal(a.disabled, true, s);
@@ -59,6 +59,13 @@ export const TESTS: TestCase[] = [
     equal(shaamRepresentationAction('awaiting_stamp', gate('required_document_unavailable'), true)!.disabled, false);
   }),
 
+  test('13.10 · עצירת «אימות ראשון» ישנה (אמיר) ⇒ השידור זמין שוב, עם הסבר', () => {
+    const a = shaamRepresentationAction('awaiting_stamp', gate('first_live_verification'), true)!;
+    deepEqual([a.kind, a.disabled], ['submit', false]);
+    assert(/שלחו שוב/.test(a.reason ?? ''), 'הסבר שמזמין לשלוח שוב');
+    equal(shaamStopState(job('first_live_verification'))!.allowDirectRetry, true);
+  }),
+
   test('שער שהוחלף ב-resume_queued / submitted אינו חוסם', () => {
     equal(shaamDocumentsBlocked(gate('resume_queued')), null);
     equal(shaamDocumentsBlocked({ ...gate('awaiting_required_documents'), submittedAt: '2026-09-27T10:00:00Z' }), null);
@@ -67,7 +74,6 @@ export const TESTS: TestCase[] = [
   test('עצירה: קודי המסמכים ⇒ documents_wait, לא נגע בשע״ם, «נסה שוב» רק כשהתיקון במשרד', () => {
     const w = shaamStopState(job('awaiting_required_documents'))!;
     deepEqual([w.kind, w.mayHaveActed, w.allowDirectRetry, w.suggestCheck], ['documents_wait', false, false, false]);
-    equal(shaamStopState(job('first_live_verification'))!.allowDirectRetry, false);
     equal(shaamStopState(job('needs_document_assignment'))!.allowDirectRetry, true);
     // ‼ גם אם איכשהו נרשם סימן נגיעה — «לא ידוע אם נקלט» גובר (לא documents_wait).
     const touched = shaamStopState(job('ambiguous_submit_result', { progress: { externalAttempt: { at: 'x' } } } as never))!;

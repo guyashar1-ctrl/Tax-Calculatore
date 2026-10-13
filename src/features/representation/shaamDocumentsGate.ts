@@ -61,9 +61,10 @@ const STATE_TEXT: Record<ShaamDocumentsGateState, { title: string; next: string;
     next: 'השלימו את ההגשה ידנית בשע״ם, ואז «שודר ידנית - סמנו כנשלח».',
     tone: 'attention',
   },
+  // ‼ 13.10.2026 · עצירה ישנה: השומר שגרם לה הוסר מהעובד.
   first_live_verification: {
-    title: 'עצירת אימות ראשון — לא תקלה',
-    next: 'המסמך נמצא והתוכנית מוכנה, אבל העלאה אוטומטית של מסמך נוסף עוד לא אומתה מול שע״ם. השלימו ידנית בשע״ם לפי התוכנית, ואז «שודר ידנית - סמנו כנשלח».',
+    title: 'העלאת המסמך הנוסף זמינה עכשיו — שלחו שוב',
+    next: '',
     tone: 'attention',
   },
   required_document_unavailable: {

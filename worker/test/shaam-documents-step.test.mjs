@@ -10,12 +10,12 @@ import {
   SHAAM_DOC_SLOTS, slotForLabel, normDocLabel, documentsHeaderEntity,
   documentsStepPlan, documentsSubmissionDecision, dialogMatchesSlot,
 } from '../src/shaamRepresentationSession.mjs';
-import { EXTRA_DOCUMENT_UPLOAD_LIVE_VERIFIED } from '../src/handlers/shaamSubmitPoa.mjs';
 
 const src = (p) => readFileSync(new URL(p, import.meta.url), 'utf8');
 const CONTROLLER = src('./fixtures/shaam-src-2026-09-23/uploadKasafot.controller.js');
 const TEMPLATE = src('./fixtures/shaam-src-2026-09-23/uploadKasafot.template.html');
 const HANDLER = src('../src/handlers/shaamSubmitPoa.mjs');
+const SESSION_SRC = src('../src/shaamRepresentationSession.mjs');
 
 const ID = '034605212';
 const SPOUSE_ID = '000000273';
@@ -116,45 +116,40 @@ const passSlot = SHAAM_DOC_SLOTS[4];
 const ready = (slot, over = {}) => ({ slot, result: { ok: true, person: 'client', personName: 'הדסה סלע', fileName: 'x.pdf', pageCount: 1, ...over } });
 const fail = (slot, error) => ({ slot, result: { ok: false, error } });
 
-test('החלטה · אין שורות נוספות ⇒ ממשיכים (הטופס לבד — אינו מושפע מהשומר)', () => {
-  assert.deepEqual(documentsSubmissionDecision([], { extraUploadVerified: false }), { ok: true, uploads: [] });
+test('החלטה · אין שורות נוספות ⇒ ממשיכים (הטופס לבד)', () => {
+  assert.deepEqual(documentsSubmissionDecision([]), { ok: true, uploads: [] });
 });
 
 test('החלטה · חסר מסמך ⇒ awaiting_required_documents', () => {
-  const d = documentsSubmissionDecision([fail(idSlot, 'missing')], { extraUploadVerified: true });
+  const d = documentsSubmissionDecision([fail(idSlot, 'missing')]);
   assert.deepEqual([d.ok, d.code], [false, 'awaiting_required_documents']);
 });
 
 test('החלטה · 208 · יש צילום שהלקוח לא אישר ⇒ ממתינים (awaiting_required_documents), לא מעלים', () => {
-  const d = documentsSubmissionDecision([fail(idSlot, 'not_confirmed')], { extraUploadVerified: true });
+  const d = documentsSubmissionDecision([fail(idSlot, 'not_confirmed')]);
   assert.deepEqual([d.ok, d.code], [false, 'awaiting_required_documents']);
   assert.equal(d.slots.length, 1);
 });
 
 test('החלטה · אי אפשר לשייך גובר על הכול; המרה גוברת על חוסר', () => {
-  assert.equal(documentsSubmissionDecision([fail(idSlot, 'missing'), fail(passSlot, 'needs_document_assignment')], { extraUploadVerified: true }).code, 'needs_document_assignment');
-  assert.equal(documentsSubmissionDecision([fail(idSlot, 'missing'), fail(passSlot, 'not_pdf_convertible')], { extraUploadVerified: true }).code, 'document_not_pdf_convertible');
+  assert.equal(documentsSubmissionDecision([fail(idSlot, 'missing'), fail(passSlot, 'needs_document_assignment')]).code, 'needs_document_assignment');
+  assert.equal(documentsSubmissionDecision([fail(idSlot, 'missing'), fail(passSlot, 'not_pdf_convertible')]).code, 'document_not_pdf_convertible');
 });
 
 test('החלטה · תשובה לא צפויה מהשרת ⇒ עוצרים (לא מדלגים על השורה)', () => {
-  assert.equal(documentsSubmissionDecision([fail(idSlot, 'download_failed')], { extraUploadVerified: true }).code, 'required_document_unavailable');
+  assert.equal(documentsSubmissionDecision([fail(idSlot, 'download_failed')]).code, 'required_document_unavailable');
 });
 
-test('החלטה · הכול מוכן, ושומר המקרה החי הראשון פעיל ⇒ first_live_verification (לא מעלים)', () => {
-  const d = documentsSubmissionDecision([ready(idSlot)], { extraUploadVerified: false });
-  assert.deepEqual([d.ok, d.code], [false, 'first_live_verification']);
-});
-
-test('החלטה · אחרי אימות חי ⇒ מעלים כל שורה (ת.ז./רישיון + דרכון)', () => {
-  const d = documentsSubmissionDecision([ready(idSlot), ready(passSlot)], { extraUploadVerified: true });
+test('החלטה · הכול מוכן ⇒ מעלים כל שורה (ת.ז./רישיון + דרכון)', () => {
+  const d = documentsSubmissionDecision([ready(idSlot), ready(passSlot)]);
   assert.equal(d.ok, true);
   assert.deepEqual(d.uploads.map((x) => x.slot.id), [2, 5]);
 });
 
-test('השומר פעיל בריצה הזו, ואינו הגדרה — קבוע בקוד', () => {
-  assert.equal(EXTRA_DOCUMENT_UPLOAD_LIVE_VERIFIED, false);
-  assert.ok(/export const EXTRA_DOCUMENT_UPLOAD_LIVE_VERIFIED = false;/.test(HANDLER));
-  assert.ok(!/process\.env[^\n]*EXTRA_DOCUMENT/.test(HANDLER), 'לא ניתן לעקוף בהגדרת סביבה');
+test('13.10 · שומר «עצירת אימות ראשון» הוסר — הגשה מוכנה עם מסמך נוסף אינה נעצרת', () => {
+  assert.equal(documentsSubmissionDecision([ready(idSlot)]).ok, true);
+  assert.ok(!/EXTRA_DOCUMENT_UPLOAD_LIVE_VERIFIED|documentsStop\('first_live_verification'/.test(HANDLER));
+  assert.ok(!/first_live_verification/.test(SESSION_SRC));
 });
 
 // ── הדיאלוג ────────────────────────────────────────────────────────────────
@@ -176,7 +171,6 @@ test('עצירה על מסמך ⇒ PermanentError (failed, מפנה את המק�
   assert.ok(stop > 0 && HANDLER.slice(stop, HANDLER.indexOf('\n}', stop)).includes('new PermanentError('));
   const firstStop = HANDLER.indexOf('throw documentsStop(decision.code');
   assert.ok(firstStop > 0 && firstStop < HANDLER.indexOf("markExternalAttempt('upload_signed_form')"));
-  assert.ok(HANDLER.indexOf("throw documentsStop('first_live_verification'") < HANDLER.indexOf("markExternalAttempt('upload_signed_form')"));
   // ‼ הבחירה במסמך בשרת לפי הת.ז. שבכותרת — לא לפי role.
   assert.ok(HANDLER.includes('getIdentityDocument(ctx.workerId, ctx.job.id, { entityId: plan.entityId, slotKind: slot.kind })'));
 });

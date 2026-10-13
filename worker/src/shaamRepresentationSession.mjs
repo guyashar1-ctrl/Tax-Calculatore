@@ -1702,9 +1702,8 @@ export const NEVER_CLICK_BTNTYPES = ['idkun', 'chazara'];
 // `mismachimNidrashim` שמגיע מהשרת שלה. הכיתוב של כל שורה קבוע, ולכל שורה
 // דיאלוג טעינה משלה עם `id` קבוע. כל שורה גלויה היא חובה (`label.required`,
 // ו-«המשך» נכשל על «יש לטעון את כל המסמכים»). שע״ם מקבלת PDF בלבד.
-// ‼ שורה 1 נצפתה חיה (הדסה סלע, 23.09.2026). שורות 2–5 נגזרות מהקוד — ולכן
-// העלאה של מסמך נוסף נעצרת במקרה החי הראשון (EXTRA_DOCUMENT_UPLOAD_LIVE_VERIFIED
-// ב-handlers/shaamSubmitPoa.mjs).
+// ‼ שורה 1 הוגשה חיה (הדסה סלע, 23.09.2026); שורה 2 והדיאלוג שלה נצפו חיים
+// (אמיר ויסמרק, 13.10.2026). לכל חמש השורות אותו רכיב העלאה.
 export const SHAAM_DOC_SLOTS = Object.freeze([
   Object.freeze({ id: 1, label: 'טופס ייפוי כוח', dialog: 'dialogTeinatAsmachta', titleHint: 'טעינת בקשה', kind: 'poa', supported: true }),
   Object.freeze({ id: 2, label: 'תצלום תעודת זהות או רישיון נהיגה', dialog: 'dialogTeinatTzilumTz', titleHint: 'תעודת זהות', kind: 'idOrLicense', supported: true }),
@@ -1843,11 +1842,11 @@ export function documentsStepPlan(state, { spouseSignatureConfirmed } = {}) {
 
 /**
  * טהורה: מה עושים עם השורות הנוספות, אחרי שהשרת ענה מה יש לנו לכל אחת.
- * ‼ סדר העדיפות: אי אפשר לשייך ⇒ אי אפשר להמיר ⇒ חסר ⇒ עצירת אימות ראשון.
+ * ‼ סדר העדיפות: אי אפשר לשייך ⇒ אי אפשר להמיר ⇒ חסר.
  * כל אחד מאלה עוצר **לפני** נגיעה. רק כשלכל שורה יש PDF מאומת — ממשיכים.
  * @param resolved [{ slot, result: { ok, error?, person?, fileName?, pageCount?, sourceDocumentIds? } }]
  */
-export function documentsSubmissionDecision(resolved, { extraUploadVerified } = {}) {
+export function documentsSubmissionDecision(resolved) {
   const list = Array.isArray(resolved) ? resolved : [];
   const by = (err) => list.filter((x) => !x.result?.ok && x.result?.error === err);
   const bad = list.filter((x) => !x.result?.ok);
@@ -1858,7 +1857,6 @@ export function documentsSubmissionDecision(resolved, { extraUploadVerified } = 
   if (by('not_pdf_convertible').length) return { ok: false, code: 'document_not_pdf_convertible', slots: by('not_pdf_convertible') };
   const waiting = [...by('missing'), ...by('not_confirmed')];
   if (waiting.length) return { ok: false, code: 'awaiting_required_documents', slots: waiting };
-  if (list.length && extraUploadVerified !== true) return { ok: false, code: 'first_live_verification', slots: list };
   return { ok: true, uploads: list };
 }
 

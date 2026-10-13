@@ -106,7 +106,8 @@ const SHAAM_DOCUMENTS_STAGE_REASON: Record<string, string> = {
   needs_document_assignment: 'רשות המסים דורשת מסמך מזהה, ולא ניתן לקבוע של מי: הת.ז. בשע״ם אינה תואמת לאדם אחד בכרטיס. תקנו את מספרי הזהות בכרטיס ושדרו שוב.',
   document_not_pdf_convertible: 'אין עדיין PDF תקין להגשה של המסמך — הסיבה בשורת המסמך ב«מסמכי הבקשה». כשיהיה תקין, השידור ימשיך מעצמו.',
   unsupported_required_document: 'רשות המסים דורשת מסמך שאינו מסמך מזהה (צו ירושה/אפוטרופוס). יש להשלים את ההגשה ידנית בשע״ם.',
-  first_live_verification: 'עצירת אימות ראשון: הכול מוכן, אבל העלאה אוטומטית של מסמך נוסף עוד לא אומתה. השלימו ידנית בשע״ם לפי התוכנית, ואז «שודר ידנית».',
+  // ‼ 13.10.2026 · עצירה ישנה: השומר שגרם לה הוסר מהעובד. שליחה חוזרת מעלה את הטופס ואת המסמך יחד.
+  first_live_verification: 'בניסיון הקודם השידור נעצר לפני העלאת המסמך הנוסף, ושום דבר לא נשלח. העלאת מסמך נוסף זמינה עכשיו — שלחו שוב, והטופס והמסמך יעלו יחד.',
   required_document_unavailable: 'המסמך הנדרש לא נקרא מתיק הלקוח. בדקו שהוא נפתח, ושדרו שוב.',
 };
 
@@ -161,7 +162,8 @@ export function shaamRepresentationAction(
       // ‼ 204 · ההמתנה היא עובדה עמידה (documentsGate), לא תקלה. רק כשהתיקון
       // בידי המשרד ואין מה שיעורר המשך מעצמו — הכפתור זמין לשידור מחדש.
       const g = shaamDocumentsBlocked(tracking)!;
-      const officeFix = g.state === 'needs_document_assignment' || g.state === 'required_document_unavailable';
+      const officeFix = g.state === 'needs_document_assignment' || g.state === 'required_document_unavailable'
+        || g.state === 'first_live_verification';
       return { ...SUBMIT, disabled: !officeFix, reason: SHAAM_DOCUMENTS_STAGE_REASON[g.state] };
     }
     case 'signatures_pending':
