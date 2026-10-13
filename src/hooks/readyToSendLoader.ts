@@ -15,6 +15,8 @@ export interface ReadyOwnerItem {
   publishedAt: string;
   /** תוכן שהשתנה אחרי הפרסום (פריט שנוסף, עריכה שפורסמה, פתיחה מחדש) — 192. */
   changedAt?: string;
+  /** מסמך שהמשרד שלח (לא בקשה) — 214. */
+  isDocument?: boolean;
   /**
    * איך הפריט מגיע ללקוח (שלב במסלול: auto / approve / hold; בלי — כמו approve).
    * ‼ המייל שיוצא לבד כולל רק פריטים של 'auto' מריצה שאינה בעצירה (214) —
@@ -82,6 +84,8 @@ export interface ReadyToSend {
   owner: {
     email?: string;
     lastSentAt?: string | null;
+    /** 240 · בקשה שתתפרסם עכשיו תיראה בדף (קליטה שפורסמה / אין קליטה). חסר (שרת ישן) ⇒ פתוח. */
+    pageOpen?: boolean;
     /** «חדש» — גרסה שטרם נמסרה ללקוח (214; קודם: השוואת זמנים, 192). */
     items: ReadyOwnerItem[];
     /** טביעת הפריטים — נשלחת בחזרה בשליחה; שונה ⇒ items_changed. */

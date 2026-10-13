@@ -21,7 +21,7 @@ import {
   type UnknownAction, type UnknownConfirm, type UnknownRowModel,
 } from '../../features/flows/noticeText';
 import {
-  kindHoldRetryText, kindHoldRow, trayQueueLine, unknownBlocksNewText,
+  kindHoldRetryText, kindHoldRow, newSinceTitle, trayQueueLine, unknownBlocksNewText,
   pausedQueueText, NI_ONLY_WHY, QUEUE_CANCELLED_TEXT, SEND_MAIL_LABEL, SEND_NOW_LABEL,
 } from './trayQueue';
 import type { ReadyToSend } from '../../hooks/useReadyToSend';
@@ -301,15 +301,14 @@ export default function NoticeTray({
           </div>
         </div>
       ) : hasSend && (
-        <div className="rl-out-row">
+        // ‼ 240 · הדגשה עדינה כשיש בדף משהו שהלקוח עוד לא קיבל עליו מייל — לא כפתור צועק.
+        <div className={`rl-out-row${nNew > 0 && !newBlocked ? ' is-news' : ''}`} data-testid="tray-news">
           {numbered && <span className="rl-out-n" aria-hidden="true">2</span>}
           <div className="rl-out-text">
             <strong>
               {/* ‼ אותה מילה כמו בשורת הבקשה («בדף, בלי מייל»), והעובדה קודם — בטלפון הסוף נחתך. */}
               {nNew > 0
-                ? (nNew === 1
-                    ? `בדף, בלי מייל: «${itemTitle(own.items[0])}»`
-                    : `${nNew} דברים בדף, עוד בלי מייל ל${firstName}`)
+                ? newSinceTitle(own.items, own.lastSentAt, firstName, itemTitle)
                 : `עוד לא נשלחו ל${personNames}: ההוראות לביטוח לאומי`}
             </strong>
             <span className="rl-out-why">{sendWhy}</span>

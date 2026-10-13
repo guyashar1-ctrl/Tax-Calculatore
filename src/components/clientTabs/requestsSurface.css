@@ -43,6 +43,11 @@
 .rl-out-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
 .rl-out-text strong { font-size: var(--fs-14); font-weight: 650; color: var(--ink-1); }
 .rl-out-text span { font-size: var(--fs-12); color: var(--ink-3); }
+/* 240 · בדף יש מה שהלקוח עוד לא קיבל עליו מייל — נקודה בצבע ההדגשה, לא רקע צועק. */
+.rl-out-row.is-news .rl-out-text strong::before {
+  content: ''; display: inline-block; width: 7px; height: 7px; border-radius: 50%;
+  background: var(--accent); margin-inline-end: 7px; vertical-align: middle; transform: translateY(-1px);
+}
 .rl-out-acts { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
 .rl-link-s {
   appearance: none; border: 0; background: none; font: inherit; cursor: pointer;

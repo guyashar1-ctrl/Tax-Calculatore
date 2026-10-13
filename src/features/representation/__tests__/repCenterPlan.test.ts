@@ -213,4 +213,48 @@ export const TESTS: TestCase[] = [
   test('בלי שם ⇒ «הלקוח», לא מחרוזת ריקה', () => {
     equal(repCenterPlan(base({ firstName: '' })).headline, 'מוכן לשליחה ללקוח');
   }),
+
+  // ── 240 · «אשר והוסף לדף הלקוח» — הדף, לא מייל נפרד ─────────────────────────
+  test('240 · דף אישי, הכנה לא הושלמה ⇒ «לפני האישור לדף», בלי הבטחת מייל', () => {
+    const p = repCenterPlan(base({ pageChannel: true, ni: [{ ...NI, hasRef: false }] }));
+    equal(p.kind, 'prepare');
+    equal(p.headline, 'נשאר צעד אחד לפני האישור לדף');
+    assert(!p.sub.includes('מייל'), p.sub);
+  }),
+
+  test('240 · דף אישי, מוכן ⇒ approve: «מוכן להוסיף לדף», ובלי מייל', () => {
+    const p = repCenterPlan(base({ pageChannel: true }));
+    equal(p.kind, 'approve');
+    equal(p.headline, 'מוכן להוסיף לדף של עידן');
+    assert(p.sub.includes('בלי מייל'), p.sub);
+    equal(phaseStates(p), 'done,current,todo,todo');
+  }),
+
+  test('240 · אושר לדף, טרם נשלחה הודעה ⇒ on_page, ההכנה הושלמה והחתימה בתור', () => {
+    const p = repCenterPlan(base({ pageChannel: true, approvedOnPage: true, status: 'pending_signature' }));
+    equal(p.kind, 'on_page');
+    equal(p.headline, 'זמין בדף של עידן · טרם נשלחה הודעה');
+    equal(phaseStates(p), 'done,current,todo,todo');
+  }),
+
+  test('240 · אושר, אבל הקליטה טרם פורסמה ⇒ אומרים שהדף עוד לא פתוח, לא «זמין בדף»', () => {
+    const p = repCenterPlan(base({ pageChannel: true, approvedOnPage: true, pageOpen: false, status: 'pending_signature' }));
+    equal(p.kind, 'on_page');
+    assert(!p.headline.includes('זמין'), p.headline);
+    assert(p.headline.includes('עוד לא נפתח'), p.headline);
+  }),
+
+  test('240 · נחתם מהדף לפני כל מייל ⇒ המצב האמיתי (חותמת המשרד), לא «טרם נשלחה הודעה»', () => {
+    const p = repCenterPlan(base({ pageChannel: true, approvedOnPage: true, status: 'awaiting_stamp', signed: true }));
+    equal(p.kind, 'stamp');
+  }),
+
+  test('240 · נשלח מייל הדף עם החתימה ⇒ ממתינים לעידן (כמו קודם)', () => {
+    const p = repCenterPlan(base({ pageChannel: true, approvedOnPage: true, status: 'pending_signature', sent: true }));
+    equal(p.kind, 'waiting_client');
+  }),
+
+  test('240 · בלי דף אישי (בקשה ישנה) ⇒ המסלול הישן: «מוכן לשליחה»', () => {
+    equal(repCenterPlan(base({ pageChannel: false })).kind, 'send');
+  }),
 ];

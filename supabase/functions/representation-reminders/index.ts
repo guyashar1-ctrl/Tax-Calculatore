@@ -36,6 +36,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { resendEmailsUrl, postResend, type SendOutcome } from "../_shared/resendResult.ts";
 import { resolveBrand, buildBrandedEmail, esc } from "../_shared/designSystem.ts";
 import { RepReminderAudience, niReminderCopy, repApprovalRequiredWho, resolveRepReminderConfig } from "../_shared/repTemplates.ts";
+import { signReminderDecision } from "../_shared/signReminder.ts";
 
 // ‼ ספק הדואר — Resend בייצור; ב-staging אפשר ספק מדומה שקולט (resendEmailsUrl).
 const RESEND_EMAILS = resendEmailsUrl(Deno.env.get("RESEND_API_URL"), Deno.env.get("SUPABASE_URL") ?? "");
@@ -180,9 +181,13 @@ Deno.serve(async (req: Request) => {
         if (!cfg.enabled) { skippedDisabled++; continue; }
         const rem = (req.execution?.reminders?.sign) || {};
         const count = Number(rem.count || 0);
-        if (count >= cfg.maxReminders) { skippedCapped++; continue; }
-        const since = rem.lastSentAt || req.execution?.signatureEmailSentAt || req.updated_at;
-        if (daysSince(since, now) < cfg.afterDays) { skippedNotDue++; continue; }
+        // ‼ 240 · תזכורת רק אחרי הודעה שבאמת יצאה — הכלל ב-signReminderDecision (נבדק בבידוד).
+        const decision = signReminderDecision({
+          rem, signatureEmailSentAt: req.execution?.signatureEmailSentAt, now,
+          afterDays: cfg.afterDays, maxReminders: cfg.maxReminders,
+        });
+        if (decision === 'capped') { skippedCapped++; continue; }
+        if (decision !== 'due') { skippedNotDue++; continue; }
         const toEmail = String(req.client_email || "").trim();
         if (!toEmail) continue;
 

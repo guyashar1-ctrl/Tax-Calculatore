@@ -104,7 +104,19 @@ const approvalStep = (carried: boolean): OnboardingStep => ({
 } as OnboardingStep);
 
 /** לתרחיש — כרטיס לקוח משלו ורשימת «מה מסמנים» משלו (בלי ?linked=1). */
-type Scenario = { key: string; label: string; req: RepresentationRequest; linked?: Client; people?: string };
+type Scenario = { key: string; label: string; req: RepresentationRequest; linked?: Client; people?: string; steps?: OnboardingStep[] };
+
+// ── 240 · לקוח עם דף אישי: שורת «ייצוג» מפורסמת בדף ⇒ «אשר והוסף לדף הלקוח», לא מייל חתימה ──
+const PAGE_REP_STEP = {
+  id: 'rep-step-1', clientId: 'client-1', stepType: 'representation', status: 'waiting_client', ball: 'client',
+  publishedAt: '2026-09-29T08:00:00.000Z', payload: {}, sortOrder: 1, createdAt: '2026-09-29T08:00:00.000Z',
+} as unknown as OnboardingStep;
+const PAGE_COUPLE_CLIENT = {
+  id: 'client-1', name: 'רותי לקוח', firstName: 'רותי', lastName: 'לקוח', idNumber: '318853694', birthDate: '1980-01-01',
+  email: 'ruti@example.com', familyStatus: 'married', spouseName: 'דני לקוח', spouseFirstName: 'דני', spouseLastName: 'לקוח',
+  spouseIdNumber: '000000026', spouseBirthYear: 1979, representationStatus: 'pending_signature',
+  authorityRepresentations: { incomeTax: { status: 'in_process', level: 'primary' } },
+} as unknown as Client;
 
 const withSetup = {
   signatureSetup: { pdfFileName: 'ייפוי כוח 2279.pdf', pdfDocId: 'doc-1', fields: [], createdAt: '2026-07-02T10:00:00.000Z' },
@@ -363,6 +375,20 @@ const SCENARIOS: Scenario[] = [
     }) } as unknown as RepresentationRequest,
   },
   {
+    key: 'page-approve',
+    label: '240א. דף אישי · מוכן ⇒ «אשר והוסף לדף הלקוח»',
+    req: { ...BASE, ...withSetup, execution: ni({ incomeTax: { enteredAt: '2026-07-02T08:00:00.000Z' } }) } as RepresentationRequest,
+    linked: PAGE_COUPLE_CLIENT,
+    steps: [PAGE_REP_STEP],
+  },
+  {
+    key: 'page-on-page-spouse',
+    label: '240ב. אושר לדף · בן/בת זוג חותם/ת במייל אישי',
+    req: { ...BASE, ...withSetup, status: 'pending_signature', execution: ni({ incomeTax: { enteredAt: '2026-07-02T08:00:00.000Z' } }) } as RepresentationRequest,
+    linked: PAGE_COUPLE_CLIENT,
+    steps: [PAGE_REP_STEP],
+  },
+  {
     // אחרי הסימון — כאן נבדק שהמייל ללקוח אינו יוצא מעצמו אלא בכפתור
     key: 'active',
     label: '6. הייצוג פעיל (עדכון ללקוח בבחירה)',
@@ -455,7 +481,7 @@ export default function TestExecutionCenter() {
         /* ‼ עם ?client= — מהמסד (המרכז קורא בעצמו); אחרת מוזרק. השלב — רק כשהקליטה טרם
            פורסמה, כדי שהכלל ייבדק לפי זמן הפרסום של הכרטיס עצמו. */
         engagements={realClientId ? undefined : gateEngagements(!intakeUnpublished)}
-        steps={realClientId || !intakeUnpublished ? undefined : [approvalStep(approvalCarried)]}
+        steps={sc.steps ?? (realClientId || !intakeUnpublished ? undefined : [approvalStep(approvalCarried)])}
       />
 
       <h2 style={{ marginTop: '2rem' }}>מיילים בכרטיס הלקוח</h2>

@@ -11,7 +11,9 @@ export type RcBall = 'office' | 'client' | 'authority' | 'none';
 export type RcKind =
   | 'prepare'              // לפני השליחה: בקשה בשע״ם, טופס, אסמכתא בב״ל
   | 'replacement'          // רשות הוסרה אחרי שהבקשה נפתחה בשע״ם ⇒ לבטל שם
-  | 'send'                 // מוכן לשליחה ללקוח
+  | 'send'                 // מוכן לשליחה ללקוח (בלי דף אישי — מייל חתימה)
+  | 'approve'              // 240 · מוכן — «אשר והוסף לדף הלקוח» (בלי מייל)
+  | 'on_page'              // 240 · זמין בדף לחתימה, טרם נשלחה הודעה
   | 'waiting_client'       // נשלח — ממתינים לחתימה (ולשאר מה שביקשנו)
   | 'stamp'                // הלקוח חתם — חתימה וחותמת של המשרד
   | 'waiting_docs'         // חתום ומוטבע — מסמך ששע״ם דורשת עוד לא אושר/הגיע
@@ -82,6 +84,12 @@ export interface RcInput {
   clientApprovalRequiredOpen?: boolean;
   /** הלקוח דיווח בדף האישי שאישר באזור האישי (clientDeclaredAt), והשלב עוד פתוח. */
   clientApprovalDeclaredAt?: string | null;
+  /** 239/240 · לבקשה יש שורה בדף האישי — היא מאושרת לדף ונשלחת עם מייל הדף, לא במייל משלה. */
+  pageChannel?: boolean;
+  /** 240 · אושרה לדף (ממתין לחתימה): הלקוח יכול לחתום מהדף כבר עכשיו, גם בלי מייל. */
+  approvedOnPage?: boolean;
+  /** 240 · הדף פתוח ללקוח (client_step_gate_open). חסר ⇒ פתוח. */
+  pageOpen?: boolean;
 }
 
 export interface RcPrepareItem {
@@ -195,7 +203,7 @@ export function repCenterPlan(input: RcInput): RcPlan {
   const shaamSettled = input.shaam.length > 0 && input.shaam.every(s => s.settled);
 
   // ── שלבים ─────────────────────────────────────────────────────────────
-  const prepared = input.sent || (input.formReady && prepareOpen.length === 0);
+  const prepared = input.sent || !!input.approvedOnPage || (input.formReady && prepareOpen.length === 0);
   const clientDone = input.signed;
   const submitDone = input.submitted;
   const acceptDone = (active || shaamSettled || input.shaam.length === 0) && niAllFinal && submitDone;
@@ -226,14 +234,32 @@ export function repCenterPlan(input: RcInput): RcPlan {
   }
 
   // ── לפני השליחה ─────────────────────────────────────────────────────────
-  if (!input.sent) {
+  // ‼ 240 · חתימה שהגיעה מהדף לפני כל מייל — המצב האמיתי (נחתם) גובר על «טרם נשלח».
+  if (!input.sent && !input.signed) {
+    // ‼ 240 · מאושר לדף: הלקוח יכול לחתום מהדף עכשיו. ההודעה — החלטה נפרדת של המשרד.
+    if (input.pageChannel && input.approvedOnPage) {
+      return input.pageOpen === false
+        ? plan('on_page', 'office', `אושר — הדף של ${first} עוד לא נפתח לו`,
+            `הבקשה תופיע בדף ברגע שהקליטה תפורסם ל${first} («פרסם בדף» בבקשות). עד אז היא לא מוצגת לו.`)
+        : plan('on_page', 'office', `זמין בדף של ${first} · טרם נשלחה הודעה`,
+            `${first} יכול לחתום כבר עכשיו מהדף. המייל יוצא כשתשלח את עדכון הדף — עם כל מה שחדש בו.`);
+    }
     if (prepareOpen.length > 0 || !input.formReady) {
       const n = prepareOpen.length || 1;
+      if (input.pageChannel) {
+        return plan('prepare', 'office',
+          n === 1 ? 'נשאר צעד אחד לפני האישור לדף' : `נשארו ${n} צעדים לפני האישור לדף`,
+          `כשיושלמו — «אשר והוסף לדף הלקוח», והבקשה תופיע בדף של ${first}.`);
+      }
       return plan('prepare', 'office',
         n === 1 ? `נשאר צעד אחד לפני השליחה ${toFirst}` : `נשארו ${n} צעדים לפני השליחה ${toFirst}`,
         `כשיושלמו, יצא ${toFirst} מייל אחד עם כל מה שנדרש.`);
     }
     const hasNi = input.ni.length > 0;
+    if (input.pageChannel) {
+      return plan('approve', 'office', `מוכן להוסיף לדף של ${first}`,
+        `הטופס מוכן${hasNi ? ' והאסמכתא של ביטוח לאומי נשמרה' : ''}. האישור מוסיף את הבקשה לדף של ${first} תחת «נדרש ממך» — בלי מייל.`);
+    }
     return plan('send', 'office', `מוכן לשליחה ${toFirst}`,
       `הטופס מוכן${hasNi ? ' והאסמכתא של ביטוח לאומי נשמרה' : ''}. מייל אחד יגיע ${toFirst} עם כל מה שנדרש.`);
   }

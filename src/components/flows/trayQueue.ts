@@ -200,3 +200,39 @@ export function trayQueueLine({ items, queued, pausedStepIds, now, hasEmail, unk
   const whenShort = before ? `, לא לפני ${clockTime(queued.dueAt)}` : ' בדקות הקרובות';
   return { live: true, why: `${who} ${verb}${whenShort}; השאר — במייל שתשלח.`, autoCount: auto.length, waitingCount };
 }
+
+// ── 240 · מה חדש מאז השליחה האחרונה — שורת המייל במגש ───────────────────────
+// ‼ אותם פריטים שהשרת יכלול במייל «חדש» (client_ready_to_send → _client_notice_items):
+// רק מה שבדף ועוד לא נמסר בגרסה הזו. מסמכים — בנפרד מבקשות; בקשה שכבר נמסרה והשתנתה
+// (changedAt) — «עדכון», לא «בקשה חדשה». לפני המייל הראשון של הדף — אין «מאז השליחה
+// האחרונה»: אומרים שעוד לא נשלח מייל.
+export interface NewSinceItem { title?: string; stepType: string; isDocument?: boolean; changedAt?: string }
+
+function hebrewJoin(parts: string[]): string {
+  const p = parts.filter(Boolean);
+  if (p.length <= 1) return p[0] ?? '';
+  return `${p.slice(0, -1).join(', ')} ו${p[p.length - 1]}`;
+}
+
+export function newSinceTitle(
+  items: NewSinceItem[], lastSentAt: string | null | undefined, firstName: string, titleOf: (i: NewSinceItem) => string,
+): string {
+  if (items.length === 0) return '';
+  const docs = items.filter(i => i.isDocument).length;
+  const updated = items.filter(i => !i.isDocument && !!i.changedAt).length;
+  const fresh = items.length - docs - updated;
+  const everSent = !!lastSentAt;
+  if (items.length === 1) {
+    const one = items[0];
+    const what = one.isDocument ? 'מסמך חדש' : one.changedAt ? 'עדכון לבקשה' : 'בקשה חדשה';
+    return everSent ? `${what} מאז השליחה האחרונה: «${titleOf(one)}»` : `בדף, עוד לא נשלח מייל: «${titleOf(one)}»`;
+  }
+  const parts = [
+    fresh === 1 ? 'בקשה חדשה' : fresh > 1 ? `${fresh} בקשות חדשות` : '',
+    updated === 1 ? 'עדכון לבקשה' : updated > 1 ? `${updated} עדכונים לבקשות` : '',
+    docs === 1 ? 'מסמך חדש' : docs > 1 ? `${docs} מסמכים חדשים` : '',
+  ];
+  return everSent
+    ? `${hebrewJoin(parts)} מאז השליחה האחרונה`
+    : `${hebrewJoin(parts.map(p => p.replace(/ חדשה?$| חדשים$| חדשות$/, '')))} בדף — עוד לא נשלח מייל ל${firstName}`;
+}

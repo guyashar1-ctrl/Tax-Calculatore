@@ -11,7 +11,7 @@ import { test, equal, assert } from '../../../testkit/tinyTest';
 import type { TestCase } from '../../../testkit/tinyTest';
 import {
   trayQueueLine, unknownBlocksNewText, QUEUE_CANCELLED_TEXT, SEND_NOW_LABEL, SEND_MAIL_LABEL, PAUSED_QUEUE_TEXT,
-  NO_EMAIL_QUEUE_TEXT, UNKNOWN_PENDING_QUEUE_TEXT, NI_ONLY_WHY, pausedQueueText, type TrayQueueInput,
+  NO_EMAIL_QUEUE_TEXT, UNKNOWN_PENDING_QUEUE_TEXT, NI_ONLY_WHY, pausedQueueText, newSinceTitle, type TrayQueueInput,
 } from '../trayQueue';
 
 // ‼ שעון מקומי — כמו המגש (השעה שמוצגת היא השעה המקומית של הדפדפן).
@@ -153,5 +153,31 @@ export const TESTS: TestCase[] = [
     assert(t.startsWith('«דוח שנתי 2025» בעצירה'), t);
     assert(!LATIN.test(t), t);
     equal(pausedQueueText(''), PAUSED_QUEUE_TEXT);
+  }),
+
+  // ── 240 · «N בקשות חדשות מאז השליחה האחרונה» ────────────────────────────────
+  test('240 · שתי בקשות חדשות אחרי מייל קודם ⇒ «2 בקשות חדשות מאז השליחה האחרונה»', () => {
+    const t = newSinceTitle([{ stepType: 'representation', title: 'חתימה על ייפוי הכוח' }, { stepType: 'custom_request', title: 'צילום' }],
+      '2026-10-01T10:00:00Z', 'אמיר', i => i.title ?? '');
+    equal(t, '2 בקשות חדשות מאז השליחה האחרונה');
+  }),
+  test('240 · בקשה אחת אחרי מייל קודם ⇒ בשמה', () => {
+    equal(newSinceTitle([{ stepType: 'representation', title: 'חתימה על ייפוי הכוח' }], '2026-10-01T10:00:00Z', 'אמיר', i => i.title ?? ''),
+      'בקשה חדשה מאז השליחה האחרונה: «חתימה על ייפוי הכוח»');
+  }),
+  test('240 · לפני המייל הראשון של הדף ⇒ אין «מאז השליחה האחרונה»', () => {
+    const one = newSinceTitle([{ stepType: 'representation', title: 'חתימה על ייפוי הכוח' }], null, 'אמיר', i => i.title ?? '');
+    equal(one, 'בדף, עוד לא נשלח מייל: «חתימה על ייפוי הכוח»');
+    const many = newSinceTitle([{ stepType: 'a' }, { stepType: 'b' }, { stepType: 'c', isDocument: true }], undefined, 'אמיר', () => '');
+    equal(many, '2 בקשות ומסמך בדף — עוד לא נשלח מייל לאמיר');
+    assert(!many.includes('מאז'), many);
+  }),
+  test('240 · מסמכים ועדכונים נספרים בנפרד מבקשות חדשות', () => {
+    const t = newSinceTitle([{ stepType: 'a' }, { stepType: 'b', changedAt: 'x' }, { stepType: 'c', isDocument: true }, { stepType: 'd', isDocument: true }],
+      '2026-10-01T10:00:00Z', 'אמיר', () => '');
+    equal(t, 'בקשה חדשה, עדכון לבקשה ו2 מסמכים חדשים מאז השליחה האחרונה');
+  }),
+  test('240 · אין פריטים ⇒ ריק (אין שורה)', () => {
+    equal(newSinceTitle([], '2026-10-01T10:00:00Z', 'אמיר', () => ''), '');
   }),
 ];

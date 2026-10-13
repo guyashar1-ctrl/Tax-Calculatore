@@ -42,6 +42,9 @@ import type { RepApprovalStep } from '../hooks/useRepApprovalStep';
 import EmailStatusRow from './EmailActivity/EmailStatusRow';
 import EmailPreviewDialog from './EmailActivity/EmailPreviewDialog';
 import SendPortalDialog from './clientTabs/SendPortalDialog';
+import SendRequestsDialog from './clientTabs/SendRequestsDialog';
+import { useReadyToSend } from '../hooks/useReadyToSend';
+import { newSinceTitle } from './flows/trayQueue';
 import { isUnknownEmailStatus, isUnknownSendReply, unknownSendText } from '../types/emailActivity';
 import { UNKNOWN_OUTCOME_TEXT } from '../../supabase/functions/_shared/resendResult.ts';
 import type { RepSigner } from '../types';
@@ -637,77 +640,69 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
   /** null = לכל מי שיש לו מייל. מזהה חותם = רק אליו, והוא יעביר לשני. */
   const [sendOnlyTo, setSendOnlyTo] = useState<string | null>(null);
   /**
-   * ‼ 239 · מייל אחד ללקוח (הכרעת גיא 12.10): ללקוח עם דף אישי, החתימה יוצאת עם
-   * עדכון הדף — לא במייל נפרד. החלון הוא חלון השליחה של הדף עצמו.
+   * ‼ 239/240 · ללקוח עם דף אישי אין מייל חתימה משלו: התזכורת היא תזכורת הדף (אותו
+   * חלון של «בקשות»), ושליחת העדכון — «שלח בקשות» המשותף.
    */
-  const [pageSend, setPageSend] = useState<'new' | 'reminder' | null>(null);
-  /** פעם אחת לכל פתיחה של החלון — המייל לבן/בת הזוג לא יוצא פעמיים. */
-  const pageSentHandled = useRef(false);
+  const [pageReminder, setPageReminder] = useState(false);
+  const [sendTrayOpen, setSendTrayOpen] = useState(false);
   /** המדריך המצולם שהלקוח רואה בכרטיס — כדי שהמשרד יוכל ללוות אותו בטלפון. */
   const [approvalGuideOpen, setApprovalGuideOpen] = useState(false);
+  // ‼ 240 · «מה חדש בדף ולא נשלח» — אותו מקור של המגש ב«בקשות» (client_ready_to_send).
+  const [readyTick, setReadyTick] = useState(0);
+  const { ready: readyToSend, reload: reloadReady } = useReadyToSend(linkedClient?.id, readyTick);
 
   /**
-   * 239 · «שלח» ללקוח שיש לו דף אישי: מכינים לחתימה (208), מפרסמים את הדף כיחידה,
-   * ופותחים את מייל הדף — שבו החתימה ראשונה. «נשלח לחתימה» נרשם בשרת רק אם המייל
-   * שיצא נשא את קישור החתימה (239), ולכן לא נכתב מכאן.
+   * 240 · «אשר והוסף לדף הלקוח»: מכינים לחתימה (208/218 — בודק את הטופס, מוסיף את
+   * בקשת הצילום לשע״ם, מעביר ל«ממתין לחתימה»). הבקשה זמינה מיד בדף, תחת «נדרש ממך».
+   * ‼ לא נשלח מייל ולא מתפרסם שום דבר אחר בדף — רק הבקשה הזו. אידמפוטנטי: לחיצה
+   * חוזרת על בקשה שכבר ממתינה לחתימה לא יוצרת כלום מחדש.
    */
-  async function handleSendViaPage(askUnassigned = false) {
-    if (!linkedClient) return;
+  async function handleApproveToPage(askUnassigned = false) {
     if (!formReady) {
       setNote({ kind: 'err', text: formProblems.length ? `הטופס לא מוכן לחתימה: ${formProblems.map(p => p.text).join(' ')}` : 'הטופס לא מוכן לחתימה.' });
       return;
     }
-    setBusy('send');
+    if (busy) return;
+    setBusy('approve');
     setNote(null);
     const prep = await prepareRequestForSigning(request.id, { askUnassigned });
+    setBusy(null);
     if (!prep.ok) {
       if (prep.reason === 'unassigned_identity') setUnassignedAsk({});
       else setNote({ kind: 'err', text: prep.error });
-      setBusy(null);
       return;
     }
-    const { data, error: pubErr } = await supabase.rpc('publish_case_changes', { p_client_id: linkedClient.id });
-    const pub = data as { ok?: boolean; error?: string } | null;
-    setBusy(null);
+    const prepSentence = preparedDocumentsSentence(prep.documents, p => nameOf(p) || (p === 'spouse' ? 'בן/בת הזוג' : 'הנישום'));
     onStepsChanged?.();
-    if (pubErr || !pub?.ok) {
-      setNote({ kind: 'err', text: pub?.error === 'quotation_not_approved'
-        ? 'ההצעה עוד לא אושרה - הדף ייפתח ללקוח כשיאשר אותה.'
-        : 'עדכון הדף נכשל. אפשר לנסות שוב.' });
-      return;
-    }
-    pageSentHandled.current = false;
-    setPageSend('new');
+    setReadyTick(t => t + 1);
+    setNote({ kind: 'ok', text: `נוסף לדף של ${firstName || 'הלקוח'} · לא נשלח מייל${prepSentence ? ` · ${prepSentence}` : ''}` });
   }
 
   /**
-   * אחרי שמייל הדף יצא: בן/בת זוג שחותם/ת — אין לו/ה דף, ולכן מייל חתימה אישי
-   * (החריג המכוון). הוראות ב"ל שלו/ה «נמסרו» רק אם המייל אליו/ה באמת יצא.
+   * 240 · בן/בת זוג שחותם/ת — אין לו/ה דף, ולכן מייל חתימה אישי (החריג המכוון).
+   * ‼ לא נוגע ב«נשלח לחתימה» של הלקוח: זה נגזר רק ממייל הדף שנשא את החתימה (239).
    */
-  async function afterPageSent() {
-    if (pageSentHandled.current) return;
-    pageSentHandled.current = true;
-    const spouses = pendingSigners.filter(s => s.role === 'spouse' && s.email.trim());
-    const failures: string[] = [];
-    let spouseSent = false;
-    for (const s of spouses) {
-      const err = await onSendToSigner(s);
-      if (!err) spouseSent = true;
-      else failures.push(`${s.name || s.email}: ${err}`);
+  async function handleSendSpouseSigner(s: RepSigner) {
+    setBusy(`spouse-${s.id}`);
+    setNote(null);
+    const err = await onSendToSigner(s);
+    setBusy(null);
+    void reloadEmails();
+    if (err) {
+      setNote({ kind: isUnknownSendError(err) ? 'unknown' : 'err', text: `${s.name || s.email}: ${err}` });
+      return;
     }
-    if (spouseSent && niTargetsSpouse && niSpouse.referenceNumber && !niSpouse.instructionsSentAt) {
+    if (niTargetsSpouse && niSpouse.referenceNumber && !niSpouse.instructionsSentAt) {
       await onSaveExecution({
         ...exec,
         nationalInsuranceSpouse: { ...niSpouse, instructionsSentAt: new Date().toISOString(), instructionsSentWith: 'signature' },
       });
     }
-    onStepsChanged?.();
-    void reloadEmails();
-    if (failures.length) setNote({ kind: 'err', text: `המייל ל${firstName || 'לקוח'} יצא. לא נשלח: ${failures.join(' · ')}` });
-    else if (spouseSent) setNote({ kind: 'ok', text: `יצא מייל ל${firstName || 'לקוח'}, ומייל חתימה אישי ל${spouses.map(s => s.name || s.email).join(', ')}` });
+    setNote({ kind: 'ok', text: `נשלח מייל חתימה אישי ל${s.name || s.email}` });
   }
 
   /**
+   * שולח לחותמים שנבחרו, ומתעד שההוראות לב"ל יצאו — **רק למי שבאמת נשלח  /**
    * שולח לחותמים שנבחרו, ומתעד שההוראות לב"ל יצאו — **רק למי שבאמת נשלח
    * אליו מייל**.
    *
@@ -1343,6 +1338,10 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
     clientOpenItems: [...new Set(idDocsOpen.map(d => (d.status === 'missing' ? 'להעלות צילום תעודה' : 'לאשר את צילום התעודה שבתיק')))],
     clientApprovalRequiredOpen: !!repApproval && approvalRequired && !isRepApprovalClosed(repApproval),
     clientApprovalDeclaredAt: declared ? repApproval?.clientDeclaredAt ?? null : null,
+    // ‼ 240 · «ממתין לחתימה» אצל לקוח עם דף = אושר לדף. «נשלח» — רק ממייל שנשא את החתימה (239).
+    pageChannel,
+    approvedOnPage: pageChannel && status === 'pending_signature',
+    pageOpen: readyToSend.owner.pageOpen !== false,
   });
 
   // ── פקדים שמופיעים פעם אחת בדיוק (בכרטיס «מה עכשיו» או בפירוט — לא בשניהם) ──
@@ -1640,26 +1639,30 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
   /** נמענים שהניסיון האחרון אליהם «לא ידוע אם יצא» — שליחה נוספת רק אחרי אישור. */
   const unknownRecipients = recipients.filter(lastAttemptUnknown);
   const doSend = (only?: string, askUnassigned = false) =>
-    (pageChannel ? handleSendViaPage(askUnassigned) : handleSendAll(only, askUnassigned));
+    (pageChannel ? handleApproveToPage(askUnassigned) : handleSendAll(only, askUnassigned));
   const proceedSend = () => (missingIds.length > 0 ? setConfirmSendWithoutId(true) : void doSend(sendOnlyTo ?? undefined));
   const sendClick = () => (!pageChannel && unknownRecipients.length > 0 ? setConfirmResendUnknown(true) : proceedSend());
   const toFirst = firstName ? `ל${firstName}` : 'ללקוח';
   const sendLabel = sendOnlyTo ? `שלח ל${pendingSigners.find(s => s.id === sendOnlyTo)?.name || 'חותם'}`
     : `שלח ${toFirst}${emailableSigners.length > 1 ? ` (${emailableSigners.length} חותמים)` : ''}`;
   const clientMail = linkedClient?.email?.trim() ?? '';
-  const spouseMailSigners = pendingSigners.filter(s => s.role === 'spouse' && s.email.trim());
-  /** 239 · מה יוצא כשלוחצים — במילים, לפני הלחיצה. */
-  const pageSendLines = (
-    <>
-      <div className="rc-aside-line">מייל אחד: החתימה ראשונה, ואיתה מה שעוד ממתין {firstName ? `ל${firstName}` : 'ללקוח'} בדף</div>
-      {clientMail
-        ? <div className="rc-aside-line">אל <span className="ltr-isolate rc-addr">{clientMail}</span></div>
-        : <div className="rc-aside-line" data-tone="warn">אין מייל בכרטיס - יופק קישור לדף, לוואטסאפ</div>}
-      {spouseMailSigners.map(s => (
-        <div key={s.id} className="rc-aside-line">ול{s.name || 'בן/בת הזוג'} - מייל חתימה אישי</div>
-      ))}
-    </>
-  );
+  const APPROVE_LABEL = 'אשר והוסף לדף הלקוח';
+  const pageTitle = `הדף של ${firstName || 'הלקוח'}`;
+  // ‼ 240 · בן/בת זוג שחותם/ת: אין לו/ה דף — מייל חתימה אישי, בלחיצה מפורשת כאן.
+  const spouseSigners = pendingSigners.filter(s => s.role === 'spouse');
+  const spouseSignerLines = spouseSigners.map(s => (
+    <div key={s.id} className="rc-aside-line" data-testid="rc-spouse-signer">
+      חתימת {s.name || 'בן/בת הזוג'}: מייל חתימה אישי, לא דרך הדף.{' '}
+      {s.email.trim()
+        ? (signerEmails(s).length > 0
+          ? <span>נשלח {fmtTime(signerEmails(s)[0].sentAt)}</span>
+          : <button type="button" className="rc-link" disabled={busy !== null} onClick={() => void handleSendSpouseSigner(s)}>
+              {busy === `spouse-${s.id}` ? 'שולח…' : `שליחה ל${s.name?.split(/\s+/)[0] || 'בן/בת הזוג'}`}
+            </button>)
+        : <span data-tone="warn">אין כתובת מייל</span>}
+    </div>
+  ));
+  const ownerNewItems = readyToSend.owner.items;
   const recipientLine = recipients.length > 0
     ? <div className="rc-aside-line">אל {recipients.map(s => <span key={s.id} className="ltr-isolate rc-addr">{s.email.trim()}</span>)}</div>
     : <div className="rc-aside-line" data-tone="warn">לאף חותם אין כתובת מייל</div>;
@@ -1677,14 +1680,12 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
       const left = plan.prepare.filter(i => !i.done).length || 1;
       heroBody = <div className="rc-checklist" data-testid="rc-prepare">{plan.prepare.map(prepareRow)}</div>;
       aside = {
-        title: pageChannel ? `הדף של ${firstName || 'הלקוח'}` : `המייל ${toFirst}`,
+        title: pageChannel ? pageTitle : `המייל ${toFirst}`,
         content: (
           <>
-            <button className="btn btn-primary" disabled data-testid="rc-send-pending">{pageChannel ? `שלח ${toFirst}` : sendLabel}</button>
+            <button className="btn btn-primary" disabled data-testid="rc-send-pending">{pageChannel ? APPROVE_LABEL : sendLabel}</button>
             <div className="rc-aside-line">{left === 1 ? 'ייפתח אחרי הצעד האחרון' : `ייפתח אחרי ${left} הצעדים`}</div>
-            {pageChannel
-              ? (clientMail ? <div className="rc-aside-line">אל <span className="ltr-isolate rc-addr">{clientMail}</span></div> : null)
-              : recipients.length > 0 && recipientLine}
+            {!pageChannel && recipients.length > 0 && recipientLine}
           </>
         ),
       };
@@ -1702,33 +1703,62 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
         ),
       } : null;
       break;
-    case 'send':
-      if (pageChannel) {
-        heroBody = (
+    case 'approve':
+      heroBody = (
+        <>
+          <AskList title={`מה ${firstName || 'הלקוח'} יראה בדף`} items={clientAsks(false)} />
+          {poaEntries.filter(p => p.version).map(p => (
+            <button key={p.key} type="button" className="rc-link" data-testid="rc-hero-view-poa" onClick={() => setHeroPoa(p)}>
+              {poaEntries.length > 1 ? `צפייה ב${p.name} ובמקומות החתימה` : 'צפייה בטופס ובמקומות החתימה'}
+            </button>
+          ))}
+        </>
+      );
+      aside = {
+        title: pageTitle,
+        content: (
           <>
-            <AskList title={`מה נבקש מ${firstName || 'הלקוח'}`} items={clientAsks(false)} />
-            {poaEntries.filter(p => p.version).map(p => (
-              <button key={p.key} type="button" className="rc-link" data-testid="rc-hero-view-poa" onClick={() => setHeroPoa(p)}>
-                {poaEntries.length > 1 ? `צפייה ב${p.name} ובמקומות החתימה` : 'צפייה בטופס ובמקומות החתימה'}
-              </button>
-            ))}
+            <button className="btn btn-primary" data-testid="rc-approve"
+              disabled={busy !== null || niRefMissing || pendingSigners.length === 0} onClick={sendClick}>
+              {busy === 'approve' ? 'מאשר…' : APPROVE_LABEL}
+            </button>
+            <div className="rc-aside-line">הבקשה תופיע מיד בדף של {firstName || 'הלקוח'}, תחת «נדרש ממך».</div>
+            <div className="rc-aside-line">לא יישלח מייל. את עדכון הדף שולחים מ«בקשות», כשנוח לך.</div>
           </>
-        );
-        aside = {
-          title: `הדף של ${firstName || 'הלקוח'}`,
-          content: (
-            <>
-              <button className="btn btn-primary" data-testid="rc-send"
-                disabled={busy === 'send' || niRefMissing || pendingSigners.length === 0} onClick={sendClick}>
-                {busy === 'send' ? 'מכין…' : `שלח ${toFirst}`}
-              </button>
-              {pageSendLines}
-              <div className="rc-aside-line">המייל ייפתח לתצוגה מקדימה לפני השליחה</div>
-            </>
-          ),
-        };
-        break;
-      }
+        ),
+      };
+      break;
+    case 'on_page': {
+      const pageOpen = readyToSend.owner.pageOpen !== false;
+      heroBody = <AskList title={`מה מחכה ל${firstName || 'הלקוח'} בדף`} items={clientAsks(true)} />;
+      aside = {
+        title: pageTitle,
+        content: (
+          <>
+            {/* ‼ הכותרת כבר אומרת «זמין בדף · טרם נשלחה הודעה» — כאן רק מה שלא נאמר שם. */}
+            {!pageOpen && <div className="rc-aside-line" data-testid="rc-on-page-state" data-tone="warn">הדף עוד לא נפתח ללקוח</div>}
+            {pageOpen && ownerNewItems.length > 0 && (
+              <>
+                <div className="rc-aside-line" data-testid="rc-on-page-news">
+                  {newSinceTitle(ownerNewItems, readyToSend.owner.lastSentAt, firstName || 'הלקוח',
+                    i => i.title || 'בקשה')}
+                </div>
+                <button className="btn btn-secondary" data-testid="rc-open-send" onClick={() => setSendTrayOpen(true)}>
+                  שליחת עדכון הדף…
+                </button>
+                <div className="rc-aside-line">אותו מייל מרוכז של «בקשות» — רואים אותו לפני שהוא יוצא.</div>
+              </>
+            )}
+            {!pageOpen && (
+              <div className="rc-aside-line">הבקשה תופיע כשהקליטה תפורסם ל{firstName || 'לקוח'} — «פרסם בדף» ב«בקשות».</div>
+            )}
+            {spouseSignerLines}
+          </>
+        ),
+      };
+      break;
+    }
+    case 'send':
       heroBody = (
         <>
           <AskList title={`מה נבקש מ${firstName || 'הלקוח'}`} items={clientAsks(false)} />
@@ -1789,7 +1819,7 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
                   emails={signerEmails(s)} track={niTrackFor(s)}
                   onRemind={canRemind && !(pageChannel && s.role !== 'spouse') ? () => handleRemind({ toEmail: s.email }) : undefined}
                   onRemindViaPage={pageChannel && s.role !== 'spouse' && !!clientMail
-                    ? () => { pageSentHandled.current = true; setPageSend('reminder'); } : undefined}
+                    ? () => setPageReminder(true) : undefined}
                   batchSentAt={exec.signatureEmailSentAt}
                   onCopiedLink={() => void markLinkHandedOver(s.role === 'spouse' ? 'spouse' : 'client')} />
               );
@@ -2404,18 +2434,18 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
             {shaamDemandsMissingId ? (
               <>
                 <div style={{ marginTop: '.4rem' }}>{uploadPage === 'intake' || uploadPage === 'draft'
-                  ? `רשות המסים דורשת את הצילום הזה לבקשה. בקשת ההעלאה תצורף לשליחה, ותופיע בדף האישי ${notYetOnPage(uploadPage)}.`
-                  : 'רשות המסים דורשת את הצילום הזה לבקשה. בקשת ההעלאה תצורף לשליחה, והלקוח יראה אותה בדף האישי ליד החתימה.'}</div>
-                <div style={{ marginTop: '.4rem' }}>אפשר לשלוח לחתימה עכשיו; השידור לשע״ם ימתין עד שהצילום יגיע.</div>
+                  ? `רשות המסים דורשת את הצילום הזה לבקשה. בקשת ההעלאה תצורף ${pageChannel ? "לבקשה בדף" : "לשליחה"}, ותופיע בדף האישי ${notYetOnPage(uploadPage)}.`
+                  : `רשות המסים דורשת את הצילום הזה לבקשה. בקשת ההעלאה תצורף ${pageChannel ? 'לבקשה בדף' : 'לשליחה'}, והלקוח יראה אותה בדף האישי ליד החתימה.`}</div>
+                <div style={{ marginTop: '.4rem' }}>{pageChannel ? 'אפשר לאשר לדף עכשיו' : 'אפשר לשלוח לחתימה עכשיו'}; השידור לשע״ם ימתין עד שהצילום יגיע.</div>
               </>
             ) : (
               <>
                 <div style={{ marginTop: '.4rem' }}>זו בקשה של המשרד - היא לא עוצרת את החתימה או את הייצוג.</div>
-                <div style={{ marginTop: '.4rem' }}>אפשר לשלוח לחתימה גם עכשיו; הצילום ימשיך להופיע כחסר עד שהלקוח יעלה אותו בדף האישי.</div>
+                <div style={{ marginTop: '.4rem' }}>{pageChannel ? 'אפשר לאשר לדף גם עכשיו' : 'אפשר לשלוח לחתימה גם עכשיו'}; הצילום ימשיך להופיע כחסר עד שהלקוח יעלה אותו בדף האישי.</div>
               </>
             )}
           </>}
-          confirmLabel="שלח בכל זאת"
+          confirmLabel={pageChannel ? "אשר בכל זאת" : "שלח בכל זאת"}
           onCancel={() => setConfirmSendWithoutId(false)}
           onConfirm={() => { setConfirmSendWithoutId(false); void doSend(sendOnlyTo ?? undefined); }}
         />
@@ -2426,13 +2456,13 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
           tone="normal"
           title="יש בתיק צילום תעודה שלא שויך לאף אדם"
           message={<div data-testid="unassigned-identity-dialog" style={{ lineHeight: 1.7 }}>
-            <div>רשות המסים דורשת צילום תעודה, ובתיק יש צילום שלא ידוע של מי הוא. לא שלחנו עדיין כלום.</div>
+            <div>רשות המסים דורשת צילום תעודה, ובתיק יש צילום שלא ידוע של מי הוא. {pageChannel ? 'הבקשה עוד לא נוספה לדף.' : 'לא שלחנו עדיין כלום.'}</div>
             <div style={{ marginTop: '.4rem' }}>· אם הוא של האדם הנכון - סגרו את החלון ושייכו אותו בפירוט של רשות המסים («מה רשות המסים דורשת להגשה»). אחרי השיוך הלקוח יתבקש לאשר אותו.</div>
             <div style={{ marginTop: '.4rem' }}>{uploadPage === 'intake' || uploadPage === 'draft'
               ? `· אחרת - הלקוח יתבקש להעלות צילום בדף האישי ${notYetOnPage(uploadPage)}.`
               : '· אחרת - הלקוח יתבקש להעלות צילום בדף האישי, יחד עם בקשת החתימה.'}</div>
           </div>}
-          confirmLabel="בקש מהלקוח צילום ושלח"
+          confirmLabel={pageChannel ? "בקש מהלקוח צילום ואשר" : "בקש מהלקוח צילום ושלח"}
           cancelLabel="אשייך קודם"
           onCancel={() => setUnassignedAsk(null)}
           onConfirm={() => { const o = unassignedAsk.only; setUnassignedAsk(null); void doSend(o, true); }}
@@ -2448,16 +2478,29 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
         <PoaViewer entry={heroPoa} signers={signers} values={request.signatureValues} loadDoc={loadDoc}
           composeClientSigned={composeClientSigned} onClose={() => setHeroPoa(null)} />
       )}
-      {pageSend && linkedClient && (
+      {pageReminder && linkedClient && (
         <SendPortalDialog
           clientId={linkedClient.id}
           clientName={clientDisplayName(linkedClient)}
           clientEmail={linkedClient.email}
-          emailKind={pageSend}
+          emailKind="reminder"
           initialMode="email"
-          heading={pageSend === 'reminder' ? 'תזכורת ללקוח' : `שליחה ${toFirst}`}
-          onSent={() => { if (pageSend === 'new') void afterPageSent(); else { onStepsChanged?.(); void reloadEmails(); } }}
-          onClose={() => { setPageSend(null); onStepsChanged?.(); }}
+          heading="תזכורת ללקוח"
+          onSent={() => { onStepsChanged?.(); setReadyTick(t => t + 1); void reloadEmails(); }}
+          onClose={() => { setPageReminder(false); onStepsChanged?.(); }}
+        />
+      )}
+      {/* ‼ 240 · אותו «שלח בקשות» של «בקשות» — אותו מקור (client_ready_to_send), אותה שליחה. */}
+      {sendTrayOpen && linkedClient && (
+        <SendRequestsDialog
+          clientId={linkedClient.id}
+          clientName={clientDisplayName(linkedClient)}
+          ready={readyToSend}
+          focusKey="owner"
+          onUpdateClientFields={onUpdateClientFields}
+          onClose={() => { setSendTrayOpen(false); setReadyTick(t => t + 1); onStepsChanged?.(); }}
+          onSent={() => { setReadyTick(t => t + 1); onStepsChanged?.(); void reloadEmails(); }}
+          onReload={() => reloadReady()}
         />
       )}
       {previewSignerId && (
