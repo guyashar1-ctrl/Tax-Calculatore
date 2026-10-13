@@ -17,10 +17,29 @@ import ProcessList from './ProcessList';
 import MailPreview from './MailPreview';
 import DocsPreview from './DocsPreview';
 import LinkedPagePreview from './LinkedPagePreview';
+import ProcessSteps, { processForEntry } from '../../components/office/ProcessSteps';
+import { processByKey } from '../../lib/processCatalog';
+import type { ProcessDefinition } from '../../lib/processDefinition';
+import '../../components/office/office.css';
 import '../../components/flows/flows.css';
 import './requestPreview.css';
 
-type Tab = 'page' | 'mail' | 'docs' | 'linked';
+type Tab = 'page' | 'mail' | 'docs' | 'linked' | 'how';
+
+// ‼ 11.10.2026: «איך עושים» — התהליך שהבקשה שייכת אליו, עם הדרך הידנית לכל שלב (קטלוג התהליכים).
+const PROCESS_OF_CATALOG: Record<string, string> = {
+  bank_debit: 'bank_debit', send_document: 'send_document', client_documents: 'client_documents', prev_accountant_track: 'prev_accountant',
+  paperless_sequence: 'paperless', business_details: 'paperless', paperless_tax_authority: 'paperless', authority_representation: 'representation',
+};
+function processOfTarget(t: PreviewTarget): ProcessDefinition | undefined {
+  switch (t.kind) {
+    case 'system': case 'draft': return processForEntry(t.stepType);
+    case 'template': return processForEntry(t.facts.stepType, t.facts.stepType === 'custom_request' ? 'custom' : undefined);
+    case 'catalog': return PROCESS_OF_CATALOG[t.type] ? processByKey(PROCESS_OF_CATALOG[t.type]) : undefined;
+    case 'group': return processByKey(t.group === 'paperless' ? 'paperless' : t.group === 'prevAccountant' ? 'prev_accountant' : t.group);
+    default: return undefined;
+  }
+}
 
 const LINKED_OF_PORTAL_KIND: Partial<Record<PortalLinkedKind, LinkedKey>> = {
   onboard: 'onboard', sign: 'sign', intake: 'intake', release: 'release', 'sign-form': 'signForm',
@@ -100,6 +119,7 @@ export default function RequestPreviewSheet({ target, selection, onSelectionChan
     },
   }), []);
 
+  const howDef = useMemo(() => processOfTarget(cur.target), [cur.target]);
   const problems = (data?.specs ?? []).map(specProblemText).filter((x): x is string => !!x);
   const hasItems = (data?.items.length ?? 0) > 0;
   const docsRelevant = view.meta.docs.length > 0 || (data?.items ?? []).some(i => (i.resources?.length ?? 0) > 0 || (i.checklist?.length ?? 0) > 0);
@@ -108,6 +128,7 @@ export default function RequestPreviewSheet({ target, selection, onSelectionChan
     ...(view.meta.mails.length ? [{ value: 'mail' as const, label: 'במייל' }] : []),
     ...(docsRelevant ? [{ value: 'docs' as const, label: 'מסמכים' }] : []),
     ...(view.meta.linked ? [{ value: 'linked' as const, label: 'המסך שנפתח' }] : []),
+    ...(howDef ? [{ value: 'how' as const, label: 'איך עושים' }] : []),
   ];
   const activeTab = tabs.some(t => t.value === tab) ? tab : 'page';
   const nested = stack.length > 1;
@@ -195,6 +216,12 @@ export default function RequestPreviewSheet({ target, selection, onSelectionChan
             <p className="rp-lead">מה הלקוח רואה בדף שלו.</p>
             {pageBody}
             {cur.target.kind === 'group' && !nested && <ProcessList group={cur.target.group} data={data} onOpen={openKid} />}
+          </>
+        )}
+        {activeTab === 'how' && howDef && (
+          <>
+            <p className="rp-lead">{howDef.name}: מתי מתחילים, השלבים, ואיך עושים כל שלב ביד — גם בלי המערכת ובלי חיבור לרשויות.</p>
+            <ProcessSteps def={howDef} manual />
           </>
         )}
         {activeTab === 'mail' && (

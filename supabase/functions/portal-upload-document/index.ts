@@ -164,7 +164,7 @@ Deno.serve(async (req: Request) => {
 
     const allowedTypes = tokenKind === "release"
       ? ["materials_received"]
-      : ["client_documents", "custom_request"];
+      : ["client_documents", "custom_request", "info_collection"];
     if (!allowedTypes.includes(step.step_type)) return json({ error: "step_not_uploadable" }, 403);
     // בקשה שהרו"ח עוד לא פתח ללקוח אינה קיימת מבחינתו.
     // מקור האמת הוא העמודה (מיגרציה 77); המראה ב-payload נבדקת ליתר ביטחון.
@@ -179,6 +179,52 @@ Deno.serve(async (req: Request) => {
       .from("documents").select("id", { count: "exact", head: true })
       .eq("client_id", clientId).gte("uploaded_at", hourAgo);
     if ((count ?? 0) >= MAX_PER_HOUR) return json({ error: "rate_limited" }, 429);
+
+    // ── 229 · «השלמת מידע» לשנת מס: הפריט הוא שאלה (tax_info_asks), לא רשימה ב-payload ──
+    // ‼ הקובץ נרשם כראיה «התקבל, ממתין לבדיקה» דרך portal_submit_tax_info — לא כמידע מאושר,
+    // ולא מסמן את הבקשה כהושלמה. שנה ותווית: שנת המס של הבקשה; תווית «לבדיקה».
+    if (step.step_type === "info_collection") {
+      const { data: ask } = await admin.from("tax_info_asks").select("*")
+        .eq("id", itemKey).eq("step_id", stepId).eq("client_id", clientId).maybeSingle();
+      if (!ask) return json({ error: "item_not_found" }, 404);
+      if (!["published", "unavailable"].includes(ask.state)) return json({ error: "item_closed" }, 409);
+      if (ask.prompt?.input?.kind !== "file") return json({ error: "item_not_a_file" }, 400);
+      const bytesTi = new Uint8Array(await file.arrayBuffer());
+      const hashTi = await sha256Hex(bytesTi);
+      const NOTE_TI = "הועלה על ידי הלקוח מהדף האישי (השלמת מידע)";
+      // ‼ ניסיון חוזר אחרי כשל חלקי (הקובץ נשמר, הרישום כראיה נכשל): אותו קובץ בדיוק, לאותו
+      // לקוח, מאותו מסלול — משתמשים ברשומה שכבר קיימת במקום לשמור עותק שני.
+      const { data: prevTi } = await admin.from("documents").select("id")
+        .eq("client_id", clientId).eq("content_sha256", hashTi).eq("notes", NOTE_TI).limit(1).maybeSingle();
+      const docIdTi: string = prevTi?.id ?? crypto.randomUUID();
+      if (!prevTi) {
+        const pathTi = `${step.user_id}/${clientId}/${docIdTi}`;
+        const { error: upErrTi } = await admin.storage.from("client-documents").upload(pathTi, bytesTi, { contentType: type, upsert: false });
+        if (upErrTi) return json({ error: "storage_failed", detail: upErrTi.message }, 500);
+        const { data: lbl, error: lblErr } = await admin.rpc("ensure_reserved_document_label", { p_user_id: step.user_id });
+        if (lblErr) { await admin.storage.from("client-documents").remove([pathTi]); return json({ error: "label_resolution_failed", detail: lblErr.message }, 500); }
+        const { error: docErrTi } = await admin.from("documents").insert({
+          id: docIdTi, user_id: step.user_id, client_id: clientId, storage_path: pathTi, folder_id: null,
+          file_name: file.name || "מסמך.pdf", file_type: type, file_size: file.size, content_sha256: hashTi,
+          category: "other", year: String(ask.tax_year), label_id: lbl, description: String(ask.prompt?.title ?? "מסמך"),
+          notes: NOTE_TI, status: "received",
+        });
+        if (docErrTi) { await admin.storage.from("client-documents").remove([pathTi]); return json({ error: "record_failed", detail: docErrTi.message }, 500); }
+      }
+      const { data: sub, error: subErr } = await admin.rpc("portal_submit_tax_info", {
+        p_token: token, p_ask_id: ask.id, p_answer: { kind: "file", fileName: file.name || "מסמך", documentId: docIdTi },
+      });
+      if (subErr || (sub as { ok?: boolean })?.ok === false) {
+        // הקובץ נשמר במסמכים; רק הרישום כראיה נכשל — מדווחים, לא מוחקים קובץ של לקוח.
+        return json({ error: "evidence_failed", detail: subErr?.message ?? (sub as { error?: string })?.error, documentId: docIdTi }, 500);
+      }
+      const { data: cliTi } = await admin.from("clients").select("first_name, last_name").eq("id", clientId).maybeSingle();
+      await admin.rpc("queue_accountant_notification", {
+        p_user_id: step.user_id, p_kind: "client_document_uploaded", p_client_id: clientId, p_step_id: stepId,
+        p_payload: { clientName: `${cliTi?.first_name ?? ""} ${cliTi?.last_name ?? ""}`.trim(), itemLabel: String(ask.prompt?.title ?? "מסמך"), fileName: file.name || null },
+      });
+      return json({ ok: true, documentId: docIdTi });
+    }
 
     // ── הפריט שכנגדו מעלים ───────────────────────────────────────────────────
     const payload = (step.payload || {}) as Record<string, unknown>;

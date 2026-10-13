@@ -66,6 +66,11 @@ export const TABLE_SCOPES: Record<string, TableScope> = {
   document_organize_log: { kind: "any", of: [{ kind: "user_id", column: "folder_user_id" }, { kind: "via", column: "doc_id", parent: "documents" }] },
   // רשויות, דוחות וטפסים
   tax_fact_changes: { kind: "user_id" },
+  // 229 · שנת מס: עובדות, ראיות, שאלות ללקוח והעברות מהכרטיס
+  tax_year_facts: { kind: "user_id" },
+  tax_evidence: { kind: "user_id" },
+  tax_info_asks: { kind: "user_id" },
+  tax_card_transfers: { kind: "user_id" },
   btl_portal_facts: { kind: "user_id" },
   btl_portal_documents: { kind: "user_id" },
   automation_jobs: { kind: "user_id" },

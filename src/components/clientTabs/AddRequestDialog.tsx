@@ -42,6 +42,10 @@ import PreviewButton from '../../features/requestPreview/PreviewButton';
 import RequestPreviewSheet from '../../features/requestPreview/RequestPreviewSheet';
 import { CATALOG_TYPES, type CatalogType, type PreviewTarget } from '../../features/requestPreview/targets';
 import { EMPTY_FIRM_PROFILE, composerPreviewOfTemplate } from './InlineComposer';
+import TaxYearRequestForm from '../../features/taxYear/TaxYearRequestForm';
+import { AVAILABLE } from '../../features/taxKnowledge/availability';
+
+const TAX_YEAR_ENTRY = AVAILABLE.taxEstimate ? 'תיק המס · קליטה, הערכה, דוח שנתי או הצהרת הון' : 'תיק המס · קליטה, דוח שנתי או הצהרת הון';
 
 /** מה אפשר להוסיף ידנית. שלב הייצוג אינו כאן — הוא מסונכרן מבקשת הייצוג.
  *  'paperless_sequence', 'prev_accountant_track' ו-'bank_debit' אינם סוגי
@@ -68,7 +72,8 @@ export const ADD_REQUEST_CATALOG: { type: string; hint: string; once: boolean }[
     hint: 'שם העסק ושאלה קצרה על עבודה מהבית — הלקוח ממלא בדף האישי, והמשרד מאשר את אחוז המשרד הביתי', once: true },
   { type: 'paperless_tax_authority',
     hint: 'לעוסק מורשה - הלקוח מחבר את פייפרלס לרשות המסים, ומשם החשבוניות מקבלות מספר הקצאה', once: true },
-  { type: 'intake_questionnaire',   hint: 'רענון תיק המס - שאלון ומסמכים לפי מה שחסר', once: true },
+  // ‼ 229 (החלטת גיא 11.10.2026): «שאלון שנתי» הישן ירד — בקשות חדשות נפתחות בתהליך «שנת מס»
+  // (הבלוק למעלה בחלון). קישורים ישנים שכבר נשלחו ממשיכים לעבוד ונקלטים לשנת הסשן.
   // ‼ 157: זמינות אינה "פעם אחת לכרטיס" כמו שאר הפריטים — לכל אדם (לקוח/
   // בן-בת-זוג) יש ייצוג נפרד, ולכן `once:false` והזמינות נגזרת בנפרד למטה
   // (authRepAvailable) מאותו רזולבר בדיוק כמו תיק המס.
@@ -196,11 +201,13 @@ interface Props {
    * לא מפעיל בעצמו: ההפעלה (תצוגה, שנה, פעולות מול רשות) חיה במקום אחד.
    */
   onStartFlow?: (flowId: string) => void;
+  /** 229 · שנת מס: אחרי פתיחת הערכה/דוח — לפתוח את דף התהליך. */
+  onOpenTaxYear?: (stepId: string) => void;
   onClose: () => void;
   onCreated: () => void;
 }
 
-export default function AddRequestDialog({ clientId, steps, processPublished, awaitingQuoteApproval, intake, currentEngagementId, presetType, presetDocuments, thenEmail, prevAccountantEmail, onUseTemplate, client, niExecution, onRequestAuthorityRepresentation, onStartSmartForm, onStartFlow, onClose, onCreated }: Props) {
+export default function AddRequestDialog({ clientId, steps, processPublished, awaitingQuoteApproval, intake, currentEngagementId, presetType, presetDocuments, thenEmail, prevAccountantEmail, onUseTemplate, client, niExecution, onRequestAuthorityRepresentation, onStartSmartForm, onStartFlow, onOpenTaxYear, onClose, onCreated }: Props) {
   /** מסלולים ידניים/שנתיים של המשרד — לבלוק «מסלולים» בקטלוג. */
   const [flows, setFlows] = useState<{ id: string; name: string; trigger: FlowTrigger; stages: number }[]>([]);
   useEffect(() => {
@@ -217,7 +224,7 @@ export default function AddRequestDialog({ clientId, steps, processPublished, aw
   }, []);
   /** יש בכלל קליטה שאפשר לחסום את סגירתה. */
   const requiredApplies = intakeAcceptsRequired(intake);
-  const [mode, setMode] = useState<'catalog' | 'custom' | 'documents' | 'bank' | 'document' | 'authority_rep'>(
+  const [mode, setMode] = useState<'catalog' | 'custom' | 'documents' | 'bank' | 'document' | 'authority_rep' | 'tax_year'>(
     presetDocuments?.length ? 'document' : 'catalog');
   const [busy, setBusy] = useState(false);
   const [authRepBusyRole, setAuthRepBusyRole] = useState<'client' | 'spouse' | null>(null);
@@ -776,6 +783,7 @@ export default function AddRequestDialog({ clientId, steps, processPublished, aw
               : mode === 'bank' ? BANK_DEBIT_TITLE
               : mode === 'document' ? 'שליחת מסמכים ללקוח'
               : mode === 'authority_rep' ? 'ייצוג ברשות - לאדם'
+              : mode === 'tax_year' ? TAX_YEAR_ENTRY
               : 'מסמכים מהלקוח'}
           </h3>
           <button type="button" className="btn btn-sm btn-ghost" onClick={onClose} aria-label="סגירה">✕</button>
@@ -802,6 +810,17 @@ export default function AddRequestDialog({ clientId, steps, processPublished, aw
                 הבקשה תיווצר במודל הבקשות המאוחד ותופיע ללקוח בדף האישי - כמו כל בקשה אחרת.
               </div>
             )
+          )}
+
+          {mode === 'catalog' && !presetType && onOpenTaxYear && (
+            <button type="button" disabled={busy} style={{ display: 'flex', flexDirection: 'column', gap: '.15rem', alignItems: 'flex-start', textAlign: 'start', width: '100%', padding: '.6rem .75rem', border: '1px solid var(--soft-bd)', borderRadius: 'var(--radius)', background: 'var(--soft)', cursor: 'pointer' }}
+              onClick={() => setMode('tax_year')}>
+              <span style={{ fontWeight: 600 }}>{TAX_YEAR_ENTRY}</span>
+              <span style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)' }}>מה ידוע מהתיק, מה חסר, ושאלות ומסמכים ללקוח רק על החסר — בדף האישי</span>
+            </button>
+          )}
+          {mode === 'tax_year' && onOpenTaxYear && (
+            <TaxYearRequestForm clientId={clientId} onOpened={id => { onCreated(); onOpenTaxYear(id); onClose(); }} />
           )}
 
           {mode === 'catalog' && !presetType && (

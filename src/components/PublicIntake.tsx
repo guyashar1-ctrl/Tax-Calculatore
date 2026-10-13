@@ -19,6 +19,16 @@ interface Props {
   firstName: string;
   ink: string;
   onDone: () => void;
+  /** 236 · המשרד החליף את השאלון בקליטה — השרת דחה (גם בלשונית שכבר פתוחה). */
+  onReplaced?: () => void;
+}
+
+/** 236 · האם המשרד החליף את השאלון הזה בקליטה (השרת הוא המקור; גם הוא חוסם כל כתיבה). */
+export async function intakeReplacedState(token: string): Promise<{ replaced: boolean; portalToken?: string }> {
+  const { data, error } = await supabase.rpc('intake_replaced_state', { p_token: token });
+  const r = data as { ok?: boolean; replaced?: boolean; portalToken?: string | null } | null;
+  if (error || !r?.ok) return { replaced: false };
+  return { replaced: !!r.replaced, portalToken: r.portalToken ?? undefined };
 }
 
 /** מה שהשאלון צריך כדי להתחיל: ההפעלה, המודל עד כה, והשאלה הנוכחית. */
@@ -38,7 +48,7 @@ export interface PublicIntakeActions {
   saveAnswer(p: {
     sessionId: string; questionId: string; answer: AnswerValue; model: TaxpayerModel;
     currentQuestionId: string | null; done: boolean;
-  }): Promise<{ status: 'saved' } | { status: 'failed' } | SimulatedResult>;
+  }): Promise<{ status: 'saved' } | { status: 'failed' } | { status: 'replaced' } | SimulatedResult>;
 }
 
 export function livePublicIntakeActions(token: string): PublicIntakeActions {
@@ -53,13 +63,17 @@ export function livePublicIntakeActions(token: string): PublicIntakeActions {
         p_current_question_id: p.currentQuestionId,
         p_done: p.done,
       });
-      if (error || data === false) return { status: 'failed' };
+      if (error || data === false) {
+        // ‼ 236 · הלשונית נפתחה לפני «החלף בקליטה» — השרת דוחה; מראים «הוחלף» במקום «נסו שוב»
+        if ((await intakeReplacedState(token)).replaced) return { status: 'replaced' };
+        return { status: 'failed' };
+      }
       return { status: 'saved' };
     },
   };
 }
 
-export default function PublicIntake({ token, firstName, ink, onDone }: Props) {
+export default function PublicIntake({ token, firstName, ink, onDone, onReplaced }: Props) {
   const [state, setState] = useState<IntakeState>({ kind: 'loading' });
   const actions = useMemo(() => livePublicIntakeActions(token), [token]);
 
@@ -78,6 +92,7 @@ export default function PublicIntake({ token, firstName, ink, onDone }: Props) {
       if (cancelled) return;
       const row = Array.isArray(data) ? data[0] : data;
       if (error || !row) {
+        if (String(error?.message ?? '').includes('intake_replaced') && onReplaced) { onReplaced(); return; }
         setState({ kind: 'error', message: 'לא הצלחנו לפתוח את השאלון. נסו לרענן, או פנו למשרד.' });
         return;
       }
@@ -96,7 +111,7 @@ export default function PublicIntake({ token, firstName, ink, onDone }: Props) {
   if (state.kind === 'error') {
     return <div style={{ padding: '10px 12px', background: '#FCEBEB', color: '#A32D2D', borderRadius: 9, fontSize: 13 }}>{state.message}</div>;
   }
-  return <PublicIntakeView initial={state.initial} firstName={firstName} ink={ink} onDone={onDone} actions={actions} />;
+  return <PublicIntakeView initial={state.initial} firstName={firstName} ink={ink} onDone={onDone} onReplaced={onReplaced} actions={actions} />;
 }
 
 export type PublicIntakeViewProps = {
@@ -104,6 +119,7 @@ export type PublicIntakeViewProps = {
   firstName: string;
   ink: string;
   onDone: () => void;
+  onReplaced?: () => void;
 } & (
   | { mode?: 'live'; actions: PublicIntakeActions }
   /** בתצוגה לדוגמה אפשר להשמיט את `actions` — ברירת המחדל לא נוגעת בכלום. */
@@ -152,6 +168,7 @@ export function PublicIntakeView(props: PublicIntakeViewProps) {
       done,
     });
     setSaving(false);
+    if (res.status === 'replaced') { props.onReplaced?.(); return; }
     if (res.status === 'failed') {
       setSaveError(true);
       return; // לא מתקדמים — הלקוח ילחץ שוב

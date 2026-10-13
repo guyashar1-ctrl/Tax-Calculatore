@@ -15,6 +15,7 @@ import type { AnnualReportSession } from './types';
 // אין כאן עותק שני — שינוי כלל שם משנה את שני המסכים.
 import { computeDiffs, toProposedFact } from './reconcile';
 import type { Diff } from './reconcile';
+import { LEGACY_ANNUAL_CARD_KEYS } from '../taxYear/transfer';
 
 interface Props {
   session: AnnualReportSession;
@@ -27,7 +28,9 @@ interface Props {
 
 
 export default function SyncConfirmation({ session, client, onProposeChanges, onContinue }: Props) {
-  const diffs = useMemo(() => computeDiffs(session, client), [session, client]);
+  // ‼ 229: סכום שנתי (תרומות, ביטוח חיים…) שייך לשנת המס ולא לכרטיס — לא מוצע כאן לכרטיס.
+  const diffs = useMemo(() => computeDiffs(session, client)
+    .filter(d => !Object.keys(d.apply(client)).some(k => LEGACY_ANNUAL_CARD_KEYS.has(k))), [session, client]);
   const [selected, setSelected] = useState<Set<string>>(() => new Set(diffs.map((d) => d.key)));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);

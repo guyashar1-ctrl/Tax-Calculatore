@@ -2833,6 +2833,23 @@ export default function App() {
                   {/* ‼ אותו שם כמו הלשונית שבה נוחתים: «מיילים» ← «מה נשלח». */}
                   <span>מה נשלח במייל</span>
                 </button>
+                {/* 12.10.2026 · «עבודת מס» — כלי עבודה יומי (קליטות, דוחות שנתיים, הצהרות הון של כל הלקוחות);
+                    קיצור ישיר לעמוד שלו ב«המשרד», כמו «מה נשלח במייל». */}
+                <button
+                  type="button"
+                  className={`account-menu-item ${view === 'firmProfile' && officePage === 'taxWork' ? 'is-active' : ''}`}
+                  onClick={() => {
+                    setAccountMenuOpen(false);
+                    setView('firmProfile');
+                    setOfficePage('taxWork');
+                    setOfficeFocus(null);
+                    setSelectedId(null);
+                    setSelectedRequestId(null);
+                  }}
+                >
+                  <Icon name="check" size={14} />
+                  <span>עבודת מס</span>
+                </button>
                 <button
                   type="button"
                   className={`account-menu-item ${view === 'reference' ? 'is-active' : ''}`}

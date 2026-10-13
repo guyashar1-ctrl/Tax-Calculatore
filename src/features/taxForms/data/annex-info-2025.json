@@ -1,0 +1,2442 @@
+{
+  "annexes": [
+    {
+      "formId": "1320",
+      "repeatsPer": "business",
+      "repeatsNote": "נספח נפרד לכל עסק — של הלקוח ושל בן/בת הזוג (businesses[].belongsToSpouse). רכב (סעיף ג) ומשכיר (סעיף ד) חוזרים לכל רכב/נכס; שותפים (סעיף ב) — לכל שותף.",
+      "items": [
+        {
+          "key": "1320.identity",
+          "label": "פרטי הנישום ותיק",
+          "annexFields": [
+            "שם פרטי / שם משפחה / מספר זהות / מספר תיק"
+          ],
+          "source": "fileFact",
+          "documents": [],
+          "fileKeys": [
+            "firstName",
+            "lastName",
+            "idNumber",
+            "spouseFirstName",
+            "spouseLastName",
+            "spouseIdNumber",
+            "taxFiles"
+          ],
+          "fileState": "inFile",
+          "period": "asOfDate",
+          "note": "שם ות.ז. בכרטיס. בעסק של בן/בת הזוג — פרטי בן/בת הזוג. מספר התיק = ת.ז. בן הזוג הרשום (taxFiles); לאמת ש-registeredSpouseVerified."
+        },
+        {
+          "key": "1320.businessDetails",
+          "label": "שם, כתובת ומהות העסק",
+          "annexFields": [
+            "שם העסק",
+            "כתובת העסק",
+            "מהות העיסוק"
+          ],
+          "source": "fileFact",
+          "documents": [],
+          "fileKeys": [
+            "businesses",
+            "businessName",
+            "businessDescription"
+          ],
+          "fileState": "partialInFile",
+          "period": "taxYear",
+          "note": "businesses[].name/address/description הם מצב עדכני; לאמת שהיו נכונים בשנת המס (כתובת שהשתנתה, עסק שנסגר)."
+        },
+        {
+          "key": "1320.activityPeriod",
+          "label": "תאריך הקמה וחודשי פעילות",
+          "annexFields": [
+            "מס' חודשי הפעלה בשנת המס",
+            "תאריך הקמת העסק"
+          ],
+          "source": "fileFact",
+          "documents": [],
+          "fileKeys": [
+            "businesses"
+          ],
+          "fileState": "partialInFile",
+          "period": "taxYear",
+          "note": "בכרטיס רק startYear/closedYear (שנה). הטופס דורש תאריך הקמה מלא; מספר החודשים בשנת המס נגזר מתאריכי פתיחה/סגירה שאינם שמורים."
+        },
+        {
+          "key": "1320.reportingBasis",
+          "label": "בסיס דיווח (מצטבר/מזומן)",
+          "annexFields": [
+            "בסיס דיווח: מצטבר / מזומן"
+          ],
+          "source": "office",
+          "documents": [
+            "ספרי החשבונות"
+          ],
+          "fileKeys": [],
+          "fileState": "missingInFile",
+          "period": "taxYear",
+          "note": "הכרעת המשרד לפי שיטת הספרים; אם הספרים בשיטה אחרת — מילוי אחרי התאמות. לא נשמר בכרטיס."
+        },
+        {
+          "key": "1320.revenue",
+          "label": "סך הכנסות העסק",
+          "annexFields": [
+            "1. סה\"כ הכנסות (כולל פיצוי בגין נזק עקיף חרבות ברזל)"
+          ],
+          "source": "document",
+          "documents": [
+            "דוח רווח והפסד",
+            "ספרי החשבונות",
+            "דוחות מע״מ תקופתיים"
+          ],
+          "fileKeys": [
+            "businesses"
+          ],
+          "fileState": "partialInFile",
+          "period": "taxYear",
+          "note": "businesses[].revenueAnnual הוא אומדן/מחזור בלי שנה. ללא מע״מ (למעט עוסק פטור), כולל פיצוי נזק עקיף «חרבות ברזל»."
+        },
+        {
+          "key": "1320.inventoryAndPurchases",
+          "label": "מלאי וקניות",
+          "annexFields": [
+            "2א. מלאי בתחילת השנה",
+            "2ב. קניות במשך השנה",
+            "2ג. מלאי בסוף השנה"
+          ],
+          "source": "document",
+          "documents": [
+            "ספירת מלאי לסוף השנה",
+            "דוח רווח והפסד",
+            "דוח שנה קודמת (מלאי פתיחה)"
+          ],
+          "fileKeys": [
+            "businesses"
+          ],
+          "fileState": "partialInFile",
+          "period": "taxYear",
+          "note": "בכרטיס רק cogs כסכום כולל. מלאי פתיחה = מלאי הסגירה בדוח הקודם; מלאי סגירה מספירה."
+        },
+        {
+          "key": "1320.payroll",
+          "label": "עובדים ושכר",
+          "annexFields": [
+            "3א. מספר עובדים (בממוצע שנתי)",
+            "3ב. סכום המשכורת או שכר העבודה",
+            "3ג. הוצאות נלוות לשכר"
+          ],
+          "source": "document",
+          "documents": [
+            "טופס 126 (דוח שנתי למעסיק)",
+            "דוחות שכר"
+          ],
+          "fileKeys": [],
+          "fileState": "missingInFile",
+          "period": "taxYear",
+          "note": "מספר עובדים ממוצע, שכר והוצאות נלוות — אין בכרטיס."
+        },
+        {
+          "key": "1320.operatingExpenses",
+          "label": "הוצאות שוטפות לפי סעיפי הטופס",
+          "annexFields": [
+            "4. עבודות חוץ, קבלנות משנה וכו'",
+            "5. שירותים אחרים",
+            "6. הוצאות מימון: ריבית והפרשי הצמדה",
+            "8. אחזקה ותיקונים שוטפים",
+            "9. הוצאות משרדיות",
+            "10. הנהלת חשבונות והגשת הדו\"ח השנתי",
+            "11. דמי שכירות וחכירה",
+            "12. הוצאות מוכרות בהתאם לתקנות",
+            "13. מיסים עירוניים, אגרות והיטלים",
+            "14. ביטוח עסקי",
+            "16. הוצאות אחרות (פרט)"
+          ],
+          "source": "document",
+          "documents": [
+            "דוח רווח והפסד",
+            "כרטסות הנהלת חשבונות",
+            "פירוט הוצאות לפי תקנות (שורה 12)"
+          ],
+          "fileKeys": [
+            "businesses"
+          ],
+          "fileState": "partialInFile",
+          "period": "taxYear",
+          "note": "בכרטיס רק operatingExpenses כסכום אחד, בלי חלוקה לשורות. שורה 16 לא כוללת קרן השתלמות ואובדן כושר עבודה (נרשמים ב-1301). שורה 11 מחייבת את פרטי המשכיר (סעיף ד)."
+        },
+        {
+          "key": "1320.badDebts",
+          "label": "חובות רעים",
+          "annexFields": [
+            "15. חובות רעים"
+          ],
+          "source": "document",
+          "documents": [
+            "ספרי החשבונות",
+            "אסמכתאות לחוב אבוד"
+          ],
+          "fileKeys": [],
+          "fileState": "missingInFile",
+          "period": "taxYear",
+          "note": "רלוונטי רק בבסיס מצטבר (תלוי ב-1320.reportingBasis)."
+        },
+        {
+          "key": "1320.vehicleExpenses",
+          "label": "הוצאות רכב — מלוא הסכום",
+          "annexFields": [
+            "7. הוצאות רכב (מלוא הסכום)"
+          ],
+          "source": "document",
+          "documents": [
+            "כרטסת הוצאות רכב",
+            "דוח רווח והפסד"
+          ],
+          "fileKeys": [],
+          "fileState": "missingInFile",
+          "period": "taxYear",
+          "note": "כולל פחת, חנייה שלא במקום העיסוק וכביש 6; מותר רק אם מולא סעיף ג (פרטי הרכב)."
+        },
+        {
+          "key": "1320.vehicleDetails",
+          "label": "פרטי הרכב, חודשי שימוש וק״מ",
+          "annexFields": [
+            "תיאור הרכב / קוד תוצר / קוד דגם / נפח מנוע / קבוצת מחיר / מספר רישוי",
+            "מספר חודשים בשימוש בשנת המס",
+            "ק\"מ בתחילת / בסוף השנה או השימוש"
+          ],
+          "source": "document",
+          "documents": [
+            "רישיון רכב",
+            "רישום ק״מ בתחילת/בסוף השנה"
+          ],
+          "fileKeys": [],
+          "fileState": "missingInFile",
+          "period": "perAsset",
+          "note": "לכל רכב בנפרד; מעל 3 רכבים — פירוט. ק״מ וחודשי שימוש — מהלקוח או מיומן הרכב."
+        },
+        {
+          "key": "1320.vehicleAllowed",
+          "label": "החלק המותר בניכוי מהוצאות הרכב",
+          "annexFields": [
+            "7. החלק המותר בניכוי עפ\"י התקנות"
+          ],
+          "source": "calculation",
+          "documents": [],
+          "fileKeys": [],
+          "fileState": "office",
+          "period": "taxYear",
+          "note": "לפי תקנות ניכוי הוצאות רכב התשנ״ה-1995, על בסיס 1320.vehicleExpenses ו-1320.vehicleDetails."
+        },
+        {
+          "key": "1320.depreciation",
+          "label": "פחת מותר (לא כולל רכב)",
+          "annexFields": [
+            "17. פחת מותר בניכוי (לא כולל רכב)"
+          ],
+          "source": "calculation",
+          "documents": [
+            "טופס 1342"
+          ],
+          "fileKeys": [
+            "businesses"
+          ],
+          "fileState": "partialInFile",
+          "period": "taxYear",
+          "note": "מסוכם מ-1342 של העסק. businesses[].depreciation הוא סכום אחד בלי טבלת נכסים ובלי שנה."
+        },
+        {
+          "key": "1320.nonDeductible",
+          "label": "התאמת הוצאות שאינן מותרות ופירוטן",
+          "annexFields": [
+            "20. התאמת הוצאות שאינן מותרות בניכוי",
+            "הערות"
+          ],
+          "source": "office",
+          "documents": [
+            "דוח רווח והפסד"
+          ],
+          "fileKeys": [],
+          "fileState": "missingInFile",
+          "period": "taxYear",
+          "note": "הכרעת המשרד (מוסף לרווח); פירוט בסעיף ה׳ (הערות)."
+        },
+        {
+          "key": "1320.additionalDepreciation",
+          "label": "ניכוי נוסף בשל פחת",
+          "annexFields": [
+            "21. ניכוי נוסף בשל פחת"
+          ],
+          "source": "calculation",
+          "documents": [
+            "טופס 1343"
+          ],
+          "fileKeys": [],
+          "fileState": "missingInFile",
+          "period": "taxYear",
+          "note": "מועבר מ-1343 — רק לנכסים שחל עליהם חוק התיאומים עד 2007."
+        },
+        {
+          "key": "1320.totals",
+          "label": "סיכומי הדוח והכנסה חייבת",
+          "annexFields": [
+            "2ד. סה\"כ עלות המכירות (א+ב פחות ג)",
+            "18. סה\"כ הוצאות מותרות בניכוי (2ד עד 17)",
+            "19. סה\"כ הכנסות פחות הוצאות (1 פחות 18)",
+            "22. סה\"כ הכנסה חייבת (19+20 פחות 21)"
+          ],
+          "source": "calculation",
+          "documents": [],
+          "fileKeys": [
+            "businesses"
+          ],
+          "fileState": "office",
+          "period": "taxYear",
+          "note": "נגזר מהשורות הקודמות. businesses[].netIncome הוא אומדן בלבד ואינו תחליף לחישוב."
+        },
+        {
+          "key": "1320.bookkeeping",
+          "label": "ניהול ספרים ומלאי (סעיף א)",
+          "annexFields": [
+            "הפירוט מבוסס על פנקסי החשבונות שניהלתי",
+            "הייתי חייב לנהל פנקסים בשיטה הכפולה",
+            "ניהלתי פנקסים בשיטה הכפולה",
+            "אני מפעיל קופה רושמת",
+            "אני מנהל שוברי קבלות/חשבוניות",
+            "ערך מפקד מצאי",
+            "שיטת הערכת המלאי",
+            "הספרים נוהלו עפ\"י תוספת / סעיף להוראות ניהול ספרים",
+            "מקום המצאם של ספרי החשבונות"
+          ],
+          "source": "office",
+          "documents": [
+            "ספרי החשבונות"
+          ],
+          "fileKeys": [
+            "bookStatus",
+            "businessDataStatus"
+          ],
+          "fileState": "missingInFile",
+          "period": "taxYear",
+          "note": "bookStatus (תקינות ספרים) ו-businessDataStatus הם מושגים אחרים; שאלות סעיף א׳, שיטת הערכת המלאי, התוספת להוראות ומקום הספרים — לא נשמרים."
+        },
+        {
+          "key": "1320.partnershipDetails",
+          "label": "פרטי השותפות",
+          "annexFields": [
+            "שם השותפות / תיק ברשם השותפויות / מספר עוסק במע\"מ / מספר תיק ניכויים (9...)"
+          ],
+          "source": "document",
+          "documents": [
+            "הסכם שותפות",
+            "תעודת רישום שותפות",
+            "תעודת עוסק במע״מ"
+          ],
+          "fileKeys": [
+            "businesses"
+          ],
+          "fileState": "partialInFile",
+          "period": "asOfDate",
+          "note": "רק כש-businesses[].kind = partnership; בכרטיס name/taxId בלבד — אין מספר ברשם ותיק ניכויים."
+        },
+        {
+          "key": "1320.partners",
+          "label": "השותפים וחלקם",
+          "annexFields": [
+            "שותף: שם / מספר תיק או זהות / כתובת",
+            "שותף פעיל",
+            "הצטרפות לשותפות",
+            "חלקו בהכנסות %"
+          ],
+          "source": "document",
+          "documents": [
+            "הסכם שותפות"
+          ],
+          "fileKeys": [],
+          "fileState": "missingInFile",
+          "period": "perAsset",
+          "note": "לכל שותף: שם, ת.ז./תיק, כתובת, פעיל, הצטרפות וחלק (סה״כ 100%). הראשון — ראש השותפים לפי סעיף 63. «הצטרפות» — קריאה לא ודאית."
+        },
+        {
+          "key": "1320.partnershipShare",
+          "label": "חלק הנישום וסכום להעברה ל-1301",
+          "annexFields": [
+            "23. החלק בהכנסת השותפות באחוזים",
+            "23. סכום להעברה (22 × אחוז)"
+          ],
+          "source": "calculation",
+          "documents": [
+            "הסכם שותפות",
+            "טופס 1344"
+          ],
+          "fileKeys": [],
+          "fileState": "office",
+          "period": "taxYear",
+          "note": "אחוז מהסכם השותפות × שורה 22, אחרי קיזוז הפסדים (1344). חיובי לשורה 1 ב-1301; שלילי — למקום המתאים."
+        },
+        {
+          "key": "1320.lessorDetails",
+          "label": "פרטי המשכיר (שכירות העסק)",
+          "annexFields": [
+            "שם / מספר זהות / סוג הנכס / כתובת / גוש / חלקה / שטח ברוטו / קומה"
+          ],
+          "source": "document",
+          "documents": [
+            "חוזה שכירות של העסק"
+          ],
+          "fileKeys": [],
+          "fileState": "missingInFile",
+          "period": "perAsset",
+          "note": "לכל נכס ששכר העסק (שורה 11). properties[] בכרטיס הם נכסי הלקוח — לא נכסים שהעסק שוכר."
+        }
+      ]
+    },
+    {
+      "formId": "1321",
+      "repeatsPer": "once",
+      "repeatsNote": "נספח אחד לנישום (לכל בן זוג בנפרד לפי הפרטים בראשו). הסכומים מסוכמים לכל הנכסים; סעיף 5 (נכס ששימש בעסק) וסעיף 6 (שותפים) מתמלאים לכל נכס.",
+      "items": [
+        {
+          "key": "1321.identity",
+          "label": "פרטי הנישום ותיק",
+          "annexFields": [
+            "שם פרטי / שם משפחה / מספר זהות / מספר תיק"
+          ],
+          "source": "fileFact",
+          "documents": [],
+          "fileKeys": [
+            "firstName",
+            "lastName",
+            "idNumber",
+            "spouseFirstName",
+            "spouseLastName",
+            "spouseIdNumber",
+            "taxFiles"
+          ],
+          "fileState": "inFile",
+          "period": "asOfDate",
+          "note": "כמו ב-1320; לבן/בת הזוג — פרטיו."
+        },
+        {
+          "key": "1321.houseRentIncome",
+          "label": "הכנסת שכירות במסלול רגיל",
+          "annexFields": [
+            "הכנסה מנכס בית החייבת בשיעורים הרגילים"
+          ],
+          "source": "document",
+          "documents": [
+            "חוזי שכירות",
+            "אסמכתאות קבלת דמי שכירות"
+          ],
+          "fileKeys": [
+            "properties",
+            "hasRentalIncome",
+            "rentalIncomeAnnual",
+            "rentalTaxTrack"
+          ],
+          "fileState": "partialInFile",
+          "period": "taxYear",
+          "note": "בכרטיס monthlyRent לנכס ו-rentalIncomeAnnual כאומדן, בלי שנה וחודשי השכרה בפועל. כולל הכנסה שהתקבלה מראש. רק נכסים ב-rentalTaxTrack=regular."
+        },
+        {
+          "key": "1321.houseDepreciation",
+          "label": "פחת וניכויים על הנכס המושכר",
+          "annexFields": [
+            "פחת על-פי תקנות",
+            "ניכוי נוסף בשל פחת (סעיף 3 או 18 לחוק התיאומים)",
+            "ניכוי לפי תקנות שיעור פחת לדירה מושכרת למגורים התשמ\"ט-1989",
+            "1.1 סה\"כ פחת וניכויים"
+          ],
+          "source": "calculation",
+          "documents": [
+            "טופס 1342",
+            "טופס 1343",
+            "חוזה רכישה"
+          ],
+          "fileKeys": [
+            "properties"
+          ],
+          "fileState": "partialInFile",
+          "period": "perAsset",
+          "note": "נשען על properties[].purchasePrice/purchaseYear — שנה בלבד, ובלי הפרדה בין מבנה לקרקע. ניכוי לפי תקנות 1989 — עם חישוב מצורף."
+        },
+        {
+          "key": "1321.houseExpenses",
+          "label": "מסים, תיקונים והוצאות אחרות",
+          "annexFields": [
+            "1.2 מיסים ואגרות בגין הנכס",
+            "1.3 תיקונים שוטפים",
+            "1.4 הוצאות אחרות (פרט/י)"
+          ],
+          "source": "document",
+          "documents": [
+            "קבלות תיקונים",
+            "אסמכתאות מסים ואגרות על הנכס"
+          ],
+          "fileKeys": [
+            "rentalExpenses"
+          ],
+          "fileState": "partialInFile",
+          "period": "taxYear",
+          "note": "rentalExpenses הוא סכום אחד ללקוח — לא לנכס, לא לפי סוג ולא לשנה."
+        },
+        {
+          "key": "1321.houseNet",
+          "label": "סה״כ הוצאות והכנסה נטו מנכס בית",
+          "annexFields": [
+            "סה\"כ הוצאות (1.1 עד 1.4)",
+            "הכנסה מנכס בית בניכוי הוצאות"
+          ],
+          "source": "calculation",
+          "documents": [],
+          "fileKeys": [],
+          "fileState": "office",
+          "period": "taxYear",
+          "note": "מועבר לשדה 059."
+        },
+        {
+          "key": "1321.keyMoney",
+          "label": "דמי מפתח — הכנסה, הוצאות ונטו",
+          "annexFields": [
+            "הכנסה מדמי מפתח",
+            "הוצאות מותרות / סה\"כ הוצאות",
+            "הכנסה מדמי מפתח בניכוי הוצאות"
+          ],
+          "source": "document",
+          "documents": [
+            "חוזה דמי מפתח"
+          ],
+          "fileKeys": [],
+          "fileState": "missingInFile",
+          "period": "perTransaction",
+          "note": "הוצאות — לפרט. הנטו מועבר לשדה המתאים (לא צוין קוד)."
+        },
+        {
+          "key": "1321.keyMoneyDates",
+          "label": "מועדי קבלה ומקדמה בדמי מפתח",
+          "annexFields": [
+            "תאריך קבלת ההכנסה מדמי מפתח",
+            "תאריך תשלום המקדמה",
+            "סכום המקדמה"
+          ],
+          "source": "document",
+          "documents": [
+            "חוזה דמי מפתח",
+            "אישור תשלום מקדמה"
+          ],
+          "fileKeys": [],
+          "fileState": "missingInFile",
+          "period": "perTransaction",
+          "note": "תאריך קבלת ההכנסה, תאריך וסכום המקדמה ששולמה."
+        },
+        {
+          "key": "1321.rent10Income",
+          "label": "הכנסה ממגורים במסלול 10%",
+          "annexFields": [
+            "הכנסה מהשכרת דירת מגורים בישראל בשיעור 10% (סעיף 122)"
+          ],
+          "source": "document",
+          "documents": [
+            "חוזי שכירות"
+          ],
+          "fileKeys": [
+            "properties",
+            "rentalTaxTrack",
+            "rentalIncomeAnnual"
+          ],
+          "fileState": "partialInFile",
+          "period": "taxYear",
+          "note": "נכסים ב-rentalTaxTrack=flat10; סכום בפועל לשנה — מחוזים ותקבולים. פרטי הדירה נרשמים בסעיף 5."
+        },
+        {
+          "key": "1321.rent10SingleApartment",
+          "label": "הצהרת «דירה יחידה»",
+          "annexFields": [
+            "הנני מחזיק \"דירה יחידה\""
+          ],
+          "source": "client",
+          "documents": [],
+          "fileKeys": [
+            "properties",
+            "numberOfProperties"
+          ],
+          "fileState": "partialInFile",
+          "period": "taxYear",
+          "note": "numberOfProperties/properties[] הם מצב עדכני — לאמת מול שנת המס."
+        },
+        {
+          "key": "1321.rent10OwnRent",
+          "label": "שכר דירה למגורי הנישום / בית אבות",
+          "annexFields": [
+            "הוצאות שכר דירה למגורים/בית אבות/גריאטרי עד 90,000 ש\"ח"
+          ],
+          "source": "document",
+          "documents": [
+            "חוזה שכירות למגורי הנישום",
+            "קבלות בית אבות/מוסד גריאטרי"
+          ],
+          "fileKeys": [],
+          "fileState": "missingInFile",
+          "period": "taxYear",
+          "note": "מופחת, עד 90,000 ש״ח."
+        },
+        {
+          "key": "1321.rent10Net",
+          "label": "הכנסה נטו במסלול 10%",
+          "annexFields": [
+            "הכנסה בניכוי הוצאות"
+          ],
+          "source": "calculation",
+          "documents": [],
+          "fileKeys": [],
+          "fileState": "office",
+          "period": "taxYear",
+          "note": "מועבר לשדה 222."
+        },
+        {
+          "key": "1321.otherProperty",
+          "label": "הכנסה מרכוש אחר",
+          "annexFields": [
+            "הכנסה אחרת / מרכוש אחר (פרט/י)",
+            "הוצאות מותרות / סה\"כ הוצאות",
+            "הכנסה/רכוש אחר בניכוי הוצאות"
+          ],
+          "source": "document",
+          "documents": [
+            "אסמכתאות ההכנסה וההוצאות"
+          ],
+          "fileKeys": [
+            "otherIncome"
+          ],
+          "fileState": "partialInFile",
+          "period": "taxYear",
+          "note": "otherIncome הוא סכום כללי בלי סוג ובלי שנה. לא רווחי הון. מועבר לשדה המתאים (לא צוין קוד)."
+        },
+        {
+          "key": "1321.businessUseDeclaration",
+          "label": "הצהרה: הנכס שימש לעסק לפני השכרתו",
+          "annexFields": [
+            "הצהרה: הנכס שימש אותי/בן הזוג להכנסה מיגיעה אישית לפני השכרתו"
+          ],
+          "source": "client",
+          "documents": [],
+          "fileKeys": [],
+          "fileState": "missingInFile",
+          "period": "perAsset",
+          "note": "סעיף 9ד. קריאת התיבה לא ודאית. תנאים: גיל פרישה, שימוש ישיר של בן הזוג המבקש, השוכר אינו חברה בבעלותו או קרוב."
+        },
+        {
+          "key": "1321.businessUseProperty",
+          "label": "פרטי הנכס ששימש בעסק",
+          "annexFields": [
+            "תיאור הנכס / כתובת / גוש / חלקה / שטח ברוטו / קומה",
+            "תאריך רכישה (שנה/חודש/יום)",
+            "השכרתי את הנכס החל מ (שנה/חודש)",
+            "הנכס מושכר ל - מספר זהות/תיק"
+          ],
+          "source": "document",
+          "documents": [
+            "נסח טאבו",
+            "חוזה רכישה",
+            "חוזה שכירות"
+          ],
+          "fileKeys": [
+            "properties"
+          ],
+          "fileState": "partialInFile",
+          "period": "perAsset",
+          "note": "בכרטיס address/city/sizeSqm/purchaseYear. חסרים גוש, חלקה, קומה, תאריך רכישה מלא, תחילת השכרה וזהות השוכר."
+        },
+        {
+          "key": "1321.businessUseIncome",
+          "label": "הכנסות והוצאות הנכס ששימש בעסק",
+          "annexFields": [
+            "הכנסות מהשכרת הנכס",
+            "הוצאות מותרות / סה\"כ הוצאות",
+            "סה\"כ הכנסה לאחר הוצאות מהשכרת נכס ששימש בעסקי"
+          ],
+          "source": "document",
+          "documents": [
+            "חוזה שכירות",
+            "קבלות הוצאות"
+          ],
+          "fileKeys": [
+            "properties"
+          ],
+          "fileState": "partialInFile",
+          "period": "perAsset",
+          "note": "monthlyRent הוא נקודת התחלה בלבד; כולל הכנסה מראש."
+        },
+        {
+          "key": "1321.businessUseExemption",
+          "label": "חישוב הפטור לפי 9ד והעברה לדוח",
+          "annexFields": [
+            "שיעור הזכאות לפטור",
+            "הכנסת שכירות מוטבת",
+            "החלק הפטור (35% מהכנסת השכירות המוטבת)",
+            "הכנסה חייבת משכירות שתעבור לדו\"ח"
+          ],
+          "source": "calculation",
+          "documents": [],
+          "fileKeys": [
+            "birthDate"
+          ],
+          "fileState": "office",
+          "period": "perAsset",
+          "note": "שנות שימוש × 2% עד 70%, תקרה 113,160 ש״ח, 35% פטור. גיל הפרישה נגזר מ-birthDate; שנות השימוש בעסק — לא נשמרות. העברה ל-120/220 או 059."
+        },
+        {
+          "key": "1321.coOwners",
+          "label": "שותפים בהכנסה",
+          "annexFields": [
+            "מספר שותפים",
+            "סוג ההכנסה",
+            "שם השותף / מספר תיק או זהות / כתובת פרטית",
+            "חלקו בהכנסות"
+          ],
+          "source": "document",
+          "documents": [
+            "נסח טאבו",
+            "הסכם שיתוף"
+          ],
+          "fileKeys": [],
+          "fileState": "missingInFile",
+          "period": "perAsset",
+          "note": "אין בכרטיס חלק בעלות או שותפים בנכס. «חלקו בהכנסות» — קריאה לא ודאית."
+        }
+      ]
+    },
+    {
+      "formId": "1322",
+      "repeatsPer": "once",
+      "repeatsNote": "טופס נפרד לכל צירוף של: בעלות (שלי/בן הזוג), שנה לפני נישואין/ירושה, נכס בחו״ל, ניכוי במקור או לא, וללא ניכוי — לכל חצי שנה.",
+      "items": [
+        {
+          "key": "1322.identity",
+          "label": "שם המוכר ומספר תיק",
+          "annexFields": [
+            "שם המוכר (הנישום) / מספר תיק"
+          ],
+          "source": "fileFact",
+          "documents": [],
+          "fileKeys": [
+            "firstName",
+            "lastName",
+            "idNumber",
+            "spouseFirstName",
+            "spouseLastName",
+            "spouseIdNumber",
+            "taxFiles"
+          ],
+          "fileState": "inFile",
+          "period": "asOfDate",
+          "note": "שם, ת.ז. ותיק בכרטיס."
+        },
+        {
+          "key": "1322.formSplit",
+          "label": "שיוך הטופס: בעלות, ניכוי במקור, חצי שנה, חו״ל",
+          "annexFields": [
+            "נייר ערך: בבעלותי / בבעלות בן/בת זוגי",
+            "שנה לפני הנישואין/בירושה",
+            "נכס בחו\"ל",
+            "נוכה מס במקור / לא נוכה מס במקור",
+            "הרווחים ממכירות ינואר-יוני 2025 / יולי-דצמבר 2025"
+          ],
+          "source": "document",
+          "documents": [
+            "טופס 867"
+          ],
+          "fileKeys": [
+            "investmentAccounts",
+            "foreignAccounts"
+          ],
+          "fileState": "partialInFile",
+          "period": "taxYear",
+          "note": "החשבונות קיימים בכרטיס, אבל אין להם בעלים (לקוח/בן זוג), סימון ניכוי במקור או שנה. «שנה לפני נישואין/ירושה» — שאלה ללקוח."
+        },
+        {
+          "key": "1322.relatedParty",
+          "label": "צד קשור ורווח מקרן מקרקעין",
+          "annexFields": [
+            "מכירה לצד קשור",
+            "רכישה מצד קשור",
+            "רווח מקרן השקעות במקרקעין"
+          ],
+          "source": "client",
+          "documents": [
+            "טופס 867"
+          ],
+          "fileKeys": [],
+          "fileState": "missingInFile",
+          "period": "taxYear",
+          "note": "מכירה לקרוב — לא בטופס הזה (1399י/1399ח). «רכישה מצד קשור» — קריאה לא ודאית. רווח מקרן מקרקעין (REIT) מזוהה מ-867."
+        },
+        {
+          "key": "1322.accounts867",
+          "label": "פרטי המנכה והחשבון מ-867",
+          "annexFields": [
+            "טופסי 867 א+ב: שם המנכה / מספר הסניף / מספר חשבון"
+          ],
+          "source": "document",
+          "documents": [
+            "טופס 867"
+          ],
+          "fileKeys": [
+            "investmentAccounts"
+          ],
+          "fileState": "partialInFile",
+          "period": "taxYear",
+          "note": "investmentAccounts[] מחזיק שם מוסד ומספר חשבון חלקי; אין מספר סניף."
+        },
+        {
+          "key": "1322.gainByRate",
+          "label": "רווח חייב לפני קיזוז לפי שיעור",
+          "annexFields": [
+            "[12] הכנסה בשיעור 15%",
+            "[10] הכנסה בשיעור 20%",
+            "[13] הכנסה בשיעור 25% / חבר בני אדם",
+            "[48] הכנסה בשיעור 30%",
+            "[44] הכנסה בשיעור 35%"
+          ],
+          "source": "document",
+          "documents": [
+            "טופס 867",
+            "נספח 1325"
+          ],
+          "fileKeys": [
+            "investmentAccounts",
+            "capitalGainsAnnual"
+          ],
+          "fileState": "partialInFile",
+          "period": "taxYear",
+          "note": "capitalGainsRealized לחשבון ו-capitalGainsAnnual הם סכום אחד בלי חלוקה לשיעורים ובלי שנה."
+        },
+        {
+          "key": "1322.currentSecuritiesLossOffset",
+          "label": "קיזוז הפסדי הון שוטפים מני״ע",
+          "annexFields": [
+            "[32] 15%",
+            "[30] 20%",
+            "[33] 25% / חבר בני אדם",
+            "[49] 30%",
+            "[36] 35%"
+          ],
+          "source": "calculation",
+          "documents": [
+            "טופס 867"
+          ],
+          "fileKeys": [
+            "investmentAccounts"
+          ],
+          "fileState": "office",
+          "period": "taxYear",
+          "note": "הפסדי השנה מ-867 (capitalLosses לחשבון — חלקי) מוקצים לשיעורים."
+        },
+        {
+          "key": "1322.carriedSecuritiesLossOffset",
+          "label": "קיזוז הפסדי הון מועברים מני״ע",
+          "annexFields": [
+            "[62] 15%",
+            "[60] 20%",
+            "[63] 25% / חבר בני אדם",
+            "[51] 30%",
+            "[34] 35%"
+          ],
+          "source": "document",
+          "documents": [
+            "שומה/דוח שנה קודמת",
+            "טופס 1344 קודם"
+          ],
+          "fileKeys": [],
+          "fileState": "missingInFile",
+          "period": "cumulative",
+          "note": "יתרת הפסדים משנים קודמות — לא נשמרת. הפסד מ-2006 ואילך נגד כל רווח הון, לא נגד ריבית/דיבידנד."
+        },
+        {
+          "key": "1322.nonSecuritiesLossOffset",
+          "label": "קיזוז הפסדי הון שאינם מני״ע",
+          "annexFields": [
+            "[89] 15%",
+            "[93] 20%",
+            "[85] 25% / חבר בני אדם",
+            "[54] 30%",
+            "[84] 35%"
+          ],
+          "source": "calculation",
+          "documents": [
+            "טופס 1399י"
+          ],
+          "fileKeys": [],
+          "fileState": "office",
+          "period": "taxYear",
+          "note": "מהפסדי הון של השנה ב-1399י."
+        },
+        {
+          "key": "1322.businessLossOffset",
+          "label": "קיזוז הפסדים שוטפים מעסק",
+          "annexFields": [
+            "[82] 15%",
+            "[99] 20%",
+            "[87] 25% / חבר בני אדם",
+            "[65] 30%",
+            "[86] 35%"
+          ],
+          "source": "calculation",
+          "documents": [
+            "טופס 1320",
+            "טופס 1344"
+          ],
+          "fileKeys": [],
+          "fileState": "office",
+          "period": "taxYear",
+          "note": "מהפסד עסקי של השנה (שורה 23 שלילית ב-1320)."
+        },
+        {
+          "key": "1322.taxableByRate",
+          "label": "הכנסה חייבת לפי שיעור",
+          "annexFields": [
+            "הכנסה בשיעור 15% / 20% / 25% / 30% / 35%"
+          ],
+          "source": "calculation",
+          "documents": [],
+          "fileKeys": [],
+          "fileState": "office",
+          "period": "taxYear",
+          "note": "ג.1 פחות קיזוזים ג.2–ג.5."
+        },
+        {
+          "key": "1322.salesTurnover",
+          "label": "סכום המכירות (קוד 56)",
+          "annexFields": [
+            "[56] סכום המכירות"
+          ],
+          "source": "document",
+          "documents": [
+            "טופס 867"
+          ],
+          "fileKeys": [],
+          "fileState": "missingInFile",
+          "period": "taxYear",
+          "note": "מחזור המכירות אינו נשמר בחשבונות ההשקעה. מועבר לשדה 256."
+        },
+        {
+          "key": "1322.interestDividendIncome",
+          "label": "ריבית ודיבידנד מני״ע לפי שיעור",
+          "annexFields": [
+            "1. הכנסה מריבית ודיבידנד מני\"ע בשיעור 15%/20%/25%/30%"
+          ],
+          "source": "document",
+          "documents": [
+            "טופס 867"
+          ],
+          "fileKeys": [
+            "investmentAccounts",
+            "dividendInterestAnnual"
+          ],
+          "fileState": "partialInFile",
+          "period": "taxYear",
+          "note": "interestIncome/dividendIncome לחשבון ו-dividendInterestAnnual — בלי חלוקה לשיעורים ובלי שנה."
+        },
+        {
+          "key": "1322.interestDividendOffset",
+          "label": "קיזוז הפסדים נגד ריבית/דיבידנד והעברה ל-1301",
+          "annexFields": [
+            "2. קיזוז הפסד הון שוטף מני\"ע נגד ריבית ודיבידנד (15%/20%/25%)",
+            "3. קיזוז הפסד הון מני\"ע עד 31.12.05 (15%/20%)",
+            "העברה לשדות 055/141/157/067/060 (1-2-3) לפי שיעור"
+          ],
+          "source": "calculation",
+          "documents": [],
+          "fileKeys": [],
+          "fileState": "office",
+          "period": "taxYear",
+          "note": "רק עד שיעור 25% (שוטף) / 20% (עד 31.12.05). השיוך לשדות 055/141/157/067/060 לפי שיעור — לא מפורט בנספח."
+        },
+        {
+          "key": "1322.lossesToCarry",
+          "label": "הפסדים להעברה מני״ע",
+          "annexFields": [
+            "הפסדים להעברה מניירות ערך"
+          ],
+          "source": "calculation",
+          "documents": [],
+          "fileKeys": [],
+          "fileState": "office",
+          "period": "cumulative",
+          "note": "מזין את 1344."
+        },
+        {
+          "key": "1322.transmitterCodes",
+          "label": "קודי שידור",
+          "annexFields": [
+            "שייכות",
+            "סמל עסקה",
+            "נכס בחו\"ל (1) / מספר נספח"
+          ],
+          "source": "office",
+          "documents": [],
+          "fileKeys": [],
+          "fileState": "office",
+          "period": "taxYear",
+          "note": "שייכות, סמל עסקה (60/64/65), נכס בחו״ל ומספר נספח — נגזרים מ-1322.formSplit."
+        }
+      ]
+    },
+    {
+      "formId": "1324",
+      "repeatsPer": "once",
+      "repeatsNote": "נספח אחד לשני בני הזוג. בכל שורת הכנסה נרשמים סכום לבן הזוג הרשום, סכום לבן/בת הזוג והמדינה — כלומר המידע נאסף לכל מדינה ולכל בן זוג.",
+      "items": [
+        {
+          "key": "1324.identity",
+          "label": "פרטי הנישום ושנת המס",
+          "annexFields": [
+            "שם פרטי / שם משפחה / מספר זהות / מספר תיק / שנת המס"
+          ],
+          "source": "fileFact",
+          "documents": [],
+          "fileKeys": [
+            "firstName",
+            "lastName",
+            "idNumber",
+            "spouseFirstName",
+            "spouseLastName",
+            "spouseIdNumber",
+            "taxFiles"
+          ],
+          "fileState": "inFile",
+          "period": "asOfDate",
+          "note": "שנת המס — של הדוח."
+        },
+        {
+          "key": "1324.rowAttribution",
+          "label": "שיוך כל הכנסה לבן זוג ולמדינה",
+          "annexFields": [
+            "הכנסות 'בן זוג רשום' / הכנסות בן/בת הזוג / מדינה (לכל אחד)"
+          ],
+          "source": "client",
+          "documents": [
+            "דוחות שנתיים מהמוסדות בחו״ל"
+          ],
+          "fileKeys": [
+            "foreignAccounts",
+            "additionalCitizenships"
+          ],
+          "fileState": "partialInFile",
+          "period": "taxYear",
+          "note": "ForeignAccount שומר מדינה, אבל לא למי מבני הזוג שייך. סכום אחרי ניכויים, קיזוזים ופטורים; המרה לפי כללי 2003."
+        },
+        {
+          "key": "1324.personalExertion",
+          "label": "הכנסות יגיעה אישית מחו״ל",
+          "annexFields": [
+            "[450] מעסק או משלח יד - סה\"כ שני בני הזוג",
+            "[458] ממשכורת/משכר עבודה - סה\"כ",
+            "[445] קצבה מעבודה / הכנסה מעבודה לאחר פטירה - סה\"כ"
+          ],
+          "source": "document",
+          "documents": [
+            "דוח רווח והפסד של העסק בחו״ל",
+            "אישורי שכר מחו״ל",
+            "אישורי קצבה מחו״ל"
+          ],
+          "fileKeys": [
+            "hasForeignIncome",
+            "foreignIncomeAnnual"
+          ],
+          "fileState": "partialInFile",
+          "period": "taxYear",
+          "note": "foreignIncomeAnnual הוא אומדן כולל בלי סוג הכנסה ובלי מדינה."
+        },
+        {
+          "key": "1324.otherRegular",
+          "label": "הכנסות פסיביות בשיעורים רגילים",
+          "annexFields": [
+            "[459] מנכס בית - סה\"כ",
+            "[467] מריבית, הפרשי הצמדה, דמי ניכיון - סה\"כ",
+            "[468] מקצבה שאינה מעבודה, ממלוג ואנונה - סה\"כ",
+            "[469] מרכוש אחר - סה\"כ",
+            "ממקורות אחרים, פרט/י"
+          ],
+          "source": "document",
+          "documents": [
+            "דוחות שנתיים מבנק/ברוקר בחו״ל",
+            "חוזה שכירות בחו״ל"
+          ],
+          "fileKeys": [
+            "foreignAccounts",
+            "foreignIncomeAnnual"
+          ],
+          "fileState": "partialInFile",
+          "period": "taxYear",
+          "note": "foreignAccounts[].annualIncome — סכום אחד לחשבון בלי סוג. שכירות זרה שלא במסלול 15% נרשמת ב-459 כדי לקבל זיכוי. «ממקורות אחרים» — קריאה לא ודאית."
+        },
+        {
+          "key": "1324.specialRates",
+          "label": "הכנסות בשיעורים מיוחדים",
+          "annexFields": [
+            "[461] פטנט או זכות יוצרים - מס מוגבל ל־40% - סה\"כ",
+            "[460] ריבית, הפרשי הצמדה, דמי ניכיון 15% - סה\"כ",
+            "[451] ריבית מני\"ע/פקדונות/חיסכון 20% - סה\"כ",
+            "[457] ריבית מני\"ע/פקדונות/חיסכון 25% - סה\"כ",
+            "[462] דיבידנד והכנסות אחרות 25% - סה\"כ",
+            "[455] דיבידנד לבעל מניות מהותי והכנסות אחרות 30% - סה\"כ",
+            "[453] ריבית 35% - סה\"כ",
+            "[427] הימורים, הגרלות ופרסים 35% - סה\"כ"
+          ],
+          "source": "document",
+          "documents": [
+            "דוחות שנתיים מבנק/ברוקר בחו״ל"
+          ],
+          "fileKeys": [
+            "foreignAccounts",
+            "isSubstantialShareholder"
+          ],
+          "fileState": "partialInFile",
+          "period": "taxYear",
+          "note": "החלוקה לשיעור (15%–35%) לפי סוג ההכנסה ומעמד הנישום — הכרעת המשרד על בסיס המסמך. אין בכרטיס פילוח לפי סוג."
+        },
+        {
+          "key": "1324.foreignRent15",
+          "label": "שכירות מחו״ל במסלול 15%",
+          "annexFields": [
+            "[482] דמי שכירות ממקרקעין מחוץ לישראל 15%"
+          ],
+          "source": "document",
+          "documents": [
+            "חוזה שכירות בחו״ל"
+          ],
+          "fileKeys": [
+            "foreignAccounts"
+          ],
+          "fileState": "partialInFile",
+          "period": "taxYear",
+          "note": "foreignAccounts מסוג real_estate. בחירת המסלול (15% בלי זיכוי, או 459 + מס ב-405) — הכרעת המשרד."
+        },
+        {
+          "key": "1324.capitalGainSales",
+          "label": "סך מכירות נכסים בחו״ל",
+          "annexFields": [
+            "[438] סך המכירות לפי חלק ה' למעט ני\"ע סחירים (כפי ב־1399י)",
+            "[439] סך המכירות מני\"ע סחירים (כפי ב־1322)"
+          ],
+          "source": "calculation",
+          "documents": [
+            "טופס 1399י",
+            "טופס 1322"
+          ],
+          "fileKeys": [],
+          "fileState": "office",
+          "period": "taxYear",
+          "note": "סיכום מכירות הנכסים בחו״ל מ-1399י ומ-1322."
+        },
+        {
+          "key": "1324.pension9c",
+          "label": "קצבה לפי סעיף 9ג",
+          "annexFields": [
+            "[443] הכנסה מקצבה לפי סעיף 9ג - סה\"כ",
+            "[442] מס החל בישראל על הכנסה מקצבה לפי 9ג"
+          ],
+          "source": "document",
+          "documents": [
+            "אישור קצבה מחו״ל"
+          ],
+          "fileKeys": [],
+          "fileState": "missingInFile",
+          "period": "taxYear",
+          "note": "שיוך הקודים 443/423 לפי מיקום — לא ודאי. 442 (מס החל בישראל) — חישוב."
+        },
+        {
+          "key": "1324.cfcFacts",
+          "label": "חברת נשלטת זרה (חנ״ז) — נתונים",
+          "annexFields": [
+            "[472] דיבידנד רעיוני שטרם חולק לבעל שליטה בחנ\"ז",
+            "[474] דיבידנד מחנ\"ז ששולם בפועל",
+            "[475] דיבידנד רעיוני מוקדם הכלול בדיבידנד ששולם השנה (צמוד)"
+          ],
+          "source": "document",
+          "documents": [
+            "דוחות כספיים של החברה הזרה",
+            "אישור חלוקת דיבידנד"
+          ],
+          "fileKeys": [
+            "isForeignControllingShareholder",
+            "foreignCompanyDetails"
+          ],
+          "fileState": "partialInFile",
+          "period": "taxYear",
+          "note": "בכרטיס דגל וטקסט חופשי בלבד, מצב עדכני."
+        },
+        {
+          "key": "1324.cfcComputation",
+          "label": "חנ״ז — דיבידנד רעיוני וחיוב השנה",
+          "annexFields": [
+            "[473] יתרת רווחים שחויבו כדיבידנד רעיוני וטרם חולקו",
+            "[470] דיבידנד מחנ\"ז ששולם בפועל, החייב במס השנה",
+            "[476] מס ששולם בישראל בשנים קודמות על דיבידנד רעיוני שחולק השנה"
+          ],
+          "source": "calculation",
+          "documents": [
+            "נייר עבודה"
+          ],
+          "fileKeys": [],
+          "fileState": "missingInFile",
+          "period": "cumulative",
+          "note": "יתרת רווחים שחויבו כרעיוני (473) ומס שנים קודמות (476, צמוד) נשענים על היסטוריה רב-שנתית שאינה נשמרת. 470 מצורף לשדה 055."
+        },
+        {
+          "key": "1324.fpcFacts",
+          "label": "חברת משלח יד זרה (חמי״ז) — נתונים",
+          "annexFields": [
+            "[463] דיבידנד רעיוני לבעל שליטה בחמי\"ז 23%",
+            "[464] דיבידנד מחמי\"ז ששולם בפועל"
+          ],
+          "source": "document",
+          "documents": [
+            "דוחות כספיים של החברה הזרה",
+            "אישור חלוקת דיבידנד"
+          ],
+          "fileKeys": [
+            "isForeignControllingShareholder",
+            "foreignCompanyDetails"
+          ],
+          "fileState": "partialInFile",
+          "period": "taxYear",
+          "note": "463 מצורף לשדה 174."
+        },
+        {
+          "key": "1324.fpcComputation",
+          "label": "חמי״ז — מס ישראלי קודם ודיבידנד נטו",
+          "annexFields": [
+            "[478] מס ששולם בישראל על דיבידנד רעיוני עבור דיבידנד זה",
+            "[465] דיבידנד נטו מחמי\"ז לפי 75ב1(ו)(2)"
+          ],
+          "source": "calculation",
+          "documents": [
+            "נייר עבודה"
+          ],
+          "fileKeys": [],
+          "fileState": "missingInFile",
+          "period": "cumulative",
+          "note": "נשען על מס שנים קודמות. 465 מצורף לשדה 055."
+        },
+        {
+          "key": "1324.foreignTaxPaid",
+          "label": "מס ששולם בחו״ל — לכל סוג הכנסה",
+          "annexFields": [
+            "[401] מעסק או משלח יד - מס ששולם בחו\"ל",
+            "[403] ממשכורת - מס ששולם בחו\"ל",
+            "[404] קצבה מעבודה - מס ששולם בחו\"ל",
+            "[405] מנכס בית - מס ששולם בחו\"ל",
+            "[406] ריבית - מס ששולם בחו\"ל",
+            "[407] קצבה שאינה מעבודה - מס ששולם בחו\"ל",
+            "[408] רכוש אחר - מס ששולם בחו\"ל",
+            "[411] פטנט - מס ששולם בחו\"ל",
+            "[412] ריבית 15% - מס ששולם בחו\"ל",
+            "[428] ריבית ני\"ע 20% - מס ששולם בחו\"ל",
+            "[417] ריבית ני\"ע 25% - מס ששולם בחו\"ל",
+            "[431] דיבידנד 25% - מס ששולם בחו\"ל",
+            "[413] דיבידנד מהותי - מס ששולם בחו\"ל",
+            "[415] ריבית 35% - מס ששולם בחו\"ל",
+            "[416] הימורים - מס ששולם בחו\"ל",
+            "[420] רווח הון לפי חלק ה' - מס ששולם בחו\"ל",
+            "[422] ני\"ע סחירים - מס ששולם בחו\"ל",
+            "[423] קצבה 9ג - מס ששולם בחו\"ל",
+            "[424] דיבידנד מחנ\"ז ששולם בפועל - מס ששולם בחו\"ל",
+            "[477] מס זר ששולם השנה על חלק הדיבידנד שחויב בעבר כרעיוני",
+            "[410] דיבידנד רעיוני חמי\"ז - מס ששולם בחו\"ל",
+            "[418] דיבידנד חמי\"ז ששולם - מס ששולם בחו\"ל"
+          ],
+          "source": "document",
+          "documents": [
+            "אישורי תשלום מס בחו״ל",
+            "דוח מס זר"
+          ],
+          "fileKeys": [
+            "foreignTaxPaid",
+            "foreignAccounts"
+          ],
+          "fileState": "partialInFile",
+          "period": "taxYear",
+          "note": "רק על סמך אישורים מצורפים (לא מסים עירוניים). בכרטיס סכום כולל ולחשבון — בלי סוג הכנסה. 401 כולל עודף זיכוי 2020–2024 שאינו נשמר. 423/424 — קריאה לא ודאית."
+        },
+        {
+          "key": "1324.totalIncome",
+          "label": "סה״כ הכנסות חו״ל",
+          "annexFields": [
+            "סה\"כ הכנסות חו\"ל (למעט רווח הון)"
+          ],
+          "source": "calculation",
+          "documents": [],
+          "fileKeys": [],
+          "fileState": "office",
+          "period": "taxYear",
+          "note": "למעט רווח הון; מועבר לשדה 290."
+        },
+        {
+          "key": "1324.foreignLosses",
+          "label": "יתרות הפסדים מחו״ל להעברה",
+          "annexFields": [
+            "[479] הפסד מעסק (ללא 'עסק נשלט')",
+            "[480] הפסד מעסק מ'עסק נשלט'",
+            "[481] הפסד מהכנסה פסיבית",
+            "[466] הפסד הון",
+            "סה\"כ הפסד מחו\"ל"
+          ],
+          "source": "document",
+          "documents": [
+            "שומה/דוח שנה קודמת"
+          ],
+          "fileKeys": [],
+          "fileState": "missingInFile",
+          "period": "cumulative",
+          "note": "יתרות רב-שנתיות שאינן נשמרות. הסה״כ מועבר לשדה 299."
+        },
+        {
+          "key": "1324.foreignTurnover",
+          "label": "מחזור עסקי מחו״ל",
+          "annexFields": [
+            "[493] מחזור עסקי מחו\"ל"
+          ],
+          "source": "calculation",
+          "documents": [],
+          "fileKeys": [],
+          "fileState": "office",
+          "period": "taxYear",
+          "note": "כל ההכנסות בשיעורים רגילים, כולל שכירות וריבית."
+        },
+        {
+          "key": "1324.refundDeclaration",
+          "label": "החזר מסים זרים משנים קודמות",
+          "annexFields": [
+            "קיבלתי החזר מסים זרים בגין שנים קודמות",
+            "סכום ההחזר (ש\"ח)"
+          ],
+          "source": "client",
+          "documents": [
+            "אישור החזר מס זר"
+          ],
+          "fileKeys": [],
+          "fileState": "missingInFile",
+          "period": "taxYear",
+          "note": "אם כן — סכום בש״ח."
+        }
+      ]
+    },
+    {
+      "formId": "1399י",
+      "repeatsPer": "transaction",
+      "repeatsNote": "טופס לכל מכירה (במטבע וירטואלי — לכל עסקה או קיבוץ חודשי בממוצע משוקלל). השבחות ושיחלוף נרשמים לכל נכס.",
+      "items": [
+        {
+          "key": "1399י.sellerIdentity",
+          "label": "שם המוכר ומספר תיק",
+          "annexFields": [
+            "שם המוכר / מספר תיק"
+          ],
+          "source": "fileFact",
+          "documents": [],
+          "fileKeys": [
+            "firstName",
+            "lastName",
+            "idNumber",
+            "spouseFirstName",
+            "spouseLastName",
+            "spouseIdNumber",
+            "taxFiles"
+          ],
+          "fileState": "inFile",
+          "period": "asOfDate",
+          "note": "כשהנכס של בן/בת הזוג — פרטיו."
+        },
+        {
+          "key": "1399י.sellerStatus",
+          "label": "מעמד המוכר: בעל מניות מהותי ותושבות",
+          "annexFields": [
+            "המוכר בעל מניות מהותי",
+            "עולה חדש או תושב חוזר ותיק / תושב חוזר",
+            "[47] מתאריך (תושבות)"
+          ],
+          "source": "client",
+          "documents": [
+            "תעודת עולה / אישור תושב חוזר"
+          ],
+          "fileKeys": [
+            "isSubstantialShareholder",
+            "isNewImmigrant",
+            "aliyahYear",
+            "isReturningResident",
+            "returningYear",
+            "isReturningResidentVeteran"
+          ],
+          "fileState": "partialInFile",
+          "period": "perTransaction",
+          "note": "בעל מניות מהותי — לכל חברה ולמועד המכירה, לא דגל כללי. תושבות — בכרטיס שנה בלבד; הטופס דורש תאריך (קוד 47)."
+        },
+        {
+          "key": "1399י.assetDetails",
+          "label": "פרטי הנכס ומיקומו",
+          "annexFields": [
+            "פרטי הנכס / מקום הנכס (ישראל / חו\"ל)",
+            "במכירת מניות, האם המניות של חברה שהפסיקה פעילות"
+          ],
+          "source": "document",
+          "documents": [
+            "הסכם מכירה",
+            "דוח עסקאות מהזירה/ארנק"
+          ],
+          "fileKeys": [
+            "hasCrypto",
+            "investmentAccounts",
+            "foreignAccounts"
+          ],
+          "fileState": "partialInFile",
+          "period": "perTransaction",
+          "note": "בכרטיס רק דגל קריפטו וחשבונות; אין רישום נכסים לא סחירים. במניות — האם החברה הפסיקה פעילות (חובה בסמל 27)."
+        },
+        {
+          "key": "1399י.ownershipFlags",
+          "label": "בעלות ונסיבות: בן זוג, ירושה, 102, הפקעה",
+          "annexFields": [
+            "מניות לפי 102",
+            "הפקעה",
+            "הנכס בבעלותי / בבעלות בן/בת זוגי",
+            "שנה לפני הנישואין/בירושה"
+          ],
+          "source": "client",
+          "documents": [
+            "הסכם הקצאה (102)"
+          ],
+          "fileKeys": [],
+          "fileState": "missingInFile",
+          "period": "perTransaction",
+          "note": "לכל נכס: של מי, שנה לפני נישואין/ירושה, מניות 102 במסלול הוני, הפקעה."
+        },
+        {
+          "key": "1399י.buyer",
+          "label": "הרוכש וקשר אליו",
+          "annexFields": [
+            "שם הרוכש",
+            "הרוכש הוא צד קשור"
+          ],
+          "source": "document",
+          "documents": [
+            "הסכם מכירה"
+          ],
+          "fileKeys": [],
+          "fileState": "missingInFile",
+          "period": "perTransaction",
+          "note": "צד קשור — שאלה ללקוח."
+        },
+        {
+          "key": "1399י.saleProceeds",
+          "label": "תמורה ותאריך מכירה",
+          "annexFields": [
+            "[15] 1. המכירה (תמורה לפני הוצאות מכירה/חילוף מניות)",
+            "תאריך מכירה / מדד מכירה"
+          ],
+          "source": "document",
+          "documents": [
+            "הסכם מכירה",
+            "דוח עסקאות"
+          ],
+          "fileKeys": [],
+          "fileState": "missingInFile",
+          "period": "perTransaction",
+          "note": "שווה כסף — מלוא הסכום ופירוט בהערות. מדד המכירה — חישוב לפי התאריך."
+        },
+        {
+          "key": "1399י.originalCost",
+          "label": "עלות מקורית ותאריך רכישה",
+          "annexFields": [
+            "[20] 2. עלות (מחיר מקורי) + תאריך + מדד בסיס"
+          ],
+          "source": "document",
+          "documents": [
+            "הסכם רכישה",
+            "דוח עסקאות"
+          ],
+          "fileKeys": [],
+          "fileState": "missingInFile",
+          "period": "perTransaction",
+          "note": "למעט השבחה ומחצית הוצאות החזקה. מדד בסיס — חישוב."
+        },
+        {
+          "key": "1399י.accumulatedDepreciation",
+          "label": "פחת שנצבר",
+          "annexFields": [
+            "[40] 3. פחת שנצבר על העלות"
+          ],
+          "source": "document",
+          "documents": [
+            "טבלאות פחת (1342) משנים קודמות"
+          ],
+          "fileKeys": [],
+          "fileState": "missingInFile",
+          "period": "cumulative",
+          "note": "רק לנכס שנתבע עליו פחת."
+        },
+        {
+          "key": "1399י.improvements",
+          "label": "הוצאות השבחה",
+          "annexFields": [
+            "[50] 4-6. יתרת הוצאות השבחה 1, 2, 3 (אחרי ניכוי פחת)",
+            "השבחות: מספר / תאריך גמר / סכום / תחילת וסיום צבירת פחת / פחת נצבר / יתרה"
+          ],
+          "source": "document",
+          "documents": [
+            "חשבוניות השבחה"
+          ],
+          "fileKeys": [],
+          "fileState": "missingInFile",
+          "period": "perAsset",
+          "note": "לכל השבחה: מספר, תאריך גמר, סכום ופחת שנצבר (טבלה א)."
+        },
+        {
+          "key": "1399י.interestFreeLoan",
+          "label": "הלוואה ללא ריבית והצמדה",
+          "annexFields": [
+            "[53] 7. הלוואה ללא ריבית וללא הצמדה"
+          ],
+          "source": "document",
+          "documents": [
+            "הסכם הלוואה"
+          ],
+          "fileKeys": [],
+          "fileState": "missingInFile",
+          "period": "perTransaction",
+          "note": "סעיף 94א; כולל תאריך מתן ההלוואה."
+        },
+        {
+          "key": "1399י.holdingAndSaleExpenses",
+          "label": "מחצית הוצאות החזקה והוצאות מכירה",
+          "annexFields": [
+            "[27] 8. מחצית הוצאות החזקה שלא הותרו ולא נזקפו לעלות",
+            "[55] 10. הוצאות הקשורות במכירה שלא הופחתו מהתמורה"
+          ],
+          "source": "document",
+          "documents": [
+            "קבלות הוצאות החזקה",
+            "קבלות הוצאות מכירה"
+          ],
+          "fileKeys": [],
+          "fileState": "missingInFile",
+          "period": "perTransaction",
+          "note": "רק הוצאות שלא הותרו ולא הופחתו מהתמורה."
+        },
+        {
+          "key": "1399י.shareSwap",
+          "label": "חילוף מניות ונכס מוחלף",
+          "annexFields": [
+            "[05] 11. ניכוי מהתמורה בחילוף מניות (סעיף 3 לחוק עידוד)",
+            "[96] 21. רווח הון ריאלי של הנכס המוחלף עד המועד הקובע"
+          ],
+          "source": "document",
+          "documents": [
+            "מסמכי החילוף",
+            "החלטת מיסוי"
+          ],
+          "fileKeys": [],
+          "fileState": "missingInFile",
+          "period": "perTransaction",
+          "note": "סעיף 3 לחוק העידוד."
+        },
+        {
+          "key": "1399י.deemedDividendDeduction",
+          "label": "ניכוי בגין דיבידנד רעיוני",
+          "annexFields": [
+            "[07] 12. ניכוי מהתמורה בגין דיבידנד רעיוני שיוחס וטרם חולק"
+          ],
+          "source": "calculation",
+          "documents": [
+            "נייר עבודה"
+          ],
+          "fileKeys": [],
+          "fileState": "missingInFile",
+          "period": "perTransaction",
+          "note": "תקנה 3(ו) לתקנות תשפ״ה-2025; נשען על יתרת הדיבידנד הרעיוני (1324, 473)."
+        },
+        {
+          "key": "1399י.retainedEarnings",
+          "label": "רווחים ראויים לחלוקה (רר״ל)",
+          "annexFields": [
+            "[57] 15. רווחים ראויים לחלוקה שנצברו לפני המועד הקובע",
+            "[58] 16. רווחים ראויים לחלוקה לאחר המועד הקובע"
+          ],
+          "source": "document",
+          "documents": [
+            "דוחות כספיים של החברה"
+          ],
+          "fileKeys": [],
+          "fileState": "missingInFile",
+          "period": "cumulative",
+          "note": "סעיף 94ב; מניות לא סחירות. בעל מניות מהותי בחברה סחירה — רק 58."
+        },
+        {
+          "key": "1399י.specialTransactions",
+          "label": "סימוני עסקה מיוחדת",
+          "annexFields": [
+            "[71] 19. מימוש/המרה של מטבע וירטואלי",
+            "[92] 20. מכירת מוניטין שלא שולם בעד רכישתו",
+            "[59] 22. הוצאות הפקת סרט שהותרו (91(ב2))",
+            "[09] 23. מכירת נכס שהועבר ליחיד אגב הוראת השעה + תאריך העברה"
+          ],
+          "source": "document",
+          "documents": [
+            "דוח עסקאות מטבע וירטואלי",
+            "נייר עבודה"
+          ],
+          "fileKeys": [
+            "hasCrypto"
+          ],
+          "fileState": "partialInFile",
+          "period": "perTransaction",
+          "note": "מטבע וירטואלי (71), מוניטין שלא נרכש (92), הוצאות הפקת סרט (59), נכס שהועבר אגב הוראת השעה (09 — קריאה לא ודאית). hasCrypto הוא כן/לא בלבד."
+        },
+        {
+          "key": "1399י.spreading",
+          "label": "פריסה ומספר שנים",
+          "annexFields": [
+            "פריסה + מספר שנים"
+          ],
+          "source": "office",
+          "documents": [],
+          "fileKeys": [],
+          "fileState": "office",
+          "period": "perTransaction",
+          "note": "עד 4 שנים; לא לני״ע סחירים. החלטת המשרד."
+        },
+        {
+          "key": "1399י.rollover96",
+          "label": "שיחלוף לפי סעיף 96",
+          "annexFields": [
+            "[72/83/64] 29. קיזוז לפי סעיף 96 (לכל תקופה)",
+            "שיחלוף לפי סעיף 96: פרטי הנכס שנרכש / תאריך רכישה / מחיר / תמורה / קיזוזים ה-ז"
+          ],
+          "source": "document",
+          "documents": [
+            "הסכם רכישת הנכס החלופי"
+          ],
+          "fileKeys": [],
+          "fileState": "missingInFile",
+          "period": "perTransaction",
+          "note": "רכישה תוך 12 חודשים אחרי המכירה או 4 לפני; מזין את קודי הקיזוז 72/83/64."
+        },
+        {
+          "key": "1399י.gainComputation",
+          "label": "חישוב הרווח, חלוקה לתקופות והמס",
+          "annexFields": [
+            "9. יתרת מחיר מקורי (2 עד 8)",
+            "13. / 14. (שורות ללא כותרת בטופס)",
+            "17. סכום אינפלציוני",
+            "18. רווח/הפסד הון (1-9-10-11)",
+            "24. סה\"כ רווח הון ריאלי / 24א. רווח הון ריאלי לייחוס",
+            "25. רווח ריאלי עד המועד הקובע (1.1.03)",
+            "26. רווח ריאלי מהמועד הקובע עד מועד השינוי (1.1.12)",
+            "27. יתרת רווח ריאלי לאחר מועד השינוי",
+            "28. סכום אינפלציוני חייב",
+            "32. סה\"כ רווח",
+            "33. המס על הרווח (שולי / 20%-25% / 25%-30% / 10%)",
+            "34. המס המירבי לפי סעיף 91(ו)"
+          ],
+          "source": "calculation",
+          "documents": [],
+          "fileKeys": [],
+          "fileState": "office",
+          "period": "perTransaction",
+          "note": "מדדים, סכום אינפלציוני, חלוקה לינארית לתקופות ושיעורי מס. שורות 13–14 בטופס ללא כותרת — משמעותן לא ידועה ולא מופו לנתון."
+        },
+        {
+          "key": "1399י.lossOffsets",
+          "label": "קיזוז הפסדי הון והפסדים מעסק",
+          "annexFields": [
+            "[74/85/66/75] 30. הפסדי הון הניתנים לקיזוז (לכל תקופה + אינפלציוני)",
+            "[76/87/68/77] 31. הפסדים מעסק הניתנים לקיזוז"
+          ],
+          "source": "calculation",
+          "documents": [
+            "טופס 1344"
+          ],
+          "fileKeys": [],
+          "fileState": "office",
+          "period": "perTransaction",
+          "note": "1:1 נגד ריאלי, 3.5:1 נגד אינפלציוני חייב. הפסד עסקי מועבר רק נגד רווח הון בעסק."
+        },
+        {
+          "key": "1399י.transmitterCodes",
+          "label": "קודי שידור",
+          "annexFields": [
+            "שייכות",
+            "בעל מניות מהותי (0/1), שנה לפני נישואין/ירושה, הפקעה (0/1)",
+            "הנכס בחו\"ל",
+            "פריסה (0/1), סמל עסקה, מספר נספח, מפקח, סעיף שומה"
+          ],
+          "source": "office",
+          "documents": [],
+          "fileKeys": [],
+          "fileState": "office",
+          "period": "perTransaction",
+          "note": "נגזרים מפרטי הנכס והמוכר; סמלי עסקה 27/52/53/77."
+        },
+        {
+          "key": "1399י.notes",
+          "label": "הערות",
+          "annexFields": [
+            "הערות"
+          ],
+          "source": "office",
+          "documents": [],
+          "fileKeys": [],
+          "fileState": "office",
+          "period": "perTransaction",
+          "note": "פירוט שווה כסף ונסיבות."
+        }
+      ]
+    },
+    {
+      "formId": "1344",
+      "repeatsPer": "once",
+      "repeatsNote": "נספח אחד; כל סוג הפסד (שורה) מתמלא בחמש עמודות.",
+      "items": [
+        {
+          "key": "1344.identity",
+          "label": "שם הנישום, תיק ושנת המס",
+          "annexFields": [
+            "שם הנישום / מספר תיק / שנת המס"
+          ],
+          "source": "fileFact",
+          "documents": [],
+          "fileKeys": [
+            "firstName",
+            "lastName",
+            "idNumber",
+            "spouseFirstName",
+            "spouseLastName",
+            "spouseIdNumber",
+            "taxFiles"
+          ],
+          "fileState": "inFile",
+          "period": "asOfDate",
+          "note": ""
+        },
+        {
+          "key": "1344.carriedIn",
+          "label": "הפסדים מועברים משנים קודמות",
+          "annexFields": [
+            "1. הפסדים מועברים משנים קודמות",
+            "הפסד מעסק",
+            "הפסדי הון למעט ני\"ע נסחרים שנוצרו עד 31.12.2005",
+            "הפסדי הון מני\"ע נסחרים שנוצרו עד 31.12.2005",
+            "הפסד ריאלי מניירות ערך",
+            "הפסד מהשכרת בניין"
+          ],
+          "source": "document",
+          "documents": [
+            "שומה/דוח שנה קודמת",
+            "טופס 1344 קודם"
+          ],
+          "fileKeys": [],
+          "fileState": "missingInFile",
+          "period": "cumulative",
+          "note": "יתרות לכל סוג הפסד אינן נשמרות בכרטיס. «עד 31.12.2005» בשורת הפסדי הון שאינם ני״ע — קריאה לא ודאית."
+        },
+        {
+          "key": "1344.createdThisYear",
+          "label": "הפסדים שנוצרו השנה",
+          "annexFields": [
+            "2. הפסדים שנוצרו השנה"
+          ],
+          "source": "calculation",
+          "documents": [
+            "טופס 1320",
+            "טופס 1321",
+            "טופס 1322",
+            "טופס 1399י"
+          ],
+          "fileKeys": [],
+          "fileState": "office",
+          "period": "taxYear",
+          "note": "נגזר מהנספחים של השנה."
+        },
+        {
+          "key": "1344.offsetAndCarryForward",
+          "label": "סה״כ לקיזוז, קוזזו השנה, מועברים ל-2026",
+          "annexFields": [
+            "3. סה\"כ הפסדים הניתנים לקיזוז",
+            "4. הפסדים שקוזזו בשנת המס בדוח התאמה לצורכי מס",
+            "5. הפסדים מועברים לשנת 2026"
+          ],
+          "source": "calculation",
+          "documents": [],
+          "fileKeys": [],
+          "fileState": "office",
+          "period": "cumulative",
+          "note": "סדר העמודות 4/5 לא ודאי. העברה ל-079/166/160/179."
+        },
+        {
+          "key": "1344.form1214Only",
+          "label": "הפסדים שרלוונטיים רק ל-1214",
+          "annexFields": [
+            "הפסד ממפעל טכנולוגי",
+            "הפסד אחר המוגבל בקיזוז (פרט)"
+          ],
+          "source": "office",
+          "documents": [],
+          "fileKeys": [],
+          "fileState": "office",
+          "period": "cumulative",
+          "note": "מפעל טכנולוגי והפסד מוגבל אחר — 1214 בלבד; ביחיד בדרך כלל לא חל. שיוך 164/065 לא ודאי."
+        }
+      ]
+    },
+    {
+      "formId": "1342",
+      "repeatsPer": "business",
+      "repeatsNote": "טבלה לכל עסק (שורה 17 ב-1320) ולנכסים מושכרים (1321); שורה לכל נכס, ושינוי מהותי בשורה נפרדת.",
+      "items": [
+        {
+          "key": "1342.identity",
+          "label": "תיק, שם, שנת מס ופקיד שומה",
+          "annexFields": [
+            "מספר תיק / שם / שנת מס / משרד פקיד השומה"
+          ],
+          "source": "fileFact",
+          "documents": [],
+          "fileKeys": [
+            "firstName",
+            "lastName",
+            "idNumber",
+            "taxFiles",
+            "taxOfficeName"
+          ],
+          "fileState": "partialInFile",
+          "period": "asOfDate",
+          "note": "taxOfficeName הוא מצב עדכני — לאמת לשנת המס."
+        },
+        {
+          "key": "1342.assetRegister",
+          "label": "רשימת הנכסים, מועדים ומחיר מקורי",
+          "annexFields": [
+            "1. רשימת הנכסים ותיאורם",
+            "1. תאריך הרכישה או השינוי",
+            "1. תאריך הפעלת הנכס",
+            "2. המחיר המקורי שעלה הנכס לנישום"
+          ],
+          "source": "document",
+          "documents": [
+            "חשבוניות רכישה",
+            "רשימת רכוש קבוע"
+          ],
+          "fileKeys": [
+            "properties"
+          ],
+          "fileState": "partialInFile",
+          "period": "perAsset",
+          "note": "רק לדירה מושכרת יש בכרטיס purchaseYear/purchasePrice (שנה בלבד, בלי מועד הפעלה). לנכסי עסק אין רשימה."
+        },
+        {
+          "key": "1342.changesThisYear",
+          "label": "מחיר השינויים במשך השנה",
+          "annexFields": [
+            "3. מחיר השינויים במשך השנה"
+          ],
+          "source": "document",
+          "documents": [
+            "חשבוניות שיפורים ותוספות"
+          ],
+          "fileKeys": [],
+          "fileState": "missingInFile",
+          "period": "perAsset",
+          "note": "כל ההוצאות עד הפעלה או עד תום השנה."
+        },
+        {
+          "key": "1342.statutoryRate",
+          "label": "שיעור פחת קבוע עפ״י דין",
+          "annexFields": [
+            "5. שיעור הפחת הקבוע עפ\"י דין"
+          ],
+          "source": "calculation",
+          "documents": [],
+          "fileKeys": [],
+          "fileState": "office",
+          "period": "perAsset",
+          "note": "לפי סוג הנכס בתקנות הפחת."
+        },
+        {
+          "key": "1342.claimedRate",
+          "label": "שיעור הפחת הנתבע",
+          "annexFields": [
+            "6. שיעור הפחת הנתבע"
+          ],
+          "source": "office",
+          "documents": [],
+          "fileKeys": [],
+          "fileState": "office",
+          "period": "perAsset",
+          "note": "שיעור שונה מהקבוע — לנמק בטור 11."
+        },
+        {
+          "key": "1342.accumulatedPrior",
+          "label": "פחת נצבר בשנים קודמות",
+          "annexFields": [
+            "8. סה\"כ פחת נצבר בשנות מס קודמות"
+          ],
+          "source": "document",
+          "documents": [
+            "טבלת פחת של השנה הקודמת"
+          ],
+          "fileKeys": [],
+          "fileState": "missingInFile",
+          "period": "cumulative",
+          "note": ""
+        },
+        {
+          "key": "1342.computed",
+          "label": "סיכומי מחיר, פחת השנה ויתרה",
+          "annexFields": [
+            "4. סה\"כ מחיר של נכסים בני פחת (2+3)",
+            "7. הפחת הנתבע לשנה הנדונה (6×4)",
+            "9. סה\"כ פחת (7+8)",
+            "10. יתרה להפחתה (4-9)",
+            "סה\"כ פחת"
+          ],
+          "source": "calculation",
+          "documents": [],
+          "fileKeys": [],
+          "fileState": "office",
+          "period": "perAsset",
+          "note": "הסה״כ עובר לנספח א׳ שורה 17 או לנספח ב׳."
+        },
+        {
+          "key": "1342.disposals",
+          "label": "נכס שיצא משימוש או נמכר",
+          "annexFields": [
+            "11. הערות"
+          ],
+          "source": "client",
+          "documents": [
+            "הסכם מכירה"
+          ],
+          "fileKeys": [],
+          "fileState": "missingInFile",
+          "period": "perAsset",
+          "note": "תאריך, ובמכירה — גם התמורה (ואז גם 1399י)."
+        }
+      ]
+    },
+    {
+      "formId": "1343",
+      "repeatsPer": "business",
+      "repeatsNote": "שורה לכל נכס קבוע (עד 25) שחל עליו חוק התיאומים עד 2007.",
+      "items": [
+        {
+          "key": "1343.identity",
+          "label": "שם הנישום, תיק ושנת המס",
+          "annexFields": [
+            "שם הנישום / מספר תיק / שנת המס"
+          ],
+          "source": "fileFact",
+          "documents": [],
+          "fileKeys": [
+            "firstName",
+            "lastName",
+            "idNumber",
+            "spouseFirstName",
+            "spouseLastName",
+            "spouseIdNumber",
+            "taxFiles"
+          ],
+          "fileState": "inFile",
+          "period": "asOfDate",
+          "note": ""
+        },
+        {
+          "key": "1343.assets",
+          "label": "הנכסים, מחיר מקורי ותאריך",
+          "annexFields": [
+            "תאר/י כל נכס בנפרד",
+            "מחיר מקורי",
+            "תאריך"
+          ],
+          "source": "document",
+          "documents": [
+            "טבלאות פחת היסטוריות",
+            "חשבוניות רכישה"
+          ],
+          "fileKeys": [],
+          "fileState": "missingInFile",
+          "period": "perAsset",
+          "note": "רק נכסים שנרכשו לפני תום 2007; למעט קרקע וסעיפים 3(ד)-3(ה)."
+        },
+        {
+          "key": "1343.depreciationFrom1342",
+          "label": "סכומי פחת לפי טופס י״א",
+          "annexFields": [
+            "סכומי פחת לפי טופס י\"א"
+          ],
+          "source": "calculation",
+          "documents": [
+            "טופס 1342"
+          ],
+          "fileKeys": [],
+          "fileState": "office",
+          "period": "perAsset",
+          "note": ""
+        },
+        {
+          "key": "1343.indexAndDeduction",
+          "label": "עליית המדד והניכוי הנוסף",
+          "annexFields": [
+            "שיעור עליית המדד",
+            "סכומי הניכוי הנוסף בשל פחת",
+            "סה\"כ (מחיר מקורי, פחת, ניכוי נוסף)"
+          ],
+          "source": "calculation",
+          "documents": [],
+          "fileKeys": [],
+          "fileState": "office",
+          "period": "perAsset",
+          "note": "מדד עד תום 2007. הסה״כ מופחת בדוח ההתאמה (1320 שורה 21 / 1321)."
+        }
+      ]
+    },
+    {
+      "formId": "134",
+      "repeatsPer": "once",
+      "repeatsNote": "חלקים א–ג חוזרים לכל מעסיק (עד חמישה) ועמודת סה״כ; לכל בן זוג בנפרד.",
+      "items": [
+        {
+          "key": "134.identity",
+          "label": "פרטי העובד ותיק",
+          "annexFields": [
+            "מספר זהות / שם משפחה / שם פרטי / מספר תיק"
+          ],
+          "source": "fileFact",
+          "documents": [],
+          "fileKeys": [
+            "firstName",
+            "lastName",
+            "idNumber",
+            "spouseFirstName",
+            "spouseLastName",
+            "spouseIdNumber",
+            "taxFiles"
+          ],
+          "fileState": "inFile",
+          "period": "asOfDate",
+          "note": ""
+        },
+        {
+          "key": "134.studyFundDeposits",
+          "label": "קרן השתלמות — נתוני מעסיק",
+          "annexFields": [
+            "1. שם קרן ההשתלמות",
+            "2. משכורת שנתית שבגינה הופקד",
+            "3. שיעור הפקדות המעביד",
+            "4. סכום ההפקדה השנתי - חלק המעסיק",
+            "5. סכום ההפקדה השנתי שחויב במס"
+          ],
+          "source": "document",
+          "documents": [
+            "טופס 106"
+          ],
+          "fileKeys": [
+            "employers",
+            "pensionFunds"
+          ],
+          "fileState": "partialInFile",
+          "period": "taxYear",
+          "note": "employers[].studyFundEmployerContribution ו-grossSalaryAnnual — סכומים בלי שנה; אין משכורת לצורך הפקדה, שיעור וסכום שחויב."
+        },
+        {
+          "key": "134.pensionDeposits",
+          "label": "קופ״ג לקצבה (תגמולים) — נתוני מעסיק",
+          "annexFields": [
+            "שם הקופה / משכורת / שיעור / הפקדת מעסיק / סכום שחויב"
+          ],
+          "source": "document",
+          "documents": [
+            "טופס 106"
+          ],
+          "fileKeys": [
+            "employers"
+          ],
+          "fileState": "partialInFile",
+          "period": "taxYear",
+          "note": "employers[].pensionEmployerContribution — בלי הפרדה בין תגמולים לפיצויים, בלי שיעור ובלי סכום שחויב. אותו נוסח שדה משמש גם בחלק ג׳."
+        },
+        {
+          "key": "134.severanceDeposits",
+          "label": "קופ״ג פיצויים — נתוני מעסיק",
+          "annexFields": [
+            "שם הקופה / משכורת / שיעור / הפקדת מעסיק / סכום שחויב"
+          ],
+          "source": "document",
+          "documents": [
+            "טופס 106"
+          ],
+          "fileKeys": [],
+          "fileState": "missingInFile",
+          "period": "taxYear",
+          "note": "הפקדות מעסיק לפיצויים אינן נשמרות (severancePayReceived הוא פיצויים שהתקבלו — מושג אחר)."
+        },
+        {
+          "key": "134.excessDepositCalc",
+          "label": "חישוב הפקדה חריגה ותוספת להכנסה",
+          "annexFields": [
+            "א-ה: הפקדה, משכורת לצורך הפקדות × 7.5%, הפקדה חריגה, הפחתת מחויב, תוספת/הפחתה",
+            "א-ה: הפקדה, משכורת × 7.5%, חריגה, הפחתת מחויב, תוספת/הפחתה",
+            "א-ה: הפקדה, משכורת × 8.33%, חריגה, הפחתת מחויב, תוספת/הפחתה",
+            "1-3. סכומים מחלקים א, ב, ג",
+            "4. סה\"כ תוספת/הפחתה משדה 172/158"
+          ],
+          "source": "calculation",
+          "documents": [],
+          "fileKeys": [],
+          "fileState": "office",
+          "period": "taxYear",
+          "note": "תקרות 15,712 / 33,290 / 44,100 ש״ח לחודש; התוצאה לשדה 172/158."
+        },
+        {
+          "key": "134.employerDisability",
+          "label": "הפקדות מעסיק לאובדן כושר עבודה",
+          "annexFields": [
+            "12. סה\"כ הפקדות מעביד לא.כ.ע",
+            "17. הפקדה שחויבה במס ע\"י המעביד"
+          ],
+          "source": "document",
+          "documents": [
+            "טופס 106"
+          ],
+          "fileKeys": [],
+          "fileState": "missingInFile",
+          "period": "taxYear",
+          "note": "כולל הפקדה שחויבה במס ע״י המעביד."
+        },
+        {
+          "key": "134.employeeDisability",
+          "label": "הפקדות עובד לאובדן כושר עבודה",
+          "annexFields": [
+            "15. הפקדות עובד לא.כ.ע"
+          ],
+          "source": "document",
+          "documents": [
+            "אישור שנתי מחברת הביטוח",
+            "טופס 106"
+          ],
+          "fileKeys": [
+            "hasDisabilityInsurance",
+            "disabilityInsuranceAnnual"
+          ],
+          "fileState": "partialInFile",
+          "period": "taxYear",
+          "note": "disabilityInsuranceAnnual — סכום משוער, בלי הפרדה בין הפקדה כשכיר לכעצמאי."
+        },
+        {
+          "key": "134.employeeDisabilityCalc",
+          "label": "חישוב א.כ.ע לשכיר",
+          "annexFields": [
+            "1. סה\"כ הפקדות מעביד לתגמולים",
+            "2. סה\"כ משכורת",
+            "3. שיעור כולל מותר 7.5%",
+            "4. שיעור הפקדות המעביד ((1)/(2))",
+            "5. ההפרש (4)-(3)",
+            "6. הנמוך בין (5) ל־3.5%",
+            "7. המשכורת החייבת × שיעור (6)",
+            "8. הנמוך מהמשכורת החייבת ו־399,480 × 3.5%",
+            "9. הנמוך מהמשכורת החייבת ו־399,480 × 7.5%",
+            "10. (9)-(1)",
+            "11. הנמוך בין (7), (8), (10)",
+            "13. הפקדות חייבות במס (11)-(12)",
+            "14. הוצאה מותרת נוספת (12)-(11)",
+            "16. הנמוך בין (14) ל־(15)"
+          ],
+          "source": "calculation",
+          "documents": [],
+          "fileKeys": [],
+          "fileState": "office",
+          "period": "taxYear",
+          "note": "משכורת ללא שווי רכב; תקרה שנתית 399,480 ש״ח."
+        },
+        {
+          "key": "134.selfEmployedDisability",
+          "label": "הפקדה לא.כ.ע כעצמאי",
+          "annexFields": [
+            "19. הפקדה לא.כ.ע כעצמאי"
+          ],
+          "source": "document",
+          "documents": [
+            "אישור שנתי מחברת הביטוח"
+          ],
+          "fileKeys": [
+            "hasDisabilityInsurance",
+            "disabilityInsuranceAnnual"
+          ],
+          "fileState": "partialInFile",
+          "period": "taxYear",
+          "note": "כמו למעלה — הסכום בכרטיס אינו מפריד שכיר/עצמאי."
+        },
+        {
+          "key": "134.selfEmployedDisabilityCalc",
+          "label": "חישוב א.כ.ע לעצמאי ותקרה כוללת",
+          "annexFields": [
+            "18. הכנסה מעסק (150/170) או 399,480, הנמוך, × 3.5%",
+            "20. הוצאה מותרת נגד הכנסה מעסק (הנמוך 18/19)",
+            "21. יתרה שלא נוצלה נגד עסק (13,982 בניכוי 20)",
+            "22. הקטנת ההוצאה נגד משכורת",
+            "23. רק אם (13) חיובי: (13)-(17)",
+            "24. רק אם (14) חיובי: (16)+(17)",
+            "25. (23)+(22)",
+            "26. (24)-(22)"
+          ],
+          "source": "calculation",
+          "documents": [],
+          "fileKeys": [],
+          "fileState": "office",
+          "period": "taxYear",
+          "note": "נשען על הכנסה מעסק (150/170) מ-1320. העברה ל-113/112, 172/158, 207/206."
+        }
+      ]
+    },
+    {
+      "formId": "119",
+      "repeatsPer": "once",
+      "repeatsNote": "לכל אדם שמבקש את הזיכוי (הלקוח או בן/בת הזוג).",
+      "items": [
+        {
+          "key": "119.addressee",
+          "label": "נמען הבקשה",
+          "annexFields": [
+            "לכבוד: פקיד השומה / המעסיק"
+          ],
+          "source": "office",
+          "documents": [],
+          "fileKeys": [],
+          "fileState": "office",
+          "period": "taxYear",
+          "note": "בדוח השנתי — פקיד השומה."
+        },
+        {
+          "key": "119.applicant",
+          "label": "פרטי המבקש",
+          "annexFields": [
+            "שם פרטי / שם משפחה / מספר זהות"
+          ],
+          "source": "fileFact",
+          "documents": [],
+          "fileKeys": [
+            "firstName",
+            "lastName",
+            "idNumber",
+            "spouseFirstName",
+            "spouseLastName",
+            "spouseIdNumber"
+          ],
+          "fileState": "inFile",
+          "period": "asOfDate",
+          "note": ""
+        },
+        {
+          "key": "119.employer",
+          "label": "פרטי המעביד",
+          "annexFields": [
+            "שם / כתובת / מספר תיק ניכויים"
+          ],
+          "source": "document",
+          "documents": [
+            "טופס 106"
+          ],
+          "fileKeys": [
+            "employers"
+          ],
+          "fileState": "partialInFile",
+          "period": "taxYear",
+          "note": "employers[] — שם ו-taxId בלבד; אין כתובת ומספר תיק ניכויים. כשהנמען פקיד השומה ייתכן שלא נדרש."
+        },
+        {
+          "key": "119.requestedYear",
+          "label": "שנת המס המבוקשת",
+          "annexFields": [
+            "אני מבקש לקבל זיכוי לשנת המס"
+          ],
+          "source": "office",
+          "documents": [],
+          "fileKeys": [],
+          "fileState": "office",
+          "period": "taxYear",
+          "note": ""
+        },
+        {
+          "key": "119.degree",
+          "label": "סוג התואר, מוסד, תחום, סיום ושנות לימוד",
+          "annexFields": [
+            "מוסד הלימודים (פרט/י)",
+            "(1) תואר ראשון / (2) תואר שני / (3) שלישי ברפואה-שיניים / (4) שלישי ישיר / (5) תעודת מקצוע",
+            "בתחום",
+            "בתאריך (סיום)",
+            "מספר שנות לימוד"
+          ],
+          "source": "document",
+          "documents": [
+            "אישור זכאות לתואר",
+            "תעודת מקצוע"
+          ],
+          "fileKeys": [
+            "hasAcademicDegree",
+            "academicDegreeType",
+            "academicDegreeYear"
+          ],
+          "fileState": "partialInFile",
+          "period": "asOfDate",
+          "note": "בכרטיס סוג (ראשון/שני/שלישי) ושנה בלבד. חסרים מוסד, תחום, תאריך סיום, שנות לימוד, תעודת מקצוע והבחנה בין קודי 3/4. בן/בת הזוג — ב-spouse."
+        },
+        {
+          "key": "119.internship",
+          "label": "התמחות",
+          "annexFields": [
+            "(6) התמחות - בתחום, תאריך התחלה, תאריך סיום, מספר שנות התמחות"
+          ],
+          "source": "document",
+          "documents": [
+            "אישור סיום התמחות"
+          ],
+          "fileKeys": [],
+          "fileState": "missingInFile",
+          "period": "asOfDate",
+          "note": "תחום, תאריכי התחלה וסיום ושנות התמחות; מסיימי התמחות מ-2012 בוחרים שנת תחילה."
+        },
+        {
+          "key": "119.signature",
+          "label": "חתימה",
+          "annexFields": [
+            "שם / תאריך / חתימה"
+          ],
+          "source": "office",
+          "documents": [],
+          "fileKeys": [],
+          "fileState": "office",
+          "period": "asOfDate",
+          "note": ""
+        }
+      ]
+    },
+    {
+      "formId": "116ד",
+      "repeatsPer": "once",
+      "repeatsNote": "טופס עובדת למעסיק (נספח ל-101), לשנת מס; שורה לכל ילד.",
+      "items": [
+        {
+          "key": "116ד.taxYear",
+          "label": "שנת המס",
+          "annexFields": [
+            "שנת המס"
+          ],
+          "source": "office",
+          "documents": [],
+          "fileKeys": [],
+          "fileState": "office",
+          "period": "taxYear",
+          "note": ""
+        },
+        {
+          "key": "116ד.worker",
+          "label": "פרטי העובדת וכתובת",
+          "annexFields": [
+            "מספר זהות / שם פרטי / שם משפחה / כתובת (רחוב, בית/דירה, יישוב, מיקוד)"
+          ],
+          "source": "fileFact",
+          "documents": [],
+          "fileKeys": [
+            "idNumber",
+            "firstName",
+            "lastName",
+            "address",
+            "city",
+            "zipCode",
+            "spouseFirstName",
+            "spouseLastName",
+            "spouseIdNumber"
+          ],
+          "fileState": "partialInFile",
+          "period": "asOfDate",
+          "note": "הכתובת בכרטיס היא שורה אחת עדכנית (לא רחוב/בית/דירה מפוצלים). כשהעובדת היא בת הזוג — אין לה כתובת נפרדת בכרטיס."
+        },
+        {
+          "key": "116ד.employer",
+          "label": "פרטי המעסיק",
+          "annexFields": [
+            "שם המעסיק / כתובת / טלפון / מספר תיק ניכויים"
+          ],
+          "source": "document",
+          "documents": [
+            "טופס 101",
+            "תלוש שכר"
+          ],
+          "fileKeys": [
+            "employers"
+          ],
+          "fileState": "partialInFile",
+          "period": "taxYear",
+          "note": "employers[] — שם בלבד; אין כתובת, טלפון ותיק ניכויים."
+        },
+        {
+          "key": "116ד.deferChildren",
+          "label": "ילדים שנולדו בשנת המס — דחיית נקודה",
+          "annexFields": [
+            "ילדים שנולדו בשנת המס: שם הילד / מספר זהות / תאריך לידה"
+          ],
+          "source": "client",
+          "documents": [],
+          "fileKeys": [
+            "children"
+          ],
+          "fileState": "partialInFile",
+          "period": "taxYear",
+          "note": "children[] מחזיק שם, ת.ז. (אופציונלי) ותאריך לידה; ההחלטה לדחות — של הלקוחה ואינה נשמרת."
+        },
+        {
+          "key": "116ד.useDeferred",
+          "label": "ילדים מהשנה הקודמת — ניצול נקודה שנדחתה",
+          "annexFields": [
+            "ילדים שנולדו בשנה שעברה: שם הילד / מספר זהות / תאריך לידה"
+          ],
+          "source": "client",
+          "documents": [],
+          "fileKeys": [
+            "children"
+          ],
+          "fileState": "partialInFile",
+          "period": "taxYear",
+          "note": "הילדים ידועים מתאריכי הלידה, אבל לא נשמר אם הנקודה נדחתה בשנה הקודמת."
+        },
+        {
+          "key": "116ד.declaration",
+          "label": "הצהרה וחתימה",
+          "annexFields": [
+            "תאריך / שם מלא / חתימה"
+          ],
+          "source": "office",
+          "documents": [],
+          "fileKeys": [],
+          "fileState": "office",
+          "period": "asOfDate",
+          "note": ""
+        }
+      ]
+    }
+  ],
+  "gaps": [
+    "אין בתיק ממד של שנת מס: עסקים, נכסים, השקעות וחו״ל שמורים כמצב עדכני ואומדנים (revenueAnnual, rentalIncomeAnnual, capitalGainsAnnual, foreignIncomeAnnual). כל סכום לנספח דורש מסמך לשנה.",
+    "בעלות לפי אדם חסרה ב-investmentAccounts, ב-foreignAccounts וב-properties (אין client/spouse ואין חלק בעלות). לכן אי אפשר לפצל את 1322 לפי בעלות ולשייך את שורות 1324 לבן זוג. ל-businesses ול-employers יש belongsToSpouse.",
+    "1320: אין דוח רווח והפסד מובנה. בכרטיס revenueAnnual/cogs/operatingExpenses/depreciation/netIncome כסכומים כוללים, בלי שורות 2–16, שכר, רכב, בסיס דיווח, שאלות ניהול הספרים, שותפים ומשכיר. גם אין תאריכי פתיחה וסגירה (רק שנים).",
+    "1321: לנכס אין גוש, חלקה, קומה, תאריך רכישה מלא, הפרדת מבנה/קרקע, תחילת השכרה, זהות השוכר ושנות שימוש בעסק (9ד). rentalExpenses הוא סכום אחד ללקוח, ואין רישום של דמי מפתח.",
+    "1322: חשבון השקעות לא שומר מספר סניף, חלוקה לשיעורי מס, מחזור מכירות (קוד 56), סימון ניכוי במקור או לא, ונכס בחו״ל.",
+    "1399י: אין מודל עסקאות (נכס, תמורה, עלות, תאריכים, הוצאות, השבחות, רוכש). לקריפטו — רק דגל hasCrypto.",
+    "יתרות רב-שנתיות לא נשמרות: הפסדים מועברים (1344), הפסדים מחו״ל (1324: 479–481, 466), דיבידנד רעיוני מצטבר בחנ״ז/חמי״ז (473, 476), עודף זיכוי מס זר 2020–2024, ופחת נצבר (1342, 1343).",
+    "1342/1343: אין רישום רכוש קבוע לעסק (נכס, מועד הפעלה, מחיר, שיעור, פחת נצבר, יציאה משימוש).",
+    "1324: foreignIncomeAnnual ו-foreignTaxPaid הם סכומים כוללים; ForeignAccount שומר annualIncome אחד בלי סוג הכנסה ושיעור. נתוני חנ״ז/חמי״ז — דגל וטקסט חופשי. אין שאלת החזר מס זר.",
+    "134: ל-EmployerInfo אין משכורת לצורך הפקדות, שיעורי הפקדה, הפרדת תגמולים/פיצויים, הפקדות מעסיק לא.כ.ע וסכומים שחויבו במס. disabilityInsuranceAnnual לא מפריד שכיר מעצמאי.",
+    "119: אין מוסד, תחום, תאריך סיום, שנות לימוד, תעודת מקצוע והתמחות. academicDegreeType לא מכסה את קודי 3/4/5/12.",
+    "116ד: החלטת הדחייה לכל ילד לא נשמרת, ולכן אי אפשר לדעת בשנה הבאה מה לנצל. children[].idNumber אופציונלי.",
+    "מעסיקים: אין כתובת, טלפון ותיק ניכויים (119, 116ד). כתובת הלקוח היא שורה אחת; ל-SpouseData אין כתובת.",
+    "קריאות לא ודאיות בקטלוג משפיעות על המיפוי: 1344 סדר עמודות 4/5 ושיוך 164/065; 1399י שורות 13–14 בלי כותרת (לא מופו); 1324 קודי 443/423/424; 1342 נקרא חלקית (גרסה 11.2017); 1322 «רכישה מצד קשור»; 1321 תיבת ההצהרה ו«חלקו בהכנסות»."
+  ]
+}

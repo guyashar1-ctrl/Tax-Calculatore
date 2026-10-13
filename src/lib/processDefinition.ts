@@ -34,6 +34,30 @@ export const ACTOR_LABELS: Record<ProcessActor, string> = {
  */
 export type StageKind = 'fixed' | 'conditional' | 'optional' | 'configurable';
 
+/**
+ * איך מבצעים את השלב ביד — גם בלי PIVO, בלי חיבור לרשויות ובמשרד אחר (גיא, 11.10.2026).
+ * ‼ תיאור עבודה, לא מנוע. `evidence` אומר מה **מוכיח** שהשלב קרה: סימון «בוצע» במסך
+ *   אינו ראיה לפעולה ברשות, ולכן לשלב מול רשות תמיד כתוב מה כן נחשב ראיה.
+ */
+export interface ManualHow {
+  /** מה מכינים לפני שמתחילים את השלב. */
+  prepare?: string[];
+  /** מה שואלים את הלקוח — ולמה. לשאלון שלם: `questionnaire` על התהליך. */
+  ask?: { q: string; why: string }[];
+  /** מסמכים וטפסים שנדרשים בשלב. */
+  documents?: string[];
+  /** הצעדים ביד, בסדר. */
+  steps?: string[];
+  /** מה בודקים לפני שממשיכים. */
+  check?: string;
+  /** מי מאשר שהשלב תקין. */
+  approver?: ProcessActor;
+  /** מה יוצא מהשלב — מה יש ביד בסופו. */
+  output?: string;
+  /** מה מוכיח שהשלב קרה, ומה אינו מוכיח. */
+  evidence?: string;
+}
+
 export interface ProcessStage {
   key: string;
   title: string;
@@ -61,6 +85,10 @@ export interface ProcessStage {
   substages?: ProcessStage[];
   /** איפה במשרד מגדירים את השלב הזה (מזהה מקטע ב«ניהול המשרד»). */
   configureIn?: OfficeSectionId;
+  /** איך עושים את השלב ביד. */
+  manual?: ManualHow;
+  /** השלב קיים רק כעבודה ידנית — אין לו עדיין בקשה, מסך או מצב במערכת. מוצג במפורש. */
+  manualOnly?: boolean;
 }
 
 export type OfficeSectionId =
@@ -104,6 +132,10 @@ export interface ProcessDefinition {
   configurable?: { text: string; section: OfficeSectionId };
   /** תהליך מותנה: מתי הוא בכלל נוצר. */
   when?: string;
+  /** לפני שמתחילים — מה מכינים (ביד, בלי PIVO). */
+  manualPrepare?: string[];
+  /** שאלון מלא עם הסתעפויות שמשמש את התהליך — מוצג מתוך «איך עושים». */
+  questionnaire?: 'taxYear';
 }
 
 /** מספור שלבים לתצוגה: מקביל אינו מקבל מספר משלו. */

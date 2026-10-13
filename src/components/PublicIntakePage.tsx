@@ -6,7 +6,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { FirmBranding } from '../types/firmProfile';
 import { deriveQuotationBrand } from './quotations/quotationBranding';
-import PublicIntake, { PublicIntakeView, type IntakeInitial } from './PublicIntake';
+import PublicIntake, { PublicIntakeView, intakeReplacedState, type IntakeInitial } from './PublicIntake';
 import SampleSimulatedNote from './linkedScreens/SampleNote';
 import { samplePublicIntakePageActions } from './linkedScreens/sampleIntakeActions';
 import type { SimulatedResult } from './linkedScreens/sampleActions';
@@ -22,19 +22,22 @@ export interface IntakeInfo {
   sessionStatus: string | null;
 }
 
-type Phase = 'loading' | 'invalid' | 'intake' | 'done';
+type Phase = 'loading' | 'invalid' | 'intake' | 'done' | 'replaced';
 
 /** כל מה שהדף עושה מול העולם. בעמוד האמיתי — השרת; בתצוגה לדוגמה — פעולה שאינה נוגעת בכלום. */
 export interface PublicIntakePageActions {
   /** הלקוח קיבל קישור עדכון אבל כבר מילא השנה — פותחים מחדש; התשובות נשמרות. */
-  reopen(): Promise<{ status: 'reopened' } | { status: 'failed' } | SimulatedResult>;
+  reopen(): Promise<{ status: 'reopened' } | { status: 'failed' } | { status: 'replaced'; portalToken?: string } | SimulatedResult>;
 }
 
 export function livePublicIntakePageActions(token: string): PublicIntakePageActions {
   return {
     async reopen() {
       const { data, error } = await supabase.rpc('reopen_intake', { p_token: token });
-      if (error || data !== true) return { status: 'failed' };
+      if (error || data !== true) {
+        const st = await intakeReplacedState(token);
+        return st.replaced ? { status: 'replaced', portalToken: st.portalToken } : { status: 'failed' };
+      }
       return { status: 'reopened' };
     },
   };
@@ -43,7 +46,9 @@ export function livePublicIntakePageActions(token: string): PublicIntakePageActi
 /** כל מה שהדף צריך כדי להיצייר — בלי טעינה ובלי רשת. */
 export interface PublicIntakePageData {
   info: IntakeInfo;
-  phase: 'intake' | 'done';
+  phase: 'intake' | 'done' | 'replaced';
+  /** 236 · הדף האישי של הלקוח — לשם הוחלף השאלון (רק טוקן בתוקף). */
+  portalToken?: string;
   /**
    * ההפעלה של השאלון — רק בתצוגה לדוגמה. בעמוד האמיתי השאלון טוען אותה בעצמו
    * (start_intake), ולכן חסר כאן.
@@ -58,7 +63,8 @@ export default function PublicIntakePage({ token }: Props) {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const { data, error } = await supabase.rpc('get_intake', { p_token: token });
+      // ‼ 236 · קודם: האם המשרד החליף את השאלון בקליטה. השרת גם חוסם כל כתיבה; כאן — רק מה מציגים.
+      const [{ data, error }, st] = await Promise.all([supabase.rpc('get_intake', { p_token: token }), intakeReplacedState(token)]);
       if (cancelled) return;
       const row = Array.isArray(data) ? data[0] : data;
       if (error || !row) { setLoaded('invalid'); return; }
@@ -68,6 +74,7 @@ export default function PublicIntakePage({ token }: Props) {
         branding: row.branding || {},
         sessionStatus: row.session_status ?? null,
       };
+      if (st.replaced) { setLoaded({ info, phase: 'replaced', portalToken: st.portalToken }); return; }
       // שאלון שכבר הושלם — מסך תודה במקום שאלות מחדש
       setLoaded({ info, phase: row.session_status && row.session_status !== 'in_progress' ? 'done' : 'intake' });
     })();
@@ -122,6 +129,12 @@ export function PublicIntakePageView(props: PublicIntakePageViewProps) {
   // מפתח שמאלץ טעינה נקייה של השאלון אחרי פתיחה מחדש
   const [intakeRun, setIntakeRun] = useState(0);
   const [simulated, setSimulated] = useState(false);
+  const [portalToken, setPortalToken] = useState<string | undefined>(props.data.portalToken);
+  /** 236 · הלשונית הייתה פתוחה כשהמשרד החליף את השאלון — עוברים למסך «הוחלף». */
+  const toReplaced = async () => {
+    if (props.mode !== 'sample') { const st = await intakeReplacedState(props.token); setPortalToken(st.portalToken); }
+    setPhase('replaced');
+  };
 
   // הלקוח קיבל קישור עדכון אבל כבר מילא השנה — פותחים מחדש; התשובות נשמרות.
   async function handleReopen() {
@@ -130,6 +143,7 @@ export function PublicIntakePageView(props: PublicIntakePageViewProps) {
     try {
       const res = await actions.reopen();
       if (res.status === 'simulated') { setSimulated(true); return; }
+      if (res.status === 'replaced') { setPortalToken(res.portalToken); setPhase('replaced'); return; }
       if (res.status === 'failed') return;
       setIntakeRun(n => n + 1);
       setPhase('intake');
@@ -166,6 +180,33 @@ export function PublicIntakePageView(props: PublicIntakePageViewProps) {
             <div style={{ fontSize: 14, color: ink }}>{info?.firmName}</div>
           </>
         )}
+      </div>
+    );
+  }
+
+  if (phase === 'replaced') {
+    // ‼ 236 · לא ממלאים פעמיים: הקישור הישן מסביר ומפנה לדף האישי. מה שנענה כאן — נשמר במשרד.
+    const portalHref = portalToken ? `${window.location.origin}${window.location.pathname}?portal=${encodeURIComponent(portalToken)}` : null;
+    return (
+      <div style={page} data-intake-replaced>
+        <div style={card}>
+          <Header />
+          <div style={{ textAlign: 'center', padding: '8px 0' }}>
+            <div style={{ fontSize: 18, fontWeight: 500, color: brand.ink, marginBottom: 8 }}>השאלון הזה הוחלף</div>
+            <div style={{ fontSize: 14, color: brand.muted, lineHeight: 1.7 }}>
+              {info?.firmName || 'המשרד'} העביר את השאלון לדף האישי שלך{firstName ? `, ${firstName}` : ''} — שם מחכות השאלות שנשארו, וגם המסמכים שצריך.
+              {' '}מה שכבר ענית כאן נשמר אצלנו, ואין צורך למלא אותו שוב.
+            </div>
+            {portalHref ? (
+              <a href={portalHref} style={{
+                display: 'inline-block', marginTop: 18, padding: '11px 24px', borderRadius: brand.buttonStyle === 'pill' ? 999 : brand.radius,
+                background: ink, color: '#fff', fontSize: 15, fontWeight: 600, textDecoration: 'none', fontFamily: 'inherit',
+              }}>לדף האישי ←</a>
+            ) : (
+              <div style={{ marginTop: 14, fontSize: 13, color: brand.muted, lineHeight: 1.6 }}>הקישור לדף האישי נשלח אליך במייל מהמשרד. אפשר לסגור את החלון.</div>
+            )}
+          </div>
+        </div>
       </div>
     );
   }
@@ -220,6 +261,7 @@ export function PublicIntakePageView(props: PublicIntakePageViewProps) {
             firstName={firstName}
             ink={ink}
             onDone={() => setPhase('done')}
+            onReplaced={() => void toReplaced()}
           />
         )}
       </div>

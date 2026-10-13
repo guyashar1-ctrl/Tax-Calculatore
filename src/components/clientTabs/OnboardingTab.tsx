@@ -107,6 +107,9 @@ import InfoLines from '../ui/InfoLines';
 import PrerequisiteGate, { PREREQUISITE_FIELD_LABELS, type PrerequisitePerson } from '../PrerequisiteGate';
 import NiNextActionButton from '../NiNextActionButton';
 import Btl6101Workspace from '../../features/smartForms/btl6101/Btl6101Workspace';
+import TaxYearProcess from '../../features/taxYear/TaxYearProcess';
+import { MONTHS as TY_MONTHS } from '../../features/taxYear/asks';
+import { demandView, type WealthDemand } from '../../features/taxYear/wealthDemand';
 import { takePendingIntent, type SendOfficeDocsIntent } from '../../lib/pendingIntent';
 import { BTL6101_PURPOSE_LABELS, type Btl6101Purpose } from '../../features/smartForms/btl6101/model';
 import { filingErrorText, startFiling, type SmartFormProjection } from '../../features/smartForms/api';
@@ -128,6 +131,7 @@ import {
 import { formatRoute } from '../../lib/appRoute';
 import { awaitsPublication, carriedFromLine, engagementsOf, openIntake } from '../../utils/clientPageGate';
 import IdentityDocAttach, { type RepIdAttach } from '../IdentityDocAttach';
+import { replaceLegacyIntake } from '../../lib/intakeSync';
 
 interface Props {
   clientId: string;
@@ -543,6 +547,8 @@ export default function OnboardingTab({
   }, [clientId]);
   /** הגשת טופס חכם (6101) פתוחה במסך הפירוט שלה. ‼ השורה ב«בקשות» היא היטל. */
   const [smartFilingId, setSmartFilingId] = useState<string | null>(null);
+  /** 229 · דף התהליך של שנת מס (הערכה / דוח) — נפתח מהשורה, כמו הטופס החכם. */
+  const [taxYearStepId, setTaxYearStepId] = useState<string | null>(null);
   /** תבנית שנבחרה מהקטלוג — פותחת את הקומפוזר על עותק שלה. */
   const [templateDraft, setTemplateDraft] = useState<RequestTemplate | null>(null);
   /** בקשה שנשמרת כרגע כתבנית — החלון מבקש רק שם. */
@@ -1713,6 +1719,40 @@ export default function OnboardingTab({
 
   /** רינדור בקשה אחת — משותף לרשימה השטוחה (המסך הישן) ולשורות "מה אני צריך מהלקוח"/"העבודה שלי". */
   const renderStepInner = (step: OnboardingStep) => {
+              // ‼ 229 · שנת מס: השורה מתארת מצב ופותחת את דף התהליך. «השלמת מידע» היא בת —
+              // שורה משלה (נספרת כמו כל בקשה אצל הלקוח), שפותחת את אותו דף.
+              if (step.stepType === 'tax_estimate' || step.stepType === 'annual_return' || step.stepType === 'info_collection' || step.stepType === 'wealth_declaration' || step.stepType === 'tax_file_intake') {
+                const pl = step.payload as unknown as { taxYear?: number; cutoffMonth?: number; parentStepId?: string; title?: string; demand?: WealthDemand | null; internalTarget?: string };
+                const parentId = step.stepType === 'info_collection' ? String(pl.parentStepId ?? '') : step.id;
+                const info = step.stepType === 'info_collection' ? step
+                  : clientSteps.find(x => x.stepType === 'info_collection' && (x.payload as unknown as { parentStepId?: string }).parentStepId === step.id && isStepOpen(x.status));
+                const first = client.firstName || 'הלקוח';
+                const infoLine = !info ? 'אין עדיין שאלות ללקוח'
+                  : info.status === 'pending' ? 'השלמת מידע: טיוטה — לא פורסמה'
+                  : info.status === 'waiting_client' ? `השלמת מידע: בדף האישי · ממתין ל${first}`
+                  : info.ball === 'me' && isStepOpen(info.status) ? `${first} ענה — לבדוק`
+                  : 'השלמת מידע הושלמה';
+                const status = step.stepType === 'info_collection' ? infoLine
+                  : [step.stepType === 'tax_estimate' && pl.cutoffMonth ? `חתך: סוף ${TY_MONTHS[pl.cutoffMonth]}` : '',
+                     step.stepType === 'wealth_declaration' ? demandView(pl.demand).short : '',
+                     isStepOpen(step.status) ? infoLine : 'הושלם'].filter(Boolean).join(' · ');
+                return (
+                  <JourneyRow
+                    key={step.id}
+                    step={step}
+                    stepById={stepById}
+                    highlight={highlightStepId === step.id}
+                    name={step.stepType === 'info_collection' ? `↳ ${pl.title ?? 'השלמת מידע'}` : pl.title}
+                    statusLabel={status}
+                    menu={null}
+                    primary={parentId ? (
+                      <button type="button" className="btn btn-sm btn-primary" onClick={() => setTaxYearStepId(parentId)}>פתח</button>
+                    ) : undefined}
+                  >
+                    {null}
+                  </JourneyRow>
+                );
+              }
               // ‼ טופס חכם (206): השורה היא היטל של ההגשה — המצב נכתב בשרת, ומכאן
               // רק הדלת למסך הפירוט. אין עריכה בשורה ואין «סמן כהושלם» ידני.
               const smart = (step.stepType === 'custom_request' ? step.payload?.smartForm : undefined) as SmartFormProjection | undefined;
@@ -2195,6 +2235,14 @@ export default function OnboardingTab({
                     key={step.id}
                     step={step}
                     stepById={stepById}
+                    newIntake={clientSteps.find(x => x.stepType === 'tax_file_intake' && isStepOpen(x.status))}
+                    onReplace={async (intakeId) => {
+                      setBusyStepId(step.id);
+                      const r = await replaceLegacyIntake(client, intakeId, step.createdAt?.slice(0, 10));
+                      setBusyStepId(null);
+                      if (!r.ok) { setError(`לא הצלחתי להחליף את השאלון: ${r.error ?? ''}`); return; }
+                      refresh?.();
+                    }}
                     busy={busy}
                     highlight={highlightStepId === step.id}
                     onRun={(action, payload) => void run(step, action, payload)}
@@ -3745,6 +3793,7 @@ export default function OnboardingTab({
           client={client}
           niExecution={niExecution}
           onRequestAuthorityRepresentation={onRequestAuthorityRepresentation}
+          onOpenTaxYear={id => setTaxYearStepId(id)}
           onStartSmartForm={async () => {
             // ‼ אידמפוטנטי בשרת: הגשה פתוחה קיימת ⇒ חוזרים אליה, לא פותחים שנייה.
             const r = await startFiling(clientId, []);
@@ -3763,6 +3812,16 @@ export default function OnboardingTab({
           }}
         />
       )}
+
+      {taxYearStepId && (() => {
+        const st = clientSteps.find(x => x.id === taxYearStepId);
+        if (!st) return null;
+        const info = clientSteps.find(x => x.stepType === 'info_collection' && (x.payload as unknown as { parentStepId?: string }).parentStepId === st.id && x.status !== 'cancelled');
+        return (
+          <TaxYearProcess client={client} step={st} infoStep={info} onClientPersisted={onClientPersisted}
+            onClose={() => { setTaxYearStepId(null); refresh?.(); }} onChanged={() => refresh?.()} />
+        );
+      })()}
 
       {smartFilingId && (
         <Btl6101Workspace
@@ -5215,9 +5274,12 @@ function AuthorityRepresentationStepCard({
 // ‼ נסגר לבד כשהלקוח מסיים למלא (close_intake_step_for_client) — אין צורך
 // לשאול "האם הוא כבר מילא" ואין מה לסמן ידנית.
 
-function IntakeStepCard({ step, stepById, busy, highlight, onRun, menu }: {
+function IntakeStepCard({ step, stepById, newIntake, onReplace, busy, highlight, onRun, menu }: {
   step: OnboardingStep;
   stepById: Map<string, OnboardingStep>;
+  /** 236 · קליטה והשלמת תיק המס פתוחה — מכסה את השאלון הזה. */
+  newIntake?: OnboardingStep;
+  onReplace: (intakeStepId: string) => void;
   busy: boolean;
   highlight: boolean;
   onRun: (action: string, payload?: Record<string, unknown>) => void;
@@ -5232,11 +5294,20 @@ function IntakeStepCard({ step, stepById, busy, highlight, onRun, menu }: {
       <div style={cardNote}>
         {sent
           ? (awaitingPublish
-            ? 'השאלון יופיע ללקוח בדף האישי אחרי «פרסם בדף». ברגע שיסיים למלא - השלב ייסגר מעצמו והתשובות יופיעו בכרטיס.'
-            : 'השאלון פתוח ללקוח בדף האישי. ברגע שיסיים למלא - השלב ייסגר מעצמו והתשובות יופיעו בכרטיס.')
+            ? 'השאלון יופיע ללקוח בדף האישי אחרי «פרסם בדף». ברגע שיסיים למלא - השלב ייסגר מעצמו והתשובות יחכו לאישורך בתיק המס.'
+            : 'השאלון פתוח ללקוח בדף האישי. ברגע שיסיים למלא - השלב ייסגר מעצמו והתשובות יחכו לאישורך בתיק המס.')
           : 'שאלון שממפה את מצב המס של הלקוח: מצב משפחתי וילדים, מקורות הכנסה, הפקדות לפנסיה וקרן השתלמות, ונכסים להצהרת הון. מה שיענה כאן לא ייאסף שוב בדוח השנתי.'}
       </div>
 
+      {/* ‼ 236 · קליטה פתוחה ושאלון ישן — המשרד מחליט, לא נשאר במקביל בשקט. */}
+      {open && newIntake && (
+        <div style={{ ...cardNote, marginTop: '.5rem' }} data-legacy-vs-intake>
+          פתוחה ללקוח גם «קליטה והשלמת תיק המס», שמכסה את השאלון הזה ומבקשת גם מסמכים. כדי שלא יקבל שני שאלונים — אפשר להחליף אותו בקליטה: הוא יורד מהדף האישי, ותשובות שכבר נתן מחכות לאישורך בתיק המס.
+          <div style={{ marginTop: '.4rem' }}>
+            <button type="button" className="btn btn-sm btn-secondary" disabled={busy} onClick={() => onReplace(newIntake.id)}>החלף בקליטה</button>
+          </div>
+        </div>
+      )}
       {/* ‼ "הכן מייל שאלון" הוסר (2026-08-16). השאלון הוא בקשה בדף האישי כמו
           כל בקשה אחרת, והוא נחשף בעדכון הדף — לא במייל ייעודי שמתחרה בו. */}
       {open && sent && (

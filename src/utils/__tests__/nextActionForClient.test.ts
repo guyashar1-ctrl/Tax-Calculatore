@@ -8,7 +8,13 @@ import type { OnboardingStep } from '../../types/onboarding';
 import { nextActionForClient } from '../nextActionForClient';
 
 const ago = (d: number) => new Date(Date.now() - d * 86_400_000).toISOString();
-const dayIso = (d: number) => new Date(Date.now() + d * 86_400_000).toISOString().slice(0, 10);
+// ‼ תאריך יעד לפי לוח השנה המקומי — כמו daysLate במוצר (todayIso, 168). toISOString() נותן יום UTC,
+// ולכן בין 21:00 לחצות שעון ישראל «לפני 5 ימים» יצא 6 והבדיקה נכשלה בלילה.
+const dayIso = (d: number) => {
+  const x = new Date();
+  x.setDate(x.getDate() + d);
+  return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`;
+};
 
 let n = 0;
 function step(p: Partial<OnboardingStep> & Pick<OnboardingStep, 'stepType' | 'status'>): OnboardingStep {

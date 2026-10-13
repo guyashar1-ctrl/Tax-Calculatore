@@ -1,0 +1,168 @@
+/* ─── שנת מס: דף התהליך, שאלות ללקוח ושנות מס (229) ─────────────────────────
+   ‼ מעט מסגרות: כרטיס אחד בולט — «עכשיו». השאר טיפוגרפיה ורווח (מהלך הפחתת העומס).
+   ‼ טלפון: עמודה אחת, «עכשיו» בראש, טבלאות נגללות בתוך עצמן, מטרות מגע 44px. */
+
+.ty-overlay { position: fixed; inset: 0; z-index: 1000; background: var(--page); color: var(--tx); display: flex; flex-direction: column; direction: rtl; }
+.ty-head { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; padding: .65rem 1rem; border-bottom: 1px solid var(--bd); background: var(--card); }
+.ty-head h2 { margin: 0; font-size: var(--fs-17); font-weight: 650; }
+.ty-head .ty-sub { color: var(--tx2); font-size: var(--fs-13); }
+.ty-scroll { flex: 1; overflow: auto; }
+.ty-body { max-width: 920px; margin: 0 auto; padding: 1rem 1rem 3rem; display: flex; flex-direction: column; gap: 1.1rem; }
+
+.ty-chip { display: inline-flex; align-items: center; gap: .3rem; padding: .12rem .55rem; border-radius: 999px; font-size: var(--fs-12); font-weight: 600;
+  background: var(--chip-slate-bg); color: var(--chip-slate-tx); white-space: nowrap; }
+.ty-chip.blue { background: var(--chip-blue-bg); color: var(--chip-blue-tx); }
+.ty-chip.amber { background: var(--chip-amber-bg); color: var(--chip-amber-tx); }
+.ty-chip.green { background: var(--chip-green-bg); color: var(--chip-green-tx); }
+.ty-chip.red { background: var(--chip-red-bg); color: var(--chip-red-tx); }
+.ty-chip.violet { background: var(--chip-violet-bg); color: var(--chip-violet-tx); }
+
+.ty-label { font-size: var(--fs-12); font-weight: 650; letter-spacing: .02em; color: var(--tx3); margin: 0 0 .35rem; }
+.ty-now { background: var(--card); border: 1px solid var(--soft-bd); border-radius: 14px; padding: 1rem 1.1rem; display: flex; flex-direction: column; gap: .7rem;
+  box-shadow: 0 1px 2px rgba(20, 30, 50, .04); }
+.ty-now h3 { margin: 0; font-size: var(--fs-16); font-weight: 650; }
+.ty-now .ty-why { margin: 0; color: var(--tx2); font-size: var(--fs-13); line-height: 1.55; }
+.ty-actions { display: flex; gap: .5rem; flex-wrap: wrap; align-items: center; }
+.ty-actions .btn { min-height: 38px; }
+.ty-overlay .btn, .ty-flow .btn, .ty-years .btn { transition: transform 120ms ease-out, background-color 150ms ease; }
+.ty-overlay .btn:active, .ty-flow .btn:active, .ty-years .btn:active { transform: scale(.97); }
+
+.ty-later { margin: 0; padding: 0; list-style: none; counter-reset: ty; display: flex; flex-direction: column; gap: .35rem; }
+.ty-later li { counter-increment: ty; display: flex; gap: .55rem; align-items: baseline; font-size: var(--fs-14); color: var(--txc); }
+.ty-later li::before { content: counter(ty); flex: none; width: 1.35rem; height: 1.35rem; border-radius: 50%; background: var(--s3); color: var(--tx2);
+  font-size: var(--fs-12); display: inline-flex; align-items: center; justify-content: center; }
+
+.ty-details { border-top: 1px solid var(--bd); }
+.ty-details > summary { list-style: none; cursor: pointer; display: flex; gap: .6rem; align-items: center; padding: .7rem .1rem; min-height: 44px; }
+.ty-details > summary::-webkit-details-marker { display: none; }
+.ty-details > summary::after { content: '‹'; margin-inline-start: auto; color: var(--tx3); transition: transform 150ms ease-out; }
+.ty-details[open] > summary::after { transform: rotate(-90deg); }
+.ty-details > summary b { font-weight: 650; font-size: var(--fs-14); }
+.ty-details > summary span { color: var(--tx2); font-size: var(--fs-13); }
+.ty-details-body { padding: 0 .1rem 1rem; }
+
+.ty-area { margin: .2rem 0 .8rem; }
+.ty-area h4 { margin: 0 0 .3rem; font-size: var(--fs-13); font-weight: 650; color: var(--txb); }
+.ty-rows { display: flex; flex-direction: column; }
+.ty-row { display: flex; gap: .6rem; align-items: flex-start; justify-content: space-between; padding: .45rem 0; border-bottom: 1px solid var(--s3); font-size: var(--fs-13); }
+.ty-row:last-child { border-bottom: 0; }
+.ty-row .ty-main { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: .1rem; }
+.ty-row .ty-main b { font-weight: 600; color: var(--tx); }
+.ty-row .ty-main small { color: var(--tx2); font-size: var(--fs-12); }
+.ty-row .ty-side { flex: none; display: flex; gap: .35rem; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+.ty-check { display: flex; gap: .55rem; align-items: flex-start; padding: .45rem 0; border-bottom: 1px solid var(--s3); cursor: pointer; font-size: var(--fs-13); min-height: 44px; }
+.ty-check input { margin-top: .2rem; width: 18px; height: 18px; flex: none; }
+.ty-note { font-size: var(--fs-12); color: var(--tx2); }
+.ty-warn { font-size: var(--fs-12); color: var(--chip-amber-tx); }
+.ty-err { padding: .5rem .7rem; border-radius: 10px; background: var(--err-bg); color: var(--err); font-size: var(--fs-13); }
+.ty-ok { padding: .5rem .7rem; border-radius: 10px; background: var(--ok-bg); color: var(--ok); font-size: var(--fs-13); }
+.ty-inline { display: flex; gap: .4rem; flex-wrap: wrap; align-items: center; margin-top: .35rem; }
+.ty-inline input, .ty-inline select { min-height: 36px; padding: .25rem .5rem; border: 1px solid var(--bd-strong); border-radius: 8px; background: var(--card); font: inherit; font-size: var(--fs-13); }
+.ty-inline input[type="number"] { width: 9rem; }
+.ty-bulk { background: var(--s4); border-radius: 10px; padding: .6rem .8rem; }
+.ty-bulk > summary { cursor: pointer; font-size: var(--fs-13); color: var(--br); font-weight: 600; min-height: 32px; display: flex; align-items: center; }
+
+/* ── שנות מס בתיק ── */
+.ty-years { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: .7rem; }
+.ty-year { background: var(--card); border: 1px solid var(--bd); border-radius: 12px; padding: .75rem .85rem; display: flex; flex-direction: column; gap: .45rem; }
+.ty-year h4 { margin: 0; font-size: var(--fs-15); font-weight: 650; display: flex; gap: .4rem; align-items: center; }
+.ty-year .ty-line { display: flex; justify-content: space-between; gap: .5rem; align-items: center; font-size: var(--fs-13); }
+.ty-year .ty-line .btn { flex: none; }
+
+/* ── דף אישי: שאלה אחת למסך ── */
+.ty-flow { display: flex; flex-direction: column; gap: .9rem; }
+.ty-progress { height: 6px; border-radius: 99px; background: var(--s3); overflow: hidden; }
+.ty-progress > i { display: block; height: 100%; background: var(--br); border-radius: 99px; transition: width 220ms cubic-bezier(.23, 1, .32, 1); }
+.ty-q { font-size: var(--fs-17); font-weight: 650; line-height: 1.45; margin: 0; }
+.ty-q-sub { font-size: var(--fs-13); color: var(--tx2); margin: -.4rem 0 0; }
+.ty-choices { display: flex; flex-direction: column; gap: .5rem; }
+.ty-choice { display: flex; align-items: center; gap: .6rem; min-height: 48px; padding: .55rem .8rem; border: 1px solid var(--bd-strong); border-radius: 12px; background: var(--card);
+  cursor: pointer; font-size: var(--fs-15); text-align: start; width: 100%; }
+.ty-choice[aria-pressed="true"] { border-color: var(--br); background: var(--soft); color: var(--br-strong); font-weight: 600; }
+.ty-lines { margin: 0; padding: .6rem .8rem; list-style: none; background: var(--s4); border-radius: 10px; display: flex; flex-direction: column; gap: .3rem; font-size: var(--fs-14); }
+.ty-field { display: flex; flex-direction: column; gap: .3rem; font-size: var(--fs-13); color: var(--tx2); }
+.ty-field input, .ty-field textarea { min-height: 46px; padding: .55rem .7rem; border: 1px solid var(--bd-strong); border-radius: 10px; font: inherit; font-size: var(--fs-16); background: var(--card); color: var(--tx); }
+.ty-field textarea { min-height: 88px; resize: vertical; }
+.ty-why-q > summary { cursor: pointer; color: var(--br); font-size: var(--fs-13); min-height: 32px; display: flex; align-items: center; }
+.ty-why-q p { margin: .2rem 0 0; font-size: var(--fs-13); color: var(--tx2); line-height: 1.6; }
+.ty-nav { display: flex; gap: .5rem; justify-content: space-between; align-items: center; flex-wrap: wrap; position: sticky; bottom: 0; padding: .6rem 0 calc(.6rem + env(safe-area-inset-bottom, 0px));
+  background: linear-gradient(to top, var(--card) 75%, transparent); }
+.ty-nav .btn { min-height: 44px; min-width: 6.5rem; }
+.ty-done-mark { display: inline-flex; gap: .35rem; align-items: center; color: var(--ok); font-size: var(--fs-13); font-weight: 600; }
+
+@media (max-width: 640px) {
+  .ty-body { padding: .75rem .75rem 3rem; gap: .9rem; }
+  .ty-row { flex-direction: column; }
+  .ty-row .ty-side { justify-content: flex-start; }
+  .ty-years { grid-template-columns: 1fr; }
+  .ty-head h2 { font-size: var(--fs-16); }
+}
+
+/* ─── השאלון המלא וההסתעפויות (QuestionnaireMap, 11.10.2026) ─────────────── */
+.qm { display: flex; flex-direction: column; gap: .7rem; }
+.qm-bar { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; }
+.qm-seg { display: inline-flex; border: 1px solid var(--bd); border-radius: 999px; overflow: hidden; }
+.qm-seg button { font: inherit; font-size: var(--fs-13); border: 0; background: transparent; color: var(--tx2); padding: .35rem .8rem; min-height: 36px; cursor: pointer; }
+.qm-seg button[aria-pressed="true"] { background: var(--soft); color: var(--tx); font-weight: 600; }
+.qm-search { flex: 1 1 200px; min-width: 0; max-width: 320px; }
+.qm-meta { color: var(--tx2); font-size: var(--fs-12); font-weight: 400; }
+.qm-area h4 { margin: .4rem 0 .3rem; font-size: var(--fs-14); font-weight: 650; display: flex; flex-wrap: wrap; gap: .2rem .6rem; align-items: baseline; }
+.qm-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.qm-item { border-top: 1px solid var(--s3); padding: .5rem 0; display: flex; flex-direction: column; gap: .2rem; font-size: var(--fs-13); min-width: 0; }
+.qm-item.is-nested { padding-inline-start: 1rem; border-inline-start: 2px solid var(--s3); }
+.qm-kids { padding-inline-start: .6rem; }
+.qm-item-head { display: flex; flex-wrap: wrap; gap: .3rem .5rem; align-items: center; }
+.qm-q { color: var(--txc); line-height: 1.55; }
+.qm-why { color: var(--tx2); font-size: var(--fs-12); line-height: 1.55; }
+.qm-warn { color: var(--chip-amber-tx); }
+.qm-conds { margin: 0; padding-inline-start: 1.1rem; color: var(--tx2); font-size: var(--fs-12); line-height: 1.55; }
+.qm-client { display: flex; flex-direction: column; gap: .25rem; margin-top: .15rem; padding: .35rem .5rem; background: var(--s2, var(--page)); border-radius: 8px; }
+.qm-client-row { display: flex; flex-wrap: wrap; gap: .3rem .5rem; align-items: center; }
+.qm-sent { font-size: var(--fs-12); color: var(--txc); }
+
+/* ─── הכנה להצהרת הון: פרטי ההצהרה (230) ─────────────────────────────────── */
+.wd-panel { display: flex; flex-direction: column; gap: .5rem; }
+.wd-chips { display: flex; flex-wrap: wrap; gap: .35rem; }
+.wd-hint { margin: 0; color: var(--chip-amber-tx); }
+.wd-form { display: flex; flex-direction: column; gap: .55rem; font-size: var(--fs-13); }
+.wd-form label { display: flex; flex-direction: column; gap: .2rem; max-width: 420px; }
+.wd-form label.wd-check { flex-direction: row; align-items: center; gap: .4rem; }
+.wd-form input, .wd-form select, .wd-form textarea { min-height: 36px; font: inherit; }
+.wd-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 190px), 1fr)); gap: .5rem; }
+.wd-basis { display: flex; flex-direction: column; gap: .2rem; padding: .4rem 0; border-top: 1px solid var(--s3); }
+.wd-change { border: 1px solid var(--chip-amber-tx); border-radius: 10px; padding: .6rem .7rem; display: flex; flex-direction: column; gap: .35rem; background: var(--chip-amber-bg); }
+.wd-list { margin: 0; padding-inline-start: 1.1rem; display: flex; flex-direction: column; gap: .25rem; font-size: var(--fs-12); color: var(--txc); }
+.wd-dates { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr)); gap: .5rem; margin: 0; }
+.wd-dates > div { display: flex; flex-direction: column; gap: .15rem; padding: .45rem .6rem; border-radius: 10px; background: var(--s2, var(--page)); }
+.wd-dates dt { font-size: var(--fs-12); color: var(--txc); }
+.wd-dates dd { margin: 0; font-weight: 600; font-variant-numeric: tabular-nums; display: flex; flex-direction: column; gap: .15rem; }
+.wd-dates dd .ty-note { font-weight: 400; }
+.wd-fs { border: 1px solid var(--s3); border-radius: 10px; padding: .55rem .7rem; margin: 0; display: flex; flex-direction: column; gap: .5rem; min-width: 0; }
+.wd-fs legend { font-weight: 600; padding: 0 .3rem; font-size: var(--fs-13); }
+.wd-list a { color: var(--accent); }
+/* «המשרד ביקש לתקן» — שאלה שהמשרד החזיר ללקוח, מעל השאלה עצמה */
+.ty-correction { background: var(--warn-bg); color: var(--ink-1); border-radius: 10px; padding: .55rem .7rem; font-size: var(--fs-14); line-height: 1.5; }
+.ty-correction b { color: var(--warn); }
+
+/* ── «עבודת מס» — תצוגת המשרד (ניהול המשרד › עבודת מס) ── */
+.tw { display: grid; gap: 14px; max-width: 980px; }
+.tw-kinds { display: flex; flex-wrap: wrap; gap: 6px; }
+.tw-kind { border: 1px solid var(--bd); background: var(--card); border-radius: 999px; padding: 5px 12px; font: inherit; font-size: var(--fs-13); cursor: pointer; color: inherit; }
+.tw-kind.is-on { border-color: var(--tx); font-weight: 600; }
+.tw-kind-n { opacity: .65; margin-inline-start: 4px; }
+.tw-rows { display: grid; gap: 8px; }
+.tw-row { display: flex; gap: 12px; align-items: flex-start; justify-content: space-between; border: 1px solid var(--bd); border-radius: 10px; padding: 10px 12px; background: var(--card); }
+.tw-main { display: grid; gap: 4px; min-width: 0; }
+.tw-title { font-size: var(--fs-14); overflow-wrap: anywhere; }
+.tw-next { font-size: var(--fs-13); color: var(--tx2); }
+.tw-counts { display: flex; flex-wrap: wrap; gap: 6px; }
+.tw-chip { font-size: var(--fs-12); border-radius: 999px; padding: 2px 8px; background: var(--s2); }
+.tw-chip.is-review { background: var(--chip-amber-bg, var(--s2)); color: var(--chip-amber-tx); font-weight: 600; }
+.tw-chip.is-quiet { opacity: .8; }
+.tw-missing summary { cursor: pointer; font-size: var(--fs-12); color: var(--tx2); }
+.tw-missing ul { margin: 4px 0 0; padding-inline-start: 18px; font-size: var(--fs-12); }
+.tw-actions { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; flex-shrink: 0; }
+@media (max-width: 640px) {
+  .tw-row { flex-direction: column; }
+  .tw-actions { justify-content: flex-start; }
+}

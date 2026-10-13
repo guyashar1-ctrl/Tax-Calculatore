@@ -18,14 +18,18 @@ import type { Client } from '../types';
 import type { AnnualReportSession } from '../features/annualReport/types';
 import { computeDiffs, toProposedFact, isApplicable } from '../features/annualReport/reconcile';
 import type { Diff } from '../features/annualReport/reconcile';
-import { proposeTaxFacts, applyTaxFacts } from './taxFacts';
-import { clientFromDb } from './dbMappers';
+import { proposeTaxFacts } from './taxFacts';
 import { supabase } from './supabase';
+import { legacyModelToFacts, LEGACY_ANNUAL_CARD_KEYS, reconcileLegacyRound, sessionNeedsSync } from '../features/taxYear/transfer';
+import { recordLegacyFacts } from '../features/taxYear/api';
 
 export interface IntakeSyncResult {
-  /** עדכונים שנקלטו ישירות — אין להם ערך קודם בתיק, ולכן אין מה להכריע. */
+  /** עדכונים שנקלטו ישירות — אין להם ערך קודם בתיק, ולכן אין מה להכריע.
+   *  ‼ מ-12.10.2026 תמיד ריק: כל תשובה ממתינה לאישור (ראו pending). נשאר לתאימות. */
   applied: { label: string; value: string }[];
-  /** סתירות אמיתיות — נשארו ממתינות להכרעת הרו"ח בתיק המס. */
+  /** 12.10.2026: תשובות שמחכות לאישור המשרד בתיק המס — חדשות וסותרות כאחד. */
+  pending?: { label: string; value: string }[];
+  /** סתירות אמיתיות — נשארו ממתינות להכרעת הרו"ח בתיק המס (מתוך pending). */
   conflicts: number;
   client?: Client;
   error?: string;
@@ -61,97 +65,126 @@ function isNewFact(d: Diff, client: Client): boolean {
   });
 }
 
+/** סשן שאלון שהושלם — מה שהקליטה צריכה ממנו. */
+export type SyncableSession = Pick<AnnualReportSession, 'id' | 'model'> & { completedAt?: string };
+
 /**
- * קולט סשן שאלון שהושלם. עדכון שאינו סותר נכנס מיד; סתירה נשארת ממתינה.
- * אידמפוטנטי: סשן שכבר נקלט מסומן ב-facts_synced_at ולא ייקלט שוב.
+ * קולט סשן שאלון שהושלם — כהצעות לתיק, לא ככתיבה.
+ * ‼ 12.10.2026 (גיא: «בדיקת המשרד → אישור → עדכון תיק המס» בכל המסלולים): כל תשובה, גם כזו שלא
+ *   סותרת את הכרטיס, נכנסת כהצעה ממתינה, והמשרד מאשר בתיק המס («אשר הכול» לקבוצה). עד אז נכנס
+ *   ישירות כל מה שלא סתר — וכך תשובת לקוח הפכה לנתון בתיק בלי שאיש בדק אותה.
+ * אידמפוטנטי לכל סבב: facts_synced_at נכתב אחרי שהכול נרשם. סבב חדש (הלקוח פתח שוב וסיים) נקלט
+ *   שוב — ראו findUnsyncedSession; תשובה שלא השתנתה לא נרשמת פעמיים.
  */
 export async function syncIntakeSession(
   session: SyncableSession,
   client: Client,
 ): Promise<IntakeSyncResult> {
-  const diffs = computeDiffs(session, client);
-  const applicable = diffs.filter(d => isApplicable(d, client));
-
-  const fresh = applicable.filter(d => isNewFact(d, client));
-  const conflicting = applicable.filter(d => !isNewFact(d, client));
-
-  let latest = client;
-  const applied: { label: string; value: string }[] = [];
-
-  // ── חדשים: קריאה אחת שמציעה ומחילה את כולם בטרנזקציה אחת ──────────────────
-  // ‼ עד מיגרציה 162 זה היה לולאה של propose→accept, וה-accept מעולם לא רץ:
-  // propose לא החזירה מזהה, `res.change?.id` היה תמיד undefined, וה-continue
-  // דילג על כל פריט. התוצאה: אפס עובדות נכתבו, ו-facts_synced_at נכתב בכל
-  // מקרה — כך שהסשן נחשב "נקלט" ולא נקלט שוב לעולם.
-  if (fresh.length > 0) {
-    const pairs = fresh.map(d => ({ d, fact: toProposedFact(d, latest) }));
-    const res = await applyTaxFacts(
-      client.id, 'questionnaire', session.id, pairs.map(p => p.fact));
-
-    // ‼ כישלון עוצר כאן, **לפני** חותמת הקליטה. כך ניסיון חוזר עדיין אפשרי.
-    if (!res.ok) {
-      return { applied: [], conflicts: 0, error: res.error ?? 'קליטת השאלון נכשלה' };
-    }
-    if (res.client) latest = clientFromDb(res.client);
-    for (const outcome of res.results ?? []) {
-      if (outcome.outcome === 'pending_conflict') continue;
-      const hit = pairs.find(p => p.fact.fieldKey === outcome.fieldKey);
-      if (hit) applied.push({ label: hit.d.label, value: hit.d.fromQuestionnaire });
-    }
+  // ‼ 229 (החלטת גיא 11.10.2026): קישור ישן שכבר נשלח ממשיך לעבוד, והתשובות נשמרות
+  // לשנת הסשן כעובדות ממתינות — לא לכרטיס. מזהה המקור (סשן + פריט) מונע כפילות בקליטה חוזרת,
+  // וסתירה מול תשובה מהדף האישי מוצגת למשרד ולא נדרסת.
+  // ‼ סבב שני של אותו סשן: תשובה זהה לקודמת לא נרשמת שוב; תשובה ששונתה נרשמת כעובדה חדשה ליד
+  //   הקודמת (מזהה מקור עם מועד הסבב) — ההיסטוריה נשמרת, והמשרד רואה את שתיהן.
+  const legacyAll = legacyModelToFacts(session.model, { id: session.id, clientId: client.id, taxYear: session.model.taxYear });
+  const legacy = await onlyChangedLegacy(client.id, session, legacyAll);
+  if (legacy.length > 0) {
+    const rec = await recordLegacyFacts(client.id, session.id, legacy);
+    if (!rec.ok) return { applied: [], conflicts: 0, error: rec.error };
   }
 
-  // ── סותרים: מציעים בלבד. ההכרעה של הרו"ח, בתיק המס. ──
-  if (conflicting.length > 0) {
+  // סכומים שנתיים לא נכתבים עוד לכרטיס — הם בשנת הסשן (למעלה).
+  const diffs = computeDiffs(session, client)
+    .filter(d => !Object.keys(d.apply(client)).some(k => LEGACY_ANNUAL_CARD_KEYS.has(k)));
+  const applicable = diffs.filter(d => isApplicable(d, client));
+  const conflicts = applicable.filter(d => !isNewFact(d, client)).length;
+
+  if (applicable.length > 0) {
     const proposed = await proposeTaxFacts(
       client.id, 'questionnaire', session.id,
-      conflicting.map(d => toProposedFact(d, latest)),
+      applicable.map(d => toProposedFact(d, client)),
     );
-    if (!proposed.ok) {
-      return {
-        applied,
-        conflicts: conflicting.length,
-        client: latest === client ? undefined : latest,
-        error: proposed.error ?? 'רישום הסתירות נכשל',
-      };
-    }
+    // ‼ כישלון עוצר כאן, **לפני** חותמת הקליטה. כך ניסיון חוזר עדיין אפשרי.
+    if (!proposed.ok) return { applied: [], conflicts, error: proposed.error ?? 'רישום התשובות לאישור נכשל' };
   }
 
   // ‼ החותמת נכתבת רק אחרי ששני השלבים למעלה הצליחו. היא צורכת את
-  // האידמפוטנטיות של הסשן, ולכן אסור לה להיכתב על ריצה שלא כתבה כלום.
+  // האידמפוטנטיות של הסבב, ולכן אסור לה להיכתב על ריצה שלא כתבה כלום.
   const { error } = await supabase
     .from('annual_report_sessions')
     .update({ facts_synced_at: new Date().toISOString() })
     .eq('id', session.id);
 
   return {
-    applied,
-    conflicts: conflicting.length,
-    client: latest === client ? undefined : latest,
+    applied: [],
+    pending: applicable.map(d => ({ label: d.label, value: d.fromQuestionnaire })),
+    conflicts,
     error: error?.message,
   };
 }
 
-/**
- * מה שקליטת השאלון באמת צריכה מהסשן. ‼ מכוון שזה צר: computeDiffs נוגע רק
- * ב-model, ו-sourceRef צריך את ה-id. טיפוס מלא כאן היה מחייב יציקה שקרית.
- */
-export type SyncableSession = Pick<AnnualReportSession, 'id' | 'model'> & { completedAt?: string };
+/** עובדות השאלון הישן שעוד לא נרשמו בדיוק כך לסשן הזה (ומזהה מקור חדש לתשובה ששונתה). */
+async function onlyChangedLegacy(clientId: string, session: SyncableSession, facts: ReturnType<typeof legacyModelToFacts>) {
+  if (facts.length === 0) return facts;
+  const { data } = await supabase.from('tax_year_facts')
+    .select('item_key, subject_role, answer, value, source_ref')
+    .eq('client_id', clientId).eq('source', 'legacy_questionnaire').like('source_ref', `${session.id}%`);
+  const rows = (data ?? []) as { item_key: string; subject_role: string; answer: string; value: unknown; source_ref: string }[];
+  if (rows.length === 0) return facts;
+  return reconcileLegacyRound(facts, rows, session.completedAt ?? new Date().toISOString());
+}
 
-/** הסשן האחרון שהושלם וטרם נקלט. null = אין מה לקלוט. */
+
+/**
+ * הסשן האחרון שהושלם וטרם נקלט. null = אין מה לקלוט.
+ * ‼ 12.10.2026: «טרם נקלט» כולל סשן שהלקוח פתח מחדש וסיים **אחרי** הקליטה הקודמת (reopen_intake
+ *   לא מאפס את facts_synced_at). עד עכשיו סבב כזה לא נקלט לעולם — והתשובות החדשות אבדו.
+ */
 export async function findUnsyncedSession(clientId: string): Promise<SyncableSession | null> {
   const { data, error } = await supabase
     .from('annual_report_sessions')
-    .select('id, model, completed_at')
+    .select('id, model, completed_at, facts_synced_at')
     .eq('client_id', clientId)
-    .is('facts_synced_at', null)
     .not('completed_at', 'is', null)
     .order('completed_at', { ascending: false })
     .limit(1);
   if (error || !data?.length) return null;
   const row = data[0] as Record<string, unknown>;
+  if (!sessionNeedsSync(row.completed_at as string | null, row.facts_synced_at as string | null)) return null;
   return {
     id: row.id as string,
     model: row.model as AnnualReportSession['model'],
     completedAt: (row.completed_at as string | null) ?? undefined,
   };
+}
+
+
+/**
+ * 236 · «החלף בקליטה» — השאלון הישן יורד, בלי לאבד את מה שהלקוח כבר ענה.
+ * ‼ קודם קולטים את התשובות שכבר ניתנו (גם בסשן שלא הושלם) כהצעות לאישור בתיק המס — ורק אחר כך
+ *   מבטלים את השאלון בשרת. כישלון בקליטה עוצר לפני הביטול. לקוח שימשיך בכל זאת בקישור הישן וייסים —
+ *   הסבב החדש ייקלט שוב כהצעות (findUnsyncedSession), לא יאבד.
+ */
+export async function replaceLegacyIntake(client: Client, intakeStepId: string, legacySince?: string): Promise<{ ok: boolean; imported: number; error?: string }> {
+  let imported = 0;
+  const { data } = await supabase
+    .from('annual_report_sessions')
+    .select('id, model, completed_at, facts_synced_at, created_at')
+    .eq('client_id', client.id)
+    .is('superseded_by', null)
+    .order('created_at', { ascending: false })
+    .limit(1);
+  const row = (data ?? [])[0] as Record<string, unknown> | undefined;
+  // הסשן של השאלון הזה — לא סשן משנה קודמת שכבר נקלט
+  const ofThisQuestionnaire = row && (!legacySince || String(row.created_at ?? '').slice(0, 10) >= legacySince);
+  const pendingRound = row && (!row.facts_synced_at || (row.completed_at && sessionNeedsSync(row.completed_at as string, row.facts_synced_at as string)));
+  if (row && ofThisQuestionnaire && pendingRound && row.model && Object.keys(row.model as object).length > 0) {
+    const res = await syncIntakeSession({ id: row.id as string, model: row.model as AnnualReportSession['model'], completedAt: (row.completed_at as string | null) ?? undefined }, client);
+    if (res.error) return { ok: false, imported: 0, error: res.error };
+    imported = res.pending?.length ?? 0;
+  }
+  const { data: r, error } = await supabase.rpc('replace_legacy_intake', { p_intake_step_id: intakeStepId });
+  if (error) return { ok: false, imported, error: error.message };
+  const out = r as { ok?: boolean; error?: string } | null;
+  if (out?.ok === false) return { ok: false, imported, error: out.error };
+  return { ok: true, imported };
 }

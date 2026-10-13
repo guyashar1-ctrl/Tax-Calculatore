@@ -10,6 +10,8 @@
 // ‼ מיתוג המשרד, לא PIVO — כמו כל מה שהלקוח רואה.
 
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import TaxInfoFlow from '../features/taxYear/TaxInfoFlow';
+import { PortalTaxEstimate } from '../features/taxYear/extensions';
 import { FirmBranding } from '../types/firmProfile';
 import { MESSAGE_DEFAULT_TITLE } from '../lib/sendDocuments';
 import { deriveQuotationBrand } from './quotations/quotationBranding';
@@ -47,6 +49,8 @@ type Bucket = 'action' | 'office' | 'done' | 'future';
 const PortalModeCtx = createContext<PortalMode>('officeView');
 /** כל פעולה של הלקוח עוברת כאן — הרכיבים אינם פונים לשרת בעצמם. */
 const PortalActionsCtx = createContext<PortalActions>(officeViewActions);
+/** 229 · «השלמת מידע» קוראת ושולחת עם הטוקן של הדף (portal_tax_info / portal_submit_tax_info). */
+const PortalTokenCtx = createContext<string>('');
 
 function usePortal() {
   const mode = useContext(PortalModeCtx);
@@ -89,7 +93,7 @@ export interface PortalItem {
   label: string;
   sub?: string;
   /** 'portal' = הפעולה נעשית כאן בעמוד, בלי לנווט לטוקן אחר. */
-  actionKind?: 'onboard' | 'sign' | 'intake' | 'external' | 'quote' | 'portal';
+  actionKind?: 'onboard' | 'sign' | 'intake' | 'external' | 'quote' | 'portal' | 'taxInfo' | 'taxEstimate';
   actionValue?: string;
   /**
    * מה בדיוק הפעולה בתוך העמוד.
@@ -652,6 +656,11 @@ function ActionItem({ item, brand, accent, last, onDone }: {
   /** 220 · «פרטי העסק» — הטופס נפתח בלחיצה («מילוי פרטים»), כמו בהדמיה המאושרת. */
   const bizDetails = inPage && item.kind === 'business_details';
   const niApproval = item.kind === 'ni_approval';
+  /** 229 · «השלמת מידע» לשנת מס — שאלה אחת למסך, בתוך הכרטיס. */
+  const taxInfo = item.actionKind === 'taxInfo' && !!item.actionValue;
+  /** 232 · הערכת המס שפורסמה — הגרסה המאושרת עצמה, לקריאה בתוך הכרטיס. */
+  const taxEstimate = item.actionKind === 'taxEstimate' && !!item.actionValue;
+  const token = useContext(PortalTokenCtx);
   const prog = progressLine(item);
 
   const primaryBtn: React.CSSProperties = {
@@ -688,6 +697,18 @@ function ActionItem({ item, brand, accent, last, onDone }: {
             whiteSpace: 'pre-line',
           }}>{item.note}</p>
         ) : null
+      ) : taxEstimate ? (
+        <div style={{ marginTop: 11 }}>
+          {!open && <button type="button" onClick={() => setOpen(true)} style={readOnly || sample ? inertBtn : primaryBtn} aria-expanded={false} disabled={readOnly || sample}>לצפייה בהערכה</button>}
+          {(readOnly || sample) && <div style={{ fontSize: 12.5, color: brand.muted, marginTop: 6 }}>כאן הלקוח קורא את ההערכה שהמשרד אישר. התצוגה המלאה — «סיכום ללקוח» בהערכת המס במשרד.</div>}
+          {open && !readOnly && !sample && token && PortalTaxEstimate && <PortalTaxEstimate stepId={item.actionValue!} token={token} onClose={() => setOpen(false)} />}
+        </div>
+      ) : taxInfo ? (
+        <div style={{ marginTop: 11 }}>
+          {!open && <button type="button" onClick={() => setOpen(true)} style={readOnly || sample ? inertBtn : primaryBtn} aria-expanded={false} disabled={readOnly || sample}>להשלמת המידע</button>}
+          {(readOnly || sample) && <div style={{ fontSize: 12.5, color: brand.muted, marginTop: 6 }}>כאן הלקוח עונה על השאלות, אחת למסך. התצוגה המלאה — «מה הלקוח רואה» בדף התהליך במשרד.</div>}
+          {open && !readOnly && !sample && token && <TaxInfoFlow stepId={item.actionValue!} token={token} onClose={onDone} />}
+        </div>
       ) : niApproval ? (
         <NiApprovalBlock item={item} brand={brand} accent={accent} />
       ) : guide ? (
@@ -1754,6 +1775,7 @@ export function PortalView({ data, token = '', preview = false, embed = false, o
   return (
     <PortalModeCtx.Provider value={mode}>
     <PortalActionsCtx.Provider value={portalActions}>
+    <PortalTokenCtx.Provider value={token}>
     <div className={`pp-page${embed ? ' is-embed' : ''}`} style={page}>
       <div className="pp-card" style={card}>
         <Header />
@@ -2002,6 +2024,7 @@ export function PortalView({ data, token = '', preview = false, embed = false, o
         </div>
       </div>
     </div>
+    </PortalTokenCtx.Provider>
     </PortalActionsCtx.Provider>
     </PortalModeCtx.Provider>
   );

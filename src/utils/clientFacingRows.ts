@@ -155,6 +155,12 @@ export const CLIENT_FACING_TYPES: OnboardingStepType[] = [
   'paperless_tax_authority',
   'retainer_authorization', 'intake_questionnaire', 'custom_request',
   'release_letter', 'materials_received',
+  // 229 · שנת מס: הבקשה הראשית ו«השלמת מידע» — שורות ב«בקשות» (נספרות כבר ב-isOnRequestsSurface).
+  'tax_estimate', 'annual_return', 'info_collection',
+  // 230 · הצהרת הון
+  'wealth_declaration',
+  // 236 · קליטה והשלמת תיק המס
+  'tax_file_intake',
 ];
 
 /** שלבי הייצוג — ההורה (נגזר מ-representation_requests) והחלק לכל רשות×אדם (157). */

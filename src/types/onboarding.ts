@@ -175,7 +175,18 @@ export type OnboardingStepType =
   | 'opening_call'
   // ‼ 157 — ייצוג ברשות×אדם כבקשה עצמאית (docs/PLAN-BTL-SPOUSE-REPRESENTATION-REQUEST.md).
   // מצב נגזר תמיד מ-execution/taxFiles בשרת — ראה sync_authority_representation_steps.
-  | 'authority_representation';
+  | 'authority_representation'
+  // ‼ 229 — שנת מס (שלב 2): בקשה אחת לכל לקוח + תכלית + שנה (payload.taxYear), ובת
+  // «השלמת מידע» (payload.parentStepId) שהלקוח עונה עליה בדף האישי. התשובות הן
+  // עובדות ממתינות ב-tax_year_facts — לא payload ולא הכרטיס.
+  | 'tax_estimate'
+  | 'annual_return'
+  | 'info_collection'
+  // ‼ 230 — הכנה להצהרת הון ליום הצהרה (payload.asOfDate). אותה «השלמת מידע» כבת.
+  | 'wealth_declaration'
+  // ‼ 236 — קליטה והשלמת תיק המס: בקשה פתוחה אחת ללקוח, «נכון ליום הקליטה» (payload.asOfDate), עם אותה
+  // «השלמת מידע» כבת. מה שאושר נכנס לכרטיס רק דרך הצעה (tax_fact_changes).
+  | 'tax_file_intake';
 
 export const STEP_TYPE_LABELS: Record<OnboardingStepType, string> = {
   representation: 'ייצוג מול הרשויות',
@@ -207,6 +218,11 @@ export const STEP_TYPE_LABELS: Record<OnboardingStepType, string> = {
   institution_alignment_income: 'יישור קו · מס הכנסה',
   opening_call: 'שיחת פתיחה',
   authority_representation: 'ייצוג ברשות',
+  tax_estimate: 'הערכת מס',
+  annual_return: 'דוח שנתי',
+  info_collection: 'השלמת מידע',
+  wealth_declaration: 'הצהרת הון',
+  tax_file_intake: 'קליטה והשלמת תיק המס',
 };
 
 /**

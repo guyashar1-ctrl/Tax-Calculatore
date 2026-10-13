@@ -20,6 +20,8 @@
 import type { ProcessDefinition } from './processDefinition';
 import { REPRESENTATION_PROCESS } from './representationJourney.ts';
 import { STEP_TYPE_LABELS } from '../types/onboarding.ts';
+import { TAX_ESTIMATE_PROCESS, ANNUAL_RETURN_PROCESS, INFO_COLLECTION_PROCESS, WEALTH_DECLARATION_PROCESS, TAX_FILE_INTAKE_PROCESS } from './taxYearProcesses.ts';
+import { AVAILABLE } from '../features/taxKnowledge/availability.ts';
 
 // ── קליטה: הצעת מחיר ⇒ מסלול בקשות ⇒ סגירת הקליטה ────────────────────────
 const INTAKE: ProcessDefinition = {
@@ -101,6 +103,12 @@ const PAPERLESS: ProcessDefinition = {
       blocks: 'בלי הרשמה אין חשבון להיכנס אליו.',
       done: 'חמשת הסעיפים סומנו. הסעיף החמישי נגזר גם מחותמת «הכרטיס הוזן» שבבקשת התשלום.',
       configureIn: 'intake',
+      // ‼ 220: «פרטי העסק» — לפני ההקמה; תת-שלב כדי לא לשנות את ארבעת השלבים של המסלול.
+      substages: [{
+        key: 'business_details', title: STEP_TYPE_LABELS.business_details, actor: 'client', stepType: 'business_details',
+        what: 'הלקוח מוסר את שם העסק ואם הוא עובד מהבית; המשרד משלים ובודק לפני הקמת העסק בפייפרלס.',
+        done: 'הפרטים נמסרו ונבדקו.',
+      }],
     },
     {
       key: 'tax_authority', title: STEP_TYPE_LABELS.paperless_tax_authority, actor: 'client', stepType: 'paperless_tax_authority',
@@ -141,6 +149,7 @@ const PREV_ACCOUNTANT: ProcessDefinition = {
       what: 'הלקוח ממלא בדף האישי שם, מייל וטלפון של הרו״ח הקודם — או רק מאשר אותם כשכבר רשומים בכרטיס.',
       blocks: 'בלי מייל אין למי לשלוח את המכתב — ולכן המכתב נעול עד שיש כתובת. כשהכתובת כבר בכרטיס השאלה היא אישור בלבד ואינה חוסמת.',
       done: 'הפרטים נכנסו לכרטיס.',
+      manual: { steps: ['לבקש מהלקוח שם, מייל וטלפון של הרו״ח הקודם (או לאשר את מה שבכרטיס).'], output: 'פרטי הרו״ח הקודם בכרטיס.' },
       configureIn: 'intake',
     },
     {
@@ -149,6 +158,11 @@ const PREV_ACCOUNTANT: ProcessDefinition = {
       what: 'המשרד עורך את מכתב העברת הטיפול (תבנית המשרד + ארבעה סעיפים שנגזרים מההצעה: גבול הטיפול השוטף, עבודות שנשארו אצל הקודם, רשימת החומרים) ושולח אותו במייל עם קישור לדף משלו. הלקוח מכותב ואינו חותם.',
       requires: ['מייל של הרו״ח הקודם', 'תקופת הדיווח האחרונה בטיפולו'],
       done: 'המכתב נשלח. הרו״ח הקודם משיב, מסתייג או שותק — שתיקה עד תום חלון ההתייחסות היא הסכמה (כלל עבודה פנימי).',
+      manual: {
+        prepare: ['תקופת הדיווח האחרונה שבטיפול הקודם', 'מה נשאר אצלו (דוחות פתוחים, הצהרת הון)', 'רשימת החומרים שמבקשים'],
+        steps: ['לערוך מכתב העברת טיפול: מאיזה מועד המשרד מטפל, מה נשאר אצל הקודם, ואילו חומרים מבקשים.', 'לשלוח במייל ולשמור עותק עם תאריך.', 'לרשום מועד מעקב לתשובה.'],
+        evidence: 'המייל שנשלח (עם תאריך) ותשובת הרו״ח הקודם. «שתיקה = הסכמה» הוא כלל עבודה פנימי של המשרד, לא הוראת דין.',
+      },
       configureIn: 'messages',
     },
     {
@@ -156,6 +170,10 @@ const PREV_ACCOUNTANT: ProcessDefinition = {
       kind: 'configurable',
       what: 'הרו״ח הקודם מעלה את החומרים בדף שלו — לפי פריט, או במרוכז ואז מצהיר מה כלל המשלוח. הכול מתויק בתיקייה אחת בתיק הלקוח, והמשרד מקבל סימן בכותרת.',
       done: 'כל הפריטים המבוקשים סומנו כהתקבלו. «חומר נוסף לפי שיקול דעתך» אינו נספר.',
+      manual: {
+        steps: ['לקבל את החומרים (קישור, מייל או פיזית) ולתייק בתיק הלקוח.', 'לסמן כל פריט ברשימה כשהגיע, ולבדוק שזה מה שביקשו (שנה, סוג).'],
+        evidence: 'הקבצים עצמם בתיק. הצהרה «שלחתי הכול» בלי קבצים — לא מסמנים כהתקבל.',
+      },
       configureIn: 'intake',
     },
     {
@@ -186,11 +204,13 @@ const NI_PER_PERSON: ProcessDefinition = {
       when: 'מופיע רק כשחסר בכרטיס אחד מארבעת השדות: ת.ז., שנת לידה, שם פרטי, שם משפחה.',
       what: 'הבקשה אינה מציעה הזנה לפני שיש מה להזין: המשרד ממלא עכשיו, או שולח לאדם קישור קצר להשלמת הפרטים (עם תפוגה). שני הנתיבים כותבים לאותו מקום בכרטיס, עם היסטוריה.',
       done: 'ארבעת השדות מלאים.',
+      manual: { steps: ['להשלים בכרטיס ת.ז., שנת לידה, שם פרטי ושם משפחה — מהתעודה או מהאדם עצמו.'], check: 'שהפרטים זהים לתעודה; טעות בפרט אחד מכשילה את ההזנה.' },
     },
     {
       key: 'enter', title: 'הזנה באתר ביטוח לאומי', actor: 'office',
       what: 'המשרד מזין את ייפוי הכוח במסך «הוספת ייפוי כוח מבוטח» (או שהאוטומציה עושה זאת) ומקבל מספר אסמכתא ומועד אחרון לאישור.',
       done: 'אסמכתא ומועד נרשמו על הבקשה.',
+      manual: { steps: ['באתר המייצגים של ביטוח לאומי: הוספת ייפוי כוח מבוטח לאדם הזה.', 'לרשום את מספר האסמכתא ואת המועד האחרון.'], evidence: 'מספר האסמכתא שהאתר החזיר (צילום מסך עם תאריך).' },
     },
     {
       key: 'instructions', title: 'ההוראות מגיעות למבוטח', actor: 'system',
@@ -203,6 +223,7 @@ const NI_PER_PERSON: ProcessDefinition = {
       what: 'באתר ביטוח לאומי או בטלפון, עם מספר האסמכתא, לפני המועד האחרון. המשרד מסמן «אושר» כשבדק שהאישור נקלט.',
       blocks: 'אחרי המועד האחרון האסמכתא פגה ומזינים מחדש.',
       done: 'סומן «אושר». ייצוג הלקוח במס הכנסה אינו ממתין לזה.',
+      manual: { steps: ['להעביר למבוטח את מספר האסמכתא ואיך מאשרים (באתר או בטלפון).', 'לבדוק במסך מעקב ייפוי הכוח שהאישור נקלט, ורק אז לסמן «אושר».'], evidence: 'הסטטוס במסך מעקב ייפוי הכוח באתר ביטוח לאומי. «המבוטח אמר שאישר» אינו ראיה.' },
       stepType: 'authority_representation',
     },
   ],
@@ -221,6 +242,11 @@ const CLIENT_DOCUMENTS: ProcessDefinition = {
   stages: [{
     key: 'upload', title: 'הלקוח מעלה כל פריט', actor: 'client', stepType: 'client_documents', kind: 'configurable',
     what: 'לכל פריט כפתור העלאה בדף האישי (גם מהטלפון). המשרד יכול לסמן פריט ביד כשהמסמך הגיע בדרך אחרת. ההעלאה מתויקת בתיק המסמכים עם תווית.',
+    manual: {
+      steps: ['לשלוח ללקוח את רשימת המסמכים (בדף האישי, במייל או בוואטסאפ).', 'מסמך שהגיע — לתייק בתיק הלקוח עם שם ברור, ולסמן את הפריט.', 'לבדוק שהמסמך קריא, בתוקף ושייך לאדם הנכון.'],
+      check: 'העלאה אינה אישור: «מאומת» רק אחרי שהמשרד בדק את המסמך.',
+      evidence: 'הקובץ בתיק הלקוח. סימון ידני בלי קובץ — רק כשהמסמך הגיע בדרך אחרת ונשמר.',
+    },
     done: 'כל הפריטים סומנו.',
     configureIn: 'intake',
   }],
@@ -239,6 +265,10 @@ const INTAKE_QUESTIONNAIRE: ProcessDefinition = {
   stages: [{
     key: 'answer', title: 'הלקוח עונה שאלה-שאלה', actor: 'client', stepType: 'intake_questionnaire', kind: 'configurable',
     what: 'שאלה אחת בכל מסך, בדף האישי או בקישור נפרד. «לא בטוח/ה» מסמן את השאלה לבירור עם המשרד. אפשר לעצור ולחזור — השאלון נפתח באותה שאלה.',
+    manual: {
+      steps: ['לשאול את הלקוח את שאלות השאלון (בשיחה או בטופס), ולרשום כל תשובה עם תאריך.', 'תשובה «לא בטוח» — לברר ולרשום את מה שהתברר.', 'לעבור על התשובות ולעדכן את תיק המס רק אחרי בדיקה.'],
+      check: 'תשובת לקוח היא הצהרה; עובדה נכנסת לתיק המס אחרי שהמשרד אישר אותה.',
+    },
     deferrable: 'הכול: השאלון ניתן להמשך בכל זמן.',
     done: 'השאלון הוגש.',
     configureIn: 'intake',
@@ -257,6 +287,10 @@ const CUSTOM_REQUEST: ProcessDefinition = {
   stages: [{
     key: 'fulfil', title: 'הלקוח משלים את הדרישות', actor: 'client', stepType: 'custom_request', kind: 'configurable',
     what: 'כל דרישה והפעולה שלה בדף האישי. בקשה עם הכדור אצל המשרד היא משימה פנימית ואינה מוצגת ללקוח.',
+    manual: {
+      steps: ['להעביר ללקוח כל דרישה (לקרוא ולאשר, לענות, להעלות קובץ…).', 'לשמור כל תשובה או קובץ בתיק עם תאריך, ולסמן את הדרישה.'],
+      evidence: 'התשובה או הקובץ שנשמרו. אישור «קראתי» שנאמר בטלפון — לרשום מי, מתי ומה.',
+    },
     done: 'דרישות החובה סומנו.',
     configureIn: 'intake',
   }],
@@ -348,6 +382,13 @@ export const PROCESS_CATALOG: ProcessDefinition[] = [
   SEND_DOCUMENT,
   INSTITUTION_ALIGNMENT,
   OFFICE_INTERNAL,
+  // ‼ הערכת מס — רק כשהיא באתר (availability.ts); אחרת התהליך לא מוצג בספרייה.
+  ...(AVAILABLE.taxEstimate ? [TAX_ESTIMATE_PROCESS] : []),
+  ANNUAL_RETURN_PROCESS,
+  INFO_COLLECTION_PROCESS,
+  WEALTH_DECLARATION_PROCESS,
+  // 236 · קליטה והשלמת תיק המס
+  TAX_FILE_INTAKE_PROCESS,
 ];
 
 export const processByKey = (key: string): ProcessDefinition | undefined =>

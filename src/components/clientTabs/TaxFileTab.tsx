@@ -253,9 +253,11 @@ function familyFields(client: Client): EditField[] {
 }
 
 
+import TaxYearsSection from '../../features/taxYear/TaxYearsSection';
+
 export default function TaxFileTab({
   client, spouseClient, onCreateSpouseClient, onOpenSpouseClient,
-  onClientPersisted, onSendQuestionnaire, onOpenDetails,
+  onClientPersisted, onOpenDetails,
   onRunAlignment, alignBusy, onOpenDetailedAlignment, alignedAt, steps, onCreateTask, onCreateRequest, creatingRequestKey,
   onOpenRepresentation, onAddNiTarget, onOpenRequestStep, onUpdateClientFields, onNiInstructionsSent, niExecution,
   focusField, onFocusConsumed, onRequestsChanged,
@@ -603,6 +605,8 @@ export default function TaxFileTab({
    * ‼ facts_synced_at על הסשן מבטיח שזה קורה פעם אחת בלבד.
    */
   const [intakeResult, setIntakeResult] = useState<IntakeSyncResult | null>(null);
+  /** 236 · «השלמת תיק המס» בראש התיק — פותח (או יוצר) את הקליטה בשנות המס למטה. */
+  const [intakeSignal, setIntakeSignal] = useState(0);
   /** 05.10 · עבודה מהבית (220) — האחוז שהמשרד אישר, והאישור עצמו (אותו רכיב כמו בבקשה). */
   const homeOfficeLoad = useHomeOffice(client.id || undefined);
   const homeOfficeState = deriveHomeOffice(homeOfficeLoad.history);
@@ -613,12 +617,18 @@ export default function TaxFileTab({
     syncTried.current = client.id;
     let alive = true;
     void (async () => {
+      // ‼ הקליטה עצמה לא נעצרת בניקוי (StrictMode מריץ את האפקט פעמיים, והריצה השנייה מדלגת
+      // בגלל syncTried — כך ששום ריצה לא קלטה). היא אידמפוטנטית (facts_synced_at + מזהה מקור);
+      // רק עדכוני המסך מדולגים אחרי עזיבה.
       const session = await findUnsyncedSession(client.id);
-      if (!session || !alive) return;
+      if (!session) return;
       const res = await syncIntakeSession(session, client);
-      if (!alive) return;
+      // ‼ 12.10.2026: לא עוצרים כאן על !alive — ב-StrictMode הניקוי רץ לפני שהקליטה חוזרת, והבאנר
+      //   ורשימת ההצעות לא התעדכנו לעולם. עדכון מצב אחרי עזיבה ב-React 18 אינו מזיק.
+      void alive;
       if (res.client) onClientPersisted(res.client);
-      if (res.applied.length > 0 || res.conflicts > 0) setIntakeResult(res);
+      // ‼ 12.10.2026: התשובות נכנסו כהצעות — הרשימה למטה צריכה להתרענן כדי שהמשרד יאשר אותן
+      if ((res.pending?.length ?? 0) > 0) { setIntakeResult(res); void refresh(); }
     })();
     return () => { alive = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1027,11 +1037,11 @@ export default function TaxFileTab({
       {/* ═══ מה חדש ═══ תשובות שהלקוח מסר ונקלטו ישירות. ‼ אלה אינן החלטות:
           ערך שלא היה בתיק אינו מחלוקת, ולכן הוא נכנס ומדווח — ולא מחכה לאישור.
           מה שכן סותר הפך להצעה ממתינה ומופיע בכרטיס שמתחת. */}
-      {intakeResult && intakeResult.applied.length > 0 && (
+      {intakeResult && (intakeResult.pending?.length ?? 0) > 0 && (
         <div className="txf-qchange">
           <button type="button" className="txf-qchange-head"
             onClick={() => toggleChange('intake')}>
-            <b>{intakeResult.applied.length} עדכונים מהשאלון של הלקוח נקלטו בתיק</b>
+            <b>{intakeResult.pending!.length} תשובות מהשאלון של הלקוח מחכות לאישורך</b>
             <span style={{ marginInlineStart: 'auto', color: 'var(--ink-4)', fontSize: 11 }}>
               {openChanges.has('intake') ? 'סגור ‹' : 'הצג ›'}
             </span>
@@ -1039,7 +1049,7 @@ export default function TaxFileTab({
           {openChanges.has('intake') && (
             <div className="txf-qchange-body">
               <div className="txf-qtable">
-                {intakeResult.applied.map((a, i) => (
+                {intakeResult.pending!.map((a, i) => (
                   <div className="txf-qtable-row" key={i}>
                     <span className="txf-qt-label">{a.label}</span>
                     <span className="txf-qt-new">{a.value}</span>
@@ -1048,7 +1058,7 @@ export default function TaxFileTab({
                 ))}
               </div>
               <div className="txf-note">
-                אלה תשובות שלא סתרו את התיק, ולכן נכנסו ישירות. הרשימה כאן כדי שתוכל לוודא.
+                תשובה של לקוח נכנסת לתיק רק אחרי אישור — ב«הצעות לעדכון» כאן למטה (אפשר «אשר הכול» לקבוצה). תשובה שסותרת את מה שבתיק מסומנת שם.
               </div>
             </div>
           )}
@@ -1106,6 +1116,15 @@ export default function TaxFileTab({
           </div>
         );
       })}
+
+      {/* ═══ שנות מס (229) ═══════════════════════════════════════════════════
+          ‼ אין לשונית «שנת מס»: כרטיס לכל שנה כאן, שפותח את דף התהליך (הערכה / דוח).
+          סכומים לשנה חיים בשנת המס; כאן גם ההעברה של סכומים מהכרטיס שאין להם שנה. */}
+      <SectHead family="income" title="תהליכים בתיק המס" why="קליטה והשלמת תיק, דוח שנתי והצהרות הון — מה ידוע, מה חסר, ומה נשאל את הלקוח" />
+      <div className="txf-sect" style={{ padding: '.6rem .8rem' }}>
+        {/* ‼ «הוסף לתיק» מתוך שנת המס יוצר הצעה — רשימת ההצעות כאן מתרעננת מיד, לא רק בטעינה הבאה */}
+        <TaxYearsSection client={client} onChanged={() => { onRequestsChanged?.(); void refresh(); }} onClientPersisted={onClientPersisted} intakeSignal={intakeSignal} />
+      </div>
 
       {/* ═══ פרטי הנישום ═══════════════════════════════════════════════════
           ‼ שורה אחת, ומעליה אין מקטע משלה: אלה הפרטים שנוסעים לרשויות —
@@ -1317,9 +1336,11 @@ export default function TaxFileTab({
         <h3>תמונת המס</h3>
         <span>מה שידוע, מה חסר — ומה זה אומר על המס</span>
         <span className="txf-qside">
-          <span>{lastQSync ? 'שאלון סטטוס מס · עודכן ' + monthYear(lastQSync) : 'שאלון סטטוס מס · טרם נקלט'}</span>
-          <button type="button" className="ui-btn ui-btn-sm" onClick={onSendQuestionnaire}>
-            {lastQSync ? 'שלח שוב' : 'שלח שאלון עדכון'}
+          {lastQSync && <span>{'שאלון סטטוס מס · נקלט ' + monthYear(lastQSync)}</span>}
+          {/* ‼ 236: «שלח שאלון עדכון» (השאלון הישן) הוחלף בקליטה על התשתית המשותפת — שאלות המשך, מסמכים, «אין לי עדיין»,
+              בדיקת משרד ו«החזר לתיקון». קישורים ישנים שכבר נשלחו ממשיכים לעבוד ונקלטים כהצעות. */}
+          <button type="button" className="ui-btn ui-btn-sm" onClick={() => { setIntakeSignal(n => n + 1); requestAnimationFrame(() => document.querySelector('[data-section="intake"]')?.scrollIntoView({ block: 'center', behavior: 'smooth' })); }}>
+            השלמת תיק המס
           </button>
         </span>
       </div>

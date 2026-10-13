@@ -37,6 +37,11 @@ export const NEXT_ACTION: Record<OnboardingStepType, string> = {
   // ‼ תמיד נדרס בפועל בזרימה — הפעולה תלוית-מצב ונגזרת מ-execution (ראה
   // TaxFileTab/NiInstructionsDialog), לא ניסוח קבוע אחד לכל השלב.
   authority_representation: 'להמשיך את הייצוג ברשות',
+  tax_estimate: 'להמשיך את הערכת המס',
+  annual_return: 'להמשיך את הדוח השנתי',
+  info_collection: 'לבדוק את התשובות של הלקוח',
+  wealth_declaration: 'להמשיך בהכנת הצהרת ההון',
+  tax_file_intake: 'להמשיך בקליטה והשלמת תיק המס',
 };
 
 /**

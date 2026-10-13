@@ -156,6 +156,13 @@ export const STEP_TYPE_META: Record<OnboardingStepType, EntryMeta> = {
   institution_alignment_vat: internalOnly('יישור קו מול הרשות — עבודה של המשרד'),
   institution_alignment_income: internalOnly('יישור קו מול הרשות — עבודה של המשרד'),
   opening_call: internalOnly('שיחת פתיחה — משימה פנימית של המשרד'),
+  // 229 · שנת מס: הבקשה הראשית פנימית; הלקוח רואה רק את «השלמת מידע» בדף האישי.
+  tax_estimate: internalOnly('הערכת מס — עבודת המשרד; הלקוח רואה רק את «השלמת מידע» שנפתחת ממנה'),
+  wealth_declaration: internalOnly('הכנה להצהרת הון — עבודת המשרד; הלקוח רואה רק את «השלמת מידע» שנפתחת ממנה'),
+  // 236 · קליטה והשלמת תיק המס — אותו דפוס: הבקשה פנימית, הלקוח רואה את «השלמת מידע»
+  tax_file_intake: internalOnly('קליטה והשלמת תיק המס — עבודת המשרד; הלקוח רואה רק את «השלמת פרטים לתיק» שנפתחת ממנה'),
+  annual_return: internalOnly('דוח שנתי — עבודת המשרד; הלקוח רואה רק את «השלמת מידע» שנפתחת ממנו'),
+  info_collection: { clientSees: 'page', mails: ['portalLink'], docs: [], editAt: { kind: 'none', why: 'השאלות נבחרות מתוך תמונת השנה בדף התהליך' } },
   authority_representation: {
     clientSees: 'page', why: 'בטיפולנו — ובשלב אישור הלקוח הודעה עם אסמכתה וקישור לאתר ביטוח לאומי', mails: ['repNiApprove'], docs: [],
     editAt: { kind: 'emails', focus: 'rep:ni_approve', label: 'עריכת הנוסח ב«מיילים»' },
@@ -171,7 +178,6 @@ export const CATALOG_META: Record<CatalogType, EntryMeta> = {
   paperless_sequence: { clientSees: 'page', mails: ['portalLink'], docs: [], editAt: { kind: 'addDialog' } },
   business_details: STEP_TYPE_META.business_details,
   paperless_tax_authority: STEP_TYPE_META.paperless_tax_authority,
-  intake_questionnaire: STEP_TYPE_META.intake_questionnaire,
   authority_representation: STEP_TYPE_META.authority_representation,
   smart_form_btl6101: {
     clientSees: 'separateLink', why: 'לא מופיעה בדף — הלקוח מקבל קישור חתימה אישי לטופס', mails: [], docs: ['smartForm'], linked: 'signForm',
@@ -521,7 +527,6 @@ function catalogView(type: CatalogType): TargetView {
     }
     case 'prev_accountant_track': return groupView('prevAccountant');
     case 'business_details': return systemView('business_details');
-    case 'intake_questionnaire': return systemView('intake_questionnaire');
     case 'authority_representation': {
       const axes: AxisDef[] = [personaAxis, { key: 'state', label: 'מצב', options: [
         { key: 'office', label: 'בטיפולנו' }, { key: 'client', label: 'ממתין לאישור הלקוח' }, { key: 'done', label: 'אושר' }] }];

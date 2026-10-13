@@ -19,6 +19,7 @@ import { STEP_TYPE_LABELS, PORTAL_STEP_TYPES } from '../src/types/onboarding.ts'
 import { CATALOG_STEP_TYPES } from '../src/types/journeyDefaults.ts';
 import { REPRESENTATION_STATUS_LABELS } from '../src/types/index.ts';
 import type { ProcessStage } from '../src/lib/processDefinition.ts';
+import { AVAILABLE } from '../src/features/taxKnowledge/availability.ts';
 
 let n = 0;
 const ok = (name: string, cond: boolean, detail = '') => {
@@ -39,6 +40,8 @@ for (const s of catalogStages) {
 
 // 2 — כל סוג מוסבר או מוחרג
 const EXCLUDED_STEP_TYPES = new Set(['data_import', 'data_verification']);   // NOT_A_PROCESS: מסלול נתונים בפייפרלס
+// ‼ סוג של יכולת שלא שוחררה באתר (availability.ts) — אין לו תהליך בספרייה, בכוונה.
+if (!AVAILABLE.taxEstimate) EXCLUDED_STEP_TYPES.add('tax_estimate');
 const covered = new Set(catalogStages.map(s => s.stepType).filter(Boolean));
 for (const t of stepTypes) {
   ok(`סוג מוסבר או מוחרג: ${t}`, covered.has(t) || EXCLUDED_STEP_TYPES.has(t));
@@ -92,7 +95,7 @@ ok('M1: דחיית צילום מתוארת', !!fill.deferrable && fill.deferrabl
 ok('M1: בן/בת זוג מתואר/ת', !!fill.substages?.some(s => s.key === 'fill_spouse'));
 const approval = rep.stages.find(s => s.key === 'client_approval')!;
 ok('אישור המייצג ברשות המסים: של הלקוח, רשות, מקושר ל-rep_client_approval',
-  approval.actor === 'client' && approval.kind === 'optional' && approval.stepType === 'rep_client_approval');
+  approval.actor === 'client' && approval.kind === 'conditional' && approval.stepType === 'rep_client_approval');  // ‼ 201: זירוז בהשהייה, חובה כששע״ם מציגה «ממתין לאישור לקוח» — מותנה, לא רשות
 const ni = rep.stages.find(s => s.key === 'ni')!;
 ok('ביטוח לאומי: מותנה ומקביל', ni.kind === 'conditional' && ni.parallel === true);
 const sign = rep.stages.find(s => s.key === 'sign')!;

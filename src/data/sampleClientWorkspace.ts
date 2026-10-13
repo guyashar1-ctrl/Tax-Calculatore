@@ -243,6 +243,33 @@ const PROFILES: Record<string, ClientWorkspaceExtensions> = {
  * מחזיר את הלקוח כשהוא מועשר בנתוני workspace (אם יש פרופיל זמין).
  * לקוח שלא מופיע במפה — מקבל ערכי ברירת מחדל מינימליים.
  */
+// 11.10.2026 · שנת מס (שלב 2): לדוד ולרחל — מעסיק לכל אחד, נכס מושכר, חשבון השקעות,
+// ושני סכומים שנתיים בכרטיס בלי שנה (להדגמת «העברה מהכרטיס»). פיתוח בלבד.
+const TAX_YEAR_DEMO: Record<string, Partial<Client>> = {
+  'sample-1': {
+    employers: [
+      { id: 'emp-d1', name: 'חברת הייטק בע״מ' },
+      { id: 'emp-r1', name: 'משרד החינוך', belongsToSpouse: true },
+    ] as Client['employers'],
+    properties: [{ id: 'prop-d1', address: 'הרצל 12', city: 'חיפה', isRented: true, rentalTaxTrack: 'exempt' }] as Client['properties'],
+    hasRentalIncome: true,
+    investmentAccounts: [{ id: 'acc-d1', institutionName: 'מיטב טרייד' }] as Client['investmentAccounts'],
+    hasLifeInsurance: true,
+    donationsAnnual: 3000,
+    lifeInsuranceAnnual: 1800,
+  },
+  // דוח שנתי 2025 שאפשר להשלים עד «גיליון מלא» בהדגמה: שכירה ועצמאית, נשואה לשכיר
+  'sample-4': {
+    employers: [
+      { id: 'emp-o1', name: 'רשת מרפאות שיניים' },
+      { id: 'emp-a1', name: 'בנק לאומי', belongsToSpouse: true },
+    ] as Client['employers'],
+    businesses: [{ id: 'biz-o1', kind: 'osek_morshe', name: 'קליניקה פרטית — אורית', address: { street: 'ביאליק', houseNumber: '12', city: 'רמת גן' } }] as Client['businesses'],
+    zipCode: '5245112',
+    taxFiles: [{ id: 'tf-o1', authority: 'income_tax', fileNumber: '456789012', owner: 'client', repStatus: 'active' }, { id: 'tf-o2', authority: 'vat', fileNumber: '456789012', owner: 'client', repStatus: 'active' }] as Client['taxFiles'],
+  },
+};
+
 export function enrichClientWithWorkspace(c: Client): Client {
   const profile = PROFILES[c.id];
   if (!profile) {
@@ -255,9 +282,12 @@ export function enrichClientWithWorkspace(c: Client): Client {
     };
   }
   // לא לדרוס שדות שכבר קיימים בלקוח (אם המשתמש ערך)
+  const demo = TAX_YEAR_DEMO[c.id] ?? {};
+  const keep = Object.fromEntries(Object.entries(demo).filter(([k]) => (c as unknown as Record<string, unknown>)[k] === undefined));
   return {
     ...profile,
     ...c,
+    ...keep,
     // אבל פרופיל החדש יותר מנצח ב-arrays של דמו
     additionalContacts: c.additionalContacts ?? profile.additionalContacts,
     activity: c.activity ?? profile.activity,

@@ -1,0 +1,4710 @@
+{
+  "source": {
+    "form": {
+      "title": "טופס 1301 - דין וחשבון על ההכנסות בארץ ובחו״ל, שנת מס 2025",
+      "accessibleUrl": "https://www.gov.il/BlobFolder/service/reporting-and-payment-2025-annual-tax-report-for-individuals/he/Service_Pages_Income_tax_annual-report-2026_1301-2025-ACC.pdf",
+      "regularUrl": "https://www.gov.il/BlobFolder/service/reporting-and-payment-2025-annual-tax-report-for-individuals/he/Service_Pages_Income_tax_annual-report-2026_itc1301-2025.pdf",
+      "pagesRead": "ACC: 1-20 (all); regular itc1301: 1-4 (all)",
+      "version": "מעודכן ל-1.2026"
+    },
+    "guide": {
+      "title": "דע זכויותיך וחובותיך 2025 - פרק ד",
+      "url": "https://www.gov.il/BlobFolder/generalpage/income-tax-guide-knowyourright/he/Guides_IncomeTax_da-2025.pdf",
+      "pagesRead": "PDF pages 16-76 (chapter ד up to נספח א), pp.53-56 skimmed; p.19 is a font-shifted image of form page 1, decoded (+0x4C4, reversed)",
+      "guidePageConvention": "guidePage = PDF page number; printed page number = PDF page - 2"
+    },
+    "readDate": "10.10.2026",
+    "method": "in-browser pdf.js 3.11.174 text extraction on gov.il origin; nothing saved to disk",
+    "codesConvention": "codes.registered = ״בן הזוג הרשום״, codes.spouse = בן/בת הזוג, codes.joint = טור ״הכנסות שני בני הזוג״ (חלקים ד-ה); codes null = אין קוד מודפס"
+  },
+  "parts": [
+    {
+      "part": "א",
+      "title": "פרטים כלליים"
+    },
+    {
+      "part": "ב",
+      "title": "פרטים אישיים (כולל הצהרת מגיש ופרטי המסייע)"
+    },
+    {
+      "part": "ג",
+      "title": "הכנסות מיגיעה אישית החייבות בשיעורי מס רגילים (סעיפים 1-7)"
+    },
+    {
+      "part": "ד",
+      "title": "הכנסות חייבות בשיעורי מס רגילים - שלא מיגיעה אישית (8-11)"
+    },
+    {
+      "part": "ה",
+      "title": "הכנסות חייבות בשיעורי מס מיוחדים (12-32)"
+    },
+    {
+      "part": "ו",
+      "title": "מוסד כספי (33)"
+    },
+    {
+      "part": "ז",
+      "title": "נתונים נוספים (34-36)"
+    },
+    {
+      "part": "ח",
+      "title": "הכנסות מרווח הון ומשבח מקרקעין (37-39)"
+    },
+    {
+      "part": "ט",
+      "title": "הכנסות חו״ל (40)"
+    },
+    {
+      "part": "י",
+      "title": "הכנסות/רווחים פטורים ובלתי חייבים (41-46)"
+    },
+    {
+      "part": "יא",
+      "title": "פרטים נוספים ויתרות להעברה לשנת 2026 (47-48)"
+    },
+    {
+      "part": "יב",
+      "title": "ניכויים אישיים (49-60)"
+    },
+    {
+      "part": "יג",
+      "title": "נקודות זיכוי (61-72)"
+    },
+    {
+      "part": "יד",
+      "title": "זיכויים אישיים בעד תשלומים (73-82)"
+    },
+    {
+      "part": "טו",
+      "title": "מחזור למקדמות, ניכויים במקור, מס שבח (83-89)"
+    },
+    {
+      "part": "לשימוש המשדר",
+      "title": "לשימוש המשדר / משרד השומה"
+    }
+  ],
+  "fields": [
+    {
+      "part": "א",
+      "section": "1",
+      "codes": null,
+      "label": "הדוח הוא על: הכנסותי והכנסות בן/בת זוגי",
+      "kind": "checkbox",
+      "instruction": "בני זוג: בן הזוג הרשום הוא מגיש הדוח; הכנסות שני בני הזוג נכללות בדוח, כל אחד בטור שלו.",
+      "documents": [],
+      "guidePage": 18,
+      "id": "F001"
+    },
+    {
+      "part": "א",
+      "section": "1",
+      "codes": null,
+      "label": "הכנסותי בלבד",
+      "kind": "checkbox",
+      "instruction": "למי שאינו נשוי או כשהדוח כולל רק את הכנסות המגיש; אצל לא נשוי הכול נרשם בטור בן הזוג הרשום.",
+      "documents": [],
+      "guidePage": 18,
+      "id": "F002"
+    },
+    {
+      "part": "א",
+      "section": "1",
+      "codes": null,
+      "label": "אני מגיש דוח לשנת מס זו למרות שאיני חייב - בקשה להחזר מס",
+      "kind": "checkbox",
+      "instruction": "סימון כשהדוח מוגש מרצון (לא חייב בהגשה) לשם החזר מס.",
+      "documents": [],
+      "guidePage": 18,
+      "id": "F003"
+    },
+    {
+      "part": "א",
+      "section": "1",
+      "codes": null,
+      "label": "בן/בת זוגי מגיש דוח נפרד - מצ״ב הדוח/הצהרה של בן/בת זוגי",
+      "kind": "checkbox",
+      "instruction": "בני זוג רשאים להגיש שני דוחות; פקיד השומה יקלוט אותם כדוח אחד. בשנת נישואין/חזרה מפירוד מצהירים על הבחירה (טופס 4430).",
+      "documents": [
+        "4430"
+      ],
+      "guidePage": 16,
+      "id": "F004"
+    },
+    {
+      "part": "א",
+      "section": "1",
+      "codes": null,
+      "label": "אין הכנסה לבן/בת זוגי",
+      "kind": "checkbox",
+      "instruction": null,
+      "documents": [],
+      "guidePage": 18,
+      "id": "F005"
+    },
+    {
+      "part": "א",
+      "section": "1",
+      "codes": null,
+      "label": "בן/בת זוגי עזר לי בהשגת ההכנסה",
+      "kind": "checkbox",
+      "instruction": "מצביע על בן זוג עוזר; נקודות הזיכוי לבן זוג עוזר נדרשות בסעיף 63.",
+      "documents": [],
+      "guidePage": 18,
+      "id": "F006"
+    },
+    {
+      "part": "א",
+      "section": "2",
+      "codes": null,
+      "label": "״מקור הכנסה משותף״ לבני הזוג",
+      "kind": "checkbox",
+      "options": {
+        "לא": "אין מקור הכנסה משותף",
+        "כן - עמדתי": "כן, עמדתי בתנאי סעיף 66(ד)",
+        "כן - לא עמדתי": "כן, לא עמדתי בתנאי סעיף 66(ד)"
+      },
+      "instruction": "כשמקור הכנסת בן זוג תלוי בשני, חישוב נפרד מותנה בתנאי סעיף 66(ד): יגיעה אישית של שניהם, הכנסה לפי תרומה, ובבית המגורים - שימוש קבוע.",
+      "documents": [],
+      "guidePage": 20,
+      "id": "F007"
+    },
+    {
+      "part": "א",
+      "section": "3",
+      "codes": null,
+      "label": "קיבלתי אישור מבן זוגי לצפות בפירוט התרומות, מצ״ב הצהרה של בן זוגי",
+      "kind": "checkbox",
+      "instruction": "בלי סימון זה לא ניתן לצפות בדוח המקוון בנתוני מערכת התרומות הדיגיטלית של בן הזוג.",
+      "documents": [],
+      "guidePage": 20,
+      "id": "F008"
+    },
+    {
+      "part": "א",
+      "section": "3",
+      "codes": null,
+      "label": "מייצג - בידי יפוי כוח משני בני הזוג לצפות בנתוני התרומות, מצ״ב יפוי הכוח",
+      "kind": "checkbox",
+      "instruction": "מייצג המשדר מסמן כדי לצפות בנתוני התרומות; בלי הסימון לא יראה אותם.",
+      "documents": [
+        "ייפוי כוח"
+      ],
+      "guidePage": 20,
+      "id": "F009"
+    },
+    {
+      "part": "א",
+      "section": "4",
+      "codes": null,
+      "label": "הנני בעל עסק זעיר העומד בתנאים לקבלת ניכוי הוצאות בגובה 30%",
+      "kind": "checkbox",
+      "options": {
+        "בן הזוג הרשום": "הבקשה לבן הזוג הרשום",
+        "בן הזוג": "הבקשה לבן/בת הזוג"
+      },
+      "instruction": "מחזור עד 120,000 ₪. מסמנים לבן הזוג הרשום, לבן הזוג או לשניהם. אין דוח רו״ה; מחזור בשדה 238/239 לא מעל 120,000; אין ניכוי ב״ל 030/089.",
+      "documents": [],
+      "guidePage": 20,
+      "id": "F010"
+    },
+    {
+      "part": "א",
+      "section": "4",
+      "codes": null,
+      "label": "למרות שנרשמתי כבעל עסק זעיר, אבקש בשנת מס זו שלא להחיל עליי את כללי בעל עסק זעיר",
+      "kind": "checkbox",
+      "instruction": "לבחירה בדיווח כעסק רגיל, למשל כשההוצאות עולות על 30% מהמחזור.",
+      "documents": [],
+      "guidePage": 20,
+      "id": "F011"
+    },
+    {
+      "part": "א",
+      "section": "5",
+      "codes": null,
+      "label": "אני/בן זוגי: עולה חדש / תושב חוזר ותיק / תושב חוזר וחלות על הכנסותי מחו״ל הקלות במס",
+      "kind": "checkbox",
+      "options": {
+        "עולה חדש": "עולה חדש",
+        "תושב חוזר ותיק": "תושב חוזר ותיק",
+        "תושב חוזר": "תושב חוזר וחלות הקלות על הכנסות חו״ל"
+      },
+      "instruction": "מי שזכאי להקלות על הכנסות חו״ל כעולה/תושב חוזר מסמן את הסוג ורושם את תאריך ההגעה לארץ.",
+      "documents": [],
+      "guidePage": 21,
+      "id": "F012"
+    },
+    {
+      "part": "א",
+      "section": "5",
+      "codes": null,
+      "label": "תאריך הגעה - בן זוג רשום",
+      "kind": "date",
+      "instruction": "תאריך ההגעה לארץ של בן הזוג הרשום (מתואם לשדה 273 בחלק המשדר).",
+      "documents": [],
+      "guidePage": 21,
+      "id": "F013"
+    },
+    {
+      "part": "א",
+      "section": "5",
+      "codes": null,
+      "label": "תאריך הגעה - בן/בת הזוג",
+      "kind": "date",
+      "instruction": "תאריך ההגעה לארץ של בן/בת הזוג (מתואם לשדה 274 בחלק המשדר).",
+      "documents": [],
+      "guidePage": 21,
+      "id": "F014"
+    },
+    {
+      "part": "א",
+      "section": "6",
+      "codes": null,
+      "label": "נכס/ים בחו״ל בשווי 2,086,000 ש״ח או יותר (לי, לבן/בת זוגי או לילדיי מתחת ל-18)",
+      "kind": "checkbox",
+      "instruction": "מסמנים אם בשנת המס היה נכס בחו״ל בשווי 2,086,000 ₪ או יותר.",
+      "documents": [],
+      "guidePage": 21,
+      "id": "F015"
+    },
+    {
+      "part": "א",
+      "section": "7",
+      "codes": null,
+      "label": "הכנסה חייבת כהגדרתה בסעיף 121ב(ה) העולה על 721,560 ש״ח",
+      "kind": "checkbox",
+      "instruction": "מסמנים אם למגיש או לבן זוגו הכנסה חייבת מעל 721,560 ₪ (מס על הכנסות גבוהות).",
+      "documents": [],
+      "guidePage": 21,
+      "id": "F016"
+    },
+    {
+      "part": "א",
+      "section": "8",
+      "codes": null,
+      "label": "מחזור מכירות ני״ע סחירים שאינו פטור העולה על 2,810,000 ש״ח",
+      "kind": "checkbox",
+      "instruction": "מסמנים אם מחזור המכירות בבורסה שאינו פטור עלה על 2,810,000 ₪.",
+      "documents": [],
+      "guidePage": 21,
+      "id": "F017"
+    },
+    {
+      "part": "א",
+      "section": "9",
+      "codes": null,
+      "label": "הנני בעל מניות בחברת מעטים שחל עליה סעיף 62א לפקודה",
+      "kind": "yesno",
+      "options": {
+        "כן": "בעל מניות בחברת מעטים שחל עליה 62א",
+        "לא": "לא"
+      },
+      "instruction": "אם ״כן״ - חובה לדווח באחד או יותר משדות סעיף 47 ט-יג (351, 084, 085, 087, 092).",
+      "documents": [],
+      "guidePage": 21,
+      "id": "F018"
+    },
+    {
+      "part": "א",
+      "section": "10",
+      "codes": null,
+      "label": "בשנת המס היו לי הכנסות מפעילות באינטרנט (מסחר, שיווק, פרסום וכד׳)",
+      "kind": "checkbox",
+      "instruction": "מסמנים אם היו הכנסות מפעילות באינטרנט (מתואם לשדה 307 בחלק המשדר).",
+      "documents": [],
+      "guidePage": 21,
+      "id": "F019"
+    },
+    {
+      "part": "א",
+      "section": "11",
+      "codes": null,
+      "label": "בשנת המס היו לי הכנסות בהתאם לחוק אנרגיות מתחדשות",
+      "kind": "checkbox",
+      "instruction": "יחיד שבחר להחיל את חוק אנרגיות מתחדשות (2016) מציין זאת (טופס 1400 להודעת הבחירה).",
+      "documents": [
+        "1400"
+      ],
+      "guidePage": 21,
+      "id": "F020"
+    },
+    {
+      "part": "א",
+      "section": "12",
+      "codes": null,
+      "label": "בשנת המס היו לי הכנסות ממימוש מטבע וירטואלי לרבות המרה למטבעות אחרים",
+      "kind": "checkbox",
+      "instruction": "מי שמימש מטבע וירטואלי מסמן ומצרף נספח רווח הון (1399י, סמל 77 קוד 71).",
+      "documents": [
+        "1399י"
+      ],
+      "guidePage": 21,
+      "id": "F021"
+    },
+    {
+      "part": "א",
+      "section": "13",
+      "codes": null,
+      "label": "אחד מבני הזוג עיוור או נכה לפי סעיף 9(5) לפקודה בשנת המס",
+      "kind": "checkbox",
+      "instruction": "מסמנים אם יש אישור פקיד שומה לנכות/עיוורון לפי 9(5).",
+      "documents": [
+        "אישור נכות"
+      ],
+      "guidePage": 21,
+      "id": "F022"
+    },
+    {
+      "part": "א",
+      "section": "14",
+      "codes": null,
+      "label": "אחד מבני הזוג עיוור או נכה לפי 9(5) ומקבל גמלה ממשרד הביטחון / פעולות איבה",
+      "kind": "checkbox",
+      "instruction": "מסמנים אם הנכה/עיוור מקבל גמלה ממשרד הביטחון או מפעולות איבה (תקרת פטור 684,000).",
+      "documents": [],
+      "guidePage": 22,
+      "id": "F023"
+    },
+    {
+      "part": "א",
+      "section": "15",
+      "codes": null,
+      "label": "העברתי במשך 12 חודשים כספים אל מחוץ לישראל בסכום כולל של 500,000 ₪ או יותר",
+      "kind": "checkbox",
+      "instruction": "מחייב הגשת דוח לשנת ההעברה הראשונה ולשנה שאחריה.",
+      "documents": [],
+      "guidePage": 22,
+      "id": "F024"
+    },
+    {
+      "part": "א",
+      "section": "16",
+      "codes": null,
+      "label": "מצ״ב נספח לחישוב ההכנסה בגין תשלומים עודפים של מעביד לקרן השתלמות וקופ״ג (טופס 134)",
+      "kind": "checkbox",
+      "instruction": "שכיר עם כמה מעסיקים והפרשות מעל התקרות, או המבקש ניכוי אבדן כושר עבודה, מצרף חישוב בטופס 134.",
+      "documents": [
+        "134",
+        "106"
+      ],
+      "guidePage": 22,
+      "id": "F025"
+    },
+    {
+      "part": "א",
+      "section": "17",
+      "codes": null,
+      "label": "מבקש/ת פריסת דמי לידה לשנה הבאה",
+      "kind": "yesno",
+      "options": {
+        "כן": "מבקש/ת פריסה",
+        "לא": "לא מבקש/ת"
+      },
+      "instruction": "דמי לידה שחלקם מתייחס לשנה הבאה ניתנים לייחוס יחסי לפי בקשה; מסמנים כן/לא.",
+      "documents": [
+        "אישור ביטוח לאומי"
+      ],
+      "guidePage": 22,
+      "id": "F026"
+    },
+    {
+      "part": "א",
+      "section": "18",
+      "codes": null,
+      "label": "אינני תושב ישראל אך מתקיימת לגבי ״חזקת ימי שהייה״ הנסתרת... מצ״ב טופס 1348",
+      "kind": "checkbox",
+      "instruction": "מי שטוען לתושבות חוץ למרות 183 ימים (או 30+425) מגיש דוח עם טופס 1348 ומסמכים.",
+      "documents": [
+        "1348"
+      ],
+      "guidePage": 22,
+      "id": "F027"
+    },
+    {
+      "part": "א",
+      "section": "19",
+      "codes": null,
+      "label": "הנני יוצר/נהנה בנאמנות, בר-שומה ובר-חיוב; הדוח כולל את הכנסות הנאמנות (מצ״ב 151ח; 148 בשנה הראשונה)",
+      "kind": "checkbox",
+      "instruction": "יוצר/נהנה שבחר לכלול את הכנסות הנאמנות בדוח מסמן ומצרף 151ח, ובשנה הראשונה גם 148.",
+      "documents": [
+        "151ח",
+        "148"
+      ],
+      "guidePage": 22,
+      "id": "F028"
+    },
+    {
+      "part": "א",
+      "section": "19",
+      "codes": null,
+      "label": "הנני נהנה בנאמנות שההכנסות שחולקו לי מהנאמנות כלולות בדוח זה (מצ״ב העתק טופס 142)",
+      "kind": "checkbox",
+      "instruction": "נהנה שבחר לכלול את ההכנסות מהנאמנות מצרף טופס 142; הנאמן מגיש גם הוא דוח.",
+      "documents": [
+        "142"
+      ],
+      "guidePage": 22,
+      "id": "F029"
+    },
+    {
+      "part": "א",
+      "section": "19",
+      "codes": null,
+      "label": "הנני נהנה בנאמנות שחלה עליו חובת דיווח לפי 131(א)(5ב)(7) - תושב, מעל 25, נכסי נאמנות מעל 500,000 ₪",
+      "kind": "checkbox",
+      "instruction": "תושב ישראל מעל גיל 25 שיודע שהוא נהנה בנאמנות שנכסיה בסוף השנה 500,000 ₪ לפחות - יסמן.",
+      "documents": [],
+      "guidePage": 22,
+      "id": "F030"
+    },
+    {
+      "part": "א",
+      "section": "19",
+      "codes": null,
+      "label": "הנני נהנה בנאמנות שממנה היו לי חלוקות (פטורות/חייבות) כהגדרתן בסעיף 75ג, הרשומות בשדה 271",
+      "kind": "checkbox",
+      "instruction": "מסמנים ורושמים את סכום החלוקות בשדה 271 (חלק יא).",
+      "documents": [],
+      "guidePage": 22,
+      "id": "F031"
+    },
+    {
+      "part": "א",
+      "section": "20",
+      "codes": null,
+      "label": "בשנת המס מכרתי יחידות השתתפות בשותפות נפט",
+      "kind": "checkbox",
+      "instruction": "מסמנים, ממלאים חלק ב בטופס 858י ומדווחים רווח הון (1399י סמל 54), מס שנוכה ב-040, מחזור ב-056 במקום 256.",
+      "documents": [
+        "858י",
+        "867א",
+        "867ב"
+      ],
+      "guidePage": 22,
+      "id": "F032"
+    },
+    {
+      "part": "א",
+      "section": "21",
+      "codes": null,
+      "label": "השקעה ב״מניות מוקצות״ בדרך של חילוף מניות לפי סעיף 3 לחוק עידוד תעשייה עתירת ידע",
+      "kind": "checkbox",
+      "instruction": "מי שבחר בניכוי מהתמורה לפי סעיף 3 מסמן ומשדר נספח רווח הון סמל 27 קוד 05.",
+      "documents": [
+        "1399י"
+      ],
+      "guidePage": 24,
+      "id": "F033"
+    },
+    {
+      "part": "א",
+      "section": "22",
+      "codes": null,
+      "label": "הנני ו/או בן זוגי חבר קיבוץ - שם הקיבוץ",
+      "kind": "checkbox",
+      "instruction": "מסמנים רק לחבר קיבוץ שיתופי/מתחדש 60א שאינו בחופשה או בעצמאות כלכלית. מצרפים 1443 (ללא חלק ו).",
+      "documents": [
+        "1443"
+      ],
+      "guidePage": 24,
+      "id": "F034"
+    },
+    {
+      "part": "א",
+      "section": "22",
+      "codes": null,
+      "label": "מס׳ תיק (הקיבוץ)",
+      "kind": "text",
+      "instruction": "מספר תיק הקיבוץ במס הכנסה (מתואם לשדה 366 בחלק המשדר).",
+      "documents": [
+        "1443"
+      ],
+      "guidePage": 25,
+      "id": "F035"
+    },
+    {
+      "part": "א",
+      "section": "22",
+      "codes": {
+        "registered": "369",
+        "spouse": "370"
+      },
+      "label": "הכנסה חייבת מועברת לקיבוץ - בן הזוג הרשום / בן הזוג",
+      "kind": "amount",
+      "instruction": "סך ההכנסה המועברת לקיבוץ. 0 = חבר שאינו מעביר הכנסה או עובד פנים; ריק = בן הזוג אינו חבר קיבוץ. אין לרשום אותה שוב בחלקי ההכנסות.",
+      "documents": [
+        "1443",
+        "106"
+      ],
+      "guidePage": 25,
+      "note": "הקודים 369/370 מופיעים בחלק לשימוש המשדר (״חבר קיבוץ: הכנסה מועברת״)",
+      "id": "F036"
+    },
+    {
+      "part": "א",
+      "section": "23",
+      "codes": null,
+      "label": "הנני מחזיק בנכס שקבלתי בעקבות החלת סעיף 6 להוראת השעה רווחים לא מחולקים",
+      "kind": "yesno",
+      "options": {
+        "כן": "מחזיק",
+        "לא": "לא מחזיק"
+      },
+      "instruction": "מסמנים ״כן״ אם הועבר אליך נכס בפירוק/העברה לפי הוראת השעה.",
+      "documents": [],
+      "guidePage": 26,
+      "id": "F037"
+    },
+    {
+      "part": "א",
+      "section": "23",
+      "codes": null,
+      "label": "בשנת המס יצא מרשותי נכס שקבלתי בעקבות סעיף 6 להוראת השעה",
+      "kind": "yesno",
+      "options": {
+        "כן": "יצא מרשותי",
+        "לא": "לא"
+      },
+      "instruction": "אם נמכר - מסמנים ״כן״ ומדווחים את המכירה ב-1399י סמל עסקה 77 קוד 09.",
+      "documents": [
+        "1399י"
+      ],
+      "guidePage": 26,
+      "id": "F038"
+    },
+    {
+      "part": "א",
+      "section": "24",
+      "codes": null,
+      "label": "יש לי הכנסות מבנין לפי סעיף 8א(ג): הדוח כולל דיווח על סיום בניית פרויקט",
+      "kind": "yesno",
+      "options": {
+        "כן": "כן, מצ״ב טופס 702",
+        "לא": "לא"
+      },
+      "instruction": "״כן, מצ״ב טופס 702״ - לא ניתן לסמן בלי לשדר את טופס 702 מקוון.",
+      "documents": [
+        "702"
+      ],
+      "guidePage": 26,
+      "id": "F039"
+    },
+    {
+      "part": "א",
+      "section": "25",
+      "codes": null,
+      "label": "הנני בעל שליטה בחבר בני אדם תושב חוץ נסחר בחו״ל",
+      "kind": "yesno",
+      "options": {
+        "כן": "כן, מצ״ב טופס 150",
+        "לא": "לא"
+      },
+      "instruction": "חובה לסמן; ״כן״ מחייב צירוף/שידור טופס 150; אחרת מסמנים ״לא״.",
+      "documents": [
+        "150"
+      ],
+      "guidePage": 26,
+      "id": "F040"
+    },
+    {
+      "part": "א",
+      "section": "25",
+      "codes": null,
+      "label": "הנני בעל זכויות בחבר בני אדם תושב חוץ שאינו נסחר",
+      "kind": "yesno",
+      "options": {
+        "כן": "כן, מצ״ב טופס 150",
+        "לא": "לא"
+      },
+      "instruction": "חובה לסמן; ״כן״ מחייב צירוף/שידור טופס 150; אחרת מסמנים ״לא״.",
+      "documents": [
+        "150"
+      ],
+      "guidePage": 26,
+      "id": "F041"
+    },
+    {
+      "part": "א",
+      "section": "26",
+      "codes": null,
+      "label": "עסקאות עם צדדים קשורים בחו״ל כמשמעותן בסעיף 85א",
+      "kind": "yesno",
+      "options": {
+        "כן": "כן, מצ״ב טופס 1385",
+        "לא": "לא"
+      },
+      "instruction": "אם קיימת עסקה - ״כן״ וטופס 1385 לכל עסקה; אם אין - חובה לסמן ״לא״.",
+      "documents": [
+        "1385"
+      ],
+      "guidePage": 26,
+      "id": "F042"
+    },
+    {
+      "part": "א",
+      "section": "27",
+      "codes": null,
+      "label": "קיימת פעולה החייבת בדיווח מכוח סעיף 131(ז)",
+      "kind": "yesno",
+      "options": {
+        "כן": "כן, מצ״ב טופס 1213",
+        "לא": "לא"
+      },
+      "instruction": "אם בוצעה אחת מ-13 הפעולות החייבות בדיווח - ״כן״ וטופס 1213; אחרת ״לא״.",
+      "documents": [
+        "1213"
+      ],
+      "guidePage": 27,
+      "id": "F043"
+    },
+    {
+      "part": "א",
+      "section": "28",
+      "codes": null,
+      "label": "קיבלתי ״חוות דעת״ חייבת בדיווח המאפשרת יתרון מס (סעיף 131ד)",
+      "kind": "yesno",
+      "options": {
+        "כן": "כן, מצ״ב טופס 1345",
+        "לא": "לא"
+      },
+      "instruction": "חוות דעת בכתב, שכ״ט 100,000+ או תכנון מדף, ומחזור מעל 3 מיליון (או רווח הון מעל 1.5 מיליון) - ״כן״ וטופס 1345.",
+      "documents": [
+        "1345"
+      ],
+      "guidePage": 27,
+      "id": "F044"
+    },
+    {
+      "part": "א",
+      "section": "29",
+      "codes": null,
+      "label": "נקטתי בעמדה חייבת בדיווח (סעיף 131ה)",
+      "kind": "yesno",
+      "options": {
+        "כן": "כן, מצ״ב טופס 1346",
+        "לא": "לא"
+      },
+      "instruction": "עמדה מנוגדת לרשימה שפרסמה הרשות, כשיתרון המס מעל 5 מיליון בשנה / 10 מיליון ב-4 שנים - ״כן״ וטופס 1346.",
+      "documents": [
+        "1346"
+      ],
+      "guidePage": 27,
+      "id": "F045"
+    },
+    {
+      "part": "א",
+      "section": "30",
+      "codes": null,
+      "label": "ניהלתי משק חקלאי/יש לי שטח אדמה מעובד (מצ״ב טופס 1220)",
+      "kind": "checkbox",
+      "instruction": "בעל משק חקלאי או שטח מעובד מצרף דוח שנתי על משק חקלאי, טופס 1220.",
+      "documents": [
+        "1220"
+      ],
+      "guidePage": 27,
+      "id": "F046"
+    },
+    {
+      "part": "א",
+      "section": "31",
+      "codes": null,
+      "label": "אני או בן/בת זוגי שותפים בשותפות (מצ״ב טופס 1504)",
+      "kind": "checkbox",
+      "instruction": "שותף בשותפות מסמן ומצרף/משדר טופס 1504.",
+      "documents": [
+        "1504"
+      ],
+      "guidePage": 27,
+      "id": "F047"
+    },
+    {
+      "part": "א",
+      "section": "32",
+      "codes": null,
+      "label": "הדוח מבוסס על פנקסי חשבונות שניהלתי עפ״י תוספת ___",
+      "kind": "text",
+      "instruction": "יש לציין את התוספת להוראות ניהול ספרים שלפיה מנוהלים הספרים. עוסק פטור אינו חייב בתוספת.",
+      "documents": [],
+      "guidePage": 27,
+      "id": "F048"
+    },
+    {
+      "part": "א",
+      "section": "32",
+      "codes": null,
+      "label": "סעיף ___ להוראות ניהול ספרים",
+      "kind": "text",
+      "instruction": null,
+      "documents": [],
+      "guidePage": 27,
+      "id": "F049"
+    },
+    {
+      "part": "א",
+      "section": "32",
+      "codes": null,
+      "label": "עוסק פטור",
+      "kind": "checkbox",
+      "instruction": "עוסק פטור לפי חוק מע״מ מציין זאת במקום תוספת.",
+      "documents": [],
+      "guidePage": 27,
+      "id": "F050"
+    },
+    {
+      "part": "א",
+      "section": "32",
+      "codes": null,
+      "label": "ניהלתי הנהלת חשבונות: כפולה / חד-צידית",
+      "kind": "checkbox",
+      "options": {
+        "כפולה": "הנהלת חשבונות כפולה",
+        "חד-צידית": "הנהלת חשבונות חד-צידית"
+      },
+      "instruction": "שיטת הנהלת החשבונות בעסק העיקרי.",
+      "documents": [],
+      "guidePage": 27,
+      "id": "F051"
+    },
+    {
+      "part": "א",
+      "section": "32",
+      "codes": null,
+      "label": "הפעלתי קופה רושמת",
+      "kind": "yesno",
+      "options": {
+        "כן": "כן",
+        "לא": "לא"
+      },
+      "instruction": null,
+      "documents": [],
+      "guidePage": 27,
+      "id": "F052"
+    },
+    {
+      "part": "א",
+      "section": "32",
+      "codes": null,
+      "label": "הפקת חשבונית/קבלה: ידני / ממוחשב",
+      "kind": "checkbox",
+      "options": {
+        "ידני": "הפקה ידנית",
+        "ממוחשב": "הפקה ממוחשבת"
+      },
+      "instruction": "יש לציין אם חשבונית/קבלה מופקת ממוחשב או ידני (מתואם לשדה 034 בחלק המשדר).",
+      "documents": [],
+      "guidePage": 27,
+      "id": "F053"
+    },
+    {
+      "part": "א",
+      "section": "33",
+      "codes": null,
+      "label": "המחזור מכלל העסקים שלי או של בן/בת זוגי הוא מעל 256,410 ₪ (ללא מע״מ): חייב בטופס 6111 / לא חייב",
+      "kind": "checkbox",
+      "options": {
+        "חייב": "חייב בטופס 6111",
+        "לא חייב": "לא חייב"
+      },
+      "instruction": "החייב בטופס 6111 מסמן ״חייב״; אחרת ״לא חייב״. שידרת 6111 בלי חובה - ״לא רלוונטי״ במקוון. חברת מעטים 62א שמשדרת 6111 - ״לא חייב״.",
+      "documents": [
+        "6111"
+      ],
+      "guidePage": 27,
+      "note": "השורה אינה מופיעה בגרסה הנגישה (ACC) אך מופיעה בטופס הרגיל ובצילום הטופס במדריך",
+      "id": "F054"
+    },
+    {
+      "part": "ב",
+      "section": null,
+      "codes": null,
+      "label": "מספר תיק",
+      "kind": "text",
+      "instruction": "מספר התיק הוא ת״ז של אחד מבני הזוג (או מספר לתושב חוץ); אינו קובע מיהו בן הזוג הרשום.",
+      "documents": [],
+      "guidePage": 28,
+      "id": "F055"
+    },
+    {
+      "part": "ב",
+      "section": null,
+      "codes": null,
+      "label": "מדבקה (פרטים מזהים)",
+      "kind": "text",
+      "instruction": "בדוח ידני: מדביקים אם הפרטים נכונים, אחרת רושמים פרטים נכונים. בדוח מקוון לא משתמשים במדבקה.",
+      "documents": [],
+      "guidePage": 18,
+      "note": "מקום להדבקה, לא שדה מילוי",
+      "id": "F056"
+    },
+    {
+      "part": "ב",
+      "section": null,
+      "codes": null,
+      "label": "״בן הזוג הרשום״ - מספר זהות",
+      "kind": "text",
+      "instruction": "ת״ז של בן הזוג הרשום ושל בן זוגו; אם מספר התיק שונה מת״ז בן הזוג הרשום - חשוב לציין.",
+      "documents": [],
+      "guidePage": 28,
+      "person": "registered",
+      "id": "F057"
+    },
+    {
+      "part": "ב",
+      "section": null,
+      "codes": null,
+      "label": "״בן הזוג הרשום״ - שם משפחה",
+      "kind": "text",
+      "instruction": null,
+      "documents": [],
+      "guidePage": null,
+      "person": "registered",
+      "id": "F058"
+    },
+    {
+      "part": "ב",
+      "section": null,
+      "codes": null,
+      "label": "״בן הזוג הרשום״ - שם פרטי",
+      "kind": "text",
+      "instruction": null,
+      "documents": [],
+      "guidePage": null,
+      "person": "registered",
+      "id": "F059"
+    },
+    {
+      "part": "ב",
+      "section": null,
+      "codes": null,
+      "label": "״בן הזוג הרשום״ - שם האב",
+      "kind": "text",
+      "instruction": null,
+      "documents": [],
+      "guidePage": null,
+      "person": "registered",
+      "id": "F060"
+    },
+    {
+      "part": "ב",
+      "section": null,
+      "codes": null,
+      "label": "״בן הזוג הרשום״ - תאריך לידה",
+      "kind": "date",
+      "instruction": "יש למלא תאריך לידה - משמש גם לנקודת זיכוי לנער (16-18).",
+      "documents": [],
+      "guidePage": 69,
+      "person": "registered",
+      "id": "F061"
+    },
+    {
+      "part": "ב",
+      "section": null,
+      "codes": null,
+      "label": "בן/בת הזוג - מספר זהות",
+      "kind": "text",
+      "instruction": null,
+      "documents": [],
+      "guidePage": 28,
+      "person": "spouse",
+      "id": "F062"
+    },
+    {
+      "part": "ב",
+      "section": null,
+      "codes": null,
+      "label": "בן/בת הזוג - שם משפחה",
+      "kind": "text",
+      "instruction": null,
+      "documents": [],
+      "guidePage": null,
+      "person": "spouse",
+      "id": "F063"
+    },
+    {
+      "part": "ב",
+      "section": null,
+      "codes": null,
+      "label": "בן/בת הזוג - שם פרטי",
+      "kind": "text",
+      "instruction": null,
+      "documents": [],
+      "guidePage": null,
+      "person": "spouse",
+      "id": "F064"
+    },
+    {
+      "part": "ב",
+      "section": null,
+      "codes": null,
+      "label": "בן/בת הזוג - שם האב",
+      "kind": "text",
+      "instruction": null,
+      "documents": [],
+      "guidePage": null,
+      "person": "spouse",
+      "id": "F065"
+    },
+    {
+      "part": "ב",
+      "section": null,
+      "codes": null,
+      "label": "בן/בת הזוג - תאריך לידה",
+      "kind": "date",
+      "instruction": null,
+      "documents": [],
+      "guidePage": 69,
+      "person": "spouse",
+      "id": "F066"
+    },
+    {
+      "part": "ב",
+      "section": null,
+      "codes": null,
+      "label": "מצב משפחתי בשנת המס",
+      "kind": "checkbox",
+      "options": {
+        "רווק": "רווק/ה",
+        "נשוי": "נשוי/אה וחי/ה ביחד עם בן הזוג",
+        "אלמן": "אלמן/ה",
+        "גרוש": "גרוש/ה",
+        "פרוד": "פרוד/ה (בהתאם למרשם רשות המסים)"
+      },
+      "instruction": "נשוי המנהל משק בית משותף מסמן ״נשוי וחי ביחד״ וממלא פרטי שני בני הזוג. ״פרוד״ רק לפי מרשם רשות המסים (טופס 4440).",
+      "documents": [
+        "4440"
+      ],
+      "guidePage": 28,
+      "id": "F067"
+    },
+    {
+      "part": "ב",
+      "section": null,
+      "codes": null,
+      "label": "סימון X בשורה בה חל שינוי מאז הדוח הקודם",
+      "kind": "checkbox",
+      "instruction": "אם השתנו מעמד, עיסוק או פרטים אחרים בחלק ב - מסמנים X בשורת השינוי.",
+      "documents": [],
+      "guidePage": 28,
+      "id": "F068"
+    },
+    {
+      "part": "ב",
+      "section": null,
+      "codes": null,
+      "label": "כתובת (כולל מיקוד)",
+      "kind": "text",
+      "instruction": "הדואר נשלח לכתובת במרשם האוכלוסין; רק תושב חוץ מעדכן כתובת.",
+      "documents": [],
+      "guidePage": 28,
+      "id": "F069"
+    },
+    {
+      "part": "ב",
+      "section": null,
+      "codes": null,
+      "label": "כתובת למשלוח דואר (ימולא ע״י תושב חוץ בלבד)",
+      "kind": "text",
+      "instruction": "תושב חוץ בלבד.",
+      "documents": [],
+      "guidePage": 28,
+      "id": "F070"
+    },
+    {
+      "part": "ב",
+      "section": null,
+      "codes": null,
+      "label": "כתובת המגורים (ימולא ע״י תושב חוץ בלבד)",
+      "kind": "text",
+      "instruction": "תושב חוץ בלבד.",
+      "documents": [],
+      "guidePage": 28,
+      "id": "F071"
+    },
+    {
+      "part": "ב",
+      "section": null,
+      "codes": null,
+      "label": "כתובת דואר אלקטרוני",
+      "kind": "text",
+      "instruction": "במקוון יש לציין מייל ו/או נייד.",
+      "documents": [],
+      "guidePage": 29,
+      "id": "F072"
+    },
+    {
+      "part": "ב",
+      "section": null,
+      "codes": null,
+      "label": "טלפון בבית/פקס",
+      "kind": "text",
+      "instruction": null,
+      "documents": [],
+      "guidePage": null,
+      "id": "F073"
+    },
+    {
+      "part": "ב",
+      "section": null,
+      "codes": null,
+      "label": "טלפון בעבודה - ״בן הזוג הרשום״",
+      "kind": "text",
+      "instruction": null,
+      "documents": [],
+      "guidePage": null,
+      "id": "F074"
+    },
+    {
+      "part": "ב",
+      "section": null,
+      "codes": null,
+      "label": "טלפון בעבודה - בן/בת הזוג",
+      "kind": "text",
+      "instruction": null,
+      "documents": [],
+      "guidePage": null,
+      "id": "F075"
+    },
+    {
+      "part": "ב",
+      "section": null,
+      "codes": null,
+      "label": "טלפון נייד",
+      "kind": "text",
+      "instruction": null,
+      "documents": [],
+      "guidePage": null,
+      "id": "F076"
+    },
+    {
+      "part": "ב",
+      "section": null,
+      "codes": null,
+      "label": "מעוניין לקבל הודעות מרשות המסים באמצעות: כתובת הדואר האלקטרוני",
+      "kind": "checkbox",
+      "instruction": "מסמנים אם רוצים לקבל הודעות במייל.",
+      "documents": [],
+      "guidePage": 28,
+      "id": "F077"
+    },
+    {
+      "part": "ב",
+      "section": null,
+      "codes": null,
+      "label": "מעוניין לקבל הודעות מרשות המסים באמצעות: מסרון (SMS) לטלפון הנייד",
+      "kind": "checkbox",
+      "instruction": "מסמנים אם רוצים לקבל הודעות במסרון.",
+      "documents": [],
+      "guidePage": 28,
+      "id": "F078"
+    },
+    {
+      "part": "ב",
+      "section": null,
+      "codes": null,
+      "label": "״בן הזוג הרשום״ - העיסוק העיקרי (פרט)",
+      "kind": "text",
+      "instruction": "תיאור מדויק של הענף (למשל ״חנות קמעונאית להלבשת נשים״), לא ״בעל חנות״. חובה.",
+      "documents": [],
+      "guidePage": 29,
+      "person": "registered",
+      "id": "F079"
+    },
+    {
+      "part": "ב",
+      "section": null,
+      "codes": null,
+      "label": "״בן הזוג הרשום״ - שם העסק",
+      "kind": "text",
+      "instruction": "חובה; כשלבני הזוג עסקים שונים - העסק העיקרי.",
+      "documents": [],
+      "guidePage": 29,
+      "person": "registered",
+      "id": "F080"
+    },
+    {
+      "part": "ב",
+      "section": null,
+      "codes": null,
+      "label": "״בן הזוג הרשום״ - כתובת העסק (רחוב, מספר, ישוב, מיקוד)",
+      "kind": "text",
+      "instruction": "במקוון מוצגת הכתובת העדכנית; עדכון דרך הקישור.",
+      "documents": [],
+      "guidePage": 29,
+      "person": "registered",
+      "id": "F081"
+    },
+    {
+      "part": "ב",
+      "section": null,
+      "codes": null,
+      "label": "״בן הזוג הרשום״ - מספר תיק בעסק העיקרי",
+      "kind": "text",
+      "instruction": null,
+      "documents": [],
+      "guidePage": null,
+      "person": "registered",
+      "id": "F082"
+    },
+    {
+      "part": "ב",
+      "section": null,
+      "codes": null,
+      "label": "״בן הזוג הרשום״ - מספר תיק ניכויים (מתחיל ב-9)",
+      "kind": "text",
+      "instruction": null,
+      "documents": [],
+      "guidePage": null,
+      "person": "registered",
+      "id": "F083"
+    },
+    {
+      "part": "ב",
+      "section": null,
+      "codes": null,
+      "label": "״בן הזוג הרשום״ - מספר עוסק במע״מ",
+      "kind": "text",
+      "instruction": null,
+      "documents": [],
+      "guidePage": null,
+      "person": "registered",
+      "id": "F084"
+    },
+    {
+      "part": "ב",
+      "section": null,
+      "codes": null,
+      "label": "״בן הזוג הרשום״ - שמות המעבידים",
+      "kind": "text",
+      "instruction": null,
+      "documents": [],
+      "guidePage": null,
+      "person": "registered",
+      "id": "F085"
+    },
+    {
+      "part": "ב",
+      "section": null,
+      "codes": null,
+      "label": "בן/בת הזוג - העיסוק העיקרי (פרט)",
+      "kind": "text",
+      "instruction": "תיאור מדויק של הענף (למשל ״חנות קמעונאית להלבשת נשים״), לא ״בעל חנות״. חובה.",
+      "documents": [],
+      "guidePage": 29,
+      "person": "spouse",
+      "id": "F086"
+    },
+    {
+      "part": "ב",
+      "section": null,
+      "codes": null,
+      "label": "בן/בת הזוג - שם העסק",
+      "kind": "text",
+      "instruction": "חובה; כשלבני הזוג עסקים שונים - העסק העיקרי.",
+      "documents": [],
+      "guidePage": 29,
+      "person": "spouse",
+      "id": "F087"
+    },
+    {
+      "part": "ב",
+      "section": null,
+      "codes": null,
+      "label": "בן/בת הזוג - כתובת העסק (רחוב, מספר, ישוב, מיקוד)",
+      "kind": "text",
+      "instruction": "במקוון מוצגת הכתובת העדכנית; עדכון דרך הקישור.",
+      "documents": [],
+      "guidePage": 29,
+      "person": "spouse",
+      "id": "F088"
+    },
+    {
+      "part": "ב",
+      "section": null,
+      "codes": null,
+      "label": "בן/בת הזוג - מספר תיק בעסק העיקרי",
+      "kind": "text",
+      "instruction": null,
+      "documents": [],
+      "guidePage": null,
+      "person": "spouse",
+      "id": "F089"
+    },
+    {
+      "part": "ב",
+      "section": null,
+      "codes": null,
+      "label": "בן/בת הזוג - מספר תיק ניכויים (מתחיל ב-9)",
+      "kind": "text",
+      "instruction": null,
+      "documents": [],
+      "guidePage": null,
+      "person": "spouse",
+      "id": "F090"
+    },
+    {
+      "part": "ב",
+      "section": null,
+      "codes": null,
+      "label": "בן/בת הזוג - מספר עוסק במע״מ",
+      "kind": "text",
+      "instruction": null,
+      "documents": [],
+      "guidePage": null,
+      "person": "spouse",
+      "id": "F091"
+    },
+    {
+      "part": "ב",
+      "section": null,
+      "codes": null,
+      "label": "בן/בת הזוג - שמות המעבידים",
+      "kind": "text",
+      "instruction": null,
+      "documents": [],
+      "guidePage": null,
+      "person": "spouse",
+      "id": "F092"
+    },
+    {
+      "part": "ב",
+      "section": null,
+      "codes": {
+        "registered": "277",
+        "spouse": null
+      },
+      "label": "חשבון בנק להחזר (על שם ״בן הזוג הרשום״) - מספר חשבון",
+      "kind": "text",
+      "instruction": "החשבון חייב להיות על שם בן הזוג הרשום (או משותף). במקוון עולים הפרטים מהגבייה; מסמנים X רק לעדכון.",
+      "documents": [],
+      "guidePage": 29,
+      "uncertain": false,
+      "note": "קוד 277 מודפס בפינת תיבה אחת שמתחתיה רק הכיתוב ״מספר חשבון״.",
+      "id": "F093"
+    },
+    {
+      "part": "ב",
+      "section": null,
+      "codes": {
+        "registered": "278",
+        "spouse": null
+      },
+      "label": "חשבון בנק להחזר - סמל סניף + סמל בנק (תיבה אחת, קוד 278)",
+      "kind": "text",
+      "instruction": null,
+      "documents": [],
+      "guidePage": 29,
+      "uncertain": false,
+      "note": "278 הוא קוד של תיבה אחת המחולקת לשני תאים: ״סמל סניף״ (ימני) ו״סמל בנק״ (שמאלי).",
+      "id": "F094",
+      "subfields": [
+        "סמל סניף",
+        "סמל בנק"
+      ]
+    },
+    {
+      "part": "ב",
+      "section": null,
+      "codes": {
+        "registered": "278",
+        "spouse": null
+      },
+      "label": "חשבון בנק להחזר - סמל בנק",
+      "kind": "text",
+      "instruction": null,
+      "documents": [],
+      "guidePage": 29,
+      "uncertain": false,
+      "id": "F095",
+      "note": "החלק השמאלי של תיבה 278 (ראו F094). אין לו קוד נפרד."
+    },
+    {
+      "part": "ב",
+      "section": null,
+      "codes": null,
+      "label": "שם בעל החשבון כפי שמופיע במרשמי הבנק",
+      "kind": "text",
+      "instruction": null,
+      "documents": [],
+      "guidePage": 29,
+      "id": "F096"
+    },
+    {
+      "part": "ב",
+      "section": "הצהרה",
+      "codes": null,
+      "label": "תאריך (הצהרת מגיש הדוח)",
+      "kind": "date",
+      "instruction": null,
+      "documents": [],
+      "guidePage": null,
+      "id": "F097"
+    },
+    {
+      "part": "ב",
+      "section": "הצהרה",
+      "codes": null,
+      "label": "חתימת ״בן הזוג הרשום״",
+      "kind": "text",
+      "instruction": "בן הזוג הרשום חייב לחתום; ללא חתימת בן הזוג רואים אותו כמי שהצהיר שבידו ייפוי כוח (ס׳ 144).",
+      "documents": [],
+      "guidePage": 29,
+      "id": "F098"
+    },
+    {
+      "part": "ב",
+      "section": "הצהרה",
+      "codes": null,
+      "label": "חתימת בן/בת הזוג",
+      "kind": "text",
+      "instruction": "רשות; היעדרה = הצהרה על ייפוי כוח מצד בן הזוג הרשום.",
+      "documents": [],
+      "guidePage": 29,
+      "id": "F099"
+    },
+    {
+      "part": "ב",
+      "section": "הצהרה",
+      "codes": null,
+      "label": "במילוי דין וחשבון זה נעזרתי, תמורת תשלום, על ידי מסייע שפרטיו מצויינים להלן",
+      "kind": "checkbox",
+      "instruction": "אם נעזרת תמורת תשלום ברו״ח/עו״ד/יועץ מס או אחר - רושמים את פרטי המסייע וחתימתו.",
+      "documents": [],
+      "guidePage": 28,
+      "id": "F100"
+    },
+    {
+      "part": "ב",
+      "section": "מסייע",
+      "codes": null,
+      "label": "פרטי המסייע - שם המשרד",
+      "kind": "text",
+      "instruction": "רישום מדויק של פרטי המסייע; רק רו״ח/עו״ד/יועץ מס עם ייפוי כוח (2297/א) רשאים לייצג.",
+      "documents": [
+        "2297א"
+      ],
+      "guidePage": 28,
+      "id": "F101"
+    },
+    {
+      "part": "ב",
+      "section": "מסייע",
+      "codes": null,
+      "label": "פרטי המסייע - מספר עוסק מורשה",
+      "kind": "text",
+      "instruction": null,
+      "documents": [],
+      "guidePage": null,
+      "id": "F102"
+    },
+    {
+      "part": "ב",
+      "section": "מסייע",
+      "codes": null,
+      "label": "פרטי המסייע - מספר טלפון",
+      "kind": "text",
+      "instruction": null,
+      "documents": [],
+      "guidePage": null,
+      "id": "F103"
+    },
+    {
+      "part": "ב",
+      "section": "מסייע",
+      "codes": null,
+      "label": "פרטי המסייע - כתובת דואר אלקטרוני",
+      "kind": "text",
+      "instruction": null,
+      "documents": [],
+      "guidePage": null,
+      "id": "F104"
+    },
+    {
+      "part": "ב",
+      "section": "מסייע",
+      "codes": null,
+      "label": "פרטי המסייע - תאריך",
+      "kind": "date",
+      "instruction": null,
+      "documents": [],
+      "guidePage": null,
+      "id": "F105"
+    },
+    {
+      "part": "ב",
+      "section": "מסייע",
+      "codes": null,
+      "label": "פרטי המסייע - שם איש הקשר",
+      "kind": "text",
+      "instruction": "רו״ח/יועץ/עו״ד יכלול שם איש קשר במשרדו לבירורים על הדוח.",
+      "documents": [],
+      "guidePage": 29,
+      "id": "F106"
+    },
+    {
+      "part": "ב",
+      "section": "מסייע",
+      "codes": null,
+      "label": "פרטי המסייע - חתימה (הצהרה לפי סעיף 143)",
+      "kind": "text",
+      "instruction": "חתימת המסייע חייבת להופיע.",
+      "documents": [],
+      "guidePage": 28,
+      "id": "F107"
+    },
+    {
+      "part": "ג",
+      "section": "1",
+      "codes": {
+        "registered": "150",
+        "spouse": "170"
+      },
+      "label": "מיגיעה אישית מעסק או משלח יד (כולל פיצוי בגין נזק עקיף חרבות ברזל)",
+      "kind": "amount",
+      "instruction": "הכנסה חייבת אחרי הוצאות, לפני ניכויים אישיים; כוללת פיצוי נזק עקיף. לא לכלול כהוצאה קה״ש/אכ״ע (נרשמים 136/137, 112/113). נספח א לכל עסק.",
+      "documents": [
+        "1320",
+        "דוח רווח והפסד",
+        "אישור קרן הסיוע"
+      ],
+      "guidePage": 29,
+      "id": "F108"
+    },
+    {
+      "part": "ג",
+      "section": "2א",
+      "codes": {
+        "registered": "250",
+        "spouse": "270"
+      },
+      "label": "תקבולים והחזרים חייבים מהמוסד לביטוח לאומי בגין הכנסה כעצמאי (מילואים, דמי לידה וכו׳)",
+      "kind": "amount",
+      "instruction": "סכומים מב״ל בגין הכנסה כעצמאי. החזר הפרשי שומה מב״ל מעל התשלומים: 52% מההפרש מתווסף לכאן.",
+      "documents": [
+        "אישור שנתי ביטוח לאומי"
+      ],
+      "guidePage": 30,
+      "id": "F109"
+    },
+    {
+      "part": "ג",
+      "section": "2ב",
+      "codes": {
+        "registered": "194",
+        "spouse": "196"
+      },
+      "label": "תקבולים מב״ל בגין הכנסה כשכיר שאינם כלולים בטופס 106 (מילואים, אבטלה, לידה, פגיעה, מענק הסתגלות)",
+      "kind": "amount",
+      "instruction": "רק סכומים מב״ל שלא נכללו ב-106; מה שכלול ב-106 נרשם ב-158/172. ניתן לייחס דמי לידה/מילואים לתקופת הזכאות.",
+      "documents": [
+        "אישור שנתי ביטוח לאומי"
+      ],
+      "guidePage": 30,
+      "id": "F110"
+    },
+    {
+      "part": "ג",
+      "section": "3",
+      "codes": {
+        "registered": "158",
+        "spouse": "172"
+      },
+      "label": "ממשכורת/משכר עבודה (לרבות תקבולי ב״ל כשכיר, לא כולל משמרות)",
+      "kind": "amount",
+      "instruction": "הכנסת עבודה כולל זקיפות ותקבולי ב״ל הכלולים ב-106, כולל הכנסה מחו״ל ומענק קרן הסיוע לשכיר. לא כולל קצבאות/פיצויים ומשמרות.",
+      "documents": [
+        "106",
+        "134"
+      ],
+      "guidePage": 30,
+      "id": "F111"
+    },
+    {
+      "part": "ג",
+      "section": "4",
+      "codes": {
+        "registered": "068",
+        "spouse": "069"
+      },
+      "label": "מעבודה במשמרות בתעשייה (מלוא שכר המשמרות)",
+      "kind": "amount",
+      "instruction": "סך ההכנסה מעבודה במשמרות במפעל תעשייתי; זיכוי 15% עד תקרת הכנסה 143,040 ועד 12,540 ₪.",
+      "documents": [
+        "106",
+        "אישור מעביד"
+      ],
+      "guidePage": 32,
+      "id": "F112"
+    },
+    {
+      "part": "ג",
+      "section": "5א",
+      "codes": {
+        "registered": "258",
+        "spouse": "272"
+      },
+      "label": "החלק החייב של מענקי פרישה וקצבאות (מעביד, קופ״ג, חברת ביטוח, שאירים שלא מב״ל), הכנסות עבודה לאחר פטירה",
+      "kind": "amount",
+      "instruction": "החלק החייב בלבד (הפטור בסעיף 44). כולל קצבת אכ״ע. הכנסה לאחר פטירה: עד 560,280 בסך חלקים ג+ד - כאן; העודף ל-061/214/314.",
+      "documents": [
+        "106",
+        "אישור קופה",
+        "161"
+      ],
+      "guidePage": 32,
+      "id": "F113"
+    },
+    {
+      "part": "ג",
+      "section": "5ב",
+      "codes": {
+        "registered": "358",
+        "spouse": "372"
+      },
+      "label": "מענקי פרישה שאושרה פריסתם לפי 8(ג) - הסכום המתייחס לשנה זו",
+      "kind": "amount",
+      "instruction": "החלק היחסי של הפיצויים החייבים שנפרסו לשנה זו; המס שנוכה בגינו בסעיף 87. מצרפים אישור פקיד שומה על הפריסה.",
+      "documents": [
+        "אישור פריסה",
+        "161"
+      ],
+      "guidePage": 34,
+      "id": "F114"
+    },
+    {
+      "part": "ג",
+      "section": "6",
+      "codes": {
+        "registered": "120",
+        "spouse": "220"
+      },
+      "label": "מהשכרת נכס ששימש בעסקך מעל 10 שנים (הצהרה בנספח ב)",
+      "kind": "amount",
+      "instruction": "דמי שכירות מנכס ששימש 10 שנים לפחות לעסק/משלח יד - יגיעה אישית. לא לרשום גם בחלקים ד/ה. הצהרה בנספח ב (1321).",
+      "documents": [
+        "1321"
+      ],
+      "guidePage": 37,
+      "id": "F115"
+    },
+    {
+      "part": "ג",
+      "section": "7",
+      "codes": null,
+      "label": "הכנסות אחרות מיגיעה אישית שלא פורטו לעיל (פרט)",
+      "kind": "text",
+      "instruction": "יש לפרט; ההכנסה אינה נכללת בחישוב המס - פקיד השומה יסווג אותה לפי הפירוט.",
+      "documents": [],
+      "guidePage": 37,
+      "note": "אין קוד שדה מודפס בטופס",
+      "id": "F116"
+    },
+    {
+      "part": "ד",
+      "section": "8",
+      "codes": {
+        "registered": "201",
+        "spouse": "301",
+        "joint": "059"
+      },
+      "label": "מנכס בית (לא כולל הכנסה מ״חברת בית״)",
+      "kind": "amount",
+      "instruction": "הכנסה משכירות מבנה/דירה אחרי הוצאות (נספח ב). זוג נשוי - בטור שני בני הזוג, אלא אם הנכס מלפני הנישואין/ירושה. לא הכנסה במסלול 10% או פטורה.",
+      "documents": [
+        "1321"
+      ],
+      "guidePage": 38,
+      "id": "F117"
+    },
+    {
+      "part": "ד",
+      "section": "9",
+      "codes": {
+        "registered": "202",
+        "spouse": "302",
+        "joint": "159"
+      },
+      "label": "מ״חברת בית״ (מחולקת לפי סעיף 64)",
+      "kind": "amount",
+      "instruction": "הכנסה המועברת מחברת בית; מצרפים טופס 246א.",
+      "documents": [
+        "246א"
+      ],
+      "guidePage": 38,
+      "id": "F118"
+    },
+    {
+      "part": "ד",
+      "section": "10",
+      "codes": {
+        "registered": "204",
+        "spouse": "304",
+        "joint": "367"
+      },
+      "label": "מחברה משפחתית (שלא מיגיעה אישית)",
+      "kind": "amount",
+      "instruction": "הכנסת חברה משפחתית שיוחסה לנישום המייצג; חלק מיגיעה אישית - בשדה 150/170. במקביל סך ההכנסות המועברות בשדה 064 (מקוון).",
+      "documents": [],
+      "guidePage": 39,
+      "id": "F119"
+    },
+    {
+      "part": "ד",
+      "section": "11",
+      "codes": {
+        "registered": "205",
+        "spouse": "305",
+        "joint": "167"
+      },
+      "label": "הכנסות אחרות שאינן מיגיעה אישית (פרט)",
+      "kind": "amount",
+      "instruction": "השכרת ציוד/נכסים אחרים, עסק שלא מיגיעה, ריט (867ו), ריבית/הפרשי הצמדה בשיעור רגיל, הפרשי ריבית 3(ט). פירוט בנספח ב.",
+      "documents": [
+        "1321",
+        "867ו"
+      ],
+      "guidePage": 39,
+      "id": "F120"
+    },
+    {
+      "part": "ד",
+      "section": "11",
+      "codes": null,
+      "label": "פרט (מקור ההכנסות האחרות שאינן מיגיעה אישית)",
+      "kind": "text",
+      "instruction": null,
+      "documents": [],
+      "guidePage": 39,
+      "id": "F121"
+    },
+    {
+      "part": "ה",
+      "section": "12",
+      "codes": {
+        "registered": "214",
+        "spouse": "314",
+        "joint": "061"
+      },
+      "label": "פטנט או הכנסה לאחר פטירה - מס מוגבל ל-40%",
+      "kind": "amount",
+      "instruction": "הכנסה ממכירת ספר/פטנט שלא בתחום העיסוק, הכנסות לאחר פטירה. הכנסה לאחר פטירה: רק החלק שמעבר ל-560,280 בסך חלקים ג+ד.",
+      "documents": [],
+      "guidePage": 40,
+      "id": "F122"
+    },
+    {
+      "part": "ה",
+      "section": "13",
+      "codes": {
+        "registered": "211",
+        "spouse": "311",
+        "joint": "060"
+      },
+      "label": "ריבית על ני״ע, ריבית ורווחים מקופות גמל ודיבידנד ממפעל מאושר/מוטב - 15%",
+      "kind": "amount",
+      "instruction": "דיבידנד ממפעל מאושר/מוטב וריבית על ני״ע לא צמוד (15%). ברוטו כולל מס שנוכה.",
+      "documents": [
+        "867"
+      ],
+      "guidePage": 40,
+      "id": "F123"
+    },
+    {
+      "part": "ה",
+      "section": "14",
+      "codes": {
+        "registered": "228",
+        "spouse": "328",
+        "joint": "067"
+      },
+      "label": "ריבית על ני״ע, ריבית מקופות גמל - שלא יעלה על 20%",
+      "kind": "amount",
+      "instruction": "ריבית על נייר ערך החייבת עד 20%, אחרי קיזוז הפסדי הון מני״ע אם בוצע.",
+      "documents": [
+        "867"
+      ],
+      "guidePage": 41,
+      "id": "F124"
+    },
+    {
+      "part": "ה",
+      "section": "15",
+      "codes": {
+        "registered": "257",
+        "spouse": "357",
+        "joint": "157"
+      },
+      "label": "ריבית על ני״ע, ריבית מקופות גמל - שלא יעלה על 25%",
+      "kind": "amount",
+      "instruction": "ריבית ני״ע צמוד/זר (מ-2012) ורווחי קרן השתלמות מעל תקרת 188,544 - עד 25%.",
+      "documents": [
+        "867"
+      ],
+      "guidePage": 41,
+      "id": "F125"
+    },
+    {
+      "part": "ה",
+      "section": "16",
+      "codes": {
+        "registered": "275",
+        "spouse": "325",
+        "joint": "173"
+      },
+      "label": "דיבידנד ממפעל מועדף/מאושר/מוטב, ״מבניין מאושר״ - 20%",
+      "kind": "amount",
+      "instruction": "דיבידנד ממפעל מועדף/מאושר/מוטב או מבניין מאושר.",
+      "documents": [
+        "867"
+      ],
+      "guidePage": 40,
+      "id": "F126"
+    },
+    {
+      "part": "ה",
+      "section": "17",
+      "codes": {
+        "registered": "241",
+        "spouse": "341",
+        "joint": "141"
+      },
+      "label": "דיבידנד ורווח ממניות הניתנות לפדיון - 25% (לא כולל דיבידנד בשורה 32)",
+      "kind": "amount",
+      "instruction": "דיבידנד מחברה למי שאינו בעל מניות מהותי; גם ספורטאי/עיתונאי חוץ (25%) והכנסה מועברת 62א(א3).",
+      "documents": [
+        "867"
+      ],
+      "guidePage": 40,
+      "id": "F127"
+    },
+    {
+      "part": "ה",
+      "section": "18",
+      "codes": {
+        "registered": "212",
+        "spouse": "312",
+        "joint": "055"
+      },
+      "label": "דיבידנד לבעל מניות מהותי והכנסות אחרות - 30% (לא כולל דיבידנד בשורה 32)",
+      "kind": "amount",
+      "instruction": "דיבידנד לבעל מניות מהותי (10%+ באמצעי שליטה); גם משיכה מחברה כדיבידנד לפי 3(ט1).",
+      "documents": [
+        "867"
+      ],
+      "guidePage": 40,
+      "id": "F128"
+    },
+    {
+      "part": "ה",
+      "section": "19",
+      "codes": {
+        "registered": "276",
+        "spouse": "336",
+        "joint": "174"
+      },
+      "label": "דיבידנד רעיוני לבעל שליטה בחמי״ז - 23%",
+      "kind": "amount",
+      "instruction": "חלקו היחסי של בעל שליטה ברווחי חברת משלח יד זרה, לפי הרישום בנספח ד.",
+      "documents": [
+        "1324"
+      ],
+      "guidePage": 42,
+      "id": "F129"
+    },
+    {
+      "part": "ה",
+      "section": "20",
+      "codes": {
+        "registered": "051",
+        "spouse": "052",
+        "joint": "050"
+      },
+      "label": "ריבית על ני״ע ומניות הניתנות לפדיון (החלק החייב בשיעור זה) - 35%",
+      "kind": "amount",
+      "instruction": "ריבית ני״ע זרים שנצמחה עד 2004, אג״ח לפני 8/5/00, והחלק החייב 35% של מניות בנות פדיון.",
+      "documents": [
+        "867"
+      ],
+      "guidePage": 42,
+      "id": "F130"
+    },
+    {
+      "part": "ה",
+      "section": "21",
+      "codes": {
+        "registered": "217",
+        "spouse": "317",
+        "joint": "078"
+      },
+      "label": "ריבית על פקדונות ותוכניות חיסכון - 15% (לפני פטורים מסעיפים 125ד, ה)",
+      "kind": "amount",
+      "instruction": "פיקדון/תוכנית לא צמודים. רושמים את מלוא הריבית לפי 867 לפני הקלות; כולל ילדים מתחת ל-18. המס שנוכה - ב-043.",
+      "documents": [
+        "867"
+      ],
+      "guidePage": 42,
+      "id": "F131"
+    },
+    {
+      "part": "ה",
+      "section": "22",
+      "codes": {
+        "registered": "226",
+        "spouse": "326",
+        "joint": "126"
+      },
+      "label": "ריבית על פקדונות ותוכניות חיסכון - שלא יעלה על 20% (לפני פטורים)",
+      "kind": "amount",
+      "instruction": "ריבית שנצמחה 2006-2011 על פיקדון צמוד; מלוא הסכום לפני הקלות.",
+      "documents": [
+        "867"
+      ],
+      "guidePage": 42,
+      "id": "F132"
+    },
+    {
+      "part": "ה",
+      "section": "23",
+      "codes": {
+        "registered": "242",
+        "spouse": "342",
+        "joint": "142"
+      },
+      "label": "ריבית על פקדונות ותוכניות חיסכון - שלא יעלה על 25% (לפני פטורים)",
+      "kind": "amount",
+      "instruction": "פיקדון/תוכנית צמודים למדד - רווח מעל המדד. מלוא הסכום לפני הקלות; ניכוי במקור ב-043.",
+      "documents": [
+        "867"
+      ],
+      "guidePage": 42,
+      "id": "F133"
+    },
+    {
+      "part": "ה",
+      "section": "24",
+      "codes": {
+        "registered": "284",
+        "spouse": "344",
+        "joint": "222"
+      },
+      "label": "הכנסה משכר דירה למגורים / חוק אנרגיות מתחדשות - 10%",
+      "kind": "amount",
+      "instruction": "דמי שכירות למגורים במסלול 10% (ללא הוצאות, תשלום תוך 30 יום מסוף השנה); וגם הכנסת אנרגיה מתחדשת 27,900-120,000.",
+      "documents": [
+        "3302",
+        "אישור חברת חשמל"
+      ],
+      "guidePage": 44,
+      "id": "F134"
+    },
+    {
+      "part": "ה",
+      "section": "25",
+      "codes": {
+        "registered": "285",
+        "spouse": "345",
+        "joint": "225"
+      },
+      "label": "הכנסה משכר דירה בחו״ל לפי סעיף 122א - 15%",
+      "kind": "amount",
+      "instruction": "שכירות מחו״ל במסלול 15%: ההכנסה בניכוי הפחת בלבד; ללא זיכוי מס זר.",
+      "documents": [],
+      "guidePage": 44,
+      "id": "F135"
+    },
+    {
+      "part": "ה",
+      "section": "26",
+      "codes": {
+        "registered": "286",
+        "spouse": "346",
+        "joint": "227"
+      },
+      "label": "הכנסה מהימורים, הגרלות ופרסים - 35%",
+      "kind": "amount",
+      "instruction": "הסכום החייב אחרי הפטור (33,840 פוחת עד 67,680). מס שנוכה - בשדה 040.",
+      "documents": [
+        "אישור ניכוי"
+      ],
+      "guidePage": 45,
+      "id": "F136"
+    },
+    {
+      "part": "ה",
+      "section": "27",
+      "codes": {
+        "registered": "337",
+        "spouse": "347",
+        "joint": "335"
+      },
+      "label": "הכנסה מהשכרת מקרקעין לפי חוק אנרגיות מתחדשות - 31%",
+      "kind": "amount",
+      "instruction": "החלק החייב מעבר לפטור המתקפל (5,800 ₪); הפטור נרשם בסעיף 45.",
+      "documents": [],
+      "guidePage": 45,
+      "id": "F137"
+    },
+    {
+      "part": "ה",
+      "section": "28",
+      "codes": {
+        "registered": "288",
+        "spouse": "338"
+      },
+      "label": "הכנסה לפי חוק חלוקה לחיסכון פנסיוני - 20%",
+      "kind": "amount",
+      "instruction": "סכומים שהועברו במסגרת חלוקת חיסכון פנסיוני, מעבר לפטור 9(17א).",
+      "documents": [],
+      "guidePage": 45,
+      "id": "F138"
+    },
+    {
+      "part": "ה",
+      "section": "29",
+      "codes": {
+        "registered": "213",
+        "spouse": "313"
+      },
+      "label": "משיכות שלא כדין מקופות גמל - 35%",
+      "kind": "amount",
+      "instruction": "אישי: 213 כשהקופה של בן הזוג הרשום, 313 של בן/בת הזוג. במס 35% ניתנות רק נקודות בסיס.",
+      "documents": [
+        "אישור קופה"
+      ],
+      "guidePage": 45,
+      "id": "F139"
+    },
+    {
+      "part": "ה",
+      "section": "30",
+      "codes": null,
+      "label": "הכנסות אחרות בשיעור מס מיוחד: מקור ההכנסה",
+      "kind": "text",
+      "instruction": "כל הכנסה בשיעור מיוחד שאינה בסעיפים 12-29; יש לפרט את המקור.",
+      "documents": [],
+      "guidePage": 45,
+      "note": "אין קוד שדה מודפס",
+      "id": "F140"
+    },
+    {
+      "part": "ה",
+      "section": "30",
+      "codes": null,
+      "label": "הכנסות אחרות - מס בשיעור %",
+      "kind": "percent",
+      "instruction": null,
+      "documents": [],
+      "guidePage": 45,
+      "id": "F141"
+    },
+    {
+      "part": "ה",
+      "section": "30",
+      "codes": null,
+      "label": "הכנסות אחרות - סכום (קו מילוי בכל אחד משלושת הטורים, ללא קוד)",
+      "kind": "amount",
+      "instruction": null,
+      "documents": [],
+      "guidePage": 45,
+      "uncertain": false,
+      "note": "סעיף 30: ״מקור ההכנסה ____ מס בשיעור __%״, ואחריהם שלושה קווי מילוי בטורי חלק ה. אין תיבות קוד.",
+      "id": "F142",
+      "subfields": [
+        "הכנסות שני בני הזוג",
+        "״בן הזוג הרשום״",
+        "בן/בת הזוג"
+      ]
+    },
+    {
+      "part": "ה",
+      "section": "31",
+      "codes": {
+        "registered": null,
+        "spouse": null,
+        "joint": "077"
+      },
+      "label": "הכנסות שני בני הזוג בעקבות סעיף 6 להוראת השעה רווחים לא מחולקים - 47%",
+      "kind": "amount",
+      "instruction": "הכנסה בשיעור מס שולי מקסימלי לפי טפסי 171/172. כפוף גם למס על הכנסות גבוהות.",
+      "documents": [
+        "171",
+        "172"
+      ],
+      "guidePage": 46,
+      "id": "F143"
+    },
+    {
+      "part": "ה",
+      "section": "31",
+      "codes": {
+        "registered": null,
+        "spouse": null,
+        "joint": "080"
+      },
+      "label": "כנ״ל - 30% (דיבידנד, בעל מניות מהותי)",
+      "kind": "amount",
+      "instruction": "הכנסה בשיעור דיבידנד לבעל מניות מהותי.",
+      "documents": [
+        "171",
+        "172"
+      ],
+      "guidePage": 46,
+      "id": "F144"
+    },
+    {
+      "part": "ה",
+      "section": "31",
+      "codes": {
+        "registered": null,
+        "spouse": null,
+        "joint": "165"
+      },
+      "label": "כנ״ל - 25% (דיבידנד, בעל מניות שאינו מהותי)",
+      "kind": "amount",
+      "instruction": null,
+      "documents": [
+        "171",
+        "172"
+      ],
+      "guidePage": 46,
+      "id": "F145"
+    },
+    {
+      "part": "ה",
+      "section": "31",
+      "codes": {
+        "registered": null,
+        "spouse": null,
+        "joint": "168"
+      },
+      "label": "כנ״ל - 10% (רווחים ראויים לחלוקה עד 31/12/2002)",
+      "kind": "amount",
+      "instruction": "חלק ברווחים הראויים לחלוקה מהקמת החברה עד 31/12/2002.",
+      "documents": [
+        "171",
+        "172"
+      ],
+      "guidePage": 46,
+      "note": "בגרסה הנגישה הקוד מופיע כ-127 בטעות; הטופס הרגיל והמדריך: 168",
+      "id": "F146"
+    },
+    {
+      "part": "ה",
+      "section": "32",
+      "codes": {
+        "registered": null,
+        "spouse": null,
+        "joint": "123"
+      },
+      "label": "דיבידנד רעיוני מחברה ב״שירשור״ (תקנה 3(א), 81ב(ב)(3)(ג)) - 25%",
+      "kind": "amount",
+      "instruction": "דיבידנד רעיוני לבעל מניות לא מהותי; המס שנוכה בשדה 040; מעדכנים את ״המחסנית״ במקוון.",
+      "documents": [
+        "אישור החברה המוחזקת"
+      ],
+      "guidePage": 46,
+      "id": "F147"
+    },
+    {
+      "part": "ה",
+      "section": "32",
+      "codes": {
+        "registered": null,
+        "spouse": null,
+        "joint": "127"
+      },
+      "label": "דיבידנד רעיוני מחברה ב״שירשור״ - 30%",
+      "kind": "amount",
+      "instruction": "דיבידנד רעיוני לבעל מניות מהותי; ניכוי במקור ב-040.",
+      "documents": [
+        "אישור החברה המוחזקת"
+      ],
+      "guidePage": 46,
+      "id": "F148"
+    },
+    {
+      "part": "ו",
+      "section": "33",
+      "codes": {
+        "registered": "032",
+        "spouse": "163"
+      },
+      "label": "רווח של מוסד כספי כמשמעותו בחוק מע״מ (לאחר התאמת 170/150)",
+      "kind": "amount",
+      "instruction": "הרווח לחישוב מס רווח (18%) - הכנסה חייבת לפני הפסד מועבר + מיוחדים + רווחי הון + דיבידנדים, בניכוי מס הרווח עצמו.",
+      "documents": [],
+      "guidePage": 46,
+      "id": "F149"
+    },
+    {
+      "part": "ז",
+      "section": "34",
+      "codes": {
+        "registered": "184",
+        "spouse": "185"
+      },
+      "label": "הכנסה פטורה ממס לפי סעיף 9(5) שהופחתה מהכנסות מעסק או משלח יד בלבד",
+      "kind": "amount",
+      "instruction": "חובה כשיש הכנסה מעסק ופטור נכה 100%/עיוור: סכום ההכנסה הפטורה.",
+      "documents": [
+        "אישור נכות"
+      ],
+      "guidePage": 47,
+      "id": "F150"
+    },
+    {
+      "part": "ז",
+      "section": "35",
+      "codes": {
+        "registered": "186",
+        "spouse": "187"
+      },
+      "label": "הפסדים שקוזזו כנגד הכנסות מעסק או משלח יד בלבד",
+      "kind": "amount",
+      "instruction": "חובה (אם קיימים): הפסד עסקי מועבר שקוזז השנה מהכנסות עסק.",
+      "documents": [
+        "1344"
+      ],
+      "guidePage": 47,
+      "id": "F151"
+    },
+    {
+      "part": "ז",
+      "section": "36",
+      "codes": {
+        "registered": "238",
+        "spouse": "239"
+      },
+      "label": "סך מחזור מעסק או משלח יד (ללא מע״מ)",
+      "kind": "amount",
+      "instruction": "מחזור ללא מע״מ; שותף/62א - חלקו היחסי; נישום מייצג - כולל מחזור החברה. בלי משכורת ובלי תמורות הון. מעל 95,820 = חובת מקוון.",
+      "documents": [
+        "1320"
+      ],
+      "guidePage": 47,
+      "id": "F152"
+    },
+    {
+      "part": "ח",
+      "section": "37",
+      "codes": {
+        "registered": "054",
+        "spouse": null
+      },
+      "label": "מספר טופסי רווח הון ושבח שצורפו",
+      "kind": "count",
+      "instruction": "מספר טופסי 1399י ו-1322 ועסקאות שבח חייבות; כל 1322 נספר כטופס אחד.",
+      "documents": [
+        "1399י",
+        "1322"
+      ],
+      "guidePage": 47,
+      "id": "F153"
+    },
+    {
+      "part": "ח",
+      "section": "38",
+      "codes": {
+        "registered": "056",
+        "spouse": null
+      },
+      "label": "סה״כ סכום המכירות מרווח הון ושבח (לא כולל ני״ע סחירים)",
+      "kind": "amount",
+      "instruction": "סך התמורות ברווח הון ושבח, בלי ני״ע סחירים. רווח הון פטור (דירה) בסעיף 45; הפסד מועבר בסעיף 48.",
+      "documents": [
+        "1399י"
+      ],
+      "guidePage": 47,
+      "id": "F154"
+    },
+    {
+      "part": "ח",
+      "section": "39",
+      "codes": {
+        "registered": "256",
+        "spouse": null
+      },
+      "label": "סה״כ סכום המכירות מרווח הון מני״ע סחירים (מנספח ג, ג1, ג2)",
+      "kind": "amount",
+      "instruction": "מחזור המכירות לפי נספח ג (1322). מכירת יחידות שותפות נפט - לנטרל ולרשום ב-056.",
+      "documents": [
+        "1322",
+        "1325",
+        "1326",
+        "867א",
+        "867ב"
+      ],
+      "guidePage": 48,
+      "id": "F155"
+    },
+    {
+      "part": "ט",
+      "section": "40",
+      "codes": {
+        "registered": "290",
+        "spouse": null
+      },
+      "label": "סה״כ הכנסות חו״ל (מצורף נספח ד)",
+      "kind": "amount",
+      "instruction": "סיכום הכנסות חו״ל שנרשמו גם בסעיפים לפי סוגן. המס ששולם בחו״ל - רק בנספח ד (1324), לא בטופס.",
+      "documents": [
+        "1324"
+      ],
+      "guidePage": 51,
+      "id": "F156"
+    },
+    {
+      "part": "י",
+      "section": "41",
+      "codes": {
+        "registered": "109",
+        "spouse": "309"
+      },
+      "label": "הכנסות פטורות ממס לפי סעיף 9(5) (נכה 100%)",
+      "kind": "amount",
+      "instruction": "ההכנסה הפטורה של נכה/עיוור (עד 445,200; משרד הביטחון 684,000; 81,960 מכל המקורות). מותנה באישור נכות. בחלקים ג-ה רושמים אחרי הפטור.",
+      "documents": [
+        "אישור נכות"
+      ],
+      "guidePage": 51,
+      "id": "F157"
+    },
+    {
+      "part": "י",
+      "section": "42",
+      "codes": {
+        "registered": "332",
+        "spouse": null
+      },
+      "label": "הכנסות פטורות משכ״ד למגורים",
+      "kind": "amount",
+      "instruction": "ההכנסה הפטורה עד התקרה המתואמת (5,654 ₪ לחודש, מופחתת בעודף). היתרה החייבת בסעיף 8.",
+      "documents": [
+        "מסמך חתום מהשוכר"
+      ],
+      "guidePage": 52,
+      "id": "F158"
+    },
+    {
+      "part": "י",
+      "section": "43",
+      "codes": {
+        "registered": "083",
+        "spouse": null
+      },
+      "label": "דיבידנד שהתקבל בפועל ומקורו בדיבידנד רעיוני שדווח (65% ייחשב כלא חולק)",
+      "kind": "amount",
+      "instruction": "לא יעלה על היתרה ב״מחסנית״ הדיבידנד הרעיוני; השידור פותח את המחסנית לעדכון.",
+      "documents": [
+        "אישור החברה"
+      ],
+      "guidePage": 53,
+      "id": "F159"
+    },
+    {
+      "part": "י",
+      "section": "44",
+      "codes": null,
+      "label": "קצבאות פטורות ממס",
+      "kind": "amount",
+      "instruction": "קצבאות נכות/זקנה/שאירים/ילדים מב״ל, פצעי מלחמה/איבה, וחלק פטור מקצבה ממעביד/קופה. במקוון: 101 בן הזוג הרשום, 102 בן/בת הזוג.",
+      "documents": [
+        "אישור ביטוח לאומי",
+        "אישור קופה"
+      ],
+      "guidePage": 53,
+      "note": "אין קוד מודפס; קודי המקוון 101/102 לפי המדריך (עמ׳ 33, 53)",
+      "id": "F160"
+    },
+    {
+      "part": "י",
+      "section": "45",
+      "codes": null,
+      "label": "מקורות אחרים (פרט) - הכנסות פטורות",
+      "kind": "amount",
+      "instruction": "סעיף 45 - הכנסות פטורות ממקורות אחרים (מדריך עמ' 53-57). א. 35% מ״שכירות מוטבת״ למי שהגיע לגיל פרישה (סעיף 9ד; 2% לכל שנה שהנכס שימש בעסק, עד 70%, עם תקרה 113,160; בתנאי שממלאים נספח ב/1321). ב. עולה חדש ותושב חוזר ותיק: הכנסות מחו״ל פטורות 10 שנים; תושב חוזר: הכנסות פסיביות מנכסים בחו״ל פטורות 5 שנים. ג. החלק הפטור של הכנסות משוק ההון: הפרשי הצמדה; ריבית במט״ח (נרדפי נאצים, עולה חדש, תושב חוזר, תושב חוץ); הפרשי הצמדה שלא במישור העסקי; הפרשי הצמדה וריבית על הלוואת בעל שליטה. ד. זכיות ופרסים פטורים, ירושות ומתנות. ה. מלגה לסטודנט או חוקר (לחוקר עד 109,000). ו. סכומים שמקבל נכה ברגליו להחזקת רכב. ז. תקבולים עקב רדיפות הנאצים. ח. הטבות לאסירי ציון ולהרוגי מלכות. ט. ביטוח סוציאלי מחו״ל שפטור במדינה המשלמת. י. פיצוי הלנת שכר (בגבולות הפטור). יא. דמי מזונות. יב. החלק הפטור של מענק פרישה. יג. פטורים ממס שבח (דירת מגורים מזכה). יד. תגמול מילואים מיוחד או נוסף אינו הכנסה ואין לכלול אותו בדוח. נוסף על כך: מכירת חשמל מאנרגיה מתחדשת עד 27,900 (עמ' 44), ושכירות למתקן אנרגיה מתחדשת עד 5,800 (עמ' 45).",
+      "documents": [
+        "1321"
+      ],
+      "guidePage": 53,
+      "note": "אין קוד מודפס",
+      "id": "F161",
+      "uncertain": false
+    },
+    {
+      "part": "י",
+      "section": "46",
+      "codes": {
+        "registered": "209",
+        "spouse": null
+      },
+      "label": "סה״כ הכנסות/רווחים פטורים ובלתי חייבים במס (סעיפים 41-45)",
+      "kind": "amount",
+      "instruction": "סיכום ההכנסות הפטורות של שני בני הזוג מסעיפים 41-45.",
+      "documents": [],
+      "guidePage": 57,
+      "id": "F162"
+    },
+    {
+      "part": "יא",
+      "section": "47א",
+      "codes": {
+        "registered": "097",
+        "spouse": null
+      },
+      "label": "ערך המלאי בעסק העיקרי ב-31.12.2025",
+      "kind": "amount",
+      "instruction": "שווי המלאי ביום האחרון של השנה; שותף - לפי חלקו.",
+      "documents": [
+        "ספירת מלאי"
+      ],
+      "guidePage": 57,
+      "id": "F163"
+    },
+    {
+      "part": "יא",
+      "section": "47ב",
+      "codes": {
+        "registered": "195",
+        "spouse": null
+      },
+      "label": "סך הרווח הגולמי בעסק העיקרי",
+      "kind": "amount",
+      "instruction": "מסחרי: מכירות פחות עלות המכר; יצרני: מכירות פחות עלות ייצור. שותף - לפי חלקו.",
+      "documents": [
+        "1320"
+      ],
+      "guidePage": 57,
+      "id": "F164"
+    },
+    {
+      "part": "יא",
+      "section": "47ג",
+      "codes": {
+        "registered": "279",
+        "spouse": null
+      },
+      "label": "הפסד עסקי שקוזז מהכנסות השנה",
+      "kind": "amount",
+      "instruction": "הפסדים עסקיים בלבד שקוזזו השנה (שוטף מכל מקור; מועבר רק מעסק או עבודה בתנאים). בעל עסק זעיר - קיזוז הפסדי עבר כאן.",
+      "documents": [
+        "1344"
+      ],
+      "guidePage": 57,
+      "id": "F165"
+    },
+    {
+      "part": "יא",
+      "section": "47ד",
+      "codes": {
+        "registered": "271",
+        "spouse": null
+      },
+      "label": "חלוקות שקיבלתי מנאמנות (פטורות/חייבות)",
+      "kind": "amount",
+      "instruction": "נהנה רושם את סכום החלוקות לפי סעיף 75ג.",
+      "documents": [],
+      "guidePage": 57,
+      "id": "F166"
+    },
+    {
+      "part": "יא",
+      "section": "47ה",
+      "codes": {
+        "registered": "319",
+        "spouse": null
+      },
+      "label": "הפסד הון שקוזז השנה מהשקעה מזכה במניות חברת מו״פ",
+      "kind": "amount",
+      "instruction": "הפסד ההון שקוזז השנה מהשקעה מזכה (עד 5 מיליון) בהנפקה לציבור.",
+      "documents": [],
+      "guidePage": 57,
+      "id": "F167"
+    },
+    {
+      "part": "יא",
+      "section": "47ו",
+      "codes": {
+        "registered": "323",
+        "spouse": null
+      },
+      "label": "משיכה מחברה לפי 3(ט1) כדיבידנד (נרשם גם ב-055/212/312)",
+      "kind": "amount",
+      "instruction": "משיכות בעל מניות מהותי שנחשבות דיבידנד; רושמים גם בשדה 312/212/055. מעל 100,000 - טופס 1350.",
+      "documents": [
+        "1350"
+      ],
+      "guidePage": 58,
+      "id": "F168"
+    },
+    {
+      "part": "יא",
+      "section": "47ז",
+      "codes": {
+        "registered": "343",
+        "spouse": null
+      },
+      "label": "משיכה מחברה לפי 3(ט1) כמשכורת (נרשם גם ב-158/172)",
+      "kind": "amount",
+      "instruction": "משיכות שנחשבות משכורת; רושמים גם ב-158/172.",
+      "documents": [
+        "1350"
+      ],
+      "guidePage": 58,
+      "id": "F169"
+    },
+    {
+      "part": "יא",
+      "section": "47ח",
+      "codes": {
+        "registered": "350",
+        "spouse": null
+      },
+      "label": "משיכה מחברה לפי 3(ט1) כעסק/משלח יד (נרשם גם ב-150/170 או 167)",
+      "kind": "amount",
+      "instruction": "משיכות שנחשבות הכנסת עסק; רושמים גם ב-150/170 או 305/205/167.",
+      "documents": [
+        "1350"
+      ],
+      "guidePage": 58,
+      "id": "F170"
+    },
+    {
+      "part": "יא",
+      "section": "47ט",
+      "codes": {
+        "registered": "351",
+        "spouse": null
+      },
+      "label": "הכנסה המועברת אליי לפי סעיף 62א(א) (נרשם גם ב-158/172 או 150/170)",
+      "kind": "amount",
+      "instruction": "הכנסת חברת מעטים בשל פעילות בעל המניות; גם בשדה משכורת/עסק. מס שנוכה לחברה ניתן ב-040.",
+      "documents": [
+        "1362"
+      ],
+      "guidePage": 58,
+      "id": "F171"
+    },
+    {
+      "part": "יא",
+      "section": "47י",
+      "codes": {
+        "registered": "084",
+        "spouse": null
+      },
+      "label": "הכנסה מועברת לפי 62א(א) ״חלופת דיבידנד״ (נרשם גם ב-150/170)",
+      "kind": "amount",
+      "instruction": "ההכנסה המיוחסת אחרי גילום מס חברות; גם ב-150/170. זיכוי מס חברות בשדה 100 (עד 23%), ניכוי במקור ב-040.",
+      "documents": [
+        "1362"
+      ],
+      "guidePage": 58,
+      "id": "F172"
+    },
+    {
+      "part": "יא",
+      "section": "47יא",
+      "codes": {
+        "registered": "085",
+        "spouse": null
+      },
+      "label": "הכנסה מועברת לפי 62א(א3) - מס 25% (נרשם גם ב-141/241/341)",
+      "kind": "amount",
+      "instruction": "הכנסת דיבידנד המיוחסת מחברת מעטים; רושמים גם ב-141/241/341.",
+      "documents": [
+        "1362"
+      ],
+      "guidePage": 58,
+      "id": "F173"
+    },
+    {
+      "part": "יא",
+      "section": "47יב",
+      "codes": {
+        "registered": "087",
+        "spouse": null
+      },
+      "label": "הכנסה מועברת לפי 62א(א1)+(א2) (נרשם גם ב-158/172 או 150/170)",
+      "kind": "amount",
+      "instruction": "ייחוס מחברה עתירת יגיעה/שותפה; גם בשדה משכורת/עסק. ניכוי במקור לחברה ב-040.",
+      "documents": [
+        "1362"
+      ],
+      "guidePage": 58,
+      "id": "F174"
+    },
+    {
+      "part": "יא",
+      "section": "47יג",
+      "codes": {
+        "registered": "092",
+        "spouse": null
+      },
+      "label": "הכנסה מועברת לפי 62א(א1)+(א2) ״חלופת דיבידנד״ (נרשם גם ב-150/170)",
+      "kind": "amount",
+      "instruction": "כמו 084 למסלול א1/א2: הכנסה מגולמת גם ב-150/170, מס חברות בשדה 100, ניכוי ב-040.",
+      "documents": [
+        "1362"
+      ],
+      "guidePage": 58,
+      "id": "F175"
+    },
+    {
+      "part": "יא",
+      "section": "48א",
+      "codes": {
+        "registered": "079",
+        "spouse": null
+      },
+      "label": "יתרה להעברה לשנת 2026: הפסדים מעסק וממשלח יד (ללא חו״ל)",
+      "kind": "amount",
+      "instruction": "הפסד עסקי שלא קוזז ומועבר לשנה הבאה. טופס 1344.",
+      "documents": [
+        "1344"
+      ],
+      "guidePage": 60,
+      "id": "F176"
+    },
+    {
+      "part": "יא",
+      "section": "48ב",
+      "codes": {
+        "registered": "179",
+        "spouse": null
+      },
+      "label": "יתרה להעברה: הפסדים מנכס בית (ללא חו״ל)",
+      "kind": "amount",
+      "instruction": "הפסד מנכס בית לקיזוז מאותו בניין בשנים הבאות. טופס 1344.",
+      "documents": [
+        "1344"
+      ],
+      "guidePage": 60,
+      "id": "F177"
+    },
+    {
+      "part": "יא",
+      "section": "48ג",
+      "codes": {
+        "registered": "166",
+        "spouse": null
+      },
+      "label": "יתרה להעברה: הפסדי הון שלא קוזזו (ללא חו״ל)",
+      "kind": "amount",
+      "instruction": "יתרת הפסדי הון (השנה ומשנים קודמות) שלא קוזזה. טופס 1344.",
+      "documents": [
+        "1344"
+      ],
+      "guidePage": 60,
+      "id": "F178"
+    },
+    {
+      "part": "יא",
+      "section": "48ד",
+      "codes": {
+        "registered": "160",
+        "spouse": null
+      },
+      "label": "יתרה להעברה: הפסדי הון מני״ע שנוצרו עד 31.12.05",
+      "kind": "amount",
+      "instruction": "הפסדי ני״ע עד 2005 שטרם קוזזו. טופס 1344.",
+      "documents": [
+        "1344"
+      ],
+      "guidePage": 60,
+      "id": "F179"
+    },
+    {
+      "part": "יא",
+      "section": "48ה",
+      "codes": {
+        "registered": "299",
+        "spouse": null
+      },
+      "label": "יתרה להעברה: הפסד חו״ל (מפורט בנספח ד)",
+      "kind": "amount",
+      "instruction": "הפסדי חו״ל שנותרו מכל מקור לפי נספח ד.",
+      "documents": [
+        "1324"
+      ],
+      "guidePage": 60,
+      "id": "F180"
+    },
+    {
+      "part": "יב",
+      "section": "49",
+      "codes": {
+        "registered": "112",
+        "spouse": "113"
+      },
+      "label": "לביטוח מפני אבדן כושר עבודה ששילם היחיד בשל הכנסה כעצמאי - הסכום ששולם",
+      "kind": "amount",
+      "instruction": "הסכום ששולם (לא בדוח רו״ה). המחשב מחשב ניכוי עד 3.5% מההכנסה עד 399,480.",
+      "documents": [
+        "אישור חברת ביטוח"
+      ],
+      "guidePage": 60,
+      "id": "F181"
+    },
+    {
+      "part": "יב",
+      "section": "50",
+      "codes": {
+        "registered": "206",
+        "spouse": "207"
+      },
+      "label": "לביטוח מפני אובדן כושר עבודה לשכיר לפי חישוב בטופס 134",
+      "kind": "amount",
+      "instruction": "הסכום המותר לפי טופס 134 - לא הסכום ששולם. מופחת כשהמעביד הפריש מעל 4%; מעל 7.5% אין ניכוי.",
+      "documents": [
+        "134",
+        "106"
+      ],
+      "guidePage": 61,
+      "id": "F182"
+    },
+    {
+      "part": "יב",
+      "section": "51",
+      "codes": {
+        "registered": "136",
+        "spouse": "137"
+      },
+      "label": "לקרן השתלמות לעצמאים - הסכום ששולם",
+      "kind": "amount",
+      "instruction": "מלוא הסכום ששולם; המחשב מתיר עד 4.5% מהכנסה קובעת עד 293,397 (בניכוי משכורת קובעת אצל שכיר).",
+      "documents": [
+        "אישור שנתי קרן השתלמות"
+      ],
+      "guidePage": 61,
+      "id": "F183"
+    },
+    {
+      "part": "יב",
+      "section": "52",
+      "codes": {
+        "registered": "218",
+        "spouse": "219"
+      },
+      "label": "משכורת שבשלה שילם המעביד לקרן השתלמות",
+      "kind": "amount",
+      "instruction": "עצמאי שהוא גם שכיר: המשכורת לפי 106 (קוד 218/219). אם המעביד לא שילם כלל - רושמים 0.",
+      "documents": [
+        "106"
+      ],
+      "guidePage": 61,
+      "id": "F184"
+    },
+    {
+      "part": "יב",
+      "section": "53",
+      "codes": {
+        "registered": "135",
+        "spouse": "180"
+      },
+      "label": "לקופת גמל לקצבה ״כעמית עצמאי״ - הסכום ששולם",
+      "kind": "amount",
+      "instruction": "מלוא ההפקדה; המחשב נותן ניכוי ומעביר יתרה לזיכוי. אם עדיף זיכוי - לרשום בסעיף 76 במקום. בחירת מסלול: 233/234.",
+      "documents": [
+        "אישור שנתי קופת גמל",
+        "158"
+      ],
+      "guidePage": 63,
+      "id": "F185"
+    },
+    {
+      "part": "יב",
+      "section": "54",
+      "codes": {
+        "registered": "030",
+        "spouse": "089"
+      },
+      "label": "לדמי ביטוח לאומי ששולמו בגין הכנסה שאינה הכנסת עבודה - הסכום ששולם",
+      "kind": "amount",
+      "instruction": "כל הסכום ששולם השנה (בלי מס בריאות, קנסות). המחשב מנכה 52%. החזרים מב״ל מפחיתים; עודף החזר - 52% ל-250/270.",
+      "documents": [
+        "אישור שנתי ביטוח לאומי"
+      ],
+      "guidePage": 65,
+      "id": "F186"
+    },
+    {
+      "part": "יב",
+      "section": "55",
+      "codes": {
+        "registered": "005",
+        "spouse": "006"
+      },
+      "label": "למימון מחקר מדעי לפי ס׳ 20א (שלא בתחום מפעלך) - סכום הניכוי המחושב",
+      "kind": "amount",
+      "instruction": "סכום הניכוי המחושב לפי עיתוי התשלום (לא הסכום ששולם), עד 40% מההכנסה; יתרה עוברת לשנה הבאה.",
+      "documents": [
+        "אישור המדען הראשי"
+      ],
+      "guidePage": 65,
+      "id": "F187"
+    },
+    {
+      "part": "יב",
+      "section": "56",
+      "codes": {
+        "registered": "116",
+        "spouse": "117"
+      },
+      "label": "ניכוי בגין השקעה בחיפושי נפט (מצורף טופס 858י) - הניכוי המחושב",
+      "kind": "amount",
+      "instruction": "הניכוי המחושב למחזיק זכאי לפי 858י, תעודת השותפות ואישור הבנק.",
+      "documents": [
+        "858י",
+        "תעודת שותפות",
+        "אישור בנק"
+      ],
+      "guidePage": 65,
+      "id": "F188"
+    },
+    {
+      "part": "יב",
+      "section": "57",
+      "codes": {
+        "registered": "118",
+        "spouse": "119"
+      },
+      "label": "ניכוי מההכנסה בגין השקעה בסרטים - הניכוי המחושב",
+      "kind": "amount",
+      "instruction": "הניכוי המגיע בגין השקעה בסרט ישראלי (הוצאות עד 31.12.2021).",
+      "documents": [],
+      "guidePage": 66,
+      "id": "F189"
+    },
+    {
+      "part": "יב",
+      "section": "58",
+      "codes": {
+        "registered": "244",
+        "spouse": "245"
+      },
+      "label": "הכנסה מבוטחת - השכר שבגינו הפריש המעביד לקצבה",
+      "kind": "amount",
+      "instruction": "הסכום כפי שמופיע בטופס 106; משמש לחישוב ניכוי/זיכוי קופ״ג.",
+      "documents": [
+        "106"
+      ],
+      "guidePage": 66,
+      "id": "F190"
+    },
+    {
+      "part": "יב",
+      "section": "59",
+      "codes": {
+        "registered": "248",
+        "spouse": "249"
+      },
+      "label": "הפקדות המעביד לקופת גמל לקצבה",
+      "kind": "amount",
+      "instruction": "הפרשות המעביד לקצבה כולל פיצויים (בלי אכ״ע) לפי 106; לבדיקת ״עמית מוטב״.",
+      "documents": [
+        "106"
+      ],
+      "guidePage": 66,
+      "id": "F191"
+    },
+    {
+      "part": "יב",
+      "section": "60",
+      "codes": {
+        "registered": "011",
+        "spouse": "012"
+      },
+      "label": "השתתפות זמנית - הפחתת דמי הבראה",
+      "kind": "amount",
+      "instruction": "דמי ההבראה שהופחתו כפי שבטופס 106 (011/012); מגדילים את ההכנסה לחישוב הטבות קופ״ג.",
+      "documents": [
+        "106"
+      ],
+      "guidePage": 66,
+      "id": "F192"
+    },
+    {
+      "part": "יג",
+      "section": "61",
+      "codes": {
+        "registered": "020",
+        "spouse": null
+      },
+      "label": "תושב",
+      "kind": "checkbox",
+      "instruction": "תושב ישראל: 2 נקודות + רבע לנסיעה; אישה עוד חצי. בחישוב נפרד לכל בן זוג.",
+      "documents": [],
+      "guidePage": 66,
+      "id": "F193"
+    },
+    {
+      "part": "יג",
+      "section": "62",
+      "codes": {
+        "registered": "021",
+        "spouse": null
+      },
+      "label": "בן/בת הזוג - זיכוי תושב בחישוב נפרד או נקודת זיכוי עבור בן/בת הזוג",
+      "kind": "checkbox",
+      "instruction": "מקנה לבן הזוג בחישוב נפרד נקודות תושב/נסיעה/אישה, או לבן הזוג הרשום נקודה בעד בן זוג בגיל פרישה/נכה ונקודות בן זוג עובד.",
+      "documents": [],
+      "guidePage": 66,
+      "id": "F194"
+    },
+    {
+      "part": "יג",
+      "section": "63",
+      "codes": {
+        "registered": "025",
+        "spouse": null
+      },
+      "label": "בן/בת הזוג עוזר בהשגת הכנסה מעסק",
+      "kind": "checkbox",
+      "instruction": "חישוב מאוחד: 1.5 נקודות (1.75 עם קצבת ילדים) אם עזר 24 שעות/שבוע 9 חודשים. לא יחד עם בן זוג עובד.",
+      "documents": [],
+      "guidePage": 67,
+      "id": "F195"
+    },
+    {
+      "part": "יג",
+      "section": "64",
+      "codes": {
+        "registered": "260",
+        "spouse": null
+      },
+      "label": "ילדים בשנת המס - (1) בן-זוג רשום: נשוי - ילדים בחזקתי; לא נשוי - ילדים בחזקתי שבגינם מקבל קצבת ילדים - נולד",
+      "kind": "count",
+      "instruction": "נשוי: ילדים בחזקת ההורים בכל קבוצת גיל אצל כל בן זוג (260 וגם 262). לא נשוי: ילדים בחזקתו שבגינם מקבל קצבה.",
+      "documents": [
+        "116ד"
+      ],
+      "guidePage": 67,
+      "ageGroup": "נולד",
+      "id": "F196"
+    },
+    {
+      "part": "יג",
+      "section": "64",
+      "codes": {
+        "registered": "260",
+        "spouse": null
+      },
+      "label": "ילדים בשנת המס - (1) בן-זוג רשום: נשוי - ילדים בחזקתי; לא נשוי - ילדים בחזקתי שבגינם מקבל קצבת ילדים - מלאו 1-2",
+      "kind": "count",
+      "instruction": "נשוי: ילדים בחזקת ההורים בכל קבוצת גיל אצל כל בן זוג (260 וגם 262). לא נשוי: ילדים בחזקתו שבגינם מקבל קצבה.",
+      "documents": [
+        "116ד"
+      ],
+      "guidePage": 67,
+      "ageGroup": "מלאו 1-2",
+      "id": "F197"
+    },
+    {
+      "part": "יג",
+      "section": "64",
+      "codes": {
+        "registered": "260",
+        "spouse": null
+      },
+      "label": "ילדים בשנת המס - (1) בן-זוג רשום: נשוי - ילדים בחזקתי; לא נשוי - ילדים בחזקתי שבגינם מקבל קצבת ילדים - מלאו 3",
+      "kind": "count",
+      "instruction": "נשוי: ילדים בחזקת ההורים בכל קבוצת גיל אצל כל בן זוג (260 וגם 262). לא נשוי: ילדים בחזקתו שבגינם מקבל קצבה.",
+      "documents": [
+        "116ד"
+      ],
+      "guidePage": 67,
+      "ageGroup": "מלאו 3",
+      "id": "F198"
+    },
+    {
+      "part": "יג",
+      "section": "64",
+      "codes": {
+        "registered": "260",
+        "spouse": null
+      },
+      "label": "ילדים בשנת המס - (1) בן-זוג רשום: נשוי - ילדים בחזקתי; לא נשוי - ילדים בחזקתי שבגינם מקבל קצבת ילדים - מלאו 4-5",
+      "kind": "count",
+      "instruction": "נשוי: ילדים בחזקת ההורים בכל קבוצת גיל אצל כל בן זוג (260 וגם 262). לא נשוי: ילדים בחזקתו שבגינם מקבל קצבה.",
+      "documents": [
+        "116ד"
+      ],
+      "guidePage": 67,
+      "ageGroup": "מלאו 4-5",
+      "id": "F199"
+    },
+    {
+      "part": "יג",
+      "section": "64",
+      "codes": {
+        "registered": "260",
+        "spouse": null
+      },
+      "label": "ילדים בשנת המס - (1) בן-זוג רשום: נשוי - ילדים בחזקתי; לא נשוי - ילדים בחזקתי שבגינם מקבל קצבת ילדים - מלאו 6-17",
+      "kind": "count",
+      "instruction": "נשוי: ילדים בחזקת ההורים בכל קבוצת גיל אצל כל בן זוג (260 וגם 262). לא נשוי: ילדים בחזקתו שבגינם מקבל קצבה.",
+      "documents": [
+        "116ד"
+      ],
+      "guidePage": 67,
+      "ageGroup": "מלאו 6-17",
+      "id": "F200"
+    },
+    {
+      "part": "יג",
+      "section": "64",
+      "codes": {
+        "registered": "260",
+        "spouse": null
+      },
+      "label": "ילדים בשנת המס - (1) בן-זוג רשום: נשוי - ילדים בחזקתי; לא נשוי - ילדים בחזקתי שבגינם מקבל קצבת ילדים - מלאו 18",
+      "kind": "count",
+      "instruction": "נשוי: ילדים בחזקת ההורים בכל קבוצת גיל אצל כל בן זוג (260 וגם 262). לא נשוי: ילדים בחזקתו שבגינם מקבל קצבה.",
+      "documents": [
+        "116ד"
+      ],
+      "guidePage": 67,
+      "ageGroup": "מלאו 18",
+      "id": "F201"
+    },
+    {
+      "part": "יג",
+      "section": "64",
+      "codes": {
+        "registered": null,
+        "spouse": "262"
+      },
+      "label": "ילדים בשנת המס - (1) בן/בת זוג: נשוי - ילדים בחזקתי - נולד",
+      "kind": "count",
+      "instruction": "זוג נשוי: אותו מספר ילדים בחזקה נרשם גם ב-262.",
+      "documents": [
+        "116ד"
+      ],
+      "guidePage": 67,
+      "ageGroup": "נולד",
+      "id": "F202"
+    },
+    {
+      "part": "יג",
+      "section": "64",
+      "codes": {
+        "registered": null,
+        "spouse": "262"
+      },
+      "label": "ילדים בשנת המס - (1) בן/בת זוג: נשוי - ילדים בחזקתי - מלאו 1-2",
+      "kind": "count",
+      "instruction": "זוג נשוי: אותו מספר ילדים בחזקה נרשם גם ב-262.",
+      "documents": [
+        "116ד"
+      ],
+      "guidePage": 67,
+      "ageGroup": "מלאו 1-2",
+      "id": "F203"
+    },
+    {
+      "part": "יג",
+      "section": "64",
+      "codes": {
+        "registered": null,
+        "spouse": "262"
+      },
+      "label": "ילדים בשנת המס - (1) בן/בת זוג: נשוי - ילדים בחזקתי - מלאו 3",
+      "kind": "count",
+      "instruction": "זוג נשוי: אותו מספר ילדים בחזקה נרשם גם ב-262.",
+      "documents": [
+        "116ד"
+      ],
+      "guidePage": 67,
+      "ageGroup": "מלאו 3",
+      "id": "F204"
+    },
+    {
+      "part": "יג",
+      "section": "64",
+      "codes": {
+        "registered": null,
+        "spouse": "262"
+      },
+      "label": "ילדים בשנת המס - (1) בן/בת זוג: נשוי - ילדים בחזקתי - מלאו 4-5",
+      "kind": "count",
+      "instruction": "זוג נשוי: אותו מספר ילדים בחזקה נרשם גם ב-262.",
+      "documents": [
+        "116ד"
+      ],
+      "guidePage": 67,
+      "ageGroup": "מלאו 4-5",
+      "id": "F205"
+    },
+    {
+      "part": "יג",
+      "section": "64",
+      "codes": {
+        "registered": null,
+        "spouse": "262"
+      },
+      "label": "ילדים בשנת המס - (1) בן/בת זוג: נשוי - ילדים בחזקתי - מלאו 6-17",
+      "kind": "count",
+      "instruction": "זוג נשוי: אותו מספר ילדים בחזקה נרשם גם ב-262.",
+      "documents": [
+        "116ד"
+      ],
+      "guidePage": 67,
+      "ageGroup": "מלאו 6-17",
+      "id": "F206"
+    },
+    {
+      "part": "יג",
+      "section": "64",
+      "codes": {
+        "registered": null,
+        "spouse": "262"
+      },
+      "label": "ילדים בשנת המס - (1) בן/בת זוג: נשוי - ילדים בחזקתי - מלאו 18",
+      "kind": "count",
+      "instruction": "זוג נשוי: אותו מספר ילדים בחזקה נרשם גם ב-262.",
+      "documents": [
+        "116ד"
+      ],
+      "guidePage": 67,
+      "ageGroup": "מלאו 18",
+      "id": "F207"
+    },
+    {
+      "part": "יג",
+      "section": "64",
+      "codes": {
+        "registered": "190",
+        "spouse": null
+      },
+      "label": "ילדים בשנת המס - (2) בן-זוג רשום: נשוי - ילדיי שאינם בחזקתי; לא נשוי - שאינם בחזקתי או בחזקתי ללא קצבה - נולד",
+      "kind": "count",
+      "instruction": "ילד של אחד מבני הזוג שבחזקת ההורה האחר - בשדה של ההורה שלו בלבד.",
+      "documents": [
+        "116ד"
+      ],
+      "guidePage": 67,
+      "ageGroup": "נולד",
+      "id": "F208"
+    },
+    {
+      "part": "יג",
+      "section": "64",
+      "codes": {
+        "registered": "190",
+        "spouse": null
+      },
+      "label": "ילדים בשנת המס - (2) בן-זוג רשום: נשוי - ילדיי שאינם בחזקתי; לא נשוי - שאינם בחזקתי או בחזקתי ללא קצבה - מלאו 1-2",
+      "kind": "count",
+      "instruction": "ילד של אחד מבני הזוג שבחזקת ההורה האחר - בשדה של ההורה שלו בלבד.",
+      "documents": [
+        "116ד"
+      ],
+      "guidePage": 67,
+      "ageGroup": "מלאו 1-2",
+      "id": "F209"
+    },
+    {
+      "part": "יג",
+      "section": "64",
+      "codes": {
+        "registered": "190",
+        "spouse": null
+      },
+      "label": "ילדים בשנת המס - (2) בן-זוג רשום: נשוי - ילדיי שאינם בחזקתי; לא נשוי - שאינם בחזקתי או בחזקתי ללא קצבה - מלאו 3",
+      "kind": "count",
+      "instruction": "ילד של אחד מבני הזוג שבחזקת ההורה האחר - בשדה של ההורה שלו בלבד.",
+      "documents": [
+        "116ד"
+      ],
+      "guidePage": 67,
+      "ageGroup": "מלאו 3",
+      "id": "F210"
+    },
+    {
+      "part": "יג",
+      "section": "64",
+      "codes": {
+        "registered": "190",
+        "spouse": null
+      },
+      "label": "ילדים בשנת המס - (2) בן-זוג רשום: נשוי - ילדיי שאינם בחזקתי; לא נשוי - שאינם בחזקתי או בחזקתי ללא קצבה - מלאו 4-5",
+      "kind": "count",
+      "instruction": "ילד של אחד מבני הזוג שבחזקת ההורה האחר - בשדה של ההורה שלו בלבד.",
+      "documents": [
+        "116ד"
+      ],
+      "guidePage": 67,
+      "ageGroup": "מלאו 4-5",
+      "id": "F211"
+    },
+    {
+      "part": "יג",
+      "section": "64",
+      "codes": {
+        "registered": "190",
+        "spouse": null
+      },
+      "label": "ילדים בשנת המס - (2) בן-זוג רשום: נשוי - ילדיי שאינם בחזקתי; לא נשוי - שאינם בחזקתי או בחזקתי ללא קצבה - מלאו 6-17",
+      "kind": "count",
+      "instruction": "ילד של אחד מבני הזוג שבחזקת ההורה האחר - בשדה של ההורה שלו בלבד.",
+      "documents": [
+        "116ד"
+      ],
+      "guidePage": 67,
+      "ageGroup": "מלאו 6-17",
+      "id": "F212"
+    },
+    {
+      "part": "יג",
+      "section": "64",
+      "codes": {
+        "registered": "190",
+        "spouse": null
+      },
+      "label": "ילדים בשנת המס - (2) בן-זוג רשום: נשוי - ילדיי שאינם בחזקתי; לא נשוי - שאינם בחזקתי או בחזקתי ללא קצבה - מלאו 18",
+      "kind": "count",
+      "instruction": "ילד של אחד מבני הזוג שבחזקת ההורה האחר - בשדה של ההורה שלו בלבד.",
+      "documents": [
+        "116ד"
+      ],
+      "guidePage": 67,
+      "ageGroup": "מלאו 18",
+      "id": "F213"
+    },
+    {
+      "part": "יג",
+      "section": "64",
+      "codes": {
+        "registered": null,
+        "spouse": "291"
+      },
+      "label": "ילדים בשנת המס - (2) בן/בת זוג: ילדיי שאינם בחזקתי - נולד",
+      "kind": "count",
+      "instruction": "ילד של בן/בת הזוג שאינו בחזקתו - בשדה 291.",
+      "documents": [
+        "116ד"
+      ],
+      "guidePage": 67,
+      "ageGroup": "נולד",
+      "id": "F214"
+    },
+    {
+      "part": "יג",
+      "section": "64",
+      "codes": {
+        "registered": null,
+        "spouse": "291"
+      },
+      "label": "ילדים בשנת המס - (2) בן/בת זוג: ילדיי שאינם בחזקתי - מלאו 1-2",
+      "kind": "count",
+      "instruction": "ילד של בן/בת הזוג שאינו בחזקתו - בשדה 291.",
+      "documents": [
+        "116ד"
+      ],
+      "guidePage": 67,
+      "ageGroup": "מלאו 1-2",
+      "id": "F215"
+    },
+    {
+      "part": "יג",
+      "section": "64",
+      "codes": {
+        "registered": null,
+        "spouse": "291"
+      },
+      "label": "ילדים בשנת המס - (2) בן/בת זוג: ילדיי שאינם בחזקתי - מלאו 3",
+      "kind": "count",
+      "instruction": "ילד של בן/בת הזוג שאינו בחזקתו - בשדה 291.",
+      "documents": [
+        "116ד"
+      ],
+      "guidePage": 67,
+      "ageGroup": "מלאו 3",
+      "id": "F216"
+    },
+    {
+      "part": "יג",
+      "section": "64",
+      "codes": {
+        "registered": null,
+        "spouse": "291"
+      },
+      "label": "ילדים בשנת המס - (2) בן/בת זוג: ילדיי שאינם בחזקתי - מלאו 4-5",
+      "kind": "count",
+      "instruction": "ילד של בן/בת הזוג שאינו בחזקתו - בשדה 291.",
+      "documents": [
+        "116ד"
+      ],
+      "guidePage": 67,
+      "ageGroup": "מלאו 4-5",
+      "id": "F217"
+    },
+    {
+      "part": "יג",
+      "section": "64",
+      "codes": {
+        "registered": null,
+        "spouse": "291"
+      },
+      "label": "ילדים בשנת המס - (2) בן/בת זוג: ילדיי שאינם בחזקתי - מלאו 6-17",
+      "kind": "count",
+      "instruction": "ילד של בן/בת הזוג שאינו בחזקתו - בשדה 291.",
+      "documents": [
+        "116ד"
+      ],
+      "guidePage": 67,
+      "ageGroup": "מלאו 6-17",
+      "id": "F218"
+    },
+    {
+      "part": "יג",
+      "section": "64",
+      "codes": {
+        "registered": null,
+        "spouse": "291"
+      },
+      "label": "ילדים בשנת המס - (2) בן/בת זוג: ילדיי שאינם בחזקתי - מלאו 18",
+      "kind": "count",
+      "instruction": "ילד של בן/בת הזוג שאינו בחזקתו - בשדה 291.",
+      "documents": [
+        "116ד"
+      ],
+      "guidePage": 67,
+      "ageGroup": "מלאו 18",
+      "id": "F219"
+    },
+    {
+      "part": "יג",
+      "section": "64",
+      "codes": {
+        "registered": "022",
+        "spouse": null
+      },
+      "label": "ילדים בשנת המס - (3) הורה יחיד (לא נשוי): ילדיי שאין להם הורה שני רשום או שנפטר, שנכללו בשדה 260 - נולד",
+      "kind": "count",
+      "instruction": "״ילד להורה אחד״ - בנוסף לרישום ב-260; מזכה גם בנקודות עמודה 2 (כפל).",
+      "documents": [
+        "116ד"
+      ],
+      "guidePage": 67,
+      "ageGroup": "נולד",
+      "id": "F220"
+    },
+    {
+      "part": "יג",
+      "section": "64",
+      "codes": {
+        "registered": "022",
+        "spouse": null
+      },
+      "label": "ילדים בשנת המס - (3) הורה יחיד (לא נשוי): ילדיי שאין להם הורה שני רשום או שנפטר, שנכללו בשדה 260 - מלאו 1-2",
+      "kind": "count",
+      "instruction": "״ילד להורה אחד״ - בנוסף לרישום ב-260; מזכה גם בנקודות עמודה 2 (כפל).",
+      "documents": [
+        "116ד"
+      ],
+      "guidePage": 67,
+      "ageGroup": "מלאו 1-2",
+      "id": "F221"
+    },
+    {
+      "part": "יג",
+      "section": "64",
+      "codes": {
+        "registered": "022",
+        "spouse": null
+      },
+      "label": "ילדים בשנת המס - (3) הורה יחיד (לא נשוי): ילדיי שאין להם הורה שני רשום או שנפטר, שנכללו בשדה 260 - מלאו 3",
+      "kind": "count",
+      "instruction": "״ילד להורה אחד״ - בנוסף לרישום ב-260; מזכה גם בנקודות עמודה 2 (כפל).",
+      "documents": [
+        "116ד"
+      ],
+      "guidePage": 67,
+      "ageGroup": "מלאו 3",
+      "id": "F222"
+    },
+    {
+      "part": "יג",
+      "section": "64",
+      "codes": {
+        "registered": "022",
+        "spouse": null
+      },
+      "label": "ילדים בשנת המס - (3) הורה יחיד (לא נשוי): ילדיי שאין להם הורה שני רשום או שנפטר, שנכללו בשדה 260 - מלאו 4-5",
+      "kind": "count",
+      "instruction": "״ילד להורה אחד״ - בנוסף לרישום ב-260; מזכה גם בנקודות עמודה 2 (כפל).",
+      "documents": [
+        "116ד"
+      ],
+      "guidePage": 67,
+      "ageGroup": "מלאו 4-5",
+      "id": "F223"
+    },
+    {
+      "part": "יג",
+      "section": "64",
+      "codes": {
+        "registered": "022",
+        "spouse": null
+      },
+      "label": "ילדים בשנת המס - (3) הורה יחיד (לא נשוי): ילדיי שאין להם הורה שני רשום או שנפטר, שנכללו בשדה 260 - מלאו 6-17",
+      "kind": "count",
+      "instruction": "״ילד להורה אחד״ - בנוסף לרישום ב-260; מזכה גם בנקודות עמודה 2 (כפל).",
+      "documents": [
+        "116ד"
+      ],
+      "guidePage": 67,
+      "ageGroup": "מלאו 6-17",
+      "id": "F224"
+    },
+    {
+      "part": "יג",
+      "section": "64",
+      "codes": {
+        "registered": "022",
+        "spouse": null
+      },
+      "label": "ילדים בשנת המס - (3) הורה יחיד (לא נשוי): ילדיי שאין להם הורה שני רשום או שנפטר, שנכללו בשדה 260 - מלאו 18",
+      "kind": "count",
+      "instruction": "״ילד להורה אחד״ - בנוסף לרישום ב-260; מזכה גם בנקודות עמודה 2 (כפל).",
+      "documents": [
+        "116ד"
+      ],
+      "guidePage": 67,
+      "ageGroup": "מלאו 18",
+      "id": "F225"
+    },
+    {
+      "part": "יג",
+      "section": "64",
+      "codes": {
+        "registered": "361",
+        "spouse": null
+      },
+      "label": "בן-זוג רשום - מבקשת דחייה עבור __ ילדים שנולדו בשנת המס (מצ״ב 116ד)",
+      "kind": "count",
+      "instruction": "מספר ילדים שבגינם האם מעבירה נקודה אחת (מתוך 2.5) לשנה הבאה.",
+      "documents": [
+        "116ד"
+      ],
+      "guidePage": 67,
+      "uncertain": false,
+      "note": "361 היא תיבה דו-ספרתית אחת. הספרה הימנית (תא לבן) = מספר הילדים שנולדו בשנת המס ושבגינם מבקשים דחייה (התיבה הלבנה בשורה הראשונה).",
+      "id": "F226",
+      "encoding": "361 = [ספרה שמאלית אפורה: דחייה משנה קודמת][ספרה ימנית לבנה: דחייה השנה]"
+    },
+    {
+      "part": "יג",
+      "section": "64",
+      "codes": {
+        "registered": "361",
+        "spouse": null
+      },
+      "label": "בן-זוג רשום - בשנת מס קודמת ביקשתי דחייה עבור __ ילדים שנולדו (מצ״ב 116ד)",
+      "kind": "count",
+      "instruction": "מספר ילדים שנולדו אשתקד ונקודתם נדחתה לשנה זו; מצרפים בקשה ו-106 של שנה קודמת.",
+      "documents": [
+        "116ד",
+        "106"
+      ],
+      "guidePage": 67,
+      "uncertain": false,
+      "id": "F227",
+      "note": "הספרה השמאלית (תא אפור) של תיבת 361 = מספר הילדים שנולדו בשנה הקודמת ושנקודתם נדחתה לשנה זו (התיבה האפורה בשורה השנייה).",
+      "encoding": "361 = [ספרה שמאלית אפורה: דחייה משנה קודמת][ספרה ימנית לבנה: דחייה השנה]"
+    },
+    {
+      "part": "יג",
+      "section": "64",
+      "codes": {
+        "registered": null,
+        "spouse": "362"
+      },
+      "label": "בת זוג - מבקשת דחייה עבור __ ילדים שנולדו בשנת המס (מצ״ב 116ד)",
+      "kind": "count",
+      "instruction": "כנ״ל לבת הזוג.",
+      "documents": [
+        "116ד"
+      ],
+      "guidePage": 67,
+      "uncertain": false,
+      "id": "F228",
+      "note": "362 היא תיבה דו-ספרתית. הספרה הימנית (לבנה) = ילדים שנולדו בשנת המס שבגינם מבקשת בת הזוג דחייה.",
+      "encoding": "362 = [ספרה שמאלית אפורה: דחייה משנה קודמת][ספרה ימנית לבנה: דחייה השנה]"
+    },
+    {
+      "part": "יג",
+      "section": "64",
+      "codes": {
+        "registered": null,
+        "spouse": "362"
+      },
+      "label": "בת זוג - בשנת מס קודמת ביקשתי דחייה עבור __ ילדים שנולדו",
+      "kind": "count",
+      "instruction": "כנ״ל לבת הזוג.",
+      "documents": [
+        "116ד",
+        "106"
+      ],
+      "guidePage": 67,
+      "uncertain": false,
+      "id": "F229",
+      "note": "הספרה השמאלית (אפורה) של תיבת 362 = ילדים שנולדו בשנה הקודמת ושנקודתם נדחתה לשנה זו.",
+      "encoding": "362 = [ספרה שמאלית אפורה: דחייה משנה קודמת][ספרה ימנית לבנה: דחייה השנה]"
+    },
+    {
+      "part": "יג",
+      "section": "65",
+      "codes": {
+        "registered": "026",
+        "spouse": null
+      },
+      "label": "הורה במשפחה חד-הורית שהילדים בחזקתו ומקבל בגינם קצבת ילדים",
+      "kind": "checkbox",
+      "instruction": "נקודה אחת לחד-הורי שאינו מנהל משק בית משותף עם יחיד אחר, בנוסף לנקודות ילדים.",
+      "documents": [],
+      "guidePage": 68,
+      "id": "F230"
+    },
+    {
+      "part": "יג",
+      "section": "65",
+      "codes": null,
+      "label": "ההורה מנהל משק בית משותף עם יחיד אחר",
+      "kind": "yesno",
+      "options": {
+        "1": "כן",
+        "2": "לא"
+      },
+      "instruction": "חובה להצהיר כן/לא.",
+      "documents": [],
+      "guidePage": 68,
+      "uncertain": true,
+      "note": "לפי הגרסה הנגישה כן=1, לא=2; בטופס הרגיל הצמדת הספרות לא חד-משמעית",
+      "id": "F231"
+    },
+    {
+      "part": "יג",
+      "section": "66",
+      "codes": {
+        "registered": "029",
+        "spouse": "129"
+      },
+      "label": "השתתפות בכלכלת ילדי שטרם מלאו להם 19, שאינם סמוכים על שולחני",
+      "kind": "checkbox",
+      "instruction": "נקודה אחת להורה החי בנפרד, שהילדים אינם בחזקתו ואינו מקבל קצבת ילדים.",
+      "documents": [],
+      "guidePage": 68,
+      "id": "F232"
+    },
+    {
+      "part": "יג",
+      "section": "67",
+      "codes": {
+        "registered": "028",
+        "spouse": "153"
+      },
+      "label": "תשלום דמי מזונות לבן זוג לשעבר (רק למי שנשוי בשנית)",
+      "kind": "checkbox",
+      "instruction": "נקודה אחת לגרוש הנשוי בשנית המשלם מזונות לבן הזוג לשעבר.",
+      "documents": [],
+      "guidePage": 68,
+      "id": "F233"
+    },
+    {
+      "part": "יג",
+      "section": "68",
+      "codes": {
+        "registered": "023",
+        "spouse": "131"
+      },
+      "label": "מספר ילדים עם מוגבלות בגינם נדרשות נקודות זיכוי",
+      "kind": "count",
+      "instruction": "מספר הילדים שבגינם כל בן זוג מבקש 2 נקודות לילד. מצרפים 116א (ו-127 לפי העניין). לא יחד עם זיכוי סעיף 77 לאותו ילד.",
+      "documents": [
+        "116א",
+        "127"
+      ],
+      "guidePage": 68,
+      "id": "F234"
+    },
+    {
+      "part": "יג",
+      "section": "69",
+      "codes": null,
+      "label": "עולה חדש - ״בן הזוג הרשום״ - תאריך העלייה (שנה/חודש/יום)",
+      "kind": "date",
+      "instruction": "תאריך העלייה; מצרפים תעודת עולה ואישורים לנטרול חודשים (צבא/לימודים/שהייה בחו״ל).",
+      "documents": [
+        "תעודת עולה"
+      ],
+      "guidePage": 69,
+      "note": "אין קוד מודפס בגוף הסעיף; בחלק המשדר 273 ו-044",
+      "id": "F235"
+    },
+    {
+      "part": "יג",
+      "section": "69",
+      "codes": null,
+      "label": "עולה חדש - בן/בת הזוג - תאריך העלייה (שנה/חודש/יום)",
+      "kind": "date",
+      "instruction": "כנ״ל לבן/בת הזוג.",
+      "documents": [
+        "תעודת עולה"
+      ],
+      "guidePage": 69,
+      "note": "בחלק המשדר 274 ו-088",
+      "id": "F236"
+    },
+    {
+      "part": "יג",
+      "section": "70",
+      "codes": {
+        "registered": "295",
+        "spouse": "296"
+      },
+      "label": "תושב חוזר ״מוטב״ - תאריך החזרה (שנה/חודש/יום)",
+      "kind": "date",
+      "instruction": "מי ששב 16.5.2010-30.9.2012 אחרי 6 שנות תושבות חוץ; נקודות כמו לעולה.",
+      "documents": [
+        "תעודת תושב חוזר"
+      ],
+      "guidePage": 69,
+      "id": "F237"
+    },
+    {
+      "part": "יג",
+      "section": "71",
+      "codes": {
+        "registered": "224",
+        "spouse": "324"
+      },
+      "label": "חייל משוחרר - תאריך שחרור מ״שירות סדיר״ (שנה/חודש)",
+      "kind": "date",
+      "instruction": "חודש ושנת השחרור (דוגמה: 082022). זיכוי ל-36 חודשים אחרי השחרור.",
+      "documents": [
+        "תעודת שחרור"
+      ],
+      "guidePage": 69,
+      "id": "F238"
+    },
+    {
+      "part": "יג",
+      "section": "71",
+      "codes": {
+        "registered": "024",
+        "spouse": "124"
+      },
+      "label": "חייל משוחרר - מספר חודשי שירות מלאים",
+      "kind": "count",
+      "instruction": "מספר חודשי השירות המלאים; 23 (גבר) / 22 (אישה) ומעלה = 1/6 נקודה לחודש, פחות = 1/12.",
+      "documents": [
+        "תעודת שחרור"
+      ],
+      "guidePage": 69,
+      "id": "F239"
+    },
+    {
+      "part": "יג",
+      "section": "72",
+      "codes": {
+        "registered": "181",
+        "spouse": "182"
+      },
+      "label": "סיום לימודים לתואר אקדמאי/לימודי מקצוע - קוד מטופס 119",
+      "kind": "code",
+      "options": {
+        "1": "תואר ראשון",
+        "2": "תואר שני",
+        "3": "תואר שלישי ברפואה/רפואת שיניים",
+        "4": "תואר שלישי במסלול ישיר (סיום השלישי)",
+        "5": "תעודת מקצוע",
+        "12": "זכאי בגין תואר ראשון ושני באותה שנה"
+      },
+      "instruction": "קוד התואר לפי טופס 119; מצרפים טופס 119 ואישור סיום.",
+      "documents": [
+        "119",
+        "אישור סיום לימודים"
+      ],
+      "guidePage": 69,
+      "id": "F240"
+    },
+    {
+      "part": "יג",
+      "section": "72",
+      "codes": {
+        "registered": "181",
+        "spouse": "182"
+      },
+      "label": "סיום לימודים - שנת סיום לימודים",
+      "kind": "date",
+      "instruction": "שנת סיום הלימודים (בקוד 12 - שנת סיום התואר הראשון).",
+      "documents": [
+        "119"
+      ],
+      "guidePage": 69,
+      "id": "F241"
+    },
+    {
+      "part": "יג",
+      "section": "72",
+      "codes": {
+        "registered": "181",
+        "spouse": "182"
+      },
+      "label": "סיום לימודים - שנת סיום התמחות",
+      "kind": "date",
+      "instruction": "רק למי שבוחר לדחות את הנקודות לשנה שאחרי סיום ההתמחות.",
+      "documents": [
+        "119"
+      ],
+      "guidePage": 70,
+      "id": "F242"
+    },
+    {
+      "part": "יד",
+      "section": "73",
+      "codes": {
+        "registered": "036",
+        "spouse": "081"
+      },
+      "label": "לביטוח חיים - הסכום ששולם",
+      "kind": "amount",
+      "instruction": "פרמיות ביטוח חיים (בלי מרכיב חיסכון); זיכוי 25% בכפוף לתקרות.",
+      "documents": [
+        "אישור חברת ביטוח"
+      ],
+      "guidePage": 70,
+      "id": "F243"
+    },
+    {
+      "part": "יד",
+      "section": "74",
+      "codes": {
+        "registered": "140",
+        "spouse": "240"
+      },
+      "label": "לביטוח קצבת שאירים - הסכום ששולם",
+      "kind": "amount",
+      "instruction": "זיכוי 35% עד 1.5% מההכנסה המזכה.",
+      "documents": [
+        "אישור חברת ביטוח"
+      ],
+      "guidePage": 70,
+      "id": "F244"
+    },
+    {
+      "part": "יד",
+      "section": "75",
+      "codes": {
+        "registered": "045",
+        "spouse": "086"
+      },
+      "label": "לקצבה כ״עמית שכיר״ - הסכום ששולם",
+      "kind": "amount",
+      "instruction": "מלוא הסכום ששולם כעמית שכיר (לפי 106). זיכוי 35% עד 7% מהכנסה מזכה.",
+      "documents": [
+        "106"
+      ],
+      "guidePage": 71,
+      "id": "F245"
+    },
+    {
+      "part": "יד",
+      "section": "76",
+      "codes": {
+        "registered": "268",
+        "spouse": "269"
+      },
+      "label": "לקצבה כ״עמית עצמאי״ - הסכום ששולם",
+      "kind": "amount",
+      "instruction": "למי שמעדיף זיכוי על ניכוי (סעיף 53). לא לרשום כאן יתרה שלא נוצלה מסעיף 53 - המחשב מעביר.",
+      "documents": [
+        "אישור שנתי קופת גמל"
+      ],
+      "guidePage": 72,
+      "id": "F246"
+    },
+    {
+      "part": "יד",
+      "section": "77",
+      "codes": {
+        "registered": "132",
+        "spouse": "232"
+      },
+      "label": "להחזקת בן משפחה במוסד - הסכום ששולם",
+      "kind": "amount",
+      "instruction": "סך ההוצאה; זיכוי 35% מהחלק שמעל 12.5% מההכנסה. טופס 127; לא יחד עם סעיף 68 לאותו ילד.",
+      "documents": [
+        "127",
+        "קבלות המוסד"
+      ],
+      "guidePage": 72,
+      "id": "F247"
+    },
+    {
+      "part": "יד",
+      "section": "78א",
+      "codes": {
+        "registered": "037",
+        "spouse": "237"
+      },
+      "label": "תרומות בשנת המס למוסדות בישראל בלבד - הסכום ששולם",
+      "kind": "amount",
+      "instruction": "סכום התרומות בשנה (מעל 207 ₪); זיכוי 35% עד 30% מההכנסה. במקוון דרך ה״אשף״ ופיצול בין 037 ל-237.",
+      "documents": [
+        "קבלות תרומה",
+        "ריכוז תרומות"
+      ],
+      "guidePage": 73,
+      "id": "F248"
+    },
+    {
+      "part": "יד",
+      "section": "78ב",
+      "codes": {
+        "registered": "046",
+        "spouse": "048"
+      },
+      "label": "תרומות למוסדות בארה״ב, מוגבלים ל-25% מההכנסה מארה״ב",
+      "kind": "amount",
+      "instruction": "מוגבל ל-25% מהכנסות ארה״ב שבנספח ד.",
+      "documents": [
+        "קבלות תרומה",
+        "1324"
+      ],
+      "guidePage": 73,
+      "note": "המדריך כותב 046/048; הטופס: 046 ו-048 (בגרסה הנגישה 460 בטעות)",
+      "id": "F249"
+    },
+    {
+      "part": "יד",
+      "section": "78ג",
+      "codes": {
+        "registered": "364",
+        "spouse": "292"
+      },
+      "label": "תרומות שנדרשו בשלוש השנים הקודמות, עלו על התקרה ולא ניתן לגביהן זיכוי",
+      "kind": "amount",
+      "instruction": "יתרת תרומות מ-3 השנים הקודמות שלא נוצלה בשל התקרה.",
+      "documents": [],
+      "guidePage": 73,
+      "id": "F250"
+    },
+    {
+      "part": "יד",
+      "section": "79",
+      "codes": {
+        "registered": "143",
+        "spouse": "144"
+      },
+      "label": "הוצאות להנצחת זיכרו של מי שנספה במערכה/בפעולות איבה - הסכום ששולם",
+      "kind": "amount",
+      "instruction": "סכום ההוצאה להנצחת בן משפחה; זיכוי 30%. מצרפים מסמכים.",
+      "documents": [
+        "קבלות"
+      ],
+      "guidePage": 73,
+      "id": "F251"
+    },
+    {
+      "part": "יד",
+      "section": "80",
+      "codes": {
+        "registered": "155",
+        "spouse": "199"
+      },
+      "label": "סך ההשקעות בחברות מו״פ בהתאם לטופס 991",
+      "kind": "amount",
+      "instruction": "סך ההשקעות; במקוון ממולא רק דרך ה״אשף״ (עד 5 השקעות, עד 4 מיליון לחברה). הזיכוי אינו יוצר החזר.",
+      "documents": [
+        "991"
+      ],
+      "guidePage": 74,
+      "id": "F252"
+    },
+    {
+      "part": "יד",
+      "section": "81",
+      "codes": {
+        "registered": "139",
+        "spouse": "183"
+      },
+      "label": "לתושב אילת - הכנסה מיגיעה אישית שהופקה באילת",
+      "kind": "amount",
+      "instruction": "ההכנסה מיגיעה אישית שהופקה באילת/חבל אילות; הנחה 10% עד 268,560. אישור 1312א.",
+      "documents": [
+        "1312א"
+      ],
+      "guidePage": 74,
+      "id": "F253"
+    },
+    {
+      "part": "יד",
+      "section": "82",
+      "codes": null,
+      "label": "אני ובן/בת זוגי היינו תושבים ב- (שם היישוב)",
+      "kind": "text",
+      "instruction": "שם היישוב המזכה; נדרשת תושבות רצופה 12 חודשים. אישור הרשות המקומית (1312א).",
+      "documents": [
+        "1312א"
+      ],
+      "guidePage": 74,
+      "id": "F254",
+      "note": "בחלק המשדר: השורה הראשונה בבלוק ״הנחות יישובים מוטבים או זיכוי ״חייל״״ (287 לבן הזוג הרשום, 327 לבן/בת הזוג): % הנחה, קוד תקרה, מספר חודשים.",
+      "uncertain": false
+    },
+    {
+      "part": "יד",
+      "section": "82",
+      "codes": null,
+      "label": "יישוב מזכה - מתאריך",
+      "kind": "date",
+      "instruction": "תאריך ההגעה ליישוב.",
+      "documents": [
+        "1312א"
+      ],
+      "guidePage": 74,
+      "id": "F255"
+    },
+    {
+      "part": "יד",
+      "section": "82",
+      "codes": null,
+      "label": "יישוב מזכה - עד (תאריך)",
+      "kind": "date",
+      "instruction": "תאריך עזיבה - רק אם עזבת.",
+      "documents": [
+        "1312א"
+      ],
+      "guidePage": 74,
+      "id": "F256"
+    },
+    {
+      "part": "יד",
+      "section": "82",
+      "codes": null,
+      "label": "עברתי במהלך השנה ליישוב מזכה אחר ל- (שם היישוב)",
+      "kind": "text",
+      "instruction": "במעבר בין יישובים מזכים ממלאים את שניהם; המחשב משקלל.",
+      "documents": [
+        "1312א"
+      ],
+      "guidePage": 74,
+      "id": "F257",
+      "note": "בחלק המשדר: השורה השנייה בבלוק היישובים (096 לבן הזוג הרשום, 111 לבן/בת הזוג).",
+      "uncertain": false
+    },
+    {
+      "part": "יד",
+      "section": "82",
+      "codes": null,
+      "label": "יישוב מזכה שני - מתאריך",
+      "kind": "date",
+      "instruction": null,
+      "documents": [],
+      "guidePage": 74,
+      "id": "F258"
+    },
+    {
+      "part": "יד",
+      "section": "82",
+      "codes": null,
+      "label": "יישוב מזכה שני - עד (תאריך)",
+      "kind": "date",
+      "instruction": null,
+      "documents": [],
+      "guidePage": 74,
+      "id": "F259"
+    },
+    {
+      "part": "יד",
+      "section": "82",
+      "codes": null,
+      "label": "הנני זכאי לתוספת פעילות רמה א של כוחות הביטחון - הכנסה (ש״ח)",
+      "kind": "amount",
+      "instruction": "סכום ״המשכורת המיוחדת״ כפי שבטופס 106; זיכוי 5% עד 178,320. לא יחד עם הנחת יישוב באותה תקופה.",
+      "documents": [
+        "106"
+      ],
+      "guidePage": 75,
+      "id": "F260",
+      "note": "בחלק המשדר: ״סכום לזיכוי״ 038 (בן הזוג הרשום) / 082 (בן/בת הזוג).",
+      "uncertain": false
+    },
+    {
+      "part": "טו",
+      "section": "83",
+      "codes": {
+        "registered": "294",
+        "spouse": null
+      },
+      "label": "סך המחזור ללא מע״מ מעסק או משלח יד והכנסות אחרות בשיעורים רגילים, מכל העסקים, בארץ ובחו״ל (סה״כ)",
+      "kind": "amount",
+      "instruction": "מחזורי שני בני הזוג (עסק, השכרה, ריבית בשיעור רגיל), כולל חלק בחברה משפחתית/שותפות/62א, בלי משכורת, ריט ושותפויות נפט. בסיס למקדמות.",
+      "documents": [],
+      "guidePage": 75,
+      "note": "בטופס טורים לבן הזוג הרשום, בן/בת הזוג וסה״כ; רק לסה״כ מודפס קוד",
+      "id": "F261"
+    },
+    {
+      "part": "טו",
+      "section": "84",
+      "codes": {
+        "registered": "042",
+        "spouse": null
+      },
+      "label": "מס הכנסה שנוכה במקור ממשכורת, משכר עבודה ומקצבאות (מצ״ב טופסי 106)",
+      "kind": "amount",
+      "instruction": "לפי טופסי 106 + החלק היחסי ממס שנוכה מפיצויים שנפרסו (161/אישור פקיד שומה).",
+      "documents": [
+        "106",
+        "161"
+      ],
+      "guidePage": 75,
+      "id": "F262"
+    },
+    {
+      "part": "טו",
+      "section": "85",
+      "codes": {
+        "registered": "043",
+        "spouse": null
+      },
+      "label": "ניכוי במקור מריבית (מסעיפים 21-23) לפני החזרים",
+      "kind": "amount",
+      "instruction": "המס שנוכה כפי שבטופסי 867 - מלוא הסכום, גם אם חלק הוחזר לחשבון.",
+      "documents": [
+        "867"
+      ],
+      "guidePage": 75,
+      "id": "F263"
+    },
+    {
+      "part": "טו",
+      "section": "86",
+      "codes": {
+        "registered": "100",
+        "spouse": null
+      },
+      "label": "זיכוי מס חברות לפי סעיף 62א(ג2)(5), מצ״ב אישור",
+      "kind": "amount",
+      "instruction": "מס החברות ששילמה חברת המעטים על ההכנסה שהועברה כדיבידנד (084/092); מוגבל ל-23% מהסכום בשדות אלה.",
+      "documents": [
+        "1362",
+        "אישור החברה"
+      ],
+      "guidePage": 75,
+      "id": "F264"
+    },
+    {
+      "part": "טו",
+      "section": "87",
+      "codes": {
+        "registered": "040",
+        "spouse": null
+      },
+      "label": "סה״כ הסכומים שנוכו במקור (ללא מקדמות וללא מס חו״ל) מהכנסות אחרות",
+      "kind": "amount",
+      "instruction": "ניכויים במקור מריבית (לא פיקדונות), דיבידנד, רווחי הון, הימורים, שכר סופרים, מילואים וכו׳. אישורים מקוריים 857/867.",
+      "documents": [
+        "857",
+        "867"
+      ],
+      "guidePage": 76,
+      "id": "F265"
+    },
+    {
+      "part": "טו",
+      "section": "88",
+      "codes": {
+        "registered": "041",
+        "spouse": null
+      },
+      "label": "סה״כ מס שבח שנקבע בשומת מס שבח (קרן בלבד)",
+      "kind": "amount",
+      "instruction": "מס השבח שנקבע או לפי שומה עצמית, גם אם לא שולם; קרן בלבד בלי ריבית והצמדה.",
+      "documents": [
+        "שומת מס שבח"
+      ],
+      "guidePage": 76,
+      "id": "F266"
+    },
+    {
+      "part": "טו",
+      "section": "89",
+      "codes": {
+        "registered": "115",
+        "spouse": null
+      },
+      "label": "מקדמות בשל הוצאות עודפות ששולמו בחברה משפחתית/בית/מעטים 62א ושותפות, הכלולים בשדה 040",
+      "kind": "amount",
+      "instruction": "רק הסכום שנכלל ב-040, עד חבות המס על ההכנסה המועברת. מצרפים נייר עבודה וטופס 1227.",
+      "documents": [
+        "1227"
+      ],
+      "guidePage": 76,
+      "id": "F267"
+    },
+    {
+      "part": "לשימוש המשדר",
+      "section": null,
+      "codes": {
+        "registered": "331",
+        "spouse": null
+      },
+      "label": "חישוב נפרד",
+      "kind": "code",
+      "options": {
+        "1": "יש מקור הכנסה משותף (66(ד))",
+        "2": "אין מקור הכנסה משותף"
+      },
+      "instruction": null,
+      "documents": [],
+      "guidePage": null,
+      "id": "F268"
+    },
+    {
+      "part": "לשימוש המשדר",
+      "section": null,
+      "codes": null,
+      "label": "סוג החישוב",
+      "kind": "code",
+      "options": {
+        "1": "נפרד",
+        "2": "מאוחד",
+        "3": "תושב חוץ",
+        "6": "נפרד - לנישום מייצג החברה משפחתית",
+        "7": "מאוחד - לנישום מייצג החברה משפחתית",
+        "8": "תושב חוץ - לנישום מייצג החברה משפחתית"
+      },
+      "instruction": null,
+      "documents": [],
+      "guidePage": null,
+      "note": "אין קוד שדה מודפס",
+      "id": "F269"
+    },
+    {
+      "part": "לשימוש המשדר",
+      "section": null,
+      "codes": {
+        "registered": "255",
+        "spouse": null
+      },
+      "label": "עסק זעיר",
+      "kind": "code",
+      "options": {
+        "137": "דוח מקוצר ליחיד בעל עסק קטן",
+        "441": "עסק זעיר - בן זוג רשום",
+        "442": "עסק זעיר - בן זוג",
+        "443": "עסק זעיר - שניהם"
+      },
+      "instruction": "קשור לסימון עסק זעיר בחלק א (סעיף 4).",
+      "documents": [],
+      "guidePage": 20,
+      "uncertain": false,
+      "note": "255 הוא קוד השדה: תיבה תלת-ספרתית בבלוק ״עסק זעיר״ בחלק המשדר. 137/441/442/443 הם הערכים המותרים, מודפסים כרשימה ״137- דוח מקוצר ליחיד בעל עסק קטן / 441- עסק זעיר בן זוג רשום / 442- עסק זעיר בן זוג / 443- עסק זעיר שניהם״.",
+      "id": "F270"
+    },
+    {
+      "part": "לשימוש המשדר",
+      "section": null,
+      "codes": {
+        "registered": "263",
+        "spouse": null
+      },
+      "label": "פעולה חייבת בדיווח/מחירי העברה",
+      "kind": "code",
+      "options": {
+        "1": "פעולה חייבת",
+        "2": "עסקאות סעיף 85א",
+        "3": "שניהם",
+        "9": "אין"
+      },
+      "instruction": "משקף את סעיפים 26-27 בחלק א.",
+      "documents": [
+        "1213",
+        "1385"
+      ],
+      "guidePage": null,
+      "id": "F271"
+    },
+    {
+      "part": "לשימוש המשדר",
+      "section": null,
+      "codes": {
+        "registered": "365",
+        "spouse": null
+      },
+      "label": "חוות דעת/עמדה",
+      "kind": "code",
+      "options": {
+        "1": "חוות דעת חייבת",
+        "2": "עמדה חייבת",
+        "3": "שניהם",
+        "9": "אין"
+      },
+      "instruction": "משקף את סעיפים 28-29 בחלק א.",
+      "documents": [
+        "1345",
+        "1346"
+      ],
+      "guidePage": null,
+      "id": "F272"
+    },
+    {
+      "part": "לשימוש המשדר",
+      "section": null,
+      "codes": null,
+      "label": "מספר עמדה (חייבת בדיווח)",
+      "kind": "text",
+      "instruction": "במקוון בוחרים עמדה מרשימת העמדות באשף; ניתן יותר מאחת.",
+      "documents": [
+        "1346"
+      ],
+      "guidePage": 27,
+      "note": "אין קוד נפרד מודפס; צמוד לאפשרות 2 של שדה 365",
+      "id": "F273"
+    },
+    {
+      "part": "לשימוש המשדר",
+      "section": null,
+      "codes": {
+        "registered": "014",
+        "spouse": null
+      },
+      "label": "ניכויים במקור גבוהים מהכנסות",
+      "kind": "code",
+      "options": {
+        "12": "שני המצבים מתקיימים",
+        "01": "שדות 040, 043 גדולים מההכנסות שאינן משכר או מקצבה",
+        "02": "שדה 042 גדול מההכנסות משכר ו/או מקצבה"
+      },
+      "instruction": null,
+      "documents": [],
+      "guidePage": null,
+      "id": "F274"
+    },
+    {
+      "part": "לשימוש המשדר",
+      "section": null,
+      "codes": {
+        "registered": "065",
+        "spouse": null
+      },
+      "label": "מס מוגבל ל-35%",
+      "kind": "amount",
+      "instruction": "הכנסה מדמי מפתח ששולם עליה המס תוך 30 יום - נרשמת כאן ולא בסעיף 8.",
+      "documents": [],
+      "guidePage": 38,
+      "id": "F275"
+    },
+    {
+      "part": "לשימוש המשדר",
+      "section": null,
+      "codes": {
+        "registered": "108",
+        "spouse": null
+      },
+      "label": "נאמנות",
+      "kind": "code",
+      "options": {
+        "1": "יוצר שהכנסות הנאמנות כלולות בדוח",
+        "2": "נהנה שהכנסות מחלוקה כלולות בדוח"
+      },
+      "instruction": "משקף את סעיף 19 בחלק א.",
+      "documents": [
+        "151ח",
+        "142"
+      ],
+      "guidePage": null,
+      "id": "F276"
+    },
+    {
+      "part": "לשימוש המשדר",
+      "section": null,
+      "codes": {
+        "registered": "307",
+        "spouse": null
+      },
+      "label": "הכנסות (אינטרנט/אנרגיות)",
+      "kind": "code",
+      "options": {
+        "2": "אינטרנט",
+        "3": "אנרגיות מתחדשות",
+        "4": "שניהם"
+      },
+      "instruction": "משקף את סעיפים 10-11 בחלק א.",
+      "documents": [],
+      "guidePage": null,
+      "id": "F277"
+    },
+    {
+      "part": "לשימוש המשדר",
+      "section": null,
+      "codes": {
+        "registered": "259",
+        "spouse": null
+      },
+      "label": "סיום בנייה - מספר טופסי 702",
+      "kind": "count",
+      "instruction": "משקף את סעיף 24 בחלק א.",
+      "documents": [
+        "702"
+      ],
+      "guidePage": null,
+      "id": "F278"
+    },
+    {
+      "part": "לשימוש המשדר",
+      "section": null,
+      "codes": {
+        "registered": "034",
+        "spouse": null
+      },
+      "label": "ניהול ספרים - תיעוד פנים",
+      "kind": "code",
+      "options": {
+        "1": "ממוחשב",
+        "2": "ידני"
+      },
+      "instruction": "משקף את סעיף 32 בחלק א (הפקת חשבונית).",
+      "documents": [],
+      "guidePage": null,
+      "id": "F279"
+    },
+    {
+      "part": "לשימוש המשדר",
+      "section": null,
+      "codes": {
+        "registered": "015",
+        "spouse": null
+      },
+      "label": "לנישום בחברה משפחתית / חברת מעטים 62א",
+      "kind": "code",
+      "options": {
+        "6": "הכנסה מחברה משפחתית כלולה בשדות נוספים ל-367/204/304",
+        "9": "קיזוז הפסדי עסק מהכנסות חברה משפחתית / 62א"
+      },
+      "instruction": null,
+      "documents": [],
+      "guidePage": null,
+      "id": "F280"
+    },
+    {
+      "part": "לשימוש המשדר",
+      "section": null,
+      "codes": {
+        "registered": "107",
+        "spouse": null
+      },
+      "label": "נכס בחו״ל",
+      "kind": "code",
+      "options": {
+        "1": "נכס בחו״ל"
+      },
+      "instruction": "משקף את סעיף 6 בחלק א.",
+      "documents": [],
+      "guidePage": null,
+      "id": "F281"
+    },
+    {
+      "part": "לשימוש המשדר",
+      "section": null,
+      "codes": {
+        "registered": "273",
+        "spouse": "274"
+      },
+      "label": "תאריך הגעה (עולה חדש/חוזר ותיק/חוזר) - שנה/חודש/יום",
+      "kind": "date",
+      "instruction": "משקף את סעיף 5 בחלק א.",
+      "documents": [],
+      "guidePage": null,
+      "statusOptions": {
+        "1": "עולה חדש",
+        "2": "חוזר ותיק",
+        "3": "חוזר"
+      },
+      "id": "F282"
+    },
+    {
+      "part": "לשימוש המשדר",
+      "section": null,
+      "codes": {
+        "registered": "044",
+        "spouse": "088"
+      },
+      "label": "עולה חדש - מספר חודשים לפי שיעור נקודה (1/12, 1/6, 1/4)",
+      "kind": "count",
+      "options": {
+        "1/12": "חודשים בשיעור 1/12",
+        "1/6": "חודשים בשיעור 1/6",
+        "1/4": "חודשים בשיעור 1/4"
+      },
+      "instruction": "מספר החודשים בשנה בכל שיעור נקודת זיכוי לעולה.",
+      "documents": [],
+      "guidePage": 69,
+      "id": "F283"
+    },
+    {
+      "part": "לשימוש המשדר",
+      "section": null,
+      "codes": {
+        "registered": "235",
+        "spouse": "236"
+      },
+      "label": "תושב חוזר ״מוטב״ - מספר חודשים (1/12, 1/6, 1/4)",
+      "kind": "count",
+      "options": {
+        "1/12": "חודשים בשיעור 1/12",
+        "1/6": "חודשים בשיעור 1/6",
+        "1/4": "חודשים בשיעור 1/4"
+      },
+      "instruction": "כמו עולה חדש.",
+      "documents": [],
+      "guidePage": 69,
+      "id": "F284"
+    },
+    {
+      "part": "לשימוש המשדר",
+      "section": null,
+      "codes": {
+        "registered": "287",
+        "spouse": "327"
+      },
+      "label": "הנחות יישובים מוטבים או זיכוי ״חייל״ - יישוב 1: % הנחה, קוד תקרה, מספר חודשים",
+      "kind": "percent",
+      "instruction": "אחוז ההנחה וקוד התקרה לפי רשימת היישובים בפרק ט, ומספר החודשים.",
+      "documents": [],
+      "guidePage": 74,
+      "subfields": [
+        "% הנחה",
+        "קוד תקרה",
+        "מספר חודשים"
+      ],
+      "id": "F285"
+    },
+    {
+      "part": "לשימוש המשדר",
+      "section": null,
+      "codes": {
+        "registered": "096",
+        "spouse": "111"
+      },
+      "label": "הנחות יישובים מוטבים או זיכוי ״חייל״ - שורה שנייה (יישוב מזכה נוסף: ״עברתי במהלך השנה ליישוב מזכה אחר״, סעיף 82): % הנחה, קוד תקרה, מספר חודשים",
+      "kind": "percent",
+      "instruction": "ליישוב מזכה נוסף/מעבר בשנה.",
+      "documents": [],
+      "guidePage": 74,
+      "subfields": [
+        "% הנחה",
+        "קוד תקרה",
+        "מספר חודשים"
+      ],
+      "uncertain": false,
+      "id": "F286",
+      "note": "בבלוק המשדר שתי שורות זהות: 287/327 ואחריה 096/111, כל אחת עם % הנחה / קוד תקרה / מספר חודשים. בסעיף 82 בגוף הטופס יש בדיוק שתי שורות יישוב: יישוב ראשון, ו״עברתי במהלך השנה ליישוב מזכה אחר״."
+    },
+    {
+      "part": "לשימוש המשדר",
+      "section": null,
+      "codes": {
+        "registered": "038",
+        "spouse": "082"
+      },
+      "label": "סכום לזיכוי - זיכוי ״חייל״ (תוספת פעילות רמה א של כוחות הביטחון)",
+      "kind": "amount",
+      "instruction": "הסכום משורה 3 של סעיף 82 (״הנני זכאי לתוספת פעילות רמה א... הכנסה __ ש״ח״): המשכורת המיוחדת כפי שמופיעה בטופס 106. הזיכוי הוא 5% עד הכנסה של 178,320 ש״ח, ומי שגר ביישוב מזכה מקבל את ההנחה הגבוהה מבין השתיים (מדריך עמ' 75).",
+      "documents": [],
+      "guidePage": 75,
+      "uncertain": false,
+      "note": "השורה השלישית בבלוק ״הנחות יישובים מוטבים או זיכוי ״חייל״״ היא תיבת סכום: 038 לבן הזוג הרשום ו-082 לבן/בת הזוג.",
+      "id": "F287"
+    },
+    {
+      "part": "לשימוש המשדר",
+      "section": null,
+      "codes": {
+        "registered": "352",
+        "spouse": "339"
+      },
+      "label": "חלוקה מרווחים מכח סעיף 77 - מס בשיעור 25%: הכנסה + השנה ממנה חולקו הרווחים",
+      "kind": "amount",
+      "instruction": null,
+      "documents": [],
+      "guidePage": null,
+      "subfields": [
+        "הכנסה",
+        "השנה ממנה חולקו הרווחים"
+      ],
+      "note": "352 בן זוג רשום, 339 בן/בת זוג",
+      "id": "F288"
+    },
+    {
+      "part": "לשימוש המשדר",
+      "section": null,
+      "codes": {
+        "registered": "363",
+        "spouse": "340"
+      },
+      "label": "חלוקה מרווחים מכח סעיף 77 - מס בשיעור 30%: הכנסה + השנה ממנה חולקו הרווחים",
+      "kind": "amount",
+      "instruction": null,
+      "documents": [],
+      "guidePage": null,
+      "subfields": [
+        "הכנסה",
+        "השנה ממנה חולקו הרווחים"
+      ],
+      "note": "בגרסה הנגישה 363 מסומן 25%; בטופס הרגיל 30%",
+      "id": "F289"
+    },
+    {
+      "part": "לשימוש המשדר",
+      "section": null,
+      "codes": {
+        "registered": "366",
+        "spouse": null
+      },
+      "label": "מספר תיק הקיבוץ",
+      "kind": "text",
+      "instruction": "משקף את סעיף 22 בחלק א.",
+      "documents": [
+        "1443"
+      ],
+      "guidePage": 25,
+      "id": "F290"
+    },
+    {
+      "part": "לשימוש המשדר",
+      "section": "משרד",
+      "codes": null,
+      "label": "תאריך הגשת הדוח (שנה/חודש/יום)",
+      "kind": "date",
+      "instruction": null,
+      "documents": [],
+      "guidePage": null,
+      "officeUse": true,
+      "id": "F291"
+    },
+    {
+      "part": "לשימוש המשדר",
+      "section": "משרד",
+      "codes": null,
+      "label": "מספר תיק",
+      "kind": "text",
+      "instruction": null,
+      "documents": [],
+      "guidePage": null,
+      "officeUse": true,
+      "id": "F292"
+    },
+    {
+      "part": "לשימוש המשדר",
+      "section": "משרד",
+      "codes": null,
+      "label": "מספר תיק (משרד) - תאים מסומנים ״ב״ (תא ימני) ו״ס״, ״מ״ (שני התאים השמאליים) בתוך תיבת מספר התיק",
+      "kind": "text",
+      "instruction": null,
+      "documents": [],
+      "guidePage": null,
+      "officeUse": true,
+      "uncertain": true,
+      "note": "״ב / ס / מ״ אינה עמודה נפרדת. אלה אותיות שמסמנות תאים בתוך תיבת ״מספר תיק״ באזור המשרד. אותו מבנה מופיע גם בטופס 1322 (״ב ... ס מ״ מעל ״מספר תיק״).",
+      "id": "F293"
+    },
+    {
+      "part": "לשימוש המשדר",
+      "section": "משרד",
+      "codes": null,
+      "label": "סמל הנמקה",
+      "kind": "code",
+      "instruction": null,
+      "documents": [],
+      "guidePage": null,
+      "officeUse": true,
+      "id": "F294"
+    },
+    {
+      "part": "לשימוש המשדר",
+      "section": "משרד",
+      "codes": null,
+      "label": "קנס גירעון",
+      "kind": "code",
+      "instruction": null,
+      "documents": [],
+      "guidePage": null,
+      "officeUse": true,
+      "id": "F295"
+    },
+    {
+      "part": "לשימוש המשדר",
+      "section": "משרד",
+      "codes": null,
+      "label": "מפקח",
+      "kind": "text",
+      "instruction": null,
+      "documents": [],
+      "guidePage": null,
+      "officeUse": true,
+      "id": "F296"
+    },
+    {
+      "part": "לשימוש המשדר",
+      "section": "משרד",
+      "codes": null,
+      "label": "סעיף שומה",
+      "kind": "code",
+      "instruction": null,
+      "documents": [],
+      "guidePage": null,
+      "officeUse": true,
+      "id": "F297"
+    },
+    {
+      "part": "לשימוש המשדר",
+      "section": "משרד",
+      "codes": null,
+      "label": "שנת מס (2025)",
+      "kind": "date",
+      "instruction": null,
+      "documents": [],
+      "guidePage": null,
+      "officeUse": true,
+      "id": "F298"
+    },
+    {
+      "part": "ד",
+      "section": "10",
+      "codes": {
+        "registered": "064",
+        "spouse": null
+      },
+      "label": "סך ההכנסות המועברות מכלל החברות המשפחתיות שהנך הנישום המייצג בהן",
+      "kind": "amount",
+      "instruction": "במקביל לסעיף 10; מוצג בדוח המקוון.",
+      "documents": [],
+      "guidePage": 39,
+      "onlineOnly": true,
+      "id": "F299"
+    },
+    {
+      "part": "ה",
+      "section": "14/22",
+      "codes": {
+        "registered": "208",
+        "spouse": "308",
+        "joint": "074"
+      },
+      "label": "ריבית על ני״ע שנצמחה לפני 2006 - 10%",
+      "kind": "amount",
+      "instruction": "ריבית בשיעור 10% נרשמת באשף ״שדות נוספים שאינם מופיעים בדוח״.",
+      "documents": [
+        "867"
+      ],
+      "guidePage": 41,
+      "onlineOnly": true,
+      "id": "F300"
+    },
+    {
+      "part": "ה",
+      "section": "21-23",
+      "codes": {
+        "registered": "216",
+        "spouse": "316",
+        "joint": "076"
+      },
+      "label": "ריבית על פקדונות/תוכניות חיסכון שנצמחה לפני 2006 - 10%",
+      "kind": "amount",
+      "instruction": "באשף שדות נוספים.",
+      "documents": [
+        "867"
+      ],
+      "guidePage": 42,
+      "onlineOnly": true,
+      "id": "F301"
+    },
+    {
+      "part": "י",
+      "section": "44",
+      "codes": {
+        "registered": "101",
+        "spouse": "102"
+      },
+      "label": "קצבאות פטורות (קודי השידור לסעיף 44)",
+      "kind": "amount",
+      "instruction": "משדר הדוח רושם את הקצבאות הפטורות: 101 בן הזוג הרשום, 102 בן/בת הזוג.",
+      "documents": [
+        "אישור קופה",
+        "אישור ביטוח לאומי"
+      ],
+      "guidePage": 53,
+      "onlineOnly": true,
+      "id": "F302"
+    },
+    {
+      "part": "יב",
+      "section": "53",
+      "codes": {
+        "registered": "233",
+        "spouse": "234"
+      },
+      "label": "בחירה בחישוב ניכוי קופ״ג במסלול ״יחיד״ במקום ״עמית מוטב״",
+      "kind": "checkbox",
+      "instruction": "עמית מוטב שמעדיף חישוב כ״יחיד״ מסמן בעת השידור (או דרך פקיד השומה).",
+      "documents": [],
+      "guidePage": 62,
+      "onlineOnly": true,
+      "id": "F303"
+    },
+    {
+      "part": "יב",
+      "section": "54",
+      "codes": {
+        "registered": "130",
+        "spouse": "189"
+      },
+      "label": "דמי ביטוח לאומי ששולמו השנה כעצמאי עבור הכנסות שנים קודמות",
+      "kind": "amount",
+      "instruction": "שדה שאינו בטופס הידני; לפי בן הזוג המשלם.",
+      "documents": [
+        "אישור ביטוח לאומי"
+      ],
+      "guidePage": 65,
+      "onlineOnly": true,
+      "id": "F304"
+    },
+    {
+      "part": "ח",
+      "section": null,
+      "codes": {
+        "registered": "253",
+        "spouse": null
+      },
+      "label": "ניכוי מס במקור מתמורת רווח הון (קונה/רמ״י)",
+      "kind": "amount",
+      "instruction": "מזינים את הניכוי ומוסיפים את אותו סכום גם לשדה 040.",
+      "documents": [
+        "אישור ניכוי"
+      ],
+      "guidePage": 50,
+      "onlineOnly": true,
+      "id": "F305"
+    }
+  ],
+  "notReadOrUncertain": [
+    "הוכרע 10.10.2026: גרסת ACC (נגישה) מכילה טעויות/השמטות: אין בה שורת טופס 6111 (סעיף 33 בחלק א), קוד 10% בסעיף 31 מופיע 127 במקום 168, ״80%״ במקום 30% ליד 080, 460 במקום 046, ושורה כפולה ״34. הפסדים שקוזזו״ עם 184/185. ההכרעות לפי הטופס הרגיל (itc1301) והמדריך. ← הערה תיעודית ולא אי-ודאות. סעיף 31 נבדק חזותית בטופס הרגיל (עמ' 2, y677-684): 077 ב-47%, 080 ב-30%, 165 ב-25%, 168 ב-10%, כפי שבקטלוג. שאר הפערים ב-ACC לא נבדקו מחדש בסבב זה. הכלל לא משתנה: הטופס הרגיל קובע. חריג: בסעיף 65 הטופס הרגיל עצמו סותר את ה-ACC (ראו F231).",
+    "הוכרע 10.10.2026: חשבון בנק: הקודים 277/278 מודפסים מעל אזור מספר חשבון/סניף/בנק; השיוך המדויק לתתי-השדות לא ודאי. ← לפי צפייה חזותית: 277 שייך לתיבת ״מספר חשבון״ בלבד. 278 הוא תיבה אחת שמחולקת ל״סמל סניף״ (ימין) ול״סמל בנק״ (שמאל). ל״שם בעל החשבון״ אין קוד (F093-F095).",
+    "הוכרע 10.10.2026: סעיפים 7, 30, 44, 45, 69, 82 - אין קוד שדה מודפס בגוף הטופס; לסעיף 44 קודי מקוון 101/102 לפי המדריך; לסעיף 69 הקודים בחלק המשדר (273/274, 044/088). ← אומת מחדש לפי מיקומי הטקסט ובצפייה חזותית: אין קוד מודפס בסעיפים 7 (עמ' 2 y212, שני טורים), 30 (שלושה קווי מילוי בטורי חלק ה, F142), 44, 45 (עמ' 3, אין קוד בעמודה x385) ו-69 (עמ' 3 y397). לסעיף 82 נמצא המקבילה בחלק המשדר: 287/327 ליישוב ראשון, 096/111 ליישוב שני ו-038/082 לסכום זיכוי חייל.",
+    "הוכרע 10.10.2026: שדה 255 (עסק זעיר) עם ערכים 137/441/442/443 מופיע רק בטופס הרגיל; משמעות 255 כשדה ו-137 כערך היא פרשנות. ← בצפייה חזותית: 255 הוא קוד שמודפס בפינת תיבה תלת-ספרתית. 137/441/442/443 מודפסים כרשימת ערכים עם מקף תחת הכותרת ״עסק זעיר״ (F270).",
+    "הוכרע 10.10.2026: שדות 038/082 ״סכום לזיכוי״ ו-096/111 (יישוב שני) בחלק המשדר - משמעות מדויקת לא מופיעה במדריך. ← לפי מבנה הבלוק ״הנחות יישובים מוטבים או זיכוי ״חייל״״: 096/111 היא השורה השנייה של יישוב, זהה לשורה 287/327, ומתאימה לשורה ״עברתי במהלך השנה ליישוב מזכה אחר״ בסעיף 82. 038/082 ״סכום לזיכוי״ היא תיבת הסכום של זיכוי ״חייל״ ומתאימה לשורה ״תוספת פעילות רמה א... הכנסה __ ש״ח״ (מדריך עמ' 75: המשכורת המיוחדת מטופס 106). השיוך מבוסס על המבנה, והמדריך עדיין לא מזכיר את הקודים.",
+    "הוכרע 10.10.2026: שדות 361/362: שתי שורות (דחייה השנה / דחייה משנה קודמת) תחת אותו קוד לכל בן זוג - אופן קידוד שני המספרים לא ברור. ← תיבת הקוד היא דו-ספרתית: תא שמאלי אפור ותא ימני לבן, מופרדים בקו מקווקו. התיבה בשורה ״דחייה השנה״ לבנה, והתיבה בשורה ״משנה קודמת״ אפורה. לכן הספרה הימנית = דחייה השנה והספרה השמאלית = דחייה משנה קודמת (F226-F229). השיוך נקבע לפי קוד הצבע של הטופס.",
+    "לא ודאי (נבדק שוב 10.10.2026): סעיף 65 שאלת משק בית משותף: כן=1/לא=2 לפי ACC בלבד. ← בטופס הרגיל הצמדת הספרות כן חד-משמעית, והיא הפוכה: ״[תיבה] כן 2 ... [תיבה] לא 1״. ב-ACC מופיע ״כן 1 / לא 2״. המקורות סותרים, ולכן אין הכרעה (F231).",
+    "לא ודאי (נבדק שוב 10.10.2026): עמודה ״ב/ס/מ״ בחלק המשרד - לא פוענחה. ← המבנה פוענח: אלה אותיות שמסמנות תאים בתוך תיבת ״מספר תיק״ של המשרד. ״ב״ על התא הימני, ״ס״ ו״מ״ על שני התאים השמאליים. משמעות האותיות אינה מודפסת ואינה מופיעה במדריך (F293).",
+    "הוכרע 10.10.2026: סעיף 83: טורים לבן הזוג הרשום/בן הזוג/סה״כ, אך רק לסה״כ מודפס קוד (294). ← אומת חזותית (עמ' 4, y294-322): בטורים ״בן הזוג הרשום״ ו״בן/בת הזוג״ יש רק קו מילוי, בלי תיבה ובלי קוד. רק בטור סה״כ יש תיבה עם משבצות ספרה וקוד 294. זה תיאור נכון של הטופס, ואין בו אי-ודאות.",
+    "הוכרע 10.10.2026: מדריך עמ׳ 53-56 (סעיף 45 - רשימת פטורים מפורטת) נקרא חלקית; ההנחיה לסעיף 45 היא תמצית. ← עמודי PDF 52-57 נקראו במלואם. רשימת הפטורים א-יד נכנסה להנחיה המעודכנת של F161.",
+    "הוכרע 10.10.2026: נספחים (1320, 1321, 1322, 1324 וכו׳) לא קוטלגו - מחוץ להיקף. ← הנספחים קוטלגו בנפרד ב-annexes-2025.catalog.json. התיקונים לנספחים בסבב זה מופיעים במערך annexes.",
+    "הוכרע 10.10.2026: שדות ״onlineOnly״ מופיעים רק במדריך כשדות שידור שאינם מודפסים בטופס הידני. ← הערה תיעודית ולא אי-ודאות. לא נבדקה מחדש בסבב זה, ואין שינוי."
+  ]
+}

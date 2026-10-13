@@ -19,6 +19,7 @@ import type { FirmProfile } from '../../types/firmProfile';
 import { profileToDb } from '../../lib/dbMappers';
 import { seedRequestGroupsDemo, rgRpc, rgSetBusinessNameBehindPortal } from './__fakeRequestGroups';
 import { reserveDutyPayload, reserveDutyTemplateRow, reserveDutyPortalItem, reserveDutySubmit } from './__fakeReserveDuty';
+import { seedTaxYearDemo, taxYearRpc, taxInfoPortalItem } from './__fakeTaxYear';
 import { previewRpc } from './__fakeRequestPreview';
 import type { PreviewRequest } from '../../features/requestPreview/types';
 import { mergeOfficeOverrides, type RequestTemplate, type TemplateEntry } from '../../lib/requestTemplates';
@@ -295,6 +296,8 @@ if (FAKE_ACTIVE && !EMPTY) {
 }
 // 05.10 · קבוצות קבועות + פרטי העסק — לקוח הדגמה שני (יוסי, sample-3), בזיכרון בלבד.
 if (FAKE_ACTIVE && !EMPTY) seedRequestGroupsDemo(tables, FIRM_ID);
+// 11.10 · שנת מס (229) — הערכת 2025, שאלון ישן וסכומים בכרטיס אצל דוד (__fakeTaxYear).
+if (FAKE_ACTIVE && !EMPTY) seedTaxYearDemo(tables, FIRM_ID);
 if (FAKE_ACTIVE && typeof window !== 'undefined') {
   (window as unknown as { __rgSetBusinessName?: (n: string) => void }).__rgSetBusinessName = rgSetBusinessNameBehindPortal;
   // ‼ בדיקות בלבד: «הלקוח עונה» על הבקשה האחרונה של דוד שיש בה דרישות — אותה פונקציה כמו portal_submit_step
@@ -435,6 +438,8 @@ function demoPortal(mode = 'live'): Row {
       const draft = r.published_at ? {} : { draft: true };
       const rich = reserveDutyPortalItem(r, demoPortalLabel(r));
       if (rich) return [{ ...rich, ...draft }];
+      if (r.step_type === 'info_collection') { const ti = taxInfoPortalItem(tables, r); return ti ? [{ ...ti, ...draft }] : []; }
+      if (r.step_type === 'tax_estimate' || r.step_type === 'annual_return' || r.step_type === 'wealth_declaration' || r.step_type === 'tax_file_intake') return [];
       if (r.ball !== 'client') return [];
       return [{
         bucket: r.status === 'completed' ? 'done' : 'action', key: String(r.id),
@@ -896,6 +901,9 @@ export function installFakeBackend() {
     // 05.10 · פרטי העסק, עבודה מהבית ודף ההדגמה של יוסי (__fakeRequestGroups).
     const rg = rgRpc(tables, name, args, FIXTURE_PROFILE.firmName ?? "המשרד", logWrite);
     if (rg) return rg;
+    // 11.10 · שנת מס (229) — כל RPC מטופל במפורש (__fakeTaxYear).
+    const ty = taxYearRpc(tables, name, args, FIRM_ID, logWrite);
+    if (ty) return ty;
     // 05.10 · «צפייה» בבקשה — תשובה שנלכדה מ-staging (ראה __fakeRequestPreview).
     if (name === 'preview_request_sample') return previewRpc(args.p_request as PreviewRequest, { firmName: FIXTURE_PROFILE.firmName ?? 'המשרד', branding: FIXTURE_PROFILE.branding ?? {} });
     if (name === 'client_ready_to_send') return { data: readyFor(args.p_client_id), error: null };
@@ -1010,6 +1018,19 @@ export function installFakeBackend() {
     invoke: async (name: string, opts?: { body?: Row }) => {
       await wait();
       logWrite(`functions.${name}`, opts?.body);
+      // 11.10 · «השלמת מידע» (229): העלאה מהדף האישי → ראיה «התקבל, ממתין לבדיקה», כמו ב-portal-upload-document.
+      if (name === 'portal-upload-document' && (opts?.body as unknown) instanceof FormData) {
+        const form = opts!.body as unknown as FormData;
+        const step = (tables.onboarding_steps ?? []).find(r => r.id === form.get('stepId'));
+        if (step?.step_type === 'info_collection') {
+          const file = form.get('file') as File | null;
+          const documentId = `doc-${Date.now()}`;
+          const res = taxYearRpc(tables, 'portal_submit_tax_info', { p_token: form.get('token'), p_ask_id: form.get('itemKey'),
+            p_answer: { kind: 'file', fileName: file?.name ?? 'מסמך', documentId } }, FIRM_ID, logWrite)!;
+          const r = res.data as Row;
+          return { data: r.ok ? { ok: true, documentId } : r, error: null };
+        }
+      }
       if (name === 'calendar-meeting' || name === 'google-calendar-connect') {
         return fakeMeetingsInvoke(name, opts?.body ?? {}, tables, FIRM_ID, MEETING_ORG);
       }
