@@ -96,7 +96,8 @@ export const TESTS: TestCase[] = [
     equal(previewGuard('update', []), null);
     equal(previewGuard('new', [{ stepId: 'a' }]), null);
     assert(!LATIN.test(previewGuardText('new')), 'הטקסט בעברית בלבד');
-    assert(/שליחת הקישור לדף במייל/.test(previewGuardText('new')), 'מפנה לפעולה שבתפריט');
+    // 13.10 · הפעולה עברה ל«הדף של …» ב«בקשות» — ההפניה אליה, לא לפריט תפריט שהוסר.
+    assert(/«הדף של …» ← «שלח מייל…»/.test(previewGuardText('new')), 'מפנה לפעולה ב«הדף של …»');
   }),
 
   test('noticeRecorded: «נרשם» רק עם ok:true', () => {

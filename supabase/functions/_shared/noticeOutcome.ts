@@ -19,7 +19,8 @@ export function previewGuard(kind: NoticeKindName, items: readonly unknown[]): '
 export function previewGuardText(kind: NoticeKindName): string {
   return kind === 'reminder'
     ? 'אין כרגע על מה להזכיר ללקוח — אין בקשה שהוא קיבל עליה מייל ועדיין ממתינה לו.'
-    : 'אין כאן משהו חדש שהלקוח עוד לא קיבל עליו מייל. כדי לשלוח לו רק את הקישור לדף: ⋯ ← «שליחת הקישור לדף במייל».';
+    // ‼ 13.10 · פעולות הדף עברו ל«הדף של …» ב«בקשות» — שם «שלח מייל…» שולח את הקישור כשאין חדש.
+    : 'אין כאן משהו חדש שהלקוח עוד לא קיבל עליו מייל. כדי לשלוח לו רק את הקישור לדף: ב«בקשות», «הדף של …» ← «שלח מייל…».';
 }
 
 export interface RpcReply {
