@@ -34,6 +34,13 @@
   background: var(--surface-1, #fbfcfe); border: 1px solid var(--hairline-1);
 }
 .rl-out-title { font-size: var(--fs-12); font-weight: 700; color: var(--ink-3); margin-bottom: 2px; }
+/* 240 · «הדף של X» — שלוש הפעולות של הדף בשורה אחת, מעל מה שממתין. */
+.rl-page-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding: 2px 0 6px; }
+.rl-page-title { font-size: var(--fs-14); font-weight: 700; color: var(--ink-1); }
+.rl-page-acts { display: flex; gap: 6px; flex-wrap: wrap; }
+.rl-page-flash { font-size: var(--fs-12); color: var(--ok, #17845b); padding: 0 0 6px; }
+.rl-page-quiet { font-size: var(--fs-12); color: var(--ink-3); padding: 0 0 6px; }
+.rl-page-head + .rl-out-row, .rl-page-flash + .rl-out-row, .rl-page-quiet + .rl-out-row { border-top: 1px solid var(--hairline-2); }
 .rl-out-row { display: flex; align-items: center; gap: 12px; padding: 8px 0; }
 .rl-out-row + .rl-out-row { border-top: 1px solid var(--hairline-2); }
 .rl-out-n {

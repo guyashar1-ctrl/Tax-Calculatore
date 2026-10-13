@@ -788,7 +788,7 @@ export default function ClientWorkspace({
                 onOpenRepresentation ? (
                   <button
                     type="button"
-                    className={`cw-rep-line ${status === 'awaiting_accountant' || status === 'awaiting_stamp' || !!repSendPhase ? 'is-mine' : ''}`}
+                    className={`cw-rep-line ${status === 'awaiting_accountant' || status === 'awaiting_stamp' || (!!repSendPhase && repSendPhase !== 'on_page') ? 'is-mine' : ''}`}
                     onClick={() => onOpenRepresentation(client.id)}
                     style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', cursor: 'pointer', textAlign: 'start' }}
                     title="למרכז הייצוג"
@@ -796,7 +796,7 @@ export default function ClientWorkspace({
                     בקשת ייצוג · {representationStatusLabel(status, repSendPhase)} ←
                   </button>
                 ) : (
-                  <div className={`cw-rep-line ${status === 'awaiting_accountant' || status === 'awaiting_stamp' || !!repSendPhase ? 'is-mine' : ''}`}>
+                  <div className={`cw-rep-line ${status === 'awaiting_accountant' || status === 'awaiting_stamp' || (!!repSendPhase && repSendPhase !== 'on_page') ? 'is-mine' : ''}`}>
                     בקשת ייצוג · {representationStatusLabel(status, repSendPhase)}
                   </div>
                 )

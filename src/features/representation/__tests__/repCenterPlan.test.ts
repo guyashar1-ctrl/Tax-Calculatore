@@ -233,14 +233,17 @@ export const TESTS: TestCase[] = [
   test('240 · אושר לדף, טרם נשלחה הודעה ⇒ on_page, ההכנה הושלמה והחתימה בתור', () => {
     const p = repCenterPlan(base({ pageChannel: true, approvedOnPage: true, status: 'pending_signature' }));
     equal(p.kind, 'on_page');
-    equal(p.headline, 'זמין בדף של עידן · טרם נשלחה הודעה');
+    equal(p.headline, 'ממתינים לעידן · הבקשה בדף');
+    // ‼ אין משימה למשרד אחרי האישור — הכדור אצל הלקוח, וההודעה היא החלטה של «בקשות».
+    equal(p.ball, 'client');
+    assert(p.sub.includes('הודעה במייל עוד לא נשלחה'), p.sub);
     equal(phaseStates(p), 'done,current,todo,todo');
   }),
 
   test('240 · אושר, אבל הקליטה טרם פורסמה ⇒ אומרים שהדף עוד לא פתוח, לא «זמין בדף»', () => {
     const p = repCenterPlan(base({ pageChannel: true, approvedOnPage: true, pageOpen: false, status: 'pending_signature' }));
     equal(p.kind, 'on_page');
-    assert(!p.headline.includes('זמין'), p.headline);
+    assert(!p.headline.includes('ממתינים'), p.headline);
     assert(p.headline.includes('עוד לא נפתח'), p.headline);
   }),
 

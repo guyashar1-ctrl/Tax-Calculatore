@@ -2831,32 +2831,14 @@ export default function OnboardingTab({
               סיום עריכה
             </button>
           )}
-          {linkCopied && <span className="rl-flash" role="status">הקישור לדף הועתק ✓</span>}
           <span className="rl-bar-gap" />
-          <button type="button" className="rl-link" onClick={() => { setSidebarPreviewMode('live'); setPreviewSheetOpen(true); }}
-            title={`הדף האישי של ${firstName} — כפי שהוא רואה אותו עכשיו`}>
-            הדף של {firstName}
-          </button>
+          {/* ‼ 240 · «הדף של X» — צפייה, העתקת קישור ושליחה — במקום אחד, במגש שמתחת. */}
           <div className="ob-menu-wrap">
             <button type="button" className="rl-more" aria-haspopup="menu"
               aria-expanded={menuStepId === HEAD_MENU} aria-label="עוד פעולות"
               onClick={() => setMenuStepId(id => (id === HEAD_MENU ? null : HEAD_MENU))}>⋯</button>
             {menuStepId === HEAD_MENU && (
               <div className="ob-menu rl-head-menu" role="menu">
-                <button type="button" role="menuitem" className="ob-menu-item" disabled={linkBusy}
-                  onClick={() => { setMenuStepId(null); void copyPortalLink(); }}>
-                  {linkBusy ? 'מכין קישור…' : 'העתקת הקישור לדף'}
-                </button>
-                {/* ‼ «שלח את הקישור שוב» — כשיש חדש, המגש (מייל על מה שחדש); כשאין,
-                    מייל «עדכון» — הקישור ומצב, בלי לסמן כלום כחדש (214). */}
-                <button type="button" role="menuitem" className="ob-menu-item"
-                  onClick={() => {
-                    setMenuStepId(null);
-                    if (readyCount > 0) setSendRequestsFocus('owner'); else setPortalSend('update');
-                  }}>
-                  שליחת הקישור לדף במייל
-                </button>
-                <div className="ob-menu-sep" />
                 {/* ‼ מחליף את «בקשה מתבנית»: מסלול מהמשרד, עם שלבים ומה קורה בכל אחד. */}
                 <button type="button" role="menuitem" className="ob-menu-item"
                   onClick={() => { setMenuStepId(null); setStartFlow({}); }}>
@@ -2990,6 +2972,11 @@ export default function OnboardingTab({
            engagementFromDb ⇒ parseKindHold). אין עותק שני כאן. */
         kindHold={activeEngagement?.kindHold ?? null}
         onOpenKindField={onOpenTaxFile ? () => onOpenTaxFile('dealerType') : undefined}
+        onViewPage={() => { setSidebarPreviewMode('live'); setPreviewSheetOpen(true); }}
+        onCopyLink={() => void copyPortalLink()}
+        linkBusy={linkBusy}
+        linkCopied={linkCopied}
+        onSendUpdate={() => setPortalSend('update')}
       />
 
       {/* ‼ תבנית שנבחרה נפתחת כעותק לעריכה בראש הרשימה — מה שנשלח הוא מה שערכת. */}
@@ -3059,7 +3046,7 @@ export default function OnboardingTab({
           const act = repStatus ? representationAction(repStatus, repSendPhase) : null;
           // לפני השליחה בלבד: אחריה המצב הוא של הלקוח/הרשויות, והשורה האחת אומרת אותו.
           const shaamPrepRows = repFacts && repFacts.shaam.length > 0 && !approvalActive
-            && (repStatus === 'awaiting_accountant' || (repStatus === 'pending_signature' && !!repSendPhase))
+            && (repStatus === 'awaiting_accountant' || (repStatus === 'pending_signature' && !!repSendPhase && repSendPhase !== 'on_page'))
             ? repFacts.shaam : null;
           /* ‼ ב"ל בלי שלב — רק מי שברשימת ביטוח לאומי (niTrackOnlyRoles). מי שבוטל — שורה אפורה עם
              מה שקרה («הבקשה בוטלה ב-PIVO · …»), לא «ממתין לאישור» מתוך ההיסטוריה של המסלול. */

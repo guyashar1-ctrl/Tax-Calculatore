@@ -147,7 +147,8 @@ function repStatusAttention(status: RepresentationStatus, phase?: RepSendPhase |
     case 'awaiting_accountant':
     case 'awaiting_stamp': return { kind: 'mine', tone: 'blue' };
     // ‼ הטופס מוכן והמייל לא יצא ⇒ «לשלוח ללקוח לחתימה» — אצלך, לא אצל הלקוח.
-    case 'pending_signature': return phase ? { kind: 'mine', tone: 'blue' } : { kind: 'waiting', tone: 'gray', waitingOn: 'client' };
+    // ‼ 240 · «בדף, ממתין לחתימה» (on_page) — אצל הלקוח, לא משימה שלך.
+    case 'pending_signature': return phase && phase !== 'on_page' ? { kind: 'mine', tone: 'blue' } : { kind: 'waiting', tone: 'gray', waitingOn: 'client' };
     case 'pending_fill': return { kind: 'waiting', tone: 'gray', waitingOn: 'client' };
     case 'awaiting_authorities': return { kind: 'waiting', tone: 'gray', waitingOn: 'authority' };
     case 'active': return { kind: 'done', tone: 'gray' };

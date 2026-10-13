@@ -389,6 +389,13 @@ const SCENARIOS: Scenario[] = [
     steps: [PAGE_REP_STEP],
   },
   {
+    key: 'page-sent-spouse',
+    label: '240ג. דף אישי · נשלח מייל הדף · בן/בת זוג חותם/ת',
+    req: { ...BASE, ...withSetup, status: 'pending_signature', execution: ni({ incomeTax: { enteredAt: '2026-07-02T08:00:00.000Z' }, signatureEmailSentAt: '2026-10-12T19:35:42.187Z' }) } as RepresentationRequest,
+    linked: PAGE_COUPLE_CLIENT,
+    steps: [PAGE_REP_STEP],
+  },
+  {
     // אחרי הסימון — כאן נבדק שהמייל ללקוח אינו יוצא מעצמו אלא בכפתור
     key: 'active',
     label: '6. הייצוג פעיל (עדכון ללקוח בבחירה)',

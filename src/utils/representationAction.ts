@@ -70,9 +70,14 @@ const ACTIONS: Record<RepresentationStatus, RepresentationAction> = {
  *                     גם השנייה), או אסמכתת ב״ל.
  * 'form_arrived'    — הטופס הגיע משע״ם ומקומות החתימה עוד לא נוצרו בו (השרת מכין אותם, 218).
  * 'form_incomplete' — יש טופס, אבל חסר בו מקום חתימה או שהשיוך לחותם שגוי.
+ * 'on_page'         — 240 · אושר לדף הלקוח (ממתין לחתימה) ועוד לא יצא מייל: הלקוח יכול לחתום מהדף,
+ *                     ואין כאן משימה של המשרד — השליחה המרוכזת היא החלטה של «בקשות», לא של הייצוג.
  * null              — אין פער (אין טופס עדיין, או שהמייל כבר יצא).
+ *
+ * ‼ pageChannel (ברירת מחדל: כן) — לבקשה יש שורה בדף האישי (240). כך כל בקשה פתוחה היום.
+ * בלי דף (בקשה ישנה) «ממתין לחתימה» בלי מייל = השליחה נכשלה אחרי ההכנה, ושם זו כן משימה.
  */
-export type RepSendPhase = 'unsent' | 'prep_open' | 'form_arrived' | 'form_incomplete';
+export type RepSendPhase = 'unsent' | 'prep_open' | 'form_arrived' | 'form_incomplete' | 'on_page';
 
 function incompletePhase(r: ReturnType<typeof signatureReadiness>): RepSendPhase {
   return r.problems.every(p => p.code === 'not_prepared') ? 'form_arrived' : 'form_incomplete';
@@ -109,8 +114,14 @@ function shaamEntryMissing(req: Pick<RepresentationRequest, 'scope' | 'execution
 export function repSendPhase(
   req: (Pick<RepresentationRequest, 'status' | 'execution'> & Partial<RepresentationRequest>) | undefined | null,
   client?: Client | null,
+  pageChannel = true,
 ): RepSendPhase | null {
   if (!req) return null;
+  // ‼ 240 · אושר לדף. חסם אמיתי בטופס (מקום חתימה חסר / שיוך שגוי) לא מוסתר — הוא עדיין משימה.
+  if (pageChannel && req.status === 'pending_signature' && !req.execution?.signatureEmailSentAt) {
+    const sr = signatureReadiness(req as RepresentationRequest);
+    return sr.state === 'incomplete' && incompletePhase(sr) === 'form_incomplete' ? 'form_incomplete' : 'on_page';
+  }
   if (client && (req.status === 'awaiting_accountant' || (req.status === 'pending_signature' && !req.execution?.signatureEmailSentAt))) {
     const facts = repPreparationFacts(req as RepresentationRequest, client);
     // ‼ עוד אין שום טופס — הנוסח הרגיל («להזין ולהפיק טופס»).
@@ -148,29 +159,49 @@ const FORM_ARRIVED: RepresentationAction = {
   why: 'הטופס הגיע משע״ם. בפתיחת מרכז הייצוג נוצרים בו מקומות החתימה, ואז אפשר לבדוק ולשלוח.',
   mine: true, ball: 'אצלי',
 };
+// ── 240 · לקוח עם דף אישי: האישור מוסיף את הבקשה לדף, בלי מייל ──────────────
+const APPROVE: RepresentationAction = {
+  action: 'לאשר ולהוסיף לדף הלקוח',
+  why: 'הטופס מוכן. האישור במרכז הייצוג מוסיף את הבקשה לדף של הלקוח — בלי מייל.',
+  mine: true, ball: 'אצלי',
+};
+const PREP_OPEN_PAGE: RepresentationAction = {
+  action: 'להשלים את ההכנה',
+  why: 'הטופס מוכן לחתימה, ונשאר צעד לפני האישור לדף (פתיחת הבקשה בשע״ם או אסמכתת ביטוח לאומי) — הפירוט במרכז הייצוג.',
+  mine: true, ball: 'אצלי',
+};
+/** ‼ אין כאן משימה: הבקשה בדף, הלקוח יכול לחתום. השליחה המרוכזת — מ«בקשות», כשנוח. */
+const ON_PAGE: RepresentationAction = {
+  action: 'ממתין לחתימת הלקוח',
+  why: 'הבקשה בדף של הלקוח, והוא יכול לחתום משם. אחרי שיחתום — החתימה והחותמת שלך.',
+  mine: false, ball: 'אצל הלקוח',
+};
 const FORM_INCOMPLETE: RepresentationAction = {
   action: 'להשלים את מקומות החתימה בטופס',
   why: 'הטופס קיים, אבל חסר בו מקום חתימה או שהשיוך לחותם שגוי. התיקון במרכז הייצוג.',
   mine: true, ball: 'אצלי',
 };
 
-export function representationAction(status: RepresentationStatus, phase?: RepSendPhase | null): RepresentationAction {
+export function representationAction(status: RepresentationStatus, phase?: RepSendPhase | null, pageChannel = true): RepresentationAction {
   if (status === 'awaiting_accountant' || status === 'pending_signature') {
     if (phase === 'form_incomplete') return FORM_INCOMPLETE;
     if (phase === 'form_arrived') return FORM_ARRIVED;
-    if (phase === 'prep_open') return PREP_OPEN;
-    if (phase === 'unsent') return UNSENT;
+    if (phase === 'prep_open') return pageChannel ? PREP_OPEN_PAGE : PREP_OPEN;
+    if (phase === 'unsent') return pageChannel ? APPROVE : UNSENT;
+    if (phase === 'on_page') return ON_PAGE;
   }
   return ACTIONS[status];
 }
 
 /** תווית הסטטוס לתצוגה — «נשלח לחתימת הלקוח» רק כשהמייל באמת יצא. */
-export function representationStatusLabel(status: RepresentationStatus, phase?: RepSendPhase | null): string {
+export function representationStatusLabel(status: RepresentationStatus, phase?: RepSendPhase | null, pageChannel = true): string {
   if (status === 'awaiting_accountant' || status === 'pending_signature') {
     if (phase === 'form_incomplete') return 'הטופס דורש השלמה';
     if (phase === 'form_arrived') return 'הטופס הגיע · טרם הוכן לחתימה';
-    if (phase === 'prep_open') return 'הטופס מוכן · נשאר צעד לפני השליחה';
-    if (phase === 'unsent') return 'מוכן לשליחה ללקוח';
+    if (phase === 'prep_open') return pageChannel ? 'הטופס מוכן · נשאר צעד לפני האישור' : 'הטופס מוכן · נשאר צעד לפני השליחה';
+    if (phase === 'unsent') return pageChannel ? 'מוכן לאישור לדף' : 'מוכן לשליחה ללקוח';
+    // ‼ 240 · בדף, בלי מייל — «נשלח לחתימת הלקוח» היה טענה בלי ראיה.
+    if (phase === 'on_page') return 'ממתין לחתימת הלקוח';
   }
   return REPRESENTATION_STATUS_LABELS[status];
 }

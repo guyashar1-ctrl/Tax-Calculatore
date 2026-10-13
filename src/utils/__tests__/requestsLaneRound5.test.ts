@@ -131,7 +131,10 @@ export const TESTS: TestCase[] = [
   test('בקשת הייצוג אצלך — מה לעשות, במילים ספורות (ליד «למרכז הייצוג»)', () => {
     equal(repShortAction('awaiting_stamp'), 'לחתום ולהוסיף חותמת');
     equal(repShortAction('awaiting_accountant'), 'להזין ולהפיק טופס');
-    equal(repShortAction('pending_signature', 'unsent'), 'לשלוח ללקוח לחתימה');
+    equal(repShortAction('pending_signature', 'unsent', false), 'לשלוח ללקוח לחתימה');
+    // 240 · עם דף: לפני האישור «לאשר ולהוסיף לדף»; אחרי האישור — אין משימה.
+    equal(repShortAction('awaiting_accountant', 'unsent'), 'לאשר ולהוסיף לדף');
+    equal(repShortAction('pending_signature', 'on_page'), null);
     equal(repShortAction('pending_signature'), null);
     equal(repShortAction('awaiting_authorities'), null);
   }),

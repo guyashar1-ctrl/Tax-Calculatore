@@ -60,9 +60,10 @@ export const TESTS: TestCase[] = [
   test('בקשת ייצוג «ממתין לחתימה» שהמייל שלה לא יצא — «מוכן לשליחה ללקוח», לא «נשלח»', () => {
     const steps = [step({ id: 'rep', stepType: 'representation', status: 'waiting_client', ball: 'client' })];
     const c = client({ representationStatus: 'pending_signature' });
-    const na = nextActionForClient({ client: c, quotations: [], openTasks: [], steps, repSendPhase: 'unsent' });
+    // 240 · אושר לדף, טרם נשלח מייל — «ממתין לחתימת הלקוח», לא «נשלח».
+    const na = nextActionForClient({ client: c, quotations: [], openTasks: [], steps, repSendPhase: 'on_page' });
     equal(na?.headline, 'הייצוג טרם הושלם');
-    equal(na?.detail, 'מוכן לשליחה ללקוח');
+    equal(na?.detail, 'ממתין לחתימת הלקוח');
     assert(!(na?.detail ?? '').includes('נשלח'), String(na?.detail));
     // המייל יצא ⇒ «נשלח לחתימת הלקוח» הוא אמת
     const sent = nextActionForClient({ client: c, quotations: [], openTasks: [], steps, repSendPhase: null });

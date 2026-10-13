@@ -109,15 +109,22 @@ export const TESTS: TestCase[] = [
       execution: { nationalInsurance: { referenceNumber: '75200000' } } as never });
     const phase = repSendPhase(r);
     equal(phase, 'unsent');
-    equal(repShortAction('awaiting_accountant', phase), 'לשלוח ללקוח לחתימה');
-    equal(representationStatusLabel('awaiting_accountant', phase), 'מוכן לשליחה ללקוח');
-    equal(representationAction('awaiting_accountant', phase).action, 'לשלוח ללקוח לחתימה');
+    // בלי דף אישי (בקשה ישנה) — «לשלוח»:
+    equal(repShortAction('awaiting_accountant', phase, false), 'לשלוח ללקוח לחתימה');
+    equal(representationStatusLabel('awaiting_accountant', phase, false), 'מוכן לשליחה ללקוח');
+    equal(representationAction('awaiting_accountant', phase, false).action, 'לשלוח ללקוח לחתימה');
+    // 240 · עם דף אישי (ברירת המחדל) — «לאשר ולהוסיף לדף», לא שליחה:
+    equal(repShortAction('awaiting_accountant', phase), 'לאשר ולהוסיף לדף');
+    equal(representationStatusLabel('awaiting_accountant', phase), 'מוכן לאישור לדף');
+    equal(representationAction('awaiting_accountant', phase).action, 'לאשר ולהוסיף לדף הלקוח');
+    equal(representationAction('awaiting_accountant', phase).mine, true);
   }),
   test('טופס מוכן אבל חסרה אסמכתת ב״ל שהתבקשה ⇒ «להשלים לפני השליחה»', () => {
     const r = req({ signatureDocuments: [singleForm()], scope: { nationalInsurance: { status: 'in_process', targets: ['client'] } } as never });
     const phase = repSendPhase(r);
     equal(phase, 'prep_open');
-    equal(repShortAction('awaiting_accountant', phase), 'להשלים לפני השליחה');
+    equal(repShortAction('awaiting_accountant', phase, false), 'להשלים לפני השליחה');
+    equal(repShortAction('awaiting_accountant', phase), 'להשלים את ההכנה');
   }),
   test('טופס שהועלה ידנית לפני שהבקשה נפתחה בשע״ם ⇒ לא «מוכן לשליחה»', () => {
     const scope = { incomeTax: { status: 'in_process', level: 'primary' } } as never;
@@ -146,9 +153,23 @@ export const TESTS: TestCase[] = [
     equal(phase, null);
     equal(repShortAction('awaiting_accountant', phase), 'להזין ולהפיק טופס');
   }),
-  test('נשלח בפועל ⇒ אין פער (ממתינים ללקוח); לא נשלח ⇒ unsent', () => {
+  test('נשלח בפועל ⇒ אין פער (ממתינים ללקוח); בלי דף ולא נשלח ⇒ unsent', () => {
     equal(repSendPhase(req({ status: 'pending_signature', signatureDocuments: [singleForm()], execution: { signatureEmailSentAt: '2026-10-02T09:00:00Z' } })), null);
-    equal(repSendPhase(req({ status: 'pending_signature', signatureDocuments: [singleForm()] })), 'unsent');
+    equal(repSendPhase(req({ status: 'pending_signature', signatureDocuments: [singleForm()] }), null, false), 'unsent');
+  }),
+  test('240 · אושר לדף, טרם נשלח מייל ⇒ on_page: אין משימה, אין «לשלוח», לא «נשלח לחתימה»', () => {
+    const phase = repSendPhase(req({ status: 'pending_signature', signatureDocuments: [singleForm()] }));
+    equal(phase, 'on_page');
+    const act = representationAction('pending_signature', phase);
+    equal(act.mine, false);
+    equal(act.action, 'ממתין לחתימת הלקוח');
+    equal(repShortAction('pending_signature', phase), null);
+    equal(representationStatusLabel('pending_signature', phase), 'ממתין לחתימת הלקוח');
+  }),
+  test('240 · אושר לדף אבל בטופס חסר מקום חתימה ⇒ החסם לא מוסתר', () => {
+    const phase = repSendPhase(req({ status: 'pending_signature', signers: [CLIENT, SPOUSE], signatureDocuments: [singleForm()] }));
+    equal(phase, 'form_incomplete');
+    equal(representationAction('pending_signature', phase).mine, true);
   }),
 
   // ── מה מוצג על הטופס: עתידי מול בוצע ─────────────────────────────────────

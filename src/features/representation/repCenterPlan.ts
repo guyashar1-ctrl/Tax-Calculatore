@@ -241,8 +241,9 @@ export function repCenterPlan(input: RcInput): RcPlan {
       return input.pageOpen === false
         ? plan('on_page', 'office', `אושר — הדף של ${first} עוד לא נפתח לו`,
             `הבקשה תופיע בדף ברגע שהקליטה תפורסם ל${first} («פרסם בדף» בבקשות). עד אז היא לא מוצגת לו.`)
-        : plan('on_page', 'office', `זמין בדף של ${first} · טרם נשלחה הודעה`,
-            `${first} יכול לחתום כבר עכשיו מהדף. המייל יוצא כשתשלח את עדכון הדף — עם כל מה שחדש בו.`);
+        // ‼ אין כאן משימה של המשרד: הלקוח יכול לחתום מהדף, וההודעה היא החלטה של «בקשות».
+        : plan('on_page', 'client', `ממתינים ל${first} · הבקשה בדף`,
+            `${first} יכול לחתום כבר עכשיו מהדף. הודעה במייל עוד לא נשלחה — את עדכון הדף שולחים מ«בקשות».`);
     }
     if (prepareOpen.length > 0 || !input.formReady) {
       const n = prepareOpen.length || 1;

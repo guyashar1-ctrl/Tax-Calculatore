@@ -41,10 +41,7 @@ import {
 import type { RepApprovalStep } from '../hooks/useRepApprovalStep';
 import EmailStatusRow from './EmailActivity/EmailStatusRow';
 import EmailPreviewDialog from './EmailActivity/EmailPreviewDialog';
-import SendPortalDialog from './clientTabs/SendPortalDialog';
-import SendRequestsDialog from './clientTabs/SendRequestsDialog';
 import { useReadyToSend } from '../hooks/useReadyToSend';
-import { newSinceTitle } from './flows/trayQueue';
 import { isUnknownEmailStatus, isUnknownSendReply, unknownSendText } from '../types/emailActivity';
 import { UNKNOWN_OUTCOME_TEXT } from '../../supabase/functions/_shared/resendResult.ts';
 import type { RepSigner } from '../types';
@@ -640,16 +637,14 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
   /** null = לכל מי שיש לו מייל. מזהה חותם = רק אליו, והוא יעביר לשני. */
   const [sendOnlyTo, setSendOnlyTo] = useState<string | null>(null);
   /**
-   * ‼ 239/240 · ללקוח עם דף אישי אין מייל חתימה משלו: התזכורת היא תזכורת הדף (אותו
-   * חלון של «בקשות»), ושליחת העדכון — «שלח בקשות» המשותף.
+   * ‼ 239/240 · ללקוח עם דף אישי אין מייל חתימה משלו, ומרכז הייצוג גם לא שולח את הדף:
+   * הוא להכנה, לאישור ולרשויות. הצפייה בדף, העתקת הקישור והשליחה המרוכזת — רק ב«בקשות».
    */
-  const [pageReminder, setPageReminder] = useState(false);
-  const [sendTrayOpen, setSendTrayOpen] = useState(false);
   /** המדריך המצולם שהלקוח רואה בכרטיס — כדי שהמשרד יוכל ללוות אותו בטלפון. */
   const [approvalGuideOpen, setApprovalGuideOpen] = useState(false);
-  // ‼ 240 · «מה חדש בדף ולא נשלח» — אותו מקור של המגש ב«בקשות» (client_ready_to_send).
+  // ‼ 240 · רק «האם הדף פתוח ללקוח» (client_ready_to_send.owner.pageOpen) — לא מונה ולא שליחה.
   const [readyTick, setReadyTick] = useState(0);
-  const { ready: readyToSend, reload: reloadReady } = useReadyToSend(linkedClient?.id, readyTick);
+  const { ready: readyToSend } = useReadyToSend(linkedClient?.id, readyTick);
 
   /**
    * 240 · «אשר והוסף לדף הלקוח»: מכינים לחתימה (208/218 — בודק את הטופס, מוסיף את
@@ -1645,7 +1640,6 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
   const toFirst = firstName ? `ל${firstName}` : 'ללקוח';
   const sendLabel = sendOnlyTo ? `שלח ל${pendingSigners.find(s => s.id === sendOnlyTo)?.name || 'חותם'}`
     : `שלח ${toFirst}${emailableSigners.length > 1 ? ` (${emailableSigners.length} חותמים)` : ''}`;
-  const clientMail = linkedClient?.email?.trim() ?? '';
   const APPROVE_LABEL = 'אשר והוסף לדף הלקוח';
   const pageTitle = `הדף של ${firstName || 'הלקוח'}`;
   // ‼ 240 · בן/בת זוג שחותם/ת: אין לו/ה דף — מייל חתימה אישי, בלחיצה מפורשת כאן.
@@ -1662,7 +1656,6 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
         : <span data-tone="warn">אין כתובת מייל</span>}
     </div>
   ));
-  const ownerNewItems = readyToSend.owner.items;
   const recipientLine = recipients.length > 0
     ? <div className="rc-aside-line">אל {recipients.map(s => <span key={s.id} className="ltr-isolate rc-addr">{s.email.trim()}</span>)}</div>
     : <div className="rc-aside-line" data-tone="warn">לאף חותם אין כתובת מייל</div>;
@@ -1735,22 +1728,16 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
         title: pageTitle,
         content: (
           <>
-            {/* ‼ הכותרת כבר אומרת «זמין בדף · טרם נשלחה הודעה» — כאן רק מה שלא נאמר שם. */}
-            {!pageOpen && <div className="rc-aside-line" data-testid="rc-on-page-state" data-tone="warn">הדף עוד לא נפתח ללקוח</div>}
-            {pageOpen && ownerNewItems.length > 0 && (
+            {/* ‼ אין כאן משימה ואין כאן שליחה: הלקוח יכול לחתום מהדף, והשליחה המרוכזת — מ«בקשות». */}
+            {pageOpen ? (
+              <div className="rc-aside-line" data-testid="rc-on-page-state">
+                {firstName || 'הלקוח'} יכול לחתום מהדף. את עדכון הדף שולחים מ«בקשות».
+              </div>
+            ) : (
               <>
-                <div className="rc-aside-line" data-testid="rc-on-page-news">
-                  {newSinceTitle(ownerNewItems, readyToSend.owner.lastSentAt, firstName || 'הלקוח',
-                    i => i.title || 'בקשה')}
-                </div>
-                <button className="btn btn-secondary" data-testid="rc-open-send" onClick={() => setSendTrayOpen(true)}>
-                  שליחת עדכון הדף…
-                </button>
-                <div className="rc-aside-line">אותו מייל מרוכז של «בקשות» — רואים אותו לפני שהוא יוצא.</div>
+                <div className="rc-aside-line" data-testid="rc-on-page-state" data-tone="warn">הדף עוד לא נפתח ללקוח</div>
+                <div className="rc-aside-line">הבקשה תופיע כשהקליטה תפורסם ל{firstName || 'לקוח'} — «פרסם בדף» ב«בקשות».</div>
               </>
-            )}
-            {!pageOpen && (
-              <div className="rc-aside-line">הבקשה תופיע כשהקליטה תפורסם ל{firstName || 'לקוח'} — «פרסם בדף» ב«בקשות».</div>
             )}
             {spouseSignerLines}
           </>
@@ -1812,15 +1799,17 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
           <div className="rc-signers" data-testid="rc-signers">
             {signers.map(s => {
               // ‼ תזכורת = אותו מייל שוב לאותה כתובת. מספיק שהבקשה נשלחה — גם בלי רשומה ביומן לכתובת הזו.
-              const canRemind = !!s.email.trim() && (!!signerEmail(s) || !!exec.signatureEmailSentAt);
+              // ‼ 240 · ללקוח עם דף, מייל הדף (signatureEmailSentAt) נשא את החתימה של בעל הכרטיס בלבד —
+              // הוא אינו ראיה שבן/בת הזוג קיבל/ה משהו. לבן/בת הזוג — רק המיילים שלו/ה.
+              const batch = pageChannel && s.role === 'spouse' ? undefined : exec.signatureEmailSentAt;
+              const canRemind = !!s.email.trim() && (!!signerEmail(s) || !!batch || (pageChannel && s.role === 'spouse'));
               return (
                 <SignerLine key={s.id} signer={s} showName={signers.length > 1}
                   signed={effectiveSignStatus(request, s) === 'signed'}
                   emails={signerEmails(s)} track={niTrackFor(s)}
                   onRemind={canRemind && !(pageChannel && s.role !== 'spouse') ? () => handleRemind({ toEmail: s.email }) : undefined}
-                  onRemindViaPage={pageChannel && s.role !== 'spouse' && !!clientMail
-                    ? () => setPageReminder(true) : undefined}
-                  batchSentAt={exec.signatureEmailSentAt}
+                  hideLink={pageChannel && s.role !== 'spouse'}
+                  batchSentAt={batch}
                   onCopiedLink={() => void markLinkHandedOver(s.role === 'spouse' ? 'spouse' : 'client')} />
               );
             })}
@@ -2478,31 +2467,6 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
         <PoaViewer entry={heroPoa} signers={signers} values={request.signatureValues} loadDoc={loadDoc}
           composeClientSigned={composeClientSigned} onClose={() => setHeroPoa(null)} />
       )}
-      {pageReminder && linkedClient && (
-        <SendPortalDialog
-          clientId={linkedClient.id}
-          clientName={clientDisplayName(linkedClient)}
-          clientEmail={linkedClient.email}
-          emailKind="reminder"
-          initialMode="email"
-          heading="תזכורת ללקוח"
-          onSent={() => { onStepsChanged?.(); setReadyTick(t => t + 1); void reloadEmails(); }}
-          onClose={() => { setPageReminder(false); onStepsChanged?.(); }}
-        />
-      )}
-      {/* ‼ 240 · אותו «שלח בקשות» של «בקשות» — אותו מקור (client_ready_to_send), אותה שליחה. */}
-      {sendTrayOpen && linkedClient && (
-        <SendRequestsDialog
-          clientId={linkedClient.id}
-          clientName={clientDisplayName(linkedClient)}
-          ready={readyToSend}
-          focusKey="owner"
-          onUpdateClientFields={onUpdateClientFields}
-          onClose={() => { setSendTrayOpen(false); setReadyTick(t => t + 1); onStepsChanged?.(); }}
-          onSent={() => { setReadyTick(t => t + 1); onStepsChanged?.(); void reloadEmails(); }}
-          onReload={() => reloadReady()}
-        />
-      )}
       {previewSignerId && (
         <EmailPreviewDialog
           readOnly
@@ -2524,7 +2488,7 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
  * השליחה של הבקשה (נכתב רק אחרי שכל המיילים יצאו בהצלחה). כך הכותרת («המייל
  * יצא») והשורה של החותם לעולם לא סותרות זו את זו.
  */
-function SignerLine({ signer, showName, signed, emails, track, onCopiedLink, onRemind, onRemindViaPage, batchSentAt }: {
+function SignerLine({ signer, showName, signed, emails, track, onCopiedLink, onRemind, hideLink, batchSentAt }: {
   signer: RepSigner;
   showName: boolean;
   signed: boolean;
@@ -2533,8 +2497,11 @@ function SignerLine({ signer, showName, signed, emails, track, onCopiedLink, onR
   track?: NiTracking;
   onCopiedLink: () => void;
   onRemind?: () => Promise<{ text: string; unknown: boolean } | null>;
-  /** 239 · ללקוח עם דף: התזכורת היא תזכורת הדף (חלון השליחה של הדף), לא מייל חתימה נפרד. */
-  onRemindViaPage?: () => void;
+  /**
+   * 240 · לקוח עם דף: הקישור שמשתפים הוא הקישור הקבוע לדף (ב«בקשות»), לא קישור חתימה אישי —
+   * ולכן אין כאן «העתקת קישור אישי». בן/בת זוג (אין לו/ה דף) — כן.
+   */
+  hideLink?: boolean;
   batchSentAt?: string;
 }) {
   const [copied, setCopied] = useState(false);
@@ -2551,7 +2518,7 @@ function SignerLine({ signer, showName, signed, emails, track, onCopiedLink, onR
   const lastUnknown = isUnknownEmailStatus(latest?.status);
   const opened = !!email && (!!email.openedAt || ['opened', 'clicked'].includes(email.status));
   const bounced = !!email && ['bounced', 'complained'].includes(email.status);
-  const link = signer.signToken ? `${window.location.origin}/?sign=${signer.signToken}` : '';
+  const link = signer.signToken && !hideLink ? `${window.location.origin}/?sign=${signer.signToken}` : '';
   // ‼ האסמכתא לא נמסרה — הפער שאין לו שום סימן אחר במסך.
   const refPending = !!track?.referenceNumber && !track.instructionsSentAt;
   const handedByLink = track?.instructionsSentWith === 'link';
@@ -2598,13 +2565,8 @@ function SignerLine({ signer, showName, signed, emails, track, onCopiedLink, onR
         </div>
       )}
       {refPending && <div className="rc-err">אסמכתא {track!.referenceNumber} של ביטוח לאומי טרם נמסרה</div>}
-      {!signed && (onRemind || onRemindViaPage || link) && (
+      {!signed && (onRemind || link) && (
         <div className="rc-signer-acts">
-          {onRemindViaPage && (
-            <button type="button" className="btn btn-secondary btn-sm" data-testid="rc-signer-remind-page" onClick={onRemindViaPage}>
-              תזכורת בדף
-            </button>
-          )}
           {onRemind && (
             <button type="button" className="btn btn-secondary btn-sm"
               onClick={() => (lastUnknown && !confirmAgain ? setConfirmAgain(true) : void remind())}>

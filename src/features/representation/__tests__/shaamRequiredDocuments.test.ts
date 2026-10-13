@@ -113,9 +113,14 @@ export const TESTS: TestCase[] = [
 
   test('תווית: «נשלח לחתימת הלקוח» רק כשהמייל יצא', () => {
     const ready = { status: 'pending_signature' as const, execution: {} };
-    equal(repSendPhase(ready), 'unsent');
-    equal(representationStatusLabel('pending_signature', repSendPhase(ready)), 'מוכן לשליחה ללקוח');
-    equal(representationAction('pending_signature', 'unsent').mine, true);
+    // בלי דף אישי (בקשה ישנה): ממתין לחתימה בלי מייל = השליחה עוד לא קרתה — משימה.
+    equal(repSendPhase(ready, null, false), 'unsent');
+    equal(representationStatusLabel('pending_signature', repSendPhase(ready, null, false), false), 'מוכן לשליחה ללקוח');
+    equal(representationAction('pending_signature', 'unsent', false).mine, true);
+    // 240 · עם דף: אושר לדף — לא «נשלח», ולא משימה.
+    equal(repSendPhase(ready), 'on_page');
+    equal(representationStatusLabel('pending_signature', repSendPhase(ready)), 'ממתין לחתימת הלקוח');
+    equal(representationAction('pending_signature', 'on_page').mine, false);
     equal(repSendPhase({ status: 'pending_signature', execution: { signatureEmailSentAt: '2026-09-27T08:00:00Z' } }), null);
     equal(representationStatusLabel('pending_signature', null), 'נשלח לחתימת הלקוח');
   }),

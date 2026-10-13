@@ -7,6 +7,10 @@
 // וסבב 4: «חסר סוג העוסק» — בקשות שמחכות לסוג העוסק, וכפתור למקום שבו קובעים אותו.
 // ‼ מסלול בעצירה — בשורת המסלול בלבד (DESIGN-FLOWS-R3 §5), לא כשורה כאן. כאן הוא נאמר
 // רק כשהוא עוצר מייל שהיה יוצא לבד — בשורה של המייל, עם קישור לחידוש.
+// ‼ 240 (13.10) · המגש הוא «הדף של X» — המקום האחד לפעולות של הדף: צפייה, העתקת הקישור
+// הקבוע, ושליחת מייל. מופיע תמיד, וכשיש בדף מה שלא נשלח — «שלח מייל…» מודגש בעדינות ושורת
+// «N בקשות חדשות מאז השליחה האחרונה» מתחת. ‼ העתקת קישור וצפייה אינן הודעה ללקוח: לא מסמנות
+// «נמסר», לא מאפסות את המונה ולא מפעילות תזכורות (mint_portal_token רק מחזיר את הקישור הקבוע).
 // ‼ «לא ידוע אם יצא» אינו «נכשל»: הבקשות לא סומנו כנמסרו, ושליחה חוזרת היא
 // אותו מייל בדיוק (אותו מפתח אצל ספק הדואר) — לא מייל שני. שחרור (המייל הבא
 // יכלול אותן שוב) — רק מאחורי אישור שמסביר את הכפילות (unknownRowModel / unknownConfirm).
@@ -61,6 +65,14 @@ interface Props {
   kindHold?: KindHold | null;
   /** «לקביעת סוג העוסק» — פותח את תיק המס ב«פרטי הנישום», על השדה «סוג העוסק». */
   onOpenKindField?: () => void;
+  /** 240 · «צפייה בדף» — הדף כפי שהלקוח רואה אותו (לא נשלח כלום). */
+  onViewPage: () => void;
+  /** 240 · «העתקת קישור» — הקישור הקבוע לדף. ‼ לא שליחה. */
+  onCopyLink: () => void;
+  linkBusy?: boolean;
+  linkCopied?: boolean;
+  /** 240 · «שלח מייל…» כשאין חדש — מייל עם הקישור ומצב הדף (בלי לסמן דבר כחדש). */
+  onSendUpdate: () => void;
 }
 
 /** כמה ימים אחרי מייל או תזכורת מציעים תזכורת ידנית במגש. */
@@ -75,7 +87,7 @@ const STAYS_UNKNOWN = new Set(['unknown_outcome', 'retry_expired', 'recipient_ch
 export default function NoticeTray({
   clientId, firstName, ready, unpublished, unpublishedAllNew, awaitingQuoteApproval, titleOf,
   discarding, onPublish, onPreviewPage, onDiscard, onSend, onRemind, onChanged, paused = [], onOpenFlow,
-  kindHold, onOpenKindField,
+  kindHold, onOpenKindField, onViewPage, onCopyLink, linkBusy, linkCopied, onSendUpdate,
 }: Props) {
   const [busy, setBusy] = useState<string | null>(null);
   // warn — ענבר: לא ידוע מה קרה (אין תשובה, המייל עדיין «לא ידוע»), לא «נכשל».
@@ -126,9 +138,7 @@ export default function NoticeTray({
 
   const kind = kindHoldRow(kindHold, firstName);
 
-  // ‼ תור בלי «חדש» = השרת ידלג עליו (אין מה להודיע) — אין שורה להראות.
-  if (nDrafts === 0 && !hasSend && !inFlight && unknown.length === 0 && !showRemind && !msg && !kind) return null;
-
+  // ‼ 240 · הדף תמיד כאן (הפעולות שלו), גם כשאין שום דבר שממתין.
   const numbered = nDrafts > 0 && hasSend && !inFlight;
   const personNames = persons.map(p => p.name.split(/\s+/)[0]).join(' ו');
   // ‼ שם קצר בתוך משפט — כמו titleOf; השם המלא בשורת הבקשה מתחת.
@@ -249,15 +259,35 @@ export default function NoticeTray({
     : nNew > 0 ? 'רואים את המייל לפני שהוא יוצא. מייל אחד, רק מה שחדש.'
     : NI_ONLY_WHY;
 
-  const title = nDrafts > 0 || hasSend ? `עוד לא הגיע ל${firstName}`
-    : inFlight || unknown.length > 0 || showRemind ? `מיילים ל${firstName}` : null;
+  // ‼ 240 · «שלח מייל…» בראש הדף: יש חדש ⇒ מייל «מה חדש» (נבחר בשרת); אין ⇒ מייל עם הקישור
+  // והמצב. מייל «חדש» שלא ידוע אם יצא חוסם — קודם מכריעים עליו (השורה שלו למטה).
+  const ownerNews = nNew > 0 && !newBlocked;
+  const pageSend = () => (ownerNews ? onSend('owner') : onSendUpdate());
+  const quiet = nDrafts === 0 && !hasSend && !inFlight && unknown.length === 0 && !showRemind && !kind;
 
   // ‼ בכל שורה: מה המצב (העובדה קודם — בטלפון הסוף נחתך) · למה ומה יקרה · כפתור אחד ·
   // קישורים משניים. בטלפון הכפתור לצד הכותרת והקישורים מתחתיה, כדי שהמגש לא ידחוף
   // את הבקשות מתחת לקפל.
   return (
-    <section className="rl-out" aria-label={title ?? 'מחכה לך'}>
-      {title && <div className="rl-out-title">{title}</div>}
+    <section className="rl-out" aria-label={`הדף של ${firstName}`} data-testid="rl-page">
+      <div className="rl-page-head">
+        <div className="rl-page-title">הדף של {firstName}</div>
+        <div className="rl-page-acts">
+          <button type="button" className="btn btn-sm rl-btn-line" onClick={onViewPage}>צפייה בדף</button>
+          <button type="button" className="btn btn-sm rl-btn-line" disabled={linkBusy} onClick={onCopyLink}
+            data-testid="rl-copy-link">{linkBusy ? 'מכין…' : 'העתקת קישור'}</button>
+          <button type="button" className={`btn btn-sm ${ownerNews ? 'btn-primary' : 'rl-btn-line'}`}
+            disabled={inFlight || newBlocked} onClick={pageSend} data-testid="rl-page-send">
+            {ownerNews && queuedLive ? SEND_NOW_LABEL : SEND_MAIL_LABEL}
+          </button>
+        </div>
+      </div>
+      {linkCopied && <div className="rl-page-flash" role="status">הקישור הועתק</div>}
+      {quiet && (
+        <div className="rl-page-quiet">
+          {own.lastSentAt ? `אין בדף חדש מאז המייל האחרון · ${formatDate(own.lastSentAt, 'list')}` : `עוד לא נשלח מייל מהדף ל${firstName}`}
+        </div>
+      )}
 
       {/* ── 1 · פרסום בדף ─────────────────────────────────────────────────── */}
       {nDrafts > 0 && (
@@ -313,11 +343,10 @@ export default function NoticeTray({
             </strong>
             <span className="rl-out-why">{sendWhy}</span>
           </div>
-          {sendFocus && (
+          {sendFocus && sendFocus !== 'owner' && (
             <div className="rl-out-acts">
-              <button type="button" className={`btn btn-sm ${numbered || newBlocked ? 'rl-btn-line' : 'btn-primary'}`}
-                onClick={() => onSend(sendFocus)}>
-                {queuedLive ? SEND_NOW_LABEL : SEND_MAIL_LABEL}
+              <button type="button" className="btn btn-sm rl-btn-line" onClick={() => onSend(sendFocus)}>
+                שלח הוראות…
               </button>
             </div>
           )}
