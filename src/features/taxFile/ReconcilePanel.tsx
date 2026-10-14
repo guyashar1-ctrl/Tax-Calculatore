@@ -63,7 +63,8 @@ export default function ReconcilePanel({ client: c, alignedAt, pendingCount, fla
         { validity: noDate(props.filter(p => !propertySpan(p as never).start).length, 'נכסים') || undefined }),
       row('investmentAccounts', 'חשבונות השקעות', accts.filter(a => !a.isClosed).map(a => a.institutionName).join(', '),
         { validity: noDate(accts.filter(a => !accountSpan(a as never).start).length, 'חשבונות') || undefined }),
-      row('bankAccounts', 'חשבון להחזרים', (c.bankAccounts ?? []).slice(0, 1).map(b => `${b.bankName}${b.branchNumber ? ` · ${b.branchNumber}` : ''}${b.accountNumber ? ` · …${String(b.accountNumber).slice(-4)}` : ''}`).join('')),
+      // ‼ החשבון להחזרים = הראשי שלא נסגר (חשבון שנסגר נשאר ברשימה להיסטוריה, ולא היה נכון להציג את הראשון ברשימה)
+      row('bankAccounts', 'חשבון להחזרים', [(c.bankAccounts ?? []).find(b => b.isPrimary && !b.closedAt) ?? (c.bankAccounts ?? []).find(b => !b.closedAt)].filter(Boolean).map(b => b!).map(b => `${b.bankName}${b.branchNumber ? ` · ${b.branchNumber}` : ''}${b.accountNumber ? ` · …${String(b.accountNumber).slice(-4)}` : ''}`).join('')),
       row('pensionFunds', 'קופות', (c.pensionFunds ?? []).map(f => f.institutionName).join(', ')),
     ];
   }, [c, meta]);

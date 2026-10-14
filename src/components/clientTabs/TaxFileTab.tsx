@@ -821,7 +821,7 @@ export default function TaxFileTab({
   const bankSummary = bankAccounts.length > 0
     ? join(
       `${bankAccounts.length} ${bankAccounts.length === 1 ? 'חשבון' : 'חשבונות'}`,
-      bankAccounts.find(b => b.isPrimary) && `${bankAccounts.find(b => b.isPrimary)!.bankName} (ראשי להחזרים)`,
+      bankAccounts.find(b => b.isPrimary && !b.closedAt) && `${bankAccounts.find(b => b.isPrimary && !b.closedAt)!.bankName} (ראשי להחזרים)`,
     )
     : 'לא נרשם חשבון בנק';
 
@@ -1713,7 +1713,7 @@ export default function TaxFileTab({
                 {editingSection === 'bank' ? renderLists() : (
                   <div className="txf-kv">
                     {bankAccounts.map(b => (
-                      <KV key={b.id} k={b.bankName} v={b.isPrimary ? 'ראשי - להחזרי מס' : (b.branchName || 'חשבון נוסף')} />
+                      <KV key={b.id} k={b.bankName} v={b.closedAt ? `נסגר ${b.closedAt.slice(8, 10)}.${b.closedAt.slice(5, 7)}.${b.closedAt.slice(0, 4)}` : b.isPrimary ? 'ראשי - להחזרי מס' : (b.branchName || 'חשבון נוסף')} />
                     ))}
                     {bankAccounts.length === 0 && <KV k="חשבון להחזרי מס" v="טרם נרשם" />}
                   </div>
