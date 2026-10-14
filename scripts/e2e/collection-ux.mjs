@@ -277,6 +277,8 @@ async function taxFile(vp) {
     // מהתיק — אחרי יצירה מוצלחת נפתח ישר דף העבודה, עם הטיוטה (לא פורסמה)
     const ov = page.locator('.ty-overlay');
     await ov.waitFor({ timeout: 20000 }).catch(() => {});
+    // 14.10.2026 (מיזוג tax-ke): דף העבודה נטען אחרי הכותרת — מחכים לתוכן, לא קוראים את «טוען…»
+    await ov.getByText(/פרסם בדף האישי/).first().waitFor({ timeout: 15000 }).catch(() => {});
     ok((await text(ov.locator('h2'))).includes('דוח שנתי 2024'), 'הוספה מהתיק: דוח 2024 נוצר ונפתח', await text(ov.locator('h2')));
     const ot = await text(ov);
     ok(/מוכן לדף האישי/.test(ot) && /פרסם בדף האישי/.test(ot), 'אחרי היצירה: הטיוטה מחכה ל«פרסם» — לא פורסמה מעצמה', ot.slice(0, 160));

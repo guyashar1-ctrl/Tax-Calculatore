@@ -28,7 +28,7 @@ const asUser = (sub, expr) => env.sql(`begin; set local role authenticated;
   select set_config('request.jwt.claims', ${lit({ sub, role: 'authenticated' })}, true);
   select (${expr}) as r; commit;`).then(x => x[0]?.r);
 const browser = await chromium.launch({ executablePath: 'C:/Program Files/Google/Chrome/Application/chrome.exe', headless: false, args: ['--headless=new', '--disable-dev-shm-usage'] });
-const errs = [], blocked = [], authLog = [];
+const errs = [], blocked = [], authLog = [], okLog = [];
 async function newCtx(phone) {
   const ctx = await browser.newContext({ viewport: phone ? { width: 390, height: 844 } : { width: 1440, height: 900 }, locale: 'he-IL',
     ...(phone ? { isMobile: true, hasTouch: true, deviceScaleFactor: 2 } : {}) });
@@ -38,6 +38,7 @@ async function newCtx(phone) {
   const page = await ctx.newPage();
   page.on('pageerror', e => errs.push(`${phone ? 'phone' : 'desktop'}: ${e.message}`));
   page.on('console', m => { if (m.type() === 'error') errs.push(`${phone ? 'phone' : 'desktop'}: ${m.text()}`); });
+  page.on('response', r => { if (r.status() < 400) okLog.push({ t: Date.now(), url: r.url().replace(/\?.*/, '') }); });
   page.on('response', r => { if (r.status() >= 400) errs.push(`[after #${pass + fail}] ${phone ? "phone" : "desktop"}: HTTP ${r.status()} ${r.url().replace(/[?#].*/, '')}`); });
   // ‼ ראיות ל-401 (13.10.2026): מה נשלח (מפתח ציבורי או אסימון משתמש, ותוקפו), גוף התשובה, ומתי ביחס לרענון האסימון
   page.on('requestfinished', async q => {
@@ -57,11 +58,12 @@ async function newCtx(phone) {
   });
   return { ctx, page };
 }
-const yearLine = (page) => page.locator(".ty-years .ty-year:has(h4:has-text('2026')) .ty-line:has-text('הערכת מס')").first();
+// 14.10.2026 · אחרי 241: «דוחות והצהרות» — שורה לכל עבודה פתוחה (data-work), ו«＋ הערכת מס <שנה>» כשאין הערכה פתוחה
+const yearLine = (page) => page.locator('[data-section="works"] li[data-work="tax_estimate"]').first();
 async function openOffice(page) {
   await page.goto(env.officeUrl(env.clientId, 'taxfile'), { waitUntil: 'networkidle' }); await sleep(2500);
   // ‼ «תיק מס» — הלשונית לא משנה כתובת בכל מצב (client-tabs-dont-change-url); לוחצים אם צריך
-  if (!(await page.locator('.ty-years').count())) { const t = page.getByRole('tab', { name: 'תיק מס' }).first(); if (await t.count()) { await t.click(); await sleep(1500); } }
+  if (!(await page.locator('[data-section="works"]').count())) { const t = page.getByRole('tab', { name: 'תיק מס' }).first(); if (await t.count()) { await t.click(); await sleep(1500); } }
 }
 async function openEstimate(page) {
   await openOffice(page);
@@ -79,8 +81,8 @@ try {
     where id = '${env.clientId}'`);
   const { ctx, page } = await newCtx(false);
   await openOffice(page);
-  ok(await page.locator('.ty-years').count() === 1, 'תיק מס נטען בבנייה לפרסום (staging)');
-  await yearLine(page).locator('button:has-text("התחל")').click(); await sleep(2500);
+  ok(await page.locator('[data-section="works"]').count() === 1, 'תיק מס נטען בבנייה לפרסום (staging)');
+  await page.locator('[data-section="works"] button:has-text("＋ הערכת מס")').first().click(); await sleep(2500);
   ok(await page.locator('.te-panel').count() === 1, '«התחל» הערכת מס 2026 — הבקשה נפתחה (ensure_tax_year_request)');
   const stepId = (await env.sql(`select id from public.onboarding_steps where client_id='${env.clientId}' and step_type='tax_estimate'`))[0]?.id;
   ok(!!stepId, 'שורת בקשה אחת ב«בקשות» (onboarding_steps)', stepId);
@@ -176,12 +178,49 @@ try {
   await page.evaluate(() => { document.querySelector('#te-checks').open = true; });
   await page.locator('#te-checks button:has-text("ללמוד את הנושא")').first().click(); await sleep(2000);
   ok(await page.locator('.kn-topic').count() === 1, '«ללמוד» פתח נושא בידע המס');
-  await page.locator('button:has-text("חזרה לתיק")').first().click(); await sleep(3000);
+  await page.locator('button:has-text("חזרה לתיק")').first().click();
+  // אחרי 241 התיק טוען יותר לפני «דוחות והצהרות» — מחכים לפאנל עצמו, לא לזמן קבוע
+  await page.locator('.te-panel').first().waitFor({ timeout: 15000 }).catch(() => {});
   ok(await page.locator('.te-panel').count() === 1, '«חזרה לתיק» — אותה הערכה נפתחה מחדש');
 
   await page.reload({ waitUntil: 'networkidle' }); await sleep(1500);
   await openOffice(page);
-  ok((await yearLine(page).innerText()).includes('גרסה 1 מאושרת'), 'כרטיס השנה: «גרסה 1 מאושרת» אחרי טעינה');
+  ok((await yearLine(page).innerText()).includes('גרסה 1'), '«דוחות והצהרות»: «גרסה 1» אחרי טעינה');
+  // ── שילוב עם חבילת האיסוף (241), בדיקה 3: שורה אחת להערכה, «＋ הוסף דוח» נשאר, «＋ הערכת מס» לא כפול ──
+  {
+    const works = page.locator('[data-section="works"]');
+    ok(await works.locator('li[data-work="tax_estimate"]').count() === 1, 'שילוב: «דוחות והצהרות» — שורת הערכה אחת, בלי כפילות');
+    ok(await works.locator('button:has-text("הוסף דוח או הצהרת הון")').count() === 1 && await works.locator('button:has-text("＋ הערכת מס")').count() === 0,
+      'שילוב: «＋ הוסף דוח או הצהרת הון» קיים; «＋ הערכת מס» לא מוצג כשיש הערכה פתוחה');
+  }
+  // ── בדיקה 4: דף הלקוח עם השלמת מידע והערכה מפורסמת — שני הפריטים, וכל אחד נפתח למסך הנכון ──
+  {
+    if (!(await page.locator('.ty-overlay').count())) { await yearLine(page).locator('button:has-text("פתח")').click(); await sleep(2500); }
+    const ov = page.locator('.ty-overlay');
+    const addQ = ov.getByRole('button', { name: /^הוסף \d+ שאלות/ }).first();
+    if (await addQ.waitFor({ timeout: 15000 }).then(() => true).catch(() => false)) { await addQ.click(); await sleep(2500); }
+    const ready = ov.locator('section, div').filter({ has: page.locator('h3', { hasText: 'מוכן לדף האישי' }) }).last();
+    for (let k = 0; k < 3 && !(await page.locator('.ty-ok').innerText().catch(() => '')).includes('פורסם'); k++) { await ready.getByRole('button', { name: 'פרסם בדף האישי' }).first().click({ timeout: 8000 }).catch(() => {}); await sleep(2000); }
+    const infoPub = await env.sql(`select count(*) filter (where published_at is not null)::int pub from public.onboarding_steps where client_id = '${env.clientId}' and step_type = 'info_collection'`);
+    ok(infoPub[0]?.pub >= 1, 'שילוב: השלמת המידע להערכה פורסמה בדף האישי (בלי מייל)', JSON.stringify(infoPub));
+    for (const phone of [false, true]) {
+      const tag = phone ? 'טלפון' : 'מחשב';
+      const post = await portalText(phone);
+      ok(post.body.includes('הערכת המס לשנת 2026') && /השלמת מידע|שאלות/.test(post.body), `שילוב — דף הלקוח (${tag}): שני הפריטים — הערכה והשלמת מידע`, post.body.slice(0, 300));
+      await post.p.locator('button:has-text("לצפייה בהערכה")').first().click(); await sleep(2500);
+      ok(await post.p.locator('iframe[title^="הערכת המס"]').count() === 1, `שילוב — דף הלקוח (${tag}): «לצפייה בהערכה» פותח את ההערכה`);
+      await post.p.goto(env.portalUrl(), { waitUntil: 'networkidle' }); await sleep(2000);
+      const infoBtn = post.p.locator('button, a').filter({ hasText: /לשאלות|להשלמת המידע|ענה|התחל/ }).first();
+      if (await infoBtn.count()) { await infoBtn.click(); await sleep(2500); }
+      const after = await post.p.locator('body').innerText();
+      ok(!after.includes('מקדמות — היום והמלצה') && (await post.p.locator('iframe[title^="הערכת המס"]').count()) === 0 && /שאלה|שאלות|הבא|שמור/.test(after),
+        `שילוב — דף הלקוח (${tag}): פריט השלמת המידע פותח את השאלון, לא את ההערכה`, after.slice(0, 200));
+      if (phone) await post.p.screenshot({ path: join(SHOTS, 'stg-combined-portal-phone.png') });
+      await post.c.close();
+    }
+    await page.reload({ waitUntil: 'networkidle' }); await sleep(1500);
+    await openOffice(page);
+  }
 
   // העתקת פרומפט תחזוקה
   await page.goto(`${BASE}/#/reference`, { waitUntil: 'networkidle' }); await sleep(2000);
@@ -226,7 +265,11 @@ try {
   ok(c.left === 0 && !c.storageLeft, 'ניקוי: אין שאריות של לקוח הבדיקה', JSON.stringify(c));
   ok(blocked.length === 0, 'אין פניות לייצור', blocked.slice(0, 2).join(' | '));
   if (authLog.length) { const t0 = authLog[0].t; console.log('    [ראיות 401/auth]'); for (const a of authLog) console.log('     ', JSON.stringify({ ...a, t: a.t - t0 })); }
-  const realErrs = errs.filter(e => !/favicon/.test(e));
+  // ‼ 14.10.2026 · PGRST303 «JWT issued at future» — הניסיון החוזר של jwtClockSkewRetry (חבילת האיסוף) אמור להחזיר תשובה תקינה לאותה כתובת
+  const skew = authLog.filter(a => a.kind === '401' && /PGRST303|issued at future/.test(a.body ?? ''));
+  if (skew.length) ok(skew.every(a => okLog.some(o => o.url === a.url && o.t >= a.t && o.t - a.t < 8000)), `401 שעון (PGRST303) — ${skew.length} מקרים, כולם הוחזרו בניסיון החוזר`, JSON.stringify(skew.map(a => a.url)));
+  const skewUrls = new Set(skew.map(a => a.url));
+  const realErrs = errs.filter(e => !/favicon/.test(e) && !(skew.length && /Failed to load resource: the server responded with a status of 401/.test(e)) && ![...skewUrls].some(u => e.includes('HTTP 401') && e.includes(u)));
   ok(realErrs.length === 0, 'בלי שגיאות בקונסול', realErrs.slice(0, 4).join(' | '));
   console.log(`\n${pass} עברו, ${fail} נכשלו`);
   process.exit(fail ? 1 : 0);

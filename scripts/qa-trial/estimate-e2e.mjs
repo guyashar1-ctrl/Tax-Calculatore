@@ -24,7 +24,7 @@ for (const [name, vp] of [['desktop', { width: 1440, height: 900 }], ['phone', {
   const shot = (n) => page.screenshot({ path: join(shots, `${name}-${n}.png`) });
   const openEstimate = async () => {
     await page.evaluate(() => { location.hash = '#/client/sample-4/taxfile'; }); await page.waitForTimeout(1800);
-    await page.locator(".ty-year:has-text('2026') >> button:has-text('פתח')").first().click(); await page.waitForTimeout(1500);
+    await page.locator('[data-section="works"] li[data-work="tax_estimate"] button:has-text("פתח")').first().click(); await page.waitForTimeout(1500);
   };
 
   await page.goto(`${base}/?office-app&fresh-taxyear`, { waitUntil: 'networkidle' }); await page.waitForTimeout(1200);
