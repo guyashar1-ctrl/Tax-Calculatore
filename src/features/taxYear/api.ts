@@ -195,8 +195,10 @@ export function answerPayload(a: AskAnswer): Row {
     case 'unchanged': return { kind: 'unchanged' };
     case 'changed': return { kind: 'changed', note: a.note };
     case 'file': return { kind: 'file', fileName: a.fileName, documentId: a.documentId };
-    case 'unavailable': return { kind: 'unavailable', reason: a.reason };
+    case 'unavailable': return { kind: 'unavailable', reason: a.reason, code: a.code };
     case 'who': return { kind: 'who', value: a.value };
+    // 241 · רשומה מובנית — הערך נשמר בעובדה כפי שהוא (השרת בודק צורה וגודל)
+    case 'record': return { kind: 'record', value: a.value, none: a.none, assertion: a.assertion, was: a.was };
   }
 }
 export const portalSubmit = (token: string, askId: string, answer: AskAnswer) =>
@@ -218,3 +220,22 @@ export async function loadDemandEvidence(clientId: string): Promise<DemandEviden
   }
   return out;
 }
+
+/**
+ * 241 · עקיבות לקבצי המקור של מסמך שנבנה מכמה חלקים (קדמי, אחורי, ספח…): מה צורף ובאיזה סדר — ליד הראיה.
+ * ‼ רק רשימה (שם, סוג, גודל, חלק) — לא תוכן. כשל כאן אינו כשל ההעלאה.
+ */
+export const portalNoteEvidenceParts = (token: string, askId: string, parts: unknown) =>
+  call('portal_note_tax_evidence_parts', { p_token: token, p_ask_id: askId, p_parts: parts });
+
+// ── 241 · עבודות מס: הוספה (בודדת או מרוכזת) ופרטים — על אותה בקשה, בלי טבלה שנייה ──
+/**
+ * יוצר או מקשר עבודה (דוח שנתי / הצהרת הון) ושומר עליה מקור, מועדים ובדיקה אחרונה.
+ * ‼ אידמפוטנטי בשרת לפי זהות העבודה (לקוח + סוג + שנה/יום + פתוחה). עבודה קיימת — לא נוצרת שוב, ופרט שכבר רשום
+ *   עליה לא נדרס: הוא חוזר ב-`kept` כדי שהמסך יאמר זאת. אין כאן פרסום ללקוח ואין מייל.
+ */
+export const upsertTaxWork = (clientId: string, kind: 'annual' | 'wealth', period: { taxYear?: number; asOfDate?: string }, meta: Record<string, unknown>) =>
+  call<{ stepId: string; created: boolean; kept?: string[] }>('upsert_tax_work',
+    { p_client_id: clientId, p_kind: kind, p_tax_year: period.taxYear ?? null, p_as_of: period.asOfDate ?? null, p_meta: meta });
+export const updateTaxWork = (stepId: string, patch: Record<string, unknown>, note?: string) =>
+  call('update_tax_work', { p_step_id: stepId, p_patch: patch, p_note: note ?? null });

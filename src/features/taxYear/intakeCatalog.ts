@@ -39,8 +39,13 @@ export const INTAKE_ITEMS: InfoItem[] = [
     officeNext: 'בחירה — «עדכן בתיק» (הצעה עם היסטוריה); «משהו השתנה» — לעדכן בכרטיס ואז «עודכן בתיק»' },
   { key: 'intake.children', area: 'iPeople', label: 'ילדים', kind: 'confirm', per: 'couple', who: 'client', purposes: I,
     question: 'הילדים', why: 'לכל ילד מגיעות נקודות זיכוי לפי גילו ולפי מי שהוא גר אצלו', input: 'confirm', cardKeys: ['children'],
-    whenEmpty: { question: 'שמות הילדים ושנת הלידה של כל אחד (אם אין ילדים — כתבו «אין»)', input: 'text' },
+    whenEmpty: { question: 'הילדים שלכם — שם ותאריך לידה לכל ילד', input: 'text' },
     officeNext: 'לעדכן את רשימת הילדים בכרטיס (שנת לידה, אצל מי גר) ואז «עודכן בתיק»; לאמת מול הספח' },
+  // ‼ 13.10.2026 · כתובת מגורים — מובנית (יישוב, רחוב, מספר, דירה, מיקוד); באישור המשרד מתעדכנת בכרטיס עם היסטוריה
+  { key: 'intake.address', area: 'iPeople', label: 'כתובת מגורים', kind: 'confirm', per: 'couple', who: 'client', purposes: I,
+    question: 'כתובת המגורים', why: 'הכתובת מופיעה בדוח ובמכתבים מהרשויות, ויישוב המגורים עשוי לזכות בהטבת מס', input: 'confirm', cardKeys: ['city', 'address'],
+    whenEmpty: { question: 'מה כתובת המגורים שלכם היום?', input: 'text' },
+    officeNext: '«אשר ועדכן בתיק» — הכתובת נכתבת בכרטיס והקודמת נשמרת בהיסטוריה; לאמת מול הספח' },
   { key: 'intake.idCard', area: 'iPeople', label: 'תעודת זהות עם הספח', kind: 'document', per: 'person', who: 'client', purposes: I,
     question: 'צילום תעודת הזהות של {name}, עם הספח', why: 'הספח מראה כתובת, בן/בת זוג וילדים — כך מאמתים את מה שרשום אצלנו',
     input: 'file', docKind: 'idCard', officeNext: 'לבדוק שמספר הזהות, הכתובת, בן/בת הזוג והילדים תואמים לכרטיס; סתירה — לעדכן בכרטיס' },
@@ -172,7 +177,7 @@ export const INTAKE_ITEMS: InfoItem[] = [
   // ── פרטים להגשה ויישור קו ──
   { key: 'intake.bankAccount', area: 'iFiling', label: 'חשבון בנק להחזרים', kind: 'confirm', per: 'couple', who: 'client', purposes: I, cardKeys: ['bankAccounts'],
     question: 'חשבון הבנק להחזרי מס', why: 'רשות המסים מעבירה החזר רק לחשבון על שם הנישום', input: 'confirm',
-    whenEmpty: { question: 'לאיזה חשבון בנק להעביר החזרי מס? (בנק, סניף, מספר חשבון, ועל שם מי)', input: 'text' },
+    whenEmpty: { question: 'לאיזה חשבון בנק להעביר החזרי מס, אם יהיה?', input: 'text' },
     officeNext: 'לעדכן את חשבון הבנק בכרטיס ואז «עודכן בתיק»; לאמת מול אישור ניהול החשבון' },
   { key: 'intake.bankCert', area: 'iFiling', label: 'אישור ניהול חשבון', kind: 'document', per: 'couple', who: 'client', purposes: I, after: 'intake.bankAccount',
     question: 'אישור ניהול חשבון מהבנק (או צילום צ׳ק)', why: 'כך מוודאים שמספר החשבון נכון', input: 'file', docKind: 'bankAccountCert',

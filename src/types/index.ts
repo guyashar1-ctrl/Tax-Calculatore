@@ -197,6 +197,8 @@ export interface BankAccountInfo {
   kind?: BankAccountKind;
   isPrimary?: boolean;
   notes?: string;
+  /** 13.10.2026 · החשבון נסגר (סיום תוקף בהכרעת משרד) — נשאר בתיק להיסטוריה, לא להחזרים. */
+  closedAt?: string;
 }
 
 // ─── קופות פנסיה / השתלמות / קופ״ג ────────────────────────────────────

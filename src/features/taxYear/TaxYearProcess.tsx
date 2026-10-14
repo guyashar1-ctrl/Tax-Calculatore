@@ -22,15 +22,17 @@ import type { Evidence, FactBasis, Purpose } from './types';
 import TaxInfoFlow from './TaxInfoFlow';
 import WealthDeclarationPanel, { previousByArea, wealthSubtitle, type WealthPayload } from './WealthDeclarationPanel';
 import QuestionnaireMap from './QuestionnaireMap';
-import { WEALTH_ITEMS } from './wealthCatalog';
 import { EstimatePanel, AnnualReturnPanel } from './extensions';
 import { NEW_ENTITY_ITEMS, cardFieldProposal, entityConflicts, newEntityProposal, updateEntityProposal, type CardEntityKind } from '../taxFile/hub';
 import { applyTaxFacts, proposeTaxFacts } from '../../lib/taxFacts';
 import { clientFromDb } from '../../lib/dbMappers';
 import type { ProposedFact } from '../../types/taxFacts';
 import { isProvisionalRef } from './picture';
-import { INTAKE_ITEMS } from './intakeCatalog';
+import { cardUpdateFor, periodDatesPatch, updatesCard, OMIT_LABEL, END_LABEL, type OmitDecision, type Omitted } from './recordToCard';
+import { RECORD_OF } from './structured';
+import { UNAVAILABLE_LABEL } from './asks';
 import { mergePrevious, previousFromFacts } from './wealthPrevious';
+import { DURABLE_KINDS, scopeYearData } from './yearData';
 import { PENSION_FUND_KIND_LABELS, type PensionFundKind } from '../../types';
 import ProcessSteps from '../../components/office/ProcessSteps';
 import { processByKey } from '../../lib/processCatalog';
@@ -252,7 +254,7 @@ export default function TaxYearProcess({ client, step, infoStep, onClose, onChan
                 <>
                   <h3>{count(picture.stale.length, 'שאלה אחת כבר לא רלוונטית', 'שאלות כבר לא רלוונטיות')}</h3>
                   <p className="ty-why">התשובה שעליה הן נשענו שונתה (למשל «כן» שתוקן ל«לא»). ביטול שומר אותן בהיסטוריה כמבוטלות; שאלה שכבר בדף האישי יורדת ממנו.</p>
-                  <ul className="ty-lines">{picture.stale.map(s => <li key={s.ask!.id}>{s.ask!.prompt.title}{target(s, client) ? ` · ${target(s, client)}` : ''} — {s.ask!.state === 'draft' ? 'טיוטה' : s.ask!.state === 'unavailable' ? '«אין לי עדיין»' : 'בדף האישי'}</li>)}</ul>
+                  <ul className="ty-lines">{picture.stale.map(s => <li key={s.ask!.id}>{s.ask!.prompt.title}{target(s, client) ? ` · ${target(s, client)}` : ''} — {s.ask!.state === 'draft' ? 'טיוטה' : s.ask!.state === 'unavailable' ? `«${s.ask!.unavailable?.code ? UNAVAILABLE_LABEL[s.ask!.unavailable.code] : s.ask!.unavailable?.reason ?? UNAVAILABLE_LABEL.legacy}»` : 'בדף האישי'}</li>)}</ul>
                   <div className="ty-actions">
                     <button type="button" className="btn btn-primary" disabled={busy} onClick={() => void run(async () => { for (const s of picture.stale) { const r = await api.cancelAsk(s.ask!.id); if (!r.ok) return r; } return { ok: true }; }, 'השאלות שכבר לא רלוונטיות בוטלו — נשמרו בהיסטוריה')}>בטל אותן</button>
                   </div>
@@ -462,6 +464,21 @@ function ReviewLine({ r, who, busy, run, client, onReturn, applyCard }: { r: Rev
     const res = await proposeTaxFacts(client.id, 'questionnaire', `tax_year_fact:${r.fact.id}`, [updateEntityProposal(client, c0.kind, c0.entityId, patch, { factId: r.fact.id, itemKey: r.fact.itemKey, year: r.fact.taxYear })]);
     if (!res.ok) throw new Error(res.error ?? 'propose_failed');
   }, 'הוצע עדכון בתיק המס — ממתין לאישור בלשונית «תיק מס». תוצרים שאושרו לא משתנים; יסומנו «לבדיקה»');
+  // ‼ 13.10.2026 · תשובה מובנית ← עדכון בתיק באותה לחיצה של האישור (ילדים, בנק, כתובת; תאריכי נכס/חשבון מתחולה).
+  //   ההצעה נושאת את תמונת המצב שהלקוח ראה — כרטיס שהשתנה בינתיים ⇒ ממתין בתיק המס, לא נדרס. לא מוחקים דבר.
+  const from = { factId: r.fact.id, itemKey: r.fact.itemKey, year: r.fact.taxYear };
+  // ‼ מה שהיה בתיק ולא הופיע בתשובה — הכרעה מפורשת לכל פריט לפני «אשר ועדכן בתיק» (גם «להשאיר» היא הכרעה)
+  const [dec, setDec] = useState<Record<string, OmitDecision>>({});
+  const plan = updatesCard(r.fact.itemKey) ? cardUpdateFor(client, r.fact.itemKey, r.fact.value, from, r.fact.subjectRole, dec) : null;
+  const undecided = (plan?.omitted ?? []).filter(o => !dec[o.id] || (dec[o.id].action === 'end' && !(dec[o.id] as { date: string }).date));
+  const canUpdate = !!plan && (plan.proposals.length > 0 || plan.omitted.length > 0);
+  const dates = RECORD_OF[r.fact.itemKey] === 'period' ? periodDatesPatch(client, r.fact.entityKind, r.fact.entityRef, r.fact.value) : null;
+  const approveWith = (proposals: ProposedFact[], done: string) => run(async () => {
+    const a = await applyCard(proposals, `tax_year_fact:${r.fact.id}`);
+    const d = await api.decideFacts([r.fact.id], 'accept') as { ok?: boolean; error?: string };
+    if (d && d.ok === false) return d;
+    return a.ok ? { ok: true } : a;
+  }, done);
   const [val, setVal] = useState('');
   const src = r.fact.source === 'legacy_questionnaire' ? 'שאלון קודם' : r.fact.source === 'card_migration' ? 'מהכרטיס' : 'דף אישי';
   const isNum = typeof r.fact.value === 'number' || r.fact.answer === 'zero';
@@ -473,6 +490,15 @@ function ReviewLine({ r, who, busy, run, client, onReturn, applyCard }: { r: Rev
         {r.conflict && <span className="ty-warn">⚠ {r.conflict}</span>}
         {conflicts.length > 0 && <span className="ty-warn">⚠ סותר את התיק: {conflicts.map(c => `${c.entityLabel} — ${c.fieldLabel}: בתיק ${fmtV(c.card)}, בתשובה ${fmtV(c.answer)}`).join(' · ')}</span>}
         {r.fact.note && r.fact.source === 'card_migration' && <small>{r.fact.note}</small>}
+        {plan && <small className="ty-card-plan" data-card-plan>{plan.proposals.length ? 'יעודכן בתיק באישור: ' : ''}{plan.lines.join(' · ')}</small>}
+        {plan && plan.omitted.length > 0 && (
+          <div className="ty-omitted" data-omitted-list>
+            <b>{plan.omitted.length === 1 ? 'פריט אחד בתיק לא הופיע בתשובה' : `${plan.omitted.length} פריטים בתיק לא הופיעו בתשובה`} — מה לעשות?</b>
+            {plan.omitted.map(o => <OmittedChoice key={o.id} o={o} d={dec[o.id]} busy={busy} onChange={d => setDec(x => ({ ...x, [o.id]: d }))} />)}
+            <small>כלום לא נמחק בלי הכרעה. הערך הקודם נשמר בהיסטוריית התיק.</small>
+          </div>
+        )}
+        {dates && <small className="ty-card-plan" data-card-plan>יעודכן בתיק באישור: {dates.text}</small>}
         {entityKind && addOpen && (
           <EntityForm kind={entityKind} subjectRole={r.fact.subjectRole} hint={typeof r.fact.value === 'string' ? r.fact.value : (r.fact.value as { note?: string } | undefined)?.note}
             busy={busy} submitLabel={provisional ? 'הוסף לתיק ואשר' : 'הצע לתיק'} onSubmit={e => void addEntity(e)} />
@@ -489,14 +515,54 @@ function ReviewLine({ r, who, busy, run, client, onReturn, applyCard }: { r: Rev
         )}
       </div>
       <div className="ty-side">
-        <button type="button" className="btn btn-sm btn-primary" disabled={busy} onClick={() => void run(() => api.decideFacts([r.fact.id], 'accept'), 'אושר')}>אשר</button>
+        {plan && canUpdate && (
+          <button type="button" className="btn btn-sm btn-primary" disabled={busy || undecided.length > 0} data-approve-update
+            title={undecided.length ? 'קודם להכריע מה לעשות עם מה שלא הופיע בתשובה' : undefined}
+            onClick={() => void approveWith(plan.proposals, plan.proposals.length ? 'אושר ועודכן בתיק — הערך הקודם נשמר בהיסטוריה' : 'אושר — התיק נשאר כמו שהוא')}>{plan.proposals.length ? 'אשר ועדכן בתיק' : 'אשר'}</button>
+        )}
+        {dates && (
+          <button type="button" className="btn btn-sm btn-primary" disabled={busy} data-approve-update
+            onClick={() => void approveWith([updateEntityProposal(client, dates.kind, dates.id, dates.patch, from)], 'אושר והתאריכים עודכנו בתיק')}>אשר ועדכן תאריכים</button>
+        )}
+        <button type="button" className={`btn btn-sm ${canUpdate || dates ? 'btn-ghost' : 'btn-primary'}`} disabled={busy} onClick={() => void run(() => api.decideFacts([r.fact.id], 'accept'), 'אושר — התיק לא עודכן')}>{canUpdate || dates ? 'אשר בלי לעדכן את התיק' : 'אשר'}</button>
         <button type="button" className="btn btn-sm btn-ghost" disabled={busy} onClick={() => setFix(f => !f)}>תקן</button>
-        {entityKind && <button type="button" className="btn btn-sm btn-ghost" disabled={busy} onClick={() => setAddOpen(o => !o)} title="ישות שאינה בתיק — הצעה לתיק, לאישור המשרד">הוסף לתיק</button>}
+        {entityKind && !canUpdate && <button type="button" className="btn btn-sm btn-ghost" disabled={busy} onClick={() => setAddOpen(o => !o)} title="ישות שאינה בתיק — הצעה לתיק, לאישור המשרד">הוסף לתיק</button>}
         {conflicts.length > 0 && <button type="button" className="btn btn-sm btn-ghost" disabled={busy} onClick={() => void proposeUpdate()} title="הצעת עדכון לתיק — לאישור המשרד">עדכן בתיק</button>}
         {r.fact.source !== 'office' && <button type="button" className="btn btn-sm btn-ghost" disabled={busy} onClick={() => setBack(b => (b === null ? '' : null))} title="דחייה עם הערה, ואותה שאלה חוזרת ללקוח לתיקון">החזר ללקוח</button>}
         <button type="button" className="btn btn-sm btn-ghost" disabled={busy} onClick={() => void run(() => api.decideFacts([r.fact.id], 'reject', 'נדחה במשרד'), 'נדחה')}>דחה</button>
       </div>
     </div>
+  );
+}
+
+/** פריט שהיה בתיק ולא הופיע בתשובה — להשאיר / לתקן / נרשם בטעות / לסיים תוקף. */
+function OmittedChoice({ o, d, busy, onChange }: { o: Omitted; d?: OmitDecision; busy: boolean; onChange: (d: OmitDecision) => void }) {
+  const name = `omit-${o.id}`;
+  const fixPatch = d?.action === 'fix' ? d.patch : Object.fromEntries(o.fields.map(f => [f.key, f.value]));
+  return (
+    <fieldset className="ty-omit" data-omitted={o.id} disabled={busy}>
+      <legend>{o.label}</legend>
+      <div className="ty-omit-opts" role="radiogroup" aria-label={`מה לעשות עם ${o.label}`}>
+        {o.can.map(a => (
+          <label key={a} className="ty-omit-opt">
+            <input type="radio" name={name} checked={d?.action === a} data-omit-action={a}
+              onChange={() => onChange(a === 'fix' ? { action: 'fix', patch: fixPatch } : a === 'end' ? { action: 'end', date: '' } : { action: a })} />
+            {a === 'end' ? END_LABEL[o.kind] : OMIT_LABEL[a]}
+          </label>
+        ))}
+      </div>
+      {d?.action === 'fix' && (
+        <div className="ty-inline">
+          {o.fields.map(f => (
+            <label key={f.key}>{f.label} <input type={f.type === 'date' ? 'date' : 'text'} inputMode={f.type === 'digits' ? 'numeric' : undefined} value={d.patch[f.key] ?? ''}
+              onChange={e => onChange({ action: 'fix', patch: { ...d.patch, [f.key]: e.target.value } })} /></label>
+          ))}
+        </div>
+      )}
+      {d?.action === 'end' && (
+        <div className="ty-inline"><label>מתאריך <input type="date" value={d.date} data-omit-date onChange={e => onChange({ action: 'end', date: e.target.value })} /></label></div>
+      )}
+    </fieldset>
   );
 }
 
@@ -785,35 +851,6 @@ function Details({ client, statuses, evidence, purpose, legacy, facts, busy, onM
   );
 }
 
-const WEALTH_DOCS = new Set(WEALTH_ITEMS.map(i => i.docKind).filter(Boolean) as string[]);
-const isWealthKey = (k: string) => k.startsWith('wealth.');
-const isIntakeKey = (k: string) => k.startsWith('intake.');
-const DURABLE_KINDS = Object.entries(DOCS).filter(([, v]) => v.durable).map(([k]) => k);
-void INTAKE_ITEMS;
-function scopeYearData(d: api.YearData, purpose: Purpose, stepId: string, asOf?: string): api.YearData {
-  // ‼ קליטה: רק עובדות הקליטה ליום הקליטה, השאלות של הבקשה הזו, והמסמכים שהועלו אליהן
-  const intakeAskIds = new Set(d.asks.filter(a => isIntakeKey(a.itemKey)).map(a => a.id));
-  if (purpose === 'intake') {
-    const mine = d.asks.filter(a => isIntakeKey(a.itemKey) && a.parentStepId === stepId);
-    const ids = new Set(mine.map(a => a.id));
-    return {
-      facts: d.facts.filter(f => isIntakeKey(f.itemKey) && f.periodTo === asOf),
-      evidence: d.evidence.filter(e => !!e.askId && ids.has(e.askId)),
-      asks: mine,
-    };
-  }
-  d = { facts: d.facts.filter(f => !isIntakeKey(f.itemKey)), evidence: d.evidence.filter(e => !e.askId || !intakeAskIds.has(e.askId)), asks: d.asks.filter(a => !isIntakeKey(a.itemKey)) };
-  if (purpose === 'wealth') return {
-    facts: d.facts.filter(f => isWealthKey(f.itemKey) && f.periodTo === asOf),
-    evidence: d.evidence.filter(e => WEALTH_DOCS.has(e.docKind) && (!e.periodTo || e.periodTo === asOf)),
-    asks: d.asks.filter(a => isWealthKey(a.itemKey) && a.parentStepId === stepId),
-  };
-  return {
-    facts: d.facts.filter(f => !isWealthKey(f.itemKey)),
-    evidence: d.evidence.filter(e => !WEALTH_DOCS.has(e.docKind)),
-    asks: d.asks.filter(a => !isWealthKey(a.itemKey)),
-  };
-}
 
 const fmtCard = (v: unknown) => (typeof v === 'boolean' ? (v ? 'כן' : 'לא') : v == null || v === '' ? '—'
   : ({ single: 'רווק/ה', married: 'נשוי/אה', divorced: 'גרוש/ה', widowed: 'אלמן/ה', singleParent: 'הורה יחיד/ה' } as Record<string, string>)[String(v)] ?? String(v));

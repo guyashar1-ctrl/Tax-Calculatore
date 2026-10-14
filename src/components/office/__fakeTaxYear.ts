@@ -8,6 +8,7 @@
 //   · סכומים שנתיים בכרטיס בלי שנה (תרומות, ביטוח חיים) — אחד עם ראיה, אחד בלי.
 
 import { answerToFacts, type AskAnswer } from '../../features/taxYear/asks';
+import { applyWorkMeta, type WorkMeta } from '../../features/taxYear/workMeta';
 import type { InfoAsk, Purpose, YearFact } from '../../features/taxYear/types';
 import { ITEM_BY_KEY } from '../../features/taxYear/catalog';
 import { askFromRow } from '../../features/taxYear/api';
@@ -156,12 +157,17 @@ function portalView(t: Tables, clientId: string, stepId: unknown): Row {
 export function taxInfoPortalItem(t: Tables, r: Row): Row | null {
   if (r.step_type !== 'info_collection') return null;
   const asks = (t.tax_info_asks ?? []).filter(a => a.step_id === r.id);
+  // ‼ 241 · אותו כלל כמו בשרת: מסמך שהלקוח עוד יעלה («אעלה בהמשך», «עוד לא קיבלתי», «אין לי עדיין» הישן) — פעולה
+  //   של הלקוח («נשארו N מסמכים»), לא «בטיפול המשרד». «צריך עזרה» — אצל המשרד.
   const open = asks.filter(a => a.state === 'published').length;
-  const unav = asks.filter(a => a.state === 'unavailable').length;
+  const help = asks.filter(a => a.state === 'unavailable' && ((a.unavailable ?? {}) as Row).code === 'needHelp').length;
+  const owed = asks.filter(a => a.state === 'unavailable').length - help;
   const done = asks.filter(a => a.state === 'answered').length;
   const label = String(((r.payload ?? {}) as Row).title || 'השלמת מידע');
+  const docs = (n: number) => (n === 1 ? 'מסמך אחד' : `${n} מסמכים`);
   if (open > 0) return { bucket: 'action', key: `taxinfo_${r.id}`, label, sub: `${open === 1 ? 'שאלה אחת' : `${open} שאלות`} · אפשר לעצור ולהמשיך`, actionKind: 'taxInfo', actionValue: r.id };
-  if (unav > 0) return { bucket: 'office', key: `taxinfo_${r.id}`, label, sub: 'מחכים למסמכים שעוד לא הגיעו — נבקש כשיהיו', actionKind: 'taxInfo', actionValue: r.id };
+  if (owed > 0) return { bucket: 'action', key: `taxinfo_${r.id}`, label, sub: `${owed === 1 ? 'נשאר מסמך אחד' : `נשארו ${owed} מסמכים`} להשלמה · אפשר להעלות כשהם אצלך`, actionKind: 'taxInfo', actionValue: r.id };
+  if (help > 0) return { bucket: 'office', key: `taxinfo_${r.id}`, label, sub: `ביקשת עזרה ב${docs(help)} — המשרד יחזור אליך`, actionKind: 'taxInfo', actionValue: r.id };
   if (done > 0) return { bucket: 'done', key: `taxinfo_${r.id}`, label: `${label} · נשלח למשרד` };
   return null;
 }
@@ -358,6 +364,50 @@ function taxYearRpcInner(t: Tables, name: string, args: Row, firm: string, logWr
         completed_at: null, verified_at: null, published_at: nowIso(), sort_order: 32, created_at: nowIso(), updated_at: nowIso() });
       log('ensure_wealth_declaration', { created: id, kind });
       return ok({ ok: true, stepId: id, created: true, kind });
+    }
+    // ── 241 · עבודות מס: הוספה או קישור, עם מקור ומועדים — אותם כללים כמו בשרת (workMeta.applyWorkMeta) ──
+    case 'upsert_tax_work': {
+      const kind = String(args.p_kind) as 'annual' | 'wealth';
+      const meta = (args.p_meta ?? {}) as Row;
+      if (!['annual', 'wealth'].includes(kind)) return ok({ ok: false, error: 'bad_kind' });
+      const r = (kind === 'annual'
+        ? taxYearRpcInner(t, 'ensure_tax_year_request', { p_client_id: args.p_client_id, p_purpose: 'annual', p_tax_year: args.p_tax_year, p_cutoff_month: null }, firm, logWrite)
+        : taxYearRpcInner(t, 'ensure_wealth_declaration', { p_client_id: args.p_client_id, p_as_of: args.p_as_of, p_kind: meta.declKind ?? null }, firm, logWrite))?.data as Row;
+      if (!r?.ok) return ok(r ?? { ok: false, error: 'failed' });
+      const st = stepOf(t, r.stepId)!;
+      const pl = (st.payload ?? {}) as Row;
+      const { declKind: _dk, demand, demandExtension, ...workMeta } = meta;
+      void _dk;
+      const m = applyWorkMeta(pl.work as WorkMeta | undefined, workMeta, kind, 'create');
+      if ('error' in m) return ok({ ok: false, error: m.error });
+      const kept = [...m.kept];
+      // ‼ הצהרת הון: דרישה, ארכה ויעד פנימי — דרך המודל של 230; מה שכבר רשום לא נדרס (kept)
+      if (kind === 'wealth') {
+        const patch: Row = {};
+        if (demand) { if (pl.demand) kept.push('demand'); else { patch.demand = demand; if (demandExtension) patch.demandExtension = demandExtension; } }
+        if (meta.internalTarget) { if (pl.internalTarget && pl.internalTarget !== meta.internalTarget) kept.push('internalTarget'); else if (!pl.internalTarget) patch.internalTarget = meta.internalTarget; }
+        if (Object.keys(patch).length) {
+          const u = taxYearRpcInner(t, 'update_wealth_declaration', { p_step_id: st.id, p_patch: patch, p_note: null }, firm, logWrite)?.data as Row;
+          if (!u?.ok) return ok(u ?? { ok: false, error: 'failed' });
+        }
+      }
+      const fresh = stepOf(t, st.id)!;
+      fresh.payload = { ...(fresh.payload as Row), work: m.work, workLog: [...((((fresh.payload as Row).workLog) ?? []) as Row[]), { at: nowIso(), by: firm, what: r.created ? 'created' : 'linked', applied: m.applied, kept }] };
+      fresh.updated_at = nowIso();
+      log('upsert_tax_work', { stepId: st.id, created: r.created, kept });
+      return ok({ ok: true, stepId: st.id, created: !!r.created, kept });
+    }
+    case 'update_tax_work': {
+      const st = stepOf(t, args.p_step_id);
+      if (!st || !['annual_return', 'wealth_declaration'].includes(String(st.step_type))) return ok({ ok: false, error: 'not_found' });
+      if (!OPEN(st)) return ok({ ok: false, error: 'closed' });
+      const pl = (st.payload ?? {}) as Row;
+      const m = applyWorkMeta(pl.work as WorkMeta | undefined, (args.p_patch ?? {}) as Row, st.step_type === 'annual_return' ? 'annual' : 'wealth', 'update');
+      if ('error' in m) return ok({ ok: false, error: m.error });
+      st.payload = { ...pl, work: m.work, workLog: [...((pl.workLog ?? []) as Row[]), { at: nowIso(), by: firm, what: 'updated', applied: m.applied, note: args.p_note ?? undefined }] };
+      st.updated_at = nowIso();
+      log('update_tax_work', { stepId: st.id, applied: m.applied });
+      return ok({ ok: true });
     }
     case 'update_wealth_declaration': {
       const st = stepOf(t, args.p_step_id);
@@ -640,6 +690,19 @@ function taxYearRpcInner(t: Tables, name: string, args: Row, firm: string, logWr
       return ok(cid ? portalView(t, cid, args.p_step_id) : { ok: false, error: 'invalid' });
     }
     case 'portal_tax_info_preview': return ok(portalView(t, String(args.p_client_id), args.p_step_id));
+    // 241 · עקיבות לקבצי המקור של מסמך שנבנה מכמה חלקים — ליד הראיה האחרונה של אותה שאלה
+    case 'portal_note_tax_evidence_parts': {
+      const cid = clientOfToken(args.p_token);
+      const a = t.tax_info_asks.find(x => x.id === args.p_ask_id && x.client_id === cid);
+      if (!a) return ok({ ok: false, error: 'not_found' });
+      const ev = (t.tax_evidence ?? []).filter(e => e.ask_id === a.id).sort((x, y) => String(y.received_at).localeCompare(String(x.received_at)))[0];
+      if (!ev) return ok({ ok: false, error: 'no_evidence' });
+      const parts = Array.isArray(args.p_parts) ? (args.p_parts as Row[]).slice(0, 40) : [];
+      ev.parts = parts;
+      ev.note = [ev.note, `נבנה מ-${parts.length} קבצים: ${parts.map(p => `${p.part} (${p.name})`).join(', ')}`].filter(Boolean).join(' · ');
+      log('portal_note_tax_evidence_parts', { askId: a.id, parts: parts.length });
+      return ok({ ok: true });
+    }
     case 'portal_save_tax_info_draft': {
       const cid = clientOfToken(args.p_token);
       const a = t.tax_info_asks.find(x => x.id === args.p_ask_id && x.client_id === cid && ['published', 'unavailable'].includes(String(x.state)));

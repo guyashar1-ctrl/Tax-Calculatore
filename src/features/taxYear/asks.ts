@@ -9,7 +9,12 @@ import type { Client } from '../../types';
 import { AREA_BY_ID, ITEM_BY_KEY, type InfoItem, CATALOG_VERSION } from './catalog';
 import { DOCS, followUpFor } from './documents';
 import type { ItemStatus } from './picture';
-import type { AskPrompt, FactAnswer, FactBasis, InfoAsk, PeriodKind, Purpose, YearFact } from './types';
+import type { AskPrompt, FactAnswer, FactBasis, InfoAsk, PeriodKind, Purpose, UnavailableCode, YearFact } from './types';
+import { hintFor } from './hints';
+import { RECORD_OF, isPeriodItem, dealerOf } from './structured';
+import { initialFromCard } from './records';
+import { periodOfRequest, periodWords, propertySpan, accountSpan, spanText } from './temporal';
+import { DEALER_KIND_LABELS } from '../taxFile/editModel';
 
 const FAMILY: Record<string, [string, string, string]> = {
   single: ['רווק', 'רווקה', 'רווק/ה'], married: ['נשוי', 'נשואה', 'נשוי/אה'], divorced: ['גרוש', 'גרושה', 'גרוש/ה'],
@@ -19,8 +24,11 @@ const familyWord = (c: Client) => { const w = FAMILY[c.familyStatus]; return w ?
 const MONTHS = ['', 'ינואר', 'פברואר', 'מרץ', 'אפריל', 'מאי', 'יוני', 'יולי', 'אוגוסט', 'ספטמבר', 'אוקטובר', 'נובמבר', 'דצמבר'];
 
 /** מה ידוע מהכרטיס — שורות קצרות לרשימת «זה מה שידוע לנו». */
-export function cardLines(item: InfoItem, c: Client, s: Pick<ItemStatus, 'subjectRole'>): string[] {
+export function cardLines(item: InfoItem, c: Client, s: Pick<ItemStatus, 'subjectRole'> & { lineRefs?: string[] }): string[] {
   const spouse = s.subjectRole === 'spouse';
+  // ‼ 13.10.2026 · רשימה לתקופה: רק הישויות שבוודאות בתקופה (picture.ts › lineRefs), עם התאריכים הידועים
+  const only = <T extends { id: string }>(list: T[]) => (s.lineRefs ? list.filter(x => s.lineRefs!.includes(x.id)) : list);
+  const propDates = (p: Parameters<typeof propertySpan>[0]) => { const t = spanText(propertySpan(p), { from: 'נרכש', to: 'נמכר' }); return t ? ` · ${t}` : ''; };
   switch (item.key) {
     case 'household.maritalAtYearEnd':
       return [`${familyWord(c)}${c.familyStatus === 'married' && c.marriageYear ? ` מ-${c.marriageYear}` : ''}${c.familyStatus === 'married' && (c.spouseFirstName || c.spouse?.firstName) ? ` · ${c.spouseFirstName || c.spouse?.firstName}` : ''}`];
@@ -43,9 +51,12 @@ export function cardLines(item: InfoItem, c: Client, s: Pick<ItemStatus, 'subjec
     case 'business.active':
       return (c.businesses ?? []).filter(b => !!b.belongsToSpouse === spouse && !b.isClosed).map(b => `עסק: ${b.name}`);
     case 'rent.properties':
-      return (c.properties ?? []).filter(p => p.isRented).map(p => `מושכר: ${[p.address, p.city].filter(Boolean).join(', ')}`);
+      return only((c.properties ?? []).filter(p => p.isRented)).map(p => `מושכר: ${[p.address, p.city].filter(Boolean).join(', ')}${propDates(p as never)}`);
     case 'capital.accounts':
-      return (c.investmentAccounts ?? []).filter(a => !a.isClosed).map(a => `חשבון ב${a.institutionName}`);
+      return only((c.investmentAccounts ?? []).filter(a => s.lineRefs || !a.isClosed)).map(a => {
+        const t = spanText(accountSpan(a as never), { from: 'נפתח', to: 'נסגר' });
+        return `חשבון ב${a.institutionName}${a.accountNumber ? ` (מסתיים ב-${String(a.accountNumber).slice(-4)})` : ''}${t ? ` · ${t}` : ''}`;
+      });
     case 'foreign.income':
       return (c.foreignAccounts ?? []).map(a => `${a.institutionName || 'חשבון'}${a.country ? ` · ${a.country}` : ''}`);
     case 'savings.selfDeposits':
@@ -62,24 +73,26 @@ export function cardLines(item: InfoItem, c: Client, s: Pick<ItemStatus, 'subjec
         ...(c.children ?? []).map(ch => `${ch.firstName || 'ילד/ה'} — נולד/ה ב-${ch.birthYear}`),
       ].filter(Boolean);
     case 'wealth.realEstate.list':
-      return (c.properties ?? []).map(p => `${[p.address, p.city].filter(Boolean).join(', ')}${p.purchaseYear ? ` · נרכש ב-${p.purchaseYear}` : ''}${p.isRented ? ' · מושכר' : ''}`);
+      return only(c.properties ?? []).map(p => `${[p.address, p.city].filter(Boolean).join(', ')}${propDates(p as never)}${p.isRented ? ' · מושכר' : ''}`);
     case 'wealth.bank.foreign':
       return (c.foreignAccounts ?? []).map(a => `${a.institutionName || 'חשבון'}${a.country ? ` · ${a.country}` : ''}`);
     case 'wealth.funds.list':
       return (c.pensionFunds ?? []).map(f => `${f.institutionName}${f.productName ? ` · ${f.productName}` : ''}`);
     case 'wealth.securities.list':
-      return (c.investmentAccounts ?? []).filter(a => !a.isClosed).map(a => `תיק ב${a.institutionName}`);
+      return only((c.investmentAccounts ?? []).filter(a => s.lineRefs || !a.isClosed)).map(a => `תיק ב${a.institutionName}${a.accountNumber ? ` (מסתיים ב-${String(a.accountNumber).slice(-4)})` : ''}`);
     // ── 236 · קליטה והשלמת תיק המס: מה שבכרטיס, לאישור ──
     case 'intake.family':
       return [`${familyWord(c)}${c.familyStatus === 'married' && c.marriageYear ? ` מ-${c.marriageYear}` : ''}${c.familyStatus === 'married' && (c.spouseFirstName || c.spouse?.firstName) ? ` · ${c.spouseFirstName || c.spouse?.firstName}` : ''}`];
     case 'intake.children':
       return (c.children ?? []).map(ch => `${ch.firstName || 'ילד/ה'} — נולד/ה ב-${ch.birthYear}`);
+    case 'intake.address':
+      return c.city || c.address ? [[c.address, c.city].filter(Boolean).join(', ') + (c.zipCode ? ` · מיקוד ${c.zipCode}` : '')] : [];
     case 'intake.settlement':
       return [c.city ? `גר/ה ב${c.city}` : 'יישוב המגורים'];
     case 'intake.employers':
       return (c.employers ?? []).filter(e => !!e.belongsToSpouse === spouse && !e.endDate).map(e => `עובד/ת ב${e.name}${e.startDate ? ` מ-${e.startDate.slice(0, 4)}` : ''}`);
     case 'intake.business':
-      return (c.businesses ?? []).filter(b => !!b.belongsToSpouse === spouse && !b.isClosed).map(b => `עסק: ${b.name}`);
+      return (c.businesses ?? []).filter(b => !!b.belongsToSpouse === spouse && !b.isClosed).map(b => `עסק: ${b.name}${b.description ? ` · ${b.description}` : ''}${b.startYear ? ` · מ-${b.startYear}` : ''}`);
     case 'intake.rentals':
       return (c.properties ?? []).filter(p => p.isRented).map(p => `מושכר: ${[p.address, p.city].filter(Boolean).join(', ')}`);
     case 'intake.investments':
@@ -129,21 +142,51 @@ export function promptFor(s: ItemStatus, ctx: AskCtx): AskPrompt {
   const title = fill(qText ?? it.label);
   const prev = followup ? ctx.previousByArea?.[it.area] : undefined;
   const why = [it.why ?? '', prev ? `בהצהרה הקודמת: ${prev}` : '', ctx.purpose === 'wealth' && ctx.asOfDate ? `נכון ל-${heDate(ctx.asOfDate)}` : ''].filter(Boolean).join(' · ');
+  // ‼ 13.10.2026 · על איזו תקופה שואלים — גלוי ליד השאלה (לא רק בכותרת התהליך). קליטה מתארת את היום — בלי.
+  const period = ctx.purpose === 'intake' ? undefined : periodOfRequest(ctx.purpose, ctx.taxYear, { cutoffMonth: ctx.cutoffMonth, asOfDate: ctx.asOfDate });
+  const periodText = period ? periodWords(period) : undefined;
+  const fillP = (t: string) => fill(t).split('{period}').join(periodText ?? 'היום');
+  const hintRaw = hintFor(it.key, periodText);
+  const hint = hintRaw ? fillTemplate(hintRaw, c, s.subjectRole).split('{entity}').join(s.entityLabel ?? '') : undefined;
+  const base = { why, hint, periodText, subjectName: subjName };
+  const schema = RECORD_OF[it.key];
+  const role = s.subjectRole;
+  // ‼ בדף האישי אין כרטיס — שמות בני הזוג (לבחירת «על שם מי») נשמרים בשאלה עצמה
+  const people: Record<string, string> = { clientName: c.firstName || 'אני', ...(c.familyStatus === 'married' ? { spouseName: c.spouseFirstName || c.spouse?.firstName || 'בן/בת הזוג', married: '1' } : {}) };
   if (it.kind === 'confirm' || (s.state === 'fromCard' && it.cardKeys)) {
     const lines = cardLines(it, c, s);
-    // ‼ בכרטיס אין כלום לאשר — שאלה מובנית (למשל «מה המצב המשפחתי?») במקום «אין אצלנו פרטים»
+    // ‼ בכרטיס אין כלום לאשר — שאלה מובנית (רשומה: ילדים, חשבון בנק; או בחירה) במקום «אין אצלנו פרטים»
     if (!lines.length && it.whenEmpty) {
       const w = it.whenEmpty;
-      return { title: fill(w.question), why, input: w.input === 'choice' && w.options ? { kind: 'choice', options: w.options } : { kind: 'text' }, subjectName: subjName };
+      if (schema) return { ...base, title: fillP(w.question), input: { kind: 'record', schema, context: people } };
+      return { ...base, title: fillP(w.question), input: w.input === 'choice' && w.options ? { kind: 'choice', options: w.options } : { kind: 'text' } };
     }
-    return { title: `${title} — זה מה שידוע לנו`, why, input: { kind: 'confirm', lines: lines.length ? lines : ['אין אצלנו פרטים'] }, subjectName: subjName };
+    // «משהו השתנה» — עריכה של מה שבתיק בשדות נפרדים, כשיש לפריט רשומה מובנית
+    const initial = schema ? initialFromCard(schema, c, role) : [];
+    return {
+      ...base, title: `${fillP(qText ?? it.label)}${periodText && listOrTimed(it.key) ? ` ${periodText}` : ''} — זה מה שידוע לנו`,
+      input: { kind: 'confirm', lines: lines.length ? lines : ['אין אצלנו פרטים'], ...(schema ? { edit: { schema, initial, context: people } } : {}) },
+    };
   }
-  if (it.kind === 'document' && it.docKind) return { title: fill(qText ?? DOCS[it.docKind].label), why, input: { kind: 'file', docKind: it.docKind }, subjectName: subjName };
-  if (it.input === 'amount') return { title, why, input: { kind: 'amount' }, subjectName: subjName };
-  if (it.input === 'text') return { title, why, input: { kind: 'text' }, subjectName: subjName };
-  if (it.input === 'choice' && it.options) return { title, why, input: { kind: 'choice', options: it.options }, subjectName: subjName };
-  return { title, why, input: { kind: 'yesno', followUp: { kind: 'text' } }, subjectName: subjName };
+  if (it.kind === 'document' && it.docKind) return { ...base, title: fillP(qText ?? DOCS[it.docKind].label), input: { kind: 'file', docKind: it.docKind } };
+  // ‼ רשומה מובנית: פרטים (מעסיק, נכס, חשבון…) ושאלות התחולה — שדות נפרדים
+  if (schema && (it.kind === 'detail' || it.input === 'record')) {
+    const context: Record<string, string> = { ...people, ...(isPeriodItem(it.key) ? (period && period.from === period.to ? { day: '1' } : { periodNoun: 'השנה' }) : {}) };
+    // ‼ 13.10.2026 (גיא): בתיק ידוע שהאדם רשום כעוסק אבל העסק עצמו לא רשום — מציגים את מה שידוע ומבקשים להשלים
+    const dealer = it.key === 'intake.businessDetails' ? dealerOf(c, role) : null;
+    const lead = dealer ? `רשום/ה אצלנו כ${DEALER_KIND_LABELS[dealer]}. ` : '';
+    const initial = dealer ? [{ dealer: dealer === 'licensed' ? 'murshe' : dealer === 'exempt' ? 'patur' : dealer === 'company' ? 'company' : '' }] : undefined;
+    return { ...base, title: `${lead}${fillP(qText ?? it.label)}`, input: { kind: 'record', schema, ...(initial ? { initial } : {}), ...(Object.keys(context).length ? { context } : {}) } };
+  }
+  if (it.input === 'amount') return { ...base, title: fillP(qText ?? it.label), input: { kind: 'amount' } };
+  if (it.input === 'text') return { ...base, title: fillP(qText ?? it.label), input: { kind: 'text' } };
+  if (it.input === 'choice' && it.options) return { ...base, title: fillP(qText ?? it.label), input: { kind: 'choice', options: it.options } };
+  void title;
+  return { ...base, title: fillP(qText ?? it.label), input: { kind: 'yesno', followUp: { kind: 'text' } } };
 }
+
+/** רשימות שתלויות בתקופה (מעסיקים, נכסים, חשבונות) — התקופה נכנסת לכותרת: «מקומות העבודה בשנת 2025 — זה מה שידוע לנו». */
+const listOrTimed = (key: string) => ['salary.employers', 'rent.properties', 'capital.accounts', 'wealth.realEstate.list', 'wealth.securities.list', 'wealth.funds.list', 'wealth.bank.foreign', 'business.active', 'household.maritalAtYearEnd'].includes(key);
 
 /** רשומה בתוכנית השאלות — שאלה אחת ללקוח, שיכולה לכסות שני אנשים («מי מכם?»). */
 export interface AskPlanEntry {
@@ -179,7 +222,8 @@ export function buildAskPlan(statuses: ItemStatus[], ctx: AskCtx): AskPlanEntry[
         prompt: {
           templateVersion: CATALOG_VERSION,
           title: (ctx.purpose === 'wealth' && ctx.declKind === 'followup' && s.item.followupQuestion) || s.item.coupleQuestion!,
-          why: promptFor(s, ctx).why,
+          // ‼ 13.10.2026 · גם לשאלה «מי מכם?» — ההסבר הגלוי והתקופה (לא רק «למה שואלים»)
+          ...(({ why, hint, periodText }) => ({ why, hint, periodText }))(promptFor(s, ctx)),
           input: { kind: 'who', clientName: c.firstName || 'אני', spouseName: c.spouseFirstName || c.spouse?.firstName || 'בן/בת הזוג' },
         },
         label: `${s.item.label} · שניכם (שאלה אחת)`,
@@ -246,9 +290,15 @@ export type AskAnswer =
   | { kind: 'unchanged' }
   | { kind: 'changed'; note: string }
   | { kind: 'file'; fileName: string; documentId?: string }
-  | { kind: 'unavailable'; reason: string }
+  /** 13.10.2026 · `code` — למה אין מסמך: אעלה בהמשך / עוד לא קיבלתי / צריך עזרה. בלי code — «אין לי עדיין» הישן. */
+  | { kind: 'unavailable'; reason: string; code?: UnavailableCode }
   /** לזוג: מי מכם. */
-  | { kind: 'who'; value: 'none' | 'client' | 'spouse' | 'both' };
+  | { kind: 'who'; value: 'none' | 'client' | 'spouse' | 'both' }
+  /**
+   * 13.10.2026 · רשומה מובנית. `value` — כפי שנשמר בעובדה: לרשימה `{ items }`, לשאלת תחולה — הרשומה עצמה.
+   * `none` — «אין» (למשל אין ילדים) ⇒ עובדה 'no'. `assertion: 'changed'` — תיקון למה שבתיק («משהו השתנה»).
+   */
+  | { kind: 'record'; value: unknown; none?: boolean; assertion?: 'changed'; was?: string[] };
 
 export interface AnswerResult {
   facts: Omit<YearFact, 'id' | 'createdAt'>[];
@@ -320,11 +370,22 @@ export function answerToFacts(ask: InfoAsk, answer: AskAnswer, ctx: AskCtx, toda
       return { facts: [], evidence: { docKind: it.docKind, fileName: answer.fileName, documentId: answer.documentId } };
     case 'unavailable': {
       if (!it.docKind) throw new Error('«אין לי עדיין» רק למסמך');
-      const reason = answer.reason.trim() || 'עוד לא התקבל';
-      return { facts: [], unavailable: { reason, followUpOn: followUpFor(it.docKind, ask.taxYear, today).followUpOn } };
+      const reason = answer.reason.trim() || UNAVAILABLE_LABEL[answer.code ?? 'legacy'];
+      return { facts: [], unavailable: { reason, followUpOn: followUpFor(it.docKind, ask.taxYear, today).followUpOn, ...(answer.code ? { code: answer.code } : {}) } };
+    }
+    case 'record': {
+      if (answer.none) return { facts: [fact('no')] };
+      if (answer.value == null || typeof answer.value !== 'object') throw new Error('רשומה ריקה');
+      return { facts: [fact('value', answer.assertion === 'changed' ? { changed: true, record: answer.value, was: answer.was ?? [] } : answer.value,
+        answer.assertion === 'changed' ? { clientAssertion: 'changed' } : {})] };
     }
   }
 }
+
+/** למה אין מסמך — ללקוח ולמשרד. 'legacy' = «אין לי עדיין» שנשמר לפני 13.10.2026, בלי משמעות ידועה. */
+export const UNAVAILABLE_LABEL: Record<UnavailableCode | 'legacy', string> = {
+  later: 'אעלה בהמשך', notYet: 'עוד לא קיבלתי את המסמך', needHelp: 'אין לי — צריך עזרה', legacy: 'אין לי עדיין',
+};
 
 /** כותרת התחום ללקוח (מקבץ שאלות בדף האישי). */
 export const clientAreaTitle = (itemKey: string) => AREA_BY_ID[ITEM_BY_KEY[itemKey]?.area]?.clientTitle ?? '';

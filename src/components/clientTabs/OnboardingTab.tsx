@@ -1744,6 +1744,10 @@ export default function OnboardingTab({
                     highlight={highlightStepId === step.id}
                     name={step.stepType === 'info_collection' ? `↳ ${pl.title ?? 'השלמת מידע'}` : pl.title}
                     statusLabel={status}
+                    /* ‼ 13.10: השלמת מידע שטרם פורסמה — «טיוטה», לא «ממתין ל{שם}»: הלקוח עוד לא רואה אותה
+                       (info_collection אינה בין סוגי הדף ב-portalShowsStep, ולכן הסימון הכללי לא תפס). */
+                    state={step.stepType === 'info_collection' && isStepOpen(step.status) && (step.status === 'pending' || step.publishedAt === null)
+                      ? { text: 'טיוטה', tone: 'amber' } : undefined}
                     menu={null}
                     primary={parentId ? (
                       <button type="button" className="btn btn-sm btn-primary" onClick={() => setTaxYearStepId(parentId)}>פתח</button>

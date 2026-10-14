@@ -78,7 +78,7 @@ export interface InfoItem {
   /** שאלה ללקוח. בלי מונחי מס ובלי קודים. {name} = שם האדם. */
   question?: string;
   why?: string;
-  input?: 'yesno' | 'amount' | 'date' | 'text' | 'choice' | 'confirm' | 'file';
+  input?: 'yesno' | 'amount' | 'date' | 'text' | 'choice' | 'confirm' | 'file' | 'record';
   options?: { value: string; label: string }[];
   docKind?: DocKind;
   /** פריט שנשאל רק אחרי «כן» בשאלת הפתיחה הזו. */
@@ -491,6 +491,25 @@ for (const id of CHANGE_AREAS) {
     question: `מאז {since}, השתנה משהו ב${area.clientTitle}?`, why: 'כבר יש לנו את המידע עד אז מההערכה; צריך רק את מה שקרה אחר כך', input: 'yesno',
   });
 }
+
+// ── 13.10.2026 · תחולה בזמן (docs/TAX-FILE-TEMPORAL-RELEVANCE-2026-10-13.md) ──
+// ‼ נכס או חשבון בתיק שלא ידוע אם היו קיימים בתקופה — שאלה ממוקדת אחת לכל ישות, לא ניחוש. רשימת «זה מה
+//   שידוע לנו» מציגה רק ישויות שבוודאות בתקופה; ישות שבוודאות מחוץ לתקופה (נקנתה אחרי, נמכרה לפני) — לא מוצגת.
+//   הפריטים שתלויים בישות (שכר דירה, 867) מחכים לתשובה. נשאל רק כשהתחולה לא ידועה (picture.ts).
+ITEMS.push(
+  { key: 'period.property', area: 'rent', label: 'האם הנכס היה בבעלות בתקופה', kind: 'detail', per: 'property', who: 'client', purposes: ['estimate', 'annual'],
+    question: 'האם {entity} היה בבעלותכם {period}?', why: 'בתיק לא רשום מתי הנכס נקנה (או נמכר) — ולא ננחש', input: 'record',
+    officeNext: 'לעדכן בכרטיס תאריך רכישה או מכירה — כך לא נשאל שוב' },
+  { key: 'period.account', area: 'capital', label: 'האם החשבון היה קיים בתקופה', kind: 'detail', per: 'account', who: 'client', purposes: ['estimate', 'annual'],
+    question: 'האם החשבון ב{entity} היה קיים {period}?', why: 'בתיק לא רשום מתי החשבון נפתח (או נסגר) — ולא ננחש', input: 'record',
+    officeNext: 'לעדכן בכרטיס מועד פתיחה או סגירה — כך לא נשאל שוב' },
+  { key: 'wealth.period.property', area: 'wRealEstate', label: 'האם הנכס היה בבעלות ביום ההצהרה', kind: 'detail', per: 'property', who: 'client', purposes: ['wealth'],
+    question: 'האם {entity} היה בבעלותכם {period}?', why: 'ההצהרה היא ליום מסוים; בתיק לא רשום מתי הנכס נקנה או נמכר', input: 'record',
+    officeNext: 'לעדכן בכרטיס תאריך רכישה או מכירה' },
+  { key: 'wealth.period.account', area: 'wSecurities', label: 'האם החשבון היה קיים ביום ההצהרה', kind: 'detail', per: 'account', who: 'client', purposes: ['wealth'],
+    question: 'האם החשבון ב{entity} היה קיים {period}?', why: 'ההצהרה היא ליום מסוים; בתיק לא רשום מתי החשבון נפתח או נסגר', input: 'record',
+    officeNext: 'לעדכן בכרטיס מועד פתיחה או סגירה' },
+);
 
 // הכנה להצהרת הון (230) — אותו מנגנון, תכלית 'wealth' (wealthCatalog.ts).
 AREAS.push(...WEALTH_AREAS);

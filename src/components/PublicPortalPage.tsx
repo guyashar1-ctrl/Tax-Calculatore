@@ -10,7 +10,7 @@
 // ‼ מיתוג המשרד, לא PIVO — כמו כל מה שהלקוח רואה.
 
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
-import TaxInfoFlow from '../features/taxYear/TaxInfoFlow';
+import TaxInfoScreen, { openTaxInfoFromHash } from '../features/taxYear/TaxInfoScreen';
 import { PortalTaxEstimate } from '../features/taxYear/extensions';
 import { FirmBranding } from '../types/firmProfile';
 import { MESSAGE_DEFAULT_TITLE } from '../lib/sendDocuments';
@@ -635,7 +635,8 @@ function ActionItem({ item, brand, accent, last, onDone }: {
   accent: string; onDone: () => void;
 }) {
   const { actions, readOnly, sample } = usePortal();
-  const [open, setOpen] = useState(false);
+  // ‼ 13.10.2026 · רענון כשהשאלון פתוח (#q=<בקשה>) — חוזרים לאותו מסך שאלון
+  const [open, setOpen] = useState(() => item.actionKind === 'taxInfo' && !!item.actionValue && openTaxInfoFromHash() === item.actionValue);
   const href = actionHref(item);
   const linked = linkedKind(item);
   const inPage = item.actionKind === 'portal';
@@ -705,9 +706,15 @@ function ActionItem({ item, brand, accent, last, onDone }: {
         </div>
       ) : taxInfo ? (
         <div style={{ marginTop: 11 }}>
-          {!open && <button type="button" onClick={() => setOpen(true)} style={readOnly || sample ? inertBtn : primaryBtn} aria-expanded={false} disabled={readOnly || sample}>להשלמת המידע</button>}
-          {(readOnly || sample) && <div style={{ fontSize: 12.5, color: brand.muted, marginTop: 6 }}>כאן הלקוח עונה על השאלות, אחת למסך. התצוגה המלאה — «מה הלקוח רואה» בדף התהליך במשרד.</div>}
-          {open && !readOnly && !sample && token && <TaxInfoFlow stepId={item.actionValue!} token={token} onClose={onDone} />}
+          {/* ‼ 13.10.2026 · מסך שאלון ייעודי (TaxInfoScreen) — לא בתוך רשימת הבקשות. כשנשארו רק מסמכים —
+              הכפתור אומר את זה, והמסך נפתח ישר לרשימת המסמכים (בלי לעבור שוב על השאלות). */}
+          <button type="button" onClick={() => setOpen(true)} style={readOnly || sample ? inertBtn : primaryBtn} aria-haspopup="dialog" disabled={readOnly || sample}>
+            {/מסמכ/.test(item.sub ?? '') && !/שאל/.test(item.sub ?? '') ? 'להעלאת המסמכים' : 'להשלמת המידע'}
+          </button>
+          {(readOnly || sample) && <div style={{ fontSize: 12.5, color: brand.muted, marginTop: 6 }}>כאן הלקוח עונה על השאלות במסך משלו, אחת למסך. התצוגה המלאה — «מה הלקוח רואה» בדף התהליך במשרד.</div>}
+          {open && !readOnly && !sample && token && (
+            <TaxInfoScreen stepId={item.actionValue!} token={token} label={item.label} onClose={() => { setOpen(false); onDone(); }} />
+          )}
         </div>
       ) : niApproval ? (
         <NiApprovalBlock item={item} brand={brand} accent={accent} />

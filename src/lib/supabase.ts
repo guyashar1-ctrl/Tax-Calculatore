@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { effectiveSupabaseUrl, isProductionUrl, requestUrlOf, shouldIsolateFromProduction } from './demoIsolation';
+import { withClockSkewRetry } from './jwtClockSkewRetry';
 
 const configuredUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -43,7 +44,8 @@ export const supabase = createClient(SUPABASE_URL, supabaseAnonKey, {
     detectSessionInUrl: true,
   },
   // ‼ supabase-js שומר את fetch ברגע היצירה — מעבירים עטיפה שקוראת לגרסה הנוכחית.
-  global: { fetch: (input: RequestInfo | URL, init?: RequestInit) => (typeof window !== 'undefined' ? window.fetch(input, init) : fetch(input, init)) },
+  // ‼ 14.10.2026: «JWT issued at future» מיד אחרי כניסה (הפרש שעונים בין שרתי Supabase) — ניסיון חוזר אחד. ראה jwtClockSkewRetry.ts.
+  global: { fetch: withClockSkewRetry((input: RequestInfo | URL, init?: RequestInit) => (typeof window !== 'undefined' ? window.fetch(input, init) : fetch(input, init))) },
 });
 
 // חשיפה ב-window רק במצב פיתוח — מאפשר אבחון ישיר מהקונסול:

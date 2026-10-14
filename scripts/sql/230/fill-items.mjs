@@ -7,12 +7,12 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { resolve } from 'node:path';
 const WT = resolve(fileURLToPath(import.meta.url), '../../../..') + '/';
-// ‼ 12.10.2026: 236 (קליטה) — הבעלים של הרשימה המלאה. 230 — בלי פריטי הקליטה; 229 — בלי פריטי ההון והקליטה.
+// ‼ 13.10.2026: 241 — הרשימה המלאה אחרי סבב האיסוף (פריטי תחולה, כתובת). 12.10.2026: 236 (קליטה) — הבעלים של הרשימה המלאה. 230 — בלי פריטי הקליטה; 229 — בלי פריטי ההון והקליטה.
 const which = process.argv[3] ?? '230';
-const file = WT + ({ 229: 'supabase/229-tax-year-collection.sql', 230: 'supabase/230-wealth-declaration-collection.sql', 236: 'supabase/236-tax-file-intake.sql' })[which];
+const file = WT + ({ 229: 'supabase/229-tax-year-collection.sql', 230: 'supabase/230-wealth-declaration-collection.sql', 236: 'supabase/236-tax-file-intake.sql', 241: 'supabase/241-collection-ux.sql' })[which];
 const all = JSON.parse(readFileSync(process.argv[2], 'utf8'));
 // 229 — רק פריטי שנת המס; פריטי הצהרת ההון (wealth.*) נוספים ב-230.
-const keep = (k) => which === '236' || (!k.startsWith('intake.') && (which === '230' || !k.startsWith('wealth.')));
+const keep = (k) => which === '236' || which === '241' || (!k.startsWith('intake.') && (which === '230' || !k.startsWith('wealth.')));
 const items = Object.fromEntries(Object.entries(all).filter(([k]) => keep(k)));
 const entries = Object.entries(items).map(([k, v]) => `${JSON.stringify(k)}:${JSON.stringify(v)}`);
 const lines = [];

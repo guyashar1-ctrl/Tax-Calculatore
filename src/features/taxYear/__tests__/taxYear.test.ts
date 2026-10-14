@@ -44,8 +44,8 @@ const married = client({
   children: [{ id: 'k1', firstName: 'דנה', birthYear: 2014, birthDate: '2014-03-01', hasDisability: false }] as Client['children'],
   employers: [{ id: 'e1', name: 'אינטל' }, { id: 'e2', name: 'בית חולים', belongsToSpouse: true }] as Client['employers'],
   businesses: [{ id: 'b1', name: 'סטודיו נועה', kind: 'osek_morshe' }] as unknown as Client['businesses'],
-  properties: [{ id: 'p1', address: 'הרצל 5', city: 'חיפה', isRented: true }] as Client['properties'],
-  investmentAccounts: [{ id: 'a1', institutionName: 'מיטב' }] as Client['investmentAccounts'],
+  properties: [{ id: 'p1', address: 'הרצל 5', city: 'חיפה', isRented: true, purchaseYear: 2019 }] as Client['properties'],
+  investmentAccounts: [{ id: 'a1', institutionName: 'מיטב', openedDate: '2020-03-01' }] as Client['investmentAccounts'],
 });
 
 export const TESTS: TestCase[] = [

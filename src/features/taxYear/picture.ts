@@ -10,6 +10,9 @@ import type { Client } from '../../types';
 import { AREAS, ITEMS, ITEM_BY_KEY, type AreaId, type InfoItem } from './catalog';
 import { canRequestNow, DOCS } from './documents';
 import type { EntityKind, Evidence, FactBasis, InfoAsk, Purpose, SubjectRole, YearFact } from './types';
+import { accountSpan, entityRelevance, periodOfRequest, propertySpan, type Relevance } from './temporal';
+import { entitiesInPeriod, isPeriodItem, listKindOf } from './structured';
+import { dealerOf } from './structured';
 
 export type ItemState =
   | 'known'             // יש עובדה מאושרת שמספיקה לתכלית
@@ -66,6 +69,11 @@ export interface ItemStatus extends Target {
   officeTask?: OfficeTask;
   /** מסמך מאושר שכבר בתיק (משנה או מתהליך אחר) ושאינו שייך לתקופה — לא מבקשים שוב. */
   reusedEvidence?: Evidence;
+  /**
+   * 13.10.2026 · רשימת אישור של נכסים או חשבונות: הישויות שבוודאות בתקופה — רק הן מוצגות ב«זה מה שידוע לנו».
+   * ישות שהתחולה שלה לא ידועה נשאלת בנפרד (period.*); ישות שבוודאות מחוץ לתקופה — לא מוצגת.
+   */
+  lineRefs?: string[];
 }
 
 export interface PictureInput {
@@ -222,6 +230,8 @@ function screenerState(key: string, role: SubjectRole, c: Client, facts: YearFac
   // שאלת פתיחה שהכרטיס עונה עליה דרך פריט האישור שלה (מעסיקים בכרטיס ⇒ «עובד כשכיר»)
   const cov = it?.coveredBy ? ITEM_BY_KEY[it.coveredBy] : undefined;
   if (cov && cardHas(cov, c, { subjectRole: role })) return 'yes';
+  // ‼ 13.10.2026 · רשום בתיק כעוסק (סוג עוסק / מע״מ) — «עצמאי?» כבר ידוע; נשאלים רק פרטי העסק החסרים
+  if (key === 'intake.selfEmployed' && dealerOf(c, role)) return 'yes';
   // שאלות פתיחה ש«כן» שלהן נגזר ישירות מרשימה בכרטיס
   if (key === 'rent.properties') return (c.properties ?? []).some(p => p.isRented) ? 'yes' : 'unknown';
   if (key === 'capital.accounts') return (c.investmentAccounts ?? []).length ? 'yes' : 'unknown';
@@ -300,6 +310,25 @@ export function buildYearPicture(inp: PictureInput): YearPicture {
     return out;
   }
 
+  // ── 13.10.2026 · תחולה בזמן: נכסים וחשבונות מהתיק — רק מה שבוודאות בתקופה; «לא ידוע» נשאל בנפרד ──
+  // ‼ קליטה מתארת את המצב היום — בלי סינון. דוח/הערכה — השנה (עד החתך); הצהרת הון — יום ההצהרה.
+  const temporal = purpose === 'annual' || purpose === 'estimate' || purpose === 'wealth';
+  const period = periodOfRequest(purpose, y, { cutoffMonth: inp.cutoffMonth, asOfDate: inp.asOfDate });
+  const rels = {
+    property: temporal ? entitiesInPeriod('property', c, period, facts, y, purpose as 'annual') : [],
+    account: temporal ? entitiesInPeriod('account', c, period, facts, y, purpose as 'annual') : [],
+  };
+  const relOf = (kind: EntityKind | undefined, ref?: string): Relevance | null => {
+    if (!temporal || !ref || (kind !== 'property' && kind !== 'account') || isProvisionalRef(ref)) return null;
+    return rels[kind].find(e => e.ref === ref)?.rel ?? null;
+  };
+  /** התחולה לפי הכרטיס בלבד — כדי לדעת אם לשאול את שאלת התחולה (תשובה מפורשת לא נכנסת כאן). */
+  const cardOnlyRel = (kind: 'property' | 'account', ref: string): Relevance => {
+    const p = kind === 'property' ? (c.properties ?? []).find(x => x.id === ref) : undefined;
+    const a = kind === 'account' ? (c.investmentAccounts ?? []).find(x => x.id === ref) : undefined;
+    return entityRelevance(period, p ? propertySpan(p as never) : a ? accountSpan(a as never) : {}, null);
+  };
+
   for (const item of ITEMS) {
     if (!item.purposes.includes(purpose)) continue;
     if (purpose === 'wealth' && item.declKind && item.declKind !== (inp.declKind ?? 'first')) continue;
@@ -315,6 +344,17 @@ export function buildYearPicture(inp: PictureInput): YearPicture {
         ? evidence.filter(e => e.docKind === item.docKind && (e.taxYear == null || e.taxYear === y) && e.subjectRole === t.subjectRole && (e.entityRef ?? null) === (t.entityRef ?? null))
         : [];
       const ask = asks.find(a => a.itemKey === item.key && askCovers(a, t) && a.state !== 'cancelled' && a.state !== 'answered');
+      // ‼ 13.10.2026 · תחולה: שאלת התחולה עצמה — רק לישות שהכרטיס לא יודע עליה (או שכבר נשאלה/נענתה).
+      //   פריט שתלוי בישות — רק כשהישות בוודאות בתקופה; «לא ידוע» מחכה לתשובה, «מחוץ לתקופה» — לא חל.
+      if (temporal && (t.entityKind === 'property' || t.entityKind === 'account') && t.entityRef && !isProvisionalRef(t.entityRef)) {
+        if (isPeriodItem(item.key)) {
+          if (cardOnlyRel(t.entityKind, t.entityRef) !== 'unknown' && tf.length === 0 && !ask) continue;
+        } else {
+          const r = relOf(t.entityKind, t.entityRef);
+          if (r === 'out' && tf.length === 0 && !ask) continue;
+          if (r === 'unknown' && tf.length === 0 && !ask) continue;
+        }
+      }
       const base = { ...t, item, area: item.area, facts: tf, evidence: tev, ask } as const;
       const push = (state: ItemState, detail: string, extra: Partial<ItemStatus> = {}) =>
         statuses.push({ ...base, state, detail, askable: item.who === 'client' && (state === 'missing' || state === 'fromCard' || state === 'partial'), ...extra });
@@ -324,6 +364,9 @@ export function buildYearPicture(inp: PictureInput): YearPicture {
         const cov = ITEMS.find(i => i.key === item.coveredBy);
         if (cov && cardHas(cov, c, t)) continue;
       }
+      // ‼ 13.10.2026 · «האם עצמאי?» לא נשאל כשהתיק כבר יודע שהאדם רשום כעוסק (הפרטים החסרים — בפריט הפרטים)
+      if (item.key === 'intake.selfEmployed' && tf.length === 0 && !ask && t.subjectRole !== 'couple'
+        && dealerOf(c, t.subjectRole)) continue;
       if (item.onlyIfOnCard && tf.length === 0 && !ask && !cardHas(item, c, t)) { if (GATED_LABEL[item.key]) gate(t.subjectRole, GATED_LABEL[item.key]); continue; }
       if (item.onlyMarried && !isMarried(c)) continue;
       // פרטי עסק חדש — רק כשבכרטיס אין לאדם עסק (אחרת: אישור העסק שבכרטיס)
@@ -411,6 +454,8 @@ export function buildYearPicture(inp: PictureInput): YearPicture {
       // 7. כבר נשאל / סומן «אין עדיין»
       if (ask?.state === 'unavailable' && ask.unavailable) {
         const due = ask.unavailable.followUpOn <= today;
+        // ‼ 13.10.2026 · «אין לי — צריך עזרה» אינו המתנה ללקוח: הכדור אצל המשרד, מיד ולא במועד התזכורת
+        if (ask.unavailable.code === 'needHelp') { push('unavailable', `«${ask.unavailable.reason}» — הלקוח ביקש עזרה להשיג את המסמך; לטפל במשרד`, { requestableFrom: ask.unavailable.followUpOn }); continue; }
         push('unavailable', due ? `הגיע מועד התזכורת (${fmt(ask.unavailable.followUpOn)}) — לבדוק עם הלקוח אם המסמך כבר אצלו` : `«${ask.unavailable.reason}» — תזכורת משרד מ-${fmt(ask.unavailable.followUpOn)}`, { requestableFrom: ask.unavailable.followUpOn });
         continue;
       }
@@ -430,6 +475,14 @@ export function buildYearPicture(inp: PictureInput): YearPicture {
 
       // 9. מהכרטיס — לאשר
       if (item.kind === 'confirm' || (item.kind === 'screener' && cardHas(item, c, t))) {
+        // ‼ 13.10.2026 · רשימת נכסים/חשבונות לתקופה: רק מה שבוודאות בתקופה. אין כאלה (הכול «לא ידוע» או מחוץ
+        //   לתקופה) ⇒ לא שואלים את הרשימה — התחולה נשאלת לכל ישות בנפרד, ומה שמחוץ לתקופה לא חל.
+        const lk = temporal ? listKindOf(item.key) : undefined;
+        if (lk && cardHas(item, c, t)) {
+          const inRefs = rels[lk].filter(e => e.rel === 'in' && (lk !== 'property' || purpose === 'wealth' || (c.properties ?? []).find(p => p.id === e.ref)?.isRented)).map(e => e.ref);
+          if (!inRefs.length) { push('notApplicable', 'אין ברשימה מה שבוודאות בתקופה — התחולה נשאלת לכל פריט בנפרד'); continue; }
+          push('fromCard', 'ידוע מהכרטיס — לאשר שעדיין נכון', { lineRefs: inRefs }); continue;
+        }
         if (cardHas(item, c, t)) { push('fromCard', 'ידוע מהכרטיס — לאשר שעדיין נכון'); continue; }
       }
 
