@@ -82,12 +82,6 @@ export const DOCUMENTS_STOPS: Record<string, { title: string; next: string; retr
     next: 'צו ירושה / מינוי אפוטרופוס — השלימו את ההגשה ידנית בשע״ם, ואז «שודר ידנית - סמנו כנשלח».',
     retry: false,
   },
-  // ‼ 13.10.2026 · קוד ישן בלבד — העובד כבר לא עוצר כך.
-  first_live_verification: {
-    title: 'העלאת המסמך הנוסף זמינה עכשיו — שלחו שוב',
-    next: 'בניסיון הקודם השידור נעצר לפני העלאת המסמך הנוסף, ושום דבר לא נשלח לשע״ם. שלחו שוב — הטופס והמסמך יעלו יחד.',
-    retry: true,
-  },
   required_document_unavailable: {
     title: 'המסמך הנדרש לא נקרא מתיק הלקוח',
     next: 'בדקו שהמסמך נפתח בתיק המסמכים, ושדרו שוב. שום דבר לא נשלח לשע״ם.',
@@ -137,6 +131,28 @@ export function shaamStopState(job: AutomationJob | null | undefined): ShaamStop
       title: 'שע״ם לא אישרה את פרטי אימות הישות',
       next: 'בדקו מול הלקוח תאריך לידה ואמצעי זיהוי נוסף, עדכנו בכרטיס, ורק אז הפעילו שוב.',
       mayHaveActed: true, allowDirectRetry: false, suggestCheck: false,
+    };
+  }
+  // ‼ 14.10.2026 · עצירות שמקורן בקוד עובד ישן. first_live_verification נוצרת רק
+  // בתהליך שלא הופעל מחדש (השומר הוסר ב-5cd52a1); worker_code_stale — העובד זיהה
+  // שהדיסק התקדם. «לא נשלח» נאמר רק לפי רישום הניסיון עצמו (externalAttempt
+  // חסר), לא מעצם זיהוי הגרסה; נגיעה רשומה ⇒ דורש בירור.
+  if (code === 'first_live_verification' || code === 'worker_code_stale') {
+    const stale = code === 'worker_code_stale';
+    const title = stale ? 'האוטומציה במחשב העבודה עוד לא הופעלה מחדש אחרי עדכון' : 'הניסיון רץ בגרסה ישנה של האוטומציה';
+    if (touched) {
+      return {
+        kind: 'outcome_unknown', title,
+        next: 'לפי רישום הניסיון כבר נעשתה פנייה לשע״ם, ולכן לא ידוע מה נקלט. הריצו «בדוק קבלת הייצוג» לפני כל ניסיון נוסף.',
+        mayHaveActed: true, allowDirectRetry: false, suggestCheck: true,
+      };
+    }
+    return {
+      kind: 'before_external', title,
+      next: stale
+        ? 'לפי רישום הניסיון הפעולה לא התחילה ולא נעשתה פנייה לשע״ם. הפעילו מחדש את האוטומציה במחשב העבודה, ואז נסו שוב.'
+        : 'לפי רישום הניסיון הוא נעצר לפני בחירת קובץ בשע״ם. ודאו שהאוטומציה במחשב העבודה הופעלה מחדש, והריצו «בדוק קבלת הייצוג» לפני שליחה נוספת.',
+      mayHaveActed: false, allowDirectRetry: true, suggestCheck: !stale,
     };
   }
   // ‼ 204 · עצירה על מסמך ששע״ם דורשת — תמיד לפני כל נגיעה. ההמשך קורה מעצמו

@@ -10,8 +10,12 @@ import { NeedsHumanError, PermanentError } from './errors.mjs';
 import { tickConnectionMonitor, invalidateConnectionCache, checkBtlSoon, monitorSleepMs } from './connectionMonitor.mjs';
 import { acquireSingleInstance } from './singleInstance.mjs';
 import { startPdfLoop } from './pdfBuilds.mjs';
+import { STARTUP_COMMIT, diskCommit, versionLabel, codeIsStale } from './codeVersion.mjs';
 
-const VERSION = '0.1.0';
+const BASE_VERSION = '0.1.0';
+// ‼ 14.10.2026 · הגרסה בפעימה = הקומיט שנטען בהפעלה (ו«→חדש» כשהדיסק התקדם).
+// כך אפשר לראות ב-automation_workers.version מה רץ בפועל, לא מה הועתק.
+const version = () => versionLabel(BASE_VERSION, STARTUP_COMMIT, diskCommit());
 let stopping = false;
 
 process.on('SIGINT', () => { console.log('\n⏹ עצירה מבוקשת — מסיים את המשימה הנוכחית (אם יש) ויוצא...'); stopping = true; });
@@ -37,6 +41,18 @@ async function runJob(job) {
     return;
   }
 
+  // ‼ 14.10.2026 · הקוד על הדיסק עודכן אחרי שהתהליך עלה ⇒ לא מריצים קוד ישן
+  // מול רשות. עוצרים לפני הכול (שום דבר לא נפתח ולא נשלח) ומבקשים הפעלה מחדש.
+  const disk = diskCommit();
+  if (codeIsStale(STARTUP_COMMIT, disk)) {
+    const msg = `במחשב הזה הותקנה גרסה חדשה של האוטומציה (${disk.slice(0, 7)}), אבל התהליך שרץ עדיין ` +
+      `מריץ את הגרסה הקודמת (${STARTUP_COMMIT.slice(0, 7)}). הפעולה לא בוצעה ושום דבר לא נשלח לרשות. ` +
+      'הפעילו מחדש את האוטומציה במחשב העבודה (restart-worker.ps1), ואז נסו שוב.';
+    log(`⛔ ${job.actionType}: קוד ישן בזיכרון (${STARTUP_COMMIT.slice(0, 7)} ≠ ${disk.slice(0, 7)}) — לא מריץ`);
+    await fail(WORKER_ID, job.id, 'worker_code_stale', msg);
+    return;
+  }
+
   const pre = await h.preflight?.().catch((e) => ({ ok: false, needsHuman: e?.message ?? 'preflight failed' }));
   if (pre && pre.ok === false) {
     log(`⏸ ${job.actionType}: דרוש אדם — ${pre.needsHuman}`);
@@ -46,7 +62,7 @@ async function runJob(job) {
 
   // חכירה חוזרת כל עוד ה-handler רץ, כדי שמשימה איטית לא תפקע תחת עצמה.
   const heartbeatTimer = setInterval(() => {
-    void heartbeat(USER_ID, WORKER_ID, job.id, LEASE_SECONDS, VERSION).catch(() => { /* ננסה שוב בסבב הבא */ });
+    void heartbeat(USER_ID, WORKER_ID, job.id, LEASE_SECONDS, version()).catch(() => { /* ננסה שוב בסבב הבא */ });
   }, Math.max(5, Math.floor(LEASE_SECONDS / 2)) * 1000);
 
   try {
@@ -54,7 +70,7 @@ async function runJob(job) {
     // כדי לכתוב התקדמות עמידה (CAS) תוך כדי ריצה, לא רק את הקלט שנשלח אליו.
     const ctx = {
       log: (...a) => log('  ', ...a),
-      heartbeat: () => heartbeat(USER_ID, WORKER_ID, job.id, LEASE_SECONDS, VERSION),
+      heartbeat: () => heartbeat(USER_ID, WORKER_ID, job.id, LEASE_SECONDS, version()),
       workerId: WORKER_ID,
       job,
     };
@@ -113,7 +129,7 @@ async function tick() {
     return true; // רץ עוד סבב מיד — אולי יש עוד עבודה בתור
   }
   // אין עבודה — פעימת נוכחות ריקה, כדי ש-PIVO ידע שהמחשב הזה חי
-  await heartbeat(USER_ID, WORKER_ID, null, LEASE_SECONDS, VERSION).catch(() => { /* לא קריטי */ });
+  await heartbeat(USER_ID, WORKER_ID, null, LEASE_SECONDS, version()).catch(() => { /* לא קריטי */ });
   return false;
 }
 
@@ -123,7 +139,7 @@ async function main() {
   // מתמלא שורה כל 5 דקות).
   const lock = await acquireSingleInstance(WORKER_ID);
   if (!lock.ok) process.exit(0);
-  log(`עובד אוטומציה PIVO · worker=${WORKER_ID} · v${VERSION}`);
+  log(`עובד אוטומציה PIVO · worker=${WORKER_ID} · v${version()}`);
   // ‼ 211 · הכנת PDF ברקע — לולאה נפרדת, Chrome נפרד (pdfBuilds.mjs).
   const pdfLoop = PDF_ENABLED || PDF_ONLY ? startPdfLoop(log, () => stopping) : null;
   if (PDF_ONLY) {

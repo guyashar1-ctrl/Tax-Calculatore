@@ -59,11 +59,25 @@ export const TESTS: TestCase[] = [
     equal(shaamRepresentationAction('awaiting_stamp', gate('required_document_unavailable'), true)!.disabled, false);
   }),
 
-  test('13.10 · עצירת «אימות ראשון» ישנה (אמיר) ⇒ השידור זמין שוב, עם הסבר', () => {
+  test('14.10 · עצירת «אימות ראשון» = עובד ישן: הכפתור פתוח, וההסבר אומר להפעיל מחדש — לא «זמין עכשיו»', () => {
     const a = shaamRepresentationAction('awaiting_stamp', gate('first_live_verification'), true)!;
     deepEqual([a.kind, a.disabled], ['submit', false]);
-    assert(/שלחו שוב/.test(a.reason ?? ''), 'הסבר שמזמין לשלוח שוב');
-    equal(shaamStopState(job('first_live_verification'))!.allowDirectRetry, true);
+    assert(/גרסה ישנה/.test(a.reason ?? '') && /הופעלה מחדש/.test(a.reason ?? ''), 'מסביר שהרצה הייתה בגרסה ישנה');
+    assert(!/לא נשלח|לא נטען/.test(a.reason ?? ''), 'בלי ראיה מהניסיון — לא טוענים «לא נשלח»');
+    assert(!/זמינה עכשיו/.test(a.reason ?? ''), 'לא מבטיח שהבעיה נפתרה');
+    const s = shaamStopState(job('first_live_verification'))!;
+    deepEqual([s.kind, s.allowDirectRetry, s.mayHaveActed, s.suggestCheck], ['before_external', true, false, true]);
+    assert(/לפי רישום הניסיון/.test(s.next), 'הטענה נשענת על רישום הניסיון');
+    // ‼ עם סימן נגיעה — לא «לא נשלח», אלא דורש בירור.
+    const t2 = shaamStopState(job('first_live_verification', { progress: { externalAttempt: { at: 'x' } } } as never))!;
+    deepEqual([t2.kind, t2.mayHaveActed, t2.allowDirectRetry, t2.suggestCheck], ['outcome_unknown', true, false, true]);
+  }),
+
+  test('14.10 · worker_code_stale ⇒ לפני כל נגיעה, מבקש הפעלה מחדש', () => {
+    const s = shaamStopState(job('worker_code_stale'))!;
+    deepEqual([s.kind, s.mayHaveActed, s.allowDirectRetry], ['before_external', false, true]);
+    equal(shaamStopState(job('worker_code_stale', { progress: { externalAttempt: { at: 'x' } } } as never))!.kind, 'outcome_unknown');
+    assert(/הופעלה מחדש/.test(s.title), 'הכותרת אומרת מה קרה');
   }),
 
   test('שער שהוחלף ב-resume_queued / submitted אינו חוסם', () => {
