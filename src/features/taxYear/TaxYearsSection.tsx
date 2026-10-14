@@ -12,7 +12,9 @@ import { supabase } from '../../lib/supabase';
 import { stepFromDb } from '../../lib/dbMappers';
 import * as api from './api';
 import type { WealthPayload } from './WealthDeclarationPanel';
-import { demandView } from './wealthDemand';
+import { deadlineView, dueState } from './workMeta';
+import AddTaxWorkDialog from './AddTaxWorkDialog';
+import { todayIso } from '../../utils/dateFormat';
 import { MONTHS } from './asks';
 import { proposeTransfers, type FieldWrite, type TransferProposal } from './transfer';
 import TaxYearProcess from './TaxYearProcess';
@@ -28,6 +30,8 @@ interface Props {
   intakeSignal?: number;
 }
 
+/** סדר: שנה / יום ההצהרה — החדש למעלה. */
+const periodKey = (s: OnboardingStep) => { const p = (s.payload ?? {}) as unknown as { taxYear?: number; asOfDate?: string }; return p.asOfDate ?? `${p.taxYear ?? 0}-12-31`; };
 const OPEN = (s: OnboardingStep) => !['completed', 'verified', 'skipped', 'cancelled', 'failed'].includes(s.status);
 const money = (n: number) => `${n.toLocaleString('he-IL')} ₪`;
 
@@ -65,39 +69,25 @@ export default function TaxYearsSection({ client, onChanged, onClientPersisted, 
   }, [client.id]);
   useEffect(() => { void load(); }, [load]);
 
-  const thisYear = new Date().getFullYear();
-  const years = useMemo(() => {
-    const ys = new Set<number>([thisYear, thisYear - 1]);
-    for (const s of steps) { if (s.stepType === 'wealth_declaration' || s.stepType === 'tax_file_intake') continue; const y = Number((s.payload as unknown as { taxYear?: number }).taxYear); if (y) ys.add(y); }
-    for (const y of transferYears) ys.add(y); // שנה שקיבלה סכומים מהכרטיס
-    return [...ys].sort((a, b) => b - a);
-  }, [steps, thisYear, transferYears]);
-
-  const reqOf = (y: number, type: 'tax_estimate' | 'annual_return') =>
-    steps.filter(s => s.stepType === type && Number((s.payload as unknown as { taxYear?: number }).taxYear) === y)
-      .sort((a, b) => Number(OPEN(b)) - Number(OPEN(a)) || (b.createdAt ?? "").localeCompare(a.createdAt ?? ""))[0];
+  // ‼ 13.10.2026 (גיא): רק עבודות שנפתחו — בלי כרטיסי שנים אוטומטיים («2026» רק כי זו השנה). הוספה — אותו
+  //   דיאלוג כמו ב«עבודת מס» (AddTaxWorkDialog), עם הלקוח הזה; אותה עבודה, אותם מועדים ומצב.
   const infoOf = (parent?: OnboardingStep) => parent && steps.find(s => s.stepType === 'info_collection' && (s.payload as unknown as { parentStepId?: string }).parentStepId === parent.id && s.status !== 'cancelled');
+  const [adding, setAdding] = useState(false);
+  const works = useMemo(() => steps
+    .filter(s => s.stepType === 'annual_return' || s.stepType === 'wealth_declaration' || (s.stepType === 'tax_estimate'))
+    .sort((a, b) => Number(OPEN(b)) - Number(OPEN(a))
+      || String(periodKey(b)).localeCompare(String(periodKey(a)))), [steps]);
 
-  const start = async (purpose: 'estimate' | 'annual', y: number) => {
+  // הערכת מס — סוג עבודה נפרד מדוח שנתי (רק כשהיא זמינה באתר)
+  const startEstimate = async () => {
     setBusy(true); setMsg(null);
     const lastMonth = new Date().getMonth() === 0 ? 12 : new Date().getMonth();
-    const r = await api.ensureYearRequest(client.id, purpose, y, purpose === 'estimate' ? lastMonth : undefined);
+    const r = await api.ensureYearRequest(client.id, 'estimate', new Date().getFullYear(), lastMonth);
     setBusy(false);
     if (!r.ok) { setMsg({ ok: false, text: `הפתיחה נכשלה (${r.error})` }); return; }
     await load(); onChanged?.(); setOpenId(r.stepId);
   };
-
-  // ── 230 · הצהרות הון: לפי יום הצהרה, לא לפי שנה ──
-  const wealth = steps.filter(s => s.stepType === 'wealth_declaration')
-    .sort((a, b) => String((b.payload as unknown as WealthPayload).asOfDate).localeCompare(String((a.payload as unknown as WealthPayload).asOfDate)));
-  const [wDate, setWDate] = useState(`${new Date().getFullYear() - 1}-12-31`);
-  const startWealth = async () => {
-    setBusy(true); setMsg(null);
-    const r = await api.ensureWealthDeclaration(client.id, wDate);
-    setBusy(false);
-    if (!r.ok) { setMsg({ ok: false, text: `הפתיחה נכשלה (${r.error})` }); return; }
-    await load(); onChanged?.(); setOpenId(r.stepId);
-  };
+  void transferYears;
 
   // ── 236 · קליטה והשלמת תיק המס: בקשה פתוחה אחת ללקוח; היסטוריה — קליטות שהושלמו ──
   const intakes = steps.filter(s => s.stepType === 'tax_file_intake').sort((a, b) => Number(OPEN(b)) - Number(OPEN(a)) || (b.createdAt ?? '').localeCompare(a.createdAt ?? ''));
@@ -119,70 +109,54 @@ export default function TaxYearsSection({ client, onChanged, onClientPersisted, 
   const proposals = useMemo(() => proposeTransfers(client, writes).filter(p => !decided.has(`${p.path}:${p.entityRef ?? ''}`)), [client, writes, decided]);
   const openStep = openId ? steps.find(s => s.id === openId) : undefined;
 
+  const stateOf = (s: OnboardingStep) => {
+    const info = infoOf(s);
+    if (!OPEN(s)) return { text: 'הושלם', tone: 'green' };
+    if (!info) return { text: 'עוד לא הוכנו שאלות', tone: '' };
+    if (info.status === 'pending') return { text: 'טיוטת שאלות — לא פורסמה', tone: '' };
+    if (info.status === 'waiting_client') return { text: 'ממתין ללקוח', tone: 'blue' };
+    if (info.ball === 'me' && OPEN(info)) return { text: 'יש תשובות לבדוק', tone: 'amber' };
+    return { text: 'בעבודה', tone: '' };
+  };
+  const today = todayIso();
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '.8rem' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '.6rem' }} data-section="works">
       {msg && <div className={msg.ok ? 'ty-ok' : 'ty-err'} role={msg.ok ? 'status' : 'alert'}>{msg.text}</div>}
-      <div className="ty-year wd-years" data-section="intake">
-        <h4>קליטה והשלמת תיק המס</h4>
-        {(() => {
-          const info = infoOf(intake);
-          const state = !intake ? '' : !OPEN(intake) ? `הושלמה ${(intake.completedAt ?? intake.updatedAt ?? '').slice(0, 10).split('-').reverse().join('.')}` : !info ? 'בעבודה — עוד לא נשאל דבר' : info.status === 'waiting_client' ? 'ממתין ללקוח' : info.ball === 'me' && OPEN(info) ? 'יש תשובות לבדוק' : info.status === 'pending' ? 'שאלות בטיוטה' : 'בעבודה';
-          return (
-            <div className="ty-line">
-              <span style={{ display: 'flex', flexDirection: 'column' }}>
-                <span>{intake ? state : 'פרטים קבועים, מקורות הכנסה, נכסים ומסמכים קבועים'}</span>
-                <span className="ty-note">{intake ? 'מה שאושר נכנס לתיק דרך הצעה עם היסטוריה' : 'בלי לפתוח דוח שנתי: שאלות רק על מה שחסר, ומסמכים לכל מעסיק, נכס וחשבון'}</span>
-              </span>
-              {intake && OPEN(intake)
-                ? <button type="button" className="btn btn-sm btn-ghost" onClick={() => setOpenId(intake.id)}>פתח</button>
-                : <button type="button" className="btn btn-sm btn-ghost" disabled={busy} onClick={() => void startIntake()}>{intake ? 'קליטה חדשה' : 'התחל'}</button>}
-            </div>
-          );
-        })()}
+      {works.length === 0
+        ? <p className="ty-note" style={{ margin: 0 }}>אין עבודה פתוחה. «＋ הוסף» — דוח שנתי (גם לשנה קודמת) או הצהרת הון, עם מקור ומועדים.</p>
+        : (
+          <ul className="tf-works" aria-label="דוחות והצהרות">
+            {works.map(w => {
+              const st = stateOf(w);
+              const dv = deadlineView(w);
+              const ds = dueState(dv, today, OPEN(w));
+              const pl = w.payload as unknown as { cutoffMonth?: number; taxYear?: number } & WealthPayload;
+              const title = w.stepType === 'wealth_declaration' ? `הצהרת הון ליום ${(pl.asOfDate ?? '').split('-').reverse().join('.')}${pl.kind === 'followup' ? ' · המשך' : ''}`
+                : w.stepType === 'tax_estimate' ? `הערכת מס ${pl.taxYear ?? ''}${pl.cutoffMonth ? ` · עד סוף ${MONTHS[pl.cutoffMonth]}` : ''}` : `דוח שנתי ${pl.taxYear ?? ''}`;
+              return (
+                <li key={w.id} className={`tf-work is-${ds}`} data-work={w.stepType}>
+                  <span className="tf-work-main">
+                    <b>{title}</b>
+                    <small>{dv.none ? (w.stepType === 'wealth_declaration' ? 'הכנה בלי דרישה — אין מועד רשמי' : 'אין מועד רשום') : dv.short}{ds === 'overdue' ? ' · באיחור' : ''}</small>
+                  </span>
+                  <span className={`ty-chip ${st.tone}`}>{st.text}{approvedEst.get(w.id) ? ` · גרסה ${approvedEst.get(w.id)!.version}` : ''}</span>
+                  <button type="button" className="btn btn-sm btn-ghost" onClick={() => setOpenId(w.id)}>פתח</button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      <div className="ty-actions">
+        <button type="button" className="btn btn-sm btn-ghost" disabled={busy} onClick={() => setAdding(true)} data-tf-add-work>＋ הוסף דוח או הצהרת הון</button>
+        {AVAILABLE.taxEstimate && !works.some(w => w.stepType === 'tax_estimate' && OPEN(w)) && (
+          <button type="button" className="btn btn-sm btn-ghost" disabled={busy} onClick={() => void startEstimate()}>＋ הערכת מס {new Date().getFullYear()}</button>
+        )}
       </div>
-      <div className="ty-years">
-        {years.map(y => {
-          const est = reqOf(y, 'tax_estimate');
-          const ann = reqOf(y, 'annual_return');
-          const line = (s: OnboardingStep | undefined, label: string, purpose: 'estimate' | 'annual') => {
-            const info = infoOf(s);
-            const pl = s?.payload as unknown as { cutoffMonth?: number } | undefined;
-            const state = !s ? '' : !OPEN(s) ? 'הושלם' : !info ? 'בעבודה' : info.status === 'waiting_client' ? 'ממתין ללקוח' : info.ball === 'me' && OPEN(info) ? 'יש תשובות לבדוק' : info.status === 'pending' ? 'שאלות בטיוטה' : 'בעבודה';
-            const canStart = purpose === 'estimate' ? y >= thisYear - 1 : y <= thisYear - 1;
-            return (
-              <div className="ty-line">
-                <span style={{ display: 'flex', flexDirection: 'column' }}><span>{label}{s ? ` · ${state}` : ''}{s && approvedEst.get(s.id) ? ` · גרסה ${approvedEst.get(s.id)!.version} מאושרת` : ''}</span>{s && purpose === 'estimate' && pl?.cutoffMonth ? <span className="ty-note">נתוני אמת עד סוף {MONTHS[pl.cutoffMonth]}</span> : null}</span>
-                {s ? <button type="button" className="btn btn-sm btn-ghost" onClick={() => setOpenId(s.id)}>פתח</button>
-                  : canStart ? <button type="button" className="btn btn-sm btn-ghost" disabled={busy} onClick={() => void start(purpose, y)}>התחל</button> : <span className="ty-note">{purpose === 'annual' ? 'אחרי סוף השנה' : '—'}</span>}
-              </div>
-            );
-          };
-          return (
-            <div key={y} className="ty-year">
-              <h4>{y}{y === thisYear ? <span className="ty-chip blue">השנה</span> : null}</h4>
-              {(AVAILABLE.taxEstimate || est) && line(est, 'הערכת מס', 'estimate')}
-              {line(ann, 'דוח שנתי', 'annual')}
-            </div>
-          );
-        })}
-      </div>
-      <div className="ty-year wd-years">
-        <h4>הצהרות הון</h4>
-        {wealth.length === 0 && <p className="ty-note" style={{ margin: 0 }}>אין הכנה פתוחה. אפשר להתחיל גם בלי דרישה — המועד הרשמי נרשם כשמגיע מכתב.</p>}
-        {wealth.map(w => { const wp = w.payload as unknown as WealthPayload; const info = infoOf(w); return (
-          <div key={w.id} className="ty-line">
-            <span style={{ display: 'flex', flexDirection: 'column' }}>
-              <span>ליום {(wp.asOfDate ?? '').split('-').reverse().join('.')} · {wp.kind === 'followup' ? 'המשך' : 'ראשונה'}{!OPEN(w) ? ' · הושלמה' : info?.status === 'waiting_client' ? ' · ממתין ללקוח' : info && info.ball === 'me' && OPEN(info) ? ' · יש תשובות לבדוק' : ''}</span>
-              <span className="ty-note">{demandView(wp.demand).short}{wp.internalTarget ? ` · יעד פנימי ${wp.internalTarget.split('-').reverse().join('.')}` : ''}</span>
-            </span>
-            <button type="button" className="btn btn-sm btn-ghost" onClick={() => setOpenId(w.id)}>פתח</button>
-          </div>
-        ); })}
-        <div className="ty-line">
-          <label style={{ display: 'flex', gap: '.4rem', alignItems: 'center', flexWrap: 'wrap' }}>הכנה ליום הצהרה<input type="date" value={wDate} onChange={e => setWDate(e.target.value)} style={{ minHeight: 34 }} /></label>
-          <button type="button" className="btn btn-sm btn-ghost" disabled={busy || !wDate} onClick={() => void startWealth()}>התחל הכנה</button>
-        </div>
-      </div>
+      {adding && (
+        <AddTaxWorkDialog clients={[client]} steps={steps} fixedClientId={client.id} onClose={() => setAdding(false)}
+          onDone={res => { void load(); onChanged?.(); if (res[0]?.stepId) { setAdding(false); setOpenId(res[0].stepId); } }} />
+      )}
       {proposals.length > 0 && <Transfers client={client} proposals={proposals} busy={busy} setBusy={setBusy}
         onDone={async text => { setMsg({ ok: true, text }); await load(); onChanged?.(); }} onError={text => setMsg({ ok: false, text })} />}
       {openStep && (

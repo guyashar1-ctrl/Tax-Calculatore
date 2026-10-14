@@ -7,6 +7,9 @@
 
 import { AREA_BY_ID, ITEM_BY_KEY } from './catalog';
 import type { Evidence, YearFact } from './types';
+import { RECORD_OF } from './structured';
+import { recordLines, schemaFor } from './records';
+import { recordItems } from './recordToCard';
 
 export interface ReviewRow {
   fact: YearFact;
@@ -38,7 +41,16 @@ const money = (n: number) => `${n.toLocaleString('he-IL')} ₪`;
 const PART_HE: Record<string, string> = { gross: 'ברוטו', withheld: 'מס שנוכה', profit: 'רווח', turnover: 'מחזור', customerWithholding: 'ניכוי מלקוחות',
   interest: 'ריבית', dividend: 'דיבידנד', gains: 'רווח הון', pension: 'פנסיה', studyFund: 'קרן השתלמות', life: 'ביטוח חיים' };
 
-export function describeValue(f: Pick<YearFact, 'answer' | 'value'>): string {
+export function describeValue(f: Pick<YearFact, 'answer' | 'value'> & { itemKey?: string }): string {
+  // ‼ 13.10.2026 · תשובה מובנית (ילדים, בנק, כתובת, תחולה…) — בשורות קריאות, לא כאובייקט
+  const sid = f.itemKey ? RECORD_OF[f.itemKey] : undefined;
+  if (sid && f.answer !== 'no' && f.value && typeof f.value === 'object') {
+    const items = sid === 'period' && !recordItems(f.value) ? [f.value as Record<string, unknown>] : recordItems(f.value);
+    if (items) {
+      const text = recordLines(schemaFor(sid), items).join(' · ') || '—';
+      return (f.value as { changed?: boolean }).changed ? `השתנה: ${text}` : text;
+    }
+  }
   if (f.answer === 'no') return 'לא';
   if (f.answer === 'zero') return '0 ₪';
   if (f.answer === 'not_applicable') return 'לא רלוונטי';

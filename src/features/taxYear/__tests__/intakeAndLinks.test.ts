@@ -71,8 +71,11 @@ export const TESTS: TestCase[] = [
     assert(!p.statuses.some(s => s.item.key === 'intake.payslip' || s.item.key === 'intake.employerDetails'), 'פרטי מעסיק נשאלו לפני «כן»');
     const plan = buildAskPlan([...p.toConfirm, ...p.toAsk], ctx(client()));
     const kids = plan.find(e => e.itemKey === 'intake.children')!;
-    equal(kids.prompt.input.kind, 'text');
-    assert(kids.prompt.title.includes('שמות הילדים'), kids.prompt.title);
+    // 13.10.2026 · ילדים — רשומה מובנית (שם ותאריך לידה לכל ילד, «אין ילדים» כתשובה), לא תיבת טקסט
+    equal(kids.prompt.input.kind, 'record');
+    equal((kids.prompt.input as { schema?: string }).schema, 'children');
+    assert(kids.prompt.title.includes('הילדים'), kids.prompt.title);
+    assert(!!kids.prompt.hint, 'אין הסבר גלוי לשאלה');
     const fam = plan.find(e => e.itemKey === 'intake.family')!;
     equal(fam.prompt.input.kind, 'confirm');
   }),

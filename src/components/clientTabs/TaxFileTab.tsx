@@ -254,6 +254,7 @@ function familyFields(client: Client): EditField[] {
 
 
 import TaxYearsSection from '../../features/taxYear/TaxYearsSection';
+import ReconcilePanel from '../../features/taxFile/ReconcilePanel';
 
 export default function TaxFileTab({
   client, spouseClient, onCreateSpouseClient, onOpenSpouseClient,
@@ -956,6 +957,20 @@ export default function TaxFileTab({
         onCreateSpouseClient={onCreateSpouseClient} onOpenSpouseClient={onOpenSpouseClient}
       />
 
+      {/* ═══ עדכון ויישור קו (13.10.2026) ═══════════════════════════════════
+          ‼ במקום אזור הקליטה הגדול: מה ידוע מהרשויות, מה נמסר, מה חסר / לאישור / סותר — ו«הכן שאלון השלמה».
+          הפירוט ממשיך לחיות בכרטיסים שמתחת («דורש טיפול», «הצעות לעדכון») — אותו מקור, לא עותק. */}
+      <ReconcilePanel
+        client={client} alignedAt={alignedAt}
+        pendingCount={pending.length + (intakeResult?.pending?.length ?? 0)}
+        flagCount={openFlags.length}
+        unknown={readiness.personal.unknown}
+        intakeOpen={(steps ?? []).some(s => s.stepType === 'tax_file_intake' && !['completed', 'verified', 'skipped', 'cancelled', 'failed'].includes(s.status))}
+        onPrepare={() => setIntakeSignal(n => n + 1)}
+        onRunAlignment={onRunAlignment} alignBusy={alignBusy}
+        onShowPending={() => document.querySelector('.txf-secthead, .txf-qchange')?.scrollIntoView({ block: 'start', behavior: 'smooth' })}
+      />
+
       {/* ═══ דורש טיפול ═══════════════════════════════════════════════════
           ‼ רק חריגות אמיתיות, לא כל שדה חסר. פריט שכבר נוצרה לו בקשה נשאר
           גלוי אבל אפור ובלי כפתור — «אל תשאל אותי שוב על מה שכבר בטיפול». */}
@@ -1120,7 +1135,7 @@ export default function TaxFileTab({
       {/* ═══ שנות מס (229) ═══════════════════════════════════════════════════
           ‼ אין לשונית «שנת מס»: כרטיס לכל שנה כאן, שפותח את דף התהליך (הערכה / דוח).
           סכומים לשנה חיים בשנת המס; כאן גם ההעברה של סכומים מהכרטיס שאין להם שנה. */}
-      <SectHead family="income" title="תהליכים בתיק המס" why="קליטה והשלמת תיק, דוח שנתי והצהרות הון — מה ידוע, מה חסר, ומה נשאל את הלקוח" />
+      <SectHead family="income" title="דוחות והצהרות" why="רק עבודות שנפתחו — אותן עבודות כמו ב«עבודת מס» וב«בקשות», עם המועדים והמצב" />
       <div className="txf-sect" style={{ padding: '.6rem .8rem' }}>
         {/* ‼ «הוסף לתיק» מתוך שנת המס יוצר הצעה — רשימת ההצעות כאן מתרעננת מיד, לא רק בטעינה הבאה */}
         <TaxYearsSection client={client} onChanged={() => { onRequestsChanged?.(); void refresh(); }} onClientPersisted={onClientPersisted} intakeSignal={intakeSignal} />
@@ -1339,9 +1354,7 @@ export default function TaxFileTab({
           {lastQSync && <span>{'שאלון סטטוס מס · נקלט ' + monthYear(lastQSync)}</span>}
           {/* ‼ 236: «שלח שאלון עדכון» (השאלון הישן) הוחלף בקליטה על התשתית המשותפת — שאלות המשך, מסמכים, «אין לי עדיין»,
               בדיקת משרד ו«החזר לתיקון». קישורים ישנים שכבר נשלחו ממשיכים לעבוד ונקלטים כהצעות. */}
-          <button type="button" className="ui-btn ui-btn-sm" onClick={() => { setIntakeSignal(n => n + 1); requestAnimationFrame(() => document.querySelector('[data-section="intake"]')?.scrollIntoView({ block: 'center', behavior: 'smooth' })); }}>
-            השלמת תיק המס
-          </button>
+          {/* 13.10.2026 · «השלמת תיק המס» עבר לראש התיק («עדכון ויישור קו» › «הכן שאלון השלמה») */}
         </span>
       </div>
 

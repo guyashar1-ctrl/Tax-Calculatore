@@ -77,6 +77,13 @@ export interface ResidentialProperty {
   rooms?: number;                // מספר חדרים
   purchaseYear?: number;
   purchasePrice?: number;        // מחיר רכישה (₪)
+  /** 13.10.2026 · תחולה בזמן (features/taxYear/temporal.ts): תאריך רכישה עם דיוק; purchaseYear נשאר לתאימות. */
+  purchaseDate?: string;
+  purchasePrecision?: 'day' | 'month' | 'year' | 'approx' | 'unknown';
+  /** נמכר — תאריך עם דיוק. נכס שנמכר במהלך שנת מס עדיין שייך לדוח של אותה שנה. */
+  soldDate?: string;
+  soldPrecision?: 'day' | 'month' | 'year' | 'approx' | 'unknown';
+  isSold?: boolean;
   isRented?: boolean;            // האם מושכר
   monthlyRent?: number;          // שכ״ד חודשי (₪)
   rentalTaxTrack?: RentalTaxTrack;
@@ -119,6 +126,10 @@ export interface InvestmentAccount {
   accountNumber?: string;       // 4-6 ספרות אחרונות לרוב מספיק
   isClosed?: boolean;
   closedYear?: number;
+  /** 13.10.2026 · תחולה בזמן: מתי נפתח (ומתי נסגר) — עם דיוק. בלי תאריך ⇒ «לא ידוע», לא «מתמיד». */
+  openedDate?: string;
+  openedPrecision?: 'day' | 'month' | 'year' | 'approx' | 'unknown';
+  closedDate?: string;
   notes?: string;
 
   // ── סכומי 867 (Wave ג') ──
@@ -186,6 +197,8 @@ export interface BankAccountInfo {
   kind?: BankAccountKind;
   isPrimary?: boolean;
   notes?: string;
+  /** 13.10.2026 · החשבון נסגר (סיום תוקף בהכרעת משרד) — נשאר בתיק להיסטוריה, לא להחזרים. */
+  closedAt?: string;
 }
 
 // ─── קופות פנסיה / השתלמות / קופ״ג ────────────────────────────────────

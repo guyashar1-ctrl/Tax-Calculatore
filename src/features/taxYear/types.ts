@@ -144,11 +144,21 @@ export interface InfoAsk {
   answeredFactIds?: string[];
   evidenceIds?: string[];
   /** מסמך שטרם זמין: הסיבה ומועד המעקב, לפי סוג המסמך והשנה. */
-  unavailable?: { reason: string; followUpOn: string; recordedAt: string };
+  unavailable?: { reason: string; followUpOn: string; recordedAt: string; code?: UnavailableCode };
   savedDraft?: unknown;
   createdAt: string;
   answeredAt?: string;
 }
+
+/**
+ * ‼ 13.10.2026 · למה אין מסמך עכשיו — שלוש משמעויות, לא «אין לי עדיין» אחד:
+ *   later — יש לי, אעלה בהמשך · notYet — עוד לא קיבלתי (המעסיק / הבנק טרם הפיק) · needHelp — אין לי, צריך עזרה.
+ *   ‼ «לא רלוונטי» אינו כאן: זו טענה שהמשרד בודק (נשמרת כתשובה עם הערה), לא מסמך שחסר.
+ *   ‼ שורה ישנה בלי code — «אין לי עדיין» שמשמעותו לא ידועה. לא ממירים אותה.
+ */
+export type UnavailableCode = 'later' | 'notYet' | 'needHelp';
+
+export type RecordSchemaId = 'children' | 'address' | 'bank' | 'employer' | 'property' | 'account' | 'fund' | 'business' | 'foreign' | 'vehicle' | 'partners' | 'period';
 
 export type AskInput =
   | { kind: 'yesno'; followUp?: AskInput }
@@ -156,14 +166,24 @@ export type AskInput =
   | { kind: 'date' }
   | { kind: 'text' }
   | { kind: 'choice'; options: { value: string; label: string }[] }
-  | { kind: 'confirm'; lines: string[] }
+  /** `edit` — 13.10.2026: «משהו השתנה» נפתח כרשומה מובנית עם מה שבתיק (ילדים, מעסיקים, חשבון בנק…), לא כתיבה חופשית. */
+  | { kind: 'confirm'; lines: string[]; edit?: { schema: RecordSchemaId; initial?: Record<string, unknown>[]; context?: Record<string, string> } }
   /** לזוג: «מי מכם?» — התשובה נשמרת כעובדה לכל אחד מבני הזוג. */
   | { kind: 'who'; clientName: string; spouseName: string }
-  | { kind: 'file'; docKind: DocKind };
+  | { kind: 'file'; docKind: DocKind }
+  /**
+   * 13.10.2026 · רשומה מובנית (ילדים, חשבון בנק, מעסיק, נכס…) — שדות נפרדים, לא תיבת טקסט אחת.
+   * `initial` = מה שבתיק, לאישור או לתיקון (לא שאלה מאפס). `context` — מילים לשאלה (למשל שנת המס).
+   */
+  | { kind: 'record'; schema: RecordSchemaId; initial?: Record<string, unknown>[]; context?: Record<string, string> };
 
 export interface AskPrompt {
   title: string;      // הכותרת ללקוח, עם הנושא כשזה בן/בת הזוג
   why: string;        // «למה שואלים?»
+  /** 13.10.2026 · הסבר קצר וגלוי מתחת לשאלה: למה הכוונה, ודוגמאות מוכרות. «למה שואלים» נשאר הרחבה. */
+  hint?: string;
+  /** על איזו תקופה שואלים — «בשנת 2025» / «ביום 31.12.2025». מוצג ליד השאלה. */
+  periodText?: string;
   input: AskInput;
   subjectName?: string;
   /** גרסת התבנית שממנה נבנתה השאלה (CATALOG_VERSION) — מה שנשלח, לא מה שקיים היום. */

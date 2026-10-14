@@ -20,7 +20,7 @@
 .ty-label { font-size: var(--fs-12); font-weight: 650; letter-spacing: .02em; color: var(--tx3); margin: 0 0 .35rem; }
 .ty-now { background: var(--card); border: 1px solid var(--soft-bd); border-radius: 14px; padding: 1rem 1.1rem; display: flex; flex-direction: column; gap: .7rem;
   box-shadow: 0 1px 2px rgba(20, 30, 50, .04); }
-.ty-now h3 { margin: 0; font-size: var(--fs-16); font-weight: 650; }
+.ty-now h3 { margin: 0; font-size: var(--fs-16, 16px); font-weight: 650; }
 .ty-now .ty-why { margin: 0; color: var(--tx2); font-size: var(--fs-13); line-height: 1.55; }
 .ty-actions { display: flex; gap: .5rem; flex-wrap: wrap; align-items: center; }
 .ty-actions .btn { min-height: 38px; }
@@ -81,7 +81,7 @@
 .ty-choice[aria-pressed="true"] { border-color: var(--br); background: var(--soft); color: var(--br-strong); font-weight: 600; }
 .ty-lines { margin: 0; padding: .6rem .8rem; list-style: none; background: var(--s4); border-radius: 10px; display: flex; flex-direction: column; gap: .3rem; font-size: var(--fs-14); }
 .ty-field { display: flex; flex-direction: column; gap: .3rem; font-size: var(--fs-13); color: var(--tx2); }
-.ty-field input, .ty-field textarea { min-height: 46px; padding: .55rem .7rem; border: 1px solid var(--bd-strong); border-radius: 10px; font: inherit; font-size: var(--fs-16); background: var(--card); color: var(--tx); }
+.ty-field input, .ty-field textarea { min-height: 46px; padding: .55rem .7rem; border: 1px solid var(--bd-strong); border-radius: 10px; font: inherit; font-size: var(--fs-16, 16px); background: var(--card); color: var(--tx); }
 .ty-field textarea { min-height: 88px; resize: vertical; }
 .ty-why-q > summary { cursor: pointer; color: var(--br); font-size: var(--fs-13); min-height: 32px; display: flex; align-items: center; }
 .ty-why-q p { margin: .2rem 0 0; font-size: var(--fs-13); color: var(--tx2); line-height: 1.6; }
@@ -95,7 +95,7 @@
   .ty-row { flex-direction: column; }
   .ty-row .ty-side { justify-content: flex-start; }
   .ty-years { grid-template-columns: 1fr; }
-  .ty-head h2 { font-size: var(--fs-16); }
+  .ty-head h2 { font-size: var(--fs-16, 16px); }
 }
 
 /* ─── השאלון המלא וההסתעפויות (QuestionnaireMap, 11.10.2026) ─────────────── */
@@ -166,3 +166,176 @@
   .tw-row { flex-direction: column; }
   .tw-actions { justify-content: flex-start; }
 }
+
+/* ─── 13.10.2026 · השאלון: הסבר גלוי, תקופה, רשומות מובנות, מסמכים שנשארו ─────────────────
+   ‼ ההסבר מתחת לשאלה הוא טקסט רגיל, לא מסגרת. התקופה והאדם — תגיות קטנות. */
+.ty-flow-top { display: flex; justify-content: space-between; gap: .5rem; font-size: var(--fs-13); color: var(--tx2); }
+.ty-q-meta { display: flex; flex-wrap: wrap; gap: .35rem; margin: -.45rem 0 0; }
+.ty-tag { display: inline-flex; align-items: center; padding: .1rem .55rem; border-radius: 999px; font-size: var(--fs-12); font-weight: 600; background: var(--s4); color: var(--tx2); }
+.ty-tag.is-period { background: var(--soft); color: var(--br-strong); }
+.ty-hint { margin: -.3rem 0 0; font-size: var(--fs-14); line-height: 1.6; color: var(--tx2); }
+.ty-choice.is-sm { min-height: 44px; font-size: var(--fs-14); }
+.ty-alt { display: flex; flex-direction: column; gap: .45rem; border-top: 1px dashed var(--bd); }
+.ty-alt-h { font-size: var(--fs-13); color: var(--tx2); padding-top: .55rem; }
+.ty-alt-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .45rem; }
+@media (max-width: 480px) { .ty-alt-list { grid-template-columns: 1fr; } }
+
+.ty-owed { display: flex; flex-direction: column; gap: .5rem; }
+.ty-owed-h { margin: 0; font-size: var(--fs-16, 16px); font-weight: 650; }
+.ty-owed-list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: .5rem; }
+.ty-owed-item { border: 1px solid var(--bd); border-radius: 12px; padding: .65rem .75rem; background: var(--card); display: flex; flex-direction: column; gap: .6rem; }
+.ty-owed-row { display: flex; align-items: center; gap: .6rem; justify-content: space-between; }
+.ty-owed-title { display: flex; flex-direction: column; gap: .15rem; min-width: 0; font-size: var(--fs-14); }
+.ty-owed-title small { color: var(--tx2); font-size: var(--fs-12); }
+.ty-owed-why { color: var(--tx3); }
+.ty-owed-row .btn { min-height: 44px; flex-shrink: 0; }
+
+/* מסך שאלון ייעודי בדף האישי — כותרת קבועה, גוף צר וקריא, ניווט קבוע בתחתית (ty-nav) */
+.tis { position: fixed; inset: 0; z-index: 1200; background: var(--page, #f6f6f4); color: var(--tx); display: flex; flex-direction: column; direction: rtl; }
+.tis-head { display: flex; align-items: center; gap: .75rem; padding: .6rem 1rem calc(.6rem); padding-top: calc(.6rem + env(safe-area-inset-top, 0px)); border-bottom: 1px solid var(--bd); background: var(--card); }
+.tis-back { flex-shrink: 0; min-height: 44px; padding: .35rem .7rem; border: 1px solid var(--bd); border-radius: 10px; background: var(--card); color: var(--tx); font: inherit; font-size: var(--fs-14); cursor: pointer; }
+.tis-titles { display: flex; flex-direction: column; min-width: 0; }
+.tis-titles h1 { margin: 0; font-size: var(--fs-17); font-weight: 650; line-height: 1.35; outline: none; overflow-wrap: anywhere; }
+.tis-sub { font-size: var(--fs-12); color: var(--tx2); }
+.tis-body { flex: 1; overflow: auto; padding: 1rem 1rem 0; }
+.tis-body > .ty-flow { max-width: 620px; margin: 0 auto; }
+.tis-body .ty-nav { background: var(--page, #f6f6f4); }
+@media (max-width: 520px) { .tis-head { padding-inline: .75rem; } .tis-back { padding-inline: .5rem; font-size: var(--fs-13); } .tis-body { padding-inline: .85rem; } }
+
+/* רשומה מובנית — כרטיס לכל פריט; שני טורים במחשב, אחד בטלפון */
+.rec { display: flex; flex-direction: column; gap: .6rem; }
+.rec-card { border: 1px solid var(--bd); border-radius: 12px; padding: .75rem .8rem .8rem; margin: 0; background: var(--card); min-width: 0; }
+.rec-legend { font-size: var(--fs-13); font-weight: 650; color: var(--tx2); padding: 0 .3rem; }
+.rec-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .65rem .75rem; }
+.rec-field { grid-column: 1 / -1; display: flex; flex-direction: column; gap: .28rem; min-width: 0; }
+.rec-field.is-half { grid-column: span 1; }
+@media (max-width: 520px) { .rec-grid { grid-template-columns: 1fr; } .rec-field.is-half { grid-column: 1 / -1; } }
+.rec-label { font-size: var(--fs-13); color: var(--tx2); font-weight: 600; }
+.rec-opt { font-weight: 400; color: var(--tx3); }
+.rec-field input, .rec-field select { min-height: 46px; padding: .5rem .65rem; border: 1px solid var(--bd-strong); border-radius: 10px; font: inherit; font-size: var(--fs-16, 16px);
+  background: var(--card); color: var(--tx); width: 100%; box-sizing: border-box; }
+.rec-field.has-err input, .rec-field.has-err select { border-color: var(--err); }
+.rec-hint { font-size: var(--fs-12); color: var(--tx3); line-height: 1.5; }
+.rec-err { font-size: var(--fs-12); color: var(--err); font-weight: 600; }
+.rec-seg { display: flex; flex-wrap: wrap; gap: .4rem; }
+.rec-seg-btn { min-height: 44px; padding: .4rem .8rem; border: 1px solid var(--bd-strong); border-radius: 10px; background: var(--card); color: var(--tx); font: inherit; font-size: var(--fs-14); cursor: pointer; }
+.rec-seg-btn[aria-checked="true"] { border-color: var(--br); background: var(--soft); color: var(--br-strong); font-weight: 600; }
+.rec-dated { display: flex; gap: .45rem; flex-wrap: wrap; }
+.rec-dated > select { flex: 1 1 9rem; width: auto; }
+.rec-dated > input { flex: 1 1 8rem; width: auto; }
+.rec-remove, .rec-link { background: none; border: none; padding: .3rem 0; color: var(--tx2); text-decoration: underline; font: inherit; font-size: var(--fs-13); cursor: pointer; min-height: 32px; }
+.rec-add { align-self: flex-start; min-height: 44px; padding: .45rem .9rem; border: 1px dashed var(--br); border-radius: 10px; background: transparent; color: var(--br-strong); font: inherit; font-size: var(--fs-14); font-weight: 600; cursor: pointer; }
+.rec-picked { display: flex; align-items: center; gap: .45rem; flex-wrap: wrap; min-height: 46px; padding: .35rem .65rem; border: 1px solid var(--bd); border-radius: 10px; background: var(--s4); font-size: var(--fs-14); }
+.rec-options { list-style: none; margin: .1rem 0 0; padding: 0; display: flex; flex-direction: column; gap: .2rem; max-height: 15rem; overflow: auto; }
+.rec-options button { width: 100%; text-align: start; min-height: 44px; padding: .4rem .6rem; border: 1px solid var(--bd); border-radius: 9px; background: var(--card); color: var(--tx); font: inherit; font-size: var(--fs-14); cursor: pointer; }
+.rec-options button:hover, .rec-options button:focus-visible { border-color: var(--br); background: var(--soft); }
+.rec-src { margin: 0; font-size: var(--fs-12); color: var(--tx3); line-height: 1.5; }
+
+/* ─── «הוספת דוח או הצהרת הון» (AddTaxWorkDialog) ─────────────────────────────────────
+   ‼ במחשב — חלון עד 720px; בטלפון — מסך מלא, כפתורים קבועים בתחתית. */
+.aw { width: min(720px, 100%); display: flex; flex-direction: column; max-height: 92vh; overflow: hidden; }
+.aw-body { overflow: auto; display: flex; flex-direction: column; gap: .9rem; }
+.aw-foot { display: flex; align-items: center; gap: .5rem; flex-direction: row; justify-content: flex-start; }
+.aw-foot .btn { min-height: 44px; }
+.aw-kind { margin-bottom: .1rem; }
+.aw-clients { border: 1px solid var(--bd); border-radius: 12px; padding: .6rem .7rem; margin: 0; display: flex; flex-direction: column; gap: .45rem; }
+.aw-search { min-height: 44px; padding: .45rem .65rem; border: 1px solid var(--bd-strong); border-radius: 10px; font: inherit; font-size: var(--fs-16, 16px); }
+.aw-client-list { list-style: none; margin: 0; padding: 0; max-height: 15rem; overflow: auto; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .15rem .6rem; }
+.aw-client { display: flex; align-items: center; gap: .45rem; min-height: 40px; font-size: var(--fs-14); cursor: pointer; }
+.aw-client input { width: 18px; height: 18px; }
+.aw-note { margin: 0; }
+.aw-rows { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .5rem; }
+.aw-row { border: 1px solid var(--bd); border-radius: 12px; padding: .6rem .7rem; display: flex; flex-direction: column; gap: .5rem; background: var(--card); }
+.aw-row.has-err { border-color: var(--err); }
+.aw-row-head { display: flex; align-items: center; gap: .4rem; flex-wrap: wrap; font-size: var(--fs-14); }
+.aw-row-fields { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .5rem; }
+.aw-row-fields .rec-field { grid-column: auto; }
+@media (max-width: 640px) {
+  .aw-backdrop { padding: 0; align-items: stretch; }
+  .aw { width: 100%; max-width: none; max-height: none; height: 100%; border-radius: 0; }
+  .aw-client-list { grid-template-columns: 1fr; }
+  .aw-row-fields { grid-template-columns: 1fr 1fr; }
+  .aw-foot { position: sticky; bottom: 0; padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px)); }
+}
+
+/* ─── «עבודת מס» — טבלה במחשב, כרטיסים בטלפון (13.10.2026) ───────────────────────────────── */
+.tw-top { display: flex; align-items: center; justify-content: space-between; gap: .75rem; flex-wrap: wrap; }
+.tw-add { min-height: 44px; }
+.tw-alerts { display: flex; gap: .5rem; flex-wrap: wrap; }
+.tw-alert { border: none; border-radius: 999px; padding: .35rem .8rem; font: inherit; font-size: var(--fs-13); font-weight: 600; cursor: pointer; min-height: 36px; }
+.tw-alert.is-overdue { background: var(--chip-red-bg); color: var(--chip-red-tx); }
+.tw-alert.is-soon { background: var(--chip-amber-bg); color: var(--chip-amber-tx); }
+.tw-filters { display: flex; gap: .6rem; flex-wrap: wrap; align-items: center; }
+.tw-select { display: inline-flex; align-items: center; gap: .35rem; font-size: var(--fs-13); color: var(--tx2); }
+.tw-select select { min-height: 36px; border: 1px solid var(--bd); border-radius: 8px; background: var(--card); font: inherit; font-size: var(--fs-13); padding: 0 .4rem; color: var(--tx); }
+.tw-table { display: flex; flex-direction: column; gap: 6px; }
+.tw-table .tw-row { display: grid; grid-template-columns: minmax(8rem, 1fr) minmax(8rem, 1fr) minmax(8rem, .9fr) minmax(12rem, 2.2fr) auto; gap: 12px; align-items: start; }
+.tw-table .tw-headrow { border: none; background: transparent; padding: 0 12px; font-size: var(--fs-12); color: var(--tx3); font-weight: 650; }
+.tw-c { display: flex; flex-direction: column; gap: 3px; min-width: 0; font-size: var(--fs-14); }
+.tw-c small { color: var(--tx2); font-size: var(--fs-12); }
+.tw-row.is-overdue { border-inline-start: 3px solid var(--chip-red-tx); }
+.tw-row.is-soon { border-inline-start: 3px solid var(--chip-amber-tx); }
+.tw-due { display: flex; flex-direction: column; gap: 2px; }
+.tw-due b { font-weight: 600; }
+.tw-due.is-overdue small { color: var(--chip-red-tx); font-weight: 600; }
+.tw-due.is-soon small { color: var(--chip-amber-tx); font-weight: 600; }
+.tw-due.is-none { color: var(--tx3); font-size: var(--fs-13); }
+.tw-empty { padding: .6rem 0; }
+@media (max-width: 860px) {
+  .tw-table .tw-row { grid-template-columns: 1fr 1fr; }
+  .tw-table .tw-headrow { display: none; }
+  .tw-c-state { grid-column: 1 / -1; }
+  .tw-table .tw-actions { grid-column: 1 / -1; justify-content: flex-start; }
+}
+@media (max-width: 480px) {
+  .tw-add { width: 100%; }
+}
+
+/* ─── תיק המס: «דוחות והצהרות» קומפקטי ו«עדכון ויישור קו» בראש (13.10.2026) ───────────────── */
+.tf-works { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.tf-work { display: flex; align-items: center; gap: .6rem; padding: .5rem .7rem; border: 1px solid var(--bd); border-radius: 10px; background: var(--card); }
+.tf-work.is-overdue { border-inline-start: 3px solid var(--chip-red-tx); }
+.tf-work.is-soon { border-inline-start: 3px solid var(--chip-amber-tx); }
+.tf-work-main { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; font-size: var(--fs-14); }
+.tf-work-main small { color: var(--tx2); font-size: var(--fs-12); }
+@media (max-width: 520px) { .tf-work { flex-wrap: wrap; } .tf-work-main { flex-basis: 100%; } }
+
+.rp { border: 1px solid var(--soft-bd, var(--bd)); border-radius: 14px; background: var(--card); padding: .85rem 1rem; display: flex; flex-direction: column; gap: .65rem; }
+.rp-head { display: flex; align-items: flex-start; justify-content: space-between; gap: .75rem; flex-wrap: wrap; }
+.rp-head h3 { margin: 0; font-size: var(--fs-16, 16px); font-weight: 650; }
+.rp-sub { font-size: var(--fs-12); color: var(--tx2); }
+.rp-acts { display: flex; gap: .45rem; flex-wrap: wrap; }
+.rp-acts .btn { min-height: 40px; }
+.rp-why { margin: 0; font-size: var(--fs-13); color: var(--tx2); line-height: 1.55; }
+.rp-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .5rem; }
+.rp-cell { display: flex; flex-direction: column; gap: 1px; padding: .55rem .65rem; border-radius: 10px; background: var(--s4); border: 1px solid transparent; text-align: start; font: inherit; color: inherit; min-width: 0; }
+button.rp-cell { cursor: pointer; }
+button.rp-cell:disabled { cursor: default; }
+.rp-cell b { font-size: var(--fs-20, 20px); font-weight: 650; line-height: 1.2; }
+.rp-cell span { font-size: var(--fs-13); font-weight: 600; }
+.rp-cell small { font-size: var(--fs-12); color: var(--tx2); overflow-wrap: anywhere; }
+.rp-cell.is-amber { background: var(--chip-amber-bg); }
+.rp-cell.is-blue { background: var(--soft); }
+.rp-detail > summary { cursor: pointer; font-size: var(--fs-13); color: var(--br); min-height: 32px; display: flex; align-items: center; }
+.rp-table { display: flex; flex-direction: column; margin-top: .35rem; font-size: var(--fs-13); }
+.rp-tr { display: grid; grid-template-columns: 1fr 1.6fr 1.1fr .8fr 1.2fr; gap: .5rem; padding: .4rem 0; border-bottom: 1px solid var(--bd); }
+.rp-th { color: var(--tx3); font-size: var(--fs-12); font-weight: 650; }
+.rp-tr small { color: var(--tx3); }
+.rp-tr.is-missing { color: var(--tx2); }
+@media (max-width: 720px) {
+  .rp-grid { grid-template-columns: 1fr 1fr; }
+  .rp-th { display: none; }
+  .rp-tr { grid-template-columns: 1fr 1fr; }
+  .rp-tr > span:nth-child(1) { grid-column: 1 / -1; }
+}
+
+/* 13.10.2026 · מה שהיה בתיק ולא הופיע בתשובה */
+.ty-card-plan { display: block; color: var(--text-2, #475569); }
+.ty-omitted { display: grid; gap: .45rem; margin-top: .35rem; padding: .6rem .7rem; border-inline-start: 3px solid var(--amber-500, #d97706); background: var(--amber-50, #fffbeb); border-radius: 6px; }
+.ty-omitted > b { font-size: var(--fs-14, 14px); }
+.ty-omit { border: 0; padding: 0; margin: 0; min-width: 0; }
+.ty-omit legend { font-weight: 600; font-size: var(--fs-14, 14px); padding: 0; }
+.ty-omit-opts { display: flex; flex-wrap: wrap; gap: .3rem .9rem; margin-top: .2rem; }
+.ty-omit-opt { display: inline-flex; align-items: center; gap: .3rem; font-size: var(--fs-14, 14px); min-height: 32px; }
+.ty-omit .ty-inline label { display: inline-flex; flex-direction: column; gap: .15rem; font-size: var(--fs-13, 13px); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .ty-omitted { background: rgba(217,119,6,.12); } }
