@@ -144,7 +144,7 @@ export default function RentalRouteCalculator({ taxData, year }: Props) {
               <input type="number" min={0} value={annualExpenses || ''} placeholder="0" onChange={e => setAnnualExpenses(+e.target.value)} />
             </div>
             <div className="form-group" style={{ marginBottom: 0 }}>
-              <label>פחת שנתי (2% משווי הדירה) ₪</label>
+              <label>פחת שנתי (2% משווי הדירה; לא מותר במסלול הפטור המופחת) ₪</label>
               <input type="number" min={0} value={annualDepreciation || ''} placeholder="0" onChange={e => setAnnualDepreciation(+e.target.value)} />
             </div>
           </div>

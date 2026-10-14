@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
 import { TaxYearData } from '../types';
+import { AVAILABLE } from '../features/taxKnowledge/availability';
 
 const fmt = (n: number) => '\u20AA' + Math.round(n).toLocaleString('he-IL');
 const fmtPct = (n: number) => n.toFixed(2) + '%';
@@ -698,7 +699,7 @@ export default function NIReferenceSection({ taxData, year }: Props) {
             <div className="form-group">
               <label style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: '.5rem' }}>
                 {calcType === 'employeeAndSE' || calcType === 'employeeAndNonQual' || calcType === 'combined'
-                  ? 'הכנסה (שכיר) ₪' : 'הכנסה ₪'}
+                  ? 'הכנסה (שכיר) ₪' : calcType === 'selfEmployed' ? 'הכנסה חייבת בדמי ביטוח ₪' : 'הכנסה ₪'}
                 <span style={{
                   display: 'inline-flex', borderRadius: 'var(--r-chip)', overflow: 'hidden',
                   background: 'var(--surface-2)', fontSize: 'var(--fs-12)', fontWeight: 500,
@@ -726,6 +727,11 @@ export default function NIReferenceSection({ taxData, year }: Props) {
                 <span style={{ fontSize: 'var(--fs-12)', color: 'var(--tx2)' }}>
                   = {incomeMode === 'monthly' ? `${fmt(incomeInput * 12)}/שנה` : `${fmt(Math.round(incomeInput / 12))}/חודש`}
                 </span>
+              )}
+              {(calcType === 'selfEmployed' || calcType === 'employeeAndSE') && (
+                <small style={{ display: 'block', fontSize: 'var(--fs-12)', color: 'var(--tx2)', marginTop: '.25rem' }}>
+                  כאן מזינים את ההכנסה שעליה משלמים דמי ביטוח (אחרי ניכוי 52% מדמי הביטוח). מרווח העסק לפני הניכוי — {AVAILABLE.taxEstimate ? 'מחשבון המס והערכת המס ממירים' : 'מחשבון המס ממיר'} לפי נוסחת ב״ל (סעיף 345), ולכן אותו רווח נותן שם בסיס נמוך מעט.
+                </small>
               )}
             </div>
             {(calcType === 'selfEmployed' || calcType === 'nonQualifying') && (

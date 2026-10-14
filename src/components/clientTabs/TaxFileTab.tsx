@@ -65,6 +65,8 @@ interface Props {
   onClientPersisted: (c: Client) => void;
   /** פותח את אותו חלון "שלח שאלון" שכבר קיים בכותרת התיק — לא נבנה מנגנון שני. */
   onSendQuestionnaire: () => void;
+  /** נושא בידע המס בהקשר הלקוח — הנושא מציג «חזרה לתיק». */
+  onOpenKnowledge?: (topicId: string) => void;
   /**
    * עריכת פרטי הלקוח המלאים. ‼ זו הייתה לשונית עמיתה בשם "התיק", והיא ירדה:
    * שתי רשומות מקצועיות זו לצד זו הכריחו את הרו"ח לבחור ביניהן. היכולת
@@ -257,7 +259,7 @@ import TaxYearsSection from '../../features/taxYear/TaxYearsSection';
 
 export default function TaxFileTab({
   client, spouseClient, onCreateSpouseClient, onOpenSpouseClient,
-  onClientPersisted, onOpenDetails,
+  onClientPersisted, onOpenKnowledge, onOpenDetails,
   onRunAlignment, alignBusy, onOpenDetailedAlignment, alignedAt, steps, onCreateTask, onCreateRequest, creatingRequestKey,
   onOpenRepresentation, onAddNiTarget, onOpenRequestStep, onUpdateClientFields, onNiInstructionsSent, niExecution,
   focusField, onFocusConsumed, onRequestsChanged,
@@ -1783,6 +1785,14 @@ export default function TaxFileTab({
                     )}
                 </div>
                 {editingSection === 'pen' && <EditActions />}
+                {editingSection !== 'pen' && onOpenKnowledge && (
+                  <div className="txf-learn">
+                    <span>ללמוד:</span>
+                    <button type="button" className="bk-link" onClick={() => onOpenKnowledge('studyFund')}>קרן השתלמות</button>
+                    <span aria-hidden="true">·</span>
+                    <button type="button" className="bk-link" onClick={() => onOpenKnowledge('pensionSE')}>פנסיה לעצמאי</button>
+                  </div>
+                )}
                 <SrcLine label={metaSrc('hasPension')}
                   onEdit={editingSection === 'pen' ? undefined
                     : () => startSectionEdit('pen', fieldsOf('pension'), { lists: ['pensionFunds'] })} />

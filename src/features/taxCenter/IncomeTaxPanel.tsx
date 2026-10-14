@@ -44,7 +44,8 @@ export default function IncomeTaxPanel({ taxData, year }: Props) {
     const surtax2 = taxData.surtaxCapitalExtraRate > 0 && capitalIncome > th
       ? (capitalIncome - th) * (taxData.surtaxCapitalExtraRate / 100) : 0;
 
-    const marginal = taxData.incomeTaxBrackets.find(b => income <= b.upTo)?.rate ?? 50;
+    // שולי אפקטיבי: מדרגה + 3% יסף מעל הסף (היסף אינו מדרגה בטבלה).
+    const marginal = (taxData.incomeTaxBrackets.find(b => income <= b.upTo)?.rate ?? 47) + (totalBase > th ? 3 : 0);
     return { lines, tax, creditValue, afterCredits, surtax3, surtax2, marginal, totalBase };
   }, [income, capitalIncome, credits, taxData]);
 

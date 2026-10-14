@@ -8,11 +8,12 @@
 import { useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import DemoInbox from './DemoInbox';
+import { TRIAL_BUILD } from '../../lib/trialBuild';
 import './demo.css';
 
 const STAGING = import.meta.env.MODE === 'staging';
 const FAKE = import.meta.env.DEV && typeof window !== 'undefined'
-  && new URLSearchParams(window.location.search).has('office-app');
+  && (TRIAL_BUILD || new URLSearchParams(window.location.search).has('office-app'));
 
 interface RunResult { ok?: boolean; error?: string; kicked?: number; remindersQueued?: number; officeFlushes?: number; advanced?: number }
 
@@ -21,6 +22,7 @@ export default function DemoBar() {
   const [msg, setMsg] = useState<string | null>(null);
   const [inbox, setInbox] = useState(false);
   if (!STAGING && !FAKE) return null;
+  if (TRIAL_BUILD) return <TrialBar />;
 
   if (!STAGING) {
     return (
@@ -76,5 +78,32 @@ export default function DemoBar() {
       </div>
       {inbox && <DemoInbox onClose={() => setInbox(false)} />}
     </>
+  );
+}
+
+/**
+ * גרסת הניסיון לקריאה (trialBuild.ts). ‼ אומרת במפורש מה זה ומה לא אומת — גיא לומד
+ * ממנה, ולכן אסור שתיראה כמו המערכת החיה או כמו ידע שהושלם.
+ */
+function TrialBar() {
+  const [open, setOpen] = useState(false);
+  const stamp = import.meta.env.VITE_TRIAL_STAMP as string | undefined;
+  return (
+    <div className="demo-bar trial-bar" role="note">
+      <b>גרסת ניסיון לקריאה</b>
+      <span>נתוני דוגמה בלבד · לא מחוברת לשום מסד · לא שולחת ולא פונה לרשויות</span>
+      <button type="button" className="demo-btn" aria-expanded={open} onClick={() => setOpen(o => !o)}>{open ? 'סגירה' : 'מה לא מאומת'}</button>
+      {open && (
+        <ul className="trial-bar-list">
+          <li><b>ידע המס:</b> אין נושא שהושלם. בראש כל נושא — מה עוד פתוח; ליד כל ערך — אם הוא רשמי, מחושב, משני או לא אומת.</li>
+          <li><b>חישובים:</b> רק מה שמסומן כמחושב. מסלולים שמוסברים ולא מחושבים מציגים «אין תוצאה», לא מספר חלקי.</li>
+          <li><b>הלקוחות, הבקשות והמסמכים:</b> הדגמה. מה שמשנים כאן נשאר בדפדפן הזה בלבד, וחלקו נמחק ברענון.</li>
+          <li><b>שנות מס ו«עבודת מס» (שלב 2):</b> נבדקו בהדגמה, במסד מבודד ובסביבת בדיקות על לקוח בדיקה — לא בייצור.</li>
+          <li><b>הצהרת הון (בתיק המס › «הצהרות הון»):</b> הכנה ואיסוף — בלי מילוי 1219, בלי השוואת הון ובלי הגשה. נבדקה גם בסביבת בדיקות על לקוח בדיקה. דרישה «מאומתת» רק מול אסמכתה; מועד ההגשה המחייב — רק מהמכתב.</li>
+          <li><b>הערכת מס (שלב 3):</b> החישוב רץ על נתוני הדוגמה בלבד. קריאת 134, ב״ל ומע״מ — ידנית. ל-2026 נדרשת הכרעת משרד על כללי הליבה (מקור משני). שמירת גרסאות בשרת — עדיין לא בסביבת בדיקות.</li>
+          <li><b>האתר הפעיל לא השתנה.</b> {stamp ? `גרסה מ-${stamp}; ` : ''}עדכונים יגיעו לאותו קישור.</li>
+        </ul>
+      )}
+    </div>
   );
 }

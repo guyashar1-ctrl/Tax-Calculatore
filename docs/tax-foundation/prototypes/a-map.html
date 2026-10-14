@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>מפת הדוח והידע</title>
+<link rel="icon" href="data:,">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600;700;800&family=Frank+Ruhl+Libre:wght@500;700&display=swap">
+<link rel="stylesheet" href="shared.css">
+<style>
+/* חלופה א׳ · עמוד השדרה הוא מבנה הדוח: חלקי 1301 + חובות שמחוץ לו.
+   הידע נקרא כמו מדריך מקצועי עם הערות שוליים «בטופס / בשאלון / בחישוב». */
+.serif { font-family: 'Frank Ruhl Libre', 'Times New Roman', serif; }
+.map { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 18px; align-items: start; }
+@media (max-width: 900px) { .map { grid-template-columns: minmax(0, 1fr); } }
+.part { border-top: 1px solid var(--hair); padding: 12px 0; display: grid; grid-template-columns: 42px minmax(0, 1fr); gap: 4px 12px; }
+.part:first-child { border-top: 0; }
+.part .letter { font-family: 'Frank Ruhl Libre', serif; font-size: 22px; color: var(--br); line-height: 1; padding-top: 2px; text-align: center; }
+.part .topics { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.tchip { border: 1px solid var(--bd); background: var(--card); border-radius: 8px; padding: 6px 10px; font: inherit; font-size: var(--fs-13); cursor: pointer; color: var(--tx); display: inline-flex; gap: 6px; align-items: center; min-height: 36px; transition: transform 140ms var(--ease-out); }
+.tchip:active { transform: scale(0.97); }
+.tchip .gap { width: 7px; height: 7px; border-radius: 50%; background: var(--warn); }
+.tchip .cov { width: 7px; height: 7px; border-radius: 50%; background: var(--ok); }
+.ext { border: 1px dashed var(--bd-strong); border-radius: var(--r-lg); padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+.book { display: grid; grid-template-columns: minmax(0, 1fr) 260px; gap: 26px; align-items: start; }
+@media (max-width: 900px) { .book { grid-template-columns: minmax(0, 1fr); } }
+.book article { max-width: 68ch; display: flex; flex-direction: column; gap: 14px; }
+.book article p { color: var(--txc); font-size: var(--fs-15); line-height: 1.7; }
+.book article h2 { font-family: 'Frank Ruhl Libre', serif; font-size: 22px; margin-top: 10px; }
+.margin { display: flex; flex-direction: column; gap: 10px; position: sticky; top: 70px; }
+@media (max-width: 900px) { .margin { position: static; } }
+.mnote { border-inline-start: 3px solid var(--soft-bd); padding: 6px 10px; font-size: var(--fs-13); color: var(--txc); background: var(--s4); border-radius: 0 6px 6px 0; }
+.mnote b { display: block; font-size: var(--fs-12); color: var(--br); letter-spacing: .03em; }
+.resume { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.status-line { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; gap: 4px 10px; padding: 11px 0; align-items: center; }
+.status-line .letter { font-family: 'Frank Ruhl Libre', serif; font-size: 18px; color: var(--br); text-align: center; }
+</style>
+</head>
+<body>
+<div id="bar"></div>
+<header class="topbar"><div class="topbar-in"><span class="brand">PIVO</span>
+<nav class="nav" aria-label="ניווט ראשי"><button type="button" data-go="map">מפת הדוח</button><button type="button" data-go="client">לקוחות</button><button type="button" data-go="requests">בקשות</button></nav></div></header>
+<main class="wrap" id="app" tabindex="-1"></main>
+<script src="data.js"></script>
+<script>
+(function () {
+  'use strict';
+  const P = window.PIVO, C = P.CASE, nis = P.nis, fmt = P.fmt;
+  document.getElementById('bar').innerHTML = P.protoBar('חלופה א׳ · מפת הדוח');
+  P.bindTheme();
+  const app = document.getElementById('app');
+  const S = { view: 'map', topic: null, client: false, applied: false, imported: false };
+  const go = (v, x) => { Object.assign(S, { view: v }, x || {}); render(); window.scrollTo({ top: 0 }); app.focus({ preventScroll: true }); };
+  document.querySelectorAll('[data-go]').forEach(b => b.addEventListener('click', () => go(b.dataset.go, { topic: null })));
+
+  /* חלקי טופס 1301 לשנת 2025 כפי שנקראו מהטופס הרשמי, וסטטוס הכיסוי ב-PIVO */
+  const PARTS = [
+    { l: 'א', t: 'פרטים כלליים והצהרות', topics: [['עסק זעיר (30%)', 'gap', 'micro'], ['נכסים בחו״ל מעל 2,086,000', 'cov'], ['מטבע וירטואלי', 'cov'], ['חישוב נפרד · סעיף 66(ד)', 'cov']] },
+    { l: 'ג', t: 'הכנסות מיגיעה אישית', topics: [['עסק ומשלח יד', 'cov'], ['משכורת (106)', 'cov'], ['תקבולי ב״ל', 'cov'], ['מענקי פרישה וקצבאות', 'cov']] },
+    { l: 'ה', t: 'הכנסות בשיעורים מיוחדים', topics: [['ריבית ודיבידנד', 'cov'], ['שכ״ד 10%', 'cov'], ['משיכות שלא כדין מקופות (35%)', 'gap']] },
+    { l: 'ח', t: 'רווח הון ושבח', topics: [['ני״ע (1322/1325)', 'cov'], ['מקרקעין', 'cov']] },
+    { l: 'ט', t: 'הכנסות חו״ל (1324)', topics: [['לפי מדינה ומס זר', 'cov']] },
+    { l: 'יב', t: 'ניכויים אישיים', topics: [['קרן השתלמות לעצמאים · 51–52', 'gap', 'studyFund'], ['פנסיה כעמית עצמאי · 53', 'gap', 'pension'], ['אובדן כושר עבודה · 49–50', 'cov'], ['דמי ב״ל על הכנסה שאינה מעבודה · 54', 'cov']] },
+    { l: 'יג', t: 'נקודות זיכוי', topics: [['ילדים לפי גילים', 'cov'], ['תואר אקדמי (119)', 'cov'], ['חייל משוחרר', 'cov']] },
+    { l: 'יד', t: 'זיכויים אישיים', topics: [['ביטוח חיים · 73', 'cov'], ['קצבה כעמית שכיר/עצמאי · 75–76', 'gap', 'pension'], ['תרומות', 'cov']] },
+    { l: 'טו', t: 'מחזור למקדמות, ניכוי במקור, שבח', topics: [['מחזור ומקדמות (134)', 'gap', 'advances']] },
+  ];
+  const EXT = [['הצהרת הון (1219)', 'wealth', 'נפתחת בדרישה של פקיד השומה'], ['ביטוח לאומי לעצמאי', 'ni', 'שיעורי 2026 אומתו מול ב״ל'], ['מע״מ · ESNA', 'advances', 'מקור ראיה למחזור, לא חלק מ-1301']];
+
+  function vMap() {
+    return `<div class="stack"><div class="resume panel pad"><div class="grow"><div class="eyebrow">להמשיך</div><strong>נועה ברק · ייבוא רו״ה פייפרלס ממתין לבדיקה</strong><div class="small muted">עצרת בשלב «בדיקת חודשים» · אתמול 18:40</div></div><button class="btn primary" data-open-client>להמשיך</button></div>
+      <div><div class="eyebrow">ידע מס</div><h1 class="serif">מפת הדוח</h1><p class="muted" style="max-width:70ch;margin-top:6px">כל נושא מקצועי ממוקם במקום שבו הוא נרשם בדוח השנתי (טופס 1301, 2025). חובות שאינן בדוח — הצהרת הון, ביטוח לאומי, מע״מ — בעמודה הנפרדת. נקודה כתומה = פער בידע או במערכת.</p></div>
+      <div class="map"><section class="panel pad" aria-label="חלקי טופס 1301">${PARTS.map(p => `<div class="part"><span class="letter">${p.l}</span><div><strong>${p.t}</strong><div class="topics">${p.topics.map(([n, s, id]) => `<button class="tchip" ${id ? `data-topic="${id}"` : 'data-stub'}><span class="${s === 'gap' ? 'gap' : 'cov'}" aria-hidden="true"></span>${n}<span class="sr-only">${s === 'gap' ? 'יש פער' : 'מכוסה'}</span></button>`).join('')}</div></div></div>`).join('')}</section>
+      <aside class="ext" aria-label="חובות מחוץ לדוח"><strong>מחוץ לדוח השנתי</strong>${EXT.map(([n, id, d]) => `<button class="tchip" data-topic="${id}" style="justify-content:flex-start"><span class="cov" aria-hidden="true"></span><span><strong>${n}</strong><br><span class="xs muted">${d}</span></span></button>`).join('')}<p class="xs muted">כאן נכנסים גם חובות שנמצאו בבדיקה ולא שייכים לשדה בטופס.</p></aside></div></div>`;
+  }
+  function margin(notes) { return `<aside class="margin" aria-label="הערות שוליים">${notes.map(([h, t]) => `<div class="mnote"><b>${h}</b>${t}</div>`).join('')}</aside>`; }
+  function vTopic() {
+    if (S.topic !== 'studyFund') {
+      const names = { pension: 'פנסיה לעצמאי', micro: 'עסק זעיר', advances: 'מקדמות ומחזור', wealth: 'הצהרת הון', ni: 'ביטוח לאומי לעצמאי' };
+      return `<div class="stack"><div class="crumbs"><button data-back>מפת הדוח</button><span>›</span><span>${names[S.topic] || ''}</span></div><h1 class="serif">${names[S.topic] || ''}</h1><div class="note">בחלופה הזו מפורט «קרן השתלמות». שאר הנושאים בנויים באותה תבנית: טקסט, הערות שוליים, יישום על לקוח.</div></div>`;
+    }
+    const sfMixed = P.studyFundDeduction({ businessIncome: 193950, employerSalary: 72000, deposit: 0 });
+    return `<div class="stack"><div class="crumbs"><button data-back>מפת הדוח</button><span>›</span><span>חלק יב · ניכויים אישיים</span></div>
+      <div class="book"><article>
+        <div><div class="eyebrow">סעיפים 51–52 בדוח · סעיף 17(5א) לפקודה</div><h1 class="serif" style="margin-top:4px">קרן השתלמות לעצמאים</h1></div>
+        <p>עצמאי שהפקיד לקרן השתלמות לעצמאים מקבל ניכוי של עד 4.5% מ«ההכנסה הקובעת» — ההכנסה החייבת מעסק או ממשלח יד — עד תקרה שנתית. בשנת 2025 התקרה 293,397 ₪, ולכן הניכוי המרבי 13,203 ₪.</p>
+        <p>מי שגם שכיר, והמעביד שילם עבורו לקרן, מקבל תקרה קטנה יותר. «סכום התקרה» שלו הוא הנמוך מבין ההכנסה מהעסק לבין התקרה פחות «המשכורת הקובעת» שבשלה המעביד הפקיד. את המשכורת הזו רושמים בסעיף 52, והיא מופיעה בטופס 106 מול הקוד 218/219.</p>
+        <h2>דוגמה מעובדת</h2>
+        <div class="tbl-wrap"><table class="t" style="min-width:0"><tbody>
+          <tr><td>הכנסה חייבת מהעסק (משוערת)</td><td class="n">${fmt(193950)}</td></tr>
+          <tr><td>משכורת קובעת שהמעביד הפקיד עליה</td><td class="n">${fmt(72000)}</td></tr>
+          <tr><td>התקרה פחות המשכורת</td><td class="n">${fmt(sfMixed.ceiling - 72000)}</td></tr>
+          <tr><td><strong>סכום התקרה</strong> (הנמוך)</td><td class="n"><strong>${fmt(sfMixed.cap)}</strong></td></tr>
+          <tr><td><strong>ניכוי מרבי</strong> (4.5%)</td><td class="n"><strong>${fmt(sfMixed.max)}</strong></td></tr></tbody></table></div>
+        <p class="small muted">המחשה על נתוני דמה, ערכי 2025 מהמדריך הרשמי. ערכי 2026 טרם פורסמו במדריך.</p>
+        <h2>שתי תקרות שונות</h2>
+        <p>הניכוי והפטור ממס רווחי הון אינם אותו דבר. תקרת ההפקדה המוטבת לעצמאי (20,566 ₪ לפי מקורות משניים) קובעת על אילו הפקדות הרווחים יהיו פטורים במשיכה — גם כשהן מעל מרחב הניכוי. הסכום הזה לא נמצא במדריך הרשמי ומסומן לבדיקה.</p>
+        <h2>משיכה</h2>
+        <p>המשיכה פטורה אחרי 6 שנים מהתשלום הראשון, או אחרי 3 שנים כשהיא להשתלמות או בגיל פרישה. ממתי בדיוק נספר הוותק — לא הוכרע במקור ראשוני.</p>
+        <div class="note err"><strong>טענה שנדחתה כהמלצה:</strong> פיצול לכמה קרנות ופדיון כל אחת בשנה אחרת כדי «לעקוף הצלבה». התקרה היא לפי היחיד והשנה. המערכת תתריע על הפקדה מעל התקרה ולא תציע את הפיצול.</div>
+        <details class="more"><summary>מקורות וביסוס</summary><div class="tbl-wrap" style="margin-bottom:12px"><table class="t"><thead><tr><th>כלל</th><th>שנה</th><th>ביסוס</th></tr></thead><tbody>${['sf.se.rate', 'sf.se.ceiling', 'sf.mixed.formula', 'sf.se.exemptDeposit', 'sf.liquidity', 'sf.seniorityStart'].map(i => { const r = P.rule(i, 2026); return `<tr><td>${r.label}</td><td>${r.year}</td><td>${P.basisHtml(r.basis)}</td></tr>`; }).join('')}</tbody></table></div></details>
+        <section class="panel pad stack"><h2 style="margin:0">יישום על לקוח</h2><label class="f" for="cl">לקוח<select id="cl"><option value="">בחרו לקוח</option><option value="noa">נועה ברק · שכירה־עצמאית</option><option value="uri">אורי טל · עצמאי</option></select></label><div id="apply" aria-live="polite"></div></section>
+      </article>
+      ${margin([['בטופס 1301 · 2025', 'סעיף 51: שדות 136/137 (הסכום ששולם).<br>סעיף 52: משכורת שהמעביד שילם עליה לקרן (218/219 מה-106).'], ['בשאלון', 'שאלה אחת ללקוח: האם הפקדת לקרן כעצמאי, וכמה. ומסמך: אישור הפקדה שנתי.'], ['בחישוב', 'sf.se.rate · sf.se.ceiling · sf.mixed.formula'], ['פער ב-PIVO היום', 'המאגר מציג רק עצמאי בלבד. אין שדה למשכורת הקובעת, ולכן חישוב השכיר־עצמאי לא קיים.']])}</div></div>`;
+  }
+  function vClient() {
+    const lines = [['א', 'פרטים והצהרות', 'ok', 'מהכרטיס · בן הזוג הרשום טרם הוכרע'], ['ג', 'עסק ומשכורת', S.imported ? 'ok' : 'warn', S.imported ? 'פייפרלס 01–08 יובא · 09–12 תחזית' : 'ייבוא פייפרלס בבדיקה'], ['יב', 'ניכויים אישיים', 'warn', 'חסר: אובדן כושר עבודה, קרן השתלמות'], ['יד', 'זיכויים', 'warn', 'אישור קופה יגיע אחרי 31.12'], ['טו', 'מחזור ומקדמות', 'err', 'סתירה ב-05–06 מול 134']];
+    return `<div class="stack"><div class="crumbs"><button data-go2="map">מפת הדוח</button><span>›</span><span>${C.name}</span></div>
+      <div class="spread"><h1>${C.name} · 2026</h1><div class="row"><span class="chip blue">הערכת מס</span><button class="btn sm" data-import>ייבוא ראיה</button></div></div>
+      <p class="muted" style="max-width:70ch">התיק מסודר לפי אותם חלקים של הדוח, כך שמה שנאסף להערכה ממשיך ישר לדוח השנתי.</p>
+      <section class="panel pad"><div class="list">${lines.map(([l, t, s, d]) => `<div class="status-line"><span class="letter">${l}</span><div><strong>${t}</strong><div class="small muted">${d}</div></div><span class="chip ${s}">${s === 'ok' ? 'מכוסה' : s === 'err' ? 'סתירה' : 'חסר'}</span></div>`).join('')}</div></section>
+      <section class="ext"><strong>מחוץ לדוח</strong><div class="status-line"><span class="letter">₪</span><div><strong>הצהרת הון ליום 31.12.2025</strong><div class="small muted">דרישה מ-14.09.2026 · להגיש עד 12.01.2027</div></div><span class="chip">אצל המשרד</span></div><div class="status-line"><span class="letter">ב״ל</span><div><strong>מקדמה בביטוח לאומי</strong><div class="small muted">תיבדק מול ההערכה בסוף התהליך</div></div><span class="chip">בהמשך</span></div></section>
+      <div class="row"><button class="btn" data-go2="requests">לבקשות של נועה</button><button class="btn ghost" data-topic="studyFund">לנושא: קרן השתלמות</button></div></div>`;
+  }
+  function vRequests() {
+    return `<div class="stack"><h1>בקשות פתוחות</h1><p class="muted">אותן שורות כמו ב«בקשות» של הלקוח. בחלופה הזו כל שורה מובילה לתיק לפי מפת הדוח.</p><section class="panel pad"><div class="list">${C.requests.map(r => `<div class="spread" style="padding:12px 0"><div class="grow"><strong>${r.title}</strong> <span class="muted small">· ${C.name}</span><div class="small">${r.state}</div><div class="xs muted">${r.ball === 'office' ? 'אצל המשרד' : 'ממתין ללקוחה'} · מאז ${r.since}</div></div><button class="btn sm" data-open-client>לתיק</button></div>`).join('')}</div></section></div>`;
+  }
+  function render() {
+    document.querySelectorAll('[data-go]').forEach(b => b.setAttribute('aria-current', b.dataset.go === S.view || (S.view === 'topic' && b.dataset.go === 'map') ? 'page' : 'false'));
+    app.innerHTML = S.view === 'map' ? vMap() : S.view === 'topic' ? vTopic() : S.view === 'client' ? vClient() : vRequests();
+    app.querySelectorAll('[data-topic]').forEach(b => b.onclick = () => go('topic', { topic: b.dataset.topic }));
+    app.querySelectorAll('[data-stub]').forEach(b => b.onclick = () => P.toast('הנושא מכוסה במאגר הקיים · באב־הטיפוס לא פורט'));
+    app.querySelectorAll('[data-back]').forEach(b => b.onclick = () => go('map'));
+    app.querySelectorAll('[data-go2]').forEach(b => b.onclick = () => go(b.dataset.go2));
+    app.querySelectorAll('[data-open-client]').forEach(b => b.onclick = () => go('client'));
+    app.querySelectorAll('[data-import]').forEach(b => b.onclick = importDrawer);
+    const cl = document.getElementById('cl');
+    if (cl) cl.onchange = () => {
+      const a = document.getElementById('apply');
+      if (!cl.value) { a.innerHTML = ''; return; }
+      if (cl.value === 'uri') { a.innerHTML = '<div class="note">אורי טל: עצמאי בלבד, אין מעביד. סכום התקרה = ההכנסה מהעסק עד 293,397. חסר: הכנסה משוערת 2026.</div>'; return; }
+      a.innerHTML = `<div class="list small">${[['משכורת קובעת', '72,000 ₪', 'ידוע · תלושים'], ['הכנסה מהעסק', '193,950 ₪', 'משוער · כולל תחזית'], ['קרן כעצמאית', 'לא ידוע', 'חסר · שאלה לנועה'], ['ותק בקרן קיימת', 'לא ידוע', 'חסר · שאלה לנועה']].map(([k, v, s]) => `<div class="fact"><span class="k">${k}</span><span class="v">${v}</span><span class="src">${s}</span></div>`).join('')}</div><div class="row"><button class="btn sm primary" data-open-client>לתיק של נועה</button></div>`;
+      a.querySelector('[data-open-client]').onclick = () => go('client');
+    };
+  }
+  function importDrawer() {
+    P.drawer({ eyebrow: 'ייבוא ראיה · נועה ברק', title: 'לאיזה חלק בדוח זה שייך?',
+      body: `<fieldset><legend>סוג המסמך</legend><label class="choice"><input type="radio" name="k" id="k1" checked> רו״ה מפייפרלס (לפני תיאומים) → חלק ג׳</label><label class="choice"><input type="radio" name="k" id="k2"> אישור הפקדה מקופה → חלקים יב/יד</label><label class="choice"><input type="radio" name="k" id="k3"> צילום 134 → חלק טו</label></fieldset>
+        <div class="tbl-wrap"><table class="t"><thead><tr><th>חודש</th><th class="n">הכנסות</th><th class="n">הוצאות</th></tr></thead><tbody>${C.pnlMonths.map(m => `<tr><td>${m.m}/2026</td><td class="n">${m.inc == null ? '<span class="blank">ריק — לא אפס</span>' : fmt(m.inc)}</td><td class="n">${m.exp == null ? '<span class="blank">ריק</span>' : fmt(m.exp)}</td></tr>`).join('')}</tbody></table></div>
+        <div class="note small">באב־טיפוס נטענים נתוני דמה. בייצור: הקובץ נשמר כמו שהוא, החילוץ נבדק, וסתירות מוצגות ולא מוכרעות לבד.</div>`,
+      foot: '<button class="btn primary" data-ok>אשר ייבוא</button>',
+      onOpen: (d, close) => {
+        const tbl = d.querySelector('.tbl-wrap'), ok = d.querySelector('[data-ok]');
+        const msg = document.createElement('div'); msg.setAttribute('role', 'alert'); tbl.before(msg);
+        d.querySelectorAll('input[name="k"]').forEach(r => r.onchange = () => {
+          const k = d.querySelector('input[name="k"]:checked').id;
+          tbl.hidden = k !== 'k1'; ok.disabled = k === 'k3';
+          msg.innerHTML = k === 'k3' ? '<div class="note err"><strong>הקריאה האוטומטית מ-134 לא זמינה כרגע</strong> (החיבור לשע״ם לא מוכן). אפשר להעלות צילום מסך כראיה, או לנסות שוב אחר כך. זה לא «אין מקדמות».</div>'
+            : k === 'k2' ? '<div class="note">אישור קופה: יחולצו שם הקופה, סוג (קצבה/השתלמות), מעמד (שכיר/עצמאי) והסכום ששולם בשנת המס.</div>' : '';
+        });
+        ok.onclick = () => { S.imported = true; close(); P.toast('יובא לחלק ג׳ · 8 חודשים בפועל'); render(); };
+      } });
+  }
+  render();
+})();
+</script>
+</body>
+</html>

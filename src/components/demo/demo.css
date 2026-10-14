@@ -55,3 +55,18 @@
   .demo-inbox.has-open .demo-inbox-list { display: none; }
   .demo-inbox-back { display: inline-flex; }
 }
+
+/* גרסת הניסיון לקריאה — צבע אחר מההדגמה, כדי שלא תתבלבל עם סביבה אחרת. */
+.trial-bar { background: #e8f0fb; color: #1d3a63; border-bottom-color: #c3d4ee; }
+.trial-bar .demo-btn { background: #f5f8fd; color: #1d3a63; border-color: #a9c0e4; }
+.trial-bar-list { flex-basis: 100%; margin: 4px 0 2px; padding-inline-start: 18px; display: flex; flex-direction: column; gap: 3px; }
+@media (max-width: 720px) {
+  .trial-bar > span { flex-basis: 100%; order: 2; }
+  .trial-bar .demo-btn { margin-inline-start: auto; }
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .trial-bar { background: #172539; color: #cfe0f7; border-color: #2a3f5e; }
+  :root:not([data-theme="light"]) .trial-bar .demo-btn { background: #1d2e47; color: #cfe0f7; border-color: #3a5379; }
+}
+:root[data-theme="dark"] .trial-bar { background: #172539; color: #cfe0f7; border-color: #2a3f5e; }
+:root[data-theme="dark"] .trial-bar .demo-btn { background: #1d2e47; color: #cfe0f7; border-color: #3a5379; }

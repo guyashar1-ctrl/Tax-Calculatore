@@ -14,6 +14,7 @@
 //   offline        — אין מחשב עבודה פעיל
 // כל כתיבה נרשמת ב-window.__officeWrites — כדי שבדיקה תוכל לוודא מה נכתב ומה לא.
 
+import { TRIAL_BUILD } from '../../lib/trialBuild';
 import { supabase } from '../../lib/supabase';
 import type { FirmProfile } from '../../types/firmProfile';
 import { profileToDb } from '../../lib/dbMappers';
@@ -31,7 +32,7 @@ type Row = Record<string, unknown>;
 
 const params = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : new URLSearchParams();
 // ‼ office-app — כל האפליקציה (כותרת, תפריט, סרגל תחתון, ניווט) על אותו מסד מדומה.
-export const FAKE_ACTIVE = import.meta.env.DEV && (params.has('test-office') || params.has('test-firm-notifications') || params.has('office-app'));
+export const FAKE_ACTIVE = import.meta.env.DEV && (TRIAL_BUILD || params.has('test-office') || params.has('test-firm-notifications') || params.has('office-app'));
 const EMPTY = params.has('empty');
 const SLOW = params.has('slow');
 // ‼ ‎&big‎ — ספרייה גדולה (90 בקשות) ומסלול ארוך (12 שלבים, במקביל/אחרי/תנאים), לבדיקת קנה מידה.

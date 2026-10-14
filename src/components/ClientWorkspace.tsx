@@ -4,6 +4,7 @@
 // ‼ מספר הלשוניות תלוי בקילל-סוויץ': עם journeyUi דלוק (ברירת המחדל) —
 // ארבע לשוניות סביב "המסע"; כבוי — חמש הלשוניות הישנות חוזרות, כולל "קליטה".
 
+import { KnowledgeLinkContext, rememberKnowledgeReturn } from '../features/taxKnowledge/knowledgeLink';
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useMediaQuery } from '../hooks/useMediaQuery';
 import { Client, Task, REPRESENTATION_STATUS_BADGE, LifecycleStage, LIFECYCLE_STAGE_LABELS, NiTracking } from '../types';
@@ -122,6 +123,8 @@ interface Props {
   onDeleteTask: (id: string) => void;
   // פתיחת הדוח השנתי לשנה מסוימת (מתוך תמונת המס בכרטיס)
   onOpenAnnualReport?: (clientId: string, taxYear: number) => void;
+  /** נושא בידע המס, בהקשר הלקוח (למשל קרן השתלמות מתוך שורת הפנסיה). */
+  onOpenKnowledge?: (topicId: string, clientId: string) => void;
   // לשונית הפתיחה — למי שהגיע לכאן בשביל דבר מסוים (למשל מסמכי הייצוג)
   initialTab?: TabId;
   /**
@@ -245,6 +248,7 @@ export default function ClientWorkspace({
   onReorderTask,
   onDeleteTask,
   onOpenAnnualReport,
+  onOpenKnowledge,
   initialTab,
   creatingNewClient,
   onboardingEnabled,
@@ -739,11 +743,18 @@ export default function ClientWorkspace({
   // מחדל וזה בדיוק מה שגרם לתג "מיוצג פעיל" להופיע ללקוח שאין לו שום ייצוג.
   const showRepBadge = !!client.representationStatus;
   const employee = findEmployee(client.assignedAccountantId);
+  // «ללמוד» מתוך מסך עבודה בתיק (הערכת מס) — ובחזרה נפתח אותו תהליך (knowledgeLink)
+  const knowledgeLink = useMemo(() => (onOpenKnowledge && client.id
+    ? { open: (topicId: string, returnStepId?: string) => { if (returnStepId) rememberKnowledgeReturn(client.id, returnStepId); onOpenKnowledge(topicId, client.id); },
+        // משימת המשך מתוך עבודה בתיק (למשל אחרי אישור הערכה) — אותן «משימות» של הלקוח
+        createTask: (title: string) => onAddTaskForClient(client.id, title) }
+    : null), [onOpenKnowledge, client.id, onAddTaskForClient]);
   const hasHeaderChips = !!employee || (client.tags ?? []).length > 0
     || (!isNew && openTasks.length > 0 && !!onOpenClientTasks)
     || (!isNew && !!nextMeetingLabel);
 
   return (
+    <KnowledgeLinkContext.Provider value={knowledgeLink}>
     <div className="cw-root">
       {/* ─── Header קבוע ───────────────────────────────────────── */}
       <div className="cw-header">
@@ -992,6 +1003,8 @@ export default function ClientWorkspace({
             /* השרת פתח את הבקשות שחיכו לסוג העוסק — «בקשות» צריכה לקרוא מחדש. */
             onRequestsChanged={() => refreshOnboarding?.()}
             onSendQuestionnaire={() => setIntakeModalOpen(true)}
+            /* ‼ 10.10.2026: מהשורה בתיק לנושא בידע המס — והנושא חוזר לכאן. */
+            onOpenKnowledge={onOpenKnowledge && client.id ? (topicId: string) => onOpenKnowledge(topicId, client.id) : undefined}
             /* ‼ `onOpenDetails` ו-`onEditFamily` **אינם מועברים יותר, בכוונה.**
                שניהם ניווטו לעורך «התיק» הישן — מסך עם עשרים קבוצות שדות
                שהציג את עצמו כרשומה מקצועית שנייה. יש משטח אחד לתיק המס:
@@ -1227,5 +1240,6 @@ export default function ClientWorkspace({
         />
       )}
     </div>
+    </KnowledgeLinkContext.Provider>
   );
 }

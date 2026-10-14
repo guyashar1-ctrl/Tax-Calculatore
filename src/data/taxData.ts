@@ -26,8 +26,7 @@ export const TAX_YEARS: TaxYearData[] = [
       { upTo: 178_080, rate: 20 },
       { upTo: 247_440, rate: 31 },
       { upTo: 514_920, rate: 35 },
-      { upTo: 663_240, rate: 47 },
-      { upTo: Infinity, rate: 50 },
+      { upTo: Infinity, rate: 47 },      // ‼ אין מדרגת 50%: מס יסף 3% מחושב בנפרד (calcSurtax) על כלל ההכנסה מעל הסף
     ],
     surtaxThreshold: 663_240,
     surtaxCapitalExtraRate: 0,
@@ -52,8 +51,7 @@ export const TAX_YEARS: TaxYearData[] = [
       { upTo: 187_440, rate: 20 },
       { upTo: 260_520, rate: 31 },
       { upTo: 542_160, rate: 35 },
-      { upTo: 698_280, rate: 47 },
-      { upTo: Infinity, rate: 50 },
+      { upTo: Infinity, rate: 47 },      // ‼ אין מדרגת 50%: מס יסף 3% מחושב בנפרד (calcSurtax) על כלל ההכנסה מעל הסף
     ],
     surtaxThreshold: 698_280,
     surtaxCapitalExtraRate: 0,
@@ -78,8 +76,7 @@ export const TAX_YEARS: TaxYearData[] = [
       { upTo: 193_800, rate: 20 },
       { upTo: 269_280, rate: 31 },
       { upTo: 560_280, rate: 35 },
-      { upTo: 721_560, rate: 47 },
-      { upTo: Infinity, rate: 50 },
+      { upTo: Infinity, rate: 47 },      // ‼ אין מדרגת 50%: מס יסף 3% מחושב בנפרד (calcSurtax) על כלל ההכנסה מעל הסף
     ],
     surtaxThreshold: 721_560,
     surtaxCapitalExtraRate: 0,
@@ -96,7 +93,8 @@ export const TAX_YEARS: TaxYearData[] = [
 
   // ─── 2025 ─────────────────────────────────────────────────────────────────
   // מדרגות, נקודת זיכוי, סף יסף ותקרת שכ"ד — הוקפאו ברמת 2024.
-  // תיקון 252 לחוק ביטוח לאומי — שיעורים חדשים מ-1.2.2025 (הוראת שעה עד סוף 2026).
+  // ב"ל לעובד: שיעורי ביטוח לאומי ובריאות מופחת השתנו מ-1.1.2025; בריאות מלא — 5.16% בינואר ו-5.17% מ-1.2.2025
+  // (חוזרי מעסיקים 1515 וינואר 2025). כאן ערכי פברואר ואילך — בינואר המלא שונה ב-0.01 נקודת אחוז.
   // תיקון 276 לפקודה — מס יסף נוסף 2% על הכנסות שאינן מיגיעה אישית, מ-1.1.2025.
   {
     year: 2025,
@@ -107,8 +105,7 @@ export const TAX_YEARS: TaxYearData[] = [
       { upTo: 193_800, rate: 20 },
       { upTo: 269_280, rate: 31 },
       { upTo: 560_280, rate: 35 },
-      { upTo: 721_560, rate: 47 },
-      { upTo: Infinity, rate: 50 },
+      { upTo: Infinity, rate: 47 },      // ‼ אין מדרגת 50%: מס יסף 3% מחושב בנפרד (calcSurtax) על כלל ההכנסה מעל הסף
     ],
     surtaxThreshold: 721_560,
     surtaxCapitalExtraRate: 2,
@@ -139,8 +136,7 @@ export const TAX_YEARS: TaxYearData[] = [
       { upTo: 228_000, rate: 20 },      // הורחב מ-193,800
       { upTo: 301_200, rate: 31 },      // הורחב מ-269,280
       { upTo: 560_280, rate: 35 },
-      { upTo: 721_560, rate: 47 },
-      { upTo: Infinity, rate: 50 },
+      { upTo: Infinity, rate: 47 },      // ‼ אין מדרגת 50%: מס יסף 3% מחושב בנפרד (calcSurtax) על כלל ההכנסה מעל הסף
     ],
     surtaxThreshold: 721_560,
     surtaxCapitalExtraRate: 2,

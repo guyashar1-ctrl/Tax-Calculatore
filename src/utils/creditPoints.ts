@@ -28,6 +28,8 @@ export interface DegreeInfo {
   endYear: number;
   /** מספר שנות הלימוד בפועל (ברירת מחדל: 3 לתואר ראשון, 2 לשני) */
   studyYears?: number;
+  /** מסיימי 2014 עד 2022: בחרו לקבל את הנקודה בשנה שאחרי השנה שלאחר הסיום (מדריך 2025, עמ׳ 70). */
+  deferToSecondYear?: boolean;
 }
 
 export interface ServiceInfo {
@@ -50,8 +52,12 @@ export interface CreditProfile {
   parentRole?: ParentRole;
   /** "הורה אחד" — ההורה השני נפטר או אינו רשום (סעיף 40(ב)(1ב)) */
   isSoleParent?: boolean;
-  /** גרוש/פרוד המשתתף בכלכלת ילדיו (כולל מזונות לילדים) */
+  /** גרוש/פרוד שהילדים אינם בחזקתו, כשכלכלת הילדים מחולקת בין ההורים (סעיף 40(ב)(2)) */
   participatesInChildSupport?: boolean;
+  /** הורה החי בנפרד שהילדים בחזקתו — נקודה נוספת (סעיף 40(ב)(2); מדריך 2025, עמ׳ 95) */
+  custodialSeparatedParent?: boolean;
+  /** שנת הלידה של היחיד או של בן/בת הזוג הצעיר — לנקודת «נער» (סעיף 40ב, גיל 16 עד 18) */
+  teenBirthYear?: number;
   /** נשוי/אה בשנית ומשלם/ת מזונות לבן/בת זוג לשעבר (סעיף 40א) */
   paysAlimonyToEx?: boolean;
   /** אם שדחתה נקודת זיכוי משנת הלידה לשנה שאחריה (טופס 116ד) */
@@ -150,7 +156,7 @@ function immigrantPointsForYear(aliyahYear: number, aliyahMonth: number, taxYear
 // שיעור שנתי (1 או 2 נקודות) למשך 36 חודשים מהחודש שאחרי השחרור,
 // יחסית לחודשי הזכאות בשנת המס.
 function soldierAnnualRate(s: ServiceInfo, gender: Gender): number {
-  if (s.kind === 'national') return s.months >= 24 ? 2 : s.months >= 12 ? 1 : 0;
+  // ‼ המדריך מתייחס לשירות לאומי כשירות סדיר: אותם ספים (22 לאישה, 23 לגבר).
   const fullThreshold = gender === 'female' ? 22 : 23;
   return s.months >= fullThreshold ? 2 : s.months >= 12 ? 1 : 0;
 }
@@ -189,11 +195,12 @@ function degreePointsForYear(d: DegreeInfo, taxYear: number): { pts: number; lab
     case 'bachelor': {
       const years = Math.min(d.studyYears ?? 3, 3);
       if (isNewRule) return since <= years ? { pts: 1, label: `תואר ראשון - שנה ${since} מתוך ${years}` } : null;
-      return since <= 1 ? { pts: 1, label: 'תואר ראשון - שנה אחת (מסיימי 2014–2022)' } : null;
+      return since === (d.deferToSecondYear ? 2 : 1) ? { pts: 1, label: 'תואר ראשון - שנה אחת (מסיימי 2014 עד 2022)' } : null;
     }
     case 'master': {
-      if (isNewRule) return since <= 2 ? { pts: 0.5, label: `תואר שני - שנה ${since} מתוך 2` } : null;
-      return since <= 1 ? { pts: 0.5, label: 'תואר שני - שנה אחת (מסיימי 2014–2022)' } : null;
+      const mYears = Math.min(d.studyYears ?? 2, 2);
+      if (isNewRule) return since <= mYears ? { pts: 0.5, label: `תואר שני - שנה ${since} מתוך ${mYears}` } : null;
+      return since === (d.deferToSecondYear ? 2 : 1) ? { pts: 0.5, label: 'תואר שני - שנה אחת (מסיימי 2014 עד 2022)' } : null;
     }
     case 'phdDirect': {
       if (isNewRule) return since <= 2 ? { pts: 0.5, label: 'דוקטורט במסלול ישיר' } : null;
@@ -239,17 +246,20 @@ export function calcCreditPointsV2(profile: CreditProfile, cpValue: number): Cre
   // 3. ילדים — לפי הטבלה בתוקף מ-2024 (קבוע)
   const role: ParentRole = profile.parentRole
     ?? (profile.gender === 'female' ? 'allowanceParent' : 'otherParent');
+  // ‼ «הורה אחד» זכאי לשני המסלולים — 40(ב)(1) וגם 40(ב)(1א) (מדריך 2025, עמ׳ 95).
+  const roles: ParentRole[] = profile.isSoleParent ? ['allowanceParent', 'otherParent'] : [role];
   for (const child of profile.children) {
     const age = year - child.birthYear;
-    const cp = childPoints(age, role, !!profile.deferredBirthYearPoint);
-    if (cp) {
+    for (const r of roles) {
+      const cp = childPoints(age, r, !!profile.deferredBirthYearPoint);
+      if (!cp) continue;
       add(
-        `ילד/ה ${child.birthYear} - ${cp.label}`,
+        `ילד/ה ${child.birthYear} - ${cp.label}${roles.length > 1 ? (r === 'allowanceParent' ? ' (מסלול ראשון)' : ' (מסלול שני)') : ''}`,
         'סעיפים 40(ב), 66(ג)',
         cp.pts,
-        role === 'allowanceParent'
+        r === 'allowanceParent'
           ? 'מסלול ההורה שמקבל/ת קצבת ילדים'
-          : 'מסלול ההורה השני',
+          : roles.length > 1 ? 'הורה אחד — גם המסלול השני' : 'מסלול ההורה השני',
       );
     }
     if (child.hasDisability) {
@@ -269,10 +279,19 @@ export function calcCreditPointsV2(profile: CreditProfile, cpValue: number): Cre
   // 4. מצבים משפחתיים
   if (profile.isSoleParent && profile.children.length > 0) {
     add('הורה אחד (ההורה השני נפטר/אינו רשום)', 'סעיף 40(ב)(1ב)', 1);
-    notes.push('"הורה אחד" זכאי גם לשני מסלולי נקודות הילדים (מסלול האם + מסלול הפעוט) - ודא ששני המסלולים סומנו.');
+    notes.push('"הורה אחד": חושבו שני מסלולי נקודות הילדים (מדריך 2025, עמ׳ 95).');
+  }
+  if (profile.custodialSeparatedParent) {
+    add('הורה החי בנפרד שהילדים בחזקתו', 'סעיף 40(ב)(2)', 1, 'נקודה אחת בשל החיים בנפרד (מדריך 2025, עמ׳ 95)');
   }
   if (profile.participatesInChildSupport) {
-    add('גרוש/פרוד המשתתף בכלכלת ילדיו', 'סעיף 40(ב)(1)', 1, 'נקודה אחת ללא תלות במספר הילדים; נשללת מההורה המשמורן אם נישא מחדש');
+    add('גרוש/פרוד המשתתף בכלכלת ילדיו', 'סעיף 40(ב)(2)', 1, 'להורה שהילדים אינם בחזקתו — רק כשכלכלת הילדים מחולקת בין ההורים (מדריך 2025, עמ׳ 95)');
+  }
+  if (profile.teenBirthYear !== undefined) {
+    const age = year - profile.teenBirthYear;
+    if (age === 16 || age === 17) {
+      add('נער/ה בגיל 16 עד 18', 'סעיף 40ב', 1, 'למי שמלאו לו או לבן/בת זוגו 16 וטרם מלאו 18 (מדריך 2025, עמ׳ 95). לפי שנת לידה — לאמת לפי תאריך');
+    }
   }
   if (profile.paysAlimonyToEx) {
     add('מזונות לבן/בת זוג לשעבר (נשוי/אה בשנית)', 'סעיף 40א', 1);
@@ -326,7 +345,7 @@ export function calcCreditPointsV2(profile: CreditProfile, cpValue: number): Cre
     if (r) add(r.label, d.kind === 'vocational' ? 'סעיף 40ד' : 'סעיף 40ג', r.pts,
       d.endYear >= 2023
         ? 'מסיימי 2023 ואילך: נקודה לכל שנת לימוד (עד 3 שנים לתואר ראשון)'
-        : 'מסיימי 2014–2022: שנה אחת בלבד');
+        : 'מסיימי 2014 עד 2022: שנה אחת — בשנה שאחרי הסיום, או בשנה שאחריה לפי בחירה');
   }
   if ((profile.degrees ?? []).length > 0) {
     notes.push('תואר: נדרש טופס 119 + אישור זכאות. במקצועות עם התמחות (רו"ח, עו"ד, רפואה) ניתן לדחות את תחילת ההטבה לשנה שאחרי ההתמחות.');

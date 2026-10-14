@@ -1,0 +1,424 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>שנת המס של הלקוח</title>
+<link rel="icon" href="data:,">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600;700;800&display=swap">
+<link rel="stylesheet" href="shared.css">
+<style>
+/* חלופה ב׳ · מרכז הכובד הוא שנת המס של הלקוח. הידע נפתח בהקשר, ויש לו גם בית. */
+.layout-year { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 18px; align-items: start; }
+@media (max-width: 980px) { .layout-year { grid-template-columns: minmax(0, 1fr); } }
+.proc-switch { display: flex; gap: 6px; flex-wrap: wrap; }
+.side-sticky .two-col { grid-template-columns: minmax(0, 1fr); }
+.proc-switch button { flex: none; border: 1px solid var(--bd); background: var(--card); border-radius: 999px; padding: 7px 14px; font: inherit; cursor: pointer; color: var(--txc); min-height: 38px; }
+.proc-switch button[aria-pressed="true"] { background: var(--soft); border-color: var(--soft-bd); color: var(--br); font-weight: 600; }
+.next { border: 1px solid var(--soft-bd); background: var(--soft); border-radius: var(--r-lg); padding: 14px 16px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.next .grow p { color: var(--txc); }
+.counts { display: flex; gap: 18px; flex-wrap: wrap; font-size: var(--fs-13); color: var(--txc); }
+.counts b { font-size: var(--fs-17); color: var(--tx); font-variant-numeric: tabular-nums; margin-inline-end: 4px; }
+/* ציר השנה: שכבות × תקופות */
+.tl { display: grid; grid-template-columns: 120px repeat(6, minmax(64px, 1fr)); gap: 4px; min-width: 600px; }
+.tl .lh { font-size: var(--fs-12); color: var(--tx2); padding: 6px 4px; align-self: center; }
+.tl .ph { font-size: var(--fs-12); color: var(--tx2); text-align: center; font-variant-numeric: tabular-nums; padding-bottom: 2px; }
+.cell { border: 1px solid var(--bd); background: var(--card); border-radius: 7px; padding: 6px 4px; text-align: center; font: inherit; font-size: var(--fs-12); cursor: pointer; min-height: 44px; color: var(--txc); display: flex; flex-direction: column; justify-content: center; gap: 1px; }
+.cell .v { font-weight: 600; color: var(--tx); font-variant-numeric: tabular-nums; }
+.cell.ok { background: var(--ok-bg); border-color: transparent; }
+.cell.nd { background: var(--s2); border-style: dashed; color: var(--tx3); }
+.cell.mm { background: var(--warn-bg); border-color: var(--warn); }
+.cell.fail { background: var(--err-bg); border-color: transparent; color: var(--err); }
+.cell.open { background: transparent; border-style: dashed; color: var(--tx3); }
+.legend { display: flex; flex-wrap: wrap; gap: 10px 16px; font-size: var(--fs-12); color: var(--tx2); }
+.legend i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: -2px; margin-inline-end: 4px; border: 1px solid var(--bd); }
+.who { font-size: var(--fs-12); font-weight: 600; color: var(--tx2); padding-top: 10px; }
+.miss { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 4px 10px; padding: 10px 0; align-items: start; }
+.miss .why { grid-column: 2 / -1; color: var(--tx2); font-size: var(--fs-13); }
+.kind { font-size: var(--fs-12); border-radius: 6px; padding: 1px 6px; background: var(--s2); color: var(--txc); white-space: nowrap; }
+.req { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; padding: 12px 0; }
+.req .st { color: var(--txc); font-size: var(--fs-13); }
+.ball { font-size: var(--fs-12); font-weight: 600; }
+.ball.office { color: var(--br); }
+.ball.client { color: var(--tx2); }
+.lib-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; }
+.topic-card { text-align: start; border: 1px solid var(--bd); background: var(--card); border-radius: var(--r-lg); padding: 14px; font: inherit; cursor: pointer; color: var(--tx); display: flex; flex-direction: column; gap: 6px; transition: transform 140ms var(--ease-out); }
+.topic-card:active { transform: scale(0.98); }
+@media (hover: hover) and (pointer: fine) { .topic-card:hover { border-color: var(--soft-bd); } }
+.path { counter-reset: s; display: flex; flex-direction: column; gap: 0; }
+.path > section { border-top: 1px solid var(--hair); padding: 16px 0; display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 4px 12px; }
+.path > section::before { counter-increment: s; content: counter(s); width: 26px; height: 26px; border-radius: 50%; background: var(--soft); color: var(--br); font-weight: 700; display: grid; place-items: center; font-size: var(--fs-13); grid-row: span 3; }
+.path > section > * { grid-column: 2; }
+.prose { max-width: 66ch; color: var(--txc); display: flex; flex-direction: column; gap: 8px; }
+.prose strong { color: var(--tx); }
+.toc { display: flex; flex-wrap: wrap; gap: 6px; }
+.toc a { font-size: var(--fs-13); text-decoration: none; padding: 4px 10px; border-radius: 999px; background: var(--s2); color: var(--txc); }
+.bar { display: flex; height: 30px; border-radius: 7px; overflow: hidden; border: 1px solid var(--bd); }
+.bar > span { display: grid; place-items: center; font-size: var(--fs-12); white-space: nowrap; overflow: hidden; padding-inline: 4px; transition: flex-basis 200ms var(--ease-out); }
+.bar .a { background: var(--s2); color: var(--txc); }
+.bar .b { background: var(--soft); color: var(--br); font-weight: 600; }
+.bar .c { background: var(--ok-bg); color: var(--ok); font-weight: 600; }
+.two-col { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+@media (max-width: 720px) { .two-col { grid-template-columns: minmax(0, 1fr); } }
+.cmp { border: 1px solid var(--bd); border-radius: var(--r); padding: 12px; display: flex; flex-direction: column; gap: 6px; }
+.cmp .big { font-size: var(--fs-20); font-weight: 700; font-variant-numeric: tabular-nums; }
+.quiz button.opt { display: block; width: 100%; text-align: start; margin-top: 6px; }
+.quiz .fb { margin-top: 8px; }
+.shot { border: 1px solid var(--bd-strong); border-radius: 8px; overflow: hidden; background: var(--card); font-size: var(--fs-12); }
+.shot-h { background: var(--s2); padding: 6px 10px; display: flex; justify-content: space-between; gap: 8px; color: var(--tx2); flex-wrap: wrap; }
+.steps { display: flex; gap: 6px; flex-wrap: wrap; font-size: var(--fs-12); }
+.steps span { padding: 3px 10px; border-radius: 999px; background: var(--s2); color: var(--tx2); }
+.steps span.on { background: var(--br); color: var(--on-br); }
+.steps span.done { background: var(--ok-bg); color: var(--ok); }
+.snap { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 10px; padding: 8px 0; font-size: var(--fs-13); }
+.phone { width: min(360px, 100%); margin-inline: auto; border: 1px solid var(--bd-strong); border-radius: 26px; padding: 14px; background: var(--page); }
+.side-sticky { position: sticky; top: 70px; display: flex; flex-direction: column; gap: 12px; }
+@media (max-width: 980px) { .side-sticky { position: static; } }
+</style>
+</head>
+<body>
+<div id="bar"></div>
+<header class="topbar">
+  <div class="topbar-in">
+    <span class="brand">PIVO</span>
+    <nav class="nav" aria-label="ניווט ראשי">
+      <button type="button" data-go="office">עונת המס</button>
+      <button type="button" data-go="client">לקוחות</button>
+      <button type="button" data-go="library">ידע מס</button>
+    </nav>
+  </div>
+</header>
+<main class="wrap" id="app" tabindex="-1"></main>
+
+<script src="data.js"></script>
+<script>
+(function () {
+  'use strict';
+  const P = window.PIVO, C = P.CASE, nis = P.nis, fmt = P.fmt;
+  document.getElementById('bar').innerHTML = P.protoBar('חלופה ב׳ · שנת המס של הלקוח (מומלצת)');
+  P.bindTheme();
+  const app = document.getElementById('app');
+  const S = { view: 'office', proc: 'estimate', tab: 'year', topic: null, read134: 'ok', imported: false, resolved: {}, asked: false, snapshots: [], askSent: false };
+
+  function go(view, extra) { Object.assign(S, { view }, extra || {}); render(); app.focus({ preventScroll: true }); window.scrollTo({ top: 0 }); }
+  document.querySelectorAll('[data-go]').forEach(b => b.addEventListener('click', () => go(b.dataset.go, b.dataset.go === 'client' ? { tab: 'requests' } : {})));
+
+  /* ── עונת המס: כל התהליכים הפתוחים במשרד, לפי מי צריך לפעול ── */
+  function vOffice() {
+    const mine = P.OFFICE.filter(o => o.ball === 'office'), wait = P.OFFICE.filter(o => o.ball === 'client');
+    const row = o => `<div class="req"><div class="grow"><div class="row"><strong>${o.name}</strong><span class="muted small">· ${o.proc}</span></div><div class="st">${o.tone ? `<span class="chip ${o.tone}">${o.state}</span>` : o.state}</div><div class="xs muted">${o.next}</div></div>${o.go ? `<button class="btn sm primary" data-open-year>להמשיך</button>` : `<button class="btn sm" data-demo-client="${o.name}">לתיק</button>`}</div>`;
+    return `<div class="stack">
+      <div class="spread"><div><div class="eyebrow">משרד · עונת מס</div><h1>מה פתוח בשנות המס</h1></div><span class="muted small">הערכות 2026 · דוחות 2025 · הצהרות הון</span></div>
+      <p class="muted" style="max-width:70ch">רשימה אחת של עבודה מקצועית על שנות מס. כל שורה היא בקשה של הלקוח ב«בקשות», והכפתור מחזיר בדיוק לנקודה שבה העבודה נעצרה.</p>
+      <section class="panel pad"><h2 class="small eyebrow" style="font-size:var(--fs-13)">לטיפולי · ${mine.length}</h2><div class="list">${mine.map(row).join('')}</div></section>
+      <section class="panel pad"><h2 class="eyebrow" style="font-size:var(--fs-13)">ממתינים ללקוח · ${wait.length}</h2><div class="list">${wait.map(row).join('')}</div></section>
+      <details class="more"><summary>איך מגיעים לכאן מכל מקום</summary><div class="prose small" style="padding-bottom:12px"><p>«עונת המס» היא תצוגת משרד של בקשות קיימות מסוג הערכה/דוח/הצהרת הון — לא רשימה נפרדת. אותה עבודה מופיעה ב«בקשות» של כל לקוח, ובמשימות רק כשהמשרד יצר משימה.</p></div></details>
+    </div>`;
+  }
+
+  /* ── תיק הלקוח: בקשות ושנת המס ── */
+  function clientHead() {
+    const tabs = [['requests', 'בקשות'], ['taxfile', 'תיק מס'], ['year', 'שנת מס'], ['docs', 'מסמכים']];
+    return `<div class="stack" style="gap:8px"><div class="crumbs"><button data-go2="office">עונת המס</button><span>›</span><span>${C.name}</span></div>
+      <div class="spread"><div class="row"><h1>${C.name}</h1><span class="chip">לקוחה פעילה</span></div><span class="muted small">${C.people.map(p => p.name + ' · ' + p.desc).join(' &nbsp;|&nbsp; ')}</span></div>
+      <div class="proc-switch" role="tablist" aria-label="אזורי התיק">${tabs.map(([k, l]) => `<button role="tab" aria-selected="${S.tab === k}" aria-pressed="${S.tab === k}" data-tab="${k}">${l}</button>`).join('')}</div></div>`;
+  }
+  function vRequests() {
+    const reqs = C.requests.map(r => {
+      const sent = r.id === 'r-ask' && !S.askSent ? '<span class="chip warn">מוכן לשליחה</span>' : '';
+      const label = { year: 'לשנת המס ←', portal: 'מה נועה רואה ←', annual: 'לדוח 2025 ←', wealth: 'להצהרת ההון ←' }[r.door];
+      return `<div class="req"><div class="grow"><div class="row"><strong>${r.title}</strong><span class="muted small">· ${r.subject}</span>${sent}</div><div class="st">${r.state}</div><div class="ball ${r.ball}">${r.ball === 'office' ? 'אצל המשרד' : 'ממתין ללקוחה'} · מאז ${r.since}</div></div><button class="btn sm ${r.ball === 'office' ? 'primary' : ''}" data-door="${r.door}">${label}</button></div>`;
+    }).join('');
+    return `${clientHead()}<section class="panel pad stack" style="margin-top:14px"><div class="spread"><h2>בקשות</h2><button class="btn sm" data-send ${S.askSent ? 'disabled' : ''}>${S.askSent ? 'נשלח (הדגמה)' : 'שלח בקשות'}</button></div>
+      <p class="muted small">כל עבודה על שנת מס היא שורה כאן. הפירוט חי בשנת המס; השורה לא נעלמת כשנכנסים לפירוט.</p><div class="list">${reqs}</div></section>`;
+  }
+  function vTaxfile() {
+    return `${clientHead()}<section class="panel pad stack" style="margin-top:14px"><h2>תיק מס · עובדות מתמשכות</h2>
+      <p class="muted small">מה שנכון לאורך שנים (מצב משפחתי, תיקים, ייצוג). סכומים שנתיים לא נשמרים כאן — הם שייכים לשנת מס.</p>
+      <div class="list">${C.known.filter(k => ['card', 'office', 'authority'].includes(k.basis)).map(f => `<div class="fact"><span class="k">${f.k}</span><span class="v">${f.v}</span><span class="src">${f.src}</span></div>`).join('')}</div>
+      <div class="note info">שינוי מבנה מוצע: «הפקדות שנתיות», «תרומות שנתיות» ו«הכנסה משכירות» עוברים מהכרטיס לשנת המס, עם המקור והשנה. הערכים הקיימים נשמרים ומסומנים «שנה לא ידועה — לאשר».</div></section>`;
+  }
+
+  /* ── שנת המס: שולחן העבודה ── */
+  function vYear() {
+    const procs = [['estimate', 'הערכת מס 2026'], ['annual', 'דוח שנתי 2025'], ['wealth', 'הצהרת הון ליום 31.12.2025']];
+    const sw = `<div class="proc-switch" aria-label="תהליך בשנת המס">${procs.map(([k, l]) => `<button aria-pressed="${S.proc === k}" data-proc="${k}">${l}</button>`).join('')}</div>`;
+    const body = S.proc === 'estimate' ? yEstimate() : S.proc === 'annual' ? yAnnual() : yWealth();
+    return `${clientHead()}<div class="stack" style="margin-top:14px">${sw}${body}</div>`;
+  }
+
+  function cellFor(layer, p) {
+    if (layer === 'books') return p.books === 'closed' ? `<span>סגור</span><span class="v">${fmt(p.pnl)}</span>` : '<span>לא נסגר</span>';
+    const o = layer === 'it' ? p.it : p.vat;
+    if (layer === 'it' && S.read134 === 'fail') return '<span>קריאה נכשלה</span>';
+    if (layer === 'it' && S.read134 === 'loading') return '<span class="skel" style="width:70%;margin:auto"></span>';
+    if (o.st === 'notDue') return '<span>טרם הגיע המועד</span>';
+    return `<span>דווח</span><span class="v">${fmt(o.turnover)}</span>`;
+  }
+  function cellClass(layer, p) {
+    if (layer === 'books') return p.books === 'closed' ? 'ok' : 'open';
+    if (layer === 'it' && S.read134 === 'fail') return 'fail';
+    const o = layer === 'it' ? p.it : p.vat;
+    if (o.st === 'notDue') return 'nd';
+    if (p.p === '05–06' && !S.resolved['c-0506'] && (layer === 'it' || layer === 'vat')) return 'mm';
+    return 'ok';
+  }
+  function timeline() {
+    const layers = [['books', 'הנהלת חשבונות'], ['it', 'מקדמות · 134'], ['vat', 'מע״מ · ESNA']];
+    let g = `<div class="lh"></div>${C.periods.map(p => `<div class="ph">${p.p}</div>`).join('')}`;
+    layers.forEach(([k, l]) => { g += `<div class="lh">${l}</div>${C.periods.map((p, i) => `<button class="cell ${cellClass(k, p)}" data-cell="${k}:${i}" aria-label="${l} ${p.p}">${cellFor(k, p)}</button>`).join('')}`; });
+    return `<section class="panel pad stack"><div class="spread"><div><h2>השנה לפי תקופות</h2><p class="muted small">ההנהלת חשבונות סגורה עד ${C.bookkeepingCutoff}. מה שאחריה הוא תחזית, לא אפס.</p></div>
+      <div class="row"><button class="btn sm" data-import>ייבא רו״ה מפייפרלס</button><button class="btn sm" data-read134 ${S.read134 === 'loading' ? 'disabled' : ''}>קרא שוב 134</button></div></div>
+      ${S.read134 === 'fail' ? `<div class="note err" role="alert"><strong>הקריאה מ-134 לא הושלמה.</strong> החיבור לשע״ם לא היה מוכן. הנתונים שנקראו ב-08.10.2026 נשארו כפי שהם — כשל קריאה אינו «אין מקדמות». <button class="btn sm" data-read134>לנסות שוב</button></div>` : ''}
+      <div style="overflow-x:auto"><div class="tl" role="group" aria-label="ציר השנה">${g}</div></div>
+      <div class="legend"><span><i style="background:var(--ok-bg)"></i>יש ראיה</span><span><i style="background:var(--warn-bg);border-color:var(--warn)"></i>מקורות לא מסכימים</span><span><i style="background:var(--s2);border-style:dashed"></i>טרם הגיע המועד</span><span><i style="border-style:dashed"></i>תקופה פתוחה</span><span><i style="background:var(--err-bg)"></i>קריאה נכשלה</span></div></section>`;
+  }
+  function missingList() {
+    const items = C.missing.map(m => `<div class="miss"><span class="kind">${m.kind === 'document' ? 'מסמך' : m.kind === 'office' ? 'הנחת משרד' : 'שאלה'}</span><strong>${m.k}</strong><span class="xs ${m.ask === 'client' ? '' : 'ball office'}">${m.ask === 'client' ? 'אצל נועה' : 'אצל המשרד'}</span><span class="why">${m.why}</span></div>`).join('');
+    return `<section class="panel pad stack"><div class="spread"><h2>מה חסר</h2><button class="btn sm primary" data-ask ${S.asked ? 'disabled' : ''}>${S.asked ? 'נוסף לבקשה ✓' : 'הכן שאלות לנועה (3)'}</button></div>
+      <p class="muted small">שואלים רק מה שלא ידוע. כל שאלה נושאת את הסיבה שלה, ומה שהוא שיקול מקצועי נשאר אצל המשרד.</p><div class="list">${items}</div></section>`;
+  }
+  function knownList() {
+    const groups = ['נועה', 'העסק', 'משק הבית'];
+    return `<section class="panel pad stack"><h2>מה ידוע</h2>${groups.map(g => `<div class="who">${g}</div><div class="list">${C.known.filter(k => k.who === g).map(f => `<div class="fact"><span class="k">${f.k}</span><span class="v">${f.v}</span><span class="src">${f.src}</span></div>`).join('')}</div>`).join('')}</section>`;
+  }
+  function conflictBox() {
+    const c = C.conflicts[0];
+    if (S.resolved[c.id]) return `<div class="note ok">${c.k}: הוכרע — ${S.resolved[c.id]}. ההחלטה נשמרה עם התאריך והמקורות.</div>`;
+    return `<section class="panel pad stack" style="border-color:var(--warn)"><div class="spread"><h2>סתירה ליישוב</h2><span class="chip warn">${c.k}</span></div><p class="small">${c.note}.</p>
+      <div class="tbl-wrap"><table class="t"><thead><tr><th>מקור</th><th class="n">מחזור</th><th>מתי נקרא</th></tr></thead><tbody>
+      <tr><td>${c.a.label}</td><td class="n">${fmt(c.a.v)}</td><td>08.10.2026</td></tr><tr><td>${c.b.label}</td><td class="n">${fmt(c.b.v)}</td><td>09.10.2026 · ייבוא ידני</td></tr><tr><td>${c.c.label}</td><td class="n">${fmt(c.c.v)}</td><td>08.10.2026</td></tr></tbody></table></div>
+      <div class="row"><button class="btn sm primary" data-resolve="books">ההנהלת חשבונות נכונה · דיווח המקדמה דורש תיקון</button><button class="btn sm" data-resolve="134">134 נכון · לבדוק את הספרים</button><button class="btn sm ghost" data-resolve="later">להשאיר פתוח עם הערה</button></div>
+      <p class="xs muted">ההכרעה לא משנה דבר ברשות. תיקון דיווח, אם יידרש, הוא פעולה נפרדת.</p></section>`;
+  }
+  function savingsCard() {
+    const sf = P.studyFundDeduction({ businessIncome: 193950, employerSalary: 72000, deposit: 0 });
+    const thr = P.rule('pen.beneficial.threshold', 2026).value;
+    const penDeposits = 72000 * 0.125 + 8000;
+    return `<section class="panel pad stack"><div class="spread"><h2>פנסיה וקרן השתלמות · 2026</h2><span class="illus-tag">להמחשה</span></div>
+      <div class="two-col">
+        <div class="cmp"><div class="eyebrow">קרן השתלמות כעצמאית</div><div class="big">עד ${nis(sf.max)}</div><div class="small muted">ניכוי אפשרי. התקרה ${nis(sf.ceiling)} פחות המשכורת הקובעת ${nis(72000)} שעליה המעביד כבר מפקיד.</div><button class="btn ghost sm" data-topic="studyFund" style="align-self:flex-start">למה? ←</button></div>
+        <div class="cmp"><div class="eyebrow">פנסיה · «עמית מוטב»</div><div class="big">${nis(penDeposits)} מתוך ${nis(thr)}</div><div class="small muted">הפקדות לקצבה השנה (מעביד ועובדת לפי התלושים + עצמאית). מתחת לרף — הניכוי לפי מסלול א׳.</div><button class="btn ghost sm" data-topic="pension" style="align-self:flex-start">למה? ←</button></div>
+      </div>
+      <div class="note warn small">חסר כדי להחליט: פרמיית אובדן כושר עבודה, ותק בקרן קיימת, ואם רכיב הפיצויים נכלל ברף. ההמלצה תוצג רק אחרי שיתקבלו.</div></section>`;
+  }
+  function estimateCalc() {
+    const actual = 127150, forecast = 4 * 16000, adjVehicle = 6200, dep = -3400;
+    const biz = actual + forecast + adjVehicle + dep;
+    const advancesPaid = 2674 + 2933 + 3311 + 3045;
+    return `<section class="panel pad stack"><div class="spread"><h2>תמונת ההערכה</h2><span class="illus-tag">חישוב להמחשה · לא חישוב מס</span></div>
+      <div class="tbl-wrap"><table class="t"><thead><tr><th>רכיב</th><th>בסיס</th><th class="n">סכום</th></tr></thead><tbody>
+      <tr><td>רווח 01–08 לפני תיאומים</td><td><span class="chip ok">בפועל · פייפרלס</span></td><td class="n">${fmt(actual)}</td></tr>
+      <tr><td>תחזית 09–12 (4 × 16,000)</td><td><span class="chip warn">הנחת משרד · טרם אושרה</span></td><td class="n">${fmt(forecast)}</td></tr>
+      <tr><td>תיאום: הוצאות רכב שאינן מותרות</td><td><span class="chip blue">תיאום רו״ח</span></td><td class="n">${fmt(adjVehicle)}</td></tr>
+      <tr><td>תיאום: פחת (טופס 1343)</td><td><span class="chip blue">תיאום רו״ח</span></td><td class="n">${fmt(dep)}</td></tr>
+      <tr><td><strong>הכנסה חייבת מהעסק (משוער)</strong></td><td></td><td class="n"><strong>${fmt(biz)}</strong></td></tr>
+      <tr><td>מקדמות ששולמו עד 08</td><td><span class="chip ok">134</span></td><td class="n">${fmt(advancesPaid)}</td></tr></tbody></table></div>
+      <p class="small muted">התיאומים נרשמים בנפרד מהספרים, כך שתיאום שכבר נעשה בפייפרלס לא נרשם פעמיים. החישוב המלא (מדרגות, נקודות זיכוי, משכורת, חישוב לבני הזוג) ייבנה בשלב 3 על אותו מרשם כללים.</p>
+      <div class="row"><button class="btn sm primary" data-snap>שמור תמונת מצב לאישור</button><span class="xs muted">${S.snapshots.length ? `תמונות מצב: ${S.snapshots.map(s => s).join(' · ')}` : 'אין עדיין תמונת מצב מאושרת'}</span></div></section>`;
+  }
+  function yEstimate() {
+    const openConf = S.resolved['c-0506'] ? 0 : 1;
+    const nextTxt = openConf ? ['ליישב את מחזור 05–06', 'מקדמות 134 מראות 2,500 ₪ יותר מהספרים ומהמע״מ. אחרי ההכרעה אפשר לבנות תחזית.'] : !S.asked ? ['לשאול את נועה מה חסר', '3 פריטים אצל נועה. הם יתווספו לבקשה «השלמת מידע» ויתפרסמו בדף האישי בשליחה.'] : ['לקבוע תחזית לספטמבר–דצמבר', 'הספרים סגורים עד 31.08. התחזית היא הנחת משרד שתירשם בנפרד מהנתונים בפועל.'];
+    return `<div class="layout-year"><div class="stack">
+      <div class="next"><div class="grow"><div class="eyebrow">הצעד הבא · אצל המשרד</div><h3>${nextTxt[0]}</h3><p class="small">${nextTxt[1]}</p></div>${openConf ? '<a class="btn primary" href="#conf">לסתירה</a>' : !S.asked ? '<button class="btn primary" data-ask>הכן שאלות</button>' : '<button class="btn primary" data-forecast>הזן תחזית</button>'}</div>
+      <div class="counts" aria-label="סיכום"><span><b>${C.known.length}</b>ידוע</span><span><b>${C.missing.length}</b>חסר (3 אצל נועה)</span><span><b>${openConf}</b>סתירות</span><span><b>${S.snapshots.length}</b>תמונות מצב</span></div>
+      ${timeline()}<div id="conf">${conflictBox()}</div>${missingList()}${estimateCalc()}</div>
+      <aside class="side-sticky">${savingsCard()}${knownList()}</aside></div>`;
+  }
+  function yAnnual() {
+    const parts = [['פרטים ובני משפחה', 'ok', 'מהכרטיס'], ['הכנסות עבודה (106)', 'warn', 'חסר 106 של עידו'], ['עסק · נספח א׳ (1320)', 'ok', 'מהספרים 2025 + תיאומים'], ['ניכויים אישיים (פנסיה, קרן, אכ״ע)', 'warn', 'אישור קופה 2025 חסר'], ['זיכויים (תרומות, ילדים)', 'warn', 'אישור תרומות'], ['עסק זעיר / הצהרות פתיחה', '', 'לא רלוונטי — מחזור מעל התקרה'], ['מקדמות וניכוי במקור', 'ok', '134 לשנת 2025']];
+    return `<div class="stack"><div class="next"><div class="grow"><div class="eyebrow">הצעד הבא · ממתין לנועה ועידו</div><h3>שני מסמכים חסרים לדוח 2025</h3><p class="small">השאלון השנתי נשען על אותן עובדות של שנת 2025 — לא שואלים שוב מה שכבר ידוע מההערכה.</p></div><button class="btn" data-door="portal">מה הם רואים</button></div>
+      <section class="panel pad stack"><div class="spread"><h2>כיסוי הדוח לפי חלקי 1301 (2025)</h2><span class="chip">טופס 2025 · פורסם ע״י רשות המסים</span></div>
+      <div class="list">${parts.map(([l, t, s]) => `<div class="fact"><span class="k">${l}</span><span>${t ? `<span class="chip ${t}">${t === 'ok' ? 'מכוסה' : 'חסר'}</span>` : '<span class="chip">לא חל</span>'}</span><span class="src">${s}</span></div>`).join('')}</div>
+      <p class="xs muted">הכנה אוטומטית של הדוח אינה שידור. השידור נשאר פעולה של רו״ח עם אישור.</p></section></div>`;
+  }
+  function yWealth() {
+    return `<div class="stack"><div class="next"><div class="grow"><div class="eyebrow">הצעד הבא · אצל המשרד</div><h3>לשלוח לנועה ועידו את רשימת הנכסים וההתחייבויות</h3><p class="small">ההצהרה היא תמונת מצב ליום 31.12.2025 — לא שנת מס. יש דרישה מתועדת, ולכן מוצג מועד הגשה. בלי מכתב היא הייתה מוצגת «הכנה · אין דרישה מתועדת», בלי מועד.</p></div><button class="btn primary" data-wd-send>הכן בקשה</button></div>
+      <section class="panel pad stack"><h2>הדרישה והמועד</h2>
+      <div class="list"><div class="fact"><span class="k">מכתב הדרישה</span><span class="v">14.09.2026</span><span class="src">הועלה למסמכים · אושר כדרישה ע״י המשרד</span></div>
+      <div class="fact"><span class="k">ההצהרה נכונה ליום</span><span class="v">31.12.2025</span><span class="src">מתוך מכתב הדרישה</span></div>
+      <div class="fact"><span class="k">להגיש עד</span><span class="v">12.01.2027</span><span class="src">120 יום מהדרישה או מתאריך ההצהרה — המאוחר</span></div>
+      <div class="fact"><span class="k">כולל</span><span class="v">נועה, עידו, 2 ילדים מתחת ל-18</span><span class="src">טופס 1219</span></div></div>
+      <details class="more"><summary>איך המועד חושב</summary><p class="small muted" style="padding-bottom:10px">14.09.2026 + 120 יום = 12.01.2027. 31.12.2025 + 120 יום = 30.04.2026. המאוחר מבין השניים קובע. מקור: דף השירות של רשות המסים להצהרת הון (נבדק 10.10.2026).</p></details></section>
+      <section class="panel pad stack"><h2>חלקי ההצהרה (1219)</h2><div class="list">
+      <div class="fact"><span class="k">א׳ · רכוש והתחייבויות פרטיים</span><span><span class="chip">טרם התחיל</span></span><span class="src">בנקים, ני״ע, רכבים, נדל״ן, הלוואות</span></div>
+      <div class="fact"><span class="k">ב׳ · עסק שנערך בו מאזן</span><span><span class="chip">לא חל</span></span><span class="src">העסק אינו מנהל מאזן</span></div>
+      <div class="fact"><span class="k">ג׳ · עסק שלא נערך בו מאזן</span><span><span class="chip warn">מהספרים</span></span><span class="src">ציוד, יתרות, חייבים · לפי 31.12.2025</span></div>
+      <div class="fact"><span class="k">ד׳ · פרטים נוספים</span><span><span class="chip">טרם התחיל</span></span><span class="src">ירושות, מתנות, נכסים בחו״ל</span></div></div></section></div>`;
+  }
+
+  /* ── ספריית הידע ── */
+  const TOPICS = [
+    { id: 'studyFund', title: 'קרן השתלמות לעצמאי ולשכיר־עצמאי', tag: 'חיסכון', lead: 'ניכוי בהפקדה, פטור ממס רווחי הון במשיכה — ושתי תקרות שאינן מדברות זו עם זו.', st: 'secondary' },
+    { id: 'pension', title: 'פנסיה לעצמאי: מסלול א׳ ומסלול ב׳', tag: 'חיסכון', lead: 'ניכוי לפי סעיף 47 בשני מסלולים, וזיכוי לפי 45א על היתרה.', st: 'primary' },
+    { id: 'mandatory', title: 'פנסיית חובה לעצמאים', tag: 'חיסכון', lead: 'חובה מינימלית — מספר שונה לגמרי מתקרת ההטבות.', st: 'primary' },
+    { id: 'micro', title: 'עסק זעיר', tag: 'עסק', lead: 'ניכוי נורמטיבי 30% מהמחזור; סימון חדש בטופס 2025.', st: 'secondary' },
+    { id: 'wealth', title: 'הצהרת הון ראשונה', tag: 'דיווח', lead: 'נפתחת בדרישה. תמונת מצב ליום קובע, 120 יום להגשה.', st: 'primary' },
+    { id: 'advances', title: 'מקדמות ומחזור (134 ו-ESNA)', tag: 'דיווח', lead: 'אין דיווח, דיווח אפס, טרם הגיע המועד וכשל קריאה — ארבעה מצבים שונים.', st: 'primary' },
+  ];
+  function vLibrary() {
+    if (S.topic) return vTopic(S.topic);
+    return `<div class="stack"><div><div class="eyebrow">ידע מס</div><h1>ספריית הידע</h1></div>
+      <label class="f" for="q">חיפוש<input id="q" type="search" placeholder="למשל: קרן השתלמות שכיר ועצמאי"></label>
+      <div class="lib-grid" id="libGrid">${TOPICS.map(t => `<button class="topic-card" data-topic="${t.id}"><span class="row"><span class="chip">${t.tag}</span>${P.basisHtml(t.st)}</span><strong>${t.title}</strong><span class="small muted">${t.lead}</span></button>`).join('')}</div>
+      <p class="xs muted">התג ליד כל נושא מראה את הביסוס החלש ביותר בין הכללים שלו. אין תג «מאומת» כללי לכל המאגר.</p></div>`;
+  }
+  function ruleRow(id, y) { const r = P.rule(id, y); const v = typeof r.value === 'number' ? (r.unit === '%' ? r.value + '%' : nis(r.value)) : r.value; return `<tr><td>${r.label}</td><td>${v}</td><td>${r.exactYear ? r.year : `${r.year} (אין ערך ל-${y})`}</td><td>${P.basisHtml(r.basis)}</td><td class="xs">${r.src ? `<a href="${r.src.url || '#'}" target="_blank" rel="noopener">${r.src.label}</a>` : ''}${r.note ? `<div class="muted">${r.note}</div>` : ''}</td></tr>`; }
+  function vTopic(id) {
+    if (id === 'pension') return vPension();
+    if (id !== 'studyFund') return `<div class="stack"><div class="crumbs"><button data-lib>ידע מס</button><span>›</span><span>${TOPICS.find(t => t.id === id).title}</span></div><div class="note">באב־הטיפוס הזה מפורטים «קרן השתלמות» ו«פנסיה לעצמאי». שאר הנושאים בנויים באותה תבנית.</div></div>`;
+    return `<div class="stack"><div class="crumbs"><button data-lib>ידע מס</button><span>›</span><span>חיסכון</span></div>
+      <div><h1>קרן השתלמות לעצמאי ולשכיר־עצמאי</h1><p class="muted" style="max-width:70ch;margin-top:6px">אחרי הנושא הזה תדעו להסביר את שתי ההטבות, לזהות מתי הלקוח שכיר־עצמאי, לחשב את מרחב הניכוי, ולדעת מה לבקש ממנו.</p></div>
+      <nav class="toc" aria-label="מסלול הנושא"><a href="#s1">המשמעות</a><a href="#s2">למי</a><a href="#s3">דוגמה</a><a href="#s4">שכיר־עצמאי</a><a href="#s5">חריגים וטענות</a><a href="#s6">בתיק</a><a href="#s7">מקורות</a></nav>
+      <div class="panel pad"><div class="path">
+      <section id="s1"><h3>המשמעות</h3><div class="prose"><p>לעצמאי יש <strong>שתי הטבות נפרדות</strong> על אותה הפקדה: <strong>ניכוי</strong> מההכנסה החייבת בשנת ההפקדה, ו<strong>פטור ממס רווחי הון</strong> על הרווחים כשמושכים כדין.</p><p>הניכוי תלוי בהכנסה. תקרת ההפקדה המוטבת היא סכום שנתי קבוע. לכן שני המספרים אינם שווים, ושקל שמעל תקרת הניכוי עשוי עדיין ליהנות מהפטור.</p></div></section>
+      <section id="s2"><h3>למי זה רלוונטי</h3><div class="prose"><p>כל מי שיש לו הכנסה חייבת מעסק או ממשלח יד. השאלה הראשונה בתיק: <strong>האם הלקוח גם שכיר, והמעביד מפקיד עבורו לקרן?</strong> אם כן — התקרה שלו כעצמאי קטנה.</p></div></section>
+      <section id="s3"><h3>דוגמה: עצמאי בלבד</h3><div class="two-col"><div class="cmp"><div class="eyebrow">ניכוי מרבי ${'(ערכי 2025)'}</div><div class="big">${nis(13203)}</div><div class="small muted">4.5% × ${nis(293397)}. מי שהכנסתו נמוכה מהתקרה — 4.5% מהכנסתו.</div></div><div class="cmp"><div class="eyebrow">הפקדה מוטבת לפטור</div><div class="big">${nis(20566)}</div><div class="small muted">${P.basisHtml('secondary')} לא נמצא במדריך הרשמי — לאמת לפני שמסתמכים.</div></div></div></section>
+      <section id="s4"><h3>המקרה המשולב: שכיר־עצמאי</h3><div class="prose"><p>אם המעביד שילם לקרן, «סכום התקרה» לעצמאי הוא <strong>הנמוך מבין</strong> ההכנסה מהעסק, לבין התקרה פחות «המשכורת הקובעת» שבשלה המעביד הפקיד. המשכורת הזו מופיעה בטופס 106 (218/219) ונרשמת בסעיף 52.</p></div>
+        <div class="illus stack"><span class="illus-tag">המחשה · ערכי 2025</span>
+        <label class="f" for="sal">משכורת קובעת שהמעביד הפקיד עליה: <output id="salO" class="tnum"></output><input id="sal" type="range" min="0" max="200000" step="6000" value="72000"></label>
+        <label class="f" for="biz">הכנסה חייבת מהעסק: <output id="bizO" class="tnum"></output><input id="biz" type="range" min="40000" max="320000" step="5000" value="195000"></label>
+        <div class="bar" aria-hidden="true"><span class="a" id="barA"></span><span class="b" id="barB"></span></div>
+        <p class="small" id="sfOut" aria-live="polite"></p></div></section>
+      <section id="s5"><h3>חריגים, מלכודות וטענות שנבדקו</h3><div class="prose">
+        <p><strong>הפקדה עד 31.12.</strong> הפקדה בינואר שייכת לשנה הבאה; אין הפקדה רטרואקטיבית.</p>
+        <p><strong>נזילות:</strong> משיכה פטורה אחרי 6 שנים מהתשלום הראשון, או אחרי 3 שנים להשתלמות/בגיל פרישה. ${P.basisHtml('primary')}</p>
+        <p><strong>ממתי נספר הוותק</strong> (תאריך ההפקדה או תחילת השנה) — לא הוכרע במקור ראשוני. ${P.basisHtml('unverified')}</p>
+        <div class="note err"><strong>לא כפרקטיקה מומלצת:</strong> «כמה קרנות במקביל ופדיון כל אחת בשנה אחרת כדי שלא תהיה הצלבה». התקרה המוטבת היא לפי היחיד והשנה, ולא לפי קופה. הסתמכות על היעדר הצלבה אינה עמדה משפטית. המערכת תסמן הפקדות מעל התקרה, לא תציע לפצל.</div></div></section>
+      <section id="s6"><h3>מה עושים בתיק</h3><div class="prose"><p>1. לברר אם הלקוח שכיר ומה המשכורת הקובעת (106 / תלושים). 2. לבקש אישור הפקדה שנתי מהקרן. 3. לשאול על ותק בקרן קיימת. 4. ברשות לפני דצמבר: להציע הפקדה עד מרחב הניכוי.</p></div>
+        <div class="quiz panel pad" style="margin-top:8px"><strong>בדקו את עצמכם</strong><p class="small">עצמאית שהמעביד שלה מפקיד לקרן על 120,000 ₪ משכורת. הכנסתה מהעסק 250,000 ₪. מה בסיס הניכוי שלה כעצמאית?</p>
+        <button class="btn opt" data-q="a">250,000 ₪ — כל ההכנסה מהעסק</button><button class="btn opt" data-q="b">173,397 ₪ — התקרה פחות המשכורת</button><button class="btn opt" data-q="c">293,397 ₪ — התקרה המלאה</button><div class="fb" id="qfb" aria-live="polite"></div><p class="xs muted">תרגול לעצמכם. לא נשמר ולא נמדד.</p></div></section>
+      <section id="s7"><h3>העמקה ומקורות</h3><div class="tbl-wrap"><table class="t"><thead><tr><th>כלל</th><th>ערך</th><th>שנה</th><th>ביסוס</th><th>מקור</th></tr></thead><tbody>${['sf.se.rate', 'sf.se.ceiling', 'sf.se.maxDeduction', 'sf.mixed.formula', 'sf.se.exemptDeposit', 'sf.liquidity', 'sf.seniorityStart'].map(i => ruleRow(i, 2026)).join('')}</tbody></table></div></section>
+      </div></div>
+      <section class="panel pad stack"><h2>לקוחות שהנושא נוגע להם</h2><div class="list"><div class="req"><div><strong>נועה ברק</strong><div class="st">שכירה־עצמאית · מעביד מפקיד על 72,000 ₪ · אין קרן כעצמאית</div></div><button class="btn sm primary" data-open-year>לשנת המס ←</button></div></div><p class="xs muted">נגזר מעובדות שנת המס. רשימה מלאה תדרוש את מבנה העובדות החדש (שלב 2).</p></section></div>`;
+  }
+  function vPension() {
+    return `<div class="stack"><div class="crumbs"><button data-lib>ידע מס</button><span>›</span><span>חיסכון</span></div><h1>פנסיה לעצמאי: מסלול א׳ ומסלול ב׳</h1>
+      <div class="panel pad"><div class="path">
+      <section><h3>המשמעות</h3><div class="prose"><p>הפקדה של עצמאי לקופת גמל לקצבה מקבלת <strong>ניכוי</strong> (סעיף 47) עד תקרה, ו<strong>זיכוי</strong> של 35% (סעיף 45א) על מה שלא נוכה, עד תקרה משלו. אפשר לפצל בין סעיף 53 לסעיף 76 בדוח לפי התוצאה הטובה יותר.</p></div></section>
+      <section><h3>מי מוטב ומי לא</h3><div class="prose"><p>«עמית מוטב» הוא מי שהופקדו לטובתו לקצבה בשנה לפחות 16% מהשכר הממוצע השנתי (2025: ${nis(24069)}). אצל שכיר נספרות גם הפקדות המעביד. מוטב מקבל ניכוי במסלול ב׳ בשני רבדים; אחר — במסלול א׳.</p></div></section>
+      <section><h3>השוואה</h3><div class="two-col"><div class="cmp"><div class="eyebrow">מסלול א׳ · כל יחיד</div><p class="small">7% מההכנסה המזכה שאינה מעבודה, ועוד עד 4% כשההפקדה עולה על 12%. מגיל 50 (ביום 1.1 של השנה): 10.5% / 6% / 16.5%.</p></div><div class="cmp"><div class="eyebrow">מסלול ב׳ · עמית מוטב</div><p class="small">רובד א׳: 11% מהכנסת העמית העצמאי עד 116,400 פחות ההכנסה המבוטחת. רובד ב׳: 7% (+4%) מ«ההכנסה הנוספת».</p></div></div></section>
+      <section><h3>טענות מהמסמך הפנימי שנבדקו</h3><div class="prose"><p>«רף עמית מוטב כ-21,300–21,600 ₪» — לא תואם את מדריך 2025 (24,069 ₪). «16.5% לכל עצמאי» — נכון רק בתנאים; אצל מי שמשלם לאובדן כושר עבודה ההפקדה המזכה בזיכוי שונה. שני הנתונים יתוקנו בשלב 1.</p></div></section>
+      <section><h3>מקורות</h3><div class="tbl-wrap"><table class="t"><thead><tr><th>כלל</th><th>ערך</th><th>שנה</th><th>ביסוס</th><th>מקור</th></tr></thead><tbody>${['pen.beneficial.threshold', 'pen.qualifying.work', 'pen.qualifying.nonWork', 'pen.trackA', 'pen.trackB', 'pen.mandatory.rates', 'pen.mandatory.halfWage'].map(i => ruleRow(i, 2026)).join('')}</tbody></table></div></section>
+      </div></div></div>`;
+  }
+
+  function render() {
+    document.querySelectorAll('[data-go]').forEach(b => b.setAttribute('aria-current', (b.dataset.go === S.view || (S.view === 'client' && b.dataset.go === 'client')) ? 'page' : 'false'));
+    let html = '';
+    if (S.view === 'office') html = vOffice();
+    else if (S.view === 'client') html = S.tab === 'requests' ? vRequests() : S.tab === 'taxfile' ? vTaxfile() : S.tab === 'docs' ? `${clientHead()}<div class="note" style="margin-top:14px">מסמכים: כל ראיה שיובאה (רו״ה, צילום 134, אישורי קופה) נשמרת כאן בתיקיית השנה, עם מי העלה ומתי.</div>` : vYear();
+    else if (S.view === 'library') html = vLibrary();
+    app.innerHTML = html;
+    bind();
+  }
+
+  function bind() {
+    app.querySelectorAll('[data-open-year]').forEach(b => b.onclick = () => go('client', { tab: 'year', proc: 'estimate', topic: null }));
+    app.querySelectorAll('[data-demo-client]').forEach(b => b.onclick = () => P.toast(`באב־הטיפוס מפורט רק התיק של נועה ברק`));
+    app.querySelectorAll('[data-go2]').forEach(b => b.onclick = () => go(b.dataset.go2));
+    app.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => { S.tab = b.dataset.tab; render(); });
+    app.querySelectorAll('[data-proc]').forEach(b => b.onclick = () => { S.proc = b.dataset.proc; render(); });
+    app.querySelectorAll('[data-door]').forEach(b => b.onclick = () => {
+      const d = b.dataset.door;
+      if (d === 'portal') return portalPreview();
+      S.tab = 'year'; S.proc = d === 'annual' ? 'annual' : d === 'wealth' ? 'wealth' : 'estimate'; render();
+    });
+    app.querySelectorAll('[data-topic]').forEach(b => b.onclick = () => { if (S.view === 'client') return topicDrawer(b.dataset.topic); go('library', { topic: b.dataset.topic }); });
+    app.querySelectorAll('[data-lib]').forEach(b => b.onclick = () => go('library', { topic: null }));
+    app.querySelectorAll('[data-cell]').forEach(b => b.onclick = () => cellDrawer(b.dataset.cell));
+    app.querySelectorAll('[data-resolve]').forEach(b => b.onclick = () => { const m = { books: 'הספרים ו-ESNA נכונים; דיווח המקדמה לתקופה דורש בדיקה', '134': '134 נכון; לבדוק את רישום ההכנסות', later: 'נשאר פתוח עם הערה' }; if (b.dataset.resolve !== 'later') S.resolved['c-0506'] = m[b.dataset.resolve]; P.toast(m[b.dataset.resolve]); render(); });
+    app.querySelectorAll('[data-ask]').forEach(b => b.onclick = askDrawer);
+    app.querySelectorAll('[data-import]').forEach(b => b.onclick = importDrawer);
+    app.querySelectorAll('[data-read134]').forEach(b => b.onclick = () => { const failNext = S.read134 !== 'fail'; S.read134 = 'loading'; render(); setTimeout(() => { S.read134 = failNext ? 'fail' : 'ok'; render(); if (!failNext) P.toast('134 נקרא עכשיו · 4 תקופות דווחו, 2 טרם הגיע המועד'); }, 1300); });
+    app.querySelectorAll('[data-snap]').forEach(b => b.onclick = () => { const v = 'גרסה ' + (S.snapshots.length + 1) + ' · ' + new Date().toLocaleDateString('he-IL'); S.snapshots.push(v); P.toast('נשמרה תמונת מצב. היא לא תשתנה גם אם כלל יתעדכן'); render(); });
+    app.querySelectorAll('[data-forecast]').forEach(b => b.onclick = () => P.toast('בגרסת הייצור: הזנת תחזית חודשית עם הנחה כתובה'));
+    app.querySelectorAll('[data-send]').forEach(b => b.onclick = () => { S.askSent = true; P.toast('בהדגמה בלבד — לא נשלח מייל'); render(); });
+    app.querySelectorAll('[data-wd-send]').forEach(b => b.onclick = () => P.toast('תיווצר בקשה «רשימת נכסים והתחייבויות ליום 31.12.2025» — לא נשלח דבר'));
+    app.querySelectorAll('[data-q]').forEach(b => b.onclick = () => { const ok = b.dataset.q === 'b'; document.getElementById('qfb').innerHTML = ok ? '<div class="note ok">נכון. 293,397 − 120,000 = 173,397, וזה נמוך מההכנסה מהעסק. ניכוי מרבי: 7,803 ₪.</div>' : '<div class="note warn">לא בדיוק. המעביד כבר «ניצל» חלק מהתקרה. מחסירים את המשכורת הקובעת מהתקרה, ולוקחים את הנמוך מבין זה להכנסה.</div>'; });
+    const sal = document.getElementById('sal');
+    if (sal) {
+      const biz = document.getElementById('biz');
+      const upd = () => { const r = P.studyFundDeduction({ businessIncome: +biz.value, employerSalary: +sal.value, deposit: 0, year: 2025 }); document.getElementById('salO').textContent = nis(+sal.value); document.getElementById('bizO').textContent = nis(+biz.value); const a = Math.min(+sal.value, r.ceiling) / r.ceiling * 100; document.getElementById('barA').style.flexBasis = a + '%'; document.getElementById('barA').textContent = a > 14 ? 'המעביד' : ''; document.getElementById('barB').style.flexBasis = (100 - a) + '%'; document.getElementById('barB').textContent = 'נשאר לעצמאי'; document.getElementById('sfOut').innerHTML = `סכום התקרה: <strong>${nis(r.cap)}</strong> (הנמוך מבין ${nis(+biz.value)} לבין ${nis(Math.max(0, r.ceiling - +sal.value))}). ניכוי מרבי: <strong>${nis(r.max)}</strong>.`; };
+      sal.oninput = upd; biz.oninput = upd; upd();
+    }
+    const q = document.getElementById('q');
+    if (q) q.oninput = () => { const t = q.value.trim(); document.querySelectorAll('#libGrid .topic-card').forEach(c => { c.hidden = t && !c.textContent.includes(t) && !(t.includes('השתלמות') && c.dataset.topic === 'studyFund'); }); };
+  }
+
+  function topicDrawer(id) {
+    const r = id === 'studyFund';
+    P.drawer({ eyebrow: 'ידע · בהקשר של נועה', title: r ? 'קרן השתלמות לשכירה־עצמאית' : 'פנסיה: עמית מוטב',
+      body: r ? `<div class="prose"><p>נועה שכירה, והמעביד מפקיד לקרן על משכורת של 72,000 ₪. לכן התקרה שלה כעצמאית קטנה: <strong>293,397 − 72,000 = 221,397 ₪</strong>.</p><p>ההכנסה המשוערת מהעסק (193,950 ₪) נמוכה מזה, ולכן בסיס הניכוי הוא ההכנסה. 4.5% מתוכה ≈ <strong>8,728 ₪</strong>.</p><p>הפקדה מעל זה לא תנוכה, אבל עד התקרה המוטבת (20,566 ₪, ${P.basisHtml('secondary')}) הרווחים עשויים להיות פטורים.</p></div><div class="note warn small">לפני המלצה: לשאול אם יש לה כבר קרן כעצמאית ומתי הופקד בה לראשונה.</div>`
+        : `<div class="prose"><p>לקצבה הופקדו השנה עבור נועה (לפי התלושים) כ-9,000 ₪, ועוד 8,000 ₪ שהיא הצהירה כעצמאית: <strong>17,000 ₪</strong>.</p><p>רף עמית מוטב ל-2026 הוא כ-${nis(26436)} ${P.basisHtml('secondary')}. מתחתיו — הניכוי לפי מסלול א׳. הפקדה נוספת של כ-9,436 ₪ עד 31.12 תעביר אותה למסלול ב׳.</p></div><div class="note warn small">לא הוכרע: האם רכיב הפיצויים של המעביד נספר ברף. מסומן לבדיקה מקצועית.</div>`,
+      foot: `<button class="btn primary" data-full>לנושא המלא בספרייה</button>`,
+      onOpen: (d, close) => d.querySelector('[data-full]').onclick = () => { close(); go('library', { topic: id }); } });
+  }
+  function cellDrawer(key) {
+    const [layer, i] = key.split(':'); const p = C.periods[+i];
+    const title = { books: 'הנהלת חשבונות', it: 'מקדמות מס הכנסה · 134', vat: 'מע״מ · ESNA' }[layer] + ' · ' + p.p + '/2026';
+    let body;
+    if (layer === 'it' && S.read134 === 'fail') body = `<div class="note err">הקריאה האחרונה נכשלה (החיבור לשע״ם לא היה מוכן). מוצגים הנתונים מ-08.10.2026.</div>`;
+    else if ((layer === 'it' ? p.it : p.vat).st === 'notDue' && layer !== 'books') body = `<div class="note">התקופה טרם הגיעה למועד הדיווח. זה לא «אין דיווח» ולא «דיווח אפס».</div>`;
+    else if (layer === 'books') body = p.books === 'closed' ? `<div class="prose"><p>מחזור לפי רו״ה פייפרלס: <strong>${nis(p.pnl)}</strong>. הדוח לפני תיאומי מס.</p></div><div class="shot"><div class="shot-h"><span>רו״ה פייפרלס · ${C.business.name}</span><span>הופק 09.10.2026 · יובא ידנית</span></div><div class="pad small">צילום/קובץ המקור נשמר בתיקיית 2026 במסמכים.</div></div>` : `<div class="note">החודשים טרם נסגרו בהנהלת החשבונות. בהערכה הם תחזית, לא אפס.</div>`;
+    else {
+      const o = layer === 'it' ? p.it : p.vat;
+      body = `<div class="shot"><div class="shot-h"><span>${layer === 'it' ? 'שאילתה 134 · מקדמות — פרטי דרישה ודיווח' : 'גבייה מע״מ · סיכומי דיווח ESNA'}</span><span>נקרא 08.10.2026 · 21:14</span></div><div style="overflow-x:auto"><table class="t" style="min-width:0"><thead><tr><th>תקופה</th><th>מצב</th><th class="n">מחזור</th>${layer === 'it' ? '<th class="n">חיוב</th><th class="n">תשלומים</th>' : ''}</tr></thead><tbody><tr><td>${p.p}/2026</td><td>דווח</td><td class="n">${fmt(o.turnover)}</td>${layer === 'it' ? `<td class="n">${fmt(o.charge)}</td><td class="n">${fmt(o.paid)}</td>` : ''}</tr></tbody></table></div></div>
+      <div class="list small"><div class="fact"><span class="k">זהות</span><span class="v">תואמת לתיק</span><span class="src">מספר התיק בכותרת המסך</span></div><div class="fact"><span class="k">שנה ותקופה</span><span class="v">2026 · ${p.p}</span><span class="src">מתוך המסך</span></div><div class="fact"><span class="k">ראיה</span><span class="v">צילום מסך נשמר</span><span class="src">מסמכים › 2026 › רשויות</span></div></div>
+      ${p.p === '05–06' && !S.resolved['c-0506'] ? '<div class="note warn">המחזור כאן שונה מהספרים. ההכרעה בכרטיס «סתירה ליישוב».</div>' : ''}`;
+    }
+    P.drawer({ eyebrow: 'ראיה לתקופה', title, body });
+  }
+  function askDrawer() {
+    const q = C.missing.filter(m => m.ask === 'client');
+    P.drawer({ eyebrow: 'השלמת מידע · נועה', title: '3 פריטים לנועה',
+      body: `<p class="small muted">רק מה שחסר. מה שכבר ידוע (משכורת, ילדים, אחוז משרד ביתי) לא נשאל שוב.</p>${q.map(m => `<div class="panel pad stack" style="gap:4px"><div class="row"><span class="kind">${m.kind === 'document' ? 'מסמך' : 'שאלה'}</span><strong>${m.k}</strong></div><p class="small muted">למה שואלים: ${m.why}</p></div>`).join('')}
+        <div class="note info small">הפריטים יתווספו לבקשה הקיימת «השלמת מידע להערכת מס 2026» ויופיעו בדף האישי של נועה כשתלחצו «שלח בקשות». אין שליחה מכאן.</div>`,
+      foot: `<button class="btn primary" data-add>הוסף לבקשה</button><button class="btn" data-pv>מה נועה תראה</button>`,
+      onOpen: (d, close) => { d.querySelector('[data-add]').onclick = () => { S.asked = true; close(); P.toast('נוסף לבקשה «השלמת מידע» · ממתין לשליחה'); render(); }; d.querySelector('[data-pv]').onclick = () => { close(); setTimeout(portalPreview, 320); }; } });
+  }
+  function portalPreview() {
+    P.drawer({ eyebrow: 'תצוגה מקדימה · הדף האישי', title: 'מה נועה רואה בטלפון',
+      body: `<div class="phone stack"><div class="eyebrow">משרד לדוגמה</div><h3>שלום נועה</h3><p class="small">כדי להשלים את הערכת המס לשנת 2026 חסרים לנו 3 דברים.</p>
+        <fieldset><legend>ביטוח אובדן כושר עבודה</legend><label class="choice"><input type="radio" name="pv1" id="pv1a"> יש לי, משלמת בעצמי</label><label class="choice"><input type="radio" name="pv1" id="pv1b"> אין לי</label><label class="choice"><input type="radio" name="pv1" id="pv1c"> לא בטוחה</label></fieldset>
+        <fieldset><legend>קרן השתלמות כעצמאית</legend><label class="choice"><input type="radio" name="pv2" id="pv2a"> יש — הפקדתי לראשונה בשנת:</label><input type="text" id="pv2y" inputmode="numeric" placeholder="למשל 2021" aria-label="שנת ההפקדה הראשונה"><label class="choice"><input type="radio" name="pv2" id="pv2b"> אין לי</label></fieldset>
+        <div class="panel pad small">אישור שנתי מקרן הפנסיה · <span class="muted">אפשר להעלות אחרי 31.12</span></div>
+        <button class="btn primary" type="button" disabled>שליחה למשרד (בהדגמה)</button></div>`,
+    });
+  }
+  function importDrawer() {
+    let step = 1, kind = null;
+    const months = C.pnlMonths;
+    const ui = () => {
+      const steps = ['קובץ', 'זיהוי', 'בדיקה', 'אישור'].map((s, i) => `<span class="${i + 1 < step ? 'done' : i + 1 === step ? 'on' : ''}">${i + 1}. ${s}</span>`).join('');
+      let b = `<div class="steps" aria-label="שלבי הייבוא">${steps}</div>`;
+      if (step === 1) b += `<p class="small">מעלים רו״ה מפייפרלס כפי שהופק. הקובץ נשמר כמו שהוא, והנתונים שנחלצו נבדקים לפני שהם נכנסים לשנת המס.</p><label class="f" for="up">קובץ PDF<input id="up" type="file" accept="application/pdf"></label><button class="btn" data-sample>השתמש בקובץ לדוגמה</button><div id="upMsg" aria-live="polite"></div>`;
+      if (step === 2) b += `<div class="list small"><div class="fact"><span class="k">עסק בכותרת</span><span class="v">${C.business.name}</span><span class="src"><span class="chip ok">תואם לכרטיס</span></span></div><div class="fact"><span class="k">תקופה בכותרת</span><span class="v">01/26 – 12/26</span><span class="src">כותרות לכל השנה</span></div><div class="fact"><span class="k">חודשים עם נתונים</span><span class="v">01–08</span><span class="src">09–12 ריקים</span></div><div class="fact"><span class="k">בסיס</span><span class="v">לפני תיאומי מס</span><span class="src">אושר ע״י המשרד 10.10.2026</span></div></div>`;
+      if (step === 3) b += `<p class="small">עמודה ריקה אינה אפס. בחרו עד איזה חודש הספרים סגורים — מה שאחריו יסומן «פתוח».</p><label class="f" for="cut">הספרים סגורים עד<select id="cut">${months.map(m => `<option value="${m.m}" ${m.m === '08' ? 'selected' : ''}>${m.m}/2026</option>`).join('')}</select></label><div class="tbl-wrap"><table class="t"><thead><tr><th>חודש</th><th class="n">הכנסות</th><th class="n">הוצאות</th><th>מצב</th></tr></thead><tbody id="mrows"></tbody></table></div>`;
+      if (step === 4) b += `<div class="note ok">ייובאו 8 חודשים בפועל (01–08). 4 חודשים פתוחים. קובץ המקור נשמר במסמכים › 2026.</div><div class="note warn small">נמצאה סתירה אחת מול 134 בתקופה 05–06. היא תוצג ביישוב — הייבוא לא מכריע אותה.</div>`;
+      return b;
+    };
+    const dr = P.drawer({ eyebrow: 'ייבוא ראיה', title: 'רו״ה מפייפרלס · 2026', body: ui(), foot: `<button class="btn" data-back>חזרה</button><button class="btn primary" data-next disabled>המשך</button>`,
+      onOpen: (d, close) => {
+        const body = d.querySelector('.drawer-body'), next = d.querySelector('[data-next]'), back = d.querySelector('[data-back]');
+        const paint = () => {
+          body.innerHTML = ui(); next.disabled = step === 1 && !kind; next.textContent = step === 4 ? 'ייבא לשנת המס' : 'המשך'; back.hidden = step === 1;
+          const s = body.querySelector('[data-sample]'); if (s) s.onclick = () => { kind = 'sample'; body.querySelector('#upMsg').innerHTML = '<div class="note ok small">נטען קובץ לדוגמה (נתוני דמה).</div>'; next.disabled = false; };
+          const up = body.querySelector('#up'); if (up) up.onchange = () => { kind = 'file'; body.querySelector('#upMsg').innerHTML = `<div class="note small">באב־הטיפוס הקובץ לא נקרא. בגרסת הייצור: חילוץ טבלה + בדיקת זהות. ממשיכים עם נתוני דמה.</div>`; next.disabled = false; };
+          const cut = body.querySelector('#cut');
+          if (cut) { const rows = () => { body.querySelector('#mrows').innerHTML = months.map(m => `<tr><td>${m.m}/2026</td><td class="n">${m.inc == null ? '<span class="blank">ריק</span>' : fmt(m.inc)}</td><td class="n">${m.exp == null ? '<span class="blank">ריק</span>' : fmt(m.exp)}</td><td>${+m.m <= +cut.value ? (m.inc == null ? '<span class="chip err">סגור אך ריק — לבדוק</span>' : '<span class="chip ok">בפועל</span>') : '<span class="chip">פתוח</span>'}</td></tr>`).join(''); }; cut.onchange = rows; rows(); }
+        };
+        next.onclick = () => { if (step < 4) { step++; paint(); } else { S.imported = true; close(); P.toast('יובא · 8 חודשים בפועל, 4 פתוחים'); render(); } };
+        back.onclick = () => { step = Math.max(1, step - 1); paint(); };
+        paint();
+      } });
+    return dr;
+  }
+
+  render();
+})();
+</script>
+</body>
+</html>

@@ -77,6 +77,13 @@ export interface ResidentialProperty {
   rooms?: number;                // מספר חדרים
   purchaseYear?: number;
   purchasePrice?: number;        // מחיר רכישה (₪)
+  /** 13.10.2026 · תחולה בזמן (features/taxYear/temporal.ts): תאריך רכישה עם דיוק; purchaseYear נשאר לתאימות. */
+  purchaseDate?: string;
+  purchasePrecision?: 'day' | 'month' | 'year' | 'approx' | 'unknown';
+  /** נמכר — תאריך עם דיוק. נכס שנמכר במהלך שנת מס עדיין שייך לדוח של אותה שנה. */
+  soldDate?: string;
+  soldPrecision?: 'day' | 'month' | 'year' | 'approx' | 'unknown';
+  isSold?: boolean;
   isRented?: boolean;            // האם מושכר
   monthlyRent?: number;          // שכ״ד חודשי (₪)
   rentalTaxTrack?: RentalTaxTrack;
@@ -119,6 +126,10 @@ export interface InvestmentAccount {
   accountNumber?: string;       // 4-6 ספרות אחרונות לרוב מספיק
   isClosed?: boolean;
   closedYear?: number;
+  /** 13.10.2026 · תחולה בזמן: מתי נפתח (ומתי נסגר) — עם דיוק. בלי תאריך ⇒ «לא ידוע», לא «מתמיד». */
+  openedDate?: string;
+  openedPrecision?: 'day' | 'month' | 'year' | 'approx' | 'unknown';
+  closedDate?: string;
   notes?: string;
 
   // ── סכומי 867 (Wave ג') ──
@@ -1755,6 +1766,18 @@ export interface TaxCalcInput {
   dividendInterest?: number;
   /** מס ששולם בחו״ל — לזיכוי מס זר (עד גובה המס הישראלי על אותה הכנסה) */
   foreignTaxPaid?: number;
+  /** ניכוי ב״ל לעצמאי (סעיף 47א) כשהמתקשר חישב את דמי הביטוח בנוסחת ב״ל (בסיס אחרי הניכוי עצמו).
+   *  בלעדיו — 52% מדמי הביטוח על ההכנסה ברוטו, שמעריך ביתר את הניכוי. */
+  niDeductionSEOverride?: number;
+  /** פנסיה לעצמאי שכבר חושבה ב-selfEmployedPension (הערכה/דוח): הניכוי והבסיס לזיכוי (כולל הזיכוי הנוסף), או למה לא חושבה.
+   *  בלעדיו המחשבון מחשב באותה פונקציה מהנתונים שיש לו. */
+  sePension?: { deduction: number; creditBase: number; extraCreditBase?: number; explain?: string[] } | { notComputed: string };
+  /** ההכנסה המבוטחת (244/245) והפקדות העובד/המעביד מטופס 106 — לתקרה ולבדיקת עמית מוטב. */
+  insuredSalary?: number;
+  employeeDeposits?: number;
+  employerDeposits?: number;
+  /** הגיל ב-1.1 של שנת המס (אחרת — מתאריך הלידה בכרטיס). */
+  ageOnJan1?: number;
 }
 
 export interface CreditPointLine {
@@ -2072,5 +2095,7 @@ export interface TaxCalcResult {
 
   // הסברים
   deductionBreakdown: string[];
+  /** חלקים בתוצאה שחושבו בלי כלל מאומת (למשל פנסיה לעצמאי ב-2024 או מגיל 50) — מוצג ליד התוצאה, לא רק בפירוט. */
+  unverified?: string[];
   rentalExplanation: string;
 }

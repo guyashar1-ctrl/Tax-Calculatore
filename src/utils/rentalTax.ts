@@ -97,12 +97,16 @@ export function compareRentalRoutes(input: RentalInput): RentalComparisonResult 
     exemptSteps.push(`חריגה מהתקרה: ${fmt(R)} − ${fmt(T)} = ${fmt(excess)} ₪`);
     exemptSteps.push(`תקרה מתואמת (הפטור בפועל): ${fmt(T)} − ${fmt(excess)} = ${fmt(adjustedExemption)} ₪`);
     exemptSteps.push(`חלק חייב: ${fmt(R)} − ${fmt(adjustedExemption)} = ${fmt(taxableMonthly)} ₪/חודש (${fmt(taxableMonthly * 12)} ₪/שנה)`);
-    // הוצאות ופחת — יחסית לחלק החייב בלבד
+    // הוצאות — יחסית לחלק החייב בלבד.
+    // ‼ פחת לפי תקנות 1989 (2%) אינו מותר במסלול הפטור המופחת — מדריך 2025, עמ׳ 52, דוגמה.
     const taxablePortion = taxableMonthly / R;
-    const proportionalExpenses = (input.annualExpenses + input.annualDepreciation) * taxablePortion;
+    const proportionalExpenses = input.annualExpenses * taxablePortion;
     exemptTaxable = Math.max(0, taxableMonthly * 12 - proportionalExpenses);
     if (proportionalExpenses > 0) {
-      exemptSteps.push(`הוצאות ופחת יחסיים (${Math.round(taxablePortion * 100)}% מהחלק החייב): −${fmt(proportionalExpenses)} ₪`);
+      exemptSteps.push(`הוצאות יחסיות (${Math.round(taxablePortion * 100)}% מהחלק החייב): −${fmt(proportionalExpenses)} ₪`);
+    }
+    if (input.annualDepreciation > 0) {
+      exemptSteps.push('פחת לפי תקנות 1989 לא נוכה — אינו מותר במסלול הפטור המופחת (מדריך 2025, עמ׳ 52).');
     }
     exemptTax = exemptTaxable * rate;
     exemptSteps.push(`מס: ${fmt(exemptTaxable)} × ${input.marginalRatePct}% = ${fmt(exemptTax)} ₪/שנה`);
@@ -226,10 +230,10 @@ export function compareRentalRoutes(input: RentalInput): RentalComparisonResult 
   const generalWarnings: string[] = [
     'ההשוואה היא כלי עזר להתלבטות - הבחירה הסופית דורשת שיקול דעת מקצועי מלא (מכירה צפויה, הכנסות אחרות, בני זוג).',
     'התקרה נבחנת על סך שכר הדירה של התא המשפחתי (בני זוג + ילדים עד 18) - אין תקרה כפולה לבני זוג.',
-    'כל המסלולים פטורים מדמי ביטוח לאומי (סעיף 350(א)(7)) - כל עוד ההשכרה אינה מגיעה כדי עסק.',
+    'דמי ביטוח לאומי על שכר דירה למגורים: הפטור לכל המסלולים לא אומת במקור רשמי (דוגמת ב״ל ל-2026 מחייבת «הכנסה חייבת משכירות») — לבדוק לפני ייעוץ.',
   ];
   if (input.propertyCount >= 10) {
-    generalWarnings.unshift('10 דירות ומעלה - חזקת עסק לפי הפסיקה (לשם/בירן): אין פטור ואין מסלול 10%, ההכנסה חייבת במס שולי מלא + ביטוח לאומי.');
+    generalWarnings.unshift('מספר דירות גבוה: אין בפסיקה מספר שקובע «עסק» — המבחן הוא מכלול הנסיבות (היקף, מחזוריות, ניהול, מימון). אם ההשכרה היא עסק — אין פטור ואין מסלול 10%, וחל ביטוח לאומי.');
   } else if (input.propertyCount >= 6) {
     generalWarnings.unshift('6–9 דירות - אזור אפור לפי הפסיקה: ייתכן סיווג כעסק. נדרשת בחינה פרטנית.');
   }

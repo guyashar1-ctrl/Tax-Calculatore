@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>מסלול מונחה ומעבדה</title>
+<link rel="icon" href="data:,">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600;700;800&display=swap">
+<link rel="stylesheet" href="shared.css">
+<style>
+/* חלופה ג׳ · כל עבודה היא מסלול צעדים קבוע; ההחלטה הבאה תמיד במרכז.
+   הלמידה היא מעבדה: משנים נתונים ורואים איזה כלל נדלק. */
+.runner { display: grid; grid-template-columns: 230px minmax(0, 1fr); gap: 20px; align-items: start; }
+@media (max-width: 860px) { .runner { grid-template-columns: minmax(0, 1fr); } }
+.rail { display: flex; flex-direction: column; gap: 2px; position: sticky; top: 70px; }
+@media (max-width: 860px) { .rail { position: static; flex-direction: row; overflow-x: auto; gap: 6px; padding-bottom: 4px; } }
+.rail button { text-align: start; border: 0; background: none; font: inherit; color: var(--tx2); padding: 9px 10px; border-radius: 8px; cursor: pointer; display: flex; gap: 8px; align-items: center; min-height: 40px; white-space: nowrap; }
+.rail button[aria-current="step"] { background: var(--soft); color: var(--br); font-weight: 600; }
+.rail .n { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-size: 12px; background: var(--s2); flex: none; }
+.rail .done .n { background: var(--ok-bg); color: var(--ok); }
+.stage { display: flex; flex-direction: column; gap: 14px; max-width: 760px; }
+.decision { border: 1px solid var(--soft-bd); border-radius: var(--r-lg); padding: 18px; background: var(--card); display: flex; flex-direction: column; gap: 12px; }
+.decision h2 { font-size: 22px; }
+.nav-steps { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.queue-item { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; padding: 12px 0; align-items: center; }
+.lab { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px; align-items: start; }
+@media (max-width: 860px) { .lab { grid-template-columns: minmax(0, 1fr); } }
+.bucket { border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 4px; border: 1px solid var(--bd); }
+.bucket .big { font-size: var(--fs-20); font-weight: 700; font-variant-numeric: tabular-nums; }
+.bucket.ded { background: var(--soft); border-color: var(--soft-bd); }
+.bucket.ex { background: var(--ok-bg); border-color: transparent; }
+.bucket.none { background: var(--s2); }
+.tree { display: flex; flex-direction: column; gap: 8px; }
+.tq { border: 1px solid var(--bd); border-radius: 10px; padding: 12px; background: var(--card); }
+.tq .opts { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.tq.answered { opacity: .75; }
+.lit { font-size: var(--fs-13); padding: 8px 10px; border-radius: 8px; background: var(--s2); color: var(--txc); }
+.lit.on { background: var(--info-bg); color: var(--info); font-weight: 600; }
+</style>
+</head>
+<body>
+<div id="bar"></div>
+<header class="topbar"><div class="topbar-in"><span class="brand">PIVO</span>
+<nav class="nav" aria-label="ניווט ראשי"><button type="button" data-go="queue">מה עכשיו</button><button type="button" data-go="run">מסלול</button><button type="button" data-go="lab">מעבדה</button></nav></div></header>
+<main class="wrap" id="app" tabindex="-1"></main>
+<script src="data.js"></script>
+<script>
+(function () {
+  'use strict';
+  const P = window.PIVO, C = P.CASE, nis = P.nis, fmt = P.fmt;
+  document.getElementById('bar').innerHTML = P.protoBar('חלופה ג׳ · מסלול מונחה ומעבדה');
+  P.bindTheme();
+  const app = document.getElementById('app');
+  const STEPS = ['מה כבר ידוע', 'מה חסר ואצל מי', 'ראיות ויישור', 'תחזית ותיאומים', 'פנסיה וקרן השתלמות', 'סיכום והמלצה', 'אישור ומעקב'];
+  const S = { view: 'queue', step: 0, done: new Set(), conflict: null, importState: 'idle', forecast: 16000, tree: {}, lab: { salary: 72000, biz: 195000, se: 8000, sf: 0, age50: false } };
+  const go = (v, x) => { Object.assign(S, { view: v }, x || {}); render(); window.scrollTo({ top: 0 }); app.focus({ preventScroll: true }); };
+  document.querySelectorAll('[data-go]').forEach(b => b.addEventListener('click', () => go(b.dataset.go)));
+
+  function vQueue() {
+    const items = [
+      { who: 'נועה ברק', what: 'הערכת מס 2026', step: 'צעד 3 מתוך 7 · ראיות ויישור', why: 'סתירה במחזור 05–06', act: 'להמשיך', go: true, tone: 'warn' },
+      { who: 'דניאל אבן', what: 'הערכת מס 2026', step: 'צעד 3 · ראיות', why: 'קריאת 134 נכשלה — לא ידוע, לא «אין»', act: 'לנסות שוב', tone: 'err' },
+      { who: 'משפחת כהן־לוי', what: 'דוח שנתי 2025', step: 'צעד 5 מתוך 6 · בקרות', why: 'כל המסמכים התקבלו', act: 'להמשיך', tone: 'ok' },
+      { who: 'רונית שמש', what: 'הצהרת הון ראשונה', step: 'צעד 2 · רשימת נכסים', why: 'ממתין ללקוחה · מועד 03.12.2026', act: 'לצפות', tone: '' },
+    ];
+    return `<div class="stack"><div><div class="eyebrow">המשרד</div><h1>מה עכשיו</h1><p class="muted" style="margin-top:6px;max-width:70ch">כל תהליך מס הוא מסלול של צעדים קבועים. הרשימה מראה איפה כל מסלול עומד ומה עוצר אותו. כל מסלול הוא גם שורה ב«בקשות» של הלקוח.</p></div>
+      <section class="panel pad"><div class="list">${items.map(i => `<div class="queue-item"><div class="grow"><div class="row"><strong>${i.who}</strong><span class="muted small">· ${i.what}</span></div><div class="small">${i.step}</div>${i.tone ? `<span class="chip ${i.tone}" style="margin-top:4px">${i.why}</span>` : `<div class="xs muted">${i.why}</div>`}</div><button class="btn sm ${i.go ? 'primary' : ''}" ${i.go ? 'data-run' : 'data-stub'}>${i.act}</button></div>`).join('')}</div></section>
+      <section class="panel pad stack"><h2>להתחיל מסלול חדש</h2><div class="row"><button class="btn" data-stub>הערכת מס</button><button class="btn" data-stub>דוח שנתי</button><button class="btn" data-stub>הצהרת הון ראשונה</button></div><p class="xs muted">הכנת הצהרת הון אפשר להתחיל בכל עת. «יש דרישה» ומועד הגשה מוצגים רק כשמכתב הדרישה צורף ואושר.</p></section></div>`;
+  }
+
+  function stepBody(i) {
+    if (i === 0) return `<div class="decision"><div class="eyebrow">צעד 1 · לפני שאלות</div><h2>מה כבר ידוע על נועה ל-2026</h2><div class="list">${C.known.map(f => `<div class="fact"><span class="k">${f.k}</span><span class="v">${f.v}</span><span class="src">${f.src}</span></div>`).join('')}</div><p class="small muted">ההחלטה בצעד הזה: האם הנתונים נכונים מספיק כדי לשאול רק מה שחסר?</p><div class="row"><button class="btn primary" data-ok>נכון, להמשיך</button><button class="btn" data-stub>לתקן נתון</button></div></div>`;
+    if (i === 1) return `<div class="decision"><div class="eyebrow">צעד 2</div><h2>מה חסר ואצל מי</h2><div class="list">${C.missing.map(m => `<div class="fact"><span class="k">${m.k}</span><span class="v">${m.ask === 'client' ? 'לנועה' : 'למשרד'}</span><span class="src">${m.why}</span></div>`).join('')}</div><div class="note info small">3 פריטים יתווספו לבקשה «השלמת מידע» בדף האישי. 2 נשארים כהחלטות משרד בצעד 4.</div><div class="row"><button class="btn primary" data-ok>הוסף לבקשה והמשך</button></div></div>`;
+    if (i === 2) {
+      const imp = S.importState;
+      return `<div class="decision"><div class="eyebrow">צעד 3</div><h2>ראיות: ספרים, מקדמות, מע״מ</h2>
+        ${imp === 'idle' ? `<p class="small">הספרים 01–08 סגורים. מעלים רו״ה מפייפרלס כדי להשוות לתקופות ב-134 וב-ESNA.</p><div class="row"><button class="btn primary" data-imp>ייבא רו״ה לדוגמה</button><button class="btn" data-imp-bad>הדגם קובץ שלא נקרא</button></div>` : ''}
+        ${imp === 'loading' ? '<div class="stack" aria-busy="true"><div class="skel" style="width:60%"></div><div class="skel" style="width:85%"></div><div class="skel" style="width:40%"></div><span class="xs muted">קורא את הקובץ…</span></div>' : ''}
+        ${imp === 'bad' ? '<div class="note err" role="alert"><strong>לא הצלחנו לקרוא טבלה מהקובץ.</strong> הקובץ נשמר במסמכים. אפשר להעלות שוב ייצוא אחר, או להזין את סיכומי החודשים ידנית.</div><div class="row"><button class="btn" data-imp>להעלות שוב</button></div>' : ''}
+        ${imp === 'done' ? `<div class="tbl-wrap"><table class="t"><thead><tr><th>תקופה</th><th class="n">פייפרלס</th><th class="n">134</th><th class="n">ESNA</th><th>מצב</th></tr></thead><tbody>${C.periods.map(p => `<tr><td>${p.p}</td><td class="n">${p.pnl == null ? '<span class="blank">פתוח</span>' : fmt(p.pnl)}</td><td class="n">${p.it.st === 'notDue' ? '<span class="blank">טרם הגיע המועד</span>' : fmt(p.it.turnover)}</td><td class="n">${p.vat.st === 'notDue' ? '<span class="blank">טרם הגיע המועד</span>' : fmt(p.vat.turnover)}</td><td>${p.p === '05–06' ? (S.conflict ? '<span class="chip ok">הוכרע</span>' : '<span class="chip warn">לא תואם</span>') : p.pnl == null ? '<span class="chip">תחזית</span>' : '<span class="chip ok">תואם</span>'}</td></tr>`).join('')}</tbody></table></div>
+          ${S.conflict ? `<div class="note ok">05–06: ${S.conflict}</div><div class="row"><button class="btn primary" data-ok>המשך</button></div>` : `<fieldset><legend>05–06: איזה מקור נכון?</legend><label class="choice"><input type="radio" name="cf" id="cf1" value="הספרים וה-ESNA נכונים; דיווח המקדמה לבדיקה"> הספרים ו-ESNA (44,800). דיווח המקדמה דורש בדיקה</label><label class="choice"><input type="radio" name="cf" id="cf2" value="134 נכון; לבדוק רישום הכנסות"> 134 (47,300). לבדוק את הספרים</label></fieldset><div class="row"><button class="btn primary" data-cf>אשר הכרעה</button></div>`}` : ''}</div>`;
+    }
+    if (i === 3) return `<div class="decision"><div class="eyebrow">צעד 4 · הנחות משרד</div><h2>תחזית לספטמבר–דצמבר</h2><p class="small">הספרים סגורים עד 31.08. התחזית נרשמת כהנחה, עם מי קבע ומתי, ולא מתערבבת בנתונים בפועל.</p><label class="f" for="fc">רווח חודשי משוער: <output id="fcO" class="tnum">${nis(S.forecast)}</output><input id="fc" type="range" min="8000" max="26000" step="500" value="${S.forecast}"></label><div class="illus small" id="fcSum"></div><fieldset><legend>תיאומי מס (מעבר לספרים)</legend><label class="choice"><input type="checkbox" id="adj1" checked> רכב: חלק שאינו מותר · 6,200 ₪</label><label class="choice"><input type="checkbox" id="adj2" checked> פחת (1343) · −3,400 ₪</label></fieldset><div class="row"><button class="btn primary" data-ok>שמור הנחות והמשך</button></div></div>`;
+    if (i === 4) { const r = P.studyFundDeduction({ businessIncome: 127150 + 4 * S.forecast + 2800, employerSalary: 72000, deposit: 0 }); return `<div class="decision"><div class="eyebrow">צעד 5</div><h2>פנסיה וקרן השתלמות</h2><div class="two-col" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px"><div class="bucket ded"><span class="eyebrow">קרן השתלמות · מרחב ניכוי</span><span class="big">${nis(r.max)}</span><span class="small">התקרה פחות המשכורת הקובעת (72,000)</span></div><div class="bucket none"><span class="eyebrow">פנסיה · עמית מוטב?</span><span class="big">17,000 / 26,436</span><span class="small">לא, נכון לעכשיו. ${P.basisHtml('secondary')}</span></div></div><div class="note warn small">אי אפשר להמליץ לפני תשובות נועה על אובדן כושר עבודה וקרן קיימת.</div><div class="row"><button class="btn" data-lab>להבין במעבדה</button><button class="btn primary" data-ok>המשך</button></div></div>`; }
+    if (i === 5) return `<div class="decision"><div class="eyebrow">צעד 6</div><h2>סיכום והמלצה</h2><span class="illus-tag">טיוטה להמחשה</span><ul class="small" style="margin:0;padding-inline-start:18px"><li>הכנסה חייבת מהעסק משוערת: ${nis(127150 + 4 * S.forecast + 2800)}</li><li>מקדמות ששולמו עד אוגוסט: ${nis(11963)}</li><li>לשקול: הפקדה לקרן השתלמות כעצמאית עד מרחב הניכוי, עד 31.12</li><li>לא הומלץ שינוי מקדמות לפני הכרעת 05–06 ותשובות נועה</li></ul><div class="note small">ההמלצה ללקוח נוצרת כאן כטיוטה. שליחה ושינוי מקדמות ברשות הם פעולות נפרדות עם אישור.</div><div class="row"><button class="btn primary" data-ok>לאישור</button></div></div>`;
+    return `<div class="decision"><div class="eyebrow">צעד 7</div><h2>אישור ומעקב</h2><p class="small">האישור שומר תמונת מצב: הנתונים, ההנחות וגרסת הכללים. אם כלל יתעדכן אחר כך, התמונה לא משתנה — מופיע סימון «כלל השתנה מאז האישור».</p><div class="row"><button class="btn primary" data-fin>אשר תמונת מצב</button></div></div>`;
+  }
+  function vRun() {
+    return `<div class="stack"><div class="crumbs"><button data-q>מה עכשיו</button><span>›</span><span>${C.name}</span></div><div class="spread"><h1>הערכת מס 2026 · ${C.name}</h1><span class="chip">שורה ב«בקשות»</span></div>
+      <div class="runner"><nav class="rail" aria-label="צעדי המסלול">${STEPS.map((s, i) => `<button class="${S.done.has(i) ? 'done' : ''}" data-step="${i}" ${S.step === i ? 'aria-current="step"' : ''}><span class="n">${S.done.has(i) ? '✓' : i + 1}</span>${s}</button>`).join('')}</nav>
+      <div class="stage">${stepBody(S.step)}<div class="nav-steps"><button class="btn ghost" data-prev ${S.step === 0 ? 'disabled' : ''}>הקודם</button><button class="btn ghost" data-next ${S.step === STEPS.length - 1 ? 'disabled' : ''}>לדלג לצעד הבא</button></div></div></div></div>`;
+  }
+
+  function labCalc() {
+    const L = S.lab; const r = P.studyFundDeduction({ businessIncome: L.biz, employerSalary: L.salary, deposit: L.sf, year: 2025 });
+    const penForThreshold = L.salary * 0.125 + L.se; const thr = P.rule('pen.beneficial.threshold', 2025).value;
+    return { r, penForThreshold, thr, beneficial: penForThreshold >= thr };
+  }
+  function vLab() {
+    const L = S.lab, x = labCalc();
+    const tq = (id, q, opts) => `<div class="tq ${S.tree[id] ? 'answered' : ''}"><strong>${q}</strong><div class="opts">${opts.map(([v, l]) => `<button class="btn sm ${S.tree[id] === v ? 'primary' : ''}" data-tree="${id}:${v}" aria-pressed="${S.tree[id] === v}">${l}</button>`).join('')}</div></div>`;
+    let leaf = '';
+    if (S.tree.emp === 'no') leaf = 'עצמאי בלבד: סכום התקרה = ההכנסה מהעסק עד התקרה.';
+    else if (S.tree.emp === 'yes' && S.tree.sf === 'no') leaf = 'שכיר שהמעביד לא מפקיד לו לקרן: סעיף 52 = 0, והתקרה המלאה פתוחה לו כעצמאי.';
+    else if (S.tree.emp === 'yes' && S.tree.sf === 'yes') leaf = 'שכיר־עצמאי עם הפקדת מעביד: סכום התקרה = הנמוך מבין ההכנסה מהעסק לבין התקרה פחות המשכורת הקובעת.';
+    return `<div class="stack"><div><div class="eyebrow">מעבדת ידע</div><h1>קרן השתלמות ופנסיה כששכיר הוא גם עצמאי</h1><p class="muted" style="margin-top:6px;max-width:70ch">משנים נתונים ורואים איזה כלל נדלק. ערכי 2025 מהמדריך הרשמי, חוץ ממה שמסומן אחרת. זו המחשה של כללים, לא חישוב מס של לקוח.</p></div>
+      <div class="lab"><section class="panel pad stack"><h2>הנתונים</h2>
+        <label class="f" for="l-sal">משכורת שהמעביד מפקיד עליה (קרן ופנסיה): <output class="tnum" id="o-sal">${nis(L.salary)}</output><input id="l-sal" type="range" min="0" max="200000" step="6000" value="${L.salary}"></label>
+        <label class="f" for="l-biz">הכנסה חייבת מהעסק: <output class="tnum" id="o-biz">${nis(L.biz)}</output><input id="l-biz" type="range" min="40000" max="320000" step="5000" value="${L.biz}"></label>
+        <label class="f" for="l-se">הפקדות לפנסיה כעצמאי בשנה: <output class="tnum" id="o-se">${nis(L.se)}</output><input id="l-se" type="range" min="0" max="40000" step="500" value="${L.se}"></label>
+        <label class="f" for="l-sf">הפקדה לקרן השתלמות כעצמאי: <output class="tnum" id="o-sf">${nis(L.sf)}</output><input id="l-sf" type="range" min="0" max="30000" step="500" value="${L.sf}"></label></section>
+      <section class="stack" aria-live="polite" id="labRes">${labResults()}</section></div>
+      <section class="panel pad stack"><h2>עץ החלטה: מה סכום התקרה?</h2><div class="tree">${tq('emp', 'ללקוח יש גם משכורת השנה?', [['yes', 'כן'], ['no', 'לא']])}${S.tree.emp === 'yes' ? tq('sf', 'המעביד הפקיד עבורו לקרן השתלמות?', [['yes', 'כן'], ['no', 'לא']]) : ''}${leaf ? `<div class="note info">${leaf}</div><button class="btn sm ghost" data-reset style="align-self:flex-start">להתחיל מחדש</button>` : ''}</div></section>
+      <section class="panel pad stack"><h2>מקרים לתרגול</h2><div class="row"><button class="btn sm" data-case="1">עצמאית בלבד, 120,000</button><button class="btn sm" data-case="2">שכירה־עצמאית כמו נועה</button><button class="btn sm" data-case="3">משכורת גבוהה, 300,000 מהעסק</button></div></section>
+      <details class="more"><summary>מקורות</summary><div class="tbl-wrap" style="margin-bottom:12px"><table class="t"><thead><tr><th>כלל</th><th>שנה</th><th>ביסוס</th></tr></thead><tbody>${['sf.se.ceiling', 'sf.mixed.formula', 'sf.se.exemptDeposit', 'pen.beneficial.threshold', 'pen.trackA', 'pen.trackB'].map(i => { const r = P.rule(i, 2025); return `<tr><td>${r.label}</td><td>${r.year}</td><td>${P.basisHtml(r.basis)}</td></tr>`; }).join('')}</tbody></table></div></details></div>`;
+  }
+  function labResults() {
+    const L = S.lab, x = labCalc();
+    return `<div class="bucket ded"><span class="eyebrow">ניכוי קרן השתלמות</span><span class="big">${nis(Math.min(L.sf, x.r.max))} <span class="small muted">מתוך ${nis(x.r.max)} אפשרי</span></span><span class="small">סכום התקרה ${nis(x.r.cap)}</span></div>
+        <div class="bucket ex"><span class="eyebrow">הפקדה שנהנית מפטור רווחי הון בלבד</span><span class="big">${nis(Math.max(0, Math.min(L.sf, x.r.exempt) - Math.min(L.sf, x.r.max)))}</span><span class="small">עד 20,566 ₪ ${P.basisHtml('secondary')}</span></div>
+        ${L.sf > x.r.exempt ? `<div class="bucket none"><span class="eyebrow">מעל התקרה המוטבת</span><span class="big">${nis(L.sf - x.r.exempt)}</span><span class="small">בלי ניכוי ובלי פטור. פיצול לקרנות אחרות לא משנה את זה.</span></div>` : ''}
+        <div class="lit ${x.beneficial ? 'on' : ''}">פנסיה: ${nis(x.penForThreshold)} לקצבה מול רף ${nis(x.thr)} → ${x.beneficial ? 'עמית מוטב · מסלול ב׳' : 'לא עמית מוטב · מסלול א׳'}</div>
+        <p class="xs muted">הנחה בהמחשה: המעביד והעובד מפקידים יחד 12.5% לקצבה. האם רכיב הפיצויים נספר — לא הוכרע.</p>`;
+  }
+
+  function render() {
+    document.querySelectorAll('[data-go]').forEach(b => b.setAttribute('aria-current', b.dataset.go === S.view ? 'page' : 'false'));
+    app.innerHTML = S.view === 'queue' ? vQueue() : S.view === 'run' ? vRun() : vLab();
+    const $ = s => app.querySelector(s), $$ = s => app.querySelectorAll(s);
+    $$('[data-run]').forEach(b => b.onclick = () => go('run', { step: 2 }));
+    $$('[data-stub]').forEach(b => b.onclick = () => P.toast('באב־הטיפוס מפורט רק המסלול של נועה ברק'));
+    $$('[data-q]').forEach(b => b.onclick = () => go('queue'));
+    $$('[data-step]').forEach(b => b.onclick = () => { S.step = +b.dataset.step; render(); });
+    $$('[data-prev]').forEach(b => b.onclick = () => { S.step = Math.max(0, S.step - 1); render(); });
+    $$('[data-next]').forEach(b => b.onclick = () => { S.step = Math.min(STEPS.length - 1, S.step + 1); render(); });
+    $$('[data-ok]').forEach(b => b.onclick = () => { S.done.add(S.step); S.step = Math.min(STEPS.length - 1, S.step + 1); render(); });
+    $$('[data-fin]').forEach(b => b.onclick = () => { S.done.add(6); P.toast('נשמרה תמונת מצב · גרסה 1'); render(); });
+    $$('[data-lab]').forEach(b => b.onclick = () => go('lab'));
+    $$('[data-imp]').forEach(b => b.onclick = () => { S.importState = 'loading'; render(); setTimeout(() => { S.importState = 'done'; render(); }, 1100); });
+    $$('[data-imp-bad]').forEach(b => b.onclick = () => { S.importState = 'loading'; render(); setTimeout(() => { S.importState = 'bad'; render(); }, 900); });
+    $$('[data-cf]').forEach(b => b.onclick = () => { const v = app.querySelector('input[name="cf"]:checked'); if (!v) { P.toast('בחרו איזה מקור נכון'); return; } S.conflict = v.value; render(); });
+    const fc = $('#fc'); if (fc) { const u = () => { S.forecast = +fc.value; $('#fcO').textContent = nis(S.forecast); $('#fcSum').innerHTML = `<span class="illus-tag">להמחשה</span> בפועל 127,150 + תחזית ${fmt(4 * S.forecast)} + תיאומים 2,800 = <strong>${nis(127150 + 4 * S.forecast + 2800)}</strong>`; }; fc.oninput = u; u(); }
+    // ‼ מעדכנים רק את התוצאות — רינדור מלא היה מחליף את המחוון באמצע גרירה בטלפון
+    [['l-sal', 'salary'], ['l-biz', 'biz'], ['l-se', 'se'], ['l-sf', 'sf']].forEach(([id, k]) => { const el = $('#' + id); if (el) el.oninput = () => { S.lab[k] = +el.value; $('#o-' + id.slice(2)).textContent = nis(+el.value); $('#labRes').innerHTML = labResults(); }; });
+    $$('[data-tree]').forEach(b => b.onclick = () => { const [k, v] = b.dataset.tree.split(':'); S.tree[k] = v; if (k === 'emp') delete S.tree.sf; render(); });
+    $$('[data-reset]').forEach(b => b.onclick = () => { S.tree = {}; render(); });
+    $$('[data-case]').forEach(b => b.onclick = () => { const c = { 1: { salary: 0, biz: 120000, se: 8000, sf: 6000 }, 2: { salary: 72000, biz: 195000, se: 8000, sf: 9000 }, 3: { salary: 180000, biz: 300000, se: 20000, sf: 20566 } }[b.dataset.case]; Object.assign(S.lab, c); render(); });
+  }
+  render();
+})();
+</script>
+</body>
+</html>

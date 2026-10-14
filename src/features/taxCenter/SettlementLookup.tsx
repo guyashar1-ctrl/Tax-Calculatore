@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { getEligibleSettlements, EILAT_BENEFIT, EASTERN_CONFRONTATION_LINE } from '../../data/eligibleSettlements';
+import { getEligibleSettlements, settlementListStatus, SETTLEMENTS_2026_AMENDMENTS, EILAT_BENEFIT, EASTERN_CONFRONTATION_LINE } from '../../data/eligibleSettlements';
 import { calcSettlementCredit } from '../../utils/creditPoints';
 
 const fmt = (n: number) => '₪' + Math.round(n).toLocaleString('he-IL');
@@ -14,6 +14,7 @@ export default function SettlementLookup({ year }: Props) {
   const [rateFilter, setRateFilter] = useState<number | 'all'>('all');
 
   const list = useMemo(() => getEligibleSettlements(year), [year]);
+  const status = settlementListStatus(year);
   const rates = useMemo(() => Array.from(new Set(list.map(s => s.ratePercent))).sort((a, b) => b - a), [list]);
 
   const filtered = useMemo(() => {
@@ -38,7 +39,8 @@ export default function SettlementLookup({ year }: Props) {
         <strong>המנגנון (סעיף 11 לפקודה):</strong> תושב יישוב מוטב זכאי לזיכוי ממס בשיעור <strong>7%–20% מההכנסה החייבת מיגיעה אישית</strong>, עד תקרת הכנסה שנתית שנקבעת לכל יישוב.
         זה <u>אינו</u> "נקודות זיכוי" - הזיכוי מחושב מההכנסה ומופחת מהמס (ואינו מוחזר).
         נדרשים 12 חודשי מגורים רצופים, מרכז חיים ביישוב ואישור תושבות שנתי (טופס 1312א).
-        ברשימת {year}: <strong>{list.length} יישובים</strong> (ההודעה הרשמית בקובץ התקנות, ינואר {year}).
+        ברשימת {status.listYear}: <strong>{list.length} יישובים</strong> ({status.listYear === 2026 ? <>ההודעה בקובץ התקנות מינואר 2026, ועוד {SETTLEMENTS_2026_AMENDMENTS.length} שינויים ותוספות לפי לוח הניכויים של רשות המסים, מעודכן לאפריל 2026 — מסומנים בטבלה</> : <>ההודעה הרשמית בקובץ התקנות, ינואר {status.listYear}</>}).
+        {status.fallback && <div style={{ marginTop: 6, fontWeight: 600 }}>⚠ עדיין אין רשימה רשמית לשנת {year}. מוצגת רשימת {status.listYear} — לא לחשב לפיה לשנת {year}.</div>}
       </div>
 
       <div className="card">
@@ -76,7 +78,7 @@ export default function SettlementLookup({ year }: Props) {
               <tbody>
                 {filtered.slice(0, 200).map(s => (
                   <tr key={s.name} style={{ borderBottom: '1px solid var(--gray-100)' }}>
-                    <td style={{ padding: '.45rem .8rem', fontWeight: 600 }}>{s.name}</td>
+                    <td style={{ padding: '.45rem .8rem', fontWeight: 600 }}>{s.name}{s.amendment && <div style={{ fontSize: '12px', fontWeight: 400, color: 'var(--gray-500)' }}>עודכן: {s.amendment}</div>}</td>
                     <td style={{ padding: '.45rem .8rem', textAlign: 'center', fontSize: 'var(--fs-14)', fontWeight: 600, color: 'var(--ink-1)' }}>{s.ratePercent}%</td>
                     <td style={{ padding: '.45rem .8rem', textAlign: 'center' }}>{fmt(s.ceilingAnnual)}</td>
                     <td style={{ padding: '.45rem .8rem', textAlign: 'center', color: 'var(--gray-500)' }}>{fmt(s.ceilingAnnual * s.ratePercent / 100)}</td>
@@ -99,7 +101,7 @@ export default function SettlementLookup({ year }: Props) {
           {eclMatches.length > 0 && (
             <div style={{ marginTop: '.75rem', border: '1.5px solid var(--chip-green-bd)', background: 'var(--chip-green-bg)', borderRadius: 10, padding: '.8rem 1rem' }}>
               <div style={{ fontWeight: 600, fontSize: '14px', marginBottom: '.3rem' }}>
-                נמצא ברשימת "קו עימות מזרחי" (הוראת שעה 2026–2027)
+                נמצא ברשימת "קו עימות מזרחי" (הוראת שעה לשנים 2026 ו־2027)
               </div>
               <div style={{ display: 'flex', gap: '.4rem', flexWrap: 'wrap', marginBottom: '.4rem' }}>
                 {eclMatches.map(s => (
@@ -128,14 +130,14 @@ export default function SettlementLookup({ year }: Props) {
           <div style={{ fontSize: 'var(--fs-15)', fontWeight: 600 }}>מקרים מיוחדים שחשוב להכיר</div>
           <div>
             🌴 <strong>אילת אינה ברשימת סעיף 11</strong> - ההטבה שלה נקבעת בחוק אזור סחר חופשי באילת:
-            {' '}{EILAT_BENEFIT.ratePercent}% מההכנסה מיגיעה אישית שהופקה באזור אילת, עד {fmt(EILAT_BENEFIT.ceilingAnnual)} לשנה (בתוקף עד 2027).
+            {' '}{EILAT_BENEFIT.ratePercent}% מההכנסה מיגיעה אישית שהופקה באזור אילת או בחבל אילות, עד {fmt(EILAT_BENEFIT.ceilingAnnual)} לשנה.
           </div>
           <div>
             🏚 <strong>מפוני המלחמה:</strong> תושבי יישובים שפונו (בארי, כפר עזה, ניר עוז ועוד) שומרים על ההטבה גם ללא מגורים בפועל, לפי הנחיות רשות המסים - עם תאריכי תפוגה פרטניים (ניר עוז: עד 31.8.2027). נדרשת הצהרה למעסיק.
           </div>
           <div>
             🆕 <strong>"קו עימות מזרחי" (ס"ח 3531, יוני 2026):</strong> {EASTERN_CONFRONTATION_LINE.settlements.length} יישובי יו"ש בהוראת שעה - 7% עד {fmt(EASTERN_CONFRONTATION_LINE.ceilingAnnual)}, רטרואקטיבית מ-1.1.2026 ועד סוף 2027.
-            הרשימה המלאה כלולה בחיפוש למעלה (לפי הוראת ביצוע רשות המסים 2026-000832 מ-9.7.2026; אומת 07/2026). שימו לב: תושבות כל השנה + בחירה בין הטבות.
+            הרשימה המלאה כלולה בחיפוש למעלה (לפי הוראת רשות המסים 2026-000935 מ-2.8.2026 — ברקן הוסר; אומת 10.10.2026). שימו לב: תושבות כל השנה + בחירה בין הטבות.
           </div>
           <div style={{ fontSize: '12px', color: 'var(--gray-500)' }}>
             מקורות: הודעת מס הכנסה (רשימת יישובים מוטבים) לשנת {year}, קובץ התקנות · כל-זכות - זיכוי ממס לתושבי פריפריה · הנחיית רשות המסים למעסיקים 6.1.2026

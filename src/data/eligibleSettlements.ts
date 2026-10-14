@@ -1,21 +1,27 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // יישובים מוטבים — סעיף 11 לפקודת מס הכנסה
 // נוצר אוטומטית מההודעות הרשמיות בקובץ התקנות:
-//   • הודעת מס הכנסה (רשימת יישובים מוטבים לשנת 2025), ק"ת 11543, 14.1.2025
+//   • הודעת מס הכנסה (רשימת יישובים מוטבים לשנת 2025), ק"ת 11712, 14.1.2025
+//     (תוקן 10.10.2026 — המספר שהיה כאן, 11543, שגוי; הנתונים עצמם נבדקו שורה־שורה)
 //   • הודעת מס הכנסה (רשימת יישובים מוטבים לשנת 2026), ק"ת 12212, 14.1.2026
 // המנגנון: זיכוי ממס בשיעור ratePercent מההכנסה החייבת מיגיעה אישית,
 // עד תקרת הכנסה שנתית ceilingAnnual. הזיכוי אינו מוחזר (המס לא יורד מ-0).
 // הערה: אילת אינה ברשימה — הטבתה לפי חוק אזור סחר חופשי באילת (10% עד תקרה).
+// ‼ 2026: אחרי ההודעה של ינואר נוספו 5 יישובים ושונו שיעור או תקרה ב-16 (הוראות שעה
+// לשנים 2026 עד 2029, ותוספות ינואר). הרשימה של ינואר נשמרת כפי שפורסמה; השינויים
+// ב-SETTLEMENTS_2026_AMENDMENTS ומוחלים עליה ב-ELIGIBLE_SETTLEMENTS_2026_CURRENT.
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface EligibleSettlement {
   name: string;
-  /** ניקוד כולל כפי שנקבע בהודעה (לשקיפות בלבד) */
+  /** ניקוד כולל כפי שנקבע בהודעה (לשקיפות בלבד; 0 ליישוב שנוסף אחרי ההודעה) */
   score: number;
   /** שיעור הזיכוי מההכנסה החייבת מיגיעה אישית */
   ratePercent: number;
   /** תקרת ההכנסה השנתית שעליה ניתן הזיכוי */
   ceilingAnnual: number;
+  /** כשהשורה שונתה או נוספה אחרי ההודעה השנתית — מה ומאיזה מקור. */
+  amendment?: string;
 }
 
 export const ELIGIBLE_SETTLEMENTS_2025: EligibleSettlement[] = [
@@ -995,17 +1001,64 @@ export const ELIGIBLE_SETTLEMENTS_2026: EligibleSettlement[] = [
   { name: "תרבין א־ס'אנע (יישוב)", score: 67, ratePercent: 12, ceilingAnnual: 213240 },
 ];
 
+/** מקור השינויים ל-2026 — לוח העזר החודשי של רשות המסים, «מעודכן לאפריל 2026». */
+export const SETTLEMENTS_2026_AMENDMENTS_SOURCE = 'לוח עזר לחישוב מס הכנסה ממשכורת לחודש ינואר 2026 ואילך, מעודכן לאפריל 2026 (רשות המסים), עמ׳ 5 וטבלת היישובים בעמ׳ 20 עד 31; נקרא ב-gov.il ב-10.10.2026';
+
+export interface SettlementAmendment { name: string; ratePercent: number; ceilingAnnual: number; kind: 'added' | 'changed'; why: string }
+
+const TKUMA = 'חוק הטבות מס ליישובים (תיקוני חקיקה) (הוראת שעה), התשפ"ו-2026 — לשנים 2026 עד 2029';
+const MIXED = 'חוק עידוד יישוב עירוני מעורב (הוראת שעה), התשפ"ו-2026 — לשנים 2026 עד 2029; נדרשת תושבות כל שנת המס';
+const JAN = 'נוסף לרשימה במהלך ינואר 2026, אחרי ההודעה בקובץ התקנות';
+
+export const SETTLEMENTS_2026_AMENDMENTS: SettlementAmendment[] = [
+  ...['אורים', 'בית הגדי', 'גבולות', 'גבעולים', 'זרועה', 'מלילות', 'מסלול', 'מעגלים', 'פדויים', 'פטיש', 'רוחמה', 'שיבולים', 'שרשרת']
+    .map(name => ({ name, ratePercent: 14, ceilingAnnual: 180_000, kind: 'changed' as const, why: TKUMA })),
+  { name: 'יושיביה', ratePercent: 14, ceilingAnnual: 213_240, kind: 'changed', why: TKUMA },
+  { name: 'צאלים', ratePercent: 14, ceilingAnnual: 213_240, kind: 'changed', why: TKUMA },
+  { name: 'עכו', ratePercent: 12, ceilingAnnual: 226_560, kind: 'changed', why: MIXED },
+  { name: 'אשקלון', ratePercent: 7, ceilingAnnual: 146_640, kind: 'added', why: TKUMA },
+  { name: 'נוף הגליל', ratePercent: 12, ceilingAnnual: 226_560, kind: 'added', why: MIXED },
+  { name: 'קדם ערבה', ratePercent: 10, ceilingAnnual: 180_000, kind: 'added', why: JAN },
+  { name: 'יונדב', ratePercent: 7, ceilingAnnual: 146_640, kind: 'added', why: JAN },
+  { name: 'בתרון', ratePercent: 12, ceilingAnnual: 213_240, kind: 'added', why: JAN },
+];
+
+/** רשימת 2026 בתוקף: ההודעה של ינואר + השינויים. ‼ הרשימה המקורית לא נדרסת. */
+export const ELIGIBLE_SETTLEMENTS_2026_CURRENT: EligibleSettlement[] = (() => {
+  const byName = new Map(SETTLEMENTS_2026_AMENDMENTS.map(a => [a.name, a]));
+  const out = ELIGIBLE_SETTLEMENTS_2026.map(s => {
+    const a = byName.get(s.name);
+    return a && a.kind === 'changed'
+      ? { ...s, ratePercent: a.ratePercent, ceilingAnnual: a.ceilingAnnual, amendment: `בהודעת ינואר: ${s.ratePercent}% עד ${s.ceilingAnnual.toLocaleString('he-IL')} ₪ · ${a.why}` }
+      : s;
+  });
+  for (const a of SETTLEMENTS_2026_AMENDMENTS) {
+    if (a.kind === 'added') out.push({ name: a.name, score: 0, ratePercent: a.ratePercent, ceilingAnnual: a.ceilingAnnual, amendment: `נוסף אחרי הודעת ינואר · ${a.why}` });
+  }
+  return out.sort((x, y) => x.name.localeCompare(y.name, 'he'));
+})();
+
+/**
+ * איזו רשימה חלה על שנה. ‼ לשנה שאין לה עדיין הודעה (2027 ואילך) מוחזרת רשימת
+ * 2026 — מסומנת fallback, כדי שהמסך לא יציג אותה כאילו היא של השנה המבוקשת.
+ */
+export function settlementListStatus(year: number): { listYear: number; fallback: boolean } {
+  if (year <= 2025) return { listYear: 2025, fallback: year < 2025 };
+  return { listYear: 2026, fallback: year > 2026 };
+}
+
 export function getEligibleSettlements(year: number): EligibleSettlement[] {
-  return year >= 2026 ? ELIGIBLE_SETTLEMENTS_2026 : ELIGIBLE_SETTLEMENTS_2025;
+  return settlementListStatus(year).listYear === 2026 ? ELIGIBLE_SETTLEMENTS_2026_CURRENT : ELIGIBLE_SETTLEMENTS_2025;
 }
 
 // ─── אילת — חוק אזור סחר חופשי באילת (חוק נפרד, לא סעיף 11) ─────────────────
-// 10% מההכנסה מיגיעה אישית שהופקה באזור אילת, עד תקרה שנתית. בתוקף עד 2027.
+// 10% מההכנסה מיגיעה אישית שהופקה באזור אילת או בחבל אילות, עד תקרה שנתית
+// (לוח העזר 2026, עמ׳ 18). תוקף החוק — לא נבדק בסבב 10.10.2026.
 export const EILAT_BENEFIT = {
   name: 'אילת',
   ratePercent: 10,
   ceilingAnnual: 268_560,
-  legalBasis: 'חוק אזור סחר חופשי באילת (פטורים והנחות ממסים), התשמ"ה-1985',
+  legalBasis: 'חוק אזור סחר חופשי באילת (פטורים והנחות ממסים), התשמ"ה-1985 — הכנסה שהופקה באזור אילת או בחבל אילות',
 } as const;
 
 // ─── קו עימות מזרחי — הוראת שעה נפרדת (לא חלק מההודעה השנתית) ───────────────
@@ -1014,8 +1067,10 @@ export const EILAT_BENEFIT = {
 // רטרואקטיבית מ-1.1.2026 ועד 31.12.2027 (ניתן להארכה בצו).
 // תנאים שונים מהרשימה הרגילה: תושבות במשך *כל* שנת המס, ומי שזכאי גם לזיכוי
 // אחר לפי סעיף 11 — בוחר אחד מהם (אין כפל).
-// הרשימה: 64 יישובים, מתוך הוראת ביצוע רשות המסים 2026-000832 מ-9.7.2026 (PDF רשמי).
+// הרשימה: 63 יישובים — הוראת רשות המסים 2026-000935 (2.8.2026, «עדכון 28.07.2026»), אחרי 2026-000889
+// (21.7.2026): «היישוב ברקן לא מהווה יישוב מוטב». הרשימה הראשונה (2026-000832, 9.7.2026) כללה 64.
 // אומת 07/2026. לבדוק בכל רבעון: הארכה/עדכון רשימה.
+// ‼ 10.10.2026: אומת מול ההוראות הרשמיות ב-gov.il — ברקן הוסר מהרשימה.
 export const EASTERN_CONFRONTATION_LINE = {
   ratePercent: 7,
   ceilingAnnual: 146_640,
@@ -1028,7 +1083,7 @@ export const EASTERN_CONFRONTATION_LINE = {
   ],
   settlements: [
     'אבני חפץ', 'אחיה', 'איבי הנחל', 'איתמר', 'אלון מורה', 'בית אל', 'ברוכין',
-    'ברכה', 'ברקן', 'גבעות הרואה', 'גיתית', 'דולב', 'חמרה', 'חרמש', 'חרשה',
+    'ברכה', 'גבעות הרואה', 'גיתית', 'דולב', 'חמרה', 'חרמש', 'חרשה',
     'טלמון', 'ייט"ב', 'יצהר', 'יקיר', 'כוכב השחר', 'כוכב יעקב', 'כפר תפוח',
     'כרם רעים', 'כרמי צור', 'לשם', 'מבוא דותן', 'מבואות יריחו', 'מגדלים',
     'מגרון', 'מכורה', 'מעלה אפרים', 'מעלה לבונה', 'מעלה מכמש', 'מעלה עמוס',

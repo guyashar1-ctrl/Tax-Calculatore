@@ -387,6 +387,11 @@ export function computeTransparentTax(model: TaxpayerModel): TransparentTaxResul
     }
   }
   steps.push({ description: 'מס ברוטו לפי מדרגות', value: Math.round(grossTax) });
+  // מס יסף — מס נפרד על ההכנסה החייבת מעל הסף (לא מדרגה בטבלה; עד 10.10.2026 נכלל כמדרגת 50%).
+  const surtax = data && taxable > data.surtaxThreshold ? (taxable - data.surtaxThreshold) * 0.03 : 0;
+  if (surtax > 0) {
+    steps.push({ description: `מס יסף 3% מעל ${data!.surtaxThreshold.toLocaleString('he-IL')}`, value: Math.round(surtax) });
+  }
 
   let points = 2.25;
   if (model.identity.maritalStatus === 'married' && model.identity.spouseHasIncome === false) points += 1;
@@ -405,12 +410,13 @@ export function computeTransparentTax(model: TaxpayerModel): TransparentTaxResul
   const lifeInsuranceCredit = lifeIns * 0.25;
   steps.push({ description: 'זיכוי ביטוח חיים (25%)', value: Math.round(lifeInsuranceCredit) });
 
-  const netTax = Math.max(0, grossTax - creditFromPoints - donationCredit - lifeInsuranceCredit);
+  // ‼ מס יסף אינו מתקזז מנקודות זיכוי ומזיכויים — נוסף אחריהם.
+  const netTax = Math.max(0, grossTax - creditFromPoints - donationCredit - lifeInsuranceCredit) + surtax;
   steps.push({ description: 'מס נטו לתשלום (אומדן)', value: Math.round(netTax) });
 
   return {
     taxableIncomeEstimate: taxable,
-    grossTax: Math.round(grossTax),
+    grossTax: Math.round(grossTax + surtax),
     creditFromPoints: Math.round(creditFromPoints),
     donationCredit: Math.round(donationCredit),
     lifeInsuranceCredit: Math.round(lifeInsuranceCredit),

@@ -14,6 +14,7 @@ import { askFromRow } from '../../features/taxYear/api';
 import { wealthMinDue } from '../../features/taxYear/wealthDemand';
 import { SAMPLE_CLIENTS } from '../../data/sampleClients';
 import { enrichClientsWithWorkspace } from '../../data/sampleClientWorkspace';
+import { DEMO_ESTIMATE_DRAFT, DEMO_ESTIMATE_STEP_ID } from '../../features/taxEstimate/__demoEstimate';
 
 type Row = Record<string, unknown>;
 type Tables = Record<string, Row[]>;
@@ -93,6 +94,11 @@ function seedBase(t: Tables, firm: string) {
   // הלקוח ענה בדף האישי שהדירה בהרצל 12 כבר לא מושכרת — סותר את התיק (מושכר). ממתין לבדיקת המשרד
   t.tax_year_facts.push(factRow({ clientId: TY_CLIENT, taxYear: 2025, itemKey: 'rent.properties', subjectRole: 'couple', entityKind: 'property', entityRef: 'prop-d1', periodKind: 'year',
     periodFrom: '2025-01-01', periodTo: '2025-12-31', answer: 'value', value: { isRented: false, note: 'הפסקנו להשכיר בדצמבר' }, basis: 'declared', source: 'portal', status: 'pending', createdAt: '2026-02-15T08:00:00Z' }, firm));
+  // 13.10.2026 · הערכת מס 2026 לאורית (sample-4) — טיוטה מוכנה להדגמה: שכירה ועצמאית, בן זוג שכיר (taxEstimate/__demoEstimate)
+  t.onboarding_steps.push({ ...stepBase, id: DEMO_ESTIMATE_STEP_ID, client_id: 'sample-4', step_type: 'tax_estimate', status: 'in_progress', ball: 'me', track: 'internal',
+    payload: { taxYear: 2026, purpose: 'estimate', cutoffMonth: 9, title: 'הערכת מס 2026' }, published_at: '2026-10-12T08:00:00Z', created_at: '2026-10-12T08:00:00Z', updated_at: '2026-10-12T08:00:00Z' });
+  t.tax_estimates.push({ id: 'est-demo-orit-2026', user_id: firm, client_id: 'sample-4', request_id: DEMO_ESTIMATE_STEP_ID, tax_year: 2026, version: 1, status: 'draft', cutoff_month: 9,
+    draft: DEMO_ESTIMATE_DRAFT, outputs: null, input_facts: [], ruleset_version: null, approved_by: null, approved_at: null, revision: 1, created_at: '2026-10-12T08:00:00Z', updated_at: '2026-10-12T08:00:00Z' });
   // דוח שנתי 2025 לאורית (sample-4): נתונים סופיים מ-106 ומהספרים — נשאר למשרד להשלים הצהרות, פרטים, חשבון ונספח 1320
   const fin = (itemKey: string, subjectRole: YearFact['subjectRole'], value: unknown, extra: Partial<YearFact> = {}) => t.tax_year_facts.push(factRow({
     clientId: 'sample-4', taxYear: 2025, itemKey, subjectRole, periodKind: 'year', periodFrom: '2025-01-01', periodTo: '2025-12-31',

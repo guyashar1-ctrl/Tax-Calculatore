@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, lazy, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { formatRoute, parseHash, type View as AppRouteView } from './lib/appRoute';
 import { requestLeave } from './lib/leaveGuard';
 import { resolveListedEntity } from './lib/routeEntity';
@@ -99,7 +99,8 @@ import EmailPreviewDialog from './components/EmailActivity/EmailPreviewDialog';
 import TaxCalculator from './components/TaxCalculator';
 import DocumentManager from './components/DocumentManager';
 import { enrichClientsWithWorkspace } from './data/sampleClientWorkspace';
-import TaxCenter from './features/taxCenter/TaxCenter';
+// ‼ ידע המס נטען רק כשנכנסים אליו: הקטלוגים והשיעורים (כ-750KB) לא יושבים בחבילה שכל מסך טוען.
+const TaxCenter = lazy(() => import('./features/taxCenter/TaxCenter'));
 import { buildQuarterlyFreshnessTask, markFreshnessCreationAttempted, quarterlyTaskExists } from './data/freshnessTask';
 import RepresentationRequestForm from './components/RepresentationRequestForm';
 import RepresentationFillForm from './components/RepresentationFillForm';
@@ -767,6 +768,8 @@ export default function App() {
   const clientTabFromRoute = (t: string | undefined): ClientTabId | undefined =>
     t && t !== 'dossier' ? (t as ClientTabId) : undefined;
   // לשונית הפתיחה של כרטיס הלקוח — נקבעת רק כשהגיעו אליו בשביל דבר מסוים
+  /** נושא ידע שנפתח מתוך תיק המס של לקוח (ולקוח ההקשר, לחזרה). */
+  const [knowledgeJump, setKnowledgeJump] = useState<{ topicId: string; clientId: string } | null>(null);
   const [clientInitialTab, setClientInitialTab] = useState<ClientTabId | undefined>(
     clientTabFromRoute(initialRoute.clientTab)
   );
@@ -2643,12 +2646,16 @@ export default function App() {
         { id: 'tasks', label: 'משימות', badge: openTasksCount > 0 ? openTasksCount : undefined },
         // ‼ (07.10.2026, הדמיה מאושרת) לשונית משלו — לא בתוך «משימות», שעוד משתנה.
         { id: 'calendar', label: 'יומן' },
+        // ‼ (10.10.2026, הדמיה מאושרת — הכיוון המשולב) ידע המס עבר מתפריט האווטאר
+        // לסרגל: לומדים בו, ומגיעים אליו גם מתוך תיק המס של לקוח.
+        { id: 'reference', label: 'ידע מס' },
       ]
     : [
         { id: 'tasks', label: 'משימות', badge: openTasksCount > 0 ? openTasksCount : undefined },
         { id: 'list', label: 'לקוחות' },
         { id: 'quotations', label: 'הצעות ולידים' },
         { id: 'calendar', label: 'יומן' },
+        { id: 'reference', label: 'ידע מס' },
       ];
 
   return (
@@ -2680,6 +2687,7 @@ export default function App() {
                 // המהירה שנשארה פתוחה מביקור קודם (אחרת "לקוחות" היה מציג
                 // מגירה ישנה במקום את הרשימה).
                 setQuickViewId(null);
+                setKnowledgeJump(null);
               }}
               className={`nav-tab ${view === t.id ? 'active' : ''}`}
               aria-current={view === t.id ? 'page' : undefined}
@@ -2797,8 +2805,8 @@ export default function App() {
                   <Icon name="map" size={14} />
                   <span>מפת הדרך</span>
                 </button>
-                {/* כלי המערכת — המשרד וידע מס. שניהם שלי ולא של לקוח מסוים,
-                    ולכן הם לא תופסים מקום בסרגל שבו העבודה היומיומית חיה. */}
+                {/* כלי המערכת — המשרד. ‼ ידע מס עבר לסרגל ב-10.10.2026 (הכיוון המשולב):
+                    לומדים בו ומגיעים אליו מתיק המס, ולכן הוא חי ליד העבודה היומיומית. */}
                 <button
                   type="button"
                   className={`account-menu-item ${view === 'firmProfile' && officePage !== 'activity' && officePage !== 'connections' ? 'is-active' : ''}`}
@@ -2849,21 +2857,6 @@ export default function App() {
                 >
                   <Icon name="check" size={14} />
                   <span>עבודת מס</span>
-                </button>
-                <button
-                  type="button"
-                  className={`account-menu-item ${view === 'reference' ? 'is-active' : ''}`}
-                  aria-current={view === 'reference' ? 'page' : undefined}
-                  onClick={() => {
-                    setAccountMenuOpen(false);
-                    setView('reference');
-                    setSelectedId(null);
-                    setSelectedRequestId(null);
-                    setEditingQuotationId(null);
-                  }}
-                >
-                  <Icon name="book" size={14} />
-                  <span>ידע מס</span>
                 </button>
                 {/* ‼ «חיבורים» — מצב מחשב העבודה, שע״ם וביטוח לאומי, ומה עושים כשמשהו
                     לא זמין. כאן ישב «חיבור מחשב עבודה» שפתח ישר קוד צימוד למחשב
@@ -3094,6 +3087,7 @@ export default function App() {
               setAnnualRoute({ clientId, taxYear });
               setView('annualReport');
             }}
+            onOpenKnowledge={(topicId, clientId) => { setKnowledgeJump({ topicId, clientId }); setView('reference'); }}
             initialTab={clientInitialTab}
             /* ‼ אין מזהה בכתובת ⇒ באמת יוצרים לקוח חדש. יש מזהה אבל הכרטיס
                עוד לא הגיע מהמסד ⇒ לקוח קיים שנטען, ואסור להתייחס אליו כחדש:
@@ -3179,11 +3173,17 @@ export default function App() {
         )}
 
         {view === 'reference' && (
+          <Suspense fallback={<div className="card" role="status" style={{ padding: '1rem' }}>טוען את ידע המס…</div>}>
           <TaxCenter
             onBack={() => setView('list')}
             freshnessTaskExists={quarterlyTaskExists(tasks)}
             onCreateFreshnessTask={() => { if (!quarterlyTaskExists(tasks)) void addTask(buildQuarterlyFreshnessTask()); }}
+            clients={clients}
+            initialTopic={knowledgeJump?.topicId ?? null}
+            contextClientId={knowledgeJump?.clientId ?? null}
+            onOpenClient={id => { setKnowledgeJump(null); setSelectedId(id); setClientInitialTab('taxfile'); setView('form'); }}
           />
+          </Suspense>
         )}
 
         {view === 'annualReport' && (
@@ -3388,6 +3388,7 @@ export default function App() {
               setSelectedRequestId(null);
               setEditingQuotationId(null);
               setQuickViewId(null);
+              setKnowledgeJump(null);
             }}
           >
             <span className="mobile-nav-label">{t.label}</span>

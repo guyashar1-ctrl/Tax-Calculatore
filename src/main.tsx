@@ -1,3 +1,5 @@
+// ‼ ראשון: בגרסת הניסיון הוא קובע את הכתובת ואת חסימת הרשת לפני שאר המודולים (trialBuild.ts).
+import './lib/trialBuild'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
@@ -14,7 +16,7 @@ import NewVersionBanner from './components/NewVersionBanner'
  * dev בלבד; בפרודקשן הערך נשאר 'build' ואינו מסגיר דבר.
  */
 (window as unknown as Record<string, unknown>).__SRC_STAMP__ = 'build';
-if (import.meta.env.DEV) {
+if (import.meta.env.DEV && import.meta.env.VITE_TRIAL !== 'true') {
   void fetch('/__src_stamp', { cache: 'no-store' })
     .then(r => r.text())
     .then(s => { (window as unknown as Record<string, unknown>).__SRC_STAMP__ = s.trim(); })

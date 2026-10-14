@@ -76,7 +76,7 @@ export const BUSINESS_TYPES: BusinessTypeEntry[] = [
   { label: 'דיאטן / תזונאי', keywords: ['תזונה'], addendumId: 'k', reasoning: 'אינו מנוי בו\' או ה\' - ברירת המחדל יא\'.', caveat: 'הרשימות סגורות; אין להרחיבן לדיאטנים.', confidence: 'medium' },
 
   // ── מסחר (ב'/ג') ──
-  { label: 'בית מרקחת', keywords: ['רוקח', 'פארם'], addendumId: 'c', reasoning: 'קמעונאי; מנוי במפורש בדרישות מוגברות (ספר תקבולים כבר ממחזור נמוך).', caveat: null, confidence: 'high' },
+  { label: 'בית מרקחת', keywords: ['רוקח', 'פארם'], addendumId: 'c', reasoning: 'קמעונאי; לפי תוספת ג׳ 2(ב) בתי מרקחת (כמו תכשיטים, קוסמטיקה ואופטיקה) נכנסים לדרגה 2(ב) גם במחזור נמוך — עד 3.8 מיליון ₪ ופחות מ-7 מועסקים: ספר תקבולים, ספר קבלת טובין וספרים נוספים.', caveat: null, confidence: 'high' },
   { label: 'חנות בגדים', keywords: ['בוטיק', 'אופנה', 'הלבשה'], addendumId: 'c', reasoning: 'מכירת טובין לצרכן - קמעונאי עם סרט קופה.', caveat: 'מעצבת שתופרת ומוכרת מתוצרתה - יצרן (א\').', confidence: 'high' },
   { label: 'מכולת / מינימרקט', keywords: ['צרכניה'], addendumId: 'c', reasoning: 'קמעונאי; ייתכן מסלול "עוסק יחיד" מקוצר.', caveat: null, confidence: 'high' },
   { label: 'סופרמרקט', keywords: ['רשת מזון'], addendumId: 'c', reasoning: 'קמעונאי.', caveat: null, confidence: 'high' },

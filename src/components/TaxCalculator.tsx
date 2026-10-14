@@ -365,6 +365,13 @@ export default function TaxCalculator({ client, onBack }: Props) {
                 </div>
               </div>
 
+              {/* ‼ חלק מהתוצאה לא מאומת — ליד הסכומים, לא רק בפירוט שנפתח בלחיצה. */}
+              {(result.unverified?.length ?? 0) > 0 && (
+                <div className="alert alert-warning" role="status">
+                  <strong>התוצאה אינה מאומתת במלואה.</strong>{' '}{result.unverified!.join(' · ')}
+                </div>
+              )}
+
               {/* Insights */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '.75rem' }}>
                 <div className="stat-card blue" style={{ background: 'var(--blue-light)', borderColor: 'var(--blue-border)' }}>

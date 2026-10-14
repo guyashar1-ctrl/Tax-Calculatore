@@ -1247,6 +1247,14 @@ input.pg-search:focus { box-shadow: 0 0 0 2px var(--focus-ring); border-color: t
 .tc-fresh-table { width: 100%; border-collapse: collapse; font-size: var(--fs-13); }
 .tc-fresh-table tr + tr td { border-top: 1px solid var(--hairline-2); }
 .tc-fresh-table td { padding: .4rem 0; }
+/* ‼ בטלפון צר שלוש העמודות דחפו את העמוד לרוחב — כל מאגר הופך לבלוק אחד. */
+@media (max-width: 480px) {
+  .tc-fresh-table, .tc-fresh-table tbody, .tc-fresh-table tr, .tc-fresh-table td { display: block; }
+  .tc-fresh-table tr { padding: .45rem 0; }
+  .tc-fresh-table tr + tr { border-top: 1px solid var(--hairline-2); }
+  .tc-fresh-table tr + tr td { border-top: 0; }
+  .tc-fresh-table td { padding: 0; }
+}
 .tc-fresh-name { white-space: nowrap; color: var(--ink-1); font-weight: 500; }
 .tc-fresh-covers { color: var(--ink-4); font-size: var(--fs-12); padding-inline: .9rem !important; }
 .tc-fresh-when { white-space: nowrap; text-align: end; color: var(--ink-3); font-variant-numeric: tabular-nums; }
@@ -2787,6 +2795,8 @@ input.pg-search:focus { box-shadow: 0 0 0 2px var(--focus-ring); border-color: t
   background:var(--warn-bg);border-radius:7px;padding:2px 8px;white-space:nowrap}
 
 .txf-kv{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px 20px;padding-top:4px}
+.txf-learn{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;margin-top:8px;font-size:13px;color:var(--ink-4)}
+.txf-learn .bk-link{min-height:32px;font-size:inherit}
 .txf-kv .k{font-size:11px;color:var(--ink-4);margin-bottom:1px}
 .txf-kv .v{font-size:var(--fs-13);color:var(--ink-1)}
 

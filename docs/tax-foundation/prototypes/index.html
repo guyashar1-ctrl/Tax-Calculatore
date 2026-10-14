@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>חלופות תשתית המס</title>
+<link rel="icon" href="data:,">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600;700;800&display=swap">
+<link rel="stylesheet" href="shared.css">
+<style>
+/* דף הבחירה: שלושה כיווני חוויה, השוואה, המלצה. קריאה של דקה, ואז פותחים. */
+.hero { display: flex; flex-direction: column; gap: 8px; max-width: 72ch; }
+.alts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+@media (max-width: 920px) { .alts { grid-template-columns: minmax(0, 1fr); } }
+.alt { display: flex; flex-direction: column; gap: 10px; padding: 18px; border: 1px solid var(--bd); border-radius: var(--r-lg); background: var(--card); }
+.alt.rec { border-color: var(--br); box-shadow: 0 0 0 1px var(--br) inset; }
+.alt .spine { font-size: var(--fs-13); color: var(--txc); }
+.alt ul { margin: 0; padding-inline-start: 18px; color: var(--txc); font-size: var(--fs-13); display: flex; flex-direction: column; gap: 4px; }
+.alt .btn { align-self: flex-start; margin-top: auto; }
+.cmp-t td:first-child { font-weight: 600; color: var(--tx); white-space: normal; min-width: 150px; }
+.cmp-t td { white-space: normal; vertical-align: top; }
+.paths { counter-reset: p; display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.paths li { display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 8px; color: var(--txc); }
+.paths li::before { counter-increment: p; content: counter(p); width: 24px; height: 24px; border-radius: 50%; background: var(--soft); color: var(--br); display: grid; place-items: center; font-size: 12px; font-weight: 700; }
+</style>
+</head>
+<body>
+<div class="proto-bar" role="note"><strong>אבות־טיפוס · תשתית המס וחוויית הלמידה</strong><span>נתוני דמה בלבד · לא מחובר למערכת · 10.10.2026</span><span class="sp"></span><button type="button" class="btn ghost sm" id="themeBtn" style="color:inherit">מצב כהה/בהיר</button></div>
+<main class="wrap stack" style="gap:22px">
+  <section class="alt rec" style="gap:12px"><span class="row"><span class="eyebrow">הכיוון שנבחר · 10.10.2026</span><span class="chip blue">להתנסות ולהגיב</span></span>
+    <h1 style="font-size:var(--fs-26)">הדמיית PIVO אחרי השינויים</h1>
+    <p class="muted" style="max-width:72ch">המערכת המדומה כולה: לקוחות, «בקשות», תיק המס, הערכת מס, דוח שנתי, הצהרת הון, «עבודת מס», ידע המס, המשרד והדף האישי של הלקוח. מבוססת על ב׳ (עבודה מהלקוח והתהליך), עם ההדרכה של ג׳ בשאלון הלקוח ובלמידה, ומפת 1301 של א׳ לבקרה. כפתור «מסלולי הדמיה» בפס העליון מקצר את הדרך; אפשר גם לנווט חופשי.</p>
+    <a class="btn primary" href="app.html">להיכנס להדמיה</a></section>
+  <div class="hero"><div class="eyebrow">היסטוריה · שלוש החלופות לפני הבחירה</div><h1>איך PIVO יעבוד עם ידע מס, שנת המס של הלקוח והראיות</h1>
+  <p class="muted">שלוש חוויות שונות, לא שלוש ערכות צבע. בכל אחת אפשר לעבור את אותם שישה מסלולים על אותה לקוחה מומצאת — נועה ברק, מעצבת עצמאית שהיא גם שכירה בחצי משרה.</p></div>
+
+  <section class="panel pad stack"><h2>שישה מסלולים לבדוק בכל חלופה</h2><ol class="paths">
+    <li>ללמוד את קרן ההשתלמות לשכיר־עצמאי (ופנסיה: עמית מוטב)</li>
+    <li>לעבור מהנושא לתיק של לקוחה שהוא חל עליה</li>
+    <li>לראות מה ידוע ומה חסר לפני ששואלים — ולשאול רק את החסר</li>
+    <li>לייבא רו״ה מפייפרלס וליישב מול 134 ו-ESNA (כולל תקופה שטרם הגיע מועדה וכשל קריאה)</li>
+    <li>לחזור לעבודה שנעצרה — במשרד ואצל הלקוח</li>
+    <li>למצוא את הדוח השנתי ואת הצהרת ההון הראשונה</li></ol></section>
+
+  <div class="alts">
+    <article class="alt"><span class="eyebrow">חלופה א׳</span><h2>מפת הדוח</h2><p class="spine">עמוד השדרה: חלקי טופס 1301 וחובות שמחוצה לו. הידע הוא מדריך עם הערות שוליים, והתיק מסודר לפי אותם חלקים.</p>
+      <ul><li>חזק בכיסוי: רואים כל פער בידע ובמערכת לפי מיקומו בדוח</li><li>קריאה ארוכה ומעמיקה, טובה ללמידה שקטה</li><li>חלש בעבודה היומית: התקופות והסתירות פחות בולטות</li></ul>
+      <a class="btn" href="a-map.html">לפתוח את חלופה א׳</a></article>
+    <article class="alt rec"><span class="row"><span class="eyebrow">חלופה ב׳</span><span class="chip blue">מומלצת</span></span><h2>שנת המס של הלקוח</h2><p class="spine">עמוד השדרה: שנת המס של הלקוח — מה ידוע, מה חסר, ציר תקופות של ראיות, וכל תהליך (הערכה, דוח, הצהרת הון) כבקשה עם דף פירוט. הידע נפתח בהקשר, ויש לו גם בית.</p>
+      <ul><li>הכי קרוב לאיך שהמשרד עובד: מתחילים מלקוח ושנה</li><li>תקופה שטרם הגיעה, סתירה וכשל קריאה נראים מיד</li><li>שומר את יסודות «בקשות» בלי לשנות אותם</li></ul>
+      <a class="btn primary" href="b-year.html">לפתוח את חלופה ב׳</a></article>
+    <article class="alt"><span class="eyebrow">חלופה ג׳</span><h2>מסלול מונחה ומעבדה</h2><p class="spine">עמוד השדרה: צעדים קבועים לכל תהליך, החלטה אחת בכל מסך. הלמידה היא מעבדה של תרחישים ועץ החלטה.</p>
+      <ul><li>מצוין למי שלא מכיר נושא או לעובד חדש</li><li>המעבדה מלמדת את הכללים דרך משחק בנתונים</li><li>איטי לרו״ח מנוסה; קשה לראות את כל התמונה בבת אחת</li></ul>
+      <a class="btn" href="c-guided.html">לפתוח את חלופה ג׳</a></article>
+  </div>
+
+  <section class="stack"><h2>השוואה</h2><div class="tbl-wrap"><table class="t cmp-t"><thead><tr><th>שאלה</th><th>א׳ · מפת הדוח</th><th>ב׳ · שנת המס</th><th>ג׳ · מסלול מונחה</th></tr></thead><tbody>
+    <tr><td>איפה מתחילים בבוקר</td><td>במפה או ב«להמשיך»</td><td>«עונת המס»: מה פתוח ואצל מי</td><td>«מה עכשיו»: תור צעדים</td></tr>
+    <tr><td>איך לומדים נושא</td><td>מדריך ארוך + הערות שוליים לטופס, לשאלון ולחישוב</td><td>מסלול של 7 חלקים בנושא, ותקציר בהקשר הלקוח</td><td>מעבדה עם מחוונים, עץ החלטה ומקרים לתרגול</td></tr>
+    <tr><td>מה ידוע / חסר</td><td>לפי חלקי הדוח</td><td>לפי אדם ועסק, עם מקור לכל עובדה וסיבה לכל שאלה</td><td>צעד 1 וצעד 2 במסלול</td></tr>
+    <tr><td>ראיות ויישור</td><td>ייבוא לחלק בדוח</td><td>ציר תקופות: ספרים · 134 · ESNA, וסתירה ליישוב</td><td>צעד 3, טבלת השוואה והכרעה</td></tr>
+    <tr><td>דוח שנתי והצהרת הון</td><td>הדוח הוא המבנה עצמו; הצהרת הון בעמודה נפרדת</td><td>מתג תהליכים בתוך שנת המס, ושורות ב«בקשות»</td><td>מסלולים נפרדים מ«להתחיל מסלול»</td></tr>
+    <tr><td>טלפון</td><td>טוב לקריאה, פחות לעבודה</td><td>טוב: מגירות הופכות לגיליון תחתון, הציר נגלל בתוכו</td><td>טוב מאוד: צעד אחד במסך</td></tr>
+    <tr><td>עלות מימוש</td><td>בינונית</td><td>גבוהה יותר (ציר תקופות, מגירות ראיה)</td><td>בינונית; המעבדה דורשת כללים שניתנים לחישוב</td></tr>
+  </tbody></table></div></section>
+
+  <section class="panel pad stack"><h2>ההמלצה</h2>
+    <p style="max-width:72ch">חלופה ב׳, עם שני דברים משאר החלופות: ההערות «בטופס / בשאלון / בחישוב» מחלופה א׳ בתוך כל נושא ידע, והמעבדה מחלופה ג׳ כחלק «דוגמה» של נושאים שיש בהם חישוב. הסיבה: העבודה היומית מתחילה מלקוח ושנה, והקושי האמיתי הוא תקופות, ראיות וסתירות. ידע שנפתח בדיוק שם נלמד ומיושם באותו רגע.</p>
+    <p class="small muted">זו הערכה מקצועית שלי, לא בדיקת משתמשים. בדיקה עם רו״ח שלא מכיר את הנושא עדיין לא נעשתה.</p></section>
+
+  <section class="stack"><h2>לפני הבחירה</h2><div class="note">המספרים בחלופות מגיעים ממרשם כללים אחד עם רמת ביסוס לכל ערך: ● מקור רשמי · ◐ מקור משני · ◇ חושב · ○ לא אומת. חישובים מסומנים «להמחשה». שום פעולה לא נשלחת ולא נשמרת.</div></section>
+</main>
+<script>
+(function () { const b = document.getElementById('themeBtn'); b.addEventListener('click', () => { const r = document.documentElement, c = r.getAttribute('data-theme'); const dark = c ? c === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches; r.setAttribute('data-theme', dark ? 'light' : 'dark'); }); })();
+</script>
+</body>
+</html>

@@ -1,11 +1,16 @@
 import { useState } from 'react';
 import { KNOWLEDGE_TOPICS } from '../../data/taxKnowledge';
 
+// ‼ 10.10.2026: «פנסיה וגמל» ו«קרן השתלמות» יצאו מכאן — הם נושאים על מרשם הכללים.
+// שני מקומות עם אותם ערכים הם בדיוק המקום שבו נוצרת סתירה.
+const MOVED_TO_TOPICS = new Set(['pension', 'studyFund']);
+
 interface Props {
   year: number;
+  onOpenTopic?: (topicId: string) => void;
 }
 
-export default function KnowledgeTopics({ year }: Props) {
+export default function KnowledgeTopics({ year, onOpenTopic }: Props) {
   const [openTopic, setOpenTopic] = useState<string | null>(null);
 
   return (
@@ -15,7 +20,15 @@ export default function KnowledgeTopics({ year }: Props) {
         תג <span className="badge badge-orange">לאימות</span> = לא אומת מול מסמך רשמי ראשוני.
       </div>
 
-      {KNOWLEDGE_TOPICS.map(topic => {
+      {onOpenTopic && (
+        <div className="alert alert-warning" style={{ marginBottom: 0, fontSize: '14px' }}>
+          פנסיה וקרן השתלמות עברו לנושאים ללמידה, עם ביסוס לכל ערך:{' '}
+          <button type="button" className="bk-link" onClick={() => onOpenTopic('pensionSE')}>פנסיה לעצמאי</button>{' · '}
+          <button type="button" className="bk-link" onClick={() => onOpenTopic('studyFund')}>קרן השתלמות</button>
+        </div>
+      )}
+
+      {KNOWLEDGE_TOPICS.filter(topic => !MOVED_TO_TOPICS.has(topic.id)).map(topic => {
         const open = openTopic === topic.id;
         return (
           <div key={topic.id} className="card">

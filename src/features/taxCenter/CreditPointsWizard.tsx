@@ -57,6 +57,7 @@ export default function CreditPointsWizard({ taxData, year }: Props) {
   // משפחה
   const [isSoleParent, setIsSoleParent] = useState(false);
   const [paysChildSupport, setPaysChildSupport] = useState(false);
+  const [custodialSeparated, setCustodialSeparated] = useState(false);
   const [paysAlimonyToEx, setPaysAlimonyToEx] = useState(false);
   // שירות
   const [serviceKind, setServiceKind] = useState<'military' | 'national'>('military');
@@ -105,6 +106,7 @@ export default function CreditPointsWizard({ taxData, year }: Props) {
     deferredBirthYearPoint: active.has('children') && deferredBirth,
     isSoleParent: active.has('family') && isSoleParent,
     participatesInChildSupport: active.has('family') && paysChildSupport,
+    custodialSeparatedParent: active.has('family') && custodialSeparated,
     paysAlimonyToEx: active.has('family') && paysAlimonyToEx,
     service: active.has('service')
       ? { kind: serviceKind, months: serviceMonths, releaseYear, releaseMonth }
@@ -120,7 +122,7 @@ export default function CreditPointsWizard({ taxData, year }: Props) {
     spouseNoIncomeEligible: active.has('spouse') && spouseEligible,
   }), [
     year, gender, active, children, parentRole, deferredBirth,
-    isSoleParent, paysChildSupport, paysAlimonyToEx,
+    isSoleParent, paysChildSupport, custodialSeparated, paysAlimonyToEx,
     serviceKind, serviceMonths, releaseYear, releaseMonth, reserveDays,
     degrees, aliyahYear, aliyahMonth,
     disabilityQualifies, disabilityPreferential, disabilityFullYear, spouseEligible,
@@ -151,8 +153,10 @@ export default function CreditPointsWizard({ taxData, year }: Props) {
       remaining -= t;
       prev = top;
     }
+    // מס יסף 3% מעל הסף — מס נפרד (לא מדרגה), ואינו מתקזז מנקודות זיכוי.
+    const surtax = annualIncome > taxData.surtaxThreshold ? (annualIncome - taxData.surtaxThreshold) * 0.03 : 0;
     const credits = result.totalValueNIS + (settlementResult?.credit ?? 0);
-    const final = Math.max(0, tax - credits);
+    const final = Math.max(0, tax - credits) + surtax;
     return { taxBefore: tax, credits, final, unused: Math.max(0, credits - tax) };
   }, [annualIncome, taxData, result, settlementResult]);
 
@@ -267,7 +271,11 @@ export default function CreditPointsWizard({ taxData, year }: Props) {
               </label>
               <label className="checkbox-row">
                 <input type="checkbox" checked={paysChildSupport} onChange={e => setPaysChildSupport(e.target.checked)} />
-                גרוש/פרוד המשתתף בכלכלת הילדים, כולל מזונות (+1 נק')
+                גרוש/פרוד שהילדים אינם בחזקתו, וכלכלת הילדים מחולקת (+1 נק')
+              </label>
+              <label className="checkbox-row">
+                <input type="checkbox" checked={custodialSeparated} onChange={e => setCustodialSeparated(e.target.checked)} />
+                הורה החי בנפרד שהילדים בחזקתו (+1 נק')
               </label>
               <label className="checkbox-row">
                 <input type="checkbox" checked={paysAlimonyToEx} onChange={e => setPaysAlimonyToEx(e.target.checked)} />
@@ -303,7 +311,7 @@ export default function CreditPointsWizard({ taxData, year }: Props) {
                 </div>
               </div>
               <div style={{ fontSize: '13px', color: 'var(--gray-500)', marginTop: '.4rem' }}>
-                שירות מלא (23+ חודשים לגבר, 22+ לאישה, 24 בשירות לאומי) = 2 נקודות לשנה · שירות חלקי (12+) = נקודה · למשך 36 חודשים מהחודש שאחרי השחרור
+                שירות מלא (23 חודשים ומעלה לגבר, 22 ומעלה לאישה — גם בשירות לאומי) = 2 נקודות לשנה · שירות חלקי (12+) = נקודה · למשך 36 חודשים מהחודש שאחרי השחרור
               </div>
             </div>
           )}
@@ -365,6 +373,9 @@ export default function CreditPointsWizard({ taxData, year }: Props) {
           {active.has('immigrant') && (
             <div style={secStyle}>
               <div style={secTitle}>עולה חדש</div>
+              <div style={{ fontSize: '13px', color: 'var(--gray-500)', marginBottom: '.4rem' }}>
+                גם «קטין חוזר» — מי שעזב כקטין וחזר אחרי 5 שנים לפחות נחשב עולה (אישור משרד הקליטה; מדריך 2025, עמ׳ 69). מזינים את תאריך החזרה.
+              </div>
               <div style={{ display: 'flex', gap: '.75rem', flexWrap: 'wrap' }}>
                 <div className="form-group" style={{ marginBottom: 0 }}>
                   <label>שנת עלייה</label>

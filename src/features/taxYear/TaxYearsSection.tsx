@@ -16,6 +16,7 @@ import { demandView } from './wealthDemand';
 import { MONTHS } from './asks';
 import { proposeTransfers, type FieldWrite, type TransferProposal } from './transfer';
 import TaxYearProcess from './TaxYearProcess';
+import { consumeKnowledgeReturn } from '../taxKnowledge/knowledgeLink';
 import './taxYear.css';
 import { AVAILABLE } from '../taxKnowledge/availability';
 
@@ -118,6 +119,12 @@ export default function TaxYearsSection({ client, onChanged, onClientPersisted, 
 
   const proposals = useMemo(() => proposeTransfers(client, writes).filter(p => !decided.has(`${p.path}:${p.entityRef ?? ''}`)), [client, writes, decided]);
   const openStep = openId ? steps.find(s => s.id === openId) : undefined;
+  // חזרה מ«ידע מס» לאותו תהליך שממנו יצאו ללמוד (knowledgeLink) — פעם אחת, כשהבקשות נטענו
+  useEffect(() => {
+    if (!steps.length || openId) return;
+    const back = consumeKnowledgeReturn(client.id);
+    if (back && steps.some(s => s.id === back)) setOpenId(back);
+  }, [steps, openId, client.id]);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '.8rem' }}>

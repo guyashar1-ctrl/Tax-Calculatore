@@ -1,0 +1,3178 @@
+{
+  "readDate": "10.10.2026",
+  "source": "https://www.gov.il/he/service/reporting-and-payment-2025-annual-tax-report-for-individuals (PDFs read in-page with pdf.js 3.11.174)",
+  "annexes": [
+    {
+      "formId": "1320",
+      "title": "נספח א - חישוב ההכנסה החייבת מעסק או ממשלח יד",
+      "taxYear": 2025,
+      "url": "https://www.gov.il/BlobFolder/service/reporting-and-payment-2025-annual-tax-report-for-individuals/he/Service_Pages_Income_tax_annual-report-2026_1320-2025-ACC.pdf",
+      "documentVersion": "מעודכן ל-12.2025",
+      "readStatus": "read",
+      "requiredWhen": "הכנסה מעסק או ממשלח יד; נספח נפרד לכל עסק (שלך ושל בן/בת הזוג); בקיזוז הפסדים לצרף גם 1344",
+      "linksTo1301": [
+        {
+          "annexField": "שורה 23 - סכום חיובי (החלק בהכנסת השותפות כפול שורה 22, אחרי קיזוז הפסדים מותרים)",
+          "goesTo1301Code": "טופס 1301 שורה 1 (כלשון הטופס; השדה לפי בן זוג - לא צוין בנספח)"
+        },
+        {
+          "annexField": "שורה 23 - סכום שלילי",
+          "goesTo1301Code": "למקום המתאים בטופס 1301 (לא צוין קוד)"
+        }
+      ],
+      "fields": [
+        {
+          "section": "פרטים",
+          "code": null,
+          "label": "שם פרטי / שם משפחה / מספר זהות / מספר תיק",
+          "kind": "text",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "פרטים",
+          "code": null,
+          "label": "שם העסק",
+          "kind": "text",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "פרטים",
+          "code": null,
+          "label": "כתובת העסק",
+          "kind": "text",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "פרטים",
+          "code": null,
+          "label": "מהות העיסוק",
+          "kind": "text",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "פרטים",
+          "code": null,
+          "label": "מס' חודשי הפעלה בשנת המס",
+          "kind": "count",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "פרטים",
+          "code": null,
+          "label": "תאריך הקמת העסק",
+          "kind": "date",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "פרטים",
+          "code": null,
+          "label": "בסיס דיווח: מצטבר / מזומן",
+          "kind": "checkbox",
+          "instruction": "אם הספרים מנוהלים בשיטה שונה משיטת הדיווח - למלא אחרי ההתאמות הדרושות",
+          "uncertain": false
+        },
+        {
+          "section": "רווח והפסד",
+          "code": null,
+          "label": "1. סה\"כ הכנסות (כולל פיצוי בגין נזק עקיף חרבות ברזל)",
+          "kind": "amount",
+          "instruction": "כל הסכומים ללא מע\"מ, למעט עוסק פטור",
+          "uncertain": false
+        },
+        {
+          "section": "רווח והפסד",
+          "code": null,
+          "label": "2א. מלאי בתחילת השנה",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "רווח והפסד",
+          "code": null,
+          "label": "2ב. קניות במשך השנה",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "רווח והפסד",
+          "code": null,
+          "label": "2ג. מלאי בסוף השנה",
+          "kind": "amount",
+          "instruction": "מופחת",
+          "uncertain": false
+        },
+        {
+          "section": "רווח והפסד",
+          "code": null,
+          "label": "2ד. סה\"כ עלות המכירות (א+ב פחות ג)",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "רווח והפסד",
+          "code": null,
+          "label": "3א. מספר עובדים (בממוצע שנתי)",
+          "kind": "count",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "רווח והפסד",
+          "code": null,
+          "label": "3ב. סכום המשכורת או שכר העבודה",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "רווח והפסד",
+          "code": null,
+          "label": "3ג. הוצאות נלוות לשכר",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "רווח והפסד",
+          "code": null,
+          "label": "4. עבודות חוץ, קבלנות משנה וכו'",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "רווח והפסד",
+          "code": null,
+          "label": "5. שירותים אחרים",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "רווח והפסד",
+          "code": null,
+          "label": "6. הוצאות מימון: ריבית והפרשי הצמדה",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "רווח והפסד",
+          "code": null,
+          "label": "7. הוצאות רכב (מלוא הסכום)",
+          "kind": "amount",
+          "instruction": "כולל פחת, חנייה שלא במקום העיסוק וכביש 6; מותר רק אם מולא סעיף ג",
+          "uncertain": false
+        },
+        {
+          "section": "רווח והפסד",
+          "code": null,
+          "label": "7. החלק המותר בניכוי עפ\"י התקנות",
+          "kind": "amount",
+          "instruction": "לפי תקנות ניכוי הוצאות רכב התשנ\"ה-1995",
+          "uncertain": false
+        },
+        {
+          "section": "רווח והפסד",
+          "code": null,
+          "label": "8. אחזקה ותיקונים שוטפים",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "רווח והפסד",
+          "code": null,
+          "label": "9. הוצאות משרדיות",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "רווח והפסד",
+          "code": null,
+          "label": "10. הנהלת חשבונות והגשת הדו\"ח השנתי",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "רווח והפסד",
+          "code": null,
+          "label": "11. דמי שכירות וחכירה",
+          "kind": "amount",
+          "instruction": "לפרט בסעיף ד את המשכיר והנכס",
+          "uncertain": false
+        },
+        {
+          "section": "רווח והפסד",
+          "code": null,
+          "label": "12. הוצאות מוכרות בהתאם לתקנות",
+          "kind": "amount",
+          "instruction": "תקנות ניכוי הוצאות מסוימות התשל\"ב-1972; לצרף פירוט",
+          "uncertain": false
+        },
+        {
+          "section": "רווח והפסד",
+          "code": null,
+          "label": "13. מיסים עירוניים, אגרות והיטלים",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "רווח והפסד",
+          "code": null,
+          "label": "14. ביטוח עסקי",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "רווח והפסד",
+          "code": null,
+          "label": "15. חובות רעים",
+          "kind": "amount",
+          "instruction": "למדווחים לפי בסיס מצטבר",
+          "uncertain": false
+        },
+        {
+          "section": "רווח והפסד",
+          "code": null,
+          "label": "16. הוצאות אחרות (פרט)",
+          "kind": "amount",
+          "instruction": "לא לכלול קרן השתלמות לעצמאים ואובדן כושר עבודה - נרשמים בדו\"ח השנתי",
+          "uncertain": false
+        },
+        {
+          "section": "רווח והפסד",
+          "code": null,
+          "label": "17. פחת מותר בניכוי (לא כולל רכב)",
+          "kind": "amount",
+          "instruction": "לצרף טופס 1342 (י\"א)",
+          "uncertain": false
+        },
+        {
+          "section": "רווח והפסד",
+          "code": null,
+          "label": "18. סה\"כ הוצאות מותרות בניכוי (2ד עד 17)",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "רווח והפסד",
+          "code": null,
+          "label": "19. סה\"כ הכנסות פחות הוצאות (1 פחות 18)",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "רווח והפסד",
+          "code": null,
+          "label": "20. התאמת הוצאות שאינן מותרות בניכוי",
+          "kind": "amount",
+          "instruction": "מוסף; לפרט בסעיף ה",
+          "uncertain": false
+        },
+        {
+          "section": "רווח והפסד",
+          "code": null,
+          "label": "21. ניכוי נוסף בשל פחת",
+          "kind": "amount",
+          "instruction": "מופחת; לצרף טופס 1343",
+          "uncertain": false
+        },
+        {
+          "section": "רווח והפסד",
+          "code": null,
+          "label": "22. סה\"כ הכנסה חייבת (19+20 פחות 21)",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "רווח והפסד",
+          "code": null,
+          "label": "23. החלק בהכנסת השותפות באחוזים",
+          "kind": "percent",
+          "instruction": "מוכפל בשורה 22",
+          "uncertain": false
+        },
+        {
+          "section": "רווח והפסד",
+          "code": null,
+          "label": "23. סכום להעברה (22 × אחוז)",
+          "kind": "amount",
+          "instruction": "חיובי לשורה 1 ב־1301; שלילי למקום המתאים; אחרי קיזוז הפסדים",
+          "uncertain": false
+        },
+        {
+          "section": "א. ניהול ספרים",
+          "code": null,
+          "label": "הפירוט מבוסס על פנקסי החשבונות שניהלתי",
+          "kind": "yesno",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "א. ניהול ספרים",
+          "code": null,
+          "label": "הייתי חייב לנהל פנקסים בשיטה הכפולה",
+          "kind": "yesno",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "א. ניהול ספרים",
+          "code": null,
+          "label": "ניהלתי פנקסים בשיטה הכפולה",
+          "kind": "yesno",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "א. ניהול ספרים",
+          "code": null,
+          "label": "אני מפעיל קופה רושמת",
+          "kind": "yesno",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "א. ניהול ספרים",
+          "code": null,
+          "label": "אני מנהל שוברי קבלות/חשבוניות",
+          "kind": "yesno",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "א. ניהול ספרים",
+          "code": null,
+          "label": "ערך מפקד מצאי",
+          "kind": "yesno",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "א. ניהול ספרים",
+          "code": null,
+          "label": "שיטת הערכת המלאי",
+          "kind": "text",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "א. ניהול ספרים",
+          "code": null,
+          "label": "הספרים נוהלו עפ\"י תוספת / סעיף להוראות ניהול ספרים",
+          "kind": "text",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "א. ניהול ספרים",
+          "code": null,
+          "label": "מקום המצאם של ספרי החשבונות",
+          "kind": "text",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "ב. פרטי השותפות (במקום 1504)",
+          "code": null,
+          "label": "שם השותפות / תיק ברשם השותפויות / מספר עוסק במע\"מ / מספר תיק ניכויים (9...)",
+          "kind": "text",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "ב. פרטי השותפות",
+          "code": null,
+          "label": "שותף: שם / מספר תיק או זהות / כתובת",
+          "kind": "text",
+          "instruction": "ראשון ברשימה - ראש השותפים לפי סעיף 63",
+          "uncertain": false
+        },
+        {
+          "section": "ב. פרטי השותפות",
+          "code": null,
+          "label": "שותף פעיל",
+          "kind": "yesno",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "ב. פרטי השותפות",
+          "code": null,
+          "label": "הצטרפות לשותפות",
+          "kind": "date",
+          "instruction": null,
+          "uncertain": true
+        },
+        {
+          "section": "ב. פרטי השותפות",
+          "code": null,
+          "label": "חלקו בהכנסות %",
+          "kind": "percent",
+          "instruction": "סה\"כ 100%",
+          "uncertain": false
+        },
+        {
+          "section": "ג. רכב",
+          "code": null,
+          "label": "תיאור הרכב / קוד תוצר / קוד דגם / נפח מנוע / קבוצת מחיר / מספר רישוי",
+          "kind": "text",
+          "instruction": "קוד תוצר ודגם לרכב מ־1.1.2010; קבוצת מחיר לרכב לפני כן; מעל 3 רכבים - פירוט",
+          "uncertain": false
+        },
+        {
+          "section": "ג. רכב",
+          "code": null,
+          "label": "מספר חודשים בשימוש בשנת המס",
+          "kind": "count",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "ג. רכב",
+          "code": null,
+          "label": "ק\"מ בתחילת / בסוף השנה או השימוש",
+          "kind": "count",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "ד. פרטי המשכיר",
+          "code": null,
+          "label": "שם / מספר זהות / סוג הנכס / כתובת / גוש / חלקה / שטח ברוטו / קומה",
+          "kind": "text",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "ה. הערות",
+          "code": null,
+          "label": "הערות",
+          "kind": "text",
+          "instruction": null,
+          "uncertain": false
+        }
+      ],
+      "checkboxes": 16,
+      "notes": [
+        "אין קודי שדה מודפסים בנספח - רק שורות ממוספרות 1-23.",
+        "ספירת תיבות: 2 לבסיס דיווח + 12 (6 שאלות כן/לא בסעיף א) + 2 לכל שותף ('שותף פעיל').",
+        "שורה 2ג ושורה 21 מסומנות (-), 20 מסומנת (+); אין הנחיה מפורשת להבחנה בין ריק ל־0.",
+        "קובץ ה־ACC הוא נגיש, הנוסח זהה לטופס הרגיל לשנת 2025."
+      ]
+    },
+    {
+      "formId": "1321",
+      "title": "נספח ב - חישוב ההכנסה החייבת שאינה מעסק או ממשלח יד",
+      "taxYear": 2025,
+      "url": "https://www.gov.il/BlobFolder/service/reporting-and-payment-2025-annual-tax-report-for-individuals/he/Service_Pages_Income_tax_annual-report-2026_1321-2025-ACC.pdf",
+      "documentVersion": "מעודכן ל-12.2025",
+      "readStatus": "read",
+      "requiredWhen": "הכנסה שאינה מעסק: שכירות מנכס בית, דמי מפתח, שכירות 10% למגורים, הכנסה מרכוש אחר; לא רווחי הון",
+      "linksTo1301": [
+        {
+          "annexField": "1. הכנסה מנכס בית בניכוי הוצאות",
+          "goesTo1301Code": "059"
+        },
+        {
+          "annexField": "3. הכנסה מהשכרת דירת מגורים (מסלול 10%) בניכוי הוצאות",
+          "goesTo1301Code": "222"
+        },
+        {
+          "annexField": "5. הכנסה חייבת משכירות נכס ששימש בעסק מעל 10 שנים - 'בן הזוג הרשום'",
+          "goesTo1301Code": "120"
+        },
+        {
+          "annexField": "5. אותו סכום - כשהנכס שימש את בן/בת הזוג",
+          "goesTo1301Code": "220"
+        },
+        {
+          "annexField": "5. בכל מקרה אחר",
+          "goesTo1301Code": "059"
+        },
+        {
+          "annexField": "2. דמי מפתח, 4. רכוש אחר",
+          "goesTo1301Code": "לשדה המתאים (לא צוין קוד)"
+        }
+      ],
+      "fields": [
+        {
+          "section": "פרטים",
+          "code": null,
+          "label": "שם פרטי / שם משפחה / מספר זהות / מספר תיק",
+          "kind": "text",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "1. נכס בית",
+          "code": null,
+          "label": "הכנסה מנכס בית החייבת בשיעורים הרגילים",
+          "kind": "amount",
+          "instruction": "כולל הכנסה שהתקבלה מראש",
+          "uncertain": false
+        },
+        {
+          "section": "1. נכס בית",
+          "code": null,
+          "label": "פחת על-פי תקנות",
+          "kind": "amount",
+          "instruction": "לצרף טופס 1342 (י\"א)",
+          "uncertain": false
+        },
+        {
+          "section": "1. נכס בית",
+          "code": null,
+          "label": "ניכוי נוסף בשל פחת (סעיף 3 או 18 לחוק התיאומים)",
+          "kind": "amount",
+          "instruction": "לצרף טופס 1343",
+          "uncertain": false
+        },
+        {
+          "section": "1. נכס בית",
+          "code": null,
+          "label": "ניכוי לפי תקנות שיעור פחת לדירה מושכרת למגורים התשמ\"ט-1989",
+          "kind": "amount",
+          "instruction": "לצרף חישוב",
+          "uncertain": false
+        },
+        {
+          "section": "1. נכס בית",
+          "code": null,
+          "label": "1.1 סה\"כ פחת וניכויים",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "1. נכס בית",
+          "code": null,
+          "label": "1.2 מיסים ואגרות בגין הנכס",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "1. נכס בית",
+          "code": null,
+          "label": "1.3 תיקונים שוטפים",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "1. נכס בית",
+          "code": null,
+          "label": "1.4 הוצאות אחרות (פרט/י)",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "1. נכס בית",
+          "code": null,
+          "label": "סה\"כ הוצאות (1.1 עד 1.4)",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "1. נכס בית",
+          "code": null,
+          "label": "הכנסה מנכס בית בניכוי הוצאות",
+          "kind": "amount",
+          "instruction": "לצרף לשדה 059",
+          "uncertain": false
+        },
+        {
+          "section": "2. דמי מפתח",
+          "code": null,
+          "label": "הכנסה מדמי מפתח",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "2. דמי מפתח",
+          "code": null,
+          "label": "הוצאות מותרות / סה\"כ הוצאות",
+          "kind": "amount",
+          "instruction": "לפרט",
+          "uncertain": false
+        },
+        {
+          "section": "2. דמי מפתח",
+          "code": null,
+          "label": "הכנסה מדמי מפתח בניכוי הוצאות",
+          "kind": "amount",
+          "instruction": "להעביר לשדה המתאים בדו\"ח",
+          "uncertain": false
+        },
+        {
+          "section": "2. דמי מפתח",
+          "code": null,
+          "label": "תאריך קבלת ההכנסה מדמי מפתח",
+          "kind": "date",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "2. דמי מפתח",
+          "code": null,
+          "label": "תאריך תשלום המקדמה",
+          "kind": "date",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "2. דמי מפתח",
+          "code": null,
+          "label": "סכום המקדמה",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "3. שכירות 10%",
+          "code": null,
+          "label": "הכנסה מהשכרת דירת מגורים בישראל בשיעור 10% (סעיף 122)",
+          "kind": "amount",
+          "instruction": "לרשום פרטי הדירה בסעיף 5",
+          "uncertain": false
+        },
+        {
+          "section": "3. שכירות 10%",
+          "code": null,
+          "label": "הנני מחזיק \"דירה יחידה\"",
+          "kind": "checkbox",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "3. שכירות 10%",
+          "code": null,
+          "label": "הוצאות שכר דירה למגורים/בית אבות/גריאטרי עד 90,000 ש\"ח",
+          "kind": "amount",
+          "instruction": "מופחת",
+          "uncertain": false
+        },
+        {
+          "section": "3. שכירות 10%",
+          "code": null,
+          "label": "הכנסה בניכוי הוצאות",
+          "kind": "amount",
+          "instruction": "לצרף לשדה 222",
+          "uncertain": false
+        },
+        {
+          "section": "4. רכוש אחר",
+          "code": null,
+          "label": "הכנסה אחרת / מרכוש אחר (פרט/י)",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "4. רכוש אחר",
+          "code": null,
+          "label": "הוצאות מותרות / סה\"כ הוצאות",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "4. רכוש אחר",
+          "code": null,
+          "label": "הכנסה/רכוש אחר בניכוי הוצאות",
+          "kind": "amount",
+          "instruction": "לשדה המתאים; לא רווחי הון",
+          "uncertain": false
+        },
+        {
+          "section": "5. נכס ששימש בעסק (9ד)",
+          "code": null,
+          "label": "הצהרה: הנכס שימש אותי/בן הזוג להכנסה מיגיעה אישית לפני השכרתו",
+          "kind": "checkbox",
+          "instruction": null,
+          "uncertain": true
+        },
+        {
+          "section": "5. נכס ששימש בעסק (9ד)",
+          "code": null,
+          "label": "תיאור הנכס / כתובת / גוש / חלקה / שטח ברוטו / קומה",
+          "kind": "text",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "5. נכס ששימש בעסק (9ד)",
+          "code": null,
+          "label": "תאריך רכישה (שנה/חודש/יום)",
+          "kind": "date",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "5. נכס ששימש בעסק (9ד)",
+          "code": null,
+          "label": "השכרתי את הנכס החל מ (שנה/חודש)",
+          "kind": "date",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "5. נכס ששימש בעסק (9ד)",
+          "code": null,
+          "label": "הנכס מושכר ל - מספר זהות/תיק",
+          "kind": "text",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "5. נכס ששימש בעסק (9ד)",
+          "code": null,
+          "label": "הכנסות מהשכרת הנכס",
+          "kind": "amount",
+          "instruction": "כולל הכנסה שהתקבלה מראש",
+          "uncertain": false
+        },
+        {
+          "section": "5. נכס ששימש בעסק (9ד)",
+          "code": null,
+          "label": "הוצאות מותרות / סה\"כ הוצאות",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "5. נכס ששימש בעסק (9ד)",
+          "code": null,
+          "label": "סה\"כ הכנסה לאחר הוצאות מהשכרת נכס ששימש בעסקי",
+          "kind": "amount",
+          "instruction": "מעל 10 שנים - יגיעה אישית: 120 לבן הזוג הרשום, 220 לבן/בת הזוג",
+          "uncertain": false
+        },
+        {
+          "section": "5. חישוב הפטור",
+          "code": null,
+          "label": "שיעור הזכאות לפטור",
+          "kind": "percent",
+          "instruction": "שנות שימוש × 2%, עד 70%; לתושב בגיל פרישה בתנאי הסעיף",
+          "uncertain": false
+        },
+        {
+          "section": "5. חישוב הפטור",
+          "code": null,
+          "label": "הכנסת שכירות מוטבת",
+          "kind": "amount",
+          "instruction": "הנמוך מהכנסה לאחר הוצאות או 113,160 ש\"ח, כפול שיעור הזכאות",
+          "uncertain": false
+        },
+        {
+          "section": "5. חישוב הפטור",
+          "code": null,
+          "label": "החלק הפטור (35% מהכנסת השכירות המוטבת)",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "5. חישוב הפטור",
+          "code": null,
+          "label": "הכנסה חייבת משכירות שתעבור לדו\"ח",
+          "kind": "amount",
+          "instruction": "120/220 לפי בן הזוג; בכל מקרה אחר 059",
+          "uncertain": false
+        },
+        {
+          "section": "6. שותפים בהכנסות",
+          "code": null,
+          "label": "מספר שותפים",
+          "kind": "count",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "6. שותפים בהכנסות",
+          "code": null,
+          "label": "סוג ההכנסה",
+          "kind": "text",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "6. שותפים בהכנסות",
+          "code": null,
+          "label": "שם השותף / מספר תיק או זהות / כתובת פרטית",
+          "kind": "text",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "6. שותפים בהכנסות",
+          "code": null,
+          "label": "חלקו בהכנסות",
+          "kind": "percent",
+          "instruction": null,
+          "uncertain": true
+        }
+      ],
+      "checkboxes": 2,
+      "notes": [
+        "בניגוד לתיאור המשימה, נספח 1321 לשנת 2025 אינו כולל ריבית או דיבידנד. הם מדווחים ישירות ב־1301, וממקור זר ב־1324 ו/או 1322.",
+        "אין קודי שדה בנספח עצמו; הקישור ל־1301 מופיע בטקסט (059, 222, 120, 220).",
+        "תנאי פטור 9ד: גיל פרישה, הנכס שימש ישירות את בן הזוג המבקש, אין פטור מקצבה או ריבית לפי 125ד/125ה, השוכר אינו חברה בבעלותך או קרוב.",
+        "ההצהרה בסעיף 5 נקראה מקובץ ה־ACC כטקסט; לא ברור אם יש לה משבצת סימון.",
+        "אין הבחנה כתובה בין ריק ל־0."
+      ]
+    },
+    {
+      "formId": "1322",
+      "title": "נספח ג - רווח הון מניירות ערך סחירים",
+      "taxYear": 2025,
+      "url": "https://www.gov.il/BlobFolder/service/reporting-and-payment-2025-annual-tax-report-for-individuals/he/Service_Pages_Income_tax_annual-report-2026_1322-2025-ACC.pdf",
+      "documentVersion": "מעודכן ל-12.2025",
+      "readStatus": "read",
+      "requiredWhen": "מכירת ניירות ערך סחירים; לא נוכה מלוא המס או ני\"ע בספרי העסק - יחד עם 1325; הוראות מעבר סעיף 6 - 1326",
+      "linksTo1301": [
+        {
+          "annexField": "סכום המכירות (קוד 56) - סיכום מחזורי המכירות בכל השיעורים",
+          "goesTo1301Code": "256"
+        },
+        {
+          "annexField": "טבלת עזר - הכנסה מריבית ודיבידנד מני\"ע לאחר קיזוז (15%/20%/25%/30%)",
+          "goesTo1301Code": "055/141/157/067/060 (החלוקה לפי שיעור אינה מפורטת בנספח)"
+        }
+      ],
+      "fields": [
+        {
+          "section": "א. פרטי המכירות",
+          "code": null,
+          "label": "שם המוכר (הנישום) / מספר תיק",
+          "kind": "text",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "א. פרטי המכירות",
+          "code": null,
+          "label": "מכירה לצד קשור",
+          "kind": "yesno",
+          "instruction": "מכירה לקרוב - לא בטופס זה; להגיש 1399י או 1399ח",
+          "uncertain": false
+        },
+        {
+          "section": "א. פרטי המכירות",
+          "code": null,
+          "label": "נייר ערך: בבעלותי / בבעלות בן/בת זוגי",
+          "kind": "checkbox",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "א. פרטי המכירות",
+          "code": null,
+          "label": "שנה לפני הנישואין/בירושה",
+          "kind": "yesno",
+          "instruction": "לני\"ע כאלה - טופס נפרד",
+          "uncertain": false
+        },
+        {
+          "section": "א. פרטי המכירות",
+          "code": null,
+          "label": "נכס בחו\"ל",
+          "kind": "checkbox",
+          "instruction": "לזיכוי מס זר - טופס נפרד וגם נספח ד (1324)",
+          "uncertain": false
+        },
+        {
+          "section": "א. פרטי המכירות",
+          "code": null,
+          "label": "רכישה מצד קשור",
+          "kind": "yesno",
+          "instruction": "הערה (4); כן/לא",
+          "uncertain": false
+        },
+        {
+          "section": "א. פרטי המכירות",
+          "code": null,
+          "label": "רווח מקרן השקעות במקרקעין",
+          "kind": "yesno",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "א. פרטי המכירות",
+          "code": null,
+          "label": "נוכה מס במקור / לא נוכה מס במקור",
+          "kind": "checkbox",
+          "instruction": "טפסים נפרדים לפי ניכוי במקור; ללא ניכוי - נפרד לכל חצי שנה",
+          "uncertain": false
+        },
+        {
+          "section": "א. פרטי המכירות",
+          "code": null,
+          "label": "הרווחים ממכירות ינואר-יוני 2025 / יולי-דצמבר 2025",
+          "kind": "checkbox",
+          "instruction": "ללא ניכוי במקור: סמל עסקה 65 וקוד 56 עם תאריך 30.6/31.12",
+          "uncertain": false
+        },
+        {
+          "section": "ב. חשבונות",
+          "code": null,
+          "label": "טופסי 867 א+ב: שם המנכה / מספר הסניף / מספר חשבון",
+          "kind": "text",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "ג.1 רווח חייב לפני קיזוז",
+          "code": "12",
+          "label": "הכנסה בשיעור 15%",
+          "kind": "amount",
+          "instruction": "מנספח ג1 (1325) או מטופסי 867",
+          "uncertain": false
+        },
+        {
+          "section": "ג.1 רווח חייב לפני קיזוז",
+          "code": "10",
+          "label": "הכנסה בשיעור 20%",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "ג.1 רווח חייב לפני קיזוז",
+          "code": "13",
+          "label": "הכנסה בשיעור 25% / חבר בני אדם",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "ג.1 רווח חייב לפני קיזוז",
+          "code": "48",
+          "label": "הכנסה בשיעור 30%",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "ג.1 רווח חייב לפני קיזוז",
+          "code": "44",
+          "label": "הכנסה בשיעור 35%",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "ג.2 קיזוז הפסדי הון שוטפים מני\"ע",
+          "code": "32",
+          "label": "15%",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "ג.2 קיזוז הפסדי הון שוטפים מני\"ע",
+          "code": "30",
+          "label": "20%",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "ג.2 קיזוז הפסדי הון שוטפים מני\"ע",
+          "code": "33",
+          "label": "25% / חבר בני אדם",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "ג.2 קיזוז הפסדי הון שוטפים מני\"ע",
+          "code": "49",
+          "label": "30%",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "ג.2 קיזוז הפסדי הון שוטפים מני\"ע",
+          "code": "36",
+          "label": "35%",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "ג.3 קיזוז הפסדי הון מועברים מני\"ע",
+          "code": "62",
+          "label": "15%",
+          "kind": "amount",
+          "instruction": "הפסד מ־2006 ואילך נגד כל רווח הון, לא נגד ריבית/דיבידנד",
+          "uncertain": false
+        },
+        {
+          "section": "ג.3 קיזוז הפסדי הון מועברים מני\"ע",
+          "code": "60",
+          "label": "20%",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "ג.3 קיזוז הפסדי הון מועברים מני\"ע",
+          "code": "63",
+          "label": "25% / חבר בני אדם",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "ג.3 קיזוז הפסדי הון מועברים מני\"ע",
+          "code": "51",
+          "label": "30%",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "ג.3 קיזוז הפסדי הון מועברים מני\"ע",
+          "code": "34",
+          "label": "35%",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "ג.4 קיזוז הפסדי הון שאינם מני\"ע",
+          "code": "89",
+          "label": "15%",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "ג.4 קיזוז הפסדי הון שאינם מני\"ע",
+          "code": "93",
+          "label": "20%",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "ג.4 קיזוז הפסדי הון שאינם מני\"ע",
+          "code": "85",
+          "label": "25% / חבר בני אדם",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "ג.4 קיזוז הפסדי הון שאינם מני\"ע",
+          "code": "54",
+          "label": "30%",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "ג.4 קיזוז הפסדי הון שאינם מני\"ע",
+          "code": "84",
+          "label": "35%",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "ג.5 קיזוז הפסדים שוטפים מעסק",
+          "code": "82",
+          "label": "15%",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "ג.5 קיזוז הפסדים שוטפים מעסק",
+          "code": "99",
+          "label": "20%",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "ג.5 קיזוז הפסדים שוטפים מעסק",
+          "code": "87",
+          "label": "25% / חבר בני אדם",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "ג.5 קיזוז הפסדים שוטפים מעסק",
+          "code": "65",
+          "label": "30%",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "ג.5 קיזוז הפסדים שוטפים מעסק",
+          "code": "86",
+          "label": "35%",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "ג.6 הכנסה חייבת (1-2-3-4-5)",
+          "code": null,
+          "label": "הכנסה בשיעור 15% / 20% / 25% / 30% / 35%",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "ג. סכום המכירות",
+          "code": "56",
+          "label": "סכום המכירות",
+          "kind": "amount",
+          "instruction": "סיכום המחזורים בכל השיעורים; מועבר לשדה 256 ב־1301",
+          "uncertain": false
+        },
+        {
+          "section": "טבלת עזר ריבית/דיבידנד",
+          "code": null,
+          "label": "1. הכנסה מריבית ודיבידנד מני\"ע בשיעור 15%/20%/25%/30%",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "טבלת עזר ריבית/דיבידנד",
+          "code": null,
+          "label": "2. קיזוז הפסד הון שוטף מני\"ע נגד ריבית ודיבידנד (15%/20%/25%)",
+          "kind": "amount",
+          "instruction": "רק כששיעור המס על הריבית/דיבידנד עד 25%",
+          "uncertain": false
+        },
+        {
+          "section": "טבלת עזר ריבית/דיבידנד",
+          "code": null,
+          "label": "3. קיזוז הפסד הון מני\"ע עד 31.12.05 (15%/20%)",
+          "kind": "amount",
+          "instruction": "רק כששיעור המס עד 20%",
+          "uncertain": false
+        },
+        {
+          "section": "טבלת עזר ריבית/דיבידנד",
+          "code": null,
+          "label": "העברה לשדות 055/141/157/067/060 (1-2-3) לפי שיעור",
+          "kind": "amount",
+          "instruction": "שורה אחת שמשתרעת על כל עמודות השיעור, בלי קוד נפרד לכל עמודה. חישוב (1-2-3). לפי תוויות השיעור בטופס 1301: 15% → 060; 20% → 067; 25% → 157 (ריבית) או 141 (דיבידנד); 30% → 055. בטבלת העזר שורה 2 מבוטלת (X) לעמודת 30%, ושורה 3 מבוטלת לעמודות 25% ו-30%.",
+          "uncertain": false
+        },
+        {
+          "section": "טבלת עזר ריבית/דיבידנד",
+          "code": null,
+          "label": "הפסדים להעברה מניירות ערך",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "לשימוש המשדר",
+          "code": null,
+          "label": "שייכות",
+          "kind": "code",
+          "instruction": "0 יחיד; 1 חברה; 2 בן זוג רשום (שנה לפני נישואין/ירושה); 3 בן/בת זוג (כנ\"ל)",
+          "uncertain": false
+        },
+        {
+          "section": "לשימוש המשדר",
+          "code": null,
+          "label": "סמל עסקה",
+          "kind": "code",
+          "instruction": "60 רווח הון מני\"ע; 64 קרנות REIT; 65 לא נוכה מס במקור",
+          "uncertain": false
+        },
+        {
+          "section": "לשימוש המשדר",
+          "code": null,
+          "label": "נכס בחו״ל (תיבת ספרה אחת: 1 = נכס בחו״ל)",
+          "kind": "code",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "לשימוש המשדר",
+          "code": null,
+          "label": "מספר נספח",
+          "kind": "code",
+          "instruction": "תיבה דו-ספרתית נפרדת, משמאל לתיבת ״נכס בחו״ל״",
+          "uncertain": false
+        }
+      ],
+      "checkboxes": 14,
+      "notes": [
+        "שיוך הקוד לשיעור אומת לפי מיקומי הטקסט בגרסה הרגילה (לא ה־ACC): עמודות 15/20/25/30/35 משמאל לימין, ושורות 1-5.",
+        "עמודת 25% משותפת ל'חבר בני אדם - מס חברות' (24% לחבר בני אדם).",
+        "ב־ACC הערה 6 מופיעה פעמיים: פעם עם 2025 ופעם עם 2022 (שארית מטופס ישן). גם בהערה 10, בעותק אחד, נשאר 2022. הנוסח הנכון הוא 2025.",
+        "ספירת התיבות משוערת: 5 שאלות כן/לא, בעלות, נכס בחו\"ל, ניכוי במקור, חצי שנה.",
+        "בשורה 4 בקובץ ה־ACC הכותרת 'קיזוז הפסדי הון שאינם מניירות ערך' מודבקת למילים 'סכום המכירות' - זו שגיאת חילוץ טקסט.",
+        "מותר לשדה סכום שלילי? לא צוין. 'הכנסה חייבת' מחושבת.",
+        "אומת 10.10.2026: שיוך הקודים לשיעורים אומת חזותית. בכל עמודת שיעור יש תת-עמודה צרה ״קוד״ מימין: 15%: 12/32/62/89/82; 20%: 10/30/60/93/99; 25%/חב״א: 13/33/63/85/87; 30%: 48/49/51/54/65; 35%: 44/36/34/84/86. בשורה 6 (הכנסה חייבת) אין קודים. 56 = סכום המכירות. הקטלוג נכון ואין צורך בשינוי."
+      ]
+    },
+    {
+      "formId": "1324",
+      "title": "נספח ד - הכנסות מחו\"ל ומס ששולם עליהן",
+      "taxYear": 2025,
+      "url": "https://www.gov.il/BlobFolder/service/reporting-and-payment-2025-annual-tax-report-for-individuals/he/Service_Pages_Income_tax_annual-report-2026_1324-2025.pdf",
+      "documentVersion": "מעודכן ל-1.2026",
+      "readStatus": "read",
+      "requiredWhen": "חובה לצרף לכל דוח שנתי שכלולות בו הכנסות מחו\"ל; פירוט של שני בני הזוג",
+      "linksTo1301": [
+        {
+          "annexField": "סה\"כ הכנסות חו\"ל - סיכום ההכנסות למעט רווח הון",
+          "goesTo1301Code": "290"
+        },
+        {
+          "annexField": "סה\"כ הפסד מחו\"ל",
+          "goesTo1301Code": "299"
+        },
+        {
+          "annexField": "דמי שכירות ממקרקעין מחוץ לישראל 15% (482)",
+          "goesTo1301Code": "225/285/345"
+        },
+        {
+          "annexField": "דיבידנד רעיוני לבעל שליטה בחמי\"ז 23% (463)",
+          "goesTo1301Code": "174"
+        },
+        {
+          "annexField": "דיבידנד נטו מחמי\"ז לפי 75ב1(ו)(2) (465)",
+          "goesTo1301Code": "055"
+        },
+        {
+          "annexField": "דיבידנד רעיוני שטרם חולק בחנ\"ז (472)",
+          "goesTo1301Code": "055"
+        },
+        {
+          "annexField": "דיבידנד מחנ\"ז ששולם בפועל החייב במס השנה (470)",
+          "goesTo1301Code": "055"
+        },
+        {
+          "annexField": "שורות ההכנסה בעמוד 1 - 'הסכום צורף להכנסות' (כלול כבר ב־1301)",
+          "goesTo1301Code": "עסק 150/170 (1327: 265); משכורת 158/172; קצבה מעבודה 258/272; נכס בית 059/201/301; ריבית רגילה 167/205/305; קצבה לא מעבודה 167/205/305; רכוש אחר 167/205/305/367/204/304; פטנט 061/214/314; ריבית 15% 060/211/311; ריבית ני\"ע 20% 067/228/328; ריבית ני\"ע 25% 157/257/357; דיבידנד 25% 141/241/341; דיבידנד מהותי 30% 055/212/312; ריבית 35% 050/051/052; הימורים 35% 227/286/346"
+        }
+      ],
+      "fields": [
+        {
+          "section": "פרטים",
+          "code": null,
+          "label": "שם פרטי / שם משפחה / מספר זהות / מספר תיק / שנת המס",
+          "kind": "text",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "כל שורה",
+          "code": null,
+          "label": "הכנסות 'בן זוג רשום' / הכנסות בן/בת הזוג / מדינה (לכל אחד)",
+          "kind": "amount",
+          "instruction": "הכנסה לאחר ניכויים, קיזוזים ופטורים; שם המדינה; המרה לפי כללי 2003",
+          "uncertain": false
+        },
+        {
+          "section": "יגיעה אישית - רגילים",
+          "code": "450",
+          "label": "מעסק או משלח יד - סה\"כ שני בני הזוג",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "יגיעה אישית - רגילים",
+          "code": "401",
+          "label": "מעסק או משלח יד - מס ששולם בחו\"ל",
+          "kind": "amount",
+          "instruction": "רק על-סמך אישורים מצורפים; כולל עודף זיכוי 2020-2024",
+          "uncertain": false
+        },
+        {
+          "section": "יגיעה אישית - רגילים",
+          "code": "458",
+          "label": "ממשכורת/משכר עבודה - סה\"כ",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "יגיעה אישית - רגילים",
+          "code": "403",
+          "label": "ממשכורת - מס ששולם בחו\"ל",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "יגיעה אישית - רגילים",
+          "code": "445",
+          "label": "קצבה מעבודה / הכנסה מעבודה לאחר פטירה - סה\"כ",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "יגיעה אישית - רגילים",
+          "code": "404",
+          "label": "קצבה מעבודה - מס ששולם בחו\"ל",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "מקורות אחרים - רגילים",
+          "code": "459",
+          "label": "מנכס בית - סה\"כ",
+          "kind": "amount",
+          "instruction": "גם שכירות זרה שבחרה לא במסלול 15% - כדי לקבל זיכוי",
+          "uncertain": false
+        },
+        {
+          "section": "מקורות אחרים - רגילים",
+          "code": "405",
+          "label": "מנכס בית - מס ששולם בחו\"ל",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "מקורות אחרים - רגילים",
+          "code": "467",
+          "label": "מריבית, הפרשי הצמדה, דמי ניכיון - סה\"כ",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "מקורות אחרים - רגילים",
+          "code": "406",
+          "label": "ריבית - מס ששולם בחו\"ל",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "מקורות אחרים - רגילים",
+          "code": "468",
+          "label": "מקצבה שאינה מעבודה, ממלוג ואנונה - סה\"כ",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "מקורות אחרים - רגילים",
+          "code": "407",
+          "label": "קצבה שאינה מעבודה - מס ששולם בחו\"ל",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "מקורות אחרים - רגילים",
+          "code": "469",
+          "label": "מרכוש אחר - סה\"כ",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "מקורות אחרים - רגילים",
+          "code": "408",
+          "label": "רכוש אחר - מס ששולם בחו\"ל",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "מקורות אחרים - רגילים",
+          "code": null,
+          "label": "ממקורות אחרים, פרט/י",
+          "kind": "text",
+          "instruction": null,
+          "uncertain": true
+        },
+        {
+          "section": "שיעורים מיוחדים",
+          "code": "461",
+          "label": "פטנט או זכות יוצרים - מס מוגבל ל־40% - סה\"כ",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "שיעורים מיוחדים",
+          "code": "411",
+          "label": "פטנט - מס ששולם בחו\"ל",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "שיעורים מיוחדים",
+          "code": "460",
+          "label": "ריבית, הפרשי הצמדה, דמי ניכיון 15% - סה\"כ",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "שיעורים מיוחדים",
+          "code": "412",
+          "label": "ריבית 15% - מס ששולם בחו\"ל",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "שיעורים מיוחדים",
+          "code": "451",
+          "label": "ריבית מני\"ע/פקדונות/חיסכון 20% - סה\"כ",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "שיעורים מיוחדים",
+          "code": "428",
+          "label": "ריבית ני\"ע 20% - מס ששולם בחו\"ל",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "שיעורים מיוחדים",
+          "code": "457",
+          "label": "ריבית מני\"ע/פקדונות/חיסכון 25% - סה\"כ",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "שיעורים מיוחדים",
+          "code": "417",
+          "label": "ריבית ני\"ע 25% - מס ששולם בחו\"ל",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "שיעורים מיוחדים",
+          "code": "462",
+          "label": "דיבידנד והכנסות אחרות 25% - סה\"כ",
+          "kind": "amount",
+          "instruction": "בנאמנות קרובים - לפי מסלול 75ח1(ד)",
+          "uncertain": false
+        },
+        {
+          "section": "שיעורים מיוחדים",
+          "code": "431",
+          "label": "דיבידנד 25% - מס ששולם בחו\"ל",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "שיעורים מיוחדים",
+          "code": "455",
+          "label": "דיבידנד לבעל מניות מהותי והכנסות אחרות 30% - סה\"כ",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "שיעורים מיוחדים",
+          "code": "413",
+          "label": "דיבידנד מהותי - מס ששולם בחו\"ל",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "שיעורים מיוחדים",
+          "code": "453",
+          "label": "ריבית 35% - סה\"כ",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "שיעורים מיוחדים",
+          "code": "415",
+          "label": "ריבית 35% - מס ששולם בחו\"ל",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "שיעורים מיוחדים",
+          "code": "427",
+          "label": "הימורים, הגרלות ופרסים 35% - סה\"כ",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "שיעורים מיוחדים",
+          "code": "416",
+          "label": "הימורים - מס ששולם בחו\"ל",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "שיעורים מיוחדים",
+          "code": "482",
+          "label": "דמי שכירות ממקרקעין מחוץ לישראל 15%",
+          "kind": "amount",
+          "instruction": "אין זיכוי מס זר במסלול זה; אפשר לרשום ב־459 ואת המס ב־405",
+          "uncertain": false
+        },
+        {
+          "section": "רווח הון",
+          "code": "438",
+          "label": "סך המכירות לפי חלק ה' למעט ני\"ע סחירים (כפי ב־1399י)",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "רווח הון",
+          "code": "420",
+          "label": "רווח הון לפי חלק ה' - מס ששולם בחו\"ל",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "רווח הון",
+          "code": "439",
+          "label": "סך המכירות מני\"ע סחירים (כפי ב־1322)",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "רווח הון",
+          "code": "422",
+          "label": "ני\"ע סחירים - מס ששולם בחו\"ל",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "קצבה 9ג",
+          "code": "443",
+          "label": "הכנסה מקצבה לפי סעיף 9ג - סה\"כ",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "קצבה 9ג",
+          "code": "423",
+          "label": "קצבה 9ג - מס ששולם בחו\"ל",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "קצבה 9ג",
+          "code": "442",
+          "label": "מס החל בישראל על הכנסה מקצבה לפי 9ג",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "חנ\"ז",
+          "code": "472",
+          "label": "דיבידנד רעיוני שטרם חולק לבעל שליטה בחנ\"ז",
+          "kind": "amount",
+          "instruction": "צורף לשדה 055",
+          "uncertain": false
+        },
+        {
+          "section": "חנ\"ז",
+          "code": "473",
+          "label": "יתרת רווחים שחויבו כדיבידנד רעיוני וטרם חולקו",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "חנ\"ז",
+          "code": "474",
+          "label": "דיבידנד מחנ\"ז ששולם בפועל",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "חנ\"ז",
+          "code": "424",
+          "label": "דיבידנד מחנ\"ז ששולם בפועל - מס ששולם בחו\"ל",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "חנ\"ז",
+          "code": "475",
+          "label": "דיבידנד רעיוני מוקדם הכלול בדיבידנד ששולם השנה (צמוד)",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "חנ\"ז",
+          "code": "470",
+          "label": "דיבידנד מחנ\"ז ששולם בפועל, החייב במס השנה",
+          "kind": "amount",
+          "instruction": "צורף לשדה 055; לצרף נייר עבודה",
+          "uncertain": false
+        },
+        {
+          "section": "חנ\"ז",
+          "code": "476",
+          "label": "מס ששולם בישראל בשנים קודמות על דיבידנד רעיוני שחולק השנה",
+          "kind": "amount",
+          "instruction": "צמוד למדד; לצרף נייר עבודה",
+          "uncertain": false
+        },
+        {
+          "section": "חנ\"ז",
+          "code": "477",
+          "label": "מס זר ששולם השנה על חלק הדיבידנד שחויב בעבר כרעיוני",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "חמי\"ז",
+          "code": "463",
+          "label": "דיבידנד רעיוני לבעל שליטה בחמי\"ז 23%",
+          "kind": "amount",
+          "instruction": "צורף לשדה 174",
+          "uncertain": false
+        },
+        {
+          "section": "חמי\"ז",
+          "code": "410",
+          "label": "דיבידנד רעיוני חמי\"ז - מס ששולם בחו\"ל",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "חמי\"ז",
+          "code": "464",
+          "label": "דיבידנד מחמי\"ז ששולם בפועל",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "חמי\"ז",
+          "code": "418",
+          "label": "דיבידנד חמי\"ז ששולם - מס ששולם בחו\"ל",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "חמי\"ז",
+          "code": "478",
+          "label": "מס ששולם בישראל על דיבידנד רעיוני עבור דיבידנד זה",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "חמי\"ז",
+          "code": "465",
+          "label": "דיבידנד נטו מחמי\"ז לפי 75ב1(ו)(2)",
+          "kind": "amount",
+          "instruction": "צורף לשדה 055; לצרף נייר עבודה",
+          "uncertain": false
+        },
+        {
+          "section": "סיכום",
+          "code": null,
+          "label": "סה\"כ הכנסות חו\"ל (למעט רווח הון)",
+          "kind": "amount",
+          "instruction": "יועבר לשדה 290",
+          "uncertain": false
+        },
+        {
+          "section": "יתרות הפסדים להעברה",
+          "code": "479",
+          "label": "הפסד מעסק (ללא 'עסק נשלט')",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "יתרות הפסדים להעברה",
+          "code": "480",
+          "label": "הפסד מעסק מ'עסק נשלט'",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "יתרות הפסדים להעברה",
+          "code": "481",
+          "label": "הפסד מהכנסה פסיבית",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "יתרות הפסדים להעברה",
+          "code": "466",
+          "label": "הפסד הון",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "יתרות הפסדים להעברה",
+          "code": null,
+          "label": "סה\"כ הפסד מחו\"ל",
+          "kind": "amount",
+          "instruction": "יועבר לשדה 299",
+          "uncertain": false
+        },
+        {
+          "section": "מחזור",
+          "code": "493",
+          "label": "מחזור עסקי מחו\"ל",
+          "kind": "amount",
+          "instruction": "כל הכנסה בשיעורים רגילים כולל שכירות וריבית, למעט שיעורים מיוחדים",
+          "uncertain": false
+        },
+        {
+          "section": "הצהרה",
+          "code": null,
+          "label": "קיבלתי החזר מסים זרים בגין שנים קודמות",
+          "kind": "yesno",
+          "instruction": "אם כן - סכום בש\"ח",
+          "uncertain": false
+        },
+        {
+          "section": "הצהרה",
+          "code": null,
+          "label": "סכום ההחזר (ש\"ח)",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        }
+      ],
+      "checkboxes": 2,
+      "notes": [
+        "נקרא מהגרסה הרגילה של 2025; הגרסה הנגישה שבדף היא 2023 (docx) ולא שימשה.",
+        "שיוך הקודים לשורות לפי מיקומי הטקסט: עמודה אחת לסה\"כ שני בני הזוג ועמודה אחת למס זר. עמודות ההכנסה לכל בן זוג והמדינה הן ללא קוד.",
+        "מס זר נרשם רק על סמך אישורים מצורפים; לא כולל מסים עירוניים.",
+        "הצהרה: המס המדווח שולם מחוץ לישראל משנת 2020 ואילך, והתחייבות להודיע על החזר.",
+        "שורות 443/423 של קצבה 9ג: השיוך לפי מיקום ולכן מסומן כלא ודאי.",
+        "השיוך של 443/423 אומת חזותית. בשורה ״הכנסה מקצבה לפי סעיף 9ג לפקודה״ התיבה 443 נמצאת בעמודת ״סה״כ הכנסות שני בני הזוג״ (כמו 438/439), והתיבה 423 בעמודת ״מס ששולם מחוץ לישראל בגין הכנסה זו״ (כמו 420/422). 442 היא תיבה נפרדת בשורה שמתחת, במרכז העמוד.",
+        "השיוך של 424 אומת. בשורה ״דיבידנד מחנ״ז ששולם בפועל״ התיבה 474 בעמודה האמצעית, והתיבה 424 בעמודה השמאלית (x≈119). זו אותה עמודה שבבלוק חמי״ז שמתחתיה כותרתה ״מס ששולם מחוץ לישראל בגין הכנסה זו״ (410/418@x117). לבלוק חנ״ז אין שורת כותרת משלו, ולכן השיוך נעשה לפי יישור העמודה."
+      ]
+    },
+    {
+      "formId": "1399י",
+      "title": "הודעה על מכירת נכס וחישוב המס המגיע (ליחיד)",
+      "taxYear": 2025,
+      "url": "https://www.gov.il/BlobFolder/service/reporting-and-payment-2025-annual-tax-report-for-individuals/he/Service_Pages_Income_tax_annual-report-2026_itc1399y-acc.pdf",
+      "documentVersion": "מעודכן ל-1.2026",
+      "readStatus": "read",
+      "requiredWhen": "מכירת נכס (מניות לא סחירות, מטבע וירטואלי, מוניטין ועוד) בידי יחיד; הודעה תוך 30 יום ממכירה וצירוף לדוח",
+      "linksTo1301": [],
+      "fields": [
+        {
+          "section": "לשימוש המשדר",
+          "code": null,
+          "label": "שייכות",
+          "kind": "code",
+          "instruction": "0 אין; 2 בן זוג רשום; 3 בן/בת זוג",
+          "uncertain": false
+        },
+        {
+          "section": "לשימוש המשדר",
+          "code": null,
+          "label": "בעל מניות מהותי (0/1), שנה לפני נישואין/ירושה, הפקעה (0/1)",
+          "kind": "code",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "לשימוש המשדר",
+          "code": null,
+          "label": "הנכס בחו\"ל",
+          "kind": "code",
+          "instruction": "0 לא; 1 כן; 3 עולה חדש/תושב חוזר ותיק; 4 תושב חוזר",
+          "uncertain": false
+        },
+        {
+          "section": "לשימוש המשדר",
+          "code": null,
+          "label": "פריסה (0/1), סמל עסקה, מספר נספח, מפקח, סעיף שומה",
+          "kind": "code",
+          "instruction": "סמלי עסקה: 27 מניות; 52 אגודה שיתופית; 53 מניות 102 הוני; 77 כל השאר כולל מטבע וירטואלי",
+          "uncertain": false
+        },
+        {
+          "section": "פרטי המכירה",
+          "code": null,
+          "label": "שם המוכר / מספר תיק",
+          "kind": "text",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "פרטי המכירה",
+          "code": null,
+          "label": "המוכר בעל מניות מהותי",
+          "kind": "yesno",
+          "instruction": "10% לפחות באמצעי שליטה כלשהו",
+          "uncertain": false
+        },
+        {
+          "section": "פרטי המכירה",
+          "code": null,
+          "label": "עולה חדש או תושב חוזר ותיק / תושב חוזר",
+          "kind": "checkbox",
+          "instruction": "פטור לנכס מחו\"ל שנמכר תוך 10 שנים; לציין מתאריך",
+          "uncertain": false
+        },
+        {
+          "section": "פרטי המכירה",
+          "code": "47",
+          "label": "מתאריך (תושבות)",
+          "kind": "date",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "פרטי המכירה",
+          "code": null,
+          "label": "מניות לפי 102",
+          "kind": "yesno",
+          "instruction": "הקצאה אחרי 1.1.2003 במסלול רווח הון - 25%",
+          "uncertain": false
+        },
+        {
+          "section": "פרטי המכירה",
+          "code": null,
+          "label": "פריסה + מספר שנים",
+          "kind": "yesno",
+          "instruction": "עד 4 שנים; קוד 97 הכנסה לכל שנה, קוד 98 זיכויים; לא לני\"ע סחירים",
+          "uncertain": false
+        },
+        {
+          "section": "פרטי המכירה",
+          "code": null,
+          "label": "הפקעה",
+          "kind": "yesno",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "פרטי המכירה",
+          "code": null,
+          "label": "פרטי הנכס / מקום הנכס (ישראל / חו\"ל)",
+          "kind": "text",
+          "instruction": "מהות וזיהוי; חלק בבעלות משותפת; במניות - האם החברה הפסיקה פעילות",
+          "uncertain": false
+        },
+        {
+          "section": "פרטי המכירה",
+          "code": null,
+          "label": "במכירת מניות, האם המניות של חברה שהפסיקה פעילות",
+          "kind": "yesno",
+          "instruction": "חובה בסמל עסקה 27",
+          "uncertain": false
+        },
+        {
+          "section": "פרטי המכירה",
+          "code": null,
+          "label": "הנכס בבעלותי / בבעלות בן/בת זוגי",
+          "kind": "checkbox",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "פרטי המכירה",
+          "code": null,
+          "label": "שנה לפני הנישואין/בירושה",
+          "kind": "yesno",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "פרטי המכירה",
+          "code": null,
+          "label": "שם הרוכש",
+          "kind": "text",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "פרטי המכירה",
+          "code": null,
+          "label": "הרוכש הוא צד קשור",
+          "kind": "yesno",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "חישוב הרווח",
+          "code": "15",
+          "label": "1. המכירה (תמורה לפני הוצאות מכירה/חילוף מניות)",
+          "kind": "amount",
+          "instruction": "שווה כסף - מלוא הסכום ופירוט בהערות; תאריך ומדד מכירה",
+          "uncertain": false
+        },
+        {
+          "section": "חישוב הרווח",
+          "code": null,
+          "label": "תאריך מכירה / מדד מכירה",
+          "kind": "date",
+          "instruction": "מדד ידוע ביום",
+          "uncertain": false
+        },
+        {
+          "section": "חישוב הרווח",
+          "code": "20",
+          "label": "2. עלות (מחיר מקורי) + תאריך + מדד בסיס",
+          "kind": "amount",
+          "instruction": "למעט השבחה ומחצית הוצאות החזקה; טור א מתואם, טור ב מתואם ל־31.12.93",
+          "uncertain": false
+        },
+        {
+          "section": "חישוב הרווח",
+          "code": "40",
+          "label": "3. פחת שנצבר על העלות",
+          "kind": "amount",
+          "instruction": "מופחת; תאריך ומדד",
+          "uncertain": false
+        },
+        {
+          "section": "חישוב הרווח",
+          "code": "50",
+          "label": "4-6. יתרת הוצאות השבחה 1, 2, 3 (אחרי ניכוי פחת)",
+          "kind": "amount",
+          "instruction": "תאריך גמר השבחה ומדד; פירוט בטבלה א",
+          "uncertain": false
+        },
+        {
+          "section": "חישוב הרווח",
+          "code": "53",
+          "label": "7. הלוואה ללא ריבית וללא הצמדה",
+          "kind": "amount",
+          "instruction": "סעיף 94א; תאריך מתן הלוואה",
+          "uncertain": false
+        },
+        {
+          "section": "חישוב הרווח",
+          "code": "27",
+          "label": "8. מחצית הוצאות החזקה שלא הותרו ולא נזקפו לעלות",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "חישוב הרווח",
+          "code": null,
+          "label": "9. יתרת מחיר מקורי (2 עד 8)",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "חישוב הרווח",
+          "code": "55",
+          "label": "10. הוצאות הקשורות במכירה שלא הופחתו מהתמורה",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "חישוב הרווח",
+          "code": "05",
+          "label": "11. ניכוי מהתמורה בחילוף מניות (סעיף 3 לחוק עידוד)",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "חישוב הרווח",
+          "code": "07",
+          "label": "12. ניכוי מהתמורה בגין דיבידנד רעיוני שיוחס וטרם חולק",
+          "kind": "amount",
+          "instruction": "לפי תקנה 3(ו) לתקנות תשפ\"ה-2025",
+          "uncertain": false
+        },
+        {
+          "section": "חישוב הרווח - טבלת התיאום",
+          "code": null,
+          "label": "13. סה״כ יתרת מחיר מקורי מתואם (טור א) / 14. סה״כ יתרת מחיר מקורי מתואם ל-31.12.93 (טור ב)",
+          "kind": "amount",
+          "instruction": "שורת ״סה״כ״ של שני טורי החישוב בצד שמאל של הטבלה: טור א (סכום × מדד מכירה / מדד בסיס) וטור ב (סכום × מדד נוב' 93 / מדד בסיס). שורה 13 משמשת בחישוב שורה 17 (סכום אינפלציוני = 13-9+15).",
+          "uncertain": false
+        },
+        {
+          "section": "חישוב הרווח",
+          "code": "57",
+          "label": "15. רווחים ראויים לחלוקה שנצברו לפני המועד הקובע",
+          "kind": "amount",
+          "instruction": "סעיף 94ב; מניות לא סחירות",
+          "uncertain": false
+        },
+        {
+          "section": "חישוב הרווח",
+          "code": "58",
+          "label": "16. רווחים ראויים לחלוקה לאחר המועד הקובע",
+          "kind": "amount",
+          "instruction": "בעל מניות מהותי בחברה סחירה - רק כאן",
+          "uncertain": false
+        },
+        {
+          "section": "חישוב הרווח",
+          "code": null,
+          "label": "17. סכום אינפלציוני",
+          "kind": "amount",
+          "instruction": "לא יותר מרווח ההון",
+          "uncertain": false
+        },
+        {
+          "section": "חישוב הרווח",
+          "code": null,
+          "label": "18. רווח/הפסד הון (1-9-10-11)",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "חישוב הרווח",
+          "code": "71",
+          "label": "19. מימוש/המרה של מטבע וירטואלי",
+          "kind": "checkbox",
+          "instruction": "כל עסקה בנפרד או קיבוץ חודשי בממוצע משוקלל; או עסקה מאולצת 51 עם קוד 71; נייר עבודה",
+          "uncertain": false
+        },
+        {
+          "section": "חישוב הרווח",
+          "code": "92",
+          "label": "20. מכירת מוניטין שלא שולם בעד רכישתו",
+          "kind": "checkbox",
+          "instruction": "כל רווח ההון חייב ב־25%",
+          "uncertain": false
+        },
+        {
+          "section": "חישוב הרווח",
+          "code": "96",
+          "label": "21. רווח הון ריאלי של הנכס המוחלף עד המועד הקובע",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "חישוב הרווח",
+          "code": "59",
+          "label": "22. הוצאות הפקת סרט שהותרו (91(ב2))",
+          "kind": "amount",
+          "instruction": "חייב במס שולי",
+          "uncertain": false
+        },
+        {
+          "section": "חישוב הרווח",
+          "code": "09",
+          "label": "23. מכירת נכס שהועבר ליחיד אגב הוראת השעה (סימון בתיבה 09)",
+          "kind": "checkbox",
+          "instruction": "סעיף 6 להוראת השעה רווחים לא מחולקים",
+          "uncertain": false
+        },
+        {
+          "section": "חישוב הרווח",
+          "code": null,
+          "label": "23. תאריך העברת הנכס (מועד תחילת הפירוק)",
+          "kind": "date",
+          "instruction": "תאריך (יום/חודש/שנה) ללא קוד מודפס",
+          "uncertain": false
+        },
+        {
+          "section": "מרכיבי רווח ההון",
+          "code": null,
+          "label": "24. סה\"כ רווח הון ריאלי / 24א. רווח הון ריאלי לייחוס",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "מרכיבי רווח ההון",
+          "code": null,
+          "label": "25. רווח ריאלי עד המועד הקובע (1.1.03)",
+          "kind": "amount",
+          "instruction": "יחס 1",
+          "uncertain": false
+        },
+        {
+          "section": "מרכיבי רווח ההון",
+          "code": null,
+          "label": "26. רווח ריאלי מהמועד הקובע עד מועד השינוי (1.1.12)",
+          "kind": "amount",
+          "instruction": "יחס 2",
+          "uncertain": false
+        },
+        {
+          "section": "מרכיבי רווח ההון",
+          "code": null,
+          "label": "27. יתרת רווח ריאלי לאחר מועד השינוי",
+          "kind": "amount",
+          "instruction": "יחס 3 + רר\"ל לאחר המועד הקובע",
+          "uncertain": false
+        },
+        {
+          "section": "מרכיבי רווח ההון",
+          "code": null,
+          "label": "28. סכום אינפלציוני חייב",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "מרכיבי רווח ההון",
+          "code": "72/83/64",
+          "label": "29. קיזוז לפי סעיף 96 (לכל תקופה)",
+          "kind": "amount",
+          "instruction": "מפרטי שיחלוף בעמוד 2",
+          "uncertain": false
+        },
+        {
+          "section": "מרכיבי רווח ההון",
+          "code": "74/85/66/75",
+          "label": "30. הפסדי הון הניתנים לקיזוז (לכל תקופה + אינפלציוני)",
+          "kind": "amount",
+          "instruction": "1:1 נגד ריאלי, 3.5:1 נגד אינפלציוני חייב",
+          "uncertain": false
+        },
+        {
+          "section": "מרכיבי רווח ההון",
+          "code": "76/87/68/77",
+          "label": "31. הפסדים מעסק הניתנים לקיזוז",
+          "kind": "amount",
+          "instruction": "הפסד עסקי מועבר רק נגד רווח הון בעסק",
+          "uncertain": false
+        },
+        {
+          "section": "מרכיבי רווח ההון",
+          "code": null,
+          "label": "32. סה\"כ רווח",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "מרכיבי רווח ההון",
+          "code": null,
+          "label": "33. המס על הרווח (שולי / 20%-25% / 25%-30% / 10%)",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "מרכיבי רווח ההון",
+          "code": null,
+          "label": "34. המס המירבי לפי סעיף 91(ו)",
+          "kind": "percent",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "פרטים נוספים א",
+          "code": null,
+          "label": "השבחות: מספר / תאריך גמר / סכום / תחילת וסיום צבירת פחת / פחת נצבר / יתרה",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "פרטים נוספים ב",
+          "code": null,
+          "label": "שיחלוף לפי סעיף 96: פרטי הנכס שנרכש / תאריך רכישה / מחיר / תמורה / קיזוזים ה-ז",
+          "kind": "amount",
+          "instruction": "רכישה תוך 12 חודשים אחרי או 4 לפני; קיזוזים לקודים 72/83/64",
+          "uncertain": false
+        },
+        {
+          "section": "הערות",
+          "code": null,
+          "label": "הערות",
+          "kind": "text",
+          "instruction": null,
+          "uncertain": false
+        }
+      ],
+      "checkboxes": 22,
+      "notes": [
+        "הנספח אינו מציין שדה יעד ב־1301; הסיכומים עוברים ל־1301 בהתאם לשדות רווח הון בדו\"ח (לא נבדק כאן).",
+        "סמלי עסקה 50 ו־51 (מס שבח, עסקה מאולצת), וגם 60/63/64/65/66 (ני\"ע סחירים), אינם מיועדים לטופס זה. לני\"ע סחירים - 1322 או 1326.",
+        "קוד 07 לשורה 12 חולץ מהגרסה הרגילה, כי ב־ACC הוא חסר.",
+        "שורות 13-14 ריקות. ההערות מפנות ל'סעיף 14/15' לרר\"ל, בניגוד למספור 15/16 בשורות, ולכן המספור לא עקבי.",
+        "קודי שורות 29-31 מסודרים לפי עמודות: עד המועד הקובע / עד מועד השינוי / אחרי מועד השינוי / אינפלציוני.",
+        "ספירת התיבות משוערת: כ־11 זוגות כן/לא ובחירות.",
+        "שורות 13-14 אינן ריקות. זו שורת ״סה״כ״ בתחתית טורי התיאום א/ב (״.13״@x165 ו-״.14״@x90 ב-y394, ״סה״כ״@x188).",
+        "סתירת המספור אומתה: הערת השוליים 17 בעמ' 2 (y241-258) אומרת ״יש לרשום בסעיף 14 רר״ל שנצברו עד למועד הקובע ובסעיף 15 רר״ל שנצברו לאחר המועד הקובע״. בטופס עצמו אלה שורות 15 (קוד 57) ו-16 (קוד 58). ההערה שארית ממספור ישן, ויש להסתמך על שורות 15 ו-16.",
+        "קוד 07 אומת בטופס הרגיל: שורה 12 ״ניכוי מהתמורה בגין דיבידנד רעיוני שיוחס וטרם חולק (16)״, ו-07@x405 בעמודת הקוד (y487), כמו 05/55/27.",
+        "קוד 09 מסמן תיבה ריקה בלי משבצות ספרה, כמו 71 ו-92 שהן תיבות סימון. התאריך הוא שדה נפרד בלי קוד."
+      ]
+    },
+    {
+      "formId": "1344",
+      "title": "הפסדים מועברים - נספח לדוח השנתי (לטפסים 1301, 1214)",
+      "taxYear": 2025,
+      "url": "https://www.gov.il/BlobFolder/service/reporting-and-payment-2025-annual-tax-report-for-individuals/he/Service_Pages_Income_tax_annual-report-2026_itc1344-2025.pdf",
+      "documentVersion": "מעודכן ל-9.2025",
+      "readStatus": "read",
+      "requiredWhen": "קיזוז הפסדים (נדרש בנספח א בכל קיזוז); הפסדים מועברים, שנוצרו השנה או מועברים ל־2026",
+      "linksTo1301": [
+        {
+          "annexField": "הפסד מעסק - הפסדים מועברים לשנת 2026",
+          "goesTo1301Code": "079"
+        },
+        {
+          "annexField": "הפסדי הון למעט ני\"ע נסחרים עד 31.12.2005 - להעברה",
+          "goesTo1301Code": "166"
+        },
+        {
+          "annexField": "הפסדי הון מני\"ע נסחרים עד 31.12.2005 - להעברה",
+          "goesTo1301Code": "160"
+        },
+        {
+          "annexField": "הפסד מהשכרת בניין - להעברה",
+          "goesTo1301Code": "179"
+        }
+      ],
+      "fields": [
+        {
+          "section": "פרטים",
+          "code": null,
+          "label": "שם הנישום / מספר תיק / שנת המס",
+          "kind": "text",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "שורות (שלבי החישוב, לכל סוג הפסד)",
+          "code": null,
+          "label": "1. הפסדים מועברים משנים קודמות",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "שורות (שלבי החישוב, לכל סוג הפסד)",
+          "code": null,
+          "label": "2. הפסדים שנוצרו השנה",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "שורות (שלבי החישוב, לכל סוג הפסד)",
+          "code": null,
+          "label": "3. סה\"כ הפסדים הניתנים לקיזוז",
+          "kind": "amount",
+          "instruction": "(3) הפסדים הניתנים לקיזוז לפי סעיפים 28, 29 ו-92 לפקודה. לעניין מפעל טכנולוגי - לפי סעיף 51כט לחוק עידוד השקעות הון, התשי״ט-1959.",
+          "uncertain": false
+        },
+        {
+          "section": "שורות (שלבי החישוב, לכל סוג הפסד)",
+          "code": null,
+          "label": "4. הפסדים שקוזזו בשנת המס בדוח התאמה לצורכי מס",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "שורות (שלבי החישוב, לכל סוג הפסד)",
+          "code": null,
+          "label": "5. הפסדים מועברים לשנת 2026",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "עמודות (סוגי הפסד)",
+          "code": null,
+          "label": "הפסד מעסק",
+          "kind": "amount",
+          "instruction": "להעברה: לטופס 1301 שדה 079; לטופס 1214 שדה 086",
+          "uncertain": false
+        },
+        {
+          "section": "עמודות (סוגי הפסד)",
+          "code": null,
+          "label": "הפסדי הון למעט הפסדי הון מני״ע נסחרים שנוצרו עד 31.12.2005",
+          "kind": "amount",
+          "instruction": "להעברה: לטופס 1301 שדה 166; לטופס 1214 שדה 225",
+          "uncertain": false
+        },
+        {
+          "section": "עמודות (סוגי הפסד)",
+          "code": null,
+          "label": "הפסדי הון מני\"ע נסחרים שנוצרו עד 31.12.2005",
+          "kind": "amount",
+          "instruction": "להעברה: לטופס 1301 שדה 160; לטופס 1214 שדה 160",
+          "uncertain": false
+        },
+        {
+          "section": "עמודות (סוגי הפסד)",
+          "code": null,
+          "label": "הפסד ריאלי מניירות ערך",
+          "kind": "amount",
+          "instruction": "להעברה: לטופס 1214 שדה 096 בלבד. (1) ״הפסד ריאלי מניירות ערך״ כהגדרתו בסעיף 6 לחוק התיאומים, שניתן להעבירו לשנים הבאות: יראוהו כהפסד שהיה לפני שנת המס 2006, וניתן לקזזו רק כנגד הכנסה ממכירת נייר ערך הנסחר בבורסה.",
+          "uncertain": false
+        },
+        {
+          "section": "עמודות (סוגי הפסד)",
+          "code": null,
+          "label": "הפסד ממפעל טכנולוגי",
+          "kind": "amount",
+          "instruction": "להעברה: לטופס 1214 שדה 164 בלבד (ראו הערה 3: סעיף 51כט לחוק עידוד השקעות הון)",
+          "uncertain": false
+        },
+        {
+          "section": "עמודות (סוגי הפסד)",
+          "code": null,
+          "label": "הפסד אחר המוגבל בקיזוז (פרט)",
+          "kind": "text",
+          "instruction": "להעברה: לטופס 1214 שדה 065 בלבד. (2) יש לפרט את ההפסד המוגבל בקיזוז, כגון הפסד בגין פחת מואץ לפי סעיף 53(ג) לחוק עידוד השקעות הון, הפסד ממיזוג או מפיצול (לרבות החלטת מיסוי), הפסד מחברה משפחתית ועוד.",
+          "uncertain": false
+        },
+        {
+          "section": "עמודות (סוגי הפסד)",
+          "code": null,
+          "label": "הפסד מהשכרת בניין",
+          "kind": "amount",
+          "instruction": "להעברה: לטופס 1301 שדה 179; לטופס 1214 שדה 126",
+          "uncertain": false
+        }
+      ],
+      "checkboxes": 0,
+      "notes": [
+        "אין גרסה נגישה ל־2025 (בדף יש רק 1344 ACC של 2022 ב־docx). הקובץ הרגיל של 2025 נקרא כטקסט, אבל סדר הטבלה מבולגן.",
+        "סדר עמודות 4/5 אינו ודאי: בטקסט '5' מופיע לפני '4' ליד 'מועברים לשנת 2026'. ייתכן שעמודה 4 היא 'הועברו ל־2026' ו־5 'קוזזו'.",
+        "שיוך 164/065 ל'מפעל טכנולוגי'/'הפסד אחר' לפי סדר ההופעה - לא ודאי.",
+        "הכותרת 'הפסדי הון למעט ני\"ע נסחרים' סמוכה ל־'שנוצרו עד 31.12.2005', ולא ברור אם המגבלה חלה גם עליה.",
+        "אין קודי שדה פנימיים; כל עמודה ריקה = אין הפסד מהסוג.",
+        "תיקון מבנה 10.10.2026: הטבלה מוצגת הפוך ממה שתואר בקטלוג. השורות הן שלבי החישוב 1-5 (הכותרות בצד ימין, x≈480-530), והעמודות הן סוגי ההפסד. סדר העמודות מימין לשמאל: הפסד מעסק; הפסדי הון למעט הפסדי הון מני״ע נסחרים שנוצרו עד 31.12.2005; הפסדי הון מני״ע נסחרים שנוצרו עד 31.12.2005; ״הפסד ריאלי מניירות ערך״(1); הפסד מהשכרת בניין; הפסד ממפעל טכנולוגי; הפסד אחר המוגבל בקיזוז(2) ____ פרט. בשורת ״להעברה״ שבתחתית כל עמודה מודפסים קודי היעד ב-1301 וב-1214.",
+        "סדר שורות 4/5 הוכרע: 4 = קוזזו בשנת המס, 5 = מועברים לשנת 2026. לכן ההערה ״ייתכן שעמודה 4 היא הועברו״ בטלה.",
+        "164 שייך ל״הפסד ממפעל טכנולוגי״ ו-065 ל״הפסד אחר המוגבל בקיזוז״, לפי מיקום תחת העמודה.",
+        "המגבלה ״שנוצרו עד 31.12.2005״ בעמודה השנייה חלה על החריג (הפסדי ני״ע נסחרים), ולא על כל הפסדי ההון. כך העמודה משלימה את העמודה השלישית."
+      ]
+    },
+    {
+      "formId": "1342",
+      "title": "(י\"א) 1342 - פרטים על נכסים שניתן לתבוע עבורם פחת",
+      "taxYear": 2025,
+      "url": "https://www.gov.il/BlobFolder/service/reporting-and-payment-2025-annual-tax-report-for-individuals/he/Service_Pages_Income_tax_annual-report-2026_itc1342.pdf",
+      "documentVersion": "מעודכן ל-11.2017",
+      "readStatus": "read",
+      "requiredWhen": "תביעת פחת לפי סעיף 21 לפקודה ו/או סעיף 3 לחוק התיאומים (מפנים אליו נספח א שורה 17 ונספח ב)",
+      "linksTo1301": [],
+      "fields": [
+        {
+          "section": "פרטים",
+          "code": null,
+          "label": "מספר תיק / שם / שנת מס / משרד פקיד השומה",
+          "kind": "text",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "פרטי הנכסים ומחירם",
+          "code": null,
+          "label": "1. רשימת הנכסים ותיאורם",
+          "kind": "text",
+          "instruction": "יש לפרט את הנכסים שבבעלותך, לרבות נכסים שיצאו משימוש, או שהופחתו כליל ולא נמכרו, או שטרם הופעלו אך מיועדים לכך. שינוי מהותי בנכס, שלא הותר כהוצאה והמתווסף למחיר המקורי, יירשם בשורה נפרדת מתחת לנכס אם נעשה שלא במועד רכישתו.",
+          "uncertain": false
+        },
+        {
+          "section": "פרטי הנכסים ומחירם",
+          "code": null,
+          "label": "1. תאריך הרכישה או השינוי",
+          "kind": "date",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "פרטי הנכסים ומחירם",
+          "code": null,
+          "label": "1. תאריך הפעלת הנכס",
+          "kind": "date",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "פרטי הנכסים ומחירם",
+          "code": null,
+          "label": "2. המחיר המקורי שעלה הנכס לנישום",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "פרטי הנכסים ומחירם",
+          "code": null,
+          "label": "3. מחיר השינויים במשך השנה",
+          "kind": "amount",
+          "instruction": "רכישות חדשות, הוספות, שינויים שכלולים והרחבות, לרבות כל ההוצאות שהוצאו בעד הנכס עד להפעלתו, אם הופעל, או עד תום שנת המס - אם טרם הופעל.",
+          "uncertain": false
+        },
+        {
+          "section": "פרטי הנכסים ומחירם",
+          "code": null,
+          "label": "4. סה״כ מחיר של נכסים בני פחת (2 ו-3)",
+          "kind": "amount",
+          "instruction": "יש לרשום רק נכסים בני פחת, היינו המזכים בניכוי בעד הפחת עפ״י סעיף 21 לפקודה וסעיף 3 לחוק התיאומים.",
+          "uncertain": false
+        },
+        {
+          "section": "הפחת",
+          "code": null,
+          "label": "5. שיעור הפחת הקבוע עפ״י דין",
+          "kind": "percent",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "הפחת",
+          "code": null,
+          "label": "6. שיעור הפחת הנתבע",
+          "kind": "percent",
+          "instruction": "יש לציין בטור 11 את הסיבה לתביעת שיעור פחת שונה מזה הקבוע עפ״י דין.",
+          "uncertain": false
+        },
+        {
+          "section": "הפחת",
+          "code": null,
+          "label": "7. הפחת הנתבע לשנה הנדונה (6 X 4)",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "הפחת",
+          "code": null,
+          "label": "8. סה״כ פחת נצבר בשנות מס קודמות",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "הפחת",
+          "code": null,
+          "label": "9. סה״כ פחת (7 + 8)",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "יתרה להפחתה",
+          "code": null,
+          "label": "10. יתרה להפחתה (4 - 9)",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "הערות",
+          "code": null,
+          "label": "11. הערות",
+          "kind": "text",
+          "instruction": "יצא נכס מכלל שימוש או נמכר - יש לציין את התאריך לכך בטור 11, ואם נתקבלה תמורה ממכירתו - את סכום התמורה. כאן גם מנמקים שיעור פחת שונה (טור 6).",
+          "uncertain": false
+        },
+        {
+          "section": "סיכום",
+          "code": null,
+          "label": "סה״כ פחת (תיבה אחת מתחת לטור 7)",
+          "kind": "amount",
+          "instruction": "סיכום טור 7 (הפחת הנתבע לשנה הנדונה). הטופס אינו מציין שדה יעד.",
+          "uncertain": false
+        }
+      ],
+      "checkboxes": 0,
+      "notes": [
+        "הקובץ מקושר בדף 2025, אבל הגרסה שלו היא 11.2017 ואין גרסה נגישה. הטקסט מצויר כקווים וקטוריים, ולכן נקרא מעיבוד חזותי של העמוד בדפדפן ולא מחילוץ טקסט.",
+        "שורות 'הנחיות למילוי' לטורים 1, 3, 4 ו־6 נקראו רק חלקית, כי אמצע השורות לא צולם.",
+        "אין קודי שדה ואין העברה ישירה ל־1301; הסכום עובר לנספח א שורה 17 או לנספח ב.",
+        "טבלה בכ־16 שורות נכס (ספירה משוערת).",
+        "נקרא במלואו 10.10.2026 (מהתמונה המעובדת): עמוד אחד לרוחב (842×595). כותרות קבוצה: ״פרטי הנכסים ומחירם״ (טורים 1-4), ״הפחת״ (טורים 5-9), ״יתרה להפחתה״ (10), ״הערות״ (11). בטבלה 12 שורות נכס (קווים אופקיים ב-y 231-469, מרווח של כ-20pt). מתחת לטבלה תיבת ״סה״כ פחת״ אחת, מתחת לטור 7 (x 313-360).",
+        "ספירת השורות תוקנה: 12 שורות נכס (לא כ-16). המספר נמדד מקווי הטבלה בעיבוד ×2.",
+        "תיבת ״סה״כ פחת״ נמצאת מתחת לטור 7 (הפחת הנתבע לשנה), ולא מתחת לטור 9 שכותרתו גם ״סה״כ פחת״.",
+        "אין בטופס הנחיות לטורים 2, 5, 7-10. ההנחיות המודפסות הן לטורים 1, 3, 4 ו-6 בלבד.",
+        "אין קודי שדה. הטופס עצמו אינו מציין העברה לנספח א/ב או ל-1301.",
+        "הנחיות בטופס: [\"הנחיות למילוי הטופס:\",\"טור 1 - יש לפרט את הנכסים שבבעלותך, לרבות נכסים שיצאו משימוש, או שהופחתו כליל ולא נמכרו, או שטרם הופעלו אך מיועדים לכך. שינוי מהותי בנכס, שלא הותר כהוצאה והמתווסף למחיר המקורי, יירשם בשורה נפרדת מתחת לנכס אם נעשה שלא במועד רכישתו. יצא נכס מכלל שימוש או נמכר, יש לציין את התאריך לכך בטור 11, ואם נתקבלה תמורה ממכירתו - את סכום התמורה.\",\"טור 3 - רכישות חדשות, הוספות, שינויים שכלולים והרחבות, לרבות כל ההוצאות שהוצאו בעד הנכס עד להפעלתו, אם הופעל, או עד תום שנת המס - אם טרם הופעל.\",\"טור 4 - יש לרשום רק נכסים בני פחת, היינו המזכים בניכוי בעד הפחת עפ״י סעיף 21 לפקודה וסעיף 3 לחוק התיאומים.\",\"טור 6 - יש לציין בטור 11 את הסיבה לתביעת שיעור פחת שונה מזה הקבוע עפ״י דין.\"]"
+      ]
+    },
+    {
+      "formId": "1343",
+      "title": "ניכוי נוסף בשל פחת - נספח לדוח השנתי (לטפסים 1214, 1301)",
+      "taxYear": 2025,
+      "url": "https://www.gov.il/BlobFolder/service/reporting-and-payment-2025-annual-tax-report-for-individuals/he/Service_Pages_Income_tax_annual-report-2026_1343-2025-ACC.pdf",
+      "documentVersion": "מעודכן ל-10.2025",
+      "readStatus": "read",
+      "requiredWhen": "ניכוי נוסף בשל פחת לנכסים קבועים שחל עליהם פרק ב או ג לחוק התיאומים עד 2007 (נספח א שורה 21, נספח ב)",
+      "linksTo1301": [],
+      "fields": [
+        {
+          "section": "פרטים",
+          "code": null,
+          "label": "שם הנישום / מספר תיק / שנת המס",
+          "kind": "text",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "נכסים קבועים (שורות 1-25)",
+          "code": null,
+          "label": "תאר/י כל נכס בנפרד",
+          "kind": "text",
+          "instruction": "לא לכלול נכסים לפי סעיפים 3(ד)-3(ה) לחוק",
+          "uncertain": false
+        },
+        {
+          "section": "נכסים קבועים",
+          "code": null,
+          "label": "מחיר מקורי",
+          "kind": "amount",
+          "instruction": "סכומים המזכים בפחת, למעט קרקע והוצאות שהותרו",
+          "uncertain": false
+        },
+        {
+          "section": "נכסים קבועים",
+          "code": null,
+          "label": "תאריך",
+          "kind": "date",
+          "instruction": "הקטנה מההון (פרק ב) או רכישה (פרק ג)",
+          "uncertain": false
+        },
+        {
+          "section": "נכסים קבועים",
+          "code": null,
+          "label": "סכומי פחת לפי טופס י\"א",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "נכסים קבועים",
+          "code": null,
+          "label": "שיעור עליית המדד",
+          "kind": "percent",
+          "instruction": "עד תום שנת המס 2007",
+          "uncertain": false
+        },
+        {
+          "section": "נכסים קבועים",
+          "code": null,
+          "label": "סכומי הניכוי הנוסף בשל פחת",
+          "kind": "amount",
+          "instruction": "הסה\"כ יופחת מההכנסה בדו\"ח ההתאמה",
+          "uncertain": false
+        },
+        {
+          "section": "סיכום",
+          "code": null,
+          "label": "סה\"כ (מחיר מקורי, פחת, ניכוי נוסף)",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        }
+      ],
+      "checkboxes": 0,
+      "notes": [
+        "נוסף לקטלוג כי נספח א שורה 21 ונספח ב מפנים אליו, והוא מופיע בדף 2025 לצד 1342.",
+        "25 שורות נכס; אין קודים."
+      ]
+    },
+    {
+      "formId": "134",
+      "title": "חישוב ההכנסה בגין תשלומים עודפים של מעביד לקרן השתלמות וקופת גמל וההוצאה המותרת לביטוח אובדן כושר עבודה",
+      "taxYear": 2025,
+      "url": "https://www.gov.il/BlobFolder/service/reporting-and-payment-2025-annual-tax-report-for-individuals/he/Service_Pages_Income_tax_annual-report-2026_134-2025-ACC.pdf",
+      "documentVersion": "מעודכן ל-12.2025",
+      "readStatus": "read",
+      "requiredWhen": "שכיר שהמעסיק המשני חייב אותו במס על הפקדות, או בתקופת דמי לידה/שמירת הריון; שכיר שמבקש ניכוי ביטוח אובדן כושר עבודה",
+      "linksTo1301": [
+        {
+          "annexField": "ד.4 סה\"כ תוספת/הפחתה להכנסת עבודה",
+          "goesTo1301Code": "172/158"
+        },
+        {
+          "annexField": "ו.20 הוצאה מותרת לאובדן כושר עבודה כעצמאי",
+          "goesTo1301Code": "113/112"
+        },
+        {
+          "annexField": "ז.25 תוצאה חיובית - להוסיף; שלילית - להפחית",
+          "goesTo1301Code": "172/158"
+        },
+        {
+          "annexField": "ז.26 תוצאה חיובית",
+          "goesTo1301Code": "207/206"
+        },
+        {
+          "annexField": "ז.26 תוצאה שלילית - הערך המוחלט",
+          "goesTo1301Code": "172/158 (להוסיף)"
+        }
+      ],
+      "fields": [
+        {
+          "section": "פרטים",
+          "code": null,
+          "label": "מספר זהות / שם משפחה / שם פרטי / מספר תיק",
+          "kind": "text",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "א. קרן השתלמות (לכל מעסיק א-ה + סה\"כ)",
+          "code": null,
+          "label": "1. שם קרן ההשתלמות",
+          "kind": "text",
+          "instruction": "נתונים מטופסי 106",
+          "uncertain": false
+        },
+        {
+          "section": "א. קרן השתלמות",
+          "code": null,
+          "label": "2. משכורת שנתית שבגינה הופקד",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "א. קרן השתלמות",
+          "code": null,
+          "label": "3. שיעור הפקדות המעביד",
+          "kind": "percent",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "א. קרן השתלמות",
+          "code": null,
+          "label": "4. סכום ההפקדה השנתי - חלק המעסיק",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "א. קרן השתלמות",
+          "code": null,
+          "label": "5. סכום ההפקדה השנתי שחויב במס",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "א. חישוב",
+          "code": null,
+          "label": "א-ה: הפקדה, משכורת לצורך הפקדות × 7.5%, הפקדה חריגה, הפחתת מחויב, תוספת/הפחתה",
+          "kind": "amount",
+          "instruction": "תקרה 15,712 ש\"ח לחודש; מורים 8.4%; שלילי ב'ג' = 0; 'ה' לחלק ד שורה 1",
+          "uncertain": false
+        },
+        {
+          "section": "ב. קופ\"ג לקצבה - תגמולים (מעסיקים א-ה + סה\"כ)",
+          "code": null,
+          "label": "שם הקופה / משכורת / שיעור / הפקדת מעסיק / סכום שחויב",
+          "kind": "amount",
+          "instruction": "מטופסי 106",
+          "uncertain": false
+        },
+        {
+          "section": "ב. חישוב",
+          "code": null,
+          "label": "א-ה: הפקדה, משכורת × 7.5%, חריגה, הפחתת מחויב, תוספת/הפחתה",
+          "kind": "amount",
+          "instruction": "תקרה 33,290 ש\"ח לחודש; ללא שווי רכב; 'ה' לחלק ד שורה 2",
+          "uncertain": false
+        },
+        {
+          "section": "ג. קופ\"ג - פיצויים (מעסיקים א-ה + סה\"כ)",
+          "code": null,
+          "label": "שם הקופה / משכורת / שיעור / הפקדת מעסיק / סכום שחויב",
+          "kind": "amount",
+          "instruction": "ללא השלמה לפיצויים",
+          "uncertain": false
+        },
+        {
+          "section": "ג. חישוב",
+          "code": null,
+          "label": "א-ה: הפקדה, משכורת × 8.33%, חריגה, הפחתת מחויב, תוספת/הפחתה",
+          "kind": "amount",
+          "instruction": "תקרה 44,100 ש\"ח לחודש; 'ה' לחלק ד שורה 3",
+          "uncertain": false
+        },
+        {
+          "section": "ד. סה\"כ תוספת להכנסת עבודה",
+          "code": null,
+          "label": "1-3. סכומים מחלקים א, ב, ג",
+          "kind": "amount",
+          "instruction": "שלילי - בסוגריים",
+          "uncertain": false
+        },
+        {
+          "section": "ד. סה\"כ",
+          "code": null,
+          "label": "4. סה\"כ תוספת/הפחתה משדה 172/158",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "ה. א.כ.ע לשכיר",
+          "code": null,
+          "label": "1. סה\"כ הפקדות מעביד לתגמולים",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "ה. א.כ.ע לשכיר",
+          "code": null,
+          "label": "2. סה\"כ משכורת",
+          "kind": "amount",
+          "instruction": "ללא שווי רכב, בתוספת/בניכוי חלק ג",
+          "uncertain": false
+        },
+        {
+          "section": "ה. א.כ.ע לשכיר",
+          "code": null,
+          "label": "3. שיעור כולל מותר 7.5%",
+          "kind": "percent",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "ה. א.כ.ע לשכיר",
+          "code": null,
+          "label": "4. שיעור הפקדות המעביד ((1)/(2))",
+          "kind": "percent",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "ה. א.כ.ע לשכיר",
+          "code": null,
+          "label": "5. ההפרש (4)-(3)",
+          "kind": "percent",
+          "instruction": "שלילי - 0",
+          "uncertain": false
+        },
+        {
+          "section": "ה. א.כ.ע לשכיר",
+          "code": null,
+          "label": "6. הנמוך בין (5) ל־3.5%",
+          "kind": "percent",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "ה. א.כ.ע לשכיר",
+          "code": null,
+          "label": "7. המשכורת החייבת × שיעור (6)",
+          "kind": "amount",
+          "instruction": "שדה 158/172 + 068/069, בניכוי שווי רכב",
+          "uncertain": false
+        },
+        {
+          "section": "ה. א.כ.ע לשכיר",
+          "code": null,
+          "label": "8. הנמוך מהמשכורת החייבת ו־399,480 × 3.5%",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "ה. א.כ.ע לשכיר",
+          "code": null,
+          "label": "9. הנמוך מהמשכורת החייבת ו־399,480 × 7.5%",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "ה. א.כ.ע לשכיר",
+          "code": null,
+          "label": "10. (9)-(1)",
+          "kind": "amount",
+          "instruction": "שלילי - 0",
+          "uncertain": false
+        },
+        {
+          "section": "ה. א.כ.ע לשכיר",
+          "code": null,
+          "label": "11. הנמוך בין (7), (8), (10)",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "ה. א.כ.ע לשכיר",
+          "code": null,
+          "label": "12. סה\"כ הפקדות מעביד לא.כ.ע",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "ה. א.כ.ע לשכיר",
+          "code": null,
+          "label": "13. הפקדות חייבות במס (11)-(12)",
+          "kind": "amount",
+          "instruction": "שלילי - 0 ולעבור ל־14",
+          "uncertain": false
+        },
+        {
+          "section": "ה. א.כ.ע לשכיר",
+          "code": null,
+          "label": "14. הוצאה מותרת נוספת (12)-(11)",
+          "kind": "amount",
+          "instruction": "שלילי - 0",
+          "uncertain": false
+        },
+        {
+          "section": "ה. א.כ.ע לשכיר",
+          "code": null,
+          "label": "15. הפקדות עובד לא.כ.ע",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "ה. א.כ.ע לשכיר",
+          "code": null,
+          "label": "16. הנמוך בין (14) ל־(15)",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "ה. א.כ.ע לשכיר",
+          "code": null,
+          "label": "17. הפקדה שחויבה במס ע\"י המעביד",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "ו. א.כ.ע לעצמאי",
+          "code": null,
+          "label": "18. הכנסה מעסק (150/170) או 399,480, הנמוך, × 3.5%",
+          "kind": "amount",
+          "instruction": "כולל ב\"ל כעצמאי 250/270 ומענקי קורונה 001/002, 007/013",
+          "uncertain": false
+        },
+        {
+          "section": "ו. א.כ.ע לעצמאי",
+          "code": null,
+          "label": "19. הפקדה לא.כ.ע כעצמאי",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "ו. א.כ.ע לעצמאי",
+          "code": null,
+          "label": "20. הוצאה מותרת נגד הכנסה מעסק (הנמוך 18/19)",
+          "kind": "amount",
+          "instruction": "להעביר לשדה 113/112",
+          "uncertain": false
+        },
+        {
+          "section": "ז. תקרה",
+          "code": null,
+          "label": "21. יתרה שלא נוצלה נגד עסק (13,982 בניכוי 20)",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "ז. תקרה",
+          "code": null,
+          "label": "22. הקטנת ההוצאה נגד משכורת",
+          "kind": "amount",
+          "instruction": "שלילי - 0",
+          "uncertain": false
+        },
+        {
+          "section": "ז. תקרה",
+          "code": null,
+          "label": "23. רק אם (13) חיובי: (13)-(17)",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "ז. תקרה",
+          "code": null,
+          "label": "24. רק אם (14) חיובי: (16)+(17)",
+          "kind": "amount",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "ז. תקרה",
+          "code": null,
+          "label": "25. (23)+(22)",
+          "kind": "amount",
+          "instruction": "חיובי מוסיפים ל־172/158, ושלילי מפחיתים",
+          "uncertain": false
+        },
+        {
+          "section": "ז. תקרה",
+          "code": null,
+          "label": "26. (24)-(22)",
+          "kind": "amount",
+          "instruction": "חיובי ל־207/206, ושלילי מוסיפים את ערכו המוחלט ל־172/158",
+          "uncertain": false
+        }
+      ],
+      "checkboxes": 0,
+      "notes": [
+        "הטופס מנחה במפורש לרשום 0 בתוצאות שליליות בשורות ג (בחלקים א-ג) ובשורות 5, 10, 13, 14 ו־22. סכום שלילי בחלק ד נרשם בסוגריים.",
+        "תקרות 2025 כפי שהודפסו: 15,712; 33,290; 44,100 (לחודש); 399,480 (שנתי); 13,982.",
+        "חלקים א-ג חוזרים לחמישה מעסיקים ועמודת סה\"כ (טור 6)."
+      ]
+    },
+    {
+      "formId": "119",
+      "title": "בקשה להקלה במס ליחיד הזכאי לתואר אקדמי/תעודת מקצוע (סעיפים 40ג עד 40ה)",
+      "taxYear": 2025,
+      "url": "https://www.gov.il/BlobFolder/service/reporting-and-payment-2025-annual-tax-report-for-individuals/he/Service_Pages_Income_tax_annual-report-2026_itc119n.pdf",
+      "documentVersion": "מעודכן ל-11.2024",
+      "readStatus": "read",
+      "requiredWhen": "יחיד תושב ישראל שסיים תואר/תעודת מקצוע/התמחות ומבקש נקודות זיכוי; בדוח השנתי - למלא ולצרף",
+      "linksTo1301": [
+        {
+          "annexField": "סוג הלימודים שהסתיימו (קוד)",
+          "goesTo1301Code": "181/182 (קוד 1 תואר ראשון; 2 שני; 3 שלישי ברפואה/שיניים; 4 שלישי ישיר; 5 לימודי מקצוע; 12 ראשון ושני)"
+        }
+      ],
+      "fields": [
+        {
+          "section": "נמען",
+          "code": null,
+          "label": "לכבוד: פקיד השומה / המעסיק",
+          "kind": "checkbox",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "פרטי העובד",
+          "code": null,
+          "label": "שם פרטי / שם משפחה / מספר זהות",
+          "kind": "text",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "פרטי המעביד",
+          "code": null,
+          "label": "שם / כתובת / מספר תיק ניכויים",
+          "kind": "text",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "הצהרה",
+          "code": null,
+          "label": "אני מבקש לקבל זיכוי לשנת המס",
+          "kind": "text",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "הצהרה",
+          "code": null,
+          "label": "מוסד הלימודים (פרט/י)",
+          "kind": "text",
+          "instruction": "מוסד להשכלה גבוהה/סמינר/אחר",
+          "uncertain": true
+        },
+        {
+          "section": "הצהרה",
+          "code": null,
+          "label": "(1) תואר ראשון / (2) תואר שני / (3) שלישי ברפואה-שיניים / (4) שלישי ישיר / (5) תעודת מקצוע",
+          "kind": "checkbox",
+          "instruction": "לכל אחד: בתחום, בתאריך, מספר שנות לימוד",
+          "uncertain": false
+        },
+        {
+          "section": "הצהרה",
+          "code": null,
+          "label": "בתחום",
+          "kind": "text",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "הצהרה",
+          "code": null,
+          "label": "בתאריך (סיום)",
+          "kind": "date",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "הצהרה",
+          "code": null,
+          "label": "מספר שנות לימוד",
+          "kind": "count",
+          "instruction": "ראשון עד 3 שנות מס, שני עד 2, מקצוע עד 3",
+          "uncertain": false
+        },
+        {
+          "section": "הצהרה",
+          "code": null,
+          "label": "(6) התמחות - בתחום, תאריך התחלה, תאריך סיום, מספר שנות התמחות",
+          "kind": "checkbox",
+          "instruction": "מסיימי התמחות מ־2012 בוחרים שנת תחילת ההטבה",
+          "uncertain": false
+        },
+        {
+          "section": "חתימה",
+          "code": null,
+          "label": "שם / תאריך / חתימה",
+          "kind": "text",
+          "instruction": null,
+          "uncertain": false
+        }
+      ],
+      "checkboxes": 8,
+      "notes": [
+        "גרסת הקובץ 11.2024 אף שהדף מציג אותו כ'2025'. יש גם 119 ACC של 2024.",
+        "ההטבה ניתנת רק עם אישור סיום/זכאות; רק תואר או תעודה אחת (ראשון/שני); מסיימי 2014-2022 בוחרים שנה.",
+        "שדה 181/182 ב־1301 מקבל קוד ולא סכום."
+      ]
+    },
+    {
+      "formId": "116ד",
+      "title": "בקשה לדחיית נקודת זיכוי / ניצול נקודת זיכוי שנדחתה בגין ילדים שנולדו בשנת המס",
+      "taxYear": 2025,
+      "url": "https://www.gov.il/BlobFolder/service/reporting-and-payment-2025-annual-tax-report-for-individuals/he/Service_Pages_Income_tax_itc116d-acc.pdf",
+      "documentVersion": "מעודכן ל-7.2019",
+      "readStatus": "read",
+      "requiredWhen": "עובדת שמבקשת לדחות נקודת זיכוי אחת לכל ילד שנולד בשנת המס לשנה העוקבת, או לנצל נקודה שנדחתה",
+      "linksTo1301": [],
+      "fields": [
+        {
+          "section": "כללי",
+          "code": null,
+          "label": "שנת המס",
+          "kind": "text",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "א. פרטי העובד/ת",
+          "code": null,
+          "label": "מספר זהות / שם פרטי / שם משפחה / כתובת (רחוב, בית/דירה, יישוב, מיקוד)",
+          "kind": "text",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "ב. פרטי המעסיק",
+          "code": null,
+          "label": "שם המעסיק / כתובת / טלפון / מספר תיק ניכויים",
+          "kind": "text",
+          "instruction": "נספח לטופס 101; נשמר עם 101",
+          "uncertain": false
+        },
+        {
+          "section": "ג. דחייה (40(ב)(1א1), 66(ג)(4)(א1))",
+          "code": null,
+          "label": "ילדים שנולדו בשנת המס: שם הילד / מספר זהות / תאריך לידה",
+          "kind": "text",
+          "instruction": "נקודה אחת לכל ילד נדחית לשנה הבאה",
+          "uncertain": false
+        },
+        {
+          "section": "ד. ניצול נקודה שנדחתה",
+          "code": null,
+          "label": "ילדים שנולדו בשנה שעברה: שם הילד / מספר זהות / תאריך לידה",
+          "kind": "text",
+          "instruction": null,
+          "uncertain": false
+        },
+        {
+          "section": "ה. הצהרה",
+          "code": null,
+          "label": "תאריך / שם מלא / חתימה",
+          "kind": "text",
+          "instruction": null,
+          "uncertain": false
+        }
+      ],
+      "checkboxes": 0,
+      "notes": [
+        "זה טופס עובדת למעסיק (נספח ל־101), ולא נספח עם שדה יעד ב־1301. הוא מופיע ברשימת הטפסים של 2025, אבל גרסתו 7.2019.",
+        "הטופס מנוסח בלשון נקבה (עובדת)."
+      ]
+    }
+  ],
+  "notFound": [
+    {
+      "item": "1324 בגרסה נגישה לשנת 2025",
+      "detail": "בדף רק 1324 ACC של 2023 (docx). נקרא הקובץ הרגיל של 2025."
+    },
+    {
+      "item": "1344 בגרסה נגישה לשנת 2025",
+      "detail": "בדף רק 2022 docx. נקרא הקובץ הרגיל של 2025."
+    },
+    {
+      "item": "1342 בגרסה מעודכנת",
+      "detail": "הקובץ המקושר הוא מגרסת 11.2017, בלי שכבת טקסט."
+    },
+    {
+      "item": "המדריך «דע זכויותיך וחובותיך 2025»",
+      "detail": "לא נקרא בסבב זה; ההנחיות נלקחו מההערות שבטפסים עצמם."
+    }
+  ]
+}

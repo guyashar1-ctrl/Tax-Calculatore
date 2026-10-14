@@ -71,6 +71,8 @@ export const TABLE_SCOPES: Record<string, TableScope> = {
   tax_evidence: { kind: "user_id" },
   tax_info_asks: { kind: "user_id" },
   tax_card_transfers: { kind: "user_id" },
+  // 231 · גרסאות הערכת מס — קלט, הנחות, הכרעות ותוצאה (הגרסה המאושרת אינה ניתנת לשחזור מחישוב חוזר)
+  tax_estimates: { kind: "user_id" },
   btl_portal_facts: { kind: "user_id" },
   btl_portal_documents: { kind: "user_id" },
   automation_jobs: { kind: "user_id" },

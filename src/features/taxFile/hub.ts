@@ -57,10 +57,13 @@ export function cardSnapshot(client: Client): { id: string; value: unknown }[] {
   const pick = (k: CardEntityKind, f: (e: Record<string, unknown>) => unknown) =>
     ({ id: `card:${k}`, value: (((client as unknown as Record<string, unknown>)[k] as Record<string, unknown>[] | undefined) ?? []).map(f).sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b))) });
   return [
-    pick('properties', e => ({ id: e.id, label: entityLabel('properties', e), rented: !!e.isRented, track: e.rentalTaxTrack ?? null })),
-    pick('investmentAccounts', e => ({ id: e.id, label: entityLabel('investmentAccounts', e), closed: !!e.isClosed })),
-    pick('employers', e => ({ id: e.id, label: entityLabel('employers', e), spouse: !!e.belongsToSpouse })),
-    pick('businesses', e => ({ id: e.id, label: entityLabel('businesses', e), closed: !!e.isClosed, spouse: !!e.belongsToSpouse })),
+    // ‼ 14.10.2026: תאריכי הפעילות (taxYear/temporal.ts) נכנסים לצילום — שינוי תאריך אחרי אישור = «לבדיקה», לא שכתוב
+    pick('properties', e => ({ id: e.id, label: entityLabel('properties', e), rented: !!e.isRented, track: e.rentalTaxTrack ?? null,
+      bought: e.purchaseDate ?? e.purchaseYear ?? null, sold: e.soldDate ?? (e.isSold ? 'unknown' : null) })),
+    pick('investmentAccounts', e => ({ id: e.id, label: entityLabel('investmentAccounts', e), closed: !!e.isClosed,
+      opened: e.openedDate ?? null, closedAt: e.closedDate ?? e.closedYear ?? null })),
+    pick('employers', e => ({ id: e.id, label: entityLabel('employers', e), spouse: !!e.belongsToSpouse, start: e.startDate ?? null, end: e.endDate ?? null })),
+    pick('businesses', e => ({ id: e.id, label: entityLabel('businesses', e), closed: !!e.isClosed, spouse: !!e.belongsToSpouse, start: e.startYear ?? null, closedAt: e.closedYear ?? null })),
     { id: 'card:familyStatus', value: client.familyStatus ?? null },
     { id: 'card:children', value: (client.children ?? []).length },
   ];
@@ -73,6 +76,7 @@ export interface ImpactItem {
   affects: string;
 }
 
+const DATE_KEYS = new Set(['bought', 'sold', 'opened', 'closedAt', 'start', 'end']);
 const AFFECTS: Record<string, string> = {
   'card:properties': 'שכר דירה, נכסים בהצהרת הון', 'card:investmentAccounts': 'ריבית, דיבידנד ורווחי הון',
   'card:employers': 'משכורת וניכוי במקור', 'card:businesses': 'הכנסה מעסק ומקדמות', 'card:familyStatus': 'נקודות זיכוי וחישוב משותף', 'card:children': 'נקודות זיכוי',
@@ -91,7 +95,16 @@ export function changesSinceApproval(input: { inputFacts: { id: string; value: u
       const was = new Map((x.value as { id: string; label: string }[]).map(e => [e.id, e])), is = new Map((cur as { id: string; label: string }[]).map(e => [e.id, e]));
       for (const [id, e] of is) if (!was.has(id)) out.push({ kind: 'card_added', text: `נוסף לתיק: ${e.label}`, affects: AFFECTS[x.id] ?? '' });
       for (const [id, e] of was) if (!is.has(id)) out.push({ kind: 'card_removed', text: `הוסר מהתיק: ${e.label}`, affects: AFFECTS[x.id] ?? '' });
-      for (const [id, e] of is) if (was.has(id) && JSON.stringify(was.get(id)) !== JSON.stringify(e)) out.push({ kind: 'card_changed', text: `השתנה בתיק: ${e.label}`, affects: AFFECTS[x.id] ?? '' });
+      // ‼ משווים רק שדות שהיו בצילום בזמן האישור — צילום ישן בלי תאריכים לא מסמן «השתנה» על כל ישות
+      for (const [id, e] of is) {
+        const w = was.get(id) as Record<string, unknown> | undefined;
+        if (!w) continue;
+        const cur = e as Record<string, unknown>;
+        const diff = Object.keys(w).filter(k => k in cur && JSON.stringify(w[k]) !== JSON.stringify(cur[k]));
+        if (!diff.length) continue;
+        const datesOnly = diff.every(k => DATE_KEYS.has(k));
+        out.push({ kind: 'card_changed', text: datesOnly ? `השתנו תאריכי הפעילות בתיק: ${e.label} — לבדוק אם התקופה עדיין נכונה` : `השתנה בתיק: ${e.label}`, affects: AFFECTS[x.id] ?? '' });
+      }
     } else if (JSON.stringify(x.value) !== JSON.stringify(cur)) out.push({ kind: 'card_changed', text: x.id === 'card:familyStatus' ? 'מצב משפחתי השתנה בתיק' : 'מספר הילדים בתיק השתנה', affects: AFFECTS[x.id] ?? '' });
   }
   const accepted = new Map(input.facts.filter(f => f.status === 'accepted').map(f => [f.id, f]));
