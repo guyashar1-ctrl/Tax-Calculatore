@@ -299,6 +299,11 @@ export function runAwaitsLogin(job: Pick<AutomationJob, 'status' | 'errorCode'>)
   return code.startsWith('awaiting_btl') ? 'btl' : 'shaam';
 }
 
+const STALE_WORKER_NOTE: Record<string, string> = {
+  first_live_verification: 'הניסיון רץ בגרסה ישנה של האוטומציה.',
+  worker_code_stale: 'האוטומציה במחשב העבודה עוד לא הופעלה מחדש אחרי עדכון.',
+};
+
 export function summarizeRun(job: AutomationJob): RunSummary {
   const auto = runIsAuto(job);
   const code = job.errorCode ?? '';
@@ -311,7 +316,9 @@ export function summarizeRun(job: AutomationJob): RunSummary {
     case 'needs_human':
       if (runAwaitsLogin(job)) return { label: 'ממתינה להתחברות', tone: 'warn', auto };
       return { label: 'נעצרה — צריך אותך', tone: 'warn', note: firstSentence(job.needsHuman), auto };
-    case 'failed': return { label: 'נכשלה', tone: 'bad', note: firstSentence(job.errorDetail), auto };
+    // ‼ 14.10.2026 · ההודעה השמורה של עובד ישן («עצירת אימות ראשון (לא תקלה)…») אינה
+    // מה שקרה — הניסיון רץ בקוד שלא הופעל מחדש. הכותרת מאותו מקור כמו המסך.
+    case 'failed': return { label: 'נכשלה', tone: 'bad', note: STALE_WORKER_NOTE[code] ?? firstSentence(job.errorDetail), auto };
     case 'cancelled': return { label: 'בוטלה', tone: 'muted', auto };
     case 'succeeded': return { ...succeeded(job), auto };
     default: return { label: 'מצב לא מוכר', tone: 'warn', auto };

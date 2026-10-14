@@ -56,6 +56,14 @@ export const TESTS: TestCase[] = [
     equal(summarizeRun(job({ actionType: 'shaam.submit_poa', status: 'succeeded', errorCode: 'ambiguous_submit_result' })).tone, 'warn');
   }),
 
+  test('14.10 · עצירה של עובד ישן: ההערה מהמקור המשותף, לא ההודעה הישנה ששמורה במשימה', () => {
+    const old = 'עצירת אימות ראשון (לא תקלה): שע״ם מציגה שורה נוספת. השלימו ידנית.';
+    const s = summarizeRun(job({ actionType: 'shaam.submit_poa', status: 'failed', errorCode: 'first_live_verification', errorDetail: old }));
+    equal(s.note, 'הניסיון רץ בגרסה ישנה של האוטומציה.');
+    equal(summarizeRun(job({ status: 'failed', errorCode: 'worker_code_stale', errorDetail: 'x' })).note, 'האוטומציה במחשב העבודה עוד לא הופעלה מחדש אחרי עדכון.');
+    equal(summarizeRun(job({ status: 'failed', errorCode: 'other', errorDetail: 'משפט אחד. ועוד.' })).note, 'משפט אחד.');
+  }),
+
   test('בדיקת ב״ל: רק approved הוא «אושר»; מצב לא מזוהה ולא-נמצא אינם הצלחה', () => {
     equal(summarizeRun(job({ result: { status: 'approved' } })).tone, 'ok');
     equal(summarizeRun(job({ result: { status: 'unknown' } })).tone, 'warn');
