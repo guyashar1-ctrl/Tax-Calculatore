@@ -57,7 +57,7 @@ export function QuickRead({ lesson, year, gaps, onLearn }: { lesson: Lesson; yea
         <div className="kn-explain"><strong>בפועל: </strong><Txt text={lesson.action.text} year={year} /> <ClaimTag status={lesson.action.status} /></div>
       )}
       <div className="kn-spread">
-        <span className="kn-xs kn-muted">{gaps ? `${gaps} שאלות עדיין פתוחות בנושא — הן מפורטות למעלה.` : ''}</span>
+        <span className="kn-xs kn-muted">{gaps ? `${gaps === 1 ? 'שאלה מקצועית אחת פתוחה' : `${gaps} שאלות מקצועיות פתוחות`} בנושא — הפירוט בשלב «חריגים ושאלות פתוחות».` : ''}</span>
         <button type="button" className="btn btn-primary btn-sm" onClick={onLearn}>ללמוד מהבסיס</button>
       </div>
       <Legend />
