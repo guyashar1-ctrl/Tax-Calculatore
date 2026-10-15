@@ -248,6 +248,23 @@ ul{padding:0;list-style:none}
 .nform input:focus{background:var(--surface);border-color:var(--line-strong)}
 .nform .btn{height:38px}
 @media (max-width:760px){.zones{grid-template-columns:minmax(0,1fr)}.zones > .ctl{padding-top:18px;border-top:1px solid var(--hair)}}
+/* PIVO השבוע: שורה שקטה בתחתית הכרטיס; ההדבקה נפתחת במקום */
+.pv{display:grid;gap:10px;padding-top:16px;border-top:1px solid var(--hair);min-width:0}
+.pv-head{display:flex;align-items:flex-start;justify-content:space-between;gap:8px 16px;flex-wrap:wrap}
+.pv-head .zone-h{margin:0}
+.pv-acts{display:flex;align-items:center;gap:6px 14px;flex-wrap:wrap}
+.pv-acts .ico{width:14px;height:14px}
+.pv-lines{list-style:disc;padding-inline-start:18px;display:grid;gap:2px;font-size:14px;line-height:1.5;color:var(--ink-2)}
+.pv-lines b{color:var(--ink);font-weight:600}
+.pv-form{display:grid;gap:8px}
+.pv-form textarea,.dialog .pv-form textarea{width:100%;min-height:110px;padding:10px 12px;border:1px solid var(--line-strong);border-radius:10px;background:var(--surface);color:var(--ink);font-size:14px;line-height:1.55;resize:vertical}
+.pv-form .pv-row{display:flex;align-items:center;gap:6px 12px;flex-wrap:wrap}
+.pv-hint{font-size:12.5px;color:var(--ink-3)}
+.pv-see > summary{cursor:pointer;width:max-content;font-size:12.5px;color:var(--ink-3);list-style:none;text-decoration:underline;text-underline-offset:3px;text-decoration-color:var(--line-strong)}
+.pv-see > summary::-webkit-details-marker{display:none}
+.pv-see[open] > summary{margin-bottom:6px}
+.pv-see textarea{min-height:140px !important;font-size:12.5px !important;color:var(--ink-2) !important;background:var(--sunk) !important}
+@media (max-width:640px){.pv-form textarea{font-size:16px}}
 .ctr-l{font-weight:500;margin-inline-end:2px}
 .pips{display:inline-flex;min-width:60px}
 .pip{width:20px;height:30px;padding:0;border:0;background:none;display:grid;place-items:center;cursor:pointer;border-radius:6px}
@@ -520,6 +537,7 @@ button.jrow:hover{background:var(--sunk)}
 .jw.open .chev{transform:rotate(-90deg)}
 .jdet > .muted{font-size:14px}
 .jdet{margin:0 6px 14px;padding:14px 16px 16px;border-radius:12px;background:var(--sunk);display:grid;gap:12px;justify-items:start;animation:fadeIn .2s ease}
+.jact{display:flex;flex-wrap:wrap;gap:4px}
 .e-body{display:grid;grid-template-columns:auto 1fr;gap:7px 16px;font-size:14px}
 .e-body dt{font-size:13px;color:var(--ink-3);padding-top:1px;white-space:nowrap}
 .e-body dd{color:var(--ink-2);line-height:1.55;min-width:0}
@@ -808,6 +826,7 @@ const ICON = {
   bars: '<svg class="ico" viewBox="0 0 16 16"><path d="M3.5 13V9M8 13V4M12.5 13V7"/></svg>',
   list: '<svg class="ico" viewBox="0 0 16 16"><path d="M6.5 4.5h7M6.5 8h7M6.5 11.5h7M2.5 4.5h1M2.5 8h1M2.5 11.5h1"/></svg>',
   down: '<svg class="ico" viewBox="0 0 16 16"><path d="M8 2.5v8M4.5 7l3.5 3.5L11.5 7M3 13.5h10"/></svg>',
+  copy: '<svg class="ico" viewBox="0 0 16 16"><path d="M5.5 5.5v-3h8v8h-3M2.5 5.5h8v8h-8z"/></svg>',
   star: `<svg class="l-star" viewBox="-8 -8 16 16" aria-hidden="true"><path d="${STAR_PATH}"/></svg>`,
   winStar: `<svg viewBox="-8 -8 16 16" aria-hidden="true"><path d="${STAR_PATH}"/></svg>`,
 };
@@ -1169,8 +1188,97 @@ function renderWeek() {
   const wonHTML = `<div class="won${won.length ? ' has' : ''}"><span class="won-l">לקוחות שנסגרו</span><span class="won-v"><b class="num">${won.length}</b>${won.length ? ` · <span class="num">${money(wonAmt)}</span> בחודש` : ''}</span>${won.length ? `<span class="won-names">${won.map(c => esc(c.name)).join(', ')}</span>` : ''}</div>`;
   html += `<div class="zones">${notesHTML(w, off)}<div class="ctl"><div class="zone-h"><b>מה שבשליטתי ${isNext ? 'בשבוע הבא' : 'השבוע'}</b><span>אי אפשר להחליט מי יחתום. אפשר להחליט עם כמה אנשים לדבר.</span></div>
     ${ctr('leads', 'פניות', 'פנייה')}${ctr('meets', 'פגישות היכרות', 'פגישה')}${ctr('quotes', 'הצעות מחיר', 'הצעת מחיר')}${wonHTML}</div></div>`;
+  if (UI.ready) html += pivoZoneHTML(off);
   el.innerHTML = html;
   UI.popCtr = null; UI.freshNote = null;
+}
+
+/* ═══ PIVO השבוע: בקשה מוכנה ל־Claude, והתשובה נשמרת בשבוע שלה ═══ */
+// גיא, 15.10: בתוך כרטיס השבוע, בלי מעבר לעמוד אחר. Claude Code בתיקיית הפרויקט רואה מה
+// השתנה (git ומסמך המצב); צ'אט רגיל לא רואה. השבוע של הבלוק הוא תמיד השבוע הקלנדרי (V.thu) —
+// גם אחרי הסגירה בחמישי, כשהכרטיס כבר מראה את השבוע הבא, כי את PIVO מסכמים בסוף השבוע.
+// ‼ נשמר כמו כל שאר השבוע: לפני הסגירה ב־live[שבוע].pivo, אחריה ב־weeks[שבוע].pivo; הסגירה מעבירה.
+const pivoOf = w => (S.weeks[w] && S.weeks[w].pivo) || (S.live[w] && S.live[w].pivo) || '';
+const pivoLines = t => String(t || '').split('\n').map(x => x.replace(/\*\*/g, '').replace(/^\s*(?:[•\-–·*]|\d+[.)])\s*/, '').trim()).filter(Boolean);
+const PIVO_TOP = 'הכי משמעותי השבוע:';
+const pivoListHTML = t => `<ul class="pv-lines">${pivoLines(t).map(l => `<li>${l.startsWith(PIVO_TOP) ? `<b>${PIVO_TOP}</b>${esc(l.slice(PIVO_TOP.length))}` : esc(l)}</li>`).join('')}</ul>`;
+function pivoPrompt(w) {
+  const a = addDays(w, -4), b = addDays(w, 2);
+  return [
+    `סכם לי בקצרה איך PIVO התפתח בשבוע ${weekName(w)} ${b.slice(0, 4)} (${dmy(a)} עד ${dmy(b)}).`,
+    `קריאה בלבד, בלי לשנות שום דבר: git log --all --since=${a} --until=${addDays(b, 1)}, וגם docs/CODEX-PROJECT-STATE.md ורשומות הזיכרון שעודכנו בשבוע הזה.`,
+    'כתוב בעברית פשוטה, לרו״ח ולא למתכנת:',
+    '• עד 5 שורות. כל שורה: מה המשרד או הלקוח יכולים לעשות עכשיו, ולא איך זה נבנה.',
+    '• בסוף כל שורה, בסוגריים: בייצור / ב־staging / בפיתוח.',
+    '• שורה אחרונה: «הכי משמעותי השבוע:» ומשפט אחד.',
+    'בלי שמות קבצים, מספרי מיגרציות או מונחים טכניים. רק השורות, בלי הקדמה ובלי סיכום.',
+  ].join('\n');
+}
+async function copyText(txt, ta) {
+  try { await navigator.clipboard.writeText(txt); return true; } catch (_) {}
+  try { if (ta) { const d = ta.closest('details'); if (d) d.open = true; ta.focus(); ta.select(); if (document.execCommand('copy')) return true; } } catch (_) {}
+  return false;
+}
+function setPivo(w, text) {
+  const v = String(text || '').trim();
+  if (S.weeks[w]) {
+    const {pivo: _old, ...rest} = S.weeks[w];
+    S.weeks[w] = v ? {...rest, pivo: v} : rest;
+    save(weeksDoc(w));
+  } else {
+    const {pivo: _old, ...rest} = S.live[w] || {};
+    S.live[w] = v ? {...rest, pivo: v} : rest;
+    save('meta');
+  }
+}
+const pvFormHTML = (w, value, idp) => `<form class="pv-form" id="${idp}Form" data-w="${w}" autocomplete="off">
+    <label class="sr" for="${idp}In">התשובה של Claude</label>
+    <textarea id="${idp}In" maxlength="1500" rows="5" placeholder="הדבק כאן את התשובה של Claude">${esc(value)}</textarea>
+    <span class="pv-hint">את הבקשה מדביקים ב־Claude Code, בתיקיית הפרויקט — שם הוא רואה מה השתנה. אפשר לקצר לפני השמירה.</span>
+    <details class="pv-see"><summary>מה כתוב בבקשה</summary><textarea id="${idp}Prompt" readonly aria-label="הבקשה ל־Claude">${esc(pivoPrompt(w))}</textarea></details>
+    <div class="pv-row"><button class="btn primary sm" type="submit">שמור ביומן</button><button class="btn ghost sm" type="button" data-act="pvCancel">ביטול</button></div>
+  </form>`;
+function pivoZoneHTML(off) {
+  const w = V.thu, text = pivoOf(w), ro = UI.readOnly;
+  if (ro && !text) return '';
+  const copyBtn = `<button class="btn ghost sm" type="button" data-act="pvCopy" data-w="${w}"${off}>${UI.pvCopied ? ICON.check + 'הועתק' : ICON.copy + 'העתק בקשה ל־Claude'}</button>`;
+  let acts = '', body = '';
+  if (UI.pvEdit && !ro) {
+    acts = copyBtn;
+    body = pvFormHTML(w, UI.pvDraft ?? text, 'pv');
+  } else if (text) {
+    acts = ro ? '' : `<button class="linkbtn quiet" type="button" data-act="pvEdit"${off}>${ICON.pen}עדכן</button>`;
+    body = pivoListHTML(text);
+  } else {
+    acts = `${copyBtn}<button class="linkbtn" type="button" data-act="pvEdit"${off}>הדבק תשובה</button>`;
+  }
+  return `<div class="pv" id="pvZone"><div class="pv-head"><div class="zone-h"><b>PIVO השבוע</b>${text && !UI.pvEdit ? '' : '<span>מה המערכת למדה לעשות השבוע, לתיעוד ולמגמה.</span>'}</div><div class="pv-acts">${acts}</div></div>${body}</div>`;
+}
+// שבוע מהיומן (שבוע שכבר עבר): אותה בקשה ואותה שמירה, בחלון קטן
+function openPivo(w) {
+  if (UI.readOnly) return;
+  openDialog(`<h2 id="dlgTitle">PIVO השבוע · ${weekName(w)}</h2>
+    <p class="lead">כמה שורות על מה שהמערכת למדה לעשות בשבוע הזה. נשמרות ביומן, בתוך השבוע.</p>
+    <div class="dform pv-form">
+      <div><button class="btn sm" type="button" id="pvdCopy">${ICON.copy}העתק בקשה ל־Claude</button></div>
+      <label class="sr" for="pvdIn">התשובה של Claude</label>
+      <textarea id="pvdIn" name="pivo" maxlength="1500" rows="6" placeholder="הדבק כאן את התשובה של Claude">${esc(pivoOf(w))}</textarea>
+      <span class="pv-hint">את הבקשה מדביקים ב־Claude Code, בתיקיית הפרויקט — שם הוא רואה מה השתנה. ריקון השדה מוחק את מה שנשמר.</span>
+      <details class="pv-see"><summary>מה כתוב בבקשה</summary><textarea id="pvdPrompt" readonly aria-label="הבקשה ל־Claude">${esc(pivoPrompt(w))}</textarea></details>
+    </div>
+    <div class="dactions"><button class="btn primary" type="submit">שמור ביומן</button><button class="btn" type="button" data-close>ביטול</button></div>`,
+  fd => {
+    setPivo(w, fd.get('pivo'));
+    const o = new Set(openSet()); o.add(w); UI.openWeeks = o; UI.flashWeek = w;
+    renderAll(); toast('נשמר ביומן.');
+  },
+  form => {
+    const b = form.querySelector('#pvdCopy');
+    b.addEventListener('click', async () => {
+      if (await copyText(pivoPrompt(w), form.querySelector('#pvdPrompt'))) { b.innerHTML = ICON.check + 'הועתק'; setTimeout(() => { if (b.isConnected) b.innerHTML = ICON.copy + 'העתק בקשה ל־Claude'; }, 2500); }
+      else toast('ההעתקה האוטומטית לא עברה כאן. הבקשה מסומנת; העתק אותה ידנית.');
+    });
+  });
 }
 
 /* ═══ 3א. המשרד מכניס ═════════════════════════════════════════════ */
@@ -1599,6 +1707,8 @@ const filled = v => v && v !== '—' ? v : '';
 // צעדי הגיוס במילים
 const stepsTxt = o => [[o.leads, 'פנייה אחת', 'פניות'], [o.meets, 'פגישה אחת', 'פגישות'], [o.quotes, 'הצעה אחת', 'הצעות']].filter(([n]) => n > 0).map(([n, one, many]) => n === 1 ? one : `${n} ${many}`).join(' · ');
 const didLines = s => filled(s.did).split('\n').map(x => x.replace(/^[•\-–·*]\s*/, '').trim()).filter(Boolean);
+// PIVO של שבוע שכבר עבר — מהיומן. השבוע הנוכחי נכתב בכרטיס למעלה.
+const pivoBtn = w => w === V.thu ? '' : `<button class="btn ghost sm" type="button" data-act="pivo" data-w="${w}">${pivoOf(w) ? 'עדכן את PIVO השבוע' : `${ICON.plus}PIVO השבוע`}</button>`;
 // שורה אחת לשבוע: ההצלחה, ומי הצטרף. כל השאר נפתח בלחיצה.
 // שבוע שלא נסגר נראה כמו כל שבוע: מה שנרשם בו, או קו שקט. ההשלמה בפנים, בלי קישור כחול.
 function weekRowHTML(w) {
@@ -1611,8 +1721,9 @@ function weekRowHTML(w) {
   let html = `<li class="jw${s ? '' : ' miss'}${open ? ' open' : ''}${UI.flashWeek === w ? ' flash' : ''}"><button class="jrow" type="button" data-act="row" data-w="${w}" aria-expanded="${open}"><span class="jdate">${weekName(w, true)}</span><span class="jtext">${head}</span>${gain}<span class="jchev" aria-hidden="true">${ICON.chev}</span></button>`;
   if (!open) return html + '</li>';
   if (!s) {
-    html += `<div class="jdet">${notes.length ? `<dl class="e-body"><dt>מה עשיתי</dt><dd><ul class="dlist">${notes.map(x => `<li>${esc(x)}</li>`).join('')}</ul></dd></dl>` : '<p class="muted">השבוע הזה לא נסגר. זה בסדר; אפשר להמשיך מכאן.</p>'}
-      ${UI.readOnly ? '' : `<button class="btn ghost sm" type="button" data-act="summary" data-w="${w}">${ICON.pen}להשלים את השבוע</button>`}</div>`;
+    const pv = pivoOf(w);
+    html += `<div class="jdet">${notes.length || pv ? `<dl class="e-body">${notes.length ? `<dt>מה עשיתי</dt><dd><ul class="dlist">${notes.map(x => `<li>${esc(x)}</li>`).join('')}</ul></dd>` : ''}${pv ? `<dt>PIVO השבוע</dt><dd>${pivoListHTML(pv)}</dd>` : ''}</dl>` : '<p class="muted">השבוע הזה לא נסגר. זה בסדר; אפשר להמשיך מכאן.</p>'}
+      ${UI.readOnly ? '' : `<span class="jact"><button class="btn ghost sm" type="button" data-act="summary" data-w="${w}">${ICON.pen}להשלים את השבוע</button>${pivoBtn(w)}</span>`}</div>`;
     return html + '</li>';
   }
   const t = thingFor(w), r = s.result && RES_TXT[s.result], steps = stepsTxt(s);
@@ -1624,8 +1735,9 @@ function weekRowHTML(w) {
     ${t ? `<dt>הצעד של השבוע</dt><dd>${r ? `<span class="res ${r[0]}">${r[0] === 'done' ? ICON.check : ''}${r[1]}</span> · ` : ''}${esc(t.text)}</dd>` : ''}
     ${filled(s.block) ? `<dt>מה עיכב</dt><dd>${esc(s.block)}</dd>` : ''}
     ${s.next ? `<dt>לשבוע הבא</dt><dd>${s.day ? `ביום ${s.day} · ` : ''}${esc(s.next)}</dd>` : ''}
-    ${ma ? `<dt>הפעולה ל${MONTHS[(mIdx(mk) + 1) % 12]}</dt><dd>${esc(ma)}</dd>` : ''}</dl>
-    ${UI.readOnly ? '' : `<button class="btn ghost sm" type="button" data-act="summary" data-w="${w}">${ICON.pen}ערוך את השבוע</button>`}</div>`;
+    ${ma ? `<dt>הפעולה ל${MONTHS[(mIdx(mk) + 1) % 12]}</dt><dd>${esc(ma)}</dd>` : ''}
+    ${pivoOf(w) ? `<dt>PIVO השבוע</dt><dd>${pivoListHTML(pivoOf(w))}</dd>` : ''}</dl>
+    ${UI.readOnly ? '' : `<span class="jact"><button class="btn ghost sm" type="button" data-act="summary" data-w="${w}">${ICON.pen}ערוך את השבוע</button>${pivoBtn(w)}</span>`}</div>`;
   return html + '</li>';
 }
 // ריטיינר מול תוכנית רק לחודש שנגמר; החודש הנוכחי עוד בדרך
@@ -1982,7 +2094,9 @@ function openSummary(w) {
     const did = [...lines, pending].filter(Boolean);
     const wasCur = w === V.thu && !s;
     S.weeks[w] = {at: V.asOf, leads: +fd.get('leads') || 0, meets: +fd.get('meets') || 0, quotes: +fd.get('quotes') || 0,
-      did: did.join('\n') || '—', win: win || '—', block: txt('block') || '—', next: askNext ? txt('next') : null, day: askNext ? fd.get('day') || null : null, result: th ? fd.get('result') || null : null};
+      did: did.join('\n') || '—', win: win || '—', block: txt('block') || '—', next: askNext ? txt('next') : null, day: askNext ? fd.get('day') || null : null, result: th ? fd.get('result') || null : null,
+      // PIVO השבוע עובר עם השבוע כשהוא נסגר, ונשמר כשעורכים אותו
+      ...((s && s.pivo) || live.pivo ? {pivo: (s && s.pivo) || live.pivo} : {})};
     if (isLast && txt('act')) S.monthAction[mk] = txt('act');
     UI.flashWeek = w; UI.editThing = false;
     save(weeksDoc(w), 'meta'); renderAll();
@@ -2354,6 +2468,20 @@ document.addEventListener('click', e => {
   const t = e.target.closest('[data-act]'); if (!t || t.getAttribute('aria-disabled') === 'true') return;
   const act = t.dataset.act;
   if (act === 'summary') openSummary(t.dataset.w);
+  else if (act === 'pvCopy') {
+    const w = t.dataset.w;
+    // ההעתקה קודם, בתוך הלחיצה (הדפדפן דורש), ואז נפתח שדה ההדבקה
+    copyText(pivoPrompt(w), null).then(ok => {
+      UI.pvEdit = true; if (UI.pvDraft == null) UI.pvDraft = pivoOf(w);
+      if (ok) { UI.pvCopied = true; clearTimeout(UI.pvCopiedT); UI.pvCopiedT = setTimeout(() => { UI.pvCopied = false; const b = $('#pvZone [data-act="pvCopy"]'); if (b) b.innerHTML = ICON.copy + 'העתק בקשה ל־Claude'; }, 2500); }
+      renderWeek();
+      if (ok) $('#pvIn')?.focus({preventScroll: true});
+      else { copyText(pivoPrompt(w), $('#pvPrompt')).then(ok2 => { if (!ok2) toast('ההעתקה האוטומטית לא עברה כאן. הבקשה מסומנת; העתק אותה ידנית.'); }); }
+    });
+  }
+  else if (act === 'pvEdit') { UI.pvEdit = true; UI.pvDraft = pivoOf(V.thu); renderWeek(); $('#pvIn')?.focus({preventScroll: true}); }
+  else if (act === 'pvCancel') { UI.pvEdit = false; UI.pvDraft = null; renderWeek(); }
+  else if (act === 'pivo') openPivo(t.dataset.w);
   else if (act === 'addClient') openClient(null);
   else if (act === 'client') openClient(t.dataset.id);
   else if (act === 'pip' || act === 'ctr') {
@@ -2411,7 +2539,18 @@ function resetAll() {
   window.scrollTo({top: 0, behavior: reduced ? 'auto' : 'smooth'});
   toast('הדף מוכן לנתונים שלך. מתחילים בצעד של השבוע.');
 }
+document.addEventListener('input', e => { if (e.target.id === 'pvIn') UI.pvDraft = e.target.value; });
 document.addEventListener('submit', e => {
+  if (e.target.id === 'pvForm') {
+    e.preventDefault();
+    const w = e.target.dataset.w, v = $('#pvIn').value.trim(), had = !!pivoOf(w);
+    if (!v && !had) { $('#pvIn').focus(); return; }
+    setPivo(w, v);
+    UI.pvEdit = false; UI.pvDraft = null;
+    renderWeek(); renderLog();
+    toast(v ? 'נשמר ביומן של השבוע.' : 'נמחק מהשבוע.');
+    return;
+  }
   if (e.target.id === 'thingForm') {
     e.preventDefault();
     const text = $('#thingIn').value.trim(); if (!text) { $('#thingIn').focus(); return; }

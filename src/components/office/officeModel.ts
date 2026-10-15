@@ -15,8 +15,7 @@ export type OfficePageId =
   | 'taxWork'
   | 'profile' | 'team'
   | 'library' | 'flows' | 'pricing'
-  | 'emails' | 'automations' | 'connections'
-  | 'pivoWeekly';
+  | 'emails' | 'automations' | 'connections';
 
 export interface OfficePageDef {
   id: OfficePageId;
@@ -53,13 +52,10 @@ export const OFFICE_PAGES: OfficePageDef[] = [
   { id: 'emails', label: 'מיילים', blurb: 'הנוסח של כל מייל, ומה נשלח.' },
   { id: 'automations', label: 'אוטומציות', blurb: 'מה קורה לבד, מה מפעיל את זה, ומה קרה בפעם האחרונה.' },
   { id: 'connections', label: 'חיבורים', blurb: 'יומן Google, שע״ם, ביטוח לאומי, מחשב העבודה ופייפרלס.' },
-  // ‼ 15.10.2026 (גיא): יומן שבועי של התפתחות המערכת, לתיעוד ולמגמה — לא הגדרה ולא עבודה מול לקוח,
-  // ולכן אחרון ואחרי קו. הטקסט נכתב ב-Claude Code ומודבק כאן (טבלה משלו, מיגרציה 243).
-  { id: 'pivoWeekly', label: 'PIVO השבוע', blurb: 'כמה שורות בכל שבוע על מה שהמערכת למדה לעשות — לתיעוד ולמגמה.' },
 ];
 
 /** קו מפריד בתפריט אחרי העמודים האלה. */
-export const NAV_BREAK_AFTER = new Set<OfficePageId>(['taxWork', 'team', 'pricing', 'connections']);
+export const NAV_BREAK_AFTER = new Set<OfficePageId>(['taxWork', 'team', 'pricing']);
 
 export const DEFAULT_OFFICE_PAGE: OfficePageId = 'profile';
 

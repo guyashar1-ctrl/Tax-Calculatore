@@ -40,8 +40,8 @@ const entry = (stepType: string, extra: Partial<DefaultEntry> = {}): DefaultEntr
 export const TESTS: TestCase[] = [
   // ── מבנה ─────────────────────────────────────────────────────────────────
   test('שמונה יעדים, כל אחד פעם אחת, וכל אחד עם שורה שאומרת מה יש בו', () => {
-    equal(OFFICE_PAGES.length, 10);
-    deepEqual(OFFICE_PAGES.map(p => p.id), ['taxWork', 'profile', 'team', 'library', 'flows', 'pricing', 'emails', 'automations', 'connections', 'pivoWeekly']);
+    equal(OFFICE_PAGES.length, 9);
+    deepEqual(OFFICE_PAGES.map(p => p.id), ['taxWork', 'profile', 'team', 'library', 'flows', 'pricing', 'emails', 'automations', 'connections']);
     const ids = OFFICE_PAGES.map(p => p.id);
     equal(new Set(ids).size, ids.length, 'אין עמוד כפול');
     for (const p of OFFICE_PAGES) equal(p.blurb.length > 10, true, `לעמוד ${p.id} יש שורת הסבר`);

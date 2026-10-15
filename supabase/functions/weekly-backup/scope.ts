@@ -73,8 +73,6 @@ export const TABLE_SCOPES: Record<string, TableScope> = {
   tax_card_transfers: { kind: "user_id" },
   // 231 · גרסאות הערכת מס — קלט, הנחות, הכרעות ותוצאה (הגרסה המאושרת אינה ניתנת לשחזור מחישוב חוזר)
   tax_estimates: { kind: "user_id" },
-  // 243 · «PIVO השבוע» — יומן שבועי של התפתחות המערכת (נכתב ביד, אין ממנו עותק אחר)
-  pivo_weekly_notes: { kind: "user_id" },
   btl_portal_facts: { kind: "user_id" },
   btl_portal_documents: { kind: "user_id" },
   automation_jobs: { kind: "user_id" },
@@ -95,6 +93,7 @@ export const EXCLUDED: Record<string, string> = {
   google_calendar_connections: "מפתח גישה ליומן Google — סוד; מחברים מחדש ב«המשרד ← חיבורים»",
   automation_workers: "רישום מחשב העבודה (טביעת מפתח) — משייכים מחדש",
   automation_workstation_pairings: "קודי שיוך חד-פעמיים למחשב העבודה",
+  pivo_weekly_notes: "בוטלה ב-244 (15.10.2026) — «PIVO השבוע» נשמר עם השבוע במפת הדרך (vision_docs, שבגיבוי)",
 };
 
 export const TABLES = Object.keys(TABLE_SCOPES);
