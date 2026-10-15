@@ -16,6 +16,7 @@ import { wealthMinDue } from '../../features/taxYear/wealthDemand';
 import { SAMPLE_CLIENTS } from '../../data/sampleClients';
 import { enrichClientsWithWorkspace } from '../../data/sampleClientWorkspace';
 import { DEMO_ESTIMATE_DRAFT, DEMO_ESTIMATE_STEP_ID } from '../../features/taxEstimate/__demoEstimate';
+import { removalMode, type RemovalFacts } from '../../features/taxYear/workRemoval';
 
 type Row = Record<string, unknown>;
 type Tables = Record<string, Row[]>;
@@ -141,6 +142,30 @@ function demoCard(t: Tables, clientId: string): Row | null {
 }
 
 const stepOf = (t: Tables, id: unknown) => (t.onboarding_steps ?? []).find(s => s.id === id);
+
+// ── 242 · הסרת עבודת מס בהדגמה — אותם כללים כמו בשרת (features/taxYear/workRemoval.ts) ──
+const WORK_TYPES = ['tax_file_intake', 'annual_return', 'wealth_declaration', 'tax_estimate'];
+const infosOf = (t: Tables, stepId: unknown) => (t.onboarding_steps ?? []).filter(i => i.step_type === 'info_collection' && (i.payload as Row | undefined)?.parentStepId === stepId);
+function removalFacts(t: Tables, st: Row): RemovalFacts {
+  const infos = infosOf(t, st.id), infoIds = new Set(infos.map(i => i.id));
+  const asks = (t.tax_info_asks ?? []).filter(a => a.parent_step_id === st.id || infoIds.has(a.step_id));
+  const askIds = new Set(asks.map(a => a.id));
+  const facts = (t.tax_year_facts ?? []).filter(f => askIds.has(f.ask_id) || f.request_id === st.id);
+  const est = (t.tax_estimates ?? []).filter(e => e.request_id === st.id);
+  return {
+    status: String(st.status), infoPublished: infos.some(i => !!i.published_at),
+    asksDraft: asks.filter(a => a.state === 'draft').length, asksOpen: asks.filter(a => a.state === 'published' || a.state === 'unavailable').length,
+    asksAnswered: asks.filter(a => a.state === 'answered').length,
+    factsAccepted: facts.filter(f => f.status === 'accepted').length, factsPending: facts.filter(f => f.status === 'pending').length,
+    documents: (t.tax_evidence ?? []).filter(e => askIds.has(e.ask_id)).length,
+    emails: (t.email_messages ?? []).filter(m => m.step_id === st.id || infoIds.has(m.step_id)).length,
+    estimatesApproved: est.filter(e => e.status === 'approved' || e.status === 'superseded').length,
+    estimatesPublished: est.filter(e => !!e.published_at).length, estimatesDraft: est.filter(e => e.status === 'draft').length,
+    notices: 0,
+    // ‼ ביטול והחזרה קודמים נרשמים ב-workLog בהדגמה (בשרת — ב-onboarding_events)
+    notes: ((((st.payload ?? {}) as Row).workLog as Row[] | undefined) ?? []).filter(x => x.what === 'cancelled' || x.what === 'restored' || x.what === 'note').length,
+  };
+}
 const clientOfToken = (token: unknown) => (token === 'demo' ? TY_CLIENT : null);
 
 function portalView(t: Tables, clientId: string, stepId: unknown): Row {
@@ -660,6 +685,59 @@ function taxYearRpcInner(t: Tables, name: string, args: Row, firm: string, logWr
       info.updated_at = nowIso();
       log('add_tax_info_asks', { infoStepId: info.id, added, skipped });
       return ok({ ok: true, infoStepId: info.id, added, skipped });
+    }
+    case 'tax_work_removal_check': {
+      const st = stepOf(t, args.p_step_id);
+      if (!st || !WORK_TYPES.includes(String(st.step_type))) return ok({ ok: false, error: 'not_found' });
+      const f = removalFacts(t, st);
+      return ok({ ok: true, mode: removalMode(f), facts: f, restorable: st.status === 'cancelled' && !!(st.payload as Row | undefined)?.removal });
+    }
+    case 'remove_tax_work': {
+      const st = stepOf(t, args.p_step_id);
+      if (!st || !WORK_TYPES.includes(String(st.step_type))) return ok({ ok: false, error: 'not_found' });
+      const f = removalFacts(t, st), mode = removalMode(f);
+      if (mode === 'none') return ok({ ok: false, error: st.status === 'cancelled' ? 'already_cancelled' : 'completed' });
+      if (args.p_mode === 'delete' && mode !== 'delete') return ok({ ok: false, error: 'changed', mode, facts: f });
+      const infos = infosOf(t, st.id), infoIds = new Set(infos.map(i => i.id));
+      if (args.p_mode === 'delete') {
+        t.onboarding_steps = t.onboarding_steps.filter(x => x.id !== st.id && !infoIds.has(x.id));
+        t.tax_info_asks = (t.tax_info_asks ?? []).filter(a => a.parent_step_id !== st.id && !infoIds.has(a.step_id));
+        t.tax_estimates = (t.tax_estimates ?? []).filter(e => e.request_id !== st.id);
+        log('remove_tax_work', { stepId: st.id, mode: 'delete' });
+        return ok({ ok: true, mode: 'delete' });
+      }
+      const open = (t.tax_info_asks ?? []).filter(a => (a.parent_step_id === st.id || infoIds.has(a.step_id)) && ['draft', 'published', 'unavailable'].includes(String(a.state)));
+      const asks = open.map(a => ({ id: a.id, state: a.state }));
+      open.forEach(a => { a.state = 'cancelled'; });
+      const infoPrev = infos.filter(i => i.status !== 'cancelled').map(i => ({ id: i.id, status: i.status }));
+      infos.forEach(i => { i.status = 'cancelled'; i.updated_at = nowIso(); });
+      const reason = String(args.p_reason ?? '').trim() || undefined;
+      const pl = (st.payload ?? {}) as Row;
+      st.payload = { ...pl, removal: { at: nowIso(), reason, prevStatus: st.status, prevBall: st.ball, asks, infos: infoPrev },
+        workLog: [...((pl.workLog as Row[] | undefined) ?? []), { at: nowIso(), what: 'cancelled', ...(reason ? { note: reason } : {}) }] };
+      st.status = 'cancelled'; st.updated_at = nowIso();
+      log('remove_tax_work', { stepId: st.id, mode: 'cancel', asksClosed: asks.length });
+      return ok({ ok: true, mode: 'cancel', asksClosed: asks.length });
+    }
+    case 'restore_tax_work': {
+      const st = stepOf(t, args.p_step_id);
+      const r = (st?.payload as Row | undefined)?.removal as Row | undefined;
+      if (!st || !WORK_TYPES.includes(String(st.step_type))) return ok({ ok: false, error: 'not_found' });
+      if (st.status !== 'cancelled' || !r) return ok({ ok: false, error: 'not_cancelled' });
+      const yr = (st.payload as Row).taxYear, asOf = (st.payload as Row).asOfDate;
+      const clash = (t.onboarding_steps ?? []).some(x => x.id !== st.id && x.client_id === st.client_id && x.step_type === st.step_type
+        && !['completed', 'verified', 'skipped', 'cancelled', 'failed'].includes(String(x.status))
+        // ‼ כמו האינדקסים הייחודיים בשרת: קליטה — אחת ללקוח; דוח/הערכה — לשנה; הצהרת הון — ליום ההצהרה
+        && (st.step_type === 'tax_file_intake' || (st.step_type === 'wealth_declaration' ? (x.payload as Row | undefined)?.asOfDate === asOf : (x.payload as Row | undefined)?.taxYear === yr)));
+      if (clash) return ok({ ok: false, error: 'superseded' });
+      const { removal: _r, ...rest } = st.payload as Row;
+      st.payload = { ...rest, workLog: [...((rest.workLog as Row[] | undefined) ?? []), { at: nowIso(), what: 'restored' }] };
+      st.status = String(r.prevStatus ?? 'in_progress'); if (r.prevBall) st.ball = r.prevBall; st.updated_at = nowIso();
+      for (const x of (r.infos as Row[] | undefined) ?? []) { const i = stepOf(t, x.id); if (i && i.status === 'cancelled') i.status = x.status; }
+      let back = 0;
+      for (const x of (r.asks as Row[] | undefined) ?? []) { const a = (t.tax_info_asks ?? []).find(y => y.id === x.id); if (a && a.state === 'cancelled') { a.state = x.state; back++; } }
+      log('restore_tax_work', { stepId: st.id, asksBack: back });
+      return ok({ ok: true, asksBack: back, asksKept: 0 });
     }
     case 'resolve_tax_info_note': {
       const a = t.tax_info_asks.find(x => x.id === args.p_ask_id);

@@ -21,6 +21,8 @@ interface Props {
   steps: Pick<OnboardingStep, 'id' | 'clientId' | 'stepType' | 'status' | 'payload'>[];
   /** מתוך תיק לקוח: הלקוח קבוע. */
   fixedClientId?: string;
+  /** מתוך עמוד סוג העבודה («דוחות שנתיים» / «הצהרות הון») — הסוג כבר נבחר. */
+  initialKind?: NewWorkKind;
   onClose: () => void;
   /** אחרי שנוצרו/קושרו — רענון הרשימות; stepId — לפתיחה. */
   onDone: (results: { clientId: string; stepId?: string }[]) => void;
@@ -29,11 +31,11 @@ interface Props {
 type Shared = Omit<NewWorkRow, 'clientId'>;
 const he = (iso?: string) => (iso ? iso.split('-').reverse().join('.') : '');
 
-export default function AddTaxWorkDialog({ clients, steps, fixedClientId, onClose, onDone }: Props) {
+export default function AddTaxWorkDialog({ clients, steps, fixedClientId, initialKind, onClose, onDone }: Props) {
   const today = todayIso();
   const lastYear = Number(today.slice(0, 4)) - 1;
   const [stage, setStage] = useState<'what' | 'review'>('what');
-  const [shared, setShared] = useState<Shared>({ kind: 'annual', taxYear: lastYear, asOfDate: `${lastYear}-12-31`, source: undefined });
+  const [shared, setShared] = useState<Shared>({ kind: initialKind ?? 'annual', taxYear: lastYear, asOfDate: `${lastYear}-12-31`, source: undefined });
   const [picked, setPicked] = useState<string[]>(fixedClientId ? [fixedClientId] : []);
   const [q, setQ] = useState('');
   const [rows, setRows] = useState<NewWorkRow[]>([]);

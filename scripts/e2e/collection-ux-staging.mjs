@@ -151,7 +151,7 @@ try {
     await page.goto(`${BASE}/#/firm/taxWork`, { waitUntil: 'domcontentloaded' });
     const tw = L(page, '[data-tax-work]');
     await tw.waitFor({ timeout: 45000 });
-    await tw.locator('[data-tw-add]').click();
+    await tw.locator('[data-tw-add="annual"]').click();
     const dlg = L(page, '[data-add-work]');
     await dlg.waitFor();
     await dlg.getByRole('radio', { name: 'הצהרת הון' }).click();
@@ -178,7 +178,7 @@ try {
     ok(info[0].n === 2 && info[0].pub === 0 && asks.n > 0 && asks.notdraft === 0, `בשרת: «השלמת מידע» טיוטה לכל לקוח (${asks.n} שאלות) — לא פורסם דבר`, JSON.stringify([info, asks]));
     await dlg.getByRole('button', { name: 'סיום' }).click();
     // פעם שנייה — אותו לקוח, אותו יום, יעד אחר: מקושרת, לא נדרסת, לא נוצרת שנייה
-    await tw.locator('[data-tw-add]').click();
+    await tw.locator('[data-tw-add="annual"]').click();
     await dlg.getByRole('radio', { name: 'הצהרת הון' }).click();
     await dlg.locator('input[type="date"]').first().fill('2025-12-31');
     await dlg.getByLabel('יעד פנימי של המשרד').fill('2026-11-01');

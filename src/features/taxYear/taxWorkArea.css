@@ -1,0 +1,49 @@
+/* ─── 14.10.2026 · «עבודות לקוחות» בתוך «מס»: כותרת לכל סוג, «בוטלו», «הסר…» ─────────────────── */
+.tw-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px 20px; flex-wrap: wrap; }
+.tw-head-text { display: grid; gap: 4px; min-width: 0; flex: 1 1 26rem; }
+.tw-h { margin: 0; font-size: var(--fs-20, 20px); font-weight: 600; letter-spacing: -.01em; color: var(--tx); }
+.tw-lead { margin: 0; font-size: var(--fs-14); color: var(--tx2); line-height: 1.6; max-width: 70ch; }
+.tw-how { margin: 0; font-size: var(--fs-13); color: var(--tx3); line-height: 1.6; }
+.tw-how .ta-link { font-size: var(--fs-13); }
+.tw-adds { display: flex; gap: 8px; flex-wrap: wrap; }
+.tw-add { min-height: 40px; }
+.tw-alert.is-review { background: var(--soft); color: var(--br); }
+.tw-row.is-cancelled { background: var(--s2); }
+.tw-row.is-cancelled .tw-title, .tw-row.is-cancelled .tw-c-work span { color: var(--tx2); }
+.tw-remove { color: var(--tx2); }
+.tw-remove:hover:not(:disabled) { color: var(--chip-red-tx); }
+.tw-kind:active, .tw-alert:active { transform: scale(.97); }
+@media (prefers-reduced-motion: no-preference) { .tw-kind, .tw-alert { transition: transform .12s ease-out; } }
+.tw-kind:focus-visible, .tw-alert:focus-visible { outline: 2px solid var(--br); outline-offset: 2px; }
+
+/* ── חלון «הסרת עבודה» ── */
+.modal.rw { width: 100%; max-width: 560px; display: flex; flex-direction: column; }
+.rw-body { display: flex; flex-direction: column; gap: .8rem; padding: 1rem 1.25rem; }
+.rw-why { margin: 0; font-size: var(--fs-14); line-height: 1.6; }
+.rw-choice { display: grid; gap: .5rem; }
+.rw-opt { display: flex; gap: .6rem; align-items: flex-start; border: 1px solid var(--bd); border-radius: 10px; padding: .6rem .7rem; cursor: pointer; }
+.rw-opt.is-on { border-color: var(--tx); background: var(--s2); }
+.rw-opt input { width: 18px; height: 18px; margin-top: 2px; flex-shrink: 0; }
+.rw-opt span { display: grid; gap: 2px; font-size: var(--fs-14); }
+.rw-opt small { color: var(--tx2); font-size: var(--fs-13); }
+.rw-cols { display: grid; grid-template-columns: 1fr 1fr; gap: .8rem; }
+.rw-cols ul { margin: .25rem 0 0; padding-inline-start: 18px; font-size: var(--fs-13); display: grid; gap: 3px; }
+.rw-h { font-size: var(--fs-13); }
+.rw-reason input { min-height: 40px; }
+.rw-safe { margin: 0; }
+.rw .modal-foot { display: flex; gap: .5rem; justify-content: flex-start; }
+.rw .modal-foot .btn { min-height: 44px; }
+@media (max-width: 560px) {
+  .rw-cols { grid-template-columns: 1fr; }
+  .modal-backdrop:has(.rw) { padding: 0; align-items: flex-end; }
+  .modal.rw { max-height: 92vh; border-radius: 14px 14px 0 0; }
+  .rw .modal-foot { position: sticky; bottom: 0; padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px)); }
+}
+
+/* הודעה אחרי הסרה ב«בקשות» — השורה עצמה כבר ירדה, ולכן ההודעה לא יכולה לשבת עליה */
+.tw-toast { position: fixed; inset-inline: 16px; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); z-index: 900; max-width: 560px; margin-inline: auto; box-shadow: 0 6px 20px rgba(0, 0, 0, .14); display: flex; gap: 8px; align-items: flex-start; justify-content: space-between; }
+
+/* קישור שקט בתוך טקסט — «ללמוד את התחום», «נסה שוב», סגירת הודעה */
+.ta-link { display: inline-flex; align-items: center; gap: 4px; min-height: 32px; padding: 0 2px; border: 0; background: none; font: inherit; color: var(--accent, var(--br)); cursor: pointer; text-align: start; }
+.ta-link:focus-visible { outline: 2px solid var(--br); outline-offset: 2px; border-radius: 4px; }
+@media (hover: hover) { .ta-link:hover { text-decoration: underline; } }

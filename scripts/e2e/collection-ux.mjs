@@ -320,7 +320,7 @@ async function taxWork(vp) {
     await tw.waitFor({ timeout: 30000 });
     await shot(page, `w-01-list-${vp}`);
     const add = async (names, setup) => {
-      await tw.locator('[data-tw-add]').click();
+      await tw.locator('[data-tw-add="annual"]').click();
       const dlg = page.locator('[data-add-work]');
       await dlg.waitFor({ timeout: 10000 });
       await setup(dlg);

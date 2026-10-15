@@ -1,4 +1,5 @@
 import { Suspense, lazy, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { domainOf, formatAreaPath } from './features/taxArea/areaModel';
 import { formatRoute, parseHash, type View as AppRouteView } from './lib/appRoute';
 import { requestLeave } from './lib/leaveGuard';
 import { resolveListedEntity } from './lib/routeEntity';
@@ -100,7 +101,7 @@ import TaxCalculator from './components/TaxCalculator';
 import DocumentManager from './components/DocumentManager';
 import { enrichClientsWithWorkspace } from './data/sampleClientWorkspace';
 // ‼ ידע המס נטען רק כשנכנסים אליו: הקטלוגים והשיעורים (כ-750KB) לא יושבים בחבילה שכל מסך טוען.
-const TaxCenter = lazy(() => import('./features/taxCenter/TaxCenter'));
+const TaxArea = lazy(() => import('./features/taxArea/TaxArea'));
 import { buildQuarterlyFreshnessTask, markFreshnessCreationAttempted, quarterlyTaskExists } from './data/freshnessTask';
 import RepresentationRequestForm from './components/RepresentationRequestForm';
 import RepresentationFillForm from './components/RepresentationFillForm';
@@ -716,6 +717,8 @@ export default function App() {
   const [officePage, setOfficePage] = useState<string | null>(initialRoute.officePage ?? null);
   /** מה לפתוח בעמוד המשרד (‎#/firm/library/request:…‎, ‎#/firm/flows/flow:…‎) — קישור עמוק מבקשה תקועה. */
   const [officeFocus, setOfficeFocus] = useState<string | null>(initialRoute.officeFocus ?? null);
+  /** 14.10.2026 · איפה באזור «מס»: ‎work/<section>‎ או ‎learn/<domain>[/<item>]‎ — חלק מהכתובת, כדי ש«אחורה» ו-F5 יחזירו לאותו מקום. */
+  const [taxPath, setTaxPath] = useState<string>(initialRoute.taxPath ?? '');
   // ── פגישות ב-Google Meet (225): הזימון יוצא מהיומן של הרו"ח דרך calendar-meeting ──
   const meetingsApi = useMeetings(user?.id);
   const [meetingDialog, setMeetingDialog] = useState<MeetingDialogMode | null>(null);
@@ -847,6 +850,7 @@ export default function App() {
     annualTaxYear: annualRoute?.taxYear,
     officePage: view === 'firmProfile' ? officePage ?? undefined : undefined,
     officeFocus: view === 'firmProfile' ? officeFocus ?? undefined : undefined,
+    taxPath: view === 'reference' && taxPath ? taxPath : undefined,
   });
   const syncedPath = useRef<string | null>(null);
   /** ‼ שינוי בחירה ב«צפייה» בספרייה מחליף את הרשומה בהיסטוריה — לא צעד חדש. */
@@ -872,6 +876,7 @@ export default function App() {
         setViewRaw(route.view);
         setOfficePage(route.officePage ?? null);
         setOfficeFocus(route.officeFocus ?? null);
+        if (route.view === 'reference') setTaxPath(route.taxPath ?? '');
         setSelectedId(route.clientId ?? null);
         setClientInitialTab(clientTabFromRoute(route.clientTab));
         setQuickViewId(route.quickId ?? null);
@@ -2646,16 +2651,16 @@ export default function App() {
         { id: 'tasks', label: 'משימות', badge: openTasksCount > 0 ? openTasksCount : undefined },
         // ‼ (07.10.2026, הדמיה מאושרת) לשונית משלו — לא בתוך «משימות», שעוד משתנה.
         { id: 'calendar', label: 'יומן' },
-        // ‼ (10.10.2026, הדמיה מאושרת — הכיוון המשולב) ידע המס עבר מתפריט האווטאר
-        // לסרגל: לומדים בו, ומגיעים אליו גם מתוך תיק המס של לקוח.
-        { id: 'reference', label: 'ידע מס' },
+        // ‼ (14.10.2026, גיא) «מס» — אזור אחד: «עבודות לקוחות» (היה «עבודת מס» בתוך «המשרד») ו«ידע מקצועי»
+        // (היה «ידע מס»). שמות שונים, אותו מקום. מגיעים אליו גם מתוך תיק המס של לקוח.
+        { id: 'reference', label: 'מס' },
       ]
     : [
         { id: 'tasks', label: 'משימות', badge: openTasksCount > 0 ? openTasksCount : undefined },
         { id: 'list', label: 'לקוחות' },
         { id: 'quotations', label: 'הצעות ולידים' },
         { id: 'calendar', label: 'יומן' },
-        { id: 'reference', label: 'ידע מס' },
+        { id: 'reference', label: 'מס' },
       ];
 
   return (
@@ -2841,23 +2846,7 @@ export default function App() {
                   {/* ‼ אותו שם כמו הלשונית שבה נוחתים: «מיילים» ← «מה נשלח». */}
                   <span>מה נשלח במייל</span>
                 </button>
-                {/* 12.10.2026 · «עבודת מס» — כלי עבודה יומי (קליטות, דוחות שנתיים, הצהרות הון של כל הלקוחות);
-                    קיצור ישיר לעמוד שלו ב«המשרד», כמו «מה נשלח במייל». */}
-                <button
-                  type="button"
-                  className={`account-menu-item ${view === 'firmProfile' && officePage === 'taxWork' ? 'is-active' : ''}`}
-                  onClick={() => {
-                    setAccountMenuOpen(false);
-                    setView('firmProfile');
-                    setOfficePage('taxWork');
-                    setOfficeFocus(null);
-                    setSelectedId(null);
-                    setSelectedRequestId(null);
-                  }}
-                >
-                  <Icon name="check" size={14} />
-                  <span>עבודת מס</span>
-                </button>
+                {/* ‼ 14.10.2026 · «עבודת מס» עברה מכאן לאזור «מס» בסרגל («עבודות לקוחות»). הכתובת הישנה מפנה לשם. */}
                 {/* ‼ «חיבורים» — מצב מחשב העבודה, שע״ם וביטוח לאומי, ומה עושים כשמשהו
                     לא זמין. כאן ישב «חיבור מחשב עבודה» שפתח ישר קוד צימוד למחשב
                     חדש — ומי שמחשב העבודה שלו כבוי קרא אותו כתיקון. הוספת מחשב
@@ -3087,7 +3076,7 @@ export default function App() {
               setAnnualRoute({ clientId, taxYear });
               setView('annualReport');
             }}
-            onOpenKnowledge={(topicId, clientId) => { setKnowledgeJump({ topicId, clientId }); setView('reference'); }}
+            onOpenKnowledge={(topicId, clientId) => { setKnowledgeJump({ topicId, clientId }); setTaxPath(formatAreaPath({ mode: 'learn', domain: domainOf(topicId), item: topicId })); setView('reference'); }}
             initialTab={clientInitialTab}
             /* ‼ אין מזהה בכתובת ⇒ באמת יוצרים לקוח חדש. יש מזהה אבל הכרטיס
                עוד לא הגיע מהמסד ⇒ לקוח קיים שנטען, ואסור להתייחס אליו כחדש:
@@ -3173,15 +3162,17 @@ export default function App() {
         )}
 
         {view === 'reference' && (
-          <Suspense fallback={<div className="card" role="status" style={{ padding: '1rem' }}>טוען את ידע המס…</div>}>
-          <TaxCenter
+          <Suspense fallback={<div className="card" role="status" style={{ padding: '1rem' }}>טוען…</div>}>
+          <TaxArea
+            path={taxPath}
+            onPath={setTaxPath}
             onBack={() => setView('list')}
             freshnessTaskExists={quarterlyTaskExists(tasks)}
             onCreateFreshnessTask={() => { if (!quarterlyTaskExists(tasks)) void addTask(buildQuarterlyFreshnessTask()); }}
             clients={clients}
-            initialTopic={knowledgeJump?.topicId ?? null}
+            contextTopic={knowledgeJump?.topicId ?? null}
             contextClientId={knowledgeJump?.clientId ?? null}
-            onOpenClient={id => { setKnowledgeJump(null); setSelectedId(id); setClientInitialTab('taxfile'); setView('form'); }}
+            onOpenClient={(id, tab) => { setKnowledgeJump(null); setSelectedId(id); setClientInitialTab(tab ?? 'taxfile'); setView('form'); }}
           />
           </Suspense>
         )}

@@ -43,7 +43,7 @@ export default function Maintenance({ year, freshnessPanel }: { year: number; fr
         </ol>
         <p className="kn-xs kn-muted" style={{ margin: 0 }}>ההעתקה אינה אימות. גרסת המרשם הנוכחית: {RULESET_VERSION}.</p>
         <div className="kn-two">
-          <CopyPrompt scope={{ kind: 'all' }} label="העתק פרומפט עדכון לכל ידע המס" />
+          <CopyPrompt scope={{ kind: 'all' }} label="העתק פרומפט עדכון לכל הידע המקצועי" />
           <div className="kn-page" style={{ gap: 6 }}>
             <label className="kn-field" htmlFor="mt-topic">או לנושא אחד
               <select id="mt-topic" value={topicId} onChange={e => setTopicId(e.target.value)}>{TOPICS.map(t => <option key={t.id} value={t.id}>{t.title}</option>)}</select>

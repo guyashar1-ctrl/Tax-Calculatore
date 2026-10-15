@@ -108,6 +108,8 @@ import PrerequisiteGate, { PREREQUISITE_FIELD_LABELS, type PrerequisitePerson } 
 import NiNextActionButton from '../NiNextActionButton';
 import Btl6101Workspace from '../../features/smartForms/btl6101/Btl6101Workspace';
 import TaxYearProcess from '../../features/taxYear/TaxYearProcess';
+import RemoveWorkDialog from '../../features/taxYear/RemoveWorkDialog';
+import { workTitle } from '../../features/taxYear/taxWork';
 import { MONTHS as TY_MONTHS } from '../../features/taxYear/asks';
 import { demandView, type WealthDemand } from '../../features/taxYear/wealthDemand';
 import { takePendingIntent, type SendOfficeDocsIntent } from '../../lib/pendingIntent';
@@ -549,6 +551,9 @@ export default function OnboardingTab({
   const [smartFilingId, setSmartFilingId] = useState<string | null>(null);
   /** 229 · דף התהליך של שנת מס (הערכה / דוח) — נפתח מהשורה, כמו הטופס החכם. */
   const [taxYearStepId, setTaxYearStepId] = useState<string | null>(null);
+  // ‼ 14.10.2026 · «הסר…» לעבודת מס — אותו חלון כמו ב«מס» ← «עבודות לקוחות» ובתיק המס (242)
+  const [removeTax, setRemoveTax] = useState<{ id: string; title: string } | null>(null);
+  const [taxNotice, setTaxNotice] = useState<string | null>(null);
   /** תבנית שנבחרה מהקטלוג — פותחת את הקומפוזר על עותק שלה. */
   const [templateDraft, setTemplateDraft] = useState<RequestTemplate | null>(null);
   /** בקשה שנשמרת כרגע כתבנית — החלון מבקש רק שם. */
@@ -1748,7 +1753,11 @@ export default function OnboardingTab({
                        (info_collection אינה בין סוגי הדף ב-portalShowsStep, ולכן הסימון הכללי לא תפס). */
                     state={step.stepType === 'info_collection' && isStepOpen(step.status) && (step.status === 'pending' || step.publishedAt === null)
                       ? { text: 'טיוטה', tone: 'amber' } : undefined}
-                    menu={null}
+                    menu={step.stepType !== 'info_collection' && isStepOpen(step.status) ? (
+                      <span className="rl-links">
+                        <button type="button" className="rl-link is-danger" onClick={() => setRemoveTax({ id: step.id, title: workTitle(step) })} data-remove-tax-work>הסר…</button>
+                      </span>
+                    ) : null}
                     primary={parentId ? (
                       <button type="button" className="btn btn-sm btn-primary" onClick={() => setTaxYearStepId(parentId)}>פתח</button>
                     ) : undefined}
@@ -3810,9 +3819,18 @@ export default function OnboardingTab({
         const info = clientSteps.find(x => x.stepType === 'info_collection' && (x.payload as unknown as { parentStepId?: string }).parentStepId === st.id && x.status !== 'cancelled');
         return (
           <TaxYearProcess client={client} step={st} infoStep={info} onClientPersisted={onClientPersisted}
-            onClose={() => { setTaxYearStepId(null); refresh?.(); }} onChanged={() => refresh?.()} />
+            onClose={() => { setTaxYearStepId(null); refresh?.(); }} onChanged={() => refresh?.()} onRemoved={setTaxNotice} />
         );
       })()}
+
+      {removeTax && (
+        <RemoveWorkDialog stepId={removeTax.id} title={`${removeTax.title} · ${client.firstName ?? ''} ${client.lastName ?? ''}`.trim()}
+          onClose={() => setRemoveTax(null)}
+          onDone={(_what, text) => { setRemoveTax(null); setTaxNotice(text); refresh?.(); }} />
+      )}
+      {taxNotice && (
+        <div className="ty-ok tw-toast" role="status">{taxNotice} <button type="button" className="ta-link" onClick={() => setTaxNotice(null)} aria-label="סגור הודעה">✕</button></div>
+      )}
 
       {smartFilingId && (
         <Btl6101Workspace

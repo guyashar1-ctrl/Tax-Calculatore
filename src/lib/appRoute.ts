@@ -43,6 +43,11 @@ export interface AppRoute {
    * במסלולים. ‼ קישור משורה בכרטיס נוחת על הפריט עצמו, לא בראש העמוד.
    */
   officeFocus?: string;
+  /**
+   * 14.10.2026 · בתוך «מס» (‎#/tax/…‎): ‎work/<section>‎ או ‎learn/<domain>[/<item>]‎ (features/taxArea/areaModel.ts).
+   * ‼ הכתובות הישנות ממשיכות לעבוד: ‎#/reference‎ ⇒ ‎tax/learn‎; ‎#/firm/taxWork‎ ⇒ ‎tax/work‎.
+   */
+  taxPath?: string;
 }
 
 const SLUG_BY_VIEW: Record<View, string> = {
@@ -52,7 +57,8 @@ const SLUG_BY_VIEW: Record<View, string> = {
   form: 'client',
   calculator: 'calculator',
   documents: 'documents',
-  reference: 'reference',
+  // ‼ 14.10.2026: «ידע מס» ו«עבודת מס» התאחדו לאזור «מס» — ‎#/tax/…‎; ‎#/reference‎ נשאר כמפנה
+  reference: 'tax',
   annualReport: 'annual',
   firmProfile: 'firm',
   requestNew: 'request-new',
@@ -72,6 +78,7 @@ const VIEW_BY_SLUG = Object.fromEntries(
 // התוכן שלו חי במסך המשימות. הכתובת הישנה ממשיכה לעבוד ונוחתת שם, כדי
 // שקישור שמור לא ייפול.
 VIEW_BY_SLUG.desk = 'tasks';
+VIEW_BY_SLUG.reference = 'reference';
 
 export const DEFAULT_ROUTE: AppRoute = { view: 'tasks' };
 
@@ -100,6 +107,9 @@ export function formatRoute(route: AppRoute): string {
       if (route.annualClientId && route.annualTaxYear) {
         parts.push(route.annualClientId, String(route.annualTaxYear));
       }
+      break;
+    case 'reference':
+      if (route.taxPath) parts.push(...route.taxPath.split('/').filter(Boolean));
       break;
     case 'firmProfile':
       if (route.officePage) {
@@ -150,8 +160,14 @@ export function parseHash(hash: string): AppRoute {
       if (!rest[0] || !Number.isFinite(year)) return { view };
       return { view, annualClientId: rest[0], annualTaxYear: year };
     }
+    case 'reference':
+      // ‼ ‎#/reference‎ (לפני 14.10) היה «ידע מס» — נוחת בידע המקצועי
+      if (slug === 'reference') return { view, taxPath: 'learn' };
+      return { view, taxPath: rest.join('/') || undefined };
     case 'firmProfile':
       if (!rest[0]) return { view };
+      // ‼ «עבודת מס» עברה מ«המשרד» לאזור «מס»
+      if (rest[0] === 'taxWork') return { view: 'reference', taxPath: 'work' };
       return rest[1] ? { view, officePage: rest[0], officeFocus: rest[1] } : { view, officePage: rest[0] };
     default:
       return { view };

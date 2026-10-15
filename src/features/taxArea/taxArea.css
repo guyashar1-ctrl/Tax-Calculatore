@@ -1,0 +1,90 @@
+/* ─── «מס» — מסילה עם שני מרחבים, עמודי תחום וכניסה לכל סוג עבודה (14.10.2026) ─────────────── */
+.tax-area.pg-split { grid-template-columns: 224px minmax(0, 1fr); }
+@media (max-width: 900px) { .tax-area.pg-split { grid-template-columns: 1fr; } }
+
+.ta-modes { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; padding: 3px; margin: 0 0 6px; border-radius: 10px; background: var(--surface-2, var(--s2)); }
+.ta-mode { min-height: 36px; border: 0; border-radius: 8px; background: transparent; font: inherit; font-size: var(--fs-13); color: var(--ink-3, var(--tx2)); cursor: pointer; padding: 4px 6px; }
+.ta-mode.is-on { background: var(--card); color: var(--ink-1, var(--tx)); font-weight: 600; box-shadow: 0 1px 2px rgba(0, 0, 0, .08); }
+.ta-mode:focus-visible { outline: 2px solid var(--accent, var(--br)); outline-offset: 1px; }
+.ta-mode:active { transform: scale(.97); }
+@media (prefers-reduced-motion: no-preference) { .ta-mode { transition: background-color .12s ease-out, transform .12s ease-out; } }
+.ta-mode-hint { margin: 0 0 10px; padding: 0 8px; font-size: var(--fs-12); line-height: 1.5; color: var(--ink-4, var(--tx3)); }
+
+.ta-rail .pg-rail-item { display: flex; align-items: center; gap: 6px; }
+.ta-rail .pg-rail-name { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
+.ta-count { display: inline-grid; place-items: center; min-inline-size: 20px; block-size: 20px; padding: 0 5px; border-radius: 999px; font-size: var(--fs-12); color: var(--ink-4, var(--tx3)); font-variant-numeric: tabular-nums; }
+.ta-count.is-mine { background: var(--chip-amber-bg, var(--soft)); color: var(--chip-amber-tx, var(--br)); font-weight: 700; }
+.ta-mine { display: inline-grid; place-items: center; min-inline-size: 18px; block-size: 18px; padding: 0 4px; border-radius: 999px; background: var(--chip-amber-bg, var(--soft)); color: var(--chip-amber-tx, var(--br)); font-size: 11px; font-weight: 700; }
+.ta-mine-t { color: var(--chip-amber-tx, var(--br)); }
+.ta-legend { font-size: var(--fs-12); }
+
+.ta-crumbs { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.ta-crumb-trail { display: inline-flex; align-items: center; flex-wrap: wrap; font-size: var(--fs-13); color: var(--ink-4, var(--tx3)); }
+.ta-tool-fresh { margin: -6px 0 10px; }
+@media (max-width: 900px) { .ta-tool-fresh { display: none; } }
+
+.ta-page-head { display: grid; gap: 4px; margin-bottom: 14px; }
+.ta-when { margin: 0; font-size: var(--fs-14); color: var(--tx2); line-height: 1.6; }
+.ta-sec-h { margin: 18px 0 8px; font-size: var(--fs-15, 15px); font-weight: 650; }
+.ta-learn, .ta-domain-page { max-width: 880px; }
+
+.ta-domains { display: grid; grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); gap: 10px; margin-top: 12px; }
+.ta-dom-card { display: grid; gap: 4px; align-content: start; text-align: start; padding: 12px 14px; border: 1px solid var(--bd); border-radius: 12px; background: var(--card); color: inherit; font: inherit; cursor: pointer; }
+.ta-dom-card:focus-visible, .ta-item:focus-visible { outline: 2px solid var(--br); outline-offset: 2px; }
+.ta-dom-card:active, .ta-item:active { transform: scale(.985); }
+@media (hover: hover) { .ta-dom-card:hover, .ta-item:hover { border-color: var(--tx3); } }
+@media (prefers-reduced-motion: no-preference) { .ta-dom-card, .ta-item { transition: transform .12s ease-out, border-color .12s ease-out; } }
+.ta-dom-t { font-size: var(--fs-15, 15px); font-weight: 650; }
+.ta-dom-p { font-size: var(--fs-13); color: var(--tx2); line-height: 1.55; }
+.ta-dom-n { font-size: var(--fs-12); color: var(--tx3); line-height: 1.5; }
+
+.ta-item-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.ta-item { inline-size: 100%; display: grid; gap: 2px; text-align: start; padding: 10px 14px; border: 1px solid var(--bd); border-radius: 12px; background: var(--card); color: inherit; font: inherit; cursor: pointer; }
+.ta-item-kind { font-size: var(--fs-12); color: var(--tx3); }
+.ta-item-t { font-size: var(--fs-15, 15px); font-weight: 600; }
+.ta-item-p { font-size: var(--fs-13); color: var(--tx2); line-height: 1.55; }
+.ta-item-st { font-size: var(--fs-12); margin-top: 2px; color: var(--ok); }
+.ta-item-st.is-check { color: var(--warn); }
+.ta-item-st.is-stop { color: var(--err, #b42318); }
+.ta-hits { margin-top: 10px; }
+.ta-ask-sum { list-style: none; margin: 0; padding: 0; display: grid; }
+.ta-ask-sum li { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; padding: 7px 0; border-top: 1px solid var(--hairline-2, var(--bd)); font-size: var(--fs-14); }
+.ta-ask-sum li span { color: var(--tx2); font-size: var(--fs-13); }
+
+/* ‼ בטלפון המסילה היא דף הכניסה: המרחבים בראש, ואחריהם הכניסות כרשימה. */
+@media (max-width: 900px) {
+  .tax-area .ta-mode-hint { display: block; padding: 0; }
+  .tax-area .ta-legend { display: block; padding: 8px 0 0; }
+}
+
+/* ── ידע מקצועי: היררכיה בתפריט (15.10.2026) ─────────────────────────────────────────────
+   ‼ גיא: תת-נושאים נראו כחלק מרשימת התחומים. ארבעה אותות יחד, לא צבע בלבד:
+   חץ פתיחה (סגור ◂ / פתוח ▾) · תחום פתוח = קבוצה ברקע משלה · נושאים מוזחים, קטנים יותר ועם נקודה ·
+   הנבחר = רקע לבן + הדגשה + פס בצד. */
+.ta-domain { border-radius: 12px; margin: 1px 0; }
+.ta-domain.is-open { background: var(--surface-1, var(--s2)); padding-bottom: 6px; margin: 6px 0; }
+.ta-dom-row .pg-rail-name { font-weight: 500; }
+.ta-dom-row.is-open .pg-rail-name { font-weight: 650; color: var(--ink-1, var(--tx)); }
+.ta-domain.is-open > .ta-dom-row:not(.is-active) { background: transparent; }
+.ta-chev { flex-shrink: 0; color: var(--ink-3, var(--tx2)); transform: rotate(90deg); }
+.ta-dom-row.is-open .ta-chev { transform: none; color: var(--ink-1, var(--tx)); }
+@media (prefers-reduced-motion: no-preference) { .ta-chev { transition: transform .16s ease-out; } }
+.ta-sub { list-style: none; margin: 2px 0 0; padding: 0 8px; padding-inline-start: 26px; display: grid; gap: 1px; }
+.ta-sub-item { inline-size: 100%; display: flex; align-items: center; gap: 8px; min-height: 34px; padding: 5px 10px;
+  border: 0; border-inline-start: 3px solid transparent; border-radius: 8px; background: none; font: inherit; font-size: var(--fs-13);
+  line-height: 1.4; color: var(--ink-2, var(--tx2)); text-align: start; cursor: pointer; }
+.ta-sub-item::before { content: ""; inline-size: 5px; block-size: 5px; border-radius: 50%; background: currentColor; opacity: .45; flex-shrink: 0; }
+.ta-sub-name { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
+.ta-sub-kind { font-size: 11px; color: var(--ink-4, var(--tx3)); border: 1px solid var(--hairline-2, var(--bd)); border-radius: 999px; padding: 0 6px; }
+.ta-sub-item.is-active { background: var(--card); color: var(--ink-1, var(--tx)); font-weight: 650; border-inline-start-color: var(--accent, var(--br)); box-shadow: 0 1px 2px rgba(0, 0, 0, .06); }
+.ta-sub-item.is-active::before { opacity: 1; }
+@media (hover: hover) { .ta-sub-item:not(.is-active):hover { background: color-mix(in srgb, var(--card) 60%, transparent); color: var(--ink-1, var(--tx)); } }
+.ta-sub-item:focus-visible { outline: 2px solid var(--accent, var(--br)); outline-offset: 1px; }
+.ta-sub-item:active { transform: scale(.985); }
+@media (max-width: 900px) {
+  .tax-area .pg-rail .ta-dom-row { min-height: 50px; padding: 10px 8px; border-radius: 12px; border-bottom: 0; }
+  .tax-area .pg-rail .ta-domain:not(.is-open) { border-bottom: 1px solid var(--hairline-2); border-radius: 0; }
+  .tax-area .pg-rail .ta-dom-row .tc-chev { display: none; }
+  .tax-area .ta-sub { padding-inline-start: 30px; }
+  .tax-area .ta-sub-item { min-height: 44px; font-size: var(--fs-14); }
+}

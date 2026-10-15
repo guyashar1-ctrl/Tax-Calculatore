@@ -1,0 +1,45 @@
+/* ─── 14.10.2026 · מסלול הלימוד ומצב הנושא במילים ─────────────────────────────────────── */
+.kn-state { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; font-size: var(--fs-13); line-height: 1.55;
+  border-inline-start: 3px solid var(--ok); padding: 4px 10px; }
+.kn-state strong { font-size: var(--fs-14); }
+.kn-state.is-check { border-inline-start-color: var(--warn); }
+.kn-state.is-stop { border-inline-start-color: var(--err, #b42318); }
+.kn-state .kn-link { font-size: var(--fs-13); }
+.kn-path { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.kn-path button { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 4px 12px 4px 10px; border: 1px solid var(--bd); border-radius: 999px;
+  background: var(--card); color: inherit; font: inherit; font-size: var(--fs-13); cursor: pointer; }
+.kn-path button.is-on { border-color: var(--br); background: var(--soft); color: var(--br); font-weight: 650; }
+.kn-path button:focus-visible { outline: 2px solid var(--br); outline-offset: 2px; }
+.kn-path button:active { transform: scale(.97); }
+@media (prefers-reduced-motion: no-preference) { .kn-path button { transition: transform .12s ease-out, background-color .12s ease-out; } }
+.kn-path-n { display: inline-grid; place-items: center; inline-size: 18px; block-size: 18px; border-radius: 999px; background: var(--s2); font-size: 11px; font-weight: 650; }
+.kn-path button.is-on .kn-path-n { background: var(--br); color: #fff; }
+.kn-stage-h { margin: 18px 0 10px; font-size: var(--fs-18, 18px); font-weight: 650; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; outline: none; }
+.kn-stage-h small { font-size: var(--fs-13); font-weight: 400; color: var(--tx2); }
+.kn-stage-h:focus-visible { outline: 2px solid var(--br); outline-offset: 3px; border-radius: 4px; }
+.kn-asks { display: grid; gap: 14px; }
+.kn-ask-area { display: grid; gap: 4px; }
+.kn-ask-h { margin: 0; font-size: var(--fs-14); font-weight: 650; }
+.kn-ask-h small { font-weight: 400; color: var(--tx2); }
+.kn-ask-list { margin: 0; padding: 0; list-style: none; display: grid; }
+.kn-ask-list li { display: flex; justify-content: space-between; gap: 6px 12px; flex-wrap: wrap; padding: 7px 0; border-top: 1px solid var(--hairline-2, var(--bd)); font-size: var(--fs-14); line-height: 1.55; }
+.kn-ask-tags { display: flex; gap: 4px; flex-wrap: wrap; }
+.kn-tag { font-size: var(--fs-12); border-radius: 999px; padding: 1px 8px; background: var(--s2); color: var(--tx2); white-space: nowrap; }
+.kn-tag.is-office { background: var(--soft); color: var(--br); }
+.kn-tag.is-quiet { background: transparent; border: 1px dashed var(--bd); }
+.kn-read-box { margin-bottom: 10px; }
+.kn-path-foot { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin-top: 22px; padding-top: 14px; border-top: 1px solid var(--bd); }
+.kn-path-foot .btn { min-height: 44px; }
+@media (max-width: 640px) {
+  .kn-path { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
+  .kn-path::-webkit-scrollbar { display: none; }
+  .kn-path li { flex-shrink: 0; }
+  .kn-path-foot .btn { flex: 1 1 auto; }
+}
+.kn-link { display: inline-flex; align-items: center; gap: 4px; min-height: 32px; padding: 0 2px; border: 0; background: none; font: inherit; color: var(--accent, var(--br)); cursor: pointer; }
+.kn-link:focus-visible { outline: 2px solid var(--br); outline-offset: 2px; border-radius: 4px; }
+@media (hover: hover) { .kn-link:hover { text-decoration: underline; } }
+/* מעבר שלב גולל לראש הנושא — מתחת לסרגל הקבוע, לא מאחוריו */
+.kn-topic { scroll-margin-top: 76px; }
+.kn-gaps-note { margin: 0 0 12px; padding: 8px 12px; border-radius: 10px; background: var(--warn-bg); font-size: var(--fs-13); line-height: 1.6; }
+.kn-gaps-note strong { color: var(--warn); }

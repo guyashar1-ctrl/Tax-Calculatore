@@ -45,10 +45,13 @@ export const TESTS: TestCase[] = [
     equal(mk('answered').next, 'להשלים במשרד ולסגור');
     const d = mk('published', 'completed'); equal(d.bucket, 'done'); equal(d.next, 'הושלם');
   }),
-  test('בקשה שבוטלה — לא מוצגת; «השלמת מידע» מבוטלת — לא נספרת', () => {
+  // ‼ 14.10.2026: עבודה שבוטלה נשארת ברשימה ב«בוטלו» (כדי שאפשר יהיה להחזיר) — אבל לא כפתוחה ולא כ«חסר»
+  test('בקשה שבוטלה — ב«בוטלו»; «השלמת מידע» מבוטלת בעבודה פתוחה — לא נספרת', () => {
     const rows = buildWorkRows([step('x', 'annual_return', 'cancelled'), step('a', 'annual_return', 'in_progress'), step('ia', 'info_collection', 'cancelled', { parentStepId: 'a' })],
       [ask('q', 'ia', 'published')], [], [], names);
-    equal(rows.length, 1); equal(rows[0].missing.length, 0); assert(!rows[0].info, 'השלמת מידע מבוטלת נקשרה');
+    equal(rows.length, 2); equal(rows.find(r => r.parent.id === 'x')!.bucket, 'cancelled');
+    const open = rows.find(r => r.parent.id === 'a')!;
+    equal(open.missing.length, 0); assert(!open.info, 'השלמת מידע מבוטלת נקשרה');
   }),
   test('כותרות: הצהרת הון ראשונה בלי יום — בלי «ליום»', () => {
     equal(workTitle(step('w', 'wealth_declaration', 'in_progress', { kind: 'first' })), 'הצהרת הון · ראשונה');

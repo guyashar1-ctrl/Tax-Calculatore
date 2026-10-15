@@ -87,34 +87,26 @@ for (const [name, vp] of [['desktop', { width: 1440, height: 900 }], ['phone', {
   const r6 = await page.locator('.te-result').innerText();
   ok(r6.includes('נתוני אמת עד סוף יוני') && r6.includes('שינויים שלא נשמרו'), 'שינוי חתך ליוני — טיוטה חדשה, לא דורס את המאושרת', r6.slice(0, 200));
 
-  // ידע מס
-  const kn = async (topic, tab) => {
-    await page.goto(`${base}/?office-app#/reference`, { waitUntil: 'networkidle' }); await page.waitForTimeout(1200);
-    // הנושא האחרון נשאר פתוח אחרי רענון — חוזרים לרשימה דרך «כל הנושאים» / «נושאים»
-    for (const back of ['כל הנושאים', 'נושאים']) {
-      if (await page.locator('.kn-card', { hasText: topic }).first().isVisible()) break;
-      const l = page.locator(`text="${back}" >> visible=true`).first();
-      if (await l.count()) { await l.click(); await page.waitForTimeout(600); }
-    }
-    await page.locator('.kn-card', { hasText: topic }).first().click(); await page.waitForTimeout(700);
-    if (tab) await page.getByRole('tab', { name: tab }).first().click(); await page.waitForTimeout(400);
+  // ידע מקצועי (14.10.2026: «מס» ← «ידע מקצועי» ← תחום ← נושא, ומסלול שלבים במקום לשוניות)
+  const kn = async (path, stage) => {
+    await page.goto(`${base}/?office-app#/tax/learn/${path}`, { waitUntil: 'networkidle' }); await page.waitForTimeout(1200);
+    if (stage) { await page.locator(`[data-stage-btn="${stage}"]`).first().click(); await page.waitForTimeout(400); }
   };
-  await kn('הדוח השנתי (1301)', 'ללמוד');
+  await kn('annual/annualReturn', 'read');
   await page.locator('#ar-code-q').fill('172'); await page.waitForTimeout(300);
   ok((await page.locator('#ar-code').innerText()).includes('בן/בת הזוג'), 'איתור קוד 172 ⇒ בן/בת הזוג');
-  ok(await page.locator('#ar-spouses').count() === 1 && (await page.locator('#ar-spouses').innerText()).includes('בן זוג עובד'), 'ידע: «בני זוג — נפרד או מאוחד» עם הטבלה והדוגמה');
   await page.locator('#ar-code').scrollIntoViewIfNeeded(); await shot('6-code');
+  await page.locator('[data-stage-btn="calc"]').first().click(); await page.waitForTimeout(400);
+  ok(await page.locator('#ar-spouses').count() === 1 && (await page.locator('#ar-spouses').innerText()).includes('בן זוג עובד'), 'ידע: «בני זוג — נפרד או מאוחד» עם הטבלה והדוגמה');
   await noOverflow('דוח שנתי');
-  await kn('טופס 6111 ומילון סיווג הוצאות', 'בתיק');
+  await kn('business/form6111', 'read');
   await page.locator('#f6-q').fill('Claude'); await page.waitForTimeout(300);
   ok((await page.locator('.kn-dict').innerText()).includes('מנויי תוכנה'), 'מילון: Claude ⇒ מנויי תוכנה');
   await shot('7-dictionary'); await noOverflow('6111');
-  await kn('הצהרת הון והשוואת הון', 'ללמוד');
+  await kn('wealth/wealth', 'read');
   ok(await page.locator('#wd-fields').count() === 1 && (await page.locator('#wd-fields').innerText()).includes('נכסים דיגיטליים'), '1219 שדה אחר שדה');
   await page.locator('#wd-fields').scrollIntoViewIfNeeded(); await shot('8-wealth');
-  await page.goto(`${base}/?office-app#/reference`, { waitUntil: 'networkidle' }); await page.waitForTimeout(1000);
-  for (const back of ['כל הנושאים', 'ידע מס', 'נושאים']) { if (await page.locator('text="עדכניות ותחזוקה" >> visible=true').count()) break; const l = page.locator(`text="${back}" >> visible=true`).first(); if (await l.count()) { await l.click(); await page.waitForTimeout(600); } }
-  await page.locator('text="עדכניות ותחזוקה" >> visible=true').first().click(); await page.waitForTimeout(800);
+  await kn('reference/maintenance');
   ok((await page.locator('body').innerText()).includes('טופס לשנה חדשה') && (await page.locator('body').innerText()).includes('R14'), 'תחזוקה: טופס לשנה חדשה ו-R01 עד R14');
   await page.locator('details.kn-dict-row:has-text("R09") summary').first().click(); await page.waitForTimeout(300);
   const r9 = await page.locator('details.kn-dict-row:has-text("R09")').first().innerText();

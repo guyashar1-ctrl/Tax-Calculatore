@@ -38,6 +38,8 @@ import ProcessSteps from '../../components/office/ProcessSteps';
 import { processByKey } from '../../lib/processCatalog';
 import '../../components/office/office.css';
 import './taxYear.css';
+import RemoveWorkDialog from './RemoveWorkDialog';
+import { isOpenStep } from './taxWork';
 
 interface Props {
   client: Client;
@@ -47,6 +49,8 @@ interface Props {
   onChanged: () => void;
   /** 236 · עדכון הכרטיס מתוך התהליך (הוספת ישות, «עדכן בתיק») מחזיר את הכרטיס המעודכן — כדי שהמסך לא יישאר ישן. */
   onClientPersisted?: (c: Client) => void;
+  /** אחרי «הסר עבודה…» — ההודעה עוברת למסך שמתחת, כי הדף נסגר. */
+  onRemoved?: (text: string) => void;
 }
 
 const STATE_CHIP: Record<string, { label: string; tone: string }> = {
@@ -61,7 +65,7 @@ const target = (s: { entityLabel?: string; subjectRole: string }, c: Client) =>
   : s.subjectRole === 'spouse' ? (c.spouseFirstName || c.spouse?.firstName || 'בן/בת הזוג') + (s.entityLabel && s.entityLabel !== (c.spouseFirstName || c.spouse?.firstName) ? ` · ${s.entityLabel}` : '')
   : s.entityLabel && s.entityLabel !== c.firstName ? s.entityLabel : '';
 
-export default function TaxYearProcess({ client, step, infoStep, onClose, onChanged, onClientPersisted }: Props) {
+export default function TaxYearProcess({ client, step, infoStep, onClose, onChanged, onClientPersisted, onRemoved }: Props) {
   const purpose: Purpose = step.stepType === 'tax_estimate' ? 'estimate' : step.stepType === 'wealth_declaration' ? 'wealth' : step.stepType === 'tax_file_intake' ? 'intake' : 'annual';
   const p = step.payload as unknown as { taxYear: number; cutoffMonth?: number; title?: string; legacySessionId?: string; legacyStepId?: string; legacyReplaced?: { stepId: string; at: string } } & WealthPayload;
   const year = Number(p.taxYear);
@@ -71,6 +75,10 @@ export default function TaxYearProcess({ client, step, infoStep, onClose, onChan
   const [busy, setBusy] = useState(false);
   const [flash, setFlash] = useState<string | null>(null);
   const [preview, setPreview] = useState(false);
+  // ‼ 14.10.2026 · «הסר עבודה…» גם מתוך דף העבודה — אותו חלון (242). Escape סוגר רק אותו, לא את הדף
+  const [removing, setRemoving] = useState(false);
+  const removingRef = useRef(false);
+  removingRef.current = removing;
   // «השאלון» ו«איך עושים ביד» — מקופלים; «איך עושים» יכול לפתוח את השאלון.
   const [qOpen, setQOpen] = useState(false);
   const [pick, setPick] = useState<'office' | 'ask' | 'publish' | null>(null);
@@ -104,7 +112,7 @@ export default function TaxYearProcess({ client, step, infoStep, onClose, onChan
   }, [client.id, year, purpose, step.id, p.asOfDate]);
   useEffect(() => { void reload(); }, [reload]);
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && !removingRef.current) onClose(); };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
@@ -204,8 +212,14 @@ export default function TaxYearProcess({ client, step, infoStep, onClose, onChan
         </div>
         <span style={{ flex: 1 }} />
         {infoStep && <button type="button" className="btn btn-sm btn-ghost" onClick={() => setPreview(true)}>מה {firstName} רואה</button>}
+        {isOpenStep(step) && <button type="button" className="btn btn-sm btn-ghost tw-remove" onClick={() => setRemoving(true)} data-ty-remove>הסר עבודה…</button>}
         <button type="button" className="btn btn-sm btn-ghost" onClick={onClose} aria-label="סגירה">סגירה</button>
       </div>
+      {removing && (
+        <RemoveWorkDialog stepId={step.id} title={`${p.title} · ${client.firstName ?? ''} ${client.lastName ?? ''}`.trim()}
+          onClose={() => setRemoving(false)}
+          onDone={(_w, text) => { setRemoving(false); onRemoved?.(text); onChanged(); onClose(); }} />
+      )}
       <div className="ty-scroll">
         <div className="ty-body">
           {err && <div className="ty-err" role="alert">{err}</div>}
@@ -826,7 +840,7 @@ function Details({ client, statuses, evidence, purpose, legacy, facts, busy, onM
       {blocked.length > 0 && (
         <details className="ty-details">
           <summary><b>חישובים שחסומים עד הכרעה</b><span>האיסוף ממשיך</span></summary>
-          <div className="ty-details-body"><p className="ty-note">פנסיה מגיל 50 והשלמת מקדמות לחודשים שעברו — לא מחושבים עד שתתקבל הכרעה מקצועית (ראו «פריטים פתוחים» בידע מס). המידע שהם צריכים נאסף כרגיל.</p></div>
+          <div className="ty-details-body"><p className="ty-note">פנסיה מגיל 50 והשלמת מקדמות לחודשים שעברו — לא מחושבים עד שתתקבל הכרעה מקצועית (ראו «פריטים פתוחים» בידע המקצועי). המידע שהם צריכים נאסף כרגיל.</p></div>
         </details>
       )}
       <details className="ty-details">

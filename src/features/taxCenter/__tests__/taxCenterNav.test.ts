@@ -10,7 +10,8 @@
 import { test, equal, assert } from '../../../testkit/tinyTest';
 import type { TestCase } from '../../../testkit/tinyTest';
 import { TOOLS, TOOL_DATASET, OVERVIEW_LABEL, taxCenterHead } from '../taxCenterNav';
-import CENTER_SOURCE from '../TaxCenter.tsx?raw';
+// ‼ 14.10.2026: TaxCenter הוחלף ב«מס» (features/taxArea/TaxArea.tsx) — אותו דפוס בטלפון: רשימה, ואז עמוד עם «› מס».
+import CENTER_SOURCE from '../../taxArea/TaxArea.tsx?raw';
 import DESIGN_CSS from '../../../components/ui/pivo-design.css?raw';
 
 export const TESTS: TestCase[] = [
@@ -48,9 +49,10 @@ export const TESTS: TestCase[] = [
     }
   }),
 
-  test('המסך מסמן כלי פתוח (has-tool) ויש «› ידע מס» שחוזר לרשימה', () => {
-    assert(/\$\{picked \? ' has-tool' : ''\}/.test(CENTER_SOURCE), 'has-tool נגזר מהבחירה');
-    assert(/className="tc-back" onClick=\{\(\) => open\(null\)\}/.test(CENTER_SOURCE), 'החזרה מנקה את הבחירה');
+  test('המסך מסמן עמוד פתוח (has-tool) ויש «› מס» שחוזר לרשימה', () => {
+    assert(CENTER_SOURCE.includes("${phoneList ? '' : ' has-tool'}"), 'has-tool נגזר מהרשימה בטלפון');
+    assert(/className="tc-back" onClick=\{\(\) => \{ setPhoneList\(true\)/.test(CENTER_SOURCE), 'החזרה פותחת את הרשימה');
+    assert(CENTER_SOURCE.includes('tax-center tax-area pg-split'), 'אותה מחלקה — אותם כללי טלפון');
   }),
 
   test('בטלפון: כלי פתוח מסתיר את הרשימה, ובלי כלי — רק הרשימה', () => {

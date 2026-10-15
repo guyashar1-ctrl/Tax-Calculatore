@@ -1137,7 +1137,7 @@ export default function TaxFileTab({
       {/* ═══ שנות מס (229) ═══════════════════════════════════════════════════
           ‼ אין לשונית «שנת מס»: כרטיס לכל שנה כאן, שפותח את דף התהליך (הערכה / דוח).
           סכומים לשנה חיים בשנת המס; כאן גם ההעברה של סכומים מהכרטיס שאין להם שנה. */}
-      <SectHead family="income" title="דוחות והצהרות" why="רק עבודות שנפתחו — אותן עבודות כמו ב«עבודת מס» וב«בקשות», עם המועדים והמצב" />
+      <SectHead family="income" title="דוחות והצהרות" why="רק עבודות שנפתחו — אותן עבודות כמו ב«מס › עבודות לקוחות» וב«בקשות», עם המועדים והמצב" />
       <div className="txf-sect" style={{ padding: '.6rem .8rem' }}>
         {/* ‼ «הוסף לתיק» מתוך שנת המס יוצר הצעה — רשימת ההצעות כאן מתרעננת מיד, לא רק בטעינה הבאה */}
         <TaxYearsSection client={client} onChanged={() => { onRequestsChanged?.(); void refresh(); }} onClientPersisted={onClientPersisted} intakeSignal={intakeSignal} />

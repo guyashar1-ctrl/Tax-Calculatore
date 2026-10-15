@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { createContext, useContext, useState, type ReactNode } from 'react';
 
 /** לשוניות של נושא שיש לו שכבת לימוד: «ללמוד» ו«בתיק». «בקצרה» ו«מקורות» מוצגים בעמוד הנושא. */
 export type TopicView = 'learn' | 'apply';
@@ -13,7 +13,12 @@ export interface TopicBodyProps {
 
 export interface TocItem { id: string; label: string; view?: TopicView }
 
+/** ‼ 14.10.2026 · מסלול הלימוד: עמוד הנושא מחליט אילו סעיפים מוצגים בשלב הנוכחי (learnPath.ts). בלי ספק — הכול. */
+export const SecFilter = createContext<((id: string) => boolean) | null>(null);
+
 export function Sec({ id, title, children }: { id: string; title: string; children: ReactNode }) {
+  const show = useContext(SecFilter);
+  if (show && !show(id)) return null;
   return (
     <section className="kn-sec" id={id} aria-labelledby={`${id}-h`} tabIndex={-1}>
       <h2 id={`${id}-h`}>{title}</h2>

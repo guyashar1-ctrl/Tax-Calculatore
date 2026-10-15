@@ -39,9 +39,7 @@ export interface OfficePageDef {
  * יוגדר פעם אחת. ראה docs/PLAN-LIBRARY-FLOWS.md.
  */
 export const OFFICE_PAGES: OfficePageDef[] = [
-  // ‼ 12.10.2026 (גיא: «גישה מניהול המשרד» לקליטה, לדוח השנתי ולהצהרות ההון) — עמוד עבודה אחד, לא הגדרות:
-  // אותן בקשות כמו בתיק הלקוח, מה חסר, מה ממתין לבדיקה ומה הבא; «פתח» — אותו דף תהליך.
-  { id: 'taxWork', label: 'עבודת מס', blurb: 'קליטות, דוחות שנתיים והצהרות הון של כל הלקוחות — מה חסר, מה ממתין לבדיקתך ומה הבא.' },
+  // ‼ 14.10.2026 · «עבודת מס» יצאה מכאן: «המשרד» הוא הגדרות, והעבודה היומית על הלקוחות חיה באזור «מס» בסרגל.
   { id: 'profile', label: 'פרטי המשרד', blurb: 'שם, לוגו, חתימה ועיצוב — מה שהלקוחות רואים.' },
   { id: 'team', label: 'צוות', blurb: 'עובדים, ומי מטפל באיזה לקוח.' },
   // ‼ 05.10 (הדמיה מאושרת): «ספריית הבקשות» — כל הבקשות, כולל המובנות; «כללי פתיחה» — מתי פותחים.
@@ -55,7 +53,7 @@ export const OFFICE_PAGES: OfficePageDef[] = [
 ];
 
 /** קו מפריד בתפריט אחרי העמודים האלה. */
-export const NAV_BREAK_AFTER = new Set<OfficePageId>(['taxWork', 'team', 'pricing']);
+export const NAV_BREAK_AFTER = new Set<OfficePageId>(['team', 'pricing']);
 
 export const DEFAULT_OFFICE_PAGE: OfficePageId = 'profile';
 

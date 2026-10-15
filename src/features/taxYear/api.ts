@@ -239,3 +239,12 @@ export const upsertTaxWork = (clientId: string, kind: 'annual' | 'wealth', perio
     { p_client_id: clientId, p_kind: kind, p_tax_year: period.taxYear ?? null, p_as_of: period.asOfDate ?? null, p_meta: meta });
 export const updateTaxWork = (stepId: string, patch: Record<string, unknown>, note?: string) =>
   call('update_tax_work', { p_step_id: stepId, p_patch: patch, p_note: note ?? null });
+
+// ── 242 · הסרת עבודת מס: מחיקה כשכלום לא יצא, ביטול כשמשהו כבר יצא, החזרה של עבודה שבוטלה ──
+// ‼ השרת קובע את המצב (workRemoval.ts הוא אותם כללים, להסבר במסך). 'changed' — המצב השתנה מאז שהחלון נפתח.
+export const workRemovalCheck = (stepId: string) =>
+  call<{ mode: 'delete' | 'cancel' | 'none'; facts: import('./workRemoval').RemovalFacts; restorable: boolean }>('tax_work_removal_check', { p_step_id: stepId });
+export const removeTaxWork = (stepId: string, mode: 'delete' | 'cancel', reason?: string) =>
+  call<{ mode: 'delete' | 'cancel'; asksClosed?: number }>('remove_tax_work', { p_step_id: stepId, p_mode: mode, p_reason: reason ?? null });
+export const restoreTaxWork = (stepId: string) =>
+  call<{ asksBack: number; asksKept: number }>('restore_tax_work', { p_step_id: stepId });

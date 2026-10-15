@@ -20,7 +20,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { FirmProfile } from '../types/firmProfile';
 import type { Client } from '../types';
 import type { TabId as ClientTabId } from './ClientWorkspace';
-import TaxWorkView from '../features/taxYear/TaxWorkView';
 import EmployeesPanel from './EmployeesPanel';
 import QuotationSettings from './quotations/QuotationSettings';
 import ProfilePage from './office/pages/ProfilePage';
@@ -166,7 +165,7 @@ export default function FirmProfileConsole({ profile, clients, onSave, page: rou
   const def = pageDef(shown);
   // ‼ «מסלולים» תמיד ברוחב מלא: הבונה ו«מה יקרה» יושבים זה לצד זה במחשב.
   // «אוטומציות» — שלוש עמודות (מה קורה · מה מפעיל · תוצאה אחרונה) צריכות רוחב.
-  const wide = ((shown === 'profile' || shown === 'emails') && pageWide) || shown === 'flows' || shown === 'automations' || shown === 'taxWork';
+  const wide = ((shown === 'profile' || shown === 'emails') && pageWide) || shown === 'flows' || shown === 'automations';
 
   return (
     <div className="of" dir="rtl">
@@ -205,9 +204,6 @@ export default function FirmProfileConsole({ profile, clients, onSave, page: rou
             <p className="of-lead">{def.blurb}</p>
           </header>
 
-          {shown === 'taxWork' && (
-            <TaxWorkView clients={clients} onOpenClient={(id, tab) => onOpenClient?.(id, tab)} />
-          )}
           {shown === 'profile' && (
             <ProfilePage key={`profile-${focus ?? ''}`} draft={draft} saved={profile} setDraft={setDraft}
               noteUpload={office.noteUpload} focus={focus} onWide={setPageWide} />

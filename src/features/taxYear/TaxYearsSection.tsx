@@ -18,6 +18,7 @@ import { todayIso } from '../../utils/dateFormat';
 import { MONTHS } from './asks';
 import { proposeTransfers, type FieldWrite, type TransferProposal } from './transfer';
 import TaxYearProcess from './TaxYearProcess';
+import RemoveWorkDialog from './RemoveWorkDialog';
 import { consumeKnowledgeReturn } from '../taxKnowledge/knowledgeLink';
 import './taxYear.css';
 import { AVAILABLE } from '../taxKnowledge/availability';
@@ -74,6 +75,8 @@ export default function TaxYearsSection({ client, onChanged, onClientPersisted, 
   //   דיאלוג כמו ב«עבודת מס» (AddTaxWorkDialog), עם הלקוח הזה; אותה עבודה, אותם מועדים ומצב.
   const infoOf = (parent?: OnboardingStep) => parent && steps.find(s => s.stepType === 'info_collection' && (s.payload as unknown as { parentStepId?: string }).parentStepId === parent.id && s.status !== 'cancelled');
   const [adding, setAdding] = useState(false);
+  // ‼ 14.10.2026 · «הסר…» — אותו חלון כמו ב«מס» וב«בקשות»; עבודה שהושלמה לא מוסרת (242)
+  const [removing, setRemoving] = useState<{ id: string; title: string } | null>(null);
   const works = useMemo(() => steps
     .filter(s => s.stepType === 'annual_return' || s.stepType === 'wealth_declaration' || (s.stepType === 'tax_estimate'))
     .sort((a, b) => Number(OPEN(b)) - Number(OPEN(a))
@@ -149,6 +152,7 @@ export default function TaxYearsSection({ client, onChanged, onClientPersisted, 
                   </span>
                   <span className={`ty-chip ${st.tone}`}>{st.text}{approvedEst.get(w.id) ? ` · גרסה ${approvedEst.get(w.id)!.version}` : ''}</span>
                   <button type="button" className="btn btn-sm btn-ghost" onClick={() => setOpenId(w.id)}>פתח</button>
+                  {OPEN(w) && <button type="button" className="btn btn-sm btn-ghost tw-remove" onClick={() => setRemoving({ id: w.id, title })} aria-label={`הסר: ${title}`} data-tf-remove>הסר…</button>}
                 </li>
               );
             })}
@@ -164,11 +168,15 @@ export default function TaxYearsSection({ client, onChanged, onClientPersisted, 
         <AddTaxWorkDialog clients={[client]} steps={steps} fixedClientId={client.id} onClose={() => setAdding(false)}
           onDone={res => { void load(); onChanged?.(); if (res[0]?.stepId) { setAdding(false); setOpenId(res[0].stepId); } }} />
       )}
+      {removing && (
+        <RemoveWorkDialog stepId={removing.id} title={removing.title} onClose={() => setRemoving(null)}
+          onDone={(_what, text) => { setRemoving(null); setMsg({ ok: true, text }); void load(); onChanged?.(); }} />
+      )}
       {proposals.length > 0 && <Transfers client={client} proposals={proposals} busy={busy} setBusy={setBusy}
         onDone={async text => { setMsg({ ok: true, text }); await load(); onChanged?.(); }} onError={text => setMsg({ ok: false, text })} />}
       {openStep && (
         <TaxYearProcess client={client} step={openStep} infoStep={infoOf(openStep)} onClientPersisted={onClientPersisted}
-          onClose={() => { setOpenId(null); void load(); }} onChanged={() => { void load(); onChanged?.(); }} />
+          onClose={() => { setOpenId(null); void load(); }} onChanged={() => { void load(); onChanged?.(); }} onRemoved={text => setMsg({ ok: true, text })} />
       )}
     </div>
   );

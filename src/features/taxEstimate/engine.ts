@@ -209,7 +209,7 @@ export function computeEstimate(draft: EstimateDraft, ctx: Ctx, opts: { extraStu
     // השיעורים לפי סוג — מהמרשם, דרך השער: שיעור שלא אומת לשנה — חוסם את התרחיש הזה
     const CAP_RULE: Record<string, string> = { gains: 'cap.gain.realRate', dividend: 'cap.dividend.regularRate', dividendSubstantial: 'cap.dividend.substantialRate', interestUnlinked: 'cap.interest.unlinkedRate', interestLinked: 'cap.interest.linkedRealRate' };
     const ids = [...new Set(draft.lines.filter(x => x.source === 'capital' && x.capitalKind && CAP_RULE[x.capitalKind]).map(x => CAP_RULE[x.capitalKind!]))];
-    for (const pr of gate(ids, year, {}, 'calculation').hard) if (!blockers.some(b => b.ruleId === pr.ruleId)) blockers.push({ code: 'rule_not_verified', ruleId: pr.ruleId, text: `הכנסה הונית: ${describeProblem(pr)} — הערך לשנה לא אומת במקור — לעדכן במרשם הכללים (ידע המס ← תחזוקה), או לחשב ביד` });
+    for (const pr of gate(ids, year, {}, 'calculation').hard) if (!blockers.some(b => b.ruleId === pr.ruleId)) blockers.push({ code: 'rule_not_verified', ruleId: pr.ruleId, text: `הכנסה הונית: ${describeProblem(pr)} — הערך לשנה לא אומת במקור — לעדכן במרשם הכללים (ידע מקצועי ← עדכניות ותחזוקה), או לחשב ביד` });
   }
   for (const l of draft.lines.filter(x => x.source === 'capital' && !x.capitalKind)) blockers.push({ code: 'capital_kind_missing', text: `לסווג את «${l.label}»: רווח הון, דיבידנד (רגיל / כבעל מניות מהותי באותה חברה), ריבית לא צמודה (15%), צמודה (25%) או ריבית מחברה שבשליטתו (שולי)` });
   // ── 2ב. בני זוג: חישוב נפרד מותר רק בתנאי סעיף 66; הכנסה שאינה מיגיעה אישית — לבעל היגיעה הגבוהה ──
@@ -292,7 +292,7 @@ export function computeEstimate(draft: EstimateDraft, ctx: Ctx, opts: { extraStu
   // ── 4. שער הכללים ──
   const g = gate(IT_CORE_RULES, year, {}, 'calculation');
   for (const p of g.hard) {
-    if (!blockers.some(b => b.ruleId === p.ruleId)) blockers.push({ code: 'rule_not_verified', ruleId: p.ruleId, text: `${describeProblem(p)} — הערך לשנה לא אומת במקור — לעדכן במרשם הכללים (ידע המס ← תחזוקה), או לחשב ביד` });
+    if (!blockers.some(b => b.ruleId === p.ruleId)) blockers.push({ code: 'rule_not_verified', ruleId: p.ruleId, text: `${describeProblem(p)} — הערך לשנה לא אומת במקור — לעדכן במרשם הכללים (ידע מקצועי ← עדכניות ותחזוקה), או לחשב ביד` });
   }
   IT_CORE_RULES.forEach(use);
   const td = getTaxYearData(year);
@@ -710,7 +710,7 @@ export function computeEstimate(draft: EstimateDraft, ctx: Ctx, opts: { extraStu
     }
     return {
       person: p, studyFundMaxDeduction: max, studyFundPlanned: r0(dep.study), pensionPlanned: r0(dep.pension), studyFundTopUp: topUp,
-      pensionNote: 'פנסיה: התקרה תלויה במסלול (א׳/ב׳), בגיל 50 ובמעמד «עמית מוטב» — ראו «ידע מס › פנסיה לעצמאי». מגיל 50 — לא מחושב (לא הוכרע).',
+      pensionNote: 'פנסיה: התקרה תלויה במסלול (א׳/ב׳), בגיל 50 ובמעמד «עמית מוטב» — ראו «ידע מקצועי › פנסיה לעצמאי». מגיל 50 — לא מחושב (לא הוכרע).',
     };
   });
   ['sf.se.rate', 'sf.se.ceiling'].forEach(id => { try { use(id); } catch { /* */ } });

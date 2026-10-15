@@ -8,7 +8,8 @@ import type { OnboardingStep } from '../../types/onboarding';
 import { AVAILABLE } from '../taxKnowledge/availability';
 
 export type WorkKind = 'intake' | 'annual' | 'wealth' | 'estimate';
-export type WorkBucket = 'mine' | 'client' | 'done';
+// ‼ 14.10.2026 · 'cancelled' — עבודה שבוטלה (242): לא ברשימה הפעילה, אבל אפשר למצוא ולהחזיר אותה ב«בוטלו»
+export type WorkBucket = 'mine' | 'client' | 'done' | 'cancelled';
 
 export interface WorkAsk { id: string; stepId: string; state: string; title: string; subjectName?: string }
 export interface WorkFact { askId?: string; status: string }
@@ -62,10 +63,11 @@ export function buildWorkRows(
   steps: OnboardingStep[], asks: WorkAsk[], facts: WorkFact[], evidence: WorkEvidence[],
   firstNameOf: (clientId: string) => string,
 ): WorkRow[] {
-  const parents = steps.filter(s => kindOf(s) && s.status !== 'cancelled');
+  const parents = steps.filter(s => kindOf(s));
   return parents.map(parent => {
-    const info = steps.find(s => s.stepType === 'info_collection' && s.status !== 'cancelled'
-      && ((s.payload ?? {}) as unknown as P).parentStepId === parent.id);
+    const ofParent = (s: OnboardingStep) => s.stepType === 'info_collection' && ((s.payload ?? {}) as unknown as P).parentStepId === parent.id;
+    // ‼ בעבודה שבוטלה גם «השלמת המידע» בוטלה — מציגים אותה כדי להראות מה היה
+    const info = steps.find(s => ofParent(s) && s.status !== 'cancelled') ?? (parent.status === 'cancelled' ? steps.find(ofParent) : undefined);
     const mine = info ? asks.filter(a => a.stepId === info.id) : [];
     const ids = new Set(mine.map(a => a.id));
     const missing = mine.filter(a => a.state === 'published' || a.state === 'unavailable');
@@ -76,7 +78,9 @@ export function buildWorkRows(
       + evidence.filter(e => e.askId && ids.has(e.askId) && e.review === 'needs_review').length;
     const who = firstNameOf(parent.clientId) || 'הלקוח';
     let bucket: WorkBucket; let next: string;
-    if (!isOpenStep(parent)) { bucket = 'done'; next = 'הושלם'; }
+    const removal = (parent.payload as unknown as { removal?: { reason?: string } } | undefined)?.removal;
+    if (parent.status === 'cancelled') { bucket = 'cancelled'; next = removal?.reason ? `בוטלה — ${removal.reason}` : 'בוטלה'; }
+    else if (!isOpenStep(parent)) { bucket = 'done'; next = 'הושלם'; }
     else if (toReview > 0) { bucket = 'mine'; next = `לבדוק ${count(toReview, 'פריט אחד שהתקבל', 'פריטים שהתקבלו')}`; }
     else if (drafts > 0) { bucket = 'mine'; next = `לפרסם בדף האישי ${count(drafts, 'שאלה אחת', 'שאלות')} שהוכנו`; }
     else if (missing.length - unavailable > 0) { bucket = 'client'; next = `ממתין ל${who}: ${count(missing.length - unavailable, 'שאלה פתוחה', 'שאלות פתוחות')}`; }

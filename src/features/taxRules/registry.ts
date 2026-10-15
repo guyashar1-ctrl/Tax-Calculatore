@@ -10,11 +10,12 @@ import type { Basis, GateProblem, Rule, RuleValue, Scenario, ScenarioTag, Source
 
 export const BASIS_ORDER: Basis[] = ['primary', 'derived', 'secondary', 'unverified'];
 
+// ‼ 14.10.2026 (גיא: «מקור משני» לא ברור) — התווית אומרת גם מה עושים עם הערך, לא רק מאיפה הוא
 export const BASIS_LABEL: Record<Basis, string> = {
   primary: 'מקור רשמי',
-  derived: 'חושב מכלל רשמי',
-  secondary: 'מקור משני',
-  unverified: 'לא אומת',
+  derived: 'חושב מהחוק · לבדוק מול פרסום',
+  secondary: 'מקור לא רשמי · לאמת לפני הגשה',
+  unverified: 'לא אומת · לא לחשב לפיו',
 };
 
 export interface RuleView {

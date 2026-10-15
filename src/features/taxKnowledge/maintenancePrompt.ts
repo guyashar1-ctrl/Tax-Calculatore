@@ -71,7 +71,7 @@ function buildNewFormPrompt(formId: string, taxYear: number): string {
 - טבלה בדוח: שדה · סוג השינוי · רכיבים שעודכנו · מי מהלקוחות עלול להיות מושפע (בלי לשנות אותם).
 
 5. בדיקות ודוח
-- npm run test:unit · npm run build; בדיקה ל-diffFormVersions החדש; בדפדפן: «ידע מס» › «טופס 1301» (גרסה ושינויים), הנושאים שהושפעו — מחשב ו-390.
+- npm run test:unit · npm run build; בדיקה ל-diffFormVersions החדש; בדפדפן: «מס › ידע מקצועי › טופס 1301» (גרסה ושינויים), הנושאים שהושפעו — מחשב ו-390.
 - דוח: docs/tax-foundation/updates/<YYYY-MM-DD>-${formId}-${taxYear}.md — מה השתנה בעבודת המשרד בעברית פשוטה, מה נבדק, מה לא נקרא. ‼ בלי «הכול אומת» כשהכיסוי חלקי.
 
 גבולות: אין commit ל-master, push, merge, deploy, שינוי במסד או פעולה מול רשות — בלי אישור מפורש של גיא. בשגיאת התחברות — לעצור.
@@ -112,7 +112,7 @@ export function buildMaintenancePrompt(scope: MaintenanceScope): string {
     : null;
   const scopeLine = topic
     ? `נושא: ${topic.title} (${topic.id}) · כללים: ${topic.ruleIds.join(', ')}`
-    : `כל ידע המס: ${TOPICS.length} נושאים, ${ALL_RULES.length} כללים במרשם, ועמודי הכלים הקיימים (ראה COVERAGE_AUDIT)`;
+    : `כל הידע המקצועי: ${TOPICS.length} נושאים, ${ALL_RULES.length} כללים במרשם, ועמודי הכלים הקיימים (ראה COVERAGE_AUDIT)`;
   const gaps = topic ? topic.gaps.map(g => `- ${g}`).join('\n') : TOPICS.map(t => `- ${t.title}: ${t.gaps.length} פערים`).join('\n');
   const calcs = Object.entries(CALC_RULES).filter(([, c]) => c.ruleIds.some(id => ruleIds.includes(id))).map(([id, c]) => `${id} (${c.label})`).join(', ') || 'אין';
   const fields = (topic ? [topic] : TOPICS).flatMap(t => t.form1301.map(f => `${t.id}: חלק ${f.part}, סעיף ${f.section}, שדות ${f.fields}`)).join('\n- ');
@@ -123,7 +123,7 @@ export function buildMaintenancePrompt(scope: MaintenanceScope): string {
     .map(i => `- [${STATUS_LABEL[i.status]}] ${i.title} — חסר: ${i.missing} | נבדק: ${i.checked.map(c => c.source).join('; ') || '—'} | משפיע על: ${i.affects} | בינתיים: ${MEANWHILE_LABEL[i.meanwhile]} — ${i.meanwhileText}`).join('\n') || '- אין';
   const expected = EXPECTED_PUBLICATIONS.map(p => `- ${p.title} | ${DOC_KIND_LABEL[p.docKind]} | מתייחס לשנת מס ${p.refersToTaxYear} | בדרך כלל: ${p.usuallyPublished} | ישפיע על: ${p.affects.join('; ')}`).join('\n');
 
-  return `משימה: עדכון ידע המס ב-PIVO — מחקר, השוואה, עדכון בפועל, בדיקת השפעה ודוח.
+  return `משימה: עדכון הידע המקצועי ב-PIVO — מחקר, השוואה, עדכון בפועל, בדיקת השפעה ודוח.
 
 היקף: ${scopeLine}
 גרסת המרשם בעת ההעתקה: ${RULESET_VERSION}
@@ -205,7 +205,7 @@ ${AVAILABLE.taxEstimate ? `- חישוב אחד במערכת: הערכת המס (
 - npm run test:unit · npm run build.
 - לכל ערך שהשתנה — בדיקת יחידה עם דוגמה מספרית מהמקור. לכל מיפוי שהשתנה — בדיקה שהנושא מציג את שנת הטופס הנכונה. לכל גרסת טופס חדשה — בדיקה של diffFormVersions מול הקודמת ושל followUpsForChange (בלי פנייה על שינוי מספר; בקשה ממוקדת על שינוי משמעות; התשובה הקודמת נשמרת).
 - לכל שינוי בחישוב קיים — תרחישי «לפני ואחרי»: הרץ אותם על הקוד הקודם (git archive של הקומיט הקודם) ועל הנוכחי; טבלה בדוח (מקור, תרחיש שנפגע, לפני, אחרי, מה לא השתנה); בדיקת רגרסיה שנועלת את ערכי «אחרי» ואת מה שלא אמור להשתנות (דוגמה: docs/tax-foundation/calc-fixes-regression-2026-10-10.md). ודא שלא נשמרו תוצאות שישתנו בשקט.
-- דפדפן: «ידע מס» › הנושא, «טופס 1301» (גרסה, שינויים, מפת כיסוי, מידע לנספחים, מוכנות לקוח) ו«עדכניות ותחזוקה» (פריטים פתוחים), במחשב וב-360/390 — הערך, הביסוס, שנת המסמך והפערים מוצגים; אין גלישה צדדית.
+- דפדפן: «מס › ידע מקצועי» › הנושא, «טופס 1301 לשנה» (גרסה, שינויים, מפת כיסוי, מידע לנספחים, מוכנות לקוח) ו«עדכניות ותחזוקה» (פריטים פתוחים), במחשב וב-360/390 — הערך, הביסוס, שנת המסמך והפערים מוצגים; אין גלישה צדדית.
 
 7. דוח — docs/tax-foundation/updates/<YYYY-MM-DD>.md
 - בראש: מה השתנה בעבודת המשרד, בעברית פשוטה.
