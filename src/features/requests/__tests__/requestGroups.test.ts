@@ -31,6 +31,26 @@ const appr = (id: string, answersId: string, pct: number, entered: string | null
 });
 
 export const TESTS: TestCase[] = [
+  // ── 15.10 · אמיר: אותה קבוצת ייצוג במשרד ובדף ────────────────
+  test('הדף: «פתיחת התיקים» לא בקבוצת הייצוג — הקבוצה מוצגת כהושלמה כמו במשרד', () => {
+    // ‼ הפריטים המדויקים ש-build_client_portal החזירה לאמיר ויסמרק (מפתחות ותיבות בלבד).
+    const items = [
+      { key: 'quotation', bucket: 'done' }, { key: 'files_office', bucket: 'office', label: 'פתיחת התיקים ברשויות' },
+      { key: 'rep_done', bucket: 'done' }, { key: 'rep_approval', bucket: 'done' }, { key: 'docs', bucket: 'done' },
+      { key: 'paperless_signup', bucket: 'future' }, { key: 'business_details', bucket: 'done' },
+      { key: 'paperless_connect', bucket: 'future' }, { key: 'retainer_future', bucket: 'future' },
+    ];
+    const { groups, singles } = groupPortalItems(items);
+    const rep = groups.find(g => g.key === 'representation');
+    assert(!!rep && rep.items.map(i => i.key).sort().join() === 'rep_approval,rep_done', JSON.stringify(rep?.items));
+    equal(portalGroupStatus(rep!.items).tag, 'הושלם');
+    // «פתיחת התיקים» עדיין מוצג — כפריט בפני עצמו (זה שלב שעוד פתוח), לא כמצב של הייצוג
+    assert(singles.some(i => i.key === 'files_office'), 'files_office נשאר פריט בודד');
+    // גם כשהושלם — לא בקבוצת הייצוג
+    const done = groupPortalItems([{ key: 'rep_done', bucket: 'done' }, { key: 'rep_approval', bucket: 'done' }, { key: 'files', bucket: 'done' }]);
+    assert(done.groups[0].items.every(i => i.key !== 'files') && done.singles.some(i => i.key === 'files'), 'files בודד');
+  }),
+
   // ── 15.10 · הסרה ממתינה אינה «השלב הבא» ──────────────────
   test('בקשה שסומנה «תוסר בפרסום» לא נספרת ולא נאמרת כשלב הבא בקבוצה', () => {
     const done = step('paperless_invite', 'completed');

@@ -239,8 +239,11 @@ const PORTAL_PAPERLESS_KEYS = new Set([
 ]);
 const PORTAL_RETAINER_KEYS = new Set(['retainer', 'retainer_charge', 'retainer_card', 'retainer_future', 'retainer_info']);
 const PORTAL_PREV_KEYS = new Set(['prev_accountant', 'prev_details']);
+// ‼ 15.10 · «פתיחת התיקים ברשויות» (files / files_office) אינה בקבוצת הייצוג בדף: הקבוצה במשרד היא הבקשה
+// + החלקים לרשות×אדם + האישור, והשלב file_opening (עבודה פנימית של עסק חדש) לא נספר בה. כשהוא כן נספר בדף —
+// אצל אמיר ויסמרק הקבוצה הוצגה במשרד «הושלם» ובדף «בטיפול המשרד» (פריט קיים, הייצוג עצמו כבר אושר).
 const PORTAL_REP_KEYS = new Set(['rep_fill', 'rep_sign', 'rep_sign_spouse', 'rep_office', 'rep_authorities', 'rep_done',
-  'rep_approval', 'files', 'files_office']);
+  'rep_approval']);
 
 /** סדר הילדים בקבוצה בדף האישי — אותו סדר כמו בתיק. */
 const PORTAL_CHILD_RANK: Record<string, number> = {
