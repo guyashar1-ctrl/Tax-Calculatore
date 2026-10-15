@@ -15,6 +15,7 @@ import { blockers, clientFormOf, fieldVisible, renderClientForm, screenRelevant,
 import { fieldError, ilDate, phoneDisplay, todayIso } from './format';
 import CfFields, { bankNameOf } from './CfFields';
 import { clientFormErrorText, officeFill, officeView, type ClientFormView } from './api';
+import { needsOfficeRep, useOfficeRep, type OfficeRep } from './officeRep';
 import '../../taxYear/taxYear.css';
 import '../smartForms.css';
 import './clientForms.css';
@@ -86,15 +87,19 @@ function PanelBody({ def, view, client, unpublished, filingId, onChanged }: {
   const [bytes, setBytes] = useState<Uint8Array | null>(null);
   const [renderErr, setRenderErr] = useState<string | null>(null);
   const template = useMemo(() => templateFor(def, { version: view.mappingVersion, fields: view.mapping ?? {} }), [def, view.mappingVersion, view.mapping]);
+  // ‼ הצהרת המייצג (821): נכנסת רק לטופס החתום — שם, תאריך וחותמת המשרד
+  const rep = useOfficeRep(def);
+  const signedData = useMemo(() => (signed && needsOfficeRep(def) && rep.name ? { ...d, repName: rep.name, repDate: d.signDate } : d), [signed, def, rep.name, d]);
 
   useEffect(() => {
     let alive = true;
     setBytes(null);
-    void renderClientForm(def, d, { template, signature: signed ? view.signatures?.client ?? null : null, draftMark: signed ? undefined : 'טיוטה — עוד לא נחתם' })
+    if (signed && needsOfficeRep(def) && !rep.ready) return;
+    void renderClientForm(def, signedData, { template, signature: signed ? view.signatures?.client ?? null : null, stamp: signed ? rep.stamp : null, draftMark: signed ? undefined : 'טיוטה — עוד לא נחתם' })
       .then(r => { if (alive) setBytes(r.bytes); })
       .catch(e => { if (alive) setRenderErr(e instanceof Error ? e.message : String(e)); });
     return () => { alive = false; };
-  }, [def, d, template, signed, view.signatures]);
+  }, [def, signedData, template, signed, view.signatures, rep.ready, rep.stamp]);
 
   const missing = blockers(def, d);
   const rows = useMemo(() => summaryRows(def, view), [def, view]);
@@ -114,7 +119,7 @@ function PanelBody({ def, view, client, unpublished, filingId, onChanged }: {
         <div className="cfp-sec">
           {open && (missing.length > 0 || def.screens.some(s => s.officeOnly && s.fields.some(f => !(d[f.key] ?? '').trim()))) && <OfficeFill def={def} view={view} filingId={filingId} onChanged={onChanged} />}
           {open && missing.length === 0 && view.revisionState !== 'locked' && <div className="ty-ok">כל הפרטים לטופס קיימים. הלקוח צריך רק לעבור על הטופס ולחתום.</div>}
-          {signed && <SignedFile def={def} view={view} client={client} template={template} filingId={filingId} onChanged={onChanged} />}
+          {signed && <SignedFile def={def} view={view} client={client} template={template} filingId={filingId} rep={rep} onChanged={onChanged} />}
           {!open && <Lifecycle def={def} view={view} filingId={filingId} onChanged={onChanged} />}
 
           <h3>מה בטופס</h3>
@@ -227,9 +232,12 @@ function OfficeFill({ def, view, filingId, onChanged }: { def: ClientFormDef; vi
 }
 
 // ── הקובץ החתום: נשמר פעם אחת במסמכי הלקוח ─────────────────────────────────────
-function SignedFile({ def, view, client, template, filingId, onChanged }: {
-  def: ClientFormDef; view: ClientFormView; client: Client; template: ReturnType<typeof templateFor>; filingId: string; onChanged: () => Promise<void>;
+function SignedFile({ def, view, client, template, filingId, rep, onChanged }: {
+  def: ClientFormDef; view: ClientFormView; client: Client; template: ReturnType<typeof templateFor>; filingId: string; rep: OfficeRep; onChanged: () => Promise<void>;
 }) {
+  const withRep = needsOfficeRep(def);
+  /** בלי חותמת — מפיקים רק אחרי החלטה מפורשת («הפקה בלי החותמת»). */
+  const [noStampOk, setNoStampOk] = useState(false);
   const store = useDocumentStore();
   const [state, setState] = useState<'idle' | 'busy' | 'error'>('idle');
   const [err, setErr] = useState<string | null>(null);
@@ -242,8 +250,9 @@ function SignedFile({ def, view, client, template, filingId, onChanged }: {
     try {
       if (view.mappingVersion !== view.activeMappingVersion) throw new Error('מיקום השדות בטופס עודכן אחרי החתימה — לא מפיקים קובץ שנראה אחרת ממה שנחתם.');
       const signDate = view.data.signDate || todayIso();
-      const { bytes } = await renderClientForm(def, view.data, {
-        template, signature: view.signatures.client, title: `${def.template.title} — ${client.firstName} ${client.lastName} — חתום`,
+      const data = withRep && rep.name ? { ...view.data, repName: rep.name, repDate: signDate } : view.data;
+      const { bytes } = await renderClientForm(def, data, {
+        template, signature: view.signatures.client, stamp: withRep ? rep.stamp : null, title: `${def.template.title} — ${client.firstName} ${client.lastName} — חתום`,
         date: new Date(view.signedAt ?? `${signDate}T12:00:00Z`),
       });
       const sha = await sha256Hex(bytes);
@@ -267,14 +276,23 @@ function SignedFile({ def, view, client, template, filingId, onChanged }: {
       setState('error'); setErr(e instanceof Error ? e.message : String(e));
     }
   };
+  const canRun = !withRep || (rep.ready && (!!rep.stamp || noStampOk));
   useEffect(() => {
-    if (!view.signedDocumentId && state === 'idle') void run();
+    if (!view.signedDocumentId && state === 'idle' && canRun) void run();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [view.signedDocumentId]);
+  }, [view.signedDocumentId, canRun]);
 
   if (view.signedDocumentId) return <div className="ty-ok">הקובץ החתום נשמר במסמכים של {client.firstName || 'הלקוח'}.</div>;
   return (
     <div className="cfp-sec">
+      {withRep && rep.ready && !rep.stamp && !noStampOk && (
+        <div className="cf-note" role="note">
+          הלקוח חתם. הקובץ החתום יופק עם «הצהרת המייצג» וחותמת המשרד — {rep.problem ?? 'אין חותמת'}.
+          <div className="cfp-actions" style={{ marginTop: '.4rem' }}>
+            <button type="button" className="btn btn-sm btn-ghost" onClick={() => setNoStampOk(true)}>הפקה בלי החותמת</button>
+          </div>
+        </div>
+      )}
       {state === 'busy' && <p className="ty-note">שומר את הקובץ החתום במסמכי הלקוח…</p>}
       {state === 'error' && (
         <>

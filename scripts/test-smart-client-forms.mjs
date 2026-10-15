@@ -47,6 +47,15 @@ function signaturePng() {
   return 'data:image/png;base64,' + c.toBuffer('image/png').toString('base64');
 }
 
+// חותמת סינתטית (כמו חותמת גומי סרוקה): מלבן מעוגל ושתי שורות קווים, בלי שוליים שקופים
+function stampPng() {
+  const c = createCanvas(360, 170);
+  const g = c.getContext('2d');
+  g.strokeStyle = '#1d3f8f'; g.lineWidth = 8; g.beginPath(); g.roundRect(6, 6, 348, 158, 24); g.stroke();
+  g.lineWidth = 6; for (const y of [60, 105]) { g.beginPath(); g.moveTo(40, y); g.lineTo(320, y); g.stroke(); }
+  return 'data:image/png;base64,' + c.toBuffer('image/png').toString('base64');
+}
+
 const SCALE = 3;
 async function renderPages(bytes) {
   const doc = await pdfjs.getDocument({ data: bytes.slice(), standardFontDataUrl: join(ROOT, 'node_modules/pdfjs-dist/standard_fonts/') + '/', cMapUrl: join(ROOT, 'node_modules/pdfjs-dist/cmaps/') + '/', cMapPacked: true }).promise;
@@ -83,8 +92,10 @@ for (const cs of CASES) {
   console.log(`\n── ${cs.name}`);
   const blank = await renderPages(new Uint8Array(readFileSync(join(ROOT, 'public', T.fileUrl))));
   const sig = signaturePng();
-  const { bytes, layout } = await M.renderClientForm(def, d, { signature: sig, date: new Date(Date.UTC(2026, 9, 15)) });
-  const again = await M.renderClientForm(def, d, { signature: sig, date: new Date(Date.UTC(2026, 9, 15)) });
+  const stamp = cs.key === 'vat-821' ? stampPng() : null;
+  const { bytes, layout } = await M.renderClientForm(def, d, { signature: sig, stamp, date: new Date(Date.UTC(2026, 9, 15)) });
+  const again = await M.renderClientForm(def, d, { signature: sig, stamp, date: new Date(Date.UTC(2026, 9, 15)) });
+  if (stamp) { const st = layout.ops.find(o => o.fieldId === 'rep.stamp'); if (st) ok('חותמת המשרד בהצהרת המייצג'); else fail('אין פעולת חותמת'); }
   writeFileSync(join(OUT, `${cs.name}.pdf`), bytes);
   if (Buffer.compare(Buffer.from(bytes), Buffer.from(again.bytes)) === 0) ok('דטרמיניסטי (אותם ערכים ⇒ אותם בייטים)'); else fail('שני ייצואים שונים');
   if (layout.issues.length === 0) ok('אין בעיות פריסה'); else fail('בעיות פריסה: ' + layout.issues.map(i => i.message).join(' | '));

@@ -2,8 +2,9 @@
 // נמדד ב-15.10.2026 על הקובץ הרשמי (2 עמודים, 612×792 נק', בלי סיבוב, בלי
 // AcroForm; SHA-256 למטה) — רינדור בסקאלה 8 וזיהוי קווים/משבצות/ריבועים.
 //
-// ‼ עמוד 2 (מנהלי חברה, רישום שותפות), «עסק בהקמה», «הצהרת המייצג» ו«לשימוש
-// המשרד» אינם ממופים — הטופס כאן לעוסק יחיד בלבד (השרת חוסם חברה).
+// ‼ עמוד 2 (מנהלי חברה, רישום שותפות), «עסק בהקמה» ו«לשימוש המשרד» אינם ממופים — הטופס
+// כאן לעוסק יחיד בלבד (השרת חוסם חברה). «הצהרת המייצג» (שם, תאריך, חותמת המשרד) — רק בקובץ
+// החתום שהמשרד מפיק (officeRep.ts); הלקוח רואה אותה ריקה.
 // ‼ המיקוד בטופס בנוי לחמש ספרות; מיקוד בן 7 ספרות נכתב כטקסט ממורכז במשבצות.
 
 import type { FieldDef, SmartFormTemplate, UnmappedArea } from '../types';
@@ -104,13 +105,19 @@ const FIELDS: FieldDef[] = [
     kind: 'text', align: 'center' }),
   f({ id: 'signature', dataKey: 'signature', label: 'חתימה וחותמת', section: 'חתימה', box: { x: 52, y: 164.1, w: 96, h: 19 }, line: 163.65,
     kind: 'signature', overflow: 'none', required: 'signer', signer: 'client', provenance: 'filing' }),
+  // ── הצהרת המייצג: המשרד מוסיף אחרי שהלקוח חתם — שם, תאריך, וחותמת המשרד מ«פרטי המשרד» (שמכילה גם את החתימה) ──
+  f({ id: 'rep.date', dataKey: 'repDate', label: 'הצהרת המייצג — תאריך', section: 'הצהרת המייצג', box: { x: 458, y: 109, w: 103, h: 11 }, line: 108.6,
+    kind: 'text', align: 'center', provenance: 'system', source: 'יום החתימה של הלקוח' }),
+  f({ id: 'rep.name', dataKey: 'repName', label: 'הצהרת המייצג — שם המייצג', section: 'הצהרת המייצג', box: { x: 252, y: 109, w: 104, h: 11 }, line: 108.6,
+    kind: 'text', align: 'center', provenance: 'system', source: 'פרטי המשרד — שם מלא' }),
+  f({ id: 'rep.stamp', dataKey: 'repStamp', label: 'הצהרת המייצג — חתימה וחותמת', section: 'הצהרת המייצג', box: { x: 52, y: 109.2, w: 96, h: 26 },
+    kind: 'signature', overflow: 'none', signer: 'office', provenance: 'system', source: 'פרטי המשרד ← חתימה וחותמת (החותמת)' }),
 ];
 
 const UNMAPPED: UnmappedArea[] = [
   { id: 'settlementCode', page: 1, box: { x: 263.8, y: 505, w: 46.6, h: 100 }, label: 'סמל ישוב (×3)', reason: 'קוד למ"ס — המשרד ממלא לפי הצורך' },
   { id: 'otherEntity', page: 1, box: { x: 200, y: 607, w: 110, h: 60 }, label: 'סוגי ישות אחרים', reason: 'עוסק יחיד בלבד' },
   { id: 'inSetup', page: 1, box: { x: 50, y: 195, w: 513, h: 60 }, label: 'עסק בהקמה', reason: 'לא בגרסה זו' },
-  { id: 'representative', page: 1, box: { x: 50, y: 95, w: 513, h: 45 }, label: 'הצהרת המייצג', reason: 'נחתמת בידי המשרד' },
   { id: 'officeUse', page: 1, box: { x: 50, y: 20, w: 513, h: 70 }, label: 'לשימוש המשרד', reason: 'של רשות המסים' },
   { id: 'page2', page: 2, box: { x: 0, y: 0, w: 612, h: 792 }, label: 'עמוד 2 — מנהלי חברה ושותפות', reason: 'עוסק יחיד בלבד' },
 ];
@@ -173,6 +180,8 @@ function valueOf(field: FieldDef, d: CfData): string | boolean | undefined {
     return m ? `${m[2]}|${m[1].slice(2)}` : undefined;
   }
   if (k === 'signDate') return ilDate(d.signDate);
+  if (k === 'repDate') return d.repName ? ilDate(d.repDate || d.signDate) : undefined;
+  if (k === 'repName') return d.repName;
   const [row, part] = k.split('.');
   if (row === 'biz' || row === 'mail' || row === 'home') {
     const r = rowOf(row, d);
@@ -301,6 +310,7 @@ const SAMPLE: CfData = {
   mailSame: 'yes', openMonth: '2026-11', employees: '1', turnover: '180000',
   bankCode: '12', bankName: 'בנק הפועלים', bankBranch: '600', bankAccount: '123456',
   propKind: 'other', propKindOther: 'דירת מגורים', propTenure: 'owned', propParty: 'ישראל ישראלי', signDate: '2026-10-15',
+  repName: 'שם המייצג לדוגמה',
 };
 
 export const VAT821: ClientFormDef = {

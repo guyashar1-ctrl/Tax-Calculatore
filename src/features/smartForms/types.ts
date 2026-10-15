@@ -83,8 +83,8 @@ export interface FieldDef {
   /** האם הערך דורש אישור מפורש של הלקוח (הצהרה) ולא רק העתקה מהכרטיס. */
   clientConfirmation: boolean;
   overflow: OverflowRule;
-  /** לחתימה: מי חותם. */
-  signer?: 'client' | 'spouse';
+  /** לחתימה: מי חותם. 'office' = חותמת המשרד (המייצג) — מוטבעת בשלמותה בתוך המלבן, בלי קו חתימה. */
+  signer?: 'client' | 'spouse' | 'office';
   /** מקטע בטופס — לקיבוץ במסך. */
   section: string;
 }
@@ -122,7 +122,7 @@ export interface SmartFormTemplate {
 export type DrawOp =
   | { kind: 'text'; page: number; fieldId: string; text: string; x: number; y: number; size: number; align: 'right' | 'left' | 'center'; width: number }
   | { kind: 'check'; page: number; fieldId: string; box: PdfRect }
-  | { kind: 'signature'; page: number; fieldId: string; signer: 'client' | 'spouse'; box: PdfRect; line?: number }
+  | { kind: 'signature'; page: number; fieldId: string; signer: 'client' | 'spouse' | 'office'; box: PdfRect; line?: number }
   | { kind: 'appendix'; page: number; rows: string[][]; header: string[]; title: string; idNumber: string; name: string };
 
 /** בעיית פריסה — נחסמת לפני נעילה לחתימה, לעולם לא נחתכת בשקט. */

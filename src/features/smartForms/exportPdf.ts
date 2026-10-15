@@ -88,7 +88,7 @@ export async function assertTemplate(bytes: Uint8Array, t: SmartFormTemplate, do
 
 export interface ExportOptions {
   /** חתימות לפי תפקיד — PNG אחרי חיתוך לדיו (ראה signatureImage.ts). */
-  signatures?: Partial<Record<'client' | 'spouse', Uint8Array>>;
+  signatures?: Partial<Record<'client' | 'spouse' | 'office', Uint8Array>>;
   /** סימון טיוטה בשוליים התחתונים (לא בשטח הטופס). */
   draftMark?: string;
   /** מטא-נתונים לקובץ. */
@@ -177,6 +177,22 @@ export function signatureAnnotation(page: Page, pageId: string, box: PdfRect, pn
   };
 }
 
+/**
+ * חותמת המשרד: התמונה כולה (בלי שוליים שקופים לקיזוז), ביחס המקורי, ממורכזת לרוחב ונחה על תחתית
+ * המלבן — כמו חותמת גומי על קו החתימה. ‼ לא עוברת דרך חיתוך הדיו של חתימת הלקוח.
+ */
+export function stampAnnotation(page: Page, pageId: string, box: PdfRect, png: Uint8Array): Annotation {
+  const img = pngSize(png);
+  const scale = Math.min(box.w / Math.max(1, img.width), box.h / Math.max(1, img.height));
+  const w = img.width * scale, h = img.height * scale;
+  const x = box.x + (box.w - w) / 2;
+  return {
+    id: nextId('sf-st'), pageId, kind: 'image', color: SMART_FORM_INK, imageData: toDataUrl(png),
+    xPct: x / page.width, yPct: (page.height - box.y - h) / page.height,
+    widthPct: w / page.width, heightPct: h / page.height,
+  };
+}
+
 function rectAnnotation(page: Page, pageId: string, r: PdfRect, stroke: string, strokeWidth: number, fill: string | null): Annotation {
   return {
     id: nextId('sf-r'), pageId, kind: 'rectangle', color: stroke, fillColor: fill, fillOpacity: 1,
@@ -260,7 +276,7 @@ export function smartFormAnnotations(
     else if (op.kind === 'check') add(op.page, checkAnnotation(page, pid, op.box));
     else if (op.kind === 'signature') {
       const png = opts.signatures?.[op.signer];
-      if (png) add(op.page, signatureAnnotation(page, pid, op.box, png, op.line));
+      if (png) add(op.page, op.signer === 'office' ? stampAnnotation(page, pid, op.box, png) : signatureAnnotation(page, pid, op.box, png, op.line));
     } else if (op.kind === 'appendix') add(op.page, appendixAnnotations(op, t, measure));
   }
   if (opts.draftMark) {
