@@ -158,8 +158,11 @@ const SATISFIED_SKIPS = new Set(['already_connected', 'transferred_rep']);
 
 export type ChildPhase = 'done' | 'notNeeded' | 'open' | 'locked';
 
-export function childPhase(s: Pick<OnboardingStep, 'status' | 'payload'>): ChildPhase {
+export function childPhase(s: Pick<OnboardingStep, 'status' | 'payload'> & { pendingCancel?: boolean | null }): ChildPhase {
   if (s.status === 'completed' || s.status === 'verified') return 'done';
+  // ‼ 15.10 · בקשה שסומנה «תוסר בפרסום» אינה עבודה שנשארה: אחרי הפרסום היא יוצאת, ולכן היא לא «השלב הבא»
+  // ולא במכנה. בלי זה הקבוצה אמרה «השלב הבא: X» על בקשה שהמשרד עצמו סימן להסרה (צילום גיא, 15.10).
+  if (s.pendingCancel && s.status !== 'cancelled') return 'notNeeded';
   if (s.status === 'skipped') {
     const reason = String((s.payload as Record<string, unknown> | undefined)?.skipReason ?? '');
     return SATISFIED_SKIPS.has(reason) ? 'done' : 'notNeeded';
@@ -176,7 +179,7 @@ export interface GroupProgress {
 }
 
 /** ‼ הספירה כוללת רק עבודה שחלה: «אין צורך» יורד גם מהמונה וגם מהמכנה. */
-export function groupProgress(steps: Pick<OnboardingStep, 'status' | 'payload'>[]): GroupProgress {
+export function groupProgress(steps: (Pick<OnboardingStep, 'status' | 'payload'> & { pendingCancel?: boolean | null })[]): GroupProgress {
   const phases = steps.map(childPhase).filter(p => p !== 'notNeeded');
   const done = phases.filter(p => p === 'done').length;
   return { applicable: phases.length, done, allDone: phases.length > 0 && done === phases.length };

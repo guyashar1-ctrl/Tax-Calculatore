@@ -31,6 +31,22 @@ const appr = (id: string, answersId: string, pct: number, entered: string | null
 });
 
 export const TESTS: TestCase[] = [
+  // ── 15.10 · הסרה ממתינה אינה «השלב הבא» ──────────────────
+  test('בקשה שסומנה «תוסר בפרסום» לא נספרת ולא נאמרת כשלב הבא בקבוצה', () => {
+    const done = step('paperless_invite', 'completed');
+    const gone = step('paperless_tax_authority', 'pending', { pendingCancel: true });
+    const open = step('client_documents', 'pending');
+    equal(childPhase(gone), 'notNeeded');
+    const p = groupProgress([done, gone]);
+    assert(p.allDone && p.applicable === 1 && p.done === 1, JSON.stringify(p));
+    const q = groupProgress([done, gone, open]);
+    assert(!q.allDone && q.applicable === 2 && q.done === 1, JSON.stringify(q));
+    // בלי הסימון — כמו קודם: ממתינה ונספרת
+    equal(childPhase(step('paperless_tax_authority', 'pending')), 'open');
+    // סימון על בקשה שנסגרה לא משנה כלום
+    equal(childPhase(step('paperless_tax_authority', 'completed', { pendingCancel: true })), 'done');
+  }),
+
   // ── קבוצות בתיק ─────────────────────────────────────────────────────────
   test('פייפרלס: כל החברים בקבוצה אחת בסדר קבוע — גם מה שהושלם וגם מה שנעול', () => {
     const conn = step('paperless_connection', 'locked');

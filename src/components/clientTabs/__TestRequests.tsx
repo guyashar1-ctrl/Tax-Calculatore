@@ -173,6 +173,23 @@ function initialStoreBase(): Omit<Store, 'engagements' | 'events'> {
     return { steps, client, ni };
   }
 
+  if (SC === 'rep-all-done') {
+    // ‼ 15.10 · הייצוג הושלם כולו, והפייפרלס גמור חוץ מבקשה שסומנה «תוסר בפרסום» (צילום גיא): שתי הקבוצות
+    // הן היסטוריה (ב«הושלמו»), ובקבוצת הפייפרלס אין «השלב הבא» על מה שעומד לצאת.
+    add({ ...step({ id: 'rep', stepType: 'representation', track: 'authorities', status: 'completed', ball: 'me' }), completedAt: ago(15) });
+    ni.client = { enteredAt: ago(20), referenceNumber: '75160001', deadline: inDays(5), instructionsSentAt: ago(18), confirmedAt: ago(10) };
+    add({ ...niStep('ni-c', 'client', fullName, 'completed', 10), completedAt: ago(10) });
+    ni.spouse = { enteredAt: ago(12), referenceNumber: '75160002', deadline: inDays(5), instructionsSentAt: ago(11), confirmedAt: ago(9) };
+    add({ ...niStep('ni-s', 'spouse', spouseName, 'completed', 9), completedAt: ago(9) });
+    add({ ...step({ id: 'pl-i', stepType: 'paperless_invite', status: 'completed', ball: 'me', payload: { paperlessStatus: 'none', dataSource: 'paperless' } }), completedAt: ago(30) });
+    add({ ...step({ id: 'pl-c', stepType: 'paperless_connection', status: 'completed', ball: 'me', dependsOnStepId: 'pl-i' }), completedAt: ago(28) });
+    add(step({ id: 'pl-t', stepType: 'paperless_tax_authority', status: 'pending', ball: 'client', pendingCancel: true, updatedAt: ago(3),
+      payload: { clientTitle: 'חיבור פייפרלס לרשות המסים' } }));
+    add(step({ id: 'docs', stepType: 'client_documents', status: 'waiting_client', ball: 'client', updatedAt: ago(12),
+      payload: { checklist: [{ key: 'bank', label: 'אישור ניהול חשבון בנק', done: false }] } }));
+    return { steps, client, ni };
+  }
+
   if (SC === 'shaam-id') {
     add(step({ id: 'rep', stepType: 'representation', track: 'authorities', status: 'in_progress', ball: 'me', updatedAt: ago(1) }));
     const shaam = (id: string, person: 'client' | 'spouse', who: string) => step({
@@ -305,6 +322,9 @@ function initialStoreBase(): Omit<Store, 'engagements' | 'events'> {
     add(step({ id: 'sf', stepType: 'custom_request', status: 'in_progress', ball: 'client', updatedAt: ago(1),
       payload: { title: 'טופס 6101 — עדכון פרטים בביטוח לאומי',
         smartForm: { filingId: 'sf-1', stateLabel: 'ממתין לחתימת הלקוח', purposes: ['employment_status'], waitingOn: 'client', state: qs().get('sf') ?? 'awaiting_signatures' } } }));
+    // ‼ 247 (4440/821): טופס שהלקוח ממלא וחותם — אותו מחזור חיים של טופס חכם, ולכן אותה הסרה (clientFill).
+    add(step({ id: 'cf4440', stepType: 'custom_request', status: 'waiting_client', ball: 'client', updatedAt: ago(2),
+      payload: { title: 'טופס 4440 — הצהרה על מקום מגורים', smartForm: { filingId: 'sf-4440', stateLabel: 'ממתין לחתימת הלקוח', purposes: [], waitingOn: 'client', state: 'awaiting_signatures', clientFill: true } } }));
     add(step({ id: 'pl-i', stepType: 'paperless_invite', status: 'waiting_client', ball: 'client', updatedAt: ago(11),
       payload: { paperlessStatus: 'none', dataSource: 'none', clientTitle: 'הרשמה לפייפרלס' } }));
     add(step({ id: 'pl-c', stepType: 'paperless_connection', status: 'locked', ball: 'me', dependsOnStepId: 'pl-i' }));

@@ -2945,6 +2945,8 @@ export default function OnboardingTab({
   const fromPrevEngagement = (s: OnboardingStep): boolean =>
     !!carriedFromLine(s) || (!!activeEngagement?.id && !!s.engagementId && s.engagementId !== activeEngagement.id);
   /** המונה — השורות שבאמת מוצגות (אבני הדרך והבקשות שהושלמו). */
+  /** קבוצות שהושלמו (נאספות בזמן הרינדור של הרשימה, ומוצגות ב«הושלמו»). */
+  const completedGroupNodes: React.ReactNode[] = [];
   const doneCount = contextBits.length + doneList.length;
   /** «הוספת הערה» — השדה בתוך הבקשה הפתוחה. */
   const noteEditorNode = noteDraft ? (
@@ -3522,7 +3524,8 @@ export default function OnboardingTab({
           const kids = g.steps.map(s => ({
             s, view: { id: s.id, title: memberDef(g.key, s.stepType)?.title ?? rowTitle(s), ...childWho(s) } as GroupChildView,
           }));
-          const status = groupStatus(kids.map(k => k.view), groupProgress(g.steps));
+          // ‼ 15.10: בקשה שסומנה «תוסר בפרסום» לא בסטטוס הקבוצה (לא «השלב הבא»); היא עדיין מוצגת בפירוט.
+          const status = groupStatus(kids.filter(k => !k.s.pendingCancel).map(k => k.view), groupProgress(g.steps));
           const open = groupOpenPref[g.key] ?? status.tone !== 'done';
           for (const k of kids) {
             groupNamesMap.set(k.s.id, k.view.title);
@@ -3531,6 +3534,7 @@ export default function OnboardingTab({
           }
           const red = kids.some(k => isStepOpen(k.s.status) && attnOf(k.s).tone === 'red');
           return {
+            tone: status.tone,
             rank: status.rank === 0 ? (red ? 0 : 1) : status.rank === 1 ? 2 : status.rank === 2 ? 3 : 4,
             node: (
               <section key={`group-${g.key}`} className={`rg-group is-${status.tone}`} data-open={open ? 'true' : 'false'}
@@ -3576,11 +3580,12 @@ export default function OnboardingTab({
           for (const k of kids) groupNamesMap.set(k.id, repTitle(k));
           // ‼ חלקי הבקשה הפתוחה מוצגים בפירוט שלה — אבל נספרים במצב הקבוצה.
           const counted = [...kids, ...(opts.countAlso ?? [])];
-          const views = counted.map(k => ({ id: k.id, title: repTitle(k), ...childWho(k) }) as GroupChildView);
+          const views = counted.filter(k => !k.pendingCancel).map(k => ({ id: k.id, title: repTitle(k), ...childWho(k) }) as GroupChildView);
           const status = groupStatus(views, groupProgress(counted));
           const open = groupOpenPref.representation ?? status.tone !== 'done';
           const red = kids.some(k => isStepOpen(k.status) && attnOf(k).tone === 'red');
           return {
+            tone: status.tone,
             rank: status.rank === 0 ? (red ? 0 : 1) : status.rank === 1 ? 2 : status.rank === 2 ? 3 : 4,
             node: (
               <section key="group-representation" className={`rg-group is-${status.tone}`} data-open={open ? 'true' : 'false'}
@@ -3633,9 +3638,13 @@ export default function OnboardingTab({
             }
             return { r: rank(p), i, node: flowItem(p.step, p.node, p.attn), isGroup: false };
           }),
-          ...groupPlaced.map((g, i) => ({ r: g.rank, i: -100 + i, node: g.node, isGroup: true })),
-          ...(repGroupPlaced ? [{ r: repGroupPlaced.rank, i: -50, node: repGroupPlaced.node, isGroup: true }] : []),
+          ...groupPlaced.filter(g => g.tone !== 'done').map((g, i) => ({ r: g.rank, i: -100 + i, node: g.node, isGroup: true })),
+          ...(repGroupPlaced && repGroupPlaced.tone !== 'done' ? [{ r: repGroupPlaced.rank, i: -50, node: repGroupPlaced.node, isGroup: true }] : []),
         ].sort((a, b) => a.r - b.r || a.i - b.i);
+        /* ‼ 15.10 · קבוצה שכל מה שבה הושלם היא היסטוריה: מקומה ב«הושלמו», לא בין מה שפתוח. קודם היא
+           נשארה בתחתית הרשימה הפעילה עם «הושלם» — «ייצוג מול הרשויות» שהושלם נראה כעבודה פתוחה. */
+        completedGroupNodes.push(...groupPlaced.filter(g => g.tone === 'done').map(g => g.node),
+          ...(repGroupPlaced && repGroupPlaced.tone === 'done' ? [repGroupPlaced.node] : []));
         /* ‼ «2 ממתינים לדוד» בשורת המסלול נספר לפי השורות שכאן: תהליך מקופל הוא שורה
            אחת, ומצבו — של השורה כולה (summarizeRow), בדיוק מה שהשורה מציגה. */
         const rowTop = new Map<string, OnboardingStep>();
@@ -3841,12 +3850,12 @@ export default function OnboardingTab({
       {/* ── הושלמו — מקופל, בתחתית ──────────────────────────────────────────
           ‼ «הושלם» אינו מצב לנהל. ההקשר (הצעה שאושרה, ייצוג פעיל, ב"ל שאושר)
           שישב ברצועה מעל הבקשות — כאן, בראש ההיסטוריה. דילוג נשאר מובחן. */}
-      {doneCount > 0 && (
+      {doneCount + completedGroupNodes.length > 0 && (
         <section className="rl-fold">
           <button type="button" className="rl-fold-head" aria-expanded={showDone}
             onClick={() => setShowDone(v => !v)}>
             <span className="rl-fold-title">הושלמו</span>
-            <span className="rl-fold-cnt">{doneCount}</span>
+            <span className="rl-fold-cnt">{doneCount + completedGroupNodes.length}</span>
             <span className="rl-fold-hint">נשמרות כהיסטוריה</span>
             <svg className="rl-fold-chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9" /></svg>
           </button>
@@ -3854,6 +3863,7 @@ export default function OnboardingTab({
             <div className="rl-fold-body">
               {/* ‼ 15.10: אין ⋯ על שורת היסטוריה — והסיבה נאמרת כאן, במקום שרק מי שלחץ ⋯ היה מגלה. */}
               <p className="rl-done-note">בקשה שהושלמה או דולגה נשמרת כהיסטוריה של הלקוח ואינה מוסרת. הסרה היא רק לבקשות פתוחות.</p>
+              {completedGroupNodes}
               {contextBits.length > 0 && (
                 <div className="rl-context">
                   {contextBits.map(b => <div key={b}><span className="rl-ok" aria-hidden="true">✓</span> {b}</div>)}

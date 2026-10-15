@@ -20,6 +20,7 @@
  *   i  שגיאות: רשת, ok:false, כישלון ביטול מיידי, לחיצה כפולה
  *   j  מקלדת ונגישות: פוקוס, Esc, חזרה לכפתור
  *   k  הקישור בתחתית בקשה פתוחה — אותו חלון
+ *   m  קבוצה שהושלמה היא היסטוריה (ייצוג, פייפרלס), והסרה ממתינה אינה «השלב הבא» (sc=rep-all-done)
  *   l  טופס 6101: הלקוח חותם בזמן שחלון הביטול פתוח ⇒ השרת (246) דוחה, המסך מתעדכן (&rm=signedrace)
  */
 import { createRequire } from 'node:module';
@@ -30,7 +31,7 @@ import { tmpdir } from 'node:os';
 const argv = process.argv.slice(2);
 const opt = (n, d) => { const i = argv.indexOf(n); return i >= 0 ? argv[i + 1] : d; };
 const BASE = opt('--url', process.env.QA_URL || 'http://localhost:5301/');
-const ONLY = new Set((opt('--only', 'a,b,c,d,e,f,g,h,i,j,k,l')).split(',').filter(Boolean));
+const ONLY = new Set((opt('--only', 'a,b,c,d,e,f,g,h,i,j,k,l,m')).split(',').filter(Boolean));
 const SHOTS = opt('--shots', process.env.QA_SHOTS || join(tmpdir(), 'pivo-qa-request-removal'));
 mkdirSync(SHOTS, { recursive: true });
 
@@ -263,6 +264,28 @@ if (ONLY.has('e')) {
     if (s === 'signed') await shot(page, 'e-blocked-signed.png');
     await page.close2();
   }
+}
+
+// ═════ e2 · טופס שהלקוח ממלא (247) — אותה הסרה ═══════════════════════════════
+if (ONLY.has('e')) {
+  section('e2 · טופס 4440 שהלקוח ממלא וחותם (247)');
+  const N = 'טופס 4440';
+  const page = await open('sc=removal');
+  await openMenu(page, N);
+  const mt = await menuOf(page, N).innerText();
+  ok('התפריט: «בטל את הטופס…» גם לטופס לקוח', mt.includes('בטל את הטופס'), mt.replace(/s+/g, ' '));
+  await menuOf(page, N).locator('[data-remove-action="cancel_form"]').click();
+  const dlg = dialog(page);
+  await dlg.waitFor();
+  const dt = await dlg.innerText();
+  ok('החלון כללי (לא «ביטוח לאומי») ודורש סיבה', dt.includes('לבטל את הטופס?') && !dt.includes('ביטוח לאומי') && await dlg.locator('textarea').count() === 1, dt.replace(/s+/g, ' '));
+  await dlg.locator('textarea').fill('נפתח בטעות');
+  await dlg.locator('[data-confirm-removal]').click();
+  await page.waitForSelector('.rl-list-note');
+  const sf = await calls(page, 'smart_form_advance');
+  ok('נשלח cancel עם request_list לטופס הלקוח', sf.length === 1 && sf[0].args.p_filing_id === 'sf-4440' && sf[0].args.p_detail.scope === 'request_list', JSON.stringify(sf[0]?.args));
+  ok('הטופס בוטל והשורה יצאה', (await store(page)).cf4440.status === 'cancelled' && await line(page, N).count() === 0);
+  await page.close2();
 }
 
 // ═════ f · פייפרלס ורו״ח קודם ════════════════════════════════════════════════
@@ -503,6 +526,29 @@ if (ONLY.has('l')) {
   await openMenu(page, N);
   const t = await menuOf(page, N).innerText();
   ok('אחרי הרענון: ב-⋯ הביטול כבר חסום עם הסבר', t.includes('אי אפשר להסיר מכאן') && t.includes('נחתם') && await menuOf(page, N).locator('[data-remove-action="cancel_form"]').count() === 0, t.replace(/s+/g, ' '));
+  ok('אין שגיאות קונסול', page.errs.length === 0, page.errs.join(' | '));
+  await page.close2();
+}
+
+// ═════ m · קבוצות שהושלמו והסרה ממתינה ═══════════════════════════════════════
+if (ONLY.has('m')) {
+  section('m · קבוצה שהושלמה ב«הושלמו»; הסרה ממתינה לא «השלב הבא»');
+  const page = await open('sc=rep-all-done');
+  const activeGroups = await page.evaluate(() => [...document.querySelectorAll('.rg-group')].filter(g => !g.closest('.rl-fold')).map(g => g.dataset.group));
+  const foldGroups = await page.evaluate(() => [...document.querySelectorAll('.rl-fold .rg-group')].map(g => ({ k: g.dataset.group, tag: g.querySelector('.rg-tag')?.textContent, hint: g.querySelector('.rg-hint')?.textContent || '' })));
+  ok('ייצוג מול הרשויות שהושלם אינו ברשימה הפעילה', !activeGroups.includes('representation'), activeGroups.join(','));
+  ok('הוא ב«הושלמו», עם «הושלם»', foldGroups.some(g => g.k === 'representation' && g.tag === 'הושלם'), JSON.stringify(foldGroups));
+  ok('קבוצת הפייפרלס — כל מה שנשאר בה סומן להסרה ⇒ הושלם, ב«הושלמו»', !activeGroups.includes('paperless') && foldGroups.some(g => g.k === 'paperless' && g.tag === 'הושלם'), JSON.stringify({ activeGroups, foldGroups }));
+  ok('בקבוצה אין «השלב הבא» על מה שעומד לצאת', !foldGroups.some(g => g.hint.includes('השלב הבא')), JSON.stringify(foldGroups));
+  const cnt = await page.locator('.rl-fold-cnt').last().innerText();
+  ok('מונה «הושלמו» כולל את הקבוצות', Number(cnt) >= 2, cnt);
+  // הבקשה שסומנה עדיין גלויה בתוך הקבוצה, עם «תוסר בפרסום»
+  const grp = page.locator('.rl-fold .rg-group[data-group="paperless"] .rg-head');
+  if (await grp.getAttribute('aria-expanded') === 'false') await grp.click();
+  await page.waitForTimeout(200);
+  const rowText = await page.locator('.rl-fold .rg-group[data-group="paperless"]').innerText();
+  ok('בתוך הקבוצה הבקשה מסומנת «תוסר בפרסום»', rowText.includes('תוסר בפרסום'), rowText.replace(/s+/g, ' ').slice(0, 200));
+  await shot(page, 'm-completed-groups.png');
   ok('אין שגיאות קונסול', page.errs.length === 0, page.errs.join(' | '));
   await page.close2();
 }
