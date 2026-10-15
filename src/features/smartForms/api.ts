@@ -266,6 +266,10 @@ export function filingErrorText(code?: string): string {
     case 'evidence_required': return 'נדרשת ראיה: מספר אסמכתא או מסמך';
     case 'submitted_is_final': return 'הטופס כבר הוגש — שינוי מחייב הגשה חדשה';
     case 'reason_required': return 'יש לכתוב סיבה';
+    case 'submitted_cannot_cancel': return 'הטופס כבר הוגש לביטוח לאומי — אי אפשר לבטל אותו';
+    case 'signed_cannot_cancel': return 'הטופס כבר נחתם (או שנתקבלה חתימה) — אי אפשר לבטל אותו מהרשימה. הרשימה מתעדכנת';
+    case 'bad_scope': return 'פעולה לא מוכרת — הרשימה מתעדכנת';
+    case 'bad_transition': return 'הטופס כבר נסגר או בוטל — הרשימה מתעדכנת';
     case 'stale': return 'הערך בכרטיס השתנה בינתיים — לא עודכן כדי לא לדרוס';
     case 'forbidden': return 'אין הרשאה';
     case 'required_attachment_locked': return 'אסמכתא שנקבעה כחובה בנעילה אינה ניתנת להסרה';

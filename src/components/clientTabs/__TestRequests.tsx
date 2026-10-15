@@ -72,6 +72,9 @@ const ENG_ID = 'rq-eng';
 const qs = () => new URLSearchParams(window.location.search);
 let SC = 'few';
 let CANCEL_MODE = 'ok';
+// ‼ &rm=slow|neterr|terminal|advfail|signedrace — איך «השרת» עונה להסרה (15.10): איטי (לחיצה כפולה), רשת נופלת,
+//    ok:false (step_terminal), כישלון של ביטול מיידי.
+let RM = '';
 
 // ── נתוני הבדיקה ─────────────────────────────────────────────────────────────
 type Track = { client?: NiTracking; spouse?: NiTracking };
@@ -285,6 +288,41 @@ function initialStoreBase(): Omit<Store, 'engagements' | 'events'> {
 
   add(step({ id: 'rep', stepType: 'representation', track: 'authorities', status: 'waiting_client', ball: 'client', updatedAt: ago(4) }));
 
+  if (SC === 'removal') {
+    // ‼ 15.10 · כל סוגי השורות ביחד, לבדיקת ההסרה: בדף / טיוטה / ממתינה / פנימית / טופס / פייפרלס+הרשאה /
+    // רו״ח קודם (טיוטה + בדף) / ב"ל נשלח ולא נשלח / שדרוג / אישור אישי / הושלמה.
+    ni.client = { enteredAt: ago(9), referenceNumber: '75160001', deadline: inDays(20), instructionsSentAt: ago(8), instructionsSentWith: 'standalone' };
+    add(niStep('ni-c', 'client', fullName, 'waiting_client', 8));
+    add(niStep('ni-s', 'spouse', spouseName, 'pending', 2));
+    add(step({ id: 'docs', stepType: 'client_documents', status: 'waiting_client', ball: 'client', updatedAt: ago(15),
+      payload: { checklist: [{ key: 'bank', label: 'אישור ניהול חשבון בנק', done: false }, { key: 'f106', label: 'טופס 106', done: false }] } }));
+    add(step({ id: 'cr-draft', stepType: 'custom_request', status: 'pending', ball: 'client', publishedAt: null,
+      payload: { title: 'חוזה שכירות למשרד ברחוב הרצל' } }));
+    add(step({ id: 'cr-pend', stepType: 'custom_request', status: 'waiting_client', ball: 'client', pendingCancel: true, updatedAt: ago(3),
+      payload: { title: 'אישור תושבות מהרשות המקומית' } }));
+    add(step({ id: 'cr-int', stepType: 'custom_request', status: 'pending', ball: 'me', updatedAt: ago(1),
+      payload: { title: 'לבדוק יתרת מקדמות במס הכנסה לפני הדוח', internalTask: true } }));
+    add(step({ id: 'sf', stepType: 'custom_request', status: 'in_progress', ball: 'client', updatedAt: ago(1),
+      payload: { title: 'טופס 6101 — עדכון פרטים בביטוח לאומי',
+        smartForm: { filingId: 'sf-1', stateLabel: 'ממתין לחתימת הלקוח', purposes: ['employment_status'], waitingOn: 'client', state: qs().get('sf') ?? 'awaiting_signatures' } } }));
+    add(step({ id: 'pl-i', stepType: 'paperless_invite', status: 'waiting_client', ball: 'client', updatedAt: ago(11),
+      payload: { paperlessStatus: 'none', dataSource: 'none', clientTitle: 'הרשמה לפייפרלס' } }));
+    add(step({ id: 'pl-c', stepType: 'paperless_connection', status: 'locked', ball: 'me', dependsOnStepId: 'pl-i' }));
+    add(step({ id: 'pl-r', stepType: 'retainer_authorization', track: 'payment', scope: 'engagement', status: 'locked', ball: 'me', dependsOnStepId: 'pl-c' }));
+    add(step({ id: 'rel', stepType: 'release_letter', track: 'prev_accountant', status: 'pending', ball: 'me', updatedAt: ago(5), publishedAt: null }));
+    add(step({ id: 'rel-d', stepType: 'prev_accountant_details', track: 'prev_accountant', status: 'completed', ball: 'client', completedAt: ago(6) }));
+    add(step({ id: 'rel-m', stepType: 'materials_received', track: 'prev_accountant', status: 'locked', ball: 'prev_accountant', dependsOnStepId: 'rel',
+      payload: { checklist: [{ key: 'uniform_file', label: 'קובץ מבנה אחיד', done: false }] } }));
+    add(step({ id: 'upg', stepType: 'representation_upgrade', track: 'authorities', status: 'pending', ball: 'me', needsAttention: true,
+      dueDate: inDays(-3), payload: { secondaryAuthorities: ['incomeTax', 'vat'] } }));
+    add(step({ id: 'cf-task', stepType: 'custom_request', status: 'pending', ball: 'me', updatedAt: ago(3),
+      payload: { title: `אישור אישי של ${spouseName.split(' ')[0]} — «אישור תנאי שכר טרחה»`, subjectRole: 'spouse',
+        subjectName: spouseName.split(' ')[0], personalConfirmFor: 'i7', internalTask: true, requirements: [] } }));
+    add(step({ id: 'd-cr', stepType: 'custom_request', status: 'completed', ball: 'client', completedAt: ago(12), payload: { title: 'צילום תעודת זהות' } }));
+    add(step({ id: 'd-sk', stepType: 'custom_request', status: 'skipped', ball: 'client', payload: { title: 'אישור ניהול ספרים', skipReason: 'יש כבר בתיק' } }));
+    return { steps, client, ni };
+  }
+
   if (SC === 'few') {
     ni.client = { enteredAt: ago(3), referenceNumber: '75160001', deadline: inDays(25) };
     add(niStep('ni-c', 'client', fullName, 'in_progress', 3));
@@ -355,7 +393,7 @@ function initialStoreBase(): Omit<Store, 'engagements' | 'events'> {
     payload: { title: 'אישור יתרות מהבנק', externalParty: { kind: 'other', contact: { name: 'בנק הפועלים — סניף 532', email: 'branch532@example.invalid' } } } }));
   add(step({ id: 'sf', stepType: 'custom_request', status: 'in_progress', ball: 'client', updatedAt: ago(1),
     payload: { title: 'טופס 6101 — עדכון פרטים בביטוח לאומי',
-      smartForm: { filingId: 'sf-1', stateLabel: 'ממתין לחתימת הלקוח', purposes: ['employment_status'], waitingOn: 'client', state: 'awaiting_signature' } } }));
+      smartForm: { filingId: 'sf-1', stateLabel: 'ממתין לחתימת הלקוח', purposes: ['employment_status'], waitingOn: 'client', state: 'awaiting_signatures' } } }));
   add(step({ id: 'upg', stepType: 'representation_upgrade', track: 'authorities', status: 'pending', ball: 'me', needsAttention: true,
     dueDate: inDays(-3), payload: { secondaryAuthorities: ['incomeTax', 'vat'] } }));
   add(step({ id: 'intake', stepType: 'intake_questionnaire', track: 'internal', status: 'waiting_client', ball: 'client', updatedAt: ago(3) }));
@@ -771,6 +809,7 @@ function install() {
   installed = true;
   SC = qs().get('sc') ?? 'few';
   CANCEL_MODE = qs().get('cancel') ?? 'ok';
+  RM = qs().get('rm') ?? '';
   const t = qs().get('theme');
   if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t;
   store = initialStore();
@@ -915,6 +954,8 @@ function install() {
       }
       case 'set_onboarding_step_pending_cancel': {
         // ‼ 101: רק בקשה שפורסמה ושלא נסגרה — «תוסר מהדף בפרסום הבא».
+        if (RM === 'neterr') { res = { data: null, error: { message: 'Failed to fetch' } }; break; }
+        if (RM === 'terminal') { res = { data: { ok: false, error: 'step_terminal' }, error: null }; break; }
         const cur = store.steps.find(s => s.id === args.p_step_id);
         if (!cur) { res = { data: { ok: false, error: 'step_not_found' }, error: null }; break; }
         if (cur.publishedAt == null) { res = { data: { ok: false, error: 'not_published' }, error: null }; break; }
@@ -922,6 +963,33 @@ function install() {
         store.steps = store.steps.map(s => (s.id === cur.id ? { ...s, pendingCancel: !!args.p_pending } : s));
         emit();
         res = { data: { ok: true, pendingCancel: !!args.p_pending }, error: null };
+        break;
+      }
+      case 'smart_form_advance': {
+        // ‼ 206: ביטול — סיבה חובה, ולא אחרי הגשה; השלב הופך ל-cancelled והיטל הטופס נסגר.
+        const cur = store.steps.find(x => (x.payload?.smartForm as { filingId?: string } | undefined)?.filingId === args.p_filing_id);
+        const sm = cur?.payload?.smartForm as { state?: string } | undefined;
+        const d = (args.p_detail ?? {}) as { reason?: string };
+        if (!cur || !sm) { res = { data: { ok: false, error: 'forbidden' }, error: null }; break; }
+        if (args.p_action !== 'cancel') { res = { data: { ok: false, error: 'unknown_action' }, error: null }; break; }
+        if (['closed', 'cancelled'].includes(String(sm.state))) { res = { data: { ok: false, error: 'bad_transition' }, error: null }; break; }
+        if (['submitted', 'info_requested', 'result_received'].includes(String(sm.state))) { res = { data: { ok: false, error: 'submitted_cannot_cancel' }, error: null }; break; }
+        // ‼ 246 · היקף הרשימה: ביטול רק לפני כל חתימה, מול המצב הנוכחי. &rm=signedrace — הלקוח חותם בזמן שהחלון פתוח.
+        const scope = (args.p_detail as { scope?: string } | undefined)?.scope;
+        if (scope === 'request_list') {
+          if (RM === 'signedrace' && sm.state !== 'signed') {
+            store.steps = store.steps.map(x => (x.id === cur.id ? { ...x, payload: { ...x.payload,
+              smartForm: { ...sm, state: 'signed', stateLabel: 'נחתם — להפקת המסמך החתום' } } as OnboardingStep['payload'] } : x));
+            emit();
+          }
+          const now = (store.steps.find(x => x.id === cur.id)?.payload?.smartForm as { state?: string } | undefined)?.state;
+          if (['signed', 'awaiting_client_submission'].includes(String(now))) { res = { data: { ok: false, error: 'signed_cannot_cancel', state: now }, error: null }; break; }
+        }
+        if (!d.reason) { res = { data: { ok: false, error: 'reason_required' }, error: null }; break; }
+        store.steps = store.steps.map(x => (x.id === cur.id ? { ...x, status: 'cancelled' as const,
+          payload: { ...x.payload, smartForm: { ...sm, state: 'cancelled', stateLabel: 'בוטל' } } as OnboardingStep['payload'] } : x));
+        emit();
+        res = { data: { ok: true, state: 'cancelled' }, error: null };
         break;
       }
       case 'autofill_internal_setup': res = { data: { ok: true, changed: false }, error: null }; break;
@@ -1006,6 +1074,9 @@ function install() {
       default: res = { data: { ok: true }, error: null };
     }
     window.__rqCalls.push({ fn, args, res: res.data ?? res.error });
+    if (RM === 'slow' && (fn === 'set_onboarding_step_pending_cancel' || fn === 'smart_form_advance')) {
+      return new Promise(r => window.setTimeout(() => r(res), 1500));
+    }
     return Promise.resolve(res);
   };
   // שרשרת שאילתות: כל מתודה מחזירה את עצמה, וההמתנה מחזירה את השורות (ברירת מחדל: רשימה ריקה).
@@ -1161,7 +1232,11 @@ export default function TestRequests() {
         quotations={SC === 'returning' ? RETURNING_QUOTATIONS : QUOTATIONS}
         advance={async (stepId, action, payload) => {
           // ‼ כמו בשרת (168): המעבר, הכדור, היומן; דילוג — הסיבה ל-skipReason, ושאר המפתחות ל-payload.
-          const r = fakeAdvance(stepId, action, payload ?? {});
+          if (action === 'cancel' && RM === 'slow') await new Promise(r => window.setTimeout(r, 1500));
+          const r: { ok: boolean; message?: string; error?: string } = action === 'cancel' && RM === 'advfail'
+            ? { ok: false, error: 'forbidden', message: 'forbidden' }
+            : action === 'cancel' && RM === 'neterr' ? { ok: false, message: 'Failed to fetch' }
+            : fakeAdvance(stepId, action, payload ?? {});
           window.__rqCalls.push({ fn: 'advance', args: { stepId, action, payload }, res: r });
           return r;
         }}
