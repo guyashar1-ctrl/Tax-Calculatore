@@ -72,3 +72,24 @@
 
 **פריסה (כשתאושר):** 247 קודם (חזרה בטרנזקציה מתגלגלת + בדיקת גופים), ואז האתר. האתר הקודם מול 247 — לא מושפע
 (ענפים חדשים בלבד; `_portal_step_items` מקבל ענף רק ל-`smartForm.clientFill`).
+
+## 6 · שחרור לייצור — מוכן, ממתין לאישור הפריסה (15.10.2026)
+
+נבדק לפני (כולם בלי שינוי בייצור):
+- **סדר מול 246** (`pivo-wt/request-removal`, לא בקומיט, לא הוחלה): 246 מחליפה רק את `smart_form_advance`; 247 לא נוגעת בה
+  וקוראת רק לפעולות שלא השתנו (cancel בלי scope, record_submission, record_result, close). **כל סדר תקין במסד.** בקוד — שתיהן
+  עורכות את `OnboardingTab.tsx`: מי שנכנס שני ממזג (השורה של טופס לקוח: `menu={null}`).
+- `node scripts/prod-check-247-ready.mjs` — 32/32 (פונקציות וחתימות, 31 עמודות, ערכי CHECK, העוגנים פעם אחת, אין 247, אין הגשות).
+- חזרה בייצור (נבטלה): `prod-dryrun-6101-migrations --files supabase/247-smart-client-forms.sql,scripts/sql/247/dry-run-checks.sql` ⇒ DRY_RUN_OK
+  (סימון אחד בכל אחד מארבעת הגופים, 20 פונקציות, הרשאות, תבניות).
+- חזרה על ההחזרה (נבטלה): `…--files scripts/sql/247/dry-run-rollback-pre.sql,supabase/247…,dry-run-checks.sql,scripts/sql/247/rollback-247.sql,scripts/sql/247/dry-run-rollback-post.sql`
+  ⇒ ארבעת הגופים חזרו בייט-בבייט.
+- ‼ מה שהחזרה תפסה: `_portal_step_items` בייצור מערבב CRLF ו-LF (שורות 245). העוגן מותאם עכשיו לשורה עצמה, לא לגוף.
+
+סדר הפריסה (כשגיא מאשר):
+1. `node scripts/prod-apply-migration.mjs supabase/247-smart-client-forms.sql` ⇒ `node scripts/prod-check-247-ready.mjs --after`.
+2. מיזוג `feature/smart-forms-4440-821` ל-master (origin/master = 554d432, בלי פיצול) ו-push ⇒ Vercel; אימות ב-API (READY + alias).
+3. בדיקה חיה: «＋ בקשה חדשה» אצל לקוח בדיקה — הפריטים מופיעים; הפאנל נפתח.
+
+התאוששות: אתר — `dpl_nqw687rK9VwzcJG3u4nb1ZQP8Ecd` (554d432). מסד — `scripts/sql/247/rollback-247.sql` (נעצר אם יש הגשות 4440/821).
+האתר הנוכחי מול 247 ממשיך לעבוד (רק ענפים חדשים; 6101 לא משתנה).

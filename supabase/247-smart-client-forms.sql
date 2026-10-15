@@ -866,7 +866,7 @@ grant execute on function public.portal_smart_form_prepare(text, text) to anon, 
 grant execute on function public.portal_smart_form_sign(text, text, text, text, boolean) to anon, authenticated;
 
 -- ── 8 · הזרקות לגוף החי (עוגן של שורה אחת, פעם אחת בדיוק; הכול או כלום) ──────────────────────
-do $p246$
+do $patch$
 declare
   v_psi text; v_sync text; v_start text; v_inv text; v_nl text;
   a_psi text := E'      v_reqs := coalesce(s.payload->''requirements'', ''[]''::jsonb);\n';
@@ -892,15 +892,13 @@ begin
   select pg_get_functiondef(p.oid) into v_start from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname = 'smart_form_start';
   select pg_get_functiondef(p.oid) into v_inv from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname = 'assert_domain_function_invariants';
 
-  -- ‼ שורות הגוף החי עשויות להיות CRLF (נשמר כך בייצור) — העוגן מותאם לגוף עצמו
-  v_nl := case when position(E'\r\n' in v_psi) > 0 then E'\r\n' else E'\n' end;
-  a_psi := replace(a_psi, E'\n', v_nl); n_psi := replace(n_psi, E'\n', v_nl);
-  v_nl := case when position(E'\r\n' in v_sync) > 0 then E'\r\n' else E'\n' end;
-  a_sync := replace(a_sync, E'\n', v_nl); n_sync := replace(n_sync, E'\n', v_nl);
-  v_nl := case when position(E'\r\n' in v_start) > 0 then E'\r\n' else E'\n' end;
-  a_start := replace(a_start, E'\n', v_nl); n_start := replace(n_start, E'\n', v_nl);
-  v_nl := case when position(E'\r\n' in v_inv) > 0 then E'\r\n' else E'\n' end;
-  a_inv := replace(a_inv, E'\n', v_nl); n_inv := replace(n_inv, E'\n', v_nl);
+  -- ‼ גוף חי עשוי לערבב CRLF ו-LF באותה פונקציה (נמדד בייצור ב-_portal_step_items: שורות 245 ב-CRLF,
+  --   השאר LF). לכן לא לפי «יש CRLF בגוף», אלא לפי שורת העוגן עצמה — והטקסט המוזרק באותו סוף שורה.
+  v_nl := E'\r\n';
+  if position(replace(a_psi, E'\n', v_nl) in v_psi) > 0 then a_psi := replace(a_psi, E'\n', v_nl); n_psi := replace(n_psi, E'\n', v_nl); end if;
+  if position(replace(a_sync, E'\n', v_nl) in v_sync) > 0 then a_sync := replace(a_sync, E'\n', v_nl); n_sync := replace(n_sync, E'\n', v_nl); end if;
+  if position(replace(a_start, E'\n', v_nl) in v_start) > 0 then a_start := replace(a_start, E'\n', v_nl); n_start := replace(n_start, E'\n', v_nl); end if;
+  if position(replace(a_inv, E'\n', v_nl) in v_inv) > 0 then a_inv := replace(a_inv, E'\n', v_nl); n_inv := replace(n_inv, E'\n', v_nl); end if;
 
   -- כל העוגנים נבדקים לפני כל שינוי
   if position('247 ·' in v_psi) = 0 then
@@ -925,7 +923,7 @@ begin
   if position('247 ·' in v_start) = 0 then execute replace(v_start, a_start, a_start || n_start); else raise notice '247: smart_form_start — כבר הוחל'; end if;
   if position('247 ·' in v_inv) = 0 then execute replace(v_inv, a_inv, n_inv); else raise notice '247: assert_domain_function_invariants — כבר הוחל'; end if;
 end
-$p246$;
+$patch$;
 
 -- ‼ create or replace שומר הרשאות, אבל הגוף החדש עובר בדיקה: _portal_step_items נשארת פנימית.
 revoke all on function public._portal_step_items(public.onboarding_steps, public.clients, public.profiles, public.representation_requests, jsonb, jsonb) from public, anon, authenticated;

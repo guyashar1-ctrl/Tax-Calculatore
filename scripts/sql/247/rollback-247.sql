@@ -10,28 +10,29 @@ begin
   for fn in select unnest(array['_portal_step_items', '_smart_form_sync_step', 'smart_form_start', 'assert_domain_function_invariants']) loop
     select pg_get_functiondef(p.oid) into v from pg_proc p join pg_namespace ns on ns.oid = p.pronamespace where ns.nspname = 'public' and p.proname = fn;
     if position('247 ·' in v) = 0 then continue; end if;
-    v_nl := case when position(E'\r\n' in v) > 0 then E'\r\n' else E'\n' end;
+    -- ‼ השורות שהוזרקו נכתבו בסוף השורה של העוגן (CRLF או LF — גוף חי עשוי לערבב): מסירים את שתי הגרסאות
+    v_nl := E'\r\n';
     if fn = '_portal_step_items' then
       n := E'      -- 247 · טופס חכם שהלקוח ממלא וחותם בדף (4440/821) — הפריט נגזר מההיטל smartForm\n'
         || E'      if s.payload #>> ''{smartForm,clientFill}'' = ''true'' then\n'
         || E'        v_items := v_items || public._smart_form_portal_item(s, p_ctx);\n'
         || E'        exit step_body;\n'
         || E'      end if;\n';
-      v := replace(v, replace(n, E'\n', v_nl), '');
+      v := replace(replace(v, replace(n, E'\n', v_nl), ''), n, '');
     elsif fn = '_smart_form_sync_step' then
       n := E'  -- 247 · טפסים שהלקוח ממלא וחותם — היטל משלהם\n'
         || E'  if public._scf_is_client_form(f.template_key) then perform public._smart_form_sync_client_step(f.id); return; end if;\n';
-      v := replace(v, replace(n, E'\n', v_nl), '');
+      v := replace(replace(v, replace(n, E'\n', v_nl), ''), n, '');
     elsif fn = 'smart_form_start' then
       n := E'  -- 247 · טופס שהלקוח ממלא נפתח ב-smart_form_client_start בלבד\n'
         || E'  if coalesce((t->>''clientFill'')::boolean, false) then return jsonb_build_object(''ok'', false, ''error'', ''use_client_start''); end if;\n';
-      v := replace(v, replace(n, E'\n', v_nl), '');
+      v := replace(replace(v, replace(n, E'\n', v_nl), ''), n, '');
     else
       a := E'    ''onboarding_set_no_license''\n';
       n := E'    ''onboarding_set_no_license'',\n'
         || E'    -- 247 · טופס חכם בדף האישי — טוקן הדף בלבד, אותו שער כמו portal_submit_step\n'
         || E'    ''portal_smart_form_get'', ''portal_smart_form_save'', ''portal_smart_form_prepare'', ''portal_smart_form_sign''\n';
-      v := replace(v, replace(n, E'\n', v_nl), replace(a, E'\n', v_nl));
+      v := replace(replace(v, replace(n, E'\n', v_nl), replace(a, E'\n', v_nl)), n, a);
     end if;
     if position('247 ·' in v) > 0 then raise exception 'rollback-247: ההזרקה ב-% לא הוסרה במלואה', fn; end if;
     execute v;
