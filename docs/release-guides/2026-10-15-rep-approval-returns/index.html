@@ -17,7 +17,7 @@ label.chk{display:flex;gap:8px;align-items:center;margin-top:10px;font-size:.95r
 .zoom{position:fixed;inset:0;background:rgba(0,0,0,.85);display:none;align-items:center;justify-content:center;padding:16px;z-index:9;cursor:zoom-out}
 .zoom.on{display:flex}.zoom img{max-width:100%;max-height:100%;background:#fff}ul{margin:.3em 0;padding-inline-start:1.2em}li{margin:.25em 0}
 </style></head><body><main>
-<p class="meta">PIVO · מדריך שחרור · 15.10.2026 · ענף fix/rep-approval-not-received מעל master 4ec915b · <b>עדיין לא בקומיט ולא באתר</b> · מיגרציה 245 הוחלה ב-staging בלבד.</p>
+<p class="meta">PIVO · מדריך שחרור · 15.10.2026 · קומיט 2547d4a · <b>באתר מ-15.10</b> (crm.yasharcpa.co.il, פריסה READY) · מיגרציה 245 בייצור וב-staging.</p>
 <h1>«אישרתי» שלא הגיע לרשות המסים: הבקשה חוזרת ללקוח</h1>
 <div class="box"><h2>מה ביקשת ומה קיבלת</h2>
 <p>שאלת למה בדף של אמיר אין את המדריך המצולם ואת הקישור לאישור הייצוג, למרות שהייצוג במס הכנסה עוד לא אושר, ולמה אי אפשר להחזיר אותם.</p>
@@ -25,7 +25,7 @@ label.chk{display:flex;gap:8px;align-items:center;margin-top:10px;font-size:.95r
 <p><b>מעכשיו:</b> כשבדיקה בשע״ם אחרי «אישרתי» עדיין מראה «ממתין לאישור לקוח», הבקשה חוזרת לבד לדף של הלקוח. הכרטיס חוזר עם המדריך והקישור, ושורה כתומה מסבירה שהאישור עוד לא הגיע. במשרד רואים את אותו מצב בכותרת של מרכז הייצוג.</p></div>
 <div class="box why"><h2>אמיר: כבר תוקן בייצור</h2>
 <p>ב-15.10 החזרתי באישורך את הבקשה של אמיר לדף שלו. הכרטיס «אישור הייצוג באזור האישי» מוצג שם שוב עם ההנחיות, «לכניסה לאזור האישי» ו«אישרתי באזור האישי», והמדריך המצולם נפתח מהכרטיס. ההצהרה הקודמת שלו לא נמחקה: היא נשמרה בהיסטוריה של הבקשה.</p>
-<p class="note">לא נשלח לאמיר מייל. השורה הכתומה («בדקנו... והאישור עוד לא הגיע») תופיע אצלו רק אחרי פריסת השינוי לאתר.</p></div>
+<p class="note">לא נשלח לאמיר מייל. מאז הפריסה מופיעה אצלו גם השורה הכתומה, עם תאריך הבדיקה בשע״ם מ-15.10.</p></div>
 <nav aria-label="צעדים"><button type="button" data-i="0" aria-current="true">1. מה היה</button><button type="button" data-i="1" aria-current="false">2. הדף של הלקוח עכשיו</button><button type="button" data-i="2" aria-current="false">3. מה רואים במשרד</button></nav>
 <section class="box step" data-i="0"><h2>1. מה היה עד היום</h2>
 <p>אחרי «אישרתי» הכרטיס הצטמצם לשורה אחת, «תודה. אנחנו בודקים שהאישור נקלט», בלי מדריך ובלי קישור. כך הוא נשאר גם כשהרשות עדיין חיכתה לאישור.</p>
@@ -60,7 +60,8 @@ label.chk{display:flex;gap:8px;align-items:center;margin-top:10px;font-size:.95r
 <li>1,763 בדיקות של המערכת עברו, כולל שתי בדיקות חדשות למצב במשרד. בדיקת הטיפוסים נקייה.</li>
 <li>הדף של הלקוח צולם במחשב וברוחב טלפון, בלי גלילה הצידה ובלי שגיאות דפדפן. הצילומים מהגרסה המקומית ומנתוני הדגמה.</li>
 <li><b>מרווח של 15 דקות:</b> בדיקה שהתחילה לפני הלחיצה לא נחשבת ראיה. אם יתברר שהרשות מתעדכנת לאט יותר, אפשר להאריך אותו.</li>
-<li><b>לא נעשה:</b> קומיט, פריסה לאתר והחלת מיגרציה 245 בייצור. כל אלה ממתינים לאישורך.</li></ul></div>
+<li><b>אחרי הפריסה (15.10):</b> מיגרציה 245 בייצור זהה לזו שנבדקה ב-staging. הדף של אמיר מחזיר מהשרת את הכרטיס עם הקישור, הכפתור והתאריך. הקבצים שהאתר מגיש מכילים את הנוסחים החדשים, בדף הלקוח ובמשרד.</li>
+<li><b>לא נבדק בעין באתר החי:</b> לא פתחתי את הדף האישי של אמיר עצמו. זו הבדיקה של דקה שלמעלה.</li></ul></div>
 </main><div class="zoom" role="dialog" aria-label="צילום מוגדל"><img alt=""></div>
 <script>
 const show=i=>{document.querySelectorAll('.step').forEach(s=>s.hidden=s.dataset.i!=i);document.querySelectorAll('nav button').forEach(b=>b.setAttribute('aria-current',String(b.dataset.i==i)));};
