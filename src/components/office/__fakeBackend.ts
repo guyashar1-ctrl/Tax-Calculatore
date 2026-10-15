@@ -137,6 +137,13 @@ const CLIENT_IDS = ['sample-1', 'sample-2', 'sample-3'];
 
 const tables: Record<string, Row[]> = {
   office_journey_defaults: defaultsRows(),
+  // «PIVO השבוע» — שני שבועות קודמים כתובים; השבוע הנוכחי ריק (מצב העבודה הרגיל).
+  pivo_weekly_notes: EMPTY ? [] : [
+    { id: 'pw-1', user_id: FIRM_ID, week_start: '2026-10-04', updated_at: '2026-10-09T13:00:00Z',
+      body: '• הצהרת הון נשלחת ללקוח כבקשה, עם רשימת מה חסר (ב־staging)\n• הערכת מס נשמרת בגרסאות בתיק המס (ב־staging)\nהכי משמעותי השבוע: הצהרת הון בלי טפסים.' },
+    { id: 'pw-2', user_id: FIRM_ID, week_start: '2026-09-27', updated_at: '2026-10-02T13:00:00Z',
+      body: '• ספריית בקשות אחת לכל המשרד (בייצור)\n• כללי פתיחה: מתי נפתחת כל בקשה (בייצור)\n• תביעת מילואים כבקשה מוכנה (בפיתוח)' },
+  ],
   service_catalog: EMPTY ? [] : [
     { id: 's1', user_id: FIRM_ID, name: 'הנהלת חשבונות — עוסק מורשה', category: 'monthly', description: 'כולל דיווחי מע״מ ומקדמות', default_price: 450, vat_flag: true, billing_type: 'fixed', unit_label: null, include_by_default: true, active: true, display_order: 1 },
     { id: 's2', user_id: FIRM_ID, name: 'חשבות שכר', category: 'monthly', description: null, default_price: 80, vat_flag: true, billing_type: 'per_unit', unit_label: 'עובד', include_by_default: false, active: true, display_order: 2 },

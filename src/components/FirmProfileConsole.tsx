@@ -29,6 +29,7 @@ import { FlowsPage } from './office/pages/FlowsPage';
 import EmailsPage from './office/pages/EmailsPage';
 import ConnectionsPage from './office/pages/ConnectionsPage';
 import AutomationsPage from './office/pages/AutomationsPage';
+import PivoWeeklyPage from './office/pages/PivoWeeklyPage';
 import ClientPicker from './office/pages/ClientPicker';
 import type { ActivityFilter } from './office/pages/activityFilter';
 import Modal from './ui/Modal';
@@ -244,6 +245,7 @@ export default function FirmProfileConsole({ profile, clients, onSave, page: rou
           {shown === 'connections' && (
             <ConnectionsPage key={`connections-${focus ?? ''}`} draft={draft} setDraft={setDraft} focus={focus} go={go} />
           )}
+          {shown === 'pivoWeekly' && <PivoWeeklyPage />}
 
           <SaveBar office={office} flowsDirty={flowsDirty && shown !== 'flows'} onSave={saveOffice} go={go} />
         </section>

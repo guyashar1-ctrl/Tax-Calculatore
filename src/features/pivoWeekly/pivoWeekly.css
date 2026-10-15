@@ -1,0 +1,40 @@
+/* ─── «המשרד» · PIVO השבוע ───────────────────────────────────────────────── */
+.pw { max-width: 680px; }
+.pw-current { padding: 2px 0; border-radius: 8px; }
+.pw-lines { margin: 0; padding-inline-start: 18px; list-style: disc; display: grid; gap: 4px; font-size: var(--fs-14); color: var(--ink-2); line-height: 1.6; }
+.pw-lines b { color: var(--ink-1); font-weight: 600; }
+.is-fresh { animation: pw-flash 1.6s ease-out; }
+@keyframes pw-flash { from { background: var(--accent-soft, rgba(63, 95, 143, .12)); } to { background: transparent; } }
+
+.pw-editor { display: grid; gap: 18px; }
+.pw-week-pick { display: grid; gap: 5px; max-width: 280px; }
+.pw-step { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 12px; align-items: start; }
+.pw-n { width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; font-size: var(--fs-12); font-weight: 600;
+  background: var(--accent-soft, rgba(63, 95, 143, .12)); color: var(--accent, var(--ink-2)); margin-top: 1px; }
+.pw-step-body { display: grid; gap: 8px; min-width: 0; }
+.pw-step-title { font-size: var(--fs-14); font-weight: 500; color: var(--ink-1); }
+.pw-step-body textarea { width: 100%; resize: vertical; line-height: 1.6; }
+.pw-copy { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; }
+.pw-hint { font-size: var(--fs-12); color: var(--ink-3); line-height: 1.5; }
+.pw-hint.is-warn { color: var(--chip-amber-tx, var(--ink-2)); margin: 0; }
+.pw-see > summary { cursor: pointer; width: max-content; font-size: var(--fs-12); color: var(--ink-3); text-decoration: underline;
+  text-underline-offset: 3px; list-style: none; }
+.pw-see > summary::-webkit-details-marker { display: none; }
+.pw-see[open] > summary { margin-bottom: 8px; }
+.pw-see textarea { font-size: var(--fs-12); color: var(--ink-2); background: var(--surface-2, transparent); }
+.pw-acts { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.pw-del { margin-inline-start: auto; color: var(--danger); }
+.pw-confirm span { font-size: var(--fs-13); color: var(--ink-2); margin-inline-end: 4px; }
+.pw-err { font-size: var(--fs-13); color: var(--danger); margin: 0 0 8px; }
+
+.pw-history { list-style: none; margin: 0; padding: 0; }
+.pw-history > li { padding: 12px 0; border-top: 1px solid var(--hairline-2); border-radius: 6px; }
+.pw-history > li:first-child { border-top: 0; padding-top: 0; }
+.pw-h-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 6px; }
+.pw-h-week { font-size: var(--fs-13); font-weight: 600; color: var(--ink-1); }
+
+@media (max-width: 640px) {
+  .pw-step { gap: 10px; }
+  .pw-week-pick { max-width: none; }
+  .pw-step-body textarea { font-size: 16px; }
+}
