@@ -100,4 +100,7 @@
   החדשות/המעודכנות זהות בייט-בבייט ל-staging שנבדק. גיבוי לפני: `C:/Users/guyas/PIVO/backups/smart-forms-247-20261015/`.
 - **עשן בייצור (נבטל):** `node scripts/smoke-247-rolled-back.mjs --prod` — פתיחה כבעלים (אידמפוטנטית), הדף כ-anon (פריט, «מה בכרטיס»,
   זהות מוגנת, שמירה לכרטיס ולהגשה, הכנה, טביעה שגויה נדחית, חתימה), תצוגת משרד חסומה ל-anon, הכרטיס/ההיסטוריה/השורה — הכול עבר; 0 שאריות.
-- **אתר:** master 554d432 ⇒ 789a527 (fast-forward), Vercel — ראה הרשומה למטה.
+- **אתר:** master 554d432 ⇒ 789a527 (fast-forward). Vercel `dpl_Ei5ngCZArwD5xumBPhprJu2hszEi` READY, alias crm.yasharcpa.co.il,
+  aliasError null; בלוג הבנייה tsc עבר ו-`ClientFormScreen` נבנה. באתר החי: `/templates/ita-4440-12.2009.pdf` ו-`vat-821.pdf` — טביעה זהה
+  למיפוי; החבילה המוגשת (main-Cjn-jVZO.js) מכילה את פריטי הקטלוג והקריאות החדשות.
+- **לא נבדק בייצור:** המסכים עצמם באתר החי עם המשתמש של גיא (משתמש הבדיקה חסום בייצור). התאוששות אתר: `dpl_nqw687rK9VwzcJG3u4nb1ZQP8Ecd`.
