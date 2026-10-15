@@ -84,6 +84,8 @@ export interface RcInput {
   clientApprovalRequiredOpen?: boolean;
   /** הלקוח דיווח בדף האישי שאישר באזור האישי (clientDeclaredAt), והשלב עוד פתוח. */
   clientApprovalDeclaredAt?: string | null;
+  /** 245 · הלקוח דיווח «אישרתי», ובדיקה בשע״ם אחרי זה הראתה שהאישור לא הגיע — השלב חזר אליו. */
+  clientApprovalNotReceivedAt?: string | null;
   /** 239/240 · לבקשה יש שורה בדף האישי — היא מאושרת לדף ונשלחת עם מייל הדף, לא במייל משלה. */
   pageChannel?: boolean;
   /** 240 · אושרה לדף (ממתין לחתימה): הלקוח יכול לחתום מהדף כבר עכשיו, גם בלי מייל. */
@@ -120,7 +122,7 @@ export interface RcPlan {
    * 'still_waiting' — דווח, ובבדיקה שאחרי הדיווח שע״ם עדיין ממתינה.
    * חסר ⇒ הכותרת אינה עוסקת באישור (גם כשיש כרטיס זירוז פתוח).
    */
-  approval?: 'needed' | 'declared' | 'still_waiting';
+  approval?: 'needed' | 'declared' | 'still_waiting' | 'returned';
 }
 
 const PHASE_LABELS: Record<RcPhaseKey, string> = {
@@ -323,6 +325,11 @@ export function repCenterPlan(input: RcInput): RcPlan {
           'declared');
       }
       // בדיקה שאחרי הדיווח כבר לא מציגה «ממתין לאישור לקוח» ⇒ ממתינים לקליטה, כמו כל הגשה.
+    } else if (!Number.isNaN(ms(input.clientApprovalNotReceivedAt))) {
+      // ‼ 245 · ההצהרה לא נקלטה — השרת החזיר את הבקשה לדף, עם המדריך והקישור.
+      return plan('waiting_authorities', 'client', `שע״ם עדיין ממתינה לאישור של ${who}`,
+        `לפי ${first} האישור כבר ניתן, אבל בבדיקה בשע״ם הוא עוד לא הגיע. הבקשה חזרה לדף האישי עם המדריך והקישור.`,
+        'returned');
     } else {
       return plan('waiting_authorities', 'client', `נדרש אישור של ${who} ברשות המסים`,
         names.length > 1

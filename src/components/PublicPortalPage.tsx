@@ -194,6 +194,8 @@ export interface PortalItem {
   edited?: boolean;
   /** אישור הייצוג באזור האישי (rep_approval): מה כל אדם מסמן — מהשרת. חסר ⇒ נוסח כללי. */
   approvals?: RepApprovalPerson[];
+  /** 245 · rep_approval: הלקוח לחץ «אישרתי», ובבדיקה בשע״ם אחרי זה האישור עוד לא הגיע (מהשרת). */
+  notReceivedAt?: string;
   /**
    * 221 · מפתח של מדריך מצולם בבקשה חופשית (clientPhotoGuide בבקשה) — לא הצעדים ולא הקישור: אלה קבועים
    * בקוד (portal/photoGuides.ts). ‼ מפתח לא מוכר ⇒ הדף פשוט לא מציג מדריך.
@@ -1388,6 +1390,10 @@ function DeclareBlock({ item, brand, accent, onDone }: {
   // לקפל). עכשיו: משפט אחד + מה מסמנים (מהשרת, approvals — לא מנחשים כאן), המדריך,
   // הכפתורים; «אין לך משתמש?» ו-SMS נפתחים בלחיצה. ראה repApprovalCard.
   const card = isRepApproval ? repApprovalCard(item.approvals, item.note, item.noteAfter) : null;
+  // ‼ 245 · «אישרתי» קודם, ושע״ם עדיין ממתינה — הכרטיס חזר, ואומר למה.
+  const notReceivedOn = isRepApproval && item.notReceivedAt && !Number.isNaN(Date.parse(item.notReceivedAt))
+    ? new Date(item.notReceivedAt).toLocaleDateString('he-IL', { day: 'numeric', month: 'numeric', timeZone: 'Asia/Jerusalem' })
+    : null;
 
   const buttons = (
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
@@ -1410,6 +1416,13 @@ function DeclareBlock({ item, brand, accent, onDone }: {
   if (card) {
     return (
       <div style={{ display: 'grid', gap: 12 }}>
+        {notReceivedOn && (
+          <div data-testid="rep-approval-not-received" role="status"
+            style={{ fontSize: 13.5, lineHeight: 1.6, color: '#8a4b08', background: '#fdf6ec', borderRadius: brand.radius, padding: '10px 12px' }}>
+            בדקנו ברשות המסים ב-{notReceivedOn}, והאישור עוד לא הגיע אליהם. כדאי לעבור שוב על המדריך,
+            לוודא שסימנת את כל הבקשות שלנו ולחצת «אישור ייצוג», ואז ללחוץ כאן שוב «{item.cta || 'אישרתי באזור האישי'}».
+          </div>
+        )}
         <div data-testid="rep-approval-what" style={{ display: 'grid', gap: 3, overflowWrap: 'anywhere' }}>
           <div style={{ fontSize: 13.5, lineHeight: 1.6, color: brand.ink }}>{card.lead}</div>
           {card.lines.map(l => (

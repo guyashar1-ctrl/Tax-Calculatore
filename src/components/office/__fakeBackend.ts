@@ -405,6 +405,11 @@ function demoRepItem(): Row {
     bucket: 'action', key: 'rep_approval', label: REP_PORTAL_CARD_FIXED.title, sub: card.sub, note: card.note,
     noteAfter: card.noteAfter, cta: REP_PORTAL_CARD_FIXED.cta, linkUrl: REP_PORTAL_CARD_FIXED.linkUrl, linkLabel: card.linkLabel,
     actionKind: 'portal', actionValue: DEMO_REP_STEP, kind: 'declare',
+    // ‼ 245 · ‎&rep=returned‎ — «אישרתי» קודם, ובדיקה בשע״ם הראתה שהאישור לא הגיע.
+    // ‼ בשרת זה קורה רק אחרי ששע״ם הציגה «ממתין לאישור לקוח» ⇒ תמיד בנוסח «נדרש».
+    ...(typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('rep') === 'returned'
+      ? { notReceivedAt: '2026-10-15T08:18:20Z', label: 'אישור הייצוג באזור האישי',
+          sub: 'נדרש - רשות המסים ממתינה לאישור של רחל' } : {}),
     // ‼ כמו build_client_portal (approvals): זוג — מס הכנסה רשום על שם רחל, ומע״מ לכל אחד.
     approvals: [
       { person: 'client', name: 'דוד', systems: ['מע״מ'], awaiting: [] },

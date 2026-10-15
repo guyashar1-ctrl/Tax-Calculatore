@@ -165,6 +165,26 @@ export const TESTS: TestCase[] = [
     equal(p.headline, 'הוגש — ממתינים לקליטה');
   }),
 
+  // ── 245 · ההצהרה לא נקלטה ⇒ השרת החזיר את הבקשה ללקוח, והמשרד רואה למה ──
+  test('«אישרתי» שלא הגיע לשע״ם ⇒ «עדיין ממתינה», הכדור אצל הלקוח, הבקשה חזרה לדף', () => {
+    const p = repCenterPlan(base({ firstName: 'אמיר', status: 'awaiting_authorities', sent: true, signed: true, stamped: true, submitted: true,
+      ni: [], clientOpenItems: [], clientApprovalRequiredOpen: true, clientApprovalNotReceivedAt: '2026-10-15T08:18:20Z',
+      shaam: [{ ...SHAAM, personName: 'אמיר ויסמרק', awaitingClientApproval: true, checkedAt: '2026-10-15T08:18:20Z' }] }));
+    equal(p.approval, 'returned');
+    equal(p.ball, 'client');
+    equal(p.headline, 'שע״ם עדיין ממתינה לאישור של אמיר');
+    assert(p.sub.includes('חזרה לדף האישי'), p.sub);
+  }),
+
+  test('הוחזר, ואז דיווח שוב ⇒ הדיווח החדש קובע («לבדוק בשע״ם»), לא ההחזרה הישנה', () => {
+    const p = repCenterPlan(base({ status: 'awaiting_authorities', sent: true, signed: true, stamped: true, submitted: true,
+      ni: [], clientOpenItems: [], clientApprovalRequiredOpen: true,
+      clientApprovalDeclaredAt: '2026-10-15T12:00:00Z', clientApprovalNotReceivedAt: '2026-10-15T08:18:20Z',
+      shaam: [{ ...SHAAM, awaitingClientApproval: true, checkedAt: '2026-10-15T08:18:20Z' }] }));
+    equal(p.approval, 'declared');
+    equal(p.ball, 'office');
+  }),
+
   test('תאריך דיווח לא תקין ⇒ כאילו לא דווח (לא מסתירים את הבקשה)', () => {
     const p = repCenterPlan(base({ status: 'awaiting_authorities', sent: true, signed: true, stamped: true, submitted: true,
       ni: [], clientOpenItems: [], clientApprovalDeclaredAt: 'לא תאריך',

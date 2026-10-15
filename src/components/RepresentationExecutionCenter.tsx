@@ -1333,6 +1333,8 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
     clientOpenItems: [...new Set(idDocsOpen.map(d => (d.status === 'missing' ? 'להעלות צילום תעודה' : 'לאשר את צילום התעודה שבתיק')))],
     clientApprovalRequiredOpen: !!repApproval && approvalRequired && !isRepApprovalClosed(repApproval),
     clientApprovalDeclaredAt: declared ? repApproval?.clientDeclaredAt ?? null : null,
+    clientApprovalNotReceivedAt: repApproval && !isRepApprovalClosed(repApproval) && !declared
+      ? repApproval.notReceivedAt ?? null : null,
     // ‼ 240 · «ממתין לחתימה» אצל לקוח עם דף = אושר לדף. «נשלח» — רק ממייל שנשא את החתימה (239).
     pageChannel,
     approvedOnPage: pageChannel && status === 'pending_signature',
@@ -2113,7 +2115,9 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
               : declared ? (plan.approval === 'still_waiting'
                 ? 'הלקוח דיווח שאישר, אבל בבדיקה שאחרי הדיווח שע״ם עדיין ממתינה'
                 : 'הלקוח דיווח שאישר - ממתין לאימות בשע״ם')
-              : [approvalRequired ? 'נדרש - רשות המסים ממתינה לאישור הלקוח' : 'זירוז - מקצר את ההמתנה, והייצוג ייקלט גם בלעדיו',
+              : [plan.approval === 'returned'
+                  ? 'הלקוח דיווח שאישר, אבל בשע״ם האישור לא הגיע - הבקשה חזרה לדף האישי'
+                  : approvalRequired ? 'נדרש - רשות המסים ממתינה לאישור הלקוח' : 'זירוז - מקצר את ההמתנה, והייצוג ייקלט גם בלעדיו',
                  repApprovalPage === 'shown' ? (approvalRequired ? 'הבקשה מופיעה בדף האישי שלו' : 'הבקשה מופיעה בדף האישי של הלקוח')
                    : repApprovalPage ? `יופיע בדף האישי ${notYetOnPage(repApprovalPage)}` : null,
                 ].filter(Boolean).join('. ')}>

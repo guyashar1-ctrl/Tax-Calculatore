@@ -64,6 +64,8 @@ const REP_APPROVAL_STATES: Record<string, RepApprovalStep | null> = {
   done: { id: 'ra1', status: 'completed', ball: 'me', clientDeclaredAt: '2026-08-24T09:12:00.000Z' },
   // ‼ 201 · שע״ם הציגה «ממתין לאישור לקוח» — השלב הפך לחובה (shaam_require_client_approval).
   required: { id: 'ra1', status: 'pending', ball: 'client', requiredBy: 'shaam' },
+  // ‼ 245 · «אישרתי» שלא הגיע לשע״ם — השרת החזיר את הבקשה ללקוח.
+  returned: { id: 'ra1', status: 'pending', ball: 'client', requiredBy: 'shaam', notReceivedAt: '2026-10-15T08:18:20Z' },
 };
 
 const APPROVAL_LABELS: Record<string, string> = {
@@ -73,6 +75,7 @@ const APPROVAL_LABELS: Record<string, string> = {
   'declared-fresh': 'דיווח אחרי הבדיקה',
   done: 'נסגר',
   required: 'נדרש (שע״ם)',
+  returned: 'חזר ללקוח (245)',
 };
 
 /* «מה מסמנים באזור האישי» (approvals מהשרת) — מוזרק, כמו הנתיב המזורז. ?people=<key>;

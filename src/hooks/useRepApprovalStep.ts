@@ -24,6 +24,8 @@ export interface RepApprovalStep {
    * לחובה (shaam_require_client_approval). נכתב בשרת בלבד.
    */
   requiredBy?: string;
+  /** 245 · «אישרתי» קודם, ושע״ם הראתה שהאישור לא הגיע — השלב חזר ללקוח. נכתב בשרת בלבד. */
+  notReceivedAt?: string;
 }
 
 const CLOSED = ['completed', 'verified', 'skipped', 'cancelled'];
@@ -65,6 +67,7 @@ export function useRepApprovalStep(clientId: string | undefined | null) {
         clientDeclaredAt: (row.payload?.clientDeclaredAt as string) || undefined,
         clientTitle: (row.payload?.clientTitle as string) || undefined,
         requiredBy: (row.payload?.requiredBy as string) || undefined,
+        notReceivedAt: (row.payload?.notReceivedAt as string) || undefined,
       }
       : null);
     setLoading(false);
