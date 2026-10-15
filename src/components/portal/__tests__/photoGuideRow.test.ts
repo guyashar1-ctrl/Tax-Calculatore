@@ -50,7 +50,8 @@ export const TESTS: TestCase[] = [
     const row = body('PhotoGuideRow');
     assert(/photoGuideFor\(item\.photoGuide\)/.test(row), 'המפתח מהשרת נפתר ברישום');
     assert(/if \(!guide\) return null;/.test(row), 'מפתח לא מוכר ⇒ כלום');
-    assert(/<PhotoGuideButton steps=\{guide\.steps\.length\}/.test(row), 'כפתור «מדריך מצולם · N צעדים»');
+    // ‼ N = הצעדים במסלול אחד (photoGuideStepCount), לא כל הצעדים של כל המסלולים.
+    assert(/<PhotoGuideButton steps=\{photoGuideStepCount\(guide\)\}/.test(row), 'כפתור «מדריך מצולם · N צעדים»');
     assert(/href=\{guide\.entry\.url\} target="_blank" rel="noopener noreferrer"/.test(row), 'קישור לאתר בלשונית חדשה');
     assert(/\{guide\.siteLabel\} ↗/.test(row), 'התווית «לאזור האישי בביטוח לאומי ↗»');
     assert(/readOnly\s*\?\s*<span className="pp-site-link is-inert"/.test(row), 'בתצוגה במשרד — span אינרטי');

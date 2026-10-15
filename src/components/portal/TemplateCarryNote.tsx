@@ -4,7 +4,7 @@
 // המשרד היה שולח ללקוח דבר שהוא לא רואה. «הצגה» פותחת את המדריך בקריאה בלבד (הקישורים אינרטיים).
 import { useState } from 'react';
 import PhotoGuideDialog from './PhotoGuideDialog';
-import { photoGuideFor, type PhotoGuideDef } from './photoGuides';
+import { photoGuideFor, photoGuideStepCount, type PhotoGuideDef } from './photoGuides';
 import { hasCarryValue } from '../../lib/requestTemplates';
 
 export interface TemplateCarryParts {
@@ -27,7 +27,7 @@ export function templateCarryParts(content: Record<string, unknown> | null | und
 export function templateCarryText(parts: TemplateCarryParts, lead = 'מצורף ללקוח:'): string | null {
   const bits = [
     parts.explanation ? 'הסבר' : null,
-    parts.guide ? `מדריך מצולם (${parts.guide.steps.length} צעדים)` : null,
+    parts.guide ? `מדריך מצולם (${photoGuideStepCount(parts.guide)} צעדים)` : null,
   ].filter((x): x is string => !!x);
   return bits.length ? `${lead} ${bits.join(' · ')}` : null;
 }

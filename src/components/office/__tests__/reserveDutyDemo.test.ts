@@ -1,6 +1,6 @@
-// ─── בדיקות: «תביעת מילואים» — הנוסח בשרת (221) והמסד המדומה שמחקה אותו ────────
+// ─── בדיקות: «תביעת מילואים» — הנוסח בשרת (221, ומ-248 הנוסח לפי המעמד) והמסד המדומה שמחקה אותו ────────
 // ‼ מה נעול כאן:
-//   · הנוסח המוכן בהדגמה (RESERVE_DUTY_PAYLOAD) זהה מילה במילה לנוסח ב-supabase/221-reserve-duty-claim.sql —
+//   · הנוסח המוכן בהדגמה (RESERVE_DUTY_PAYLOAD) זהה מילה במילה לנוסח ב-supabase/248-reserve-duty-by-status.sql —
 //     בלי זה ההדגמה והבדיקות מראות נוסח שלא קיים בייצור.
 //   · הנוסח: בלי clientLinkUrl (היה הופך אותה לחומר עזר שנסגר בפתיחה), בלי פסיקים בתשובות (הקומפוזר
 //     מפצל לפי פסיק), שאלה אחת מסוג בחירה.
@@ -19,6 +19,8 @@ import { requestAnswers } from '../../../utils/requestPresentation';
 
 type Row = Record<string, unknown>;
 const SQL = readFileSync(join(process.cwd(), 'supabase/221-reserve-duty-claim.sql'), 'utf8').replace(/\r\n/g, '\n');
+/** 248 מחליף את הנוסח של 221 (לפי המעמד ערב השירות) — ההדגמה מחקה את הנוסח של 248. */
+const SQL248 = readFileSync(join(process.cwd(), 'supabase/248-reserve-duty-by-status.sql'), 'utf8').replace(/\r\n/g, '\n');
 
 /** כל מחרוזות ה-SQL הרגילות ('…', '' = גרש) בטקסט, בלי הערות. */
 function sqlStrings(text: string): string[] {
@@ -38,9 +40,11 @@ function sqlStrings(text: string): string[] {
   return out;
 }
 
-/** אזור ההוספה של הנוסח המוכן בקובץ (בין «1 · הנוסח המוכן» ל«2 · הדף האישי»). */
+/** אזור ההוספה של הנוסח המוכן ב-221 (בין «1 · הנוסח המוכן» ל«2 · הדף האישי»). */
 const insertRegion = SQL.slice(SQL.indexOf('insert into public.journey_templates'), SQL.indexOf('-- ── 2 · הדף האישי'));
-const lits = sqlStrings(insertRegion);
+/** הנוסח הנוכחי — העדכון ב-248 (מה-update ועד «סוף הנוסח»). */
+const updateRegion = SQL248.slice(SQL248.indexOf('update public.journey_templates'), SQL248.indexOf('-- ── סוף הנוסח'));
+const lits = sqlStrings(updateRegion);
 
 const RESERVE_DUTY_PAYLOAD = reserveDutyPayload();
 const RESERVE_DUTY_TEMPLATE_ROW = reserveDutyTemplateRow();
@@ -51,31 +55,32 @@ const STEP = (extra: Row = {}): Row => ({
 const OUTCOME = RESERVE_DUTY_PAYLOAD.requirements[0].options;
 
 export const TESTS: TestCase[] = [
-  test('הנוסח בהדגמה זהה מילה במילה לנוסח ב-221', () => {
+  test('הנוסח בהדגמה זהה מילה במילה לנוסח ב-248', () => {
     const p = RESERVE_DUTY_PAYLOAD;
     for (const s of [RESERVE_DUTY_SEED_KEY, RESERVE_DUTY_TEMPLATE_ROW.name as string, RESERVE_DUTY_TEMPLATE_ROW.description as string,
       p.title, p.clientTitle, p.clientSub, p.clientNote, p.clientNoteAfter, p.clientPhotoGuide, p.requirements[0].label, ...OUTCOME]) {
-      assert(lits.includes(s), `חסר בנוסח של 221: «${s.slice(0, 60)}…»`);
+      assert(lits.includes(s), `חסר בנוסח של 248: «${s.slice(0, 60)}…»`);
     }
-    // ושום מחרוזת ב-221 אינה סוטה: כל מחרוזת עברית בנוסח קיימת גם בהדגמה.
+    // ושום מחרוזת ב-248 אינה סוטה: כל מחרוזת עברית בנוסח קיימת גם בהדגמה.
     const demo = new Set<string>([RESERVE_DUTY_TEMPLATE_ROW.name as string, RESERVE_DUTY_TEMPLATE_ROW.description as string,
       p.title, p.clientTitle, p.clientSub, p.clientNote, p.clientNoteAfter, p.clientPhotoGuide, p.requirements[0].label, ...OUTCOME]);
-    for (const s of lits.filter(x => /[א-ת]/.test(x))) assert(demo.has(s), `ב-221 ולא בהדגמה: «${s.slice(0, 60)}…»`);
+    for (const s of lits.filter(x => /[א-ת]/.test(x))) assert(demo.has(s), `ב-248 ולא בהדגמה: «${s.slice(0, 60)}…»`);
   }),
 
   test('הנוסח: אין clientLinkUrl ואין clientCta, בלי פסיקים בתשובות, שאלה אחת מסוג בחירה', () => {
-    assert(!lits.includes('clientLinkUrl') && !lits.includes('clientCta'), '221: לא clientLinkUrl');
+    assert(!lits.includes('clientLinkUrl') && !lits.includes('clientCta'), '248: לא clientLinkUrl');
     assert(!('clientLinkUrl' in RESERVE_DUTY_PAYLOAD) && !('clientCta' in RESERVE_DUTY_PAYLOAD), 'הדמו: לא clientLinkUrl');
     for (const o of OUTCOME) assert(!o.includes(','), `פסיק בתשובה: ${o}`);
-    equal(OUTCOME.length, 4);
-    // ‼ ארבע התשובות: מופיעות / חסרה והגשתי / המערכת לא אפשרה — «צור קשר» (גיא, 05.10) / שכיר ועצמאי — 502.
+    equal(OUTCOME.length, 5);
+    // ‼ חמש התשובות: מופיעות / חסרה והגשתי / «צור קשר» (גיא, 05.10) / שכיר ועצמאי — 502 / שכיר בלבד — המעסיק מגיש (248).
     deepEqual(OUTCOME, [
       'כל תקופות המילואים מופיעות - לא היה צריך להגיש',
       'חסרה תקופה - הגשתי עליה תביעה',
       'המערכת לא אפשרה להגיש - פניתי דרך «צור קשר»',
       'עבדתי גם כשכיר/ה - הגשתי בטופס 502',
+      'הייתי שכיר/ה בלבד - המעסיק מגיש',
     ]);
-    // רשימת הבחירה בדף האישי (עד חמש תשובות) — ארבע עוברות כרשימה גלויה.
+    // רשימת הבחירה בדף האישי (עד חמש תשובות) — חמש עוברות כרשימה גלויה.
     assert(OUTCOME.length <= 5, 'עד חמש תשובות — רשימה גלויה');
     equal(RESERVE_DUTY_PAYLOAD.requirements.length, 1);
     equal(RESERVE_DUTY_PAYLOAD.requirements[0].kind, 'select');
@@ -88,6 +93,12 @@ export const TESTS: TestCase[] = [
     equal(e.stepType, 'custom_request');
     equal(e.owner, 'client');
     equal(e.requiredForClose, false);
+  }),
+
+  test('248: רק השורה המובנית, בלי פונקציות ובלי נגיעה בבקשות שכבר נוצרו', () => {
+    assert(/where seed_key = 'reserve_duty_claim' and office_id is null;/.test(updateRegion), 'רק המובנית');
+    assert(!/create\s+or\s+replace\s+function/i.test(SQL248), 'שום פונקציה לא משתנה');
+    assert(!/onboarding_steps|insert into|delete from/i.test(SQL248.replace(/^--.*$/gm, '')), 'לא נוגע בבקשות ולא מוסיף/מוחק שורות');
   }),
 
   test('221 מחבר: מובנית (office_id ריק), אידמפוטנטית, ובלי נגיעה בשאר הפונקציות', () => {

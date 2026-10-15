@@ -22,7 +22,7 @@ import EmailInput from './ui/EmailInput';
 import RepApprovalGuide, { RepApprovalGuideButton, repApprovalCard, type RepApprovalPerson } from './portal/RepApprovalGuide';
 import { PhotoGuideButton } from './portal/PhotoGuide';
 import PhotoGuideDialog from './portal/PhotoGuideDialog';
-import { photoGuideFor } from './portal/photoGuides';
+import { photoGuideFor, photoGuideStepCount } from './portal/photoGuides';
 import { linkHost } from '../features/links/linkDestinations';
 import { REP_PORTAL_CARD_FIXED } from '../../supabase/functions/_shared/repTemplates.ts';
 import './portal/portalPage.css';
@@ -1088,7 +1088,7 @@ function PhotoGuideRow({ item, brand, accent }: {
   };
   return (
     <div className="pp-photo-row" data-testid="photo-guide-row">
-      <PhotoGuideButton steps={guide.steps.length} onClick={() => setOpen(true)} accent={accent} />
+      <PhotoGuideButton steps={photoGuideStepCount(guide)} onClick={() => setOpen(true)} accent={accent} />
       {readOnly
         ? <span className="pp-site-link is-inert" style={{ ...linkStyle, opacity: .55, cursor: 'default' }}>{guide.siteLabel} ↗</span>
         : <a className="pp-site-link" href={guide.entry.url} target="_blank" rel="noopener noreferrer" style={linkStyle}>{guide.siteLabel} ↗</a>}

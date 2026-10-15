@@ -10,11 +10,16 @@
 //   מחליף סימון ידני של משפט ארוך. ההעתקה כולה בדפדפן — אין בה קריאה לשרת ושום דבר לא נרשם.
 //   צעד שיש בו גם צילום וגם נוסח: קודם הצילום (איפה לוחצים ואיפה כותבים), ורק אחריו הנוסח להעתקה והמשך
 //   ההוראות. בצעד עם צילום בלבד — הסדר כמו תמיד (הוראה, שורת משנה, צילום).
+// ‼ מסלולים (`track`): צעד עם `choices` שואל «מה אתם?», והבחירה קובעת אילו צעדים נשארים — צעד בלי `track` משותף
+//   לכולם, וצעד עם `track` מוצג רק במסלול שלו. לפני בחירה המדריך הולך במסלול ברירת המחדל (`defaultTrack`), כך ש«הבא»
+//   לעולם אינו כפתור מת. בחירה בלי מסלול (`track: null`) = «אין לכם מה להגיש»: ההסבר שלה מוצג, והצעד הזה הוא האחרון.
+//   הצילומים ממוספרים לפי הרשימה המלאה — `imageUrl` מקבל את המיקום ברשימה המלאה, לא במסלול.
 // ‼ המדריך הוא תוכן לקריאה: פתיחה, מעבר בין צעדים, הגדלה וקישורים — אף אחד מהם לא מדווח כלום
 //   ולא משלים שום בקשה. מי שמשלים בקשה הוא המשתמש, בפקד נפרד.
-import { useCallback, useEffect, useId, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import './repApprovalGuide.css';
+import { stepsOnTrack } from './photoGuideSteps';
 
 export interface PhotoGuideStep {
   title: string;
@@ -33,7 +38,20 @@ export interface PhotoGuideStep {
   link?: { url: string; label: string; host: string };
   /** נוסח להעתקה — תיבה עם הטקסט וכפתור «העתקת הנוסח». */
   copy?: { label: string; text: string };
+  /** המסלול שהצעד שייך לו. בלי ⇒ משותף לכל המסלולים. */
+  track?: string;
+  /** שאלת «מה אתם?» — הבחירה קובעת את המסלול. */
+  choices?: PhotoGuideChoice[];
 }
+
+export interface PhotoGuideChoice {
+  label: string;
+  sub?: string;
+  /** null ⇒ אין צעדים נוספים (למשל «המעסיק מגיש»); `note` אומר מה עושים במקום. */
+  track: string | null;
+  note?: string;
+}
+
 
 export interface PhotoGuideEntry {
   url: string;
@@ -95,14 +113,16 @@ function CopyBox({ label, text }: { label: string; text: string }) {
   );
 }
 
-export default function PhotoGuide({ onClose, accent, kicker, steps, imageUrl, entry, entryInert, fine, scopeNote }: {
+export default function PhotoGuide({ onClose, accent, kicker, steps: allSteps, defaultTrack, imageUrl, entry, entryInert, fine, scopeNote }: {
   onClose: () => void;
   /** צבע המשרד בדף האישי; במשרד — ברירת המחדל. */
   accent?: string;
   /** «מדריך מצולם · …» — מעל כותרת הצעד. */
   kicker: string;
   steps: readonly PhotoGuideStep[];
-  /** כתובת הצילום של צעד לפי המיקום שלו ברשימה (רק לצעד עם `image`). */
+  /** המסלול לפני שנבחרה תשובה בשאלת «מה אתם?». */
+  defaultTrack?: string;
+  /** כתובת הצילום של צעד לפי המיקום שלו ברשימה המלאה (רק לצעד עם `image`). */
   imageUrl: (stepIndex: number) => string;
   /** קישור הכניסה לאתר — מוצג בצעד הראשון. */
   entry?: PhotoGuideEntry;
@@ -113,14 +133,23 @@ export default function PhotoGuide({ onClose, accent, kicker, steps, imageUrl, e
   /** במשרד, בלי לקוח: משפט אחד שאומר שזה המדריך הכללי. */
   scopeNote?: string;
 }) {
-  const [i, setI] = useState(0);
+  const [rawI, setI] = useState(0);
+  const [picked, setPicked] = useState<PhotoGuideChoice | null>(null);
   const [zoom, setZoom] = useState(false);
+  const track = picked ? picked.track : defaultTrack;
+  const visible = useMemo(() => stepsOnTrack(allSteps, track), [allSteps, track]);
+  const steps = useMemo(() => visible.map(v => v.step), [visible]);
+  const imageAt = useCallback((k: number) => imageUrl(visible[k].at), [imageUrl, visible]);
   const titleId = useId();
   const dialogRef = useRef<HTMLDivElement>(null);
   const zoomRef = useRef<HTMLDivElement>(null);
   const openerRef = useRef<Element | null>(null);
   const n = steps.length;
+  const i = Math.min(rawI, n - 1);
   const step = steps[i];
+  // ‼ קישור הכניסה לאתר — בצעד הראשון שאינו השאלה, ורק במסלול של האתר (ברירת המחדל): מי שמגיש בטופס אחר
+  //   או שהמעסיק מגיש בשבילו לא צריך «עוד לא נכנסתם?». במדריך בלי שאלה — הצעד הראשון, כמו תמיד.
+  const entryAt = steps.findIndex(s => !s.choices && (!s.track || s.track === defaultTrack));
   const last = i === n - 1;
 
   const next = useCallback(() => setI(v => Math.min(n - 1, v + 1)), [n]);
@@ -140,8 +169,8 @@ export default function PhotoGuide({ onClose, accent, kicker, steps, imageUrl, e
 
   // הצעד הבא נטען מראש (אם יש בו צילום), כדי שהמעבר לא יחכה לרשת.
   useEffect(() => {
-    if (i + 1 < n && steps[i + 1].image) { const img = new Image(); img.src = imageUrl(i + 1); }
-  }, [i, n, steps, imageUrl]);
+    if (i + 1 < n && steps[i + 1].image) { const img = new Image(); img.src = imageAt(i + 1); }
+  }, [i, n, steps, imageAt]);
 
   // ההגדלה ממוקדת על הפקד המסומן.
   useEffect(() => {
@@ -189,7 +218,7 @@ export default function PhotoGuide({ onClose, accent, kicker, steps, imageUrl, e
     <>
       <figure className="rag-fig">
         <button type="button" className="rag-imgbtn" onClick={() => setZoom(true)} aria-label={`הגדלת הצילום של צעד ${i + 1}`}>
-          <img key={i} src={imageUrl(i)} alt={img.alt} width={img.w} height={img.h} decoding="async" />
+          <img key={i} src={imageAt(i)} alt={img.alt} width={img.w} height={img.h} decoding="async" />
           <span className="rag-zoom-hint" aria-hidden="true">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><circle cx="10.5" cy="10.5" r="6.5" /><path d="M15.5 15.5L21 21M10.5 7.5v6M7.5 10.5h6" /></svg>
             לחיצה על הצילום מגדילה אותו
@@ -220,7 +249,7 @@ export default function PhotoGuide({ onClose, accent, kicker, steps, imageUrl, e
           <p className="rag-count" aria-live="polite">צעד {i + 1} מתוך {n}</p>
           {scopeNote && <p className="rag-fine rag-scope" data-testid="rag-scope-note">{scopeNote}</p>}
           <p className="rag-text">{step.text}</p>
-          {i === 0 && entry && (
+          {i === entryAt && entry && (
             <p className="rag-entry">
               עוד לא נכנסתם?{' '}
               {entryInert
@@ -238,6 +267,21 @@ export default function PhotoGuide({ onClose, accent, kicker, steps, imageUrl, e
               <span className="rag-entry-host" dir="ltr">{step.link.host}</span>
             </p>
           )}
+          {step.choices && (
+            <div className="rag-choices" role="radiogroup" aria-label={step.title}>
+              {step.choices.map(c => (
+                <button key={c.label} type="button" role="radio" aria-checked={picked === c} className="rag-choice"
+                  onClick={() => setPicked(c)}>
+                  <span className="rag-choice-dot" aria-hidden="true" />
+                  <span className="rag-choice-body">
+                    <span className="rag-choice-label">{c.label}</span>
+                    {c.sub && <span className="rag-choice-sub">{c.sub}</span>}
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+          {step.choices && picked?.note && <p className="rag-choice-note" aria-live="polite" style={{ whiteSpace: 'pre-line' }}>{picked.note}</p>}
           {figureFirst && figure}
           {step.copy && <CopyBox key={i} label={step.copy.label} text={step.copy.text} />}
           {step.extra && <p className="rag-extra" style={{ whiteSpace: 'pre-line' }}>{step.extra}</p>}
@@ -264,7 +308,7 @@ export default function PhotoGuide({ onClose, accent, kicker, steps, imageUrl, e
         <div className="rag-zoom" role="dialog" aria-modal="true" aria-label={`הצילום של צעד ${i + 1} בגודל מלא`}>
           <button type="button" className="rag-zoom-x" onClick={() => setZoom(false)}>סגירת ההגדלה ✕</button>
           <div className="rag-zoom-scroll" ref={zoomRef} tabIndex={0} dir="ltr">
-            <img src={imageUrl(i)} alt={img.alt} width={img.w} height={img.h} />
+            <img src={imageAt(i)} alt={img.alt} width={img.w} height={img.h} />
           </div>
         </div>
       )}

@@ -14,7 +14,7 @@ export default function PhotoGuideDialog({ guide, onClose, accent, entryInert }:
 }) {
   const imageUrl = useCallback((i: number) => photoGuideImageUrl(guide, i), [guide]);
   return (
-    <PhotoGuide onClose={onClose} accent={accent} kicker={guide.kicker} steps={guide.steps} imageUrl={imageUrl}
+    <PhotoGuide onClose={onClose} accent={accent} kicker={guide.kicker} steps={guide.steps} defaultTrack={guide.defaultTrack} imageUrl={imageUrl}
       entry={guide.entry} entryInert={entryInert} fine={guide.fine} />
   );
 }
