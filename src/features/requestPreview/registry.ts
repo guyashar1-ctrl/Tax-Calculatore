@@ -20,7 +20,7 @@ export type ClientSees = 'page' | 'officeLine' | 'nothing' | 'separateLink';
 export type MailKey =
   | 'portalLink' | 'portalReminder' | 'documentsSent' | 'repOnboard' | 'repSign' | 'repNiApprove' | 'repActive'
   | 'repPrerequisites' | 'releaseLetter';
-export type DocKind = 'officeFile' | 'clientUpload' | 'generatedPoa' | 'generatedRelease' | 'smartForm' | 'clientFile';
+export type DocKind = 'officeFile' | 'clientUpload' | 'generatedPoa' | 'generatedRelease' | 'smartForm' | 'clientForm' | 'clientFile';
 /** המסך הנפרד שהכפתור פותח — ?onboard= · ?sign= · ?release= · ?intake= · ?sign-form=. */
 export type LinkedKey = 'onboard' | 'sign' | 'release' | 'intake' | 'signForm';
 export type EditHint =
@@ -182,6 +182,15 @@ export const CATALOG_META: Record<CatalogType, EntryMeta> = {
   smart_form_btl6101: {
     clientSees: 'separateLink', why: 'לא מופיעה בדף — הלקוח מקבל קישור חתימה אישי לטופס', mails: [], docs: ['smartForm'], linked: 'signForm',
     editAt: { kind: 'none', why: 'הטופס מנוהל בתבנית 6101' },
+  },
+  // 247 · הלקוח ממלא את מה שחסר וחותם בדף עצמו — כרטיס «למילוי וחתימה»
+  smart_form_ita4440: {
+    clientSees: 'page', why: 'כרטיס «למילוי וחתימה» בדף; מה שחסר נשאל במסך משלו, ואז הטופס המלא וחתימה', mails: ['portalLink'], docs: ['clientForm'],
+    editAt: { kind: 'none', why: 'הטופס מנוהל בתבנית 4440 («ספריית הבקשות» ← «מסמכים»)' },
+  },
+  smart_form_vat821: {
+    clientSees: 'page', why: 'כרטיס «למילוי וחתימה» בדף; מה שחסר נשאל במסך משלו, ואז הטופס המלא וחתימה', mails: ['portalLink'], docs: ['clientForm'],
+    editAt: { kind: 'none', why: 'הטופס מנוהל בתבנית 821 («ספריית הבקשות» ← «מסמכים»)' },
   },
 };
 
@@ -542,6 +551,23 @@ function catalogView(type: CatalogType): TargetView {
     }
     case 'smart_form_btl6101':
       return singleView(meta, [], () => ({ samples: [draft('data_import', {})] }), () => []);
+    case 'smart_form_ita4440':
+    case 'smart_form_vat821': {
+      // ‼ הפריט בדף נגזר מההיטל smartForm.state בלבד (_smart_form_portal_item) — אותו פריט כמו אצל לקוח אמיתי
+      const ita = type === 'smart_form_ita4440';
+      const axes: AxisDef[] = [{ key: 'state', label: 'מצב', options: [
+        { key: 'fill', label: 'למילוי' }, { key: 'sign', label: 'מוכן לחתימה' }, { key: 'signed', label: 'נחתם' }] }];
+      return singleView(meta, axes, sel => {
+        const s = pick(sel, axes[0]);
+        const state = s === 'fill' ? 'waiting_client_info' : s === 'sign' ? 'awaiting_signatures' : 'signed';
+        return { samples: [draft('custom_request', {
+          title: ita ? 'תצהיר נשואים החיים בנפרד (4440) · מס הכנסה' : 'רישום עוסק במע״מ (821) · מע״מ',
+          clientTitle: ita ? 'תצהיר על חיים בנפרד (טופס 4440)' : 'רישום העסק במע״מ (טופס 821)',
+          requirements: [],
+          smartForm: { templateKey: ita ? 'ita-4440' : 'vat-821', state, clientFill: true, authority: ita ? 'ita' : 'vat' },
+        }, { status: s === 'signed' ? 'in_progress' : 'waiting_client', ball: s === 'signed' ? 'me' : 'client', owner: 'client' })] };
+      });
+    }
   }
 }
 

@@ -101,7 +101,7 @@ export interface UnmappedArea {
 export interface SmartFormTemplate {
   key: string;
   title: string;
-  authority: 'btl';
+  authority: 'btl' | 'ita' | 'vat';
   formNumber: string;
   /** הגרסה כפי שמודפסת בתחתית הטופס («06.2026»). */
   version: string;

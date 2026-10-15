@@ -44,6 +44,7 @@ import { CATALOG_TYPES, type CatalogType, type PreviewTarget } from '../../featu
 import { EMPTY_FIRM_PROFILE, composerPreviewOfTemplate } from './InlineComposer';
 import TaxYearRequestForm from '../../features/taxYear/TaxYearRequestForm';
 import { AVAILABLE } from '../../features/taxKnowledge/availability';
+import type { ClientFormKey } from '../../features/smartForms/clientForms/types';
 
 const TAX_YEAR_ENTRY = AVAILABLE.taxEstimate ? 'תיק המס · קליטה, הערכה, דוח שנתי או הצהרת הון' : 'תיק המס · קליטה, דוח שנתי או הצהרת הון';
 
@@ -81,6 +82,10 @@ export const ADD_REQUEST_CATALOG: { type: string; hint: string; once: boolean }[
   // 206 · טופס חכם: פתיחה/שינוי/סגירה של עצמאי ודיווח עיסוקים. ‼ הגשה פתוחה אחת
   // ללקוח — השרת מחזיר את הקיימת, ולכן הפריט זמין תמיד.
   { type: 'smart_form_btl6101', hint: 'ממולא מהכרטיס ומב"ל, נחתם במשרד או בקישור, ונשאר במעקב עד תשובת ב"ל', once: false },
+  // 247 · טפסים רשמיים שהלקוח ממלא וחותם בדף האישי: מה שבכרטיס ממולא, השאר בשאלון, ומה שנענה ויש לו
+  // מקום בכרטיס — נשמר בכרטיס. ‼ בקשה פתוחה אחת לכל טופס — השרת מחזיר את הקיימת.
+  { type: 'smart_form_ita4440', hint: 'תצהיר לפקיד השומה - הלקוח משלים בדף מה שחסר, רואה את הטופס המלא וחותם', once: false },
+  { type: 'smart_form_vat821', hint: 'פתיחת תיק עוסק במע״מ - מה שבכרטיס ממולא, הלקוח משלים את השאר וחותם בדף', once: false },
 ];
 /* ‼ «אישור המייצג באזור האישי» ירד מכאן (הכרעת גיא, 2026-08-25). הוא אינו
    בקשה שמוסיפים אלא צעד בתוך ביצוע הייצוג: נוצר לבד כשהייצוג מוגש לשע"ם
@@ -196,6 +201,8 @@ interface Props {
   onRequestAuthorityRepresentation?: (role: 'client' | 'spouse') => Promise<{ error: string | null; stepId?: string }>;
   /** פותח (או מחזיר) הגשת 6101 ומעביר למסך שלה. מחזיר הודעת שגיאה או null. */
   onStartSmartForm?: () => Promise<string | null>;
+  /** 247 · פותח (או מחזיר) בקשת טופס שהלקוח ממלא וחותם, ומעביר לפאנל שלה. מחזיר הודעת שגיאה או null. */
+  onStartClientForm?: (key: ClientFormKey, published: boolean) => Promise<string | null>;
   /**
    * הפעלת מסלול ידני/שנתי — פותח את חלון ההפעלה על המסלול שנבחר. ‼ החלון הזה
    * לא מפעיל בעצמו: ההפעלה (תצוגה, שנה, פעולות מול רשות) חיה במקום אחד.
@@ -207,7 +214,7 @@ interface Props {
   onCreated: () => void;
 }
 
-export default function AddRequestDialog({ clientId, steps, processPublished, awaitingQuoteApproval, intake, currentEngagementId, presetType, presetDocuments, thenEmail, prevAccountantEmail, onUseTemplate, client, niExecution, onRequestAuthorityRepresentation, onStartSmartForm, onStartFlow, onOpenTaxYear, onClose, onCreated }: Props) {
+export default function AddRequestDialog({ clientId, steps, processPublished, awaitingQuoteApproval, intake, currentEngagementId, presetType, presetDocuments, thenEmail, prevAccountantEmail, onUseTemplate, client, niExecution, onRequestAuthorityRepresentation, onStartSmartForm, onStartClientForm, onStartFlow, onOpenTaxYear, onClose, onCreated }: Props) {
   /** מסלולים ידניים/שנתיים של המשרד — לבלוק «מסלולים» בקטלוג. */
   const [flows, setFlows] = useState<{ id: string; name: string; trigger: FlowTrigger; stages: number }[]>([]);
   useEffect(() => {
@@ -537,6 +544,11 @@ export default function AddRequestDialog({ clientId, steps, processPublished, aw
     ? !!onRequestAuthorityRepresentation && authRepAvailable.length > 0
     : c.type === 'smart_form_btl6101'
     ? !!onStartSmartForm
+    // 247 · תצהיר החיים בנפרד — רק לנשוי/אה; 821 — לעוסק יחיד (השרת אוכף שוב)
+    : c.type === 'smart_form_ita4440'
+    ? !!onStartClientForm && client?.familyStatus === 'married'
+    : c.type === 'smart_form_vat821'
+    ? !!onStartClientForm && client?.type !== 'company'
     : !(c.once && existing.has(c.type as OnboardingStep['stepType'])));
   /** ‼ רק בקשות פתוחות. תלות בשלב שכבר הושלם אינה דוחה כלום — השרת פותח את
    *  הבקשה מיד — ולכן "ייפתח רק אחרי «ייצוג מול הרשויות»" על ייצוג שכבר
@@ -716,6 +728,12 @@ export default function AddRequestDialog({ clientId, steps, processPublished, aw
     }
     if (type === 'prev_accountant_track') { void createPrevTrack(); return; }
     if (type === 'authority_representation') { setMode('authority_rep'); return; }
+    if ((type === 'smart_form_ita4440' || type === 'smart_form_vat821') && onStartClientForm) {
+      setBusy(true); setError(null);
+      void onStartClientForm(type === 'smart_form_ita4440' ? 'ita-4440' : 'vat-821', processPublished ? sendNow : true)
+        .then(err => { setBusy(false); if (err) setError(err); });
+      return;
+    }
     if (type === 'smart_form_btl6101' && onStartSmartForm) {
       setBusy(true); setError(null);
       void onStartSmartForm().then(err => { setBusy(false); if (err) setError(err); });
@@ -734,6 +752,8 @@ export default function AddRequestDialog({ clientId, steps, processPublished, aw
     : type === 'send_document' ? 'שליחת מסמכים ללקוח'
     : type === 'authority_representation' ? 'ייצוג ברשות - לאדם'
     : type === 'smart_form_btl6101' ? 'דין וחשבון רב שנתי (6101) · ביטוח לאומי'
+    : type === 'smart_form_ita4440' ? 'תצהיר נשואים החיים בנפרד (4440) · מס הכנסה'
+    : type === 'smart_form_vat821' ? 'רישום עוסק במע״מ (821) · מע״מ'
     : STEP_TYPE_LABELS[type as OnboardingStep['stepType']];
 
   // ─── «צפייה» ─────────────────────────────────────────────────────────────────────────────────────

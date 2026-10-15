@@ -9,9 +9,12 @@
 //
 // ‼ מיתוג המשרד, לא PIVO — כמו כל מה שהלקוח רואה.
 
-import { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, lazy, Suspense, useContext, useEffect, useMemo, useState } from 'react';
 import TaxInfoScreen, { openTaxInfoFromHash } from '../features/taxYear/TaxInfoScreen';
 import { PortalTaxEstimate } from '../features/taxYear/extensions';
+import { openClientFormFromHash } from '../features/smartForms/clientForms/hash';
+// 247 · מסך הטופס הרשמי (מילוי וחתימה) — נטען רק כשנפתח (pdf-lib, הגופנים והתבנית)
+const ClientFormScreen = lazy(() => import('../features/smartForms/clientForms/ClientFormScreen'));
 import { FirmBranding } from '../types/firmProfile';
 import { MESSAGE_DEFAULT_TITLE } from '../lib/sendDocuments';
 import { deriveQuotationBrand } from './quotations/quotationBranding';
@@ -114,7 +117,9 @@ export interface PortalItem {
     | 'business_details'
     /* ‼ 224 · אישור ייפוי הכוח בביטוח הלאומי — פעולה של האדם עצמו באתר ב"ל. אין פקד
        שסוגר: ההשלמה נגזרת מהבדיקה מול ב"ל, לא מהצהרה. */
-    | 'ni_approval';
+    | 'ni_approval'
+    /* ‼ 247 · טופס רשמי (4440/821) שהלקוח משלים, רואה מלא וחותם — מסך משלו (ClientFormScreen). */
+    | 'smart_form';
   /**
    * 224 · הפעולה של אדם אחר במשק הבית (בן/בת הזוג) — השם הפרטי שלו. הדף משותף
    * לזוג, ולכן פריט כזה יושב בקטע «מה צריך מ{שם}» ולא נספר ב«ממתין לך».
@@ -638,7 +643,9 @@ function ActionItem({ item, brand, accent, last, onDone }: {
 }) {
   const { actions, readOnly, sample } = usePortal();
   // ‼ 13.10.2026 · רענון כשהשאלון פתוח (#q=<בקשה>) — חוזרים לאותו מסך שאלון
-  const [open, setOpen] = useState(() => item.actionKind === 'taxInfo' && !!item.actionValue && openTaxInfoFromHash() === item.actionValue);
+  const [open, setOpen] = useState(() => !!item.actionValue && (
+    (item.actionKind === 'taxInfo' && openTaxInfoFromHash() === item.actionValue)
+    || (item.kind === 'smart_form' && openClientFormFromHash() === item.actionValue)));
   const href = actionHref(item);
   const linked = linkedKind(item);
   const inPage = item.actionKind === 'portal';
@@ -659,6 +666,8 @@ function ActionItem({ item, brand, accent, last, onDone }: {
   /** 220 · «פרטי העסק» — הטופס נפתח בלחיצה («מילוי פרטים»), כמו בהדמיה המאושרת. */
   const bizDetails = inPage && item.kind === 'business_details';
   const niApproval = item.kind === 'ni_approval';
+  /** 247 · טופס רשמי למילוי וחתימה — מסך משלו, כמו השאלון. */
+  const clientForm = inPage && item.kind === 'smart_form' && !!item.actionValue;
   /** 229 · «השלמת מידע» לשנת מס — שאלה אחת למסך, בתוך הכרטיס. */
   const taxInfo = item.actionKind === 'taxInfo' && !!item.actionValue;
   /** 232 · הערכת המס שפורסמה — הגרסה המאושרת עצמה, לקריאה בתוך הכרטיס. */
@@ -716,6 +725,18 @@ function ActionItem({ item, brand, accent, last, onDone }: {
           {(readOnly || sample) && <div style={{ fontSize: 12.5, color: brand.muted, marginTop: 6 }}>כאן הלקוח עונה על השאלות במסך משלו, אחת למסך. התצוגה המלאה — «מה הלקוח רואה» בדף התהליך במשרד.</div>}
           {open && !readOnly && !sample && token && (
             <TaxInfoScreen stepId={item.actionValue!} token={token} label={item.label} onClose={() => { setOpen(false); onDone(); }} />
+          )}
+        </div>
+      ) : clientForm ? (
+        <div style={{ marginTop: 11 }}>
+          <button type="button" onClick={() => setOpen(true)} style={readOnly || sample ? inertBtn : primaryBtn} aria-haspopup="dialog" disabled={readOnly || sample}>
+            {item.cta || 'למילוי וחתימה'}
+          </button>
+          {(readOnly || sample) && <div style={{ fontSize: 12.5, color: brand.muted, marginTop: 6 }}>כאן הלקוח משלים במסך משלו רק את מה שחסר, רואה את הטופס המלא כפי שיוגש וחותם.</div>}
+          {open && !readOnly && !sample && token && (
+            <Suspense fallback={null}>
+              <ClientFormScreen stepId={item.actionValue!} token={token} label={item.label} onClose={() => { setOpen(false); onDone(); }} />
+            </Suspense>
           )}
         </div>
       ) : niApproval ? (
