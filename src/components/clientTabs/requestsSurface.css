@@ -283,3 +283,49 @@
   .rl-part { gap: 2px 10px; }
   .rl-part-state { flex-basis: 100%; }
 }
+
+/* ── ⋯ בשורת הבקשה: הסרה / ביטול, או למה אי אפשר (15.10.2026) ─────────────────────
+   ‼ קבוע בכל שורה ולא מאחורי פתיחה: גיא לא מצא איך מוחקים בקשה כשהפעולה ישבה רק
+   בתוך שורה פתוחה, כקישור אפור קטן. שקט במנוחה (כמו החץ), ברור במגע ובמעבר עכבר. */
+.rl-more-slot { display: flex; align-items: center; flex-shrink: 0; }
+.rl-more-wrap { position: relative; display: inline-flex; }
+.rl-rowmore {
+  appearance: none; border: 0; background: none; color: var(--ink-3); cursor: pointer; padding: 0;
+  width: 32px; height: 32px; border-radius: 8px; display: grid; place-items: center; flex-shrink: 0;
+}
+.rl-rowmore:hover, .rl-rowmore.is-open { background: var(--surface-2); color: var(--ink-1); }
+.rl-rowmore:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; background: var(--surface-2); color: var(--ink-1); }
+.rl-rowmore:disabled { opacity: .4; cursor: default; }
+@media (pointer: coarse) { .rl-rowmore { width: 44px; height: 44px; } }
+.rl-more-menu[hidden] { display: none; }
+.rl-more-menu { min-width: 250px; max-width: min(320px, calc(100vw - 32px)); gap: 2px; white-space: normal; }
+.rl-mi {
+  appearance: none; border: 0; background: none; font: inherit; text-align: start; width: 100%;
+  display: flex; flex-direction: column; gap: 2px; padding: .55rem .6rem; border-radius: 7px;
+  cursor: pointer; min-height: 44px; color: var(--ink-1);
+}
+.rl-mi:hover, .rl-mi:focus-visible { background: var(--surface-2); }
+.rl-mi-l { font-size: var(--fs-13); font-weight: 600; }
+.rl-mi.is-danger .rl-mi-l { color: var(--err); }
+.rl-mi-h { display: block; font-size: var(--fs-12); font-weight: 400; color: var(--ink-3); line-height: 1.5; }
+/* ‼ ביטול ב"ל הוא רכיב קיים עם חלון משלו — כאן רק עוטפים אותו בפריט ובהסבר. */
+.rl-mi-wrap { display: flex; flex-direction: column; gap: 2px; padding: .15rem .6rem .5rem; }
+.rl-mi-wrap .ob-menu-item { padding-inline: 0; min-height: 36px; white-space: normal; font-weight: 600; }
+.rl-mi-wrap .ob-menu-item-danger { color: var(--err); }
+.rl-mi-blocked { display: flex; flex-direction: column; gap: 3px; padding: .55rem .6rem; }
+.rl-mi-blocked .rl-mi-l { color: var(--ink-2); }
+.rl-mi-link { align-self: flex-start; min-height: 32px; padding-inline: 0; }
+
+/* חלון האישור */
+.rl-rm-lead { margin: 0 0 .6rem; font-size: var(--fs-14); line-height: 1.6; color: var(--ink-1); }
+.rl-rm-h { margin: .55rem 0 .15rem; font-size: var(--fs-12); font-weight: 700; color: var(--ink-3); }
+.rl-rm-list { margin: 0; padding-inline-start: 1.1rem; font-size: var(--fs-13); color: var(--ink-2); line-height: 1.65; }
+.rl-rm-warn {
+  margin: .75rem 0 0; padding: .5rem .65rem; border-radius: 8px; line-height: 1.55; font-size: var(--fs-13);
+  background: var(--chip-amber-bg); color: var(--chip-amber-tx);
+}
+.rl-rm-reason { display: flex; flex-direction: column; gap: 4px; margin-top: .75rem; font-size: var(--fs-13); font-weight: 600; color: var(--ink-2); }
+.rl-rm-reason textarea { width: 100%; font: inherit; font-weight: 400; resize: vertical; }
+.rl-rm-err { margin: .75rem 0 0; font-size: var(--fs-13); line-height: 1.55; color: var(--err); }
+@media (max-width: 640px) { .rl-more-slot { order: 1; } }
+.rl-done-note { margin: 8px 0 2px; font-size: var(--fs-12); color: var(--ink-3); line-height: 1.55; }

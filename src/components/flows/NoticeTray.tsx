@@ -32,6 +32,7 @@ import type { ReadyToSend } from '../../hooks/useReadyToSend';
 import type { ReadyUnknownNotice } from '../../hooks/readyToSendLoader';
 import { STEP_TYPE_LABELS, type OnboardingStep, type OnboardingStepType } from '../../types/onboarding';
 import { formatDate } from '../../utils/dateFormat';
+import { pageChangesText } from '../../utils/requestRemoval';
 import './clientFlows.css';
 
 interface Props {
@@ -110,6 +111,8 @@ export default function NoticeTray({
   const inFlight = !!own.inFlight;
   const remindN = own.reminder?.items?.length ?? 0;
   const nDrafts = unpublished.length;
+  // ‼ 15.10: הסרה שממתינה לפרסום נאמרת כהסרה — לא כ«עוד לא בדף» (הלקוח עדיין רואה אותה).
+  const changes = pageChangesText(unpublished.map(s => ({ title: titleOf(s), removal: !!s.pendingCancel })), unpublishedAllNew, firstName);
 
   const hasSend = nNew > 0 || persons.length > 0;
   // ‼ מייל «לבד» כולל רק פריטים של שלב «לבד» מריצה שאינה בעצירה — השורה מבטיחה
@@ -294,15 +297,9 @@ export default function NoticeTray({
         <div className="rl-out-row">
           {numbered && <span className="rl-out-n" aria-hidden="true">1</span>}
           <div className="rl-out-text">
-            <strong>
-              {nDrafts === 1
-                ? (unpublishedAllNew ? `עוד לא בדף: «${titleOf(unpublished[0])}»` : `שינוי שעוד לא בדף: «${titleOf(unpublished[0])}»`)
-                : `${nDrafts} ${unpublishedAllNew ? 'בקשות' : 'שינויים'} עוד לא בדף: ${unpublished.slice(0, 3).map(s => `«${titleOf(s)}»`).join(', ')}${nDrafts > 3 ? ' ועוד' : ''}`}
-            </strong>
+            <strong>{changes.head}</strong>
             <span className="rl-out-why">
-              {awaitingQuoteApproval
-                ? 'יופיעו בדף מעצמם כשההצעה תאושר'
-                : `הפרסום לא שולח מייל. ${firstName} לא יראה עד שתפרסם.`}
+              {awaitingQuoteApproval ? 'יופיעו בדף מעצמם כשההצעה תאושר' : changes.why}
             </span>
           </div>
           {!awaitingQuoteApproval && (

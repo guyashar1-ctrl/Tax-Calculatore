@@ -7,7 +7,7 @@
 // לא זזים. השרת מכריע את השלב מחדש בתוך נעילה — אם הוא חושב אחרת מהמסך (נשלח
 // בינתיים מלשונית אחרת), החלון עובר לנוסח האזהרה ושואל שוב. כישלון נשאר בחלון.
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { NiTracking, PersonRole } from '../types';
 import { supabase } from '../lib/supabase';
 import Modal from './ui/Modal';
@@ -64,9 +64,15 @@ interface Props {
   onChanged?: () => void;
   /** מראה הכפתור: קישור שקט בשורה, או כפתור בתפריט. */
   variant?: 'link' | 'menu';
+  /**
+   * 15.10 · פתיחה מבחוץ (תפריט ⋯ בשורת הבקשה): מונה שעולה פותח את החלון. ‼ החלון אינו portal,
+   * ולכן הוא חייב לשבת מחוץ לתפריט (שנסגר) — והתפריט מציג את הפריט שלו בעצמו (hideTrigger).
+   */
+  openSignal?: number;
+  hideTrigger?: boolean;
 }
 
-export default function NiCancelRequest({ clientId, role, name, track, approved = false, onChanged, variant = 'link' }: Props) {
+export default function NiCancelRequest({ clientId, role, name, track, approved = false, onChanged, variant = 'link', openSignal, hideTrigger = false }: Props) {
   const initial = niCancelStage(track, approved);
   const [open, setOpen] = useState(false);
   const [stage, setStage] = useState<Stage>(initial ?? 'not_sent');
@@ -77,6 +83,8 @@ export default function NiCancelRequest({ clientId, role, name, track, approved 
   const [unknown, setUnknown] = useState(false);
   /** תשובה סופית מהשרת (כבר אושרה / כבר לא פעילה) — החלון רק אומר מה קרה. */
   const [outcome, setOutcome] = useState<{ title: string; text: string } | null>(null);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { if (openSignal) start(); }, [openSignal]);
   if (!initial && !open) return null;
 
   function start() {
@@ -120,7 +128,7 @@ export default function NiCancelRequest({ clientId, role, name, track, approved 
   const label = NI_CANCEL_LABEL[initial ?? stage];
   return (
     <>
-      {initial && (
+      {initial && !hideTrigger && (
         <button
           type="button"
           className={variant === 'menu' ? 'ob-menu-item ob-menu-item-danger' : 'ni-cancel-link'}

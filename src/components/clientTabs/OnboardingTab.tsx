@@ -53,7 +53,12 @@ import { EMAIL_STATUS_LABEL, EmailMessage, emailRowState, isUnknownEmailStatus, 
 import SentEmailViewer from '../EmailActivity/SentEmailViewer';
 import EmailPreviewDialog from '../EmailActivity/EmailPreviewDialog';
 import ConfirmDialog from '../ui/ConfirmDialog';
-import NiCancelRequest from '../NiCancelRequest';
+import NiCancelRequest, { niCancelStage } from '../NiCancelRequest';
+import { RowActionsMenu, RemoveRequestDialog, type RemovalOutcome } from './RequestRowActions';
+import {
+  removalPlan, removalErrorText, removalWhen, REMOVAL_UNKNOWN_TEXT,
+  type RemovalKind, type RemovalPlan, type RemovalTarget,
+} from '../../utils/requestRemoval';
 import OnboardingJourneyMap from './OnboardingJourneyMap';
 import Modal from '../ui/Modal';
 import Sheet from '../ui/Sheet';
@@ -114,7 +119,7 @@ import { MONTHS as TY_MONTHS } from '../../features/taxYear/asks';
 import { demandView, type WealthDemand } from '../../features/taxYear/wealthDemand';
 import { takePendingIntent, type SendOfficeDocsIntent } from '../../lib/pendingIntent';
 import { BTL6101_PURPOSE_LABELS, type Btl6101Purpose } from '../../features/smartForms/btl6101/model';
-import { filingErrorText, startFiling, type SmartFormProjection } from '../../features/smartForms/api';
+import { advanceFiling, filingErrorText, startFiling, type SmartFormProjection } from '../../features/smartForms/api';
 import ClientFormPanel from '../../features/smartForms/clientForms/ClientFormPanel';
 import { clientFormErrorText, startClientForm } from '../../features/smartForms/clientForms/api';
 import type { ClientFormKey } from '../../features/smartForms/clientForms/types';
@@ -301,6 +306,11 @@ const RowOpenContext = createContext<{
   awaitingPublish?: Set<string>;
   /** 05.10 · השם של בקשה בתוך קבוצה קבועה («הקמת העסק בפייפרלס») — לפי הסוג, לא לפי הכותרת. */
   groupNames?: Map<string, string>;
+  /**
+   * 15.10 · ⋯ קבוע בכל שורה: הסרה / ביטול, או למה אי אפשר. דרך ה-context כי השורה נבנית בתוך
+   * עשרות כרטיסים מתמחים (JourneyRow) ואף אחד מהם לא צריך לדעת איך מסירים.
+   */
+  rowActions?: (step: OnboardingStep) => React.ReactNode;
   /** 05.10 · עבודה מהבית (220) — לכרטיס «פרטי העסק» ולבדיקת ההגדרות בפייפרלס. */
   homeOffice?: {
     clientId: string; firstName: string; state: HomeOfficeState; history: HomeOfficeHistory | null;
@@ -565,6 +575,12 @@ export default function OnboardingTab({
   // ‼ 14.10.2026 · «הסר…» לעבודת מס — אותו חלון כמו ב«מס» ← «עבודות לקוחות» ובתיק המס (242)
   const [removeTax, setRemoveTax] = useState<{ id: string; title: string } | null>(null);
   const [taxNotice, setTaxNotice] = useState<string | null>(null);
+  /** 15.10 · חלון אישור ההסרה / ביטול הטופס — נפתח מה-⋯ בשורה או מהקישור שבפתיחה. */
+  const [removeDlg, setRemoveDlg] = useState<{ stepId: string; plan: Extract<RemovalPlan, { kind: 'remove' | 'cancel_form' }> } | null>(null);
+  /** נעילה ב-ref ולא ב-state: שתי לחיצות באותו פריים לא יוצאות לשרת פעמיים. */
+  const removalLock = useRef(false);
+  /** מונה לכל שורת ב"ל — פותח את חלון המחיקה/ביטול הקיים (NiCancelRequest) מה-⋯. */
+  const [niSignal, setNiSignal] = useState<Record<string, number>>({});
   /** תבנית שנבחרה מהקטלוג — פותחת את הקומפוזר על עותק שלה. */
   const [templateDraft, setTemplateDraft] = useState<RequestTemplate | null>(null);
   /** בקשה שנשמרת כרגע כתבנית — החלון מבקש רק שם. */
@@ -1485,39 +1501,204 @@ export default function OnboardingTab({
   }
 
   /**
-   * "הסר" מ-⋯. שלב שכבר פורסם מסומן pending_cancel (ממתין לפרסום הבא —
-   * מיגרציה 101); שלב טיוטה שמעולם לא פורסם מבוטל מיד (advance('cancel'),
-   * כמו היום) — שום לקוח לא רואה אותו ממילא, ואין מה לגונן עליו.
+   * מה ההסרה חלה עליו — «חומרים מרו״ח קודם» הם כמה שלבים, כל השאר שלב אחד.
+   * ‼ רק שלבים פתוחים: שלב שהושלם הוא היסטוריה, והשרת דוחה עליו הסרה ממתינה (step_terminal) —
+   * כשהסינון לא היה כאן השגיאה נבלעה, ועכשיו היא הייתה עוצרת את כל ההסרה.
+   */
+  const removalTargetsOf = (step: OnboardingStep): OnboardingStep[] =>
+    isPrevAccountantStep(step.stepType)
+      ? clientSteps.filter(s => isPrevAccountantStep(s.stepType) && isStepOpen(s.status))
+      : [step];
+  const removalTargetOf = (t: OnboardingStep): RemovalTarget =>
+    ({ published: t.publishedAt != null, internal: neverOnClientPage(t), pendingCancel: !!t.pendingCancel });
+
+  /** סוג השורה לעניין ההסרה — מאותם פרדיקטים שהכרטיסים כבר משתמשים בהם (אין כלל שני). */
+  const removalKindOf = (step: OnboardingStep): RemovalKind => {
+    if (step.stepType === 'representation') return 'rep_parent';
+    if (step.stepType === 'authority_representation') return isStalePart(step) ? 'standard' : 'ni_part';
+    if (step.stepType === 'representation_upgrade') return 'rep_upgrade';
+    if (isCreationProblem(step)) return 'creation_problem';
+    if (isSpouseConfirmTask(step)) return 'spouse_confirm';
+    if (['tax_estimate', 'annual_return', 'wealth_declaration', 'tax_file_intake'].includes(step.stepType)) return 'tax_work';
+    if (step.stepType === 'info_collection') return 'tax_child';
+    if (step.stepType === 'custom_request' && (step.payload?.smartForm as SmartFormProjection | undefined)?.filingId) return 'smart_form';
+    if (isPrevAccountantStep(step.stepType)) return 'prev_accountant';
+    if (CLIENT_FACING_TYPES.includes(step.stepType)) return 'standard';
+    return 'system';
+  };
+
+  const removalPlanFor = (step: OnboardingStep): RemovalPlan => {
+    const kind = removalKindOf(step);
+    const targets = removalTargetsOf(step);
+    const ids = new Set(targets.map(t => t.id));
+    // בקשות פתוחות שממתינות לזאת — אחרי ההסרה הן נשארות נעולות (ביטול אינו משחרר תלות).
+    // ‼ שתי המקורות של התלות: טבלת הקשתות (78) והעמודה הישנה — אותו איחוד של onboarding_dependency_met.
+    const childIds = (id: string) => [
+      ...(depChildren.get(id) ?? []),
+      ...clientSteps.filter(x => x.dependsOnStepId === id).map(x => x.id),
+    ];
+    const dependents = [...new Set(targets.flatMap(t => childIds(t.id)))]
+      .filter(id => !ids.has(id))
+      .map(id => stepById.get(id))
+      .filter((d): d is OnboardingStep => !!d && isStepOpen(d.status))
+      .map(d => splitRequestTitle(rowTitle(d)).name);
+    const role = step.payload?.subjectRole === 'spouse' ? 'spouse' : 'client';
+    const personName = String(step.payload?.subjectName ?? '').trim() || partNames[role];
+    return removalPlan({
+      title: kind === 'tax_work' || kind === 'tax_child' ? workTitle(step)
+        : kind === 'prev_accountant' ? 'חומרים מרו״ח קודם'
+        : kind === 'ni_part' ? `ייצוג בביטוח לאומי · ${personName}`
+        : splitRequestTitle(rowTitle(step)).name,
+      status: step.status,
+      kind,
+      targets: targets.map(removalTargetOf),
+      dependents,
+      smartState: (step.payload?.smartForm as SmartFormProjection | undefined)?.state,
+      niStage: kind === 'ni_part' ? niCancelStage(niExecution?.[role]) : undefined,
+      personName,
+    });
+  };
+
+  /**
+   * ‼ הסרה — מקום אחד לכל הדרכים (⋯ בשורה, הקישור בתחתית הפתיחה, תפריט «עריכת הבקשות»).
+   * הכלל לא השתנה: שלב שכבר פורסם מסומן pending_cancel (ממתין לפרסום הבא — מיגרציה 101);
+   * שלב שמעולם לא פורסם, ומשימה פנימית, מבוטלים מיד (advance('cancel')). לחיצה על שלב
+   * שכבר ממתין להסרה מבטלת את ההסרה.
    *
    * ‼ «חומרים מרו״ח קודם» היא בקשה אחת בעיני הרו"ח, ולכן ההסרה חלה על שלושת
    * השלבים שמאחוריה. בלי זה נשארו שאריות: הסרת המכתב לבדו הציפה את שאלת
    * הפרטים ככרטיס עצמאי (renderRow מסתיר אותה רק כשהמכתב חי) והשאירה את
    * מעקב החומרים תלוי בשלב מבוטל.
+   *
+   * ‼ תשובת השרת נבדקת: set_onboarding_step_pending_cancel מחזירה ok:false (לא שגיאת רשת)
+   * על שלב שנסגר / שלא פורסם — קודם זה נבלע והמסך נראה כאילו לא קרה כלום.
    */
-  async function removeRow(step: OnboardingStep) {
-    const targets = isPrevAccountantStep(step.stepType)
-      ? clientSteps.filter(s => isPrevAccountantStep(s.stepType) && s.status !== 'cancelled')
-      : [step];
+  async function applyRemoval(step: OnboardingStep): Promise<RemovalOutcome> {
+    if (removalLock.current) return { ok: false, text: 'פעולה אחרת עדיין מתבצעת — אפשר לנסות שוב בעוד רגע.' };
+    removalLock.current = true;
+    setBusyStepId(step.id);
+    setError(null);
+    const targets = removalTargetsOf(step);
     /* ‼ המצב הרצוי נגזר מהשלב שעליו לחצו ומוחל על כולם. בלי זה חבר שכבר
        סומן היה מתהפך בחזרה, ובקשה אחת הייתה מתפצלת לשני מצבים. */
     const pending = !step.pendingCancel;
-    for (const t of targets) {
-      // ‼ משימה פנימית לא בדף אף פעם — אין «הסרה בפרסום הבא»; מבוטלת מיד, כמו טיוטה.
-      // הסרה ממתינה ישנה עליה (מלפני הכלל) — מתבטלת כרגיל.
-      if (t.publishedAt == null || (neverOnClientPage(t) && !t.pendingCancel)) {
-        if (pending) await run(t, 'cancel', { note: neverOnClientPage(t) ? 'משימה פנימית - הוסרה' : 'הוסר לפני שפורסם' });
-        continue;
+    const when = removalWhen(targets.map(removalTargetOf));
+    const name = splitRequestTitle(rowTitle(step)).name;
+    let changed = 0;
+    const fail = (text: string, unknown = false): RemovalOutcome => ({
+      ok: false, unknown, text: (changed > 0 ? 'חלק מהשלבים כבר הוסרו. ' : '') + text,
+    });
+    try {
+      for (const t of targets) {
+        // ‼ משימה פנימית לא בדף אף פעם — אין «הסרה בפרסום הבא»; מבוטלת מיד, כמו טיוטה.
+        // הסרה ממתינה ישנה עליה (מלפני הכלל) — מתבטלת כרגיל.
+        if (t.publishedAt == null || (neverOnClientPage(t) && !t.pendingCancel)) {
+          if (pending) {
+            const res = await advance(t.id, 'cancel', { note: neverOnClientPage(t) ? 'משימה פנימית - הוסרה' : 'הוסר לפני שפורסם' });
+            if (!res.ok) {
+              return res.error ? fail(removalErrorText(res.error, res.message).text) : fail(REMOVAL_UNKNOWN_TEXT, true);
+            }
+            changed++;
+          }
+          continue;
+        }
+        if (!!t.pendingCancel === pending) continue;
+        const { data, error: rpcError } = await supabase.rpc('set_onboarding_step_pending_cancel', {
+          p_step_id: t.id, p_pending: pending,
+        });
+        if (rpcError) return fail(REMOVAL_UNKNOWN_TEXT, true);
+        const res = data as { ok?: boolean; error?: string } | null;
+        if (!res || res.ok === false) return fail(removalErrorText(res?.error).text, !res);
+        changed++;
       }
-      if (!!t.pendingCancel === pending) continue;
-      setBusyStepId(t.id);
-      const { error: rpcError } = await supabase.rpc('set_onboarding_step_pending_cancel', {
-        p_step_id: t.id, p_pending: pending,
+      setListNote({
+        err: false,
+        text: !pending
+          ? `ההסרה של «${name}» בוטלה — הבקשה נשארת בדף של הלקוח.`
+          : when === 'now'
+            ? `«${name}» הוסרה. מה שקרה בה נשמר בלשונית «פעילות».`
+            : when === 'on_publish'
+              ? `«${name}» תוסר מדף הלקוח כשתפרסם בדף. עד אז הלקוח עדיין רואה אותה — «ביטול ההסרה» מחזיר אותה.`
+              : `«${name}»: שלבים שלא פורסמו הוסרו, ושלב שכבר בדף יוסר כשתפרסם בדף.`,
       });
+      return { ok: true };
+    } catch {
+      return fail(REMOVAL_UNKNOWN_TEXT, true);
+    } finally {
+      // גם אחרי כישלון: המסך מתעדכן (שלב שנסגר בינתיים, תשובה שלא ידוע אם נקלטה).
+      removalLock.current = false;
       setBusyStepId(null);
-      if (rpcError) { setError(rpcError.message); return; }
+      refresh?.();
     }
-    refresh?.();
   }
+
+  /** «בטל את ההסרה» — הפיכה של הסרה שממתינה לפרסום; אין חלון, כי שום דבר לא אובד. */
+  async function undoRemoval(step: OnboardingStep) {
+    const res = await applyRemoval(step);
+    if (!res.ok) setError(res.text);
+  }
+
+  /** ביטול טופס 6101 — פעולת השרת הקיימת (smart_form_advance 'cancel'); סיבה חובה, ורק לפני חתימה. */
+  async function cancelSmartFormRow(step: OnboardingStep, reason?: string): Promise<RemovalOutcome> {
+    const filingId = (step.payload?.smartForm as SmartFormProjection | undefined)?.filingId;
+    if (!filingId) return { ok: false, text: 'לא נמצא הטופס של הבקשה הזאת. הרשימה מתעדכנת.' };
+    if (removalLock.current) return { ok: false, text: 'פעולה אחרת עדיין מתבצעת — אפשר לנסות שוב בעוד רגע.' };
+    removalLock.current = true;
+    setBusyStepId(step.id);
+    try {
+      // ‼ 246: ההיקף נבדק בשרת מול המצב הנוכחי — לקוח שחתם בזמן שהחלון פתוח נדחה שם (signed_cannot_cancel), לא כאן.
+      const r = await advanceFiling(filingId, 'cancel', { reason: reason ?? '', scope: 'request_list' });
+      if (!r.ok) {
+        const code = r.error;
+        return { ok: false, text: code ? filingErrorText(code) : REMOVAL_UNKNOWN_TEXT, unknown: !code };
+      }
+      setListNote({ err: false, text: 'הטופס בוטל. הנתונים שמולאו וההיסטוריה נשמרים בטופס, והשורה יצאה מהדף של הלקוח.' });
+      return { ok: true };
+    } catch {
+      return { ok: false, text: REMOVAL_UNKNOWN_TEXT, unknown: true };
+    } finally {
+      removalLock.current = false;
+      setBusyStepId(null);
+      refresh?.();
+    }
+  }
+
+  /** נקודת הכניסה האחידה מהקישור שבפתיחה ומהתפריט הישן: ביטול הסרה — מיד; הסרה — חלון. */
+  function requestRemoval(step: OnboardingStep) {
+    const plan = removalPlanFor(step);
+    if (plan.kind === 'undo') { void undoRemoval(step); return; }
+    if (plan.kind === 'remove' || plan.kind === 'cancel_form') setRemoveDlg({ stepId: step.id, plan });
+  }
+
+  /** התווית של הקישור/הפריט הישנים — אותה שפה כמו ב-⋯ (מיידית / מדף הלקוח / ביטול ההסרה). */
+  const removeLabel = (step: OnboardingStep): string => {
+    const p = removalPlanFor(step);
+    return p.kind === 'undo' ? 'ביטול ההסרה' : p.kind === 'remove' ? p.menuLabel : 'הסרת הבקשה';
+  };
+
+  /** ה-⋯ בכל שורה (context → JourneyRow). */
+  const rowActions = (step: OnboardingStep): React.ReactNode => {
+    const plan = removalPlanFor(step);
+    const role = step.payload?.subjectRole === 'spouse' ? 'spouse' : 'client';
+    return (
+      <RowActionsMenu
+        title={splitRequestTitle(rowTitle(step)).name}
+        plan={plan}
+        busy={busyStepId === step.id}
+        onRemove={() => requestRemoval(step)}
+        onUndo={() => void undoRemoval(step)}
+        onTaxWork={() => setRemoveTax({ id: step.id, title: workTitle(step) })}
+        onCancelForm={() => requestRemoval(step)}
+        onOpenRepresentation={onOpenRepresentation}
+        onNiCancel={() => setNiSignal(m => ({ ...m, [step.id]: (m[step.id] ?? 0) + 1 }))}
+        niSlot={plan.kind === 'ni_cancel' ? (
+          <NiCancelRequest clientId={clientId} role={role} hideTrigger openSignal={niSignal[step.id]}
+            name={String(step.payload?.subjectName ?? '').trim() || partNames[role]}
+            track={niExecution?.[role]} onChanged={() => refresh?.()} />
+        ) : undefined}
+      />
+    );
+  };
 
   /** "בטל שינויים" — מחזיר סידור/הסרה/עריכות ממתינים למצב שלפני העריכה. */
   async function discardChanges() {
@@ -2007,12 +2188,12 @@ export default function OnboardingTab({
                           {removable && (
                             <button type="button" role="menuitem"
                               className={`${mi} ${step.pendingCancel ? '' : 'is-danger'}`} disabled={busy}
-                              onClick={() => { setMenuStepId(null); void removeRow(step); }}
+                              onClick={() => { setMenuStepId(null); requestRemoval(step); }}
                               title={neverOnClientPage(step) && !step.pendingCancel ? 'משימה פנימית - ההסרה מיידית'
                                 : step.publishedAt == null ? 'הבקשה עוד לא פורסמה - ההסרה מיידית'
                                 : step.pendingCancel ? 'ההסרה ממתינה לפרסום - לחיצה תבטל אותה'
                                 : 'הבקשה תוסר מדף הלקוח בעדכון הבא'}>
-                              {step.pendingCancel ? 'בטל את ההסרה' : 'הסר את הבקשה'}
+                              {removeLabel(step)}
                             </button>
                           )}
                         </div>
@@ -2051,12 +2232,12 @@ export default function OnboardingTab({
                   )}
                   {removable && (
                     <button type="button" className={`rl-link${step.pendingCancel ? '' : ' is-danger'}`} disabled={busy}
-                      onClick={() => void removeRow(step)}
+                      onClick={() => requestRemoval(step)}
                       title={neverOnClientPage(step) && !step.pendingCancel ? 'משימה פנימית - ההסרה מיידית'
                         : step.publishedAt == null ? 'הבקשה עוד לא פורסמה - ההסרה מיידית'
                         : step.pendingCancel ? 'ההסרה ממתינה לפרסום - לחיצה תבטל אותה'
                         : 'הבקשה תוסר מהדף של הלקוח בפרסום הבא'}>
-                      {step.pendingCancel ? 'ביטול ההסרה' : 'הסרת הבקשה'}
+                      {removeLabel(step)}
                     </button>
                   )}
                 </span>
@@ -2731,8 +2912,9 @@ export default function OnboardingTab({
     && ((!neverOnClientPage(s) && (s.publishedAt === null || s.payload.published === false)) || s.draftPayload
       || s.pendingCancel || s.pendingSortOrder != null || awaitingPublishIds.has(s.id)));
   // «בקשות» ולא «שינויים»: טיוטה, או בקשה של הקליטה שהלקוח עוד לא ראה.
-  const unpublishedAllNew = unpublished.length > 0
-    && unpublished.every(s => isDraftStep(s) || awaitingPublishIds.has(s.id));
+  // ‼ 15.10: בלי הסרות ממתינות — הן נאמרות כהסרה (pageChangesText), ולא מבלבלות את «בקשות» מול «שינויים».
+  const unpublishedAllNew = unpublished.some(s => !s.pendingCancel)
+    && unpublished.filter(s => !s.pendingCancel).every(s => isDraftStep(s) || awaitingPublishIds.has(s.id));
   /* ‼ בלי שם פרטי — שם העסק (חברה); בלי שניהם — «הלקוח». ‼ «ל» + שם — רק דרך lamed(): «ללקוח», לא «להלקוח». */
   const firstName = clientFirstOrClient;
   /** אחרי כל פעולה בפס המסלול או במגש: הבקשות, «מה מוכן» והמסלולים — יחד. */
@@ -2763,6 +2945,8 @@ export default function OnboardingTab({
   const fromPrevEngagement = (s: OnboardingStep): boolean =>
     !!carriedFromLine(s) || (!!activeEngagement?.id && !!s.engagementId && s.engagementId !== activeEngagement.id);
   /** המונה — השורות שבאמת מוצגות (אבני הדרך והבקשות שהושלמו). */
+  /** קבוצות שהושלמו (נאספות בזמן הרינדור של הרשימה, ומוצגות ב«הושלמו»). */
+  const completedGroupNodes: React.ReactNode[] = [];
   const doneCount = contextBits.length + doneList.length;
   /** «הוספת הערה» — השדה בתוך הבקשה הפתוחה. */
   const noteEditorNode = noteDraft ? (
@@ -2804,6 +2988,7 @@ export default function OnboardingTab({
       rowNote,
       noteEditor: noteDraft ? { stepId: noteDraft.stepId, node: noteEditorNode } : null,
       groupNames: groupNamesMap,
+      rowActions,
       homeOffice: {
         clientId, firstName: clientFirstOrClient, state: hoState, history: homeOfficeLoad.history,
         loading: homeOfficeLoad.loading, error: homeOfficeLoad.error, reload: homeOfficeLoad.reload,
@@ -3004,7 +3189,7 @@ export default function OnboardingTab({
         awaitingQuoteApproval={awaitingQuoteApproval}
         titleOf={shortTitle}
         discarding={discarding}
-        onPublish={() => { setPendingCount(unpublished.length); setPendingNames(unpublished.map(shortTitle)); setPublishPromptOpen(true); }}
+        onPublish={() => { setPendingCount(unpublished.length); setPendingNames(unpublished.map(s => (s.pendingCancel ? `${shortTitle(s)} — תוסר מהדף` : shortTitle(s)))); setPublishPromptOpen(true); }}
         onPreviewPage={() => { setSidebarPreviewMode('preview'); setPreviewSheetOpen(true); }}
         onDiscard={() => void discardChanges()}
         onSend={focus => setSendRequestsFocus(focus)}
@@ -3339,7 +3524,8 @@ export default function OnboardingTab({
           const kids = g.steps.map(s => ({
             s, view: { id: s.id, title: memberDef(g.key, s.stepType)?.title ?? rowTitle(s), ...childWho(s) } as GroupChildView,
           }));
-          const status = groupStatus(kids.map(k => k.view), groupProgress(g.steps));
+          // ‼ 15.10: בקשה שסומנה «תוסר בפרסום» לא בסטטוס הקבוצה (לא «השלב הבא»); היא עדיין מוצגת בפירוט.
+          const status = groupStatus(kids.filter(k => !k.s.pendingCancel).map(k => k.view), groupProgress(g.steps));
           const open = groupOpenPref[g.key] ?? status.tone !== 'done';
           for (const k of kids) {
             groupNamesMap.set(k.s.id, k.view.title);
@@ -3348,6 +3534,7 @@ export default function OnboardingTab({
           }
           const red = kids.some(k => isStepOpen(k.s.status) && attnOf(k.s).tone === 'red');
           return {
+            tone: status.tone,
             rank: status.rank === 0 ? (red ? 0 : 1) : status.rank === 1 ? 2 : status.rank === 2 ? 3 : 4,
             node: (
               <section key={`group-${g.key}`} className={`rg-group is-${status.tone}`} data-open={open ? 'true' : 'false'}
@@ -3393,11 +3580,12 @@ export default function OnboardingTab({
           for (const k of kids) groupNamesMap.set(k.id, repTitle(k));
           // ‼ חלקי הבקשה הפתוחה מוצגים בפירוט שלה — אבל נספרים במצב הקבוצה.
           const counted = [...kids, ...(opts.countAlso ?? [])];
-          const views = counted.map(k => ({ id: k.id, title: repTitle(k), ...childWho(k) }) as GroupChildView);
+          const views = counted.filter(k => !k.pendingCancel).map(k => ({ id: k.id, title: repTitle(k), ...childWho(k) }) as GroupChildView);
           const status = groupStatus(views, groupProgress(counted));
           const open = groupOpenPref.representation ?? status.tone !== 'done';
           const red = kids.some(k => isStepOpen(k.status) && attnOf(k).tone === 'red');
           return {
+            tone: status.tone,
             rank: status.rank === 0 ? (red ? 0 : 1) : status.rank === 1 ? 2 : status.rank === 2 ? 3 : 4,
             node: (
               <section key="group-representation" className={`rg-group is-${status.tone}`} data-open={open ? 'true' : 'false'}
@@ -3450,9 +3638,13 @@ export default function OnboardingTab({
             }
             return { r: rank(p), i, node: flowItem(p.step, p.node, p.attn), isGroup: false };
           }),
-          ...groupPlaced.map((g, i) => ({ r: g.rank, i: -100 + i, node: g.node, isGroup: true })),
-          ...(repGroupPlaced ? [{ r: repGroupPlaced.rank, i: -50, node: repGroupPlaced.node, isGroup: true }] : []),
+          ...groupPlaced.filter(g => g.tone !== 'done').map((g, i) => ({ r: g.rank, i: -100 + i, node: g.node, isGroup: true })),
+          ...(repGroupPlaced && repGroupPlaced.tone !== 'done' ? [{ r: repGroupPlaced.rank, i: -50, node: repGroupPlaced.node, isGroup: true }] : []),
         ].sort((a, b) => a.r - b.r || a.i - b.i);
+        /* ‼ 15.10 · קבוצה שכל מה שבה הושלם היא היסטוריה: מקומה ב«הושלמו», לא בין מה שפתוח. קודם היא
+           נשארה בתחתית הרשימה הפעילה עם «הושלם» — «ייצוג מול הרשויות» שהושלם נראה כעבודה פתוחה. */
+        completedGroupNodes.push(...groupPlaced.filter(g => g.tone === 'done').map(g => g.node),
+          ...(repGroupPlaced && repGroupPlaced.tone === 'done' ? [repGroupPlaced.node] : []));
         /* ‼ «2 ממתינים לדוד» בשורת המסלול נספר לפי השורות שכאן: תהליך מקופל הוא שורה
            אחת, ומצבו — של השורה כולה (summarizeRow), בדיוק מה שהשורה מציגה. */
         const rowTop = new Map<string, OnboardingStep>();
@@ -3658,16 +3850,20 @@ export default function OnboardingTab({
       {/* ── הושלמו — מקופל, בתחתית ──────────────────────────────────────────
           ‼ «הושלם» אינו מצב לנהל. ההקשר (הצעה שאושרה, ייצוג פעיל, ב"ל שאושר)
           שישב ברצועה מעל הבקשות — כאן, בראש ההיסטוריה. דילוג נשאר מובחן. */}
-      {doneCount > 0 && (
+      {doneCount + completedGroupNodes.length > 0 && (
         <section className="rl-fold">
           <button type="button" className="rl-fold-head" aria-expanded={showDone}
             onClick={() => setShowDone(v => !v)}>
             <span className="rl-fold-title">הושלמו</span>
-            <span className="rl-fold-cnt">{doneCount}</span>
+            <span className="rl-fold-cnt">{doneCount + completedGroupNodes.length}</span>
+            <span className="rl-fold-hint">נשמרות כהיסטוריה</span>
             <svg className="rl-fold-chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9" /></svg>
           </button>
           {showDone && (
             <div className="rl-fold-body">
+              {/* ‼ 15.10: אין ⋯ על שורת היסטוריה — והסיבה נאמרת כאן, במקום שרק מי שלחץ ⋯ היה מגלה. */}
+              <p className="rl-done-note">בקשה שהושלמה או דולגה נשמרת כהיסטוריה של הלקוח ואינה מוסרת. הסרה היא רק לבקשות פתוחות.</p>
+              {completedGroupNodes}
               {contextBits.length > 0 && (
                 <div className="rl-context">
                   {contextBits.map(b => <div key={b}><span className="rl-ok" aria-hidden="true">✓</span> {b}</div>)}
@@ -3872,6 +4068,19 @@ export default function OnboardingTab({
           onClose={() => setRemoveTax(null)}
           onDone={(_what, text) => { setRemoveTax(null); setTaxNotice(text); refresh?.(); }} />
       )}
+      {removeDlg && (() => {
+        const target = clientSteps.find(x => x.id === removeDlg.stepId);
+        if (!target) return null;
+        const isForm = removeDlg.plan.kind === 'cancel_form';
+        return (
+          <RemoveRequestDialog
+            dialog={removeDlg.plan.dialog}
+            reasonLabel={isForm ? 'למה מבטלים את הטופס? (חובה)' : undefined}
+            onClose={() => setRemoveDlg(null)}
+            onConfirm={reason => (isForm ? cancelSmartFormRow(target, reason) : applyRemoval(target))}
+          />
+        );
+      })()}
       {taxNotice && (
         <div className="ty-ok tw-toast" role="status">{taxNotice} <button type="button" className="ta-link" onClick={() => setTaxNotice(null)} aria-label="סגור הודעה">✕</button></div>
       )}
@@ -6553,7 +6762,7 @@ function JourneyRow({ step, stepById, highlight, danger, statusLabel, noteLine, 
   menu: React.ReactNode;
   children: React.ReactNode;
 }) {
-  const { openId, toggle, depParents, depChildren, nestedByStep, requiredApplies, compact, attnByStep, firstNames, editing, childOpenId, toggleChild, groupViewByStep, nestedTitleByStep, autoEmailUnknown, awaitingPublish, blockNotes, rowNote, noteEditor, groupNames } = useContext(RowOpenContext);
+  const { openId, toggle, depParents, depChildren, nestedByStep, requiredApplies, compact, attnByStep, firstNames, editing, childOpenId, toggleChild, groupViewByStep, nestedTitleByStep, autoEmailUnknown, awaitingPublish, blockNotes, rowNote, noteEditor, groupNames, rowActions } = useContext(RowOpenContext);
   const isNested = useContext(NestedRowContext);
   /** סיבת החסימה (מהיומן) — רק כשהשלב באמת חסום. */
   const blockNote = step.status === 'blocked' ? blockNotes?.get(step.id) : undefined;
@@ -6642,7 +6851,8 @@ function JourneyRow({ step, stepById, highlight, danger, statusLabel, noteLine, 
        באתר ביטוח לאומי (ההוראות יוצאות במייל), לא לדף. */
     const awaitingPage = pageWaitsPublish && !group && !locked
       && a?.kind === 'waiting' && (!a.waitingOn || a.waitingOn === 'client' || a.waitingOn === 'spouse');
-    const st: RowState = group?.state ?? state ?? (awaitingPage ? { text: 'ממתין לפרסום', tone: 'amber' } : rowStateFor({
+    /* ‼ 15.10: «תוסר בפרסום» גלוי גם בשורה הסגורה — הסרה שממתינה אינה «הושלמה», והלקוח עדיין רואה את הבקשה. */
+    const st: RowState = group?.state ?? (step.pendingCancel && isStepOpen(step.status) ? { text: 'תוסר בפרסום', tone: 'amber' } : undefined) ?? state ?? (awaitingPage ? { text: 'ממתין לפרסום', tone: 'amber' } : rowStateFor({
       kind: a?.kind === 'mine' ? 'mine' : a?.kind === 'internal' ? 'internal' : isStepOpen(step.status) ? 'waiting' : 'done',
       tone: a?.tone === 'red' ? 'red' : a?.tone === 'blue' ? 'blue' : 'gray',
       waitingOn: a?.waitingOn, status: step.status, draft: draftForClient,
@@ -6691,6 +6901,8 @@ function JourneyRow({ step, stepById, highlight, danger, statusLabel, noteLine, 
           </button>
           {linePrimary ? <div className="rl-act">{linePrimary}</div> : !isNested && <span className="rl-act-slot" aria-hidden="true" />}
           {editing && !isNested && <div className="rl-edit">{menu}</div>}
+          {/* ‼ 15.10: ⋯ קבוע — הסרה/ביטול או למה אי אפשר. במצב «עריכת הבקשות» התפריט המלא של השורה (rl-edit) כבר כולל הסרה. */}
+          {rowActions && (!editing || isNested) && <div className="rl-more-slot">{rowActions(step)}</div>}
           <button type="button" className="rl-chev" aria-label={open ? 'סגירת הפרטים' : 'פתיחת הפרטים'}
             aria-expanded={open} onClick={doToggle}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9" /></svg>
