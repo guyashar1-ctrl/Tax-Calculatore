@@ -55,7 +55,9 @@ for (const [fn, a] of Object.entries(A)) {
   const [{ d }] = await readProd(`select pg_get_functiondef(p.oid) d from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname = '${fn}'`);
   const body = d.replace(/\r\n/g, '\n');
   const n = body.split(a).length - 1;
-  ok(`${fn}: העוגן נמצא פעם אחת`, n === 1, { n });
+  // ‼ ב-assert העוגן מוחלף (פסיק + ארבעת השמות) — אחרי ההחלה הוא אינו קיים עוד בצורתו המקורית
+  if (!(after && fn === 'assert_domain_function_invariants')) ok(`${fn}: העוגן נמצא פעם אחת`, n === 1, { n });
+  else ok(`${fn}: ארבע פונקציות הדף ברשימת ה-anon`, body.includes("'portal_smart_form_get', 'portal_smart_form_save', 'portal_smart_form_prepare', 'portal_smart_form_sign'"));
   ok(`${fn}: ${after ? '247 הוחלה (סימון פעם אחת)' : '247 עוד לא הוחלה'}`, after ? body.split('247 ·').length - 1 === 1 : !body.includes('247 ·'));
 }
 
