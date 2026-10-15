@@ -115,6 +115,9 @@ import { demandView, type WealthDemand } from '../../features/taxYear/wealthDema
 import { takePendingIntent, type SendOfficeDocsIntent } from '../../lib/pendingIntent';
 import { BTL6101_PURPOSE_LABELS, type Btl6101Purpose } from '../../features/smartForms/btl6101/model';
 import { filingErrorText, startFiling, type SmartFormProjection } from '../../features/smartForms/api';
+import ClientFormPanel from '../../features/smartForms/clientForms/ClientFormPanel';
+import { clientFormErrorText, startClientForm } from '../../features/smartForms/clientForms/api';
+import type { ClientFormKey } from '../../features/smartForms/clientForms/types';
 import SendRequestsDialog from './SendRequestsDialog';
 import { useReadyToSend, readyRecipientCount } from '../../hooks/useReadyToSend';
 import { useAutomationJob } from '../../hooks/useAutomationJobs';
@@ -549,6 +552,14 @@ export default function OnboardingTab({
   }, [clientId]);
   /** הגשת טופס חכם (6101) פתוחה במסך הפירוט שלה. ‼ השורה ב«בקשות» היא היטל. */
   const [smartFilingId, setSmartFilingId] = useState<string | null>(null);
+  /** 247 · טופס שהלקוח ממלא וחותם (4440/821) — פאנל משלו, לא מסך העבודה של 6101. */
+  const [clientFormOpen, setClientFormOpen] = useState<{ filingId: string; stepId: string } | null>(null);
+  const openSmart = (step: OnboardingStep) => {
+    const sf = step.payload?.smartForm as (SmartFormProjection & { clientFill?: boolean }) | undefined;
+    if (!sf?.filingId) return;
+    if (sf.clientFill) setClientFormOpen({ filingId: sf.filingId, stepId: step.id });
+    else setSmartFilingId(sf.filingId);
+  };
   /** 229 · דף התהליך של שנת מס (הערכה / דוח) — נפתח מהשורה, כמו הטופס החכם. */
   const [taxYearStepId, setTaxYearStepId] = useState<string | null>(null);
   // ‼ 14.10.2026 · «הסר…» לעבודת מס — אותו חלון כמו ב«מס» ← «עבודות לקוחות» ובתיק המס (242)
@@ -1768,7 +1779,31 @@ export default function OnboardingTab({
               }
               // ‼ טופס חכם (206): השורה היא היטל של ההגשה — המצב נכתב בשרת, ומכאן
               // רק הדלת למסך הפירוט. אין עריכה בשורה ואין «סמן כהושלם» ידני.
-              const smart = (step.stepType === 'custom_request' ? step.payload?.smartForm : undefined) as SmartFormProjection | undefined;
+              const smart = (step.stepType === 'custom_request' ? step.payload?.smartForm : undefined) as (SmartFormProjection & { clientFill?: boolean }) | undefined;
+              // ‼ 247 · טופס שהלקוח ממלא וחותם — אותה שורה, הדלת לפאנל שלו (פתוחה גם כשהכדור אצל הלקוח)
+              if (smart?.filingId && smart.clientFill) {
+                return (
+                  <JourneyRow
+                    key={step.id}
+                    step={step}
+                    stepById={stepById}
+                    highlight={highlightStepId === step.id}
+                    statusLabel={smart.stateLabel ?? 'טופס לחתימה'}
+                    menu={null}
+                    primary={embedded ? (
+                      <button type="button" className="btn btn-sm btn-primary" onClick={() => openSmart(step)}>פתיחה</button>
+                    ) : undefined}
+                    always={embedded ? undefined :
+                      <div className="sf-card-line" style={{ marginTop: '.35rem' }}>
+                        <span style={{ flex: 1 }} />
+                        <button type="button" className="btn btn-sm btn-primary" onClick={() => openSmart(step)}>פתיחה</button>
+                      </div>
+                    }
+                  >
+                    {null}
+                  </JourneyRow>
+                );
+              }
               if (smart?.filingId) {
                 const purposes = (smart.purposes ?? []) as Btl6101Purpose[];
                 return (
@@ -3670,7 +3705,7 @@ export default function OnboardingTab({
                     {/* ‼ טופס חכם שהושלם: צפייה בלבד. */}
                     {s.stepType === 'custom_request' && (s.payload?.smartForm as SmartFormProjection | undefined)?.filingId && (
                       <button type="button" className="btn btn-sm btn-ghost"
-                        onClick={() => setSmartFilingId((s.payload.smartForm as SmartFormProjection).filingId)}>
+                        onClick={() => openSmart(s)}>
                         צפייה
                       </button>
                     )}
@@ -3803,6 +3838,15 @@ export default function OnboardingTab({
             refresh?.();
             return null;
           }}
+          onStartClientForm={async (key: ClientFormKey, published: boolean) => {
+            // ‼ אידמפוטנטי בשרת: בקשה פתוחה לאותו טופס ⇒ חוזרים אליה
+            const r = await startClientForm(clientId, key, published);
+            if (!r.ok) return clientFormErrorText(r.error);
+            setAddOpen(false);
+            setClientFormOpen({ filingId: r.filingId as string, stepId: (r.stepId as string) ?? '' });
+            refresh?.();
+            return null;
+          }}
           onStartFlow={flowId => { setAddOpen(false); setPresetOfficeDocs(null); setStartFlow({ flowId }); }}
           onClose={() => { setAddOpen(false); setPresetOfficeDocs(null); }}
           onCreated={() => {
@@ -3830,6 +3874,16 @@ export default function OnboardingTab({
       )}
       {taxNotice && (
         <div className="ty-ok tw-toast" role="status">{taxNotice} <button type="button" className="ta-link" onClick={() => setTaxNotice(null)} aria-label="סגור הודעה">✕</button></div>
+      )}
+
+      {clientFormOpen && (
+        <ClientFormPanel
+          filingId={clientFormOpen.filingId}
+          client={client}
+          unpublished={!clientSteps.find(x => x.id === clientFormOpen.stepId)?.publishedAt}
+          onChanged={() => { refresh?.(); }}
+          onClose={() => { setClientFormOpen(null); refresh?.(); }}
+        />
       )}
 
       {smartFilingId && (

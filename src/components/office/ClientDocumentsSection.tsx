@@ -20,6 +20,9 @@ import {
 import SmartTemplateManager from '../../features/smartForms/templateManager/SmartTemplateManager';
 import { BTL6101_TEMPLATE } from '../../features/smartForms/btl6101/template';
 import { fetchMappingState, type MappingState } from '../../features/smartForms/mapping';
+import ClientFormTemplateView from '../../features/smartForms/clientForms/ClientFormTemplateView';
+import { CLIENT_FORMS } from '../../features/smartForms/clientForms/registry';
+import type { ClientFormKey } from '../../features/smartForms/clientForms/types';
 import { assetRef, type AssetRef } from './officeModel';
 import { UsedIn, focusOfUse, type GoFn, type LibraryUse } from './pages/library/usedIn';
 import PreviewButton from '../../features/requestPreview/PreviewButton';
@@ -100,6 +103,8 @@ export default function ClientDocumentsSection({ profile, saved, setDraft, noteU
   const replaceInput = useRef<HTMLInputElement>(null);
   const replaceFor = useRef<string | null>(null);
   const [managerOpen, setManagerOpen] = useState(false);
+  /** 247 · טופס שהלקוח ממלא וחותם — «הגדרת הטופס» (צפייה). */
+  const [clientFormOpen, setClientFormOpen] = useState<ClientFormKey | null>(null);
   const [mapping, setMapping] = useState<MappingState | null>(null);
 
   const refreshMapping = () => { void fetchMappingState(BTL6101_TEMPLATE.key).then(setMapping).catch(() => setMapping(null)); };
@@ -290,6 +295,19 @@ export default function ClientDocumentsSection({ profile, saved, setDraft, noteU
             </div>
             <button type="button" className="btn btn-secondary btn-sm" onClick={() => setManagerOpen(true)}>הגדרת הטופס</button>
           </li>
+          {(['ita-4440', 'vat-821'] as ClientFormKey[]).map(k => {
+            const def = CLIENT_FORMS[k];
+            return (
+              <li key={k} className="cdx-row">
+                <FileGlyph tone="form" />
+                <div className="cdx-main">
+                  <div className="cdx-title">{def.template.title} <span className="cdx-sub">{def.authorityLabel}</span></div>
+                  <div className="cdx-meta">מה שבכרטיס ממולא, הלקוח משלים את השאר בדף האישי, רואה את הטופס המלא וחותם</div>
+                </div>
+                <button type="button" className="btn btn-secondary btn-sm" onClick={() => setClientFormOpen(k)}>הגדרת הטופס</button>
+              </li>
+            );
+          })}
         </ul>
         <p className="cdx-quiet cdx-note">שולחים ללקוח מהכרטיס שלו: «בקשות» ← «בקשה חדשה».</p>
       </section>
@@ -297,6 +315,7 @@ export default function ClientDocumentsSection({ profile, saved, setDraft, noteU
       {err && <div className="cdx-err" role="alert">{err}</div>}
 
       {managerOpen && <SmartTemplateManager base={BTL6101_TEMPLATE} onClose={() => { setManagerOpen(false); refreshMapping(); }} />}
+      {clientFormOpen && <ClientFormTemplateView def={CLIENT_FORMS[clientFormOpen]} onClose={() => setClientFormOpen(null)} />}
     </div>
   );
 }

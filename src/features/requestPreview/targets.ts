@@ -13,11 +13,12 @@ import { entryOf, listOf, ownerOf, payloadOf, systemTypeOf } from '../../compone
 export type CatalogType =
   | 'bank_debit' | 'send_document' | 'client_documents' | 'prev_accountant_track' | 'paperless_sequence'
   | 'business_details' | 'paperless_tax_authority' | 'authority_representation'
-  | 'smart_form_btl6101';
+  | 'smart_form_btl6101' | 'smart_form_ita4440' | 'smart_form_vat821';
 
 export const CATALOG_TYPES: readonly CatalogType[] = [
   'bank_debit', 'send_document', 'client_documents', 'prev_accountant_track', 'paperless_sequence',
   'business_details', 'paperless_tax_authority', 'authority_representation', 'smart_form_btl6101',
+  'smart_form_ita4440', 'smart_form_vat821',
 ];
 
 /** עובדות על נוסח בספרייה — מה שצריך כדי לבחור צירים (בלי להעתיק את הנוסח עצמו). */
