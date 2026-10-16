@@ -10,6 +10,7 @@ import type { Evidence, YearFact } from './types';
 import { RECORD_OF } from './structured';
 import { recordLines, schemaFor } from './records';
 import { recordItems } from './recordToCard';
+import { entityLines, isEntityValue } from './entities';
 
 export interface ReviewRow {
   fact: YearFact;
@@ -42,6 +43,8 @@ const PART_HE: Record<string, string> = { gross: 'ברוטו', withheld: 'מס �
   interest: 'ריבית', dividend: 'דיבידנד', gains: 'רווח הון', pension: 'פנסיה', studyFund: 'קרן השתלמות', life: 'ביטוח חיים' };
 
 export function describeValue(f: Pick<YearFact, 'answer' | 'value'> & { itemKey?: string }): string {
+  // ‼ 16.10.2026 · «של מי / איפה» (רשימות סגורות) — לפני הרשומה המובנית: אותו מפתח (מעסיק חדש) יכול להיענות בשתי הצורות
+  if (f.answer !== 'no' && isEntityValue(f.value)) return entityLines(f.itemKey ? ITEM_BY_KEY[f.itemKey]?.entity : undefined, f.value.items).join(' · ') || '—';
   // ‼ 13.10.2026 · תשובה מובנית (ילדים, בנק, כתובת, תחולה…) — בשורות קריאות, לא כאובייקט
   const sid = f.itemKey ? RECORD_OF[f.itemKey] : undefined;
   if (sid && f.answer !== 'no' && f.value && typeof f.value === 'object') {

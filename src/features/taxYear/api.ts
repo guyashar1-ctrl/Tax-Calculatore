@@ -199,6 +199,9 @@ export function answerPayload(a: AskAnswer): Row {
     case 'who': return { kind: 'who', value: a.value };
     // 241 · רשומה מובנית — הערך נשמר בעובדה כפי שהוא (השרת בודק צורה וגודל)
     case 'record': return { kind: 'record', value: a.value, none: a.none, assertion: a.assertion, was: a.was };
+    // 253 · מסך הרשת ו«של מי / איפה» — השרת שומר כן/לא לכל אריח, מאמת «איפה» מול הרשימה שלו
+    case 'multi': return { kind: 'multi', selected: a.selected };
+    case 'entity': return { kind: 'entity', items: a.items };
   }
 }
 export const portalSubmit = (token: string, askId: string, answer: AskAnswer) =>

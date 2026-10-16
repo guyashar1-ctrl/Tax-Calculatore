@@ -162,8 +162,45 @@ export type RecordSchemaId = 'children' | 'address' | 'bank' | 'employer' | 'pro
   // 16.10.2026 · דמי לידה: תקופת הזכאות (שני תאריכים) והסכומים מהאישור השנתי
   | 'maternityPeriod' | 'maternityAmounts' | 'familyYear';
 
+/**
+ * 16.10.2026 · קלט מובנה «של מי / איפה» (שלב 2 של «בקשה אחת לתיק המס»): כל שדה סגור — מי (אני / בן/בת הזוג /
+ * שנינו), איפה (רשימה מ-src/data/institutions.ts, עם חיפוש), בחירה; `name` — שם המעסיק/העסק, השדה החופשי היחיד.
+ * השרת מאמת ש«איפה» מתוך הרשימה (_tax_institutions, 253).
+ */
+export type EntityFieldType = 'who' | 'list' | 'name' | 'choice';
+export interface EntityField {
+  key: string;
+  label: string;
+  type: EntityFieldType;
+  /** לרשימה סגורה: איזו רשימה. */
+  list?: import('../../data/institutions').InstitutionListId;
+  options?: { value: string; label: string }[];
+  required?: boolean;
+  hint?: string;
+}
+export interface EntitySpec {
+  /** מעסיק · חשבון · קופה */
+  noun: string;
+  fields: EntityField[];
+  /** כמה כאלה («＋ עוד מעסיק»). */
+  multiple?: boolean;
+  addLabel?: string;
+}
+/** אריח במסך «סמנו מה יש לכם» — שאלת פתיחה אחת; `followUp` — השאלה שנפתחת כשמסמנים (צילום, נשמר בשאלה). */
+export interface MultiOption {
+  key: string;
+  role: SubjectRole;
+  label: string;
+  hint?: string;
+  followUp?: { itemKey: string; subjectRole: SubjectRole; entityKind?: EntityKind; entityRef?: string; prompt: AskPrompt };
+}
+
 export type AskInput =
   | { kind: 'yesno'; followUp?: AskInput }
+  /** 16.10.2026 · מסך רשת: שאלה אחת שתשובתה קבוצת מפתחות; השרת שומר כן/לא לכל מפתח, ופותח את שאלות ההמשך של מה שסומן. */
+  | { kind: 'multi'; options: MultiOption[] }
+  /** 16.10.2026 · של מי / איפה — רשימות סגורות. `context` — שמות בני הזוג (בדף האישי אין כרטיס). */
+  | { kind: 'entity'; spec: EntitySpec; context?: Record<string, string> }
   | { kind: 'amount' }
   | { kind: 'date' }
   | { kind: 'text' }

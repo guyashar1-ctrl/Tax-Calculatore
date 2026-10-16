@@ -1,4 +1,4 @@
-// ─── הדף האישי: «השלמת מידע» — שאלה אחת למסך (229; 13.10.2026) ─────────────────
+// ─── הדף האישי: «השלמת מידע» — מסך אחד בכל פעם (229; 13.10.2026; 16.10.2026) ─────────────────
 // ‼ בלי מונחי מס ובלי קודי טופס. מתחת לשאלה — הסבר קצר וגלוי ועל איזו תקופה שואלים; «למה שואלים?» מקופל.
 // ‼ כל תשובה נשלחת מיד לשרת (portal_submit_tax_info) — יציאה באמצע לא מאבדת כלום; «שמירה ויציאה» שומר
 //   טיוטה בשרת לשאלה הנוכחית (לא בדפדפן). חלקי מסמך שעוד לא נשלחו — במכשיר (partsStore).
@@ -7,17 +7,23 @@
 //   משמעויות שונות. «אין לי עדיין» שנשמר לפני כן — מוצג כפי שהוא, בלי לייחס לו משמעות חדשה.
 // ‼ 13.10.2026 · סיום: «התשובות נשלחו למשרד» ובנפרד «נשארו N מסמכים» — עם העלאה ישירה לכל אחד, בלי לעבור
 //   שוב על השאלון. הבקשה אינה «הושלמה» כשחסרים מסמכים.
+// ‼ 16.10.2026 («בקשה אחת לתיק המס» שלב 2) · שלושה מסכים חדשים: «מה שכבר ידוע לנו — נכון?» (כל אישורי הכרטיס
+//   במסך אחד; «יש שינוי» פותח את העריכה של השורה), מסך הרשת «סמנו מה יש לכם» (שאלות הפתיחה; מה שמסומן פותח
+//   מיד את «של מי / איפה»), ו«של מי / איפה» — רשימות סגורות עם חיפוש (src/data/institutions.ts). screens.ts.
 // ‼ בתצוגה מקדימה (מהמשרד) אין שליחה ואין העלאה.
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { DOCS } from './documents';
 import * as api from './api';
 import { UNAVAILABLE_LABEL, type AskAnswer } from './asks';
-import type { InfoAsk, UnavailableCode } from './types';
+import type { EntityField, EntitySpec, InfoAsk, UnavailableCode } from './types';
 import { livePortalActions } from '../../components/portal/portalActions';
 import RecordEditor from './RecordEditor';
 import { answerValid, cleanRecord, schemaFor, type RecordAnswer } from './records';
 import { loadBankDirectory } from './RecordEditor';
+import { WHO_OPTIONS, cleanEntity, entityValid, validateEntity, type EntityItem } from './entities';
+import { INSTITUTION_LISTS, searchInstitutions, type InstitutionListId } from '../../data/institutions';
+import { buildScreens, firstOpenScreen, screenAsks, type Screen } from './screens';
 import DocPartsPicker from '../identity/DocPartsPicker';
 import './taxYear.css';
 
@@ -34,9 +40,12 @@ interface Props {
   onTitle?: (title: string) => void;
 }
 
-type Draft = { choice?: string; text?: string; amount?: string; note?: string; reason?: string; record?: RecordAnswer; code?: UnavailableCode | 'notRelevant' };
+type Draft = { choice?: string; text?: string; amount?: string; note?: string; reason?: string; record?: RecordAnswer; code?: UnavailableCode | 'notRelevant';
+  /** מסך הרשת: המפתחות שסומנו; `none` — «אין לנו אף אחד מאלה». */
+  selected?: string[]; none?: boolean;
+  /** של מי / איפה. */
+  items?: EntityItem[] };
 
-const ORDER = (a: InfoAsk) => (a.prompt.input.kind === 'confirm' ? 0 : a.prompt.input.kind === 'file' ? 2 : 1);
 /** מסמך שעדיין אצל הלקוח: «אין לי עדיין» (גם ישן, בלי קוד), «אעלה בהמשך», «עוד לא קיבלתי». «צריך עזרה» — אצל המשרד. */
 const clientOwes = (a: InfoAsk) => a.state === 'unavailable' && a.unavailable?.code !== 'needHelp';
 const UNAV_CHOICES: { code: UnavailableCode | 'notRelevant'; label: string; ask?: string }[] = [
@@ -45,6 +54,7 @@ const UNAV_CHOICES: { code: UnavailableCode | 'notRelevant'; label: string; ask?
   { code: 'needHelp', label: 'אין לי — צריך עזרה', ask: 'מה הבעיה? (לא חובה — המשרד יחזור אליך)' },
   { code: 'notRelevant', label: 'לא רלוונטי לי', ask: 'למה? (לא חובה — המשרד יבדוק)' },
 ];
+const screenDone = (s: Screen) => screenAsks(s).every(a => a.state !== 'published');
 
 export default function TaxInfoFlow({ stepId, token, previewClientId, previewAsks, onClose, onTitle }: Props) {
   const preview = !token;
@@ -53,6 +63,10 @@ export default function TaxInfoFlow({ stepId, token, previewClientId, previewAsk
   const [err, setErr] = useState<string | null>(null);
   const [i, setI] = useState(0);
   const [draft, setDraft] = useState<Record<string, Draft>>({});
+  /** אישורי כרטיס שסומן בהם «יש שינוי» — יוצאים ממסך האישור למסך משלהם. */
+  const [opened, setOpened] = useState<Set<string>>(new Set());
+  /** מסך האישור: מה סומן לכל שורה (ברירת מחדל: נכון). */
+  const [marks, setMarks] = useState<Record<string, 'ok' | 'changed'>>({});
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState<string | null>(null);
   const [finished, setFinished] = useState(false);
@@ -60,24 +74,29 @@ export default function TaxInfoFlow({ stepId, token, previewClientId, previewAsk
   /** במסך הסיום: המסמך שפתוח עכשיו להעלאה. */
   const [docOpen, setDocOpen] = useState<string | null>(null);
 
+  const fetchAsks = async (): Promise<{ title: string; asks: InfoAsk[] }> => {
+    const v = token ? await api.portalLoad(token, stepId)
+      : previewAsks ? { stepId, taxYear: 0, title: 'השלמת מידע', asks: previewAsks }
+      : await api.portalPreview(previewClientId!, stepId);
+    return { title: v.title || 'השלמת מידע', asks: v.asks };
+  };
   const load = async () => {
     try {
-      const v = token ? await api.portalLoad(token, stepId)
-        : previewAsks ? { stepId, taxYear: 0, title: 'השלמת מידע', asks: previewAsks }
-        : await api.portalPreview(previewClientId!, stepId);
-      setTitle(v.title || 'השלמת מידע');
-      onTitle?.(v.title || 'השלמת מידע');
-      const sorted = [...v.asks].sort((a, b) => ORDER(a) - ORDER(b));
-      setAsks(sorted);
-      setDraft(Object.fromEntries(sorted.filter(a => a.savedDraft).map(a => [a.id, a.savedDraft as Draft])));
-      // ‼ חזרה אחרי «שמירה ויציאה»: לשאלה הראשונה שעוד לא נענתה. כשנשארו רק מסמכים — ישר לרשימת המסמכים
-      //   (לא עוברים שוב על השאלון).
-      const firstNew = sorted.findIndex(a => a.state === 'published');
+      const v = await fetchAsks();
+      setTitle(v.title);
+      onTitle?.(v.title);
+      setAsks(v.asks);
+      setDraft(Object.fromEntries(v.asks.filter(a => a.savedDraft).map(a => [a.id, a.savedDraft as Draft])));
+      // ‼ חזרה אחרי «שמירה ויציאה»: למסך הראשון שעוד לא נענה. כשנשארו רק מסמכים — ישר לרשימת המסמכים
+      const sc = buildScreens(v.asks, new Set());
+      const firstNew = firstOpenScreen(sc);
       setI(firstNew < 0 ? 0 : firstNew);
-      setFinished(sorted.length > 0 && firstNew < 0);
+      setFinished(sc.length > 0 && firstNew < 0);
     } catch (e) { setErr(String((e as Error).message)); }
   };
   useEffect(() => { void load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [stepId, token, previewClientId]);
+
+  const screens = useMemo(() => (asks ? buildScreens(asks, opened) : []), [asks, opened]);
 
   if (err && !asks) return <div className="ty-err" role="alert">לא ניתן לטעון את השאלות. נסו שוב מאוחר יותר.</div>;
   if (!asks) return <div className="ty-note">טוען…</div>;
@@ -127,24 +146,103 @@ export default function TaxInfoFlow({ stepId, token, previewClientId, previewAsk
           <p className="ty-q-sub" role="note">ביקשת עזרה ב{help.length === 1 ? `: ${help[0].prompt.title}` : `-${help.length} מסמכים`}. המשרד יחזור אליך.</p>
         )}
         <div className="ty-actions">
-          {open.length > 0 && <button type="button" className="btn btn-ghost" onClick={() => { setFinished(false); setI(asks.indexOf(open[0])); }}>לחזור לשאלות שנשארו</button>}
+          {open.length > 0 && <button type="button" className="btn btn-ghost" onClick={() => { setFinished(false); setI(Math.max(0, firstOpenScreen(screens))); }}>לחזור לשאלות שנשארו</button>}
           {onClose && <button type="button" className="btn btn-primary" onClick={onClose}>חזרה לבקשות</button>}
         </div>
       </div>
     );
   }
 
-  const ask = asks[i];
+  const idx = Math.max(0, Math.min(screens.length - 1, i));
+  const screen = screens[idx];
+  const doneCount = screens.filter(screenDone).length;
+  const progress = Math.round((doneCount / screens.length) * 100);
+  const go = (n: number) => { setSaved(null); setTried(false); setI(Math.max(0, Math.min(screens.length - 1, n))); };
+  /** קדימה — רק למסכים שעוד לא נענו. מסמך «אעלה בהמשך» אינו «שאלה פתוחה» — הוא ברשימת המסמכים בסיום. */
+  const advanceIn = (list: Screen[], from: number) => {
+    const rest = list.findIndex((s, k) => k > from && !screenDone(s));
+    if (rest >= 0) { go(rest); return; }
+    const any = list.findIndex((s, k) => k !== from && !screenDone(s));
+    if (any >= 0) { go(any); return; }
+    setFinished(true);
+  };
+  const advance = (list: InfoAsk[], openedNow = opened) => advanceIn(buildScreens(list, openedNow), idx);
+  const top = (
+    <>
+      <div className="ty-flow-top">
+        <span>{title}</span><span>{idx + 1} מתוך {screens.length}</span>
+      </div>
+      <div className="ty-progress" role="progressbar" aria-valuenow={progress} aria-valuemin={0} aria-valuemax={100} aria-label="התקדמות"><i style={{ width: `${progress}%` }} /></div>
+      {preview && <div className="ty-note">תצוגה בלבד — כך זה ייראה ללקוח. אין כאן שליחה.</div>}
+    </>
+  );
+
+  // ── 16.10.2026 · «מה שכבר ידוע לנו — נכון?» — כל אישורי הכרטיס במסך אחד ──
+  if (screen.kind === 'confirmAll') {
+    const list = screen.asks;
+    const submitAll = async () => {
+      const changed = list.filter(a => marks[a.id] === 'changed');
+      const ok = list.filter(a => marks[a.id] !== 'changed');
+      const nextOpened = new Set([...opened, ...changed.map(a => a.id)]);
+      setDraft(d => ({ ...d, ...Object.fromEntries(changed.map(a => [a.id, { ...d[a.id], choice: 'changed' }])) }));
+      if (preview) { setOpened(nextOpened); advance(asks, nextOpened); return; }
+      setBusy(true); setErr(null);
+      const results = await Promise.all(ok.map(a => api.portalSubmit(token!, a.id, { kind: 'unchanged' })));
+      setBusy(false);
+      const failed = results.filter(r => !r.ok);
+      if (failed.length) { setErr('השליחה נכשלה — נסו שוב'); return; }
+      const nextAsks = asks.map(x => (ok.some(a => a.id === x.id) ? { ...x, state: 'answered' as const, savedDraft: undefined } : x));
+      setAsks(nextAsks); setOpened(nextOpened);
+      advance(nextAsks, nextOpened);
+    };
+    return (
+      <div className="ty-flow" data-screen="confirmAll">
+        {top}
+        <p className="ty-q" id="q-confirm-all">מה שכבר ידוע לנו — נכון?</p>
+        <p className="ty-hint">זה מה שרשום אצלנו. אם הכול נכון — ממשיכים. אם משהו השתנה — סמנו «יש שינוי» ונתקן יחד בשורה הבאה.</p>
+        <ul className="ty-confirm-list" aria-labelledby="q-confirm-all">
+          {list.map(a => {
+            const lines = a.prompt.input.kind === 'confirm' ? a.prompt.input.lines : [];
+            const m = marks[a.id] ?? 'ok';
+            return (
+              <li key={a.id} className={`ty-confirm-row${m === 'changed' ? ' is-changed' : ''}`} data-confirm={a.itemKey}>
+                <div className="ty-confirm-main">
+                  <b>{a.prompt.title.replace(/ — זה מה שידוע לנו$/, '')}</b>
+                  {a.prompt.subjectName && <small>של {a.prompt.subjectName}</small>}
+                  <ul className="ty-lines is-compact">{lines.map((l, k) => <li key={k}>{l}</li>)}</ul>
+                </div>
+                <div className="ty-seg" role="group" aria-label={`${a.prompt.title}: נכון או יש שינוי`}>
+                  <button type="button" aria-pressed={m === 'ok'} onClick={() => setMarks(x => ({ ...x, [a.id]: 'ok' }))}>נכון</button>
+                  <button type="button" aria-pressed={m === 'changed'} onClick={() => setMarks(x => ({ ...x, [a.id]: 'changed' }))}>יש שינוי</button>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+        {err && <div className="ty-err" role="alert">{err}</div>}
+        <div className="ty-nav">
+          <button type="button" className="btn btn-ghost" disabled={idx === 0 || busy} onClick={() => go(idx - 1)}>הקודם</button>
+          <button type="button" className="btn btn-primary" disabled={busy} onClick={() => void submitAll()}>
+            {busy ? 'שולח…' : list.some(a => marks[a.id] === 'changed') ? 'הבא — לתקן מה שהשתנה' : 'כן, הכול נכון'}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const ask = screen.ask;
   const d = draft[ask.id] ?? {};
   const setD = (patch: Draft) => setDraft(x => ({ ...x, [ask.id]: { ...x[ask.id], ...patch } }));
   const answered = ask.state === 'answered';
-  const answeredCount = asks.filter(a => a.state === 'answered' || a.state === 'unavailable').length;
   const input = ask.prompt.input;
   const kind = input.kind;
   const recordSchemaId = input.kind === 'record' ? input.schema : input.kind === 'confirm' && d.choice === 'changed' ? input.edit?.schema : undefined;
   const recordCtx = input.kind === 'record' ? input.context : input.kind === 'confirm' ? input.edit?.context : undefined;
   const recSchema = recordSchemaId ? schemaFor(recordSchemaId, undefined, recordCtx) : undefined;
   const recValue: RecordAnswer = d.record ?? { items: (input.kind === 'record' ? input.initial : input.kind === 'confirm' ? input.edit?.initial : undefined) as RecordAnswer['items'] ?? [] };
+  const entSpec: EntitySpec | undefined = input.kind === 'entity' ? input.spec : undefined;
+  const entCtx = input.kind === 'entity' ? input.context : undefined;
+  const entItems: EntityItem[] = d.items ?? [{}];
 
   const answerOf = (): AskAnswer | null => {
     if (kind === 'confirm') {
@@ -157,6 +255,8 @@ export default function TaxInfoFlow({ stepId, token, previewClientId, previewAsk
       // שאלת תחולה — הרשומה עצמה; רשימה — { items }
       return recValue.none ? { kind: 'record', value: null, none: true } : { kind: 'record', value: recSchema.id === 'period' ? recValue.items[0] : { items: recValue.items } };
     }
+    if (kind === 'multi') return d.none || (d.selected?.length ?? 0) > 0 ? { kind: 'multi', selected: d.none ? [] : d.selected ?? [] } : null;
+    if (kind === 'entity' && entSpec) return entityValid(entSpec, entItems, entCtx) ? { kind: 'entity', items: entItems.map(it => cleanEntity(entSpec, it, entCtx)) } : null;
     if (kind === 'who') return d.choice === 'notSure' ? { kind: 'notSure', note: d.text?.trim() || undefined } : d.choice && ['none', 'client', 'spouse', 'both'].includes(d.choice) ? { kind: 'who', value: d.choice as 'none' | 'client' | 'spouse' | 'both' } : null;
     if (kind === 'yesno') return d.choice === 'yes' ? { kind: 'yes', note: d.text?.trim() || undefined } : d.choice === 'no' ? { kind: 'no' } : d.choice === 'notSure' ? { kind: 'notSure', note: d.text?.trim() || undefined } : null;
     if (kind === 'amount') return d.choice === 'notSure' ? { kind: 'notSure' } : d.amount !== undefined && d.amount !== '' && Number(d.amount) >= 0 ? { kind: 'amount', amount: Number(d.amount) } : null;
@@ -170,15 +270,6 @@ export default function TaxInfoFlow({ stepId, token, previewClientId, previewAsk
     return null;
   };
 
-  const go = (n: number) => { setSaved(null); setTried(false); setI(Math.max(0, Math.min(asks.length - 1, n))); };
-  const advance = (list: InfoAsk[]) => {
-    // ‼ קדימה רק לשאלות שעוד לא נענו. מסמך שסומן «אעלה בהמשך» אינו «שאלה פתוחה» — הוא ברשימת המסמכים בסיום.
-    const rest = list.findIndex((x, k) => k > i && x.state === 'published');
-    if (rest >= 0) { go(rest); return; }
-    const any = list.findIndex((x, k) => k !== i && x.state === 'published');
-    if (any >= 0) { go(any); return; }
-    setFinished(true);
-  };
   const next = async (override?: AskAnswer) => {
     const a = override ?? answerOf();
     if (!a && (ask.state === 'unavailable' || answered || preview)) { advance(asks); return; }
@@ -193,10 +284,14 @@ export default function TaxInfoFlow({ stepId, token, previewClientId, previewAsk
       payload = { ...a, value: recSchema.id === 'period' ? items[0] : { items } };
     }
     const r = await api.portalSubmit(token!, ask.id, payload);
-    setBusy(false);
-    if (!r.ok) { setErr(r.error === 'bad_amount' ? 'הסכום לא תקין' : r.error === 'empty' ? 'נא לכתוב תשובה' : r.error === 'bad_record' ? 'חלק מהפרטים לא תקינים' : 'השליחה נכשלה — נסו שוב'); return; }
+    if (!r.ok) { setBusy(false); setErr(r.error === 'bad_amount' ? 'הסכום לא תקין' : r.error === 'empty' ? 'נא לכתוב תשובה' : r.error === 'bad_record' || r.error === 'bad_entity' ? 'חלק מהפרטים לא תקינים' : r.error === 'not_in_list' ? 'יש לבחור מהרשימה' : 'השליחה נכשלה — נסו שוב'); return; }
     const state: InfoAsk['state'] = payload.kind === 'unavailable' ? 'unavailable' : 'answered';
-    const list = asks.map(x => (x.id === ask.id ? { ...x, state, savedDraft: undefined, unavailable: payload.kind === 'unavailable' ? { reason: payload.reason, code: payload.code, followUpOn: '', recordedAt: new Date().toISOString() } : x.unavailable } : x));
+    let list = asks.map(x => (x.id === ask.id ? { ...x, state, savedDraft: undefined, unavailable: payload.kind === 'unavailable' ? { reason: payload.reason, code: payload.code, followUpOn: '', recordedAt: new Date().toISOString() } : x.unavailable } : x));
+    // ‼ מסך הרשת: מה שסומן פתח שאלות המשך בשרת («של מי / איפה») — טוענים אותן, בלי לחזור על מה שכבר נענה
+    if (payload.kind === 'multi') {
+      try { const v = await fetchAsks(); const known = new Map(list.map(x => [x.id, x])); list = v.asks.map(x => known.get(x.id) ?? x); } catch { /* נשארים עם הרשימה המקומית; הרענון הבא ישלים */ }
+    }
+    setBusy(false);
     setAsks(list);
     advance(list);
   };
@@ -208,18 +303,14 @@ export default function TaxInfoFlow({ stepId, token, previewClientId, previewAsk
     setSaved(r.ok ? 'נשמר. אפשר לחזור מאותו קישור ולהמשיך מכאן.' : 'השמירה נכשלה');
   };
 
-  const progress = Math.round((answeredCount / asks.length) * 100);
   const docInfo = input.kind === 'file' ? DOCS[input.docKind] : undefined;
   const canNext = !!answerOf() || answered || preview || ask.state === 'unavailable';
-  const lastOpen = asks.filter(x => x.state === 'published').length <= 1 && ask.state === 'published';
+  const lastOpen = screens.filter(s => !screenDone(s)).length <= 1 && ask.state === 'published';
+  const names = entCtx;
 
   return (
-    <div className="ty-flow">
-      <div className="ty-flow-top">
-        <span>{title}</span><span>{i + 1} מתוך {asks.length}</span>
-      </div>
-      <div className="ty-progress" role="progressbar" aria-valuenow={progress} aria-valuemin={0} aria-valuemax={100} aria-label="התקדמות"><i style={{ width: `${progress}%` }} /></div>
-      {preview && <div className="ty-note">תצוגה בלבד — כך זה ייראה ללקוח. אין כאן שליחה.</div>}
+    <div className="ty-flow" data-screen={kind}>
+      {top}
 
       {ask.prompt.correction && (
         <div className="ty-correction" role="note"><b>המשרד ביקש לתקן:</b> {ask.prompt.correction}</div>
@@ -255,6 +346,23 @@ export default function TaxInfoFlow({ stepId, token, previewClientId, previewAsk
       )}
       {!answered && kind === 'record' && recSchema && (
         <RecordEditor schemaId={recSchema.id} context={recordCtx} value={recValue} onChange={v => setD({ record: v })} showErrors={tried} disabled={preview} />
+      )}
+      {!answered && kind === 'multi' && input.kind === 'multi' && (
+        <div className="ty-grid" role="group" aria-labelledby={`q-${ask.id}`}>
+          {input.options.map(o => {
+            const on = !d.none && (d.selected ?? []).includes(o.key);
+            return (
+              <button key={o.key} type="button" className="ty-tile" aria-pressed={on} data-tile={o.key} title={o.hint}
+                onClick={() => setD({ none: false, selected: on ? (d.selected ?? []).filter(k => k !== o.key) : [...(d.selected ?? []), o.key] })}>
+                <span className="ty-tile-check" aria-hidden="true">{on ? '✓' : ''}</span>{o.label}
+              </button>
+            );
+          })}
+          <button type="button" className="ty-tile is-wide" aria-pressed={!!d.none} data-tile="none" onClick={() => setD({ none: !d.none, selected: [] })}>אין לנו אף אחד מאלה</button>
+        </div>
+      )}
+      {!answered && kind === 'entity' && entSpec && (
+        <EntityEditor spec={entSpec} names={names} items={entItems} onChange={items => setD({ items })} showErrors={tried} disabled={preview} />
       )}
       {!answered && kind === 'yesno' && (
         <>
@@ -310,15 +418,15 @@ export default function TaxInfoFlow({ stepId, token, previewClientId, previewAsk
       {ask.prompt.why && (
         <details className="ty-why-q"><summary>למה שואלים?</summary><p>{ask.prompt.why}</p></details>
       )}
-      {tried && !answerOf() && !answered && <div className="ty-err" role="alert">{kind === 'record' || (kind === 'confirm' && d.choice === 'changed') ? 'חסרים פרטים — מסומנים באדום' : 'נא לבחור תשובה'}</div>}
+      {tried && !answerOf() && !answered && <div className="ty-err" role="alert">{kind === 'record' || kind === 'entity' || (kind === 'confirm' && d.choice === 'changed') ? 'חסרים פרטים — מסומנים באדום' : kind === 'multi' ? 'סמנו מה יש לכם, או «אין לנו אף אחד מאלה»' : 'נא לבחור תשובה'}</div>}
       {err && <div className="ty-err" role="alert">{err}</div>}
       {saved && <div className="ty-ok" role="status">{saved}</div>}
 
       <div className="ty-nav">
-        <button type="button" className="btn btn-ghost" disabled={i === 0 || busy} onClick={() => go(i - 1)}>הקודם</button>
+        <button type="button" className="btn btn-ghost" disabled={idx === 0 || busy} onClick={() => go(idx - 1)}>הקודם</button>
         {!preview && !answered && <button type="button" className="btn btn-ghost" disabled={busy} onClick={() => void saveExit()}>שמירה ויציאה</button>}
         {!(kind === 'file' && !d.code && !answered && ask.state !== 'unavailable') && (
-          <button type="button" className="btn btn-primary" disabled={busy || (!canNext && !(kind === 'record' || kind === 'confirm'))} onClick={() => void next()}>
+          <button type="button" className="btn btn-primary" disabled={busy || (!canNext && !(kind === 'record' || kind === 'confirm' || kind === 'entity' || kind === 'multi'))} onClick={() => void next()}>
             {busy ? 'שולח…' : lastOpen && !preview ? 'שליחה למשרד' : 'הבא'}
           </button>
         )}
@@ -326,6 +434,85 @@ export default function TaxInfoFlow({ stepId, token, previewClientId, previewAsk
           <button type="button" className="btn btn-ghost" disabled={busy || preview} onClick={() => { setD({ code: 'later' }); void next({ kind: 'unavailable', code: 'later', reason: UNAVAILABLE_LABEL.later }); }}>אעלה בהמשך</button>
         )}
       </div>
+    </div>
+  );
+}
+
+// ── 16.10.2026 · «של מי / איפה» — שדות סגורים; רשימה עם חיפוש ───────────────────────────────────
+
+function EntityEditor({ spec, names, items, onChange, showErrors, disabled }: { spec: EntitySpec; names?: Record<string, string>; items: EntityItem[]; onChange: (items: EntityItem[]) => void; showErrors: boolean; disabled: boolean }) {
+  const set = (k: number, patch: EntityItem) => onChange(items.map((it, n) => (n === k ? { ...it, ...patch } : it)));
+  return (
+    <div className="ty-ent" data-entity={spec.noun}>
+      {items.map((it, k) => {
+        const errs = showErrors ? validateEntity(spec, it, names) : {};
+        return (
+          <fieldset key={k} className="ty-ent-card">
+            {(spec.multiple || items.length > 1) && (
+              <legend className="ty-ent-legend">{spec.noun} {k + 1}{items.length > 1 && !disabled && <button type="button" className="rec-link" onClick={() => onChange(items.filter((_, n) => n !== k))}>הסרה</button>}</legend>
+            )}
+            {spec.fields.map(f => <EntityFieldView key={f.key} field={f} value={it[f.key] ?? ''} names={names} error={errs[f.key]} disabled={disabled} onChange={v => set(k, { [f.key]: v })} />)}
+          </fieldset>
+        );
+      })}
+      {spec.multiple && !disabled && <button type="button" className="btn btn-ghost ty-ent-add" onClick={() => onChange([...items, {}])}>{spec.addLabel ?? `＋ עוד ${spec.noun}`}</button>}
+    </div>
+  );
+}
+
+function EntityFieldView({ field: f, value, names, error, disabled, onChange }: { field: EntityField; value: string; names?: Record<string, string>; error?: string; disabled: boolean; onChange: (v: string) => void }) {
+  const foot = (
+    <>
+      {f.hint && !error && <span className="rec-hint">{f.hint}</span>}
+      {error && <span className="rec-err" role="alert">{error}</span>}
+    </>
+  );
+  if (f.type === 'name') {
+    return (
+      <label className="ty-ent-field">
+        <span className="rec-label">{f.label}</span>
+        <input value={value} maxLength={120} disabled={disabled} autoComplete="organization" onChange={e => onChange(e.target.value)} />
+        {foot}
+      </label>
+    );
+  }
+  if (f.type === 'list' && f.list) return <ListPicker field={f} list={f.list} value={value} disabled={disabled} onPick={onChange} foot={foot} />;
+  const options = f.type === 'who' ? WHO_OPTIONS(names) : f.options ?? [];
+  return (
+    <div className="ty-ent-field" role="group" aria-label={f.label}>
+      <span className="rec-label">{f.label}</span>
+      <div className="ty-chips">
+        {options.map(o => <button key={o.value} type="button" className="ty-chip-btn" aria-pressed={value === o.value} disabled={disabled} onClick={() => onChange(o.value)}>{o.label}</button>)}
+      </div>
+      {foot}
+    </div>
+  );
+}
+
+const SHOW = 6;
+function ListPicker({ field: f, list, value, disabled, onPick, foot }: { field: EntityField; list: InstitutionListId; value: string; disabled: boolean; onPick: (v: string) => void; foot: React.ReactNode }) {
+  const [q, setQ] = useState('');
+  const [more, setMore] = useState(false);
+  const all = INSTITUTION_LISTS[list].items;
+  const picked = all.find(e => e.id === value);
+  const found = searchInstitutions(list, q);
+  const shown = q || more ? found : found.slice(0, SHOW);
+  return (
+    <div className="ty-ent-field" data-list={list}>
+      <label className="rec-label" htmlFor={`lp-${list}-${f.key}`}>{f.label}</label>
+      {picked && !q ? (
+        <div className="rec-picked"><span>✓ {picked.label}</span>{!disabled && <button type="button" className="rec-link" onClick={() => { onPick(''); setQ(''); }}>שינוי</button>}</div>
+      ) : (
+        <>
+          <input id={`lp-${list}-${f.key}`} className="ty-list-search" value={q} placeholder="חיפוש ברשימה" autoComplete="off" disabled={disabled} onChange={e => setQ(e.target.value)} />
+          <ul className="ty-list" role="listbox" aria-label={f.label}>
+            {shown.map(e => <li key={e.id}><button type="button" role="option" aria-selected={e.id === value} disabled={disabled} onClick={() => { onPick(e.id); setQ(''); setMore(false); }}>{e.label}</button></li>)}
+            {!q && !more && found.length > SHOW && <li><button type="button" className="ty-list-more" onClick={() => setMore(true)}>עוד… ({found.length - SHOW})</button></li>}
+            {q && !found.some(e => e.id !== 'other') && <li className="ty-note">לא נמצא — אפשר לבחור «אחר» והמשרד יברר</li>}
+          </ul>
+        </>
+      )}
+      {foot}
     </div>
   );
 }

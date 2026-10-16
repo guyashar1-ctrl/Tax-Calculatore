@@ -50,6 +50,8 @@ export function conditionsOf(it: InfoItem): string[] {
 }
 
 function purposeText(p: Purpose[]): string {
+  // 16.10.2026 · מסמכי ההיכרות ירדו מהשאלון (נשארים כזהות הראיות); מסך הרשת נבנה מהשאלות, לא מהתמונה
+  if (!p.length) return 'לא נשאל (מסמך — בדוח ובהצהרה; או מסך מקובץ)';
   if (p.includes('intake')) return 'בקליטה והשלמת תיק';
   if (p.includes('wealth')) return 'בהצהרת הון';
   return p.includes('estimate') && p.includes('annual') ? 'בהערכה ובדוח' : p.includes('annual') ? 'בדוח השנתי בלבד' : 'בהערכה בלבד';

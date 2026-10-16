@@ -180,6 +180,9 @@ export function targetsFor(item: InfoItem, c: Client, y: number, facts: YearFact
 
 const sameTarget = (f: { subjectRole: SubjectRole; entityRef?: string }, t: Target) =>
   f.subjectRole === t.subjectRole && (f.entityRef ?? null) === (t.entityRef ?? null);
+/** 16.10.2026 · עובדה של משק הבית על פריט «לכל אדם» (בלי ישות) — מכסה את שני האנשים. */
+const coupleCovers = (f: { subjectRole: SubjectRole; entityRef?: string }, item: InfoItem, t: Target) =>
+  f.subjectRole === 'couple' && item.per === 'person' && !t.entityRef && !f.entityRef && (t.subjectRole === 'client' || t.subjectRole === 'spouse');
 /** שאלה ששאלה את הזוג «מי מכם?» מכסה את שני האנשים. */
 const askCovers = (a: { subjectRole: SubjectRole; entityRef?: string }, t: Target) =>
   sameTarget(a, t) || (a.subjectRole === 'couple' && (t.subjectRole === 'client' || t.subjectRole === 'spouse') && !t.entityRef);
@@ -308,6 +311,8 @@ export function buildYearPicture(inp: PictureInput): YearPicture {
         const has = all.some(t => (item.per === 'employer' ? t.ownerRole === (r === 'couple' ? 'client' : r) : true) && !isProvisionalRef(t.entityRef));
         if (!has && screenerState(item.after, r, c, facts, y) === 'yes') add(r);
       }
+      // 16.10.2026 · זוג: «כן» של משק הבית (מסך הרשת) על שאלת פתיחה לאדם ⇒ ישות זמנית אחת למשק הבית, ו«של מי» בתוכה
+      if (after.per === 'person' && isMarried(c) && !all.some(t => !isProvisionalRef(t.entityRef)) && screenerState(item.after, 'couple', c, facts, y) === 'yes') add('couple');
     }
     // ישות זמנית שכבר יש עליה שאלה, תשובה או מסמך — נשארת ביעדים גם כשהשער השתנה (כדי שהשאלה תסומן כלא רלוונטית)
     const refs = new Set<string>([
@@ -348,11 +353,15 @@ export function buildYearPicture(inp: PictureInput): YearPicture {
     if (item.key.endsWith('.changesSince')) continue; // נוסף למטה, רק לתחום שידוע חלקית
 
     for (const t of targetsWithProvisional(item)) {
-      const tf = itemFacts.filter(f => sameTarget(f, t));
+      // ‼ 16.10.2026 · מסך הרשת של זוג נשוי שומר את שאלת הפתיחה (ואת «של מי / איפה») לתפקיד 'couple' — עובדה כזו מכסה את שני האנשים
+      const tf = itemFacts.filter(f => sameTarget(f, t) || coupleCovers(f, item, t));
       const tev = item.docKind
         ? evidence.filter(e => e.docKind === item.docKind && (e.taxYear == null || e.taxYear === y) && e.subjectRole === t.subjectRole && (e.entityRef ?? null) === (t.entityRef ?? null))
         : [];
-      const ask = asks.find(a => a.itemKey === item.key && askCovers(a, t) && a.state !== 'cancelled' && a.state !== 'answered');
+      const ask = asks.find(a => a.state !== 'cancelled' && a.state !== 'answered'
+        && ((a.itemKey === item.key && askCovers(a, t))
+          // 16.10.2026 · מסך הרשת «סמנו מה יש לכם» — שאלה אחת שמכסה כל אריח (שאלת פתיחה) בתפקיד שלו
+          || (a.prompt.input.kind === 'multi' && a.prompt.input.options.some(o => o.key === item.key && askCovers({ subjectRole: o.role }, t)))));
       // ‼ 13.10.2026 · תחולה: שאלת התחולה עצמה — רק לישות שהכרטיס לא יודע עליה (או שכבר נשאלה/נענתה).
       //   פריט שתלוי בישות — רק כשהישות בוודאות בתקופה; «לא ידוע» מחכה לתשובה, «מחוץ לתקופה» — לא חל.
       if (temporal && (t.entityKind === 'property' || t.entityKind === 'account') && t.entityRef && !isProvisionalRef(t.entityRef)) {
@@ -410,9 +419,10 @@ export function buildYearPicture(inp: PictureInput): YearPicture {
       if (item.after) {
         const role: SubjectRole = t.ownerRole ?? (t.subjectRole === 'couple' ? 'client' : t.subjectRole);
         // ישות זמנית: השער הוא התשובה של מי שענה «כן» — לא של משק הבית
-        const gate = t.gateRole ? screenerState(item.after, t.gateRole, c, facts, y)
-          : screenerState(item.after, item.per === 'couple' || t.subjectRole === 'couple' ? 'couple' : role, c, facts, y);
-        const gate2 = gate === 'unknown' && (t.subjectRole === 'couple') && !t.gateRole ? screenerState(item.after, 'client', c, facts, y) : gate;
+        const primary: SubjectRole = t.gateRole ? t.gateRole : item.per === 'couple' || t.subjectRole === 'couple' ? 'couple' : role;
+        const gate = screenerState(item.after, primary, c, facts, y);
+        // ‼ 16.10.2026 · שאלת פתיחה של משק הבית (מסך הרשת של זוג) פותחת פריט לאדם, ושל האדם (יחיד) — פריט של משק הבית
+        const gate2 = gate === 'unknown' && !t.gateRole ? screenerState(item.after, primary === 'couple' ? 'client' : 'couple', c, facts, y) : gate;
         if (gate2 === 'no') { push('notApplicable', 'לפי שאלת הפתיחה — לא חל'); continue; }
         if (gate2 === 'unknown') continue; // מחכה לשאלת הפתיחה; לא נספר כחסר ולא נשאל לפניה
       }

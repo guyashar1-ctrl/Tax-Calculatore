@@ -7,7 +7,7 @@
 // ‼ מפתח פריט הוא זהות: שינוי מפתח שובר עובדות שמורות. משנים ניסוח, לא מפתח.
 
 import type { Client } from '../../types';
-import type { DocKind, EntityKind, Purpose } from './types';
+import type { DocKind, EntityKind, EntitySpec, Purpose } from './types';
 import { WEALTH_AREAS, WEALTH_ITEMS } from './wealthCatalog';
 import { INTAKE_AREAS, INTAKE_ITEMS } from './intakeCatalog';
 
@@ -78,8 +78,12 @@ export interface InfoItem {
   /** שאלה ללקוח. בלי מונחי מס ובלי קודים. {name} = שם האדם. */
   question?: string;
   why?: string;
-  input?: 'yesno' | 'amount' | 'date' | 'text' | 'choice' | 'confirm' | 'file' | 'record';
+  input?: 'yesno' | 'amount' | 'date' | 'text' | 'choice' | 'confirm' | 'file' | 'record' | 'entity' | 'multi';
   options?: { value: string; label: string }[];
+  /** 16.10.2026 · קלט «של מי / איפה» — שדות סגורים (types.ts › EntitySpec). */
+  entity?: EntitySpec;
+  /** 16.10.2026 · שאלת פתיחה בהיכרות: הכיתוב על האריח במסך «סמנו מה יש לכם» (קצר, בלי סימן שאלה). */
+  tile?: string;
   docKind?: DocKind;
   /** פריט שנשאל רק אחרי «כן» בשאלת הפתיחה הזו. */
   after?: string;
@@ -110,7 +114,7 @@ export interface InfoItem {
    */
   onlyNew?: boolean;
   /** אישור מהכרטיס כשבכרטיס אין כלום: שאלה מובנית במקום «אין אצלנו פרטים». */
-  whenEmpty?: { question: string; input: 'text' | 'choice'; options?: { value: string; label: string }[] };
+  whenEmpty?: { question: string; input: 'text' | 'choice' | 'record'; options?: { value: string; label: string }[] };
   /** «כן/לא» שמתורגם לשדה בוליאני בכרטיס — עדכון רק אחרי אישור המשרד, דרך הצעה עם היסטוריה. */
   cardFlag?: string;
   /** בחירה שמתורגמת לשדה בכרטיס (למשל מצב משפחתי) — אותו מסלול אישור. */
@@ -543,6 +547,11 @@ ITEMS.push(
     officeNext: 'לעדכן בכרטיס מועד פתיחה או סגירה' },
 );
 
+// ‼ 16.10.2026 (גיא, «בקשה אחת לתיק המס» שלב 2): הערכת מס היא מספרים בלבד — אף מסמך לא מתבקש בה. פריטי המסמך
+//   נשארים (זהות הראיות, הדוח השנתי); רק התכלית 'estimate' יורדת מהם.
+for (const i of ITEMS) if (i.input === 'file') i.purposes = i.purposes.filter(p => p !== 'estimate');
+/** פריטי מסמך שירדו מהערכת המס (לדוח ולבדיקות). */
+export const ESTIMATE_DOCS_REMOVED = ITEMS.filter(i => i.input === 'file').length;
 // הכנה להצהרת הון (230) — אותו מנגנון, תכלית 'wealth' (wealthCatalog.ts).
 AREAS.push(...WEALTH_AREAS);
 ITEMS.push(...WEALTH_ITEMS);

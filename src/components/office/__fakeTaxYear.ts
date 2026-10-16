@@ -820,6 +820,15 @@ function taxYearRpcInner(t: Tables, name: string, args: Row, firm: string, logWr
       }
       if (res.officeNote) a.office_note = res.officeNote;
       for (const f of res.facts) t.tax_year_facts.push(factRow({ ...f, askId: String(a.id) }, firm));
+      // 253 · מסך הרשת: שאלות ההמשך של מה שסומן נפתחות מיד (מפורסמות), פעם אחת לזהות
+      for (const fu of res.followUps ?? []) {
+        const dup = t.tax_info_asks.some(x => x.client_id === cid && x.tax_year === a.tax_year && x.item_key === fu.itemKey && x.subject_role === fu.subjectRole
+          && (x.entity_ref ?? '') === (fu.entityRef ?? '') && ['draft', 'published', 'unavailable'].includes(String(x.state)));
+        if (dup) continue;
+        t.tax_info_asks.push({ id: uuid(), user_id: firm, client_id: cid, tax_year: a.tax_year, step_id: a.step_id, parent_step_id: a.parent_step_id,
+          item_key: fu.itemKey, item_kind: ITEM_BY_KEY[fu.itemKey]?.kind ?? 'detail', subject_role: fu.subjectRole, entity_kind: fu.entityKind ?? null, entity_ref: fu.entityRef ?? null,
+          prompt: fu.prompt, state: 'published', saved_draft: null, unavailable: null, office_note: null, answered_at: null, created_at: nowIso() });
+      }
       Object.assign(a, { state: 'answered', answered_at: nowIso(), saved_draft: null });
       const info = stepOf(t, a.step_id);
       if (info && !t.tax_info_asks.some(x => x.step_id === info.id && x.state === 'published')) Object.assign(info, { status: 'in_progress', ball: 'me', updated_at: nowIso() });
