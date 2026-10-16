@@ -159,6 +159,12 @@ const RULE_LIST: Rule[] = [
   { id: 'ni.se.maxIncome', label: 'ב״ל — הכנסה מרבית החייבת (חודשי)', unit: '₪', computable: true, values: [{ taxYear: 2026, value: 51_910, basis: 'primary', sourceId: 'btlRates2026', checkedAt: C }] },
   { id: 'ni.se.minIncome', label: 'ב״ל — הכנסה מזערית לעצמאי (חודשי)', unit: '₪', computable: false, values: [{ taxYear: 2026, value: 3_442, basis: 'primary', sourceId: 'btlRates2026', checkedAt: C, note: 'החישוב מהכנסה מזערית לא מומש' }] },
   { id: 'ni.se.deductionShare', label: 'ב״ל — החלק מדמי הביטוח הלאומי שמופחת מההכנסה', unit: 'rate', law: 'סעיף 345 לחוק; סעיף 47א לפקודה', computable: true, values: [{ taxYear: 2026, value: 0.52, basis: 'primary', sourceId: 'btlCalc2026', checkedAt: C }] },
+  // ── ב״ל על הכנסה שלא מעבודה (שכירות במסלול הרגיל, עצמאי שאינו עונה להגדרה) — 16.10.2026 ──
+  { id: 'ni.nonWork.exemptMonthly', label: 'ב״ל — הכנסה שלא מעבודה: הסכום הפטור (חודשי, 25% מהשכר הממוצע)', unit: '₪', law: 'סעיף 348 לחוק', computable: true, values: [{ taxYear: 2026, value: 3_442, basis: 'primary', sourceId: 'btlNonWorkRates2026', checkedAt: '16.10.2026', note: 'הפחתה, לא מצוק: משלמים רק על מה שמעל 3,442 (דוגמת האתר: 12,000 ⇒ חייב על 8,558). אצל עצמאי — אותה הפחתה (דף «עובד עצמאי ובעל הכנסה שלא מעבודה»)' }] },
+  { id: 'ni.nonWork.lowRateNi', label: 'ב״ל — הכנסה שלא מעבודה: שיעור מופחת (לאומי)', unit: 'rate', computable: true, scope: ['beforeRetirementAge'], values: [{ taxYear: 2026, value: 0.0692, basis: 'primary', sourceId: 'btlNonWorkRates2026', checkedAt: '16.10.2026' }] },
+  { id: 'ni.nonWork.highRateNi', label: 'ב״ל — הכנסה שלא מעבודה: שיעור רגיל (לאומי)', unit: 'rate', computable: true, scope: ['beforeRetirementAge'], values: [{ taxYear: 2026, value: 0.07, basis: 'primary', sourceId: 'btlNonWorkRates2026', checkedAt: '16.10.2026' }] },
+  { id: 'ni.nonWork.healthRate', label: 'ב״ל — הכנסה שלא מעבודה: דמי ביטוח בריאות (מופחת ורגיל)', unit: 'rate', computable: true, scope: ['beforeRetirementAge'], values: [{ taxYear: 2026, value: 0.0517, basis: 'primary', sourceId: 'btlNonWorkRates2026', checkedAt: '16.10.2026' }] },
+  { id: 'ni.nonWork.minimumMonthly', label: 'ב״ל — מי שאינו עובד: דמי ביטוח מינימליים (חודשי)', unit: '₪', computable: false, values: [{ taxYear: 2026, value: 266, basis: 'primary', sourceId: 'btlNonWorkRates2026', checkedAt: '16.10.2026', note: '143 לאומי + 123 בריאות; למעט אישה הנשואה למבוטח שאינה עובדת מחוץ למשק ביתה. לא מוחל אוטומטית בהערכה' }] },
   { id: 'ni.advances.basis', label: 'ב״ל — על מה נשענות המקדמות', unit: 'text', computable: false, values: [
     { taxYear: 2026, value: 'עד השומה הסופית — לפי ההכנסה העדכנית שהתקבלה בב״ל עד 31.12 של השנה הקודמת. עם השומה הסופית לשנה נערך חישוב הפרשים. ההכנסה היא לפני פטורים, ניכויים וזיכויים, אחרי הפחתת 52% מדמי הביטוח הלאומי וחלק מההפקדה לקופת גמל (שנקבע במס הכנסה)', basis: 'primary', sourceId: 'btlCalc2026', checkedAt: C },
   ] },
@@ -214,7 +220,8 @@ const RULE_LIST: Rule[] = [
     { taxYear: 2026, value: 'מותר לקזז ניכוי במקור שאינו משכר, עם אישור. ניכוי משכר אינו מקוזז מהמקדמה העסקית. קיזוז שלא כדין — קנס פי שלושה', basis: 'primary', sourceId: G25, locator: 'פרק ח, סעיף 3', checkedAt: C, note: ADV26 },
   ] },
   { id: 'it.refund', label: 'מס הכנסה — החזר לפי הדוח', unit: 'text', law: 'סעיף 159א', computable: false, values: [
-    { taxYear: 2026, value: 'תוך 90 ימים מהגשת הדוח, עם ריבית והפרשי הצמדה, לחשבון הבנק שנמסר. זכות ברשות אינה החזר מיידי', basis: 'primary', sourceId: G25, locator: 'פרק ח, סעיף 10', checkedAt: C, note: ADV26 },
+    { taxYear: 2026, value: 'תוך 90 ימים מהגשת הדוח או מ-31 ביולי של השנה שאחרי שנת המס — לפי המאוחר, עם ריבית והפרשי הצמדה, לחשבון הבנק שנמסר (בני זוג — לחשבון של בן הזוג הרשום); ייתכן קיזוז מול חוב. זכות ברשות אינה החזר מיידי', basis: 'secondary', sourceId: 'wikisourceOrdinance', locator: 'סעיף 159א(ב); מדריך 2025 פרק ח סעיף 10 (מקוצר, בלי 31 ביולי)', checkedAt: '16.10.2026', note: `${ADV26}. דוגמה: דוח שהוגש ב-10.3 ⇒ החזר עד 31.7; הוגש ב-1.6 ⇒ עד 30.8`,
+      revisions: [{ value: 'תוך 90 ימים מהגשת הדוח, עם ריבית והפרשי הצמדה, לחשבון הבנק שנמסר. זכות ברשות אינה החזר מיידי', basis: 'primary', sourceId: G25, checkedAt: C, replacedAt: '16.10.2026', reason: 'חסר «או 31 ביולי, לפי המאוחר» (159א(ב)) — research/forecast-134-recommendations-2026-10-16 §4' }] },
   ] },
 
   // ── הצהרת הון ────────────────────────────────────────────────────────────

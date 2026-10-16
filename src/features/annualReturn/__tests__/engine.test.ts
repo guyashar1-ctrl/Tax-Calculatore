@@ -38,7 +38,8 @@ export const TESTS: TestCase[] = [
     const o = computeReturn({ client: client({ businesses: [BIZ] } as Partial<Client>), draft: draft(), facts, evidence: ev });
     // ביד (מדריך 2025, סעיפים 53, 76 — מסלול א׳; 20,000 < 24,069 ⇒ לא עמית מוטב): הכנסה מזכה = min(300,000 − 10,000 קרן, 164,400) = 164,400.
     //   ניכוי 7% = 11,508; זיכוי על min(20,000 − 11,508, 5% = 8,220) = 8,220; תוספת על מה שמעל 12% (19,728) = 272 ⇒ ניכוי 11,780.
-    const want = brackets(300_000 - 11_780 - 10_000 - niDed(300_000)) - 2.25 * 2_904 - 0.35 * 8_220;
+    //   ‼ 16.10.2026 (R11): ההכנסה לב״ל — אחרי הניכוי לקופת גמל (סעיף 345) ⇒ 47א מחושב על 300,000 − 11,780.
+    const want = brackets(300_000 - 11_780 - 10_000 - niDed(300_000 - 11_780)) - 2.25 * 2_904 - 0.35 * 8_220;
     near(o.persons[0].incomeTax, want, 2, 'מס');
     equal(field(o, '150'), 300_000); equal(field(o, '238'), 400_000); equal(field(o, '030'), 40_000); equal(field(o, '135'), 20_000); equal(field(o, '268'), undefined); // ‼ 135 = כל הסכום ששולם; רשות המסים מפצלת equal(field(o, '136'), 10_000);
     near(o.household.balance, want - 50_000, 2, 'יתרה (שלילי = החזר)');

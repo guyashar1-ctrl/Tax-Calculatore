@@ -217,7 +217,8 @@ export const form1301Fields: Form1301FieldDef[] = [
       { code: '106', name: 'טופס 106', reason: 'הסכום מופיע על גבי הטופס' },
     ],
     dataLayer: 'document',
-    codes: { registered: '042', spouse: '044' },
+    // ‼ 16.10.2026 (C16): 040–043 הם שדות משותפים לזוג — קוד אחד. «044» אינו ניכוי במקור של בן הזוג (מדריך 2024 ו-2025)
+    codes: { joint: '042' },
     officialRef: 'מדריך 2025 עמ\' 37 - ניכוי במקור משכר/קצבאות',
   },
   {
@@ -244,7 +245,8 @@ export const form1301Fields: Form1301FieldDef[] = [
     sourceQuestionIds: ['received_severance'],
     requiredDocuments: [
       { code: '161', name: 'טופס 161 מהמעביד', reason: 'פירוט המענק - חלק חייב וחלק פטור' },
-      { code: '134', name: 'אישור פקיד שומה לפריסה (אם בוצעה)', reason: 'פריסה למספר שנות מס' },
+      // ‼ 16.10.2026 (C25): הבקשה — טופס 116ג (סעיף 8(ג)); האישור — מכתב פקיד השומה. 134 הוא דוח מקדמות בשע״ם, לא טופס פריסה
+      { code: '116c', name: 'טופס 116ג (בקשה לפריסה) ואישור פקיד השומה — אם בוצעה פריסה', reason: 'פריסה למספר שנות מס (סעיף 8(ג)); בקשה אינה אישור' },
     ],
     legalReference: 'סעיף 9(7א) לפקודה',
     dataLayer: 'document',
@@ -386,7 +388,9 @@ export const form1301Fields: Form1301FieldDef[] = [
     ],
     legalReference: 'סעיף 122 לפקודה',
     dataLayer: 'question',
-    officialRef: 'מדריך 2025 עמ\' 14 - אשף שכ"ד במערכת השידור; אין קוד יחיד - מוזן באשף',
+    // ‼ 16.10.2026 (C27): 1321/2025 סעיף 3 — «לשדה 222»; לפי הקטלוג: 222 משותף, 284 רשום, 344 בן זוג (טור לזוג — כמו ב-059, פרשנות)
+    codes: { joint: '222', registered: '284', spouse: '344' },
+    officialRef: 'מדריך 2025 עמ\' 14, 18 - שדות 222/284/344; בהזנה נפתחת מערכת דיווח שכ"ד למגורים',
   },
   {
     fieldNumber: 'R-marginal',
@@ -402,7 +406,9 @@ export const form1301Fields: Form1301FieldDef[] = [
       { code: 'annex_1321', name: 'נספח ב\' (1321)', reason: 'פירוט הכנסות והוצאות מנכס בית' },
     ],
     dataLayer: 'document',
-    codes: { registered: '059', spouse: '201', joint: '301' },
+    // ‼ 16.10.2026 (C27): 059 הוא הטור המשותף של זוג נשוי; 201 (רשום) / 301 (בן זוג) — רק לנכס שהיה של אחד מהם שנה לפני
+    //   הנישואים או בירושה (מדריך 1301/2025 עמ׳ 14). היה הפוך.
+    codes: { joint: '059', registered: '201', spouse: '301' },
     officialRef: 'מדריך 2025 עמ\' 14 - הכנסות מנכס בית דרך נספח ב\'',
     accountantAction: 'בניית נספח ב\' (1321) עם פחת והוצאות',
   },
@@ -1033,8 +1039,10 @@ export const form1301Fields: Form1301FieldDef[] = [
 
   // ═══ חלק 10 — מיסים ששולמו במהלך השנה ════════════════════════════════════
   {
-    fieldNumber: '040',
-    hebrewLabel: 'מקדמות מ"ה ששולמו במהלך השנה',
+    // ‼ 16.10.2026 (C16): 040 = ניכויים במקור אחרים (857/837, 867, אישורי ב״ל) — לא מקדמות. מקדמות אינן שדה ב-1301:
+    //   הרשות מזכה אותן לפי רישומיה (134/137). נתון עזר פנימי — לכן בלי קוד טופס.
+    fieldNumber: 'ADV-paid',
+    hebrewLabel: 'מקדמות מ"ה ששולמו במהלך השנה (מ-134/137 — לא שדה בטופס)',
     section: '10_tax_paid',
     required: 'conditional',
     conditionalOn: (m) => has(m, 'business') || has(m, 'rental') || has(m, 'capital') || has(m, 'foreign'), // דוח מקדמות משע"ם
@@ -1046,7 +1054,7 @@ export const form1301Fields: Form1301FieldDef[] = [
   },
   {
     fieldNumber: 'WH-summary',
-    hebrewLabel: 'סך ניכוי במקור מכל המקורות',
+    hebrewLabel: 'סך ניכוי במקור מכל המקורות — 040 (857/837, 867, ב״ל) + 042 (106) + 043 (ריבית פיקדונות לפי 867)',
     section: '10_tax_paid',
     required: 'conditional',
     conditionalOn: (m) => (m.income?.sources ?? []).length > 0, // מסוכם מהמסמכים

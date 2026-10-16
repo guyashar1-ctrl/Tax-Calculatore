@@ -214,12 +214,15 @@ export const TESTS: TestCase[] = [
     const man = adv(computeEstimate(draft({ catchUps: [{ ...cu, method: 'manualAmount', amount: 5_000 }] }), Y), 'ni');
     assert(isNum(man.catchUp) && man.catchUp.value === 5_000 && man.catchUp.basis === 'officeDecision', JSON.stringify(man.catchUp));
   }),
-  test('מקדמה בסכום קבוע: המומלץ = המס שנובע מהעסק ÷ מספר התקופות', () => {
+  // ‼ 16.10.2026 (R10): סכום קבוע = 10 תשלומים שווים, 15.2 עד 15.11 (it.advances.methods; מדריך 2025 פרק ח ס׳ 1ב) — לא 12/6 תקופות
+  test('מקדמה בסכום קבוע: המומלץ = המס שנובע מהעסק ÷ 10 תשלומים (פברואר עד נובמבר); הלוח — רק מועדים שקיימים', () => {
     const o = computeEstimate(draft({ it: { via: 'manual', readOn: '2026-10-10', method: 'fixed', fixedPerPeriod: 4_000, frequency: 2, periods: [] } }), Y);
     const it = adv(o, 'it');
     equal(it.unit, '₪ לתקופה');
-    near(it.recommended!, refIt({ business: 360_000, points: 2.25 }) / 6, 1, 'לתקופה דו־חודשית');
-    equal(it.schedule.map(s => s.period).join(','), '2026-10,2026-12'); // 09–10 ו-11–12: נגמרות אחרי החתך
+    near(it.recommended!, refIt({ business: 360_000, points: 2.25 }) / 10, 1, 'לתשלום — עשירית מהמס שנובע מהעסק');
+    equal(it.schedule.map(s => s.period).join(','), '2026-10,2026-11'); // אחרי החתך (ספטמבר): אוקטובר ונובמבר; אין תשלום בדצמבר ובינואר
+    equal((o.cashflow ?? []).filter(c => c.authority === 'it' && c.kind === 'advance').map(c => c.date).join(','), '2026-10-15,2026-11-15');
+    assert(it.explain.some(e => e.includes('10 תשלומים')), it.explain.join(' | '));
   }),
   test('ריבית, הצמדה וקנס — רכיבים נפרדים, לא מחושבים בלי בסיס', () => {
     const o = computeEstimate(draft(), Y);
@@ -275,10 +278,10 @@ export const TESTS: TestCase[] = [
     assert(!o.blockers.some(b => b.code === 'pension_age50') && o.limits.some(x => x.includes('מגיל 50')), JSON.stringify(o.blockers.map(b => b.code)));
     const sal = { id: 's1', person: 'client' as const, source: 'salary' as const, label: 'משכורת', actualToCutoff: 45_000, office: { method: 'runRate' as const }, chosen: 'office' as const };
     // 14.10.2026: גיל 50 עם משכורת מבוטחת — מחושב; חוסם רק משכורת מעל 291,000 עם חלק לא מבוטח
-    const o2 = computeEstimate(draft({ lines: [...draft().lines, sal], savings: [{ person: 'client', pensionToCutoff: 20_000, insuredSalary: 60_000 }] }), old);
+    const o2 = computeEstimate(draft({ lines: [...draft().lines, sal], savings: [{ person: 'client', pensionToCutoff: 20_000, insuredSalary: 60_000, employeeDeposits: 0 }] }), old);
     assert(!o2.blockers.some(b => b.code === 'pension_age50'), JSON.stringify(o2.blockers.map(b => b.code)));
     const big = { ...sal, actualToCutoff: 250_000 };
-    const o3 = computeEstimate(draft({ lines: [...draft().lines, big], savings: [{ person: 'client', pensionToCutoff: 20_000, insuredSalary: 200_000 }] }), old);
+    const o3 = computeEstimate(draft({ lines: [...draft().lines, big], savings: [{ person: 'client', pensionToCutoff: 20_000, insuredSalary: 200_000, employeeDeposits: 0 }] }), old);
     assert(o3.blockers.some(b => b.code === 'pension_age50'), JSON.stringify(o3.blockers.map(b => b.code)));
   }),
 

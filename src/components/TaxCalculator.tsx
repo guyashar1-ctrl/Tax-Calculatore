@@ -134,8 +134,8 @@ export default function TaxCalculator({ client, onBack }: Props) {
 
   const pieData = result ? [
     { name: 'מס הכנסה', value: Math.round(result.totalIncomeTax), color: 'var(--br)' },
-    { name: 'ביטוח לאומי', value: Math.round(result.niEmployee + result.niSelfEmployed), color: 'var(--warn)' },
-    { name: 'מס בריאות', value: Math.round(result.healthEmployee + result.healthSelfEmployed), color: 'var(--info)' },
+    { name: 'ביטוח לאומי', value: Math.round(result.niEmployee + result.niSelfEmployed + (result.niNonWork ?? 0)), color: 'var(--warn)' },
+    { name: 'מס בריאות', value: Math.round(result.healthEmployee + result.healthSelfEmployed + (result.healthNonWork ?? 0)), color: 'var(--info)' },
     { name: 'נטו', value: Math.round(result.netAnnualIncome), color: 'var(--ok)' },
   ].filter(d => d.value > 0) : [];
 
@@ -351,7 +351,7 @@ export default function TaxCalculator({ client, onBack }: Props) {
                 <div className="stat-card orange">
                   <div className="stat-label">ביטוח לאומי + בריאות</div>
                   <div className="stat-value">₪{fmt(Math.round(result.totalNI))}</div>
-                  <div className="stat-sub">ב"ל: ₪{fmt(Math.round(result.niEmployee + result.niSelfEmployed))} · בריאות: ₪{fmt(Math.round(result.healthEmployee + result.healthSelfEmployed))}</div>
+                  <div className="stat-sub">ב"ל: ₪{fmt(Math.round(result.niEmployee + result.niSelfEmployed + (result.niNonWork ?? 0)))} · בריאות: ₪{fmt(Math.round(result.healthEmployee + result.healthSelfEmployed + (result.healthNonWork ?? 0)))}</div>
                 </div>
                 <div className="stat-card red">
                   <div className="stat-label">סה"כ חבות מס</div>
@@ -403,7 +403,7 @@ export default function TaxCalculator({ client, onBack }: Props) {
 
               {result.niDeductionFromIncomeTax > 0 && (
                 <div className="alert alert-info">
-                  💡 <strong>ניכוי ב"ל ממס הכנסה (סעיף 17(5)):</strong> 52% מהביטוח הלאומי העצמאי (₪{fmt(Math.round(result.niSelfEmployed))}) = <strong>₪{fmt(Math.round(result.niDeductionFromIncomeTax))}</strong> הופחתו מהכנסה החייבת → חיסכון במס הכנסה של ~₪{fmt(Math.round(result.niDeductionFromIncomeTax * result.marginalRate / 100))}.
+                  💡 <strong>ניכוי ב"ל ממס הכנסה (סעיף 47א):</strong> 52% מדמי הביטוח הלאומי — לא מדמי הבריאות (₪{fmt(Math.round(result.niSelfEmployed + (result.niNonWork ?? 0)))}) = <strong>₪{fmt(Math.round(result.niDeductionFromIncomeTax))}</strong> הופחתו מהכנסה החייבת → חיסכון במס הכנסה של ~₪{fmt(Math.round(result.niDeductionFromIncomeTax * result.marginalRate / 100))}.
                 </div>
               )}
 
@@ -661,10 +661,18 @@ export default function TaxCalculator({ client, onBack }: Props) {
                           <td className="number">₪{fmt(Math.round(result.niSelfEmployed + result.healthSelfEmployed))}</td>
                         </tr>
                       )}
+                      {((result.niNonWork ?? 0) > 0 || (result.healthNonWork ?? 0) > 0) && (
+                        <tr>
+                          <td>הכנסה שלא מעבודה (שכ"ד חייב)</td>
+                          <td className="number">₪{fmt(Math.round(result.niNonWork ?? 0))}</td>
+                          <td className="number">₪{fmt(Math.round(result.healthNonWork ?? 0))}</td>
+                          <td className="number">₪{fmt(Math.round((result.niNonWork ?? 0) + (result.healthNonWork ?? 0)))}</td>
+                        </tr>
+                      )}
                       <tr className="total">
                         <td>סה"כ</td>
-                        <td className="number">₪{fmt(Math.round(result.niEmployee + result.niSelfEmployed))}</td>
-                        <td className="number">₪{fmt(Math.round(result.healthEmployee + result.healthSelfEmployed))}</td>
+                        <td className="number">₪{fmt(Math.round(result.niEmployee + result.niSelfEmployed + (result.niNonWork ?? 0)))}</td>
+                        <td className="number">₪{fmt(Math.round(result.healthEmployee + result.healthSelfEmployed + (result.healthNonWork ?? 0)))}</td>
                         <td className="number">₪{fmt(Math.round(result.totalNI))}</td>
                       </tr>
                     </tbody>

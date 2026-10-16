@@ -14,6 +14,8 @@ export interface CreditChild {
   birthYear: number;
   /** ילד נטול יכולת (סעיף 45) — 2 נקודות, ללא קשר לאחוז נכות */
   hasDisability?: boolean;
+  /** נשואים: 2 הנקודות של סעיף 45 נזקפות להורה השני (בחירת בני הזוג) — אצל ההורה הזה אין נקודות על הילד. */
+  disabilityPointsElsewhere?: boolean;
 }
 
 export type ParentRole =
@@ -262,14 +264,16 @@ export function calcCreditPointsV2(profile: CreditProfile, cpValue: number): Cre
           : roles.length > 1 ? 'הורה אחד — גם המסלול השני' : 'מסלול ההורה השני',
       );
     }
-    if (child.hasDisability) {
+    if (child.hasDisability && child.disabilityPointsElsewhere) {
+      notes.push(`ילד/ה נטול/ת יכולת (${child.birthYear}): 2 הנקודות (סעיף 45) נזקפות לבן/בת הזוג — לבני זוג נשואים רק אחד ההורים מקבל אותן, לבחירתם.`);
+    } else if (child.hasDisability) {
       add(
         `ילד/ה נטול/ת יכולת (${child.birthYear})`,
         'סעיף 45',
         2,
         'נקודות קבועות - אינן תלויות באחוז נכות. נדרש טופס 116א או אישור גמלת ילד נכה',
       );
-      notes.push('ילד נטול יכולת: רק אחד ההורים מקבל את הנקודות (לבחירתם); הורים פרודים - כל אחד זכאי. חלופה: זיכוי 35% מהוצאות דיור חוץ-ביתי (סעיף 44).');
+      notes.push('ילד נטול יכולת: לבני זוג נשואים רק אחד ההורים מקבל את הנקודות (לבחירתם — 023 לרשום, 131 לבן/בת הזוג); הורים פרודים - כל אחד זכאי. לא יחד עם זיכוי 35% מהוצאות החזקה במוסד (סעיף 44) לאותו ילד.');
     }
   }
   if (profile.deferredBirthYearPoint) {

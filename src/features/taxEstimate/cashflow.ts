@@ -29,7 +29,8 @@ export function buildCashflow(advances: AuthorityAdvance[], draft: EstimateDraft
   const cutoff = draft.cutoffMonth;
   for (const a of advances) {
     if (a.authority === 'it') {
-      for (const s of a.schedule) out.push({ authority: 'it', person: a.person, kind: 'advance', period: s.period, date: itDueDate(s.period), dateBasis: 'rule', current: s.current, recommended: s.recommended });
+      // ‼ סכום קבוע: התקופה היא חודש התשלום (15 בפברואר עד 15 בנובמבר); לפי מחזור — ה-15 בחודש שאחרי התקופה
+      for (const s of a.schedule) out.push({ authority: 'it', person: a.person, kind: 'advance', period: s.period, date: a.method === 'fixed' ? `${s.period}-15` : itDueDate(s.period), dateBasis: 'rule', current: s.current, recommended: s.recommended });
     } else {
       for (let m = cutoff + 1; m <= 12; m++) {
         const period = `${year}-${pad(m)}`;

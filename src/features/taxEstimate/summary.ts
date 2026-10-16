@@ -89,7 +89,9 @@ export function buildSummary(x: SummaryInput): SummaryModel {
   for (const a of o.advances.filter(y => y.authority === 'ni' && isNum(y.annualDue))) {
     const tag = a.person === 'spouse' ? ` · ${who('spouse')}` : '';
     const due = (a.annualDue as { value: number }).value;
-    headline.push({ label: `ביטוח לאומי לשנה${tag}`, value: nis(due), detail: [...a.explain, 'דמי ביטוח לאומי ובריאות לעצמאי — לפי ההכנסה מהעסק; נקבעים סופית בשומה של ב״ל'] });
+    // ‼ 16.10.2026 (R11): ביטוח לאומי ובריאות — שני תשלומים שונים: רק הלאומי מותר בניכוי 52% ממס הכנסה (47א)
+    const split = a.split ? [`מזה ביטוח לאומי ${nis(a.split.ni)} · ביטוח בריאות ${nis(a.split.health)}`] : [];
+    headline.push({ label: `ביטוח לאומי ובריאות לשנה${tag}`, value: nis(due), detail: [...split, ...a.explain.filter(e => !e.startsWith('מזה ביטוח לאומי')), `דמי ביטוח לאומי ובריאות — לפי ההכנסה מהעסק אחרי הניכוי לקופת גמל${o.persons.some(pr => pr.person === a.person && pr.niNonWork && isNum(pr.niNonWork) && pr.niNonWork.value > 0) ? ', ועל שכר דירה חייב — כהכנסה שלא מעבודה' : ''}; נקבעים סופית בשומה של ב״ל`] });
     // ‼ יתרת מ״ה של משק הבית אינה כוללת את ב״ל — בלי השורה הזו לקוח עם זכות במ״ה וחוב בב״ל קורא «זכות» על הכול.
     if (isNum(a.balanceAtCurrent)) {
       const now = a.balanceAtCurrent.value, reco = isNum(a.balanceAtRecommended) ? a.balanceAtRecommended.value : undefined;
@@ -98,6 +100,15 @@ export function buildSummary(x: SummaryInput): SummaryModel {
           ...(reco != null && a.recommended != null ? [`במקדמה המומלצת: ${bal(reco)}`] : []),
           ...((reco ?? now) > 0 ? ['הפרש לחודשים שכבר עברו נגבה בדרך כלל בחיוב נפרד של ב״ל או בשומה הסופית. אפשר להשלים אותו מראש'] : [])] });
     }
+  }
+
+  // ב״ל על הכנסה שלא מעבודה (שכ״ד חייב) אצל מי שאין לו מקדמת ב״ל — נגבה לפי שומה, ומוצג כדי שלא ייראה «אין ב״ל»
+  for (const pr of o.persons.filter(x => x.niNonWork && isNum(x.niNonWork) && x.niNonWork.value > 0 && !o.advances.some(a => a.authority === 'ni' && a.person === x.person))) {
+    const tag = pr.person === 'spouse' ? ` · ${who('spouse')}` : '';
+    headline.push({ label: `ביטוח לאומי ובריאות על הכנסה שלא מעבודה${tag}`, value: nis((pr.niNonWork as { value: number }).value),
+      detail: [...(pr.niSplit ? [`מזה ביטוח לאומי ${nis(pr.niSplit.ni)} · ביטוח בריאות ${nis(pr.niSplit.health)}`] : []),
+        'על החלק החייב במס משכר הדירה (מסלול רגיל או פטור חלקי): אחרי הפחתת 52% מדמי הביטוח ו-3,442 ₪ לחודש פטורים. החלק הפטור ומסלול 10% — פטורים מב״ל',
+        'ב״ל גובה אותם לפי השומה — אין מקדמה בהערכה הזו'] });
   }
 
   const fmt = (v: number | undefined, unit: string) => (v == null ? '—' : unit === '%' ? `${v}% מהמחזור` : unit === '₪ לחודש' ? `${nis(v)} לחודש` : `${nis(v)} לתקופה`);

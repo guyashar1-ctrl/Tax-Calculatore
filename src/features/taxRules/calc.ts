@@ -233,6 +233,24 @@ export function niSelfEmployedBase(income: number, lowAvail: number, lowRate: nu
   return low <= lowAvail ? low : (income + share * (highRate - lowRate) * lowAvail) / (1 + share * highRate);
 }
 
+export interface NiNonWork { reduced345: number; chargeable: number; lowPart: number; highPart: number; ni: number; health: number }
+
+/**
+ * דמי ביטוח על הכנסה שלא מעבודה (שכירות חייבת — 059, עצמאי שאינו עונה להגדרה, הכנסה פסיבית אחרת) — לשנה.
+ * דף ב״ל «עובד עצמאי ובעל הכנסה שלא מעבודה» ו«שיעורי דמי ביטוח להכנסה שלא מעבודה» (2026):
+ *   345 — X = Y ÷ (1 + 0.52 × שיעור רגיל); 348 — מפחיתים את הסכום הפטור (3,442 לחודש) — הפחתה, לא מצוק;
+ *   על היתרה — שיעור מופחת בתוך מה שנשאר מהסף אחרי הכנסת העבודה (אצל עצמאי מעל הסף — כלום), ורגיל מעליו; עד התקרה.
+ * ‼ פונקציה אחת: המחשבון הכללי (calcNI) והערכת המס. כל הסכומים שנתיים; שיעורים כשבר.
+ */
+export function niNonWorkIncome(i: { income: number; exempt: number; lowAvail: number; maxAvail: number; lowNi: number; highNi: number; health: number; share?: number }): NiNonWork {
+  const zero = { reduced345: 0, chargeable: 0, lowPart: 0, highPart: 0, ni: 0, health: 0 };
+  if (i.income <= 0) return zero;
+  const reduced345 = i.income / (1 + (i.share ?? 0.52) * i.highNi);
+  const chargeable = Math.max(0, Math.min(reduced345 - i.exempt, i.maxAvail));
+  const lowPart = Math.min(chargeable, Math.max(0, i.lowAvail)), highPart = chargeable - lowPart;
+  return { reduced345, chargeable, lowPart, highPart, ni: lowPart * i.lowNi + highPart * i.highNi, health: chargeable * i.health };
+}
+
 export function niSelfEmployedQuarter(input: { year: number; quarterlyIncome: number }, mode: GateMode = 'calculation'): GatedResult<NiQuarter> {
   const ids = ['ni.se.lowRateNi', 'ni.se.highRateNi', 'ni.se.lowRateHealth', 'ni.se.highRateHealth', 'ni.se.reducedThreshold', 'ni.se.deductionShare'];
   return result(ids, input.year, { beforeRetirementAge: true }, mode, () => {

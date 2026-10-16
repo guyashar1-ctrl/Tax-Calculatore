@@ -11,7 +11,8 @@ import type { Client, TaxCalcInput } from '../../types';
 import { calculateTax, niSelfEmployedBase, spouseAsClient } from '../../utils/taxCalculations';
 import { getTaxYearData } from '../../data/taxData';
 import { gate, describeProblem, RULESET_VERSION, num, usedRule } from '../taxRules/registry';
-import { microBusiness, niSelfEmployedQuarter, selfEmployedPension, studyFundLimit } from '../taxRules/calc';
+import { microBusiness, niNonWorkIncome, niSelfEmployedQuarter, selfEmployedPension, studyFundLimit } from '../taxRules/calc';
+import { niOccupationsInYear } from '../nationalInsurance/niOccupations';
 import { buildAlignment, buildCashflow } from './cashflow';
 import { compareSpouses, jointTax } from './spouseCalc';
 import type { SpouseComparison, SpouseSide } from './spouseCalc';
@@ -27,6 +28,8 @@ const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0);
 const period = (y: number, m: number) => `${y}-${String(m).padStart(2, '0')}`;
 const nis = (n: number) => `${Math.round(n).toLocaleString('he-IL')} ₪`;
 const PERSON_HE: Record<Person, string> = { client: 'הלקוח', spouse: 'בן/בת הזוג' };
+/** מקדמה בסכום קבוע: 10 תשלומים שווים, פברואר עד נובמבר (it.advances.methods — מדריך 2025 פרק ח ס׳ 1ב; 175(א)). */
+const FIXED_PAYMENTS = 10;
 
 /** מס הכנסה ליבה: הכללים שחייבים מקור ראשי (או הכרעה) כדי שהחבות תיראה כמספר. */
 export const IT_CORE_RULES = ['core.creditPoint', 'core.surtaxThreshold', 'core.incomeTaxBrackets'];
@@ -91,7 +94,7 @@ function catchUpFor(cu: CatchUp | undefined, setup: { periods?: { period: string
   return { amount: { why: 'שיטת ההשלמה לא מתאימה לרשות' } };
 }
 
-export function computeEstimate(draft: EstimateDraft, ctx: Ctx, opts: { extraStudyFund?: Partial<Record<Person, number>>; extraPension?: Partial<Record<Person, number>> } = {}): EstimateOutputs {
+export function computeEstimate(draft: EstimateDraft, ctx: Ctx, opts: { extraStudyFund?: Partial<Record<Person, number>>; extraPension?: Partial<Record<Person, number>>; noChecks?: boolean } = {}): EstimateOutputs {
   const { client, taxYear: year } = ctx;
   const cutoff = draft.cutoffMonth;
   const cutP = period(year, cutoff);
@@ -258,12 +261,20 @@ export function computeEstimate(draft: EstimateDraft, ctx: Ctx, opts: { extraStu
       if (sf.ok && sf.value) study = sf.value.deducted;
       else blockers.push({ code: 'study_fund_rule', text: `קרן השתלמות: ${sf.problems.map(describeProblem).join(' · ')}` });
     }
-    if (bizTaxable > 0 && d.pension > 0) {
+    // ‼ 16.10.2026 (R07): גם שכיר בלי עסק שהפקיד בעצמו לקופה — ניכוי לפי 47(ב)(2) (מדריך 2025 עמ׳ 61, דוגמה 1)
+    const sv = draft.savings.find(x => x.person === p);
+    // ‼ R07: יש משכורת ו-045 (הפקדות העובד מ-106) חסר ⇒ חוסם, לא אפס: בלעדיו מקום ה-7% של העבודה נספר פעמיים (מס נמוך מדי)
+    const employeeMissing = salary > 0 && d.pension > 0 && sv?.employeeDeposits == null;
+    if (employeeMissing) {
+      blockers.push({ code: `pension_employee_${p}`, text: `פנסיה (${PERSON_HE[p]}): יש משכורת — חסרות הפקדות העובד לקצבה מטופס 106 (שדה 045/086; 0 אם אין). בלעדיהן הזיכוי על ה-7% מהמשכורת עלול להיספר פעמיים — ההפקדה העצמאית לא חושבה` });
+      pension = d.pension;
+      sePension = { notComputed: 'חסרות הפקדות העובד מטופס 106 (045/086)' };
+    }
+    if ((bizTaxable > 0 || salary > 0) && d.pension > 0 && !employeeMissing) {
       const age = ageOnJan1(p === 'client' ? client.birthDate : client.spouse?.birthDate);
       if (age == null) blockers.push({ code: 'pension_age_unknown', text: `פנסיה: חסר תאריך לידה (${PERSON_HE[p]}) — התקרה תלויה בגיל 50` });
       // ‼ selfEmployedPension — אותה פונקציה במחשבון ובדוח: ניכוי 7% → זיכוי עד 5% → תוספת מעל 12%; מסלול ב׳ לעמית מוטב.
       // ‼ גיל 50 (14.10.2026): מחושב גם עם משכורת (research/pension-salary-ceilings). מחוץ לתחולה שאומתה — חוסם את התרחיש הזה בלבד.
-      const sv = draft.savings.find(x => x.person === p);
       const run = (ageArg: number | undefined) => selfEmployedPension({ year, nonWorkIncome: Math.max(0, bizTaxable - study), businessIncome: bizTaxable, salary,
         insuredSalary: salary > 0 ? sv?.insuredSalary : 0, ownDeposits: d.pension, employeeDeposits: sv?.employeeDeposits, employerDeposits: sv?.employerDeposits,
         ageOnJan1: ageArg, forceTrackA: sv?.pensionTrack === 'A' });
@@ -303,9 +314,35 @@ export function computeEstimate(draft: EstimateDraft, ctx: Ctx, opts: { extraStu
   const niRulesKnown = niSelfEmployedQuarter({ year, quarterlyIncome: 1 }).ok;
   let niDeductionFallback = false;
 
+  // ── 4א. המעמד בב״ל — מהעיסוקים שנקראו מב״ל או מהכרטיס; לא נגזר מהסכומים (C22, 16.10.2026) ──
+  // ‼ מבחן השעות לא נראה בסכום: מי שאינו עונה להגדרה הוא «בעל הכנסה שלא מעבודה» — שיעורים אחרים. סתירה ⇒ «לבדוק מול ב״ל».
+  const NI_TYPE_HE: Record<string, string> = { employee: 'שכיר', selfEmployed: 'עצמאי', nonQualifying: 'עצמאי שאינו עונה להגדרה', employeeAndSE: 'שכיר ועצמאי', passive: 'לא עובד (הכנסות פסיביות)', pensioner: 'פנסיונר' };
+  const niStatusOf = (p: Person): { kind: 'se' | 'nonWork' | 'unknown'; text: string; assumed?: boolean } => {
+    const occ = niOccupationsInYear((p === 'client' ? client.niOccupations : client.spouseNiOccupations) ?? [], year);
+    if (occ.some(o => o.type === 'self_employed')) return { kind: 'se', text: 'עצמאי — לפי העיסוקים שנקראו מב״ל' };
+    if (occ.some(o => o.type === 'self_employed_non_qualifying')) return { kind: 'nonWork', text: 'עצמאי שאינו עונה להגדרה — לפי העיסוקים שנקראו מב״ל' };
+    const t = p === 'client' ? client.niType : client.spouse?.niType;
+    if (t === 'selfEmployed' || t === 'employeeAndSE') return { kind: 'se', text: `${NI_TYPE_HE[t]} — לפי הכרטיס` };
+    if (t === 'nonQualifying') return { kind: 'nonWork', text: `${NI_TYPE_HE[t]} — לפי הכרטיס` };
+    // ‼ כרטיס שותק (אין מעמד ואין עיסוקים מב״ל) — מחושב כעצמאי, וזה כתוב; מעמד שסותר את ההכנסה מעסק — חוסם
+    if (!t) return { kind: 'se', text: 'לא רשום בכרטיס — חושב כעצמאי', assumed: true };
+    return { kind: 'unknown', text: `«${NI_TYPE_HE[t] ?? t}» בכרטיס` };
+  };
+  const niStatus = Object.fromEntries(persons.map(p => [p, niStatusOf(p)])) as Record<Person, ReturnType<typeof niStatusOf>>;
+  for (const p of persons) {
+    if (S[p].business + S[p].adj <= 0 || microNoNi.has(p)) continue;
+    if (niStatus[p].assumed) limits.push(`ב״ל${p === 'spouse' ? ` (${PERSON_HE.spouse})` : ''}: המעמד לא רשום בכרטיס ולא נקרא מב״ל — חושב כעצמאי. מי שאינו עונה להגדרה (פחות מ-20 שעות בשבוע ופחות מ-50% מהשכר הממוצע, או 12 שעות ו-15%) משלם כבעל הכנסה שלא מעבודה — לעדכן בכרטיס`);
+    if (niStatus[p].kind !== 'unknown') continue;
+    blockers.push({ code: `ni_status_${p}`, text: `ב״ל${p === 'spouse' ? ` (${PERSON_HE.spouse})` : ''}: יש הכנסה מעסק, והמעמד בב״ל ${niStatus[p].text} — לבדוק מול ב״ל ולעדכן בכרטיס: «עצמאי» או «עצמאי שאינו עונה להגדרה». עד אז דמי הביטוח לא מחושבים (המעמד לא נגזר מהסכום)` });
+  }
+
   // ── 5. מס הכנסה — לכל אדם בנפרד, עם המקורות שלו ──
-  const types = (salary: number, business: number) => salary > 0 && business > 0 ? { incomeTaxType: 'both', niType: 'employeeAndSE' }
-    : business > 0 ? { incomeTaxType: 'selfEmployed', niType: 'selfEmployed' } : salary > 0 ? { incomeTaxType: 'employee', niType: 'employee' } : {};
+  // ‼ סוג התיק במס הכנסה — לפי ההכנסות; המעמד בב״ל — לפי הכרטיס (4א). «שאינו עונה להגדרה» ⇒ ההכנסה מעסק היא הכנסה שלא מעבודה.
+  const types = (salary: number, business: number, p: Person) => {
+    const it = salary > 0 && business > 0 ? { incomeTaxType: 'both', niType: 'employeeAndSE' }
+      : business > 0 ? { incomeTaxType: 'selfEmployed', niType: 'selfEmployed' } : salary > 0 ? { incomeTaxType: 'employee', niType: 'employee' } : {};
+    return business > 0 && niStatus[p]?.kind === 'nonWork' ? { ...it, niType: 'nonQualifying' } : it;
+  };
   const caps = Object.fromEntries(persons.map(p => [p, capDeposits(p, S[p].business + S[p].adj, S[p].salary)])) as Record<Person, ReturnType<typeof capDeposits>>;
   const computable = (p: Person) => !(p === 'spouse' && partial.some(x => x.code === 'spouse_card_missing'));
   /** תיקון שיעור ההכנסה ההונית: calculateTax מחשב 25% על הכול; כאן — ההפרש לפי סוג (15% / 25% / 30%). */
@@ -384,7 +421,7 @@ export function computeEstimate(draft: EstimateDraft, ctx: Ctx, opts: { extraStu
     if (bz > 0 && nd == null && !niRulesKnown) niDeductionFallback = true;
     const input: TaxCalcInput = {
       // ‼ השיעור על ההכנסה ההונית נקבע לפי סוג כל שורה (capCorr) — לא לפי דגל «בעל מניות מהותי» של הלקוח
-      client: { ...base, ...types(s.salary, bz), isSubstantialShareholder: false } as Client,
+      client: { ...base, ...types(s.salary, bz, p), isSubstantialShareholder: false } as Client,
       year, grossSalary: s.salary, employeePensionPct: base.employeePensionPct ?? 0,
       selfEmployedGrossIncome: bz, recognizedExpenses: 0, selfEmployedPensionAmount: withBusiness && mode === 'full' ? caps[p].pension : 0,
       sePension: withBusiness && mode === 'full' ? caps[p].sePension : undefined,
@@ -448,6 +485,8 @@ export function computeEstimate(draft: EstimateDraft, ctx: Ctx, opts: { extraStu
       return 'value' in v ? { value: v.value, basis: 'officeDecision' } : v;
     }
     if (annualBusiness <= 0) return { value: 0, basis: 'computed' };
+    if (p && niStatus[p]?.kind === 'unknown') return { why: `המעמד בב״ל ${niStatus[p].text} — לבדוק מול ב״ל ולעדכן בכרטיס (עצמאי / עצמאי שאינו עונה להגדרה)` };
+    if (p && niStatus[p]?.kind === 'nonWork') return { value: 0, basis: 'computed' }; // ההכנסה מעסק נספרת כהכנסה שלא מעבודה (niNonWorkFor)
     const q = niSelfEmployedQuarter({ year, quarterlyIncome: annualBusiness / 4 });
     if (!q.ok || !q.value) return { why: q.problems.map(describeProblem).join(' · ') || 'לא מחושב' };
     // אותה נוסחה כמו במחשבון הכללי: הסף המופחת והתקרה משותפים עם המשכורת (המשכורת קודם)
@@ -458,7 +497,43 @@ export function computeEstimate(draft: EstimateDraft, ctx: Ctx, opts: { extraStu
     const base = Math.min(niSelfEmployedBase(annualBusiness, lowAvail, t1, t2, num('ni.se.deductionShare', year)), Math.max(0, maxA - used));
     if (base / 12 < num('ni.se.minIncome', year) && salary === 0) return { why: 'ההכנסה מתחת להכנסה המזערית לעצמאי — דמי ביטוח מינימליים, לא מחושב כאן', ruleId: 'ni.se.minIncome' };
     const a = Math.min(base, lowAvail), b = Math.max(0, base - lowAvail);
-    return { value: r0(a * (t1 + num('ni.se.lowRateHealth', year)) + b * (t2 + num('ni.se.highRateHealth', year))), basis: 'computed' };
+    const ni = a * t1 + b * t2, health = a * num('ni.se.lowRateHealth', year) + b * num('ni.se.highRateHealth', year);
+    if (p) niParts[p] = { ...niParts[p], seNi: ni, seHealth: health, seBase: base };
+    return { value: r0(ni + health), basis: 'computed' };
+  };
+  /** ‼ סעיף 345: ההכנסה לב״ל מעסק — אחרי הניכוי לקופת גמל שקבע מס הכנסה (47(ב)(1)); הקרן להשתלמות אינה מופחתת. */
+  const niPensionCut = (p: Person) => {
+    const pc = depModeOf(p) === 'full' ? caps[p]?.pensionCalc : undefined;
+    return pc ? Math.min(pc.deduction, Math.max(0, S[p].business + S[p].adj)) : 0;
+  };
+  const niParts: Partial<Record<Person, { seNi?: number; seHealth?: number; seBase?: number; nwNi?: number; nwHealth?: number; nwChargeable?: number; nwIncome?: number }>> = {};
+  /**
+   * ב״ל על הכנסה שלא מעבודה — שכ״ד חייב (059: מסלול רגיל או פטור חלקי) ועסק של «עצמאי שאינו עונה להגדרה».
+   * החלק הפטור ומסלול 10% — פטורים (350(א)(7)). אותה פונקציה כמו במחשבון (niNonWorkIncome).
+   */
+  const niNonWorkFor = (p: Person, rentChargeable: number): Amount | undefined => {
+    const bizNw = niStatus[p]?.kind === 'nonWork' && !microNoNi.has(p) ? Math.max(0, S[p].business + S[p].adj - niPensionCut(p)) : 0;
+    const income = Math.max(0, rentChargeable) + bizNw;
+    if (income <= 0) return undefined;
+    const cardType = p === 'client' ? client.niType : client.spouse?.niType;
+    if (cardType === 'pensioner') return { why: 'מקבל פנסיה / קצבת אזרח ותיק — דמי הביטוח על הכנסה שלא מעבודה לא מחושבים כאן (351(ב))' };
+    try {
+      ['ni.nonWork.exemptMonthly', 'ni.nonWork.lowRateNi', 'ni.nonWork.highRateNi', 'ni.nonWork.healthRate'].forEach(use);
+      const maxA = num('ni.se.maxIncome', year) * 12, th = num('ni.se.reducedThreshold', year) * 12;
+      const usedWork = Math.min(S[p].salary, maxA) + (niParts[p]?.seBase ?? 0);
+      const args = { income, exempt: num('ni.nonWork.exemptMonthly', year) * 12, lowAvail: Math.max(0, th - Math.min(usedWork, th)), maxAvail: Math.max(0, maxA - usedWork),
+        lowNi: num('ni.nonWork.lowRateNi', year), highNi: num('ni.nonWork.highRateNi', year), health: num('ni.nonWork.healthRate', year), share: num('ni.se.deductionShare', year) };
+      const nw = niNonWorkIncome(args);
+      niParts[p] = { ...niParts[p], nwNi: nw.ni, nwHealth: nw.health, nwChargeable: nw.chargeable, nwIncome: income };
+      if (bizNw > 0 && S[p].salary <= 0 && nw.ni + nw.health < 266 * 12) limits.push(`ב״ל${p === 'spouse' ? ` (${PERSON_HE.spouse})` : ''}: מי שאינו עובד משלם לפחות 266 ₪ לחודש (ni.nonWork.minimumMonthly; למעט אישה נשואה שאינה עובדת מחוץ למשק הבית) — החישוב (${nis(nw.ni + nw.health)} לשנה) נמוך מהמינימום; לבדוק מול ב״ל`);
+      // ‼ דף ב״ל למי שאין לו הכנסת עבודה מציג חישוב «משוער» בלי הפחתת 345; דף העצמאי עם הכנסה שלא מעבודה — עם. לא מכריעים בשקט.
+      if (S[p].salary <= 0 && niStatus[p]?.kind !== 'se') {
+        const no345 = niNonWorkIncome({ ...args, share: 0 });
+        const gap = r0(no345.ni + no345.health - nw.ni - nw.health);
+        if (gap >= 1) openQuestions.push({ id: `ni345-${p}`, text: `ביטוח לאומי${p === 'spouse' ? ` (${PERSON_HE.spouse})` : ''} על הכנסה שלא מעבודה: חושב בהפחתת 52% מדמי הביטוח (סעיף 345), כמו בדף ב״ל לעצמאי עם הכנסה שלא מעבודה. בדף ב״ל למי שאינו עובד הדוגמה בלי ההפחתה — אם כך יחושב, דמי הביטוח גבוהים בכ-${nis(gap)} לשנה`, impact: gap, direction: 'higher' });
+      }
+      return { value: r0(nw.ni + nw.health), basis: 'computed' };
+    } catch { return { why: `אין במרשם שיעורי ב״ל להכנסה שלא מעבודה לשנת ${year}` }; }
   };
   ['ni.se.lowRateNi', 'ni.se.highRateNi', 'ni.se.lowRateHealth', 'ni.se.highRateHealth', 'ni.se.reducedThreshold', 'ni.se.deductionShare'].forEach(id => { try { use(id); } catch { /* */ } });
 
@@ -466,13 +541,22 @@ export function computeEstimate(draft: EstimateDraft, ctx: Ctx, opts: { extraStu
     .map(l => (l.withheldToCutoff ?? 0) + (cutoff < 12 ? (l.withheldForecast ?? 0) : 0)));
 
   const full = Object.fromEntries(persons.map(p => [p, calcFor(p, true)])) as Record<Person, ReturnType<typeof calculateTax> | null>;
+  // ב״ל לכל אדם — פעם אחת: עסק (עצמאי) + הכנסה שלא מעבודה, עם הפירוק ללאומי ולבריאות
+  const niOf = Object.fromEntries(persons.map(p => {
+    const se = niFor(S[p].business + S[p].adj - (microNoNi.has(p) ? 0 : niPensionCut(p)), p);
+    const nw = niNonWorkFor(p, rentPartial ? 0 : full[p]?.taxableRental ?? 0);
+    const total: Amount = !isNum(se) ? se : nw && !isNum(nw) ? nw : { value: r0(se.value + (nw && isNum(nw) ? nw.value : 0)), basis: se.basis };
+    const pt = niParts[p];
+    const split = isNum(total) && pt && (pt.seNi != null || pt.nwNi != null) ? { ni: r0((pt.seNi ?? 0) + (pt.nwNi ?? 0)), health: r0((pt.seHealth ?? 0) + (pt.nwHealth ?? 0)) } : undefined;
+    return [p, { se, nw, total, split }];
+  })) as Record<Person, { se: Amount; nw?: Amount; total: Amount; split?: { ni: number; health: number } }>;
   const personResults: PersonResult[] = persons.map(p => {
     const r = full[p];
     return {
       person: p, salary: r0(S[p].salary), businessBooks: r0(S[p].business), adjustments: r0(S[p].adj), businessTaxable: r0(S[p].business + S[p].adj),
       rent: r0(S[p].rent), capital: r0(S[p].capital), other: r0(S[p].other),
       incomeTax: r ? r0(itFor(p, true) ?? 0) : 0, creditPoints: r?.totalCreditPoints ?? 0, surtax: r0((r?.surtax ?? 0) + (r?.surtaxCapitalExtra ?? 0)),
-      salaryWithheld: r0(withheld(p, ['salary', 'capital', 'business'])), niSelfEmployed: niFor(S[p].business + S[p].adj, p),
+      salaryWithheld: r0(withheld(p, ['salary', 'capital', 'business'])), niSelfEmployed: niOf[p].se, niNonWork: niOf[p].nw, niSplit: niOf[p].split, niStatus: niStatus[p]?.text,
       pension: caps[p]?.pensionCalc,
       breakdown: r ? { taxable: r0(r.taxableIncome), deductions: r0(r.totalDeductions), niDeduction: r0(r.niDeductionFromIncomeTax), creditPointsValue: r0(r.totalCreditValue), donationCredit: r0(r.donationCredit),
         pensionCredit: r0(r.pensionCredit), lifeCredit: r0(lifeCredit(p, true)), surtax: r0(r.surtax + r.surtaxCapitalExtra), capitalTax: r0((r.capitalGainsTax ?? 0) + (r.dividendInterestTax ?? 0) + capCorr(p)), lines: r.deductionBreakdown } : undefined,
@@ -564,17 +648,19 @@ export function computeEstimate(draft: EstimateDraft, ctx: Ctx, opts: { extraStu
     const readPaid = (past: boolean) => sum((it?.periods ?? []).filter(x => x.paid != null && (past ? x.period <= cutP : x.period > cutP)).map(x => x.paid!));
     const extraPaid = (past: boolean) => sum(draft.payments.filter(x => x.authority === 'it' && x.person === p && !covered.has(x.period) && (past ? x.period <= cutP : x.period > cutP)).map(x => x.amount));
     const paidPast = readPaid(true) + extraPaid(true), paidFuture = readPaid(false) + extraPaid(false);
+    const method = it?.method ?? 'unknown';
     const remaining = new Set<string>();
-    // תקופות שמסתיימות אחרי החתך (דו־חודשי: חודש סיום זוגי)
-    for (let m = cutoff + 1; m <= 12; m++) if (m % freq === 0) remaining.add(period(year, m));
+    // ‼ 16.10.2026 (R10): מקדמה בסכום קבוע — 10 תשלומים שווים, 15 בפברואר עד 15 בנובמבר (it.advances.methods; 175(א)).
+    //   התקופה כאן = חודש התשלום. לפי מחזור — תקופות שמסתיימות אחרי החתך (דו־חודשי: חודש סיום זוגי).
+    if (method === 'fixed') { for (let m = Math.max(2, cutoff + 1); m <= 11; m++) remaining.add(period(year, m)); }
+    else for (let m = cutoff + 1; m <= 12; m++) if (m % freq === 0) remaining.add(period(year, m));
     const unpaid = [...remaining].filter(x => !covered.has(x) && !draft.payments.some(y => y.authority === 'it' && y.person === p && y.period === x));
     const share = remaining.size ? unpaid.length / remaining.size : 0;
     const turnoverForFuture = remainingTurnover * share;
-    const method = it?.method ?? 'unknown';
     const current = method === 'turnoverRate' ? it?.ratePct : method === 'fixed' ? it?.fixedPerPeriod : undefined;
     const recommended = itDue == null ? undefined
       : method === 'turnoverRate' ? (annualTurnover > 0 ? Math.ceil((itDue / annualTurnover) * 1000) / 10 : undefined)
-      : method === 'fixed' ? r0(itDue / (12 / freq)) : undefined;
+      : method === 'fixed' ? r0(itDue / FIXED_PAYMENTS) : undefined;
     const futureOf = (v?: number) => v == null ? 0 : method === 'turnoverRate' ? (v / 100) * turnoverForFuture : method === 'fixed' ? v * unpaid.length : 0;
     const fCur = futureOf(current), fRec = futureOf(recommended);
     const per = unpaid.length ? turnoverForFuture / unpaid.length : 0;
@@ -584,7 +670,7 @@ export function computeEstimate(draft: EstimateDraft, ctx: Ctx, opts: { extraStu
       explain.push(`מס${who} עם העסק ${nis(withB)} − בלי העסק ${nis(withoutB)} = מס שנובע מהעסק ${nis(businessTax!)}`);
       if (custWithheld) explain.push(`פחות ניכוי במקור מלקוחות ${nis(custWithheld)} = ${nis(itDue!)} לכיסוי במקדמות`);
       if (method === 'turnoverRate' && annualTurnover > 0) explain.push(`${nis(itDue!)} ÷ מחזור שנתי ${nis(annualTurnover)} (עד החתך ${nis(turnoverToCutoff)} + צפוי ${nis(remainingTurnover)}) = ${recommended}% מהמחזור (מעוגל למעלה לעשירית)`);
-      if (method === 'fixed') explain.push(`${nis(itDue!)} ÷ ${12 / freq} תקופות = ${nis(recommended ?? 0)} לתקופה`);
+      if (method === 'fixed') explain.push(`${nis(itDue!)} ÷ ${FIXED_PAYMENTS} תשלומים (15 בפברואר עד 15 בנובמבר) = ${nis(recommended ?? 0)} לתשלום`);
       explain.push(`שולם עד החתך ${nis(paidPast)}${paidFuture ? ` ומראש ${nis(paidFuture)}` : ''}; בשיעור המומלץ מהתקופה הבאה — עוד ${nis(fRec)}. מה שחסר בגלל החודשים שעברו — השלמה נפרדת או בדוח השנתי`);
       if (microOnly && (method === 'none' || method === 'unknown')) explain.push(`עסק זעיר: אין חיוב אוטומטי במקדמות (87ו). כדי לא להגיע לחוב — מקדמה מרצון של כ-${nis(Math.max(0, itDue! - paidPast - paidFuture))} עד סוף השנה, או תיאום מס מעודכן`);
     }
@@ -615,7 +701,7 @@ export function computeEstimate(draft: EstimateDraft, ctx: Ctx, opts: { extraStu
       explain,
     });
     // ביטוח לאומי
-    const niDue = niFor(S[p].business + S[p].adj, p);
+    const niDue = niOf[p].total, niSplit = niOf[p].split, niPart = niParts[p];
     if (cutoff < 12 && (!ni || !ni.readOn || ni.via === 'client')) blockers.push({ code: 'ni_not_read', text: ni?.via === 'client' ? `מקדמת ב״ל${who}: הנתון מהלקוח — לבדוק מול אתר ב״ל ולרשום תאריך בדיקה` : `מקדמת ב״ל${who} לא נרשמה (מתי נבדק ומה הסכום)` });
     const niPaid = (ni?.paidToCutoff ?? sum((ni?.periods ?? []).filter(x => x.period <= cutP && x.paid != null).map(x => x.paid!)))
       + sum(draft.payments.filter(x => x.authority === 'ni' && x.person === p && x.period <= cutP).map(x => x.amount));
@@ -641,7 +727,7 @@ export function computeEstimate(draft: EstimateDraft, ctx: Ctx, opts: { extraStu
     }
     advances.push({
       authority: 'ni', person: p, method: 'monthly', current: cur, recommended: rec != null ? r0(rec) : undefined, unit: '₪ לחודש', changeCharges: niCharges.length ? niCharges : undefined,
-      annualDue: niDue, paidPast: r0(niPaid), paidFuture: 0, futureAtCurrent: r0((cur ?? 0) * (12 - cutoff)), futureAtRecommended: r0((rec ?? 0) * (12 - cutoff)),
+      annualDue: niDue, split: niSplit, paidPast: r0(niPaid), paidFuture: 0, futureAtCurrent: r0((cur ?? 0) * (12 - cutoff)), futureAtRecommended: r0((rec ?? 0) * (12 - cutoff)),
       balanceAtCurrent: 'value' in niDue && cur != null ? { value: r0(niDue.value - niPaid - cur * (12 - cutoff)), basis: 'computed' } : { why: 'אין חבות ב״ל מחושבת או מקדמה נוכחית' },
       balanceAtRecommended: 'value' in niDue && rec != null ? { value: r0(niDue.value - niPaid - rec * (12 - cutoff)), basis: 'computed' } : { why: 'אין חבות ב״ל מחושבת' },
       catchUp: niCu.amount, catchUpLines: niCu.lines,
@@ -650,7 +736,9 @@ export function computeEstimate(draft: EstimateDraft, ctx: Ctx, opts: { extraStu
       belowChangeThreshold: cur != null && rec != null && cur > 0 ? Math.abs(rec - cur) / cur < thr : false,
       schedule: [],
       explain: 'value' in niDue ? [
-        `דמי ביטוח לשנה${who} ${nis(niDue.value)} (${microNoNi.has(p) ? 'עסק זעיר: על ההכנסה אחרי 30%, בלי 47א' : 'הנוסחה הרבעונית של ב״ל'} על הכנסה מעסק ${nis(S[p].business + S[p].adj)}) ÷ 12 = ${nis(rec ?? 0)} לחודש`,
+        `דמי ביטוח לשנה${who} ${nis(niDue.value)} (${microNoNi.has(p) ? 'עסק זעיר: על ההכנסה אחרי 30%, בלי 47א' : niStatus[p]?.kind === 'nonWork' ? 'עצמאי שאינו עונה להגדרה — כהכנסה שלא מעבודה' : 'הנוסחה הרבעונית של ב״ל'} על הכנסה מעסק ${nis(S[p].business + S[p].adj)}${niPensionCut(p) > 0 && !microNoNi.has(p) ? ` פחות הניכוי לקופת גמל ${nis(niPensionCut(p))} (סעיף 345)` : ''}${niPart?.nwIncome && niStatus[p]?.kind !== 'nonWork' ? `, ועל שכ״ד חייב` : ''}) ÷ 12 = ${nis(rec ?? 0)} לחודש`,
+        ...(niSplit ? [`מזה ביטוח לאומי ${nis(niSplit.ni)} ודמי ביטוח בריאות ${nis(niSplit.health)} — רק דמי הביטוח הלאומי מותרים בניכוי 52% ממס הכנסה (47א)`] : []),
+        ...(niStatus[p] ? [`המעמד בב״ל: ${niStatus[p].text}`] : []),
         `שולם עד החתך ${nis(niPaid)}; במקדמה הנוכחית עוד ${nis((cur ?? 0) * (12 - cutoff))}`,
       ] : [],
     });
@@ -701,7 +789,7 @@ export function computeEstimate(draft: EstimateDraft, ctx: Ctx, opts: { extraStu
     const max: Amount = !sf ? { why: 'אין הכנסה מעסק' } : sf.ok && sf.value ? { value: sf.value.maxDeduction, basis: 'computed' } : { why: sf.problems.map(describeProblem).join(' · ') };
     let topUp: SavingsResult['studyFundTopUp'];
     // בדיווח מקוצר (או כשמסלול הדיווח לא נבחר) אין ניכוי לקרן השתלמות — לא מציעים השלמה
-    if ('value' in max && sf?.value && !opts.extraStudyFund && !opts.extraPension && td && computable(p) && depModeOf(p) === 'full' && !yearEnded) {
+    if ('value' in max && sf?.value && !opts.extraStudyFund && !opts.extraPension && !opts.noChecks && td && computable(p) && depModeOf(p) === 'full' && !yearEnded) {
       const extra = Math.max(0, r0(sf.value.maxDeduction - Math.min(dep.study, sf.value.maxDeduction)));
       if (extra > 0) {
         const alt = computeEstimate(draft, ctx, { extraStudyFund: { [p]: extra } });
@@ -717,7 +805,7 @@ export function computeEstimate(draft: EstimateDraft, ctx: Ctx, opts: { extraStu
 
   // ── 9א. «מה בדקנו» — כל בדיקת מיצוי, גם כשלא נמצא חיסכון; בדיקה שלא בוצעה מוצגת כך ──
   const checks: OptimizationCheck[] = [];
-  if (!opts.extraStudyFund && !opts.extraPension) {
+  if (!opts.extraStudyFund && !opts.extraPension && !opts.noChecks) {
     const ended = 'ההערכה הוכנה אחרי סוף השנה: הפקדה שתשולם עכשיו נספרת בשנה שבה שולמה';
     for (const p of persons) {
       const pr = personResults.find(x => x.person === p)!;
@@ -739,7 +827,11 @@ export function computeEstimate(draft: EstimateDraft, ctx: Ctx, opts: { extraStu
       const title = `פנסיה לעצמאי — השלמת הפקדה${who}`;
       const cp = caps[p];
       const age = ageOnJan1(p === 'client' ? client.birthDate : client.spouse?.birthDate);
-      if (!hasBiz) checks.push({ id: `pen-${p}`, person: p, title, status: 'notApplicable', detail: 'אין הכנסה מעסק — ההפקדה כעמית עצמאי לא רלוונטית. הפקדות דרך המשכורת — מ-106', topicId: 'pensionSE' });
+      // ‼ R07: שכיר בלי עסק שהפקיד בעצמו — ההפקדה נכללת בחישוב (47(ב)(2)); רק ההשלמה האוטומטית לא נבדקת כאן
+      if (!hasBiz) checks.push({ id: `pen-${p}`, person: p, title, status: 'notApplicable', topicId: 'pensionSE',
+        detail: deposits(p).pension > 0 && pr.salary > 0
+          ? (cp?.sePension && 'deduction' in cp.sePension ? `אין הכנסה מעסק. ההפקדה העצמאית (${nis(deposits(p).pension)}) נכללה בחישוב: ניכוי ${nis(cp.sePension.deduction)} בשל משכורת שאינה מבוטחת (47(ב)(2)), והשאר לזיכוי. השלמה נוספת — לבדיקה ידנית` : `אין הכנסה מעסק. ההפקדה העצמאית (${nis(deposits(p).pension)}) לא חושבה — ראו «להשלים לפני אישור»`)
+          : 'אין הכנסה מעסק — השלמת הפקדה כעמית עצמאי לא נבדקת. הפקדה עצמאית של שכיר (47(ב)(2)) נכללת בחישוב כשהיא מוזנת; הפקדות דרך המשכורת — מ-106' });
       else if (!computable(p) || !td) checks.push({ id: `pen-${p}`, person: p, title, status: 'missingData', detail: pr.notComputed ?? 'אין חישוב מס', topicId: 'pensionSE' });
       else if (depModeOf(p) !== 'full') checks.push({ id: `pen-${p}`, person: p, title, status: 'notApplicable', detail: depModeOf(p) === 'short' ? 'דיווח מקוצר (עסק זעיר) — זיכוי 35% עד 5% מההכנסה החייבת; לא נבדקה השלמה' : 'מסלול הדיווח של העסק הזעיר לא נבחר', topicId: 'pensionSE' });
       else if (age == null) checks.push({ id: `pen-${p}`, person: p, title, status: 'missingData', detail: 'חסר תאריך לידה — התקרה תלויה בגיל 50', topicId: 'pensionSE' });
@@ -768,9 +860,12 @@ export function computeEstimate(draft: EstimateDraft, ctx: Ctx, opts: { extraStu
           else {
             const alt = computeEstimate(draft, ctx, { extraPension: { [p]: roomA } });
             const saving = Math.max(0, r0(pr.incomeTax - (alt.persons.find(x => x.person === p)?.incomeTax ?? pr.incomeTax)));
+            const niBefore = pr.niSelfEmployed, niAfter = alt.persons.find(x => x.person === p)?.niSelfEmployed;
+            const niSave = isNum(niBefore) && niAfter && isNum(niAfter) ? Math.max(0, r0(niBefore.value - niAfter.value)) : 0;
+            const niNote = niSave > 0 ? ` ובב״ל — דמי הביטוח יורדים בכ-${nis(niSave)} (הניכוי לפנסיה מקטין את ההכנסה לב״ל, סעיף 345; לא נכלל בחיסכון במס).` : '';
             const capNote = capped ? ` ההשלמה נעצרת לפני רף «עמית מוטב» (${nis(threshold)}): מעבר לו — מסלול ב׳, לבדוק ביד אם עוד ${nis(room - roomA)} משתלמים.` : '';
             checks.push(saving > 0
-              ? { id: `pen-${p}`, person: p, title, status: 'saving', saving, detail: `מופקד/מתוכנן ${nis(cur)}; השלמה של ${nis(roomA)} מורידה את המס בכ-${nis(saving)} — ניכוי לפי סעיף 47 וזיכוי 35% לפי 45א (חושב מחדש באותו מנוע).${capNote} הכסף נשאר שלו בקופה — זה לא «חיסכון» במזומן`,
+              ? { id: `pen-${p}`, person: p, title, status: 'saving', saving, detail: `מופקד/מתוכנן ${nis(cur)}; השלמה של ${nis(roomA)} מורידה את המס בכ-${nis(saving)} — ניכוי לפי סעיף 47 וזיכוי 35% לפי 45א (חושב מחדש באותו מנוע).${niNote}${capNote} הכסף נשאר שלו בקופה — זה לא «חיסכון» במזומן`,
                 action: `להפקיד עוד ${nis(roomA)} לקופת גמל לקצבה כעמית עצמאי עד 31.12.${year}`, topicId: 'pensionSE', ruleIds: ['pen.trackA.baseRate', 'pen.credit.rate'] }
               : { id: `pen-${p}`, person: p, title, status: 'noSaving', detail: `השלמה של ${nis(roomA)} לא משנה את המס בתרחיש הזה.${capNote}`, topicId: 'pensionSE' });
           }
@@ -817,6 +912,30 @@ export function computeEstimate(draft: EstimateDraft, ctx: Ctx, opts: { extraStu
                   detail: spouseCmp.separate == null
                     ? `החוק מחייב חישוב מאוחד (מקור משותף בלי שלושת התנאים של 66(ד)). מס משק הבית במאוחד: ${nis(spouseCmp.household)}`
                     : `חושב בשתי הדרכים: נפרד ${nis(spouseCmp.separate)}, מאוחד ${jr(spouseCmp)}. חל: ${spouseCmp.applies === 'separate' ? 'נפרד' : 'מאוחד'} — הזול מבין השניים, כפי שהרשות מחילה בעצמה. זה לא חיסכון של המשרד` });
+    }
+
+    // ‼ 16.10.2026 (C18): ילד/ה נטול/ת יכולת — לנשואים 2 הנקודות (סעיף 45) להורה אחד, לבחירתם. חושב לשני הכיוונים,
+    //   בלי ברירת מחדל מגדרית; הבחירה נרשמת בכרטיס הילד ובדוח (023 לרשום / 131 לבן/בת הזוג). אף פעם לא לשניהם.
+    const disabledKids = married && client.spouse ? (client.children ?? []).filter(c => c.hasDisability) : [];
+    if (disabledKids.length && td) {
+      const T = 'ילד/ה נטול/ת יכולת — 2 נקודות להורה אחד (סעיף 45)';
+      const to = (w: Person) => computeEstimate(draft, { client: { ...client, children: client.children.map(c => (c.hasDisability ? { ...c, disabilityPointsTo: w } : c)) }, taxYear: year }, { noChecks: true }).household;
+      const atClient = to('client'), atSpouse = to('spouse');
+      const nowAt = new Set(disabledKids.map(c => c.disabilityPointsTo ?? 'client'));
+      const curP: Person | undefined = nowAt.size === 1 ? [...nowAt][0] : undefined;
+      if (atClient.incomplete || atSpouse.incomplete || household.incomplete) checks.push({ id: 'disabled-child', topicId: 'annualReturn', title: T, status: 'missingData', detail: 'חסרים נתוני הכנסה — ההשוואה בין ההורים אחרי ההשלמה' });
+      else {
+        const best: Person = atSpouse.annualLiability < atClient.annualLiability ? 'spouse' : 'client';
+        const curTax = curP === 'spouse' ? atSpouse.annualLiability : curP === 'client' ? atClient.annualLiability : household.annualLiability;
+        const bestTax = Math.min(atClient.annualLiability, atSpouse.annualLiability);
+        const both = `אצל ${PERSON_HE.client}: מס משק הבית ${nis(atClient.annualLiability)} · אצל ${PERSON_HE.spouse}: ${nis(atSpouse.annualLiability)}`;
+        checks.push(curTax - bestTax >= 1
+          ? { id: 'disabled-child', topicId: 'annualReturn', title: T, status: 'saving', saving: r0(curTax - bestTax),
+              detail: `${both}. הנקודות נזקפות היום ${curP ? 'ל' + PERSON_HE[curP] : 'בחלוקה בין שני ההורים (לכל ילד להורה אחד)'} — אצל ${PERSON_HE[best]} המס נמוך יותר. בני הזוג בוחרים; לא לשניהם`,
+              action: `לבקש את 2 הנקודות אצל ${PERSON_HE[best]} (בדוח: ${best === 'client' ? '023' : '131'} לפי מי הרשום) ולעדכן בכרטיס הילד` }
+          : { id: 'disabled-child', topicId: 'annualReturn', title: T, status: 'noSaving',
+              detail: `${both}. הנקודות אצל ${PERSON_HE[curP ?? best]} — ${atClient.annualLiability === atSpouse.annualLiability ? 'אין הבדל במס' : 'הזול מבין השניים'}. נזקפות להורה אחד בלבד` });
+      }
     }
 
     // עסק זעיר — מסלול הדיווח (שתי החלופות כבר חושבו)

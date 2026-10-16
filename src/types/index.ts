@@ -249,6 +249,11 @@ export interface Child {
   birthYear: number;    // מחושב מ-birthDate, נשמר לתאימות
   hasDisability: boolean;
   disabilityPercentage?: number;
+  /**
+   * סעיף 45 — לבני זוג נשואים 2 הנקודות לילד/ה נטול/ת יכולת ניתנות להורה **אחד**, לבחירתם (023 לרשום, 131 לבן/בת הזוג).
+   * יחסית לכרטיס: 'client' = בעל/ת הכרטיס, 'spouse' = בן/בת הזוג. חסר = בעל/ת הכרטיס.
+   */
+  disabilityPointsTo?: 'client' | 'spouse';
 
   // ── שדות מס לפי גיל/משמורת (Wave ג') ──
   lastName?: string;                  // שונה מההורה במקרי גירושין
@@ -2071,7 +2076,12 @@ export interface TaxCalcResult {
   healthEmployee: number;
   niSelfEmployed: number;
   healthSelfEmployed: number;
-  niDeductionFromIncomeTax: number; // ניכוי 52% מביטוח לאומי עצמאי
+  niDeductionFromIncomeTax: number; // ניכוי 52% מביטוח לאומי עצמאי (וגם מדמי ב״ל על הכנסה שלא מעבודה — 47א)
+  /** דמי ב״ל ובריאות על הכנסה שלא מעבודה (שכירות חייבת, «שאינו עונה להגדרה», פסיבית) — בנפרד מהעצמאי. */
+  niNonWork?: number;
+  healthNonWork?: number;
+  /** החלק החייב במס משכר הדירה (מסלול רגיל או פטור חלקי) — הבסיס לב״ל על השכירות. */
+  taxableRental?: number;
   totalNI: number;
   niBreakdown: string[];
 
