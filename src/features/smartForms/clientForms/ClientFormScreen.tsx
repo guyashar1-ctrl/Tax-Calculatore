@@ -4,13 +4,15 @@
 // ‼ כל מסך נשמר מיד בשרת (portal_smart_form_save) — יציאה באמצע לא מאבדת כלום. תשובה לפרט
 //   שיש לו בית בכרטיס נשמרת בכרטיס, בשרת. «לצפייה בטופס» נועל את מה שמוצג (טביעה בשרת),
 //   והחתימה נדחית אם משהו השתנה מאז. ‼ פרטי זהות שכבר אצל המשרד אינם נערכים מכאן.
+// ‼ 16.10.2026 · הטופס חי: לצד כל מסך שאלות (במחשב) או מתחתיו (בטלפון) רואים את הטופס מתמלא תוך כדי
+//   הקלדה, עם סימון כל תיבת חובה ואזור החתימה. בסקירה — אותם סימונים, והחתימה נכנסת לתיבה המסומנת.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import SignaturePad from '../../../components/SignaturePad';
-import SmartFormPreview from '../SmartFormPreview';
+import LiveFormPreview, { MissingSummary } from './LiveFormPreview';
 import { EmptySignatureError, trimSignature } from '../signatureImage';
 import type { CfData, CfScreen, ClientFormDef } from './types';
-import { blockers, clientFormOf, editableFields, flowScreens, renderClientForm, screenHint, screenMissing, screenRelevant, screenTitle, screenValues, templateFor } from './registry';
+import { blockers, clientFormOf, editableFields, flowScreens, formMarkers, screenHint, screenMissing, screenOfQuestion, screenRelevant, screenTitle, screenValues, templateFor, type FormMarker } from './registry';
 import { fieldError } from './format';
 import CfFields, { bankNameOf } from './CfFields';
 import { clientFormErrorText, portalGet, portalPrepare, portalSave, portalSign, type ClientFormView } from './api';
@@ -179,6 +181,14 @@ function ScreenStep({ def, view, token, stepId, list, index, edit, onSaved, onBa
   };
 
   const progress = Math.round(((index) / Math.max(1, list.length)) * 100);
+  // ‼ הטופס החי: מה שמוקלד עכשיו, אחרי אותן השלמות שהשמירה תעשה (למשל «מהבית» מעתיק את כתובת המגורים)
+  const liveData = useMemo(() => ({ ...d, ...screenValues(s, form, d) }), [d, s, form]);
+  const template = useMemo(() => templateFor(def, { version: view.mappingVersion, fields: view.mapping ?? {} }), [def, view.mappingVersion, view.mapping]);
+  const focusKeys = useMemo(() => fields.map(f => f.key), [fields]);
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const preview = (title: string, show: boolean) => (show ? (
+    <LiveFormPreview def={def} data={liveData} template={template} focusKeys={focusKeys} title={title} signTag="כאן תחתמו בסוף" maxFit={1} />
+  ) : null);
   return (
     <>
       {!edit && (
@@ -187,10 +197,19 @@ function ScreenStep({ def, view, token, stepId, list, index, edit, onSaved, onBa
           <div className="ty-progress" role="progressbar" aria-valuenow={progress} aria-valuemin={0} aria-valuemax={100} aria-label="התקדמות"><i style={{ width: `${progress}%` }} /></div>
         </>
       )}
-      <p className="ty-q">{t}</p>
-      {hint && <p className="ty-hint">{hint}</p>}
-      <CfFields fields={fields} values={form} data={d} onChange={(k, v) => setForm(p => ({ ...p, [k]: v }))} showErrors={tried} disabled={busy} />
-      {s.why && <details className="ty-why-q"><summary>למה שואלים?</summary><p>{s.why}</p></details>}
+      <div className="cf-live-wrap">
+        <div className="ty-flow" style={{ minWidth: 0 }}>
+          <p className="ty-q">{t}</p>
+          {hint && <p className="ty-hint">{hint}</p>}
+          <CfFields fields={fields} values={form} data={d} onChange={(k, v) => setForm(p => ({ ...p, [k]: v }))} showErrors={tried} disabled={busy} />
+          {s.why && <details className="ty-why-q"><summary>למה שואלים?</summary><p>{s.why}</p></details>}
+          <details className="cf-live-mobile" open={mobileOpen} onToggle={e => setMobileOpen((e.target as HTMLDetailsElement).open)} data-cf-live-mobile>
+            <summary>הטופס מתמלא תוך כדי — להצצה</summary>
+            <div className="cf-review-pages">{preview('הטופס עם מה שמילאתם עד כה', mobileOpen)}</div>
+          </details>
+        </div>
+        <aside className="cf-live-side" aria-label="הטופס כפי שהוא עכשיו" data-cf-live-side>{preview('הטופס מתמלא תוך כדי', true)}</aside>
+      </div>
       {tried && invalid && <div className="ty-err" role="alert">חסרים פרטים או שיש פרט לא תקין — מסומן באדום</div>}
       {err && <div className="ty-err" role="alert">{err}</div>}
       <div className="ty-nav">
@@ -226,7 +245,6 @@ function Review({ def, view, token, stepId, onView, onFix, onEdit, onSigned }: {
   onView: (v: ClientFormView) => void; onFix: (list: CfScreen[]) => void; onEdit: () => void; onSigned: () => void;
 }) {
   const [prepared, setPrepared] = useState<ClientFormView | null>(view.revisionState === 'locked' ? view : null);
-  const [bytes, setBytes] = useState<Uint8Array | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [consent, setConsent] = useState(false);
   const [png, setPng] = useState('');
@@ -246,11 +264,11 @@ function Review({ def, view, token, stepId, onView, onFix, onEdit, onSigned }: {
     return () => { alive = false; };
   }, [prepared, pending.length, token, stepId, onView]);
 
-  useEffect(() => {
-    if (!prepared) return;
-    const t = templateFor(def, { version: prepared.mappingVersion, fields: prepared.mapping ?? {} });
-    void renderClientForm(def, prepared.data, { template: t }).then(r => setBytes(r.bytes)).catch(e => setErr(e instanceof Error ? e.message : String(e)));
-  }, [prepared, def]);
+  const template = useMemo(() => templateFor(def, { version: (prepared ?? view).mappingVersion, fields: (prepared ?? view).mapping ?? {} }), [def, prepared, view]);
+  const liveData = prepared?.data ?? view.data;
+  const markers = useMemo(() => formMarkers(def, liveData), [def, liveData]);
+  // לחיצה על תיבה «חסר» על הטופס ⇒ המסך שבו השאלה
+  const fixMarker = (m: FormMarker) => { const sc = screenOfQuestion(def, m.questionKeys, view.data); if (sc) onFix([sc]); };
 
   if (pending.length) {
     const screens = [...new Set(pending.map(p => p.screen))];
@@ -258,6 +276,8 @@ function Review({ def, view, token, stepId, onView, onFix, onEdit, onSigned }: {
       <>
         <p className="ty-q">חסרים עוד כמה פרטים</p>
         <ul className="ty-lines">{pending.slice(0, 8).map((p, i) => <li key={i}>{p.field.label}{p.message !== 'חסר' ? ` — ${p.message}` : ''}</li>)}</ul>
+        <MissingSummary markers={markers} onPick={fixMarker} />
+        <div className="cf-review-pages"><LiveFormPreview def={def} data={view.data} template={template} onMarker={fixMarker} title="הטופס — מה שחסר מסומן" signTag="כאן תחתמו בסוף" /></div>
         <div className="ty-nav"><span /><button type="button" className="btn btn-primary" onClick={() => onFix(screens)}>להשלמה</button></div>
       </>
     );
@@ -279,8 +299,11 @@ function Review({ def, view, token, stepId, onView, onFix, onEdit, onSigned }: {
   return (
     <>
       <p className="ty-q">זה הטופס כפי שיוגש ל{def.authorityLabel}</p>
-      <p className="ty-hint">עברו על הפרטים. אם משהו לא נכון — אפשר לתקן לפני החתימה.</p>
-      <div className="cf-review-pages"><SmartFormPreview bytes={bytes} busy={!bytes} /></div>
+      <p className="ty-hint">עברו על הפרטים. אם משהו לא נכון — אפשר לתקן לפני החתימה. החתימה שתחתמו למטה תיכנס לתיבה המסומנת «כאן תיכנס החתימה שלך».</p>
+      <MissingSummary markers={markers} />
+      <div className="cf-review-pages">
+        <LiveFormPreview def={def} data={liveData} template={template} ready={!!prepared} signTag="כאן תיכנס החתימה שלך" onRenderError={setErr} />
+      </div>
       <div className="cf-edit-list"><button type="button" className="btn btn-ghost" onClick={onEdit} disabled={busy}>משהו לא נכון? תיקון</button></div>
       {def.signNote && <div className="cf-note" role="note">{def.signNote}</div>}
       <label className="cf-declare">
@@ -301,19 +324,14 @@ function Review({ def, view, token, stepId, onView, onFix, onEdit, onSigned }: {
 }
 
 function Done({ def, view, onClose }: { def: ClientFormDef; view: ClientFormView; onClose: () => void }) {
-  const [bytes, setBytes] = useState<Uint8Array | null>(null);
   const [show, setShow] = useState(false);
-  useEffect(() => {
-    if (!show) return;
-    const t = templateFor(def, { version: view.mappingVersion, fields: view.mapping ?? {} });
-    void renderClientForm(def, view.data, { template: t, signature: view.signature ?? null }).then(r => setBytes(r.bytes)).catch(() => setBytes(null));
-  }, [show, def, view]);
+  const template = useMemo(() => templateFor(def, { version: view.mappingVersion, fields: view.mapping ?? {} }), [def, view.mappingVersion, view.mapping]);
   return (
     <div className="cf-done">
       <p className="cf-done-h" role="status">✓ הטופס נחתם ונשלח למשרד</p>
       <p className="ty-hint">{view.firmName || 'המשרד'} יגיש אותו ל{def.authorityLabel}. אין צורך לעשות דבר נוסף.{def.signNote ? ' המשרד ייצור קשר לגבי אישור עורך/ת הדין.' : ''}</p>
       {!show && <button type="button" className="btn btn-ghost" onClick={() => setShow(true)}>לצפייה בטופס החתום</button>}
-      {show && <div className="cf-review-pages"><SmartFormPreview bytes={bytes} busy={!bytes} /></div>}
+      {show && <div className="cf-review-pages"><LiveFormPreview def={def} data={view.data} template={template} signature={view.signature ?? null} signed title="הטופס החתום" /></div>}
       <div className="ty-nav"><span /><button type="button" className="btn btn-primary" onClick={onClose}>חזרה לבקשות</button></div>
     </div>
   );

@@ -13,7 +13,7 @@ export type CfData = Record<string, string | undefined>;
 
 export type CfInput =
   | 'text' | 'hebrew' | 'textarea' | 'date' | 'month' | 'id' | 'phone' | 'zip' | 'house'
-  | 'number' | 'money' | 'choice' | 'check' | 'bank' | 'branch' | 'account';
+  | 'number' | 'money' | 'choice' | 'select' | 'check' | 'bank' | 'branch' | 'account';
 
 export interface CfField {
   key: string;
@@ -30,6 +30,13 @@ export interface CfField {
   suggest?: (d: CfData) => string | undefined;
   /** רוחב בשורה: חצי מסך במחשב (שדות קצרים זה לצד זה). */
   half?: boolean;
+  /** תאריך שמותר לו להיות עתידי (תאריך פתיחת עסק מתוכנן). ברירת מחדל: עד היום. */
+  allowFuture?: boolean;
+  /**
+   * ערך נגזר שמחושב מחדש בכל שמירה של המסך (למשל סוג העוסק לפי המחזור) — בניגוד ל-suggest,
+   * שנשלח רק כשאין ערך. השדה אינו מוצג (showIf: () => false).
+   */
+  derive?: (d: CfData) => string | undefined;
 }
 
 /** מסך בשאלון: קבוצת שדות שנשאלת יחד. מופיע רק כשחסר בו משהו (או כשהלקוח בחר «עריכה»). */
@@ -70,4 +77,18 @@ export interface ClientFormDef {
   isActive: (field: FieldDef, d: CfData) => boolean;
   /** נתוני דוגמה (לתבנית בספרייה ולבדיקות) — לא אדם אמיתי. */
   sample: CfData;
+  /**
+   * האם תיבה בטופס חובה **בהגשה הזו** (סימון «חסר» על הטופס). ברירת מחדל: field.required === 'always'.
+   * ‼ זה הכלל של הסימון על התמונה; חסימת הנעילה נשארת ב-blockers (השאלון) ובשרת.
+   */
+  fieldRequired?: (field: FieldDef, d: CfData) => boolean;
+  /** אילו שאלות בשאלון ממלאות את התיבה — ללחיצה על סימון «חסר» שפותחת את השאלה הנכונה. */
+  questionKeys?: (field: FieldDef) => string[];
+  /**
+   * תיבות שנבדקות יחד (קבוצת סימון: אחד מהם חייב להיות מסומן). הסימון על הטופס — מלבן אחד
+   * סביב כל הקבוצה, במקום סימון לכל ריבוע.
+   */
+  markerGroups?: { id: string; label: string; fieldIds: string[]; required?: (d: CfData) => boolean }[];
+  /** הערת מצב נגזרת למשרד (למשל «לפי המחזור: עוסק פטור») — מוצגת ליד המצב בפאנל. */
+  statusNote?: (d: CfData) => string | undefined;
 }

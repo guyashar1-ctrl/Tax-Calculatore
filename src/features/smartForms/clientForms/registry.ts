@@ -1,6 +1,6 @@
 // ─── טפסי הלקוח הרשומים, השאלון הנגזר והציור ───────────────────────────────
 
-import type { FieldDef, LayoutResult, SmartFormTemplate } from '../types';
+import type { FieldDef, LayoutResult, PdfRect, SmartFormTemplate } from '../types';
 import type { CfData, CfField, CfScreen, ClientFormDef, ClientFormKey } from './types';
 import { ITA4440 } from './ita4440';
 import { VAT821 } from './vat821';
@@ -68,7 +68,10 @@ export function screenValues(s: CfScreen, form: CfData, d: CfData): CfData {
   const visible = new Set(s.fields.filter(f => fieldVisible(f, merged)).map(f => f.key));
   for (const f of s.fields) {
     if (visible.has(f.key)) continue;
-    if (f.suggest && !present(d[f.key])) {
+    if (f.derive) {
+      // ערך נגזר (סוג העוסק לפי המחזור) — מחושב מחדש בכל שמירה; אין ערך ⇒ מנוקה
+      out[f.key] = f.derive(merged) ?? '';
+    } else if (f.suggest && !present(d[f.key])) {
       const sv = f.suggest(merged);
       if (sv) out[f.key] = sv;
     } else if (f.store === 'filing' && present(d[f.key])) {
@@ -144,4 +147,76 @@ export async function renderClientForm(def: ClientFormDef, d: CfData, opts: Rend
     meta: { title: opts.title ?? def.template.title, subject: `${def.authorityLabel} · טופס ${t.formNumber}`, keywords: [t.formNumber, t.sha256], date: opts.date },
   });
   return { bytes, layout };
+}
+
+// ── סימון על הטופס: תיבות חובה, מה מלא, ואיפה הלקוח חותם (16.10.2026) ──────────
+// ‼ גיא: «לראות במבט אחד מה עוד חסר» — כמו מפת הטופס של 1301, אבל על הטופס החי: תיבת חובה ריקה
+//   מסומנת «חסר», תיבה מלאה מקבלת ✓ קטן, ואזור החתימה של הלקוח מסומן תמיד (עד שנחתם).
+//   המקור לחובה: def.fieldRequired (או field.required === 'always'); קבוצת ריבועים (תיאור הנכס) — מלבן אחד.
+export type MarkerState = 'ok' | 'missing' | 'sign' | 'signed';
+export interface FormMarker {
+  key: string;
+  page: number;
+  box: PdfRect;
+  state: MarkerState;
+  label: string;
+  /** השאלות בשאלון שממלאות את התיבה — ללחיצה «להשלמה». */
+  questionKeys: string[];
+}
+
+const filledValue = (v: string | boolean | undefined) => v === true || (typeof v === 'string' && v.trim() !== '');
+const union = (boxes: PdfRect[]): PdfRect => {
+  const x = Math.min(...boxes.map(b => b.x)), y = Math.min(...boxes.map(b => b.y));
+  const x2 = Math.max(...boxes.map(b => b.x + b.w)), y2 = Math.max(...boxes.map(b => b.y + b.h));
+  return { x, y, w: x2 - x, h: y2 - y };
+};
+
+export function formMarkers(def: ClientFormDef, d: CfData, opts: { signed?: boolean } = {}): FormMarker[] {
+  const out: FormMarker[] = [];
+  // ‼ טופס חתום: רק סימון «נחתם» על החתימה — ה-✓ על כל תיבה כבר אינו מידע
+  if (opts.signed) {
+    for (const f of def.template.fields) {
+      if (f.kind === 'signature' && f.signer === 'client' && def.isActive(f, d)) out.push({ key: f.id, page: f.page, box: f.box, state: 'signed', label: 'חתימת הלקוח', questionKeys: [] });
+    }
+    return out;
+  }
+  const req = (f: FieldDef) => (def.fieldRequired ? def.fieldRequired(f, d) : f.required === 'always');
+  const grouped = new Set<string>();
+  for (const g of def.markerGroups ?? []) {
+    const fields = def.template.fields.filter(f => g.fieldIds.includes(f.id) && def.isActive(f, d));
+    if (!fields.length) continue;
+    fields.forEach(f => grouped.add(f.id));
+    const required = g.required ? g.required(d) : true;
+    const filled = fields.some(f => filledValue(def.valueOf(f, d)));
+    if (!required && !filled) continue;
+    // קבוצה: המלבן המאחד, עם שוליים קטנים כדי שהריבועים לא ייחתכו
+    const u = union(fields.map(f => f.box));
+    out.push({ key: `g:${g.id}`, page: fields[0].page, box: { x: u.x - 1.5, y: u.y - 1.5, w: u.w + 3, h: u.h + 3 }, state: filled ? 'ok' : 'missing', label: g.label,
+      questionKeys: [...new Set(fields.flatMap(f => def.questionKeys?.(f) ?? []))] });
+  }
+  for (const f of def.template.fields) {
+    if (grouped.has(f.id) || !def.isActive(f, d)) continue;
+    if (f.kind === 'signature') {
+      // ‼ רק חתימת הלקוח מסומנת — חותמת המשרד (signer office) נכנסת אחרי החתימה ואינה עניין של הלקוח
+      if (f.signer !== 'client') continue;
+      out.push({ key: f.id, page: f.page, box: f.box, state: opts.signed ? 'signed' : 'sign', label: opts.signed ? 'חתימת הלקוח' : 'כאן הלקוח חותם', questionKeys: [] });
+      continue;
+    }
+    const filled = filledValue(def.valueOf(f, d));
+    const required = req(f);
+    if (!required && !filled) continue;
+    // שדות מערכת (תאריך החתימה, הצהרת המייצג) — לא מסומנים: הם מתמלאים בחתימה
+    if (f.provenance === 'system' && !filled) continue;
+    out.push({ key: f.id, page: f.page, box: f.box, state: filled ? 'ok' : 'missing', label: f.label, questionKeys: def.questionKeys?.(f) ?? [] });
+  }
+  return out;
+}
+
+/** המסך בשאלון שבו נמצאת השאלה הראשונה מהרשימה (ללחיצה על סימון «חסר»). */
+export function screenOfQuestion(def: ClientFormDef, keys: string[], d: CfData): CfScreen | undefined {
+  for (const k of keys) {
+    const s = def.screens.find(sc => !sc.officeOnly && screenRelevant(sc, d) && sc.fields.some(f => f.key === k));
+    if (s) return s;
+  }
+  return undefined;
 }

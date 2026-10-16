@@ -2,16 +2,17 @@
 // הרצה: node scripts/run-unit-tests.mjs clientForms
 
 import { test, assert, equal, deepEqual, type TestCase } from '../../../../testkit/tinyTest';
-import { CLIENT_FORMS, blockers, flowScreens, screenValues, editableFields } from '../registry';
+import { CLIENT_FORMS, blockers, flowScreens, screenValues, editableFields, formMarkers, screenOfQuestion } from '../registry';
 import { ITA4440, clientColumn } from '../ita4440';
-import { VAT821, splitActivity } from '../vat821';
-import { ilDate, splitPhone, validIsraeliId, inputError } from '../format';
+import { VAT821, splitActivity, activityText, dealerKindOf } from '../vat821';
+import { ilDate, splitPhone, validIsraeliId, inputError, fieldError } from '../format';
 import type { CfData } from '../types';
-import MIGRATION_246 from '../../../../../supabase/247-smart-client-forms.sql?raw';
+import MIGRATION_247 from '../../../../../supabase/247-smart-client-forms.sql?raw';
+import MIGRATION_251 from '../../../../../supabase/251-form-821-live-fields.sql?raw';
 
-/** המפתחות ב-_scf_spec (שרת) לכל טופס: card / filing / required. */
+/** המפתחות ב-_scf_spec (שרת) לכל טופס: card / filing / required. ‼ 251 מחליפה את הגוף של 247 — קוראים מהאחרונה. */
 function serverSpec(key: string) {
-  const sql = MIGRATION_246.replace(/\r\n/g, '\n');
+  const sql = MIGRATION_251.replace(/\r\n/g, '\n');
   const start = sql.indexOf(`when '${key}' then jsonb_build_object(\n      'card'`);
   assert(start >= 0, `_scf_spec: אין ענף ל-${key}`);
   const block = sql.slice(start, sql.indexOf('))', sql.indexOf("'required'", start)) + 2);
@@ -23,7 +24,7 @@ function serverSpec(key: string) {
   return { card: list('card'), filing: list('filing'), required: list('required') };
 }
 
-const DERIVED_ONLY = new Set(['bankName']); // נשלח עם הבנק, לא שאלה בפני עצמה
+const DERIVED_ONLY = new Set(['bankName', 'openMonth']); // bankName נשלח עם הבנק; openMonth — מפתח ישן (לפני 251) שנשאר לקריאה בלבד
 
 export const TESTS: TestCase[] = [
   test('מפתחות · כל שאלה בקוד קיימת בשרת עם אותו מקום שמירה (כרטיס/טופס), ולהפך', () => {
@@ -46,6 +47,63 @@ export const TESTS: TestCase[] = [
         assert(f && f.required, `${def.key}: «${k}» חובה בשרת אבל לא בשאלון`);
       }
     }
+    // 251 רק מחליפה גופים של 247 — ה-4440 לא השתנה בה
+    const sql247 = MIGRATION_247.replace(/\r\n/g, '\n');
+    assert(sql247.includes("when 'ita-4440' then jsonb_build_object(\n      'card'"), '247 עדיין מכילה את מפרט 4440');
+  }),
+
+  test('821 · «לא קיים נכס»: תיבות הנכס לא מצוירות ולא נדרשות; קיים — חובה', () => {
+    const none: CfData = { ...VAT821.sample, propExists: 'no', propKind: undefined, propTenure: undefined, propParty: undefined, propKindOther: undefined };
+    equal(blockers(VAT821, none).length, 0, 'בלי נכס — אין חוסמים');
+    const propOps = VAT821.template.fields.filter(f => f.id.startsWith('prop.') && VAT821.isActive(f, none));
+    equal(propOps.length, 0, 'אף תיבת נכס אינה פעילה');
+    assert(!formMarkers(VAT821, none).some(m => m.key.startsWith('prop.') || m.key.startsWith('g:prop')), 'אין סימוני נכס');
+    const some: CfData = { ...none, propExists: 'yes' };
+    const keys = blockers(VAT821, some).map(b => b.field.key);
+    assert(keys.includes('propKind') && keys.includes('propTenure'), keys.join(','));
+    const marks = formMarkers(VAT821, some);
+    equal(marks.find(m => m.key === 'g:prop.kind')?.state, 'missing');
+    equal(marks.find(m => m.key === 'g:prop.tenure')?.state, 'missing');
+    // המסך שבו השאלה — ללחיצה על הסימון
+    equal(screenOfQuestion(VAT821, marks.find(m => m.key === 'g:prop.kind')!.questionKeys, some)?.id, 'property');
+  }),
+
+  test('821 · סימוני חובה על הטופס: ריק = חסר, מלא = ✓, חתימת הלקוח מסומנת תמיד', () => {
+    const full = formMarkers(VAT821, VAT821.sample);
+    assert(full.every(m => m.state !== 'missing'), 'דוגמה מלאה — אין «חסר»: ' + full.filter(m => m.state === 'missing').map(m => m.key).join(','));
+    const sig = full.find(m => m.key === 'signature');
+    equal(sig?.state, 'sign'); assert(sig && sig.box.w === 96 && sig.box.h === 19, 'תיבת החתימה הנמדדת');
+    assert(!full.some(m => m.key === 'rep.stamp'), 'חותמת המשרד אינה סימון של הלקוח');
+    equal(formMarkers(VAT821, VAT821.sample, { signed: true }).find(m => m.key === 'signature')?.state, 'signed');
+    const empty = formMarkers(VAT821, { firstName: 'ישראל', lastName: 'ישראלי' });
+    const missing = empty.filter(m => m.state === 'missing').map(m => m.key);
+    for (const k of ['idNumber', 'businessName', 'activity.1', 'turnover', 'openDate', 'employees', 'biz.street', 'bank.account']) assert(missing.includes(k), 'חסר: ' + k);
+    equal(empty.find(m => m.key === 'dealerName')?.state, 'ok', 'שם העוסק מהכרטיס — ✓');
+    assert(!missing.includes('mail.street'), 'מען להתכתבות אינו חובה');
+    assert(!empty.some(m => m.key === 'signDate'), 'תאריך החתימה אינו מסומן');
+  }),
+
+  test('821 · תאריך פתיחה מלא ⇒ חודש|שנה; ענף בשורת התיאור; סוג עוסק לפי המחזור', () => {
+    const f = VAT821.template.fields.find(x => x.id === 'openDate')!;
+    equal(VAT821.valueOf(f, { openDate: '2026-08-31' }), '08|26');
+    equal(VAT821.valueOf(f, { openMonth: '2025-03' }), '03|25', 'הגשה ישנה');
+    equal(VAT821.valueOf(f, {}), undefined);
+    equal(activityText({ activity: 'שליחויות', industry: 'H' }), 'שליחויות · ענף: תחבורה, אחסנה ושליחויות');
+    equal(activityText({ activity: 'שליחויות' }), 'שליחויות');
+    equal(dealerKindOf({ turnover: '40000', openDate: '2026-08-31' }), 'exempt');
+    equal(dealerKindOf({ turnover: '180000', openDate: '2026-08-31' }), 'licensed');
+    equal(dealerKindOf({ turnover: '122833', openDate: '2026-01-01' }), 'exempt', 'בדיוק על התקרה 2026');
+    equal(dealerKindOf({}), undefined);
+    // השמירה של מסך הפתיחה גוזרת את סוג העוסק מחדש
+    const s = VAT821.screens.find(x => x.id === 'opening')!;
+    equal(screenValues(s, { openDate: '2026-08-31', employees: '1', turnover: '40000' }, {}).dealerKind, 'exempt');
+    // תאריך עתידי מותר לפתיחה, אסור לשאר
+    const od = s.fields.find(x => x.key === 'openDate')!;
+    equal(fieldError(od, '2027-01-01', {}), null);
+    assert(fieldError(od, '2099-01-01', {}), 'יותר משלוש שנים קדימה — נחסם');
+    const ind = VAT821.screens.find(x => x.id === 'business')!.fields.find(x => x.key === 'industry')!;
+    assert(fieldError(ind, 'Z', {}), 'ענף שאינו ברשימה נדחה');
+    equal(fieldError(ind, 'M', {}), null);
   }),
 
   test('שאלון · לקוח עם כרטיס מלא נשאל רק את ההצהרות (4440)', () => {
@@ -108,9 +166,7 @@ export const TESTS: TestCase[] = [
     deepEqual(sig, ['F.signature'], 'רק הלקוח חותם');
   }),
 
-  test('821 · תאריך הפתיחה בתיבות חודש|שנה, טלפון לקידומת ומספר, תיאור לשלוש שורות', () => {
-    const f = VAT821.template.fields.find(x => x.id === 'openDate')!;
-    equal(VAT821.valueOf(f, { openMonth: '2026-11' }), '11|26');
+  test('821 · טלפון לקידומת ומספר, תיאור לשלוש שורות', () => {
     deepEqual(splitPhone('050-1234567'), ['050', '1234567']);
     deepEqual(splitPhone('04-8123456'), ['04', '8123456']);
     const [a, b, c] = splitActivity('מילה '.repeat(40));

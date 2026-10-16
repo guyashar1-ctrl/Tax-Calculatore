@@ -32,6 +32,7 @@ import HebrewTextInput from '../ui/HebrewTextInput';
 import Employer106Details from './Employer106Details';
 import InvestmentAccount867Details from './InvestmentAccount867Details';
 import Business1320Details from './Business1320Details';
+import { INDUSTRIES } from '../../features/smartForms/clientForms/industries';
 import ChildTaxDetails from './ChildTaxDetails';
 import {
   BUSINESS_SITUATION_HINTS, BUSINESS_SITUATION_LABELS, BUSINESS_SITUATION_ORDER,
@@ -1916,6 +1917,24 @@ export default function PersonalContactsTab({
                       </select>
                     </div>
                   )}
+                  <div className="form-group">
+                    <label>ענף כלכלי</label>
+                    {/* 251 · אותה רשימה סגורה כמו בשאלון של טופס 821 — מקור אחד */}
+                    <select value={b.industry ?? ''} onChange={e => updateBusiness(b.id, 'industry', e.target.value || undefined)}>
+                      <option value="">-</option>
+                      {INDUSTRIES.map(i => <option key={i.value} value={i.value}>{i.label}</option>)}
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label>תאריך פתיחה</label>
+                    {/* 251 · תאריך מלא (טופס 821 ומסך «פתיחת תיק»); שנת התחילה נגזרת ממנו */}
+                    <input type="date" value={b.startDate ?? ''} dir="ltr"
+                      onChange={e => {
+                        // ‼ patch אחד לשני השדות — שתי קריאות רצופות היו קוראות את אותו client ישן והשנייה דורסת את הראשונה
+                        const v = e.target.value || undefined;
+                        patch({ businesses: getBusinesses().map(x => x.id === b.id ? { ...x, startDate: v, ...(v ? { startYear: Number(v.slice(0, 4)) } : {}) } : x) });
+                      }} />
+                  </div>
                   <div className="form-group">
                     <label>שנת תחילה</label>
                     <input type="number" min={1990} max={2030} value={b.startYear ?? ''} onChange={e => updateBusiness(b.id, 'startYear', Number(e.target.value) || undefined)} dir="ltr" />

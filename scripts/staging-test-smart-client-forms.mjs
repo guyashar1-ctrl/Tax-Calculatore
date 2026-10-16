@@ -168,17 +168,38 @@ try {
   const pub = await rpc(office.db, 'publish_case_changes', { p_client_id: C2 });
   ok('פרסום הבקשה', pub?.ok !== false, pub);
   const s2save = await rpc(anon, 'portal_smart_form_save', { p_token: TOK2, p_step_id: S2, p_values: {
-    activity: 'עיצוב גרפי', bizAtHome: 'yes', bizStreet: 'הרצל', bizHouse: '12', bizCity: 'חיפה', openMonth: '2026-11', employees: '1', turnover: '120000',
-    propKind: 'other', propKindOther: 'דירת מגורים', propTenure: 'owned', propParty: 'נועה בדיקת-עוסק', mailSame: 'yes' } });
+    activity: 'עיצוב גרפי', industry: 'M', bizAtHome: 'yes', bizStreet: 'הרצל', bizHouse: '12', bizCity: 'חיפה', openDate: '2026-11-15', employees: '1', turnover: '120000', dealerKind: 'exempt',
+    propExists: 'yes', propKind: 'other', propKindOther: 'דירת מגורים', propTenure: 'owned', propParty: 'נועה בדיקת-עוסק', mailSame: 'yes' } });
   ok('821: שמירה מהדף', s2save?.ok, s2save);
-  const [c2] = await writeStaging(`select business_name, business_description, businesses, bank_accounts, field_meta->'businesses'->>'by' bby, field_meta->'bankAccounts'->>'by' kby from public.clients where id = ${q(C2)}`);
+  const [c2] = await writeStaging(`select business_name, business_description, businesses, bank_accounts, dealer_type, field_meta->'businesses'->>'by' bby, field_meta->'bankAccounts'->>'by' kby from public.clients where id = ${q(C2)}`);
   const biz = (c2?.businesses ?? [])[0] ?? {};
-  ok('כרטיס: עסק נוצר עם תיאור, כתובת ושנת פתיחה', c2?.business_name === 'נועה עיצובים' && biz.description === 'עיצוב גרפי' && biz.address?.street === 'הרצל'
-    && biz.startYear === 2026 && biz.kind === 'osek_morshe' && c2.business_description === 'עיצוב גרפי' && c2.bby === 'client', c2);
+  ok('כרטיס: עסק נוצר עם תיאור, כתובת, ענף, תאריך פתיחה מלא ושנה', c2?.business_name === 'נועה עיצובים' && biz.description === 'עיצוב גרפי' && biz.address?.street === 'הרצל'
+    && biz.startYear === 2026 && biz.startDate === '2026-11-15' && biz.industry === 'M' && c2.business_description === 'עיצוב גרפי' && c2.bby === 'client', c2);
+  ok('251: סוג העוסק לפי המחזור — עוסק פטור בעסק שהטופס יצר, ו-dealer_type הושלם', biz.kind === 'osek_patur' && c2?.dealer_type === 'exempt', { kind: biz.kind, dt: c2?.dealer_type });
+  const g2 = await rpc(anon, 'portal_smart_form_get', { p_token: TOK2, p_step_id: S2 });
+  ok('251: «מה בכרטיס» מחזיר openDate ו-industry מכרטיס העסק', g2?.card?.openDate === '2026-11-15' && g2.card?.industry === 'M', g2?.card);
+  const badInd = await rpc(anon, 'portal_smart_form_save', { p_token: TOK2, p_step_id: S2, p_values: { industry: 'Z' } });
+  ok('251: ענף שאינו ברשימה נדחה', badInd?.error === 'bad_choice', badInd);
+  const farDate = await rpc(anon, 'portal_smart_form_save', { p_token: TOK2, p_step_id: S2, p_values: { openDate: '2099-01-01' } });
+  ok('251: תאריך פתיחה רחוק מדי נדחה; עתיד קרוב מותר', farDate?.error === 'bad_date', farDate);
+  // מחזור גדול ⇒ מורשה (העסק נוצר ע"י הטופס ⇒ עוקב)
+  const big = await rpc(anon, 'portal_smart_form_save', { p_token: TOK2, p_step_id: S2, p_values: { turnover: '400000', dealerKind: 'licensed' } });
+  const [c2b] = await writeStaging(`select businesses->0->>'kind' k, dealer_type from public.clients where id = ${q(C2)}`);
+  ok('251: מחזור שעלה מעל התקרה ⇒ העסק עוסק מורשה; dealer_type לא נדרס', big?.ok && c2b?.k === 'osek_morshe' && c2b.dealer_type === 'exempt', c2b);
+  // «לא קיים נכס» ⇒ הכנה עוברת בלי פרטי נכס
+  const noProp = await rpc(anon, 'portal_smart_form_save', { p_token: TOK2, p_step_id: S2, p_values: { propExists: 'no', propKind: '', propTenure: '', propParty: '', propKindOther: '' } });
+  ok('251: «לא קיים נכס» נשמר', noProp?.ok && noProp.data?.propExists === 'no' && !noProp.data?.propKind, noProp?.data);
+  const p3a = await rpc(anon, 'portal_smart_form_prepare', { p_token: TOK2, p_step_id: S2 });
+  ok('251: הכנה לחתימה עוברת בלי פרטי נכס כש«לא קיים נכס»', p3a?.ok && p3a.revisionState === 'locked', p3a);
+  const back = await rpc(anon, 'portal_smart_form_save', { p_token: TOK2, p_step_id: S2, p_values: { propExists: 'yes' } });
+  const p3b = await rpc(anon, 'portal_smart_form_prepare', { p_token: TOK2, p_step_id: S2 });
+  ok('251: «קיים נכס» בלי פרטים ⇒ ההכנה נחסמת על propKind/propTenure', back?.ok && p3b?.error === 'missing' && p3b.missing?.includes('propKind') && p3b.missing?.includes('propTenure'), p3b);
+  const fix = await rpc(anon, 'portal_smart_form_save', { p_token: TOK2, p_step_id: S2, p_values: { propKind: 'other', propKindOther: 'דירת מגורים', propTenure: 'owned', propParty: 'נועה בדיקת-עוסק' } });
+  ok('251: השלמת פרטי הנכס', fix?.ok, fix);
   const bank = (c2?.bank_accounts ?? [])[0] ?? {};
   ok('כרטיס: חשבון בנק ראשי (מהמשרד)', bank.bankCode === '12' && bank.branchNumber === '600' && bank.accountNumber === '123456' && bank.isPrimary === true && c2.kby === 'office', c2?.bank_accounts);
   const p3 = await rpc(anon, 'portal_smart_form_prepare', { p_token: TOK2, p_step_id: S2 });
-  ok('821: הכנה לחתימה', p3?.ok && p3.data?.bankAccount === '123456' && p3.data?.businessName === 'נועה עיצובים' && p3.data?.turnover === '120000', p3);
+  ok('821: הכנה לחתימה', p3?.ok && p3.data?.bankAccount === '123456' && p3.data?.businessName === 'נועה עיצובים' && p3.data?.turnover === '400000' && p3.data?.openDate === '2026-11-15', p3);
   const cancel = await rpc(office.db, 'smart_form_advance', { p_filing_id: F2, p_action: 'cancel', p_detail: { reason: 'בדיקה' } });
   ok('ביטול בקשה לפני חתימה', cancel?.ok, cancel);
   const portal3 = await rpc(anon, 'get_client_portal', { p_token: TOK2 });

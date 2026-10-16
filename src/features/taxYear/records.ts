@@ -367,7 +367,8 @@ export function initialFromCard(id: RecordSchemaId, c: Client, role: 'client' | 
         .map(e => ({ id: e.id, name: e.name, startDate: e.startDate ? { date: e.startDate.slice(0, 10), precision: /^\d{4}-01-01$/.test(e.startDate) ? 'year' : 'day' } : undefined, role: e.role ?? '' }));
     case 'business': {
       const b = (c.businesses ?? []).find(x => !!x.belongsToSpouse === spouse && !x.isClosed);
-      return b ? [{ id: b.id, name: b.name, field: b.description ?? '', startDate: b.startYear ? { date: `${b.startYear}-01-01`, precision: 'year' } : undefined }] : [];
+      // 251 · תאריך פתיחה מלא כשיש (טופס 821 / הכרטיס); אחרת — השנה בלבד
+      return b ? [{ id: b.id, name: b.name, field: b.description ?? '', startDate: b.startDate ? { date: b.startDate.slice(0, 10), precision: 'day' } : b.startYear ? { date: `${b.startYear}-01-01`, precision: 'year' } : undefined }] : [];
     }
     default: return [];
   }

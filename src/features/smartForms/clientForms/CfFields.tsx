@@ -48,12 +48,12 @@ export default function CfFields({ fields, values, data, onChange, showErrors, d
         const id = `${uid}-${f.key}-${i}`;
         const e = err(f);
         const v = values[f.key] ?? '';
-        const full = !f.half || f.input === 'textarea' || f.input === 'choice' || f.input === 'bank';
+        const full = !f.half || f.input === 'textarea' || f.input === 'choice' || f.input === 'bank' || f.input === 'select';
         const cls = `ty-field${full ? ' is-full' : ''}${e ? ' has-err' : ''}`;
         const describedBy = e ? `${id}-e` : f.hint ? `${id}-h` : undefined;
         if (f.input === 'choice') {
           return (
-            <div key={id} className={cls} role="group" aria-labelledby={`${id}-l`}>
+            <div key={id} className={cls} role="group" aria-labelledby={`${id}-l`} data-cf-key={f.key}>
               <span id={`${id}-l`} className="cf-label">{f.label}</span>
               <div className="cf-choice-row">
                 {(f.options ?? []).map(o => (
@@ -74,6 +74,14 @@ export default function CfFields({ fields, values, data, onChange, showErrors, d
           input = <HebrewTextInput {...common} onChange={ev => onChange(f.key, ev.target.value)} />;
         } else if (f.input === 'textarea') {
           input = <textarea {...common} onChange={ev => onChange(f.key, ev.target.value)} />;
+        } else if (f.input === 'select') {
+          // רשימה סגורה ארוכה (ענף כלכלי) — select, לא כפתורים
+          input = (
+            <select {...common} onChange={ev => onChange(f.key, ev.target.value)}>
+              <option value="">בחירה…</option>
+              {(f.options ?? []).map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+          );
         } else if (f.input === 'bank') {
           input = (
             <select {...common} onChange={ev => onChange(f.key, ev.target.value)}>
@@ -93,7 +101,7 @@ export default function CfFields({ fields, values, data, onChange, showErrors, d
           );
         }
         return (
-          <label key={id} className={cls} htmlFor={id}>
+          <label key={id} className={cls} htmlFor={id} data-cf-key={f.key}>
             <span className="cf-label">{f.label}</span>
             {input}
             {f.hint && !e && <span id={`${id}-h`} className="ty-note">{f.hint}</span>}

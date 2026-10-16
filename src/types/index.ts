@@ -521,6 +521,10 @@ export interface BusinessInfo {
   kind: BusinessKind;
   description?: string;
   startYear?: number;
+  /** תאריך פתיחת העסק המלא (YYYY-MM-DD; 251) — מסך «פתיחת תיק» של רשות המסים וטופס 821 (חודש/שנה). startYear נגזר ממנו. */
+  startDate?: string;
+  /** ענף כלכלי — אות ענף-העל בסיווג הלמ״ס (smartForms/clientForms/industries.ts; 251). */
+  industry?: string;
   isClosed?: boolean;
   closedYear?: number;
   /** כתובת העסק (206) — לטופסי ב"ל (6101) ולרשויות. */

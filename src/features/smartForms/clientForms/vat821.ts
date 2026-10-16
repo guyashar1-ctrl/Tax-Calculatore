@@ -6,10 +6,15 @@
 // כאן לעוסק יחיד בלבד (השרת חוסם חברה). «הצהרת המייצג» (שם, תאריך, חותמת המשרד) — רק בקובץ
 // החתום שהמשרד מפיק (officeRep.ts); הלקוח רואה אותה ריקה.
 // ‼ המיקוד בטופס בנוי לחמש ספרות; מיקוד בן 7 ספרות נכתב כטקסט ממורכז במשבצות.
+// ‼ 16.10.2026 (משוב גיא): תאריך פתיחת העסק הוא **תאריך מלא בכרטיס** (businesses[].startDate — מסך «פתיחת תיק»
+//   של רשות המסים מבקש תאריך מלא), ועל הטופס נכתבות רק חודש ושנה. ענף כלכלי — רשימה סגורה (industries.ts),
+//   נשמר בכרטיס העסק ומודפס בשורת «תאור מלא של פעילות העסק». «לא קיים נכס» — תיבות הנכס נשארות ריקות.
 
 import type { FieldDef, SmartFormTemplate, UnmappedArea } from '../types';
 import type { CfData, ClientFormDef, CfScreen } from './types';
-import { addressLine, ilDate, splitPhone } from './format';
+import { addressLine, ilDate, splitPhone, todayIso } from './format';
+import { INDUSTRIES, industryShort } from './industries';
+import { ruleView } from '../../taxRules/registry';
 
 export const VAT821_KEY = 'vat-821';
 export const VAT821_SHA256 = 'ff5f46569e32b5085597e461d1c0d779c9f486c311cc38c94da184285c33d8d6';
@@ -28,13 +33,14 @@ const ROWS = [
   { key: 'home', label: 'כתובת המגורים', y: 505.6, h: 10.8, fs: 9, phone: 'מס׳ טלפון בבית' },
 ] as const;
 
+// ‼ כתובת העסק וכתובת המגורים — חובה (כמו ב-_scf_spec); מען להתכתבות — רק כשיש.
 const addressFields: FieldDef[] = ROWS.flatMap(r => [
   f({ id: `${r.key}.street`, dataKey: `${r.key}.street`, label: `${r.label} — רחוב`, section: r.label,
-    box: { x: 452, y: r.y, w: 109.5, h: r.h }, kind: 'text', align: 'right', fontSize: r.fs }),
+    box: { x: 452, y: r.y, w: 109.5, h: r.h }, kind: 'text', align: 'right', fontSize: r.fs, required: r.key === 'mail' ? 'optional' : 'always' }),
   f({ id: `${r.key}.house`, dataKey: `${r.key}.house`, label: `${r.label} — מספר`, section: r.label,
     box: { x: 392.5, y: r.y, w: 57, h: r.h }, kind: 'text', align: 'center', fontSize: r.fs }),
   f({ id: `${r.key}.city`, dataKey: `${r.key}.city`, label: `${r.label} — שם הישוב`, section: r.label,
-    box: { x: 325.5, y: r.y, w: 63.5, h: r.h }, kind: 'text', align: 'center', fontSize: r.fs }),
+    box: { x: 325.5, y: r.y, w: 63.5, h: r.h }, kind: 'text', align: 'center', fontSize: r.fs, required: r.key === 'mail' ? 'optional' : 'always' }),
   f({ id: `${r.key}.zip`, dataKey: `${r.key}.zip`, label: `${r.label} — מיקוד`, section: r.label,
     box: { x: 191.5, y: r.y, w: 58, h: r.h }, kind: 'text', align: 'center', fontSize: r.fs, formatRule: '7 ספרות כטקסט ממורכז (בטופס 5 משבצות)' }),
   f({ id: `${r.key}.phone`, dataKey: `${r.key}.phone`, label: `${r.label} — ${r.phone}`, section: r.label,
@@ -62,7 +68,7 @@ const FIELDS: FieldDef[] = [
     kind: 'text', align: 'right', fontSize: 11, overflow: 'shrink_wrap2', required: 'always', source: 'clients.business_name ‖ businesses[].name' }),
   ...addressFields,
   f({ id: 'activity.1', dataKey: 'activity.1', label: 'תאור הפעילות (שורה 1)', section: 'פעילות העסק', box: { x: 51, y: 468.2, w: 311, h: 11 }, line: 467.8,
-    kind: 'text', align: 'right', required: 'always', source: 'businesses[].description ‖ business_description', formatRule: 'פיצול לפי מילים לשלוש שורות' }),
+    kind: 'text', align: 'right', required: 'always', source: 'businesses[].description ‖ business_description + ענף (businesses[].industry)', formatRule: 'תיאור העיסוק, ואז «ענף: …»; פיצול לפי מילים לשלוש שורות' }),
   f({ id: 'activity.2', dataKey: 'activity.2', label: 'תאור הפעילות (שורה 2)', section: 'פעילות העסק', box: { x: 51, y: 453.2, w: 511, h: 11.4 }, line: 452.8,
     kind: 'text', align: 'right' }),
   f({ id: 'activity.3', dataKey: 'activity.3', label: 'תאור הפעילות (שורה 3)', section: 'פעילות העסק', box: { x: 51, y: 438.1, w: 511, h: 11.4 }, line: 437.7,
@@ -71,30 +77,31 @@ const FIELDS: FieldDef[] = [
     kind: 'digits', fontSize: 10, minFontSize: 10, overflow: 'reject', required: 'always', provenance: 'filing', clientConfirmation: true,
     formatRule: 'ספרות, מיושר לימין' }),
   f({ id: 'openDate', dataKey: 'openDate', label: 'תאריך פתיחת העסק (חודש · שנה)', section: 'פעילות העסק', box: cellsBox(OPEN_CELLS, 419.8, 12.4), cells: OPEN_CELLS,
-    groups: [2, 2], kind: 'digits', fontSize: 10, minFontSize: 10, overflow: 'reject', required: 'always', provenance: 'filing', clientConfirmation: true,
-    formatRule: 'MM · YY (שתי ספרות לשנה, כמו בטופס)' }),
+    groups: [2, 2], kind: 'digits', fontSize: 10, minFontSize: 10, overflow: 'reject', required: 'always', provenance: 'client_record', clientConfirmation: true,
+    source: 'businesses[].startDate (תאריך מלא בכרטיס)', formatRule: 'MM · YY (שתי ספרות לשנה, כמו בטופס)' }),
   f({ id: 'employees', dataKey: 'employees', label: 'מס׳ מועסקים כולל בעל העסק', section: 'פעילות העסק', box: cellsBox(EMP_CELLS, 409, 23), cells: EMP_CELLS,
     kind: 'digits', fontSize: 10, minFontSize: 10, overflow: 'reject', required: 'always', provenance: 'filing', clientConfirmation: true }),
   f({ id: 'bank.name', dataKey: 'bank.name', label: 'שם הבנק', section: 'חשבון בנק', box: { x: 432, y: 346.2, w: 129, h: 10.4 }, kind: 'text', align: 'right', fontSize: 9.5,
-    source: 'clients.bank_accounts (הראשי)' }),
-  f({ id: 'bank.branch', dataKey: 'bank.branch', label: 'הסניף', section: 'חשבון בנק', box: { x: 312, y: 346.2, w: 116, h: 10.4 }, kind: 'text', align: 'center', fontSize: 9.5 }),
-  f({ id: 'bank.code', dataKey: 'bank.code', label: 'סמל הבנק', section: 'חשבון בנק', box: { x: 192.5, y: 346.2, w: 116, h: 10.4 }, kind: 'text', align: 'center', fontSize: 9.5 }),
-  f({ id: 'bank.account', dataKey: 'bank.account', label: 'מס׳ חשבון', section: 'חשבון בנק', box: { x: 52.5, y: 346.2, w: 136, h: 10.4 }, kind: 'text', align: 'center', fontSize: 9.5 }),
+    // ‼ שם הבנק נגזר מהקוד בשמירה — הסימון «חסר» יושב על סמל הבנק, לא כאן
+    source: 'clients.bank_accounts (הראשי) — נגזר מסמל הבנק' }),
+  f({ id: 'bank.branch', dataKey: 'bank.branch', label: 'הסניף', section: 'חשבון בנק', box: { x: 312, y: 346.2, w: 116, h: 10.4 }, kind: 'text', align: 'center', fontSize: 9.5, required: 'always' }),
+  f({ id: 'bank.code', dataKey: 'bank.code', label: 'סמל הבנק', section: 'חשבון בנק', box: { x: 192.5, y: 346.2, w: 116, h: 10.4 }, kind: 'text', align: 'center', fontSize: 9.5, required: 'always' }),
+  f({ id: 'bank.account', dataKey: 'bank.account', label: 'מס׳ חשבון', section: 'חשבון בנק', box: { x: 52.5, y: 346.2, w: 136, h: 10.4 }, kind: 'text', align: 'center', fontSize: 9.5, required: 'always' }),
   f({ id: 'prop.street', dataKey: 'prop.street', label: 'הנכס — רחוב', section: 'הנכס', box: { x: 232, y: 327.2, w: 111, h: 10.2 }, kind: 'text', align: 'right', fontSize: 9.5,
-    source: 'כתובת העסק' }),
+    required: 'when_applicable', source: 'כתובת העסק' }),
   f({ id: 'prop.house', dataKey: 'prop.house', label: 'הנכס — מספר', section: 'הנכס', box: { x: 165, y: 327.2, w: 43, h: 10.2 }, kind: 'text', align: 'center', fontSize: 9.5 }),
-  f({ id: 'prop.city', dataKey: 'prop.city', label: 'הנכס — ישוב', section: 'הנכס', box: { x: 52, y: 327.2, w: 86, h: 10.2 }, kind: 'text', align: 'right', fontSize: 9.5 }),
+  f({ id: 'prop.city', dataKey: 'prop.city', label: 'הנכס — ישוב', section: 'הנכס', box: { x: 52, y: 327.2, w: 86, h: 10.2 }, kind: 'text', align: 'right', fontSize: 9.5, required: 'when_applicable' }),
   ...([
     ['store', 'חנות', 550.4, 304.4], ['office', 'משרד', 520.5, 304.4], ['lot', 'מגרש', 487.0, 304.4],
     ['warehouse', 'מחסן', 454.75, 304.4], ['other', 'אחר', 550.4, 290.3],
   ] as const).map(([v, label, x, y]) => f({ id: `prop.kind.${v}`, dataKey: `prop.kind=${v}`, label: `תיאור הנכס — ${label}`, section: 'הנכס',
-    box: sq(x, y), kind: 'checkbox', overflow: 'none', provenance: 'filing', clientConfirmation: true })),
+    box: sq(x, y), kind: 'checkbox', overflow: 'none', provenance: 'filing', clientConfirmation: true, required: 'when_applicable' })),
   f({ id: 'prop.kindOther', dataKey: 'prop.kindOther', label: 'תיאור הנכס — אחר (פרט)', section: 'הנכס', box: { x: 424, y: 289.6, w: 86, h: 9.5 },
     kind: 'text', align: 'right', fontSize: 8.5, minFontSize: 5.5, provenance: 'filing' }),
-  f({ id: 'prop.owned', dataKey: 'prop.tenure=owned', label: 'בבעלות של', section: 'הנכס', box: sq(407.4, 309.0), kind: 'checkbox', overflow: 'none', provenance: 'filing' }),
+  f({ id: 'prop.owned', dataKey: 'prop.tenure=owned', label: 'בבעלות של', section: 'הנכס', box: sq(407.4, 309.0), kind: 'checkbox', overflow: 'none', provenance: 'filing', required: 'when_applicable' }),
   f({ id: 'prop.ownerName', dataKey: 'prop.ownerName', label: 'בבעלות של — שם', section: 'הנכס', box: { x: 193, y: 307.6, w: 167, h: 11 },
     kind: 'text', align: 'right', fontSize: 9.5, provenance: 'filing' }),
-  f({ id: 'prop.rented', dataKey: 'prop.tenure=rented', label: 'בהשכרה ל', section: 'הנכס', box: sq(407.4, 274.6), kind: 'checkbox', overflow: 'none', provenance: 'filing' }),
+  f({ id: 'prop.rented', dataKey: 'prop.tenure=rented', label: 'בהשכרה ל', section: 'הנכס', box: sq(407.4, 274.6), kind: 'checkbox', overflow: 'none', provenance: 'filing', required: 'when_applicable' }),
   f({ id: 'prop.landlord', dataKey: 'prop.landlord', label: 'בהשכרה ל — שם', section: 'הנכס', box: { x: 193, y: 273.2, w: 168, h: 11 },
     kind: 'text', align: 'right', fontSize: 9.5, provenance: 'filing' }),
   f({ id: 'prop.value', dataKey: 'prop.value', label: 'שווי הנכס', section: 'הנכס', box: { x: 119, y: 270, w: 69.5, h: 16 }, kind: 'text', align: 'center', fontSize: 9.5, provenance: 'filing' }),
@@ -151,6 +158,27 @@ export function splitActivity(text: string | undefined): [string, string, string
   return [lines[0], lines[1], lines[2]];
 }
 
+/** שורת «תאור מלא של פעילות העסק»: תיאור העיסוק, ואז הענף הכלכלי מהרשימה הסגורה. */
+export function activityText(d: CfData): string {
+  const ind = industryShort(d.industry);
+  const act = (d.activity ?? '').trim();
+  return [act, ind ? `ענף: ${ind}` : ''].filter(Boolean).join(' · ');
+}
+
+/** «לא קיים נכס» (מסך פתיחת תיק של רשות המסים) — תיבות הנכס נשארות ריקות. */
+export const propertyExists = (d: CfData) => d.propExists !== 'no';
+
+/** סוג העוסק לפי המחזור המשוער מול תקרת «עוסק פטור» (כלל micro.turnoverCeiling לשנת הפתיחה / השנה). */
+export function dealerKindOf(d: CfData): 'exempt' | 'licensed' | undefined {
+  const t = Number(d.turnover);
+  if (!d.turnover || !Number.isFinite(t)) return undefined;
+  const year = Number((d.openDate ?? '').slice(0, 4)) || Number(todayIso().slice(0, 4));
+  const ceiling = ruleView('micro.turnoverCeiling', year)?.entry?.value ?? ruleView('micro.turnoverCeiling', year - 1)?.entry?.value;
+  if (typeof ceiling !== 'number') return undefined;
+  return t <= ceiling ? 'exempt' : 'licensed';
+}
+export const DEALER_KIND_LABEL = { exempt: 'עוסק פטור', licensed: 'עוסק מורשה' } as const;
+
 /** מען למכתבים: מהכרטיס; אחרת — כשהלקוח אמר שזה כמו המגורים. */
 function mailOf(d: CfData) {
   if (d.mailStreet || d.mailCity) return { street: d.mailStreet, house: d.mailHouse, city: d.mailCity, zip: d.mailZip };
@@ -172,11 +200,12 @@ function valueOf(field: FieldDef, d: CfData): string | boolean | undefined {
   if (k === 'idNumber') return d.idNumber;
   if (k === 'dealerName' || k === 'signerName') return [d.firstName, d.lastName].filter(Boolean).join(' ') || undefined;
   if (k === 'businessName') return d.businessName;
-  if (k.startsWith('activity.')) return splitActivity(d.activity)[Number(k.slice(-1)) - 1] || undefined;
+  if (k.startsWith('activity.')) return splitActivity(activityText(d))[Number(k.slice(-1)) - 1] || undefined;
   if (k === 'turnover') return d.turnover;
   if (k === 'employees') return d.employees;
   if (k === 'openDate') {
-    const m = (d.openMonth ?? '').match(/^(\d{4})-(\d{2})$/);
+    // ‼ תאריך מלא מהכרטיס (openDate); הגשות ישנות (לפני 251) שמרו רק חודש (openMonth)
+    const m = (d.openDate ?? '').match(/^(\d{4})-(\d{2})-\d{2}$/) ?? (d.openMonth ?? '').match(/^(\d{4})-(\d{2})$/);
     return m ? `${m[2]}|${m[1].slice(2)}` : undefined;
   }
   if (k === 'signDate') return ilDate(d.signDate);
@@ -234,7 +263,9 @@ const SCREENS: CfScreen[] = [
     why: 'מע״מ קובע לפי תיאור הפעילות את ענף העסק. כדאי לפרט — כולל פעילות משנית אם יש.',
     fields: [
       { key: 'businessName', label: 'שם העסק', input: 'text', store: 'card', required: true },
-      { key: 'activity', label: 'מה העסק עושה?', input: 'textarea', store: 'card', required: true, placeholder: 'לדוגמה: עיצוב גרפי ובניית אתרים לעסקים קטנים' },
+      { key: 'industry', label: 'ענף כלכלי', input: 'select', store: 'card', required: true, options: INDUSTRIES,
+        hint: 'הענף הכללי שבו העסק פועל — כפי שרשות המסים מסווגת.' },
+      { key: 'activity', label: 'מה בדיוק העסק עושה?', input: 'textarea', store: 'card', required: true, placeholder: 'לדוגמה: עיצוב גרפי ובניית אתרים לעסקים קטנים' },
     ],
   },
   {
@@ -267,12 +298,20 @@ const SCREENS: CfScreen[] = [
   },
   {
     id: 'opening', always: true, title: 'פתיחת העסק',
-    hint: 'הערכה מספיקה — המשרד יעבור על זה איתך.',
+    hint: d => {
+      const k = dealerKindOf(d);
+      return k ? `הערכה מספיקה — המשרד יעבור על זה איתך. לפי המחזור: ${DEALER_KIND_LABEL[k]}.` : 'הערכה מספיקה — המשרד יעבור על זה איתך.';
+    },
     why: 'לפי המחזור המשוער מע״מ קובע אם תירשם/י כעוסק מורשה או כעוסק פטור.',
     fields: [
-      { key: 'openMonth', label: 'מאיזה חודש העסק פועל (או יפעל)?', input: 'month', store: 'filing', required: true, half: true },
+      // ‼ תאריך מלא (הכרטיס + מסך «פתיחת תיק» של הרשות); על הטופס — חודש ושנה. הגשה ישנה עם openMonth מציעה את ה-1 בחודש.
+      { key: 'openDate', label: 'מאיזה תאריך העסק פועל (או יפעל)?', input: 'date', store: 'card', required: true, half: true, allowFuture: true,
+        suggest: d => (d.openMonth && /^\d{4}-\d{2}$/.test(d.openMonth) ? `${d.openMonth}-01` : undefined) },
       { key: 'employees', label: 'כמה עובדים בעסק, כולל אותך?', input: 'number', store: 'filing', required: true, half: true, suggest: () => '1' },
       { key: 'turnover', label: 'מחזור שנתי משוער (בשקלים)', input: 'money', store: 'filing', required: true, half: true },
+      // סוג העוסק נגזר מהמחזור — נשמר עם המסך (לכרטיס העסק כשנוצר), לא נשאל
+      { key: 'dealerKind', label: 'סוג עוסק (לפי המחזור)', input: 'choice', store: 'filing', showIf: () => false, derive: dealerKindOf,
+        options: [{ value: 'exempt', label: 'עוסק פטור' }, { value: 'licensed', label: 'עוסק מורשה' }] },
     ],
   },
   {
@@ -286,18 +325,22 @@ const SCREENS: CfScreen[] = [
   {
     id: 'property', always: true, title: 'המקום שבו העסק פועל',
     hint: d => (d.bizStreet ? `${addressLine(d.bizStreet, d.bizHouse, d.bizCity)}` : 'הנכס שבו מתבצעת הפעילות.'),
+    why: 'מע״מ שואל אם לעסק יש נכס (משרד, חנות, מחסן, חדר בבית). עסק שפועל אצל הלקוחות או בדרכים — בלי נכס קבוע — מסמן «לא קיים נכס», ותיבות הנכס בטופס נשארות ריקות.',
     fields: [
-      { key: 'propKind', label: 'מה הנכס?', input: 'choice', store: 'filing', required: true,
+      { key: 'propExists', label: 'יש לעסק נכס שבו הוא פועל?', input: 'choice', store: 'filing', required: true,
+        options: [{ value: 'yes', label: 'קיים נכס' }, { value: 'no', label: 'לא קיים נכס' }],
+        suggest: d => (d.propKind || d.propTenure ? 'yes' : undefined) },
+      { key: 'propKind', label: 'מה הנכס?', input: 'choice', store: 'filing', required: propertyExists, showIf: propertyExists,
         options: [{ value: 'office', label: 'משרד' }, { value: 'store', label: 'חנות' }, { value: 'warehouse', label: 'מחסן' }, { value: 'lot', label: 'מגרש' }, { value: 'other', label: 'אחר' }],
         suggest: d => (d.bizAtHome === 'yes' ? 'other' : undefined) },
-      { key: 'propKindOther', label: 'מה בדיוק?', input: 'text', store: 'filing', showIf: d => d.propKind === 'other', required: d => d.propKind === 'other',
+      { key: 'propKindOther', label: 'מה בדיוק?', input: 'text', store: 'filing', showIf: d => propertyExists(d) && d.propKind === 'other', required: d => propertyExists(d) && d.propKind === 'other',
         suggest: d => (d.bizAtHome === 'yes' ? 'דירת מגורים' : undefined) },
-      { key: 'propTenure', label: 'הנכס בבעלות או בשכירות?', input: 'choice', store: 'filing', required: true,
+      { key: 'propTenure', label: 'הנכס בבעלות או בשכירות?', input: 'choice', store: 'filing', required: propertyExists, showIf: propertyExists,
         options: [{ value: 'owned', label: 'בבעלות' }, { value: 'rented', label: 'בשכירות' }] },
-      { key: 'propParty', label: 'על שם מי הנכס?', input: 'text', store: 'filing', showIf: d => d.propTenure === 'owned', half: true, suggest: d => fullName(d) },
-      { key: 'propParty', label: 'ממי שוכרים? (שם המשכיר)', input: 'text', store: 'filing', showIf: d => d.propTenure === 'rented', half: true },
-      { key: 'propRent', label: 'דמי שכירות לשנה (בשקלים)', input: 'money', store: 'filing', showIf: d => d.propTenure === 'rented', half: true },
-      { key: 'propValue', label: 'שווי הנכס (לא חובה)', input: 'money', store: 'filing', showIf: d => d.propTenure === 'owned', half: true },
+      { key: 'propParty', label: 'על שם מי הנכס?', input: 'text', store: 'filing', showIf: d => propertyExists(d) && d.propTenure === 'owned', half: true, suggest: d => fullName(d) },
+      { key: 'propParty', label: 'ממי שוכרים? (שם המשכיר)', input: 'text', store: 'filing', showIf: d => propertyExists(d) && d.propTenure === 'rented', half: true },
+      { key: 'propRent', label: 'דמי שכירות לשנה (בשקלים)', input: 'money', store: 'filing', showIf: d => propertyExists(d) && d.propTenure === 'rented', half: true },
+      { key: 'propValue', label: 'שווי הנכס (לא חובה)', input: 'money', store: 'filing', showIf: d => propertyExists(d) && d.propTenure === 'owned', half: true },
     ],
   },
 ];
@@ -305,11 +348,11 @@ const SCREENS: CfScreen[] = [
 const SAMPLE: CfData = {
   firstName: 'ישראל', lastName: 'ישראלי', idNumber: '000000018', mobile: '050-1234567', landline: '04-8123456',
   homeStreet: 'הרצל', homeHouse: '12', homeCity: 'חיפה', homeZip: '3303912',
-  businessName: 'ישראלי עיצובים', activity: 'עיצוב גרפי, מיתוג ובניית אתרים לעסקים קטנים, כולל הדפסות והפקת חומרי שיווק',
+  businessName: 'ישראלי עיצובים', industry: 'M', activity: 'עיצוב גרפי, מיתוג ובניית אתרים לעסקים קטנים, כולל הדפסות והפקת חומרי שיווק',
   bizAtHome: 'yes', bizStreet: 'הרצל', bizHouse: '12', bizCity: 'חיפה', bizZip: '3303912', bizPhone: '050-1234567',
-  mailSame: 'yes', openMonth: '2026-11', employees: '1', turnover: '180000',
+  mailSame: 'yes', openDate: '2026-11-01', employees: '1', turnover: '180000', dealerKind: 'licensed',
   bankCode: '12', bankName: 'בנק הפועלים', bankBranch: '600', bankAccount: '123456',
-  propKind: 'other', propKindOther: 'דירת מגורים', propTenure: 'owned', propParty: 'ישראל ישראלי', signDate: '2026-10-15',
+  propExists: 'yes', propKind: 'other', propKindOther: 'דירת מגורים', propTenure: 'owned', propParty: 'ישראל ישראלי', signDate: '2026-10-15',
   repName: 'שם המייצג לדוגמה',
 };
 
@@ -322,6 +365,46 @@ export const VAT821: ClientFormDef = {
   declaration: 'אני מצהיר/ה שכל הפרטים בטופס נכונים ומלאים, ומתחייב/ת לנהל פנקסי חשבונות כדין ולהודיע למע״מ על כל שינוי בעסק. ידוע לי שמסירת פרטים לא נכונים היא עבירה על החוק.',
   screens: SCREENS,
   valueOf,
-  isActive: () => true,
+  // ‼ «לא קיים נכס» ⇒ אף תיבה בחלק הנכס אינה מצוירת (וגם לא מסומנת כחסרה)
+  isActive: (field, d) => (field.id.startsWith('prop.') ? propertyExists(d) : true),
+  fieldRequired,
+  statusNote: d => { const k = dealerKindOf(d); return k ? `לפי המחזור: ${DEALER_KIND_LABEL[k]}` : undefined; },
+  questionKeys,
+  markerGroups: [
+    { id: 'prop.kind', label: 'תיאור הנכס — יש לסמן אחד', fieldIds: ['prop.kind.store', 'prop.kind.office', 'prop.kind.lot', 'prop.kind.warehouse', 'prop.kind.other'], required: propertyExists },
+    { id: 'prop.tenure', label: 'הנכס בבעלות או בהשכרה — יש לסמן אחד', fieldIds: ['prop.owned', 'prop.rented'], required: propertyExists },
+  ],
   sample: SAMPLE,
 };
+
+// ── סימון על הטופס: מה חובה בהגשה הזו, ואיזו שאלה ממלאת כל תיבה ─────────────
+function fieldRequired(field: FieldDef, d: CfData): boolean {
+  if (field.required === 'always') return true;
+  if (field.required === 'when_applicable') return field.id.startsWith('prop.') ? propertyExists(d) : false;
+  return false;
+}
+
+const cap = (s: string) => s[0].toUpperCase() + s.slice(1);
+function questionKeys(field: FieldDef): string[] {
+  const k = field.dataKey;
+  if (k === 'idNumber') return ['idNumber'];
+  if (k === 'dealerName' || k === 'signerName') return ['firstName', 'lastName'];
+  if (k === 'businessName') return ['businessName'];
+  if (k.startsWith('activity.')) return ['activity', 'industry'];
+  if (k === 'turnover') return ['turnover'];
+  if (k === 'employees') return ['employees'];
+  if (k === 'openDate') return ['openDate'];
+  const [row, part] = k.split('.');
+  if (row === 'biz') return part === 'phone' || part === 'prefix' ? ['bizPhone'] : ['bizAtHome', 'biz' + cap(part)];
+  if (row === 'home') return part === 'phone' || part === 'prefix' ? ['landline'] : ['home' + cap(part)];
+  if (row === 'mail') return part === 'phone' || part === 'prefix' ? ['mobile'] : ['mailSame', 'mail' + cap(part)];
+  if (row === 'bank') return part === 'name' || part === 'code' ? ['bankCode'] : part === 'branch' ? ['bankBranch'] : ['bankAccount'];
+  if (k.startsWith('prop.kind=')) return ['propExists', 'propKind'];
+  if (k.startsWith('prop.tenure=')) return ['propExists', 'propTenure'];
+  if (k === 'prop.kindOther') return ['propKindOther'];
+  if (k === 'prop.ownerName' || k === 'prop.landlord') return ['propParty'];
+  if (k === 'prop.value') return ['propValue'];
+  if (k === 'prop.rent') return ['propRent'];
+  if (k.startsWith('prop.')) return ['propExists', 'bizAtHome', 'bizStreet', 'bizCity'];
+  return [];
+}

@@ -52,7 +52,18 @@ export function fieldError(f: CfField, value: string | undefined, d: CfData): st
   const v = s(value);
   const required = typeof f.required === 'function' ? f.required(d) : !!f.required;
   if (!v) return required ? 'חסר' : null;
+  if (f.input === 'date' && f.allowFuture) return futureDateError(v);
+  // רשימה סגורה (ענף, בחירה): ערך שאינו ברשימה — לא תקין
+  if ((f.input === 'select' || f.input === 'choice') && f.options && !f.options.some(o => o.value === v)) return 'יש לבחור מהרשימה';
   return inputError(f.input, v);
+}
+
+/** תאריך שמותר להיות גם בעתיד (פתיחת עסק מתוכננת): עד שלוש שנים קדימה. ‼ אותו כלל כמו openDate ב-_scf_invalid. */
+export function futureDateError(v: string): string | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(v) || Number.isNaN(Date.parse(`${v}T12:00:00Z`))) return 'תאריך לא תקין';
+  const maxYear = Number(todayIso().slice(0, 4)) + 3;
+  if (v < '1930-01-01' || Number(v.slice(0, 4)) > maxYear) return 'תאריך לא תקין';
+  return null;
 }
 
 export function inputError(input: CfInput, v: string): string | null {

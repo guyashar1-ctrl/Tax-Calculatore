@@ -3,15 +3,17 @@
 // מה רואים: איפה זה עומד, הטופס כפי שהוא עכשיו (חי, או הנעול/החתום), מה בא מהתיק ומה
 // הלקוח השלים, ומה עוד חסר — עם «מילוי עכשיו» שכותב לאותו מקום (כרטיס/הגשה) כמו הדף.
 // אחרי החתימה: הקובץ החתום נשמר במסמכי הלקוח (פעם אחת, דטרמיניסטי), ואז הגשה ותשובה.
+// ‼ 16.10.2026 · הטופס חי: מה שמקלידים ב«מילוי עכשיו» מופיע מיד על התמונה (LiveFormPreview), כל תיבת חובה
+//   מסומנת (חסר/✓), אזור חתימת הלקוח מסומן, ולחיצה על «חסר» פותחת את השאלה הנכונה.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import SmartFormPreview from '../SmartFormPreview';
+import LiveFormPreview, { MissingSummary } from './LiveFormPreview';
 import { sha256Hex } from '../hash';
 import { advanceFiling, attachSignedPdf, filingErrorText } from '../api';
 import { useDocumentStore, type StoredDoc } from '../../../hooks/useDocumentStore';
 import type { Client } from '../../../types';
 import type { CfData, CfField, ClientFormDef } from './types';
-import { blockers, clientFormOf, fieldVisible, renderClientForm, screenRelevant, screenTitle, screenValues, templateFor } from './registry';
+import { blockers, clientFormOf, fieldVisible, formMarkers, renderClientForm, screenRelevant, screenTitle, screenValues, templateFor, type FormMarker } from './registry';
 import { fieldError, ilDate, phoneDisplay, todayIso } from './format';
 import CfFields, { bankNameOf } from './CfFields';
 import { clientFormErrorText, officeFill, officeView, type ClientFormView } from './api';
@@ -84,26 +86,26 @@ function PanelBody({ def, view, client, unpublished, filingId, onChanged }: {
 }) {
   const d = view.data;
   const signed = view.revisionState === 'signed';
-  const [bytes, setBytes] = useState<Uint8Array | null>(null);
   const [renderErr, setRenderErr] = useState<string | null>(null);
+  // ‼ מה שמוקלד עכשיו ב«מילוי עכשיו» — עוד לא נשמר, אבל כבר על הטופס
+  const [draft, setDraft] = useState<CfData>({});
+  const [fillOpen, setFillOpen] = useState(false);
+  const [focusKey, setFocusKey] = useState<string | null>(null);
   const template = useMemo(() => templateFor(def, { version: view.mappingVersion, fields: view.mapping ?? {} }), [def, view.mappingVersion, view.mapping]);
   // ‼ הצהרת המייצג (821): נכנסת רק לטופס החתום — שם, תאריך וחותמת המשרד
   const rep = useOfficeRep(def);
   const signedData = useMemo(() => (signed && needsOfficeRep(def) && rep.name ? { ...d, repName: rep.name, repDate: d.signDate } : d), [signed, def, rep.name, d]);
 
-  useEffect(() => {
-    let alive = true;
-    setBytes(null);
-    if (signed && needsOfficeRep(def) && !rep.ready) return;
-    void renderClientForm(def, signedData, { template, signature: signed ? view.signatures?.client ?? null : null, stamp: signed ? rep.stamp : null, draftMark: signed ? undefined : 'טיוטה — עוד לא נחתם' })
-      .then(r => { if (alive) setBytes(r.bytes); })
-      .catch(e => { if (alive) setRenderErr(e instanceof Error ? e.message : String(e)); });
-    return () => { alive = false; };
-  }, [def, signedData, template, signed, view.signatures, rep.ready, rep.stamp]);
-
+  const live = useMemo(() => (signed ? signedData : { ...signedData, ...draft }), [signed, signedData, draft]);
+  const markers = useMemo(() => formMarkers(def, live, { signed }), [def, live, signed]);
   const missing = blockers(def, d);
   const rows = useMemo(() => summaryRows(def, view), [def, view]);
   const open = ['draft', 'waiting_client_info', 'review', 'awaiting_signatures'].includes(view.state);
+  const openQuestion = (m: FormMarker) => {
+    if (!open || !m.questionKeys.length) return;
+    setFocusKey(m.questionKeys[0]); setFillOpen(true);
+  };
+  const statusNote = def.statusNote?.(live);
 
   return (
     <div className="cfp">
@@ -112,13 +114,23 @@ function PanelBody({ def, view, client, unpublished, filingId, onChanged }: {
         {open && unpublished && <span className="ty-note">טיוטה — הלקוח יראה את הבקשה כשתפורסם בדף שלו («הדף של {client.firstName || 'הלקוח'}» ב«בקשות»).</span>}
         {open && !unpublished && <span className="ty-note">הלקוח ממלא וחותם בדף האישי שלו. הפרטים שהוא משלים נשמרים גם בכרטיס.</span>}
         {view.signedAt && <span className="ty-note">נחתם ב-{ilDate(view.signedAt.slice(0, 10))}</span>}
+        {statusNote && <span className="cfp-chip" data-cf-status-note>{statusNote}</span>}
       </div>
       {def.signNote && <div className="cf-note" role="note">{def.key === 'ita-4440' ? 'רשות המסים מבקשת שהתצהיר ייחתם בפני עורך/ת דין — אישור עו״ד אינו חלק מהטופס הדיגיטלי.' : def.signNote}</div>}
 
       <div className="cfp-cols">
         <div className="cfp-sec">
-          {open && (missing.length > 0 || def.screens.some(s => s.officeOnly && s.fields.some(f => !(d[f.key] ?? '').trim()))) && <OfficeFill def={def} view={view} filingId={filingId} onChanged={onChanged} />}
+          {open && (missing.length > 0 || focusKey || def.screens.some(s => s.officeOnly && s.fields.some(f => !(d[f.key] ?? '').trim()))) && (
+            <OfficeFill def={def} view={view} filingId={filingId} onChanged={async () => { setDraft({}); setFocusKey(null); await onChanged(); }}
+              open={fillOpen} onOpenChange={o => { setFillOpen(o); if (!o) { setDraft({}); setFocusKey(null); } }} focusKey={focusKey} onDraft={setDraft} />
+          )}
           {open && missing.length === 0 && view.revisionState !== 'locked' && <div className="ty-ok">כל הפרטים לטופס קיימים. הלקוח צריך רק לעבור על הטופס ולחתום.</div>}
+          {open && (
+            <div className="cf-sign-note" data-cf-sign-note>
+              <span aria-hidden="true">✍</span>
+              <span>הלקוח חותם בדף האישי שלו, והחתימה נכנסת לתיבה «חתימה וחותמת» המסומנת על הטופס. המשרד אינו חותם במקומו.</span>
+            </div>
+          )}
           {signed && <SignedFile def={def} view={view} client={client} template={template} filingId={filingId} rep={rep} onChanged={onChanged} />}
           {!open && <Lifecycle def={def} view={view} filingId={filingId} onChanged={onChanged} />}
 
@@ -140,8 +152,18 @@ function PanelBody({ def, view, client, unpublished, filingId, onChanged }: {
         </div>
         <div className="cfp-sec">
           <h3>{signed ? 'הטופס החתום' : view.revisionState === 'locked' ? 'הטופס כפי שהוצג ללקוח לחתימה' : 'הטופס כפי שהוא עכשיו'}</h3>
+          {!signed && <MissingSummary markers={markers} onPick={open ? openQuestion : undefined} />}
+          {!signed && (
+            <p className="cf-live-legend" aria-label="מקרא"><span><i className="is-missing" />חסר</span><span><i className="is-ok" />מלא</span><span><i className="is-sign" />כאן הלקוח חותם</span></p>
+          )}
           {renderErr && <div className="ty-err">{renderErr}</div>}
-          <div className="cf-review-pages"><SmartFormPreview bytes={bytes} busy={!bytes} /></div>
+          <div className="cf-review-pages">
+            <LiveFormPreview def={def} data={live} template={template} signed={signed}
+              signature={signed ? view.signatures?.client ?? null : null} stamp={signed ? rep.stamp : null}
+              draftMark={signed ? undefined : 'טיוטה — עוד לא נחתם'} ready={!(signed && needsOfficeRep(def) && !rep.ready)}
+              focusKeys={focusKey ? [focusKey] : undefined} onMarker={open ? openQuestion : undefined}
+              signTag={signed ? undefined : 'כאן הלקוח חותם (בדף האישי)'} onRenderError={setRenderErr} />
+          </div>
         </div>
       </div>
     </div>
@@ -180,25 +202,51 @@ function display(f: CfField, v: string): string {
 }
 
 // ── «מילוי עכשיו» במשרד — אותו מקום כמו בדף ──────────────────────────────────
-function OfficeFill({ def, view, filingId, onChanged }: { def: ClientFormDef; view: ClientFormView; filingId: string; onChanged: () => Promise<void> }) {
+function OfficeFill({ def, view, filingId, onChanged, open, onOpenChange, focusKey, onDraft }: {
+  def: ClientFormDef; view: ClientFormView; filingId: string; onChanged: () => Promise<void>;
+  open: boolean; onOpenChange: (open: boolean) => void; focusKey: string | null; onDraft: (draft: CfData) => void;
+}) {
   const d = view.data;
   const missing = blockers(def, d);
   // ‼ גם פרטי משרד ריקים (פקיד השומה) — לא חוסמים, אבל זה המקום היחיד שבו ממלאים אותם
   const office = def.screens.filter(s => s.officeOnly && s.fields.some(f => !(d[f.key] ?? '').trim()));
   const screens = [...new Set([...missing.map(m => m.screen), ...office])];
   // ‼ רק מה שחסר (או לא תקין) — פרט שכבר ידוע אינו נפתח לעריכה כאן; עורכים אותו בכרטיס
-  const fields = screens.flatMap(s => s.fields.filter(f => fieldVisible(f, d) && (!(d[f.key] ?? '').trim() || !!fieldError(f, d[f.key], d))));
-  const [open, setOpen] = useState(false);
-  const [form, setForm] = useState<CfData>({});
+  // ‼ לחיצה על תיבה בטופס (focusKey) פותחת גם שדה שכבר מלא — לתיקון מהיר במקום דרך הכרטיס
+  const focusScreen = focusKey ? def.screens.find(s => !s.officeOnly && screenRelevant(s, d) && s.fields.some(f => f.key === focusKey)) : undefined;
+  if (focusScreen && !screens.includes(focusScreen)) screens.push(focusScreen);
+  // ‼ המועמדים: מה שחסר/לא תקין (או השדה שנלחץ); הנראוּת נקבעת לפי מה שמוקלד עכשיו — «אחר» פותח את «מה בדיוק?» גם כאן
+  const candidates = screens.flatMap(s => s.fields.filter(f => !(d[f.key] ?? '').trim() || !!fieldError(f, d[f.key], d) || f.key === focusKey));
+  const setOpen = onOpenChange;
+  const [form, setFormState] = useState<CfData>({});
+  const setForm = setFormState;
+  // ‼ הטיוטה לטופס החי עוברת את אותן השלמות שהשמירה תעשה (למשל «מהבית» מעתיק את כתובת המגורים לעסק).
+  //   באפקט ולא בתוך setState — עדכון של ההורה מתוך updater מזהיר ב-React (וב-StrictMode רץ פעמיים).
+  const fieldKeys = candidates.map(f => f.key).join(',');
+  useEffect(() => {
+    if (!open) return;
+    const vals = { ...Object.fromEntries(candidates.map(f => [f.key, d[f.key] ?? ''])), ...form };
+    const out: CfData = {};
+    for (const sc of screens) Object.assign(out, screenValues(sc, vals, d));
+    onDraft(out);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form, open, fieldKeys]);
+  const wrap = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open || !focusKey) return;
+    const el = wrap.current?.querySelector<HTMLElement>(`[data-cf-key="${focusKey}"] input, [data-cf-key="${focusKey}"] select, [data-cf-key="${focusKey}"] textarea, [data-cf-key="${focusKey}"] button`);
+    el?.focus({ preventScroll: true }); el?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  }, [open, focusKey]);
   const [tried, setTried] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const merged = { ...d, ...form };
-  const values = { ...Object.fromEntries(fields.map(f => [f.key, d[f.key] ?? ''])), ...form };
+  const values = { ...Object.fromEntries(candidates.map(f => [f.key, d[f.key] ?? ''])), ...form };
+  const fields = candidates.filter(f => fieldVisible(f, merged));
 
   const save = async () => {
-    // ‼ המשרד משלים מה שיש לו — שדה ריק אינו חוסם שמירה חלקית; רק ערך לא תקין
-    const vis = fields.filter(f => fieldVisible(f, merged) && (values[f.key] ?? '').trim());
+    // ‼ המשרד משלים מה שיש לו — שדה ריק אינו חוסם שמירה חלקית; רק ערך לא תקין **שהוקלד כאן** (ערך ישן בכרטיס ממילא לא נשלח)
+    const vis = fields.filter(f => fieldVisible(f, merged) && f.key in form && (values[f.key] ?? '').trim());
     if (vis.some(f => fieldError(f, values[f.key], merged))) { setTried(true); return; }
     setBusy(true); setErr(null);
     const out: CfData = {};
@@ -208,7 +256,7 @@ function OfficeFill({ def, view, filingId, onChanged }: { def: ClientFormDef; vi
     const r = await officeFill(filingId, out);
     setBusy(false);
     if (!r.ok) { setErr(clientFormErrorText(r.error, r.field as string | undefined)); return; }
-    setOpen(false); setForm({}); setTried(false);
+    setOpen(false); setFormState({}); setTried(false);
     await onChanged();
   };
 
@@ -218,12 +266,16 @@ function OfficeFill({ def, view, filingId, onChanged }: { def: ClientFormDef; vi
       <p className="ty-note" style={{ margin: 0 }}>הלקוח ישאל על זה בדף. אם הפרטים אצלכם — אפשר למלא עכשיו; מה שיש לו מקום בכרטיס נשמר גם בכרטיס.</p>
       {!open && <div className="cfp-actions"><button type="button" className="btn btn-sm" onClick={() => setOpen(true)}>מילוי עכשיו במשרד</button></div>}
       {open && (
-        <div className="cfp-form">
+        <div className="cfp-form" ref={wrap}>
+          <p className="ty-note" style={{ margin: 0 }}>מה שמקלידים מופיע מיד על הטופס משמאל; «שמירה» שומרת בכרטיס ובבקשה.</p>
           <CfFields fields={fields.map(f => ({ ...f, required: false }))} values={values} data={d} onChange={(k, v) => setForm(p => ({ ...p, [k]: v }))} showErrors={tried} disabled={busy} />
+          {tried && fields.some(f => fieldVisible(f, merged) && f.key in form && (values[f.key] ?? '').trim() && fieldError(f, values[f.key], merged)) && (
+            <div className="ty-err" role="alert">יש פרט לא תקין — מסומן באדום בטופס המילוי. אפשר לתקן אותו או למחוק אותו ולשמור את השאר.</div>
+          )}
           {err && <div className="ty-err" role="alert">{err}</div>}
           <div className="cfp-actions">
             <button type="button" className="btn btn-sm btn-primary" disabled={busy} onClick={() => void save()}>{busy ? 'שומר…' : 'שמירה'}</button>
-            <button type="button" className="btn btn-sm btn-ghost" disabled={busy} onClick={() => setOpen(false)}>ביטול</button>
+            <button type="button" className="btn btn-sm btn-ghost" disabled={busy} onClick={() => { setFormState({}); setOpen(false); }}>ביטול</button>
           </div>
         </div>
       )}

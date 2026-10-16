@@ -82,7 +82,9 @@ const CASES = [
   { key: 'vat-821', name: '821-home', data: {} },
   { key: 'vat-821', name: '821-rented', data: { bizAtHome: 'no', bizStreet: 'דרך העצמאות', bizHouse: '45', bizCity: 'חיפה', bizZip: '3303314', bizPhone: '04-8555123',
     mailSame: 'no', mailStreet: 'ת.ד. 1234', mailHouse: '', mailCity: 'חיפה', mailZip: '3101201', propKind: 'office', propKindOther: '', propTenure: 'rented',
-    propParty: 'נכסי הכרמל בע"מ', propRent: '36000', activity: 'ייעוץ', turnover: '1250000', employees: '4' } },
+    propParty: 'נכסי הכרמל בע"מ', propRent: '36000', activity: 'ייעוץ', industry: 'M', openDate: '2025-02-15', turnover: '1250000', employees: '4' } },
+  // 251 · «לא קיים נכס» — אף תיבה בחלק הנכס אינה מצוירת
+  { key: 'vat-821', name: '821-no-property', data: { propExists: 'no', propKind: '', propKindOther: '', propTenure: '', propParty: '', industry: 'H', activity: 'שליחויות', openDate: '2026-08-31', turnover: '40000' } },
 ];
 
 for (const cs of CASES) {
@@ -122,6 +124,14 @@ for (const cs of CASES) {
   // כל שדה חובה שיש לו ערך — צויר
   const missing = T.fields.filter(f => f.required === 'always' && def.isActive(f, d) && !drawnIds.has(f.id));
   if (missing.length === 0) ok('כל שדות החובה צוירו'); else fail('שדות חובה שלא צוירו: ' + missing.map(f => f.label).join(', '));
+  if (cs.name === '821-no-property') {
+    const propDrawn = layout.ops.filter(o => o.fieldId.startsWith('prop.'));
+    if (propDrawn.length === 0) ok('«לא קיים נכס»: אין ציור בחלק הנכס'); else fail('צוירו תיבות נכס: ' + propDrawn.map(o => o.fieldId).join(','));
+    const od = layout.ops.filter(o => o.fieldId === 'openDate').map(o => o.text).join('');
+    if (od === '0826') ok('תאריך הפתיחה 31.08.2026 ⇒ 08|26 בתיבות'); else fail('תאריך הפתיחה בתיבות: ' + od);
+    const act = layout.ops.find(o => o.fieldId === 'activity.1');
+    if (act && /ענף: תחבורה/.test(act.text)) ok('הענף הכלכלי בשורת התיאור'); else fail('אין ענף בשורת התיאור: ' + (act && act.text));
+  }
 }
 
 console.log(`\nפלט: ${OUT}`);
