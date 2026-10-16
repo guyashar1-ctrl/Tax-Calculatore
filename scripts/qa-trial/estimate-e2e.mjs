@@ -14,7 +14,7 @@ const b = await chromium.launch({ executablePath: 'C:/Program Files/Google/Chrom
 let pass = 0, fail = 0;
 const ok = (c, m, i = '') => { c ? pass++ : fail++; console.log(`${c ? '  ✓' : '  ✗'} ${m}${!c && i ? ` — ${String(i).slice(0, 300)}` : ''}`); };
 
-for (const [name, vp] of [['desktop', { width: 1440, height: 900 }], ['phone', { width: 390, height: 844 }]]) {
+for (const [name, vp] of [['desktop', { width: 1280, height: 860 }], ['phone', { width: 390, height: 844 }]]) {
   console.log(`== ${name}`);
   const ctx = await b.newContext({ viewport: vp, ...(name === 'phone' ? { isMobile: true, hasTouch: true, deviceScaleFactor: 2 } : {}) });
   const page = await ctx.newPage();
@@ -24,7 +24,9 @@ for (const [name, vp] of [['desktop', { width: 1440, height: 900 }], ['phone', {
   const shot = (n) => page.screenshot({ path: join(shots, `${name}-${n}.png`) });
   const openEstimate = async () => {
     await page.evaluate(() => { location.hash = '#/client/sample-4/taxfile'; }); await page.waitForTimeout(1800);
-    await page.locator('[data-section="works"] li[data-work="tax_estimate"] button:has-text("פתח")').first().click(); await page.waitForTimeout(1500);
+    // 16.10.2026 («כל עבודה היא בקשה»): «לבקשה ←» ⇒ שורת הבקשה הפתוחה, ההערכה בתוכה
+    await page.locator('[data-section="works"] li[data-work="tax_estimate"] [data-tf-open-work]').first().click();
+    await page.locator('[data-ty-inline] .te-panel').first().waitFor({ timeout: 20000 }).catch(() => {}); await page.waitForTimeout(1500);
   };
 
   await page.goto(`${base}/?office-app&fresh-taxyear`, { waitUntil: 'networkidle' }); await page.waitForTimeout(1200);
@@ -33,7 +35,8 @@ for (const [name, vp] of [['desktop', { width: 1440, height: 900 }], ['phone', {
   ok(await panel.count() === 1, 'ההערכה של אורית נפתחה');
   const res = await panel.locator('.te-result').innerText();
   ok(/מס הכנסה לשנה/.test(res) && !/חסר\n/.test(res.split('הצעד הבא')[0]), 'יש חבות ויתרה — לא «חסר»', res.slice(0, 200));
-  ok(res.includes('8%') && res.includes('12%'), 'המלצת מקדמה: 8% מול 12% היום', res.slice(0, 400));
+  // 16.10.2026 (שלב 0): הבסיס לב״ל אחרי הניכוי לפנסיה ⇒ ניכוי 47א קטן במעט ⇒ המקדמה המומלצת 8.1% (היה 8%)
+  ok(res.includes('8.1%') && res.includes('12%'), 'המלצת מקדמה: 8.1% מול 12% היום', res.slice(0, 400));
   ok(await page.locator('#te-authorities').count() === 1, '«מול הרשויות» מוצג');
   const auth = await page.locator('#te-authorities').innerText();
   ok(auth.includes('תזרים ב-60 הימים') && auth.includes('15.11.2026'), 'תזרים עם מועדים', auth.slice(0, 300));
@@ -63,10 +66,13 @@ for (const [name, vp] of [['desktop', { width: 1440, height: 900 }], ['phone', {
   ok(sum.includes('מה בדקנו בשבילך') && sum.includes('תשלומים עד סוף השנה') && sum.includes('התאמות מס'), 'הסיכום: מה בדקנו, תשלומים, התאמות', sum.slice(0, 300));
   ok(sum.includes('הרצאה בכנס') && sum.includes('כיבוד'), 'החד-פעמי וההתאמה — בנפרד');
   ok(!/מצב היישור|alignment|המשרד בדק מול הרשות/.test(sum), 'הסיכום ללקוח בלי מצב היישור הפנימי');
+  // שלב 0 (R11): ב״ל ובריאות בנפרד; הבסיס אחרי הניכוי לקופת גמל (345); ב״ל לשנה 23,131 (היה 23,939)
+  ok(sum.includes('ביטוח לאומי ובריאות לשנה') && sum.includes('מזה ביטוח לאומי') && sum.includes('· ביטוח בריאות'), 'הסיכום: ב״ל ובריאות מופרדים', sum.slice(sum.indexOf('ביטוח לאומי'), sum.indexOf('ביטוח לאומי') + 200));
+  ok(sum.includes('23,131') && sum.includes('סעיף 345'), 'ב״ל לשנה 23,131 — אחרי הניכוי לפנסיה (345)');
   await page.locator('#te-summary').scrollIntoViewIfNeeded(); await shot('3-summary');
   ok(await page.locator('#te-followups').count() === 1, 'משימות המשך הופיעו');
   const fu = await page.locator('#te-followups').innerText();
-  ok(fu.includes('לעדכן מקדמת מס הכנסה ל-8%') && fu.includes('לקרוא שוב'), 'משימות: עדכון מקדמה וקריאה חוזרת', fu.slice(0, 300));
+  ok(fu.includes('לעדכן מקדמת מס הכנסה ל-8.1%') && fu.includes('לקרוא שוב'), 'משימות: עדכון מקדמה וקריאה חוזרת', fu.slice(0, 300));
   await page.locator('#te-followups').scrollIntoViewIfNeeded(); await shot('4-followups');
   await page.locator('#te-followups button:has-text("פתח משימה")').first().click(); await page.waitForTimeout(800);
   const dlg = page.locator('[role="dialog"]');

@@ -1,0 +1,54 @@
+{
+ "formId": "116ד",
+ "slug": "116d",
+ "taxYear": 2025,
+ "title": "116ד — דחיית נקודת זיכוי בגין ילד שנולד",
+ "source": {
+  "url": "https://www.gov.il/BlobFolder/service/reporting-and-payment-2025-annual-tax-report-for-individuals/he/Service_Pages_Income_tax_itc116d.pdf",
+  "fetchedOn": "2026-10-16",
+  "sha256": "b24f72c4742e0ddc72e8655100b6826ef38d0ef2d0bbc98a8c85f2c965e522ce",
+  "pdf": "/forms/2025/pdf/116d.pdf",
+  "pagesInPdf": 1
+ },
+ "method": "קוד מודפס בשכבת הטקסט של ה-PDF הרשמי + התיבה הסגורה שהוא בתוכה (how=box); בלי תיבה — סביב הקוד עצמו (how=label)",
+ "pages": [
+  {
+   "n": 1,
+   "w": 596,
+   "h": 843,
+   "img": "/forms/2025/116d/p1.webp",
+   "textLayer": false
+  }
+ ],
+ "anchors": [],
+ "ambiguous": [],
+ "missing": [],
+ "labelMethod": "שדה בלי קוד מודפס — לפי מילות התווית בשכבת הטקסט (≥60%, חד-משמעי); check = הריבוע מימין לתווית, row = התווית עם ריבועי כן/לא, cell = התא, text = התווית בלבד",
+ "labelAnchors": [],
+ "labelUnplaced": [
+  {
+   "field": "116d.1",
+   "why": "noMatch"
+  },
+  {
+   "field": "116d.2",
+   "why": "noMatch"
+  },
+  {
+   "field": "116d.3",
+   "why": "noMatch"
+  },
+  {
+   "field": "116d.4",
+   "why": "noMatch"
+  },
+  {
+   "field": "116d.5",
+   "why": "noMatch"
+  },
+  {
+   "field": "116d.6",
+   "why": "noMatch"
+  }
+ ]
+}

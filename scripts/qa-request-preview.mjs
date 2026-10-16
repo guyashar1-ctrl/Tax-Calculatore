@@ -403,7 +403,8 @@ if (ONLY.has('d')) {
     await closeSheet(page);
 
     // (4) מסמך מהמדף: צפייה → הקובץ נפתח (נבדק: קישור ציבורי, ללא פנייה פרטית)
-    await page.locator('.lb-toolbar .of-seg button', { hasText: 'מסמכים' }).click();
+    // ‼ 16.10.2026: «מסמכים» הוא מקטע באותו עמוד (לא לשונית) — פותחים אותו
+    { const sh = page.locator('[data-shelf=documents] .lb-shelf-btn'); if ((await sh.getAttribute('aria-expanded')) !== 'true') await sh.click(); }
     await page.waitForSelector('.cdx-row', { timeout: 15000 });
     const docName = await page.locator('.cdx-row .cdx-title').first().innerText();
     await page.locator('.cdx-row [data-testid=rp-view-btn]').first().click();

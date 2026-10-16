@@ -17,10 +17,10 @@
 import { TRIAL_BUILD } from '../../lib/trialBuild';
 import { supabase } from '../../lib/supabase';
 import type { FirmProfile } from '../../types/firmProfile';
-import { profileToDb } from '../../lib/dbMappers';
+import { clientPatchToDb, profileToDb } from '../../lib/dbMappers';
 import { seedRequestGroupsDemo, rgRpc, rgSetBusinessNameBehindPortal } from './__fakeRequestGroups';
 import { reserveDutyPayload, reserveDutyTemplateRow, reserveDutyPortalItem, reserveDutySubmit } from './__fakeReserveDuty';
-import { seedTaxYearDemo, taxYearRpc, taxInfoPortalItem } from './__fakeTaxYear';
+import { seedTaxYearDemo, taxYearRpc, taxInfoPortalItem, taxYearPersist } from './__fakeTaxYear';
 import { previewRpc } from './__fakeRequestPreview';
 import type { PreviewRequest } from '../../features/requestPreview/types';
 import { mergeOfficeOverrides, type RequestTemplate, type TemplateEntry } from '../../lib/requestTemplates';
@@ -905,7 +905,11 @@ export function installFakeBackend() {
       return { data: r, error: null };
     }
     // 05.10 · פרטי העסק, עבודה מהבית ודף ההדגמה של יוסי (__fakeRequestGroups).
-    const rg = rgRpc(tables, name, args, FIXTURE_PROFILE.firmName ?? "המשרד", logWrite);
+    // ‼ 16.10.2026 · עובדות מנוהלות (p_facts — מצב משפחתי, שנות האירוע) — בשרת נכתבות ב-record_manual_fact_change לאותן
+    //   עמודות; בהדגמה מצורפות ל-patch (קודם נזרקו בשקט).
+    const rgArgs = name === 'update_client_fields' && args.p_facts && typeof args.p_facts === 'object'
+      ? { ...args, p_patch: { ...((args.p_patch as Record<string, unknown> | undefined) ?? {}), ...clientPatchToDb(args.p_facts as never) } } : args;
+    const rg = rgRpc(tables, name, rgArgs, FIXTURE_PROFILE.firmName ?? "המשרד", logWrite);
     if (rg) return rg;
     // 11.10 · שנת מס (229) — כל RPC מטופל במפורש (__fakeTaxYear).
     const ty = taxYearRpc(tables, name, args, FIRM_ID, logWrite);
@@ -953,9 +957,19 @@ export function installFakeBackend() {
     if (name === 'publish_case_changes' && args.p_client_id === DEMO_CLIENT) {
       for (const r of tables.onboarding_steps ?? []) {
         if (r.client_id !== DEMO_CLIENT) continue;
+        // ‼ 249 · שאלון תיק המס — אותו נתיב כמו «פרסם את השאלות בדף»: טיוטת השאלות מתפרסמת; בלי שאלות — לא נחשף
+        if (r.step_type === 'info_collection') {
+          if (['completed', 'verified', 'skipped', 'cancelled', 'failed'].includes(String(r.status))) continue;
+          const drafts = (tables.tax_info_asks ?? []).filter(a => a.step_id === r.id && a.state === 'draft');
+          if (!drafts.length) continue;
+          drafts.forEach(a => { a.state = 'published'; });
+          Object.assign(r, { status: 'waiting_client', ball: 'client', published_at: r.published_at ?? new Date().toISOString() });
+          continue;
+        }
         if (!r.published_at) r.published_at = new Date().toISOString();
         if (r.pending_cancel) { r.status = 'cancelled'; r.pending_cancel = false; }
       }
+      taxYearPersist(tables);
       logWrite('rpc.publish_case_changes');
       return { data: { ok: true }, error: null };
     }

@@ -113,7 +113,7 @@ function Field({ f, r, err, dir, id, onChange }: { f: RecordField; r: RecordValu
       {label}
       <input id={id} type={type} dir={ltr ? 'ltr' : undefined} value={String(v ?? '')} placeholder={f.placeholder}
         inputMode={f.type === 'digits' ? 'numeric' : f.type === 'number' || f.type === 'percent' ? 'decimal' : undefined}
-        maxLength={f.maxLength} min={type === 'number' ? 0 : undefined} max={f.type === 'percent' ? 100 : f.type === 'date' ? new Date().toISOString().slice(0, 10) : undefined}
+        maxLength={f.maxLength} min={type === 'number' ? 0 : undefined} max={f.type === 'percent' ? 100 : f.type === 'date' && !f.allowFuture ? new Date().toISOString().slice(0, 10) : undefined}
         aria-invalid={!!err} aria-describedby={describedBy}
         // ‼ ספרות: מסננים כל תו שאינו ספרה, אבל לא נוגעים באפסים מובילים
         onChange={e => onChange({ [f.key]: f.type === 'digits' ? e.target.value.replace(/\D/g, '') : e.target.value })} />

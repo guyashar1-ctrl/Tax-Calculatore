@@ -18,6 +18,7 @@ import type { AnnexStatus, FieldSource, GapKind, ReturnControl, ReturnDraft, Ret
 import { buildCoverage } from './formFields';
 import { compute1320, LINES_1320 } from './annex1320';
 import { DRAFT_FILL_1301 } from '../taxForms/coverage1301';
+import { asOfDate, clientForTaxYear, familyStatusForYear } from '../../utils/familyStatusYear';
 
 const r0 = (n: number) => Math.round(n);
 const nis = (n: number) => `${Math.round(n).toLocaleString('he-IL')} ₪`;
@@ -54,8 +55,11 @@ export interface ReturnInput {
 }
 
 export function computeReturn(input: ReturnInput): ReturnOutputs {
-  const { client, draft, facts, evidence, estimate } = input;
+  const { draft, facts, evidence, estimate } = input;
   const year = draft.taxYear;
+  // ‼ 16.10.2026: המצב המשפחתי של שנת הדוח, לא של היום (utils/familyStatusYear.ts) — שדות בני זוג, 1301 חלק ב׳, הצהרות
+  const familyInYear = familyStatusForYear(input.client, year, asOfDate(draft.preparedOn));
+  const client = clientForTaxYear(input.client, year, asOfDate(draft.preparedOn));
   const slice = sliceYear(facts, year);
   const gaps: (Blocker & { kind?: GapKind })[] = [];
   const limits: string[] = [];
@@ -170,7 +174,8 @@ export function computeReturn(input: ReturnInput): ReturnOutputs {
     niOverrides: draft.niOverrides, vat: { via: 'manual', periods: [] }, payments, savings, reconciliations: [], decisions: [],
     credits: persons.map(p => ({ person: p, donations: sumComponent(slice, 'donations.amount', 'amount', p, evidence).amount })),
   };
-  const out = computeEstimate(est, { client, taxYear: year });
+  // ‼ הלקוח המקורי — מנוע ההערכה גוזר בעצמו את המצב בשנה, עם ההסבר (לפני הנישואין / שנת האירוע)
+  const out = computeEstimate(est, { client: input.client, taxYear: year });
   // חוסמים של מנוע המס שנוגעים לדוח (לא למקדמות קדימה)
   // ‼ דמי ב״ל (micro_ni_unverified) אינם חלק מ-1301 — שדה 030 הוא הסכום ששולם בפועל
   // ‼ 13.10.2026: חסר בתשלומי 134/ב״ל נוגע למקדמות, לא לדוח; שער בני הזוג (66(ד)) — הדוח שואל אותו בהצהרות חלק א׳ (בסבב הדוח).
@@ -354,7 +359,7 @@ export function computeReturn(input: ReturnInput): ReturnOutputs {
   // ── 10. בדיקת כיסוי לכל שדה ונספח בטופס — ללקוח הזה ──
   const bizPersons = persons.filter(p => lines.some(l => l.person === p && l.source === 'business'));
   const salaryPersons = persons.filter(p => lines.some(l => l.person === p && l.source === 'salary'));
-  const formCoverage = buildCoverage({ client, year, persons, facts, draft, fields, balance, bizPersons, salaryPersons, gaps, annex1320, annex1321 });
+  const formCoverage = buildCoverage({ client, year, persons, facts, draft, fields, balance, bizPersons, salaryPersons, gaps, annex1320, annex1321, familyInYear });
   for (const pf of formCoverage.produced) if (!fields.some(f => f.code === pf.code && f.person === pf.person)) fields.push(pf);
 
   // ‼ סוג כל פער קובע מה סוגר אותו. השלמה מקצועית — רק data/calc, ורק כשכל קודי השדות שלה מופקים (DRAFT_FILL_1301)
@@ -419,11 +424,12 @@ function kindOf(code: string): GapKind {
   return 'data';
 }
 
-/** אומדן התחלתי של האנשים בדוח: הלקוח, ובן/בת הזוג כשנשוי/אה ויש לו/ה הכנסה בתיק. */
-export function defaultPersons(client: Client): Person[] {
+/** אומדן התחלתי של האנשים בדוח: הלקוח, ובן/בת הזוג כשנשוי/אה **בשנת הדוח** ויש לו/ה הכנסה בתיק. */
+export function defaultPersons(client: Client, year?: number): Person[] {
   const spouseHasIncome = (client.employers ?? []).some(e => (e as { belongsToSpouse?: boolean }).belongsToSpouse)
     || (client.businesses ?? []).some(b => (b as { belongsToSpouse?: boolean }).belongsToSpouse);
-  return client.familyStatus === 'married' && client.spouse && spouseHasIncome ? ['client', 'spouse'] : ['client'];
+  const married = (year ? clientForTaxYear(client, year) : client).familyStatus === 'married';
+  return married && client.spouse && spouseHasIncome ? ['client', 'spouse'] : ['client'];
 }
 
 export { isNum, trustOf };

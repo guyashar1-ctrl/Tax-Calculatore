@@ -34,7 +34,7 @@ const NOT_COMPLETABLE = (g: { code: string; kind: string }) => !['data', 'calc']
 function initialDraft(client: Client, year: number, est?: EstimateVersion): ReturnDraft {
   const micro: ReturnDraft['micro'] = {};
   for (const l of est?.draft.lines ?? []) if (l.source === 'business' && l.entityRef && (l.track || l.micro)) micro[l.entityRef] = { ...(l.micro ?? {}), track: l.track };
-  return { taxYear: year, preparedOn: today(), persons: defaultPersons(client), completions: [], adjustments: [], micro, niOverrides: est?.draft.niOverrides, decisions: [] };
+  return { taxYear: year, preparedOn: today(), persons: defaultPersons(client, year), completions: [], adjustments: [], micro, niOverrides: est?.draft.niOverrides, decisions: [] };
 }
 
 export default function AnnualReturnPanel({ client, step, year, facts, evidence, run }: {

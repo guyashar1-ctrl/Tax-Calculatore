@@ -1,0 +1,339 @@
+{
+ "formId": "134",
+ "slug": "134",
+ "taxYear": 2025,
+ "title": "134 — הפקדות מעביד עודפות ואובדן כושר עבודה",
+ "source": {
+  "url": "https://www.gov.il/BlobFolder/service/reporting-and-payment-2025-annual-tax-report-for-individuals/he/Service_Pages_Income_tax_annual-report-2026_itc134-2025.pdf",
+  "fetchedOn": "2026-10-16",
+  "sha256": "ca4f5486ead70226d3ee04ed3a095b044e2fbe791d5ee3fc3373ac43777c1f5e",
+  "pdf": "/forms/2025/pdf/134.pdf",
+  "pagesInPdf": 2
+ },
+ "method": "קוד מודפס בשכבת הטקסט של ה-PDF הרשמי + התיבה הסגורה שהוא בתוכה (how=box); בלי תיבה — סביב הקוד עצמו (how=label)",
+ "pages": [
+  {
+   "n": 1,
+   "w": 595.275,
+   "h": 841.89,
+   "img": "/forms/2025/134/p1.webp",
+   "textLayer": true
+  },
+  {
+   "n": 2,
+   "w": 595.275,
+   "h": 841.89,
+   "img": "/forms/2025/134/p2.webp",
+   "textLayer": true
+  }
+ ],
+ "anchors": [],
+ "ambiguous": [],
+ "missing": [],
+ "labelMethod": "שדה בלי קוד מודפס — לפי מילות התווית בשכבת הטקסט (≥60%, חד-משמעי); check = הריבוע מימין לתווית, row = התווית עם ריבועי כן/לא, cell = התא, text = התווית בלבד",
+ "labelAnchors": [
+  {
+   "field": "134.1",
+   "page": 1,
+   "how": "text",
+   "score": 1,
+   "box": [
+    0.1927,
+    0.1229,
+    0.7049,
+    0.0168
+   ],
+   "label": [
+    0.1952,
+    0.1247,
+    0.6999,
+    0.0132
+   ]
+  },
+  {
+   "field": "134.2",
+   "page": 1,
+   "how": "text",
+   "score": 1,
+   "box": [
+    0.7565,
+    0.1832,
+    0.1139,
+    0.0153
+   ],
+   "label": [
+    0.7591,
+    0.185,
+    0.1088,
+    0.0118
+   ]
+  },
+  {
+   "field": "134.13",
+   "page": 1,
+   "how": "text",
+   "score": 0.83,
+   "box": [
+    0.414,
+    0.9506,
+    0.409,
+    0.0177
+   ],
+   "label": [
+    0.4165,
+    0.9523,
+    0.404,
+    0.0141
+   ]
+  },
+  {
+   "field": "134.15",
+   "page": 2,
+   "how": "text",
+   "score": 1,
+   "box": [
+    0.7482,
+    0.0706,
+    0.1177,
+    0.0177
+   ],
+   "label": [
+    0.7508,
+    0.0724,
+    0.1127,
+    0.0141
+   ]
+  },
+  {
+   "field": "134.20",
+   "page": 2,
+   "how": "text",
+   "score": 0.67,
+   "box": [
+    0.7229,
+    0.1975,
+    0.1415,
+    0.0177
+   ],
+   "label": [
+    0.7254,
+    0.1992,
+    0.1364,
+    0.0141
+   ]
+  },
+  {
+   "field": "134.32",
+   "page": 2,
+   "how": "text",
+   "score": 1,
+   "box": [
+    0.6862,
+    0.529,
+    0.1879,
+    0.0177
+   ],
+   "label": [
+    0.6887,
+    0.5307,
+    0.1828,
+    0.0141
+   ]
+  },
+  {
+   "field": "134.34",
+   "page": 2,
+   "how": "text",
+   "score": 0.6,
+   "box": [
+    0.4968,
+    0.6136,
+    0.3613,
+    0.0177
+   ],
+   "label": [
+    0.4994,
+    0.6154,
+    0.3563,
+    0.0141
+   ]
+  },
+  {
+   "field": "134.35",
+   "page": 2,
+   "how": "text",
+   "score": 0.6,
+   "box": [
+    0.5721,
+    0.631,
+    0.286,
+    0.0177
+   ],
+   "label": [
+    0.5747,
+    0.6328,
+    0.281,
+    0.0141
+   ]
+  }
+ ],
+ "labelUnplaced": [
+  {
+   "field": "134.3",
+   "why": "noMatch"
+  },
+  {
+   "field": "134.4",
+   "why": "ambiguous",
+   "where": [
+    "p1:423,593",
+    "p1:427,384",
+    "p1:426,186",
+    "p1:426,186"
+   ]
+  },
+  {
+   "field": "134.5",
+   "why": "ambiguous",
+   "where": [
+    "p1:395,608",
+    "p1:395,400",
+    "p1:394,201",
+    "p1:394,201"
+   ]
+  },
+  {
+   "field": "134.6",
+   "why": "ambiguous",
+   "where": [
+    "p1:397,623",
+    "p1:405,415",
+    "p1:404,217",
+    "p1:404,217"
+   ]
+  },
+  {
+   "field": "134.7",
+   "why": "noMatch"
+  },
+  {
+   "field": "134.8",
+   "why": "noMatch"
+  },
+  {
+   "field": "134.9",
+   "why": "noMatch"
+  },
+  {
+   "field": "134.10",
+   "why": "noMatch"
+  },
+  {
+   "field": "134.11",
+   "why": "noMatch"
+  },
+  {
+   "field": "134.12",
+   "why": "noMatch"
+  },
+  {
+   "field": "134.14",
+   "why": "noMatch"
+  },
+  {
+   "field": "134.16",
+   "why": "noMatch"
+  },
+  {
+   "field": "134.17",
+   "why": "ambiguous",
+   "where": [
+    "p1:423,593",
+    "p1:427,384",
+    "p1:426,186",
+    "p1:426,186"
+   ]
+  },
+  {
+   "field": "134.18",
+   "why": "ambiguous",
+   "where": [
+    "p2:464,124",
+    "p2:424,233"
+   ]
+  },
+  {
+   "field": "134.19",
+   "why": "ambiguous",
+   "where": [
+    "p2:456,252",
+    "p2:460,369",
+    "p2:427,369"
+   ]
+  },
+  {
+   "field": "134.21",
+   "why": "noMatch"
+  },
+  {
+   "field": "134.22",
+   "why": "noMatch"
+  },
+  {
+   "field": "134.23",
+   "why": "noMatch"
+  },
+  {
+   "field": "134.24",
+   "why": "noMatch"
+  },
+  {
+   "field": "134.25",
+   "why": "noMatch"
+  },
+  {
+   "field": "134.26",
+   "why": "noMatch"
+  },
+  {
+   "field": "134.27",
+   "why": "noMatch"
+  },
+  {
+   "field": "134.28",
+   "why": "noMatch"
+  },
+  {
+   "field": "134.29",
+   "why": "noMatch"
+  },
+  {
+   "field": "134.30",
+   "why": "noMatch"
+  },
+  {
+   "field": "134.31",
+   "why": "noMatch"
+  },
+  {
+   "field": "134.33",
+   "why": "noMatch"
+  },
+  {
+   "field": "134.36",
+   "why": "noMatch"
+  },
+  {
+   "field": "134.37",
+   "why": "noMatch"
+  },
+  {
+   "field": "134.38",
+   "why": "noMatch"
+  },
+  {
+   "field": "134.39",
+   "why": "noMatch"
+  }
+ ]
+}

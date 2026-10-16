@@ -6,6 +6,7 @@ import {
 import { Client, TaxCalcInput, TaxCalcResult, FamilyTaxResult, RentalTaxTrack } from '../types';
 import { calculateTax, calcCreditPoints, calculateFamilyTax } from '../utils/taxCalculations';
 import { getTaxYearData, AVAILABLE_YEARS } from '../data/taxData';
+import { familyStatusForCalc, familyStatusForYear } from '../utils/familyStatusYear';
 
 const fmt = (n: number) => n.toLocaleString('he-IL', { maximumFractionDigits: 0 });
 const fmtR = (n: number) => n.toLocaleString('he-IL', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + '%';
@@ -100,7 +101,9 @@ export default function TaxCalculator({ client, onBack }: Props) {
     return calculateFamilyTax({ ...input, year }, taxData);
   }, [input, year, taxData, calculated]);
 
-  const hasSpouse = client.familyStatus === 'married' && client.spouse != null;
+  // ‼ המצב המשפחתי בשנת המס שנבחרה, לא של היום (utils/familyStatusYear.ts)
+  const famInYear = familyStatusForYear(client, year);
+  const hasSpouse = familyStatusForCalc(famInYear) === 'married' && client.spouse != null;
   const spouseResult = familyResult?.spouse ?? null;
 
   const previewCredits = useMemo(() => {
@@ -134,8 +137,8 @@ export default function TaxCalculator({ client, onBack }: Props) {
 
   const pieData = result ? [
     { name: 'מס הכנסה', value: Math.round(result.totalIncomeTax), color: 'var(--br)' },
-    { name: 'ביטוח לאומי', value: Math.round(result.niEmployee + result.niSelfEmployed), color: 'var(--warn)' },
-    { name: 'מס בריאות', value: Math.round(result.healthEmployee + result.healthSelfEmployed), color: 'var(--info)' },
+    { name: 'ביטוח לאומי', value: Math.round(result.niEmployee + result.niSelfEmployed + (result.niNonWork ?? 0)), color: 'var(--warn)' },
+    { name: 'מס בריאות', value: Math.round(result.healthEmployee + result.healthSelfEmployed + (result.healthNonWork ?? 0)), color: 'var(--info)' },
     { name: 'נטו', value: Math.round(result.netAnnualIncome), color: 'var(--ok)' },
   ].filter(d => d.value > 0) : [];
 
@@ -174,6 +177,9 @@ export default function TaxCalculator({ client, onBack }: Props) {
             {client.gender === 'female' ? ' · נקבה' : ' · זכר'}
             {client.children.length > 0 ? ` · ${client.children.length} ילדים` : ''}
           </div>
+          <div className="pg-status" data-testid="calc-family-year">
+            {famInYear.line}
+          </div>
           <button type="button" className="doc-back-link" onClick={onBack}>← חזרה לפרטי לקוח</button>
         </div>
         <div className="pg-actions">
@@ -185,6 +191,12 @@ export default function TaxCalculator({ client, onBack }: Props) {
           </label>
         </div>
       </div>
+
+      {famInYear.certainty !== 'known' && famInYear.review && (
+        <div className="alert alert-warning" style={{ marginBottom: '1rem' }}>
+          לבדיקה — {famInYear.review}{famInYear.certainty === 'unknown' ? ' החישוב כאן לפי המצב היום.' : ''}
+        </div>
+      )}
 
       {taxData?.isEstimated && (
         <div className="alert alert-warning" style={{ marginBottom: '1rem' }}>
@@ -351,7 +363,7 @@ export default function TaxCalculator({ client, onBack }: Props) {
                 <div className="stat-card orange">
                   <div className="stat-label">ביטוח לאומי + בריאות</div>
                   <div className="stat-value">₪{fmt(Math.round(result.totalNI))}</div>
-                  <div className="stat-sub">ב"ל: ₪{fmt(Math.round(result.niEmployee + result.niSelfEmployed))} · בריאות: ₪{fmt(Math.round(result.healthEmployee + result.healthSelfEmployed))}</div>
+                  <div className="stat-sub">ב"ל: ₪{fmt(Math.round(result.niEmployee + result.niSelfEmployed + (result.niNonWork ?? 0)))} · בריאות: ₪{fmt(Math.round(result.healthEmployee + result.healthSelfEmployed + (result.healthNonWork ?? 0)))}</div>
                 </div>
                 <div className="stat-card red">
                   <div className="stat-label">סה"כ חבות מס</div>
@@ -403,7 +415,7 @@ export default function TaxCalculator({ client, onBack }: Props) {
 
               {result.niDeductionFromIncomeTax > 0 && (
                 <div className="alert alert-info">
-                  💡 <strong>ניכוי ב"ל ממס הכנסה (סעיף 17(5)):</strong> 52% מהביטוח הלאומי העצמאי (₪{fmt(Math.round(result.niSelfEmployed))}) = <strong>₪{fmt(Math.round(result.niDeductionFromIncomeTax))}</strong> הופחתו מהכנסה החייבת → חיסכון במס הכנסה של ~₪{fmt(Math.round(result.niDeductionFromIncomeTax * result.marginalRate / 100))}.
+                  💡 <strong>ניכוי ב"ל ממס הכנסה (סעיף 47א):</strong> 52% מדמי הביטוח הלאומי — לא מדמי הבריאות (₪{fmt(Math.round(result.niSelfEmployed + (result.niNonWork ?? 0)))}) = <strong>₪{fmt(Math.round(result.niDeductionFromIncomeTax))}</strong> הופחתו מהכנסה החייבת → חיסכון במס הכנסה של ~₪{fmt(Math.round(result.niDeductionFromIncomeTax * result.marginalRate / 100))}.
                 </div>
               )}
 
@@ -661,10 +673,18 @@ export default function TaxCalculator({ client, onBack }: Props) {
                           <td className="number">₪{fmt(Math.round(result.niSelfEmployed + result.healthSelfEmployed))}</td>
                         </tr>
                       )}
+                      {((result.niNonWork ?? 0) > 0 || (result.healthNonWork ?? 0) > 0) && (
+                        <tr>
+                          <td>הכנסה שלא מעבודה (שכ"ד חייב)</td>
+                          <td className="number">₪{fmt(Math.round(result.niNonWork ?? 0))}</td>
+                          <td className="number">₪{fmt(Math.round(result.healthNonWork ?? 0))}</td>
+                          <td className="number">₪{fmt(Math.round((result.niNonWork ?? 0) + (result.healthNonWork ?? 0)))}</td>
+                        </tr>
+                      )}
                       <tr className="total">
                         <td>סה"כ</td>
-                        <td className="number">₪{fmt(Math.round(result.niEmployee + result.niSelfEmployed))}</td>
-                        <td className="number">₪{fmt(Math.round(result.healthEmployee + result.healthSelfEmployed))}</td>
+                        <td className="number">₪{fmt(Math.round(result.niEmployee + result.niSelfEmployed + (result.niNonWork ?? 0)))}</td>
+                        <td className="number">₪{fmt(Math.round(result.healthEmployee + result.healthSelfEmployed + (result.healthNonWork ?? 0)))}</td>
                         <td className="number">₪{fmt(Math.round(result.totalNI))}</td>
                       </tr>
                     </tbody>

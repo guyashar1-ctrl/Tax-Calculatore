@@ -25,6 +25,7 @@ import { useKnowledgeLink } from '../taxKnowledge/knowledgeLink';
 import { AmountView, DocPick, NumField, PERSON, Periods, he, nis, today, uid } from './parts';
 import type { CapitalKind, EstimateDraft, EstimateVersion, ForecastMethod, IncomeLine, ItAdvanceSetup, NiAdvanceSetup, Person, SourceRef } from './types';
 import './estimate.css';
+import { clientForTaxYear } from '../../utils/familyStatusYear';
 
 const SOURCE_HE: Record<IncomeLine['source'], string> = { salary: 'משכורת', business: 'עסק', rent: 'שכר דירה', capital: 'שוק ההון', other: 'אחר' };
 const CAPITAL_KIND_HE: Record<CapitalKind, string> = {
@@ -82,6 +83,8 @@ export default function EstimatePanel({ client, step, year, cutoffMonth, facts, 
   const links = useKnowledgeLink();
   const [opened, setOpened] = useState<Set<string>>(new Set());
   const pre = useMemo(() => buildDraft({ client, taxYear: year, cutoffMonth, facts, evidence, today: today() }), [client, year, cutoffMonth, facts, evidence]);
+  // ‼ נשוי/אה בשנת המס (לא היום) — קובע אם יש בן/בת זוג בשורות ובחלוקה
+  const marriedInYear = clientForTaxYear(client, year).familyStatus === 'married';
 
   const load = async () => {
     try {
@@ -261,14 +264,14 @@ export default function EstimatePanel({ client, step, year, cutoffMonth, facts, 
                   {l.source !== 'rent' && l.source !== 'other' && <NumField label="ניכוי צפוי בהמשך השנה" value={l.withheldForecast} onChange={v => updLine(l.id, { withheldForecast: v })} />}
                   {l.source === 'business' && <NumField label="מחזור צפוי לשאר השנה" value={l.turnoverForecast} onChange={v => updLine(l.id, { turnoverForecast: v })} hint="בסיס למקדמה לפי מחזור" />}
                 </div>
-                {(l.source === 'capital' || (l.source === 'rent' && client.familyStatus === 'married')) && (
+                {(l.source === 'capital' || (l.source === 'rent' && marriedInYear)) && (
                   <div className="te-grid">
                     {l.source === 'capital' && (
                       <label className="te-field">סוג ההכנסה (קובע את השיעור)<select value={l.capitalKind ?? ''} onChange={e => updLine(l.id, { capitalKind: (e.target.value || undefined) as CapitalKind | undefined })}>
                         <option value="">— לא סווג —</option>{(Object.keys(CAPITAL_KIND_HE) as CapitalKind[]).map(k => <option key={k} value={k}>{CAPITAL_KIND_HE[k]}</option>)}
                       </select><small>30% רק לדיבידנד מחברה שבה הוא מחזיק 10% ומעלה — לא לכל ההכנסה ההונית שלו</small></label>
                     )}
-                    {client.familyStatus === 'married' && l.capitalKind !== 'interestOwnCompany' && (
+                    {marriedInYear && l.capitalKind !== 'interestOwnCompany' && (
                       <label className="te-field">שיוך בין בני הזוג<select value={l.attribution ?? ''} onChange={e => updLine(l.id, { attribution: (e.target.value || undefined) as IncomeLine['attribution'] })}>
                         <option value="">רכוש משותף — לבעל היגיעה האישית הגבוהה</option><option value="premarital">רכוש מלפני הנישואים (שנה לפחות)</option><option value="inherited">רכוש שהתקבל בירושה</option>
                       </select><small>סעיף 66: אין פיצול לפי בחירה</small></label>
@@ -300,7 +303,7 @@ export default function EstimatePanel({ client, step, year, cutoffMonth, facts, 
               </div>
             );
           })}
-          <AddLine onAdd={(person, source, label) => upd(d => ({ ...d, lines: [...d.lines, { id: uid(), person, source, label }] }))} married={client.familyStatus === 'married'} />
+          <AddLine onAdd={(person, source, label) => upd(d => ({ ...d, lines: [...d.lines, { id: uid(), person, source, label }] }))} married={marriedInYear} />
           {pre.hints.filter(h => !h.lineId).map((h, i) => <p key={i} className="ty-note">‹ {h.text}</p>)}
         </div>
       </details>
@@ -457,7 +460,7 @@ export default function EstimatePanel({ client, step, year, cutoffMonth, facts, 
               </div>
             );
           })}
-          {client.familyStatus === 'married' && out.persons.length > 1 && (
+          {marriedInYear && out.persons.length > 1 && (
             <fieldset className="te-choice">
               <legend>בני זוג — האם הכנסת אחד מהם תלויה במקור ההכנסה של השני?</legend>
               <small className="ty-note">סעיף 66(ד) · 1301 חלק א׳ סעיף 2. חישוב מאוחד הוא ברירת המחדל בחוק; נפרד — רק בתנאים, והרשות מחילה את הזול למי שזכאי.</small>

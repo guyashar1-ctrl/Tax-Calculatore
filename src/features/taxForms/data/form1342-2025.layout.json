@@ -1,0 +1,90 @@
+{
+ "formId": "1342",
+ "slug": "1342",
+ "taxYear": 2025,
+ "title": "1342 — פרטים על נכסים לפחת",
+ "source": {
+  "url": "https://www.gov.il/BlobFolder/service/reporting-and-payment-2025-annual-tax-report-for-individuals/he/Service_Pages_Income_tax_annual-report-2026_itc1342.pdf",
+  "fetchedOn": "2026-10-16",
+  "sha256": "ffdea6d4078074d9225315128d09ffa3573e55813ff7ae2bae013ef24735cc49",
+  "pdf": "/forms/2025/pdf/1342.pdf",
+  "pagesInPdf": 1
+ },
+ "method": "קוד מודפס בשכבת הטקסט של ה-PDF הרשמי + התיבה הסגורה שהוא בתוכה (how=box); בלי תיבה — סביב הקוד עצמו (how=label)",
+ "pages": [
+  {
+   "n": 1,
+   "w": 841.89,
+   "h": 595.275,
+   "img": "/forms/2025/1342/p1.webp",
+   "textLayer": false
+  }
+ ],
+ "anchors": [],
+ "ambiguous": [],
+ "missing": [],
+ "labelMethod": "שדה בלי קוד מודפס — לפי מילות התווית בשכבת הטקסט (≥60%, חד-משמעי); check = הריבוע מימין לתווית, row = התווית עם ריבועי כן/לא, cell = התא, text = התווית בלבד",
+ "labelAnchors": [],
+ "labelUnplaced": [
+  {
+   "field": "1342.1",
+   "why": "noMatch"
+  },
+  {
+   "field": "1342.2",
+   "why": "noMatch"
+  },
+  {
+   "field": "1342.3",
+   "why": "noMatch"
+  },
+  {
+   "field": "1342.4",
+   "why": "noMatch"
+  },
+  {
+   "field": "1342.5",
+   "why": "noMatch"
+  },
+  {
+   "field": "1342.6",
+   "why": "noMatch"
+  },
+  {
+   "field": "1342.7",
+   "why": "noMatch"
+  },
+  {
+   "field": "1342.8",
+   "why": "noMatch"
+  },
+  {
+   "field": "1342.9",
+   "why": "noMatch"
+  },
+  {
+   "field": "1342.10",
+   "why": "noMatch"
+  },
+  {
+   "field": "1342.11",
+   "why": "noMatch"
+  },
+  {
+   "field": "1342.12",
+   "why": "noMatch"
+  },
+  {
+   "field": "1342.13",
+   "why": "noMatch"
+  },
+  {
+   "field": "1342.14",
+   "why": "noMatch"
+  },
+  {
+   "field": "1342.15",
+   "why": "noMatch"
+  }
+ ]
+}

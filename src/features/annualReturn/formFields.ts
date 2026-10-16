@@ -10,6 +10,7 @@ import type { YearFact } from '../taxYear/types';
 import type { Person } from '../taxEstimate/types';
 import { CATALOG_1301_2025, ANNEX_CATALOG_2025 } from '../taxForms/coverage1301';
 import type { ReturnField, ReturnDraft } from './types';
+import type { FamilyStatusInYear } from '../../utils/familyStatusYear';
 
 export type Need = 'required' | 'applies' | 'optional' | 'notRelevant' | 'office';
 export type RowState = 'filled' | 'missing' | 'notSupported' | 'notRelevant' | 'office' | 'empty';
@@ -42,6 +43,8 @@ interface Ctx {
   gaps: { code: string }[];
   annex1320?: { entityRef: string; lines: Record<string, number>; complete: boolean; problems: string[] }[];
   annex1321?: { complete: boolean; problems: string[] };
+  /** המצב המשפחתי בשנת הדוח (utils/familyStatusYear.ts) — `client.familyStatus` כבר מוחלף בו; כאן ההסבר והוודאות. */
+  familyInYear?: FamilyStatusInYear;
 }
 
 // ── גישה לעובדות שנת המס ──
@@ -235,7 +238,11 @@ export function buildCoverage(c: Ctx): FormCoverage {
           fromCard(e, v, e.id === 'F065' ? 'שם האב של בן/בת הזוג (לא נשמר בכרטיס)' : 'פרטי בן/בת הזוג — כרטיס', { fix: e.id === 'F065' ? 'identity' : 'card' });
           continue;
         }
-        case 'F067': { const m: Record<string, string> = { single: 'רווק/ה', married: 'נשוי/אה', divorced: 'גרוש/ה', widowed: 'אלמן/ה', singleParent: 'גרוש/ה / הורה יחיד' }; fromCard(e, m[client.familyStatus], 'מצב משפחתי — כרטיס'); continue; }
+        case 'F067': { const m: Record<string, string> = { single: 'רווק/ה', married: 'נשוי/אה', divorced: 'גרוש/ה', widowed: 'אלמן/ה', singleParent: 'גרוש/ה / הורה יחיד' };
+          // ‼ 16.10.2026: המצב בשנת הדוח — לא ידוע (שנת האירוע חסרה) ⇒ חסר, לא «מהכרטיס»
+          const fy = c.familyInYear;
+          if (fy?.certainty === 'unknown') { put(e, { need: 'required', state: 'missing', source: `מצב משפחתי ב-${year}: ${fy.review}` }); continue; }
+          fromCard(e, m[client.familyStatus], fy ? `מצב משפחתי בשנת הדוח — ${fy.basis}${fy.isEventYear ? ' · לבדיקה' : ''}` : 'מצב משפחתי — כרטיס'); continue; }
         case 'F068': put(e, { need: 'optional', state: 'empty', source: 'סימון שינוי מאז הדוח הקודם — לפי הצורך' }); continue;
         case 'F069': fromCard(e, client.address && client.city ? `${client.address}, ${client.city}${(client.zipCode || ident.zip) ? ` ${client.zipCode || ident.zip}` : ''}` : undefined, 'כתובת כולל מיקוד — כרטיס'); if (client.address && client.city && !(client.zipCode || ident.zip)) { rows[rows.length - 1].state = 'missing'; rows[rows.length - 1].source = 'חסר מיקוד'; rows[rows.length - 1].fix = 'identity'; produced.pop(); } continue;
         case 'F070': case 'F071': notRel(e, 'לתושב חוץ בלבד'); continue;

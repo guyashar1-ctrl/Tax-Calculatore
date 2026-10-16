@@ -26,6 +26,11 @@ interface Props {
   onOpenClient: (clientId: string, tab: 'taxfile' | 'docs') => void;
   /** «ללמוד את התחום» — מעבר ל«ידע מקצועי» בלי לאבד את המקום (הכתובת נשמרת בהיסטוריה). */
   onLearn?: (domain: DomainId) => void;
+  /**
+   * 16.10.2026 · «כל עבודה היא בקשה»: «פתח» נוחת בשורת הבקשה אצל הלקוח (‎#/client/<id>/journey/<stepId>‎),
+   * שם העבודה נפתחת בתוך השורה. בלי הפרופ — כמו קודם, דף התהליך.
+   */
+  onOpenRequest?: (clientId: string, stepId: string) => void;
 }
 
 type StateFilter = 'open' | 'mine' | 'client' | 'done' | 'cancelled';
@@ -38,7 +43,7 @@ const DUES: { id: DueFilter; label: string }[] = [{ id: 'any', label: 'כל המ
 const he = (iso?: string) => (iso ? formatDate(iso) : '');
 const KIND_NAME: Record<WorkKind, string> = { annual: 'דוח שנתי', wealth: 'הצהרת הון', intake: 'קליטה והשלמת תיק', estimate: 'הערכת מס' };
 
-export default function TaxWorkView({ section, work, clients, onOpenClient, onLearn }: Props) {
+export default function TaxWorkView({ section, work, clients, onOpenClient, onLearn, onOpenRequest }: Props) {
   const { data, err, rows, load, byId } = work;
   const def = WORK_BY_ID[section];
   const [openId, setOpenId] = useState<string | null>(null);
@@ -131,7 +136,7 @@ export default function TaxWorkView({ section, work, clients, onOpenClient, onLe
         <div className="tw-actions" role="cell">
           {cancelled
             ? <button type="button" className="btn btn-sm btn-secondary" onClick={() => setRemoving(r)} data-tw-restore>החזר…</button>
-            : <button type="button" className="btn btn-sm btn-primary" onClick={() => setOpenId(r.parent.id)} aria-label={`פתח: ${r.title} · ${name}`}>פתח</button>}
+            : <button type="button" className="btn btn-sm btn-primary" onClick={() => (onOpenRequest ? onOpenRequest(c.id, r.parent.id) : setOpenId(r.parent.id))} aria-label={`פתח: ${r.title} · ${name}`}>פתח</button>}
           <button type="button" className="btn btn-sm btn-ghost" onClick={() => onOpenClient(c.id, 'taxfile')}>תיק המס</button>
           <button type="button" className="btn btn-sm btn-ghost" onClick={() => onOpenClient(c.id, 'docs')}>מסמכים</button>
           {isActive(r) && <button type="button" className="btn btn-sm btn-ghost tw-remove" onClick={() => setRemoving(r)} aria-label={`הסר: ${r.title} · ${name}`} data-tw-remove>הסר…</button>}

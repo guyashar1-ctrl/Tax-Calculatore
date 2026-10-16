@@ -28,6 +28,8 @@ export const DOCS: Record<DocKind, DocInfo> = {
   payslipToDate: { label: 'תלוש עם נתונים מצטברים', availableFrom: null, why: 'התלוש האחרון זמין כל חודש', extraction: 'not_supported' },
   form867: { label: 'טופס 867', availableFrom: y => ymd(y + 1, 3, 1), why: 'בנקים ובתי השקעות מנפיקים בדרך כלל עד סוף מרץ', extraction: 'not_supported' },
   fundAnnualCert: { label: 'אישור שנתי מקופה', availableFrom: y => ymd(y + 1, 3, 1), why: 'קופות מנפיקות אישור שנתי למס בדרך כלל עד סוף מרץ', extraction: 'not_supported' },
+  // 16.10.2026 · ההודעה של ב״ל על חישוב דמי הלידה — ממנה התאריכים «מ… עד…» ומספר הימים (לפריסה בין שנים)
+  niMaternityNotice: { label: 'הודעת ביטוח לאומי על חישוב דמי הלידה', availableFrom: null, why: 'נשלחת כשדמי הלידה מאושרים; נמצאת גם באזור האישי באתר ביטוח לאומי', extraction: 'not_supported' },
   niAnnualCert: { label: 'אישור שנתי מביטוח לאומי', availableFrom: y => ymd(y + 1, 2, 1), why: 'ביטוח לאומי מעמיד אישור שנתי בדרך כלל בתחילת השנה שאחרי', extraction: 'not_supported' },
   annualPnl: { label: 'דוח רווח והפסד שנתי', availableFrom: y => ymd(y + 1, 2, 1), why: 'אחרי סגירת חודש דצמבר בספרים', extraction: 'not_supported' },
   pnlToDate: { label: 'דוח רווח והפסד עד החתך', availableFrom: null, why: 'זמין אחרי סגירת חודש החתך בספרים', extraction: 'not_supported' },

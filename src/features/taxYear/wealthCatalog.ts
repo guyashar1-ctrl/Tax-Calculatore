@@ -102,7 +102,7 @@ export const WEALTH_ITEMS: InfoItem[] = [
     coupleQuestion: 'האם למישהו מכם יש תיק השקעות בבנק, אצל ברוקר בחו״ל או בקופת גמל להשקעה?',
     why: 'מאז הטופס החדש ניירות ערך נרשמים בעלות בלבד', input: 'yesno' },
   { key: 'wealth.securities.docs', area: 'wSecurities', label: 'תדפיסי עלות', kind: 'document', per: 'couple', who: 'client', purposes: W,
-    question: 'תדפיס עלות מכל מוסד, נכון ליום ההצהרה', why: 'העלות לפי תדפיס המוסד; לא השווי בבורסה', input: 'file', docKind: 'securitiesCost' },
+    question: 'מכל בנק או בית השקעות: דוח שמראה כמה עלו ההשקעות (לא כמה הן שוות היום), נכון ליום ההצהרה', why: 'נקרא «תדפיס עלות». בהצהרה נרשמת העלות, לא השווי בבורסה', input: 'file', docKind: 'securitiesCost' },
   total('wealth.securities.total', 'wSecurities', 'עלות ניירות הערך ליום ההצהרה (סיכום המשרד)'),
 
   // ── חייבים ──
@@ -147,7 +147,7 @@ export const WEALTH_ITEMS: InfoItem[] = [
   { key: 'wealth.business.books', area: 'wBusiness', label: 'נתוני העסק ליום ההצהרה', kind: 'detail', per: 'business', who: 'office', purposes: W,
     why: 'מהספרים: קופה, לקוחות, מלאי (לפי ספירה), רכוש קבוע, ספקים והלוואות. עסק בלי מאזן — נספח לכל עסק' },
   { key: 'wealth.companies.has', area: 'wBusiness', label: 'מניות או שותפות עם מאזן', kind: 'screener', per: 'person', who: 'client', purposes: W,
-    question: 'האם ל{name} יש מניות בחברה או חלק בשותפות שיש לה מאזן?', coupleQuestion: 'האם למישהו מכם יש מניות בחברה או חלק בשותפות שיש לה מאזן?',
+    question: 'האם ל{name} יש מניות בחברה או חלק בשותפות עסקית?', coupleQuestion: 'האם למישהו מכם יש מניות בחברה או חלק בשותפות עסקית?',
     why: 'נרשמת ההשקעה נטו: הון, חשבון עו״ש והלוואות', input: 'yesno' },
   { key: 'wealth.companies.docs', area: 'wBusiness', label: 'מאזן ואישור רו״ח', kind: 'document', per: 'couple', who: 'client', purposes: W, after: 'wealth.companies.has',
     question: 'המאזן, ואישור רו״ח החברה על יתרת חשבון הבעלים והון המניות שלך', why: 'מניות נרשמות בערך הנקוב', input: 'file', docKind: 'businessBalance' },

@@ -67,7 +67,7 @@ export interface CardUpdatePlan {
 }
 
 /** איזה פריט יודע לעדכן את התיק. */
-export const updatesCard = (itemKey: string) => ['children', 'bank', 'address', 'employer'].includes(RECORD_OF[itemKey] ?? '')
+export const updatesCard = (itemKey: string) => ['children', 'bank', 'address', 'employer', 'familyYear'].includes(RECORD_OF[itemKey] ?? '')
   // ‼ «מעסיק חדש» (פרטי ישות שנולדה מ«כן») נכנס לתיק ב«הוסף לתיק» עם אותו מזהה זמני — לא כאן, כדי לא להוסיף פעמיים
   && !/Details$/.test(itemKey);
 
@@ -80,6 +80,7 @@ export function cardUpdateFor(c: Client, itemKey: string, value: unknown, from: 
   if (!items.length) return null;
   if (schema === 'bank') return bankPlan(c, items[0], from, decisions);
   if (schema === 'address') return addressPlan(c, items[0], from);
+  if (schema === 'familyYear') return familyYearPlan(c, itemKey, items[0], from);
   return null;
 }
 
@@ -238,6 +239,27 @@ function addressPlan(c: Client, r: RecordValue, from: From): CardUpdatePlan | nu
     lines.push(`${LABEL[k]}: ${cur || '—'} ← ${v}`);
   }
   return { proposals, lines: lines.length ? lines : ['הכתובת זהה למה שבתיק'], omitted: [] };
+}
+
+// ‼ 16.10.2026 · ממתי המצב המשפחתי: intake.marriageYear ⇒ marriageYear (וכו׳) — שם השדה הוא סוף מפתח הפריט.
+//   עובדה מנוהלת (249ג + GOVERNED_FACT_KEYS) — לכן apply_tax_facts יכולה לכתוב אותה עם הערך הקודם.
+const FAMILY_YEAR_HE: Record<string, string> = { marriageYear: 'שנת הנישואין', divorceYear: 'שנת הגירושין', widowhoodYear: 'שנת הפטירה' };
+function familyYearPlan(c: Client, itemKey: string, r: RecordValue, from: From): CardUpdatePlan | null {
+  const field = itemKey.replace(/^intake[.]/, '');
+  const label = FAMILY_YEAR_HE[field];
+  const y = Number(s(r.year));
+  if (!label || !Number.isInteger(y) || y < 1900) return null;
+  const cur = snap(c, field);
+  if (cur === y) return { proposals: [], lines: [label + ' זהה למה שבתיק'], omitted: [] };
+  return {
+    proposals: [{
+      fieldKey: field, label: label + ' — מתשובה מאושרת',
+      oldValue: { display: cur == null ? '—' : String(cur), patch: { [field]: cur ?? null } },
+      newValue: { display: String(y), patch: { [field]: y } },
+      note: 'תשובה מאושרת (' + from.itemKey + ', ' + from.year + '); עובדה ' + from.factId,
+    }],
+    lines: [label + ': ' + (cur == null ? '—' : String(cur)) + ' ← ' + y], omitted: [],
+  };
 }
 
 // ── תחולה: «בחלק מהשנה, מ… עד…» ← תאריכי הישות בתיק ──────────────────────────────────────

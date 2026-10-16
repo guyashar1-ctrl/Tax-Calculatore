@@ -15,6 +15,7 @@ import { RECORD_OF, isPeriodItem, dealerOf } from './structured';
 import { initialFromCard } from './records';
 import { periodOfRequest, periodWords, propertySpan, accountSpan, spanText } from './temporal';
 import { DEALER_KIND_LABELS } from '../taxFile/editModel';
+import { familyStatusEventYear } from '../../utils/familyStatusYear';
 
 const FAMILY: Record<string, [string, string, string]> = {
   single: ['רווק', 'רווקה', 'רווק/ה'], married: ['נשוי', 'נשואה', 'נשוי/אה'], divorced: ['גרוש', 'גרושה', 'גרוש/ה'],
@@ -31,7 +32,7 @@ export function cardLines(item: InfoItem, c: Client, s: Pick<ItemStatus, 'subjec
   const propDates = (p: Parameters<typeof propertySpan>[0]) => { const t = spanText(propertySpan(p), { from: 'נרכש', to: 'נמכר' }); return t ? ` · ${t}` : ''; };
   switch (item.key) {
     case 'household.maritalAtYearEnd':
-      return [`${familyWord(c)}${c.familyStatus === 'married' && c.marriageYear ? ` מ-${c.marriageYear}` : ''}${c.familyStatus === 'married' && (c.spouseFirstName || c.spouse?.firstName) ? ` · ${c.spouseFirstName || c.spouse?.firstName}` : ''}`];
+      return [`${familyWord(c)}${familyStatusEventYear(c) ? ` מ-${familyStatusEventYear(c)}` : ''}${c.familyStatus === 'married' && (c.spouseFirstName || c.spouse?.firstName) ? ` · ${c.spouseFirstName || c.spouse?.firstName}` : ''}`];
     case 'household.children':
       return (c.children ?? []).map(ch => `${ch.firstName || 'ילד/ה'} — נולד/ה ב-${ch.birthYear}`);
     case 'household.settlement':
@@ -82,7 +83,7 @@ export function cardLines(item: InfoItem, c: Client, s: Pick<ItemStatus, 'subjec
       return only((c.investmentAccounts ?? []).filter(a => s.lineRefs || !a.isClosed)).map(a => `תיק ב${a.institutionName}${a.accountNumber ? ` (מסתיים ב-${String(a.accountNumber).slice(-4)})` : ''}`);
     // ── 236 · קליטה והשלמת תיק המס: מה שבכרטיס, לאישור ──
     case 'intake.family':
-      return [`${familyWord(c)}${c.familyStatus === 'married' && c.marriageYear ? ` מ-${c.marriageYear}` : ''}${c.familyStatus === 'married' && (c.spouseFirstName || c.spouse?.firstName) ? ` · ${c.spouseFirstName || c.spouse?.firstName}` : ''}`];
+      return [`${familyWord(c)}${familyStatusEventYear(c) ? ` מ-${familyStatusEventYear(c)}` : ''}${c.familyStatus === 'married' && (c.spouseFirstName || c.spouse?.firstName) ? ` · ${c.spouseFirstName || c.spouse?.firstName}` : ''}`];
     case 'intake.children':
       return (c.children ?? []).map(ch => `${ch.firstName || 'ילד/ה'} — נולד/ה ב-${ch.birthYear}`);
     case 'intake.address':

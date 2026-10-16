@@ -144,6 +144,7 @@ import FlowsDemo from './prototypes/flows/FlowsDemo';
 import TestInstitutions from './components/clientTabs/__TestInstitutions';
 import TestAlignmentStatus from './components/clientTabs/__TestAlignmentStatus';
 import TestTaxFileV6 from './components/clientTabs/__TestTaxFileV6';
+import TestFamilyStatusYear from './components/__TestFamilyStatusYear';
 import TestBtlSync from './components/authorities/__TestBtlSync';
 import TestJourneyBall from './components/clientTabs/__TestJourneyBall';
 import TestPortalPreview from './components/clientTabs/__TestPortalPreview';
@@ -421,6 +422,9 @@ const ONBOARD_LINK_SEND_ERRORS: Record<string, string> = {
 
 export default function App() {
   // דפי בדיקה של עורך החתימה — פיתוח בלבד. מקומפלים החוצה מהאתר החי.
+  if (import.meta.env.DEV && typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('test-family-year')) {
+    return <TestFamilyStatusYear />;
+  }
   if (import.meta.env.DEV && typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('test-sig')) {
     return <TestSignaturePage />;
   }
@@ -776,6 +780,9 @@ export default function App() {
   const [clientInitialTab, setClientInitialTab] = useState<ClientTabId | undefined>(
     clientTabFromRoute(initialRoute.clientTab)
   );
+  /** 16.10.2026 · שורת בקשה לפתוח בלשונית «בקשות» (מ«מס › עבודות לקוחות») — נמחקת כשהשורה נפתחה. */
+  const [clientFocus, setClientFocus] = useState<{ stepId: string; tick: number } | null>(
+    initialRoute.clientFocus ? { stepId: initialRoute.clientFocus, tick: 1 } : null);
   const [editingQuotationId, setEditingQuotationId] = useState<string | null>(initialRoute.quotationId ?? null);
   const [builderKey, setBuilderKey] = useState(0);
   // ליד שהגיעו אליו מחיפוש במסך הלקוחות — מסך הלידים נפתח עליו
@@ -843,6 +850,7 @@ export default function App() {
     view,
     clientId: selectedId ?? undefined,
     clientTab: clientInitialTab,
+    clientFocus: view === 'form' ? clientFocus?.stepId : undefined,
     quickId: view === 'list' ? quickViewId ?? undefined : undefined,
     requestId: selectedRequestId ?? undefined,
     quotationId: editingQuotationId ?? undefined,
@@ -879,6 +887,7 @@ export default function App() {
         if (route.view === 'reference') setTaxPath(route.taxPath ?? '');
         setSelectedId(route.clientId ?? null);
         setClientInitialTab(clientTabFromRoute(route.clientTab));
+        setClientFocus(route.clientFocus ? { stepId: route.clientFocus, tick: Date.now() } : null);
         setQuickViewId(route.quickId ?? null);
         setSelectedRequestId(route.requestId ?? null);
         setEditingQuotationId(route.quotationId ?? null);
@@ -3078,6 +3087,8 @@ export default function App() {
             }}
             onOpenKnowledge={(topicId, clientId) => { setKnowledgeJump({ topicId, clientId }); setTaxPath(formatAreaPath({ mode: 'learn', domain: domainOf(topicId), item: topicId })); setView('reference'); }}
             initialTab={clientInitialTab}
+            focusRequest={clientFocus}
+            onFocusConsumed={() => { replaceNextRoute.current = true; setClientFocus(null); }}
             /* ‼ אין מזהה בכתובת ⇒ באמת יוצרים לקוח חדש. יש מזהה אבל הכרטיס
                עוד לא הגיע מהמסד ⇒ לקוח קיים שנטען, ואסור להתייחס אליו כחדש:
                בדיוק שם נפל הרענון לעורך «התיק» הישן. */
@@ -3172,7 +3183,7 @@ export default function App() {
             clients={clients}
             contextTopic={knowledgeJump?.topicId ?? null}
             contextClientId={knowledgeJump?.clientId ?? null}
-            onOpenClient={(id, tab) => { setKnowledgeJump(null); setSelectedId(id); setClientInitialTab(tab ?? 'taxfile'); setView('form'); }}
+            onOpenClient={(id: string, tab?: ClientTabId, focusStepId?: string) => { setKnowledgeJump(null); setSelectedId(id); setClientInitialTab(tab === 'onboarding' && journeyUi ? 'journey' : tab ?? 'taxfile'); setClientFocus(focusStepId ? { stepId: focusStepId, tick: Date.now() } : null); setView('form'); }}
           />
           </Suspense>
         )}

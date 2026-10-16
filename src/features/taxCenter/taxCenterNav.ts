@@ -5,7 +5,7 @@
 // (features/taxKnowledge). הכלים הקיימים נשארו כמו שהם.
 
 export type Tool =
-  | 'overview' | 'expenses' | 'bookkeeping' | 'wizard' | 'rental' | 'incomeTax' | 'ni' | 'settlements' | 'topics' | 'map1301' | 'maintenance';
+  | 'overview' | 'expenses' | 'bookkeeping' | 'wizard' | 'rental' | 'incomeTax' | 'ni' | 'settlements' | 'deadlines' | 'map1301' | 'maintenance';
 
 export interface ToolDef { key: Tool; label: string; desc: string; group: 'tools' | 'control' }
 
@@ -19,7 +19,8 @@ export const TOOLS: ToolDef[] = [
   { key: 'incomeTax',    group: 'tools',   label: 'מדרגות ומס יסף',      desc: 'מדרגות עדכניות, מס יסף דו-שכבתי וחישוב מהיר' },
   { key: 'ni',           group: 'tools',   label: 'ביטוח לאומי',          desc: 'שיעורים, תקרות ומחשבון לכל סוגי המבוטחים' },
   { key: 'settlements',  group: 'tools',   label: 'יישובים מוטבים',       desc: 'הרשימה הרשמית המלאה + מחשבון זיכוי' },
-  { key: 'topics',       group: 'tools',   label: 'ערכים לפי נושא',       desc: 'פרישה, מע"מ, חברות, מקרקעין, רכב, מועדים ועוד' },
+  // ‼ 15.10.2026: «ערכים לפי נושא» ירד — כל ערך בעמוד התחום שלו (taxKnowledge/domainValues.ts). המועדים — לוח רוחבי.
+  { key: 'deadlines',    group: 'control', label: 'לוח מועדים',           desc: 'המועדים החודשיים והשנתיים — כל אחד עם התחום שלו' },
   { key: 'map1301',      group: 'control', label: 'טופס 1301',            desc: 'הגרסה ומה נקרא ממנה, מה השתנה, שדות ממופים, מוכנות לקוח ונספחים, וכיסוי לפי חלקים' },
   { key: 'maintenance',  group: 'control', label: 'עדכניות ותחזוקה',      desc: 'ביסוס לכל כלל, בדיקת הכיסוי, ופרומפט עדכון לכל המאגר או לנושא' },
 ];
@@ -33,7 +34,7 @@ export const TOOL_DATASET: Partial<Record<Tool, string>> = {
   incomeTax: 'taxData',
   ni: 'taxData',
   settlements: 'settlements',
-  topics: 'topics',
+  deadlines: 'topics',
   map1301: 'taxRules',
   maintenance: 'taxRules',
 };

@@ -1,13 +1,13 @@
-// ─── «מס» בדפדפן — עבודות לקוחות, הסרה בכל מצב, ידע מקצועי לפי תחום (14.10.2026) ──────────────────
+// ─── «מס» בדפדפן — סקירת עבודות, מפת הטופס, ידע מקצועי לפי תחום (14.10 · 16.10.2026) ──────────────────
 // ‼ על שרת ההדגמה בלבד (?office-app — מסד מדומה בזיכרון הדפדפן). שום דבר לא נשלח ולא נשמר במסד אמיתי.
 // המסלול, במחשב ובטלפון:
 //   1. כניסה ל«מס»: במחשב — מסילה ועמוד; בטלפון — הרשימה קודם, «› מס» חוזר אליה.
 //   2. «עבודת מס» כבר לא בתפריט החשבון; הקישור הישן נוחת ב«עבודות לקוחות».
-//   3. עבודה שנפתחה בטעות (טיוטה) — «הסר…» ⇒ «למחוק» ⇒ נעלמת, והמונה במסילה חוזר.
-//   4. טיוטה שבוחרים לבטל ⇒ ב«בוטלו» עם הסיבה ⇒ «החזר…» ⇒ חוזרת לפתוחות.
-//   5. עבודה שפורסמה ללקוח ⇒ אין «למחוק», רק ביטול ⇒ יורדת מהדף האישי ⇒ החזרה מחזירה אותה לדף.
+//   3. «עבודות לקוחות» = סקירה בלבד (16.10): איחורים, «בוטלו», חיפוש; שורה ⇒ «בקשות» של הלקוח. (הסרה/החזרה — ב«בקשות».)
+//   4. מפת הטופס (16.10): 1301 הרשמי, סימון על כל שדה, הסבר ליד השדה, «אתר שדה לפי קוד», נספחים, מצב לקוח, 1219, טלפון.
 //   6. ידע מקצועי: תחום ⇒ נושא ⇒ שמונה שלבים; «מה מבקשים מהלקוח» מהשאלון; «לעבודות בתיקים» חוזר לעבודה.
-//   7. מקלדת: Escape סוגר רק את חלון ההסרה; הפוקוס עובר לכותרת השלב. בלי גלילה הצידה ובלי שגיאות קונסול.
+//   7. ערכים לשנה בתחום (15.10): בית אחד לכל ערך, תחומים חדשים, קישור ישן, חיפוש, לוח מועדים, שנה בלי ערך.
+//   8. מקלדת: הפוקוס עובר לכותרת השלב. בלי גלילה הצידה ובלי שגיאות קונסול.
 //   node scripts/e2e/tax-area.mjs [--base=http://localhost:5261] [--vp=desktop,mobile,small] [--shots=dir]   (small = 360)
 
 import { createRequire } from 'node:module';
@@ -28,11 +28,14 @@ const ok = (c, m, info = '') => { c ? pass++ : fail++; console.log(`${c ? '  ✓
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 const browser = await chromium.launch({ executablePath: CHROME, headless: true });
 
-async function newPage(vp) {
+/** בהירות יחסית 0..1 מ-rgb(a). */
+const lum = (c) => { const m = String(c).match(/\d+(\.\d+)?/g)?.map(Number) ?? [0, 0, 0]; return (0.2126 * m[0] + 0.7152 * m[1] + 0.0722 * m[2]) / 255; };
+
+async function newPage(vp, colorScheme = 'light') {
   const mobile = vp !== 'desktop';
   const ctx = await browser.newContext({
     viewport: vp === 'small' ? { width: 360, height: 740 } : mobile ? { width: 390, height: 844 } : { width: 1280, height: 900 },
-    deviceScaleFactor: mobile ? 2 : 1, isMobile: mobile, hasTouch: mobile, locale: 'he-IL',
+    deviceScaleFactor: mobile ? 2 : 1, isMobile: mobile, hasTouch: mobile, locale: 'he-IL', colorScheme,
   });
   await ctx.route('**/*', route => {
     const u = route.request().url(); const host = new URL(u).hostname;
@@ -55,141 +58,218 @@ const go = async (page, hash, fresh = false) => {
 };
 const railCount = async (page, key) => (await text(page.locator(`[data-rail="${key}"] .ta-count`))).trim() || '0';
 
-/** «＋ דוח שנתי» לדוד — טיוטה בלבד, בלי פרסום. */
-async function addAnnual(page, name, year) {
-  const tw = page.locator('[data-tax-work]');
-  await tw.locator('[data-tw-add="annual"]').click();
-  const dlg = page.locator('[data-add-work]');
-  await dlg.waitFor({ timeout: 10000 });
-  if (year) await dlg.locator('select').first().selectOption(String(year)).catch(() => {});
-  await dlg.getByLabel('חיפוש לקוח').fill(name);
-  await dlg.locator('.aw-client', { hasText: name }).first().locator('input').check();
-  await dlg.getByRole('button', { name: /המשך לבדיקה/ }).click();
-  await dlg.locator('[data-aw-create]').click();
-  await dlg.locator('[data-aw-result]').first().waitFor({ timeout: 20000 });
-  await dlg.getByRole('button', { name: 'סיום' }).click();
-  await sleep(900);
+// ── עבודות דוגמה להדגמה (16.10.2026) ──────────────────────────────────────────────────────────────
+// ‼ «עבודות לקוחות» היא סקירה בלבד — אין ממנה «＋ דוח שנתי». זורעים עבודות לאחסון המקומי שממנו המסד המדומה משחזר
+//   (__fakeTaxYear.ts, ‎pivo-fake-taxyear-v2‎). sample-1 דוד כהן · sample-2 מיכל לוי · sample-4 אורית שפירא · sample-5 נטשה גולדברג.
+const iso = (d) => d.toISOString().slice(0, 10);
+function taxWorkSeed(today = new Date()) {
+  const plus = (n) => iso(new Date(today.getTime() + n * 864e5));
+  const at = new Date(today.getTime() - 5 * 864e5).toISOString();
+  const step = (id, client, type, status, payload, extra = {}) => ({
+    id, user_id: 'test-firm', engagement_id: null, client_id: client, step_type: type, status, ball: 'me', track: 'internal', scope: 'person',
+    depends_on_step_id: null, due_date: null, needs_attention: false, completion_method: 'manual', created_at: at, updated_at: at, payload, ...extra,
+  });
+  const work = (due) => ({ work: { deadline: { status: 'verified', due, source: 'publication' } } });
+  return [
+    step('seed-ar-david', 'sample-1', 'annual_return', 'in_progress', { purpose: 'annual', taxYear: 2025, title: 'דוח שנתי 2025', ...work(plus(-12)) }),
+    step('seed-ar-michal', 'sample-2', 'annual_return', 'in_progress', { purpose: 'annual', taxYear: 2025, title: 'דוח שנתי 2025', ...work(plus(9)) }),
+    step('seed-wd-orit', 'sample-4', 'wealth_declaration', 'in_progress', { purpose: 'wealth', asOfDate: '2025-12-31', taxYear: 2025, kind: 'first', title: 'הצהרת הון ליום 31.12.2025', internalTarget: plus(60) }),
+    step('seed-ar-natasha', 'sample-5', 'annual_return', 'cancelled', { purpose: 'annual', taxYear: 2024, title: 'דוח שנתי 2024', removal: { reason: 'נפתח בטעות', at } }),
+  ];
 }
-const removeDialog = (page) => page.locator('[data-remove-work]');
+
+/** לפני טעינת הדף: מחליף את שורות שנת המס באחסון ההדגמה בעבודות הדוגמה. */
+const seedScript = (steps) => `try { localStorage.setItem('pivo-fake-taxyear-v2', ${JSON.stringify(JSON.stringify({ steps }))}); } catch (e) {}`;
 
 async function run(vp) {
   console.log(`\n▶ «מס» · ${vp}`);
-  const { ctx, page, errs } = await newPage(vp);
+  // ‼ פרקים 1–3 עם עבודות הדוגמה; מפרק 4 — הקשר נקי, כי הזריעה מחליפה גם את תשובות השאלון של ההדגמה
+  let { ctx, page, errs } = await newPage(vp);
+  await ctx.addInitScript(seedScript(taxWorkSeed()));
   const mobile = vp !== 'desktop';
   try {
     // ── 1. כניסה ──
-    await go(page, '/tax', true);
+    await go(page, '/tax');
     if (mobile) {
       ok(!(await page.locator('.tax-area .pg-pane').isVisible()) && await page.locator('.ta-rail').isVisible(), 'טלפון: «מס» נפתח ברשימה');
       await shot(page, `m-01-list-${vp}`);
-      await page.locator('[data-rail="work-annual"]').click(); await sleep(500);
-      ok(await page.locator('[data-tax-work][data-section="annual"]').isVisible() && !(await page.locator('.ta-rail').isVisible()), 'טלפון: בחירה פותחת את העמוד במסך מלא');
+      await page.locator('[data-rail="work-all"]').click(); await sleep(500);
+      ok(await page.locator('[data-work-overview][data-section="all"]').isVisible() && !(await page.locator('.ta-rail').isVisible()), 'טלפון: בחירה פותחת את הסקירה במסך מלא');
       await page.locator('.tc-back').first().click(); await sleep(400);
       ok(await page.locator('.ta-rail').isVisible(), 'טלפון: «› מס» חוזר לרשימה');
-      await page.locator('[data-rail="work-annual"]').click(); await sleep(500);
+      await page.locator('[data-rail="work-all"]').click(); await sleep(500);
     } else {
-      ok(await page.locator('.ta-rail').isVisible() && await page.locator('[data-tax-work][data-section="all"]').isVisible(), 'מחשב: מסילה ו«כל העבודות»');
-      const rail = (await page.locator('.ta-rail .pg-rail-item').allInnerTexts()).map(x => x.replace(/\s+/g, ' ').trim());
-      ok(['כל העבודות', 'קליטה והשלמת תיק', 'דוחות שנתיים', 'הצהרות הון'].every(l => rail.some(r => r.startsWith(l))), 'במסילה: כניסה לכל סוג עבודה', rail.join(' | '));
-      await shot(page, `d-01-work-all-${vp}`);
-      await page.locator('[data-rail="work-annual"]').click(); await sleep(500);
+      ok(await page.locator('.ta-rail').isVisible() && await page.locator('[data-work-overview][data-section="all"]').isVisible(), 'מחשב: מסילה וסקירת «כל העבודות»');
     }
-    ok((await page.evaluate(() => location.hash)) === '#/tax/work/annual', 'הכתובת: ‎#/tax/work/annual‎');
-    const head = await text(page.locator('.tw-head'));
-    ok(head.includes('דוחות שנתיים') && head.includes('＋ דוח שנתי') && head.includes('ללמוד את התחום: דוח שנתי'), 'בראש העמוד: מה זו העבודה, איך פותחים, ואיפה לומדים', head.slice(0, 300));
-    ok(/אין עבודות מהסוג הזה/.test(await text(page.locator('.tw-empty'))), 'מצב ריק: אומר מה עושים', await text(page.locator('.tw-empty')));
 
-    // ── 2. הישן: לא בתפריט, והקישור נוחת כאן ──
+    // ── 2. הישן: לא בתפריט ──
     ok(!(await page.locator('button', { hasText: /^עבודת מס$/ }).count()), 'אין יותר כפתור «עבודת מס» נפרד');
     ok(await page.locator('nav button, header button').filter({ hasText: /^מס$/ }).count() > 0, 'בסרגל: «מס»');
 
-    // ── 3. נפתחה בטעות ⇒ מחיקה ──
-    await addAnnual(page, 'דוד');
-    const rowD = page.locator('[data-tw-row="annual"]', { hasText: 'דוד' });
-    ok(await rowD.count() === 1, 'העבודה נוספה לרשימה');
-    const before = await railCount(page, 'work-annual');
-    await rowD.first().locator('[data-tw-remove]').click();
-    const dlg = removeDialog(page);
-    await dlg.waitFor({ timeout: 10000 });
-    await dlg.locator('[data-rw-confirm]').waitFor({ timeout: 10000 });
-    const dt = await text(dlg);
-    ok(dt.includes('למחוק') && dt.includes('לבטל ולשמור בהיסטוריה') && dt.includes('נמחק') && dt.includes('דבר לא יצא מהמשרד'), 'טיוטה: אפשר למחוק, והחלון אומר שדבר לא יצא', dt.slice(0, 400));
-    ok(dt.includes('אין מייל ללקוח'), 'החלון אומר שאין מייל ללקוח');
-    ok(await page.evaluate(() => document.activeElement?.hasAttribute('data-rw-confirm')), 'מקלדת: הפוקוס על כפתור הפעולה');
-    await shot(page, `${vp}-02-remove-delete`);
-    if (mobile) ok(await noHScroll(page), 'טלפון: חלון ההסרה בלי גלילה הצידה');
-    await page.keyboard.press('Escape'); await sleep(300);
-    ok(!(await dlg.count()), 'Escape סוגר את החלון בלי לשנות');
-    await rowD.first().locator('[data-tw-remove]').click();
-    await dlg.locator('[data-rw-confirm]').waitFor({ timeout: 10000 });
-    await dlg.locator('[data-rw-confirm]').click(); await sleep(900);
-    ok(/נמחקה/.test(await text(page.locator('.ty-ok'))), 'אחרי המחיקה: הודעה ברורה', await text(page.locator('.ty-ok')));
-    ok(await rowD.count() === 0, 'העבודה נעלמה מהרשימה');
-    ok(Number(await railCount(page, 'work-annual')) === Number(before) - 1, 'המונה במסילה ירד', `${before} → ${await railCount(page, 'work-annual')}`);
-
-    // ── 4. טיוטה שמבטלים ⇒ «בוטלו» ⇒ «החזר» ──
-    await addAnnual(page, 'דוד');
-    await rowD.first().locator('[data-tw-remove]').click();
-    await dlg.locator('[data-rw-confirm]').waitFor({ timeout: 10000 });
-    await dlg.getByText('לבטל ולשמור בהיסטוריה').click();
-    await dlg.getByLabel(/למה/).fill('נפתח לשנה הלא נכונה');
-    ok((await text(dlg.locator('[data-rw-confirm]'))).includes('בטל'), 'בחירה בביטול משנה את הכפתור ל«בטל את העבודה»');
-    await dlg.locator('[data-rw-confirm]').click(); await sleep(900);
-    ok(await rowD.count() === 0, 'בוטלה — יורדת מהפתוחות');
-    await page.locator('[data-tw-state="cancelled"]').click(); await sleep(300);
-    const cancelledRow = page.locator('[data-tw-bucket="cancelled"]', { hasText: 'דוד' });
-    ok(await cancelledRow.count() === 1 && /נפתח לשנה הלא נכונה/.test(await text(cancelledRow)), '«בוטלו»: השורה עם הסיבה', await text(cancelledRow));
-    await shot(page, `${vp}-03-cancelled`);
-    await cancelledRow.first().locator('[data-tw-restore]').click();
-    await dlg.locator('[data-rw-confirm]').waitFor({ timeout: 10000 });
-    ok(/החזרת העבודה/.test(await text(dlg)), 'חלון ההחזרה');
-    await dlg.locator('[data-rw-confirm]').click(); await sleep(900);
-    ok(/הוחזרה/.test(await text(page.locator('.ty-ok'))) && await rowD.count() === 1, 'החזרה: חוזרת לפתוחות');
-
-    // ── 5. פורסמה ללקוח ⇒ רק ביטול ⇒ יורדת מהדף ⇒ החזרה ──
-    await rowD.first().getByRole('button', { name: /^פתח/ }).click();
-    const ov = page.locator('.ty-overlay');
-    await ov.waitFor({ timeout: 15000 });
-    // ‼ עבודה חדשה נולדת עם טיוטת שאלות — «לפרסם עכשיו» מביא לכפתור הפרסום; בלי טיוטה — «הוסף N שאלות»
-    const toPublish = ov.getByRole('button', { name: /^לפרסם עכשיו$|^הוסף \d+ שאלות/ });
-    await toPublish.first().waitFor({ timeout: 15000 });
-    await toPublish.first().click();
-    await ov.getByRole('button', { name: 'פרסם בדף האישי' }).first().waitFor({ timeout: 10000 });
-    for (let k = 0; k < 3 && !(await text(ov.locator('.ty-ok'))).includes('פורסם'); k++) { await ov.getByRole('button', { name: 'פרסם בדף האישי' }).first().click().catch(() => {}); await sleep(900); }
-    ok((await text(ov.locator('.ty-ok'))).includes('פורסם'), 'השאלות פורסמו בדף האישי (הדגמה, בלי מייל)', await text(ov.locator('.ty-ok')));
-    // מה הלקוח רואה עכשיו — שורה שמזהה את העבודה הזו בדף האישי
-    const portalItems = async () => {
-      await page.goto(`${BASE}/?portal=demo&office-app`, { waitUntil: 'domcontentloaded' }); await sleep(2500);
-      return (await text(page.locator('body'))).split('\n').map(l => l.trim()).filter(l => /2025/.test(l) && /(דוח|השלמת מידע)/.test(l));
-    };
-    const shown = await portalItems();
-    ok(shown.length > 0, 'הדף האישי: העבודה שפורסמה מוצגת ללקוח', shown.join(' | '));
+    // ── 3. «עבודות לקוחות» — סקירה בלבד (הכרעת גיא 16.10) ──
+    const wo = page.locator('[data-work-overview]');
+    const head = await text(wo.locator('.ta-page-head'));
+    ok(/העבודה עצמה ב«בקשות» של הלקוח/.test(head), 'בראש הסקירה: העבודה עצמה ב«בקשות» של הלקוח', head.slice(0, 200));
+    ok(await wo.locator('[data-wo-row]').count() === 3, 'שלוש עבודות פתוחות (דוד, מיכל, אורית)', await wo.locator('[data-wo-row]').count());
+    ok(!(await wo.getByRole('button', { name: /^＋|הסר…|^פתח$|פרסם/ }).count()), 'אין פעולות בסקירה: לא «＋», לא «פתח», לא «הסר», לא «פרסם»');
+    const first = await text(wo.locator('[data-wo-row]').first());
+    ok(/דוד כהן/.test(first) && /באיחור 1[23] ימים/.test(first), 'באיחור — ראשון, עם מספר הימים', first.replace(/\n/g, ' · '));
+    ok(/באיחור/.test(await text(wo.locator('[data-wo-alert="overdue"]'))) && /מתקרב/.test(await text(wo.locator('[data-wo-alert="soon"]'))), 'התראות: באיחור ומתקרב');
+    await shot(page, `${vp}-01-work-overview`);
+    await wo.locator('[data-wo-state="cancelled"]').click(); await sleep(300);
+    const canc = await text(wo.locator('[data-wo-bucket="cancelled"]'));
+    ok(/נטשה/.test(canc) && /נפתח בטעות/.test(canc), '«בוטלו»: העבודה שבוטלה עם הסיבה', canc);
+    await wo.locator('[data-wo-state="open"]').click(); await sleep(200);
+    await wo.locator('[data-wo-q]').fill('מיכל'); await sleep(200);
+    ok(await wo.locator('[data-wo-row]').count() === 1, 'חיפוש לפי שם לקוח');
+    await wo.locator('[data-wo-q]').fill(''); await sleep(200);
+    if (mobile) ok(await noHScroll(page), 'טלפון: סקירה בלי גלילה הצידה');
+    // סוג אחד: קישור ישן ‎#/tax/work/annual‎ — הסקירה מסוננת
     await go(page, '/tax/work/annual');
-    await rowD.first().getByRole('button', { name: /^פתח/ }).click();
-    await ov.waitFor({ timeout: 15000 });
-    // הסרה מתוך דף העבודה עצמו
-    await ov.locator('[data-ty-remove]').click();
-    await dlg.locator('[data-rw-confirm]').waitFor({ timeout: 10000 });
-    const ct = await text(dlg);
-    ok(!ct.includes('למחוק') && ct.includes('לא נמחקת') && /שאלות פתוחות נסגרות/.test(ct), 'פורסמה: אין מחיקה — רק ביטול, והשאלות הפתוחות נסגרות', ct.slice(0, 400));
-    await shot(page, `${vp}-04-remove-cancel`);
-    await page.keyboard.press('Escape'); await sleep(300);
-    ok(!(await dlg.count()) && await ov.isVisible(), 'Escape סוגר רק את חלון ההסרה — דף העבודה נשאר');
-    await ov.locator('[data-ty-remove]').click();
-    await dlg.locator('[data-rw-confirm]').waitFor({ timeout: 10000 });
-    await dlg.locator('[data-rw-confirm]').click(); await sleep(1200);
-    ok(!(await ov.count()), 'אחרי ביטול מדף העבודה — הדף נסגר');
-    ok(/בוטלה/.test(await text(page.locator('.ty-ok'))), 'וההודעה מופיעה ברשימה', await text(page.locator('.ty-ok')));
-    // הדף האישי
-    const afterCancel = await portalItems();
-    ok(shown.every(l => !afterCancel.includes(l)), 'הדף האישי: העבודה שבוטלה כבר לא מוצגת', afterCancel.join(' | '));
-    await go(page, '/tax/work/annual');
-    await page.locator('[data-tw-state="cancelled"]').click(); await sleep(300);
-    await cancelledRow.first().locator('[data-tw-restore]').click();
-    await dlg.locator('[data-rw-confirm]').waitFor({ timeout: 10000 });
-    await dlg.locator('[data-rw-confirm]').click(); await sleep(900);
-    const afterRestore = await portalItems();
-    ok(shown.every(l => afterRestore.includes(l)), 'אחרי החזרה: העבודה חוזרת לדף האישי', afterRestore.join(' | '));
+    ok(await page.locator('[data-work-overview][data-section="annual"] [data-wo-row]').count() === 2, '‎#/tax/work/annual‎: רק הדוחות השנתיים (2)');
+    if (!mobile) ok(Number(await railCount(page, 'work-annual')) === 2, 'המונה במסילה = מספר השורות');
+    // שורה ⇒ «בקשות» של הלקוח
+    await page.locator('[data-wo-row]', { hasText: 'מיכל' }).first().click(); await sleep(1500);
+    const h = await page.evaluate(() => location.hash);
+    ok(h === '#/client/sample-2/journey', 'לחיצה על שורה פותחת את «בקשות» של הלקוח', h);
+    const tabOn = await text(page.locator('.cw-tab.active'));
+    ok(/^בקשות/.test(tabOn.trim()), 'הלשונית הפעילה: «בקשות»', tabOn);
+    await shot(page, `${vp}-02-client-requests`);
+    await page.goBack(); await sleep(900);
+    ok((await page.evaluate(() => location.hash)) === '#/tax/work/annual', '«אחורה» חוזר לסקירה');
+
+    // ── 4. מפת הטופס — 1301 עם סימון על כל שדה (16.10) ──
+    const prevErrs = errs.slice();
+    await ctx.close();
+    ({ ctx, page, errs } = await newPage(vp));
+    errs.push(...prevErrs);
+    await go(page, '/tax/learn/annual', true);
+    if (mobile && !(await page.locator('[data-domain="annual"]').isVisible())) { await page.locator('[data-rail="learn-annual"]').click(); await sleep(400); }
+    const fm = page.locator('[data-form-map="1301"]');
+    ok(await fm.isVisible(), 'דוח שנתי: הטופס עצמו בעמוד התחום');
+    const secOrder = await page.locator('[data-domain="annual"] .ta-sec-h').allInnerTexts();
+    ok(secOrder[0]?.startsWith('הטופס') && secOrder.includes('מה מבקשים מהלקוח') && secOrder.indexOf('ללמוד לעומק') > secOrder.indexOf('מה מבקשים מהלקוח'), 'סדר העמוד: הטופס ← ערכים ← מה מבקשים ← ללמוד לעומק', secOrder.join(' | '));
+    const imgOk = async () => page.locator('[data-form-map] .fm-page img').first().evaluate(i => i.complete && i.naturalWidth > 0).catch(() => false);
+    await sleep(800);
+    ok(await imgOk(), 'עמוד 1 של הטופס הרשמי נטען (תמונה)');
+    // עמוד 1: תיבות סימון ופרטים בלי קוד מודפס — לפי התווית שלידן (סבב 2)
+    const p1Labels = await fm.locator('.fm-mk.by-label').count();
+    ok(p1Labels >= 55, 'עמוד 1: שדות בלי קוד מסומנים לפי התווית (מקווקו)', p1Labels);
+    const f050 = fm.locator('.fm-mk.by-label[data-marker$="-L-F050"]');
+    await f050.scrollIntoViewIfNeeded(); await f050.click(); await sleep(400);
+    ok(/עוסק פטור/.test(await text(page.locator('[data-fm-detail]'))) && /בלי קוד/.test(await text(page.locator('[data-fm-detail] .fm-detail-top'))), 'תיבת «עוסק פטור» (בלי קוד): ההסבר נפתח');
+    await shot(page, `${vp}-03a-form-page1-labels`);
+    if (mobile) { await page.locator('[data-fm-detail] .fm-x').click(); await sleep(300); }
+    await fm.locator('[data-fm-page="2"]').click(); await sleep(700);
+    ok(await imgOk() && await fm.locator('.fm-mk').count() >= 90, 'עמוד 2: התמונה והסימונים (≥90)', await fm.locator('.fm-mk').count());
+    await shot(page, `${vp}-03-form-page2`);
+    // לחיצה על שדה
+    const m158 = fm.locator('[data-code="158"]');
+    await m158.scrollIntoViewIfNeeded(); await m158.click(); await sleep(400);
+    const det = page.locator('[data-fm-detail]');
+    const dt = await text(det);
+    ok(/ממשכורת/.test(dt) && /מה ממלאים/.test(dt) && /מאיפה המידע מגיע/.test(dt) && /טופס 106/.test(dt) && /בן הזוג הרשום/.test(dt), 'שדה 158: מה ממלאים, מאיפה (טופס 106), למי', dt.slice(0, 300));
+    ok((await m158.getAttribute('aria-pressed')) === 'true', 'הסימון הנבחר מסומן (aria-pressed)');
+    if (mobile) {
+      await sleep(300);
+      const r = await det.boundingBox();
+      const vh = page.viewportSize().height;
+      ok(r && r.y > vh * 0.3 && r.y + r.height <= vh + 1, 'טלפון: ההסבר נפתח כגיליון מלמטה, הטופס גלוי מעליו', JSON.stringify(r));
+    }
+    await shot(page, `${vp}-04-field-158`);
+    // ללמוד לעומק
+    await det.locator('[data-fm-learn]').first().click(); await sleep(900);
+    ok(/^#\/tax\/learn\/[a-z]+\/[A-Za-z0-9]+$/.test(await page.evaluate(() => location.hash)) && await page.locator('[data-topic]').count() === 1, '«ללמוד לעומק» פותח את הנושא', await page.evaluate(() => location.hash));
+    await page.goBack(); await sleep(900);
+    // אתר שדה לפי קוד — כל ההתאמות
+    const find = page.locator('[data-form-map] [data-fm-find]').first();
+    await find.fill('40'); await sleep(300);
+    const hits = await page.locator('[data-fm-hit]').allInnerTexts();
+    ok(hits.length >= 3 && hits.some(x => /1301/.test(x)) && hits.some(x => /1399י/.test(x)) && hits.some(x => /1219/.test(x)), 'קוד «40»: כל ההתאמות (1301, 1399י, 1219) — לא אחת בשקט', hits.map(x => x.replace(/\n/g, ' ')).join(' || '));
+    await shot(page, `${vp}-05-find-code`);
+    await find.fill('42'); await sleep(300);
+    const h42 = page.locator('[data-fm-hit="1301:042"]');
+    ok(await h42.count() === 1, '«42» מוצא את 042 (בלי האפס)');
+    await h42.click(); await sleep(700);
+    ok(await page.locator('[data-form-map] [data-fm-page="4"]').getAttribute('aria-pressed') === 'true' && (await page.locator('[data-form-map] [data-code="042"]').getAttribute('aria-pressed')) === 'true', 'תוצאה ⇒ עמוד 4 והשדה מסומן');
+    ok(/נוכה במקור ממשכורת/.test(await text(det)), 'ההסבר של 042', (await text(det)).slice(0, 160));
+    await find.fill(''); await sleep(200);
+    if (mobile) { await det.locator('.fm-x').click(); await sleep(300); ok(!(await det.evaluate(d => d.classList.contains('is-open'))), 'טלפון: ✕ סוגר את הגיליון'); }
+    // בלי סימון — ברשימה, עם הסיבה
+    const un = page.locator('[data-fm-unplaced]').first();
+    const nUn = Number(await un.getAttribute('data-fm-unplaced'));
+    ok(nUn > 20 && nUn < 80, 'שדות שלא אותרו בוודאות — ברשימה מתחת לטופס, לא מצוירים', nUn);
+    // הגדלה וגרירה
+    await fm.locator('[data-fm-zoom="in"]').click(); await fm.locator('[data-fm-zoom="in"]').click(); await sleep(300);
+    const z = await fm.locator('[data-fm-stage]').evaluate(s => ({ sw: s.scrollWidth, cw: s.clientWidth }));
+    ok(z.sw > z.cw * 1.8, 'הגדלה ×2: הטופס רחב מהחלון — גוררים כדי לזוז', JSON.stringify(z));
+    if (mobile) {
+      await fm.locator('[data-fm-stage]').evaluate(s => { s.scrollLeft = 200; s.scrollTop = 300; });
+      const movedOk = await fm.locator('[data-fm-stage]').evaluate(s => s.scrollLeft !== 0 && s.scrollTop > 0);
+      ok(movedOk && await noHScroll(page), 'טלפון: הטופס זז בתוך החלון, והעמוד עצמו בלי גלילה הצידה');
+      await shot(page, `${vp}-06-zoom`);
+    }
+    await fm.locator('[data-fm-zoom="out"]').click(); await fm.locator('[data-fm-zoom="out"]').click(); await sleep(200);
+    // נספח עם קודים — 1324
+    await fm.locator('[data-fm-form="1324"]').click(); await sleep(600);
+    const n1324 = await page.locator('[data-form-map="1324"] .fm-mk').count();
+    ok(n1324 >= 30, 'נספח 1324: סימונים על הנספח הרשמי', n1324);
+    // נספח בלי קודים — לפי התוויות; 116ד סרוק — בלי סימון בכלל
+    await page.locator('[data-form-map] [data-fm-more]').selectOption('1320'); await sleep(600);
+    const n1320 = await page.locator('[data-form-map="1320"] .fm-mk.by-label').count();
+    ok(n1320 >= 25 && n1320 === await page.locator('[data-form-map="1320"] .fm-mk').count(), '1320 (בלי קודים): השורות מסומנות לפי התווית', n1320);
+    await page.locator('[data-form-map] [data-fm-more]').selectOption('119'); await sleep(600);
+    ok(await page.locator('[data-form-map="119"] .fm-mk').count() >= 3, '119 (תואר אקדמי) — חדש במפה');
+    await page.locator('[data-form-map] [data-fm-more]').selectOption('116d'); await sleep(600);
+    ok(await page.locator('[data-form-map="116d"] .fm-mk').count() === 0 && /סרוק/.test(await text(page.locator('[data-form-map="116d"] .fm-legend'))), '116ד: הטופס הרשמי סרוק — עמוד ורשימה, בלי סימון בניחוש');
+    // ‼ 16.10 דמי לידה: 116ג במפה (לפי התוויות), סוג 9 עם הסבר ונושא; 250 ב-1301 מפנה ל-116ג
+    await page.locator('[data-form-map] [data-fm-more]').selectOption('116c'); await sleep(600);
+    const n116 = await page.locator('[data-form-map="116c"] .fm-mk.by-label').count();
+    ok(n116 >= 20, '116ג: השדות מסומנים לפי התוויות', n116);
+    await page.locator('[data-marker="116c-1-L-116c.16"]').click(); await sleep(400);
+    const d116 = await text(page.locator('[data-fm-detail]'));
+    ok(/דמי לידה/.test(d116) && /ימי הזכאות/.test(d116) && await page.locator('[data-fm-detail] [data-fm-learn="maternity"]').count() === 1, '116ג סוג 9: מה ממלאים (לפי ימי הזכאות) ו«ללמוד לעומק» — דמי לידה', d116.slice(0, 160));
+    await shot(page, `${vp}-05b-116c`);
+    if (mobile) { await page.locator('[data-fm-detail] .fm-x').click(); await sleep(300); }
+    await page.locator('[data-form-map] [data-fm-form="1301"]').click(); await sleep(400);
+    await page.locator('[data-form-map] [data-fm-page="2"]').click(); await sleep(500);
+    await page.locator('[data-form-map] [data-code="250"]').first().scrollIntoViewIfNeeded(); await page.locator('[data-form-map] [data-code="250"]').first().click(); await sleep(400);
+    ok(await page.locator('[data-fm-detail] [data-fm-related="116c"]').count() === 1 && await page.locator('[data-fm-detail] [data-fm-learn="maternity"]').count() === 1, '250: «טופס קשור: 116ג» ונושא «דמי לידה»');
+    await page.locator('[data-fm-detail] [data-fm-related="116c"] button').click(); await sleep(600);
+    ok(await page.locator('[data-form-map="116c"]').count() === 1, 'הקישור פותח את 116ג במפה');
+    if (mobile && await page.locator('[data-fm-detail].is-open').count()) { await page.locator('[data-fm-detail] .fm-x').click(); await sleep(300); }
+    await page.locator('[data-form-map] [data-fm-form="1301"]').click(); await sleep(400);
+    // מצב שדות אצל לקוח
+    // ‼ אורית (sample-4) — בהדגמה יש לה עובדות 2025 שהמשרד אישר (106, ספרים); דוד (sample-1) — תשובה מהדף שממתינה לבדיקה
+    await page.locator('[data-form-map] [data-fm-client]').selectOption('sample-4'); await sleep(1500);
+    ok(/אושר במשרד/.test(await text(page.locator('[data-fm-summary]'))), 'אורית: «אושר במשרד» מתשובות השאלון', await text(page.locator('[data-fm-summary]')));
+    await page.locator('[data-form-map] [data-fm-page="2"]').click(); await sleep(400);
+    await page.locator('[data-form-map] [data-code="158"]').click(); await sleep(300);
+    ok((await page.locator('[data-fm-client-state]').getAttribute('data-fm-client-state')) === 'approved', 'אורית, 158: «אושר במשרד» (106 שאושר)', await text(page.locator('[data-fm-client-state]')));
+    ok(await page.locator('[data-form-map] .fm-mk.st-approved').count() > 0, 'סימון ירוק כהה לשדה שאושר');
+    await shot(page, `${vp}-07a-approved`);
+    if (mobile) { await page.locator('[data-fm-detail] .fm-x').click(); await sleep(300); }
+    await page.locator('[data-form-map] [data-fm-client]').selectOption('sample-1'); await sleep(1500);
+    ok(await page.locator('[data-fm-summary]').isVisible() && /חסר/.test(await text(page.locator('[data-fm-summary]'))), 'בחירת לקוח: סיכום אושר / תשובה / לאישור / חסר', await text(page.locator('[data-fm-summary]')));
+    await page.locator('[data-form-map] [data-fm-page="2"]').click(); await sleep(400);
+    ok(await page.locator('[data-form-map] .fm-mk[class*="st-"]').count() > 50, 'הסימונים צבועים לפי המצב אצל הלקוח');
+    await page.locator('[data-form-map] [data-code="158"]').click(); await sleep(300);
+    const cs = await text(page.locator('[data-fm-client-state]'));
+    ok(cs.length > 0 && !/object Object/.test(cs) && (await page.locator('[data-fm-client-state]').getAttribute('data-fm-client-state')) !== 'approved', 'דוד, 158: מהכרטיס («לאישור») — «עבדת כשכיר?» אינו הסכום', cs);
+    await shot(page, `${vp}-07-client-state`);
+    if (mobile) ok(await noHScroll(page), 'טלפון: מפת הטופס בלי גלילה הצידה');
+    // בקרת הטופס — הכלי הקודם, מקופל
+    await go(page, '/tax/learn/annual/map1301');
+    ok(await page.locator('[data-form-map="1301"]').count() === 1 && await page.locator('[data-map-control]').count() === 1, 'מסך «הטופס מול תיק לקוח ובקרה»: המפה + הבקרה הקודמת מקופלת');
+    // הצהרת הון — 1219
+    await go(page, '/tax/learn/wealth');
+    if (mobile && !(await page.locator('[data-domain="wealth"]').isVisible())) { await page.locator('[data-rail="learn-wealth"]').click(); await sleep(400); }
+    const w = page.locator('[data-form-map="1219"]');
+    ok(await w.isVisible() && await w.locator('.fm-mk').count() >= 5, 'הצהרת הון: טופס 1219 עם סימון על שורות הסיכום');
+    await w.locator('[data-code="30"]').click(); await sleep(400);
+    ok(/בנקים/.test(await text(page.locator('[data-fm-detail]'))) && /טעות נפוצה/.test(await text(page.locator('[data-fm-detail]'))), '1219 שורה 30: מה רושמים, מסמך, בדיקה וטעות נפוצה');
+    await shot(page, `${vp}-08-wealth-1219`);
+    if (mobile) ok(await noHScroll(page), 'טלפון: הצהרת הון בלי גלילה הצידה');
 
     // ── 6. ידע מקצועי ──
     await go(page, '/tax/learn');
@@ -199,7 +279,7 @@ async function run(vp) {
     await page.locator('[data-domain-card="savings"]').click(); await sleep(500);
     ok((await page.evaluate(() => location.hash)) === '#/tax/learn/savings', 'הכתובת: ‎#/tax/learn/savings‎');
     const dp = await text(page.locator('[data-domain="savings"]'));
-    ok(dp.includes('מתי רלוונטי') && dp.includes('מה מבקשים מהלקוח') && dp.includes('פנסיה לעצמאי') && dp.includes('העבודה בתיקים'), 'עמוד תחום: מה, מתי, לימוד, מה מבקשים, עבודה', dp.slice(0, 400));
+    ok(dp.includes('מתי רלוונטי') && dp.includes('מה מבקשים מהלקוח') && dp.includes('ללמוד לעומק') && dp.includes('פנסיה לעצמאי') && dp.includes('העבודות אצל הלקוחות'), 'עמוד תחום: מה, מתי, מה מבקשים, ללמוד לעומק, עבודות', dp.slice(0, 400));
     ok(!/שמיש · עם פערים|מקור משני\b/.test(dp), 'בלי התוויות הלא ברורות');
     await shot(page, `${vp}-06-domain`);
     await page.locator('[data-domain-item="pensionSE"]').click(); await sleep(700);
@@ -238,7 +318,7 @@ async function run(vp) {
       current: document.querySelector('.ta-sub-item[aria-current="page"]')?.dataset.rail,
       subOutside: document.querySelectorAll('.ta-sub-item:not(.ta-domain.is-open .ta-sub-item)').length,
     }));
-    ok(rail.open.join() === 'learn-savings' && rail.closed === 8, 'תפריט: תחום פתוח אחד (aria-expanded), השאר סגורים', JSON.stringify(rail));
+    ok(rail.open.join() === 'learn-savings' && rail.closed === 10, 'תפריט: תחום פתוח אחד (aria-expanded), השאר סגורים', JSON.stringify(rail));
     ok(rail.subs.length === 3 && rail.subOutside === 0, 'תפריט: נושאי התחום בתוך הקבוצה שלו בלבד', JSON.stringify(rail));
     ok(rail.current === 'learn-savings-pensionSE', 'תפריט: הנושא הנבחר מסומן (aria-current)', rail.current);
     const indent = await page.evaluate(() => { const d = document.querySelector('.ta-dom-row .pg-rail-name').getBoundingClientRect(); const s = document.querySelector('.ta-sub-item .ta-sub-name').getBoundingClientRect(); return Math.round(d.right - s.right); });
@@ -265,10 +345,174 @@ async function run(vp) {
     await go(page, '/tax/learn/annual');
     if (mobile && !(await page.locator('[data-domain="annual"]').isVisible())) { await page.locator('[data-rail="learn-annual"]').click(); await sleep(400); }
     const ann = await text(page.locator('[data-domain="annual"]'));
-    ok(ann.includes('הכנת הדוח: מהמסמך לשדה') && ann.includes('טופס 1301 לשנה — שדות ומוכנות'), 'דוח שנתי: שני פריטים בשמות שאומרים את התפקיד', ann.slice(0, 300));
+    ok(ann.includes('הכנת הדוח: מהמסמך לשדה') && ann.includes('בקרת הטופס') && await page.locator('[data-domain="annual"] [data-form-map]').count() === 1, 'דוח שנתי: הטופס, הבקרה ו«ללמוד לעומק»', ann.slice(0, 300));
     if (mobile) ok(await noHScroll(page), 'טלפון: עמוד תחום בלי גלילה הצידה');
 
+    // ── 7. «ערכים לשנה» — לכל ערך בית אחד בתחום שלו (15.10.2026) ──
+    const openDomain = async (d) => {
+      await go(page, `/tax/learn/${d}`);
+      if (mobile && !(await page.locator(`[data-domain="${d}"]`).isVisible())) { await page.locator(`[data-rail="learn-${d}"]`).click(); await sleep(400); }
+      return page.locator(`[data-domain="${d}"]`);
+    };
+    const rentP = await openDomain('rent');
+    ok(await rentP.locator('[data-values-panel="rent"]').count() === 1, 'שכר דירה: סעיף «ערכים לשנה» בעמוד התחום');
+    ok(/טרם נכתב/.test(await text(rentP.locator('[data-learn-gap]'))), 'שכר דירה: אין מסלול לימוד — נאמר בשקט, בלי להמציא');
+    const reGroup = rentP.locator('[data-value-group="realEstate"]');
+    const reBtn = reGroup.locator('.kn-ask-toggle');
+    ok(await rentP.locator('#kn-val-rent-realEstate').isHidden() && (await reBtn.getAttribute('aria-expanded')) === 'false', 'הערכים סגורים כברירת מחדל — העמוד נשאר סקירה');
+    ok(/\d+ ערכים/.test(await text(reBtn)), 'בכותרת הקבוצה: כמה ערכים יש בה', await text(reBtn));
+    await reBtn.click(); await sleep(250);
+    const reText = await text(rentP.locator('#kn-val-rent-realEstate'));
+    ok((await reBtn.getAttribute('aria-expanded')) === 'true' && reText.includes('מס רכישה - דירה יחידה') && reText.includes('תקרת פטור שבח'), 'פתיחה במקום: מס רכישה ומס שבח בתחום שכר דירה ונדל״ן', reText.slice(0, 200));
+    const rentRule = rentP.locator('[data-value-row="rule.core.rentalExemption"]');
+    ok(await rentRule.count() === 1 && /5,654|5654/.test(await text(rentRule)) && await rentRule.locator('.kn-basis').count() === 1, 'פטור שכ״ד — מהמרשם, עם תג ביסוס', await text(rentRule));
+    ok(await rentP.locator('[data-value-row="realEstate.rentExempt"]').count() === 0, 'השורה הישנה של פטור שכ״ד לא מוצגת שוב (אותו מספר פעם אחת)');
+    ok(await rentP.locator('[data-value-row="deadlines.rent10"]').count() === 1, 'מועד תשלום 10% — בתחום שכר דירה');
+    await shot(page, `${vp}-09-rent-values`);
+    await reBtn.focus(); await page.keyboard.press('Enter'); await sleep(200);
+    const closedByKey = (await reBtn.getAttribute('aria-expanded')) === 'false';
+    await page.keyboard.press('Space'); await sleep(200);
+    ok(closedByKey && (await reBtn.getAttribute('aria-expanded')) === 'true', 'מקלדת: Enter סוגר, רווח פותח, aria-expanded מתעדכן');
+    // רגרסיה: «מה מבקשים מהלקוח» (התיקון מ-15.10) עדיין נפתח עם השאלות עצמן
+    await rentP.locator('[data-ask-area="rent"] .kn-ask-toggle').click(); await sleep(250);
+    ok(await rentP.locator('[data-ask-area="rent"] .kn-ask-list li').count() > 3, '«מה מבקשים מהלקוח» עדיין נפתח עם השאלות והמסמכים');
+    if (mobile) ok(await noHScroll(page), 'טלפון: ערכים פתוחים בלי גלילה הצידה');
+
+    // תחומים חדשים: חברות ושכירים
+    const coP = await openDomain('companies');
+    await coP.locator('[data-value-group="company"] .kn-ask-toggle').click(); await sleep(250);
+    const coText = await text(coP);
+    ok(coText.includes('רווחים כלואים') && coText.includes('מס חברות') && /טרם נכתב/.test(coText), 'חברות ובעלי שליטה: ערכים + «טרם נכתב»', coText.slice(0, 300));
+    ok(await coP.locator('[data-ask-area="companies"]').count() === 1, 'חברות: «חברות בשליטה» מהשאלון — היה בלי בית');
+    ok(await coP.locator('[data-domain-work="annual"]').count() === 1, 'חברות: קישור לעבודות אצל הלקוחות');
+    await shot(page, `${vp}-10-companies`);
+    const saP = await openDomain('salary');
+    await saP.locator('[data-value-group="car"] .kn-ask-toggle').click(); await sleep(250);
+    ok((await text(saP)).includes('תקרת מחיר מחירון'), 'שכירים ושכר: שווי שימוש ברכב');
+    // ‼ 16.10: מה שחסר — גלוי ומקופל, לא מוסתר ולא נראה כמו כלי שעובד
+    ok(Number(await saP.locator('[data-planned-tools]').getAttribute('data-planned-tools')) >= 2, 'שכירים: «כלים שעוד לא נבנו» (תחשיבי שכר, רכב)');
+    const bizP = await openDomain('business');
+    const pt = bizP.locator('[data-planned-topics]');
+    await pt.locator('summary').click(); await sleep(200);
+    ok(/חשבוניות ישראל/.test(await text(pt)) && /טרם נכתב/.test(await text(pt)) && /מחקר חדש/.test(await text(pt)), 'עסק: «חשבוניות ישראל» — טרם נכתב, עם מצב מחקר');
+
+    // קישור ישיר לקבוצה: נפתחת, והפוקוס עליה
+    await go(page, '/tax/learn/savings/v/pensionExtra'); await sleep(300);
+    const pe = page.locator('[data-value-group="pensionExtra"]');
+    ok((await pe.locator('.kn-ask-toggle').getAttribute('aria-expanded')) === 'true', 'קישור ‎learn/savings/v/pensionExtra‎ פותח את הקבוצה');
+    ok(await page.evaluate(() => !!document.activeElement?.closest('[data-value-group="pensionExtra"]')), 'הפוקוס על הקבוצה שנפתחה');
+    const peText = await text(pe);
+    ok(peText.includes('תקרת סעיף 47') && peText.includes('לפיצויים') && /לא במרשם/.test(peText), 'שתי השורות שהוסתרו — גלויות, עם ההערה שלא במרשם', peText.slice(0, 300));
+    ok((await text(page.locator('[data-domain="savings"]'))).includes('פרישה ופיצויים'), 'פנסיה, השתלמות ופרישה: פרישה ופיצויים');
+
+    // קישור ישן ל«ערכים לפי נושא»
+    await page.goto('about:blank');
+    await page.goto(`${BASE}/?office-app#/tax/learn/reference/topics`, { waitUntil: 'domcontentloaded' });
+    await page.locator('[data-tax-area]').waitFor({ timeout: 30000 }); await sleep(800);
+    if (mobile && !(await page.locator('[data-moved]').isVisible())) { await page.locator('[data-rail="learn-home"]').click(); await sleep(400); }
+    const moved = page.locator('[data-moved]');
+    ok(await moved.isVisible() && await moved.locator('[data-moved-to]').count() >= 8, 'קישור ישן: «ערכים לפי נושא עברו לתחומים» עם קישור לכל נושא');
+    await shot(page, `${vp}-11-moved`);
+    await moved.locator('[data-moved-to="rent/realEstate"]').click(); await sleep(700);
+    ok((await page.evaluate(() => location.hash)) === '#/tax/learn/rent/v/realEstate' && (await page.locator('[data-value-group="realEstate"] .kn-ask-toggle').getAttribute('aria-expanded')) === 'true', 'מהקישור הישן ל«מקרקעין» — הקבוצה פתוחה בתחום');
+
+    // חיפוש מוצא ערכים
+    await go(page, '/tax/learn');
+    if (mobile && !(await page.locator('#ta-q').isVisible())) { await page.locator('[data-rail="learn-home"]').click(); await sleep(400); }
+    await page.locator('#ta-q').fill('מס רכישה'); await sleep(300);
+    const hit = page.locator('[data-value-hit="rent/realEstate"]');
+    ok(await hit.count() > 0, 'חיפוש «מס רכישה» מוצא את שכר דירה ונדל״ן');
+    await shot(page, `${vp}-12-search`);
+    await hit.first().click(); await sleep(700);
+    ok((await page.evaluate(() => location.hash)) === '#/tax/learn/rent/v/realEstate', 'תוצאת חיפוש נוחתת בקבוצה');
+    await go(page, '/tax/learn');
+    if (mobile && !(await page.locator('#ta-q').isVisible())) { await page.locator('[data-rail="learn-home"]').click(); await sleep(400); }
+    await page.locator('#ta-q').fill('שבח'); await sleep(300);
+    ok(await page.locator('[data-planned-hit="rent"]').count() > 0, 'חיפוש «שבח» מוצא גם את מה שעוד לא נבנה (מחשבון מס שבח — טרם נכתב)');
+    for (const [w, d] of [['שווי שימוש', 'salary'], ['עוסק פטור', 'business']]) {
+      await go(page, '/tax/learn');
+      if (mobile && !(await page.locator('#ta-q').isVisible())) { await page.locator('[data-rail="learn-home"]').click(); await sleep(400); }
+      await page.locator('#ta-q').fill(w); await sleep(300);
+      ok(await page.locator(`[data-value-hit^="${d}/"]`).count() > 0, `חיפוש «${w}» ← ${d}`);
+    }
+    // כרטיס «ערך מפתח» מוביל לתחום
+    await page.locator('#ta-q').fill(''); await sleep(200);
+    await page.locator('[data-keyval="פטור שכר דירה"]').click(); await sleep(700);
+    ok((await page.evaluate(() => location.hash)) === '#/tax/learn/rent/v/realEstate', 'כרטיס «פטור שכר דירה» מוביל לערכים בתחום');
+
+    // ‼ 16.10 מצב משפחתי בשנת המס — פסקה בתחום «נקודות זיכוי ומדרגות»
+    const crP = await openDomain('credits');
+    const famNote = crP.locator('[data-domain-note="familyYear"]');
+    ok(await famNote.locator('li').count() === 5 && await famNote.locator('.kn-claim.open').count() === 1 && /5329/.test(await text(famNote)), 'נקודות זיכוי: «מצב משפחתי בשנת המס» — חמש נקודות, שנת הגירושין/פטירה פתוחה');
+    if (mobile) ok(await noHScroll(page), 'טלפון: עמוד נקודות זיכוי בלי גלילה הצידה');
+    await famNote.scrollIntoViewIfNeeded(); await shot(page, `${vp}-16-family-year`);
+    // ‼ 16.10 דמי לידה: נושא בתחום «ביטוח לאומי», הפניה מ«דוח שנתי» ומ«שכירים», ומסלול לימוד מלא
+    for (const d of ['annual', 'salary']) {
+      const dp = await openDomain(d);
+      ok(await dp.locator('[data-see-also-item="maternity"]').count() === 1, `${d}: «ללמוד לעומק» מפנה לדמי לידה בתחום «ביטוח לאומי»`);
+    }
+    await page.locator('[data-see-also-item="maternity"]').click(); await sleep(800);
+    ok((await page.evaluate(() => location.hash)) === '#/tax/learn/ni/maternity' && await page.locator('[data-topic="maternity"]').count() === 1, 'ההפניה נוחתת בנושא, בתחום שלו');
+    const mlStages = await page.locator('[data-stage-btn]').evaluateAll(b => b.map(x => x.dataset.stageBtn).join(','));
+    ok(mlStages === 'what,ask,read,calc,except,next,practice,sources', 'דמי לידה: כל שמונת השלבים', mlStages);
+    ok(/מענק לידה/.test(await text(page.locator('#ml-what'))), '«מה זה»: גם מה לא כאן (מענק לידה פטור)');
+    await page.locator('[data-stage-btn="calc"]').first().click(); await sleep(300);
+    const calcT = await text(page.locator('[data-ml-result]'));
+    ok(/9,129\.6/.test(calcT) && /30,812\.4/.test(calcT) && /58\.5/.test(calcT) && /197\.5/.test(calcT), 'מחשבון: נייר העבודה — 24/81 ימים', calcT);
+    ok(await page.locator('#ml-ex img').evaluateAll(a => a.length === 2 && a.every(i => i.complete && i.naturalWidth > 0)), 'הדוגמה: הודעת ב״ל והאישור השנתי נטענו');
+    await page.locator('[data-ml-from]').fill('2024-11-01'); await page.locator('[data-ml-to]').fill('2025-02-13'); await sleep(300);
+    ok((await page.locator('[data-ml-result] [data-ml-year]').evaluateAll(r => r.map(x => x.children[1].textContent).join('/'))) === '61/44', 'מחשבון: הדוגמה מ«דע זכויותיך» — 61/44');
+    await shot(page, `${vp}-14-maternity-calc`);
+    await page.locator('[data-stage-btn="except"]').first().click(); await sleep(300);
+    ok(await page.locator('#ml-exc .kn-claim, #ml-exc [class*="claim"]').count() > 0 && /250 או 194/.test(await text(page.locator('#ml-exc'))), '«חריגים»: המקרה המשולב — פתוח, במפורש');
+    await page.locator('[data-stage-btn="next"]').first().click(); await sleep(300);
+    ok(await page.locator('[data-ml-steps] li').count() === 5 && await page.locator('#ml-116c img').evaluate(i => i.complete && i.naturalWidth > 0), '116ג צעד אחר צעד, עם הטופס שמולא');
+    await shot(page, `${vp}-15-maternity-116c`);
+    await page.locator('[data-stage-btn="sources"]').first().click(); await sleep(300);
+    ok(/חוזר מס הכנסה 2\/2022/.test(await text(page.locator('#ml-src'))), '«מקורות»: הסעיף של הנושא מוצג');
+    if (mobile) ok(await noHScroll(page), 'טלפון: נושא דמי לידה בלי גלילה הצידה');
+
+    // לוח המועדים הרוחבי
+    await go(page, '/tax/learn/reference/deadlines');
+    ok(await page.locator('[data-deadline]').count() === 6, 'לוח מועדים: כל שש השורות');
+    await shot(page, `${vp}-13-deadlines`);
+    await page.locator('[data-deadline-home="salary"]').click(); await sleep(700);
+    ok((await page.evaluate(() => location.hash)) === '#/tax/learn/salary', 'מועד ← התחום שלו');
+
+    // שנה בלי עמודה בטבלה הישנה
+    await openDomain('business');
+    const yearSel = mobile ? page.locator('.ta-val-year select') : page.locator('.pg-rail-year select');
+    ok(await yearSel.isVisible(), mobile ? 'טלפון: בורר שנה ליד «ערכים לשנה»' : 'מחשב: בורר השנה במסילה');
+    await yearSel.selectOption('2024'); await sleep(300);
+    await page.locator('[data-value-group="vat"] .kn-ask-toggle').click(); await sleep(250);
+    ok(/אין ערך ל-2024/.test(await text(page.locator('[data-value-group="vat"]'))), 'שנה 2024: «אין ערך לשנה זו», לא ערך של שנה אחרת');
+    if (mobile) ok(await noHScroll(page), 'טלפון: עמוד עסק בלי גלילה הצידה');
+
     ok(errs.length === 0, 'בלי שגיאות קונסול', errs.slice(0, 4).join(' | '));
+
+    // ── 9. מצב כהה — מפת הטופס והסקירה ──
+    const dark = await newPage(vp, 'dark');
+    await dark.ctx.addInitScript(seedScript(taxWorkSeed()));
+    try {
+      const dp2 = dark.page;
+      await go(dp2, '/tax/work/all');
+      if (mobile && !(await dp2.locator('[data-work-overview]').isVisible())) { await dp2.locator('[data-rail="work-all"]').click(); await sleep(500); }
+      ok((await dp2.evaluate(() => document.documentElement.dataset.theme)) === 'dark', 'מצב כהה: הממשק כהה');
+      const woC = await dp2.locator('[data-wo-row]').first().evaluate(el => { const c = getComputedStyle(el); return { bg: c.backgroundColor, fg: c.color }; });
+      ok(lum(woC.bg) < 0.2 && lum(woC.fg) > 0.5, 'מצב כהה: שורות הסקירה כהות והטקסט בהיר', JSON.stringify(woC));
+      await shot(dp2, `${vp}-20-dark-overview`);
+      await go(dp2, '/tax/learn/annual');
+      if (mobile && !(await dp2.locator('[data-domain="annual"]').isVisible())) { await dp2.locator('[data-rail="learn-annual"]').click(); await sleep(400); }
+      await dp2.locator('[data-form-map] [data-fm-client]').selectOption('sample-1'); await sleep(800);
+      await dp2.locator('[data-form-map] [data-fm-page="2"]').click(); await sleep(500);
+      await dp2.locator('[data-form-map] [data-code="158"]').scrollIntoViewIfNeeded(); await dp2.locator('[data-form-map] [data-code="158"]').click(); await sleep(500);
+      const dc = await dp2.locator('[data-fm-detail]').evaluate(el => { const c = getComputedStyle(el); const pEl = el.querySelector('.fm-p'); return { bg: c.backgroundColor, fg: pEl ? getComputedStyle(pEl).color : '' }; });
+      ok(lum(dc.bg) < 0.2 && lum(dc.fg) > 0.5, 'מצב כהה: ההסבר קריא (רקע כהה, טקסט בהיר)', JSON.stringify(dc));
+      ok(await dp2.locator('[data-form-map] .fm-page img').first().evaluate(i => i.complete && i.naturalWidth > 0), 'מצב כהה: הטופס עצמו נשאר לבן וקריא (תמונה)');
+      if (mobile) ok(await noHScroll(dp2), 'מצב כהה, טלפון: בלי גלילה הצידה');
+      await shot(dp2, `${vp}-21-dark-form`);
+      ok(dark.errs.length === 0, 'מצב כהה: בלי שגיאות קונסול', dark.errs.slice(0, 3).join(' | '));
+    } finally { await dark.ctx.close(); }
   } catch (e) {
     ok(false, `${vp}: חריגה`, e.message);
     await shot(page, `${vp}-error`, true);

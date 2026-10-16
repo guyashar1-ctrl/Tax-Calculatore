@@ -39,7 +39,9 @@ import { processByKey } from '../../lib/processCatalog';
 import '../../components/office/office.css';
 import './taxYear.css';
 import RemoveWorkDialog from './RemoveWorkDialog';
+import MaternitySpreadLine from './MaternitySpread';
 import { isOpenStep } from './taxWork';
+import { buildQuestionTree, countsLine, TREE_MARK } from './questionTree';
 
 interface Props {
   client: Client;
@@ -51,6 +53,11 @@ interface Props {
   onClientPersisted?: (c: Client) => void;
   /** אחרי «הסר עבודה…» — ההודעה עוברת למסך שמתחת, כי הדף נסגר. */
   onRemoved?: (text: string) => void;
+  /**
+   * 16.10.2026 · «כל עבודה היא בקשה»: העבודה נפתחת **בתוך שורת הבקשה** ב«בקשות», לא כמסך שלישי.
+   * בלי מסגרת מסך מלא, בלי «סגירה» ובלי Escape; הכותרת וה«הסר…» כבר בשורה (⋯).
+   */
+  embedded?: boolean;
 }
 
 const STATE_CHIP: Record<string, { label: string; tone: string }> = {
@@ -65,7 +72,7 @@ const target = (s: { entityLabel?: string; subjectRole: string }, c: Client) =>
   : s.subjectRole === 'spouse' ? (c.spouseFirstName || c.spouse?.firstName || 'בן/בת הזוג') + (s.entityLabel && s.entityLabel !== (c.spouseFirstName || c.spouse?.firstName) ? ` · ${s.entityLabel}` : '')
   : s.entityLabel && s.entityLabel !== c.firstName ? s.entityLabel : '';
 
-export default function TaxYearProcess({ client, step, infoStep, onClose, onChanged, onClientPersisted, onRemoved }: Props) {
+export default function TaxYearProcess({ client, step, infoStep, onClose, onChanged, onClientPersisted, onRemoved, embedded }: Props) {
   const purpose: Purpose = step.stepType === 'tax_estimate' ? 'estimate' : step.stepType === 'wealth_declaration' ? 'wealth' : step.stepType === 'tax_file_intake' ? 'intake' : 'annual';
   const p = step.payload as unknown as { taxYear: number; cutoffMonth?: number; title?: string; legacySessionId?: string; legacyStepId?: string; legacyReplaced?: { stepId: string; at: string } } & WealthPayload;
   const year = Number(p.taxYear);
@@ -112,10 +119,11 @@ export default function TaxYearProcess({ client, step, infoStep, onClose, onChan
   }, [client.id, year, purpose, step.id, p.asOfDate]);
   useEffect(() => { void reload(); }, [reload]);
   useEffect(() => {
+    if (embedded) return;
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && !removingRef.current) onClose(); };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  }, [onClose, embedded]);
 
   const picture = useMemo(() => data && buildYearPicture({
     client, taxYear: year, purpose, cutoffMonth: p.cutoffMonth, today: todayIso(), asOfDate: p.asOfDate, declKind: p.kind,
@@ -169,6 +177,7 @@ export default function TaxYearProcess({ client, step, infoStep, onClose, onChan
   ].join(' · ');
 
   if (!data || !picture || !review) {
+    if (embedded) return <div className="ty-inline" data-ty-inline>{err ? <div className="ty-err" role="alert">לא ניתן לטעון: {err}</div> : <div className="ty-note">טוען…</div>}</div>;
     return (
       <div className="ty-overlay" role="dialog" aria-label={p.title}>
         <div className="ty-head"><h2>{p.title}</h2><span style={{ flex: 1 }} /><button type="button" className="btn btn-sm btn-ghost" onClick={onClose}>סגירה</button></div>
@@ -204,7 +213,13 @@ export default function TaxYearProcess({ client, step, infoStep, onClose, onChan
   if (docsLater.length > 4) later.push(`ועוד ${docsLater.length - 4} מסמכים שעוד לא זמינים`);
 
   return (
-    <div className="ty-overlay" role="dialog" aria-label={`${p.title} · ${client.firstName} ${client.lastName ?? ''}`}>
+    <div className={embedded ? 'ty-inline' : 'ty-overlay'} role={embedded ? 'region' : 'dialog'} aria-label={`${p.title} · ${client.firstName} ${client.lastName ?? ''}`} data-ty-inline={embedded ? '' : undefined}>
+      {embedded ? (
+        <div className="ty-inline-head">
+          <span className="ty-sub">{subtitle}</span>
+          {infoStep && <button type="button" className="btn btn-sm btn-ghost" onClick={() => setPreview(true)} data-ty-preview>מה {firstName} רואה</button>}
+        </div>
+      ) : (
       <div className="ty-head">
         <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
           <h2>{p.title} · {client.firstName} {client.lastName}</h2>
@@ -215,13 +230,14 @@ export default function TaxYearProcess({ client, step, infoStep, onClose, onChan
         {isOpenStep(step) && <button type="button" className="btn btn-sm btn-ghost tw-remove" onClick={() => setRemoving(true)} data-ty-remove>הסר עבודה…</button>}
         <button type="button" className="btn btn-sm btn-ghost" onClick={onClose} aria-label="סגירה">סגירה</button>
       </div>
+      )}
       {removing && (
         <RemoveWorkDialog stepId={step.id} title={`${p.title} · ${client.firstName ?? ''} ${client.lastName ?? ''}`.trim()}
           onClose={() => setRemoving(false)}
           onDone={(_w, text) => { setRemoving(false); onRemoved?.(text); onChanged(); onClose(); }} />
       )}
-      <div className="ty-scroll">
-        <div className="ty-body">
+      <div className={embedded ? undefined : 'ty-scroll'}>
+        <div className={embedded ? 'ty-body is-inline' : 'ty-body'}>
           {err && <div className="ty-err" role="alert">{err}</div>}
           {flash && <div className="ty-ok" role="status">{flash}</div>}
 
@@ -253,7 +269,7 @@ export default function TaxYearProcess({ client, step, infoStep, onClose, onChan
           {purpose === 'intake' && !openIntake && p.legacyReplaced?.at && (
             <div className="ty-note" role="note">שאלון הקליטה הישן הוחלף בקליטה הזו ב-{formatDate(p.legacyReplaced.at.slice(0, 10))}. תשובות שנתן בו — בתיק המס, לאישור.</div>
           )}
-          {purpose === 'intake' && (
+          {purpose === 'intake' && !embedded && (
             <div className="ty-note" role="note">כאן משלימים את התיק עצמו: מי הלקוח, מקורות ההכנסה, הנכסים והמסמכים הקבועים. תשובה של הלקוח היא הצעה — נכנסת לתיק רק אחרי אישור, דרך הצעה עם מקור והיסטוריה. אימות מול הרשויות הוא יישור הקו (בתיק המס), לא השאלון.</div>
           )}
           {purpose === 'annual' && !AnnualReturnPanel && (
@@ -278,11 +294,13 @@ export default function TaxYearProcess({ client, step, infoStep, onClose, onChan
               {now === 'publish' && (
                 <>
                   <h3>מוכן לדף האישי: {count(drafts.length, 'שאלה אחת', 'שאלות')} ל{firstName}</h3>
-                  {gateOpen === false && <p className="ty-why wd-hint" role="note" data-gate-closed>התהליך של {firstName} עוד לא נפתח לו בדף האישי: השאלות יישמרו כמפורסמות, ויופיעו לו רק אחרי «פרסם בדף» ב«בקשות».</p>}
-                  <p className="ty-why">השאלות יופיעו ב«השלמת מידע» בדף האישי. המייל יוצא ב«שלח בקשות» — מייל אחד, לכתובת שבכרטיס.</p>
+                  {gateOpen === false && <p className="ty-why wd-hint" role="note" data-gate-closed>התהליך של {firstName} עוד לא נפתח לו בדף האישי: השאלות יישמרו כמפורסמות, ויופיעו לו רק אחרי «פרסם בדף» {embedded ? `בכרטיס «הדף של ${firstName}» למעלה` : 'ב«בקשות»'} (גם שם — בלי מייל).</p>}
+                  <p className="ty-why">{embedded
+                    ? `«פרסם את השאלות בדף» מוסיף אותן לדף של ${firstName} — בלי מייל. מייל, אם צריך — מ«הדף של ${firstName}» למעלה.`
+                    : 'השאלות יופיעו ב«השלמת מידע» בדף האישי. המייל יוצא ב«שלח בקשות» — מייל אחד, לכתובת שבכרטיס.'}</p>
                   <ul className="ty-lines">{drafts.slice(0, 6).map(a => <li key={a.id}>{a.prompt.title}{a.prompt.subjectName ? ` · על ${a.prompt.subjectName}` : ''}</li>)}{drafts.length > 6 && <li>ועוד {drafts.length - 6}…</li>}</ul>
                   <div className="ty-actions">
-                    <button type="button" className="btn btn-primary" disabled={busy} onClick={() => infoStep && void run(() => api.publishInfo(infoStep.id), gateOpen === false ? 'נשמר כמפורסם — יופיע בדף האישי אחרי «פרסם בדף» ב«בקשות». המייל — ב«שלח בקשות».' : 'פורסם בדף האישי. המייל — ב«שלח בקשות».')}>פרסם בדף האישי</button>
+                    <button type="button" className="btn btn-primary" disabled={busy} onClick={() => infoStep && void run(() => api.publishInfo(infoStep.id), gateOpen === false ? (embedded ? `נשמר כמפורסם — יופיע ל${firstName} אחרי «פרסם בדף» בכרטיס «הדף של ${firstName}» למעלה. לא נשלח מייל.` : 'נשמר כמפורסם — יופיע בדף האישי אחרי «פרסם בדף» ב«בקשות». המייל — ב«שלח בקשות».') : embedded ? `פורסם בדף של ${firstName} — לא נשלח מייל.` : 'פורסם בדף האישי. המייל — ב«שלח בקשות».')} data-ty-publish>{embedded ? 'פרסם את השאלות בדף' : 'פרסם בדף האישי'}</button>
                     <button type="button" className="btn btn-ghost" disabled={busy} onClick={() => setPreview(true)}>איך זה ייראה</button>
                     <button type="button" className="btn btn-ghost" disabled={busy} onClick={() => void run(async () => { for (const a of drafts) await api.cancelAsk(a.id); return { ok: true }; }, 'השאלות בוטלו')}>בטל טיוטה</button>
                   </div>
@@ -291,7 +309,7 @@ export default function TaxYearProcess({ client, step, infoStep, onClose, onChan
               {now === 'ask' && <AskPanel client={client} plan={buildAskPlan(askable, { client, taxYear: year, purpose, cutoffMonth: p.cutoffMonth, asOfDate: p.asOfDate, declKind: p.kind, previousByArea: prevArea })} picture={picture} busy={busy} purpose={purpose} year={year} cutoff={p.cutoffMonth} openIntake={openIntake}
                 onAdd={sel => run(() => api.addAsks(step.id, sel.map(e => ({ itemKey: e.itemKey, subjectRole: e.subjectRole, entityKind: e.entityKind, entityRef: e.entityRef, prompt: e.prompt }))),
                   'נוספו לבקשת «השלמת מידע» — טיוטה, עד שתפרסם').then(ok => { if (ok) setPick('publish'); return ok; })} />}
-              {now === 'office' && <OfficePanel client={client} statuses={picture.officeTodo} evidence={data.evidence} busy={busy} purpose={purpose} year={year} cutoff={p.cutoffMonth} asOf={p.asOfDate} stepId={step.id} run={run} applyCard={applyCard} />}
+              {now === 'office' && <OfficePanel client={client} statuses={picture.officeTodo} evidence={data.evidence} facts={data.facts} busy={busy} purpose={purpose} year={year} cutoff={p.cutoffMonth} asOf={p.asOfDate} stepId={step.id} run={run} applyCard={applyCard} />}
               {now === 'waiting' && (
                 <>
                   <h3>ממתין ל{firstName}</h3>
@@ -311,8 +329,8 @@ export default function TaxYearProcess({ client, step, infoStep, onClose, onChan
           )}
 
           <section aria-labelledby="ty-detail">
-            <p className="ty-label" id="ty-detail">פירוט, כשצריך</p>
-            <Details client={client} statuses={picture.statuses} evidence={data.evidence} purpose={purpose} legacy={!!p.legacySessionId}
+            <p className="ty-label" id="ty-detail">{embedded ? 'השאלון — לפי תחום' : 'פירוט, כשצריך'}</p>
+            <Details tree={embedded} client={client} statuses={picture.statuses} evidence={data.evidence} purpose={purpose} legacy={!!p.legacySessionId}
               facts={data.facts} busy={busy} onMark={(key, yes) => run(() => api.recordFact(client.id, { taxYear: year, itemKey: key, subjectRole: 'client', ...(purpose === 'wealth' ? { periodKind: 'as_of', periodTo: p.asOfDate } : { periodKind: 'year', periodFrom: `${year}-01-01`, periodTo: `${year}-12-31` }), answer: yes ? 'value' : 'no', value: yes ? true : undefined, basis: 'actual', requestId: step.id } as never), yes ? 'סומן «חל» — מופיע עכשיו ברשימת החסרים' : 'סומן «לא חל»')} />
           </section>
 
@@ -663,8 +681,8 @@ function AskPanel({ client, plan, picture, busy, purpose, year, cutoff, openInta
 }
 
 // ── השלמה במשרד ──────────────────────────────────────────────────────────────
-function OfficePanel({ client, statuses, evidence, busy, purpose, year, cutoff, asOf, stepId, run, applyCard }: {
-  client: Client; statuses: ItemStatus[]; evidence: Evidence[]; busy: boolean; purpose: Purpose; year: number; cutoff?: number; asOf?: string; stepId: string;
+function OfficePanel({ client, statuses, evidence, facts, busy, purpose, year, cutoff, asOf, stepId, run, applyCard }: {
+  client: Client; statuses: ItemStatus[]; evidence: Evidence[]; facts: api.YearData['facts']; busy: boolean; purpose: Purpose; year: number; cutoff?: number; asOf?: string; stepId: string;
   run: (fn: () => Promise<unknown>, done?: string) => Promise<boolean>; applyCard: ApplyCard;
 }) {
   const [all, setAll] = useState(false);
@@ -672,7 +690,7 @@ function OfficePanel({ client, statuses, evidence, busy, purpose, year, cutoff, 
     <>
       <h3>להשלים במשרד: {statuses.length} פריטים</h3>
       <p className="ty-why">{purpose === 'intake' ? 'עדכון הכרטיס מתשובות שאושרו, הוספת ישויות חדשות לתיק, ויישור קו מול הרשויות. כל עדכון נשמר עם המקור וההיסטוריה.' : 'סכומים ממסמכים שאושרו, מסלולים והחלטות של המשרד. נשמר כמאושר, עם המסמך כשיש.'}</p>
-      <div className="ty-rows">{(all ? statuses : statuses.slice(0, 8)).map(s => <OfficeLine key={`${s.item.key}|${s.subjectRole}|${s.entityRef ?? ''}`} s={s} client={client} evidence={evidence} busy={busy} purpose={purpose} year={year} cutoff={cutoff} asOf={asOf} stepId={stepId} run={run} applyCard={applyCard} />)}</div>
+      <div className="ty-rows">{(all ? statuses : statuses.slice(0, 8)).map(s => <OfficeLine key={`${s.item.key}|${s.subjectRole}|${s.entityRef ?? ''}`} s={s} client={client} evidence={evidence} facts={facts} busy={busy} purpose={purpose} year={year} cutoff={cutoff} asOf={asOf} stepId={stepId} run={run} applyCard={applyCard} />)}</div>
       {statuses.length > 8 && !all && <div><button type="button" className="btn btn-sm btn-ghost" onClick={() => setAll(true)}>הצג את כל {statuses.length}</button></div>}
     </>
   );
@@ -691,8 +709,8 @@ const AMOUNT_PARTS: Record<string, [string, string][]> = {
   'foreign.amounts': [['dividendGross', 'דיבידנד ברוטו'], ['interest', 'ריבית'], ['foreignTax', 'מס זר'], ['proceeds', 'תמורת מכירות'], ['cost', 'עלות']],
 };
 
-function OfficeLine({ s, client, evidence, busy, purpose, year, cutoff, asOf, stepId, run, applyCard }: {
-  s: ItemStatus; client: Client; evidence: Evidence[]; busy: boolean; purpose: Purpose; year: number; cutoff?: number; asOf?: string; stepId: string;
+function OfficeLine({ s, client, evidence, facts, busy, purpose, year, cutoff, asOf, stepId, run, applyCard }: {
+  s: ItemStatus; client: Client; evidence: Evidence[]; facts: api.YearData['facts']; busy: boolean; purpose: Purpose; year: number; cutoff?: number; asOf?: string; stepId: string;
   run: (fn: () => Promise<unknown>, done?: string) => Promise<boolean>; applyCard: ApplyCard;
 }) {
   const [val, setVal] = useState('');
@@ -713,6 +731,8 @@ function OfficeLine({ s, client, evidence, busy, purpose, year, cutoff, asOf, st
     periodTo: basis === 'actual_to_date' ? `${year}-${String(m).padStart(2, '0')}-${new Date(year, m, 0).getDate()}` : `${year}-12-31` }),
     answer, value, basis, evidenceId: ev || undefined, requestId: stepId,
   } as never), 'נשמר');
+  // ‼ 16.10.2026 · פריסת דמי לידה — הצעת חלוקה לפי ימים והחלטה שנשמרת לשתי השנים
+  if (s.item.key === 'niBenefits.maternitySpread') return <MaternitySpreadLine s={s} client={client} facts={facts} year={year} stepId={stepId} busy={busy} run={run} />;
   const task = s.officeTask;
   const title = <b>{s.item.label}{target(s, client) ? ` · ${target(s, client)}` : ''}</b>;
   // ── 236 · משימות אחרי אישור: עדכון הכרטיס / הוספת ישות / «עודכן בתיק» / יישור קו ──
@@ -802,14 +822,33 @@ function groupByArea(list: ItemStatus[]): [AreaId, ItemStatus[]][] {
   return AREAS.map(a => a.id).filter(id => m.has(id)).map(id => [id, m.get(id)!]);
 }
 
-function Details({ client, statuses, evidence, purpose, legacy, facts, busy, onMark }: { client: Client; statuses: ItemStatus[]; evidence: Evidence[]; purpose: Purpose; legacy: boolean;
-  facts: api.YearData['facts']; busy: boolean; onMark: (key: string, yes: boolean) => Promise<boolean> }) {
+function Details({ client, statuses, evidence, purpose, legacy, facts, busy, onMark, tree }: { client: Client; statuses: ItemStatus[]; evidence: Evidence[]; purpose: Purpose; legacy: boolean;
+  facts: api.YearData['facts']; busy: boolean; onMark: (key: string, yes: boolean) => Promise<boolean>;
+  /** 16.10.2026 · בשורת הבקשה: עץ אחד לפי תחום (נענה / חסר / מסמך הגיע / לבדיקת משרד) במקום «מה ידוע» + «מה חסר». */
+  tree?: boolean }) {
   const known = statuses.filter(s => s.state === 'known' || s.state === 'partial');
   const missing = statuses.filter(s => !['known', 'partial', 'notApplicable'].includes(s.state));
   const special = ITEMS.filter(i => i.area === 'special' && i.rare);
   const blocked = statuses.filter(s => s.item.calcBlockedBy && s.state !== 'notApplicable');
+  const qt = tree ? buildQuestionTree(statuses) : null;
   return (
     <div>
+      {qt && (
+        <div className="ty-tree" data-q-tree>
+          <p className="ty-tree-sum">{countsLine(qt.totals) || 'אין פריטים פתוחים'}{qt.notApplicable ? ` · ${qt.notApplicable} לא חלים` : ''}</p>
+          {qt.areas.map(a => (
+            <details key={a.area} className="ty-details" open={a.needsOffice} data-q-area={a.area}>
+              <summary><b>{AREA_BY_ID[a.area].title}</b><span>{countsLine(a.counts)}</span></summary>
+              <div className="ty-details-body"><div className="ty-rows">{a.items.map(({ status: s, mark }, i) => (
+                <div key={i} className="ty-row" data-q-mark={mark}><div className="ty-main"><b>{s.item.label}{target(s, client) ? ` · ${target(s, client)}` : ''}</b>
+                  <small>{mark === 'answered' ? (s.facts.filter(f => f.status === 'accepted').map(f => describeValue(f)).join(' · ') || s.detail) : `${who(s)} · ${s.detail}`}</small></div>
+                  <div className="ty-side">{mark === 'answered' && <span className={`ty-chip ${provenanceOf(s, client).tone}`} title="מקור המידע">{provenanceOf(s, client).label}</span>}
+                    <span className={`ty-chip ${TREE_MARK[mark].tone}`}>{TREE_MARK[mark].label}</span></div></div>))}</div></div>
+            </details>
+          ))}
+        </div>
+      )}
+      {!qt && <>
       <details className="ty-details">
         <summary><b>מה ידוע</b><span>{known.length} פריטים</span></summary>
         <div className="ty-details-body">{groupByArea(known).map(([area, list]) => (
@@ -829,6 +868,7 @@ function Details({ client, statuses, evidence, purpose, legacy, facts, busy, onM
               <div className="ty-side"><span className={`ty-chip ${STATE_CHIP[s.state].tone}`}>{STATE_CHIP[s.state].label}</span></div></div>))}</div></div>))}
         </div>
       </details>
+      </>}
       <details className="ty-details">
         <summary><b>מסמכים</b><span>{evidence.length} התקבלו</span></summary>
         <div className="ty-details-body"><div className="ty-rows">{evidence.map(e => (

@@ -1,0 +1,6 @@
+/* 16.10.2026 · שנת האירוע ליד המצב המשפחתי בתיק המס — הרכיב המשותף FamilyStatusYearField בתוך תא-ערך.
+   התווית כבר בעמודת המפתח, ולכן התווית הפנימית של הרכיב מוסתרת. */
+.txf-fsy .txf-fsy-in > label { display: none; }
+.txf-fsy .txf-fsy-in input { max-width: 120px; }
+.txf-fsy .txf-fsy-in small { display: block; margin-top: 3px; font-size: 11px; line-height: 1.45; }
+[data-family-year-unknown] .ui-linkbtn { font-size: 12px; color: var(--accent); background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }

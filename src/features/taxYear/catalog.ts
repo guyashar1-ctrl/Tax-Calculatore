@@ -88,7 +88,8 @@ export interface InfoItem {
   /** מפתחות בכרטיס שמהם ידוע משהו מראש (מתמשך — לאישור, לא לשאלה). */
   cardKeys?: string[];
   /** בקרת כיסוי: חלקי 1301 ופריטי נספח (`annex-info-2025.json`). */
-  covers?: { parts?: string[]; annexItems?: string[] };
+  /** ‼ 16.10.2026 · fields — קודי שדה ב-1301 (רשום / בן זוג), כשהפריט מזין שדה מוגדר; למפת הטופס. */
+  covers?: { parts?: string[]; annexItems?: string[]; fields?: string[] };
   /** אילו בסיסים נחשבים «ידוע» לכל תכלית. */
   knownBasis?: Partial<Record<Purpose, ('actual' | 'actual_to_date' | 'forecast' | 'final' | 'declared' | 'derived')[]>>;
   /** חישוב שתלוי בפריט וחסום בפער פתוח — האיסוף נמשך. */
@@ -120,6 +121,12 @@ export interface InfoItem {
   officeNext?: string;
   /** נשאל רק לזוג נשוי (למשל: של מי מבני הזוג המקור בחו״ל). */
   onlyMarried?: boolean;
+  /**
+   * ‼ 16.10.2026 · שנת האירוע של המצב המשפחתי (נישואין / גירושין / פטירה): נשאל רק כשהמצב (תשובת הלקוח בקליטה,
+   * אחרת הכרטיס) הוא זה — ובכרטיס אין שנה. כשיש שנה — היא מאושרת בתוך «המצב המשפחתי». אחרי אישור המשרד ⇒ «עדכן בתיק»
+   * (השדה מ-FAMILY_STATUS_YEAR_KEY, utils/familyStatusYear.ts).
+   */
+  familyYearFor?: 'married' | 'divorced' | 'widowed';
 }
 
 const BOTH: Purpose[] = ['estimate', 'annual'];
@@ -166,7 +173,7 @@ export const ITEMS: InfoItem[] = [
     question: 'מקומות העבודה', why: 'מכל מעסיק נבקש אישור שנתי משלו', input: 'confirm', cardKeys: ['employers'], covers: { parts: ['ג', 'ב'] } },
   { key: 'salary.spouseIncomeEstimate', area: 'salary', label: 'אומדן הכנסת בן/בת הזוג (מהכרטיס)', kind: 'amount', per: 'person', who: 'office', purposes: BOTH, knownBasis: AMOUNT_KNOWN, rare: true },
   { key: 'salary.form106', area: 'salary', label: 'טופס 106', kind: 'document', per: 'employer', who: 'client', purposes: ['annual'], after: 'salary.worked',
-    question: 'טופס 106 מ{entity}', why: 'האישור השנתי מהמעסיק — ממנו נלקחים המשכורת, המס שנוכה וההפקדות', input: 'file', docKind: 'form106', knownBasis: DOC_KNOWN, covers: { parts: ['ג', 'יב', 'יד', 'טו'], annexItems: ['134.pensionDeposits', '134.studyFundDeposits', '134.severanceDeposits'] } },
+    question: 'האישור השנתי על המשכורת מ{entity}', why: 'נקרא «טופס 106» — המעסיק נותן אותו אחרי סוף השנה. ממנו נלקחים המשכורת, המס שנוכה וההפקדות', input: 'file', docKind: 'form106', knownBasis: DOC_KNOWN, covers: { parts: ['ג', 'יב', 'יד', 'טו'], annexItems: ['134.pensionDeposits', '134.studyFundDeposits', '134.severanceDeposits'] } },
   { key: 'salary.employerDetails', area: 'salary', label: 'מעסיק חדש: שם ותקופת העבודה', kind: 'detail', per: 'employer', who: 'client', purposes: BOTH, after: 'salary.worked', onlyNew: true,
     question: 'פרטי מקום העבודה: שם המעסיק, ממתי ועד מתי עבדת שם השנה', why: 'כך נוסיף את המעסיק לתיק ונבקש ממנו את האישור השנתי', input: 'text',
     officeNext: '«הוסף לתיק» — המעסיק נכנס לכרטיס עם אותו מזהה, והמסמך שהועלה נשאר משויך אליו' },
@@ -201,7 +208,7 @@ export const ITEMS: InfoItem[] = [
     question: 'האם העסקת עובדים ב{entity} השנה (כולל בני משפחה)?', why: 'בדוח העסק מפרטים את מספר העובדים ואת הוצאות השכר', input: 'yesno',
     covers: { annexItems: ['1320.payroll'] } },
   { key: 'business.payrollReport', area: 'business', label: 'דוח שכר שנתי (טופס 126)', kind: 'document', per: 'business', who: 'client', purposes: ['annual'], after: 'business.employees',
-    question: 'הדוח השנתי על השכר ב{entity} (טופס 126) — מי שמכין את המשכורות יכול להפיק אותו', why: 'ממנו נלקחים מספר העובדים, השכר וההוצאות הנלוות', input: 'file', docKind: 'payrollReport', knownBasis: DOC_KNOWN,
+    question: 'הדוח השנתי על השכר ב{entity} — מי שמכין את המשכורות יכול להפיק אותו', why: 'נקרא «טופס 126». ממנו נלקחים מספר העובדים, השכר וההוצאות הנלוות', input: 'file', docKind: 'payrollReport', knownBasis: DOC_KNOWN,
     covers: { annexItems: ['1320.payroll'] } },
   { key: 'business.badDebts', area: 'business', label: 'חוב של לקוח שלא ייגבה', kind: 'screener', per: 'business', who: 'client', purposes: ['annual'], after: 'business.active',
     question: 'האם יש לקוח של {entity} שחייב לך כסף, ואין סיכוי לגבות אותו?', why: 'חוב שלא ייגבה יכול להיות מוכר כהוצאה — רק עם אסמכתאות', input: 'yesno',
@@ -249,9 +256,10 @@ export const ITEMS: InfoItem[] = [
   { key: 'business.microCoordination', area: 'business', label: 'עסק זעיר: אישור תיאום מס לשנה', kind: 'document', per: 'person', who: 'client', purposes: BOTH, after: 'business.microRegistration', rare: true,
     question: 'אישור תיאום המס לשנה הזו (מהאזור האישי)', why: 'בלי תיאום במהלך השנה אין דיווח מקוצר — רק דוח שנתי מלא', input: 'file', docKind: 'taxCoordination', knownBasis: DOC_KNOWN },
   { key: 'business.forecast', area: 'business', label: 'צפי לשאר השנה', kind: 'amount', per: 'business', who: 'client', purposes: ['estimate'], after: 'business.active',
-    question: 'מה צפוי ב{entity} עד סוף השנה — יותר, פחות או כמו עד עכשיו?', why: 'ההערכה משלבת את מה שכבר קרה עם מה שצפוי', input: 'text', knownBasis: { estimate: ['forecast'] } },
+    question: 'מה צפוי ב{entity} עד סוף השנה, לעומת מה שהיה עד עכשיו?', why: 'ההערכה משלבת את מה שכבר קרה עם מה שצפוי', input: 'choice',
+    options: [{ value: 'more', label: 'יותר הכנסות' }, { value: 'same', label: 'בערך אותו דבר' }, { value: 'less', label: 'פחות הכנסות' }], knownBasis: { estimate: ['forecast'] } },
   { key: 'business.oneOffs', area: 'business', label: 'הכנסות או הוצאות חד־פעמיות', kind: 'amount', per: 'business', who: 'client', purposes: ['estimate'], after: 'business.active',
-    question: 'היו השנה ב{entity} הכנסה או הוצאה גדולה שלא תחזור?', why: 'אירוע חד־פעמי לא מוכפל בקצב שנתי', input: 'text', knownBasis: { estimate: ['actual', 'forecast'] } },
+    question: 'האם היו השנה ב{entity} הכנסה או הוצאה גדולה שלא תחזור? אם כן — מה וכמה', why: 'אירוע חד־פעמי לא מוכפל בקצב שנתי', input: 'yesno', knownBasis: { estimate: ['actual', 'forecast'] } },
 
   // ── ביטוח לאומי ──
   { key: 'niBenefits.received', area: 'niBenefits', label: 'דמי לידה, מילואים, אבטלה או פגיעה בעבודה', kind: 'screener', per: 'person', who: 'client', purposes: BOTH,
@@ -259,6 +267,30 @@ export const ITEMS: InfoItem[] = [
     question: 'האם {name} קיבל/ה השנה דמי לידה, תגמולי מילואים, דמי אבטלה או דמי פגיעה בעבודה?', why: 'כספים מביטוח לאומי חייבים במס כמו משכורת', input: 'yesno', covers: { parts: ['ג'] } },
   { key: 'niBenefits.cert', area: 'niBenefits', label: 'אישור שנתי מביטוח לאומי', kind: 'document', per: 'person', who: 'client', purposes: BOTH, after: 'niBenefits.received',
     question: 'האישור השנתי מביטוח לאומי', why: 'באישור מופיעים הסכום והמס שנוכה', input: 'file', docKind: 'niAnnualCert', knownBasis: DOC_KNOWN, covers: { parts: ['ג', 'טו'] } },
+  // ── דמי לידה (16.10.2026) — המקור: docs/tax-foundation/research/ni-benefits-withholding-2026-10-16.md (R04, C21/C24)
+  //    ו-spreading-deferral-continuity-2026-10-16.md §3. שכירה/עצמאית — ידוע מהכרטיס, לא נשאל שוב.
+  //    ‼ 105 ימים אינם קבועים (חלקי 56, הארכות, העברה לבן הזוג) — לכן שני תאריכים, מההודעה של ב״ל.
+  //    ‼ הסכום: עצמאית ⇐ 250/270; שכירה שלא דרך המעסיק ⇐ 194/196; אם נכלל ב-106 ⇐ 158/172 (המשרד מכריע).
+  //    ‼ המס שנוכה ⇐ 040 — פרשנות במחקר; הפרשים ששולמו מאוחר — פתוח (לא מפוצלים לבד).
+  { key: 'niBenefits.maternity', area: 'niBenefits', label: 'דמי לידה', kind: 'screener', per: 'person', who: 'client', purposes: BOTH, after: 'niBenefits.received',
+    question: 'האם מתוך זה {name} קיבל/ה דמי לידה?', coupleQuestion: 'האם מישהו מכם קיבל דמי לידה מביטוח לאומי?',
+    why: 'כשדמי הלידה שולמו על ימים בשתי שנים, אפשר לחלק אותם בין השנים — ולפעמים זה מקטין את המס', input: 'yesno',
+    covers: { parts: ['ג'], fields: ['250', '270', '194', '196'] },
+    officeNext: 'לפי המעמד בכרטיס: עצמאית ⇐ 250/270; שכירה שלא דרך המעסיק ⇐ 194/196; אם שולם דרך המעסיק ונכלל ב-106 ⇐ 158/172' },
+  { key: 'niBenefits.maternityPeriod', area: 'niBenefits', label: 'דמי לידה: תקופת הזכאות', kind: 'detail', per: 'person', who: 'client', purposes: BOTH, after: 'niBenefits.maternity',
+    question: 'מאיזה תאריך ועד איזה תאריך שולמו דמי הלידה?', why: 'לפי התאריכים יודעים אם התקופה עברה משנה לשנה', input: 'record',
+    covers: { parts: ['ג'] }, officeNext: 'תקופה שחוצה את 31.12 — הצעת חלוקה בין השנים (פריט המשרד «פריסה בין שנות המס»)' },
+  { key: 'niBenefits.maternityAmounts', area: 'niBenefits', label: 'דמי לידה: סכום ומס שנוכה', kind: 'amount', per: 'person', who: 'client', purposes: ['annual'], after: 'niBenefits.maternity',
+    question: 'לפי האישור השנתי מביטוח לאומי — כמה דמי לידה שולמו, וכמה מס נוכה מהם?', why: 'הסכום והמס נכנסים לדוח, ובחלוקה בין שנים — שניהם מתחלקים', input: 'record',
+    knownBasis: AMOUNT_KNOWN, covers: { parts: ['ג', 'טו'], fields: ['250', '270', '194', '196'] } },
+  { key: 'niBenefits.maternityNotice', area: 'niBenefits', label: 'הודעת ב״ל על חישוב דמי הלידה', kind: 'document', per: 'person', who: 'client', purposes: ['annual'], after: 'niBenefits.maternity',
+    question: 'ההודעה מביטוח לאומי על חישוב דמי הלידה — זו שכתובים בה התאריכים «מ… עד…»', why: 'ממנה לוקחים את מספר הימים בכל שנה', input: 'file', docKind: 'niMaternityNotice',
+    covers: { parts: ['ג'] } },
+  // ‼ פריט המשרד — מופיע רק כשתקופת הזכאות חוצה את 31.12 (picture.ts). הצעת חלוקה יחסית לפי ימים (maternity.ts).
+  //   C26: אין עדיין מנגנון רב-שנתי — ההחלטה נשמרת לשנה הזו ולשנה השנייה, ושם היא מסומנת «לבדיקה».
+  { key: 'niBenefits.maternitySpread', area: 'niBenefits', label: 'דמי לידה: פריסה בין שנות המס', kind: 'detail', per: 'person', who: 'office', purposes: BOTH,
+    covers: { parts: ['ג', 'טו'] },
+    officeNext: 'לבקשת הלקוחה: ההכנסה והמס שנוכה — לפי ימי הזכאות בכל שנה (חוזר 2/2022 §7). קדימה: בדוח של שנת הקבלה מסמנים «מבקש/ת פריסת דמי לידה לשנה הבאה» (רצף 159) ומצרפים 116ג; אחורה — 116ג ודוח/תיקון לשנה הקודמת. חובה להגיש דוח לשתי השנים' },
 
   // ── שכר דירה ──
   { key: 'rent.properties', area: 'rent', label: 'נכסים מושכרים', kind: 'confirm', per: 'couple', who: 'client', purposes: BOTH,
@@ -266,7 +298,7 @@ export const ITEMS: InfoItem[] = [
   { key: 'rent.income', area: 'rent', label: 'שכר דירה שהתקבל', kind: 'amount', per: 'property', who: 'client', purposes: BOTH, after: 'rent.properties',
     question: 'כמה שכר דירה התקבל השנה על {entity}?', why: 'הסכום קובע אם יש פטור ובאיזה מסלול', input: 'amount', knownBasis: AMOUNT_KNOWN, covers: { parts: ['ד', 'ה', 'י'], annexItems: ['1321.houseRentIncome', '1321.rent10Income'] } },
   { key: 'rent.incomeTotal', area: 'rent', label: 'שכר דירה — סכום כולל בלי פירוט לנכס (מהכרטיס)', kind: 'amount', per: 'couple', who: 'office', purposes: BOTH, knownBasis: AMOUNT_KNOWN, rare: true },
-  { key: 'rent.expenses', area: 'rent', label: 'הוצאות השכרה', kind: 'amount', per: 'couple', who: 'client', purposes: BOTH, after: 'rent.properties', question: 'היו השנה הוצאות על הנכסים המושכרים (תיקונים, ריבית משכנתה, פחת)?', why: 'במסלול הרגיל ההוצאות מקטינות את ההכנסה החייבת', input: 'yesno', knownBasis: AMOUNT_KNOWN, covers: { annexItems: ['1321.houseExpenses'] } },
+  { key: 'rent.expenses', area: 'rent', label: 'הוצאות השכרה', kind: 'amount', per: 'couple', who: 'client', purposes: BOTH, after: 'rent.properties', question: 'היו השנה הוצאות על הנכסים המושכרים (תיקונים, ריבית על המשכנתה, ועד בית, ביטוח)?', why: 'במסלול הרגיל ההוצאות מקטינות את ההכנסה החייבת', input: 'yesno', knownBasis: AMOUNT_KNOWN, covers: { annexItems: ['1321.houseExpenses'] } },
   { key: 'rent.contract', area: 'rent', label: 'חוזה שכירות', kind: 'document', per: 'property', who: 'client', purposes: ['annual'], after: 'rent.properties',
     question: 'חוזה השכירות של {entity}', why: 'החוזה מראה את התקופה ואת הסכום', input: 'file', docKind: 'rentalContract', knownBasis: DOC_KNOWN, covers: { annexItems: ['1321.houseRentIncome'] } },
   { key: 'rent.track', area: 'rent', label: 'מסלול מיסוי לנכס', kind: 'detail', per: 'property', who: 'office', purposes: BOTH, after: 'rent.properties', covers: { parts: ['ה', 'י'] } },
@@ -312,7 +344,7 @@ export const ITEMS: InfoItem[] = [
   { key: 'capital.accounts', area: 'capital', label: 'חשבונות השקעות ופיקדונות', kind: 'confirm', per: 'couple', who: 'client', purposes: BOTH,
     question: 'חשבונות ההשקעות', why: 'מכל בנק ובית השקעות מגיע אישור שנתי על רווחים ומס שנוכה', input: 'confirm', cardKeys: ['investmentAccounts', 'bankAccounts'], covers: { parts: ['ה', 'ח'] } },
   { key: 'capital.form867', area: 'capital', label: 'טופס 867', kind: 'document', per: 'account', who: 'client', purposes: ['annual'], after: 'capital.accounts',
-    question: 'האישור השנתי (טופס 867) מ{entity}', why: 'ממנו נלקחים הרווחים, הריבית והמס שנוכה', input: 'file', docKind: 'form867', knownBasis: DOC_KNOWN, covers: { parts: ['ה', 'ח', 'טו'], annexItems: ['1322.accounts867'] } },
+    question: 'האישור השנתי על הרווחים והמס מ{entity}', why: 'נקרא «טופס 867» — הבנק או בית ההשקעות שולחים אותו בתחילת השנה. ממנו נלקחים הרווחים, הריבית והמס שנוכה', input: 'file', docKind: 'form867', knownBasis: DOC_KNOWN, covers: { parts: ['ה', 'ח', 'טו'], annexItems: ['1322.accounts867'] } },
   { key: 'capital.amounts', area: 'capital', label: 'סכומים מ-867: רווח לפי שיעור, מחזור מכירות, דיבידנד וריבית לפי שיעור, מס שנוכה', kind: 'amount', per: 'account', who: 'office', purposes: BOTH, after: 'capital.accounts', knownBasis: AMOUNT_KNOWN,
     covers: { parts: ['ה', 'ח', 'טו'], annexItems: ['1322.gainByRate', '1322.salesTurnover', '1322.interestDividendIncome'] },
     officeNext: 'מטופס 867 של כל חשבון: הרווח והריבית/דיבידנד לפי שיעור, ומחזור המכירות (קוד 56 ⇐ שדה 256)' },
@@ -322,7 +354,7 @@ export const ITEMS: InfoItem[] = [
     options: [{ value: 'client', label: 'שלי' }, { value: 'spouse', label: 'של בן/בת הזוג' }, { value: 'joint', label: 'משותף לשנינו' }],
     covers: { annexItems: ['1322.formSplit'] }, officeNext: 'ניכוי במקור — מה-867; חשבון משנה שלפני נישואין או מירושה — לברר עם הלקוח' },
   { key: 'capital.relatedParty', area: 'capital', label: 'ני״ע מצד קשור או יחידות בקרן ריט', kind: 'screener', per: 'person', who: 'client', purposes: ['annual'], after: 'capital.accounts', rare: true,
-    question: 'האם {name} קנה/תה או מכר/ה השנה ניירות ערך מקרוב משפחה או מחברה קשורה, או מחזיק/ה יחידות בקרן נדל״ן (ריט)?', why: 'עסקה עם צד קשור ורווח מקרן נדל״ן מדווחים אחרת בנספח רווח ההון', input: 'yesno',
+    question: 'האם {name} קנה/תה או מכר/ה השנה ניירות ערך מקרוב משפחה או מחברה קשורה, או מחזיק/ה יחידות בקרן שמשקיעה בנדל״ן להשכרה (קרן ריט)?', why: 'עסקה עם צד קשור ורווח מקרן נדל״ן מדווחים אחרת בנספח רווח ההון', input: 'yesno',
     covers: { annexItems: ['1322.relatedParty'] }, officeNext: 'מכירה לקרוב — לא ב-1322 (1399י/1399ח); ריט — בשורה נפרדת ב-1322' },
   { key: 'capital.totals', area: 'capital', label: 'רווחי הון, דיבידנד וריבית — סכום כולל בלי פירוט לחשבון (מהכרטיס)', kind: 'amount', per: 'couple', who: 'office', purposes: BOTH, knownBasis: AMOUNT_KNOWN, rare: true },
   { key: 'capital.estimate', area: 'capital', label: 'אומדן רווחים בשנה', kind: 'amount', per: 'account', who: 'client', purposes: ['estimate'], after: 'capital.accounts',
@@ -380,8 +412,8 @@ export const ITEMS: InfoItem[] = [
     input: 'file', docKind: 'foreignTradeReport', knownBasis: DOC_KNOWN, covers: { annexItems: ['1324.otherRegular'] },
     officeNext: 'שורה לכל מנה ב-1325 (המרה לשקלים לפי ימי הקנייה והמכירה), ומשם ל-1322 כ«נכס בחו״ל»; תמורת המכירות לקוד 256. לבדוק שהסיכום תואם לרווח הממומש בדוח הברוקר. אם יש רק סיכום — לבקש שוב, לא להזין נטו' },
   { key: 'foreign.taxCert', area: 'foreign', label: 'אישור על מס שנוכה בחו״ל', kind: 'document', per: 'foreign_source', who: 'client', purposes: ['annual'], after: 'foreign.income',
-    question: 'אישור על המס שנוכה בחו״ל מ{entity} (למשל טופס 1042-S מ-Interactive Brokers, או אישור שנתי מהבנק הזר)',
-    why: 'זיכוי על מס ששולם בחו״ל ניתן רק לפי אישור, לכל מדינה בנפרד', input: 'file', docKind: 'foreignTaxCert', knownBasis: DOC_KNOWN, covers: { annexItems: ['1324.foreignTaxPaid'] },
+    question: 'אישור על המס שנוכה בחו״ל מ{entity}',
+    why: 'למשל טופס 1042-S מ-Interactive Brokers, או אישור שנתי מהבנק הזר. זיכוי על מס ששולם בחו״ל ניתן רק לפי אישור, לכל מדינה בנפרד', input: 'file', docKind: 'foreignTaxCert', knownBasis: DOC_KNOWN, covers: { annexItems: ['1324.foreignTaxPaid'] },
     officeNext: 'מס זר לפי מדינה ב-1324; לבדוק שהמס סופי (לא קנס, לא ריבית) ושלא הוחזר' },
   { key: 'foreign.amounts', area: 'foreign', label: 'סכומים מהדוחות בחו״ל: דיבידנד ברוטו, ריבית, מס זר, תמורה ועלות', kind: 'amount', per: 'foreign_source', who: 'office', purposes: ['annual'], after: 'foreign.income',
     knownBasis: AMOUNT_KNOWN, covers: { parts: ['ח', 'ט'], annexItems: ['1324.otherRegular', '1324.foreignTaxPaid', '1324.specialRates'] },
@@ -464,7 +496,7 @@ export const ITEMS: InfoItem[] = [
   { key: 'special.gambling', area: 'special', label: 'זכיות והימורים', kind: 'amount', per: 'person', who: 'office', purposes: BOTH, rare: true, knownBasis: AMOUNT_KNOWN, covers: { parts: ['ה'] } },
   { key: 'special.reserveCombatDays', area: 'special', label: 'ימי מילואים קרביים בשנה הקודמת', kind: 'amount', per: 'person', who: 'office', purposes: BOTH, rare: true },
   { key: 'special.trust', area: 'special', label: 'נאמנות (יוצר או נהנה)', kind: 'screener', per: 'person', who: 'office', purposes: BOTH, rare: true, covers: { parts: ['א'] },
-    question: 'האם {name} יוצר/ת או נהנה/ית בנאמנות?', why: 'לנאמנות יש חובת דיווח מיוחדת', input: 'yesno' },
+    question: 'האם {name} העביר/ה נכסים לנאמנות, או מקבל/ת כסף או נכסים מנאמנות?', why: 'לנאמנות יש חובת דיווח מיוחדת', input: 'yesno' },
   { key: 'special.kibbutz', area: 'special', label: 'חבר/ת קיבוץ', kind: 'screener', per: 'person', who: 'office', purposes: BOTH, rare: true, cardKeys: ['isKibbutzMember'], covers: { parts: ['א'] } },
   { key: 'special.reportablePosition', area: 'special', label: 'פעולה או עמדה חייבת בדיווח (131(א)(5), 131ה)', kind: 'screener', per: 'couple', who: 'office', purposes: ['annual'], rare: true, covers: { parts: ['א'] } },
   { key: 'special.partnership', area: 'special', label: 'שותפות (כולל שותפות נפט)', kind: 'screener', per: 'person', who: 'office', purposes: BOTH, rare: true, covers: { parts: ['א'] },
@@ -488,7 +520,7 @@ for (const id of CHANGE_AREAS) {
   const area = AREAS.find(x => x.id === id)!;
   ITEMS.push({
     key: `${id}.changesSince`, area: id, label: `שינויים מאז החתך — ${area.title}`, kind: 'screener', per: 'couple', who: 'client', purposes: ['annual'],
-    question: `מאז {since}, השתנה משהו ב${area.clientTitle}?`, why: 'כבר יש לנו את המידע עד אז מההערכה; צריך רק את מה שקרה אחר כך', input: 'yesno',
+    question: `מאז {since}, השתנה משהו בנושא «${area.clientTitle}»?`, why: 'כבר יש לנו את המידע עד אז מההערכה; צריך רק את מה שקרה אחר כך', input: 'yesno',
   });
 }
 

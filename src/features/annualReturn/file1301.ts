@@ -10,6 +10,7 @@ import specJson from '../taxForms/data/file1301-2025.spec.json';
 import type { Client } from '../../types';
 import type { Person } from '../taxEstimate/types';
 import type { ReturnDraft, ReturnOutputs, ReturnField } from './types';
+import { asOfDate, clientForTaxYear } from '../../utils/familyStatusYear';
 
 interface FieldSpec { seq: number; start: number; length: number; type: string; name: string; notes?: string; person?: string | null }
 interface CodeSpec { code1301: string; length: number; type: string; person?: string | null; name: string; notes?: string }
@@ -67,7 +68,8 @@ const IN_HEADER = new Set(['F001', 'F002', 'F003', 'F004', 'F005', 'F007', 'F016
   'F006', 'F008', 'F009', 'F012', 'F013', 'F014', 'F015', 'F019', 'F020', 'F021', 'F022', 'F023', 'F025', 'F027', 'F034', 'F035', 'F036', 'F042', 'F043', 'F254', 'F255', 'F256']);
 
 export function buildFile1301(o: ReturnOutputs, ctx: { client: Client; draft: ReturnDraft; savedOn: string; software?: string }): File1301 {
-  const { client } = ctx;
+  // ‼ 16.10.2026: מצב משפחתי (שדה 57) וזוגיות — של שנת הדוח, לא של היום (utils/familyStatusYear.ts)
+  const client = clientForTaxYear(ctx.client, o.taxYear, asOfDate(ctx.draft.preparedOn));
   const issues: string[] = [], notInFile: string[] = [];
   const assumptions = [
     'קידוד העברית: Windows-1255, סדר לוגי — המפרט אינו מגדיר; לאמת מול שע״ם לפני שידור',

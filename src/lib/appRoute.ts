@@ -29,6 +29,11 @@ export interface AppRoute {
   clientId?: string;
   /** לשונית הפתיחה של כרטיס הלקוח */
   clientTab?: string;
+  /**
+   * 16.10.2026 · השורה שנפתחת בלשונית — ‎#/client/<id>/journey/<stepId>‎ («כל עבודה היא בקשה»: קישור לעבודה
+   * נוחת בשורת הבקשה שלה ב«בקשות», גם מ«מס › עבודות לקוחות»). ‼ רק עם לשונית.
+   */
+  clientFocus?: string;
   /** התצוגה המהירה במסך הלקוחות — ‎#/clients/p/{id}‎. בכתובת כדי ש"אחורה" יסגור אותה. */
   quickId?: string;
   requestId?: string;
@@ -91,6 +96,7 @@ export function formatRoute(route: AppRoute): string {
     case 'form':
       if (route.clientId) parts.push(route.clientId);
       if (route.clientId && route.clientTab) parts.push(route.clientTab);
+      if (route.clientId && route.clientTab && route.clientFocus) parts.push(route.clientFocus);
       break;
     case 'documents':
     case 'calculator':
@@ -140,7 +146,7 @@ export function parseHash(hash: string): AppRoute {
       return { view };
     case 'form':
       if (!rest[0]) return { view: 'list' };
-      return { view, clientId: rest[0], clientTab: rest[1] };
+      return rest[1] && rest[2] ? { view, clientId: rest[0], clientTab: rest[1], clientFocus: rest[2] } : { view, clientId: rest[0], clientTab: rest[1] };
     case 'documents':
     case 'calculator':
       if (!rest[0]) return { view: 'list' };

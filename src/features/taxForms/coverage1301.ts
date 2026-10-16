@@ -59,8 +59,8 @@ const IN = (keys: string[], note: string) => L('inFile', keys, note);
 
 /** קישורים מפורשים לפי מזהה בקטלוג (F###). כל השאר — לפי הכללים ב-classify. */
 const LINKS: Record<string, Link> = {
-  F001: P(['familyStatus', 'spouseClientId'], 'מצב משפחתי עדכני — לא לשנת המס'),
-  F002: P(['familyStatus'], 'מצב משפחתי עדכני — לא לשנת המס'),
+  F001: P(['familyStatus', 'marriageYear', 'divorceYear', 'widowhoodYear', 'spouseClientId'], 'המצב בשנת המס — נגזר מהמצב ומשנת האירוע בכרטיס (נישואין, גירושין, פטירה). שנה חסרה ⇒ «לא ידוע»; שנת האירוע עצמה ⇒ לבדיקה; בשנת הנישואין — לפי הצהרת בני הזוג (5329)'),
+  F002: P(['familyStatus', 'marriageYear', 'divorceYear', 'widowhoodYear'], 'המצב בשנת המס — נגזר מהמצב ומשנת האירוע בכרטיס (נישואין, גירושין, פטירה). שנה חסרה ⇒ «לא ידוע»; שנת האירוע עצמה ⇒ לבדיקה'),
   F005: P(['spouseWorking', 'spouseIncome'], 'מצב עדכני של בן/בת הזוג'),
   F010: P(['businesses', 'incomeTaxFileType'], 'אין בכרטיס בחירה במסלול עסק זעיר; המעמד במע״מ אינו מעיד על המסלול. 87ד(ג) — אין נתיב מקוון ידוע; טיפול ידני (פתוח)'),
   F011: P(['businesses', 'incomeTaxFileType'], 'אין בכרטיס בחירה במסלול עסק זעיר; המעמד במע״מ אינו מעיד על המסלול'),
@@ -87,7 +87,7 @@ const LINKS: Record<string, Link> = {
   F061: IN(['birthDate'], ''),
   F062: IN(['spouseIdNumber'], ''), F063: IN(['spouseLastName'], ''), F064: IN(['spouseFirstName'], ''),
   F066: P(['spouseBirthYear'], 'שנת לידה בלבד — הטופס דורש תאריך'),
-  F067: P(['familyStatus', 'marriageYear', 'divorceYear', 'widowhoodYear'], 'מצב עדכני + שנים — לאמת מצב בשנת המס'),
+  F067: P(['familyStatus', 'marriageYear', 'divorceYear', 'widowhoodYear'], 'המצב בשנת המס — נגזר מהמצב ומשנת האירוע בכרטיס (נישואין, גירושין, פטירה). שנה חסרה ⇒ «לא ידוע»; שנת האירוע עצמה ⇒ לבדיקה'),
   F069: P(['address', 'city', 'zipCode'], 'כתובת עדכנית'),
   F072: IN(['email'], ''), F073: IN(['landlinePhone'], ''), F076: IN(['phone'], ''),
   F079: P(['businessDescription'], 'תיאור עסק — לא בהכרח «עיסוק עיקרי»'),

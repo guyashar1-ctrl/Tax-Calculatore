@@ -9,11 +9,14 @@
 // הושמט במכוון: חישוב אמין דורש הוצאות/פחת/מדרגת מס שוליים שאינם עובדות
 // מקובלות על הלקוח — המלצה מחושבת מתוך ברירות מחדל הייתה מטעה.
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import SmartFilingsNote from '../../features/smartForms/SmartFilingsNote';
 import { supabase } from '../../lib/supabase';
 import type { Client, RentalTaxTrack, TaxAuthority, NiTracking } from '../../types';
-import { FAMILY_STATUS_LABELS } from '../../types';
+import { FAMILY_STATUS_LABELS, FAMILY_STATUS_YEAR_LABELS } from '../../types';
+import { FAMILY_STATUS_YEAR_KEY, familyStatusDisplay, familyStatusEventYear, familyStatusYearProblem } from '../../utils/familyStatusYear';
+import FamilyStatusYearField from '../FamilyStatusYearField';
+import './familyYear.css';
 import type { TaxFactChange } from '../../types/taxFacts';
 import { TAX_FACT_SOURCE_LABELS } from '../../types/taxFacts';
 import { useTaxFacts } from '../../hooks/useTaxFacts';
@@ -88,7 +91,7 @@ interface Props {
   /** מתי בוצע יישור הקו האחרון (payload.checkedAt של שלבי המוסדות). */
   alignedAt?: string;
   /** שלבי הבקשות — לזיהוי דגלים שכבר טופלו ולמצב נתוני ההנהלה. */
-  steps?: { stepType: string; status: string; payload?: Record<string, unknown> }[];
+  steps?: { id?: string; stepType: string; status: string; payload?: Record<string, unknown> }[];
   /** פותח משימה עם כותרת מוכנה, מתוך דגל. */
   onCreateTask?: (title: string) => void;
   /** פותח בקשה ללקוח מתוך דגל — כשהממצא דורש חומר שרק הלקוח יכול לתת. */
@@ -118,6 +121,11 @@ interface Props {
   onFocusConsumed?: () => void;
   /** השרת פתח בקשות (שחרור הבקשות שחיכו לסוג העוסק) — לרענן את «בקשות». */
   onRequestsChanged?: () => void;
+  /**
+   * 16.10.2026 · «כל עבודה היא בקשה»: «השלם עם הלקוח» ו«דוחות והצהרות» נוחתים בשורת הבקשה
+   * ב«בקשות» (שם העבודה נפתחת בתוך השורה), לא במסך תהליך שלישי.
+   */
+  onOpenRequest?: (stepId: string) => void;
 }
 
 const RENTAL_TRACK_LABELS: Record<RentalTaxTrack, string> = {
@@ -152,7 +160,7 @@ function buildSentence(client: Client): string {
     : client.incomeTaxType === 'rentalOnly' ? 'הכנסות משכירות'
     : 'הכנסות פסיביות';
 
-  const familyPart = FAMILY_STATUS_LABELS[client.familyStatus]
+  const familyPart = familyStatusDisplay(client)
     + ((client.children ?? []).length > 0 ? ` + ${client.children.length}` : '');
 
   const sources: string[] = [];
@@ -242,6 +250,12 @@ function businessFields(): EditField[] {
 }
 
 const SPOUSE_NAME_KEYS = new Set(['spouseFirstName', 'spouseLastName']);
+const FAMILY_YEAR_KEYS = ['marriageYear', 'divorceYear', 'widowhoodYear'] as const;
+type FamilyYearKey = typeof FAMILY_YEAR_KEYS[number];
+const FAMILY_YEAR_LABEL: Record<FamilyYearKey, string> = { marriageYear: 'שנת הנישואין', divorceYear: 'שנת הגירושין', widowhoodYear: 'שנת הפטירה' };
+/** טיוטת שנות האירוע לעריכה — שלושתן, כדי ששינוי המצב בעריכה יציג מיד את השנה של המצב החדש. */
+const familyYearDrafts = (c: Client): Record<string, string> =>
+  Object.fromEntries(FAMILY_YEAR_KEYS.map(k => [k, c[k] != null ? String(c[k]) : '']));
 
 /**
  * «משפחה ובן/בת זוג» — העובדות המנוהלות, ועוד שם פרטי ושם משפחה של בן/בת הזוג (במסלול
@@ -256,14 +270,16 @@ function familyFields(client: Client): EditField[] {
 
 
 import TaxYearsSection from '../../features/taxYear/TaxYearsSection';
+import { ClientObligationRows } from '../../features/shaamFiling';
 import ReconcilePanel from '../../features/taxFile/ReconcilePanel';
+import { ensureTaxFileIntake } from '../../features/taxYear/api';
 
 export default function TaxFileTab({
   client, spouseClient, onCreateSpouseClient, onOpenSpouseClient,
   onClientPersisted, onOpenKnowledge, onOpenDetails,
   onRunAlignment, alignBusy, onOpenDetailedAlignment, alignedAt, steps, onCreateTask, onCreateRequest, creatingRequestKey,
   onOpenRepresentation, onAddNiTarget, onOpenRequestStep, onUpdateClientFields, onNiInstructionsSent, niExecution,
-  focusField, onFocusConsumed, onRequestsChanged,
+  focusField, onFocusConsumed, onRequestsChanged, onOpenRequest,
 }: Props) {
   const { pending, refresh, acceptFact, rejectFact, recordManualEdit } = useTaxFacts(client.id || undefined);
   const [openRows, setOpenRows] = useState<Set<string>>(new Set());
@@ -445,6 +461,31 @@ export default function TaxFileTab({
     setEditingSection(id);
   }
 
+  /** «רשום שנה» — רק שדה השנה של המצב הנוכחי, באותה שורה. */
+  function startFamilyYearEdit() {
+    startSectionEdit('family-year', []);
+    setSectionDrafts(familyYearDrafts(client));
+    setOpenRows(prev => new Set(prev).add('family'));
+  }
+
+  /** שדה שנת האירוע בעריכה — הרכיב המשותף (components/FamilyStatusYearField), בתבנית תא-ערך של התיק. */
+  function familyYearKV(status: Client['familyStatus']) {
+    const key = FAMILY_STATUS_YEAR_KEY[status];
+    if (!key) return null;
+    const raw = sectionDrafts[key] ?? '';
+    return (
+      <div data-field={key}>
+        <div className="k">{FAMILY_STATUS_YEAR_LABELS[status]}</div>
+        <div className="v txf-inline-edit txf-fsy">
+          <FamilyStatusYearField status={status} className="txf-fsy-in"
+            value={raw.trim() === '' ? undefined : Number(raw)}
+            birthYear={client.birthDate ? Number(client.birthDate.slice(0, 4)) : undefined}
+            onChange={y => setSectionDrafts(d => ({ ...d, [key]: y == null ? '' : String(y) }))} />
+        </div>
+      </div>
+    );
+  }
+
   function cancelSectionEdit() {
     setEditingSection(null);
     setSectionDrafts({});
@@ -479,6 +520,23 @@ export default function TaxFileTab({
         return;
       }
       (plain as Record<string, unknown>)[def.key] = coerceEditField(def, raw);
+    }
+    // ‼ 16.10.2026 · שנת האירוע ליד המצב המשפחתי (נישואין / גירושין / פטירה) — לא עובדה מנוהלת ואין לה הגדרה
+    // ב-editModel; נשמרת במסלול הרגיל, רק כשהשתנתה. ריק ⇒ NULL (CLIENT_NULLABLE). המקור: utils/familyStatusYear.ts
+    for (const k of FAMILY_YEAR_KEYS) {
+      if (!(k in sectionDrafts)) continue;
+      const raw = sectionDrafts[k].trim();
+      const y = raw === '' ? undefined : Number(raw);
+      if ((client[k] ?? undefined) === y) continue;
+      const problem = y !== undefined && !Number.isFinite(y) ? 'שנה בארבע ספרות'
+        : familyStatusYearProblem(y, { birthYear: client.birthDate ? Number(client.birthDate.slice(0, 4)) : undefined });
+      // «לפני גיל 14 — לבדוק» היא אזהרה, לא חסימה
+      if (problem && !problem.startsWith('לפני גיל')) {
+        setSectionError(`${FAMILY_YEAR_LABEL[k]}: ${problem}`);
+        setSectionSaving(false);
+        return;
+      }
+      (plain as Record<string, unknown>)[k] = y;
     }
     // שם בן/בת הזוג: שני השדות, ו«שם בן/בת הזוג» כשרשור שלהם — שלא ייפרדו (110).
     plain = withSpouseFullName(plain, sectionDrafts);
@@ -610,6 +668,23 @@ export default function TaxFileTab({
   const [intakeResult, setIntakeResult] = useState<IntakeSyncResult | null>(null);
   /** 236 · «השלמת תיק המס» בראש התיק — פותח (או יוצר) את הקליטה בשנות המס למטה. */
   const [intakeSignal, setIntakeSignal] = useState(0);
+  /**
+   * 16.10.2026 · «השלם עם הלקוח»: ממשיך את בקשת הקליטה הפתוחה, או פותח אחת (אידמפוטנטי בשרת —
+   * ensure_tax_file_intake מחזיר את הקיימת), ונוחת בשורה שלה ב«בקשות».
+   */
+  const [intakeBusy, setIntakeBusy] = useState(false);
+  const [intakeErr, setIntakeErr] = useState<string | null>(null);
+  async function completeWithClient() {
+    if (!onOpenRequest) { setIntakeSignal(n => n + 1); return; }
+    const open = (steps ?? []).find(s => s.stepType === 'tax_file_intake' && !['completed', 'verified', 'skipped', 'cancelled', 'failed'].includes(s.status));
+    if (open?.id) { onOpenRequest(open.id); return; }
+    setIntakeBusy(true); setIntakeErr(null);
+    const r = await ensureTaxFileIntake(client.id).catch(e => ({ ok: false as const, error: (e as Error).message }));
+    setIntakeBusy(false);
+    if (!r.ok) { setIntakeErr(`הפתיחה נכשלה (${r.error})`); return; }
+    onRequestsChanged?.();
+    onOpenRequest(r.stepId);
+  }
   /** 05.10 · עבודה מהבית (220) — האחוז שהמשרד אישר, והאישור עצמו (אותו רכיב כמו בבקשה). */
   const homeOfficeLoad = useHomeOffice(client.id || undefined);
   const homeOfficeState = deriveHomeOffice(homeOfficeLoad.history);
@@ -968,188 +1043,21 @@ export default function TaxFileTab({
         flagCount={openFlags.length}
         unknown={readiness.personal.unknown}
         intakeOpen={(steps ?? []).some(s => s.stepType === 'tax_file_intake' && !['completed', 'verified', 'skipped', 'cancelled', 'failed'].includes(s.status))}
-        onPrepare={() => setIntakeSignal(n => n + 1)}
+        onPrepare={() => void completeWithClient()} prepareBusy={intakeBusy} prepareError={intakeErr}
         onRunAlignment={onRunAlignment} alignBusy={alignBusy}
-        onShowPending={() => document.querySelector('.txf-secthead, .txf-qchange')?.scrollIntoView({ block: 'start', behavior: 'smooth' })}
+        onOpenDetailed={onOpenDetailedAlignment ? () => onOpenDetailedAlignment() : undefined}
+        onShowPending={() => document.querySelector('[data-pending-anchor]')?.scrollIntoView({ block: 'start', behavior: 'smooth' })}
       />
-
-      {/* ═══ דורש טיפול ═══════════════════════════════════════════════════
-          ‼ רק חריגות אמיתיות, לא כל שדה חסר. פריט שכבר נוצרה לו בקשה נשאר
-          גלוי אבל אפור ובלי כפתור — «אל תשאל אותי שוב על מה שכבר בטיפול». */}
-      {alignedAt && (
-        openFlags.length > 0 || flags.some(f => f.requestExists) ? (
-          <>
-            <div className="txf-secthead">
-              דורש טיפול{openFlags.length > 0 ? ' · ' + actionableFlagCount(flags.filter(f => !f.requestExists)) : ''}
-            </div>
-            <div className="txf-sect">
-              {flags.filter(f => f.severity !== 'info' || f.requestExists).map(f => (
-                <div key={f.key} className={'txf-att' + (f.requestExists ? ' is-done' : f.severity === 'high' ? ' is-high' : ' is-med')}>
-                  <span className="txf-att-dot" aria-hidden="true" />
-                  <div className="txf-att-txt">
-                    <b>{f.title}</b>
-                    <span>{f.why}</span>
-                  </div>
-                  {/* ‼ שתי פעולות שונות, ולא אחת: ממצא שהטיפול בו הוא אצלנו
-                      נפתח כמשימה, וממצא שדורש חומר מהלקוח נפתח כבקשה בדף
-                      האישי. במוקאפ המאושר זו בדיוק ההבחנה בין «פתח משימה»
-                      ל«בקש מסמכים מהלקוח». */}
-                  {f.requestExists
-                    ? <span className="txf-att-stamp">בטיפול</span>
-                    /* ‼ דגל ייצוג ב"ל של בן/בת הזוג — לא task/request כלליים.
-                        'add' מוסיף target + טיוטת taxFiles על הכרטיס (בלי
-                        בקשה שנייה); 'continue' מנווט למרכז הייצוג הקיים. */
-                    : f.niAction
-                      ? (f.niAction.kind === 'enter_btl' || f.niAction.kind === 'check_btl')
-                        /* ‼ הדגל הזה הוא תמיד של בן/בת הזוג (ראה authorityFlags) —
-                            ולכן role='spouse' מפורש, לא "האדם השני ברשימה". */
-                        ? <NiNextActionButton client={client} spouseClient={spouseClient} role="spouse"
-                            action={f.niAction} track={niTrackOf('spouse')} onChanged={onNiInstructionsSent}
-                            className="ui-btn ui-btn-sm" />
-                        : <>
-                          <button type="button" className="ui-btn ui-btn-sm"
-                            disabled={f.niAction.kind === 'add' && niAddBusy !== null}
-                            onClick={() => {
-                              if (f.niAction!.kind === 'add') void runAddNiTarget('spouse');
-                              else if (f.niAction!.kind === 'send') {
-                                setNiInstructionsFor({
-                                  role: 'spouse',
-                                  name: spouseName,
-                                  idNumberMasked: spouseClient?.idNumber || client.spouseIdNumber,
-                                });
-                              } else onOpenRepresentation?.();
-                            }}>
-                            {f.niAction.kind === 'add' && niAddBusy === 'spouse' ? 'שומר…' : f.niAction.label}
-                          </button>
-                          {f.niAction.kind === 'add' && niAddError && (
-                            <span className="txf-qt-err">{niAddError}</span>
-                          )}
-                        </>
-                      : f.requestTitle && onCreateRequest
-                        ? <button type="button" className="ui-btn ui-btn-sm"
-                            disabled={creatingRequestKey === f.key}
-                            onClick={() => onCreateRequest(f)}>
-                            {creatingRequestKey === f.key ? 'יוצר…' : 'בקש מסמכים מהלקוח'}
-                          </button>
-                        : f.taskTitle && onCreateTask
-                          ? <button type="button" className="ui-btn ui-btn-sm"
-                              onClick={() => onCreateTask(f.taskTitle!)}>פתח משימה</button>
-                          : null}
-                </div>
-              ))}
-            </div>
-          </>
-        ) : (
-          <div className="txf-allgood">
-            <span>✓</span><span>אין נקודות פתוחות מול הרשויות.</span>
-            <span className="txf-allgood-when">נבדק {shortDate(alignedAt)}</span>
-          </div>
-        )
-      )}
-
-
-      {/* ‼ כרטיס אחד לכל מקור+יום, לא כרטיס לכל שדה. יישור קו יחיד מייצר
-          עשרות עובדות, ועשרים כרטיסים צהובים זהים הפכו את הרשומה לערימה
-          שאי אפשר לקרוא ממנה מה בעצם השתנה. הטבלה אומרת את זה במבט אחד. */}
-      {/* ═══ מה חדש ═══ תשובות שהלקוח מסר ונקלטו ישירות. ‼ אלה אינן החלטות:
-          ערך שלא היה בתיק אינו מחלוקת, ולכן הוא נכנס ומדווח — ולא מחכה לאישור.
-          מה שכן סותר הפך להצעה ממתינה ומופיע בכרטיס שמתחת. */}
-      {intakeResult && (intakeResult.pending?.length ?? 0) > 0 && (
-        <div className="txf-qchange">
-          <button type="button" className="txf-qchange-head"
-            onClick={() => toggleChange('intake')}>
-            <b>{intakeResult.pending!.length} תשובות מהשאלון של הלקוח מחכות לאישורך</b>
-            <span style={{ marginInlineStart: 'auto', color: 'var(--ink-4)', fontSize: 11 }}>
-              {openChanges.has('intake') ? 'סגור ‹' : 'הצג ›'}
-            </span>
-          </button>
-          {openChanges.has('intake') && (
-            <div className="txf-qchange-body">
-              <div className="txf-qtable">
-                {intakeResult.pending!.map((a, i) => (
-                  <div className="txf-qtable-row" key={i}>
-                    <span className="txf-qt-label">{a.label}</span>
-                    <span className="txf-qt-new">{a.value}</span>
-                    <span /><span />
-                  </div>
-                ))}
-              </div>
-              <div className="txf-note">
-                תשובה של לקוח נכנסת לתיק רק אחרי אישור — ב«הצעות לעדכון» כאן למטה (אפשר «אשר הכול» לקבוצה). תשובה שסותרת את מה שבתיק מסומנת שם.
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {pendingGroups.map(group => {
-        const open = openChanges.has(group.key);
-        return (
-          <div key={group.key} className={`txf-qchange ${open ? 'open' : ''}`}>
-            <button type="button" className="txf-qchange-head" onClick={() => toggleChange(group.key)}>
-              <b>עדכון מ{TAX_FACT_SOURCE_LABELS[group.source]} ממתין לאישורך</b>
-              <span style={{ color: 'var(--ink-3)', fontSize: 12 }}>
-                {shortDate(group.at)} · {group.changes.length} שדות
-              </span>
-              <span style={{ marginInlineStart: 'auto', color: 'var(--ink-4)', fontSize: 11 }}>{open ? 'סגור ‹' : 'פתח ›'}</span>
-            </button>
-            {open && (
-              <div className="txf-qchange-body">
-                <div className="txf-qtable">
-                  <div className="txf-qtable-head">
-                    <span>שדה</span><span>בתיק היום</span><span>הערך המוצע</span><span />
-                  </div>
-                  {group.changes.map(change => {
-                    const busy = busyChangeId === change.id;
-                    return (
-                      <div className="txf-qtable-row" key={change.id}>
-                        <span className="txf-qt-label">{change.label}</span>
-                        <span className="txf-qt-old">{change.oldValue?.display ?? '-'}</span>
-                        <span className="txf-qt-new">{change.newValue.display}</span>
-                        <span className="txf-qt-act">
-                          <button type="button" className="ui-linkbtn" disabled={busy}
-                            onClick={() => handleAccept(change)}>{busy ? 'רגע…' : 'אשר'}</button>
-                          <button type="button" className="ui-linkbtn is-quiet" disabled={busy}
-                            onClick={() => handleReject(change)}>דחה</button>
-                        </span>
-                        {changeErrors[change.id] && (
-                          <span className="txf-qt-err">{changeErrors[change.id]}</span>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-                <div className="txf-editor-actions">
-                  <button type="button" className="ui-btn ui-btn-primary" disabled={bulkBusy}
-                    onClick={() => void acceptGroup(group.changes)}>
-                    {bulkBusy ? 'מאשר…' : `אשר הכול (${group.changes.length})`}
-                  </button>
-                  <button type="button" className="ui-btn" disabled={bulkBusy}
-                    onClick={() => void rejectGroup(group.changes)}>השאר את הערכים הנוכחיים</button>
-                </div>
-                <div className="txf-note">ההחלטה נרשמת ביומן: מקור, ערך קודם, ערך חדש ומועד.</div>
-              </div>
-            )}
-          </div>
-        );
-      })}
-
-      {/* ═══ שנות מס (229) ═══════════════════════════════════════════════════
-          ‼ אין לשונית «שנת מס»: כרטיס לכל שנה כאן, שפותח את דף התהליך (הערכה / דוח).
-          סכומים לשנה חיים בשנת המס; כאן גם ההעברה של סכומים מהכרטיס שאין להם שנה. */}
-      <SectHead family="income" title="דוחות והצהרות" why="רק עבודות שנפתחו — אותן עבודות כמו ב«מס › עבודות לקוחות» וב«בקשות», עם המועדים והמצב" />
-      <div className="txf-sect" style={{ padding: '.6rem .8rem' }}>
-        {/* ‼ «הוסף לתיק» מתוך שנת המס יוצר הצעה — רשימת ההצעות כאן מתרעננת מיד, לא רק בטעינה הבאה */}
-        <TaxYearsSection client={client} onChanged={() => { onRequestsChanged?.(); void refresh(); }} onClientPersisted={onClientPersisted} intakeSignal={intakeSignal} />
-      </div>
 
       {/* ═══ פרטי הנישום ═══════════════════════════════════════════════════
           ‼ שורה אחת, ומעליה אין מקטע משלה: אלה הפרטים שנוסעים לרשויות —
           ת.ז., תאריך לידה, טלפון, מייל, יישוב וכתובת — והם היו עד עכשיו
           לקריאה בלבד בכל המסכים. כתובת שהגיעה שגויה מטופס הקליטה לא הייתה
           ניתנת לתיקון בשום מקום מלבד המסד. */}
-      <SectHead family="auth" title="פרטי הנישום"
-        why="מה שנוסע לרשויות — בייפוי הכוח ובבקשות הייצוג" />
+      {/* ‼ 16.10.2026 · «זהות ורשויות» — כרטיס אחד, צמוד לשורת המצב: פרטי הנישום ופרטי העסק כשורות
+          מקופלות, ומתחתן הרשויות (אותו רכיב, אותן יכולות: עריכה בכרטיס הרשות, אוטומציה, «בקש ייצוג»). */}
+      {/* ‼ 16.10.2026 (סבב 2): הכותרת «זהות ורשויות», «יישור קו אחרון» ו«תצוגה מפורטת» עברו לכרטיס שמעל (ReconcilePanel) —
+          שורת מצב אחת וכפתורים בה; כאן רק השורות המקופלות. */}
       <div className="txf-sect">
         <TRow
           id="identity" name="פרטים אישיים"
@@ -1231,14 +1139,6 @@ export default function TaxFileTab({
             onEdit={editingSection === 'identity' || !onUpdateClientFields ? undefined
               : () => startSectionEdit('identity', identityFields())} />
         </TRow>
-      </div>
-
-      {/* ═══ פרטי העסק (05.10.2026) ═══════════════════════════════════════
-          ‼ שם העסק הקנוני ועבודה מהבית — מה שמוזן בפייפרלס. «פרטי העסק» בבקשות מפנה לכאן
-          לעריכת השם, והאישור של אחוז המשרד הביתי הוא אותו רכיב בשני המקומות. */}
-      <SectHead family="auth" title="פרטי העסק"
-        why="שם העסק ועבודה מהבית — כפי שמוזנים בפייפרלס" />
-      <div className="txf-sect">
         <TRow
           id="business" name="שם העסק ומשרד ביתי"
           summary={[
@@ -1293,20 +1193,6 @@ export default function TaxFileTab({
           נפרד: בסיומו חוזרים לאותו תיק. */}
       {/* ‼ אין «עריכה» ברמת המקטע: העריכה היא בתוך כרטיס הרשות עצמו,
           כי שם יושבים השדות. כפתור כאן היה מוביל שוב למסך אחר. */}
-      <SectHead family="auth" title="מול הרשויות"
-        why="עובדות תפעוליות — מתעדכנות ביישור קו">
-        <span className="txf-align-meta">
-          <span>{alignedAt ? 'יישור קו אחרון: ' + shortDate(alignedAt) : 'טרם בוצע יישור קו'}</span>
-          {/* ‼ «תצוגה מפורטת» — קישור משני למסכי יישור הקו המלאים (כלי בדיקה
-              זמני). לא אוטומציה ⇒ לא ורוד. «בצע יישור קו» הוסר מהכותרת:
-              הוא פתח את התהליך הידני ונקרא כאילו הוא מפעיל משהו. */}
-          {onOpenDetailedAlignment && (
-            <button type="button" className="ui-linkbtn" onClick={() => onOpenDetailedAlignment()}>
-              תצוגה מפורטת
-            </button>
-          )}
-        </span>
-      </SectHead>
 
       {/* ‼ התצוגה הקומפקטית של הרשויות — רכיב אחד לכל ההקשרים (גם ב«בקשות»).
           כל מה שקשור לרשויות — אוטומציה, עריכה, ב"ל לכל אדם, «איפה
@@ -1334,16 +1220,153 @@ export default function TaxFileTab({
                 יישור קו אחד עובר על ביטוח לאומי, מע״מ ומס הכנסה ואוסף יתרות, מקדמות,
                 ניהול ספרים ואישורים. משם התיק מתעדכן לבד, וכל מה שדורש טיפול יופיע למעלה.
               </p>
-              {onRunAlignment && (
-                <button type="button" className="ui-btn ui-btn-primary" disabled={alignBusy}
-                  onClick={onRunAlignment}>
-                  {alignBusy ? 'מעדכן…' : 'בצע יישור קו מול הרשויות'}
-                </button>
-              )}
+              {/* ‼ 16.10.2026: «בצע יישור קו» — בכותרת «זהות ורשויות» למעלה, לא כפתור שני כאן */}
             </div>
           </div>
         )}
       />
+
+
+      <span data-pending-anchor aria-hidden="true" />
+      {/* ═══ דורש טיפול ═══════════════════════════════════════════════════
+          ‼ רק חריגות אמיתיות, לא כל שדה חסר. פריט שכבר נוצרה לו בקשה נשאר
+          גלוי אבל אפור ובלי כפתור — «אל תשאל אותי שוב על מה שכבר בטיפול». */}
+      {alignedAt && (
+        openFlags.length > 0 || flags.some(f => f.requestExists) ? (
+          <>
+            <div className="txf-secthead">
+              דורש טיפול{openFlags.length > 0 ? ' · ' + actionableFlagCount(flags.filter(f => !f.requestExists)) : ''}
+            </div>
+            <div className="txf-sect">
+              {flags.filter(f => f.severity !== 'info' || f.requestExists).map(f => (
+                <div key={f.key} className={'txf-att' + (f.requestExists ? ' is-done' : f.severity === 'high' ? ' is-high' : ' is-med')}>
+                  <span className="txf-att-dot" aria-hidden="true" />
+                  <div className="txf-att-txt">
+                    <b>{f.title}</b>
+                    <span>{f.why}</span>
+                  </div>
+                  {/* ‼ שתי פעולות שונות, ולא אחת: ממצא שהטיפול בו הוא אצלנו
+                      נפתח כמשימה, וממצא שדורש חומר מהלקוח נפתח כבקשה בדף
+                      האישי. במוקאפ המאושר זו בדיוק ההבחנה בין «פתח משימה»
+                      ל«בקש מסמכים מהלקוח». */}
+                  {f.requestExists
+                    ? <span className="txf-att-stamp">בטיפול</span>
+                    /* ‼ דגל ייצוג ב"ל של בן/בת הזוג — לא task/request כלליים.
+                        'add' מוסיף target + טיוטת taxFiles על הכרטיס (בלי
+                        בקשה שנייה); 'continue' מנווט למרכז הייצוג הקיים. */
+                    : f.niAction
+                      ? (f.niAction.kind === 'enter_btl' || f.niAction.kind === 'check_btl')
+                        /* ‼ הדגל הזה הוא תמיד של בן/בת הזוג (ראה authorityFlags) —
+                            ולכן role='spouse' מפורש, לא "האדם השני ברשימה". */
+                        ? <NiNextActionButton client={client} spouseClient={spouseClient} role="spouse"
+                            action={f.niAction} track={niTrackOf('spouse')} onChanged={onNiInstructionsSent}
+                            className="ui-btn ui-btn-sm" />
+                        : <>
+                          <button type="button" className="ui-btn ui-btn-sm"
+                            disabled={f.niAction.kind === 'add' && niAddBusy !== null}
+                            onClick={() => {
+                              if (f.niAction!.kind === 'add') void runAddNiTarget('spouse');
+                              else if (f.niAction!.kind === 'send') {
+                                setNiInstructionsFor({
+                                  role: 'spouse',
+                                  name: spouseName,
+                                  idNumberMasked: spouseClient?.idNumber || client.spouseIdNumber,
+                                });
+                              } else onOpenRepresentation?.();
+                            }}>
+                            {f.niAction.kind === 'add' && niAddBusy === 'spouse' ? 'שומר…' : f.niAction.label}
+                          </button>
+                          {f.niAction.kind === 'add' && niAddError && (
+                            <span className="txf-qt-err">{niAddError}</span>
+                          )}
+                        </>
+                      : f.requestTitle && onCreateRequest
+                        ? <button type="button" className="ui-btn ui-btn-sm"
+                            disabled={creatingRequestKey === f.key}
+                            onClick={() => onCreateRequest(f)}>
+                            {creatingRequestKey === f.key ? 'יוצר…' : 'בקש מסמכים מהלקוח'}
+                          </button>
+                        : f.taskTitle && onCreateTask
+                          ? <button type="button" className="ui-btn ui-btn-sm"
+                              onClick={() => onCreateTask(f.taskTitle!)}>פתח משימה</button>
+                          : null}
+                </div>
+              ))}
+            </div>
+          </>
+        ) : (
+          <div className="txf-allgood">
+            <span>✓</span><span>אין נקודות פתוחות מול הרשויות.</span>
+            <span className="txf-allgood-when">נבדק {shortDate(alignedAt)}</span>
+          </div>
+        )
+      )}
+
+
+      {/* ‼ 16.10.2026: הבאנר «N תשובות מהשאלון מחכות לאישורך» ירד — אותן תשובות כבר ב«הצעות לעדכון» כאן,
+          עם «אשר הכול», והמספר שלהן בשורת המצב בראש התיק («לאישור»). */}
+      {/* ‼ כרטיס אחד לכל מקור+יום, לא כרטיס לכל שדה — יישור קו יחיד מייצר עשרות עובדות. */}
+      {pendingGroups.map(group => {
+        const open = openChanges.has(group.key);
+        return (
+          <div key={group.key} className={`txf-qchange ${open ? 'open' : ''}`}>
+            <button type="button" className="txf-qchange-head" onClick={() => toggleChange(group.key)}>
+              <b>עדכון מ{TAX_FACT_SOURCE_LABELS[group.source]} ממתין לאישורך</b>
+              <span style={{ color: 'var(--ink-3)', fontSize: 12 }}>
+                {shortDate(group.at)} · {group.changes.length} שדות
+              </span>
+              <span style={{ marginInlineStart: 'auto', color: 'var(--ink-4)', fontSize: 11 }}>{open ? 'סגור ‹' : 'פתח ›'}</span>
+            </button>
+            {open && (
+              <div className="txf-qchange-body">
+                <div className="txf-qtable">
+                  <div className="txf-qtable-head">
+                    <span>שדה</span><span>בתיק היום</span><span>הערך המוצע</span><span />
+                  </div>
+                  {group.changes.map(change => {
+                    const busy = busyChangeId === change.id;
+                    return (
+                      <div className="txf-qtable-row" key={change.id}>
+                        <span className="txf-qt-label">{change.label}</span>
+                        <span className="txf-qt-old">{change.oldValue?.display ?? '-'}</span>
+                        <span className="txf-qt-new">{change.newValue.display}</span>
+                        <span className="txf-qt-act">
+                          <button type="button" className="ui-linkbtn" disabled={busy}
+                            onClick={() => handleAccept(change)}>{busy ? 'רגע…' : 'אשר'}</button>
+                          <button type="button" className="ui-linkbtn is-quiet" disabled={busy}
+                            onClick={() => handleReject(change)}>דחה</button>
+                        </span>
+                        {changeErrors[change.id] && (
+                          <span className="txf-qt-err">{changeErrors[change.id]}</span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="txf-editor-actions">
+                  <button type="button" className="ui-btn ui-btn-primary" disabled={bulkBusy}
+                    onClick={() => void acceptGroup(group.changes)}>
+                    {bulkBusy ? 'מאשר…' : `אשר הכול (${group.changes.length})`}
+                  </button>
+                  <button type="button" className="ui-btn" disabled={bulkBusy}
+                    onClick={() => void rejectGroup(group.changes)}>השאר את הערכים הנוכחיים</button>
+                </div>
+                <div className="txf-note">ההחלטה נרשמת ביומן: מקור, ערך קודם, ערך חדש ומועד.</div>
+              </div>
+            )}
+          </div>
+        );
+      })}
+
+      {/* ═══ שנות מס (229) ═══════════════════════════════════════════════════
+          ‼ אין לשונית «שנת מס»: כרטיס לכל שנה כאן, שפותח את דף התהליך (הערכה / דוח).
+          סכומים לשנה חיים בשנת המס; כאן גם ההעברה של סכומים מהכרטיס שאין להם שנה. */}
+      <SectHead family="income" title="דוחות והצהרות" why="כל אחת היא בקשה — נפתחת ב«בקשות»" />
+      <div className="txf-sect" style={{ padding: '.6rem .8rem' }}>
+        {/* ‼ «הוסף לתיק» מתוך שנת המס יוצר הצעה — רשימת ההצעות כאן מתרעננת מיד, לא רק בטעינה הבאה */}
+        <TaxYearsSection client={client} onChanged={() => { onRequestsChanged?.(); void refresh(); }} onClientPersisted={onClientPersisted} intakeSignal={intakeSignal} onOpenRequest={onOpenRequest} />
+        <ClientObligationRows client={client} onOpenRequests={(_clientId, stepId) => onOpenRequest?.(stepId)} onChanged={() => { onRequestsChanged?.(); void refresh(); }} />
+      </div>
 
       {/* ═══ תמונת המס ═════════════════════════════════════════════════════
           ‼ שתי שורות מוכנות ולעולם לא ציון אחד: "מה אני צריך לשאול" ו"על מה
@@ -1517,7 +1540,7 @@ export default function TaxFileTab({
         {showFamilyRow && (
           <TRow
             id="family" name="משפחה ובן/בת זוג"
-            summary={`${FAMILY_STATUS_LABELS[client.familyStatus]}${(client.children ?? []).length ? ` · ${client.children.length} ילדים` : ''}`}
+            summary={`${familyStatusDisplay(client)}${(client.children ?? []).length ? ` · ${client.children.length} ילדים` : ''}`}
             open={openRows.has('family')} onToggle={toggleRow}
           >
             <div className="txf-kv">
@@ -1526,10 +1549,33 @@ export default function TaxFileTab({
                     // שם בן/בת הזוג — רק כשבעריכה מסומן «נשוי/אה».
                     .filter(f => !SPOUSE_NAME_KEYS.has(f.key) || (sectionDrafts.familyStatus ?? client.familyStatus) === 'married')
                     .map(f => (
-                      <EditableKV key={f.key} def={f} value={sectionDrafts[f.key] ?? ''}
-                        onChange={v => setSectionDrafts(d => ({ ...d, [f.key]: v }))} />
+                      <Fragment key={f.key}>
+                        <EditableKV def={f} value={sectionDrafts[f.key] ?? ''}
+                          onChange={v => setSectionDrafts(d => ({ ...d, [f.key]: v }))} />
+                        {/* ‼ 16.10.2026 · שנת האירוע — של המצב שנבחר בעריכה (נשוי/אה ⇒ שנת הנישואין וכו׳), באותה שורה */}
+                        {f.key === 'familyStatus' && familyYearKV((sectionDrafts.familyStatus || client.familyStatus) as Client['familyStatus'])}
+                      </Fragment>
                     ))
-                : <KV k="מצב משפחתי" v={FAMILY_STATUS_LABELS[client.familyStatus]} />}
+                : editingSection === 'family-year'
+                  ? <>
+                      <KV k="מצב משפחתי" v={FAMILY_STATUS_LABELS[client.familyStatus]} />
+                      {familyYearKV(client.familyStatus)}
+                    </>
+                  : <>
+                      <KV k="מצב משפחתי" field="familyStatus"
+                        v={familyStatusEventYear(client) != null ? familyStatusDisplay(client) : FAMILY_STATUS_LABELS[client.familyStatus]} />
+                      {/* ‼ שנה חסרה אינה ריק שקט: «טרם נרשם», עם מענה במקום — כמו כל «טרם ביררנו» */}
+                      {FAMILY_STATUS_YEAR_KEY[client.familyStatus] && familyStatusEventYear(client) == null && (
+                        <div data-field="familyStatusYear" data-family-year-unknown>
+                          <div className="k">ממתי? · {FAMILY_STATUS_YEAR_LABELS[client.familyStatus]}</div>
+                          <div className="v">
+                            <span className="txf-unknown">טרם נרשם</span>
+                            {' '}<button type="button" className="ui-linkbtn" data-family-year-answer
+                              onClick={() => startFamilyYearEdit()}>רשום שנה</button>
+                          </div>
+                        </div>
+                      )}
+                    </>}
               {married && (editingSection !== 'family' || !!client.spouseClientId) && <KV k="בן/בת הזוג" v={spouseName} />}
               {/* ‼ תיק מס הכנסה אחד לזוג (150) — לא "שדה על הכרטיס הזה" אלא
                   קריאה דרך household, כדי שהוא יופיע זהה משני הכרטיסים. */}
@@ -1565,10 +1611,10 @@ export default function TaxFileTab({
               )}
             </div>
             {editingSection === 'family' && renderLists()}
-            {editingSection === 'family' && <EditActions />}
+            {(editingSection === 'family' || editingSection === 'family-year') && <EditActions />}
             <SrcLine label="מקור: כרטיס הלקוח"
-              onEdit={editingSection === 'family' ? undefined
-                : () => startSectionEdit('family', familyFields(client), { lists: ['children'] })} />
+              onEdit={editingSection === 'family' || editingSection === 'family-year' ? undefined
+                : () => { startSectionEdit('family', familyFields(client), { lists: ['children'] }); setSectionDrafts(d => ({ ...d, ...familyYearDrafts(client) })); }} />
           </TRow>
         )}
 

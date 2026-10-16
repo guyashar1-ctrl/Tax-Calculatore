@@ -17,12 +17,6 @@
 .kn-stage-h { margin: 18px 0 10px; font-size: var(--fs-18, 18px); font-weight: 650; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; outline: none; }
 .kn-stage-h small { font-size: var(--fs-13); font-weight: 400; color: var(--tx2); }
 .kn-stage-h:focus-visible { outline: 2px solid var(--br); outline-offset: 3px; border-radius: 4px; }
-.kn-asks { display: grid; gap: 14px; }
-.kn-ask-area { display: grid; gap: 4px; }
-.kn-ask-h { margin: 0; font-size: var(--fs-14); font-weight: 650; }
-.kn-ask-h small { font-weight: 400; color: var(--tx2); }
-.kn-ask-list { margin: 0; padding: 0; list-style: none; display: grid; }
-.kn-ask-list li { display: flex; justify-content: space-between; gap: 6px 12px; flex-wrap: wrap; padding: 7px 0; border-top: 1px solid var(--hairline-2, var(--bd)); font-size: var(--fs-14); line-height: 1.55; }
 .kn-ask-tags { display: flex; gap: 4px; flex-wrap: wrap; }
 .kn-tag { font-size: var(--fs-12); border-radius: 999px; padding: 1px 8px; background: var(--s2); color: var(--tx2); white-space: nowrap; }
 .kn-tag.is-office { background: var(--soft); color: var(--br); }
@@ -43,3 +37,57 @@
 .kn-topic { scroll-margin-top: 76px; }
 .kn-gaps-note { margin: 0 0 12px; padding: 8px 12px; border-radius: 10px; background: var(--warn-bg); font-size: var(--fs-13); line-height: 1.6; }
 .kn-gaps-note strong { color: var(--warn); }
+
+/* ── «מה מבקשים מהלקוח» — שורה לכל תחום שנפתחת במקום (15.10.2026) ──────────────────────── */
+.kn-asks-panel { display: grid; gap: 4px; }
+.kn-asks-note { margin: 0 0 4px; line-height: 1.6; }
+.kn-asks-bar { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; padding: 4px 0; }
+.kn-ask-area { display: grid; border-top: 1px solid var(--hairline-2, var(--bd)); }
+.kn-ask-h { margin: 0; font-size: var(--fs-14); font-weight: 650; }
+.kn-ask-toggle { inline-size: 100%; display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 6px 2px; border: 0; background: none; color: inherit; font: inherit; text-align: start; cursor: pointer; border-radius: 8px; }
+.kn-ask-toggle:focus-visible { outline: 2px solid var(--br); outline-offset: 1px; }
+.kn-ask-toggle:active { transform: scale(.995); }
+@media (hover: hover) { .kn-ask-toggle:hover .kn-ask-title { text-decoration: underline; text-underline-offset: 3px; } }
+.kn-ask-chev { flex-shrink: 0; color: var(--tx2); transform: rotate(90deg); }
+.kn-ask-area.is-open .kn-ask-chev { transform: none; color: var(--tx); }
+@media (prefers-reduced-motion: no-preference) { .kn-ask-chev { transition: transform .16s ease-out; } }
+.kn-ask-title { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
+.kn-ask-title small { font-weight: 400; color: var(--tx2); }
+.kn-ask-n { flex-shrink: 0; font-size: var(--fs-13); font-weight: 400; color: var(--tx2); text-align: end; }
+.kn-ask-list { margin: 0 0 8px; padding: 0; padding-inline-start: 22px; list-style: none; display: grid; }
+.kn-ask-list[hidden] { display: none; }
+.kn-ask-list li { display: grid; gap: 2px; padding: 8px 0; border-top: 1px dashed var(--hairline-2, var(--bd)); font-size: var(--fs-14); line-height: 1.55; }
+.kn-ask-list li:first-child { border-top: 0; }
+.kn-ask-main { display: flex; justify-content: space-between; gap: 6px 12px; flex-wrap: wrap; }
+.kn-ask-meta { font-size: var(--fs-12); color: var(--tx2); line-height: 1.5; }
+@media (max-width: 640px) {
+  .kn-ask-toggle { flex-wrap: wrap; row-gap: 0; }
+  .kn-ask-n { inline-size: 100%; text-align: start; padding-inline-start: 22px; margin-top: -2px; }
+  .kn-ask-list { padding-inline-start: 8px; }
+}
+
+/* ── «ערכים לשנה» בעמוד התחום ולוח המועדים (15.10.2026) — אותו דפוס כמו «מה מבקשים» ───────────── */
+.kn-val-fresh { padding-inline-start: 2px; }
+.kn-val-body[hidden] { display: none; }
+.kn-val-list { margin: 0 0 8px; padding: 0; padding-inline-start: 22px; list-style: none; display: grid; }
+.kn-values > .kn-val-list { padding-inline-start: 0; }
+.kn-val-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); gap: 2px 16px; padding: 8px 0; border-top: 1px dashed var(--hairline-2, var(--bd)); font-size: var(--fs-14); line-height: 1.55; }
+.kn-val-row:first-child { border-top: 0; }
+.kn-val-label { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; min-width: 0; overflow-wrap: anywhere; }
+.kn-val-value { display: grid; gap: 1px; justify-items: start; min-width: 0; overflow-wrap: anywhere; }
+.kn-val-other { font-size: var(--fs-12); color: var(--tx2); }
+.kn-val-meta { grid-column: 1 / -1; }
+.kn-tag.is-review { background: transparent; color: var(--warn); border: 1px solid currentColor; }
+.kn-val-note { margin: 0 0 4px; padding-inline-start: 22px; color: var(--warn); line-height: 1.55; }
+.kn-val-insights { margin: 2px 0 8px; padding-inline-start: 22px; display: grid; gap: 2px; }
+.kn-val-insights ul { margin: 0; padding-inline-start: 18px; font-size: var(--fs-13); line-height: 1.6; color: var(--tx2); }
+.kn-val-sources { margin: 0 0 10px; padding-inline-start: 22px; line-height: 1.7; overflow-wrap: anywhere; }
+.kn-values > .kn-val-sources { padding-inline-start: 0; }
+@media (max-width: 640px) {
+  .kn-val-row { grid-template-columns: 1fr; }
+  .kn-val-list, .kn-val-note, .kn-val-insights, .kn-val-sources { padding-inline-start: 8px; }
+}
+.kn-val-meta .kn-link { min-height: 28px; text-decoration: underline; text-underline-offset: 3px; }
+.kn-val-sources a { color: var(--accent, var(--br)); text-underline-offset: 3px; }
+/* ‼ בטלפון: החץ נשאר בשורה של הכותרת (כותרת ארוכה ירדה לשורה משלה והשאירה את החץ לבד) */
+@media (max-width: 640px) { .kn-ask-toggle .kn-ask-title { flex: 1 1 0; } }

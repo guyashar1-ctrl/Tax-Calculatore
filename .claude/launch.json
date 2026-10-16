@@ -11,14 +11,71 @@
     {
       "name": "qa",
       "runtimeExecutable": "node_modules\\.bin\\vite.cmd",
-      "runtimeArgs": ["--mode", "qa", "--port", "5176", "--strictPort"],
+      "runtimeArgs": [
+        "--mode",
+        "qa",
+        "--port",
+        "5176",
+        "--strictPort"
+      ],
       "port": 5176
     },
     {
       "name": "staging",
       "runtimeExecutable": "node_modules\\.bin\\vite.cmd",
-      "runtimeArgs": ["--mode", "staging", "--port", "5174", "--strictPort"],
+      "runtimeArgs": [
+        "--mode",
+        "staging",
+        "--port",
+        "5174",
+        "--strictPort"
+      ],
       "port": 5174
+    },
+    {
+      "name": "simplify-ui",
+      "runtimeExecutable": "C:/Users/guyas/pivo-wt/tax-ke/node_modules/.bin/vite.cmd",
+      "runtimeArgs": [
+        "C:/Users/guyas/pivo-wt/simplify-ui",
+        "--config",
+        "C:/Users/guyas/pivo-wt/_viteconf/vite.simplify-ui.config.mjs",
+        "--port",
+        "5302",
+        "--strictPort"
+      ],
+      "port": 5302
+    },
+    {
+      "name": "simplify-ui-staging-build",
+      "runtimeExecutable": "C:/Users/guyas/pivo-wt/tax-ke/node_modules/.bin/vite.cmd",
+      "runtimeArgs": [
+        "preview",
+        "C:/Users/guyas/pivo-wt/simplify-ui",
+        "--config",
+        "C:/Users/guyas/pivo-wt/_viteconf/vite.simplify-ui-staging.config.mjs",
+        "--mode",
+        "staging",
+        "--port",
+        "4746",
+        "--strictPort"
+      ],
+      "port": 4746
+    },
+    {
+      "name": "simplify-ui-staging-own",
+      "runtimeExecutable": "C:/Users/guyas/pivo-wt/tax-ke/node_modules/.bin/vite.cmd",
+      "runtimeArgs": [
+        "preview",
+        "C:/Users/guyas/pivo-wt/simplify-ui",
+        "--config",
+        "C:/Users/guyas/pivo-wt/_viteconf/vite.simplify-ui-staging.config.mjs",
+        "--mode",
+        "staging",
+        "--port",
+        "4757",
+        "--strictPort"
+      ],
+      "port": 4757
     }
   ]
 }

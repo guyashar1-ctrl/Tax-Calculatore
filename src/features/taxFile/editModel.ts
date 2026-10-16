@@ -14,8 +14,8 @@
 //   · authority— מקורו יישור קו. עריכה ידנית שם היא דריסה מוצהרת.
 
 import type { Client } from '../../types';
-import { FAMILY_STATUS_LABELS } from '../../types';
 import { isValidIsraeliId } from '../../utils/israeliId';
+import { familyStatusDisplay } from '../../utils/familyStatusYear';
 import { isValidEmail } from '../../utils/email';
 import { hasNonHebrewLetters, HEBREW_ONLY_HINT } from '../../utils/hebrewText';
 import {
@@ -315,7 +315,7 @@ export const EDIT_SECTIONS: EditSection[] = [
   {
     id: 'famStatus', family: 'family', title: 'מצב משפחתי ובן/בת זוג',
     summary: c => join(
-      FAMILY_STATUS_LABELS[c.familyStatus],
+      familyStatusDisplay(c),
       c.spouseName,
       c.spouseNoIncomeEligible === true && 'זכאות סעיף 37',
     ),

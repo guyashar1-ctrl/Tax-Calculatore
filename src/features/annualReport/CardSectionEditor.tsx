@@ -7,6 +7,8 @@
 
 import { useState } from 'react';
 import HebrewTextInput from '../../components/ui/HebrewTextInput';
+import FamilyStatusYearField from '../../components/FamilyStatusYearField';
+import { FAMILY_STATUS_YEAR_KEY } from '../../utils/familyStatusYear';
 import type { Client, Child, EmployerInfo, InvestmentAccount, BankAccountInfo, PensionFundInfo } from '../../types';
 import type { CardEditSection } from './types';
 
@@ -87,6 +89,9 @@ function IdentityEditor({ client, onPatch, onClose }: { client: Client; onPatch:
   const [address, setAddress] = useState(client.address);
   const [city, setCity] = useState(client.city);
   const [familyStatus, setFamilyStatus] = useState<Client['familyStatus']>(client.familyStatus);
+  // שנת האירוע — נקראת מחדש מהכרטיס כשמשנים מצב (לכל מצב שדה משלו; שנים של מצבים אחרים לא נמחקות)
+  const yearOf = (s: Client['familyStatus']) => { const k = FAMILY_STATUS_YEAR_KEY[s]; return k ? client[k] : undefined; };
+  const [statusYear, setStatusYear] = useState<number | undefined>(yearOf(client.familyStatus));
   const [isNewImmigrant, setIsNewImmigrant] = useState(client.isNewImmigrant);
   const [aliyahYear, setAliyahYear] = useState(client.aliyahYear || 0);
   const [isReturningResident, setIsReturningResident] = useState(client.isReturningResident);
@@ -114,6 +119,7 @@ function IdentityEditor({ client, onPatch, onClose }: { client: Client; onPatch:
       await onPatch({
         firstName, lastName, idNumber, birthDate, address, city,
         familyStatus,
+        ...(FAMILY_STATUS_YEAR_KEY[familyStatus] ? { [FAMILY_STATUS_YEAR_KEY[familyStatus]!]: statusYear } : {}),
         spouseName, spouseIdNumber, spouseWorking,
         isNewImmigrant, aliyahYear, isReturningResident,
         disabilityPercentage,
@@ -165,7 +171,7 @@ function IdentityEditor({ client, onPatch, onClose }: { client: Client; onPatch:
         {sub('משפחה ותושבות')}
         <div className="form-group">
           <label>מצב משפחתי</label>
-          <select value={familyStatus} onChange={(e) => setFamilyStatus(e.target.value as Client['familyStatus'])}>
+          <select value={familyStatus} onChange={(e) => { const s = e.target.value as Client['familyStatus']; setFamilyStatus(s); setStatusYear(yearOf(s)); }}>
             <option value="single">רווק/ה</option>
             <option value="married">נשוי/אה</option>
             <option value="divorced">גרוש/ה</option>
@@ -173,6 +179,8 @@ function IdentityEditor({ client, onPatch, onClose }: { client: Client; onPatch:
             <option value="singleParent">הורה יחיד</option>
           </select>
         </div>
+        <FamilyStatusYearField status={familyStatus} value={statusYear} onChange={setStatusYear}
+          birthYear={birthDate ? Number(birthDate.slice(0, 4)) : undefined} />
         <div className="form-group">
           <label>אחוז נכות מוכר</label>
           <input type="number" value={disabilityPercentage || ''} onChange={(e) => setDisabilityPercentage(Number(e.target.value) || 0)} min={0} max={100} />

@@ -14,7 +14,6 @@ import ExpenseKnowledge from '../taxCenter/expenses/ExpenseKnowledge';
 import RentalRouteCalculator from '../taxCenter/RentalRouteCalculator';
 import SettlementLookup from '../taxCenter/SettlementLookup';
 import IncomeTaxPanel from '../taxCenter/IncomeTaxPanel';
-import KnowledgeTopics from '../taxCenter/KnowledgeTopics';
 import BookkeepingKnowledge from '../taxCenter/bookkeeping/BookkeepingKnowledge';
 import { FreshnessBadge, FreshnessPanel } from '../taxCenter/DataFreshness';
 import { TOOL_DATASET, type Tool } from '../taxCenter/taxCenterNav';
@@ -22,14 +21,19 @@ import TopicPage from '../taxKnowledge/TopicPage';
 import Map1301 from '../taxKnowledge/Map1301';
 import Maintenance from '../taxKnowledge/Maintenance';
 import { TOPIC_BY_ID } from '../taxKnowledge/topics';
-import { plainStatus } from '../taxKnowledge/learnPath';
+import { plainStatus, askAreasView } from '../taxKnowledge/learnPath';
+import ClientAsksPanel from '../taxKnowledge/ClientAsksPanel';
+import { ClaimTag } from '../taxKnowledge/claim';
+import DomainValues, { DeadlinesTool } from '../taxKnowledge/DomainValuesPanel';
+import { MOVED_GROUPS, searchValues, valueGroupsOf } from '../taxKnowledge/domainValues';
 import { weakestBasis } from '../taxRules/registry';
-import { AREAS, ITEMS } from '../taxYear/catalog';
-import TaxWorkView from '../taxYear/TaxWorkView';
+import WorkOverview from './WorkOverview';
+import { ShaamFilingPanel } from '../shaamFiling';
+import FormMap from '../taxKnowledge/formMap/FormMap';
 import { useTaxWork } from '../taxYear/useTaxWork';
 import {
   DOMAINS, DOMAIN_BY_ID, MODE_HINT, MODE_LABEL, WORK_BY_ID, WORK_SECTIONS,
-  domainOf, formatAreaPath, itemOf, parseAreaPath, type AreaPath, type DomainId, type DomainItem,
+  askAreasOf, domainOf, formatAreaPath, itemOf, parseAreaPath, type AreaPath, type DomainId, type DomainItem, type PlannedItem,
 } from './areaModel';
 import './taxArea.css';
 
@@ -48,7 +52,8 @@ interface Props {
   /** נושא שנפתח מתוך תיק לקוח — לחזרה ולמילוי מה שידוע. */
   contextTopic?: string | null;
   contextClientId?: string | null;
-  onOpenClient: (clientId: string, tab?: 'taxfile' | 'docs') => void;
+  /** ‼ 16.10: 'journey' = לשונית «בקשות» של הלקוח; focusStepId — הבקשה שממנה הגיעו (המיקוד לשורה — בצד הבקשות). */
+  onOpenClient: (clientId: string, tab?: 'taxfile' | 'docs' | 'journey', focusStepId?: string) => void;
 }
 
 export default function TaxArea({ path, onPath, onBack, freshnessTaskExists, onCreateFreshnessTask, clients, contextTopic = null, contextClientId = null, onOpenClient }: Props) {
@@ -71,6 +76,7 @@ export default function TaxArea({ path, onPath, onBack, freshnessTaskExists, onC
     window.scrollTo({ top: 0 });
   };
   const openTopic = (id: string) => go({ mode: 'learn', domain: domainOf(id), item: id });
+  const canLearn = (id: string) => !!domainOf(id);
   const data = TAX_YEARS.find(t => t.year === year)!;
   const yearSelect = (
     <select value={year} onChange={e => setYear(+e.target.value)} aria-label="שנת מס">
@@ -123,10 +129,10 @@ export default function TaxArea({ path, onPath, onBack, freshnessTaskExists, onC
                 <button type="button" className={`pg-rail-item ta-dom-row${open ? ' is-open' : ''}${open && !p.item ? ' is-active' : ''}`}
                   onClick={() => go({ mode: 'learn', domain: d.id })} aria-expanded={open} aria-controls={`ta-sub-${d.id}`}
                   aria-current={open && !p.item ? 'page' : undefined} data-rail={`learn-${d.id}`}>
-                  <svg className="ta-chev" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                  <svg className={`ta-chev${d.items.length ? '' : ' is-empty'}`} viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
                   <span className="pg-rail-name">{d.label}</span>
                 </button>
-                {open && (
+                {open && d.items.length > 0 && (
                   <ul className="ta-sub" id={`ta-sub-${d.id}`} aria-label={`בתוך ${d.label}`}>
                     {d.items.map(i => (
                       <li key={i.id}>
@@ -175,8 +181,18 @@ export default function TaxArea({ path, onPath, onBack, freshnessTaskExists, onC
       case 'incomeTax': return <IncomeTaxPanel taxData={data} year={year} />;
       case 'ni': return <NIReferenceSection taxData={data} year={year} />;
       case 'settlements': return <SettlementLookup year={year} />;
-      case 'topics': return <KnowledgeTopics year={year} onOpenTopic={openTopic} />;
-      case 'map1301': return <Map1301 onOpenTopic={openTopic} clients={clients} contextClientId={contextClientId} onOpenClient={id => onOpenClient(id, 'taxfile')} />;
+      case 'deadlines': return <DeadlinesTool year={year} domainLabel={d => DOMAIN_BY_ID[d].label} onOpenDomain={d => go({ mode: 'learn', domain: d })} />;
+      // ‼ 16.10: הטופס עצמו עם הסימונים, מול תיק הלקוח שנכנסו ממנו; הבקרה הישנה (מה השתנה, כיסוי, מוכנות) — מקופלת מתחת
+      case 'map1301': return (
+        <>
+          <FormMap domain="annual" clients={clients} contextClient={ctxClient} onBackToClient={ctxClient ? () => onOpenClient(ctxClient.id, 'taxfile') : undefined}
+            canLearn={canLearn} onLearn={openTopic} />
+          <details className="ta-control" data-map-control>
+            <summary>בקרת הטופס: מה השתנה מול 2024, כיסוי לפי חלקים ומוכנות לקוח</summary>
+            <Map1301 onOpenTopic={openTopic} clients={clients} contextClientId={contextClientId} onOpenClient={id => onOpenClient(id, 'taxfile')} />
+          </details>
+        </>
+      );
       case 'maintenance': return <Maintenance year={year} freshnessPanel={<FreshnessPanel checkTaskExists={freshnessTaskExists} onCreateCheckTask={onCreateFreshnessTask} />} />;
       default: return null;
     }
@@ -187,13 +203,15 @@ export default function TaxArea({ path, onPath, onBack, freshnessTaskExists, onC
       return (
         <>
           {crumbs}
-          <TaxWorkView key={p.section} section={p.section} work={work} clients={clients} onOpenClient={onOpenClient}
-            onLearn={d => go({ mode: 'learn', domain: d })} />
+          <WorkOverview key={p.section} section={p.section} work={work}
+            onOpenRequests={(clientId, stepId) => onOpenClient(clientId, 'journey', stepId)}
+            onLearn={d => go({ mode: 'learn', domain: d })}
+            top={<ShaamFilingPanel clients={clients} onOpenRequests={(clientId, stepId) => onOpenClient(clientId, 'journey', stepId)} onChanged={() => { void work.load(); }} />} />
         </>
       );
     }
-    if (!domain) return <>{crumbs}<LearnHome year={year} onGo={go} /></>;
-    if (!item) return <>{crumbs}<DomainPage d={domain.id} year={year} onGo={go} counts={work.counts} /></>;
+    if (!domain) return <>{crumbs}<LearnHome year={year} onGo={go} moved={p.mode === 'learn' && !!p.moved} /></>;
+    if (!item) return <>{crumbs}<DomainPage d={domain.id} year={year} onGo={go} counts={work.counts} focusValues={p.mode === 'learn' ? p.values : undefined} yearSelect={yearSelect} clients={clients} canLearn={canLearn} onLearn={openTopic} /></>;
     if (item.kind === 'topic') {
       return (
         <>
@@ -232,34 +250,67 @@ export default function TaxArea({ path, onPath, onBack, freshnessTaskExists, onC
 }
 
 // ── «ידע מקצועי» — דף הכניסה: תחום לכל כרטיס, וחיפוש על הכול ───────────────────────
-function LearnHome({ year, onGo }: { year: number; onGo: (p: AreaPath) => void }) {
+// ‼ 15.10: החיפוש מוצא גם ערכים («מס רכישה» ← שכר דירה ונדל״ן), וכל כרטיס «ערך מפתח» מוביל לתחום שלו.
+function LearnHome({ year, onGo, moved }: { year: number; onGo: (p: AreaPath) => void; moved: boolean }) {
   const [q, setQ] = useState('');
   const data = TAX_YEARS.find(t => t.year === year)!;
   const words = q.trim().split(/\s+/).filter(Boolean);
-  const hits = words.length ? DOMAINS.flatMap(d => d.items.filter(i => words.some(w => (i.label + ' ' + i.purpose + ' ' + d.label + ' ' + (i.kind === 'topic' ? TOPIC_BY_ID[i.id]?.title ?? '' : '')).includes(w))).map(i => ({ d, i }))) : [];
-  const keyValues = [
-    { label: 'ערך נקודת זיכוי', value: fmt(data.creditPointValue), sub: 'לשנה' },
-    { label: 'סף מס יסף', value: fmt(data.surtaxThreshold), sub: data.surtaxCapitalExtraRate > 0 ? '3% + 2% על הוני' : '3%' },
-    { label: 'פטור שכר דירה', value: fmt(data.rentalExemptMonthly), sub: 'לחודש' },
-    { label: 'שכר ממוצע (ב"ל)', value: fmt(data.niAverageWage), sub: 'לחודש' },
-    { label: 'תקרת ב"ל חודשית', value: fmt(data.niMaxIncomeMonthly), sub: 'לחודש' },
+  // ‼ 15.10: כל המילים (לא «אחת מהן») — כמו בחיפוש הערכים
+  const hits = words.length ? DOMAINS.flatMap(d => d.items.filter(i => words.every(w => (i.label + ' ' + i.purpose + ' ' + d.label + ' ' + (i.kind === 'topic' ? TOPIC_BY_ID[i.id]?.title ?? '' : '')).includes(w))).map(i => ({ d, i }))) : [];
+  const valueHits = searchValues(words);
+  const plannedHits = words.length ? DOMAINS.flatMap(d => (d.planned ?? []).filter(x => words.every(w => `${x.label} ${x.purpose}`.includes(w))).map(x => ({ d, x }))) : [];
+  const keyValues: { label: string; value: string; sub: string; to: AreaPath }[] = [
+    { label: 'ערך נקודת זיכוי', value: fmt(data.creditPointValue), sub: 'לשנה', to: { mode: 'learn', domain: 'credits' } },
+    { label: 'סף מס יסף', value: fmt(data.surtaxThreshold), sub: data.surtaxCapitalExtraRate > 0 ? '3% + 2% על הוני' : '3%', to: { mode: 'learn', domain: 'credits', item: 'incomeTax' } },
+    { label: 'פטור שכר דירה', value: fmt(data.rentalExemptMonthly), sub: 'לחודש', to: { mode: 'learn', domain: 'rent', values: 'realEstate' } },
+    { label: 'שכר ממוצע (ב"ל)', value: fmt(data.niAverageWage), sub: 'לחודש', to: { mode: 'learn', domain: 'ni', item: 'ni' } },
+    { label: 'תקרת ב"ל חודשית', value: fmt(data.niMaxIncomeMonthly), sub: 'לחודש', to: { mode: 'learn', domain: 'ni', item: 'ni' } },
   ];
   return (
     <div className="ta-learn">
       <header className="ta-page-head">
         <h2 className="tw-h">{MODE_LABEL.learn}</h2>
-        <p className="tw-lead">תחום לכל נושא מקצועי. בכל תחום: מה זה ומתי חל, מה מבקשים מהלקוח, איך מחשבים, ומה עושים בתיק — גם ביד.</p>
+        <p className="tw-lead">תחום לכל נושא מקצועי. בכל תחום: מה זה ומתי חל, ללמוד ולבדוק, הערכים לשנה, מה מבקשים מהלקוח, והעבודה בתיקים.</p>
       </header>
+      {moved && (
+        <section className="ta-moved" role="status" aria-labelledby="ta-moved-h" data-moved>
+          <h3 className="ta-sec-h" id="ta-moved-h">«ערכים לפי נושא» עברו לתחומים</h3>
+          <p className="kn-small kn-muted">כל ערך נמצא עכשיו בעמוד התחום שלו, תחת «ערכים לשנה» — ליד ההסבר, השאלון והעבודה בתיקים.</p>
+          <ul className="ta-moved-list">
+            {MOVED_GROUPS.map(m => (
+              <li key={m.from}>
+                <button type="button" className="kn-link" data-moved-to={`${m.domain}/${m.group ?? m.item}`}
+                  onClick={() => onGo(m.item ? { mode: 'learn', domain: m.domain, item: m.item } : { mode: 'learn', domain: m.domain, values: m.group })}>
+                  {m.from}
+                </button>
+                <span className="kn-muted"> ← {DOMAIN_BY_ID[m.domain].label}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
       <label className="kn-field" htmlFor="ta-q">חיפוש בכל התחומים
-        <input id="ta-q" className="kn-search" type="search" value={q} onChange={e => setQ(e.target.value)} placeholder="למשל: קרן השתלמות, 6111, מקדמות" />
+        <input id="ta-q" className="kn-search" type="search" value={q} onChange={e => setQ(e.target.value)} placeholder="למשל: קרן השתלמות, מס רכישה, עוסק פטור" />
       </label>
       {words.length > 0 && (
         <div className="ta-hits" role="status">
-          {hits.length === 0 ? <p className="kn-muted kn-small">לא נמצא. נסו מילה אחרת — או פתחו את התחום מהרשימה.</p> : (
-            <ul className="ta-item-list">{hits.map(({ d, i }) => (
-              <li key={d.id + i.id}><button type="button" className="ta-item" onClick={() => onGo({ mode: 'learn', domain: d.id, item: i.id })}>
-                <span className="ta-item-t">{i.label}</span><span className="ta-item-p">{d.label} · {i.purpose}</span></button></li>
-            ))}</ul>
+          {hits.length === 0 && valueHits.length === 0 && plannedHits.length === 0 ? <p className="kn-muted kn-small">לא נמצא. נסו מילה אחרת — או פתחו את התחום מהרשימה.</p> : (
+            <ul className="ta-item-list">
+              {hits.map(({ d, i }) => (
+                <li key={d.id + i.id}><button type="button" className="ta-item" onClick={() => onGo({ mode: 'learn', domain: d.id, item: i.id })}>
+                  <span className="ta-item-t">{i.label}</span><span className="ta-item-p">{d.label} · {i.purpose}</span></button></li>
+              ))}
+              {plannedHits.map(({ d, x }) => (
+                <li key={`p.${d.id}.${x.label}`}><button type="button" className="ta-item is-planned" data-planned-hit={d.id} onClick={() => onGo({ mode: 'learn', domain: d.id })}>
+                  <span className="ta-item-kind">טרם נכתב</span>
+                  <span className="ta-item-t">{x.label}</span><span className="ta-item-p">{d.label} · {x.purpose}</span></button></li>
+              ))}
+              {valueHits.map(h => (
+                <li key={`${h.domain}.${h.group}.${h.label}`}><button type="button" className="ta-item" data-value-hit={`${h.domain}/${h.group}`} onClick={() => onGo({ mode: 'learn', domain: h.domain, values: h.group })}>
+                  <span className="ta-item-kind">ערך</span>
+                  <span className="ta-item-t">{h.label}</span><span className="ta-item-p">{DOMAIN_BY_ID[h.domain].label} · {h.groupTitle}</span></button></li>
+              ))}
+            </ul>
           )}
         </div>
       )}
@@ -268,33 +319,38 @@ function LearnHome({ year, onGo }: { year: number; onGo: (p: AreaPath) => void }
           <button key={d.id} type="button" className="ta-dom-card" onClick={() => onGo({ mode: 'learn', domain: d.id })} data-domain-card={d.id}>
             <span className="ta-dom-t">{d.label}</span>
             <span className="ta-dom-p">{d.what}</span>
-            <span className="ta-dom-n">{d.items.map(i => i.label).join(' · ')}</span>
+            <span className="ta-dom-n">{[...d.items.map(i => i.label), ...(valueGroupsOf(d.id).length ? ['ערכים לשנה'] : [])].join(' · ')}</span>
           </button>
         ))}
       </div>
       <div className="pg-rail-eyebrow" style={{ marginTop: 18 }}>ערכי מפתח · {year}</div>
       <div className="tc-keyvals">
         {keyValues.map(card => (
-          <div key={card.label} className="tc-keyval">
-            <div className="tc-keyval-num">{card.value}</div>
-            <div className="tc-keyval-label">{card.label}</div>
-            <div className="tc-keyval-sub">{card.sub}</div>
-          </div>
+          <button key={card.label} type="button" className="tc-keyval ta-keyval" onClick={() => onGo(card.to)} data-keyval={card.label}>
+            <span className="tc-keyval-num">{card.value}</span>
+            <span className="tc-keyval-label">{card.label}</span>
+            <span className="tc-keyval-sub">{card.sub}</span>
+          </button>
         ))}
       </div>
-      <p className="tc-fresh-note">מהמאגר הקיים. מה נבדק בכל ערך — ב«ערכים ומקורות» ← «עדכניות ותחזוקה».</p>
+      <p className="tc-fresh-note">מהמאגר הקיים. מה נבדק בכל ערך — ב«מקורות ועדכניות» ← «עדכניות ותחזוקה».</p>
     </div>
   );
 }
 
-// ── עמוד תחום: מה זה, מתי, מה לומדים, מה מבקשים מהלקוח, ואיזו עבודה בתיק ───────────────────
-function DomainPage({ d, year, onGo, counts }: { d: DomainId; year: number; onGo: (p: AreaPath) => void; counts: ReturnType<typeof useTaxWork>['counts'] }) {
+// ── עמוד תחום (16.10.2026): מה זה ← הטופס או הכלי ← הערכים לשנה ← מה מבקשים מהלקוח ← ללמוד לעומק ──────────
+// ‼ גיא (16.10): ההסבר הקצר — ליד השדה בטופס; הלימוד הארוך — בנפרד («ללמוד לעומק»). עמוד התחום אינו מאמר.
+// ‼ «דוח שנתי» ו«הצהרת הון»: הטופס הרשמי עצמו עם הסימונים (FormMap) הוא העמוד.
+const FORM_DOMAINS: Partial<Record<DomainId, 'annual' | 'wealth'>> = { annual: 'annual', wealth: 'wealth' };
+
+function DomainPage({ d, year, onGo, counts, focusValues, yearSelect, clients, canLearn, onLearn }: {
+  d: DomainId; year: number; onGo: (p: AreaPath) => void; counts: ReturnType<typeof useTaxWork>['counts']; focusValues?: string; yearSelect: ReactNode;
+  clients: Client[]; canLearn: (id: string) => boolean; onLearn: (id: string) => void;
+}) {
   const dom = DOMAIN_BY_ID[d];
-  const areas = dom.catalogAreas.map(id => {
-    const a = AREAS.find(x => x.id === id);
-    const items = ITEMS.filter(i => i.area === id);
-    return { id, title: a?.title ?? id, n: items.length, docs: items.filter(i => i.docKind).length };
-  }).filter(a => a.n > 0);
+  // ‼ אותו מקור ואותו רכיב כמו בשלב «מה מבקשים מהלקוח» של מסלול הלימוד — הכמויות והפירוט נגזרים מאותה רשימה.
+  const areas = useMemo(() => askAreasView(askAreasOf(dom)), [dom]);
+  const formDomain = FORM_DOMAINS[d];
   const itemLine = (i: DomainItem) => {
     const t = i.kind === 'topic' ? TOPIC_BY_ID[i.id] : undefined;
     const st = t ? plainStatus(t.status, weakestBasis(t.ruleIds, year), t.gaps.length) : undefined;
@@ -309,28 +365,103 @@ function DomainPage({ d, year, onGo, counts }: { d: DomainId; year: number; onGo
       </li>
     );
   };
+  // ‼ 16.10: מה שחסר בתחום — גלוי, לא מוסתר: שם, מה יעשה, מה יש היום, והאם צריך מחקר
+  const plannedLine = (x: PlannedItem) => (
+    <li key={x.label} className="ta-planned" data-planned={x.label}>
+      <span className="ta-item-kind">{x.kind === 'tool' ? 'כלי' : 'נושא'} · <b className="ta-planned-tag">טרם נכתב</b></span>
+      <span className="ta-item-t">{x.label}</span>
+      <span className="ta-item-p">{x.purpose}</span>
+      {x.today && <span className="ta-planned-now">היום: {x.today}</span>}
+      <span className="ta-planned-res">{x.research}</span>
+    </li>
+  );
+  const plannedTools = (dom.planned ?? []).filter(x => x.kind === 'tool');
+  const plannedTopics = (dom.planned ?? []).filter(x => x.kind === 'topic');
+  // בתחום עם טופס — כלי «בקרת הטופס» נפתח מתוך הטופס, לא כפריט נוסף ברשימה
+  const tools = dom.items.filter(i => i.kind === 'tool' && !(formDomain && i.id === 'map1301'));
+  const topics = dom.items.filter(i => i.kind === 'topic');
+  const seeAlso = (dom.seeAlso ?? []).filter(x => TOPIC_BY_ID[x.id] && domainOf(x.id));
   const works = dom.workKinds.filter(k => WORK_BY_ID[k]);
+  const hasValues = valueGroupsOf(d).length > 0;
   return (
-    <div className="ta-domain-page" data-domain={d}>
+    <div className={`ta-domain-page${formDomain ? ' has-form' : ''}`} data-domain={d}>
       <header className="ta-page-head">
         <h2 className="tw-h">{dom.label}</h2>
         <p className="tw-lead">{dom.what}</p>
         <p className="ta-when"><b>מתי רלוונטי:</b> {dom.when}</p>
       </header>
-      <section aria-labelledby="ta-learn-h">
-        <h3 className="ta-sec-h" id="ta-learn-h">ללמוד ולבדוק</h3>
-        <ul className="ta-item-list">{dom.items.map(itemLine)}</ul>
-      </section>
+      {formDomain && (
+        <section aria-labelledby="ta-form-h" data-domain-form>
+          <h3 className="ta-sec-h" id="ta-form-h">{formDomain === 'annual' ? 'הטופס — שדה אחר שדה' : 'טופס 1219 — שורה אחר שורה'}</h3>
+          <FormMap key={formDomain} domain={formDomain} clients={clients} canLearn={canLearn} onLearn={onLearn} />
+          {formDomain === 'annual' && (
+            <p className="ta-form-more"><button type="button" className="ta-link" onClick={() => onGo({ mode: 'learn', domain: d, item: 'map1301' })} data-domain-control>בקרת הטופס: מה השתנה מול 2024, כיסוי לפי חלקים ומוכנות לקוח ←</button></p>
+          )}
+        </section>
+      )}
+      {(tools.length > 0 || plannedTools.length > 0) && (
+        <section aria-labelledby="ta-tools-h">
+          <h3 className="ta-sec-h" id="ta-tools-h">{tools.length + plannedTools.length === 1 ? 'הכלי' : 'הכלים'}</h3>
+          {tools.length > 0 && <ul className="ta-item-list">{tools.map(itemLine)}</ul>}
+          {plannedTools.length > 0 && (
+            <details className="ta-planned-box" data-planned-tools={plannedTools.length}>
+              <summary>{plannedTools.length === 1 ? 'כלי אחד שעוד לא נבנה' : `${plannedTools.length} כלים שעוד לא נבנו`}</summary>
+              <ul className="ta-item-list">{plannedTools.map(plannedLine)}</ul>
+            </details>
+          )}
+        </section>
+      )}
+      {hasValues && (
+        <section aria-labelledby="ta-val-h">
+          <h3 className="ta-sec-h" id="ta-val-h">ערכים לשנה</h3>
+          <DomainValues domain={d} year={year} focusGroup={focusValues} yearControl={<label className="ta-val-year">שנת מס{yearSelect}</label>} />
+        </section>
+      )}
       {areas.length > 0 && (
         <section aria-labelledby="ta-ask-h">
           <h3 className="ta-sec-h" id="ta-ask-h">מה מבקשים מהלקוח</h3>
-          <p className="kn-xs kn-muted" style={{ margin: '0 0 6px' }}>מהשאלון שיוצא ללקוח בעבודה. הפירוט המלא — בכל מסלול לימוד, בשלב «מה מבקשים מהלקוח».</p>
-          <ul className="ta-ask-sum">{areas.map(a => <li key={a.id}><b>{a.title}</b><span>{a.n} שאלות{a.docs ? ` · ${a.docs} מסמכים` : ''}</span></li>)}</ul>
+          <ClientAsksPanel areas={areas} level={4} idPrefix={`ta-ask-${d}`} />
+        </section>
+      )}
+      {(topics.length > 0 || dom.learnGap || plannedTopics.length > 0 || seeAlso.length > 0 || (dom.notes ?? []).length > 0) && (
+        <section aria-labelledby="ta-learn-h">
+          <h3 className="ta-sec-h" id="ta-learn-h">ללמוד לעומק</h3>
+          {topics.length > 0 && <ul className="ta-item-list">{topics.map(itemLine)}</ul>}
+          {seeAlso.length > 0 && (
+            <ul className="ta-item-list" data-see-also>
+              {seeAlso.map(x => {
+                const home = domainOf(x.id)!;
+                return (
+                  <li key={x.id}>
+                    <button type="button" className="ta-item" onClick={() => onGo({ mode: 'learn', domain: home, item: x.id })} data-see-also-item={x.id}>
+                      <span className="ta-item-kind">מסלול לימוד · בתחום «{DOMAIN_BY_ID[home].label}»</span>
+                      <span className="ta-item-t">{TOPIC_BY_ID[x.id].title}</span>
+                      <span className="ta-item-p">{x.why}</span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+          {(dom.notes ?? []).map(n => (
+            <div key={n.id} className="ta-note" data-domain-note={n.id}>
+              <h4 className="ta-note-h">{n.title}</h4>
+              <ul>{n.points.map(p => <li key={p.text}>{p.text} <ClaimTag status={p.status} /></li>)}</ul>
+              {n.where && <p className="ta-note-where">{n.where}</p>}
+            </div>
+          ))}
+          {dom.learnGap && <p className="ta-gap" data-learn-gap>{dom.learnGap}</p>}
+          {plannedTopics.length > 0 && (
+            <details className="ta-planned-box" data-planned-topics={plannedTopics.length}>
+              <summary>{plannedTopics.length === 1 ? 'נושא אחד שעוד לא נכתב' : `${plannedTopics.length} נושאים שעוד לא נכתבו`}</summary>
+              <ul className="ta-item-list">{plannedTopics.map(plannedLine)}</ul>
+            </details>
+          )}
         </section>
       )}
       {works.length > 0 && (
         <section aria-labelledby="ta-work-h">
-          <h3 className="ta-sec-h" id="ta-work-h">העבודה בתיקים</h3>
+          <h3 className="ta-sec-h" id="ta-work-h">העבודות אצל הלקוחות</h3>
           <div className="kn-row">{works.map(k => (
             <button key={k} type="button" className="btn btn-secondary btn-sm" onClick={() => onGo({ mode: 'work', section: k })} data-domain-work={k}>
               {WORK_BY_ID[k].label}{counts[k].open ? ` · ${counts[k].open} פתוחות` : ''}

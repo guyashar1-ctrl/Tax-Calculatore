@@ -90,6 +90,9 @@ interface Props {
   /** בקשה מתיק המס לפתוח «תצוגה מפורטת» של מוסד — ראה OnboardingTab. */
   detailedAlignment?: { key: InstitutionKey | null; origin: 'taxfile' | 'journey'; tick: number };
   onDetailedAlignmentConsumed?: () => void;
+  /** 16.10.2026 · נחיתה על שורת בקשה (מתיק המס / «מס › עבודות לקוחות»). */
+  focusRequest?: { stepId: string; tick: number } | null;
+  onFocusConsumed?: () => void;
   /** עדכון שדה פשוט על הכרטיס (spouseEmail) — לדיאלוג הוראות האישור העצמאיות. */
   onUpdateClientFields?: (patch: Partial<Client>) => Promise<void>;
   /** אחרי שליחה מוצלחת של הוראות האישור — קריאה מחדש של הביצוע והשלב (157). */
@@ -352,6 +355,8 @@ export default function JourneyTab(p: Props) {
       {showRequests && (
         <OnboardingTab
           embedded
+          focusRequest={p.focusRequest}
+          onFocusConsumed={p.onFocusConsumed}
           clientId={p.client.id}
           client={p.client}
           onClientPersisted={p.onClientPersisted}

@@ -14,6 +14,7 @@ import type { RecentDoc } from '../hooks/useRecentDocuments';
 import type { AdditionalCharge } from '../types/charges';
 import { CHARGE_STATUS_LABELS, CHARGE_STATUS_BADGE, CHARGE_NEXT_ACTION } from '../types/charges';
 import { formatDate, daysLate } from '../utils/dateFormat';
+import { familyStatusDisplay } from '../utils/familyStatusYear';
 
 export interface QuickViewAction {
   label: string;
@@ -217,6 +218,10 @@ export default function PersonQuickView(p: Props) {
           </div>
         )}
 
+        {/* מצב משפחתי עם «ממתי» — ‼ בלי ריק שקט: חסרה שנה ⇒ «ממתי? טרם נרשם» (utils/familyStatusYear.ts) */}
+        {p.row.client?.familyStatus && (
+          <div className="pd-regline" data-testid="qv-family">מצב משפחתי: <b>{familyStatusDisplay(p.row.client)}</b></div>
+        )}
         {regLine && (
           <div className={`pd-regline${regLine.spouse ? ' is-spouse' : ''}`} title={REG_HINT}>
             {regLine.text}{regLine.name && <> <b>{regLine.name}</b></>}

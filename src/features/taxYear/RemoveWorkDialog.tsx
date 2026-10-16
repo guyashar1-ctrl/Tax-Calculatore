@@ -62,7 +62,7 @@ export default function RemoveWorkDialog({ stepId, title, onClose, onDone }: Pro
     if (!r.ok) { setErr(ERR[r.error] ?? `ההסרה נכשלה (${r.error})`); if (r.error === 'changed') void check(); return; }
     onDone(r.mode === 'delete' ? 'deleted' : 'cancelled', r.mode === 'delete'
       ? 'העבודה נמחקה. דבר לא יצא ממנה ללקוח.'
-      : `העבודה בוטלה${r.asksClosed ? ` ו-${r.asksClosed} שאלות שלא נענו נסגרו` : ''}. מה שהתקבל נשמר. להחזרה: «מס» ← «עבודות לקוחות» ← «בוטלו».`);
+      : `העבודה בוטלה${r.asksClosed ? ` ו-${r.asksClosed} שאלות שלא נענו נסגרו` : ''}. מה שהתקבל נשמר. להחזרה: «תיק מס» ← «דוחות והצהרות» ← «בוטלו».`);
   };
 
   const ex = state ? removalExplain(state.facts, pick) : null;

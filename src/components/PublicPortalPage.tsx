@@ -717,6 +717,14 @@ function ActionItem({ item, brand, accent, last, onDone }: {
         </div>
       ) : taxInfo ? (
         <div style={{ marginTop: 11 }}>
+          {/* ‼ 16.10.2026 · «כל עבודה היא בקשה»: שאלון תיק המס הוא בקשה כמו כל בקשה — אותו הסבר (RequestGuide)
+              ואותו קישור «למדריך» כשהשרת שולח אותם; בלי הם — הכרטיס נשאר כמו שהיה. */}
+          <RequestGuide item={item} brand={brand} />
+          {item.linkUrl && (
+            <div style={{ margin: '0 0 8px' }}>
+              <a href={item.linkUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, fontWeight: 600, color: accent, textDecoration: 'none' }}>{item.linkLabel || 'למדריך המלא'} ←</a>
+            </div>
+          )}
           {/* ‼ 13.10.2026 · מסך שאלון ייעודי (TaxInfoScreen) — לא בתוך רשימת הבקשות. כשנשארו רק מסמכים —
               הכפתור אומר את זה, והמסך נפתח ישר לרשימת המסמכים (בלי לעבור שוב על השאלות). */}
           <button type="button" onClick={() => setOpen(true)} style={readOnly || sample ? inertBtn : primaryBtn} aria-haspopup="dialog" disabled={readOnly || sample}>

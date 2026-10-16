@@ -200,6 +200,12 @@ interface Props {
    * וכאן נשארות רק שורות הבקשות. בלי זה היו שתי כותרות שאומרות אותו דבר.
    */
   embedded?: boolean;
+  /**
+   * 16.10.2026 · נחיתה על שורת בקשה (‎#/client/<id>/journey/<stepId>‎, מתיק המס ומ«מס › עבודות לקוחות»).
+   * tick משתנה בכל בקשה — כדי שאותה שורה תיפתח שוב גם אם כבר נפתחה פעם.
+   */
+  focusRequest?: { stepId: string; tick: number } | null;
+  onFocusConsumed?: () => void;
   /** סינון לפי אצל-מי-הכדור, מרצועת המונים בדף המסע. null = הכול. */
   ballFilter?: 'me' | 'client' | 'third' | 'stuck' | 'done' | null;
   /**
@@ -503,13 +509,16 @@ function monthLabel(v?: string): string {
 
 /** איך גובים מלקוח שאינו בפייפרלס. רשימה סגורה — טקסט חופשי כאן היה הופך
  *  את השדה לבלתי ניתן לסינון בעוד שנה. */
+/** 16.10.2026 · ארבע עבודות המס — נפתחות בתוך שורת הבקשה. */
+const TAX_WORK_TYPES = ['tax_file_intake', 'annual_return', 'wealth_declaration', 'tax_estimate'];
+
 const COLLECTION_METHODS = ['הוראת קבע בבנק', 'כרטיס אשראי', 'העברה בנקאית חודשית', 'המחאות', 'אחר'];
 
 export default function OnboardingTab({
   clientId, client, onClientPersisted, engagements, steps, events, loading, advance, refresh,
   prevAccountant, onPrepareReleaseLetter, quotations, clientLeadIds, repStatusLabel, repStatus, repNote, repIdAttach, onRepIdAttached, repSendPhase, repFacts, onOpenRepresentation,
   onOpenDocuments,
-  clientDisplayName, clientEmail, embedded, ballFilter, onOpenTaxFile,
+  clientDisplayName, clientEmail, embedded, focusRequest, onFocusConsumed, ballFilter, onOpenTaxFile,
   niExecution, onUpdateClientFields, onRequestAuthorityRepresentation, onNiInstructionsSent, onAttentionSummary,
   spouseClient, onOpenSpouseClient, detailedAlignment, onDetailedAlignmentConsumed,
 }: Props) {
@@ -547,6 +556,8 @@ export default function OnboardingTab({
   const [highlightStepId, setHighlightStepId] = useState<string | null>(null);
   // מה שהושלם לא נעלם, אבל גם לא תופס את המסך — הוא מקופל עד שמבקשים אותו.
   const [showDone, setShowDone] = useState(false);
+  /** 16.10.2026 · עבודת מס שהושלמה — נפתחת לקריאה בתוך «הושלמו» (הסיכום, ההערכה, מה נאסף). */
+  const [openDoneTaxId, setOpenDoneTaxId] = useState<string | null>(null);
   // שורה סגורה מראה שם, מצב ופעולה; פתיחה חושפת את הפרטים וההיסטוריה שלה.
   const [openRowId, setOpenRowId] = useState<string | null>(null);
   /** שלב בתוך שרשרת שנפתח בתוך השורה הפתוחה — לא סוגר את ההורה. */
@@ -666,6 +677,16 @@ export default function OnboardingTab({
   useEffect(() => () => {
     if (highlightTimer.current) window.clearTimeout(highlightTimer.current);
   }, []);
+  // ‼ נחיתה מקישור — אותו מנגנון כמו אחרי פעולה (requestFocus): נפתחת כשהשורה הגיעה מהשרת
+  useEffect(() => {
+    if (!focusRequest?.stepId) return;
+    requestFocus({ stepId: focusRequest.stepId });
+    // ‼ 16.10.2026 · «אחורה»: הניקוי נדחה לסבב הבא. אפקט של רכיב פנימי רץ לפני האפקט של App שדוחף את הכתובת —
+    //   ניקוי מיידי סימן «החלף רשומה» לפני הדחיפה, וכתובת הבקשה דרסה את המסך הקודם (הסקירה ב«מס») בהיסטוריה.
+    const t = window.setTimeout(() => onFocusConsumed?.(), 0);
+    return () => window.clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusRequest?.stepId, focusRequest?.tick]);
 
   /* ‼ תפריט ⋯ נסגר בלחיצה בחוץ וב-Escape. בלי זה הוא נשאר פתוח על כרטיס
      אחד בזמן שעובדים על אחר, ושתי שכבות פתוחות בו-זמנית נראות כתקלה. */
@@ -1277,6 +1298,12 @@ export default function OnboardingTab({
   }
   /** פותח את השורה שהשלב בתוכה ואת השלב עצמו, וגולל אליו. */
   function focusStep(stepId: string) {
+    // ‼ 16.10.2026 · שורה שהושלמה יושבת ב«הושלמו» המקופל — פורשים אותו (ועבודת מס — נפתחת בו), ואז גוללים
+    const target = stepById.get(stepId);
+    if (target && !isStepOpen(target.status)) {
+      setShowDone(true);
+      if (TAX_WORK_TYPES.includes(target.stepType)) setOpenDoneTaxId(stepId);
+    }
     const top = rowTopRef.current.get(stepId) ?? stepId;
     setOpenRowId(top);
     setOpenChildId(top === stepId ? null : stepId);
@@ -1933,6 +1960,10 @@ export default function OnboardingTab({
                   : [step.stepType === 'tax_estimate' && pl.cutoffMonth ? `חתך: סוף ${TY_MONTHS[pl.cutoffMonth]}` : '',
                      step.stepType === 'wealth_declaration' ? demandView(pl.demand).short : '',
                      isStepOpen(step.status) ? infoLine : 'הושלם'].filter(Boolean).join(' · ');
+                // ‼ 16.10.2026 · «כל עבודה היא בקשה»: במשטח הבקשות העבודה נפתחת בתוך השורה (אותו רכיב —
+                //   TaxYearProcess, לא מנוע שני). «השלמת מידע» פותחת את שורת ההורה; ההסרה — ב-⋯ של השורה.
+                const isInfo = step.stepType === 'info_collection';
+                const openWork = () => (embedded ? focusStep(parentId) : setTaxYearStepId(parentId));
                 return (
                   <JourneyRow
                     key={step.id}
@@ -1945,16 +1976,21 @@ export default function OnboardingTab({
                        (info_collection אינה בין סוגי הדף ב-portalShowsStep, ולכן הסימון הכללי לא תפס). */
                     state={step.stepType === 'info_collection' && isStepOpen(step.status) && (step.status === 'pending' || step.publishedAt === null)
                       ? { text: 'טיוטה', tone: 'amber' } : undefined}
-                    menu={step.stepType !== 'info_collection' && isStepOpen(step.status) ? (
+                    menu={!embedded && !isInfo && isStepOpen(step.status) ? (
                       <span className="rl-links">
                         <button type="button" className="rl-link is-danger" onClick={() => setRemoveTax({ id: step.id, title: workTitle(step) })} data-remove-tax-work>הסר…</button>
                       </span>
                     ) : null}
-                    primary={parentId ? (
-                      <button type="button" className="btn btn-sm btn-primary" onClick={() => setTaxYearStepId(parentId)}>פתח</button>
+                    primary={parentId && (!embedded || isInfo) ? (
+                      <button type="button" className="btn btn-sm btn-primary" onClick={openWork} data-open-tax-work>פתח</button>
                     ) : undefined}
                   >
-                    {null}
+                    {embedded && !isInfo ? (
+                      <TaxYearProcess embedded client={client} step={step}
+                        infoStep={clientSteps.find(x => x.stepType === 'info_collection' && (x.payload as unknown as { parentStepId?: string }).parentStepId === step.id && x.status !== 'cancelled')}
+                        onClientPersisted={onClientPersisted}
+                        onClose={() => setOpenRowId(null)} onChanged={() => refresh?.()} onRemoved={setTaxNotice} />
+                    ) : null}
                   </JourneyRow>
                 );
               }
@@ -3878,7 +3914,7 @@ export default function OnboardingTab({
                 /* ‼ מה הלקוח ענה — בבקשה חופשית שהושלמה. בלי זה «הושלם» לא אומר מה נמצא. */
                 const answers = !skipped && s.stepType === 'custom_request' ? requestAnswers(s.payload.requirements) : [];
                 return (
-                  <div key={s.id} className="rl-done">
+                  <div key={s.id} id={`ob-step-${s.id}`} className={`rl-done${highlightStepId === s.id ? ' is-highlight' : ''}`}>
                     <span className="rl-done-mark" aria-hidden="true">{skipped ? '↷' : '✓'}</span>
                     <span className="rl-done-title">
                       {partLabel ?? rowTitle(s)}
@@ -3897,6 +3933,21 @@ export default function OnboardingTab({
                         onClick={() => void reopenRegistration(s)}>
                         בטל אישור
                       </button>
+                    )}
+                    {/* ‼ 16.10.2026 · עבודת מס שהושלמה: «פתיחה» — אותו מסך עבודה, בתוך «הושלמו» (קריאה; היסטוריה לא נכתבת מחדש). */}
+                    {embedded && TAX_WORK_TYPES.includes(s.stepType) && s.status !== 'cancelled' && (
+                      <button type="button" className="btn btn-sm btn-ghost" aria-expanded={openDoneTaxId === s.id} data-open-done-work
+                        onClick={() => setOpenDoneTaxId(v => (v === s.id ? null : s.id))}>
+                        {openDoneTaxId === s.id ? 'סגירה' : 'פתיחה'}
+                      </button>
+                    )}
+                    {embedded && openDoneTaxId === s.id && TAX_WORK_TYPES.includes(s.stepType) && (
+                      <div className="rl-done-work">
+                        <TaxYearProcess embedded client={client} step={s}
+                          infoStep={clientSteps.find(x => x.stepType === 'info_collection' && (x.payload as unknown as { parentStepId?: string }).parentStepId === s.id && x.status !== 'cancelled')}
+                          onClientPersisted={onClientPersisted}
+                          onClose={() => setOpenDoneTaxId(null)} onChanged={() => refresh?.()} onRemoved={setTaxNotice} />
+                      </div>
                     )}
                     {/* ‼ טופס חכם שהושלם: צפייה בלבד. */}
                     {s.stepType === 'custom_request' && (s.payload?.smartForm as SmartFormProjection | undefined)?.filingId && (
@@ -4024,7 +4075,7 @@ export default function OnboardingTab({
           client={client}
           niExecution={niExecution}
           onRequestAuthorityRepresentation={onRequestAuthorityRepresentation}
-          onOpenTaxYear={id => setTaxYearStepId(id)}
+          onOpenTaxYear={id => (embedded ? requestFocus({ stepId: id }) : setTaxYearStepId(id))}
           onStartSmartForm={async () => {
             // ‼ אידמפוטנטי בשרת: הגשה פתוחה קיימת ⇒ חוזרים אליה, לא פותחים שנייה.
             const r = await startFiling(clientId, []);

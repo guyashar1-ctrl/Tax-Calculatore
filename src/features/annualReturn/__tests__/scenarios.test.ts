@@ -53,7 +53,8 @@ export const TESTS: TestCase[] = [
     equal(fileOk(o, client, d).issues.length, 0, fileOk(o, client, d).issues.join(' | '));
   }),
   test('בני זוג: עסק אצל בן הזוג הרשום, משכורת אצל בת הזוג — 150 ו-172, פרטי בת הזוג בכותרת; גיליון מלא', () => {
-    const client = baseCard({ familyStatus: 'married', businesses: [BIZ], employers: [{ id: 'em2', name: 'משרד החינוך', belongsToSpouse: true }], spouse: SPOUSE,
+    // ‼ 16.10.2026: נשואים בשנת הדוח — לפי שנת הנישואין (בלי שנה: «מצב משפחתי ב-2025 לא ידוע», והדוח טיוטה)
+    const client = baseCard({ familyStatus: 'married', marriageYear: 2012, businesses: [BIZ], employers: [{ id: 'em2', name: 'משרד החינוך', belongsToSpouse: true }], spouse: SPOUSE,
       spouseFirstName: 'רות', spouseLastName: 'כהן', spouseIdNumber: '234567891' } as unknown as Partial<Client>);
     const facts = [fact('business.profit', 'client', { profit: 200_000, turnover: 260_000 }, { entityRef: 'bz1' }), fact('payments.niPaid', 'client', 15_000),
       fact('salary.amounts', 'spouse', { gross: 150_000, withheld: 18_000 }, { entityRef: 'em2' }), ...filingFacts({ married: true, extraDecl: { X6111: false } })];

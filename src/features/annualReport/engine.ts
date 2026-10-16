@@ -201,16 +201,19 @@ export function buildRequiredAttachments(model: TaxpayerModel): RequiredAttachme
     out.push({ formNumber: '6111', name: 'מאזן ודוח רווח-הפסד מקודד', reason: 'חובה לעסקים עם מחזור מעל 300,000 ₪ (הוראות 2025)' });
   }
   if ((model.income.capitalSubTypes ?? []).length > 0) {
-    out.push({ formNumber: 'נספח ג\' (1322)', name: 'פירוט רווחי הון', reason: 'דיווח רווחי הון מני"ע / קריפטו / מקרקעין' });
+    // ‼ 16.10.2026 (R12): 1322 — ני״ע; קריפטו ונכס שאינו ני״ע סחיר — 1399י; מקרקעין — שומת מס שבח (לא נספח)
+    out.push({ formNumber: 'נספח ג\' (1322)', name: 'פירוט רווחי הון מני"ע', reason: 'רווח הון מניירות ערך; קריפטו ונכס אחר — 1399י; מקרקעין — שומת מס שבח' });
   }
   if (src.includes('foreign')) {
     out.push({ formNumber: 'נספח ד\' (1324)', name: 'דיווח הכנסות חו"ל', reason: 'הכנסות שהופקו מחוץ לישראל' });
   }
   if (model.income.foreignPaidTaxAbroad) {
-    out.push({ formNumber: '1325', name: 'בקשה לזיכוי מס זר', reason: 'מס ששולם בחו"ל לזיכוי' });
+    // ‼ 1325 הוא נספח ג1 (ני״ע בספרי עסק), לא זיכוי מס זר — הזיכוי נתבע בנספח ד׳ (1324)
+    out.push({ formNumber: 'נספח ד\' (1324)', name: 'זיכוי ממס זר — בתוך נספח ד׳', reason: 'מס ששולם בחו"ל — נתבע בנספח ד׳ עם אישור המס הזר' });
   }
   if (model.income.receivedSeverance) {
-    out.push({ formNumber: '134', name: 'בקשה לפריסת מענק פרישה', reason: 'אם נבחרה פריסה למספר שנות מס' });
+    // ‼ 134 הוא דוח מקדמות בשע״ם — לא טופס פריסה. הפריסה: טופס 116ג (סעיף 8(ג)) ואישור פקיד השומה
+    out.push({ formNumber: '116ג', name: 'בקשה לפריסה ואישור פקיד השומה', reason: 'אם נבחרה פריסת מענק הפרישה (סעיף 8(ג)); בקשה אינה אישור' });
   }
   if (model.specialSituations.hasCarriedLosses) {
     out.push({ formNumber: '1344', name: 'פירוט הפסדים מועברים', reason: 'יתרת ההפסד משנים קודמות' });

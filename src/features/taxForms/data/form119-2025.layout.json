@@ -1,0 +1,157 @@
+{
+ "formId": "119",
+ "slug": "119",
+ "taxYear": 2025,
+ "title": "119 — בקשה להקלה במס לבעל תואר אקדמי / תעודת מקצוע",
+ "source": {
+  "url": "https://www.gov.il/BlobFolder/service/reporting-and-payment-2025-annual-tax-report-for-individuals/he/Service_Pages_Income_tax_annual-report-2026_annual-report-2026_itc119n.pdf",
+  "fetchedOn": "2026-10-16",
+  "sha256": "f4cd303b3c9e6be49ad88d0fbd5c2b541960baf571cf5cd63821c928dddd6c7f",
+  "pdf": "/forms/2025/pdf/119.pdf",
+  "pagesInPdf": 2
+ },
+ "method": "קוד מודפס בשכבת הטקסט של ה-PDF הרשמי + התיבה הסגורה שהוא בתוכה (how=box); בלי תיבה — סביב הקוד עצמו (how=label)",
+ "pages": [
+  {
+   "n": 1,
+   "w": 595.275,
+   "h": 841.89,
+   "img": "/forms/2025/119/p1.webp",
+   "textLayer": true
+  }
+ ],
+ "anchors": [],
+ "ambiguous": [],
+ "missing": [],
+ "labelMethod": "שדה בלי קוד מודפס — לפי מילות התווית בשכבת הטקסט (≥60%, חד-משמעי); check = הריבוע מימין לתווית, row = התווית עם ריבועי כן/לא, cell = התא, text = התווית בלבד",
+ "labelAnchors": [
+  {
+   "field": "119.2",
+   "page": 1,
+   "how": "text",
+   "score": 1,
+   "box": [
+    0.2694,
+    0.2972,
+    0.5386,
+    0.0154
+   ],
+   "label": [
+    0.2719,
+    0.299,
+    0.5335,
+    0.0119
+   ]
+  },
+  {
+   "field": "119.3",
+   "page": 1,
+   "how": "text",
+   "score": 1,
+   "box": [
+    0.1024,
+    0.2319,
+    0.6904,
+    0.0154
+   ],
+   "label": [
+    0.1049,
+    0.2337,
+    0.6853,
+    0.0119
+   ]
+  },
+  {
+   "field": "119.4",
+   "page": 1,
+   "how": "text",
+   "score": 1,
+   "box": [
+    0.6841,
+    0.3562,
+    0.2254,
+    0.0178
+   ],
+   "label": [
+    0.6867,
+    0.358,
+    0.2203,
+    0.0143
+   ]
+  },
+  {
+   "field": "119.10",
+   "page": 1,
+   "how": "text",
+   "score": 0.86,
+   "box": [
+    0.0951,
+    0.5801,
+    0.5998,
+    0.0178
+   ],
+   "label": [
+    0.0976,
+    0.5819,
+    0.5948,
+    0.0143
+   ]
+  },
+  {
+   "field": "119.11",
+   "page": 1,
+   "how": "text",
+   "score": 1,
+   "box": [
+    0.1533,
+    0.9451,
+    0.6565,
+    0.0154
+   ],
+   "label": [
+    0.1558,
+    0.9469,
+    0.6515,
+    0.0119
+   ]
+  }
+ ],
+ "labelUnplaced": [
+  {
+   "field": "119.1",
+   "why": "noMatch"
+  },
+  {
+   "field": "119.5",
+   "why": "noMatch"
+  },
+  {
+   "field": "119.6",
+   "why": "noMatch"
+  },
+  {
+   "field": "119.7",
+   "why": "ambiguous",
+   "where": [
+    "p1:385,450",
+    "p1:385,428",
+    "p1:385,384",
+    "p1:385,362"
+   ]
+  },
+  {
+   "field": "119.8",
+   "why": "noMatch"
+  },
+  {
+   "field": "119.9",
+   "why": "ambiguous",
+   "where": [
+    "p1:69,450",
+    "p1:69,428",
+    "p1:69,406",
+    "p1:69,384"
+   ]
+  }
+ ]
+}

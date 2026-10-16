@@ -113,12 +113,13 @@ const CHECK_HE: Record<OptimizationCheck['status'], { label: string; tone: strin
   notCompared: { label: 'ההשוואה טרם בוצעה', tone: 'amber' },
   compared: { label: 'הושווה במספרים', tone: '' },
   undecided: { label: 'לא הוכרע', tone: 'amber' },
+  checked: { label: 'נבדק', tone: '' },
 };
 
 export function ChecksList({ checks, stepId }: { checks: OptimizationCheck[]; stepId?: string }) {
   const kl = useKnowledgeLink();
   if (!checks.length) return <p className="ty-note">אין עדיין מה לבדוק — חסרים נתוני הכנסה.</p>;
-  const order: OptimizationCheck['status'][] = ['saving', 'undecided', 'notCompared', 'missingData', 'notSupported', 'compared', 'noSaving', 'notApplicable'];
+  const order: OptimizationCheck['status'][] = ['saving', 'undecided', 'notCompared', 'missingData', 'notSupported', 'compared', 'checked', 'noSaving', 'notApplicable'];
   const sorted = [...checks].sort((x, y) => order.indexOf(x.status) - order.indexOf(y.status));
   return (
     <ul className="te-checks">

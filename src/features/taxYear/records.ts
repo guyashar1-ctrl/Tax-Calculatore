@@ -7,6 +7,8 @@
 import type { Client } from '../../types';
 import type { RecordSchemaId } from './types';
 import type { DatedValue } from './temporal';
+import { isValidIsraeliId } from '../../utils/israeliId';
+import { familyStatusYearProblem } from '../../utils/familyStatusYear';
 
 export type FieldType = 'text' | 'dated' | 'date' | 'number' | 'percent' | 'choice' | 'digits' | 'bank' | 'branch' | 'hebrewText';
 
@@ -25,6 +27,10 @@ export interface RecordField {
   maxLength?: number;
   /** רוחב בשורה בטלפון ובמחשב. */
   half?: boolean;
+  /** 16.10.2026 · תאריך שיכול להיות בעתיד (סוף תקופת זכאות שעוד לא הסתיימה). */
+  allowFuture?: boolean;
+  /** 16.10.2026 · ת.ז. ישראלית — בדיקת ספרת ביקורת (utils/israeliId), כדי שטעות הקלדה תיתפס אצל הלקוח. */
+  israeliId?: boolean;
   /** לתאריך עם דיוק: אילו דיוקים מותרים. ברירת מחדל: כולם. */
   precisions?: DatedValue['precision'][];
 }
@@ -213,11 +219,34 @@ export function schemaFor(id: RecordSchemaId, c?: Client, ctx?: Record<string, s
       id, noun: 'שותף', addLabel: '＋ עוד שותף', multiple: true,
       fields: [
         { key: 'name', label: 'שם', type: 'text', required: true, half: true },
-        { key: 'idNumber', label: 'תעודת זהות', type: 'digits', maxLength: 9, half: true },
+        { key: 'idNumber', label: 'תעודת זהות', type: 'digits', maxLength: 9, half: true, israeliId: true },
         { key: 'share', label: 'החלק ברווחים (%)', type: 'percent', required: true, half: true },
         { key: 'works', label: 'עובד/ת בעסק', type: 'choice', options: [{ value: 'yes', label: 'כן' }, { value: 'no', label: 'לא' }], half: true },
       ],
       summary: r => [str(r.name), r.share ? `${str(r.share)}%` : '', r.works === 'yes' ? 'עובד/ת בעסק' : ''].filter(Boolean).join(' · '),
+    };
+    // ‼ 16.10.2026 · דמי לידה. 105 ימים אינם קבועים (הארכות, חלקי, העברה לבן הזוג) — לכן שני תאריכים, לא «תאריך לידה + 105».
+    case 'maternityPeriod': return {
+      id, noun: 'תקופה', addLabel: '', multiple: false,
+      fields: [
+        { key: 'from', label: 'מתאריך', type: 'date', required: true, half: true, allowFuture: true, hint: 'היום הראשון שעליו שולמו דמי לידה' },
+        { key: 'to', label: 'עד תאריך', type: 'date', required: true, half: true, allowFuture: true, hint: 'היום האחרון — כפי שכתוב בהודעה מביטוח לאומי' },
+      ],
+      summary: r => [he(r.from) && `מ-${he(r.from)}`, he(r.to) && `עד ${he(r.to)}`].filter(Boolean).join(' '),
+    };
+    // ‼ 16.10.2026 · שנת הנישואין / הגירושין / הפטירה — שדה אחד; השאלה עצמה אומרת איזו שנה (intakeCatalog)
+    case 'familyYear': return {
+      id, noun: 'שנה', addLabel: '', multiple: false,
+      fields: [{ key: 'year', label: 'שנה', type: 'digits', maxLength: 4, required: true, half: true, placeholder: 'למשל 2015', hint: 'בארבע ספרות' }],
+      summary: r => str(r.year),
+    };
+    case 'maternityAmounts': return {
+      id, noun: 'סכומים', addLabel: '', multiple: false,
+      fields: [
+        { key: 'amount', label: 'כמה שולם (₪)', type: 'number', required: true, half: true, hint: 'הסכום באישור השנתי מביטוח לאומי' },
+        { key: 'tax', label: 'כמה מס נוכה (₪)', type: 'number', half: true, hint: 'אם כתוב באישור; אפשר להשאיר ריק' },
+      ],
+      summary: r => [r.amount !== undefined && r.amount !== '' ? `שולם ${Number(r.amount).toLocaleString('he-IL')} ₪` : '', r.tax !== undefined && r.tax !== '' ? `מס ${Number(r.tax).toLocaleString('he-IL')} ₪` : ''].filter(Boolean).join(' · '),
     };
     case 'period': {
       const w = ctx?.periodNoun ?? 'השנה';
@@ -260,11 +289,12 @@ export function validateRecord(schema: RecordSchema, r: RecordValue): Record<str
     if (empty) { if (f.required) err[f.key] = 'חסר'; continue; }
     if (f.type === 'digits' && !/^\d+$/.test(str(v))) err[f.key] = 'רק ספרות';
     else if (f.type === 'digits' && f.maxLength && str(v).length > f.maxLength) err[f.key] = `עד ${f.maxLength} ספרות`;
+    else if (f.israeliId && !isValidIsraeliId(str(v))) err[f.key] = 'מספר תעודת זהות לא תקין — כדאי לבדוק שוב';
     else if (f.type === 'hebrewText' && !HEBREW_OK.test(str(v))) err[f.key] = 'בעברית';
     else if (f.type === 'number' && !(Number(v) >= 0)) err[f.key] = 'מספר לא תקין';
     else if (f.type === 'percent' && !(Number(v) > 0 && Number(v) <= 100)) err[f.key] = 'בין 1 ל-100';
     else if (f.type === 'date' && !/^\d{4}-\d{2}-\d{2}$/.test(str(v))) err[f.key] = 'תאריך לא תקין';
-    else if (f.type === 'date' && str(v) > new Date().toISOString().slice(0, 10)) err[f.key] = 'תאריך עתידי';
+    else if (f.type === 'date' && !f.allowFuture && str(v) > new Date().toISOString().slice(0, 10)) err[f.key] = 'תאריך עתידי';
     else if (f.type === 'dated') {
       const d = v as DatedValue;
       if (d.precision !== 'unknown' && !(d.date && /^\d{4}-\d{2}-\d{2}$/.test(d.date))) err[f.key] = 'תאריך לא תקין';
@@ -272,6 +302,13 @@ export function validateRecord(schema: RecordSchema, r: RecordValue): Record<str
     else if (f.type === 'branch' && !/^\d{1,3}$/.test(str(v))) err[f.key] = 'מספר סניף — עד 3 ספרות';
     else if (f.type === 'bank' && !/^\d{1,2}$/.test(str(v))) err[f.key] = 'מספר בנק — עד 2 ספרות';
   }
+  // ‼ 16.10.2026 · שנת אירוע משפחתי: ארבע ספרות, לא עתידית ולא לפני 1930 (familyStatusYearProblem — אותו כלל כמו בתיק)
+  if (schema.id === 'familyYear' && !err.year && str(r.year)) {
+    const p = /^\d{4}$/.test(str(r.year)) ? familyStatusYearProblem(Number(r.year)) : 'שנה בארבע ספרות';
+    if (p) err.year = p;
+  }
+  // ‼ 16.10.2026 · תקופה: הסיום לא לפני ההתחלה
+  if (schema.id === 'maternityPeriod' && !err.from && !err.to && str(r.from) && str(r.to) && str(r.to) < str(r.from)) err.to = 'הסיום לפני ההתחלה';
   return err;
 }
 

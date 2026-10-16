@@ -89,7 +89,9 @@ export function buildSummary(x: SummaryInput): SummaryModel {
   for (const a of o.advances.filter(y => y.authority === 'ni' && isNum(y.annualDue))) {
     const tag = a.person === 'spouse' ? ` · ${who('spouse')}` : '';
     const due = (a.annualDue as { value: number }).value;
-    headline.push({ label: `ביטוח לאומי לשנה${tag}`, value: nis(due), detail: [...a.explain, 'דמי ביטוח לאומי ובריאות לעצמאי — לפי ההכנסה מהעסק; נקבעים סופית בשומה של ב״ל'] });
+    // ‼ 16.10.2026 (R11): ביטוח לאומי ובריאות — שני תשלומים שונים: רק הלאומי מותר בניכוי 52% ממס הכנסה (47א)
+    const split = a.split ? [`מזה ביטוח לאומי ${nis(a.split.ni)} · ביטוח בריאות ${nis(a.split.health)}`] : [];
+    headline.push({ label: `ביטוח לאומי ובריאות לשנה${tag}`, value: nis(due), detail: [...split, ...a.explain.filter(e => !e.startsWith('מזה ביטוח לאומי')), `דמי ביטוח לאומי ובריאות — לפי ההכנסה מהעסק אחרי הניכוי לקופת גמל${o.persons.some(pr => pr.person === a.person && pr.niNonWork && isNum(pr.niNonWork) && pr.niNonWork.value > 0) ? ', ועל שכר דירה חייב — כהכנסה שלא מעבודה' : ''}; נקבעים סופית בשומה של ב״ל`] });
     // ‼ יתרת מ״ה של משק הבית אינה כוללת את ב״ל — בלי השורה הזו לקוח עם זכות במ״ה וחוב בב״ל קורא «זכות» על הכול.
     if (isNum(a.balanceAtCurrent)) {
       const now = a.balanceAtCurrent.value, reco = isNum(a.balanceAtRecommended) ? a.balanceAtRecommended.value : undefined;
@@ -98,6 +100,15 @@ export function buildSummary(x: SummaryInput): SummaryModel {
           ...(reco != null && a.recommended != null ? [`במקדמה המומלצת: ${bal(reco)}`] : []),
           ...((reco ?? now) > 0 ? ['הפרש לחודשים שכבר עברו נגבה בדרך כלל בחיוב נפרד של ב״ל או בשומה הסופית. אפשר להשלים אותו מראש'] : [])] });
     }
+  }
+
+  // ב״ל על הכנסה שלא מעבודה (שכ״ד חייב) אצל מי שאין לו מקדמת ב״ל — נגבה לפי שומה, ומוצג כדי שלא ייראה «אין ב״ל»
+  for (const pr of o.persons.filter(x => x.niNonWork && isNum(x.niNonWork) && x.niNonWork.value > 0 && !o.advances.some(a => a.authority === 'ni' && a.person === x.person))) {
+    const tag = pr.person === 'spouse' ? ` · ${who('spouse')}` : '';
+    headline.push({ label: `ביטוח לאומי ובריאות על הכנסה שלא מעבודה${tag}`, value: nis((pr.niNonWork as { value: number }).value),
+      detail: [...(pr.niSplit ? [`מזה ביטוח לאומי ${nis(pr.niSplit.ni)} · ביטוח בריאות ${nis(pr.niSplit.health)}`] : []),
+        'על החלק החייב במס משכר הדירה (מסלול רגיל או פטור חלקי): אחרי הפחתת 52% מדמי הביטוח ו-3,442 ₪ לחודש פטורים. החלק הפטור ומסלול 10% — פטורים מב״ל',
+        'ב״ל גובה אותם לפי השומה — אין מקדמה בהערכה הזו'] });
   }
 
   const fmt = (v: number | undefined, unit: string) => (v == null ? '—' : unit === '%' ? `${v}% מהמחזור` : unit === '₪ לחודש' ? `${nis(v)} לחודש` : `${nis(v)} לתקופה`);
@@ -151,8 +162,10 @@ export function buildSummary(x: SummaryInput): SummaryModel {
     return { title: `${l.label}${l.person === 'spouse' ? ` · ${who('spouse')}` : ''} · ${SRC[l.source] ?? ''}`, value: a == null ? 'חסר' : nis(a), detail: det };
   });
   const adjustments = (d.adjustments ?? []).map(a => `${d.lines.find(l => l.id === a.lineId)?.label ?? 'העסק'}: ${a.bookCategory} ${a.amount > 0 ? '+' : ''}${nis(a.amount)} — ${a.reason}`);
-  const CHECK_RESULT: Record<string, string> = { saving: 'נמצא חיסכון', noSaving: 'נבדק — אין חיסכון נוסף', missingData: 'לא נבדק — חסר מידע', notSupported: 'לבדיקה ידנית במשרד', notCompared: 'ההשוואה טרם בוצעה', compared: 'חושב בשתי הדרכים', undecided: 'לא הוכרע — המשרד בודק' };
-  const checks = (o.checks ?? []).filter(c => c.status !== 'notApplicable')
+  const CHECK_RESULT: Record<string, string> = { saving: 'נמצא חיסכון', noSaving: 'נבדק — אין חיסכון נוסף', missingData: 'לא נבדק — חסר מידע', notSupported: 'לבדיקה ידנית במשרד', notCompared: 'ההשוואה טרם בוצעה', compared: 'חושב בשתי הדרכים', undecided: 'לא הוכרע — המשרד בודק', checked: 'נבדק' };
+  // ‼ מצב משפחתי בשנת המס — ללקוח רק «מה» ו«לפי מה»; ההוראה למשרד («לרשום בכרטיס») נשארת במשרד. לא ידוע — לא בסיכום (ההערכה ממילא לא מאושרת)
+  const checks = (o.checks ?? []).filter(c => c.status !== 'notApplicable' && !(c.id === 'family-year' && c.status === 'missingData'))
+    .map(c => (c.id === 'family-year' ? { ...c, detail: c.detail.split(' · ')[0] } : c))
     .map(c => ({ title: c.title, result: `${CHECK_RESULT[c.status] ?? ''}${c.saving ? ` · כ-${nis(c.saving)}` : ''}`, detail: c.action ? `${c.detail} · המלצה: ${c.action}` : c.detail }));
   const schedule: SummaryModel['schedule'] = [];
   for (const a of o.advances) {

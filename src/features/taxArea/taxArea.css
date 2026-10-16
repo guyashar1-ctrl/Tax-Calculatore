@@ -88,3 +88,81 @@
   .tax-area .ta-sub { padding-inline-start: 30px; }
   .tax-area .ta-sub-item { min-height: 44px; font-size: var(--fs-14); }
 }
+
+/* ── 15.10.2026: ערכים בעמוד התחום, «טרם נכתב», והסבר לקישור הישן ל«ערכים לפי נושא» ─────────── */
+.ta-gap { margin: 6px 0 0; font-size: var(--fs-13); color: var(--tx2); line-height: 1.6; }
+/* בורר השנה ליד «ערכים לשנה» — רק בטלפון; במחשב הוא במסילה */
+.ta-val-year { display: none; align-items: center; gap: 6px; white-space: nowrap; font-size: var(--fs-13); color: var(--tx2); }
+.ta-val-year select { min-height: 36px; }
+@media (max-width: 900px) { .ta-val-year { display: inline-flex; } }
+.ta-moved { margin: 0 0 14px; padding: 10px 14px; border: 1px solid var(--bd); border-radius: 12px; background: var(--s2, var(--card)); }
+.ta-moved .ta-sec-h { margin-top: 0; }
+.ta-moved p { margin: 0 0 6px; }
+.ta-moved-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; font-size: var(--fs-14); }
+.ta-moved-list li { min-height: 32px; display: flex; flex-wrap: wrap; align-items: center; gap: 0 4px; }
+/* «ערכי מפתח» הם עכשיו כפתורים — לתחום של הערך */
+.ta-keyval { text-align: start; background: none; border: 0; padding: 4px 6px; margin: -4px -6px; border-radius: 8px; font: inherit; color: inherit; cursor: pointer; }
+.ta-keyval:focus-visible { outline: 2px solid var(--br); outline-offset: 2px; }
+@media (hover: hover) { .ta-keyval:hover .tc-keyval-label { text-decoration: underline; text-underline-offset: 3px; } }
+.ta-moved-list .kn-link { text-decoration: underline; text-underline-offset: 3px; }
+/* תחום בלי תת-נושאים — בלי חץ פתיחה (אין מה לפתוח), אבל באותו מקום כדי שהשמות יישארו בשורה */
+.ta-chev.is-empty { visibility: hidden; }
+
+/* ── עמוד תחום עם טופס (16.10.2026) — הטופס רחב יותר מעמוד מאמר ─────────────────────────── */
+.ta-domain-page.has-form { max-width: 1240px; }
+.ta-domain-page.has-form > .ta-page-head, .ta-domain-page.has-form > section:not([data-domain-form]) { max-width: 880px; }
+.ta-form-more { margin: 8px 0 0; font-size: var(--fs-13); }
+.ta-control { margin-top: 16px; border: 1px solid var(--bd); border-radius: 10px; padding: 8px 12px; background: var(--card); }
+.ta-control > summary { cursor: pointer; min-height: 36px; display: flex; align-items: center; font-size: var(--fs-14); font-weight: 600; }
+
+/* ── «עבודות לקוחות» — סקירה בלבד (16.10.2026): כל שורה פותחת את «בקשות» של הלקוח ───────────── */
+.wo { max-width: 1000px; display: grid; gap: 10px; }
+.wo .ta-page-head { margin-bottom: 0; }
+.wo-learn { margin: 0; font-size: var(--fs-13); }
+.wo-filters { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: end; }
+.wo-q input { min-height: 34px; inline-size: 9rem; font-size: 16px; }
+.wo-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.wo-row { inline-size: 100%; display: grid; grid-template-columns: minmax(10rem, 1.1fr) minmax(0, 2fr) minmax(8rem, .9fr) auto; gap: 4px 14px; align-items: center;
+  text-align: start; padding: 10px 14px; border: 1px solid var(--bd); border-inline-start-width: 3px; border-radius: 10px; background: var(--card); color: inherit; font: inherit; cursor: pointer; }
+.wo-row.is-overdue { border-inline-start-color: var(--err, #b42318); }
+.wo-row.is-soon { border-inline-start-color: var(--warn); }
+.wo-row.is-cancelled { background: var(--s2, var(--surface-2)); color: var(--tx2); }
+.wo-row:focus-visible { outline: 2px solid var(--br); outline-offset: 2px; }
+@media (hover: hover) { .wo-row:hover { border-color: var(--tx3); } .wo-row:hover .wo-go { color: var(--br); } }
+.wo-row:active { transform: scale(.995); }
+.wo-who { display: grid; gap: 1px; min-width: 0; }
+.wo-who b { font-size: var(--fs-14); overflow-wrap: anywhere; }
+.wo-who small, .wo-due small { font-size: var(--fs-12); color: var(--tx2); }
+.wo-state { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; min-width: 0; font-size: var(--fs-13); }
+.wo-bucket { flex: none; font-size: var(--fs-12); padding: 1px 8px; border-radius: 999px; background: var(--surface-2, var(--soft)); color: var(--tx2); }
+.wo-bucket.is-mine { background: var(--chip-amber-bg, var(--warn-bg)); color: var(--chip-amber-tx, var(--warn)); font-weight: 600; }
+.wo-next { min-width: 0; overflow-wrap: anywhere; }
+.wo-due { display: grid; gap: 1px; font-size: var(--fs-13); }
+.wo-due.is-overdue b { color: var(--err, #b42318); }
+.wo-due.is-soon b { color: var(--warn); }
+.wo-due.is-none { color: var(--tx3); font-size: var(--fs-12); }
+.wo-go { font-size: var(--fs-12); color: var(--tx3); white-space: nowrap; }
+.wo-empty { list-style: none; }
+.wo-foot { margin: 0; }
+@media (max-width: 700px) {
+  .wo-row { grid-template-columns: minmax(0, 1fr) auto; }
+  .wo-state { grid-column: 1 / -1; grid-row: 2; }
+  .wo-due { grid-column: 2; grid-row: 1; text-align: end; }
+  .wo-go { display: none; }
+}
+.wo-top { display: grid; gap: 8px; }
+
+/* ── «טרם נכתב» (16.10): מה שחסר בתחום — גלוי ומקופל, לא נראה כמו כלי שעובד ── */
+.ta-planned-box { margin-top: 8px; }
+.ta-planned-box > summary { cursor: pointer; min-height: 36px; display: flex; align-items: center; font-size: var(--fs-13); color: var(--tx2); }
+.ta-planned { display: grid; gap: 2px; padding: 10px 14px; border: 1px dashed var(--bd); border-radius: 12px; background: transparent; }
+.ta-planned .ta-item-t { color: var(--tx2); }
+.ta-planned-tag { color: var(--warn); font-weight: 600; }
+.ta-planned-now, .ta-planned-res { font-size: var(--fs-12); color: var(--tx3); line-height: 1.5; }
+.ta-item.is-planned { border-style: dashed; }
+
+/* 16.10: הסבר קצר בתחום בלי נושא משלו (מצב משפחתי בשנת המס) */
+.ta-note { border: 1px solid var(--bd); border-radius: 12px; padding: 12px 14px; background: var(--card); margin-top: 8px; min-width: 0; }
+.ta-note-h { margin: 0 0 6px; font-size: var(--fs-14, 14px); font-weight: 650; color: var(--tx); }
+.ta-note ul { margin: 0; padding-inline-start: 18px; display: flex; flex-direction: column; gap: 6px; font-size: var(--fs-13); line-height: 1.6; color: var(--tx); }
+.ta-note-where { margin: 8px 0 0; font-size: var(--fs-12, 12px); color: var(--tx2); }

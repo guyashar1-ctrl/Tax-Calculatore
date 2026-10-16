@@ -17,6 +17,8 @@ export const RECORD_OF: Record<string, RecordSchemaId> = {
   'intake.foreignDetails': 'foreign', 'foreign.sourceDetails': 'foreign', 'wealth.bank.foreign': 'foreign',
   'intake.bankAccount': 'bank', 'filing.refundAccount': 'bank',
   'business.vehicleDetails': 'vehicle', 'business.partners': 'partners', 'rent.coOwners': 'partners',
+  'niBenefits.maternityPeriod': 'maternityPeriod', 'niBenefits.maternityAmounts': 'maternityAmounts',
+  'intake.marriageYear': 'familyYear', 'intake.divorceYear': 'familyYear', 'intake.widowhoodYear': 'familyYear',
   'period.property': 'period', 'period.account': 'period', 'wealth.period.property': 'period', 'wealth.period.account': 'period',
 };
 

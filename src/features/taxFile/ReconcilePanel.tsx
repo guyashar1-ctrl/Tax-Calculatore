@@ -1,4 +1,9 @@
-// ─── ראש תיק המס: «עדכון ויישור קו» (13.10.2026) ─────────────────────────────────────────
+// ─── ראש תיק המס: שורת מצב אחת (16.10.2026; קודם «עדכון ויישור קו», 13.10.2026) ──────────────────
+// ‼ 16.10.2026 (גיא, «פחות עומס»): ארבעת המונים, שני הכפתורים וההסבר הארוך ירדו. נשאר משפט אחד —
+//   «17 פרטים חסרים · 1 לאישור · 0 מהרשויות» — וכפתור אחד, «השלם עם הלקוח», שפותח/ממשיך את בקשת הקליטה
+//   ב«בקשות». הפירוט (מקור, מועד בדיקה ותחולה לכל פרט) — מקופל.
+// ‼ 16.10.2026 (גיא, סבב 2: «אין סיבה שזה יופיע פעמיים»): זו הכותרת של «זהות ורשויות» — שורת המצב בתוכה, ושני
+//   כפתורים זה לצד זה: «השלם עם הלקוח» (ראשי) ו«בצע יישור קו» (על הרשויות שבכרטיס); «תצוגה מפורטת» — קישור משני.
 // ‼ גיא: במקום אזור תהליכים גדול — תמונה ברורה בראש התיק: מה ידוע מהרשויות, מה נמסר בידי הלקוח או הוזן במשרד,
 //   מה חסר, מה דורש אישור ומה סותר — עם מקור, מועד בדיקה ותחולה לכל פרט — ופעולה אחת: «הכן שאלון השלמה»,
 //   שמבקשת רק מידע חסר או מידע שצריך לאשר מחדש (מה שידוע — מוצג ללקוח לאישור, לא כשאלה מאפס).
@@ -26,8 +31,12 @@ interface Props {
   /** קליטה פתוחה — למצב הכפתור. */
   intakeOpen?: boolean;
   onPrepare: () => void;
+  prepareBusy?: boolean;
+  prepareError?: string | null;
   onRunAlignment?: () => void;
   alignBusy?: boolean;
+  /** «תצוגה מפורטת» — מסכי יישור הקו המלאים (קישור משני). */
+  onOpenDetailed?: () => void;
   /** גלילה לכרטיסי «דורש טיפול» / «הצעות לעדכון» שמתחת. */
   onShowPending?: () => void;
 }
@@ -37,7 +46,9 @@ const he = (iso?: string | null) => (iso ? iso.slice(0, 10).split('-').reverse()
 
 interface FactRow { key: string; label: string; value: string; source: string; fromAuthority: boolean; checkedAt?: string; validity?: string; missing?: boolean }
 
-export default function ReconcilePanel({ client: c, alignedAt, pendingCount, flagCount, unknown, intakeOpen, onPrepare, onRunAlignment, alignBusy, onShowPending }: Props) {
+const n = (k: number, one: string, many: string) => (k === 1 ? one : `${k} ${many}`);
+
+export default function ReconcilePanel({ client: c, alignedAt, pendingCount, flagCount, unknown, intakeOpen, onPrepare, prepareBusy, prepareError, onShowPending, onRunAlignment, alignBusy, onOpenDetailed }: Props) {
   const [open, setOpen] = useState(false);
   const meta = (c.fieldMeta ?? {}) as Record<string, FieldMeta>;
   const rows = useMemo<FactRow[]>(() => {
@@ -70,33 +81,44 @@ export default function ReconcilePanel({ client: c, alignedAt, pendingCount, fla
   }, [c, meta]);
 
   const fromAuth = rows.filter(r => r.fromAuthority && !r.missing);
-  const fromClient = rows.filter(r => !r.fromAuthority && !r.missing);
   const gaps = rows.filter(r => r.missing || r.validity);
   const missingCount = unknown.length + gaps.length;
 
+  const toApprove = pendingCount + flagCount;
   return (
-    <section className="rp" aria-labelledby="rp-h" data-tax-file-top>
+    <section className="rp is-line" aria-labelledby="rp-h" data-tax-file-top>
       <div className="rp-head">
-        <div>
-          <h3 id="rp-h">עדכון ויישור קו</h3>
-          <span className="rp-sub">נכון להיום · {alignedAt ? `יישור קו אחרון מול הרשויות: ${he(alignedAt)}` : 'טרם בוצע יישור קו מול הרשויות'}</span>
-        </div>
-        <div className="rp-acts">
-          <button type="button" className="btn btn-primary" onClick={onPrepare} data-intake-open>{intakeOpen ? 'להמשך שאלון ההשלמה' : 'הכן שאלון השלמה'}</button>
-          {!alignedAt && onRunAlignment && <button type="button" className="btn btn-ghost" disabled={alignBusy} onClick={onRunAlignment}>{alignBusy ? 'מעדכן…' : 'בצע יישור קו'}</button>}
-        </div>
+        <h3 id="rp-h" className="rp-title">זהות ורשויות</h3>
+        <span className="rp-sub">
+          {alignedAt ? `יישור קו אחרון: ${he(alignedAt)}` : 'טרם בוצע יישור קו'}
+          {onOpenDetailed && <> · <button type="button" className="rp-link is-quiet" onClick={onOpenDetailed}>תצוגה מפורטת</button></>}
+        </span>
       </div>
-      <p className="rp-why">השאלון מבקש רק מה שחסר או מה שצריך לאשר מחדש. מה שכבר ידוע מוצג ללקוח לאישור או לתיקון — לא כשאלה מאפס. תשובות ממתינות לאישורך, ושינוי בתיק אינו שינוי ברשות.</p>
-      <div className="rp-grid" role="list">
-        <div className="rp-cell" role="listitem"><b>{fromAuth.length}</b><span>מהרשויות</span><small>{alignedAt ? `נבדק ${he(alignedAt)}` : 'עוד לא נבדק'}</small></div>
-        <div className="rp-cell" role="listitem"><b>{fromClient.length}</b><span>מהלקוח או מהמשרד</span><small>הצהרה, לא אימות</small></div>
-        <button type="button" className={`rp-cell${pendingCount ? ' is-amber' : ''}`} role="listitem" onClick={onShowPending} disabled={!pendingCount && !flagCount}>
-          <b>{pendingCount + flagCount}</b><span>לאישור או סותר</span><small>{pendingCount ? `${pendingCount} לאישור` : ''}{pendingCount && flagCount ? ' · ' : ''}{flagCount ? `${flagCount} מול הרשויות` : ''}{!pendingCount && !flagCount ? 'אין' : ''}</small>
+      <div className="rp-line">
+        <p className="rp-status" data-rp-status>
+          <span className={missingCount ? 'is-blue' : ''}>{n(missingCount, 'פרט אחד חסר', 'פרטים חסרים')}</span>
+          <span aria-hidden="true" className="rp-dot">·</span>
+          {toApprove
+            ? <button type="button" className="rp-link is-amber" onClick={onShowPending}>{n(toApprove, 'אחד לאישור', 'לאישור')}</button>
+            : <span>0 לאישור</span>}
+          <span aria-hidden="true" className="rp-dot">·</span>
+          <span title={alignedAt ? `יישור קו אחרון: ${he(alignedAt)}` : 'טרם בוצע יישור קו מול הרשויות'}>{n(fromAuth.length, 'אחד מהרשויות', 'מהרשויות')}</span>
+        </p>
+        <button type="button" className="btn btn-primary" onClick={onPrepare} disabled={prepareBusy} data-intake-open
+          title={intakeOpen ? 'ממשיך את בקשת הקליטה הפתוחה ב«בקשות»' : 'פותח בקשת קליטה ב«בקשות» — שאלות רק על מה שחסר או צריך אישור'}>
+          {prepareBusy ? 'פותח…' : 'השלם עם הלקוח'}
         </button>
-        <div className={`rp-cell${missingCount ? ' is-blue' : ''}`} role="listitem"><b>{missingCount}</b><span>חסר או לא ברור</span><small>{unknown.length ? `טרם ביררנו: ${unknown.slice(0, 2).join(', ')}${unknown.length > 2 ? '…' : ''}` : gaps.length ? gaps[0].validity ?? `${gaps[0].label} חסר` : 'אין'}</small></div>
+        {onRunAlignment && (
+          <button type="button" className="btn btn-secondary" onClick={onRunAlignment} disabled={alignBusy} data-run-alignment
+            title="קריאה מהרשויות שבכרטיס — מעדכנת את התיק, וכל מה שדורש טיפול מופיע כאן">
+            {alignBusy ? 'מעדכן…' : 'בצע יישור קו'}
+          </button>
+        )}
       </div>
+      {prepareError && <div className="ty-err" role="alert">{prepareError}</div>}
       <details className="rp-detail" open={open} onToggle={e => setOpen((e.currentTarget as HTMLDetailsElement).open)}>
-        <summary>מקור, מועד בדיקה ותחולה לכל פרט</summary>
+        <summary>מה חסר, ומאיפה כל פרט</summary>
+        {unknown.length > 0 && <p className="rp-unknown">טרם ביררנו: {unknown.join(' · ')}</p>}
         <div className="rp-table" role="table" aria-label="פרטי התיק">
           <div className="rp-tr rp-th" role="row"><span role="columnheader">פרט</span><span role="columnheader">בתיק</span><span role="columnheader">מקור</span><span role="columnheader">נבדק / עודכן</span><span role="columnheader">תחולה וחוסרים</span></div>
           {rows.map(r => (

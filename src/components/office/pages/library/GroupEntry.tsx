@@ -5,6 +5,7 @@
 import { useState } from 'react';
 import { GROUP_ACTOR_LABEL, REQUEST_GROUPS, type RequestGroupKey, type GroupActor } from '../../../../features/requests/requestGroups';
 import PreviewButton from '../../../../features/requestPreview/PreviewButton';
+import NameView from './NameView';
 
 export interface GroupChildModel {
   key: string;
@@ -37,7 +38,7 @@ export default function GroupEntry({ groupKey, kids, onRules, onPreview, rowId, 
         <button type="button" className="rg-head" aria-expanded={open} onClick={() => setOpen(o => !o)}>
           <span className="rg-namecol">
             <span className="rg-name">{g.title}</span>
-            <span className="rg-hint">קבוצה קבועה · {kids.length} בקשות קשורות · {g.summary}</span>
+            <span className="rg-hint">{kids.length} בקשות · {g.summary}</span>
           </span>
           <span className="rg-tag is-mine">בקשה מורכבת</span>
           <span className="rg-chev" aria-hidden="true">
@@ -52,12 +53,11 @@ export default function GroupEntry({ groupKey, kids, onRules, onPreview, rowId, 
             {kids.map(k => (
               <div key={k.key} className="lb-kid" data-kid={k.key}>
                 <span className="lb-kid-main">
-                  <span className="lb-kid-name">{k.title}</span>
+                  {k.onPreview ? <NameView name={k.title} onClick={k.onPreview} /> : <span className="lb-kid-name">{k.title}</span>}
                   <span className="lb-kid-hint">{[k.hint, k.when].filter(Boolean).join(' · ')}</span>
                 </span>
                 <span className="lb-kid-actor">{GROUP_ACTOR_LABEL[k.actor]}</span>
                 <span className="lb-kid-acts lb-kid-act">
-                  {k.onPreview && <PreviewButton name={k.title} onClick={k.onPreview} />}
                   {k.action && (
                     <button type="button" className="btn btn-secondary btn-sm" aria-label={k.action.aria ?? `${k.action.label}: ${k.title}`}
                       onClick={k.action.onClick}>{k.action.label}</button>
@@ -68,7 +68,6 @@ export default function GroupEntry({ groupKey, kids, onRules, onPreview, rowId, 
           </div>
           <div className="rg-foot">
             {g.note && <span>{g.note}</span>}
-            <span>כל בקשה בקבוצה נשארת בה אצל הלקוח, עם אחראי, מצב והיסטוריה משלה.</span>
             {onRules && <button type="button" className="of-link" onClick={onRules}>מתי פותחים את הקבוצה? ←</button>}
           </div>
         </>

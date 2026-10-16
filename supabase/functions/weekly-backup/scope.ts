@@ -73,6 +73,9 @@ export const TABLE_SCOPES: Record<string, TableScope> = {
   tax_card_transfers: { kind: "user_id" },
   // 231 · גרסאות הערכת מס — קלט, הנחות, הכרעות ותוצאה (הגרסה המאושרת אינה ניתנת לשחזור מחישוב חוזר)
   tax_estimates: { kind: "user_id" },
+  // 250 · חובות הגשה שנקלטו מרשימות שע״ם ומקורות הקליטה (הקובץ עצמו בדלי office-imports)
+  shaam_filing_sources: { kind: "user_id" },
+  shaam_filing_obligations: { kind: "user_id" },
   btl_portal_facts: { kind: "user_id" },
   btl_portal_documents: { kind: "user_id" },
   automation_jobs: { kind: "user_id" },

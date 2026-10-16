@@ -5,6 +5,7 @@
 import type { Client, TaxFileInfo, TaxFileOwner } from '../../types';
 import type { TaxpayerModel, AnnualReportSession, IncomeSourceKind } from './types';
 import { FIELD_SOURCE_LABELS } from '../../types/clientWorkspace';
+import { familyStatusDisplay } from '../../utils/familyStatusYear';
 
 // ─── זריעת עובדות מהכרטיס לתוך מודל השאלון ──────────────────────────────────
 // עובדות שנגזרות אוטומטית מהכרטיס ולא נשאלות בכלל (למשל ישוב מזכה — לפי
@@ -179,11 +180,6 @@ export interface ProfileBlock {
   rows: ProfileRow[];
 }
 
-const FAMILY_LABELS: Record<string, string> = {
-  single: 'רווק/ה', married: 'נשוי/אה', divorced: 'גרוש/ה',
-  widowed: 'אלמן/ה', singleParent: 'הורה יחיד',
-};
-
 function yesNo(v: boolean | undefined): string {
   return v ? 'כן' : 'לא';
 }
@@ -203,7 +199,7 @@ export function buildProfileBlocks(client: Client, latestModel?: TaxpayerModel |
   blocks.push({
     key: 'identity', icon: '👤', title: 'זהות ומשפחה',
     rows: [
-      { label: 'מצב משפחתי', value: FAMILY_LABELS[client.familyStatus] ?? client.familyStatus, metaKey: 'familyStatus' },
+      { label: 'מצב משפחתי', value: client.familyStatus ? familyStatusDisplay(client) : '', metaKey: 'familyStatus' },
       {
         label: 'ילדים',
         value: (client.children ?? []).length > 0

@@ -1,0 +1,218 @@
+{
+ "source": {
+  "form": "טופס 116ג — «בקשה לפריסה על-פי סעיף 8(ג) לפקודת מס הכנסה», מעודכן ל-12.2023",
+  "url": "https://www.gov.il/BlobFolder/service/itc-request-spread-income-over-number-years/he/Service_Pages_Income_tax_itc116c.pdf",
+  "readDate": "16.10.2026",
+  "research": "docs/tax-foundation/research/spreading-deferral-continuity-2026-10-16.md §2–§3 (C21, C24, C25); ni-benefits-withholding-2026-10-16.md (R04, C16)",
+  "note": "התוויות כפי שהן מודפסות בטופס. הוראה רק היכן שהמחקר מכסה (דמי לידה ומילואים); שאר הסוגים — «טרם נכתב» עד שיכתב נושא פריסה כללי. «printed» — הנוסח המודפס לאיתור בטופס, כשהשם הקצר אינו הנוסח עצמו."
+ },
+ "fields": [
+  {
+   "section": "א. פרטי המבקש",
+   "label": "מספר זהות",
+   "kind": "text",
+   "instruction": null
+  },
+  {
+   "section": "א. פרטי המבקש",
+   "label": "שם פרטי",
+   "kind": "text",
+   "instruction": null
+  },
+  {
+   "section": "א. פרטי המבקש",
+   "label": "שם משפחה",
+   "kind": "text",
+   "instruction": null
+  },
+  {
+   "section": "א. פרטי המבקש",
+   "label": "תאריך לידה",
+   "kind": "date",
+   "instruction": null
+  },
+  {
+   "section": "א. פרטי המבקש",
+   "label": "כתובת מלאה",
+   "kind": "text",
+   "instruction": null
+  },
+  {
+   "section": "א. פרטי המבקש",
+   "label": "כתובת דואר אלקטרוני",
+   "kind": "text",
+   "instruction": null
+  },
+  {
+   "section": "א. פרטי המבקש",
+   "label": "מספר טלפון/נייד",
+   "kind": "text",
+   "instruction": null
+  },
+  {
+   "section": "ב. פרטי ההכנסה",
+   "label": "הפרשי שכר וקצבה",
+   "kind": "checkbox",
+   "instruction": null
+  },
+  {
+   "section": "ב. פרטי ההכנסה",
+   "label": "פדיון ימי חופשה",
+   "kind": "checkbox",
+   "instruction": null
+  },
+  {
+   "section": "ב. פרטי ההכנסה",
+   "label": "מענק פרישה",
+   "kind": "checkbox",
+   "instruction": null
+  },
+  {
+   "section": "ב. פרטי ההכנסה",
+   "label": "מענק עקב פטירה",
+   "kind": "checkbox",
+   "instruction": null
+  },
+  {
+   "section": "ב. פרטי ההכנסה",
+   "label": "היוון קצבה ממעסיק או קופ״ג",
+   "kind": "checkbox",
+   "instruction": null
+  },
+  {
+   "section": "ב. פרטי ההכנסה",
+   "label": "היוון קצבת אובדן כושר עבודה והיוון קצבת שאירים",
+   "kind": "checkbox",
+   "instruction": null
+  },
+  {
+   "section": "ב. פרטי ההכנסה",
+   "label": "חזרה מרצף קצבה",
+   "kind": "checkbox",
+   "instruction": null
+  },
+  {
+   "section": "ב. פרטי ההכנסה",
+   "label": "חזרה מרצף פיצויים",
+   "kind": "checkbox",
+   "instruction": null
+  },
+  {
+   "section": "ב. פרטי ההכנסה",
+   "label": "דמי לידה / מילואים מביטוח לאומי",
+   "kind": "checkbox",
+   "status": "verified",
+   "instruction": "דמי לידה מביטוח לאומי — מסמנים 9. ההכנסה והמס שנוכה משויכים לכל שנה לפי ימי הזכאות שבה (לא סכום לבחירה). אפשר קדימה (לשנה העוקבת) או אחורה (לשנה הקודמת). מילואים — לפי החוזר, רק אחורה. בסיס: חוזר 2/2022 (סעיפים 7 ו-7א); זו הקלה מנהלית, לא סעיף 8(ג) עצמו. טופס נפרד לכל סוג הכנסה."
+  },
+  {
+   "section": "ב. פרטי ההכנסה",
+   "label": "שם המשלם",
+   "kind": "text",
+   "status": "interpretation",
+   "instruction": "בדמי לידה ובמילואים — ביטוח לאומי."
+  },
+  {
+   "section": "ב. פרטי ההכנסה",
+   "label": "מספר תיק הניכויים של המשלם",
+   "kind": "text",
+   "instruction": null
+  },
+  {
+   "section": "ב. פרטי ההכנסה",
+   "label": "סכום ההכנסה",
+   "kind": "amount",
+   "status": "interpretation",
+   "instruction": "בדמי לידה — הסכום ברוטו שבאישור השנתי של ביטוח לאומי («תקבולי אמהות»)."
+  },
+  {
+   "section": "ב. פרטי ההכנסה",
+   "label": "תאריך התשלום",
+   "kind": "date",
+   "status": "interpretation",
+   "instruction": "התאריך שבו שולמו דמי הלידה (מהודעת ב״ל או מהאישור)."
+  },
+  {
+   "section": "ב. פרטי ההכנסה",
+   "label": "תאריך התחלה",
+   "kind": "date",
+   "status": "verified",
+   "instruction": "תחילת תקופת הזכאות כפי שבהודעת החישוב של ב״ל («לתקופה מ… עד…»)."
+  },
+  {
+   "section": "ב. פרטי ההכנסה",
+   "label": "תאריך סיום",
+   "kind": "date",
+   "status": "verified",
+   "instruction": "סוף תקופת הזכאות לפי הודעת ב״ל. 105 ימים אינם קבועים: 105 או 56 ימים לפי האכשרה, ועם הארכות (לידה מרובה, אשפוז)."
+  },
+  {
+   "section": "ג. פריסת ההכנסה ושנות הפריסה",
+   "label": "כיוון הפריסה: קדימה / אחורה",
+   "kind": "checkbox",
+   "status": "verified",
+   "instruction": "מקיפים אחת: קדימה — שולם בשנה Y גם בעבור Y+1; אחורה — שולם ב-Y בעבור Y-1 (ואז צריך דוח או בקשת החזר לשתי השנים).",
+   "printed": "בהתאם לסעיף 8(ג) לפקודת מס הכנסה אבקש לפרוס את ההכנסה שלעיל קדימה / אחורה (יש להקיף אחת מהאפשרויות) לשנות המס כמפורט להלן"
+  },
+  {
+   "section": "ג. פריסת ההכנסה ושנות הפריסה",
+   "label": "שנת הפריסה",
+   "kind": "text",
+   "status": "verified",
+   "instruction": "בדמי לידה — שתי השנים שתקופת הזכאות חוצה."
+  },
+  {
+   "section": "ג. פריסת ההכנסה ושנות הפריסה",
+   "label": "חלק ההכנסה המיוחס",
+   "kind": "amount",
+   "status": "verified",
+   "instruction": "לכל שנה: הסכום × ימי הזכאות באותה שנה ÷ כל ימי הזכאות (כולל שני הקצוות). המס שנוכה — באותו יחס."
+  },
+  {
+   "section": "ג. פריסת ההכנסה ושנות הפריסה",
+   "label": "סכום הכנסה ודאית / צפויה — ממשכורת, קצבה, עסק ומשלח יד",
+   "kind": "amount",
+   "status": "verified",
+   "instruction": "ההכנסה הוודאית או הצפויה באותה שנה (הערה 10 בטופס), עם מסמכים מאמתים — כך רואים אם הפריסה כדאית.",
+   "printed": "סכום הכנסה ודאית / צפויה"
+  },
+  {
+   "section": "ג. פריסת ההכנסה ושנות הפריסה",
+   "label": "הכנסה אחרת כדוגמת הכנסה מנכס בית",
+   "kind": "amount",
+   "status": "verified",
+   "instruction": "כמו בעמודה הקודמת — הכנסה ודאית או צפויה אחרת באותה שנה."
+  },
+  {
+   "section": "ג. פריסת ההכנסה ושנות הפריסה",
+   "label": "סה״כ הכנסות",
+   "kind": "amount",
+   "instruction": null
+  },
+  {
+   "section": "ד. הצהרות ובקשות",
+   "label": "הצהרה 1: בפריסה קדימה — דוח שנתי לכל שנת פריסה",
+   "kind": "checkbox",
+   "status": "verified",
+   "instruction": "בפריסה קדימה — חובה להגיש דוח לכל שנה שאליה יוחסה ההכנסה, גם מי שלא חייבת בדוח.",
+   "printed": "ידוע לי כי בגין פריסה לשנים \"קדימה\" אחוייב בהגשת דו\"ח שנתי על-פי סעיף 131 לפקודה, לכל אחת משנות הפריסה ובמקרים בהם שנת הפריסה"
+  },
+  {
+   "section": "ד. הצהרות ובקשות",
+   "label": "ידוע לי כי תשלום המקדמה",
+   "kind": "checkbox",
+   "instruction": null
+  },
+  {
+   "section": "ד. הצהרות ובקשות",
+   "label": "אני מבקש שלא תקבע לי מקדמת מס לתשלום מאחר",
+   "kind": "checkbox",
+   "instruction": null
+  },
+  {
+   "section": "ה. חתימה",
+   "label": "תאריך שם מלא חתימה",
+   "kind": "text",
+   "instruction": null
+  }
+ ]
+}

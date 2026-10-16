@@ -1,0 +1,137 @@
+{
+ "formId": "1343",
+ "slug": "1343",
+ "taxYear": 2025,
+ "title": "1343 — ניכוי נוסף בשל פחת",
+ "source": {
+  "url": "https://www.gov.il/BlobFolder/service/reporting-and-payment-2025-annual-tax-report-for-individuals/he/Service_Pages_Income_tax_annual-report-2026_1343-2025.pdf",
+  "fetchedOn": "2026-10-16",
+  "sha256": "21d7ea6021a22423a6c62a58fc9b7f589f5d4618a4a37e318653c77949b0cb5a",
+  "pdf": "/forms/2025/pdf/1343.pdf",
+  "pagesInPdf": 1
+ },
+ "method": "קוד מודפס בשכבת הטקסט של ה-PDF הרשמי + התיבה הסגורה שהוא בתוכה (how=box); בלי תיבה — סביב הקוד עצמו (how=label)",
+ "pages": [
+  {
+   "n": 1,
+   "w": 595.275,
+   "h": 841.89,
+   "img": "/forms/2025/1343/p1.webp",
+   "textLayer": true
+  }
+ ],
+ "anchors": [],
+ "ambiguous": [],
+ "missing": [],
+ "labelMethod": "שדה בלי קוד מודפס — לפי מילות התווית בשכבת הטקסט (≥60%, חד-משמעי); check = הריבוע מימין לתווית, row = התווית עם ריבועי כן/לא, cell = התא, text = התווית בלבד",
+ "labelAnchors": [
+  {
+   "field": "1343.1",
+   "page": 1,
+   "how": "text",
+   "score": 1,
+   "box": [
+    0.0829,
+    0.109,
+    0.5866,
+    0.0154
+   ],
+   "label": [
+    0.0854,
+    0.1108,
+    0.5815,
+    0.0119
+   ]
+  },
+  {
+   "field": "1343.2",
+   "page": 1,
+   "how": "text",
+   "score": 1,
+   "box": [
+    0.6416,
+    0.1832,
+    0.1185,
+    0.0154
+   ],
+   "label": [
+    0.6441,
+    0.185,
+    0.1134,
+    0.0119
+   ]
+  },
+  {
+   "field": "1343.3",
+   "page": 1,
+   "how": "text",
+   "score": 1,
+   "box": [
+    0.4429,
+    0.165,
+    0.0634,
+    0.0143
+   ],
+   "label": [
+    0.4455,
+    0.1667,
+    0.0584,
+    0.0107
+   ]
+  },
+  {
+   "field": "1343.6",
+   "page": 1,
+   "how": "text",
+   "score": 1,
+   "box": [
+    0.7723,
+    0.9112,
+    0.1223,
+    0.0154
+   ],
+   "label": [
+    0.7748,
+    0.913,
+    0.1172,
+    0.0119
+   ]
+  },
+  {
+   "field": "1343.7",
+   "page": 1,
+   "how": "text",
+   "score": 0.8,
+   "box": [
+    0.5785,
+    0.7215,
+    0.3053,
+    0.0154
+   ],
+   "label": [
+    0.581,
+    0.7233,
+    0.3003,
+    0.0119
+   ]
+  }
+ ],
+ "labelUnplaced": [
+  {
+   "field": "1343.4",
+   "why": "ambiguous",
+   "where": [
+    "p1:473,682",
+    "p1:221,140"
+   ]
+  },
+  {
+   "field": "1343.5",
+   "why": "noMatch"
+  },
+  {
+   "field": "1343.8",
+   "why": "noMatch"
+  }
+ ]
+}

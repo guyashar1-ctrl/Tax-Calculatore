@@ -10,6 +10,7 @@ import { identityMatches, parse134, parseEsna, parsePnl, parseTable, pnlToCutoff
 import type { PeriodImport, PnlImport } from './importers';
 import { PERSON, nis, perHe, today } from './parts';
 import type { AuthorityPeriod, EstimateDraft, Person, SourceRef } from './types';
+import { clientForTaxYear } from '../../utils/familyStatusYear';
 
 type Kind = 'pnl' | '134' | 'esna';
 const KIND_HE: Record<Kind, string> = { pnl: 'רווח והפסד (פייפרלס או הנהלת חשבונות)', '134': 'מס הכנסה — טבלת התקופות (134)', esna: 'מע״מ — סיכומי דיווח (ESNA)' };
@@ -102,7 +103,7 @@ export default function ImportPanel({ client, year, draft, onApply }: {
       <div className="te-grid">
         <label className="te-field">מה קולטים<select value={kind} onChange={e => { setKind(e.target.value as Kind); reset(); }}>{(Object.keys(KIND_HE) as Kind[]).map(k => <option key={k} value={k}>{KIND_HE[k]}</option>)}</select></label>
         {kind === 'pnl' && <label className="te-field">לשורת העסק<select value={line?.id ?? ''} onChange={e => setLineId(e.target.value)}>{bizLines.map(l => <option key={l.id} value={l.id}>{l.label} · {PERSON[l.person]}</option>)}</select>{!bizLines.length && <small>אין שורת עסק — להוסיף אותה ב«הכנסות»</small>}</label>}
-        {kind === '134' && client.familyStatus === 'married' && <label className="te-field">של מי התיק<select value={person} onChange={e => setPerson(e.target.value as Person)}><option value="client">הלקוח</option><option value="spouse">בן/בת הזוג</option></select></label>}
+        {kind === '134' && clientForTaxYear(client, year).familyStatus === 'married' && <label className="te-field">של מי התיק<select value={person} onChange={e => setPerson(e.target.value as Person)}><option value="client">הלקוח</option><option value="spouse">בן/בת הזוג</option></select></label>}
         <label className="te-field">קובץ (xlsx / csv)<input type="file" accept=".xlsx,.csv,.txt,.pdf" onChange={e => { const f = e.target.files?.[0]; if (f) void readFile(f); }} /></label>
       </div>
       <label className="te-field">או הדבקה מהמסך / מהגיליון<textarea rows={4} value={text} onChange={e => { setText(e.target.value); setFile(null); setErr(''); setTable(e.target.value.trim() ? parseTable(e.target.value) : null); }}

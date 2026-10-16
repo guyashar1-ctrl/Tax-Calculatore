@@ -337,7 +337,14 @@ export interface PersonResult {
   creditPoints: number;
   surtax: number;
   salaryWithheld: number;
+  /** דמי ב״ל ובריאות על ההכנסה מעסק (עצמאי). ‼ 16.10.2026: בסיס אחרי ניכוי הפנסיה (345); המעמד — מהכרטיס. */
   niSelfEmployed: Amount;
+  /** דמי ב״ל ובריאות על הכנסה שלא מעבודה (שכירות חייבת — 059; עסק של «עצמאי שאינו עונה להגדרה»). נוסף 16.10.2026. */
+  niNonWork?: Amount;
+  /** הפירוק ללאומי ולבריאות של כל דמי הביטוח של האדם (עצמאי + שלא מעבודה) — רק הלאומי מותר בניכוי 52% (47א). */
+  niSplit?: { ni: number; health: number };
+  /** המעמד בב״ל שעליו נשען החישוב — ומאיפה נלקח. */
+  niStatus?: string;
   /** פנסיה לעצמאי כפי שחושבה (selfEmployedPension): מסלול, ניכוי, בסיס לזיכוי, וחלופה לעמית מוטב. */
   pension?: { track: 'A' | 'B'; deduction: number; creditBase: number; extraCreditBase: number; beneficial: boolean; alternative?: { track: 'A' | 'B'; deduction: number; creditBase: number; extraCreditBase: number } };
   /** ממה מורכב המס — לפירוט בסיכום ללקוח (נוסף 13.10.2026; בגרסאות ישנות חסר). */
@@ -371,6 +378,8 @@ export interface AuthorityAdvance {
   fine: Amount;
   belowChangeThreshold?: boolean;
   schedule: { period: string; current: number; recommended: number }[];
+  /** ב״ל: הפירוק ללאומי ולבריאות (נוסף 16.10.2026). */
+  split?: { ni: number; health: number };
   /** החישוב במספרים — לבדיקה ידנית. */
   explain: string[];
   /**
@@ -460,8 +469,8 @@ export interface OptimizationCheck {
   id: string;
   title: string;
   person?: Person;
-  /** notCompared — ההשוואה טרם בוצעה (אין שני מספרים); compared — חושב בשתי הדרכים, מוצג מה חל; undecided — חושב, ההכרעה תלויה בשאלה פתוחה. */
-  status: 'saving' | 'noSaving' | 'notApplicable' | 'missingData' | 'notSupported' | 'notCompared' | 'compared' | 'undecided';
+  /** notCompared — ההשוואה טרם בוצעה (אין שני מספרים); compared — חושב בשתי הדרכים, מוצג מה חל; undecided — חושב, ההכרעה תלויה בשאלה פתוחה; checked — עובדה שהחישוב נשען עליה נבדקה (למשל מצב משפחתי בשנת המס). */
+  status: 'saving' | 'noSaving' | 'notApplicable' | 'missingData' | 'notSupported' | 'notCompared' | 'compared' | 'undecided' | 'checked';
   detail: string;
   /** חיסכון משוער במס הכנסה לשנה, כשנמצא. */
   saving?: number;

@@ -8,6 +8,13 @@
 .ty-head .ty-sub { color: var(--tx2); font-size: var(--fs-13); }
 .ty-scroll { flex: 1; overflow: auto; }
 .ty-body { max-width: 920px; margin: 0 auto; padding: 1rem 1rem 3rem; display: flex; flex-direction: column; gap: 1.1rem; }
+/* 16.10.2026 · העבודה בתוך שורת הבקשה ב«בקשות» — בלי מסך מלא; השורה היא המסגרת */
+.ty-inline { direction: rtl; color: var(--tx); display: flex; flex-direction: column; gap: .5rem; margin-top: .4rem; min-width: 0; }
+.ty-inline-head { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
+.ty-inline-head .ty-sub { color: var(--tx2); font-size: var(--fs-13); flex: 1 1 14rem; min-width: 0; }
+.ty-body.is-inline { max-width: none; margin: 0; padding: 0; gap: .9rem; }
+.ty-inline .btn { transition: transform 120ms ease-out, background-color 150ms ease; }
+.ty-inline .btn:active { transform: scale(.97); }
 
 .ty-chip { display: inline-flex; align-items: center; gap: .3rem; padding: .12rem .55rem; border-radius: 999px; font-size: var(--fs-12); font-weight: 600;
   background: var(--chip-slate-bg); color: var(--chip-slate-tx); white-space: nowrap; }
@@ -17,7 +24,7 @@
 .ty-chip.red { background: var(--chip-red-bg); color: var(--chip-red-tx); }
 .ty-chip.violet { background: var(--chip-violet-bg); color: var(--chip-violet-tx); }
 
-.ty-label { font-size: var(--fs-12); font-weight: 650; letter-spacing: .02em; color: var(--tx3); margin: 0 0 .35rem; }
+.ty-label { font-size: var(--fs-12); font-weight: 650; letter-spacing: .02em; color: var(--tx2); margin: 0 0 .35rem; } /* 16.10.2026: tx3 היה 3.6:1 במצב כהה — מתחת ל-4.5:1 לטקסט קטן */
 .ty-now { background: var(--card); border: 1px solid var(--soft-bd); border-radius: 14px; padding: 1rem 1.1rem; display: flex; flex-direction: column; gap: .7rem;
   box-shadow: 0 1px 2px rgba(20, 30, 50, .04); }
 .ty-now h3 { margin: 0; font-size: var(--fs-16, 16px); font-weight: 650; }
@@ -92,6 +99,7 @@
 
 @media (max-width: 640px) {
   .ty-body { padding: .75rem .75rem 3rem; gap: .9rem; }
+  .ty-body.is-inline { padding: 0; }
   .ty-row { flex-direction: column; }
   .ty-row .ty-side { justify-content: flex-start; }
   .ty-years { grid-template-columns: 1fr; }
@@ -339,3 +347,40 @@ button.rp-cell:disabled { cursor: default; }
 .ty-omit-opt { display: inline-flex; align-items: center; gap: .3rem; font-size: var(--fs-14, 14px); min-height: 32px; }
 .ty-omit .ty-inline label { display: inline-flex; flex-direction: column; gap: .15rem; font-size: var(--fs-13, 13px); }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .ty-omitted { background: rgba(217,119,6,.12); } }
+
+/* ─── 16.10.2026 · ראש תיק המס בשורה אחת (ReconcilePanel .is-line) ─────────────── */
+.rp.is-line { padding: .7rem .9rem; gap: .35rem; }
+.rp-line { display: flex; align-items: center; justify-content: space-between; gap: .6rem 1rem; flex-wrap: wrap; }
+.rp-status { margin: 0; font-size: var(--fs-15, 15px); font-weight: 600; color: var(--tx); display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 .4rem; min-width: 0; }
+.rp-dot { color: var(--tx3); }
+.rp-status .is-blue { color: var(--br); }
+.rp-link { font: inherit; border: 0; background: none; padding: 0; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; color: inherit; min-height: 32px; }
+.rp-link.is-amber { color: var(--chip-amber-tx); }
+.rp-line .btn { min-height: 40px; }
+.rp-unknown { margin: .3rem 0 0; font-size: var(--fs-13); color: var(--tx2); }
+@media (max-width: 640px) { .rp-line .btn { width: 100%; } }
+.ty-tree { display: flex; flex-direction: column; gap: .15rem; }
+.ty-tree-sum { margin: 0 0 .25rem; font-size: var(--fs-13); color: var(--tx2); }
+.ty-body.is-inline .ty-now { padding: .8rem .85rem; }
+/* 16.10.2026 · «בוטלו» בדוחות והצהרות — מקופל, הבית של «החזר…» */
+.tf-cancelled > summary { cursor: pointer; font-size: var(--fs-13); color: var(--tx2); min-height: 32px; display: flex; align-items: center; }
+.tf-work.is-cancelled { opacity: .85; }
+/* 16.10.2026 (סבב 2) · «זהות ורשויות» — כותרת + שורת מצב + שני כפתורים, כרטיס אחד עם השורות שמתחת */
+.rp.is-line .rp-head { display: flex; align-items: baseline; justify-content: space-between; gap: .3rem .8rem; flex-wrap: wrap; }
+.rp-title { margin: 0; font-size: var(--fs-16, 16px); font-weight: 650; }
+.rp.is-line .rp-sub { font-size: var(--fs-12); color: var(--tx2); }
+.rp-link.is-quiet { color: var(--br); text-decoration: none; min-height: 28px; }
+.rp-line .rp-status { flex: 1 1 16rem; }
+@media (max-width: 640px) { .rp-line .btn { flex: 1 1 0; width: auto; } }
+
+/* ─── 16.10.2026 · דמי לידה: פריסה בין שנות המס (MaternitySpread) ─────────────── */
+.ty-mat .ty-main { gap: .4rem; }
+.ty-mat-in { display: flex; flex-wrap: wrap; gap: .5rem .9rem; margin-top: .2rem; }
+.ty-mat-in label { display: flex; flex-direction: column; gap: .15rem; font-size: var(--fs-13); color: var(--tx2); min-width: 9rem; flex: 1 1 9rem; }
+.ty-mat-in input, .ty-mat-in select { min-height: 38px; font: inherit; }
+.ty-mat-t { border-collapse: collapse; font-size: var(--fs-13); margin-top: .3rem; width: 100%; max-width: 32rem; }
+.ty-mat-t th, .ty-mat-t td { text-align: start; padding: .3rem .4rem; border-bottom: 1px solid var(--bd); }
+.ty-mat-t th { color: var(--tx2); font-weight: 600; }
+.ty-mat-t td:nth-child(n+2) { direction: ltr; text-align: end; font-variant-numeric: tabular-nums; }
+.ty-mat-note { color: var(--tx2); }
+.ty-ltr { unicode-bidi: isolate; }

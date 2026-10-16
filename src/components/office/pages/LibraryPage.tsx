@@ -26,6 +26,10 @@
 // focus: 'requests' | 'documents' | 'request:<templateId>' (נוחת על השורה; גם מזהה
 // של מובנית שהמשרד ערך) | 'auto' | 'auto:<stepType>' (פותח את קטע הקליטה).
 // viewFocus: 'view:<יעד>[@<בחירה>]' — מה שפתוח במגירה (בכתובת, כדי שרענון ו«אחורה» יעבדו).
+//
+// ‼ (16.10.2026, «פחות עומס») עמוד אחד במקום שלוש לשוניות: «בקשות», «מסמכים» ו«פגישות» הם מקטעים
+//   מקופלים באותו עמוד (בקשות — פתוח). קבוצות מקופלות. בשורה פעולה אחת גלויה (עריכה / «מתי נפתחת?»);
+//   לחיצה על השם = «צפייה». תוויות שחזרו בכל שורה («בקשה אחת», «נוסח קבוע של המערכת») ירדו.
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import type { FirmProfile } from '../../../types/firmProfile';
 import type { AssetRef, OfficePageId } from '../officeModel';
@@ -45,9 +49,9 @@ import {
 import RequestEditor from './library/RequestEditor';
 import type { AutoRow } from './library/AutoSection';
 import GroupEntry, { type GroupChildModel } from './library/GroupEntry';
+import NameView from './library/NameView';
 import { GROUP_ORDER, REQUEST_GROUPS, type RequestGroupKey } from '../../../features/requests/requestGroups';
 import RequestPreviewSheet from '../../../features/requestPreview/RequestPreviewSheet';
-import PreviewButton from '../../../features/requestPreview/PreviewButton';
 import type { EditHint } from '../../../features/requestPreview/registry';
 import { parseViewFocus, resolveFocus, targetKey, targetOfTemplate, targetToFocus, type PreviewTarget, type Selection } from '../../../features/requestPreview/targets';
 import MeetingsLibraryShelf, { meetingKindFromFocus } from '../../../features/meetings/MeetingsLibraryShelf';
@@ -82,8 +86,15 @@ interface Props {
 const SYSTEM_ROWS = ['representation', ...CATALOG_STEP_TYPES];
 
 export default function LibraryPage({ draft, saved, setDraft, saveNow, noteUpload, onSendToClient, focus, viewFocus, onViewFocusChange, go }: Props) {
-  const [shelf, setShelf] = useState<Shelf>(
-    focus === 'documents' ? 'documents' : focus === 'meetings' || meetingKindFromFocus(focus) ? 'meetings' : 'requests');
+  const firstShelf: Shelf = focus === 'documents' ? 'documents' : focus === 'meetings' || meetingKindFromFocus(focus) ? 'meetings' : 'requests';
+  const [openShelves, setOpenShelves] = useState<Set<Shelf>>(() => new Set<Shelf>(['requests', firstShelf]));
+  const toggleShelf = (sh: Shelf) => setOpenShelves(cur => { const n = new Set(cur); if (n.has(sh)) n.delete(sh); else n.add(sh); return n; });
+  /** פותח מקטע וגולל אליו (במקום «מעבר ללשונית»). */
+  const showShelf = useCallback((sh: Shelf) => {
+    setOpenShelves(cur => (cur.has(sh) ? cur : new Set([...cur, sh])));
+    window.setTimeout(() => document.getElementById(`lb-shelf-${sh}`)?.scrollIntoView({ block: 'start', behavior: 'smooth' }), 60);
+  }, []);
+  useEffect(() => { if (firstShelf !== 'requests') showShelf(firstShelf); }, [firstShelf, showShelf]);
   const [templates, setTemplates] = useState<RequestTemplate[] | null>(null);
   const [flows, setFlows] = useState<OfficeFlow[] | null>(null);
   const [flowsError, setFlowsError] = useState(false);
@@ -315,7 +326,7 @@ export default function LibraryPage({ draft, saved, setDraft, saveNow, noteUploa
     }
     setView(null); pushedRef.current = false; onViewFocusChange?.(null);
     if (hint.kind === 'emails') go('emails', hint.focus || undefined);
-    else if (hint.kind === 'docsShelf') setShelf('documents');
+    else if (hint.kind === 'docsShelf') showShelf('documents');
     else if (hint.kind === 'rules') {
       if (t?.kind === 'group') go('flows', t.group === 'representation' ? 'representation' : 'onboarding');
       else if (t?.kind === 'system') go('flows', autoByType.get(t.stepType)?.focus ?? addFocus);
@@ -325,19 +336,8 @@ export default function LibraryPage({ draft, saved, setDraft, saveNow, noteUploa
 
   return (
     <div className="lb">
-      <div className="lb-toolbar">
-        <div className="of-seg" role="group" aria-label="מדף">
-          <button type="button" aria-pressed={shelf === 'requests'} onClick={() => setShelf('requests')}>
-            בקשות{templates ? ` · ${entries.length}` : ''}
-          </button>
-          <button type="button" aria-pressed={shelf === 'documents'} onClick={() => setShelf('documents')}>
-            מסמכים · {docs.length}
-          </button>
-          <button type="button" aria-pressed={shelf === 'meetings'} onClick={() => setShelf('meetings')}>
-            פגישות · {MEETING_KINDS.length}
-          </button>
-        </div>
-        {shelf === 'requests' && (
+      <ShelfHead id="requests" title="בקשות" count={templates ? entries.length : null} open={openShelves.has('requests')} onToggle={toggleShelf}>
+        {openShelves.has('requests') && (
           <>
             <input className="of-search lb-search" type="search" value={q} onChange={e => setQ(e.target.value)}
               placeholder="חיפוש בקשה" aria-label="חיפוש בקשה בספרייה" />
@@ -345,13 +345,13 @@ export default function LibraryPage({ draft, saved, setDraft, saveNow, noteUploa
             <button type="button" className="btn btn-secondary btn-sm lb-new" onClick={() => setEditing({ template: null })}>＋ בקשה לספרייה</button>
           </>
         )}
-      </div>
+      </ShelfHead>
 
       {flowsError && <p className="lb-sub is-warn">לא הצלחתי לטעון את המסלולים — «בשימוש ב» לא מוצג כרגע.</p>}
       {flash && <p className="lb-flash" role="status">✓ {flash}</p>}
       {viewMissing && <p className="lb-sub is-warn" role="status">הבקשה הזאת כבר לא בספרייה — אין מה להציג.</p>}
 
-      {shelf === 'requests' && (
+      {openShelves.has('requests') && (
         templates === null ? <div className="of-empty">טוען את הספרייה…</div> : (
           <>
             {term ? (
@@ -359,12 +359,12 @@ export default function LibraryPage({ draft, saved, setDraft, saveNow, noteUploa
                 {shownEntries.length > 0 ? (
                   <>
                     {shownEntries.length === 1 ? 'תוצאה אחת' : `${shownEntries.length} תוצאות`}
-                    {docMatches > 0 && <> · יש גם מסמך בשם הזה <button type="button" className="of-link" onClick={() => setShelf('documents')}>← מסמכים</button></>}
+                    {docMatches > 0 && <> · יש גם מסמך בשם הזה <button type="button" className="of-link" onClick={() => showShelf('documents')}>← מסמכים</button></>}
                   </>
                 ) : docMatches > 0 ? (
                   <>
                     אין בקשה כזו — יש מסמך בשם הזה.{' '}
-                    <button type="button" className="of-link" onClick={() => setShelf('documents')}>← מסמכים</button>
+                    <button type="button" className="of-link" onClick={() => showShelf('documents')}>← מסמכים</button>
                   </>
                 ) : (
                   <>
@@ -411,7 +411,7 @@ export default function LibraryPage({ draft, saved, setDraft, saveNow, noteUploa
                         <li key={rowId} className="lb-group-li">
                           <GroupEntry groupKey={e.key} kids={kidsOf(e.key)} rowId={rowId} highlight={highlight === rowId}
                             onPreview={() => openView({ kind: 'group', group: e.key, name: REQUEST_GROUPS[e.key].title })}
-                            defaultOpen={e.key === 'paperless' || !!term}
+                            defaultOpen={!!term}
                             onRules={() => go('flows', e.key === 'representation' ? 'representation' : 'onboarding')} />
                         </li>
                       );
@@ -423,18 +423,15 @@ export default function LibraryPage({ draft, saved, setDraft, saveNow, noteUploa
                       return (
                         <li key={rowId} id={rowId} className={`lb-row${highlight === rowId ? ' is-focus' : ''}`}>
                           <div className="lb-row-title">
-                            <button type="button" className="lb-name lb-name-btn" aria-label={`צפייה: ${r.label}`}
-                              onClick={() => openView({ kind: 'system', stepType: r.stepType, name: r.label })}>{r.label}</button>
-                            <span className="lb-preset">בקשה אחת · של המערכת</span>
+                            <NameView name={r.label} onClick={() => openView({ kind: 'system', stepType: r.stepType, name: r.label })} />
+                            <span className="lb-preset">של המערכת</span>
                           </div>
                           <div className="lb-acts">
-                            <PreviewButton name={r.label} onClick={() => openView({ kind: 'system', stepType: r.stepType, name: r.label })} />
                             <button type="button" className="btn btn-secondary btn-sm lb-edit"
                               aria-label={`מתי נפתחת: ${r.label}`} onClick={() => go('flows', r.focus ?? addFocus)}>מתי נפתחת?</button>
                           </div>
                           <div className="lb-row-meta lb-segs">
                             <span className="lb-seg">{off ? 'לא בכלל הקליטה — נפתחת רק ידנית מכרטיס הלקוח' : r.when}</span>
-                            <span className="lb-seg">נוסח קבוע של המערכת</span>
                           </div>
                         </li>
                       );
@@ -449,12 +446,10 @@ export default function LibraryPage({ draft, saved, setDraft, saveNow, noteUploa
                     return (
                       <li key={t.id} id={rowId} className={`lb-row${highlight === rowId ? ' is-focus' : ''}`}>
                         <div className="lb-row-title">
-                          <button type="button" className="lb-name lb-name-btn" aria-label={`צפייה: ${t.name}`}
-                            onClick={() => openView(targetOfTemplate(t))}>{t.name}</button>
-                          <span className="lb-preset">{!route && isPreset(t) ? 'בקשה אחת · נוסח מוכן' : 'בקשה אחת'}</span>
+                          <NameView name={t.name} onClick={() => openView(targetOfTemplate(t))} />
+                          {!route && isPreset(t) && <span className="lb-preset">נוסח מוכן</span>}
                         </div>
                         <div className="lb-acts">
-                          <PreviewButton name={t.name} onClick={() => openView(targetOfTemplate(t))} />
                           {route ? (
                             <button type="button" className="btn btn-secondary btn-sm lb-edit"
                               aria-label={`עריכה במסלול הקליטה: ${t.name}`} onClick={() => go('flows', route)}>עריכה ←</button>
@@ -486,12 +481,8 @@ export default function LibraryPage({ draft, saved, setDraft, saveNow, noteUploa
         )
       )}
 
-      {shelf === 'meetings' && (
-        <MeetingsLibraryShelf draft={draft} saveNow={saveNow} focusKind={meetingKindFromFocus(focus)}
-          onEmails={() => go('emails', 'meetings')} />
-      )}
-
-      {shelf === 'documents' && (
+      <ShelfHead id="documents" title="מסמכים" count={docs.length} open={openShelves.has('documents')} onToggle={toggleShelf} />
+      {openShelves.has('documents') && (
         <>
           {orphanDocs.map(o => (
             <p key={o.docId} className="lb-error lb-segs" role="alert">
@@ -507,6 +498,12 @@ export default function LibraryPage({ draft, saved, setDraft, saveNow, noteUploa
             noteUpload={noteUpload} usesOf={usesOfDoc} go={go} onSendToClient={onSendToClient}
             onPreview={d => openView({ kind: 'doc', docId: d.id, name: d.label })} />
         </>
+      )}
+
+      <ShelfHead id="meetings" title="פגישות" count={MEETING_KINDS.length} open={openShelves.has('meetings')} onToggle={toggleShelf} />
+      {openShelves.has('meetings') && (
+        <MeetingsLibraryShelf draft={draft} saveNow={saveNow} focusKind={meetingKindFromFocus(focus)}
+          onEmails={() => go('emails', 'meetings')} />
       )}
 
       {view && (
@@ -531,3 +528,20 @@ export default function LibraryPage({ draft, saved, setDraft, saveNow, noteUploa
     </div>
   );
 }
+
+/** כותרת מקטע בעמוד הספרייה — נפתח ונסגר; המונה אומר כמה יש בו. */
+function ShelfHead({ id, title, count, open, onToggle, children }: {
+  id: Shelf; title: string; count: number | null; open: boolean; onToggle: (id: Shelf) => void; children?: React.ReactNode;
+}) {
+  return (
+    <div className="lb-shelf-head" id={`lb-shelf-${id}`} data-shelf={id}>
+      <button type="button" className="lb-shelf-btn" aria-expanded={open} onClick={() => onToggle(id)}>
+        <span className="lb-shelf-title">{title}</span>
+        {count !== null && <span className="lb-shelf-n">{count}</span>}
+        <svg className="lb-shelf-chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9" /></svg>
+      </button>
+      {children}
+    </div>
+  );
+}
+

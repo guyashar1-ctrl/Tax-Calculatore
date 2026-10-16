@@ -18,10 +18,11 @@ import { WEALTH_TOC } from '../topics/WealthBody';
 import { MICRO_TOC } from '../topics/MicroBusinessBody';
 import { ANNUAL_TOC } from '../topics/AnnualReturnBody';
 import { FORM6111_TOC } from '../topics/Form6111Body';
+import { MATERNITY_TOC } from '../topics/MaternityBody';
 import TOPIC_PAGE from '../TopicPage.tsx?raw';
 
 const TOCS = { studyFund: STUDY_FUND_TOC, pensionSE: PENSION_TOC, mandatoryPension: MANDATORY_TOC, niSelfEmployed: NI_TOC, advances: ADVANCES_TOC,
-  wealth: WEALTH_TOC, microBusiness: MICRO_TOC, annualReturn: ANNUAL_TOC, form6111: FORM6111_TOC } as const;
+  wealth: WEALTH_TOC, microBusiness: MICRO_TOC, annualReturn: ANNUAL_TOC, form6111: FORM6111_TOC, maternity: MATERNITY_TOC } as const;
 
 export const TESTS: TestCase[] = [
   test('שמונה שלבים, בסדר שגיא ביקש', () => {
@@ -40,7 +41,6 @@ export const TESTS: TestCase[] = [
 
   test('שיוכים שהכותרת לבדה הייתה מפספסת', () => {
     equal(stageOfSection({ id: 'ar-docs', label: 'ממסמך לשדה', view: 'learn' }), 'read');
-    equal(stageOfSection({ id: 'wd-q', label: 'השאלון', view: 'apply' }), 'ask');
     equal(stageOfSection({ id: 'wd-fields', label: 'שדה אחר שדה', view: 'learn' }), 'read');
     equal(stageOfSection({ id: 'x', label: 'טעויות נפוצות', view: 'learn' }), 'except');
     equal(stageOfSection({ id: 'x', label: 'תרגול', view: 'learn' }), 'practice');

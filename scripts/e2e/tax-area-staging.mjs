@@ -1,14 +1,14 @@
 #!/usr/bin/env node
 /**
- * tax-area-staging.mjs — «מס» והסרת עבודת מס (242) מול המסד האמיתי של staging, בבנייה לפרסום (vite build --mode staging).
+ * tax-area-staging.mjs — «מס › עבודות לקוחות» (סקירה בלבד, 16.10.2026) ומפת הטופס מול המסד האמיתי של staging, בבנייה לפרסום (vite build --mode staging).
  *
  *   STAGING_ENV_DIR=<תיקייה עם .env.staging ו-.env.local> node scripts/e2e/tax-area-staging.mjs --base=http://localhost:4747 [--vp=desktop|mobile] [--shots=<dir>]
  *
  * ‼ לקוח בדיקה חדש לכל ריצה (staging-session.mjs), נמחק בסוף עם סריקת שאריות. כל פנייה שאינה ל-staging או ל-localhost נחסמת.
- * ‼ אין מיילים: לא לוחצים «שלח מייל…», ובסוף נבדק שאין שורות ב-email_messages ללקוחות הבדיקה.
- * המסלול (מחשב): מחיקה של טיוטה · פרסום בלי מייל ← תשובת לקוח (אותה פונקציה שהדף האישי קורא לה) ← אישור במשרד בממשק ←
- *   ביטול מדף העבודה (מה נשמר, מה נסגר, הדף האישי) ← «בוטלו» ← החזרה · כפילות: עבודה חדשה לאותה שנה ואז החזרת הישנה ·
- *   עבודה שהושלמה · משתמש אחר · קישורים ישנים. טלפון: כניסה, מחיקה, «בוטלו» והחזרה, בלי גלילה הצידה.
+ * ‼ אין מיילים: בסוף נבדק שאין שורות ב-email_messages ללקוחות הבדיקה.
+ * המסלול: עבודה נפתחת ללקוח הבדיקה (אותה פונקציה כמו «＋ בקשה») ⇒ מופיעה בסקירה, פעם אחת ⇒ סינון לפי סוג ושם ⇒ שורה ⇒ «בקשות»
+ *   של הלקוח, והעבודה שם ⇒ «אחורה» ⇒ קישורים ישנים ⇒ מפת הטופס מול הלקוח. טלפון: הסקירה ושורה ⇒ «בקשות».
+ *   הסרה, החזרה ופרסום — ב«בקשות» (מסלול ב׳: scripts/e2e/work-as-request.mjs).
  */
 import { createRequire } from 'node:module';
 import { mkdirSync, writeFileSync } from 'node:fs';
@@ -34,7 +34,6 @@ const OFFICE = 'ca158d52-5ad7-47f5-b228-4b7703978b84';
 const asUser = async (sub, expr) => (await sql(`begin; set local role authenticated;
   select set_config('request.jwt.claims', ${lit(JSON.stringify({ sub, role: 'authenticated' }))}, true);
   select (${expr}) as r; commit;`))[0]?.r;
-const token = new URL(env.portalUrl()).searchParams.get('portal');
 console.log(`לקוחות בדיקה: ${env.run} (A=${A.slice(0, 8)}…) · ${VP}`);
 
 const browser = await chromium.launch({ executablePath: 'C:/Program Files/Google/Chrome/Application/chrome.exe', headless: true });
@@ -69,210 +68,86 @@ const go = async (page, hash) => {
   await page.goto('about:blank');
   await page.goto(`${BASE}/#${hash}`, { waitUntil: 'domcontentloaded' });
   await page.locator('[data-tax-area]').waitFor({ timeout: 40000 });
-  await page.locator('[data-tax-work] .tw-table, [data-domain], [data-domain-card]').first().waitFor({ timeout: 40000 }).catch(() => {});
+  await page.locator('[data-work-overview], [data-domain], [data-domain-card]').first().waitFor({ timeout: 40000 }).catch(() => {});
   await sleep(1200);
 };
-const annualOpen = async () => sql(`select id, status, payload from public.onboarding_steps where client_id = '${A}' and step_type = 'annual_return' order by created_at`);
-const row = (page) => page.locator('[data-tw-row="annual"]', { hasText: env.run });
-const dlg = (page) => page.locator('[data-remove-work]');
-
-async function addAnnual(page) {
-  const tw = page.locator('[data-tax-work]');
-  await tw.locator('[data-tw-add="annual"]').click();
-  const d = page.locator('[data-add-work]');
-  await d.waitFor({ timeout: 15000 });
-  await d.getByLabel('חיפוש לקוח').fill(env.run + '-A');
-  await d.locator('.aw-client', { hasText: env.run + '-A' }).first().locator('input').check();
-  await d.getByRole('button', { name: /המשך לבדיקה/ }).click();
-  const rv = await text(d.locator('[data-aw-row]'));
-  await d.locator('[data-aw-create]').click();
-  await d.locator('[data-aw-result]').first().waitFor({ timeout: 30000 });
-  const res = await text(d.locator('[data-aw-result]'));
-  await d.getByRole('button', { name: 'סיום' }).click();
-  await sleep(1500);
-  return { review: rv, result: res };
-}
-async function removeVia(page, opener, { pickCancel = false, reason = '' } = {}) {
-  await opener.click();
-  await dlg(page).locator('[data-rw-confirm]').waitFor({ timeout: 20000 });
-  const t = await text(dlg(page));
-  if (pickCancel) await dlg(page).getByText('לבטל ולשמור בהיסטוריה').click();
-  if (reason) await dlg(page).getByLabel(/למה/).fill(reason);
-  return t;
-}
-const portalItems = async (page) => {
-  await page.goto('about:blank');
-  await page.goto(env.portalUrl(), { waitUntil: 'domcontentloaded' });
-  await sleep(4000);
-  return (await text(page.locator('body'))).split('\n').map(l => l.trim()).filter(l => /2025/.test(l) && /(דוח|השלמת מידע|שאלות)/.test(l));
+// ‼ 16.10: «עבודות לקוחות» היא סקירה בלבד — אין ממנה הוספה. העבודה נפתחת כמו מ«＋ בקשה» אצל הלקוח: אותה פונקציה בשרת
+//   (ensure_tax_year_request), בזהות משתמש המשרד של staging. ההסרה/החזרה נבדקות ב«בקשות» (מסלול ב׳, work-as-request.mjs).
+const openWork = async (clientId, taxYear = 2025) => asUser(OFFICE, `public.ensure_tax_year_request(p_client_id => '${clientId}', p_purpose => 'annual', p_tax_year => ${taxYear}, p_cutoff_month => null)`);
+const annualOf = async (clientId) => sql(`select id, status, payload from public.onboarding_steps where client_id = '${clientId}' and step_type = 'annual_return' order by created_at`);
+const woRow = (page) => page.locator('[data-wo-row]', { hasText: env.run });
+const waitOverview = async (page) => {
+  const wo = page.locator('[data-work-overview]');
+  await wo.waitFor({ timeout: 40000 });
+  for (let k = 0; k < 40 && /טוען/.test(await text(wo)); k++) await sleep(500);
+  return wo;
 };
 
 async function desktop() {
   const { ctx, page } = await newPage();
   try {
-    // ── 1 · נפתחה בטעות ⇒ מחיקה ──
+    // ── 1 · עבודה שנפתחה ללקוח מופיעה בסקירה ──
+    const res = await openWork(A);
+    const [w] = await annualOf(A);
+    ok(!!w, 'נפתח דוח שנתי 2025 ללקוח הבדיקה (ensure_tax_year_request, כמשרד)', JSON.stringify(res).slice(0, 200));
+    const again = await openWork(A);
+    ok((await annualOf(A)).length === 1, 'פתיחה שנייה לאותה שנה — לא נוצרת עבודה כפולה', JSON.stringify(again).slice(0, 200));
+    await go(page, '/tax/work/all');
+    const wo = await waitOverview(page);
+    ok(!/לא ניתן לטעון/.test(await text(wo)), 'staging: הסקירה נטענת מהמסד', (await text(wo)).slice(0, 200));
+    ok(await woRow(page).count() === 1, 'השורה של לקוח הבדיקה בסקירה', await woRow(page).count());
+    const rt = await text(woRow(page));
+    ok(/דוח שנתי/.test(rt) && /2025/.test(rt), 'בשורה: סוג ושנה', rt.replace(/\n/g, ' · '));
+    ok(!(await wo.getByRole('button', { name: /^＋|הסר…|^פתח$|פרסם/ }).count()), 'אין פעולות בסקירה — רק מעבר ל«בקשות»');
+    await shot(page, 'st-01-overview');
+    // ── 2 · סינון לפי סוג ──
     await go(page, '/tax/work/annual');
-    ok(await page.locator('[data-tax-work][data-section="annual"]').isVisible(), 'staging: «מס ← דוחות שנתיים» נטען');
-    const a1 = await addAnnual(page);
-    ok(/נוצרה|נוצר|✓/.test(a1.result) || (await annualOpen()).length === 1, 'נוצר דוח שנתי (טיוטה) ללקוח הבדיקה', a1.result);
-    const [w1] = await annualOpen();
-    const asks1 = (await one(`select count(*)::int n from public.tax_info_asks where parent_step_id = '${w1.id}'`)).n;
-    ok(asks1 > 0, `נוצרה טיוטת שאלות (${asks1})`);
-    await go(page, '/tax/work/annual');
-    const t1 = await removeVia(page, row(page).first().locator('[data-tw-remove]'));
-    ok(t1.includes('למחוק') && t1.includes('דבר לא יצא מהמשרד'), 'טיוטה: החלון מציע מחיקה ואומר שדבר לא יצא', t1.slice(0, 300));
-    await shot(page, 'st-01-delete');
-    await dlg(page).locator('[data-rw-confirm]').click(); await sleep(2000);
-    ok(/נמחקה/.test(await text(page.locator('.ty-ok'))), 'אחרי מחיקה: הודעה ברורה', await text(page.locator('.ty-ok')));
-    const left1 = await one(`select (select count(*) from public.onboarding_steps where id = '${w1.id}' or payload->>'parentStepId' = '${w1.id}')::int steps,
-      (select count(*) from public.tax_info_asks where parent_step_id = '${w1.id}')::int asks`);
-    ok(left1.steps === 0 && left1.asks === 0, 'במסד: העבודה, השלמת המידע והשאלות נמחקו', JSON.stringify(left1));
-
-    // ── 2 · פרסום בלי מייל ← תשובת לקוח ← אישור ← ביטול ← החזרה ──
-    await go(page, '/tax/work/annual');
-    await addAnnual(page);
-    const [w2] = await annualOpen();
-    await go(page, '/tax/work/annual');
-    await row(page).first().getByRole('button', { name: /^פתח/ }).click();
-    const ov = page.locator('.ty-overlay');
-    await ov.waitFor({ timeout: 30000 });
-    // ‼ «פרסם בדף האישי» כבר הפעולה של עכשיו, או אחרי «לפרסם עכשיו» / «הוסף N שאלות»
-    await ov.getByRole('button', { name: /^פרסם בדף האישי$|^לפרסם עכשיו$|^הוסף \d+ שאלות/ }).first().waitFor({ timeout: 30000 });
-    if (!(await ov.getByRole('button', { name: 'פרסם בדף האישי' }).first().isVisible().catch(() => false))) await ov.getByRole('button', { name: /^לפרסם עכשיו$|^הוסף \d+ שאלות/ }).first().click();
-    await ov.getByRole('button', { name: 'פרסם בדף האישי' }).first().waitFor({ timeout: 20000 });
-    for (let k = 0; k < 3 && !(await text(ov.locator('.ty-ok'))).includes('פורסם'); k++) { await ov.getByRole('button', { name: 'פרסם בדף האישי' }).first().click().catch(() => {}); await sleep(2000); }
-    ok((await text(ov.locator('.ty-ok'))).includes('פורסם'), 'פורסם בדף האישי (בלי מייל)', await text(ov.locator('.ty-ok')));
-    await ov.getByRole('button', { name: 'סגירה' }).first().click(); await sleep(800);
-    const pub = await one(`select (select published_at is not null from public.onboarding_steps where payload->>'parentStepId' = '${w2.id}' and step_type = 'info_collection') published,
-      (select count(*) from public.tax_info_asks where parent_step_id = '${w2.id}' and state = 'published')::int open`);
-    ok(pub.published && pub.open > 0, `במסד: השאלון פורסם (${pub.open} שאלות פתוחות)`, JSON.stringify(pub));
-    const shown = await portalItems(page);
-    ok(shown.length > 0, 'הדף האישי: העבודה מוצגת ללקוח', shown.join(' | '));
-    // הלקוח עונה על שאלה אחת — אותה פונקציה שהדף האישי קורא לה (anon + אסימון הלקוח)
-    const asks = await sql(`select id from public.tax_info_asks where parent_step_id = '${w2.id}' and state = 'published' order by created_at, id`);
-    let answered = null;
-    for (const a of asks) {
-      const r = (await sql(`begin; set local role anon; select public.portal_submit_tax_info(${lit(token)}, '${a.id}'::uuid, '{"kind":"no"}'::jsonb) as r; commit;`))[0]?.r;
-      if (r?.ok) { answered = a.id; break; }
-    }
-    ok(!!answered, 'הלקוח ענה על שאלה (דרך הדף האישי)');
-    // המשרד מאשר בממשק
-    await go(page, '/tax/work/annual');
-    ok((await text(row(page).first())).includes('לבדוק'), 'ברשימה: «לבדוק פריט שהתקבל»', await text(row(page).first()));
-    await row(page).first().getByRole('button', { name: /^פתח/ }).click();
-    await ov.waitFor({ timeout: 30000 });
-    const approve = ov.getByRole('button', { name: /^אשר$|^אשר את כולם$/ }).first();
-    await approve.waitFor({ timeout: 20000 }).catch(() => {});
-    if (await approve.count()) { await approve.click(); await sleep(2500); }
-    const factsBefore = await one(`select count(*) filter (where status = 'accepted')::int accepted, count(*)::int total from public.tax_year_facts where request_id = '${w2.id}' or ask_id in (select id from public.tax_info_asks where parent_step_id = '${w2.id}')`);
-    ok(factsBefore.accepted >= 1, `המשרד אישר את התשובה בממשק — ${factsBefore.accepted} פרט אושר`, JSON.stringify(factsBefore));
-    const evBefore = (await one(`select count(*)::int n from public.tax_evidence where client_id = '${A}'`)).n;
-    // ביטול מדף העבודה
-    await ov.locator('[data-ty-remove]').click();
-    await dlg(page).locator('[data-rw-confirm]').waitFor({ timeout: 20000 });
-    const t2 = await text(dlg(page));
-    ok(!t2.includes('למחוק') && /לא נמחקת/.test(t2) && /אושר/.test(t2) && /שאלות פתוחות נסגרות/.test(t2), 'יצא מהמשרד: רק ביטול; החלון מראה מה שאושר נשמר ושהשאלות הפתוחות נסגרות', t2.slice(0, 500));
-    await dlg(page).getByLabel(/למה/).fill(`בדיקת staging ${env.run}`);
-    await shot(page, 'st-02-cancel');
-    await dlg(page).locator('[data-rw-confirm]').click(); await sleep(2500);
-    const c2 = await one(`select (select status from public.onboarding_steps where id = '${w2.id}') parent,
-      (select status from public.onboarding_steps where payload->>'parentStepId' = '${w2.id}' and step_type = 'info_collection') info,
-      (select count(*) from public.tax_info_asks where parent_step_id = '${w2.id}' and state in ('draft','published','unavailable'))::int open_asks,
-      (select count(*) from public.tax_info_asks where parent_step_id = '${w2.id}' and state = 'answered')::int answered,
-      (select count(*) filter (where status = 'accepted') from public.tax_year_facts where request_id = '${w2.id}' or ask_id in (select id from public.tax_info_asks where parent_step_id = '${w2.id}'))::int accepted,
-      (select count(*) from public.tax_evidence where client_id = '${A}')::int evidence`);
-    ok(c2.parent === 'cancelled' && c2.info === 'cancelled' && c2.open_asks === 0, 'במסד: העבודה והשלמת המידע בוטלו, אין שאלה פתוחה', JSON.stringify(c2));
-    ok(c2.answered === 1 && c2.accepted === factsBefore.accepted && c2.evidence === evBefore, 'במסד: התשובה, הפרט שאושר והמסמכים נשמרו', JSON.stringify(c2));
-    const afterCancel = await portalItems(page);
-    ok(shown.every(l => !afterCancel.includes(l)), 'הדף האישי: העבודה שבוטלה לא מוצגת', afterCancel.join(' | '));
-    await go(page, '/tax/work/annual');
-    await page.locator('[data-tw-state="cancelled"]').click(); await sleep(500);
-    const cr = page.locator('[data-tw-bucket="cancelled"]', { hasText: env.run });
-    ok(/בדיקת staging/.test(await text(cr)), '«בוטלו»: השורה עם הסיבה', await text(cr));
-    await shot(page, 'st-03-cancelled');
-    await removeVia(page, cr.first().locator('[data-tw-restore]'));
-    await dlg(page).locator('[data-rw-confirm]').click(); await sleep(2500);
-    ok(/הוחזרה/.test(await text(page.locator('.ty-ok'))), 'החזרה: הודעה', await text(page.locator('.ty-ok')));
-    const r2 = await one(`select (select status from public.onboarding_steps where id = '${w2.id}') parent,
-      (select count(*) from public.tax_info_asks where parent_step_id = '${w2.id}' and state = 'published')::int open_asks,
-      (select count(*) filter (where status = 'accepted') from public.tax_year_facts where request_id = '${w2.id}' or ask_id in (select id from public.tax_info_asks where parent_step_id = '${w2.id}'))::int accepted`);
-    ok(r2.parent !== 'cancelled' && r2.open_asks === pub.open - 1 && r2.accepted === factsBefore.accepted, `במסד: חזרה עם ${r2.open_asks} השאלות שנסגרו; הפרט שאושר נשאר אחד`, JSON.stringify(r2));
-    const afterRestore = await portalItems(page);
-    ok(shown.every(l => afterRestore.includes(l)), 'הדף האישי: אחרי החזרה העבודה מוצגת שוב', afterRestore.join(' | '));
-
-    // ── 3 · כפילות: ביטול, עבודה חדשה לאותה שנה, ואז ניסיון להחזיר את הישנה ──
-    await go(page, '/tax/work/annual');
-    await removeVia(page, row(page).first().locator('[data-tw-remove]'), { reason: 'לפני עבודה חדשה' });
-    await dlg(page).locator('[data-rw-confirm]').click(); await sleep(2500);
-    const a3 = await addAnnual(page);
-    ok(!/כבר קיימת/.test(a3.review), 'עבודה שבוטלה לא חוסמת עבודה חדשה לאותה שנה', a3.review);
-    await go(page, '/tax/work/annual');
-    await page.locator('[data-tw-state="cancelled"]').click(); await sleep(500);
-    await removeVia(page, page.locator('[data-tw-bucket="cancelled"]', { hasText: env.run }).first().locator('[data-tw-restore]'));
-    await dlg(page).locator('[data-rw-confirm]').click(); await sleep(2500);
-    const sup = await text(dlg(page));
-    ok(/נפתחה עבודה חדשה לאותה תקופה/.test(sup), 'החזרת הישנה: «נפתחה עבודה חדשה — ממשיכים בחדשה»', sup.slice(0, 300));
-    await shot(page, 'st-04-superseded');
-    await page.keyboard.press('Escape'); await sleep(300);
-    const dup = await one(`select count(*) filter (where status not in ('completed','verified','skipped','cancelled','failed'))::int open_n, count(*)::int all_n from public.onboarding_steps where client_id = '${A}' and step_type = 'annual_return' and payload->>'taxYear' = '2025'`);
-    ok(dup.open_n === 1 && dup.all_n === 2, 'במסד: דוח 2025 פתוח אחד בלבד (הישן נשאר מבוטל)', JSON.stringify(dup));
-    const askDup = (await one(`select count(*)::int n from (select item_key, subject_role, coalesce(entity_ref,'') e from public.tax_info_asks where client_id = '${A}' and tax_year = 2025 and state in ('draft','published','unavailable') group by 1,2,3 having count(*) > 1) x`)).n;
-    ok(askDup === 0, 'במסד: אין שאלה פתוחה כפולה', String(askDup));
-
-    // ── 4 · עבודה שהושלמה ──
-    const done = (await one(`insert into public.onboarding_steps (user_id, client_id, step_type, track, scope, status, ball, payload)
-      values ('${OFFICE}', '${A}', 'wealth_declaration', 'internal', 'person', 'completed', 'me', '{"asOfDate":"2024-12-31","kind":"first","title":"הצהרת הון"}'::jsonb) returning id`)).id;
+    await waitOverview(page);
+    ok(await woRow(page).count() === 1, '«דוחות שנתיים»: השורה כאן');
     await go(page, '/tax/work/wealth');
-    await page.locator('[data-tw-state="done"]').click(); await sleep(600);
-    const dr = page.locator('[data-tw-bucket="done"]', { hasText: env.run });
-    ok(await dr.count() === 1 && await dr.first().locator('[data-tw-remove], [data-tw-restore]').count() === 0, 'עבודה שהושלמה: ב«הושלמו», בלי «הסר…»', await text(dr));
-    const chk = await asUser(OFFICE, `public.tax_work_removal_check('${done}')`);
-    const rm = await asUser(OFFICE, `public.remove_tax_work('${done}', 'cancel', null)`);
-    ok(chk?.mode === 'none' && rm?.error === 'completed', 'השרת: עבודה שהושלמה — אין מחיקה ואין ביטול', JSON.stringify({ chk: chk?.mode, rm }));
-    await page.goto('about:blank'); await page.goto(env.officeUrl(A, 'taxfile'), { waitUntil: 'domcontentloaded' });
-    await page.locator('[data-section="works"]').waitFor({ timeout: 40000 }); await sleep(1500);
-    const tf = await text(page.locator('[data-section="works"]'));
-    ok(await page.locator('[data-section="works"] li[data-work="annual_return"] [data-tf-remove]').count() === 1
-      && await page.locator('[data-section="works"] li[data-work="wealth_declaration"] [data-tf-remove]').count() === 0, 'תיק המס: «הסר…» לעבודה הפתוחה בלבד, לא להצהרה שהושלמה', tf.slice(0, 300));
-
-    // ── 5 · משתמש אחר · קישורים ישנים ──
-    const stranger = '00000000-0000-4000-8000-0000000000aa';
-    const [cur] = (await annualOpen()).filter(x => !['cancelled', 'completed'].includes(x.status));
-    let forb = '';
-    try { await asUser(stranger, `public.remove_tax_work('${cur.id}', 'cancel', null)`); } catch (e) { forb = String(e.message); }
-    ok(/forbidden|42501|not authorized/i.test(forb) && (await one(`select status from public.onboarding_steps where id = '${cur.id}'`)).status !== 'cancelled', 'משתמש אחר: נדחה, והעבודה לא השתנתה', forb.slice(0, 160));
-    for (const [old, want] of [['/reference', '#/tax/learn'], ['/firm/taxWork', '#/tax/work']]) {
-      await page.goto('about:blank'); await page.goto(`${BASE}/#${old}`, { waitUntil: 'domcontentloaded' });
-      await page.locator('[data-tax-area]').waitFor({ timeout: 40000 }); await sleep(800);
-      ok((await page.evaluate(() => location.hash)).startsWith(want), `קישור ישן ‎#${old}‎ ← ‎${want}‎`, await page.evaluate(() => location.hash));
+    await waitOverview(page);
+    ok(await woRow(page).count() === 0, '«הצהרות הון»: השורה לא כאן');
+    await go(page, '/tax/work/annual');
+    const wo2 = await waitOverview(page);
+    await wo2.locator('[data-wo-q]').fill(env.run); await sleep(300);
+    ok(await wo2.locator('[data-wo-row]').count() === 1, 'חיפוש לפי שם הלקוח');
+    // ── 3 · שורה ⇒ «בקשות» של הלקוח, והעבודה שם ──
+    await woRow(page).first().click(); await sleep(3000);
+    const h = await page.evaluate(() => location.hash);
+    ok(h.startsWith(`#/client/${A}/journey`), 'שורה ⇒ «בקשות» של לקוח הבדיקה', h);
+    ok(/^בקשות/.test((await text(page.locator('.cw-tab.active'))).trim()), 'הלשונית הפעילה: «בקשות»');
+    ok(/דוח שנתי 2025/.test(await text(page.locator('body'))), 'העבודה מופיעה ב«בקשות» של הלקוח');
+    await shot(page, 'st-02-requests');
+    await page.goBack(); await sleep(2000);
+    ok((await page.evaluate(() => location.hash)).startsWith('#/tax/work/annual'), '«אחורה» חוזר לסקירה');
+    // ── 4 · קישורים ישנים ──
+    for (const [old, want] of [['/firm/taxWork', '#/tax/work'], ['/tax/work/intake', '#/tax/work/intake']]) {
+      await go(page, old);
+      ok((await page.evaluate(() => location.hash)).startsWith(want) && await page.locator('[data-work-overview]').count() === 1, `קישור ישן ‎#${old}‎ ⇒ הסקירה`);
     }
-  } catch (e) { ok(false, `desktop: חריגה`, e.message); await shot(page, 'st-error', true); }
-  finally { await ctx.close(); }
+    // ── 5 · מפת הטופס מול לקוח אמיתי (קריאה בלבד) ──
+    await go(page, '/tax/learn/annual');
+    const fm = page.locator('[data-form-map="1301"]');
+    ok(await fm.isVisible(), 'דוח שנתי: מפת הטופס');
+    await fm.locator('[data-fm-client]').selectOption(A); await sleep(3000);
+    ok(await page.locator('[data-fm-summary]').isVisible(), 'מצב השדות אצל לקוח הבדיקה', await text(page.locator('[data-fm-summary]')));
+  } finally { await ctx.close(); }
 }
 
 async function mobile() {
   const { ctx, page } = await newPage();
   try {
-    await page.goto(`${BASE}/#/tax`, { waitUntil: 'domcontentloaded' });
-    await page.locator('[data-tax-area]').waitFor({ timeout: 40000 }); await sleep(1200);
-    ok(await page.locator('.ta-rail').isVisible() && !(await page.locator('.tax-area .pg-pane').isVisible()), 'טלפון: «מס» נפתח ברשימה');
-    await page.locator('[data-rail="work-annual"]').click(); await sleep(1500);
-    await addAnnual(page);
-    const t = await removeVia(page, row(page).first().locator('[data-tw-remove]'), { pickCancel: true, reason: 'טלפון' });
-    ok(t.includes('למחוק'), 'טלפון: חלון ההסרה נפתח');
-    ok(await noHScroll(page), 'טלפון: חלון ההסרה בלי גלילה הצידה');
-    await shot(page, 'st-m-dialog');
-    await dlg(page).locator('[data-rw-confirm]').click(); await sleep(2500);
-    await page.locator('[data-tw-state="cancelled"]').click(); await sleep(500);
-    const cr = page.locator('[data-tw-bucket="cancelled"]', { hasText: env.run });
-    ok(await cr.count() === 1, 'טלפון: ב«בוטלו»');
-    await removeVia(page, cr.first().locator('[data-tw-restore]'));
-    await dlg(page).locator('[data-rw-confirm]').click(); await sleep(2500);
-    ok(/הוחזרה/.test(await text(page.locator('.ty-ok'))), 'טלפון: הוחזרה');
-    ok(await noHScroll(page), 'טלפון: הרשימה בלי גלילה הצידה');
-    await shot(page, 'st-m-list');
-  } catch (e) { ok(false, `mobile: חריגה`, e.message); await shot(page, 'st-m-error', true); }
-  finally { await ctx.close(); }
+    await openWork(A);
+    await go(page, '/tax/work/all');
+    if (!(await page.locator('[data-work-overview]').isVisible())) { await page.locator('[data-rail="work-all"]').click(); await sleep(800); }
+    await waitOverview(page);
+    ok(await woRow(page).count() === 1, 'טלפון: השורה בסקירה');
+    ok(await noHScroll(page), 'טלפון: בלי גלילה הצידה');
+    await shot(page, 'st-m-overview');
+    await woRow(page).first().click(); await sleep(3000);
+    ok((await page.evaluate(() => location.hash)).startsWith(`#/client/${A}/journey`), 'טלפון: שורה ⇒ «בקשות»');
+    await shot(page, 'st-m-requests');
+  } finally { await ctx.close(); }
 }
 
 try {

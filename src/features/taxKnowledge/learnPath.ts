@@ -4,8 +4,9 @@
 //   כל סעיף (Sec) משויך לשלב, ו«מה מבקשים מהלקוח» נגזר משאלון האיסוף האמיתי (catalog.ts) — לא טקסט נפרד שיתיישן.
 // ‼ טהור — נבדק ב-node.
 
-import { AREAS, ITEMS, type AreaId } from '../taxYear/catalog';
+import { AREAS, ITEMS, ITEM_BY_KEY, type Area, type AreaId, type InfoItem } from '../taxYear/catalog';
 import { DOCS } from '../taxYear/documents';
+import { WEALTH_AREAS } from '../taxYear/wealthCatalog';
 import type { TocItem } from './topics/shared';
 import type { Basis } from '../taxRules/types';
 
@@ -36,10 +37,11 @@ export const STAGE_LABEL = Object.fromEntries(STAGES.map(s => [s.id, s.label])) 
 // ‼ שיוך מפורש רק כשהכותרת לא מספיקה. השאר — לפי הכותרת (stageOfSection).
 const OVERRIDE: Record<string, Stage> = {
   'ar-flow': 'what', 'ar-annex': 'read', 'ar-docs': 'read', 'ar-code': 'read',
-  'wd-2': 'what', 'wd-3': 'read', 'wd-fields': 'read', 'wd-4': 'read', 'wd-q': 'ask',
+  'wd-2': 'what', 'wd-3': 'read', 'wd-fields': 'read', 'wd-4': 'read',
   'f6-struct': 'read', 'f6-dict': 'read',
   'mb-to': 'read', 'mb-5': 'read',
   'ad-5': 'ask', 'ad-open': 'except',
+  'ml-field': 'read', 'ml-docs': 'read', 'ml-src': 'sources',
 };
 
 /** לאיזה שלב שייך סעיף בנושא. */
@@ -58,27 +60,79 @@ const TOPIC_AREAS: Record<string, AreaId[]> = {
   annualReturn: ['salary', 'business', 'capital', 'rent', 'savings', 'donations', 'household', 'filing'],
   pensionSE: ['savings'], studyFund: ['savings'], mandatoryPension: ['savings', 'business'],
   niSelfEmployed: ['business', 'niBenefits', 'payments'], advances: ['payments', 'business'],
-  microBusiness: ['business'], form6111: ['business'],
-  wealth: ['wRealEstate', 'wBank', 'wSecurities', 'wFunds', 'wVehicles', 'wLiabilities', 'wBusiness'],
+  microBusiness: ['business'], form6111: ['business'], maternity: ['niBenefits'],
+  // ‼ כל חלקי שאלון ההון, מהשאלון עצמו — לא רשימה ידנית שמשמיטה חלקים
+  wealth: WEALTH_AREAS.map(a => a.id),
 };
 
-export interface ClientAsk { key: string; label: string; question?: string; doc?: string; byOffice: boolean; rare: boolean }
-export interface ClientAskArea { id: AreaId; title: string; parts1301: string[]; annexes: string[]; asks: ClientAsk[] }
+export interface ClientAsk {
+  key: string; label: string; question?: string; doc?: string; byOffice: boolean; rare: boolean;
+  /** על מי השאלה: אדם, משק הבית, או כל ישות ברשימה (נכס, חשבון, מעסיק…). */
+  audience: string;
+  /** מתי היא נשאלת — רק תנאים שהשאלון כבר אוכף (catalog.ts / picture.ts). ריק = נשאלת תמיד. */
+  conditions: string[];
+}
+export interface ClientAskCounts { questions: number; documents: number; office: number }
+export interface ClientAskArea { id: AreaId; title: string; parts1301: string[]; annexes: string[]; asks: ClientAsk[]; counts: ClientAskCounts }
 
 // ‼ בשאלון האמיתי השדות האלה מתמלאים לכל לקוח (asks.ts). כאן — דוגמה כללית, כדי שלא יוצגו סוגריים מסולסלים.
 const SAMPLE: Record<string, string> = { name: 'הלקוח', entity: '‹שם הקופה או הגוף›', since: '‹מועד הבדיקה הקודמת›', period: '‹התקופה›', id: '‹מספר›' };
-const sample = (q: string) => q.replace(/\{(\w+)\}/g, (_, k: string) => SAMPLE[k] ?? '‹…›');
+// ‼ «{entity}» — שם הישות שהשאלה עליה; כאן דוגמה לפי סוג הישות (נכס, חשבון, מעסיק…), לא «שם הקופה» לכל שאלה.
+const ENTITY_SAMPLE: Record<string, string> = {
+  property: '‹הנכס›', account: '‹החשבון›', employer: '‹המעסיק›', business: '‹העסק›', foreign_source: '‹המקור בחו״ל›',
+  fund: '‹שם הקופה או הגוף›', child: '‹הילד›', transaction: '‹העסקה›', company: '‹החברה›', asset: '‹הנכס›',
+};
+// ‼ «ל{name}» → «ללקוח» (לא «להלקוח»): בשאלון האמיתי זה «לך» או שם בן/בת הזוג (fillTemplate).
+const sample = (q: string, per?: string) => q.split('ל{name}').join('ללקוח').replace(/\{(\w+)\}/g, (_, k: string) => (k === 'entity' ? ENTITY_SAMPLE[per ?? ''] ?? '‹הגוף›' : SAMPLE[k] ?? '‹…›'));
 
-/** «מה מבקשים מהלקוח» לנושא — מהשאלון האמיתי, לפי תחום. ‼ שאלה שהמשרד עונה עליה מסומנת, לא מוסתרת. */
-export function clientAsksFor(topicId: string): ClientAskArea[] {
-  const areas = TOPIC_AREAS[topicId] ?? [];
-  return areas.map(id => {
+const AUDIENCE: Record<string, string> = {
+  person: 'לכל אדם בתיק', couple: 'למשק הבית', employer: 'לכל מעסיק', business: 'לכל עסק', property: 'לכל נכס', account: 'לכל חשבון',
+  foreign_source: 'לכל מקור הכנסה בחו״ל', fund: 'לכל קופה', child: 'לכל ילד', transaction: 'לכל עסקה', company: 'לכל חברה', asset: 'לכל נכס',
+};
+const ONLY_PURPOSE: Record<string, string> = { annual: 'בדוח שנתי בלבד', estimate: 'בהערכת מס בלבד', wealth: 'בהצהרת הון בלבד', intake: 'בקליטה בלבד' };
+
+/** פריט שאלון → שורה לתצוגה. ‼ התנאים כאן הם הכללים שכבר קיימים בקטלוג — לא כללים חדשים. */
+function askOf(i: InfoItem, area: Area | undefined): ClientAsk {
+  const conditions: string[] = [];
+  const gate = i.after ? ITEM_BY_KEY[i.after] : undefined;
+  if (gate) conditions.push(`אם התשובה ל«${sample(gate.question ?? gate.label, gate.per)}» היא כן`);
+  if (i.onlyMarried) conditions.push('רק לנשואים');
+  if (i.onlyIfOnCard) conditions.push('רק כשיש פרט בכרטיס הלקוח');
+  if (i.onlyNew) conditions.push('רק על ישות שעדיין אינה בכרטיס');
+  if (i.noCardEntity) conditions.push('רק כשאין עסק בכרטיס');
+  if (i.declKind) conditions.push(i.declKind === 'first' ? 'בהצהרה ראשונה' : 'בהצהרת המשך');
+  if (i.rare) conditions.push('רק כשהמשרד מסמן');
+  const own = area?.purposes ?? [];
+  if (i.purposes.length === 1 && own.length > 1 && own.includes(i.purposes[0])) conditions.push(ONLY_PURPOSE[i.purposes[0]]);
+  const audience = i.coupleQuestion && i.per === 'person' ? 'לכל אדם בתיק (לזוג — שאלה אחת «מי מכם?»)' : AUDIENCE[i.per] ?? '';
+  return { key: i.key, label: sample(i.label, i.per), question: i.question ? sample(i.question, i.per) : undefined, doc: i.docKind ? DOCS[i.docKind]?.label : undefined, byOffice: i.who === 'office', rare: !!i.rare, audience, conditions };
+}
+
+/** כמה שאלות, מסמכים ופריטים שהמשרד ממלא — כל פריט נספר פעם אחת, כך שהכותרת תואמת לפירוט. */
+export function countAsks(asks: ClientAsk[]): ClientAskCounts {
+  const c: ClientAskCounts = { questions: 0, documents: 0, office: 0 };
+  for (const a of asks) { if (a.doc) c.documents++; else if (a.byOffice) c.office++; else c.questions++; }
+  return c;
+}
+export function sumCounts(areas: ClientAskArea[]): ClientAskCounts {
+  return areas.reduce((t, a) => ({ questions: t.questions + a.counts.questions, documents: t.documents + a.counts.documents, office: t.office + a.counts.office }), { questions: 0, documents: 0, office: 0 });
+}
+/** «5 שאלות · 2 מסמכים · 1 למילוי המשרד» — רק מה שיש. */
+export function countsText(c: ClientAskCounts): string {
+  return [c.questions ? `${c.questions} ${c.questions === 1 ? 'שאלה' : 'שאלות'}` : '', c.documents ? `${c.documents} ${c.documents === 1 ? 'מסמך' : 'מסמכים'}` : '', c.office ? `${c.office} למילוי המשרד` : ''].filter(Boolean).join(' · ');
+}
+
+/** «מה מבקשים מהלקוח» לפי תחומי שאלון — מהשאלון האמיתי. מקור אחד לנושא (שלב «מה מבקשים») ולתחום (עמוד התחום). ‼ שאלה שהמשרד עונה עליה מסומנת, לא מוסתרת. */
+export function askAreasView(ids: readonly AreaId[]): ClientAskArea[] {
+  return ids.map(id => {
     const a = AREAS.find(x => x.id === id);
-    const asks = ITEMS.filter(i => i.area === id)
-      .map(i => ({ key: i.key, label: sample(i.label), question: i.question ? sample(i.question) : undefined, doc: i.docKind ? DOCS[i.docKind]?.label : undefined, byOffice: i.who === 'office', rare: !!i.rare }));
-    return { id, title: a?.title ?? id, parts1301: a?.parts1301 ?? [], annexes: a?.annexes ?? [], asks };
+    const asks = ITEMS.filter(i => i.area === id).map(i => askOf(i, a));
+    return { id, title: a?.title ?? id, parts1301: a?.parts1301 ?? [], annexes: a?.annexes ?? [], asks, counts: countAsks(asks) };
   }).filter(x => x.asks.length > 0);
 }
+export const topicAskAreaIds = (topicId: string): AreaId[] => TOPIC_AREAS[topicId] ?? [];
+/** «מה מבקשים מהלקוח» לנושא. */
+export function clientAsksFor(topicId: string): ClientAskArea[] { return askAreasView(topicAskAreaIds(topicId)); }
 
 /** המסמכים שהשאלון מבקש בנושא — בלי כפילויות, לשלב «מסמכים ומה מזינים». */
 export function documentsFor(topicId: string): string[] {

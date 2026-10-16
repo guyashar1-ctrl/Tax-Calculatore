@@ -5,6 +5,7 @@
 import { supabase } from '../../lib/supabase';
 import type { Client, FamilyStatus, PersonRole } from '../../types';
 import { FAMILY_STATUS_LABELS } from '../../types';
+import { familyStatusDisplay } from '../../utils/familyStatusYear';
 import { FIELD_SOURCE_LABELS, type FieldMeta } from '../../types/clientWorkspace';
 import { niDate } from './niOccupations';
 
@@ -151,7 +152,7 @@ export function buildBtlRecordView(
   const meta = (client.fieldMeta as Record<string, FieldMeta> | undefined)?.familyStatus;
   if (client.familyStatus) {
     view.declared.push({
-      label: 'מצב משפחתי', value: FAMILY_STATUS_LABELS[client.familyStatus] ?? client.familyStatus,
+      label: 'מצב משפחתי', value: familyStatusDisplay(client),
       source: meta?.source ? FIELD_SOURCE_LABELS[meta.source] ?? meta.source : 'כרטיס הלקוח',
     });
   }

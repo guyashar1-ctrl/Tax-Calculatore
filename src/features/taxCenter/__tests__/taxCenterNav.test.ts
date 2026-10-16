@@ -44,7 +44,7 @@ export const TESTS: TestCase[] = [
     equal(taxCenterHead('expenses', 2026).usesYear, false);
     equal(taxCenterHead('bookkeeping', 2026).usesYear, false);
     equal(taxCenterHead('map1301', 2026).usesYear, false);
-    for (const k of ['ni', 'incomeTax', 'rental', 'wizard', 'settlements', 'topics', 'maintenance'] as const) {
+    for (const k of ['ni', 'incomeTax', 'rental', 'wizard', 'settlements', 'deadlines', 'maintenance'] as const) {
       equal(taxCenterHead(k, 2026).usesYear, true, k);
     }
   }),

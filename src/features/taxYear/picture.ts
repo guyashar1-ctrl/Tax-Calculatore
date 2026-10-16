@@ -13,6 +13,8 @@ import type { EntityKind, Evidence, FactBasis, InfoAsk, Purpose, SubjectRole, Ye
 import { accountSpan, entityRelevance, periodOfRequest, propertySpan, type Relevance } from './temporal';
 import { entitiesInPeriod, isPeriodItem, listKindOf } from './structured';
 import { dealerOf } from './structured';
+import { crossesYearEnd, maternityPeriodOf } from './maternity';
+import { FAMILY_STATUS_YEAR_KEY, familyStatusEventYear } from '../../utils/familyStatusYear';
 
 export type ItemState =
   | 'known'             // יש עובדה מאושרת שמספיקה לתכלית
@@ -219,6 +221,13 @@ export function cardHas(item: InfoItem, c: Client, t: Target): boolean {
   });
 }
 
+/** ‼ 16.10.2026 · המצב המשפחתי שהלקוח בחר בקליטה (מאושר או ממתין, האחרון) — כדי לשאול את שנת המצב שנבחר, לא של הכרטיס. */
+function familyStatusAnswered(facts: YearFact[]): Client['familyStatus'] | undefined {
+  const f = facts.filter(x => x.itemKey === 'intake.family' && (x.status === 'accepted' || x.status === 'pending') && x.answer === 'value' && typeof x.value === 'string')
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
+  return f ? (f.value as Client['familyStatus']) : undefined;
+}
+
 /** מצב שאלת הפתיחה לאדם: מעובדות (מאושרות או ממתינות) ומהכרטיס. */
 function screenerState(key: string, role: SubjectRole, c: Client, facts: YearFact[], y: number): 'yes' | 'no' | 'unknown' {
   const live = facts.filter(f => f.itemKey === key && f.subjectRole === role && (f.status === 'accepted' || f.status === 'pending'));
@@ -384,6 +393,19 @@ export function buildYearPicture(inp: PictureInput): YearPicture {
         if (tracks.length > 0 && tracks.every(tr => tr && tr !== 'regular')) continue;
       }
 
+      // ‼ 16.10.2026 · ממתי המצב המשפחתי — רק למצב הזה (תשובת הלקוח בקליטה, אחרת הכרטיס), ורק כשבכרטיס אין שנה.
+      //   כשיש שנה — היא חלק מאישור «המצב המשפחתי» (cardLines). המקור: utils/familyStatusYear.ts
+      if (item.familyYearFor && tf.length === 0 && !ask) {
+        const status = familyStatusAnswered(facts) ?? c.familyStatus;
+        if (status !== item.familyYearFor || familyStatusEventYear({ ...c, familyStatus: status })) continue;
+      }
+
+      // ‼ 16.10.2026 · פריסת דמי לידה — רק כשתקופת הזכאות של האדם חוצה את 31.12 של השנה הזו (או כשכבר נרשמה כאן החלטה)
+      if (item.key === 'niBenefits.maternitySpread' && tf.length === 0 && !ask) {
+        const per = maternityPeriodOf(facts, t.subjectRole);
+        if (!per || !crossesYearEnd(per.from, per.to) || ![per.from, per.to].some(d => Number(d.slice(0, 4)) === y)) continue;
+      }
+
       // 1. שאלת פתיחה שקודמת לפריט
       if (item.after) {
         const role: SubjectRole = t.ownerRole ?? (t.subjectRole === 'couple' ? 'client' : t.subjectRole);
@@ -545,6 +567,18 @@ export function buildYearPicture(inp: PictureInput): YearPicture {
       s.officeAction = 'אושרה בחירה שונה ממה שבכרטיס — לעדכן בכרטיס';
       s.officeTask = { kind: 'cardChoice', field: s.item.cardChoice, value: f.value, factId: f.id };
       continue;
+    }
+    // ‼ 16.10.2026 · שנת הנישואין / הגירושין / הפטירה — הדרך הרגילה היא «אשר ועדכן בתיק» (recordToCard). אושרה בלי לעדכן ⇒
+    //   משימה גלויה: «רשום שנה» בתיק המס; נעלמת כשהכרטיס אומר אותה שנה (או «עודכן בתיק»).
+    if (s.item.familyYearFor && f.answer === 'value') {
+      const field = FAMILY_STATUS_YEAR_KEY[s.item.familyYearFor]!;
+      const yr = Number((f.value as { items?: { year?: unknown }[] } | null)?.items?.[0]?.year);
+      if (Number.isInteger(yr) && yr > 0) {
+        if (cardRec[field] === yr) continue;
+        s.officeAction = `הלקוח מסר: ${s.item.label} ${yr} — לרשום בתיק המס: «משפחה ובן/בת זוג» ← «רשום שנה»`;
+        s.officeTask = { kind: 'cardEdit', factId: f.id, text: `${s.item.label} ${yr}` };
+        continue;
+      }
     }
     // שינוי שתואר במילים (אישור «משהו השתנה», תשובה כשהכרטיס ריק, פרטי עסק חדש) — המשרד מעדכן בכרטיס
     const words = f.clientAssertion === 'changed' ? String((f.value as { note?: string })?.note ?? '')

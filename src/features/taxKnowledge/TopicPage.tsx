@@ -24,7 +24,9 @@ import WealthBody, { WEALTH_TOC } from './topics/WealthBody';
 import MicroBusinessBody, { MICRO_TOC } from './topics/MicroBusinessBody';
 import AnnualReturnBody, { ANNUAL_TOC } from './topics/AnnualReturnBody';
 import Form6111Body, { FORM6111_TOC } from './topics/Form6111Body';
+import MaternityBody, { MATERNITY_TOC, MATERNITY_LESSON } from './topics/MaternityBody';
 import { ANNUAL_LESSON, FORM6111_LESSON } from './topics/lessonsReports';
+import ClientAsksPanel from './ClientAsksPanel';
 import { STAGES, visibleStages, clientAsksFor, documentsFor, plainStatus, stageOfSection, type Stage } from './learnPath';
 import './knowledge.css';
 import './learnPath.css';
@@ -39,6 +41,7 @@ const BODIES: Record<string, { Body: ComponentType<TopicBodyProps>; toc: TocItem
   microBusiness: { Body: MicroBusinessBody, toc: MICRO_TOC, lesson: MICRO_LESSON },
   annualReturn: { Body: AnnualReturnBody, toc: ANNUAL_TOC, lesson: ANNUAL_LESSON },
   form6111: { Body: Form6111Body, toc: FORM6111_TOC, lesson: FORM6111_LESSON },
+  maternity: { Body: MaternityBody, toc: MATERNITY_TOC, lesson: MATERNITY_LESSON },
 };
 
 export interface TopicContextClient { id: string; name: string; client: Client }
@@ -198,26 +201,8 @@ export default function TopicPage({ topicId, year, clients = [], context, onBack
           <section className="kn-sec kn-asks" aria-label="מה מבקשים מהלקוח">
             {asks.length === 0
               ? <p className="kn-small kn-muted">לנושא הזה אין עדיין שאלות בשאלון האיסוף. מבקשים מהלקוח ביד, לפי «מה עושים בתיק».</p>
-              : <>
-                <p className="kn-small kn-muted" style={{ margin: 0 }}>אלה השאלות והמסמכים שיוצאים ללקוח בשאלון, בניסוח שהוא רואה. שאלה שהמשרד עונה עליה — מסומנת.</p>
-                {asks.map(a => (
-                  <div key={a.id} className="kn-ask-area">
-                    <h3 className="kn-ask-h">{a.title}{a.parts1301.length ? <small> · 1301 חלק {a.parts1301.join(', ')}</small> : null}</h3>
-                    <ul className="kn-ask-list">
-                      {a.asks.map(x => (
-                        <li key={x.key}>
-                          <span>{x.question ?? x.label}</span>
-                          <span className="kn-ask-tags">
-                            {x.doc && <span className="kn-tag">מסמך: {x.doc}</span>}
-                            {x.byOffice && <span className="kn-tag is-office">המשרד ממלא</span>}
-                            {x.rare && <span className="kn-tag is-quiet">רק כשרלוונטי</span>}
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                ))}
-              </>}
+              : <ClientAsksPanel areas={asks} level={3} idPrefix={`kn-ask-${topicId}`} startOpen={asks.length <= 2 ? 'all' : 'none'}
+                  client={context ? { name: context.name, onOpen: () => onBackToClient?.() } : null} />}
           </section>
         )}
 
@@ -243,7 +228,8 @@ export default function TopicPage({ topicId, year, clients = [], context, onBack
         )}
 
         {/* ‼ הגוף מוצג תמיד, והסינון לפי השלב — ב-Sec (SecFilter). כך מחשבון שבחישוב לא נעלם ממצב לימוד ולהפך. */}
-        {active !== 'sources' && (
+        {/* ‼ גם בשלב «מקורות»: נושא שמקורותיו אינם כללים במרשם (דמי לידה) כותב אותם בסעיף משלו. */}
+        {(
           <SecFilter.Provider value={id => secStage.get(id) === active}>
             <Body year={year} ctx={bodyCtx} />
           </SecFilter.Provider>
@@ -261,7 +247,7 @@ export default function TopicPage({ topicId, year, clients = [], context, onBack
 
         {active === 'sources' && (
           <section className="kn-sec" id="kn-sources" aria-label="מקורות, ביסוס ותחזוקה" tabIndex={-1}>
-            <SourcesTable ruleIds={topic.ruleIds} year={year} />
+            {topic.ruleIds.length > 0 && <SourcesTable ruleIds={topic.ruleIds} year={year} />}
             <CopyPrompt scope={{ kind: 'topic', topicId }} label="העתק פרומפט עדכון לנושא הזה" />
           </section>
         )}

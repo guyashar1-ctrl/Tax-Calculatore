@@ -329,3 +329,8 @@
 .rl-rm-err { margin: .75rem 0 0; font-size: var(--fs-13); line-height: 1.55; color: var(--err); }
 @media (max-width: 640px) { .rl-more-slot { order: 1; } }
 .rl-done-note { margin: 8px 0 2px; font-size: var(--fs-12); color: var(--ink-3); line-height: 1.55; }
+
+/* 16.10.2026 · עבודת מס שהושלמה נפתחת בתוך «הושלמו» — שורה מלאה מתחת לכותרת */
+.rl-done { flex-wrap: wrap; scroll-margin-top: 80px; }
+.rl-done.is-highlight { background: var(--soft, rgba(59, 91, 140, .08)); border-radius: 8px; }
+.rl-done-work { flex: 1 0 100%; padding: 4px 0 10px; color: var(--ink-1); font-size: var(--fs-14); }

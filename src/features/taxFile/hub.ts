@@ -65,6 +65,8 @@ export function cardSnapshot(client: Client): { id: string; value: unknown }[] {
     pick('employers', e => ({ id: e.id, label: entityLabel('employers', e), spouse: !!e.belongsToSpouse, start: e.startDate ?? null, end: e.endDate ?? null })),
     pick('businesses', e => ({ id: e.id, label: entityLabel('businesses', e), closed: !!e.isClosed, spouse: !!e.belongsToSpouse, start: e.startYear ?? null, closedAt: e.closedYear ?? null })),
     { id: 'card:familyStatus', value: client.familyStatus ?? null },
+    // ‼ 16.10.2026: שנות האירוע קובעות את המצב בשנת המס (utils/familyStatusYear.ts) — שינוי אחרי אישור = «לבדיקה»
+    { id: 'card:familyStatusYear', value: { marriage: client.marriageYear ?? null, divorce: client.divorceYear ?? null, widowhood: client.widowhoodYear ?? null } },
     { id: 'card:children', value: (client.children ?? []).length },
   ];
 }
@@ -79,7 +81,7 @@ export interface ImpactItem {
 const DATE_KEYS = new Set(['bought', 'sold', 'opened', 'closedAt', 'start', 'end']);
 const AFFECTS: Record<string, string> = {
   'card:properties': 'שכר דירה, נכסים בהצהרת הון', 'card:investmentAccounts': 'ריבית, דיבידנד ורווחי הון',
-  'card:employers': 'משכורת וניכוי במקור', 'card:businesses': 'הכנסה מעסק ומקדמות', 'card:familyStatus': 'נקודות זיכוי וחישוב משותף', 'card:children': 'נקודות זיכוי',
+  'card:employers': 'משכורת וניכוי במקור', 'card:businesses': 'הכנסה מעסק ומקדמות', 'card:familyStatus': 'נקודות זיכוי וחישוב משותף', 'card:familyStatusYear': 'המצב המשפחתי בשנת המס — נקודות זיכוי וחישוב משותף', 'card:children': 'נקודות זיכוי',
 };
 
 /**
@@ -105,7 +107,7 @@ export function changesSinceApproval(input: { inputFacts: { id: string; value: u
         const datesOnly = diff.every(k => DATE_KEYS.has(k));
         out.push({ kind: 'card_changed', text: datesOnly ? `השתנו תאריכי הפעילות בתיק: ${e.label} — לבדוק אם התקופה עדיין נכונה` : `השתנה בתיק: ${e.label}`, affects: AFFECTS[x.id] ?? '' });
       }
-    } else if (JSON.stringify(x.value) !== JSON.stringify(cur)) out.push({ kind: 'card_changed', text: x.id === 'card:familyStatus' ? 'מצב משפחתי השתנה בתיק' : 'מספר הילדים בתיק השתנה', affects: AFFECTS[x.id] ?? '' });
+    } else if (JSON.stringify(x.value) !== JSON.stringify(cur)) out.push({ kind: 'card_changed', text: x.id === 'card:familyStatus' ? 'מצב משפחתי השתנה בתיק' : x.id === 'card:familyStatusYear' ? 'שנת הנישואין / הגירושין / הפטירה השתנתה בתיק — לבדוק את המצב המשפחתי בשנת המס' : 'מספר הילדים בתיק השתנה', affects: AFFECTS[x.id] ?? '' });
   }
   const accepted = new Map(input.facts.filter(f => f.status === 'accepted').map(f => [f.id, f]));
   const used = new Set(input.inputFacts.map(f => f.id));

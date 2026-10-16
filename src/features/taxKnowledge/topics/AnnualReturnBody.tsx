@@ -9,6 +9,7 @@ import { Sec, Quiz, type TopicBodyProps, type TocItem } from './shared';
 import { Glossary, Thinking, Mistakes, SolveFirst, Legend, ClaimTag } from './lesson';
 import { ANNUAL_LESSON } from './lessonsReports';
 import { SOURCE_DOCS, ANNEX_NEEDS } from '../sourceDocs';
+import { ROLE_SHORT, docLabel, explainOf, findFields } from '../formMap/model';
 
 export const ANNUAL_TOC: TocItem[] = [
   { id: 'ar-flow', label: 'ארבעת הצעדים', view: 'learn' }, { id: 'ar-gloss', label: 'מושגי יסוד', view: 'learn' },
@@ -89,37 +90,30 @@ function DocCards() {
   );
 }
 
+// ‼ 16.10: חיפוש אחד עם מפת הטופס (formMap/model.findFields) — כל הטפסים, קוד או מילים; הכרטיס כאן מקוצר,
+//   והסימון על הטופס עצמו — במפת הטופס בעמוד «דוח שנתי».
 function CodeSearch() {
   const [q, setQ] = useState('');
-  const hits = useMemo(() => {
-    const t = q.trim();
-    if (!t) return [];
-    const isCode = /^\d{2,3}$/.test(t);
-    return CATALOG.fields.filter(f => {
-      const codes = f.codes ? [f.codes.registered, f.codes.spouse, f.codes.joint].filter(Boolean) as string[] : [];
-      if (isCode) return codes.some(c => c === t || c === t.padStart(3, '0'));
-      return f.label.includes(t) || (f.instruction ?? '').includes(t);
-    }).slice(0, 12);
-  }, [q]);
+  const hits = useMemo(() => findFields(q, 12), [q]);
   return (
     <div className="kn-page" style={{ gap: 10 }}>
       <label className="kn-field" htmlFor="ar-code-q">קוד שדה (למשל 172) או מילה (למשל «תרומות»)
         <input id="ar-code-q" className="kn-search" inputMode="search" value={q} onChange={e => setQ(e.target.value)} placeholder="172" />
       </label>
+      <p className="kn-xs kn-muted" style={{ margin: 0 }}>אותו חיפוש כמו במפת הטופס (מס › ידע מקצועי › דוח שנתי) — שם רואים גם את השדה מסומן על הטופס.</p>
       <div aria-live="polite">
-        {q.trim() && hits.length === 0 && <p className="kn-small kn-muted">לא נמצא בטופס 1301 לשנת 2025. קוד שמופיע רק בנספח (1322, 1324…) — בטופס הנספח.</p>}
-        {hits.length > 1 && <p className="kn-xs kn-muted">נמצאו {hits.length} התאמות — לא בוחרים אחת בשקט; לבדוק את האדם ואת החלק.</p>}
-        {hits.map(f => {
-          const role = f.codes ? (f.codes.registered === q.trim() || f.codes.registered === q.trim().padStart(3, '0') ? 'בן הזוג הרשום' : f.codes.spouse === q.trim() || f.codes.spouse === q.trim().padStart(3, '0') ? 'בן/בת הזוג' : f.codes.joint === q.trim() ? 'שני בני הזוג (טור משותף)' : '') : '';
+        {q.trim() && hits.length === 0 && <p className="kn-small kn-muted">לא נמצא בטפסים במפה (1301, הנספחים ו-1219).</p>}
+        {hits.length > 1 && <p className="kn-xs kn-muted">נמצאו {hits.length} התאמות — לא בוחרים אחת בשקט; לבדוק את הטופס, האדם והחלק.</p>}
+        {hits.map(h => {
+          const f = h.field; const ex = explainOf(f);
           return (
-            <div key={f.id} className="kn-code-hit">
-              <div className="kn-spread"><strong>{f.label}</strong><span className="kn-xs kn-muted">1301/2025 · חלק {f.part}{f.section ? `, סעיף ${f.section}` : ''}</span></div>
-              <span className="kn-xs kn-muted">{PART_TITLE[f.part] ?? ''}</span>
-              {f.codes && <span className="kn-small" dir="rtl">קודים: רשום <b dir="ltr">{f.codes.registered ?? '—'}</b> · בן/בת זוג <b dir="ltr">{f.codes.spouse ?? '—'}</b>{f.codes.joint ? <> · משותף <b dir="ltr">{f.codes.joint}</b></> : null}{role ? <> · הקוד שחיפשת: <b>{role}</b></> : null}</span>}
-              {f.instruction && <span className="kn-small">{f.instruction}</span>}
-              {f.documents?.length ? <span className="kn-xs">מסמכים: {f.documents.join(' · ')}</span> : null}
-              {f.note && <span className="kn-xs kn-muted">{f.note}</span>}
-              {f.guidePage && <span className="kn-xs kn-muted">במדריך 2025: עמוד PDF {f.guidePage}</span>}
+            <div key={`${h.slug}.${f.key}.${h.code}.${h.role}`} className="kn-code-hit">
+              <div className="kn-spread"><strong>{f.label}</strong><span className="kn-xs kn-muted">{h.formId}{h.taxYear ? `/${h.taxYear}` : ''}{f.part && h.slug === '1301' ? ` · חלק ${f.part}` : ''}{f.section && h.slug === '1301' ? `, סעיף ${f.section}` : ''}{h.page ? ` · עמ׳ ${h.page}` : ' · לא מסומן בטופס'}</span></div>
+              {h.slug === '1301' && f.part && <span className="kn-xs kn-muted">{PART_TITLE[f.part] ?? ''}</span>}
+              {f.codes.length > 0 && <span className="kn-small" dir="rtl">קודים: {f.codes.map((c, n) => <span key={c.code}>{n ? ' · ' : ''}{ROLE_SHORT[c.role] || 'קוד'} <b dir="ltr">{c.code}</b></span>)}{h.code && ROLE_SHORT[h.role] ? <> · הקוד שחיפשת: <b>{ROLE_SHORT[h.role]}</b></> : null}</span>}
+              {ex.what && <span className="kn-small">{ex.what}</span>}
+              {f.documents.length ? <span className="kn-xs">מסמכים: {f.documents.map(docLabel).join(' · ')}</span> : null}
+              {f.guidePage ? <span className="kn-xs kn-muted">בחוברת «דע זכויותיך וחובותיך» 2025: עמ׳ {f.guidePage - 2}</span> : null}
             </div>
           );
         })}

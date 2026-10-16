@@ -1,0 +1,125 @@
+{
+ "formId": "1344",
+ "slug": "1344",
+ "taxYear": 2025,
+ "title": "1344 — הפסדים מועברים",
+ "source": {
+  "url": "https://www.gov.il/BlobFolder/service/reporting-and-payment-2025-annual-tax-report-for-individuals/he/Service_Pages_Income_tax_annual-report-2026_itc1344-2025.pdf",
+  "fetchedOn": "2026-10-16",
+  "sha256": "fd62a0e58a4305cd0ed91e0ccff16bc9f3281a7ac992082dbdca1fb945aa85d5",
+  "pdf": "/forms/2025/pdf/1344.pdf",
+  "pagesInPdf": 1
+ },
+ "method": "קוד מודפס בשכבת הטקסט של ה-PDF הרשמי + התיבה הסגורה שהוא בתוכה (how=box); בלי תיבה — סביב הקוד עצמו (how=label)",
+ "pages": [
+  {
+   "n": 1,
+   "w": 595.275,
+   "h": 841.89,
+   "img": "/forms/2025/1344/p1.webp",
+   "textLayer": true
+  }
+ ],
+ "anchors": [],
+ "ambiguous": [],
+ "missing": [],
+ "labelMethod": "שדה בלי קוד מודפס — לפי מילות התווית בשכבת הטקסט (≥60%, חד-משמעי); check = הריבוע מימין לתווית, row = התווית עם ריבועי כן/לא, cell = התא, text = התווית בלבד",
+ "labelAnchors": [
+  {
+   "field": "1344.1",
+   "page": 1,
+   "how": "text",
+   "score": 1,
+   "box": [
+    0.083,
+    0.1772,
+    0.589,
+    0.0154
+   ],
+   "label": [
+    0.0855,
+    0.179,
+    0.5839,
+    0.0119
+   ]
+  },
+  {
+   "field": "1344.4",
+   "page": 1,
+   "how": "text",
+   "score": 0.75,
+   "box": [
+    0.6627,
+    0.931,
+    0.2306,
+    0.0166
+   ],
+   "label": [
+    0.6652,
+    0.9328,
+    0.2255,
+    0.0131
+   ]
+  },
+  {
+   "field": "1344.10",
+   "page": 1,
+   "how": "text",
+   "score": 1,
+   "box": [
+    0.617,
+    0.8716,
+    0.2763,
+    0.0166
+   ],
+   "label": [
+    0.6195,
+    0.8734,
+    0.2713,
+    0.0131
+   ]
+  }
+ ],
+ "labelUnplaced": [
+  {
+   "field": "1344.2",
+   "why": "noMatch"
+  },
+  {
+   "field": "1344.3",
+   "why": "noMatch"
+  },
+  {
+   "field": "1344.5",
+   "why": "noMatch"
+  },
+  {
+   "field": "1344.6",
+   "why": "noMatch"
+  },
+  {
+   "field": "1344.7",
+   "why": "noMatch"
+  },
+  {
+   "field": "1344.8",
+   "why": "noMatch"
+  },
+  {
+   "field": "1344.9",
+   "why": "noMatch"
+  },
+  {
+   "field": "1344.11",
+   "why": "noMatch"
+  },
+  {
+   "field": "1344.12",
+   "why": "noMatch"
+  },
+  {
+   "field": "1344.13",
+   "why": "noMatch"
+  }
+ ]
+}

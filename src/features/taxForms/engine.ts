@@ -66,7 +66,10 @@ function factHint(field: FormField, ctx: FieldContext): { text: string; document
   const documented = !!meta?.source;
   if (v === undefined || v === null || v === '') return undefined;
   if ((v === false || v === 0) && !documented) return undefined;
-  const text = typeof v === 'boolean' ? (v ? 'כן' : 'לא') : typeof v === 'number' ? v.toLocaleString('he-IL') : String(v);
+  // ‼ 16.10: רשימה (מעבידים, ילדים) הוצגה «[object Object]» — מציגים כמה רשומות יש בכרטיס
+  if (Array.isArray(v) && v.length === 0) return undefined;
+  const text = Array.isArray(v) ? (v.length === 1 ? 'רשומה אחת' : `${v.length} רשומות`)
+    : typeof v === 'boolean' ? (v ? 'כן' : 'לא') : typeof v === 'number' ? v.toLocaleString('he-IL') : typeof v === 'object' ? 'יש נתון' : String(v);
   return { text, documented };
 }
 

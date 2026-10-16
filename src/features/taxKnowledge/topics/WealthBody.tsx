@@ -20,7 +20,7 @@ export const WEALTH_TOC: TocItem[] = [
   { id: 'wd-3', label: 'מבנה הטופס', view: 'learn' }, { id: 'wd-fields', label: 'שדה אחר שדה', view: 'learn' }, { id: 'wd-think', label: 'איך חושבים', view: 'learn' },
   { id: 'wd-4', label: 'איך רושמים', view: 'learn' }, { id: 'wd-5', label: 'השוואת הון', view: 'learn' },
   { id: 'wd-mis', label: 'טעויות נפוצות', view: 'learn' }, { id: 'wd-8', label: 'תרגול', view: 'learn' },
-  { id: 'wd-6', label: 'התהליך ביד', view: 'apply' }, { id: 'wd-q', label: 'השאלון', view: 'apply' },
+  { id: 'wd-6', label: 'התהליך ביד', view: 'apply' },
   { id: 'wd-prof', label: 'כללי רישום', view: 'apply' }, { id: 'wd-t', label: 'תבניות (טיוטה)', view: 'apply' },
   { id: 'wd-dec', label: 'החלטות משרד', view: 'apply' },
 ];
@@ -46,26 +46,6 @@ const STEPS: { t: string; who: string; check: string; out: string; status: Claim
   { t: 'הגשה', who: 'משרד', check: 'צירוף מסמכים לכל סעיף; עד 31.12.2026 — מקוון, סריקה בפניות או דלפק; מ-1.1.2027 — מקוון בלבד', out: '—', status: 'verified' },
   { t: 'אישור הגשה', who: 'משרד', check: 'הודעת הגשה במערכת, או אישור הגשה על העתק בדלפק', out: 'האישור בתיק — הראיה היחידה ל«הוגש»', status: 'verified' },
   { t: 'מעקב', who: 'משרד', check: 'פניות מפקיד השומה; השלמת מסמכים במערכת', out: 'ההון נטו ותאריכו נשמרים בתיק לפעם הבאה', status: 'interpretation' },
-];
-
-/** השאלון — ראשונה מול המשך. ‼ טיוטה: אין עדיין בקשה במערכת; השאלות ינוסחו כפריטים כשתיבנה. */
-const QUESTIONS: { g: string; q: string; when: string; docs: string; next: string }[] = [
-  { g: 'משק הבית', q: 'האם אתם נשואים וגרים יחד? מי הילדים, ומה תאריכי הלידה?', when: 'תמיד', docs: '—', next: 'שינוי מצב משפחתי או לידה; ילד שעבר את גיל 18 יוצא' },
-  { g: 'משק הבית', q: 'האם בן/בת הזוג מגיש/ה הצהרה נפרדת?', when: 'אם נשואים', docs: 'הצהרה חתומה של בן/בת הזוג', next: 'אותו דבר' },
-  { g: 'נדל״ן', q: 'יש לכם, או למי מבני הבית, דירה, קרקע, חנות או נכס בבנייה — בארץ או בחו״ל? איך נרכש?', when: 'תמיד', docs: 'חוזה, נסח, קבלות על מס רכישה, עו״ד ותיווך, חשבוניות שיפוץ; צו ירושה או מסמכי מתנה; לוח תשלומים לקבלן', next: 'נכס חדש או נמכר; שיפוצים מאז; תשלומים לקבלן' },
-  { g: 'בנקים', q: 'באילו בנקים, בתי השקעות וארנקים דיגיטליים יש לכם חשבון, בארץ ובחו״ל? יש חשבון בשליטתכם שלא על שמכם?', when: 'תמיד', docs: 'אישור יתרות ליום ההצהרה, לכל חשבון ולכל מטבע', next: 'חשבון חדש או סגור' },
-  { g: 'קריפטו', q: 'החזקתם מטבע דיגיטלי או NFT?', when: 'תמיד', docs: 'קובץ יתרות מהבורסה, כתובות ארנק, דוח עלות', next: 'קניות ומכירות מאז' },
-  { g: 'מזומן', q: 'כמה מזומן (שקלים ומט״ח) היה בבית או בכספת ביום ההצהרה?', when: 'תמיד — «0» הוא תשובה', docs: 'הצהרת הלקוח', next: 'אותו דבר' },
-  { g: 'קופות', q: 'אילו קופות, פנסיה, השתלמות, גמל וביטוח עם חיסכון יש לכל אחד, כולל הילדים?', when: 'תמיד', docs: 'אישור להצהרת הון מכל גוף, עם פיצול עובד/מעסיק', next: 'ניוד או משיכה מאז' },
-  { g: 'ני״ע', q: 'תיקי השקעות בבנק, אצל ברוקר זר או בקופת גמל להשקעה?', when: 'תמיד', docs: 'תדפיס עלות מהמוסד', next: 'אותו דבר' },
-  { g: 'הלוואות שנתתם', q: 'הלוויתם כסף למישהו שעוד לא החזיר?', when: 'תמיד', docs: 'הסכם או הצהרה, ותיעוד ההעברה', next: 'הלוואות שנפרעו' },
-  { g: 'רכב', q: 'רכב, אופנוע, סירה? רשום בספרי העסק?', when: 'תמיד; העסק — רק אם יש עסק', docs: 'רישיון רכב, הסכם קנייה, אסמכתת תשלום; כרטיס פחת', next: 'רכב חדש או נמכר' },
-  { g: 'תכשיטים ותכולה', q: 'תכשיטים, זהב, אוספים, אומנות; רשימת תכולה עם עלות ותאריך', when: 'תמיד; הסף — לפי החלטת המשרד', docs: 'רשימה, או דוח שמאי מהביטוח', next: 'רק מה שנקנה מאז' },
-  { g: 'חובות', q: 'הלוואות, משכנתאות, הלוואות ממשפחה או מחברים?', when: 'תמיד', docs: 'פירוט משכנתאות ויתרות הלוואות ליום ההצהרה; הסכם והעברה', next: 'פירעונות מאז' },
-  { g: 'עסקים', q: 'מניות בחברה, או שותפות בעסק עם מאזן? עסק בלי מאזן — קופה, לקוחות, מלאי, ציוד, ספקים, הלוואות, חלקכם באחוזים', when: 'אם יש', docs: 'מאזן חתום; ספירת מלאי, רשימות לקוחות וספקים, כרטיס פחת, דיווח מע״מ לחודש ההצהרה', next: 'אותו דבר' },
-  { g: 'חלק ד׳', q: 'כספת? ייפוי כוח, נאמנות או זכות חתימה בחשבון של אחר? רכוש של אחרים אצלכם?', when: 'תמיד', docs: 'רשימות עם פרטי הבעלים', next: 'אותו דבר' },
-  { g: 'להשוואה', q: 'ירושות, מתנות, זכיות, פיצויים או מכירת נכס מאז ההצהרה הקודמת? מתנות שנתתם, הלוואות לילדים בגירים?', when: 'רק בהצהרת המשך', docs: 'צווים, חוזים, תדפיסים', next: '—' },
-  { g: 'להשוואה', q: 'כמה נפשות בכל שנה; שכירות או בעלות; שכר דירה, ריבית והצמדה ששולמו', when: 'רק בהצהרת המשך', docs: 'חוזה שכירות, אישורי ריבית מהבנק', next: '—' },
 ];
 
 /** כללי רישום — מקצועיים, לא העדפות משרד (professional-rules-2026-10-11.md). מה שפתוח
@@ -149,28 +129,16 @@ export default function WealthBody({ view }: TopicBodyProps) {
         </Sec>
 
         <Sec id="wd-fields" title="טופס 1219 שדה אחר שדה — ממסמך לשורה">
-          <p className="kn-small">הטופס החדש («מעודכן ל-12.2024»), שנקרא במלואו עם דברי ההסבר. לכל שדה: מה רושמים, איזה מסמך מבקשים, מה בודקים ומה הטעות הנפוצה. <span className="kn-xs kn-muted">«חדש» = סעיף שנוסף בטופס החדש.</span></p>
+          <p className="kn-small">הטופס החדש («מעודכן ל-12.2024»), שנקרא במלואו עם דברי ההסבר. מה רושמים בכל שדה, איזה מסמך מבקשים, מה בודקים ומה הטעות הנפוצה — במפת הטופס, ליד השדה.</p>
           <details className="kn-details"><summary><strong className="kn-small">כללים שחלים על כל שדה</strong></summary>
             <ul className="kn-small">{WEALTH_GENERAL_RULES.map(g => <li key={g.text}>{g.text} <ClaimTag status={g.status} /></li>)}</ul>
           </details>
-          {WEALTH_PARTS.map(p => (
-            <details key={p.id} className="kn-details" open={p.id === 'a' || undefined}>
-              <summary><strong className="kn-small">{p.title}</strong> <span className="kn-xs kn-muted">שדות {p.fields}</span></summary>
-              <p className="kn-xs kn-muted" style={{ margin: '4px 0' }}>{p.intro}</p>
-              <div className="kn-dict">{p.rows.map(r => (
-                <details key={p.id + r.field} className="kn-dict-row">
-                  <summary><span className="kn-dict-name">{r.title}{r.isNew ? <span className="kn-xs" style={{ color: 'var(--br)' }}> · חדש</span> : null}</span><span className="kn-dict-code">{r.field}</span></summary>
-                  <div className="kn-dict-body kn-small">
-                    <div><span className="kn-muted">רושמים:</span> {r.record} <ClaimTag status={r.status} /></div>
-                    <div><span className="kn-muted">מבקשים מהלקוח:</span> {r.doc}</div>
-                    <div><span className="kn-muted">בודקים:</span> {r.check}</div>
-                    {r.mistake && <div><span className="kn-muted">טעות נפוצה:</span> {r.mistake}</div>}
-                    <div className="kn-xs kn-muted">טופס 1219: {r.page}</div>
-                  </div>
-                </details>
-              ))}</div>
-            </details>
-          ))}
+          {/* ‼ 16.10: הפירוט לכל שדה (רושמים / מסמך / בודקים / טעות נפוצה) — ליד השדה, על הטופס עצמו, במפת 1219 בעמוד «הצהרת הון».
+              כאן רק מה יש בכל חלק, כדי לא להחזיק את אותו הסבר בשני מקומות (אותו מקור: WEALTH_PARTS). */}
+          <p className="kn-small"><a className="kn-link" href="#/tax/learn/wealth" data-wd-map-link>לכל שדה על הטופס עצמו — מפת טופס 1219 ←</a></p>
+          <ul className="kn-small" style={{ margin: 0, paddingInlineStart: 18 }}>
+            {WEALTH_PARTS.map(p => <li key={p.id}><strong>{p.title}</strong> <span className="kn-xs kn-muted">שדות {p.fields}</span> — {p.rows.map(r => r.title).join(' · ')}</li>)}
+          </ul>
           <p className="kn-xs kn-muted">מספור השדות במערכת המקוונת (מקוון בלבד מ-1.1.2027) לא נבדק — דורש הזדהות <ClaimTag status="open" />.</p>
         </Sec>
         <Sec id="wd-think" title="איך חושבים — סדר העבודה">
@@ -248,18 +216,6 @@ export default function WealthBody({ view }: TopicBodyProps) {
             </table>
           </div>
           <div className="kn-gaps"><strong>אסור לסמן «הושלם» בלי ראיה:</strong> «הוגש» בלי הודעת הגשה · «נחתם» בלי טופס חתום בתיק · «מסמכים התקבלו» כשחסר אישור לחשבון שהוצהר · «ארכה ניתנה» בלי מסמך · «אין הפרש» בלי גיליון השוואה שמור.</div>
-        </Sec>
-
-        <Sec id="wd-q" title="השאלון — הצהרה ראשונה והצהרת המשך">
-          <p className="kn-small kn-muted" style={{ margin: 0 }}>בראשונה — שואלים על הכול. בהמשך — מציגים את הנתון מההצהרה הקודמת ושואלים רק מה השתנה, ומוסיפים את שאלות ההשוואה. {AVAILABLE.wealthRequest
-            ? 'השאלון המלא, עם התנאים לכל שאלה ומה כבר ידוע ללקוח מסוים — בבקשת «הצהרת הון» › «השאלון». כאן הסקירה.'
-            : `השאלון המלא ללקוח מסוים, בתוך בקשת «הצהרת הון» — ${NOT_RELEASED}. כאן הסקירה.`} <ClaimTag status="interpretation" /></p>
-          <div className="kn-tbl-wrap">
-            <table className="kn-tbl kn-tbl-wide">
-              <thead><tr><th>נושא</th><th>השאלה ללקוח</th><th>מתי שואלים</th><th>מסמכים</th><th>בהצהרת המשך</th></tr></thead>
-              <tbody>{QUESTIONS.map((q, i) => <tr key={i}><td>{q.g}</td><td>{q.q}</td><td>{q.when}</td><td>{q.docs}</td><td>{q.next}</td></tr>)}</tbody>
-            </table>
-          </div>
         </Sec>
 
         <Sec id="wd-prof" title="כללי רישום — מקצועיים, עם סטטוס">

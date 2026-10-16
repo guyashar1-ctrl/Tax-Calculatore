@@ -1,5 +1,5 @@
 import { describeProblem } from '../features/taxRules/registry';
-import { selfEmployedPension, niSelfEmployedBase } from '../features/taxRules/calc';
+import { selfEmployedPension, niSelfEmployedBase, niNonWorkIncome } from '../features/taxRules/calc';
 
 // ‼ הנוסחה עצמה במרשם (taxRules/calc) — אותה פונקציה לנושא «ביטוח לאומי לעצמאי» ולמחשבון.
 export { niSelfEmployedBase };
@@ -23,6 +23,7 @@ import {
   CreditProfile,
   DegreeInfo,
 } from './creditPoints';
+import { clientForTaxYear } from './familyStatusYear';
 
 const fmt = (n: number) =>
   n.toLocaleString('he-IL', { maximumFractionDigits: 0 });
@@ -71,10 +72,19 @@ function clientToTaxPerson(client: Client): TaxPerson {
   };
 }
 
+/**
+ * סעיף 45 — 2 הנקודות לילד/ה נטול/ת יכולת נזקפות לבני זוג נשואים להורה אחד. disabilityPointsTo נשמר יחסית לכרטיס;
+ * בחישוב של בן/בת הזוג מהפכים את נקודת המבט: מה שסומן 'spouse' הוא «אני», וכל השאר — ההורה השני.
+ */
+export function childrenFromSpouseView(children: Child[]): Child[] {
+  return children.map(c => (c.hasDisability ? { ...c, disabilityPointsTo: c.disabilityPointsTo === 'spouse' ? 'client' as const : 'spouse' as const } : c));
+}
+
 function spouseToTaxPerson(spouse: SpouseData, children: Child[]): TaxPerson {
   return {
     gender: spouse.gender,
-    children,
+    familyStatus: 'married',
+    children: childrenFromSpouseView(children),
     isNewImmigrant: spouse.isNewImmigrant,
     aliyahYear: spouse.aliyahYear,
     disabilityPercentage: spouse.disabilityPercentage,
@@ -110,7 +120,9 @@ function personToProfile(person: TaxPerson, year: number): CreditProfile {
     year,
     gender: person.gender,
     isMarried: person.familyStatus === 'married',
-    children: person.children.map(c => ({ birthYear: c.birthYear, hasDisability: c.hasDisability })),
+    // ‼ סעיף 45: לנשואים — הנקודות להורה אחד בלבד (ברירת המחדל: בעל/ת הכרטיס; בצד בן/בת הזוג — childrenFromSpouseView)
+    children: person.children.map(c => ({ birthYear: c.birthYear, hasDisability: c.hasDisability,
+      disabilityPointsElsewhere: person.familyStatus === 'married' && c.hasDisability && (c.disabilityPointsTo ?? 'client') !== 'client' })),
     parentRole: person.gender === 'female' ? 'allowanceParent' : 'otherParent',
     isSoleParent: person.familyStatus === 'singleParent',
     participatesInChildSupport: (person.familyStatus === 'divorced' && person.children.length > 0) || anyAlimonyPaid,
@@ -137,7 +149,8 @@ export function calcCreditPoints(
   year: number,
   cpValue: number
 ): CreditPointLine[] {
-  const result = calcCreditPointsV2(personToProfile(clientToTaxPerson(client), year), cpValue);
+  // ‼ המצב המשפחתי של שנת המס, לא של היום (utils/familyStatusYear.ts)
+  const result = calcCreditPointsV2(personToProfile(clientToTaxPerson(clientForTaxYear(client, year)), year), cpValue);
   return result.lines;
 }
 
@@ -199,6 +212,10 @@ interface NIInput {
   rentalTaxTrack: string;
   otherIncome: number;
   niType: NIType;
+  /** הניכוי לקופת גמל לפי סעיף 47 — מקטין את ההכנסה לב״ל (סעיף 345). */
+  pensionDeduction?: number;
+  /** החלק החייב במס משכר הדירה — חייב בדמי ביטוח כהכנסה שלא מעבודה. */
+  taxableRental?: number;
 }
 
 /** הגיל ב-1.1 של שנת המס (פנסיה: מגיל 50 — כלל פתוח). */
@@ -214,11 +231,14 @@ function calcNI(input: NIInput, taxData: TaxYearData): {
   healthEmployee: number;
   niSE_insurance: number;
   niSE_health: number;
+  niNonWork: number;
+  healthNonWork: number;
   breakdown: string[];
 } {
   const breakdown: string[] = [];
   let niEmployee = 0, healthEmployee = 0;
   let niSE_insurance = 0, niSE_health = 0;
+  let niNonWork = 0, healthNonWork = 0;
 
   const threshold60A = taxData.niThreshold60Monthly * 12;
   const maxA = taxData.niMaxIncomeMonthly * 12;
@@ -240,17 +260,26 @@ function calcNI(input: NIInput, taxData: TaxYearData): {
       `מס בריאות שכיר: ${taxData.employeeNI.healthLowRate}% × ₪${fmt(Math.round(low))} + ${taxData.employeeNI.healthHighRate}% × ₪${fmt(Math.round(high))} = ₪${fmt(Math.round(healthEmployee))}`
     );
   }
+  const salaryInsured = salary > 0 && (type === 'employee' || type === 'employeeAndSE') ? Math.min(salary, maxA) : 0;
+
+  // ‼ סעיף 345: ההכנסה לב״ל היא לפני פטורים וזיכויים, אחרי 52% מדמי הביטוח הלאומי **ואחרי הניכוי לקופת גמל
+  //   שקבע מס הכנסה (סעיף 47)** — דף ב״ל «דוגמה לחישוב דמי ביטוח לעובד עצמאי». הקרן להשתלמות אינה מופחתת.
+  const seNet = Math.max(0, input.selfEmployedGrossIncome - input.recognizedExpenses - Math.max(0, input.pensionDeduction ?? 0));
+  if ((input.pensionDeduction ?? 0) > 0 && input.selfEmployedGrossIncome > 0) {
+    breakdown.push(`ההכנסה לב״ל מעסק הוקטנה בניכוי לקופת גמל (סעיף 47): ₪${fmt(Math.round(input.pensionDeduction!))} — סעיף 345`);
+  }
 
   // ── עצמאי ──
-  const seNet = Math.max(0, input.selfEmployedGrossIncome - input.recognizedExpenses);
+  let seBase = 0;
   if (seNet > 0 && (type === 'selfEmployed' || type === 'employeeAndSE')) {
-    const alreadyInsured = type === 'employeeAndSE' ? Math.min(salary, maxA) : 0;
+    const alreadyInsured = type === 'employeeAndSE' ? salaryInsured : 0;
     const remainingMax = Math.max(0, maxA - alreadyInsured);
     // ‼ סעיף 345 + 47א: ההכנסה לב״ל היא ההכנסה אחרי ניכוי 52% מדמי הביטוח הלאומי עצמם — לכן הבסיס
     //   נפתר בנוסחה של ב״ל, ולא ההכנסה ברוטו (שמעריכה ביתר את דמי הביטוח ואת הניכוי).
     const lowAvail0 = Math.max(0, threshold60A - Math.min(alreadyInsured, threshold60A));
     const baseSE = niSelfEmployedBase(seNet, lowAvail0, taxData.selfEmployedNI.lowRate / 100, taxData.selfEmployedNI.highRate / 100);
     const insuredSE = Math.min(baseSE, remainingMax);
+    seBase = Math.max(0, insuredSE);
 
     if (insuredSE <= 0) {
       breakdown.push('עצמאי: הגיע לתקרת ביטוח לאומי עקב שכר');
@@ -274,81 +303,54 @@ function calcNI(input: NIInput, taxData: TaxYearData): {
       );
       const deductible = niSE_insurance * 0.52;
       breakdown.push(
-        `ניכוי ב"ל ממס הכנסה (סעיף 47א): 52% × ₪${fmt(Math.round(niSE_insurance))} = ₪${fmt(Math.round(deductible))} - יופחת מההכנסה החייבת`
+        `ניכוי ב"ל ממס הכנסה (סעיף 47א): 52% × ₪${fmt(Math.round(niSE_insurance))} = ₪${fmt(Math.round(deductible))} - יופחת מההכנסה החייבת (דמי הבריאות אינם מותרים בניכוי)`
       );
     }
   }
 
-  // ── עצמאי שאינו עונה להגדרה — מחויב כבעל הכנסה שלא מעבודה ──
-  if (type === 'nonQualifying') {
-    const income = seNet + input.otherIncome;
-    if (income > 0) {
-      if (income <= exempt25A) {
-        breakdown.push(`עצמאי שאינו עונה להגדרה: הכנסה ₪${fmt(income)} עד 25% מהשכר הממוצע (₪${fmt(exempt25A)}) - פטור מדמי ביטוח`);
-      } else {
-        // מעל הפטור — חיוב על מלוא ההכנסה בשיעורי הכנסה פסיבית
-        const insured = Math.min(income, maxA);
-        const low = Math.min(insured, threshold60A);
-        const high = Math.max(0, insured - threshold60A);
-        niSE_insurance = low * (taxData.passiveNI.lowRate / 100) + high * (taxData.passiveNI.highRate / 100);
-        niSE_health = low * (taxData.passiveNI.healthLowRate / 100) + high * (taxData.passiveNI.healthHighRate / 100);
-        breakdown.push(
-          `עצמאי שאינו עונה להגדרה (מחויב כהכנסה שלא מעבודה): ` +
-          `${(taxData.passiveNI.lowRate + taxData.passiveNI.healthLowRate).toFixed(2)}% עד המדרגה, ` +
-          `${(taxData.passiveNI.highRate + taxData.passiveNI.healthHighRate).toFixed(2)}% מעליה = ₪${fmt(Math.round(niSE_insurance + niSE_health))}`
-        );
-        breakdown.push('לתשומת לב: מעמד זה אינו מבוטח לנפגעי עבודה ודמי לידה מעיסוק זה');
-        const minA = taxData.nonQualifyingMonthlyNI * 12;
-        if (niSE_insurance + niSE_health < minA) {
-          breakdown.push(`הוחל מינימום שנתי: ₪${fmt(minA)} (₪${fmt(taxData.nonQualifyingMonthlyNI)}/חודש)`);
-          niSE_health = minA * 0.46;
-          niSE_insurance = minA - niSE_health;
-        }
+  // ── הכנסה שלא מעבודה ──
+  // ‼ שכ"ד: החלק הפטור (פטור / 10%) פטור מדמי ביטוח (350(א)(7)); החלק **החייב** (059 — מסלול רגיל או פטור חלקי) הוא
+  //   «הכנסה שלא מעבודה» וחייב (research/rental-realestate §C29). «עצמאי שאינו עונה להגדרה» — כולו הכנסה שלא מעבודה.
+  //   פנסיה מוקדמת / אזרח ותיק (351(ב)) — לא מחושב כאן.
+  const rentChargeable = Math.max(0, input.taxableRental ?? 0);
+  const nonWorkIncome = type === 'pensioner' ? 0
+    : rentChargeable + (type === 'nonQualifying' ? seNet + input.otherIncome : type === 'passive' ? input.otherIncome : 0);
+  if (type === 'pensioner' && rentChargeable > 0) breakdown.push('שכ"ד חייב אצל מקבל פנסיה / קצבת אזרח ותיק — דמי הביטוח על השכירות לא חושבו כאן (351(ב))');
+  if (nonWorkIncome > 0) {
+    const usedWork = salaryInsured + seBase;
+    const nw = niNonWorkIncome({
+      income: nonWorkIncome, exempt: exempt25A,
+      lowAvail: Math.max(0, threshold60A - Math.min(usedWork, threshold60A)), maxAvail: Math.max(0, maxA - usedWork),
+      lowNi: taxData.passiveNI.lowRate / 100, highNi: taxData.passiveNI.highRate / 100, health: taxData.passiveNI.healthHighRate / 100,
+    });
+    niNonWork = nw.ni; healthNonWork = nw.health;
+    const what = [rentChargeable > 0 ? `שכ"ד חייב ₪${fmt(Math.round(rentChargeable))}` : '', type === 'nonQualifying' && seNet > 0 ? `עסק (עצמאי שאינו עונה להגדרה) ₪${fmt(Math.round(seNet))}` : '',
+      (type === 'nonQualifying' || type === 'passive') && input.otherIncome > 0 ? `הכנסה אחרת ₪${fmt(Math.round(input.otherIncome))}` : ''].filter(Boolean).join(' + ');
+    if (nw.chargeable <= 0) {
+      breakdown.push(`הכנסה שלא מעבודה (${what}): אחרי הפחתת 52% מדמי הביטוח (345) והסכום הפטור ₪${fmt(exempt25A)} לשנה (348) — אין דמי ביטוח`);
+    } else {
+      breakdown.push(
+        `הכנסה שלא מעבודה (${what}): ₪${fmt(Math.round(nw.reduced345))} אחרי הפחתת 52% מדמי הביטוח (345), פחות ₪${fmt(exempt25A)} פטור (348 — הפחתה, לא מצוק) = ₪${fmt(Math.round(nw.chargeable))} חייב`
+      );
+      breakdown.push(
+        `ביטוח לאומי על הכנסה שלא מעבודה: ${taxData.passiveNI.lowRate}% × ₪${fmt(Math.round(nw.lowPart))} + ${taxData.passiveNI.highRate}% × ₪${fmt(Math.round(nw.highPart))} = ₪${fmt(Math.round(niNonWork))} · בריאות ${taxData.passiveNI.healthHighRate}% = ₪${fmt(Math.round(healthNonWork))}`
+      );
+    }
+    if (type === 'nonQualifying') {
+      breakdown.push('לתשומת לב: מעמד זה אינו מבוטח לנפגעי עבודה ודמי לידה מעיסוק זה');
+      const minA = taxData.nonQualifyingMonthlyNI * 12;
+      if (salaryInsured === 0 && niNonWork + healthNonWork < minA) {
+        breakdown.push(`הוחל מינימום שנתי: ₪${fmt(minA)} (₪${fmt(taxData.nonQualifyingMonthlyNI)}/חודש)`);
+        healthNonWork = minA * 0.46;
+        niNonWork = minA - healthNonWork;
       }
     }
+    if (type === 'passive' && salaryInsured === 0) breakdown.push(`מי שאינו עובד משלם לפחות ₪${fmt(taxData.nonQualifyingMonthlyNI)} לחודש (למעט אישה נשואה שאינה עובדת מחוץ למשק הבית) — לא נכלל כאן`);
+  } else if (input.rentalIncome > 0 && type !== 'pensioner') {
+    breakdown.push('שכ"ד למגורים בחלק הפטור (פטור / 10%) — פטור מדמי ביטוח (סעיף 350(א)(7))');
   }
 
-  // ── פסיבי / שכירות בלבד ──
-  if (type === 'passive') {
-    // שכ"ד למגורים (פטור/10%/שולי), דיבידנד 125ב, ריבית 125ג ורווח הון —
-    // פטורים מדמי ביטוח לפי סעיף 350(א). חיוב רק על הכנסה פסיבית אחרת.
-    const rentalNote = input.rentalIncome > 0
-      ? 'שכ"ד למגורים - פטור מדמי ביטוח בכל המסלולים (סעיף 350(א)(7)). '
-      : '';
-    const income = input.otherIncome;
-    if (income <= exempt25A) {
-      breakdown.push(`${rentalNote}הכנסה פסיבית אחרת ₪${fmt(income)} עד הפטור (₪${fmt(exempt25A)}) - אין דמי ביטוח`);
-    } else {
-      const insured = Math.min(income, maxA);
-      const low = Math.min(insured, threshold60A);
-      const high = Math.max(0, insured - threshold60A);
-      niSE_insurance = low * (taxData.passiveNI.lowRate / 100) + high * (taxData.passiveNI.highRate / 100);
-      niSE_health = low * (taxData.passiveNI.healthLowRate / 100) + high * (taxData.passiveNI.healthHighRate / 100);
-      breakdown.push(
-        `${rentalNote}הכנסה פסיבית אחרת: שיעור מופחת ${(taxData.passiveNI.lowRate + taxData.passiveNI.healthLowRate).toFixed(2)}% / מלא ${(taxData.passiveNI.highRate + taxData.passiveNI.healthHighRate).toFixed(2)}% = ₪${fmt(Math.round(niSE_insurance + niSE_health))}`
-      );
-    }
-  }
-
-  // ── פנסיה מוקדמת ──
-  if (type === 'pensioner') {
-    const pension = input.grossSalary + input.otherIncome;
-    if (pension > 0) {
-      const insured = Math.min(pension, maxA);
-      const low = Math.min(insured, threshold60A);
-      const high = Math.max(0, insured - threshold60A);
-      niSE_insurance = low * (taxData.earlyPensionNI.lowRate / 100) + high * (taxData.earlyPensionNI.highRate / 100);
-      niSE_health = low * (taxData.earlyPensionNI.healthLowRate / 100) + high * (taxData.earlyPensionNI.healthHighRate / 100);
-      breakdown.push(
-        `פנסיה מוקדמת (מנוכה במקור ע"י משלם הפנסיה): ` +
-        `${(taxData.earlyPensionNI.lowRate + taxData.earlyPensionNI.healthLowRate).toFixed(2)}% עד המדרגה / ` +
-        `${(taxData.earlyPensionNI.highRate + taxData.earlyPensionNI.healthHighRate).toFixed(2)}% מעליה = ₪${fmt(Math.round(niSE_insurance + niSE_health))}`
-      );
-      breakdown.push('מגיל פרישה / מקבל קצבת אזרח ותיק - חלים פטורים ושיעורים מופחתים אחרים');
-    }
-  }
-
-  return { niEmployee, healthEmployee, niSE_insurance, niSE_health, breakdown };
+  return { niEmployee, healthEmployee, niSE_insurance, niSE_health, niNonWork, healthNonWork, breakdown };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -399,25 +401,6 @@ export function calculateTax(input: TaxCalcInput, taxData: TaxYearData): TaxCalc
   const seExpenses = Math.max(0, input.recognizedExpenses);
   const seNet = Math.max(0, seGross - seExpenses);
 
-  // ── ב. ביטוח לאומי ──
-  const niCalc = calcNI({
-    grossSalary,
-    selfEmployedGrossIncome: seGross,
-    recognizedExpenses: seExpenses,
-    rentalIncome: input.rentalIncome,
-    rentalTaxTrack: input.rentalTaxTrack,
-    otherIncome: input.otherIncome,
-    niType: client.niType,
-  }, taxData);
-
-  const niDeductionSE = input.niDeductionSEOverride ?? niCalc.niSE_insurance * 0.52;
-  if (niDeductionSE > 0 && (client.niType === 'selfEmployed' || client.niType === 'employeeAndSE')) {
-    deductionBreakdown.push(
-      input.niDeductionSEOverride != null ? `ניכוי ביטוח לאומי לעצמאי (52% מדמי הביטוח בנוסחת ב״ל): ₪${fmt(Math.round(niDeductionSE))} - סעיף 47א לפקודה` : `ניכוי ביטוח לאומי לעצמאי (52% × ₪${fmt(Math.round(niCalc.niSE_insurance))}): ₪${fmt(Math.round(niDeductionSE))} - סעיף 47א לפקודה`
-    );
-  }
-  const niDeductionApplies = client.niType === 'selfEmployed' || client.niType === 'employeeAndSE';
-
   // ── ניכויים והפקדות פנסיוניות ──
   // שכיר: הפקדות העובד לפנסיה מקנות זיכוי ממס של 35% (סעיף 45א) — לא ניכוי!
   let pensionCredit = 0;
@@ -443,7 +426,7 @@ export function calculateTax(input: TaxCalcInput, taxData: TaxYearData): TaxCalc
   // ‼ לא «11% + 5.5%» גורף — ניכוי 7%, זיכוי עד 5%, תוספת ניכוי רק מעל 12%, מסלול ב׳ לעמית מוטב, תקרה שמשכורת מקטינה.
   let pensionDeductionSE = 0;
   const unverified: string[] = [];
-  if (seNet > 0 && input.selfEmployedPensionAmount > 0) {
+  if ((seNet > 0 || grossSalary > 0) && input.selfEmployedPensionAmount > 0) {
     const pre = input.sePension;
     const r = pre ? undefined : selfEmployedPension({
       year: input.year, nonWorkIncome: Math.max(0, seNet - krenDeduction), businessIncome: seNet, salary: grossSalary,
@@ -462,7 +445,7 @@ export function calculateTax(input: TaxCalcInput, taxData: TaxYearData): TaxCalc
         pensionCredit += creditBase * 0.35;
         deductionBreakdown.push(`זיכוי פנסיה עצמאי (סעיף 45א): 35% × ₪${fmt(Math.round(creditBase))} = ₪${fmt(Math.round(creditBase * 0.35))}`);
       }
-    } else if (!pre) {
+    } else if (!pre && seNet > 0) {
       // ‼ המחשבון הכללי בלי ערך מאומת (שנה בלי ערכים במרשם, או גיל 50 ומעלה שעדיין פתוח — pen.age50Cap):
       // נשאר החישוב שהיה לפני 11.10.2026, מסומן — אחרת הפנסיה נעלמת מהחישוב והמס עולה בלי שהשתנה כלל.
       // הערכה ודוח מעבירים sePension משלהם ונשארים חסומים (הענף הבא).
@@ -480,6 +463,8 @@ export function calculateTax(input: TaxCalcInput, taxData: TaxYearData): TaxCalc
         pensionCredit += creditPart * 0.35;
         deductionBreakdown.push(`זיכוי פנסיה עצמאי (סעיף 45א): 35% × ₪${fmt(Math.round(creditPart))} = ₪${fmt(Math.round(creditPart * 0.35))} — לפי החישוב הקודם, לא מאומת`);
       }
+    } else if (!pre) {
+      deductionBreakdown.push(`הפקדה עצמאית לקופת גמל של שכיר (סעיף 47(ב)(2)): לא חושבה — ${(r?.problems ?? []).map(describeProblem).join(' · ')}`);
     } else {
       const why = 'notComputed' in pre ? pre.notComputed : '';
       deductionBreakdown.push(`פנסיה עצמאי: הניכוי והזיכוי לא חושבו — ${why}`);
@@ -487,10 +472,6 @@ export function calculateTax(input: TaxCalcInput, taxData: TaxYearData): TaxCalc
   }
 
   if (seExpenses > 0) deductionBreakdown.push(`הוצאות מוכרות מהכנסת עסק: ₪${fmt(seExpenses)}`);
-
-  // ── ג. הכנסה חייבת ──
-  const taxableSalary = grossSalary;
-  const taxableSE = Math.max(0, seNet - pensionDeductionSE - krenDeduction - (niDeductionApplies ? niDeductionSE : 0));
 
   // הכנסות שכירות
   let taxableRental = 0;
@@ -524,11 +505,43 @@ export function calculateTax(input: TaxCalcInput, taxData: TaxYearData): TaxCalc
     }
   }
 
+  // ── ב. ביטוח לאומי ──
+  const niCalc = calcNI({
+    grossSalary,
+    selfEmployedGrossIncome: seGross,
+    recognizedExpenses: seExpenses,
+    rentalIncome: input.rentalIncome,
+    rentalTaxTrack: input.rentalTaxTrack,
+    otherIncome: input.otherIncome,
+    niType: client.niType,
+    pensionDeduction: Math.min(pensionDeductionSE, seNet),
+    taxableRental,
+  }, taxData);
+
+  const niDeductionSE = input.niDeductionSEOverride ?? niCalc.niSE_insurance * 0.52;
+  if (niDeductionSE > 0 && (client.niType === 'selfEmployed' || client.niType === 'employeeAndSE')) {
+    deductionBreakdown.push(
+      input.niDeductionSEOverride != null ? `ניכוי ביטוח לאומי לעצמאי (52% מדמי הביטוח בנוסחת ב״ל): ₪${fmt(Math.round(niDeductionSE))} - סעיף 47א לפקודה` : `ניכוי ביטוח לאומי לעצמאי (52% × ₪${fmt(Math.round(niCalc.niSE_insurance))}): ₪${fmt(Math.round(niDeductionSE))} - סעיף 47א לפקודה`
+    );
+  }
+  const niDeductionApplies = client.niType === 'selfEmployed' || client.niType === 'employeeAndSE';
+
+  // ── ג. הכנסה חייבת ──
+  const seAfter = Math.max(0, seNet - krenDeduction - (niDeductionApplies ? niDeductionSE : 0));
+  const pensionFromSE = Math.min(pensionDeductionSE, seAfter);
+  // ‼ 47(ב)(2): הפקדה כעמית עצמאי של שכיר (גם בלי עסק) — הניכוי שלא נוכה מהעסק יורד מהמשכורת
+  const taxableSalary = Math.max(0, grossSalary - (pensionDeductionSE - pensionFromSE));
+  const taxableSE = seAfter - pensionFromSE;
+
   const otherIncome = Math.max(0, input.otherIncome);
-  let taxableIncome = taxableSalary + taxableSE + taxableRental + otherIncome;
+  // ‼ 47א: ניכוי 52% גם מדמי הביטוח הלאומי על הכנסה שלא מעבודה (לא מדמי הבריאות), עד ההכנסה החייבת שלא מעבודה
+  const nonWorkTaxable = taxableRental + (client.niType === 'nonQualifying' ? taxableSE + otherIncome : client.niType === 'passive' ? otherIncome : 0);
+  const niDeductionNonWork = Math.min(niCalc.niNonWork * 0.52, nonWorkTaxable);
+  if (niDeductionNonWork > 0) deductionBreakdown.push(`ניכוי ב״ל על הכנסה שלא מעבודה (סעיף 47א): 52% × ₪${fmt(Math.round(niCalc.niNonWork))} = ₪${fmt(Math.round(niDeductionNonWork))}`);
+  let taxableIncome = Math.max(0, taxableSalary + taxableSE + taxableRental + otherIncome - niDeductionNonWork);
 
   // ── פטור נכה/עיוור סעיף 9(5) — אם רלוונטי ──
-  const profile = personToProfile(clientToTaxPerson(client), input.year);
+  const profile = personToProfile(clientToTaxPerson(clientForTaxYear(client, input.year)), input.year);
   const cpResult = calcCreditPointsV2(profile, taxData.creditPointValue);
   if (cpResult.disabilityExemption?.eligible) {
     const personalExertion = taxableSalary + taxableSE;
@@ -672,7 +685,7 @@ export function calculateTax(input: TaxCalcInput, taxData: TaxYearData): TaxCalc
   }
 
   // ── ביטוח לאומי סיכום ──
-  const totalNI = niCalc.niEmployee + niCalc.healthEmployee + niCalc.niSE_insurance + niCalc.niSE_health;
+  const totalNI = niCalc.niEmployee + niCalc.healthEmployee + niCalc.niSE_insurance + niCalc.niSE_health + niCalc.niNonWork + niCalc.healthNonWork;
 
   // ── סיכום ──
   const totalTaxBurden = totalIncomeTax + totalNI + separateTaxesTotal;
@@ -703,7 +716,10 @@ export function calculateTax(input: TaxCalcInput, taxData: TaxYearData): TaxCalc
     healthEmployee: niCalc.healthEmployee,
     niSelfEmployed: niCalc.niSE_insurance,
     healthSelfEmployed: niCalc.niSE_health,
-    niDeductionFromIncomeTax: niDeductionApplies ? niDeductionSE : 0,
+    niDeductionFromIncomeTax: (niDeductionApplies ? niDeductionSE : 0) + niDeductionNonWork,
+    niNonWork: niCalc.niNonWork,
+    healthNonWork: niCalc.healthNonWork,
+    taxableRental,
     totalNI,
     niBreakdown: niCalc.breakdown,
     unusedCreditValue,
@@ -745,6 +761,7 @@ export function spouseAsClient(client: Client): Client | null {
     firstName: spouse.firstName,
     lastName: spouse.lastName,
     idNumber: spouse.idNumber,
+    children: childrenFromSpouseView(client.children ?? []),
     birthDate: spouse.birthDate,
     gender: spouse.gender,
     phone: spouse.phone,
@@ -790,7 +807,8 @@ export function calculateFamilyTax(
   const { client } = primaryInput;
   const spouse = client.spouse;
 
-  if (!spouse || client.familyStatus !== 'married') {
+  // ‼ נשוי/אה בשנת המס — זוג שנישא אחרי השנה מחושב לשנה הזו כיחיד (utils/familyStatusYear.ts)
+  if (!spouse || clientForTaxYear(client, primaryInput.year).familyStatus !== 'married') {
     return {
       primary: primaryResult,
       spouse: null,

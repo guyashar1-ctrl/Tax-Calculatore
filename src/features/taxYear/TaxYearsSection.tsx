@@ -30,6 +30,11 @@ interface Props {
   onClientPersisted?: (c: Client) => void;
   /** 236 · כפתור «השלמת תיק המס» בראש התיק: כל שינוי במספר פותח (או יוצר) את הקליטה. */
   intakeSignal?: number;
+  /**
+   * 16.10.2026 · «כל עבודה היא בקשה»: «פתח» נוחת בשורת הבקשה ב«בקשות» (העבודה נפתחת בתוך השורה) —
+   * לא מסך תהליך שלישי. בלי הפרופ (מסכי בדיקה) — כמו קודם, דף התהליך.
+   */
+  onOpenRequest?: (stepId: string) => void;
 }
 
 /** סדר: שנה / יום ההצהרה — החדש למעלה. */
@@ -37,14 +42,20 @@ const periodKey = (s: OnboardingStep) => { const p = (s.payload ?? {}) as unknow
 const OPEN = (s: OnboardingStep) => !['completed', 'verified', 'skipped', 'cancelled', 'failed'].includes(s.status);
 const money = (n: number) => `${n.toLocaleString('he-IL')} ₪`;
 
-export default function TaxYearsSection({ client, onChanged, onClientPersisted, intakeSignal }: Props) {
+export default function TaxYearsSection({ client, onChanged, onClientPersisted, intakeSignal, onOpenRequest }: Props) {
   const [steps, setSteps] = useState<OnboardingStep[]>([]);
+  /** 16.10.2026 · עבודות שבוטלו — כאן הבית של «החזר…» (ב«מס › עבודות לקוחות» יש עכשיו סקירה בלבד). */
+  const [cancelled, setCancelled] = useState<OnboardingStep[]>([]);
   // ‼ 231: גרסת ההערכה המאושרת האחרונה לכל בקשה — מוצגת בכרטיס השנה (מקור אחד: tax_estimates)
   const [approvedEst, setApprovedEst] = useState<Map<string, { version: number; rate?: number }>>(new Map());
   const [writes, setWrites] = useState<FieldWrite[]>([]);
   const [decided, setDecided] = useState<Set<string>>(new Set());
   const [transferYears, setTransferYears] = useState<number[]>([]);
-  const [openId, setOpenId] = useState<string | null>(null);
+  const [openId, setOpenIdRaw] = useState<string | null>(null);
+  const setOpenId = useCallback((id: string | null) => {
+    if (id && onOpenRequest) { onOpenRequest(id); return; }
+    setOpenIdRaw(id);
+  }, [onOpenRequest]);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
@@ -59,7 +70,10 @@ export default function TaxYearsSection({ client, onChanged, onClientPersisted, 
     const est = !AVAILABLE.taxEstimate ? { data: [] } : await supabase.from('tax_estimates').select('request_id, version, status, outputs').eq('client_id', client.id).eq('status', 'approved');
     setApprovedEst(new Map(((est.data ?? []) as { request_id: string; version: number; outputs?: { advances?: { authority: string; person: string; recommended?: number }[] } }[])
       .map(e => [e.request_id, { version: e.version, rate: e.outputs?.advances?.find(a => a.authority === 'it' && a.person === 'client')?.recommended }])));
-    setSteps(((st.data ?? []) as Record<string, unknown>[]).map(r => stepFromDb(r)).filter(s => s.status !== 'cancelled'));
+    const all = ((st.data ?? []) as Record<string, unknown>[]).map(r => stepFromDb(r));
+    setSteps(all.filter(s => s.status !== 'cancelled'));
+    setCancelled(all.filter(s => s.status === 'cancelled' && s.stepType !== 'info_collection')
+      .sort((a, b) => (b.createdAt ?? '').localeCompare(a.createdAt ?? '')).slice(0, 6));
     const yearOf = new Map(((se.data ?? []) as { id: string; tax_year: number }[]).map(r => [String(r.id), r.tax_year]));
     setWrites(((ch.data ?? []) as Record<string, unknown>[]).map(r => {
       const patch = ((r.new_value as { patch?: Record<string, unknown> } | null)?.patch ?? {}) as Record<string, unknown>;
@@ -134,7 +148,7 @@ export default function TaxYearsSection({ client, onChanged, onClientPersisted, 
     <div style={{ display: 'flex', flexDirection: 'column', gap: '.6rem' }} data-section="works">
       {msg && <div className={msg.ok ? 'ty-ok' : 'ty-err'} role={msg.ok ? 'status' : 'alert'}>{msg.text}</div>}
       {works.length === 0
-        ? <p className="ty-note" style={{ margin: 0 }}>אין עבודה פתוחה. «＋ הוסף» — דוח שנתי (גם לשנה קודמת) או הצהרת הון, עם מקור ומועדים.</p>
+        ? <p className="ty-note" style={{ margin: 0 }}>אין דוח או הצהרה פתוחים.</p>
         : (
           <ul className="tf-works" aria-label="דוחות והצהרות">
             {works.map(w => {
@@ -151,7 +165,7 @@ export default function TaxYearsSection({ client, onChanged, onClientPersisted, 
                     <small>{dv.none ? (w.stepType === 'wealth_declaration' ? 'הכנה בלי דרישה — אין מועד רשמי' : 'אין מועד רשום') : dv.short}{ds === 'overdue' ? ' · באיחור' : ''}</small>
                   </span>
                   <span className={`ty-chip ${st.tone}`}>{st.text}{approvedEst.get(w.id) ? ` · גרסה ${approvedEst.get(w.id)!.version}` : ''}</span>
-                  <button type="button" className="btn btn-sm btn-ghost" onClick={() => setOpenId(w.id)}>פתח</button>
+                  <button type="button" className="btn btn-sm btn-ghost" onClick={() => setOpenId(w.id)} data-tf-open-work={w.id}>{onOpenRequest ? "לבקשה ←" : "פתח"}</button>
                   {OPEN(w) && <button type="button" className="btn btn-sm btn-ghost tw-remove" onClick={() => setRemoving({ id: w.id, title })} aria-label={`הסר: ${title}`} data-tf-remove>הסר…</button>}
                 </li>
               );
@@ -171,6 +185,22 @@ export default function TaxYearsSection({ client, onChanged, onClientPersisted, 
       {removing && (
         <RemoveWorkDialog stepId={removing.id} title={removing.title} onClose={() => setRemoving(null)}
           onDone={(_what, text) => { setRemoving(null); setMsg({ ok: true, text }); void load(); onChanged?.(); }} />
+      )}
+      {cancelled.length > 0 && (
+        <details className="tf-cancelled" data-tf-cancelled>
+          <summary>בוטלו ({cancelled.length})</summary>
+          <ul className="tf-works">
+            {cancelled.map(c => {
+              const t = (c.payload as unknown as { title?: string }).title ?? 'עבודת מס';
+              return (
+                <li key={c.id} className="tf-work is-cancelled">
+                  <span className="tf-work-main"><b>{t}</b><small>בוטלה — מה שהתקבל נשמר</small></span>
+                  <button type="button" className="btn btn-sm btn-ghost" onClick={() => setRemoving({ id: c.id, title: t })} data-tf-restore>החזר…</button>
+                </li>
+              );
+            })}
+          </ul>
+        </details>
       )}
       {proposals.length > 0 && <Transfers client={client} proposals={proposals} busy={busy} setBusy={setBusy}
         onDone={async text => { setMsg({ ok: true, text }); await load(); onChanged?.(); }} onError={text => setMsg({ ok: false, text })} />}

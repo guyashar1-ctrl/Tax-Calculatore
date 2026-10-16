@@ -128,6 +128,12 @@ interface Props {
   // לשונית הפתיחה — למי שהגיע לכאן בשביל דבר מסוים (למשל מסמכי הייצוג)
   initialTab?: TabId;
   /**
+   * 16.10.2026 · «כל עבודה היא בקשה»: לפתוח את הלשונית «בקשות» על שורה מסוימת (מ«מס › עבודות לקוחות»).
+   * tick משתנה בכל בקשה; onFocusConsumed מנקה אותה אחרי שהשורה נפתחה — כדי שלא תיפתח שוב בניווט הבא.
+   */
+  focusRequest?: { stepId: string; tick: number } | null;
+  onFocusConsumed?: () => void;
+  /**
    * ‼ «לקוח חדש» ו«הלקוח עוד לא נטען» נראים זהים מבפנים — בשני המקרים
    * `client` הוא null. בלי ההבחנה הזו כל רענון של כרטיס קיים נחת בעורך
    * «התיק» הישן, כאילו התבקשה יצירת לקוח. רק המסך שמעל יודע להבדיל:
@@ -250,6 +256,8 @@ export default function ClientWorkspace({
   onOpenAnnualReport,
   onOpenKnowledge,
   initialTab,
+  focusRequest,
+  onFocusConsumed,
   creatingNewClient,
   onboardingEnabled,
   engagements,
@@ -299,6 +307,40 @@ export default function ClientWorkspace({
   // וברענון או בקישור עומק הכרטיס עוד לא נטען ברינדור הראשון — כך שכל כניסה
   // ישירה לכרטיס לקוח קיים נחתה בעורך «התיק» הישן ונשארה שם.
   const [tab, setTab] = useState<TabId>(initialTab ?? (creatingNewClient ? 'dossier' : 'overview'));
+  /** השורה שנפתחת ב«בקשות» — מבחוץ (focusRequest) או מתיק המס («השלם עם הלקוח», «דוחות והצהרות»). */
+  const [rowFocus, setRowFocus] = useState<{ stepId: string; tick: number } | null>(focusRequest ?? null);
+  useEffect(() => {
+    if (!focusRequest?.stepId) return;
+    setTab(journeyUi ? 'journey' : 'onboarding');
+    setRowFocus(focusRequest);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusRequest?.stepId, focusRequest?.tick]);
+  /**
+   * ‼ 16.10.2026 · «אחורה» אחרי «לבקשה ←» / «השלם עם הלקוח» חוזר ללשונית שממנה יצאו (בדרך כלל «תיק מס»).
+   * הלשוניות לא משנות כתובת, ולכן נדחפת רשומה עם אותה כתובת ועם סימון, ו«אחורה» ממנה מחזיר את הלשונית.
+   */
+  const rowReturnTab = useRef<TabId | null>(null);
+  const openRequestRow = useCallback((stepId: string) => {
+    const target: TabId = journeyUi ? 'journey' : 'onboarding';
+    if (tab !== target) {
+      rowReturnTab.current = tab;
+      try { window.history.pushState({ pivoRowFrom: tab }, '', window.location.href); } catch { /* היסטוריה חסומה — בלי חזרה */ }
+    }
+    setTab(target);
+    setRowFocus({ stepId, tick: Date.now() });
+  }, [journeyUi, tab]);
+  useEffect(() => {
+    const onPop = (e: PopStateEvent) => {
+      const back = rowReturnTab.current;
+      if (!back || (e.state as { pivoRowFrom?: string } | null)?.pivoRowFrom) return;
+      rowReturnTab.current = null;
+      setTab(back);
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
+  // לקוח אחר — החזרה ללשונית שייכת ללקוח הקודם
+  useEffect(() => { rowReturnTab.current = null; }, [client.id]);
   /** תיקייה שהמסך צריך לפתוח בלשונית המסמכים — נקבעת בקיצור ממסך הקליטה. */
   const [docsFolderId, setDocsFolderId] = useState<string | null>(null);
   // ‼ ברענון ישיר של הכתובת הלקוח עוד לא נטען מהמסד ברינדור הראשון, ולכן
@@ -987,6 +1029,8 @@ export default function ClientWorkspace({
             onOpenSpouseClient={onOpenClient}
             detailedAlignment={detailedAlignment}
             onDetailedAlignmentConsumed={() => setDetailedAlignment(d => (d.tick === 0 ? d : { ...d, tick: 0 }))}
+            focusRequest={rowFocus}
+            onFocusConsumed={() => { setRowFocus(null); onFocusConsumed?.(); }}
           />
         )}
 
@@ -1002,6 +1046,7 @@ export default function ClientWorkspace({
             onFocusConsumed={() => setTaxFileFocus(undefined)}
             /* השרת פתח את הבקשות שחיכו לסוג העוסק — «בקשות» צריכה לקרוא מחדש. */
             onRequestsChanged={() => refreshOnboarding?.()}
+            onOpenRequest={openRequestRow}
             onSendQuestionnaire={() => setIntakeModalOpen(true)}
             /* ‼ 10.10.2026: מהשורה בתיק לנושא בידע המס — והנושא חוזר לכאן. */
             onOpenKnowledge={onOpenKnowledge && client.id ? (topicId: string) => onOpenKnowledge(topicId, client.id) : undefined}

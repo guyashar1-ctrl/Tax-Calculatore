@@ -75,7 +75,7 @@ export interface YearFact {
 
 /** סוגי מסמך שהאיסוף מכיר. */
 export type DocKind =
-  | 'form106' | 'payslipToDate' | 'form867' | 'fundAnnualCert' | 'niAnnualCert'
+  | 'form106' | 'payslipToDate' | 'form867' | 'fundAnnualCert' | 'niAnnualCert' | 'niMaternityNotice'
   | 'annualPnl' | 'pnlToDate' | 'depreciationReport' | 'assetInvoices'
   | 'rentalContract' | 'donationReceipts' | 'saleContract' | 'purchaseDocs'
   | 'shevachAssessment' | 'foreignStatement' | 'prevAssessment' | 'degreeCert'
@@ -158,7 +158,9 @@ export interface InfoAsk {
  */
 export type UnavailableCode = 'later' | 'notYet' | 'needHelp';
 
-export type RecordSchemaId = 'children' | 'address' | 'bank' | 'employer' | 'property' | 'account' | 'fund' | 'business' | 'foreign' | 'vehicle' | 'partners' | 'period';
+export type RecordSchemaId = 'children' | 'address' | 'bank' | 'employer' | 'property' | 'account' | 'fund' | 'business' | 'foreign' | 'vehicle' | 'partners' | 'period'
+  // 16.10.2026 · דמי לידה: תקופת הזכאות (שני תאריכים) והסכומים מהאישור השנתי
+  | 'maternityPeriod' | 'maternityAmounts' | 'familyYear';
 
 export type AskInput =
   | { kind: 'yesno'; followUp?: AskInput }
