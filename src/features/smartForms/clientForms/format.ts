@@ -3,6 +3,7 @@
 
 import type { CfData, CfField, CfInput } from './types';
 import { hasNonHebrewLetters } from '../../../utils/hebrewText';
+import { VAT_BRANCH_BY_CODE } from '../../../data/vatBranches';
 
 const s = (v: string | undefined) => (v ?? '').trim();
 
@@ -55,6 +56,8 @@ export function fieldError(f: CfField, value: string | undefined, d: CfData): st
   if (f.input === 'date' && f.allowFuture) return futureDateError(v);
   // רשימה סגורה (ענף, בחירה): ערך שאינו ברשימה — לא תקין
   if ((f.input === 'select' || f.input === 'choice') && f.options && !f.options.some(o => o.value === v)) return 'יש לבחור מהרשימה';
+  // ענף כלכלי — קוד מרשימת רשות המסים (ערך ישן בודד באות — נסבל לקריאה בלבד)
+  if (f.input === 'vatBranch' && !VAT_BRANCH_BY_CODE[v] && !/^[A-S]$/.test(v)) return 'יש לבחור ענף מהרשימה';
   return inputError(f.input, v);
 }
 

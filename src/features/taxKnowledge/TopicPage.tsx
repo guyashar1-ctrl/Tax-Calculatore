@@ -22,6 +22,7 @@ import NiBody, { NI_TOC } from './topics/NiBody';
 import AdvancesBody, { ADVANCES_TOC } from './topics/AdvancesBody';
 import WealthBody, { WEALTH_TOC } from './topics/WealthBody';
 import MicroBusinessBody, { MICRO_TOC } from './topics/MicroBusinessBody';
+import DealerTypeBody, { DEALER_TOC, DEALER_LESSON } from './topics/DealerTypeBody';
 import AnnualReturnBody, { ANNUAL_TOC } from './topics/AnnualReturnBody';
 import Form6111Body, { FORM6111_TOC } from './topics/Form6111Body';
 import MaternityBody, { MATERNITY_TOC, MATERNITY_LESSON } from './topics/MaternityBody';
@@ -39,6 +40,7 @@ const BODIES: Record<string, { Body: ComponentType<TopicBodyProps>; toc: TocItem
   advances: { Body: AdvancesBody, toc: ADVANCES_TOC, lesson: ADVANCES_LESSON },
   wealth: { Body: WealthBody, toc: WEALTH_TOC, lesson: WEALTH_LESSON },
   microBusiness: { Body: MicroBusinessBody, toc: MICRO_TOC, lesson: MICRO_LESSON },
+  dealerType: { Body: DealerTypeBody, toc: DEALER_TOC, lesson: DEALER_LESSON },
   annualReturn: { Body: AnnualReturnBody, toc: ANNUAL_TOC, lesson: ANNUAL_LESSON },
   form6111: { Body: Form6111Body, toc: FORM6111_TOC, lesson: FORM6111_LESSON },
   maternity: { Body: MaternityBody, toc: MATERNITY_TOC, lesson: MATERNITY_LESSON },

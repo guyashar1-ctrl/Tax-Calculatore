@@ -84,6 +84,13 @@ const waitPreview = async (page) => { await page.waitForFunction(() => { const c
 const markers = (page) => page.evaluate(() => [...document.querySelectorAll('.sf-hot[data-mark]')].map(e => ({ key: e.dataset.hot, mark: e.dataset.mark })));
 const summary = (page) => page.evaluate(() => document.querySelector('.cf-live-sum')?.textContent ?? '');
 const fillByKey = async (page, key, value) => {
+  if (key === 'industry') {
+    // בוחר הענפים: מקלידים קוד/מילה ובוחרים את ההתאמה הראשונה
+    const inp = page.locator(`[data-cf-key="${key}"] .vbp input`).first();
+    await inp.fill(value); await page.waitForSelector(`[data-cf-key="${key}"] .vbp-item`, { timeout: 10000 }); await inp.press('Enter');
+    await page.waitForSelector(`[data-cf-key="${key}"] .vbp-sel`, { timeout: 10000 });
+    return;
+  }
   const el = page.locator(`[data-cf-key="${key}"] input, [data-cf-key="${key}"] textarea, [data-cf-key="${key}"] select`).first();
   const tagName = await el.evaluate(e => e.tagName);
   if (tagName === 'SELECT') await el.selectOption(value); else { await el.fill(value); }
@@ -135,7 +142,7 @@ try {
 
   // מילוי חי: מקלידים — ועוד לפני שמירה, התיבה מתמלאת ומסומנת ✓
   await fillByKey(page, 'businessName', 'שליחויות אמיר');
-  await fillByKey(page, 'industry', 'H');
+  await fillByKey(page, 'industry', '5320');
   await fillByKey(page, 'activity', 'שליחויות ומשלוחים לעסקים באזור חיפה');
   await page.waitForFunction(() => document.querySelector('.sf-hot[data-hot="businessName"]')?.dataset.mark === 'ok', null, { timeout: 15000 });
   await waitPreview(page);
@@ -167,13 +174,23 @@ try {
   const openOps = await page.evaluate(() => document.querySelector('.sf-hot[data-hot="openDate"]')?.dataset.mark);
   ok(openOps === 'ok', 'תאריך הפתיחה (31.08.2026) בתיבות חודש/שנה ✓', openOps);
   ok(/לפי המחזור: עוסק פטור/.test(await page.locator('[data-cf-status-note]').textContent().catch(() => '')), 'סוג העוסק לפי המחזור: 40,000 ⇒ עוסק פטור');
+  ok(await page.locator('[data-cf-learn]').count() === 1, 'קישור «ללמוד: פטור או מורשה» ליד המצב');
+  // ענף שחייב במורשה: החלפה ל-6921 (ראיית חשבון) ⇒ «לפי הענף: עוסק מורשה (תקנה 13(1))» — חי, לפני שמירה
+  await page.locator('[data-cf-key="industry"] .vbp-x').click();
+  await fillByKey(page, 'industry', '6921');
+  await page.waitForFunction(() => /לפי הענף: עוסק מורשה/.test(document.querySelector('[data-cf-status-note]')?.textContent ?? ''), null, { timeout: 15000 });
+  ok(await page.locator('[data-cf-key="industry"] [data-vbp-licensed="mandatory"]').count() === 1, 'ענף 6921: «חייב ברישום כעוסק מורשה (תקנה 13(1))» מתחת לבחירה, והמצב משתנה חי');
+  await shot(page, 'a3b-panel-licensed-branch');
+  await page.locator('[data-cf-key="industry"] .vbp-x').click();
+  await fillByKey(page, 'industry', '5320');
+  await page.waitForFunction(() => /לפי המחזור: עוסק פטור/.test(document.querySelector('[data-cf-status-note]')?.textContent ?? ''), null, { timeout: 15000 });
   await shot(page, 'a3-panel-all-filled');
 
   await page.getByRole('button', { name: 'שמירה', exact: true }).click();
   await page.waitForFunction(() => !document.querySelector('[data-cf-key="businessName"] input'), null, { timeout: 20000 });
   const [c1] = await sql(`select business_name, businesses, bank_accounts, dealer_type, field_meta->'businesses'->>'via' via from public.clients where id = '${A}'`);
   const b = c1.businesses?.[0] ?? {};
-  ok(c1.business_name === 'שליחויות אמיר' && b.industry === 'H' && b.startDate === '2026-08-31' && b.startYear === 2026 && b.kind === 'osek_patur' && c1.dealer_type === 'exempt' && c1.via === 'vat-821',
+  ok(c1.business_name === 'שליחויות אמיר' && b.industry === '5320' && b.startDate === '2026-08-31' && b.startYear === 2026 && b.kind === 'osek_patur' && c1.dealer_type === 'exempt' && c1.via === 'vat-821',
     'שמירה ⇒ בכרטיס: שם העסק, ענף, תאריך פתיחה מלא, שנה, עוסק פטור, dealer_type', c1);
   const [rv] = await sql(`select values->'answers' a from public.smart_form_revisions where filing_id = '${F}'`);
   ok(rv.a?.propExists === 'yes' && rv.a?.turnover === '40000' && rv.a?.dealerKind === 'exempt' && !('openDate' in rv.a), 'בהגשה: רק מה שאין לו בית בכרטיס (נכס, מחזור, סוג עוסק)', rv.a);

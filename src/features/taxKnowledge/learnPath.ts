@@ -42,6 +42,7 @@ const OVERRIDE: Record<string, Stage> = {
   'mb-to': 'read', 'mb-5': 'read',
   'ad-5': 'ask', 'ad-open': 'except',
   'ml-field': 'read', 'ml-docs': 'read', 'ml-src': 'sources',
+  'dt-0': 'what', 'dt-1': 'what', 'dt-2': 'what', 'dt-3': 'read', 'dt-4': 'calc', 'dt-5': 'except',
 };
 
 /** לאיזה שלב שייך סעיף בנושא. */
@@ -60,7 +61,7 @@ const TOPIC_AREAS: Record<string, AreaId[]> = {
   annualReturn: ['salary', 'business', 'capital', 'rent', 'savings', 'donations', 'household', 'filing'],
   pensionSE: ['savings'], studyFund: ['savings'], mandatoryPension: ['savings', 'business'],
   niSelfEmployed: ['business', 'niBenefits', 'payments'], advances: ['payments', 'business'],
-  microBusiness: ['business'], form6111: ['business'], maternity: ['niBenefits'],
+  microBusiness: ['business'], form6111: ['business'], maternity: ['niBenefits'], dealerType: ['business'],
   // ‼ כל חלקי שאלון ההון, מהשאלון עצמו — לא רשימה ידנית שמשמיטה חלקים
   wealth: WEALTH_AREAS.map(a => a.id),
 };
