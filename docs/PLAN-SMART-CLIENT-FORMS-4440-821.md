@@ -116,3 +116,5 @@
 - **מילוי במשרד:** שדות מותנים נפתחים לפי מה שמוקלד («אחר» ⇒ «מה בדיוק?»); שמירה חלקית נחסמת רק על ערך לא תקין שהוקלד כאן (ערך ישן בכרטיס לא חוסם); הודעה גלויה ליד «שמירה».
 
 **בדיקות:** unit 1931/0 (clientForms 14, כולל השוואת מפתחות ל-251) · `test-smart-client-forms` (3 תרחישי 821 + 2 של 4440, אפס דיו מחוץ לשדות) · `staging-test-smart-client-forms` 56/56 · `scripts/e2e/form-821-live.mjs` 39/39 במחשב (טלפון/כהה — ראו דוח הסיום) · tsc · build.
+
+**בייצור (16.10.2026 ערב, באישור גיא «תבצע ותעלה למסטר»):** 251 הוחלה בייצור (20261016155348; גופים זהים ל-staging; גיבוי `C:/Users/guyas/PIVO/backups/form-821-live-20261016/` עם RECOVERY.md). master 8125d43 ⇒ **b09167e** (fast-forward), Vercel `dpl_6XJPRXHW4uMt16yxjReMb1uaFK4Q` READY, alias crm.yasharcpa.co.il; החבילה החיה `main-DkVV3lg7.js` + `ClientFormScreen-h98FTtFl.js` מכילות את הסימונים. התאוששות אתר: `dpl_2d2WG5A7PrEkipHYHB9XzU4N4wVT` (8125d43) — יחד עם `scripts/sql/251/rollback-251.sql`, כי הקוד הישן שולח openMonth ו-251 דורשת openDate. לא נבדק בייצור: המסכים עם המשתמש של גיא (משתמש הבדיקה חסום בייצור). מדריך: `docs/release-guides/2026-10-16-form-821-live/index.html`.
