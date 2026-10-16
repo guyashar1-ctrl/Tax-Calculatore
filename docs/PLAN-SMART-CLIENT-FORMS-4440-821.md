@@ -126,3 +126,5 @@
 - **מורשה לפי הענף:** תקנה 13 לתקנות הרישום ממופה לקודים (`LICENSED_BY_BRANCH`, פרשנות; «מחייב»/«מותנה» עם הערה). `dealerKindOf`: ענף מחייב ⇒ מורשה; אחרת לפי המחזור מול התקרה (`vat.exemptCeiling` = `micro.turnoverCeiling`). `dealerReason` — «לפי הענף: עוסק מורשה (תקנה 13(1) — רואה חשבון)» / «לפי המחזור: … (תקרה …)» — ליד המצב במשרד (עם «ללמוד: פטור או מורשה») ובהנחיה ללקוח; הבוחר מסמן ענפים מחייבים.
 - **ידע המס:** נושא `dealerType` בתחום «עסק, מע״מ וניהול ספרים» — ההבדל, התקרה, תקנה 13 במלואה, טבלת ענף⇒סיווג (מחייב/מותנה) עם חיפוש, מחשבון מחזור+ענף, מה פתוח, תרגול, מה עושים בתיק. כללים: `vat.exemptCeiling`, `vat.reg13.licensedGroups`, `vat.newBusiness.turnoverEstimate`; מקורות: `itaBranchCodes` (ראשי), `vatLawNevo`, `vatRegRegs1976` (משניים).
 - **שרת:** 252 — `_scf_invalid('industry')` קוד 3–4 ספרות. ב-staging 16.10 (58/58).
+
+**בייצור (16.10.2026 לילה):** 252 הוחלה בייצור (20261016171817, זהה ל-staging). master a0520b7 ⇒ **6b67ca7**, Vercel `dpl_2Yew9ev5PHgqYipfqcDD1ZRiXjSB` READY; החבילה החיה `main-DPugSulX.js` מכילה את רשימת הענפים ואת הנושא. התאוששות: `C:/Users/guyas/PIVO/backups/form-821-live-20261016/` (RECOVERY.md; rollback-252 + rollback-251).
