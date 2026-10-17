@@ -340,7 +340,7 @@ function taxYearRpcInner(t: Tables, name: string, args: Row, firm: string, logWr
     }
     // ── 236 · קליטה והשלמת תיק המס — בקשה פתוחה אחת ללקוח, «נכון ליום הקליטה» ──
     case 'ensure_tax_file_intake': {
-      // ‼ 252 · פתיחה עם שאלות: אחרי היצירה/המציאה — add_tax_info_asks (בלי מה שכבר נענה) ואז publish_tax_info, בפעולה אחת
+      // ‼ 254 · פתיחה עם שאלות: אחרי היצירה/המציאה — add_tax_info_asks (בלי מה שכבר נענה) ואז publish_tax_info, בפעולה אחת
       const withAsks = (stepId: string, created: boolean) => {
         if (!('p_asks' in args)) return ok({ ok: true, stepId, created });
         const asks = Array.isArray(args.p_asks) ? (args.p_asks as Row[]) : [];

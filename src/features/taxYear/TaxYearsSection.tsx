@@ -113,7 +113,7 @@ export default function TaxYearsSection({ client, onChanged, onClientPersisted, 
   const intake = intakes[0];
   const startIntake = useCallback(async () => {
     setBusy(true); setMsg(null);
-    // 252 · הפתיחה גם מכינה ומפרסמת את השאלון בדף של הלקוח — בלי מייל
+    // 254 · הפתיחה גם מכינה ומפרסמת את השאלון בדף של הלקוח — בלי מייל
     const r = await openTaxFileIntake(client);
     setBusy(false);
     if (!r.ok || !r.stepId) { setMsg({ ok: false, text: `הפתיחה נכשלה (${r.error})` }); return; }

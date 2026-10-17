@@ -75,7 +75,7 @@ const target = (s: { entityLabel?: string; subjectRole: string }, c: Client) =>
 
 export default function TaxYearProcess({ client, step, infoStep, onClose, onChanged, onClientPersisted, onRemoved, embedded }: Props) {
   const purpose: Purpose = step.stepType === 'tax_estimate' ? 'estimate' : step.stepType === 'wealth_declaration' ? 'wealth' : step.stepType === 'tax_file_intake' ? 'intake' : 'annual';
-  // ‼ 252 (17.10.2026) · «היכרות שנשלחת לבד»: בשורת הקליטה ב«בקשות» אין «הוסף שאלות» ואין «פרסם» — מה שהתמונה
+  // ‼ 254 (17.10.2026) · «היכרות שנשלחת לבד»: בשורת הקליטה ב«בקשות» אין «הוסף שאלות» ואין «פרסם» — מה שהתמונה
   //   אומרת לשאול נוסף ומתפרסם בדף של הלקוח בפעולה אחת בשרת (ensure_tax_file_intake עם השאלות), אידמפוטנטית.
   //   רק לקליטה, ורק בתוך השורה; דוח שנתי / הצהרת הון / הערכה — כמו קודם (עד שלב 5).
   const autoIntake = !!embedded && purpose === 'intake' && isOpenStep(step);

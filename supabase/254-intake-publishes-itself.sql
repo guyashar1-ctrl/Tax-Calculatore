@@ -1,5 +1,5 @@
 -- ════════════════════════════════════════════════════════════════════════════════════════════════
--- 252 · היכרות שנשלחת לבד — פתיחת הקליטה מוסיפה את השאלות ומפרסמת אותן בדף הלקוח, בפעולה אחת
+-- 254 · היכרות שנשלחת לבד — פתיחת הקליטה מוסיפה את השאלות ומפרסמת אותן בדף הלקוח, בפעולה אחת
 -- 17.10.2026 · docs/PLAN-ONE-REQUEST-TAX-FILE-2026-10-16.md — שלב 1 («שורה אחת, והיכרות שנשלחת לבד»)
 --
 --   עד עכשיו המשרד פתח קליטה (236), ואז בשורה: «הוסף שאלות» ← «פרסם את השאלות בדף». שתי לחיצות שלא אומרות
@@ -16,20 +16,20 @@
 --   השליחה היא «פרסם את הדף» הקיים (כלל «דף אחד ללקוח»). ‼ אין שינוי בטבלאות ובנתונים קיימים.
 -- ‼ ensure_tax_file_intake(text) של 236 נשארת כמות שהיא (קריאה בלי שאלות — למשל מתיק המס) — overload בשם
 --   הפרמטרים (PostgREST בוחר לפי שמות הארגומנטים). כשל בהוספת השאלות ⇒ exception ⇒ גם הפתיחה מתגלגלת אחורה.
--- בידוד: scripts/sql/252/test-252.pglite.mjs · staging: scripts/sql/252/apply-staging.mjs · חזרה: scripts/sql/252/rollback-252.sql
+-- בידוד: scripts/sql/254/test-254.pglite.mjs · staging: scripts/sql/254/apply-staging.mjs · חזרה: scripts/sql/254/rollback-254.sql
 -- ════════════════════════════════════════════════════════════════════════════════════════════════
 
-do $pre252$
+do $pre254$
 begin
-  if to_regprocedure('public.ensure_tax_file_intake(text)') is null then raise exception '252: 236 לא הוחלה (ensure_tax_file_intake חסרה)'; end if;
+  if to_regprocedure('public.ensure_tax_file_intake(text)') is null then raise exception '254: 236 לא הוחלה (ensure_tax_file_intake חסרה)'; end if;
   if to_regprocedure('public.add_tax_info_asks(text, jsonb)') is null or to_regprocedure('public.publish_tax_info(text)') is null then
-    raise exception '252: 229 לא הוחלה (add_tax_info_asks / publish_tax_info חסרות)';
+    raise exception '254: 229 לא הוחלה (add_tax_info_asks / publish_tax_info חסרות)';
   end if;
   if pg_get_functiondef('public.add_tax_info_asks(text, jsonb)'::regprocedure) not like '%236 · קליטה%' then
-    raise exception '252: add_tax_info_asks בלי ההזרקה של 236 — להחיל 236 לפני 252';
+    raise exception '254: add_tax_info_asks בלי ההזרקה של 236 — להחיל 236 לפני 254';
   end if;
 end
-$pre252$;
+$pre254$;
 
 create or replace function public.ensure_tax_file_intake(p_client_id text, p_asks jsonb)
 returns jsonb language plpgsql security definer set search_path to 'public' as $$

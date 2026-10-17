@@ -1,9 +1,9 @@
-// בדיקת מיגרציה 252 בבידוד — PGlite: פתיחת הקליטה מוסיפה את השאלות ומפרסמת אותן, בפעולה אחת ואידמפוטנטית.
-//   PGLITE_DIR=<תיקייה עם node_modules/@electric-sql/pglite> node scripts/sql/252/test-252.pglite.mjs
-// אותה הקמה כמו בדיקת 236 (229 + 230 + 236 על הסטאבים של 229), ואחריה 252 (פעמיים — החלה חוזרת).
+// בדיקת מיגרציה 254 בבידוד — PGlite: פתיחת הקליטה מוסיפה את השאלות ומפרסמת אותן, בפעולה אחת ואידמפוטנטית.
+//   PGLITE_DIR=<תיקייה עם node_modules/@electric-sql/pglite> node scripts/sql/254/test-254.pglite.mjs
+// אותה הקמה כמו בדיקת 236 (229 + 230 + 236 על הסטאבים של 229), ואחריה 254 (פעמיים — החלה חוזרת).
 // מה נבדק: (0) תנאי מוקדם — בלי 236 נעצר; (1) פתיחה עם שאלות ⇒ בקשה + בת + שאלות מפורסמות + הכדור אצל הלקוח, בלי מייל;
 // (2) קריאה חוזרת עם אותן שאלות ⇒ אותה בקשה, 0 נוספו, 0 פורסמו; (3) שאלה חדשה לשאלון שכבר בדף ⇒ מתפרסמת וגרסת התוכן עולה;
-// (4) פתיחה בלי שאלות (236 הישנה) + טיוטה ⇒ קריאת 252 מפרסמת את הטיוטה; (5) פריט לא מוכר ⇒ הכול מתגלגל אחורה — גם הפתיחה;
+// (4) פתיחה בלי שאלות (236 הישנה) + טיוטה ⇒ קריאת 254 מפרסמת את הטיוטה; (5) פריט לא מוכר ⇒ הכול מתגלגל אחורה — גם הפתיחה;
 // (6) הלקוח רואה את השאלות בדף (portal_tax_info); (7) משרד אחר — אסור; anon — אסור; (8) ההיסטוריה של הבקשה.
 import { readFileSync } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -15,7 +15,7 @@ const read = (p) => readFileSync(WT + p, 'utf8').replace(/\r\n/g, '\n');
 const sql229 = read('supabase/229-tax-year-collection.sql');
 const sql230 = read('supabase/230-wealth-declaration-collection.sql');
 const sql236 = read('supabase/236-tax-file-intake.sql');
-const sql252 = read('supabase/252-intake-publishes-itself.sql');
+const sql254 = read('supabase/254-intake-publishes-itself.sql');
 const sql222 = read('supabase/222-request-preview.sql');
 const psi = sql222.slice(sql222.indexOf('-- >>> GENERATED:portal_step_items'), sql222.indexOf('-- <<< GENERATED:portal_step_items'));
 const t229 = read('scripts/sql/229/test-229-tax-year.pglite.mjs');
@@ -43,15 +43,15 @@ await db.exec(announce);
 await db.exec(read('scripts/sql/236/legacy-stubs.sql'));
 await db.exec(sql229);
 await db.exec(sql230);
-// ── 0. תנאי מוקדם: 252 לפני 236 — נעצר, בלי להשאיר כלום ──
-const early = await throwsExec(sql252);
-ok(!!early && early.includes('236'), '252 לפני 236 — נעצר עם הסבר', early ?? 'לא נעצר');
+// ── 0. תנאי מוקדם: 254 לפני 236 — נעצר, בלי להשאיר כלום ──
+const early = await throwsExec(sql254);
+ok(!!early && early.includes('236'), '254 לפני 236 — נעצר עם הסבר', early ?? 'לא נעצר');
 ok(!(await one(`select to_regprocedure('public.ensure_tax_file_intake(text, jsonb)') is not null x`)).x, 'אחרי העצירה — ה-overload לא נוצר');
 await db.exec(sql236);
-await db.exec(sql252);
-await db.exec(sql252); // החלה חוזרת
-ok((await one(`select count(*)::int n from pg_proc where proname = 'ensure_tax_file_intake'`)).n === 2, 'שתי חתימות: (text) של 236 ו-(text, jsonb) של 252 — גם אחרי החלה חוזרת');
-console.log('הוחל: 222 + 229 + 230 + 236 + 252 (252 פעמיים)');
+await db.exec(sql254);
+await db.exec(sql254); // החלה חוזרת
+ok((await one(`select count(*)::int n from pg_proc where proname = 'ensure_tax_file_intake'`)).n === 2, 'שתי חתימות: (text) של 236 ו-(text, jsonb) של 254 — גם אחרי החלה חוזרת');
+console.log('הוחל: 222 + 229 + 230 + 236 + 254 (254 פעמיים)');
 
 const P = (title, kind, extra = {}) => ({ title, why: 'למה', input: { kind, ...extra } });
 const ASKS = [
@@ -86,7 +86,7 @@ const r3 = await rpc('ensure_tax_file_intake', ['c1', JSON.stringify([...ASKS, {
 ok(r3.ok && r3.asked === 1 && r3.published === 1, 'שאלה רביעית: 1 נוספה, 1 פורסמה', JSON.stringify(r3));
 ok((await one(`select client_content_version v from public.onboarding_steps where id = $1`, [r1.infoStepId])).v === info.v + 1, 'גרסת התוכן עלתה ב-1');
 
-// ── 4. פתיחה בלי שאלות (236 הישנה) ואז טיוטה — קריאת 252 בלי שאלות מפרסמת את הטיוטה ──
+// ── 4. פתיחה בלי שאלות (236 הישנה) ואז טיוטה — קריאת 254 בלי שאלות מפרסמת את הטיוטה ──
 // ‼ סגירה בבדיקה = גם השאלות הפתוחות נסגרות (האינדקס הייחודי של 229 — שאלה פתוחה אחת לפריט ללקוח)
 const close = async (ids) => { await db.query(`update public.onboarding_steps set status = 'completed' where id = any($1)`, [ids]); await db.query(`update public.tax_info_asks set state = 'cancelled' where step_id = any($1) and state in ('draft','published','unavailable')`, [ids]); };
 await close([r1.stepId, r1.infoStepId]);
@@ -95,7 +95,7 @@ ok(r4.ok && r4.created && r4.stepId !== r1.stepId && r4.asked === undefined, 'ה
 const draft = await rpc('add_tax_info_asks', [r4.stepId, JSON.stringify([ASKS[0]])]);
 ok(draft.ok && draft.added === 1 && (await one(`select state from public.tax_info_asks where step_id = $1`, [draft.infoStepId])).state === 'draft', 'טיוטה (כמו «הוסף שאלות» הישן)');
 const r4b = await rpc('ensure_tax_file_intake', ['c1', '[]']);
-ok(r4b.ok && !r4b.created && r4b.stepId === r4.stepId && r4b.asked === 0 && r4b.published === 1, 'קריאת 252 בלי שאלות — מפרסמת את הטיוטה הקיימת', JSON.stringify(r4b));
+ok(r4b.ok && !r4b.created && r4b.stepId === r4.stepId && r4b.asked === 0 && r4b.published === 1, 'קריאת 254 בלי שאלות — מפרסמת את הטיוטה הקיימת', JSON.stringify(r4b));
 const r4c = await rpc('ensure_tax_file_intake', ['c1', null]);
 ok(r4c.ok && r4c.published === 0, 'ושוב — אין מה לפרסם (אידמפוטנטי)', JSON.stringify(r4c));
 await close([r4.stepId, draft.infoStepId]);

@@ -119,7 +119,7 @@ export const updateWealthDeclaration = (stepId: string, patch: Record<string, un
 export type AskInput = Pick<InfoAsk, 'itemKey' | 'subjectRole' | 'entityKind' | 'entityRef' | 'prompt'>;
 export interface IntakeOpened { stepId: string; created: boolean; infoStepId?: string; asked?: number; published?: number; alreadyAnswered?: number }
 /**
- * 252 (17.10.2026) · פתיחה עם השאלות: הקליטה נפתחת (או נמצאת), השאלות נוספות ומתפרסמות בדף הלקוח — בפעולה אחת
+ * 254 (17.10.2026) · פתיחה עם השאלות: הקליטה נפתחת (או נמצאת), השאלות נוספות ומתפרסמות בדף הלקוח — בפעולה אחת
  * בשרת, אידמפוטנטית (פריט פתוח לא נוסף פעמיים, שאלה שנענתה לא נשאלת שוב). בלי שאלות — הפתיחה של 236 כמו שהייתה.
  * ‼ אין מייל: הפריט מופיע ב«הדף של X»; השליחה היא «פרסם את הדף» הקיים.
  */
