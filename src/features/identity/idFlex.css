@@ -47,7 +47,9 @@
 .idf-hint { margin: 0; font-size: 12px; color: var(--_muted); line-height: 1.5; }
 .idf-err { font-size: 12.5px; color: var(--_bad); font-weight: 600; }
 .idf-confirm { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
-@media (max-width: 420px) {
+/* ‼ בטלפון הבחירה «מה בתמונה?» ברוחב מלא — אחרת «קדמי + ספח יחד» נחתך ליד התמונה (נתפס בצילום 390). */
+@media (max-width: 480px) {
   .idf-thumb { width: 72px; height: 52px; }
-  .idf-tag select { flex: 1; min-width: 0; }
+  .idf-tag { display: grid; gap: 4px; }
+  .idf-tag select { width: 100%; min-width: 0; }
 }
