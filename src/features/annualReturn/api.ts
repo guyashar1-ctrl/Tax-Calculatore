@@ -51,3 +51,18 @@ export const saveReturn = (requestId: string, draft: ReturnDraft, outputs: Retur
 export const approveReturn = (returnId: string, revision: number) => call<{ id: string; version: number }>('approve_annual_return', { p_return_id: returnId, p_revision: revision });
 export const recordFiled = (returnId: string, filedOn: string, ref: string, evidenceId?: string) =>
   call<{ id: string; filedOn: string }>('record_annual_return_filed', { p_return_id: returnId, p_filed_on: filedOn, p_ref: ref, p_evidence_id: evidenceId ?? null });
+
+// ── 257 · שורות מקור ממסמך אחד (docTemplates.ts ⇒ record_source_lines) ──
+export interface NewEvidence { docKind: string; subjectRole: string; entityKind?: string; entityRef?: string; taxYear: number; fileName?: string; documentId?: string; note?: string }
+/** שמירת שורות המקור של מסמך: מסמך קיים (evidenceId) או חדש (evidence); replacesEvidenceId — אישור מתקן שמחליף את שורות המסמך הקודם. */
+export const recordSourceLines = (clientId: string, lines: unknown[], target: { evidenceId?: string; evidence?: NewEvidence; replacesEvidenceId?: string }) =>
+  call<{ evidenceId: string; factIds: string[]; superseded: number }>('record_source_lines', {
+    p_client_id: clientId, p_evidence_id: target.evidenceId ?? null, p_evidence: target.evidence ?? null, p_lines: lines, p_replaces_evidence_id: target.replacesEvidenceId ?? null,
+  });
+
+/** בקשות «דוח שנתי» של הלקוח (לפתיחה ממפת הטופס): המזהה והשנה. */
+export async function loadReturnRequests(clientId: string): Promise<{ stepId: string; taxYear: number; open: boolean }[]> {
+  const { data, error } = await supabase.from('onboarding_steps').select('id, status, payload').eq('client_id', clientId).eq('step_type', 'annual_return');
+  if (error) return [];
+  return ((data ?? []) as Row[]).map(r => ({ stepId: String(r.id), taxYear: Number(((r.payload ?? {}) as Row).taxYear), open: !['completed', 'verified', 'skipped', 'cancelled', 'failed'].includes(String(r.status)) }));
+}

@@ -16,6 +16,11 @@ import {
   type ClientFieldState, type FormSlug, type MapField, type Marker, type Role,
 } from './model';
 import { ClaimTag } from '../claim';
+import { loadReturnRequests, loadReturns } from '../../annualReturn/api';
+import { computeReturn, emptyDraft } from '../../annualReturn/engine';
+import { Breakdown } from '../../annualReturn/SourceEntry';
+import type { ReturnField, ReturnOutputs } from '../../annualReturn/types';
+import { nis } from '../../taxEstimate/parts';
 import './formMap.css';
 
 interface Props {
@@ -32,6 +37,23 @@ interface Props {
 }
 
 type Sel = { slug: FormSlug; markerId?: string; fieldKey?: string } | null;
+/** ערכי הדוח של הלקוח (17.10.2026): מהבקשה «דוח שנתי» הפתוחה — אותו מנוע, אותן שורות מקור; קריאה בלבד. */
+export interface ReturnCtx { stepId: string; year: number; outputs: ReturnOutputs; version?: number }
+const MAP_FOCUS_KEY = 'pivo.formMapFocus';
+const readFocus = (): { clientId: string; stepId: string; year: number; code: string | null } | null => {
+  try {
+    const r = sessionStorage.getItem(MAP_FOCUS_KEY); if (!r) return null;
+    const x = JSON.parse(r) as { clientId: string; stepId: string; year: number; code: string | null; at: number };
+    return Date.now() - x.at < 3_600_000 ? x : null;
+  } catch { return null; }
+};
+const returnPerson = (role: Role | undefined): ReturnField['person'] | undefined => (role === 'registered' ? 'client' : role === 'spouse' ? 'spouse' : role === 'joint' ? 'joint' : undefined);
+/** השדה בדוח לקוד ולטור (רשום / בן זוג / משותף); בלי טור — ההתאמה הראשונה. */
+export const returnFieldOf = (ret: ReturnCtx | null, code: string, role?: Role): ReturnField | undefined => {
+  if (!ret || !code) return undefined;
+  const p = returnPerson(role);
+  return ret.outputs.fields.find(f => f.code === code && f.kind === 'amount' && (!p || f.person === p)) ?? ret.outputs.fields.find(f => f.code === code && f.kind === 'amount');
+};
 const ZOOMS = [1, 1.5, 2, 3];
 const nameOf = (c: Client) => `${c.firstName ?? ''} ${c.lastName ?? ''}`.trim() || 'לקוח';
 
@@ -41,7 +63,8 @@ export default function FormMap({ domain, clients = [], contextClient = null, on
   const [page, setPage] = useState(1);
   const [zoom, setZoom] = useState(1);
   const [sel, setSel] = useState<Sel>(null);
-  const [q, setQ] = useState(initialCode ?? '');
+  const focus = useMemo(() => (domain === 'annual' && contextClient ? readFocus() : null), [domain, contextClient]);
+  const [q, setQ] = useState(initialCode ?? (focus && focus.clientId === contextClient?.id ? focus.code ?? '' : ''));
   const [clientId, setClientId] = useState<string>(contextClient?.id ?? '');
   useEffect(() => { if (contextClient) setClientId(contextClient.id); }, [contextClient]);
   const client = clients.find(c => c.id === clientId) ?? (contextClient?.id === clientId ? contextClient : null);
@@ -87,6 +110,27 @@ export default function FormMap({ domain, clients = [], contextClient = null, on
     return () => { alive = false; };
   }, [client, domain]);
   const yearFacts = facts && client && facts.clientId === client.id ? facts.facts : [];
+  // ‼ ערכי הדוח של הלקוח — מהבקשה «דוח שנתי» (233): הטיוטה האחרונה (או ריקה) + העובדות המאושרות ⇒ אותו computeReturn כמו בשורת הבקשה
+  const [ret, setRet] = useState<{ clientId: string; ctx: ReturnCtx | null; err?: string } | null>(null);
+  useEffect(() => {
+    if (!client || domain !== 'annual') { setRet(null); return; }
+    let alive = true;
+    (async () => {
+      try {
+        const reqs = await loadReturnRequests(client.id);
+        const pick = reqs.find(r => r.open && r.taxYear === 2025) ?? reqs.find(r => r.open) ?? reqs.find(r => r.taxYear === 2025);
+        if (!pick) { if (alive) setRet({ clientId: client.id, ctx: null }); return; }
+        const [vs, data] = await Promise.all([loadReturns(pick.stepId).catch(() => []), loadYearData(client.id, pick.taxYear)]);
+        const cur = vs.find(v => v.status === 'draft') ?? [...vs].reverse().find(v => v.status === 'approved');
+        const draft = cur?.draft ?? emptyDraft(client, pick.taxYear, new Date().toISOString().slice(0, 10));
+        const outputs = computeReturn({ client, draft, facts: data.facts, evidence: data.evidence });
+        if (alive) setRet({ clientId: client.id, ctx: { stepId: pick.stepId, year: pick.taxYear, outputs, version: cur?.version } });
+      } catch (e) { if (alive) setRet({ clientId: client.id, ctx: null, err: e instanceof Error ? e.message : String(e) }); }
+    })();
+    return () => { alive = false; };
+  }, [client, domain]);
+  const retCtx = ret && client && ret.clientId === client.id ? ret.ctx : null;
+  const valueOfMarker = (m: Marker) => (slug === '1301' && m.fields[0] ? returnFieldOf(retCtx, m.code, m.fields[0].role) : undefined);
   const stateOfMarker = (m: Marker): ClientFieldState | undefined => (client && m.fields[0] ? clientStateOf(m.fields[0].field, client, yearFacts, 2025, m.fields[0].role).state : undefined);
   const summary = client && (slug === '1301' || slug === '1219') ? clientSummary(slug, client, yearFacts) : null;
 
@@ -169,7 +213,7 @@ export default function FormMap({ domain, clients = [], contextClient = null, on
           )}
         </div>
         {contextClient && onBackToClient && (
-          <p className="fm-ctx">מוצג מול התיק של <b>{nameOf(contextClient)}</b> · <button type="button" className="kn-link" onClick={onBackToClient}>חזרה לתיק</button></p>
+          <p className="fm-ctx">מוצג מול התיק של <b>{nameOf(contextClient)}</b>{retCtx ? <> · ערכי הדוח לשנת {retCtx.year} ({retCtx.version ? `גרסה ${retCtx.version}` : 'טיוטה שטרם נשמרה'}, {retCtx.outputs.fields.filter(f => f.kind === 'amount').length} סכומים) על הטופס</> : ret && !ret.ctx && !ret.err ? ' · אין לו בקשת «דוח שנתי» — המפה מראה את מצב הכרטיס בלבד' : ''} · <button type="button" className="kn-link" onClick={onBackToClient}>חזרה לתיק</button></p>
         )}
         {q.trim() && (
           <div className="fm-hits" role="status" data-fm-hits={hits.length}>
@@ -182,7 +226,7 @@ export default function FormMap({ domain, clients = [], contextClient = null, on
                       <button type="button" className="fm-hit" onClick={() => open(h.slug, h.page, h.markerId, h.markerId ? undefined : h.field.key)} data-fm-hit={`${h.slug}:${h.code || h.field.key}`}>
                         <span className="fm-code" dir="ltr">{h.code || '—'}</span>
                         <span className="fm-hit-t">{h.field.label}</span>
-                        <span className="fm-hit-p">טופס {h.formId}{h.taxYear ? ` · ${h.taxYear}` : ''}{ROLE_SHORT[h.role] ? ` · ${ROLE_SHORT[h.role]}` : ''}{h.page ? ` · עמ׳ ${h.page}` : ' · לא מסומן בטופס'}</span>
+                        <span className="fm-hit-p">טופס {h.formId}{h.taxYear ? ` · ${h.taxYear}` : ''}{ROLE_SHORT[h.role] ? ` · ${ROLE_SHORT[h.role]}` : ''}{h.page ? ` · עמ׳ ${h.page}` : ' · לא מסומן בטופס'}{h.slug === '1301' && returnFieldOf(retCtx, h.code, h.role) ? <b className="fm-hit-v" data-fm-hit-value> · בדוח: {nis(returnFieldOf(retCtx, h.code, h.role)!.amount)}</b> : null}</span>
                       </button>
                     </li>
                   ))}
@@ -223,19 +267,20 @@ export default function FormMap({ domain, clients = [], contextClient = null, on
               <img src={L.pages[page - 1].img} alt={`${formTitle} — עמוד ${page}`} draggable={false} loading="eager" />
               {onPage.map(m => {
                 const st = stateOfMarker(m);
+                const rv = valueOfMarker(m);
                 const f = m.fields[0];
                 const name = f ? `${f.field.label}${f.role && ROLE_SHORT[f.role] ? ` — ${ROLE_SHORT[f.role]}` : ''}` : 'טרם נכתב';
                 return (
                   <button key={m.id} type="button" data-marker={m.id} data-code={m.code}
-                    className={`fm-mk is-${m.fields[0]?.role ?? 'none'}${m.byLabel ? ' by-label' : ''}${st ? ` st-${st}` : ''}${sel?.markerId === m.id ? ' is-sel' : ''}${m.fields.length ? '' : ' is-empty'}`}
+                    className={`fm-mk is-${m.fields[0]?.role ?? 'none'}${m.byLabel ? ' by-label' : ''}${st ? ` st-${st}` : ''}${rv ? ' has-val' : ''}${sel?.markerId === m.id ? ' is-sel' : ''}${m.fields.length ? '' : ' is-empty'}`}
                     style={{ left: `${m.box[0] * 100}%`, top: `${m.box[1] * 100}%`, width: `${m.box[2] * 100}%`, height: `${m.box[3] * 100}%` }}
-                    onClick={() => setSel({ slug, markerId: m.id })} title={`${m.code || 'בלי קוד'} · ${name}`} aria-label={`${m.code ? `קוד ${m.code}` : 'שדה בלי קוד'}: ${name}${st ? ` · ${CLIENT_STATE_LABEL[st]}` : ''}`} aria-pressed={sel?.markerId === m.id} />
+                    onClick={() => setSel({ slug, markerId: m.id })} title={`${m.code || 'בלי קוד'} · ${name}${rv ? ` · בדוח: ${nis(rv.amount)}` : ''}`} aria-label={`${m.code ? `קוד ${m.code}` : 'שדה בלי קוד'}: ${name}${st ? ` · ${CLIENT_STATE_LABEL[st]}` : ''}${rv ? ` · בדוח ${nis(rv.amount)}` : ''}`} data-value={rv?.amount} aria-pressed={sel?.markerId === m.id} />
                 );
               })}
             </div>
           </div>
           <p className="fm-legend kn-xs">
-            {client ? (<><i className="fm-sw st-approved" /> אושר במשרד <i className="fm-sw st-answered" /> התקבלה תשובה <i className="fm-sw st-verify" /> לאישור (מהכרטיס) <i className="fm-sw st-missing" /> חסר <i className="fm-sw st-office" /> בהגשה</>)
+            {client ? (<><i className="fm-sw st-approved" /> אושר במשרד <i className="fm-sw st-answered" /> התקבלה תשובה <i className="fm-sw st-verify" /> לאישור (מהכרטיס) <i className="fm-sw st-missing" /> חסר <i className="fm-sw st-office" /> בהגשה{retCtx ? <> <i className="fm-sw has-val" /> יש סכום בדוח</> : null}</>)
               : slug === '1301' ? (<><i className="fm-sw is-registered" /> בן הזוג הרשום <i className="fm-sw is-spouse" /> בן/בת הזוג <i className="fm-sw is-joint" /> שניהם יחד <i className="fm-sw by-label" /> בלי קוד — לפי התווית</>)
                 : markers.length ? <>{markers.length} סימונים — {L.anchors.length ? 'לפי הקוד המודפס בטופס' : 'בטופס הזה אין קודים, ולכן לפי התווית שליד כל שדה'}{L.anchors.length && markers.some(m => m.byLabel) ? '; מקווקו — לפי התווית' : ''}.</>
                   : L.pages.every(pg => !pg.textLayer) ? <>הטופס הרשמי סרוק (בלי שכבת טקסט) — אי אפשר לאתר בו שדות; השדות ברשימה למטה.</> : <>לא נמצאו שדות בטופס באופן חד-משמעי — השדות ברשימה למטה.</>}
@@ -252,7 +297,8 @@ export default function FormMap({ domain, clients = [], contextClient = null, on
               </div>
               {selFields.length === 0 && <p className="kn-small">קוד {selMarker?.code} מודפס בטופס, אבל אין לו עדיין הסבר במערכת — <b>טרם נכתב</b>.</p>}
               {selFields.map(({ field, role }) => (
-                <FieldCard key={field.key} field={field} role={role} client={client} facts={yearFacts} canLearn={canLearn} onLearn={onLearn} onOpenForm={s2 => { setSlug(s2); setPage(1); setSel(null); }} />
+                <FieldCard key={field.key} field={field} role={role} client={client} facts={yearFacts} canLearn={canLearn} onLearn={onLearn} onOpenForm={s2 => { setSlug(s2); setPage(1); setSel(null); }}
+                  ret={retCtx} spouseName={client?.spouseFirstName || client?.spouse?.firstName || 'בן/בת הזוג'} clientName={client?.firstName || 'הלקוח'} />
               ))}
             </>
           )}
@@ -301,8 +347,10 @@ function Hint({ markers, unplaced }: { markers: number; unplaced: number }) {
   );
 }
 
-function FieldCard({ field, role, client, facts, canLearn, onLearn, onOpenForm }: { field: MapField; role?: Role; client: Client | null; facts: YearFact[]; canLearn: (id: string) => boolean; onLearn: (id: string) => void; onOpenForm: (slug: FormSlug) => void }) {
+function FieldCard({ field, role, client, facts, canLearn, onLearn, onOpenForm, ret, spouseName, clientName }: { field: MapField; role?: Role; client: Client | null; facts: YearFact[]; canLearn: (id: string) => boolean; onLearn: (id: string) => void; onOpenForm: (slug: FormSlug) => void; ret: ReturnCtx | null; spouseName: string; clientName: string }) {
   const ex = explainOf(field);
+  const code = role && role !== 'form' ? field.codes.find(c => c.role === role)?.code : field.codes[0]?.code;
+  const rv = field.slug === '1301' && code ? returnFieldOf(ret, code, role) : undefined;
   const src = sourcesOf(field);
   const topics = learnTopicsOf(field).filter(t => canLearn(t.id));
   const st = client ? clientStateOf(field, client, facts, 2025, role) : null;
@@ -324,6 +372,14 @@ function FieldCard({ field, role, client, facts, canLearn, onLearn, onOpenForm }
       )}
       {role && role !== 'form' && field.codes.length > 1 && <p className="kn-xs kn-muted">השדה שבחרתם: {ROLE_LABEL[role]}.</p>}
       {st && <p className={`fm-st is-${st.state}`} data-fm-client-state={st.state}><b>{CLIENT_STATE_LABEL[st.state]}</b> · {st.reason}</p>}
+      {rv && (
+        <section className="fm-ret" data-fm-return-value={rv.amount} aria-label="ערך בדוח וממה הוא מורכב">
+          <h5 className="fm-h">בדוח {ret?.year}: <b dir="ltr">{nis(rv.amount)}</b>{rv.source.kind === 'manual' ? ' · # ערך ידני' : ''}</h5>
+          <p className="kn-xs kn-muted">ממה זה מורכב — השורות שמרכיבות את הסכום (סכום · מסמך · של מי · השאלה · השנה):</p>
+          <Breakdown source={rv.source} spouseName={spouseName} clientName={clientName} compact />
+        </section>
+      )}
+      {ret && !rv && field.slug === '1301' && field.kind === 'amount' && <p className="kn-xs kn-muted" data-fm-return-empty>אין סכום בשדה הזה בדוח {ret.year} (אין שורות מקור שמובילות אליו).</p>}
 
       <h5 className="fm-h">מה ממלאים</h5>
       <p className="fm-p">{ex.what ?? <span className="fm-gap">טרם נכתב</span>}{ex.what && ex.status && !field.wealth ? <> <ClaimTag status={ex.status} /></> : null}</p>

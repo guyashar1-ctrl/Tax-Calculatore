@@ -6,6 +6,7 @@
 // ‼ «ריק ≠ אפס»: חסר = אין עובדה; answer 'zero'/'no' הם תשובות.
 
 import type { Evidence, YearFact } from '../taxYear/types';
+import type { SourceLine } from './types';
 
 /** כמה אפשר לסמוך על נתון: נקרא מהרשות · הוזן / הוצהר · אומת מול מסמך. */
 export type Trust = 'read' | 'manual' | 'verified';
@@ -25,9 +26,15 @@ const ALIASES: Record<string, Record<string, string>> = {
     employerDeposits: 'employerDeposits', studyFundSalary: 'studyFundSalary', employeePension: 'employeePension' },
   'business.profit': { profit: 'profit', netIncome: 'profit', 'businesses.netIncome': 'profit', turnover: 'turnover', revenueAnnual: 'turnover',
     'businesses.revenueAnnual': 'turnover', customerWithholding: 'customerWithholding' },
+  // 17.10.2026 (C16, N4): 867 מפורק לפי סוג — ריבית פיקדונות 15% (217/317) ו-25% (242), ריבית/רווח ני״ע 15% (211/311), דיבידנד (241);
+  //   המס שנוכה: על ריבית פיקדונות ← 043, על ני״ע ודיבידנד ← 040. «withheld» בלי פיצול (עובדות ישנות) נשאר כמו קודם — 043.
   'capital.amounts': { gains: 'gains', capitalGainsRealized: 'gains', 'investmentAccounts.capitalGainsRealized': 'gains', dividend: 'dividend',
     dividendIncome: 'dividend', 'investmentAccounts.dividendIncome': 'dividend', interest: 'interest', interestIncome: 'interest',
-    'investmentAccounts.interestIncome': 'interest', withheld: 'withheld', taxWithheld: 'withheld', lossCarried: 'loss' },
+    'investmentAccounts.interestIncome': 'interest', withheld: 'withheld', taxWithheld: 'withheld', lossCarried: 'loss',
+    depositInterest15: 'depositInterest15', depositInterest25: 'interest', securitiesInterest15: 'securitiesInterest15',
+    withheldDeposit: 'withheldDeposit', withheldSecurities: 'withheldSecurities' },
+  // 17.10.2026 (R03, C15): האישור השנתי מב״ל — ב״ל ובריאות שתי שורות; בריאות נשמרת ואינה נכנסת לדוח; החזרים מקטינים את 030/089
+  'payments.niPaid': { amount: 'amount', paid: 'amount', ni: 'amount', health: 'health', refunds: 'refunds', assessmentDiff: 'assessmentDiff' },
   'rent.income': { amount: 'income', income: 'income', rentalIncomeAnnual: 'income' },
   'rent.incomeTotal': { amount: 'income', income: 'income', rentalIncomeAnnual: 'income' },
   'savings.selfAmounts': { pension: 'pension', selfEmployedPensionAmount: 'pension', 'spouse.selfEmployedPensionAmount': 'pension',
@@ -83,10 +90,14 @@ export interface YearSlice {
 /** מפריד את עובדות השנה: מלאות ומאושרות · חלקיות · ממתינות. בכל קבוצה — הגרסה האחרונה לכל (מפתח, אדם, ישות). */
 export function sliceYear(facts: YearFact[], year: number): YearSlice {
   const ofYear = facts.filter(f => f.taxYear === year && f.status !== 'rejected' && f.status !== 'superseded' && f.basis !== 'forecast');
+  // ‼ 17.10.2026 (N4): שורת מקור (lineKey + מסמך) היא שורה בפני עצמה — שני 106 לאותו מעסיק מתווספים; אישור מתקן מסומן
+  //   «הוחלף» בשרת (257), לא «האחרון גובר». עובדה ישנה בלי מסמך לאותו רכיב — יורדת כשיש לו שורות מקור (שלא ייספר פעמיים).
   const latest = (xs: YearFact[]) => {
     const m = new Map<string, YearFact>();
-    for (const f of [...xs].sort((a, b) => a.createdAt.localeCompare(b.createdAt))) m.set(`${f.itemKey}|${f.subjectRole}|${f.entityRef ?? ''}|${componentsKey(f)}`, f);
-    return [...m.values()];
+    const keyOf = (f: YearFact) => `${f.itemKey}|${f.subjectRole}|${f.entityRef ?? ''}|${componentsKey(f)}`;
+    for (const f of [...xs].sort((a, b) => a.createdAt.localeCompare(b.createdAt))) m.set(f.lineKey ? `${keyOf(f)}|${f.evidenceId ?? ''}|${f.lineKey}` : keyOf(f), f);
+    const lined = new Set([...m.values()].filter(f => f.lineKey).map(keyOf));
+    return [...m.values()].filter(f => f.lineKey || !lined.has(keyOf(f)));
   };
   const accepted = ofYear.filter(f => f.status === 'accepted');
   const full = latest(accepted.filter(f => coversFullYear(f, year) || f.periodKind === 'carry_forward' || f.periodKind === 'transaction'));
@@ -109,6 +120,20 @@ export function sumComponent(slice: YearSlice, itemKey: string, component: strin
     for (const c of readComponents(f)) if (c.component === component) readings.push({ fact: f, component, amount: c.amount, trust: trustOf(f, evidence) });
   }
   return { amount: readings.length ? readings.reduce((a, r) => a + r.amount, 0) : undefined, readings };
+}
+
+/**
+ * שורת מקור מקריאה אחת (17.10.2026): הסכום, המסמך, השאלה, האדם והשנה — למקור של כל שדה («ממה זה מורכב?»).
+ * ‼ בלי מסמך — «הוזן / הוצהר»; המסמך הוא ראיה (tax_evidence), לא הקובץ עצמו.
+ */
+export function lineOf(r: FactReading, evidence: Evidence[], docLabelOf: (kind: string) => string): SourceLine {
+  const ev = r.fact.evidenceId ? evidence.find(e => e.id === r.fact.evidenceId) : undefined;
+  return {
+    factId: r.fact.id, itemKey: r.fact.itemKey, component: r.component, lineKey: r.fact.lineKey, amount: r.amount, person: r.fact.subjectRole,
+    entityRef: r.fact.entityRef, year: r.fact.taxYear, evidenceId: r.fact.evidenceId, docKind: ev?.docKind,
+    docLabel: ev ? docLabelOf(ev.docKind) : r.fact.source === 'automation' ? 'נקרא מהרשות' : 'בלי מסמך — הוזן / הוצהר',
+    fileName: ev?.fileName, askId: r.fact.askId, trust: r.trust, enteredBy: r.fact.enteredBy ?? r.fact.decidedBy, enteredAt: r.fact.createdAt,
+  };
 }
 
 /** תשובת «כן» לשאלת סינון (מקור הכנסה שהדוח צריך לדעת עליו). */

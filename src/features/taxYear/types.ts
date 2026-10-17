@@ -71,6 +71,9 @@ export interface YearFact {
   supersedes?: string;
   note?: string;
   createdAt: string;
+  /** 257 · שורת מקור: מפתח השורה במסמך (למשל ‎106.gross‎) ומי הזין אותה במשרד. */
+  lineKey?: string;
+  enteredBy?: string;
 }
 
 /** סוגי מסמך שהאיסוף מכיר. */

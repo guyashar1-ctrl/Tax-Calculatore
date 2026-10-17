@@ -19,7 +19,7 @@ export interface CatalogEntry {
   id: string;
   part: string;
   section: string | null;
-  codes: { registered?: string | null; spouse?: string | null } | null;
+  codes: { registered?: string | null; spouse?: string | null; joint?: string | null } | null;
   label: string;
   kind: string;
   instruction?: string | null;

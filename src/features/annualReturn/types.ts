@@ -68,17 +68,60 @@ export interface ReturnDraft {
   books?: Record<string, Books1320>;
   /** עמית מוטב שבוחר חישוב «יחיד» (מסלול א׳) — סימון 233/234. */
   pensionTrack?: Partial<Record<Person, 'auto' | 'A'>>;
+  /** ערכים ידניים מעל החישוב («#») — רק עם נימוק; הסכום המחושב נשמר לצידם. */
+  overrides?: ManualOverride[];
   note?: string;
 }
 
+/**
+ * שורת מקור (17.10.2026, שלב 1 של תוכנית הליווי): סכום + המסמך שממנו נלקח + השאלה בשאלון + האדם + השנה.
+ * השדה בטופס הוא סיכום מחושב של שורותיו — לא מספר שמקלידים לתוכו. «ממה זה מורכב?» = הרשימה הזו.
+ */
+export interface SourceLine {
+  factId: string;
+  /** השאלה בקטלוג (tax_year_facts.item_key) והרכיב בתוכה (gross / withheld / health…). */
+  itemKey: string;
+  component: string;
+  /** מפתח השורה במסמך (למשל ‎106.gross‎) — כשהוזן ממרשם תבניות המסמך. */
+  lineKey?: string;
+  amount: number;
+  person: 'client' | 'spouse' | 'couple';
+  entityRef?: string;
+  year: number;
+  /** המסמך: מזהה הראיה, סוגו ושמו; בלי מסמך — «הוזן / הוצהר» (trust manual). */
+  evidenceId?: string;
+  docKind?: string;
+  docLabel: string;
+  fileName?: string;
+  askId?: string;
+  trust: Trust;
+  enteredBy?: string;
+  enteredAt: string;
+}
+
 export interface FieldSource {
-  kind: 'fact' | 'calculation' | 'completion' | 'card';
+  /** manual — ערך ידני מעל חישוב (מסומן «#» ומנומק; הסכום המחושב נשמר ב-computed). */
+  kind: 'fact' | 'calculation' | 'completion' | 'card' | 'manual';
   factIds?: string[];
   evidenceIds?: string[];
   trust?: Trust;
   ruleIds?: string[];
   completionId?: string;
   text: string;
+  /** שורות המקור שמרכיבות את הסכום. ‼ כש-sumIsField=true: Σ השורות = השדה (בקרה «Σ שורות ≠ שדה»); אחרת השדה נגזר מהן (למשל אחרי ניכוי). */
+  lines?: SourceLine[];
+  sumIsField?: boolean;
+  /** ערך ידני: הסכום שהמערכת חישבה לפני הדריסה. */
+  computed?: number;
+}
+
+/** ערך ידני מעל החישוב — כלל אישור התוכנה של רשות המסים: מסומן «#» ומנומק (תוכנית הליווי §1.5). */
+export interface ManualOverride {
+  code: string;
+  person: Person | 'joint';
+  amount: number;
+  justification: string;
+  at?: string;
 }
 
 /** שורה בטיוטת 1301: קוד, חלק, סכום או סימון — ומאיפה. */
@@ -94,6 +137,8 @@ export interface ReturnField {
   /** ערך טקסט / תאריך / ספירה (פרטים אישיים, קודים, ילדים). */
   text?: string;
   source: FieldSource;
+  /** הקוד מופיע בטופס יותר מפעם אחת לאותו טור (N7) — התווית נבחרה לפי סוג, ומסומנת לבדיקה. */
+  ambiguous?: boolean;
 }
 
 export interface AnnexStatus {
