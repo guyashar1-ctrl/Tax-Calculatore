@@ -30,8 +30,8 @@ import HomeOfficeForm from '../features/requests/HomeOfficeForm';
 import type { ValidHomeOffice } from '../features/requests/homeOffice';
 import { groupPortalItems, portalChildTitle, portalGroupStatus, type PortalGroup } from '../features/requests/requestGroups';
 import { lamed } from '../utils/requestPresentation';
-import IdentitySidesPicker from '../features/identity/IdentitySidesPicker';
-import type { IdDocKind } from '../features/identity/idSides';
+import IdentityFlexPicker from '../features/identity/IdentityFlexPicker';
+import type { IdDocKind, IdPartsManifest } from '../features/identity/idFlex';
 import {
   livePortalActions, loadClientPortal, officeViewActions, samplePortalActions, SAMPLE_SIMULATED_TEXT,
   type PortalActions, type PortalLinkedKind, type PortalMode,
@@ -285,16 +285,16 @@ function UploadItem({ tokenKind = 'portal', stepId, itemKey, label, note, done, 
   const [err, setErr] = useState<string | null>(null);
   const [simulated, setSimulated] = useState(false);
   const inputId = `up-${stepId}-${itemKey}`;
-  // ‼ פריט תעודה מזהה (גיא, 12.10.2026): בוחר צדדים — צד ואז צד, תצוגה מקדימה, החלפה;
-  // רק «אישור ושליחה» מעלה, ואז PDF אחד. הפריט נסגר רק אז — לא בצד הראשון.
+  // ‼ פריט תעודה מזהה (גיא, 16.10.2026): העלאה גמישה — תמונה אחת של הכול או כמה, תיוג לכל תמונה,
+  // בדיקה שהסט שלם; רק «אישור ושליחה» מעלה, ואז PDF אחד. הפריט נסגר רק אז — לא בתמונה הראשונה.
   const idKind = tokenKind === 'portal' ? ID_ITEM_KINDS[itemKey] : undefined;
   const [pickerOpen, setPickerOpen] = useState(false);
 
-  /** העלאה מבוחר הצדדים — מחזירה שגיאה או null. */
-  async function uploadId(file: File): Promise<string | null> {
+  /** העלאה מבוחר התעודה — מחזירה שגיאה או null. parts = מה כל עמוד ב-PDF. */
+  async function uploadId(file: File, parts?: IdPartsManifest): Promise<string | null> {
     setErr(null);
     setSimulated(false);
-    const res = await actions.uploadDocument({ stepId, itemKey, file, tokenKind });
+    const res = await actions.uploadDocument({ stepId, itemKey, file, tokenKind, parts });
     if (res.simulated) { setSimulated(true); setPickerOpen(false); return null; }
     if (!res.ok) return UPLOAD_ERRORS[res.error ?? ''] ?? 'ההעלאה נכשלה. אפשר לנסות שוב.';
     setPickerOpen(false);
@@ -385,8 +385,8 @@ function UploadItem({ tokenKind = 'portal', stepId, itemKey, label, note, done, 
       </div>
       {idKind && pickerOpen && !done && (
         <div style={{ paddingInlineStart: 18 }}>
-          <IdentitySidesPicker kind={idKind} fileName={label}
-            tone={{ ink: brand.ink, muted: brand.muted, border: brand.border, accent, radius: brand.radius }}
+          <IdentityFlexPicker kind={idKind} fileName={label}
+            tone={{ ink: brand.ink, muted: brand.muted, border: brand.border, accent, radius: brand.radius, card: '#fff', well: '#f4f3ef' }}
             onConfirm={uploadId} onCancel={() => setPickerOpen(false)} />
         </div>
       )}

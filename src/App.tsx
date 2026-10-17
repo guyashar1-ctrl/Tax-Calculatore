@@ -134,6 +134,7 @@ import PublicApplyPage from './components/PublicApplyPage';
 import TestSignaturePage from './components/signatureRequest/__TestSignaturePage';
 import TestSigningRoom from './components/signatureRequest/__TestSigningRoom';
 import TestExecutionCenter from './components/signatureRequest/__TestExecutionCenter';
+import TestIdentityFlexPicker from './features/identity/__TestIdentityFlexPicker';
 import TestRepDocs from './components/signatureRequest/__TestRepDocs';
 import TestPoaReadiness from './components/signatureRequest/__TestPoaReadiness';
 import TestOnboarding from './components/clientTabs/__TestOnboarding';
@@ -433,6 +434,10 @@ export default function App() {
   }
   if (import.meta.env.DEV && typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('test-exec')) {
     return <TestExecutionCenter />;
+  }
+  // 16.10.2026 · העלאת תעודה גמישה (תיוג לכל תמונה, בדיקת שלמות) — בערכת המשרד, בהיר וכהה.
+  if (import.meta.env.DEV && typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('test-id-flex')) {
+    return <TestIdentityFlexPicker />;
   }
   // 194 · מחזור חיי בקשת הייצוג בשע״ם, בכל מצביו.
   if (import.meta.env.DEV && typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('test-shaam-rep')) {

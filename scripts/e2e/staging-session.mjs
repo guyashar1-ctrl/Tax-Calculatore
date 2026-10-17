@@ -123,5 +123,8 @@ export async function prepare() {
     initContext: async (ctx) => { await ctx.addInitScript(([k, v]) => { try { if (!location.search.includes('portal=') && !localStorage.getItem(k)) localStorage.setItem(k, v); } catch { /* */ } }, [storageKey, stored]); },
     cleanup,
     sql,
+    // קריאת קובץ מהאחסון בבדיקה (מפתח השירות של staging; לא נכתב לשום מקום)
+    storageUrl: `${URL}/storage/v1`,
+    serviceHeaders: { apikey: SERVICE, Authorization: `Bearer ${SERVICE}` },
   };
 }

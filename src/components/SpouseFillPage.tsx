@@ -21,6 +21,8 @@ import {
 } from '../types';
 import { shaamSubmissions } from '../utils/repScope';
 import { docKindFor, docKindPrompt, type IdentityDocsMap } from '../utils/identityEvidence';
+import IdentityFlexPicker from '../features/identity/IdentityFlexPicker';
+import type { IdPartsManifest } from '../features/identity/idFlex';
 import { FirmBranding } from '../types/firmProfile';
 import { deriveQuotationBrand } from './quotations/quotationBranding';
 import { isValidIsraeliId } from '../utils/israeliId';
@@ -53,6 +55,7 @@ export default function SpouseFillPage({ token }: Props) {
   const [secondaryValue, setSecondaryValue] = useState('');
   const [docs, setDocs] = useState<IdentityDocsMap>({});
   const [uploading, setUploading] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -99,7 +102,8 @@ export default function SpouseFillPage({ token }: Props) {
   const haveDoc = (docs.spouse ?? []).length > 0;
   const greet = (info?.spouseFirstName || info?.spouseName || '').trim().split(/\s+/)[0] || '';
 
-  async function uploadDoc(file: File) {
+  /** ‼ נקרא מ«אישור ושליחה» של בוחר התעודה — הקובץ כבר PDF אחד, וההרכב איתו (16.10.2026). שגיאה או null. */
+  async function uploadDoc(file: File, parts?: IdPartsManifest): Promise<string | null> {
     setUploading(true);
     setError(null);
     try {
@@ -107,22 +111,22 @@ export default function SpouseFillPage({ token }: Props) {
       body.append('token', token);
       body.append('person', 'spouse');
       body.append('docKind', docKind);
+      if (parts?.length) body.append('parts', JSON.stringify(parts.map(p => ({ page: p.page, part: p.part, tag: p.tag }))));
       body.append('file', file);
       const { data, error: fnErr } = await supabase.functions.invoke('onboarding-upload-id', { body });
       if (fnErr || !data?.ok) {
         const code = data?.error;
-        setError(
-          code === 'too_large' ? 'הקובץ גדול מדי - עד 10MB'
-            : code === 'type_not_allowed' ? 'אפשר לצרף תמונה או PDF בלבד'
-              : code === 'rate_limited' ? 'הועלו יותר מדי קבצים. נסו שוב בעוד שעה'
-                : 'ההעלאה לא הצליחה. נסו שוב, ואם זה חוזר - פנו למשרד.',
-        );
-        return;
+        return code === 'too_large' ? 'הקובץ גדול מדי - עד 10MB'
+          : code === 'type_not_allowed' ? 'אפשר לצרף תמונה או PDF בלבד'
+            : code === 'rate_limited' ? 'הועלו יותר מדי קבצים. נסו שוב בעוד שעה'
+              : 'ההעלאה לא הצליחה. נסו שוב, ואם זה חוזר - פנו למשרד.';
       }
       setDocs(prev => ({
         ...prev,
         spouse: [...(prev.spouse ?? []), { documentId: data.documentId, docKind, fileName: file.name }],
       }));
+      setPickerOpen(false);
+      return null;
     } finally {
       setUploading(false);
     }
@@ -279,16 +283,19 @@ export default function SpouseFillPage({ token }: Props) {
               {'✓'} {d.fileName || 'הקובץ התקבל'}
             </div>
           ))}
-          <label style={{
-            display: 'inline-block', cursor: uploading ? 'default' : 'pointer',
-            border: `1px solid ${ink}`, borderRadius: btnRadius, padding: '9px 16px',
-            fontSize: 13.5, color: ink, opacity: uploading ? 0.6 : 1,
-          }}>
-            {uploading ? 'מעלה…' : haveDoc ? 'צירוף קובץ נוסף' : 'צילום או קובץ'}
-            <input type="file" accept="image/*,application/pdf" style={{ display: 'none' }}
+          {/* ‼ 16.10.2026: אותה העלאה גמישה כמו בטופס הלקוח — תמונה אחת של הכול או כמה, תיוג, בדיקת שלמות ⇒ PDF אחד. */}
+          {haveDoc && !pickerOpen ? (
+            <button type="button" disabled={uploading} onClick={() => setPickerOpen(true)}
+              style={{ border: 'none', background: 'transparent', padding: 0, cursor: 'pointer',
+                font: 'inherit', fontSize: 12.5, color: ink, textDecoration: 'underline' }}>
+              להחליף או לצרף שוב
+            </button>
+          ) : (
+            <IdentityFlexPicker kind={docKind} fileName={`${docKindPrompt(docKind).replace(/^צילום /, '')} - ${info?.spouseName || 'בן/בת הזוג'}`}
               disabled={uploading}
-              onChange={e => { const f = e.target.files?.[0]; if (f) void uploadDoc(f); e.target.value = ''; }} />
-          </label>
+              tone={{ ink, muted: '#6B6B68', border: '#E3E2DD', accent: ink, radius: btnRadius, card: '#fff', well: '#F4F3EF' }}
+              onConfirm={uploadDoc} onCancel={haveDoc ? () => setPickerOpen(false) : undefined} />
+          )}
         </div>
 
         {error && (

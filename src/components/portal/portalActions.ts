@@ -11,6 +11,7 @@
 
 import { supabase, SUPABASE_URL } from '../../lib/supabase';
 import { flushAccountantNotifications } from '../../lib/notifyAccountant';
+import type { IdPartsManifest } from '../../features/identity/idFlex';
 import {
   portalSubmitBusinessDetails,
   type PortalBusinessDetailsInput,
@@ -40,7 +41,8 @@ export interface PortalResourceRef { url?: string; documentId?: string }
 export interface PortalActions {
   mode: PortalMode;
   submitStep(stepId: string, data: Record<string, unknown>): Promise<PortalActionResult>;
-  uploadDocument(args: { stepId: string; itemKey: string; file: File; tokenKind?: 'portal' | 'release' }): Promise<PortalActionResult>;
+  /** parts — ההרכב של צילום תעודה (מה כל עמוד ב-PDF, idFlex.ts); נשמר ליד הרשומה בשרת. */
+  uploadDocument(args: { stepId: string; itemKey: string; file: File; tokenKind?: 'portal' | 'release'; parts?: IdPartsManifest }): Promise<PortalActionResult>;
   submitBusinessDetails(stepId: string, payload: PortalBusinessDetailsInput): Promise<PortalBusinessDetailsActionResult>;
   /** האם הקובץ באמת נפתח (170). בדוגמה — תמיד כן, בלי לבדוק כלום. */
   confirmOpened(href: string | null | undefined): Promise<boolean>;
@@ -117,12 +119,13 @@ export function livePortalActions(token: string): PortalActions {
       const row = res as { ok?: boolean; error?: string } | null;
       return { ok: !error && !!row?.ok, error: row?.error };
     },
-    async uploadDocument({ stepId, itemKey, file, tokenKind = 'portal' }) {
+    async uploadDocument({ stepId, itemKey, file, tokenKind = 'portal', parts }) {
       const form = new FormData();
       form.append('token', token);
       form.append('tokenKind', tokenKind);
       form.append('stepId', stepId);
       form.append('itemKey', itemKey);
+      if (parts?.length) form.append('parts', JSON.stringify(parts.map(p => ({ page: p.page, part: p.part, tag: p.tag }))));
       form.append('file', file);
       const { data, error } = await supabase.functions.invoke('portal-upload-document', { body: form });
       const row = data as { ok?: boolean; error?: string } | null;

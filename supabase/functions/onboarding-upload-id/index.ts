@@ -16,6 +16,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { findIdenticalAmong, personDocIds, sha256Hex } from "../_shared/idDocDedupe.ts";
+import { parseParts, partsNote } from "../_shared/idParts.ts";
 
 const MAX_BYTES = 10 * 1024 * 1024;
 const MAX_PER_HOUR = 20;
@@ -49,6 +50,10 @@ Deno.serve(async (req: Request) => {
     const personParam = String(form.get("person") || "client");
     const docKind = String(form.get("docKind") || "idCard");
     const file = form.get("file");
+    // ‼ 16.10.2026 · ההרכב מההעלאה הגמישה (idFlex.ts): מה כל עמוד ב-PDF — «קדמי+ספח», «אחורי»…
+    // נשמר ליד הרשומה (identity_docs.parts + notes) כדי שבמשרד יראו מה הגיע ואיך. לא משפיע על
+    // מה שהשרת אוכף; הרכב לא תקין פשוט לא נשמר.
+    const parts = parseParts(form.get("parts"));
 
     if (!token) return json({ error: "missing_token" }, 400);
     if (!["client", "spouse"].includes(personParam)) return json({ error: "bad_person" }, 400);
@@ -153,7 +158,7 @@ Deno.serve(async (req: Request) => {
       label_id: labelId,
       uploaded_at: new Date().toISOString(),
       description: label,
-      notes: "צולם על ידי הלקוח בקליטת הייצוג",
+      notes: partsNote("צולם על ידי הלקוח בקליטת הייצוג", parts),
       status: "received",
     });
     if (docErr) {
@@ -168,7 +173,7 @@ Deno.serve(async (req: Request) => {
     const { data: appended, error: patchErr } = await admin.rpc("onboarding_identity_doc_append", {
       p_request_id: reqRow.id,
       p_person: person,
-      p_entry: { documentId: docId, docKind, fileName: file.name || "", at: new Date().toISOString() },
+      p_entry: { documentId: docId, docKind, fileName: file.name || "", at: new Date().toISOString(), ...(parts ? { parts } : {}) },
     });
     if (patchErr || !appended?.ok) {
       return json({ error: "link_failed", detail: patchErr?.message || appended?.error || "" }, 500);
