@@ -4,12 +4,15 @@
 // ‼ הסדר: אישורים → מסך הרשת → של מי / איפה ושאר השאלות → מסמכים (בהיכרות אין).
 
 import type { InfoAsk } from './types';
+import { ITEM_BY_KEY } from './catalog';
 
 export type Screen =
   | { kind: 'confirmAll'; asks: InfoAsk[] }
   | { kind: 'ask'; ask: InfoAsk };
 
-const RANK = (a: InfoAsk) => (a.prompt.input.kind === 'confirm' ? 0 : a.prompt.input.kind === 'multi' ? 1 : a.prompt.input.kind === 'file' ? 3 : 2);
+// ‼ שאלות ההמשך של מסך הרשת («של מי / איפה», «מי מכם?») — מיד אחריו, לפני שאר השאלות (ילדים, חשבון בנק)
+const RANK = (a: InfoAsk) => (a.prompt.input.kind === 'confirm' ? 0 : a.prompt.input.kind === 'multi' ? 1
+  : a.prompt.input.kind === 'file' ? 4 : (ITEM_BY_KEY[a.itemKey]?.after || a.prompt.input.kind === 'who') ? 2 : 3);
 export const sortAsks = (asks: InfoAsk[]) => [...asks].sort((a, b) => RANK(a) - RANK(b));
 
 /**

@@ -139,6 +139,14 @@ export const TESTS: TestCase[] = [
       if (l.id !== 'bookkeepers') assert(ids.includes('other'), `אין «אחר» ב-${l.id}`);
     }
   }),
+  test('זוג: העוסק הרשום הוא הלקוח — פרטי העסק נשאלים רק עליו, לא על בן/בת הזוג (הכרטיס של אחד אינו עונה על השני)', () => {
+    const c = married({ dealerType: 'licensed' } as Partial<Client>);
+    const entries = plan(c);
+    equal(entries.filter(e => e.itemKey === 'intake.businessDetails').map(e => e.subjectRole).join(','), 'client');
+    assert(entries.find(e => e.itemKey === 'intake.businessDetails')!.prompt.title.startsWith('רשום/ה אצלנו'), 'בלי מה שידוע');
+    const grid = entries.find(e => e.prompt.input.kind === 'multi')!;
+    assert(grid.prompt.input.kind === 'multi' && grid.prompt.input.options.some(o => o.key === 'intake.selfEmployed'), 'לבן/בת הזוג שאלת הפתיחה נשארת באריח');
+  }),
   test('הקטלוג: בהיכרות אין מסמכים ואין טקסט חופשי; בהערכה אין מסמכים; המפתחות הישנים קיימים', () => {
     const intakeItems = ITEMS.filter(i => i.key.startsWith('intake.') && i.purposes.includes('intake') && i.who === 'client');
     assert(!intakeItems.some(i => i.input === 'file' || i.input === 'text'), intakeItems.filter(i => i.input === 'file' || i.input === 'text').map(i => i.key).join(','));

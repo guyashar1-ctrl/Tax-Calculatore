@@ -378,6 +378,7 @@ async function run(width) {
     if (afterGrid === 'entity') {
       await shot(page, `05-entity-${tag}`, [['.ty-ent-card', 'של מי / איפה'], ['.ty-list-search', 'חיפוש ברשימה']]);
       await flow.locator('.ty-list-search').first().fill('זזז').catch(() => {});
+      await page.waitForTimeout(500);
       ok(/לא נמצא|אחר/.test(await text(flow.locator('.ty-list'))), `[${tag}] חיפוש שלא מוצא — «אחר» נשאר (אין טקסט חופשי)`);
       await flow.locator('.ty-list-search').first().fill('').catch(() => {});
     }
@@ -414,6 +415,8 @@ async function run(width) {
       const txt = await env.sql(`select item_key from public.tax_year_facts where client_id = '${env.clientId}' and jsonb_typeof(value) = 'string' and item_key like 'intake.%'`);
       ok(txt.every(x => x.item_key === 'intake.family'), `[${tag}] במסד: אף תשובת טקסט חופשי חוץ מתיקון המצב המשפחתי`, JSON.stringify(txt));
       ok(await env.emailsFor() === 0, `[${tag}] staging: עדיין אף מייל`);
+      const ids = await env.sql(`select item_key, subject_role, coalesce(entity_ref,'') r, state from public.tax_info_asks where client_id = '${env.clientId}' order by created_at`);
+      ok(true, `[${tag}] השאלות במסד: ${ids.map(x => `${x.item_key.replace('intake.','')}:${x.subject_role}${x.r ? ':' + x.r : ''}=${x.state}`).join(' · ')}`);
     }
   } finally { await ctx.close(); }
 }

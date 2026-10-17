@@ -1,0 +1,202 @@
+{
+  "target": "staging",
+  "base": "http://localhost:4744",
+  "dark": false,
+  "pass": 32,
+  "fail": 2,
+  "results": [
+    {
+      "ok": true,
+      "m": "[1280] «השלם עם הלקוח» פתח את הקליטה בשורת הבקשה",
+      "info": ""
+    },
+    {
+      "ok": true,
+      "m": "[1280] השאלון המלא של ההיכרות — בלי מסמכים",
+      "info": ""
+    },
+    {
+      "ok": true,
+      "m": "[1280] השאלון המלא — פריטי «של מי / איפה»",
+      "info": ""
+    },
+    {
+      "ok": true,
+      "m": "[1280] הוכנו ופורסמו 10 שאלות («פורסם בדף של דוד — לא נשלח מייל.»)",
+      "info": ""
+    },
+    {
+      "ok": true,
+      "m": "[1280] ברשימת ההכנה: «סמנו מה יש לכם» — שאלה אחת לכל שאלות הפתיחה",
+      "info": ""
+    },
+    {
+      "ok": true,
+      "m": "[1280] ברשימת ההכנה אין מסמכים",
+      "info": ""
+    },
+    {
+      "ok": true,
+      "m": "[1280] staging: אין מייל ללקוח הבדיקה",
+      "info": ""
+    },
+    {
+      "ok": true,
+      "m": "[1280] המסך הראשון: «מה שכבר ידוע לנו — נכון?» — כל אישורי הכרטיס במסך אחד",
+      "info": ""
+    },
+    {
+      "ok": true,
+      "m": "[1280] במסך האישור 5 שורות",
+      "info": ""
+    },
+    {
+      "ok": true,
+      "m": "[1280] אישור כולל נשלח; «יש שינוי» סומן במצב המשפחתי",
+      "info": ""
+    },
+    {
+      "ok": true,
+      "m": "[1280] השורה שסומנה נפתחה לתיקון מיד אחרי האישור",
+      "info": ""
+    },
+    {
+      "ok": true,
+      "m": "[1280] התיקון נשלח",
+      "info": ""
+    },
+    {
+      "ok": true,
+      "m": "[1280] אחרי האישורים — מסך הרשת «סמנו מה יש לכם»",
+      "info": ""
+    },
+    {
+      "ok": true,
+      "m": "[1280] מסך הרשת: 9 אריחים — רק מה שהתיק לא יודע",
+      "info": ""
+    },
+    {
+      "ok": true,
+      "m": "[1280] חזרה מאותו קישור — למסך הרשת, לא מההתחלה",
+      "info": ""
+    },
+    {
+      "ok": true,
+      "m": "[1280] מסך הרשת נענה — סומנו: intake.foreign, intake.crypto, intake.credits, intake.hasInvestments",
+      "info": ""
+    },
+    {
+      "ok": true,
+      "m": "[1280] מה שסומן פתח מיד את שאלת ההמשך — בלי סבב מול המשרד",
+      "info": ""
+    },
+    {
+      "ok": false,
+      "m": "[1280] חיפוש שלא מוצא — «אחר» נשאר (אין טקסט חופשי)",
+      "info": ""
+    },
+    {
+      "ok": true,
+      "m": "[1280] סיום: «התשובות נשלחו למשרד» — 11 מסכים ב-103 שניות",
+      "info": ""
+    },
+    {
+      "ok": true,
+      "m": "[1280] אף העלאה — בהיכרות אין מסמכים",
+      "info": ""
+    },
+    {
+      "ok": true,
+      "m": "[1280] בסיום אין «נשארו מסמכים»",
+      "info": ""
+    },
+    {
+      "ok": true,
+      "m": "[1280] «של מי / איפה» נענה מהרשימות (4 מסכים: של מי?=דוד; שם העסק (או השם שלכם)=שם; איך העסק רשום?=עוסק מורשה | של מי?=רחל; באיזו מדינה?=✓ ארצות הברית\nשינוי; מה בדיוק?=חשבון בנק | של מי?=שנינו; איפה המטבעות)",
+      "info": ""
+    },
+    {
+      "ok": true,
+      "m": "[1280] טקסט חופשי רק בתיקון של «יש שינוי» (1)",
+      "info": ""
+    },
+    {
+      "ok": true,
+      "m": "[1280] המשרד: «לבדוק את מה ש… מסר»",
+      "info": ""
+    },
+    {
+      "ok": true,
+      "m": "[1280] התשובה מהרשימה מוצגת למשרד כטקסט («של רחל · ארצות הברית»)",
+      "info": ""
+    },
+    {
+      "ok": true,
+      "m": "[1280] כל התשובות אושרו — מסך הרשת, «של מי / איפה», הילדים והחשבון",
+      "info": ""
+    },
+    {
+      "ok": true,
+      "m": "[1280] במסד: «כן» למה שסומן ו«לא» למה שלא, בתפקיד משק הבית",
+      "info": ""
+    },
+    {
+      "ok": true,
+      "m": "[1280] במסד: «איפה» = מזהה מהרשימה + שם; «של מי»",
+      "info": ""
+    },
+    {
+      "ok": true,
+      "m": "[1280] במסד: אף תשובת טקסט חופשי חוץ מתיקון המצב המשפחתי",
+      "info": ""
+    },
+    {
+      "ok": true,
+      "m": "[1280] staging: עדיין אף מייל",
+      "info": ""
+    },
+    {
+      "ok": true,
+      "m": "[1280] השאלות במסד: bankAccount:couple=answered · employers:client=answered · rentals:couple=answered · address:couple=answered · businessDetails:client=answered · children:couple=answered · family:couple=answered · marriageYear:couple=answered · whatYouHave:couple=answered · employers:spouse=answered · foreignDetails:couple:frn-new-couple-intake=answered · credits:couple=answered · cryptoDetails:couple=answered · accountDetails:couple:inv-new-couple-intake=answered",
+      "info": ""
+    },
+    {
+      "ok": true,
+      "m": "אין פנייה לשרת חוץ או לייצור (0)",
+      "info": ""
+    },
+    {
+      "ok": false,
+      "m": "אין שגיאות בדפדפן (1)",
+      "info": "1280: Failed to load resource: the server responded with a status of 401 ()"
+    },
+    {
+      "ok": true,
+      "m": "ניקוי staging: אין שאריות ({\"left\":0,\"storageLeft\":0,\"files\":0})",
+      "info": ""
+    }
+  ],
+  "consoleErrors": [
+    "1280: Failed to load resource: the server responded with a status of 401 ()"
+  ],
+  "blocked": [],
+  "rpcs": [
+    "is_authorized",
+    "expire_stale_quotations",
+    "google_calendar_status",
+    "get_btl_portal_record",
+    "get_home_office",
+    "shaam_filing_list",
+    "ensure_tax_file_intake",
+    "client_ready_to_send",
+    "get_client_flow_runs",
+    "replace_legacy_intake",
+    "add_tax_info_asks",
+    "publish_tax_info",
+    "get_client_portal",
+    "portal_tax_info",
+    "portal_submit_tax_info",
+    "portal_save_tax_info_draft",
+    "decide_tax_year_facts"
+  ]
+}

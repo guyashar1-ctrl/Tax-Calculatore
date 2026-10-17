@@ -231,6 +231,12 @@ function familyStatusAnswered(facts: YearFact[]): Client['familyStatus'] | undef
   return f ? (f.value as Client['familyStatus']) : undefined;
 }
 
+/** 16.10.2026 · מצב שאלת פתיחה מעובדות בלבד (מסך הרשת של זוג שומר לתפקיד 'couple') — בלי הכרטיס. */
+function factState(key: string, role: SubjectRole, facts: YearFact[]): 'yes' | 'no' | 'unknown' {
+  const latest = facts.filter(f => f.itemKey === key && f.subjectRole === role && (f.status === 'accepted' || f.status === 'pending')).sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
+  return latest ? (latest.answer === 'value' && latest.value !== false ? 'yes' : 'no') : 'unknown';
+}
+
 /** מצב שאלת הפתיחה לאדם: מעובדות (מאושרות או ממתינות) ומהכרטיס. */
 function screenerState(key: string, role: SubjectRole, c: Client, facts: YearFact[], y: number): 'yes' | 'no' | 'unknown' {
   const live = facts.filter(f => f.itemKey === key && f.subjectRole === role && (f.status === 'accepted' || f.status === 'pending'));
@@ -312,7 +318,7 @@ export function buildYearPicture(inp: PictureInput): YearPicture {
         if (!has && screenerState(item.after, r, c, facts, y) === 'yes') add(r);
       }
       // 16.10.2026 · זוג: «כן» של משק הבית (מסך הרשת) על שאלת פתיחה לאדם ⇒ ישות זמנית אחת למשק הבית, ו«של מי» בתוכה
-      if (after.per === 'person' && isMarried(c) && !all.some(t => !isProvisionalRef(t.entityRef)) && screenerState(item.after, 'couple', c, facts, y) === 'yes') add('couple');
+      if (after.per === 'person' && isMarried(c) && !all.some(t => !isProvisionalRef(t.entityRef)) && factState(item.after, 'couple', facts) === 'yes') add('couple');
     }
     // ישות זמנית שכבר יש עליה שאלה, תשובה או מסמך — נשארת ביעדים גם כשהשער השתנה (כדי שהשאלה תסומן כלא רלוונטית)
     const refs = new Set<string>([
@@ -422,7 +428,8 @@ export function buildYearPicture(inp: PictureInput): YearPicture {
         const primary: SubjectRole = t.gateRole ? t.gateRole : item.per === 'couple' || t.subjectRole === 'couple' ? 'couple' : role;
         const gate = screenerState(item.after, primary, c, facts, y);
         // ‼ 16.10.2026 · שאלת פתיחה של משק הבית (מסך הרשת של זוג) פותחת פריט לאדם, ושל האדם (יחיד) — פריט של משק הבית
-        const gate2 = gate === 'unknown' && !t.gateRole ? screenerState(item.after, primary === 'couple' ? 'client' : 'couple', c, facts, y) : gate;
+        //   ‼ מאדם למשק הבית — רק מעובדה (תשובת מסך הרשת), לא מהכרטיס: הכרטיס של הלקוח אינו עונה על בן/בת הזוג
+        const gate2 = gate === 'unknown' && !t.gateRole ? (primary === 'couple' ? screenerState(item.after, 'client', c, facts, y) : factState(item.after, 'couple', facts)) : gate;
         if (gate2 === 'no') { push('notApplicable', 'לפי שאלת הפתיחה — לא חל'); continue; }
         if (gate2 === 'unknown') continue; // מחכה לשאלת הפתיחה; לא נספר כחסר ולא נשאל לפניה
       }
