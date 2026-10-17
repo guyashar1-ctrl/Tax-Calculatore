@@ -63,7 +63,7 @@ figcaption{margin-top:8px}.marks{margin:0;padding:0;list-style:none;display:grid
 .zoom.on{display:flex}.zoom img{max-width:100%;max-height:100%;background:#fff}ul,ol{margin:.3em 0;padding-inline-start:1.3em}li{margin:.3em 0}
 .pager{display:flex;justify-content:space-between;gap:8px;margin-top:14px}.pager button{font:inherit;min-height:44px;padding:8px 16px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--ink);cursor:pointer}
 .step[hidden]{display:none}table{border-collapse:collapse;width:100%;font-size:.93rem}td{padding:6px 8px;border-top:1px solid var(--line);vertical-align:top}td:first-child{color:var(--ink2);width:34%}
-code{font-size:.9em}
+code{font-size:.9em;overflow-wrap:anywhere}table{table-layout:fixed}td{overflow-wrap:anywhere;min-width:0}.meta{overflow-wrap:anywhere}
 </style></head><body><main>
 <p class="meta">PIVO · מדריך שחרור · 17.10.2026 · צילומים מסביבת הבדיקות (staging, הדמיית דפדפן — לא מכשיר אמיתי) עם לקוח דמה «דוד ורחל» · קוד: ${esc(COMMIT)} · ${LIVE === 'yes' ? '<b>באתר (crm.yasharcpa.co.il), מיגרציות 233 ו-257 בייצור</b>' : '<b>עדיין לא באתר</b> — ב-staging בלבד; מיגרציות 233 ו-257 ממתינות לאישורך לייצור'}</p>
 <h1>הדוח השנתי — מנוע אחד, מקור לכל שדה, ואיתור שדה לפי קוד (שלב 1)</h1>
