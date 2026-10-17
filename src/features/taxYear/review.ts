@@ -42,9 +42,12 @@ const money = (n: number) => `${n.toLocaleString('he-IL')} ₪`;
 const PART_HE: Record<string, string> = { gross: 'ברוטו', withheld: 'מס שנוכה', profit: 'רווח', turnover: 'מחזור', customerWithholding: 'ניכוי מלקוחות',
   interest: 'ריבית', dividend: 'דיבידנד', gains: 'רווח הון', pension: 'פנסיה', studyFund: 'קרן השתלמות', life: 'ביטוח חיים' };
 
-export function describeValue(f: Pick<YearFact, 'answer' | 'value'> & { itemKey?: string }): string {
+/** שמות בני הזוג ל«של מי» (clientName / spouseName) — כשיש כרטיס. */
+export type ReviewNames = Record<string, string>;
+
+export function describeValue(f: Pick<YearFact, 'answer' | 'value'> & { itemKey?: string }, names?: ReviewNames): string {
   // ‼ 16.10.2026 · «של מי / איפה» (רשימות סגורות) — לפני הרשומה המובנית: אותו מפתח (מעסיק חדש) יכול להיענות בשתי הצורות
-  if (f.answer !== 'no' && isEntityValue(f.value)) return entityLines(f.itemKey ? ITEM_BY_KEY[f.itemKey]?.entity : undefined, f.value.items).join(' · ') || '—';
+  if (f.answer !== 'no' && isEntityValue(f.value)) return entityLines(f.itemKey ? ITEM_BY_KEY[f.itemKey]?.entity : undefined, f.value.items, names).join(' · ') || '—';
   // ‼ 13.10.2026 · תשובה מובנית (ילדים, בנק, כתובת, תחולה…) — בשורות קריאות, לא כאובייקט
   const sid = f.itemKey ? RECORD_OF[f.itemKey] : undefined;
   if (sid && f.answer !== 'no' && f.value && typeof f.value === 'object') {
@@ -74,23 +77,24 @@ export function describeValue(f: Pick<YearFact, 'answer' | 'value'> & { itemKey?
 
 const identity = (f: YearFact) => [f.itemKey, f.subjectRole, f.entityRef ?? ''].join('|');
 
-export function groupForReview(facts: YearFact[], evidence: Evidence[]): ReviewGroups {
+export function groupForReview(facts: YearFact[], evidence: Evidence[], names?: ReviewNames): ReviewGroups {
   const pending = facts.filter(f => f.status === 'pending');
   const accepted = facts.filter(f => f.status === 'accepted');
+  const dv = (f: YearFact) => describeValue(f, names);
   const rows = pending.map((f): ReviewRow => {
     const item = ITEM_BY_KEY[f.itemKey];
     const prev = accepted.filter(a => identity(a) === identity(f)).sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
-    const twin = pending.find(o => o.id !== f.id && identity(o) === identity(f) && o.source !== f.source && describeValue(o) !== describeValue(f));
+    const twin = pending.find(o => o.id !== f.id && identity(o) === identity(f) && o.source !== f.source && dv(o) !== dv(f));
     let conflict: string | undefined;
     if (f.clientAssertion === 'changed') conflict = 'הלקוח דיווח על שינוי ממה שידוע';
-    else if (prev && f.clientAssertion !== 'unchanged' && describeValue(prev) !== describeValue(f)) conflict = `שונה ממה שאושר (${describeValue(prev)})`;
-    else if (twin) conflict = `תשובה אחרת ממסלול נוסף: ${describeValue(twin)} (${twin.source === 'legacy_questionnaire' ? 'שאלון קודם' : 'דף אישי'})`;
+    else if (prev && f.clientAssertion !== 'unchanged' && dv(prev) !== dv(f)) conflict = `שונה ממה שאושר (${dv(prev)})`;
+    else if (twin) conflict = `תשובה אחרת ממסלול נוסף: ${dv(twin)} (${twin.source === 'legacy_questionnaire' ? 'שאלון קודם' : 'דף אישי'})`;
     return {
       fact: f,
       label: item?.label ?? f.itemKey,
       areaTitle: item ? AREA_BY_ID[item.area].title : '',
-      answerText: describeValue(f),
-      knownText: prev ? describeValue(prev) : f.clientAssertion === 'unchanged' && f.value && typeof f.value === 'object' ? ((f.value as { lines?: string[] }).lines ?? []).join(' · ') : undefined,
+      answerText: dv(f),
+      knownText: prev ? dv(prev) : f.clientAssertion === 'unchanged' && f.value && typeof f.value === 'object' ? ((f.value as { lines?: string[] }).lines ?? []).join(' · ') : undefined,
       conflict,
     };
   });

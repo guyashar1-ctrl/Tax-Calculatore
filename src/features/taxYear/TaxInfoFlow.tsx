@@ -157,7 +157,8 @@ export default function TaxInfoFlow({ stepId, token, previewClientId, previewAsk
   const screen = screens[idx];
   const doneCount = screens.filter(screenDone).length;
   const progress = Math.round((doneCount / screens.length) * 100);
-  const go = (n: number) => { setSaved(null); setTried(false); setI(Math.max(0, Math.min(screens.length - 1, n))); };
+  // ‼ בלי לחתוך לפי אורך הרשימה הנוכחית: אחרי מסך האישור ומסך הרשת רשימת המסכים מתארכת, ו-idx נחתך בעת הרינדור
+  const go = (n: number) => { setSaved(null); setTried(false); setI(Math.max(0, n)); };
   /** קדימה — רק למסכים שעוד לא נענו. מסמך «אעלה בהמשך» אינו «שאלה פתוחה» — הוא ברשימת המסמכים בסיום. */
   const advanceIn = (list: Screen[], from: number) => {
     const rest = list.findIndex((s, k) => k > from && !screenDone(s));
@@ -185,15 +186,20 @@ export default function TaxInfoFlow({ stepId, token, previewClientId, previewAsk
       const ok = list.filter(a => marks[a.id] !== 'changed');
       const nextOpened = new Set([...opened, ...changed.map(a => a.id)]);
       setDraft(d => ({ ...d, ...Object.fromEntries(changed.map(a => [a.id, { ...d[a.id], choice: 'changed' }])) }));
-      if (preview) { setOpened(nextOpened); advance(asks, nextOpened); return; }
+      if (preview) { setOpened(nextOpened); const scp = buildScreens(asks, nextOpened); const tp = scp.findIndex(s => s.kind === 'ask' && changed.some(a => a.id === s.ask.id)); if (tp >= 0) go(tp); else advanceIn(scp, idx); return; }
       setBusy(true); setErr(null);
-      const results = await Promise.all(ok.map(a => api.portalSubmit(token!, a.id, { kind: 'unchanged' })));
+      // ‼ בזה אחר זה (לא במקביל): כל תשובה היא שורה בשרת; מה שנשלח נשאר שלוח גם אם הבאה נכשלת
+      const sent: string[] = [];
+      let failed = false;
+      for (const a of ok) { const r = await api.portalSubmit(token!, a.id, { kind: 'unchanged' }); if (r.ok) sent.push(a.id); else { failed = true; break; } }
       setBusy(false);
-      const failed = results.filter(r => !r.ok);
-      if (failed.length) { setErr('השליחה נכשלה — נסו שוב'); return; }
-      const nextAsks = asks.map(x => (ok.some(a => a.id === x.id) ? { ...x, state: 'answered' as const, savedDraft: undefined } : x));
+      const nextAsks = asks.map(x => (sent.includes(x.id) ? { ...x, state: 'answered' as const, savedDraft: undefined } : x));
+      if (failed) { setAsks(nextAsks); setErr('השליחה נכשלה — נסו שוב'); return; }
       setAsks(nextAsks); setOpened(nextOpened);
-      advance(nextAsks, nextOpened);
+      // ‼ «יש שינוי» ⇒ קודם השורות שסומנו (העריכה שלהן), ורק אחר כך ממשיכים
+      const sc = buildScreens(nextAsks, nextOpened);
+      const target = sc.findIndex(s => s.kind === 'ask' && changed.some(a => a.id === s.ask.id));
+      if (target >= 0) go(target); else advanceIn(sc, idx);
     };
     return (
       <div className="ty-flow" data-screen="confirmAll">
@@ -242,7 +248,7 @@ export default function TaxInfoFlow({ stepId, token, previewClientId, previewAsk
   const recValue: RecordAnswer = d.record ?? { items: (input.kind === 'record' ? input.initial : input.kind === 'confirm' ? input.edit?.initial : undefined) as RecordAnswer['items'] ?? [] };
   const entSpec: EntitySpec | undefined = input.kind === 'entity' ? input.spec : undefined;
   const entCtx = input.kind === 'entity' ? input.context : undefined;
-  const entItems: EntityItem[] = d.items ?? [{}];
+  const entItems: EntityItem[] = d.items ?? (input.kind === 'entity' && input.initial?.length ? input.initial : [{}]);
 
   const answerOf = (): AskAnswer | null => {
     if (kind === 'confirm') {

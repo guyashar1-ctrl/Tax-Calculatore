@@ -174,7 +174,11 @@ export function promptFor(s: ItemStatus, ctx: AskCtx): AskPrompt {
   // ‼ 16.10.2026 · «של מי / איפה» — רשימות סגורות; «של מי» רק לזוג נשוי (ליחיד התשובה ידועה — השדה יורד מהמפרט)
   if (it.input === 'entity' && it.entity) {
     const spec = { ...it.entity, fields: visibleFields(it.entity, people) };
-    return { ...base, title: fillP(qText ?? it.label), input: { kind: 'entity', spec, context: people } };
+    // ‼ 13.10.2026 (גיא): בתיק ידוע שהאדם רשום כעוסק אבל העסק עצמו לא רשום — מציגים את מה שידוע ומבקשים להשלים
+    const dealer = it.key === 'intake.businessDetails' ? dealerOf(c, role) : null;
+    const lead = dealer ? `רשום/ה אצלנו כ${DEALER_KIND_LABELS[dealer]}. ` : '';
+    const initial = dealer ? [{ dealer: dealer === 'licensed' ? 'murshe' : dealer === 'exempt' ? 'patur' : dealer === 'company' ? 'company' : '' }] : undefined;
+    return { ...base, title: `${lead}${fillP(qText ?? it.label)}`, input: { kind: 'entity', spec, context: people, ...(initial ? { initial } : {}) } };
   }
   // ‼ רשומה מובנית: פרטים (מעסיק, נכס, חשבון…) ושאלות התחולה — שדות נפרדים
   if (schema && (it.kind === 'detail' || it.input === 'record')) {

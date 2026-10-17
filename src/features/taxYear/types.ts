@@ -200,7 +200,7 @@ export type AskInput =
   /** 16.10.2026 · מסך רשת: שאלה אחת שתשובתה קבוצת מפתחות; השרת שומר כן/לא לכל מפתח, ופותח את שאלות ההמשך של מה שסומן. */
   | { kind: 'multi'; options: MultiOption[] }
   /** 16.10.2026 · של מי / איפה — רשימות סגורות. `context` — שמות בני הזוג (בדף האישי אין כרטיס). */
-  | { kind: 'entity'; spec: EntitySpec; context?: Record<string, string> }
+  | { kind: 'entity'; spec: EntitySpec; context?: Record<string, string>; initial?: Record<string, string>[] }
   | { kind: 'amount' }
   | { kind: 'date' }
   | { kind: 'text' }

@@ -18,12 +18,16 @@ export const sortAsks = (asks: InfoAsk[]) => [...asks].sort((a, b) => RANK(a) - 
  */
 export function buildScreens(asks: InfoAsk[], opened: ReadonlySet<string>): Screen[] {
   const sorted = sortAsks(asks);
-  const grouped = sorted.filter(a => a.prompt.input.kind === 'confirm' && a.state === 'published' && !opened.has(a.id));
+  const confirms = sorted.filter(a => a.prompt.input.kind === 'confirm');
+  const grouped = confirms.filter(a => a.state === 'published' && !opened.has(a.id));
+  if (grouped.length < 2) return sorted.map(a => ({ kind: 'ask', ask: a }));
+  // ‼ השורות שסומנו «יש שינוי» — מיד אחרי מסך האישור (לא במקומן הממוין), כדי שהתיקון יבוא ברצף
+  const openedList = confirms.filter(a => a.state === 'published' && opened.has(a.id));
   const out: Screen[] = [];
   let placed = false;
   for (const a of sorted) {
-    if (grouped.length >= 2 && grouped.includes(a)) {
-      if (!placed) { out.push({ kind: 'confirmAll', asks: grouped }); placed = true; }
+    if (grouped.includes(a) || openedList.includes(a)) {
+      if (!placed) { out.push({ kind: 'confirmAll', asks: grouped }, ...openedList.map(ask => ({ kind: 'ask' as const, ask }))); placed = true; }
       continue;
     }
     out.push({ kind: 'ask', ask: a });

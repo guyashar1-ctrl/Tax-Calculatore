@@ -219,6 +219,11 @@ export const HINTS: Record<string, string> = {
   'intake.insurance': INSURANCE,
   'intake.insuranceDocs': 'האישור השנתי למס מחברת הביטוח, או הפוליסה. ' + LATER,
   'intake.prevReturns': 'דוח שנתי שהגשתם בעבר — בעצמכם או דרך רואה חשבון אחר.',
+  // 16.10.2026 · מסך הרשת ופריטי «של מי / איפה»
+  'intake.whatYouHave': 'מסמנים כל מה שיש — גם אם רק של אחד מכם, וגם אם לא בטוחים. על כל מה שמסומן נשאל אחר כך של מי ואיפה.',
+  'intake.cryptoDetails': 'הזירה או האפליקציה שבה המטבעות — למשל Bit2C או Binance. ארנק פרטי — גם הוא ברשימה.',
+  'intake.allowanceDetails': 'מי משלם את הקצבה — ביטוח לאומי, קרן פנסיה, חברת ביטוח או משרד הביטחון.',
+  'intake.insuranceDetails': 'חברת הביטוח שאליה משלמים — כמו שמופיע בפוליסה או בהוראת הקבע.',
   'intake.prevReturnDocs': 'הדוח האחרון שהוגש ושומת המס שהתקבלה עליו. ' + LATER,
   'intake.openIssues': 'למשל: מכתב או דרישה ממס הכנסה, חוב במע״מ או בביטוח לאומי, ביקורת, או דרישה להצהרת הון.',
   'intake.openIssueDocs': 'צילום המכתבים או הדרישות. ' + LATER,
