@@ -8,6 +8,7 @@ import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { buildIdPdf, canPreviewInBrowser, IdPdfError, isPdfFile } from './idSides';
 import { orderedParts, partsFor, partsManifest, partsMissing, type PartFile, type PartsMode } from './docParts';
 import { clearParts, loadParts, saveParts } from './partsStore';
+import { rotateImage } from './rotateImage';
 import './docParts.css';
 
 export interface DocPartsPickerProps {
@@ -26,18 +27,6 @@ export interface DocPartsPickerProps {
 type Item = PartFile & { file: File; url?: string };
 let seq = 0;
 const nid = () => `p${Date.now().toString(36)}${(++seq).toString(36)}`;
-
-async function rotateImage(f: File, deg: number): Promise<File> {
-  if (!deg || !canPreviewInBrowser(f)) return f;
-  const bmp = await createImageBitmap(f, { imageOrientation: 'from-image' } as ImageBitmapOptions);
-  const swap = deg === 90 || deg === 270;
-  const c = document.createElement('canvas');
-  c.width = swap ? bmp.height : bmp.width; c.height = swap ? bmp.width : bmp.height;
-  const g = c.getContext('2d')!;
-  g.translate(c.width / 2, c.height / 2); g.rotate((deg * Math.PI) / 180); g.drawImage(bmp, -bmp.width / 2, -bmp.height / 2);
-  const blob = await new Promise<Blob | null>(r => c.toBlob(r, 'image/jpeg', 0.95));
-  return blob ? new File([blob], f.name.replace(/\.\w+$/, '') + '.jpg', { type: 'image/jpeg' }) : f;
-}
 
 export default function DocPartsPicker({ docKind, fileName, storeKey, onConfirm, disabled, maxBytes = 10 * 1024 * 1024, confirmLabel = 'אישור ושליחה' }: DocPartsPickerProps) {
   const spec = useMemo(() => partsFor(docKind), [docKind]);

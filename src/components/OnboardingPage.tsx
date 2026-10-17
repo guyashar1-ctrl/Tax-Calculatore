@@ -20,7 +20,8 @@ import {
   docsForRequirement, identityReqKey, identityRequirements, missingIdentity, IDENTITY_DOC_LABELS,
   type IdentityRequirement, type IdentityDocsMap,
 } from '../utils/identityEvidence';
-import IdentitySidesPicker from '../features/identity/IdentitySidesPicker';
+import IdentityFlexPicker from '../features/identity/IdentityFlexPicker';
+import type { IdPartsManifest } from '../features/identity/idFlex';
 import { FirmBranding } from '../types/firmProfile';
 import { deriveQuotationBrand } from './quotations/quotationBranding';
 import SignaturePad from './SignaturePad';
@@ -113,7 +114,8 @@ export interface OnboardingActions {
     Promise<{ status: 'signed' } | { status: 'failed' } | SimulatedResult>;
   makeSpouseLink():
     Promise<{ status: 'created'; link: string } | { status: 'failed' } | SimulatedResult>;
-  uploadIdDoc(r: IdentityRequirement, file: File):
+  /** ‼ 16.10.2026: parts — ההרכב (מה כל עמוד ב-PDF) מההעלאה הגמישה; נשמר ליד הרשומה בשרת. */
+  uploadIdDoc(r: IdentityRequirement, file: File, parts?: IdPartsManifest):
     Promise<{ status: 'uploaded'; documentId: string } | { status: 'failed'; code?: string } | SimulatedResult>;
   /** 234: «אין לי רישיון נהיגה» — נשמר על הבקשה, כדי שהמשרד יראה ושהטופס יזכור. */
   setNoLicense(person: RepTarget, value: boolean):
@@ -157,11 +159,12 @@ export function liveOnboardingActions(token: string): OnboardingActions {
       if (error || !data?.ok) return { status: 'failed' };
       return { status: 'saved' };
     },
-    async uploadIdDoc(r, file) {
+    async uploadIdDoc(r, file, parts) {
       const body = new FormData();
       body.append('token', token);
       body.append('person', r.person);
       body.append('docKind', r.kind);
+      if (parts?.length) body.append('parts', JSON.stringify(parts.map(p => ({ page: p.page, part: p.part, tag: p.tag }))));
       body.append('file', file);
       const { data, error: fnErr } = await supabase.functions.invoke('onboarding-upload-id', { body });
       if (fnErr || !data?.ok) return { status: 'failed', code: data?.error };
@@ -509,13 +512,13 @@ export function OnboardingView(props: OnboardingViewProps) {
     }
   }
 
-  /** ‼ נקרא רק מ«אישור ושליחה» של בוחר הצדדים — הקובץ כבר PDF אחד. מחזיר שגיאה או null. */
-  async function uploadIdDoc(r: IdentityRequirement, file: File): Promise<string | null> {
+  /** ‼ נקרא רק מ«אישור ושליחה» של בוחר התעודה — הקובץ כבר PDF אחד, וההרכב איתו. מחזיר שגיאה או null. */
+  async function uploadIdDoc(r: IdentityRequirement, file: File, parts?: IdPartsManifest): Promise<string | null> {
     setUploading(identityReqKey(r));
     setError(null);
     setSimKey(null);
     try {
-      const res = await actions.uploadIdDoc(r, file);
+      const res = await actions.uploadIdDoc(r, file, parts);
       if (res.status === 'failed') {
         const code = res.code;
         return code === 'too_large' ? 'הקובץ גדול מדי - עד 10MB'
@@ -1318,8 +1321,8 @@ export function OnboardingView(props: OnboardingViewProps) {
                     </div>
                   ) : (
                     <>
-                      {/* ‼ גיא (12.10.2026): צד אחד ואז השני (גם בשתי פעולות), או קובץ אחד עם שני
-                          הצדדים; מצלמה, גלריה או קובץ. שום דבר לא עולה עד «אישור ושליחה» — ואז PDF אחד. */}
+                      {/* ‼ גיא (16.10.2026): העלאה גמישה — תמונה אחת של הכול או כמה, תיוג לכל תמונה,
+                          ובדיקה שהסט שלם (קדמי+אחורי+ספח). שום דבר לא עולה עד «אישור ושליחה» — ואז PDF אחד. */}
                       {have.length > 0 && !pickerOpen[identityReqKey(r)] ? (
                         <button type="button" disabled={busyMe}
                           onClick={() => setPickerOpen(p => ({ ...p, [identityReqKey(r)]: true }))}
@@ -1328,12 +1331,12 @@ export function OnboardingView(props: OnboardingViewProps) {
                           להחליף או לצרף שוב
                         </button>
                       ) : (
-                        <IdentitySidesPicker
+                        <IdentityFlexPicker
                           kind={r.kind === 'idCard' && !r.exact ? 'idOrLicense' : r.kind}
                           fileName={`${IDENTITY_DOC_LABELS[r.kind]} - ${r.personName}`}
                           disabled={busyMe}
-                          tone={{ ink, muted: '#6B6B68', border: '#E3E2DD', accent: ink, radius: btnRadius }}
-                          onConfirm={pdf => uploadIdDoc(r, pdf)}
+                          tone={{ ink, muted: '#6B6B68', border: '#E3E2DD', accent: ink, radius: btnRadius, card: '#fff', well: '#F4F3EF' }}
+                          onConfirm={(pdf, parts) => uploadIdDoc(r, pdf, parts)}
                           onCancel={have.length > 0 ? () => setPickerOpen(p => ({ ...p, [identityReqKey(r)]: false })) : undefined} />
                       )}
                       {simNote(`upload:${identityReqKey(r)}`)}

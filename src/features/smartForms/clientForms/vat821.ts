@@ -13,7 +13,8 @@
 import type { FieldDef, SmartFormTemplate, UnmappedArea } from '../types';
 import type { CfData, ClientFormDef, CfScreen } from './types';
 import { addressLine, ilDate, splitPhone, todayIso } from './format';
-import { INDUSTRIES, industryShort } from './industries';
+import { industryShort } from './industries';
+import { licensedRuleOf } from '../../../data/vatBranches';
 import { ruleView } from '../../taxRules/registry';
 
 export const VAT821_KEY = 'vat-821';
@@ -168,14 +169,33 @@ export function activityText(d: CfData): string {
 /** «לא קיים נכס» (מסך פתיחת תיק של רשות המסים) — תיבות הנכס נשארות ריקות. */
 export const propertyExists = (d: CfData) => d.propExists !== 'no';
 
-/** סוג העוסק לפי המחזור המשוער מול תקרת «עוסק פטור» (כלל micro.turnoverCeiling לשנת הפתיחה / השנה). */
+/**
+ * סוג העוסק: (א) ענף שחייב ברישום כמורשה לפי תקנה 13 לתקנות הרישום — מורשה בלי קשר למחזור;
+ * (ב) אחרת לפי המחזור המשוער מול תקרת «עוסק פטור» (סעיף 1 לחוק מע״מ; אותו סכום כמו micro.turnoverCeiling).
+ * ‼ ענף «מותנה» (למשל הדרכה לקבוצות) אינו מכריע לבד — נשאר לפי המחזור, עם הערה.
+ */
 export function dealerKindOf(d: CfData): 'exempt' | 'licensed' | undefined {
+  if (licensedRuleOf(d.industry)?.level === 'mandatory') return 'licensed';
   const t = Number(d.turnover);
   if (!d.turnover || !Number.isFinite(t)) return undefined;
-  const year = Number((d.openDate ?? '').slice(0, 4)) || Number(todayIso().slice(0, 4));
-  const ceiling = ruleView('micro.turnoverCeiling', year)?.entry?.value ?? ruleView('micro.turnoverCeiling', year - 1)?.entry?.value;
+  const ceiling = exemptCeilingOf(d);
   if (typeof ceiling !== 'number') return undefined;
   return t <= ceiling ? 'exempt' : 'licensed';
+}
+export function exemptCeilingOf(d: CfData): number | undefined {
+  const year = Number((d.openDate ?? '').slice(0, 4)) || Number(todayIso().slice(0, 4));
+  const v = ruleView('micro.turnoverCeiling', year)?.entry?.value ?? ruleView('micro.turnoverCeiling', year - 1)?.entry?.value;
+  return typeof v === 'number' ? v : undefined;
+}
+/** למה — משפט קצר למשרד וללקוח. */
+export function dealerReason(d: CfData): string | undefined {
+  const r = licensedRuleOf(d.industry);
+  if (r?.level === 'mandatory') return `לפי הענף: עוסק מורשה (תקנה ${r.group} — ${r.note})`;
+  const k = dealerKindOf(d);
+  if (!k) return r?.level === 'conditional' ? `ייתכן שהענף מחייב רישום כמורשה (תקנה ${r.group}) — ${r.note}` : undefined;
+  const c = exemptCeilingOf(d);
+  const base = `לפי המחזור: ${DEALER_KIND_LABEL[k]}${c ? ` (תקרת עוסק פטור ${c.toLocaleString('he-IL')} ₪)` : ''}`;
+  return r?.level === 'conditional' ? `${base} · ייתכן שהענף מחייב מורשה (תקנה ${r.group}) — ${r.note}` : base;
 }
 export const DEALER_KIND_LABEL = { exempt: 'עוסק פטור', licensed: 'עוסק מורשה' } as const;
 
@@ -263,8 +283,8 @@ const SCREENS: CfScreen[] = [
     why: 'מע״מ קובע לפי תיאור הפעילות את ענף העסק. כדאי לפרט — כולל פעילות משנית אם יש.',
     fields: [
       { key: 'businessName', label: 'שם העסק', input: 'text', store: 'card', required: true },
-      { key: 'industry', label: 'ענף כלכלי', input: 'select', store: 'card', required: true, options: INDUSTRIES,
-        hint: 'הענף הכללי שבו העסק פועל — כפי שרשות המסים מסווגת.' },
+      { key: 'industry', label: 'ענף כלכלי', input: 'vatBranch', store: 'card', required: true,
+        hint: 'הענף מרשימת רשות המסים (מע״מ) — חפשו מילה מהעיסוק ובחרו. ענפים מסוימים חייבים ברישום כעוסק מורשה.' },
       { key: 'activity', label: 'מה בדיוק העסק עושה?', input: 'textarea', store: 'card', required: true, placeholder: 'לדוגמה: עיצוב גרפי ובניית אתרים לעסקים קטנים' },
     ],
   },
@@ -299,8 +319,8 @@ const SCREENS: CfScreen[] = [
   {
     id: 'opening', always: true, title: 'פתיחת העסק',
     hint: d => {
-      const k = dealerKindOf(d);
-      return k ? `הערכה מספיקה — המשרד יעבור על זה איתך. לפי המחזור: ${DEALER_KIND_LABEL[k]}.` : 'הערכה מספיקה — המשרד יעבור על זה איתך.';
+      const why = dealerReason(d);
+      return why ? `הערכה מספיקה — המשרד יעבור על זה איתך. ${why}.` : 'הערכה מספיקה — המשרד יעבור על זה איתך.';
     },
     why: 'לפי המחזור המשוער מע״מ קובע אם תירשם/י כעוסק מורשה או כעוסק פטור.',
     fields: [
@@ -348,7 +368,7 @@ const SCREENS: CfScreen[] = [
 const SAMPLE: CfData = {
   firstName: 'ישראל', lastName: 'ישראלי', idNumber: '000000018', mobile: '050-1234567', landline: '04-8123456',
   homeStreet: 'הרצל', homeHouse: '12', homeCity: 'חיפה', homeZip: '3303912',
-  businessName: 'ישראלי עיצובים', industry: 'M', activity: 'עיצוב גרפי, מיתוג ובניית אתרים לעסקים קטנים, כולל הדפסות והפקת חומרי שיווק',
+  businessName: 'ישראלי עיצובים', industry: '7410', activity: 'עיצוב גרפי, מיתוג ובניית אתרים לעסקים קטנים, כולל הדפסות והפקת חומרי שיווק',
   bizAtHome: 'yes', bizStreet: 'הרצל', bizHouse: '12', bizCity: 'חיפה', bizZip: '3303912', bizPhone: '050-1234567',
   mailSame: 'yes', openDate: '2026-11-01', employees: '1', turnover: '180000', dealerKind: 'licensed',
   bankCode: '12', bankName: 'בנק הפועלים', bankBranch: '600', bankAccount: '123456',
@@ -368,7 +388,7 @@ export const VAT821: ClientFormDef = {
   // ‼ «לא קיים נכס» ⇒ אף תיבה בחלק הנכס אינה מצוירת (וגם לא מסומנת כחסרה)
   isActive: (field, d) => (field.id.startsWith('prop.') ? propertyExists(d) : true),
   fieldRequired,
-  statusNote: d => { const k = dealerKindOf(d); return k ? `לפי המחזור: ${DEALER_KIND_LABEL[k]}` : undefined; },
+  statusNote: dealerReason,
   questionKeys,
   markerGroups: [
     { id: 'prop.kind', label: 'תיאור הנכס — יש לסמן אחד', fieldIds: ['prop.kind.store', 'prop.kind.office', 'prop.kind.lot', 'prop.kind.warehouse', 'prop.kind.other'], required: propertyExists },

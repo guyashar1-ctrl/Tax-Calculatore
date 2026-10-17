@@ -18,6 +18,7 @@ import { fieldError, ilDate, phoneDisplay, todayIso } from './format';
 import CfFields, { bankNameOf } from './CfFields';
 import { clientFormErrorText, officeFill, officeView, type ClientFormView } from './api';
 import { needsOfficeRep, useOfficeRep, type OfficeRep } from './officeRep';
+import { useKnowledgeLink } from '../../taxKnowledge/knowledgeLink';
 import '../../taxYear/taxYear.css';
 import '../smartForms.css';
 import './clientForms.css';
@@ -106,6 +107,8 @@ function PanelBody({ def, view, client, unpublished, filingId, onChanged }: {
     setFocusKey(m.questionKeys[0]); setFillOpen(true);
   };
   const statusNote = def.statusNote?.(live);
+  // «ללמוד» — עוסק פטור או מורשה (תקנה 13, התקרה, הענף) — כשהפאנל בתוך כרטיס הלקוח
+  const learn = useKnowledgeLink();
 
   return (
     <div className="cfp">
@@ -115,6 +118,7 @@ function PanelBody({ def, view, client, unpublished, filingId, onChanged }: {
         {open && !unpublished && <span className="ty-note">הלקוח ממלא וחותם בדף האישי שלו. הפרטים שהוא משלים נשמרים גם בכרטיס.</span>}
         {view.signedAt && <span className="ty-note">נחתם ב-{ilDate(view.signedAt.slice(0, 10))}</span>}
         {statusNote && <span className="cfp-chip" data-cf-status-note>{statusNote}</span>}
+        {statusNote && learn && def.key === 'vat-821' && <button type="button" className="ta-link" onClick={() => learn.open('dealerType', view.stepId ?? undefined)} data-cf-learn>ללמוד: פטור או מורשה</button>}
       </div>
       {def.signNote && <div className="cf-note" role="note">{def.key === 'ita-4440' ? 'רשות המסים מבקשת שהתצהיר ייחתם בפני עורך/ת דין — אישור עו״ד אינו חלק מהטופס הדיגיטלי.' : def.signNote}</div>}
 

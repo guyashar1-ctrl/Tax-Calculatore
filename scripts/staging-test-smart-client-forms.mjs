@@ -168,18 +168,23 @@ try {
   const pub = await rpc(office.db, 'publish_case_changes', { p_client_id: C2 });
   ok('פרסום הבקשה', pub?.ok !== false, pub);
   const s2save = await rpc(anon, 'portal_smart_form_save', { p_token: TOK2, p_step_id: S2, p_values: {
-    activity: 'עיצוב גרפי', industry: 'M', bizAtHome: 'yes', bizStreet: 'הרצל', bizHouse: '12', bizCity: 'חיפה', openDate: '2026-11-15', employees: '1', turnover: '120000', dealerKind: 'exempt',
+    activity: 'עיצוב גרפי', industry: '7410', bizAtHome: 'yes', bizStreet: 'הרצל', bizHouse: '12', bizCity: 'חיפה', openDate: '2026-11-15', employees: '1', turnover: '120000', dealerKind: 'exempt',
     propExists: 'yes', propKind: 'other', propKindOther: 'דירת מגורים', propTenure: 'owned', propParty: 'נועה בדיקת-עוסק', mailSame: 'yes' } });
   ok('821: שמירה מהדף', s2save?.ok, s2save);
   const [c2] = await writeStaging(`select business_name, business_description, businesses, bank_accounts, dealer_type, field_meta->'businesses'->>'by' bby, field_meta->'bankAccounts'->>'by' kby from public.clients where id = ${q(C2)}`);
   const biz = (c2?.businesses ?? [])[0] ?? {};
   ok('כרטיס: עסק נוצר עם תיאור, כתובת, ענף, תאריך פתיחה מלא ושנה', c2?.business_name === 'נועה עיצובים' && biz.description === 'עיצוב גרפי' && biz.address?.street === 'הרצל'
-    && biz.startYear === 2026 && biz.startDate === '2026-11-15' && biz.industry === 'M' && c2.business_description === 'עיצוב גרפי' && c2.bby === 'client', c2);
+    && biz.startYear === 2026 && biz.startDate === '2026-11-15' && biz.industry === '7410' && c2.business_description === 'עיצוב גרפי' && c2.bby === 'client', c2);
   ok('251: סוג העוסק לפי המחזור — עוסק פטור בעסק שהטופס יצר, ו-dealer_type הושלם', biz.kind === 'osek_patur' && c2?.dealer_type === 'exempt', { kind: biz.kind, dt: c2?.dealer_type });
   const g2 = await rpc(anon, 'portal_smart_form_get', { p_token: TOK2, p_step_id: S2 });
-  ok('251: «מה בכרטיס» מחזיר openDate ו-industry מכרטיס העסק', g2?.card?.openDate === '2026-11-15' && g2.card?.industry === 'M', g2?.card);
-  const badInd = await rpc(anon, 'portal_smart_form_save', { p_token: TOK2, p_step_id: S2, p_values: { industry: 'Z' } });
-  ok('251: ענף שאינו ברשימה נדחה', badInd?.error === 'bad_choice', badInd);
+  ok('251: «מה בכרטיס» מחזיר openDate ו-industry מכרטיס העסק', g2?.card?.openDate === '2026-11-15' && g2.card?.industry === '7410', g2?.card);
+  const badInd = await rpc(anon, 'portal_smart_form_save', { p_token: TOK2, p_step_id: S2, p_values: { industry: 'ZZ' } });
+  ok('252: ענף שאינו קוד (3–4 ספרות) נדחה', badInd?.error === 'bad_choice', badInd);
+  const licensedInd = await rpc(anon, 'portal_smart_form_save', { p_token: TOK2, p_step_id: S2, p_values: { industry: '6921', dealerKind: 'licensed' } });
+  const [c2l] = await writeStaging(`select businesses->0->>'kind' k, businesses->0->>'industry' i from public.clients where id = ${q(C2)}`);
+  ok('252: ענף שחייב במורשה (6921, תקנה 13) ⇒ העסק שהטופס יצר הופך לעוסק מורשה', licensedInd?.ok && c2l?.k === 'osek_morshe' && c2l.i === '6921', c2l);
+  const backInd = await rpc(anon, 'portal_smart_form_save', { p_token: TOK2, p_step_id: S2, p_values: { industry: '7410', dealerKind: 'exempt' } });
+  ok('252: חזרה לענף רגיל ⇒ שוב לפי המחזור (פטור)', backInd?.ok && (await writeStaging(`select businesses->0->>'kind' k from public.clients where id = ${q(C2)}`))[0]?.k === 'osek_patur');
   const farDate = await rpc(anon, 'portal_smart_form_save', { p_token: TOK2, p_step_id: S2, p_values: { openDate: '2099-01-01' } });
   ok('251: תאריך פתיחה רחוק מדי נדחה; עתיד קרוב מותר', farDate?.error === 'bad_date', farDate);
   // מחזור גדול ⇒ מורשה (העסק נוצר ע"י הטופס ⇒ עוקב)

@@ -1191,6 +1191,8 @@ export interface RepIdentityDocEntry {
   at?: string;
   via?: string;
   clientConfirmedAt?: string;
+  /** 16.10.2026 · ההרכב מההעלאה הגמישה: מה כל עמוד ב-PDF («קדמי+ספח», «אחורי»). תיאור בלבד. */
+  parts?: { page: number; part: string; tag?: string }[];
 }
 
 /** הגדרת מסמך החתימה — נוצרת בשלב "הפקת טופס" אצל הרו"ח */

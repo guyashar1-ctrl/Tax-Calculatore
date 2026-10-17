@@ -13,7 +13,7 @@ export type CfData = Record<string, string | undefined>;
 
 export type CfInput =
   | 'text' | 'hebrew' | 'textarea' | 'date' | 'month' | 'id' | 'phone' | 'zip' | 'house'
-  | 'number' | 'money' | 'choice' | 'select' | 'check' | 'bank' | 'branch' | 'account';
+  | 'number' | 'money' | 'choice' | 'select' | 'check' | 'bank' | 'vatBranch' | 'branch' | 'account';
 
 export interface CfField {
   key: string;

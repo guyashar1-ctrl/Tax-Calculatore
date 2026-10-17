@@ -11,6 +11,7 @@
 //   גם במייל או בוואטסאפ, וגיא ממשיך לסמן פריטים בעצמו (הכרעת גיא 2026-08-05).
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { findIdenticalAmong, personDocIds, sha256Hex } from "../_shared/idDocDedupe.ts";
+import { parseParts, partsNote } from "../_shared/idParts.ts";
 
 const MAX_BYTES = 10 * 1024 * 1024; // 10MB
 const MAX_PER_HOUR = 40;            // רשת ביטחון מול הצפה, לא מכסה עבודה אמיתית
@@ -81,6 +82,8 @@ Deno.serve(async (req: Request) => {
     const tokenKind = String(form.get("tokenKind") || "portal");
     const stepId = String(form.get("stepId") || "");
     const itemKey = String(form.get("itemKey") || "");
+    // ‼ 16.10.2026 · ההרכב מההעלאה הגמישה של צילום תעודה (idFlex.ts) — מה כל עמוד ב-PDF. תיאור בלבד.
+    const parts = parseParts(form.get("parts"));
     const file = form.get("file");
 
     // ‼ העלאה מרוכזת מדף הרו"ח הקודם: הוא שולח את מה שיש לו, בלי לשייך כל
@@ -326,7 +329,7 @@ Deno.serve(async (req: Request) => {
       // (תיק המסמכים נופל ל-fileName). השיוך לפריט חי ב-checklist של השלב,
       // והמקור נקרא מהתווית — לא מהשם.
       description: tokenKind === "release" ? "" : itemLabel,
-      notes: `הועלה על ידי ${source} מהדף הציבורי`,
+      notes: partsNote(`הועלה על ידי ${source} מהדף הציבורי`, parts),
       status: "received",
     });
     if (docErr) {
@@ -390,7 +393,9 @@ Deno.serve(async (req: Request) => {
       }
       : itemKind === "files"
       ? { ...list[idx], done: true, documentIds: [...priorIds, docId], doneAt: new Date().toISOString() }
-      : { ...list[idx], done: true, documentId: docId, doneAt: new Date().toISOString() };
+      // ‼ 257 · צילום תעודה: ההרכב (מה כל עמוד) נשמר על הפריט, והטריגר (client_documents_to_identity_docs_trg)
+      //   מעתיק אותו לרישום על בקשת הייצוג — כמו בהעלאה מטופס הייצוג (onboarding-upload-id).
+      : { ...list[idx], done: true, documentId: docId, doneAt: new Date().toISOString(), ...(idPerson && parts ? { parts } : {}) };
     // ‼ ההשלמה נספרת לפי דרישות חובה בלבד (בבקשה חופשית); פריט רשות פתוח
     // לעולם לא חוסם (הכרעת גיא, 6+7). צ'קליסט מסמכים — כל הפריטים חובה,
     // למעט הפריט הפתוח של הרו"ח הקודם (optional).
