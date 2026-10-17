@@ -20,7 +20,7 @@ export const factFromRow = (r: Row): YearFact => ({
   source: r.source as YearFact['source'], clientAssertion: s(r.client_assertion) as YearFact['clientAssertion'],
   confirmsFactId: s(r.confirms_fact_id), requestId: s(r.request_id), evidenceId: s(r.evidence_id), askId: s(r.ask_id),
   status: r.status as YearFact['status'], decidedBy: s(r.decided_by), decidedAt: s(r.decided_at), supersedes: s(r.supersedes),
-  note: s(r.note), createdAt: String(r.created_at),
+  note: s(r.note), createdAt: String(r.created_at), lineKey: s(r.line_key), enteredBy: s(r.entered_by),
 });
 
 export const evidenceFromRow = (r: Row): Evidence => ({
