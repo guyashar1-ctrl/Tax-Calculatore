@@ -12,6 +12,8 @@ const f233 = read('../../../supabase/233-annual-returns.sql'), f258 = read('../.
 const fnsOf = (file) => [...file.matchAll(/create or replace function public\.([a-z0-9_]+)\(/g)].map(m => m[1]);
 const bodyOf = (file, f) => { const at = file.indexOf(`function public.${f}(`); const s = file.indexOf('$$', at) + 2; const e = file.indexOf('$$', s); return file.slice(s, e).trim(); };
 const INTERNAL = ['_annual_return_immutable'];
+// ‼ prod-apply-migration שולח את הקובץ כמות שהוא (CRLF בעותק הזה) — משווים אחרי נרמול סיומות שורה
+const norm = (s) => s.replace(/\r\n/g, '\n').trim();
 let bad = 0;
 for (const [file, fns] of [[f233, fnsOf(f233)], [f258, fnsOf(f258)]]) {
   const rows = await sql(`select p.proname, p.prosrc, p.prosecdef, has_function_privilege('anon', p.oid, 'execute') anon, has_function_privilege('authenticated', p.oid, 'execute') auth
@@ -19,10 +21,7 @@ for (const [file, fns] of [[f233, fnsOf(f233)], [f258, fnsOf(f258)]]) {
   for (const f of fns) {
     const r = rows.find(x => x.proname === f);
     if (!r) { console.log(`  ✗ ${f} חסרה`); bad++; continue; }
-    // ‼ prod-apply-migration שולח את הקובץ כמות שהוא (CRLF בעותק הזה) — משווים אחרי נרמול סיומות שורה
-    const same = r.prosrc.replace(/
-/g, '
-').trim() === bodyOf(file, f);
+    const same = norm(r.prosrc) === bodyOf(file, f);
     const permsOk = !r.anon && (INTERNAL.includes(f) ? !r.auth : r.auth) && (INTERNAL.includes(f) || r.prosecdef);
     console.log(`  ${same && permsOk ? '✓' : '✗'} ${f} · גוף ${same ? 'זהה לקובץ' : 'שונה!'} · anon ${r.anon ? 'כן!' : 'לא'} · authenticated ${r.auth ? 'כן' : 'לא'}`);
     if (!same || !permsOk) bad++;
