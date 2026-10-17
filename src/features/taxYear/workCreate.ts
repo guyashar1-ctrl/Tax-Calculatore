@@ -10,7 +10,7 @@ import { stepFromDb } from '../../lib/dbMappers';
 import { todayIso } from '../../utils/dateFormat';
 import * as api from './api';
 import { buildYearPicture } from './picture';
-import { buildAskPlan } from './asks';
+import { buildAskPlan, type AskPlanEntry } from './asks';
 import { DURABLE_KINDS, scopeYearData } from './yearData';
 import { previousByArea, type WealthPayload } from './WealthDeclarationPanel';
 import { metaOf, type NewWorkRow } from './workMeta';
@@ -29,27 +29,64 @@ export interface CreateResult {
   failedAt?: 'work' | 'draft';
 }
 
-/** הטיוטה לבד — גם לעבודה קיימת (למשל אחרי כשל בהכנת השאלות). */
-export async function draftAsksFor(client: Client, stepId: string): Promise<{ ok: boolean; added: number; error?: string }> {
-  const { data, error } = await supabase.from('onboarding_steps').select('*').eq('id', stepId);
-  if (error || !data?.length) return { ok: false, added: 0, error: error?.message ?? 'not_found' };
-  const step = stepFromDb((data as Record<string, unknown>[])[0]);
-  const p = step.payload as unknown as { taxYear: number; asOfDate?: string; kind?: 'first' | 'followup'; cutoffMonth?: number } & WealthPayload;
-  const purpose: Purpose = step.stepType === 'wealth_declaration' ? 'wealth' : step.stepType === 'tax_file_intake' ? 'intake' : step.stepType === 'tax_estimate' ? 'estimate' : 'annual';
+type WorkPayload = { taxYear: number; asOfDate?: string; kind?: 'first' | 'followup'; cutoffMonth?: number } & WealthPayload;
+const purposeOf = (stepType: string): Purpose =>
+  stepType === 'wealth_declaration' ? 'wealth' : stepType === 'tax_file_intake' ? 'intake' : stepType === 'tax_estimate' ? 'estimate' : 'annual';
+export const toAskInput = (e: AskPlanEntry): api.AskInput => ({ itemKey: e.itemKey, subjectRole: e.subjectRole, entityKind: e.entityKind, entityRef: e.entityRef, prompt: e.prompt });
+
+/**
+ * השאלות שהעבודה הזו צריכה עכשיו — מאותו מנוע כמו דף העבודה (picture.ts → asks.ts), על הנתונים של הבקשה הזו.
+ * ‼ stepId ריק = עבודה שעוד לא נוצרה (קליטה חדשה): התמונה נבנית מהכרטיס בלבד, בלי עובדות ושאלות קודמות.
+ */
+export async function planAsksFor(client: Client, purpose: Purpose, p: WorkPayload, stepId: string | null): Promise<AskPlanEntry[]> {
   const year = Number(p.taxYear);
   const [d, prior] = await Promise.all([api.loadYearData(client.id, year), api.loadPriorEvidence(client.id, DURABLE_KINDS)]);
-  const scoped = scopeYearData(d, purpose, step.id, p.asOfDate);
+  const scoped = scopeYearData(d, purpose, stepId ?? '', p.asOfDate);
   const picture = buildYearPicture({
     client, taxYear: year, purpose, cutoffMonth: p.cutoffMonth, today: todayIso(), asOfDate: p.asOfDate, declKind: p.kind,
     facts: scoped.facts, evidence: scoped.evidence, asks: scoped.asks, priorEvidence: prior,
     openedRare: [...new Set([...scoped.asks.map(a => a.itemKey), ...scoped.facts.map(f => f.itemKey)])],
   });
-  const plan = buildAskPlan([...picture.toConfirm, ...picture.toAsk], {
+  return buildAskPlan([...picture.toConfirm, ...picture.toAsk], {
     client, taxYear: year, purpose, cutoffMonth: p.cutoffMonth, asOfDate: p.asOfDate, declKind: p.kind, previousByArea: previousByArea(p),
   });
+}
+
+/** הטיוטה לבד — גם לעבודה קיימת (למשל אחרי כשל בהכנת השאלות). */
+export async function draftAsksFor(client: Client, stepId: string): Promise<{ ok: boolean; added: number; error?: string }> {
+  const { data, error } = await supabase.from('onboarding_steps').select('*').eq('id', stepId);
+  if (error || !data?.length) return { ok: false, added: 0, error: error?.message ?? 'not_found' };
+  const step = stepFromDb((data as Record<string, unknown>[])[0]);
+  const plan = await planAsksFor(client, purposeOf(step.stepType), step.payload as unknown as WorkPayload, step.id);
   if (!plan.length) return { ok: true, added: 0 };
-  const r = await api.addAsks(step.id, plan.map(e => ({ itemKey: e.itemKey, subjectRole: e.subjectRole, entityKind: e.entityKind, entityRef: e.entityRef, prompt: e.prompt })));
+  const r = await api.addAsks(step.id, plan.map(toAskInput));
   return r.ok ? { ok: true, added: r.added } : { ok: false, added: 0, error: r.error };
+}
+
+const CLOSED_STATUSES = ['completed', 'verified', 'skipped', 'cancelled', 'failed'];
+
+/**
+ * 252 (17.10.2026) · «היכרות שנשלחת לבד»: פתיחת הקליטה = הבקשה + כל השאלות שנגזרות מהתיק, מפורסמות בדף של הלקוח —
+ * קריאה אחת לשרת. אין «הוסף שאלות» ואין «פרסם». אידמפוטנטי: קליטה פתוחה קיימת ⇒ נוספות רק שאלות שחסרות.
+ * ‼ בלי מייל (כלל «דף אחד ללקוח»). ‼ שאלון קליטה ישן שעדיין פתוח אצל הלקוח — אישורי הפרטים הקבועים נשארים לו
+ *   (אותו כלל כמו ב-AskPanel), כדי שלא יישאל פעמיים; השאר נשאל.
+ */
+export async function openTaxFileIntake(client: Client): Promise<CreateResult & { published?: number }> {
+  const { data, error } = await supabase.from('onboarding_steps').select('*').eq('client_id', client.id).eq('step_type', 'tax_file_intake');
+  if (error) return { ok: false, error: error.message, failedAt: 'work' };
+  const existing = ((data ?? []) as Record<string, unknown>[]).map(r => stepFromDb(r)).find(s => !CLOSED_STATUSES.includes(s.status)) ?? null;
+  const today = todayIso();
+  const payload: WorkPayload = existing
+    ? (existing.payload as unknown as WorkPayload)
+    : { taxYear: Number(today.slice(0, 4)), asOfDate: today };
+  let plan: AskPlanEntry[];
+  try { plan = await planAsksFor(client, 'intake', payload, existing?.id ?? null); }
+  catch (e) { return { ok: false, error: String((e as Error).message), failedAt: 'draft' }; }
+  const legacyOpen = existing ? await api.openIntakeStep((existing.payload as unknown as { legacyStepId?: string }).legacyStepId).catch(() => null) : null;
+  const chosen = legacyOpen ? plan.filter(e => e.statuses[0]?.state !== 'fromCard') : plan;
+  const r = await api.ensureTaxFileIntake(client.id, chosen.map(toAskInput));
+  if (!r.ok) return { ok: false, error: r.error, failedAt: existing ? 'draft' : 'work' };
+  return { ok: true, stepId: r.stepId, created: r.created, drafted: r.asked ?? 0, published: r.published ?? 0 };
 }
 
 export async function createWork(row: NewWorkRow, client: Client): Promise<CreateResult> {

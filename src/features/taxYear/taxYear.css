@@ -384,3 +384,22 @@ button.rp-cell:disabled { cursor: default; }
 .ty-mat-t td:nth-child(n+2) { direction: ltr; text-align: end; font-variant-numeric: tabular-nums; }
 .ty-mat-note { color: var(--tx2); }
 .ty-ltr { unicode-bidi: isolate; }
+
+/* ── 17.10.2026 · שלושת הצעדים בשורת בקשת תיק מס (RequestSteps) — תצוגה, לא כפתורים. ההדמיה: one-request-tax-file ── */
+.rl-below { padding: 0 0 10px; }
+.rs-steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; max-width: 680px; }
+.rs-step { min-width: 0; border: 1px solid var(--hairline-1); border-radius: 10px; padding: 7px 10px; background: var(--card); }
+.rs-h { display: flex; align-items: center; gap: 7px; font-size: var(--fs-13); font-weight: 600; color: var(--ink-1); line-height: 1.35; }
+.rs-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--ink-4); }
+.rs-step.is-wait .rs-dot { background: var(--warn); }
+.rs-step.is-mine .rs-dot { background: var(--accent); }
+.rs-step.is-new .rs-dot { background: var(--chip-violet-tx); }
+.rs-step.is-ok .rs-dot { background: var(--ok); }
+.rs-line { margin: 2px 0 0; font-size: var(--fs-12); color: var(--ink-3); line-height: 1.45; overflow-wrap: anywhere; }
+.rs-step.is-mine .rs-line, .rs-step.is-new .rs-line { color: var(--ink-2); }
+@media (max-width: 640px) {
+  .rs-steps { grid-template-columns: 1fr; gap: 4px; }
+  .rs-step { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; padding: 6px 10px; }
+  .rs-h { flex: none; }
+  .rs-line { margin: 0; flex: 1 1 10rem; }
+}

@@ -11,6 +11,7 @@ import type { OnboardingStep } from '../../types/onboarding';
 import { supabase } from '../../lib/supabase';
 import { stepFromDb } from '../../lib/dbMappers';
 import * as api from './api';
+import { openTaxFileIntake } from './workCreate';
 import type { WealthPayload } from './WealthDeclarationPanel';
 import { deadlineView, dueState } from './workMeta';
 import AddTaxWorkDialog from './AddTaxWorkDialog';
@@ -112,9 +113,10 @@ export default function TaxYearsSection({ client, onChanged, onClientPersisted, 
   const intake = intakes[0];
   const startIntake = useCallback(async () => {
     setBusy(true); setMsg(null);
-    const r = await api.ensureTaxFileIntake(client.id);
+    // 252 · הפתיחה גם מכינה ומפרסמת את השאלון בדף של הלקוח — בלי מייל
+    const r = await openTaxFileIntake(client);
     setBusy(false);
-    if (!r.ok) { setMsg({ ok: false, text: `הפתיחה נכשלה (${r.error})` }); return; }
+    if (!r.ok || !r.stepId) { setMsg({ ok: false, text: `הפתיחה נכשלה (${r.error})` }); return; }
     await load(); onChanged?.(); setOpenId(r.stepId);
   }, [client.id, load, onChanged]);
   const lastSignal = useRef(intakeSignal ?? 0);

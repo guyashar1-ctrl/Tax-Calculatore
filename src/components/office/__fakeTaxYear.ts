@@ -340,8 +340,31 @@ function taxYearRpcInner(t: Tables, name: string, args: Row, firm: string, logWr
     }
     // ── 236 · קליטה והשלמת תיק המס — בקשה פתוחה אחת ללקוח, «נכון ליום הקליטה» ──
     case 'ensure_tax_file_intake': {
+      // ‼ 252 · פתיחה עם שאלות: אחרי היצירה/המציאה — add_tax_info_asks (בלי מה שכבר נענה) ואז publish_tax_info, בפעולה אחת
+      const withAsks = (stepId: string, created: boolean) => {
+        if (!('p_asks' in args)) return ok({ ok: true, stepId, created });
+        const asks = Array.isArray(args.p_asks) ? (args.p_asks as Row[]) : [];
+        const info0 = t.onboarding_steps.find(s => s.step_type === 'info_collection' && (s.payload as Row | undefined)?.parentStepId === stepId && OPEN(s));
+        const fresh = info0 ? asks.filter(a => !t.tax_info_asks.some(x => x.step_id === info0.id && x.state === 'answered' && x.item_key === a.itemKey
+          && x.subject_role === a.subjectRole && (x.entity_ref ?? '') === (a.entityRef ?? ''))) : asks;
+        let asked = 0; let infoId: string | undefined = info0 ? String(info0.id) : undefined;
+        if (fresh.length) {
+          const d = taxYearRpcInner(t, 'add_tax_info_asks', { p_parent_step_id: stepId, p_asks: fresh }, firm, logWrite)?.data as Row | undefined;
+          if (!d?.ok) return ok({ ok: false, error: String(d?.error ?? 'asks_failed') });
+          asked = Number(d.added ?? 0); infoId = String(d.infoStepId);
+        }
+        let published = 0;
+        if (infoId) {
+          const d = taxYearRpcInner(t, 'publish_tax_info', { p_info_step_id: infoId }, firm, logWrite)?.data as Row | undefined;
+          if (d?.ok) published = Number(d.published ?? 0);
+          else if (d?.error !== 'nothing_to_publish') return ok({ ok: false, error: String(d?.error ?? 'publish_failed') });
+        }
+        const skipped = asks.length - fresh.length;
+        log('ensure_tax_file_intake.asks', { stepId, asked, published, skipped });
+        return ok({ ok: true, stepId, created, infoStepId: infoId, asked, published, ...(skipped ? { alreadyAnswered: skipped } : {}) });
+      };
       const ex = t.onboarding_steps.find(s => s.client_id === args.p_client_id && s.step_type === 'tax_file_intake' && OPEN(s));
-      if (ex) return ok({ ok: true, stepId: ex.id, created: false });
+      if (ex) return withAsks(String(ex.id), false);
       const asOf = today();
       const legacyStep = t.onboarding_steps.find(s => s.client_id === args.p_client_id && s.step_type === 'intake_questionnaire' && OPEN(s));
       const eng = (t.engagements ?? []).find(e => e.client_id === args.p_client_id);
@@ -351,7 +374,7 @@ function taxYearRpcInner(t: Tables, name: string, args: Row, firm: string, logWr
         payload: { purpose: 'intake', asOfDate: asOf, taxYear: Number(asOf.slice(0, 4)), title: 'קליטה והשלמת תיק המס', ...(legacyStep ? { legacyStepId: legacyStep.id } : {}) },
         completed_at: null, verified_at: null, published_at: nowIso(), sort_order: 29, created_at: nowIso(), updated_at: nowIso() });
       log('ensure_tax_file_intake', { created: id });
-      return ok({ ok: true, stepId: id, created: true });
+      return withAsks(id, true);
     }
     // ── 236 · «החלף בקליטה» — השאלון הישן מבוטל עם «הוחלף», והקליטה רושמת את זה (אותו חוזה כמו בשרת) ──
     case 'replace_legacy_intake': {
