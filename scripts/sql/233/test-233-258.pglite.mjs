@@ -1,8 +1,8 @@
-// בדיקת 233 (גרסאות הדוח השנתי) + 257 (שורות מקור) בבידוד — PGlite, על ההקמה של בדיקת 229 + 229 עצמה.
-//   PGLITE_DIR=<תיקייה עם node_modules/@electric-sql/pglite> node scripts/sql/233/test-233-257.pglite.mjs
+// בדיקת 233 (גרסאות הדוח השנתי) + 258 (שורות מקור) בבידוד — PGlite, על ההקמה של בדיקת 229 + 229 עצמה.
+//   PGLITE_DIR=<תיקייה עם node_modules/@electric-sql/pglite> node scripts/sql/233/test-233-258.pglite.mjs
 // מה נבדק: 233 — שמירת טיוטה (גרסה 1, בסיס «מה ראיתי», התנגשות), אישור רק בלי חוסמים ורק «גיליון מלא», גרסה מאושרת לא נערכת,
 //   רישום הגשה פעם אחת עם אסמכתה, גרסה 2 אחרי אישור («הוחלפה»), משרד אחר אסור, anon חסום.
-// 257 — העמודות; הזנת מסמך חדש ⇒ מסמך מאושר + שורות מאושרות עם line_key/entered_by/evidence_id; שמירה חוזרת מחליפה (supersedes);
+// 258 — העמודות; הזנת מסמך חדש ⇒ מסמך מאושר + שורות מאושרות עם line_key/entered_by/evidence_id; שמירה חוזרת מחליפה (supersedes);
 //   שורה שירדה — «הוחלפה»; אישור מתקן מחליף את שורות המסמך הקודם; פריט לא מוכר / ערך רע נדחים לפני כל כתיבה; מסמך «לא תואם» חוסם;
 //   משרד אחר אסור; anon חסום; החלה חוזרת לא משנה.
 // ‼ CRLF בעותקי pivo-wt — מנרמלים כל קריאה (worktree-crlf-breaks-pglite-harness).
@@ -14,7 +14,7 @@ const WT = resolve(fileURLToPath(import.meta.url), '../../../..') + '/';
 const read = (p) => readFileSync(WT + p, 'utf8').replace(/\r\n/g, '\n');
 const sql229 = read('supabase/229-tax-year-collection.sql');
 const sql233 = read('supabase/233-annual-returns.sql');
-const sql257 = read('supabase/257-return-source-lines.sql');
+const sql258 = read('supabase/258-return-source-lines.sql');
 const sql222 = read('supabase/222-request-preview.sql');
 const psi = sql222.slice(sql222.indexOf('-- >>> GENERATED:portal_step_items'), sql222.indexOf('-- <<< GENERATED:portal_step_items'));
 const t229 = read('scripts/sql/229/test-229-tax-year.pglite.mjs');
@@ -39,8 +39,8 @@ await db.exec(`create table auth.users (id uuid primary key); insert into auth.u
 await db.exec(psi); await db.exec(announce);
 await db.exec(sql229);
 await db.exec(sql233); await db.exec(sql233);
-await db.exec(sql257); await db.exec(sql257);
-console.log('הוחל: 222 (_portal_step_items) + 229 + 233 ×2 + 257 ×2');
+await db.exec(sql258); await db.exec(sql258);
+console.log('הוחל: 222 (_portal_step_items) + 229 + 233 ×2 + 258 ×2');
 
 // ── 233 · גרסאות ──
 await as(OFFICE);
@@ -87,50 +87,50 @@ const perms = await one(`select has_function_privilege('anon', 'public.save_annu
   (select relrowsecurity from pg_class where relname = 'annual_returns') rls`);
 ok(!perms.a1 && !perms.a2 && perms.au && perms.rls, 'anon חסום לשתי הפונקציות; מחובר מורשה; RLS על annual_returns', J(perms));
 
-// ── 257 · שורות מקור ──
+// ── 258 · שורות מקור ──
 const cols = await q(`select column_name from information_schema.columns where table_name = 'tax_year_facts' and column_name in ('line_key','entered_by')`);
-ok(cols.length === 2, '257: העמודות line_key ו-entered_by קיימות');
+ok(cols.length === 2, '258: העמודות line_key ו-entered_by קיימות');
 const line = (lineKey, itemKey, value, extra = {}) => ({ lineKey, itemKey, subjectRole: 'client', entityKind: 'employer', entityRef: 'em1', taxYear: 2025, value, ...extra });
 const ev106 = { docKind: 'form106', subjectRole: 'client', entityKind: 'employer', entityRef: 'em1', taxYear: 2025, fileName: '106-2025.pdf' };
 r = await rpc('record_source_lines', ['c1', null, J(ev106), J([line('106.gross', 'salary.amounts', { gross: 152855 }), line('106.withheld', 'salary.amounts', { withheld: 19979 }), line('106.insured', 'salary.amounts', { insured: 140000 })]), null]);
-ok(r.ok && r.evidenceId && r.factIds.length === 3 && r.superseded === 0, '257: מסמך חדש ⇒ 3 שורות מקור', J(r));
+ok(r.ok && r.evidenceId && r.factIds.length === 3 && r.superseded === 0, '258: מסמך חדש ⇒ 3 שורות מקור', J(r));
 const E1 = r.evidenceId;
 const ev = await one(`select doc_kind, review, extraction, identity_match, period_match, received_via, period_from::text pf, period_to::text pt from public.tax_evidence where id = $1`, [E1]);
-ok(ev.doc_kind === 'form106' && ev.review === 'accepted' && ev.extraction === 'office_entered' && ev.identity_match === 'match' && ev.received_via === 'office' && ev.pf === '2025-01-01' && ev.pt === '2025-12-31', '257: המסמך נרשם מאושר, «הוזן במשרד», לשנת המס', J(ev));
+ok(ev.doc_kind === 'form106' && ev.review === 'accepted' && ev.extraction === 'office_entered' && ev.identity_match === 'match' && ev.received_via === 'office' && ev.pf === '2025-01-01' && ev.pt === '2025-12-31', '258: המסמך נרשם מאושר, «הוזן במשרד», לשנת המס', J(ev));
 let fs = await q(`select line_key, item_key, value, status, source, basis, entered_by, evidence_id, decided_by from public.tax_year_facts where evidence_id = $1 order by line_key`, [E1]);
 ok(fs.length === 3 && fs.every(f => f.status === 'accepted' && f.source === 'document' && f.basis === 'final' && f.entered_by === OFFICE && f.evidence_id === E1) && fs[0].line_key === '106.gross' && fs[0].value.gross === 152855,
-  '257: כל שורה — מאושרת, «מסמך», סופית, עם מי הזין ועם המסמך', J(fs));
+  '258: כל שורה — מאושרת, «מסמך», סופית, עם מי הזין ועם המסמך', J(fs));
 // שמירה חוזרת: סכום תוקן, שורה אחת ירדה
 r = await rpc('record_source_lines', ['c1', E1, null, J([line('106.gross', 'salary.amounts', { gross: 152900 }), line('106.withheld', 'salary.amounts', { withheld: 19979 })]), null]);
-ok(r.ok && r.evidenceId === E1 && r.factIds.length === 2 && r.superseded === 3, '257: שמירה חוזרת של אותו מסמך מחליפה את שורותיו', J(r));
+ok(r.ok && r.evidenceId === E1 && r.factIds.length === 2 && r.superseded === 3, '258: שמירה חוזרת של אותו מסמך מחליפה את שורותיו', J(r));
 fs = await q(`select line_key, status, value, supersedes from public.tax_year_facts where evidence_id = $1 order by created_at, line_key`, [E1]);
 const live = fs.filter(f => f.status === 'accepted'), old = fs.filter(f => f.status === 'superseded');
-ok(live.length === 2 && live.find(f => f.line_key === '106.gross').value.gross === 152900 && old.length === 3 && live.every(f => !!f.supersedes), '257: הישנות «הוחלפו» (גם השורה שירדה), החדשות מצביעות אליהן', J(fs));
+ok(live.length === 2 && live.find(f => f.line_key === '106.gross').value.gross === 152900 && old.length === 3 && live.every(f => !!f.supersedes), '258: הישנות «הוחלפו» (גם השורה שירדה), החדשות מצביעות אליהן', J(fs));
 // אישור מתקן: מסמך חדש מחליף את שורות הקודם
 r = await rpc('record_source_lines', ['c1', null, J({ ...ev106, fileName: '106-מתקן.pdf' }), J([line('106.gross', 'salary.amounts', { gross: 150000 })]), E1]);
-ok(r.ok && r.evidenceId !== E1 && r.superseded >= 2, '257: אישור מתקן ⇒ מסמך חדש, שורות הקודם יוצאות מהחישוב', J(r));
+ok(r.ok && r.evidenceId !== E1 && r.superseded >= 2, '258: אישור מתקן ⇒ מסמך חדש, שורות הקודם יוצאות מהחישוב', J(r));
 const prevNote = await one(`select note, (select count(*)::int from public.tax_year_facts where evidence_id = $1 and status = 'accepted') n from public.tax_evidence where id = $1`, [E1]);
-ok(prevNote.n === 0 && /הוחלף באישור מתקן/.test(prevNote.note ?? ''), '257: במסמך הקודם אין שורות חיות, והוא מסומן', J(prevNote));
+ok(prevNote.n === 0 && /הוחלף באישור מתקן/.test(prevNote.note ?? ''), '258: במסמך הקודם אין שורות חיות, והוא מסומן', J(prevNote));
 // אימות לפני כתיבה
 const before = (await one(`select count(*)::int n from public.tax_year_facts`)).n;
 r = await rpc('record_source_lines', ['c1', null, J(ev106), J([line('106.gross', 'salary.amounts', { gross: 1 }), line('x', 'no.such', 5)]), null]);
-ok(!r.ok && r.error === 'unknown_item' && (await one(`select count(*)::int n from public.tax_year_facts`)).n === before, '257: פריט לא מוכר ⇒ שום דבר לא נכתב', J(r));
-ok((await rpc('record_source_lines', ['c1', null, J(ev106), J([line('106.gross', 'salary.amounts', 'abc')]), null])).error === 'bad_value', '257: ערך שאינו מספר/רכיבים נדחה');
-ok((await rpc('record_source_lines', ['c1', null, J(ev106), J([line('', 'salary.amounts', 5)]), null])).error === 'line_key_required', '257: שורה בלי מפתח נדחית');
-ok((await rpc('record_source_lines', ['c1', null, J(ev106), '[]', null])).error === 'no_lines', '257: בלי שורות — אין מה לשמור');
-ok((await rpc('record_source_lines', ['c1', null, J({ subjectRole: 'client' }), J([line('a', 'salary.amounts', 5)]), null])).error === 'evidence_required', '257: מסמך חדש בלי סוג נדחה');
+ok(!r.ok && r.error === 'unknown_item' && (await one(`select count(*)::int n from public.tax_year_facts`)).n === before, '258: פריט לא מוכר ⇒ שום דבר לא נכתב', J(r));
+ok((await rpc('record_source_lines', ['c1', null, J(ev106), J([line('106.gross', 'salary.amounts', 'abc')]), null])).error === 'bad_value', '258: ערך שאינו מספר/רכיבים נדחה');
+ok((await rpc('record_source_lines', ['c1', null, J(ev106), J([line('', 'salary.amounts', 5)]), null])).error === 'line_key_required', '258: שורה בלי מפתח נדחית');
+ok((await rpc('record_source_lines', ['c1', null, J(ev106), '[]', null])).error === 'no_lines', '258: בלי שורות — אין מה לשמור');
+ok((await rpc('record_source_lines', ['c1', null, J({ subjectRole: 'client' }), J([line('a', 'salary.amounts', 5)]), null])).error === 'evidence_required', '258: מסמך חדש בלי סוג נדחה');
 // מסמך קיים שסומן «לא תואם» — לא מזינים ממנו
 const bad = await one(`insert into public.tax_evidence (user_id, client_id, tax_year, doc_kind, subject_role, received_via, identity_match) values ('${OFFICE}', 'c1', 2025, 'form106', 'client', 'portal', 'mismatch') returning id`);
-ok((await rpc('record_source_lines', ['c1', bad.id, null, J([line('106.gross', 'salary.amounts', 5)]), null])).error === 'evidence_mismatch', '257: מסמך שסומן «לא תואם» חוסם הזנה');
+ok((await rpc('record_source_lines', ['c1', bad.id, null, J([line('106.gross', 'salary.amounts', 5)]), null])).error === 'evidence_mismatch', '258: מסמך שסומן «לא תואם» חוסם הזנה');
 // מסמך שהלקוח העלה (ממתין לבדיקה) — ההזנה מאשרת אותו
 const up = await one(`insert into public.tax_evidence (user_id, client_id, tax_year, doc_kind, subject_role, received_via) values ('${OFFICE}', 'c1', 2025, 'niAnnualCert', 'spouse', 'portal') returning id`);
 r = await rpc('record_source_lines', ['c1', up.id, null, J([{ lineKey: 'ni.paid', itemKey: 'payments.niPaid', subjectRole: 'spouse', taxYear: 2025, value: { amount: 11676, health: 5144 } }]), null]);
 const upEv = await one(`select review, extraction, identity_match, period_match from public.tax_evidence where id = $1`, [up.id]);
-ok(r.ok && upEv.review === 'accepted' && upEv.extraction === 'office_entered' && upEv.identity_match === 'match', '257: הזנה ממסמך שהלקוח העלה = בדיקת המשרד ואישורו', J([r, upEv]));
+ok(r.ok && upEv.review === 'accepted' && upEv.extraction === 'office_entered' && upEv.identity_match === 'match', '258: הזנה ממסמך שהלקוח העלה = בדיקת המשרד ואישורו', J([r, upEv]));
 await as(OTHER);
-ok(!!(await throws(`select public.record_source_lines('c1', null, $1::jsonb, $2::jsonb, null)`, [J(ev106), J([line('106.gross', 'salary.amounts', 5)])])), '257: משרד אחר — אסור');
+ok(!!(await throws(`select public.record_source_lines('c1', null, $1::jsonb, $2::jsonb, null)`, [J(ev106), J([line('106.gross', 'salary.amounts', 5)])])), '258: משרד אחר — אסור');
 await as(OFFICE);
-ok((await rpc('record_source_lines', ['c1', up.id, null, J([{ lineKey: 'a', itemKey: 'payments.niPaid', subjectRole: 'client', taxYear: 2025, value: 1 }]), 'c0ffee00-0000-0000-0000-000000000000'])).error === 'replaced_not_found', '257: «מתקן» למסמך שאינו קיים נדחה');
+ok((await rpc('record_source_lines', ['c1', up.id, null, J([{ lineKey: 'a', itemKey: 'payments.niPaid', subjectRole: 'client', taxYear: 2025, value: 1 }]), 'c0ffee00-0000-0000-0000-000000000000'])).error === 'replaced_not_found', '258: «מתקן» למסמך שאינו קיים נדחה');
 
 console.log(`\n${pass} עברו · ${fail} נכשלו`);
 process.exit(fail ? 1 : 0);

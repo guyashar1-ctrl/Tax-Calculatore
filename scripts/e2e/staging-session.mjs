@@ -80,7 +80,7 @@ export async function prepare() {
     const ids = [clientId, otherClientId].map(c => `'${c}'`).join(',');
     const docs = await sql(`select storage_path from public.documents where client_id in (${ids})`);
     await sql(`
-      -- ‼ 17.10.2026 (257): שורות מקור מצביעות למסמך — העובדות לפני הראיות
+      -- ‼ 17.10.2026 (258): שורות מקור מצביעות למסמך — העובדות לפני הראיות
       delete from public.tax_year_facts where client_id in (${ids});
       delete from public.tax_evidence where client_id in (${ids});
       delete from public.tax_card_transfers where client_id in (${ids});

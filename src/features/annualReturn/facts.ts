@@ -91,7 +91,7 @@ export interface YearSlice {
 export function sliceYear(facts: YearFact[], year: number): YearSlice {
   const ofYear = facts.filter(f => f.taxYear === year && f.status !== 'rejected' && f.status !== 'superseded' && f.basis !== 'forecast');
   // ‼ 17.10.2026 (N4): שורת מקור (lineKey + מסמך) היא שורה בפני עצמה — שני 106 לאותו מעסיק מתווספים; אישור מתקן מסומן
-  //   «הוחלף» בשרת (257), לא «האחרון גובר». עובדה ישנה בלי מסמך לאותו רכיב — יורדת כשיש לו שורות מקור (שלא ייספר פעמיים).
+  //   «הוחלף» בשרת (258), לא «האחרון גובר». עובדה ישנה בלי מסמך לאותו רכיב — יורדת כשיש לו שורות מקור (שלא ייספר פעמיים).
   const latest = (xs: YearFact[]) => {
     const m = new Map<string, YearFact>();
     const keyOf = (f: YearFact) => `${f.itemKey}|${f.subjectRole}|${f.entityRef ?? ''}|${componentsKey(f)}`;

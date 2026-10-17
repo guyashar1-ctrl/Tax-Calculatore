@@ -889,7 +889,7 @@ function taxYearRpcInner(t: Tables, name: string, args: Row, firm: string, logWr
       log('record_tax_year_fact', { id, itemKey: p.itemKey });
       return ok({ ok: true, factId: id });
     }
-    // ── 257 · שורות מקור ממסמך אחד — אותו חוזה כמו בשרת (זהות שורה = מסמך × lineKey; שמירה חוזרת מחליפה) ──
+    // ── 258 · שורות מקור ממסמך אחד — אותו חוזה כמו בשרת (זהות שורה = מסמך × lineKey; שמירה חוזרת מחליפה) ──
     case 'record_source_lines': {
       const lines = (args.p_lines ?? []) as Row[];
       if (!lines.length) return ok({ ok: false, error: 'no_lines' });

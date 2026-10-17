@@ -65,7 +65,7 @@ figcaption{margin-top:8px}.marks{margin:0;padding:0;list-style:none;display:grid
 .step[hidden]{display:none}table{border-collapse:collapse;width:100%;font-size:.93rem}td{padding:6px 8px;border-top:1px solid var(--line);vertical-align:top}td:first-child{color:var(--ink2);width:34%}
 code{font-size:.9em;overflow-wrap:anywhere}table{table-layout:fixed}td{overflow-wrap:anywhere;min-width:0}.meta{overflow-wrap:anywhere}
 </style></head><body><main>
-<p class="meta">PIVO · מדריך שחרור · 17.10.2026 · צילומים מסביבת הבדיקות (staging, הדמיית דפדפן — לא מכשיר אמיתי) עם לקוח דמה «דוד ורחל» · קוד: ${esc(COMMIT)} · ${LIVE === 'yes' ? '<b>באתר (crm.yasharcpa.co.il), מיגרציות 233 ו-257 בייצור</b>' : '<b>עדיין לא באתר</b> — ב-staging בלבד; מיגרציות 233 ו-257 ממתינות לאישורך לייצור'}</p>
+<p class="meta">PIVO · מדריך שחרור · 17.10.2026 · צילומים מסביבת הבדיקות (staging, הדמיית דפדפן — לא מכשיר אמיתי) עם לקוח דמה «דוד ורחל» · קוד: ${esc(COMMIT)} · ${LIVE === 'yes' ? '<b>באתר (crm.yasharcpa.co.il), מיגרציות 233 ו-258 בייצור</b>' : '<b>עדיין לא באתר</b> — ב-staging בלבד; מיגרציות 233 ו-258 ממתינות לאישורך לייצור'}</p>
 <h1>הדוח השנתי — מנוע אחד, מקור לכל שדה, ואיתור שדה לפי קוד (שלב 1)</h1>
 
 <div class="box why"><h2>מה ביקשת ומה קיבלת</h2>
@@ -144,13 +144,13 @@ ${shot('map-158-mobile', 'טלפון: מפת הטופס עם ערכי הדוח',
 <div class="box"><h2>מה נבדק</h2>
 <table>
 <tr><td>דפדפן מול staging (מסד אמיתי)</td><td><code>scripts/e2e/return-engine-s1.mjs</code>: בקשה ← הדוח בשורה ← אימות הזנה ← 4 מסמכים (106 ×2, רו״ה, אישור ב״ל) ← «לאן זה הלך» ← 042 וממה מורכב ← בקרות ← «שמור טיוטה» (גרסה 1) ← עריכה חוזרת («הוחלפו») ← מפת הטופס עם הערכים. 30/30 במחשב 1280 ובטלפון 390. 0 שגיאות קונסול, 0 מיילים, 0 שאריות.</td></tr>
-<tr><td>מיגרציות</td><td>233 + 257 ב-staging (<code>scripts/sql/233/apply-staging.mjs</code>: גופים זהים לקבצים, anon חסום, כתיבה ישירה לטבלה נשללה). בבידוד (PGlite): <code>scripts/sql/233/test-233-257.pglite.mjs</code> 36/36.</td></tr>
+<tr><td>מיגרציות</td><td>233 + 258 ב-staging (<code>scripts/sql/233/apply-staging.mjs</code>: גופים זהים לקבצים, anon חסום, כתיבה ישירה לטבלה נשללה). בבידוד (PGlite): <code>scripts/sql/233/test-233-258.pglite.mjs</code> 36/36.</td></tr>
 <tr><td>יחידה</td><td>אורקל תרגיל 2023 מהקורס («עמרי ונועה ברק»): 158/172/042/244/245/170/239/089/217/317/043/040/180/036, שורות 042, בקרות, אינדקס קודים, ערך ידני «#», מתקן מול נוסף — <code>exercise2023.test.ts</code>. כל החבילה: 1938/0 (<code>npm run test:unit</code>), tsc נקי, build.</td></tr>
 </table></div>
 
 <div class="box"><h2>מה לא נעשה / לאישורך</h2>
 <ul>
-<li><b>ייצור</b> — 233 ו-257 ב-staging בלבד; ההעלאה לאתר ולמסד הייצור ממתינה לאישורך. בעלייה: גם פריסה מחדש של פונקציית הגיבוי השבועי (הטבלה החדשה ב-scope).</li>
+<li><b>ייצור</b> — 233 ו-258 ב-staging בלבד; ההעלאה לאתר ולמסד הייצור ממתינה לאישורך. בעלייה: גם פריסה מחדש של פונקציית הגיבוי השבועי (הטבלה החדשה ב-scope).</li>
 <li><b>שלב 2</b> — מסך הליווי קובץ-אחר-קובץ (המסמך לצד השדות), אישור תקבולים מב״ל (אבטלה 194), PayBox (040 «לבדיקה»), משרד הביטחון, ילד נכה, חוזה שכירות, מקדמות — לפי התוכנית.</li>
 <li><b>ערך ידני «#»</b> — משנה את השדה בטופס ומנומק; חישוב המס לא משתנה ממנו (מצוין במסך). עורך להזנת ערך ידני — עדיין לא במסך (המבנה והבדיקות קיימים).</li>
 <li>שדה 030/089 מקבל את מלוא דמי הב״ל ששולמו (פחות החזרים) — «לבדיקה לכל שנה» לפי התוכנית; הכלל של 52% לא הוחל כאן.</li>

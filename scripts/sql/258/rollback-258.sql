@@ -1,5 +1,4 @@
--- ‼ קובץ ישן (81845ae): חזרה של העלאת תעודת הזהות הגמישה, שנקראה אז «257» ושונתה מספר. אינו שייך ל-257 של שורות המקור (17.10.2026); נשמר כאן כדי לא לאבד אותו.
--- חזרה מ-257: גוף הטריגר כפי שהיה ב-238 (בלי 'parts'). הרישומים שכבר קיבלו parts נשארים — שדה מיותר שאיש לא קורא.
+-- חזרה מ-258: גוף הטריגר כפי שהיה ב-238 (בלי 'parts'). הרישומים שכבר קיבלו parts נשארים — שדה מיותר שאיש לא קורא.
 create or replace function public.client_documents_to_identity_docs_trg()
 returns trigger language plpgsql security definer set search_path to 'public' as $function$
 declare

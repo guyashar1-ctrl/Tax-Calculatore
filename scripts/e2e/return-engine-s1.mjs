@@ -153,7 +153,7 @@ try {
   const ar = await one(`select count(*)::int n, max(version) v, max(jsonb_array_length(input_facts)) nf from public.annual_returns where request_id = '${STEP}'`);
   ok(ar.n === 1 && ar.v === 1 && ar.nf >= 8, '233: גרסה 1 נשמרה עם העובדות שנכנסו (input_facts)', JSON.stringify(ar));
   const facts = await one(`select count(*)::int n, count(distinct evidence_id)::int docs, count(*) filter (where entered_by = '${OFFICE}')::int mine from public.tax_year_facts where client_id = '${A}' and line_key is not null and status = 'accepted'`);
-  ok(facts.n === 9 && facts.docs === 4 && facts.mine === 9, '257: 9 שורות מקור מאושרות מ-4 מסמכים, כולן עם «מי הזין»', JSON.stringify(facts));
+  ok(facts.n === 9 && facts.docs === 4 && facts.mine === 9, '258: 9 שורות מקור מאושרות מ-4 מסמכים, כולן עם «מי הזין»', JSON.stringify(facts));
   const ev = await one(`select count(*)::int n, count(*) filter (where review = 'accepted' and extraction = 'office_entered' and received_via = 'office')::int okn from public.tax_evidence where client_id = '${A}'`);
   ok(ev.n === 4 && ev.okn === 4, 'המסמכים נרשמו מאושרים, «הוזן במשרד»', JSON.stringify(ev));
   // עריכה חוזרת של 106 של דוד: הסכום משתנה ⇒ 158 מתעדכן, השורה הישנה «הוחלפה»

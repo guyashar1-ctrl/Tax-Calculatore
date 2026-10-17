@@ -52,7 +52,7 @@ export const approveReturn = (returnId: string, revision: number) => call<{ id: 
 export const recordFiled = (returnId: string, filedOn: string, ref: string, evidenceId?: string) =>
   call<{ id: string; filedOn: string }>('record_annual_return_filed', { p_return_id: returnId, p_filed_on: filedOn, p_ref: ref, p_evidence_id: evidenceId ?? null });
 
-// ── 257 · שורות מקור ממסמך אחד (docTemplates.ts ⇒ record_source_lines) ──
+// ── 258 · שורות מקור ממסמך אחד (docTemplates.ts ⇒ record_source_lines) ──
 export interface NewEvidence { docKind: string; subjectRole: string; entityKind?: string; entityRef?: string; taxYear: number; fileName?: string; documentId?: string; note?: string }
 /** שמירת שורות המקור של מסמך: מסמך קיים (evidenceId) או חדש (evidence); replacesEvidenceId — אישור מתקן שמחליף את שורות המסמך הקודם. */
 export const recordSourceLines = (clientId: string, lines: unknown[], target: { evidenceId?: string; evidence?: NewEvidence; replacesEvidenceId?: string }) =>

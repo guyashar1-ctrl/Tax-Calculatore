@@ -1,4 +1,4 @@
-// מחיל את 233 (גרסאות הדוח השנתי) ו-257 (שורות מקור) מהקבצים עצמם ומאמת: הטבלה + RLS + טריגר, שתי העמודות, כל הפונקציות
+// מחיל את 233 (גרסאות הדוח השנתי) ו-258 (שורות מקור) מהקבצים עצמם ומאמת: הטבלה + RLS + טריגר, שתי העמודות, כל הפונקציות
 // זהות לקובץ, anon חסום, מחובר מורשה לציבוריות בלבד.
 //   node scripts/sql/233/apply-staging.mjs [--verify-only] [--rollback]
 // ‼ staging בלבד (scripts/staging-lib.mjs עוצר כל כתיבה לייצור). ייצור — רק בשחרור מאושר, בכלי השחרור (prod-apply-migration).
@@ -10,19 +10,19 @@ import { writeStaging as sql } from '../../staging-lib.mjs';
 const here = dirname(fileURLToPath(import.meta.url));
 const read = (p) => readFileSync(join(here, p), 'utf8').replace(/\r\n/g, '\n');
 const f233 = read('../../../supabase/233-annual-returns.sql');
-const f257 = read('../../../supabase/257-return-source-lines.sql');
+const f258 = read('../../../supabase/258-return-source-lines.sql');
 if (process.argv.includes('--rollback')) {
-  await sql(read('../257/rollback-257.sql')); await sql(read('rollback-233.sql'));
-  console.log('rollback הוחל (257 ואז 233)');
+  await sql(read('../258/rollback-258.sql')); await sql(read('rollback-233.sql'));
+  console.log('rollback הוחל (258 ואז 233)');
   process.exit(0);
 }
-if (!process.argv.includes('--verify-only')) { await sql(f233); console.log('233 הוחלה ב-staging'); await sql(f257); console.log('257 הוחלה ב-staging'); }
+if (!process.argv.includes('--verify-only')) { await sql(f233); console.log('233 הוחלה ב-staging'); await sql(f258); console.log('258 הוחלה ב-staging'); }
 
 const fnsOf = (file) => [...file.matchAll(/create or replace function public\.([a-z0-9_]+)\(/g)].map(m => m[1]);
 const bodyOf = (file, f) => { const at = file.indexOf(`function public.${f}(`); const s = file.indexOf('$$', at) + 2; const e = file.indexOf('$$', s); return file.slice(s, e).trim(); };
 const INTERNAL = ['_annual_return_immutable'];
 let bad = 0;
-for (const [file, fns] of [[f233, fnsOf(f233)], [f257, fnsOf(f257)]]) {
+for (const [file, fns] of [[f233, fnsOf(f233)], [f258, fnsOf(f258)]]) {
   const rows = await sql(`select p.proname, p.prosrc, p.prosecdef, has_function_privilege('anon', p.oid, 'execute') anon, has_function_privilege('authenticated', p.oid, 'execute') auth
     from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname = any(array[${fns.map(f => `'${f}'`).join(',')}])`);
   for (const f of fns) {
