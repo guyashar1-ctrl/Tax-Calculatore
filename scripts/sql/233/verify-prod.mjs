@@ -19,7 +19,10 @@ for (const [file, fns] of [[f233, fnsOf(f233)], [f258, fnsOf(f258)]]) {
   for (const f of fns) {
     const r = rows.find(x => x.proname === f);
     if (!r) { console.log(`  ✗ ${f} חסרה`); bad++; continue; }
-    const same = r.prosrc.trim() === bodyOf(file, f);
+    // ‼ prod-apply-migration שולח את הקובץ כמות שהוא (CRLF בעותק הזה) — משווים אחרי נרמול סיומות שורה
+    const same = r.prosrc.replace(/
+/g, '
+').trim() === bodyOf(file, f);
     const permsOk = !r.anon && (INTERNAL.includes(f) ? !r.auth : r.auth) && (INTERNAL.includes(f) || r.prosecdef);
     console.log(`  ${same && permsOk ? '✓' : '✗'} ${f} · גוף ${same ? 'זהה לקובץ' : 'שונה!'} · anon ${r.anon ? 'כן!' : 'לא'} · authenticated ${r.auth ? 'כן' : 'לא'}`);
     if (!same || !permsOk) bad++;
