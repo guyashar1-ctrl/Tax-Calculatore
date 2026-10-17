@@ -112,7 +112,7 @@ dialog .x{position:fixed;top:12px;left:12px;font:inherit;font-size:16px;border:0
 @media (max-width:640px){h1{font-size:22px}.wrap{padding:14px 16px 40px}}
 </style></head><body><div class="wrap">
 <h1>בקשה אחת לתיק המס — שלב 1: שורה אחת, והיכרות שנשלחת לבד</h1>
-<p class="sub">17.10.2026 · ענף <code>claude/loving-hertz-2b70a9</code> על <code>origin/master a0520b7</code> · קומיט <code>${esc(COMMIT)}</code> · מיגרציה <b>254</b> ב-<b>staging בלבד</b> · <b>לא באתר, לא בייצור</b> — ממתין לאישורך. צילומי «הדגמה» — מסד מדומה; צילומי «staging» — מסד אמיתי, לקוח בדיקה (נמחק בסוף הריצה).</p>
+<p class="sub">17.10.2026 · ענף <code>claude/loving-hertz-2b70a9</code> על <code>origin/master a0520b7</code> · קומיט <code>${esc(COMMIT)}</code> · מיגרציה <b>254</b> ב-staging וב<b>ייצור</b> (17.10 בוקר, באישורך) · <b>באתר</b> מ-17.10 (master 79ab5a3, Vercel dpl_4PcFfHoqR8QgRDW865cvtg9ewKnq). צילומי «הדגמה» — מסד מדומה; צילומי «staging» — מסד אמיתי, לקוח בדיקה (נמחק בסוף הריצה). באתר החי אומת על לקוח בדיקה: הפתיחה פרסמה את השאלות בדף, 0 מיילים.</p>
 
 <section class="card ask" aria-labelledby="ask-h"><h2 id="ask-h">מה ביקשת ומה קיבלת</h2>
 <ul>
