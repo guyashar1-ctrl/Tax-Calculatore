@@ -64,6 +64,7 @@ const browser = await chromium.launch({ executablePath: CHROME, headless: false,
 const consoleErrors = [];
 const blocked = [];
 const rpcs = [];
+let searchChecked = false;
 async function newCtx(width, { client = false } = {}) {
   const mobile = width < 700;
   const ctx = await browser.newContext({ colorScheme: DARK ? 'dark' : 'light',
@@ -223,6 +224,11 @@ async function answerFlow(page, rules, { stopAfter = Infinity } = {}) {
         const lbl = (await text(grp.locator('.rec-label').first())).trim();
         if (await grp.locator('.ty-list-search').count()) {
           const list = (await grp.getAttribute('data-list')) ?? '';
+          if (!searchChecked) {
+            searchChecked = true;
+            await grp.locator('.ty-list-search').fill('זזז'); await page.waitForTimeout(500);
+            ok(/לא נמצא|אחר/.test(await text(grp.locator('.ty-list'))), 'חיפוש שלא מוצא — «אחר» נשאר (אין טקסט חופשי)', await text(grp.locator('.ty-list')));
+          }
           const q = search || LIST_SEARCH[list] || '';
           await grp.locator('.ty-list-search').fill(q);
           await grp.locator('.ty-list button[role="option"]').first().click();
@@ -375,13 +381,7 @@ async function run(width) {
     flow = page.locator('.ty-flow');
     const afterGrid = await flow.getAttribute('data-screen');
     ok(afterGrid === 'entity' || afterGrid === 'who', `[${tag}] מה שסומן פתח מיד את שאלת ההמשך — בלי סבב מול המשרד`, afterGrid);
-    if (afterGrid === 'entity') {
-      await shot(page, `05-entity-${tag}`, [['.ty-ent-card', 'של מי / איפה'], ['.ty-list-search', 'חיפוש ברשימה']]);
-      await flow.locator('.ty-list-search').first().fill('זזז').catch(() => {});
-      await page.waitForTimeout(500);
-      ok(/לא נמצא|אחר/.test(await text(flow.locator('.ty-list'))), `[${tag}] חיפוש שלא מוצא — «אחר» נשאר (אין טקסט חופשי)`);
-      await flow.locator('.ty-list-search').first().fill('').catch(() => {});
-    }
+    if (afterGrid === 'entity') await shot(page, `05-entity-${tag}`, [['.ty-ent-card', 'של מי / איפה'], ['.ty-list-search', 'חיפוש ברשימה']]);
     const rest = await answerFlow(page, rules);
     const all = [...s1, ...s2, ...s3, ...rest];
     const secs = Math.round((Date.now() - t0) / 1000);

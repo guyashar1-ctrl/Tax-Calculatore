@@ -117,3 +117,26 @@
 .te-charges-list li { display: grid; grid-template-columns: 4.5em auto auto 1fr; gap: 4px 8px; align-items: baseline; }
 .te-charges-list li small { grid-column: 1 / -1; color: var(--txc, #4b5058); }
 @media (max-width: 640px) { .te-charges-list li { grid-template-columns: 4.5em auto 1fr; } .te-charges-list li .ty-chip { justify-self: start; } }
+
+/* ── שורות מקור (17.10.2026) — מסמכים, עורך הזנה, «ממה זה מורכב» ── */
+.ar-docs { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.ar-doc { padding: 6px 0; border-bottom: 1px solid var(--bd); min-width: 0; }
+.ar-doc-head { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center; }
+.ar-doc-head > .ty-note { flex: 1 1 240px; min-width: 0; }
+.ar-lines { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 3px; }
+.ar-line { display: flex; flex-wrap: wrap; gap: 2px 10px; align-items: baseline; font-size: var(--fs-13); min-width: 0; }
+.ar-line > .ar-num { min-width: 92px; }
+.ar-lines.is-doc .ar-line { justify-content: space-between; }
+.ar-breakdown { display: grid; gap: 4px; padding: 6px 4px 8px; background: var(--s2, var(--s3)); border-radius: 8px; }
+.ar-manual { margin: 0; font-size: var(--fs-13); }
+.ar-manual b { font-size: var(--fs-15); margin-inline-end: 4px; }
+.ar-row.is-manual .ar-code b { color: var(--chip-amber-tx, #92400e); margin-inline-end: 2px; }
+.ar-row-actions { display: flex; flex-wrap: wrap; gap: 2px 8px; margin-top: 2px; }
+.ar-row-actions .btn { min-height: 28px; padding-block: 0; font-size: var(--fs-12); }
+.ar-row-detail td { background: transparent; padding-top: 0; }
+.ar-paper { display: flex; flex-wrap: wrap; gap: 8px; align-items: end; padding-top: 8px; }
+.ar-paper .te-field { flex: 1 1 260px; }
+.ar-entry { border: 1px solid var(--bd); border-radius: 10px; padding: 8px 10px; margin-top: 6px; }
+.ar-entry-line { display: grid; gap: 2px; min-width: 0; }
+.ar-problems { margin: 0; padding-inline-start: 1.2em; color: var(--chip-red-tx, #991b1b); font-size: var(--fs-13); }
+@media (max-width: 560px) { .ar-line > .ar-num { min-width: 0; } .ar-table th:nth-child(3), .ar-table td:nth-child(3) { display: none; } }

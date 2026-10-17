@@ -80,6 +80,7 @@ import RepDocuments, { PoaViewer, type PoaEntry, type IdEntry } from './RepDocum
 import { signatureReadiness, placesSentence } from '../features/representation/signatureReadiness';
 import { repPreparationFacts, shaamEnteredAt, type ShaamPrepFact } from '../features/representation/repPreparation';
 import IdentityDocAttach from './IdentityDocAttach';
+import { partsSummary } from '../features/identity/idFlex';
 import { shaamDocumentsView } from '../features/representation/shaamDocumentsGate';
 import type { ViewerFile } from './DocumentViewerDialog';
 import { useDocumentPdfBuilds, pdfBuildFor } from '../hooks/useDocumentPdfBuilds';
@@ -1439,7 +1440,7 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
       return [{
         key: `${person}:${g.label}`,
         name: `${kind === 'driverLicense' ? 'רישיון נהיגה' : g.label} · ${who}`,
-        sources: used.map(e => ({ documentId: e.documentId, fileName: e.fileName })),
+        sources: used.map(e => ({ documentId: e.documentId, fileName: e.fileName, parts: partsSummary(e.parts) || undefined })),
         confirmed: confirmedDocs.length > 0,
         approvalRelevant: submissions.length > 0,
         build: pdfBuildFor(pdf.builds, person, used.map(e => e.documentId)),

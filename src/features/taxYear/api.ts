@@ -20,7 +20,7 @@ export const factFromRow = (r: Row): YearFact => ({
   source: r.source as YearFact['source'], clientAssertion: s(r.client_assertion) as YearFact['clientAssertion'],
   confirmsFactId: s(r.confirms_fact_id), requestId: s(r.request_id), evidenceId: s(r.evidence_id), askId: s(r.ask_id),
   status: r.status as YearFact['status'], decidedBy: s(r.decided_by), decidedAt: s(r.decided_at), supersedes: s(r.supersedes),
-  note: s(r.note), createdAt: String(r.created_at),
+  note: s(r.note), createdAt: String(r.created_at), lineKey: s(r.line_key), enteredBy: s(r.entered_by),
 });
 
 export const evidenceFromRow = (r: Row): Evidence => ({
@@ -116,8 +116,17 @@ export const updateWealthDeclaration = (stepId: string, patch: Record<string, un
   call<{ basisChanges: number }>('update_wealth_declaration', { p_step_id: stepId, p_patch: patch, p_note: note ?? null });
 
 // ── 236 · קליטה והשלמת תיק המס — בקשה פתוחה אחת ללקוח ──
-export const ensureTaxFileIntake = (clientId: string) =>
-  call<{ stepId: string; created: boolean }>('ensure_tax_file_intake', { p_client_id: clientId });
+export type AskInput = Pick<InfoAsk, 'itemKey' | 'subjectRole' | 'entityKind' | 'entityRef' | 'prompt'>;
+export interface IntakeOpened { stepId: string; created: boolean; infoStepId?: string; asked?: number; published?: number; alreadyAnswered?: number }
+/**
+ * 254 (17.10.2026) · פתיחה עם השאלות: הקליטה נפתחת (או נמצאת), השאלות נוספות ומתפרסמות בדף הלקוח — בפעולה אחת
+ * בשרת, אידמפוטנטית (פריט פתוח לא נוסף פעמיים, שאלה שנענתה לא נשאלת שוב). בלי שאלות — הפתיחה של 236 כמו שהייתה.
+ * ‼ אין מייל: הפריט מופיע ב«הדף של X»; השליחה היא «פרסם את הדף» הקיים.
+ */
+export const ensureTaxFileIntake = (clientId: string, asks?: AskInput[]) =>
+  asks
+    ? call<IntakeOpened>('ensure_tax_file_intake', { p_client_id: clientId, p_asks: asks })
+    : call<IntakeOpened>('ensure_tax_file_intake', { p_client_id: clientId });
 
 /**
  * מסמכים מאושרים מסוג שאינו שייך לתקופה (תעודת זהות, תעודת עוסק, חוזה רכישה…) — מכל שנה ומכל תהליך.

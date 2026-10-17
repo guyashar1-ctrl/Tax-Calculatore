@@ -1,0 +1,55 @@
+/* ─── העלאת תעודה גמישה (IdentityFlexPicker) — 16.10.2026 ─────────────────────────────────────
+   ‼ הצבעים דרך משתנים עם נפילה לטוקנים של המערכת: במשרד — הערכה (גם כהה) של index.css;
+   בדף הלקוח ובטופס הייצוג — המותג של המשרד (tone) נכנס כמשתני --idf-* על השורש. מטרות מגע 44px. */
+.idf {
+  --_ink: var(--idf-ink, var(--ink-1, #1d1d1b));
+  --_muted: var(--idf-muted, var(--ink-3, #6b6b68));
+  --_line: var(--idf-border, var(--line, #d9d8d2));
+  --_accent: var(--idf-accent, var(--accent, #2f5d8a));
+  --_accent-ink: var(--idf-accent-ink, #fff);
+  --_card: var(--idf-card, var(--surface-1, var(--card, #fff)));
+  --_well: var(--idf-well, var(--surface-2, #f4f3ef));
+  --_ok: var(--idf-ok, var(--ok, #24654e));
+  --_ok-bg: var(--idf-ok-bg, var(--ok-bg, #eaf4ef));
+  --_warn: var(--idf-warn, var(--warn, #8a5b0f));
+  --_warn-bg: var(--idf-warn-bg, var(--warn-bg, #fbf3e4));
+  --_bad: var(--idf-bad, var(--danger, #a63a3a));
+  --_r: var(--idf-radius, 10px);
+  display: grid; gap: .6rem; margin-top: 6px; color: var(--_ink); font-size: 13.5px; line-height: 1.5;
+}
+.idf-lead { margin: 0; color: var(--_muted); font-size: 13px; }
+.idf-kind { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; font-size: 12.5px; color: var(--_muted); }
+.idf-kind button { font: inherit; min-height: 36px; padding: 4px 12px; border-radius: 999px; border: 1px solid var(--_line); background: var(--_card); color: var(--_ink); cursor: pointer; }
+.idf-kind button[aria-pressed="true"] { border-color: var(--_accent); color: var(--_accent); background: color-mix(in srgb, var(--_accent) 12%, var(--_card)); font-weight: 600; }
+.idf-drop { display: grid; gap: .5rem; padding: 12px; border: 1.5px dashed var(--_line); border-radius: var(--_r); background: var(--_card); }
+.idf.has .idf-drop { border-style: solid; }
+.idf-drop-text { font-size: 13px; color: var(--_muted); margin: 0; }
+.idf-add { display: flex; gap: 8px; flex-wrap: wrap; }
+.idf-btn { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 8px 14px; border: 1px solid var(--_line); border-radius: var(--_r);
+  background: var(--_card); color: var(--_ink); font: inherit; font-size: 13.5px; font-weight: 600; cursor: pointer; }
+.idf-btn[aria-disabled="true"], .idf-btn:disabled { opacity: .55; cursor: default; }
+.idf-btn.primary { background: var(--_accent); color: var(--_accent-ink); border-color: var(--_accent); }
+.idf-files { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.idf-file { display: grid; grid-template-columns: auto 1fr; gap: 6px 10px; align-items: center; padding: 8px; border: 1px solid var(--_line); border-radius: var(--_r); background: var(--_card); }
+.idf-thumb { width: 84px; height: 60px; border-radius: 6px; overflow: hidden; display: grid; place-items: center; background: var(--_well); color: var(--_muted); font-size: 22px; flex-shrink: 0; transition: transform 160ms ease; }
+.idf-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.idf-file-main { display: grid; gap: 4px; min-width: 0; }
+.idf-name { font-size: 12px; color: var(--_muted); overflow-wrap: anywhere; }
+.idf-tag { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; font-size: 13px; }
+.idf-tag select { font: inherit; font-size: 13.5px; min-height: 40px; padding: 0 8px; border-radius: 8px; border: 1px solid var(--_line); background: var(--_card); color: var(--_ink); max-width: 100%; }
+.idf-tag select:focus-visible, .idf-btn:focus-visible, .idf-link:focus-visible, .idf-kind button:focus-visible { outline: 3px solid var(--_accent); outline-offset: 2px; }
+.idf-acts { grid-column: 1 / -1; display: flex; gap: 4px 10px; flex-wrap: wrap; align-items: center; }
+.idf-link { font: inherit; font-size: 12.5px; background: none; border: none; padding: 6px 2px; min-height: 36px; color: var(--_muted); text-decoration: underline; cursor: pointer; }
+.idf-link:disabled { opacity: .5; cursor: default; }
+.idf-chip { display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; border-radius: 999px; font-size: 13px; font-weight: 600; width: fit-content; max-width: 100%; }
+.idf-chip.warn { background: var(--_warn-bg); color: var(--_warn); }
+.idf-chip.ok { background: var(--_ok-bg); color: var(--_ok); }
+.idf-hint { margin: 0; font-size: 12px; color: var(--_muted); line-height: 1.5; }
+.idf-err { font-size: 12.5px; color: var(--_bad); font-weight: 600; }
+.idf-confirm { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+/* ‼ בטלפון הבחירה «מה בתמונה?» ברוחב מלא — אחרת «קדמי + ספח יחד» נחתך ליד התמונה (נתפס בצילום 390). */
+@media (max-width: 480px) {
+  .idf-thumb { width: 72px; height: 52px; }
+  .idf-tag { display: grid; gap: 4px; }
+  .idf-tag select { width: 100%; min-width: 0; }
+}

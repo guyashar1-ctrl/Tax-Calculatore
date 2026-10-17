@@ -56,7 +56,8 @@ export function PoaViewer({ entry, signers, values, loadDoc, composeClientSigned
 export interface IdEntry {
   key: string;
   name: string;
-  sources: { documentId: string; fileName?: string }[];
+  /** parts — ההרכב מההעלאה הגמישה («קדמי+ספח · אחורי»), כשהלקוח תייג את התמונות (16.10.2026). */
+  sources: { documentId: string; fileName?: string; parts?: string }[];
   /** הלקוח אישר שזה המסמך שלו (208). */
   confirmed: boolean;
   /** האם לשאול בכלל (שע״ם דורשת). */
@@ -186,7 +187,9 @@ export default function RepDocuments({
           const separate = hasSeparateSubmission(b);
           const images = e.sources.filter(s => !isPdfName(s.fileName));
           const kinds = [...new Set(images.map(s => extOf(s.fileName)).filter(Boolean))].join('/');
-          const photoText = e.sources.length > 1 ? `${e.sources.length} צילומים${kinds ? ` (${kinds})` : ''}` : `צילום${kinds ? ` ${kinds}` : ''}`;
+          const parts = e.sources.map(s => s.parts).filter(Boolean).join(' · ');
+          const photoText = (e.sources.length > 1 ? `${e.sources.length} צילומים${kinds ? ` (${kinds})` : ''}` : `צילום${kinds ? ` ${kinds}` : ''}`)
+            + (parts ? ` · ${parts}` : '');
           return (
             <div key={e.key} className="rc-doc" data-testid="rc-doc-id" data-pdf={b?.status ?? 'none'} data-submission={b?.submissionState ?? 'none'}>
               <div className="rc-doc-main">

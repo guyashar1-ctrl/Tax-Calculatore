@@ -32,7 +32,7 @@ import HebrewTextInput from '../ui/HebrewTextInput';
 import Employer106Details from './Employer106Details';
 import InvestmentAccount867Details from './InvestmentAccount867Details';
 import Business1320Details from './Business1320Details';
-import { INDUSTRIES } from '../../features/smartForms/clientForms/industries';
+import VatBranchPicker from '../ui/VatBranchPicker';
 import ChildTaxDetails from './ChildTaxDetails';
 import {
   BUSINESS_SITUATION_HINTS, BUSINESS_SITUATION_LABELS, BUSINESS_SITUATION_ORDER,
@@ -1920,10 +1920,7 @@ export default function PersonalContactsTab({
                   <div className="form-group">
                     <label>ענף כלכלי</label>
                     {/* 251 · אותה רשימה סגורה כמו בשאלון של טופס 821 — מקור אחד */}
-                    <select value={b.industry ?? ''} onChange={e => updateBusiness(b.id, 'industry', e.target.value || undefined)}>
-                      <option value="">-</option>
-                      {INDUSTRIES.map(i => <option key={i.value} value={i.value}>{i.label}</option>)}
-                    </select>
+                    <VatBranchPicker value={b.industry ?? ''} onChange={code => updateBusiness(b.id, 'industry', code || undefined)} />
                   </div>
                   <div className="form-group">
                     <label>תאריך פתיחה</label>

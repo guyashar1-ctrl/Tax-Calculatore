@@ -41,6 +41,7 @@ import './taxYear.css';
 import RemoveWorkDialog from './RemoveWorkDialog';
 import MaternitySpreadLine from './MaternitySpread';
 import { isOpenStep } from './taxWork';
+import { toAskInput } from './workCreate';
 import { buildQuestionTree, countsLine, TREE_MARK } from './questionTree';
 
 interface Props {
@@ -74,6 +75,10 @@ const target = (s: { entityLabel?: string; subjectRole: string }, c: Client) =>
 
 export default function TaxYearProcess({ client, step, infoStep, onClose, onChanged, onClientPersisted, onRemoved, embedded }: Props) {
   const purpose: Purpose = step.stepType === 'tax_estimate' ? 'estimate' : step.stepType === 'wealth_declaration' ? 'wealth' : step.stepType === 'tax_file_intake' ? 'intake' : 'annual';
+  // ‼ 254 (17.10.2026) · «היכרות שנשלחת לבד»: בשורת הקליטה ב«בקשות» אין «הוסף שאלות» ואין «פרסם» — מה שהתמונה
+  //   אומרת לשאול נוסף ומתפרסם בדף של הלקוח בפעולה אחת בשרת (ensure_tax_file_intake עם השאלות), אידמפוטנטית.
+  //   רק לקליטה, ורק בתוך השורה; דוח שנתי / הצהרת הון / הערכה — כמו קודם (עד שלב 5).
+  const autoIntake = !!embedded && purpose === 'intake' && isOpenStep(step);
   const p = step.payload as unknown as { taxYear: number; cutoffMonth?: number; title?: string; legacySessionId?: string; legacyStepId?: string; legacyReplaced?: { stepId: string; at: string } } & WealthPayload;
   const year = Number(p.taxYear);
   const firstName = client.firstName || 'הלקוח';
@@ -132,7 +137,8 @@ export default function TaxYearProcess({ client, step, infoStep, onClose, onChan
   }), [data, client, year, purpose, p.cutoffMonth, p.asOfDate, p.kind, prior]);
   // 16.10.2026 · «של מי» בתשובות מהרשימות — בשם (רחל), לא בתפקיד
   const review = useMemo(() => data && groupForReview(data.facts, data.evidence, { clientName: client.firstName || 'הלקוח', spouseName: client.spouseFirstName || client.spouse?.firstName || 'בן/בת הזוג' }), [data, client]);
-  const drafts = data?.asks.filter(a => a.state === 'draft') ?? [];
+  // ‼ בקליטה בתוך השורה הטיוטות אינן «עכשיו» של המשרד — הן מתפרסמות לבד (autoIntake)
+  const drafts = (autoIntake ? [] : data?.asks.filter(a => a.state === 'draft')) ?? [];
   const waitingAsks = data?.asks.filter(a => a.state === 'published') ?? [];
   const notSure = data?.asks.filter(a => a.state === 'answered' && a.officeNote && !a.noteResolvedAt) ?? [];
 
@@ -169,7 +175,39 @@ export default function TaxYearProcess({ client, step, infoStep, onClose, onChan
       : await api.decideFacts([from.factId!], 'reject', why) as { ok?: boolean; error?: string };
     if (r1 && r1.ok === false) return r1;
     return api.addAsks(step.id, [ask]);
-  }, 'הוחזר ל' + firstName + ' — השאלה נוספה לשאלות לפרסום, עם מה שצריך לתקן');
+  }, autoIntake ? `הוחזר ל${firstName} — השאלה חוזרת לדף שלו, עם מה שצריך לתקן` : 'הוחזר ל' + firstName + ' — השאלה נוספה לשאלות לפרסום, עם מה שצריך לתקן');
+
+  // ‼ autoIntake: מה שצריך לשאול + טיוטות ⇒ קריאה אחת לשרת; סט שכבר נשלח (מפתח) לא נשלח שוב, גם לא אחרי כשל —
+  //   «נסה שוב» מאפס את המפתח. שאלון קליטה ישן שעדיין פתוח — אישורי הפרטים הקבועים נשארים לו (כמו ב-AskPanel).
+  const autoKeyRef = useRef<string | null>(null);
+  const [autoBusy, setAutoBusy] = useState(false);
+  const [autoRetry, setAutoRetry] = useState(0);
+  const autoPlan = useMemo(() => {
+    if (!autoIntake || !data || !picture) return null;
+    const askableNow = [...picture.toConfirm, ...picture.toAsk];
+    const planAll = askableNow.length ? buildAskPlan(askableNow, { client, taxYear: year, purpose, cutoffMonth: p.cutoffMonth, asOfDate: p.asOfDate, declKind: p.kind, previousByArea: prevArea }) : [];
+    const plan = openIntake ? planAll.filter(e => e.statuses[0]?.state !== 'fromCard') : planAll;
+    const draftIds = data.asks.filter(a => a.state === 'draft').map(a => a.id);
+    return { plan, draftIds, key: [...plan.map(e => e.key), ...draftIds].sort().join('|') };
+  }, [autoIntake, data, picture, client, year, purpose, p.cutoffMonth, p.asOfDate, p.kind, prevArea, openIntake]);
+  const autoPending = !!autoPlan && (autoPlan.plan.length > 0 || autoPlan.draftIds.length > 0);
+  useEffect(() => {
+    if (!autoPlan || !autoPending || busy || autoBusy) return;
+    if (autoKeyRef.current === autoPlan.key) return;
+    autoKeyRef.current = autoPlan.key;
+    setAutoBusy(true);
+    void api.ensureTaxFileIntake(client.id, autoPlan.plan.map(toAskInput)).then(async r => {
+      if (!r.ok) { setErr(errText(r.error)); return; }
+      const n = (r.asked ?? 0) || (r.published ?? 0);
+      if (n > 0) {
+        const msg = `${count(n, 'שאלה אחת', 'שאלות')} בדף של ${firstName} — בלי מייל. המייל, אם צריך — מ«הדף של ${firstName}» למעלה.`;
+        setFlash(prev => (prev && /הוחזר ל/.test(prev) ? `${prev} · ${msg}` : msg));
+      }
+      setErr(null);
+      await reload(); onChanged();
+    }).catch(e => setErr((e as Error).message)).finally(() => setAutoBusy(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoPlan?.key, autoPending, busy, autoBusy, autoRetry]);
 
   const subtitle = purpose === 'wealth' ? [wealthSubtitle(p), `נפתחה ${formatDate(step.createdAt)}`].join(' · ')
     : purpose === 'intake' ? [`פרטים מתמשכים ומסמכים, נכון ל-${p.asOfDate ? formatDate(p.asOfDate) : formatDate(step.createdAt)}`, 'סכומים לשנה — בדוח השנתי'].join(' · ') : [
@@ -189,10 +227,12 @@ export default function TaxYearProcess({ client, step, infoStep, onClose, onChan
 
   // ── מה עכשיו ──
   const reviewCount = review.unchanged.length + review.negatives.length + review.individual.length + review.legacy.length + review.documents.length + notSure.length;
-  const askable = [...picture.toConfirm, ...picture.toAsk];
-  const suggested: 'stale' | 'review' | 'publish' | 'ask' | 'office' | 'waiting' | 'done' =
+  const askable = autoIntake ? [] : [...picture.toConfirm, ...picture.toAsk];
+  const suggested: 'stale' | 'review' | 'publish' | 'ask' | 'office' | 'waiting' | 'done' | 'syncing' =
+    // ‼ autoIntake: בזמן שהשאלון מתעדכן בדף (או כשהעדכון נכשל ומחכה ל«נסה שוב») — לא «הושלם» ולא «ממתין»
+    autoIntake && (autoBusy || autoPending) ? 'syncing'
     // ‼ שאלה שכבר אינה רלוונטית (התשובה שעליה נשענה שונתה) — קודם מבטלים, כדי שלא תפורסם ולא תחכה לשווא
-    picture.stale.length > 0 ? 'stale'
+    : picture.stale.length > 0 ? 'stale'
     : reviewCount > 0 ? 'review' : drafts.length > 0 ? 'publish'
     // מסמך שאושר ומחכה להזנה — המשרד יכול לסיים עכשיו, לפני שאלות חדשות
     : picture.officeTodo.some(x => x.state === 'docReceived') ? 'office'
@@ -290,6 +330,17 @@ export default function TaxYearProcess({ client, step, infoStep, onClose, onChan
                     <button type="button" className="btn btn-primary" disabled={busy} onClick={() => void run(async () => { for (const s of picture.stale) { const r = await api.cancelAsk(s.ask!.id); if (!r.ok) return r; } return { ok: true }; }, 'השאלות שכבר לא רלוונטיות בוטלו — נשמרו בהיסטוריה')}>בטל אותן</button>
                   </div>
                 </>
+              )}
+              {now === 'syncing' && (
+                <div data-ty-syncing>
+                  <h3>{autoBusy ? `מעדכן את השאלון בדף של ${firstName}…` : err ? 'השאלון לא עודכן בדף' : `מכין את השאלון ל${firstName}`}</h3>
+                  <p className="ty-why">השאלות נגזרות מהתיק ומתפרסמות בדף של {firstName} לבד — בלי מייל. המייל, אם צריך — מ«הדף של {firstName}» למעלה.</p>
+                  {!autoBusy && err && (
+                    <div className="ty-actions">
+                      <button type="button" className="btn btn-sm btn-primary" onClick={() => { autoKeyRef.current = null; setAutoRetry(n => n + 1); }} data-ty-retry>נסה שוב</button>
+                    </div>
+                  )}
+                </div>
               )}
               {now === 'review' && <ReviewPanel client={client} review={review} notSure={notSure} busy={busy} run={run} evidence={data.evidence} onReturn={returnToClient} applyCard={applyCard} />}
               {now === 'publish' && (

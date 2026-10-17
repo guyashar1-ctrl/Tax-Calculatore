@@ -127,3 +127,10 @@
 }
 .fm-new { font-size: var(--fs-12); font-weight: 500; color: var(--br); }
 .fm-related { margin: 8px 0 0; font-size: var(--fs-13); }
+
+/* ערכי הדוח של הלקוח על הטופס (17.10.2026) */
+.fm-mk.has-val { border-style: solid; border-width: 2px; border-color: rgba(21, 128, 61, .95); background: rgba(21, 128, 61, .3); }
+.fm-sw.has-val { border: 2px solid rgba(21, 128, 61, .95); background: rgba(21, 128, 61, .3); }
+.fm-hit-v { color: rgba(21, 128, 61, 1); }
+.fm-ret { display: grid; gap: 4px; padding: 6px 8px; margin: 4px 0; border-radius: 8px; background: rgba(21, 128, 61, .08); }
+.fm-ret .fm-h { margin: 0; }

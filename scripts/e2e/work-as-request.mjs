@@ -3,7 +3,8 @@
  * work-as-request.mjs — «כל עבודה היא בקשה» (16.10.2026): בדיקת דפדפן של המסלול המלא, במחשב ובטלפון.
  *
  *   תיק המס (שורת מצב אחת · «השלם עם הלקוח» · «זהות ורשויות») → שורת הקליטה ב«בקשות» נפתחת במקום, עם העבודה בתוכה
- *   → הכנת שאלות ופרסום בדף **בלי מייל** → הלקוח עונה בדף האישי → קישור ישיר לשורה (‎#/client/<id>/journey/<stepId>‎)
+ *   → (254) השאלון כבר אצל הלקוח — בלי «הוסף שאלות» ובלי «פרסם», **בלי מייל**; שורה אחת (בלי «↳ השלמת מידע»), שבב מצב
+ *   ושלושת הצעדים בשורה → הלקוח עונה בדף האישי → קישור ישיר לשורה (‎#/client/<id>/journey/<stepId>‎; קישור לבן נוחת בהורה)
  *   → בדיקת משרד (אישור, «החזר ללקוח») → אישור לתיק («עדכן בתיק») → עץ השאלון → הסרה דרך ⋯ של השורה.
  *   גם: הספרייה כעמוד אחד (בקשות / מסמכים / פגישות כמקטעים).
  *
@@ -319,17 +320,42 @@ async function run(width) {
     if (width < 700) ok(await noHScroll(page), `[${tag}] טלפון: השורה הפתוחה בלי גלילה הצידה`);
     await shot(page, `02-request-row-open-${tag}`, false, [[`#ob-step-${stepId} .rl-line`, 'שורת הבקשה'], [`#ob-step-${stepId} .ty-inline-head`, 'העבודה בתוך השורה']]);
 
-    // 3 · הכנה ופרסום בדף — בלי מייל
-    const pub = await prepareAndPublish(w, { viaPage: TARGET === 'staging' });
-    ok(pub.n > 0, `[${tag}] הוכנו ${pub.n} שאלות`);
-    if (pub.viaPage) {
-      const c = (await env.sql(`select count(*) filter (where state = 'draft')::int d, count(*) filter (where state = 'published')::int p from public.tax_info_asks where client_id = '${env.clientId}'`))[0];
-      ok(c.d === 0 && c.p > 0, `[${tag}] 249 · «פרסם בדף» בכרטיס «הדף של …» פרסם גם את השאלות: ${c.p} פורסמו, ${c.d} בטיוטה`, JSON.stringify(c));
+    // 3 · 254 · ההיכרות נשלחת לבד: אין «הוסף שאלות» ואין «פרסם» — השאלון כבר בדף של הלקוח, בלי מייל
+    await page.waitForFunction(sel => { const el = document.querySelector(sel); return !!el && /ממתין ל|לבדוק את מה ש|ממתין לפרסום/.test(el.innerText); }, `#ob-step-${stepId} .ty-now`, { timeout: 45000 }).catch(() => {});
+    const nowTxt = (await text(nowBox(w))).replace(/\s+/g, ' ');
+    const laterTxt = (await text(w.locator('.ty-later'))).replace(/\s+/g, ' ');
+    ok(/ממתין ל/.test(nowTxt) || (/להשלים במשרד/.test(nowTxt) && /ממתין ל/.test(laterTxt)), `[${tag}] 254 · בלי «הוסף שאלות» ובלי «פרסם»: «${nowTxt.slice(0, 40)}…» ו«ממתין ל${env.clientName}»`, nowTxt.slice(0, 200) + ' | ' + laterTxt.slice(0, 120));
+    ok(await w.locator('[data-ty-publish]').count() === 0 && await w.getByRole('button', { name: /^הוסף .*לבקשה «השלמת מידע»$/ }).count() === 0, `[${tag}] אין כפתור «פרסם» ואין «הוסף שאלות» בשורת הקליטה`);
+    ok(await page.locator('.rl-name', { hasText: /^↳/ }).count() === 0 && await page.locator('.rl-name', { hasText: 'השלמת פרטים לתיק המס' }).count() === 0, `[${tag}] שורה אחת: אין שורת «↳ השלמת פרטים לתיק המס»`);
+    const rs = row.locator('[data-request-steps]');
+    const rsTxt = (await text(rs)).replace(/\s+/g, ' ');
+    ok(await rs.locator('[data-rs-step]').count() === 3 && /תשובות הלקוח/.test(rsTxt) && /יישור קו ברשויות/.test(rsTxt) && /לתיק/.test(rsTxt), `[${tag}] שלושת הצעדים בשורה: תשובות הלקוח · יישור קו ברשויות · לתיק`, rsTxt.slice(0, 200));
+    ok(/טרם בוצע/.test(rsTxt) && /ממתין לאישורך/.test(rsTxt), `[${tag}] הצעדים: יישור קו «טרם בוצע» · לתיק «ייכנס כ«ממתין לאישורך»»`, rsTxt.slice(0, 200));
+    let chip = (await text(row.locator('.rl-line .rl-state'))).replace(/\s+/g, ' ').trim();
+    if (/ממתין לפרסום/.test(chip)) {
+      // שער הדף (clientPageGate): לקוח שהדף שלו עוד לא פורסם — «פרסם בדף» בכרטיס «הדף של …», רק לפרסם (בלי מייל)
+      const pageBtn = page.locator('button', { hasText: /^פרסם בדף$/ }).first();
+      if (await pageBtn.count()) { await pageBtn.click(); const only = page.locator('button, [role=button]', { hasText: /^רק לפרסם/ }).first(); await only.waitFor({ timeout: 8000 }).catch(() => {}); if (await only.count()) await only.click(); await page.waitForTimeout(3000); }
+      chip = (await text(row.locator('.rl-line .rl-state'))).replace(/\s+/g, ' ').trim();
+      ok(true, `[${tag}] הדף טרם פורסם — «פרסם בדף» (רק לפרסם) בכרטיס הדף`);
     }
-    else ok(pub.label === 'פרסם את השאלות בדף' && /לא נשלח מייל|המייל — ב|נשמר כמפורסם/.test(pub.flash), `[${tag}] «${pub.label}» — «${pub.flash.trim().slice(0, 70)}»${pub.pagePublished ? ' + «פרסם בדף» בכרטיס הדף' : ''}`, `${pub.flash} | שגיאה: ${pub.err}`);
+    ok(/אצל .+ · 0 מתוך \d+/.test(chip), `[${tag}] שבב המצב בשורה הסגורה: «${chip}»`);
+    const askedN = Number((chip.match(/מתוך (\d+)/) ?? [0, '0'])[1]);
+    ok(askedN > 0, `[${tag}] ${askedN} שאלות בדף של הלקוח — בלי פעולה של המשרד`);
+    if (TARGET === 'staging') {
+      const c = (await env.sql(`select count(*) filter (where state = 'draft')::int d, count(*) filter (where state = 'published')::int p from public.tax_info_asks where client_id = '${env.clientId}'`))[0];
+      ok(c.d === 0 && c.p === askedN, `[${tag}] staging: ${c.p} שאלות מפורסמות, ${c.d} בטיוטה — ensure_tax_file_intake (254) פרסמה בעצמה`, JSON.stringify(c));
+      const hist = (await env.sql(`select payload->'history' h from public.onboarding_steps where id = '${stepId}'`))[0]?.h ?? [];
+      ok(hist.some(x => x.what === 'questions_published'), `[${tag}] staging: בהיסטוריית הבקשה «השאלות פורסמו»`, JSON.stringify(hist).slice(0, 200));
+    }
     const mails = await env.emailsFor?.();
     if (TARGET === 'staging') ok(mails === 0, `[${tag}] staging: אין שורה ב-email_messages ללקוח (${mails})`);
-    await shot(page, `03-published-${tag}`, false, [[`#ob-step-${stepId} .ty-ok`, 'פורסם — בלי מייל']]);
+    await shot(page, `03-published-${tag}`, false, [[`#ob-step-${stepId} [data-request-steps]`, 'שלושת הצעדים בשורה'], [`#ob-step-${stepId} .rl-state`, 'שבב המצב'], [`#ob-step-${stepId} .ty-now`, 'ממתין ללקוח — בלי «הוסף»/«פרסם»']]);
+    // השורה הסגורה: הצעדים גלויים גם בלי לפתוח
+    await row.locator('.rl-chev').click(); await page.waitForTimeout(400);
+    ok(await row.locator('[data-ty-inline]').count() === 0 && await row.locator('[data-request-steps]').count() === 1, `[${tag}] בשורה סגורה: שלושת הצעדים גלויים, העבודה מקופלת`);
+    await shot(page, `03b-closed-row-${tag}`, false, [[`#ob-step-${stepId}`, 'השורה הסגורה עם שלושת הצעדים']]);
+    await row.locator('.rl-chev').click(); await page.waitForTimeout(400);
 
     // 4 · הלקוח בדף האישי
     const { flow } = await openPortalItem(page, 'השלמת פרטים לתיק המס');
@@ -344,6 +370,16 @@ async function run(width) {
     await shot(page, `05-portal-done-${tag}`);
 
     // 5 · המשרד — קישור ישיר לשורה (‎#/client/<id>/journey/<stepId>‎)
+    if (TARGET === 'staging') {
+      // 254 · קישור לבן («השלמת מידע» — למשל מהדף האישי) נוחת בשורת ההורה; לבן אין שורה
+      const [child] = await env.sql(`select id from public.onboarding_steps where client_id = '${env.clientId}' and step_type = 'info_collection' and payload->>'parentStepId' = '${stepId}' limit 1`);
+      if (child?.id) {
+        await go(page, keepUrl(`journey/${child.id}`));
+        const parentRow = page.locator(`#ob-step-${stepId}`);
+        await parentRow.locator('[data-ty-inline] .ty-label').first().waitFor({ timeout: 40000 }).catch(() => {});
+        ok(await parentRow.locator('[data-ty-inline]').count() > 0 && await page.locator(`#ob-step-${child.id}`).count() === 0, `[${tag}] קישור ל«השלמת מידע» (הבן) נחת בשורת ההורה — לבן אין שורה`);
+      } else ok(false, `[${tag}] לא נמצא בן info_collection לקליטה`);
+    }
     await go(page, keepUrl(`journey/${stepId}`));
     const row2 = page.locator(`#ob-step-${stepId}`);
     await row2.locator('[data-ty-inline] .ty-label').first().waitFor({ timeout: 40000 });
@@ -364,7 +400,10 @@ async function run(width) {
       await crypto.getByRole('button', { name: 'החזר ללקוח' }).click();
       await crypto.locator('input[aria-label="מה צריך לתקן"]').fill('נא לפרט באיזו זירה');
       await crypto.getByRole('button', { name: /^החזר$/ }).click(); await waitIdle(w);
-      ok(/הוחזר/.test(await text(w.locator('.ty-ok'))), `[${tag}] «החזר ללקוח לתיקון» — מתוך השורה`);
+      // 254 · הטיוטה עם התיקון מתפרסמת לבד — בלי «פרסם», בלי מייל (ההודעה מצטרפת ל«הוחזר ל…»)
+      await page.waitForFunction(sel => { const el = document.querySelector(sel); return !!el && /בדף של/.test(el.innerText); }, `#ob-step-${stepId} .ty-ok`, { timeout: 30000 }).catch(() => {});
+      const okTxt = (await text(w.locator('.ty-ok'))).replace(/\s+/g, ' ');
+      ok(/בדף של .* — בלי מייל/.test(okTxt) && await w.locator('[data-ty-publish]').count() === 0, `[${tag}] «החזר ללקוח לתיקון» מתוך השורה — והתיקון פורסם לבד: «${okTxt.slice(0, 90)}»`, okTxt || await text(w.locator('.ty-err, .ty-now')));
     } else ok(false, `[${tag}] שורת «מטבעות דיגיטליים» לבדיקה לא נמצאה`, (await text(nowBox(w))).slice(0, 300));
     const doc = nowBox(w).locator('.ty-row', { hasText: 'תעודת זהות' }).first();
     if (await doc.count()) {
@@ -373,10 +412,10 @@ async function run(width) {
       await doc.getByRole('button', { name: 'אשר מסמך' }).click(); await waitIdle(w);
       ok(true, `[${tag}] מסמך שהגיע — נבדק ואושר`);
     }
-    // הטיוטה עם התיקון — פרסום בדף (בלי מייל)
-    if (await goLater(w, 'publish') || await nowBox(w).locator('[data-ty-publish]').count()) {
-      await nowBox(w).locator('[data-ty-publish]').click(); await waitIdle(w);
-      ok(/לא נשלח מייל/.test(await text(w.locator('.ty-ok'))), `[${tag}] התיקון פורסם בדף — בלי מייל`);
+    ok(await w.locator('[data-ty-publish]').count() === 0, `[${tag}] 254 · אחרי הבדיקה — עדיין אין «פרסם» בשורת הקליטה`);
+    if (TARGET === 'staging') {
+      const c = (await env.sql(`select count(*) filter (where state = 'draft')::int d from public.tax_info_asks where client_id = '${env.clientId}'`))[0];
+      ok(c.d === 0, `[${tag}] staging: 0 טיוטות אחרי «החזר ללקוח»`, JSON.stringify(c));
     }
     // 6 · אישור לתיק — כל תשובה: «אשר» או «אשר ועדכן בתיק» (הצעה שמוחלת מיד, עם הערך הקודם, המקור וההיסטוריה)
     let plain = 0, toCard = 0, cardMsg = '';
@@ -608,6 +647,8 @@ async function darkPass(width) {
     if (await row.count()) {
       const r = await lum('.rl-row.is-open .ty-now h3, .rl-row.is-open .ty-label');
       ok(r.bg < 0.2 && r.ratio >= 4.5, `[${tag}] שורת הבקשה במצב כהה: ניגודיות ${r.ratio.toFixed(1)}:1`, JSON.stringify(r));
+      const rsl = await lum('.rl-row.is-open [data-request-steps] .rs-line');
+      ok(rsl.bg < 0.2 && rsl.ratio >= 4.5, `[${tag}] שלושת הצעדים במצב כהה: ניגודיות ${rsl.ratio.toFixed(1)}:1`, JSON.stringify(rsl));
       await shot(page, `22-dark-request-row-${tag}`, false, [['.rl-row.is-open .ty-now', 'העבודה בשורה — מצב כהה']]);
     } else ok(false, `[${tag}] שורת הבקשה לא נפתחה במצב כהה`);
     if (env.libraryUrl) {
@@ -643,11 +684,19 @@ async function familyYearFlow(width) {
     const legacy = w.locator('[data-legacy-intake]');
     await legacy.waitFor({ timeout: 5000 }).catch(() => {});
     if (await legacy.count()) { await legacy.getByRole('button', { name: 'החלף בקליטה' }).click(); await waitIdle(w); }
-    if (!/שאלות? ל|שאלה אחת ל/.test(await text(nowBox(w)))) await goLater(w, 'ask');
-    const plan = await text(nowBox(w));
-    ok(plan.includes('באיזו שנה התחתנתם?') && !plan.includes('באיזו שנה התגרשתם') && !plan.includes('נפטר/ה בן/בת הזוג'), `[${tag}] בשאלות לקליטה: «באיזו שנה התחתנתם?» — רק השנה של המצב`, plan.slice(0, 300));
-    const pub = await prepareAndPublish(w, { viaPage: TARGET === 'staging' });
-    ok(pub.n > 0 && (pub.viaPage || /פורסם|נשמר כמפורסם/.test(pub.flash)), `[${tag}] פורסמו ${pub.n} שאלות — בלי מייל${pub.viaPage ? ' («פרסם בדף», רק לפרסם)' : ''}`, pub.flash + ' ' + pub.err);
+    // 254 · השאלון נשלח לבד; «באיזו שנה התחתנתם?» בעץ השאלון של השורה (רק השנה של המצב)
+    await page.waitForFunction(sel => { const el = document.querySelector(sel); return !!el && /ממתין ל|ממתין לפרסום/.test(el.innerText); }, `#ob-step-${stepId} .ty-now`, { timeout: 45000 }).catch(() => {});
+    const chipFy = (await text(row.locator('.rl-line .rl-state'))).trim();
+    if (/ממתין לפרסום/.test(chipFy)) {
+      const pageBtn = page.locator('button', { hasText: /^פרסם בדף$/ }).first();
+      if (await pageBtn.count()) { await pageBtn.click(); const only = page.locator('button, [role=button]', { hasText: /^רק לפרסם/ }).first(); await only.waitFor({ timeout: 8000 }).catch(() => {}); if (await only.count()) await only.click(); await page.waitForTimeout(3000); }
+    }
+    const titles = TARGET === 'staging'
+      ? (await env.sql(`select prompt->>'title' t from public.tax_info_asks where client_id = '${env.clientId}' and state in ('published','answered','unavailable')`)).map(r => r.t)
+      : await page.evaluate(() => { try { const s = JSON.parse(localStorage.getItem('pivo-fake-taxyear-v2') ?? '{}'); return (s.tax_info_asks ?? []).filter(a => ['published', 'answered', 'unavailable'].includes(a.state)).map(a => a.prompt?.title ?? ''); } catch { return []; } });
+    const plan = titles.join(' | ');
+    ok(titles.length > 0 && /באיזו שנה התחתנתם/.test(plan) && !/התגרשתם/.test(plan) && !/נפטר\/ה/.test(plan), `[${tag}] בשאלון שנשלח לבד (${titles.length} שאלות): «באיזו שנה התחתנתם?» — רק השנה של המצב`, plan.slice(0, 300));
+    ok(await w.locator('[data-ty-publish]').count() === 0, `[${tag}] 254 · בלי «פרסם» — השאלון כבר בדף`);
     await openPortalItem(page, 'השלמת פרטים לתיק המס');
     let shotTaken = false;
     const log = [];

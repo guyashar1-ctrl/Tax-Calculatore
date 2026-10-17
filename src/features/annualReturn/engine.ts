@@ -12,9 +12,11 @@ import { computeEstimate } from '../taxEstimate/engine';
 import type { Blocker, EstimateDraft, EstimateOutputs, IncomeLine, Payment, Person, SavingsPlan } from '../taxEstimate/types';
 import { isNum } from '../taxEstimate/types';
 import { CATALOG_1301_2025, ANNEX_CATALOG_2025 } from '../taxForms/coverage1301';
-import { readComponents, screenerYes, sliceYear, sumComponent, trustOf } from './facts';
+import { lineOf, readComponents, screenerYes, sliceYear, sumComponent, trustOf } from './facts';
 import type { FactReading, Trust } from './facts';
 import type { AnnexStatus, FieldSource, GapKind, ReturnControl, ReturnDraft, ReturnField, ReturnGap, ReturnOutputs } from './types';
+import { DOCS } from '../taxYear/documents';
+import type { DocKind } from '../taxYear/types';
 import { buildCoverage } from './formFields';
 import { compute1320, LINES_1320 } from './annex1320';
 import { DRAFT_FILL_1301 } from '../taxForms/coverage1301';
@@ -25,12 +27,38 @@ const nis = (n: number) => `${Math.round(n).toLocaleString('he-IL')} ₪`;
 const PERSON_HE: Record<Person, string> = { client: 'הלקוח', spouse: 'בן/בת הזוג' };
 export const SUPPORTED_FORM_YEARS = [2025];
 
-/** תווית ומיקום של קוד בטופס 1301/2025 — מהקטלוג שנקרא (מקור אחד). */
-function codeInfo(code: string): { part: string; section?: string; label: string } {
-  const f = (CATALOG_1301_2025 as { part: string; section: string | null; codes: Record<string, string | null> | null; label: string }[])
-    .find(x => (x as { id?: string }).id === code || (x.codes && Object.values(x.codes).includes(code)));
-  return f ? { part: f.part, section: f.section ?? undefined, label: f.label } : { part: '?', label: `קוד ${code}` };
+// ── אינדקס קודים (N7, 17.10.2026): קוד = (שנה, טופס, קוד, טור). אותו קוד יכול לשמש כמה שדות (181/182: קוד התואר, שנת סיום…).
+//    לא בוחרים אחד בשקט: כל ההתאמות נשמרות, הבחירה לפי הטור (רשום / בן זוג / משותף) וסוג השדה, ושדה שנשאר דו-משמעי מסומן.
+type CatEntry = { id: string; part: string; section: string | null; codes: Record<string, string | null> | null; label: string; kind: string };
+export type CodeColumn = 'registered' | 'spouse' | 'joint';
+export interface CodeMatch { entry: CatEntry; column: CodeColumn | 'id' }
+const CODE_INDEX = new Map<string, CodeMatch[]>();
+for (const e of CATALOG_1301_2025 as unknown as CatEntry[]) {
+  for (const col of ['registered', 'spouse', 'joint'] as const) {
+    const c = e.codes?.[col];
+    if (c) CODE_INDEX.set(c, [...(CODE_INDEX.get(c) ?? []), { entry: e, column: col }]);
+  }
+  if (!e.codes || !Object.values(e.codes).some(Boolean)) CODE_INDEX.set(e.id, [...(CODE_INDEX.get(e.id) ?? []), { entry: e, column: 'id' }]);
 }
+/** כל ההתאמות של קוד בטופס 1301/2025 — בכל הטורים. «42» מוצא גם «042». */
+export function codeMatches(code: string): CodeMatch[] {
+  const raw = code.trim();
+  return CODE_INDEX.get(raw) ?? CODE_INDEX.get(raw.padStart(3, '0')) ?? [];
+}
+/** תווית ומיקום של קוד לטור של האדם — ההתאמה לטור ולסוג; יותר מהתאמה אחת שנשארה ⇒ ambiguous. */
+function codeInfo(code: string, person: Person | 'joint', kind: ReturnField['kind'] = 'amount'): { part: string; section?: string; label: string; ambiguous: boolean } {
+  const all = codeMatches(code);
+  if (!all.length) return { part: '?', label: `קוד ${code}`, ambiguous: false };
+  const col: CodeColumn = person === 'spouse' ? 'spouse' : person === 'joint' ? 'joint' : 'registered';
+  let m = all.filter(x => x.column === col);
+  if (!m.length) m = all.filter(x => x.column === 'id');
+  if (!m.length) m = all;
+  const byKind = m.filter(x => (kind === 'amount' ? x.entry.kind === 'amount' : x.entry.kind !== 'amount'));
+  if (byKind.length) m = byKind;
+  const f = m[0].entry;
+  return { part: f.part, section: f.section ?? undefined, label: f.label, ambiguous: new Set(m.map(x => x.entry.id)).size > 1 };
+}
+const docLabelOf = (kind: string) => (DOCS as Record<string, { label: string }>)[kind as DocKind]?.label ?? kind;
 const annexTitle = (formId: string) => (ANNEX_CATALOG_2025 as { formId: string; title: string }[]).find(a => a.formId === formId)?.title ?? `נספח ${formId}`;
 
 /** מקורות שהדוח לא מחשב — שאלת פתיחה; «כן» = הדוח «גיליון חלקי» (השלמה מקצועית אינה סוגרת נספח שלא מופק). */
@@ -67,9 +95,11 @@ export function computeReturn(input: ReturnInput): ReturnOutputs {
   const formOk = SUPPORTED_FORM_YEARS.includes(year);
   if (!formOk) gaps.push({ code: 'form_version', text: `טופס 1301 לשנת ${year} לא ממופה (ממופה: ${SUPPORTED_FORM_YEARS.join(', ')}). אפשר להכין טיוטה פנימית לפי מבנה 2025 — לא להגשה` });
 
-  const src = (readings: FactReading[], text: string): FieldSource => ({
-    kind: 'fact', factIds: readings.map(r => r.fact.id), evidenceIds: readings.map(r => r.fact.evidenceId).filter(Boolean) as string[],
+  // ‼ שורות מקור (17.10.2026): כל קריאה שתרמה לשדה נשמרת כשורה — סכום, מסמך, שאלה, אדם, שנה. sumIsField: Σ השורות = השדה.
+  const src = (readings: FactReading[], text: string, opts: { sumIsField?: boolean } = {}): FieldSource => ({
+    kind: 'fact', factIds: readings.map(r => r.fact.id), evidenceIds: [...new Set(readings.map(r => r.fact.evidenceId).filter(Boolean) as string[])],
     trust: readings.reduce<Trust>((t, r) => (r.trust === 'manual' || t === 'manual' ? 'manual' : r.trust === 'read' || t === 'read' ? 'read' : 'verified'), 'verified'), text,
+    lines: readings.map(r => lineOf(r, evidence, docLabelOf)), sumIsField: opts.sumIsField ?? true,
   });
   const partialOf = (itemKey: string, role: string, entityRef?: string) =>
     slice.partial.find(f => f.itemKey === itemKey && f.subjectRole === role && (entityRef == null || f.entityRef === entityRef));
@@ -122,26 +152,40 @@ export function computeReturn(input: ReturnInput): ReturnOutputs {
     lines.push({ id: 'rent', person: 'client', source: 'rent', label: 'שכר דירה', actualToCutoff: Math.max(0, rentAll.amount - ownHousingRent) });
     readingsBy.set('rent', rentAll.readings);
   }
-  // שוק ההון — ריבית ודיבידנד; רווחי הון דורשים נספח (פער)
-  let capitalInterest = 0, capitalDividend = 0, capitalWithheld = 0, capitalGains = 0;
-  const capReadings: FactReading[] = [];
-  for (const role of ['couple', 'client'] as const) {
-    for (const k of ['interest', 'dividend', 'withheld', 'gains'] as const) {
-      const s = sumComponent(slice, 'capital.amounts', k, role, evidence);
-      if (s.amount == null) continue;
-      capReadings.push(...s.readings);
-      if (k === 'interest') capitalInterest += s.amount; else if (k === 'dividend') capitalDividend += s.amount; else if (k === 'withheld') capitalWithheld += s.amount; else capitalGains += s.amount;
+  // שוק ההון — לכל אדם, לפי סוג (C16, N4 — 17.10.2026): ריבית פיקדונות 15% / 25%, ריבית ורווח ני״ע 15%, דיבידנד; המס שנוכה —
+  //   על ריבית פיקדונות ← 043, על ני״ע ודיבידנד ← 040; «withheld» בלי פיצול (עובדות ישנות) ← 043 כמו קודם. רווחי הון — נספח (פער).
+  type CapKey = 'interest' | 'dividend' | 'depositInterest15' | 'securitiesInterest15' | 'withheld' | 'withheldDeposit' | 'withheldSecurities' | 'gains';
+  const CAP_KEYS: CapKey[] = ['interest', 'dividend', 'depositInterest15', 'securitiesInterest15', 'withheld', 'withheldDeposit', 'withheldSecurities', 'gains'];
+  const capBucket = () => ({ sum: Object.fromEntries(CAP_KEYS.map(k => [k, 0])) as Record<CapKey, number>, readings: Object.fromEntries(CAP_KEYS.map(k => [k, [] as FactReading[]])) as unknown as Record<CapKey, FactReading[]> });
+  const cap: Record<Person, ReturnType<typeof capBucket>> = { client: capBucket(), spouse: capBucket() };
+  for (const p of persons) {
+    // ‼ עובדת «משק הבית» (couple) נזקפת לבן הזוג הרשום — כמו ההכנסה שאינה מיגיעה אישית (66(ד)); בעלים לחשבון — לפי subjectRole של השורה
+    for (const role of p === 'client' ? (['couple', 'client'] as const) : (['spouse'] as const)) {
+      for (const k of CAP_KEYS) {
+        const s = sumComponent(slice, 'capital.amounts', k, role, evidence);
+        if (s.amount == null) continue;
+        cap[p].sum[k] += s.amount; cap[p].readings[k].push(...s.readings);
+      }
     }
   }
+  const capAll = (k: CapKey) => persons.reduce((a, p) => a + cap[p].sum[k], 0);
   const capitalDecided = draft.decisions.some(d => d.key === 'capital.rates');
-  if (capitalInterest + capitalDividend > 0) {
-    if (!capitalDecided) gaps.push({ code: 'capital_rates', text: 'ריבית ודיבידנד: לאשר שיעור 25% (לא בעל מניות מהותי) ופיצול הניכוי במקור לפי 867 — הכרעת משרד' });
-    lines.push({ id: 'capital', person: 'client', source: 'capital', label: 'ריבית ודיבידנד', actualToCutoff: capitalInterest + capitalDividend, withheldToCutoff: capitalWithheld,
-      // השיעור בדוח נקבע בהכרעת המשרד (capital.rates, 25%) — כאן סוג שמחושב ב-25%, כמו לפני הפיצול לפי סוג (13.10.2026)
-      capitalKind: 'dividend' });
-    readingsBy.set('capital', capReadings);
+  if (capAll('interest') + capAll('dividend') > 0 && !capitalDecided) gaps.push({ code: 'capital_rates', text: 'ריבית ודיבידנד בשיעור 25%: לאשר שיעור 25% (לא בעל מניות מהותי) ופיצול הניכוי במקור לפי 867 — הכרעת משרד' });
+  for (const p of persons) {
+    const c = cap[p];
+    const w = c.sum.withheld + c.sum.withheldDeposit + c.sum.withheldSecurities;
+    if (c.sum.interest + c.sum.dividend > 0) {
+      // השיעור בדוח נקבע בהכרעת המשרד (capital.rates, 25%) — סוג שמחושב ב-25% (13.10.2026)
+      lines.push({ id: `capital25-${p}`, person: p, source: 'capital', label: 'ריבית ודיבידנד (25%)', actualToCutoff: c.sum.interest + c.sum.dividend, withheldToCutoff: w, capitalKind: 'dividend' });
+      readingsBy.set(`capital25-${p}`, [...c.readings.interest, ...c.readings.dividend]);
+    }
+    if (c.sum.depositInterest15 + c.sum.securitiesInterest15 > 0) {
+      lines.push({ id: `capital15-${p}`, person: p, source: 'capital', label: 'ריבית 15% (פיקדונות, ני״ע)', actualToCutoff: c.sum.depositInterest15 + c.sum.securitiesInterest15,
+        withheldToCutoff: c.sum.interest + c.sum.dividend > 0 ? 0 : w, capitalKind: 'interestUnlinked' });
+      readingsBy.set(`capital15-${p}`, [...c.readings.depositInterest15, ...c.readings.securitiesInterest15]);
+    }
   }
-  if (capitalGains > 0) gaps.push({ code: 'capital_gains', text: `רווחי הון ${nis(capitalGains)} מני״ע — נספח ג׳ (1322) לפי 867 לכל חשבון; לא מופק כאן — מכינים מחוץ למערכת` });
+  if (capAll('gains') > 0) gaps.push({ code: 'capital_gains', text: `רווחי הון ${nis(capAll('gains'))} מני״ע — נספח ג׳ (1322) לפי 867 לכל חשבון; לא מופק כאן — מכינים מחוץ למערכת` });
   // הכנסה אחרת
   const other = sumComponent(slice, 'special.otherIncome', 'amount', 'client', evidence);
   if (other.amount) { lines.push({ id: 'other', person: 'client', source: 'other', label: 'הכנסה אחרת', actualToCutoff: other.amount }); readingsBy.set('other', other.readings); }
@@ -195,12 +239,15 @@ export function computeReturn(input: ReturnInput): ReturnOutputs {
   const fields: ReturnField[] = [];
   const add = (code: string, person: ReturnField['person'], amount: number | undefined, source: FieldSource, kind: ReturnField['kind'] = 'amount') => {
     if (kind === 'amount' && (amount == null || amount === 0)) return;
-    const ci = codeInfo(code);
-    fields.push({ code, part: ci.part, section: ci.section, label: ci.label, person, kind, amount: kind === 'amount' ? r0(amount!) : undefined, checked: kind === 'checkbox' ? true : undefined, source });
+    const ci = codeInfo(code, person, kind);
+    fields.push({ code, part: ci.part, section: ci.section, label: ci.label, person, kind, amount: kind === 'amount' ? r0(amount!) : undefined, checked: kind === 'checkbox' ? true : undefined, source, ambiguous: ci.ambiguous || undefined });
   };
   const code2 = (reg: string, sp: string, p: Person) => (p === 'client' ? reg : sp);
   const calcSrc = (text: string, ruleIds?: string[]): FieldSource => ({ kind: 'calculation', text, ruleIds });
   let salaryWithheldAll = 0, otherWithheld = 0;
+  const otherWithheldReadings: FactReading[] = [];
+  // ‼ שורות המקור של 042 — רק של האנשים שחושבו (בן/בת זוג בלי כרטיס לא נכנס/ת לדוח, ולכן גם לא לשורות)
+  const salaryWithheldReadings: FactReading[] = [];
   // לכל אדם — לכותרת קובץ 1301 (ניכוי במקור ומקדמות נרשמים שם לפי בן הזוג)
   const byPerson: ReturnOutputs['byPerson'] = {};
   const bp = (p: Person) => (byPerson[p] ??= { salaryWithheld: 0, otherWithheld: 0, interestWithheld: 0, advances: 0, forms106: 0 });
@@ -209,8 +256,9 @@ export function computeReturn(input: ReturnInput): ReturnOutputs {
     const pr = out.persons.find(x => x.person === p);
     if (!pr || pr.notComputed) continue;
     const sal = lines.filter(l => l.person === p && l.source === 'salary');
-    add(code2('158', '172', p), p, pr.salary, src(readingsOf(l => l.person === p && l.source === 'salary'), 'סכום ברוטו מטופסי 106'));
+    add(code2('158', '172', p), p, pr.salary, src(readingsOf(l => l.person === p && l.source === 'salary').filter(r => r.component === 'gross'), 'סכום ברוטו מטופסי 106'));
     salaryWithheldAll += sal.reduce((a, l) => a + (l.withheldToCutoff ?? 0), 0);
+    salaryWithheldReadings.push(...readingsOf(l => l.person === p && l.source === 'salary').filter(r => r.component === 'withheld'));
     bp(p).salaryWithheld = r0(sal.reduce((a, l) => a + (l.withheldToCutoff ?? 0), 0));
     bp(p).forms106 = sal.length;
     bp(p).advances = r0(payments.filter(x => x.person === p).reduce((a, x) => a + x.amount, 0));
@@ -218,15 +266,19 @@ export function computeReturn(input: ReturnInput): ReturnOutputs {
     const microLines = out.micro.filter(m => m.person === p);
     if (bizLines.length) {
       add(code2('150', '170', p), p, pr.businessTaxable, microLines.some(m => m.chosen !== 'books')
-        ? calcSrc('עסק זעיר: המחזור פחות הניכוי (87ד)', ['micro.normativeRate']) : { ...src(readingsOf(l => l.person === p && l.source === 'business'), 'רווח לפי הספרים'), text: `רווח לפי הספרים${pr.adjustments ? ` + תיאומים ${nis(pr.adjustments)}` : ''}` });
-      add(code2('238', '239', p), p, bizLines.reduce((a, l) => a + (l.turnoverToCutoff ?? 0), 0), src(readingsOf(l => l.person === p && l.source === 'business'), 'מחזור ללא מע״מ'));
+        ? calcSrc('עסק זעיר: המחזור פחות הניכוי (87ד)', ['micro.normativeRate']) : { ...src(readingsOf(l => l.person === p && l.source === 'business').filter(r => r.component === 'profit'), 'רווח לפי הספרים', { sumIsField: !pr.adjustments }), text: `רווח לפי הספרים${pr.adjustments ? ` + תיאומים ${nis(pr.adjustments)}` : ''}` });
+      add(code2('238', '239', p), p, bizLines.reduce((a, l) => a + (l.turnoverToCutoff ?? 0), 0), src(readingsOf(l => l.person === p && l.source === 'business').filter(r => r.component === 'turnover'), 'מחזור ללא מע״מ'));
       otherWithheld += bizLines.reduce((a, l) => a + (l.withheldToCutoff ?? 0), 0);
       bp(p).otherWithheld += r0(bizLines.reduce((a, l) => a + (l.withheldToCutoff ?? 0), 0));
+      for (const l of bizLines) otherWithheldReadings.push(...(readingsBy.get(l.id) ?? []).filter(r => r.component === 'customerWithholding'));
       if (microLines.some(m => m.mode === 'regular' && m.chosen === 'normative') && p === 'client') add('F010', p, undefined, calcSrc('עסק זעיר — דוח מלא עם 30% (סימון בחלק א׳)'), 'checkbox');
-      // דמי ב״ל ששולמו על הכנסה שאינה מעבודה — לא במסלול זעיר
+      // דמי ב״ל ששולמו על הכנסה שאינה מעבודה — לא במסלול זעיר.
+      // ‼ R03/C15 (17.10.2026): מהאישור השנתי — ב״ל בלבד (בריאות נשמרת כשורה ואינה נכנסת לדוח); החזרים שהתקבלו מקטינים את הסכום.
       const niPaid = sumComponent(slice, 'payments.niPaid', 'amount', p, evidence);
+      const niRefunds = sumComponent(slice, 'payments.niPaid', 'refunds', p, evidence);
       if (!microLines.some(m => m.chosen !== 'books')) {
-        if (niPaid.amount != null) add(code2('030', '089', p), p, niPaid.amount, src(niPaid.readings, 'דמי ביטוח ששולמו בשנה (לא על שנים קודמות)'));
+        if (niPaid.amount != null) add(code2('030', '089', p), p, Math.max(0, niPaid.amount - (niRefunds.amount ?? 0)),
+          src([...niPaid.readings, ...niRefunds.readings], niRefunds.amount ? `דמי ביטוח לאומי ששולמו בשנה ${nis(niPaid.amount)} פחות החזרים ${nis(niRefunds.amount)} (בריאות — לא לדוח)` : 'דמי ביטוח לאומי ששולמו בשנה — לפי האישור השנתי (בריאות — לא לדוח; לא על שנים קודמות)', { sumIsField: !niRefunds.amount }));
         else gaps.push({ code: `ni_paid_${p}`, text: `דמי ביטוח לאומי ששולמו כעצמאי בשנה (${PERSON_HE[p]}) — לשדה 030/089; חסר` });
       }
     }
@@ -260,23 +312,47 @@ export function computeReturn(input: ReturnInput): ReturnOutputs {
     const wh = sumComponent(slice, 'payments.withholding', 'amount', p, evidence);
     otherWithheld += wh.amount ?? 0;
     bp(p).otherWithheld += r0(wh.amount ?? 0);
+    otherWithheldReadings.push(...wh.readings);
   }
-  add('042', 'joint', salaryWithheldAll, src(readingsOf(l => l.source === 'salary'), 'מס שנוכה ממשכורת — טופסי 106'));
-  if (otherWithheld) add('040', 'joint', otherWithheld, calcSrc('ניכוי במקור מלקוחות ומהכנסות אחרות — אישורי ניכוי'));
+  // ‼ 042 = רק המס שנוכה (רכיב withheld) מכל טופסי 106 — השורות שמרכיבות אותו הן שורות הניכוי, לא הברוטו
+  add('042', 'joint', salaryWithheldAll, src(salaryWithheldReadings, 'מס שנוכה ממשכורת — טופסי 106'));
+  // 040 (R01, C16): ניכוי במקור מלקוחות, מהכנסות אחרות ומני״ע/דיבידנד (867) — עם שורות המקור שלו
+  const w040Readings = [...otherWithheldReadings, ...persons.flatMap(p => cap[p].readings.withheldSecurities)];
+  otherWithheld += capAll('withheldSecurities');
+  if (capAll('withheldSecurities')) bp('client').otherWithheld += r0(capAll('withheldSecurities'));
+  if (otherWithheld) add('040', 'joint', otherWithheld, src(w040Readings, 'ניכוי במקור מלקוחות, מהכנסות אחרות ומני״ע/דיבידנד — אישורי ניכוי ו-867'));
   // שכר דירה לפי מסלול
   const track = client.rentalTaxTrack ?? (client.properties ?? []).find(x => x.isRented)?.rentalTaxTrack;
   if (rentAll.readings.length) {
     if (track === 'exempt') add('332', 'client', rentAll.amount, src(rentAll.readings, 'שכר דירה למגורים — פטור'));
-    else if (track === 'flat10') add('284', 'client', Math.max(0, rentAll.amount - ownHousingRent), { ...src(rentAll.readings, 'שכר דירה למגורים — 10%'), text: `שכר דירה למגורים — 10%${ownHousingRent ? ` (אחרי ניכוי שכר דירה למגורים ${nis(ownHousingRent)})` : ''}` });
+    else if (track === 'flat10') add('284', 'client', Math.max(0, rentAll.amount - ownHousingRent), { ...src(rentAll.readings, 'שכר דירה למגורים — 10%', { sumIsField: !ownHousingRent }), text: `שכר דירה למגורים — 10%${ownHousingRent ? ` (אחרי ניכוי שכר דירה למגורים ${nis(ownHousingRent)})` : ''}` });
     else gaps.push({ code: 'rent_regular', text: 'שכר דירה במסלול הרגיל — נספח ב׳ (1321) עם הוצאות ופחת (1342) לא נתמך; מכינים מחוץ למערכת' });
   }
-  if (capitalInterest + capitalDividend > 0 && capitalDecided) {
-    add('242', 'client', capitalInterest, src(capReadings, 'ריבית על פיקדונות — 25% (לפי הכרעת המשרד)'));
-    add('241', 'client', capitalDividend, src(capReadings, 'דיבידנד — 25% (לפי הכרעת המשרד)'));
-    add('043', 'joint', capitalWithheld, src(capReadings, 'ניכוי במקור משוק ההון — לפי 867 (לפי הכרעת המשרד)'));
-    bp('client').interestWithheld = r0(capitalWithheld);
+  // שוק ההון לכל אדם: 25% רק אחרי הכרעת המשרד; 15% — השיעור קבוע בשדה. 043 = מס שנוכה על ריבית פיקדונות (ו«withheld» בלי פיצול).
+  let w043 = 0; const w043Readings: FactReading[] = [];
+  for (const p of persons) {
+    const c = cap[p];
+    if (c.sum.interest + c.sum.dividend > 0 && capitalDecided) {
+      add(code2('242', '342', p), p, c.sum.interest, src(c.readings.interest, 'ריבית על פיקדונות — 25% (לפי הכרעת המשרד)'));
+      add(code2('241', '341', p), p, c.sum.dividend, src(c.readings.dividend, 'דיבידנד — 25% (לפי הכרעת המשרד)'));
+    }
+    add(code2('217', '317', p), p, c.sum.depositInterest15, src(c.readings.depositInterest15, 'ריבית על פיקדונות ותוכניות חיסכון — 15% (טופס 867)'));
+    add(code2('211', '311', p), p, c.sum.securitiesInterest15, src(c.readings.securitiesInterest15, 'ריבית ורווחים מני״ע — 15% (טופס 867)'));
+    if (c.sum.interest + c.sum.dividend > 0 && !capitalDecided) continue; // המס שנוכה על 25% נכנס רק עם ההכרעה (כמו קודם)
+    w043 += c.sum.withheld + c.sum.withheldDeposit; w043Readings.push(...c.readings.withheld, ...c.readings.withheldDeposit);
   }
+  if (w043) { add('043', 'joint', w043, src(w043Readings, 'ניכוי במקור מריבית — לפי טופסי 867')); bp('client').interestWithheld = r0(w043); }
   for (const c of usable) for (const f of c.fields) add(f.code, c.person, f.amount, { kind: 'completion', completionId: c.id, text: `השלמה מקצועית: ${c.justification}` });
+  // ── 6ב. ערכים ידניים מעל החישוב — «#» ומנומקים (תוכנית הליווי §1.5). ‼ משנים את השדה בטופס, לא את חישוב המס.
+  for (const ov of draft.overrides ?? []) {
+    if (!ov.justification?.trim()) { limits.push(`ערך ידני לקוד ${ov.code} בלי נימוק — לא נכנס`); continue; }
+    const i = fields.findIndex(f => f.code === ov.code && f.person === ov.person && f.kind === 'amount');
+    const prev = i >= 0 ? fields[i] : undefined;
+    const source: FieldSource = { kind: 'manual', text: `# ערך ידני: ${ov.justification.trim()}`, computed: prev?.amount ?? 0, lines: prev?.source.lines, sumIsField: false };
+    if (prev) fields[i] = { ...prev, amount: r0(ov.amount), source };
+    else { const ci = codeInfo(ov.code, ov.person); fields.push({ code: ov.code, part: ci.part, section: ci.section, label: ci.label, person: ov.person, kind: 'amount', amount: r0(ov.amount), source, ambiguous: ci.ambiguous || undefined }); }
+    limits.push(`# ${ov.code}: ערך ידני ${nis(ov.amount)} במקום המחושב ${nis(prev?.amount ?? 0)} — ${ov.justification.trim()}. חישוב המס לא השתנה מהערך הידני`);
+  }
 
   // ── 7. נספחים ──
   const annexes: AnnexStatus[] = [];
@@ -315,14 +391,16 @@ export function computeReturn(input: ReturnInput): ReturnOutputs {
     if ((c13.lines['17'] ?? 0) > 0) gaps.push({ code: `annex1342_${l.entityRef}`, kind: 'annex', text: `פחת (שורה 17, ${l.label}) — נספח 1342 לא נתמך` });
     if ((c13.lines['21'] ?? 0) > 0) gaps.push({ code: `annex1343_${l.entityRef}`, kind: 'annex', text: `ניכוי נוסף בשל פחת (שורה 21, ${l.label}) — נספח 1343 לא נתמך` });
   }
-  if (capitalInterest + capitalDividend + capitalGains > 0) annexes.push({ formId: '867', title: 'טופסי 867 (ניכוי במקור משוק ההון)', reason: 'מצורפים לדוח', status: capReadings.every(r => r.trust === 'verified') ? 'filled' : 'partial', rows: [] });
+  const capReadingsAll = persons.flatMap(p => CAP_KEYS.flatMap(k => cap[p].readings[k]));
+  if (capReadingsAll.length) annexes.push({ formId: '867', title: 'טופסי 867 (ניכוי במקור משוק ההון)', reason: 'מצורפים לדוח', status: capReadingsAll.every(r => r.trust === 'verified') ? 'filled' : 'partial', rows: [] });
   for (const u of UNSUPPORTED) if (u.annex && screenerYes(slice, u.itemKey)) annexes.push({ formId: u.annex, title: annexTitle(u.annex), reason: u.text, status: 'missing', rows: [], note: 'לא נתמך' });
 
   // ── 8. בקרות התאמה ──
   const controls: ReturnControl[] = [];
   // ‼ הבקרות משוות את מה שנגזר מהעובדות למקור שלהן. השלמה מקצועית היא מקור נפרד ומתועד — לא נספרת כאן
   //   (אחרת משכורת שהושלמה מקצועית «שוברת» את בקרת 106 שלא הכירה אותה).
-  const fieldSum = (codes: string[]) => fields.filter(f => codes.includes(f.code) && f.source.kind !== 'completion').reduce((a, f) => a + (f.amount ?? 0), 0);
+  // ‼ ערך ידני (#) אינו «שובר» בקרה: הבקרה משווה את המחושב (source.computed) למקורו
+  const fieldSum = (codes: string[]) => fields.filter(f => codes.includes(f.code) && f.source.kind !== 'completion').reduce((a, f) => a + (f.source.kind === 'manual' ? f.source.computed ?? 0 : f.amount ?? 0), 0);
   const salaryLinesSum = lines.filter(l => l.source === 'salary').reduce((a, l) => a + (l.actualToCutoff ?? 0), 0);
   controls.push({ id: 'salary_106', text: 'משכורת: 158 + 172 = סך הברוטו בטופסי 106', ok: lines.some(l => l.source === 'salary') ? Math.abs(fieldSum(['158', '172']) - salaryLinesSum) <= 1 : null, detail: `${nis(fieldSum(['158', '172']))} מול ${nis(salaryLinesSum)}` });
   controls.push({ id: 'withheld_106', text: 'מס שנוכה ממשכורת: 042 = סך הניכוי בטופסי 106', ok: lines.some(l => l.source === 'salary') ? Math.abs(fieldSum(['042']) - salaryWithheldAll) <= 1 : null, detail: nis(salaryWithheldAll) });
@@ -338,8 +416,17 @@ export function computeReturn(input: ReturnInput): ReturnOutputs {
   for (const m of out.micro) {
     controls.push({ id: `micro_${m.lineId}`, text: 'עסק זעיר: מחזור (238) בתקרה, ובלי 030/089 במסלול', ok: m.chosen === 'books' || (m.status === 'within' && !fields.some(f => f.code === '030' || f.code === '089')), detail: `${nis(m.annualTurnover)} מול תקרה ${nis(m.ceiling)}` });
   }
-  const unsourced = fields.filter(f => f.kind === 'amount' && f.source.kind === 'fact' && !(f.source.factIds ?? []).length);
-  controls.push({ id: 'sources', text: 'לכל סכום בטיוטה יש מקור (עובדה, חישוב או השלמה)', ok: unsourced.length === 0, detail: unsourced.map(f => f.code).join(', ') || 'כולם' });
+  // ‼ «שדה בלי מקור» (תוכנית הליווי §2.6): סכום בלי שורות מקור, בלי כלל חישוב, בלי השלמה ובלי ערך ידני מנומק — חוסם.
+  const unsourced = fields.filter(f => f.kind === 'amount' && (f.amount ?? 0) !== 0
+    && !(f.source.lines?.length || (f.source.kind === 'calculation' && (f.source.ruleIds?.length || f.source.text)) || f.source.kind === 'completion' || f.source.kind === 'card' || f.source.kind === 'manual'));
+  controls.push({ id: 'sources', text: 'שדה בלי מקור: לכל סכום בטיוטה יש שורות מקור (מסמך / תשובה), כלל חישוב, השלמה מקצועית או ערך ידני מנומק (#)', ok: unsourced.length === 0, detail: unsourced.length ? unsourced.map(f => `${f.code} (${f.label.slice(0, 30)})`).join(', ') : 'כולם' });
+  // ‼ «Σ שורות ≠ שדה»: שדה שסכומו אמור להיות סכום שורותיו — נבדק; שדה נגזר (אחרי ניכוי, ערך ידני) אינו נבדק כאן
+  const sumMismatch = fields.filter(f => f.kind === 'amount' && f.source.lines?.length && f.source.sumIsField !== false
+    && Math.abs(f.source.lines.reduce((a, l) => a + l.amount, 0) - (f.amount ?? 0)) > 1);
+  controls.push({ id: 'lines_sum', text: 'סכום שורות המקור = השדה (לכל שדה שמורכב משורות)', ok: fields.some(f => f.source.lines?.length) ? sumMismatch.length === 0 : null,
+    detail: sumMismatch.length ? sumMismatch.map(f => `${f.code}: ${nis(f.source.lines!.reduce((a, l) => a + l.amount, 0))} מול ${nis(f.amount ?? 0)}`).join(' · ') : `${fields.filter(f => f.source.lines?.length).length} שדות` });
+  const ambiguousCodes = fields.filter(f => f.ambiguous).map(f => f.code);
+  if (ambiguousCodes.length) limits.push(`קודים שמופיעים בטופס יותר מפעם אחת לאותו טור — התווית נבחרה לפי סוג השדה, לבדיקה: ${[...new Set(ambiguousCodes)].join(', ')}`);
   if (estimate) {
     for (const p of out.persons) {
       const e = estimate.outputs.persons.find(x => x.person === p.person);
@@ -422,6 +509,11 @@ function kindOf(code: string): GapKind {
   if (/^(life_insurance_|rent_track_mixed|rent_exempt_couple|spouse_card_missing)/.test(code)) return 'calc';
   if (/^control_/.test(code)) return 'control';
   return 'data';
+}
+
+/** טיוטה ריקה לדוח (לפני שנשמרה גרסה) — למפת הטופס ולפתיחה ראשונה. */
+export function emptyDraft(client: Client, year: number, preparedOn: string): ReturnDraft {
+  return { taxYear: year, preparedOn, persons: defaultPersons(client, year), completions: [], adjustments: [], micro: {}, decisions: [] };
 }
 
 /** אומדן התחלתי של האנשים בדוח: הלקוח, ובן/בת הזוג כשנשוי/אה **בשנת הדוח** ויש לו/ה הכנסה בתיק. */

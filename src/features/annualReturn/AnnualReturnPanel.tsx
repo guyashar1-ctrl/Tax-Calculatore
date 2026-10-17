@@ -23,10 +23,13 @@ import * as api from './api';
 import type { ReturnCompletion, ReturnDraft, ReturnOutputs, ReturnVersion } from './types';
 import { Books1320Editor, CoverageMatrix, DeclarationsEditor, IdentityEditor, ProductsSection, RefundEditor, Rent1321Editor, ScreenerAnswers } from './ReturnEditors';
 import { STATUS_HE } from './output';
+import { FieldRow, SourceDocsSection } from './SourceEntry';
+import { useKnowledgeLink } from '../taxKnowledge/knowledgeLink';
 import '../taxEstimate/estimate.css';
 
-const TRUST_MARK: Record<string, string> = { verified: '✓ אומת מול מסמך', read: '⟳ נקרא מהרשות', manual: '✎ הוזן / הוצהר' };
-const srcMark = (s: ReturnOutputs['fields'][number]['source']) => (s.kind === 'fact' ? TRUST_MARK[s.trust ?? 'manual'] : s.kind === 'calculation' ? '∑ חישוב' : s.kind === 'completion' ? '✍ השלמה מקצועית' : 'מהתיק');
+
+/** פתיחת מפת הטופס (ידע ← דוח שנתי) עם הלקוח כהקשר; הקוד שלוחצים עליו נשמר ללשונית, והמפה פותחת אותו. */
+const MAP_FOCUS_KEY = 'pivo.formMapFocus';
 const ANNEX_HE = { filled: 'מולא', partial: 'חלקי', manual: 'מולא ידנית', missing: 'חסר' } as const;
 /** פער שהשלמה מקצועית לא סוגרת: נסגר בנתון / בעורך / בבקרה — או שאינו נתמך. */
 const NOT_COMPLETABLE = (g: { code: string; kind: string }) => !['data', 'calc'].includes(g.kind) || /^(cov_|annex1320_|control_|ni_paid_|insured_salary_)/.test(g.code);
@@ -50,6 +53,11 @@ export default function AnnualReturnPanel({ client, step, year, facts, evidence,
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [docs, setDocs] = useState<{ id: string; label: string; date?: string }[]>([]);
   const [completing, setCompleting] = useState<string | null>(null);
+  const links = useKnowledgeLink();
+  const openMap = (code?: string) => {
+    try { sessionStorage.setItem(MAP_FOCUS_KEY, JSON.stringify({ clientId: client.id, stepId: step.id, year, code: code ?? null, at: Date.now() })); } catch { /* בלי אחסון — המפה נפתחת בלי קוד */ }
+    links?.open('map1301', step.id);
+  };
 
   const load = async () => {
     try {
@@ -150,6 +158,7 @@ export default function AnnualReturnPanel({ client, step, year, facts, evidence,
           <button type="button" className="btn btn-primary" disabled={busy || out.status !== 'completeWorksheet' || showingApproved || !!filed && !dirty}
             onClick={() => void approve()} title={out.status === 'internalDraft' ? 'חסרים נתונים' : out.status === 'partialWorksheet' ? 'יש שדות או נספחים שהמערכת לא מפיקה — לא «מוכן להגשה»' : ''}>אשר «מוכן להגשה»</button>
           <button type="button" className="btn btn-ghost" disabled={busy || !dirty} onClick={() => void save()}>שמור טיוטה</button>
+          {links && <button type="button" className="btn btn-ghost" onClick={() => openMap()} data-ar-open-map title="הטופס הרשמי עם ערכי הדוח של הלקוח ו«ממה זה מורכב» על כל שדה">פתח במפת הטופס</button>}
           <button type="button" className="btn btn-ghost" onClick={() => showingApproved && approved?.outputs
             ? download({ outputs: approved.outputs, version: approved.version, approved: true, filed: approved.filedAt ? { at: he(approved.filedAt), ref: approved.filedRef } : undefined })
             : download({ outputs: out, version: dirty ? (latest?.version ?? 0) + (latest?.status === 'draft' ? 0 : 1) : latest?.version ?? 1, approved: false })}>הורד גיליון 1301 (HTML)</button>
@@ -238,6 +247,8 @@ export default function AnnualReturnPanel({ client, step, year, facts, evidence,
         </details>
       )}
 
+      <SourceDocsSection client={client} year={year} facts={facts} evidence={evidence} out={out} requestId={step.id} run={run} spouseName={spouseName} />
+
       <details className="ty-details" id="ar-coverage">
         <summary><b>בדיקת כיסוי — כל שדות הטופס</b><span>{out.formCoverage.counts.filled}/{out.formCoverage.counts.relevant} רלוונטיים מולאו · {out.formCoverage.counts.missing} חסרים · {out.formCoverage.counts.notSupported} לא מופקים</span></summary>
         <div className="ty-details-body"><CoverageMatrix out={out} /></div>
@@ -256,15 +267,12 @@ export default function AnnualReturnPanel({ client, step, year, facts, evidence,
               <p className="ty-label">חלק {p}</p>
               <div className="ar-table-wrap"><table className="ar-table">
                 <thead><tr><th>קוד</th><th>שדה</th><th>של מי</th><th>סכום</th><th>מקור</th></tr></thead>
-                <tbody>{out.fields.filter(f => f.part === p).map(f => (
-                  <tr key={f.code + f.person}><td className="ar-code">{f.code}</td><td>{f.label}</td><td>{f.person === 'spouse' ? spouseName : f.person === 'joint' ? 'משותף' : client.firstName || PERSON.client}</td>
-                    <td className="ar-num">{f.kind === 'amount' ? nis(f.amount) : f.kind === 'checkbox' ? (f.checked ? '☒ מסומן' : '☐') : f.text}</td><td className="ar-src">{srcMark(f.source)}<br /><small>{f.source.text}</small></td></tr>
-                ))}</tbody>
+                <tbody>{out.fields.filter(f => f.part === p).map(f => <FieldRow key={f.code + f.person} f={f} spouseName={spouseName} clientName={client.firstName || PERSON.client} onMap={links ? openMap : undefined} />)}</tbody>
               </table></div>
             </div>
           ))}
           {out.fields.length === 0 && <p className="ty-note">אין עדיין שדות — חסרים נתונים סופיים לשנה.</p>}
-          <p className="ty-note">✓ אומת מול מסמך · ⟳ נקרא מהרשות · ✎ הוזן / הוצהר · ∑ חישוב · ✍ השלמה מקצועית</p>
+          <p className="ty-note">✓ אומת מול מסמך · ⟳ נקרא מהרשות · ✎ הוזן / הוצהר · ∑ חישוב · ✍ השלמה מקצועית · # ערך ידני מעל החישוב (מנומק). «ממה זה מורכב» — שורות המקור של השדה.</p>
         </div>
       </details>
 

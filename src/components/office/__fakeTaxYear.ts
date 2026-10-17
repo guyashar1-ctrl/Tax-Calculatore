@@ -340,8 +340,31 @@ function taxYearRpcInner(t: Tables, name: string, args: Row, firm: string, logWr
     }
     // ── 236 · קליטה והשלמת תיק המס — בקשה פתוחה אחת ללקוח, «נכון ליום הקליטה» ──
     case 'ensure_tax_file_intake': {
+      // ‼ 254 · פתיחה עם שאלות: אחרי היצירה/המציאה — add_tax_info_asks (בלי מה שכבר נענה) ואז publish_tax_info, בפעולה אחת
+      const withAsks = (stepId: string, created: boolean) => {
+        if (!('p_asks' in args)) return ok({ ok: true, stepId, created });
+        const asks = Array.isArray(args.p_asks) ? (args.p_asks as Row[]) : [];
+        const info0 = t.onboarding_steps.find(s => s.step_type === 'info_collection' && (s.payload as Row | undefined)?.parentStepId === stepId && OPEN(s));
+        const fresh = info0 ? asks.filter(a => !t.tax_info_asks.some(x => x.step_id === info0.id && x.state === 'answered' && x.item_key === a.itemKey
+          && x.subject_role === a.subjectRole && (x.entity_ref ?? '') === (a.entityRef ?? ''))) : asks;
+        let asked = 0; let infoId: string | undefined = info0 ? String(info0.id) : undefined;
+        if (fresh.length) {
+          const d = taxYearRpcInner(t, 'add_tax_info_asks', { p_parent_step_id: stepId, p_asks: fresh }, firm, logWrite)?.data as Row | undefined;
+          if (!d?.ok) return ok({ ok: false, error: String(d?.error ?? 'asks_failed') });
+          asked = Number(d.added ?? 0); infoId = String(d.infoStepId);
+        }
+        let published = 0;
+        if (infoId) {
+          const d = taxYearRpcInner(t, 'publish_tax_info', { p_info_step_id: infoId }, firm, logWrite)?.data as Row | undefined;
+          if (d?.ok) published = Number(d.published ?? 0);
+          else if (d?.error !== 'nothing_to_publish') return ok({ ok: false, error: String(d?.error ?? 'publish_failed') });
+        }
+        const skipped = asks.length - fresh.length;
+        log('ensure_tax_file_intake.asks', { stepId, asked, published, skipped });
+        return ok({ ok: true, stepId, created, infoStepId: infoId, asked, published, ...(skipped ? { alreadyAnswered: skipped } : {}) });
+      };
       const ex = t.onboarding_steps.find(s => s.client_id === args.p_client_id && s.step_type === 'tax_file_intake' && OPEN(s));
-      if (ex) return ok({ ok: true, stepId: ex.id, created: false });
+      if (ex) return withAsks(String(ex.id), false);
       const asOf = today();
       const legacyStep = t.onboarding_steps.find(s => s.client_id === args.p_client_id && s.step_type === 'intake_questionnaire' && OPEN(s));
       const eng = (t.engagements ?? []).find(e => e.client_id === args.p_client_id);
@@ -351,7 +374,7 @@ function taxYearRpcInner(t: Tables, name: string, args: Row, firm: string, logWr
         payload: { purpose: 'intake', asOfDate: asOf, taxYear: Number(asOf.slice(0, 4)), title: 'קליטה והשלמת תיק המס', ...(legacyStep ? { legacyStepId: legacyStep.id } : {}) },
         completed_at: null, verified_at: null, published_at: nowIso(), sort_order: 29, created_at: nowIso(), updated_at: nowIso() });
       log('ensure_tax_file_intake', { created: id });
-      return ok({ ok: true, stepId: id, created: true });
+      return withAsks(id, true);
     }
     // ── 236 · «החלף בקליטה» — השאלון הישן מבוטל עם «הוחלף», והקליטה רושמת את זה (אותו חוזה כמו בשרת) ──
     case 'replace_legacy_intake': {
@@ -874,6 +897,50 @@ function taxYearRpcInner(t: Tables, name: string, args: Row, firm: string, logWr
         evidenceId: p.evidenceId as string | undefined, status: 'accepted', decidedBy: firm, decidedAt: nowIso(), note: p.note as string | undefined }, firm));
       log('record_tax_year_fact', { id, itemKey: p.itemKey });
       return ok({ ok: true, factId: id });
+    }
+    // ── 258 · שורות מקור ממסמך אחד — אותו חוזה כמו בשרת (זהות שורה = מסמך × lineKey; שמירה חוזרת מחליפה) ──
+    case 'record_source_lines': {
+      const lines = (args.p_lines ?? []) as Row[];
+      if (!lines.length) return ok({ ok: false, error: 'no_lines' });
+      for (const x of lines) {
+        if (!String(x.lineKey ?? '').trim()) return ok({ ok: false, error: 'line_key_required' });
+        if (!ITEM_BY_KEY[String(x.itemKey)]) return ok({ ok: false, error: 'unknown_item', itemKey: x.itemKey });
+        if (x.value == null || !['number', 'object'].includes(typeof x.value)) return ok({ ok: false, error: 'bad_value', lineKey: x.lineKey });
+      }
+      const cid = String(args.p_client_id);
+      let ev = args.p_evidence_id ? t.tax_evidence.find(x => x.id === args.p_evidence_id && x.client_id === cid) : undefined;
+      if (args.p_evidence_id && !ev) return ok({ ok: false, error: 'evidence_not_found' });
+      if (ev && (ev.identity_match === 'mismatch' || ev.period_match === 'mismatch')) return ok({ ok: false, error: 'evidence_mismatch' });
+      if (ev) Object.assign(ev, { extraction: 'office_entered', identity_match: 'match', period_match: 'match', review: 'accepted', reviewed_by: firm, reviewed_at: nowIso() });
+      else {
+        const e = (args.p_evidence ?? {}) as Row;
+        if (!e.docKind) return ok({ ok: false, error: 'evidence_required' });
+        const y = e.taxYear != null ? Number(e.taxYear) : null;
+        ev = { id: uuid(), user_id: firm, client_id: cid, tax_year: y, doc_kind: e.docKind, subject_role: e.subjectRole, entity_kind: e.entityKind ?? null, entity_ref: e.entityRef ?? null,
+          period_from: e.periodFrom ?? (y ? `${y}-01-01` : null), period_to: e.periodTo ?? (y ? `${y}-12-31` : null), document_id: e.documentId ?? null, file_name: e.fileName ?? null,
+          received_at: nowIso(), received_via: 'office', ask_id: null, extraction: 'office_entered', identity_match: 'match', period_match: 'match', review: 'accepted', reviewed_by: firm, reviewed_at: nowIso(), note: e.note ?? null };
+        t.tax_evidence.push(ev);
+      }
+      let superseded = 0;
+      if (args.p_replaces_evidence_id) {
+        if (!t.tax_evidence.some(x => x.id === args.p_replaces_evidence_id && x.client_id === cid)) return ok({ ok: false, error: 'replaced_not_found' });
+        for (const f of t.tax_year_facts) if (f.evidence_id === args.p_replaces_evidence_id && ['accepted', 'pending'].includes(String(f.status))) { f.status = 'superseded'; superseded++; }
+      }
+      const prevLive = t.tax_year_facts.filter(f => f.evidence_id === ev!.id && f.status === 'accepted');
+      const ids: string[] = [];
+      for (const x of lines) {
+        const y = Number(x.taxYear);
+        const prev = prevLive.find(f => f.line_key === x.lineKey);
+        const id = uuid();
+        t.tax_year_facts.push({ ...factRow({ id, clientId: cid, taxYear: y, itemKey: String(x.itemKey), subjectRole: x.subjectRole as YearFact['subjectRole'], entityKind: x.entityKind as YearFact['entityKind'],
+          entityRef: x.entityRef as string | undefined, periodKind: (x.periodKind as YearFact['periodKind']) ?? 'year', periodFrom: (x.periodFrom as string) ?? `${y}-01-01`, periodTo: (x.periodTo as string) ?? `${y}-12-31`,
+          answer: (x.answer as YearFact['answer']) ?? 'value', value: x.value, basis: 'final', source: 'document', requestId: x.requestId as string | undefined, askId: x.askId as string | undefined,
+          evidenceId: String(ev.id), status: 'accepted', decidedBy: firm, decidedAt: nowIso(), supersedes: prev ? String(prev.id) : undefined, note: x.note as string | undefined }, firm), line_key: String(x.lineKey), entered_by: firm });
+        ids.push(id);
+      }
+      for (const f of prevLive) { f.status = 'superseded'; superseded++; }
+      log('record_source_lines', { evidenceId: ev.id, lines: ids.length, superseded });
+      return ok({ ok: true, evidenceId: ev.id, factIds: ids, superseded });
     }
     case 'review_tax_evidence': {
       const e = t.tax_evidence.find(x => x.id === args.p_evidence_id);

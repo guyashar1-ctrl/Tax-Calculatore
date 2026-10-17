@@ -113,6 +113,7 @@ import PrerequisiteGate, { PREREQUISITE_FIELD_LABELS, type PrerequisitePerson } 
 import NiNextActionButton from '../NiNextActionButton';
 import Btl6101Workspace from '../../features/smartForms/btl6101/Btl6101Workspace';
 import TaxYearProcess from '../../features/taxYear/TaxYearProcess';
+import RequestSteps, { requestStepsViews, useRequestStepsData } from '../../features/taxYear/RequestSteps';
 import RemoveWorkDialog from '../../features/taxYear/RemoveWorkDialog';
 import { workTitle } from '../../features/taxYear/taxWork';
 import { MONTHS as TY_MONTHS } from '../../features/taxYear/asks';
@@ -795,6 +796,15 @@ export default function OnboardingTab({
     clientSteps.forEach(s => m.set(s.id, s));
     return m;
   }, [clientSteps]);
+  /** 17.10 · שלב 1 («בקשה אחת לתיק המס»): הנתונים לשלושת הצעדים בשורת בקשת תיק מס — רק כשיש כזו.
+      ‼ hook ⇒ כאן, לפני ה-return של מסך המיקוד. נטען מחדש עם כל שינוי בבקשות (portalRefreshKey). */
+  const requestStepsData = useRequestStepsData(clientId, clientSteps.some(s => TAX_WORK_TYPES.includes(s.stepType)), portalRefreshKey);
+  /** 17.10 · «השלמת מידע» אין לה שורה משלה — קישור/מיקוד אליה נוחת בשורת ההורה (בקשת תיק המס). */
+  const requestRowOf = (stepId: string) => {
+    const s = stepById.get(stepId);
+    const pid = s?.stepType === 'info_collection' ? String((s.payload as { parentStepId?: string }).parentStepId ?? '') : '';
+    return pid && stepById.has(pid) ? pid : stepId;
+  };
 
   const clientEvents = useMemo(() => {
     const stepIds = new Set(clientSteps.map(s => s.id));
@@ -1289,6 +1299,7 @@ export default function OnboardingTab({
    * נפתחת — ולכן פותחים קודם את השורה ואת החלק, ואז גוללים (focusStep).
    */
   function gotoStep(stepId: string) {
+    stepId = requestRowOf(stepId);
     const top = rowTopRef.current.get(stepId);
     if (top && top !== stepId) { focusStep(stepId); return; }
     setHighlightStepId(stepId);
@@ -1298,6 +1309,7 @@ export default function OnboardingTab({
   }
   /** פותח את השורה שהשלב בתוכה ואת השלב עצמו, וגולל אליו. */
   function focusStep(stepId: string) {
+    stepId = requestRowOf(stepId);
     // ‼ 16.10.2026 · שורה שהושלמה יושבת ב«הושלמו» המקופל — פורשים אותו (ועבודת מס — נפתחת בו), ואז גוללים
     const target = stepById.get(stepId);
     if (target && !isStepOpen(target.status)) {
@@ -1446,6 +1458,8 @@ export default function OnboardingTab({
   const awaitingPublishIds = new Set(clientSteps
     .filter(s => isStepOpen(s.status) && awaitsPublication(s, gateEngagements))
     .map(s => s.id));
+  /** 17.10 · שלושת הצעדים והשבב לכל בקשת תיק מס (requestSteps.ts) — מצב נגזר, לא מצב שנכתב. */
+  const requestStepsByParent = requestStepsViews(clientSteps, requestStepsData, clientFirstOrClient, awaitingPublishIds);
 
   /* ‼ עוד לא נמכר כלום ⇒ בקשה חדשה היא הכנה ולא שליחה, והשרת מחזיק אותה
      (מיגרציה 135). המסך חייב לומר את אותו דבר, אחרת הרו"ח מוסיף בקשה ולא
@@ -1476,10 +1490,13 @@ export default function OnboardingTab({
      גיא). יישור קו מיוצג בכרטיס אחד קבוע ב"העבודה שלי" ונפתח למסך שלו;
      השאר פשוט לא מוצג כאן. הנתונים לא נמחקו — ראה AUTO_OFFICE_TYPES. */
   // ‼ «שדרוג לייצוג ראשי» כן כאן — חלק של הייצוג (SURFACE_HIDDEN_OFFICE_TYPES), ואינו חוסם סגירה.
+  // ‼ 17.10.2026 · «בקשה אחת לתיק המס» (שלב 1): «השלמת מידע» (info_collection) היא הבן שהלקוח רואה, ואין לה שורה
+  //   ב«בקשות» — מצבה («אצל הלקוח · 3 מתוך 9», «הגיעו תשובות») הוא שבב בשורת ההורה, וכל קישור אליה נוחת שם (requestRowOf).
   const onSurface = (s: OnboardingStep) =>
     !SURFACE_HIDDEN_OFFICE_TYPES.includes(s.stepType)
     && !EXECUTION_OWNED_TYPES.includes(s.stepType)
-    && !s.stepType.startsWith('institution_alignment_');
+    && !s.stepType.startsWith('institution_alignment_')
+    && s.stepType !== 'info_collection';
 
   const visibleSteps = clientSteps.filter(s => matchesBall(s) && onSurface(s));
   const openSteps = visibleSteps.filter(s => isStepOpen(s.status));
@@ -1943,51 +1960,42 @@ export default function OnboardingTab({
 
   /** רינדור בקשה אחת — משותף לרשימה השטוחה (המסך הישן) ולשורות "מה אני צריך מהלקוח"/"העבודה שלי". */
   const renderStepInner = (step: OnboardingStep) => {
-              // ‼ 229 · שנת מס: השורה מתארת מצב ופותחת את דף התהליך. «השלמת מידע» היא בת —
-              // שורה משלה (נספרת כמו כל בקשה אצל הלקוח), שפותחת את אותו דף.
-              if (step.stepType === 'tax_estimate' || step.stepType === 'annual_return' || step.stepType === 'info_collection' || step.stepType === 'wealth_declaration' || step.stepType === 'tax_file_intake') {
-                const pl = step.payload as unknown as { taxYear?: number; cutoffMonth?: number; parentStepId?: string; title?: string; demand?: WealthDemand | null; internalTarget?: string };
-                const parentId = step.stepType === 'info_collection' ? String(pl.parentStepId ?? '') : step.id;
-                const info = step.stepType === 'info_collection' ? step
-                  : clientSteps.find(x => x.stepType === 'info_collection' && (x.payload as unknown as { parentStepId?: string }).parentStepId === step.id && isStepOpen(x.status));
-                const first = client.firstName || 'הלקוח';
-                const infoLine = !info ? 'אין עדיין שאלות ללקוח'
-                  : info.status === 'pending' ? 'השלמת מידע: טיוטה — לא פורסמה'
-                  : info.status === 'waiting_client' ? `השלמת מידע: בדף האישי · ממתין ל${first}`
-                  : info.ball === 'me' && isStepOpen(info.status) ? `${first} ענה — לבדוק`
-                  : 'השלמת מידע הושלמה';
-                const status = step.stepType === 'info_collection' ? infoLine
-                  : [step.stepType === 'tax_estimate' && pl.cutoffMonth ? `חתך: סוף ${TY_MONTHS[pl.cutoffMonth]}` : '',
-                     step.stepType === 'wealth_declaration' ? demandView(pl.demand).short : '',
-                     isStepOpen(step.status) ? infoLine : 'הושלם'].filter(Boolean).join(' · ');
+              // ‼ 229 · שנת מס: השורה מתארת מצב ופותחת את דף התהליך.
+              // ‼ 17.10.2026 · «בקשה אחת לתיק המס» (שלב 1): «השלמת מידע» (הבן שהלקוח רואה) אינה שורה — מצבה הוא השבב
+              //   בשורת ההורה, ושלושת הצעדים (תשובות הלקוח · יישור קו ברשויות · לתיק) מוצגים מתחת לשורה, גם כשהיא סגורה
+              //   (ההדמיה המאושרת). onSurface מסנן את הבן; כאן — ליתר ביטחון.
+              if (step.stepType === 'info_collection') return null;
+              if (TAX_WORK_TYPES.includes(step.stepType)) {
+                const pl = step.payload as unknown as { taxYear?: number; cutoffMonth?: number; title?: string; demand?: WealthDemand | null; internalTarget?: string };
+                const info = clientSteps.find(x => x.stepType === 'info_collection' && (x.payload as unknown as { parentStepId?: string }).parentStepId === step.id && x.status !== 'cancelled');
+                const rs = requestStepsByParent.get(step.id);
+                const status = [step.stepType === 'tax_estimate' && pl.cutoffMonth ? `חתך: סוף ${TY_MONTHS[pl.cutoffMonth]}` : '',
+                  step.stepType === 'wealth_declaration' ? demandView(pl.demand).short : '',
+                  isStepOpen(step.status) ? (rs?.view.steps[0]?.line ?? '') : 'הושלם'].filter(Boolean).join(' · ');
                 // ‼ 16.10.2026 · «כל עבודה היא בקשה»: במשטח הבקשות העבודה נפתחת בתוך השורה (אותו רכיב —
-                //   TaxYearProcess, לא מנוע שני). «השלמת מידע» פותחת את שורת ההורה; ההסרה — ב-⋯ של השורה.
-                const isInfo = step.stepType === 'info_collection';
-                const openWork = () => (embedded ? focusStep(parentId) : setTaxYearStepId(parentId));
+                //   TaxYearProcess, לא מנוע שני). ההסרה — ב-⋯ של השורה.
                 return (
                   <JourneyRow
                     key={step.id}
                     step={step}
                     stepById={stepById}
                     highlight={highlightStepId === step.id}
-                    name={step.stepType === 'info_collection' ? `↳ ${pl.title ?? 'השלמת מידע'}` : pl.title}
+                    name={pl.title}
                     statusLabel={status}
-                    /* ‼ 13.10: השלמת מידע שטרם פורסמה — «טיוטה», לא «ממתין ל{שם}»: הלקוח עוד לא רואה אותה
-                       (info_collection אינה בין סוגי הדף ב-portalShowsStep, ולכן הסימון הכללי לא תפס). */
-                    state={step.stepType === 'info_collection' && isStepOpen(step.status) && (step.status === 'pending' || step.publishedAt === null)
-                      ? { text: 'טיוטה', tone: 'amber' } : undefined}
-                    menu={!embedded && !isInfo && isStepOpen(step.status) ? (
+                    state={rs?.view.chip}
+                    below={rs && isStepOpen(step.status) ? <RequestSteps view={rs.view} /> : undefined}
+                    menu={!embedded && isStepOpen(step.status) ? (
                       <span className="rl-links">
                         <button type="button" className="rl-link is-danger" onClick={() => setRemoveTax({ id: step.id, title: workTitle(step) })} data-remove-tax-work>הסר…</button>
                       </span>
                     ) : null}
-                    primary={parentId && (!embedded || isInfo) ? (
-                      <button type="button" className="btn btn-sm btn-primary" onClick={openWork} data-open-tax-work>פתח</button>
+                    primary={!embedded ? (
+                      <button type="button" className="btn btn-sm btn-primary" onClick={() => setTaxYearStepId(step.id)} data-open-tax-work>פתח</button>
                     ) : undefined}
                   >
-                    {embedded && !isInfo ? (
+                    {embedded ? (
                       <TaxYearProcess embedded client={client} step={step}
-                        infoStep={clientSteps.find(x => x.stepType === 'info_collection' && (x.payload as unknown as { parentStepId?: string }).parentStepId === step.id && x.status !== 'cancelled')}
+                        infoStep={info}
                         onClientPersisted={onClientPersisted}
                         onClose={() => setOpenRowId(null)} onChanged={() => refresh?.()} onRemoved={setTaxNotice} />
                     ) : null}
@@ -6787,8 +6795,10 @@ function StepCardShell({ step, stepById, highlight, danger, statusLabel, always,
  * סגור: שם · משפט מצב אחד · פרטים משניים בשקט · פעולה אחת רלוונטית + ⋯.
  * פתוח: כל הפרטים של אותה בקשה. פותחים אחת בכל פעם, כדי שהמסך יישאר קריא.
  */
-function JourneyRow({ step, stepById, highlight, danger, statusLabel, noteLine, always, primary, menu, children, unsent, state, name, nestedName }: {
+function JourneyRow({ step, stepById, highlight, danger, statusLabel, noteLine, always, primary, menu, children, unsent, state, name, nestedName, below }: {
   step: OnboardingStep;
+  /** 17.10 · שלושת הצעדים של בקשת תיק מס — מתחת לשורה, גלויים גם כשהיא סגורה (ההדמיה המאושרת; לא כפתורים). */
+  below?: React.ReactNode;
   /** הפעולה של עכשיו — במשטח המפושט גלויה בשורה הסגורה; בישן נוספת לפני התפריט. */
   primary?: React.ReactNode;
   /** משטח מפושט: המצב הקצר בשורה הסגורה (גובר על הנגזר מ-stepAttention). */
@@ -6959,6 +6969,7 @@ function JourneyRow({ step, stepById, highlight, danger, statusLabel, noteLine, 
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9" /></svg>
           </button>
         </div>
+        {below && <div className="rl-below">{below}</div>}
         {open && (
           <div className="rl-body">
             {split.detail && <p className="rl-detail">{split.detail}</p>}

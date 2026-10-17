@@ -7,7 +7,8 @@
 // ‼ מסמך שכבר רשום לאדם אחד לא מוצע לשני: צילום של אחד אינו של השני.
 
 import { useEffect, useState } from 'react';
-import IdentitySidesPicker from '../features/identity/IdentitySidesPicker';
+import IdentityFlexPicker from '../features/identity/IdentityFlexPicker';
+import { partsSummary, type IdPartsManifest } from '../features/identity/idFlex';
 import { supabase } from '../lib/supabase';
 import { identicalIdDocs, planOfficeUpload, sha256Hex } from '../features/representation/identityDedupe';
 import { useDocumentStore, DOC_CATEGORY_LABELS, type DocCategory } from '../hooks/useDocumentStore';
@@ -94,8 +95,8 @@ export default function IdentityDocAttach({ requestId, clientId, missing, usedDo
     } finally { setBusy(null); }
   }
 
-  /** ‼ נקרא מ«אישור ושליחה» של בוחר הצדדים — הקובץ כבר PDF אחד (גיא, 12.10.2026). שגיאה או null. */
-  async function upload(m: MissingPerson, file: File): Promise<string | null> {
+  /** ‼ נקרא מ«אישור ושליחה» של בוחר התעודה — הקובץ כבר PDF אחד, וההרכב איתו (16.10.2026). שגיאה או null. */
+  async function upload(m: MissingPerson, file: File, parts?: IdPartsManifest): Promise<string | null> {
     setBusy(`${m.person}:upload`);
     setErr(null);
     try {
@@ -123,7 +124,8 @@ export default function IdentityDocAttach({ requestId, clientId, missing, usedDo
         year: 'general',
         uploadedAt: new Date().toISOString(),
         description: `צילום ${KIND_TEXT[m.kind]} - ${m.name}`,
-        notes: '',
+        // ‼ ההרכב (מה כל עמוד) נשמר ליד הקובץ — כמו בהעלאה מהדף האישי (portal-upload-document).
+        notes: parts?.length ? `הועלה מהמשרד · עמודים: ${partsSummary(parts)}` : '',
         fileData: data,
         folderId: null,
         labelId: null,
@@ -155,11 +157,11 @@ export default function IdentityDocAttach({ requestId, clientId, missing, usedDo
               onClick={() => setOpenKey(k => (k === key ? null : key))}>
               {openKey === key ? 'סגירה' : 'העלאה'}
             </button>
-            {/* ‼ בוחר הצדדים: צד ואז צד, תצוגה מקדימה, החלפה — ובאישור PDF אחד בתיק הלקוח. */}
+            {/* ‼ העלאה גמישה: תמונה אחת של הכול או כמה, תיוג לכל תמונה, בדיקת שלמות — ובאישור PDF אחד בתיק הלקוח. */}
             {openKey === key && (
-              <IdentitySidesPicker kind={m.kind} fileName={`${KIND_TEXT[m.kind]} - ${m.name}`}
+              <IdentityFlexPicker kind={m.kind} fileName={`${KIND_TEXT[m.kind]} - ${m.name}`}
                 maxBytes={30 * 1024 * 1024} disabled={!!busy}
-                onConfirm={pdf => upload(m, pdf)} onCancel={() => setOpenKey(null)} />
+                onConfirm={(pdf, parts) => upload(m, pdf, parts)} onCancel={() => setOpenKey(null)} />
             )}
             {offer.length > 0 && (
               <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)' }}>
