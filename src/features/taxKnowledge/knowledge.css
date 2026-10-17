@@ -269,3 +269,10 @@
 .kn-level.is-no { border-style: dashed; }
 .kn-level.is-na { opacity: .65; }
 .kn-level-notes { margin: 0 0 6px; padding-inline-start: 18px; }
+
+/* ── נושא «עוסק פטור או מורשה» (16.10.2026) ── */
+.kn-list { margin: 4px 0; padding-inline-start: 18px; line-height: 1.6; }
+.kn-table { width: 100%; border-collapse: collapse; font-size: var(--fs-13); }
+.kn-table td { padding: 4px 8px; border-top: 1px solid var(--bd); vertical-align: top; }
+.kn-table td:first-child { font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; }
+.kn-result { margin: 6px 0 0; padding: 8px 12px; border-radius: 10px; background: var(--soft, var(--s4)); font-weight: 600; }

@@ -25,6 +25,7 @@ import MICRO_BODY from '../../taxKnowledge/topics/MicroBusinessBody.tsx?raw';
 import ANNUAL_BODY from '../../taxKnowledge/topics/AnnualReturnBody.tsx?raw';
 import F6111_BODY from '../../taxKnowledge/topics/Form6111Body.tsx?raw';
 import MATERNITY_BODY from '../../taxKnowledge/topics/MaternityBody.tsx?raw';
+import DEALER_BODY from '../../taxKnowledge/topics/DealerTypeBody.tsx?raw';
 
 export const TESTS: TestCase[] = [
   test('קרן השתלמות, שכיר־עצמאי: דוגמת המדריך 104,853 → 4,718', () => {
@@ -235,7 +236,7 @@ export const TESTS: TestCase[] = [
   }),
 
   test('טקסט נושא לא מעתיק ערך מהמרשם — הערך נשלף, כדי שעדכון לא ישאיר מספר ישן', () => {
-    const bodies: Record<string, string> = { studyFund: SF_BODY, pensionSE: PEN_BODY, niSelfEmployed: NI_BODY, mandatoryPension: MP_BODY, advances: ADV_BODY, wealth: WEALTH_BODY, microBusiness: MICRO_BODY, annualReturn: ANNUAL_BODY, form6111: F6111_BODY, maternity: MATERNITY_BODY };
+    const bodies: Record<string, string> = { studyFund: SF_BODY, pensionSE: PEN_BODY, niSelfEmployed: NI_BODY, mandatoryPension: MP_BODY, advances: ADV_BODY, wealth: WEALTH_BODY, microBusiness: MICRO_BODY, annualReturn: ANNUAL_BODY, form6111: F6111_BODY, maternity: MATERNITY_BODY, dealerType: DEALER_BODY };
     for (const t of TOPICS) {
       const src = bodies[t.id];
       assert(src !== undefined, `${t.id}: יש גוף נושא`);

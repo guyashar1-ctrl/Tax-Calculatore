@@ -4,7 +4,7 @@
 import { test, assert, equal, deepEqual, type TestCase } from '../../../../testkit/tinyTest';
 import { CLIENT_FORMS, blockers, flowScreens, screenValues, editableFields, formMarkers, screenOfQuestion } from '../registry';
 import { ITA4440, clientColumn } from '../ita4440';
-import { VAT821, splitActivity, activityText, dealerKindOf } from '../vat821';
+import { VAT821, splitActivity, activityText, dealerKindOf, dealerReason } from '../vat821';
 import { ilDate, splitPhone, validIsraeliId, inputError, fieldError } from '../format';
 import type { CfData } from '../types';
 import MIGRATION_247 from '../../../../../supabase/247-smart-client-forms.sql?raw';
@@ -88,7 +88,12 @@ export const TESTS: TestCase[] = [
     equal(VAT821.valueOf(f, { openDate: '2026-08-31' }), '08|26');
     equal(VAT821.valueOf(f, { openMonth: '2025-03' }), '03|25', 'הגשה ישנה');
     equal(VAT821.valueOf(f, {}), undefined);
-    equal(activityText({ activity: 'שליחויות', industry: 'H' }), 'שליחויות · ענף: תחבורה, אחסנה ושליחויות');
+    equal(activityText({ activity: 'שליחויות', industry: '5320' }), 'שליחויות · ענף: שירותי בלדרות');
+    equal(activityText({ activity: 'שליחויות', industry: 'H' }), 'שליחויות · ענף: תחבורה, אחסנה, דואר ובלדרות', 'ערך ישן (אות) נקרא לתצוגה');
+    // ענף שחייב ברישום כמורשה (תקנה 13) ⇒ מורשה בלי קשר למחזור
+    equal(dealerKindOf({ turnover: '40000', openDate: '2026-08-31', industry: '6921' }), 'licensed', 'רואה חשבון — תקנה 13(1)');
+    equal(dealerKindOf({ turnover: '40000', openDate: '2026-08-31', industry: '8571' }), 'exempt', 'ענף מותנה — לפי המחזור');
+    assert(/תקנה 13\(1\)/.test(dealerReason({ turnover: '40000', industry: '6921' }) ?? ''), 'הסיבה מציינת את התקנה');
     equal(activityText({ activity: 'שליחויות' }), 'שליחויות');
     equal(dealerKindOf({ turnover: '40000', openDate: '2026-08-31' }), 'exempt');
     equal(dealerKindOf({ turnover: '180000', openDate: '2026-08-31' }), 'licensed');
@@ -102,8 +107,9 @@ export const TESTS: TestCase[] = [
     equal(fieldError(od, '2027-01-01', {}), null);
     assert(fieldError(od, '2099-01-01', {}), 'יותר משלוש שנים קדימה — נחסם');
     const ind = VAT821.screens.find(x => x.id === 'business')!.fields.find(x => x.key === 'industry')!;
-    assert(fieldError(ind, 'Z', {}), 'ענף שאינו ברשימה נדחה');
-    equal(fieldError(ind, 'M', {}), null);
+    assert(fieldError(ind, '9999', {}), 'ענף שאינו ברשימה נדחה');
+    equal(fieldError(ind, '6920', {}), null);
+    equal(fieldError(ind, 'M', {}), null, 'ערך ישן (אות) נסבל');
   }),
 
   test('שאלון · לקוח עם כרטיס מלא נשאל רק את ההצהרות (4440)', () => {

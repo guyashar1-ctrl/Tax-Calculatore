@@ -3,6 +3,7 @@
 
 import { useEffect, useId, useState } from 'react';
 import HebrewTextInput from '../../../components/ui/HebrewTextInput';
+import VatBranchPicker from '../../../components/ui/VatBranchPicker';
 import { loadBankDirectory } from '../../taxYear/RecordEditor';
 import type { BankDirectory } from '../../taxYear/records';
 import type { CfData, CfField } from './types';
@@ -48,7 +49,7 @@ export default function CfFields({ fields, values, data, onChange, showErrors, d
         const id = `${uid}-${f.key}-${i}`;
         const e = err(f);
         const v = values[f.key] ?? '';
-        const full = !f.half || f.input === 'textarea' || f.input === 'choice' || f.input === 'bank' || f.input === 'select';
+        const full = !f.half || f.input === 'textarea' || f.input === 'choice' || f.input === 'bank' || f.input === 'select' || f.input === 'vatBranch';
         const cls = `ty-field${full ? ' is-full' : ''}${e ? ' has-err' : ''}`;
         const describedBy = e ? `${id}-e` : f.hint ? `${id}-h` : undefined;
         if (f.input === 'choice') {
@@ -74,6 +75,9 @@ export default function CfFields({ fields, values, data, onChange, showErrors, d
           input = <HebrewTextInput {...common} onChange={ev => onChange(f.key, ev.target.value)} />;
         } else if (f.input === 'textarea') {
           input = <textarea {...common} onChange={ev => onChange(f.key, ev.target.value)} />;
+        } else if (f.input === 'vatBranch') {
+          // ענף כלכלי — חיפוש ב-591 הענפים של רשות המסים; הערך = הקוד
+          input = <VatBranchPicker id={id} value={v} disabled={disabled} onChange={code => onChange(f.key, code)} aria-invalid={!!e || undefined} aria-describedby={describedBy} />;
         } else if (f.input === 'select') {
           // רשימה סגורה ארוכה (ענף כלכלי) — select, לא כפתורים
           input = (
