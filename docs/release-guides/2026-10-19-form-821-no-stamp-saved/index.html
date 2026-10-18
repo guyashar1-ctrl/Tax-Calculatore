@@ -24,7 +24,7 @@ label.chk{display:flex;gap:8px;align-items:center;margin-top:10px;font-size:.95r
 .pager{display:flex;justify-content:space-between;gap:8px;margin-top:14px}.pager button{font:inherit;min-height:44px;padding:8px 16px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--ink);cursor:pointer}
 .step[hidden]{display:none}table{border-collapse:collapse;width:100%;font-size:.93rem}td{padding:6px 8px;border-top:1px solid var(--line);vertical-align:top}td:first-child{color:var(--ink2);width:34%}
 </style></head><body><main>
-<p class="meta">PIVO · מדריך שחרור · 19.10.2026 · צילומים מסביבת הבדיקות (staging, הדמיית דפדפן — לא מכשיר אמיתי) עם לקוח דמה «דוד בדיקה» · קוד: טרם בקומיט · <b>עדיין לא באתר</b> — ממתין לאישורך; מיגרציה 259 ו-portal-signed-form ב-staging בלבד</p>
+<p class="meta">PIVO · מדריך שחרור · 19.10.2026 · צילומים מסביבת הבדיקות (staging, הדמיית דפדפן — לא מכשיר אמיתי) עם לקוח דמה «דוד בדיקה» · קוד: ad03f9e · <b>באתר (crm.yasharcpa.co.il), מיגרציה 259 ו-portal-signed-form בייצור</b></p>
 <h1>טופס 821 שהלקוח חותם: בלי החותמת שלך, ונשמר במסמכים של הלקוח ברגע החתימה</h1>
 
 <div class="box why"><h2>מה ביקשת ומה קיבלת</h2>
@@ -72,12 +72,13 @@ label.chk{display:flex;gap:8px;align-items:center;margin-top:10px;font-size:.95r
 <table>
 <tr><td>דפדפן מול staging (מסד אמיתי)</td><td><code>scripts/e2e/form-821-live.mjs</code>: המשרד פותח 821, הלקוח ממלא וחותם בדף האישי ⇒ <b>מיד</b> יש שורה במסמכים, קובץ באחסון, והאירוע «נשמר מהדף האישי»; «מסמכים» מציג אותו; במשרד אין «הפקה בלי החותמת»; החתימה בתיבה. 44/44 במחשב (1280) ו-44/44 בטלפון (390, הדמיה). 0 מיילים, 0 שאריות.</td></tr>
 <tr><td>שרת</td><td>מיגרציה 259 ב-staging: שם המייצג לדף של הלקוח, ושתי פונקציות שמירה שרק השרת יכול להפעיל (הדף לא ניגש אליהן ישירות). הפונקציה portal-signed-form נפרסה ל-staging: מקבלת רק PDF, רק לטופס שנחתם ועוד אין לו קובץ, ולא מחליפה קובץ קיים.</td></tr>
-<tr><td>קוד</td><td>tsc נקי · unit 1958/0.</td></tr>
+<tr><td>קוד</td><td>tsc נקי · unit 1965/0 (אחרי מיזוג master) · build.</td></tr>
+<tr><td>ייצור (19.10, בדיקה חיה)</td><td>לקוח בדיקה במשרד הבדיקה (לא בחשבון שלך), בלי כתובת מייל: המשרד פתח 821, הלקוח מילא וחתם <b>באתר עצמו</b> ⇒ תוך 6 שניות הקובץ במסמכים («מסמך עסקי», נבנה בדף הלקוח). בקובץ: שם המייצג ותאריך, חתימת הלקוח, <b>בלי חותמת</b>. 0 מיילים; לקוח הבדיקה, הקובץ וההתראה נמחקו.</td></tr>
 </table></div>
 
 <div class="box"><h2>מה לא נעשה / לידיעתך</h2>
 <ul>
-<li><b>ייצור:</b> ממתין לאישורך — מיגרציה 259, הפונקציה portal-signed-form והאתר.</li>
+<li><b>מסך המשרד באתר</b> (לשונית «מסמכים» ו«בקשות») נבדק ב-staging; בייצור נבדק הקובץ במסד ובאחסון, לא דרך המסך שלך.</li>
 <li><b>הקובץ של «ויסמרק» מ-17.10</b> נשמר עוד עם החותמת (זו גרסה חתומה, לא משנים אותה בשקט). אם תרצה עותק בלי חותמת — זו פעולה נפרדת.</li>
 <li><b>הקובץ נבנה בדפדפן של הלקוח</b> מאותם פרטים שהוא ראה וחתם עליהם. לפני ההגשה עוברים עליו כרגיל.</li>
 <li><b>טלפון אמיתי</b> לא נבדק — הדמיית דפדפן בלבד.</li>
