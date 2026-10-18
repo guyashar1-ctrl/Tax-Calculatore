@@ -1,0 +1,213 @@
+{
+  "target": "staging",
+  "base": "http://localhost:4744",
+  "dark": true,
+  "pass": 37,
+  "fail": 0,
+  "results": [
+    {
+      "ok": true,
+      "m": "[390-dark] «השלם עם הלקוח» פתח את הקליטה בשורת הבקשה",
+      "info": ""
+    },
+    {
+      "ok": true,
+      "m": "[390-dark] שאלון ישן — «החלף בקליטה»",
+      "info": ""
+    },
+    {
+      "ok": true,
+      "m": "[390-dark] השאלון המלא של ההיכרות — בלי מסמכים",
+      "info": ""
+    },
+    {
+      "ok": true,
+      "m": "[390-dark] השאלון המלא — פריטי «של מי / איפה»",
+      "info": ""
+    },
+    {
+      "ok": true,
+      "m": "[390-dark] 254 · אין «הוסף שאלות» ואין «פרסם» — השאלון כבר בדף של הלקוח",
+      "info": ""
+    },
+    {
+      "ok": true,
+      "m": "[390-dark] 10 שאלות בדף של הלקוח בלי פעולה של המשרד («אצל דוד · 0 מתוך 10»)",
+      "info": ""
+    },
+    {
+      "ok": true,
+      "m": "[390-dark] staging · 254+253: 10 מפורסמות (0 בטיוטה), מסך הרשת ביניהן — ensure_tax_file_intake קיבלה את הסוג החדש",
+      "info": ""
+    },
+    {
+      "ok": true,
+      "m": "[390-dark] staging: אף שאלת מסמך ואף שאלת טקסט חופשי בהיכרות",
+      "info": ""
+    },
+    {
+      "ok": true,
+      "m": "[390-dark] staging: אין מייל ללקוח הבדיקה",
+      "info": ""
+    },
+    {
+      "ok": true,
+      "m": "[390-dark] טלפון: השאלון בלי גלילה הצידה",
+      "info": ""
+    },
+    {
+      "ok": true,
+      "m": "[390-dark] המסך הראשון: «מה שכבר ידוע לנו — נכון?» — כל אישורי הכרטיס במסך אחד",
+      "info": ""
+    },
+    {
+      "ok": true,
+      "m": "[390-dark] במסך האישור 5 שורות",
+      "info": ""
+    },
+    {
+      "ok": true,
+      "m": "[390-dark] אישור כולל נשלח; «יש שינוי» סומן במצב המשפחתי",
+      "info": ""
+    },
+    {
+      "ok": true,
+      "m": "[390-dark] השורה שסומנה נפתחה לתיקון מיד אחרי האישור",
+      "info": ""
+    },
+    {
+      "ok": true,
+      "m": "[390-dark] התיקון נשלח",
+      "info": ""
+    },
+    {
+      "ok": true,
+      "m": "[390-dark] אחרי האישורים — מסך הרשת «סמנו מה יש לכם»",
+      "info": ""
+    },
+    {
+      "ok": true,
+      "m": "[390-dark] מסך הרשת: 9 אריחים — רק מה שהתיק לא יודע",
+      "info": ""
+    },
+    {
+      "ok": true,
+      "m": "[390-dark] חזרה מאותו קישור — למסך הרשת, לא מההתחלה",
+      "info": ""
+    },
+    {
+      "ok": true,
+      "m": "[390-dark] מסך הרשת נענה — סומנו: intake.foreign, intake.crypto, intake.credits, intake.hasInvestments",
+      "info": ""
+    },
+    {
+      "ok": true,
+      "m": "[390-dark] מה שסומן פתח מיד את שאלת ההמשך — בלי סבב מול המשרד",
+      "info": ""
+    },
+    {
+      "ok": true,
+      "m": "חיפוש שלא מוצא — «אחר» נשאר (אין טקסט חופשי)",
+      "info": ""
+    },
+    {
+      "ok": true,
+      "m": "[390-dark] סיום: «התשובות נשלחו למשרד» — 11 מסכים ב-56 שניות",
+      "info": ""
+    },
+    {
+      "ok": true,
+      "m": "[390-dark] אף העלאה — בהיכרות אין מסמכים",
+      "info": ""
+    },
+    {
+      "ok": true,
+      "m": "[390-dark] בסיום אין «נשארו מסמכים»",
+      "info": ""
+    },
+    {
+      "ok": true,
+      "m": "[390-dark] «של מי / איפה» נענה מהרשימות (4 מסכים: של מי?=דוד; שם העסק (או השם שלכם)=שם; איך העסק רשום?=עוסק מורשה | של מי?=שנינו; איפה המטבעות?=✓ Binance\nשינוי | של מי?=רחל; באיזה בנק או בית השקעות?=✓ בנק הפועל)",
+      "info": ""
+    },
+    {
+      "ok": true,
+      "m": "[390-dark] טקסט חופשי רק בתיקון של «יש שינוי» (1)",
+      "info": ""
+    },
+    {
+      "ok": true,
+      "m": "[390-dark] המשרד: «לבדוק את מה ש… מסר»",
+      "info": ""
+    },
+    {
+      "ok": true,
+      "m": "[390-dark] התשובה מהרשימה מוצגת למשרד כטקסט («של רחל · ארצות הברית»)",
+      "info": ""
+    },
+    {
+      "ok": true,
+      "m": "[390-dark] כל התשובות אושרו — מסך הרשת, «של מי / איפה», הילדים והחשבון",
+      "info": ""
+    },
+    {
+      "ok": true,
+      "m": "[390-dark] במסד: «כן» למה שסומן ו«לא» למה שלא, בתפקיד משק הבית",
+      "info": ""
+    },
+    {
+      "ok": true,
+      "m": "[390-dark] במסד: «איפה» = מזהה מהרשימה + שם; «של מי»",
+      "info": ""
+    },
+    {
+      "ok": true,
+      "m": "[390-dark] במסד: אף תשובת טקסט חופשי חוץ מתיקון המצב המשפחתי",
+      "info": ""
+    },
+    {
+      "ok": true,
+      "m": "[390-dark] staging: עדיין אף מייל",
+      "info": ""
+    },
+    {
+      "ok": true,
+      "m": "[390-dark] השאלות במסד: rentals:couple=answered · employers:client=answered · family:couple=answered · children:couple=answered · whatYouHave:couple=answered · businessDetails:client=answered · marriageYear:couple=answered · bankAccount:couple=answered · employers:spouse=answered · address:couple=answered · cryptoDetails:couple=answered · accountDetails:couple:inv-new-couple-intake=answered · foreignDetails:couple:frn-new-couple-intake=answered · credits:couple=answered",
+      "info": ""
+    },
+    {
+      "ok": true,
+      "m": "אין פנייה לשרת חוץ או לייצור (0)",
+      "info": ""
+    },
+    {
+      "ok": true,
+      "m": "אין שגיאות בדפדפן (0)",
+      "info": ""
+    },
+    {
+      "ok": true,
+      "m": "ניקוי staging: אין שאריות ({\"left\":0,\"storageLeft\":0,\"files\":0})",
+      "info": ""
+    }
+  ],
+  "consoleErrors": [],
+  "blocked": [],
+  "rpcs": [
+    "is_authorized",
+    "expire_stale_quotations",
+    "google_calendar_status",
+    "get_btl_portal_record",
+    "get_home_office",
+    "shaam_filing_list",
+    "ensure_tax_file_intake",
+    "client_ready_to_send",
+    "get_client_flow_runs",
+    "replace_legacy_intake",
+    "get_client_portal",
+    "portal_tax_info",
+    "portal_submit_tax_info",
+    "portal_save_tax_info_draft",
+    "decide_tax_year_facts"
+  ]
+}

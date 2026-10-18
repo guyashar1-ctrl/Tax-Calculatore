@@ -322,7 +322,7 @@ async function run(width) {
     ok(true, `[${tag}] «השלם עם הלקוח» פתח את הקליטה בשורת הבקשה`);
     const legacy = w.locator('[data-legacy-intake]');
     await legacy.waitFor({ timeout: 6000 }).catch(() => {});
-    if (await legacy.count()) { await legacy.getByRole('button', { name: 'החלף בקליטה' }).click(); await waitIdle(w); }
+    if (await legacy.count()) { await legacy.getByRole('button', { name: 'החלף בקליטה' }).click(); await waitIdle(w); ok(/הוחלף/.test(await text(w.locator('.ty-ok'))), `[${tag}] שאלון ישן — «החלף בקליטה»`); }
     // השאלון המלא — בלי מסמכים
     const sum = w.locator('details.ty-details summary', { hasText: 'השאלון' });
     if (await sum.count()) {
@@ -335,13 +335,27 @@ async function run(width) {
       ok(/של מי/.test(qm), `[${tag}] השאלון המלא — פריטי «של מי / איפה»`);
       await sum.first().click();
     }
-    // 2 · הכנה ופרסום — מסך הרשת הוא שאלה אחת
-    const pub = await prepareAndPublish(w);
-    ok(pub.n > 0 && !pub.err, `[${tag}] הוכנו ופורסמו ${pub.n} שאלות («${pub.flash.trim().slice(0, 50)}»)`, pub.err);
-    ok(/סמנו מה יש לכם/.test(pub.planText), `[${tag}] ברשימת ההכנה: «סמנו מה יש לכם» — שאלה אחת לכל שאלות הפתיחה`, pub.planText.slice(0, 300));
-    ok(!/תעודת זהות|תלוש/.test(pub.planText), `[${tag}] ברשימת ההכנה אין מסמכים`);
-    if (TARGET === 'staging') ok(await env.emailsFor() === 0, `[${tag}] staging: אין מייל ללקוח הבדיקה`);
-    await shot(page, `01-office-prepared-${tag}`, [[`#ob-step-${stepId} .ty-now`, 'השאלות שהוכנו']]);
+    // 2 · 254 (שלב 1): ההיכרות נשלחת לבד — אין «הוסף שאלות» ואין «פרסם»; מסך הרשת (253) הוא שאלה אחת בדף של הלקוח
+    await page.waitForFunction(sel => { const el = document.querySelector(sel); return !!el && /ממתין ל|לבדוק את מה ש|ממתין לפרסום/.test(el.innerText); }, `#ob-step-${stepId} .ty-now`, { timeout: 45000 }).catch(() => {});
+    ok(await w.locator('[data-ty-publish]').count() === 0 && await w.getByRole('button', { name: /^הוסף .*לבקשה «השלמת מידע»$/ }).count() === 0, `[${tag}] 254 · אין «הוסף שאלות» ואין «פרסם» — השאלון כבר בדף של הלקוח`);
+    let chip = (await text(row.locator('.rl-line .rl-state'))).replace(/\s+/g, ' ').trim();
+    if (/ממתין לפרסום/.test(chip)) {
+      const pageBtn = page.locator('button', { hasText: /^פרסם בדף$/ }).first();
+      if (await pageBtn.count()) { await pageBtn.click(); const only = page.locator('button, [role=button]', { hasText: /^רק לפרסם/ }).first(); await only.waitFor({ timeout: 8000 }).catch(() => {}); if (await only.count()) await only.click(); await page.waitForTimeout(3000); }
+      chip = (await text(row.locator('.rl-line .rl-state'))).replace(/\s+/g, ' ').trim();
+    }
+    const askedN = Number((chip.match(/מתוך (\d+)/) ?? [0, '0'])[1]);
+    ok(askedN > 0, `[${tag}] ${askedN} שאלות בדף של הלקוח בלי פעולה של המשרד («${chip}»)`);
+    if (TARGET === 'staging') {
+      const q = (await env.sql(`select count(*) filter (where state = 'published')::int p, count(*) filter (where state = 'draft')::int d,
+        count(*) filter (where item_key = 'intake.whatYouHave' and state = 'published')::int grid,
+        count(*) filter (where prompt->'input'->>'kind' = 'file')::int files,
+        count(*) filter (where prompt->'input'->>'kind' = 'text')::int texts from public.tax_info_asks where client_id = '${env.clientId}'`))[0];
+      ok(q.p === askedN && q.d === 0 && q.grid === 1, `[${tag}] staging · 254+253: ${q.p} מפורסמות (0 בטיוטה), מסך הרשת ביניהן — ensure_tax_file_intake קיבלה את הסוג החדש`, JSON.stringify(q));
+      ok(q.files === 0 && q.texts === 0, `[${tag}] staging: אף שאלת מסמך ואף שאלת טקסט חופשי בהיכרות`, JSON.stringify(q));
+      ok(await env.emailsFor() === 0, `[${tag}] staging: אין מייל ללקוח הבדיקה`);
+    }
+    await shot(page, `01-office-prepared-${tag}`, [[`#ob-step-${stepId} .ty-now`, 'ממתין ללקוח — השאלות כבר בדף'], [`#ob-step-${stepId} .rl-state`, 'שבב המצב']]);
 
     // 3 · הלקוח: «נכון?» → תיקון → מסך הרשת → של מי / איפה → … → סיום
     const t0 = Date.now();
