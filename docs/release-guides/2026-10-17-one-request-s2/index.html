@@ -26,7 +26,7 @@ label.chk{display:flex;gap:8px;align-items:center;margin-top:10px;font-size:.95r
 .step[hidden]{display:none}table{border-collapse:collapse;width:100%;font-size:.93rem}td,th{padding:6px 8px;border-top:1px solid var(--line);vertical-align:top;text-align:start}td:first-child{color:var(--ink2);width:34%}
 code{background:rgba(127,127,127,.15);border-radius:4px;padding:0 4px;direction:ltr;unicode-bidi:isolate}
 </style></head><body><main>
-<p class="meta">PIVO · מדריך שחרור · 17.10.2026 · «בקשה אחת לתיק המס» — שלב 2 · צילומים מסביבת הבדיקות (staging, הדמיית דפדפן — לא מכשיר אמיתי) עם לקוח דמה «דוד ורחל» · קומיט <code>8b1c4fb</code> · <b>ב-staging בלבד — ממתין לאישורך לייצור</b></p>
+<p class="meta">PIVO · מדריך שחרור · 17.10.2026 · «בקשה אחת לתיק המס» — שלב 2 · צילומים מסביבת הבדיקות (staging, הדמיית דפדפן — לא מכשיר אמיתי) עם לקוח דמה «דוד ורחל» · קומיט <code>24ac839</code> · <b>באתר</b> (253 בייצור 19.10.2026 באישור גיא; גיבוי PIVO/backups/one-request-s2-20261019)</p>
 <h1>ההיכרות מהתיק: מסך «נכון?», מסך «מה יש לכם», ו«של מי / איפה» מרשימות — בלי מסמכים</h1>
 
 <div class="box why"><h2>מה ביקשת ומה קיבלת</h2>
@@ -106,7 +106,7 @@ code{background:rgba(127,127,127,.15);border-radius:4px;padding:0 4px;direction:
 </ul>
 <h2 style="margin-top:16px">מה לא נבדק / פערים</h2>
 <ul>
-<li class="warn">לא בייצור. ממתין לאישורך; ההחלה בייצור דורשת 241 חיה שם (כן) ו-<code>apply-staging.mjs --target=prod --approved</code>.</li>
+<li>בייצור מ-19.10.2026 (מיזוג ל-master + 253 אחרי גיבוי + פריסה). חזרה: <code>scripts/sql/253/rollback-253.sql</code> + החזרת האתר.</li>
 <li>נבדק יחד עם שלב 1 (254, כבר בייצור): פתיחת ההיכרות ⇒ 10 שאלות מתפרסמות לבד כולל מסך הרשת ⇒ הלקוח עונה ⇒ המשרד רואה בשורה האחת. 0 מיילים, 0 שאריות.</li>
 <li>הבדיקה היא הדמיית דפדפן, לא מכשיר אמיתי; הזמן ללקוח נמדד עם לחיצות אוטומטיות (לא זמן קריאה של אדם).</li>
 <li>תרומות אינן אריח בהיכרות (אין להן פריט בקטלוג ההיכרות — הן שאלה של הדוח השנתי). אם רוצים — פריט חדש.</li>
