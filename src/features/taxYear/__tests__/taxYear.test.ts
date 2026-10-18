@@ -86,7 +86,9 @@ export const TESTS: TestCase[] = [
     equal(lines.subjectName, 'מיכל');
     assert(p.toConfirm.length >= 4, 'רשימת אישור');
     // מעביד, עסק, נכס וחשבון — יעד נפרד לכל אחד
-    equal(st(p, 'salary.payslipToDate', 'spouse', 'e2')?.entityLabel, 'בית חולים');
+    // 16.10.2026 · הערכה בלי מסמכים: התלוש לא נשאל; היעד לכל מעסיק נשאר בפריט הסכומים (משרד)
+    assert(!st(p, 'salary.payslipToDate', 'spouse', 'e2'), 'תלוש בהערכה');
+    equal(st(p, 'salary.amounts', 'spouse', 'e2')?.entityLabel, 'בית חולים');
     equal(st(p, 'rent.income', 'couple', 'p1')?.entityLabel, 'הרצל 5, חיפה');
   }),
   test('«אין שינוי» נרשם כהצהרת לקוח ממתינה, לא כאישור; המשרד מאשר במרוכז', () => {
@@ -276,8 +278,11 @@ export const TESTS: TestCase[] = [
     const p = pic({ client: married, purpose: 'estimate' });
     equal(st(p, 'business.assetsChanged', 'client', 'b1')?.state, 'missing');
     equal(st(p, 'sales.sold', 'client')?.state, 'missing');
-    const withSale = pic({ client: married, facts: [fact({ itemKey: 'sales.sold', status: 'pending' })] });
-    equal(st(withSale, 'sales.docs', 'client', 'new')?.state, 'missing');
+    // 16.10.2026 · מסמכי העסקה — בדוח (בהערכה אין מסמכים); פרטי העסקה — כבר בהערכה
+    const withSale = pic({ client: married, purpose: 'estimate', facts: [fact({ itemKey: 'sales.sold', status: 'pending' })] });
+    equal(st(withSale, 'sales.transaction', 'client', 'new')?.state, 'missing');
+    assert(!st(withSale, 'sales.docs', 'client', 'new'), 'מסמך בהערכה');
+    equal(st(pic({ client: married, purpose: 'annual', facts: [fact({ itemKey: 'sales.sold', status: 'pending' })] }), 'sales.docs', 'client', 'new')?.state, 'missing');
     assert(ITEM_BY_KEY['savings.selfDeposits'].calcBlockedBy === 'pen.age50Cap', 'גיל 50 חוסם חישוב, לא איסוף');
   }),
 

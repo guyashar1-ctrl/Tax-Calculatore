@@ -135,7 +135,8 @@ export default function TaxYearProcess({ client, step, infoStep, onClose, onChan
     facts: data.facts, evidence: data.evidence, asks: data.asks, priorEvidence: prior,
     openedRare: [...new Set([...data.asks.map(a => a.itemKey), ...data.facts.map(f => f.itemKey)])],
   }), [data, client, year, purpose, p.cutoffMonth, p.asOfDate, p.kind, prior]);
-  const review = useMemo(() => data && groupForReview(data.facts, data.evidence), [data]);
+  // 16.10.2026 · «של מי» בתשובות מהרשימות — בשם (רחל), לא בתפקיד
+  const review = useMemo(() => data && groupForReview(data.facts, data.evidence, { clientName: client.firstName || 'הלקוח', spouseName: client.spouseFirstName || client.spouse?.firstName || 'בן/בת הזוג' }), [data, client]);
   // ‼ בקליטה בתוך השורה הטיוטות אינן «עכשיו» של המשרד — הן מתפרסמות לבד (autoIntake)
   const drafts = (autoIntake ? [] : data?.asks.filter(a => a.state === 'draft')) ?? [];
   const waitingAsks = data?.asks.filter(a => a.state === 'published') ?? [];

@@ -6,10 +6,11 @@
 // ‼ תשובה להערכה נשמרת עם התקופה שלה (ינואר עד החתך), ולכן בדוח השנתי היא חלקית.
 
 import type { Client } from '../../types';
-import { AREA_BY_ID, ITEM_BY_KEY, type InfoItem, CATALOG_VERSION } from './catalog';
+import { AREA_BY_ID, ITEMS, ITEM_BY_KEY, type InfoItem, CATALOG_VERSION } from './catalog';
 import { DOCS, followUpFor } from './documents';
-import type { ItemStatus } from './picture';
-import type { AskPrompt, FactAnswer, FactBasis, InfoAsk, PeriodKind, Purpose, UnavailableCode, YearFact } from './types';
+import { PROVISIONAL, provisionalRef, type ItemStatus } from './picture';
+import type { AskPrompt, EntityKind, FactAnswer, FactBasis, InfoAsk, MultiOption, PeriodKind, Purpose, SubjectRole, UnavailableCode, YearFact } from './types';
+import { cleanEntity, entityValid, visibleFields, type EntityItem } from './entities';
 import { hintFor } from './hints';
 import { RECORD_OF, isPeriodItem, dealerOf } from './structured';
 import { initialFromCard } from './records';
@@ -170,6 +171,15 @@ export function promptFor(s: ItemStatus, ctx: AskCtx): AskPrompt {
     };
   }
   if (it.kind === 'document' && it.docKind) return { ...base, title: fillP(qText ?? DOCS[it.docKind].label), input: { kind: 'file', docKind: it.docKind } };
+  // ‼ 16.10.2026 · «של מי / איפה» — רשימות סגורות; «של מי» רק לזוג נשוי (ליחיד התשובה ידועה — השדה יורד מהמפרט)
+  if (it.input === 'entity' && it.entity) {
+    const spec = { ...it.entity, fields: visibleFields(it.entity, people) };
+    // ‼ 13.10.2026 (גיא): בתיק ידוע שהאדם רשום כעוסק אבל העסק עצמו לא רשום — מציגים את מה שידוע ומבקשים להשלים
+    const dealer = it.key === 'intake.businessDetails' ? dealerOf(c, role) : null;
+    const lead = dealer ? `רשום/ה אצלנו כ${DEALER_KIND_LABELS[dealer]}. ` : '';
+    const initial = dealer ? [{ dealer: dealer === 'licensed' ? 'murshe' : dealer === 'exempt' ? 'patur' : dealer === 'company' ? 'company' : '' }] : undefined;
+    return { ...base, title: `${lead}${fillP(qText ?? it.label)}`, input: { kind: 'entity', spec, context: people, ...(initial ? { initial } : {}) } };
+  }
   // ‼ רשומה מובנית: פרטים (מעסיק, נכס, חשבון…) ושאלות התחולה — שדות נפרדים
   if (schema && (it.kind === 'detail' || it.input === 'record')) {
     const context: Record<string, string> = { ...people, ...(isPeriodItem(it.key) ? (period && period.from === period.to ? { day: '1' } : { periodNoun: 'השנה' }) : {}) };
@@ -211,8 +221,13 @@ export function buildAskPlan(statuses: ItemStatus[], ctx: AskCtx): AskPlanEntry[
   const out: AskPlanEntry[] = [];
   const used = new Set<ItemStatus>();
   const married = c.familyStatus === 'married';
+  // ‼ 16.10.2026 · היכרות: כל שאלות הפתיחה — מסך רשת אחד «סמנו מה יש לכם» (קיבוץ; העובדות נשמרות לכל מפתח)
+  const grid = ctx.purpose === 'intake' ? buildMultiEntry(statuses, ctx) : null;
+  if (grid) { for (const s of grid.statuses) used.add(s); }
   for (const s of statuses) {
     if (used.has(s)) continue;
+    // המסך נכנס במקום שאלת הפתיחה הראשונה — אחרי האישורים מהכרטיס
+    if (grid && !out.includes(grid) && s.item.kind === 'screener') out.push(grid);
     const pair = married && s.item.coupleQuestion && s.item.per === 'person' && !s.entityRef
       ? statuses.find(o => o !== s && o.item.key === s.item.key && !o.entityRef && o.subjectRole !== s.subjectRole && (o.subjectRole === 'client' || o.subjectRole === 'spouse'))
       : undefined;
@@ -238,7 +253,63 @@ export function buildAskPlan(statuses: ItemStatus[], ctx: AskCtx): AskPlanEntry[
       label: s.item.label,
     });
   }
+  if (grid && !out.includes(grid)) out.push(grid);
   return out;
+}
+
+// ── 16.10.2026 · מסך הרשת «סמנו מה יש לכם» ─────────────────────────────────────────────────────────
+// ‼ אריח = שאלת פתיחה (tile). לזוג נשוי, שאלת פתיחה לאדם הופכת לשאלה של משק הבית («מישהו מכם») — העובדה
+//   נשמרת לתפקיד 'couple', ו«של מי» נשאל במסך ההמשך (של מי / איפה). ליחיד — לתפקיד 'client'.
+// ‼ שאלת ההמשך היא צילום בתוך האריח (followUp): השרת פותח אותה כשמסמנים (portal_submit_tax_info, 253) — בלי
+//   סבב נוסף מול המשרד. ישות חדשה מקבלת את אותו מזהה זמני שהתמונה הייתה נותנת לה (picture.ts › provisional).
+export const GRID_KEY = 'intake.whatYouHave';
+const GRID_ORDER = ['intake.employed', 'intake.selfEmployed', 'intake.rents', 'intake.hasInvestments', 'intake.selfDeposits', 'intake.foreign', 'intake.crypto',
+  'intake.allowances', 'intake.insurance', 'intake.credits', 'intake.special'];
+
+function buildMultiEntry(statuses: ItemStatus[], ctx: AskCtx): AskPlanEntry | null {
+  const c = ctx.client;
+  const married = c.familyStatus === 'married';
+  const item = ITEM_BY_KEY[GRID_KEY];
+  const tiles = statuses.filter(s => s.item.kind === 'screener' && s.item.who === 'client' && !!s.item.tile && s.state === 'missing' && !s.entityRef && s.item.purposes.includes('intake'));
+  if (!tiles.length || !item) return null;
+  const byKey = new Map<string, ItemStatus[]>();
+  for (const s of tiles) byKey.set(s.item.key, [...(byKey.get(s.item.key) ?? []), s]);
+  const options: MultiOption[] = [...byKey.entries()].map(([key, group]) => {
+    const it = group[0].item;
+    const role: SubjectRole = it.per === 'couple' ? 'couple' : married ? 'couple' : 'client';
+    const hintRaw = hintFor(key, undefined);
+    return { key, role, label: it.tile!, hint: hintRaw ? fillTemplate(hintRaw, c, role) : undefined, followUp: gridFollowUp(it, role, ctx) };
+  }).sort((a, b) => (GRID_ORDER.indexOf(a.key) + 1 || 99) - (GRID_ORDER.indexOf(b.key) + 1 || 99));
+  const why = item.why ?? '';
+  return {
+    key: `${GRID_KEY}|couple`, statuses: tiles, itemKey: GRID_KEY, subjectRole: 'couple',
+    prompt: { templateVersion: CATALOG_VERSION, title: item.question ?? item.label, why, hint: married ? 'מסמנים גם אם זה רק של אחד מכם — נשאל אחר כך של מי.' : undefined, input: { kind: 'multi', options } },
+    label: `${item.label} · ${options.length} אריחים`,
+  };
+}
+
+/** מה נפתח כשמסמנים אריח: פריט «של מי / איפה» של התחום (ישות חדשה — עם המזהה הזמני), או «מי מכם?» לזוג כשאין פריט כזה. */
+function gridFollowUp(screener: InfoItem, role: SubjectRole, ctx: AskCtx): MultiOption['followUp'] | undefined {
+  const c = ctx.client;
+  const next = ITEMS.find(i => i.after === screener.key && i.purposes.includes('intake') && i.who === 'client' && i.input !== 'file' && i.kind !== 'document');
+  if (next) {
+    const pv = PROVISIONAL[next.per];
+    const gateRole: SubjectRole = role;
+    const target: Pick<ItemStatus, 'subjectRole' | 'entityKind' | 'entityRef' | 'entityLabel' | 'provisional' | 'gateRole' | 'ownerRole'> = pv
+      ? { subjectRole: pv.subject(gateRole === 'couple' ? 'client' : gateRole), entityKind: next.per as EntityKind, entityRef: provisionalRef(next.per, gateRole, 'intake'),
+          entityLabel: pv.label, ownerRole: gateRole === 'spouse' ? 'spouse' : 'client', provisional: true, gateRole }
+      : { subjectRole: next.per === 'couple' ? 'couple' : role };
+    const s = { ...target, item: next, area: next.area, state: 'missing', detail: '', facts: [], evidence: [], askable: true } as ItemStatus;
+    return { itemKey: next.key, subjectRole: s.subjectRole, entityKind: s.entityKind, entityRef: s.entityRef, prompt: { ...promptFor(s, ctx), templateVersion: CATALOG_VERSION } };
+  }
+  // אין פריט המשך (תואר/שחרור, עלייה/נכות): לזוג — «מי מכם?» על אותה שאלת פתיחה; ליחיד — התשובה כבר לאדם
+  if (role === 'couple' && screener.per === 'person' && screener.coupleQuestion) {
+    const s = { subjectRole: 'client', item: screener, area: screener.area, state: 'missing', detail: '', facts: [], evidence: [], askable: true } as ItemStatus;
+    const { why, hint } = promptFor(s, ctx);
+    return { itemKey: screener.key, subjectRole: 'couple', prompt: { templateVersion: CATALOG_VERSION, title: screener.coupleQuestion, why, hint,
+      input: { kind: 'who', clientName: c.firstName || 'אני', spouseName: c.spouseFirstName || c.spouse?.firstName || 'בן/בת הזוג' } } };
+  }
+  return undefined;
 }
 
 /** פריט שאלה חדש (טיוטה) לבקשת «השלמת מידע». */
@@ -299,10 +370,16 @@ export type AskAnswer =
    * 13.10.2026 · רשומה מובנית. `value` — כפי שנשמר בעובדה: לרשימה `{ items }`, לשאלת תחולה — הרשומה עצמה.
    * `none` — «אין» (למשל אין ילדים) ⇒ עובדה 'no'. `assertion: 'changed'` — תיקון למה שבתיק («משהו השתנה»).
    */
-  | { kind: 'record'; value: unknown; none?: boolean; assertion?: 'changed'; was?: string[] };
+  | { kind: 'record'; value: unknown; none?: boolean; assertion?: 'changed'; was?: string[] }
+  /** 16.10.2026 · מסך הרשת: המפתחות שסומנו. כל אריח שלא סומן ⇒ «לא». */
+  | { kind: 'multi'; selected: string[] }
+  /** 16.10.2026 · של מי / איפה — פריטים עם שדות סגורים (entities.ts). */
+  | { kind: 'entity'; items: EntityItem[] };
 
 export interface AnswerResult {
   facts: Omit<YearFact, 'id' | 'createdAt'>[];
+  /** 16.10.2026 · מסך הרשת: שאלות ההמשך של מה שסומן — נפתחות מיד (מפורסמות), בלי סבב מול המשרד. */
+  followUps?: NonNullable<MultiOption['followUp']>[];
   /** מסמך שהועלה — נרשם כראיה «התקבל, ממתין לבדיקה». */
   evidence?: { docKind: NonNullable<InfoItem['docKind']>; fileName: string; documentId?: string };
   unavailable?: { reason: string; followUpOn: string };
@@ -373,6 +450,26 @@ export function answerToFacts(ask: InfoAsk, answer: AskAnswer, ctx: AskCtx, toda
       if (!it.docKind) throw new Error('«אין לי עדיין» רק למסמך');
       const reason = answer.reason.trim() || UNAVAILABLE_LABEL[answer.code ?? 'legacy'];
       return { facts: [], unavailable: { reason, followUpOn: followUpFor(it.docKind, ask.taxYear, today).followUpOn, ...(answer.code ? { code: answer.code } : {}) } };
+    }
+    case 'multi': {
+      if (ask.prompt.input.kind !== 'multi') throw new Error('השאלה אינה מסך רשת');
+      if (!Array.isArray(answer.selected) || answer.selected.some(k => typeof k !== 'string')) throw new Error('תשובה לא מוכרת');
+      const opts = ask.prompt.input.options;
+      const unknown = answer.selected.filter(k => !opts.some(o => o.key === k));
+      if (unknown.length) throw new Error(`אריח לא מוכר: ${unknown[0]}`);
+      const facts = opts.map(o => {
+        const oi = ITEM_BY_KEY[o.key];
+        const yes = answer.selected.includes(o.key);
+        return { ...base, itemKey: o.key, subjectRole: o.role, entityKind: undefined, entityRef: undefined, ...(oi ? periodFor(ctx, oi) : p), answer: yes ? 'value' as const : 'no' as const, value: yes ? true : undefined };
+      });
+      return { facts, followUps: opts.filter(o => answer.selected.includes(o.key) && o.followUp).map(o => o.followUp!) };
+    }
+    case 'entity': {
+      if (ask.prompt.input.kind !== 'entity') throw new Error('השאלה אינה «של מי / איפה»');
+      const { spec, context } = ask.prompt.input;
+      if (!Array.isArray(answer.items) || !answer.items.length || answer.items.length > 20) throw new Error('רשומה ריקה');
+      if (!entityValid(spec, answer.items, context)) throw new Error('חלק מהפרטים לא תקינים');
+      return { facts: [fact('value', { items: answer.items.map(i => cleanEntity(spec, i, context)) })] };
     }
     case 'record': {
       if (answer.none) return { facts: [fact('no')] };

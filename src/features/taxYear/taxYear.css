@@ -385,6 +385,45 @@ button.rp-cell:disabled { cursor: default; }
 .ty-mat-note { color: var(--tx2); }
 .ty-ltr { unicode-bidi: isolate; }
 
+/* ─── 16.10.2026 · «בקשה אחת לתיק המס» שלב 2: שלושה מסכים בדף האישי ─────────────────────────────
+   «מה שכבר ידוע לנו — נכון?» (רשימה עם נכון / יש שינוי) · מסך הרשת «סמנו מה יש לכם» (אריחים) · «של מי / איפה»
+   (צ׳יפים ורשימה עם חיפוש). מטרות מגע 44px+, עמודה אחת בטלפון. */
+.ty-confirm-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .55rem; }
+.ty-confirm-row { display: flex; gap: .75rem; align-items: flex-start; justify-content: space-between; padding: .7rem .8rem; border: 1px solid var(--bd); border-radius: 12px; background: var(--card); }
+.ty-confirm-row.is-changed { border-color: var(--chip-amber-tx); background: var(--chip-amber-bg); }
+.ty-confirm-main { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: .2rem; font-size: var(--fs-14); }
+.ty-confirm-main b { font-weight: 650; }
+.ty-confirm-main small { color: var(--tx2); font-size: var(--fs-12); }
+.ty-lines.is-compact { padding: .4rem .6rem; font-size: var(--fs-13); margin-top: .15rem; }
+.ty-seg { display: inline-flex; flex-shrink: 0; border: 1px solid var(--bd-strong); border-radius: 999px; overflow: hidden; }
+.ty-seg button { font: inherit; font-size: var(--fs-13); border: 0; background: transparent; color: var(--tx2); padding: .35rem .75rem; min-height: 44px; cursor: pointer; }
+.ty-seg button[aria-pressed="true"] { background: var(--soft); color: var(--br-strong); font-weight: 650; }
+.ty-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .55rem; }
+.ty-tile { display: flex; align-items: center; gap: .55rem; min-height: 56px; padding: .6rem .75rem; border: 1px solid var(--bd-strong); border-radius: 12px; background: var(--card); color: var(--tx);
+  font: inherit; font-size: var(--fs-14); text-align: start; cursor: pointer; line-height: 1.35; }
+.ty-tile[aria-pressed="true"] { border-color: var(--br); background: var(--soft); color: var(--br-strong); font-weight: 600; }
+.ty-tile.is-wide { grid-column: 1 / -1; justify-content: center; border-style: dashed; }
+.ty-tile-check { flex: none; width: 1.3rem; height: 1.3rem; border-radius: 6px; border: 1px solid var(--bd-strong); display: inline-flex; align-items: center; justify-content: center; font-size: var(--fs-12); background: var(--card); }
+.ty-tile[aria-pressed="true"] .ty-tile-check { background: var(--br); color: #fff; border-color: var(--br); }
+.ty-tile.is-wide .ty-tile-check { display: none; }
+.ty-ent { display: flex; flex-direction: column; gap: .6rem; }
+.ty-ent-card { border: 1px solid var(--bd); border-radius: 12px; padding: .7rem .8rem .8rem; margin: 0; background: var(--card); min-width: 0; display: flex; flex-direction: column; gap: .7rem; }
+.ty-ent-legend { font-size: var(--fs-13); font-weight: 650; color: var(--tx2); padding: 0 .3rem; display: flex; gap: .6rem; align-items: center; }
+.ty-ent-field { display: flex; flex-direction: column; gap: .3rem; min-width: 0; }
+.ty-ent-field input { min-height: 46px; padding: .5rem .7rem; border: 1px solid var(--bd-strong); border-radius: 10px; font: inherit; font-size: var(--fs-16, 16px); background: var(--card); color: var(--tx); }
+.ty-ent-add { align-self: flex-start; min-height: 44px; }
+.ty-chips { display: flex; flex-wrap: wrap; gap: .45rem; }
+.ty-chip-btn { min-height: 44px; padding: .45rem .9rem; border: 1px solid var(--bd-strong); border-radius: 999px; background: var(--card); color: var(--tx); font: inherit; font-size: var(--fs-14); cursor: pointer; }
+.ty-chip-btn[aria-pressed="true"] { border-color: var(--br); background: var(--soft); color: var(--br-strong); font-weight: 600; }
+.ty-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .25rem; max-height: 17rem; overflow: auto; }
+.ty-list button { width: 100%; text-align: start; min-height: 44px; padding: .45rem .7rem; border: 1px solid var(--bd); border-radius: 10px; background: var(--card); color: var(--tx); font: inherit; font-size: var(--fs-14); cursor: pointer; }
+.ty-list button:hover, .ty-list button:focus-visible { border-color: var(--br); background: var(--soft); }
+.ty-list button[aria-selected="true"] { border-color: var(--br); background: var(--soft); font-weight: 600; }
+.ty-list .ty-list-more { color: var(--br); border-style: dashed; }
+@media (max-width: 480px) {
+  .ty-confirm-row { flex-direction: column; }
+  .ty-seg { align-self: flex-start; }
+
 /* ── 17.10.2026 · שלושת הצעדים בשורת בקשת תיק מס (RequestSteps) — תצוגה, לא כפתורים. ההדמיה: one-request-tax-file ── */
 .rl-below { padding: 0 0 10px; }
 .rs-steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; max-width: 680px; }

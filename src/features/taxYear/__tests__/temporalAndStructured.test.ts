@@ -117,7 +117,8 @@ export const TESTS: TestCase[] = [
     assert(det, 'פרטי העסק לא נשאלו');
     const pr = promptFor(det!, { client: c, taxYear: 2026, purpose: 'intake', asOfDate: TODAY });
     assert(pr.title.startsWith('רשום/ה אצלנו כעוסק מורשה'), pr.title);
-    assert(pr.input.kind === 'record' && pr.input.schema === 'business', JSON.stringify(pr.input));
+    // 16.10.2026 · «של מי / איפה»: שם העסק (חופשי) ואיך רשום (בחירה) — עם מה שידוע מהתיק
+    assert(pr.input.kind === 'entity' && pr.input.initial?.[0]?.dealer === 'murshe' && pr.input.spec.fields.some(f => f.key === 'dealer'), JSON.stringify(pr.input));
   }),
 
   test('חשבון בנק: שדות נפרדים, אפסים מובילים, סניף שייך לבנק, חשבון בחו״ל בלי לכפות בנק ישראלי', () => {

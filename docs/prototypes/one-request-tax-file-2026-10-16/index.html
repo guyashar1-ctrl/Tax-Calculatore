@@ -1,0 +1,560 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>בקשה אחת לתיק המס</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#f5f6f8; --card:#ffffff; --ink-1:#1c2330; --ink-2:#3b4452; --ink-3:#6b7482; --ink-4:#9aa3b0;
+  --line:#e3e6ea; --line-2:#cfd4da; --accent:#3b5b8c; --accent-ink:#ffffff; --accent-soft:#e8eef7;
+  --ok:#1f7a4d; --ok-soft:#e6f4ec; --warn:#9a6a12; --warn-soft:#fbf1dc; --bad:#b42318; --bad-soft:#fde8e6;
+  --new:#5b3fb8; --new-soft:#ede8fb; --phone:#0e1117; --radius:12px; --fs:15px;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#0f1319; --card:#171c24; --ink-1:#eef1f5; --ink-2:#c9d0da; --ink-3:#98a2b0; --ink-4:#6c7684;
+  --line:#242b36; --line-2:#333c49; --accent:#86a7dc; --accent-ink:#0f1319; --accent-soft:#1d2a3d;
+  --ok:#5fc48f; --ok-soft:#14301f; --warn:#e0b65c; --warn-soft:#332a14; --bad:#f08a80; --bad-soft:#3a1a17;
+  --new:#b39cf3; --new-soft:#272040; --phone:#000; color-scheme:dark;}}
+:root[data-theme="dark"]{
+  --bg:#0f1319; --card:#171c24; --ink-1:#eef1f5; --ink-2:#c9d0da; --ink-3:#98a2b0; --ink-4:#6c7684;
+  --line:#242b36; --line-2:#333c49; --accent:#86a7dc; --accent-ink:#0f1319; --accent-soft:#1d2a3d;
+  --ok:#5fc48f; --ok-soft:#14301f; --warn:#e0b65c; --warn-soft:#332a14; --bad:#f08a80; --bad-soft:#3a1a17;
+  --new:#b39cf3; --new-soft:#272040; --phone:#000; color-scheme:dark;}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink-1);font:var(--fs)/1.5 Heebo,"Segoe UI",Arial,sans-serif}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+input{font:inherit}
+a{color:var(--accent)}
+.top{position:sticky;top:0;z-index:5;background:var(--card);border-bottom:1px solid var(--line);padding-inline:max(16px,env(safe-area-inset-left,0px)) max(16px,env(safe-area-inset-right,0px))}
+.top-in{max-width:1080px;margin:0 auto;display:flex;align-items:center;gap:14px;min-height:52px;flex-wrap:wrap}
+.brand{font-weight:700;letter-spacing:.3px}
+.brand small{font-weight:400;color:var(--ink-3);margin-inline-start:8px}
+.tabs{display:flex;gap:2px;margin-inline-start:auto;flex-wrap:wrap}
+.tabs button{padding:8px 12px;border-radius:8px;color:var(--ink-3);font-weight:500}
+.tabs button.on{background:var(--accent-soft);color:var(--accent)}
+.tabs button.cl{border:1px dashed var(--line-2)}
+.wrap{max-width:1080px;margin:0 auto;padding-block:18px 60px;padding-inline:max(16px,env(safe-area-inset-left,0px)) max(16px,env(safe-area-inset-right,0px))}
+.wrap>*{min-width:0}
+h1{font-size:22px;margin:0 0 4px;text-wrap:balance}
+h2{font-size:17px;margin:22px 0 8px}
+.lead{color:var(--ink-3);margin:0 0 16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:14px 16px;margin-bottom:12px}
+.row{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.row .t{font-weight:600}
+.row .s{color:var(--ink-3);font-size:13px}
+.grow{flex:1;min-width:0}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:2px 10px;border-radius:999px;font-size:13px;font-weight:500;white-space:nowrap}
+.chip.ok{background:var(--ok-soft);color:var(--ok)} .chip.warn{background:var(--warn-soft);color:var(--warn)}
+.chip.new{background:var(--new-soft);color:var(--new)} .chip.muted{background:var(--bg);color:var(--ink-3);border:1px solid var(--line)}
+.btn{padding:8px 14px;border-radius:9px;border:1px solid var(--line-2);font-weight:500;background:var(--card)}
+.btn.p{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.btn.sm{padding:5px 10px;font-size:13px}
+.btn.link{border:0;background:none;color:var(--accent);padding:4px 6px}
+.btn:disabled{opacity:.5;cursor:default}
+.kv{display:grid;grid-template-columns:150px 1fr auto;gap:6px 14px;align-items:center;padding:8px 0;border-top:1px solid var(--line)}
+.kv:first-of-type{border-top:0}
+.kv .k{color:var(--ink-3);font-size:14px}
+.kv .v{min-width:0}
+.kv .v b{font-weight:600}
+.kv .src{font-size:12px;color:var(--ink-4);white-space:nowrap}
+.kv.pending{background:var(--new-soft);margin:0 -16px;padding-inline:16px;border-top-color:transparent}
+.kv .old{text-decoration:line-through;color:var(--ink-4);margin-inline-start:6px;font-size:13px}
+.sec{font-size:13px;font-weight:600;color:var(--ink-3);margin:18px 0 6px;letter-spacing:.3px}
+.banner{display:flex;gap:14px;align-items:center;flex-wrap:wrap;background:var(--new-soft);border:1px solid var(--new);border-radius:var(--radius);padding:12px 16px;margin-bottom:12px}
+.banner.ok{background:var(--ok-soft);border-color:var(--ok)}
+.banner.plain{background:var(--card);border-color:var(--line)}
+.banner b{font-size:16px}
+.steps{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:10px}
+.step{border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:var(--bg)}
+.step .h{font-weight:600;font-size:14px;display:flex;align-items:center;gap:8px}
+.step ul{margin:6px 0 0;padding-inline-start:18px;color:var(--ink-2);font-size:14px}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--ink-4);display:inline-block;flex:none}
+.dot.ok{background:var(--ok)} .dot.warn{background:var(--warn)} .dot.new{background:var(--new)}
+.track{display:flex;gap:4px;align-items:center;flex-wrap:wrap;margin-top:8px;font-size:13px;color:var(--ink-3)}
+.track span{padding:2px 8px;border-radius:6px;background:var(--bg);border:1px solid var(--line)}
+.track span.ok{color:var(--ok);border-color:var(--ok)} .track span.now{color:var(--accent);border-color:var(--accent);font-weight:600;background:var(--accent-soft)}
+.sim{border:1px dashed var(--line-2);border-radius:10px;padding:10px 12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:14px;color:var(--ink-3);margin-bottom:14px}
+.sim b{color:var(--ink-1)}
+.toast{position:fixed;bottom:20px;inset-inline-start:50%;transform:translateX(50%);background:var(--ink-1);color:var(--card);padding:8px 14px;border-radius:9px;font-size:14px;opacity:0;transition:.2s;pointer-events:none;z-index:9}
+.toast.on{opacity:1}
+.conf{border:1px solid var(--warn);background:var(--warn-soft);border-radius:10px;padding:10px 12px;margin:8px 0}
+.conf .o{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.conf .o button{border:1px solid var(--line-2);background:var(--card);border-radius:8px;padding:6px 10px;font-size:14px}
+.conf .o button.on{border-color:var(--accent);background:var(--accent-soft);color:var(--accent)}
+.note{font-size:13px;color:var(--ink-3);margin-top:6px}
+/* phone */
+.stage{display:flex;gap:24px;align-items:flex-start;flex-wrap:wrap}
+.phone{width:390px;max-width:100%;background:var(--phone);border-radius:34px;padding:12px;box-shadow:0 20px 50px rgba(0,0,0,.25);flex:none}
+.screen{background:var(--card);border-radius:24px;min-height:700px;display:flex;flex-direction:column;overflow:hidden;color:var(--ink-1)}
+.ph-top{padding:14px 18px 8px;border-bottom:1px solid var(--line)}
+.ph-top .b{font-size:12px;color:var(--ink-4)}
+.ph-top h3{margin:2px 0 0;font-size:17px}
+.ph-body{padding:16px 18px;flex:1}
+.ph-body h4{font-size:19px;margin:0 0 6px;line-height:1.35;text-wrap:balance}
+.ph-body .why{color:var(--ink-3);font-size:14px;margin:0 0 14px}
+.ph-foot{padding:12px 18px 16px;display:flex;gap:10px;align-items:center;border-top:1px solid var(--line)}
+.ph-foot .btn.p{margin-inline-start:auto}
+.prog{height:5px;background:var(--line);border-radius:3px;margin:10px 0 0;overflow:hidden}
+.prog i{display:block;height:100%;background:var(--accent);transition:.3s}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.tog{border:1px solid var(--line-2);border-radius:12px;padding:12px 10px;text-align:center;font-weight:500;font-size:14px;line-height:1.3;background:var(--card)}
+.tog .ic{display:block;font-size:20px;margin-bottom:4px}
+.tog.on{border-color:var(--accent);background:var(--accent-soft);color:var(--accent)}
+.tog.wide{grid-column:1/-1}
+.chips{display:flex;gap:8px;flex-wrap:wrap;margin:6px 0 14px}
+.chips button{border:1px solid var(--line-2);border-radius:999px;padding:7px 14px;font-size:14px;background:var(--card)}
+.chips button.on{border-color:var(--accent);background:var(--accent-soft);color:var(--accent);font-weight:600}
+.lbl{font-size:13px;color:var(--ink-3);font-weight:600;margin:0 0 4px}
+.list{border:1px solid var(--line-2);border-radius:10px;overflow:hidden;margin:6px 0 14px}
+.list button{display:flex;width:100%;text-align:start;padding:9px 12px;border-top:1px solid var(--line);font-size:15px;align-items:center;gap:10px}
+.list button:first-child{border-top:0}
+.list button.on{background:var(--accent-soft);color:var(--accent);font-weight:600}
+.list .srch{padding:8px 12px;border-bottom:1px solid var(--line);color:var(--ink-4);font-size:14px}
+.doc{border:1px dashed var(--line-2);border-radius:12px;padding:12px;margin:6px 0 10px}
+.doc .n{font-weight:600;font-size:14px}
+.doc .d{font-size:13px;color:var(--ink-3);margin:2px 0 8px}
+.doc .a{display:flex;gap:8px;flex-wrap:wrap}
+.doc.got{border-style:solid;border-color:var(--ok);background:var(--ok-soft)}
+.doc.later{border-color:var(--warn);background:var(--warn-soft)}
+.fld{border:1px solid var(--line-2);border-radius:10px;padding:9px 12px;margin:4px 0 12px;background:var(--card);color:var(--ink-1);font-size:15px;width:100%}
+.ac{border:1px solid var(--line-2);border-radius:10px;overflow:hidden;margin:-8px 0 12px}
+.ac button{display:block;width:100%;text-align:start;padding:8px 12px;border-top:1px solid var(--line);font-size:14px}
+.known{background:var(--bg);border-radius:10px;padding:10px 12px;margin-bottom:14px;font-size:14px}
+.known b{display:block;margin-bottom:4px}
+.known ul{margin:0;padding-inline-start:18px;color:var(--ink-2)}
+.done{text-align:center;padding:40px 10px}
+.done .big{font-size:44px}
+.side{flex:1;min-width:260px}
+.side .card{margin-bottom:10px}
+.side ol,.side ul{padding-inline-start:18px;margin:6px 0;color:var(--ink-2)}
+.side li{margin:3px 0}
+.flow{display:flex;gap:8px;align-items:stretch;flex-wrap:wrap;margin:8px 0 14px}
+.flow .f{flex:1;min-width:130px;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:8px 10px;font-size:14px}
+.flow .f b{display:block;font-size:14px}
+.flow .f span{color:var(--ink-3);font-size:13px}
+.cmp{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.cmp .card{margin:0}
+.cmp h3{margin:0 0 6px;font-size:15px}
+.cmp ul{margin:0;padding-inline-start:18px;color:var(--ink-2);font-size:14px}
+.cmp li{margin:3px 0}
+.q{border-inline-start:3px solid var(--accent);padding:6px 12px;margin:8px 0;background:var(--card);border-radius:0 8px 8px 0}
+.q b{display:block}
+.q span{color:var(--ink-2);font-size:14px}
+.folder{display:grid;grid-template-columns:1fr auto auto;gap:8px 14px;align-items:center;padding:8px 0;border-top:1px solid var(--line);font-size:14px}
+.folder:first-child{border-top:0}
+.folder .f{font-weight:500}
+.folder .f small{display:block;color:var(--ink-4);font-size:12px}
+table.tb{width:100%;border-collapse:collapse;font-size:14px}
+table.tb th,table.tb td{text-align:start;padding:6px 8px;border-top:1px solid var(--line);vertical-align:top}
+table.tb th{color:var(--ink-3);font-weight:600;font-size:13px}
+table.tb tr:first-child th{border-top:0}
+.tbwrap{overflow-x:auto}
+@media (max-width:760px){
+  .banner .grow,.row .s.grow,.row .t.grow{flex:1 1 100%}
+  .banner>*,.row>*{min-width:0}
+  .tabs{margin-inline-start:0}.tabs button{padding:6px 9px;font-size:14px}
+  .top-in{padding-block:6px}
+  .steps,.cmp{grid-template-columns:1fr}
+  .kv{grid-template-columns:1fr;gap:2px}
+  .kv .src{white-space:normal}
+  .phone{width:100%;padding:0;background:transparent;box-shadow:none;border-radius:0}
+  .screen{border-radius:var(--radius);border:1px solid var(--line);min-height:0}
+  .stage{flex-direction:column}
+  table.tb{min-width:620px}
+}
+</style>
+</head>
+<body>
+<header class="top"><div class="top-in">
+  <div class="brand">PIVO <small>רו״ח גיא ישר · דניאל ומיכל לוי</small></div>
+  <nav class="tabs" id="tabs">
+    <button data-v="requests">בקשות</button>
+    <button data-v="taxfile">תיק מס</button>
+    <button data-v="docs">מסמכים</button>
+    <button data-v="client" class="cl">📱 הדף של דניאל ומיכל</button>
+    <button data-v="principle">העיקרון</button>
+  </nav>
+</div></header>
+<main class="wrap" id="main"></main>
+<div class="toast" id="toast"></div>
+<script>
+/* ───────────────── נתוני ההדמיה ───────────────── */
+const PEOPLE = { client: 'דניאל', spouse: 'מיכל', both: 'שניכם' };
+const ITEMS = {
+  inv:      { t: 'תיק השקעות או פיקדון', ic: '📈', where: ['בנק הפועלים', 'בנק לאומי', 'בנק מזרחי-טפחות', 'בנק דיסקונט', 'IBI', 'מיטב', 'אלטשולר שחם', 'פסגות', 'Interactive Brokers'] },
+  pension:  { t: 'פנסיה / קרן השתלמות שאתם מפקידים בעצמכם', ic: '🏦', where: ['מנורה מבטחים', 'הראל', 'כלל', 'מגדל', 'הפניקס', 'אלטשולר שחם', 'מיטב', 'מור'] },
+  rent:     { t: 'דירה או נכס שאתם משכירים', ic: '🏠', where: null },
+  crypto:   { t: 'מטבעות דיגיטליים', ic: '🪙', where: ['Bit2C', 'Binance', 'Coinbase', 'ארנק פרטי', 'אחר'] },
+  foreign:  { t: 'חשבון, נכס או הכנסה בחו״ל', ic: '🌍', where: ['ארה״ב', 'בריטניה', 'גרמניה', 'קפריסין', 'אחר'] },
+  allowance:{ t: 'קצבה (פנסיה, נכות, שארים) או דמי אבטלה', ic: '💶', where: ['ביטוח לאומי', 'קרן פנסיה', 'חברת ביטוח', 'משרד הביטחון'] },
+  insurance:{ t: 'ביטוח חיים או אובדן כושר עבודה פרטי', ic: '🛡️', where: ['הראל', 'מגדל', 'כלל', 'הפניקס', 'מנורה', 'איילון'] },
+  donations:{ t: 'תרומות', ic: '🎗️', where: null },
+};
+const ORDER = ['inv', 'pension', 'rent', 'crypto', 'foreign', 'allowance', 'insurance', 'donations'];
+/* מסמכי הדוח השנתי — נגזרים ממה שבתיק אחרי האישור, כולל מה שיישור הקו מצא */
+const ANNUAL_DOCS = [
+  { id: 'd106a', who: 'מיכל', name: 'טופס 106 · קופת חולים מאוחדת', from: 'מהתיק', st: 'got' },
+  { id: 'd106b', who: 'מיכל', name: 'טופס 106 · אלפא בע״מ (עד 03/2025)', from: 'מיישור הקו', st: 'got' },
+  { id: 'd867',  who: 'דניאל', name: 'אישור שנתי 867 · IBI', from: 'מהתיק', st: 'later' },
+  { id: 'dpen',  who: 'מיכל', name: 'אישור הפקדות · הראל', from: 'מהתיק', st: 'got' },
+  { id: 'ddon',  who: 'שניכם', name: 'קבלות תרומה · 2025', from: 'מהתיק', st: 'got' },
+  { id: 'dbiz',  who: 'דניאל', name: 'הכנסות והוצאות העסק · סטודיו לוי', from: 'מהתיק', st: 'got' },
+];
+const ANNUAL_NEW = { reserve: { t: 'שירות מילואים', ic: '🪖' }, birth: { t: 'לידה / דמי לידה', ic: '👶' }, sale: { t: 'מכרתם דירה או ניירות ערך', ic: '🏷️' }, alimony: { t: 'מזונות ששילמתם', ic: '⚖️' }, care: { t: 'קרוב במוסד סיעודי', ic: '🏥' }, abroad: { t: 'יותר מ-180 יום בחו״ל', ic: '✈️' } };
+const WEALTH_BAL = [
+  { id: 'wbank', name: 'בנק הפועלים · חשבון 154822', doc: 'אישור יתרה ליום 31.12.2025', st: 'got' },
+  { id: 'winv',  name: 'IBI · תיק השקעות של דניאל', doc: 'תדפיס עלות (לא שווי) ליום 31.12.2025', st: 'got' },
+  { id: 'wpen',  name: 'הראל · קרן השתלמות של מיכל', doc: 'אישור להצהרת הון ליום 31.12.2025', st: 'later' },
+];
+const WEALTH_NEW = { car: { t: 'רכב', ic: '🚗' }, loanIn: { t: 'הלוואה שלקחתם', ic: '🏦' }, loanOut: { t: 'הלוואה שנתתם', ic: '🤝' }, gift: { t: 'ירושה, מתנה או זכייה', ic: '🎁' }, prop: { t: 'דירה או נכס', ic: '🏠' }, jewel: { t: 'תכשיטים, זהב, אוספים', ic: '💍' } };
+
+const S = {
+  view: 'requests', cur: 'intake', step: 0,
+  intake: 'sent',    // sent → answering → answered → approved
+  annual: 'later',   // later → sent → answering → answered
+  wealth: 'held',    // held → sent → answering → answered
+  known: null, has: { inv: true, pension: true, donations: true }, noneTouched: false,
+  d: { inv: { who: 'client', where: 'IBI' }, pension: { who: 'spouse', where: 'הראל' }, donations: { who: 'both' } },
+  employer: { name: 'קופת חולים מאוחדת', when: 'all', more: 'no' },
+  address: { street: 'הרצל 12', city: 'רעננה', zip: '4350401', picked: true },
+  bank: { bank: 'בנק הפועלים', branch: '612', acct: '154822' },
+  aChanged: null, aDocs: Object.fromEntries(ANNUAL_DOCS.map(d => [d.id, d.st])), aNew: { reserve: true }, aNewTouched: false,
+  wDocs: Object.fromEntries(WEALTH_BAL.map(d => [d.id, d.st])), wNew: { car: true }, wNewTouched: false, wCash: '3,000',
+  conflict: null, detail: false, approvedCount: 0,
+};
+const toast = (m) => { const t = document.getElementById('toast'); t.textContent = m; t.classList.add('on'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('on'), 1800); };
+const noSim = () => toast('לא בהדגמה');
+const go = (v) => { S.view = v; location.hash = v; render(); window.scrollTo(0, 0); };
+window.addEventListener('hashchange', () => { const v = location.hash.slice(1); if (v && v !== S.view) { S.view = v; render(); } });
+const selected = () => ORDER.filter(k => S.has[k]);
+const SECS = { family: 'משפחה וזהות', income: 'הכנסות', assets: 'השקעות, נכסים והפקדות', money: 'כספים ורשויות' };
+const proposals = () => {
+  const p = []; const L = (sec, k, v, src, old) => p.push({ sec, k, v, src, old });
+  L('family', 'מצב משפחתי', 'נשואים מ-2016 · 2 ילדים', 'אישור הלקוח', null);
+  L('family', 'כתובת', `${S.address.street}, ${S.address.city} · מיקוד ${S.address.zip}`, 'הלקוח', 'הרצל 12, רעננה (בלי מיקוד)');
+  L('income', 'מיכל — מעסיק', `${S.employer.name} · ${S.employer.when === 'all' ? 'כל 2025' : 'חלק מ-2025'}`, 'הלקוח', 'שכירה, מעסיק לא ידוע');
+  L('income', 'מיכל — מעסיק נוסף', 'אלפא בע״מ · עד 03/2025', 'יישור קו (שע״ם)', null);
+  L('income', 'דניאל — עסק', 'סטודיו לוי · עוסק מורשה · תיק פתוח', 'יישור קו (שע״ם + מע״מ)', 'סטודיו לוי (מההצעה)');
+  for (const k of ORDER) { const it = ITEMS[k], d = S.d[k] || {}; L('assets', it.t, S.has[k] ? `${d.who ? PEOPLE[d.who] : 'משותף'}${d.where ? ' · ' + d.where : ''}` : 'אין', 'הלקוח', 'טרם ביררנו'); }
+  L('money', 'חשבון להחזרי מס', `${S.bank.bank} · סניף ${S.bank.branch} · ${S.bank.acct}`, 'הלקוח', null);
+  L('money', 'מקדמות ששולמו 2025', 'דניאל · 10 תשלומים · 18,400 ₪', 'יישור קו (שע״ם)', 'טרם ביררנו');
+  L('money', 'חובות / הליכים פתוחים', 'אין · נבדק 16.10', 'יישור קו (שע״ם, ב״ל, מע״מ)', 'טרם ביררנו');
+  L('money', 'הצהרת הון', 'נדרשת ליום 31.12.2025 · עד 28.02.2026', 'יישור קו (שע״ם)', 'טרם ביררנו');
+  return p;
+};
+const isClientSrc = (s) => s === 'הלקוח' || s === 'אישור הלקוח';
+
+/* ───────────────── בקשות ───────────────── */
+function rowIntake() {
+  const ph = S.intake; const total = selected().length + 4;
+  const state = ph === 'sent' ? `<span class="chip muted">אצל הלקוח · 0 מתוך ${total}</span>` : ph === 'answering' ? `<span class="chip warn">אצל הלקוח · ${Math.min(S.step, total)} מתוך ${total}</span>` : ph === 'answered' ? `<span class="chip new">לאישורך בתיק</span>` : `<span class="chip ok">בתיק · אושר 16.10</span>`;
+  const cta = ph === 'answered' ? `<button class="btn p sm" onclick="go('taxfile')">לתיק המס — אשר ←</button>` : ph === 'approved' ? `<button class="btn sm" onclick="go('taxfile')">לתיק המס ←</button>` : `<button class="btn sm" onclick="openClient('intake')">מה הלקוח רואה ←</button>`;
+  const P = proposals();
+  return `<div class="card">
+    <div class="row"><span class="dot ${ph === 'approved' ? 'ok' : ph === 'answered' ? 'new' : 'warn'}"></span><span class="t grow">השלמת תיק המס</span>${state}${cta}<button class="btn link sm" onclick="noSim()">⋯</button></div>
+    <div class="steps">
+      <div class="step"><div class="h"><span class="dot ${ph === 'sent' ? '' : ph === 'answering' ? 'warn' : 'ok'}"></span>תשובות הלקוח</div>
+        <ul>${ph === 'sent' ? '<li>נשלח 16.10 · טרם נפתח</li><li>רק תשובות — בלי מסמכים</li>' : ph === 'answering' ? `<li>${Math.min(S.step, total)} מתוך ${total} · באמצע</li>` : `<li>${total} מתוך ${total} · הסתיים 16.10</li><li>«יש»: ${selected().map(k => ITEMS[k].t.split(' ')[0]).join(', ') || 'כלום'}</li>`}</ul></div>
+      <div class="step"><div class="h"><span class="dot ${ph === 'sent' || ph === 'answering' ? 'warn' : 'ok'}"></span>יישור קו ברשויות</div>
+        <ul>${ph === 'sent' || ph === 'answering' ? '<li>רץ לבד כשהלקוח מסיים</li><li>שע״ם · ב״ל · מע״מ</li>' : '<li>רץ 16.10 · שע״ם, ב״ל, מע״מ</li><li>מעסיק נוסף · מקדמות · אין חובות · <b>נדרשת הצהרת הון</b></li>'}</ul></div>
+      <div class="step"><div class="h"><span class="dot ${ph === 'approved' ? 'ok' : ph === 'answered' ? 'new' : ''}"></span>לתיק</div>
+        <ul>${ph === 'approved' ? `<li>אושרו ${S.approvedCount} עדכונים · 16.10</li>` : ph === 'answered' ? `<li>${P.length} עדכונים ממתינים לאישורך</li><li>סתירה אחת לבחירה</li>` : '<li>ייכנסו כ«ממתין לאישורך»</li>'}</ul></div>
+    </div></div>`;
+}
+function rowAnnual() {
+  const ph = S.annual; const docs = ANNUAL_DOCS.map(d => ({ ...d, st: S.aDocs[d.id] })); const got = docs.filter(d => d.st === 'got').length;
+  const locked = S.intake !== 'approved';
+  const state = ph === 'later' ? `<span class="chip muted">${locked ? 'ממתין לאישור התיק' : 'ייפתח במרץ 2026'}</span>` : ph === 'sent' ? '<span class="chip muted">אצל הלקוח</span>' : ph === 'answering' ? '<span class="chip warn">אצל הלקוח · באמצע</span>' : got === docs.length ? '<span class="chip new">מוכן להכנה</span>' : `<span class="chip warn">ממתין ל-${docs.length - got} מסמך</span>`;
+  const cta = ph === 'later' ? (locked ? '' : `<button class="btn sm" onclick="S.annual='sent';render();toast('נשלח ללקוח (בהדמיה: כאילו מרץ)')">שלח ללקוח</button>`) : ph === 'answered' ? `<button class="btn p sm" onclick="toast('ההכנה בליווי — בהדמיה הקודמת (guided-return)')">התחל הכנה ←</button>` : `<button class="btn sm" onclick="openClient('annual')">מה הלקוח רואה ←</button>`;
+  const order = ['q', 'docs', 'align', 'prep', 'draft', 'sign', 'filed']; const now = ph === 'answered' ? (got === docs.length ? 'prep' : 'docs') : 'q';
+  const tr = (k, lbl) => { const i = order.indexOf(k), n = order.indexOf(now); return `<span class="${i < n ? 'ok' : i === n ? 'now' : ''}">${i < n ? '✓ ' : ''}${lbl}</span>`; };
+  return `<div class="card">
+    <div class="row"><span class="dot ${ph === 'answered' ? 'new' : ph === 'later' ? '' : 'warn'}"></span><span class="t grow">דוח שנתי 2025</span>${state}${cta}<button class="btn link sm" onclick="noSim()">⋯</button></div>
+    ${ph === 'later' ? `<div class="note">שאלה אחת ללקוח («מה השתנה?»), והמסמכים מתבקשים לפי מה שבתיק — כולל מה שיישור הקו מצא (106 מאלפא). הסכומים מוזנים במשרד מהמסמכים, לא נשאלים.</div>`
+    : `<div class="track">${tr('q', 'מה השתנה')}${tr('docs', `מסמכים ${got}/${docs.length}`)}${tr('align', 'יישור קו')}${tr('prep', 'הכנה בליווי')}${tr('draft', 'טיוטה לאישורך')}${tr('sign', 'חתימת הלקוח')}${tr('filed', 'הוגש')}</div>
+      ${ph === 'answered' ? `<div class="note">${S.aChanged === 'yes' ? 'הלקוח סימן שינוי. ' : 'הלקוח אישר: אין שינוי. '}${Object.keys(S.aNew).filter(k => S.aNew[k]).length ? 'חדש ב-2025: ' + Object.keys(S.aNew).filter(k => S.aNew[k]).map(k => ANNUAL_NEW[k].t).join(', ') + '. ' : ''}${got < docs.length ? 'חסר: ' + docs.filter(d => d.st !== 'got').map(d => d.name).join(', ') + ' · תזכורת אוטומטית.' : 'כל המסמכים הגיעו.'}</div>` : ''}`}
+  </div>`;
+}
+function rowWealth() {
+  if (S.intake !== 'answered' && S.intake !== 'approved') return '';
+  const ph = S.wealth; const bal = WEALTH_BAL.map(d => ({ ...d, st: S.wDocs[d.id] })); const got = bal.filter(d => d.st === 'got').length;
+  const held = S.intake !== 'approved';
+  const state = held ? '<span class="chip muted">ממתינה לאישור התיק</span>' : ph === 'held' ? '<span class="chip muted">מוכנה לשליחה</span>' : ph === 'sent' ? '<span class="chip muted">אצל הלקוח</span>' : ph === 'answering' ? '<span class="chip warn">אצל הלקוח · באמצע</span>' : got === bal.length ? '<span class="chip new">מוכנה להכנת 1219</span>' : `<span class="chip warn">ממתינה ל-${bal.length - got} אישור</span>`;
+  const cta = held ? '' : ph === 'held' ? `<button class="btn sm" onclick="S.wealth='sent';render();toast('נשלח ללקוח')">שלח ללקוח</button>` : ph === 'answered' ? `<button class="btn p sm" onclick="toast('טיוטת 1219 ← אישורך ← חתימת הלקוח (לא בהדמיה)')">הכן טיוטה ←</button>` : `<button class="btn sm" onclick="openClient('wealth')">מה הלקוח רואה ←</button>`;
+  const order = ['bal', 'new', 'draft', 'approve', 'sign', 'filed']; const now = ph === 'answered' ? (got === bal.length ? 'draft' : 'bal') : 'bal';
+  const tr = (k, lbl) => { const i = order.indexOf(k), n = order.indexOf(now); return `<span class="${i < n ? 'ok' : i === n ? 'now' : ''}">${i < n ? '✓ ' : ''}${lbl}</span>`; };
+  return `<div class="card">
+    <div class="row"><span class="dot ${ph === 'answered' ? 'new' : held || ph === 'held' ? '' : 'warn'}"></span><span class="t grow">הצהרת הון ליום 31.12.2025</span>${state}${cta}<button class="btn link sm" onclick="noSim()">⋯</button></div>
+    ${held || ph === 'held' ? `<div class="note">נפתחה מיישור הקו (דרישה משע״ם, עד 28.02.2026). הלקוח יתבקש רק ליתרות של מה שכבר בתיק — הפועלים, IBI, הראל — ול«מה חדש מאז».</div>`
+    : `<div class="track">${tr('bal', `יתרות ${got}/${bal.length}`)}${tr('new', 'מה חדש')}${tr('draft', 'טיוטת 1219')}${tr('approve', 'אישורך')}${tr('sign', 'חתימת הלקוח')}${tr('filed', 'הוגש')}</div>
+      ${ph === 'answered' ? `<div class="note">${Object.keys(S.wNew).filter(k => S.wNew[k]).length ? 'חדש מאז: ' + Object.keys(S.wNew).filter(k => S.wNew[k]).map(k => WEALTH_NEW[k].t).join(', ') + ' · ' : ''}מזומן בבית: ${S.wCash || '0'} ₪${got < bal.length ? ' · חסר: ' + bal.filter(d => d.st !== 'got').map(d => d.name).join(', ') + ' · תזכורת אוטומטית.' : '.'}</div>` : ''}`}
+  </div>`;
+}
+function vRequests() {
+  const ph = S.intake;
+  return `
+  <h1>בקשות · דניאל ומיכל לוי</h1>
+  <p class="lead">שורה אחת לכל עבודה. בתוך השורה: מה הלקוח ענה, מה יישור הקו ברשויות מצא, ומה נכנס לתיק. המשרד רואה מצב אחד ופעולה אחת.</p>
+  <div class="sim">הדמיה: <b>${ph === 'sent' ? 'השאלון נשלח ללקוח' : ph === 'answering' ? 'הלקוח באמצע' : ph === 'answered' ? 'הלקוח סיים, יישור הקו רץ' : 'התיק אושר — עכשיו אפשר לשלוח הצהרת הון ודוח שנתי'}</b>
+    <button class="btn sm" onclick="openClient('intake')">📱 הלקוח עונה</button>
+    ${ph !== 'approved' ? `<button class="btn sm" onclick="skipIntake()">דלג לסוף התשובות</button>` : ''}
+    <button class="btn sm link" onclick="resetSim()">התחל מחדש</button></div>
+  ${rowIntake()}${rowWealth()}${rowAnnual()}
+  <div class="card"><div class="row"><span class="dot ok"></span><span class="t grow">ייצוג ברשויות</span><span class="chip ok">פעיל · שע״ם, ב״ל, מע״מ</span></div></div>`;
+}
+
+/* ───────────────── תיק מס ───────────────── */
+function vTaxfile() {
+  const ph = S.intake; const P = proposals(); const pending = ph === 'answered';
+  const conflictBlock = `<div class="conf"><b>סתירה אחת ${ph === 'approved' ? 'שהוכרעה' : 'לבחירתך'}</b> — מיכל ציינה מעסיק אחד (קופת חולים מאוחדת); בשע״ם רשומים שניים ב-2025 (גם «אלפא בע״מ», עד 03/2025).
+      <div class="o"><button class="${S.conflict === 'both' ? 'on' : ''}" onclick="S.conflict='both';render()">שניהם — מומלץ</button><button class="${S.conflict === 'client' ? 'on' : ''}" onclick="S.conflict='client';render()">רק מה שהלקוח ציין</button></div></div>`;
+  const banner = ph === 'approved'
+    ? `<div class="banner ok"><b>התיק מעודכן</b><span class="grow">אושרו ${S.approvedCount} עדכונים · 16.10 · מהלקוח ומיישור הקו. ההחלטה נרשמה ביומן.</span><button class="btn sm" onclick="toggleDetail()">${S.detail ? 'הסתר' : 'הצג מה השתנה'}</button></div>`
+    : pending ? `<div class="banner"><b>${P.length} עדכונים ממתינים לאישורך</b><span class="grow">${P.filter(x => isClientSrc(x.src)).length} מהלקוח · ${P.filter(x => !isClientSrc(x.src)).length} מיישור הקו ברשויות · 16.10</span><button class="btn p" onclick="approveAll()">אשר הכול (${P.length})</button></div>`
+    : `<div class="banner plain"><b>התיק חלקי</b><span class="grow">7 נושאים טרם בוררו · הלקוח קיבל שאלון השלמה · ${ph === 'sent' ? 'טרם נפתח' : 'באמצע'}</span><button class="btn sm" onclick="go('requests')">לבקשה ←</button></div>`;
+  const before = [['family', 'מצב משפחתי', 'נשואים מ-2016 · 2 ילדים', 'בתיק'], ['family', 'כתובת', 'הרצל 12, רעננה', 'בתיק · בלי מיקוד'], ['income', 'דניאל — עסק', 'סטודיו לוי (מההצעה)', 'בתיק'], ['income', 'מיכל — משכורת', 'שכירה · מעסיק לא ידוע', 'בתיק'], ['assets', 'השקעות, נכסים, פנסיה פרטית, ביטוחים, תרומות', 'טרם ביררנו', 'בשאלון'], ['money', 'חשבון להחזרים', 'טרם ביררנו', 'בשאלון'], ['money', 'מקדמות · חובות · הצהרת הון', 'טרם ביררנו', 'ביישור הקו']];
+  let body = '';
+  if (ph === 'sent' || ph === 'answering') {
+    for (const sec of Object.keys(SECS)) body += `<div class="sec">${SECS[sec]}</div><div class="card">` + before.filter(r => r[0] === sec).map(r => `<div class="kv"><span class="k">${r[1]}</span><span class="v">${r[2] === 'טרם ביררנו' ? '<i style="color:var(--ink-4)">טרם ביררנו</i>' : r[2]}</span><span class="src">${r[3]}</span></div>`).join('') + '</div>';
+  } else {
+    const showDetail = S.detail || pending;
+    for (const sec of Object.keys(SECS)) {
+      const rows = P.filter(x => x.sec === sec).filter(x => !(x.k === 'מיכל — מעסיק נוסף' && S.conflict === 'client' && ph === 'approved'));
+      body += `<div class="sec">${SECS[sec]}</div><div class="card">` + rows.map(x => showDetail
+        ? `<div class="kv ${pending ? 'pending' : ''}"><span class="k">${x.k}</span><span class="v"><b>${x.v}</b>${x.old ? `<span class="old">${x.old}</span>` : ''}</span><span class="src">${pending ? '● ' : '✓ '}${x.src} · 16.10${pending ? ` <button class="btn link sm" onclick="toast('נדחה — הערך הקודם נשאר')">דחה</button>` : ''}</span></div>`
+        : `<div class="kv"><span class="k">${x.k}</span><span class="v">${x.v}</span><span class="src">✓ ${x.src} · 16.10</span></div>`).join('') + '</div>';
+    }
+  }
+  return `
+  <h1>תיק מס · דניאל ומיכל לוי</h1>
+  <p class="lead">התיק מראה רק עובדות: מה ידוע, מה חדש ומה טרם בוררנו. מסמכים וסכומים של שנה נשארים בתוך הבקשה של אותה שנה.</p>
+  ${banner}${pending || (ph === 'approved' && S.detail) ? conflictBlock : ''}
+  <div class="card" style="padding:10px 16px"><div class="row"><span class="t">זהות ורשויות</span><span class="chip ok">ייצוג פעיל · שע״ם, ב״ל, מע״מ</span><span class="s grow">יישור קו אחרון: ${ph === 'answered' || ph === 'approved' ? '16.10 · רץ לבד מתוך «השלמת תיק המס»' : '02.10'}</span><button class="btn sm" onclick="toast('יישור קו ידני — אותו מנגנון, לרענון בלי בקשה')">בצע יישור קו</button><button class="btn sm" onclick="go('requests')">הכן שאלון השלמה</button></div></div>
+  ${body}`;
+}
+function toggleDetail() { S.detail = !S.detail; render(); }
+function approveAll() { if (!S.conflict) S.conflict = 'both'; S.approvedCount = proposals().length - (S.conflict === 'client' ? 1 : 0); S.intake = 'approved'; S.detail = false; render(); toast('אושר. הסתירה: ' + (S.conflict === 'both' ? 'שני המעסיקים' : 'רק מה שהלקוח ציין')); }
+
+/* ───────────────── מסמכים ───────────────── */
+function vDocs() {
+  const aDocs = ANNUAL_DOCS.map(d => ({ ...d, st: S.aDocs[d.id] })); const wBal = WEALTH_BAL.map(d => ({ ...d, st: S.wDocs[d.id] }));
+  const DOC_ST = { got: ['ok', 'הגיע'], later: ['warn', 'אין לו עדיין — תזכורת'] };
+  const folder = (title, items, empty) => `<div class="card"><div class="row"><span class="t grow">📁 ${title}</span><span class="s">${items ? items.filter(d => d.st === 'got').length + ' קבצים' : ''}</span></div>
+    ${items ? '<div style="margin-top:8px">' + items.map(d => `<div class="folder"><span class="f">${d.name}<small>${d.who ? d.who + ' · ' : ''}${d.from || d.doc || ''}</small></span><span class="chip ${DOC_ST[d.st][0]}">${DOC_ST[d.st][1]}</span><button class="btn link sm" onclick="noSim()">${d.st === 'got' ? 'צפה' : 'הזכר'}</button></div>`).join('') + '</div>' : `<div class="note">${empty}</div>`}</div>`;
+  return `
+  <h1>מסמכים · דניאל ומיכל לוי</h1>
+  <p class="lead">תיקייה לכל בקשה. כל קובץ יודע של מי הוא ולאיזו שאלה הועלה. בהשלמת תיק המס אין מסמכים בכלל.</p>
+  ${folder('דוח שנתי 2025', S.annual === 'answered' ? aDocs : null, 'המסמכים יתבקשו עם הדוח — לפי מה שבתיק.')}
+  ${folder('הצהרת הון ליום 31.12.2025', S.wealth === 'answered' ? wBal : null, 'אישורי היתרות יגיעו כשהלקוח יענה.')}
+  <div class="card"><div class="row"><span class="t grow">📁 ייצוג ברשויות · 09.2026</span><span class="s">תעודות זהות · ייפויי כוח · 6 קבצים</span><button class="btn link sm" onclick="noSim()">פתח</button></div></div>`;
+}
+
+/* ───────────────── הדף של הלקוח ───────────────── */
+function openClient(which) { S.cur = which; S.step = 0; go('client'); }
+function clientSteps() {
+  if (S.cur === 'annual') return [{ id: 'a-intro' }, ...(S.aChanged === 'yes' ? [{ id: 'what' }] : []), { id: 'a-docs' }, { id: 'a-new' }, { id: 'a-done' }];
+  if (S.cur === 'wealth') return [{ id: 'w-intro' }, { id: 'w-bal' }, { id: 'w-new' }, { id: 'w-cash' }, { id: 'w-done' }];
+  const s = [{ id: 'intro' }, { id: 'what' }]; for (const k of selected()) s.push({ id: 'item', k }); s.push({ id: 'employer' }, { id: 'address' }, { id: 'bank' }, { id: 'done' }); return s;
+}
+function vClient() {
+  const steps = clientSteps(); const i = Math.min(S.step, steps.length - 1); const st = steps[i];
+  const total = steps.length - 2; const n = Math.max(0, Math.min(i, total));
+  let body = '', next = 'הבא', canNext = true, foot = true;
+  const chips = (vals, cur, on) => `<div class="chips">${vals.map(([v, l]) => `<button class="${cur === v ? 'on' : ''}" onclick="${on}('${v}')">${l}</button>`).join('')}</div>`;
+  const docBox = (name, desc, stt, on) => `<div class="doc ${stt === 'got' ? 'got' : stt === 'later' ? 'later' : ''}"><div class="n">${name}</div>${desc ? `<div class="d">${desc}</div>` : ''}
+    <div class="a">${stt === 'got' ? '<span class="chip ok">✓ הועלה</span>' : stt === 'later' ? '<span class="chip warn">נזכיר לכם</span>' : ''}<button class="btn sm" onclick="${on}('got')">📷 צלם</button><button class="btn sm" onclick="${on}('got')">🖼️ קובץ</button><button class="btn sm link" onclick="${on}('later')">אין לי עדיין</button></div></div>`;
+  const gridOf = (map, state, touchedKey, onTog, onNone) => `<div class="grid">${Object.keys(map).map(k => `<button class="tog ${state[k] ? 'on' : ''}" onclick="${onTog}('${k}')"><span class="ic">${map[k].ic}</span>${map[k].t}</button>`).join('')}<button class="tog wide ${!Object.values(state).some(Boolean) && S[touchedKey] ? 'on' : ''}" onclick="${onNone}()">לא, כלום מזה</button></div>`;
+  const title = S.cur === 'annual' ? 'דוח שנתי 2025' : S.cur === 'wealth' ? 'הצהרת הון ליום 31.12.2025' : 'השלמת תיק המס';
+
+  if (st.id === 'intro') {
+    body = `<h4>שלום דניאל ומיכל 👋</h4><p class="why">כמה שאלות קצרות — 3 דקות — כדי שתיק המס שלכם יהיה שלם. בלי מסמכים: אותם נבקש רק כשנכין דוח.</p>
+      <div class="known"><b>מה שכבר ידוע לנו</b><ul><li>נשואים מ-2016 · 2 ילדים</li><li>דניאל — עצמאי, «סטודיו לוי»</li><li>מיכל — שכירה</li><li>כתובת: הרצל 12, רעננה</li></ul></div>
+      <p class="lbl">נכון?</p>${chips([['ok', 'כן, נכון'], ['change', 'יש שינוי']], S.known, 'setKnown')}`;
+    next = 'התחלה'; canNext = !!S.known;
+  } else if (st.id === 'what') {
+    body = `<h4>${S.cur === 'annual' ? 'מה יש לכם היום?' : 'סמנו מה יש לכם'}</h4><p class="why">כל מה שמסומן — נשאל אחר כך של מי ואיפה. אם לא בטוחים, סמנו ונברר יחד.</p>
+      <div class="grid">${ORDER.map(k => `<button class="tog ${S.has[k] ? 'on' : ''}" onclick="togHas('${k}')"><span class="ic">${ITEMS[k].ic}</span>${ITEMS[k].t}</button>`).join('')}<button class="tog wide ${selected().length === 0 && S.noneTouched ? 'on' : ''}" onclick="noneOf()">אין לנו אף אחד מאלה</button></div>`;
+    canNext = selected().length > 0 || S.noneTouched;
+  } else if (st.id === 'item') {
+    const it = ITEMS[st.k]; const d = S.d[st.k] || (S.d[st.k] = {});
+    body = `<h4>${it.ic} ${it.t}</h4><p class="lbl">של מי?</p>${chips([['client', 'דניאל'], ['spouse', 'מיכל'], ['both', 'שניכם']], d.who, `setD.bind(null,'${st.k}','who')`)}
+      ${it.where ? `<p class="lbl">איפה?</p><div class="list"><div class="srch">🔍 חיפוש ברשימה</div>${it.where.slice(0, 6).map(w => `<button class="${d.where === w ? 'on' : ''}" onclick="setD('${st.k}','where','${w}')">${d.where === w ? '✓ ' : ''}${w}</button>`).join('')}<button onclick="toast('הרשימה המלאה — לא בהדגמה')">עוד…</button></div>` : '<p class="why">זה כל מה שצריך עכשיו. פרטים ומסמכים — כשנכין את הדוח.</p>'}`;
+    canNext = !!d.who && (!it.where || !!d.where);
+  } else if (st.id === 'employer') {
+    body = `<h4>מיכל — איפה את עובדת?</h4><p class="why">שם המעסיק בלבד. את השאר נקבל מהרשויות ומהטופס השנתי.</p>
+      <p class="lbl">שם המעסיק</p><input class="fld" value="${S.employer.name}" oninput="S.employer.name=this.value">
+      <p class="lbl">מתי?</p>${chips([['all', 'כל השנה'], ['part', 'חלק מהשנה']], S.employer.when, 'setEmpWhen')}
+      <p class="lbl">עוד מעסיק השנה?</p>${chips([['no', 'לא'], ['yes', 'כן — אוסיף']], S.employer.more || 'no', 'setEmpMore')}`;
+    canNext = !!S.employer.name;
+  } else if (st.id === 'address') {
+    body = `<h4>הכתובת שלכם</h4><p class="why">מתחילים להקליד — העיר והמיקוד מתמלאים לבד.</p>
+      <p class="lbl">רחוב ומספר</p><input class="fld" value="${S.address.street}" oninput="S.address.picked=false;S.address.street=this.value;render()">
+      ${!S.address.picked ? `<div class="ac"><button onclick="pickAddr('הרצל 12','רעננה','4350401')">הרצל 12, רעננה · 4350401</button><button onclick="pickAddr('הרצל 12','כפר סבא','4421312')">הרצל 12, כפר סבא · 4421312</button></div>` : ''}
+      <p class="lbl">עיר</p><input class="fld" value="${S.address.city}" readonly><p class="lbl">מיקוד</p><input class="fld" value="${S.address.zip}" readonly>`;
+    canNext = S.address.picked;
+  } else if (st.id === 'bank') {
+    body = `<h4>לאיזה חשבון להעביר החזר מס, אם יהיה?</h4><p class="why">חייב להיות על שם אחד מכם.</p>
+      <p class="lbl">בנק</p><div class="list">${['בנק הפועלים', 'בנק לאומי', 'בנק מזרחי-טפחות', 'בנק דיסקונט', 'הבנק הבינלאומי'].map(b => `<button class="${S.bank.bank === b ? 'on' : ''}" onclick="S.bank.bank='${b}';render()">${S.bank.bank === b ? '✓ ' : ''}${b}</button>`).join('')}<button onclick="toast('כל הבנקים — לא בהדגמה')">עוד…</button></div>
+      <p class="lbl">סניף</p><input class="fld" inputmode="numeric" value="${S.bank.branch}" oninput="S.bank.branch=this.value"><p class="lbl">מספר חשבון</p><input class="fld" inputmode="numeric" value="${S.bank.acct}" oninput="S.bank.acct=this.value">`;
+    canNext = !!S.bank.bank && !!S.bank.branch && !!S.bank.acct;
+  } else if (st.id === 'done') {
+    body = `<div class="done"><div class="big">✅</div><h4>תודה, זה הכול.</h4><p class="why">התשובות נשמרו אצל רו״ח גיא ישר. אם יהיה צורך במשהו נוסף — תקבלו הודעה אחת, לא שאלון חדש.</p><button class="btn p" onclick="finishIntake()">חזרה לדף שלי</button></div>`; foot = false;
+  }
+  /* ── דוח שנתי ── */
+  else if (st.id === 'a-intro') {
+    body = `<h4>דוח שנתי 2025 — מה השתנה?</h4><p class="why">זה מה שרשום אצלנו. אם הכול נכון — נבקש רק את המסמכים.</p>
+      <div class="known"><b>רשום בתיק</b><ul><li>מיכל — שכירה במאוחדת (ועד מרץ באלפא)</li><li>דניאל — סטודיו לוי</li><li>תיק השקעות IBI · קרן השתלמות הראל · תרומות</li><li>נשואים · 2 ילדים · רעננה</li></ul></div>
+      <p class="lbl">נכון ל-2025?</p>${chips([['no', 'כן, שום דבר לא השתנה'], ['yes', 'יש שינוי']], S.aChanged, 'setAChanged')}`;
+    canNext = !!S.aChanged;
+  } else if (st.id === 'a-docs') {
+    body = `<h4>המסמכים ל-2025</h4><p class="why">רק אלה. כל אחד — צילום או קובץ. מה שאין עדיין, נזכיר פעם אחת.</p>
+      ${ANNUAL_DOCS.map(d => docBox(d.name, d.who + ' · ' + d.from, S.aDocs[d.id], `setADoc.bind(null,'${d.id}')`)).join('')}`;
+    canNext = Object.values(S.aDocs).every(v => v === 'got' || v === 'later');
+  } else if (st.id === 'a-new') {
+    body = `<h4>קרה משהו מאלה ב-2025?</h4><p class="why">כל אחד מהם משנה את הדוח. סמנו — ונבקש את האישור המתאים.</p>${gridOf(ANNUAL_NEW, S.aNew, 'aNewTouched', 'togANew', 'noneANew')}`;
+    canNext = Object.values(S.aNew).some(Boolean) || S.aNewTouched;
+  } else if (st.id === 'a-done') {
+    body = `<div class="done"><div class="big">✅</div><h4>תודה. אנחנו מכינים את הדוח.</h4><p class="why">כשהטיוטה תהיה מוכנה תקבלו עמוד סיכום קצר עם השומה הצפויה — ותחתמו כאן, בטלפון.</p><button class="btn p" onclick="finishAnnual()">חזרה לדף שלי</button></div>`; foot = false;
+  }
+  /* ── הצהרת הון ── */
+  else if (st.id === 'w-intro') {
+    body = `<h4>הצהרת הון ליום 31.12.2025</h4><p class="why">רשות המסים ביקשה. אנחנו כבר יודעים מה יש לכם — צריך רק את היתרות ליום הזה, ומה חדש מאז שהכרנו.</p>
+      <div class="known"><b>מה שנרשם בהצהרה</b><ul><li>חשבון הפועלים · תיק IBI · קרן השתלמות הראל</li><li>העסק של דניאל</li><li>+ מה שתסמנו כחדש</li></ul></div>`;
+    next = 'התחלה';
+  } else if (st.id === 'w-bal') {
+    body = `<h4>היתרות ליום 31.12.2025</h4><p class="why">אישור אחד מכל גוף. אפשר להוריד מהאפליקציה של הבנק.</p>${WEALTH_BAL.map(d => docBox(d.name, d.doc, S.wDocs[d.id], `setWDoc.bind(null,'${d.id}')`)).join('')}`;
+    canNext = Object.values(S.wDocs).every(v => v === 'got' || v === 'later');
+  } else if (st.id === 'w-new') {
+    body = `<h4>מה חדש מאז שהכרנו?</h4><p class="why">סמנו, ונשאל בקצרה על כל אחד (של מי, מתי, כמה — מרשימות).</p>${gridOf(WEALTH_NEW, S.wNew, 'wNewTouched', 'togWNew', 'noneWNew')}`;
+    canNext = Object.values(S.wNew).some(Boolean) || S.wNewTouched;
+  } else if (st.id === 'w-cash') {
+    body = `<h4>כמה מזומן היה בבית או בכספת ב-31.12.2025?</h4><p class="why">שקלים ומט״ח יחד, בערך. אפס היא תשובה.</p><input class="fld" inputmode="numeric" value="${S.wCash}" oninput="S.wCash=this.value" placeholder="סכום בש״ח">`;
+    canNext = S.wCash !== '';
+  } else if (st.id === 'w-done') {
+    body = `<div class="done"><div class="big">✅</div><h4>תודה.</h4><p class="why">נכין את ההצהרה ונשלח לכם לחתימה — כאן, בטלפון.</p><button class="btn p" onclick="finishWealth()">חזרה לדף שלי</button></div>`; foot = false;
+  }
+  const phone = `<div class="phone"><div class="screen">
+    <div class="ph-top"><div class="b">crm.yasharcpa.co.il · הדף של דניאל ומיכל</div><h3>${title}</h3>${!/done|intro/.test(st.id) ? `<div class="prog"><i style="width:${Math.round(100 * n / total)}%"></i></div><div class="b" style="margin-top:4px">${n} מתוך ${total}</div>` : ''}</div>
+    <div class="ph-body">${body}</div>
+    ${foot ? `<div class="ph-foot">${i > 0 ? '<button class="btn link" onclick="prevStep()">הקודם</button>' : ''}<button class="btn link" onclick="toast(\'נשמר — אפשר לחזור מאותו קישור\');go(\'requests\')">שמירה ויציאה</button><button class="btn p" ${canNext ? '' : 'disabled'} onclick="nextStep()">${next}</button></div>` : ''}
+  </div></div>`;
+  const sideIntake = `<div class="card"><b>השלמת תיק המס — מה שונה מהיום</b><ol>
+      <li>בלי מסמכים. רק תשובות: מה יש, של מי, איפה. מסמכים נבקשים כשמכינים דוח.</li>
+      <li>לא 20 שאלות קבועות — רק מה שהתיק לא יודע. מה שידוע מאושר בלחיצה.</li>
+      <li>רשימות סגורות. אין טקסט חופשי חוץ משם המעסיק.</li>
+      <li>שאלות שהלקוח לא אמור לדעת (חובות, הצהרת הון, דוחות קודמים, מקדמות) — יישור הקו ברשויות עונה.</li>
+      <li>כתובת עם מיקוד אוטומטי. תעודת זהות — כבר הגיעה בייצוג, לא שואלים שוב.</li></ol></div>`;
+  const sideAnnual = `<div class="card"><b>דוח שנתי — למה זה קצר</b><ul>
+      <li>שאלה אחת: «מה השתנה?». התיק כבר יודע את השאר.</li>
+      <li>רשימת המסמכים נגזרת מהתיק — כולל מה שיישור הקו מצא (106 מאלפא). לא שואלים «האם יש לך 106».</li>
+      <li>סכומים לא נשאלים: המשרד מזין מהמסמך, בליווי קובץ-קובץ.</li>
+      <li>«קרה משהו ב-2025?» — רשת סגורה של אירועים שמשנים דוח (מילואים, לידה, מכירה).</li>
+      <li>בסוף הלקוח חותם על עמוד סיכום עם השומה הצפויה. רק הוא.</li></ul></div>`;
+  const sideWealth = `<div class="card"><b>הצהרת הון — למה זה קצר</b><ul>
+      <li>נפתחת מיישור הקו (הדרישה נמצאה בשע״ם) — לא מהלקוח ולא מזיכרון של המשרד.</li>
+      <li>היתרות מתבקשות רק לגופים שכבר בתיק. אין שאלון של 36 שאלות.</li>
+      <li>«מה חדש מאז» — רשת סגורה. פרטי כל פריט (של מי, מתי, כמה) — מרשימות.</li>
+      <li>מזומן בבית — שאלה אחת, אפס היא תשובה.</li>
+      <li>הטיוטה (1219) נבנית מהתיק ומהאישורים; אישור אחד שלך, חתימה של הלקוח.</li></ul></div>`;
+  const side = `<div class="side">${S.cur === 'annual' ? sideAnnual : S.cur === 'wealth' ? sideWealth : sideIntake}
+    <div class="card"><div class="row"><span class="s grow">בהדמיה: ${S.cur === 'intake' ? 'כשתסיימו — «תיק מס» ← «אשר הכול».' : 'כשתסיימו — חזרו ל«בקשות».'}</span>${S.cur === 'intake' ? '<button class="btn sm" onclick="skipIntake()">דלג לסוף</button>' : ''}<button class="btn sm link" onclick="go('requests')">חזרה למשרד</button></div></div></div>`;
+  return `<h1>מה הלקוח רואה</h1><p class="lead">אותו דף אישי, אותו קישור. ${S.cur === 'intake' ? 'שאלון היכרות בלי מסמכים.' : S.cur === 'annual' ? 'הדוח השנתי: שאלה אחת ורשימת מסמכים.' : 'הצהרת הון: יתרות ומה חדש.'}</p><div class="stage">${phone}${side}</div>`;
+}
+function setKnown(v) { S.known = v; render(); }
+function togHas(k) { S.has[k] = !S.has[k]; S.noneTouched = false; render(); }
+function noneOf() { for (const k of ORDER) S.has[k] = false; S.noneTouched = true; render(); }
+function setD(k, f, v) { (S.d[k] || (S.d[k] = {}))[f] = v; render(); }
+function setEmpWhen(v) { S.employer.when = v; render(); }
+function setEmpMore(v) { S.employer.more = v; if (v === 'yes') toast('מעסיק נוסף — אותם שדות (לא בהדמיה)'); render(); }
+function pickAddr(s, c, z) { S.address = { street: s, city: c, zip: z, picked: true }; render(); }
+function setAChanged(v) { S.aChanged = v; render(); }
+function setADoc(id, v) { S.aDocs[id] = v; render(); }
+function togANew(k) { S.aNew[k] = !S.aNew[k]; S.aNewTouched = false; render(); }
+function noneANew() { for (const k in ANNUAL_NEW) S.aNew[k] = false; S.aNewTouched = true; render(); }
+function setWDoc(id, v) { S.wDocs[id] = v; render(); }
+function togWNew(k) { S.wNew[k] = !S.wNew[k]; S.wNewTouched = false; render(); }
+function noneWNew() { for (const k in WEALTH_NEW) S.wNew[k] = false; S.wNewTouched = true; render(); }
+function nextStep() { if (S.cur === 'intake' && S.intake === 'sent') S.intake = 'answering'; if (S.cur === 'annual' && S.annual === 'sent') S.annual = 'answering'; if (S.cur === 'wealth' && S.wealth === 'sent') S.wealth = 'answering'; S.step++; render(); window.scrollTo(0, 0); }
+function prevStep() { S.step = Math.max(0, S.step - 1); render(); }
+function finishIntake() { S.intake = 'answered'; S.step = 0; S.known = S.known || 'ok'; go('requests'); toast('הלקוח סיים · יישור הקו ברשויות רץ · 4 ממצאים'); }
+function skipIntake() { S.known = S.known || 'ok'; S.intake = 'answered'; S.step = 0; go('requests'); toast('הלקוח סיים · יישור הקו ברשויות רץ · 4 ממצאים'); }
+function finishAnnual() { S.annual = 'answered'; S.aChanged = S.aChanged || 'no'; S.step = 0; go('requests'); toast('הלקוח סיים — המסמכים בתיקיית הדוח'); }
+function finishWealth() { S.wealth = 'answered'; S.step = 0; go('requests'); toast('הלקוח סיים — היתרות בתיקיית ההצהרה'); }
+function resetSim() { Object.assign(S, { intake: 'sent', annual: 'later', wealth: 'held', step: 0, known: null, conflict: null, detail: false, approvedCount: 0, aChanged: null, cur: 'intake' }); render(); }
+
+/* ───────────────── העיקרון ───────────────── */
+function vPrinciple() {
+  return `
+  <h1>העיקרון: בקשה אחת, תשובות סגורות, אישור אחד</h1>
+  <p class="lead">השלמת תיק המס, הדוח השנתי והצהרת ההון — אותה צורה. מה שמשתנה: אילו שאלות, אילו מסמכים, ומה המשרד עושה אחרי.</p>
+  <div class="flow">
+    <div class="f"><b>1 · שאלון קצר</b><span>רק מה שהתיק לא יודע. רשימות סגורות.</span></div>
+    <div class="f"><b>2 · יישור קו ברשויות</b><span>רץ לבד כשהלקוח מסיים. עונה על מה שהלקוח לא יודע.</span></div>
+    <div class="f"><b>3 · לתיק, ממתין לך</b><span>תשובות + ממצאי יישור הקו = עובדות «ממתין לאישורך».</span></div>
+    <div class="f"><b>4 · אישור אחד</b><span>«אשר הכול». סתירה = בחירה בשורה, לא עצירה.</span></div>
+    <div class="f"><b>5 · מסמכים רק כשצריך</b><span>בדוח ובהצהרה, לפי מה שבתיק. תזכורת אחת למה שחסר.</span></div>
+  </div>
+
+  <h2>תשובות לשאלות שלך</h2>
+  <div class="q"><b>למה לבקש מסמכים בשאלון ההיכרות?</b><span>צודק — לא צריך. הורדתי: ההיכרות אוספת רק תשובות (מה יש, של מי, איפה). מסמכים מתבקשים כשיש מה לעשות איתם — בדוח השנתי ובהצהרת ההון — ורשימתם נגזרת מהתיק, לא מהלקוח. בהערכת מס גם לא מסמכים: רק מספרים. תעודת זהות כבר נאספת בייצוג, לא שואלים שוב.</span></div>
+  <div class="q"><b>יישור קו ברשויות</b><span>צעד שני בכל בקשת תיק מס, רץ לבד כשהלקוח מסיים. הכפתור בכרטיס «זהות ורשויות» נשאר לרענון ידני — אותו מנגנון. אין מסך יישור קו נפרד.</span></div>
+  <div class="q"><b>סתירה בין הלקוח לרשויות</b><span>נשאר כפי שראית: שורה אחת עם בחירה, ברירת מחדל «מה שברשויות», ו«אשר הכול» מאשר את השאר.</span></div>
+
+  <h2>שלוש הבקשות — צד הלקוח וצד המשרד</h2>
+  <div class="tbwrap"><table class="tb">
+    <tr><th></th><th>השלמת תיק המס</th><th>דוח שנתי</th><th>הצהרת הון</th></tr>
+    <tr><th>מתי נפתחת</th><td>בקליטה, פעם אחת</td><td>במרץ, לכל לקוח עם תיק מאושר</td><td>כשיישור הקו מוצא דרישה (או ביד)</td></tr>
+    <tr><th>הלקוח נשאל</th><td>«נכון?» · «מה יש לכם» · של מי / איפה · מעסיק · כתובת · חשבון</td><td>«מה השתנה?» · «קרה משהו ב-2025?»</td><td>«מה חדש מאז?» · מזומן בבית</td></tr>
+    <tr><th>הלקוח מעלה</th><td>כלום</td><td>רשימה שנגזרת מהתיק: 106 לכל מעסיק, 867 לכל תיק, אישור לכל קופה, קבלות</td><td>אישור יתרה לכל גוף שבתיק</td></tr>
+    <tr><th>יישור קו ברשויות</th><td>מעסיקים, תיקים, מקדמות, חובות, דרישות</td><td>מקדמות וניכויים ששולמו</td><td>נכסים ותיקים שדווחו בעבר</td></tr>
+    <tr><th>המשרד רואה</th><td>שורה אחת · «לאישורך בתיק» · «אשר הכול»</td><td>שורה אחת · מסמכים N/M · ואז הכנה בליווי, טיוטה, שומה צפויה</td><td>שורה אחת · יתרות N/M · טיוטת 1219</td></tr>
+    <tr><th>מי מאשר / חותם</th><td>גיא מאשר לתיק. אין חתימה</td><td>גיא מאשר גרסה. הלקוח חותם על עמוד הסיכום</td><td>גיא מאשר. הלקוח חותם על 1219</td></tr>
+  </table></div>
+
+  <h2>היום מול המוצע</h2>
+  <div class="cmp">
+    <div class="card"><h3>היום</h3><ul>
+      <li>שתי שורות לאותה עבודה (236): «קליטה והשלמת תיק המס» למשרד ו«השלמת פרטים» ללקוח.</li>
+      <li>20 שאלות קבועות; 30 שדות טקסט חופשי בשלושת השאלונים; 53 בקשות מסמך — גם בהיכרות.</li>
+      <li>שני אישורים: «בדוק תשובות» בבקשה ואז «אשר הכול» בתיק.</li>
+      <li>יישור קו — כפתור נפרד, לא קשור לבקשה.</li>
+      <li>הצהרת הון — 36 שאלות מאפס, גם על מה שכבר בתיק.</li></ul></div>
+    <div class="card"><h3>המוצע</h3><ul>
+      <li>שורה אחת. הלקוח רואה אותה בדף שלו.</li>
+      <li>השאלות נגזרות מהתיק; רשימות סגורות; מסמכים רק בדוח ובהצהרה.</li>
+      <li>אישור אחד, בתיק.</li>
+      <li>יישור קו = צעד אוטומטי בבקשה (+ כפתור רענון בתיק).</li>
+      <li>הצהרת הון = יתרות למה שבתיק + «מה חדש».</li></ul></div>
+  </div>
+
+  <h2>הכרעות שנשארו לך</h2>
+  <div class="card"><ol style="margin:0;padding-inline-start:18px;color:var(--ink-2)">
+    <li><b>«לא בטוח/ה»</b> כתשובה — ההמלצה: כן, לא עוצר; מופיע בתיק כ«לבדוק בשיחה».</li>
+    <li><b>שם המעסיק</b> — השדה החופשי היחיד. ההמלצה: להשאיר; יישור הקו מתקן לפי שע״ם.</li>
+    <li><b>הערכת מס</b> — בקשה נפרדת של מספרים בלי מסמכים, באותה צורה? ההמלצה: כן.</li></ol></div>
+
+  <h2>מה צריך לשנות בקוד (אחרי שנסגור)</h2>
+  <div class="card"><ul style="margin:0;padding-inline-start:18px;color:var(--ink-2);font-size:14px">
+    <li>שורה אחת ב«בקשות» לכל בקשת תיק מס (236: להציג את הבקשה, לא את השלב הפנימי ואת הבן).</li>
+    <li>בניית השאלון מהתיק: «ידוע ⇒ אישור», «לא ידוע ⇒ שאלה»; רשימות סגורות; פריטי מסמך יורדים מההיכרות ונשארים בדוח ובהון.</li>
+    <li>יישור קו מול הרשויות כצעד אוטומטי בבקשה; השאלות על חובות / הצהרת הון / דוחות קודמים יורדות.</li>
+    <li>תשובות ⇒ ישירות «הצעות לעדכון» בתיק (המנגנון קיים). «בדוק תשובות» — יורד. סתירה = שורה עם בחירה.</li>
+    <li>דוח שנתי: «מה השתנה» + רשימת מסמכים נגזרת + «קרה משהו». הצהרת הון: יתרות לגופים שבתיק + «מה חדש».</li>
+    <li>כתובת עם השלמת מיקוד; תעודת זהות לא נשאלת שוב (נאספת בייצוג, בהעלאה גמישה).</li></ul></div>
+  <p class="s" style="margin-top:16px">הדמיה · 16.10.2026 · נתוני דמה בלבד. שום דבר כאן עדיין לא בקוד.</p>`;
+}
+
+function render() {
+  document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.v === S.view));
+  const V = { requests: vRequests, taxfile: vTaxfile, docs: vDocs, client: vClient, principle: vPrinciple };
+  document.getElementById('main').innerHTML = (V[S.view] || vRequests)();
+}
+document.querySelectorAll('#tabs button').forEach(b => b.addEventListener('click', () => go(b.dataset.v)));
+S.view = ['requests', 'taxfile', 'docs', 'client', 'principle'].includes(location.hash.slice(1)) ? location.hash.slice(1) : 'requests';
+render();
+</script>
+</body>
+</html>

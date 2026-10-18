@@ -64,8 +64,11 @@ export const TESTS: TestCase[] = [
   test('קליטה, כרטיס ריק: שאלות פתיחה, בלי אישורי כרטיס ריקים; ילדים — שאלה מובנית', () => {
     const p = intake({ client: client() });
     const asked = keys(p.toAsk);
-    for (const k of ['intake.employed', 'intake.selfEmployed', 'intake.rents', 'intake.foreign', 'intake.crypto', 'intake.idCard', 'intake.prevReturns', 'intake.openIssues'])
+    for (const k of ['intake.employed', 'intake.selfEmployed', 'intake.rents', 'intake.foreign', 'intake.crypto'])
       assert(asked.includes(k), `לא נשאל: ${k}`);
+    // 16.10.2026 · בהיכרות אין מסמכים; דוחות קודמים ועניינים פתוחים — יישור הקו עונה (משרד), לא הלקוח
+    for (const k of ['intake.idCard', 'intake.payslip', 'intake.bankCert']) assert(!p.statuses.some(s => s.item.key === k), `מסמך בהיכרות: ${k}`);
+    for (const k of ['intake.prevReturns', 'intake.openIssues']) assert(!asked.includes(k) && p.officeTodo.some(s => s.item.key === k), `לא אצל המשרד: ${k}`);
     for (const k of ['intake.employers', 'intake.business', 'intake.rentals', 'intake.investments', 'intake.funds', 'intake.settlement'])
       assert(!p.statuses.some(s => s.item.key === k), `אישור כרטיס ריק נשאל: ${k}`);
     assert(!p.statuses.some(s => s.item.key === 'intake.payslip' || s.item.key === 'intake.employerDetails'), 'פרטי מעסיק נשאלו לפני «כן»');
@@ -79,56 +82,55 @@ export const TESTS: TestCase[] = [
     const fam = plan.find(e => e.itemKey === 'intake.family')!;
     equal(fam.prompt.input.kind, 'confirm');
   }),
-  test('קליטה: «כן, עובדת כשכירה» בלי מעסיק בתיק ⇒ מעסיק חדש: פרטים ותלוש נשאלים מיד', () => {
+  test('קליטה: «כן, עובדת כשכירה» בלי מעסיק בתיק ⇒ מעסיק חדש: שם המעסיק (השדה החופשי היחיד) נשאל מיד, בלי תלוש', () => {
     const yes = fact({ itemKey: 'intake.employed', status: 'pending' });
     const p = intake({ client: client(), facts: [yes] });
     const det = p.statuses.find(s => s.item.key === 'intake.employerDetails')!;
-    const slip = p.statuses.find(s => s.item.key === 'intake.payslip')!;
     assert(!!det && det.provisional && det.askable && det.entityRef === 'emp-new-client-intake', `פרטים: ${det?.state} ${det?.entityRef}`);
-    assert(!!slip && slip.askable && slip.entityRef === 'emp-new-client-intake', `תלוש: ${slip?.state}`);
+    assert(!p.statuses.some(s => s.item.key === 'intake.payslip'), 'תלוש נשאל בהיכרות (16.10.2026: בלי מסמכים)');
     const plan = buildAskPlan([...p.toConfirm, ...p.toAsk], ctx(client()));
-    assert(plan.some(e => e.itemKey === 'intake.payslip' && e.prompt.title.includes('המעסיק החדש')), 'השאלה ללקוח לא מזכירה את המעסיק החדש');
+    const e = plan.find(x => x.itemKey === 'intake.employerDetails')!;
+    assert(e && e.prompt.input.kind === 'entity' && e.prompt.input.spec.fields.some(f => f.type === 'name') && !e.prompt.input.spec.fields.some(f => f.type === 'who'), `ליחיד: שם בלי «של מי»: ${JSON.stringify(e?.prompt.input)}`);
   }),
   test('זוג: «כן» של בן הזוג בלבד ⇒ ישות זמנית שלו, עם שמו; הלקוחה — לא', () => {
     const c = married();
     const p = intake({ client: c, facts: [fact({ itemKey: 'intake.employed', subjectRole: 'spouse' }), fact({ itemKey: 'intake.employed', subjectRole: 'client', answer: 'no', value: undefined })] });
-    const slips = p.statuses.filter(s => s.item.key === 'intake.payslip');
-    equal(slips.length, 1);
-    equal(slips[0].entityRef, 'emp-new-spouse-intake');
-    equal(slips[0].subjectRole, 'spouse');
-    assert(!!slips[0].entityLabel?.includes('יאיר'), `התווית בלי שם בן הזוג: ${slips[0].entityLabel}`);
+    const dets = p.statuses.filter(s => s.item.key === 'intake.employerDetails');
+    equal(dets.length, 1);
+    equal(dets[0].entityRef, 'emp-new-spouse-intake');
+    equal(dets[0].subjectRole, 'spouse');
+    assert(!!dets[0].entityLabel?.includes('יאיר'), `התווית בלי שם בן הזוג: ${dets[0].entityLabel}`);
   }),
-  test('מעסיקים בכרטיס: לא שואלים «עובד כשכיר?» — מאשרים את הרשימה, ותלוש לכל מעסיק של כל אחד', () => {
+  test('מעסיקים בכרטיס: לא שואלים «עובד כשכיר?» — מאשרים את הרשימה; בלי תלוש (מסמכים — בדוח)', () => {
     const c = married({ employers: [{ id: 'e1', name: 'אינטל' }, { id: 'e2', name: 'משרד החינוך', belongsToSpouse: true }] as Client['employers'] });
     const p = intake({ client: c });
     assert(!p.statuses.some(s => s.item.key === 'intake.employed'), 'נשאל «עובד כשכיר?» למרות המעסיקים בכרטיס');
     equal(p.statuses.filter(s => s.item.key === 'intake.employers' && s.state === 'fromCard').length, 2);
-    const slips = p.statuses.filter(s => s.item.key === 'intake.payslip');
-    equal(slips.map(s => `${s.entityRef}:${s.subjectRole}`).sort().join(','), 'e1:client,e2:spouse');
+    assert(!p.statuses.some(s => s.item.key === 'intake.payslip'), 'תלוש נשאל בהיכרות');
     assert(!p.statuses.some(s => s.item.key === 'intake.employerDetails'), 'פרטי «מעסיק חדש» נשאלו כשיש מעסיק');
   }),
-  test('תשובה ששונתה ל«לא» ⇒ התלוש שנשלח על המעסיק החדש «לא רלוונטי» — לביטול', () => {
+  test('תשובה ששונתה ל«לא» ⇒ שאלת המעסיק החדש שנשלחה «לא רלוונטית» — לביטול', () => {
     const yes = fact({ itemKey: 'intake.employed', status: 'rejected', createdAt: '2026-10-12T09:00:00Z' });
     const no = fact({ itemKey: 'intake.employed', answer: 'no', value: undefined, source: 'office', createdAt: '2026-10-12T11:00:00Z' });
-    const sent = ask({ itemKey: 'intake.payslip', entityKind: 'employer', entityRef: 'emp-new-client-intake', prompt: { title: 'תלוש', why: '', input: { kind: 'file', docKind: 'payslipToDate' } } });
+    const sent = ask({ itemKey: 'intake.employerDetails', entityKind: 'employer', entityRef: 'emp-new-client-intake', prompt: { title: 'מעסיק', why: '', input: { kind: 'entity', spec: { noun: 'מעסיק', fields: [] } } } });
     const p = intake({ client: client(), facts: [yes, no], asks: [sent] });
     equal(p.stale.length, 1);
     equal(p.stale[0].ask!.id, sent.id);
-    assert(!p.toAsk.some(s => s.item.key === 'intake.payslip'), 'התלוש עדיין נשאל');
+    assert(!p.toAsk.some(s => s.item.key === 'intake.employerDetails'), 'המעסיק החדש עדיין נשאל');
     // והשאלה שבוטלה (state cancelled) — כבר לא «לא רלוונטית פתוחה»
     const p2 = intake({ client: client(), facts: [yes, no], asks: [{ ...sent, state: 'cancelled' }] });
     equal(p2.stale.length, 0);
   }),
-  test('מסמך קבוע שכבר אושר (בכל שנה) — לא מתבקש שוב; מסמך לתקופה — כן', () => {
-    const idOld: Evidence = { id: 'ev1', clientId: 'c1', taxYear: 2024, docKind: 'idCard', subjectRole: 'client', receivedAt: '2024-05-01T00:00:00Z',
+  test('מסמך קבוע שכבר אושר (בכל שנה) — לא מתבקש שוב בדוח; בהיכרות מסמכים לא נשאלים כלל', () => {
+    const degOld: Evidence = { id: 'ev1', clientId: 'c1', taxYear: 2024, docKind: 'degreeCert', subjectRole: 'client', receivedAt: '2024-05-01T00:00:00Z',
       receivedVia: 'portal', extraction: 'not_supported', identityMatch: 'match', periodMatch: 'match', review: 'accepted', reviewedAt: '2024-05-02T00:00:00Z' };
-    const slipOld: Evidence = { ...idOld, id: 'ev2', docKind: 'payslipToDate', entityKind: 'employer', entityRef: 'e1' };
-    const c = client({ employers: [{ id: 'e1', name: 'אינטל' }] as Client['employers'] });
-    const p = intake({ client: c, priorEvidence: [idOld, slipOld] });
-    const idc = p.statuses.find(s => s.item.key === 'intake.idCard')!;
-    equal(idc.state, 'known');
-    assert(!!idc.reusedEvidence && idc.detail.includes('לא מבקשים שוב'), idc.detail);
-    assert(p.toAsk.some(s => s.item.key === 'intake.payslip'), 'תלוש (מסמך לתקופה) לא התבקש');
+    const c = client();
+    // כרטיס בלי תואר ⇒ «שינוי שמזכה» נשאל; «כן» פותח את אישור התואר — שכבר בתיק
+    const p = buildYearPicture({ client: c, taxYear: 2025, purpose: 'annual', today: TODAY, facts: [fact({ itemKey: 'household.creditChanges', taxYear: 2025, periodKind: 'year', periodTo: '2025-12-31' })], evidence: [], asks: [], priorEvidence: [degOld] });
+    const deg = p.statuses.find(s => s.item.key === 'household.degreeDocs')!;
+    assert(!!deg && deg.state === 'known' && !!deg.reusedEvidence && deg.detail.includes('לא מבקשים שוב'), `${deg?.state} ${deg?.detail}`);
+    const pi = intake({ client: client({ employers: [{ id: 'e1', name: 'אינטל' }] as Client['employers'] }) });
+    assert(!pi.statuses.some(s => s.item.kind === 'document'), 'מסמך בהיכרות (16.10.2026: מסמכים רק בדוח ובהצהרה)');
   }),
   test('אישור ≠ עדכון הכרטיס: כן/לא ובחירה ⇒ «עדכן בתיק»; שינוי במילים ⇒ «עודכן בתיק»; ישות חדשה ⇒ «הוסף לתיק»', () => {
     const c = client({ hasCrypto: false } as Partial<Client>);
