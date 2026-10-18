@@ -423,6 +423,7 @@ button.rp-cell:disabled { cursor: default; }
 @media (max-width: 480px) {
   .ty-confirm-row { flex-direction: column; }
   .ty-seg { align-self: flex-start; }
+}
 
 /* ── 17.10.2026 · שלושת הצעדים בשורת בקשת תיק מס (RequestSteps) — תצוגה, לא כפתורים. ההדמיה: one-request-tax-file ── */
 .rl-below { padding: 0 0 10px; }
