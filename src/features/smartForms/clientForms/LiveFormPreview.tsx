@@ -18,8 +18,6 @@ interface Props {
   template?: SmartFormTemplate;
   /** חתימת הלקוח (אחרי חתימה) — נצרבת בתצוגה. */
   signature?: string | null;
-  /** חותמת המשרד (הצהרת המייצג) — רק בקובץ החתום של המשרד. */
-  stamp?: string | null;
   draftMark?: string;
   /** סימון תיבות החובה והחתימה על הטופס. ברירת מחדל: כן. */
   markers?: boolean;
@@ -34,14 +32,14 @@ interface Props {
   signTag?: string;
   /** מתי «נחתם» ⇒ סימון החתימה ירוק. */
   signed?: boolean;
-  /** האם לצייר בכלל (למשל כשהחותמת עוד נטענת). */
+  /** האם לצייר בכלל (למשל כששם המייצג עוד נטען). */
   ready?: boolean;
   maxFit?: number;
   onRenderError?: (message: string) => void;
 }
 
 export default function LiveFormPreview({
-  def, data, template, signature, stamp, draftMark, markers = true, focusKeys, onMarker, debounceMs = 220, title, signTag, signed, ready = true, maxFit, onRenderError,
+  def, data, template, signature, draftMark, markers = true, focusKeys, onMarker, debounceMs = 220, title, signTag, signed, ready = true, maxFit, onRenderError,
 }: Props) {
   const [bytes, setBytes] = useState<Uint8Array | null>(null);
   const [busy, setBusy] = useState(true);
@@ -53,13 +51,13 @@ export default function LiveFormPreview({
     const my = ++seq.current;
     setBusy(true);
     const t = setTimeout(() => {
-      void renderClientForm(def, data, { template, signature: signature ?? null, stamp: stamp ?? null, draftMark })
+      void renderClientForm(def, data, { template, signature: signature ?? null, draftMark })
         .then(r => { if (seq.current === my) { setBytes(r.bytes); setBusy(false); } })
         .catch(e => { if (seq.current === my) { setBusy(false); onRenderError?.(e instanceof Error ? e.message : String(e)); } });
     }, bytes ? debounceMs : 0);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [def, dataKey, template, signature, stamp, draftMark, ready]);
+  }, [def, dataKey, template, signature, draftMark, ready]);
 
   const list = useMemo(() => (markers ? formMarkers(def, data, { signed }) : []), [def, dataKey, markers, signed]); // eslint-disable-line react-hooks/exhaustive-deps
   const focus = useMemo(() => new Set(focusKeys ?? []), [focusKeys]);

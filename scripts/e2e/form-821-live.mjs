@@ -69,7 +69,7 @@ async function newContext(portal = false) {
 // ‼ לצד כל צילום נשמרים מיקומי האלמנטים המסומנים במדריך (JSON, פיקסלים של הצילום) — הסימונים במדריך נמדדים, לא נאמדים בעין
 const MARK_SELECTORS = ['.cf-live-sum', '.cf-live-legend', '.sf-hot.is-sign .sf-hot-tag', '[data-cf-status-note]', '[data-cf-key="businessName"]', '[data-cf-key="industry"]',
   '.sf-hot[data-hot="businessName"]', '.sf-hot[data-hot="openDate"]', '.sf-hot.is-active', '[data-cf-live-mobile] > summary', '.cf-declare', '.cf-pad', '[data-cf-sign-note]',
-  '.sf-hot.is-signed .sf-hot-tag', '[data-cf-key="propExists"]', '[data-cf-key="openDate"]', '.sf-hot[data-hot="g:prop.kind"]', '.sf-hot[data-hot="activity.1"]', '.cfp-status', '.cf-live-chip'];
+  '.sf-hot.is-signed .sf-hot-tag', '[data-cf-key="propExists"]', '[data-cf-key="openDate"]', '.sf-hot[data-hot="g:prop.kind"]', '.sf-hot[data-hot="activity.1"]', '.cfp-status', '.cf-live-chip', '[data-guide="doc821"]'];
 const shot = async (page, name, full = false) => {
   if (!SHOTS) return;
   await page.screenshot({ path: join(SHOTS, `${name}-${tag}.png`), fullPage: full }).catch(() => {});
@@ -269,6 +269,13 @@ try {
   await cp.getByRole('button', { name: 'חתימה ושליחה למשרד' }).click();
   await cp.waitForFunction(() => /נחתם ונשלח למשרד/.test(document.body.textContent ?? ''), null, { timeout: 30000 });
   ok(true, 'הלקוח חתם');
+  // ‼ 259 (17.10.2026): הקובץ החתום נשמר במסמכים ברגע החתימה — לפני שמישהו במשרד פתח משהו
+  const [early] = await sql(`select r.signed_document_id did, d.storage_path, d.file_name, d.description, d.category, d.label_id is not null has_label,
+      (select e.detail->>'builtBy' from public.smart_form_events e where e.filing_id = r.filing_id and e.kind = 'signed_pdf_stored' order by e.at desc limit 1) built_by,
+      (select count(*) from storage.objects o where o.bucket_id = 'client-documents' and o.name = d.storage_path)::int objects
+    from public.smart_form_revisions r join public.documents d on d.id = r.signed_document_id where r.filing_id = '${F}'`);
+  ok(early?.did && early.objects === 1 && early.built_by === 'client_page', 'הקובץ החתום נשמר במסמכים ברגע החתימה (מהדף האישי)', early);
+  ok(early?.category === 'business_document' && early.has_label && /821/.test(early.file_name ?? ''), 'המסמך: «מסמך עסקי», שם קובץ עם 821', early);
   await cp.getByRole('button', { name: 'לצפייה בטופס החתום' }).click();
   await waitPreview(cp);
   const signedMark = await cp.evaluate(() => document.querySelector('.sf-hot[data-hot="signature"]')?.dataset.mark);
@@ -280,16 +287,26 @@ try {
   section = 'הקובץ החתום';
   const office2 = await newContext();
   const p2 = office2.page;
+  // ‼ 259: «מסמכים» של הלקוח — הקובץ כבר שם, לפני שמישהו במשרד פתח את הטופס
+  // ‼ הלשוניות לא משנות את הכתובת — נכנסים ללקוח ולוחצים «מסמכים», כמו משתמש
+  await p2.goto(env.officeUrl(A, 'journey'), { waitUntil: 'domcontentloaded' });
+  await p2.locator('.cw-tab', { hasText: 'מסמכים' }).first().click({ timeout: 30000 });
+  const docRow = await p2.waitForFunction(() => {
+    // השורה = האלמנט הקטן ביותר שמכיל את שם הקובץ, ומעליו עד גובה של שורה
+    let el = [...document.querySelectorAll('body *')].filter(e => e.children.length === 0 && /821-/.test(e.textContent ?? '')).pop();
+    while (el && el.parentElement && el.parentElement.getBoundingClientRect().height < 90 && el.parentElement.getBoundingClientRect().width < window.innerWidth * 0.98) el = el.parentElement;
+    if (el) el.setAttribute('data-guide', 'doc821');
+    return !!el;
+  }, null, { timeout: 30000 }).then(() => true).catch(() => false);
+  ok(docRow, '«מסמכים» של הלקוח: הטופס החתום מופיע מיד אחרי החתימה');
+  await shot(p2, 'c0-office-documents');
+  await p2.goto(env.officeUrl(A, 'journey'), { waitUntil: 'domcontentloaded' });
+  await p2.reload({ waitUntil: 'domcontentloaded' });
   await p2.goto(env.officeUrl(A, 'journey'), { waitUntil: 'domcontentloaded' });
   await openPanel(p2, /821/);
-  // ‼ החותמת נטענת אסינכרונית: או שהקובץ נשמר, או שמופיע «הפקה בלי החותמת» (ב-staging אין חותמת לפרופיל הבדיקה)
-  const noStamp = p2.getByRole('button', { name: 'הפקה בלי החותמת' });
-  for (let t = 0; t < 60; t++) {
-    if (/הקובץ החתום נשמר במסמכים/.test(await p2.locator('body').textContent())) break;
-    if (await noStamp.count()) { await noStamp.click(); ok(true, 'אין חותמת משרד ב-staging ⇒ «הפקה בלי החותמת» (בחירה מפורשת)'); break; }
-    await sleep(1000);
-  }
-  await p2.waitForFunction(() => /הקובץ החתום נשמר במסמכים/.test(document.body.textContent ?? ''), null, { timeout: 90000 });
+  // ‼ 17.10.2026: בלי חותמת המשרד — אין יותר «הפקה בלי החותמת»; הקובץ כבר נשמר מהדף
+  ok(await p2.getByRole('button', { name: 'הפקה בלי החותמת' }).count() === 0, 'אין שאלת חותמת במשרד');
+  await p2.waitForFunction(() => /הקובץ החתום נשמר במסמכים/.test(document.body.textContent ?? ''), null, { timeout: 30000 });
   const [sd] = await sql(`select r.signed_document_id did, d.storage_path, d.file_name from public.smart_form_revisions r join public.documents d on d.id = r.signed_document_id where r.filing_id = '${F}'`);
   ok(sd?.did && sd.storage_path, 'הקובץ החתום נשמר במסמכי הלקוח', sd);
   await waitPreview(p2);

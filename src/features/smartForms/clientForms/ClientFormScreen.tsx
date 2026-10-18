@@ -16,6 +16,7 @@ import { blockers, clientFormOf, editableFields, flowScreens, formMarkers, scree
 import { fieldError } from './format';
 import CfFields, { bankNameOf } from './CfFields';
 import { clientFormErrorText, portalGet, portalPrepare, portalSave, portalSign, type ClientFormView } from './api';
+import { renderSignedClientForm, storeSignedFromPortal } from './signedFile';
 import '../../taxYear/taxYear.css';
 import '../smartForms.css';
 import './clientForms.css';
@@ -290,6 +291,18 @@ function Review({ def, view, token, stepId, onView, onFix, onEdit, onSigned }: {
       const t = await trimSignature(png);
       const r = await portalSign(token, stepId, t.dataUrl, prepared.contentSha256, consent);
       if (!r.ok) { setErr(clientFormErrorText(r.error)); return; }
+      // ‼ 17.10.2026 · הקובץ החתום נשמר במסמכי הלקוח עכשיו, מאותו טופס שהלקוח ראה וחתם עליו.
+      //   כשל כאן אינו מעניין את הלקוח — החתימה כבר נקלטה, והמשרד בונה את הקובץ כגיבוי.
+      if ((r as { allSigned?: boolean }).allSigned) {
+        try {
+          const bytes = await renderSignedClientForm(def, prepared.data, {
+            template, signature: t.dataUrl, repName: prepared.repName ?? '',
+            clientName: `${prepared.card.firstName ?? ''} ${prepared.card.lastName ?? ''}`.trim(),
+          });
+          const s = await storeSignedFromPortal(token, stepId, bytes);
+          if (!s.ok) console.warn('[ClientFormScreen] signed file not stored', s.error);
+        } catch (e) { console.warn('[ClientFormScreen] signed file not built', e); }
+      }
       onSigned();
     } catch (e) {
       setErr(e instanceof EmptySignatureError ? clientFormErrorText('bad_signature_image') : 'החתימה לא נקלטה. נסו שוב.');

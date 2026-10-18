@@ -128,8 +128,6 @@ export interface RenderClientFormOpts {
   template?: SmartFormTemplate;
   /** חתימת הלקוח (data URL של PNG אחרי חיתוך). */
   signature?: string | null;
-  /** חותמת המשרד להצהרת המייצג (data URL של PNG) — רק בקובץ החתום שהמשרד מפיק. */
-  stamp?: string | null;
   draftMark?: string;
   title?: string;
   date?: Date;
@@ -141,7 +139,6 @@ export async function renderClientForm(def: ClientFormDef, d: CfData, opts: Rend
   const bytes = await exportSmartForm(bytes0, t, layout, {
     signatures: {
       ...(opts.signature ? { client: dataUrlToBytes(opts.signature) } : {}),
-      ...(opts.stamp ? { office: dataUrlToBytes(opts.stamp) } : {}),
     },
     draftMark: opts.draftMark,
     meta: { title: opts.title ?? def.template.title, subject: `${def.authorityLabel} · טופס ${t.formNumber}`, keywords: [t.formNumber, t.sha256], date: opts.date },
