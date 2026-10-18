@@ -24,6 +24,7 @@ import PdfPageEditor, { mkAnnotation, type EditTool } from './PdfPageEditor';
 import PdfStyleBar from './PdfStyleBar';
 import SignaturePad from '../SignaturePad';
 import Icon from '../ui/Icon';
+import { useOfficeStamp } from '../../utils/officeStamp';
 
 export interface OrganizerSource extends PlanSource {
   bytes: Uint8Array;
@@ -136,6 +137,8 @@ export default function PdfOrganizer({
   /** הצבע הפעיל תלוי בכלי: המרקר זוכר את שלו, כל השאר חולקים את הדיו. */
   const activeColor = tool === 'highlight' ? hlColor : ink;
   const [pendingImage, setPendingImage] = useState<string | null>(null);
+  // «החותמת שלי» — החותמת מ«פרטי המשרד»; הנחה ידנית בלבד (גיא 19.10.2026)
+  const officeStamp = useOfficeStamp();
   const [selectedAnn, setSelectedAnn] = useState<string | null>(null);
   const [dragId, setDragId] = useState<string | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
@@ -574,8 +577,12 @@ export default function PdfOrganizer({
               </>
             ) : (
               <>
-                <span className="pdfw-bar-hint">חתום למטה, או העלה חותמת - ואז גרור למקום על הדף.</span>
-                <button type="button" className="btn btn-sm" onClick={() => pickImage(true)}>העלה חותמת</button>
+                <span className="pdfw-bar-hint">{officeStamp ? 'חתום למטה, או הוסף את החותמת שלך - ואז גרור למקום על הדף.' : 'חתום למטה, או העלה חותמת - ואז גרור למקום על הדף.'}</span>
+                {officeStamp && (
+                  <button type="button" className="btn btn-sm" data-testid="pdfw-my-stamp"
+                    onClick={() => { setPendingImage(officeStamp); setTool('image'); }}>החותמת שלי</button>
+                )}
+                <button type="button" className="btn btn-sm" onClick={() => pickImage(true)}>{officeStamp ? 'חותמת אחרת' : 'העלה חותמת'}</button>
               </>
             )}
             <span className="pdfw-bar-grow" />
