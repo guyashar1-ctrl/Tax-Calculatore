@@ -24,6 +24,7 @@ import {
 import type { Client, NiExternalState, NiTracking, RepAuthorityKind, RepresentationStatus, TaxAuthority } from '../../types';
 import type { Quotation, QuotationItem } from '../../types/quotations';
 import { REP_AUTHORITY_LABELS, REPRESENTATION_STATUS_LABELS, NI_APPROVAL_PHONE, NI_EXTERNAL_STATE_LABELS } from '../../types';
+import { paperlessKindOf } from '../../features/taxFile/editModel';
 import type { AdvanceResult } from '../../hooks/useOnboarding';
 import InstitutionAlignmentGroup, { InstitutionFocus } from './InstitutionAlignment';
 import AuthoritiesPanel from '../authorities/AuthoritiesPanel';
@@ -4526,7 +4527,7 @@ function PaperlessStepCard(p: PaperlessCardProps) {
       ) : (
         <>
           {isInvite ? (
-            <InviteBody path={path} status={step.status} awaitingPublish={!!awaitingPublish?.has(step.id)} step={step} />
+            <InviteBody path={path} status={step.status} awaitingPublish={!!awaitingPublish?.has(step.id)} step={step} client={p.client} />
           ) : (
             <ConnectionBody path={path} softwareName={String(step.payload.softwareName ?? '')}
               step={step} client={p.client} retainer={p.retainer} busy={busy} onRun={p.onRun}
@@ -4661,7 +4662,7 @@ function BusinessDetailsCard({ step, stepById, client, highlight, menu, onOpenTa
 
 /** מה קורה בשלב ההזמנה, לפי המסלול שנבחר.
  *  ‼ awaitingPublish — הקליטה טרם פורסמה: מה שבדף «יופיע», לא «מופיע» (clientPageGate). */
-function InviteBody({ path, status, awaitingPublish, step }: { path?: PaperlessStatus; status: string; awaitingPublish?: boolean; step: OnboardingStep }) {
+function InviteBody({ path, status, awaitingPublish, step, client }: { path?: PaperlessStatus; status: string; awaitingPublish?: boolean; step: OnboardingStep; client: Client }) {
   if (path === 'not_applicable') {
     return (
       <div style={cardNote}>
@@ -4687,15 +4688,24 @@ function InviteBody({ path, status, awaitingPublish, step }: { path?: PaperlessS
       </div>
     );
   }
+  const waiting = status === 'waiting_client' || status === 'pending';
+  // ‼ 260 · אותו כלל כמו 'paperlessKind' בדף: מה כתוב ללקוח לבחור ב«סוג עסק» בפייפרלס (שם ברירת המחדל «מורשה»).
+  const plKind = paperlessKindOf(client);
   return (
     <div style={cardNote}>
-      {status === 'waiting_client' || status === 'pending'
+      {waiting
         ? (awaitingPublish
           ? 'קישור ההרשמה יופיע ללקוח בדף האישי אחרי «פרסם בדף», יחד עם כפתור «נרשמתי לפייפרלס». ברגע שילחץ, שלב החיבור ייפתח אצלך מעצמו.'
           : 'קישור ההרשמה מופיע ללקוח בדף האישי, יחד עם כפתור «נרשמתי לפייפרלס». ברגע שילחץ, שלב החיבור ייפתח אצלך מעצמו.')
         /* ‼ 05.10: לא «הלקוח נרשם» כשמי שסימן הוא המשרד — על מה זה נשען, ומתי. אין
            אינטגרציה עם פייפרלס: זו הצהרה של הלקוח או של המשרד, לא בדיקה. */
         : `${paperlessSignupEvidence(step).detail} אפשר להיכנס לחשבון ולהשלים את ההקמה.`}
+      {waiting && (plKind
+        ? <div data-testid="pl-kind-office">בדף כתוב לו לבחור ב«סוג עסק»: «{plKind}».</div>
+        : <div data-testid="pl-kind-office" style={{ color: 'var(--warn)' }}>
+            ⚠ סוג העוסק לא נקבע בכרטיס, ולכן בדף לא כתוב ללקוח מה לבחור ב«סוג עסק» בפייפרלס (שם ברירת המחדל «מורשה»).
+            קובעים אותו בתיק המס ← «פרטי הנישום».
+          </div>)}
     </div>
   );
 }

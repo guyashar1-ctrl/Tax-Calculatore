@@ -628,6 +628,16 @@ export function dealerTypeDisplay(c: Pick<Client, 'dealerType' | 'vatStatus'>): 
   };
 }
 
+/**
+ * 260 · מה בוחרים ב«סוג עסק» בטופס ההרשמה של פייפרלס (נצפה חי 19.10.2026: פטור · מורשה ·
+ * חברה · עמותה · שותפות…, ברירת המחדל «מורשה»). null = לא נקבע. התאום בשרת: 'paperlessKind'
+ * בפריט ההרשמה ב-_portal_step_items — זה מה שהלקוח רואה בדף.
+ */
+export function paperlessKindOf(c: Pick<Client, 'dealerType' | 'vatStatus'>): 'מורשה' | 'פטור' | 'חברה' | null {
+  const kind = cardDealerKind(c);
+  return kind === 'company' ? 'חברה' : kind === 'licensed' ? 'מורשה' : kind === 'exempt' ? 'פטור' : null;
+}
+
 /** תווית לסוג שהשרת רשם (resolvedKind) — בשני הכתיבים שבשימוש. */
 export function dealerKindLabel(kind: string | null | undefined): string | null {
   switch (kind) {

@@ -37,6 +37,13 @@ Ask Guy which business process or automation he wants to improve first. Inspect 
 
 ## Decision log / review evidence
 
+### 2026-10-19 — 821 without rep name/date · Hebrew name in office details · Paperless «סוג עסק» (Guy approved «מסכים»)
+- Worktree `C:/Users/guyas/pivo-wt/rep-name-hebrew` (branch fix/rep-name-paperless-dealer from origin/master f2f232b).
+- 821: «הצהרת המייצג» is never filled (no name, date, stamp) — officeRep.ts removed; office backup render and portal signed file no longer pass repName. Server 259 still returns portal repName (unused, harmless).
+- Name: root cause = profiles.full_name came from Google sign-up («Guy Yashar») with no edit field; representative_type was null (select showed «רואה חשבון» without saving). ProfilePage: new «השם שלך» field + select shows «בחרו» when empty. Prod data (approved): full_name='גיא ישר', representative_type='רואה חשבון'. Affects meeting invite signature and quotation «רואה חשבון {name}». Invite signature: firm line dropped when it contains the name.
+- Paperless: observed live 19.10 (invite link, view only): «סוג עסק» = פטור/מורשה/חברה/עמותה/שותפות מורשה/שותפות פטור, default «מורשה». Migration 260 injects 'paperlessKind' into _portal_step_items (new-signup branch only; rule = cardDealerKind/215). Portal shows «בחרו: X» or a generic line; office InviteBody shows the same, or ⚠ when the card has no type (3 of 4 open prod invites). Not a publish block (deviation from the proposal wording — would hide already-published cards).
+- Evidence: tsc 0; unit 1969/0 (+2); vite build OK; staging 260 applied + 8 kind cases; browser on staging (5341): profile field save→DB, portal exempt «פטור» desktop+375, unknown generic, office ⚠ row, signed 821 rep area empty; console clean. Prod: backup PIVO/backups/rep-name-paperless-20261019 (md5 before 71f0b183…, after 4a906d9e…), 260 applied, all 7 prod invites evaluated.
+
 ### 2026-10-19 — «בקשה אחת לתיק המס» stage 2 RELEASED to production (Guy approved 19.10): master 9c2531c, migration 253 applied after backup PIVO/backups/one-request-s2-20261019 (registered 20261018221316), Vercel dpl_BmN7zHv7NSDcwheboT74EzXMNTsr serves main-B295Jx-o.js with the grid screen. Node fetch could not reach api.supabase.com that day (curl could) — scripts ran with a curl-backed fetch shim; same files, same verification.
 ### 2026-10-18 — «בקשה אחת לתיק המס» stage 2: intake questionnaire from the file, closed lists, no documents — (details; superseded by the release line above)
 - Branch `feat/one-request-s2-intake` (worktree `.claude/worktrees/dreamy-wozniak-60ce7e`), merged with origin/master 44936b1 (254 stage 1, 257, 233+258, 252). Plan: `docs/PLAN-ONE-REQUEST-TAX-FILE-2026-10-16.md` §2 stage 2.

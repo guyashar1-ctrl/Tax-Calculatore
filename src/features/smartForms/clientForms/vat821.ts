@@ -3,8 +3,8 @@
 // AcroForm; SHA-256 למטה) — רינדור בסקאלה 8 וזיהוי קווים/משבצות/ריבועים.
 //
 // ‼ עמוד 2 (מנהלי חברה, רישום שותפות), «עסק בהקמה» ו«לשימוש המשרד» אינם ממופים — הטופס
-// כאן לעוסק יחיד בלבד (השרת חוסם חברה). «הצהרת המייצג» (שם, תאריך, חותמת המשרד) — רק בקובץ
-// החתום שהמשרד מפיק (officeRep.ts); הלקוח רואה אותה ריקה.
+// כאן לעוסק יחיד בלבד (השרת חוסם חברה).
+// ‼ 19.10.2026 · גיא: «הצהרת המייצג» נשארת ריקה תמיד — בלי שם, תאריך או חותמת. אם ירצה, ימלא ידנית.
 // ‼ המיקוד בטופס בנוי לחמש ספרות; מיקוד בן 7 ספרות נכתב כטקסט ממורכז במשבצות.
 // ‼ 16.10.2026 (משוב גיא): תאריך פתיחת העסק הוא **תאריך מלא בכרטיס** (businesses[].startDate — מסך «פתיחת תיק»
 //   של רשות המסים מבקש תאריך מלא), ועל הטופס נכתבות רק חודש ושנה. ענף כלכלי — רשימה סגורה (industries.ts),
@@ -113,13 +113,13 @@ const FIELDS: FieldDef[] = [
     kind: 'text', align: 'center' }),
   f({ id: 'signature', dataKey: 'signature', label: 'חתימה וחותמת', section: 'חתימה', box: { x: 52, y: 164.1, w: 96, h: 19 }, line: 163.65,
     kind: 'signature', overflow: 'none', required: 'signer', signer: 'client', provenance: 'filing' }),
-  // ── הצהרת המייצג: המשרד מוסיף אחרי שהלקוח חתם — שם, תאריך, וחותמת המשרד מ«פרטי המשרד» (שמכילה גם את החתימה) ──
+  // ── הצהרת המייצג: ממופה כדי שהאזור יהיה ידוע, אבל המערכת לא כותבת בו כלום (גיא 19.10.2026) ──
   f({ id: 'rep.date', dataKey: 'repDate', label: 'הצהרת המייצג — תאריך', section: 'הצהרת המייצג', box: { x: 458, y: 109, w: 103, h: 11 }, line: 108.6,
-    kind: 'text', align: 'center', provenance: 'system', source: 'יום החתימה של הלקוח' }),
+    kind: 'text', align: 'center', provenance: 'system', source: 'ריק — ממלאים ידנית' }),
   f({ id: 'rep.name', dataKey: 'repName', label: 'הצהרת המייצג — שם המייצג', section: 'הצהרת המייצג', box: { x: 252, y: 109, w: 104, h: 11 }, line: 108.6,
-    kind: 'text', align: 'center', provenance: 'system', source: 'פרטי המשרד — שם מלא' }),
+    kind: 'text', align: 'center', provenance: 'system', source: 'ריק — ממלאים ידנית' }),
   f({ id: 'rep.stamp', dataKey: 'repStamp', label: 'הצהרת המייצג — חתימה וחותמת', section: 'הצהרת המייצג', box: { x: 52, y: 109.2, w: 96, h: 26 },
-    kind: 'signature', overflow: 'none', signer: 'office', provenance: 'system', source: 'פרטי המשרד ← חתימה וחותמת (החותמת)' }),
+    kind: 'signature', overflow: 'none', signer: 'office', provenance: 'system', source: 'ריק — ממלאים ידנית' }),
 ];
 
 const UNMAPPED: UnmappedArea[] = [
@@ -229,8 +229,6 @@ function valueOf(field: FieldDef, d: CfData): string | boolean | undefined {
     return m ? `${m[2]}|${m[1].slice(2)}` : undefined;
   }
   if (k === 'signDate') return ilDate(d.signDate);
-  if (k === 'repDate') return d.repName ? ilDate(d.repDate || d.signDate) : undefined;
-  if (k === 'repName') return d.repName;
   const [row, part] = k.split('.');
   if (row === 'biz' || row === 'mail' || row === 'home') {
     const r = rowOf(row, d);
@@ -373,7 +371,6 @@ const SAMPLE: CfData = {
   mailSame: 'yes', openDate: '2026-11-01', employees: '1', turnover: '180000', dealerKind: 'licensed',
   bankCode: '12', bankName: 'בנק הפועלים', bankBranch: '600', bankAccount: '123456',
   propExists: 'yes', propKind: 'other', propKindOther: 'דירת מגורים', propTenure: 'owned', propParty: 'ישראל ישראלי', signDate: '2026-10-15',
-  repName: 'שם המייצג לדוגמה',
 };
 
 export const VAT821: ClientFormDef = {

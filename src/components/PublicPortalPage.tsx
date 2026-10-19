@@ -165,6 +165,8 @@ export interface PortalItem {
    */
   needsBusinessName?: boolean;
   businessName?: string;
+  /** 260 · מה לבחור ב«סוג עסק» בהרשמה לפייפרלס, לפי הכרטיס. '' = לא נקבע; חסר = שרת ישן או חשבון קיים. */
+  paperlessKind?: string;
   /** 220 · התשובות האחרונות על עבודה מהבית — מילוי-מראש לתיקון. */
   homeOffice?: { worksFromHome?: boolean | null; hasDedicatedRoom: boolean; totalRooms: number | null; businessRooms: number | null; note: string | null } | null;
   /** רשימת המסמכים שביקשנו — מה התקבל ומה עוד חסר. */
@@ -1239,6 +1241,14 @@ function PaperlessSignupBlock({ item, brand, accent, onDone }: {
 
   return (
     <div style={{ display: 'grid', gap: 10 }}>
+      {/* ‼ 19.10.2026 · גיא: בטופס של פייפרלס «סוג עסק» מתחיל ב«מורשה» — עוסק פטור שלא שם לב נרשם לא נכון. */}
+      {item.paperlessKind !== undefined && (
+        <p data-testid="pl-kind" style={{ margin: 0, fontSize: 13, lineHeight: 1.6, color: brand.ink }}>
+          {item.paperlessKind
+            ? <>בטופס ההרשמה, בשדה «סוג עסק», בחרו: <strong>{item.paperlessKind}</strong></>
+            : 'בטופס ההרשמה, בשדה «סוג עסק», בחרו את הסוג שלכם במע״מ — «מורשה» או «פטור». לא בטוחים? כתבו לנו לפני ההרשמה.'}
+        </p>
+      )}
       {asksBusiness && (
         <label style={{ display: 'grid', gap: 4, maxWidth: 420 }}>
           <span style={{ fontSize: 12.5, color: brand.muted }}>

@@ -296,7 +296,7 @@ function Review({ def, view, token, stepId, onView, onFix, onEdit, onSigned }: {
       if ((r as { allSigned?: boolean }).allSigned) {
         try {
           const bytes = await renderSignedClientForm(def, prepared.data, {
-            template, signature: t.dataUrl, repName: prepared.repName ?? '',
+            template, signature: t.dataUrl,
             clientName: `${prepared.card.firstName ?? ''} ${prepared.card.lastName ?? ''}`.trim(),
           });
           const s = await storeSignedFromPortal(token, stepId, bytes);

@@ -21,8 +21,6 @@ export interface ClientFormView {
   title?: string;
   authority?: 'ita' | 'vat';
   firmName?: string;
-  /** דף אישי (259): שם המייצג להצהרת המייצג בקובץ החתום. */
-  repName?: string;
   state: string;
   revisionState: 'draft' | 'locked' | 'signed' | 'superseded';
   card: CfData;

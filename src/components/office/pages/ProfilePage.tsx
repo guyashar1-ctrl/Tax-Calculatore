@@ -51,6 +51,7 @@ export default function ProfilePage({ draft, saved, setDraft, noteUpload, focus,
     setDraft(d => ({ ...d, communication: { ...d.communication, [key]: val } }));
 
   const firmName = (draft.firmName ?? '').trim();
+  const myName = (draft.fullName ?? '').trim();
   const email = (draft.email ?? '').trim();
   const brand = deriveQuotationBrand(draft);
   const preset = DESIGN_PRESETS.find(p => p.id === draft.branding?.docDesign?.preset);
@@ -86,6 +87,7 @@ export default function ProfilePage({ draft, saved, setDraft, noteUpload, focus,
       <SumRow id="details" title="שם ופרטי קשר" open={open.has('details')} onToggle={() => toggle('details')} autoScroll={initial === 'details'}
         summary={<>
           <span>{firmName || <span className="of-muted">אין שם משרד</span>}</span>
+          {myName && <span>{myName}</span>}
           {draft.representativeNumber && <span>מייצג {draft.representativeNumber}</span>}
           {email ? <bdi className="of-ltr">{email}</bdi> : <span className="of-sum-warn">אין אימייל — התראות למשרד לא יישלחו</span>}
           {draft.phone && <bdi className="of-ltr">{draft.phone}</bdi>}
@@ -94,6 +96,11 @@ export default function ProfilePage({ draft, saved, setDraft, noteUpload, focus,
           <Field label="שם המשרד" hint="כך הוא מופיע ללקוחות ובשם השולח של המיילים.">
             <input value={draft.firmName ?? ''} onChange={e => upd('firmName', e.target.value)} placeholder="משרד רואי חשבון…" />
           </Field>
+          {/* ‼ 19.10.2026 · השם נשמר בהרשמה מחשבון Google («Guy Yashar») ולא היה מקום לתקן אותו — והוא יצא
+              ללקוחות בחתימת הזימון לפגישה ובהצעת המחיר. */}
+          <Field label="השם שלך" hint="כך הוא מופיע ללקוחות — בזימון לפגישה ובהצעת המחיר.">
+            <input value={draft.fullName ?? ''} onChange={e => upd('fullName', e.target.value)} placeholder="שם פרטי ושם משפחה" />
+          </Field>
           <Field label="שם משפטי">
             <input value={draft.legalName ?? ''} onChange={e => upd('legalName', e.target.value)} placeholder="השם הרשום" />
           </Field>
@@ -101,7 +108,9 @@ export default function ProfilePage({ draft, saved, setDraft, noteUpload, focus,
             <input value={draft.representativeNumber ?? ''} onChange={e => upd('representativeNumber', e.target.value)} className="of-ltr" inputMode="numeric" />
           </Field>
           <Field label="סוג מייצג">
-            <select value={draft.representativeType ?? REP_TYPE_OPTIONS[0]} onChange={e => upd('representativeType', e.target.value)}>
+            {/* ‼ ריק = לא נבחר. קודם הוצגה האפשרות הראשונה בלי להישמר, ו«רו״ח» חסר בחתימות. */}
+            <select value={draft.representativeType ?? ''} onChange={e => upd('representativeType', e.target.value)}>
+              {!draft.representativeType && <option value="" disabled>בחרו</option>}
               {REP_TYPE_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
             </select>
           </Field>

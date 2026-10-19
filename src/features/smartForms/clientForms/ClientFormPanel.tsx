@@ -17,7 +17,6 @@ import { blockers, clientFormOf, fieldVisible, formMarkers, screenRelevant, scre
 import { fieldError, ilDate, phoneDisplay, todayIso } from './format';
 import CfFields, { bankNameOf } from './CfFields';
 import { clientFormErrorText, officeFill, officeView, type ClientFormView } from './api';
-import { needsOfficeRep, useOfficeRep, type OfficeRep } from './officeRep';
 import { renderSignedClientForm } from './signedFile';
 import { useKnowledgeLink } from '../../taxKnowledge/knowledgeLink';
 import '../../taxYear/taxYear.css';
@@ -94,11 +93,7 @@ function PanelBody({ def, view, client, unpublished, filingId, onChanged }: {
   const [fillOpen, setFillOpen] = useState(false);
   const [focusKey, setFocusKey] = useState<string | null>(null);
   const template = useMemo(() => templateFor(def, { version: view.mappingVersion, fields: view.mapping ?? {} }), [def, view.mappingVersion, view.mapping]);
-  // ‼ הצהרת המייצג (821): נכנסת רק לטופס החתום — שם ותאריך (בלי חותמת, גיא 17.10.2026)
-  const rep = useOfficeRep(def);
-  const signedData = useMemo(() => (signed && needsOfficeRep(def) && rep.name ? { ...d, repName: rep.name, repDate: d.signDate } : d), [signed, def, rep.name, d]);
-
-  const live = useMemo(() => (signed ? signedData : { ...signedData, ...draft }), [signed, signedData, draft]);
+  const live = useMemo(() => (signed ? d : { ...d, ...draft }), [signed, d, draft]);
   const markers = useMemo(() => formMarkers(def, live, { signed }), [def, live, signed]);
   const missing = blockers(def, d);
   const rows = useMemo(() => summaryRows(def, view), [def, view]);
@@ -136,7 +131,7 @@ function PanelBody({ def, view, client, unpublished, filingId, onChanged }: {
               <span>הלקוח חותם בדף האישי שלו, והחתימה נכנסת לתיבה «חתימה וחותמת» המסומנת על הטופס. המשרד אינו חותם במקומו.</span>
             </div>
           )}
-          {signed && <SignedFile def={def} view={view} client={client} template={template} filingId={filingId} rep={rep} onChanged={onChanged} />}
+          {signed && <SignedFile def={def} view={view} client={client} template={template} filingId={filingId} onChanged={onChanged} />}
           {!open && <Lifecycle def={def} view={view} filingId={filingId} onChanged={onChanged} />}
 
           <h3>מה בטופס</h3>
@@ -165,7 +160,7 @@ function PanelBody({ def, view, client, unpublished, filingId, onChanged }: {
           <div className="cf-review-pages">
             <LiveFormPreview def={def} data={live} template={template} signed={signed}
               signature={signed ? view.signatures?.client ?? null : null}
-              draftMark={signed ? undefined : 'טיוטה — עוד לא נחתם'} ready={!(signed && needsOfficeRep(def) && !rep.ready)}
+              draftMark={signed ? undefined : 'טיוטה — עוד לא נחתם'}
               focusKeys={focusKey ? [focusKey] : undefined} onMarker={open ? openQuestion : undefined}
               signTag={signed ? undefined : 'כאן הלקוח חותם (בדף האישי)'} onRenderError={setRenderErr} />
           </div>
@@ -293,10 +288,9 @@ function OfficeFill({ def, view, filingId, onChanged, open, onOpenChange, focusK
 //   אם אחרי דקתיים מהחתימה עוד אין קובץ — המשרד בונה אותו. לפני כן ממתינים, כדי ששני הצדדים
 //   לא יכתבו לאותו נתיב בבת אחת.
 const PORTAL_GRACE_MS = 120_000;
-function SignedFile({ def, view, client, template, filingId, rep, onChanged }: {
-  def: ClientFormDef; view: ClientFormView; client: Client; template: ReturnType<typeof templateFor>; filingId: string; rep: OfficeRep; onChanged: () => Promise<void>;
+function SignedFile({ def, view, client, template, filingId, onChanged }: {
+  def: ClientFormDef; view: ClientFormView; client: Client; template: ReturnType<typeof templateFor>; filingId: string; onChanged: () => Promise<void>;
 }) {
-  const withRep = needsOfficeRep(def);
   const store = useDocumentStore();
   const [state, setState] = useState<'idle' | 'busy' | 'error'>('idle');
   const [err, setErr] = useState<string | null>(null);
@@ -318,7 +312,7 @@ function SignedFile({ def, view, client, template, filingId, rep, onChanged }: {
       if (view.mappingVersion !== view.activeMappingVersion) throw new Error('מיקום השדות בטופס עודכן אחרי החתימה — לא מפיקים קובץ שנראה אחרת ממה שנחתם.');
       const signDate = String(view.data.signDate || '') || todayIso();
       const bytes = await renderSignedClientForm(def, view.data, {
-        template, signature: view.signatures.client, repName: withRep ? rep.name : '',
+        template, signature: view.signatures.client,
         clientName: `${client.firstName} ${client.lastName}`, signedAt: view.signedAt,
       });
       const sha = await sha256Hex(bytes);
@@ -342,7 +336,7 @@ function SignedFile({ def, view, client, template, filingId, rep, onChanged }: {
       setState('error'); setErr(e instanceof Error ? e.message : String(e));
     }
   };
-  const canRun = graceOver && (!withRep || rep.ready);
+  const canRun = graceOver;
   useEffect(() => {
     if (!view.signedDocumentId && state === 'idle' && canRun) void run();
     // eslint-disable-next-line react-hooks/exhaustive-deps

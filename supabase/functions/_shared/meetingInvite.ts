@@ -280,6 +280,9 @@ export function inviteValues(input: InviteInput, org: InviteOrg): Record<string,
   const contact = [(org.phone ?? '').trim(), (org.website ?? '').trim()].filter(Boolean).join(' · ');
   const firm = (org.firmName ?? '').trim();
   const sig = organizerTitle(org);
+  const me = (org.fullName ?? '').trim();
+  // ‼ 19.10.2026 · «רואה חשבון גיא ישר» מתחת ל«גיא ישר, רו״ח» הוא אותו דבר פעמיים — שם המשרד רק כשהוא מוסיף משהו.
+  const firmLine = firm && !(me && firm.includes(me)) ? firm : '';
   return {
     greeting: greeting(input.guests),
     names: namesPhrase(input.guests),
@@ -294,7 +297,7 @@ export function inviteValues(input: InviteInput, org: InviteOrg): Record<string,
       : 'המועד לא מתאים? השיבו למייל הזה ונמצא זמן אחר.',
     whatsapp: wa,
     organizer: sig,
-    signature: [sig, firm && firm !== (org.fullName ?? '').trim() ? firm : '', contact].filter(Boolean).join('\n'),
+    signature: [sig, firmLine, contact].filter(Boolean).join('\n'),
   };
 }
 

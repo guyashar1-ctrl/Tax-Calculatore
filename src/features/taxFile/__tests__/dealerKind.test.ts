@@ -10,7 +10,7 @@ import { GOVERNED_FACT_KEYS } from '../../../types/taxFacts';
 import { clientPatchToDb } from '../../../lib/dbMappers';
 import {
   EDIT_SECTIONS, EDIT_FIELD_BY_KEY, coerceEditField, editFieldValue, identityFieldError,
-  cardDealerKind, dealerTypeDisplay, dealerKindLabel, parseKindHold, currentKindHold,
+  cardDealerKind, paperlessKindOf, dealerTypeDisplay, dealerKindLabel, parseKindHold, currentKindHold,
   kindHoldPending, kindHoldCount, kindHoldTitles, titleList, kindHoldRowException,
   kindHoldFieldHint, kindHoldOutcome, retryKindHoldErrorText,
 } from '../editModel';
@@ -208,5 +208,15 @@ export const TESTS: TestCase[] = [
     assert(/readKindHold\(\)/.test(afterSave), 'אחרי השמירה ההתקשרות נקראת מחדש');
     assert(/after\?\.resolvedAt && after\.created\.length > 0\) onRequestsChanged\?\.\(\)/.test(afterSave),
       'רענון «בקשות» רק אחרי שחרור שנרשם');
+  }),
+  test('260 · «סוג עסק» בפייפרלס: אותו כלל כמו הכרטיס; לא ידוע אינו «מורשה»', () => {
+    equal(paperlessKindOf(card({ dealerType: 'company' })), 'חברה');
+    equal(paperlessKindOf(card({ dealerType: 'licensed' })), 'מורשה');
+    equal(paperlessKindOf(card({ vatStatus: 'authorizedDealer' })), 'מורשה');
+    equal(paperlessKindOf(card({ dealerType: 'exempt' })), 'פטור');
+    equal(paperlessKindOf(card({ vatStatus: 'exemptDealer' })), 'פטור');
+    equal(paperlessKindOf(card({ dealerType: 'exempt', vatStatus: 'authorizedDealer' })), 'מורשה', 'סיווג מע״מ מורשה גובר — כמו בשרת');
+    equal(paperlessKindOf(card({ vatStatus: 'none' })), null);
+    equal(paperlessKindOf(card({ dealerType: 'other' })), null);
   }),
 ];

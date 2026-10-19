@@ -6,16 +6,14 @@
 import { supabase } from '../../../lib/supabase';
 import { renderClientForm } from './registry';
 import { todayIso } from './format';
-import { needsOfficeRep } from './officeRep';
 import type { SmartFormTemplate } from '../types';
 import type { CfData, ClientFormDef } from './types';
 
 export async function renderSignedClientForm(def: ClientFormDef, data: CfData, opts: {
-  template: SmartFormTemplate; signature: string; repName: string; clientName: string; signedAt?: string | null;
+  template: SmartFormTemplate; signature: string; clientName: string; signedAt?: string | null;
 }): Promise<Uint8Array> {
   const signDate = String(data.signDate || '') || todayIso();
-  const d = needsOfficeRep(def) && opts.repName ? { ...data, repName: opts.repName, repDate: signDate } : data;
-  const { bytes } = await renderClientForm(def, d, {
+  const { bytes } = await renderClientForm(def, data, {
     template: opts.template, signature: opts.signature, title: `${def.template.title} — ${opts.clientName} — חתום`,
     date: new Date(opts.signedAt ?? `${signDate}T12:00:00Z`),
   });

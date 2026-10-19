@@ -80,6 +80,10 @@ export const TESTS: TestCase[] = [
     assert(d.includes('בוואטסאפ 050-1111111'), 'מספר הוואטסאפ של המשרד');
     assert(d.endsWith('נתראה,\nגיא ישר, רו״ח\nישר רואי חשבון\n050-0000000 · yasharcpa.co.il'), 'חתימה');
   }),
+  test('חתימה: שם המשרד שחוזר על השם שלך לא נכתב פעמיים', () => {
+    const d = inviteDescription({ kind: 'intro', guests: [], durationMin: 30 }, { ...ORG, firmName: 'רואה חשבון גיא ישר' });
+    assert(d.endsWith('נתראה,\nגיא ישר, רו״ח\n050-0000000 · yasharcpa.co.il'), 'בלי «רואה חשבון גיא ישר»');
+  }),
   test('עבודה: נושא ומה להכין; בלי «ללא עלות»', () => {
     const ps = inviteParagraphs({ kind: 'work', guests: [], durationMin: 45, topic: 'דוח שנתי', prep: 'טופס 106\n\nאישור ניכוי' }, ORG);
     equal(ps.length, 7, 'פנייה · נושא · מה להכין · איך מצטרפים · לאשר · לשנות · חתימה');
