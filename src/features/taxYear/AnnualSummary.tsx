@@ -15,6 +15,8 @@ import * as api from './api';
 import { ITEM_BY_KEY } from './catalog';
 import { DOCS } from './documents';
 import { supabase } from '../../lib/supabase';
+import PriorReturnPrep from './PriorReturnPrep';
+import { knownFamilyEvent } from './asks';
 
 type Ask = YearData['asks'][number];
 type Run = (fn: () => Promise<unknown>, done?: string) => Promise<boolean>;
@@ -30,6 +32,7 @@ interface Props {
   more?: { count: number; run: () => Promise<boolean> };
   /** פריטים שהמשרד משלים (סכומים ממסמכים, מסלולים, פריסת דמי לידה…) — פותח את «פירוט מלא» עליהם. */
   officeTodo?: { count: number; open: () => void };
+  onClientPersisted?: (c: Client) => void;
 }
 
 /** איזה נושא בדוח כל מסמך מזין — הכותרת של השורה ב«מה למלא בדוח». */
@@ -61,7 +64,7 @@ const PAYMENT_ITEMS: { key: string; label: string; businessOnly: boolean }[] = [
 const yes = (f: YearFact) => f.answer === 'value' && f.status !== 'rejected' && f.status !== 'superseded';
 const fmt = (n: number) => n.toLocaleString('he-IL');
 
-export default function AnnualSummary({ client, step, year, data, busy, run, more, officeTodo }: Props) {
+export default function AnnualSummary({ client, step, year, data, busy, run, more, officeTodo, onClientPersisted }: Props) {
   const firstName = client.firstName || 'הלקוח';
   const spouseName = client.spouseFirstName || client.spouse?.firstName || 'בן/בת הזוג';
   const whoOf = (r: SubjectRole) => (r === 'spouse' ? spouseName : r === 'couple' ? (client.familyStatus === 'married' ? 'שניכם' : firstName) : firstName);
@@ -93,7 +96,8 @@ export default function AnnualSummary({ client, step, year, data, busy, run, mor
   const businesses = (client.businesses ?? []).filter(b => !b.isClosed);
 
   // ── שנת פטירה ──
-  const death = isYes('family.eventDeath');
+  // ‼ אלמן/ה מ-{שנה} בכרטיס — הענף נפתח ישר מהרשת (asks.ts › knownFamilyEvent), בלי עובדת «נפטר/ה»
+  const death = isYes('family.eventDeath') || knownFamilyEvent(client, year) === 'death';
   const deathRec = factFor('family.death')[0]?.value as { date?: string } | undefined;
   const decisionDone = (key: string) => facts.some(f => f.itemKey === 'annual.officeDecision' && yes(f) && (f.value as { decision?: string } | undefined)?.decision === key);
   const survivors = ['family.survivorFromFund', 'family.survivorFromState', 'family.survivorFromBtl'].some(isYes);
@@ -146,7 +150,11 @@ export default function AnnualSummary({ client, step, year, data, busy, run, mor
         </p>
       )}
 
-      {more && more.count > 0 && (
+      {/* ‼ 19.10.2026 · עוד לא יצא כלום ללקוח — «לפני השליחה»: הדוח של שנה שעברה כנקודת פתיחה (או פרסום מהכרטיס) */}
+      {more && asks.length === 0 && (
+        <PriorReturnPrep client={client} year={year} stepId={step.id} busy={busy} run={run} publishPlain={more.run} onClientPersisted={onClientPersisted} />
+      )}
+      {more && more.count > 0 && asks.length > 0 && (
         <div className="as-approve" role="note" data-annual-more>
           <span>{more.count === 1 ? 'עוד שאלה אחת' : `עוד ${more.count} שאלות`} ל{firstName} — לפי מה שכבר ענה או לפי מה שבתיק.<small>מתפרסמות בדף של {firstName}, בלי מייל.</small></span>
           <button type="button" className="btn btn-sm btn-primary" disabled={busy} onClick={() => void more.run()}>הכן ופרסם בדף</button>

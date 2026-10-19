@@ -58,9 +58,14 @@ const walk = (abs) => {
 };
 walk(entry);
 
+// ‼ 19.10.2026 · verify_jwt נקרא מ-supabase/config.toml (כמו הוורקפלו). קבוע false הוריד את בדיקת השער
+//   מפונקציות שמוגדרות true (ocr-document נפרסה כך פעם אחת). פונקציה שאינה בקובץ — false, כמו קודם.
+const toml = existsSync(resolve(ROOT, 'supabase/config.toml')) ? readFileSync(resolve(ROOT, 'supabase/config.toml'), 'utf8').replace(/\r\n/g, '\n') : '';
+const section = toml.split(/\n(?=\[)/).find(b => b.startsWith(`[functions.${name}]`)) ?? '';
+const verifyJwt = /^verify_jwt\s*=\s*true\b/m.test(section);
 const form = new FormData();
 form.append('metadata', JSON.stringify({
-  name, entrypoint_path: `${name}/index.ts`, verify_jwt: false,
+  name, entrypoint_path: `${name}/index.ts`, verify_jwt: verifyJwt,
 }));
 for (const [path, content] of files) {
   form.append('file', new File([content], path, { type: 'application/typescript' }), path);

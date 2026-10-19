@@ -10,6 +10,7 @@ import { AREA_BY_ID, ITEMS, ITEM_BY_KEY, type InfoItem, CATALOG_VERSION } from '
 import { DOCS, followUpFor } from './documents';
 import { PROVISIONAL, provisionalRef, type ItemStatus } from './picture';
 import type { AskPrompt, EntityKind, FactAnswer, FactBasis, InfoAsk, MultiFollowUp, MultiOption, PeriodKind, Purpose, SubjectRole, UnavailableCode, YearFact } from './types';
+import type { LastYearHints } from './priorReturn';
 import { cleanEntity, entityValid, visibleFields, type EntityItem } from './entities';
 import { hintFor } from './hints';
 import { RECORD_OF, isPeriodItem, dealerOf } from './structured';
@@ -111,6 +112,8 @@ export interface AskCtx {
   client: Client; taxYear: number; purpose: Purpose; cutoffMonth?: number;
   /** הצהרת הון: יום ההצהרה, ראשונה/המשך, ומה ידוע מההצהרה הקודמת לכל תחום (להצגה ללקוח). */
   asOfDate?: string; declKind?: 'first' | 'followup'; previousByArea?: Record<string, string>;
+  /** 19.10.2026 · דוח שנתי: מה המשרד אישר מהדוח של שנה שעברה (priorReturn.ts) — אריחים מסומנים מראש ושם בן/בת הזוג. */
+  lastYear?: LastYearHints;
 }
 const heDate = (iso?: string) => (iso ? `${iso.slice(8, 10)}.${iso.slice(5, 7)}.${iso.slice(0, 4)}` : '');
 
@@ -218,7 +221,10 @@ export interface AskPlanEntry {
  * מהסטטוסים שאפשר לשאול → שאלות. לזוג, שאלת פתיחה שחסרה לשניהם הופכת לשאלה אחת
  * «מי מכם?» (העובדות נשמרות לכל אדם בנפרד). שאר הפריטים — שאלה לכל יעד.
  */
-export function buildAskPlan(statuses: ItemStatus[], ctx: AskCtx): AskPlanEntry[] {
+export function buildAskPlan(statuses: ItemStatus[], ctx0: AskCtx): AskPlanEntry[] {
+  // ‼ שם בן/בת הזוג מהדוח הקודם — לנוסח בלבד (כרטיס בלי שם, למשל אלמן/ה), לא נכתב לכרטיס
+  const ctx = ctx0.lastYear?.spouseName && !ctx0.client.spouseFirstName && !ctx0.client.spouse?.firstName
+    ? { ...ctx0, client: { ...ctx0.client, spouseFirstName: ctx0.lastYear.spouseName } } : ctx0;
   const c = ctx.client;
   const out: AskPlanEntry[] = [];
   const used = new Set<ItemStatus>();
@@ -311,8 +317,15 @@ function buildMultiEntry(statuses: ItemStatus[], ctx: AskCtx): AskPlanEntry | nu
     const hintRaw = hintFor(key, undefined);
     const base = { key, role, label: it.tile!, hint: hintRaw ? fillTemplate(hintRaw, c, role) : undefined };
     if (!annual) return { ...base, followUp: gridFollowUp(it, role, ctx) };
+    // ‼ 19.10.2026 · אירוע שכבר בכרטיס בשנת הדוח (אלמן/ה מ-{שנה}) — האריח מסומן ופותח ישר את הענף, בלי «מה קרה?»
+    const known = key === 'household.familyChange' ? knownFamilyEvent(c, ctx.taxYear) : null;
+    if (known) {
+      const b = familyBranches(ctx)[known];
+      return { ...base, label: b.label, note: 'ידוע לנו מהתיק', preset: true, ...(b.followUps?.length ? { followUps: b.followUps } : {}) };
+    }
     const followUps = (ANNUAL_FOLLOW[key] ?? []).map((k, i) => annualFollowUp(k, role, ctx, i)).filter((x): x is MultiFollowUp => !!x);
-    return { ...base, ...(followUps.length ? { followUps } : {}) };
+    const last = ctx.lastYear?.tiles[key];
+    return { ...base, ...(followUps.length ? { followUps } : {}), ...(last ? { note: `ב-${ctx.lastYear!.year}: ${last}`, preset: true } : {}) };
   }).sort((a, b) => (order.indexOf(a.key) + 1 || 99) - (order.indexOf(b.key) + 1 || 99));
   const why = item.why ?? '';
   return {
@@ -367,16 +380,34 @@ const opt = (key: string, role: SubjectRole, label: string, followUps: (MultiFol
  * ‼ הטון עדין, ובלי מונחים מקצועיים — את ההכרעות (חיתוך ביום הפטירה, הפיצויים, פטור הנכות) עושה המשרד.
  *   המקור: docs/tax-foundation/research/spouse-death-year-2026-10-19.md.
  */
+/** ‼ 19.10.2026 · האירוע המשפחתי של שנת הדוח, כשהוא כבר רשום בכרטיס (המצב היום + שנת האירוע). */
+export function knownFamilyEvent(c: Client, taxYear: number): 'death' | 'divorce' | 'marriage' | null {
+  if (c.familyStatus === 'widowed' && c.widowhoodYear === taxYear) return 'death';
+  if (c.familyStatus === 'divorced' && c.divorceYear === taxYear) return 'divorce';
+  if (c.familyStatus === 'married' && c.marriageYear === taxYear) return 'marriage';
+  return null;
+}
+
 function familyEventPrompt(ctx: AskCtx, order: number): AskPrompt {
-  const c = ctx.client;
-  const married = c.familyStatus === 'married';
-  const sp = spouseNameOf(c);
+  const married = ctx.client.familyStatus === 'married';
   const it = ITEM_BY_KEY['household.familyEvent'];
-  const spouseEmployerOnCard = (c.employers ?? []).some(e => !!e.belongsToSpouse);
-  const death = opt('family.eventDeath', 'couple', married ? `${sp} נפטר/ה` : 'בן/בת הזוג נפטר/ה', [
+  const b = familyBranches(ctx);
+  return {
+    templateVersion: CATALOG_VERSION, order, title: it?.question ?? 'מה קרה?', why: it?.why ?? '',
+    input: { kind: 'multi', options: married ? [b.death, b.divorce] : [b.marriage, b.divorce] },
+  };
+}
+
+function familyBranches(ctx: AskCtx): Record<'death' | 'divorce' | 'marriage', MultiOption> {
+  const c = ctx.client;
+  const sp = spouseNameOf(c);
+  const named = !!(c.spouseFirstName || c.spouse?.firstName);
+  // ‼ מעסיק של בן/בת הזוג בכרטיס — ה-106 שלו כבר נשאל לפי הישות (גם אצל אלמן/ה); כאן רק כשאין
+  const spouseEmployerAsked = (c.employers ?? []).some(e => !!e.belongsToSpouse);
+  const death = opt('family.eventDeath', 'couple', named ? `${sp} נפטר/ה` : 'בן/בת הזוג נפטר/ה', [
     branchAsk('family.death', 'couple', ctx, 1, { hint: 'אנחנו משתתפים בצערך. נשאל רק את מה שצריך כדי לסדר את הדוח — ואת השאר נעשה אנחנו.' }),
     branchAsk('family.deathIncome', 'couple', ctx, 2, { input: { kind: 'multi', options: [
-      opt('family.deathGotSalary', 'spouse', 'משכורת', spouseEmployerOnCard ? [] : [annualFollowUp('salary.form106', 'spouse', ctx, 6)]),
+      opt('family.deathGotSalary', 'spouse', 'משכורת', spouseEmployerAsked ? [] : [annualFollowUp('salary.form106', 'spouse', ctx, 6)]),
       opt('family.deathGotPension', 'spouse', 'קצבה או פנסיה', [branchAsk('pension.certs', 'spouse', ctx, 7)]),
       opt('family.deathGotNi', 'spouse', 'דמי מחלה או קצבת נכות מביטוח לאומי', [branchAsk('niBenefits.cert', 'spouse', ctx, 8)]),
       opt('family.deathGotDisabilityIns', 'spouse', 'אובדן כושר עבודה מחברת ביטוח', [branchAsk('family.disabilityInsDocs', 'spouse', ctx, 9)]),
@@ -398,10 +429,7 @@ function familyEventPrompt(ctx: AskCtx, order: number): AskPrompt {
     branchAsk('family.divorce', 'couple', ctx, 1), branchAsk('family.divorceDocs', 'couple', ctx, 2)]);
   const marriage = opt('family.eventMarriage', 'couple', 'התחתנתי', [
     branchAsk('family.marriage', 'couple', ctx, 1), branchAsk('family.marriageSpouseDocs', 'couple', ctx, 2)]);
-  return {
-    templateVersion: CATALOG_VERSION, order, title: it?.question ?? 'מה קרה?', why: it?.why ?? '',
-    input: { kind: 'multi', options: married ? [death, divorce] : [marriage, divorce] },
-  };
+  return { death, divorce, marriage };
 }
 
 /** מה נפתח כשמסמנים אריח: פריט «של מי / איפה» של התחום (ישות חדשה — עם המזהה הזמני), או «מי מכם?» לזוג כשאין פריט כזה. */

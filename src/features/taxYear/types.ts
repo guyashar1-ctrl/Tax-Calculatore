@@ -205,6 +205,12 @@ export interface MultiOption {
    * כל אחת צילום, כמו followUp. השרת (262) פותח את כולן; followUp נשאר לתאימות.
    */
   followUps?: MultiFollowUp[];
+  /**
+   * 19.10.2026 · מסומן מראש: היה בדוח של שנה שעברה (אושר במשרד) או שהאירוע כבר בכרטיס. הלקוח יכול לבטל.
+   * note — השורה הקטנה מתחת לשם האריח («ב-2024: מינהלת הגמלאות · דפנה»).
+   */
+  preset?: boolean;
+  note?: string;
 }
 export interface MultiFollowUp { itemKey: string; subjectRole: SubjectRole; entityKind?: EntityKind; entityRef?: string; prompt: AskPrompt }
 

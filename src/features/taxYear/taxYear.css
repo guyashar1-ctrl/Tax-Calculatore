@@ -491,3 +491,30 @@ button.rp-cell:disabled { cursor: default; }
 .as-approve { display: flex; justify-content: space-between; gap: 12px; align-items: center; padding: 10px 12px; border-radius: var(--radius); background: var(--soft); border: 1px solid var(--soft-bd); font-size: var(--fs-13); color: var(--ink-2); }
 .as-approve small { display: block; color: var(--ink-3); margin-top: 2px; }
 @media (max-width: 720px) { .as-approve { flex-direction: column; align-items: flex-start; } }
+
+/* 19.10.2026 · אריח מסומן מראש — «ב-2024: …» מתחת לשם */
+.ty-tile-text { display: flex; flex-direction: column; gap: .1rem; min-width: 0; }
+.ty-tile-note { font-size: var(--fs-12); font-weight: 400; color: var(--tx-2, var(--ink-3)); overflow-wrap: anywhere; }
+
+/* 19.10.2026 · «לפני השליחה» — הדוח של שנה שעברה כנקודת פתיחה (PriorReturnPrep) */
+.as-prep { display: flex; flex-direction: column; gap: .6rem; padding: .85rem 1rem; border: 1px solid var(--br); border-radius: 12px; background: var(--soft); }
+.as-prep p { margin: 0; }
+.as-prep .as-muted { font-size: var(--fs-12); color: var(--tx-2, var(--ink-3)); }
+.as-prep-docs { display: flex; flex-direction: column; gap: .45rem; }
+.as-prep-doc { display: flex; align-items: center; justify-content: space-between; gap: .6rem; flex-wrap: wrap; padding: .5rem .65rem; border-radius: 10px; background: var(--card); }
+.as-prep-doc b { overflow-wrap: anywhere; }
+.as-prep-actions { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; }
+.as-prep-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .4rem; }
+.as-prep-row { display: grid; grid-template-columns: auto 1fr auto; gap: .55rem; align-items: start; padding: .55rem .65rem; border-radius: 10px; background: var(--card); }
+.as-prep-row.is-off { opacity: .72; }
+.as-prep-row input[type="checkbox"] { margin-top: .2rem; width: 1.1rem; height: 1.1rem; }
+.as-prep-check { margin-top: .1rem; color: var(--br-strong); font-weight: 700; }
+.as-prep-what { display: flex; flex-direction: column; gap: .2rem; min-width: 0; }
+.as-prep-what small { font-size: var(--fs-12); color: var(--tx-2, var(--ink-3)); overflow-wrap: anywhere; }
+.as-prep-name { width: 100%; min-width: 0; padding: .3rem .45rem; border: 1px solid var(--bd-strong); border-radius: 8px; background: var(--card); color: var(--tx); font: inherit; }
+.as-prep-who { padding: .3rem .4rem; border: 1px solid var(--bd-strong); border-radius: 8px; background: var(--card); color: var(--tx); font: inherit; max-width: 9rem; }
+@media (max-width: 480px) {
+  .as-prep { padding: .7rem .75rem; }
+  .as-prep-row { grid-template-columns: auto 1fr; }
+  .as-prep-who { grid-column: 2; justify-self: start; }
+}

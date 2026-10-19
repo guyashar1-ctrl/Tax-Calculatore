@@ -44,6 +44,7 @@ import { CATALOG_TYPES, type CatalogType, type PreviewTarget } from '../../featu
 import { EMPTY_FIRM_PROFILE, composerPreviewOfTemplate } from './InlineComposer';
 import TaxYearRequestForm from '../../features/taxYear/TaxYearRequestForm';
 import { openAnnualReturn } from '../../features/taxYear/workCreate';
+import { findPriorReturnDocs } from '../../features/taxYear/priorReturnApi';
 import { AVAILABLE } from '../../features/taxKnowledge/availability';
 import type { ClientFormKey } from '../../features/smartForms/clientForms/types';
 
@@ -844,14 +845,16 @@ export default function AddRequestDialog({ clientId, steps, processPublished, aw
                 onClick={async () => {
                   if (openAnnual) { onOpenTaxYear(openAnnual.id); onClose(); return; }
                   setBusy(true); setError(null);
-                  const r = await openAnnualReturn(client, annualYear);
+                  // ‼ יש במסמכים את הדוח של שנה שעברה ⇒ הבקשה נפתחת בלי לפרסם, ובדף הבקשה — «לפני השליחה»
+                  const prior = await findPriorReturnDocs(client.id, annualYear).catch(() => []);
+                  const r = await openAnnualReturn(client, annualYear, { holdForPriorReturn: prior.length > 0 });
                   setBusy(false);
                   if (!r.ok || !r.stepId) { setError(r.error === 'forbidden' ? 'אין הרשאה ללקוח הזה' : `הפתיחה נכשלה (${r.error ?? 'שגיאה'})`); if (r.stepId) onCreated(); return; }
                   onCreated(); onOpenTaxYear(r.stepId); onClose();
                 }}>
                 <span style={{ fontWeight: 700 }}>{busy ? 'פותח…' : `דוח שנתי ${annualYear}`}</span>
                 <span style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)' }}>
-                  {openAnnual ? 'כבר פתוח — לפתיחת הבקשה' : `שאלון קצר עולה לדף של ${client.firstName || 'הלקוח'}: מה ידוע, מה היה ב-${annualYear}, ואילו מסמכים צריך. בלי מייל.`}
+                  {openAnnual ? 'כבר פתוח — לפתיחת הבקשה' : `שאלון קצר עולה לדף של ${client.firstName || 'הלקוח'}: מה ידוע, מה היה ב-${annualYear}, ואילו מסמכים צריך. כשהדוח של ${annualYear - 1} במסמכים — קודם מבט שלך עליו. בלי מייל.`}
                 </span>
               </button>
             );

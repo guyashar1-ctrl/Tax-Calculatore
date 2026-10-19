@@ -243,7 +243,9 @@ export default function TaxInfoFlow({ stepId, token, previewClientId, previewAsk
   }
 
   const ask = screen.ask;
-  const d = draft[ask.id] ?? {};
+  // ‼ 19.10.2026 · אריחים שסומנו מראש (הדוח הקודם / אירוע מהכרטיס) — הבחירה ההתחלתית, עד שהלקוח נוגע
+  const d = draft[ask.id] ?? (ask.prompt.input.kind === 'multi' && ask.prompt.input.options.some(o => o.preset)
+    ? { selected: ask.prompt.input.options.filter(o => o.preset).map(o => o.key) } : {});
   const setD = (patch: Draft) => setDraft(x => ({ ...x, [ask.id]: { ...x[ask.id], ...patch } }));
   const answered = ask.state === 'answered';
   const input = ask.prompt.input;
@@ -366,7 +368,8 @@ export default function TaxInfoFlow({ stepId, token, previewClientId, previewAsk
             return (
               <button key={o.key} type="button" className="ty-tile" aria-pressed={on} data-tile={o.key} title={o.hint}
                 onClick={() => setD({ none: false, selected: on ? (d.selected ?? []).filter(k => k !== o.key) : [...(d.selected ?? []), o.key] })}>
-                <span className="ty-tile-check" aria-hidden="true">{on ? '✓' : ''}</span>{o.label}
+                <span className="ty-tile-check" aria-hidden="true">{on ? '✓' : ''}</span>
+                <span className="ty-tile-text">{o.label}{o.note && <small className="ty-tile-note">{o.note}</small>}</span>
               </button>
             );
           })}

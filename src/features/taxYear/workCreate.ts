@@ -14,6 +14,7 @@ import { buildAskPlan, type AskPlanEntry } from './asks';
 import { DURABLE_KINDS, scopeYearData } from './yearData';
 import { previousByArea, type WealthPayload } from './WealthDeclarationPanel';
 import { metaOf, type NewWorkRow } from './workMeta';
+import type { LastYearHints } from './priorReturn';
 import type { Purpose } from './types';
 
 export interface CreateResult {
@@ -38,7 +39,7 @@ export const toAskInput = (e: AskPlanEntry): api.AskInput => ({ itemKey: e.itemK
  * השאלות שהעבודה הזו צריכה עכשיו — מאותו מנוע כמו דף העבודה (picture.ts → asks.ts), על הנתונים של הבקשה הזו.
  * ‼ stepId ריק = עבודה שעוד לא נוצרה (קליטה חדשה): התמונה נבנית מהכרטיס בלבד, בלי עובדות ושאלות קודמות.
  */
-export async function planAsksFor(client: Client, purpose: Purpose, p: WorkPayload, stepId: string | null): Promise<AskPlanEntry[]> {
+export async function planAsksFor(client: Client, purpose: Purpose, p: WorkPayload, stepId: string | null, lastYear?: LastYearHints): Promise<AskPlanEntry[]> {
   const year = Number(p.taxYear);
   const [d, prior] = await Promise.all([api.loadYearData(client.id, year), api.loadPriorEvidence(client.id, DURABLE_KINDS)]);
   const scoped = scopeYearData(d, purpose, stepId ?? '', p.asOfDate);
@@ -48,7 +49,7 @@ export async function planAsksFor(client: Client, purpose: Purpose, p: WorkPaylo
     openedRare: [...new Set([...scoped.asks.map(a => a.itemKey), ...scoped.facts.map(f => f.itemKey)])],
   });
   return buildAskPlan([...picture.toConfirm, ...picture.toAsk], {
-    client, taxYear: year, purpose, cutoffMonth: p.cutoffMonth, asOfDate: p.asOfDate, declKind: p.kind, previousByArea: previousByArea(p),
+    client, taxYear: year, purpose, cutoffMonth: p.cutoffMonth, asOfDate: p.asOfDate, declKind: p.kind, previousByArea: previousByArea(p), lastYear,
   });
 }
 
@@ -95,18 +96,25 @@ export async function openTaxFileIntake(client: Client): Promise<CreateResult & 
  * הלקוח. ‼ בלי מייל (כלל «דף אחד ללקוח»): הפריט מופיע ב«הדף של X», והמייל — מ«שלח מייל…» כרגיל.
  * ‼ אידמפוטנטי: בקשה קיימת ⇒ נוספות רק שאלות שחסרות (add_tax_info_asks לא מוסיף פריט פתוח פעמיים).
  */
-export async function openAnnualReturn(client: Client, taxYear: number): Promise<CreateResult & { published?: number }> {
+export async function openAnnualReturn(client: Client, taxYear: number, opts: { holdForPriorReturn?: boolean } = {}): Promise<CreateResult & { published?: number; held?: boolean }> {
   const w = await api.ensureYearRequest(client.id, 'annual', taxYear);
   if (!w.ok) return { ok: false, error: w.error, failedAt: 'work' };
+  // ‼ 19.10.2026 · יש בתיק הדוח של שנה שעברה ⇒ קודם מבט של המשרד («לפני השליחה» בדף הבקשה), ורק אז השאלון יוצא
+  if (opts.holdForPriorReturn && w.created) return { ok: true, stepId: w.stepId, created: true, drafted: 0, published: 0, held: true };
+  return publishAnnualAsks(client, taxYear, w.stepId, undefined, w.created);
+}
+
+/** השאלון של הדוח השנתי: נבנה מהתיק (ומהדוח הקודם, אם המשרד אישר) ומתפרסם בדף — בלי מייל. */
+export async function publishAnnualAsks(client: Client, taxYear: number, stepId: string, lastYear?: LastYearHints, created = false): Promise<CreateResult & { published?: number }> {
   let plan: AskPlanEntry[];
-  try { plan = await planAsksFor(client, 'annual', { taxYear }, w.stepId); }
-  catch (e) { return { ok: false, stepId: w.stepId, created: w.created, error: String((e as Error).message), failedAt: 'draft' }; }
-  if (!plan.length) return { ok: true, stepId: w.stepId, created: w.created, drafted: 0, published: 0 };
-  const a = await api.addAsks(w.stepId, plan.map(toAskInput));
-  if (!a.ok) return { ok: false, stepId: w.stepId, created: w.created, error: a.error, failedAt: 'draft' };
+  try { plan = await planAsksFor(client, 'annual', { taxYear }, stepId, lastYear); }
+  catch (e) { return { ok: false, stepId, created, error: String((e as Error).message), failedAt: 'draft' }; }
+  if (!plan.length) return { ok: true, stepId, created, drafted: 0, published: 0 };
+  const a = await api.addAsks(stepId, plan.map(toAskInput));
+  if (!a.ok) return { ok: false, stepId, created, error: a.error, failedAt: 'draft' };
   const p = await api.publishInfo(a.infoStepId);
-  if (!p.ok) return { ok: false, stepId: w.stepId, created: w.created, drafted: a.added, error: p.error, failedAt: 'draft' };
-  return { ok: true, stepId: w.stepId, created: w.created, drafted: a.added, published: p.published };
+  if (!p.ok) return { ok: false, stepId, created, drafted: a.added, error: p.error, failedAt: 'draft' };
+  return { ok: true, stepId, created, drafted: a.added, published: p.published };
 }
 
 export async function createWork(row: NewWorkRow, client: Client): Promise<CreateResult> {
