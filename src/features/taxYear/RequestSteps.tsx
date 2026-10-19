@@ -56,9 +56,8 @@ export function requestStepsViews(
   const out = new Map<string, { row: WorkRow; view: RequestStepsView }>();
   if (!steps.some(s => kindOf(s))) return out;
   const d = data ?? { asks: [], facts: [], evidence: [], pending: [] };
-  const alignment = steps.filter(s => s.stepType.startsWith('institution_alignment_'));
   for (const row of buildWorkRows(steps, d.asks, d.facts, d.evidence, () => firstName)) {
-    const view = deriveRequestSteps(row, alignment, pendingToCardFor(row.parent.id, d.pending, d.facts), {
+    const view = deriveRequestSteps(row, pendingToCardFor(row.parent.id, d.pending, d.facts), {
       firstName, awaitingPage: !!row.info && awaitingPublish.has(row.info.id),
     });
     out.set(row.parent.id, { row, view });

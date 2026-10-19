@@ -2,7 +2,7 @@
 /**
  * staging-test-institution-alignment.mjs — שער הרגרסיה של יישור קו מול הרשויות (M2).
  *
- * T1  קליטה חדשה: create_engagement_for_quotation יוצר 3 שלבי מוסד + opening_call נעול, תלוי בשלושתם.
+ * T1  קליטה חדשה: מ-261 (19.10.2026) create_engagement_for_quotation **לא** יוצר שלבי מוסד ולא opening_call — יישור קו רק בבקשת המשרד.
  * T2  לקוח ותיק במשרד: ensure_institution_alignment_steps(client,null,false) — בלי opening_call, בלי engagement.
  * T3  לקוח פעיל: reopen_institution_alignment מאפס לסטטוס pending ושומר תמונת מצב ב-history.
  * T4  התקדמות נכונה: advance_onboarding_step('complete') מעביר סטטוס בפועל.
@@ -57,17 +57,17 @@ ok('T1a create_engagement_for_quotation ok', createRes.ok === true, JSON.stringi
 const instSteps1 = await writeStaging(`
   select step_type, status, stage_id from public.onboarding_steps
    where client_id='${client1}' and step_type like 'institution_alignment_%' order by step_type;`);
-ok('T1b שלושת שלבי המוסדות נוצרו', instSteps1.length === 3, `נמצאו ${instSteps1.length}`);
-ok('T1c כולם pending ומקובצים תחת אותו stage_id', instSteps1.every(s => s.status === 'pending')
-  && new Set(instSteps1.map(s => s.stage_id)).size === 1);
+ok('T1b · 261 · אין שלבי מוסד אחרי האישור', instSteps1.length === 0, `נמצאו ${instSteps1.length}`);
 
 const call1 = await writeStaging(`
   select id, status from public.onboarding_steps where client_id='${client1}' and step_type='opening_call';`);
-ok('T1d opening_call נוצר נעול', call1.length === 1 && call1[0].status === 'locked', JSON.stringify(call1));
-
-const deps1 = await writeStaging(`
-  select depends_on_step_id from public.onboarding_step_dependencies where step_id='${call1[0]?.id}';`);
-ok('T1e opening_call תלוי בשלושת המוסדות (multi-parent)', deps1.length === 3, `נמצאו ${deps1.length}`);
+ok('T1d · 261 · אין שיחת פתיחה אוטומטית', call1.length === 0, JSON.stringify(call1));
+// ‼ T7 בודק הבהרות על שיחת פתיחה — יוצרים אחת ידנית (כמו שיחה שנוצרה לפני 261).
+const call1Manual = (await one(`
+  insert into public.onboarding_steps (user_id, client_id, step_type, track, scope, status, ball, required_for_close, payload)
+  values ('${USER_ID}', '${client1}', 'opening_call', 'review', 'person', 'pending', 'me', false, '{"clarifications":[]}'::jsonb)
+  returning id;`)).id;
+call1.push({ id: call1Manual, status: 'pending' });
 
 // ─── T2 · לקוח ותיק במשרד — בלי engagement, בלי opening_call ────────────────
 const client2 = (await one(`

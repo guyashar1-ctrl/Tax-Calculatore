@@ -134,3 +134,11 @@
   .fr-lead, .fr-reach-k { min-width: 0; flex-basis: 100%; }
 }
 .ps-block { flex-basis: 100%; font-size: var(--fs-12); color: var(--warn); font-weight: 600; line-height: 1.55; }
+
+/* 19.10.2026 · «ועוד N שהושלמו» — בקבוצה פעילה מה שהושלם מקופל מאחורי שורה שקטה אחת. */
+.rg-more {
+  justify-self: start; border: 0; background: none; padding: 2px 4px;
+  font: inherit; font-size: var(--fs-13); color: var(--ink-3); cursor: pointer;
+  text-decoration: underline; text-underline-offset: 3px;
+}
+.rg-more:hover { color: var(--ink-1); }

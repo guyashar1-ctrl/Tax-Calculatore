@@ -4,12 +4,11 @@
 // ‼ ההדמיה המאושרת: docs/prototypes/one-request-tax-file-2026-10-16/index.html («בקשות»). שלב 4 יחבר את הצעד
 //   השני לעבודות העובד; עד אז הוא מראה את יישור הקו האחרון שבוצע מכרטיס «זהות ורשויות».
 
-import type { OnboardingStep } from '../../types/onboarding';
 import type { RowState } from '../../utils/requestPresentation';
 import type { WorkRow } from './taxWork';
 
 export type StepTone = 'idle' | 'wait' | 'mine' | 'new' | 'ok';
-export interface RequestStepView { key: 'answers' | 'alignment' | 'card'; title: string; line: string; tone: StepTone }
+export interface RequestStepView { key: 'answers' | 'card'; title: string; line: string; tone: StepTone }
 export interface RequestStepsView {
   /** המצב הקצר בשורה הסגורה; undefined = המצב הנגזר הרגיל של השורה («הושלם» וכו׳). */
   chip?: RowState;
@@ -17,17 +16,10 @@ export interface RequestStepsView {
 }
 
 const CLOSED = ['completed', 'verified', 'skipped', 'cancelled', 'failed'];
-const dmy = (iso?: string) => (iso ? iso.slice(0, 10).split('-').reverse().join('.') : '');
 const count = (n: number, one: string, many: string) => (n === 1 ? one : `${n} ${many}`);
 
-/** יישור הקו האחרון שהושלם (payload.checkedAt — מתעדכן בכל ריצה; אחרת completedAt), וכמה רשויות הושלמו. */
-export function lastAlignment(alignment: OnboardingStep[]): { at?: string; done: number } {
-  const done = alignment.filter(s => s.status === 'completed' || s.status === 'verified');
-  const at = done.map(s => String((s.payload as { checkedAt?: string } | undefined)?.checkedAt ?? s.completedAt ?? '')).filter(Boolean).sort().pop();
-  return { at: at || undefined, done: done.length };
-}
-
-export function deriveRequestSteps(row: WorkRow, alignment: OnboardingStep[], pendingToCard: number, opts: { firstName: string; awaitingPage?: boolean }): RequestStepsView {
+// ‼ 19.10.2026 (גיא): יישור קו ברשויות אינו צעד בבקשה — הוא כלי בתיק המס («בצע יישור קו»), ולכן ירד מהצעדים.
+export function deriveRequestSteps(row: WorkRow, pendingToCard: number, opts: { firstName: string; awaitingPage?: boolean }): RequestStepsView {
   const first = opts.firstName || 'הלקוח';
   const closed = CLOSED.includes(row.parent.status);
   const open = row.missing.length - row.unavailable;
@@ -62,18 +54,13 @@ export function deriveRequestSteps(row: WorkRow, alignment: OnboardingStep[], pe
     chip = pendingToCard > 0 ? { text: 'לאישורך בתיק', tone: 'blue' } : { text: 'נענה', tone: 'gray' };
   }
 
-  const la = lastAlignment(alignment);
-  const alignmentView: RequestStepView = la.at
-    ? { key: 'alignment', title: 'יישור קו ברשויות', line: `אחרון: ${dmy(la.at)} · ${count(la.done, 'רשות אחת', 'רשויות')}`, tone: 'ok' }
-    : { key: 'alignment', title: 'יישור קו ברשויות', line: 'טרם בוצע · מכרטיס «זהות ורשויות»', tone: 'idle' };
-
   const card: RequestStepView = pendingToCard > 0
     ? { key: 'card', title: 'לתיק', line: `${count(pendingToCard, 'עדכון אחד ממתין', 'עדכונים ממתינים')} לאישורך בתיק המס`, tone: 'new' }
     : closed && row.parent.status !== 'cancelled'
       ? { key: 'card', title: 'לתיק', line: 'בתיק', tone: 'ok' }
       : { key: 'card', title: 'לתיק', line: 'ייכנס כ«ממתין לאישורך»', tone: 'idle' };
 
-  return { chip: closed ? undefined : chip, steps: [answers, alignmentView, card] };
+  return { chip: closed ? undefined : chip, steps: [answers, card] };
 }
 
 /** כמה הצעות ממתינות בתיק נולדו מהבקשה הזו: source_ref = tax_year_fact:<עובדה> ⇐ העובדה שייכת לבקשה (request_id). */

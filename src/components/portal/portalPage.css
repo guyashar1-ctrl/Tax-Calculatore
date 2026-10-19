@@ -72,3 +72,13 @@
 @media (hover: hover) and (pointer: fine) { .pp-choice:hover:not(.is-locked) { background-color: rgba(0, 0, 0, .03); } }
 @media (prefers-reduced-motion: reduce) { .pp-choice { transition: none; } }
 .pp-choice input:focus-visible { outline: none; }
+
+/* 19.10.2026 · מה שהושלם לא תופס מקום: «ועוד N שכבר הושלמו» בקבוצה, ו«מה שכבר סיימנו (N)» בתחתית הדף. */
+.pp-done-more {
+  justify-self: start; border: 0; background: none; padding: 2px 4px; font: inherit; font-size: 13px;
+  cursor: pointer; text-decoration: underline; text-underline-offset: 3px;
+}
+.pp-done-fold {
+  display: flex; justify-content: space-between; align-items: center; width: 100%; min-height: 44px;
+  border: 0; background: none; padding: 10px 2px; font: inherit; font-size: 14px; font-weight: 600; cursor: pointer;
+}

@@ -21,13 +21,12 @@ import {
   outstandingDeliverableLabel, deliverableKeyFor,
   portalShowsStep, officeSortOrder,
 } from '../../types/onboarding';
-import type { Client, NiExternalState, NiTracking, RepAuthorityKind, RepresentationStatus, TaxAuthority } from '../../types';
+import type { Client, NiExternalState, NiTracking, RepAuthorityKind, RepresentationStatus } from '../../types';
 import type { Quotation, QuotationItem } from '../../types/quotations';
 import { REP_AUTHORITY_LABELS, REPRESENTATION_STATUS_LABELS, NI_APPROVAL_PHONE, NI_EXTERNAL_STATE_LABELS } from '../../types';
 import { paperlessKindOf } from '../../features/taxFile/editModel';
 import type { AdvanceResult } from '../../hooks/useOnboarding';
 import InstitutionAlignmentGroup, { InstitutionFocus } from './InstitutionAlignment';
-import AuthoritiesPanel from '../authorities/AuthoritiesPanel';
 import { nextActionText, nextStepForClient } from '../../utils/onboardingNext';
 import { representationAction, type RepSendPhase } from '../../utils/representationAction';
 import { shaamPrepLine, type RepPrepFacts } from '../../features/representation/repPreparation';
@@ -522,7 +521,7 @@ export default function OnboardingTab({
   onOpenDocuments,
   clientDisplayName, clientEmail, embedded, focusRequest, onFocusConsumed, ballFilter, onOpenTaxFile,
   niExecution, onUpdateClientFields, onRequestAuthorityRepresentation, onNiInstructionsSent, onAttentionSummary,
-  spouseClient, onOpenSpouseClient, detailedAlignment, onDetailedAlignmentConsumed,
+  spouseClient, detailedAlignment, onDetailedAlignmentConsumed,
 }: Props) {
   // ‼ v3: הוראות האישור לב"ל יוצאות ממשטח הבקשות דרך «שלח בקשות» בלבד
   // (SendRequestsDialog · stage ni_approve). NiInstructionsDialog נשאר לתיק המס.
@@ -620,9 +619,6 @@ export default function OnboardingTab({
    */
   const [focusOrigin, setFocusOrigin] = useState<'taxfile' | 'journey'>('journey');
   const pendingFocusKey = useRef<InstitutionKey | null>(null);
-  const institutionKeyOf = (authority: TaxAuthority): InstitutionKey | null =>
-    authority === 'income_tax' ? 'income' : authority === 'vat' ? 'vat'
-    : authority === 'national_insurance' ? 'btl' : null;
   const openInstitutionDetailed = (key: InstitutionKey | null, origin: 'taxfile' | 'journey') => {
     if (!key) return;
     const instSteps = steps.filter(s => s.stepType.startsWith('institution_alignment_'));
@@ -647,7 +643,6 @@ export default function OnboardingTab({
     onDetailedAlignmentConsumed?.();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [detailedTick]);
-  const openDetailedFor = (authority: TaxAuthority) => openInstitutionDetailed(institutionKeyOf(authority), 'journey');
   /** מסלול הרו"ח הקודם. ‼ חייב לשבת כאן ולא ליד המשתמשים בו (שורה ~940) —
       שם הוא אחרי ה-return המוקדם של מסך המיקוד, וכל כניסה למוסד קורסת. */
   const [prevTrackBusy, setPrevTrackBusy] = useState(false);
@@ -1291,6 +1286,8 @@ export default function OnboardingTab({
     try { window.localStorage.setItem(groupPrefKey, JSON.stringify(next)); } catch { /* נוחות בלבד */ }
     return next;
   });
+  /** 19.10 · בתוך קבוצה פתוחה מוצג רק מה שפתוח; «ועוד N שהושלמו» פותח את השאר — לכל קבוצה בנפרד, לא נשמר. */
+  const [groupDoneShown, setGroupDoneShown] = useState<Record<string, boolean>>({});
   /** 05.10 · עבודה מהבית (220) — היסטוריה מהשרת; נטענת מחדש עם כל שינוי בבקשות. */
   const homeOfficeLoad = useHomeOffice(embedded ? clientId : undefined, portalRefreshKey);
 
@@ -3296,7 +3293,6 @@ export default function OnboardingTab({
           [...openVisible, ...releaseAnchor].filter(s => !groupedIds.has(s.id) && !repGroupedIds.has(s.id))
             .filter(s => !isManualInternalTask(s) || isSpouseConfirmTask(s) || isCreationProblem(s)),
           depParents, { representationRequestId: client.representationRequestId ?? null });
-        const alignSteps = clientSteps.filter(s => s.stepType.startsWith('institution_alignment_'));
 
         /** שורה אחת עם נקודת המצב: כחול = יש מה ללחוץ עכשיו · אדום = בעיה · אפור = אצל אחרים. */
         const flowItem = (step: OnboardingStep, body: React.ReactNode, attn: Attention = attnOf(step)) => (
@@ -3412,8 +3408,6 @@ export default function OnboardingTab({
           return renderStep(row.primary);
         };
 
-        const alignDone = alignSteps.length > 0
-          && alignSteps.every(s => s.status === 'completed' || s.status === 'verified');
 
         /* ── מצב השורה כולה (סבב 4) ────────────────────────────────────────────
            ‼ שורה שמקבצת כמה חלקים מציגה את החלק הדחוף ביותר שדורש אותך — מצבו,
@@ -3594,11 +3588,24 @@ export default function OnboardingTab({
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
                   </span>
                 </button>
-                {open && (
-                  <div className="rg-kids">
-                    {kids.map(k => flowItem(k.s, renderStep(k.s), isStepOpen(k.s.status) ? attnOf(k.s) : { kind: 'done', tone: 'gray' }))}
-                  </div>
-                )}
+                {open && (() => {
+                  // ‼ 19.10.2026 (גיא): מה שהושלם לא תופס מקום — בקבוצה פעילה רואים רק את הפתוח, והשאר מאחורי «ועוד N שהושלמו».
+                  //   קבוצה שכולה הושלמה (יושבת ב«הושלמו») — מציגה הכול, היא כבר היסטוריה.
+                  const isOpenKid = (k: typeof kids[number]) => isStepOpen(k.s.status);
+                  const doneKids = status.tone === 'done' ? [] : kids.filter(k => !isOpenKid(k));
+                  const shownKids = doneKids.length && !groupDoneShown[g.key] ? kids.filter(isOpenKid) : kids;
+                  return (
+                    <div className="rg-kids">
+                      {shownKids.map(k => flowItem(k.s, renderStep(k.s), isStepOpen(k.s.status) ? attnOf(k.s) : { kind: 'done', tone: 'gray' }))}
+                      {doneKids.length > 0 && (
+                        <button type="button" className="rg-more" aria-expanded={!!groupDoneShown[g.key]}
+                          onClick={() => setGroupDoneShown(p => ({ ...p, [g.key]: !p[g.key] }))}>
+                          {groupDoneShown[g.key] ? 'הסתר את מה שהושלם' : `ועוד ${doneKids.length === 1 ? 'אחת שהושלמה' : `${doneKids.length} שהושלמו`}`}
+                        </button>
+                      )}
+                    </div>
+                  );
+                })()}
               </section>
             ),
           };
@@ -3645,14 +3652,25 @@ export default function OnboardingTab({
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
                   </span>
                 </button>
-                {open && (
-                  <div className="rg-kids">
-                    {parentNode}
-                    {opts.extra}
-                    {kids.filter(k => !parentNode || k.stepType !== 'representation')
-                      .map(k => flowItem(k, renderStep(k), isStepOpen(k.status) ? attnOf(k) : { kind: 'done', tone: 'gray' }))}
-                  </div>
-                )}
+                {open && (() => {
+                  // ‼ 19.10.2026: כמו בכל קבוצה — רק הפתוח, והשאר מאחורי «ועוד N שהושלמו» (לא בקבוצה שכולה הושלמה).
+                  const rest = kids.filter(k => !parentNode || k.stepType !== 'representation');
+                  const doneKids = status.tone === 'done' ? [] : rest.filter(k => !isStepOpen(k.status));
+                  const shown = doneKids.length && !groupDoneShown.representation ? rest.filter(k => isStepOpen(k.status)) : rest;
+                  return (
+                    <div className="rg-kids">
+                      {parentNode}
+                      {(status.tone === 'done' || groupDoneShown.representation) && opts.extra}
+                      {shown.map(k => flowItem(k, renderStep(k), isStepOpen(k.status) ? attnOf(k) : { kind: 'done', tone: 'gray' }))}
+                      {doneKids.length > 0 && (
+                        <button type="button" className="rg-more" aria-expanded={!!groupDoneShown.representation}
+                          onClick={() => setGroupDoneShown(p => ({ ...p, representation: !p.representation }))}>
+                          {groupDoneShown.representation ? 'הסתר את מה שהושלם' : `ועוד ${doneKids.length === 1 ? 'אחת שהושלמה' : `${doneKids.length} שהושלמו`}`}
+                        </button>
+                      )}
+                    </div>
+                  );
+                })()}
               </section>
             ),
           };
@@ -3718,7 +3736,6 @@ export default function OnboardingTab({
           setInternalOpenPref(v);
           try { window.localStorage.setItem('pivo.requests.internalOpen', v ? '1' : '0'); } catch { /* נוחות בלבד */ }
         };
-        const alignOpen = openRowId === '__align';
 
         return (
           <>
@@ -3784,84 +3801,19 @@ export default function OnboardingTab({
             />
 
             {/* ── עבודה פנימית — מקופלת ───────────────────────────────────
-                ‼ שני דברים בלבד (הכרעת גיא): «יישור קו ללקוח» ומשימות שהרו"ח
-                הוסיף. לא מופיעים בדף הלקוח. */}
+                ‼ משימות שהרו"ח הוסיף (יישור הקו עבר לתיק המס, 19.10.2026). לא מופיעות בדף הלקוח. */}
             <section className="rl-fold">
               <button type="button" className="rl-fold-head" aria-expanded={internalOpen}
                 onClick={() => setInternalOpen(!internalOpen)}>
                 <span className="rl-fold-title">עבודה פנימית</span>
-                <span className="rl-fold-cnt">{1 + manualInternal.length}</span>
+                {manualInternal.length > 0 && <span className="rl-fold-cnt">{manualInternal.length}</span>}
                 <span className="rl-fold-hint">לא מופיע בדף הלקוח</span>
                 <svg className="rl-fold-chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9" /></svg>
               </button>
               {internalOpen && (
                 <div className="rl-fold-body">
-                  <div className={`rl-item ${alignSteps.length > 0 && !alignDone ? 'is-mine' : 'is-wait'}`}>
-                    <span className="rl-dot" aria-hidden="true" />
-                    <div className={`rl-row${alignOpen ? ' is-open' : ''}`}>
-                      <div className="rl-line">
-                        <button type="button" className="rl-hit" aria-expanded={alignOpen}
-                          onClick={() => setOpenRowId(cur => (cur === '__align' ? null : '__align'))}>
-                          <span className="rl-name">יישור קו ללקוח</span>
-                          <span className={`rl-state${alignSteps.length > 0 && !alignDone ? ' is-blue' : ''}`}>
-                            {alignSteps.length === 0 ? 'טרם התחיל' : alignDone ? 'הושלם' : 'בתהליך'}
-                          </span>
-                        </button>
-                        <div className="rl-act">
-                          {(alignSteps.length === 0 || alignDone) && (
-                            <button type="button" className="btn btn-sm btn-secondary" disabled={alignBusy}
-                              onClick={() => void startOrRerunAlignment(alignSteps)}>
-                              {alignBusy ? 'מעדכן…' : alignSteps.length === 0 ? 'התחל יישור קו' : 'בצע מחדש'}
-                            </button>
-                          )}
-                        </div>
-                        <button type="button" className="rl-chev" aria-expanded={alignOpen}
-                          aria-label={alignOpen ? 'סגירת הפרטים' : 'פתיחת הפרטים'}
-                          onClick={() => setOpenRowId(cur => (cur === '__align' ? null : '__align'))}>
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9" /></svg>
-                        </button>
-                      </div>
-                      {alignOpen && (
-                        <div className="rl-body ob-auth-body">
-                          <div className="rl-facts">
-                            {alignSteps.length === 0
-                              ? 'ביטוח לאומי, מע״מ ומס הכנסה - לאן להיכנס, מה להעתיק, מה חריג'
-                              : alignDone
-                                ? `הושלם${alignSteps[0]?.payload.checkedAt ? ' · נבדק לאחרונה ' + formatDate(String(alignSteps[0].payload.checkedAt), 'list') : ''}`
-                                : 'בתהליך - נכנסים לכל רשות ומיישרים קו'}
-                          </div>
-                          {/* ‼ אותה תצוגה קומפקטית של תיק המס (AuthoritiesPanel) —
-                              רכיב אחד, לא עותק. «תצוגה מפורטת» פותחת את מסך הרשות. */}
-                          <AuthoritiesPanel
-                            client={client}
-                            spouseClient={spouseClient}
-                            niExecution={niExecution}
-                            alignedAt={alignSteps.map(s => String(s.payload.checkedAt ?? '')).filter(Boolean).sort().pop() || undefined}
-                            onClientPersisted={onClientPersisted}
-                            onFactsChanged={() => refresh?.()}
-                            onOpenSpouseClient={onOpenSpouseClient}
-                            onOpenRepresentation={onOpenRepresentation}
-                            onAddNiTarget={onRequestAuthorityRepresentation}
-                            onSendNiInstructions={t => setSendRequestsFocus(`ni:${t.role}`)}
-                            hideRepresentationPlaceholder
-                            hideNiRepresentationActions
-                            onNiInstructionsSent={onNiInstructionsSent}
-                            onOpenDetailed={openDetailedFor}
-                            emptyState={(
-                              <div className="ob-auth-empty">
-                                עוד אין נתונים מהרשויות על הלקוח — «התחל» פותח את יישור הקו.
-                              </div>
-                            )}
-                          />
-                          {alignDone && onOpenTaxFile && (
-                            <button type="button" className="ui-linkbtn" style={{ marginTop: 8 }}
-                              onClick={() => onOpenTaxFile()}>לתיק המס ←</button>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
+                  {/* ‼ 19.10.2026 (גיא): «יישור קו ללקוח» ירד מכאן — הוא כלי בתיק המס («בצע יישור קו» בכרטיס «זהות ורשויות»),
+                      לא נפתח לבד ואינו בקשה. מסכי הרשות נפתחים מ«תצוגה מפורטת» בתיק וחוזרים אליו. */}
                   {manualInternal.map(s => flowItem(s, renderStep(s)))}
 
                   {/* ‼ משימה פנימית — נוצרת ידנית, ולעולם לא מופיעה בדף הלקוח. */}

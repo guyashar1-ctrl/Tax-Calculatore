@@ -177,9 +177,8 @@ try {
        where client_id = (select client_id from public.quotations where id = ${q(quoteId)})
          and (step_type like 'institution_alignment%' or step_type = 'opening_call');`)).a;
     ok('A6 אישור מלקוח שמעולם לא התחבר מצליח', !error, error?.message);
-    ok('A6 ומסלול הקליטה נבנה במלואו (יישור קו + שיחת פתיחה)',
-      align.includes('institution_alignment_btl') && align.includes('institution_alignment_vat')
-      && align.includes('institution_alignment_income') && align.includes('opening_call'), align);
+    // ‼ 261 (19.10.2026): יישור קו ושיחת הפתיחה לא נוצרים באישור — רק כשהמשרד מבקש.
+    ok('A6 · 261 · האישור לא פותח יישור קו ושיחת פתיחה', align === '-', align);
   }
 
   // ─── B · «סיים יישור» כותב באמת ───────────────────────────────────────────

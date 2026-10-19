@@ -2061,15 +2061,10 @@ export function PortalView({ data, token = '', preview = false, embed = false, o
 
         {/* ‼ תזכורת שקטה שכבר קרה משהו — לא רשימה. "מה קורה עכשיו" הוא
             השאלה של העמוד הזה; "מה קרה" שייך לרו"ח בלבד. */}
-        {/* ‼ קבוצה שהושלמה כולה — מקופלת, ואפשר לפתוח ולראות את הבקשות שבה. */}
-        {groupsIn('done').length > 0 && (
-          <div style={{ marginTop: 16 }}>{groupsIn('done').map(renderGroup)}</div>
-        )}
-        {done.length > 0 && (
-          <div style={{ fontSize: 12, color: brand.muted, marginTop: (actions.length > 0 || future.length > 0) ? 16 : 4 }}>
-            ✓ {done.length === 1 ? 'דבר אחד שכבר הושלם' : `${done.length} דברים שכבר הושלמו`}
-          </div>
-        )}
+        {/* ‼ 19.10.2026 (גיא): מה שהושלם לא תופס מקום — קבוצה שהושלמה כולה ובקשה שהושלמה יורדות לשורה שקטה אחת
+            «מה שכבר סיימנו (N)», שנפתחת לרשימת שמות. קודם כל קבוצה שהושלמה עמדה ככרטיס גדול. */}
+        <DoneFold names={[...groupsIn('done').map(x => x.g.title), ...done.map(i => portalChildTitle(i))]} brand={brand}
+          gap={(actions.length > 0 || future.length > 0 || office.length > 0 || docGroups.length > 0) ? 16 : 4} />
 
         {/* ‼ «מסמכים שימושיים» בוטל: מסמך שנפתח נשאר במקום שבו הוא היה,
             תחת «מסמכים מהמשרד», עם סימון שקט. שני קטעים לאותם קבצים אילצו
@@ -2108,6 +2103,10 @@ function PortalGroupCard({ group, status, brand, accent, onDone }: {
     : group.summary;
   const tagColor = status.tone === 'action' ? accent : status.tone === 'done' ? '#2f6b4f' : brand.muted;
   const actionKids = group.items.filter(i => i.bucket === 'action');
+  // ‼ 19.10.2026: בקבוצה פעילה — רק מה שעוד פתוח; מה שהושלם מאחורי «ועוד N שכבר הושלמו».
+  const [doneShown, setDoneShown] = useState(false);
+  const doneKids = status.tone === 'done' ? [] : group.items.filter(i => i.bucket === 'done');
+  const shownItems = doneKids.length && !doneShown ? group.items.filter(i => i.bucket !== 'done') : group.items;
   return (
     <section className="pp-group" data-group={group.key} style={{
       border: `1px solid ${brand.border}`, borderRadius: brand.radius + 4, background: brand.cardBg, marginBottom: 10, overflow: 'hidden',
@@ -2125,7 +2124,7 @@ function PortalGroupCard({ group, status, brand, accent, onDone }: {
       </button>
       {open && (
         <div className="pp-group-kids" style={{ background: brand.pageBg }}>
-          {group.items.map(it => it.bucket === 'action'
+          {shownItems.map(it => it.bucket === 'action'
             ? <ActionItem key={it.key} item={{ ...it, label: portalChildTitle(it) }} brand={brand} accent={accent}
                 last={it === actionKids[actionKids.length - 1]} onDone={onDone} />
             : (
@@ -2143,9 +2142,40 @@ function PortalGroupCard({ group, status, brand, accent, onDone }: {
                 </span>
               </div>
             ))}
+          {doneKids.length > 0 && (
+            <button type="button" className="pp-done-more" aria-expanded={doneShown} onClick={() => setDoneShown(v => !v)}
+              style={{ color: brand.muted }}>
+              {doneShown ? 'הסתר את מה שהושלם' : `ועוד ${doneKids.length === 1 ? 'אחד שכבר הושלם' : `${doneKids.length} שכבר הושלמו`}`}
+            </button>
+          )}
         </div>
       )}
     </section>
+  );
+}
+
+/** «מה שכבר סיימנו (N)» — שורה שקטה אחת בתחתית הדף; נפתחת לרשימת השמות. אין בה פעולות. */
+function DoneFold({ names, brand, gap }: { names: string[]; brand: { muted: string; border: string; ink: string }; gap: number }) {
+  const [open, setOpen] = useState(false);
+  if (!names.length) return null;
+  return (
+    <div style={{ marginTop: gap }} data-done-fold>
+      <button type="button" className="pp-done-fold" aria-expanded={open} onClick={() => setOpen(o => !o)}
+        style={{ color: brand.muted, borderTop: `1px solid ${brand.border}` }}>
+        <span>✓ מה שכבר סיימנו ({names.length})</span>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"
+          style={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform .15s ease' }}><polyline points="6 9 12 15 18 9" /></svg>
+      </button>
+      {open && (
+        <ul style={{ listStyle: 'none', margin: '2px 0 0', padding: 0 }}>
+          {names.map((n, i) => (
+            <li key={`${n}-${i}`} style={{ fontSize: 13, color: brand.muted, padding: '6px 2px', borderBottom: `1px solid ${brand.border}`, display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+              <span style={{ color: brand.ink }}>{n}</span><span style={{ color: '#2f6b4f' }}>הושלם</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }
 

@@ -677,8 +677,7 @@ export default function ClientWorkspace({
         }
       }
       refreshOnboarding?.();
-      // הריצה החדשה מתחילה בלשונית הבקשות, שם נמצאים מסכי המילוי.
-      setTab('journey');
+      // ‼ 19.10.2026: יישור קו הוא כלי בתיק המס, לא בקשה — נשארים בתיק. מסך של רשות נפתח מ«תצוגה מפורטת» בכרטיס שלה.
     } finally {
       setAlignRerunBusy(false);
     }

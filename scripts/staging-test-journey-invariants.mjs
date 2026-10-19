@@ -152,12 +152,10 @@ try {
     keys.length === 9 && !keys.includes('excel_ledger')
     && keys.includes('uniform_file_prev') && keys.includes('pnl_prev'), keys.join(','));
 
-  // JF7 · מראה העמודה אחרי המחולל (כולל opening_call עם שלושה הורים בטבלה בלבד)
+  // JF7 · מראה העמודה אחרי המחולל. ‼ 261 (19.10.2026): המחולל לא יוצר יותר יישור קו ושיחת פתיחה — יישור קו רק בבקשת המשרד.
   const call = await step(A.cid, 'opening_call');
-  ok('JF7 · opening_call נולד עם שלוש קשתות והעמודה משקפת את הראשונה',
-    !!call && call.depends_on_step_id !== null
-    && (await one(`select count(*)::int as n from public.onboarding_step_dependencies where step_id = ${q(call.id)}`)).n === 3,
-    `col=${call?.depends_on_step_id}`);
+  const alignN = (await one(`select count(*)::int as n from public.onboarding_steps where client_id = ${q(A.cid)} and step_type like 'institution_alignment_%'`)).n;
+  ok('JF7 · 261 · אין שיחת פתיחה ואין שלבי יישור קו אחרי המחולל', !call && alignN === 0, `call=${call?.id} align=${alignN}`);
   ok('JF7 · אפס פערים עמודה↔טבלה אחרי המחולל', (await mismatch(A.cid)) === 0);
 
   // JF6 · ביטול הורה פותח את התלוי
