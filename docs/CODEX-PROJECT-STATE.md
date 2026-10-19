@@ -39,7 +39,7 @@ Ask Guy which business process or automation he wants to improve first. Inspect 
 
 ### 2026-10-19 — Amir Weissmark's stored 821: rep name/date removed (Guy approved, backup first)
 - The only signed client form stored in prod (scf-81c2abbe…-r1, signed 17.10) was built before 628fcbb. Removed only the two overlay text blocks on the «הצהרת המייצג» line («Guy Yashar», 17/10/2026); Amir's date/name/signature untouched. Pixel diff at scale 2: page 1 differs only in x 278–536 / y 673–683 pt, page 2 identical.
-- Same storage path (upsert), re-download SHA 24fb7a28…; documents.file_size/notes and smart_form_revisions.signed_pdf_sha256 updated; smart_form_events . Backup + rollback: PIVO/backups/form-821-amir-norep-20261019 (RECOVERY.md). Folder download (ca928a6) Vercel dpl_8RLGZqVkUZi8TVW9PssyJKeu5tYw READY.
+- Same storage path (upsert), re-download SHA 24fb7a28…; documents.file_size/notes and smart_form_revisions.signed_pdf_sha256 updated; smart_form_events kind signed_pdf_rep_removed. Backup + rollback: PIVO/backups/form-821-amir-norep-20261019 (RECOVERY.md). Folder download (ca928a6) Vercel dpl_8RLGZqVkUZi8TVW9PssyJKeu5tYw READY.
 
 ### 2026-10-19 — Documents: download any selection to a folder on the computer (Guy approved «כן, זה מה שהתכוונתי»)
 - Before: «הורדה» only for documents-only selections, always as one ZIP. Now: any selection incl. folders (folder ⇒ subfolder with everything under it, nested); Chrome/Edge desktop ⇒ «בחירת תיקייה ושמירה» (showDirectoryPicker, files written as regular files, existing names never overwritten ⇒ « (2)»); otherwise / on request ⇒ ZIP with the same folder paths. Missing-from-storage still stops with the list + explicit «שמור בכל זאת».
