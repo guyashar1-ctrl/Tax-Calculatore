@@ -19,6 +19,7 @@ export const RECORD_OF: Record<string, RecordSchemaId> = {
   'business.vehicleDetails': 'vehicle', 'business.partners': 'partners', 'rent.coOwners': 'partners',
   'niBenefits.maternityPeriod': 'maternityPeriod', 'niBenefits.maternityAmounts': 'maternityAmounts',
   'intake.marriageYear': 'familyYear', 'intake.divorceYear': 'familyYear', 'intake.widowhoodYear': 'familyYear',
+  'family.death': 'deathEvent', 'family.divorce': 'divorceEvent', 'family.marriage': 'marriageEvent',
   'period.property': 'period', 'period.account': 'period', 'wealth.period.property': 'period', 'wealth.period.account': 'period',
 };
 

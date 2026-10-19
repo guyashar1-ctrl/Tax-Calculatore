@@ -240,6 +240,37 @@ export function schemaFor(id: RecordSchemaId, c?: Client, ctx?: Record<string, s
       fields: [{ key: 'year', label: 'שנה', type: 'digits', maxLength: 4, required: true, half: true, placeholder: 'למשל 2015', hint: 'בארבע ספרות' }],
       summary: r => str(r.year),
     };
+    // ‼ 19.10.2026 · אירוע משפחתי בשנת הדוח: תאריך ועוד שאלה או שתיים — מסך אחד, לא שאלה לכל שדה.
+    case 'deathEvent': return {
+      id, noun: 'פרטים', addLabel: '', multiple: false,
+      fields: [
+        { key: 'date', label: 'תאריך הפטירה', type: 'date', required: true, half: true },
+        { key: 'inheritance', label: 'יש צו ירושה או צו קיום צוואה?', type: 'choice', required: true,
+          options: [{ value: 'yes', label: 'כן' }, { value: 'notYet', label: 'עוד לא' }, { value: 'unsure', label: 'לא יודע/ת' }] },
+      ],
+      summary: r => [he(r.date) && `נפטר/ה ${he(r.date)}`, r.inheritance === 'yes' ? 'יש צו' : r.inheritance === 'notYet' ? 'עוד אין צו' : ''].filter(Boolean).join(' · '),
+    };
+    case 'divorceEvent': return {
+      id, noun: 'פרטים', addLabel: '', multiple: false,
+      fields: [
+        { key: 'date', label: 'מתי התגרשתם או נפרדתם?', type: 'date', required: true, half: true },
+        { key: 'kids', label: 'אצל מי הילדים גרים?', type: 'choice',
+          options: [{ value: 'me', label: 'אצלי' }, { value: 'other', label: 'אצל ההורה השני' }, { value: 'shared', label: 'משותף' }, { value: 'none', label: 'אין ילדים קטנים' }] },
+        { key: 'alimony', label: 'יש תשלום מזונות?', type: 'choice',
+          options: [{ value: 'pay', label: 'אני משלם/ת' }, { value: 'receive', label: 'אני מקבל/ת' }, { value: 'none', label: 'אין' }] },
+      ],
+      summary: r => [he(r.date) && `מ-${he(r.date)}`].filter(Boolean).join(' · '),
+    };
+    case 'marriageEvent': return {
+      id, noun: 'פרטים', addLabel: '', multiple: false,
+      fields: [
+        { key: 'date', label: 'מתי התחתנתם?', type: 'date', required: true, half: true },
+        { key: 'spouseName', label: 'שם בן/בת הזוג', type: 'text', required: true, half: true },
+        { key: 'spouseWorked', label: 'בן/בת הזוג עבד/ה השנה?', type: 'choice',
+          options: [{ value: 'salary', label: 'כן, כשכיר/ה' }, { value: 'business', label: 'כן, כעצמאי/ת' }, { value: 'no', label: 'לא' }] },
+      ],
+      summary: r => [he(r.date) && `מ-${he(r.date)}`, str(r.spouseName)].filter(Boolean).join(' · '),
+    };
     case 'maternityAmounts': return {
       id, noun: 'סכומים', addLabel: '', multiple: false,
       fields: [

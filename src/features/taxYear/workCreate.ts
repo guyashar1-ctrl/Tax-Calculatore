@@ -89,6 +89,26 @@ export async function openTaxFileIntake(client: Client): Promise<CreateResult & 
   return { ok: true, stepId: r.stepId, created: r.created, drafted: r.asked ?? 0, published: r.published ?? 0 };
 }
 
+/**
+ * 19.10.2026 · «דוח שנתי {שנה}» בלחיצה אחת (הדמיה מאושרת: docs/proposals/2026-10-19-simple-annual-questionnaire.html):
+ * הבקשה נפתחת (או נמצאת), השאלון נבנה מהתיק — אישורים, מסך הרשת «מה היה לכם», מסמכים לישויות שבתיק — ומתפרסם בדף של
+ * הלקוח. ‼ בלי מייל (כלל «דף אחד ללקוח»): הפריט מופיע ב«הדף של X», והמייל — מ«שלח מייל…» כרגיל.
+ * ‼ אידמפוטנטי: בקשה קיימת ⇒ נוספות רק שאלות שחסרות (add_tax_info_asks לא מוסיף פריט פתוח פעמיים).
+ */
+export async function openAnnualReturn(client: Client, taxYear: number): Promise<CreateResult & { published?: number }> {
+  const w = await api.ensureYearRequest(client.id, 'annual', taxYear);
+  if (!w.ok) return { ok: false, error: w.error, failedAt: 'work' };
+  let plan: AskPlanEntry[];
+  try { plan = await planAsksFor(client, 'annual', { taxYear }, w.stepId); }
+  catch (e) { return { ok: false, stepId: w.stepId, created: w.created, error: String((e as Error).message), failedAt: 'draft' }; }
+  if (!plan.length) return { ok: true, stepId: w.stepId, created: w.created, drafted: 0, published: 0 };
+  const a = await api.addAsks(w.stepId, plan.map(toAskInput));
+  if (!a.ok) return { ok: false, stepId: w.stepId, created: w.created, error: a.error, failedAt: 'draft' };
+  const p = await api.publishInfo(a.infoStepId);
+  if (!p.ok) return { ok: false, stepId: w.stepId, created: w.created, drafted: a.added, error: p.error, failedAt: 'draft' };
+  return { ok: true, stepId: w.stepId, created: w.created, drafted: a.added, published: p.published };
+}
+
 export async function createWork(row: NewWorkRow, client: Client): Promise<CreateResult> {
   const w = await api.upsertTaxWork(client.id, row.kind, { taxYear: row.taxYear, asOfDate: row.asOfDate }, metaOf(row));
   if (!w.ok) return { ok: false, error: w.error, failedAt: 'work' };

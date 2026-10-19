@@ -67,6 +67,12 @@ export const DOCS: Record<DocKind, DocInfo> = {
   creditCerts: { label: 'אישור זכאות לתואר או תעודת שחרור', availableFrom: null, why: 'מהמוסד או מצה״ל / השירות הלאומי', extraction: 'not_supported', durable: true },
   specialStatusCert: { label: 'תעודת עולה, אישור תושב חוזר או אישור נכות', availableFrom: null, why: 'ממשרד הקליטה, מרשות המסים או מהגורם שקבע את הנכות', extraction: 'not_supported', durable: true },
   businessCert: { label: 'תעודת עוסק ואישור פתיחת תיק', availableFrom: null, why: 'מהאזור האישי במע״מ ובמס הכנסה, או מהלקוח', extraction: 'not_supported', durable: true },
+  // 19.10.2026 · אירוע משפחתי ופטירה (docs/tax-foundation/research/spouse-death-year-2026-10-19.md)
+  deathDocs: { label: 'תעודת פטירה וצו ירושה', availableFrom: null, why: 'תעודת הפטירה ממשרד הפנים; צו ירושה או קיום צוואה — מהרשם לענייני ירושה, אם כבר ניתן', extraction: 'not_supported', durable: true },
+  severanceDocs: { label: 'טופס 161 ו-161ב מהמעסיק', availableFrom: null, why: 'המעסיק ממלא את 161 כשהעבודה נגמרת (גם בפטירה); חלק ב׳ ממלא השאיר', extraction: 'not_supported', durable: true },
+  insurancePayout: { label: 'מכתב מחברת הביטוח או מהקופה על התשלום', availableFrom: null, why: 'החברה שולחת מכתב תשלום למוטבים', extraction: 'not_supported', durable: true },
+  divorceDocs: { label: 'הסכם או פסק דין גירושין', availableFrom: null, why: 'מבית המשפט או מבית הדין', extraction: 'not_supported', durable: true },
+  marriageDocs: { label: 'תעודת נישואין', availableFrom: null, why: 'ממשרד הפנים או מהרבנות', extraction: 'not_supported', durable: true },
   allowanceCert: { label: 'אישור על קצבה או תלוש פנסיה', availableFrom: null, why: 'מהגורם המשלם (קרן פנסיה, ביטוח לאומי)', extraction: 'not_supported' },
   insuranceCert: { label: 'אישור שנתי מחברת הביטוח', availableFrom: null, why: 'מחברת הביטוח; או הפוליסה', extraction: 'not_supported' },
   authorityLetter: { label: 'מכתב או דרישה מרשות', availableFrom: null, why: 'מהלקוח או מאתר הרשות', extraction: 'not_supported' },

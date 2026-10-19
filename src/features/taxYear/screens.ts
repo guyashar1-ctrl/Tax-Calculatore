@@ -5,15 +5,18 @@
 
 import type { InfoAsk } from './types';
 import { ITEM_BY_KEY } from './catalog';
+import { GRID_KEYS } from './asks';
 
 export type Screen =
   | { kind: 'confirmAll'; asks: InfoAsk[] }
   | { kind: 'ask'; ask: InfoAsk };
 
 // ‼ שאלות ההמשך של מסך הרשת («של מי / איפה», «מי מכם?») — מיד אחריו, לפני שאר השאלות (ילדים, חשבון בנק)
-const RANK = (a: InfoAsk) => (a.prompt.input.kind === 'confirm' ? 0 : a.prompt.input.kind === 'multi' ? 1
-  : a.prompt.input.kind === 'file' ? 4 : (ITEM_BY_KEY[a.itemKey]?.after || a.prompt.input.kind === 'who') ? 2 : 3);
-export const sortAsks = (asks: InfoAsk[]) => [...asks].sort((a, b) => RANK(a) - RANK(b));
+// ‼ 19.10.2026 · מסך רשת קטן בתוך ענף (למשל «מה קרה?» ⇒ «מה {בן/בת הזוג} קיבל/ה») — שאלת המשך, לא הרשת הראשית;
+//   ובתוך שאלות שנפתחו יחד — לפי prompt.order (כך שהתאריך בא לפני «מה התקבל», והמסמכים בסוף).
+const RANK = (a: InfoAsk) => (a.prompt.input.kind === 'confirm' ? 0 : a.prompt.input.kind === 'multi' && GRID_KEYS.includes(a.itemKey) ? 1
+  : a.prompt.input.kind === 'file' ? 4 : (ITEM_BY_KEY[a.itemKey]?.after || a.prompt.input.kind === 'who' || a.prompt.input.kind === 'multi') ? 2 : 3);
+export const sortAsks = (asks: InfoAsk[]) => [...asks].sort((a, b) => RANK(a) - RANK(b) || (a.prompt.order ?? 0) - (b.prompt.order ?? 0));
 
 /**
  * המסכים. `opened` — אישורים שהלקוח סימן בהם «יש שינוי» (או שכבר נענו) — כל אחד מסך משלו, מיד אחרי מסך האישור.

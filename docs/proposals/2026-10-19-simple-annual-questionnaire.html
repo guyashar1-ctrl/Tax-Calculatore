@@ -1,0 +1,782 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>שאלון פשוט ובקשות נקיות — המחשה</title>
+<style>
+  :root{
+    --page:#f8f7f5; --card:#fff; --bd:#e2e4e7; --bd-strong:#d3d6da;
+    --tx:#25282d; --txc:#4b5058; --tx2:#63686f; --tx3:#8e949b;
+    --br:#3f5f8f; --br-strong:#34507a; --soft:#e8eef5; --soft-bd:#c6d4e6;
+    --s2:#f3f2f0; --ok:#24654e; --ok-bg:#eaf4ef; --warn:#8a5b0f; --warn-bg:#fbf3e4;
+    --info:#6b4a87; --info-bg:#f2ecf7; --radius:9px; --radius-lg:12px;
+    --client:#2f6fde;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{font-family:"Segoe UI","Heebo",Arial,system-ui,sans-serif;background:var(--page);color:var(--tx);font-size:15px;line-height:1.55}
+  button{font:inherit;cursor:pointer}
+  input{font:inherit}
+  .wrap{max-width:1080px;margin:0 auto;padding:20px 16px 60px}
+  .mock-flag{display:inline-block;background:var(--warn-bg);color:var(--warn);border:1px solid #ecd9b0;border-radius:999px;padding:2px 10px;font-size:13px;font-weight:600}
+  h1{font-size:24px;margin:10px 0 4px}
+  .lead{color:var(--txc);margin:0 0 14px;max-width:780px}
+  .understood{background:var(--card);border:1px solid var(--bd);border-radius:var(--radius-lg);padding:14px 16px;margin-bottom:18px}
+  .understood h2{font-size:15px;margin:0 0 6px}
+  .understood ul{margin:0;padding-inline-start:20px;color:var(--txc)}
+  .understood li{margin:2px 0}
+  .new{display:inline-block;font-size:11px;font-weight:700;color:var(--info);background:var(--info-bg);border-radius:6px;padding:0 6px;margin-inline-start:4px;vertical-align:1px}
+
+  .tabs{display:flex;gap:4px;flex-wrap:wrap;border-bottom:1px solid var(--bd);margin-bottom:18px;position:sticky;top:0;background:var(--page);z-index:5;padding-top:6px}
+  .tab{border:0;background:none;padding:10px 10px;border-bottom:2px solid transparent;color:var(--tx2);font-weight:600;font-size:14px}
+  .tab[aria-selected=true]{color:var(--br);border-bottom-color:var(--br)}
+  .pane{display:none}
+  .pane.on{display:block}
+  .pane-intro{color:var(--txc);margin:0 0 14px;max-width:780px}
+
+  .seg{display:inline-flex;border:1px solid var(--bd-strong);border-radius:10px;overflow:hidden;margin-bottom:14px;flex-wrap:wrap}
+  .seg button{border:0;background:#fff;padding:8px 14px;font-weight:600;font-size:14px;color:var(--tx2)}
+  .seg button[aria-pressed=true]{background:var(--br);color:#fff}
+  .seg-label{font-size:13px;color:var(--tx2);margin-inline-end:8px}
+
+  /* phone */
+  .phone-row{display:flex;gap:28px;align-items:flex-start;flex-wrap:wrap}
+  .phone{width:380px;max-width:100%;background:#111;border-radius:34px;padding:10px;box-shadow:0 10px 30px rgba(0,0,0,.18)}
+  .screen{background:#f6f7f9;border-radius:26px;height:720px;overflow:hidden;display:flex;flex-direction:column}
+  .side-notes{flex:1;min-width:260px;max-width:520px}
+  .side-notes h3{font-size:15px;margin:4px 0 6px}
+  .side-notes ol,.side-notes ul{padding-inline-start:20px;margin:0 0 14px;color:var(--txc)}
+  .side-notes li{margin:4px 0}
+  .note{background:var(--soft);border:1px solid var(--soft-bd);border-radius:var(--radius);padding:10px 12px;color:var(--txc);font-size:14px;margin-bottom:10px}
+
+  .cl-head{background:#fff;padding:14px 18px 10px;border-bottom:1px solid #eceef1}
+  .cl-firm{font-size:12px;color:var(--tx2)}
+  .cl-prog{height:5px;background:#e9ecf1;border-radius:9px;margin-top:10px;overflow:hidden}
+  .cl-prog>i{display:block;height:100%;background:var(--client);border-radius:9px;transition:width .3s ease}
+  .cl-step{font-size:12px;color:var(--tx2);margin-top:5px}
+  .cl-body{flex:1;overflow-y:auto;padding:18px 18px 10px}
+  .cl-foot{padding:12px 18px 16px;background:#fff;border-top:1px solid #eceef1;display:flex;flex-direction:column;gap:8px}
+  .cl-q{font-size:21px;font-weight:700;line-height:1.3;margin:0 0 6px}
+  .cl-sub{color:var(--tx2);font-size:14px;margin:0 0 16px}
+  .soft-hello{font-size:14px;color:var(--txc);background:#fff;border:1px solid #e3e7ec;border-radius:12px;padding:10px 12px;margin-bottom:14px}
+  .btn-c{border:0;border-radius:12px;padding:13px 16px;font-weight:700;font-size:16px;background:var(--client);color:#fff;width:100%;transition:transform .12s ease}
+  .btn-c:active{transform:scale(.98)}
+  .btn-c2{border:1px solid #d6dbe3;border-radius:12px;padding:12px 16px;font-weight:600;font-size:15px;background:#fff;color:var(--tx);width:100%}
+  .btn-link{border:0;background:none;color:var(--client);font-weight:600;padding:6px 0;font-size:14px}
+  .known{background:#fff;border:1px solid #e3e7ec;border-radius:14px;overflow:hidden}
+  .known-row{display:flex;justify-content:space-between;gap:10px;align-items:center;padding:11px 14px;border-top:1px solid #eef0f3}
+  .known-row:first-child{border-top:0}
+  .known-row .k{color:var(--tx2);font-size:12.5px}
+  .known-row .v{font-weight:600;font-size:14.5px}
+  .chg{border:1px solid #d6dbe3;background:#fff;border-radius:999px;padding:4px 10px;font-size:12px;color:var(--tx2);white-space:nowrap}
+  .chg[aria-pressed=true]{background:var(--warn-bg);border-color:#ecd9b0;color:var(--warn);font-weight:700}
+  .src-tag{display:inline-block;font-size:11px;color:var(--tx2);background:#f1f3f6;border-radius:6px;padding:0 6px;margin-top:2px}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .tile{position:relative;text-align:start;background:#fff;border:1.5px solid #e1e5eb;border-radius:14px;padding:12px 12px 12px 30px;min-height:64px;font-weight:600;font-size:14px;color:var(--tx);transition:border-color .15s,background .15s}
+  .tile small{display:block;font-weight:400;color:var(--tx2);font-size:12px;margin-top:2px}
+  .tile::after{content:"";position:absolute;left:10px;top:12px;width:16px;height:16px;border-radius:5px;border:1.5px solid #c9cfd8;background:#fff}
+  .tile[aria-pressed=true]{border-color:var(--client);background:#eef4ff}
+  .tile[aria-pressed=true]::after{background:var(--client);border-color:var(--client);box-shadow:inset 0 0 0 3px #eef4ff}
+  .tag-file{display:inline-block;font-size:11px;font-weight:600;color:var(--ok);background:var(--ok-bg);border-radius:6px;padding:0 6px;margin-top:4px}
+  .chips{display:flex;flex-wrap:wrap;gap:8px}
+  .chip{border:1.5px solid #dfe3e9;background:#fff;border-radius:999px;padding:8px 14px;font-size:14px;font-weight:600;color:var(--tx)}
+  .chip[aria-pressed=true]{border-color:var(--client);background:#eef4ff;color:#1d4fae}
+  .card-c{background:#fff;border:1px solid #e3e7ec;border-radius:14px;padding:14px;margin-bottom:12px}
+  .card-c .lbl{font-size:13px;color:var(--tx2);margin-bottom:8px}
+  .field{width:100%;border:1.5px solid #dfe3e9;border-radius:10px;padding:10px 12px;font-size:15px;background:#fff}
+  .why{font-size:12.5px;color:var(--tx2);margin-top:10px}
+  .doc{display:flex;gap:10px;align-items:center;justify-content:space-between;background:#fff;border:1px solid #e3e7ec;border-radius:14px;padding:12px 14px;margin-bottom:10px}
+  .doc b{display:block;font-size:15px}
+  .doc span{font-size:12.5px;color:var(--tx2)}
+  .doc .acts{display:flex;flex-direction:column;gap:4px;align-items:flex-end;flex-shrink:0}
+  .up{border:0;background:var(--client);color:#fff;border-radius:10px;padding:7px 12px;font-weight:700;font-size:13px}
+  .later{border:0;background:none;color:var(--tx2);font-size:12px;padding:2px}
+  .doc.done{background:#f3faf6;border-color:#cfe8da}
+  .doc.done .up{background:var(--ok)}
+  .doc.later-s{background:#fafafa}
+  .doc-group{font-size:12.5px;font-weight:700;color:var(--tx2);margin:14px 2px 6px}
+  .office-doc{font-size:12.5px;color:var(--tx2);background:#f1f3f6;border-radius:10px;padding:9px 12px;margin-top:4px}
+  .done-hero{text-align:center;padding-top:40px}
+  .done-hero .check{width:64px;height:64px;border-radius:50%;background:var(--ok-bg);color:var(--ok);display:grid;place-items:center;font-size:32px;margin:0 auto 14px;font-weight:700}
+  .fade{animation:fade .22s ease}
+  @keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+  /* office */
+  .office{background:var(--card);border:1px solid var(--bd);border-radius:var(--radius-lg);padding:18px 20px}
+  .o-head{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:flex-start;margin-bottom:12px}
+  .o-title{font-size:20px;font-weight:700;margin:0}
+  .o-sub{color:var(--tx2);font-size:13px}
+  .steps{display:flex;gap:4px;flex-wrap:wrap;margin:6px 0 18px;padding:0;list-style:none}
+  .steps li{font-size:12.5px;padding:4px 10px;border-radius:999px;background:var(--s2);color:var(--tx2);font-weight:600}
+  .steps li.done{background:var(--ok-bg);color:var(--ok)}
+  .steps li.now{background:var(--soft);color:var(--br);box-shadow:inset 0 0 0 1px var(--soft-bd)}
+  .sec{margin-top:20px}
+  .sec h3{font-size:15px;margin:0 0 2px;display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
+  .sec h3 .cnt{font-size:13px;color:var(--tx2);font-weight:400}
+  .sec .hint{font-size:13px;color:var(--tx2);margin:0 0 8px}
+  .rows{border-top:1px solid var(--bd)}
+  .row{display:grid;grid-template-columns:1.1fr 1.6fr 1.1fr auto;gap:10px;align-items:center;padding:10px 4px;border-bottom:1px solid var(--bd);font-size:14px}
+  .row .area{font-weight:700}
+  .row .who{color:var(--tx2);font-size:12.5px;font-weight:400;display:block}
+  .row .src{color:var(--txc);font-size:13px}
+  .pill{font-size:12px;font-weight:700;padding:2px 9px;border-radius:999px;white-space:nowrap;min-width:max-content;line-height:1.5;height:max-content}
+  .pill.ok{background:var(--ok-bg);color:var(--ok)}
+  .pill.miss{background:var(--warn-bg);color:var(--warn)}
+  .pill.offc{background:var(--info-bg);color:var(--info)}
+  .pill.sep{background:var(--s2);color:var(--tx2)}
+  .none-line{font-size:13px;color:var(--tx2);padding:9px 4px}
+  .only{background:#fbfaf8;border:1px solid var(--bd);border-radius:var(--radius-lg);padding:14px 16px}
+  .only-person{font-weight:700;font-size:14px;margin:4px 0 8px}
+  .only-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 16px}
+  .only label{display:block;font-size:13px;color:var(--txc);margin-bottom:3px}
+  .money{display:flex;align-items:center;border:1px solid var(--bd-strong);border-radius:8px;background:#fff;overflow:hidden}
+  .money span{padding:0 9px;color:var(--tx2);font-size:13px;border-inline-end:1px solid var(--bd)}
+  .money input{border:0;padding:8px 10px;width:100%;min-width:0;outline:none;direction:ltr;text-align:right}
+  .money:focus-within{border-color:var(--br);box-shadow:0 0 0 3px var(--soft)}
+  .saved{font-size:12px;color:var(--ok);height:16px;margin-top:2px}
+  .na{font-size:13px;color:var(--tx2);background:var(--s2);border-radius:8px;padding:8px 10px;margin-top:10px}
+  .open-item{display:flex;justify-content:space-between;gap:10px;align-items:center;padding:10px 4px;border-bottom:1px solid var(--bd);font-size:14px}
+  .open-item .o-sub{display:block}
+  .btn-o{border:1px solid var(--bd-strong);background:#fff;border-radius:8px;padding:6px 12px;font-size:13px;font-weight:600;color:var(--tx);white-space:nowrap}
+  .btn-o.primary{background:var(--br);border-color:var(--br);color:#fff}
+  .more{margin-top:18px;border-top:1px dashed var(--bd-strong);padding-top:10px}
+  .more summary{cursor:pointer;color:var(--br);font-weight:600;font-size:14px}
+  .more p{color:var(--tx2);font-size:13px}
+
+  /* prep (before sending) */
+  .prep-src{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:center;background:var(--soft);border:1px solid var(--soft-bd);border-radius:var(--radius);padding:10px 12px;margin-bottom:12px;font-size:14px}
+  .prep-src b{display:block}
+  .prep-list{border-top:1px solid var(--bd)}
+  .prep-row{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;padding:9px 4px;border-bottom:1px solid var(--bd);font-size:14px}
+  .prep-row input{width:18px;height:18px;accent-color:var(--br)}
+  .prep-row .what b{font-weight:700}
+  .prep-row .what span{display:block;font-size:12.5px;color:var(--tx2)}
+  .prep-row .fld{font-size:12px;color:var(--tx2);white-space:nowrap}
+  .prep-row.off .what{opacity:.45;text-decoration:line-through}
+  .prep-foot{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center;margin-top:14px}
+
+  /* requests */
+  .req-cols{display:grid;grid-template-columns:minmax(0,1.5fr) 380px;gap:24px;align-items:start}
+  .rq-list{background:var(--card);border:1px solid var(--bd);border-radius:var(--radius-lg);padding:14px 16px}
+  .rq-h{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+  .rq-h b{font-size:16px}
+  .rq{border:1px solid var(--bd);border-radius:var(--radius);padding:10px 12px;margin-bottom:8px;background:#fff}
+  .rq-top{display:flex;justify-content:space-between;gap:10px;align-items:center}
+  .rq-name{font-weight:700;font-size:14.5px}
+  .rq-meta{font-size:12.5px;color:var(--tx2)}
+  .rq-kids{margin:8px 0 0;padding:0;list-style:none;border-top:1px solid var(--bd)}
+  .rq-kids li{display:flex;justify-content:space-between;font-size:13px;padding:6px 2px;border-bottom:1px solid #f0f1f3;color:var(--txc)}
+  .rq-kids li:last-child{border-bottom:0}
+  .rq-kids li.dim{color:var(--tx3)}
+  .rq.noise{background:#fffaf2;border-color:#f0dfbf}
+  .noise-tag{font-size:11.5px;color:var(--warn);font-weight:700}
+  .fold{display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--bd);margin-top:10px;padding:10px 2px 2px;color:var(--tx2);font-size:14px;font-weight:600;cursor:pointer;background:none;border-left:0;border-right:0;border-bottom:0;width:100%}
+  .fold-list{list-style:none;margin:4px 0 0;padding:0}
+  .fold-list li{font-size:13px;color:var(--tx2);padding:5px 2px;display:flex;justify-content:space-between}
+  .taxcard{margin-top:14px;background:var(--card);border:1px solid var(--bd);border-radius:var(--radius-lg);padding:12px 16px;display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap}
+  .taxcard .t{font-weight:700}
+  .taxcard .m{font-size:13px;color:var(--tx2)}
+  .cp{background:#f4f6f9;height:100%;overflow-y:auto}
+  .cp-head{background:#fff;padding:16px 18px;border-bottom:1px solid #eceef1}
+  .cp-head .hi{font-size:19px;font-weight:700}
+  .cp-sec{padding:14px 16px 4px;font-size:13px;color:var(--tx2);font-weight:700}
+  .cp-card{background:#fff;border:1px solid #e3e7ec;border-radius:16px;margin:0 14px 10px;padding:14px}
+  .cp-card b{display:block;font-size:16px}
+  .cp-card span{font-size:13px;color:var(--tx2)}
+  .cp-card .btn-c{margin-top:10px;padding:10px;font-size:15px}
+  .cp-card.donecard{display:flex;justify-content:space-between;align-items:center}
+  .cp-card.donecard em{font-style:normal;color:var(--ok);font-weight:700;font-size:14px}
+  .cp-donefold{margin:6px 14px 14px;border:0;background:none;color:var(--tx2);font-size:14px;font-weight:600;display:flex;justify-content:space-between;width:calc(100% - 28px);padding:10px 4px;border-top:1px solid #e3e7ec}
+  .cp-donelist{margin:0 14px 14px;padding:0;list-style:none}
+  .cp-donelist li{font-size:13.5px;color:var(--tx2);padding:7px 4px;border-bottom:1px solid #eceef1;display:flex;justify-content:space-between}
+
+  .scope{background:var(--card);border:1px solid var(--bd);border-radius:var(--radius-lg);padding:16px 18px;margin-bottom:14px}
+  .scope h3{margin:0 0 8px;font-size:16px}
+  .scope ul,.scope ol{margin:0;padding-inline-start:20px;color:var(--txc)}
+  .scope li{margin:4px 0}
+  .deploy{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:8px}
+  .deploy div{border:1px solid var(--bd);border-radius:var(--radius);padding:10px 12px;font-size:13.5px}
+  .deploy b{display:block;font-size:14px;margin-bottom:2px}
+  .yes{color:var(--ok);font-weight:700}
+  .no{color:var(--tx2);font-weight:700}
+
+  @media (max-width: 860px){
+    .req-cols{grid-template-columns:1fr}
+    .row{grid-template-columns:1fr auto;gap:4px 10px}
+    .row .area{order:1}
+    .row .pill{order:2;justify-self:end;align-self:start}
+    .row > div:nth-child(2){order:3;grid-column:1 / -1}
+    .row .src{order:4;grid-column:1 / -1;color:var(--tx2)}
+    .deploy{grid-template-columns:1fr 1fr}
+  }
+  @media (max-width: 520px){
+    .wrap{padding:14px 16px 40px}
+    h1{font-size:21px}
+    .phone{width:100%;padding:0;background:none;box-shadow:none;border-radius:0}
+    .screen{height:640px;border:1px solid var(--bd);border-radius:18px}
+    .only-grid{grid-template-columns:1fr}
+    .office{padding:14px 12px}
+    .deploy{grid-template-columns:1fr}
+    .tab{padding:9px 7px;font-size:13px}
+    .prep-row{grid-template-columns:auto 1fr}
+    .prep-row .fld{grid-column:2}
+    .open-item{flex-direction:column;align-items:flex-start}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <span class="mock-flag">המחשה · נתוני דמה · עוד לא קיים באתר</span>
+  <h1>שאלון פשוט, דף סיכום אחד, ובקשות נקיות</h1>
+  <p class="lead">הדוגמה היא הדוח השנתי לשנת 2025. אותה תבנית תחול אחר כך גם על הצהרת הון, לקוח חדש והערכת מס. הלקוחות בדוגמה הם «ישראל ישראלי» ו«ישראלה». הם לא לקוחות אמיתיים.</p>
+
+  <div class="understood">
+    <h2>מה הבנתי</h2>
+    <ul>
+      <li>לוחצים פעם אחת, וללקוח יוצא שאלון <b>קצר, שלא מייאש</b>, שעונים עליו בכחמש דקות בטלפון. כשהוא מסיים, אתה יודע <b>מה למלא בדוח</b> ו<b>אילו מסמכים לבקש</b>.</li>
+      <li><b>נקודת הפתיחה היא הדוח שהוגש בשנה שעברה</b><span class="new">חדש</span>. השאלון שואל «עדיין?» על מה שכבר היה, ולא מתחיל מאפס.</li>
+      <li><b>אירוע משפחתי</b> (פטירה, גירושין, נישואין) פותח ענף קצר ועדין משלו, עם רשימת מסמכים משלו. גם <b>קצבאות ונכות</b> נשאלים<span class="new">חדש</span>.</li>
+      <li>את מה <b>שרק אתה יודע</b>, כמו מקדמות, מזינים פעם אחת לשנה. יישור קו <b>אינו בקשה</b>, ובקשות שהושלמו <b>לא תופסות מקום</b>.</li>
+    </ul>
+  </div>
+
+  <div class="tabs" role="tablist">
+    <button class="tab" role="tab" aria-selected="true" data-tab="p">1 · לפני השליחה</button>
+    <button class="tab" role="tab" aria-selected="false" data-tab="q">2 · השאלון בטלפון</button>
+    <button class="tab" role="tab" aria-selected="false" data-tab="o">3 · דף הסיכום</button>
+    <button class="tab" role="tab" aria-selected="false" data-tab="r">4 · «בקשות» נקי</button>
+    <button class="tab" role="tab" aria-selected="false" data-tab="s">5 · מה ייכלל</button>
+  </div>
+
+  <!-- ───────── 1. לפני השליחה ───────── -->
+  <section class="pane on" id="pane-p">
+    <p class="pane-intro">פתחת «דוח שנתי 2025». המערכת מצאה במסמכים של ישראל את הדוח שהוגש ל־2024 וקראה ממנו את מה שהיה. אתה מעיף מבט ומבטל את מה שלא נכון, ואז השאלון יוצא. מה שתשאיר מסומן, הלקוח יראה כ«זה מה שאנחנו יודעים, עדיין נכון?».</p>
+    <div class="office">
+      <div class="o-head">
+        <div>
+          <p class="o-title">דוח שנתי 2025 · ישראל וישראלה ישראלי</p>
+          <div class="o-sub">לפני שהשאלון יוצא</div>
+        </div>
+      </div>
+      <div class="prep-src">
+        <div><b>נקודת הפתיחה: הדוח שהוגש לשנת 2024</b><span class="o-sub">נקרא אוטומטית מתוך «סט שהוגש 2024.pdf» שבמסמכים · זו הצעה לבדיקתך, לא נתון סופי</span></div>
+        <button class="btn-o" type="button">פתח את הקובץ</button>
+      </div>
+      <div class="prep-list" id="prepList"></div>
+      <div class="prep-foot">
+        <span class="o-sub" id="prepCount"></span>
+        <button class="btn-o primary" type="button" id="prepGo">פרסם את השאלון בדף של ישראל</button>
+      </div>
+      <div class="na">אין דוח קודם בתיק? השאלון יוצא מיד, ומתחיל ממה שיש בכרטיס. אפשר גם להעלות כאן את הדוח הקודם.</div>
+    </div>
+  </section>
+
+  <!-- ───────── 2. השאלון ───────── -->
+  <section class="pane" id="pane-q">
+    <p class="pane-intro">אפשר לעבור על השאלון ולסמן תשובות. אפשר גם לבחור תרחיש מוכן: <b>פטירה</b> מראה את הענף העדין שנפתח כשבן או בת הזוג נפטרו במהלך השנה.</p>
+    <div><span class="seg-label">תרחיש:</span><div class="seg" role="group" aria-label="תרחיש">
+      <button type="button" aria-pressed="true" data-sc="normal">רגיל</button>
+      <button type="button" aria-pressed="false" data-sc="death">בת הזוג נפטרה ב־2025</button>
+      <button type="button" aria-pressed="false" data-sc="divorce">גירושין</button>
+    </div></div>
+    <div class="phone-row">
+      <div class="phone"><div class="screen" id="qscreen"></div></div>
+      <div class="side-notes">
+        <h3>מה שונה מהיום</h3>
+        <ol>
+          <li><b>«עדיין נכון?»</b> על מה שהיה בדוח של שנה שעברה, בסימון «השתנה» ליד כל שורה. בלי לשאול מאפס.</li>
+          <li><b>«השתנה» ליד המצב המשפחתי</b> פותח ענף קצר: פטירה, גירושין או נישואין. בכל אחד 2–4 שאלות ורשימת מסמכים משלו.</li>
+          <li><b>מסך אחד של ריבועים</b> במקום עשרה תחומים. נוספו <b>קצבה או פנסיה</b> ו<b>נכות</b>.</li>
+          <li><b>שאלה קצרה אחת</b> לכל דבר שסומן, תמיד עם רשימה לבחירה.</li>
+          <li><b>רשימת המסמכים נבנית לבד</b> מהתשובות, ומקובצת לפי אדם.</li>
+        </ol>
+        <div class="note">בענף הפטירה הטון עדין: משפט השתתפות קצר, בלי מונחים מקצועיים ובלי «של מי הכנסה זו». את ההכרעות המקצועיות (חיתוך לפי יום הפטירה, הפיצויים, פטור הנכות) עושה המשרד, לא הלקוח.</div>
+        <div class="note">קצבאות היתומים של הילדים נרשמות כאן כדי לבקש את האישורים. אבל לכל ילד יש תיק מס משלו, והן לא נכנסות לדוח של ההורה.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ───────── 3. דף הסיכום ───────── -->
+  <section class="pane" id="pane-o">
+    <p class="pane-intro">כך ייראה הדף שלך אחרי שהלקוח ענה. שלושה חלקים, וכל השאר מאחורי קישור אחד בתחתית.</p>
+    <div><span class="seg-label">תרחיש:</span><div class="seg" role="group" aria-label="תרחיש בסיכום">
+      <button type="button" aria-pressed="true" data-osc="normal">רגיל</button>
+      <button type="button" aria-pressed="false" data-osc="death">בת הזוג נפטרה ב־2025</button>
+    </div></div>
+    <div class="office" id="officeBox"></div>
+  </section>
+
+  <!-- ───────── 4. בקשות ───────── -->
+  <section class="pane" id="pane-r">
+    <p class="pane-intro">אפשר לעבור בין «היום» ל«מוצע» ולראות את ההבדל, גם ברשימת הבקשות במשרד וגם בדף של הלקוח.</p>
+    <div class="seg" role="group" aria-label="השוואה">
+      <button type="button" aria-pressed="false" data-view="today">היום</button>
+      <button type="button" aria-pressed="true" data-view="new">מוצע</button>
+    </div>
+    <div class="req-cols">
+      <div>
+        <div class="rq-list" id="rqOffice"></div>
+        <div class="taxcard" id="taxcard">
+          <div><div class="t">תיק מס · מול הרשויות</div><div class="m">נבדק לאחרונה ב־12.09.2026 · מס הכנסה, מע״מ, ביטוח לאומי</div></div>
+          <button class="btn-o" type="button">בדוק מול הרשויות</button>
+        </div>
+      </div>
+      <div class="phone"><div class="screen"><div class="cp" id="rqClient"></div></div></div>
+    </div>
+  </section>
+
+  <!-- ───────── 5. היקף ───────── -->
+  <section class="pane" id="pane-s">
+    <div class="scope">
+      <h3>מה ייבנה בסבב הזה</h3>
+      <ol>
+        <li><b>שאלון הדוח השנתי</b> בצורה החדשה: «עדיין נכון?», ריבועים, שאלה אחת לכל ריבוע שסומן, «קרה עוד משהו?», ורשימת מסמכים שנבנית לבד. בונים על מה שכבר עובד בהשלמת תיק המס: מסך הריבועים והרשימות הסגורות.</li>
+        <li><b>הדוח שהוגש בשנה שעברה כנקודת פתיחה</b><span class="new">חדש</span>. הדוח נקרא אוטומטית מהמסמכים. משתמשים בקורא המסמכים שכבר קיים בשרת (שכבר מכיר טופס 1301), ומרחיבים אותו לפרטים שהשאלון צריך: מעסיקים, קצבאות, פטור נכות, חשבונות, ביטוחים, ילדים ומצב משפחתי. התוצאה היא <b>הצעה לבדיקתך</b> במסך «לפני השליחה», וזה מה שהלקוח רואה. לא נכתב לכרטיס בלי אישור.</li>
+        <li><b>ענף אירוע משפחתי</b><span class="new">חדש</span>: פטירה, גירושין או נישואין, דרך «השתנה» ליד המצב המשפחתי. כל ענף כולל שאלות ורשימת מסמכים משלו, לפי המחקר ב־<code>docs/tax-foundation/research/spouse-death-year-2026-10-19.md</code>. לענף הפטירה זה אומר: תעודת פטירה, צו ירושה, 106 עד הפטירה, קצבה עד הפטירה, 161 ו־161ב, אישורי קצבת שאירים לכל משלם ולכל מקבל, אישורי ביטוח לאומי ומבטח, ואישור נכות.</li>
+        <li><b>קצבאות ונכות בשאלון הדוח</b><span class="new">חדש</span>: קצבה או פנסיה שהתקבלה בארץ (כולל שאירים), ופטור נכות לפי סעיף <bdi dir="ltr">9(5)</bdi>. עד היום אלה היו רק בשאלון ההיכרות.</li>
+        <li><b>הדוח השנתי נפתח בלחיצה אחת</b>: «דוח שנתי 2025» כאפשרות ראשית ב«＋ בקשה חדשה». כשיש דוח קודם, מוצג קודם המסך «לפני השליחה». כשאין, השאלון יוצא מיד. ללקוח חדש, הפרטים החסרים בתיק נכנסים לאותו שאלון.</li>
+        <li><b>דף סיכום אחד</b>: מה למלא, מסמכים, «רק אתה יודע», ו<b>הכרעות שלך</b> (בענף הפטירה: החיתוך לפי יום הפטירה, הפיצויים, פטור הנכות, תיאומי המס). הדף הארוך של היום נשאר, אבל סגור מאחורי קישור.</li>
+        <li><b>«רק אתה יודע»</b>: מקדמות, ניכוי במקור, ביטוח לאומי ששולם והפסדים מועברים. נשמר פעם אחת לשנה, ולכן מופיע גם בהערכת המס.</li>
+        <li><b>יישור קו יוצא מהבקשות.</b> הוא לא ייפתח לבד, ובמקומו יהיה כפתור «בדוק מול הרשויות» בתיק המס. השורות שכבר פתוחות יירדו מהרשימה, והמידע שבהן נשמר.</li>
+        <li><b>הושלמו לא תופסות מקום</b>: במשרד רואים «ועוד N שהושלמו», ובדף הלקוח שורה אחת בתחתית, «מה שכבר סיימנו».</li>
+      </ol>
+    </div>
+    <div class="scope">
+      <h3>החלטות קודמות שמשתנות</h3>
+      <ul>
+        <li><b>05.10</b>: «קבוצה מציגה את כל הבקשות שלה». מעכשיו היא מציגה רק את מה שפתוח, וסופרת את השאר.</li>
+        <li><b>16.10, שלב 4</b>: «יישור קו כצעד בתוך הבקשה». מעכשיו הוא כלי בתיק המס.</li>
+        <li><b>16.10, שלב 5</b> (דוח שנתי באותה צורה) מוקדם ונבנה עכשיו.</li>
+        <li><b>16.10, שלב 1</b>: «השאלון יוצא לבד». כשיש דוח קודם, יש לפניו מבט אחד שלך, כי זה מה שהלקוח יראה כ«ידוע».</li>
+      </ul>
+    </div>
+    <div class="scope">
+      <h3>מה תעשה הדחיפה ל־master</h3>
+      <div class="deploy">
+        <div><b>האתר</b><span class="yes">כן</span> · מתעדכן לבד אחרי הדחיפה</div>
+        <div><b>המסד בייצור</b><span class="yes">כן</span> · שתיים־שלוש מיגרציות: פריטי הקטלוג החדשים, פתיחה ופרסום של הדוח, והפסקת הפתיחה האוטומטית של יישור הקו. גיבוי לפני, ואימות אחרי</div>
+        <div><b>פונקציות שרת</b><span class="yes">כן</span> · קורא המסמכים (ocr-document) מורחב לדוח 1301. נפרס אוטומטית</div>
+        <div><b>העובד במחשב המשרד</b><span class="no">לא</span></div>
+      </div>
+    </div>
+    <div class="scope">
+      <h3>מה לא בסבב הזה</h3>
+      <ul>
+        <li>הצהרת הון, לקוח חדש בלי דוח, והערכת מס. הם יקבלו את אותה תבנית בסבב הבא.</li>
+        <li>בקשה נפרדת לכל יתום (תיאום מס או החזר מס על קצבת היתומים). השאלון רק מזהה אותה, ופתיחת הבקשה היא בנפרד.</li>
+        <li>חישוב המס עצמו בשנת הפטירה (חיתוך ההכנסות, בחירת מסלול הפיצויים). הם מוצגים כ«הכרעות שלך», לא מחושבים.</li>
+        <li>אין מיילים ללקוחות אמיתיים. את הפתיחה ליריב תעשה אתה, אחרי השחרור.</li>
+      </ul>
+    </div>
+  </section>
+</div>
+
+<script>
+// ── tabs ──
+document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () => {
+  document.querySelectorAll('.tab').forEach(x => x.setAttribute('aria-selected', x === t));
+  document.querySelectorAll('.pane').forEach(p => p.classList.toggle('on', p.id === 'pane-' + t.dataset.tab));
+  window.scrollTo({ top: 0 });
+}));
+
+// ── 1. prep from last year's return ──
+const PREP = [
+  ['מצב משפחתי', 'נשוי לישראלה · ילדים: נועה (2008), איתי (2012)', 'חלק ב׳'],
+  ['ישראל · עסק', 'ישראלי ייעוץ (דוגמה)', 'שדה 150'],
+  ['ישראלה · משכורת', 'משרד ממשלתי לדוגמה', 'שדה 172'],
+  ['ישראלה · קצבה', 'מינהלת הגמלאות לדוגמה', 'שדה 272'],
+  ['ישראלה · פטור נכות', 'נכות 100% מ־08.2021 · אישור פקיד שומה', 'שדה 309'],
+  ['חשבונות', 'בנק לאומי · בנק יהב · משותפים', 'שדה 078'],
+  ['ביטוח חיים', 'ישראל · איילון', 'שדה 036'],
+  ['הפקדה לפנסיה', 'ישראל · הפניקס', 'שדה 135'],
+];
+const prepOff = new Set();
+function renderPrep() {
+  document.getElementById('prepList').innerHTML = PREP.map(([a, b, f], i) => `
+    <label class="prep-row ${prepOff.has(i) ? 'off' : ''}"><input type="checkbox" data-prep="${i}" ${prepOff.has(i) ? '' : 'checked'}>
+      <span class="what"><b>${a}</b><span>${b}</span></span><span class="fld">מהדוח 2024 · ${f}</span></label>`).join('');
+  document.getElementById('prepCount').textContent = `${PREP.length - prepOff.size} פרטים יוצגו לישראל כ«ידוע — עדיין נכון?»`;
+}
+document.getElementById('prepList').addEventListener('change', e => {
+  const i = +e.target.dataset.prep; e.target.checked ? prepOff.delete(i) : prepOff.add(i); renderPrep();
+});
+document.getElementById('prepGo').addEventListener('click', e => { e.target.textContent = '✓ פורסם בדף של ישראל · בלי מייל'; e.target.disabled = true; });
+renderPrep();
+
+// ── 2. questionnaire ──
+const TILES = [
+  { k: 'salary', l: 'משכורת', s: 'ישראלה', file: true },
+  { k: 'biz', l: 'עסק / עצמאי', s: 'ישראל', file: true },
+  { k: 'invest', l: 'חיסכון או מניות', s: 'לאומי, יהב', file: true },
+  { k: 'kitzba', l: 'קצבה או פנסיה', s: 'שקיבלתם, כולל שאירים', file: true },
+  { k: 'disab', l: 'נכות או מחלה', s: 'אחוזי נכות, אישור', file: true },
+  { k: 'pension', l: 'הפקדה פרטית', s: 'פנסיה, ביטוח חיים', file: true },
+  { k: 'donate', l: 'תרומות', s: 'לעמותה מוכרת' },
+  { k: 'reserve', l: 'מילואים' },
+  { k: 'rent', l: 'השכרת דירה' },
+  { k: 'baby', l: 'ילד שנולד' },
+  { k: 'degree', l: 'סיום תואר' },
+  { k: 'abroad', l: 'הכנסה מחו״ל' },
+  { k: 'sale', l: 'מכירת דירה או נכס' },
+];
+const FILE_TILES = TILES.filter(t => t.file).map(t => t.k);
+let sc = 'normal';
+const picked = new Set(FILE_TILES);
+const changed = new Set();
+let familyEvent = null;
+const sel = {}; // generic multi-select answers by group
+const docState = {};
+let step = 0;
+const on = (g, v) => (sel[g] ?? new Set()).has(v);
+const tog = (g, v) => { sel[g] = sel[g] ?? new Set(); sel[g].has(v) ? sel[g].delete(v) : sel[g].add(v); };
+const chipsM = (g, list) => `<div class="chips" data-g="${g}">${list.map(v => `<button class="chip" aria-pressed="${on(g, v)}" data-v="${v}">${v}</button>`).join('')}</div>`;
+const chips1 = (list, def) => `<div class="chips">${list.map(v => `<button class="chip" data-one aria-pressed="${v === def}">${v}</button>`).join('')}</div>`;
+
+function setScenario(s) {
+  sc = s; step = 0; changed.clear(); familyEvent = null; for (const k in sel) delete sel[k]; for (const k in docState) delete docState[k];
+  picked.clear(); FILE_TILES.forEach(k => picked.add(k));
+  if (s === 'death') {
+    changed.add('family'); familyEvent = 'death';
+    sel['d.got'] = new Set(['משכורת', 'קצבה מגמלאות', 'דמי מחלה']);
+    sel['d.lump'] = new Set(['פיצויים מהמעסיק']);
+    sel['d.payers'] = new Set(['הפניקס', 'מינהלת הגמלאות']);
+    sel['d.recv'] = new Set(['ישראל', 'נועה', 'איתי']);
+    sel['banks'] = new Set(['לאומי', 'יהב']);
+    sel['funds'] = new Set(['הפניקס']);
+  }
+  if (s === 'divorce') { changed.add('family'); familyEvent = 'divorce'; }
+  document.querySelectorAll('[data-sc]').forEach(b => b.setAttribute('aria-pressed', b.dataset.sc === s));
+  render();
+}
+
+const KNOWN = () => [
+  ['family', 'מצב משפחתי', 'נשוי לישראלה'],
+  ['kids', 'ילדים', 'נועה (2008) · איתי (2012)'],
+  ['work1', 'ישראל', 'עצמאי · ישראלי ייעוץ (דוגמה)'],
+  ['work2', 'ישראלה', 'שכירה · משרד ממשלתי לדוגמה + קצבה מגמלאות'],
+  ['disab', 'ישראלה', 'פטור נכות 100% (מ־08.2021)'],
+  ['acc', 'חשבונות', 'לאומי · יהב (משותפים)'],
+  ['ins', 'ביטוח', 'ביטוח חיים באיילון · פנסיה בהפניקס'],
+];
+
+const FOLLOW = {
+  salary: () => familyEvent === 'death'
+    ? `<p class="cl-q">ישראל, עבדת כשכיר ב־2025?</p><p class="cl-sub">על המשכורת של ישראלה כבר שאלנו קודם.</p><div class="card-c">${chips1(['כן', 'לא'], 'לא')}</div>`
+    : `<p class="cl-q">ישראלה עדיין עובדת במשרד ממשלתי לדוגמה?</p><p class="cl-sub">זה מה שהיה בדוח של שנה שעברה.</p>
+    <div class="card-c">${chips1(['כן, כל השנה', 'עזבה במהלך השנה', 'עברה למקום אחר'], 'כן, כל השנה')}</div>
+    <div class="card-c"><div class="lbl">ישראל עבד גם כשכיר ב־2025?</div>${chips1(['כן', 'לא'], 'לא')}</div>`,
+  biz: () => `<p class="cl-q">ישראלי ייעוץ (דוגמה) עדיין פעיל?</p><p class="cl-sub">את דוחות העסק אנחנו מכינים מהנהלת החשבונות. לא צריך לשלוח כלום.</p>
+    <div class="card-c">${chips1(['כן, פעיל', 'נסגר ב־2025'], 'כן, פעיל')}</div>`,
+  invest: () => `<p class="cl-q">החשבונות עדיין באותם בנקים?</p><p class="cl-sub">סמנו את כל מה שהיה ב־2025.</p>
+    <div class="card-c">${chipsM('banks', ['לאומי', 'יהב', 'הפועלים', 'דיסקונט', 'מזרחי טפחות', 'מיטב', 'אחר'])}</div>`,
+  kitzba: () => familyEvent === 'death' ? null : `<p class="cl-q">ישראלה עדיין מקבלת קצבה ממינהלת הגמלאות?</p>
+    <div class="card-c">${chips1(['כן', 'הפסיקה'], 'כן')}<div class="lbl" style="margin-top:12px">עוד קצבה ממקום אחר?</div>${chipsM('k.more', ['קרן פנסיה', 'ביטוח לאומי', 'חברת ביטוח', 'לא'])}</div>`,
+  disab: () => familyEvent === 'death' ? null : `<p class="cl-q">אחוזי הנכות של ישראלה עדיין בתוקף?</p>
+    <div class="card-c">${chips1(['כן, ללא שינוי', 'השתנו', 'לא בטוח/ה'], 'כן, ללא שינוי')}<div class="why">למה שואלים? נכות קבועה פוטרת ממס חלק גדול מההכנסה. זה עובד רק כשיש אישור בתוקף.</div></div>`,
+  pension: () => `<p class="cl-q">ההפקדות והביטוחים, עדיין באותם מקומות?</p>
+    <div class="card-c">${chipsM('funds', ['הפניקס', 'איילון', 'הראל', 'מגדל', 'כלל', 'מנורה', 'אחר'])}</div>`,
+  donate: () => `<p class="cl-q">תרמתם ב־2025?</p><p class="cl-sub">תרומות שהעמותה דיווחה עליהן מגיעות אלינו לבד. קבלה צריך רק על מה שלא מופיע.</p>
+    <div class="card-c">${chips1(['כן, הכול מדווח', 'כן, יש לי קבלות', 'לא בטוח/ה'], 'כן, יש לי קבלות')}</div>`,
+  reserve: () => `<p class="cl-q">מי שירת במילואים, ובערך כמה ימים?</p><div class="card-c">${chips1(['ישראל', 'ישראלה'], 'ישראל')}<div style="height:8px"></div><input class="field" inputmode="numeric" value="24"></div>`,
+  rent: () => `<p class="cl-q">כמה דירות השכרתם?</p><div class="card-c">${chips1(['אחת', 'שתיים', 'יותר'], 'אחת')}</div>`,
+  baby: () => `<p class="cl-q">מזל טוב! מתי נולד/ה?</p><div class="card-c"><input class="field" type="date" value="2025-06-01"></div>`,
+  degree: () => `<p class="cl-q">מי סיים תואר, ומתי?</p><div class="card-c">${chips1(['ישראל', 'ישראלה'], 'ישראל')}<div style="height:8px"></div><input class="field" type="date"></div>`,
+  abroad: () => `<p class="cl-q">מאיזו מדינה?</p><div class="card-c">${chipsM('countries', ['ארה״ב', 'בריטניה', 'גרמניה', 'אחר'])}</div>`,
+  sale: () => `<p class="cl-q">מה נמכר?</p><div class="card-c">${chips1(['דירה', 'קרקע', 'אחר'], 'דירה')}<div class="why">את הפרטים נעבור עליהם יחד בשיחה קצרה.</div></div>`,
+};
+
+// family-event branch screens
+const EVENT = {
+  pick: () => `<p class="cl-q">מה השתנה במצב המשפחתי?</p>
+    <div class="card-c"><div class="chips">
+      <button class="chip" data-ev="death" aria-pressed="${familyEvent === 'death'}">בן/בת הזוג נפטר/ה</button>
+      <button class="chip" data-ev="divorce" aria-pressed="${familyEvent === 'divorce'}">התגרשנו או נפרדנו</button>
+      <button class="chip" data-ev="marriage" aria-pressed="${familyEvent === 'marriage'}">התחתנו</button></div></div>`,
+  death: [
+    () => `<div class="soft-hello">אנחנו משתתפים בצערך, ישראל. נשאל רק את מה שצריך כדי לסדר את הדוח, ואת השאר נעשה אנחנו.</div>
+      <p class="cl-q">מתי ישראלה נפטרה?</p><div class="card-c"><input class="field" type="date" value="2025-10-31"></div>
+      <div class="card-c"><div class="lbl">יש צו ירושה או צו קיום צוואה?</div>${chips1(['כן', 'עוד לא', 'לא יודע'], 'כן')}</div>`,
+    () => `<p class="cl-q">מה ישראלה קיבלה ב־2025, עד הפטירה?</p><p class="cl-sub">סמן את מה שאתה יודע. «לא בטוח» זה בסדר.</p>
+      <div class="card-c">${chipsM('d.got', ['משכורת', 'קצבה מגמלאות', 'דמי מחלה', 'קצבת נכות מביטוח לאומי', 'אובדן כושר עבודה מחברת ביטוח', 'לא בטוח'])}</div>`,
+    () => `<p class="cl-q">שולמו כספים בגלל הפטירה?</p>
+      <div class="card-c">${chipsM('d.lump', ['פיצויים מהמעסיק', 'ביטוח חיים', 'ביטוח משכנתה', 'כסף מקופת גמל או פנסיה', 'לא היו', 'לא בטוח'])}</div>
+      <div class="why">למה שואלים? רוב הכספים האלה פטורים ממס, אבל צריך את האישורים כדי לקבל את הפטור.</div>`,
+    () => `<p class="cl-q">ממי מקבלים קצבת שאירים?</p>
+      <div class="card-c"><div class="lbl">מאיפה</div>${chipsM('d.payers', ['הפניקס', 'מינהלת הגמלאות', 'ביטוח לאומי', 'מגדל', 'כלל', 'הראל', 'מנורה', 'אחר', 'עוד לא'])}
+      <div class="lbl" style="margin-top:12px">מי מקבל</div>${chipsM('d.recv', ['ישראל', 'נועה', 'איתי'])}</div>
+      <div class="why">אישור שנתי צריך מכל גוף, לכל מי שמקבל.</div>`,
+  ],
+  divorce: [
+    () => `<p class="cl-q">מתי התגרשתם או נפרדתם?</p><div class="card-c"><input class="field" type="date" value="2025-05-01"></div>
+      <div class="card-c"><div class="lbl">אצל מי הילדים גרים?</div>${chips1(['אצלי', 'אצל ישראלה', 'משותף'], 'אצלי')}</div>`,
+    () => `<p class="cl-q">יש תשלום מזונות?</p><div class="card-c">${chips1(['אני משלם', 'אני מקבל', 'אין'], 'אני משלם')}</div>
+      <div class="why">למה שואלים? לפי זה נקבעות נקודות הזיכוי, וגם מי מדווח על מה.</div>`,
+  ],
+  marriage: [
+    () => `<p class="cl-q">מזל טוב! מתי התחתנתם?</p><div class="card-c"><input class="field" type="date"></div>
+      <div class="card-c"><div class="lbl">בן/בת הזוג עבד/ה ב־2025?</div>${chips1(['כן, שכיר/ה', 'כן, עצמאי/ת', 'לא'], 'כן, שכיר/ה')}</div>`,
+  ],
+};
+
+const flowList = () => {
+  const f = ['intro', 'known'];
+  if (changed.has('family')) { f.push('ev:pick'); if (familyEvent) EVENT[familyEvent].forEach((_, i) => f.push(`ev:${familyEvent}:${i}`)); }
+  f.push('grid');
+  TILES.forEach(t => { if (picked.has(t.k) && FOLLOW[t.k] && FOLLOW[t.k]() !== null) f.push('f:' + t.k); });
+  f.push('special', 'docs', 'done');
+  return f;
+};
+
+function docGroups() {
+  const g = [];
+  const add = (who, n, s) => { let x = g.find(y => y.who === who); if (!x) g.push(x = { who, items: [] }); x.items.push({ id: who + n + s, n, s }); };
+  const death = familyEvent === 'death';
+  if (death) {
+    add('הפטירה', 'תעודת פטירה', '');
+    add('הפטירה', 'צו ירושה או צו קיום צוואה', 'אם יש כבר');
+    if (on('d.got', 'משכורת')) add('ישראלה', 'טופס 106 לשנת 2025', 'משרד ממשלתי לדוגמה · עד הפטירה');
+    if (on('d.got', 'קצבה מגמלאות')) add('ישראלה', 'אישור שנתי על הקצבה 2025', 'מינהלת הגמלאות · עד הפטירה');
+    if (on('d.got', 'קצבת נכות מביטוח לאומי') || on('d.got', 'דמי מחלה')) add('ישראלה', 'אישור שנתי מביטוח לאומי', '');
+    if (on('d.got', 'אובדן כושר עבודה מחברת ביטוח')) add('ישראלה', 'אישור מחברת הביטוח על אובדן כושר', '');
+    if (on('d.lump', 'פיצויים מהמעסיק')) { add('ישראלה', 'טופס 161 + 161ב', 'מהמעסיק, עם חלק ב׳ חתום'); }
+    if (on('d.lump', 'ביטוח חיים')) add('ישראלה', 'מכתב מחברת הביטוח על התשלום', 'ביטוח חיים');
+    if (on('d.lump', 'כסף מקופת גמל או פנסיה')) add('ישראלה', 'אישור הקופה על התשלום למוטבים', '');
+    const recv = [...(sel['d.recv'] ?? [])], payers = [...(sel['d.payers'] ?? [])].filter(p => p !== 'עוד לא');
+    for (const r of recv) for (const p of payers) add(r === 'ישראל' ? 'ישראל' : r + ' (תיק משלו/ה)', 'אישור שנתי על קצבת שאירים', p);
+  } else {
+    if (picked.has('salary')) add('ישראלה', 'טופס 106', 'משרד ממשלתי לדוגמה');
+    if (picked.has('kitzba')) add('ישראלה', 'אישור שנתי על הקצבה', 'מינהלת הגמלאות');
+  }
+  const both = death ? 'משותף' : 'שניכם';
+  if (familyEvent === 'divorce') { add('הגירושין', 'הסכם או פסק דין גירושין', ''); }
+  if (familyEvent === 'marriage') { add('בן/בת הזוג', 'טופס 106', 'מהמעסיק'); add('הנישואין', 'תעודת נישואין', ''); }
+  if (picked.has('invest')) for (const b of (sel['banks']?.size ? sel['banks'] : new Set(['הבנק']))) add(both, 'טופס 867', b);
+  if (picked.has('pension')) for (const b of (sel['funds']?.size ? sel['funds'] : new Set(['הקופה']))) add('ישראל', 'אישור שנתי על ההפקדות', b);
+  if (picked.has('disab') && !death) add('ישראלה', 'אישור נכות בתוקף', 'רק אם השתנה משנה שעברה');
+  if (picked.has('donate')) add(both, 'קבלות על תרומות', 'רק מה שלא דווח במערכת');
+  if (picked.has('reserve')) add('ישראל', 'אישור ימי מילואים', '');
+  if (picked.has('rent')) add(both, 'חוזה השכירות', 'אם התחיל חוזה חדש');
+  if (picked.has('degree')) add('ישראל', 'אישור זכאות לתואר', '');
+  if (picked.has('abroad')) add(both, 'דוח מהגוף בחו״ל', '');
+  return g;
+}
+
+function render() {
+  const flow = flowList();
+  if (step >= flow.length) step = flow.length - 1;
+  const id = flow[step];
+  const total = flow.length - 2;
+  const pct = id === 'intro' ? 0 : id === 'done' ? 100 : Math.round((step / (flow.length - 1)) * 100);
+  let body = '', foot = '';
+  const next = (label = 'המשך') => `<button class="btn-c" data-go="next">${label}</button>`;
+  const back = step > 0 && id !== 'done' ? `<button class="btn-link" data-go="back">חזרה</button>` : '';
+
+  if (id === 'intro') {
+    body = `<div class="fade" style="padding-top:30px"><p class="cl-q" style="font-size:24px">הדוח השנתי שלכם לשנת 2025</p>
+      <p class="cl-sub" style="font-size:15px">שלום ישראל. כמה שאלות קצרות, בערך <b>5 דקות</b>. נתחיל ממה שהיה בדוח של שנה שעברה, ונבקש רק את המסמכים שבאמת חסרים.</p>
+      <div class="card-c"><div class="lbl">אפשר לעצור באמצע ולהמשיך אחר כך מאותו מקום.</div></div></div>`;
+    foot = next('מתחילים');
+  } else if (id === 'known') {
+    // שורה בשאלון נשארת כל עוד אחד הפרטים שלה במסך «לפני השליחה» מסומן
+    const SRC = { family: [0], kids: [0], work1: [1], work2: [2, 3], disab: [4], acc: [5], ins: [6, 7] };
+    const K = KNOWN().filter(([k]) => SRC[k].some(i => !prepOff.has(i)));
+    body = `<div class="fade"><p class="cl-q">זה מה שהיה בדוח של שנה שעברה. עדיין נכון?</p><p class="cl-sub">אם משהו השתנה, לחצו עליו.</p>
+      <div class="known">${K.map(([k, a, b]) => `<div class="known-row"><div><div class="k">${a}</div><div class="v">${b}</div><span class="src-tag">מהדוח 2024</span></div><button class="chg" data-chg="${k}" aria-pressed="${changed.has(k)}">${changed.has(k) ? 'השתנה' : 'השתנה?'}</button></div>`).join('')}</div></div>`;
+    foot = next(changed.size ? 'המשך' : 'כן, הכול נכון');
+  } else if (id === 'ev:pick') {
+    body = `<div class="fade">${EVENT.pick()}</div>`;
+    foot = familyEvent ? next() : `<button class="btn-c" disabled style="opacity:.5">בחרו מה השתנה</button>`;
+  } else if (id.startsWith('ev:')) {
+    const [, ev, i] = id.split(':');
+    body = `<div class="fade">${EVENT[ev][+i]()}</div>`;
+    foot = next();
+  } else if (id === 'grid') {
+    body = `<div class="fade"><p class="cl-q">מה היה לכם ב־2025?</p><p class="cl-sub">מה שהיה בשנה שעברה כבר מסומן. בטלו את מה שהפסיק, והוסיפו מה שחדש.</p>
+      <div class="grid">${TILES.map(t => `<button class="tile" data-tile="${t.k}" aria-pressed="${picked.has(t.k)}">${t.l}${t.s ? `<small>${t.s}</small>` : ''}${t.file ? `<span class="tag-file">מהדוח 2024</span>` : ''}</button>`).join('')}</div></div>`;
+    foot = next();
+  } else if (id.startsWith('f:')) {
+    body = `<div class="fade">${FOLLOW[id.slice(2)]()}</div>`;
+    foot = next();
+  } else if (id === 'special') {
+    body = `<div class="fade"><p class="cl-q">קרה עוד משהו מיוחד ב־2025?</p><p class="cl-sub">רוב האנשים עונים «לא, זהו».</p>
+      <div class="card-c">${chipsM('special', ['קיבלתי ירושה או מתנה גדולה', 'יש לי חשבון או נכס בחו״ל', 'מכרתי מטבע דיגיטלי', 'קיבלתי פיצויים מעבודה', 'משהו אחר'])}</div></div>`;
+    foot = next(sel['special']?.size ? 'המשך' : 'לא, זהו');
+  } else if (id === 'docs') {
+    const groups = docGroups();
+    const all = groups.flatMap(g => g.items);
+    const pending = all.filter(x => !docState[x.id]).length;
+    body = `<div class="fade"><p class="cl-q">המסמכים שצריך</p><p class="cl-sub">הרשימה נבנתה מהתשובות שלכם. אפשר להעלות עכשיו, או לבחור «אשלח אחר כך».</p>
+      ${groups.map(g => `<div class="doc-group">${g.who}</div>` + g.items.map(x => `<div class="doc ${docState[x.id] === 'up' ? 'done' : docState[x.id] === 'later' ? 'later-s' : ''}"><div><b>${x.n}</b><span>${x.s}</span></div><div class="acts">
+        ${docState[x.id] === 'up' ? `<button class="up" data-doc="${x.id}" data-a="">✓ הועלה</button>` : docState[x.id] === 'later' ? `<span style="font-size:12px;color:var(--tx2)">אשלח אחר כך</span><button class="later" data-doc="${x.id}" data-a="">ביטול</button>` : `<button class="up" data-doc="${x.id}" data-a="up">צלם / העלה</button><button class="later" data-doc="${x.id}" data-a="later">אשלח אחר כך</button>`}
+      </div></div>`).join('')).join('')}
+      ${picked.has('biz') ? `<div class="office-doc">העסק: את דוח הרווח וההפסד אנחנו מכינים מהנהלת החשבונות. לא צריך לשלוח.</div>` : ''}</div>`;
+    foot = next(pending ? 'סיימתי לעכשיו' : 'סיום');
+  } else {
+    const missing = docGroups().flatMap(g => g.items).filter(x => docState[x.id] !== 'up').length;
+    body = `<div class="fade done-hero"><div class="check">✓</div><p class="cl-q">תודה ישראל, קיבלנו!</p>
+      <p class="cl-sub" style="font-size:15px">${missing ? `חסרים עוד <b>${missing}</b> מסמכים. אפשר להעלות אותם מהדף שלכם מתי שנוח.` : 'יש לנו כל מה שצריך.'} נעדכן אתכם כשהדוח יהיה מוכן לחתימה.</p></div>`;
+    foot = `<button class="btn-c2" data-go="restart">להתחיל את ההמחשה מחדש</button>`;
+  }
+  const qn = id !== 'intro' && id !== 'done' ? `שלב ${step} מתוך ${total}` : '';
+  document.getElementById('qscreen').innerHTML = `
+    <div class="cl-head"><div class="cl-firm">רו״ח לדוגמה · הדף של ישראל</div>
+      <div class="cl-prog"><i style="width:${pct}%"></i></div><div class="cl-step">${qn || '&nbsp;'}</div></div>
+    <div class="cl-body">${body}</div>
+    <div class="cl-foot">${foot}${back}</div>`;
+}
+document.querySelectorAll('[data-sc]').forEach(b => b.addEventListener('click', () => setScenario(b.dataset.sc)));
+document.getElementById('qscreen').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b || b.disabled) return;
+  if (b.dataset.go === 'next') { step++; render(); document.querySelector('#qscreen .cl-body').scrollTop = 0; return; }
+  if (b.dataset.go === 'back') { step = Math.max(0, step - 1); render(); return; }
+  if (b.dataset.go === 'restart') { setScenario(sc); return; }
+  if (b.dataset.tile) { picked.has(b.dataset.tile) ? picked.delete(b.dataset.tile) : picked.add(b.dataset.tile); b.setAttribute('aria-pressed', picked.has(b.dataset.tile)); return; }
+  if (b.dataset.chg) { changed.has(b.dataset.chg) ? changed.delete(b.dataset.chg) : changed.add(b.dataset.chg); if (!changed.has('family')) familyEvent = null; render(); return; }
+  if (b.dataset.ev) { familyEvent = b.dataset.ev; render(); return; }
+  if (b.dataset.doc !== undefined) { if (b.dataset.a) docState[b.dataset.doc] = b.dataset.a; else delete docState[b.dataset.doc]; render(); return; }
+  if (b.classList.contains('chip')) {
+    if (b.hasAttribute('data-one')) { b.parentElement.querySelectorAll('.chip').forEach(c => c.setAttribute('aria-pressed', c === b)); return; }
+    const g = b.parentElement.dataset.g; if (g) tog(g, b.dataset.v);
+    b.setAttribute('aria-pressed', b.getAttribute('aria-pressed') !== 'true');
+    if (g === 'special') render();
+  }
+});
+setScenario('normal');
+
+// ── 3. office summary ──
+const pill = (k, t) => `<span class="pill ${k}">${t}</span>`;
+const row = (area, who, what, src, p) => `<div class="row"><div class="area">${area}<span class="who">${who}</span></div><div>${what}</div><div class="src">${src}</div>${p}</div>`;
+const ONLY = `
+  <div class="sec">
+    <h3>רק אתה יודע <span class="cnt">נשמר פעם אחת לשנת 2025, ומופיע גם בהערכת המס של 2025 ובתיק המס</span></h3>
+    <p class="hint">מופיעים רק השדות שרלוונטיים ללקוח הזה. מקדמות, למשל, רק למי שיש לו עסק.</p>
+    <div class="only">
+      <div class="only-person">ישראל · עסק</div>
+      <div class="only-grid">
+        <div><label for="f1">מקדמות מס הכנסה ששולמו ב־2025</label><div class="money"><span>₪</span><input id="f1" inputmode="numeric" placeholder="0"></div><div class="saved" data-for="f1"></div></div>
+        <div><label for="f2">ניכוי במקור מלקוחות</label><div class="money"><span>₪</span><input id="f2" inputmode="numeric" placeholder="0"></div><div class="saved" data-for="f2"></div></div>
+        <div><label for="f3">ביטוח לאומי ששולם כעצמאי ב־2025</label><div class="money"><span>₪</span><input id="f3" inputmode="numeric" placeholder="0"></div><div class="saved" data-for="f3"></div></div>
+        <div><label for="f4">הפסדים מועברים משנים קודמות</label><div class="money"><span>₪</span><input id="f4" inputmode="numeric" placeholder="אין"></div><div class="saved" data-for="f4"></div></div>
+      </div>
+    </div>
+  </div>`;
+const OFFICE_SUM = {
+  normal: `
+    <div class="o-head"><div><p class="o-title">דוח שנתי 2025 · ישראל וישראלה ישראלי</p><div class="o-sub">השאלון הוחזר ב־19.10 · נקודת פתיחה: הדוח של 2024</div></div><button class="btn-o" type="button">מה ישראל רואה</button></div>
+    <ul class="steps"><li class="done">שאלון ✓</li><li class="now">מסמכים 4 מתוך 7</li><li>הכנה</li><li>אישורך</li><li>חתימת הלקוח</li><li>הוגש</li></ul>
+    <div class="sec"><h3>מה למלא בדוח <span class="cnt">לפי תשובות הלקוח</span></h3><div class="rows">
+      ${row('משכורת', 'ישראלה', 'משרד ממשלתי לדוגמה · כל השנה', 'טופס 106', pill('ok', 'התקבל'))}
+      ${row('קצבה', 'ישראלה', 'מינהלת הגמלאות · כל השנה', 'אישור שנתי', pill('miss', 'חסר'))}
+      ${row('פטור נכות <bdi dir="ltr">9(5)</bdi>', 'ישראלה', '100% · ללא שינוי לפי הלקוח', 'האישור מ־2024 בתיק', pill('ok', 'בתיק'))}
+      ${row('עסק', 'ישראל', 'ישראלי ייעוץ (דוגמה) · פעיל', 'רווח והפסד מהנהלת החשבונות', pill('offc', 'אצל המשרד'))}
+      ${row('ריבית', 'שניכם', 'לאומי · יהב', '2 × טופס 867', pill('miss', '1 מתוך 2'))}
+      ${row('ביטוח חיים והפקדות', 'ישראל', 'איילון · הפניקס', 'אישורים שנתיים', pill('ok', 'התקבל'))}
+      ${row('תרומות', 'שניכם', 'מדווחות במערכת + 2 קבלות', 'אשף התרומות + קבלות', pill('ok', 'התקבל'))}
+      <div class="none-line">לא היה ב־2025, לפי הלקוח: שכר דירה · חו״ל · מכירת נכס · ילד שנולד · תואר · מילואים</div>
+    </div></div>
+    ${ONLY}
+    <div class="sec"><h3>מה עוד פתוח <span class="cnt">1</span></h3><div class="rows">
+      <div class="open-item"><span>«לא בטוח» על קצבה נוספת של ישראלה<span class="o-sub">לבדוק בשיחה</span></span><button class="btn-o" type="button">סגור</button></div>
+    </div></div>
+    <details class="more"><summary>פירוט מלא: השאלון, החישובים ואיך עושים ביד</summary><p>כאן יישב כל מה שיש היום בדף הארוך, בלי לאבד כלום, אבל סגור כברירת מחדל.</p></details>`,
+  death: `
+    <div class="o-head"><div><p class="o-title">דוח שנתי 2025 · ישראל ישראלי (וישראלה ז״ל)</p><div class="o-sub">השאלון הוחזר ב־19.10 · ישראלה נפטרה ב־31.10.2025 · ישראל הוא בן הזוג הרשום</div></div><button class="btn-o" type="button">מה ישראל רואה</button></div>
+    <ul class="steps"><li class="done">שאלון ✓</li><li class="now">מסמכים 6 מתוך 12</li><li>הכנה</li><li>אישורך</li><li>חתימת הלקוח</li><li>הוגש</li></ul>
+    <div class="sec"><h3>מה למלא בדוח <span class="cnt">לפי תשובות הלקוח</span></h3><div class="rows">
+      ${row('משכורת', 'ישראלה · עד 31.10', 'משרד ממשלתי לדוגמה', 'טופס 106', pill('ok', 'התקבל'))}
+      ${row('קצבה', 'ישראלה · עד 31.10', 'מינהלת הגמלאות (כולל היוון מ־2022)', 'אישור שנתי', pill('miss', 'חסר'))}
+      ${row('פטור נכות <bdi dir="ltr">9(5)</bdi>', 'ישראלה', '100% מ־08.2021', 'האישור מ־2024 בתיק', pill('ok', 'בתיק'))}
+      ${row('פיצויים עקב פטירה', 'ישראלה', 'מעסיק + קרן פנסיה · פדיון ימי מחלה (נוכה מס)', '161 + 161ב', pill('ok', 'התקבל'))}
+      ${row('קצבת שאירים', 'ישראל', 'הפניקס · מינהלת הגמלאות', '2 אישורים שנתיים', pill('miss', '0 מתוך 2'))}
+      ${row('קצבת יתומים', 'נועה · איתי', 'הפניקס · מינהלת הגמלאות', 'תיק נפרד לכל ילד', pill('sep', 'לא בדוח הזה'))}
+      ${row('עסק', 'ישראל', 'ישראלי ייעוץ (דוגמה) · פעיל', 'רווח והפסד מהנהלת החשבונות', pill('offc', 'אצל המשרד'))}
+      ${row('ריבית', 'משותף', 'לאומי · יהב', '2 × טופס 867', pill('ok', 'התקבל'))}
+      ${row('ביטוח חיים והפקדות', 'ישראל', 'איילון · הפניקס', 'אישורים שנתיים', pill('ok', 'התקבל'))}
+      <div class="none-line">לא היה ב־2025, לפי הלקוח: ביטוח חיים על ישראלה · ביטוח משכנתה · אובדן כושר · שכר דירה · חו״ל</div>
+    </div></div>
+    <div class="sec"><h3>הכרעות שלך <span class="cnt">שנת פטירה · המערכת מציגה ולא מחליטה</span></h3><div class="rows">
+      <div class="open-item"><span>חיתוך ההכנסות לפי 31.10: עד הפטירה של ישראלה, ואחריה של היורשים (258/272)<span class="o-sub">פקודה 120, 125א</span></span><button class="btn-o" type="button">סמן שהוכרע</button></div>
+      <div class="open-item"><span>פיצויי הפטירה: לשאירים (פטור כפול) או לישראלה<span class="o-sub"><bdi dir="ltr">9(7א)</bdi> · חוזר 2/2022</span></span><button class="btn-o" type="button">סמן שהוכרע</button></div>
+      <div class="open-item"><span>פטור הנכות על השכר והקצבה של ישראלה עד הפטירה<span class="o-sub"><bdi dir="ltr">9(5)</bdi> · חלק שנה</span></span><button class="btn-o" type="button">סמן שהוכרע</button></div>
+      <div class="open-item"><span>נקודות זיכוי: «ילד להורה אחד» לנועה (17) ולאיתי (13) + נקודה נוספת<span class="o-sub"><bdi dir="ltr">40(ב)(3)</bdi>, שדה 026</span></span><button class="btn-o" type="button">סמן שהוכרע</button></div>
+      <div class="open-item"><span>לבדוק בשיחה: קצבת שאירים רטרואקטיבית (11–12.2025) ששולמה ב־2026 · מה קורה להיוון אחרי הפטירה<span class="o-sub">שאלות פתוחות במחקר</span></span><button class="btn-o" type="button">סגור</button></div>
+    </div></div>
+    ${ONLY}
+    <div class="sec"><h3>עבודה נוספת שעלתה <span class="cnt">לא בדוח הזה</span></h3><div class="rows">
+      <div class="open-item"><span>תיאום מס או החזר מס על קצבת היתומים, לנועה ולאיתי<span class="o-sub">כמה משלמים ⇒ תיאום לכל שאיר</span></span><button class="btn-o" type="button">＋ פתח בקשה</button></div>
+    </div></div>
+    <details class="more"><summary>פירוט מלא: השאלון, החישובים ואיך עושים ביד</summary><p>כאן יישב כל מה שיש היום בדף הארוך, בלי לאבד כלום, אבל סגור כברירת מחדל.</p></details>`,
+};
+function showOffice(v) {
+  document.querySelectorAll('[data-osc]').forEach(b => b.setAttribute('aria-pressed', b.dataset.osc === v));
+  document.getElementById('officeBox').innerHTML = OFFICE_SUM[v];
+  document.querySelectorAll('.only input').forEach(inp => {
+    let t;
+    inp.addEventListener('input', () => {
+      inp.value = inp.value.replace(/[^\d,]/g, '');
+      const s = document.querySelector(`.saved[data-for="${inp.id}"]`);
+      s.textContent = ''; clearTimeout(t);
+      t = setTimeout(() => { s.textContent = inp.value ? '✓ נשמר לשנת 2025' : ''; }, 500);
+    });
+  });
+}
+document.querySelectorAll('[data-osc]').forEach(b => b.addEventListener('click', () => showOffice(b.dataset.osc)));
+showOffice('normal');
+document.getElementById('officeBox').addEventListener('click', e => {
+  const b = e.target.closest('.open-item .btn-o'); if (!b || b.textContent.startsWith('＋')) return;
+  b.closest('.open-item').style.opacity = .45; b.textContent = '✓'; b.disabled = true;
+});
+
+// ── 4. requests today / proposed ──
+const OFFICE = {
+  today: `<div class="rq-h"><b>בקשות · ישראל ישראלי</b><button class="btn-o primary" type="button">＋ בקשה חדשה</button></div>
+    <div class="rq"><div class="rq-top"><span class="rq-name">קליטה והשלמת תיק המס</span><span class="rq-meta">ממתין לישראל · 3 מתוך 9</span></div></div>
+    <div class="rq noise"><div class="rq-top"><span class="rq-name">יישור קו — מס הכנסה</span><span class="noise-tag">נפתח לבד</span></div></div>
+    <div class="rq noise"><div class="rq-top"><span class="rq-name">יישור קו — מע״מ</span><span class="noise-tag">נפתח לבד</span></div></div>
+    <div class="rq noise"><div class="rq-top"><span class="rq-name">יישור קו — ביטוח לאומי</span><span class="noise-tag">נפתח לבד</span></div></div>
+    <div class="rq"><div class="rq-top"><span class="rq-name">ייצוג מול הרשויות</span><span class="rq-meta">2 מתוך 3 הושלמו</span></div>
+      <ul class="rq-kids"><li class="dim"><span>מס הכנסה · ישראל</span><span>הושלם</span></li><li class="dim"><span>ביטוח לאומי · ישראל</span><span>הושלם</span></li><li><span>ביטוח לאומי · ישראלה</span><span>ממתין לחתימה</span></li></ul></div>
+    <div class="rq"><div class="rq-top"><span class="rq-name">פייפרלס</span><span class="rq-meta">4 מתוך 4 הושלמו</span></div>
+      <ul class="rq-kids"><li class="dim"><span>הרשמה</span><span>הושלם</span></li><li class="dim"><span>חיבור</span><span>הושלם</span></li><li class="dim"><span>הוראת קבע</span><span>הושלם</span></li><li class="dim"><span>כרטיס</span><span>הושלם</span></li></ul></div>
+    <div class="fold"><span>הושלמו (3)</span><span>⌄</span></div>
+    <div class="none-line" style="margin-top:6px">ואין שורה לדוח השנתי, כי הוא נפתח מכפתור מקונן בתוך «＋ בקשה חדשה».</div>`,
+  new: `<div class="rq-h"><b>בקשות · ישראל ישראלי</b><button class="btn-o primary" type="button">＋ בקשה חדשה</button></div>
+    <div class="rq"><div class="rq-top"><span class="rq-name">דוח שנתי 2025</span><span class="rq-meta">ממתין לישראל · 3 מסמכים</span></div>
+      <ul class="steps" style="margin:8px 0 0"><li class="done">שאלון ✓</li><li class="now">מסמכים 4/7</li><li>הכנה</li><li>אישורך</li><li>חתימה</li><li>הוגש</li></ul></div>
+    <div class="rq"><div class="rq-top"><span class="rq-name">ייצוג מול הרשויות</span><span class="rq-meta">ביטוח לאומי · ישראלה · ממתין לחתימה</span></div>
+      <div class="rq-meta" style="margin-top:4px">ועוד 2 שהושלמו</div></div>
+    <button class="fold" type="button" data-fold><span>הושלמו (8)</span><span>⌄</span></button>
+    <ul class="fold-list" hidden><li><span>פייפרלס</span><span>08.2026</span></li><li><span>קליטה והשלמת תיק המס</span><span>10.2026</span></li><li><span>מדריך הוצאות מוכרות</span><span>08.2026</span></li><li><span>…</span><span></span></li></ul>`,
+};
+const CLIENT = {
+  today: `<div class="cp-head"><div class="cl-firm">רו״ח לדוגמה</div><div class="hi">שלום ישראל</div></div>
+    <div class="cp-sec">מה מחכה לכם</div>
+    <div class="cp-card"><b>השלמת פרטים לתיק המס</b><span>3 מתוך 9 שאלות</span><button class="btn-c">המשך</button></div>
+    <div class="cp-sec">מסמכים מהמשרד</div>
+    <div class="cp-card donecard"><div><b>מדריך: איך עובדים עם פייפרלס</b></div><em>נפתח</em></div>
+    <div class="cp-card donecard"><div><b>מדריך הוצאות מוכרות</b></div><em>נפתח</em></div>
+    <div class="cp-card donecard"><div><b>פייפרלס</b><span>הקמת העסק והסדרת התשלום</span></div><em>הושלם</em></div>
+    <div class="cp-card donecard"><div><b>ייצוג מול הרשויות</b><span>ייפוי כוח מול הרשויות</span></div><em>הושלם</em></div>`,
+  new: `<div class="cp-head"><div class="cl-firm">רו״ח לדוגמה</div><div class="hi">שלום ישראל</div></div>
+    <div class="cp-sec">מה מחכה לכם</div>
+    <div class="cp-card"><b>הדוח השנתי 2025</b><span>חסרים 3 מסמכים: אישור קצבה, 867 מיהב, אישור נכות</span><button class="btn-c">להעלות</button></div>
+    <div class="cp-card"><b>אישור ייצוג בביטוח לאומי · ישראלה</b><span>לחיצה אחת באתר ביטוח לאומי</span><button class="btn-c">איך מאשרים</button></div>
+    <button class="cp-donefold" type="button" data-cfold><span>מה שכבר סיימנו (4)</span><span>⌄</span></button>
+    <ul class="cp-donelist" hidden><li><span>פייפרלס</span><span>הושלם</span></li><li><span>ייצוג מול הרשויות · ישראל</span><span>הושלם</span></li><li><span>מדריך: איך עובדים עם פייפרלס</span><span>נפתח</span></li><li><span>מדריך הוצאות מוכרות</span><span>נפתח</span></li></ul>`,
+};
+function showReq(v) {
+  document.querySelectorAll('[data-view]').forEach(b => b.setAttribute('aria-pressed', b.dataset.view === v));
+  document.getElementById('rqOffice').innerHTML = OFFICE[v];
+  document.getElementById('rqClient').innerHTML = CLIENT[v];
+  document.getElementById('taxcard').style.display = v === 'new' ? '' : 'none';
+}
+document.querySelectorAll('[data-view]').forEach(b => b.addEventListener('click', () => showReq(b.dataset.view)));
+document.addEventListener('click', e => {
+  const f = e.target.closest('[data-fold],[data-cfold]'); if (!f) return;
+  const list = f.nextElementSibling; list.hidden = !list.hidden;
+});
+showReq('new');
+</script>
+</body>
+</html>

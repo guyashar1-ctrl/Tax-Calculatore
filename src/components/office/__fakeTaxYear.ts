@@ -689,7 +689,7 @@ function taxYearRpcInner(t: Tables, name: string, args: Row, firm: string, logWr
         info = { id: `ty-info-${Date.now()}`, user_id: firm, engagement_id: par.engagement_id, client_id: par.client_id, step_type: 'info_collection', status: 'pending', ball: 'client',
           track: 'tools', scope: 'person', depends_on_step_id: null, due_date: null, needs_attention: false, completion_method: 'manual',
           payload: { parentStepId: par.id, taxYear: pp.taxYear, purpose: pp.purpose, cutoffMonth: pp.cutoffMonth, ...(pp.asOfDate ? { asOfDate: pp.asOfDate } : {}),
-            title: par.step_type === 'wealth_declaration' ? 'השלמת מידע להצהרת הון' : par.step_type === 'tax_file_intake' ? 'השלמת פרטים לתיק המס' : `השלמת מידע לשנת ${pp.taxYear}` },
+            title: par.step_type === 'wealth_declaration' ? 'השלמת מידע להצהרת הון' : par.step_type === 'tax_file_intake' ? 'השלמת פרטים לתיק המס' : par.step_type === 'annual_return' ? `הדוח השנתי ${pp.taxYear}` : `השלמת מידע לשנת ${pp.taxYear}` },
           completed_at: null, verified_at: null, published_at: null, sort_order: 31, created_at: nowIso(), updated_at: nowIso() };
         t.onboarding_steps.push(info);
       }

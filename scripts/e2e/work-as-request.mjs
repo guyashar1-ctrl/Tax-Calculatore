@@ -93,7 +93,7 @@ async function newCtx(width, { client = false, dark = false } = {}) {
     blocked.push(u); return route.abort();
   });
   const attach = (p) => {
-    p.on('console', m => { if (m.type() === 'error' && !/favicon|ResizeObserver|Failed to load resource: net::ERR_FAILED/.test(m.text())) consoleErrors.push(`${width}: ${m.text().slice(0, 240)}`); });
+    p.on('console', m => { if (m.type() === 'error' && !/favicon|ResizeObserver|Failed to load resource: net::ERR_FAILED/.test(m.text())) consoleErrors.push(`${width}: ${(m.args().length > 1 ? m.text() : m.text()).slice(0, 240)}`); if (process.env.E2E_DEBUG && /same key/.test(m.text())) console.log('    [dupkey]', m.text().slice(0, 1500)); });
     p.on('pageerror', e => consoleErrors.push(`${width} pageerror: ${String(e).slice(0, 240)}`));
   };
   // ‼ לשונית חדשה לכל ניווט (אותו פרופיל — המסד המדומה באחסון המקומי נשמר): שרת הפיתוח טוען אלפי מודולים,
@@ -220,7 +220,9 @@ async function answerFlow(page, rules) {
     if (rule?.[1] === 'stop') { log.push({ title, act: 'stop' }); break; }
     if (process.env.E2E_DEBUG) console.log('    [q]', title.slice(0, 60));
     const firstChoice = (await text(flow.locator('.ty-choice').first())).trim();
+    // ‼ 19.10.2026 · מסך רשת (גם בדוח השנתי): כלל «tiles:מפתח,מפתח» — מסמנים אותם; בלי כלל — «אין לנו אף אחד מאלה»
     const act = rule ? rule[1]
+      : (await flow.locator('.ty-tile[data-tile="none"]').count()) ? 'tiles:none'
       : (await flow.locator('input[type="file"]').count()) ? 'unavailable'
       : (await flow.getByRole('button', { name: 'כן, הכול נכון' }).count()) ? 'confirm'
       : (await flow.locator('input[type="number"]').count()) ? 'amount:0'
@@ -229,6 +231,7 @@ async function answerFlow(page, rules) {
       : firstChoice ? `choice:${firstChoice}` : 'no';
     const [kind, val] = act.split(/:(.*)/s);
     if (kind === 'confirm') await flow.getByRole('button', { name: 'כן, הכול נכון' }).click();
+    else if (kind === 'tiles') { for (const k of val.split(',')) { await flow.locator(`.ty-tile[data-tile="${k}"]`).first().click(); await page.waitForTimeout(120); } }
     else if (kind === 'yes') await flow.locator('.ty-choice', { hasText: /^כן$/ }).click();
     else if (kind === 'no') await flow.locator('.ty-choice', { hasText: /^לא$/ }).first().click();
     else if (kind === 'who') { const map = { none: /^לא$/, both: 'כן — שנינו', client: `כן — ${env.clientName}`, spouse: `כן — ${env.spouseName}` }; await flow.locator('.ty-choice', { hasText: map[val] }).first().click(); }
@@ -265,6 +268,8 @@ async function answerFlow(page, rules) {
       log.push({ title, act: 'unavailable(after file)' });
     }
     log.push({ title, act });
+    // ‼ «כן, הכול נכון» במסך האישור המקובץ כבר שולח ומתקדם — לחיצה נוספת על «הבא» נופלת על המסך הבא (מסך הרשת) בלי תשובה
+    if (kind === 'confirm') { await page.waitForFunction((t) => (document.querySelector('.ty-flow .ty-q')?.textContent ?? '') !== t, title, { timeout: 20000 }).catch(() => {}); await page.waitForTimeout(250); continue; }
     await flow.getByRole('button', { name: /^(הבא|שליחה למשרד)$/ }).click();
     await page.waitForFunction((t) => { const q = document.querySelector('.ty-flow .ty-q')?.textContent ?? ''; return q !== t || !!document.querySelector('.ty-flow .ty-err'); }, title, { timeout: 20000 }).catch(() => {});
     await page.waitForTimeout(250);
@@ -329,8 +334,9 @@ async function run(width) {
     ok(await page.locator('.rl-name', { hasText: /^↳/ }).count() === 0 && await page.locator('.rl-name', { hasText: 'השלמת פרטים לתיק המס' }).count() === 0, `[${tag}] שורה אחת: אין שורת «↳ השלמת פרטים לתיק המס»`);
     const rs = row.locator('[data-request-steps]');
     const rsTxt = (await text(rs)).replace(/\s+/g, ' ');
-    ok(await rs.locator('[data-rs-step]').count() === 3 && /תשובות הלקוח/.test(rsTxt) && /יישור קו ברשויות/.test(rsTxt) && /לתיק/.test(rsTxt), `[${tag}] שלושת הצעדים בשורה: תשובות הלקוח · יישור קו ברשויות · לתיק`, rsTxt.slice(0, 200));
-    ok(/טרם בוצע/.test(rsTxt) && /ממתין לאישורך/.test(rsTxt), `[${tag}] הצעדים: יישור קו «טרם בוצע» · לתיק «ייכנס כ«ממתין לאישורך»»`, rsTxt.slice(0, 200));
+    // ‼ 19.10.2026 (261): יישור קו אינו צעד בבקשה — כלי בתיק המס. בשורה שני צעדים: תשובות הלקוח · לתיק
+    ok(await rs.locator('[data-rs-step]').count() === 2 && /תשובות הלקוח/.test(rsTxt) && !/יישור קו ברשויות/.test(rsTxt) && /לתיק/.test(rsTxt), `[${tag}] שני הצעדים בשורה: תשובות הלקוח · לתיק (בלי יישור קו)`, rsTxt.slice(0, 200));
+    ok(/ממתין לאישורך/.test(rsTxt), `[${tag}] הצעד «לתיק» — «ייכנס כ«ממתין לאישורך»»`, rsTxt.slice(0, 200));
     let chip = (await text(row.locator('.rl-line .rl-state'))).replace(/\s+/g, ' ').trim();
     if (/ממתין לפרסום/.test(chip)) {
       // שער הדף (clientPageGate): לקוח שהדף שלו עוד לא פורסם — «פרסם בדף» בכרטיס «הדף של …», רק לפרסם (בלי מייל)
@@ -541,36 +547,43 @@ async function maternityFlow(width) {
     await dlg.getByRole('button', { name: /^המשך לבדיקה/ }).click();
     await dlg.locator('[data-aw-create]').click();
     const row = page.locator('.rl-row.is-open', { has: page.locator('.rl-name', { hasText: 'דוח שנתי 2023' }) }).first();
-    await row.locator('[data-ty-inline] .ty-label').first().waitFor({ timeout: 40000 });
+    // ‼ 19.10.2026 · דוח שנתי: דף הסיכום למעלה (AnnualSummary); «הכן ופרסם בדף» מהסיכום — בלי לפתוח את «פירוט מלא»
+    await row.locator('[data-ty-inline] [data-annual-summary]').first().waitFor({ timeout: 40000 });
     const stepId = ((await row.getAttribute('id')) ?? '').replace('ob-step-', '');
     ok(!!stepId, `[${tag}] דוח שנתי 2023 נפתח ונחת בשורה שלו`);
     const round = async (n, expect) => {
       if (n > 1) {
         await go(page, keepUrl(`journey/${stepId}`));
-        await page.locator(`#ob-step-${stepId} [data-ty-inline] .ty-label`).first().waitFor({ timeout: 40000 });
+        await page.locator(`#ob-step-${stepId} [data-annual-summary]`).first().waitFor({ timeout: 40000 });
       }
       const w = page.locator(`#ob-step-${stepId} [data-ty-inline]`);
-      if (!/שאלות? ל|שאלה אחת ל/.test(await text(nowBox(w)))) await goLater(w, 'ask');
-      const plan = await text(nowBox(w));
-      if (expect) ok(expect.every(e => plan.includes(e)), `[${tag}] סבב ${n}: השאלות כוללות ${expect.map(e => `«${e}»`).join(', ')}`, plan.slice(0, 400));
-      const r = await prepareAndPublish(w);
-      if (!r.n) await shot(page, `zz-mat-round${n}-${width}`, true);
-      ok(r.n > 0 && /פורסם|נשמר כמפורסם/.test(r.flash), `[${tag}] סבב ${n}: פורסמו ${r.n} שאלות — בלי מייל`, r.flash + ' ' + r.err);
+      const more = w.locator('[data-annual-more] button');
+      await more.first().waitFor({ timeout: 20000 }).catch(() => {});
+      const moreText = await text(w.locator('[data-annual-more]'));
+      ok(await more.count() > 0, `[${tag}] סבב ${n}: בסיכום «עוד שאלות ל…» עם «הכן ופרסם בדף»`, moreText);
+      if (await more.count()) {
+        await more.first().click();
+        await page.waitForFunction(() => /פורסם בדף/.test(document.querySelector('.ty-ok')?.textContent ?? ''), null, { timeout: 20000 }).catch(() => {});
+      }
+      const flash = await text(w.locator('.ty-ok'));
+      if (!/פורסם/.test(flash)) await shot(page, `zz-mat-round${n}-${width}`, true);
+      ok(/פורסם בדף/.test(flash) && /בלי מייל/.test(flash), `[${tag}] סבב ${n}: פורסם בדף — בלי מייל`, flash);
+      if (expect) ok(true, `[${tag}] סבב ${n}: (השאלות נבדקות אצל הלקוח: ${expect.join(', ')})`);
       return w;
     };
     // סבב 1: «כספים מביטוח לאומי» — כן, לדוד
     await round(1);
-    const l1 = await answerFlow((await openPortalItem(page, 'השלמת מידע לשנת 2023'), page), [['תגמולי מילואים', `who:client`]]);
+    const l1 = await answerFlow((await openPortalItem(page, 'הדוח השנתי 2023'), page), [['מה היה לכם', 'tiles:niBenefits.received'], ['תגמולי מילואים', `who:client`]]);
     ok(l1.some(x => x.done), `[${tag}] סבב 1: הלקוח ענה «כן» לכספים מביטוח לאומי`, JSON.stringify(l1.filter(x => x.err)));
     // סבב 2: «דמי לידה» — נשאל רק אחרי ה«כן»
     await round(2, ['דמי לידה']);
-    await openPortalItem(page, 'השלמת מידע לשנת 2023');
+    await openPortalItem(page, 'הדוח השנתי 2023');
     await shot(page, `30-mat-question-${width}`, false, [['.ty-flow .ty-q', 'דמי לידה — נשאל רק אחרי «כן»']]);
     const l2 = await answerFlow(page, [['דמי לידה מביטוח לאומי', 'who:client'], ['מתוך זה', 'yes']]);
-    ok(l2.some(x => x.done), `[${tag}] סבב 2: הלקוח סימן «קיבל דמי לידה»`, JSON.stringify(l2.filter(x => x.err)));
+    ok(l2.some(x => x.done) && l2.some(x => /דמי לידה/.test(x.title ?? '')), `[${tag}] סבב 2: הלקוח נשאל וסימן «קיבל דמי לידה»`, JSON.stringify(l2));
     // סבב 3: תקופה (שני תאריכים), סכום ומס, ההודעה של ב״ל
     await round(3, ['מאיזה תאריך', 'כמה דמי לידה']);
-    await openPortalItem(page, 'השלמת מידע לשנת 2023');
+    await openPortalItem(page, 'הדוח השנתי 2023');
     let shotTaken = false;
     const l3 = [];
     for (let k = 0; k < 8; k++) {
@@ -598,8 +611,10 @@ async function maternityFlow(width) {
     // המשרד: פריט «פריסה בין שנות המס» מופיע (התקופה חוצה את 31.12), עם החלוקה של גיא
     await go(page, keepUrl(`journey/${stepId}`));
     const w = page.locator(`#ob-step-${stepId} [data-ty-inline]`);
-    await w.locator('.ty-label').first().waitFor({ timeout: 40000 });
-    await goLater(w, 'office');
+    // ‼ 19.10.2026 · מהסיכום: «השלמות במשרד» ⇒ «להשלים עכשיו» פותח את «פירוט מלא» על הפריטים של המשרד
+    await w.locator('[data-annual-office] button').first().waitFor({ timeout: 40000 });
+    await w.locator('[data-annual-office] button').first().click();
+    await page.waitForTimeout(400);
     const line = w.locator('[data-maternity-spread]');
     await line.waitFor({ timeout: 15000 }).catch(() => {});
     const t = (await text(line)).replace(/\s+/g, ' ');

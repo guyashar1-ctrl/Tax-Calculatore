@@ -67,8 +67,10 @@ export const TESTS: TestCase[] = [
   test('מספר השאלות ללקוח קטן: שכיר רווק בלי נכסים — לכל היותר 8 שאלות פתיחה, בלי קודי טופס', () => {
     const c = client({ employers: [{ id: 'e1', name: 'אינטל' }] as Client['employers'] });
     const p = pic({ client: c, purpose: 'annual', taxYear: 2025 });
+    // ‼ 19.10.2026 · בדוח השנתי שאלות הפתיחה הן אריחים במסך רשת אחד — סופרים מסכים, לא אריחים
     const screeners = p.toAsk.filter(s => s.item.kind === 'screener');
-    assert(screeners.length <= 8, `${screeners.length} שאלות פתיחה`);
+    const screens = screeners.filter(s => !s.item.tile).length + (screeners.some(s => s.item.tile) ? 1 : 0);
+    assert(screens <= 8, `${screens} מסכי פתיחה`);
     // שמות מסמכים שהלקוח מכיר (טופס 106, 867) מותרים; קודי שדות וסעיפים — לא
     const titles = p.toAsk.map(s => promptFor(s, { client: c, taxYear: 2025, purpose: 'annual' }).title.replace(/טופס (106|867)/g, ''));
     assert(titles.every(t => !/קוד|סעיף|\d{3}/.test(t)), `קוד טופס בשאלה: ${titles.find(t => /קוד|סעיף|\d{3}/.test(t))}`);

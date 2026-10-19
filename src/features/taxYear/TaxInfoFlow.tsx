@@ -167,7 +167,13 @@ export default function TaxInfoFlow({ stepId, token, previewClientId, previewAsk
     if (any >= 0) { go(any); return; }
     setFinished(true);
   };
-  const advance = (list: InfoAsk[], openedNow = opened) => advanceIn(buildScreens(list, openedNow), idx);
+  // ‼ 19.10.2026 · אחרי מסך הרשת הרשימה משתנה (האישורים נענו ויוצאים ממסך האישור המקובץ, ושאלות ההמשך נוספות) — idx הישן
+  //   כבר לא מצביע על אותו מסך. ממשיכים מהמקום של השאלה שנענתה ברשימה החדשה, כך ששאלות ההמשך באות מיד אחריה.
+  const advance = (list: InfoAsk[], openedNow = opened, fromAskId?: string) => {
+    const sc = buildScreens(list, openedNow);
+    const at = fromAskId ? sc.findIndex(x => screenAsks(x).some(a => a.id === fromAskId)) : -1;
+    advanceIn(sc, at >= 0 ? at : idx);
+  };
   const top = (
     <>
       <div className="ty-flow-top">
@@ -299,7 +305,7 @@ export default function TaxInfoFlow({ stepId, token, previewClientId, previewAsk
     }
     setBusy(false);
     setAsks(list);
-    advance(list);
+    advance(list, opened, ask.id);
   };
   const saveExit = async () => {
     if (preview) return;

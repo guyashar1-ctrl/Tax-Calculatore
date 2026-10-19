@@ -43,6 +43,7 @@ import RequestPreviewSheet from '../../features/requestPreview/RequestPreviewShe
 import { CATALOG_TYPES, type CatalogType, type PreviewTarget } from '../../features/requestPreview/targets';
 import { EMPTY_FIRM_PROFILE, composerPreviewOfTemplate } from './InlineComposer';
 import TaxYearRequestForm from '../../features/taxYear/TaxYearRequestForm';
+import { openAnnualReturn } from '../../features/taxYear/workCreate';
 import { AVAILABLE } from '../../features/taxKnowledge/availability';
 import type { ClientFormKey } from '../../features/smartForms/clientForms/types';
 
@@ -832,6 +833,29 @@ export default function AddRequestDialog({ clientId, steps, processPublished, aw
             )
           )}
 
+          {/* ‼ 19.10.2026 · «דוח שנתי {שנה}» — אפשרות ראשית, לחיצה אחת: הבקשה נפתחת והשאלון הקצר עולה לדף של הלקוח (בלי מייל). */}
+          {mode === 'catalog' && !presetType && onOpenTaxYear && client && (() => {
+            const annualYear = new Date().getFullYear() - 1;
+            const openAnnual = steps.find(s => s.stepType === 'annual_return' && Number((s.payload as { taxYear?: number }).taxYear) === annualYear
+              && !['completed', 'verified', 'skipped', 'cancelled', 'failed'].includes(s.status));
+            return (
+              <button type="button" disabled={busy} className="ar-primary" data-annual-one-click
+                style={{ display: 'flex', flexDirection: 'column', gap: '.15rem', alignItems: 'flex-start', textAlign: 'start', width: '100%', padding: '.7rem .8rem', border: '1px solid var(--accent)', borderRadius: 'var(--radius)', background: 'var(--soft)', cursor: 'pointer', marginBottom: '.5rem' }}
+                onClick={async () => {
+                  if (openAnnual) { onOpenTaxYear(openAnnual.id); onClose(); return; }
+                  setBusy(true); setError(null);
+                  const r = await openAnnualReturn(client, annualYear);
+                  setBusy(false);
+                  if (!r.ok || !r.stepId) { setError(r.error === 'forbidden' ? 'אין הרשאה ללקוח הזה' : `הפתיחה נכשלה (${r.error ?? 'שגיאה'})`); if (r.stepId) onCreated(); return; }
+                  onCreated(); onOpenTaxYear(r.stepId); onClose();
+                }}>
+                <span style={{ fontWeight: 700 }}>{busy ? 'פותח…' : `דוח שנתי ${annualYear}`}</span>
+                <span style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)' }}>
+                  {openAnnual ? 'כבר פתוח — לפתיחת הבקשה' : `שאלון קצר עולה לדף של ${client.firstName || 'הלקוח'}: מה ידוע, מה היה ב-${annualYear}, ואילו מסמכים צריך. בלי מייל.`}
+                </span>
+              </button>
+            );
+          })()}
           {mode === 'catalog' && !presetType && onOpenTaxYear && (
             <button type="button" disabled={busy} style={{ display: 'flex', flexDirection: 'column', gap: '.15rem', alignItems: 'flex-start', textAlign: 'start', width: '100%', padding: '.6rem .75rem', border: '1px solid var(--soft-bd)', borderRadius: 'var(--radius)', background: 'var(--soft)', cursor: 'pointer' }}
               onClick={() => setMode('tax_year')}>

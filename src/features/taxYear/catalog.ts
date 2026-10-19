@@ -547,6 +547,100 @@ ITEMS.push(
     officeNext: 'לעדכן בכרטיס מועד פתיחה או סגירה' },
 );
 
+// ── 19.10.2026 · השאלון הפשוט לדוח השנתי (docs/proposals/2026-10-19-simple-annual-questionnaire.html) ──────────
+// ‼ מסך רשת אחד «מה היה לכם ב-{שנה}?» (asks.ts › ANNUAL_GRID_KEY), ולכל אריח שסומן נפתחות מיד שאלה או שתיים ומסמך —
+//   בלי סבב נוסף מול המשרד. פריטי הענף (אירוע משפחתי, פטירה) — בלי תכלית: הם לא נשאלים לבד, רק נפתחים מהרשת.
+//   השרת (_tax_year_items, 262) מכיר את כל המפתחות.
+const ANNUAL_TILES: Record<string, string> = {
+  'household.familyChange': 'נישואין, גירושין או פטירה במשפחה',
+  'salary.worked': 'משכורת', 'pension.received': 'קצבה או פנסיה', 'niBenefits.received': 'כספים מביטוח לאומי',
+  'rent.newRental': 'השכרת דירה או נכס', 'rent.otherProperty': 'השכרת ציוד, רכב או קרקע', 'capital.newAccount': 'חיסכון או מניות בבנק',
+  'savings.selfDeposits': 'הפקדה פרטית לפנסיה', 'savings.insurance': 'ביטוח חיים פרטי', 'donations.given': 'תרומות',
+  'special.disability': 'נכות או מחלה קשה', 'household.creditChanges': 'תואר, שחרור או מעבר דירה',
+  'foreign.income': 'הכנסה או חשבון בחו״ל', 'sales.sold': 'מכירת דירה, מניות או קריפטו',
+};
+const NONE: Purpose[] = [];
+ITEMS.push(
+  { key: 'annual.whatHappened', area: 'special', label: 'מה היה לכם בשנה (מסך הרשת)', kind: 'screener', per: 'couple', who: 'client', purposes: NONE, input: 'multi',
+    question: 'מה היה לכם ב-{year}?', why: 'מה שתסמנו — נשאל עליו שאלה קצרה ונבקש את המסמך המתאים. מה שלא תסמנו — לא נשאל.' },
+  // ── קצבה ופנסיה שהתקבלו (עד 19.10 נשאלו רק בהיכרות) ──
+  { key: 'pension.received', area: 'savings', label: 'קצבה או פנסיה שהתקבלה בשנה', kind: 'screener', per: 'person', who: 'client', purposes: ['annual'],
+    question: 'האם {name} קיבל/ה השנה קצבה או פנסיה — מקרן פנסיה, מהמדינה, מחברת ביטוח או קצבת שאירים?',
+    coupleQuestion: 'האם מישהו מכם קיבל השנה קצבה או פנסיה — מקרן פנסיה, מהמדינה, מחברת ביטוח או קצבת שאירים?',
+    why: 'חלק מהקצבאות חייבות במס וחלקן פטורות — לפי סוגן ולפי מי משלם', input: 'yesno', covers: { parts: ['ג', 'י'] },
+    officeNext: 'קצבה מזכה — פטור 9א; קצבת שאירים — פטור עד התקרה לכל שאיר (9(6ו)); מביטוח לאומי — 9(6ג). לפי האישור' },
+  { key: 'pension.certs', area: 'savings', label: 'אישור שנתי על קצבה — מכל משלם', kind: 'document', per: 'person', who: 'client', purposes: ['annual'], after: 'pension.received',
+    question: 'האישור השנתי על הקצבה — מכל מי שמשלם קצבה', why: 'באישור רואים כמה שולם, מה פטור וכמה מס נוכה', input: 'file', docKind: 'allowanceCert', knownBasis: DOC_KNOWN,
+    officeNext: 'סכום חייב ופטור לפי האישור; כמה משלמים ⇒ לבדוק תיאום מס' },
+  // ── נכות (פטור 9(5)) ──
+  { key: 'special.disability', area: 'special', label: 'נכות או מחלה קשה (פטור 9(5))', kind: 'screener', per: 'person', who: 'client', purposes: ['annual'],
+    question: 'האם ל{name} נקבעו אחוזי נכות, או שיש מחלה קשה?', coupleQuestion: 'האם למישהו מכם נקבעו אחוזי נכות, או שיש מחלה קשה?',
+    why: 'נכות של 90% ומעלה פוטרת חלק גדול מההכנסה ממס — רק עם אישור', input: 'yesno', covers: { parts: ['י'] },
+    officeNext: 'פטור 9(5): נכות 100% (או 90% מצטבר) לתקופה של 185 יום לפחות, לפי אישור פקיד השומה' },
+  { key: 'special.disabilityCert', area: 'special', label: 'אישור אחוזי נכות', kind: 'document', per: 'person', who: 'client', purposes: ['annual'], after: 'special.disability',
+    question: 'האישור על אחוזי הנכות — מפקיד השומה או מביטוח לאומי', why: 'הפטור ניתן רק לפי האישור, לתקופה שבו', input: 'file', docKind: 'specialStatusCert', knownBasis: DOC_KNOWN },
+  // ── דירה או חשבון חדשים, כשבתיק אין (בתיק יש — אישור «זה מה שידוע לנו») ──
+  { key: 'rent.newRental', area: 'rent', label: 'השכרת דירה או נכס (כשאין בתיק)', kind: 'screener', per: 'couple', who: 'client', purposes: ['annual'], coveredBy: 'rent.properties', cardKeys: ['properties'],
+    question: 'האם השכרתם השנה דירה או נכס אחר?', why: 'שכר דירה מדווח לפי מסלול לכל נכס', input: 'yesno', covers: { parts: ['ד', 'ה', 'י'] } },
+  { key: 'capital.newAccount', area: 'capital', label: 'חיסכון, פיקדון או מניות (כשאין בתיק)', kind: 'screener', per: 'couple', who: 'client', purposes: ['annual'], coveredBy: 'capital.accounts', cardKeys: ['investmentAccounts'],
+    question: 'האם היו לכם השנה פיקדון, חיסכון או מניות — בבנק או בבית השקעות?', why: 'מכל בנק או בית השקעות מגיע אישור שנתי (867)', input: 'yesno', covers: { parts: ['ה', 'ח'] } },
+  // ── אירוע משפחתי בשנה ──
+  { key: 'household.familyChange', area: 'household', label: 'שינוי במצב המשפחתי בשנה', kind: 'screener', per: 'couple', who: 'client', purposes: ['annual'],
+    question: 'האם השתנה השנה המצב המשפחתי — נישואין, גירושין או פטירה?', why: 'קובע מי מגיש, איך מחשבים ואילו נקודות זיכוי מגיעות', input: 'yesno', covers: { parts: ['ב', 'יג'] } },
+  { key: 'household.familyEvent', area: 'household', label: 'מה השתנה במצב המשפחתי', kind: 'detail', per: 'couple', who: 'client', purposes: NONE, after: 'household.familyChange', input: 'multi',
+    question: 'מה קרה?', why: 'לכל מקרה נשאל שאלה קצרה ונבקש רק את המסמכים שצריך' },
+  { key: 'family.eventDeath', area: 'household', label: 'פטירת בן/בת הזוג בשנה', kind: 'screener', per: 'couple', who: 'client', purposes: NONE },
+  { key: 'family.eventDivorce', area: 'household', label: 'גירושין או פרידה בשנה', kind: 'screener', per: 'couple', who: 'client', purposes: NONE },
+  { key: 'family.eventMarriage', area: 'household', label: 'נישואין בשנה', kind: 'screener', per: 'couple', who: 'client', purposes: NONE },
+  // פטירה (המחקר: docs/tax-foundation/research/spouse-death-year-2026-10-19.md)
+  { key: 'family.death', area: 'household', label: 'פטירה: תאריך וצו ירושה', kind: 'detail', per: 'couple', who: 'client', purposes: NONE, input: 'record', after: 'family.eventDeath',
+    question: 'מתי {spouse} נפטר/ה?', why: 'עד יום הפטירה ההכנסות נכללות בדוח המשותף; אחריו — שייכות ליורשים',
+    officeNext: 'חיתוך לפי יום הפטירה (פקודה 120, 125א): עד היום — בדוח כבן/בת הזוג; מה שהתקבל אחרי ובגללו — הכנסת היורשים (258/272)' },
+  { key: 'family.deathIncome', area: 'household', label: 'מה בן/בת הזוג קיבל/ה עד הפטירה', kind: 'detail', per: 'couple', who: 'client', purposes: NONE, input: 'multi',
+    question: 'מה {spouse} קיבל/ה ב-{year}, עד הפטירה?', why: 'כך נדע אילו אישורים לבקש. «לא בטוח» זה בסדר — נברר יחד' },
+  { key: 'family.deathGotSalary', area: 'household', label: 'קיבל/ה משכורת עד הפטירה', kind: 'screener', per: 'person', who: 'client', purposes: NONE },
+  { key: 'family.deathGotPension', area: 'household', label: 'קיבל/ה קצבה עד הפטירה', kind: 'screener', per: 'person', who: 'client', purposes: NONE },
+  { key: 'family.deathGotNi', area: 'household', label: 'קיבל/ה דמי מחלה או קצבת נכות מביטוח לאומי', kind: 'screener', per: 'person', who: 'client', purposes: NONE },
+  { key: 'family.deathGotDisabilityIns', area: 'household', label: 'קיבל/ה אובדן כושר עבודה מחברת ביטוח', kind: 'screener', per: 'person', who: 'client', purposes: NONE },
+  { key: 'family.disabilityInsDocs', area: 'household', label: 'אישור מחברת הביטוח על אובדן כושר עבודה', kind: 'document', per: 'person', who: 'client', purposes: NONE,
+    question: 'האישור מחברת הביטוח על התשלומים לאובדן כושר עבודה', why: 'תשלום חודשי כזה הוא הכנסה; ייתכן שהוא בפטור הנכות', input: 'file', docKind: 'insuranceCert' },
+  { key: 'family.deathPayouts', area: 'household', label: 'כספים ששולמו בגלל הפטירה', kind: 'detail', per: 'couple', who: 'client', purposes: NONE, input: 'multi',
+    question: 'שולמו כספים בגלל הפטירה?', why: 'רוב הכספים האלה פטורים ממס — אבל צריך את האישורים כדי לקבל את הפטור' },
+  { key: 'family.payoutSeverance', area: 'household', label: 'פיצויים או מענק מהמעסיק בגלל הפטירה', kind: 'screener', per: 'couple', who: 'client', purposes: NONE },
+  { key: 'family.payoutLifeIns', area: 'household', label: 'ביטוח חיים בגלל הפטירה', kind: 'screener', per: 'couple', who: 'client', purposes: NONE },
+  { key: 'family.payoutFund', area: 'household', label: 'כסף מקופת גמל או פנסיה למוטבים', kind: 'screener', per: 'couple', who: 'client', purposes: NONE },
+  { key: 'family.payoutMortgage', area: 'household', label: 'ביטוח משכנתה ששילם לבנק', kind: 'screener', per: 'couple', who: 'client', purposes: NONE },
+  { key: 'family.severanceDocs', area: 'household', label: 'טופס 161 ו-161ב (פיצויים בגלל פטירה)', kind: 'document', per: 'couple', who: 'client', purposes: NONE,
+    question: 'הטופס מהמעסיק על הפיצויים בגלל הפטירה, וחלק ב׳ שמילאתם — ואם יש, תשובת פקיד השומה', why: 'נקרא «טופס 161». פיצויים בגלל פטירה פטורים עד כפל התקרה — רק דרך הטופס', input: 'file', docKind: 'severanceDocs',
+    officeNext: '9(7א)(ב)(1): לבחור — לשאירים (פטור כפול, החייב עד 40% בידם) או לנפטר/ת (פטור רגיל); לבדוק באיזו שנה שולם' },
+  { key: 'family.payoutDocs', area: 'household', label: 'מכתב תשלום מחברת הביטוח או מהקופה', kind: 'document', per: 'couple', who: 'client', purposes: NONE,
+    question: 'המכתב מחברת הביטוח או מהקופה על התשלום', why: 'סכום הון על מוות פטור ממס (9(7)) — לתיעוד בדוח', input: 'file', docKind: 'insurancePayout' },
+  { key: 'family.survivorPensions', area: 'household', label: 'קצבאות שאירים: ממי', kind: 'detail', per: 'couple', who: 'client', purposes: NONE, input: 'multi',
+    question: 'ממי מקבלים קצבת שאירים (אתם או הילדים)?', why: 'לכל מי שמקבל — פטור משלו עד התקרה; ילדים מדווחים בתיק משלהם' },
+  { key: 'family.survivorFromFund', area: 'household', label: 'קצבת שאירים מקרן פנסיה או חברת ביטוח', kind: 'screener', per: 'couple', who: 'client', purposes: NONE },
+  { key: 'family.survivorFromState', area: 'household', label: 'קצבת שאירים מהמדינה (גמלאות)', kind: 'screener', per: 'couple', who: 'client', purposes: NONE },
+  { key: 'family.survivorFromBtl', area: 'household', label: 'קצבת שאירים מביטוח לאומי', kind: 'screener', per: 'couple', who: 'client', purposes: NONE },
+  { key: 'family.deathDocs', area: 'household', label: 'תעודת פטירה וצו ירושה', kind: 'document', per: 'couple', who: 'client', purposes: NONE,
+    question: 'תעודת הפטירה, וצו הירושה אם כבר ניתן', why: 'החזרי מס והכנסות שאחרי הפטירה שייכים ליורשים', input: 'file', docKind: 'deathDocs' },
+  { key: 'family.survivorDocs', area: 'household', label: 'אישורים שנתיים על קצבאות שאירים', kind: 'document', per: 'couple', who: 'client', purposes: NONE,
+    question: 'האישורים השנתיים על קצבאות השאירים — מכל משלם, לכל מי שמקבל', why: 'בהם רואים כמה שולם, מתי התחיל וכמה מס נוכה', input: 'file', docKind: 'allowanceCert',
+    officeNext: 'תשלום רטרואקטיבי — לבדוק באיזו שנה שולם בפועל; כמה משלמים ⇒ תיאום מס לכל שאיר' },
+  // גירושין · נישואין
+  { key: 'family.divorce', area: 'household', label: 'גירושין: תאריך, ילדים ומזונות', kind: 'detail', per: 'couple', who: 'client', purposes: NONE, input: 'record', after: 'family.eventDivorce',
+    question: 'הגירושין או הפרידה — הפרטים', why: 'מהתאריך משתנה מי מגיש ואילו נקודות זיכוי מגיעות לכל הורה',
+    officeNext: 'מצב משפחתי לפי שנת המס (familyStatusForYear); מזונות לבן/בת זוג לשעבר — נקודת זיכוי למי שנישא מחדש' },
+  { key: 'family.divorceDocs', area: 'household', label: 'הסכם או פסק דין גירושין', kind: 'document', per: 'couple', who: 'client', purposes: NONE,
+    question: 'הסכם הגירושין או פסק הדין', why: 'בו כתוב התאריך, אצל מי הילדים והמזונות', input: 'file', docKind: 'divorceDocs' },
+  { key: 'family.marriage', area: 'household', label: 'נישואין: תאריך ובן/בת הזוג', kind: 'detail', per: 'couple', who: 'client', purposes: NONE, input: 'record', after: 'family.eventMarriage',
+    question: 'מזל טוב! כמה פרטים על הנישואין', why: 'משנת הנישואין מגישים דוח משותף, והכנסות בן/בת הזוג נכללות בו',
+    officeNext: 'לעדכן בכרטיס: מצב משפחתי, שנת נישואין, בן/בת הזוג (ולפתוח לו/ה כרטיס אם צריך)' },
+  { key: 'family.marriageSpouseDocs', area: 'household', label: 'האישורים השנתיים של בן/בת הזוג', kind: 'document', per: 'couple', who: 'client', purposes: NONE,
+    question: 'האישורים השנתיים של בן/בת הזוג על ההכנסות — מכל מעסיק, או דוח העסק', why: 'בדוח המשותף נכללות גם ההכנסות של בן/בת הזוג (משכורת — «טופס 106»)', input: 'file', docKind: 'form106' },
+);
+// ‼ «הכרעות שלך» בדף הסיכום (AnnualSummary): עובדת משרד אחת לכל הכרעה (value.decision) — מי ומתי, בלי מצב חדש
+ITEMS.push({ key: 'annual.officeDecision', area: 'special', label: 'הכרעת משרד בדוח השנתי', kind: 'detail', per: 'couple', who: 'office', purposes: NONE });
+for (const i of ITEMS) if (ANNUAL_TILES[i.key]) i.tile = ANNUAL_TILES[i.key];
+
 // ‼ 16.10.2026 (גיא, «בקשה אחת לתיק המס» שלב 2): הערכת מס היא מספרים בלבד — אף מסמך לא מתבקש בה. פריטי המסמך
 //   נשארים (זהות הראיות, הדוח השנתי); רק התכלית 'estimate' יורדת מהם.
 for (const i of ITEMS) if (i.input === 'file') i.purposes = i.purposes.filter(p => p !== 'estimate');

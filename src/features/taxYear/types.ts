@@ -96,6 +96,8 @@ export type DocKind =
   | 'inventoryCount' | 'payrollReport' | 'badDebtDocs' | 'vehicleLicense' | 'partnershipAgreement' | 'premisesLease' | 'priorDepreciation'
   | 'businessUseDocs' | 'keyMoneyContract' | 'ownRentDocs' | 'otherPropertyDocs' | 'foreignWorkDocs' | 'foreignLease' | 'foreignCompanyStatements'
   | 'saleExpenseDocs' | 'specialDealDocs'
+  // 19.10.2026 · אירוע משפחתי בשנת הדוח (פטירה, גירושין) וכספים בגלל פטירה
+  | 'deathDocs' | 'severanceDocs' | 'insurancePayout' | 'divorceDocs' | 'marriageDocs'
   | 'other';
 
 /** ארבעה שלבים נפרדים בחיי מסמך. פריט אינו «הושלם» כי הועלה קובץ. */
@@ -163,7 +165,9 @@ export type UnavailableCode = 'later' | 'notYet' | 'needHelp';
 
 export type RecordSchemaId = 'children' | 'address' | 'bank' | 'employer' | 'property' | 'account' | 'fund' | 'business' | 'foreign' | 'vehicle' | 'partners' | 'period'
   // 16.10.2026 · דמי לידה: תקופת הזכאות (שני תאריכים) והסכומים מהאישור השנתי
-  | 'maternityPeriod' | 'maternityAmounts' | 'familyYear';
+  | 'maternityPeriod' | 'maternityAmounts' | 'familyYear'
+  // 19.10.2026 · אירוע משפחתי בשנת הדוח — תאריך ועוד שתיים-שלוש בחירות, במסך אחד
+  | 'deathEvent' | 'divorceEvent' | 'marriageEvent';
 
 /**
  * 16.10.2026 · קלט מובנה «של מי / איפה» (שלב 2 של «בקשה אחת לתיק המס»): כל שדה סגור — מי (אני / בן/בת הזוג /
@@ -195,8 +199,14 @@ export interface MultiOption {
   role: SubjectRole;
   label: string;
   hint?: string;
-  followUp?: { itemKey: string; subjectRole: SubjectRole; entityKind?: EntityKind; entityRef?: string; prompt: AskPrompt };
+  followUp?: MultiFollowUp;
+  /**
+   * 19.10.2026 · כמה שאלות שנפתחות יחד כשמסמנים (למשל «בן/בת הזוג נפטר/ה» ⇒ תאריך, מה התקבל, קצבאות שאירים, מסמכים).
+   * כל אחת צילום, כמו followUp. השרת (262) פותח את כולן; followUp נשאר לתאימות.
+   */
+  followUps?: MultiFollowUp[];
 }
+export interface MultiFollowUp { itemKey: string; subjectRole: SubjectRole; entityKind?: EntityKind; entityRef?: string; prompt: AskPrompt }
 
 export type AskInput =
   | { kind: 'yesno'; followUp?: AskInput }
@@ -232,6 +242,8 @@ export interface AskPrompt {
   templateVersion?: string;
   /** שאלה שהמשרד החזיר לתיקון: מה לתקן, במילים של המשרד. מוצג ללקוח מעל השאלה. */
   correction?: string;
+  /** 19.10.2026 · סדר בתוך קבוצת שאלות שנפתחו יחד (שאלות ההמשך של אריח) — screens.ts › sortAsks. */
+  order?: number;
 }
 
 /** בקשה ראשית לשנה — מה שהמסך צריך לדעת עליה. */

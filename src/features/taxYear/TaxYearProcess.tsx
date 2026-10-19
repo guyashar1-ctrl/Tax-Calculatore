@@ -19,6 +19,7 @@ import { DOCS } from './documents';
 import { groupForReview, describeValue, type ReviewRow } from './review';
 import * as api from './api';
 import type { Evidence, FactBasis, Purpose } from './types';
+import AnnualSummary from './AnnualSummary';
 import TaxInfoFlow from './TaxInfoFlow';
 import WealthDeclarationPanel, { previousByArea, wealthSubtitle, type WealthPayload } from './WealthDeclarationPanel';
 import QuestionnaireMap from './QuestionnaireMap';
@@ -93,6 +94,9 @@ export default function TaxYearProcess({ client, step, infoStep, onClose, onChan
   removingRef.current = removing;
   // «השאלון» ו«איך עושים ביד» — מקופלים; «איך עושים» יכול לפתוח את השאלון.
   const [qOpen, setQOpen] = useState(false);
+  // ‼ 19.10.2026 · דוח שנתי: «פירוט מלא» מקופל; «השלמות במשרד» בסיכום פותח אותו על «להשלים במשרד»
+  const [fullOpen, setFullOpen] = useState(false);
+  const fullRef = useRef<HTMLDetailsElement>(null);
   const [pick, setPick] = useState<'office' | 'ask' | 'publish' | null>(null);
   // ‼ שאלון קליטה ישן שעדיין פתוח אצל הלקוח — כדי לא לשאול פעמיים את הפרטים הקבועים (229 קושר אותו לבקשה)
   const [openIntake, setOpenIntake] = useState<api.OpenLegacyIntake | null>(null);
@@ -228,6 +232,17 @@ export default function TaxYearProcess({ client, step, infoStep, onClose, onChan
   // ── מה עכשיו ──
   const reviewCount = review.unchanged.length + review.negatives.length + review.individual.length + review.legacy.length + review.documents.length + notSure.length;
   const askable = autoIntake ? [] : [...picture.toConfirm, ...picture.toAsk];
+  // ‼ 19.10.2026 · דוח שנתי: שאלות שנוספו בעקבות התשובות (למשל פרטי דמי לידה) או טיוטות — «הכן ופרסם» בלחיצה אחת מהסיכום,
+  //   בלי לפתוח את «פירוט מלא». אותו מנוע (buildAskPlan) ואותן קריאות כמו «להכין» + «לפרסם» למטה; בלי מייל.
+  const annualMorePlan = purpose === 'annual' ? buildAskPlan(askable, { client, taxYear: year, purpose, cutoffMonth: p.cutoffMonth, asOfDate: p.asOfDate, declKind: p.kind, previousByArea: prevArea }) : [];
+  const annualMore = purpose === 'annual' && isOpenStep(step) ? {
+    count: annualMorePlan.length + drafts.length,
+    run: () => run(async () => {
+      let infoId = infoStep?.id;
+      if (annualMorePlan.length) { const r = await api.addAsks(step.id, annualMorePlan.map(toAskInput)); if (!r.ok) return r; infoId = r.infoStepId; }
+      return infoId ? api.publishInfo(infoId) : { ok: false, error: 'not_loaded' };
+    }, `פורסם בדף של ${firstName} — בלי מייל`),
+  } : undefined;
   const suggested: 'stale' | 'review' | 'publish' | 'ask' | 'office' | 'waiting' | 'done' | 'syncing' =
     // ‼ autoIntake: בזמן שהשאלון מתעדכן בדף (או כשהעדכון נכשל ומחכה ל«נסה שוב») — לא «הושלם» ולא «ממתין»
     autoIntake && (autoBusy || autoPending) ? 'syncing'
@@ -281,6 +296,11 @@ export default function TaxYearProcess({ client, step, infoStep, onClose, onChan
         <div className={embedded ? 'ty-body is-inline' : 'ty-body'}>
           {err && <div className="ty-err" role="alert">{err}</div>}
           {flash && <div className="ty-ok" role="status">{flash}</div>}
+          {/* ‼ 19.10.2026 · דוח שנתי: דף הסיכום (מה למלא · מסמכים · רק אתה יודע · הכרעות · מה פתוח) למעלה; כל השאר — מקופל
+              ב«פירוט מלא» (הדמיה מאושרת docs/proposals/2026-10-19-simple-annual-questionnaire.html). */}
+          {purpose === 'annual' && data && <AnnualSummary client={client} step={step} year={year} data={data} busy={busy} run={run} more={annualMore}
+            officeTodo={picture.officeTodo.length ? { count: picture.officeTodo.length, open: () => { setPick('office'); setFullOpen(true); requestAnimationFrame(() => fullRef.current?.scrollIntoView({ block: 'start' })); } } : undefined} />}
+          <FullDetails enabled={purpose === 'annual'} open={fullOpen} onToggle={setFullOpen} innerRef={fullRef}>
 
           {purpose === 'wealth' && <WealthDeclarationPanel client={client} step={step} payload={p} busy={busy} run={run} />}
           {prevAsOf && (
@@ -400,6 +420,7 @@ export default function TaxYearProcess({ client, step, infoStep, onClose, onChan
               </details>
             )}
           </section>
+          </FullDetails>
         </div>
       </div>
       {preview && infoStep && (
@@ -412,6 +433,17 @@ export default function TaxYearProcess({ client, step, infoStep, onClose, onChan
         </div>
       )}
     </div>
+  );
+}
+
+/** דוח שנתי: כל מה שמתחת לסיכום — בקיפול אחד. בשאר העבודות — כמו שהיה. */
+function FullDetails({ enabled, open, onToggle, innerRef, children }: { enabled: boolean; open: boolean; onToggle: (v: boolean) => void; innerRef: React.RefObject<HTMLDetailsElement>; children: React.ReactNode }) {
+  if (!enabled) return <>{children}</>;
+  return (
+    <details className="as-full" data-annual-full ref={innerRef} open={open} onToggle={e => onToggle((e.currentTarget as HTMLDetailsElement).open)}>
+      <summary>פירוט מלא: השאלון, החישובים ואיך עושים ביד</summary>
+      {children}
+    </details>
   );
 }
 

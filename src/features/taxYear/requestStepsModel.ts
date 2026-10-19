@@ -54,6 +54,13 @@ export function deriveRequestSteps(row: WorkRow, pendingToCard: number, opts: { 
     chip = pendingToCard > 0 ? { text: 'לאישורך בתיק', tone: 'blue' } : { text: 'נענה', tone: 'gray' };
   }
 
+  // ‼ 19.10.2026 · דוח שנתי: הצעד השני הוא הדוח עצמו (הכנה, אישורך, חתימת הלקוח) — התשובות נכנסות לחישוב, לא «לתיק»
+  if (row.kind === 'annual') {
+    const report: RequestStepView = closed && row.parent.status !== 'cancelled'
+      ? { key: 'card', title: 'הדוח', line: 'הושלם', tone: 'ok' }
+      : { key: 'card', title: 'הדוח', line: 'הכנה, אישורך וחתימת הלקוח — אחרי התשובות והמסמכים', tone: 'idle' };
+    return { chip: closed ? undefined : chip, steps: [answers, report] };
+  }
   const card: RequestStepView = pendingToCard > 0
     ? { key: 'card', title: 'לתיק', line: `${count(pendingToCard, 'עדכון אחד ממתין', 'עדכונים ממתינים')} לאישורך בתיק המס`, tone: 'new' }
     : closed && row.parent.status !== 'cancelled'

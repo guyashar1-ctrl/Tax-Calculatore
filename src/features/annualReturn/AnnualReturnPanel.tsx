@@ -169,8 +169,8 @@ export default function AnnualReturnPanel({ client, step, year, facts, evidence,
         <div className="te-gaps" aria-labelledby="ar-gaps">
           <p className="ty-label" id="ar-gaps">מה חסר · {out.blockers.length}</p>
           <ol className="te-blockers">
-            {out.blockers.map(b => (
-              <li key={b.code}>
+            {out.blockers.map((b, i) => (
+              <li key={`${b.code}-${b.ruleId ?? i}`}>
                 <span>{b.text}</span>
                 {b.code === 'capital_rates' && !decided('capital.rates') && <button type="button" className="btn btn-sm btn-ghost" onClick={() => decide('capital.rates', 'ריבית ודיבידנד בשיעור 25% (לא בעל מניות מהותי); הניכוי במקור לפי 867')}>הכרעת משרד: 25%</button>}
                 {b.code.startsWith('control_') && <small> — לתקן את הנתון בשנת המס (למטה), ואז הבקרה תיבדק שוב</small>}
