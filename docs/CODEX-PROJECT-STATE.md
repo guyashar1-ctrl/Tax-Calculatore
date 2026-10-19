@@ -37,6 +37,11 @@ Ask Guy which business process or automation he wants to improve first. Inspect 
 
 ## Decision log / review evidence
 
+### 2026-10-19 — Documents: download any selection to a folder on the computer (Guy approved «כן, זה מה שהתכוונתי»)
+- Before: «הורדה» only for documents-only selections, always as one ZIP. Now: any selection incl. folders (folder ⇒ subfolder with everything under it, nested); Chrome/Edge desktop ⇒ «בחירת תיקייה ושמירה» (showDirectoryPicker, files written as regular files, existing names never overwritten ⇒ « (2)»); otherwise / on request ⇒ ZIP with the same folder paths. Missing-from-storage still stops with the list + explicit «שמור בכל זאת».
+- Code: src/utils/folderDownload.ts (planDownload, writePlanToFolder, canSaveToFolder) + DocumentsWorkspace modal. Unit: folderDownload.test.ts (6). No DB/edge change.
+- Evidence: tsc 0, unit 1975/0, build OK; staging client qadupclient (2 folders, nested «ישן»): folder save via OPFS-backed picker stub ⇒ 6 files in correct tree, second save ⇒ 6 « (2)» copies, ZIP entries with paths; dialog layout fixed. Not verifiable here: the real Windows folder dialog and Chrome's permission prompt.
+
 ### 2026-10-19 — 821 without rep name/date · Hebrew name in office details · Paperless «סוג עסק» (Guy approved «מסכים»)
 - Worktree `C:/Users/guyas/pivo-wt/rep-name-hebrew` (branch fix/rep-name-paperless-dealer from origin/master f2f232b).
 - 821: «הצהרת המייצג» is never filled (no name, date, stamp) — officeRep.ts removed; office backup render and portal signed file no longer pass repName. Server 259 still returns portal repName (unused, harmless).

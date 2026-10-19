@@ -17,6 +17,7 @@ import { supabase } from '../../lib/supabase';
 import { EmptyState } from '../ui/States';
 import LabelSelect from '../ui/LabelSelect';
 import { buildZip, sanitizeFileBaseName, uniqueEntryName, triggerBlobDownload } from '../../utils/zipArchive';
+import { planDownload, zipPath, canSaveToFolder, pickFolder, writePlanToFolder, downloadErrorText, type DownloadPlan, type PickedFolder } from '../../utils/folderDownload';
 import { looksConvertible, buildDocumentPdf, pdfFileNameFor, ImageConversionError } from '../../utils/imageToPdf';
 import { useToast } from '../ui/Toast';
 import PdfOrganizer, { releaseOrganizerCache, type OrganizerSource, type OrganizerOutput } from './PdfOrganizer';
@@ -297,8 +298,10 @@ export default function DocumentsWorkspace({ client, allClients, initialFolderId
 
   // ─── בחירה מרובה והורדה כחבילה ─────────────────────────────────────────
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [zipModal, setZipModal] = useState<{ name: string } | null>(null);
+  const [zipModal, setZipModal] = useState<{ name: string; plan: DownloadPlan; zipOpen: boolean } | null>(null);
   const [zipBusy, setZipBusy] = useState(false);
+  /** מה רץ עכשיו — כדי שרק הכפתור שנלחץ יראה «שומר…» / «אורז…». */
+  const [dlMode, setDlMode] = useState<'folder' | 'zip'>('zip');
   const [zipProgress, setZipProgress] = useState(0);
   const [zipError, setZipError] = useState<{ message: string; failed: string[] } | null>(null);
 
@@ -682,9 +685,13 @@ export default function DocumentsWorkspace({ client, allClients, initialFolderId
     return `${f} ${/^\d/.test(d) ? 'ו-' : 'ו'}${d} נבחרו`;
   }
 
-  // ─── הורדה מרוכזת כחבילה אחת ───────────────────────────────────────────
-  /** מה שכן נאסף כשחלק מהקבצים נכשלו — מיועד להורדה חלקית מפורשת בלבד. */
-  const partialRef = useRef<{ entries: { name: string; data: ArrayBuffer; date: Date }[]; base: string } | null>(null);
+  // ─── הורדה: לתיקייה במחשב, או כחבילה אחת ──────────────────────────────
+  // ‼ 19.10.2026 · גיא: «לסמן מסמכים ולהוריד אותם פשוט לתיקייה במחשב» — גם תיקיות.
+  //   תיקייה שנבחרה יורדת עם כל מה שבתוכה (folderDownload.ts). בכרום במחשב: בוחרים
+  //   תיקייה והקבצים נכתבים אליה; בלי התמיכה (טלפון, ספארי) — ZIP אחד כמו קודם.
+  const folderSaveSupported = useMemo(() => canSaveToFolder(), []);
+  /** מה שכן נאסף כשחלק מהקבצים נכשלו — מיועד לשמירה חלקית מפורשת בלבד. */
+  const partialRef = useRef<{ mode: 'folder' | 'zip'; root: PickedFolder; plan: DownloadPlan; bytes: Map<string, ArrayBuffer>; base: string } | null>(null);
   /**
    * ‼ נעילת האריזה יושבת ב-ref ולא ב-state בכוונה. שתי לחיצות באותו tick
    * (הקשה כפולה, או Enter פעמיים ברצף) רצות שתיהן לפני שהרינדור הבא מסמן
@@ -695,11 +702,15 @@ export default function DocumentsWorkspace({ client, allClients, initialFolderId
   const zipRunningRef = useRef(false);
 
   function openZipModal() {
-    if (selectedDocs.length === 0) return;
+    if (selectedCount === 0) return;
     partialRef.current = null;
     setZipError(null);
     setZipProgress(0);
-    setZipModal({ name: `${client.firstName} ${client.lastName}`.trim() });
+    setZipModal({
+      name: `${client.firstName} ${client.lastName}`.trim(),
+      plan: planDownload(selectedFolders, selectedDocs, folders, docs),
+      zipOpen: !folderSaveSupported,
+    });
   }
   function closeZipModal() {
     if (zipBusy) return;
@@ -719,83 +730,89 @@ export default function DocumentsWorkspace({ client, allClients, initialFolderId
    * לטיני אחד. אומת בדפדפן על חמישה סוגי שמות (עברי, לטיני, מסתיים בספרה).
    */
   function zipDisplayName(base: string): string {
-    return `${base}\u200E.zip`;
+    return `${base}‎.zip`;
   }
   const zipBaseName = zipModal ? zipBaseOf(zipModal.name) : '';
+  const planCount = zipModal?.plan.files.length ?? 0;
 
-  async function runZipDownload() {
-    if (zipRunningRef.current || !zipModal || selectedDocs.length === 0) return;
+  async function runDownload(mode: 'folder' | 'zip') {
+    if (zipRunningRef.current || !zipModal || planCount === 0) return;
     const base = zipBaseOf(zipModal.name);
-    if (!base) return;
+    if (mode === 'zip' && !base) return;
+    const plan = zipModal.plan;
 
-    const targets = selectedDocs;
     zipRunningRef.current = true;
-    setZipBusy(true);
-    setZipError(null);
-    setZipProgress(0);
-    partialRef.current = null;
     try {
-      const taken = new Set<string>();
-      const entries: { name: string; data: ArrayBuffer; date: Date }[] = [];
+      // ‼ חלון הבחירה ראשון — ישר מהלחיצה. אחרי הורדת הקבצים הדפדפן כבר לא רואה בזה לחיצה.
+      const root = mode === 'folder' ? await pickFolder() : null;
+      if (mode === 'folder' && !root) return;
+
+      setDlMode(mode);
+      setZipBusy(true);
+      setZipError(null);
+      setZipProgress(0);
+      partialRef.current = null;
+      const bytes = new Map<string, ArrayBuffer>();
       const failed: string[] = [];
-      for (const d of targets) {
+      for (const f of plan.files) {
         // אותו מסלול הרשאות בדיוק כמו 'פתח את הקובץ': getDoc מסנן לפי המשתמש
         // ו-RLS מסנן שוב בצד השרת. אין כאן ערוץ גישה חדש לקבצים.
-        const full = await db.getDoc(d.id).catch(() => undefined);
-        if (!full || full.fileData.byteLength === 0) {
-          failed.push(d.description || d.fileName);
-        } else {
-          const stamp = new Date(d.uploadedAt);
-          entries.push({
-            name: uniqueEntryName(d.fileName || d.description || 'מסמך', taken),
-            data: full.fileData,
-            date: isNaN(stamp.getTime()) ? new Date() : stamp,
-          });
-        }
+        const full = await db.getDoc(f.docId).catch(() => undefined);
+        if (!full || full.fileData.byteLength === 0) failed.push(f.label);
+        else bytes.set(f.docId, full.fileData);
         setZipProgress(n => n + 1);
       }
 
-      // ‼ לא אורזים בשקט חבילה חסרה: מה שיורד כאן מוגש לרשות, ומסמך שנעדר
+      // ‼ לא שומרים בשקט חלק מהמסמכים: מה שיורד כאן מוגש לרשות, ומסמך שנעדר
       // בלי שנאמר עליו דבר מתגלה רק שם. עוצרים, מפרטים מה נכשל, ורק בלחיצה
       // נוספת ומפורשת מוסרים את מה שכן נאסף.
       if (failed.length > 0) {
-        partialRef.current = entries.length > 0 ? { entries, base } : null;
+        partialRef.current = bytes.size > 0 ? { mode, root, plan, bytes, base } : null;
         setZipError({
-          message: failed.length === targets.length
-            ? 'אף אחד מהמסמכים שנבחרו לא נמצא באחסון. לא נוצרה חבילה.'
-            : `${failed.length} מתוך ${targets.length} מסמכים לא נמצאו באחסון, ולכן החבילה לא נוצרה.`,
+          message: failed.length === plan.files.length
+            ? 'אף אחד מהמסמכים שנבחרו לא נמצא באחסון. לא נשמר דבר.'
+            : `${failed.length} מתוך ${plan.files.length} מסמכים לא נמצאו באחסון, ולכן לא נשמר דבר.`,
           failed,
         });
         return;
       }
-
-      triggerBlobDownload(buildZip(entries), `${base}.zip`);
-      setZipModal(null);
-      clearSelection();
+      await deliver(mode, root, plan, bytes, base);
     } catch (e) {
-      const msg = e instanceof Error && e.message === 'ZIP_TOO_LARGE'
-        ? 'החבילה גדולה מדי (מעל 4GB). בחר פחות מסמכים.'
-        : e instanceof Error ? e.message : 'יצירת החבילה נכשלה.';
-      setZipError({ message: msg, failed: [] });
+      setZipError({ message: downloadErrorText(e), failed: [] });
     } finally {
       zipRunningRef.current = false;
       setZipBusy(false);
     }
   }
 
-  /** הורדה חלקית — רק אחרי שראו במפורש מה חסר ובחרו בכל זאת. */
-  function downloadPartial() {
+  async function deliver(mode: 'folder' | 'zip', root: PickedFolder, plan: DownloadPlan, bytes: Map<string, ArrayBuffer>, base: string) {
+    if (mode === 'folder' && root) {
+      const n = await writePlanToFolder(root, plan, bytes);
+      showToast(n === 1 ? `קובץ אחד נשמר בתיקייה «${root.name}»` : `${n} קבצים נשמרו בתיקייה «${root.name}»`);
+    } else {
+      triggerBlobDownload(buildZip(plan.files.filter(f => bytes.has(f.docId))
+        .map(f => ({ name: zipPath(f), data: bytes.get(f.docId)!, date: f.date }))), `${base}.zip`);
+    }
+    setZipModal(null);
+    setZipError(null);
+    clearSelection();
+  }
+
+  /** שמירה חלקית — רק אחרי שראו במפורש מה חסר ובחרו בכל זאת. */
+  async function downloadPartial() {
     const pending = partialRef.current;
     if (!pending || zipRunningRef.current) return;
     // ‼ מתאפס מיד: אותה לחיצה כפולה שנחסמה למעלה חייבת להיחסם גם כאן.
     partialRef.current = null;
+    zipRunningRef.current = true;
+    setZipBusy(true);
     try {
-      triggerBlobDownload(buildZip(pending.entries), `${pending.base}.zip`);
-      setZipModal(null);
-      setZipError(null);
-      clearSelection();
+      await deliver(pending.mode, pending.root, pending.plan, pending.bytes, pending.base);
     } catch (e) {
-      setZipError({ message: e instanceof Error ? e.message : 'יצירת החבילה נכשלה.', failed: [] });
+      setZipError({ message: downloadErrorText(e), failed: [] });
+    } finally {
+      zipRunningRef.current = false;
+      setZipBusy(false);
     }
   }
 
@@ -2037,7 +2054,7 @@ export default function DocumentsWorkspace({ client, allClients, initialFolderId
               ולמסמך. שאר הפעולות אינן "מתעלמות" מהתיקיות: הן פשוט
               אינן מוצעות, והמשפט הקטן מסביר למה. */}
           {hasFolders && hasDocs && (
-            <span className="docw-bulkbar-hint">הורדה, העתקה ומחיקה - למסמכים בלבד</span>
+            <span className="docw-bulkbar-hint">העתקה ומחיקה - למסמכים בלבד</span>
           )}
           <span className="docw-bulkbar-actions">
             {/* ‼ מוצג רק כשכל הבחירה היא מסמכי PDF. תיקייה בבחירה, בחירה
@@ -2048,9 +2065,8 @@ export default function DocumentsWorkspace({ client, allClients, initialFolderId
                 {organizerLoading ? 'פותח…' : pdfSelection.length > 1 ? 'מיזוג PDF' : 'ערוך PDF'}
               </button>
             )}
-            {docsOnly && (
-              <button type="button" className="btn btn-sm btn-primary" onClick={openZipModal}>הורדה</button>
-            )}
+            {/* ‼ 19.10.2026 · הורדה גם לתיקיות — תיקייה יורדת עם כל מה שבתוכה */}
+            <button type="button" className="btn btn-sm btn-primary" onClick={openZipModal}>הורדה</button>
             {/* עריכה נוגעת בשם של תיקייה אחת — אין לה משמעות על אוסף */}
             {selectedFolders.length === 1 && !hasDocs && (
               <button type="button" className="btn btn-sm" onClick={() => openFolderEdit(selectedFolders[0])}>עריכה</button>
@@ -2622,27 +2638,52 @@ export default function DocumentsWorkspace({ client, allClients, initialFolderId
       {/* ── מודל שם החבילה להורדה ───────────────────────────────────── */}
       {zipModal && (
         <div className="modal-backdrop" onClick={closeZipModal}>
-          <div className="modal-box" onClick={e => e.stopPropagation()} style={{ maxWidth: 420 }}>
+          <div className="modal-box" onClick={e => e.stopPropagation()} style={{ maxWidth: 440 }}>
             <h3>הורדת מסמכים</h3>
-            <div className="csub" style={{ marginTop: '.4rem' }}>
-              {selectedDocs.length === 1 ? 'מסמך אחד יירד' : `${selectedDocs.length} מסמכים יירדו`} כקובץ ZIP אחד. המסמכים כאן נשארים כמו שהם.
+            <div className="csub" style={{ marginTop: '.4rem' }} data-testid="dl-summary">
+              {planCount === 0
+                ? 'אין מסמכים בתיקיות שנבחרו.'
+                : `${planCount === 1 ? 'מסמך אחד' : `${planCount} מסמכים`}${zipModal.plan.dirs.length > 0 ? ' - תיקייה שנבחרה יורדת עם כל מה שבתוכה' : ''}. המסמכים כאן נשארים כמו שהם.`}
             </div>
-            <label className="lbl">שם החבילה</label>
-            <input
-              className="inp"
-              value={zipModal.name}
-              autoFocus
-              disabled={zipBusy}
-              placeholder="לדוגמה: גיא ישר - דוח 2025"
-              onChange={e => { setZipModal({ name: e.target.value }); setZipError(null); }}
-              onKeyDown={e => { if (e.key === 'Enter' && zipBaseName && !zipBusy) void runZipDownload(); }}
-            />
-            {/* הסיומת נוספת מאליה — אין טעם להקליד אותה, ואם הוקלדה היא לא תוכפל */}
-            <div className="csub" style={{ marginTop: '.3rem' }}>
-              {zipBaseName
-                ? `הקובץ יישמר בשם «${zipDisplayName(zipBaseName)}»`
-                : 'צריך שם לחבילה - אותיות, ספרות, מקף או רווח.'}
-            </div>
+            {folderSaveSupported && planCount > 0 && (
+              <>
+                <div className="csub" style={{ marginTop: '.6rem' }}>
+                  בוחרים תיקייה במחשב, והקבצים נשמרים בה כקבצים רגילים. קובץ קיים בשם זהה לא נדרס - החדש מקבל מספר.
+                </div>
+                <div style={{ marginTop: '.6rem' }}>
+                  <button type="button" className="btn btn-primary"
+                    disabled={zipBusy} onClick={() => void runDownload('folder')} data-testid="dl-folder">
+                    {zipBusy && dlMode === 'folder' ? `שומר ${Math.min(zipProgress + 1, planCount)} מתוך ${planCount}…` : 'בחירת תיקייה ושמירה'}
+                  </button>
+                </div>
+                {!zipModal.zipOpen && (
+                  <div style={{ marginTop: '.5rem' }}>
+                    <button type="button" className="docw-bulkbar-clear" disabled={zipBusy}
+                      onClick={() => setZipModal({ ...zipModal, zipOpen: true })}>או הורדה כקובץ ZIP אחד</button>
+                  </div>
+                )}
+              </>
+            )}
+            {zipModal.zipOpen && planCount > 0 && (
+              <>
+                <label className="lbl">שם החבילה</label>
+                <input
+                  className="inp"
+                  value={zipModal.name}
+                  autoFocus={!folderSaveSupported}
+                  disabled={zipBusy}
+                  placeholder="לדוגמה: גיא ישר - דוח 2025"
+                  onChange={e => { setZipModal({ ...zipModal, name: e.target.value }); setZipError(null); }}
+                  onKeyDown={e => { if (e.key === 'Enter' && zipBaseName && !zipBusy) void runDownload('zip'); }}
+                />
+                {/* הסיומת נוספת מאליה — אין טעם להקליד אותה, ואם הוקלדה היא לא תוכפל */}
+                <div className="csub" style={{ marginTop: '.3rem' }}>
+                  {zipBaseName
+                    ? `הקובץ יישמר בשם «${zipDisplayName(zipBaseName)}»`
+                    : 'צריך שם לחבילה - אותיות, ספרות, מקף או רווח.'}
+                </div>
+              </>
+            )}
             {zipError && (
               <div className="note warn" style={{ marginTop: '.6rem' }}>
                 <div style={{ color: 'var(--err)' }}>{zipError.message}</div>
@@ -2652,19 +2693,21 @@ export default function DocumentsWorkspace({ client, allClients, initialFolderId
                   </ul>
                 )}
                 {partialRef.current && (
-                  <button type="button" className="btn btn-sm" style={{ marginTop: '.5rem' }} onClick={downloadPartial}>
-                    הורד בכל זאת את {partialRef.current.entries.length} המסמכים שנמצאו
+                  <button type="button" className="btn btn-sm" style={{ marginTop: '.5rem' }} disabled={zipBusy} onClick={() => void downloadPartial()}>
+                    {partialRef.current.mode === 'folder' ? 'שמור' : 'הורד'} בכל זאת את {partialRef.current.bytes.size} המסמכים שנמצאו
                   </button>
                 )}
               </div>
             )}
             <div className="foot">
-              <button
-                type="button" className="btn btn-primary"
-                disabled={zipBusy || !zipBaseName || selectedDocs.length === 0}
-                onClick={runZipDownload}
-              >{zipBusy ? `אורז ${Math.min(zipProgress + 1, selectedDocs.length)} מתוך ${selectedDocs.length}…` : 'הורדה'}</button>
-              <button type="button" className="btn" disabled={zipBusy} onClick={closeZipModal}>ביטול</button>
+              {zipModal.zipOpen && planCount > 0 && (
+                <button
+                  type="button" className={folderSaveSupported ? 'btn' : 'btn btn-primary'}
+                  disabled={zipBusy || !zipBaseName}
+                  onClick={() => void runDownload('zip')}
+                >{zipBusy && dlMode === 'zip' ? `אורז ${Math.min(zipProgress + 1, planCount)} מתוך ${planCount}…` : 'הורדה כ-ZIP'}</button>
+              )}
+              <button type="button" className="btn" disabled={zipBusy} onClick={closeZipModal}>{planCount === 0 ? 'סגירה' : 'ביטול'}</button>
             </div>
           </div>
         </div>
