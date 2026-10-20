@@ -178,8 +178,11 @@ export function targetsFor(item: InfoItem, c: Client, y: number, facts: YearFact
   }
 }
 
+// ‼ 20.10.2026 · עסקה שעוד אין לה מזהה: היעד הוא 'new', והשאלה/העובדה נשמרות בלי מזהה (asks.ts) — אותו יעד.
+//   בלי זה שאלות המכירה לא נסגרו לעולם וחזרו בכל «הכן ופרסם».
+const sameRef = (a?: string, b?: string) => (a ?? null) === (b ?? null) || (b === 'new' && !a) || (a === 'new' && !b);
 const sameTarget = (f: { subjectRole: SubjectRole; entityRef?: string }, t: Target) =>
-  f.subjectRole === t.subjectRole && (f.entityRef ?? null) === (t.entityRef ?? null);
+  f.subjectRole === t.subjectRole && sameRef(f.entityRef, t.entityRef);
 /** 16.10.2026 · עובדה של משק הבית על פריט «לכל אדם» (בלי ישות) — מכסה את שני האנשים. */
 const coupleCovers = (f: { subjectRole: SubjectRole; entityRef?: string }, item: InfoItem, t: Target) =>
   f.subjectRole === 'couple' && item.per === 'person' && !t.entityRef && !f.entityRef && (t.subjectRole === 'client' || t.subjectRole === 'spouse');
@@ -361,8 +364,10 @@ export function buildYearPicture(inp: PictureInput): YearPicture {
     for (const t of targetsWithProvisional(item)) {
       // ‼ 16.10.2026 · מסך הרשת של זוג נשוי שומר את שאלת הפתיחה (ואת «של מי / איפה») לתפקיד 'couple' — עובדה כזו מכסה את שני האנשים
       const tf = itemFacts.filter(f => sameTarget(f, t) || coupleCovers(f, item, t));
+      // ‼ 20.10.2026 · מסמך שהועלה לשאלה של «שניכם» (מסך הרשת של זוג) מכסה את שני האנשים — בלי זה התבקש שוב מכל אחד
       const tev = item.docKind
-        ? evidence.filter(e => e.docKind === item.docKind && (e.taxYear == null || e.taxYear === y) && e.subjectRole === t.subjectRole && (e.entityRef ?? null) === (t.entityRef ?? null))
+        ? evidence.filter(e => e.docKind === item.docKind && (e.taxYear == null || e.taxYear === y)
+            && ((e.subjectRole === t.subjectRole && sameRef(e.entityRef, t.entityRef)) || coupleCovers(e, item, t)))
         : [];
       const ask = asks.find(a => a.state !== 'cancelled' && a.state !== 'answered'
         && ((a.itemKey === item.key && askCovers(a, t))

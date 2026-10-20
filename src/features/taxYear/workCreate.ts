@@ -9,7 +9,8 @@ import { supabase } from '../../lib/supabase';
 import { stepFromDb } from '../../lib/dbMappers';
 import { todayIso } from '../../utils/dateFormat';
 import * as api from './api';
-import { buildYearPicture } from './picture';
+import { buildYearPicture, type PictureInput } from './picture';
+import { withOneRound } from './oneRound';
 import { buildAskPlan, type AskPlanEntry } from './asks';
 import { DURABLE_KINDS, scopeYearData } from './yearData';
 import { previousByArea, type WealthPayload } from './WealthDeclarationPanel';
@@ -44,14 +45,15 @@ export async function planAsksFor(client: Client, purpose: Purpose, p: WorkPaylo
   const year = Number(p.taxYear);
   const [d, prior] = await Promise.all([api.loadYearData(client.id, year), api.loadPriorEvidence(client.id, DURABLE_KINDS)]);
   const scoped = scopeYearData(d, purpose, stepId ?? '', p.asOfDate);
-  const picture = buildYearPicture({
+  const pin: PictureInput = {
     client, taxYear: year, purpose, cutoffMonth: p.cutoffMonth, today: todayIso(), asOfDate: p.asOfDate, declKind: p.kind,
     facts: scoped.facts, evidence: scoped.evidence, asks: scoped.asks, priorEvidence: prior,
     openedRare: [...new Set([...scoped.asks.map(a => a.itemKey), ...scoped.facts.map(f => f.itemKey)])],
-  });
-  return buildAskPlan([...picture.toConfirm, ...picture.toAsk], {
-    client, taxYear: year, purpose, cutoffMonth: p.cutoffMonth, asOfDate: p.asOfDate, declKind: p.kind, previousByArea: previousByArea(p), lastYear,
-  });
+  };
+  const picture = buildYearPicture(pin);
+  const ctx = { client, taxYear: year, purpose, cutoffMonth: p.cutoffMonth, asOfDate: p.asOfDate, declKind: p.kind, previousByArea: previousByArea(p), lastYear };
+  // ‼ 20.10.2026 · דוח שנתי: מה שתשובה חיובית פותחת — מוכן מראש בתוך השאלה (oneRound.ts), כדי שהשאלון ייגמר בסבב אחד
+  return withOneRound(buildAskPlan([...picture.toConfirm, ...picture.toAsk], ctx), pin, ctx);
 }
 
 /** הטיוטה לבד — גם לעבודה קיימת (למשל אחרי כשל בהכנת השאלות). */

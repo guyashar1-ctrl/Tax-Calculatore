@@ -199,7 +199,11 @@ export default function TaxInfoFlow({ stepId, token, previewClientId, previewAsk
       let failed = false;
       for (const a of ok) { const r = await api.portalSubmit(token!, a.id, { kind: 'unchanged' }); if (r.ok) sent.push(a.id); else { failed = true; break; } }
       setBusy(false);
-      const nextAsks = asks.map(x => (sent.includes(x.id) ? { ...x, state: 'answered' as const, savedDraft: undefined } : x));
+      let nextAsks = asks.map(x => (sent.includes(x.id) ? { ...x, state: 'answered' as const, savedDraft: undefined } : x));
+      // ‼ 20.10.2026 · «סבב אחד»: אישור «זה עדיין נכון» פתח בשרת את ההמשך (למשל האישור השנתי מחברת הביטוח) — טוענים אותו
+      if (ok.some(a => sent.includes(a.id) && (a.prompt.onYes?.length ?? 0) > 0)) {
+        try { const v = await fetchAsks(); const known = new Map(nextAsks.map(x => [x.id, x])); nextAsks = v.asks.map(x => known.get(x.id) ?? x); } catch { /* הרענון הבא ישלים */ }
+      }
       if (failed) { setAsks(nextAsks); setErr('השליחה נכשלה — נסו שוב'); return; }
       setAsks(nextAsks); setOpened(nextOpened);
       // ‼ «יש שינוי» ⇒ קודם השורות שסומנו (העריכה שלהן), ורק אחר כך ממשיכים
@@ -302,7 +306,8 @@ export default function TaxInfoFlow({ stepId, token, previewClientId, previewAsk
     const state: InfoAsk['state'] = payload.kind === 'unavailable' ? 'unavailable' : 'answered';
     let list = asks.map(x => (x.id === ask.id ? { ...x, state, savedDraft: undefined, unavailable: payload.kind === 'unavailable' ? { reason: payload.reason, code: payload.code, followUpOn: '', recordedAt: new Date().toISOString() } : x.unavailable } : x));
     // ‼ מסך הרשת: מה שסומן פתח שאלות המשך בשרת («של מי / איפה») — טוענים אותן, בלי לחזור על מה שכבר נענה
-    if (payload.kind === 'multi') {
+    // ‼ 20.10.2026 · וגם תשובה חיובית שפתחה המשך (prompt.onYes — «סבב אחד», 264)
+    if (payload.kind === 'multi' || (ask.prompt.onYes?.length ?? 0) > 0) {
       try { const v = await fetchAsks(); const known = new Map(list.map(x => [x.id, x])); list = v.asks.map(x => known.get(x.id) ?? x); } catch { /* נשארים עם הרשימה המקומית; הרענון הבא ישלים */ }
     }
     setBusy(false);

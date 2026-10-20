@@ -337,7 +337,8 @@ function buildMultiEntry(statuses: ItemStatus[], ctx: AskCtx): AskPlanEntry | nu
       return { ...base, label: b.label, note: 'ידוע לנו מהתיק', preset: true, ...(b.followUps?.length ? { followUps: b.followUps } : {}) };
     }
     const followUps = (ANNUAL_FOLLOW[key] ?? []).map((k, i) => annualFollowUp(k, role, ctx, i)).filter((x): x is MultiFollowUp => !!x);
-    const last = ctx.lastYear?.tiles[key];
+    // ‼ 20.10.2026 · בשנת הפטירה, מה שהיה בדוח הקודם רק של בן/בת הזוג (קצבה, פטור נכות) שייך לענף הפטירה — לא אריח של הלקוח
+    const last = spouseOnlyInDeathYear(ctx, key) ? undefined : ctx.lastYear?.tiles[key];
     return { ...base, ...(followUps.length ? { followUps } : {}), ...(last ? { note: `ב-${ctx.lastYear!.year}: ${last}`, preset: true } : {}) };
   }).sort((a, b) => (order.indexOf(a.key) + 1 || 99) - (order.indexOf(b.key) + 1 || 99));
   const why = item.why ?? '';
@@ -393,6 +394,15 @@ const opt = (key: string, role: SubjectRole, label: string, followUps: (MultiFol
  * ‼ הטון עדין, ובלי מונחים מקצועיים — את ההכרעות (חיתוך ביום הפטירה, הפיצויים, פטור הנכות) עושה המשרד.
  *   המקור: docs/tax-foundation/research/spouse-death-year-2026-10-19.md.
  */
+/** מה שבדוח הקודם היה רק של בן/בת הזוג, כשבן/בת הזוג נפטר/ה בשנת הדוח (הכרטיס יודע). */
+function spouseOnlyInDeathYear(ctx: AskCtx, tile: string): boolean {
+  const people = ctx.lastYear?.tilePeople?.[tile];
+  return knownFamilyEvent(ctx.client, ctx.taxYear) === 'death' && !!people?.length && people.every(p => p === 'spouse');
+}
+/** ענף הפטירה: מה שהיה של בן/בת הזוג בדוח הקודם — מסומן מראש, עם «ב-{שנה}: …». */
+const lastYearOf = (ctx: AskCtx, tile: string, o: MultiOption): MultiOption =>
+  spouseOnlyInDeathYear(ctx, tile) && ctx.lastYear?.tiles[tile] ? { ...o, preset: true, note: `ב-${ctx.lastYear.year}: ${ctx.lastYear.tiles[tile]}` } : o;
+
 /** ‼ 19.10.2026 · האירוע המשפחתי של שנת הדוח, כשהוא כבר רשום בכרטיס (המצב היום + שנת האירוע). */
 export function knownFamilyEvent(c: Client, taxYear: number): 'death' | 'divorce' | 'marriage' | null {
   if (c.familyStatus === 'widowed' && c.widowhoodYear === taxYear) return 'death';
@@ -421,7 +431,7 @@ function familyBranches(ctx: AskCtx): Record<'death' | 'divorce' | 'marriage', M
     branchAsk('family.death', 'couple', ctx, 1, { hint: 'אנחנו משתתפים בצערך. נשאל רק את מה שצריך כדי לסדר את הדוח — ואת השאר נעשה אנחנו.' }),
     branchAsk('family.deathIncome', 'couple', ctx, 2, { input: { kind: 'multi', options: [
       opt('family.deathGotSalary', 'spouse', 'משכורת', spouseEmployerAsked ? [] : [annualFollowUp('salary.form106', 'spouse', ctx, 6)]),
-      opt('family.deathGotPension', 'spouse', 'קצבה או פנסיה', [branchAsk('pension.certs', 'spouse', ctx, 7)]),
+      lastYearOf(ctx, 'pension.received', opt('family.deathGotPension', 'spouse', 'קצבה או פנסיה', [branchAsk('pension.certs', 'spouse', ctx, 7)])),
       opt('family.deathGotNi', 'spouse', 'דמי מחלה או קצבת נכות מביטוח לאומי', [branchAsk('niBenefits.cert', 'spouse', ctx, 8)]),
       opt('family.deathGotDisabilityIns', 'spouse', 'אובדן כושר עבודה מחברת ביטוח', [branchAsk('family.disabilityInsDocs', 'spouse', ctx, 9)]),
     ] } }),
@@ -563,7 +573,36 @@ export function periodFor(ctx: AskCtx, it: InfoItem): { periodKind: PeriodKind; 
 }
 
 /** תשובה → עובדות ממתינות. אין כאן כתיבה; הקורא (שרת / מדמה) שומר. */
+/** ‼ אותו כלל כמו השרת (264): אילו מההמשכים נפתחים לתשובה הזו. */
+export function onYesFor(p: AskPrompt, answer: AskAnswer): MultiFollowUp[] {
+  const list = p.onYes ?? [];
+  if (!list.length) return [];
+  switch (answer.kind) {
+    case 'yes': case 'unchanged': return list;
+    case 'who': {
+      if (answer.value === 'none') return [];
+      const roles = answer.value === 'both' ? ['client', 'spouse'] : [answer.value];
+      return list.filter(f => f.subjectRole === 'couple' || roles.includes(f.subjectRole));
+    }
+    case 'record': {
+      if (answer.none || answer.assertion === 'changed' || !answer.value || typeof answer.value !== 'object') return [];
+      const ip = (answer.value as { inPeriod?: unknown }).inPeriod;
+      return ip === 'all' || ip === 'part' ? list : [];
+    }
+    default: return [];
+  }
+}
+
+/**
+ * תשובה ⇒ עובדות. ‼ 20.10.2026 · וגם מה שהתשובה פותחת מיד (prompt.onYes — «סבב אחד»), באותו כלל כמו השרת (264).
+ */
 export function answerToFacts(ask: InfoAsk, answer: AskAnswer, ctx: AskCtx, today: string): AnswerResult {
+  const r = factsOfAnswer(ask, answer, ctx, today);
+  const more = onYesFor(ask.prompt, answer);
+  return more.length ? { ...r, followUps: [...(r.followUps ?? []), ...more] } : r;
+}
+
+function factsOfAnswer(ask: InfoAsk, answer: AskAnswer, ctx: AskCtx, today: string): AnswerResult {
   const it = ITEM_BY_KEY[ask.itemKey];
   if (!it) throw new Error(`פריט לא מוכר: ${ask.itemKey}`);
   const p = periodFor(ctx, it);

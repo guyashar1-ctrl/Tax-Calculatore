@@ -43,6 +43,7 @@ import RemoveWorkDialog from './RemoveWorkDialog';
 import MaternitySpreadLine from './MaternitySpread';
 import { isOpenStep } from './taxWork';
 import { toAskInput, reopenAnnualInNewVersion } from './workCreate';
+import { withOneRound } from './oneRound';
 import { buildQuestionTree, countsLine, TREE_MARK } from './questionTree';
 
 interface Props {
@@ -134,11 +135,12 @@ export default function TaxYearProcess({ client, step, infoStep, onClose, onChan
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose, embedded]);
 
-  const picture = useMemo(() => data && buildYearPicture({
+  const pictureInput = useMemo(() => data && {
     client, taxYear: year, purpose, cutoffMonth: p.cutoffMonth, today: todayIso(), asOfDate: p.asOfDate, declKind: p.kind,
     facts: data.facts, evidence: data.evidence, asks: data.asks, priorEvidence: prior,
     openedRare: [...new Set([...data.asks.map(a => a.itemKey), ...data.facts.map(f => f.itemKey)])],
-  }), [data, client, year, purpose, p.cutoffMonth, p.asOfDate, p.kind, prior]);
+  }, [data, client, year, purpose, p.cutoffMonth, p.asOfDate, p.kind, prior]);
+  const picture = useMemo(() => pictureInput && buildYearPicture(pictureInput), [pictureInput]);
   // 16.10.2026 · «של מי» בתשובות מהרשימות — בשם (רחל), לא בתפקיד
   const review = useMemo(() => data && groupForReview(data.facts, data.evidence, { clientName: client.firstName || 'הלקוח', spouseName: client.spouseFirstName || client.spouse?.firstName || 'בן/בת הזוג' }), [data, client]);
   // ‼ בקליטה בתוך השורה הטיוטות אינן «עכשיו» של המשרד — הן מתפרסמות לבד (autoIntake)
@@ -236,12 +238,15 @@ export default function TaxYearProcess({ client, step, infoStep, onClose, onChan
   const askable = autoIntake || legacyAnnual ? [] : [...picture.toConfirm, ...picture.toAsk];
   // ‼ 19.10.2026 · דוח שנתי: שאלות שנוספו בעקבות התשובות (למשל פרטי דמי לידה) או טיוטות — «הכן ופרסם» בלחיצה אחת מהסיכום,
   //   בלי לפתוח את «פירוט מלא». אותו מנוע (buildAskPlan) ואותן קריאות כמו «להכין» + «לפרסם» למטה; בלי מייל.
-  const annualMorePlan = purpose === 'annual' ? buildAskPlan(askable, { client, taxYear: year, purpose, cutoffMonth: p.cutoffMonth, asOfDate: p.asOfDate, declKind: p.kind, previousByArea: prevArea }) : [];
+  const annualCtx = { client, taxYear: year, purpose, cutoffMonth: p.cutoffMonth, asOfDate: p.asOfDate, declKind: p.kind, previousByArea: prevArea };
+  const annualMorePlan = purpose === 'annual' ? buildAskPlan(askable, annualCtx) : [];
   const annualMore = purpose === 'annual' && isOpenStep(step) && !legacyAnnual ? {
     count: annualMorePlan.length + drafts.length,
     run: () => run(async () => {
       let infoId = infoStep?.id;
-      if (annualMorePlan.length) { const r = await api.addAsks(step.id, annualMorePlan.map(toAskInput)); if (!r.ok) return r; infoId = r.infoStepId; }
+      // ‼ 20.10.2026 · «סבב אחד» (oneRound.ts) — רק בלחיצה: הניחוש «מה ייפתח מכל כן» כבד מכדי לרוץ בכל ציור
+      const plan = annualMorePlan.length && pictureInput ? withOneRound(annualMorePlan, pictureInput, annualCtx) : annualMorePlan;
+      if (plan.length) { const r = await api.addAsks(step.id, plan.map(toAskInput)); if (!r.ok) return r; infoId = r.infoStepId; }
       return infoId ? api.publishInfo(infoId) : { ok: false, error: 'not_loaded' };
     }, `פורסם בדף של ${firstName} — בלי מייל`),
   } : undefined;

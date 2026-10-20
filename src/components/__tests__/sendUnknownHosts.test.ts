@@ -84,14 +84,13 @@ type AppHelpers = {
   functionReplyBody: (data: unknown, error: unknown) => Promise<Record<string, unknown> | null>;
   emailSendErrorText: (body: Record<string, unknown> | null, error: unknown, table: Record<string, string>) => Promise<string>;
   APPLY_LINK_SEND_ERRORS: Record<string, string>;
-  CHARGE_SEND_ERRORS: Record<string, string>;
 };
 const app = () => loadDecls<AppHelpers>(SRC('App.tsx'),
-  ['AUTH_EXPIRED_TEXT', 'APPLY_LINK_SEND_ERRORS', 'CHARGE_SEND_ERRORS', 'functionReplyBody', 'emailSendErrorText'],
+  ['AUTH_EXPIRED_TEXT', 'APPLY_LINK_SEND_ERRORS', 'functionReplyBody', 'emailSendErrorText'],
   { isUnknownSendReply, UNKNOWN_OUTCOME_TEXT, edgeFunctionError });
 
 /** מה החלון (NewPersonDialog / PersonDirectory) יעשה עם המשפט. */
-async function appSendView(data: unknown, error: unknown, table: 'APPLY_LINK_SEND_ERRORS' | 'CHARGE_SEND_ERRORS') {
+async function appSendView(data: unknown, error: unknown, table: 'APPLY_LINK_SEND_ERRORS') {
   const h = app();
   const msg = await h.emailSendErrorText(await h.functionReplyBody(data, error), error, h[table]);
   return { msg, view: sendErrorView(msg) };
@@ -141,10 +140,10 @@ export const TESTS: TestCase[] = [
   }),
   test('הטבלאות ב-App: כל משפט בעברית, בלי קוד', () => {
     const h = app();
-    for (const [k, v] of Object.entries({ ...h.APPLY_LINK_SEND_ERRORS, ...h.CHARGE_SEND_ERRORS })) {
+    for (const [k, v] of Object.entries(h.APPLY_LINK_SEND_ERRORS)) {
       assert(HEBREW.test(v) && !LATIN.test(v), `${k}: ${v}`);
     }
-    assert(!('unknown_outcome' in h.APPLY_LINK_SEND_ERRORS) && !('unknown_outcome' in h.CHARGE_SEND_ERRORS), 'unknown לא בטבלת «לא נשלח»');
+    assert(!('unknown_outcome' in h.APPLY_LINK_SEND_ERRORS), 'unknown לא בטבלת «לא נשלח»');
   }),
   test('functionReplyBody: גוף מה-context; null כשאין תשובה או כשהגוף אינו JSON', async () => {
     const h = app();
@@ -156,23 +155,12 @@ export const TESTS: TestCase[] = [
   }),
 
   // ── App: דרישת תשלום ─────────────────────────────────────────────────────
-  test('דרישת תשלום: unknown ⇒ החלון מקבל את המשפט של השרת (כתום, «לא תישלח שוב מכאן»)', async () => {
-    const { msg } = await appSendView(null, httpError(502, unknownBody({ requestedAt: '2026-10-03T10:00:00Z' })), 'CHARGE_SEND_ERRORS');
-    assert(isUnknownSendReply(msg), msg);
-  }),
-  test('דרישת תשלום: מסמנים «נשלחה» רק כשהשרת החדש שמר את התפיסה (unknown_outcome), לא על resend_unreachable הישן', () => {
-    assert(isUnknownOutcome(unknownBody()), 'unknown_outcome');
-    assert(!isUnknownOutcome({ error: 'resend_unreachable', detail: { message: 'fetch failed' } }), 'השרת הישן החזיר את החיוב לממתין');
+  // ‼ 20.10.2026 · «שלח דרישת תשלום» ירד מ«אנשים» (מייל ללקוח בלחיצה, בלי תצוגה ובלי בקשה — נגד §9). הבדיקות של
+  //   requestChargePayment ירדו איתו; דרישת תשלום תחזור כבקשה עם תצוגה — ובדיקות «לא ידוע אם יצא» יחזרו איתה.
+  test('דרישת תשלום: אין יותר שליחה ישירה מ-App (רק מתוך בקשה, עם תצוגה)', () => {
     const src = read(SRC('App.tsx'));
-    const fn = src.slice(src.indexOf('async function requestChargePayment'), src.indexOf('function handleContinueLead'));
-    assert(/if \(isUnknownOutcome\(body\)\) \{[\s\S]*?status: 'requested', requestedAt: at/.test(fn), 'סימון «נשלחה» על unknown_outcome');
-    assert(fn.includes("typeof body?.requestedAt === 'string' ? body.requestedAt"), 'requestedAt מהתשובה');
-    assert(!/error\?\.message \|\|/.test(fn), 'לא «non-2xx status code»');
-  }),
-  test('דרישת תשלום: חסרה כתובת ⇒ משפט בעברית (אדום), לא קוד', async () => {
-    const { msg, view } = await appSendView(null, httpError(400, { error: 'missing_client_email' }), 'CHARGE_SEND_ERRORS');
-    assert(msg.includes('אין כתובת מייל'), msg);
-    equal(view.tone, 'failed');
+    assert(!src.includes("functions.invoke('send-charge-payment-request-email'"), 'App עדיין שולח דרישת תשלום ישירות');
+    assert(!/onRequestChargePayment={requestChargePayment}/.test(src), '«אנשים» עדיין מקבל שליחה ישירה');
   }),
   test('בקשת ייצוג חדשה: unknown / פג הזמן מסומנים emailUnknown — לא «לא נשלח» בלבד', () => {
     const src = read(SRC('App.tsx'));

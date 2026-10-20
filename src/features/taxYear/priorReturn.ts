@@ -157,7 +157,11 @@ function cardTarget(row: PrepRow): 'employers' | 'investmentAccounts' | 'pension
 }
 
 /** מה המשרד אישר — כמה שהוא ייכנס לשאלון: אריחים מסומנים מראש עם «ב-{שנה}: …», ושם בן/בת הזוג לנוסח. */
-export interface LastYearHints { year: number; tiles: Record<string, string>; spouseName?: string }
+export interface LastYearHints {
+  year: number; tiles: Record<string, string>; spouseName?: string;
+  /** 20.10.2026 · של מי כל אריח בדוח הקודם — כדי שמה שהיה של בן/בת זוג שנפטר/ה ייכנס לענף שלו/ה, לא לאריח של הלקוח. */
+  tilePeople?: Record<string, PrepPerson[]>;
+}
 
 const newId = (p: string) => `${p}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
 
@@ -195,6 +199,7 @@ export function priorReturnApply(client: Client, rows: PrepRow[], r: PriorReadin
 
   const spouseName = client.spouseFirstName || client.spouse?.firstName ? undefined : firstOf(r.spouse?.firstName) || undefined;
   const tiles: Record<string, string> = {};
+  const tilePeople: Record<string, PrepPerson[]> = {};
   for (const x of on) {
     if (cardTarget(x)) continue;
     const tile = TILE_OF[x.kind];
@@ -202,8 +207,9 @@ export function priorReturnApply(client: Client, rows: PrepRow[], r: PriorReadin
     const who = personLabel(x.person, client, spouseName);
     const text = [x.name, x.person === 'joint' ? '' : who].filter(Boolean).join(' · ');
     tiles[tile] = tiles[tile] ? `${tiles[tile]}; ${text}` : text;
+    tilePeople[tile] = [...(tilePeople[tile] ?? []), x.person];
   }
-  return { proposals, hints: { year: source.year, tiles, ...(spouseName ? { spouseName } : {}) } };
+  return { proposals, hints: { year: source.year, tiles, tilePeople, ...(spouseName ? { spouseName } : {}) } };
 }
 
 /** הסט שהוגש לשנה הקודמת בין מסמכי הלקוח: תווית «סט שהוגש…», קטגוריה 1301, או שם קובץ שאומר את זה. */
