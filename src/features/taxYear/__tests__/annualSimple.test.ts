@@ -122,4 +122,21 @@ export const TESTS: TestCase[] = [
     assert(isLegacyAnnual([...asNew, ask('w', 'salary.worked', 'who')]), '«מי מכם?» על משכורת לא זוהה כישן');
     assert(!isLegacyAnnual([ask('w', 'salary.worked', 'who', undefined, 'cancelled')]), 'שאלה שבוטלה נספרה');
   }),
+  test('20.10 · פערי יריב בענף הפטירה: פדיון ימי מחלה, היוון שפותח את המכתב, אישור לכל משלם ו«מתי התחילו לשלם»', () => {
+    const ev = fus(gridOf(client()).find(o => o.key === 'household.familyChange'))[0];
+    if (ev?.prompt.input.kind !== 'multi') throw new Error('אין «מה קרה?»');
+    const death = fus(ev.prompt.input.options[0]);
+    const multi = (k: string) => { const f = death.find(x => x.itemKey === k); return f?.prompt.input.kind === 'multi' ? f.prompt.input.options : []; };
+    equal(fus(multi('family.deathPayouts').find(o => o.key === 'family.payoutSickDays'))[0]?.itemKey, 'family.sickPayDocs');
+    const cap = fus(multi('family.deathIncome').find(o => o.key === 'family.deathGotPension')).find(f => f.itemKey === 'family.pensionCapitalized');
+    equal(cap?.prompt.onYes?.[0]?.itemKey, 'family.capitalizationDocs');
+    const surv = multi('family.survivorPensions');
+    equal(surv.map(o => fus(o).map(f => f.itemKey).join('+')).join(' | '),
+      'family.survivorDocs+family.survivorPaidWhen | family.survivorDocsState+family.survivorPaidWhen | family.survivorDocsBtl+family.survivorPaidWhen');
+    const when = fus(surv[0]).find(f => f.itemKey === 'family.survivorPaidWhen');
+    assert(when?.prompt.input.kind === 'choice' && when.prompt.input.options.some(o => o.label.includes('2026')), 'בתשובות אין את השנה');
+  }),
+  test('20.10 · אריח «מניות או אופציות מהעבודה» פותח את אישור הנאמן', () => {
+    equal(fus(gridOf(client()).find(o => o.key === 'salary.equity'))[0]?.itemKey, 'salary.equityDocs');
+  }),
 ];

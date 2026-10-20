@@ -98,6 +98,8 @@ export type DocKind =
   | 'saleExpenseDocs' | 'specialDealDocs'
   // 19.10.2026 · אירוע משפחתי בשנת הדוח (פטירה, גירושין) וכספים בגלל פטירה
   | 'deathDocs' | 'severanceDocs' | 'insurancePayout' | 'divorceDocs' | 'marriageDocs'
+  // 20.10.2026 · פערי יריב (בדיקת השלמות): פדיון ימי מחלה, היוון + 161ד, מניות מהעבודה
+  | 'sickPayout' | 'capitalizationDocs' | 'equityCert'
   | 'other';
 
 /** ארבעה שלבים נפרדים בחיי מסמך. פריט אינו «הושלם» כי הועלה קובץ. */

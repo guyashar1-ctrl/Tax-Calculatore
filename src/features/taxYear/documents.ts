@@ -73,6 +73,10 @@ export const DOCS: Record<DocKind, DocInfo> = {
   insurancePayout: { label: 'מכתב מחברת הביטוח או מהקופה על התשלום', availableFrom: null, why: 'החברה שולחת מכתב תשלום למוטבים', extraction: 'not_supported', durable: true },
   divorceDocs: { label: 'הסכם או פסק דין גירושין', availableFrom: null, why: 'מבית המשפט או מבית הדין', extraction: 'not_supported', durable: true },
   marriageDocs: { label: 'תעודת נישואין', availableFrom: null, why: 'ממשרד הפנים או מהרבנות', extraction: 'not_supported', durable: true },
+  // 20.10.2026 · פערי יריב (בדיקת השלמות — docs/plans/2026-10-20-simplicity-roadmap.md §5)
+  sickPayout: { label: 'אישור על פדיון ימי מחלה או חופשה', availableFrom: null, why: 'מהמעסיק: הסכום, המס שנוכה ותאריך התשלום', extraction: 'not_supported', durable: true },
+  capitalizationDocs: { label: 'מכתב ההיוון וטופס 161ד', availableFrom: null, why: 'מהגורם שמשלם את הקצבה (קרן, מינהלת הגמלאות); 161ד — אם הוגש לפקיד השומה', extraction: 'not_supported', durable: true },
+  equityCert: { label: 'אישור מהנאמן על מניות או אופציות מהעבודה', availableFrom: null, why: 'מהנאמן או מחברת ניהול התוכנית (ESOP, IBI, אקסלנס ועוד): מה הוקצה, מומש ונמכר בשנה', extraction: 'not_supported' },
   allowanceCert: { label: 'אישור על קצבה או תלוש פנסיה', availableFrom: null, why: 'מהגורם המשלם (קרן פנסיה, ביטוח לאומי)', extraction: 'not_supported' },
   insuranceCert: { label: 'אישור שנתי מחברת הביטוח', availableFrom: null, why: 'מחברת הביטוח; או הפוליסה', extraction: 'not_supported' },
   authorityLetter: { label: 'מכתב או דרישה מרשות', availableFrom: null, why: 'מהלקוח או מאתר הרשות', extraction: 'not_supported' },

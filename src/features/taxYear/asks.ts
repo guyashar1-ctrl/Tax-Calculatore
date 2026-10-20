@@ -291,12 +291,12 @@ export function isLegacyAnnual(asks: { itemKey: string; state: string; prompt: A
 }
 const GRID_ORDER = ['intake.employed', 'intake.selfEmployed', 'intake.rents', 'intake.hasInvestments', 'intake.selfDeposits', 'intake.foreign', 'intake.crypto',
   'intake.allowances', 'intake.insurance', 'intake.credits', 'intake.special'];
-const ANNUAL_ORDER = ['household.familyChange', 'salary.worked', 'pension.received', 'niBenefits.received', 'rent.newRental', 'rent.otherProperty', 'capital.newAccount',
+const ANNUAL_ORDER = ['household.familyChange', 'salary.worked', 'salary.equity', 'pension.received', 'niBenefits.received', 'rent.newRental', 'rent.otherProperty', 'capital.newAccount',
   'savings.selfDeposits', 'savings.insurance', 'donations.given', 'special.disability', 'household.creditChanges', 'foreign.income', 'sales.sold'];
 /** מה נפתח מיד כשמסמנים אריח בדוח השנתי. מסמך לישות שאינה בתיק — עם המזהה הזמני (כמו בהיכרות). */
 export const ANNUAL_FOLLOW: Record<string, string[]> = {
   'household.familyChange': ['household.familyEvent'],
-  'salary.worked': ['salary.form106'], 'pension.received': ['pension.certs'], 'niBenefits.received': ['niBenefits.cert'],
+  'salary.worked': ['salary.form106'], 'salary.equity': ['salary.equityDocs'], 'pension.received': ['pension.certs'], 'niBenefits.received': ['niBenefits.cert'],
   'rent.newRental': ['rent.contract'], 'rent.otherProperty': ['rent.otherPropertyDocs'], 'capital.newAccount': ['capital.form867'],
   'savings.selfDeposits': ['savings.fundCerts'], 'savings.insurance': ['savings.insuranceCert'], 'donations.given': ['donations.receipts'],
   'special.disability': ['special.disabilityCert'], 'household.creditChanges': ['household.degreeDocs'],
@@ -382,6 +382,11 @@ function branchAsk(itemKey: string, subjectRole: SubjectRole, ctx: AskCtx, order
   return { itemKey, subjectRole, prompt: { ...p, ...patch, templateVersion: CATALOG_VERSION, order } };
 }
 
+/** 20.10.2026 · «מתי התחילו לשלם את קצבת השאירים» — עם השנים עצמן בתשובות. */
+const survivorPaidWhen = (ctx: AskCtx) => branchAsk('family.survivorPaidWhen', 'couple', ctx, 4.5, { input: { kind: 'choice', options: [
+  { value: 'thisYear', label: `כבר ב-${ctx.taxYear}` }, { value: 'nextYearRetro', label: `רק ב-${ctx.taxYear + 1} — עם תשלום רטרואקטיבי` },
+  { value: 'notYet', label: 'עוד לא התחילו לשלם' }, { value: 'notSure', label: 'לא בטוח/ה' }] } });
+
 /** «בחירה» בתוך ענף: אפשרות במסך רשת קטן, עם השאלות שהיא פותחת. */
 const opt = (key: string, role: SubjectRole, label: string, followUps: (MultiFollowUp | null)[], hint?: string): MultiOption => {
   const f = followUps.filter((x): x is MultiFollowUp => !!x);
@@ -431,7 +436,9 @@ function familyBranches(ctx: AskCtx): Record<'death' | 'divorce' | 'marriage', M
     branchAsk('family.death', 'couple', ctx, 1, { hint: 'אנחנו משתתפים בצערך. נשאל רק את מה שצריך כדי לסדר את הדוח — ואת השאר נעשה אנחנו.' }),
     branchAsk('family.deathIncome', 'couple', ctx, 2, { input: { kind: 'multi', options: [
       opt('family.deathGotSalary', 'spouse', 'משכורת', spouseEmployerAsked ? [] : [annualFollowUp('salary.form106', 'spouse', ctx, 6)]),
-      lastYearOf(ctx, 'pension.received', opt('family.deathGotPension', 'spouse', 'קצבה או פנסיה', [branchAsk('pension.certs', 'spouse', ctx, 7)])),
+      lastYearOf(ctx, 'pension.received', opt('family.deathGotPension', 'spouse', 'קצבה או פנסיה', [branchAsk('pension.certs', 'spouse', ctx, 7),
+        // ‼ 20.10.2026 · היוון + 161ד: «כן» פותח מיד את המכתב (onYes — «סבב אחד»)
+        branchAsk('family.pensionCapitalized', 'couple', ctx, 7.5, { onYes: [branchAsk('family.capitalizationDocs', 'couple', ctx, 7.6)].filter((x): x is MultiFollowUp => !!x) })])),
       opt('family.deathGotNi', 'spouse', 'דמי מחלה או קצבת נכות מביטוח לאומי', [branchAsk('niBenefits.cert', 'spouse', ctx, 8)]),
       opt('family.deathGotDisabilityIns', 'spouse', 'אובדן כושר עבודה מחברת ביטוח', [branchAsk('family.disabilityInsDocs', 'spouse', ctx, 9)]),
     ] } }),
@@ -440,11 +447,13 @@ function familyBranches(ctx: AskCtx): Record<'death' | 'divorce' | 'marriage', M
       opt('family.payoutLifeIns', 'couple', 'ביטוח חיים', [branchAsk('family.payoutDocs', 'couple', ctx, 11)]),
       opt('family.payoutFund', 'couple', 'כסף מקופת גמל או פנסיה', [branchAsk('family.payoutDocs', 'couple', ctx, 11)]),
       opt('family.payoutMortgage', 'couple', 'ביטוח משכנתה (שולם לבנק)', []),
+      opt('family.payoutSickDays', 'couple', 'פדיון ימי מחלה או חופשה', [branchAsk('family.sickPayDocs', 'couple', ctx, 10.5)]),
     ] } }),
     branchAsk('family.survivorPensions', 'couple', ctx, 4, { input: { kind: 'multi', options: [
-      opt('family.survivorFromFund', 'couple', 'קרן פנסיה או חברת ביטוח', [branchAsk('family.survivorDocs', 'couple', ctx, 12)]),
-      opt('family.survivorFromState', 'couple', 'המדינה (גמלאות)', [branchAsk('family.survivorDocs', 'couple', ctx, 12)]),
-      opt('family.survivorFromBtl', 'couple', 'ביטוח לאומי', [branchAsk('family.survivorDocs', 'couple', ctx, 12)]),
+      // ‼ 20.10.2026 · אישור לכל משלם, ושאלה אחת «מתי התחילו לשלם» (משותפת לכל המשלמים — השרת פותח אותה פעם אחת)
+      opt('family.survivorFromFund', 'couple', 'קרן פנסיה או חברת ביטוח', [branchAsk('family.survivorDocs', 'couple', ctx, 12), survivorPaidWhen(ctx)]),
+      opt('family.survivorFromState', 'couple', 'המדינה (גמלאות)', [branchAsk('family.survivorDocsState', 'couple', ctx, 12.1), survivorPaidWhen(ctx)]),
+      opt('family.survivorFromBtl', 'couple', 'ביטוח לאומי', [branchAsk('family.survivorDocsBtl', 'couple', ctx, 12.2), survivorPaidWhen(ctx)]),
     ] } }),
     branchAsk('family.deathDocs', 'couple', ctx, 5),
   ]);

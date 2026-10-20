@@ -553,7 +553,7 @@ ITEMS.push(
 //   השרת (_tax_year_items, 262) מכיר את כל המפתחות.
 const ANNUAL_TILES: Record<string, string> = {
   'household.familyChange': 'נישואין, גירושין או פטירה במשפחה',
-  'salary.worked': 'משכורת', 'pension.received': 'קצבה או פנסיה', 'niBenefits.received': 'כספים מביטוח לאומי',
+  'salary.worked': 'משכורת', 'salary.equity': 'מניות או אופציות מהעבודה', 'pension.received': 'קצבה או פנסיה', 'niBenefits.received': 'כספים מביטוח לאומי',
   'rent.newRental': 'השכרת דירה או נכס', 'rent.otherProperty': 'השכרת ציוד, רכב או קרקע', 'capital.newAccount': 'חיסכון או מניות בבנק',
   'savings.selfDeposits': 'הפקדה פרטית לפנסיה', 'savings.insurance': 'ביטוח חיים פרטי', 'donations.given': 'תרומות',
   'special.disability': 'נכות או מחלה קשה', 'household.creditChanges': 'תואר, שחרור או מעבר דירה',
@@ -563,6 +563,14 @@ const NONE: Purpose[] = [];
 ITEMS.push(
   { key: 'annual.whatHappened', area: 'special', label: 'מה היה לכם בשנה (מסך הרשת)', kind: 'screener', per: 'couple', who: 'client', purposes: NONE, input: 'multi',
     question: 'מה היה לכם ב-{year}?', why: 'מה שתסמנו — נשאל עליו שאלה קצרה ונבקש את המסמך המתאים. מה שלא תסמנו — לא נשאל.' },
+  // ── 20.10.2026 · מניות, אופציות ו-RSU מהעבודה (פער בבדיקת השלמות; נפוץ בהייטק) ──
+  { key: 'salary.equity', area: 'salary', label: 'מניות, אופציות או RSU מהעבודה בשנה', kind: 'screener', per: 'person', who: 'client', purposes: ['annual'],
+    question: 'האם {name} קיבל/ה מהעבודה מניות או אופציות — או מכר/ה כאלה השנה?',
+    coupleQuestion: 'האם מישהו מכם קיבל מהעבודה מניות או אופציות — או מכר כאלה השנה?',
+    why: 'מימוש ומכירה של מניות מהעבודה מדווחים בדוח — לפעמים כשכר ולפעמים כרווח הון', input: 'yesno',
+    officeNext: 'סעיף 102 (נאמן / לא נאמן): חלק כהכנסת עבודה וחלק כרווח הון; מניות זרות — נספח ד׳; מכירה — נספח ג׳ / 1325' },
+  { key: 'salary.equityDocs', area: 'salary', label: 'אישור הנאמן על מניות או אופציות', kind: 'document', per: 'person', who: 'client', purposes: ['annual'], after: 'salary.equity',
+    question: 'האישור מהנאמן או מחברת ניהול התוכנית על מה שהוקצה, מומש ונמכר ב-{year}', why: 'בו רואים כמה מהרווח הוא שכר, כמה רווח הון, וכמה מס כבר נוכה', input: 'file', docKind: 'equityCert', knownBasis: DOC_KNOWN },
   // ── קצבה ופנסיה שהתקבלו (עד 19.10 נשאלו רק בהיכרות) ──
   { key: 'pension.received', area: 'savings', label: 'קצבה או פנסיה שהתקבלה בשנה', kind: 'screener', per: 'person', who: 'client', purposes: ['annual'],
     question: 'האם {name} קיבל/ה השנה קצבה או פנסיה — מקרן פנסיה, מהמדינה, מחברת ביטוח או קצבת שאירים?',
@@ -610,6 +618,24 @@ ITEMS.push(
   { key: 'family.payoutLifeIns', area: 'household', label: 'ביטוח חיים בגלל הפטירה', kind: 'screener', per: 'couple', who: 'client', purposes: NONE },
   { key: 'family.payoutFund', area: 'household', label: 'כסף מקופת גמל או פנסיה למוטבים', kind: 'screener', per: 'couple', who: 'client', purposes: NONE },
   { key: 'family.payoutMortgage', area: 'household', label: 'ביטוח משכנתה ששילם לבנק', kind: 'screener', per: 'couple', who: 'client', purposes: NONE },
+  // 20.10.2026 · פערי יריב: פדיון ימי מחלה, היוון + 161ד, מתי שולמה קצבת השאירים, אישור לכל משלם
+  { key: 'family.payoutSickDays', area: 'household', label: 'פדיון ימי מחלה או חופשה בגלל הפטירה', kind: 'screener', per: 'couple', who: 'client', purposes: NONE },
+  { key: 'family.sickPayDocs', area: 'household', label: 'אישור על פדיון ימי מחלה או חופשה', kind: 'document', per: 'couple', who: 'client', purposes: NONE,
+    question: 'האישור מהמעסיק על פדיון ימי המחלה או החופשה — כמה שולם, כמה מס נוכה ומתי שולם', why: 'כסף שהתקבל אחרי הפטירה שייך ליורשים; לפי האישור נבדוק אם נוכה יותר מדי מס', input: 'file', docKind: 'sickPayout',
+    officeNext: 'אחרי הפטירה ⇒ הכנסת היורשים (125א, המס עד 40%), לא בפטור 9(5) של הנפטר/ת; החזר רק אם נוכה יותר מהמס המתאים; באיזו שנה שולם' },
+  { key: 'family.pensionCapitalized', area: 'household', label: 'היוון של חלק מהקצבה', kind: 'detail', per: 'couple', who: 'client', purposes: NONE,
+    question: 'האם {spouse} קיבל/ה פעם סכום חד־פעמי במקום חלק מהקצבה החודשית?', why: 'כשחלק מהקצבה «הוון», זה משנה כמה ממנה פטור ממס', input: 'yesno',
+    officeNext: 'היוון + 161ד (קיבוע זכויות): הפטור על הקצבה (9א) ומה מכוסה ב-9(5) בחייה; היוון ששולם לשאירים — הכנסתם' },
+  { key: 'family.capitalizationDocs', area: 'household', label: 'מכתב ההיוון וטופס 161ד', kind: 'document', per: 'couple', who: 'client', purposes: NONE,
+    question: 'המכתב על ההיוון — ואם הוגש, גם הטופס «קיבוע זכויות»', why: 'בהם רואים כמה הוון וממתי — זה קובע כמה מהקצבה פטור (הטופס נקרא 161ד)', input: 'file', docKind: 'capitalizationDocs' },
+  { key: 'family.survivorPaidWhen', area: 'household', label: 'קצבת השאירים: מתי התחילו לשלם בפועל', kind: 'detail', per: 'couple', who: 'client', purposes: NONE,
+    question: 'מתי התחילו לשלם את קצבת השאירים בפועל?', why: 'קצבה שאושרה מאוחר ושולמה רטרואקטיבית — לפעמים שייכת לדוח של השנה שבה שולמה', input: 'choice',
+    options: [{ value: 'thisYear', label: 'כבר בשנה של הדוח' }, { value: 'nextYearRetro', label: 'רק בשנה שאחריה — עם תשלום רטרואקטיבי' }, { value: 'notYet', label: 'עוד לא התחילו לשלם' }, { value: 'notSure', label: 'לא בטוח/ה' }],
+    officeNext: 'מזומן: קצבה ששולמה בשנה שאחרי, רטרואקטיבית — לדוח שנת התשלום; לבחון פריסה לאחור (8(ג)(3))' },
+  { key: 'family.survivorDocsState', area: 'household', label: 'אישור שנתי מהגמלאות של המדינה על קצבת שאירים', kind: 'document', per: 'couple', who: 'client', purposes: NONE,
+    question: 'האישור השנתי מהגמלאות של המדינה על קצבת השאירים — לכל מי שמקבל (גם לילדים)', why: 'כמה שולם, ממתי וכמה מס נוכה — לכל שאיר יש פטור משלו', input: 'file', docKind: 'allowanceCert' },
+  { key: 'family.survivorDocsBtl', area: 'household', label: 'אישור מביטוח לאומי על קצבת שאירים', kind: 'document', per: 'couple', who: 'client', purposes: NONE,
+    question: 'האישור מביטוח לאומי על קצבת השאירים', why: 'קצבת שאירים מביטוח לאומי פטורה — האישור לתיעוד בדוח', input: 'file', docKind: 'allowanceCert' },
   { key: 'family.severanceDocs', area: 'household', label: 'טופס 161 ו-161ב (פיצויים בגלל פטירה)', kind: 'document', per: 'couple', who: 'client', purposes: NONE,
     question: 'הטופס מהמעסיק על הפיצויים בגלל הפטירה, וחלק ב׳ שמילאתם — ואם יש, תשובת פקיד השומה', why: 'נקרא «טופס 161». פיצויים בגלל פטירה פטורים עד כפל התקרה — רק דרך הטופס', input: 'file', docKind: 'severanceDocs',
     officeNext: '9(7א)(ב)(1): לבחור — לשאירים (פטור כפול, החייב עד 40% בידם) או לנפטר/ת (פטור רגיל); לבדוק באיזו שנה שולם' },
@@ -623,7 +649,7 @@ ITEMS.push(
   { key: 'family.deathDocs', area: 'household', label: 'תעודת פטירה וצו ירושה', kind: 'document', per: 'couple', who: 'client', purposes: NONE,
     question: 'תעודת הפטירה, וצו הירושה אם כבר ניתן', why: 'החזרי מס והכנסות שאחרי הפטירה שייכים ליורשים', input: 'file', docKind: 'deathDocs' },
   { key: 'family.survivorDocs', area: 'household', label: 'אישורים שנתיים על קצבאות שאירים', kind: 'document', per: 'couple', who: 'client', purposes: NONE,
-    question: 'האישורים השנתיים על קצבאות השאירים — מכל משלם, לכל מי שמקבל', why: 'בהם רואים כמה שולם, מתי התחיל וכמה מס נוכה', input: 'file', docKind: 'allowanceCert',
+    question: 'האישור השנתי מקרן הפנסיה או מחברת הביטוח על קצבת השאירים — לכל מי שמקבל (גם לילדים), גם אם עוד לא שולם', why: 'בו רואים כמה שולם, מתי התחיל וכמה מס נוכה', input: 'file', docKind: 'allowanceCert',
     officeNext: 'תשלום רטרואקטיבי — לבדוק באיזו שנה שולם בפועל; כמה משלמים ⇒ תיאום מס לכל שאיר' },
   // גירושין · נישואין
   { key: 'family.divorce', area: 'household', label: 'גירושין: תאריך, ילדים ומזונות', kind: 'detail', per: 'couple', who: 'client', purposes: NONE, input: 'record', after: 'family.eventDivorce',
