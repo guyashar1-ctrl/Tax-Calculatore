@@ -45,6 +45,8 @@ async function answerAll(pp, ticks) {
     };
     if (await flow.getByRole('button', { name: 'כן, הכול נכון' }).count()) {
       await flow.getByRole('button', { name: 'כן, הכול נכון' }).click();
+      // אישור יחיד: «כן, הכול נכון» היא בחירה, ואז «הבא»; במסך המקובץ — הכפתור כבר שולח
+      if ((await pp.locator('.ty-flow').getAttribute('data-screen')) !== 'confirmAll') { await next(); continue; }
       await pp.waitForFunction((t) => (document.querySelector('.ty-flow .ty-q')?.textContent ?? '') !== t, title, { timeout: 20000 }).catch(() => {});
       await pp.waitForTimeout(300); continue;
     }
