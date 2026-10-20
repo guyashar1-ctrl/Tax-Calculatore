@@ -4,7 +4,8 @@
  *
  *   לקוח אלמן מ-2025 עם הסט שהוגש ל-2024 במסמכים → «＋ בקשה חדשה» ← «דוח שנתי 2025» → הבקשה נפתחת בלי שאלון,
  *   ובה «לפני השליחה» → «קרא את הדוח» → שורות לבדיקה (מבטלים חשבון, מתקנים שם) → «פרסם» ⇒ מה שסומן נכנס לכרטיס
- *   (מעסיקים, חשבון, ביטוח חיים — עם המקור), והשאלון בדף: אריחים מסומנים מראש «ב-2024: …», ואריח הפטירה פותח ישר
+ *   (מעסיקים, חשבון, ביטוח חיים — עם המקור), והשאלון בדף: מה שהיה של בת הזוג (קצבה) מסומן מראש בענף הפטירה «ב-2024: …»
+ *   (20.10, תקלה 5 — לא אריח של הלקוח), ואריח הפטירה פותח ישר
  *   את הענף (בלי «מה קרה?»). בלי מייל.
  *
  *   STAGING_ENV_DIR=<תיקייה עם .env.staging ו-.env.local> node scripts/e2e/annual-prior-return.mjs --base=http://localhost:5351 [--widths=1280,390,360] [--shots=<dir>]
@@ -158,8 +159,11 @@ async function runWidth(width) {
     const opts = grid?.prompt?.input?.options ?? [];
     const o = (k) => opts.find(x => x.key === k);
     ok(asks.length > 0 && asks.every(a => a.state === 'published'), `השאלון פורסם (${asks.length} שאלות)`, asks.map(a => `${a.item_key}:${a.state}`).join(','));
-    ok(!!o('pension.received')?.preset && /^ב-2024: מינהלת הגמלאות/.test(o('pension.received')?.note ?? ''), 'אריח «קצבה» מסומן מראש — «ב-2024: מינהלת הגמלאות · רחל»', JSON.stringify(o('pension.received')));
-    ok(!!o('special.disability')?.preset, 'אריח «נכות» מסומן מראש (פטור הנכות של בת הזוג)', JSON.stringify(o('special.disability')));
+    // ‼ 20.10.2026 · בשנת הפטירה, קצבה ונכות שהיו רק של בת הזוג — לא אריח של הלקוח; הקצבה מסומנת בענף הפטירה
+    ok(!o('pension.received')?.preset && !o('special.disability')?.preset, 'קצבה ונכות של בת הזוג — לא מסומנות כאריחים של הלקוח', JSON.stringify([o('pension.received')?.preset, o('special.disability')?.preset]));
+    const famFu = (o('household.familyChange')?.followUps ?? []).find(f => f.itemKey === 'family.deathIncome');
+    const gotPension = (famFu?.prompt?.input?.options ?? []).find(x => x.key === 'family.deathGotPension');
+    ok(!!gotPension?.preset && /^ב-2024: מינהלת הגמלאות/.test(gotPension?.note ?? ''), 'בענף הפטירה: «קצבה או פנסיה» מסומן מראש — «ב-2024: מינהלת הגמלאות · רחל»', JSON.stringify(gotPension));
     const fam = o('household.familyChange');
     ok(!!fam?.preset && fam.label === 'רחל נפטר/ה' && (fam.followUps ?? []).map(f => f.itemKey)[0] === 'family.death', 'אריח הפטירה: מסומן, בשם מהדוח, ופותח ישר את הענף', JSON.stringify(fam).slice(0, 300));
     ok(!asks.some(a => a.item_key === 'household.familyEvent'), 'בלי «מה קרה?» — האירוע ידוע מהתיק');
@@ -182,8 +186,8 @@ async function runWidth(width) {
       break;
     }
     const pressed = async (k) => (await flow.locator(`.ty-tile[data-tile="${k}"]`).getAttribute('aria-pressed').catch(() => null)) === 'true';
-    ok(await pressed('pension.received') && await pressed('special.disability') && await pressed('household.familyChange'), 'בדף: האריחים מהדוח הקודם ואריח הפטירה כבר מסומנים');
-    ok((await text(flow.locator('.ty-tile[data-tile="pension.received"] .ty-tile-note'))).startsWith('ב-2024:'), 'בדף: מתחת לאריח — «ב-2024: …»', await text(flow.locator('.ty-tile[data-tile="pension.received"]')));
+    ok(await pressed('household.familyChange') && !(await pressed('pension.received')) && !(await pressed('special.disability')), 'בדף: אריח הפטירה מסומן; קצבה ונכות של בת הזוג — לא כאריחים של הלקוח');
+    ok((await text(flow.locator('.ty-tile[data-tile="household.familyChange"] .ty-tile-note'))).includes('ידוע לנו'), 'בדף: מתחת לאריח הפטירה — «ידוע לנו מהתיק»', await text(flow.locator('.ty-tile[data-tile="household.familyChange"]')));
     ok(!(await pressed('donations.given')), 'בדף: אריח שלא היה בדוח הקודם — לא מסומן');
     ok(await pp.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), 'בדף: בלי גלילה הצידה — מסך הרשת');
     await (SHOTS ? flow.screenshot({ path: join(SHOTS, `03-portal-grid-${width}.png`) }) : Promise.resolve()).catch(() => {});
