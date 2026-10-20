@@ -4061,6 +4061,17 @@ input.pg-search:focus { box-shadow: 0 0 0 2px var(--focus-ring); border-color: t
 .qb-pr{font-size:var(--fs-14);color:var(--ink-2);white-space:nowrap;font-variant-numeric:tabular-nums}
 .qb-inlinenum{border:0;background:none;padding:0;font:inherit;font-size:var(--fs-14);
   color:var(--ink-2);cursor:pointer}
+/* מחיר רגיל מחוק ליד המחיר שסוכם, ו"ללא עלות" בירוק — כמו שהלקוח יראה */
+.qb-was{color:var(--ink-4);font-size:var(--fs-12);margin-inline-end:6px}
+.qb-inlinenum.qb-free{color:var(--success-text);font-weight:600}
+.qb-pd-amt{display:flex;align-items:center;gap:6px;margin-top:8px}
+.qb-pd-amt input{width:110px}
+.qb-pd-amt span{font-size:var(--fs-12);color:var(--ink-4)}
+.qb-pd-res{margin-top:12px;padding:8px 10px;border-radius:8px;background:var(--surface-2);
+  font-size:var(--fs-13);color:var(--ink-3);line-height:1.6}
+.qb-pd-res b{color:var(--ink-1)}
+.qb-pd-res s{color:var(--ink-4)}
+.qb-pd-res .qb-pd-g{color:var(--success-text);font-weight:600}
 .qb-included{font-size:var(--fs-13);color:var(--ink-4);padding:11px 0 0;border-top:1px solid var(--hairline-2)}
 .qb-empty{font-size:var(--fs-13);color:var(--ink-4);padding:10px 0}
 .qb-addrow{margin-top:16px}

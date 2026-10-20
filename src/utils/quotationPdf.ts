@@ -11,7 +11,7 @@ import type { QuotationItem, FutureService, QuotationRepresentation } from '../t
 import { REP_AUTHORITY_LABELS, REP_AUTHORITY_ORDER } from '../types';
 import {
   itemFinalPrice, itemOriginalPrice, itemAnnualAnchor, itemDisplayName, monthlyPlan,
-  itemDeferred, deferredDetailLines, paymentSchedule, quotationSavings, quotationServiceYear, serviceYearClause, savingsSentence,
+  itemDeferred, deferredDetailLines, paymentSchedule, quotationSavings, quotationServiceYear, serviceYearClause, savingsHeadline, savingsLineValue,
 } from './quotationCalc';
 import type { QuotationBrand } from '../components/quotations/quotationBranding';
 
@@ -117,17 +117,29 @@ export async function generateQuotationPdf(data: QuotationPdfData, brand: Quotat
       ltr(money(r.amount), 14, r.deferred ? gray : ink, y);
       y -= 14;
       if (r.sub) { rtl(r.sub, 9, gray, y); y -= 12; }
+      if (r.regular != null) { rtl(`במקום ${money(r.regular)}`, 9, green, y); y -= 12; }
       // בלי נקודתיים בין שני מספרים ("2027: 162") — מנוע ה-bidi מדביק אותם;
       // מקף עברי מפריד בין הרצפים ושומר על הסדר הנכון.
       if (r.changesTo) { rtl(`${r.changesTo.from} ־ ${money(r.changesTo.amount)} לחודש`, 9, ink, y); y -= 12; }
       y -= 6;
     }
-    const savingsText = savingsSentence(quotationSavings(data.items, data.vatRate), money);
-    if (savingsText) {
-      ensureSpace(24);
-      page.drawRectangle({ x: LEFT, y: y - 5, width: A4.w - MARGIN * 2, height: 18, color: green, opacity: 0.1 });
-      rtl(savingsText, 10, green, y);
-      y -= 22;
+    // אותה תיבה כמו בעמוד: הסכום הכולל ככותרת, וכל הנחה בשורה משלה
+    const savings = quotationSavings(data.items, data.vatRate);
+    const savingsTitle = savingsHeadline(savings, money);
+    if (savingsTitle) {
+      const lines = savings.lines.length > 1 ? savings.lines : [];
+      const boxH = lines.length ? 24 + lines.length * 13 : 20;
+      ensureSpace(boxH + 6);
+      page.drawRectangle({ x: LEFT, y: y - boxH + 15, width: A4.w - MARGIN * 2, height: boxH, color: green, opacity: 0.1 });
+      rtl(savingsTitle, 10.5, green, y, RIGHT - 6);
+      y -= 15;
+      for (const l of lines) {
+        const v = savingsLineValue(l, money);
+        rtl(l.name, 9, green, y, RIGHT - 6);
+        ltr(v.regular ? `${v.text} (במקום ${v.regular})` : v.text, 9, green, y, LEFT + 6);
+        y -= 13;
+      }
+      y -= 9;
     }
     if (priced.some(i => i.vatFlag)) { rtl('כל הסכומים כוללים מע״מ.', 8.5, gray, y); y -= 14; }
     y -= 8;
@@ -165,7 +177,8 @@ export async function generateQuotationPdf(data: QuotationPdfData, brand: Quotat
       const orig = itemOriginalPrice(item);
       const suffix = item.category === 'monthly' ? ' לחודש' : item.category === 'annual' ? ' לשנה' : ' חד־פעמי';
       rtl(itemDisplayName(item), 10, ink, y);
-      ltr(`${money(finalP)}${suffix}${item.vatFlag ? ' + מע״מ' : ''}`, 10, ink, y);
+      const free = orig - finalP >= 1 && finalP < 0.5 && !itemDeferred(item, data.vatRate);
+      ltr(free ? 'ללא עלות' : `${money(finalP)}${suffix}${item.vatFlag ? ' + מע״מ' : ''}`, 10, free ? green : ink, y);
       y -= 13;
       const def = itemDeferred(item, data.vatRate);
       // ‼ "במקום 120" נקרא כהנחה של 20 ₪, בזמן שההנחה ניתנה על השנה

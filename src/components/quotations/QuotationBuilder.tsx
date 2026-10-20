@@ -41,6 +41,10 @@ import {
   addMonths, deferredBase, itemDeferred, DEFAULT_DEFERRED_TRIGGER,
   paymentSchedule, quotationServiceYear,
 } from '../../utils/quotationCalc';
+import {
+  discountedPrice, readPriceDiscount, priceDiscountPatch, withPrice,
+  type PriceDiscount, type DiscountMode,
+} from '../../utils/quotationDiscount';
 import { deriveQuotationBrand } from './quotationBranding';
 import { generateQuotationPdf, downloadPdf } from '../../utils/quotationPdf';
 import QuotationWebView from './QuotationWebView';
@@ -482,22 +486,21 @@ export default function QuotationBuilder({
    * שנתיות-במהותן — כך שיתרת הדוח השנתי אינה משתנה (הכרעה מאושרת).
    * הרצפה היא סכום התרומות השנתיות; מתחתיה אי אפשר לרדת בלי לגעת בדוח.
    */
-  function applyAgreedMonthly(target: number) {
+  function applyAgreedMonthly(pd: PriceDiscount) {
     const fixed = items.filter(isAnnualNature).reduce((s, i) => s + itemFinalPrice(i), 0);
     const flexible = items.filter(i => i.category === 'monthly' && !isAnnualNature(i));
     const flexOriginal = flexible.reduce((s, i) => s + itemOriginalPrice(i), 0);
     if (flexible.length === 0 || flexOriginal <= 0) return;
-    const wanted = Math.max(fixed, target) - fixed;
-    const ratio = Math.min(1, Math.max(0, wanted / flexOriginal));
+    // ‼ שינוי מחיר ≠ הנחה (גיא, 20.10.2026): מחיר חדש משנה את המחיר הרגיל של
+    // השורות, ולכן הלקוח לא רואה אותו כהנחה. רק ההנחה שנבחרה מוצגת מחוקה.
+    const scale = Math.max(0, pd.price - fixed) / flexOriginal;
+    const target = discountedPrice(pd);
+    const ratio = Math.min(1, Math.max(0, (Math.max(fixed, target) - fixed) / Math.max(0.01, pd.price - fixed)));
     setItems(prev => prev.map(it => {
       if (it.category !== 'monthly' || isAnnualNature(it)) return it;
-      return { ...it, discountPercent: r2((1 - ratio) * 100) };
+      const regular = r2((itemOriginalPrice(it) / (it.quantity || 1)) * scale);
+      return { ...it, catalogPrice: regular, clientPrice: regular, displayFullPrice: undefined, discountPercent: r2((1 - ratio) * 100) };
     }));
-  }
-
-  function clearAgreedMonthly() {
-    setItems(prev => prev.map(it =>
-      it.category === 'monthly' && !isAnnualNature(it) ? { ...it, discountPercent: 0 } : it));
   }
 
   function setCompletion(patch: { mode?: 'charge' | 'reduce' | 'waive'; amount?: number | null; trigger?: string }) {
@@ -775,7 +778,10 @@ export default function QuotationBuilder({
                 <div className="qb-sub">{formatILS(i.annualPrice)} לשנה, נגבה בשכר החודשי</div>
               )}
             </div>
-            <div className="qb-pr num">{formatILS(itemFinalPrice(i))} לחודש</div>
+            <div className="qb-pr num">
+              {itemOriginalPrice(i) - itemFinalPrice(i) >= 1 && <s className="qb-was">{formatILS(itemOriginalPrice(i))}</s>}
+              {formatILS(itemFinalPrice(i))} לחודש
+            </div>
           </div>
         ))}
         {deal.separateLines.map(i => (
@@ -791,8 +797,11 @@ export default function QuotationBuilder({
               </div>
             </div>
             <div className="qb-pr">
-              <button className="ed qb-inlinenum num" onClick={e => openPop('oneTime', e, i.id)}>
-                {formatILS(itemFinalPrice(i))}{i.category === 'annual' ? ' לשנה' : ''}
+              {itemOriginalPrice(i) - itemFinalPrice(i) >= 1 && <s className="qb-was num">{formatILS(itemOriginalPrice(i))}</s>}
+              <button className={`ed qb-inlinenum num${itemFinalPrice(i) < 0.5 ? ' qb-free' : ''}`} onClick={e => openPop('oneTime', e, i.id)}>
+                {itemFinalPrice(i) < 0.5 && itemOriginalPrice(i) >= 1
+                  ? 'ללא עלות'
+                  : `${formatILS(itemFinalPrice(i))}${i.category === 'annual' ? ' לשנה' : ''}`}
               </button>
             </div>
           </div>
@@ -866,8 +875,7 @@ export default function QuotationBuilder({
       {/* ─── פופאוברים ─── */}
       {pop.kind === 'price' && (
         <Pop anchor={pop.anchor} onClose={closePop}>
-          <PricePop deal={deal} onApply={v => { applyAgreedMonthly(v); closePop(); }}
-            onReset={() => { clearAgreedMonthly(); closePop(); }}
+          <PricePop deal={deal} vatRate={vatRate} onApply={pd => { applyAgreedMonthly(pd); closePop(); }}
             onServices={() => { closePop(); setPanel('services'); }} />
         </Pop>
       )}
@@ -899,13 +907,14 @@ export default function QuotationBuilder({
           <OneTimePop
             services={services} items={items} futureIds={futureIds}
             item={pop.itemId ? items.find(i => i.id === pop.itemId) : undefined}
+            vatRate={vatRate}
             onSave={(patch, svc) => {
               if (pop.itemId) updateItem(pop.itemId, patch);
               else if (svc) addService(svc, patch);
               else setItems(prev => [...prev, {
-                id: crypto.randomUUID(), name: patch.name ?? '', category: 'one_time',
-                billingType: 'fixed', quantity: 1, catalogPrice: patch.clientPrice ?? 0,
-                clientPrice: patch.clientPrice ?? 0, vatFlag: true, clientNote: patch.clientNote,
+                id: crypto.randomUUID(), name: '', category: 'one_time',
+                billingType: 'fixed', quantity: 1, catalogPrice: 0, clientPrice: 0, vatFlag: true,
+                ...patch,
               }]);
               closePop();
             }}
@@ -1065,43 +1074,98 @@ function dealerLabel(d: NonNullable<Lead['dealerType']>): string {
 
 /* ═══ פופאוברים ═══════════════════════════════════════════════════════════ */
 
-function PricePop({ deal, onApply, onReset, onServices }: {
-  deal: Deal; onApply: (v: number) => void; onReset: () => void; onServices: () => void;
+/** ההנחה שבשורה, לשורת המשנה ברשימות — כדי שליד שדה המחיר יהיה ברור שיש גם הנחה */
+function discountNote(i: QuotationItem, per: string): string {
+  const off = itemOriginalPrice(i) - itemFinalPrice(i);
+  if (off < 1) return '';
+  return itemFinalPrice(i) < 0.5 ? ' · ללא עלות' : ` · הנחה ${formatILS(r0(off))}${per}`;
+}
+
+/** מחיר והנחה — שתי החלטות, שני שדות. השורה התחתונה אומרת מה הלקוח יראה
+ *  לפני שלוחצים "עדכון", כדי שלא יהיה צריך לנחש אם שינוי מחיר הפך להנחה. */
+function PriceDiscountFields({ value, onChange, per, vatRate, vatFlag, allowFree, minPrice, onEnter }: {
+  value: PriceDiscount; onChange: (v: PriceDiscount) => void;
+  per: string; vatRate: number; vatFlag: boolean; allowFree?: boolean; minPrice?: number;
+  onEnter?: () => void;
 }) {
-  const base = deal.anchor;
-  const step = base >= 1000 ? 100 : base >= 400 ? 25 : 10;
-  const opts: number[] = [];
-  for (let i = 0; i < 4; i++) { const v = r0((base - i * step) / step) * step; if (v > base * 0.6) opts.push(v); }
-  const [custom, setCustom] = useState(String(r0(deal.retainer)));
+  const modes: [DiscountMode, string][] = [['none', 'בלי הנחה'], ['ils', '₪'], ['pct', '%']];
+  if (allowFree) modes.push(['free', 'ללא עלות']);
+  const vat = (n: number) => (vatFlag ? n * (1 + vatRate / 100) : n);
+  const final = discountedPrice(value);
+  const off = value.price - final;
+  const perTxt = per ? ` ${per}` : '';
+  const key = (e: React.KeyboardEvent) => { if (e.key === 'Enter') onEnter?.(); };
+  return (
+    <>
+      <label className="qb-fld">
+        <span>מחיר{perTxt} (לפני מע״מ)</span>
+        <input type="number" min={0} value={value.price || ''} onKeyDown={key}
+          onChange={e => onChange({ ...value, price: Math.max(0, Number(e.target.value) || 0) })} />
+      </label>
+      {minPrice != null && value.price > 0 && value.price < minPrice && (
+        <div className="qb-note">לא פחות מ-{formatILS(minPrice)}{perTxt} - זה החלק של הדוח השנתי.</div>
+      )}
+      <div className="qb-fld">
+        <span>הנחה</span>
+        <div className="qb-chips">
+          {modes.map(([m, label]) => (
+            <button key={m} className={`qb-chip${value.mode === m ? ' on' : ''}`}
+              onClick={() => onChange({
+                ...value, mode: m,
+                value: m === value.mode ? value.value : m === 'pct' ? 10 : m === 'ils' ? r0(value.price * 0.1) : 0,
+              })}>{label}</button>
+          ))}
+        </div>
+        {(value.mode === 'ils' || value.mode === 'pct') && (
+          <div className="qb-pd-amt">
+            <input type="number" min={0} max={value.mode === 'pct' ? 100 : undefined} value={value.value || ''}
+              autoFocus onKeyDown={key}
+              onChange={e => onChange({ ...value, value: Math.max(0, Number(e.target.value) || 0) })} />
+            <span>{value.mode === 'pct' ? '%' : `₪${perTxt}`}</span>
+          </div>
+        )}
+      </div>
+      <div className="qb-pd-res">
+        {off < 1 ? (
+          <>הלקוח יראה <b className="num">{formatILS(Math.round(vat(final)))}{perTxt}</b>{vatFlag ? ' כולל מע״מ' : ''}, בלי הנחה.</>
+        ) : final < 0.5 ? (
+          <>הלקוח יראה <s className="num">{formatILS(Math.round(vat(value.price)))}</s> <b className="qb-pd-g">ללא עלות</b></>
+        ) : (
+          <>הלקוח יראה <s className="num">{formatILS(Math.round(vat(value.price)))}</s> <b className="num">{formatILS(Math.round(vat(final)))}{perTxt}</b>
+            {' '}<span className="qb-pd-g">הנחה {formatILS(Math.round(vat(off)))}{perTxt}</span></>
+        )}
+      </div>
+    </>
+  );
+}
+
+function PricePop({ deal, vatRate, onApply, onServices }: {
+  deal: Deal; vatRate: number; onApply: (pd: PriceDiscount) => void; onServices: () => void;
+}) {
+  const fixed = r2(deal.monthlyLines.filter(isAnnualNature).reduce((s, i) => s + itemFinalPrice(i), 0));
+  const [pd, setPd] = useState<PriceDiscount>({
+    price: r0(deal.anchor), mode: deal.discount >= 1 ? 'ils' : 'none', value: r0(deal.discount),
+  });
+  // ‼ החלק השנתי (הדוח) לא יורד בהנחה החודשית — הרצפה של applyAgreedMonthly
+  const tooDeep = fixed > 0 && discountedPrice(pd) < fixed;
+  const valid = pd.price > 0 && pd.price >= fixed && !tooDeep;
+  const apply = () => { if (valid) onApply(pd); };
 
   return (
     <>
-      <div className="qb-pop-h">המחיר שסוכם</div>
-      <div className="qb-pop-s">
-        מחיר התבנית: {formatILS(base)} לחודש. סכום נמוך יותר יוצג ללקוח כהנחה, לצד המחיר הרגיל.
-      </div>
-      <div className="qb-chips">
-        {opts.map(v => (
-          <button key={v} className={`qb-chip${Math.abs(v - deal.retainer) < 1 ? ' on' : ''}`}
-            onClick={() => (v === base ? onReset() : onApply(v))}>
-            {formatILS(v)}{v === base ? ' · מלא' : ''}
-          </button>
-        ))}
-      </div>
-      <label className="qb-fld">
-        <span>או סכום אחר לחודש (לפני מע״מ)</span>
-        <input type="number" min={0} value={custom} autoFocus
-          onChange={e => setCustom(e.target.value)}
-          onKeyDown={e => { if (e.key === 'Enter') onApply(Number(custom) || 0); }} />
-      </label>
+      <div className="qb-pop-h">השכר החודשי</div>
+      <PriceDiscountFields value={pd} onChange={setPd} per="לחודש" vatRate={vatRate}
+        vatFlag={deal.monthlyLines.some(i => i.vatFlag)} minPrice={fixed > 0 ? fixed : undefined} onEnter={apply} />
+      {tooDeep && pd.price >= fixed && (
+        <div className="qb-note">ההנחה גדולה מהחלק החודשי. להנחה על הדוח השנתי - «שינוי» ביתרה.</div>
+      )}
       <div className="qb-note">
-        ההנחה חלה על השכר החודשי
-        {deal.rawBalance >= 1 && ` ואינה משנה את יתרת הדוח השנתי (${formatILS(deal.rawBalance)})`}
-        . לתמחור שירות בנפרד - <button className="qb-link" onClick={onServices}>עריכת השירותים</button>.
+        {deal.rawBalance >= 1 && `ההנחה לא משנה את יתרת הדוח השנתי (${formatILS(deal.rawBalance)}). `}
+        לתמחור כל שירות בנפרד - <button className="qb-link" onClick={onServices}>עריכת השירותים</button>.
       </div>
       <div className="qb-pop-f">
-        <button className="qb-link" onClick={onReset}>חזרה למחיר התבנית</button>
-        <button className="btn btn-sm btn-primary" onClick={() => onApply(Number(custom) || 0)}>עדכון</button>
+        <span />
+        <button className="btn btn-sm btn-primary" disabled={!valid} onClick={apply}>עדכון</button>
       </div>
     </>
   );
@@ -1203,9 +1267,9 @@ function CompletionPop({ deal, onSet }: {
   );
 }
 
-function OneTimePop({ services, items, futureIds, item, onSave, onRemove }: {
+function OneTimePop({ services, items, futureIds, item, vatRate, onSave, onRemove }: {
   services: ServiceCatalogItem[]; items: QuotationItem[]; futureIds: Set<string>;
-  item?: QuotationItem;
+  item?: QuotationItem; vatRate: number;
   onSave: (patch: Partial<QuotationItem>, svc?: ServiceCatalogItem) => void;
   onRemove: () => void;
 }) {
@@ -1217,24 +1281,25 @@ function OneTimePop({ services, items, futureIds, item, onSave, onRemove }: {
   const suggestions = [...disclosed, ...rest].slice(0, 5);
 
   const [name, setName] = useState(item ? item.name : '');
-  const [amount, setAmount] = useState(item ? String(r0(itemFinalPrice(item))) : '');
+  const [pd, setPd] = useState<PriceDiscount>(item ? readPriceDiscount(item) : { price: 0, mode: 'none', value: 0 });
   const [when, setWhen] = useState<'immediate' | 'on_service' | 'custom'>(
     item?.clientNote?.includes('עם ביצוע') ? 'on_service' : item?.clientNote ? 'custom' : 'immediate');
   const [custom, setCustom] = useState(item?.clientNote ?? '');
   const [picked, setPicked] = useState<ServiceCatalogItem | undefined>();
 
+  const annual = item?.category === 'annual';
   const noteFor = () => when === 'immediate' ? 'ייגבה מיידית עם האישור'
     : when === 'on_service' ? 'ייגבה עם ביצוע השירות' : custom.trim();
 
   return (
     <>
-      <div className="qb-pop-h">{item ? 'חיוב חד־פעמי' : 'הוספת חיוב חד־פעמי'}</div>
-      <div className="qb-pop-s">מה · כמה · מתי.</div>
+      <div className="qb-pop-h">{annual ? 'חיוב שנתי' : item ? 'חיוב חד־פעמי' : 'הוספת חיוב חד־פעמי'}</div>
+      {!annual && <div className="qb-pop-s">מה · כמה · מתי.</div>}
       {!item && suggestions.length > 0 && (
         <div className="qb-chips" style={{ marginBottom: 4 }}>
           {suggestions.map(s => (
             <button key={s.id} className="qb-chip" onClick={() => {
-              setPicked(s); setName(s.name); setAmount(String(s.defaultPrice));
+              setPicked(s); setName(s.name); setPd(p => ({ ...p, price: s.defaultPrice }));
             }}>{s.name}</button>
           ))}
         </div>
@@ -1242,31 +1307,29 @@ function OneTimePop({ services, items, futureIds, item, onSave, onRemove }: {
       <label className="qb-fld"><span>מה</span>
         <input value={name} onChange={e => setName(e.target.value)} placeholder="למשל: מעבר מעוסק פטור למורשה" />
       </label>
-      <div className="qb-fld2">
-        <label className="qb-fld"><span>כמה (לפני מע״מ)</span>
-          <input type="number" min={0} value={amount} onChange={e => setAmount(e.target.value)} />
-        </label>
-        <label className="qb-fld"><span>מתי</span>
-          <select value={when} onChange={e => setWhen(e.target.value as typeof when)}>
-            <option value="immediate">מיידית</option>
-            <option value="on_service">עם ביצוע השירות</option>
-            <option value="custom">מועד אחר…</option>
-          </select>
-        </label>
-      </div>
-      {when === 'custom' && (
+      <PriceDiscountFields value={pd} onChange={setPd} per={item?.category === 'annual' ? 'לשנה' : ''}
+        vatRate={vatRate} vatFlag={item?.vatFlag ?? picked?.vatFlag ?? true} allowFree />
+      {!annual && <label className="qb-fld"><span>מתי</span>
+        <select value={when} onChange={e => setWhen(e.target.value as typeof when)}>
+          <option value="immediate">מיידית</option>
+          <option value="on_service">עם ביצוע השירות</option>
+          <option value="custom">מועד אחר…</option>
+        </select>
+      </label>}
+      {!annual && when === 'custom' && (
         <label className="qb-fld"><span>מתי - נוסח חופשי</span>
           <input value={custom} onChange={e => setCustom(e.target.value)} placeholder="למשל: עם קבלת האישור מהרשות" />
         </label>
       )}
       <div className="qb-pop-f">
         {item ? <button className="qb-link danger" onClick={onRemove}>הסרה</button> : <span />}
-        <button className="btn btn-sm btn-primary" onClick={() => {
-          const v = Number(amount) || 0;
-          if (!name.trim() || v <= 0) return;
+        {/* ‼ המחיר הרגיל הוא העוגן — "ללא עלות" חוקי, מחיר רגיל של 0 לא.
+            ‼ עריכה שומרת את הסוג: חיוב שנתי נפרד נפתח באותה חלונית ולא הופך לחד־פעמי. */}
+        <button className="btn btn-sm btn-primary" disabled={!name.trim() || pd.price <= 0} onClick={() => {
+          if (!name.trim() || pd.price <= 0) return;
           onSave({
-            name: name.trim(), clientPrice: v, catalogPrice: picked?.defaultPrice ?? v,
-            discountPercent: 0, clientNote: noteFor(), category: 'one_time',
+            name: name.trim(), ...priceDiscountPatch(pd), clientNote: annual ? item?.clientNote : noteFor(),
+            category: item?.category ?? 'one_time',
           }, picked);
         }}>{item ? 'עדכון' : 'הוספה'}</button>
       </div>
@@ -1322,21 +1385,19 @@ function ServicesPanel({ items, services, plan, deal, templateName, onUpdate, on
               {isAnnualNature(i) && i.annualPrice != null
                 ? `${formatILS(i.annualPrice)} לשנה ÷ 12 = ${formatILS(itemFinalPrice(i))} לחודש`
                 : `${formatILS(itemFinalPrice(i))} לחודש`}
-              {itemOriginalPrice(i) > itemFinalPrice(i) && ` · מחירון ${formatILS(itemOriginalPrice(i))}`}
+              {!isAnnualNature(i) && discountNote(i, ' לחודש')}
             </div>
           </div>
           <div className="qb-sp">
-            {/* ‼ catalogPrice הוא העוגן שהלקוח רואה מחוק. מחיר נמוך ממנו הוא
-                הנחה, ולכן אסור לדרוס אותו כאן — דריסה הייתה מוחקת בשקט את
-                ההנחה מעמוד ההצעה. מחיר גבוה מהקטלוג פשוט הופך לעוגן בעצמו
-                (itemOriginalPrice לוקח את הגבוה מביניהם). */}
+            {/* ‼ השדה הוא המחיר הרגיל: שינוי בו אינו הנחה, וההנחה שכבר ניתנה
+                נשארת (withPrice). ההנחה עצמה נקבעת בלחיצה על השכר החודשי. */}
             <input type="number" min={0}
-              value={r0(isAnnualNature(i) ? (i.annualPrice ?? 0) : itemFinalPrice(i))}
-              title={isAnnualNature(i) ? 'מחיר לשנה' : 'מחיר לחודש'}
+              value={r0(isAnnualNature(i) ? (i.annualPrice ?? 0) : readPriceDiscount(i).price)}
+              title={isAnnualNature(i) ? 'מחיר לשנה' : 'מחיר רגיל לחודש'}
               onChange={e => {
                 const v = Math.max(0, Number(e.target.value) || 0);
                 if (isAnnualNature(i)) onUpdate(i.id, { annualPrice: v, discountPercent: 0 });
-                else onUpdate(i.id, { clientPrice: v, discountPercent: 0 });
+                else onUpdate(i.id, withPrice(i, v));
               }} />
           </div>
           {isAnnualNature(i) && (
@@ -1359,13 +1420,14 @@ function ServicesPanel({ items, services, plan, deal, templateName, onUpdate, on
             <div className="qb-srow" key={i.id}>
               <div className="qb-sn">
                 <div className="qb-st">{itemDisplayName(i)} <span className="qb-tag">{i.category === 'annual' ? 'שנתי' : 'חד־פעמי'}</span></div>
-                <div className="qb-sm">{i.category === 'annual' ? 'חיוב שנתי נפרד' : (i.clientNote || 'חיוב חד־פעמי')}</div>
+                <div className="qb-sm">
+                  {i.category === 'annual' ? 'חיוב שנתי נפרד' : (i.clientNote || 'חיוב חד־פעמי')}
+                  {discountNote(i, i.category === 'annual' ? ' לשנה' : '')}
+                </div>
               </div>
               <div className="qb-sp">
-                <input type="number" min={0} value={r0(itemFinalPrice(i))}
-                  onChange={e => onUpdate(i.id, {
-                    clientPrice: Math.max(0, Number(e.target.value) || 0), discountPercent: 0,
-                  })} />
+                <input type="number" min={0} value={r0(readPriceDiscount(i).price)} title="מחיר רגיל"
+                  onChange={e => onUpdate(i.id, withPrice(i, Math.max(0, Number(e.target.value) || 0)))} />
               </div>
               {i.category === 'annual' && (
                 <button className="btn btn-sm" onClick={() => onUpdate(i.id, {

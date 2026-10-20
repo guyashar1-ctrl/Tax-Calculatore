@@ -1,0 +1,308 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>הנחות בהצעת מחיר — המחשה</title>
+<style>
+  :root{
+    --page:#f8f7f5; --card:#fff; --bd:#e2e4e7; --bd-strong:#d3d6da;
+    --tx:#25282d; --txc:#4b5058; --tx2:#63686f; --tx3:#8e949b;
+    --br:#3f5f8f; --br-strong:#34507a; --soft:#e8eef5;
+    --ok:#1f7a55; --ok-bg:#e9f5ee; --warn:#8a5b0f; --warn-bg:#fbf3e4;
+    --radius:9px; --radius-lg:12px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{font-family:"Segoe UI","Heebo",Arial,system-ui,sans-serif;background:var(--page);color:var(--tx);font-size:15px;line-height:1.55}
+  button,input,select{font:inherit}
+  button{cursor:pointer}
+  .num{font-variant-numeric:tabular-nums}
+  .wrap{max-width:1120px;margin:0 auto;padding:20px 16px 60px}
+  .flag{display:inline-block;background:var(--warn-bg);color:var(--warn);border:1px solid #ecd9b0;border-radius:999px;padding:2px 10px;font-size:13px;font-weight:600}
+  h1{font-size:24px;margin:10px 0 4px}
+  .lead{color:var(--txc);margin:0 0 16px;max-width:800px}
+  .idea{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:22px;max-width:820px}
+  .idea div{background:var(--card);border:1px solid var(--bd);border-radius:var(--radius-lg);padding:12px 14px}
+  .idea b{display:block;font-size:15px;margin-bottom:2px}
+  .idea span{color:var(--txc);font-size:14px}
+  .idea .d b{color:var(--ok)}
+
+  .stage{display:flex;gap:28px;align-items:flex-start;flex-wrap:wrap}
+  .col-h{font-size:13px;font-weight:700;color:var(--tx2);margin:0 0 8px}
+  .office{flex:1 1 520px;min-width:0}
+  .client{flex:0 0 380px;max-width:100%}
+
+  /* ── בונה ההצעה (משרד) ── */
+  .doc{background:var(--card);border:1px solid var(--bd);border-radius:var(--radius-lg);padding:22px 24px}
+  .eyebrow{font-size:13px;color:var(--tx3)}
+  .h1{font-size:22px;font-weight:700;margin:2px 0 14px}
+  .hero{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+  .amount{font-size:34px;font-weight:700;letter-spacing:-.01em}
+  .vat{font-size:14px;color:var(--tx2)}
+  .strike{font-size:13.5px;color:var(--tx2);margin-top:2px}
+  .strike s{color:var(--tx3)}
+  .disc-chip{display:inline-block;background:var(--ok-bg);color:var(--ok);font-weight:600;font-size:12.5px;border-radius:6px;padding:0 7px;margin-inline-start:6px}
+  hr{border:0;border-top:1px solid var(--bd);margin:16px 0}
+  .lbl{font-size:12.5px;font-weight:700;color:var(--tx2);margin-bottom:4px}
+  .row{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:9px 0;border-top:1px dashed var(--bd)}
+  .row:first-of-type{border-top:0}
+  .row .nm{min-width:0}
+  .row .sub{font-size:12.5px;color:var(--tx3)}
+  .pr{text-align:left;white-space:nowrap}
+  .pr .now{font-weight:600}
+  .pr s{color:var(--tx3);font-size:13px;margin-inline-end:6px}
+  .ed{background:none;border:0;border-bottom:1px dashed var(--br);padding:0 1px;color:inherit;border-radius:0}
+  .ed:hover{background:var(--soft)}
+  .static{color:var(--tx3);font-size:12px}
+  .hint{font-size:12.5px;color:var(--tx3);margin-top:12px}
+
+  /* ── החלונית ── */
+  .pop{margin:8px 0 6px;border:1px solid var(--bd-strong);border-radius:var(--radius-lg);background:#fff;box-shadow:0 8px 24px rgba(30,40,60,.12);padding:14px 16px;max-width:430px}
+  .pop-h{font-weight:700;font-size:15.5px;margin-bottom:10px}
+  .fld{display:block;margin-bottom:12px}
+  .fld>span{display:block;font-size:12.5px;font-weight:600;color:var(--txc);margin-bottom:3px}
+  .fld small{display:block;font-size:12px;color:var(--tx3);margin-top:3px}
+  .inp{display:flex;align-items:center;gap:6px}
+  .inp input{width:120px;padding:7px 9px;border:1px solid var(--bd-strong);border-radius:8px;text-align:left}
+  .inp em{font-style:normal;color:var(--tx2);font-size:13px}
+  .seg{display:inline-flex;border:1px solid var(--bd-strong);border-radius:9px;overflow:hidden;margin-bottom:8px;flex-wrap:wrap}
+  .seg button{border:0;background:#fff;padding:6px 12px;font-weight:600;font-size:13.5px;color:var(--tx2);border-inline-start:1px solid var(--bd)}
+  .seg button:first-child{border-inline-start:0}
+  .seg button[aria-pressed=true]{background:var(--br);color:#fff}
+  .result{background:var(--page);border-radius:9px;padding:9px 11px;font-size:13.5px;color:var(--txc)}
+  .result b{color:var(--tx)}
+  .result .g{color:var(--ok);font-weight:600}
+  .pop-f{display:flex;justify-content:flex-end;margin-top:12px}
+  .btn{border:1px solid var(--bd-strong);background:#fff;border-radius:8px;padding:6px 14px;font-weight:600}
+  .btn-primary{background:var(--br);border-color:var(--br);color:#fff}
+
+  /* ── טלפון (לקוח) ── */
+  .phone{width:380px;max-width:100%;background:#111;border-radius:34px;padding:10px;box-shadow:0 10px 30px rgba(0,0,0,.18)}
+  .screen{background:#f4f5f7;border-radius:26px;height:700px;overflow:auto;padding:18px 14px}
+  .c-hi{font-size:19px;font-weight:700;margin:4px 2px 2px}
+  .c-sub{font-size:13px;color:var(--tx2);margin:0 2px 14px}
+  .pay{background:#fff;border:1px solid var(--bd);border-radius:12px;overflow:hidden}
+  .pay-h{padding:10px 14px;font-size:12px;font-weight:600;color:var(--tx2);border-bottom:1px solid var(--bd);background:#fafafa}
+  .pay-r{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 14px;border-top:1px solid var(--bd)}
+  .pay-r:first-of-type{border-top:0}
+  .pay-r .l{font-size:14.5px;font-weight:600}
+  .pay-r .s{font-size:12px;color:var(--tx2)}
+  .pay-r .a{font-size:21px;font-weight:600;white-space:nowrap}
+  .pay-r .a.mute{color:var(--tx2)}
+  .save{background:var(--ok-bg);border-top:1px solid var(--bd);padding:10px 14px;color:var(--ok)}
+  .save-h{font-size:12.5px;font-weight:700;margin-bottom:4px}
+  .save-l{display:flex;justify-content:space-between;gap:10px;font-size:13px;padding:2px 0}
+  .save-l span:last-child{white-space:nowrap;font-weight:600}
+  .save-l s{color:#5f8f78;font-weight:400;margin-inline-start:4px}
+  .save-t{display:flex;justify-content:space-between;font-size:13.5px;font-weight:700;border-top:1px solid #c7e3d3;margin-top:5px;padding-top:5px}
+  .how{width:100%;display:flex;justify-content:space-between;align-items:center;min-height:44px;padding:8px 14px;border:0;border-top:1px solid var(--bd);background:transparent;text-align:start}
+  .how span:first-child{font-size:12px;color:var(--tx2)}
+  .how span:last-child{font-size:12.5px;font-weight:600;color:var(--br)}
+  .brk{padding:4px 14px 12px;border-top:1px solid var(--bd);background:#fbfbfc}
+  .b-row{padding:10px 0;border-top:1px dashed var(--bd)}
+  .b-row:first-child{border-top:0}
+  .b-top{display:flex;justify-content:space-between;gap:10px;font-size:13px;font-weight:600}
+  .b-top s{color:var(--tx3);font-weight:400;margin-inline-end:6px}
+  .b-meta{font-size:11.5px;color:var(--tx2)}
+  .b-disc{font-size:12px;color:var(--ok);font-weight:600;margin-top:2px}
+  .b-l{display:flex;justify-content:space-between;font-size:12.5px;color:var(--tx2);padding:1px 0}
+  .b-l.g{color:var(--ok)}
+  .b-l.st{color:var(--tx);font-weight:600}
+  .b-note{font-size:11.5px;color:var(--tx2);margin-top:10px}
+  .free{color:var(--ok)}
+
+  .scope{margin-top:30px;background:var(--card);border:1px solid var(--bd);border-radius:var(--radius-lg);padding:14px 18px;max-width:820px}
+  .scope h2{font-size:16px;margin:0 0 6px}
+  .scope ul{margin:0;padding-inline-start:20px;color:var(--txc)}
+  .scope li{margin:3px 0}
+
+  @media (max-width:760px){
+    .idea{grid-template-columns:1fr}
+    .doc{padding:16px}
+    .client{flex-basis:100%}
+    .phone{margin:0 auto}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <span class="flag">המחשה — לא האתר החי · נתוני דמה</span>
+  <h1>הנחות בהצעת מחיר</h1>
+  <p class="lead">בכל שירות יש שני דברים נפרדים, כל אחד בשדה משלו. אתה בוחר במפורש מה אתה עושה, והלקוח רואה בדיוק את זה. נסה ללחוץ על מחיר בצד ימין, ותראה בטלפון מה הלקוח יראה.</p>
+
+  <div class="idea">
+    <div><b>שינוי מחיר</b><span>זה פשוט המחיר של השירות להצעה הזו. הלקוח רואה רק את המחיר, בלי "במקום" ובלי הנחה.</span></div>
+    <div class="d"><b>הנחה</b><span>בשקלים, באחוזים או "ללא עלות" (100%). הלקוח רואה את המחיר הרגיל מחוק, ואת ההנחה בירוק בשורה משלה.</span></div>
+  </div>
+
+  <div class="stage">
+    <section class="office">
+      <div class="col-h">במשרד — בונה ההצעה</div>
+      <div class="doc" id="doc"></div>
+    </section>
+    <section class="client">
+      <div class="col-h">אצל הלקוח — עמוד ההצעה (וזה גם מה שרואים ב"סקירה לפני שליחה")</div>
+      <div class="phone"><div class="screen" id="screen"></div></div>
+    </section>
+  </div>
+
+  <div class="scope">
+    <h2>מה ייכלל בביצוע</h2>
+    <ul>
+      <li><b>בבונה ההצעה:</b> בחלונית של כל שירות (חודשי וחד־פעמי) יהיו "מחיר" ו"הנחה" בנפרד, עם ₪ / % / ללא עלות. ברשימה יופיע המחיר הרגיל מחוק עם תג ירוק של ההנחה.</li>
+      <li><b>בעמוד הלקוח וב־PDF:</b> כל הנחה בשורה משלה בתיבה הירוקה, וסך הכול בסוף. שירות ללא עלות מופיע כ"ללא עלות" ולא נעלם.</li>
+      <li><b>תיקון:</b> היום עריכת מחיר בחלונית החד־פעמית מוחקת בשקט את המחיר הרגיל, וההנחה נעלמת. זה ייסגר.</li>
+      <li>הנחה על יתרת הדוח השנתי נשארת כמו היום, ורק תוצג גם היא בשורה משלה.</li>
+      <li>הסכומים שהלקוח משלם לא משתנים. אין שינוי במסד הנתונים ובעובד. דחיפה ל־master מעדכנת רק את האתר.</li>
+    </ul>
+  </div>
+</div>
+
+<script>
+const VAT = 0.18;
+const MONTHS = 3; // תשלומים שנותרו בהצעה (אוקטובר–דצמבר)
+const ils = n => '₪' + Math.round(n).toLocaleString('he-IL');
+const vat = n => n * (1 + VAT);
+
+const items = {
+  bk:   { name: 'הנהלת חשבונות — עוסק פטור', kind: 'monthly', price: 100, mode: 'none', val: 0 },
+  open: { name: 'פתיחת תיקים ברשויות', kind: 'one_time', price: 300, mode: 'free', val: 0, when: 'ייגבה מיידית עם האישור' },
+};
+// הדוח השנתי — כמו היום (לא נערך בהמחשה)
+const AR = { monthly: 150, value: 1800, inMonthly: 450, balance: 1350, balDisc: 850 };
+
+let openPop = null;
+let draft = null;
+
+function finalOf(it) {
+  if (it.mode === 'free') return 0;
+  if (it.mode === 'ils') return Math.max(0, it.price - (Number(it.val) || 0));
+  if (it.mode === 'pct') return Math.max(0, it.price * (1 - Math.min(100, Number(it.val) || 0) / 100));
+  return it.price;
+}
+const discOf = it => it.price - finalOf(it);
+const perSuffix = it => it.kind === 'monthly' ? ' לחודש' : '';
+
+function priceCell(key) {
+  const it = items[key], f = finalOf(it), d = discOf(it);
+  const now = f === 0 && d > 0 ? '<span class="free">ללא עלות</span>' : ils(f) + perSuffix(it);
+  return `${d >= 1 ? `<s class="num">${ils(it.price)}</s>` : ''}<button class="ed num now" onclick="toggle('${key}')">${now}</button>`
+    + (d >= 1 && f > 0 ? `<div><span class="disc-chip">הנחה ${ils(d)}${perSuffix(it)}</span></div>` : '');
+}
+
+function popHtml(key) {
+  const it = draft, f = finalOf(it), d = discOf(it);
+  const per = it.kind === 'monthly' ? ' לחודש' : '';
+  const modes = [['none','בלי הנחה'],['ils','₪'],['pct','%'],['free','ללא עלות']];
+  const sees = d < 1
+    ? `הלקוח יראה: <b>${ils(vat(f))}${per}</b> כולל מע״מ — בלי הנחה.`
+    : f === 0
+      ? `הלקוח יראה: <span class="g">ללא עלות (במקום ${ils(vat(it.price))})</span>`
+      : `הלקוח יראה: <b>${ils(vat(f))}${per}</b> <span class="g">· הנחה ${ils(vat(d))}${per}</span>`;
+  return `<div class="pop">
+    <div class="pop-h">${it.name}</div>
+    <label class="fld"><span>מחיר${per} (לפני מע״מ)</span>
+      <div class="inp"><input type="number" min="0" value="${it.price}" oninput="setDraft('price', this.value)"></div>
+      <small>שינוי כאן הוא פשוט המחיר. הלקוח לא יראה "במקום".</small>
+    </label>
+    <div class="fld"><span>הנחה</span>
+      <div class="seg">${modes.map(([m,l]) => `<button aria-pressed="${it.mode===m}" onclick="setDraft('mode','${m}')">${l}</button>`).join('')}</div>
+      ${it.mode === 'ils' || it.mode === 'pct' ? `<div class="inp"><input type="number" min="0" value="${it.val}" oninput="setDraft('val', this.value)" autofocus><em>${it.mode==='pct' ? '%' : '₪' + per}</em></div>` : ''}
+    </div>
+    <div class="result">${sees}</div>
+    <div class="pop-f"><button class="btn btn-primary" onclick="apply('${key}')">עדכון</button></div>
+  </div>`;
+}
+
+function renderDoc() {
+  const monthly = finalOf(items.bk) + AR.monthly;
+  const listMonthly = items.bk.price + AR.monthly;
+  const dm = listMonthly - monthly;
+  document.getElementById('doc').innerHTML = `
+    <div class="eyebrow">עוסק פטור · עוסק פטור — בסיסי</div>
+    <div class="h1">הצעה לישראל ישראלי</div>
+    <div class="hero"><span class="amount num">${ils(monthly)}</span><span class="vat">לחודש + מע״מ</span></div>
+    ${dm >= 1 ? `<div class="strike">מחיר רגיל <s class="num">${ils(listMonthly)}</s><span class="disc-chip">הנחה ${ils(dm)} לחודש</span></div>` : ''}
+    <hr>
+    <div class="lbl">מה כלול</div>
+    <div class="row"><div class="nm">${items.bk.name}</div><div class="pr">${priceCell('bk')}</div></div>
+    ${openPop === 'bk' ? popHtml('bk') : ''}
+    <div class="row"><div class="nm">דוח שנתי — עוסק פטור<div class="sub">${ils(AR.value)} לשנה, נגבה בשכר החודשי</div></div><div class="pr num">${ils(AR.monthly)} לחודש</div></div>
+    <div class="row"><div class="nm">${items.open.name}<div class="sub">${items.open.when}</div></div><div class="pr">${priceCell('open')}</div></div>
+    ${openPop === 'open' ? popHtml('open') : ''}
+    <hr>
+    <div class="row" style="border:0"><div class="nm"><b class="num">${ils(AR.balance - AR.balDisc)}</b> נוספים ייגבו עם הגשת הדוח השנתי<div class="sub">יתרה ${ils(AR.balance)}, הנחה ${ils(AR.balDisc)} · כמו היום</div></div><div class="static">ללא שינוי</div></div>
+    <div class="hint">לוחצים על מחיר כדי לשנות אותו או לתת הנחה.</div>`;
+}
+
+function renderClient() {
+  const bkF = finalOf(items.bk), opF = finalOf(items.open);
+  const monthly = vat(bkF + AR.monthly);
+  const lines = [];
+  const dBk = discOf(items.bk);
+  if (dBk >= 1) lines.push({ t: items.bk.name, v: `${ils(vat(dBk))} בכל חודש`, total: vat(dBk) * MONTHS });
+  const dOp = discOf(items.open);
+  if (dOp >= 1) lines.push({ t: items.open.name, v: opF === 0 ? `ללא עלות<s>${ils(vat(items.open.price))}</s>` : ils(vat(dOp)), total: vat(dOp) });
+  lines.push({ t: 'יתרת הדוח השנתי', v: ils(vat(AR.balDisc)), total: vat(AR.balDisc) });
+  const total = lines.reduce((s, l) => s + l.total, 0);
+
+  const bRow = (name, it) => {
+    const f = finalOf(it), d = discOf(it), suf = it.kind === 'monthly' ? ' לחודש' : ' חד־פעמי';
+    return `<div class="b-row"><div class="b-top"><span>${name}</span><span class="num">${d >= 1 ? `<s>${ils(it.price)}</s>` : ''}${f === 0 && d >= 1 ? '<span class="free">ללא עלות</span>' : ils(f) + suf}</span></div>
+      ${d >= 1 && f > 0 ? `<div class="b-disc">הנחה ${ils(d)}${it.kind === 'monthly' ? ' לחודש' : ''}</div>` : ''}</div>`;
+  };
+
+  document.getElementById('screen').innerHTML = `
+    <div class="c-hi">שלום ישראל,</div>
+    <div class="c-sub">ההצעה שלך מ"ישראלי ייעוץ (דוגמה)"</div>
+    <div class="pay">
+      <div class="pay-h">מה ומתי משלמים</div>
+      <div class="pay-r"><div><div class="l">כל חודש</div><div class="s">החל מאוקטובר</div></div><div class="a num">${ils(monthly)}</div></div>
+      ${opF > 0 ? `<div class="pay-r"><div><div class="l">חד־פעמי</div></div><div class="a num">${ils(vat(opF))}</div></div>` : ''}
+      <div class="pay-r"><div><div class="l">עם הגשת הדוח השנתי</div><div class="s">לא נגבה עכשיו</div></div><div class="a mute num">${ils(vat(AR.balance - AR.balDisc))}</div></div>
+      <div class="save">
+        <div class="save-h">ההנחות שקיבלת</div>
+        ${lines.map(l => `<div class="save-l"><span>${l.t}</span><span class="num">${l.v}</span></div>`).join('')}
+        ${lines.length > 1 ? `<div class="save-t"><span>בסך הכול</span><span class="num">${ils(total)}</span></div>` : ''}
+      </div>
+      <button class="how" onclick="howOpen=!howOpen;renderClient()"><span>כל הסכומים כוללים מע״מ</span><span>${howOpen ? 'הסתרת הפירוט ▲' : 'איך חושב ▼'}</span></button>
+      ${howOpen ? `<div class="brk">
+        ${bRow(items.bk.name, items.bk)}
+        <div class="b-row"><div class="b-top"><span>דוח שנתי — עוסק פטור</span><span class="num">${ils(AR.monthly)} לחודש</span></div><div class="b-meta">3 תשלומים</div>
+          <div class="b-l"><span>ערך השירות</span><span class="num">${ils(AR.value)}</span></div>
+          <div class="b-l"><span>כלול בשכר החודשי</span><span class="num">${ils(AR.inMonthly)}</span></div>
+          <div class="b-l"><span>יתרה</span><span class="num">${ils(AR.balance)}</span></div>
+          <div class="b-l g"><span>הנחה על היתרה</span><span class="num">−${ils(AR.balDisc)}</span></div>
+          <div class="b-l st"><span>לתשלום עם הגשת הדוח השנתי</span><span class="num">${ils(AR.balance - AR.balDisc)}</span></div>
+        </div>
+        ${bRow(items.open.name, items.open)}
+        <div class="b-note">הסכומים בפירוט לפני מע״מ. מע״מ 18% מתווסף אליהם.</div>
+      </div>` : ''}
+    </div>`;
+}
+
+let howOpen = true;
+function toggle(key) {
+  openPop = openPop === key ? null : key;
+  draft = openPop ? { ...items[key] } : null;
+  renderDoc();
+}
+function setDraft(k, v) {
+  draft[k] = k === 'mode' ? v : Math.max(0, Number(v) || 0);
+  if (k === 'mode' && (v === 'ils' || v === 'pct') && !draft.val) draft.val = v === 'pct' ? 10 : 50;
+  // שמירת מיקום הסמן בשדה שמקלידים בו
+  const active = document.activeElement, sel = active && active.selectionStart;
+  const idx = active ? [...document.querySelectorAll('.pop input')].indexOf(active) : -1;
+  renderDoc();
+  if (idx >= 0) { const el = document.querySelectorAll('.pop input')[idx]; if (el) { el.focus(); try { el.setSelectionRange(sel, sel); } catch (e) {} } }
+}
+function apply(key) {
+  items[key] = { ...draft };
+  openPop = null; draft = null;
+  renderDoc(); renderClient();
+}
+renderDoc(); renderClient();
+</script>
+</body>
+</html>

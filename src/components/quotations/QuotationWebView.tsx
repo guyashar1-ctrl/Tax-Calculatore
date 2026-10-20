@@ -16,7 +16,7 @@ import type { QuotationBrand } from './quotationBranding';
 import {
   itemFinalPrice, itemOriginalPrice, itemAnnualAnchor, formatILS, itemDisplayName,
   monthlyPlan, itemDeferred, deferredDetailLines,
-  paymentSchedule, quotationSavings, quotationServiceYear, serviceYearClause, savingsSentence,
+  paymentSchedule, quotationSavings, quotationServiceYear, serviceYearClause, savingsHeadline, savingsLineValue,
 } from '../../utils/quotationCalc';
 import SignaturePad from '../SignaturePad';
 
@@ -353,7 +353,8 @@ function PaymentSummary({ items, vatRate, brand, compact }: {
 }) {
   const [open, setOpen] = useState(false);
   const rows = paymentSchedule(items, vatRate);
-  const savingsText = savingsSentence(quotationSavings(items, vatRate), formatILS);
+  const savings = quotationSavings(items, vatRate);
+  const savingsTitle = savingsHeadline(savings, formatILS);
   const priced = items.filter(i => i.category !== 'included');
   const anyVat = priced.some(i => i.vatFlag);
   if (priced.length === 0) return null;
@@ -371,14 +372,37 @@ function PaymentSummary({ items, vatRate, brand, compact }: {
             {r.sub && <div style={{ fontSize: 12, color: brand.muted, marginTop: 1 }}>{r.sub}</div>}
             {r.changesTo && <div style={{ fontSize: 12, color: brand.ink, marginTop: 2 }}>{r.changesTo.from}: {formatILS(Math.round(r.changesTo.amount))} לחודש</div>}
           </div>
-          <div style={{ fontSize: compact ? 21 : 24, fontWeight: 600, fontVariantNumeric: 'tabular-nums', letterSpacing: '-.01em', whiteSpace: 'nowrap', color: r.deferred ? brand.muted : brand.ink }}>
-            {formatILS(Math.round(r.amount))}
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 7, whiteSpace: 'nowrap' }}>
+            {r.regular != null && (
+              <s style={{ fontSize: 13, color: brand.muted, fontVariantNumeric: 'tabular-nums' }}>{formatILS(Math.round(r.regular))}</s>
+            )}
+            <span style={{ fontSize: compact ? 21 : 24, fontWeight: 600, fontVariantNumeric: 'tabular-nums', letterSpacing: '-.01em', color: r.deferred ? brand.muted : brand.ink }}>
+              {formatILS(Math.round(r.amount))}
+            </span>
           </div>
         </div>
       ))}
-      {savingsText && (
-        <div style={{ padding: compact ? '9px 14px' : '10px 18px', background: GREEN_BG, color: GREEN, fontSize: 13, fontWeight: 600, borderTop: `1px solid ${brand.border}` }}>
-          {savingsText}
+      {/* ‼ כל הנחה בשורה משלה (גיא, 20.10.2026): "קיבלת הנחה בסך הכול" לא אמר
+          על מה, ושירות שניתן ללא עלות נעלם מהעמוד. הסכום הכולל הוא הכותרת. */}
+      {savingsTitle && (
+        <div style={{ padding: compact ? '11px 14px' : '13px 18px', background: GREEN_BG, color: GREEN, borderTop: `1px solid ${brand.border}` }}>
+          <div style={{ fontSize: compact ? 14.5 : 15.5, fontWeight: 700 }}>{savingsTitle}</div>
+          {savings.lines.length > 1 && (
+            <div style={{ marginTop: 6 }}>
+              {savings.lines.map(l => {
+                const v = savingsLineValue(l, formatILS);
+                return (
+                  <div key={l.name} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, padding: '2px 0', fontSize: 13 }}>
+                    <span>{l.name}</span>
+                    <span style={{ whiteSpace: 'nowrap', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
+                      {v.regular && <s style={{ fontWeight: 400, opacity: .75, marginInlineEnd: 6 }}>{v.regular}</s>}
+                      {v.text}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
       <button
@@ -413,11 +437,14 @@ function BreakdownRow({ item, vatRate, brand, first }: { item: QuotationItem; va
   // ‼ "במקום 120" ליד 100 נקרא כהנחה של 20 ₪, בזמן שההנחה ניתנה על השנה —
   // בשורה שתומחרה שנתית מציגים את העוגן השנתי. בשורת יתרה הפירוט אומר זאת במלואו.
   const annual = !deferred && original - final >= 1 ? itemAnnualAnchor(item) : null;
-  const was = !deferred && original - final >= 1
-    ? annual && annual.list - annual.value >= 1
-      ? `${formatILS(Math.round(annual.value))} לשנה במקום ${formatILS(Math.round(annual.list))}`
-      : `במקום ${formatILS(Math.round(original))}`
-    : null;
+  const discounted = !deferred && original - final >= 1;
+  const yearly = discounted && annual && annual.list - annual.value >= 1 ? annual : null;
+  const free = discounted && final < 0.5;
+  const was = yearly
+    ? `${formatILS(Math.round(yearly.value))} לשנה במקום ${formatILS(Math.round(yearly.list))}`
+    : discounted && !free
+      ? `הנחה ${formatILS(Math.round(original - final))}${item.category === 'monthly' ? ' לחודש' : ''}`
+      : null;
   // התדירות כבר כתובה ליד המחיר; כאן רק מה שהיא לא אומרת
   const meta = [
     spread ? `${spread.installments} תשלומים` : '',
@@ -428,8 +455,11 @@ function BreakdownRow({ item, vatRate, brand, first }: { item: QuotationItem; va
     <div style={{ padding: '10px 0', borderTop: first ? 'none' : `1px dashed ${brand.border}` }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
         <span style={{ fontSize: 13, fontWeight: 600, color: brand.ink }}>{itemDisplayName(item)}</span>
-        <span style={{ fontSize: 13, fontWeight: 600, color: brand.ink, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
-          {formatILS(Math.round(final))} {CATEGORY_PRICE_SUFFIX[item.category]}
+        <span style={{ fontSize: 13, fontWeight: 600, color: free ? GREEN : brand.ink, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
+          {discounted && !yearly && (
+            <s style={{ fontWeight: 400, color: brand.muted, marginInlineEnd: 6 }}>{formatILS(Math.round(original))}</s>
+          )}
+          {free ? 'ללא עלות' : `${formatILS(Math.round(final))} ${CATEGORY_PRICE_SUFFIX[item.category]}`}
         </span>
       </div>
       {meta && <div style={{ fontSize: 11.5, color: brand.muted, marginTop: 1 }}>{meta}</div>}

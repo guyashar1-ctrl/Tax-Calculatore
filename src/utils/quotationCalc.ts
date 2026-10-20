@@ -405,6 +405,15 @@ export interface PaymentRow {
   changesTo?: { from: string; amount: number };
   amount: number;          // כולל מע"מ — מה שיורד מהחשבון
   deferred?: boolean;      // לא נגבה עכשיו
+  /** המחיר הרגיל כולל מע"מ, כשניתנה הנחה — מוצג מחוק ליד הסכום. העוגן ברגע
+   *  התשלום הוא מה שהלקוח זוכר; פירוט ההנחה עצמה בתיבה הירוקה. */
+  regular?: number;
+}
+
+function regularOf(items: QuotationItem[], category: ServiceCategory, vatRate: number, amount: number): number | undefined {
+  const regular = round2(items.filter(i => i.category === category)
+    .reduce((s, i) => s + itemOriginalPrice(i) * (i.vatFlag ? 1 + vatRate / 100 : 1), 0));
+  return regular - amount >= 1 ? regular : undefined;
 }
 
 // "מה ומתי משלמים" — תשובה אחת לשאלה של הלקוח. כל הסכומים כוללים מע"מ, כי
@@ -421,10 +430,14 @@ export function paymentSchedule(items: QuotationItem[], vatRate: number): Paymen
     const changesTo = t.changesAfterPeriod
       ? { from: first?.nextMonth ? `החל מ${formatMonth(first.nextMonth)}` : 'לאחר מכן', amount: t.monthlyOngoing.withVat }
       : undefined;
-    rows.push({ key: 'monthly', label: 'כל חודש', sub, changesTo, amount: t.monthly.withVat });
+    // ‼ כשהתשלום משתנה אחרי התקופה, מחיר מחוק ליד הסכום הראשון נקרא כהבטחה גם על השני
+    rows.push({ key: 'monthly', label: 'כל חודש', sub, changesTo, amount: t.monthly.withVat,
+      regular: changesTo ? undefined : regularOf(items, 'monthly', vatRate, t.monthly.withVat) });
   }
-  if (t.annual.withVat > 0) rows.push({ key: 'annual', label: 'פעם בשנה', amount: t.annual.withVat });
-  if (t.oneTime.withVat > 0) rows.push({ key: 'one_time', label: 'חד־פעמי', amount: t.oneTime.withVat });
+  if (t.annual.withVat > 0) rows.push({ key: 'annual', label: 'פעם בשנה', amount: t.annual.withVat,
+    regular: regularOf(items, 'annual', vatRate, t.annual.withVat) });
+  if (t.oneTime.withVat > 0) rows.push({ key: 'one_time', label: 'חד־פעמי', amount: t.oneTime.withVat,
+    regular: regularOf(items, 'one_time', vatRate, t.oneTime.withVat) });
   for (const g of deferredGroups(items, vatRate)) {
     rows.push({ key: `deferred:${g.trigger}`, label: g.trigger, sub: 'לא נגבה עכשיו', amount: g.total.withVat, deferred: true });
   }
@@ -440,6 +453,10 @@ export interface SavingsLine {
   amount: number;
   /** ריטיינר — ההנחה בכל תשלום. "₪708 על ליווי חודשי" נקרא כהנחה חד־פעמית. */
   perMonth?: number;
+  /** שירות שניתן ללא עלות — "ללא עלות" ליד המחיר הרגיל, ולא "הנחה של ₪354" */
+  free?: boolean;
+  /** המחיר הרגיל כולל מע"מ, בשורה חד־פעמית או שנתית */
+  regular?: number;
 }
 
 export function quotationSavings(items: QuotationItem[], vatRate: number): { total: number; lines: SavingsLine[] } {
@@ -451,6 +468,8 @@ export function quotationSavings(items: QuotationItem[], vatRate: number): { tot
     const annual = itemAnnualAnchor(item);
     let before: number;
     let perMonth: number | undefined;
+    let free: boolean | undefined;
+    let regular: number | undefined;
     if (def) before = def.totalDiscount;
     else if (annual) before = annual.list - annual.value;
     else {
@@ -458,12 +477,30 @@ export function quotationSavings(items: QuotationItem[], vatRate: number): { tot
       if (item.category === 'monthly') {
         before = perUnit * monthlyPlan(item).installments;
         perMonth = withVat(item, perUnit);
-      } else before = perUnit;
+      } else {
+        before = perUnit;
+        regular = withVat(item, itemOriginalPrice(item));
+        if (itemFinalPrice(item) < 0.5) free = true;
+      }
     }
     if (before < 1) continue;
-    lines.push({ name: itemDisplayName(item), amount: withVat(item, before), perMonth });
+    lines.push({ name: itemDisplayName(item), amount: withVat(item, before), perMonth, free, regular });
   }
   return { total: round2(lines.reduce((s, l) => s + l.amount, 0)), lines };
+}
+
+/** כותרת תיבת ההנחות. בכמה הנחות הסכום הכולל הוא הכותרת — זה המספר שנזכר. */
+export function savingsHeadline(s: { total: number; lines: SavingsLine[] }, money: (n: number) => string): string | null {
+  if (s.total < 1) return null;
+  if (s.lines.length === 1) return savingsSentence(s, money);
+  return `קיבלת הנחות בסך ${money(Math.round(s.total))}`;
+}
+
+/** שורה בתיבת ההנחות — אותו נוסח בעמוד וב-PDF; regular מוצג מחוק בעמוד. */
+export function savingsLineValue(l: SavingsLine, money: (n: number) => string): { text: string; regular?: string } {
+  if (l.free) return { text: 'ללא עלות', regular: l.regular != null ? money(Math.round(l.regular)) : undefined };
+  if (l.perMonth != null && l.perMonth >= 1) return { text: `${money(Math.round(l.perMonth))} בכל חודש` };
+  return { text: money(Math.round(l.amount)) };
 }
 
 /** משפט ההנחה — אותו נוסח בעמוד וב-PDF; money מנסח מטבע (₪ בעמוד, ש״ח ב-PDF). */
@@ -471,6 +508,7 @@ export function savingsSentence(s: { total: number; lines: SavingsLine[] }, mone
   if (s.total < 1) return null;
   if (s.lines.length === 1) {
     const [l] = s.lines;
+    if (l.free) return `${l.name} - ללא עלות עבורך${l.regular != null ? ` (במקום ${money(Math.round(l.regular))})` : ''}`;
     return l.perMonth != null && l.perMonth >= 1
       ? `קיבלת הנחה של ${money(Math.round(l.perMonth))} בכל חודש על ${l.name}`
       : `קיבלת הנחה של ${money(Math.round(l.amount))} על ${l.name}`;
