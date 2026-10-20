@@ -9,7 +9,7 @@
 // הושמט במכוון: חישוב אמין דורש הוצאות/פחת/מדרגת מס שוליים שאינם עובדות
 // מקובלות על הלקוח — המלצה מחושבת מתוך ברירות מחדל הייתה מטעה.
 
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import SmartFilingsNote from '../../features/smartForms/SmartFilingsNote';
 import { supabase } from '../../lib/supabase';
 import type { Client, RentalTaxTrack, TaxAuthority, NiTracking } from '../../types';
@@ -273,6 +273,8 @@ import TaxYearsSection from '../../features/taxYear/TaxYearsSection';
 import { ClientObligationRows } from '../../features/shaamFiling';
 import ReconcilePanel from '../../features/taxFile/ReconcilePanel';
 import { ensureTaxFileIntake } from '../../features/taxYear/api';
+import { questionnaireBlocker } from '../../features/taxYear/workCreate';
+import QuestionnaireOpenNotice from '../../features/taxYear/QuestionnaireOpenNotice';
 
 export default function TaxFileTab({
   client, spouseClient, onCreateSpouseClient, onOpenSpouseClient,
@@ -673,12 +675,15 @@ export default function TaxFileTab({
    * ensure_tax_file_intake מחזיר את הקיימת), ונוחת בשורה שלה ב«בקשות».
    */
   const [intakeBusy, setIntakeBusy] = useState(false);
-  const [intakeErr, setIntakeErr] = useState<string | null>(null);
+  const [intakeErr, setIntakeErr] = useState<string | ReactNode | null>(null);
   async function completeWithClient() {
     if (!onOpenRequest) { setIntakeSignal(n => n + 1); return; }
     const open = (steps ?? []).find(s => s.stepType === 'tax_file_intake' && !['completed', 'verified', 'skipped', 'cancelled', 'failed'].includes(s.status));
     if (open?.id) { onOpenRequest(open.id); return; }
     setIntakeBusy(true); setIntakeErr(null);
+    // ‼ 263 · לקוח אחד = שאלון אחד פתוח: יש ללקוח שאלון אחר שמחכה לו ⇒ לא נפתחת קליטה (היא הייתה נשארת ריקה)
+    const blocker = await questionnaireBlocker(client.id, { stepType: 'tax_file_intake' });
+    if (blocker) { setIntakeBusy(false); setIntakeErr(<QuestionnaireOpenNotice open={blocker} firstName={client.firstName} onOpen={onOpenRequest} />); return; }
     const r = await ensureTaxFileIntake(client.id).catch(e => ({ ok: false as const, error: (e as Error).message }));
     setIntakeBusy(false);
     if (!r.ok) { setIntakeErr(`הפתיחה נכשלה (${r.error})`); return; }

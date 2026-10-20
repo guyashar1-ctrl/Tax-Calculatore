@@ -42,7 +42,9 @@ import './taxYear.css';
 import RemoveWorkDialog from './RemoveWorkDialog';
 import MaternitySpreadLine from './MaternitySpread';
 import { isOpenStep } from './taxWork';
-import { toAskInput, reopenAnnualInNewVersion } from './workCreate';
+import { toAskInput, reopenAnnualInNewVersion, questionnaireBlocker } from './workCreate';
+import QuestionnaireOpenNotice from './QuestionnaireOpenNotice';
+import { parseOpenQuestionnaire, questionnaireOpenText, QUESTIONNAIRE_OPEN, type OpenQuestionnaire } from './oneQuestionnaire';
 import { buildQuestionTree, countsLine, TREE_MARK } from './questionTree';
 
 interface Props {
@@ -60,6 +62,8 @@ interface Props {
    * בלי מסגרת מסך מלא, בלי «סגירה» ובלי Escape; הכותרת וה«הסר…» כבר בשורה (⋯).
    */
   embedded?: boolean;
+  /** 263 · «לבקשה ←» מהודעת «יש ל… שאלון פתוח» — השורה של השאלון הפתוח ב«בקשות». */
+  onOpenRequest?: (stepId: string) => void;
 }
 
 const STATE_CHIP: Record<string, { label: string; tone: string }> = {
@@ -74,7 +78,7 @@ const target = (s: { entityLabel?: string; subjectRole: string }, c: Client) =>
   : s.subjectRole === 'spouse' ? (c.spouseFirstName || c.spouse?.firstName || 'בן/בת הזוג') + (s.entityLabel && s.entityLabel !== (c.spouseFirstName || c.spouse?.firstName) ? ` · ${s.entityLabel}` : '')
   : s.entityLabel && s.entityLabel !== c.firstName ? s.entityLabel : '';
 
-export default function TaxYearProcess({ client, step, infoStep, onClose, onChanged, onClientPersisted, onRemoved, embedded }: Props) {
+export default function TaxYearProcess({ client, step, infoStep, onClose, onChanged, onClientPersisted, onRemoved, embedded, onOpenRequest }: Props) {
   const purpose: Purpose = step.stepType === 'tax_estimate' ? 'estimate' : step.stepType === 'wealth_declaration' ? 'wealth' : step.stepType === 'tax_file_intake' ? 'intake' : 'annual';
   // ‼ 254 (17.10.2026) · «היכרות שנשלחת לבד»: בשורת הקליטה ב«בקשות» אין «הוסף שאלות» ואין «פרסם» — מה שהתמונה
   //   אומרת לשאול נוסף ומתפרסם בדף של הלקוח בפעולה אחת בשרת (ensure_tax_file_intake עם השאלות), אידמפוטנטית.
@@ -87,6 +91,15 @@ export default function TaxYearProcess({ client, step, infoStep, onClose, onChan
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [flash, setFlash] = useState<string | null>(null);
+  // ‼ 263 · לקוח אחד = שאלון אחד פתוח: השרת סירב לחשוף את השאלון הזה, כי יש ללקוח שאלון אחר שמחכה לו
+  const [blockedBy, setBlockedBy] = useState<OpenQuestionnaire | null>(null);
+  /** תשובת סירוב ⇒ הודעת «שאלון פתוח» (true); כל תשובה אחרת — false. */
+  const showRefusal = async (r: { ok?: boolean; error?: string; openQuestionnaire?: unknown }): Promise<boolean> => {
+    if (r.ok !== false || r.error !== QUESTIONNAIRE_OPEN) return false;
+    const open = parseOpenQuestionnaire(r.openQuestionnaire) ?? await api.openQuestionnaireOf(client.id, step.id).catch(() => null);
+    setBlockedBy(open); setErr(open ? null : errText(r.error));
+    return true;
+  };
   const [preview, setPreview] = useState(false);
   // ‼ 14.10.2026 · «הסר עבודה…» גם מתוך דף העבודה — אותו חלון (242). Escape סוגר רק אותו, לא את הדף
   const [removing, setRemoving] = useState(false);
@@ -149,9 +162,10 @@ export default function TaxYearProcess({ client, step, infoStep, onClose, onChan
   const run = async (fn: () => Promise<{ ok: boolean; error?: string } | unknown>, done?: string) => {
     setBusy(true); setFlash(null);
     try {
-      const r = await fn() as { ok?: boolean; error?: string };
+      const r = await fn() as { ok?: boolean; error?: string; openQuestionnaire?: unknown };
+      if (r && await showRefusal(r)) return false;
       if (r && r.ok === false) { setErr(errText(r.error)); return false; }
-      setErr(null); if (done) setFlash(done);
+      setErr(null); setBlockedBy(null); if (done) setFlash(done);
       await reload(); onChanged();
       return true;
     } catch (e) { setErr((e as Error).message); return false; } finally { setBusy(false); }
@@ -201,7 +215,9 @@ export default function TaxYearProcess({ client, step, infoStep, onClose, onChan
     autoKeyRef.current = autoPlan.key;
     setAutoBusy(true);
     void api.ensureTaxFileIntake(client.id, autoPlan.plan.map(toAskInput)).then(async r => {
+      if (await showRefusal(r)) return;
       if (!r.ok) { setErr(errText(r.error)); return; }
+      setBlockedBy(null);
       const n = (r.asked ?? 0) || (r.published ?? 0);
       if (n > 0) {
         const msg = `${count(n, 'שאלה אחת', 'שאלות')} בדף של ${firstName} — בלי מייל. המייל, אם צריך — מ«הדף של ${firstName}» למעלה.`;
@@ -240,6 +256,11 @@ export default function TaxYearProcess({ client, step, infoStep, onClose, onChan
   const annualMore = purpose === 'annual' && isOpenStep(step) && !legacyAnnual ? {
     count: annualMorePlan.length + drafts.length,
     run: () => run(async () => {
+      // ‼ 263 · שאלון ראשון בבקשה הזו כשיש ללקוח שאלון אחר פתוח ⇒ כלום לא נוסף (הוספה לשאלון שכבר בדף — מותרת)
+      if (!waitingAsks.length) {
+        const blocker = await questionnaireBlocker(client.id, { stepType: 'annual_return', stepId: step.id, taxYear: year });
+        if (blocker) return { ok: false, error: QUESTIONNAIRE_OPEN, openQuestionnaire: blocker };
+      }
       let infoId = infoStep?.id;
       if (annualMorePlan.length) { const r = await api.addAsks(step.id, annualMorePlan.map(toAskInput)); if (!r.ok) return r; infoId = r.infoStepId; }
       return infoId ? api.publishInfo(infoId) : { ok: false, error: 'not_loaded' };
@@ -297,6 +318,7 @@ export default function TaxYearProcess({ client, step, infoStep, onClose, onChan
       <div className={embedded ? undefined : 'ty-scroll'}>
         <div className={embedded ? 'ty-body is-inline' : 'ty-body'}>
           {err && <div className="ty-err" role="alert">{err}</div>}
+          {blockedBy && <QuestionnaireOpenNotice open={blockedBy} firstName={firstName} onOpen={onOpenRequest} />}
           {flash && <div className="ty-ok" role="status">{flash}</div>}
           {/* ‼ 19.10.2026 · דוח שנתי: דף הסיכום (מה למלא · מסמכים · רק אתה יודע · הכרעות · מה פתוח) למעלה; כל השאר — מקופל
               ב«פירוט מלא» (הדמיה מאושרת docs/proposals/2026-10-19-simple-annual-questionnaire.html). */}
@@ -319,7 +341,10 @@ export default function TaxYearProcess({ client, step, infoStep, onClose, onChan
               <strong>שאלון הקליטה הישן («עדכון סטטוס מיסויי») עדיין פתוח ל{firstName}</strong>
               {openIntake.published ? ` — בדף האישי מ-${formatDate(openIntake.since ?? '')}` : ' — טיוטה, עוד לא בדף האישי'}
               {openIntake.started ? `. ${firstName} כבר התחיל/ה לענות עליו.` : openIntake.published ? `. ${firstName} עוד לא התחיל/ה לענות.` : '.'}
-              <br />כדי שלא יקבל שני שאלונים: <b>להחליף אותו בקליטה הזו</b> — הוא יורד מהדף האישי{openIntake.started ? ', ותשובות שכבר נתן נשמרות ומחכות לאישורך בתיק המס' : ''}; או <b>להשאיר אותו</b> — ואז הקליטה לא שואלת את הפרטים הקבועים, רק מסמכים ושאלות המשך.
+              <br />כדי שלא יקבל שני שאלונים: <b>להחליף אותו בקליטה הזו</b> — הוא יורד מהדף האישי{openIntake.started ? ', ותשובות שכבר נתן נשמרות ומחכות לאישורך בתיק המס' : ''}{openIntake.published
+                // ‼ 263 · לקוח אחד = שאלון אחד פתוח: כל עוד הישן בדף — השאלות של הקליטה לא עולות (השרת מסרב)
+                ? <>. עד אז השאלות של הקליטה לא עולות לדף — לכל לקוח שאלון אחד פתוח בכל פעם.</>
+                : <>; או <b>להשאיר אותו</b> — ואז הקליטה לא שואלת את הפרטים הקבועים, רק מסמכים ושאלות המשך.</>}
               <div className="ty-actions">
                 <button type="button" className="btn btn-sm btn-primary" disabled={busy}
                   onClick={() => void run(async () => {
@@ -356,9 +381,9 @@ export default function TaxYearProcess({ client, step, infoStep, onClose, onChan
               )}
               {now === 'syncing' && (
                 <div data-ty-syncing>
-                  <h3>{autoBusy ? `מעדכן את השאלון בדף של ${firstName}…` : err ? 'השאלון לא עודכן בדף' : `מכין את השאלון ל${firstName}`}</h3>
+                  <h3>{autoBusy ? `מעדכן את השאלון בדף של ${firstName}…` : err || blockedBy ? 'השאלון לא עודכן בדף' : `מכין את השאלון ל${firstName}`}</h3>
                   <p className="ty-why">השאלות נגזרות מהתיק ומתפרסמות בדף של {firstName} לבד — בלי מייל. המייל, אם צריך — מ«הדף של {firstName}» למעלה.</p>
-                  {!autoBusy && err && (
+                  {!autoBusy && (err || blockedBy) && (
                     <div className="ty-actions">
                       <button type="button" className="btn btn-sm btn-primary" onClick={() => { autoKeyRef.current = null; setAutoRetry(n => n + 1); }} data-ty-retry>נסה שוב</button>
                     </div>
@@ -454,6 +479,8 @@ function errText(e?: string): string {
   switch (e) {
     case 'mismatch_cannot_accept': return 'אי אפשר לאשר מסמך שלא תואם ללקוח או לתקופה.';
     case 'nothing_to_publish': return 'אין שאלות לפרסום.';
+    // 263 · לקוח אחד = שאלון אחד פתוח (כשאין פרטים — הנוסח הכללי; עם פרטים: QuestionnaireOpenNotice)
+    case 'questionnaire_open': return questionnaireOpenText(undefined) + '.';
     case 'parent_closed': return 'הבקשה כבר סגורה.';
     case 'not_askable': return 'אין שאלה ללקוח לפריט הזה (פריט של המשרד, או מסמך שלא הועלה דרך שאלה) — אפשר לדחות ולהשלים במשרד.';
     case 'bad_value': return 'ערך לא תקין.';

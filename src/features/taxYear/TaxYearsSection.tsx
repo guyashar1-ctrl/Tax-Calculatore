@@ -12,6 +12,8 @@ import { supabase } from '../../lib/supabase';
 import { stepFromDb } from '../../lib/dbMappers';
 import * as api from './api';
 import { openTaxFileIntake } from './workCreate';
+import QuestionnaireOpenNotice from './QuestionnaireOpenNotice';
+import type { OpenQuestionnaire } from './oneQuestionnaire';
 import type { WealthPayload } from './WealthDeclarationPanel';
 import { deadlineView, dueState } from './workMeta';
 import AddTaxWorkDialog from './AddTaxWorkDialog';
@@ -59,6 +61,8 @@ export default function TaxYearsSection({ client, onChanged, onClientPersisted, 
   }, [onOpenRequest]);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  /** 263 · הקליטה לא נפתחה: יש ללקוח שאלון אחר שמחכה לו. */
+  const [qOpen, setQOpen] = useState<OpenQuestionnaire | null>(null);
 
   const load = useCallback(async () => {
     const [st, ch, se, tr] = await Promise.all([
@@ -112,10 +116,11 @@ export default function TaxYearsSection({ client, onChanged, onClientPersisted, 
   const intakes = steps.filter(s => s.stepType === 'tax_file_intake').sort((a, b) => Number(OPEN(b)) - Number(OPEN(a)) || (b.createdAt ?? '').localeCompare(a.createdAt ?? ''));
   const intake = intakes[0];
   const startIntake = useCallback(async () => {
-    setBusy(true); setMsg(null);
+    setBusy(true); setMsg(null); setQOpen(null);
     // 254 · הפתיחה גם מכינה ומפרסמת את השאלון בדף של הלקוח — בלי מייל
     const r = await openTaxFileIntake(client);
     setBusy(false);
+    if (!r.ok && r.openQuestionnaire) { setQOpen(r.openQuestionnaire); return; }
     if (!r.ok || !r.stepId) { setMsg({ ok: false, text: `הפתיחה נכשלה (${r.error})` }); return; }
     await load(); onChanged?.(); setOpenId(r.stepId);
   }, [client.id, load, onChanged]);
@@ -149,6 +154,7 @@ export default function TaxYearsSection({ client, onChanged, onClientPersisted, 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '.6rem' }} data-section="works">
       {msg && <div className={msg.ok ? 'ty-ok' : 'ty-err'} role={msg.ok ? 'status' : 'alert'}>{msg.text}</div>}
+      {qOpen && <QuestionnaireOpenNotice open={qOpen} firstName={client.firstName} onOpen={onOpenRequest} />}
       {works.length === 0
         ? <p className="ty-note" style={{ margin: 0 }}>אין דוח או הצהרה פתוחים.</p>
         : (

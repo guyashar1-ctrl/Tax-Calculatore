@@ -91,6 +91,25 @@ async function runWidth(width) {
     const one = page.locator('[data-annual-one-click]');
     await one.waitFor({ timeout: 15000 });
     ok((await text(one)).includes(`דוח שנתי ${YEAR}`) && (await text(one)).includes('קודם מבט שלך'), 'הכפתור «דוח שנתי 2025» אומר שכשיש דוח קודם — קודם מבט שלך', await text(one));
+
+    // 1א · 263 «לקוח אחד = שאלון אחד פתוח»: ל-prepare() יש שאלון קליטה ישן שפורסם ⇒ הבקשה לא נפתחת, ההודעה והקישור לשורה שלו
+    await one.click();
+    const qOpen = page.locator('[data-questionnaire-open]');
+    await qOpen.waitFor({ timeout: 20000 });
+    const qText = await text(qOpen);
+    ok(qText.includes('יש לדוד שאלון פתוח: «עדכון סטטוס מס» — קודם מסיימים אותו'), 'שאלון ישן פתוח ⇒ «יש לדוד שאלון פתוח: «עדכון סטטוס מס» — קודם מסיימים אותו»', qText);
+    const annualRows = (await env.sql(`select count(*)::int n from public.onboarding_steps where client_id = '${id}' and step_type in ('annual_return','info_collection')`))[0].n;
+    ok(annualRows === 0, 'שום בקשה לא נוצרה (אין דוח שנתי ריק)', `rows=${annualRows}`);
+    ok(await noHScroll(), 'בלי גלילה הצידה — הודעת השאלון הפתוח');
+    await shot('00-questionnaire-open', qOpen);
+    await qOpen.locator('[data-questionnaire-open-go]').click();
+    ok(!(await page.locator('[data-annual-one-click]').count()), '«לבקשה ←» סוגר את החלון ומוביל לשורה ב«בקשות»');
+    // הלקוח סיים את השאלון הישן ⇒ אפשר לפתוח את הדוח
+    await env.sql(`update public.onboarding_steps set status = 'completed', completed_at = now() where client_id = '${id}' and step_type = 'intake_questionnaire'`);
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await addBtn.waitFor({ timeout: 40000 });
+    await addBtn.click();
+    await one.waitFor({ timeout: 15000 });
     await one.click();
     const prep = page.locator('[data-prior-prep]');
     await prep.waitFor({ timeout: 40000 });

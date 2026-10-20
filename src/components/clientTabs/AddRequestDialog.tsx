@@ -44,6 +44,8 @@ import { CATALOG_TYPES, type CatalogType, type PreviewTarget } from '../../featu
 import { EMPTY_FIRM_PROFILE, composerPreviewOfTemplate } from './InlineComposer';
 import TaxYearRequestForm from '../../features/taxYear/TaxYearRequestForm';
 import { openAnnualReturn } from '../../features/taxYear/workCreate';
+import QuestionnaireOpenNotice from '../../features/taxYear/QuestionnaireOpenNotice';
+import type { OpenQuestionnaire } from '../../features/taxYear/oneQuestionnaire';
 import { findPriorReturnDocs } from '../../features/taxYear/priorReturnApi';
 import { AVAILABLE } from '../../features/taxKnowledge/availability';
 import type { ClientFormKey } from '../../features/smartForms/clientForms/types';
@@ -212,11 +214,13 @@ interface Props {
   onStartFlow?: (flowId: string) => void;
   /** 229 · שנת מס: אחרי פתיחת הערכה/דוח — לפתוח את דף התהליך. */
   onOpenTaxYear?: (stepId: string) => void;
+  /** 263 · «לבקשה ←» מהודעת «יש ל… שאלון פתוח» — פותח את השורה של השאלון הפתוח ב«בקשות». */
+  onOpenRequest?: (stepId: string) => void;
   onClose: () => void;
   onCreated: () => void;
 }
 
-export default function AddRequestDialog({ clientId, steps, processPublished, awaitingQuoteApproval, intake, currentEngagementId, presetType, presetDocuments, thenEmail, prevAccountantEmail, onUseTemplate, client, niExecution, onRequestAuthorityRepresentation, onStartSmartForm, onStartClientForm, onStartFlow, onOpenTaxYear, onClose, onCreated }: Props) {
+export default function AddRequestDialog({ clientId, steps, processPublished, awaitingQuoteApproval, intake, currentEngagementId, presetType, presetDocuments, thenEmail, prevAccountantEmail, onUseTemplate, client, niExecution, onRequestAuthorityRepresentation, onStartSmartForm, onStartClientForm, onStartFlow, onOpenTaxYear, onOpenRequest, onClose, onCreated }: Props) {
   /** מסלולים ידניים/שנתיים של המשרד — לבלוק «מסלולים» בקטלוג. */
   const [flows, setFlows] = useState<{ id: string; name: string; trigger: FlowTrigger; stages: number }[]>([]);
   useEffect(() => {
@@ -238,6 +242,8 @@ export default function AddRequestDialog({ clientId, steps, processPublished, aw
   const [busy, setBusy] = useState(false);
   const [authRepBusyRole, setAuthRepBusyRole] = useState<'client' | 'spouse' | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /** 263 · לקוח אחד = שאלון אחד פתוח: הבקשה לא נפתחה, כי יש שאלון אחר שמחכה ללקוח. */
+  const [qOpen, setQOpen] = useState<OpenQuestionnaire | null>(null);
 
   /** בקשה חופשית — שני השדות שמספיקים לרוב המוחלט של הבקשות.
    *  ‼ `ask` הוא מקור אחד לשלושה מקומות (שם אצלי, כותרת אצל הלקוח, תיאור
@@ -818,6 +824,10 @@ export default function AddRequestDialog({ clientId, steps, processPublished, aw
               background: 'var(--red-light)', color: 'var(--err)', fontSize: 'var(--fs-13)',
             }}>⚠ {error}</div>
           )}
+          {qOpen && (
+            <QuestionnaireOpenNotice open={qOpen} firstName={client?.firstName}
+              onOpen={onOpenRequest ? id => { onOpenRequest(id); onClose(); } : undefined} />
+          )}
 
           {/* ‼ נקודת כניסה הקשרית (תיק מס). אותה בקשה, אותו RPC — רק בלי
               לבחור מהקטלוג. אם כבר קיימת בקשה פתוחה מהסוג הזה לא יוצרים
@@ -844,11 +854,12 @@ export default function AddRequestDialog({ clientId, steps, processPublished, aw
                 style={{ display: 'flex', flexDirection: 'column', gap: '.15rem', alignItems: 'flex-start', textAlign: 'start', width: '100%', padding: '.7rem .8rem', border: '1px solid var(--accent)', borderRadius: 'var(--radius)', background: 'var(--soft)', cursor: 'pointer', marginBottom: '.5rem' }}
                 onClick={async () => {
                   if (openAnnual) { onOpenTaxYear(openAnnual.id); onClose(); return; }
-                  setBusy(true); setError(null);
+                  setBusy(true); setError(null); setQOpen(null);
                   // ‼ יש במסמכים את הדוח של שנה שעברה ⇒ הבקשה נפתחת בלי לפרסם, ובדף הבקשה — «לפני השליחה»
                   const prior = await findPriorReturnDocs(client.id, annualYear).catch(() => []);
                   const r = await openAnnualReturn(client, annualYear, { holdForPriorReturn: prior.length > 0 });
                   setBusy(false);
+                  if (!r.ok && r.openQuestionnaire) { setQOpen(r.openQuestionnaire); if (r.stepId) onCreated(); return; }
                   if (!r.ok || !r.stepId) { setError(r.error === 'forbidden' ? 'אין הרשאה ללקוח הזה' : `הפתיחה נכשלה (${r.error ?? 'שגיאה'})`); if (r.stepId) onCreated(); return; }
                   onCreated(); onOpenTaxYear(r.stepId); onClose();
                 }}>
@@ -867,7 +878,9 @@ export default function AddRequestDialog({ clientId, steps, processPublished, aw
             </button>
           )}
           {mode === 'tax_year' && onOpenTaxYear && (
-            <TaxYearRequestForm clientId={clientId} onOpened={id => { onCreated(); onOpenTaxYear(id); onClose(); }} />
+            <TaxYearRequestForm clientId={clientId} firstName={client?.firstName}
+              onOpenRequest={onOpenRequest ? id => { onOpenRequest(id); onClose(); } : undefined}
+              onOpened={id => { onCreated(); onOpenTaxYear(id); onClose(); }} />
           )}
 
           {mode === 'catalog' && !presetType && (

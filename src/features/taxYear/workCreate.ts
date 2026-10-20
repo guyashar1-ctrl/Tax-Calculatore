@@ -17,6 +17,7 @@ import { metaOf, type NewWorkRow } from './workMeta';
 import type { LastYearHints } from './priorReturn';
 import { findPriorReturnDocs } from './priorReturnApi';
 import type { Purpose } from './types';
+import { blockingQuestionnaire, QUESTIONNAIRE_OPEN, type OpenQuestionnaire, type QuestionnaireTarget } from './oneQuestionnaire';
 
 export interface CreateResult {
   ok: boolean;
@@ -29,6 +30,24 @@ export interface CreateResult {
   error?: string;
   /** השלב שנכשל — כדי שהרצה חוזרת תדע מה לנסות. */
   failedAt?: 'work' | 'draft';
+  /** 263 · error = 'questionnaire_open': השאלון שפתוח ללקוח — לנוסח ולקישור לשורה שלו. */
+  openQuestionnaire?: OpenQuestionnaire;
+}
+
+/**
+ * 263 · לקוח אחד = שאלון אחד פתוח: לפני שיוצרים בקשה עם שאלון (או מפרסמים שאלון ראשון בבקשה קיימת) — האם יש ללקוח
+ * שאלון אחר שמחכה לו. ‼ בדיקה מקדימה בלבד, כדי שלא תיווצר בקשה ריקה; השער הוא השרת (publish_tax_info).
+ */
+export async function questionnaireBlocker(clientId: string, target: QuestionnaireTarget): Promise<OpenQuestionnaire | null> {
+  return blockingQuestionnaire(await api.openQuestionnaireOf(clientId, target.stepId).catch(() => null), target);
+}
+const refusedBy = (open: OpenQuestionnaire, extra: Partial<CreateResult> = {}): CreateResult =>
+  ({ ...extra, ok: false, error: QUESTIONNAIRE_OPEN, openQuestionnaire: open });
+/** השרת סירב (שאלון נפתח בין הבדיקה לפרסום, או בלשונית אחרת) — הפרטים לנוסח. */
+export async function explainRefusal<T extends { ok: boolean; error?: string; openQuestionnaire?: OpenQuestionnaire }>(r: T, clientId: string, exceptStep?: string): Promise<T> {
+  if (r.ok || r.error !== QUESTIONNAIRE_OPEN || r.openQuestionnaire) return r;
+  const open = await api.openQuestionnaireOf(clientId, exceptStep).catch(() => null);
+  return open ? { ...r, openQuestionnaire: open } : r;
 }
 
 type WorkPayload = { taxYear: number; asOfDate?: string; kind?: 'first' | 'followup'; cutoffMonth?: number } & WealthPayload;
@@ -77,6 +96,8 @@ export async function openTaxFileIntake(client: Client): Promise<CreateResult & 
   const { data, error } = await supabase.from('onboarding_steps').select('*').eq('client_id', client.id).eq('step_type', 'tax_file_intake');
   if (error) return { ok: false, error: error.message, failedAt: 'work' };
   const existing = ((data ?? []) as Record<string, unknown>[]).map(r => stepFromDb(r)).find(s => !CLOSED_STATUSES.includes(s.status)) ?? null;
+  const blocker = await questionnaireBlocker(client.id, { stepType: 'tax_file_intake', stepId: existing?.id });
+  if (blocker) return refusedBy(blocker, { failedAt: 'work' });
   const today = todayIso();
   const payload: WorkPayload = existing
     ? (existing.payload as unknown as WorkPayload)
@@ -87,6 +108,15 @@ export async function openTaxFileIntake(client: Client): Promise<CreateResult & 
   const legacyOpen = existing ? await api.openIntakeStep((existing.payload as unknown as { legacyStepId?: string }).legacyStepId).catch(() => null) : null;
   const chosen = legacyOpen ? plan.filter(e => e.statuses[0]?.state !== 'fromCard') : plan;
   const r = await api.ensureTaxFileIntake(client.id, chosen.map(toAskInput));
+  if (!r.ok && r.error === QUESTIONNAIRE_OPEN) {
+    // ‼ 263 · שאלון הקליטה הישן עדיין בדף: הקליטה נפתחת בלי שאלות, ובשורה שלה «החלף בקליטה» (236) — השאלות עולות
+    //   אחרי ההחלפה. שאלון אחר (דוח, הצהרה) — הבדיקה המקדימה כבר עצרה; כאן רק מרוץ, ולא פותחים כלום.
+    const open = await api.openQuestionnaireOf(client.id, existing?.id).catch(() => null);
+    if (open?.stepType !== 'intake_questionnaire') return { ok: false, error: r.error, failedAt: existing ? 'draft' : 'work', ...(open ? { openQuestionnaire: open } : {}) };
+    const bare = await api.ensureTaxFileIntake(client.id);
+    if (!bare.ok) return { ok: false, error: bare.error, failedAt: 'work' };
+    return { ok: true, stepId: bare.stepId, created: bare.created, drafted: 0, published: 0, openQuestionnaire: open };
+  }
   if (!r.ok) return { ok: false, error: r.error, failedAt: existing ? 'draft' : 'work' };
   return { ok: true, stepId: r.stepId, created: r.created, drafted: r.asked ?? 0, published: r.published ?? 0 };
 }
@@ -98,11 +128,14 @@ export async function openTaxFileIntake(client: Client): Promise<CreateResult & 
  * ‼ אידמפוטנטי: בקשה קיימת ⇒ נוספות רק שאלות שחסרות (add_tax_info_asks לא מוסיף פריט פתוח פעמיים).
  */
 export async function openAnnualReturn(client: Client, taxYear: number, opts: { holdForPriorReturn?: boolean } = {}): Promise<CreateResult & { published?: number; held?: boolean }> {
+  // ‼ 263 · שאלון אחר פתוח ⇒ לא נפתחת בקשה (גם לא «לפני השליחה») — אחרת נשארת בקשה ריקה שלא יכולה לצאת
+  const blocker = await questionnaireBlocker(client.id, { stepType: 'annual_return', taxYear });
+  if (blocker) return refusedBy(blocker, { failedAt: 'work' });
   const w = await api.ensureYearRequest(client.id, 'annual', taxYear);
   if (!w.ok) return { ok: false, error: w.error, failedAt: 'work' };
   // ‼ 19.10.2026 · יש בתיק הדוח של שנה שעברה ⇒ קודם מבט של המשרד («לפני השליחה» בדף הבקשה), ורק אז השאלון יוצא
   if (opts.holdForPriorReturn && w.created) return { ok: true, stepId: w.stepId, created: true, drafted: 0, published: 0, held: true };
-  return publishAnnualAsks(client, taxYear, w.stepId, undefined, w.created);
+  return publishAnnual(client, taxYear, w.stepId, undefined, w.created, true);
 }
 
 /**
@@ -121,7 +154,14 @@ export async function reopenAnnualInNewVersion(client: Client, oldStepId: string
 }
 
 /** השאלון של הדוח השנתי: נבנה מהתיק (ומהדוח הקודם, אם המשרד אישר) ומתפרסם בדף — בלי מייל. */
-export async function publishAnnualAsks(client: Client, taxYear: number, stepId: string, lastYear?: LastYearHints, created = false): Promise<CreateResult & { published?: number }> {
+export function publishAnnualAsks(client: Client, taxYear: number, stepId: string, lastYear?: LastYearHints, created = false): Promise<CreateResult & { published?: number }> {
+  return publishAnnual(client, taxYear, stepId, lastYear, created, false);
+}
+
+async function publishAnnual(client: Client, taxYear: number, stepId: string, lastYear: LastYearHints | undefined, created: boolean, checked: boolean): Promise<CreateResult & { published?: number }> {
+  // ‼ 263 · לפני שנוספות טיוטות: שאלון אחר פתוח ⇒ כלום לא נוסף (הוספה לשאלון של הבקשה הזו עצמה — מותרת)
+  const blocker = checked ? null : await questionnaireBlocker(client.id, { stepType: 'annual_return', stepId, taxYear });
+  if (blocker) return refusedBy(blocker, { stepId, created, failedAt: 'draft' });
   let plan: AskPlanEntry[];
   try { plan = await planAsksFor(client, 'annual', { taxYear }, stepId, lastYear); }
   catch (e) { return { ok: false, stepId, created, error: String((e as Error).message), failedAt: 'draft' }; }
@@ -129,7 +169,7 @@ export async function publishAnnualAsks(client: Client, taxYear: number, stepId:
   const a = await api.addAsks(stepId, plan.map(toAskInput));
   if (!a.ok) return { ok: false, stepId, created, error: a.error, failedAt: 'draft' };
   const p = await api.publishInfo(a.infoStepId);
-  if (!p.ok) return { ok: false, stepId, created, drafted: a.added, error: p.error, failedAt: 'draft' };
+  if (!p.ok) return explainRefusal({ ok: false, stepId, created, drafted: a.added, error: p.error, failedAt: 'draft' }, client.id, stepId);
   return { ok: true, stepId, created, drafted: a.added, published: p.published };
 }
 

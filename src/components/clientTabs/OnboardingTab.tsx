@@ -1995,7 +1995,8 @@ export default function OnboardingTab({
                       <TaxYearProcess embedded client={client} step={step}
                         infoStep={info}
                         onClientPersisted={onClientPersisted}
-                        onClose={() => setOpenRowId(null)} onChanged={() => refresh?.()} onRemoved={setTaxNotice} />
+                        onClose={() => setOpenRowId(null)} onChanged={() => refresh?.()} onRemoved={setTaxNotice}
+                        onOpenRequest={id => requestFocus({ stepId: id })} />
                     ) : null}
                   </JourneyRow>
                 );
@@ -4037,6 +4038,7 @@ export default function OnboardingTab({
           niExecution={niExecution}
           onRequestAuthorityRepresentation={onRequestAuthorityRepresentation}
           onOpenTaxYear={id => (embedded ? requestFocus({ stepId: id }) : setTaxYearStepId(id))}
+          onOpenRequest={id => requestFocus({ stepId: id })}
           onStartSmartForm={async () => {
             // ‼ אידמפוטנטי בשרת: הגשה פתוחה קיימת ⇒ חוזרים אליה, לא פותחים שנייה.
             const r = await startFiling(clientId, []);

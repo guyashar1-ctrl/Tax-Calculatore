@@ -17,6 +17,7 @@ import { useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import SendPortalDialog from './SendPortalDialog';
 import InfoLines from '../ui/InfoLines';
+import { questionnaireOpenText } from '../../features/taxYear/oneQuestionnaire';
 
 type Choice = 'update' | 'send' | 'copy';
 
@@ -45,6 +46,8 @@ export default function PublishCasePrompt({
   const [nothingNew, setNothingNew] = useState(false);
   /** «שליחת הקישור לדף» — המסלול הקיים (מייל עדכון בלי «חדש», או קישור לוואטסאפ). */
   const [sendingUpdate, setSendingUpdate] = useState(false);
+  /** 263 · פורסם, אבל שאלון נשאר טיוטה כי ללקוח יש שאלון אחר פתוח — שם השאלון הפתוח. */
+  const [heldBy, setHeldBy] = useState<string | null>(null);
   const hasEmail = !!clientEmail?.trim();
 
   /**
@@ -60,9 +63,9 @@ export default function PublishCasePrompt({
     return res.items.length > 0;
   }
 
-  async function publish(): Promise<boolean> {
+  async function publish(): Promise<false | { heldBy: string | null }> {
     const { data, error: rpcError } = await supabase.rpc('publish_case_changes', { p_client_id: clientId });
-    const res = data as { ok?: boolean; error?: string } | null;
+    const res = data as { ok?: boolean; error?: string; questionnaireOpen?: { openTitle?: string }[] } | null;
     if (rpcError || !res?.ok) {
       // ‼ מיגרציה 135 — לפני אישור ההצעה הפרסום נדחה בשרת. זו אינה תקלה,
       // ולכן היא לא נאמרת כ"נסה שוב": אין מה לנסות עד שהלקוח יאשר.
@@ -72,7 +75,8 @@ export default function PublishCasePrompt({
       return false;
     }
     onPublished?.();
-    return true;
+    const held = res.questionnaireOpen?.[0];
+    return { heldBy: held ? held.openTitle ?? '' : null };
   }
 
   async function choose(choice: Choice) {
@@ -97,8 +101,8 @@ export default function PublishCasePrompt({
       return;
     }
 
-    const ok = await publish();
-    if (!ok) { setBusy(null); return; }
+    const pub = await publish();
+    if (!pub) { setBusy(null); return; }
     if (choice === 'send') {
       const go = !hasEmail || await hasSomethingNew();
       setBusy(null);
@@ -106,6 +110,8 @@ export default function PublishCasePrompt({
       return;
     }
     setBusy(null);
+    // ‼ 263 · הדף פורסם, אבל שאלון שני לא עלה — אומרים את זה לפני שסוגרים
+    if (pub.heldBy !== null) { setHeldBy(pub.heldBy); return; }
     onClose();
   }
 
@@ -174,7 +180,14 @@ export default function PublishCasePrompt({
             }}>⚠ {error}</div>
           )}
 
-          {nothingNew ? (
+          {heldBy !== null ? (
+            <>
+              <div style={{ fontSize: 'var(--fs-13)', color: 'var(--ok, #17845b)' }}>✓ פורסם.</div>
+              <div role="note" data-questionnaire-held style={{ padding: '.5rem .7rem', borderRadius: 'var(--radius)', background: 'var(--warn-bg)', color: 'var(--ink-1)', fontSize: 'var(--fs-13)' }}>
+                שאלון חדש נשאר טיוטה ולא עלה לדף: {questionnaireOpenText(firstName, { title: heldBy })}.
+              </div>
+            </>
+          ) : nothingNew ? (
             <>
               <div style={{ fontSize: 'var(--fs-13)', color: 'var(--ok, #17845b)' }}>
                 ✓ פורסם. אין משהו חדש שמצדיק מייל.
@@ -218,7 +231,7 @@ export default function PublishCasePrompt({
 
         <div className="modal-foot" style={{ display: 'flex', justifyContent: 'flex-end' }}>
           <button type="button" className="btn btn-ghost" onClick={onClose} disabled={!!busy}>
-            {link || nothingNew ? 'סיום' : 'ביטול'}
+            {link || nothingNew || heldBy !== null ? 'סיום' : 'ביטול'}
           </button>
         </div>
       </div>

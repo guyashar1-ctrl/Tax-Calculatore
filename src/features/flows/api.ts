@@ -6,6 +6,7 @@
 import { supabase } from '../../lib/supabase';
 import { formatDate } from '../../utils/dateFormat';
 import type { NoticeSendResult } from './noticeText';
+import { questionnaireOpenText } from '../taxYear/oneQuestionnaire';
 import type { ClientKind, FlowDefinition, FlowTrigger, OfficeFlow, RunStatus, StageState, Opens, Delivery, ItemRef, When } from './types';
 
 type Rpc<T> = { ok?: boolean; error?: string } & T;
@@ -534,6 +535,8 @@ export const SERVER_ERROR_TEXT: Record<string, string> = {
   release_failed: RETRY_KIND_HOLD_ERROR_TEXT.release_failed,
   // «הסתר מהדף» (216 §9)
   has_client_content: HIDE_STEP_ERROR_TEXT.has_client_content,
+  // 263 · לקוח אחד = שאלון אחד פתוח (בלי שם ובלי כותרת; עם פרטים — QuestionnaireOpenNotice)
+  questionnaire_open: questionnaireOpenText(undefined),
   // כללי
   forbidden: 'אין הרשאה',
   no_office: 'החשבון לא משויך למשרד',

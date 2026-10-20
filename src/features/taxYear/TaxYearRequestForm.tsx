@@ -4,6 +4,9 @@
 
 import { useState } from 'react';
 import { ensureTaxFileIntake, ensureWealthDeclaration, ensureYearRequest } from './api';
+import { questionnaireBlocker } from './workCreate';
+import QuestionnaireOpenNotice from './QuestionnaireOpenNotice';
+import type { OpenQuestionnaire, QuestionnaireTarget } from './oneQuestionnaire';
 import { MONTHS } from './asks';
 import type { Purpose } from './types';
 import { AVAILABLE } from '../taxKnowledge/availability';
@@ -12,9 +15,12 @@ interface Props {
   clientId: string;
   /** אחרי יצירה (או מציאת הקיימת) — לפתוח את דף התהליך. */
   onOpened: (stepId: string, created: boolean) => void;
+  firstName?: string;
+  /** 263 · «לבקשה ←» מהודעת «יש ל… שאלון פתוח». */
+  onOpenRequest?: (stepId: string) => void;
 }
 
-export default function TaxYearRequestForm({ clientId, onOpened }: Props) {
+export default function TaxYearRequestForm({ clientId, onOpened, firstName, onOpenRequest }: Props) {
   const now = new Date();
   const thisYear = now.getFullYear();
   const lastClosedMonth = now.getMonth() === 0 ? 12 : now.getMonth(); // החודש הקודם
@@ -26,13 +32,20 @@ export default function TaxYearRequestForm({ clientId, onOpened }: Props) {
   const [cutoff, setCutoff] = useState(lastClosedMonth);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [qOpen, setQOpen] = useState<OpenQuestionnaire | null>(null);
 
   const pick = (p: Purpose) => { setPurpose(p); if (p !== 'wealth') setYear(p === 'estimate' ? thisYear : thisYear - 1); };
   const years = purpose === 'estimate' ? [thisYear, thisYear - 1] : [thisYear - 1, thisYear - 2, thisYear - 3];
 
   const submit = async () => {
-    setBusy(true); setErr(null);
+    setBusy(true); setErr(null); setQOpen(null);
     if (purpose === 'wealth' && !asOf) { setBusy(false); setErr('חסר יום הצהרה'); return; }
+    // ‼ 263 · לקוח אחד = שאלון אחד פתוח: יש ללקוח שאלון אחר שמחכה לו ⇒ לא נפתחת בקשה (אחרת — בקשה ריקה שלא יכולה לצאת)
+    const target: QuestionnaireTarget = purpose === 'intake' ? { stepType: 'tax_file_intake' }
+      : purpose === 'wealth' ? { stepType: 'wealth_declaration', asOfDate: asOf }
+      : { stepType: purpose === 'estimate' ? 'tax_estimate' : 'annual_return', taxYear: year };
+    const blocker = await questionnaireBlocker(clientId, target);
+    if (blocker) { setBusy(false); setQOpen(blocker); return; }
     const r = purpose === 'intake' ? await ensureTaxFileIntake(clientId)
       : purpose === 'wealth'
       ? await ensureWealthDeclaration(clientId, asOf, kind || undefined)
@@ -79,6 +92,7 @@ export default function TaxYearRequestForm({ clientId, onOpened }: Props) {
           : 'מה שידוע מהערכת המס לאותה שנה לא נשאל שוב — שואלים מה השתנה מאז, ומבקשים מסמכים סופיים לפי מועד הזמינות שלהם.'}
       </div>
       {err && <div style={{ color: 'var(--err)', fontSize: 'var(--fs-13)' }} role="alert">{err}</div>}
+      {qOpen && <QuestionnaireOpenNotice open={qOpen} firstName={firstName} onOpen={onOpenRequest} />}
       <div><button type="button" className="btn btn-primary" disabled={busy} onClick={() => void submit()}>{busy ? 'פותח…' : 'פתח'}</button></div>
     </div>
   );

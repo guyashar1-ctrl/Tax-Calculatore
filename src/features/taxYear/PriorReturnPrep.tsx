@@ -10,7 +10,8 @@ import { applyTaxFacts } from '../../lib/taxFacts';
 import { clientFromDb } from '../../lib/dbMappers';
 import { PREP_TITLE, personLabel, priorReturnApply, priorReturnRows, rowEffect, type PrepPerson, type PrepRow, type PriorReading } from './priorReturn';
 import { findPriorReturnDocs, readPriorReturnDoc, readPriorReturnFile, type PriorDoc } from './priorReturnApi';
-import { publishAnnualAsks } from './workCreate';
+import { publishAnnualAsks, questionnaireBlocker } from './workCreate';
+import { QUESTIONNAIRE_OPEN } from './oneQuestionnaire';
 
 type Run = (fn: () => Promise<unknown>, done?: string) => Promise<boolean>;
 
@@ -56,6 +57,9 @@ export default function PriorReturnPrep({ client, year, stepId, busy, run, publi
 
   const publish = () => run(async () => {
     if (!reading) return publishPlain();
+    // ‼ 263 · יש ללקוח שאלון אחר פתוח ⇒ גם הכרטיס לא מתעדכן מהדוח הקודם — הכול נשאר לכשהשאלון הזה יוכל לצאת
+    const blocker = await questionnaireBlocker(client.id, { stepType: 'annual_return', stepId, taxYear: year });
+    if (blocker) return { ok: false, error: QUESTIONNAIRE_OPEN, openQuestionnaire: blocker };
     const { proposals, hints } = priorReturnApply(client, rows, reading.r, { year: prev, fileName: reading.fileName });
     let c = client;
     if (proposals.length) {
