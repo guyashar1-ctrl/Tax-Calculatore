@@ -103,7 +103,7 @@ export const TESTS: TestCase[] = [
       employers: [{ id: 'e1', name: 'ישראלי רובוטיקס' }, { id: 'e2', name: 'משרד ממשלתי לדוגמה', belongsToSpouse: true }] as Client['employers'] });
     const o = gridOf(c, { year: 2024, tiles: {}, spouseName: 'ישראלה' }).find(x => x.key === 'household.familyChange');
     assert(!!o?.preset, 'אריח האירוע לא מסומן');
-    equal(o?.label, 'ישראלה נפטר/ה');
+    equal(o?.label, 'ישראלה נפטרה'); // 20.10.2026 · בלי לוכסנים (gender.ts)
     const f = fus(o);
     equal(f.map(x => x.itemKey).join(','), 'family.death,family.deathIncome,family.deathPayouts,family.survivorPensions,family.deathDocs');
     const inc = f.find(x => x.itemKey === 'family.deathIncome');

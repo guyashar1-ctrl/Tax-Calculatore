@@ -186,9 +186,15 @@ const sameTarget = (f: { subjectRole: SubjectRole; entityRef?: string }, t: Targ
 /** 16.10.2026 · עובדה של משק הבית על פריט «לכל אדם» (בלי ישות) — מכסה את שני האנשים. */
 const coupleCovers = (f: { subjectRole: SubjectRole; entityRef?: string }, item: InfoItem, t: Target) =>
   f.subjectRole === 'couple' && item.per === 'person' && !t.entityRef && !f.entityRef && (t.subjectRole === 'client' || t.subjectRole === 'spouse');
+/**
+ * ‼ 20.10.2026 · ישות חדשה (מזהה זמני): מה שנשאל / נענה / הועלה לזוג על אותה ישות — מכסה את כל אחד מהם. אחרת «טופס 106 — מכל
+ *   מעסיק» (שניכם) לא סגר את ה-106 «של הלקוח» לאותו מעסיק חדש, והמשרד קיבל «עוד שאלה אחת» אחרי שהלקוח סיים.
+ */
+const provCovers = (f: { subjectRole: SubjectRole; entityRef?: string }, t: Target) =>
+  f.subjectRole === 'couple' && t.subjectRole !== 'couple' && !!t.entityRef && isProvisionalRef(t.entityRef) && f.entityRef === t.entityRef;
 /** שאלה ששאלה את הזוג «מי מכם?» מכסה את שני האנשים. */
 const askCovers = (a: { subjectRole: SubjectRole; entityRef?: string }, t: Target) =>
-  sameTarget(a, t) || (a.subjectRole === 'couple' && (t.subjectRole === 'client' || t.subjectRole === 'spouse') && !t.entityRef);
+  sameTarget(a, t) || (a.subjectRole === 'couple' && (t.subjectRole === 'client' || t.subjectRole === 'spouse') && !t.entityRef) || provCovers(a, t);
 
 const KNOWN_DEFAULT: Record<Purpose, FactBasis[]> = {
   estimate: ['actual', 'actual_to_date', 'forecast', 'final', 'declared', 'derived'],
@@ -363,11 +369,11 @@ export function buildYearPicture(inp: PictureInput): YearPicture {
 
     for (const t of targetsWithProvisional(item)) {
       // ‼ 16.10.2026 · מסך הרשת של זוג נשוי שומר את שאלת הפתיחה (ואת «של מי / איפה») לתפקיד 'couple' — עובדה כזו מכסה את שני האנשים
-      const tf = itemFacts.filter(f => sameTarget(f, t) || coupleCovers(f, item, t));
+      const tf = itemFacts.filter(f => sameTarget(f, t) || coupleCovers(f, item, t) || provCovers(f, t));
       // ‼ 20.10.2026 · מסמך שהועלה לשאלה של «שניכם» (מסך הרשת של זוג) מכסה את שני האנשים — בלי זה התבקש שוב מכל אחד
       const tev = item.docKind
         ? evidence.filter(e => e.docKind === item.docKind && (e.taxYear == null || e.taxYear === y)
-            && ((e.subjectRole === t.subjectRole && sameRef(e.entityRef, t.entityRef)) || coupleCovers(e, item, t)))
+            && ((e.subjectRole === t.subjectRole && sameRef(e.entityRef, t.entityRef)) || coupleCovers(e, item, t) || provCovers(e, t)))
         : [];
       const ask = asks.find(a => a.state !== 'cancelled' && a.state !== 'answered'
         && ((a.itemKey === item.key && askCovers(a, t))
@@ -637,7 +643,8 @@ export function buildYearPicture(inp: PictureInput): YearPicture {
   return {
     purpose, taxYear: y, statuses,
     // אישור מהכרטיס כשבכרטיס אין כלום — נשאל רק כשיש לו שאלה מובנית (whenEmpty); אחרת «לא ידוע», לא «אין אצלנו פרטים»
-    toAsk: statuses.filter(s => s.item.who === 'client' && s.state === 'missing' && (s.item.kind !== 'confirm' || !!s.item.whenEmpty)),
+    // ‼ 20.10.2026 · בדוח השנתי פריט עם annualVia נשאל רק כאפשרות במסך הבחירה שלו (לא «האם מתוך זה… דמי לידה?» לבד)
+    toAsk: statuses.filter(s => s.item.who === 'client' && s.state === 'missing' && (s.item.kind !== 'confirm' || !!s.item.whenEmpty) && !(purpose === 'annual' && s.item.annualVia)),
     toConfirm: statuses.filter(s => s.state === 'fromCard' && s.item.who === 'client'),
     toComplete: statuses.filter(s => s.state === 'partial' && s.item.who === 'client'),
     // מסמך שאושר ומחכה להזנת הסכומים ממנו — ראשון (המסמך כבר כאן)

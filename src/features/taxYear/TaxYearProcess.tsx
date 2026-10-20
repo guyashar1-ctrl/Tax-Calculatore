@@ -329,7 +329,9 @@ export default function TaxYearProcess({ client, step, infoStep, onClose, onChan
               ב«פירוט מלא» (הדמיה מאושרת docs/proposals/2026-10-19-simple-annual-questionnaire.html). */}
           {purpose === 'annual' && data && <AnnualSummary client={client} step={step} year={year} data={data} busy={busy} run={run} more={annualMore} onClientPersisted={onClientPersisted}
             legacy={legacyAnnual && isOpenStep(step) ? { reopen: () => run(() => reopenAnnualInNewVersion(client, step.id, year), `הבקשה הקודמת נסגרה ונשמרה בהיסטוריה, ונפתחה «דוח שנתי ${year}» חדשה — בשורה שלה ב«בקשות». בלי מייל.`) } : undefined}
-            officeTodo={picture.officeTodo.length ? { count: picture.officeTodo.length, open: () => { setPick('office'); setFullOpen(true); requestAnimationFrame(() => fullRef.current?.scrollIntoView({ block: 'start' })); } } : undefined} />}
+            officeTodo={picture.officeTodo.length ? { count: picture.officeTodo.length, open: () => { setPick('office'); setFullOpen(true); requestAnimationFrame(() => fullRef.current?.scrollIntoView({ block: 'start' })); } } : undefined}
+            statuses={picture.statuses} applyCard={applyCard}
+            openFull={() => { setPick(null); setFullOpen(true); requestAnimationFrame(() => fullRef.current?.scrollIntoView({ block: 'start' })); }} />}
           <FullDetails enabled={purpose === 'annual'} open={fullOpen} onToggle={setFullOpen} innerRef={fullRef}>
 
           {purpose === 'wealth' && <WealthDeclarationPanel client={client} step={step} payload={p} busy={busy} run={run} />}

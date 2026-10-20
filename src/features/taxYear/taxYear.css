@@ -523,3 +523,62 @@ button.rp-cell:disabled { cursor: default; }
 
 /* 20.10.2026 · «פתח כמו הלקוח» — בפינה, לא מתחרה בשלבים */
 .as-as-client { justify-self: end; }
+
+/* 20.10.2026 · דוח שנתי — «מה עליך לעשות»: רשימה אחת, שורה לכל פעולה (ההדמיה docs/proposals/2026-10-20-annual-questionnaire-v2.html, «אצלך») */
+.as-todo-h { margin: 0 0 6px; font-size: var(--fs-15); }
+.as-todo { list-style: none; margin: 0; padding: 0; border: 1px solid var(--bd); border-radius: var(--radius-lg); overflow: hidden; background: var(--surface-0); }
+.as-todo-row { display: flex; gap: 12px; align-items: center; padding: 11px 14px; border-top: 1px solid var(--bd); }
+.as-todo-row:first-child { border-top: 0; }
+.as-todo-ic { width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; flex-shrink: 0; background: var(--soft); color: var(--accent); font-size: var(--fs-12); font-weight: 700; }
+.as-todo-ic:empty::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.as-todo-row.is-ok .as-todo-ic { background: var(--ok-bg); color: var(--ok); }
+.as-todo-t { flex: 1; min-width: 0; }
+.as-todo-t > b { display: block; font-weight: 600; font-size: var(--fs-14); color: var(--ink-1); overflow-wrap: anywhere; }
+.as-todo-row.is-ok .as-todo-t > b { font-weight: 500; color: var(--ink-2); }
+.as-todo-t > small { display: block; margin-top: 1px; font-size: var(--fs-13); color: var(--ink-3); overflow-wrap: anywhere; }
+.as-todo-row > .btn { flex-shrink: 0; white-space: nowrap; }
+.as-todo-t .as-only-grid { margin-top: 8px; }
+.as-todo-sub { display: grid; gap: 6px; margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--bd); }
+.as-todo-sub label { display: flex; gap: 8px; align-items: flex-start; font-size: var(--fs-13); color: var(--ink-2); }
+.as-todo-sub input[type="checkbox"] { margin-top: 2px; accent-color: var(--accent); }
+.as-todo-skip { margin: 0; font-size: var(--fs-13); color: var(--ink-3); }
+.as-todo-link { padding: 0; border: 0; background: none; color: var(--accent); font: inherit; text-decoration: underline; cursor: pointer; }
+.as-todo-wait { margin: 0; padding: 10px 12px; border-radius: var(--radius); background: var(--warn-bg); color: var(--warn); font-size: var(--fs-13); }
+.as-todo-more > summary { cursor: pointer; color: var(--accent); font-weight: 600; font-size: var(--fs-13); }
+.as-todo-more[open] > summary { margin-bottom: 8px; }
+@media (max-width: 640px) {
+  .as-todo-row { flex-wrap: wrap; }
+  .as-todo-t { flex-basis: calc(100% - 36px); }
+  .as-todo-row > .btn { margin-inline-start: 36px; }
+}
+
+/* ── 20.10.2026 · שאלון הדוח השנתי — מחדש (AnnualFlow.tsx; docs/proposals/2026-10-20-annual-questionnaire-v2.html) ── */
+.ty-saved { color: var(--ok, #24654e); opacity: 0; transition: opacity 300ms ease; }
+.ty-saved.is-on { opacity: 1; }
+.ty-link { border: 0; background: none; padding: .2rem 0; color: var(--br); font: inherit; font-size: var(--fs-14); font-weight: 600; cursor: pointer; align-self: flex-start; }
+.ty-link:disabled { opacity: .5; cursor: default; }
+.ty-known-h, .ty-grid-h { margin: .2rem 0 0; font-size: var(--fs-13); font-weight: 700; color: var(--tx2); }
+.ty-known { margin: 0; border: 1px solid var(--bd); border-radius: 14px; background: var(--card); overflow: hidden; }
+.ty-known > div { display: flex; justify-content: space-between; gap: .75rem; padding: .6rem .85rem; border-top: 1px solid var(--bd); font-size: var(--fs-14); }
+.ty-known > div:first-child { border-top: 0; }
+.ty-known dt { color: var(--tx2); }
+.ty-known dd { margin: 0; font-weight: 600; text-align: end; }
+.ty-grid-wrap { display: flex; flex-direction: column; gap: .7rem; }
+.ty-grid-sec { display: flex; flex-direction: column; gap: .45rem; }
+.ty-tile.is-rich { position: relative; flex-direction: column; align-items: flex-start; gap: .35rem; min-height: 96px; padding: .7rem .7rem .6rem; text-align: start; }
+.ty-tile.is-rich .ty-tile-check { position: absolute; inset-inline-end: .55rem; top: .55rem; }
+.ty-tile-ic { width: 26px; height: 26px; color: var(--br); flex: none; }
+.ty-tile.is-rich b { font-size: var(--fs-14); line-height: 1.3; }
+.ty-tile-ex { font-size: var(--fs-12); font-weight: 400; color: var(--tx2); line-height: 1.35; }
+.ty-group-card { border: 1px solid var(--bd); border-radius: 14px; background: var(--card); padding: .7rem .8rem; display: flex; flex-direction: column; gap: .5rem; }
+.ty-group-who { margin: 0; font-size: var(--fs-13); font-weight: 700; color: var(--tx2); }
+.ty-review { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .5rem; }
+.ty-review-row { display: flex; justify-content: space-between; align-items: flex-start; gap: .75rem; border: 1px solid var(--bd); border-radius: 14px; background: var(--card); padding: .65rem .85rem; }
+.ty-review-row > div { display: flex; flex-direction: column; gap: .15rem; min-width: 0; font-size: var(--fs-14); color: var(--tx2); }
+.ty-review-row b { color: var(--tx); font-size: var(--fs-14); }
+.ty-review-row.is-missing { border-color: var(--danger, #9b2c2c); }
+.ty-owed-acts { display: flex; align-items: center; gap: .6rem; flex-shrink: 0; }
+.ty-owed-item.is-done { background: var(--ok-bg, #eaf4ef); border-color: #cfe8da; }
+.ty-done-tag { color: var(--ok, #24654e); font-weight: 600; font-size: var(--fs-13); flex-shrink: 0; }
+.ty-ours { margin: 0; font-size: var(--fs-13); color: var(--tx2); background: var(--s4, #efede9); border-radius: 12px; padding: .6rem .8rem; }
+@media (max-width: 380px) { .ty-tile.is-rich { min-height: 104px; } }

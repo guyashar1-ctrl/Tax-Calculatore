@@ -8,7 +8,7 @@ import { useEffect, useId, useMemo, useState } from 'react';
 import type { Client } from '../../types';
 import type { RecordSchemaId } from './types';
 import type { DatedValue } from './temporal';
-import { PRECISION_LABEL, schemaFor, validateRecord, type BankDirectory, type RecordAnswer, type RecordField, type RecordValue } from './records';
+import { PRECISION_LABEL, monthInKey, schemaFor, validateRecord, type BankDirectory, type RecordAnswer, type RecordField, type RecordValue } from './records';
 
 let dirPromise: Promise<BankDirectory | null> | null = null;
 /** רשימת הבנקים והסניפים — נטענת פעם אחת, רק כשיש שדה בנק. כשל טעינה ⇒ הזנה ידנית (לא חוסם). */
@@ -100,6 +100,24 @@ function Field({ f, r, err, dir, id, onChange }: { f: RecordField; r: RecordValu
         </div>
         {foot}
       </div>
+    );
+  }
+  if (f.type === 'monthIn' && f.year) {
+    // ‼ 20.10.2026 · חודש בשנת הדוח בלבד; «לפני» שומר את התאריך מהתיק כשהוא לפני השנה (לא ממציאים תאריך)
+    const Y = f.year;
+    const cur = monthInKey(v, Y, f.edge ?? 'start');
+    const pick = (k: string) => onChange({ [f.key]: k === '' ? undefined : k === 'before'
+      ? ((v as DatedValue | undefined)?.date && (v as DatedValue).date! < `${Y}-01-01` ? v : { precision: 'unknown' })
+      : { precision: 'month', date: `${Y}-${k}-01` } });
+    return (
+      <label className={cls} htmlFor={id}>
+        <span className="rec-label">{f.label}</span>
+        <select id={id} value={cur} aria-invalid={!!err} aria-describedby={describedBy} onChange={e => pick(e.target.value)}>
+          {f.edge === 'end' ? <option value="">עדיין שם</option> : <>{!cur && <option value="">בחירה…</option>}<option value="before">לפני {Y}</option></>}
+          {MONTHS_HE.map((m, i) => { const k = String(i + 1).padStart(2, '0'); return <option key={k} value={k}>{m} {Y}</option>; })}
+        </select>
+        {foot}
+      </label>
     );
   }
   if (f.type === 'dated') return <DatedField f={f} v={v as DatedValue | undefined} id={id} cls={cls} foot={foot} describedBy={describedBy} onChange={d => onChange({ [f.key]: d })} />;

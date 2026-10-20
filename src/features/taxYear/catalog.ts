@@ -87,6 +87,8 @@ export interface InfoItem {
   docKind?: DocKind;
   /** פריט שנשאל רק אחרי «כן» בשאלת הפתיחה הזו. */
   after?: string;
+  /** 20.10.2026 · בדוח השנתי לא נשאל לבד — הוא אפשרות במסך הבחירה הזה (למשל «דמי לידה» ב«מה שולם מביטוח לאומי?»). */
+  annualVia?: string;
   /** חריג: נפתח רק כשהמשרד מסמן אותו. */
   rare?: boolean;
   /** מפתחות בכרטיס שמהם ידוע משהו מראש (מתמשך — לאישור, לא לשאלה). */
@@ -177,9 +179,9 @@ export const ITEMS: InfoItem[] = [
     question: 'מקומות העבודה', why: 'מכל מעסיק נבקש אישור שנתי משלו', input: 'confirm', cardKeys: ['employers'], covers: { parts: ['ג', 'ב'] } },
   { key: 'salary.spouseIncomeEstimate', area: 'salary', label: 'אומדן הכנסת בן/בת הזוג (מהכרטיס)', kind: 'amount', per: 'person', who: 'office', purposes: BOTH, knownBasis: AMOUNT_KNOWN, rare: true },
   { key: 'salary.form106', area: 'salary', label: 'טופס 106', kind: 'document', per: 'employer', who: 'client', purposes: ['annual'], after: 'salary.worked',
-    question: 'האישור השנתי על המשכורת מ{entity}', why: 'נקרא «טופס 106» — המעסיק נותן אותו אחרי סוף השנה. ממנו נלקחים המשכורת, המס שנוכה וההפקדות', input: 'file', docKind: 'form106', knownBasis: DOC_KNOWN, covers: { parts: ['ג', 'יב', 'יד', 'טו'], annexItems: ['134.pensionDeposits', '134.studyFundDeposits', '134.severanceDeposits'] } },
+    question: 'טופס 106 מ{entity}', why: 'האישור השנתי שהמעסיק נותן אחרי סוף השנה («טופס 106») — המעסיק נותן אותו אחרי סוף השנה. ממנו נלקחים המשכורת, המס שנוכה וההפקדות', input: 'file', docKind: 'form106', knownBasis: DOC_KNOWN, covers: { parts: ['ג', 'יב', 'יד', 'טו'], annexItems: ['134.pensionDeposits', '134.studyFundDeposits', '134.severanceDeposits'] } },
   { key: 'salary.employerDetails', area: 'salary', label: 'מעסיק חדש: שם ותקופת העבודה', kind: 'detail', per: 'employer', who: 'client', purposes: BOTH, after: 'salary.worked', onlyNew: true,
-    question: 'פרטי מקום העבודה: שם המעסיק, ממתי ועד מתי עבדת שם השנה', why: 'כך נוסיף את המעסיק לתיק ונבקש ממנו את האישור השנתי', input: 'text',
+    question: 'מקום העבודה החדש ב-{year}', why: 'כך נוסיף את המעסיק לתיק ונבקש ממנו את האישור השנתי', input: 'text',
     officeNext: '«הוסף לתיק» — המעסיק נכנס לכרטיס עם אותו מזהה, והמסמך שהועלה נשאר משויך אליו' },
   { key: 'salary.payslipToDate', area: 'salary', label: 'תלוש אחרון עם נתונים מצטברים', kind: 'document', per: 'employer', who: 'client', purposes: ['estimate'], after: 'salary.worked',
     question: 'התלוש האחרון מ{entity}', why: 'בתלוש יש את הסכום המצטבר מתחילת השנה — כך מעריכים את השנה כולה', input: 'file', docKind: 'payslipToDate', knownBasis: DOC_KNOWN },
@@ -269,25 +271,25 @@ export const ITEMS: InfoItem[] = [
   { key: 'niBenefits.received', area: 'niBenefits', label: 'דמי לידה, מילואים, אבטלה או פגיעה בעבודה', kind: 'screener', per: 'person', who: 'client', purposes: BOTH,
     coupleQuestion: 'האם מישהו מכם קיבל השנה דמי לידה, תגמולי מילואים, דמי אבטלה או דמי פגיעה בעבודה?',
     question: 'האם {name} קיבל/ה השנה דמי לידה, תגמולי מילואים, דמי אבטלה או דמי פגיעה בעבודה?', why: 'כספים מביטוח לאומי חייבים במס כמו משכורת', input: 'yesno', covers: { parts: ['ג'] } },
-  { key: 'niBenefits.cert', area: 'niBenefits', label: 'אישור שנתי מביטוח לאומי', kind: 'document', per: 'person', who: 'client', purposes: BOTH, after: 'niBenefits.received',
+  { key: 'niBenefits.cert', area: 'niBenefits', label: 'אישור שנתי מביטוח לאומי', kind: 'document', per: 'person', who: 'office' /* ‼ 20.10.2026 גיא: «ביטוח לאומי זה משהו שאני מכניס כמייצג» */, purposes: BOTH, after: 'niBenefits.received',
     question: 'האישור השנתי מביטוח לאומי', why: 'באישור מופיעים הסכום והמס שנוכה', input: 'file', docKind: 'niAnnualCert', knownBasis: DOC_KNOWN, covers: { parts: ['ג', 'טו'] } },
   // ── דמי לידה (16.10.2026) — המקור: docs/tax-foundation/research/ni-benefits-withholding-2026-10-16.md (R04, C21/C24)
   //    ו-spreading-deferral-continuity-2026-10-16.md §3. שכירה/עצמאית — ידוע מהכרטיס, לא נשאל שוב.
   //    ‼ 105 ימים אינם קבועים (חלקי 56, הארכות, העברה לבן הזוג) — לכן שני תאריכים, מההודעה של ב״ל.
   //    ‼ הסכום: עצמאית ⇐ 250/270; שכירה שלא דרך המעסיק ⇐ 194/196; אם נכלל ב-106 ⇐ 158/172 (המשרד מכריע).
   //    ‼ המס שנוכה ⇐ 040 — פרשנות במחקר; הפרשים ששולמו מאוחר — פתוח (לא מפוצלים לבד).
-  { key: 'niBenefits.maternity', area: 'niBenefits', label: 'דמי לידה', kind: 'screener', per: 'person', who: 'client', purposes: BOTH, after: 'niBenefits.received',
+  { key: 'niBenefits.maternity', area: 'niBenefits', label: 'דמי לידה', kind: 'screener', per: 'person', who: 'client', purposes: BOTH, after: 'niBenefits.received', annualVia: 'niBenefits.kinds',
     question: 'האם מתוך זה {name} קיבל/ה דמי לידה?', coupleQuestion: 'האם מישהו מכם קיבל דמי לידה מביטוח לאומי?',
     why: 'כשדמי הלידה שולמו על ימים בשתי שנים, אפשר לחלק אותם בין השנים — ולפעמים זה מקטין את המס', input: 'yesno',
     covers: { parts: ['ג'], fields: ['250', '270', '194', '196'] },
     officeNext: 'לפי המעמד בכרטיס: עצמאית ⇐ 250/270; שכירה שלא דרך המעסיק ⇐ 194/196; אם שולם דרך המעסיק ונכלל ב-106 ⇐ 158/172' },
-  { key: 'niBenefits.maternityPeriod', area: 'niBenefits', label: 'דמי לידה: תקופת הזכאות', kind: 'detail', per: 'person', who: 'client', purposes: BOTH, after: 'niBenefits.maternity',
+  { key: 'niBenefits.maternityPeriod', area: 'niBenefits', label: 'דמי לידה: תקופת הזכאות', kind: 'detail', per: 'person', who: 'office' /* 20.10.2026 · מהודעת ב״ל — המשרד מוציא */, purposes: BOTH, after: 'niBenefits.maternity',
     question: 'מאיזה תאריך ועד איזה תאריך שולמו דמי הלידה?', why: 'לפי התאריכים יודעים אם התקופה עברה משנה לשנה', input: 'record',
     covers: { parts: ['ג'] }, officeNext: 'תקופה שחוצה את 31.12 — הצעת חלוקה בין השנים (פריט המשרד «פריסה בין שנות המס»)' },
-  { key: 'niBenefits.maternityAmounts', area: 'niBenefits', label: 'דמי לידה: סכום ומס שנוכה', kind: 'amount', per: 'person', who: 'client', purposes: ['annual'], after: 'niBenefits.maternity',
+  { key: 'niBenefits.maternityAmounts', area: 'niBenefits', label: 'דמי לידה: סכום ומס שנוכה', kind: 'amount', per: 'person', who: 'office' /* 20.10.2026 · מהאישור השנתי של ב״ל */, purposes: ['annual'], after: 'niBenefits.maternity',
     question: 'לפי האישור השנתי מביטוח לאומי — כמה דמי לידה שולמו, וכמה מס נוכה מהם?', why: 'הסכום והמס נכנסים לדוח, ובחלוקה בין שנים — שניהם מתחלקים', input: 'record',
     knownBasis: AMOUNT_KNOWN, covers: { parts: ['ג', 'טו'], fields: ['250', '270', '194', '196'] } },
-  { key: 'niBenefits.maternityNotice', area: 'niBenefits', label: 'הודעת ב״ל על חישוב דמי הלידה', kind: 'document', per: 'person', who: 'client', purposes: ['annual'], after: 'niBenefits.maternity',
+  { key: 'niBenefits.maternityNotice', area: 'niBenefits', label: 'הודעת ב״ל על חישוב דמי הלידה', kind: 'document', per: 'person', who: 'office' /* 20.10.2026 */, purposes: ['annual'], after: 'niBenefits.maternity',
     question: 'ההודעה מביטוח לאומי על חישוב דמי הלידה — זו שכתובים בה התאריכים «מ… עד…»', why: 'ממנה לוקחים את מספר הימים בכל שנה', input: 'file', docKind: 'niMaternityNotice',
     covers: { parts: ['ג'] } },
   // ‼ פריט המשרד — מופיע רק כשתקופת הזכאות חוצה את 31.12 (picture.ts). הצעת חלוקה יחסית לפי ימים (maternity.ts).
@@ -551,18 +553,40 @@ ITEMS.push(
 // ‼ מסך רשת אחד «מה היה לכם ב-{שנה}?» (asks.ts › ANNUAL_GRID_KEY), ולכל אריח שסומן נפתחות מיד שאלה או שתיים ומסמך —
 //   בלי סבב נוסף מול המשרד. פריטי הענף (אירוע משפחתי, פטירה) — בלי תכלית: הם לא נשאלים לבד, רק נפתחים מהרשת.
 //   השרת (_tax_year_items, 262) מכיר את כל המפתחות.
+// ‼ 20.10.2026 (גיא: «הניסוח ממש לא טוב… פנסיה זה הפקדה?») — שם עצם קצר + שורת דוגמה גלויה (ANNUAL_TILE_EXAMPLE),
+//   בהשראת «תיאום מס — הקלות מס» בשע״ם. קבלה ≠ הפקדה; «שינוי במשפחה» — הדוגמה לפי המצב בכרטיס (asks.ts › buildMultiEntry).
 const ANNUAL_TILES: Record<string, string> = {
-  'household.familyChange': 'נישואין, גירושין או פטירה במשפחה',
-  'salary.worked': 'משכורת', 'salary.equity': 'מניות או אופציות מהעבודה', 'pension.received': 'קצבה או פנסיה', 'niBenefits.received': 'כספים מביטוח לאומי',
-  'rent.newRental': 'השכרת דירה או נכס', 'rent.otherProperty': 'השכרת ציוד, רכב או קרקע', 'capital.newAccount': 'חיסכון או מניות בבנק',
-  'savings.selfDeposits': 'הפקדה פרטית לפנסיה', 'savings.insurance': 'ביטוח חיים פרטי', 'donations.given': 'תרומות',
+  'household.familyChange': 'שינוי במשפחה',
+  'salary.worked': 'משכורת', 'salary.equity': 'מניות או אופציות מהמעסיק', 'pension.received': 'קבלת פנסיה או קצבה', 'niBenefits.received': 'תשלום מביטוח לאומי',
+  'rent.newRental': 'השכרת דירה או נכס', 'rent.otherProperty': 'השכרת ציוד, רכב או קרקע', 'capital.newAccount': 'ריבית, פיקדון או מניות',
+  'savings.selfDeposits': 'הפקדה עצמאית לפנסיה', 'savings.insurance': 'ביטוח חיים פרטי', 'donations.given': 'תרומות',
   'special.disability': 'נכות או מחלה קשה', 'household.creditChanges': 'תואר, שחרור או מעבר דירה',
   'foreign.income': 'הכנסה או חשבון בחו״ל', 'sales.sold': 'מכירת דירה, מניות או קריפטו',
 };
+/** שורת הדוגמה מתחת לריבוע. */
+export const ANNUAL_TILE_EXAMPLE: Record<string, string> = {
+  'salary.worked': 'גם החלפת עבודה או עבודה נוספת', 'salary.equity': 'חלק מהשכר, גם בלי מכירה',
+  'pension.received': 'מקרן פנסיה, מהמדינה, קצבת שאירים', 'niBenefits.received': 'אבטלה, מילואים, דמי לידה, נכות',
+  'rent.newRental': 'בארץ או בחו״ל', 'rent.otherProperty': 'לא דירה', 'capital.newAccount': 'בבנק או בבית השקעות',
+  'savings.selfDeposits': 'לא דרך המשכורת', 'savings.insurance': 'לא דרך המשכורת', 'donations.given': 'לעמותה, עם קבלה',
+  'special.disability': 'אחוזי נכות, עם אישור', 'household.creditChanges': 'סיום לימודים, צבא או יישוב מזכה',
+  'foreign.income': 'עבודה, נכס או חשבון בנק', 'sales.sold': 'גם מכירה בהפסד',
+};
+/** הקבוצה במסך: מה שיכול להקטין את המס — השאר «כסף שנכנס». */
+export const ANNUAL_TILE_LESS = new Set(['savings.selfDeposits', 'savings.insurance', 'donations.given', 'special.disability', 'household.creditChanges', 'household.familyChange']);
 const NONE: Purpose[] = [];
 ITEMS.push(
   { key: 'annual.whatHappened', area: 'special', label: 'מה היה לכם בשנה (מסך הרשת)', kind: 'screener', per: 'couple', who: 'client', purposes: NONE, input: 'multi',
     question: 'מה היה לכם ב-{year}?', why: 'מה שתסמנו — נשאל עליו שאלה קצרה ונבקש את המסמך המתאים. מה שלא תסמנו — לא נשאל.' },
+  // ── 20.10.2026 · «מה שולם מביטוח לאומי?» — בחירה לכל אדם במקום «האם מתוך זה קיבל/ה דמי לידה?» (שנשאל גם אלמן — גיא, יריב).
+  //    האישור השנתי — המשרד מוציא (niBenefits.cert). «דמי לידה» כאן = העובדה niBenefits.maternity, כמו התשובה הישנה.
+  { key: 'niBenefits.kinds', area: 'niBenefits', label: 'מה שולם מביטוח לאומי', kind: 'detail', per: 'person', who: 'client', purposes: NONE, input: 'multi',
+    question: 'מה שולם מביטוח לאומי?', why: 'כל תשלום מביטוח לאומי נכנס לדוח. את האישור השנתי אנחנו מוציאים' },
+  { key: 'niBenefits.kindUnemployment', area: 'niBenefits', label: 'דמי אבטלה', kind: 'screener', per: 'person', who: 'client', purposes: NONE },
+  { key: 'niBenefits.kindReserve', area: 'niBenefits', label: 'תגמולי מילואים', kind: 'screener', per: 'person', who: 'client', purposes: NONE },
+  { key: 'niBenefits.kindInjury', area: 'niBenefits', label: 'דמי פגיעה בעבודה', kind: 'screener', per: 'person', who: 'client', purposes: NONE },
+  { key: 'niBenefits.kindDisability', area: 'niBenefits', label: 'קצבת נכות', kind: 'screener', per: 'person', who: 'client', purposes: NONE },
+  { key: 'niBenefits.kindOther', area: 'niBenefits', label: 'תשלום אחר מביטוח לאומי', kind: 'screener', per: 'person', who: 'client', purposes: NONE },
   // ── 20.10.2026 · מניות, אופציות ו-RSU מהעבודה (פער בבדיקת השלמות; נפוץ בהייטק) ──
   { key: 'salary.equity', area: 'salary', label: 'מניות, אופציות או RSU מהעבודה בשנה', kind: 'screener', per: 'person', who: 'client', purposes: ['annual'],
     question: 'האם {name} קיבל/ה מהעבודה מניות או אופציות — או מכר/ה כאלה השנה?',
@@ -634,7 +658,7 @@ ITEMS.push(
     officeNext: 'מזומן: קצבה ששולמה בשנה שאחרי, רטרואקטיבית — לדוח שנת התשלום; לבחון פריסה לאחור (8(ג)(3))' },
   { key: 'family.survivorDocsState', area: 'household', label: 'אישור שנתי מהגמלאות של המדינה על קצבת שאירים', kind: 'document', per: 'couple', who: 'client', purposes: NONE,
     question: 'האישור השנתי מהגמלאות של המדינה על קצבת השאירים — לכל מי שמקבל (גם לילדים)', why: 'כמה שולם, ממתי וכמה מס נוכה — לכל שאיר יש פטור משלו', input: 'file', docKind: 'allowanceCert' },
-  { key: 'family.survivorDocsBtl', area: 'household', label: 'אישור מביטוח לאומי על קצבת שאירים', kind: 'document', per: 'couple', who: 'client', purposes: NONE,
+  { key: 'family.survivorDocsBtl', area: 'household', label: 'אישור מביטוח לאומי על קצבת שאירים', kind: 'document', per: 'couple', who: 'office', purposes: ['annual'], after: 'family.survivorFromBtl' /* 20.10.2026 · המשרד מוציא */,
     question: 'האישור מביטוח לאומי על קצבת השאירים', why: 'קצבת שאירים מביטוח לאומי פטורה — האישור לתיעוד בדוח', input: 'file', docKind: 'allowanceCert' },
   { key: 'family.severanceDocs', area: 'household', label: 'טופס 161 ו-161ב (פיצויים בגלל פטירה)', kind: 'document', per: 'couple', who: 'client', purposes: NONE,
     question: 'הטופס מהמעסיק על הפיצויים בגלל הפטירה, וחלק ב׳ שמילאתם — ואם יש, תשובת פקיד השומה', why: 'נקרא «טופס 161». פיצויים בגלל פטירה פטורים עד כפל התקרה — רק דרך הטופס', input: 'file', docKind: 'severanceDocs',

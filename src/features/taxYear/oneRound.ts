@@ -13,6 +13,13 @@ import { buildAskPlan, answerToFacts, GRID_KEYS, type AskCtx, type AskPlanEntry,
 import type { AskPrompt, InfoAsk, MultiFollowUp, YearFact } from './types';
 
 const identity = (a: { itemKey: string; subjectRole: string; entityRef?: string }) => `${a.itemKey}|${a.subjectRole}|${a.entityRef ?? ''}`;
+/**
+ * ‼ 20.10.2026 · ישות חדשה (מזהה זמני «-new-»): מה שכבר נשאל עליה — לא נשאל שוב בתפקיד אחר. האריח «משכורת» לזוג פותח
+ *   «טופס 106 — מכל מעסיק» (שניכם); ההקדמה הוסיפה לאותו מעסיק חדש עוד 106 «של {לקוח}» — ובסוף שני מסמכים זהים (גיא, דין).
+ */
+const entityKey = (a: { itemKey: string; entityRef?: string }) => (a.entityRef && /-new-/.test(a.entityRef) ? `${a.itemKey}|*|${a.entityRef}` : '');
+const isTaken = (taken: Set<string>, a: { itemKey: string; subjectRole: string; entityRef?: string }) => taken.has(identity(a)) || (!!entityKey(a) && taken.has(entityKey(a)));
+const withEntity = (list: { itemKey: string; subjectRole: string; entityRef?: string }[]) => list.flatMap(a => [identity(a), ...(entityKey(a) ? [entityKey(a)] : [])]);
 
 /** איזו תשובה היא «כן» לשאלה הזו — או null כשאין לה המשך. ‼ אותו כלל כמו בשרת (264) וב-answerToFacts. */
 export function yesAnswerOf(p: AskPrompt): AskAnswer | null {
@@ -45,12 +52,12 @@ const toFollowUp = (e: AskPlanEntry): MultiFollowUp =>
  */
 function speculate(inp: PictureInput, ctx: AskCtx, facts: YearFact[], asks: InfoAsk[], taken: Set<string>, depth: number): MultiFollowUp[] {
   const pic = buildYearPicture({ ...inp, facts, asks });
-  const fresh = [...pic.toConfirm, ...pic.toAsk].filter(s => !isGridMaterial(s) && !taken.has(identity({ itemKey: s.item.key, subjectRole: s.subjectRole, entityRef: s.entityRef === 'new' ? undefined : s.entityRef })));
+  const fresh = [...pic.toConfirm, ...pic.toAsk].filter(s => !isGridMaterial(s) && !isTaken(taken, { itemKey: s.item.key, subjectRole: s.subjectRole, entityRef: s.entityRef === 'new' ? undefined : s.entityRef }));
   if (!fresh.length) return [];
-  const plan = buildAskPlan(fresh, ctx).filter(e => !GRID_KEYS.includes(e.itemKey) && !taken.has(identity(e)));
+  const plan = buildAskPlan(fresh, ctx).filter(e => !GRID_KEYS.includes(e.itemKey) && !isTaken(taken, e));
   if (!plan.length) return [];
   const planned = plan.map(e => fakeAsk(e, ctx));
-  const nextTaken = new Set([...taken, ...plan.map(identity)]);
+  const nextTaken = new Set([...taken, ...withEntity(plan)]);
   const nextAsks = [...asks, ...planned];
   return plan.map((e, i) => {
     const yes = depth > 1 ? yesAnswerOf(e.prompt) : null;
@@ -68,13 +75,15 @@ export function withOneRound(plan: AskPlanEntry[], inp: PictureInput, ctx: AskCt
   if (ctx.purpose !== 'annual' || !plan.length) return plan;
   const planned = plan.map(e => fakeAsk(e, ctx));
   const asks = [...inp.asks, ...planned];
-  const taken = new Set([...inp.asks.filter(a => a.state !== 'cancelled').map(identity), ...plan.map(identity)]);
+  const taken = new Set([...withEntity(inp.asks.filter(a => a.state !== 'cancelled')), ...withEntity(plan)]);
   return plan.map((e, i) => {
     const inpE = e.prompt.input;
     if (inpE.kind === 'multi') {
       const options = inpE.options.map(o => {
         const existing = [...(o.followUp ? [o.followUp] : []), ...(o.followUps ?? [])];
-        const optTaken = new Set([...taken, ...existing.map(identity)]);
+        // ‼ 20.10.2026 · מה שכבר אפשרות במסך בחירה שנפתח מהאריח («דמי לידה» ב«מה שולם מביטוח לאומי?») — לא נשאל שוב לבד
+        const asOptions = existing.flatMap(f => (f.prompt.input.kind === 'multi' ? f.prompt.input.options.map(x => identity({ itemKey: x.key, subjectRole: x.role })) : []));
+        const optTaken = new Set([...taken, ...withEntity(existing), ...asOptions]);
         const optAsks = [...asks, ...existing.map(f => fakeAsk(f, ctx))];
         const yesFacts = asFacts(answerToFacts(planned[i], { kind: 'multi', selected: [o.key] }, ctx, inp.today).facts.filter(f => f.itemKey === o.key));
         const more = speculate(inp, ctx, [...inp.facts, ...yesFacts], optAsks, optTaken, depth);

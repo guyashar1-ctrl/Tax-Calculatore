@@ -89,9 +89,11 @@ async function runWidth(width) {
     const addBtn = page.getByRole('button', { name: /＋ בקשה חדשה/ }).first();
     await addBtn.waitFor({ timeout: 40000 });
     await addBtn.click();
+    await page.locator('[data-tax-file-toggle]').click(); // «תיק המס» נפתחת; דוח שנתי מסומן מראש
     const one = page.locator('[data-annual-one-click]');
     await one.waitFor({ timeout: 15000 });
-    ok((await text(one)).includes(`דוח שנתי ${YEAR}`) && (await text(one)).includes('קודם מבט שלך'), 'הכפתור «דוח שנתי 2025» אומר שכשיש דוח קודם — קודם מבט שלך', await text(one));
+    // ‼ 21.10.2026 · שורה אחת «תיק המס» — דוח שנתי מסומן מראש, «פתח» (ההסבר הארוך ירד — «כמה שפחות מילים»)
+    ok((await text(page.locator('.ar-kind, label', { hasText: 'דוח שנתי' }).first())).includes('דוח שנתי') && (await text(one)) === 'פתח', '«תיק המס» ← דוח שנתי מסומן ← «פתח»', await text(one));
 
     // 1א · 263 «לקוח אחד = שאלון אחד פתוח»: ל-prepare() יש שאלון קליטה ישן שפורסם ⇒ הבקשה לא נפתחת, ההודעה והקישור לשורה שלו
     await one.click();
@@ -110,6 +112,7 @@ async function runWidth(width) {
     await page.reload({ waitUntil: 'domcontentloaded' });
     await addBtn.waitFor({ timeout: 40000 });
     await addBtn.click();
+    await page.locator('[data-tax-file-toggle]').click();
     await one.waitFor({ timeout: 15000 });
     await one.click();
     const prep = page.locator('[data-prior-prep]');

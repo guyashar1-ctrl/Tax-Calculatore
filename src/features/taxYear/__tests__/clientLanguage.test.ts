@@ -18,7 +18,8 @@ const JARGON = new RegExp([String.raw`(?:^|[^\d])\d{3,4}(?:[^\d%]|$)`, String.ra
 
 export const TESTS: TestCase[] = [
   test('אף שאלה ללקוח אינה כוללת קוד טופס או מונח מס', () => {
-    const bad = texts.filter(t => JARGON.test(t.q.replace(/\{[^}]+\}/g, '')));
+    // ‼ 20.10.2026 · גיא: «שהשמות יהיו יותר ברורים — למשל 106 מ-X». «טופס 106» מוכר לכל שכיר — חריג אחד ויחיד.
+    const bad = texts.filter(t => JARGON.test(t.q.replace(/\{[^}]+\}/g, '').replace(/^טופס 106 /, '')));
     equal(bad.map(b => `${b.key}: ${b.q}`).join('\n'), '');
   }),
   test('שם הטופס עבר להסבר — 106, 867, 126', () => {

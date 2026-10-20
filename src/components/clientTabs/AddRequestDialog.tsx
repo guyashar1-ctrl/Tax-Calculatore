@@ -42,15 +42,15 @@ import PreviewButton from '../../features/requestPreview/PreviewButton';
 import RequestPreviewSheet from '../../features/requestPreview/RequestPreviewSheet';
 import { CATALOG_TYPES, type CatalogType, type PreviewTarget } from '../../features/requestPreview/targets';
 import { EMPTY_FIRM_PROFILE, composerPreviewOfTemplate } from './InlineComposer';
-import TaxYearRequestForm from '../../features/taxYear/TaxYearRequestForm';
-import { openAnnualReturn } from '../../features/taxYear/workCreate';
+import { openAnnualReturn, questionnaireBlocker } from '../../features/taxYear/workCreate';
+import { ensureTaxFileIntake, ensureWealthDeclaration, ensureYearRequest } from '../../features/taxYear/api';
+import { MONTHS } from '../../features/taxYear/asks';
+import type { Purpose } from '../../features/taxYear/types';
 import QuestionnaireOpenNotice from '../../features/taxYear/QuestionnaireOpenNotice';
-import type { OpenQuestionnaire } from '../../features/taxYear/oneQuestionnaire';
+import type { OpenQuestionnaire, QuestionnaireTarget } from '../../features/taxYear/oneQuestionnaire';
 import { findPriorReturnDocs } from '../../features/taxYear/priorReturnApi';
 import { AVAILABLE } from '../../features/taxKnowledge/availability';
 import type { ClientFormKey } from '../../features/smartForms/clientForms/types';
-
-const TAX_YEAR_ENTRY = AVAILABLE.taxEstimate ? 'תיק המס · קליטה, הערכה, דוח שנתי או הצהרת הון' : 'תיק המס · קליטה, דוח שנתי או הצהרת הון';
 
 /** מה אפשר להוסיף ידנית. שלב הייצוג אינו כאן — הוא מסונכרן מבקשת הייצוג.
  *  'paperless_sequence', 'prev_accountant_track' ו-'bank_debit' אינם סוגי
@@ -237,7 +237,7 @@ export default function AddRequestDialog({ clientId, steps, processPublished, aw
   }, []);
   /** יש בכלל קליטה שאפשר לחסום את סגירתה. */
   const requiredApplies = intakeAcceptsRequired(intake);
-  const [mode, setMode] = useState<'catalog' | 'custom' | 'documents' | 'bank' | 'document' | 'authority_rep' | 'tax_year'>(
+  const [mode, setMode] = useState<'catalog' | 'custom' | 'documents' | 'bank' | 'document' | 'authority_rep'>(
     presetDocuments?.length ? 'document' : 'catalog');
   const [busy, setBusy] = useState(false);
   const [authRepBusyRole, setAuthRepBusyRole] = useState<'client' | 'spouse' | null>(null);
@@ -811,7 +811,6 @@ export default function AddRequestDialog({ clientId, steps, processPublished, aw
               : mode === 'bank' ? BANK_DEBIT_TITLE
               : mode === 'document' ? 'שליחת מסמכים ללקוח'
               : mode === 'authority_rep' ? 'ייצוג ברשות - לאדם'
-              : mode === 'tax_year' ? TAX_YEAR_ENTRY
               : 'מסמכים מהלקוח'}
           </h3>
           <button type="button" className="btn btn-sm btn-ghost" onClick={onClose} aria-label="סגירה">✕</button>
@@ -844,43 +843,11 @@ export default function AddRequestDialog({ clientId, steps, processPublished, aw
             )
           )}
 
-          {/* ‼ 19.10.2026 · «דוח שנתי {שנה}» — אפשרות ראשית, לחיצה אחת: הבקשה נפתחת והשאלון הקצר עולה לדף של הלקוח (בלי מייל). */}
-          {mode === 'catalog' && !presetType && onOpenTaxYear && client && (() => {
-            const annualYear = new Date().getFullYear() - 1;
-            const openAnnual = steps.find(s => s.stepType === 'annual_return' && Number((s.payload as { taxYear?: number }).taxYear) === annualYear
-              && !['completed', 'verified', 'skipped', 'cancelled', 'failed'].includes(s.status));
-            return (
-              <button type="button" disabled={busy} className="ar-primary" data-annual-one-click
-                style={{ display: 'flex', flexDirection: 'column', gap: '.15rem', alignItems: 'flex-start', textAlign: 'start', width: '100%', padding: '.7rem .8rem', border: '1px solid var(--accent)', borderRadius: 'var(--radius)', background: 'var(--soft)', cursor: 'pointer', marginBottom: '.5rem' }}
-                onClick={async () => {
-                  if (openAnnual) { onOpenTaxYear(openAnnual.id); onClose(); return; }
-                  setBusy(true); setError(null); setQOpen(null);
-                  // ‼ יש במסמכים את הדוח של שנה שעברה ⇒ הבקשה נפתחת בלי לפרסם, ובדף הבקשה — «לפני השליחה»
-                  const prior = await findPriorReturnDocs(client.id, annualYear).catch(() => []);
-                  const r = await openAnnualReturn(client, annualYear, { holdForPriorReturn: prior.length > 0 });
-                  setBusy(false);
-                  if (!r.ok && r.openQuestionnaire) { setQOpen(r.openQuestionnaire); if (r.stepId) onCreated(); return; }
-                  if (!r.ok || !r.stepId) { setError(r.error === 'forbidden' ? 'אין הרשאה ללקוח הזה' : `הפתיחה נכשלה (${r.error ?? 'שגיאה'})`); if (r.stepId) onCreated(); return; }
-                  onCreated(); onOpenTaxYear(r.stepId); onClose();
-                }}>
-                <span style={{ fontWeight: 700 }}>{busy ? 'פותח…' : `דוח שנתי ${annualYear}`}</span>
-                <span style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)' }}>
-                  {openAnnual ? 'כבר פתוח — לפתיחת הבקשה' : `שאלון קצר עולה לדף של ${client.firstName || 'הלקוח'}: מה ידוע, מה היה ב-${annualYear}, ואילו מסמכים צריך. כשהדוח של ${annualYear - 1} במסמכים — קודם מבט שלך עליו. בלי מייל.`}
-                </span>
-              </button>
-            );
-          })()}
+          {/* ‼ 20.10.2026 · שורה אחת «תיק המס» — נפתחת במקום ובוחרת סוג עבודה. דוח שנתי = לחיצה אחת (בלי מייל). */}
           {mode === 'catalog' && !presetType && onOpenTaxYear && (
-            <button type="button" disabled={busy} style={{ display: 'flex', flexDirection: 'column', gap: '.15rem', alignItems: 'flex-start', textAlign: 'start', width: '100%', padding: '.6rem .75rem', border: '1px solid var(--soft-bd)', borderRadius: 'var(--radius)', background: 'var(--soft)', cursor: 'pointer' }}
-              onClick={() => setMode('tax_year')}>
-              <span style={{ fontWeight: 600 }}>{TAX_YEAR_ENTRY}</span>
-              <span style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)' }}>מה ידוע מהתיק, מה חסר, ושאלות ומסמכים ללקוח רק על החסר — בדף האישי</span>
-            </button>
-          )}
-          {mode === 'tax_year' && onOpenTaxYear && (
-            <TaxYearRequestForm clientId={clientId} firstName={client?.firstName}
-              onOpenRequest={onOpenRequest ? id => { onOpenRequest(id); onClose(); } : undefined}
-              onOpened={id => { onCreated(); onOpenTaxYear(id); onClose(); }} />
+            <TaxFileRow clientId={clientId} client={client} steps={steps} busy={busy}
+              setBusy={setBusy} setError={setError} setQOpen={setQOpen}
+              onCreated={onCreated} onOpenTaxYear={onOpenTaxYear} onClose={onClose} />
           )}
 
           {mode === 'catalog' && !presetType && (
@@ -1496,6 +1463,125 @@ const pickRow: React.CSSProperties = {
   border: 'none', background: 'transparent', font: 'inherit',
   fontSize: 'var(--fs-13)', color: 'var(--ink-1)', cursor: 'pointer', width: '100%',
 };
+
+const ICON_TAX = (
+  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ flex: 'none', color: 'var(--ink-3)' }}>
+    <path d="M6 3h9l4 4v14H6z" /><path d="M15 3v4h4M9 12h7M9 16h5" />
+  </svg>
+);
+
+/** «תיק המס» ב«בקשה חדשה»: שורה כמו שאר הקטלוג; נפתחת לבחירת סוג עבודה (דוח שנתי מסומן מראש) ושנה/תאריך. */
+function TaxFileRow({ clientId, client, steps, busy, setBusy, setError, setQOpen, onCreated, onOpenTaxYear, onClose }: {
+  clientId: string; client?: Client; steps: OnboardingStep[]; busy: boolean;
+  setBusy: (b: boolean) => void; setError: (e: string | null) => void; setQOpen: (q: OpenQuestionnaire | null) => void;
+  onCreated: () => void; onOpenTaxYear: (stepId: string) => void; onClose: () => void;
+}) {
+  const now = new Date();
+  const thisYear = now.getFullYear();
+  const annualYear = thisYear - 1;
+  const lastClosedMonth = now.getMonth() === 0 ? 12 : now.getMonth();
+  const [open, setOpen] = useState(false);
+  const [kind, setKind] = useState<Purpose>('annual');
+  const [year, setYear] = useState(annualYear);
+  const [asOf, setAsOf] = useState(`${annualYear}-12-31`);
+  const [wKind, setWKind] = useState<'' | 'first' | 'followup'>('');
+  const [cutoff, setCutoff] = useState(lastClosedMonth);
+
+  const kinds: [Purpose, string][] = [['annual', 'דוח שנתי'], ['intake', 'קליטה והשלמת תיק'],
+    ...(AVAILABLE.taxEstimate ? [['estimate', 'הערכת מס'] as [Purpose, string]] : []), ['wealth', 'הצהרת הון']];
+  const years = kind === 'estimate' ? [thisYear, thisYear - 1] : [thisYear - 1, thisYear - 2, thisYear - 3];
+  const pick = (k: Purpose) => { setKind(k); if (k === 'estimate') setYear(thisYear); else if (k === 'annual') setYear(annualYear); };
+
+  const openAnnual = steps.find(st => st.stepType === 'annual_return' && Number((st.payload as { taxYear?: number }).taxYear) === annualYear
+    && !['completed', 'verified', 'skipped', 'cancelled', 'failed'].includes(st.status));
+  const alreadyOpen = kind === 'annual' && year === annualYear && !!openAnnual;
+
+  const done = (stepId: string) => { onCreated(); onOpenTaxYear(stepId); onClose(); };
+  const submit = async () => {
+    // דוח שנתי לשנה שעברה — בדיוק מסלול הלחיצה האחת: פתיחה, והחזקה בלי פרסום כשהדוח הקודם במסמכים.
+    if (kind === 'annual' && year === annualYear && client) {
+      if (openAnnual) { onOpenTaxYear(openAnnual.id); onClose(); return; }
+      setBusy(true); setError(null); setQOpen(null);
+      const prior = await findPriorReturnDocs(client.id, annualYear).catch(() => []);
+      const r = await openAnnualReturn(client, annualYear, { holdForPriorReturn: prior.length > 0 });
+      setBusy(false);
+      if (!r.ok && r.openQuestionnaire) { setQOpen(r.openQuestionnaire); if (r.stepId) onCreated(); return; }
+      if (!r.ok || !r.stepId) { setError(r.error === 'forbidden' ? 'אין הרשאה ללקוח הזה' : `הפתיחה נכשלה (${r.error ?? 'שגיאה'})`); if (r.stepId) onCreated(); return; }
+      done(r.stepId);
+      return;
+    }
+    setBusy(true); setError(null); setQOpen(null);
+    if (kind === 'wealth' && !asOf) { setBusy(false); setError('חסר יום הצהרה'); return; }
+    // ‼ 263 · לקוח אחד = שאלון אחד פתוח
+    const target: QuestionnaireTarget = kind === 'intake' ? { stepType: 'tax_file_intake' }
+      : kind === 'wealth' ? { stepType: 'wealth_declaration', asOfDate: asOf }
+      : { stepType: kind === 'estimate' ? 'tax_estimate' : 'annual_return', taxYear: year };
+    const blocker = await questionnaireBlocker(clientId, target);
+    if (blocker) { setBusy(false); setQOpen(blocker); return; }
+    const r = kind === 'intake' ? await ensureTaxFileIntake(clientId)
+      : kind === 'wealth' ? await ensureWealthDeclaration(clientId, asOf, wKind || undefined)
+      : await ensureYearRequest(clientId, kind, year, kind === 'estimate' ? cutoff : undefined);
+    setBusy(false);
+    if (!r.ok) { setError(r.error === 'forbidden' ? 'אין הרשאה ללקוח הזה' : `הפתיחה נכשלה (${r.error})`); return; }
+    done(r.stepId);
+  };
+
+  return (
+    <div style={{ border: '1px solid var(--hairline-2)', borderRadius: 'var(--radius)' }}>
+      <button type="button" disabled={busy} data-tax-file-toggle aria-expanded={open} aria-controls="ar-taxfile-panel"
+        onClick={() => setOpen(o => !o)}
+        style={{ ...rowBtn, border: 'none', flexDirection: 'row', alignItems: 'center', gap: '.55rem' }}>
+        {ICON_TAX}
+        <span style={{ display: 'flex', flexDirection: 'column', gap: '.15rem', flex: 1, minWidth: 0 }}>
+          <span style={{ fontWeight: 600 }}>תיק המס</span>
+          <span style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)' }}>דוח שנתי, קליטה, הערכה או הצהרת הון</span>
+        </span>
+        <span aria-hidden="true" style={{ color: 'var(--ink-4)' }}>{open ? '▴' : '▾'}</span>
+      </button>
+      {open && (
+        <div id="ar-taxfile-panel" style={{ display: 'flex', flexDirection: 'column', gap: '.55rem', padding: '.1rem .7rem .7rem' }}>
+          <div role="radiogroup" aria-label="מה פותחים" style={{ display: 'flex', flexDirection: 'column', gap: '.15rem' }}>
+            {kinds.map(([v, l]) => (
+              <label key={v} style={{ display: 'flex', alignItems: 'center', gap: '.5rem', padding: '.3rem .2rem', fontSize: 'var(--fs-13)', cursor: 'pointer' }}>
+                <input type="radio" name="ar-taxfile-kind" checked={kind === v} onChange={() => pick(v)} />
+                <span>{l}</span>
+                {v === 'annual' && <small style={{ color: 'var(--ink-4)' }}>{annualYear} · מומלץ</small>}
+              </label>
+            ))}
+          </div>
+          {kind !== 'intake' && (
+            <div style={{ display: 'flex', gap: '.6rem', flexWrap: 'wrap', alignItems: 'center', fontSize: 'var(--fs-13)' }}>
+              {kind === 'wealth' ? (<>
+                <label>יום ההצהרה{' '}<input type="date" value={asOf} onChange={e => setAsOf(e.target.value)} style={{ minHeight: 34 }} /></label>
+                <label>סוג{' '}
+                  <select value={wKind} onChange={e => setWKind(e.target.value as '' | 'first' | 'followup')} style={{ minHeight: 34 }}>
+                    <option value="">לפי ההצהרות שבתיק</option><option value="first">ראשונה</option><option value="followup">המשך</option>
+                  </select>
+                </label>
+              </>) : (
+                <label>שנת מס{' '}
+                  <select value={year} onChange={e => setYear(Number(e.target.value))} style={{ minHeight: 34 }}>{years.map(y => <option key={y} value={y}>{y}</option>)}</select>
+                </label>
+              )}
+              {kind === 'estimate' && (
+                <label>נתוני אמת עד סוף{' '}
+                  <select value={cutoff} onChange={e => setCutoff(Number(e.target.value))} style={{ minHeight: 34 }}>
+                    {MONTHS.slice(1).map((m, k) => <option key={k + 1} value={k + 1}>{m}</option>)}
+                  </select>
+                </label>
+              )}
+            </div>
+          )}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '.6rem' }}>
+            <button type="button" className="btn btn-primary" disabled={busy} data-annual-one-click={kind === 'annual' ? '' : undefined}
+              onClick={() => void submit()}>{busy ? 'פותח…' : 'פתח'}</button>
+            {alreadyOpen && <small style={{ color: 'var(--ink-3)' }}>כבר פתוח</small>}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 const rowBtn: React.CSSProperties = {
   display: 'flex', flexDirection: 'column', gap: '.15rem', alignItems: 'flex-start',

@@ -6,7 +6,8 @@
 // ‼ תשובה להערכה נשמרת עם התקופה שלה (ינואר עד החתך), ולכן בדוח השנתי היא חלקית.
 
 import type { Client } from '../../types';
-import { AREA_BY_ID, ITEMS, ITEM_BY_KEY, type InfoItem, CATALOG_VERSION } from './catalog';
+import { AREA_BY_ID, ITEMS, ITEM_BY_KEY, type InfoItem, CATALOG_VERSION, ANNUAL_TILE_EXAMPLE, ANNUAL_TILE_LESS } from './catalog';
+import { genderize, genderOf, addresseeOf } from './gender';
 import { DOCS, followUpFor } from './documents';
 import { PROVISIONAL, provisionalRef, type ItemStatus } from './picture';
 import type { AskPrompt, EntityKind, FactAnswer, FactBasis, InfoAsk, MultiFollowUp, MultiOption, PeriodKind, Purpose, SubjectRole, UnavailableCode, YearFact } from './types';
@@ -36,7 +37,7 @@ export function cardLines(item: InfoItem, c: Client, s: Pick<ItemStatus, 'subjec
     case 'household.maritalAtYearEnd':
       return [`${familyWord(c)}${familyStatusEventYear(c) ? ` מ-${familyStatusEventYear(c)}` : ''}${c.familyStatus === 'married' && (c.spouseFirstName || c.spouse?.firstName) ? ` · ${c.spouseFirstName || c.spouse?.firstName}` : ''}`];
     case 'household.children':
-      return (c.children ?? []).map(ch => `${ch.firstName || 'ילד/ה'} — נולד/ה ב-${ch.birthYear}`);
+      return (c.children ?? []).map(ch => `${ch.firstName || 'ילד'} — שנת לידה ${ch.birthYear}`);
     case 'household.settlement':
       return [c.city ? `גר/ה ב${c.city}` : 'יישוב המגורים'];
     case 'household.degree': {
@@ -73,7 +74,7 @@ export function cardLines(item: InfoItem, c: Client, s: Pick<ItemStatus, 'subjec
       return [
         `${[c.firstName, c.lastName].filter(Boolean).join(' ')}`,
         ...(c.familyStatus === 'married' ? [`${c.spouseFirstName || c.spouse?.firstName || 'בן/בת הזוג'} (בן/בת זוג)`] : []),
-        ...(c.children ?? []).map(ch => `${ch.firstName || 'ילד/ה'} — נולד/ה ב-${ch.birthYear}`),
+        ...(c.children ?? []).map(ch => `${ch.firstName || 'ילד'} — שנת לידה ${ch.birthYear}`),
       ].filter(Boolean);
     case 'wealth.realEstate.list':
       return only(c.properties ?? []).map(p => `${[p.address, p.city].filter(Boolean).join(', ')}${propDates(p as never)}${p.isRented ? ' · מושכר' : ''}`);
@@ -87,7 +88,7 @@ export function cardLines(item: InfoItem, c: Client, s: Pick<ItemStatus, 'subjec
     case 'intake.family':
       return [`${familyWord(c)}${familyStatusEventYear(c) ? ` מ-${familyStatusEventYear(c)}` : ''}${c.familyStatus === 'married' && (c.spouseFirstName || c.spouse?.firstName) ? ` · ${c.spouseFirstName || c.spouse?.firstName}` : ''}`];
     case 'intake.children':
-      return (c.children ?? []).map(ch => `${ch.firstName || 'ילד/ה'} — נולד/ה ב-${ch.birthYear}`);
+      return (c.children ?? []).map(ch => `${ch.firstName || 'ילד'} — שנת לידה ${ch.birthYear}`);
     case 'intake.address':
       return c.city || c.address ? [[c.address, c.city].filter(Boolean).join(', ') + (c.zipCode ? ` · מיקוד ${c.zipCode}` : '')] : [];
     case 'intake.settlement':
@@ -134,7 +135,25 @@ export function fillTemplate(t: string, c: Client, role: string): string {
 }
 
 /** הטקסט ללקוח לפריט — כולל הנושא בכותרת כשהשאלה על בן/בת הזוג. */
+/**
+ * ‼ 20.10.2026 · בלי לוכסנים (gender.ts): הכותרת, ההסבר וה«למה» — לפי המין של מי שעליו השאלה; בשאלה לזוג שמזכירה את
+ *   בן/בת הזוג («מתי רחל נפטרה?») — לפי בן/בת הזוג. addressee — איך פונים ללקוח בכפתורים («לא בטוח» / «לא בטוחה» / «לא בטוחים»).
+ */
+export function voice(p: AskPrompt, c: Client, role: string): AskPrompt {
+  const sp = c.spouseFirstName || c.spouse?.firstName;
+  const g = (t: string) => genderOf(c, role === 'spouse' || (role === 'couple' && !!sp && t.includes(sp)) ? 'spouse' : 'client');
+  const v = (t?: string) => (t ? genderize(t, g(t)) : t);
+  const addressee = addresseeOf(c);
+  const unsure = addressee === 'm' ? 'לא בטוח' : addressee === 'f' ? 'לא בטוחה' : 'לא בטוחים';
+  const input = p.input.kind === 'choice' ? { ...p.input, options: p.input.options.map(o => ({ ...o, label: o.label === 'לא בטוח/ה' ? unsure : v(o.label)! })) } : p.input;
+  return { ...p, title: v(p.title)!, why: v(p.why) ?? '', ...(p.hint ? { hint: v(p.hint) } : {}), input, addressee };
+}
+
 export function promptFor(s: ItemStatus, ctx: AskCtx): AskPrompt {
+  return voice(promptForRaw(s, ctx), ctx.client, s.subjectRole);
+}
+
+function promptForRaw(s: ItemStatus, ctx: AskCtx): AskPrompt {
   const it = s.item;
   const c = ctx.client;
   const subjName = s.subjectRole === 'spouse' ? (c.spouseFirstName || c.spouse?.firstName || 'בן/בת הזוג') : undefined;
@@ -158,7 +177,9 @@ export function promptFor(s: ItemStatus, ctx: AskCtx): AskPrompt {
   const schema = RECORD_OF[it.key];
   const role = s.subjectRole;
   // ‼ בדף האישי אין כרטיס — שמות בני הזוג (לבחירת «על שם מי») נשמרים בשאלה עצמה
-  const people: Record<string, string> = { clientName: c.firstName || 'אני', ...(c.familyStatus === 'married' ? { spouseName: c.spouseFirstName || c.spouse?.firstName || 'בן/בת הזוג', married: '1' } : {}) };
+  const people: Record<string, string> = { clientName: c.firstName || 'אני', ...(c.familyStatus === 'married' ? { spouseName: c.spouseFirstName || c.spouse?.firstName || 'בן/בת הזוג', married: '1' } : {}),
+    // ‼ 20.10.2026 · מעסיק בדוח השנתי: חודשים בתוך השנה בלבד (records.ts › 'monthIn')
+    ...(ctx.purpose === 'annual' && schema === 'employer' ? { taxYear: String(ctx.taxYear) } : {}) };
   if (it.kind === 'confirm' || (s.state === 'fromCard' && it.cardKeys)) {
     const lines = cardLines(it, c, s);
     // ‼ בכרטיס אין כלום לאשר — שאלה מובנית (רשומה: ילדים, חשבון בנק; או בחירה) במקום «אין אצלנו פרטים»
@@ -296,7 +317,7 @@ const ANNUAL_ORDER = ['household.familyChange', 'salary.worked', 'salary.equity'
 /** מה נפתח מיד כשמסמנים אריח בדוח השנתי. מסמך לישות שאינה בתיק — עם המזהה הזמני (כמו בהיכרות). */
 export const ANNUAL_FOLLOW: Record<string, string[]> = {
   'household.familyChange': ['household.familyEvent'],
-  'salary.worked': ['salary.form106'], 'salary.equity': ['salary.equityDocs'], 'pension.received': ['pension.certs'], 'niBenefits.received': ['niBenefits.cert'],
+  'salary.worked': ['salary.form106'], 'salary.equity': ['salary.equityDocs'], 'pension.received': ['pension.certs'], 'niBenefits.received': [] /* 20.10.2026 · niKindsAsks; האישור — המשרד */,
   'rent.newRental': ['rent.contract'], 'rent.otherProperty': ['rent.otherPropertyDocs'], 'capital.newAccount': ['capital.form867'],
   'savings.selfDeposits': ['savings.fundCerts'], 'savings.insurance': ['savings.insuranceCert'], 'donations.given': ['donations.receipts'],
   'special.disability': ['special.disabilityCert'], 'household.creditChanges': ['household.degreeDocs'],
@@ -304,7 +325,7 @@ export const ANNUAL_FOLLOW: Record<string, string[]> = {
 };
 /** כותרת למסמך שנפתח מהרשת לישות שעוד אין לה שם — «מכל מעסיק», לא «מהמעסיק החדש». */
 const GRID_DOC_TITLE: Record<string, string> = {
-  'salary.form106': 'האישור השנתי על המשכורת — מכל מעסיק',
+  'salary.form106': 'טופס 106 — מכל מעסיק',
   'capital.form867': 'האישור השנתי מכל בנק או בית השקעות',
   'savings.fundCerts': 'האישור השנתי מכל קופה שהפקדתם אליה בעצמכם',
   'rent.contract': 'חוזה השכירות של הדירה או הנכס',
@@ -328,15 +349,24 @@ function buildMultiEntry(statuses: ItemStatus[], ctx: AskCtx): AskPlanEntry | nu
     const it = group[0].item;
     const role: SubjectRole = it.per === 'couple' ? 'couple' : married ? 'couple' : 'client';
     const hintRaw = hintFor(key, undefined);
-    const base = { key, role, label: it.tile!, hint: hintRaw ? fillTemplate(hintRaw, c, role) : undefined };
-    if (!annual) return { ...base, followUp: gridFollowUp(it, role, ctx) };
+    const base0 = { key, role, label: it.tile!, hint: hintRaw ? fillTemplate(hintRaw, c, role) : undefined };
+    if (!annual) return { ...base0, followUp: gridFollowUp(it, role, ctx) };
+    // ‼ 20.10.2026 · ריבוע = שם + דוגמה גלויה + קבוצה (בהשראת «תיאום מס»). «שינוי במשפחה ב-{שנה}» — הדוגמה לפי המצב בכרטיס,
+    //   כדי שנשוי מ-2023 לא יתהה אם «נישואין» נוגע לו (גיא).
+    const deathYear = knownFamilyEvent(c, ctx.taxYear) === 'death';
+    const example = key === 'household.familyChange' ? (married ? 'גירושין, פרידה או פטירה' : 'חתונה, גירושין או פרידה')
+      : key === 'special.disability' && deathYear ? `שלך — של ${spouseNameOf(c)} נשאל בנפרד` : ANNUAL_TILE_EXAMPLE[key];
+    const base = { ...base0, label: key === 'household.familyChange' ? `שינוי במשפחה ב-${ctx.taxYear}` : base0.label,
+      ...(example ? { example } : {}), group: (ANNUAL_TILE_LESS.has(key) ? 'less' : 'in') as 'less' | 'in',
+      ...(key === 'niBenefits.received' ? { ours: ['האישור השנתי מביטוח לאומי'] } : {}) };
     // ‼ 19.10.2026 · אירוע שכבר בכרטיס בשנת הדוח (אלמן/ה מ-{שנה}) — האריח מסומן ופותח ישר את הענף, בלי «מה קרה?»
     const known = key === 'household.familyChange' ? knownFamilyEvent(c, ctx.taxYear) : null;
     if (known) {
       const b = familyBranches(ctx)[known];
-      return { ...base, label: b.label, note: 'ידוע לנו מהתיק', preset: true, ...(b.followUps?.length ? { followUps: b.followUps } : {}) };
+      return { ...base, label: b.label, example: undefined, note: 'ידוע לנו מהתיק', preset: true, ...(b.followUps?.length ? { followUps: b.followUps } : {}) };
     }
-    const followUps = (ANNUAL_FOLLOW[key] ?? []).map((k, i) => annualFollowUp(k, role, ctx, i)).filter((x): x is MultiFollowUp => !!x);
+    const followUps = key === 'niBenefits.received' ? niKindsAsks(role, ctx)
+      : (ANNUAL_FOLLOW[key] ?? []).map((k, i) => annualFollowUp(k, role, ctx, i)).filter((x): x is MultiFollowUp => !!x);
     // ‼ 20.10.2026 · בשנת הפטירה, מה שהיה בדוח הקודם רק של בן/בת הזוג (קצבה, פטור נכות) שייך לענף הפטירה — לא אריח של הלקוח
     const last = spouseOnlyInDeathYear(ctx, key) ? undefined : ctx.lastYear?.tiles[key];
     return { ...base, ...(followUps.length ? { followUps } : {}), ...(last ? { note: `ב-${ctx.lastYear!.year}: ${last}`, preset: true } : {}) };
@@ -345,9 +375,38 @@ function buildMultiEntry(statuses: ItemStatus[], ctx: AskCtx): AskPlanEntry | nu
   return {
     key: `${gridKey}|couple`, statuses: tiles, itemKey: gridKey, subjectRole: 'couple',
     prompt: { templateVersion: CATALOG_VERSION, title: (item.question ?? item.label).split('{year}').join(String(ctx.taxYear)), why,
-      hint: married ? 'מסמנים גם אם זה רק של אחד מכם.' : undefined, input: { kind: 'multi', options } },
+      hint: married ? 'מסמנים גם אם זה רק של אחד מכם.' : undefined, input: { kind: 'multi', options },
+      addressee: addresseeOf(c), ...(annual ? { known: knownLines(c) } : {}) },
     label: `${item.label} · ${options.length} אריחים`,
   };
+}
+
+/**
+ * ‼ 20.10.2026 · «מה שולם מביטוח לאומי?» — מסך בחירה לכל אדם (לזוג: שני כרטיסים במסך אחד — screens.ts). «דמי לידה» רק כשמסמנים
+ *   אותו (לא שאלה לכל מי שקיבל משהו — יריב, אלמן, נשאל «דמי לידה?»). את האישור השנתי המשרד מוציא (niBenefits.cert, who: office).
+ */
+function niKindsAsks(role: SubjectRole, ctx: AskCtx): MultiFollowUp[] {
+  const roles: SubjectRole[] = role === 'couple' ? ['client', 'spouse'] : [role];
+  // לזוג — שני כרטיסים במסך אחד; לכל כרטיס השם (בן/בת הזוג כבר עם שם — promptFor)
+  return roles.map((r, i) => branchAsk('niBenefits.kinds', r, ctx, 0.5 + i / 10, { ...(roles.length > 1 && r === 'client' && ctx.client.firstName ? { subjectName: ctx.client.firstName } : {}), input: { kind: 'multi', options: [
+    opt('niBenefits.kindUnemployment', r, 'אבטלה', []), opt('niBenefits.kindReserve', r, 'מילואים', []), opt('niBenefits.maternity', r, 'דמי לידה', []),
+    opt('niBenefits.kindInjury', r, 'דמי פגיעה בעבודה', []), opt('niBenefits.kindDisability', r, 'נכות', []), opt('niBenefits.kindOther', r, 'אחר', []),
+  ] } })).filter((x): x is MultiFollowUp => !!x);
+}
+
+/** 20.10.2026 · «מה כבר ידוע לנו» לפני הריבועים — מוצג, לא נשאל (גיא: «מה זה אם היה לי נישואין? אני נשוי מ-2023»). */
+export function knownLines(c: Client): [string, string][] {
+  const out: [string, string][] = [];
+  const since = familyStatusEventYear(c);
+  const sp = c.spouseFirstName || c.spouse?.firstName;
+  if (c.familyStatus === 'married') out.push(['מצב משפחתי', `נשואים${since ? ` מ-${since}` : ''}`]);
+  else if (c.familyStatus) out.push(['מצב משפחתי', `${familyWord(c)}${since ? ` מ-${since}` : ''}`]);
+  const kids = c.children ?? [];
+  if (kids.length) out.push(['ילדים', `${kids.length}${kids.some(k => k.birthYear) ? ` · נולדו ב-${kids.map(k => k.birthYear).filter(Boolean).join(', ')}` : ''}`]);
+  const work = (spouse: boolean) => (c.employers ?? []).filter(e => !!e.belongsToSpouse === spouse && !e.endDate).map(e => e.name).filter(Boolean);
+  if (work(false).length) out.push([c.firstName || 'עבודה', work(false).join(', ')]);
+  if (sp && work(true).length) out.push([sp, work(true).join(', ')]);
+  return out;
 }
 
 /** סטטוס «חסר» מדומה לפריט שנפתח מהרשת — כדי לבנות לו את הנוסח מאותה פונקציה (promptFor). */
@@ -432,14 +491,17 @@ function familyBranches(ctx: AskCtx): Record<'death' | 'divorce' | 'marriage', M
   const named = !!(c.spouseFirstName || c.spouse?.firstName);
   // ‼ מעסיק של בן/בת הזוג בכרטיס — ה-106 שלו כבר נשאל לפי הישות (גם אצל אלמן/ה); כאן רק כשאין
   const spouseEmployerAsked = (c.employers ?? []).some(e => !!e.belongsToSpouse);
-  const death = opt('family.eventDeath', 'couple', named ? `${sp} נפטר/ה` : 'בן/בת הזוג נפטר/ה', [
+  const death = opt('family.eventDeath', 'couple', named ? genderize(`${sp} נפטר/ה`, genderOf(c, 'spouse')) : genderize('בן/בת הזוג נפטר/ה', genderOf(c, 'spouse')), [
     branchAsk('family.death', 'couple', ctx, 1, { hint: 'אנחנו משתתפים בצערך. נשאל רק את מה שצריך כדי לסדר את הדוח — ואת השאר נעשה אנחנו.' }),
     branchAsk('family.deathIncome', 'couple', ctx, 2, { input: { kind: 'multi', options: [
       opt('family.deathGotSalary', 'spouse', 'משכורת', spouseEmployerAsked ? [] : [annualFollowUp('salary.form106', 'spouse', ctx, 6)]),
       lastYearOf(ctx, 'pension.received', opt('family.deathGotPension', 'spouse', 'קצבה או פנסיה', [branchAsk('pension.certs', 'spouse', ctx, 7),
         // ‼ 20.10.2026 · היוון + 161ד: «כן» פותח מיד את המכתב (onYes — «סבב אחד»)
         branchAsk('family.pensionCapitalized', 'couple', ctx, 7.5, { onYes: [branchAsk('family.capitalizationDocs', 'couple', ctx, 7.6)].filter((x): x is MultiFollowUp => !!x) })])),
-      opt('family.deathGotNi', 'spouse', 'דמי מחלה או קצבת נכות מביטוח לאומי', [branchAsk('niBenefits.cert', 'spouse', ctx, 8)]),
+      // ‼ 20.10.2026 · ביטוח לאומי — המשרד מוציא את האישור (העובדה niBenefits.received של בן/בת הזוג ⇒ niBenefits.cert במשימות המשרד)
+      opt('niBenefits.received', 'spouse', 'דמי מחלה או קצבת נכות מביטוח לאומי', []),
+      // ‼ 20.10.2026 · נכות או מחלה קשה של מי שנפטר/ה — כאן, לא בריבוע של הלקוח (גיא: «אשתו נפטרה מסרטן — לא ברור אם לסמן»)
+      lastYearOf(ctx, 'special.disability', opt('special.disability', 'spouse', 'נכות או מחלה קשה, עם אחוזי נכות', [branchAsk('special.disabilityCert', 'spouse', ctx, 8.5)])),
       opt('family.deathGotDisabilityIns', 'spouse', 'אובדן כושר עבודה מחברת ביטוח', [branchAsk('family.disabilityInsDocs', 'spouse', ctx, 9)]),
     ] } }),
     branchAsk('family.deathPayouts', 'couple', ctx, 3, { input: { kind: 'multi', options: [
@@ -453,7 +515,7 @@ function familyBranches(ctx: AskCtx): Record<'death' | 'divorce' | 'marriage', M
       // ‼ 20.10.2026 · אישור לכל משלם, ושאלה אחת «מתי התחילו לשלם» (משותפת לכל המשלמים — השרת פותח אותה פעם אחת)
       opt('family.survivorFromFund', 'couple', 'קרן פנסיה או חברת ביטוח', [branchAsk('family.survivorDocs', 'couple', ctx, 12), survivorPaidWhen(ctx)]),
       opt('family.survivorFromState', 'couple', 'המדינה (גמלאות)', [branchAsk('family.survivorDocsState', 'couple', ctx, 12.1), survivorPaidWhen(ctx)]),
-      opt('family.survivorFromBtl', 'couple', 'ביטוח לאומי', [branchAsk('family.survivorDocsBtl', 'couple', ctx, 12.2), survivorPaidWhen(ctx)]),
+      { ...opt('family.survivorFromBtl', 'couple', 'ביטוח לאומי', [survivorPaidWhen(ctx)]), ours: ['האישור מביטוח לאומי על קצבת השאירים'] },
     ] } }),
     branchAsk('family.deathDocs', 'couple', ctx, 5),
   ]);
@@ -548,7 +610,7 @@ export type AskAnswer =
    */
   | { kind: 'record'; value: unknown; none?: boolean; assertion?: 'changed'; was?: string[] }
   /** 16.10.2026 · מסך הרשת: המפתחות שסומנו. כל אריח שלא סומן ⇒ «לא». */
-  | { kind: 'multi'; selected: string[] }
+  | { kind: 'multi'; selected: string[]; note?: string /* 20.10.2026 · «משהו לא נכון?» ⇒ הערה למשרד (267) */ }
   /** 16.10.2026 · של מי / איפה — פריטים עם שדות סגורים (entities.ts). */
   | { kind: 'entity'; items: EntityItem[] };
 

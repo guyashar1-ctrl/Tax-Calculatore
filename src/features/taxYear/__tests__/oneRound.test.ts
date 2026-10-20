@@ -46,13 +46,18 @@ export const TESTS: TestCase[] = [
     equal(onYesFor(e.prompt, { kind: 'record', value: { inPeriod: 'none' } }).length, 0);
     equal(onYesFor(e.prompt, { kind: 'record', value: null, none: true }).length, 0);
   }),
-  test('מסך הרשת: אריח «כספים מביטוח לאומי» פותח מיד גם את «דמי לידה?», לא רק את האישור', () => {
+  // ‼ 20.10.2026 · גיא: אלמן סימן «ביטוח לאומי» ונשאל «דמי לידה?». עכשיו: «מה שולם?» לכל אדם, «דמי לידה» אפשרות בו — לא שאלה;
+  //   את האישור השנתי המשרד מוציא.
+  test('מסך הרשת: אריח ביטוח לאומי פותח «מה שולם?» לכל אדם — בלי «דמי לידה?» לבד ובלי בקשת אישור מהלקוח', () => {
     const g = planFor(client()).find(x => x.itemKey === ANNUAL_GRID_KEY)!;
     if (g.prompt.input.kind !== 'multi') throw new Error('אין רשת');
     const o = g.prompt.input.options.find(x => x.key === 'niBenefits.received');
     assert(!!o, 'אין אריח ביטוח לאומי');
     const k = keys(fus(o));
-    assert(k.includes('niBenefits.cert') && k.includes('niBenefits.maternity'), k);
+    assert(k.includes('niBenefits.kinds') && !k.includes('niBenefits.cert') && !k.includes('niBenefits.maternity@'), k);
+    const kinds = fus(o).find(f => f.itemKey === 'niBenefits.kinds')!;
+    assert(kinds.prompt.input.kind === 'multi' && kinds.prompt.input.options.some(x => x.key === 'niBenefits.maternity'), 'דמי לידה כאפשרות');
+    equal(o!.ours?.[0], 'האישור השנתי מביטוח לאומי');
   }),
   test('«מי מכם?»: נפתח רק לתפקיד שנבחר, ומה ששייך לשניכם — תמיד', () => {
     const prompt = { title: 'x', why: '', input: { kind: 'who', clientName: 'א', spouseName: 'ב' } as never,

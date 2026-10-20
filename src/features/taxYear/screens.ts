@@ -9,7 +9,9 @@ import { GRID_KEYS } from './asks';
 
 export type Screen =
   | { kind: 'confirmAll'; asks: InfoAsk[] }
-  | { kind: 'ask'; ask: InfoAsk };
+  | { kind: 'ask'; ask: InfoAsk }
+  /** 20.10.2026 · אותה שאלת בחירה לכמה אנשים («מה שולם מביטוח לאומי?» לכל אחד מבני הזוג) — מסך אחד, כרטיס לכל אדם. */
+  | { kind: 'group'; asks: InfoAsk[] };
 
 // ‼ שאלות ההמשך של מסך הרשת («של מי / איפה», «מי מכם?») — מיד אחריו, לפני שאר השאלות (ילדים, חשבון בנק)
 // ‼ 19.10.2026 · מסך רשת קטן בתוך ענף (למשל «מה קרה?» ⇒ «מה {בן/בת הזוג} קיבל/ה») — שאלת המשך, לא הרשת הראשית;
@@ -23,6 +25,26 @@ export const sortAsks = (asks: InfoAsk[]) => [...asks].sort((a, b) => RANK(a) - 
  * שני אישורים ומעלה שעוד פתוחים ⇒ מסך אישור אחד; אישור יחיד נשאר מסך רגיל (אין מה לקבץ).
  */
 export function buildScreens(asks: InfoAsk[], opened: ReadonlySet<string>): Screen[] {
+  return groupSame(buildScreensRaw(asks, opened));
+}
+
+/** מסכים רצופים של אותה שאלת בחירה (לא מסך הרשת) לאנשים שונים — מסך אחד. */
+function groupSame(list: Screen[]): Screen[] {
+  const out: Screen[] = [];
+  for (const s of list) {
+    const prev = out[out.length - 1];
+    const groupable = (x: Screen | undefined): x is Extract<Screen, { kind: 'ask' } | { kind: 'group' }> => !!x && x.kind !== 'confirmAll'
+      && screenAsks(x).every(a => a.prompt.input.kind === 'multi' && !GRID_KEYS.includes(a.itemKey));
+    if (groupable(s) && groupable(prev) && screenAsks(prev)[0].itemKey === screenAsks(s)[0].itemKey) {
+      out[out.length - 1] = { kind: 'group', asks: [...screenAsks(prev), ...screenAsks(s)] };
+      continue;
+    }
+    out.push(s);
+  }
+  return out;
+}
+
+function buildScreensRaw(asks: InfoAsk[], opened: ReadonlySet<string>): Screen[] {
   const sorted = sortAsks(asks);
   const confirms = sorted.filter(a => a.prompt.input.kind === 'confirm');
   const grouped = confirms.filter(a => a.state === 'published' && !opened.has(a.id));
@@ -43,7 +65,7 @@ export function buildScreens(asks: InfoAsk[], opened: ReadonlySet<string>): Scre
 
 /** המסך הראשון שעוד לא נענה (חזרה אחרי «שמירה ויציאה»). -1 = הכול נענה. */
 export function firstOpenScreen(screens: Screen[]): number {
-  return screens.findIndex(s => (s.kind === 'confirmAll' ? s.asks.some(a => a.state === 'published') : s.ask.state === 'published'));
+  return screens.findIndex(s => screenAsks(s).some(a => a.state === 'published'));
 }
 
-export const screenAsks = (s: Screen): InfoAsk[] => (s.kind === 'confirmAll' ? s.asks : [s.ask]);
+export const screenAsks = (s: Screen): InfoAsk[] => (s.kind === 'ask' ? [s.ask] : s.asks);

@@ -10,7 +10,7 @@ import type { DatedValue } from './temporal';
 import { isValidIsraeliId } from '../../utils/israeliId';
 import { familyStatusYearProblem } from '../../utils/familyStatusYear';
 
-export type FieldType = 'text' | 'dated' | 'date' | 'number' | 'percent' | 'choice' | 'digits' | 'bank' | 'branch' | 'hebrewText';
+export type FieldType = 'text' | 'dated' | 'date' | 'number' | 'percent' | 'choice' | 'digits' | 'bank' | 'branch' | 'hebrewText' | 'monthIn';
 
 export interface RecordField {
   key: string;
@@ -33,6 +33,12 @@ export interface RecordField {
   israeliId?: boolean;
   /** לתאריך עם דיוק: אילו דיוקים מותרים. ברירת מחדל: כולם. */
   precisions?: DatedValue['precision'][];
+  /**
+   * 20.10.2026 · 'monthIn' — חודש בתוך שנת הדוח בלבד (גיא: «עד מתי» ריק ⇒ «תאריך לא תקין», ו«אוקטובר 2026» התקבל לדוח של 2025).
+   * התחלה: «לפני {שנה}» או חודש; סיום: «עדיין שם» (ריק) או חודש. הערך — DatedValue בדיוק חודש; «לפני» — התאריך מהתיק, או «לא ידוע».
+   */
+  year?: number;
+  edge?: 'start' | 'end';
 }
 
 export type RecordValue = Record<string, unknown>;
@@ -58,6 +64,22 @@ const OWNER = (c?: Pick<Client, 'firstName' | 'spouseFirstName' | 'familyStatus'
 export const PRECISION_LABEL: Record<DatedValue['precision'], string> = {
   day: 'תאריך מדויק', month: 'רק חודש ושנה', year: 'רק שנה', approx: 'בערך (שנה משוערת)', unknown: 'לא יודע/ת',
 };
+
+const MONTH_NAMES = ['ינואר', 'פברואר', 'מרץ', 'אפריל', 'מאי', 'יוני', 'יולי', 'אוגוסט', 'ספטמבר', 'אוקטובר', 'נובמבר', 'דצמבר'];
+/** 20.10.2026 · 'monthIn' לתצוגה: «מינואר 2025» / «לפני 2025» · «עד מאי 2025» / «עדיין שם». */
+export function monthInText(v: unknown, year: number, edge: 'start' | 'end'): string {
+  const d = v as DatedValue | undefined;
+  if (!d || !d.precision) return edge === 'end' ? 'עדיין שם' : '';
+  if (d.precision === 'month' && d.date?.startsWith(String(year))) return `${edge === 'start' ? 'מ' : 'עד '}${MONTH_NAMES[Number(d.date.slice(5, 7)) - 1]} ${year}`;
+  return edge === 'start' ? `לפני ${year}` : `עד ${datedText(d)}`;
+}
+/** 20.10.2026 · 'monthIn' בבורר: 'before' / 'MM' / '' (סיום ריק = «עדיין שם»). */
+export function monthInKey(v: unknown, year: number, edge: 'start' | 'end'): string {
+  const d = v as DatedValue | undefined;
+  if (!d || !d.precision) return '';
+  if (d.precision === 'month' && d.date?.startsWith(String(year))) return d.date.slice(5, 7);
+  return edge === 'start' ? 'before' : '';
+}
 
 export function datedText(v: unknown): string {
   const d = v as DatedValue | undefined;
@@ -112,7 +134,7 @@ export function schemaFor(id: RecordSchemaId, c?: Client, ctx?: Record<string, s
         { key: 'birthDate', label: 'תאריך לידה', type: 'date', required: true, half: true },
         { key: 'livesWith', label: 'איפה גר/ה', type: 'choice', options: LIVES, showIf: () => c?.familyStatus !== 'married' && !ctx?.married, hint: 'רלוונטי להורה שאינו נשוי — נקודות הזיכוי תלויות בכך' },
       ],
-      summary: r => [str(r.firstName) || 'ילד/ה', he(r.birthDate) && `נולד/ה ${he(r.birthDate)}`, r.livesWith ? label(LIVES, r.livesWith) : ''].filter(Boolean).join(' · '),
+      summary: r => [str(r.firstName) || 'ילד', he(r.birthDate) && `תאריך לידה ${he(r.birthDate)}`, r.livesWith ? label(LIVES, r.livesWith) : ''].filter(Boolean).join(' · '),
     };
     case 'address': return {
       id, noun: 'כתובת', addLabel: '', multiple: false,
@@ -141,7 +163,19 @@ export function schemaFor(id: RecordSchemaId, c?: Client, ctx?: Record<string, s
         ? [str(r.bankName), str(r.country), str(r.iban) && `חשבון ${str(r.iban)}`].filter(Boolean).join(' · ')
         : [str(r.bankName) || (r.bankCode ? `בנק ${str(r.bankCode)}` : ''), r.branchCode ? `סניף ${str(r.branchCode)}${r.branchName ? ` (${str(r.branchName)})` : ''}` : '', r.accountNumber ? `חשבון ${str(r.accountNumber)}` : '', r.owners ? `על שם ${label(owner, r.owners)}` : ''].filter(Boolean).join(' · '),
     };
-    case 'employer': return {
+    case 'employer': {
+      // ‼ 20.10.2026 · בדוח השנתי (context.taxYear): חודשים בתוך השנה בלבד, «לפני {שנה}» ו«עדיין שם» — בלי «תאריך מדויק / רק שנה»
+      const Y = Number(ctx?.taxYear) || 0;
+      if (Y) return {
+        id, noun: 'מעסיק', addLabel: '＋ עוד מעסיק', multiple: true,
+        fields: [
+          { key: 'name', label: 'שם המעסיק', type: 'text', required: true, placeholder: 'למשל: המדינה, בנק לאומי' },
+          { key: 'startDate', label: 'מתי התחיל', type: 'monthIn', year: Y, edge: 'start', required: true, half: true },
+          { key: 'endDate', label: 'עד מתי', type: 'monthIn', year: Y, edge: 'end', half: true },
+        ],
+        summary: r => [str(r.name), monthInText(r.startDate, Y, 'start'), monthInText(r.endDate, Y, 'end')].filter(Boolean).join(' · '),
+      };
+      return {
       id, noun: 'מעסיק', addLabel: '＋ עוד מעסיק', multiple: true,
       fields: [
         { key: 'name', label: 'שם המעסיק', type: 'text', required: true },
@@ -151,6 +185,7 @@ export function schemaFor(id: RecordSchemaId, c?: Client, ctx?: Record<string, s
       ],
       summary: r => [str(r.name), datedText(r.startDate) && `מ-${datedText(r.startDate)}`, datedText(r.endDate) && `עד ${datedText(r.endDate)}`, str(r.role)].filter(Boolean).join(' · '),
     };
+    }
     case 'property': return {
       id, noun: 'נכס', addLabel: '＋ עוד נכס', multiple: true,
       fields: [
@@ -318,6 +353,11 @@ export function validateRecord(schema: RecordSchema, r: RecordValue): Record<str
     const v = r[f.key];
     const empty = v == null || v === '' || (f.type === 'dated' && !(v as DatedValue).precision);
     if (empty) { if (f.required) err[f.key] = 'חסר'; continue; }
+    if (f.type === 'monthIn') {
+      const d = v as DatedValue;
+      if (d.precision === 'month' && f.year && !(d.date ?? '').startsWith(String(f.year))) err[f.key] = `רק חודש ב-${f.year}`;
+      continue;
+    }
     if (f.type === 'digits' && !/^\d+$/.test(str(v))) err[f.key] = 'רק ספרות';
     else if (f.type === 'digits' && f.maxLength && str(v).length > f.maxLength) err[f.key] = `עד ${f.maxLength} ספרות`;
     else if (f.israeliId && !isValidIsraeliId(str(v))) err[f.key] = 'מספר תעודת זהות לא תקין — כדאי לבדוק שוב';
@@ -337,6 +377,11 @@ export function validateRecord(schema: RecordSchema, r: RecordValue): Record<str
   if (schema.id === 'familyYear' && !err.year && str(r.year)) {
     const p = /^\d{4}$/.test(str(r.year)) ? familyStatusYearProblem(Number(r.year)) : 'שנה בארבע ספרות';
     if (p) err.year = p;
+  }
+  // ‼ 20.10.2026 · מעסיק בשנת הדוח: הסיום לא לפני ההתחלה
+  if (schema.id === 'employer' && !err.endDate) {
+    const a = r.startDate as DatedValue | undefined; const b = r.endDate as DatedValue | undefined;
+    if (a?.precision === 'month' && b?.precision === 'month' && (b.date ?? '') < (a.date ?? '')) err.endDate = 'הסיום לפני ההתחלה';
   }
   // ‼ 16.10.2026 · תקופה: הסיום לא לפני ההתחלה
   if (schema.id === 'maternityPeriod' && !err.from && !err.to && str(r.from) && str(r.to) && str(r.to) < str(r.from)) err.to = 'הסיום לפני ההתחלה';

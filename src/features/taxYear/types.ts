@@ -213,6 +213,12 @@ export interface MultiOption {
    */
   preset?: boolean;
   note?: string;
+  /** 20.10.2026 · ריבוע: שורת דוגמה מתחת לשם («אבטלה, מילואים, דמי לידה, נכות») — גלויה, לא tooltip. */
+  example?: string;
+  /** 20.10.2026 · ריבוע: הקבוצה במסך — «כסף שנכנס» / «מה שיכול להקטין את המס». */
+  group?: 'in' | 'less';
+  /** 20.10.2026 · מה המשרד מוציא בעצמו כשמסמנים (אישור שנתי מביטוח לאומי) — שורה אפורה בסוף, לא משימה ללקוח. */
+  ours?: string[];
 }
 export interface MultiFollowUp { itemKey: string; subjectRole: SubjectRole; entityKind?: EntityKind; entityRef?: string; prompt: AskPrompt }
 
@@ -257,6 +263,10 @@ export interface AskPrompt {
    * (רק לתפקיד שנבחר), «זה עדיין נכון», תחולה «כל השנה/חלק». צילומים כמו followUps של אריח; השרת פותח אותם (264).
    */
   onYes?: MultiFollowUp[];
+  /** 20.10.2026 · איך פונים ללקוח בדף (זכר / נקבה / רבים) — לכפתורים כמו «לא בטוח», בלי לוכסנים. */
+  addressee?: 'm' | 'f' | 'p';
+  /** 20.10.2026 · מסך הרשת בדוח השנתי: «מה כבר ידוע לנו» — שורות קצרות מהכרטיס, מוצגות לפני הריבועים ולא נשאלות. */
+  known?: [string, string][];
 }
 
 /** בקשה ראשית לשנה — מה שהמסך צריך לדעת עליה. */

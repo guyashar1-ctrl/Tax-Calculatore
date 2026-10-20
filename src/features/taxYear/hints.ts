@@ -66,6 +66,10 @@ export const HINTS: Record<string, string> = {
   // ── ביטוח לאומי ──
   'niBenefits.received': 'כסף שביטוח לאומי שילם במקום משכורת: דמי לידה, תגמולי מילואים, דמי אבטלה, דמי פגיעה בעבודה. קצבת ילדים — לא כאן.',
   'niBenefits.cert': 'אישור שנתי על תשלומים — אפשר להוריד מהאזור האישי באתר ביטוח לאומי. ' + LATER,
+  // 20.10.2026 · «מה שולם?» — אפשרויות, בלי סכומים; האישור אצל המשרד
+  'niBenefits.kinds': 'מסמנים מה שזכור. לא צריך סכומים — את האישור השנתי אנחנו מוציאים.',
+  'niBenefits.kindUnemployment': 'דמי אבטלה.', 'niBenefits.kindReserve': 'תגמולי מילואים.', 'niBenefits.kindInjury': 'דמי פגיעה בעבודה.',
+  'niBenefits.kindDisability': 'קצבת נכות מביטוח לאומי.', 'niBenefits.kindOther': 'כל תשלום אחר מביטוח לאומי (לא קצבת ילדים).',
 
   // ── השכרת נכס ──
   'rent.properties': RENT_IN,

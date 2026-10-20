@@ -55,7 +55,10 @@ export const TESTS: TestCase[] = [
     equal(keys[0], 'household.familyChange');
     equal(fus(opts.find(o => o.key === 'pension.received'))[0]?.itemKey, 'pension.certs');
     equal(fus(opts.find(o => o.key === 'donations.given'))[0]?.itemKey, 'donations.receipts');
-    assert(opts.filter(o => o.key !== 'household.familyChange').every(o => fus(o).every(f => f.prompt.input.kind === 'file')), 'אריח שפותח משהו שאינו מסמך');
+    // ‼ 20.10.2026 · ביטוח לאומי פותח «מה שולם?» (בחירה לכל אדם) — את האישור המשרד מוציא
+    assert(opts.filter(o => o.key !== 'household.familyChange' && o.key !== 'niBenefits.received').every(o => fus(o).every(f => f.prompt.input.kind === 'file')), 'אריח שפותח משהו שאינו מסמך');
+    equal(fus(opts.find(o => o.key === 'niBenefits.received')).map(f => f.itemKey + '@' + f.subjectRole).join(','), 'niBenefits.kinds@client,niBenefits.kinds@spouse');
+    assert(opts.every(o => !!o.group) && opts.filter(o => o.key !== 'household.familyChange').every(o => !!o.example), 'ריבוע בלי דוגמה או קבוצה');
   }),
   test('בלי מעסיק בתיק ⇒ אריח «משכורת» שפותח 106 «מכל מעסיק», עם מזהה זמני', () => {
     const opts = gridOf(client({ employers: [], familyStatus: 'single', spouseFirstName: undefined }));
@@ -132,7 +135,7 @@ export const TESTS: TestCase[] = [
     equal(cap?.prompt.onYes?.[0]?.itemKey, 'family.capitalizationDocs');
     const surv = multi('family.survivorPensions');
     equal(surv.map(o => fus(o).map(f => f.itemKey).join('+')).join(' | '),
-      'family.survivorDocs+family.survivorPaidWhen | family.survivorDocsState+family.survivorPaidWhen | family.survivorDocsBtl+family.survivorPaidWhen');
+      'family.survivorDocs+family.survivorPaidWhen | family.survivorDocsState+family.survivorPaidWhen | family.survivorPaidWhen' /* 20.10.2026 · אישור ב״ל — המשרד */);
     const when = fus(surv[0]).find(f => f.itemKey === 'family.survivorPaidWhen');
     assert(when?.prompt.input.kind === 'choice' && when.prompt.input.options.some(o => o.label.includes('2026')), 'בתשובות אין את השנה');
   }),

@@ -28,6 +28,30 @@ async function answerAll(pp) {
   const flow = pp.locator('.ty-flow');
   let uploaded = 0;
   for (let step = 0; step < 50; step++) {
+    // ‼ 20.10.2026 · השאלון החדש: «שליחה למשרד» מ«רגע לפני ששולחים», והמסמכים רק בסוף — מעלים אחד משם
+    if (await pp.locator('.ty-flow[data-annual-docs]').count()) {
+      const item = flow.locator('[data-owed]').first();
+      if (await item.count()) {
+        await item.getByRole('button', { name: 'העלאה' }).click();
+        const single = item.getByRole('button', { name: 'יש לי קובץ אחד שמכיל הכול' });
+        if (await single.count()) { await single.first().click(); await pp.waitForTimeout(300); }
+        await item.locator('input[type="file"]').first().setInputFiles({ name: 'test.png', mimeType: 'image/png', buffer: PNG });
+        await pp.waitForTimeout(800);
+        const confirm = item.locator('[data-testid=dp-confirm]');
+        if (await confirm.count() && await confirm.first().isEnabled()) await confirm.first().click().catch(() => {});
+        await pp.locator('.ty-flow [data-done]').first().waitFor({ timeout: 30000 }).catch(() => {});
+        uploaded = await flow.locator('[data-done]').count();
+      }
+      return { done: true, uploaded };
+    }
+    if ((await pp.locator('.ty-flow').getAttribute('data-screen')) === 'review') {
+      if (await flow.locator('[data-annual-send]').isDisabled()) return { done: false, uploaded, stuck: (await text(flow)).replace(/\s+/g, ' ').slice(0, 600) };
+      await flow.locator('[data-annual-send]').click(); await pp.locator('.ty-flow[data-annual-docs]').waitFor({ timeout: 40000 }); continue;
+    }
+    if ((await pp.locator('.ty-flow').getAttribute('data-screen')) === 'group') {
+      for (const c of await flow.locator('.ty-group-card').all()) await c.locator('[data-tile="none"]').click();
+      await flow.getByRole('button', { name: /^הבא$/ }).click(); await pp.waitForTimeout(400); continue;
+    }
     if (await flow.locator('.ty-q', { hasText: /תודה!|התשובות נשלחו למשרד/ }).count()) return { done: true, uploaded };
     if (await flow.locator('.ty-done-mark').count()) { await flow.getByRole('button', { name: /^(הבא|שליחה למשרד)$/ }).click(); await pp.waitForTimeout(300); continue; }
     const title = (await text(flow.locator('.ty-q').first())).trim();
@@ -99,6 +123,7 @@ async function runWidth(width) {
     await page.goto(env.officeUrl(id, 'journey'), { waitUntil: 'domcontentloaded' });
     const addBtn = page.getByRole('button', { name: /＋ בקשה חדשה/ }).first();
     await addBtn.waitFor({ timeout: 40000 }); await addBtn.click();
+    await page.locator('[data-tax-file-toggle]').click(); // «תיק המס» נפתחת; דוח שנתי מסומן מראש
     await page.locator('[data-annual-one-click]').click();
     await page.locator('[data-annual-summary]').first().waitFor({ timeout: 40000 });
     const [st] = await env.sql(`select id from public.onboarding_steps where client_id = '${id}' and step_type = 'annual_return' and status <> 'cancelled'`);
@@ -153,6 +178,7 @@ async function runWidth(width) {
 
     // 4 · פותחים שוב — שאלון נקי
     await page.getByRole('button', { name: /＋ בקשה חדשה/ }).first().click();
+    await page.locator('[data-tax-file-toggle]').click(); // «תיק המס» נפתחת; דוח שנתי מסומן מראש
     await page.locator('[data-annual-one-click]').click();
     await page.locator('[data-annual-summary]').first().waitFor({ timeout: 40000 });
     const fresh = await env.sql(`select item_key, state from public.tax_info_asks where client_id = '${id}'`);

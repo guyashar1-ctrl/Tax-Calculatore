@@ -4,7 +4,8 @@
  *
  *   זוג נשוי עם ביטוח חיים, חשבון בנק בלי תאריך פתיחה ומעסיק בכרטיס → «＋ בקשה חדשה» ← «דוח שנתי 2025» → הלקוח בדף:
  *   «זה מה שידוע — נכון» ⇒ האישור השנתי מחברת הביטוח נפתח מיד; «החשבון היה קיים כל השנה» ⇒ ה-867 נפתח מיד;
- *   אריח «כספים מביטוח לאומי» ⇒ גם «דמי לידה?» באותו סבב → בסוף אין לאף אחד מה לפרסם: בסיכום אין «עוד שאלות».
+ *   אריח ביטוח לאומי ⇒ «מה שולם?» באותו סבב (20.10.2026: בלי «דמי לידה?» לבד) → «שליחה למשרד» → המסמכים בסוף כוללים את שניהם
+ *   → בסוף אין לאף אחד מה לפרסם: בסיכום אין «עוד שאלות».
  *
  *   STAGING_ENV_DIR=<תיקייה עם .env.staging ו-.env.local> node scripts/e2e/annual-one-round.mjs --base=http://localhost:5361 [--widths=1280,390] [--shots=<dir>]
  *
@@ -34,7 +35,14 @@ async function answerAll(pp, ticks) {
   const flow = pp.locator('.ty-flow');
   const seen = [];
   for (let step = 0; step < 60; step++) {
-    if (await flow.locator('.ty-q', { hasText: /תודה!|התשובות נשלחו למשרד/ }).count()) { seen.push('DONE'); break; }
+    // ‼ 20.10.2026 · השאלון החדש: «רגע לפני ששולחים» ⇒ «שליחה למשרד» ⇒ המסמכים בסוף (AnnualFlow.tsx)
+    if (await pp.locator('.ty-flow[data-annual-docs]').count()) { seen.push(`DOCS:${(await text(pp.locator('.ty-owed-list'))).replace(/\s+/g, ' ')}`); seen.push('DONE'); break; }
+    if ((await pp.locator('.ty-flow').getAttribute('data-screen')) === 'review') { await flow.locator('[data-annual-send]').click(); await pp.locator('.ty-flow[data-annual-docs]').waitFor({ timeout: 40000 }); continue; }
+    if ((await pp.locator('.ty-flow').getAttribute('data-screen')) === 'group') {
+      const t0 = (await text(flow.locator('.ty-q').first())).trim(); seen.push(t0);
+      for (const c of await flow.locator('.ty-group-card').all()) await c.locator('[data-tile="none"]').click();
+      await flow.getByRole('button', { name: /^הבא$/ }).click(); await pp.waitForTimeout(400); continue;
+    }
     if (await flow.locator('.ty-done-mark').count()) { await flow.getByRole('button', { name: /^(הבא|שליחה למשרד)$/ }).click(); await pp.waitForTimeout(300); continue; }
     const title = (await text(flow.locator('.ty-q').first())).trim();
     seen.push(title);
@@ -105,6 +113,7 @@ async function runWidth(width) {
     await page.goto(env.officeUrl(id, 'journey'), { waitUntil: 'domcontentloaded' });
     const addBtn = page.getByRole('button', { name: /＋ בקשה חדשה/ }).first();
     await addBtn.waitFor({ timeout: 40000 }); await addBtn.click();
+    await page.locator('[data-tax-file-toggle]').click(); // «תיק המס» נפתחת; דוח שנתי מסומן מראש
     await page.locator('[data-annual-one-click]').click();
     await page.locator('[data-annual-summary]').first().waitFor({ timeout: 40000 }).catch(async (e) => {
       console.log('    [debug] ' + (await page.locator('body').innerText()).replace(/s+/g, ' ').slice(0, 1500));
@@ -127,13 +136,14 @@ async function runWidth(width) {
     await pp.locator('.ty-flow').waitFor({ timeout: 15000 });
     const seen = await answerAll(pp, ['niBenefits.received']);
     ok(seen.includes('DONE'), 'הלקוח הגיע ל«תודה»', seen.slice(-3).join(' | '));
-    ok(seen.some(t => /ביטוח החיים|חברת הביטוח/.test(t)), 'האישור השנתי מחברת הביטוח נשאל באותו סבב', seen.join(' | ').slice(0, 300));
-    ok(seen.some(t => /867|על הרווחים והמס מבנק לאומי/.test(t)), 'ה-867 של בנק לאומי נשאל באותו סבב', seen.join(' | ').slice(0, 300));
-    ok(seen.some(t => /דמי לידה/.test(t)), '«דמי לידה?» נשאל באותו סבב, אחרי אריח ביטוח לאומי', seen.join(' | ').slice(0, 300));
+    const docsLine = seen.find(t => t.startsWith('DOCS:')) ?? '';
+    ok(/ביטוח החיים|חברת הביטוח|ביטוח חיים/.test(docsLine), 'האישור השנתי מחברת הביטוח — ברשימת המסמכים של אותו סבב', docsLine.slice(0, 300));
+    ok(/867|בנק לאומי|בית השקעות/.test(docsLine), 'ה-867 של בנק לאומי — ברשימת המסמכים של אותו סבב', docsLine.slice(0, 300));
+    ok(seen.some(t => /מה שולם מביטוח לאומי/.test(t)) && !seen.some(t => /האם מתוך זה/.test(t)), '«מה שולם מביטוח לאומי?» באותו סבב — בלי «דמי לידה?» לבד', seen.join(' | ').slice(0, 300));
     if (SHOTS) await pp.screenshot({ path: join(SHOTS, `portal-done-${width}.png`) }).catch(() => {});
 
     // 3 · המשרד: אין «עוד שאלות» לפרסם
-    const left = await env.sql(`select count(*)::int n from public.tax_info_asks where client_id = '${id}' and state = 'published'`);
+    const left = await env.sql(`select count(*)::int n from public.tax_info_asks where client_id = '${id}' and state = 'published' and prompt->'input'->>'kind' <> 'file'`); // מסמכים — בסוף, עד שמועלים
     ok(left[0].n === 0, 'בשרת: אין שאלה שמחכה ללקוח', `published=${left[0].n}`);
     const [st] = await env.sql(`select id from public.onboarding_steps where client_id = '${id}' and step_type = 'annual_return'`);
     await page.goto(env.officeUrl(id, `journey/${st.id}`), { waitUntil: 'domcontentloaded' });

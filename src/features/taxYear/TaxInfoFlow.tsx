@@ -15,7 +15,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { DOCS } from './documents';
 import * as api from './api';
-import { UNAVAILABLE_LABEL, type AskAnswer } from './asks';
+import { ANNUAL_GRID_KEY, UNAVAILABLE_LABEL, type AskAnswer } from './asks';
+import AnnualFlow from './AnnualFlow';
 import type { EntityField, EntitySpec, InfoAsk, UnavailableCode } from './types';
 import { livePortalActions } from '../../components/portal/portalActions';
 import RecordEditor from './RecordEditor';
@@ -101,6 +102,8 @@ export default function TaxInfoFlow({ stepId, token, previewClientId, previewAsk
   if (err && !asks) return <div className="ty-err" role="alert">לא ניתן לטעון את השאלות. נסו שוב מאוחר יותר.</div>;
   if (!asks) return <div className="ty-note">טוען…</div>;
   if (asks.length === 0) return <div className="ty-note">אין כרגע שאלות פתוחות.</div>;
+  // ‼ 20.10.2026 · הדוח השנתי — השאלון החדש (טיוטה עד «שליחה», מסמכים בסוף; AnnualFlow.tsx). שאר השאלונים — כאן, כמו קודם.
+  if (asks.some(a => a.itemKey === ANNUAL_GRID_KEY)) return <AnnualFlow stepId={stepId} token={token} title={title} initialAsks={asks} fetchAsks={fetchAsks} onClose={onClose} />;
 
   const upload = async (ask: InfoAsk, file: File, manifest?: unknown): Promise<string | null> => {
     if (preview) return 'בתצוגה מקדימה אין העלאה';
@@ -246,7 +249,8 @@ export default function TaxInfoFlow({ stepId, token, previewClientId, previewAsk
     );
   }
 
-  const ask = screen.ask;
+  // הקבוצה (כמה אנשים באותה שאלה) קיימת רק בדוח השנתי — כאן תמיד שאלה אחת
+  const ask = screen.kind === 'group' ? screen.asks[0] : screen.ask;
   // ‼ 19.10.2026 · אריחים שסומנו מראש (הדוח הקודם / אירוע מהכרטיס) — הבחירה ההתחלתית, עד שהלקוח נוגע
   const d = draft[ask.id] ?? (ask.prompt.input.kind === 'multi' && ask.prompt.input.options.some(o => o.preset)
     ? { selected: ask.prompt.input.options.filter(o => o.preset).map(o => o.key) } : {});
@@ -460,7 +464,7 @@ export default function TaxInfoFlow({ stepId, token, previewClientId, previewAsk
 
 // ── 16.10.2026 · «של מי / איפה» — שדות סגורים; רשימה עם חיפוש ───────────────────────────────────
 
-function EntityEditor({ spec, names, items, onChange, showErrors, disabled }: { spec: EntitySpec; names?: Record<string, string>; items: EntityItem[]; onChange: (items: EntityItem[]) => void; showErrors: boolean; disabled: boolean }) {
+export function EntityEditor({ spec, names, items, onChange, showErrors, disabled }: { spec: EntitySpec; names?: Record<string, string>; items: EntityItem[]; onChange: (items: EntityItem[]) => void; showErrors: boolean; disabled: boolean }) {
   const set = (k: number, patch: EntityItem) => onChange(items.map((it, n) => (n === k ? { ...it, ...patch } : it)));
   return (
     <div className="ty-ent" data-entity={spec.noun}>
