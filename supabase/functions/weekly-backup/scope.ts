@@ -70,6 +70,8 @@ export const TABLE_SCOPES: Record<string, TableScope> = {
   tax_year_facts: { kind: "user_id" },
   tax_evidence: { kind: "user_id" },
   tax_info_asks: { kind: "user_id" },
+  // 266 · העותק הנסתר של עבודות מס שנמחקו לגמרי (לבדיקות) — בגיבוי, כי זה בדיוק מה שמשחזרים ממנו טעות
+  tax_work_trash: { kind: "user_id" },
   tax_card_transfers: { kind: "user_id" },
   // 231 · גרסאות הערכת מס — קלט, הנחות, הכרעות ותוצאה (הגרסה המאושרת אינה ניתנת לשחזור מחישוב חוזר)
   tax_estimates: { kind: "user_id" },

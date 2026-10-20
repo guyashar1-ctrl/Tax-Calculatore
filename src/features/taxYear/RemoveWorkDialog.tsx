@@ -13,7 +13,7 @@ interface Props {
   title: string;
   onClose: () => void;
   /** אחרי הסרה או החזרה — לטעינה מחדש של הרשימה. */
-  onDone: (what: 'deleted' | 'cancelled' | 'restored', text: string) => void;
+  onDone: (what: 'deleted' | 'cancelled' | 'restored' | 'purged', text: string) => void;
 }
 
 const ERR: Record<string, string> = {
@@ -30,7 +30,9 @@ export default function RemoveWorkDialog({ stepId, title, onClose, onDone }: Pro
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [reason, setReason] = useState('');
-  const [pick, setPick] = useState<'delete' | 'cancel'>('delete');
+  const [pick, setPick] = useState<'delete' | 'cancel' | 'purge'>('delete');
+  // ‼ 20.10.2026 · «מחק לגמרי» (266): לבדיקות על הלקוח עצמו — גם תשובות, קבצים והזנה, כדי שלא ישפיעו על הדוח הבא
+  const [purge, setPurge] = useState<api.PurgeCounts | null>(null);
   const firstRef = useRef<HTMLButtonElement>(null);
 
   const check = async () => {
@@ -38,6 +40,8 @@ export default function RemoveWorkDialog({ stepId, title, onClose, onDone }: Pro
     if (!r.ok) { setErr(ERR[r.error] ?? `לא ניתן לבדוק (${r.error})`); return; }
     setState({ mode: r.mode, facts: r.facts, restorable: r.restorable });
     setPick(r.mode === 'cancel' ? 'cancel' : 'delete');
+    const p = r.mode === 'delete' ? null : await api.purgeTaxWork(stepId, true);
+    setPurge(p && p.ok ? p.counts : null);
   };
   useEffect(() => { void check(); }, [stepId]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (state) firstRef.current?.focus(); }, [state]);
@@ -50,7 +54,14 @@ export default function RemoveWorkDialog({ stepId, title, onClose, onDone }: Pro
   const run = async () => {
     if (!state) return;
     setBusy(true); setErr(null);
-    if (state.mode === 'none' && state.restorable) {
+    if (pick === 'purge') {
+      const r = await api.purgeTaxWork(stepId);
+      setBusy(false);
+      if (!r.ok) { setErr(ERR[r.error] ?? `המחיקה נכשלה (${r.error})`); return; }
+      onDone('purged', 'נמחק. אפשר לפתוח מחדש.');
+      return;
+    }
+    if (state.mode === 'none' && state.restorable && pick !== 'cancel') {
       const r = await api.restoreTaxWork(stepId);
       setBusy(false);
       if (!r.ok) { setErr(ERR[r.error] ?? `ההחזרה נכשלה (${r.error})`); return; }
@@ -65,7 +76,14 @@ export default function RemoveWorkDialog({ stepId, title, onClose, onDone }: Pro
       : `העבודה בוטלה${r.asksClosed ? ` ו-${r.asksClosed} שאלות שלא נענו נסגרו` : ''}. מה שהתקבל נשמר. להחזרה: «תיק מס» ← «דוחות והצהרות» ← «בוטלו».`);
   };
 
-  const ex = state ? removalExplain(state.facts, pick) : null;
+  const ex = state ? removalExplain(state.facts, pick === 'purge' ? 'cancel' : pick) : null;
+  const canPurge = !!purge && !!state && (state.mode === 'cancel' || state.facts.status === 'cancelled');
+  const purgeGoes = purge ? [
+    'הבקשה והשאלון',
+    ...(purge.answers ? [`${purge.answers} תשובות`] : []),
+    ...(purge.files ? [`${purge.files} קבצים שהועלו`] : []),
+    ...(purge.facts ? ['מה שהוזן'] : []),
+  ] : [];
   const canDelete = state?.mode === 'delete';
   const isRestore = state?.mode === 'none' && state.restorable;
   return (
@@ -81,8 +99,34 @@ export default function RemoveWorkDialog({ stepId, title, onClose, onDone }: Pro
           {state && ex && (
             <>
               {state.mode === 'none' && !isRestore && <p className="rw-why">{ex.why}</p>}
-              {isRestore && <p className="rw-why">העבודה תחזור לרשימה הפעילה, ל«בקשות» ולדף האישי של הלקוח — עם השאלות שנסגרו בביטול.</p>}
-              {state.mode !== 'none' && (
+              {isRestore && pick !== 'purge' && <p className="rw-why">העבודה תחזור לרשימה הפעילה, ל«בקשות» ולדף האישי של הלקוח — עם השאלות שנסגרו בביטול.</p>}
+              {canPurge && (
+                <div className="rw-choice" role="radiogroup" aria-label="מה לעשות">
+                  {state.mode === 'cancel' && (
+                    <label className={`rw-opt${pick === 'cancel' ? ' is-on' : ''}`}>
+                      <input type="radio" name="rw" checked={pick === 'cancel'} onChange={() => setPick('cancel')} />
+                      <span><b>לבטל ולשמור</b></span>
+                    </label>
+                  )}
+                  {isRestore && (
+                    <label className={`rw-opt${pick !== 'purge' ? ' is-on' : ''}`}>
+                      <input type="radio" name="rw" checked={pick !== 'purge'} onChange={() => setPick('delete')} />
+                      <span><b>להחזיר לרשימה</b></span>
+                    </label>
+                  )}
+                  <label className={`rw-opt${pick === 'purge' ? ' is-on' : ''}`} data-rw-purge>
+                    <input type="radio" name="rw" checked={pick === 'purge'} onChange={() => setPick('purge')} />
+                    <span><b>למחוק לגמרי</b><small>לבדיקות — כאילו לא נפתח</small></span>
+                  </label>
+                </div>
+              )}
+              {pick === 'purge' && purge && (
+                <div className="rw-cols" data-rw-purge-list>
+                  <div><b className="rw-h">נמחק</b><ul>{purgeGoes.map(x => <li key={x}>{x}</li>)}</ul></div>
+                  <div><b className="rw-h">נשאר</b><ul><li>הכרטיס</li><li>יומן המיילים</li></ul></div>
+                </div>
+              )}
+              {state.mode !== 'none' && pick !== 'purge' && (
                 <>
                   {canDelete && (
                     <div className="rw-choice" role="radiogroup" aria-label="מה לעשות">
@@ -114,8 +158,8 @@ export default function RemoveWorkDialog({ stepId, title, onClose, onDone }: Pro
         </div>
         <div className="modal-foot">
           {state && (state.mode !== 'none' || isRestore) && (
-            <button ref={firstRef} type="button" className={isRestore ? 'btn btn-primary' : 'btn btn-danger'} disabled={busy} onClick={() => void run()} data-rw-confirm>
-              {busy ? 'רגע…' : isRestore ? 'החזר לרשימה' : pick === 'delete' && canDelete ? 'מחק את העבודה' : 'בטל את העבודה'}
+            <button ref={firstRef} type="button" className={isRestore && pick !== 'purge' ? 'btn btn-primary' : 'btn btn-danger'} disabled={busy} onClick={() => void run()} data-rw-confirm>
+              {busy ? 'רגע…' : pick === 'purge' ? 'מחק לגמרי' : isRestore ? 'החזר לרשימה' : pick === 'delete' && canDelete ? 'מחק את העבודה' : 'בטל את העבודה'}
             </button>
           )}
           <button ref={state && state.mode === 'none' && !isRestore ? firstRef : undefined} type="button" className="btn btn-ghost" disabled={busy} onClick={onClose}>

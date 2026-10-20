@@ -520,3 +520,6 @@ button.rp-cell:disabled { cursor: default; }
 }
 /* 263 · «יש ל… שאלון פתוח» — כלל, לא תקלה: רקע אזהרה (לא אדום), והקישור לשורה שלו */
 .ty-qopen { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem .6rem; background: var(--warn-bg); color: var(--ink-1); border-radius: 10px; padding: .55rem .7rem; font-size: var(--fs-13); line-height: 1.5; }
+
+/* 20.10.2026 · «פתח כמו הלקוח» — בפינה, לא מתחרה בשלבים */
+.as-as-client { justify-self: end; }

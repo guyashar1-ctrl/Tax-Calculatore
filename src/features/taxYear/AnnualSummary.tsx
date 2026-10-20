@@ -120,6 +120,14 @@ export default function AnnualSummary({ client, step, year, data, busy, run, mor
     answer: 'value', value: { decision: key, done: true, at: new Date().toISOString().slice(0, 10) }, basis: 'actual', requestId: step.id,
   } as never), 'סומן שהוכרע — נשמר מי ומתי');
 
+  // ‼ החלון נפתח מיד (לפני הקריאה לשרת) — אחרת הדפדפן חוסם אותו כחלון קופץ
+  const openAsClient = async () => {
+    const w = window.open('about:blank', '_blank');
+    const { data } = await supabase.rpc('mint_portal_token', { p_client_id: client.id });
+    if (typeof data === 'string' && data && w) w.location.href = `${window.location.origin}/?portal=${data}`;
+    else w?.close();
+  };
+
   const [orphanBusy, setOrphanBusy] = useState(false);
   const [orphanDone, setOrphanDone] = useState<string | null>(null);
   const openOrphanRequest = async () => {
@@ -140,6 +148,10 @@ export default function AnnualSummary({ client, step, year, data, busy, run, mor
 
   return (
     <section className="as-wrap" data-annual-summary aria-label={`דוח שנתי ${year} — הסיכום`}>
+      {/* ‼ 20.10.2026 · לנסות את השאלון על הלקוח עצמו: הדף האמיתי שלו — מה שנענה שם נשמר כאילו הלקוח ענה (למחיקה: ⋯ ← «מחק לגמרי») */}
+      {asks.some(a => a.state === 'published' || a.state === 'answered') && (
+        <button type="button" className="btn btn-sm btn-ghost as-as-client" data-annual-as-client onClick={() => void openAsClient()}>פתח כמו הלקוח ↗</button>
+      )}
       <ol className="as-steps" aria-label="שלבי העבודה">
         <li className={questions.length && qDone === questions.length ? 'is-done' : 'is-now'}>שאלון {questions.length ? `${qDone}/${questions.length}` : ''}{questions.length && qDone === questions.length ? ' ✓' : ''}</li>
         <li className={files.length && fDone === files.length ? 'is-done' : files.length ? 'is-now' : ''}>מסמכים {files.length ? `${fDone}/${files.length}` : ''}</li>
