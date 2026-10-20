@@ -197,7 +197,28 @@ ul{padding:0;list-style:none}
 .wk-sum .ico{color:var(--done)}
 .nb{display:inline-block;vertical-align:-1px;margin-inline-end:8px;width:15px;height:10px;border-radius:2px;background:repeating-linear-gradient(135deg,var(--brick-pend-line) 0 1.5px,var(--brick-pend) 1.5px 5px);box-shadow:inset 0 0 0 1px var(--brick-pend-line);flex:none}
 .loading{font-size:13px;color:var(--ink-3)}
-.one{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:16px;align-items:start}
+.tasks-zone{display:grid;gap:4px}
+.tasks-h{display:flex;align-items:baseline;gap:10px}
+.tasks-n{font-size:13px;color:var(--ink-4)}
+.tasks{list-style:none;margin:0;padding:0;display:grid}
+.task{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:14px;align-items:center;padding:7px 0;border-radius:10px}
+.task + .task,.task + .task-edit,.task-edit + .task{border-top:1px solid var(--hair)}
+.task.fresh{animation:rowflash 1.6s ease-out}
+.task .one-box{width:30px;height:30px;margin:0}
+.task .one-box i .ico{width:15px;height:15px}
+.task-text{font-size:20px;line-height:1.4;font-weight:500;color:var(--ink);text-wrap:pretty;overflow-wrap:anywhere}
+.task-text .day{color:var(--accent);font-weight:600}
+.task.done .task-text,.task.done .task-text .day{color:var(--ink-3)}
+.task-acts{display:flex;gap:2px;opacity:0;transition:opacity .15s}
+.task:hover .task-acts,.task-acts:focus-within{opacity:1}
+@media (hover:none){.task-acts{opacity:1}}
+.task-acts .iconbtn{width:32px;height:32px}
+.task-acts .iconbtn .ico{width:14px;height:14px}
+.task-edit{padding:7px 0}
+.task-add{margin-top:6px;flex-wrap:wrap}
+.nform.task-add input{width:0;flex-basis:200px}
+@media (max-width:520px){.nform.task-add input{flex-basis:100%}.task{gap:10px}.task-acts{gap:0}}
+.tasks-max{font-size:13px;color:var(--ink-4);margin-top:6px}
 .one-box{position:relative;width:34px;height:34px;margin-top:24px;cursor:pointer}
 .one-box input{position:absolute;inset:0;width:100%;height:100%;opacity:0;margin:0;cursor:pointer;z-index:1}
 .one-box i{position:absolute;inset:0;border-radius:50%;border:2px solid var(--line-strong);display:grid;place-items:center;color:transparent;background:var(--surface);transition:background .2s,border-color .2s}
@@ -206,9 +227,6 @@ ul{padding:0;list-style:none}
 .one-box input:focus-visible + i{outline:2px solid var(--focus);outline-offset:3px}
 .one-box input:checked + i{background:var(--done);border-color:var(--done);color:#fff;animation:tick .35s var(--spring)}
 .one-label{font-size:13px;color:var(--ink-3);font-weight:500}
-.one-text{font-size:23px;line-height:1.4;font-weight:500;color:var(--ink);margin-top:4px;text-wrap:pretty}
-.one-text .day{color:var(--accent);font-weight:600}
-.one.done .one-text,.one.done .one-text .day{color:var(--ink-3)}
 .one-done{font-size:14px;color:var(--done-ink);font-weight:500;margin-top:4px}
 .one-form{display:grid;gap:8px}
 .one-help{margin:-4px 0 2px;font-size:13px;color:var(--ink-4);line-height:1.45}
@@ -247,6 +265,7 @@ ul{padding:0;list-style:none}
 .nform input::placeholder{color:var(--ink-3)}
 .nform input:focus{background:var(--surface);border-color:var(--line-strong)}
 .nform .btn{height:38px}
+.nform select{height:38px;padding:0 8px;border:1px solid var(--line);border-radius:10px;background:var(--sunk);color:var(--ink);font-size:14px}
 @media (max-width:760px){.zones{grid-template-columns:minmax(0,1fr)}.zones > .ctl{padding-top:18px;border-top:1px solid var(--hair)}}
 /* PIVO השבוע: שורה שקטה בתחתית הכרטיס; ההדבקה נפתחת במקום */
 .pv{display:grid;gap:10px;padding-top:16px;border-top:1px solid var(--hair);min-width:0}
@@ -278,9 +297,9 @@ ul{padding:0;list-style:none}
 .ctr-add:active{transform:scale(.92)}
 .ctr-add .ico{width:13px;height:13px;stroke-width:2.2}
 @media (max-width:640px){
-  .ctr-add{width:34px;height:34px}.pip{width:24px;height:36px}.pips{min-width:72px}.one-text{font-size:20px}.one-box{margin-top:22px}
+  .ctr-add{width:34px;height:34px}.pip{width:24px;height:36px}.pips{min-width:72px}.task-text{font-size:18px}
   .ctl{gap:4px}
-  .nform input{height:42px;font-size:16px}.nform .btn{height:42px}
+  .nform input{height:42px;font-size:16px}.nform .btn,.nform select{height:42px}
 }
 
 /* ── 3. שתי העצמאויות ───────────────────────────────────── */
@@ -675,6 +694,13 @@ button.pm-line[aria-expanded="true"] .ico{transform:rotate(90deg)}
 .dialog .stepper input[type=number]{width:48px;height:38px;padding:0;border:0;border-radius:0;text-align:center;font-weight:600;background:transparent;color:var(--ink);-moz-appearance:textfield;appearance:textfield}
 .stepper input::-webkit-inner-spin-button,.stepper input::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
 .carry{font-size:14px;color:var(--ink-3)}
+.tk-res{display:grid;gap:6px}
+.tk-res + .tk-res{margin-top:6px}
+.tk-name{font-size:14px;color:var(--ink);overflow-wrap:anywhere}
+.nt-list{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.nt-list:empty{display:none}
+.nt-row{display:grid;grid-template-columns:minmax(0,1fr) auto 32px;gap:6px;align-items:center}
+.field .nt-row .nt-day{width:auto;padding:0 8px}
 .dl-edit{display:grid;gap:2px}
 .dl-item{display:grid;grid-template-columns:34px minmax(0,1fr) 32px;align-items:center;gap:2px;border-radius:10px;transition:background .15s}
 .dl-item:focus-within{background:var(--sunk)}
@@ -900,7 +926,7 @@ const LS_KEY = 'pivo-vision-v1';
 const blank = () => ({why: null, example: false, started: null, ms: {}, monthAction: {}, live: {}, clients: [], procs: [], weeks: {}, laid: {}, pivoSince: null});
 let S = blank();
 const UI = {ready: false, readOnly: false, sheet: null, sheetAnim: false, seed: null, capture: false, freshProc: null, bumpProc: null, popCtr: null, flashWeek: null,
-  openWeeks: null, logAll: false, editThing: false, roadReset: false, anim: {ring: false, wall: false, hero: true}, pendingRender: false, addSt: null, flashSt: null};
+  openWeeks: null, logAll: false, editTask: null, freshTask: null, roadReset: false, anim: {ring: false, wall: false, hero: true}, pendingRender: false, addSt: null, flashSt: null};
 const Store = {mode: 'loading', db: null, docs: [], dirty: new Set(), timer: null, writing: false, echo: {}, retry: 0, status: 'loading'};
 let V = null;
 let prevBig = {mrr: null, hrs: null};
@@ -1048,19 +1074,37 @@ function derive() {
   const due = !curSum && (asOf > thu || (asOf === thu && time >= '16:00'));
   const prevW = addDays(activeW, -7), prevSum = S.weeks[prevW] || null;
   const live = S.live[activeW] || {};
-  const thing = live.thing || (prevSum && prevSum.next ? {text: prevSum.next, day: prevSum.day || null} : null);
+  const tasks = tasksFor(activeW);
   const counts = {leads: live.leads || 0, meets: live.meets || 0, quotes: live.quotes || 0};
   const startW = weekThu(S.started || asOf);
   const firstSum = Object.keys(S.weeks).sort()[0];
   const logStart = firstSum && firstSum < startW ? firstSum : startW;
   const missedPrev = !curSum && !prevSum && prevW >= logStart;
   return {asOf, time, mNow, year, seen, pending, laid, active, paying, signed, actI, actCo, goal, daysLeft, remIndiv, remCo, mrrIn, mrrAt,
-    rungOf, procs, est, top, hrs, stations, office, circle, focus, thu, curSum, activeW, due, prevW, prevSum, thing, counts, logStart, missedPrev};
+    rungOf, procs, est, top, hrs, stations, office, circle, focus, thu, curSum, activeW, due, prevW, prevSum, tasks, counts, logStart, missedPrev};
 }
 const isGone = c => !!c.ended && c.ended <= V.asOf;
 const stationByKey = k => k === 'office' ? V.office : V.stations.find(s => s.k === k);
 const stationName = k => k === 'office' ? OFFICE.name : STATIONS.find(s => s.k === k).name;
-const thingFor = w => { const l = S.live[w]; if (l && l.thing) return l.thing; const p = S.weeks[addDays(w, -7)]; return p && p.next ? {text: p.next, day: p.day || null} : null; };
+/* המשימות של השבוע. live[w].tasks: [{id, text, day, done}]; בסגירה weeks[w].tasks: [{text, day, res}]
+   והתוכנית לשבוע שאחריו weeks[w].nextTasks: [{text, day}].
+   ‼ שבוע מלפני 20.10 שמור עם צעד אחד (live.thing + live.result, ובסגירה next/day/result) — נקרא כרשימה
+   של משימה אחת, ונכתב מחדש רק כשנוגעים בו. */
+const MAX_TASKS = 5;
+const planOf = s => !s ? [] : Array.isArray(s.nextTasks) ? s.nextTasks : s.next ? [{text: s.next, day: s.day || null}] : [];
+function tasksFor(w) {
+  const l = S.live[w];
+  if (l && Array.isArray(l.tasks)) return l.tasks;
+  if (l && l.thing) return [{id: 't0', text: l.thing.text, day: l.thing.day || null, done: l.result === 'done'}];
+  return planOf(S.weeks[addDays(w, -7)]).map((x, i) => ({id: 'p' + i, text: x.text, day: x.day || null, done: false}));
+}
+const ownTasks = w => { const l = S.live[w]; return !!(l && (Array.isArray(l.tasks) ? l.tasks.length : l.thing)); };
+const closedTasks = (w, s) => Array.isArray(s.tasks) ? s.tasks : tasksFor(w).map(x => ({text: x.text, day: x.day, res: s.result || null}));
+function setTasks(w, list) {
+  const {thing: _t, result: _r, ...rest} = S.live[w] || {};
+  S.live[w] = {...rest, tasks: list.map(x => ({id: x.id, text: x.text, day: x.day || null, done: !!x.done}))};
+  save('meta'); V = derive();
+}
 
 /* ═══ הודעה וטולטיפ ═══════════════════════════════════════════════ */
 let toastT;
@@ -1144,16 +1188,28 @@ function notesHTML(w, off) {
     ${shown.length ? `<ul class="nlist">${shown.map(n => `<li${UI.freshNote === n.id ? ' class="fresh"' : ''}><span>${esc(n.t)}</span>${UI.readOnly ? '' : `<button class="nx" type="button" data-act="noteDel" data-id="${n.id}" aria-label="${esc('מחק את הנקודה: ' + n.t)}">${ICON.close}</button>`}</li>`).join('')}</ul>` : ''}
     ${UI.readOnly ? '' : `<form class="nform" id="noteForm" autocomplete="off"><label class="sr" for="noteIn">נקודה למה עשיתי השבוע</label><input id="noteIn" type="text" maxlength="160" enterkeyhint="done" placeholder="נקודה קצרה"><button class="btn ghost sm" type="submit"${off}>${ICON.plus}הוסף</button></form>`}</div>`;
 }
-// היום שנבחר לצעד של השבוע: «היום» כשזה היום. יום שעבר פשוט לא מופיע; בלי תזכורת למה שפוספס.
+// היום שנבחר למשימה: «היום» כשזה היום. יום שעבר פשוט לא מופיע; בלי תזכורת למה שפוספס.
 function dayHTML(day, isNext, res) {
   if (!day || res === 'done') return '';
   const di = DAYS.indexOf(day), td = dow(V.asOf);
   if (isNext || di > td) return `<span class="day">ביום ${day}</span> · `;
   return di === td ? '<span class="day">היום</span> · ' : '';
 }
+// ימים שעוד לפניך השבוע; יום שכבר נבחר נשאר ברשימה גם אם עבר, כדי שעריכה לא תמחק אותו
+function daySelectHTML(id, sel, isNext) {
+  const td = dow(V.asOf), opts = DAYS.map((d, i) => [d, !isNext && i === td ? 'היום' : `ביום ${d}`, i]).filter(x => isNext || x[2] >= td || x[0] === sel);
+  return opts.length ? `<select id="${id}" aria-label="באיזה יום"><option value="">באיזה יום?</option>${opts.map(([d, l]) => `<option value="${d}"${sel === d ? ' selected' : ''}>${l}</option>`).join('')}</select>` : '';
+}
+function taskRowHTML(x, isNext) {
+  if (UI.editTask === x.id && !UI.readOnly) return `<li class="task-edit"><form class="one-row" id="taskEditForm" data-id="${x.id}" autocomplete="off"><label class="sr" for="taskEditIn">המשימה</label><input id="taskEditIn" type="text" maxlength="120" value="${esc(x.text)}">${daySelectHTML('taskEditDay', x.day, isNext)}<button class="btn primary" type="submit">שמור</button><button class="btn ghost" type="button" data-act="taskCancel">ביטול</button></form></li>`;
+  return `<li class="task${x.done ? ' done' : ''}${UI.freshTask === x.id ? ' fresh' : ''}">
+    <label class="one-box"><input type="checkbox" data-act="taskDone" data-id="${x.id}" ${x.done ? 'checked' : ''} aria-label="${esc('סמן שעשית: ' + x.text)}"${UI.readOnly ? ' disabled' : ''}><i aria-hidden="true">${ICON.check}</i></label>
+    <p class="task-text">${dayHTML(x.day, isNext, x.done ? 'done' : null)}${esc(x.text)}</p>
+    ${UI.readOnly ? '<span></span>' : `<span class="task-acts"><button class="iconbtn quiet" type="button" data-act="taskEdit" data-id="${x.id}" aria-label="${esc('שנה: ' + x.text)}" title="שנה">${ICON.pen}</button><button class="iconbtn quiet" type="button" data-act="taskDel" data-id="${x.id}" aria-label="${esc('מחק: ' + x.text)}" title="מחק">${ICON.close}</button></span>`}</li>`;
+}
 function renderWeek() {
   const el = $('#week');
-  const w = V.activeW, isNext = w !== V.thu, t = V.thing, live = S.live[w] || {}, res = live.result || null;
+  const w = V.activeW, isNext = w !== V.thu, tasks = V.tasks;
   const off = UI.ready && !UI.readOnly ? '' : ' aria-disabled="true"';
   let html = '';
   // סוגרים את השבוע מחמישי. לפני כן אין כפתור: נקודה של רביעי צריכה להיכנס לשבוע הזה.
@@ -1163,18 +1219,21 @@ function renderWeek() {
   html += `<div class="wk-top"><div class="wk-label">${isNext ? 'השבוע הבא' : 'השבוע'} · <b>${weekName(w)}</b></div>
     <div class="wk-sum">${isNext ? ICON.check : ''}<span>${sumTxt}</span>${btn}</div></div>`;
   if (!UI.ready) html += `<p class="loading">טוען את הנתונים שלך…</p>`;
-  if (t && !UI.editThing) {
-    html += `<div class="one${res === 'done' ? ' done' : ''}">
-      <label class="one-box"><input type="checkbox" id="oneDone" data-act="oneDone" data-w="${w}" ${res === 'done' ? 'checked' : ''} aria-label="סמן שעשית את הצעד של השבוע"${UI.readOnly ? ' disabled' : ''}><i aria-hidden="true">${ICON.check}</i></label>
-      <div><div class="one-label">${isNext ? 'הצעד לשבוע הבא' : 'הצעד של השבוע'}</div><p class="one-text">${dayHTML(t.day, isNext, res)}${esc(t.text)}</p>${res === 'done' ? '<p class="one-done">עשית את מה שאמרת שתעשה.</p>' : ''}</div>
-      ${UI.readOnly ? '' : `<button class="iconbtn quiet" type="button" data-act="editThing" aria-label="שנה את הצעד" title="שנה">${ICON.pen}</button>`}</div>`;
+  // גיא, 20.10: כמה משימות לשבוע, כולן שוות, בסדר שבו נכתבו. עד חמש, כדי שזו תישאר תוכנית ולא רשימת מטלות.
+  const label = isNext ? 'המשימות לשבוע הבא' : 'המשימות של השבוע';
+  if (tasks.length) {
+    const doneN = tasks.filter(x => x.done).length, all = doneN === tasks.length;
+    html += `<div class="tasks-zone"><div class="tasks-h"><span class="one-label" id="tasksLbl">${label}</span>${tasks.length > 1 && doneN ? `<span class="tasks-n">${doneN} מתוך ${tasks.length}</span>` : ''}</div>
+      <ul class="tasks" aria-labelledby="tasksLbl">${tasks.map(x => taskRowHTML(x, isNext)).join('')}</ul>
+      ${all ? `<p class="one-done">${tasks.length > 1 ? 'עשית את כל מה שאמרת שתעשה.' : 'עשית את מה שאמרת שתעשה.'}</p>` : ''}
+      ${UI.readOnly || UI.editTask ? '' : tasks.length < MAX_TASKS
+        ? `<form class="nform task-add" id="taskForm" autocomplete="off"><label class="sr" for="taskIn">עוד משימה</label><input id="taskIn" type="text" maxlength="120" enterkeyhint="done" placeholder="עוד משימה">${daySelectHTML('taskDay', null, isNext)}<button class="btn ghost sm" type="submit"${off}>${ICON.plus}הוסף</button></form>`
+        : '<p class="tasks-max">חמש משימות. זה מספיק לשבוע אחד.</p>'}</div>`;
   } else if (!UI.readOnly) {
-    const td = dow(V.asOf), dayOpts = DAYS.map((d, i) => [d, !isNext && i === td ? 'היום' : `ביום ${d}`, i]).filter(x => isNext || x[2] >= td);
-    html += `<form class="one-form" id="thingForm" autocomplete="off"><label class="one-label" for="thingIn">${isNext ? 'הצעד לשבוע הבא' : 'הצעד של השבוע'}</label>
-      <p class="one-help" id="thingHelp">פעולה אחת שתקרב אותך לעצמאות. קובעים לה יום, ובחמישי מסמנים אם נעשתה.</p>
-      <div class="one-row"><input id="thingIn" type="text" maxlength="120" aria-describedby="thingHelp" placeholder="למשל: להתקשר לשלושה לקוחות לשעבר ולבקש המלצה" value="${esc(t ? t.text : '')}">
-        ${dayOpts.length ? `<select id="thingDay" aria-label="באיזה יום"><option value="">באיזה יום?</option>${dayOpts.map(([d, l]) => `<option value="${d}" ${t && t.day === d ? 'selected' : ''}>${l}</option>`).join('')}</select>` : ''}
-        <button class="btn primary" type="submit"${off}>קבע</button>${t ? '<button class="btn ghost" type="button" data-act="cancelThing">ביטול</button>' : ''}</div></form>`;
+    html += `<form class="one-form" id="taskForm" autocomplete="off"><label class="one-label" for="taskIn">${label}</label>
+      <p class="one-help" id="taskHelp">מה אתה רוצה להספיק ${isNext ? 'בשבוע הבא' : 'השבוע'} כדי להתקרב לעצמאות. אפשר כמה משימות; לכל אחת יום אם רוצים, ובחמישי מסמנים מה נעשה.</p>
+      <div class="one-row"><input id="taskIn" type="text" maxlength="120" enterkeyhint="done" aria-describedby="taskHelp" placeholder="למשל: להתקשר לשלושה לקוחות לשעבר ולבקש המלצה">
+        ${daySelectHTML('taskDay', null, isNext)}<button class="btn primary" type="submit"${off}>הוסף</button></div></form>`;
   }
   const ctr = (k, label, one) => {
     const n = V.counts[k], tg = TARGETS[k], len = Math.max(tg, n);
@@ -1190,7 +1249,7 @@ function renderWeek() {
     ${ctr('leads', 'פניות', 'פנייה')}${ctr('meets', 'פגישות היכרות', 'פגישה')}${ctr('quotes', 'הצעות מחיר', 'הצעת מחיר')}${wonHTML}</div></div>`;
   if (UI.ready) html += pivoZoneHTML(off);
   el.innerHTML = html;
-  UI.popCtr = null; UI.freshNote = null;
+  UI.popCtr = null; UI.freshNote = null; UI.freshTask = null;
 }
 
 /* ═══ PIVO השבוע: בקשה מוכנה ל־Claude, והתשובה נשמרת בשבוע שלה ═══ */
@@ -1702,6 +1761,8 @@ function weekMoney(w) {
   return {mrr};
 }
 const RES_TXT = {done: ['done', 'עשיתי'], part: ['part', 'חלקית'], no: ['no', 'לא הספקתי']};
+const resChip = x => { const r = x.res && RES_TXT[x.res]; return r ? `<span class="res ${r[0]}">${r[0] === 'done' ? ICON.check : ''}${r[1]}</span> · ` : ''; };
+const listOrOne = (xs, f) => xs.length > 1 ? `<ul class="dlist">${xs.map(x => `<li>${f(x)}</li>`).join('')}</ul>` : f(xs[0]);
 const openSet = () => UI.openWeeks || new Set();
 const filled = v => v && v !== '—' ? v : '';
 // צעדי הגיוס במילים
@@ -1726,15 +1787,15 @@ function weekRowHTML(w) {
       ${UI.readOnly ? '' : `<span class="jact"><button class="btn ghost sm" type="button" data-act="summary" data-w="${w}">${ICON.pen}להשלים את השבוע</button>${pivoBtn(w)}</span>`}</div>`;
     return html + '</li>';
   }
-  const t = thingFor(w), r = s.result && RES_TXT[s.result], steps = stepsTxt(s);
+  const tl = closedTasks(w, s), plan = planOf(s), steps = stepsTxt(s);
   const mk = w.slice(0, 7), ma = addDays(w, 7).slice(0, 7) !== mk ? S.monthAction[mk] : null;
   const rest = win ? lines : lines.slice(1);
   html += `<div class="jdet"><dl class="e-body">
     ${rest.length ? `<dt>${win ? 'מה עשיתי' : 'ועוד'}</dt><dd>${rest.length > 1 ? `<ul class="dlist">${rest.map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : esc(rest[0])}</dd>` : ''}
     <dt>צעדי גיוס</dt><dd>${steps || '—'}</dd>
-    ${t ? `<dt>הצעד של השבוע</dt><dd>${r ? `<span class="res ${r[0]}">${r[0] === 'done' ? ICON.check : ''}${r[1]}</span> · ` : ''}${esc(t.text)}</dd>` : ''}
+    ${tl.length ? `<dt>${tl.length > 1 ? 'המשימות של השבוע' : 'המשימה של השבוע'}</dt><dd>${listOrOne(tl, x => resChip(x) + esc(x.text))}</dd>` : ''}
     ${filled(s.block) ? `<dt>מה עיכב</dt><dd>${esc(s.block)}</dd>` : ''}
-    ${s.next ? `<dt>לשבוע הבא</dt><dd>${s.day ? `ביום ${s.day} · ` : ''}${esc(s.next)}</dd>` : ''}
+    ${plan.length ? `<dt>לשבוע הבא</dt><dd>${listOrOne(plan, x => (x.day ? `ביום ${x.day} · ` : '') + esc(x.text))}</dd>` : ''}
     ${ma ? `<dt>הפעולה ל${MONTHS[(mIdx(mk) + 1) % 12]}</dt><dd>${esc(ma)}</dd>` : ''}
     ${pivoOf(w) ? `<dt>PIVO השבוע</dt><dd>${pivoListHTML(pivoOf(w))}</dd>` : ''}</dl>
     ${UI.readOnly ? '' : `<span class="jact"><button class="btn ghost sm" type="button" data-act="summary" data-w="${w}">${ICON.pen}ערוך את השבוע</button>${pivoBtn(w)}</span>`}</div>`;
@@ -2019,19 +2080,19 @@ function openFreed(id) {
 /* ═══ סגירת השבוע: שלושה צעדים ═══════════════════════════════════ */
 // «מה עשיתי» היא רשימה אחת: הנקודות מהשבוע כבר בפנים, והכוכב מסמן את ההצלחה מתוכן
 const dlItemHTML = (t, win) => `<li class="dl-item${win ? ' win' : ''}"><button type="button" class="dl-star" aria-pressed="${win}" aria-label="סמן כהצלחה של השבוע">${ICON.winStar}</button><input class="dl-text" maxlength="160" value="${esc(t)}" aria-label="נקודה"><button type="button" class="dl-x" aria-label="מחק את הנקודה">${ICON.close}</button></li>`;
+const ntRowHTML = x => `<li class="nt-row"><input class="nt-text" type="text" maxlength="120" value="${esc(x.text)}" aria-label="משימה"><select class="nt-day" aria-label="באיזה יום"><option value="">יום?</option>${DAYS.map(d => `<option value="${d}"${x.day === d ? ' selected' : ''}>${d}</option>`).join('')}</select><button type="button" class="dl-x" aria-label="${esc('הסר: ' + x.text)}">${ICON.close}</button></li>`;
 function openSummary(w) {
   if (UI.readOnly) return;
   w = w || V.activeW;
   const s = S.weeks[w] || null, live = S.live[w] || {};
   const mk = w.slice(0, 7), m = mIdx(mk), isLast = addDays(w, 7).slice(0, 7) !== mk;
-  const th = thingFor(w);
+  const th = s ? closedTasks(w, s) : tasksFor(w).map(x => ({text: x.text, day: x.day, res: x.done ? 'done' : null}));
   const cnt = s ? {leads: s.leads || 0, meets: s.meets || 0, quotes: s.quotes || 0} : {leads: live.leads || 0, meets: live.meets || 0, quotes: live.quotes || 0};
-  const res0 = s ? s.result : live.result || null;
   const gains = V.laid.filter(c => inWeek(c.approved, w)), add = gains.reduce((a, c) => a + (+c.monthly || 0), 0);
   const {mrr} = weekMoney(w);
   const pf = procFacts(w);
   // שואלים על הצעד הבא רק כשהשבוע שאחריו עוד לפניך (או כשכבר נכתב); לשבוע ישן לא ממציאים תוכנית
-  const nextW = addDays(w, 7), askNext = (nextW >= V.thu && !(S.live[nextW] && S.live[nextW].thing)) || !!(s && s.next);
+  const nextW = addDays(w, 7), askNext = (nextW >= V.thu && !ownTasks(nextW)) || planOf(s).length > 0;
   const total = askNext || isLast ? 3 : 2;
   const moved = [
     gains.length ? `<b>${gains.length === 1 ? 'לקוח חדש' : `${gains.length} לקוחות חדשים`}:</b> ${gains.map(c => esc(c.name)).join(', ')} · <bdi dir="ltr">+${money(add)}</bdi> בחודש` : 'השבוע לא נכנס לקוח חדש. זה קורה; הצעדים הם החלק שבשליטתך.',
@@ -2068,9 +2129,9 @@ function openSummary(w) {
     </section>
     <section class="wz-step" data-step="2" aria-labelledby="wz2">
       <h3 class="wz-title" id="wz2"><span class="wz-n">2</span>איך היה השבוע</h3>
-      ${th ? `<div class="field"><span class="flabel" id="resLbl">אמרת שתעשה: ${esc(quote(th.text))}</span>
-        <div class="radios" role="radiogroup" aria-labelledby="resLbl">${Object.entries(RES_TXT).map(([k, [, l]]) => `<label><input type="radio" name="result" value="${k}" ${res0 === k ? 'checked' : ''}>${l}</label>`).join('')}</div>
-        ${askNext ? `<div class="carry" hidden>זה בסדר, זה קורה. <button type="button" class="linkbtn" data-carry>להעביר אותו ${nextW === V.thu ? 'לשבוע הזה' : 'לשבוע הבא'}</button></div>` : ''}</div>` : ''}
+      ${th.length ? `<div class="field"><span class="flabel" id="resLbl">${th.length > 1 ? 'מה שאמרת שתעשה' : `אמרת שתעשה: ${esc(quote(th[0].text))}`}</span>
+        ${th.map((x, i) => `<div class="tk-res">${th.length > 1 ? `<span class="tk-name" id="tkL${i}">${esc(x.text)}</span>` : ''}<div class="radios" role="radiogroup" aria-labelledby="${th.length > 1 ? 'tkL' + i : 'resLbl'}">${Object.entries(RES_TXT).map(([k, [, l]]) => `<label><input type="radio" name="res${i}" value="${k}" ${x.res === k ? 'checked' : ''}>${l}</label>`).join('')}</div></div>`).join('')}
+        ${askNext ? `<div class="carry" hidden>זה בסדר, זה קורה. <button type="button" class="linkbtn" data-carry>להעביר ${th.length > 1 ? 'את מה שלא הושלם' : 'אותו'} ${nextW === V.thu ? 'לשבוע הזה' : 'לשבוע הבא'}</button></div>` : ''}</div>` : ''}
       <div class="field"><span class="flabel" id="didLbl">מה עשיתי השבוע</span>
         <ul class="dl-edit" id="dlEdit" aria-labelledby="didLbl">${items.map((t, i) => dlItemHTML(t, i === winIdx)).join('')}</ul>
         <div class="dl-add"><label class="sr" for="dlIn">עוד נקודה</label><input id="dlIn" maxlength="160" enterkeyhint="done" placeholder="${items.length ? 'עוד נקודה' : 'מה עשית השבוע? נקודה, ואז Enter'}"></div>
@@ -2081,24 +2142,28 @@ function openSummary(w) {
       <h3 class="wz-title" id="wz3"><span class="wz-n">3</span>${askNext ? (nextW === V.thu ? 'השבוע הזה' : 'השבוע הבא') : 'סוף החודש'}</h3>
       ${monthBox}
       ${askNext ? `${monthAct ? `<p class="month-act"><b>הפעולה של ${MONTHS[nm % 12]}:</b> ${esc(monthAct)}</p>` : ''}
-      <div class="field"><label for="sNext">הצעד ${nextW === V.thu ? 'לשבוע הזה' : 'לשבוע הבא'}</label><input id="sNext" name="next" type="text" required maxlength="120" placeholder="למשל: להתקשר לשלושה לידים מההמלצות" value="${s ? esc(s.next || '') : ''}"><span class="fhint">יופיע למעלה כל השבוע, עם עיגול לסמן שעשית.</span></div>
-      <div class="field"><span class="flabel" id="dayLbl">באיזה יום תעשה אותו?</span><div class="radios" role="radiogroup" aria-labelledby="dayLbl">${DAYS.map(x => `<label><input type="radio" name="day" value="${x}" ${s && s.day === x ? 'checked' : ''}>${x}</label>`).join('')}</div><span class="fhint">לא חובה, אבל יום קבוע מגדיל מאוד את הסיכוי שזה יקרה.</span></div>` : ''}
+      <div class="field"><span class="flabel" id="ntLbl">המשימות ${nextW === V.thu ? 'לשבוע הזה' : 'לשבוע הבא'}</span>
+        <ul class="nt-list" id="ntList" aria-labelledby="ntLbl">${planOf(s).map(ntRowHTML).join('')}</ul>
+        <div class="dl-add nt-add"${planOf(s).length >= MAX_TASKS ? ' hidden' : ''}><label class="sr" for="ntIn">עוד משימה</label><input id="ntIn" maxlength="120" enterkeyhint="done" placeholder="${planOf(s).length ? 'עוד משימה' : 'למשל: להתקשר לשלושה לידים מההמלצות. ואז Enter'}"></div>
+        <span class="fhint">יופיעו למעלה כל השבוע, כל אחת עם עיגול לסמן שעשית. יום לא חובה, אבל יום קבוע מגדיל מאוד את הסיכוי שזה יקרה.</span></div>` : ''}
     </section>` : ''}
     <div class="dactions"><button class="btn primary" type="button" data-wz="next">המשך</button><button class="btn primary" type="submit" data-wz="save" hidden>${w < V.thu || s ? 'שמור' : 'סגור את השבוע'}</button><button class="btn" type="button" data-wz="back" hidden>חזרה</button><button class="btn ghost" type="button" data-close>ביטול</button></div>`,
   (fd, form) => {
     const txt = k => (fd.get(k) || '').trim();
-    if (askNext && !txt('next')) return false;
+    const nts = askNext ? [...$$('.nt-row', form).map(li => ({text: li.querySelector('.nt-text').value.trim(), day: li.querySelector('.nt-day').value || null})), {text: form.querySelector('#ntIn').value.trim(), day: null}].filter(x => x.text).slice(0, MAX_TASKS) : null;
+    if (askNext && !nts.length) { const inp = form.querySelector('#ntIn'); inp.setCustomValidity('כתוב לפחות משימה אחת'); inp.reportValidity(); inp.addEventListener('input', () => inp.setCustomValidity(''), {once: true}); return false; }
     const lis = $$('.dl-item', form), lines = lis.map(li => li.querySelector('.dl-text').value.trim());
     const wi = lis.findIndex(li => li.classList.contains('win')), win = wi >= 0 ? lines[wi] : '';
     const pending = form.querySelector('#dlIn').value.trim();
     const did = [...lines, pending].filter(Boolean);
     const wasCur = w === V.thu && !s;
     S.weeks[w] = {at: V.asOf, leads: +fd.get('leads') || 0, meets: +fd.get('meets') || 0, quotes: +fd.get('quotes') || 0,
-      did: did.join('\n') || '—', win: win || '—', block: txt('block') || '—', next: askNext ? txt('next') : null, day: askNext ? fd.get('day') || null : null, result: th ? fd.get('result') || null : null,
+      did: did.join('\n') || '—', win: win || '—', block: txt('block') || '—',
+      tasks: th.map((x, i) => ({text: x.text, day: x.day || null, res: fd.get('res' + i) || null})), nextTasks: nts,
       // PIVO השבוע עובר עם השבוע כשהוא נסגר, ונשמר כשעורכים אותו
       ...((s && s.pivo) || live.pivo ? {pivo: (s && s.pivo) || live.pivo} : {})};
     if (isLast && txt('act')) S.monthAction[mk] = txt('act');
-    UI.flashWeek = w; UI.editThing = false;
+    UI.flashWeek = w; UI.editTask = null;
     save(weeksDoc(w), 'meta'); renderAll();
     toast(wasCur ? 'סגרת את השבוע. נתראה בחמישי.' : 'נשמר.');
   },
@@ -2112,7 +2177,7 @@ function openSummary(w) {
       bars.forEach((b, i) => b.classList.toggle('on', i < n));
       btn('next').hidden = n === total; btn('save').hidden = n !== total; btn('back').hidden = n === 1;
       form.closest('.dialog').scrollTop = 0;
-      const f = n === 1 ? steps[0].querySelector('[data-su]') : n === 2 ? (list.children.length ? null : addIn) : steps[n - 1].querySelector('input[type=text]');
+      const f = n === 1 ? steps[0].querySelector('[data-su]') : n === 2 ? (list.children.length ? null : addIn) : steps[n - 1].querySelector('#sAct, .nt-text, #ntIn');
       f?.focus({preventScroll: true});
     };
     const addItem = () => { const v = addIn.value.trim(); if (!v) return; list.insertAdjacentHTML('beforeend', dlItemHTML(v, false)); addIn.value = ''; addIn.placeholder = 'עוד נקודה'; addIn.focus(); };
@@ -2127,14 +2192,35 @@ function openSummary(w) {
       if (e.key !== 'Enter') return;
       if (e.target === addIn) { e.preventDefault(); addItem(); return; }
       if (e.target.classList.contains('dl-text')) { e.preventDefault(); addIn.focus(); return; }
+      if (ntIn && e.target === ntIn) { e.preventDefault(); addNt({text: ntIn.value.trim(), day: null}, true); return; }
+      if (e.target.classList.contains('nt-text')) { e.preventDefault(); (ntAdd.hidden ? e.target : ntIn).focus(); return; }
       if (step < total && e.target.matches('input')) { e.preventDefault(); go(step + 1); }
     });
     $$('[data-su],[data-sd]', form).forEach(b => b.addEventListener('click', () => { const inp = form.elements[b.dataset.su || b.dataset.sd]; inp.value = Math.max(0, Math.min(99, (+inp.value || 0) + (b.dataset.su ? 1 : -1))); }));
+    // המשימות לשבוע הבא: שורה לכל משימה, עד חמש
+    const ntList = form.querySelector('#ntList'), ntIn = form.querySelector('#ntIn'), ntAdd = form.querySelector('.nt-add');
+    const ntSync = () => { const n = $$('.nt-row', ntList).length; ntAdd.hidden = n >= MAX_TASKS; ntIn.placeholder = n ? 'עוד משימה' : 'למשל: להתקשר לשלושה לידים מההמלצות. ואז Enter'; };
+    function addNt(x, typed) {
+      if (!x.text || $$('.nt-row', ntList).length >= MAX_TASKS) return;
+      ntList.insertAdjacentHTML('beforeend', ntRowHTML(x));
+      if (typed) ntIn.value = '';
+      ntSync(); if (typed) (ntAdd.hidden ? ntList.lastElementChild.querySelector('.nt-day') : ntIn).focus();
+    }
+    ntList?.addEventListener('click', e => {
+      const li = e.target.closest('.nt-row'); if (!li || !e.target.closest('.dl-x')) return;
+      const nx = li.nextElementSibling || li.previousElementSibling; li.remove(); ntSync();
+      (nx ? nx.querySelector('.nt-text') : ntIn).focus();
+    });
     const carry = form.querySelector('.carry');
     if (carry) {
-      const sync = () => { const r = form.querySelector('input[name=result]:checked'); carry.hidden = !r || r.value === 'done'; };
-      $$('input[name=result]', form).forEach(r => r.addEventListener('change', sync)); sync();
-      form.querySelector('[data-carry]').addEventListener('click', () => { form.querySelector('#sNext').value = th.text; carry.textContent = 'הועבר. אפשר לשנות בצעד 3.'; });
+      const unfinished = () => th.filter((x, i) => { const r = form.querySelector(`input[name=res${i}]:checked`); return r && r.value !== 'done'; });
+      const sync = () => { carry.hidden = !unfinished().length; };
+      $$('.tk-res input', form).forEach(r => r.addEventListener('change', sync)); sync();
+      form.querySelector('[data-carry]').addEventListener('click', () => {
+        const have = new Set($$('.nt-text', ntList).map(i => i.value.trim()));
+        unfinished().filter(x => !have.has(x.text)).forEach(x => addNt({text: x.text, day: x.day || null}));
+        carry.textContent = 'הועבר. אפשר לשנות בצעד 3.';
+      });
     }
   });
 }
@@ -2440,7 +2526,7 @@ function flushRender() { if (UI.pendingRender && !drag) { UI.pendingRender = fal
 
 /* ═══ אירועים ═════════════════════════════════════════════════════ */
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') { if ($('#dlgHost').innerHTML) softClose(); else if ($('#pviewHost').innerHTML) closePrint(); else if (UI.sheet) closeSheet(); else if (UI.editThing) { UI.editThing = false; renderWeek(); } }
+  if (e.key === 'Escape') { if ($('#dlgHost').innerHTML) softClose(); else if ($('#pviewHost').innerHTML) closePrint(); else if (UI.sheet) closeSheet(); else if (UI.editTask) $('#week [data-act="taskCancel"]')?.click(); }
   const trap = $('#dlgHost').innerHTML ? '#dlgHost' : UI.sheet ? '#sheetHost' : $('#pviewHost').innerHTML ? '#pviewHost' : null;
   if (e.key === 'Tab' && trap) {
     const f = $$(`${trap} button, ${trap} input, ${trap} textarea, ${trap} select`).filter(x => !x.disabled && x.offsetParent);
@@ -2500,8 +2586,16 @@ document.addEventListener('click', e => {
     toast('הנקודה נמחקה.', {label: 'בטל', run: () => { const l2 = S.live[w] = {...S.live[w]}, arr = [...(l2.notes || [])]; arr.splice(Math.min(i, arr.length), 0, gone); l2.notes = arr; UI.freshNote = gone.id; save('meta'); renderWeek(); }});
   }
   else if (act === 'notesAll') { UI.notesAll = true; renderWeek(); }
-  else if (act === 'editThing') { UI.editThing = true; renderWeek(); setTimeout(() => $('#thingIn')?.focus(), 20); }
-  else if (act === 'cancelThing') { UI.editThing = false; renderWeek(); }
+  else if (act === 'taskEdit') { UI.editTask = t.dataset.id; renderWeek(); setTimeout(() => { const i = $('#taskEditIn'); i?.focus(); i?.select(); }, 20); }
+  else if (act === 'taskCancel') { const id = UI.editTask; UI.editTask = null; renderWeek(); $(`#week [data-act="taskEdit"][data-id="${id}"]`)?.focus({preventScroll: true}); }
+  else if (act === 'taskDel') {
+    const w = V.activeW, list = tasksFor(w), i = list.findIndex(x => x.id === t.dataset.id);
+    if (i < 0) return;
+    const gone = list[i];
+    setTasks(w, list.filter(x => x !== gone)); renderWeek(); renderLog();
+    ($(`#week .task:nth-child(${Math.min(i + 1, V.tasks.length)}) [data-act="taskEdit"]`) || $('#taskIn'))?.focus({preventScroll: true});
+    toast('המשימה נמחקה.', {label: 'בטל', run: () => { const arr = [...tasksFor(w)]; arr.splice(Math.min(i, arr.length), 0, gone); UI.freshTask = gone.id; setTasks(w, arr); renderWeek(); renderLog(); }});
+  }
   else if (act === 'capture') { UI.capture = true; renderCapture(); setTimeout(() => $('#capIn')?.focus(), 20); }
   else if (act === 'capClose') { UI.capture = false; renderCapture(); }
   else if (act === 'station') { const k = t.dataset.st; UI.flashSt = k; renderSystem(); $(`#st-${k}`)?.scrollIntoView({behavior: reduced ? 'auto' : 'smooth', block: 'center'}); }
@@ -2529,7 +2623,7 @@ document.addEventListener('click', e => {
 });
 function resetAll() {
   const old = S;
-  S = blank(); UI.openWeeks = null; UI.sheet = null; UI.seed = null; UI.editThing = false; UI.roadReset = true;
+  S = blank(); UI.openWeeks = null; UI.sheet = null; UI.seed = null; UI.editTask = null; UI.roadReset = true;
   if (PIVO) S.pivoSince = clock().date;
   prevBig = {mrr: null, hrs: null};
   const years = new Set([...Store.docs.filter(k => k.startsWith('weeks-')), ...Object.keys(old.weeks).map(weeksDoc)]);
@@ -2551,13 +2645,20 @@ document.addEventListener('submit', e => {
     toast(v ? 'נשמר ביומן של השבוע.' : 'נמחק מהשבוע.');
     return;
   }
-  if (e.target.id === 'thingForm') {
+  if (e.target.id === 'taskForm') {
     e.preventDefault();
-    const text = $('#thingIn').value.trim(); if (!text) { $('#thingIn').focus(); return; }
-    const w = V.activeW, l = S.live[w] = {...S.live[w]};
-    l.thing = {text, day: $('#thingDay')?.value || null};
-    UI.editThing = false; save('meta'); V = derive(); renderWeek(); renderLog();
-    toast('נקבע. זה הצעד שלך לשבוע.');
+    const text = $('#taskIn').value.trim(); if (!text) { $('#taskIn').focus(); return; }
+    const w = V.activeW, list = tasksFor(w); if (list.length >= MAX_TASKS) return;
+    const n = {id: uid('t'), text, day: $('#taskDay')?.value || null, done: false};
+    UI.freshTask = n.id; setTasks(w, [...list, n]); renderWeek(); renderLog();
+    $('#taskIn')?.focus({preventScroll: true});
+    if (!list.length) toast('נקבע. אפשר להוסיף עוד משימות.');
+  } else if (e.target.id === 'taskEditForm') {
+    e.preventDefault();
+    const text = $('#taskEditIn').value.trim(); if (!text) { $('#taskEditIn').focus(); return; }
+    const w = V.activeW, id = e.target.dataset.id, day = $('#taskEditDay')?.value || null;
+    UI.editTask = null; setTasks(w, tasksFor(w).map(x => x.id === id ? {...x, text, day} : x)); renderWeek(); renderLog();
+    $(`#week [data-act="taskEdit"][data-id="${id}"]`)?.focus({preventScroll: true});
   } else if (e.target.id === 'noteForm') {
     e.preventDefault();
     const v = $('#noteIn').value.trim(); if (!v) { $('#noteIn').focus(); return; }
@@ -2583,7 +2684,12 @@ document.addEventListener('submit', e => {
 });
 document.addEventListener('change', e => {
   const t = e.target;
-  if (t.dataset.act === 'oneDone') { const w = t.dataset.w, l = S.live[w] = {...S.live[w]}; l.result = t.checked ? 'done' : null; save('meta'); V = derive(); renderWeek(); renderLog(); if (t.checked) toast('סומן. עשית את מה שאמרת שתעשה.'); $('#oneDone')?.focus({preventScroll: true}); }
+  if (t.dataset.act === 'taskDone') {
+    const w = V.activeW, id = t.dataset.id, on = t.checked, list = tasksFor(w).map(x => x.id === id ? {...x, done: on} : x);
+    setTasks(w, list); renderWeek(); renderLog();
+    if (on) toast(!list.every(x => x.done) ? 'סומן.' : list.length > 1 ? 'סומן. עשית את כל מה שאמרת שתעשה.' : 'סומן. עשית את מה שאמרת שתעשה.');
+    $(`#week [data-act="taskDone"][data-id="${id}"]`)?.focus({preventScroll: true});
+  }
   if (t.dataset.act === 'ms') { S.ms[t.dataset.id] = t.checked ? V.asOf : 'none'; save('meta'); renderAll(); if (t.checked) toast('אבן דרך סומנה כהושגה.'); }
   if (t.dataset.act === 'msSub') { S.ms[`${t.dataset.id}:${t.dataset.i}`] = t.checked ? V.asOf : 'none'; save('meta'); renderAll(); }
 });
