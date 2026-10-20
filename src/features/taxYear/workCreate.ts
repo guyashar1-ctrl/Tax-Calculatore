@@ -15,6 +15,7 @@ import { DURABLE_KINDS, scopeYearData } from './yearData';
 import { previousByArea, type WealthPayload } from './WealthDeclarationPanel';
 import { metaOf, type NewWorkRow } from './workMeta';
 import type { LastYearHints } from './priorReturn';
+import { findPriorReturnDocs } from './priorReturnApi';
 import type { Purpose } from './types';
 
 export interface CreateResult {
@@ -102,6 +103,21 @@ export async function openAnnualReturn(client: Client, taxYear: number, opts: { 
   // ‼ 19.10.2026 · יש בתיק הדוח של שנה שעברה ⇒ קודם מבט של המשרד («לפני השליחה» בדף הבקשה), ורק אז השאלון יוצא
   if (opts.holdForPriorReturn && w.created) return { ok: true, stepId: w.stepId, created: true, drafted: 0, published: 0, held: true };
   return publishAnnualAsks(client, taxYear, w.stepId, undefined, w.created);
+}
+
+/**
+ * ‼ 20.10.2026 · דוח שנתי שנפתח בגרסה הקודמת של השאלון ⇒ נסגר (remove_tax_work — ביטול שנשמר בהיסטוריה וניתן להחזרה,
+ *   או מחיקה כשעוד לא יצא כלום), ונפתח מחדש. התשובות הן עובדות של השנה ולא של הבקשה — לא נשאלות שוב.
+ */
+export async function reopenAnnualInNewVersion(client: Client, oldStepId: string, taxYear: number): Promise<CreateResult> {
+  const chk = await api.workRemovalCheck(oldStepId);
+  if (!chk.ok) return { ok: false, error: chk.error, failedAt: 'work' };
+  if (chk.mode !== 'none') {
+    const rm = await api.removeTaxWork(oldStepId, chk.mode, 'נפתח מחדש בגרסה החדשה של השאלון');
+    if (!rm.ok) return { ok: false, error: rm.error, failedAt: 'work' };
+  }
+  const prior = await findPriorReturnDocs(client.id, taxYear).catch(() => []);
+  return openAnnualReturn(client, taxYear, { holdForPriorReturn: prior.length > 0 });
 }
 
 /** השאלון של הדוח השנתי: נבנה מהתיק (ומהדוח הקודם, אם המשרד אישר) ומתפרסם בדף — בלי מייל. */

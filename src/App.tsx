@@ -43,7 +43,7 @@ import { isRepresented } from './lib/clientState';
 import { edgeFunctionError } from './utils/functionError';
 import { isUnknownSendReply } from './types/emailActivity';
 import { errorTextFromBody, isUnknownEmailFailure } from './features/flows/noticeText';
-import { UNKNOWN_OUTCOME_TEXT, isUnknownOutcome } from '../supabase/functions/_shared/resendResult.ts';
+import { UNKNOWN_OUTCOME_TEXT } from '../supabase/functions/_shared/resendResult.ts';
 import { effectiveNiCoversSpouse } from './utils/repSigners';
 import { targetsOf } from './utils/repScope';
 import { representationInsight, onboardingProgressLine, missingIdentityLine } from './utils/representationInsight';
@@ -68,7 +68,6 @@ import { useLivePulse } from './hooks/useLivePulse';
 import { useLeads } from './hooks/useLeads';
 import { useQuotations } from './hooks/useQuotations';
 import { useCharges } from './hooks/useCharges';
-import type { AdditionalCharge } from './types/charges';
 import { useQuotationCatalog } from './hooks/useQuotationCatalog';
 import QuotationsPipeline from './components/quotations/QuotationsPipeline';
 import LeadsPanel, { LeadForm } from './components/quotations/LeadsPanel';
@@ -348,15 +347,6 @@ const APPLY_LINK_SEND_ERRORS: Record<string, string> = {
   resend_failed: 'ספק הדואר דחה את המייל — הקישור לא נשלח.',
 };
 
-const CHARGE_SEND_ERRORS: Record<string, string> = {
-  missing_charge_id: 'החיוב לא נמצא — רעננו את הדף.',
-  not_found: 'החיוב לא נמצא — ייתכן שנמחק. רעננו את הדף.',
-  already_requested: 'דרישת התשלום כבר נשלחה קודם (אולי מחלון אחר) — רעננו את הדף.',
-  missing_client_email: 'בכרטיס הלקוח אין כתובת מייל — דרישת התשלום לא נשלחה.',
-  client_not_found: 'הלקוח לא נמצא — דרישת התשלום לא נשלחה.',
-  unauthorized: AUTH_EXPIRED_TEXT,
-  resend_failed: 'ספק הדואר דחה את המייל — דרישת התשלום לא נשלחה.',
-};
 
 /** גוף התשובה של פונקציית שרת שענתה בשגיאה. null — אין גוף (החיבור נפל, או תשובה שאינה JSON). */
 async function functionReplyBody(data: unknown, error: unknown): Promise<Record<string, unknown> | null> {
@@ -649,7 +639,7 @@ export default function App() {
     return map;
   }, [leads]);
   const { quotations, loading: quotationsLoading, error: quotationsError, addQuotation, updateQuotation, cancelQuotation, deleteQuotation, refreshQuotations } = useQuotations(user?.id);
-  const { charges, addCharge, replaceCharge, markChargePaid } = useCharges(user?.id);
+  const { charges, addCharge, markChargePaid } = useCharges(user?.id);
   const { services: catalogServices, templates: quotationTemplates } = useQuotationCatalog(user?.id);
   const failedNotifications = useFailedNotifications(user?.id);
 
@@ -1409,27 +1399,7 @@ export default function App() {
     }
   }
 
-  /**
-   * שולח דרישת תשלום עבור חיוב נוסף. ‼ אין אינטגרציית סליקה — הפונקציה רק
-   * שולחת מייל ומסמנת שהבקשה יצאה; היא לעולם לא מסמנת "שולם".
-   */
-  async function requestChargePayment(charge: AdditionalCharge): Promise<void> {
-    const { data, error } = await supabase.functions.invoke('send-charge-payment-request-email', {
-      body: { chargeId: charge.id },
-    });
-    if (error || !data?.ok) {
-      const body = await functionReplyBody(data, error);
-      if (isUnknownOutcome(body)) {
-        // ‼ לא ידוע אם יצאה — השרת השאיר את החיוב «נשלחה» (כדי שלא תצא פעמיים).
-        // גם כאן: אחרת השורה מציעה שוב «שלח דרישת תשלום» עד רענון.
-        // (resend_unreachable מגרסת שרת ישנה החזיר את החיוב לממתין — לא נוגעים.)
-        const at = typeof body?.requestedAt === 'string' ? body.requestedAt : new Date().toISOString();
-        replaceCharge({ ...charge, status: 'requested', requestedAt: at });
-      }
-      throw new Error(await emailSendErrorText(body, error, CHARGE_SEND_ERRORS));
-    }
-    replaceCharge({ ...charge, status: 'requested', requestedAt: data.requestedAt as string });
-  }
+  // ‼ 20.10.2026 · requestChargePayment (send-charge-payment-request-email) הוסר מכאן — דרישת תשלום תחזור כבקשה.
 
   /**
    * "המשך טיפול" בליד מקישור המילוי הציבורי — פותח את אותו בורר מסלול משלב 3,
@@ -2996,7 +2966,8 @@ export default function App() {
             onDeleteLead={async (lead) => { await deleteLead(lead.id); }}
             charges={charges}
             onAddCharge={async (clientId, description, amount, dueDate) => { await addCharge(clientId, description, amount, dueDate); }}
-            onRequestChargePayment={requestChargePayment}
+            /* ‼ 20.10.2026 · «שלח דרישת תשלום» ירד מ«אנשים»: מייל ללקוח בלחיצה, בלי תצוגה ובלי בקשה — נגד §9.
+                דרישת תשלום תחזור כבקשה ב«בקשות», עם תצוגת המייל לפני השליחה. */
             onMarkChargePaid={async (charge) => { await markChargePaid(charge); }}
             meetingCues={meetingCues}
             contactsApi={contactsApi}

@@ -33,6 +33,8 @@ interface Props {
   /** פריטים שהמשרד משלים (סכומים ממסמכים, מסלולים, פריסת דמי לידה…) — פותח את «פירוט מלא» עליהם. */
   officeTodo?: { count: number; open: () => void };
   onClientPersisted?: (c: Client) => void;
+  /** 20.10.2026 · הבקשה נפתחה בגרסה הקודמת של השאלון — לא מוסיפים לה שאלות; «סגור ופתח מחדש». */
+  legacy?: { reopen: () => Promise<boolean> };
 }
 
 /** איזה נושא בדוח כל מסמך מזין — הכותרת של השורה ב«מה למלא בדוח». */
@@ -64,7 +66,7 @@ const PAYMENT_ITEMS: { key: string; label: string; businessOnly: boolean }[] = [
 const yes = (f: YearFact) => f.answer === 'value' && f.status !== 'rejected' && f.status !== 'superseded';
 const fmt = (n: number) => n.toLocaleString('he-IL');
 
-export default function AnnualSummary({ client, step, year, data, busy, run, more, officeTodo, onClientPersisted }: Props) {
+export default function AnnualSummary({ client, step, year, data, busy, run, more, officeTodo, onClientPersisted, legacy }: Props) {
   const firstName = client.firstName || 'הלקוח';
   const spouseName = client.spouseFirstName || client.spouse?.firstName || 'בן/בת הזוג';
   const whoOf = (r: SubjectRole) => (r === 'spouse' ? spouseName : r === 'couple' ? (client.familyStatus === 'married' ? 'שניכם' : firstName) : firstName);
@@ -150,6 +152,13 @@ export default function AnnualSummary({ client, step, year, data, busy, run, mor
         </p>
       )}
 
+      {legacy && (
+        <div className="as-approve" role="note" data-annual-legacy>
+          <span>השאלון הזה נפתח בגרסה הקודמת — שאלה נפרדת לכל נושא. כדי שלא יתערבבו אצל {firstName} שני שאלונים, לא מוסיפים לו שאלות.
+            <small>«סגור ופתח מחדש» שומר את הבקשה הזו בהיסטוריה ופותח שאלון אחד בגרסה החדשה. מה ש{firstName} כבר ענה — נשמר ולא נשאל שוב. בלי מייל.</small></span>
+          <button type="button" className="btn btn-sm btn-primary" disabled={busy} data-annual-reopen onClick={() => void legacy.reopen()}>סגור ופתח מחדש</button>
+        </div>
+      )}
       {/* ‼ 19.10.2026 · עוד לא יצא כלום ללקוח — «לפני השליחה»: הדוח של שנה שעברה כנקודת פתיחה (או פרסום מהכרטיס) */}
       {more && asks.length === 0 && (
         <PriorReturnPrep client={client} year={year} stepId={step.id} busy={busy} run={run} publishPlain={more.run} onClientPersisted={onClientPersisted} />

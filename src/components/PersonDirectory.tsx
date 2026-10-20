@@ -74,7 +74,8 @@ interface Props {
   charges: AdditionalCharge[];
   onAddCharge: (clientId: string, description: string, amount: number, dueDate: string) => Promise<void>;
   /** "שלח דרישת תשלום" — שולח מייל אמיתי ומסמן שהבקשה יצאה. */
-  onRequestChargePayment: (charge: AdditionalCharge) => Promise<void>;
+  /** ‼ 20.10.2026 · לא מועבר (App.tsx) — דרישת תשלום רק מתוך בקשה, עם תצוגה. נשאר אופציונלי לבדיקות. */
+  onRequestChargePayment?: (charge: AdditionalCharge) => Promise<void>;
   /** "סמן כשולם" — סימון ידני בלבד. */
   onMarkChargePaid: (charge: AdditionalCharge) => Promise<void>;
   /** הפגישה הקרובה לכל לקוח/ליד — רמז בקצה השורה (features/meetings). */
@@ -189,7 +190,7 @@ export default function PersonDirectory(p: Props) {
 
   /** ‼ chargeBusyId מונע פעולה כפולה מלחיצה כפולה — הכפתור המקביל ננעל עד שהשרת מגיב. */
   async function handleRequestChargePayment(charge: AdditionalCharge) {
-    if (chargeBusyId) return;
+    if (chargeBusyId || !p.onRequestChargePayment) return;
     setChargeBusyId(charge.id);
     try {
       await p.onRequestChargePayment(charge);
@@ -352,7 +353,7 @@ export default function PersonDirectory(p: Props) {
     // תלויה במצב שלו, בדיוק כמו בכרטיס שלו במקטע.
     const charges = row.charges;
     const firstOpen = charges.find(c => c.status !== 'paid');
-    if (firstOpen?.status === 'pending') {
+    if (firstOpen?.status === 'pending' && p.onRequestChargePayment) {
       quickAction = { label: 'שלח דרישת תשלום', run: () => handleRequestChargePayment(firstOpen) };
     } else if (firstOpen?.status === 'requested') {
       quickAction = { label: 'סמן כשולם', run: () => handleMarkChargePaid(firstOpen) };
@@ -497,7 +498,7 @@ export default function PersonDirectory(p: Props) {
               onDeleteLead={selected.kind === 'lead' ? () => handleDeleteLead(selected.lead!) : undefined}
               charges={content.charges}
               onAddCharge={selected.kind === 'client' ? () => setChargeDialogFor(selected.client!) : undefined}
-              onRequestChargePayment={handleRequestChargePayment}
+              onRequestChargePayment={p.onRequestChargePayment ? handleRequestChargePayment : undefined}
               onMarkChargePaid={handleMarkChargePaid}
               chargeBusyId={chargeBusyId}
               spouseClient={selected.client?.spouseClientId

@@ -276,6 +276,19 @@ export function buildAskPlan(statuses: ItemStatus[], ctx0: AskCtx): AskPlanEntry
 export const GRID_KEY = 'intake.whatYouHave';
 export const ANNUAL_GRID_KEY = 'annual.whatHappened';
 export const GRID_KEYS = [GRID_KEY, ANNUAL_GRID_KEY];
+
+/**
+ * ‼ 20.10.2026 · בקשת דוח שנתי שנפתחה בגרסה הקודמת של השאלון: שאלת פתיחה נפרדת לכל נושא («מי מכם?» / כן-לא)
+ *   במקום מסך הריבועים. לבקשה כזו לא מוסיפים שאלות בגרסה החדשה — זה מה שערבב שני שאלונים אצל הלקוח (גיא ישר, 19.10).
+ *   מציעים «סגור ופתח מחדש» (התשובות נשמרות לשנה, ולא נשאלות שוב). אריח נדיר נשאל לבד גם בגרסה החדשה — לא נספר.
+ */
+export function isLegacyAnnual(asks: { itemKey: string; state: string; prompt: AskPrompt }[]): boolean {
+  return asks.some(a => {
+    if (a.state === 'cancelled' || GRID_KEYS.includes(a.itemKey)) return false;
+    const it = ITEM_BY_KEY[a.itemKey];
+    return !!it && it.kind === 'screener' && !!it.tile && !it.rare && (a.prompt.input.kind === 'who' || a.prompt.input.kind === 'yesno');
+  });
+}
 const GRID_ORDER = ['intake.employed', 'intake.selfEmployed', 'intake.rents', 'intake.hasInvestments', 'intake.selfDeposits', 'intake.foreign', 'intake.crypto',
   'intake.allowances', 'intake.insurance', 'intake.credits', 'intake.special'];
 const ANNUAL_ORDER = ['household.familyChange', 'salary.worked', 'pension.received', 'niBenefits.received', 'rent.newRental', 'rent.otherProperty', 'capital.newAccount',

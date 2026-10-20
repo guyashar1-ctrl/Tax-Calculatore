@@ -10,7 +10,7 @@ import { test, equal, assert } from '../../../testkit/tinyTest';
 import type { TestCase } from '../../../testkit/tinyTest';
 import type { Client } from '../../../types';
 import { buildYearPicture } from '../picture';
-import { buildAskPlan, answerToFacts, ANNUAL_GRID_KEY, GRID_KEY } from '../asks';
+import { buildAskPlan, answerToFacts, ANNUAL_GRID_KEY, GRID_KEY, isLegacyAnnual } from '../asks';
 import { sortAsks } from '../screens';
 import { ITEM_BY_KEY } from '../catalog';
 import type { InfoAsk, MultiFollowUp, MultiOption } from '../types';
@@ -114,5 +114,12 @@ export const TESTS: TestCase[] = [
     const plan = buildAskPlan([...p.toConfirm, ...p.toAsk], { client: c, taxYear: 2026, purpose: 'intake', asOfDate: '2026-10-19' });
     assert(plan.some(e => e.itemKey === GRID_KEY), 'אין רשת בהיכרות');
     assert(!plan.some(e => e.itemKey === ANNUAL_GRID_KEY), 'רשת שנתית בהיכרות');
+  }),
+  test('20.10 · גרסה קודמת: «מי מכם?» לנושא עם אריח ⇒ ישנה (לא מוסיפים לה); שאלון חדש — אישורים, רשת ומסמכים — אינו ישן', () => {
+    const plan = planFor(client());
+    const asNew = plan.map((e, i) => ({ ...ask(String(i), e.itemKey, e.prompt.input.kind), prompt: e.prompt }));
+    assert(!isLegacyAnnual(asNew), 'שאלון חדש זוהה כישן');
+    assert(isLegacyAnnual([...asNew, ask('w', 'salary.worked', 'who')]), '«מי מכם?» על משכורת לא זוהה כישן');
+    assert(!isLegacyAnnual([ask('w', 'salary.worked', 'who', undefined, 'cancelled')]), 'שאלה שבוטלה נספרה');
   }),
 ];

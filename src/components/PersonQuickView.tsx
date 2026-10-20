@@ -307,7 +307,8 @@ export default function PersonQuickView(p: Props) {
                             {busy ? 'מסמן…' : CHARGE_NEXT_ACTION[c.status]}
                           </button>
                         ) : (
-                          <span className="pd-na-text">{CHARGE_NEXT_ACTION[c.status]}</span>
+                          // ‼ בלי פעולת שליחה — לא מציגים «שלח דרישת תשלום» כטקסט שנראה כמו משימה
+                          <span className="pd-na-text">{c.status === 'pending' ? 'טרם נשלחה דרישה' : CHARGE_NEXT_ACTION[c.status]}</span>
                         )}
                       </div>
                     )}

@@ -37,6 +37,9 @@ Ask Guy which business process or automation he wants to improve first. Inspect 
 
 ## Decision log / review evidence
 
+### 2026-10-20 — פשטות: דלת אחת ושאלון אחד — **מפת הדרך: `docs/plans/2026-10-20-simplicity-roadmap.md`** (להתחיל ממנה)
+- גיא: עדיין עמוס; ערבוב שאלון ישן+חדש אצל «גיא ישר»; מייל דרישת תשלום מ«אנשים» בלי שליטה. אישר שלבים 1–3 (לעצור נזק · לנקות · כלל שאלון פתוח אחד + בדיקות). ענף `fix/one-door-one-questionnaire` (שלב 1 בקוד, לא נדחף). ממתין: שיחת חוויה על «ליווי קובץ-קובץ» (`docs/PLAN-GUIDED-RETURN-PREP-2026-10-16.md`, הוכנס לריפו היום); בדיקת שלמות השאלון מול `docs/tax-foundation/research/annual-collection-benchmark-2026-10-20.md` ומול יריב (פרטי).
+
 ### 2026-10-19 — «שאלון פשוט, דף סיכום אחד, בקשות נקיות» — RELEASED in three stages (Guy approved: «מאשר את ההצעה וההיקף כפי שבהמחשה המעודכנת. תבנה, תבדוק ותשחרר…»)
 - Trigger: Guy could not send Yariv (prod client, widowed 31.10.2025) a simple annual questionnaire; tax work felt long and overlapping. Approved mockup: `docs/proposals/2026-10-19-simple-annual-questionnaire.html` (5 tabs). Research: `docs/tax-foundation/research/spouse-death-year-2026-10-19.md`. Private case guide (git-ignored, real client data — never commit): `חומרים/לקוחות/יריב/דוח-2025-איך-מטפלים.md`.
 - Decisions (Guy, 19.10): one short questionnaire per work (annual first; wealth / new client / estimate later with the same template); «רק אתה יודע» (advances, withholding, NI paid, carry-forward) entered once per year in the office summary, shared with the estimate; institution alignment is NOT a request (no auto-open; tool in the tax file); completed requests don't take space; family-event branch (death/divorce/marriage) + pensions & 9(5) disability in the annual questionnaire; last year's filed return as the starting point (office reviews before sending). Changes 05.10 (groups show all kids) and 16.10 stage 4; pulls stage 5 forward.

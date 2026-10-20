@@ -14,7 +14,7 @@ import { replaceLegacyIntake } from '../../lib/intakeSync';
 import { stepGateOpen } from '../../utils/clientPageGate';
 import { AREAS, AREA_BY_ID, ITEMS, type AreaId } from './catalog';
 import { buildYearPicture, type ItemStatus } from './picture';
-import { buildAskPlan, correctionAsk, MONTHS, type AskPlanEntry } from './asks';
+import { buildAskPlan, correctionAsk, MONTHS, type AskPlanEntry, isLegacyAnnual } from './asks';
 import { DOCS } from './documents';
 import { groupForReview, describeValue, type ReviewRow } from './review';
 import * as api from './api';
@@ -42,7 +42,7 @@ import './taxYear.css';
 import RemoveWorkDialog from './RemoveWorkDialog';
 import MaternitySpreadLine from './MaternitySpread';
 import { isOpenStep } from './taxWork';
-import { toAskInput } from './workCreate';
+import { toAskInput, reopenAnnualInNewVersion } from './workCreate';
 import { buildQuestionTree, countsLine, TREE_MARK } from './questionTree';
 
 interface Props {
@@ -231,11 +231,13 @@ export default function TaxYearProcess({ client, step, infoStep, onClose, onChan
 
   // ── מה עכשיו ──
   const reviewCount = review.unchanged.length + review.negatives.length + review.individual.length + review.legacy.length + review.documents.length + notSure.length;
-  const askable = autoIntake ? [] : [...picture.toConfirm, ...picture.toAsk];
+  // ‼ 20.10.2026 · דוח שנתי בגרסה הקודמת — לא מוסיפים לו שאלות מאף כפתור (isLegacyAnnual); הסיכום מציע «סגור ופתח מחדש»
+  const legacyAnnual = purpose === 'annual' && isLegacyAnnual(data.asks.filter(a => a.parentStepId === step.id));
+  const askable = autoIntake || legacyAnnual ? [] : [...picture.toConfirm, ...picture.toAsk];
   // ‼ 19.10.2026 · דוח שנתי: שאלות שנוספו בעקבות התשובות (למשל פרטי דמי לידה) או טיוטות — «הכן ופרסם» בלחיצה אחת מהסיכום,
   //   בלי לפתוח את «פירוט מלא». אותו מנוע (buildAskPlan) ואותן קריאות כמו «להכין» + «לפרסם» למטה; בלי מייל.
   const annualMorePlan = purpose === 'annual' ? buildAskPlan(askable, { client, taxYear: year, purpose, cutoffMonth: p.cutoffMonth, asOfDate: p.asOfDate, declKind: p.kind, previousByArea: prevArea }) : [];
-  const annualMore = purpose === 'annual' && isOpenStep(step) ? {
+  const annualMore = purpose === 'annual' && isOpenStep(step) && !legacyAnnual ? {
     count: annualMorePlan.length + drafts.length,
     run: () => run(async () => {
       let infoId = infoStep?.id;
@@ -299,6 +301,7 @@ export default function TaxYearProcess({ client, step, infoStep, onClose, onChan
           {/* ‼ 19.10.2026 · דוח שנתי: דף הסיכום (מה למלא · מסמכים · רק אתה יודע · הכרעות · מה פתוח) למעלה; כל השאר — מקופל
               ב«פירוט מלא» (הדמיה מאושרת docs/proposals/2026-10-19-simple-annual-questionnaire.html). */}
           {purpose === 'annual' && data && <AnnualSummary client={client} step={step} year={year} data={data} busy={busy} run={run} more={annualMore} onClientPersisted={onClientPersisted}
+            legacy={legacyAnnual && isOpenStep(step) ? { reopen: () => run(() => reopenAnnualInNewVersion(client, step.id, year), `הבקשה הקודמת נסגרה ונשמרה בהיסטוריה, ונפתחה «דוח שנתי ${year}» חדשה — בשורה שלה ב«בקשות». בלי מייל.`) } : undefined}
             officeTodo={picture.officeTodo.length ? { count: picture.officeTodo.length, open: () => { setPick('office'); setFullOpen(true); requestAnimationFrame(() => fullRef.current?.scrollIntoView({ block: 'start' })); } } : undefined} />}
           <FullDetails enabled={purpose === 'annual'} open={fullOpen} onToggle={setFullOpen} innerRef={fullRef}>
 
