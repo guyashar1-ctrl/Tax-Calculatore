@@ -6,6 +6,7 @@ import { supabase } from '../../lib/supabase';
 import type { AskAnswer } from './asks';
 import type { Evidence, FactAnswer, InfoAsk, Purpose, YearFact } from './types';
 import type { GateEngagement } from '../../utils/clientPageGate';
+import { parseOpenQuestionnaire, type OpenQuestionnaire } from './oneQuestionnaire';
 
 type Row = Record<string, unknown>;
 const s = (v: unknown) => (v == null ? undefined : String(v));
@@ -144,6 +145,16 @@ export const addAsks = (parentStepId: string, asks: Pick<InfoAsk, 'itemKey' | 's
 export const cancelAsk = (askId: string) => call('cancel_tax_info_ask', { p_ask_id: askId });
 export const resolveNote = (askId: string) => call('resolve_tax_info_note', { p_ask_id: askId });
 export const publishInfo = (infoStepId: string) => call<{ published: number }>('publish_tax_info', { p_info_step_id: infoStepId });
+
+/**
+ * 263 · השאלון שפתוח ללקוח (null כשאין). exceptStep — הבקשה/השאלון שעליהם עובדים, לא נספרים.
+ * ‼ כשל בקריאה (רשת, שרת בלי 263) ⇒ null: הבדיקה המקדימה לא חוסמת לבד — השער הוא publish_tax_info בשרת.
+ */
+export async function openQuestionnaireOf(clientId: string, exceptStep?: string): Promise<OpenQuestionnaire | null> {
+  const { data, error } = await supabase.rpc('open_questionnaire_of', { p_client_id: clientId, p_except_step: exceptStep ?? null });
+  if (error) return null;
+  return parseOpenQuestionnaire(data);
+}
 
 export const decideFacts = (ids: string[], decision: 'accept' | 'reject', note?: string) =>
   call<{ decided: number }>('decide_tax_year_facts', { p_fact_ids: ids, p_decision: decision, p_note: note ?? null });

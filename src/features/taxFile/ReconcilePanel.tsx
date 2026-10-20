@@ -11,7 +11,7 @@
 //   מוצגת לבירור (הכרטיסים «דורש טיפול» ו«הצעות לעדכון» מתחת — אותו מקור, לא עותק).
 // ‼ מועד בדיקה ≠ תחולה: «נבדק ב-» הוא מתי עודכן; תאריכי הישות (נרכש / נפתח / ממתי) הם התחולה.
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import type { Client } from '../../types';
 import { FIELD_SOURCE_LABELS, type FieldMeta } from '../../types/clientWorkspace';
 import { accountSpan, propertySpan, employerSpan, spanText } from '../taxYear/temporal';
@@ -32,7 +32,8 @@ interface Props {
   intakeOpen?: boolean;
   onPrepare: () => void;
   prepareBusy?: boolean;
-  prepareError?: string | null;
+  /** טקסט, או 263 · הודעת «יש ל… שאלון פתוח» עם הקישור לשורה שלו. */
+  prepareError?: string | ReactNode | null;
   onRunAlignment?: () => void;
   alignBusy?: boolean;
   /** «תצוגה מפורטת» — מסכי יישור הקו המלאים (קישור משני). */
@@ -115,7 +116,7 @@ export default function ReconcilePanel({ client: c, alignedAt, pendingCount, fla
           </button>
         )}
       </div>
-      {prepareError && <div className="ty-err" role="alert">{prepareError}</div>}
+      {prepareError && (typeof prepareError === 'string' ? <div className="ty-err" role="alert">{prepareError}</div> : prepareError)}
       <details className="rp-detail" open={open} onToggle={e => setOpen((e.currentTarget as HTMLDetailsElement).open)}>
         <summary>מה חסר, ומאיפה כל פרט</summary>
         {unknown.length > 0 && <p className="rp-unknown">טרם ביררנו: {unknown.join(' · ')}</p>}

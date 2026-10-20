@@ -142,6 +142,20 @@ function demoCard(t: Tables, clientId: string): Row | null {
 }
 
 const stepOf = (t: Tables, id: unknown) => (t.onboarding_steps ?? []).find(s => s.id === id);
+/** 263 · אותו כלל כמו _open_questionnaire_of: «השלמת מידע» פתוחה עם שאלה מפורסמת, או שאלון קליטה ישן שפורסם. */
+function openQuestionnaireOf(t: Tables, clientId: unknown, except?: unknown): Row | null {
+  const info = (t.onboarding_steps ?? []).find(s => s.client_id === clientId && s.step_type === 'info_collection' && OPEN(s)
+    && (!except || (s.id !== except && (s.payload as Row | undefined)?.parentStepId !== except))
+    && (t.tax_info_asks ?? []).some(a => a.step_id === s.id && a.state === 'published'));
+  if (info) {
+    const par = stepOf(t, (info.payload as Row | undefined)?.parentStepId);
+    const pp = (par?.payload ?? {}) as Row; const ip = (info.payload ?? {}) as Row;
+    return { infoStepId: info.id, parentStepId: par?.id, stepId: par?.id ?? info.id, stepType: par?.step_type ?? info.step_type,
+      taxYear: pp.taxYear ?? ip.taxYear, asOfDate: pp.asOfDate ?? ip.asOfDate, title: pp.title || ip.title || 'שאלון' };
+  }
+  const q = (t.onboarding_steps ?? []).find(s => s.client_id === clientId && s.step_type === 'intake_questionnaire' && s.published_at && OPEN(s) && s.id !== except);
+  return q ? { stepId: q.id, stepType: q.step_type, title: ((q.payload ?? {}) as Row).title || 'עדכון סטטוס מס' } : null;
+}
 
 // ── 242 · הסרת עבודת מס בהדגמה — אותם כללים כמו בשרת (features/taxYear/workRemoval.ts) ──
 const WORK_TYPES = ['tax_file_intake', 'annual_return', 'wealth_declaration', 'tax_estimate'];
@@ -776,10 +790,16 @@ function taxYearRpcInner(t: Tables, name: string, args: Row, firm: string, logWr
       a.state = 'cancelled'; log('cancel_tax_info_ask', { askId: a.id });
       return ok({ ok: true });
     }
+    case 'open_questionnaire_of': return ok(openQuestionnaireOf(t, args.p_client_id, args.p_except_step));
     case 'publish_tax_info': {
       const s = stepOf(t, args.p_info_step_id);
       if (!s || s.step_type !== 'info_collection') return ok({ ok: false, error: 'not_found' });
       const drafts = t.tax_info_asks.filter(a => a.step_id === s.id && a.state === 'draft');
+      // 263 · חשיפה ראשונה של שאלון כשללקוח יש שאלון אחר פתוח ⇒ סירוב לפני כל שינוי
+      if (drafts.length && !t.tax_info_asks.some(a => a.step_id === s.id && a.state === 'published')) {
+        const open = openQuestionnaireOf(t, s.client_id, s.id);
+        if (open) return ok({ ok: false, error: 'questionnaire_open', openStepId: open.stepId, openTitle: open.title, openInfoStepId: open.infoStepId });
+      }
       if (!drafts.length && !t.tax_info_asks.some(a => a.step_id === s.id && a.state === 'published')) return ok({ ok: false, error: 'nothing_to_publish' });
       drafts.forEach(a => { a.state = 'published'; });
       Object.assign(s, { status: 'waiting_client', ball: 'client', published_at: s.published_at ?? nowIso(), updated_at: nowIso() });

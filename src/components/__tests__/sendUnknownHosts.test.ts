@@ -18,7 +18,7 @@ import {
   isUnknownSendReply, sendErrorView, unknownSendText,
 } from '../../types/emailActivity';
 import {
-  UNKNOWN_OUTCOME_TEXT, isUnknownOutcome, unknownOutcomeReply,
+  UNKNOWN_OUTCOME_TEXT, unknownOutcomeReply,
 } from '../../../supabase/functions/_shared/resendResult';
 import { errorTextFromBody, isUnknownEmailFailure } from '../../features/flows/noticeText';
 
