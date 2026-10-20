@@ -37,6 +37,16 @@ Ask Guy which business process or automation he wants to improve first. Inspect 
 
 ## Decision log / review evidence
 
+### 2026-10-20 — «סבב אחד», שאלון פתוח אחד, פערי יריב, «פתח כמו הלקוח» ו«מחק לגמרי» — RELEASED (Guy approved «ואז נשחרר הכול יחד»)
+- Roadmap (start here): `docs/plans/2026-10-20-simplicity-roadmap.md` — decisions 1–16 for the guided return (mockup `docs/proposals/2026-10-20-guided-return-flow.html`, not built yet), §5 completeness test, §5א test-on-client + delete.
+- **Released (master 7ea6f75, branch fix/annual-one-round from worktree `C:/Users/guyas/pivo-wt/engine-fix`; prod 263–266 applied 20.10 after backup `PIVO/backups/one-round-20261020`):**
+  - 263 one open questionnaire per client (publish_tax_info refuses a 2nd; UI pre-check + `QuestionnaireOpenNotice`; legacy «עדכון סטטוס מס» counts as open — in prod only Amir Weissmark + E2E test client). Tripwire test: client-sending edge functions need step_id or an explicit allowlist.
+  - 264 «סבב אחד»: `oneRound.ts` attaches `prompt.onYes` (speculative picture «what would be asked if yes») + extra grid followUps; server opens them on yes/unchanged/who/period. Coverage harness: 8 profiles from 2–5 rounds to 1 (2 profiles need an office card update mid-way). Also fixed: couple-uploaded doc covers both people; transaction 'new' identity; late spouse's last-year items go to the death branch.
+  - 265 Yariv gaps (287 items): sick-day redemption, capitalization + 161ד (onYes → letter), survivor pension per payer + «when did payment start», employee equity tile.
+  - 266 `purge_tax_work` + `tax_work_trash` (in weekly backup): «למחוק לגמרי» in RemoveWorkDialog; «פתח כמו הלקוח ↗» in AnnualSummary. Step 1 (745dbfc): «שלח דרישת תשלום» removed from «אנשים»; old-version annual requests offer «סגור ופתח מחדש».
+- Tests: unit 2012/0; staging e2e one-round 26/26, prior-return 66/66, purge 16/16 (1280+390), one-questionnaire 42/42.
+- Open: guided return build (after approving the mockup; principle «כמה שפחות מילים»); «העלה בעצמך» for office uploads (proposed); payment demand as a request (step 4); other bypass paths (step 5); tax file one-line (step 6); «גיא ישר» still has the mixed old questionnaire — Guy can try «מחק לגמרי» on it himself.
+
 ### 2026-10-20 — פשטות: דלת אחת ושאלון אחד — **מפת הדרך: `docs/plans/2026-10-20-simplicity-roadmap.md`** (להתחיל ממנה)
 - גיא: עדיין עמוס; ערבוב שאלון ישן+חדש אצל «גיא ישר»; מייל דרישת תשלום מ«אנשים» בלי שליטה. אישר שלבים 1–3 (לעצור נזק · לנקות · כלל שאלון פתוח אחד + בדיקות). ענף `fix/one-door-one-questionnaire` (שלב 1 בקוד, לא נדחף). ממתין: שיחת חוויה על «ליווי קובץ-קובץ» (`docs/PLAN-GUIDED-RETURN-PREP-2026-10-16.md`, הוכנס לריפו היום); בדיקת שלמות השאלון מול `docs/tax-foundation/research/annual-collection-benchmark-2026-10-20.md` ומול יריב (פרטי).
 
