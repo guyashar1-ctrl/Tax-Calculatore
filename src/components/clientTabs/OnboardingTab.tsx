@@ -3132,6 +3132,23 @@ export default function OnboardingTab({
               onClick={() => setMenuStepId(id => (id === HEAD_MENU ? null : HEAD_MENU))}>⋯</button>
             {menuStepId === HEAD_MENU && (
               <div className="ob-menu rl-head-menu" role="menu">
+                {/* ‼ 21.10.2026 · הדף של הלקוח — כאן תמיד; התיבה «הדף של X» מופיעה רק כשיש בה מה לעשות (NoticeTray) */}
+                <button type="button" role="menuitem" className="ob-menu-item" data-head-view-page
+                  onClick={() => { setMenuStepId(null); setSidebarPreviewMode('live'); setPreviewSheetOpen(true); }}>
+                  צפייה בדף של {firstName}
+                </button>
+                <button type="button" role="menuitem" className="ob-menu-item" data-head-as-client
+                  onClick={() => { setMenuStepId(null); void openPortalAsClient(); }}>
+                  פתח כמו {firstName} ↗
+                </button>
+                <button type="button" role="menuitem" className="ob-menu-item" disabled={linkBusy} data-head-copy-link
+                  onClick={() => { setMenuStepId(null); void copyPortalLink(); }}>
+                  העתקת קישור לדף
+                </button>
+                <button type="button" role="menuitem" className="ob-menu-item" data-head-send
+                  onClick={() => { setMenuStepId(null); setPortalSend('update'); }}>
+                  שלח מייל עם הקישור…
+                </button>
                 {/* ‼ מחליף את «בקשה מתבנית»: מסלול מהמשרד, עם שלבים ומה קורה בכל אחד. */}
                 <button type="button" role="menuitem" className="ob-menu-item"
                   onClick={() => { setMenuStepId(null); setStartFlow({}); }}>

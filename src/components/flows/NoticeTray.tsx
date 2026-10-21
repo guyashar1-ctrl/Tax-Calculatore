@@ -275,6 +275,10 @@ export default function NoticeTray({
   // והמצב. מייל «חדש» שלא ידוע אם יצא חוסם — קודם מכריעים עליו (השורה שלו למטה).
   const ownerNews = nNew > 0 && !newBlocked;
   const pageSend = () => (ownerNews ? onSend('owner') : onSendUpdate());
+  // ‼ 21.10.2026 · גיא: «למה יש לי את זה אם לא מופיעה שום בקשה?» — כשאין בדף שום דבר לעשות עליו (אין חדש, אין
+  //   טיוטה, אין «לא ידוע», אין תזכורת, אין עצירה) התיבה לא מוצגת. צפייה / פתח כמו / קישור / «שלח מייל…» — ב-⋯ שליד «בקשה חדשה».
+  const quiet = nNew === 0 && nDrafts === 0 && !inFlight && !showNews && unknown.length === 0 && !kind && !showRemind && !msg && !linkCopied && !ask;
+  if (quiet) return null;
   // מצב שקט אחד בראש: יש בדף מה שלא נשלח עליו מייל, או מתי יצא המייל האחרון
   const pageStatus = nNew > 0 ? 'יש בו חדש' : own.lastSentAt ? `נשלח ${formatDate(own.lastSentAt, 'list').slice(0, 5)}` : null;
 

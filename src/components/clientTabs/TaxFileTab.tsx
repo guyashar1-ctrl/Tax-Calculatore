@@ -254,6 +254,7 @@ export default function TaxFileTab({
   const { pending, refresh, acceptFact, rejectFact, recordManualEdit } = useTaxFacts(client.id || undefined);
   const [openRows, setOpenRows] = useState<Set<string>>(new Set());
   const [openChanges, setOpenChanges] = useState<Set<string>>(new Set());
+  const [approveOpen, setApproveOpen] = useState(false);
   const [busyChangeId, setBusyChangeId] = useState<string | null>(null);
   const [bulkBusy, setBulkBusy] = useState(false);
   const [changeErrors, setChangeErrors] = useState<Record<string, string>>({});
@@ -668,7 +669,8 @@ export default function TaxFileTab({
   }
   /** «לבדוק» בפס הכתום: פותח את כל «הצעות לעדכון» וגולל אליהן (ול«דורש טיפול»). */
   function showPending() {
-    setOpenChanges(new Set(pendingGroups.map(g => g.key)));
+    // עדכונים מהשאלון / מהרשויות — נפתחים מתחת לפס; בלי עדכונים (רק «דורש טיפול») — גוללים אליו כמו קודם
+    if (pendingGroups.length) { setApproveOpen(o => !o); setOpenChanges(new Set(pendingGroups.map(g => g.key))); return; }
     window.setTimeout(() => document.querySelector('[data-pending-anchor]')?.scrollIntoView({ block: 'start', behavior: 'smooth' }), 0);
   }
   function toggleChange(id: string) {
@@ -990,6 +992,66 @@ export default function TaxFileTab({
         onOpenDetailed={onOpenDetailedAlignment ? () => onOpenDetailedAlignment() : undefined}
         onCreateSpouseClient={onCreateSpouseClient} onOpenSpouseClient={onOpenSpouseClient}
       />
+      {/* ‼ 21.10.2026 · גיא: «למה העדכונים לאישור מופיעים פעמיים?» — מקום אחד: הפס הכתום. «לבדוק» פותח כאן, מתחתיו, את
+          העדכונים עצמם (אשר / דחה / אשר הכול); בלי כרטיס «ממתין לאישורך» נוסף בהמשך התיק. */}
+      {approveOpen && pendingGroups.length > 0 && (
+        <div className="txf-approve-body" data-tf-approve-body>
+      {/* ‼ 16.10.2026: הבאנר «N תשובות מהשאלון מחכות לאישורך» ירד — אותן תשובות כבר ב«הצעות לעדכון» כאן,
+          עם «אשר הכול», והמספר שלהן בשורת המצב בראש התיק («לאישור»). */}
+      {/* ‼ כרטיס אחד לכל מקור+יום, לא כרטיס לכל שדה — יישור קו יחיד מייצר עשרות עובדות. */}
+      {pendingGroups.map(group => {
+        const open = openChanges.has(group.key);
+        return (
+          <div key={group.key} className={`txf-qchange ${open ? 'open' : ''}`}>
+            <button type="button" className="txf-qchange-head" onClick={() => toggleChange(group.key)}>
+              <b>מ{TAX_FACT_SOURCE_LABELS[group.source]}</b>
+              <span style={{ color: 'var(--ink-3)', fontSize: 12 }}>
+                {shortDate(group.at)} · {group.changes.length} שדות
+              </span>
+              <span style={{ marginInlineStart: 'auto', color: 'var(--ink-4)', fontSize: 11 }}>{open ? 'סגור ‹' : 'פתח ›'}</span>
+            </button>
+            {open && (
+              <div className="txf-qchange-body">
+                <div className="txf-qtable">
+                  <div className="txf-qtable-head">
+                    <span>שדה</span><span>בתיק היום</span><span>הערך המוצע</span><span />
+                  </div>
+                  {group.changes.map(change => {
+                    const busy = busyChangeId === change.id;
+                    return (
+                      <div className="txf-qtable-row" key={change.id}>
+                        <span className="txf-qt-label">{change.label}</span>
+                        <span className="txf-qt-old">{change.oldValue?.display ?? '-'}</span>
+                        <span className="txf-qt-new">{change.newValue.display}</span>
+                        <span className="txf-qt-act">
+                          <button type="button" className="ui-linkbtn" disabled={busy}
+                            onClick={() => handleAccept(change)}>{busy ? 'רגע…' : 'אשר'}</button>
+                          <button type="button" className="ui-linkbtn is-quiet" disabled={busy}
+                            onClick={() => handleReject(change)}>דחה</button>
+                        </span>
+                        {changeErrors[change.id] && (
+                          <span className="txf-qt-err">{changeErrors[change.id]}</span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="txf-editor-actions">
+                  <button type="button" className="ui-btn ui-btn-primary" disabled={bulkBusy}
+                    onClick={() => void acceptGroup(group.changes)}>
+                    {bulkBusy ? 'מאשר…' : `אשר הכול (${group.changes.length})`}
+                  </button>
+                  <button type="button" className="ui-btn" disabled={bulkBusy}
+                    onClick={() => void rejectGroup(group.changes)}>השאר את הערכים הנוכחיים</button>
+                </div>
+                <div className="txf-note">ההחלטה נרשמת ביומן: מקור, ערך קודם, ערך חדש ומועד.</div>
+              </div>
+            )}
+          </div>
+        );
+      })}
+        </div>
+      )}
 
       {/* ═══ פרטי הנישום ═══════════════════════════════════════════════════
           ‼ שורה אחת, ומעליה אין מקטע משלה: אלה הפרטים שנוסעים לרשויות —
@@ -1248,60 +1310,6 @@ export default function TaxFileTab({
       )}
 
 
-      {/* ‼ 16.10.2026: הבאנר «N תשובות מהשאלון מחכות לאישורך» ירד — אותן תשובות כבר ב«הצעות לעדכון» כאן,
-          עם «אשר הכול», והמספר שלהן בשורת המצב בראש התיק («לאישור»). */}
-      {/* ‼ כרטיס אחד לכל מקור+יום, לא כרטיס לכל שדה — יישור קו יחיד מייצר עשרות עובדות. */}
-      {pendingGroups.map(group => {
-        const open = openChanges.has(group.key);
-        return (
-          <div key={group.key} className={`txf-qchange ${open ? 'open' : ''}`}>
-            <button type="button" className="txf-qchange-head" onClick={() => toggleChange(group.key)}>
-              <b>עדכון מ{TAX_FACT_SOURCE_LABELS[group.source]} ממתין לאישורך</b>
-              <span style={{ color: 'var(--ink-3)', fontSize: 12 }}>
-                {shortDate(group.at)} · {group.changes.length} שדות
-              </span>
-              <span style={{ marginInlineStart: 'auto', color: 'var(--ink-4)', fontSize: 11 }}>{open ? 'סגור ‹' : 'פתח ›'}</span>
-            </button>
-            {open && (
-              <div className="txf-qchange-body">
-                <div className="txf-qtable">
-                  <div className="txf-qtable-head">
-                    <span>שדה</span><span>בתיק היום</span><span>הערך המוצע</span><span />
-                  </div>
-                  {group.changes.map(change => {
-                    const busy = busyChangeId === change.id;
-                    return (
-                      <div className="txf-qtable-row" key={change.id}>
-                        <span className="txf-qt-label">{change.label}</span>
-                        <span className="txf-qt-old">{change.oldValue?.display ?? '-'}</span>
-                        <span className="txf-qt-new">{change.newValue.display}</span>
-                        <span className="txf-qt-act">
-                          <button type="button" className="ui-linkbtn" disabled={busy}
-                            onClick={() => handleAccept(change)}>{busy ? 'רגע…' : 'אשר'}</button>
-                          <button type="button" className="ui-linkbtn is-quiet" disabled={busy}
-                            onClick={() => handleReject(change)}>דחה</button>
-                        </span>
-                        {changeErrors[change.id] && (
-                          <span className="txf-qt-err">{changeErrors[change.id]}</span>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-                <div className="txf-editor-actions">
-                  <button type="button" className="ui-btn ui-btn-primary" disabled={bulkBusy}
-                    onClick={() => void acceptGroup(group.changes)}>
-                    {bulkBusy ? 'מאשר…' : `אשר הכול (${group.changes.length})`}
-                  </button>
-                  <button type="button" className="ui-btn" disabled={bulkBusy}
-                    onClick={() => void rejectGroup(group.changes)}>השאר את הערכים הנוכחיים</button>
-                </div>
-                <div className="txf-note">ההחלטה נרשמת ביומן: מקור, ערך קודם, ערך חדש ומועד.</div>
-              </div>
-            )}
-          </div>
-        );
-      })}
 
       {/* ═══ שנות מס (229) ═══════════════════════════════════════════════════
           ‼ אין לשונית «שנת מס»: כרטיס לכל שנה כאן, שפותח את דף התהליך (הערכה / דוח).
