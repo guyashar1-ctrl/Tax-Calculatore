@@ -67,6 +67,17 @@ async function runWidth(width) {
     await page.locator('[data-annual-summary]').first().waitFor({ timeout: 40000 });
     const asks0 = await env.sql(`select item_key, prompt from public.tax_info_asks where client_id = '${id}' and state = 'published'`);
     ok(asks0.length > 0, `השאלון יצא (${asks0.length} שאלות)`);
+    // ‼ 21.10.2026 · כרטיס הבקשה (docs/proposals/2026-10-21-office-request-and-tax-file.html) — «הלקוח ממלא»
+    await page.locator('[data-as-filling]').first().waitFor({ timeout: 20000 }).catch(() => {});
+    const fillTxt = await text(page.locator('[data-annual-summary]'));
+    ok(await page.locator('[data-as-filling]').count() === 1 && !(await page.locator('[data-as-todo]').count()), 'הלקוח ממלא: שורה שקטה אחת, בלי «מה עליך לעשות»', fillTxt.slice(0, 300));
+    ok(/נשמר כטיוטה עד/.test(fillTxt), '«השאלון אצל … · נשמר כטיוטה עד …»', fillTxt.slice(0, 200));
+    ok(!(await page.locator('[data-request-steps]').count()), 'בשורת הדוח השנתי — בלי כרטיסי «תשובות הלקוח» / «הדוח»');
+    ok(!(await page.locator('[data-ty-preview]').count()) && !/נפתחה/.test(fillTxt), 'בלי «מה … רואה» ובלי «דוח לשנת … · נפתחה …»');
+    const pageHead = await text(page.locator('[data-testid="rl-page"] .rl-page-head'));
+    ok(!(await page.locator('[data-testid="rl-page"] [data-testid="rl-copy-link"]').isVisible()), '«הדף של …»: צפייה / כמו הלקוח / קישור — ב-⋯', pageHead);
+    ok(!/מאז השליחה האחרונה|רואים את המייל/.test(await text(page.locator('[data-testid="rl-page"]'))), '«הדף של …»: בלי המשפט «בקשה חדשה מאז…» — מילת מצב', await text(page.locator('[data-testid="rl-page"]')));
+    await shot(page, 'office-filling');
 
     // 2 · הלקוח
     const pp = await ctx.newPage(); onErr(pp, 'portal');
@@ -178,6 +189,21 @@ async function runWidth(width) {
     ok(!(await page.locator('[data-annual-more]').count()), 'סבב אחד: אחרי השליחה אין «עוד שאלה» לפרסם', await text(page.locator('[data-annual-more]')));
     if (SHOTS) await page.locator('[data-annual-summary]').first().screenshot({ path: join(SHOTS, `office-summary-${width}.png`) }).catch(() => {});
     await shot(page, 'office');
+    // ‼ 21.10.2026 · «נשלח · חסר מסמך»: עד 4 שורות, כפתור ראשי אחד, בלי «לעדכן בתיק» לפני «אישורך»
+    const todoN = await page.locator('[data-as-todo] > li').count();
+    ok(todoN > 0 && todoN <= 4, `«מה עליך לעשות» — עד 4 שורות (${todoN})`);
+    ok(await page.locator('[data-as-todo] .btn-primary').count() === 1, 'כפתור ראשי אחד', await text(page.locator('[data-as-todo]')));
+    ok(!(await page.locator('[data-as-card]').count()), '«לעדכן בתיק» — לא לפני «אישורך»');
+    ok(!/השלמות במשרד/.test(sum), '«השלמות במשרד» — בתוך «להכין את הדוח»', sum.slice(0, 300));
+    ok(/מסמכים/.test(await text(page.locator('.as-steps .is-now'))), 'פס השלבים: «מסמכים» — עכשיו', await text(page.locator('.as-steps')));
+    await page.locator('[data-annual-answers] > button').click();
+    const det = await text(page.locator('[data-annual-answers]'));
+    if (SHOTS) await page.locator('[data-annual-summary]').first().screenshot({ path: join(SHOTS, 'office-summary-detail-' + width + '.png') }).catch(() => {});
+    ok(/היה ב-2025/.test(det) && /לא היה ב-2025: \d+ נושאים|לא היה ב-2025\s+\d+ נושאים/.test(det.replace(/\n/g, ' ')), '«פירוט ▾»: היה · לא היה (שורה אחת)', det.slice(0, 300));
+    await page.locator('[data-annual-full-open]').click();
+    ok(await page.locator('[data-annual-full]').first().isVisible(), '«החישוב ואיך עושים ביד — פתח» פותח את הפירוט המלא');
+    await page.locator('[data-annual-full-close]').first().click();
+    ok(!(await page.locator('[data-annual-full]').first().isVisible()), '«סגירה» סוגר אותו');
     ok((await env.sql(`select count(*)::int n from public.email_messages where client_id = '${id}'`))[0].n === 0, 'לא יצא מייל');
     await ctx.close();
   } catch (e) {

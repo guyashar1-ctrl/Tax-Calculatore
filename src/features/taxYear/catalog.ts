@@ -144,12 +144,20 @@ export const ITEMS: InfoItem[] = [
   { key: 'household.maritalAtYearEnd', area: 'household', label: 'מצב משפחתי בסוף השנה', kind: 'confirm', per: 'couple', who: 'client', purposes: BOTH,
     question: 'המצב המשפחתי', why: 'קובע אם הדוח משותף ואילו נקודות זיכוי מגיעות', input: 'confirm', cardKeys: ['familyStatus', 'marriageYear', 'divorceYear', 'widowhoodYear'], covers: { parts: ['ב'] } },
   { key: 'household.children', area: 'household', label: 'ילדים', kind: 'confirm', per: 'couple', who: 'client', purposes: BOTH,
-    question: 'הילדים', why: 'לכל ילד מגיעות נקודות זיכוי לפי גילו', input: 'confirm', cardKeys: ['children'], covers: { parts: ['יג'] } },
+    question: 'הילדים', why: 'לכל ילד מגיעות נקודות זיכוי לפי גילו', input: 'confirm', cardKeys: ['children'], covers: { parts: ['יג'] },
+    // ‼ 21.10.2026 · בלי «קליטה» נפרדת (גיא): לקוח חדש שאין לו ילדים בכרטיס נשאל כאן — בהערכת המס או בדוח
+    whenEmpty: { question: 'הילדים שלכם — שם ותאריך לידה לכל ילד', input: 'record' } },
   { key: 'household.childDeferral', area: 'household', label: 'דחיית נקודת זיכוי לילד שנולד (116ד)', kind: 'detail', per: 'child', who: 'office', purposes: ['annual'],
     covers: { parts: ['יג'], annexItems: ['116ד.deferChildren', '116ד.useDeferred', '116ד.employer'] },
     officeNext: 'פרטי המעסיק לטופס (כתובת, טלפון, תיק ניכויים) — מטופס 101 או מהתלוש של המעסיק' },
   { key: 'household.settlement', area: 'household', label: 'יישוב מזכה', kind: 'confirm', per: 'couple', onlyIfOnCard: true, who: 'client', purposes: BOTH,
     question: 'יישוב המגורים', why: 'מגורים ביישוב מזכה מקנים הנחה במס', input: 'confirm', cardKeys: ['qualifyingSettlementId'], covers: { parts: ['יד'] } },
+  // ‼ 21.10.2026 · כתובת המגורים — נשאלת בהערכת המס ובדוח רק כשחסרה בכרטיס (אין יותר «קליטה והשלמת תיק» נפרדת; גיא:
+  //   «אני פשוט אשלח לו הערכת מס, וככה על הדרך אקבל איפה הוא גר, כמה ילדים…»). באישור המשרד — לכרטיס, עם היסטוריה.
+  { key: 'household.address', area: 'household', label: 'כתובת מגורים', kind: 'confirm', per: 'couple', who: 'client', purposes: BOTH, onlyIfOnCard: false,
+    question: 'כתובת המגורים', why: 'הכתובת מופיעה בדוח ובמכתבים מהרשויות, ויישוב המגורים עשוי לזכות בהטבת מס', input: 'confirm', cardKeys: ['city', 'address'],
+    whenEmpty: { question: 'מה כתובת המגורים שלכם היום?', input: 'record' }, covers: { parts: ['ב'] },
+    officeNext: '«אשר ועדכן בתיק» — הכתובת נכתבת בכרטיס והקודמת נשמרת בהיסטוריה' },
   { key: 'household.degree', area: 'household', label: 'תואר או לימודי מקצוע', kind: 'confirm', per: 'person', onlyIfOnCard: true, who: 'client', purposes: BOTH,
     question: 'לימודים', why: 'סיום תואר מקנה נקודות זיכוי בשנים שאחרי הסיום', input: 'confirm', cardKeys: ['hasAcademicDegree', 'academicDegreeYear', 'academicDegreeType'], covers: { parts: ['יג'], annexItems: ['119.degree'] } },
   { key: 'household.release', area: 'household', label: 'שחרור משירות סדיר או לאומי', kind: 'confirm', per: 'person', onlyIfOnCard: true, who: 'client', purposes: BOTH,

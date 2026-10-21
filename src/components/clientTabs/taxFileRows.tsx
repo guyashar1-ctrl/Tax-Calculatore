@@ -12,9 +12,11 @@ import type { ReactNode } from 'react';
  * אינו תקלה. קיר של לא-ידועים צבוע באדום היה נקרא כשריפה.
  */
 export function TRow({
-  id, name, summary, warn, exception, unknown, stale, open, onToggle, action, children,
+  id, name, summary, warn, missing, exception, unknown, stale, open, onToggle, action, children,
 }: {
   id: string; name: string; summary: string; warn?: string;
+  /** ‼ 21.10.2026 · «חסר: כתובת» — פרט קנוני שחסר בכרטיס, בכתום בתוך השורה הסגורה (אין יותר מונה «חסרים» בראש התיק). */
+  missing?: string;
   exception?: { text: string; tone: 'high' | 'warn' | 'ok' } | null;
   unknown?: boolean; stale?: boolean;
   open: boolean; onToggle: (id: string) => void;
@@ -35,6 +37,7 @@ export function TRow({
             <span className={unknown ? 'txf-unknown' : ''}>{summary}</span>
             {unknown && <span className="txf-qmark" aria-hidden="true">?</span>}
             {stale && <span className="txf-stale">⏱</span>}
+            {missing && <span className="txf-miss" data-tf-missing>{missing}</span>}
             {warn && <span className="txf-warn-inline">⚠ {warn}</span>}
             {exception && (
               <span className={`txf-exc is-${exception.tone}`}>

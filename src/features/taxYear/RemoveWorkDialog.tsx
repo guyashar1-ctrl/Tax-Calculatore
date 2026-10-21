@@ -76,7 +76,7 @@ export default function RemoveWorkDialog({ stepId, title, onClose, onDone, purge
     if (!r.ok) { setErr(ERR[r.error] ?? `ההסרה נכשלה (${r.error})`); if (r.error === 'changed') void check(); return; }
     onDone(r.mode === 'delete' ? 'deleted' : 'cancelled', r.mode === 'delete'
       ? 'העבודה נמחקה. דבר לא יצא ממנה ללקוח.'
-      : `העבודה בוטלה${r.asksClosed ? ` ו-${r.asksClosed} שאלות שלא נענו נסגרו` : ''}. מה שהתקבל נשמר. להחזרה: «תיק מס» ← «דוחות והצהרות» ← «בוטלו».`);
+      : `העבודה בוטלה${r.asksClosed ? ` ו-${r.asksClosed} שאלות שלא נענו נסגרו` : ''}. מה שהתקבל נשמר. להחזרה: «תיק מס» ← «דוחות והצהרות» ← «היסטוריה».`);
   };
 
   const ex = state ? removalExplain(state.facts, pick === 'purge' ? 'cancel' : pick) : null;
@@ -139,7 +139,7 @@ export default function RemoveWorkDialog({ stepId, title, onClose, onDone, purge
                       </label>
                       <label className={`rw-opt${pick === 'cancel' ? ' is-on' : ''}`}>
                         <input type="radio" name="rw" checked={pick === 'cancel'} onChange={() => setPick('cancel')} />
-                        <span><b>לבטל ולשמור בהיסטוריה</b><small>לא נחוצה כרגע — נשארת ב«בוטלו» ואפשר להחזיר.</small></span>
+                        <span><b>לבטל ולשמור בהיסטוריה</b><small>לא נחוצה כרגע — נשארת ב«היסטוריה» ואפשר להחזיר.</small></span>
                       </label>
                     </div>
                   )}

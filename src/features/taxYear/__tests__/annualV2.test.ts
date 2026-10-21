@@ -90,6 +90,19 @@ export const TESTS: TestCase[] = [
     // בלי שנת דוח (היכרות) — כמו קודם
     equal(schemaFor('employer').fields.find(f => f.key === 'startDate')?.type, 'dated');
   }),
+  test('לקוח חדש בלי «קליטה»: הערכת מס שואלת כתובת וילדים כשחסרים בכרטיס (רשומה), ומראה אותם לאישור כשקיימים', () => {
+    const empty = client({ children: [], city: undefined, address: undefined } as Partial<Client>);
+    const i = { client: empty, taxYear: 2026, purpose: 'estimate' as const, today: '2026-10-21', facts: [], evidence: [], asks: [] };
+    const p = buildYearPicture(i);
+    const plan = buildAskPlan([...p.toConfirm, ...p.toAsk], { client: empty, taxYear: 2026, purpose: 'estimate', cutoffMonth: 9 });
+    const kinds = Object.fromEntries(plan.map(e => [e.itemKey, e.prompt.input.kind]));
+    equal(kinds['household.address'], 'record');
+    equal(kinds['household.children'], 'record');
+    const full = client({ city: 'חיפה', address: 'הרצל 1' } as Partial<Client>);
+    const p2 = buildYearPicture({ ...i, client: full });
+    const plan2 = buildAskPlan([...p2.toConfirm, ...p2.toAsk], { client: full, taxYear: 2026, purpose: 'estimate', cutoffMonth: 9 });
+    equal(plan2.find(e => e.itemKey === 'household.address')?.prompt.input.kind, 'confirm');
+  }),
   test('«משכורת» לזוג בלי מעסיק בתיק: טופס 106 אחד למעסיק החדש — לא עוד אחד «של הלקוח» (הכפילות אצל דין)', () => {
     const grid = planFor(client({ employers: [] } as Partial<Client>)).find(e => e.itemKey === ANNUAL_GRID_KEY)!;
     if (grid.prompt.input.kind !== 'multi') throw new Error('אין רשת');

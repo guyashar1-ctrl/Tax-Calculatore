@@ -705,3 +705,6 @@ order by version;
 (1) `_tax_year_items`: 293 פריטים (+6: `niBenefits.kinds` ושש אפשרויות «מה שולם מביטוח לאומי?») — במקום «האם מתוך זה קיבל/ה דמי לידה?» שנשאל גם אלמן. «דמי לידה» באפשרות = העובדה `niBenefits.maternity` כמו קודם.
 (2) `portal_submit_tax_info`: הערה «משהו לא נכון?» עם התשובה לריבועים ⇒ `office_note`; אחרי שם מעסיק חדש (`salary.employerDetails`) — ה-106 הפתוח באותו שאלון נקרא «טופס 106 מ{השם}». החלפת גוף בשני עוגנים (שורה אחת, פעם אחת).
 ‼ «טיוטה עד שליחה» — בדף בלבד (השרת לא משתנה בזה). נוצר ב-`scripts/sql/267/build.mjs`; חזרה `scripts/sql/267/rollback-267.sql`. staging 21.10: החלה, חזרה (md5 זהה), החלה שוב, אידמפוטנטי; `scripts/e2e/annual-v2.mjs` במחשב ובטלפון.
+
+## 268 · כתובת המגורים בהערכת המס ובדוח — בלי «קליטה» נפרדת (2026-10-21, בייצור — נרשם 20261021072909; גיבוי PIVO/backups/office-ux-20261021)
+`_tax_year_items`: 294 פריטים (+`household.address`). גיא: לקוח חדש ⇒ «הערכת מס», ועל הדרך כתובת וילדים (`household.children` קיבל whenEmpty). נוצר ב-`scripts/sql/268/build.mjs`; חזרה `scripts/sql/268/rollback-268.sql`. staging: החלה, חזרה (md5 זהה), החלה שוב.

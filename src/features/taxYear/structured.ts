@@ -8,7 +8,7 @@ import { accountSpan, answeredRelevance, entityRelevance, propertySpan, type Per
 
 /** פריט ← סכמת רשומה. פריט אישור (confirm): «משהו השתנה» פותח את הרשומה עם מה שבתיק. פריט פרטים: הרשומה היא השאלה. */
 export const RECORD_OF: Record<string, RecordSchemaId> = {
-  'household.children': 'children', 'intake.children': 'children', 'intake.address': 'address',
+  'household.children': 'children', 'intake.children': 'children', 'intake.address': 'address', 'household.address': 'address',
   'salary.employers': 'employer', 'intake.employers': 'employer', 'salary.employerDetails': 'employer', 'intake.employerDetails': 'employer',
   'intake.business': 'business', 'intake.businessDetails': 'business',
   'rent.properties': 'property', 'intake.rentals': 'property', 'intake.propertyDetails': 'property', 'wealth.realEstate.details': 'property', 'wealth.realEstate.list': 'property',

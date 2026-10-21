@@ -1772,6 +1772,18 @@ export default function OnboardingTab({
     }
   }
 
+  /**
+   * 20.10.2026 (עבר מסיכום הדוח השנתי ל-⋯ של «הדף של X», 21.10.2026) · הדף האמיתי של הלקוח בחלון חדש —
+   * מה שממלאים שם נשמר כאילו הלקוח ענה. אותו mint_portal_token; לא מסמן «נמסר» ולא שולח דבר.
+   * ‼ החלון נפתח מיד (לפני הקריאה לשרת) — אחרת הדפדפן חוסם אותו כחלון קופץ.
+   */
+  async function openPortalAsClient() {
+    const w = window.open('about:blank', '_blank');
+    const { data } = await supabase.rpc('mint_portal_token', { p_client_id: clientId });
+    if (typeof data === 'string' && data && w) w.location.href = `${window.location.origin}/?portal=${data}`;
+    else w?.close();
+  }
+
   /* ‼ publishRequest (publish_onboarding_request על בקשה בודדת) הוסר.
      שתי סיבות, ושתיהן עקרוניות ולא סגנוניות:
      1. בקשת לקוח אינה נשלחת לבדה — היא מופיעה בדף האישי כשמפרסמים את התיק.
@@ -1982,7 +1994,10 @@ export default function OnboardingTab({
                     name={pl.title}
                     statusLabel={status}
                     state={rs?.view.chip}
-                    below={rs && isStepOpen(step.status) ? <RequestSteps view={rs.view} /> : undefined}
+                    /* ‼ 21.10.2026 · דוח שנתי: מצב אחד — השבב בשורה ופס השלבים בתוכה (AnnualSummary). בלי כרטיסי
+                       «תשובות הלקוח» / «הדוח» ובלי שורת מצב כפולה בגוף (ההדמיה המאושרת 2026-10-21). */
+                    below={rs && isStepOpen(step.status) && step.stepType !== 'annual_return' ? <RequestSteps view={rs.view} /> : undefined}
+                    hideFacts={step.stepType === 'annual_return'}
                     menu={!embedded && isStepOpen(step.status) ? (
                       <span className="rl-links">
                         <button type="button" className="rl-link is-danger" onClick={() => setRemoveTax({ id: step.id, title: workTitle(step) })} data-remove-tax-work>הסר…</button>
@@ -3252,6 +3267,7 @@ export default function OnboardingTab({
         onOpenKindField={onOpenTaxFile ? () => onOpenTaxFile('dealerType') : undefined}
         onViewPage={() => { setSidebarPreviewMode('live'); setPreviewSheetOpen(true); }}
         onCopyLink={() => void copyPortalLink()}
+        onOpenAsClient={() => void openPortalAsClient()}
         linkBusy={linkBusy}
         linkCopied={linkCopied}
         onSendUpdate={() => setPortalSend('update')}
@@ -6761,8 +6777,10 @@ function StepCardShell({ step, stepById, highlight, danger, statusLabel, always,
  * סגור: שם · משפט מצב אחד · פרטים משניים בשקט · פעולה אחת רלוונטית + ⋯.
  * פתוח: כל הפרטים של אותה בקשה. פותחים אחת בכל פעם, כדי שהמסך יישאר קריא.
  */
-function JourneyRow({ step, stepById, highlight, danger, statusLabel, noteLine, always, primary, menu, children, unsent, state, name, nestedName, below }: {
+function JourneyRow({ step, stepById, highlight, danger, statusLabel, noteLine, always, primary, menu, children, unsent, state, name, nestedName, below, hideFacts }: {
   step: OnboardingStep;
+  /** 21.10.2026 · במשטח המפושט: בלי שורת המצב בגוף — כשהשבב והתוכן כבר אומרים אותה (דוח שנתי). */
+  hideFacts?: boolean;
   /** 17.10 · שלושת הצעדים של בקשת תיק מס — מתחת לשורה, גלויים גם כשהיא סגורה (ההדמיה המאושרת; לא כפתורים). */
   below?: React.ReactNode;
   /** הפעולה של עכשיו — במשטח המפושט גלויה בשורה הסגורה; בישן נוספת לפני התפריט. */
@@ -6939,10 +6957,10 @@ function JourneyRow({ step, stepById, highlight, danger, statusLabel, noteLine, 
         {open && (
           <div className="rl-body">
             {split.detail && <p className="rl-detail">{split.detail}</p>}
-            {(facts.length > 0 || autoUnknownLabel) && (
+            {((facts.length > 0 && !hideFacts) || autoUnknownLabel) && (
               <div className="rl-facts">
-                {facts.join(' · ')}
-                {autoUnknownLabel && <span style={{ color: 'var(--warn)', fontWeight: 600 }}>{facts.length ? ' · ' : ''}{autoUnknownLabel}</span>}
+                {!hideFacts && facts.join(' · ')}
+                {autoUnknownLabel && <span style={{ color: 'var(--warn)', fontWeight: 600 }}>{facts.length && !hideFacts ? ' · ' : ''}{autoUnknownLabel}</span>}
               </div>
             )}
             {/* ‼ «לא ידוע אם המייל יצא» — למה, ומה הצעד הבטוח (לא «נשלח» ולא «נכשל»). */}

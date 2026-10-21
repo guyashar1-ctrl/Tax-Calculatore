@@ -5,8 +5,12 @@
 // ‼ הכול נגזר ממה שיש: שאלות הבקשה (tax_info_asks), תשובות (tax_year_facts), מסמכים (tax_evidence) ותמונת השנה.
 //   אין כאן מצב חדש, וכל כפתור קורא לאותה פעולה שקיימת ב«פירוט מלא» (אישור, «אשר ועדכן בתיק», «להשלים במשרד»).
 // ‼ «התקבל» = הלקוח העלה קובץ; «אושר» = המשרד בדק. לא טוענים יותר ממה שקרה. אין מכאן מייל — תזכורת רק מ«בקשות».
+// ‼ 21.10.2026 · ההדמיה המאושרת docs/proposals/2026-10-21-office-request-and-tax-file.html («1 · כרטיס הבקשה»):
+//   מצב אחד — פס השלבים (annualStage.ts). «מה עליך לעשות» — עד 4 שורות, כפתור ראשי אחד, השאר ב«ועוד N».
+//   «לעדכן בתיק» — רק בשלב «אישורך». בזמן שהלקוח ממלא — שורה שקטה אחת. «פירוט ▾» אחד במקום שני קיפולים;
+//   «פתח כמו הלקוח» עבר ל-⋯ של «הדף של {שם}» (NoticeTray).
 
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import type { Client } from '../../types';
 import type { OnboardingStep } from '../../types/onboarding';
 import type { ProposedFact } from '../../types/taxFacts';
@@ -19,8 +23,14 @@ import { DOCS } from './documents';
 import { supabase } from '../../lib/supabase';
 import PriorReturnPrep from './PriorReturnPrep';
 import { knownFamilyEvent } from './asks';
+import { genderOf } from './gender';
 import { cardUpdateFor, updatesCard } from './recordToCard';
 import { isOpenStep } from './taxWork';
+import { ANNUAL_STAGES, STAGE, annualStage } from './annualStage';
+import { RETURNS_EVENT, type ReturnsEventDetail } from '../annualReturn/api';
+
+/** כמה שורות «מה עליך לעשות» גלויות; השאר — «ועוד N». */
+const TODO_VISIBLE = 4;
 
 type Ask = YearData['asks'][number];
 type Run = (fn: () => Promise<unknown>, done?: string) => Promise<boolean>;
@@ -47,16 +57,6 @@ interface Props {
   /** 20.10.2026 · עדכון הכרטיס מתשובה (apply_tax_facts) — אותה פונקציה של «אשר ועדכן בתיק» בפירוט המלא. */
   applyCard?: ApplyCard;
 }
-
-/** איזה נושא בדוח כל מסמך מזין — הכותרת של השורה ב«התשובות». */
-const TOPIC: Record<string, string> = {
-  'salary.form106': 'משכורת', 'family.marriageSpouseDocs': 'משכורת', 'pension.certs': 'קצבה', 'niBenefits.cert': 'ביטוח לאומי',
-  'capital.form867': 'ריבית והשקעות', 'savings.fundCerts': 'הפקדה פרטית לפנסיה', 'savings.insuranceCert': 'ביטוח חיים',
-  'donations.receipts': 'תרומות', 'special.disabilityCert': 'פטור נכות', 'household.degreeDocs': 'תואר או שחרור',
-  'rent.contract': 'שכר דירה', 'rent.otherPropertyDocs': 'הכנסה מרכוש', 'foreign.statements': 'חו״ל', 'sales.docs': 'מכירה',
-  'family.deathDocs': 'פטירה', 'family.severanceDocs': 'פיצויים בגלל פטירה', 'family.payoutDocs': 'ביטוח או קופה בגלל פטירה',
-  'family.survivorDocs': 'קצבת שאירים', 'family.disabilityInsDocs': 'אובדן כושר עבודה', 'family.divorceDocs': 'גירושין',
-};
 
 /** ‼ שנת פטירה: הכרעות מקצועיות שהמערכת מציגה ולא מחליטה (המחקר: docs/tax-foundation/research/spouse-death-year-2026-10-19.md). */
 const DEATH_DECISIONS: { key: string; text: string; source: string }[] = [
@@ -130,14 +130,14 @@ export default function AnnualSummary({ client, step, year, data, busy, run, mor
   const waiting = questions.filter(a => a.state === 'published');
   const filling = waiting.length > 0;
 
-  // ── התשובות: שורה לכל מסמך, לפי נושא; ומה שהלקוח אמר שלא היה ──
-  const docRows = files.map(a => ({ a, topic: TOPIC[a.itemKey] ?? ITEM_BY_KEY[a.itemKey]?.label ?? a.itemKey, st: docState(a) }))
-    .sort((x, y) => x.topic.localeCompare(y.topic, 'he'));
+  // ── הפירוט: מה הלקוח אמר שהיה ושלא היה ──
   const gridAsk = asks.find(a => a.itemKey === 'annual.whatHappened' && a.state === 'answered');
   const notThisYear = gridAsk && gridAsk.prompt.input.kind === 'multi'
     ? gridAsk.prompt.input.options.filter(o => facts.some(f => f.itemKey === o.key && f.answer === 'no')).map(o => o.label) : [];
   const businesses = (client.businesses ?? []).filter(b => !b.isClosed);
   const notSure = asks.filter(a => a.officeNote && !a.noteResolvedAt);
+  const yesThisYear = gridAsk && gridAsk.prompt.input.kind === 'multi'
+    ? gridAsk.prompt.input.options.filter(o => facts.some(f => f.itemKey === o.key && yes(f))).map(o => o.label) : [];
 
   // ── שנת פטירה ──
   // ‼ אלמן/ה מ-{שנה} בכרטיס — הענף נפתח ישר מהרשת (asks.ts › knownFamilyEvent), בלי עובדת «נפטר/ה»
@@ -194,14 +194,6 @@ export default function AnnualSummary({ client, step, year, data, busy, run, mor
     answer: 'value', value: { decision: key, done: true, at: new Date().toISOString().slice(0, 10) }, basis: 'actual', requestId: step.id,
   } as never), 'סומן שהוכרע — נשמר מי ומתי');
 
-  // ‼ החלון נפתח מיד (לפני הקריאה לשרת) — אחרת הדפדפן חוסם אותו כחלון קופץ
-  const openAsClient = async () => {
-    const w = window.open('about:blank', '_blank');
-    const { data } = await supabase.rpc('mint_portal_token', { p_client_id: client.id });
-    if (typeof data === 'string' && data && w) w.location.href = `${window.location.origin}/?portal=${data}`;
-    else w?.close();
-  };
-
   // ‼ 20.10.2026 · תזכורת על מסמכים — לעולם לא מכאן: מובילים ל«הדף של {שם}» ב«בקשות» (NoticeTray, data-testid="rl-page"),
   //   שם רואים את המייל לפני שהוא יוצא. בלי לחיצה על «שלח» — רק גלילה ומיקוד. מחוץ ל«בקשות» — אומרים איפה.
   const [remindHint, setRemindHint] = useState(false);
@@ -230,113 +222,134 @@ export default function AnnualSummary({ client, step, year, data, busy, run, mor
     setOrphanDone(error ? `הפתיחה נכשלה (${error.message})` : 'נפתחה משימה פנימית — ב«בקשות», «עבודה פנימית»');
   };
 
-  const sent = asks.length > 0;
-  const ready = sent && !filling && missingDocs.length === 0 && officeDocsOpen.length === 0 && pendingPortal.length === 0;
+  // ── השלב (פס השלבים) — מקור אחד גם לשורות שתלויות בו ──
+  // ‼ גרסאות הדוח: מה שפאנל הדוח (AnnualReturnPanel, ב«פירוט מלא») כבר טען ושמר — announceReturns, בלי קריאה שנייה
+  const [returns, setReturns] = useState<ReturnsEventDetail['versions']>([]);
+  useEffect(() => {
+    const on = (e: Event) => { const d = (e as CustomEvent<ReturnsEventDetail>).detail; if (d?.requestId === step.id) setReturns(d.versions); };
+    window.addEventListener(RETURNS_EVENT, on);
+    return () => window.removeEventListener(RETURNS_EVENT, on);
+  }, [step.id]);
+  const stage = annualStage({
+    questions: questions.length, questionsDone: qDone, filling, files: files.length, filesDone: fDone,
+    closed: ['completed', 'verified'].includes(step.status), returns,
+  });
 
-  // ── «מה עליך לעשות» — בסדר הקבוע של ההדמיה ──
-  const rows: ReactNode[] = [];
+  const sent = asks.length > 0;
+  // ‼ תשובות שמשנות את הכרטיס מחכות ל«אישורך» (החלטה 2, 21.10.2026) — הן לא מעכבות את ההכנה
+  const ready = sent && !filling && missingDocs.length === 0 && officeDocsOpen.length === 0 && pendingPortal.length - cardRows.length === 0;
+
+  // ── «מה עליך לעשות» — שורה לכל פעולה; כפתור ראשי אחד בלבד ──
+  const rows: TodoRow[] = [];
+  const btn = (label: string, go: () => void, extra?: Partial<TodoAct>): TodoAct => ({ label, go, ...extra });
   // א. מסמכים שהמשרד מוציא
   for (const s of officeDocs) {
     const k = `od-${s.item.key}|${s.subjectRole}|${s.entityRef ?? ''}`;
-    if (s.state === 'known') { rows.push(<Todo key={k} ok title={`${s.item.label} — ${personOf(s)}`} />); continue; }
+    if (s.state === 'known') { rows.push({ key: k, ok: true, title: `${s.item.label} — ${personOf(s)}` }); continue; }
     const sub = s.state === 'docReceived' ? 'התקבל · לבדיקה' : s.requestableFrom && s.state === 'notYetAvailable' ? `אפשר מ-${heDate(s.requestableFrom)}` : undefined;
     // ‼ אין «סמן שהוצא» נפרד: ההשלמה היא שורת המשרד הקיימת ב«פירוט מלא» (OfficeLine); מסמך שעוד לא זמין — בלי כפתור
-    const act = s.state === 'docReceived' ? { label: 'לבדוק', go: goFull }
-      : s.state === 'notYetAvailable' || s.state === 'unavailable' ? null : { label: 'להשלים', go: officeTodo?.open ?? goFull };
-    rows.push(<Todo key={k} title={`להוציא ${s.item.label} — ${personOf(s)}`} sub={sub} data={{ 'data-as-office-doc': s.item.key }}
-      action={act ? <button type="button" className="btn btn-sm btn-ghost" onClick={act.go}>{act.label}</button> : undefined} />);
+    const act = s.state === 'docReceived' ? btn('לבדוק', goFull)
+      : s.state === 'notYetAvailable' || s.state === 'unavailable' ? undefined : btn('להשלים', officeTodo?.open ?? goFull);
+    rows.push({ key: k, title: `להוציא ${s.item.label} — ${personOf(s)}`, sub, data: { 'data-as-office-doc': s.item.key }, act });
   }
   // ב. מסמכים מהלקוח
-  if (files.length > 0 && !filling) {
+  if (files.length > 0) {
     rows.push(missingDocs.length
-      ? <Todo key="docs" title={missingDocs.length === 1 ? 'עוד מסמך אחד' : `עוד ${missingDocs.length} מסמכים`} sub={firstTwo(missingDocs.map(docTitle))} data={{ 'data-as-client-docs': '' }}
-          action={open ? <button type="button" className="btn btn-sm btn-ghost" onClick={goRemind}>תזכורת מ«בקשות»</button> : undefined}>
-          {remindHint && <small role="status">התזכורת יוצאת מ«הדף של {firstName}» בלשונית «בקשות» — עם המייל לפני השליחה.</small>}
-        </Todo>
-      : <Todo key="docs" ok title={files.length === 1 ? 'המסמך התקבל' : `כל ${files.length} המסמכים התקבלו`} data={{ 'data-as-client-docs': '' }} />);
+      ? { key: 'docs', title: missingDocs.length === 1 ? 'עוד מסמך אחד' : `עוד ${missingDocs.length} מסמכים`, sub: firstTwo(missingDocs.map(docTitle)), data: { 'data-as-client-docs': '' },
+          act: open ? btn('תזכורת', goRemind) : undefined,
+          children: remindHint ? <small role="status">התזכורת יוצאת מ«הדף של {firstName}» בלשונית «בקשות».</small> : undefined }
+      : { key: 'docs', ok: true, title: files.length === 1 ? 'המסמך התקבל' : `כל ${files.length} המסמכים התקבלו`, data: { 'data-as-client-docs': '' } });
   }
-  // ג. רק אתה יודע
+  // ג. תשובות לאישור
+  if (simplePending.length > 0) {
+    rows.push({ key: 'approve', title: `${many(simplePending.length, 'תשובה אחת', 'תשובות')} לאישור`, sub: otherPending > 0 ? `ועוד ${otherPending} לבדוק בפירוט` : undefined, data: { 'data-as-approve': '' },
+      act: btn(simplePending.length === 1 ? 'אשר' : 'אשר הכול', () => void run(() => api.decideFacts(simplePending.map(f => f.id), 'accept'), `אושרו ${simplePending.length} תשובות`), { disabled: busy }) });
+  } else if (otherPending > 0) {
+    rows.push({ key: 'approve', title: `לבדוק ${many(otherPending, 'תשובה אחת', 'תשובות')}`, data: { 'data-as-approve': '' }, act: btn('לבדוק', goFull) });
+  }
+  // ד. לעדכן בתיק — ‼ רק בשלב «אישורך» (אחרי ההכנה, לפני החתימה): עדכון התיק בסוף הדוח, לא באמצע האיסוף
+  if (stage === STAGE.approve && cardRows.length > 0) {
+    rows.push({ key: 'card', title: `לעדכן בתיק — ${many(cardRows.length, 'שינוי אחד', 'שינויים')}`,
+      sub: firstTwo(cardRows.map(r => `${whoOf(r.f.subjectRole)}: ${r.plan.lines[0] || ITEM_BY_KEY[r.f.itemKey]?.label || ''}`)), data: { 'data-as-card': '' },
+      act: btn(cardOpen ? 'סגירה' : 'צפה ואשר', () => setCardOpen(o => !o), { expanded: cardOpen }),
+      children: cardOpen ? (
+        <div className="as-todo-sub">
+          {cardRows.map(r => {
+            const text = `${whoOf(r.f.subjectRole)} — ${r.plan.lines.join(' · ') || ITEM_BY_KEY[r.f.itemKey]?.label || ''}`;
+            return r.ready ? (
+              <label key={r.f.id}>
+                <input type="checkbox" checked={!cardOff.has(r.f.id)} disabled={busy}
+                  onChange={e => setCardOff(o => { const n = new Set(o); if (e.target.checked) n.delete(r.f.id); else n.add(r.f.id); return n; })} />
+                <span>{text}</span>
+              </label>
+            ) : (
+              <p key={r.f.id} className="as-todo-skip">{ITEM_BY_KEY[r.f.itemKey]?.label ?? text} · {whoOf(r.f.subjectRole)} — יש בתיק פריט שלא הופיע בתשובה; מכריעים <button type="button" className="as-todo-link" onClick={goFull}>בפירוט המלא</button></p>
+            );
+          })}
+          {cardRows.some(r => r.ready) && (
+            <div><button type="button" className="btn btn-sm btn-primary" disabled={busy || !cardChosen.length || !applyCard} data-as-card-apply onClick={applyChosen}>עדכן בתיק</button></div>
+          )}
+        </div>
+      ) : undefined });
+  }
+  // ה. רק אתה יודע
   if (oyk.length > 0) {
     rows.push(oykFilled && !oykEdit
-      ? <Todo key="oyk" ok title={oykTitle} sub={oykValues.map(v => `${oyk.length > 1 ? `${v.label}${client.familyStatus === 'married' ? ` · ${v.name}` : ''}: ` : ''}${fmt(v.cur ?? 0)} ₪`).join(' · ')} data={{ 'data-as-carry': '' }}
-          action={<button type="button" className="btn btn-sm btn-ghost" onClick={() => setOykEdit(true)}>עריכה</button>} />
-      : <Todo key="oyk" title={oykTitle} sub={`רק אתה יודע · נשמר לשנת ${year}, גם בהערכת המס`} data={{ 'data-as-carry': '' }}>
-          <OykInputs client={client} year={year} stepId={step.id} fields={oyk} facts={facts} busy={busy} run={run} />
-        </Todo>);
+      ? { key: 'oyk', ok: true, title: oykTitle, sub: oykValues.map(v => `${oyk.length > 1 ? `${v.label}${client.familyStatus === 'married' ? ` · ${v.name}` : ''}: ` : ''}${fmt(v.cur ?? 0)} ₪`).join(' · '), data: { 'data-as-carry': '' },
+          act: btn('עריכה', () => setOykEdit(true)) }
+      : { key: 'oyk', title: oykTitle, sub: `רק אתה יודע · נשמר לשנת ${year}`, data: { 'data-as-carry': '' },
+          children: <OykInputs client={client} year={year} stepId={step.id} fields={oyk} facts={facts} busy={busy} run={run} /> });
   }
-  // ד. הכרעות שלך — שנת פטירה
+  // ו. שאלות המשך לפרסום
+  if (more && more.count > 0 && sent) {
+    rows.push({ key: 'more', title: `${more.count === 1 ? 'עוד שאלה אחת' : `עוד ${more.count} שאלות`} ל${firstName}`, sub: 'בדף, בלי מייל', data: { 'data-annual-more': '' },
+      act: btn('הכן ופרסם בדף', () => void more.run(), { disabled: busy }) });
+  }
+  // ז. הכרעות שלך — שנת פטירה
   if (death) {
     for (const d of DEATH_DECISIONS) {
       rows.push(decisionDone(d.key)
-        ? <Todo key={d.key} ok title={d.text} sub={`הוכרע · ${d.source}`} />
-        : <Todo key={d.key} title={d.text} sub={d.source} data={{ 'data-as-decision': d.key }}
-            action={<button type="button" className="btn btn-sm btn-ghost" disabled={busy} onClick={() => void markDecision(d.key)}>סמן שהוכרע</button>} />);
+        ? { key: d.key, ok: true, title: d.text, sub: `הוכרע · ${d.source}` }
+        : { key: d.key, title: d.text, sub: d.source, data: { 'data-as-decision': d.key }, act: btn('סמן שהוכרע', () => void markDecision(d.key), { disabled: busy }) });
     }
-    if (survivors && kids.length > 0) rows.push(
-      <Todo key="orphan" title={`תיאום מס או החזר על קצבת היתומים — ${kids.map(k => k.firstName).filter(Boolean).join(', ') || 'הילדים'}`} sub={orphanDone ?? 'עבודה נוספת, לא בדוח הזה'}
-        action={orphanDone ? undefined : <button type="button" className="btn btn-sm btn-ghost" disabled={orphanBusy} onClick={() => void openOrphanRequest()}>＋ פתח בקשה</button>} />);
+    if (survivors && kids.length > 0) rows.push({ key: 'orphan', title: `תיאום מס או החזר על קצבת היתומים — ${kids.map(k => k.firstName).filter(Boolean).join(', ') || 'הילדים'}`, sub: orphanDone ?? 'עבודה נוספת, לא בדוח הזה',
+      act: orphanDone ? undefined : btn('＋ פתח בקשה', () => void openOrphanRequest(), { disabled: orphanBusy }) });
   }
-  // ה. לעדכן בתיק · תשובות לאישור
-  if (cardRows.length > 0) {
-    rows.push(
-      <Todo key="card" title={`לעדכן בתיק — ${many(cardRows.length, 'שינוי אחד', 'שינויים')}`} sub="מהתשובות" data={{ 'data-as-card': '' }}
-        action={<button type="button" className="btn btn-sm btn-ghost" aria-expanded={cardOpen} onClick={() => setCardOpen(o => !o)}>{cardOpen ? 'סגירה' : 'צפה ואשר'}</button>}>
-        {cardOpen && (
-          <div className="as-todo-sub">
-            {cardRows.map(r => {
-              const text = `${whoOf(r.f.subjectRole)} — ${r.plan.lines.join(' · ') || ITEM_BY_KEY[r.f.itemKey]?.label || ''}`;
-              return r.ready ? (
-                <label key={r.f.id}>
-                  <input type="checkbox" checked={!cardOff.has(r.f.id)} disabled={busy}
-                    onChange={e => setCardOff(o => { const n = new Set(o); if (e.target.checked) n.delete(r.f.id); else n.add(r.f.id); return n; })} />
-                  <span>{text}</span>
-                </label>
-              ) : (
-                <p key={r.f.id} className="as-todo-skip">{ITEM_BY_KEY[r.f.itemKey]?.label ?? text} · {whoOf(r.f.subjectRole)} — יש בתיק פריט שלא הופיע בתשובה; מכריעים <button type="button" className="as-todo-link" onClick={goFull}>בפירוט המלא</button></p>
-              );
-            })}
-            {cardRows.some(r => r.ready) && (
-              <div><button type="button" className="btn btn-sm btn-primary" disabled={busy || !cardChosen.length || !applyCard} data-as-card-apply onClick={applyChosen}>עדכן בתיק</button></div>
-            )}
-          </div>
-        )}
-      </Todo>);
-  }
-  if (simplePending.length > 0) {
-    rows.push(
-      <Todo key="approve" title={`לאשר ${many(simplePending.length, 'תשובה אחת', 'תשובות')}`} sub={otherPending > 0 ? `ועוד ${otherPending} לבדוק אחת אחת — בפירוט המלא` : 'כן/לא ו«אין שינוי» — נכנסות לחישוב'} data={{ 'data-as-approve': '' }}
-        action={<button type="button" className="btn btn-sm btn-ghost" disabled={busy}
-          onClick={() => void run(() => api.decideFacts(simplePending.map(f => f.id), 'accept'), `אושרו ${simplePending.length} תשובות`)}>{simplePending.length === 1 ? 'אשר' : 'אשר את כולן'}</button>} />);
-  } else if (otherPending > 0) {
-    rows.push(<Todo key="approve" title={`לבדוק ${many(otherPending, 'תשובה אחת', 'תשובות')}`} data={{ 'data-as-approve': '' }}
-      action={<button type="button" className="btn btn-sm btn-ghost" onClick={goFull}>לבדוק</button>} />);
-  }
-  // ו. השלמות במשרד
-  if (officeTodo && officeRest > 0) {
-    rows.push(<Todo key="office" title={`השלמות במשרד — ${officeRest}`} sub="סכומים ממסמכים, מסלולים והחלטות" data={{ 'data-annual-office': '' }}
-      action={<button type="button" className="btn btn-sm btn-ghost" onClick={officeTodo.open}>להשלים עכשיו</button>} />);
-  }
-  // ז. שאלות המשך לפרסום
-  if (more && more.count > 0 && sent) {
-    rows.push(<Todo key="more" title={`${more.count === 1 ? 'עוד שאלה אחת' : `עוד ${more.count} שאלות`} ל${firstName}`} sub="לפי מה שכבר ענה · בדף, בלי מייל" data={{ 'data-annual-more': '' }}
-      action={<button type="button" className="btn btn-sm btn-primary" disabled={busy} onClick={() => void more.run()}>הכן ופרסם בדף</button>} />);
-  }
-  // ח. להכין את הדוח
+  // ח. הדוח — לפי השלב. ‼ «השלמות במשרד» הן חלק מההכנה: שורה אחת, והכפתור פותח את «פירוט מלא» עליהן
   if (sent && !filling && open) {
-    rows.push(<Todo key="prep" title="להכין את הדוח" sub={ready ? 'הכול כאן' : 'אפשר להתחיל כבר עכשיו, עם מה שהגיע'} data={{ 'data-as-prepare': '' }}
-      action={<button type="button" className={`btn btn-sm ${ready ? 'btn-primary' : 'btn-ghost'}`} onClick={goFull}>להכין</button>} />);
+    if (stage <= STAGE.prepare) {
+      rows.push({ key: 'prep', title: 'להכין את הדוח', sub: officeRest > 0 ? `${officeRest} השלמות` : ready ? 'הכול כאן' : undefined,
+        data: { 'data-as-prepare': '', ...(officeRest > 0 ? { 'data-annual-office': '' } : {}) },
+        act: btn('להכין', officeRest > 0 && officeTodo ? officeTodo.open : goFull) });
+    } else if (stage === STAGE.approve) {
+      rows.push({ key: 'prep', title: 'הדוח מוכן לבדיקתך', data: { 'data-as-prepare': '' }, act: btn('לבדוק', goFull) });
+    } else if (stage === STAGE.sign) {
+      rows.push({ key: 'prep', title: `הדוח אושר — לחתימת ${firstName}`, data: { 'data-as-prepare': '' }, act: btn('פתח', goFull) });
+    }
   }
+  // ‼ הכפתור הראשי: שאלות לפרסום, אחרת הדוח, אחרת הפעולה הראשונה. הוא תמיד בין השורות הגלויות.
+  // ‼ סוג אחד לא ממלא את ארבע השורות: מסמך משרד ראשון, ואחריו המסמכים מהלקוח והתשובות; שאר מסמכי המשרד — ב«ועוד»
+  const od = rows.filter(r => r.key.startsWith('od-') && !r.ok);
+  const ordered = [...od.slice(0, 1), ...rows.filter(r => !od.includes(r)), ...od.slice(1)];
+  const todo = [...ordered.filter(r => !r.ok), ...ordered.filter(r => r.ok)];
+  const primaryKey = (todo.find(r => r.key === 'more' && r.act) ?? todo.find(r => r.key === 'prep' && r.act) ?? todo.find(r => !r.ok && r.act))?.key;
+  const [allTodo, setAllTodo] = useState(false);
+  let shown = todo.slice(0, TODO_VISIBLE);
+  if (primaryKey && !shown.some(r => r.key === primaryKey)) shown = [...todo.slice(0, TODO_VISIBLE - 1), todo.find(r => r.key === primaryKey)!];
+  const hidden = todo.filter(r => !shown.includes(r));
+  const visible = allTodo ? [...shown, ...hidden] : shown;
+
+  // ── פירוט: מה היה ומה לא, לפי הלקוח; «לא בטוח»; והדרך לחישוב המלא ──
+  const [detail, setDetail] = useState(false);
 
   return (
     <section className="as-wrap" data-annual-summary aria-label={`דוח שנתי ${year} — הסיכום`}>
-      {/* ‼ 20.10.2026 · לנסות את השאלון על הלקוח עצמו: הדף האמיתי שלו — מה שנענה שם נשמר כאילו הלקוח ענה (למחיקה: ⋯ ← «מחק לגמרי») */}
-      {asks.some(a => a.state === 'published' || a.state === 'answered') && (
-        <button type="button" className="btn btn-sm btn-ghost as-as-client" data-annual-as-client onClick={() => void openAsClient()}>פתח כמו הלקוח ↗</button>
-      )}
-      <ol className="as-steps" aria-label="שלבי העבודה">
-        <li className={questions.length && qDone === questions.length ? 'is-done' : 'is-now'}>שאלון {questions.length ? `${qDone}/${questions.length}` : ''}{questions.length && qDone === questions.length ? ' ✓' : ''}</li>
-        <li className={files.length && fDone === files.length ? 'is-done' : files.length ? 'is-now' : ''}>מסמכים {files.length ? `${fDone}/${files.length}` : ''}</li>
-        <li>הכנה</li><li>אישורך</li><li>חתימת הלקוח</li><li className={['completed', 'verified'].includes(step.status) ? 'is-done' : ''}>הוגש</li>
+      <ol className="as-steps" aria-label="שלבי העבודה" data-as-stage={stage}>
+        {ANNUAL_STAGES.map((label, i) => {
+          const done = i < stage || (i === STAGE.filed && stage === STAGE.filed);
+          const n = i === STAGE.questions && questions.length ? ` ${qDone}/${questions.length}` : i === STAGE.docs && files.length ? ` ${fDone}/${files.length}` : '';
+          return <li key={label} className={done ? 'is-done' : i === stage ? 'is-now' : ''} aria-current={i === stage ? 'step' : undefined}>{label}{n}{done ? ' ✓' : ''}</li>;
+        })}
       </ol>
 
       {death && (
@@ -357,56 +370,58 @@ export default function AnnualSummary({ client, step, year, data, busy, run, mor
         <PriorReturnPrep client={client} year={year} stepId={step.id} busy={busy} run={run} publishPlain={more.run} onClientPersisted={onClientPersisted} />
       )}
 
-      {filling && <p className="as-todo-wait" role="status" data-as-filling>השאלון עוד אצל {firstName}</p>}
-
-      {rows.length > 0 && (
+      {/* ‼ הלקוח עוד ממלא: שורה שקטה אחת, בלי שורות פעולה — התשובות נשמרות אצלו כטיוטה עד «שליחה» */}
+      {filling ? (
+        <p className="as-todo-wait" role="status" data-as-filling><span className="as-dot" aria-hidden="true" />השאלון אצל {firstName} · נשמר כטיוטה עד {genderOf(client, 'client') === 'f' ? 'שתשלח' : genderOf(client, 'client') === 'm' ? 'שישלח' : 'השליחה'}</p>
+      ) : visible.length > 0 && (
         <div>
           <h3 className="as-todo-h">מה עליך לעשות</h3>
-          <ul className="as-todo" data-as-todo>{rows}</ul>
+          <ul className="as-todo" data-as-todo>
+            {visible.map(r => <Todo key={r.key} row={r} primary={r.key === primaryKey} />)}
+          </ul>
+          {hidden.length > 0 && (
+            <button type="button" className="as-todo-link as-todo-toggle" aria-expanded={allTodo} data-as-todo-more onClick={() => setAllTodo(v => !v)}>
+              {allTodo ? 'פחות' : `ועוד ${hidden.length}`}
+            </button>
+          )}
         </div>
       )}
 
-      {(docRows.length > 0 || businesses.length > 0 || notThisYear.length > 0 || notSure.length > 0) && (
-        <details className="as-todo-more" data-annual-answers>
-          <summary>התשובות</summary>
-          <div className="as-rows">
-            {docRows.map(({ a, topic, st }) => (
-              <div key={a.id} className="as-row" data-doc={a.itemKey}>
-                <div className="as-area">{topic}<span>{whoOf(a.subjectRole)}</span></div>
-                <div className="as-what">{a.prompt.title}</div>
-                <div className="as-src">{(a.prompt.input.kind === 'file' && DOCS[a.prompt.input.docKind]?.label) || ''}</div>
-                <span className={`as-pill is-${st.tone}`}>{st.text}</span>
-              </div>
-            ))}
-            {businesses.map(b => (
-              <div key={b.id} className="as-row">
-                <div className="as-area">עסק<span>{b.belongsToSpouse ? spouseName : firstName}</span></div>
-                <div className="as-what">{b.name}</div>
-                <div className="as-src">רווח והפסד מהנהלת החשבונות</div>
-                <span className="as-pill is-office">אצל המשרד</span>
-              </div>
-            ))}
-            {notThisYear.length > 0 && <p className="as-none">לא היה ב-{year}, לפי {firstName}: {notThisYear.join(' · ')}</p>}
+      <div className="as-detail" data-annual-answers>
+        <button type="button" className="as-todo-link as-detail-toggle" aria-expanded={detail} onClick={() => setDetail(v => !v)}>פירוט {detail ? '▴' : '▾'}</button>
+        {detail && (
+          <dl className="as-kv">
+            {yesThisYear.length > 0 && <div><dt>היה ב-{year}</dt><dd>{yesThisYear.join(' · ')}</dd></div>}
+            {notThisYear.length > 0 && <div><dt>לא היה ב-{year}</dt><dd>{many(notThisYear.length, 'נושא אחד', 'נושאים')}</dd></div>}
             {notSure.map(a => (
-              <div key={a.id} className="as-open">
-                <span>{a.prompt.title}<small>«{a.officeNote}» · לבדוק בשיחה</small></span>
-                <button type="button" className="btn btn-sm btn-ghost" disabled={busy} onClick={() => void run(() => api.resolveNote(a.id), 'סומן שנסגר')}>סגור</button>
+              <div key={a.id} className="as-kv-open">
+                <dt>לא בטוח</dt>
+                <dd><span>{a.prompt.title} · «{a.officeNote}»</span>
+                  <button type="button" className="btn btn-sm btn-ghost" disabled={busy} onClick={() => void run(() => api.resolveNote(a.id), 'סומן שנסגר')}>סגור</button></dd>
               </div>
             ))}
-          </div>
-        </details>
-      )}
+            <div><dt>החישוב ואיך עושים ביד</dt><dd><button type="button" className="as-todo-link" data-annual-full-open onClick={goFull}>פתח</button></dd></div>
+          </dl>
+        )}
+      </div>
     </section>
   );
 }
 
+interface TodoAct { label: string; go: () => void; disabled?: boolean; expanded?: boolean }
+interface TodoRow { key: string; ok?: boolean; title: string; sub?: string; act?: TodoAct; children?: ReactNode; data?: Record<string, string> }
+
 /** שורה ב«מה עליך לעשות»: נקודה או ✓, שורה מודגשת אחת, שורה אפורה קצרה, וכפתור אחד לכל היותר. */
-function Todo({ ok, title, sub, action, children, data }: { ok?: boolean; title: string; sub?: string; action?: ReactNode; children?: ReactNode; data?: Record<string, string> }) {
+function Todo({ row, primary }: { row: TodoRow; primary: boolean }) {
+  const { ok, title, sub, act, children, data } = row;
   return (
     <li className={`as-todo-row${ok ? ' is-ok' : ''}`} {...data}>
       <span className="as-todo-ic" aria-label={ok ? 'בוצע' : undefined} aria-hidden={ok ? undefined : true}>{ok ? '✓' : ''}</span>
       <div className="as-todo-t"><b>{title}</b>{sub && <small>{sub}</small>}{children}</div>
-      {action}
+      {act && (
+        <button type="button" className={`btn btn-sm ${primary ? 'btn-primary' : 'btn-ghost'}`} disabled={act.disabled}
+          aria-expanded={act.expanded} onClick={act.go}>{act.label}</button>
+      )}
     </li>
   );
 }

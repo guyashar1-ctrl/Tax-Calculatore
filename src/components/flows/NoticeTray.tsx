@@ -11,13 +11,17 @@
 // הקבוע, ושליחת מייל. מופיע תמיד, וכשיש בדף מה שלא נשלח — «שלח מייל…» מודגש בעדינות ושורת
 // «N בקשות חדשות מאז השליחה האחרונה» מתחת. ‼ העתקת קישור וצפייה אינן הודעה ללקוח: לא מסמנות
 // «נמסר», לא מאפסות את המונה ולא מפעילות תזכורות (mint_portal_token רק מחזיר את הקישור הקבוע).
+// ‼ 21.10.2026 · ההדמיה המאושרת docs/proposals/2026-10-21-office-request-and-tax-file.html: «הדף של X» בשורה אחת —
+// נקודה · השם · מצב שקט («יש בו חדש» / «נשלח DD.MM») · «שלח מייל…» · ⋯ (צפייה בדף · פתח כמו X ↗ · העתקת קישור).
+// המשפט «בקשה חדשה מאז השליחה האחרונה…» ירד — «יש בו חדש» אומר אותו. שורת המייל נשארת רק כשיש בה משהו
+// שהמילה לא אומרת: תור לשליחה לבד, עצירה, אין כתובת, «לא ידוע» שחוסם, או ההוראות לביטוח לאומי.
 // ‼ «לא ידוע אם יצא» אינו «נכשל»: הבקשות לא סומנו כנמסרו, ושליחה חוזרת היא
 // אותו מייל בדיוק (אותו מפתח אצל ספק הדואר) — לא מייל שני. שחרור (המייל הבא
 // יכלול אותן שוב) — רק מאחורי אישור שמסביר את הכפילות (unknownRowModel / unknownConfirm).
 // ‼ מייל «חדש» שלא ידוע אם יצא חוסם כל מייל «חדש» נוסף (214) — אז השורה שלו קודמת,
 // ובשורת «בדף, בלי מייל» אין «שלח מייל…» שהיה נגמר בסירוב.
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import ConfirmDialog from '../ui/ConfirmDialog';
 import { resolveNotice, retryKindHold, retryKindHoldErrorText, retryUnknownNotice, serverErrorText, type KindHold } from '../../features/flows/api';
 import {
@@ -74,6 +78,8 @@ interface Props {
   linkCopied?: boolean;
   /** 240 · «שלח מייל…» כשאין חדש — מייל עם הקישור ומצב הדף (בלי לסמן דבר כחדש). */
   onSendUpdate: () => void;
+  /** 21.10.2026 · «פתח כמו X ↗» — הדף האמיתי בחלון חדש (mint_portal_token). ‼ לא שליחה. */
+  onOpenAsClient?: () => void;
 }
 
 /** כמה ימים אחרי מייל או תזכורת מציעים תזכורת ידנית במגש. */
@@ -88,7 +94,7 @@ const STAYS_UNKNOWN = new Set(['unknown_outcome', 'retry_expired', 'recipient_ch
 export default function NoticeTray({
   clientId, firstName, ready, unpublished, unpublishedAllNew, awaitingQuoteApproval, titleOf,
   discarding, onPublish, onPreviewPage, onDiscard, onSend, onRemind, onChanged, paused = [], onOpenFlow,
-  kindHold, onOpenKindField, onViewPage, onCopyLink, linkBusy, linkCopied, onSendUpdate,
+  kindHold, onOpenKindField, onViewPage, onCopyLink, linkBusy, linkCopied, onSendUpdate, onOpenAsClient,
 }: Props) {
   const [busy, setBusy] = useState<string | null>(null);
   // warn — ענבר: לא ידוע מה קרה (אין תשובה, המייל עדיין «לא ידוע»), לא «נכשל».
@@ -141,8 +147,11 @@ export default function NoticeTray({
 
   const kind = kindHoldRow(kindHold, firstName);
 
+  // ‼ 21.10.2026 · שורת המייל רק כשיש בה מה ש«יש בו חדש» שבראש לא אומר: הוראות ב"ל, «לא ידוע» שחוסם,
+  //   עצירה, תור לשליחה לבד או סיבה שלא ייצא לבד (אין כתובת…). מייל «חדש» רגיל — רק הכפתור שבראש.
+  const showNews = !inFlight && hasSend && (persons.length > 0 || newBlocked || !!q.paused || !!q.why || (!!queued && q.live));
   // ‼ 240 · הדף תמיד כאן (הפעולות שלו), גם כשאין שום דבר שממתין.
-  const numbered = nDrafts > 0 && hasSend && !inFlight;
+  const numbered = nDrafts > 0 && showNews;
   const personNames = persons.map(p => p.name.split(/\s+/)[0]).join(' ו');
   // ‼ שם קצר בתוך משפט — כמו titleOf; השם המלא בשורת הבקשה מתחת.
   const itemTitle = (i: { title?: string; stepType: string }) => {
@@ -258,15 +267,16 @@ export default function NoticeTray({
   const sendWhy = newBlocked ? unknownBlocksNewText(persons.length > 0)
     : heldBy ? pausedQueueText(heldBy.name)
     : q.why ? q.why
-    : nNew > 0 && persons.length > 0 ? `רואים את המייל לפני שהוא יוצא — וגם ההוראות לביטוח לאומי ל${personNames}.`
-    : nNew > 0 ? 'רואים את המייל לפני שהוא יוצא. מייל אחד, רק מה שחדש.'
+    : nNew > 0 && persons.length > 0 ? `וגם ההוראות לביטוח לאומי ל${personNames} — מייל נפרד.`
+    : nNew > 0 ? ''
     : NI_ONLY_WHY;
 
   // ‼ 240 · «שלח מייל…» בראש הדף: יש חדש ⇒ מייל «מה חדש» (נבחר בשרת); אין ⇒ מייל עם הקישור
   // והמצב. מייל «חדש» שלא ידוע אם יצא חוסם — קודם מכריעים עליו (השורה שלו למטה).
   const ownerNews = nNew > 0 && !newBlocked;
   const pageSend = () => (ownerNews ? onSend('owner') : onSendUpdate());
-  const quiet = nDrafts === 0 && !hasSend && !inFlight && unknown.length === 0 && !showRemind && !kind;
+  // מצב שקט אחד בראש: יש בדף מה שלא נשלח עליו מייל, או מתי יצא המייל האחרון
+  const pageStatus = nNew > 0 ? 'יש בו חדש' : own.lastSentAt ? `נשלח ${formatDate(own.lastSentAt, 'list').slice(0, 5)}` : null;
 
   // ‼ בכל שורה: מה המצב (העובדה קודם — בטלפון הסוף נחתך) · למה ומה יקרה · כפתור אחד ·
   // קישורים משניים. בטלפון הכפתור לצד הכותרת והקישורים מתחתיה, כדי שהמגש לא ידחוף
@@ -274,23 +284,20 @@ export default function NoticeTray({
   return (
     <section className="rl-out" aria-label={`הדף של ${firstName}`} data-testid="rl-page">
       <div className="rl-page-head">
-        <div className="rl-page-title">הדף של {firstName}</div>
+        <div className="rl-page-title">
+          <span className={`rl-page-dot${nNew > 0 ? ' is-news' : ''}`} aria-hidden="true" />
+          <span>הדף של {firstName}</span>
+          {pageStatus && <span className="rl-page-status" data-testid="rl-page-status">· {pageStatus}</span>}
+        </div>
         <div className="rl-page-acts">
-          <button type="button" className="btn btn-sm rl-btn-line" onClick={onViewPage}>צפייה בדף</button>
-          <button type="button" className="btn btn-sm rl-btn-line" disabled={linkBusy} onClick={onCopyLink}
-            data-testid="rl-copy-link">{linkBusy ? 'מכין…' : 'העתקת קישור'}</button>
           <button type="button" className={`btn btn-sm ${ownerNews ? 'btn-primary' : 'rl-btn-line'}`}
             disabled={inFlight || newBlocked} onClick={pageSend} data-testid="rl-page-send">
             {ownerNews && queuedLive ? SEND_NOW_LABEL : SEND_MAIL_LABEL}
           </button>
+          <PageMenu firstName={firstName} onViewPage={onViewPage} onCopyLink={onCopyLink} onOpenAsClient={onOpenAsClient} linkBusy={linkBusy} />
         </div>
       </div>
       {linkCopied && <div className="rl-page-flash" role="status">הקישור הועתק</div>}
-      {quiet && (
-        <div className="rl-page-quiet">
-          {own.lastSentAt ? `אין בדף חדש מאז המייל האחרון · ${formatDate(own.lastSentAt, 'list')}` : `עוד לא נשלח מייל מהדף ל${firstName}`}
-        </div>
-      )}
 
       {/* ── 1 · פרסום בדף ─────────────────────────────────────────────────── */}
       {nDrafts > 0 && (
@@ -327,7 +334,7 @@ export default function NoticeTray({
             <span className="rl-out-why">רגע, ונרענן.</span>
           </div>
         </div>
-      ) : hasSend && (
+      ) : showNews && (
         // ‼ 240 · הדגשה עדינה כשיש בדף משהו שהלקוח עוד לא קיבל עליו מייל — לא כפתור צועק.
         <div className={`rl-out-row${nNew > 0 && !newBlocked ? ' is-news' : ''}`} data-testid="tray-news">
           {numbered && <span className="rl-out-n" aria-hidden="true">2</span>}
@@ -338,7 +345,7 @@ export default function NoticeTray({
                 ? newSinceTitle(own.items, own.lastSentAt, firstName, itemTitle)
                 : `עוד לא נשלחו ל${personNames}: ההוראות לביטוח לאומי`}
             </strong>
-            <span className="rl-out-why">{sendWhy}</span>
+            {sendWhy && <span className="rl-out-why">{sendWhy}</span>}
           </div>
           {sendFocus && sendFocus !== 'owner' && (
             <div className="rl-out-acts">
@@ -423,5 +430,56 @@ export default function NoticeTray({
         />
       )}
     </section>
+  );
+}
+
+/**
+ * ⋯ של «הדף של X»: צפייה · פתח כמו X ↗ · העתקת קישור. ‼ אף אחת מהן אינה הודעה ללקוח.
+ * אותו דפוס כמו ⋯ בשורת הבקשה (RowActionsMenu): לחיצה בחוץ או Escape סוגרים, הפוקוס נכנס לפריט הראשון.
+ */
+function PageMenu({ firstName, onViewPage, onCopyLink, onOpenAsClient, linkBusy }: {
+  firstName: string; onViewPage: () => void; onCopyLink: () => void; onOpenAsClient?: () => void; linkBusy?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent | TouchEvent) => { if (!wrapRef.current?.contains(e.target as Node)) setOpen(false); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.stopPropagation(); setOpen(false); btnRef.current?.focus(); } };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('touchstart', onDown);
+    document.addEventListener('keydown', onKey, true);
+    window.setTimeout(() => wrapRef.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus(), 0);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('touchstart', onDown);
+      document.removeEventListener('keydown', onKey, true);
+    };
+  }, [open]);
+  const pick = (fn: () => void) => () => { setOpen(false); fn(); };
+  return (
+    <div className="ob-menu-wrap rl-more-wrap" ref={wrapRef}>
+      <button ref={btnRef} type="button" className={`rl-rowmore${open ? ' is-open' : ''}`} aria-haspopup="menu" aria-expanded={open}
+        aria-label={`עוד על הדף של ${firstName}`} data-testid="rl-page-more" onClick={() => setOpen(o => !o)}>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <circle cx="5" cy="12" r="1.8" /><circle cx="12" cy="12" r="1.8" /><circle cx="19" cy="12" r="1.8" />
+        </svg>
+      </button>
+      <div className="ob-menu rl-more-menu rl-page-menu" role="menu" hidden={!open} aria-label={`הדף של ${firstName}`}>
+        <button type="button" role="menuitem" className="rl-mi" onClick={pick(onViewPage)} data-testid="rl-view-page">
+          <span className="rl-mi-l">צפייה בדף</span>
+        </button>
+        {onOpenAsClient && (
+          <button type="button" role="menuitem" className="rl-mi" onClick={pick(onOpenAsClient)} data-annual-as-client>
+            <span className="rl-mi-l">פתח כמו {firstName} ↗</span>
+            <span className="rl-mi-h">הדף האמיתי — מה שממלאים שם נשמר</span>
+          </button>
+        )}
+        <button type="button" role="menuitem" className="rl-mi" disabled={linkBusy} onClick={pick(onCopyLink)} data-testid="rl-copy-link">
+          <span className="rl-mi-l">{linkBusy ? 'מכין…' : 'העתקת קישור'}</span>
+        </button>
+      </div>
+    </div>
   );
 }

@@ -62,7 +62,7 @@ export default function AnnualReturnPanel({ client, step, year, facts, evidence,
   const load = async () => {
     try {
       const [vs, est] = await Promise.all([api.loadReturns(step.id), api.loadApprovedEstimate(client.id, year).catch(() => undefined)]);
-      setVersions(vs); setEstimate(est);
+      setVersions(vs); setEstimate(est); api.announceReturns(step.id, vs);
       const cur = vs.find(v => v.status === 'draft') ?? [...vs].reverse().find(v => v.status === 'approved');
       setDraft(cur ? cur.draft : initialDraft(client, year, est));
       setDirty(!cur);

@@ -66,3 +66,10 @@ export async function loadReturnRequests(clientId: string): Promise<{ stepId: st
   if (error) return [];
   return ((data ?? []) as Row[]).map(r => ({ stepId: String(r.id), taxYear: Number(((r.payload ?? {}) as Row).taxYear), open: !['completed', 'verified', 'skipped', 'cancelled', 'failed'].includes(String(r.status)) }));
 }
+
+// ── 21.10.2026 · פס השלבים בכרטיס הבקשה (AnnualSummary) קורא את הגרסאות שהפאנל כבר טען — בלי קריאה שנייה ──
+export const RETURNS_EVENT = 'pivo:annual-returns';
+export interface ReturnsEventDetail { requestId: string; versions: { status: string; filedAt?: string }[] }
+export const announceReturns = (requestId: string, versions: ReturnVersion[]) => {
+  window.dispatchEvent(new CustomEvent<ReturnsEventDetail>(RETURNS_EVENT, { detail: { requestId, versions: versions.map(v => ({ status: v.status, filedAt: v.filedAt })) } }));
+};

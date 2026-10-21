@@ -89,6 +89,7 @@ export function cardLines(item: InfoItem, c: Client, s: Pick<ItemStatus, 'subjec
       return [`${familyWord(c)}${familyStatusEventYear(c) ? ` מ-${familyStatusEventYear(c)}` : ''}${c.familyStatus === 'married' && (c.spouseFirstName || c.spouse?.firstName) ? ` · ${c.spouseFirstName || c.spouse?.firstName}` : ''}`];
     case 'intake.children':
       return (c.children ?? []).map(ch => `${ch.firstName || 'ילד'} — שנת לידה ${ch.birthYear}`);
+    case 'household.address':
     case 'intake.address':
       return c.city || c.address ? [[c.address, c.city].filter(Boolean).join(', ') + (c.zipCode ? ` · מיקוד ${c.zipCode}` : '')] : [];
     case 'intake.settlement':

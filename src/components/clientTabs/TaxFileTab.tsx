@@ -9,7 +9,7 @@
 // הושמט במכוון: חישוב אמין דורש הוצאות/פחת/מדרגת מס שוליים שאינם עובדות
 // מקובלות על הלקוח — המלצה מחושבת מתוך ברירות מחדל הייתה מטעה.
 
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import SmartFilingsNote from '../../features/smartForms/SmartFilingsNote';
 import { supabase } from '../../lib/supabase';
 import type { Client, RentalTaxTrack, TaxAuthority, NiTracking } from '../../types';
@@ -26,7 +26,7 @@ import { getTaxYearData } from '../../data/taxData';
 import { calcCreditPoints } from '../../utils/taxCalculations';
 import {
   EDIT_FIELD_BY_KEY, EDIT_SECTIONS, editFieldValue, coerceEditField, editFieldDisplay,
-  DEALER_KIND_LABELS, cardDealerKind, dealerTypeDisplay, currentKindHold, kindHoldPending,
+  cardDealerKind, dealerTypeDisplay, currentKindHold, kindHoldPending,
   kindHoldRowException, kindHoldFieldHint, kindHoldOutcome, retryKindHoldErrorText,
   identityFieldError, withSpouseFullName, withBusinessSituation,
 } from '../../features/taxFile/editModel';
@@ -43,9 +43,7 @@ import { domainKnowledge, taxReadiness } from '../../utils/taxKnowledge';
 import { computeAuthorityFlags, actionableFlagCount } from '../../utils/authorityFlags';
 import type { AuthorityFlag } from '../../utils/authorityFlags';
 import { findUnsyncedSession, syncIntakeSession } from '../../lib/intakeSync';
-import type { IntakeSyncResult } from '../../lib/intakeSync';
 import NiInstructionsDialog from '../NiInstructionsDialog';
-import SpouseRelationshipCard from './SpouseRelationshipCard';
 import HomeOfficePanel from '../../features/requests/HomeOfficePanel';
 import { useHomeOffice } from '../../features/requests/useHomeOffice';
 import { deriveHomeOffice, homeOfficeLine } from '../../features/requests/homeOffice';
@@ -146,36 +144,6 @@ function monthYear(iso?: string): string {
   return d.toLocaleDateString('he-IL', { month: '2-digit', year: 'numeric' });
 }
 
-/** משפט פתיחה אחד — רק מתוך עובדות אמיתיות; סעיף חסר פשוט לא נכנס למשפט. */
-function buildSentence(client: Client): string {
-  // ‼ אותו סדר שהשרת קורא (resolve_client_kind) — כדי שהמשפט ושדה «סוג העוסק»
-  // לא יגידו שני דברים שונים. קודם נקרא כאן רק סיווג המע״מ, ו«חברה» לא הופיעה.
-  const kind = cardDealerKind(client);
-  const vatPart = kind ? DEALER_KIND_LABELS[kind] : null;
-  const lead = vatPart
-    ? `${vatPart}${client.businessDescription ? ` (${client.businessDescription})` : ''}`
-    : client.incomeTaxType === 'employee' ? 'שכיר'
-    : client.incomeTaxType === 'selfEmployed' ? 'עצמאי'
-    : client.incomeTaxType === 'both' ? 'שכיר ועצמאי'
-    : client.incomeTaxType === 'rentalOnly' ? 'הכנסות משכירות'
-    : 'הכנסות פסיביות';
-
-  const familyPart = familyStatusDisplay(client)
-    + ((client.children ?? []).length > 0 ? ` + ${client.children.length}` : '');
-
-  const sources: string[] = [];
-  if ((client.businesses ?? []).length > 0 || client.incomeTaxType === 'selfEmployed' || client.incomeTaxType === 'both') sources.push('עסק');
-  if ((client.employers ?? []).length > 0 || client.incomeTaxType === 'employee' || client.incomeTaxType === 'both') sources.push('משכורת');
-  if (client.hasRentalIncome) sources.push('שכירות');
-  if (client.hasCapitalIncome || (client.investmentAccounts ?? []).length > 0) sources.push('שוק ההון');
-
-  let out = `${lead}, ${familyPart}.`;
-  if (sources.length > 0) out += ` הכנסות: ${sources.join(', ')}.`;
-  if (client.pitAdvancePercent) out += ` מקדמות מס הכנסה ${client.pitAdvancePercent}%.`;
-  return out;
-}
-
-
 /**
  * כותרת קטע עם זהות משפחת-המס — נקודה, שם, ולמה הקבוצה קיימת.
  * מקור: docs/prototypes/tax-file-edit-v1.html (.sect-h).
@@ -250,6 +218,8 @@ function businessFields(): EditField[] {
 }
 
 const SPOUSE_NAME_KEYS = new Set(['spouseFirstName', 'spouseLastName']);
+/** ‼ 21.10.2026 · פרטי הנישום שחובה שיהיו בכרטיס — ריק ⇒ «חסר» בכתום (מיקוד וטלפון קווי — רשות, «—»). */
+const REQUIRED_IDENTITY = new Set(['idNumber', 'birthDate', 'phone', 'email', 'city', 'address']);
 const FAMILY_YEAR_KEYS = ['marriageYear', 'divorceYear', 'widowhoodYear'] as const;
 type FamilyYearKey = typeof FAMILY_YEAR_KEYS[number];
 const FAMILY_YEAR_LABEL: Record<FamilyYearKey, string> = { marriageYear: 'שנת הנישואין', divorceYear: 'שנת הגירושין', widowhoodYear: 'שנת הפטירה' };
@@ -271,10 +241,8 @@ function familyFields(client: Client): EditField[] {
 
 import TaxYearsSection from '../../features/taxYear/TaxYearsSection';
 import { ClientObligationRows } from '../../features/shaamFiling';
-import ReconcilePanel from '../../features/taxFile/ReconcilePanel';
-import { ensureTaxFileIntake } from '../../features/taxYear/api';
-import { questionnaireBlocker } from '../../features/taxYear/workCreate';
-import QuestionnaireOpenNotice from '../../features/taxYear/QuestionnaireOpenNotice';
+import TaxFileHeadline from '../../features/taxFile/TaxFileHeadline';
+import { familyPhrase } from '../../features/taxFile/headline';
 
 export default function TaxFileTab({
   client, spouseClient, onCreateSpouseClient, onOpenSpouseClient,
@@ -667,29 +635,7 @@ export default function TaxFileTab({
    * שקיים לרו"ח ולא ללקוח.
    * ‼ facts_synced_at על הסשן מבטיח שזה קורה פעם אחת בלבד.
    */
-  const [intakeResult, setIntakeResult] = useState<IntakeSyncResult | null>(null);
-  /** 236 · «השלמת תיק המס» בראש התיק — פותח (או יוצר) את הקליטה בשנות המס למטה. */
-  const [intakeSignal, setIntakeSignal] = useState(0);
-  /**
-   * 16.10.2026 · «השלם עם הלקוח»: ממשיך את בקשת הקליטה הפתוחה, או פותח אחת (אידמפוטנטי בשרת —
-   * ensure_tax_file_intake מחזיר את הקיימת), ונוחת בשורה שלה ב«בקשות».
-   */
-  const [intakeBusy, setIntakeBusy] = useState(false);
-  const [intakeErr, setIntakeErr] = useState<string | ReactNode | null>(null);
-  async function completeWithClient() {
-    if (!onOpenRequest) { setIntakeSignal(n => n + 1); return; }
-    const open = (steps ?? []).find(s => s.stepType === 'tax_file_intake' && !['completed', 'verified', 'skipped', 'cancelled', 'failed'].includes(s.status));
-    if (open?.id) { onOpenRequest(open.id); return; }
-    setIntakeBusy(true); setIntakeErr(null);
-    // ‼ 263 · לקוח אחד = שאלון אחד פתוח: יש ללקוח שאלון אחר שמחכה לו ⇒ לא נפתחת קליטה (היא הייתה נשארת ריקה)
-    const blocker = await questionnaireBlocker(client.id, { stepType: 'tax_file_intake' });
-    if (blocker) { setIntakeBusy(false); setIntakeErr(<QuestionnaireOpenNotice open={blocker} firstName={client.firstName} onOpen={onOpenRequest} />); return; }
-    const r = await ensureTaxFileIntake(client.id).catch(e => ({ ok: false as const, error: (e as Error).message }));
-    setIntakeBusy(false);
-    if (!r.ok) { setIntakeErr(`הפתיחה נכשלה (${r.error})`); return; }
-    onRequestsChanged?.();
-    onOpenRequest(r.stepId);
-  }
+  // ‼ 21.10.2026 (גיא): «השלם עם הלקוח» ירד — אין יותר עבודת קליטה נפרדת; חסר בכרטיס נשאל בשאלון הדוח / ההערכה.
   /** 05.10 · עבודה מהבית (220) — האחוז שהמשרד אישר, והאישור עצמו (אותו רכיב כמו בבקשה). */
   const homeOfficeLoad = useHomeOffice(client.id || undefined);
   const homeOfficeState = deriveHomeOffice(homeOfficeLoad.history);
@@ -711,7 +657,7 @@ export default function TaxFileTab({
       void alive;
       if (res.client) onClientPersisted(res.client);
       // ‼ 12.10.2026: התשובות נכנסו כהצעות — הרשימה למטה צריכה להתרענן כדי שהמשרד יאשר אותן
-      if ((res.pending?.length ?? 0) > 0) { setIntakeResult(res); void refresh(); }
+      if ((res.pending?.length ?? 0) > 0) void refresh();
     })();
     return () => { alive = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -719,6 +665,11 @@ export default function TaxFileTab({
 
   function toggleRow(id: string) {
     setOpenRows(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  }
+  /** «לבדוק» בפס הכתום: פותח את כל «הצעות לעדכון» וגולל אליהן (ול«דורש טיפול»). */
+  function showPending() {
+    setOpenChanges(new Set(pendingGroups.map(g => g.key)));
+    window.setTimeout(() => document.querySelector('[data-pending-anchor]')?.scrollIntoView({ block: 'start', behavior: 'smooth' }), 0);
   }
   function toggleChange(id: string) {
     setOpenChanges(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
@@ -790,8 +741,6 @@ export default function TaxFileTab({
     setSavingEdit(false);
     if (res.ok) { if (res.client) onClientPersisted(res.client); setEditingField(null); }
   }
-
-  const sentence = useMemo(() => buildSentence(client), [client]);
 
   // ── V6: שורות הרשויות, מצבי הידיעה, והמוכנות ──
   // ‼ שורת רשות בלי אף עובדה אינה מידע — היא רק תופסת מקום ומרמזת שנבדק
@@ -905,7 +854,7 @@ export default function TaxFileTab({
       `${bankAccounts.length} ${bankAccounts.length === 1 ? 'חשבון' : 'חשבונות'}`,
       bankAccounts.find(b => b.isPrimary && !b.closedAt) && `${bankAccounts.find(b => b.isPrimary && !b.closedAt)!.bankName} (ראשי להחזרים)`,
     )
-    : 'לא נרשם חשבון בנק';
+    : '';
 
   const pensionSummary = join(
     pensionFunds.length > 0
@@ -1014,6 +963,7 @@ export default function TaxFileTab({
   const showDonationsRow = !!client.donationsAnnual || !!meta.donationsAnnual;
 
   const showFamilyRow = true;
+  const identityMissing = identityFields().filter(f => REQUIRED_IDENTITY.has(f.key) && !editFieldValue(client, f)).map(f => f.label);
 
   return (
     <>
@@ -1030,28 +980,15 @@ export default function TaxFileTab({
       {/* ‼ מתג «קריאה / עריכה מלאה» ירד: אין יותר חוויית עריכה נפרדת לתיק
           המס. הצפייה, העריכה והאוטומציה קורות באותו מסך, בתוך הכרטיס. */}
 
-      <div className="txf-sentence">{sentence}</div>
-
-      {/* ‼ נוכחות אחת קבועה למי בן/בת הזוג — לא רק בתוך "התיק" (158). ראה
-          SpouseRelationshipCard: מציגה בלבד, בלי מנגנון שני. */}
-      <SpouseRelationshipCard
-        client={client} spouseClient={spouseClient}
-        onCreateSpouseClient={onCreateSpouseClient} onOpenSpouseClient={onOpenSpouseClient}
-      />
-
-      {/* ═══ עדכון ויישור קו (13.10.2026) ═══════════════════════════════════
-          ‼ במקום אזור הקליטה הגדול: מה ידוע מהרשויות, מה נמסר, מה חסר / לאישור / סותר — ו«הכן שאלון השלמה».
-          הפירוט ממשיך לחיות בכרטיסים שמתחת («דורש טיפול», «הצעות לעדכון») — אותו מקור, לא עותק. */}
-      <ReconcilePanel
-        client={client} alignedAt={alignedAt}
-        pendingCount={pending.length + (intakeResult?.pending?.length ?? 0)}
-        flagCount={openFlags.length}
-        unknown={readiness.personal.unknown}
-        intakeOpen={(steps ?? []).some(s => s.stepType === 'tax_file_intake' && !['completed', 'verified', 'skipped', 'cancelled', 'failed'].includes(s.status))}
-        onPrepare={() => void completeWithClient()} prepareBusy={intakeBusy} prepareError={intakeErr}
+      {/* ‼ 21.10.2026 (ההמחשה המאושרת): שורה אחת במקום כרטיס המשפט, כרטיס בן/בת הזוג ו«זהות ורשויות»;
+          פס «לאישורך» רק כשיש — «לבדוק» פותח את «הצעות לעדכון» / «דורש טיפול» שמתחת. */}
+      <TaxFileHeadline
+        client={client} household={household} alignedAt={alignedAt}
+        toApprove={pending.length + (alignedAt ? openFlags.length : 0)}
+        onShowPending={showPending}
         onRunAlignment={onRunAlignment} alignBusy={alignBusy}
         onOpenDetailed={onOpenDetailedAlignment ? () => onOpenDetailedAlignment() : undefined}
-        onShowPending={() => document.querySelector('[data-pending-anchor]')?.scrollIntoView({ block: 'start', behavior: 'smooth' })}
+        onCreateSpouseClient={onCreateSpouseClient} onOpenSpouseClient={onOpenSpouseClient}
       />
 
       {/* ═══ פרטי הנישום ═══════════════════════════════════════════════════
@@ -1067,10 +1004,11 @@ export default function TaxFileTab({
         <TRow
           id="identity" name="פרטים אישיים"
           summary={[
-            client.idNumber ? `ת.ז. ${client.idNumber}` : 'אין ת.ז.',
+            client.idNumber && `ת.ז. ${client.idNumber}`,
             client.phone, client.city,
             !dealerTypeDisplay(client).unknown && dealerTypeDisplay(client).text,
           ].filter(Boolean).join(' · ')}
+          missing={identityMissing.length ? `חסר: ${identityMissing.join(', ')}` : undefined}
           exception={kindHoldPending(kindHold) && kindHold.held.length > 0
             ? { text: kindHoldRowException(kindHold, cardKindKnown) ?? '', tone: 'warn' }
             : null}
@@ -1098,7 +1036,9 @@ export default function TaxFileTab({
                         ? (f.key === 'phone' || f.key === 'email' || f.key === 'idNumber' || f.key === 'zipCode' || f.key === 'landlinePhone'
                             ? <span className="ltr-isolate">{editFieldDisplay(f, v)}</span>
                             : editFieldDisplay(f, v))
-                        : <span style={{ color: 'var(--ink-4)' }}>טרם התקבל</span>} />
+                        : REQUIRED_IDENTITY.has(f.key)
+                          ? <span className="txf-miss">חסר</span>
+                          : <span style={{ color: 'var(--ink-4)' }}>—</span>} />
                   );
                 })}
           </div>
@@ -1369,7 +1309,7 @@ export default function TaxFileTab({
       <SectHead family="income" title="דוחות והצהרות" why="כל אחת היא בקשה — נפתחת ב«בקשות»" />
       <div className="txf-sect" style={{ padding: '.6rem .8rem' }}>
         {/* ‼ «הוסף לתיק» מתוך שנת המס יוצר הצעה — רשימת ההצעות כאן מתרעננת מיד, לא רק בטעינה הבאה */}
-        <TaxYearsSection client={client} onChanged={() => { onRequestsChanged?.(); void refresh(); }} onClientPersisted={onClientPersisted} intakeSignal={intakeSignal} onOpenRequest={onOpenRequest} />
+        <TaxYearsSection client={client} onChanged={() => { onRequestsChanged?.(); void refresh(); }} onClientPersisted={onClientPersisted} onOpenRequest={onOpenRequest} />
         <ClientObligationRows client={client} onOpenRequests={(_clientId, stepId) => onOpenRequest?.(stepId)} onChanged={() => { onRequestsChanged?.(); void refresh(); }} />
       </div>
 
@@ -1545,7 +1485,11 @@ export default function TaxFileTab({
         {showFamilyRow && (
           <TRow
             id="family" name="משפחה ובן/בת זוג"
-            summary={`${familyStatusDisplay(client)}${(client.children ?? []).length ? ` · ${client.children.length} ילדים` : ''}`}
+            summary={[
+              familyPhrase(client) + (familyStatusEventYear(client) != null ? ` מ-${familyStatusEventYear(client)}` : ''),
+              (client.children ?? []).length ? `${client.children.length} ילדים` : '',
+            ].filter(Boolean).join(' · ')}
+            missing={FAMILY_STATUS_YEAR_KEY[client.familyStatus] && familyStatusEventYear(client) == null ? `חסר: ${FAMILY_STATUS_YEAR_LABELS[client.familyStatus]}` : undefined}
             open={openRows.has('family')} onToggle={toggleRow}
           >
             <div className="txf-kv">
@@ -1574,7 +1518,7 @@ export default function TaxFileTab({
                         <div data-field="familyStatusYear" data-family-year-unknown>
                           <div className="k">ממתי? · {FAMILY_STATUS_YEAR_LABELS[client.familyStatus]}</div>
                           <div className="v">
-                            <span className="txf-unknown">טרם נרשם</span>
+                            <span className="txf-miss">חסר</span>
                             {' '}<button type="button" className="ui-linkbtn" data-family-year-answer
                               onClick={() => startFamilyYearEdit()}>רשום שנה</button>
                           </div>
@@ -1602,7 +1546,7 @@ export default function TaxFileTab({
                   כאן כלל — הרו"ח שחיפש אותו לא ידע שהוא בכלל קיים בכרטיס.
                   ‼ פרטי הזיהוי של בן/בת הזוג נשארים לקריאה בלבד כאן — עריכת
                   זהות היא הכרעת מוצר/נתונים שנדחתה במפורש מהמיילסטון הזה. */}
-              {married && <KV k={`ת.ז. ${spouseName}`} v={client.spouseIdNumber || <span style={{ color: 'var(--ink-4)' }}>טרם התקבלה</span>} />}
+              {married && <KV k={`ת.ז. ${spouseName}`} v={client.spouseIdNumber || <span className="txf-miss">חסר</span>} />}
               {married && <KV k={`טלפון ${spouseName}`} v={client.spousePhone?.trim()
                 ? <span className="ltr-isolate">{client.spousePhone}</span>
                 : <span style={{ color: 'var(--ink-4)' }}>טרם התקבל</span>} />}
@@ -1761,6 +1705,7 @@ export default function TaxFileTab({
             {showBankRow && (
               <TRow
                 id="bank" name="חשבונות בנק" summary={bankSummary}
+                missing={bankAccounts.some(b => !b.closedAt) ? undefined : 'חסר: חשבון להחזרים'}
                 open={openRows.has('bank')} onToggle={toggleRow}
               >
                 {editingSection === 'bank' ? renderLists() : (
@@ -1768,7 +1713,7 @@ export default function TaxFileTab({
                     {bankAccounts.map(b => (
                       <KV key={b.id} k={b.bankName} v={b.closedAt ? `נסגר ${b.closedAt.slice(8, 10)}.${b.closedAt.slice(5, 7)}.${b.closedAt.slice(0, 4)}` : b.isPrimary ? 'ראשי - להחזרי מס' : (b.branchName || 'חשבון נוסף')} />
                     ))}
-                    {bankAccounts.length === 0 && <KV k="חשבון להחזרי מס" v="טרם נרשם" />}
+                    {bankAccounts.length === 0 && <KV k="חשבון להחזרי מס" v={<span className="txf-miss">חסר</span>} />}
                   </div>
                 )}
                 {editingSection === 'bank' && <EditActions />}

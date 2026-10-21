@@ -129,9 +129,10 @@ async function runWidth(width) {
     const [st] = await env.sql(`select id from public.onboarding_steps where client_id = '${id}' and step_type = 'annual_return' and status <> 'cancelled'`);
     ok(!!st, 'דוח שנתי נפתח');
 
-    // 2 · «פתח כמו הלקוח» ⇒ הדף האמיתי בחלון חדש
-    const btn = page.locator('[data-annual-as-client]');
-    ok(await btn.count() === 1, 'בסיכום: «פתח כמו הלקוח ↗»', await text(page.locator('[data-annual-summary]')));
+    // 2 · «פתח כמו הלקוח» ⇒ הדף האמיתי בחלון חדש — ‼ 21.10.2026 · ב-⋯ של «הדף של {שם}» (לא בסיכום)
+    await page.locator('[data-testid="rl-page-more"]').click();
+    const btn = page.locator('[data-testid="rl-page"] [data-annual-as-client]');
+    ok(await btn.count() === 1 && await btn.isVisible(), '⋯ של «הדף של …»: «פתח כמו … ↗»', await text(page.locator('[data-testid="rl-page"]')));
     const [pp] = await Promise.all([ctx.waitForEvent('page'), btn.click()]);
     onErr(pp, 'portal');
     await pp.waitForURL(/\?portal=/, { timeout: 20000 });
@@ -173,12 +174,12 @@ async function runWidth(width) {
     if (!reopened.some(a => a.item_key === 'annual.whatHappened')) console.log('    [debug] steps', JSON.stringify(await env.sql(`select step_type, status, payload->>'held' held, (select count(*) from public.tax_info_asks x where x.parent_step_id = s.id) n from public.onboarding_steps s where client_id = '${id}' order by created_at`)), 'body:', (await page.locator('body').innerText()).replace(/s+/g, ' ').slice(0, 600));
     ok(reopened.some(a => a.item_key === 'annual.whatHappened'), 'אחרי ביטול ופתיחה מחדש — מסך הריבועים חוזר (לא «השאלון הישן»)', reopened.map(a => a.item_key).join(','));
 
-    // 3ב · תיק המס ← «בוטלו» ← «מחק» (ישר, בלי לחפש בתוך «החזר…»)
+    // 3ב · תיק המס ← «היסטוריה» ← «מחק» (ישר, בלי לחפש בתוך «החזר…»)
     await page.goto(env.officeUrl(id, 'taxfile'), { waitUntil: 'domcontentloaded' });
     await page.reload({ waitUntil: 'domcontentloaded' });
     const purgeBtn = page.locator('[data-tf-purge]').first();
     const cancelledBox = page.locator('[data-tf-cancelled] > summary').first();
-    await cancelledBox.waitFor({ timeout: 40000 }); await cancelledBox.click(); // «בוטלו (N)» — מקופל
+    await cancelledBox.waitFor({ timeout: 40000 }); await cancelledBox.click(); // «היסטוריה (N)» — מקופל
     await purgeBtn.waitFor({ timeout: 15000 });
     await purgeBtn.click();
     await dlg.locator('[data-rw-purge-list]').waitFor({ timeout: 15000 });

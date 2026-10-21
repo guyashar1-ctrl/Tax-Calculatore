@@ -15,6 +15,7 @@ const ANNUAL_CERT = (who: string) => `אישור שנתי ש${who} שולח בד
 export const HINTS: Record<string, string> = {
   // ── משק הבית ──
   'household.maritalAtYearEnd': 'המצב ביום האחרון של השנה הוא הקובע — גם אם השתנה במהלכה.',
+  'household.address': 'הכתובת שבה אתם גרים היום — כמו בספח תעודת הזהות.',
   'household.children': 'כל הילדים — גם מעל גיל 18 וגם מי שגר אצל ההורה השני. לכל ילד: שם ותאריך לידה.',
   'household.settlement': 'יישוב שבו גרתם בפועל במהלך השנה.',
   'household.degree': 'תואר אקדמי או תעודת מקצוע שסיימתם — עם שנת הסיום.',

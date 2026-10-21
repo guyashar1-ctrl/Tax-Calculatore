@@ -1,0 +1,32 @@
+/* ─── ראש תיק המס: שורה אחת + ⋯, ופס «לאישורך» (21.10.2026) ─────────────── */
+.txf-headline {
+  display: flex; align-items: center; gap: 10px;
+  background: var(--surface-0); border: 1px solid var(--hairline-1); border-radius: var(--r-panel);
+  padding: 12px 16px; margin-bottom: 10px; color: var(--ink-1);
+}
+.txf-headline-t { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.txf-headline-t b { font-size: var(--fs-15, 15px); font-weight: 600; line-height: 1.5; }
+.txf-headline-t small { font-size: var(--fs-12); color: var(--ink-3); }
+.txf-headline .ob-menu[hidden] { display: none; }
+.txf-headline .ob-menu { min-width: 210px; }
+.txf-headline-more {
+  appearance: none; border: 0; background: none; color: var(--ink-3); cursor: pointer; padding: 0;
+  width: 36px; height: 36px; border-radius: 8px; display: grid; place-items: center; flex-shrink: 0;
+}
+.txf-headline-more:hover, .txf-headline-more.is-open { background: var(--surface-2); color: var(--ink-1); }
+.txf-headline-more:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+@media (pointer: coarse) { .txf-headline-more { width: 44px; height: 44px; } }
+
+.txf-approve {
+  display: flex; align-items: center; gap: 10px;
+  background: var(--warn-bg); color: var(--warn); border: 1px solid color-mix(in srgb, var(--warn) 30%, transparent);
+  border-radius: var(--r-panel); padding: 8px 14px; margin-bottom: 10px; font-weight: 600; font-size: var(--fs-14);
+}
+.txf-approve-t { flex: 1; min-width: 0; }
+
+/* «חסר» בתוך הסעיף — כתום, במקום «טרם התקבל» אפור */
+.txf-miss { color: var(--warn); font-weight: 600; }
+.txf-row-sum .txf-miss { margin-inline-start: 6px; }
+
+/* «לבדוק» גולל לכאן — מתחת לכותרת הדביקה */
+[data-pending-anchor] { display: block; scroll-margin-top: 84px; }

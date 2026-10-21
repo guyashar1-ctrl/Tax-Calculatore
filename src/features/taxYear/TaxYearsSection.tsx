@@ -5,15 +5,12 @@
 // אישור מרוכז לקבוצה עם אותו בסיס, עם חריגים; בלי ראיה — «שנה לא ידועה», בלי
 // ניחוש ובלי חישוב. הערך בכרטיס לא משתנה; ההחלטה וההיסטוריה נשמרות.
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { Client } from '../../types';
 import type { OnboardingStep } from '../../types/onboarding';
 import { supabase } from '../../lib/supabase';
 import { stepFromDb } from '../../lib/dbMappers';
 import * as api from './api';
-import { openTaxFileIntake } from './workCreate';
-import QuestionnaireOpenNotice from './QuestionnaireOpenNotice';
-import type { OpenQuestionnaire } from './oneQuestionnaire';
 import type { WealthPayload } from './WealthDeclarationPanel';
 import { deadlineView, dueState } from './workMeta';
 import AddTaxWorkDialog from './AddTaxWorkDialog';
@@ -31,8 +28,6 @@ interface Props {
   onChanged?: () => void;
   /** 236 · עדכון הכרטיס מתוך התהליך — הכרטיס המעודכן, כדי שהמסך לא יישאר ישן. */
   onClientPersisted?: (c: Client) => void;
-  /** 236 · כפתור «השלמת תיק המס» בראש התיק: כל שינוי במספר פותח (או יוצר) את הקליטה. */
-  intakeSignal?: number;
   /**
    * 16.10.2026 · «כל עבודה היא בקשה»: «פתח» נוחת בשורת הבקשה ב«בקשות» (העבודה נפתחת בתוך השורה) —
    * לא מסך תהליך שלישי. בלי הפרופ (מסכי בדיקה) — כמו קודם, דף התהליך.
@@ -45,7 +40,7 @@ const periodKey = (s: OnboardingStep) => { const p = (s.payload ?? {}) as unknow
 const OPEN = (s: OnboardingStep) => !['completed', 'verified', 'skipped', 'cancelled', 'failed'].includes(s.status);
 const money = (n: number) => `${n.toLocaleString('he-IL')} ₪`;
 
-export default function TaxYearsSection({ client, onChanged, onClientPersisted, intakeSignal, onOpenRequest }: Props) {
+export default function TaxYearsSection({ client, onChanged, onClientPersisted, onOpenRequest }: Props) {
   const [steps, setSteps] = useState<OnboardingStep[]>([]);
   /** 16.10.2026 · עבודות שבוטלו — כאן הבית של «החזר…» (ב«מס › עבודות לקוחות» יש עכשיו סקירה בלבד). */
   const [cancelled, setCancelled] = useState<OnboardingStep[]>([]);
@@ -61,8 +56,6 @@ export default function TaxYearsSection({ client, onChanged, onClientPersisted, 
   }, [onOpenRequest]);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
-  /** 263 · הקליטה לא נפתחה: יש ללקוח שאלון אחר שמחכה לו. */
-  const [qOpen, setQOpen] = useState<OpenQuestionnaire | null>(null);
 
   const load = useCallback(async () => {
     const [st, ch, se, tr] = await Promise.all([
@@ -112,24 +105,7 @@ export default function TaxYearsSection({ client, onChanged, onClientPersisted, 
   };
   void transferYears;
 
-  // ── 236 · קליטה והשלמת תיק המס: בקשה פתוחה אחת ללקוח; היסטוריה — קליטות שהושלמו ──
-  const intakes = steps.filter(s => s.stepType === 'tax_file_intake').sort((a, b) => Number(OPEN(b)) - Number(OPEN(a)) || (b.createdAt ?? '').localeCompare(a.createdAt ?? ''));
-  const intake = intakes[0];
-  const startIntake = useCallback(async () => {
-    setBusy(true); setMsg(null); setQOpen(null);
-    // 254 · הפתיחה גם מכינה ומפרסמת את השאלון בדף של הלקוח — בלי מייל
-    const r = await openTaxFileIntake(client);
-    setBusy(false);
-    if (!r.ok && r.openQuestionnaire) { setQOpen(r.openQuestionnaire); return; }
-    if (!r.ok || !r.stepId) { setMsg({ ok: false, text: `הפתיחה נכשלה (${r.error})` }); return; }
-    await load(); onChanged?.(); setOpenId(r.stepId);
-  }, [client.id, load, onChanged]);
-  const lastSignal = useRef(intakeSignal ?? 0);
-  useEffect(() => {
-    if (!intakeSignal || intakeSignal === lastSignal.current) return;
-    lastSignal.current = intakeSignal;
-    if (intake && OPEN(intake)) setOpenId(intake.id); else void startIntake();
-  }, [intakeSignal, intake, startIntake]);
+  // ‼ 21.10.2026 (גיא): «קליטה והשלמת תיק המס» אינה נפתחת מכאן יותר — חסר בכרטיס נשאל בשאלון הדוח / ההערכה.
 
   const proposals = useMemo(() => proposeTransfers(client, writes).filter(p => !decided.has(`${p.path}:${p.entityRef ?? ''}`)), [client, writes, decided]);
   const openStep = openId ? steps.find(s => s.id === openId) : undefined;
@@ -145,36 +121,38 @@ export default function TaxYearsSection({ client, onChanged, onClientPersisted, 
     if (!OPEN(s)) return { text: 'הושלם', tone: 'green' };
     if (!info) return { text: 'עוד לא הוכנו שאלות', tone: '' };
     if (info.status === 'pending') return { text: 'טיוטת שאלות — לא פורסמה', tone: '' };
-    if (info.status === 'waiting_client') return { text: 'ממתין ללקוח', tone: 'blue' };
+    if (info.status === 'waiting_client') return { text: `אצל ${client.firstName || 'הלקוח'}`, tone: 'blue' };
     if (info.ball === 'me' && OPEN(info)) return { text: 'יש תשובות לבדוק', tone: 'amber' };
     return { text: 'בעבודה', tone: '' };
   };
   const today = todayIso();
+  const openWorks = works.filter(OPEN);
+  const doneWorks = works.filter(w => !OPEN(w));
+  /** «2025» · «דוח שנתי» — השנה (או יום ההצהרה) לחוד, הסוג לחוד. */
+  const labelOf = (w: OnboardingStep) => {
+    const pl = w.payload as unknown as { cutoffMonth?: number; taxYear?: number } & WealthPayload;
+    if (w.stepType === 'wealth_declaration') return { when: (pl.asOfDate ?? '').split('-').reverse().join('.'), kind: `הצהרת הון${pl.kind === 'followup' ? ' · המשך' : ''}` };
+    if (w.stepType === 'tax_estimate') return { when: String(pl.taxYear ?? ''), kind: `הערכת מס${pl.cutoffMonth ? ` · עד סוף ${MONTHS[pl.cutoffMonth]}` : ''}` };
+    return { when: String(pl.taxYear ?? ''), kind: 'דוח שנתי' };
+  };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '.6rem' }} data-section="works">
       {msg && <div className={msg.ok ? 'ty-ok' : 'ty-err'} role={msg.ok ? 'status' : 'alert'}>{msg.text}</div>}
-      {qOpen && <QuestionnaireOpenNotice open={qOpen} firstName={client.firstName} onOpen={onOpenRequest} />}
-      {works.length === 0
+      {/* ‼ 21.10.2026 (ההמחשה המאושרת): שורה לכל עבודה פתוחה — שנה · סוג · מצב · «פתח ←». מה שהושלם או בוטל — ב«היסטוריה». */}
+      {openWorks.length === 0
         ? <p className="ty-note" style={{ margin: 0 }}>אין דוח או הצהרה פתוחים.</p>
         : (
           <ul className="tf-works" aria-label="דוחות והצהרות">
-            {works.map(w => {
+            {openWorks.map(w => {
               const st = stateOf(w);
-              const dv = deadlineView(w);
-              const ds = dueState(dv, today, OPEN(w));
-              const pl = w.payload as unknown as { cutoffMonth?: number; taxYear?: number } & WealthPayload;
-              const title = w.stepType === 'wealth_declaration' ? `הצהרת הון ליום ${(pl.asOfDate ?? '').split('-').reverse().join('.')}${pl.kind === 'followup' ? ' · המשך' : ''}`
-                : w.stepType === 'tax_estimate' ? `הערכת מס ${pl.taxYear ?? ''}${pl.cutoffMonth ? ` · עד סוף ${MONTHS[pl.cutoffMonth]}` : ''}` : `דוח שנתי ${pl.taxYear ?? ''}`;
+              const ds = dueState(deadlineView(w), today, true);
+              const { when, kind } = labelOf(w);
               return (
                 <li key={w.id} className={`tf-work is-${ds}`} data-work={w.stepType}>
-                  <span className="tf-work-main">
-                    <b>{title}</b>
-                    <small>{dv.none ? (w.stepType === 'wealth_declaration' ? 'הכנה בלי דרישה — אין מועד רשמי' : 'אין מועד רשום') : dv.short}{ds === 'overdue' ? ' · באיחור' : ''}</small>
-                  </span>
-                  <span className={`ty-chip ${st.tone}`}>{st.text}{approvedEst.get(w.id) ? ` · גרסה ${approvedEst.get(w.id)!.version}` : ''}</span>
-                  <button type="button" className="btn btn-sm btn-ghost" onClick={() => setOpenId(w.id)} data-tf-open-work={w.id}>{onOpenRequest ? "לבקשה ←" : "פתח"}</button>
-                  {OPEN(w) && <button type="button" className="btn btn-sm btn-ghost tw-remove" onClick={() => setRemoving({ id: w.id, title })} aria-label={`הסר: ${title}`} data-tf-remove>הסר…</button>}
+                  <span className="tf-work-main"><span><b>{when}</b>{when ? ' · ' : ''}{kind}</span></span>
+                  <span className={`ty-chip ${ds === 'overdue' ? 'red' : st.tone}`}>{ds === 'overdue' ? 'באיחור' : st.text}{approvedEst.get(w.id) ? ` · גרסה ${approvedEst.get(w.id)!.version}` : ''}</span>
+                  <button type="button" className="btn btn-sm btn-ghost" onClick={() => setOpenId(w.id)} data-tf-open-work={w.id}>פתח ←</button>
                 </li>
               );
             })}
@@ -194,10 +172,21 @@ export default function TaxYearsSection({ client, onChanged, onClientPersisted, 
         <RemoveWorkDialog stepId={removing.id} title={removing.title} purgeOnly={removing.purge} onClose={() => setRemoving(null)}
           onDone={(_what, text) => { setRemoving(null); setMsg({ ok: true, text }); void load(); onChanged?.(); }} />
       )}
-      {cancelled.length > 0 && (
+      {/* ‼ 21.10.2026: «בוטלו» ⇒ «היסטוריה» — גם מה שהושלם (נפתח), ומה שבוטל עם «החזר…» ו«מחק». */}
+      {(doneWorks.length + cancelled.length) > 0 && (
         <details className="tf-cancelled" data-tf-cancelled>
-          <summary>בוטלו ({cancelled.length})</summary>
+          <summary>היסטוריה ({doneWorks.length + cancelled.length})</summary>
           <ul className="tf-works">
+            {doneWorks.map(w => {
+              const { when, kind } = labelOf(w);
+              return (
+                <li key={w.id} className="tf-work is-done" data-work={w.stepType}>
+                  <span className="tf-work-main"><span><b>{when}</b>{when ? ' · ' : ''}{kind}</span></span>
+                  <span className="ty-chip green">הושלם</span>
+                  <button type="button" className="btn btn-sm btn-ghost" onClick={() => setOpenId(w.id)} data-tf-open-work={w.id}>פתח ←</button>
+                </li>
+              );
+            })}
             {cancelled.map(c => {
               const t = (c.payload as unknown as { title?: string }).title ?? 'עבודת מס';
               return (

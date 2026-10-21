@@ -110,7 +110,7 @@ export default function TaxYearProcess({ client, step, infoStep, onClose, onChan
   const [qOpen, setQOpen] = useState(false);
   // ‼ 19.10.2026 · דוח שנתי: «פירוט מלא» מקופל; «השלמות במשרד» בסיכום פותח אותו על «להשלים במשרד»
   const [fullOpen, setFullOpen] = useState(false);
-  const fullRef = useRef<HTMLDetailsElement>(null);
+  const fullRef = useRef<HTMLElement>(null);
   const [pick, setPick] = useState<'office' | 'ask' | 'publish' | null>(null);
   // ‼ שאלון קליטה ישן שעדיין פתוח אצל הלקוח — כדי לא לשאול פעמיים את הפרטים הקבועים (229 קושר אותו לבקשה)
   const [openIntake, setOpenIntake] = useState<api.OpenLegacyIntake | null>(null);
@@ -298,12 +298,14 @@ export default function TaxYearProcess({ client, step, infoStep, onClose, onChan
 
   return (
     <div className={embedded ? 'ty-inline' : 'ty-overlay'} role={embedded ? 'region' : 'dialog'} aria-label={`${p.title} · ${client.firstName} ${client.lastName ?? ''}`} data-ty-inline={embedded ? '' : undefined}>
-      {embedded ? (
+      {/* ‼ 21.10.2026 · דוח שנתי בתוך השורה: בלי «דוח לשנת … · נפתחה …» ובלי «מה X רואה» — פס השלבים הוא המצב,
+          והדף עצמו — ב-⋯ של «הדף של X» */}
+      {embedded ? (purpose === 'annual' ? null : (
         <div className="ty-inline-head">
           <span className="ty-sub">{subtitle}</span>
           {infoStep && <button type="button" className="btn btn-sm btn-ghost" onClick={() => setPreview(true)} data-ty-preview>מה {firstName} רואה</button>}
         </div>
-      ) : (
+      )) : (
       <div className="ty-head">
         <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
           <h2>{p.title} · {client.firstName} {client.lastName}</h2>
@@ -472,13 +474,16 @@ export default function TaxYearProcess({ client, step, infoStep, onClose, onChan
 }
 
 /** דוח שנתי: כל מה שמתחת לסיכום — בקיפול אחד. בשאר העבודות — כמו שהיה. */
-function FullDetails({ enabled, open, onToggle, innerRef, children }: { enabled: boolean; open: boolean; onToggle: (v: boolean) => void; innerRef: React.RefObject<HTMLDetailsElement>; children: React.ReactNode }) {
+// ‼ 21.10.2026 · בלי קיפול משלו: נפתח מ«פירוט ▾» ← «החישוב ואיך עושים ביד — פתח» או מכפתור בשורה (AnnualSummary),
+//   ונסגר כאן. התוכן טעון גם כשהוא סגור (כמו בקיפול) — פאנל הדוח מודיע מכאן על הגרסאות לפס השלבים.
+function FullDetails({ enabled, open, onToggle, innerRef, children }: { enabled: boolean; open: boolean; onToggle: (v: boolean) => void; innerRef: React.RefObject<HTMLElement>; children: React.ReactNode }) {
   if (!enabled) return <>{children}</>;
   return (
-    <details className="as-full" data-annual-full ref={innerRef} open={open} onToggle={e => onToggle((e.currentTarget as HTMLDetailsElement).open)}>
-      <summary>פירוט מלא: השאלון, החישובים ואיך עושים ביד</summary>
+    <section className="as-full" data-annual-full ref={innerRef} hidden={!open} aria-label="החישוב ואיך עושים ביד">
+      <div className="as-full-head"><b>החישוב ואיך עושים ביד</b>
+        <button type="button" className="btn btn-sm btn-ghost" onClick={() => onToggle(false)} data-annual-full-close>סגירה</button></div>
       {children}
-    </details>
+    </section>
   );
 }
 

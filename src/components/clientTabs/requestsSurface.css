@@ -35,9 +35,15 @@
 }
 .rl-out-title { font-size: var(--fs-12); font-weight: 700; color: var(--ink-3); margin-bottom: 2px; }
 /* 240 · «הדף של X» — שלוש הפעולות של הדף בשורה אחת, מעל מה שממתין. */
-.rl-page-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding: 2px 0 6px; }
-.rl-page-title { font-size: var(--fs-14); font-weight: 700; color: var(--ink-1); }
-.rl-page-acts { display: flex; gap: 6px; flex-wrap: wrap; }
+.rl-page-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 2px 0 4px; }
+.rl-page-title { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; min-width: 0; font-size: var(--fs-14); font-weight: 700; color: var(--ink-1); }
+/* 21.10.2026 · שורה אחת: נקודה · השם · מצב שקט · «שלח מייל…» · ⋯ */
+.rl-page-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ink-4, #c3c7cd); flex-shrink: 0; }
+.rl-page-dot.is-news { background: var(--accent); }
+.rl-page-status { font-size: var(--fs-13); font-weight: 400; color: var(--ink-3); }
+.rl-page-acts .rl-more-wrap { align-self: center; }
+.rl-page-menu { min-width: 210px; }
+.rl-page-acts { display: flex; gap: 4px; flex-wrap: nowrap; align-items: center; }
 .rl-page-flash { font-size: var(--fs-12); color: var(--ok, #17845b); padding: 0 0 6px; }
 .rl-page-quiet { font-size: var(--fs-12); color: var(--ink-3); padding: 0 0 6px; }
 .rl-page-head + .rl-out-row, .rl-page-flash + .rl-out-row, .rl-page-quiet + .rl-out-row { border-top: 1px solid var(--hairline-2); }
