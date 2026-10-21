@@ -37,6 +37,11 @@ Ask Guy which business process or automation he wants to improve first. Inspect 
 
 ## Decision log / review evidence
 
+### 2026-10-21 — קריאת תיק מס הכנסה בלי «מספר תיק» (גיא אישר)
+- הבעיה: «קריאת תיק מס הכנסה מהשע״ם» חסמה «אין מספר תיק במס הכנסה בכרטיס» גם אצל לקוח מיוצג עם ת.ז. — תהליך הייצוג אינו ממלא `taxFiles[income_tax].fileNumber`. דוגמה: שמעון (גרוש, ת.ז. בכרטיס, `tax_files` ריק — נבדק בייצור, קריאה בלבד).
+- התיקון: `src/features/taxFile/incomeTaxFileInput.ts` — מספר תיק שהוזן גובר; אחרת ת.ז. של הרשום/ה במס הכנסה (`registeredFileInfo`); נשוי שטרם הוכרע / בלי שורת תיק ⇒ חסימה «לא סומן מי מבני הזוג רשום…», לא ניחוש. מע״מ לא נגע. `authorityAutomation.ts` קורא לו.
+- בדיקות: `__tests__/incomeTaxFileInput.test.ts` (8), כל הבדיקות 2037/0, tsc, vite build; דפדפן `?test-taxfile&case=never` — ההודעה החדשה מופיעה. לא הורצה קריאה אמיתית מול שע״ם.
+
 ### 2026-10-21 — שלב 1 אחרי הניסיון של גיא («תעשה את השלב הראשון») — בייצור (af1b1d2 + מיזוג bdcd39f)
 - «מחק לגמרי» כפריט נפרד ב-⋯ ו«מחק» ליד «החזר…» ב«בוטלו» (RemoveWorkDialog purgeOnly); תשובה לא מאושרת מעבודה שבוטלה אינה «ידוע» (api.loadYearData); «בקשה חדשה ← תיק המס» בלי «קליטה».
 - ייצור: «גיא ישר» — 5 דוחות 2025 שבוטלו נמחקו לגמרי (purge_tax_work, עותק ב-tax_work_trash); 0 עובדות 2025 נשארו.

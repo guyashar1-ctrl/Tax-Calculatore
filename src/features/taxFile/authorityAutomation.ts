@@ -21,6 +21,7 @@ import { SHAAM_READ_134, SHAAM_READ_VAT, BTL_READ_FILE } from '../../hooks/shaam
 import { EDIT_FIELD_BY_KEY, editFieldValue } from './editModel';
 import { incomeTaxFileType } from '../../data/incomeTaxFileTypes';
 import { niPersons, niEditable } from '../../utils/niPersons';
+import { incomeTaxFileInput } from './incomeTaxFileInput';
 import {
   niOccupationsFromBtl, niOccupationsKey, niOccupationsInline, niDate,
 } from '../nationalInsurance/niOccupations';
@@ -368,11 +369,6 @@ function interpretShaam134(
     // שנקרא הוא שינוי אמיתי — בדיוק כמו בכל שדה אחר.
     return { ...base, status: normalized === currentValue.trim() ? 'match' : 'changed' };
   });
-}
-
-/** מספר תיק במס הכנסה — ת.ז. של בן/בת הזוג הרשום/ה, כפי שמתועד ב-TaxFileInfo. */
-function incomeTaxFileNumber(client: Client): string {
-  return ((client.taxFiles ?? []).find(t => t.authority === 'income_tax')?.fileNumber ?? '').replace(/\D/g, '');
 }
 
 // ─── ביטוח לאומי — תיק המבוטח (btl.sync_file) ─────────────────────────────────
@@ -723,10 +719,8 @@ export const AUTHORITY_AUTOMATION: Partial<Record<TaxAuthority, AuthorityAutomat
     sourceRef: 'shaam-134',
     supportedFieldKeys: new Set(Object.keys(SHAAM_134_FIELD_SOURCES)),
     buildInput: (client) => {
-      const fileNumber = incomeTaxFileNumber(client);
-      return fileNumber
-        ? { input: { fileNumber } }
-        : { blocked: 'אין מספר תיק במס הכנסה בכרטיס — אין מה למשוך.' };
+      const res = incomeTaxFileInput(client);
+      return 'fileNumber' in res ? { input: { fileNumber: res.fileNumber } } : res;
     },
     interpret: interpretShaam134,
     groupNotes: (fields) => {
