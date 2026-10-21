@@ -37,6 +37,12 @@ Ask Guy which business process or automation he wants to improve first. Inspect 
 
 ## Decision log / review evidence
 
+### 2026-10-21 — שלב 1 אחרי הניסיון של גיא («תעשה את השלב הראשון») — בייצור (af1b1d2 + מיזוג bdcd39f)
+- «מחק לגמרי» כפריט נפרד ב-⋯ ו«מחק» ליד «החזר…» ב«בוטלו» (RemoveWorkDialog purgeOnly); תשובה לא מאושרת מעבודה שבוטלה אינה «ידוע» (api.loadYearData); «בקשה חדשה ← תיק המס» בלי «קליטה».
+- ייצור: «גיא ישר» — 5 דוחות 2025 שבוטלו נמחקו לגמרי (purge_tax_work, עותק ב-tax_work_trash); 0 עובדות 2025 נשארו.
+- בדיקות: יחידה 2025/0; e2e annual-purge 38/0, annual-v2 72/0, annual-one-round 26/0, annual-prior-return 66/0.
+- שלב 2: מחקר מוצר/חוויה docs/research/2026-10-21-office-screens-pm-ux-research.md — ממתין להמחשה ולהחלטות גיא.
+
 ### 2026-10-21 — חצים בעברית, רוחבי (גיא: «הטעות יכולה לחזור — לפתור רוחבית», «אני כן רוצה חצים»; אישר את ההמחשה המעודכנת docs/proposals/2026-10-21-rtl-arrows.html)
 - הבעיה: «IDOM ← 4» — אנגלית + חץ + מספר הופכים לרצף משמאל לימין, וקורא בעברית רואה קודם את ה-4. בנוסף ~60 טקסטים עם → בין פריטים (בעברית מצביע אחורה), ו«המשך →» / «← חזרה» הפוכים.
 - הפתרון: `components/ui/ArrowPath.tsx` (`ArrowChain`, `ArrowText`, `ARROW`) — כל שלב ב-bdi, החץ נפרד וכהה (`.ui-arrow*` ב-ui.css), שלב לא נשבר באמצע. ← בכל מקום; → רק בתחילת «→ חזרה». נאכף ב-`components/ui/__tests__/rtlArrows.test.ts` (סורק כל טקסט עברי גלוי ב-src ו-supabase/functions, בלי קבצי __; הוכח שנכשל על «IDOM ← 4»). כלל ב-CLAUDE.md ו-DESIGN-AUTOMATION-EXECUTION.md.
