@@ -47,6 +47,8 @@ export async function run(ctx, input) {
     throw new PermanentError('לא נמסר אף אדם עם ת.ז. לבדיקה מול ביטוח לאומי.', 'no_subjects');
   }
   const asOf = /^\d{4}-\d{2}-\d{2}$/.test(String(input?.asOf ?? '')) ? input.asOf : todayInIsrael();
+  // ‼ תחילת חלון העיסוקים (השנה הראשונה בהצעה) — נשלח מ-PIVO; בלעדיו רק מה שבתוקף.
+  const occupationsFrom = /^\d{4}-\d{2}-\d{2}$/.test(String(input?.occupationsFrom ?? '')) ? input.occupationsFrom : undefined;
 
   const conn = await attachBtl();
   if (!conn.ok) throw new NeedsHumanError(NOT_READY, 'btl_connection_not_ready');
@@ -79,9 +81,9 @@ export async function run(ctx, input) {
       openBenefitDebt: () => openBenefitDebt(page),
     };
 
-    ctx.log(`קורא תיק מבוטח · ${subjects.map(s => `${s.role}:${maskId(s.idNumber)}`).join(' · ')} · נכון ל-${asOf}`);
+    ctx.log(`קורא תיק מבוטח · ${subjects.map(s => `${s.role}:${maskId(s.idNumber)}`).join(' · ')} · נכון ל-${asOf}${occupationsFrom ? ` · עיסוקים מ-${occupationsFrom}` : ''}`);
     touchedPage = page;
-    const { persons, sessionLost } = await readSubjects(portal, subjects, { asOf, log: ctx.log });
+    const { persons, sessionLost } = await readSubjects(portal, subjects, { asOf, occupationsFrom, log: ctx.log });
 
     for (const p of persons) {
       if (!p.ok) p.error = PERSON_ERRORS[p.errorCode] ?? 'לא הצלחתי לפתוח את התיק בביטוח לאומי';
@@ -96,7 +98,7 @@ export async function run(ctx, input) {
       );
     }
 
-    return { result: { system: 'btl', area: 'insured_file', asOf, persons } };
+    return { result: { system: 'btl', area: 'insured_file', asOf, ...(occupationsFrom ? { occupationsFrom } : {}), persons } };
   } catch (e) {
     if (e instanceof BtlSessionLost) throw new NeedsHumanError(NOT_READY, 'btl_connection_not_ready');
     throw e;

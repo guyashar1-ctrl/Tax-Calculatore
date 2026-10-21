@@ -161,6 +161,12 @@ export interface AuthorityCheckResult {
  * "עוד לא נבנה" — הכרטיס מציג פקד מושבת עם הסיבה, במקום כפתור שמבטיח
  * מה שאין (ראה ההיסטוריה ב-BtlFieldSync שהוסר).
  */
+/** מה שהכרטיס יודע מעבר ללקוח עצמו — למשל תחילת חלון העיסוקים (מההצעה). */
+export interface AuthorityInputContext {
+  /** 'YYYY-MM-DD' — עיסוקים בב"ל שנמשכים אל תוך התאריך הזה ואילך. */
+  occupationsFrom?: string;
+}
+
 export interface AuthorityAutomationSpec {
   authority: TaxAuthority;
   /** הטקסט על הפקד בכותרת הכרטיס. */
@@ -184,7 +190,7 @@ export interface AuthorityAutomationSpec {
    * כדי לבנות `subjects`. מס הכנסה/מע״מ מתעלמים ממנו, ולא צריכים לשנות
    * את החתימה שלהם כדי זה — פרמטר אופציונלי בסוף.
    */
-  buildInput?: (client: Client, spouseClient?: Client) => { input: Record<string, unknown> } | { blocked: string };
+  buildInput?: (client: Client, spouseClient?: Client, ctx?: AuthorityInputContext) => { input: Record<string, unknown> } | { blocked: string };
   /** הופך תוצאת משימה גולמית לסט השוואה. */
   interpret?: (job: AutomationJob | null, client: Client, supportedKeys: readonly string[]) => AuthorityFieldResult[];
   /** הסברים עסקיים ברמת קבוצה, מתוך תוצאת המשימה. */
@@ -387,7 +393,7 @@ interface BtlSection<T> {
 
 interface BtlAdvanceValue {
   year: number; fromMonth: number; toMonth: number; months: number;
-  basisCategory: string | null; periodBasis: number; advanceMonthly: number;
+  basisCategory: string | null; /** null ⇒ ב"ל רושם שאין בסיס לתקופה. */ periodBasis: number | null; advanceMonthly: number;
 }
 
 /**
@@ -491,9 +497,12 @@ function interpretBtlFile(
     const failed = (key: string, section: keyof typeof SECTION_FAILED): AuthorityFieldResult =>
       ({ fieldKey: key, label: key, status: 'failed', currentValue: String(c[key] ?? ''), error: SECTION_FAILED[section], ...person });
 
-    // ── ייצוג: ראיה בלבד ──
+    // ── ייצוג ──
+    // ‼ (273) נפתח מרשימת המיוצגים בלי «ממתין» ⇒ זו ההוכחה שהייצוג תקף, והשרת
+    // מסמן אותו פעיל בעצמו — ירוק, בלי שורה. «ממתין…» ⇒ ראיה בלבד, כלשונה.
+    const repPending = !!(p.representation?.status || p.representation?.pendingAction);
     push({
-      fieldKey: repKey, label: 'ייצוג', status: 'info', currentValue: '',
+      fieldKey: repKey, label: 'ייצוג', status: repPending ? 'info' : 'match', currentValue: '',
       authorityDisplay: [
         'מופיע ברשימת המיוצגים',
         p.representation?.receivedDate ? `נקלט ${niDate(p.representation.receivedDate)}` : null,
@@ -558,7 +567,9 @@ function interpretBtlFile(
             provenance: 'עיסוקים והכנסות ← רשימת הכנסות · אין שורה תקפה של עצמאי',
             ...person,
           });
-        } else info(income.partial ? PARTIAL : 'אין הצהרה או שומה תקפה של עצמאי ברשימת ההכנסות');
+        } else if (income.partial) info(PARTIAL);
+        // ‼ קריאה שלמה שאומרת «אין», והכרטיס ריק — זה נבדק ותואם: ירוק.
+        else push({ fieldKey: k, label: k, status: 'match', currentValue: niIncomeListKey(current), authorityDisplay: 'אין הצהרה או שומה תקפה של עצמאי ברשימת ההכנסות', ...person });
       } else {
         const next = income.list;
         push({
@@ -615,6 +626,8 @@ function interpretBtlFile(
             provenance: `רשימת הכנסות · אין הצהרה תקפה${misread ? ` · ${niIncomeSourceText(misread)}` : ''}`,
             ...person,
           });
+        } else if (current == null) {
+          push({ fieldKey: k, label: k, status: 'match', currentValue: '', authorityDisplay: 'אין הצהרה חודשית ברשימת ההכנסות', ...person });
         } else info('אין הצהרה חודשית ברשימת ההכנסות');
       }
     }
@@ -633,6 +646,18 @@ function interpretBtlFile(
           patchValue: a.advanceMonthly, provenance: `ריכוז מידע · דמי ביטוח ${niMonthsText(a.fromMonth, a.toMonth, a.year)}`, ...person,
         });
 
+        // ‼ «2026 / 12-10 ד"ב : 0» — ב"ל רושם שאין בסיס לתקופה (שכיר בלי
+        // מקדמות). תשובה, לא כשל: ריק בכרטיס ⇒ תואם; בסיס ישן ⇒ מוצע לנקות.
+        if (a.periodBasis == null) {
+          const curBasis = c[kBasis] as NiInsuranceBasis | undefined;
+          const prov = `ריכוז מידע · אין בסיס · ${niMonthsText(a.fromMonth, a.toMonth, a.year)}`;
+          push(curBasis
+            ? { fieldKey: kBasis, label: kBasis, status: 'changed', currentValue: `${curBasis.periodBasis}|${niBasisPeriodText(curBasis)}`,
+                currentDisplay: `${ils(curBasis.periodBasis)} · ${niBasisPeriodText(curBasis)}`,
+                authorityDisplay: `אין בסיס ל${niMonthsText(a.fromMonth, a.toMonth, a.year)}`, authorityValue: '', patchValue: null,
+                provenance: prov, ...person }
+            : { fieldKey: kBasis, label: kBasis, status: 'match', currentValue: '', authorityDisplay: 'אין בסיס', provenance: prov, ...person });
+        } else {
         const basis: NiInsuranceBasis = {
           year: a.year, fromMonth: a.fromMonth, toMonth: a.toMonth, months: a.months,
           periodBasis: a.periodBasis, advanceMonthly: a.advanceMonthly,
@@ -657,6 +682,7 @@ function interpretBtlFile(
           provenance: `ריכוז מידע · בסיס ${a.basisCategory ?? ''} ${a.periodBasis} · ${niMonthsText(a.fromMonth, a.toMonth, a.year)}`.replace(/\s+/g, ' '),
           ...person,
         });
+        }
       }
     }
 
@@ -770,12 +796,12 @@ export const AUTHORITY_AUTOMATION: Partial<Record<TaxAuthority, AuthorityAutomat
      * יושבים בכרטיס הזה**. בן/בת זוג עם כרטיס משלו/ה מתעדכן/ת משם — כך אף
      * אישור כאן לא כותב לכרטיס אחר.
      */
-    buildInput: (client, spouseClient) => {
+    buildInput: (client, spouseClient, ctx) => {
       const subjects: AutomationSubject[] = niPersons(client, spouseClient)
         .filter(p => !!p.idNumber && niEditable(p))
         .map(p => ({ role: p.role, idNumber: p.idNumber, label: p.name }));
       return subjects.length > 0
-        ? { input: { subjects } }
+        ? { input: { subjects, ...(ctx?.occupationsFrom ? { occupationsFrom: ctx.occupationsFrom } : {}) } }
         : { blocked: 'אין ת.ז. ידועה לאף אחד מהאנשים בכרטיס — אין את מי לבדוק מול ביטוח לאומי.' };
     },
     interpret: interpretBtlFile,

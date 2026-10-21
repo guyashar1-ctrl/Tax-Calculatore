@@ -402,6 +402,9 @@ export interface NiOccupationBtlDetail {
   profession: string | null;
   registeredDate: string | null;
   status: string | null;
+  /** עובד: «שם מעביד» ו«תיק ניכויים» של המעביד, כפי שב"ל רשם (נצפה 21.10.2026). */
+  employerName?: string;
+  withholdingFile?: string;
   /** הרשומה שהפירוט שלה נקרא (תחילת הרשומה, לא בהכרח תחילת הרצף). */
   periodFrom: string;
   periodTo: string | null;

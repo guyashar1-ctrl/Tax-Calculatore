@@ -573,3 +573,53 @@ test('רשימת הכנסות: יותר מ-40 שורות — כל שורות «�
   assert.deepEqual(incomeEvidence([...rows].reverse()).records, ev.records, 'סדר הפוך — אותן שורות, באותו סדר');
   assert.equal(selectDeclaredIncome(rows).amount, 16500);
 });
+
+// ─── 21.10.2026 · נצפה חי (קריאה בלבד, שני מבוטחים) ─────────────────────────
+
+test('דמי ביטוח: «בסיסים» בלי פסיק (עובד + עצמאי), ושורה בלי בסיס כלל ⇒ מקדמה 0', () => {
+  const both = parseAdvanceLine('2026 / 12-10 בסיסים עובד 30,570 , עצמאי 2 ד"ב : 0');
+  assert.equal(both.advanceMonthly, 0);
+  assert.equal(both.basisCategory, 'עצמאי');
+  assert.equal(both.periodBasis, 2);
+  assert.deepEqual(both.bases.map(b => b.category), ['עובד', 'עצמאי']);
+
+  const none = parseAdvanceLine('2026 / 12-10 ד"ב : 0');
+  assert.equal(none.advanceMonthly, 0);
+  assert.equal(none.periodBasis, null, 'אין בסיס — תשובה, לא 0 ולא כשל');
+  assert.equal(none.fromMonth, 10);
+  assert.equal(parseAdvanceLine('2026 / 12-10 בסיס : ??? ד"ב : 0'), null, 'בסיס שלא פוענח ⇒ כשל');
+});
+
+test('פירוט עיסוק של עובד: שם המעביד ותיק הניכויים שלו', () => {
+  const p = parseOccupationDetail({ pairs: [
+    { label: 'מתאריך', value: '01/10/2025' }, { label: 'עד תאריך', value: '' },
+    { label: 'תיק ניכויים', value: '912345678' }, { label: 'שם מעביד', value: 'מעביד לדוגמה בע"מ' },
+    { label: 'מקור מידע', value: '126 ח.דווח' },
+  ], radios: [], lines: ['מצב: תקף'], heading: 'עיסוק - עובד' });
+  assert.equal(p.ok, true);
+  assert.equal(p.value.employerName, 'מעביד לדוגמה בע"מ');
+  assert.equal(p.value.withholdingFile, '912345678');
+  assert.equal(p.value.definitionIncome, null);
+});
+
+test('אילו רשומות פותחים: גם עובד, מתחילת החלון', () => {
+  const tables = [{ headerCells: ['', 'עיסוקים', 'מתאריך', 'עד תאריך'], dataRows: [
+    ['', 'עובד', '01/10/2025', ''],
+    ['', 'עצמאי', '01/05/2026', ''],
+    ['', 'עובד', '01/01/2020', '31/12/2020'],
+  ] }];
+  assert.deepEqual(recordsToDetail(tables, '2026-01-01'), [0, 1]);
+});
+
+test('שני מעבידים באותה תקופה ⇒ שני רצפים; רצף בלי פירוט שמכוסה במעביד — נבלע; חלון לפי «מתאריך»', () => {
+  const emp = (wf, name) => ({ hoursBand: null, withholdingFile: wf, employerName: name, periodFrom: 'x' });
+  const chains = buildOccupationChains([
+    { label: 'עובד', fromDate: '2025-10-01', toDate: null, detail: emp('911111111', 'א') },
+    { label: 'עובד', fromDate: '2026-02-01', toDate: '2026-06-30', detail: emp('922222222', 'ב') },
+    { label: 'עובד', fromDate: '2025-10-01', toDate: null },
+    { label: 'עובד', fromDate: '2024-01-01', toDate: '2025-08-20', detail: emp('933333333', 'ג') },
+    { label: 'עובד', fromDate: '2023-01-01', toDate: '2023-12-31', detail: emp('944444444', 'ד') },
+  ], '2025-01-01');
+  assert.deepEqual(chains.map(c => c.detail?.employerName), ['ג', 'א', 'ב'],
+    'ג נמשך אל תוך החלון; ד הסתיים לפניו; הרשומה בלי פירוט היא א');
+});

@@ -223,7 +223,9 @@ export const TESTS: TestCase[] = [
     equal(inc.status, 'changed');
     equal(inc.patchValue, null);
     const list = empty.fields.find(x => x.fieldKey === 'niIncomeList')!;
-    equal(list.status, 'info', 'אין רשימה שמורה — אין מה לעדכן');
+    // ‼ (21.10.2026) קריאה שלמה שאומרת «אין», ובכרטיס אין רשימה — נבדק ותואם (ירוק), בלי הצעה.
+    equal(list.status, 'match', 'אין רשימה שמורה — אין מה לעדכן');
+    equal(list.patchValue, undefined);
     // ‼ והכרטיס: «טעון אימות» לפני האישור.
     const facts = niFacts({ ...client, familyStatus: 'single' } as Client);
     equal(fact(facts, 'הכנסה מוצהרת').tone, 'warn');

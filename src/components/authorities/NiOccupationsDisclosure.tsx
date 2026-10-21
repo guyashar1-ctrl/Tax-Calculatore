@@ -24,9 +24,12 @@ export default function NiOccupationsDisclosure({ summary, occupations }: { summ
         <ul className="txf-occ-list">
           {list.map((o, i) => {
             const p = niOccupationPeriod(o);
+            // ‼ עובד: שם המעביד ליד העיסוק, תיק הניכויים ליד התקופה — שתי שורות.
+            const employer = o.employerName ?? o.btlDetail?.employerName;
+            const file = o.withholdingFile ?? o.btlDetail?.withholdingFile;
             return (
               <li key={o.id ?? i}>
-                <span className="txf-occ-name">{niOccupationLabel(o)}</span>
+                <span className="txf-occ-name">{niOccupationLabel(o)}{employer ? ` · ${employer}` : ''}</span>
                 {p.unknown ? (
                   <span className="txf-occ-period">תקופה לא ידועה</span>
                 ) : (
@@ -34,6 +37,7 @@ export default function NiOccupationsDisclosure({ summary, occupations }: { summ
                     <span dir="ltr">{p.from}</span>
                     {' עד '}
                     {p.ongoing ? <span className="txf-occ-open">היום</span> : <span dir="ltr">{p.to}</span>}
+                    {file && <> · תיק ניכויים <span dir="ltr">{file}</span></>}
                   </span>
                 )}
               </li>
