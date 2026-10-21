@@ -9,7 +9,7 @@
 
 import type { Client, RepresentationRequest } from '../types';
 import type { OnboardingStep } from '../types/onboarding';
-import { identityKitFor, identityReqName, identityRequirements, missingIdentity, type IdentityDocKind } from './identityEvidence';
+import { identityRequirements, missingIdentity, type IdentityDocKind } from './identityEvidence';
 import { peopleFromClient, requestScope } from './repScope';
 import { noOpenInfoLine } from '../lib/onboardingTracking';
 
@@ -24,8 +24,10 @@ export interface RepresentationInsight {
   openedAt?: string;
   lastActivityAt?: string;
   /** מי עדיין חייב צילום תעודה — לפי היקף הבקשה ומה שכבר הגיע. */
-  /** ‼ 235: kind + exact — כדי שהמשרד יעלה במקום הלקוח בדיוק את מה שחסר (ת.ז. / רישיון). */
-  missingIdentity: { person: 'client' | 'spouse'; name: string; personName: string; prompt: string; kind: IdentityDocKind; exact?: boolean }[];
+  /** ‼ 235: kind — כדי שהמשרד יעלה במקום הלקוח את מה שחסר. */
+  missingIdentity: { person: 'client' | 'spouse'; name: string; personName: string; prompt: string; kind: IdentityDocKind }[];
+  /** 269: כל דרישת תעודה והאם התקבלה — לשורת «התקבל» בכרטיס הייצוג. */
+  identityReceived: { person: 'client' | 'spouse'; personName: string; got: boolean }[];
   /** הלקוח בחר במפורש להעלות מאוחר יותר. */
   identityDeferred: boolean;
   identityDeferredAt?: string;
@@ -51,9 +53,9 @@ export function representationInsight(
   const reqs = identityRequirements(requestScope(request, client), people, {
     client: submitted ? ident.secondaryType : draft.values?.secondaryType,
     spouse: submitted ? ident.spouseSecondaryType : draft.values?.spouseSecondaryType,
-  }, identityKitFor(request, client));
+  });
   const missing = missingIdentity(reqs, request.identityDocs ?? undefined)
-    .map(r => ({ person: r.person, name: identityReqName(r), personName: r.personName, prompt: r.prompt, kind: r.kind, exact: r.exact }));
+    .map(r => ({ person: r.person, name: r.personName, personName: r.personName, prompt: r.prompt, kind: r.kind }));
 
   const docsStep = (steps ?? []).find(s =>
     s.clientId === request.linkedClientId && s.stepType === 'client_documents' && s.status !== 'cancelled');
@@ -64,6 +66,7 @@ export function representationInsight(
     openedAt: draft.openedAt,
     lastActivityAt: draft.lastActivityAt ?? draft.savedAt,
     missingIdentity: missing,
+    identityReceived: reqs.map(r => ({ person: r.person, personName: r.personName, got: !missing.some(m => m.person === r.person) })),
     identityDeferred: (ident.identityDeferred?.length ?? 0) > 0,
     identityDeferredAt: ident.identityDeferredAt,
     deferredPersons: (ident.identityDeferred ?? []).filter((p): p is 'client' | 'spouse' => p === 'client' || p === 'spouse'),

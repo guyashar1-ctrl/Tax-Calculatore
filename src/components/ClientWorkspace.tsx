@@ -7,7 +7,7 @@
 import { KnowledgeLinkContext, rememberKnowledgeReturn } from '../features/taxKnowledge/knowledgeLink';
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useMediaQuery } from '../hooks/useMediaQuery';
-import { Client, Task, REPRESENTATION_STATUS_BADGE, LifecycleStage, LIFECYCLE_STAGE_LABELS, NiTracking } from '../types';
+import { Client, Task, REPRESENTATION_STATUS_BADGE, LifecycleStage, LIFECYCLE_STAGE_LABELS, NiTracking, type RepresentationRequest } from '../types';
 import { ActivityEntry, ClientAlert } from '../types/clientWorkspace';
 import { useEmployees } from '../hooks/useEmployees';
 import { representationStatusLabel, type RepSendPhase } from '../utils/representationAction';
@@ -149,6 +149,8 @@ interface Props {
   repNote?: string;
   /** 235: מה שחסר בצילומי התעודה — להעלאה מהמשרד מתוך כרטיס הייצוג. */
   repIdAttach?: RepIdAttach;
+  /** 269: בקשת הייצוג — «הפעל הכול» ומה שהתקבל, בכרטיס הייצוג. */
+  repRequest?: RepresentationRequest;
   onRepIdAttached?: () => void;
   /** הטופס מוכן אבל המייל לא יצא — «נשלח» יהיה שקר. */
   repSendPhase?: RepSendPhase | null;
@@ -264,6 +266,7 @@ export default function ClientWorkspace({
   onboardingSteps,
   repNote,
   repIdAttach,
+  repRequest,
   onRepIdAttached,
   repSendPhase,
   repFacts,
@@ -1006,6 +1009,7 @@ export default function ClientWorkspace({
             repStatus={client.representationStatus ?? undefined}
             repNote={repNote}
             repIdAttach={repIdAttach}
+            repRequest={repRequest}
             onRepIdAttached={onRepIdAttached}
             repSendPhase={repSendPhase}
             repFacts={repFacts}
@@ -1176,6 +1180,7 @@ export default function ClientWorkspace({
             repStatus={client.representationStatus ?? undefined}
             repNote={repNote}
             repIdAttach={repIdAttach}
+            repRequest={repRequest}
             onRepIdAttached={onRepIdAttached}
             repSendPhase={repSendPhase}
             repFacts={repFacts}

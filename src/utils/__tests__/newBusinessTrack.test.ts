@@ -1,6 +1,6 @@
 // ─── עסק חדש שהמשרד פותח (234): מצב העסק, ערכת התעודות, «עובד מהבית?» ──────────
-// גיא (12.10.2026): «לא סומן» אינו «עסק חדש»; בעסק חדש — ת.ז. וגם רישיון נהיגה, אלא אם
-// סומן במפורש «אין לי רישיון»; «האם תעבוד גם מהבית?» לפני שאלת החדר.
+// גיא (12.10.2026): «לא סומן» אינו «עסק חדש»; «האם תעבוד גם מהבית?» לפני שאלת החדר.
+// גיא (21.10.2026, 269): רישיון הנהיגה של עסק חדש אינו חלק מבקשת הייצוג — רק תעודה מזהה.
 import { test, equal } from '../../testkit/tinyTest';
 import type { TestCase } from '../../testkit/tinyTest';
 import { businessSituationFields, businessSituationOf } from '../businessSituation';
@@ -27,25 +27,16 @@ export const TESTS: TestCase[] = [
   test('עסק קיים בלי רו״ח קודם ⇒ businessTransfer=true, אין רו״ח קודם', () => {
     equal(JSON.stringify(businessSituationFields('existing')), JSON.stringify({ businessTransfer: true, hasPreviousAccountant: false }));
   }),
-  test('בלי ערכה — צילום אחד לאדם, כמו קודם', () => {
+  test('בקשת הייצוג — צילום אחד לאדם, גם בעסק חדש (בלי רישיון)', () => {
     equal(kinds(identityRequirements(scope, people, {})), 'idCard');
   }),
-  test('עסק חדש ⇒ ת.ז. וגם רישיון נהיגה', () => {
-    equal(kinds(identityRequirements(scope, people, {}, { newBusinessKit: true })), 'idCard,driverLicense');
+  test('רישיון לבדו מספק את דרישת התעודה המזהה', () => {
+    const reqs = identityRequirements(scope, people, {});
+    equal(missingIdentity(reqs, { client: [{ documentId: 'd1', docKind: 'driverLicense' }] }).length, 0);
   }),
-  test('עסק חדש + «אין לי רישיון» ⇒ ת.ז. בלבד', () => {
-    equal(kinds(identityRequirements(scope, people, {}, { newBusinessKit: true, noLicense: { client: true } })), 'idCard');
-  }),
-  test('ערכה: רישיון לבדו אינו מספק את דרישת ת.ז. (ולהפך)', () => {
-    const reqs = identityRequirements(scope, people, {}, { newBusinessKit: true });
-    const onlyLicense = { client: [{ documentId: 'd1', docKind: 'driverLicense' }] };
-    equal(kinds(missingIdentity(reqs, onlyLicense)), 'idCard');
-    const both = { client: [{ documentId: 'd1', docKind: 'driverLicense' }, { documentId: 'd2', docKind: 'idCard' }] };
-    equal(missingIdentity(reqs, both).length, 0);
-  }),
-  test('ערכה: ב״ל לבדו — אין דרישת צילום, גם לא רישיון', () => {
+  test('ב״ל לבדו — אין דרישת צילום', () => {
     const ni = { nationalInsurance: { status: 'in_process', targets: ['client'] } } as unknown as AuthorityRepresentations;
-    equal(identityRequirements(ni, people, {}, { newBusinessKit: true }).length, 0);
+    equal(identityRequirements(ni, people, {}).length, 0);
   }),
   test('«לא עובד מהבית» ⇒ תקין, בלי שאלת החדר', () => {
     const r = validateHomeOffice({ worksFromHome: false, hasDedicatedRoom: null, totalRooms: null, businessRooms: null });

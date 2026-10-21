@@ -8,5 +8,4 @@ export const sampleOnboardingActions: OnboardingActions = {
   submitSignature: async () => SIMULATED,
   makeSpouseLink: async () => SIMULATED,
   uploadIdDoc: async () => SIMULATED,
-  setNoLicense: async () => SIMULATED,
 };

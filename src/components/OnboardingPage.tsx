@@ -117,9 +117,6 @@ export interface OnboardingActions {
   /** ‼ 16.10.2026: parts — ההרכב (מה כל עמוד ב-PDF) מההעלאה הגמישה; נשמר ליד הרשומה בשרת. */
   uploadIdDoc(r: IdentityRequirement, file: File, parts?: IdPartsManifest):
     Promise<{ status: 'uploaded'; documentId: string } | { status: 'failed'; code?: string } | SimulatedResult>;
-  /** 234: «אין לי רישיון נהיגה» — נשמר על הבקשה, כדי שהמשרד יראה ושהטופס יזכור. */
-  setNoLicense(person: RepTarget, value: boolean):
-    Promise<{ status: 'saved' } | { status: 'failed' } | SimulatedResult>;
 }
 
 /** הפרמטרים של submit_onboarding_full, בלי הטוקן (הוא של הפעולה החיה). */
@@ -153,11 +150,6 @@ export function liveOnboardingActions(token: string): OnboardingActions {
       const row = Array.isArray(data) ? data[0] : data;
       if (e || !row?.spouse_token) return { status: 'failed' };
       return { status: 'created', link: `${window.location.origin}/?spousefill=${row.spouse_token}` };
-    },
-    async setNoLicense(person, value) {
-      const { data, error } = await supabase.rpc('onboarding_set_no_license', { p_token: token, p_person: person, p_value: value });
-      if (error || !data?.ok) return { status: 'failed' };
-      return { status: 'saved' };
     },
     async uploadIdDoc(r, file, parts) {
       const body = new FormData();
@@ -373,9 +365,6 @@ export function OnboardingView(props: OnboardingViewProps) {
   const [uploading, setUploading] = useState<string | null>(null);
   /** בוחר הצדדים פתוח מחדש על דרישה שכבר התקבלה («להחליף או להוסיף»). */
   const [pickerOpen, setPickerOpen] = useState<Record<string, boolean>>({});
-  // ‼ 234: «אין לי רישיון נהיגה» — בחירה מפורשת, נשמרת בשרת (לא ברירת מחדל ולא היעדר העלאה).
-  const [noLicense, setNoLicense] = useState<Partial<Record<RepTarget, boolean>>>(info?.prefill?.noDriverLicense ?? {});
-  const licenseKit = !!info?.prefill?.newBusiness;
   // ── «אין לי את זה זמין כרגע» ─────────────────────────────────────────────
   // ‼ בחירה מפורשת לכל אדם, לא ברירת מחדל: הצילום עדיין נדרש, רק לא עכשיו.
   //   מי שנדחה מקבל פריט העלאה בדף האישי, והמשרד רואה שחסר. ראה מיגרציה 191.
@@ -436,10 +425,7 @@ export function OnboardingView(props: OnboardingViewProps) {
   const idRequirements = identityRequirements(info?.scope, scopePeople, {
     client: secondaryType,
     ...(spouseSub ? { spouse: spouseSecondaryType } : {}),
-  }, { newBusinessKit: licenseKit, noLicense }).filter(r => !(spouseDelegated && r.person === 'spouse'));
-  /** בערכת עסק חדש — האם להציג את «אין לי רישיון נהיגה» (רק כשבעל העסק בכלל נדרש לצלם). */
-  const showNoLicense = licenseKit && identityRequirements(info?.scope, scopePeople, { client: secondaryType })
-    .some(r => r.person === 'client');
+  }).filter(r => !(spouseDelegated && r.person === 'spouse'));
   const idMissing = missingIdentity(idRequirements, idDocs);
   /** מי חסר *ולא* נדחה — רק אלה חוסמים את השליחה. */
   const idBlocking = idMissing.filter(r => !idDeferred[r.person]);
@@ -498,17 +484,6 @@ export function OnboardingView(props: OnboardingViewProps) {
       setSpouseLink(r.link);
     } finally {
       setSpouseLinkBusy(false);
-    }
-  }
-
-  async function toggleNoLicense(value: boolean) {
-    setError(null);
-    const prev = noLicense;
-    setNoLicense(p => ({ ...p, client: value }));
-    const res = await actions.setNoLicense('client', value);
-    if (res.status === 'failed') {
-      setNoLicense(prev);
-      setError('לא הצלחנו לשמור את הבחירה. נסו שוב.');
     }
   }
 
@@ -1332,7 +1307,7 @@ export function OnboardingView(props: OnboardingViewProps) {
                         </button>
                       ) : (
                         <IdentityFlexPicker
-                          kind={r.kind === 'idCard' && !r.exact ? 'idOrLicense' : r.kind}
+                          kind={r.kind === 'idCard' ? 'idOrLicense' : r.kind}
                           fileName={`${IDENTITY_DOC_LABELS[r.kind]} - ${r.personName}`}
                           disabled={busyMe}
                           tone={{ ink, muted: '#6B6B68', border: '#E3E2DD', accent: ink, radius: btnRadius, card: '#fff', well: '#F4F3EF' }}
@@ -1359,19 +1334,9 @@ export function OnboardingView(props: OnboardingViewProps) {
               );
             })}
 
-            {/* ‼ 234: עסק חדש — רישיון נדרש אלא אם סומן במפורש שאין. הסימון נשמר והמשרד רואה אותו. */}
-            {showNoLicense && (
-              <label style={{ display: 'flex', gap: 8, alignItems: 'flex-start', fontSize: 13, color: '#3D3D3A',
-                marginBottom: 16, cursor: 'pointer', lineHeight: 1.5 }}>
-                <input type="checkbox" checked={!!noLicense.client} style={{ marginTop: 3, width: 18, height: 18 }}
-                  onChange={e => void toggleNoLicense(e.target.checked)} />
-                <span>אין לי רישיון נהיגה{noLicense.client ? ' - מספיק צילום תעודת הזהות' : ''}</span>
-              </label>
-            )}
-
             {idBlocking.length > 0 && idRequirements.length > 1 && (
               <div style={{ fontSize: 12.5, color: '#6B6B68', marginTop: 4, marginBottom: 18 }}>
-                נשאר לצרף: {idBlocking.map(m => licenseKit ? `${m.prompt.replace(/^צילום /, '')} של ${m.personName}` : m.personName).join(', ')}
+                נשאר לצרף: {idBlocking.map(m => m.personName).join(', ')}
               </div>
             )}
           </>

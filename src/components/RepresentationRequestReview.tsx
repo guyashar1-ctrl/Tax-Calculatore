@@ -15,7 +15,7 @@ import {
 import { registeredFileInfo, hasRegisteredSpouseChoice, registeredOwnerOf } from '../features/annualReport/profile';
 import { scopeLines, requestScope, peopleFromClient, shaamSubmissions, partBPartyNames } from '../utils/repScope';
 import { signatureDocumentsOf, signedDocIdFor } from '../utils/repDocuments';
-import { docsForRequirement, identityKitFor, identityReqName, identityRequirements } from '../utils/identityEvidence';
+import { docsForRequirement, identityRequirements } from '../utils/identityEvidence';
 import { representationInsight, missingIdentityLine, onboardingProgressLine } from '../utils/representationInsight';
 import { useDocumentDB, StoredDoc } from '../hooks/useIndexedDB';
 import { useAuth } from '../hooks/useAuth';
@@ -274,12 +274,7 @@ export default function RepresentationRequestReview({
     // איזו תעודה מצלמים — לפי אמצעי הזיהוי שכל אדם בחר; לבן/בת הזוג יש
     // בחירה משלו/ה כשיש לו/לה תיק (148)
     { client: request.identification?.secondaryType, spouse: request.identification?.spouseSecondaryType },
-    identityKitFor(request, linkedClient),
-  ).map(r => ({ name: identityReqName(r), got: docsForRequirement(r, request.identityDocs ?? undefined).length > 0 }));
-  // ‼ 234: בעסק חדש — «אין לי רישיון» הוא הצהרה של הלקוח, ומוצגת ליד הצילומים.
-  if (identityKitFor(request, linkedClient).newBusinessKit && request.identification?.noDriverLicense?.client) {
-    idEvidence.push({ name: 'הלקוח סימן «אין לי רישיון נהיגה»', got: true });
-  }
+  ).map(r => ({ name: r.personName, got: docsForRequirement(r, request.identityDocs ?? undefined).length > 0 }));
 
   // מספר התיק במ"ה הוא ת.ז. של הרשום. ממלאים מראש רק כשהוא אומת, ורק לשדה
   // ריק — מספר שהוקלד ידנית או נשמר בבקשה גובר.

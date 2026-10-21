@@ -9,7 +9,7 @@
 // מחכה לו מאדם אחר — ערבוב שלהן היה מוחק את המשמעות של "אצל מי הכדור".
 
 import { useMemo } from 'react';
-import type { Client, NiTracking, Task, RepresentationStatus } from '../../types';
+import type { Client, NiTracking, Task, RepresentationStatus, RepresentationRequest } from '../../types';
 import type { RepSendPhase } from '../../utils/representationAction';
 import type { RepPrepFacts } from '../../features/representation/repPreparation';
 import type { InstitutionKey } from '../../types/onboarding';
@@ -65,6 +65,7 @@ interface Props {
   /** 191: שורת הקליטה — מועברת כמו שהיא לכרטיס הייצוג. */
   repNote?: string;
   repIdAttach?: RepIdAttach;
+  repRequest?: RepresentationRequest;
   onRepIdAttached?: () => void;
   repSendPhase?: RepSendPhase | null;
   repFacts?: RepPrepFacts | null;
@@ -381,6 +382,7 @@ export default function JourneyTab(p: Props) {
           repStatus={p.repStatus}
           repNote={p.repNote}
           repIdAttach={p.repIdAttach}
+          repRequest={p.repRequest}
           onRepIdAttached={p.onRepIdAttached}
           repSendPhase={p.repSendPhase}
           repFacts={p.repFacts}

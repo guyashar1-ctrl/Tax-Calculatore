@@ -20,10 +20,10 @@ import { useAutomationJob } from '../hooks/useAutomationJobs';
 import { useAutomationGate } from '../hooks/useAutomationGate';
 import type { ShaamSubmission } from '../utils/repScope';
 import {
-  preflightShaamSubmission, SHAAM_SYSTEM_SCREEN_LABELS,
-  SHAAM_REPRESENTATION_TYPE, shaamRequestExists, type ShaamRequestTracking,
+  preflightShaamSubmission, shaamRequestExists, type ShaamRequestTracking,
 } from '../features/representation/shaamRepresentation';
-import { shaamPersonFacts, shaamBirthDateInput } from '../features/representation/shaamPersonFacts';
+import { shaamPersonFacts } from '../features/representation/shaamPersonFacts';
+import { shaamCreateInput } from '../features/representation/repAutomationInputs';
 import type { ShaamRepresentationAction } from '../features/taxFile/shaamRepresentationAction';
 import { signatureDocumentsOf } from '../utils/repDocuments';
 import { shaamStopState } from '../features/representation/shaamJobSafety';
@@ -107,34 +107,12 @@ export default function ShaamNextActionButton({
     const person = shaamPersonFacts(request, linkedClient, submission.target);
 
     if (action!.kind === 'create') {
-      const pre = preflightShaamSubmission(submission, person, linkedClient, married);
-      if (!pre.ok) {
-        setLocalError(pre.issues.map(i => i.message).join(' · '));
+      const built = shaamCreateInput(request, linkedClient, submission, married, tracking);
+      if (!built.ok) {
+        setLocalError(built.error);
         return;
       }
-      await hook.run({
-        submissionKey: submission.key,
-        role: submission.target,
-        requestId: request.id,
-        personName: person.name,
-        entityId: person.idNumber.replace(/\D/g, ''),
-        birthDateDDMMYYYY: shaamBirthDateInput(person.birthDate),
-        secondary: { type: person.secondaryType, value: person.secondaryValue },
-        // ‼ בדיוק מה ש-PIVO ביקש, ותו לא. העובד מסמן את השורות האלה ולא אחרות.
-        systems: pre.systems.map(s => ({
-          key: s,
-          screenLabel: SHAAM_SYSTEM_SCREEN_LABELS[s],
-          fileNumber: pre.fileNumbers[s] ?? '',
-          repType: SHAAM_REPRESENTATION_TYPE,
-        })),
-        spousePhone: married ? person.spousePhone : '',
-        // ‼ 28.09.2026 · מסך פרטי ההתקשרות בשע״ם דורש את הטלפון של המיוצג.
-        clientPhone: person.phone,
-        clientEmail: person.email,
-        formFileName: `ייפוי כוח לחתימה - ${person.name}.pdf`,
-        existingRequestNumber: tracking?.requestNumber ?? null,
-        alreadyFoundInShaam: shaamRequestExists(tracking),
-      }, { acknowledgeExternal }).then(afterStart);
+      await hook.run(built.input, { acknowledgeExternal }).then(afterStart);
       return;
     }
 

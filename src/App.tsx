@@ -1096,7 +1096,7 @@ export default function App() {
     return undefined;
   })();
   // ‼ 235: מה שחסר — כדי שהמשרד יעלה במקום הלקוח מתוך כרטיס הלקוח (office_attach_identity_doc
-  // מסנכרן לבד את «מסמכים מהלקוח»). רישיון ות.ז. בעסק חדש — כל אחד לסוג שלו.
+  // מסנכרן לבד את «מסמכים מהלקוח»).
   const selectedRepIdAttach = (() => {
     if (!selectedClient) return undefined;
     const req = requests.filter(r => r.linkedClientId === selectedClient.id)
@@ -1108,7 +1108,7 @@ export default function App() {
       requestId: req.id,
       missing: missing.map(m => ({
         person: m.person, name: m.personName,
-        kind: (m.exact ? m.kind : m.kind === 'passport' ? 'passport' : 'idOrLicense') as AttachKind,
+        kind: (m.kind === 'passport' ? 'passport' : 'idOrLicense') as AttachKind,
       })),
     };
   })();
@@ -3074,6 +3074,7 @@ export default function App() {
             onboardingSteps={onboarding.steps}
             repNote={selectedRepNote}
             repIdAttach={selectedRepIdAttach}
+            repRequest={selectedRepRequest}
             onRepIdAttached={() => {
               if (selectedRepIdAttach) void reloadRequest(selectedRepIdAttach.requestId);
               onboarding.refresh?.();
