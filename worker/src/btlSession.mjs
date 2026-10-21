@@ -240,6 +240,13 @@ export async function classifyBtlAuth(page, { timeoutMs = 15000 } = {}) {
   return { ...btlState(s), pathname: s.pathname };
 }
 
+/** הלשונית על שער ה-F5 עצמו — מסך הכניסה (גם שלב הקוד החד-פעמי) או היציאה. */
+export function onBtlGate(href) {
+  let pathname;
+  try { pathname = new URL(href).pathname; } catch { return false; }
+  return pathname.startsWith(BTL_LOGIN_PATH) || pathname.startsWith(BTL_LOGOUT_PATH);
+}
+
 const NETWORK_FAILURE = /net::ERR_NAME_NOT_RESOLVED|net::ERR_CONNECTION_REFUSED|net::ERR_INTERNET_DISCONNECTED|net::ERR_CONNECTION_RESET|net::ERR_NETWORK_CHANGED/i;
 
 /**
@@ -254,9 +261,17 @@ const NETWORK_FAILURE = /net::ERR_NAME_NOT_RESOLVED|net::ERR_CONNECTION_REFUSED|
  *
  * ‼ ההכרעה היא לפי **לאן הבקשה נחתה ומה חזר**, לא לפי קוד הסטטוס: שער
  * F5 מחזיר 200 גם למסך הכניסה.
+ *
+ * ‼ לשונית על מסך הכניסה או היציאה — **בלי בקשה** (21.10.2026). שער ה-F5
+ * הוא מכונת מצבים, וכל בקשה נוספת אליו באמצע ההתחברות נספרת כצעד: נצפה חי
+ * ש-GET אחד, בלי שום הקלדה, הקפיץ אותו ל«נתוני ההזדהות שגויים». הבדיקה רצה
+ * כמה שניות אחרי פתיחת החלון, בזמן שהרו"ח מקליד, והניסיון הראשון נכשל
+ * («נתוניך אינם מעודכנים» ואז Invalid Session ID). הדף עצמו כבר עונה:
+ * לא מחובר.
  */
 export async function probeBtlSession(page) {
   if (!page.url().startsWith(BTL_ORIGIN)) return { ok: false, connected: false, detail: 'not_on_btl' };
+  if (onBtlGate(page.url())) return { ok: true, connected: false, detail: 'gate_screen_no_request' };
   try {
     const r = await page.evaluate(async () => {
       try {

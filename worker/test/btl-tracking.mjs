@@ -10,7 +10,7 @@ import {
   classifyPoaStatus, normalizeStatusText, selectTrackingRow, toIsoDate,
   sameIdNumber, sameReference,
 } from '../src/btlTracking.mjs';
-import { confirmationState, btlPageRank } from '../src/btlSession.mjs';
+import { confirmationState, btlPageRank, probeBtlSession, onBtlGate } from '../src/btlSession.mjs';
 
 let failures = 0;
 let passes = 0;
@@ -316,6 +316,42 @@ section('בחירת הלשונית — אותו דומיין, אפליקציות
     '‼ מערכת הייצוג תמיד גוברת על תרמי"ל — זה הבאג של 23.09');
   check(btlPageRank(tarmil) > btlPageRank(loginGate),
     'לשונית מחוברת גוברת על מסך כניסה');
+}
+
+section('בדיקת הסשן לא נוגעת בשער באמצע התחברות');
+{
+  // ‼ 21.10.2026: הבדיקה שלחה בקשה לב״ל כשהרו"ח עמד על מסך הכניסה, ושער
+  // ה-F5 ספר אותה כצעד — הניסיון הראשון נכשל. בלשונית על השער: אפס בקשות.
+  const fakePage = (href) => {
+    const page = {
+      requests: 0,
+      url: () => href,
+      evaluate: async () => {
+        page.requests++;
+        return { status: 200, finalUrl: href, len: 1, body: '' };
+      },
+    };
+    return page;
+  };
+
+  for (const href of [
+    'https://meyazegs.btl.gov.il/my.policy',
+    'https://meyazegs.btl.gov.il/my.policy#',
+    'https://meyazegs.btl.gov.il/my.logout.php3?errorcode=20',
+  ]) {
+    const page = fakePage(href);
+    const r = await probeBtlSession(page);
+    eq(page.requests, 0, `${new URL(href).pathname} — בלי בקשה לשער`);
+    check(r.ok && !r.connected, `${new URL(href).pathname} — «לא מחובר» מהדף עצמו`);
+  }
+
+  const app = fakePage('https://meyazegs.btl.gov.il/BTL.ILG.Meyazgim.New/Y117_PniyaPakidLeMeyazeg.aspx');
+  const live = await probeBtlSession(app);
+  eq(app.requests, 1, 'בתוך המערכת — הבדיקה מול השרת עדיין רצה');
+  check(live.ok && live.connected, 'בתוך המערכת — סשן חי מזוהה');
+
+  eq(onBtlGate('https://meyazegs.btl.gov.il/tarmil/?q=x'), false, 'תרמי"ל אינו השער');
+  eq(onBtlGate('not a url'), false, 'כתובת שבורה אינה השער');
 }
 
 // ── סיכום ──────────────────────────────────────────────────────────────────
