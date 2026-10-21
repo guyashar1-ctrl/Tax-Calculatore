@@ -252,6 +252,8 @@ export default function TaxFileTab({
   focusField, onFocusConsumed, onRequestsChanged, onOpenRequest,
 }: Props) {
   const { pending, refresh, acceptFact, rejectFact, recordManualEdit } = useTaxFacts(client.id || undefined);
+  // חובות פתוחות «מרשימות שע״ם» — כדי ש«דוחות והצהרות» לא יגיד «אין … פתוחים» מעליהן.
+  const [shaamOpen, setShaamOpen] = useState(0);
   const [openRows, setOpenRows] = useState<Set<string>>(new Set());
   const [openChanges, setOpenChanges] = useState<Set<string>>(new Set());
   const [approveOpen, setApproveOpen] = useState(false);
@@ -1317,8 +1319,8 @@ export default function TaxFileTab({
       <SectHead family="income" title="דוחות והצהרות" why="כל אחת היא בקשה — נפתחת ב«בקשות»" />
       <div className="txf-sect" style={{ padding: '.6rem .8rem' }}>
         {/* ‼ «הוסף לתיק» מתוך שנת המס יוצר הצעה — רשימת ההצעות כאן מתרעננת מיד, לא רק בטעינה הבאה */}
-        <TaxYearsSection client={client} onChanged={() => { onRequestsChanged?.(); void refresh(); }} onClientPersisted={onClientPersisted} onOpenRequest={onOpenRequest} />
-        <ClientObligationRows client={client} onOpenRequests={(_clientId, stepId) => onOpenRequest?.(stepId)} onChanged={() => { onRequestsChanged?.(); void refresh(); }} />
+        <TaxYearsSection client={client} onChanged={() => { onRequestsChanged?.(); void refresh(); }} onClientPersisted={onClientPersisted} onOpenRequest={onOpenRequest} shaamOpen={shaamOpen} />
+        <ClientObligationRows client={client} onOpenRequests={(_clientId, stepId) => onOpenRequest?.(stepId)} onChanged={() => { onRequestsChanged?.(); void refresh(); }} onOpenCount={setShaamOpen} />
       </div>
 
       {/* ═══ תמונת המס ═════════════════════════════════════════════════════
