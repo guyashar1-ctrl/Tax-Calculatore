@@ -90,8 +90,18 @@ export async function loadYearData(clientId: string, taxYear: number): Promise<Y
   ]);
   const err = f.error ?? e.error ?? a.error;
   if (err) throw new Error(err.message);
+  // ‼ 21.10.2026 · תשובה שלא אושרה מעבודה שבוטלה — לא «ידוע». גיא ביטל דוח ופתח חדש: 37 תשובות מבדיקות קודמות (9 לא אושרו)
+  //   גרמו לדוח החדש לדלג על השאלון. מה שאושר נשאר ידוע; החזרת העבודה (restore) מחזירה גם את התשובות שלה.
+  const facts = ((f.data ?? []) as Row[]).map(factFromRow);
+  const pendingReq = [...new Set(facts.filter(x => x.status === 'pending' && x.requestId).map(x => x.requestId!))];
+  const cancelled = new Set<string>();
+  if (pendingReq.length) {
+    const s = await supabase.from('onboarding_steps').select('id').in('id', pendingReq).eq('status', 'cancelled');
+    if (s.error) throw new Error(s.error.message);
+    for (const r of (s.data ?? []) as { id: string }[]) cancelled.add(r.id);
+  }
   return {
-    facts: ((f.data ?? []) as Row[]).map(factFromRow),
+    facts: facts.filter(x => !(x.status === 'pending' && x.requestId && cancelled.has(x.requestId))),
     evidence: ((e.data ?? []) as Row[]).map(evidenceFromRow),
     asks: ((a.data ?? []) as Row[]).map(askFromRow),
   };

@@ -51,6 +51,7 @@ export default function TaxWorkView({ section, work, clients, onOpenClient, onLe
   const [dueF, setDueF] = useState<DueFilter>('any');
   const [adding, setAdding] = useState<'annual' | 'wealth' | null>(null);
   const [removing, setRemoving] = useState<WorkRow | null>(null);
+  const [purgeOnly, setPurgeOnly] = useState(false);
   const [flash, setFlash] = useState<string | null>(null);
   // ‼ אחרי יצירה הרשימה נטענת מחדש; עד שהיא מתעדכנת אין לפתוח שוב את ההוספה — «כבר קיימת» נשען עליה
   const [refreshing, setRefreshing] = useState(false);
@@ -135,7 +136,8 @@ export default function TaxWorkView({ section, work, clients, onOpenClient, onLe
         </div>
         <div className="tw-actions" role="cell">
           {cancelled
-            ? <button type="button" className="btn btn-sm btn-secondary" onClick={() => setRemoving(r)} data-tw-restore>החזר…</button>
+            ? <><button type="button" className="btn btn-sm btn-secondary" onClick={() => setRemoving(r)} data-tw-restore>החזר…</button>
+              <button type="button" className="btn btn-sm btn-ghost tw-remove" onClick={() => { setPurgeOnly(true); setRemoving(r); }} data-tw-purge>מחק</button></>
             : <button type="button" className="btn btn-sm btn-primary" onClick={() => (onOpenRequest ? onOpenRequest(c.id, r.parent.id) : setOpenId(r.parent.id))} aria-label={`פתח: ${r.title} · ${name}`}>פתח</button>}
           <button type="button" className="btn btn-sm btn-ghost" onClick={() => onOpenClient(c.id, 'taxfile')}>תיק המס</button>
           <button type="button" className="btn btn-sm btn-ghost" onClick={() => onOpenClient(c.id, 'docs')}>מסמכים</button>
@@ -219,10 +221,10 @@ export default function TaxWorkView({ section, work, clients, onOpenClient, onLe
           onDone={res => { setRefreshing(true); void load().finally(() => setRefreshing(false)); if (res.length) setFlash(`${res.length === 1 ? 'עבודה אחת נוספה' : `${res.length} עבודות נוספו`} — עם טיוטת שאלות שלא פורסמה. מופיעות גם בתיק הלקוח וב«בקשות».`); }} />
       )}
       {removing && (
-        <RemoveWorkDialog stepId={removing.parent.id} title={`${removing.title} · ${clientName(removing.parent.clientId)}`}
-          onClose={() => setRemoving(null)}
+        <RemoveWorkDialog stepId={removing.parent.id} title={`${removing.title} · ${clientName(removing.parent.clientId)}`} purgeOnly={purgeOnly}
+          onClose={() => { setRemoving(null); setPurgeOnly(false); }}
           onDone={(what, text) => {
-            setRemoving(null); setFlash(text); void load();
+            setRemoving(null); setPurgeOnly(false); setFlash(text); void load();
             // ‼ אחרי החזרה עוברים ל«פתוחות», שם השורה חוזרת; אחרי ביטול — נשארים, והשורה יורדת מהרשימה
             if (what === 'restored') setStateF('open');
           }} />

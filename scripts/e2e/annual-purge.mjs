@@ -151,39 +151,67 @@ async function runWidth(width) {
     ok(before.facts > 0 && before.ev > 0 && before.docs > 0, 'במסד: יש תשובות, ראיה וקובץ מהבדיקה', JSON.stringify(before));
     await pp.close();
 
-    // 3 · ⋯ ← «למחוק לגמרי»
+    // 3 · ⋯ ← «הסר…» ← ביטול (ברירת המחדל) — מה שגיא עשה ב-21.10
     await page.goto(env.officeUrl(id, 'journey'), { waitUntil: 'domcontentloaded' });
-    const menu = page.locator('button[aria-label^="פעולות על הבקשה: דוח שנתי"]').first();
-    await menu.waitFor({ timeout: 40000 }); await menu.click();
-    await page.locator('.rl-more-menu:not([hidden]) [role="menuitem"]').first().click();
+    const menuOf = () => page.locator('button[aria-label^="פעולות על הבקשה: דוח שנתי"]').first();
+    await menuOf().waitFor({ timeout: 40000 }); await menuOf().click();
+    await page.locator('.rl-more-menu:not([hidden]) [data-remove-action="tax_work"]').click();
     const dlg = page.locator('[data-remove-work]');
-    await dlg.waitFor({ timeout: 15000 });
-    await dlg.locator('[data-rw-purge]').waitFor({ timeout: 15000 });
-    await dlg.locator('[data-rw-purge]').click();
+    await dlg.locator('[data-rw-confirm]').waitFor({ timeout: 15000 });
+    await dlg.locator('[data-rw-confirm]').click();
+    await dlg.waitFor({ state: 'detached', timeout: 20000 }).catch(() => {});
+    const [old] = await env.sql(`select id from public.onboarding_steps where client_id = '${id}' and step_type = 'annual_return' and status = 'cancelled'`);
+    ok(!!old, 'ביטול: הדוח בוטל (התשובות נשמרו)');
+    await page.reload({ waitUntil: 'domcontentloaded' }); // כמו משתמש שרואה את השורה יורדת — הרשימה מתרעננת לפני פתיחה מחדש
+
+    // 3א · ‼ 21.10.2026 · דוח חדש אחרי ביטול — שאלון נקי: תשובות שלא אושרו מהדוח שבוטל אינן «ידוע»
+    await page.getByRole('button', { name: /＋ בקשה חדשה/ }).first().click();
+    await page.locator('[data-tax-file-toggle]').click();
+    await page.locator('[data-annual-one-click]').click();
+    await page.locator('[data-annual-summary]').first().waitFor({ timeout: 40000 });
+    const reopened = await env.sql(`select a.item_key from public.tax_info_asks a join public.onboarding_steps s on s.id = a.parent_step_id where a.client_id = '${id}' and s.status <> 'cancelled'`);
+    if (!reopened.some(a => a.item_key === 'annual.whatHappened')) console.log('    [debug] steps', JSON.stringify(await env.sql(`select step_type, status, payload->>'held' held, (select count(*) from public.tax_info_asks x where x.parent_step_id = s.id) n from public.onboarding_steps s where client_id = '${id}' order by created_at`)), 'body:', (await page.locator('body').innerText()).replace(/s+/g, ' ').slice(0, 600));
+    ok(reopened.some(a => a.item_key === 'annual.whatHappened'), 'אחרי ביטול ופתיחה מחדש — מסך הריבועים חוזר (לא «השאלון הישן»)', reopened.map(a => a.item_key).join(','));
+
+    // 3ב · תיק המס ← «בוטלו» ← «מחק» (ישר, בלי לחפש בתוך «החזר…»)
+    await page.goto(env.officeUrl(id, 'taxfile'), { waitUntil: 'domcontentloaded' });
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    const purgeBtn = page.locator('[data-tf-purge]').first();
+    const cancelledBox = page.locator('[data-tf-cancelled] > summary').first();
+    await cancelledBox.waitFor({ timeout: 40000 }); await cancelledBox.click(); // «בוטלו (N)» — מקופל
+    await purgeBtn.waitFor({ timeout: 15000 });
+    await purgeBtn.click();
+    await dlg.locator('[data-rw-purge-list]').waitFor({ timeout: 15000 });
     const list = await text(dlg.locator('[data-rw-purge-list]'));
-    ok(/תשובות/.test(list) && /קבצים שהועלו/.test(list) && /הכרטיס/.test(list), 'החלון מפרט מה נמחק ומה נשאר', list);
+    ok(/תשובות/.test(list) && /קבצים שהועלו/.test(list) && /הכרטיס/.test(list), '«מחק»: החלון נפתח ישר על המחיקה ומפרט מה נמחק ומה נשאר', list);
+    ok(!(await dlg.locator('[data-rw-purge]').count()), '«מחק»: בלי בחירה נוספת — רק מחיקה');
     ok((await text(dlg.locator('[data-rw-confirm]'))).includes('מחק לגמרי'), 'הכפתור: «מחק לגמרי»');
+    await dlg.locator('[data-rw-confirm]').click();
+    await dlg.waitFor({ state: 'detached', timeout: 20000 }).catch(() => {});
+    const afterOld = (await env.sql(`select
+      (select count(*)::int from public.onboarding_steps where id = '${old.id}') steps,
+      (select count(*)::int from public.tax_year_facts where client_id = '${id}' and tax_year = 2025) facts,
+      (select count(*)::int from public.tax_evidence where client_id = '${id}') ev,
+      (select count(*)::int from public.documents where client_id = '${id}') docs,
+      (select count(*)::int from public.tax_work_trash where client_id = '${id}') trash`))[0];
+    ok(afterOld.steps === 0 && afterOld.facts === 0 && afterOld.ev === 0 && afterOld.docs === 0, 'במסד: הדוח שבוטל, התשובות, הראיות והקבצים — נמחקו', JSON.stringify(afterOld));
+    ok(afterOld.trash === 1, 'נשמר עותק נסתר אחד', JSON.stringify(afterOld));
+
+    // 4 · «בקשות» ← ⋯ ← «מחק לגמרי» (פריט נפרד בתפריט) על הדוח החדש
+    await page.goto(env.officeUrl(id, 'journey'), { waitUntil: 'domcontentloaded' });
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await menuOf().waitFor({ timeout: 40000 }); await menuOf().click();
+    await page.locator('.rl-more-menu:not([hidden]) [data-remove-action="tax_work_purge"]').click();
+    await dlg.locator('[data-rw-confirm]').waitFor({ timeout: 15000 });
     await dlg.locator('[data-rw-confirm]').click();
     await dlg.waitFor({ state: 'detached', timeout: 20000 }).catch(() => {});
     const after = (await env.sql(`select
       (select count(*)::int from public.onboarding_steps where client_id = '${id}' and step_type in ('annual_return','info_collection') and payload->>'taxYear' = '2025') steps,
       (select count(*)::int from public.tax_info_asks where client_id = '${id}') asks,
-      (select count(*)::int from public.tax_year_facts where client_id = '${id}' and tax_year = 2025) facts,
-      (select count(*)::int from public.tax_evidence where client_id = '${id}') ev,
-      (select count(*)::int from public.documents where client_id = '${id}') docs,
       (select count(*)::int from public.tax_work_trash where client_id = '${id}') trash`))[0];
-    ok(after.steps === 0 && after.asks === 0 && after.facts === 0 && after.ev === 0 && after.docs === 0, 'במסד: הבקשה, השאלות, התשובות, הראיות והקבצים — נמחקו', JSON.stringify(after));
-    ok(after.trash === 1, 'נשמר עותק נסתר אחד', JSON.stringify(after));
+    ok(after.steps === 0 && after.asks === 0 && after.trash === 2, '⋯ ← «מחק לגמרי»: גם הדוח החדש נמחק, בלי זכר', JSON.stringify(after));
+    await page.locator('.rl-name', { hasText: 'דוח שנתי 2025' }).first().waitFor({ state: 'detached', timeout: 15000 }).catch(() => {});
     ok(!(await page.locator('.rl-name', { hasText: 'דוח שנתי 2025' }).count()), 'השורה ירדה מ«בקשות»');
-
-    // 4 · פותחים שוב — שאלון נקי
-    await page.getByRole('button', { name: /＋ בקשה חדשה/ }).first().click();
-    await page.locator('[data-tax-file-toggle]').click(); // «תיק המס» נפתחת; דוח שנתי מסומן מראש
-    await page.locator('[data-annual-one-click]').click();
-    await page.locator('[data-annual-summary]').first().waitFor({ timeout: 40000 });
-    const fresh = await env.sql(`select item_key, state from public.tax_info_asks where client_id = '${id}'`);
-    ok(fresh.length > 0 && fresh.every(a => a.state === 'published') && fresh.some(a => a.item_key === 'annual.whatHappened'),
-      'דוח חדש: שאלון נקי — הכול שוב לשאול, כולל מסך הריבועים', fresh.map(a => `${a.item_key}:${a.state}`).join(','));
     ok((await env.sql(`select count(*)::int n from public.email_messages where client_id = '${id}'`))[0].n === 0, 'לא יצא מייל');
     await ctx.close();
   } catch (e) {

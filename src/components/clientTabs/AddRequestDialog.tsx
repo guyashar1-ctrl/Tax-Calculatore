@@ -1487,7 +1487,8 @@ function TaxFileRow({ clientId, client, steps, busy, setBusy, setError, setQOpen
   const [wKind, setWKind] = useState<'' | 'first' | 'followup'>('');
   const [cutoff, setCutoff] = useState(lastClosedMonth);
 
-  const kinds: [Purpose, string][] = [['annual', 'דוח שנתי'], ['intake', 'קליטה והשלמת תיק'],
+  // ‼ 21.10.2026 · גיא: «קליטה והשלמת תיק — אולי לא צריך». הקליטה נפתחת לבד כשמקבלים לקוח (254); כאן רק מה שהמשרד פותח ביד.
+  const kinds: [Purpose, string][] = [['annual', 'דוח שנתי'],
     ...(AVAILABLE.taxEstimate ? [['estimate', 'הערכת מס'] as [Purpose, string]] : []), ['wealth', 'הצהרת הון']];
   const years = kind === 'estimate' ? [thisYear, thisYear - 1] : [thisYear - 1, thisYear - 2, thisYear - 3];
   const pick = (k: Purpose) => { setKind(k); if (k === 'estimate') setYear(thisYear); else if (k === 'annual') setYear(annualYear); };
@@ -1534,7 +1535,7 @@ function TaxFileRow({ clientId, client, steps, busy, setBusy, setError, setQOpen
         {ICON_TAX}
         <span style={{ display: 'flex', flexDirection: 'column', gap: '.15rem', flex: 1, minWidth: 0 }}>
           <span style={{ fontWeight: 600 }}>תיק המס</span>
-          <span style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)' }}>דוח שנתי, קליטה, הערכה או הצהרת הון</span>
+          <span style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)' }}>דוח שנתי, הערכת מס או הצהרת הון</span>
         </span>
         <span aria-hidden="true" style={{ color: 'var(--ink-4)' }}>{open ? '▴' : '▾'}</span>
       </button>

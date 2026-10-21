@@ -95,7 +95,7 @@ export default function TaxYearsSection({ client, onChanged, onClientPersisted, 
   const infoOf = (parent?: OnboardingStep) => parent && steps.find(s => s.stepType === 'info_collection' && (s.payload as unknown as { parentStepId?: string }).parentStepId === parent.id && s.status !== 'cancelled');
   const [adding, setAdding] = useState(false);
   // ‼ 14.10.2026 · «הסר…» — אותו חלון כמו ב«מס» וב«בקשות»; עבודה שהושלמה לא מוסרת (242)
-  const [removing, setRemoving] = useState<{ id: string; title: string } | null>(null);
+  const [removing, setRemoving] = useState<{ id: string; title: string; purge?: boolean } | null>(null);
   const works = useMemo(() => steps
     .filter(s => s.stepType === 'annual_return' || s.stepType === 'wealth_declaration' || (s.stepType === 'tax_estimate'))
     .sort((a, b) => Number(OPEN(b)) - Number(OPEN(a))
@@ -191,7 +191,7 @@ export default function TaxYearsSection({ client, onChanged, onClientPersisted, 
           onDone={res => { void load(); onChanged?.(); if (res[0]?.stepId) { setAdding(false); setOpenId(res[0].stepId); } }} />
       )}
       {removing && (
-        <RemoveWorkDialog stepId={removing.id} title={removing.title} onClose={() => setRemoving(null)}
+        <RemoveWorkDialog stepId={removing.id} title={removing.title} purgeOnly={removing.purge} onClose={() => setRemoving(null)}
           onDone={(_what, text) => { setRemoving(null); setMsg({ ok: true, text }); void load(); onChanged?.(); }} />
       )}
       {cancelled.length > 0 && (
@@ -204,6 +204,7 @@ export default function TaxYearsSection({ client, onChanged, onClientPersisted, 
                 <li key={c.id} className="tf-work is-cancelled">
                   <span className="tf-work-main"><b>{t}</b><small>בוטלה — מה שהתקבל נשמר</small></span>
                   <button type="button" className="btn btn-sm btn-ghost" onClick={() => setRemoving({ id: c.id, title: t })} data-tf-restore>החזר…</button>
+                  <button type="button" className="btn btn-sm btn-ghost tw-remove" onClick={() => setRemoving({ id: c.id, title: t, purge: true })} data-tf-purge>מחק</button>
                 </li>
               );
             })}

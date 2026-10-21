@@ -585,7 +585,7 @@ export default function OnboardingTab({
   /** 229 · דף התהליך של שנת מס (הערכה / דוח) — נפתח מהשורה, כמו הטופס החכם. */
   const [taxYearStepId, setTaxYearStepId] = useState<string | null>(null);
   // ‼ 14.10.2026 · «הסר…» לעבודת מס — אותו חלון כמו ב«מס» ← «עבודות לקוחות» ובתיק המס (242)
-  const [removeTax, setRemoveTax] = useState<{ id: string; title: string } | null>(null);
+  const [removeTax, setRemoveTax] = useState<{ id: string; title: string; purge?: boolean } | null>(null);
   const [taxNotice, setTaxNotice] = useState<string | null>(null);
   /** 15.10 · חלון אישור ההסרה / ביטול הטופס — נפתח מה-⋯ בשורה או מהקישור שבפתיחה. */
   const [removeDlg, setRemoveDlg] = useState<{ stepId: string; plan: Extract<RemovalPlan, { kind: 'remove' | 'cancel_form' }> } | null>(null);
@@ -1730,6 +1730,7 @@ export default function OnboardingTab({
         onRemove={() => requestRemoval(step)}
         onUndo={() => void undoRemoval(step)}
         onTaxWork={() => setRemoveTax({ id: step.id, title: workTitle(step) })}
+        onTaxWorkPurge={() => setRemoveTax({ id: step.id, title: workTitle(step), purge: true })}
         onCancelForm={() => requestRemoval(step)}
         onOpenRepresentation={onOpenRepresentation}
         onNiCancel={() => setNiSignal(m => ({ ...m, [step.id]: (m[step.id] ?? 0) + 1 }))}
@@ -1985,6 +1986,7 @@ export default function OnboardingTab({
                     menu={!embedded && isStepOpen(step.status) ? (
                       <span className="rl-links">
                         <button type="button" className="rl-link is-danger" onClick={() => setRemoveTax({ id: step.id, title: workTitle(step) })} data-remove-tax-work>הסר…</button>
+                        <button type="button" className="rl-link is-danger" onClick={() => setRemoveTax({ id: step.id, title: workTitle(step), purge: true })} data-purge-tax-work>מחק לגמרי</button>
                       </span>
                     ) : null}
                     primary={!embedded ? (
@@ -4078,7 +4080,7 @@ export default function OnboardingTab({
       })()}
 
       {removeTax && (
-        <RemoveWorkDialog stepId={removeTax.id} title={`${removeTax.title} · ${client.firstName ?? ''} ${client.lastName ?? ''}`.trim()}
+        <RemoveWorkDialog stepId={removeTax.id} title={`${removeTax.title} · ${client.firstName ?? ''} ${client.lastName ?? ''}`.trim()} purgeOnly={removeTax.purge}
           onClose={() => setRemoveTax(null)}
           onDone={(_what, text) => { setRemoveTax(null); setTaxNotice(text); refresh?.(); }} />
       )}

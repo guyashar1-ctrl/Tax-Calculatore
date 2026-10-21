@@ -20,6 +20,8 @@ interface MenuProps {
   onRemove: () => void;
   onUndo: () => void;
   onTaxWork: () => void;
+  /** 21.10.2026 · עבודת מס: «מחק לגמרי» כפריט נפרד — לא אפשרות שנייה בתוך חלון «הסר» (גיא לחץ «ביטול» וחשב שמחק). */
+  onTaxWorkPurge?: () => void;
   onCancelForm: () => void;
   onOpenRepresentation?: () => void;
   /** ב"ל לאדם: פותח את «מחיקת/ביטול הבקשה» הייעודי (NiCancelRequest) — החלון שלו יושב ב-niSlot, מחוץ לתפריט. */
@@ -27,7 +29,7 @@ interface MenuProps {
   niSlot?: React.ReactNode;
 }
 
-export function RowActionsMenu({ title, plan, busy, onRemove, onUndo, onTaxWork, onCancelForm, onOpenRepresentation, onNiCancel, niSlot }: MenuProps) {
+export function RowActionsMenu({ title, plan, busy, onRemove, onUndo, onTaxWork, onTaxWorkPurge, onCancelForm, onOpenRepresentation, onNiCancel, niSlot }: MenuProps) {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
   const btnRef = useRef<HTMLButtonElement>(null);
@@ -77,6 +79,12 @@ export function RowActionsMenu({ title, plan, busy, onRemove, onUndo, onTaxWork,
             <span className="rl-mi-l">{plan.menuLabel}</span>
             <span className="rl-mi-h">{plan.kind === 'ni_cancel'
               ? `${plan.hint}. מה שקרה נשמר ב«פעילות»; לא מבטל בקשה או ייצוג בביטוח לאומי.` : plan.hint}</span>
+          </button>
+        )}
+        {plan.kind === 'tax_work' && onTaxWorkPurge && (
+          <button type="button" role="menuitem" data-remove-action="tax_work_purge" className="rl-mi is-danger" onClick={pick(onTaxWorkPurge)}>
+            <span className="rl-mi-l">מחק לגמרי</span>
+            <span className="rl-mi-h">גם התשובות והקבצים — כאילו לא נפתח</span>
           </button>
         )}
         {plan.kind === 'blocked' && (
