@@ -36,6 +36,8 @@ export const world = {
   reports: [],
   /** שאילתה 154: תשובות ה-JSON (ראש + עמוד לכל 5 שנים). null ⇒ השאילתה לא נפתחת. */
   gmf154: null,
+  /** הפורטל פג בשרת והתפריט עוד על המסך: הלחיצה בכותרת לא מזיזה את הדף (302 ל-otpCts, נצפה 21.10). */
+  gmfApiExpired: false,
 };
 
 export function resetWorld() {
@@ -43,7 +45,7 @@ export function resetWorld() {
     chrome: 'closed', portal: false, gmfSession: false,
     savedCredential: USERNAME, savedPasswordAccepted: true, pages: [],
     pivo: { picks: 0, submits: 0, focusClicks: 0, gotos: [] }, humanSubmits: 0, humanScript: [], reports: [],
-    gmf154: null,
+    gmf154: null, gmfApiExpired: false,
   });
 }
 
@@ -144,6 +146,7 @@ export class SimPage {
 
   #clickControl(sel) {
     if (sel.includes('gmfBtnHmse')) {
+      if (world.gmfApiExpired) { this.#rejectWaiters(); return; }
       if (this.fields['#mavarShilta'] === '154') {
         if (!world.gmf154) { this.#rejectWaiters(); return; }
         this.path = '/gmf-154/main/gmf154-data';

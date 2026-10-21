@@ -725,6 +725,19 @@ const GMF_134_INFO_RADIO = '#entranceRadioList-1';
 /** תווית האפשרות שאנחנו חייבים לבחור במסך הכניסה. נבדקת, לא מונחת. */
 const GMF_134_INFO_LABEL = 'מידע לתיק';
 
+/**
+ * הלחיצה בכותרת לא הובילה למסך השאילתה — האם הסשן פג? ‼ נצפה חי 21.10.2026: התפריט
+ * עדיין על המסך, אבל setGoToData עונה 302 ל-loginDetails ← otpCts (פורטל שפג), והדף
+ * לא זז. בלי הבדיקה הזו זה נראה כמו «מסך לא נמצא» במקום «החיבור לשע״ם אינו מוכן».
+ * פותחים את התפריט פעם אחת ובודקים לאן הגענו.
+ */
+async function gmfSessionLost(page) {
+  await page.goto(GMF_URL, { waitUntil: 'domcontentloaded', timeout: 25000 }).catch(() => {});
+  const s = await settlePage(page);
+  const lost = !GMF_ANY_PATH.test(s.pathname) || s.hasPasswordField || s.pathname.includes('/login');
+  return lost ? s.pathname : null;
+}
+
 /** ממלא שדה של Angular ומאמת שהערך באמת נכנס ל-DOM. */
 async function fillAndVerify(page, selector, value) {
   await page.fill(selector, '');
@@ -801,6 +814,8 @@ export async function openAdvancesInfo(page, fileNumber) {
   }
   note(`entry:${entry.pathname}`);
   if (!entry.pathname.startsWith(GMF_134_ENTRY_PATH)) {
+    const lost = await gmfSessionLost(work);
+    if (lost) { note(`session:lost → ${lost}`); return { ok: false, reason: 'gmf_not_ready', pathname: lost, steps }; }
     return { ok: false, reason: 'entry_screen_missing', pathname: entry.pathname, steps };
   }
 
@@ -920,6 +935,8 @@ export async function openTaxYearsInfo(page, fileNumber, { maxPages = GMF_154_MA
   note(`data:${data.pathname} head=${head?.status ?? 'none'} table=${first?.status ?? 'none'}`);
   if (data.hasPasswordField) return { ok: false, reason: 'gmf_not_ready', pathname: data.pathname, steps };
   if (!data.pathname.startsWith(GMF_154_DATA_PATH)) {
+    const lost = await gmfSessionLost(work);
+    if (lost) { note(`session:lost → ${lost}`); return { ok: false, reason: 'gmf_not_ready', pathname: lost, steps }; }
     return { ok: false, reason: 'data_screen_missing', pathname: data.pathname, steps };
   }
   if (!head?.body || !first?.body) return { ok: false, reason: 'data_not_captured', steps };

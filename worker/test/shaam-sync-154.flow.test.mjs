@@ -69,6 +69,13 @@ test('154 לא נפתחת ⇒ 134 כמו קודם, ו«השנים לא נקרא�
   assert.ok(r.result.unavailable.some((u) => u.key === 'taxYears'));
 });
 
+test('הפורטל פג והתפריט עוד על המסך ⇒ «החיבור אינו מוכן», לא «מסך לא נמצא»', async () => {
+  const queries = connected(sample154());
+  Object.assign(world, { gmfApiExpired: true, portal: false });
+  await assert.rejects(sync.run(ctx(), { fileNumber: FILE }), (e) => e.code === 'shaam_connection_not_ready');
+  assert.deepEqual(queries, ['154'], 'לא ממשיכים ל-134 על סשן שפג');
+});
+
 test('תיק אחר במסך של 154 ⇒ נעצר, לא נופל ל-134', async () => {
   const queries = connected(sample154({ fileNumber: '987654321' }));
   await assert.rejects(sync.run(ctx(), { fileNumber: FILE }), (e) => e.code === 'file_mismatch');
