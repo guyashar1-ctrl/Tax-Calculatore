@@ -29,12 +29,15 @@
 .shf-seg-btn { border: 0; background: none; padding: 6px 12px; border-radius: 8px; font: inherit; font-size: var(--fs-13); color: var(--tx2); cursor: pointer; min-height: 36px; }
 .shf-seg-btn.is-on { background: var(--card); color: var(--tx); font-weight: 600; box-shadow: 0 1px 2px rgba(20, 30, 50, .08); }
 .shf-seg-sm .shf-seg-btn { padding: 4px 10px; min-height: 32px; }
-.shf-steps { list-style: none; margin: 0; padding: 0; display: flex; gap: 6px; flex-wrap: wrap; }
-.shf-step-dot { display: inline-flex; gap: 6px; align-items: center; border: 1px solid var(--bd); background: var(--card); border-radius: 999px; padding: 4px 10px 4px 12px;
-  font: inherit; font-size: var(--fs-12); color: var(--tx2); cursor: pointer; min-height: 36px; max-inline-size: 260px; }
-.shf-step-dot span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.shf-step-dot b { flex: none; inline-size: 20px; block-size: 20px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; background: var(--s3, var(--gray-100)); color: var(--tx); }
-.shf-step-dot.is-on { border-color: var(--br, var(--blue)); color: var(--tx); }
+/* ‼ הצעדים ברשימה אנכית, כל צעד בשלמותו (21.10.2026): בשורת «כדורים» שנשברת 3+2 עם «…» לא
+   היה ברור מה בא אחרי מה. במחשב הרשימה בצד והצעד לידה; בטלפון הרשימה מעל. */
+.shf-guide-body { display: grid; grid-template-columns: minmax(220px, 300px) minmax(0, 1fr); gap: 16px; align-items: start; }
+@media (max-width: 760px) { .shf-guide-body { grid-template-columns: minmax(0, 1fr); } }
+.shf-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.shf-step-dot { display: flex; gap: 8px; align-items: flex-start; inline-size: 100%; text-align: start; border: 1px solid var(--bd); background: var(--card); border-radius: 10px; padding: 7px 10px;
+  font: inherit; font-size: var(--fs-13); line-height: 1.45; color: var(--tx2); cursor: pointer; min-height: 40px; }
+.shf-step-dot b { flex: none; inline-size: 22px; block-size: 22px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; background: var(--s3, var(--gray-100)); color: var(--tx); }
+.shf-step-dot.is-on { border-color: var(--br, var(--blue)); background: var(--chip-blue-bg, var(--card)); color: var(--tx); }
 .shf-step-dot.is-on b { background: #ff8a1f; color: #1b1f24; }
 .shf-step-dot.is-pending { border-style: dashed; }
 .shf-step h4 { margin: 4px 0; font-size: var(--fs-14); font-weight: 650; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
@@ -133,7 +136,6 @@
   .shf-plan-row, .shf-work-row, .shf-row { grid-template-columns: minmax(0, 1fr); }
   .shf-row-act { justify-content: flex-start; }
   .shf-row-act .btn, .shf-actions .btn, .shf-head-actions .btn { min-height: 44px; }
-  .shf-step-dot span { display: none; }
-  .shf-step-dot { padding: 4px; }
+  .shf-step-dot { min-height: 44px; }
 }
 @media (prefers-reduced-motion: reduce) { .shf-bar i, .shf-details > summary::after { transition: none; } }

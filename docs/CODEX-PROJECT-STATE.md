@@ -37,6 +37,12 @@ Ask Guy which business process or automation he wants to improve first. Inspect 
 
 ## Decision log / review evidence
 
+### 2026-10-21 — חצים בעברית, רוחבי (גיא: «הטעות יכולה לחזור — לפתור רוחבית», «אני כן רוצה חצים»; אישר את ההמחשה המעודכנת docs/proposals/2026-10-21-rtl-arrows.html)
+- הבעיה: «IDOM ← 4» — אנגלית + חץ + מספר הופכים לרצף משמאל לימין, וקורא בעברית רואה קודם את ה-4. בנוסף ~60 טקסטים עם → בין פריטים (בעברית מצביע אחורה), ו«המשך →» / «← חזרה» הפוכים.
+- הפתרון: `components/ui/ArrowPath.tsx` (`ArrowChain`, `ArrowText`, `ARROW`) — כל שלב ב-bdi, החץ נפרד וכהה (`.ui-arrow*` ב-ui.css), שלב לא נשבר באמצע. ← בכל מקום; → רק בתחילת «→ חזרה». נאכף ב-`components/ui/__tests__/rtlArrows.test.ts` (סורק כל טקסט עברי גלוי ב-src ו-supabase/functions, בלי קבצי __; הוכח שנכשל על «IDOM ← 4»). כלל ב-CLAUDE.md ו-DESIGN-AUTOMATION-EXECUTION.md.
+- שע״ם: `GuideStep.path` («IDOM ← אפשרות 4», «AHZM ← אזור 2» — לפי המקור: MAIN IDOM 4, «AHZM באזור 2 רשימת דרישות»); המדריך — רשימה אנכית (בצד במחשב, מעל בטלפון; הכלל הישן שהסתיר את שמות הצעדים בטלפון הוסר). ‼ `isShortHint` ב-InstitutionAlignment פיצל לפי '→' — עבר ל-ARROW (אחרת «איפה מוצאים?» היה משתנה).
+- לא שונה: מסד (אין → בפונקציות SQL), מסכי בדיקה פנימיים (__Test*, __DemoHub), «→ פתיחת כרטיס…» (חץ בתחילה, כמו קישור). בדיקות: tsc, vite build, יחידה (כולן); דפדפן ‎?office-app‎ 1366/360/390 — סדר כל שרשרת נמדד במיקום, 0 גלילה אופקית, 0 שגיאות; מחרוזות הידע שהוחלפו נמדדו כטקסט רגיל בדף (כולן בסדר, הישנה — הפוכה). יישור קו לא נבדק במסך עצמו (אותו רכיב).
+
 ### 2026-10-21 — שאלון הדוח השנתי מחדש (גיא: «מאשר את ההמחשה. תבנה ותשחרר») — ההמחשה docs/proposals/2026-10-20-annual-questionnaire-v2.html
 - לקוח (AnnualFlow.tsx + flowDraft.ts): טיוטה עד «שליחה למשרד» (מקומי + saved_draft), «רגע לפני ששולחים», מסמכים רק בסוף; ההמשך מאותם צילומים שהשרת פותח, מיד אחרי המסך שפתח אותו (walkScreens); ריבועים עם ציור/דוגמה/קבוצה; «מה כבר ידוע לנו»; בלי לוכסנים (gender.ts); ב״ל = «מה שולם?» לכל אדם, האישור — המשרד (who: office, annualVia); מעסיק בשנה (monthIn, «עדיין שם»); 106 בשם המעסיק (267) ובלי כפילות (oneRound entityKey + picture provCovers).
 - משרד: AnnualSummary — «מה עליך לעשות» (סוכן); «בקשה חדשה» — שורה אחת «תיק המס» (TaxFileRow; TaxYearRequestForm נמחק).

@@ -72,7 +72,7 @@ export default function SyncConfirmation({ session, client, onProposeChanges, on
             <p style={{ color: 'var(--gray-600)' }}>
               כל התשובות בשאלון תואמות את תיק המס. אין מה להציע.
             </p>
-            <button className="btn btn-primary btn-lg" onClick={onContinue}>המשך לפלט →</button>
+            <button className="btn btn-primary btn-lg" onClick={onContinue}>המשך לפלט ←</button>
           </div>
         </div>
       </div>

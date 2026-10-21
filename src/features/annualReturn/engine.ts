@@ -365,7 +365,7 @@ export function computeReturn(input: ReturnInput): ReturnOutputs {
     for (const p of props) { if (!p.address) problems.push('כתובת הדירה חסרה בכרטיס'); if (!p.block?.trim() || !p.parcel?.trim()) problems.push(`${p.address || 'דירה'}: גוש וחלקה`); }
     annex1321 = { gross: r0(rentAll.amount), ownHousingRent: r0(ownHousingRent), net: r0(Math.max(0, rentAll.amount - ownHousingRent)), singleApartment: r.singleApartment, props, complete: problems.length === 0, problems };
     annexes.push({ formId: '1321', title: annexTitle('1321'), reason: 'שכר דירה למגורים במסלול 10% — סעיף 3', status: problems.length ? 'partial' : 'filled',
-      rows: [{ label: 'הכנסה מהשכרת דירת מגורים (10%)', amount: annex1321.gross }, { label: 'שכר דירה ששולם למגורים (מופחת, עד 90,000)', amount: annex1321.ownHousingRent }, { label: 'הכנסה בניכוי הוצאות → 284', amount: annex1321.net }],
+      rows: [{ label: 'הכנסה מהשכרת דירת מגורים (10%)', amount: annex1321.gross }, { label: 'שכר דירה ששולם למגורים (מופחת, עד 90,000)', amount: annex1321.ownHousingRent }, { label: 'הכנסה בניכוי הוצאות ← 284', amount: annex1321.net }],
       note: problems.join(' · ') || undefined });
     problems.forEach((t, i) => gaps.push({ code: `annex1321_${i}`, kind: 'data', text: `נספח 1321: ${t}` }));
   }

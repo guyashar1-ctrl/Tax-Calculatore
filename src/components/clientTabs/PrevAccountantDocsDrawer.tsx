@@ -137,7 +137,7 @@ export default function PrevAccountantDocsDrawer(
       {folderId && onOpenFolder && (
         <button type="button" className="pa-mat-quiet" style={{ textAlign: 'start' }}
           onClick={() => onOpenFolder(folderId)}>
-          לכל החומרים מרו״ח קודם →
+          לכל החומרים מרו״ח קודם ←
         </button>
       )}
     </div>

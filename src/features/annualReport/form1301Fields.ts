@@ -1581,7 +1581,7 @@ export const form1301Fields: Form1301FieldDef[] = [
     modelPath: 'income.foreignIncomeKinds',
     sourceQuestionIds: ['foreign_income_kinds'],
     requiredDocuments: [
-      { code: 'foreign_pension_docs', name: 'אישורי קצבה + מס זר', reason: 'קצבת עבודה → 258/272; סעיף 9ג - מס מוגבל למס הזר' },
+      { code: 'foreign_pension_docs', name: 'אישורי קצבה + מס זר', reason: 'קצבת עבודה ← 258/272; סעיף 9ג - מס מוגבל למס הזר' },
     ],
     dataLayer: 'accountant',
     codes: { joint: '445/404' },

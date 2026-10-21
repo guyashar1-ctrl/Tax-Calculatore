@@ -526,8 +526,8 @@ function interpretBtlFile(
           patchValue: next,
           hint: earlier ? 'בסיכום של ביטוח לאומי הרצף מתחיל מוקדם יותר — ייתכן שחסרה רשומה קודמת.' : undefined,
           provenance: next.some(o => o.btlDetail)
-            ? 'עיסוקים והכנסות → רשימת עיסוקים → עיסוקים בתקופה → פירוט עיסוק'
-            : 'עיסוקים והכנסות → רשימת עיסוקים → עיסוקים בתקופה',
+            ? 'עיסוקים והכנסות ← רשימת עיסוקים ← עיסוקים בתקופה ← פירוט עיסוק'
+            : 'עיסוקים והכנסות ← רשימת עיסוקים ← עיסוקים בתקופה',
           ...person,
         });
       }
@@ -559,7 +559,7 @@ function interpretBtlFile(
             currentValue: niIncomeListKey(current), currentDisplay: niIncomeListText(current),
             authorityDisplay: niIncomeListText(empty), authorityValue: niIncomeListKey(empty), patchValue: empty,
             hint: 'מה שנשמר קודם לא נמצא כתקף בקריאה הזו.',
-            provenance: 'עיסוקים והכנסות → רשימת הכנסות · אין שורה תקפה של עצמאי',
+            provenance: 'עיסוקים והכנסות ← רשימת הכנסות · אין שורה תקפה של עצמאי',
             ...person,
           });
         } else info(income.partial ? PARTIAL : 'אין הצהרה או שומה תקפה של עצמאי ברשימת ההכנסות');
@@ -573,7 +573,7 @@ function interpretBtlFile(
           authorityValue: niIncomeListKey(next),
           patchValue: next,
           hint: income.partial ? 'מקריאה ישנה שהחזירה שורה אחת בלבד — קריאה חוזרת תשלים את הרשימה.' : undefined,
-          provenance: 'עיסוקים והכנסות → רשימת הכנסות',
+          provenance: 'עיסוקים והכנסות ← רשימת הכנסות',
           ...person,
         });
       }
@@ -676,7 +676,7 @@ function interpretBtlFile(
           currentValue: cur == null ? '' : String(cur),
           authorityDisplay: d.value ? 'קיימת' : 'אין הרשאה', authorityValue: String(d.value), patchValue: d.value,
           hint: d.value && d.openSince ? `פתוחה מ-${niDate(d.openSince)}` : undefined,
-          provenance: d.source === 'header' ? 'כותרת המבוטח' : 'הוראות כספיות → הרשאות לחיוב',
+          provenance: d.source === 'header' ? 'כותרת המבוטח' : 'הוראות כספיות ← הרשאות לחיוב',
           ...person,
         });
       }
@@ -695,7 +695,7 @@ function interpretBtlFile(
           currentValue: String(cur ?? ''),
           authorityDisplay: n === 0 ? 'אין יתרה' : n > 0 ? `חוב ${ils(n)}` : `יתרת זכות ${ils(n)}`,
           authorityValue: String(n), patchValue: n,
-          provenance: b.source === 'header' ? 'כותרת המבוטח' : 'מצב חשבון → לפי ימי ערך ריאלי',
+          provenance: b.source === 'header' ? 'כותרת המבוטח' : 'מצב חשבון ← לפי ימי ערך ריאלי',
           ...person,
         });
       }

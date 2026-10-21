@@ -7,6 +7,8 @@
 export interface Mark { n: number; x: number; y: number; w: number; h: number; text: string }
 export interface GuideStep {
   id: string;
+  /** איפה במסוף — מוצג כשרשרת לפני הכותרת («IDOM ← אפשרות 4»). שלבים קצרים; השם המלא בכותרת. */
+  path?: string[];
   title: string;
   body: string;
   img?: { src: string; w: number; h: number; alt: string };
@@ -28,7 +30,7 @@ const SAVE_PDF: GuideStep = {
 
 export const ANNUAL_GUIDE: GuideStep[] = [
   {
-    id: 'a1', title: 'IDOM ← אפשרות 4 «מעקב הגשת דוחות — כללי»',
+    id: 'a1', path: ['IDOM', 'אפשרות 4'], title: '«מעקב הגשת דוחות — כללי»',
     body: 'בתפריט הראשי של IDOM מסמנים את השדה שליד אפשרות 4 ולוחצים Enter. לא אפשרות 1 ולא 6 — הן רשימות אחרות שאינן מסמנות מי חייב.',
     img: img('12', 1357, 923, 'תפריט מעקב הגשת דוחות ב-IDOM'),
     marks: [{ n: 1, x: 548, y: 318, w: 472, h: 44, text: 'אפשרות 4 «מעקב הגשת דו"חות — כללי» ושדה הסימון שלידה' }],
@@ -67,7 +69,7 @@ export const ANNUAL_GUIDE: GuideStep[] = [
 
 export const WEALTH_GUIDE: GuideStep[] = [
   {
-    id: 'w1', title: 'AHZM ← 2 «רשימת דרישות» — ארבע קבוצות, אחת בכל הפקה',
+    id: 'w1', path: ['AHZM', 'אזור 2'], title: '«רשימת דרישות» — ארבע קבוצות, אחת בכל הפקה',
     body: 'במעקב השוטף מפיקים שתי קבוצות: «לא הגישו ולא חייבים בקנס» ו«לא הגישו וחייבים בקנס». בקליטת לקוחות או ביישור קו — גם שתי הקבוצות של «הגישו». מסמנים קבוצה אחת בכל פעם: שע״ם לא מקבל שתיים יחד.',
     img: img('20', 1537, 931, 'מסך AHZM — רשימת דרישות'),
     marks: [{ n: 1, x: 405, y: 260, w: 720, h: 140, text: 'ארבע הקבוצות — שתיים עליונות למעקב, ארבע לקליטה' }],

@@ -151,7 +151,7 @@ export default function TaxArea({ path, onPath, onBack, freshnessTaskExists, onC
           <label className="pg-rail-year">שנת מס{yearSelect}</label>
         </>
       )}
-      <button type="button" className="pg-rail-back" onClick={onBack}>← חזרה ללקוחות</button>
+      <button type="button" className="pg-rail-back" onClick={onBack}>→ חזרה ללקוחות</button>
     </nav>
   );
 

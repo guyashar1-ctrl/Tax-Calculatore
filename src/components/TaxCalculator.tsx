@@ -180,7 +180,7 @@ export default function TaxCalculator({ client, onBack }: Props) {
           <div className="pg-status" data-testid="calc-family-year">
             {famInYear.line}
           </div>
-          <button type="button" className="doc-back-link" onClick={onBack}>← חזרה לפרטי לקוח</button>
+          <button type="button" className="doc-back-link" onClick={onBack}>→ חזרה לפרטי לקוח</button>
         </div>
         <div className="pg-actions">
           <label className="calc-year">
@@ -415,7 +415,7 @@ export default function TaxCalculator({ client, onBack }: Props) {
 
               {result.niDeductionFromIncomeTax > 0 && (
                 <div className="alert alert-info">
-                  💡 <strong>ניכוי ב"ל ממס הכנסה (סעיף 47א):</strong> 52% מדמי הביטוח הלאומי — לא מדמי הבריאות (₪{fmt(Math.round(result.niSelfEmployed + (result.niNonWork ?? 0)))}) = <strong>₪{fmt(Math.round(result.niDeductionFromIncomeTax))}</strong> הופחתו מהכנסה החייבת → חיסכון במס הכנסה של ~₪{fmt(Math.round(result.niDeductionFromIncomeTax * result.marginalRate / 100))}.
+                  💡 <strong>ניכוי ב"ל ממס הכנסה (סעיף 47א):</strong> 52% מדמי הביטוח הלאומי — לא מדמי הבריאות (₪{fmt(Math.round(result.niSelfEmployed + (result.niNonWork ?? 0)))}) = <strong>₪{fmt(Math.round(result.niDeductionFromIncomeTax))}</strong> הופחתו מהכנסה החייבת ← חיסכון במס הכנסה של ~₪{fmt(Math.round(result.niDeductionFromIncomeTax * result.marginalRate / 100))}.
                 </div>
               )}
 

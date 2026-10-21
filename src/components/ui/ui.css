@@ -396,3 +396,10 @@ ul.ui-lines {
 }
 ul.ui-lines > li { margin: 0; }
 p.ui-lines { margin: 0; }
+
+/* ── שרשרת שלבים עם חצים · ArrowPath.tsx ───────────────────────────────────
+   ‼ שלב + החץ שאחריו = יחידה אחת: השורה נשברת רק בין שלבים. שלב ארוך מרוחב
+   השורה (טלפון) נשבר בתוכו — לא גולש. החץ כהה ומודגש, כדי שיראו איפה נגמר שלב. */
+.ui-arrow-step { display: inline-block; max-inline-size: 100%; }
+.ui-arrow-step > bdi { unicode-bidi: isolate; }
+.ui-arrow { color: var(--ink-2); font-weight: 700; margin-inline: .4em; }
