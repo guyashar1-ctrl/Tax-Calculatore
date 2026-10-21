@@ -7,7 +7,8 @@
 // ‼ אין כאן רכיב React ואין כאן תלות ברשות מסוימת: הטיפוסים והסיכום
 // משותפים למס הכנסה, מע״מ וביטוח לאומי. מה שמשתנה בין רשויות הוא רק
 // ה**מתאם** (adapter) שיודע להפוך תוצאת עובד גולמית לסט השוואה — ולמס
-// הכנסה זו שאילתה 134. מע״מ וב״ל יקבלו מתאם משלהם, לא UX משלהם.
+// הכנסה אלה שאילתות 154 (ו-134 כשיש מקדמות פעילות). מע״מ וב״ל יקבלו מתאם
+// משלהם, לא UX משלהם.
 //
 // ‼ מציע ולא כותב: שום דבר כאן לא נוגע ב-clients. הסט הזה הוא מה שהרו"ח
 // **רואה**; הכתיבה קורית רק דרך מסלול העובדות המנוהלות, אחרי לחיצה מפורשת.
@@ -199,7 +200,11 @@ export interface AuthorityAutomationSpec {
   personErrors?: (job: AutomationJob) => Partial<Record<PersonRole, string>>;
 }
 
-// ─── מס הכנסה — שאילתה 134 ─────────────────────────────────────────────────────
+// ─── מס הכנסה — שאילתות 154 + 134 ──────────────────────────────────────────────
+// ‼ מ-21.10.2026 העובד קורא קודם את 154 («מידע אודות שנות מס»): ראש התיק, סך
+// יתרת החוב/הזכות, מצב המקדמות, חבות והגשה לכל שנה ודרישות הצהרת הון. 134
+// נקראת רק כשיש מקדמות פעילות — לשיעור ולתדירות. ריצה ישנה (134 בלבד) עדיין
+// מתפרשת כאן: אותם מפתחות ב-result.fields.
 
 /**
  * תדירות מקדמות: הטקסט של שע״ם ⇄ הערך של PIVO.
@@ -263,6 +268,17 @@ function advanceBusinessState(
 }
 
 /**
+ * «דרישה עד 31/12/2026 · שנת 2025» ⇒ 'true' · «אין דרישה» ⇒ 'false'. ‼ רק שתי
+ * הצורות שנצפו ב-154; כל טקסט אחר לא ממופה — מוצג כלשונו, בלי הצעה.
+ */
+function mapWealthDemand(raw: string): string | null {
+  const t = raw.replace(/\s+/g, ' ').trim();
+  if (/^דרישה עד \d{2}\/\d{2}\/\d{4}/.test(t)) return 'true';
+  if (t === 'אין דרישה') return 'false';
+  return null;
+}
+
+/**
  * מה שדה מציג ומציע כשהרשות החזירה מצב עסקי במקום ערך.
  * `'info'` ⇒ אין ערך ואין הצעה, רק סמן ניטרלי (ההסבר בקבוצה).
  */
@@ -279,11 +295,13 @@ interface Shaam134FieldSource {
   group?: string;
   /** תוספת פירוש לערך שהוחזר. */
   hint?: (value: string) => string | undefined;
+  /** איך מציגים את ערך הרשות לרו"ח. ברירת מחדל: הגולמי. */
+  display?: (value: string) => string;
 }
 
 /**
- * מפתח השדה בכרטיס ⇄ המקור בשאילתה 134. ‼ רק שדות עם מיפוי מוכח חי —
- * שבעה. שדה שאינו כאן מוצג בכרטיס עם סמן «טרם נתמך», לא נעלם.
+ * מפתח השדה בכרטיס ⇄ המקור בתוצאת העובד (154, ומקדמות פעילות מ-134). ‼ רק
+ * שדות עם מיפוי מוכח חי. שדה שאינו כאן מוצג בכרטיס עם סמן «טרם נתמך», לא נעלם.
  */
 export const SHAAM_134_FIELD_SOURCES: Record<string, Shaam134FieldSource> = {
   incomeTaxFileType: {
@@ -303,15 +321,28 @@ export const SHAAM_134_FIELD_SOURCES: Record<string, Shaam134FieldSource> = {
     source: 'advanceFrequency', normalize: mapAdvanceFrequency, group: 'advances',
     businessValue: (f) => (advanceBusinessState(f) ? { value: '', display: 'אין', patch: null } : null),
   },
-  // ‼ «יתרה» ב-134 היא יתרת חשבון המקדמות לשנה — מופתה לשדה הזה לפי
-  // החלטת מוצר. כשאין חבות מקדמה כלל שע״ם לא מציגה קופסת יתרה (נצפה חי
-  // אצל no_advance), ולכן: סמן ניטרלי בלי ערך ובלי הצעה — **לא** 0
-  // מומצא, ולא אדום. ההסבר מגיע מהקבוצה.
+  // ‼ «יתרה» = סך יתרת החוב פחות סך יתרת הזכות של התיק (154). בריצה ישנה
+  // (134 בלבד) זו הייתה יתרת חשבון המקדמות לשנה, ושם כשאין חבות מקדמה אין
+  // קופסת יתרה כלל ⇒ סמן ניטרלי בלי הצעה — **לא** 0 מומצא, ולא אדום.
   incomeTaxBalance: {
-    source: 'balance', normalize: mapBalance, group: 'advances',
+    source: 'balance', normalize: mapBalance,
     businessValue: (f) => (advanceBusinessState(f) ? 'info' : null),
   },
+  // ‼ הצהרת הון מ-154 בלבד. «אין דרישה» הוא תוצאה: אין דרישה פתוחה לפי שע״ם.
+  // ריצה ישנה בלי המפתח ⇒ «לא נבדק» (ריק בלי מצב עסקי), לא כישלון.
+  capitalDeclarationRequired: {
+    source: 'wealthDemand', normalize: mapWealthDemand,
+  },
+  // ‼ המועד רק כשיש דרישה. בלי דרישה — סמן ניטרלי: לא מוחקים מועד שנרשם ביד.
+  capitalDeclarationDeadline: {
+    source: 'wealthDemandDue',
+    display: (v) => v.split('-').reverse().join('.'),
+    businessValue: (f) => (f.wealthDemand ? 'info' : null),
+  },
 };
+
+/** מפתחות שקיימים רק בתוצאה של 154 — ריצה ישנה בלעדיהם היא «לא נבדק», לא כשל. */
+const SHAAM_154_ONLY_SOURCES = new Set(['wealthDemand', 'wealthDemandDue']);
 
 /** הערך הגולמי בתיק — לא הטקסט המוצג. «סוג תיק» מוצג «52 · חד-צדית…» ושע״ם מחזירה «52». */
 function currentRaw(client: Client, fieldKey: string): string {
@@ -336,6 +367,9 @@ function interpretShaam134(
     if (!spec || !fields) return { fieldKey, label, status: 'unsupported', currentValue };
 
     const raw = (fields[spec.source] ?? '').trim();
+    if (raw === '' && SHAAM_154_ONLY_SOURCES.has(spec.source) && fields.wealthDemand === undefined) {
+      return { fieldKey, label, status: 'unsupported', currentValue };
+    }
     if (raw === '') {
       const business = spec.businessValue?.(fields) ?? null;
       if (business === 'info') {
@@ -367,7 +401,7 @@ function interpretShaam134(
     }
     const hint = spec.hint?.(normalized);
     const base = {
-      fieldKey, label, currentValue, authorityRaw: raw, authorityDisplay: raw,
+      fieldKey, label, currentValue, authorityRaw: raw, authorityDisplay: spec.display?.(normalized) ?? raw,
       authorityValue: normalized, hint, group: spec.group,
     };
     // ‼ ההשוואה היא בין הערכים המנורמלים, ולכן «0» של שע״ם מול «0» בתיק
@@ -734,7 +768,7 @@ function interpretBtlFile(
 export const AUTHORITY_AUTOMATION: Partial<Record<TaxAuthority, AuthorityAutomationSpec>> = {
   income_tax: {
     authority: 'income_tax',
-    // ‼ «קריאת תיק» ולא «בדוק»: זו קריאת נתוני התיק (134), לא בדיקת ייצוג.
+    // ‼ «קריאת תיק» ולא «בדוק»: זו קריאת נתוני התיק (154/134), לא בדיקת ייצוג.
     // בדיקת קבלת הייצוג היא פעולה אחרת, על כרטיס הייצוג/האדם (NiNextActionButton).
     // ‼ אותו שם כמו במסלולים, ברצועה בכרטיס ובעמוד האוטומציות (FLOW_ACTION_NAMES).
     actionLabel: FLOW_ACTION_NAMES[SHAAM_SYNC_INCOME_TAX_ACTION_TYPE],
@@ -742,7 +776,8 @@ export const AUTHORITY_AUTOMATION: Partial<Record<TaxAuthority, AuthorityAutomat
     available: true,
     actionType: SHAAM_SYNC_INCOME_TAX_ACTION_TYPE,
     capability: SHAAM_READ_134,
-    sourceRef: 'shaam-134',
+    // ‼ מערכת גביית מס הכנסה (154/134) — לא שאילתה אחת. הצעות ישנות נשארו עם 'shaam-134'.
+    sourceRef: 'shaam-gmf',
     supportedFieldKeys: new Set(Object.keys(SHAAM_134_FIELD_SOURCES)),
     buildInput: (client) => {
       const res = incomeTaxFileInput(client);

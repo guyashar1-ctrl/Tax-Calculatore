@@ -8,6 +8,7 @@
 
 import type { NewWorkRow } from '../taxYear/workMeta';
 import { WEALTH_GROUP_LABEL, type WealthGroup } from './parse/parseShaam';
+import { GMF154_SOURCE_NAME } from './fromGmf154';
 
 export type ObligationState = 'open' | 'filed_per_shaam' | 'history' | 'context' | 'needs_review' | 'dismissed';
 export type ReviewReason = 'unmatched' | 'ambiguous' | 'name_mismatch' | 'parse' | 'contradiction' | 'not_ours';
@@ -125,19 +126,24 @@ export const MATCH_TEXT: Record<string, string> = {
   tax_file: 'לפי מספר תיק מ״ה בכרטיס', id: 'לפי ת.ז. בכרטיס', spouse_id: 'לפי ת.ז. בן/בת הזוג בכרטיס', manual: 'שויך ידנית',
 };
 
-export function listName(o: Pick<Obligation, 'kind' | 'group'>): string {
+export function listName(o: Pick<Obligation, 'kind' | 'group' | 'sourceName'>): string {
+  if (o.sourceName === GMF154_SOURCE_NAME) return 'מידע אודות שנות מס (154)';
   return o.kind === 'annual' ? 'מעקב הגשת דוחות (IDOM)' : `דרישות הצהרת הון (AHZM) · ${o.group ? WEALTH_GROUP_LABEL[o.group] : ''}`;
 }
 
 /** «מקור: שע״ם · מעקב הגשת דוחות · הופקה 15.10.2026 · עמוד 1 שורה 3». ‼ רק השורה של הלקוח — לא הקובץ. */
-export function sourceText(o: Pick<Obligation, 'kind' | 'group' | 'producedOn' | 'evidence' | 'lastSeenAt'>): string {
+export function sourceText(o: Pick<Obligation, 'kind' | 'group' | 'producedOn' | 'evidence' | 'lastSeenAt' | 'sourceName'>): string {
   const ev = o.evidence ?? {};
-  return ['מקור: שע״ם', listName(o), o.producedOn ? `הופקה ${dmy(o.producedOn)}` : '', ev.page ? `עמוד ${ev.page}` : '', ev.line ? `שורה ${ev.line}` : '',
-    o.lastSeenAt ? `נקלט ${dmy(o.lastSeenAt)}` : ''].filter(Boolean).join(' · ');
+  // ‼ 154 נקראה ליישור קו — אין «עמוד/שורה» של קובץ להפנות אליהם.
+  const query = o.sourceName === GMF154_SOURCE_NAME;
+  return ['מקור: שע״ם', listName(o), o.producedOn ? `${query ? 'נקרא' : 'הופקה'} ${dmy(o.producedOn)}` : '',
+    !query && ev.page ? `עמוד ${ev.page}` : '', !query && ev.line ? `שורה ${ev.line}` : '',
+    !query && o.lastSeenAt ? `נקלט ${dmy(o.lastSeenAt)}` : ''].filter(Boolean).join(' · ');
 }
 
 /** קצר — לשורה ברשימת העבודות; המלא (sourceText) בכותרת השורה ובתיק הלקוח. */
-export const sourceShort = (o: Pick<Obligation, 'producedOn'>) => `מקור: שע״ם${o.producedOn ? ` · הופקה ${dmy(o.producedOn)}` : ''}`;
+export const sourceShort = (o: Pick<Obligation, 'producedOn' | 'sourceName'>) =>
+  `מקור: שע״ם${o.producedOn ? ` · ${o.sourceName === GMF154_SOURCE_NAME ? 'נקרא' : 'הופקה'} ${dmy(o.producedOn)}` : ''}`;
 
 /** מצב העותק בהיסטוריה: שלושה מצבים נפרדים (הבריף): הוגשה לפי שע״ם · עותק קיים במשרד · בקשת עותק ממתינה. */
 export function copyState(o: Pick<Obligation, 'state' | 'copyInOffice' | 'copyStepId' | 'copyStepStatus'>): 'in_office' | 'requested' | 'received' | 'missing' | null {

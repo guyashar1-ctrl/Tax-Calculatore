@@ -237,10 +237,8 @@ export function buildAuthorityRows(
       syncKey: 'pitAdvanceFrequency',
     });
     const bal = balanceText(client.incomeTaxBalance);
-    // ‼ syncKey נוסף לשורה הקיימת — לא שורה חדשה. עד עכשיו הוחסר בכוונה:
-    // «יתרה» ב-134 היא יתרת חשבון המקדמות לשנה, לא יתרת חשבון מס הכנסה
-    // הכללית שהשדה הזה מתאר, וההבדל הזה תועד במפורש (786468f). זו החלטת
-    // מוצר מודעת למפות בכל זאת — לא תיקון של אותה הסתייגות.
+    // ‼ «יתרה» מתעדכנת מסך יתרת החוב/הזכות של התיק בשאילתה 154 (21.10.2026).
+    // לפני כן מופתה ליתרת חשבון המקדמות של 134 — הסתייגות 786468f נסגרה.
     facts.push(bal
       ? { k: 'יתרה', v: bal.text, tone: bal.tone, editKey: 'incomeTaxBalance', syncKey: 'incomeTaxBalance' }
       : { k: 'יתרה', v: EMPTY, editKey: 'incomeTaxBalance', syncKey: 'incomeTaxBalance' });
@@ -252,16 +250,17 @@ export function buildAuthorityRows(
     }
     if (client.capitalDeclarationRequired != null) {
       facts.push(client.capitalDeclarationRequired
-        ? { k: 'הצהרת הון', tone: 'warn', editKey: 'capitalDeclarationRequired',
+        ? { k: 'הצהרת הון', tone: 'warn', editKey: 'capitalDeclarationRequired', syncKey: 'capitalDeclarationRequired',
             v: `דרישה פתוחה${client.capitalDeclarationDeadline ? ` · עד ${shortDate(client.capitalDeclarationDeadline)}` : ''}` }
-        : { k: 'הצהרת הון', v: 'אין דרישה פתוחה', tone: 'ok', editKey: 'capitalDeclarationRequired' });
+        : { k: 'הצהרת הון', v: 'אין דרישה פתוחה', tone: 'ok', editKey: 'capitalDeclarationRequired', syncKey: 'capitalDeclarationRequired' });
     } else {
-      facts.push({ k: 'הצהרת הון', v: EMPTY, editKey: 'capitalDeclarationRequired' });
+      facts.push({ k: 'הצהרת הון', v: EMPTY, editKey: 'capitalDeclarationRequired', syncKey: 'capitalDeclarationRequired' });
     }
     facts.push({
       k: 'מועד הצהרת הון',
       v: client.capitalDeclarationDeadline ? shortDate(client.capitalDeclarationDeadline) : EMPTY,
       editKey: 'capitalDeclarationDeadline',
+      syncKey: 'capitalDeclarationDeadline',
     });
     if (client.withholdingStatus) {
       const t = WITHHOLDING_LABELS[client.withholdingStatus];

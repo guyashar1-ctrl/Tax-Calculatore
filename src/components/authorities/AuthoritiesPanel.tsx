@@ -38,6 +38,8 @@ import EditControl from '../../features/taxFile/EditControl';
 import { AUTHORITY_AUTOMATION, buildAuthorityCheck } from '../../features/taxFile/authorityAutomation';
 import type { AuthorityAutomationSpec, AuthorityCheckResult } from '../../features/taxFile/authorityAutomation';
 import { shaamRepresentationAction } from '../../features/taxFile/shaamRepresentationAction';
+import { gmf154Filing, filingNoteText } from '../../features/shaamFiling/fromGmf154';
+import { useGmf154Import } from '../../features/shaamFiling/useGmf154Import';
 import { authorityFieldHelp } from '../../features/taxFile/authorityFieldHelp';
 import { AuthorityCheckButton, AuthorityCheckSummary, FieldStatusMark, FieldAuthorityLine, PersonSyncButton } from '../clientTabs/AuthorityCheckPanel';
 import NiOccupationsDisclosure from './NiOccupationsDisclosure';
@@ -152,6 +154,12 @@ export default function AuthoritiesPanel({
   const liveJobOf = (a: TaxAuthority): AutomationJob | null =>
     (jobOverrides && a in jobOverrides ? jobOverrides[a] : authorityJobs[a]?.job) ?? null;
   authorityJobsRef.current = { income_tax: liveJobOf('income_tax'), vat: liveJobOf('vat'), national_insurance: liveJobOf('national_insurance') };
+
+  // ‼ (21.10.2026) קריאת מס הכנסה כוללת את 154 — השנים שחייבות ולא הוגשו ודרישות הצהרת הון נכנסות
+  // ל«מרשימות שע״ם» (250). לא במשימה מדומה (jobOverrides — הדגמה/צפייה).
+  const incomeTaxJob = liveJobOf('income_tax');
+  const filing154 = incomeTaxJob?.status === 'succeeded' ? gmf154Filing(incomeTaxJob.result) : null;
+  const { error: filingImportError } = useGmf154Import(client.id || undefined, incomeTaxJob, !(jobOverrides && 'income_tax' in jobOverrides));
 
   // ‼ (219) הקריאה האחרונה שהצליחה מב"ל — הצהרה שמורה שקריאה שלמה לא מצאה
   // אינה «מאומתת» בכרטיס, עוד לפני שאושרה ההצעה לעדכן.
@@ -696,6 +704,14 @@ export default function AuthoritiesPanel({
                 onApprove={() => { if (check) void approveAuthorityChanges(spec, check); }}
               >
                 {(inputBlocked ?? unavailable) && !running && <div className="txf-check-note">{inputBlocked ?? unavailable}</div>}
+                {row.authority === 'income_tax' && filing154 && !running && (
+                  <div className="txf-check-note" data-gmf154-note>
+                    <span className="txf-check-grp">דוחות שנתיים</span> {filingNoteText(filing154)}
+                  </div>
+                )}
+                {row.authority === 'income_tax' && filing154 && filingImportError && (
+                  <div className="txf-check-err">השנים מ-154 לא נשמרו ב«דוחות והצהרות» ({filingImportError}). ייקלטו בקריאה הבאה.</div>
+                )}
               </AuthorityCheckSummary>
             )}
 

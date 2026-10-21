@@ -29,6 +29,7 @@ import { chromium } from 'playwright-core';
 import { spawn, execFileSync } from 'node:child_process';
 import { resolve } from 'node:path';
 import { mkdirSync, existsSync } from 'node:fs';
+import { pageHasExistingYear } from './gmf154.mjs';
 
 const CDP_URL = 'http://localhost:9222';
 const SHAAM_ROOT = 'https://shaam.taxes.gov.il/';
@@ -845,6 +846,101 @@ export async function openAdvancesInfo(page, fileNumber) {
     return { ok: false, reason: 'data_screen_missing', pathname: data.pathname, steps };
   }
   return { ok: true, page: work, pathname: data.pathname, steps };
+}
+
+// ─── שאילתה 154 — «מידע אודות שנות מס» ─────────────────────────────────────
+// ‼ נצפה חי 21.10.2026: הכותרת (מספר תיק + 154 + #gmfBtnHmse) מובילה ישר
+// ל-/gmf-154/main/gmf154-data, בלי מסך כניסה. הנתונים מגיעים בשתי קריאות
+// JSON של המסך עצמו, ו-#btnNext מדפדף 5 שנים אחורה (fromYear) — כל לחיצה היא
+// קריאת getPrtTavla נוספת. קורא בלבד.
+export const GMF_QUERY_TAX_YEARS = '154';
+export const GMF_154_DATA_PATH = '/gmf-154/main/gmf154-data';
+const GMF_154_HEAD_API = '/gmf154Api/api/getPrtKnisaShilta';
+const GMF_154_TABLE_API = '/gmf154Api/api/getPrtTavla';
+const GMF_154_NEXT = '#btnNext';
+/** עד 20 שנה אחורה. נעצרים קודם כשעמוד שלם הוא «שנה לא קיימת». */
+export const GMF_154_MAX_PAGES = 4;
+
+/** ממתין לתשובת JSON של המסך לנתיב מסוים. ‼ נרשמים לפני הלחיצה, אחרת התשובה עלולה לחלוף. */
+function captureJson(page, path, timeout) {
+  return page.waitForResponse((r) => {
+    try { return new URL(r.url()).pathname === path; } catch { return false; }
+  }, { timeout })
+    .then(async (r) => ({ status: r.status(), body: await r.json().catch(() => null) }))
+    .catch(() => null);
+}
+
+/**
+ * פותח את 154 עבור מספר תיק ומחזיר את תשובות ה-JSON (ראש + עמוד לכל 5 שנים).
+ * ‼ אותה התחלה כמו openAdvancesInfo: הלשונית שכבר על GMF, הכותרת קיימת בכל
+ * מסך, ומספר התיק נכתב מחדש ומאומת לפני ההגשה.
+ */
+export async function openTaxYearsInfo(page, fileNumber, { maxPages = GMF_154_MAX_PAGES } = {}) {
+  const steps = [];
+  const note = (s) => { steps.push(s); };
+
+  const context = page.context();
+  let work = await pickPageOn(context, '/gmf-', GMF_TIK_INPUT);
+  if (work) {
+    note(`start:reuse ${new URL(work.url()).pathname}`);
+  } else {
+    work = page;
+    await work.goto(GMF_URL, { waitUntil: 'domcontentloaded', timeout: 25000 }).catch(() => {});
+    const landed = await settlePage(work);
+    note(`start:navigated ${landed.pathname}`);
+    if (!GMF_ANY_PATH.test(landed.pathname) || landed.hasPasswordField) {
+      return { ok: false, reason: 'gmf_not_ready', pathname: landed.pathname, steps };
+    }
+  }
+
+  const modal = await readGmfBlockingModal(work);
+  if (modal.blocked) return { ok: false, reason: 'blocked_by_modal', modalTitle: modal.title, steps };
+
+  if (!(await work.$(GMF_TIK_INPUT)) || !(await work.$(GMF_SHILTA_INPUT))) {
+    return { ok: false, reason: 'header_fields_missing', steps };
+  }
+  const tikSet = await fillAndVerify(work, GMF_TIK_INPUT, fileNumber);
+  const qSet = await fillAndVerify(work, GMF_SHILTA_INPUT, GMF_QUERY_TAX_YEARS);
+  note(`header:tik=${tikSet.ok ? 'ok' : 'MISMATCH'}(${tikSet.got}) query=${qSet.ok ? 'ok' : 'MISMATCH'}`);
+  if (!tikSet.ok || !qSet.ok) return { ok: false, reason: 'header_value_not_applied', steps };
+
+  const submit = work.locator(GMF_HEADER_SUBMIT).first();
+  if (!(await submit.count())) return { ok: false, reason: 'header_submit_missing', steps };
+  const headP = captureJson(work, GMF_154_HEAD_API, 40000);
+  const tableP = captureJson(work, GMF_154_TABLE_API, 40000);
+  try {
+    await submit.click({ timeout: 10000 });
+  } catch (e) {
+    return { ok: false, reason: 'submit_click_blocked', detail: String(e).slice(0, 120), steps };
+  }
+  await work.waitForURL((u) => new URL(u).pathname.startsWith(GMF_154_DATA_PATH), { timeout: 30000 })
+    .catch(() => {});
+  const [head, first] = await Promise.all([headP, tableP]);
+  const data = await settlePage(work, { idleMs: 15000, watchMs: 2000 });
+  note(`data:${data.pathname} head=${head?.status ?? 'none'} table=${first?.status ?? 'none'}`);
+  if (data.hasPasswordField) return { ok: false, reason: 'gmf_not_ready', pathname: data.pathname, steps };
+  if (!data.pathname.startsWith(GMF_154_DATA_PATH)) {
+    return { ok: false, reason: 'data_screen_missing', pathname: data.pathname, steps };
+  }
+  if (!head?.body || !first?.body) return { ok: false, reason: 'data_not_captured', steps };
+
+  const pages = [first.body];
+  while (pages.length < maxPages && pageHasExistingYear(pages[pages.length - 1])) {
+    const next = work.locator(GMF_154_NEXT).first();
+    if (!(await next.count())) { note('page:no-next'); break; }
+    const nextP = captureJson(work, GMF_154_TABLE_API, 20000);
+    try {
+      await next.click({ timeout: 8000 });
+    } catch (e) {
+      note(`page:click-failed ${String(e).slice(0, 60)}`);
+      break;
+    }
+    const r = await nextP;
+    if (!r?.body) { note(`page:${pages.length + 1} not captured`); break; }
+    pages.push(r.body);
+    note(`page:${pages.length}`);
+  }
+  return { ok: true, page: work, pathname: data.pathname, head: head.body, pages, steps };
 }
 
 /**

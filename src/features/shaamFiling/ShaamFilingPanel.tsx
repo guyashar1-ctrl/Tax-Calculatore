@@ -15,6 +15,7 @@ import { WEALTH_GROUP_LABEL, type WealthGroup } from './parse/parseShaam';
 import { confirmGroupEmpty, previewImport, requestCopy, resolveObligation, saveImport, uploadSource, type PreviewResult } from './api';
 import { COPY_TEXT, MATCH_TEXT, sourceShort, REVIEW_TEXT, copyState, dmy, needsRequest, obligationDueText, obligationTitle, planCounts, sourceText, stateLine, type Obligation, type PlanRow } from './model';
 import { useObligations } from './useObligations';
+import { isGmf154Source } from './fromGmf154';
 import ShaamGuide from './ShaamGuide';
 import OpenRequestsDialog from './OpenRequestsDialog';
 import './shaamFiling.css';
@@ -36,6 +37,8 @@ type Phase = 'idle' | 'reading' | 'review' | 'saving' | 'saved';
 
 export default function ShaamFilingPanel({ clients, onOpenRequests, onChanged, hideOpenRows }: ShaamFilingPanelProps) {
   const { obligations, sources, err, load } = useObligations();
+  // ‼ קריאות 154 מיישור הקו הן מקור בלי קובץ — לא «קובץ שנקלט».
+  const uploaded = sources.filter(s => !isGmf154Source(s));
   const byId = useMemo(() => new Map(clients.map(c => [c.id, c])), [clients]);
   const [guide, setGuide] = useState(false);
   const [phase, setPhase] = useState<Phase>('idle');
@@ -287,10 +290,10 @@ export default function ShaamFilingPanel({ clients, onOpenRequests, onChanged, h
         </details>
       )}
 
-      {sources.length > 0 && (
+      {uploaded.length > 0 && (
         <details className="shf-details" data-sf-sources>
-          <summary><b>קבצים שנקלטו</b> <span className="shf-chip">{sources.length}</span></summary>
-          <ul className="shf-rows">{sources.map(s => (
+          <summary><b>קבצים שנקלטו</b> <span className="shf-chip">{uploaded.length}</span></summary>
+          <ul className="shf-rows">{uploaded.map(s => (
             <li key={s.id} className="shf-row"><span className="shf-row-main"><b dir="auto">{s.fileName}</b>
               <small>{s.kind === 'annual' ? `דוחות שנתיים${s.taxYear ? ` ${s.taxYear}` : ''}` : `הצהרות הון · ${s.group ? WEALTH_GROUP_LABEL[s.group] : ''}`}{s.producedOn ? ` · הופקה ${dmy(s.producedOn)}` : ''} · נקלט {dmy(s.uploadedAt)}{s.status === 'empty_confirmed' ? ' · נבדקה וריקה' : ''}{s.method === 'manual' ? ' · אישור ידני' : ''}{s.note ? ` · ${s.note}` : ''}</small></span></li>
           ))}</ul>
