@@ -108,7 +108,7 @@ const FIELDS: FieldDef[] = [
   ] as const).map(([v, label, x, w]) => f({
     id: `p1.marital.${v}`, dataKey: `maritalStatus=${v}`, label: `מצב משפחתי — ${label}`, page: 1, section: 'marital',
     box: { x, y: 525.3, w, h: 8.7 }, kind: 'checkbox', overflow: 'none', required: 'always',
-    source: 'clients.family_status · השוואה/השלמה: btl_portal_facts.familyStatus (207)', formatRule: 'single→רווק · married→נשוי · divorced→גרוש · widowed→אלמן; «ידוע בציבור» והורה-יחיד — רק בהזנה מפורשת',
+    source: 'clients.family_status · השוואה/השלמה: btl_portal_facts.familyStatus (207)', formatRule: 'single←רווק · married←נשוי · divorced←גרוש · widowed←אלמן; «ידוע בציבור» והורה-יחיד — רק בהזנה מפורשת',
     validation: 'בדיוק אחד מסומן',
   })),
   f({ id: 'p1.marital.sinceMonth', dataKey: 'maritalSinceMonth', label: 'מצב משפחתי — החל מחודש', page: 1, section: 'marital',

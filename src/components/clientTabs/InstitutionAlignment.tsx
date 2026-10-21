@@ -20,6 +20,7 @@ import { supabase } from '../../lib/supabase';
 import { useDocumentStore } from '../../hooks/useDocumentStore';
 import type { DocCategory, StoredDoc } from '../../hooks/useDocumentStore';
 import { CURRENT_TAX_YEAR } from '../../data/taxData';
+import { ARROW, ArrowText } from '../ui/ArrowPath';
 
 // ─── תצורת השדות — אחת לכל מוסד ─────────────────────────────────────────────
 
@@ -120,30 +121,30 @@ const BALANCE_NOTE = 'כפי שמופיע בפורטל: מספר חיובי = ח
 
 const INSTITUTIONS: Record<InstitutionKey, InstitutionConfig> = {
   btl: {
-    occupationsWhere: ['פרטים כלליים → ריכוז מידע → עיסוק', 'עיסוקים והכנסות → רשימת עיסוקים'],
+    occupationsWhere: ['פרטים כלליים ← ריכוז מידע ← עיסוק', 'עיסוקים והכנסות ← רשימת עיסוקים'],
     // ‼ אותם מסכים שהעובד קורא (btlInsuredSession.mjs: readInfoSummary,
     // openIncomeList) — לא מסלול שהומצא.
     readOnlyWhere: {
-      niInsuranceBasis: ['פרטים כלליים → ריכוז מידע → דמי ביטוח'],
-      niIncomeList: ['עיסוקים והכנסות → רשימת הכנסות → שורה שמקור המידע שלה «שומה»'],
+      niInsuranceBasis: ['פרטים כלליים ← ריכוז מידע ← דמי ביטוח'],
+      niIncomeList: ['עיסוקים והכנסות ← רשימת הכנסות ← שורה שמקור המידע שלה «שומה»'],
     },
     sections: [
       {
         kicker: 'מצב חשבון',
         fields: [
           { key: 'niBalance', label: 'יתרה בביטוח לאומי', type: 'number', governedKey: 'niBalance',
-            where: ['מצב חשבון → לפי ימי ערך ריאלי'],
+            where: ['מצב חשבון ← לפי ימי ערך ריאלי'],
             note: BALANCE_NOTE,
             toPatchValue: v => v === '' ? null : Number(v) },
         ],
       },
       {
         kicker: 'מקדמות',
-        where: ['דמי ביטוח → דמי ביטוח שנתיים → פירוט חודשים'],
+        where: ['דמי ביטוח ← דמי ביטוח שנתיים ← פירוט חודשים'],
         fields: [
           { key: 'incomeBasisMonthly', label: 'הכנסה חודשית מוצהרת', type: 'number',
             governedKey: 'niIncomeBasisMonthly',
-            where: ['עיסוקים והכנסות → רשימת הכנסות → שורה שמקור המידע שלה «הצהרה» → סכום הכנסה'],
+            where: ['עיסוקים והכנסות ← רשימת הכנסות ← שורה שמקור המידע שלה «הצהרה» ← סכום הכנסה'],
             // ‼ (219) «סכום הכנסה» בשורת «שומה» הוא הכנסה שנתית — לא לכאן.
             note: 'רק שורת «הצהרה» היא הכנסה לחודש. «שומה» לינואר–דצמבר היא הכנסה שנתית — אין להעתיק אותה לכאן.',
             toPatchValue: v => v === '' ? null : Number(v) },
@@ -156,7 +157,7 @@ const INSTITUTIONS: Record<InstitutionKey, InstitutionConfig> = {
       {
         key: 'niDebitAuthorization', label: 'הרשאה לחיוב חשבון', options: AUTH_OPTS, badValues: ['אין הרשאה'],
         governedKey: 'niDebitAuthorization', governedPatch: bad => !bad,
-        where: ['הוראות כספיות → הרשאות לחיוב'],
+        where: ['הוראות כספיות ← הרשאות לחיוב'],
         outcome: () => ({ kind: 'request', title: 'הקמת הרשאה לחיוב בביטוח לאומי - קוד מוטב 28900',
           sub: 'להקים הרשאה לחיוב חשבון בביטוח לאומי, קוד מוטב 28900.' }),
       },
@@ -166,7 +167,7 @@ const INSTITUTIONS: Record<InstitutionKey, InstitutionConfig> = {
     sections: [
       {
         kicker: 'פרטי רישום',
-        where: ['פרטי עוסק → פרטי רישום'],
+        where: ['פרטי עוסק ← פרטי רישום'],
         fields: [
           { key: 'vatFileType', label: 'סוג תיק', type: 'select',
             options: ['עוסק מורשה', 'עוסק פטור', 'חברה', 'מלכ״ר', 'אחר'], governedKey: 'vatFileType' },
@@ -179,7 +180,7 @@ const INSTITUTIONS: Record<InstitutionKey, InstitutionConfig> = {
       },
       {
         kicker: 'דיווח ויתרה',
-        where: ['פרטי עוסק → מאפייני דיווח'],
+        where: ['פרטי עוסק ← מאפייני דיווח'],
         fields: [
           { key: 'vatFrequency', label: 'תדירות דיווח', type: 'select',
             options: ['חודשי', 'דו-חודשי'], governedKey: 'vatFrequency',
@@ -200,7 +201,7 @@ const INSTITUTIONS: Record<InstitutionKey, InstitutionConfig> = {
       {
         key: 'vatDebitAuthorization', label: 'הרשאה לחיוב חשבון', options: AUTH_OPTS, badValues: ['אין הרשאה'],
         governedKey: 'vatDebitAuthorization', governedPatch: bad => !bad,
-        where: ['פורטל המייצגים → רשימת מיוצגים → מע״מ → הרשאה לחיוב חשבון'],
+        where: ['פורטל המייצגים ← רשימת מיוצגים ← מע״מ ← הרשאה לחיוב חשבון'],
         outcome: () => ({ kind: 'request', title: 'הקמת הרשאה לחיוב במע״מ',
           sub: 'להקים הרשאה לחיוב חשבון במע״מ דרך פורטל המייצגים.' }),
       },
@@ -210,7 +211,7 @@ const INSTITUTIONS: Record<InstitutionKey, InstitutionConfig> = {
     sections: [
       {
         kicker: 'תיק ומקדמות',
-        where: ['גביית מס הכנסה → 134 מקדמות → מידע לתיק'],
+        where: ['גביית מס הכנסה ← 134 מקדמות ← מידע לתיק'],
         fields: [
           { key: 'incomeTaxFileType', label: 'סוג תיק', governedKey: 'incomeTaxFileType' },
           { key: 'taxOfficeName', label: 'פקיד שומה', placeholder: 'תל אביב 3', governedKey: 'taxOfficeName' },
@@ -257,7 +258,7 @@ const INSTITUTIONS: Record<InstitutionKey, InstitutionConfig> = {
       {
         key: 'capitalDeclarationRequired', label: 'דרישת הצהרת הון', options: ['אין דרישה פתוחה', 'דרישה פתוחה'],
         badValues: ['דרישה פתוחה'], governedKey: 'capitalDeclarationRequired', governedPatch: bad => bad,
-        where: ['אזור אישי → דרישות להצהרת הון'],
+        where: ['אזור אישי ← דרישות להצהרת הון'],
         guide: {
           label: 'איך בודקים בשע״ם?',
           intro: 'בשאילתת AHZM - דרישות להצהרת הון:',
@@ -274,7 +275,7 @@ const INSTITUTIONS: Record<InstitutionKey, InstitutionConfig> = {
       {
         key: 'incomeTaxDebitAuthorization', label: 'הרשאה לחיוב חשבון', options: AUTH_OPTS, badValues: ['אין הרשאה'],
         governedKey: 'incomeTaxDebitAuthorization', governedPatch: bad => !bad,
-        where: ['פורטל המייצגים → מס הכנסה → הרשאה לחיוב חשבון'],
+        where: ['פורטל המייצגים ← מס הכנסה ← הרשאה לחיוב חשבון'],
         outcome: () => ({ kind: 'request', title: 'הקמת הרשאה לחיוב במס הכנסה',
           sub: 'להקים הרשאה לחיוב חשבון במס הכנסה דרך פורטל המייצגים.' }),
       },
@@ -362,13 +363,13 @@ function displayValue(_f: AlignmentField, raw: unknown): string {
 
 /** מסלול קצר (עד שתי תחנות, אחד בלבד) נקרא במבט — אין טעם להסתיר אותו מאחורי לחיצה. */
 function isShortHint(where: WherePath[]): boolean {
-  return where.length === 1 && where[0].split('→').length <= 2;
+  return where.length === 1 && where[0].split(ARROW).length <= 2;
 }
 
 function WhereHint({ where }: { where?: WherePath[] }) {
   const [open, setOpen] = useState(false);
   if (!where || where.length === 0) return null;
-  if (isShortHint(where)) return <div className="ial-where">{where[0]}</div>;
+  if (isShortHint(where)) return <div className="ial-where"><ArrowText text={where[0]} /></div>;
   return (
     <>
       <button type="button" className="ial-where-btn" aria-expanded={open} onClick={() => setOpen(o => !o)}>
@@ -376,7 +377,7 @@ function WhereHint({ where }: { where?: WherePath[] }) {
       </button>
       {open && (
         <div className="ial-where">
-          {where.map(p => <div key={p}>{p}</div>)}
+          {where.map(p => <div key={p}><ArrowText text={p} /></div>)}
         </div>
       )}
     </>

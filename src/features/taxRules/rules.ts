@@ -30,7 +30,7 @@ const RULE_LIST: Rule[] = [
     { taxYear: 2026, value: 13_203, basis: 'derived', sourceId: 'itaBooklet2026', locator: '4.5% × 293,397', checkedAt: C, note: 'התקרה רשמית; השיעור מנוסח החוק (משני)' },
   ] },
   { id: 'sf.mixed.formula', label: 'עצמאי שגם שכיר ומעבידו הפקיד לקרן: «סכום התקרה»', unit: 'text', computable: true, scope: ['selfEmployed', 'employee', 'employerStudyFund'], values: [
-    { taxYear: 2025, value: 'הנמוך מבין: ההכנסה מעסק או ממשלח יד, לבין התקרה פחות «המשכורת הקובעת» שבשלה הפקיד המעביד (סעיף 52 בדוח, קוד 218/219 בטופס 106)', basis: 'primary', sourceId: G25, locator: 'פרק ד, סעיפים 51 עד 52 ודוגמה 104,853 → 4,718', checkedAt: C },
+    { taxYear: 2025, value: 'הנמוך מבין: ההכנסה מעסק או ממשלח יד, לבין התקרה פחות «המשכורת הקובעת» שבשלה הפקיד המעביד (סעיף 52 בדוח, קוד 218/219 בטופס 106)', basis: 'primary', sourceId: G25, locator: 'פרק ד, סעיפים 51 עד 52 ודוגמה 104,853 ← 4,718', checkedAt: C },
     { taxYear: 2026, value: 'הנמוך מבין: ההכנסה מעסק או ממשלח יד, לבין התקרה פחות «המשכורת הקובעת» שבשלה הפקיד המעביד (סעיף 52 בדוח, קוד 218/219 בטופס 106)', basis: 'derived', sourceId: 'knessetAmendments', locator: 'מדריך 2025 + אין תיקון לסעיף 17(5א) עד 08.06.2026', checkedAt: C },
   ] },
   { id: 'sf.mixed.maxDeterminingSalary', label: 'משכורת קובעת מרבית לקרן השתלמות (שכיר)', unit: '₪', computable: true, values: [

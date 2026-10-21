@@ -231,7 +231,7 @@ export default function RepresentationFillForm({ request, onSubmit, onCancel }: 
           <div className="pg-status">ייפוי כוח ראשי (השעמ) מול: {authorityList}</div>
         </div>
         <div className="pg-actions">
-          <button className="btn btn-secondary" onClick={onCancel}>← חזרה</button>
+          <button className="btn btn-secondary" onClick={onCancel}>→ חזרה</button>
         </div>
       </div>
 

@@ -3,7 +3,14 @@
 // ‼ לחיצה על הצילום — הגדלה (מסך מלא, Escape סוגר).
 
 import { useEffect, useState } from 'react';
+import { ArrowChain } from '../../components/ui/ArrowPath';
 import { ANNUAL_GUIDE, WEALTH_GUIDE, type GuideStep } from './guideSteps';
+
+/** «IDOM ← אפשרות 4: «מעקב הגשת דוחות — כללי»» — הנתיב במסוף כשרשרת, ואז הכותרת. */
+function StepLabel({ step }: { step: GuideStep }) {
+  if (!step.path?.length) return <>{step.title}</>;
+  return <><ArrowChain steps={step.path} />: {step.title}</>;
+}
 
 function Shot({ step, big }: { step: GuideStep; big?: boolean }) {
   if (!step.img) return null;
@@ -51,32 +58,34 @@ export default function ShaamGuide({ initial = 'annual' }: { initial?: 'annual' 
           </button>
         ))}
       </div>
-      <ol className="shf-steps" aria-label="הצעדים">
-        {steps.map((s, k) => (
-          <li key={s.id}>
-            <button type="button" className={`shf-step-dot${k === i ? ' is-on' : ''}${s.pending ? ' is-pending' : ''}`} aria-current={k === i ? 'step' : undefined} onClick={() => setI(k)} data-sf-step={s.id}>
-              <b>{k + 1}</b><span>{s.title}</span>
+      <div className="shf-guide-body">
+        <ol className="shf-steps" aria-label="הצעדים">
+          {steps.map((s, k) => (
+            <li key={s.id}>
+              <button type="button" className={`shf-step-dot${k === i ? ' is-on' : ''}${s.pending ? ' is-pending' : ''}`} aria-current={k === i ? 'step' : undefined} onClick={() => setI(k)} data-sf-step={s.id}>
+                <b>{k + 1}</b><span><StepLabel step={s} /></span>
+              </button>
+            </li>
+          ))}
+        </ol>
+        <section className="shf-step" aria-live="polite" data-sf-step-body={step.id}>
+          <h4><span>{i + 1}. <StepLabel step={step} /></span>{step.pending && <span className="shf-chip amber">ממתין לאימות</span>}</h4>
+          <p>{step.body}</p>
+          {step.img && (
+            <button type="button" className="shf-shot-btn" onClick={() => setZoom(true)} aria-label={`הגדלת הצילום: ${step.img.alt}`} data-sf-zoom>
+              <Shot step={step} />
             </button>
-          </li>
-        ))}
-      </ol>
-      <section className="shf-step" aria-live="polite" data-sf-step-body={step.id}>
-        <h4>{i + 1}. {step.title}{step.pending && <span className="shf-chip amber">ממתין לאימות</span>}</h4>
-        <p>{step.body}</p>
-        {step.img && (
-          <button type="button" className="shf-shot-btn" onClick={() => setZoom(true)} aria-label={`הגדלת הצילום: ${step.img.alt}`} data-sf-zoom>
-            <Shot step={step} />
-          </button>
-        )}
-        {!!step.marks?.length && (
-          <ol className="shf-marks">{step.marks.map(m => <li key={m.n}><b>{m.n}</b> {m.text}</li>)}</ol>
-        )}
-        <div className="shf-step-nav">
-          <button type="button" className="btn btn-sm btn-secondary" disabled={i === 0} onClick={() => setI(i - 1)}>→ הקודם</button>
-          <span className="shf-muted">{i + 1} מתוך {steps.length}</span>
-          <button type="button" className="btn btn-sm btn-secondary" disabled={i === steps.length - 1} onClick={() => setI(i + 1)}>הבא ←</button>
-        </div>
-      </section>
+          )}
+          {!!step.marks?.length && (
+            <ol className="shf-marks">{step.marks.map(m => <li key={m.n}><b>{m.n}</b> {m.text}</li>)}</ol>
+          )}
+          <div className="shf-step-nav">
+            <button type="button" className="btn btn-sm btn-secondary" disabled={i === 0} onClick={() => setI(i - 1)}>→ הקודם</button>
+            <span className="shf-muted">{i + 1} מתוך {steps.length}</span>
+            <button type="button" className="btn btn-sm btn-secondary" disabled={i === steps.length - 1} onClick={() => setI(i + 1)}>הבא ←</button>
+          </div>
+        </section>
+      </div>
       {zoom && step.img && (
         <div className="shf-zoom" role="dialog" aria-modal="true" aria-label={step.img.alt} onClick={() => setZoom(false)} data-sf-zoom-open>
           <Shot step={step} big />

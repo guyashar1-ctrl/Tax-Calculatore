@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>חצים בעברית — לפני ואחרי</title>
+<style>
+  :root { --bg:#f6f7f9; --card:#fff; --ink:#1f2937; --muted:#6b7280; --line:#e5e7eb; --bad:#b42318; --bad-bg:#fef3f2; --good:#067647; --good-bg:#ecfdf3; --arrow:#475467; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.6 "Segoe UI", Arial, sans-serif; }
+  main { max-width:860px; margin:0 auto; padding:24px 16px 48px; }
+  h1 { font-size:22px; margin:0 0 4px; }
+  .sub { color:var(--muted); margin:0 0 20px; }
+  .row { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px 16px; margin-bottom:14px; }
+  .where { font-size:13px; color:var(--muted); margin-bottom:8px; }
+  .pair { display:grid; grid-template-columns:1fr; gap:8px; }
+  .box { border-radius:8px; padding:10px 12px; }
+  .box b.tag { display:block; font-size:12px; margin-bottom:4px; }
+  .before { background:var(--bad-bg); }
+  .before b.tag { color:var(--bad); }
+  .after { background:var(--good-bg); }
+  .after b.tag { color:var(--good); }
+  /* הרכיב המוצע: כל שלב מבודד, החץ ביניהם נפרד — הדפדפן לא יכול להפוך את הסדר */
+  .chain bdi { unicode-bidi:isolate; }
+  /* שלב + החץ שאחריו = יחידה אחת; השורה נשברת רק בין שלבים (שלב ארוך מרוחב המסך נשבר בתוכו) */
+  .chain .step { display:inline-block; max-width:100%; }
+  .chain .arr { color:var(--arrow); font-weight:700; margin:0 .45em; }
+</style>
+</head>
+<body>
+<main>
+  <h1>חצים בעברית — לפני ואחרי</h1>
+  <p class="sub">קוראים מימין לשמאל. החץ תמיד ←.</p>
+
+  <div class="row">
+    <div class="where">מדריך שע״ם — דוחות שנתיים</div>
+    <div class="pair">
+      <div class="box before"><b class="tag">היום</b>IDOM ← 4 «מעקב הגשת דוחות — כללי» ← סוג רשימה 1</div>
+      <div class="box after"><b class="tag">אחרי</b><span class="chain"><span class="step"><bdi>IDOM</bdi><span class="arr">←</span></span><span class="step"><bdi>4 «מעקב הגשת דוחות — כללי»</bdi><span class="arr">←</span></span><span class="step"><bdi>סוג רשימה 1</bdi></span></span></div>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="where">מדריך שע״ם — הצהרות הון</div>
+    <div class="pair">
+      <div class="box before"><b class="tag">היום</b>AHZM ← 2, שתי הפקות</div>
+      <div class="box after"><b class="tag">אחרי</b><span class="chain"><span class="step"><bdi>AHZM</bdi><span class="arr">←</span></span><span class="step"><bdi>2</bdi></span></span>, שתי הפקות</div>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="where">יישור קו — איפה רואים בשע״ם</div>
+    <div class="pair">
+      <div class="box before"><b class="tag">היום</b>גביית מס הכנסה → 134 מקדמות → מידע לתיק</div>
+      <div class="box after"><b class="tag">אחרי</b><span class="chain"><span class="step"><bdi>גביית מס הכנסה</bdi><span class="arr">←</span></span><span class="step"><bdi>134 מקדמות</bdi><span class="arr">←</span></span><span class="step"><bdi>מידע לתיק</bdi></span></span></div>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="where">ידע — ביטוח לאומי, דוגמת חישוב</div>
+    <div class="pair">
+      <div class="box before"><b class="tag">היום</b>12,000 לחודש → בסיס 34,690 → 3,864 לרבעון</div>
+      <div class="box after"><b class="tag">אחרי</b><span class="chain"><span class="step"><bdi>12,000 לחודש</bdi><span class="arr">←</span></span><span class="step"><bdi>בסיס 34,690</bdi><span class="arr">←</span></span><span class="step"><bdi>3,864 לרבעון</bdi></span></span></div>
+    </div>
+  </div>
+</main>
+</body>
+</html>

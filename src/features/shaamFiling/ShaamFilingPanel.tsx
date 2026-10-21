@@ -8,6 +8,7 @@
 
 import { useMemo, useRef, useState } from 'react';
 import type { Client } from '../../types';
+import { ArrowChain } from '../../components/ui/ArrowPath';
 import { readShaamFile } from './parse/readPdf';
 import { buildBatch, coverageText, fileVerdict, uncheckedWealthGroups, type Batch, type Coverage, type ParsedFile } from './parse/batch';
 import { WEALTH_GROUP_LABEL, type WealthGroup } from './parse/parseShaam';
@@ -158,8 +159,8 @@ export default function ShaamFilingPanel({ clients, onOpenRequests, onChanged, h
       {guide && (
         <div className="shf-what">
           <ul className="shf-what-list">
-            <li><b>דוחות שנתיים:</b> IDOM ← 4 «מעקב הגשת דוחות — כללי» ← סוג רשימה 1, לשנת המס הרצויה, כל המיוצגים. כל העמודים (PF8).</li>
-            <li><b>הצהרות הון — מעקב שוטף:</b> AHZM ← 2, שתי הפקות: «לא הגישו ולא חייבים בקנס» ו«לא הגישו וחייבים בקנס».</li>
+            <li><b>דוחות שנתיים:</b> <ArrowChain steps={['IDOM', 'אפשרות 4', 'סוג רשימה 1']} /> — לשנת המס הרצויה, כל המיוצגים. כל העמודים (PF8).</li>
+            <li><b>הצהרות הון — מעקב שוטף:</b> <ArrowChain steps={['AHZM', 'אזור 2 «רשימת דרישות»']} />, שתי הפקות: «לא הגישו ולא חייבים בקנס» ו«לא הגישו וחייבים בקנס».</li>
             <li><b>הצהרות הון — קליטה / יישור קו:</b> בנוסף «הגישו וחייבים בקנס» ו«הגישו ולא חייבים בקנס».</li>
           </ul>
           <ShaamGuide />

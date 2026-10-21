@@ -856,7 +856,7 @@ table thead th {
   .tax-center .pg-rail .pg-rail-item.is-active .pg-rail-name { font-size: var(--fs-15); font-weight: 500; color: var(--ink-1); }
   .tax-center .tc-chev { display: inline; color: var(--ink-quiet); font-size: 18px; line-height: 1; }
   /* היציאה בטלפון היא סרגל הניווט (ובטאבלט — טאבי הראש), כמו ב«המשרד».
-     «← חזרה» כאן הוביל תמיד ללקוחות, וחץ הפוך מ«› ידע מס» שבתוך הכלי. */
+     «→ חזרה ללקוחות» כאן הוביל תמיד ללקוחות, וחץ הפוך מ«› ידע מס» שבתוך הכלי. */
   .tax-center .pg-rail-back { display: none; }
 
   .tax-center .tc-back {

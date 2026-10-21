@@ -228,7 +228,7 @@ export function parseGrid(grid: Grid): ParsedPage {
   if (legacy) {
     // ‼ השורות לא חוזרות בכלל — כדי שאף מסך לא יציג אותן כחייבים
     return { status: 'legacy_annual', kind, taxYear, producedRaw, producedOn, producedAt, page, pageTotal, rows: [], columns: cols,
-      problems: [`חסרה עמודת «חייב בהגשה» — זו הפקה מהמסלול הישן (${rows.length} שורות לא נקלטו). אין לקבוע ממנה מי חייב. הפיקו מחדש: IDOM ← 4 «מעקב הגשת דוחות — כללי» ← סוג רשימה 1.`] };
+      problems: [`חסרה עמודת «חייב בהגשה» — זו הפקה מהמסלול הישן (${rows.length} שורות לא נקלטו). אין לקבוע ממנה מי חייב. הפיקו מחדש: IDOM ← אפשרות 4 («מעקב הגשת דוחות — כללי») ← סוג רשימה 1.`] };
   }
   if (!rows.length) problems.push('לא נמצאו שורות בטבלה');
   return { status: rows.length ? 'ok' : 'unreadable', kind, group, taxYear, producedRaw, producedOn, producedAt, page, pageTotal, rows, problems, columns: cols };

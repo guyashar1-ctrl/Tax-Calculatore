@@ -7,7 +7,7 @@ interface Props {
   node: QuestionNode;
   initialValue?: AnswerValue;       // לערוך תשובה קיימת — נטען כברירת מחדל
   disabled: boolean;
-  submitLabel?: string;             // ברירת מחדל: "המשך →" / בעריכה: "שמור"
+  submitLabel?: string;             // ברירת מחדל: "המשך ←" / בעריכה: "שמור"
   variant?: 'tiles';                // תצוגת אריחים גדולה — למסך השער
   onSubmit: (value: AnswerValue) => void;
   onCancel?: () => void;
@@ -236,7 +236,7 @@ export default function QuestionCard({
           onClick={handleSubmit}
           disabled={!canSubmit || disabled}
         >
-          {disabled ? 'שומר...' : (submitLabel ?? 'המשך →')}
+          {disabled ? 'שומר...' : (submitLabel ?? 'המשך ←')}
         </button>
       </div>
     </div>

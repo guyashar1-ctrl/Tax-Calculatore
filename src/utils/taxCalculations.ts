@@ -491,7 +491,7 @@ export function calculateTax(input: TaxCalcInput, taxData: TaxYearData): TaxCalc
         const excessMonthly = monthlyRent - exemptMonthly;
         const adjustedExempt = exemptMonthly - excessMonthly;
         taxableRental = (monthlyRent - adjustedExempt) * 12;
-        rentalExplanation = `פטור חלקי (תקרה מתואמת): חריגה ₪${fmt(Math.round(excessMonthly))} → פטור ₪${fmt(Math.round(adjustedExempt))} → חייב ₪${fmt(Math.round(taxableRental))}/שנה. כל שקל חריגה מוסיף 2 ₪ לחלק החייב.`;
+        rentalExplanation = `פטור חלקי (תקרה מתואמת): חריגה ₪${fmt(Math.round(excessMonthly))} ← פטור ₪${fmt(Math.round(adjustedExempt))} ← חייב ₪${fmt(Math.round(taxableRental))}/שנה. כל שקל חריגה מוסיף 2 ₪ לחלק החייב.`;
       } else {
         taxableRental = Math.max(0, rentalIncome - rentalExp);
         rentalExplanation = `שכ"ד ₪${fmt(Math.round(monthlyRent))}/חודש ≥ פי 2 מהתקרה - הפטור התאפס; חייב במלואו ₪${fmt(Math.round(taxableRental))}.`;
@@ -619,7 +619,7 @@ export function calculateTax(input: TaxCalcInput, taxData: TaxYearData): TaxCalc
       // פטור מתקפל: הפטור קטן בגובה החריגה מהתקרה
       const reducedExemption = Math.max(0, ceiling - (input.gamblingIncome - ceiling));
       gamblingTaxable = input.gamblingIncome - reducedExemption;
-      sepBreakdown.push(`הגרלות (פטור מתקפל): פטור ₪${fmt(reducedExemption)} → חייב ₪${fmt(gamblingTaxable)} × 35% = ₪${fmt(Math.round(gamblingTaxable * 0.35))}`);
+      sepBreakdown.push(`הגרלות (פטור מתקפל): פטור ₪${fmt(reducedExemption)} ← חייב ₪${fmt(gamblingTaxable)} × 35% = ₪${fmt(Math.round(gamblingTaxable * 0.35))}`);
     } else {
       gamblingTaxable = input.gamblingIncome;
       sepBreakdown.push(`הגרלות: זכייה מעל כפל התקרה - חייבת במלואה: ₪${fmt(gamblingTaxable)} × 35% = ₪${fmt(Math.round(gamblingTaxable * 0.35))}`);

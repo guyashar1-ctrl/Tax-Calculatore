@@ -621,7 +621,7 @@ export default function RepresentationRequestReview({
       {rcMode ? (
         <header className="rq-head" data-testid="rq-head">
           <div className="rq-head-top">
-            <button type="button" className="rc-quiet" onClick={onBack}>← חזרה</button>
+            <button type="button" className="rc-quiet" onClick={onBack}>→ חזרה</button>
             <div className="rq-head-acts">
               {request.linkedClientId && (
                 <button type="button" className="btn btn-secondary btn-sm" onClick={() => onOpenClientDocs(request.linkedClientId)}
@@ -675,7 +675,7 @@ export default function RepresentationRequestReview({
         </div>
         {/* הפעולה הראשית עברה לכרטיס "מה עכשיו"; כאן נשארו רק ניווט ופעולות נדירות */}
         <div className="pg-actions" style={{ flexWrap: 'wrap' }}>
-          <button className="btn btn-secondary" onClick={onBack}>← חזרה</button>
+          <button className="btn btn-secondary" onClick={onBack}>→ חזרה</button>
           {/* גם לפני שהייצוג אושר יש ללקוח מסמכים — ייפוי כוח והסכם התקשרות */}
           {request.linkedClientId && (
             <button

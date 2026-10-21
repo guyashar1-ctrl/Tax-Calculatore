@@ -77,7 +77,7 @@ export default function NiBody({ year, view }: TopicBodyProps) {
         </Sec>
 
         <Sec id="ni-3" title="מחשבון רבעוני — הנוסחה של ב״ל">
-          <p className="kn-small kn-muted" style={{ margin: 0 }}>בסיס = (הכנסה לרבעון + סף×3×0.52×(רגיל − מופחת)) ÷ (1 + רגיל×0.52). לעצמאי שזה עיסוקו היחיד, לפני גיל פרישה, עם בסיס מעל הסף. דוגמת ב״ל: 12,000 לחודש → בסיס 34,690 → 3,864 לרבעון.</p>
+          <p className="kn-small kn-muted" style={{ margin: 0 }}>בסיס = (הכנסה לרבעון + סף×3×0.52×(רגיל − מופחת)) ÷ (1 + רגיל×0.52). לעצמאי שזה עיסוקו היחיד, לפני גיל פרישה, עם בסיס מעל הסף. דוגמת ב״ל: 12,000 לחודש ← בסיס 34,690 ← 3,864 לרבעון.</p>
           <div className="kn-sim">
             <div className="kn-page" style={{ gap: 12 }}>
               <NumField id="ni-m" label="הכנסה חודשית (לפני הפחתות)" value={monthly} onChange={setMonthly} max={60_000} step={100} />
