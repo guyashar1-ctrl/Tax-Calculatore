@@ -79,6 +79,22 @@ export interface GoogleConnection {
 }
 
 /**
+ * קישור של Google (Meet / יומן) שנפתח מהמשרד — בחשבון שחובר ליומן.
+ * ‼ בלי זה Google בוחר את החשבון הראשון שמחובר בדפדפן (לרוב החשבון שבו נכנסים ל-PIVO),
+ * והמארגן נכנס לפגישה של עצמו כאורח. רק למשרד: הקישור שהלקוח מקבל נשאר כמו שהוא.
+ */
+export function asOrganizer(link: string, email?: string): string {
+  if (!email) return link;
+  try {
+    const u = new URL(link);
+    u.searchParams.set('authuser', email);
+    return u.toString();
+  } catch {
+    return link;
+  }
+}
+
+/**
  * «יום ה׳, 8 באוק׳ · 10:00–10:30» — בשעון ישראל, בלי קשר לשעון המכשיר.
  * ‼ הטווח עטוף בבידוד שמאל-לימין (LRI…PDI) בתוך הטקסט עצמו: בשורה עברית בלי בידוד
  * «10:00–10:30» מוצג «10:30–10:00». כך גם ברמז ברשימה, בשבב בכרטיס וביומן הפעילות.

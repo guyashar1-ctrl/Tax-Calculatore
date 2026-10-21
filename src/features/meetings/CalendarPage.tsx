@@ -17,7 +17,7 @@ import {
   addDays, dayLetter, dayNumber, eventRange, eventsByDay, hourRange, israelNow, rangeLabel, timeAtY, toTime,
   visibleDays, weekStart, type Placed,
 } from './calendarModel';
-import { israelToday, inviteSentInfo, meetingErrorText, REMIND_HINT, RSVP_LABELS, RSVP_TONE, type Meeting } from './meetingModel';
+import { asOrganizer, israelToday, inviteSentInfo, meetingErrorText, REMIND_HINT, RSVP_LABELS, RSVP_TONE, type Meeting } from './meetingModel';
 import InviteSentLine from './InviteSentLine';
 import type { MeetingsApi } from './useMeetings';
 import './calendar.css';
@@ -318,7 +318,7 @@ function Detail({ e, meeting, api, signer, today, onMove, onOpenPerson, onClose 
         <span className="cal-muted">{when}</span>
         <span className="cal-tag">אירוע ביומן Google</span>
         <p className="cal-muted">{e.meetingId ? 'פגישה מ-PIVO שכבר לא ברשימה (נקבעה לפני יותר מ-45 יום).' : 'לא נקבע מ-PIVO, ולכן מוצג לקריאה בלבד. עורכים אותו ב-Google.'}</p>
-        {e.htmlLink && <a className="ui-linkbtn" href={e.htmlLink} target="_blank" rel="noreferrer">פתיחה ביומן Google ↗</a>}
+        {e.htmlLink && <a className="ui-linkbtn" href={asOrganizer(e.htmlLink, api.connection?.email)} target="_blank" rel="noreferrer">פתיחה ביומן Google ↗</a>}
       </div>
     );
   }
@@ -366,7 +366,7 @@ function Detail({ e, meeting, api, signer, today, onMove, onOpenPerson, onClose 
       {scheduled && (
         <div className="cal-acts">
           {date === today && meeting.meetLink && (
-            <a className="ui-btn ui-btn-primary" href={meeting.meetLink} target="_blank" rel="noreferrer">הצטרפות ל-Meet</a>
+            <a className="ui-btn ui-btn-primary" href={asOrganizer(meeting.meetLink, api.connection?.email)} target="_blank" rel="noreferrer">הצטרפות ל-Meet</a>
           )}
           <button type="button" className="ui-btn ui-btn-ghost" onClick={() => onMove(meeting)}>שינוי מועד</button>
           {pending.length > 0 && (

@@ -8,7 +8,7 @@ import {
   utcToIsrael, whatsappReminderText, whatsappCancelText, MEETING_KIND_LABELS,
 } from '../../../supabase/functions/_shared/meetingInvite';
 import CopyBox from './CopyBox';
-import { dayHeading, israelToday, inviteSentInfo, meetingWhen, upcomingMeetings, REMIND_HINT, RSVP_LABELS, RSVP_TONE, type Meeting } from './meetingModel';
+import { asOrganizer, dayHeading, israelToday, inviteSentInfo, meetingWhen, upcomingMeetings, REMIND_HINT, RSVP_LABELS, RSVP_TONE, type Meeting } from './meetingModel';
 import InviteSentLine from './InviteSentLine';
 import type { MeetingsApi } from './useMeetings';
 import './meetings.css';
@@ -107,7 +107,7 @@ export default function UpcomingMeetings({ api, signer, onMove, onOpenConnection
               {m.status === 'scheduled' && (
                 <div className="mt-row-acts">
                   {w.date === today && m.meetLink && (
-                    <a className="ui-btn ui-btn-primary mt-join" href={m.meetLink} target="_blank" rel="noreferrer">הצטרפות ל-Meet</a>
+                    <a className="ui-btn ui-btn-primary mt-join" href={asOrganizer(m.meetLink, api.connection?.email)} target="_blank" rel="noreferrer">הצטרפות ל-Meet</a>
                   )}
                   <button type="button" className="ui-btn ui-btn-ghost" onClick={() => onMove(m)}>שינוי מועד</button>
                   {pending.length > 0 && (

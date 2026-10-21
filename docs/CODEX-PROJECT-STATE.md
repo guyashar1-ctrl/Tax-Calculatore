@@ -37,6 +37,11 @@ Ask Guy which business process or automation he wants to improve first. Inspect 
 
 ## Decision log / review evidence
 
+### 2026-10-21 — «הצטרפות ל-Meet» בחשבון העסקי (גיא אישר: «תוסיף לכפתורי ההצטרפות ב-PIVO את החשבון העסקי»)
+- הבעיה: היומן מחובר לחשבון Google העסקי, ול-PIVO גיא נכנס מ-guyashar1@gmail.com. הקישור נפתח בלי חשבון ⇒ Google בחר את הראשון בדפדפן ⇒ גיא נכנס לפגישה של עצמו כאורח.
+- התיקון: `asOrganizer(link, email)` ב-`src/features/meetings/meetingModel.ts` מוסיף `authuser=<api.connection.email>`. בשימוש ב«הצטרפות ל-Meet» (`UpcomingMeetings`, `CalendarPage`), בקישור בחלון אחרי השליחה (`MeetingDialog`) וב«פתיחה ביומן Google» (אותה בעיה). הזימון והוואטסאפ ללקוח — בלי שינוי.
+- בדיקות: `run-unit-tests.mjs meetings` 98/0 (בדיקה חדשה ב-`meetingModel.test.ts`), tsc נקי; הדגמה `?office-app` (עותק נקי מ-origin/master): בשני המסכים הקישור `…?authuser=office%40example-cpa.co.il`, טקסט הוואטסאפ ללקוח נשאר בלי. לא נבדק מול חשבונות Google האמיתיים של גיא — תנאי: החשבון העסקי מחובר באותו דפדפן.
+
 ### 2026-10-21 — קריאת תיק מס הכנסה בלי «מספר תיק» (גיא אישר)
 - הבעיה: «קריאת תיק מס הכנסה מהשע״ם» חסמה «אין מספר תיק במס הכנסה בכרטיס» גם אצל לקוח מיוצג עם ת.ז. — תהליך הייצוג אינו ממלא `taxFiles[income_tax].fileNumber`. דוגמה: שמעון (גרוש, ת.ז. בכרטיס, `tax_files` ריק — נבדק בייצור, קריאה בלבד).
 - התיקון: `src/features/taxFile/incomeTaxFileInput.ts` — מספר תיק שהוזן גובר; אחרת ת.ז. של הרשום/ה במס הכנסה (`registeredFileInfo`); נשוי שטרם הוכרע / בלי שורת תיק ⇒ חסימה «לא סומן מי מבני הזוג רשום…», לא ניחוש. מע״מ לא נגע. `authorityAutomation.ts` קורא לו.
