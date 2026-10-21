@@ -15,6 +15,7 @@ import {
 import { registeredFileInfo, hasRegisteredSpouseChoice, registeredOwnerOf } from '../features/annualReport/profile';
 import { scopeLines, requestScope, peopleFromClient, shaamSubmissions, partBPartyNames } from '../utils/repScope';
 import { signatureDocumentsOf, signedDocIdFor } from '../utils/repDocuments';
+import { submissionItOwner } from '../features/representation/repPreparation';
 import { docsForRequirement, identityRequirements } from '../utils/identityEvidence';
 import { representationInsight, missingIdentityLine, onboardingProgressLine } from '../utils/representationInsight';
 import { useDocumentDB, StoredDoc } from '../hooks/useIndexedDB';
@@ -401,9 +402,10 @@ export default function RepresentationRequestReview({
   // (מ"ה / מע"מ / ניכויים) על טופס אחד, כי טופס אחד הוא אדם אחד עם כל
   // התיקים שלו. זה גם מה שקורה בשע״ם: הזנה אחת לכל ת.ז.
   const docTargets = useMemo(() => {
-    const owner = registeredVerified
+    // ‼ 271: בקשה עם מ"ה שכבר נפתחה בשע״ם — נשארת אצל מי שהיא נפתחה עליו/ה.
+    const owner = submissionItOwner(request, null) ?? (registeredVerified
       ? (registered?.owner === 'spouse' ? 'spouse' as const : 'client' as const)
-      : undefined;
+      : undefined);
     const subs = shaamSubmissions(requestScope(request, linkedClient), people, owner);
     return subs.length
       ? subs.map(s => ({

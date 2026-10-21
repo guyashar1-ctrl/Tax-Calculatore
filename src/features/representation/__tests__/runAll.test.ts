@@ -5,7 +5,8 @@ import { test, equal, deepEqual } from '../../../testkit/tinyTest';
 import type { TestCase } from '../../../testkit/tinyTest';
 import type { Client, RepresentationRequest } from '../../../types';
 import type { AutomationJob } from '../../../types/automation';
-import { runAllPlan } from '../runAllPlan';
+import { runAllPlan, runAllRows, runnableRows } from '../runAllPlan';
+import { repSubmissions } from '../repPreparation';
 import { runChain, chainsOf, type RunAllDeps } from '../../../lib/runAllStart';
 
 const client = (over: Partial<Client> = {}): Client => ({
@@ -80,6 +81,56 @@ export const TESTS: TestCase[] = [
   test('רווק/ה — ב״ל רק לאדם עצמו', () => {
     const items = runAllPlan(request(), client({ familyStatus: 'single' }));
     equal(items.some(i => i.key === 'btl:spouse'), false);
+  }),
+  test('271: נפתחה בקשה (מ"ה+מע"מ) על הנישומה, ואז התברר שבן הזוג רשום ⇒ עדיין הגשה אחת, בלי בקשה שנייה', () => {
+    const req = request({ execution: { shaam: { 'person:client': {
+      requestNumber: '2026590050', createdAt: '2026-10-21T18:43:02Z', requestedSystems: ['מס הכנסה', 'מע"מ'],
+    } } } } as Partial<RepresentationRequest>);
+    const c = client({
+      registeredSpouseVerified: true,
+      taxFiles: [
+        { id: 't1', authority: 'vat', owner: 'client', fileNumber: '000000018', repStatus: 'pending' },
+        { id: 't2', authority: 'income_tax', owner: 'spouse', fileNumber: '000000026', repStatus: 'pending' },
+      ],
+    } as Partial<Client>);
+    const subs = repSubmissions(req, c);
+    deepEqual(subs.map(s => `${s.key}:${s.authorities.join('+')}`), ['person:client:incomeTax+vat']);
+    equal(runAllPlan(req, c).some(i => i.authority === 'shaam'), false);
+  }),
+  test('271: לפני שנפתחה בקשה — ההכרעה בכרטיס קובעת (מ"ה אצל בן הזוג הרשום)', () => {
+    const c = client({
+      registeredSpouseVerified: true,
+      taxFiles: [{ id: 't2', authority: 'income_tax', owner: 'spouse', fileNumber: '000000026', repStatus: 'pending' }],
+    } as Partial<Client>);
+    deepEqual(repSubmissions(request(), c).map(s => `${s.key}:${s.authorities.join('+')}`),
+      ['person:client:vat', 'person:spouse:incomeTax']);
+  }),
+  test('רשימה חיה: הצליח / רץ / בתור — ולחיצה שנייה לא שולחת אף אחד מהם', () => {
+    const jobs = [
+      { ...job('s1', 'succeeded', { submissionKey: 'person:client', role: 'client' }), actionType: 'shaam.create_representation',
+        createdAt: '2026-10-21T18:41:39Z', progress: { requestNumber: '2026590050' } },
+      { ...job('b1', 'succeeded', { role: 'client' }), actionType: 'btl.create_representation',
+        createdAt: '2026-10-21T18:40:43Z', result: { referenceNumber: '75791137' } },
+      { ...job('b2', 'running', { role: 'spouse' }), actionType: 'btl.create_representation', createdAt: '2026-10-21T18:41:58Z' },
+    ] as unknown as AutomationJob[];
+    const rows = runAllRows(request(), client(), jobs, []);
+    deepEqual(rows.map(r => `${r.key}:${r.state}:${r.detail ?? ''}`),
+      ['shaam:person:client:done:בקשה 2026590050', 'btl:client:done:אסמכתא 75791137', 'btl:spouse:running:']);
+    equal(runnableRows(rows).length, 0);
+  }),
+  test('רשימה חיה: «המשך» ממתין ⇒ «בתור»; משימה שנעצרה ⇒ «נעצר» עם הסיבה, לא נשלחת שוב', () => {
+    const jobs = [{ ...job('b1', 'needs_human', { role: 'client' }), actionType: 'btl.create_representation',
+      createdAt: '2026-10-21T18:40:43Z', needsHuman: 'בדקו במסך מעקב' }] as unknown as AutomationJob[];
+    const rows = runAllRows(request(), client(), jobs, [{ actionType: 'btl.create_representation', input: { role: 'spouse' } }]);
+    const by = Object.fromEntries(rows.map(r => [r.key, r]));
+    equal(by['btl:client'].state, 'stopped');
+    equal(by['btl:client'].detail, 'בדקו במסך מעקב');
+    equal(by['btl:spouse'].state, 'queued');
+    deepEqual(runnableRows(rows).map(r => r.key), ['shaam:person:client']);
+  }),
+  test('רשימה חיה: לפני הכול — כל השורות «לא הופעל», שמות פרטיים', () => {
+    const rows = runAllRows(request(), client(), [], []);
+    deepEqual(rows.map(r => `${r.label}:${r.state}`), ['שע״ם · ישראלה:idle', 'ב״ל · ישראלה:idle', 'ב״ל · ישראל:idle']);
   }),
   test('בקשה שכבר נחתמה — אין הזנות', () => {
     equal(runAllPlan(request({ status: 'awaiting_authorities' }), client()).some(i => i.authority === 'shaam'), false);

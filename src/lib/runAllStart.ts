@@ -57,7 +57,7 @@ export async function runChain(clientId: string, steps: RunAllStep[], deps: RunA
       }
       const a = await deps.after(clientId, s.actionType, s.input, prev!);
       if (!a.ok) { out.push({ key: s.key, kind: 'error', error: a.error }); continue; }
-      if ('job' in a) { prev = a.job.id; out.push({ key: s.key, kind: 'started' }); }
+      if ('job' in a) { prev = a.job.id; out.push({ key: s.key, kind: a.already ? 'already' : 'started' }); }
       else out.push({ key: s.key, kind: 'waiting' });
     } catch (e) {
       out.push({ key: s.key, kind: 'error', error: e instanceof Error ? e.message : String(e) });

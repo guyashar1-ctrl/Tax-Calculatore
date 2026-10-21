@@ -22,7 +22,7 @@ const followupFromDb = (r: Record<string, any>): AutomationFollowup => ({
 });
 
 export type AfterResult =
-  | { ok: true; job: AutomationJob }
+  | { ok: true; job: AutomationJob; already?: boolean }
   | { ok: true; followup: AutomationFollowup }
   | { ok: false; error: string };
 
@@ -34,10 +34,20 @@ export async function createAutomationJobAfter(
     p_client_id: clientId, p_action_type: actionType, p_input: input, p_after_job_id: afterJobId,
   });
   if (error) return { ok: false, error: error.message };
-  const r = data as { ok: boolean; error?: string; job?: Record<string, any>; followup?: Record<string, any> };
+  const r = data as { ok: boolean; error?: string; job?: Record<string, any>; followup?: Record<string, any>; already?: boolean };
   if (!r.ok) return { ok: false, error: r.error ?? 'create_failed' };
-  if (r.job) return { ok: true, job: automationJobFromDb(r.job) };
+  // ‼ 272: already — לאותו אדם כבר יש משימה פתוחה; היא התשובה, לא נוצר דבר.
+  if (r.job) return { ok: true, job: automationJobFromDb(r.job), already: !!r.already };
   return { ok: true, followup: followupFromDb(r.followup ?? {}) };
+}
+
+/** המשימות האחרונות של הלקוח מהסוגים האלה — מהחדשה לישנה (למצב החי של «הפעל הכול»). */
+export async function fetchClientJobs(clientId: string, actionTypes: string[]): Promise<AutomationJob[]> {
+  const { data, error } = await supabase.from('automation_jobs').select('*')
+    .eq('client_id', clientId).in('action_type', actionTypes)
+    .order('created_at', { ascending: false }).limit(40);
+  if (error || !data) return [];
+  return data.map(automationJobFromDb);
 }
 
 /** מה שממתין לתורו אצל הלקוח. */

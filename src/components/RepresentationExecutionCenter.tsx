@@ -79,7 +79,7 @@ import { repCenterPlan, type RcPrepareItem } from '../features/representation/re
 import { shaamSettled } from '../features/representation/shaamRepresentation';
 import RepDocuments, { PoaViewer, type PoaEntry, type IdEntry } from './RepDocuments';
 import { signatureReadiness, placesSentence } from '../features/representation/signatureReadiness';
-import { repPreparationFacts, shaamEnteredAt, type ShaamPrepFact } from '../features/representation/repPreparation';
+import { repPreparationFacts, shaamEnteredAt, submissionItOwner, type ShaamPrepFact } from '../features/representation/repPreparation';
 import IdentityDocAttach from './IdentityDocAttach';
 import { partsSummary } from '../features/identity/idFlex';
 import { shaamDocumentsView } from '../features/representation/shaamDocumentsGate';
@@ -880,8 +880,9 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
   // ‼ תיק מס הכנסה נכנס בהזנה של בן/בת הזוג הרשום/ה — מספרו הוא ת.ז. שלו/ה,
   // ושם הוא מופיע בשע״ם. כל עוד לא הוכרע, הוא נספר אצל הנישום, וזו בדיוק
   // השאלה שנשאלת בשלב הזה.
+  // ‼ 271: אחרי שבקשה עם מ"ה נפתחה — מ"ה נשאר בה (submissionItOwner), גם כשהרשום/ה מתברר/ת אחר כך.
   const submissions = shaamSubmissions(
-    requestScope(request, linkedClient), scopePeople, regOwner ?? undefined,
+    requestScope(request, linkedClient), scopePeople, submissionItOwner(request, linkedClient),
   );
   // ההזנה הראשונה היא שלב 1; השאר נספרים אחריה.
   const firstEntry = submissions[0] ?? null;
@@ -1680,7 +1681,7 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
           {/* ‼ 269: כל ההזנות (שע״ם, ב״ל לכל אדם) בלחיצה אחת — מעל השורות, שבהן כל אחת נשארת לבד. */}
           {linkedClient && (
             <div style={{ marginBottom: 12 }}>
-              <RunAllAutomations request={request} client={linkedClient} minItems={2} onStarted={onStepsChanged} />
+              <RunAllAutomations request={request} client={linkedClient} minRows={2} onChanged={onStepsChanged} />
             </div>
           )}
           <div className="rc-checklist" data-testid="rc-prepare">{plan.prepare.map(prepareRow)}</div>

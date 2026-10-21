@@ -11,6 +11,7 @@
  *  F6  אותו אדם הופעל ידנית בינתיים ⇒ skipped («כבר הופעל ידנית»), בלי משימה שנייה.
  *  F7  ביטול «המשך» ממתין — רק שלו; ואי אפשר לבטל פעמיים.
  *  F8  anon לא קורא ולא יוצר.
+ *  F9  (272) לאותו אדם כבר יש משימה פתוחה ⇒ היא מוחזרת, לא נוצר «המשך».
  *
  * ‼ הכול בטרנזקציה אחת שנגמרת ב-raise — staging חוזר בדיוק למה שהיה (אין ניקוי, אין
  *   משימה שמגיעה לעובד). סוג הפעולה מדומה (qa.followup_test) — שום טריגר של רשות לא נוגע.
@@ -114,6 +115,17 @@ begin
   v_out := v_out || format('F7 cancelled=%s|', (f->>'ok')::boolean and f->'followup'->>'status' = 'cancelled');
   f := public.cancel_automation_job_followup(r->'followup'->>'id');
   v_out := v_out || format('F7 twice_refused=%s|', not (f->>'ok')::boolean);
+
+  -- F9 (272)
+  update public.automation_jobs set status = 'succeeded', finished_at = now()
+   where client_id = v_cid and status in ('queued', 'running', 'needs_human');
+  a := public.create_automation_job(v_cid, 'qa.followup_test', '{"role":"client"}');
+  r := public.create_automation_job(v_cid, 'qa.followup_test2', '{"role":"x"}');
+  f := public.create_automation_job_after(v_cid, 'qa.followup_test', '{"role":"client"}', r->'job'->>'id');
+  v_out := v_out || format('F9 open_same_person_returned=%s|', (f->>'already')::boolean and f->'job'->>'id' = a->'job'->>'id');
+  select count(*) into v_n from public.automation_job_followups where client_id = v_cid and status = 'waiting' and input->>'role' = 'client';
+  v_out := v_out || format('F9 no_followup=%s|', v_n = 0);
+  v_a := a->'job'->>'id';
 
   -- F8
   perform set_config('request.jwt.claims', json_build_object('role', 'anon')::text, true);

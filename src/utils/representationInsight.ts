@@ -27,7 +27,7 @@ export interface RepresentationInsight {
   /** ‼ 235: kind — כדי שהמשרד יעלה במקום הלקוח את מה שחסר. */
   missingIdentity: { person: 'client' | 'spouse'; name: string; personName: string; prompt: string; kind: IdentityDocKind }[];
   /** 269: כל דרישת תעודה והאם התקבלה — לשורת «התקבל» בכרטיס הייצוג. */
-  identityReceived: { person: 'client' | 'spouse'; personName: string; got: boolean }[];
+  identityReceived: { person: 'client' | 'spouse'; personName: string; got: boolean; docKind?: string }[];
   /** הלקוח בחר במפורש להעלות מאוחר יותר. */
   identityDeferred: boolean;
   identityDeferredAt?: string;
@@ -66,7 +66,10 @@ export function representationInsight(
     openedAt: draft.openedAt,
     lastActivityAt: draft.lastActivityAt ?? draft.savedAt,
     missingIdentity: missing,
-    identityReceived: reqs.map(r => ({ person: r.person, personName: r.personName, got: !missing.some(m => m.person === r.person) })),
+    identityReceived: reqs.map(r => ({
+      person: r.person, personName: r.personName, got: !missing.some(m => m.person === r.person),
+      docKind: request.identityDocs?.[r.person]?.[0]?.docKind,
+    })),
     identityDeferred: (ident.identityDeferred?.length ?? 0) > 0,
     identityDeferredAt: ident.identityDeferredAt,
     deferredPersons: (ident.identityDeferred ?? []).filter((p): p is 'client' | 'spouse' => p === 'client' || p === 'spouse'),

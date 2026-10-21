@@ -5288,13 +5288,19 @@ function RepresentationStepCard({ step, stepById, highlight, statusLabel, repSta
   // ‼ 269: מה כבר התקבל מהלקוח — רק אחרי שהטופס הוגש (לפני זה repNote אומר עד איפה הגיע).
   const received = open && repRequest?.onboardingStatus === 'submitted'
     ? representationInsight(repRequest, client).identityReceived : [];
+  // «התקבל: פרטים · ת.ז. ליאת · ת.ז. אוריה ✓» — ומה שחסר, בנפרד.
+  const docWord = (k?: string) => (k === 'driverLicense' ? 'רישיון' : k === 'passport' ? 'דרכון' : 'ת.ז.');
+  const first = (n: string) => n.trim().split(/\s+/)[0] || n;
+  const gotIds = received.filter(r => r.got).map(r => `${docWord(r.docKind)} ${first(r.personName)}`);
+  const missingIds = received.filter(r => !r.got).map(r => first(r.personName));
   const receivedLine = received.length > 0
-    ? ['פרטים ✓', ...received.map(r => `תעודה של ${r.personName} ${r.got ? '✓' : '- חסרה'}`)].join(' · ')
+    ? `${['פרטים', ...gotIds].join(' · ')} ✓${missingIds.length ? ` · חסרה תעודה: ${missingIds.join(', ')}` : ''}`
     : '';
   const canRun = open && !!repRequest && !!client && (repStatus === 'awaiting_accountant' || repStatus === 'pending_signature');
   return (
     <StepCardShell step={step} stepById={stepById} highlight={highlight} menu={menu}
-      statusLabel={approvalNeeded && open ? 'הוגש בשע״ם' : act ? act.action : statusLabel}
+      /* ‼ 269: כשהרשימה החיה מוצגת — הכותרת («להזין ולהפיק טופס») אומרת את הפעולה; בלי שורות הסבר כפולות. */
+      statusLabel={approvalNeeded && open ? 'הוגש בשע״ם' : canRun ? '' : act ? act.action : statusLabel}
       state={shortAct ? { text: shortAct, tone: 'blue' } : undefined}
       primary={compact && onOpen && open && act?.mine ? (
         <button type="button" className="btn btn-sm btn-primary" onClick={onOpen}>למרכז הייצוג</button>
@@ -5310,7 +5316,7 @@ function RepresentationStepCard({ step, stepById, highlight, statusLabel, repSta
           </button>
         </div>
       ) : undefined}>
-      {!(approvalNeeded && open) && (
+      {!(approvalNeeded && open) && !canRun && (
         <div style={cardNote}>
           {act ? act.why
             : open ? 'הבדיקה, החתימה וההגשה נעשות במרכז הייצוג.'
@@ -5324,7 +5330,7 @@ function RepresentationStepCard({ step, stepById, highlight, statusLabel, repSta
       {/* ‼ 269: ההזנה ברשויות מכאן — אותו כפתור כמו במרכז הייצוג (RunAllAutomations). */}
       {canRun && (
         <div style={{ marginTop: '.55rem' }}>
-          <RunAllAutomations request={repRequest!} client={client!} spouseClient={spouseClient} onStarted={onRunStarted} />
+          <RunAllAutomations request={repRequest!} client={client!} spouseClient={spouseClient} onChanged={onRunStarted} />
         </div>
       )}
       {/* 191: עד איפה הלקוח הגיע בקליטה, או צילום תעודה שחסר אחרי ההגשה. */}
