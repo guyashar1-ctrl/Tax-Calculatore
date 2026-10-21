@@ -43,6 +43,16 @@ Ask Guy which business process or automation he wants to improve first. Inspect 
 - בלי «קליטה»: הערכה ודוח שואלים כתובת (household.address, 268) וילדים (whenEmpty) כשחסרים. work-as-request.mjs שלבים 1–2 מוחלפים.
 - בדיקות: יחידה 2038/0; e2e annual-v2 100/0, annual-purge 38/0, annual-one-round 26/0, annual-prior-return 66/0 (מחשב+טלפון). «אישורך»/חתימה — רק ביחידה.
 
+### 2026-10-21 — «הצטרפות ל-Meet» בחשבון העסקי (גיא אישר: «תוסיף לכפתורי ההצטרפות ב-PIVO את החשבון העסקי»)
+- הבעיה: היומן מחובר לחשבון Google העסקי, ול-PIVO גיא נכנס מ-guyashar1@gmail.com. הקישור נפתח בלי חשבון ⇒ Google בחר את הראשון בדפדפן ⇒ גיא נכנס לפגישה של עצמו כאורח.
+- התיקון: `asOrganizer(link, email)` ב-`src/features/meetings/meetingModel.ts` מוסיף `authuser=<api.connection.email>`. בשימוש ב«הצטרפות ל-Meet» (`UpcomingMeetings`, `CalendarPage`), בקישור בחלון אחרי השליחה (`MeetingDialog`) וב«פתיחה ביומן Google» (אותה בעיה). הזימון והוואטסאפ ללקוח — בלי שינוי.
+- בדיקות: `run-unit-tests.mjs meetings` 98/0 (בדיקה חדשה ב-`meetingModel.test.ts`), tsc נקי; הדגמה `?office-app` (עותק נקי מ-origin/master): בשני המסכים הקישור `…?authuser=office%40example-cpa.co.il`, טקסט הוואטסאפ ללקוח נשאר בלי. לא נבדק מול חשבונות Google האמיתיים של גיא — תנאי: החשבון העסקי מחובר באותו דפדפן.
+
+### 2026-10-21 — קריאת תיק מס הכנסה בלי «מספר תיק» (גיא אישר)
+- הבעיה: «קריאת תיק מס הכנסה מהשע״ם» חסמה «אין מספר תיק במס הכנסה בכרטיס» גם אצל לקוח מיוצג עם ת.ז. — תהליך הייצוג אינו ממלא `taxFiles[income_tax].fileNumber`. דוגמה: שמעון (גרוש, ת.ז. בכרטיס, `tax_files` ריק — נבדק בייצור, קריאה בלבד).
+- התיקון: `src/features/taxFile/incomeTaxFileInput.ts` — מספר תיק שהוזן גובר; אחרת ת.ז. של הרשום/ה במס הכנסה (`registeredFileInfo`); נשוי שטרם הוכרע / בלי שורת תיק ⇒ חסימה «לא סומן מי מבני הזוג רשום…», לא ניחוש. מע״מ לא נגע. `authorityAutomation.ts` קורא לו.
+- בדיקות: `__tests__/incomeTaxFileInput.test.ts` (8), כל הבדיקות 2037/0, tsc, vite build; דפדפן `?test-taxfile&case=never` — ההודעה החדשה מופיעה. לא הורצה קריאה אמיתית מול שע״ם.
+
 ### 2026-10-21 — שלב 1 אחרי הניסיון של גיא («תעשה את השלב הראשון») — בייצור (af1b1d2 + מיזוג bdcd39f)
 - «מחק לגמרי» כפריט נפרד ב-⋯ ו«מחק» ליד «החזר…» ב«בוטלו» (RemoveWorkDialog purgeOnly); תשובה לא מאושרת מעבודה שבוטלה אינה «ידוע» (api.loadYearData); «בקשה חדשה ← תיק המס» בלי «קליטה».
 - ייצור: «גיא ישר» — 5 דוחות 2025 שבוטלו נמחקו לגמרי (purge_tax_work, עותק ב-tax_work_trash); 0 עובדות 2025 נשארו.

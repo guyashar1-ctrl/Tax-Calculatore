@@ -31,7 +31,7 @@ import {
   WHO_OPTIONS, autoKind, buildDirectory, defaultWho, guestsPayload, isCompanion, knownTag, kindWhyLine,
   newPersonFate, peopleFromPaste, peopleProblems, personFromKnown, searchDirectory, type Person, type Who,
 } from './peoplePicker';
-import { israelToday, meetingWhen, type Meeting } from './meetingModel';
+import { asOrganizer, israelToday, meetingWhen, type Meeting } from './meetingModel';
 import type { MeetingsApi } from './useMeetings';
 import './meetings.css';
 
@@ -328,7 +328,7 @@ export default function MeetingDialog({ mode, clients, leads, contacts, profile,
             <p className="mt-muted">נשמר באנשי הקשר: {contactNames.join(', ')}.</p>
           )}
           {result.meetLink && (
-            <p className="mt-muted">קישור הפגישה: <a href={result.meetLink} target="_blank" rel="noreferrer" className="ltr-isolate">{result.meetLink.replace(/^https:\/\//, '')}</a></p>
+            <p className="mt-muted">קישור הפגישה: <a href={asOrganizer(result.meetLink, api.connection?.email)} target="_blank" rel="noreferrer" className="ltr-isolate">{result.meetLink.replace(/^https:\/\//, '')}</a></p>
           )}
           {!isMove && firstGuest && (
             <CopyBox label="הודעה קצרה לוואטסאפ — שידעו שהזימון במייל"

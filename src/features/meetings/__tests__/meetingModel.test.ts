@@ -10,7 +10,7 @@
 import { test, equal, assert, deepEqual } from '../../../testkit/tinyTest';
 import type { TestCase } from '../../../testkit/tinyTest';
 import {
-  meetingWhen, upcomingMeetings, meetingCueByPerson, meetingErrorText, dayHeading, historyTitle, meetingsWithEmail, cueEmailKey, inviteSentInfo,
+  meetingWhen, upcomingMeetings, meetingCueByPerson, meetingErrorText, dayHeading, historyTitle, meetingsWithEmail, cueEmailKey, inviteSentInfo, asOrganizer,
   type Meeting,
 } from '../meetingModel';
 import { nextWorkday, nameQueryOf, peopleLine } from '../MeetingDialog';
@@ -114,5 +114,12 @@ export const TESTS: TestCase[] = [
     equal(inviteSentInfo(mk('u', '2026-10-11T17:00:00Z', { status: 'unknown', sentAt: '2026-10-11T06:00:00Z' }), '2026-10-11'), null);
     equal(inviteSentInfo(mk('f', '2026-10-11T17:00:00Z', { status: 'failed' }), '2026-10-11'), null);
     equal(inviteSentInfo(mk('n', '2026-10-11T17:00:00Z'), '2026-10-11'), null);
+  }),
+  // 21.10: היומן מחובר לחשבון העסקי, ול-PIVO נכנסים מחשבון פרטי ⇒ בלי החשבון בקישור — המארגן נכנס כאורח.
+  test('«הצטרפות ל-Meet» מהמשרד — בחשבון שחובר ליומן', () => {
+    equal(asOrganizer('https://meet.google.com/abc-defg-hij', 'guy@yasharcpa.co.il'), 'https://meet.google.com/abc-defg-hij?authuser=guy%40yasharcpa.co.il');
+    equal(asOrganizer('https://www.google.com/calendar/event?eid=XyZ', 'guy@yasharcpa.co.il'), 'https://www.google.com/calendar/event?eid=XyZ&authuser=guy%40yasharcpa.co.il');
+    equal(asOrganizer('https://meet.google.com/abc-defg-hij', undefined), 'https://meet.google.com/abc-defg-hij', 'בלי חיבור — הקישור כמו שהוא');
+    equal(asOrganizer('לא קישור', 'guy@yasharcpa.co.il'), 'לא קישור');
   }),
 ];
