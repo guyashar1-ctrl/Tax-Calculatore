@@ -97,6 +97,24 @@ export const TESTS: TestCase[] = [
     deepEqual(subs.map(s => `${s.key}:${s.authorities.join('+')}`), ['person:client:incomeTax+vat']);
     equal(runAllPlan(req, c).some(i => i.authority === 'shaam'), false);
   }),
+  test('274: «הוזן ידנית» עם מ"ה נועל כמו הזנה אוטומטית — הכרעה מאוחרת לא מפצלת', () => {
+    const c = client({
+      registeredSpouseVerified: true,
+      taxFiles: [{ id: 't2', authority: 'income_tax', owner: 'spouse', fileNumber: '000000026', repStatus: 'pending' }],
+    } as Partial<Client>);
+    const req = request({ execution: { incomeTax: {
+      enteredAt: '2026-10-21T10:00:00Z', key: 'person:client', requestedSystems: ['מס הכנסה', 'מע"מ'],
+    } } } as Partial<RepresentationRequest>);
+    deepEqual(repSubmissions(req, c).map(s => `${s.key}:${s.authorities.join('+')}`), ['person:client:incomeTax+vat']);
+  }),
+  test('274: סימון ידני ישן (בלי מערכים) — כמו קודם, לפי הכרטיס', () => {
+    const c = client({
+      registeredSpouseVerified: true,
+      taxFiles: [{ id: 't2', authority: 'income_tax', owner: 'spouse', fileNumber: '000000026', repStatus: 'pending' }],
+    } as Partial<Client>);
+    const req = request({ execution: { incomeTax: { enteredAt: '2026-10-01T10:00:00Z' } } } as Partial<RepresentationRequest>);
+    deepEqual(repSubmissions(req, c).map(s => s.key), ['person:client', 'person:spouse']);
+  }),
   test('271: לפני שנפתחה בקשה — ההכרעה בכרטיס קובעת (מ"ה אצל בן הזוג הרשום)', () => {
     const c = client({
       registeredSpouseVerified: true,

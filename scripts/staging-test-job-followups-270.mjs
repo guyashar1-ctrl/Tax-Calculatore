@@ -157,4 +157,4 @@ const anonRows = anonRead.ok ? await anonRead.json() : [];
 if (Array.isArray(anonRows) && anonRows.length === 0) { pass++; console.log('  ✓ F8 anon_read_empty'); }
 else { fail++; console.log('  ✗ F8 anon_read_empty', JSON.stringify(anonRows).slice(0, 200)); }
 console.log(`\n${pass} עברו · ${fail} נכשלו  (${STAGING_REF})`);
-process.exit(fail ? 1 : 0);
+process.exitCode = fail ? 1 : 0;

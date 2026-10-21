@@ -1,0 +1,3 @@
+
+# הוק הבדיקה שלפני push רץ ב-sh — חייב LF
+.githooks/* text eol=lf

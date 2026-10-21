@@ -1381,6 +1381,10 @@ export interface RepresentationExecution {
   incomeTax?: {
     /** הפרטים הוזנו בשע"ם ונפתחה בקשת ייצוג */
     enteredAt?: string;
+    /** 274: איזו הגשה סומנה (מפתח ההגשה הראשונה ברגע הסימון) — לנעילת החלוקה. */
+    key?: string;
+    /** 274: המערכים של ההגשה ברגע הסימון («מס הכנסה», «מע"מ») — כמו requestedSystems. */
+    requestedSystems?: string[];
   };
   /**
    * הזנות שע״ם נוספות, לפי מפתח `ShaamSubmission.key` (`person:spouse`).
@@ -1390,7 +1394,7 @@ export interface RepresentationExecution {
    * `incomeTax` לעיל (תאימות לאחור), והשאר כאן. בקשה ישנה שאין לה את המפה
    * הזאת מציגה בדיוק את מה שהציגה קודם.
    */
-  shaamEntries?: Record<string, { enteredAt?: string }>;
+  shaamEntries?: Record<string, { enteredAt?: string; requestedSystems?: string[] }>;
   /**
    * מצב האינטגרציה מול שע״ם, לפי אותו מפתח הגשה (`person:client`).
    *

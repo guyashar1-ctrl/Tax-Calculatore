@@ -66,10 +66,19 @@ export function submissionItOwner(
   req: Pick<RepresentationRequest, 'execution'>,
   client: Client | null | undefined,
 ): RepTarget | undefined {
-  for (const [key, t] of Object.entries(req.execution?.shaam ?? {})) {
+  const exec = req.execution ?? {};
+  const personOf = (key: string | undefined) => /^person:(client|spouse)$/.exec(key ?? '')?.[1] as RepTarget | undefined;
+  const carriesIt = (sys: unknown) => Array.isArray(sys) && sys.includes('מס הכנסה');
+  for (const [key, t] of Object.entries(exec.shaam ?? {})) {
     if (!shaamRequestExists(t) || t?.replacement) continue;
-    const m = /^person:(client|spouse)$/.exec(key);
-    if (m && Array.isArray(t?.requestedSystems) && t.requestedSystems.includes('מס הכנסה')) return m[1] as RepTarget;
+    if (personOf(key) && carriesIt(t?.requestedSystems)) return personOf(key);
+  }
+  // ‼ 274: סימון «הוזן ידנית» נועל באותה צורה — הוא שומר את ההגשה ואת המערכים שלה ברגע הסימון.
+  if (exec.incomeTax?.enteredAt && personOf(exec.incomeTax.key) && carriesIt(exec.incomeTax.requestedSystems)) {
+    return personOf(exec.incomeTax.key);
+  }
+  for (const [key, e] of Object.entries(exec.shaamEntries ?? {})) {
+    if (e?.enteredAt && personOf(key) && carriesIt(e.requestedSystems)) return personOf(key);
   }
   return (client ? registeredOwnerOf(client) : null) ?? undefined;
 }

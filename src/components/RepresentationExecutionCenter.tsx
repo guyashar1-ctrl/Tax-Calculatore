@@ -31,7 +31,7 @@ import { getRequestSigners, effectiveSignStatus } from '../utils/repSigners';
 import { shaamSubmissions, requestScope, peopleFromClient, targetsOf } from '../utils/repScope';
 import { signatureDocumentsOf, allDocumentsStamped } from '../utils/repDocuments';
 import type { RepIdentityDocEntry } from '../types';
-import { form2279BothSign, matchRegisteredPersonName, verifyForm2279Layout } from '../features/representation/shaamRepresentation';
+import { form2279BothSign, matchRegisteredPersonName, verifyForm2279Layout, shaamSystemsOf, SHAAM_SYSTEM_SCREEN_LABELS } from '../features/representation/shaamRepresentation';
 import { readForm2279Layout } from '../utils/form2279Layout';
 import { useDocumentDB, type StoredDoc } from '../hooks/useIndexedDB';
 import { useEmailMessages } from '../hooks/useEmailMessages';
@@ -600,12 +600,12 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
     await patch({ ...exec, shaamEntries: next }, `entry-${key}`);
   }
 
-  /** סימון הזנה של אדם (ידני). */
-  async function markEntry(key: string) {
+  /** סימון הזנה של אדם (ידני). ‼ 274: עם המערכים של ההגשה — כדי שהחלוקה תינעל כמו אחרי הזנה אוטומטית. */
+  async function markEntry(key: string, requestedSystems: string[]) {
     if (entryAt(key)) return;
     await patch({
       ...exec,
-      shaamEntries: { ...(exec.shaamEntries ?? {}), [key]: { enteredAt: new Date().toISOString() } },
+      shaamEntries: { ...(exec.shaamEntries ?? {}), [key]: { enteredAt: new Date().toISOString(), requestedSystems } },
     }, `entry-${key}`);
   }
 
@@ -897,9 +897,9 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
     : '';
 
   /** סימון "הוזן בשע״ם" ידנית (ההזנה הראשונה). */
-  async function markEnteredInShaam() {
+  async function markEnteredInShaam(key: string, requestedSystems: string[]) {
     if (it.enteredAt) return;
-    await patch({ ...exec, incomeTax: { ...it, enteredAt: new Date().toISOString() } }, 'it');
+    await patch({ ...exec, incomeTax: { ...it, enteredAt: new Date().toISOString(), key, requestedSystems } }, 'it');
   }
 
   /**
@@ -1469,7 +1469,10 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
       manualAt: first ? it.enteredAt : entryAt(sub.key),
       at: enteredAtOf(sub.key, first),
       asksHere: regChoice && !regVerified && sub.key === regRowKey,
-      mark: () => (first ? markEnteredInShaam() : markEntry(sub.key)),
+      mark: () => {
+        const systems = shaamSystemsOf(sub).map(s => SHAAM_SYSTEM_SCREEN_LABELS[s]);
+        return first ? markEnteredInShaam(sub.key, systems) : markEntry(sub.key, systems);
+      },
       unmark: () => unmarkEntry(sub.key, first),
     };
   };
