@@ -121,6 +121,24 @@
       ]
     },
     {
+      "name": "בקשות: טיוטה, «פרסם בדף», הדף האישי",
+      "invariants": [
+        "INV-REQ-01"
+      ],
+      "globs": [
+        "supabase/2*-*draft*.sql",
+        "supabase/2*-*portal*.sql",
+        "supabase/2*-*intake*.sql",
+        "src/components/flows/NoticeTray.tsx"
+      ],
+      "suites": [
+        {
+          "script": "staging-test-draft-reaches-page-276.mjs",
+          "run": true
+        }
+      ]
+    },
+    {
       "name": "ביטוח לאומי: מסלולים, ביטול, בן/בת זוג",
       "invariants": [
         "INV-REP-05"
