@@ -185,7 +185,9 @@
         "src/features/taxKnowledge/**",
         "supabase/functions/knowledge-answer/**",
         "supabase/281-*.sql",
-        "scripts/knowledge-*.mjs"
+        "scripts/knowledge-*.mjs",
+        "src/features/taxKnowledge/ask/*",
+        "src/features/taxKnowledge/corpus/*"
       ],
       "suites": [
         {
@@ -200,7 +202,12 @@
       "globs": [
         "src/components/portal/*ilings*",
         "src/components/portal/PortalFilings.tsx",
-        "supabase/280-*.sql"
+        "supabase/280-*.sql",
+        "src/components/portal/portalActions.ts",
+        "src/components/PublicPortalPage.tsx",
+        "src/components/clientTabs/ClientPagePreviewDialog.tsx",
+        "src/components/clientTabs/PortalPreviewPanel.tsx",
+        "src/components/office/__fakeBackend.ts"
       ],
       "suites": [
         {
@@ -208,6 +215,14 @@
           "run": true
         }
       ]
+    },
+    {
+      "name": "«מס»: מתג, «עבודות» וסקירת העבודות (ממשק בלבד — e2e: scripts/e2e/tax-area.mjs)",
+      "invariants": [],
+      "globs": [
+        "src/features/taxArea/*"
+      ],
+      "suites": []
     }
   ],
   "watched": [
