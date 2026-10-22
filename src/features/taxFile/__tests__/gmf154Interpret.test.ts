@@ -32,11 +32,15 @@ export const TESTS: TestCase[] = [
     equal(r.get('capitalDeclarationRequired')!.status, 'match');
     equal(r.get('capitalDeclarationDeadline')!.status, 'match');
   }),
-  test('«אין דרישה» ⇒ הצעה «אין דרישה פתוחה»; המועד שנרשם ביד לא נמחק', () => {
+  test('«אין דרישה» ⇒ הצעה «אין דרישה פתוחה»; מועד שנרשם — הצעה לנקות; מועד ריק — ירוק', () => {
     const r = run({ wealthDemand: 'אין דרישה' }, client({ capitalDeclarationRequired: true, capitalDeclarationDeadline: '2026-11-30' }));
     equal(r.get('capitalDeclarationRequired')!.status, 'changed');
     equal(r.get('capitalDeclarationRequired')!.authorityValue, 'false');
-    equal(r.get('capitalDeclarationDeadline')!.status, 'info');
+    const due = r.get('capitalDeclarationDeadline')!;
+    equal(due.status, 'changed');
+    equal(due.patchValue, null);
+    equal(due.authorityDisplay, 'אין דרישה');
+    equal(run({ wealthDemand: 'אין דרישה' }).get('capitalDeclarationDeadline')!.status, 'match');
   }),
   test('טקסט לא מוכר ⇒ לא ממופה ולא מוצע', () => {
     const r = run({ wealthDemand: 'הוגשה · שנת 2024' });
@@ -64,13 +68,16 @@ export const TESTS: TestCase[] = [
     equal(r.status, 'match');
     equal(r.authorityValue, undefined);
   }),
-  test('ייצוג: מייצג ראשי = המשתמש המחובר ⇒ ירוק; מייצג אחר ⇒ מידע עם השם; ריצה ישנה ⇒ לא נבדק', () => {
+  test('ייצוג: «מייצג ראשי» ירוק; ראשי אחר ⇒ «מייצג נוסף · ראשי: …»; ריצה ישנה ⇒ לא נבדק', () => {
     const c = client({ taxFiles: [{ id: 't', authority: 'income_tax', owner: 'client', repStatus: 'active', fileNumber: '1' }] as Client['taxFiles'] });
     const read = (fields: Record<string, string>) => spec.interpret!(job(fields), c, ['incomeTaxRepresentation'])[0];
-    equal(read({ mainRepresentative: 'ישר גיא', representedByMe: 'yes' }).status, 'match');
+    const me = read({ mainRepresentative: 'ישר גיא', representedByMe: 'yes' });
+    equal(me.status, 'match');
+    equal(me.authorityDisplay, 'מייצג ראשי');
+    equal(me.showOnMatch, true, '«ראשי» כתוב גם כשירוק');
     const other = read({ mainRepresentative: 'כהן דנה', representedByMe: 'no' });
     equal(other.status, 'info');
-    equal(other.authorityDisplay, 'מייצג ראשי — כהן דנה (לא המשתמש המחובר)');
+    equal(other.authorityDisplay, 'מייצג נוסף · ראשי: כהן דנה');
     equal(read({ taxOffice: 'x' }).status, 'unsupported');
   }),
   test('ניכוי מס במקור: כמו בשע״ם — ירוק רק כשתואם, אחרת מידע; לעולם לא הצעה', () => {

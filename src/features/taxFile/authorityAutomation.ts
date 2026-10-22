@@ -89,6 +89,8 @@ export interface AuthorityFieldResult {
   patchValue?: unknown;
   /** תוספת פירוש לתצוגה (למשל תיאור קוד סוג התיק). */
   hint?: string;
+  /** להציג את authorityDisplay גם כשהשדה תואם (ירוק) — למשל «מייצג ראשי». ברירת מחדל: ירוק בלי שורה. */
+  showOnMatch?: boolean;
   /**
    * קבוצת שדות שחולקת הסבר עסקי אחד (למשל 'advances'). ההסבר מוצג פעם
    * אחת לקבוצה ולא מתחת לכל שדה — ראה groupNotes.
@@ -333,11 +335,12 @@ export const SHAAM_134_FIELD_SOURCES: Record<string, Shaam134FieldSource> = {
   capitalDeclarationRequired: {
     source: 'wealthDemand', normalize: mapWealthDemand,
   },
-  // ‼ המועד רק כשיש דרישה. בלי דרישה — סמן ניטרלי: לא מוחקים מועד שנרשם ביד.
+  // ‼ «אין דרישה» ⇒ אין מועד: ירוק כשהשדה ריק, והצעה לנקות כשנרשם מועד (22.10.2026, גיא).
+  // דרישה בטקסט לא מוכר בלי מועד — סמן ניטרלי.
   capitalDeclarationDeadline: {
     source: 'wealthDemandDue',
     display: (v) => v.split('-').reverse().join('.'),
-    businessValue: (f) => (f.wealthDemand ? 'info' : null),
+    businessValue: (f) => (f.wealthDemand === 'אין דרישה' ? { value: '', display: 'אין דרישה', patch: null } : f.wealthDemand ? 'info' : null),
   },
 };
 
@@ -369,11 +372,12 @@ function interpretShaamReadOnly(fieldKey: string, job: AutomationJob, client: Cl
     const rep = (fields.mainRepresentative ?? '').trim();
     if (!rep || !fields.representedByMe) return null;
     const active = (client.taxFiles ?? []).some(f => f.authority === 'income_tax' && f.repStatus === 'active');
+    // ‼ 22.10.2026 (גיא): «ראשי» או «נוסף» כתוב בשורה. ב-154 יש רק «מייצג ראשי»; GMF פותחת רק תיק
+    // שמייצגים — ולכן כשהראשי הוא מישהו אחר, אנחנו המייצג הנוסף.
     if (fields.representedByMe === 'yes') {
-      return { fieldKey, label: 'ייצוג', status: active ? 'match' : 'info', currentValue: '', authorityDisplay: `מייצג ראשי — ${rep}` };
+      return { fieldKey, label: 'ייצוג', status: active ? 'match' : 'info', currentValue: '', authorityDisplay: 'מייצג ראשי', showOnMatch: true };
     }
-    // ‼ לא «לא נקרא» (failed = «קרא שוב»): נקרא, והמייצג הראשי הוא מישהו אחר — מידע, בלי הצעה.
-    return { fieldKey, label: 'ייצוג', status: 'info', currentValue: '', authorityDisplay: `מייצג ראשי — ${rep} (לא המשתמש המחובר)` };
+    return { fieldKey, label: 'ייצוג', status: 'info', currentValue: '', authorityDisplay: `מייצג נוסף · ראשי: ${rep}` };
   }
   if (fieldKey === 'withholdingStatus') {
     const raw = (result.filing?.header?.withholdingApproval ?? '').trim();

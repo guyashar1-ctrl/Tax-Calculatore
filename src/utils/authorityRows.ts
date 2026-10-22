@@ -19,7 +19,7 @@ import {
 import type { NiIncomeRead } from '../features/nationalInsurance/niIncome';
 import { BTL_REPRESENTATION_KEY } from '../features/nationalInsurance/btlFieldKeys';
 import { TAX_AUTHORITY_LABELS, TAX_FILE_REP_STATUS_LABELS } from '../types';
-import { VAT_FREQ_LABELS, SHAAM_STATUS_LABELS } from '../types/clientWorkspace';
+import { VAT_FREQ_LABELS } from '../types/clientWorkspace';
 import { shortDate } from './clientDerived';
 import { resolvePersonAuthority, resolveIncomeTaxHousehold } from './personRepresentation';
 import {
@@ -289,8 +289,7 @@ export function buildAuthorityRows(
     }
     const auth = authText(client.incomeTaxDebitAuthorization);
     facts.push(auth ? { k: 'הרשאה לחיוב', v: auth.text, tone: auth.tone, editKey: 'incomeTaxDebitAuthorization' } : { k: 'הרשאה לחיוב', v: EMPTY, editKey: 'incomeTaxDebitAuthorization' });
-    // ‼ שע״ם היא הרשאה אחת לכל הרשויות ולכן יושבת כאן בלבד, לא בכל שורה.
-    facts.push({ k: 'הרשאת שע״ם', v: client.shaamStatus ? SHAAM_STATUS_LABELS[client.shaamStatus] : EMPTY });
+    // ‼ 22.10.2026 (גיא): «הרשאת שע״ם» ירדה מהכרטיס — מה שרלוונטי הוא «הרשאה לחיוב» שמעליה.
     const rep = repOf('income_tax');
     facts.push(rep
       ? { k: 'ייצוג', v: rep, tone: rep === 'ייצוג פעיל' ? 'ok' : undefined, syncKey: 'incomeTaxRepresentation' }

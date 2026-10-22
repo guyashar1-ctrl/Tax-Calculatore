@@ -208,6 +208,11 @@ const INSTITUTIONS: Record<InstitutionKey, InstitutionConfig> = {
     ],
   },
   income: {
+    // ‼ 22.10.2026 (גיא): שדה שמגיע מ-154 — «?» אומר את זה.
+    readOnlyWhere: {
+      incomeTaxFileNumber: ['גביית מס הכנסה ← 154 מידע אודות שנות מס'],
+      incomeTaxRepresentation: ['גביית מס הכנסה ← 154 מידע אודות שנות מס ← «מייצג ראשי»'],
+    },
     sections: [
       {
         kicker: 'תיק ומקדמות',
@@ -231,6 +236,8 @@ const INSTITUTIONS: Record<InstitutionKey, InstitutionConfig> = {
             note: BALANCE_NOTE,
             toPatchValue: v => v === '' ? null : Number(v) },
           { key: 'reportingStatus', label: 'מצב דיווחים', placeholder: 'למשל: אין דיווחים חסרים / חסר דיווח',
+            // ‼ לא מ-154: עמודת «מצב דיווח» בטבלת התקופות של 134 (דיווחי מקדמות).
+            where: ['גביית מס הכנסה ← 134 מקדמות ← מידע לתיק ← «מצב דיווח» בטבלת התקופות'],
             governedKey: 'incomeTaxReportingStatus' },
         ],
       },
@@ -244,6 +251,7 @@ const INSTITUTIONS: Record<InstitutionKey, InstitutionConfig> = {
           { key: 'withholdingStatus', label: 'מצב ניכוי במקור', type: 'select',
             options: ['פטור מניכוי', 'שיעור/ים לפי פעילות', 'אין אישור תקף'],
             governedKey: 'withholdingStatus',
+            where: ['יש אישור או אין: גביית מס הכנסה ← 154 מידע אודות שנות מס ← «אישור ניכוי מס במקור»', 'פטור או שיעורים: אישורי ניכוי במקור וניהול ספרים'],
             toPatchValue: v => v === 'פטור מניכוי' ? 'exempt' : v === 'אין אישור תקף' ? 'none' : 'rates',
             attach: { docKey: 'withholdingCertificate', linkLabel: 'אישור ניכוי מס במקור',
               category: 'business_document' } },
@@ -261,7 +269,7 @@ const INSTITUTIONS: Record<InstitutionKey, InstitutionConfig> = {
       {
         key: 'capitalDeclarationRequired', label: 'דרישת הצהרת הון', options: ['אין דרישה פתוחה', 'דרישה פתוחה'],
         badValues: ['דרישה פתוחה'], governedKey: 'capitalDeclarationRequired', governedPatch: bad => bad,
-        where: ['אזור אישי ← דרישות להצהרת הון'],
+        where: ['גביית מס הכנסה ← 154 מידע אודות שנות מס ← «הצהרת הון»', 'אזור אישי ← דרישות להצהרת הון'],
         guide: {
           label: 'איך בודקים בשע״ם?',
           intro: 'בשאילתת AHZM - דרישות להצהרת הון:',

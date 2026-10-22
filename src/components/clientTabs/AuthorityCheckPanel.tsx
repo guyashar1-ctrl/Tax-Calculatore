@@ -50,6 +50,13 @@ export function FieldAuthorityLine({ field, sourceLabel }: { field: AuthorityFie
       </div>
     );
   }
+  if (field.status === 'match' && field.showOnMatch && field.authorityDisplay) {
+    return (
+      <div className="txf-authline is-info">
+        <span className="txf-authline-tag">{sourceLabel}:</span> {field.authorityDisplay}
+      </div>
+    );
+  }
   // ‼ מצב עסקי עם ראיה משלו (למשל «מופיע ברשימת המיוצגים») — שורה ניטרלית.
   // מצב עסקי בלי ראיה משלו מוסבר פעם אחת בקבוצה, כמו קודם.
   if (field.status === 'info' && field.authorityDisplay) {
