@@ -9,7 +9,7 @@ export function head154(fileNumber = '123456789', over = {}) {
     rc: 0, rcText: '',
     objKnisaSheilta: {
       misTik: Number(fileNumber), shemTik: 'ישראלי ישראל ו/או ישראלה', misPsTik: 26, PsTikEdit: 'רחובות',
-      sugTik: 52, huliaaTik: 2, anafCalcaliTik: '6921', strKodMasBmakor: 'קיים אישור', ...over,
+      sugTik: 52, huliaaTik: 2, anafCalcaliTik: '6921', strKodMasBmakor: 'קיים אישור', shemMyzgTik: 'ישר גיא', ...over,
     },
   };
 }

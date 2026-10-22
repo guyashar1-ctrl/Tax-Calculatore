@@ -63,7 +63,17 @@ export function advanceStateOf(sugDrisha) {
  * ראש התיק + כל עמודי הטבלה ⇒ שדות לכרטיס ורשימת שנים.
  * @returns {{ok:true, fields:Record<string,string>, advance:string, filing:object} | {ok:false, reason:string, detail?:string}}
  */
-export function parseTaxYears({ head, pages, fileNumber }) {
+/** אותו שם בסדר מילים אחר («ישר גיא» / «גיא ישר») — אותו אדם. */
+const sameName = (a, b) => {
+  const w = (s) => text(s).split(' ').filter(Boolean).sort().join(' ');
+  return !!w(a) && w(a) === w(b);
+};
+
+/**
+ * `user` — שם המשתמש המחובר כפי שמופיע בכותרת GMF (‎#userDatails‎). ‼ באותה צורה כמו
+ * shemMyzgTik («ישר גיא»), ולכן ההשוואה היא בין שני טקסטים של שע״ם — לא מול שם ב-PIVO.
+ */
+export function parseTaxYears({ head, pages, fileNumber, user }) {
   const k = head?.objKnisaSheilta;
   if (!k) return { ok: false, reason: 'head_missing' };
   // ‼ לפני ערך אחד: זה התיק שביקשנו? (מספר — אפסים מובילים נעלמים ב-JSON)
@@ -79,6 +89,11 @@ export function parseTaxYears({ head, pages, fileNumber }) {
   if (num(k.misPsTik) && text(k.PsTikEdit)) fields.taxOffice = `${num(k.misPsTik)} - ${text(k.PsTikEdit)}`;
   if (num(k.huliaaTik) !== null && text(k.huliaaTik) !== '') fields.unit = String(num(k.huliaaTik));
   if (text(k.anafCalcaliTik)) fields.economicIndustry = text(k.anafCalcaliTik);
+  // ‼ «מייצג ראשי» בראש המסך = shemMyzgTik. «אנחנו» רק כשהמשתמש המחובר הוא אותו שם.
+  if (text(k.shemMyzgTik)) {
+    fields.mainRepresentative = text(k.shemMyzgTik);
+    if (text(user)) fields.representedByMe = sameName(user, k.shemMyzgTik) ? 'yes' : 'no';
+  }
 
   const t = first.title;
   const hov = num(t.yitratHov);

@@ -344,6 +344,47 @@ export const SHAAM_134_FIELD_SOURCES: Record<string, Shaam134FieldSource> = {
 /** מפתחות שקיימים רק בתוצאה של 154 — ריצה ישנה בלעדיהם היא «לא נבדק», לא כשל. */
 const SHAAM_154_ONLY_SOURCES = new Set(['wealthDemand', 'wealthDemandDue']);
 
+/**
+ * שדות בכרטיס שאינם עובדה מנוהלת, ושהקריאה מאשרת או מציגה — בלי הצעת שינוי לעולם (22.10.2026, גיא).
+ *   · מספר תיק — העובד פתח את התיק לפי המספר הזה ווידא שהמסך הוא של אותו תיק ⇒ ירוק.
+ *   · ייצוג — «מייצג ראשי» ב-154 הוא המשתמש המחובר ⇒ ירוק; מייצג אחר ⇒ שורת מידע עם השם.
+ *   · ניכוי מס במקור — הטקסט של שע״ם («קיים אישור» / «אין אישור» / «ממתין לאישור יזום»). ירוק רק
+ *     כשהוא תואם לכרטיס; «קיים אישור» לא אומר פטור או לפי שיעורים — ולכן לא מוצע שינוי.
+ */
+export const SHAAM_READ_ONLY_KEYS = ['incomeTaxFileNumber', 'incomeTaxRepresentation', 'withholdingStatus'] as const;
+const digits9 = (v: unknown) => String(v ?? '').replace(/\D/g, '').padStart(9, '0');
+
+function interpretShaamReadOnly(fieldKey: string, job: AutomationJob, client: Client): AuthorityFieldResult | null {
+  const result = (job.result ?? {}) as { fields?: Record<string, string>; filing?: { header?: { withholdingApproval?: string | null } } };
+  const fields = result.fields ?? {};
+  if (fieldKey === 'incomeTaxFileNumber') {
+    const card = incomeTaxFileInput(client);
+    const asked = String((job.input as { fileNumber?: unknown })?.fileNumber ?? '');
+    if (!('fileNumber' in card) || !asked) return null;
+    return digits9(card.fileNumber) === digits9(asked)
+      ? { fieldKey, label: 'מספר תיק', status: 'match', currentValue: card.fileNumber }
+      : null;
+  }
+  if (fieldKey === 'incomeTaxRepresentation') {
+    const rep = (fields.mainRepresentative ?? '').trim();
+    if (!rep || !fields.representedByMe) return null;
+    const active = (client.taxFiles ?? []).some(f => f.authority === 'income_tax' && f.repStatus === 'active');
+    if (fields.representedByMe === 'yes') {
+      return { fieldKey, label: 'ייצוג', status: active ? 'match' : 'info', currentValue: '', authorityDisplay: `מייצג ראשי — ${rep}` };
+    }
+    // ‼ לא «לא נקרא» (failed = «קרא שוב»): נקרא, והמייצג הראשי הוא מישהו אחר — מידע, בלי הצעה.
+    return { fieldKey, label: 'ייצוג', status: 'info', currentValue: '', authorityDisplay: `מייצג ראשי — ${rep} (לא המשתמש המחובר)` };
+  }
+  if (fieldKey === 'withholdingStatus') {
+    const raw = (result.filing?.header?.withholdingApproval ?? '').trim();
+    if (!raw) return null;
+    const card = client.withholdingStatus;
+    const same = (raw === 'קיים אישור' && (card === 'exempt' || card === 'rates')) || (raw === 'אין אישור' && card === 'none');
+    return { fieldKey, label: 'ניכוי מס במקור', status: same ? 'match' : 'info', currentValue: card ?? '', authorityDisplay: raw };
+  }
+  return null;
+}
+
 /** הערך הגולמי בתיק — לא הטקסט המוצג. «סוג תיק» מוצג «52 · חד-צדית…» ושע״ם מחזירה «52». */
 function currentRaw(client: Client, fieldKey: string): string {
   const def = EDIT_FIELD_BY_KEY[fieldKey];
@@ -361,6 +402,10 @@ function interpretShaam134(
     : [];
 
   return supportedKeys.map((fieldKey) => {
+    if ((SHAAM_READ_ONLY_KEYS as readonly string[]).includes(fieldKey)) {
+      return (job?.status === 'succeeded' && interpretShaamReadOnly(fieldKey, job, client))
+        || { fieldKey, label: fieldKey, status: 'unsupported', currentValue: '' };
+    }
     const spec = SHAAM_134_FIELD_SOURCES[fieldKey];
     const label = EDIT_FIELD_BY_KEY[fieldKey]?.label ?? fieldKey;
     const currentValue = currentRaw(client, fieldKey);
@@ -779,7 +824,7 @@ export const AUTHORITY_AUTOMATION: Partial<Record<TaxAuthority, AuthorityAutomat
     capability: SHAAM_READ_134,
     // ‼ מערכת גביית מס הכנסה (154/134) — לא שאילתה אחת. הצעות ישנות נשארו עם 'shaam-134'.
     sourceRef: 'shaam-gmf',
-    supportedFieldKeys: new Set(Object.keys(SHAAM_134_FIELD_SOURCES)),
+    supportedFieldKeys: new Set([...Object.keys(SHAAM_134_FIELD_SOURCES), ...SHAAM_READ_ONLY_KEYS]),
     buildInput: (client) => {
       const res = incomeTaxFileInput(client);
       return 'fileNumber' in res ? { input: { fileNumber: res.fileNumber } } : res;

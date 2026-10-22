@@ -211,18 +211,21 @@ const INSTITUTIONS: Record<InstitutionKey, InstitutionConfig> = {
     sections: [
       {
         kicker: 'תיק ומקדמות',
-        where: ['גביית מס הכנסה ← 134 מקדמות ← מידע לתיק'],
+        // ‼ 21.10.2026: הקריאה עברה ל-154; שיעור ותדירות המקדמות — רק ב-134 (where של השדה).
+        where: ['גביית מס הכנסה ← 154 מידע אודות שנות מס'],
         fields: [
           { key: 'incomeTaxFileType', label: 'סוג תיק', governedKey: 'incomeTaxFileType' },
           { key: 'taxOfficeName', label: 'פקיד שומה', placeholder: 'תל אביב 3', governedKey: 'taxOfficeName' },
           { key: 'incomeTaxUnit', label: 'חוליה', governedKey: 'incomeTaxUnit' },
           { key: 'incomeTaxEconomicIndustry', label: 'ענף כלכלי', governedKey: 'incomeTaxEconomicIndustry' },
           { key: 'pitAdvancePercent', label: 'שיעור מקדמות', placeholder: '6%', governedKey: 'pitAdvancePercent',
+            where: ['גביית מס הכנסה ← 134 מקדמות ← מידע לתיק'],
             // ‼ העמודה מספרית. "6%" כפי שמקלידים מהפורטל נכשל ב-cast בשרת והשאיר
             // הצעה ממתינה לנצח (ראה ספר הפערים T4). מנקים סימנים ומחזירים מספר או ריק.
             toPatchValue: v => { const x = Number(String(v).replace(/[%s]/g, '').replace(',', '.')); return v.trim() === '' || Number.isNaN(x) ? null : x; } },
           { key: 'pitAdvanceFrequency', label: 'תדירות מקדמות', type: 'select',
             options: ['חודשי', 'דו-חודשי'], governedKey: 'pitAdvanceFrequency',
+            where: ['גביית מס הכנסה ← 134 מקדמות ← מידע לתיק'],
             toPatchValue: v => v === 'חודשי' ? 'monthly' : 'bi_monthly' },
           { key: 'incomeTaxBalance', label: 'יתרה במס הכנסה', type: 'number', governedKey: 'incomeTaxBalance',
             note: BALANCE_NOTE,

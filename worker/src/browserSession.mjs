@@ -957,7 +957,9 @@ export async function openTaxYearsInfo(page, fileNumber, { maxPages = GMF_154_MA
     pages.push(r.body);
     note(`page:${pages.length}`);
   }
-  return { ok: true, page: work, pathname: data.pathname, head: head.body, pages, steps };
+  // המשתמש המחובר — כדי לדעת אם «מייצג ראשי» הוא אנחנו. ‼ טקסט של שע״ם מול טקסט של שע״ם.
+  const user = await work.evaluate(() => (document.querySelector('a[href="#userDatails"]')?.textContent || '').trim()).catch(() => '');
+  return { ok: true, page: work, pathname: data.pathname, head: head.body, pages, user, steps };
 }
 
 /**

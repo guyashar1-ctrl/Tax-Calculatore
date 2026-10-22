@@ -203,7 +203,8 @@ export function buildAuthorityRows(
   {
     const facts: AuthorityRow['facts'] = [];
     const num = numbersOf('income_tax');
-    facts.push({ k: 'מספר תיק', v: num || EMPTY, taxFileNumberAuthority: 'income_tax' });
+    // ‼ syncKey — הקריאה משע״ם מאשרת את המספר (ירוק), בלי הצעת שינוי (SHAAM_READ_ONLY_KEYS).
+    facts.push({ k: 'מספר תיק', v: num || EMPTY, taxFileNumberAuthority: 'income_tax', ...(num ? { syncKey: 'incomeTaxFileNumber' } : {}) });
     // ‼ התיק אצל בן/בת הזוג המקושר/ת — לא "עדיין לא נבדק", אלא תיק משותף
     // שכבר קיים, בכתובת אחרת. שם ומצב האימות מגיעים דרך registeredFileInfo
     // על הכרטיס שמחזיק את התיק בפועל, לא על הכרטיס הזה.
@@ -291,7 +292,9 @@ export function buildAuthorityRows(
     // ‼ שע״ם היא הרשאה אחת לכל הרשויות ולכן יושבת כאן בלבד, לא בכל שורה.
     facts.push({ k: 'הרשאת שע״ם', v: client.shaamStatus ? SHAAM_STATUS_LABELS[client.shaamStatus] : EMPTY });
     const rep = repOf('income_tax');
-    facts.push(rep ? { k: 'ייצוג', v: rep, tone: rep === 'ייצוג פעיל' ? 'ok' : undefined } : { k: 'ייצוג', v: EMPTY });
+    facts.push(rep
+      ? { k: 'ייצוג', v: rep, tone: rep === 'ייצוג פעיל' ? 'ok' : undefined, syncKey: 'incomeTaxRepresentation' }
+      : { k: 'ייצוג', v: EMPTY, syncKey: 'incomeTaxRepresentation' });
 
     let exception: AuthorityException | null = null;
     if (client.withholdingStatus === 'none') exception = { text: 'אין אישור ניכוי במקור', tone: 'high' };

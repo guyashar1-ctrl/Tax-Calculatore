@@ -37,6 +37,7 @@ test('אין מקדמות פעילות ⇒ 154 בלבד, בלי 134', async () =
   assert.equal(r.result.fields.advanceStatus, 'no_advance');
   assert.equal(r.result.fields.balance, '1000');
   assert.equal(r.result.fields.wealthDemandDue, '2026-12-31');
+  assert.equal(r.result.fields.representedByMe, 'yes', 'המשתמש בכותרת GMF = המייצג הראשי');
 });
 
 test('דפדוף אחורה עד עמוד שכולו «שנה לא קיימת» — ולא מעבר', async () => {

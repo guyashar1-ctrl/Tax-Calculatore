@@ -82,7 +82,7 @@ export async function run(ctx, input) {
     const unavailable = [];
     let years = null;
     if (opened154.ok) {
-      years = parseTaxYears({ head: opened154.head, pages: opened154.pages, fileNumber });
+      years = parseTaxYears({ head: opened154.head, pages: opened154.pages, fileNumber, user: opened154.user });
       if (!years.ok) {
         if (years.reason === 'file_mismatch') {
           throw new PermanentError('המסך שנפתח אינו תואם את מספר התיק שנשלח — לא קורא ממנו נתונים.', 'file_mismatch');

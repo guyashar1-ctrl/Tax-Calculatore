@@ -214,6 +214,7 @@ export class SimPage {
         : { status: 200, finalUrl: ORIGIN + OTP, len: 3341, hasLogout: false };
     }
     if (src.includes('.modal.d-block, .modal.show\'')) return { blocked: false };
+    if (src.includes('#userDatails')) return world.gmfUser ?? 'ישר גיא';
     if (src.includes('app-meda-header')) return { pathname: this.path, taxOffice: { ok: true, text: '26 - רחובות' } };
     if (src.includes('labelText')) return { infoExists: true, infoChecked: true, labelText: 'מידע לתיק', yearChecked: true };
     if (src.includes('fileNumberInScreenText')) {

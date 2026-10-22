@@ -1,6 +1,6 @@
 // שאילתה 154 → אצווה ל«מרשימות שע״ם» (250). ‼ נתוני דמה — אותו מבנה שהעובד מחזיר (worker/src/gmf154.mjs).
 import { deepEqual, equal, assert, test, type TestCase } from '../../../testkit/tinyTest';
-import { batchFromGmf154, filingNoteText, gmf154Filing, openReturnYears, GMF154_SOURCE_NAME, isGmf154Source, type Gmf154Filing, type Gmf154Year } from '../fromGmf154';
+import { batchFromGmf154, filingSummaryText, gmf154Filing, openReturnYears, GMF154_SOURCE_NAME, isGmf154Source, type Gmf154Filing, type Gmf154Year } from '../fromGmf154';
 import { listName, sourceText } from '../model';
 
 const year = (y: number, required: Gmf154Year['required'], over: Partial<Gmf154Year> = {}): Gmf154Year => ({
@@ -67,10 +67,10 @@ export const TESTS: TestCase[] = [
     equal(batchFromGmf154(filing(), { ...opts, fileNumber: '' }), null);
   }),
   test('השורה בכרטיס: מה פתוח, או שהכול הוגש — ו«נבדק מ-» כשלא קראנו עד הסוף', () => {
-    equal(filingNoteText(filing()), 'חייב ולא הוגש: 2024,' + String.fromCharCode(0x200f) + ' 2023 · ב«דוחות והצהרות»');
+    equal(filingSummaryText(filing()), '', 'יש שנה פתוחה — השורות אומרות את זה');
     const done = filing({ years: [year(2025, 'required', { filedOn: '2026-06-07' }), year(2024, 'not_required')] });
-    equal(filingNoteText(done), 'כל הדוחות הנדרשים הוגשו');
-    equal(filingNoteText({ ...done, complete: false }), 'כל הדוחות הנדרשים הוגשו · נבדק מ-2024');
+    equal(filingSummaryText(done), 'כל הדוחות הנדרשים הוגשו');
+    equal(filingSummaryText({ ...done, complete: false }), 'כל הדוחות הנדרשים הוגשו מ-2024');
     deepEqual(openReturnYears(filing()).map(y => y.year), [2024, 2023]);
   }),
   test('תוצאת משימה ישנה (134 בלבד) ⇒ אין שנים', () => {

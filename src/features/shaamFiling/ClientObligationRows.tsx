@@ -6,7 +6,10 @@
 import { useEffect, useState } from 'react';
 import type { Client } from '../../types';
 import { useObligations } from './useObligations';
-import { obligationDueText, obligationTitle, sourceText, stateLine, stepIsOpen, type Obligation } from './model';
+import { dmy, obligationDueText, obligationTitle, sourceText, stateLine, stepIsOpen, type Obligation } from './model';
+import { filingSummaryText, gmf154Filing } from './fromGmf154';
+import { useAutomationJob } from '../../hooks/useAutomationJobs';
+import { SHAAM_SYNC_INCOME_TAX_ACTION_TYPE } from '../../types/automation';
 import OpenRequestsDialog from './OpenRequestsDialog';
 import { HistoryRow } from './ShaamFilingPanel';
 import './shaamFiling.css';
@@ -25,7 +28,12 @@ export default function ClientObligationRows({ client, onOpenRequests, onChanged
   const rows = (obligations ?? []).filter(o => o.state !== 'dismissed' && o.state !== 'needs_review');
   const openCount = rows.filter(o => o.state === 'open').length;
   useEffect(() => { onOpenCount?.(openCount); }, [openCount, onOpenCount]);
-  if (!rows.length) return null;
+  // ‼ 22.10.2026: הסיכום של קריאת 154 («כל הדוחות הנדרשים הוגשו · נבדק …») יושב כאן — לא בכרטיס מס הכנסה.
+  const { job } = useAutomationJob(client.id || undefined, SHAAM_SYNC_INCOME_TAX_ACTION_TYPE);
+  const filing = job?.status === 'succeeded' ? gmf154Filing(job.result) : null;
+  const checkedOn = filing ? dmy((job?.finishedAt ?? job?.updatedAt ?? '').slice(0, 10)) : '';
+  const summary = filing ? [filingSummaryText(filing), checkedOn && `נבדק ${checkedOn}`].filter(Boolean).join(' · ') : '';
+  if (!rows.length && !summary) return null;
   const open = rows.filter(o => o.state === 'open');
   const filed = rows.filter(o => o.state === 'history' || o.state === 'filed_per_shaam');
   const context = rows.filter(o => o.state === 'context');
@@ -34,6 +42,7 @@ export default function ClientObligationRows({ client, onOpenRequests, onChanged
   return (
     <div className="shf-client" data-sf-client-rows>
       <h4 className="shf-client-h">מרשימות שע״ם</h4>
+      {summary && <p className="shf-muted" style={{ margin: '0 0 .4rem' }} data-gmf154-summary>שע״ם · {summary}</p>}
       <ul className="shf-rows">
         {open.map(o => {
           const live = !!o.stepId && stepIsOpen(o.stepStatus);

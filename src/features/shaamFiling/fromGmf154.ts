@@ -101,17 +101,14 @@ export function batchFromGmf154(filing: Gmf154Filing, o: {
   };
 }
 
-const RLM = String.fromCharCode(0x200f);
-
 /**
- * שורה אחת בכרטיס מס הכנסה אחרי הקריאה: מה פתוח, או שהכול הוגש.
- * ‼ «כל הדוחות הנדרשים הוגשו» רק כשקראנו עד שנה שלא קיימת; אחרת — מאיזו שנה בדקנו.
+ * שורת הסיכום ב«דוחות והצהרות» אחרי הקריאה (22.10.2026: עברה לשם מכרטיס מס הכנסה).
+ * ‼ כשיש שנה פתוחה — ריק: השורות שמתחת אומרות את זה. «כל הדוחות הנדרשים הוגשו» רק כשקראנו
+ *   עד שנה שלא קיימת; אחרת — מאיזו שנה בדקנו.
  */
-export function filingNoteText(f: Gmf154Filing): string {
-  const open = openReturnYears(f).map(y => y.year);
-  // ‼ RLM אחרי הפסיק: בלעדיו רשימת שנים בשורה עברית מוצגת «2019 ,2023».
-  if (open.length) return `חייב ולא הוגש: ${open.join(`,${RLM} `)} · ב«דוחות והצהרות»`;
+export function filingSummaryText(f: Gmf154Filing): string {
+  if (openReturnYears(f).length) return '';
   const existing = f.years.filter(y => y.required !== 'no_year').map(y => y.year);
   if (f.complete || !existing.length) return 'כל הדוחות הנדרשים הוגשו';
-  return `כל הדוחות הנדרשים הוגשו · נבדק מ-${Math.min(...existing)}`;
+  return `כל הדוחות הנדרשים הוגשו מ-${Math.min(...existing)}`;
 }

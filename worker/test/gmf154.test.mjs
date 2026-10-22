@@ -103,3 +103,14 @@ test('dmyToIso', () => {
   assert.equal(dmyToIso(''), null);
   assert.equal(dmyToIso('2026-12-31'), null);
 });
+
+test('מייצג ראשי: «אנחנו» רק כשהמשתמש המחובר הוא אותו שם (גם בסדר מילים אחר)', () => {
+  const s = sample154();
+  const me = parseTaxYears({ head: s.head, pages: s.pages, fileNumber: '123456789', user: 'גיא ישר' });
+  assert.equal(me.fields.mainRepresentative, 'ישר גיא');
+  assert.equal(me.fields.representedByMe, 'yes');
+  const other = parseTaxYears({ head: s.head, pages: s.pages, fileNumber: '123456789', user: 'כהן דנה' });
+  assert.equal(other.fields.representedByMe, 'no');
+  const unknown = parseTaxYears({ head: s.head, pages: s.pages, fileNumber: '123456789' });
+  assert.equal(unknown.fields.representedByMe, undefined, 'בלי שם משתמש — לא מכריעים');
+});

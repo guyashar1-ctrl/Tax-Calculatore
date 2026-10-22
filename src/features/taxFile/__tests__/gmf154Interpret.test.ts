@@ -57,4 +57,32 @@ export const TESTS: TestCase[] = [
     equal(r.get('pitAdvancePercent')!.authorityValue, '0');
     assert(spec.supportedFieldKeys!.has('capitalDeclarationRequired'), 'נתמך');
   }),
+  test('מספר תיק: הקריאה נפתחה לפי המספר שבכרטיס ⇒ ירוק, בלי הצעה', () => {
+    const c = client({ taxFiles: [{ id: 't', authority: 'income_tax', owner: 'client', repStatus: 'active', fileNumber: '034605212' }] as Client['taxFiles'] });
+    const j = { id: 'j', status: 'succeeded', input: { fileNumber: '034605212' }, result: { fields: {} } } as unknown as AutomationJob;
+    const r = spec.interpret!(j, c, ['incomeTaxFileNumber'])[0];
+    equal(r.status, 'match');
+    equal(r.authorityValue, undefined);
+  }),
+  test('ייצוג: מייצג ראשי = המשתמש המחובר ⇒ ירוק; מייצג אחר ⇒ מידע עם השם; ריצה ישנה ⇒ לא נבדק', () => {
+    const c = client({ taxFiles: [{ id: 't', authority: 'income_tax', owner: 'client', repStatus: 'active', fileNumber: '1' }] as Client['taxFiles'] });
+    const read = (fields: Record<string, string>) => spec.interpret!(job(fields), c, ['incomeTaxRepresentation'])[0];
+    equal(read({ mainRepresentative: 'ישר גיא', representedByMe: 'yes' }).status, 'match');
+    const other = read({ mainRepresentative: 'כהן דנה', representedByMe: 'no' });
+    equal(other.status, 'info');
+    equal(other.authorityDisplay, 'מייצג ראשי — כהן דנה (לא המשתמש המחובר)');
+    equal(read({ taxOffice: 'x' }).status, 'unsupported');
+  }),
+  test('ניכוי מס במקור: כמו בשע״ם — ירוק רק כשתואם, אחרת מידע; לעולם לא הצעה', () => {
+    const run2 = (raw: string, status?: Client['withholdingStatus']) => spec.interpret!(
+      { id: 'j', status: 'succeeded', result: { fields: {}, filing: { header: { withholdingApproval: raw } } } } as unknown as AutomationJob,
+      client({ withholdingStatus: status }), ['withholdingStatus'])[0];
+    equal(run2('קיים אישור', 'exempt').status, 'match');
+    equal(run2('קיים אישור', 'rates').status, 'match');
+    equal(run2('אין אישור', 'none').status, 'match');
+    const pending = run2('ממתין לאישור יזום', undefined);
+    equal(pending.status, 'info');
+    equal(pending.authorityDisplay, 'ממתין לאישור יזום');
+    equal(run2('קיים אישור', 'none').status, 'info', 'סותר — מידע, לא הצעה');
+  }),
 ];
