@@ -86,14 +86,21 @@ export interface BtlOccupationChain {
 export function niOccupationsFromBtl(chains: readonly BtlOccupationChain[], existing: readonly NiOccupation[] = []): NiOccupation[] {
   return chains.map(c => {
     const type = niOccupationTypeFromBtl(c.sourceLabel);
-    const prev = existing.find(o => (o.sourceLabel ?? '') === c.sourceLabel) ?? existing.find(o => o.type === type && !o.sourceLabel);
+    // ‼ עובד אצל שני מעבידים = שני עיסוקים באותו שם — הזהות היא תיק הניכויים.
+    const wf = c.detail?.withholdingFile;
+    const prev = (wf ? existing.find(o => (o.withholdingFile ?? o.btlDetail?.withholdingFile) === wf) : undefined)
+      ?? existing.find(o => (o.sourceLabel ?? '') === c.sourceLabel && (!wf || !(o.withholdingFile ?? o.btlDetail?.withholdingFile)))
+      ?? existing.find(o => o.type === type && !o.sourceLabel);
     const keptDetail = prev?.btlDetail && prev.btlDetail.periodFrom >= c.fromDate ? prev.btlDetail : undefined;
     return {
       ...(prev ? {
         employerName: prev.employerName, withholdingFile: prev.withholdingFile,
         weeklyHours: prev.weeklyHours, definitionIncome: prev.definitionIncome,
       } : {}),
-      id: prev?.id ?? `btl-${type}-${c.fromDate}`,
+      // ‼ מה שב"ל רשם גובר על הקלדה ידנית קודמת של אותו מעביד.
+      ...(c.detail?.employerName ? { employerName: c.detail.employerName } : {}),
+      ...(wf ? { withholdingFile: wf } : {}),
+      id: prev?.id ?? `btl-${type}-${c.fromDate}${wf ? `-${wf}` : ''}`,
       type,
       sourceLabel: c.sourceLabel,
       source: 'btl_portal' as const,
@@ -112,7 +119,7 @@ export function niOccupationsFromBtl(chains: readonly BtlOccupationChain[], exis
  */
 export function niOccupationsKey(list: readonly NiOccupation[]): string {
   return list
-    .map(o => `${niOccupationLabel(o)}|${o.fromDate ?? ''}|${o.toDate ?? ''}${o.btlDetail ? `|${o.btlDetail.hoursBand ?? ''}|${o.btlDetail.definitionIncome ?? ''}` : ''}`)
+    .map(o => `${niOccupationLabel(o)}|${o.fromDate ?? ''}|${o.toDate ?? ''}${o.btlDetail ? `|${o.btlDetail.hoursBand ?? ''}|${o.btlDetail.definitionIncome ?? ''}` : ''}${o.btlDetail?.withholdingFile ? `|${o.btlDetail.withholdingFile}` : ''}`)
     .sort()
     .join(' ; ');
 }
@@ -137,9 +144,44 @@ export function niOccupationPeriodText(o: NiOccupation): string {
 
 export function niOccupationsInline(list: readonly NiOccupation[]): string {
   return niOccupationsForDisplay(list).map(o => {
-    const detail = niBtlDetailText(o.btlDetail);
+    const detail = [niOccupationEmployerText(o), niBtlDetailText(o.btlDetail)].filter(Boolean).join(' · ');
     return `${niOccupationLabel(o)} ${niOccupationPeriodText(o)}${detail ? ` (${detail})` : ''}`;
   }).join(' · ');
+}
+
+/** «מעביד לדוגמה בע"מ · תיק ניכויים 912345678» — רק מה שידוע. */
+export function niOccupationEmployerText(o: NiOccupation): string {
+  const name = o.employerName ?? o.btlDetail?.employerName;
+  const file = o.withholdingFile ?? o.btlDetail?.withholdingFile;
+  return [name, file ? `תיק ניכויים ${file}` : ''].filter(Boolean).join(' · ');
+}
+
+/**
+ * מעסיקים שב"ל רושם בשנה — תזכורת ליד 106 בהערכה ובדוח השנתי (21.10.2026). ‼ תזכורת בלבד: לא נכתב ממנה
+ * דבר לשנת המס. רק עיסוק «עובד» עם שם מעביד או תיק ניכויים שנקראו מב"ל (או הוזנו ביד).
+ */
+export function niEmployersInYear(list: readonly NiOccupation[], year: number): NiOccupation[] {
+  return niOccupationsInYear(list, year)
+    .filter(o => o.type === 'employee' && !!(o.employerName ?? o.btlDetail?.employerName ?? o.withholdingFile ?? o.btlDetail?.withholdingFile));
+}
+
+/** «מעביד א (תיק ניכויים 9…) · מעביד ב» — שורה אחת. */
+export function niEmployersText(list: readonly NiOccupation[]): string {
+  return list.map(o => {
+    const name = o.employerName ?? o.btlDetail?.employerName ?? 'מעביד';
+    const file = o.withholdingFile ?? o.btlDetail?.withholdingFile;
+    return `${name}${file ? ` (תיק ניכויים ${file})` : ''}`;
+  }).join(' · ');
+}
+
+/**
+ * תחילת חלון העיסוקים: השנה הראשונה בהצעת המחיר של הלקוח — כולל שנים
+ * קודמות שבהצעה (החלטת גיא 21.10.2026). בלי הצעה — שנת המס הנוכחית של
+ * המשרד. עיסוק שהתחיל קודם ונמשך אל תוך השנה נכלל (העובד מסנן לפי חפיפה).
+ */
+export function niOccupationsWindowStart(quoteYears: readonly (number | undefined)[], fallbackYear: number): string {
+  const years = quoteYears.filter((y): y is number => typeof y === 'number' && y > 2000 && y < 2100);
+  return `${years.length ? Math.min(...years) : fallbackYear}-01-01`;
 }
 
 /**

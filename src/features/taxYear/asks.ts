@@ -39,7 +39,8 @@ export function cardLines(item: InfoItem, c: Client, s: Pick<ItemStatus, 'subjec
     case 'household.children':
       return (c.children ?? []).map(ch => `${ch.firstName || 'ילד'} — שנת לידה ${ch.birthYear}`);
     case 'household.settlement':
-      return [c.city ? `גר/ה ב${c.city}` : 'יישוב המגורים'];
+      // ‼ בדוח לשנה — «כל השנה» היא השאלה: מי שעבר באמצע השנה לא מקבל זיכוי מלא
+      return [c.city ? `גר/ה ב${c.city} כל השנה` : 'יישוב המגורים'];
     case 'household.degree': {
       const d = spouse ? c.spouse : c;
       return d?.hasAcademicDegree ? [`תואר${d.academicDegreeYear ? ` שהסתיים ב-${d.academicDegreeYear}` : ''}`] : [];

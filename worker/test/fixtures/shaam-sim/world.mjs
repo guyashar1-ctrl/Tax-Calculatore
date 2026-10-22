@@ -34,6 +34,10 @@ export const world = {
   /** פעולות רו"ח מתוזמנות: (world) => boolean (true = בוצע, להסיר). */
   humanScript: [],
   reports: [],
+  /** שאילתה 154: תשובות ה-JSON (ראש + עמוד לכל 5 שנים). null ⇒ השאילתה לא נפתחת. */
+  gmf154: null,
+  /** הפורטל פג בשרת והתפריט עוד על המסך: הלחיצה בכותרת לא מזיזה את הדף (302 ל-otpCts, נצפה 21.10). */
+  gmfApiExpired: false,
 };
 
 export function resetWorld() {
@@ -41,6 +45,7 @@ export function resetWorld() {
     chrome: 'closed', portal: false, gmfSession: false,
     savedCredential: USERNAME, savedPasswordAccepted: true, pages: [],
     pivo: { picks: 0, submits: 0, focusClicks: 0, gotos: [] }, humanSubmits: 0, humanScript: [], reports: [],
+    gmf154: null, gmfApiExpired: false,
   });
 }
 
@@ -89,7 +94,20 @@ export class SimPage {
     this.path = path;
     this.pass = { value: '', autofilled: false, focused: false };
     this.fields = {};
+    this.waiters = [];
+    this.page154 = 0;
   }
+
+  /** כמו ב-Playwright: נרשמים לפני הלחיצה; הלחיצה «שולחת» את התשובות. */
+  waitForResponse(pred) {
+    return new Promise((resolve, reject) => { this.waiters.push({ pred, resolve, reject }); });
+  }
+  #respond(path, body) {
+    const res = { url: () => ORIGIN + path, status: () => 200, json: async () => body };
+    const hit = this.waiters.find((w) => w.pred(res));
+    if (hit) { this.waiters = this.waiters.filter((w) => w !== hit); hit.resolve(res); }
+  }
+  #rejectWaiters() { for (const w of this.waiters.splice(0)) w.reject(new Error('timeout (sim)')); }
 
   url() { return this.path === 'about:blank' ? 'about:blank' : ORIGIN + this.path; }
   async title() { return this.path.toLowerCase() === HOME ? 'HomePage' : ''; }
@@ -128,17 +146,34 @@ export class SimPage {
 
   #clickControl(sel) {
     if (sel.includes('gmfBtnHmse')) {
+      if (world.gmfApiExpired) { this.#rejectWaiters(); return; }
+      if (this.fields['#mavarShilta'] === '154') {
+        if (!world.gmf154) { this.#rejectWaiters(); return; }
+        this.path = '/gmf-154/main/gmf154-data';
+        this.page154 = 0;
+        this.#respond('/gmf154Api/api/getPrtKnisaShilta', world.gmf154.head);
+        this.#respond('/gmf154Api/api/getPrtTavla', world.gmf154.pages[0]);
+        this.#rejectWaiters();
+        return;
+      }
       if (this.fields['#mavarShilta'] === '134') this.path = '/gmf-134/main/knisa';
       else if (this.fields['#mavarShilta'] === '181') this.path = '/gmf-181/main/main181';
       return;
     }
     if (sel === '#btnContinue') { this.path = '/gmf-134/main/meda'; return; }
+    if (sel === '#btnNext' && this.path.startsWith('/gmf-154')) {
+      this.page154 += 1;
+      world.pivo.pages154 = (world.pivo.pages154 ?? 0) + 1;
+      this.#respond('/gmf154Api/api/getPrtTavla', world.gmf154.pages[this.page154]);
+      this.#rejectWaiters();
+    }
   }
 
   #hasControl(sel) {
     const gmfWork = this.path.startsWith('/gmf-') && !this.onGmfLogin();
     if (sel === '#pass') return this.onGmfLogin();
     if (sel === '#gmftxtMisTik' || sel === '#mavarShilta') return gmfWork;
+    if (sel === '#btnNext') return this.path.startsWith('/gmf-154') && !!world.gmf154?.pages[this.page154 + 1];
     return gmfWork;
   }
 

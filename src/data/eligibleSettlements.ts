@@ -12,6 +12,8 @@
 // ב-SETTLEMENTS_2026_AMENDMENTS ומוחלים עליה ב-ELIGIBLE_SETTLEMENTS_2026_CURRENT.
 // ─────────────────────────────────────────────────────────────────────────────
 
+import { SETTLEMENT_LOCALITY_CODES } from './eligibleSettlementCodes';
+
 export interface EligibleSettlement {
   name: string;
   /** ניקוד כולל כפי שנקבע בהודעה (לשקיפות בלבד; 0 ליישוב שנוסף אחרי ההודעה) */
@@ -1213,7 +1215,11 @@ export function resolveSettlement(idOrName: string, year: number): EligibleSettl
   if (legacyName) return list.find(s => s.name === legacyName);
   const norm = (t: string) => t.replace(/["'׳״]/g, '').replace(/[()־-]/g, ' ').replace(/\s+/g, ' ').replace(/יי/g, 'י').trim();
   const n = norm(idOrName);
-  return list.find(s => norm(s.name) === n);
+  const byName = list.find(s => norm(s.name) === n);
+  if (byName) return byName;
+  // אותו יישוב בשם אחר בשנה אחרת («אבו קרינאת» ב-2025, «אבו קורינאת» ב-2026) — לפי הסמל הרשמי
+  const code = SETTLEMENT_LOCALITY_CODES[idOrName];
+  return code ? list.find(s => SETTLEMENT_LOCALITY_CODES[s.name] === code) : undefined;
 }
 
 /** חיפוש להשלמה אוטומטית לפי תחילית */

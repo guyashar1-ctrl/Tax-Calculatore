@@ -3,7 +3,7 @@
 //   פעולה אחת: «פתח בקשה» (טיוטה מוחזקת, בלי פרסום ובלי מייל) או «לבקשה ←» כשכבר נפתחה.
 // ‼ מוצגת רק השורה של הלקוח (עמוד ושורה ברשימה) — לא הקובץ המשרדי. בלי חובות — הרכיב לא מציג כלום.
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { Client } from '../../types';
 import { useObligations } from './useObligations';
 import { obligationDueText, obligationTitle, sourceText, stateLine, stepIsOpen, type Obligation } from './model';
@@ -15,12 +15,16 @@ export interface ClientObligationRowsProps {
   client: Client;
   onOpenRequests?: (clientId: string, stepId: string) => void;
   onChanged?: () => void;
+  /** כמה חובות פתוחות מוצגות — כדי ש«אין דוח או הצהרה פתוחים» שמעליהן לא יסתור אותן. */
+  onOpenCount?: (n: number) => void;
 }
 
-export default function ClientObligationRows({ client, onOpenRequests, onChanged }: ClientObligationRowsProps) {
+export default function ClientObligationRows({ client, onOpenRequests, onChanged, onOpenCount }: ClientObligationRowsProps) {
   const { obligations, load } = useObligations(client.id);
   const [opening, setOpening] = useState<Obligation[] | null>(null);
   const rows = (obligations ?? []).filter(o => o.state !== 'dismissed' && o.state !== 'needs_review');
+  const openCount = rows.filter(o => o.state === 'open').length;
+  useEffect(() => { onOpenCount?.(openCount); }, [openCount, onOpenCount]);
   if (!rows.length) return null;
   const open = rows.filter(o => o.state === 'open');
   const filed = rows.filter(o => o.state === 'history' || o.state === 'filed_per_shaam');

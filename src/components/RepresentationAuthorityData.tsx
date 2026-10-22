@@ -12,7 +12,7 @@ import {
   ONBOARDING_SECONDARY_LABELS,
 } from '../types';
 import { requestScope, shaamSubmissions, targetsOf, type ScopePeople } from '../utils/repScope';
-import { registeredOwnerOf } from '../features/annualReport/profile';
+import { submissionItOwner } from '../features/representation/repPreparation';
 
 interface Row {
   label: string;
@@ -204,8 +204,8 @@ export default function RepresentationAuthorityData({ request, niCoversSpouse, l
   };
   const submissions = shaamSubmissions(
     requestScope(request, linkedClient), scopePeople,
-    // רק הכרעה שנקבעה; לפני כן תיק מ"ה נספר אצל הנישום — כמו במרכז הביצוע
-    (linkedClient ? registeredOwnerOf(linkedClient) : null) ?? undefined,
+    // רק הכרעה שנקבעה (ואחרי פתיחת הבקשה — מי שהיא נפתחה עליו/ה); כמו במרכז הביצוע
+    submissionItOwner(request, linkedClient),
   );
 
   const spouseShaamRows: Row[] = [

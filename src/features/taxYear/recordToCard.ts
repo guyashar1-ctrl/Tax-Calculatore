@@ -7,6 +7,7 @@
 // ‼ אין כפילות: פריט מהתיק חוזר עם אותו מזהה (initialFromCard), ולכן עדכון שלו אינו הוספה.
 // ‼ טקסט חופשי ישן אינו מפוענח — רק רשומה מובנית (value.items / value.record.items) נכנסת לכאן.
 
+import { composeAddress } from '../../utils/ilAddress';
 import type { BankAccountInfo, Child, Client, EmployerInfo } from '../../types';
 import type { ProposedFact } from '../../types/taxFacts';
 import type { DatedValue } from './temporal';
@@ -220,7 +221,8 @@ function finish<T>(fieldKey: string, title: string, c: Client, current: T[], nex
 
 function addressPlan(c: Client, r: RecordValue, from: From): CardUpdatePlan | null {
   const city = s(r.city);
-  const street = [s(r.street), s(r.houseNumber)].filter(Boolean).join(' ') + (s(r.apartment) ? ` דירה ${s(r.apartment)}` : '');
+  // אותו פורמט כמו הטופס (ilAddress) — השרת מפרק ממנו רחוב, מספר ודירה (285)
+  const street = composeAddress(s(r.street), s(r.houseNumber), s(r.apartment));
   const zip = s(r.zip);
   if (!city || !street) return null;
   const want: Record<string, string> = { city, address: street, ...(zip ? { zipCode: zip } : {}) };

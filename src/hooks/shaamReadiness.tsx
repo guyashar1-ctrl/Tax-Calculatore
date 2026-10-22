@@ -137,7 +137,7 @@ export function capabilityAuthority(name: string): 'shaam' | 'btl' {
   return SHAAM_CAPABILITIES[name]?.includes('btl') ? 'btl' : 'shaam';
 }
 
-/** מפתח היכולת של קריאת שאילתה 134. */
+/** מפתח היכולת של קריאת תיק מס הכנסה (שאילתות 154/134 — שם המפתח היסטורי). */
 export const SHAAM_READ_134 = 'shaam.read_134';
 /** קריאת פרטי תיק מע״מ ממערכת הגבייה. */
 export const SHAAM_READ_VAT = 'shaam.read_vat';

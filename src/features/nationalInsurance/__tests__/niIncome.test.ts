@@ -223,7 +223,9 @@ export const TESTS: TestCase[] = [
     equal(inc.status, 'changed');
     equal(inc.patchValue, null);
     const list = empty.fields.find(x => x.fieldKey === 'niIncomeList')!;
-    equal(list.status, 'info', 'אין רשימה שמורה — אין מה לעדכן');
+    // ‼ (21.10.2026) קריאה שלמה שאומרת «אין», ובכרטיס אין רשימה — נבדק ותואם (ירוק), בלי הצעה.
+    equal(list.status, 'match', 'אין רשימה שמורה — אין מה לעדכן');
+    equal(list.patchValue, undefined);
     // ‼ והכרטיס: «טעון אימות» לפני האישור.
     const facts = niFacts({ ...client, familyStatus: 'single' } as Client);
     equal(fact(facts, 'הכנסה מוצהרת').tone, 'warn');
@@ -261,20 +263,17 @@ export const TESTS: TestCase[] = [
     equal(a.v, '47,800 ₪ לשנה (2025)');
     deepEqual(a.sub, ['ממוצע מחושב ≈ 3,983 ₪ לחודש']);
     const b = fact(facts, 'בסיס לדמי ביטוח');
-    equal(b.v, '16,708 ₪ · אוקטובר–דצמבר 2026');
-    equal(b.sub![0], 'בסיס חודשי 5,569 ₪');
-    assert(/^הערכת הכנסה ≈ [\d,]+ ₪ לחודש \(2025\)$/.test(b.sub![1]), `הערכה מסומנת: ${b.sub![1]}`);
+    // ‼ 21.10.2026 · שורה אחת; בלי «בסיס חודשי»/«הערכת הכנסה» בכרטיס.
+    equal(b.v, 'עצמאי: 16,708 ₪ · אוקטובר–דצמבר 2026');
+    equal(b.sub, undefined);
     const text = allText(facts);
     assert(!/שונה מההצהרה|תואם להצהרה/.test(text), 'אין פסק דין «תואם/שונה»');
     assert(!/47,800 ₪ לחודש/.test(text), 'לא «47,800 לחודש»');
     const ex = b.explain!;
-    deepEqual(ex.map(s => s.kind), ['read', 'calc', 'estimate', 'compare']);
-    equal(ex[1].lines[0].formula, '16,708 ÷ 3 ≈ 5,569 ₪');
+    deepEqual(ex.map(s => s.kind), ['read']);
+    assert(ex[0].lines.length <= 3, 'עד שלוש שורות');
     assert(ex[0].lines.some(l => /16,708 ₪/.test(l.text) && /אוקטובר–דצמבר 2026/.test(l.text)), 'הבסיס והתקופה שנקראו');
-    assert(ex[0].lines.some(l => /05\/10\/2026/.test(l.text)), 'מתי נשמר — מ-field_meta, לא מומצא');
-    assert(ex[2].lines.some(l => /2025/.test(l.text) && /1\.0051/.test(l.text)), 'ההנחות: שנה ומקדם');
-    assert(ex[2].lines.some(l => /הערכה/.test(l.text)), 'רמת הוודאות');
-    assert(ex[3].lines.some(l => l.formula === '47,800 ÷ 12 = 3,983.33 ₪'), 'הממוצע של השומה — כחישוב');
+    assert(/05\/10\/2026/.test(ex[0].title), 'מתי נשמר — מ-field_meta, לא מומצא');
   }),
 
   test('כרטיס: 47,583 ÷ 3 = 15,861; הצהרה מאומתת מאותה שנה ⇒ «קרוב להצהרה»', () => {
@@ -288,8 +287,7 @@ export const TESTS: TestCase[] = [
     equal(inc.v, '16,500 ₪ לחודש');
     deepEqual(inc.sub, ['הצהרה · יוני 2025']);
     const b = fact(facts, 'בסיס לדמי ביטוח');
-    equal(b.explain![1].lines[0].formula, '47,583 ÷ 3 ≈ 15,861 ₪');
-    assert(/קרוב להצהרה$/.test(b.sub![1]), b.sub![1]);
+    deepEqual(b.sub, ['לפי הצהרה של 16,500 ₪ לחודש (יוני 2025)']);
   }),
 
   test('כרטיס: ערך ישן «טעון אימות» אינו נכנס להשוואה; שומה חלקית ⇒ «לא ידוע אם לשנה או לחודש»', () => {
@@ -303,8 +301,7 @@ export const TESTS: TestCase[] = [
     equal(inc.tone, 'warn');
     assert(/טעון אימות/.test(inc.sub![0]), 'הסבר');
     const b = fact(facts, 'בסיס לדמי ביטוח');
-    assert(!/קרוב להצהרה/.test(b.sub!.join()), 'לא הושווה');
-    assert(b.explain![3].lines.some(l => /טעונה אימות/.test(l.text)), 'ההסבר אומר למה לא הושווה');
+    assert(!/קרוב להצהרה/.test((b.sub ?? []).join()), 'לא הושווה');
     deepEqual(fact(facts, 'הכנסה לפי שומה').sub, ['לא ידוע אם הסכום לשנה או לחודש']);
   }),
 
@@ -335,7 +332,7 @@ export const TESTS: TestCase[] = [
     const facts = niFacts(saved);
     const b = fact(facts, 'בסיס לדמי ביטוח');
     assert(/10,326/.test(b.v) && /אוקטובר–דצמבר 2026/.test(b.v), b.v);
-    deepEqual(b.sub, ['בסיס עובד']);
+    assert(/^שכיר: /.test(b.v), b.v);
     assert(!/[≈÷]/.test(JSON.stringify(b.explain)), 'ההסבר לא מחשב מבסיס עובד');
     assert(fact(facts, 'מקדמה חודשית').v !== '—', 'מקדמה 0 מוצגת, לא ריק');
   }),

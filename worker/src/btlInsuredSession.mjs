@@ -389,7 +389,8 @@ async function readOccupationRecordDetail(page, rowIndex) {
   let found = false;
   for (let i = 0; i < 24; i++) {
     const t = await bodyText(page);
-    if (t.includes('פירוט עיסוק') && t.includes('הכנסה להגדרה')) { found = true; break; }
+    // ‼ עובד: בלי «הכנסה להגדרה» — «שם מעביד» במקומה (נצפה 21.10.2026).
+    if (t.includes('פירוט עיסוק') && /הכנסה להגדרה|שם מעביד/.test(t)) { found = true; break; }
     await page.waitForTimeout(500);
   }
   if (!found) return { ok: false, reason: 'record_detail_not_found' };

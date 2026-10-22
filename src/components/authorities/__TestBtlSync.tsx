@@ -191,6 +191,42 @@ const CASES: Record<string, { client: Client; job: AutomationJob | null; title: 
     }] }),
     title: 'זוג — שני אנשים, כל אחד בנפרד',
   },
+  // 21.10.2026 · נצפה חי (נתונים מדומים): שכיר+עצמאי עם מעביד; בת זוג שכירה
+  // בלי בסיס («ד"ב : 0»), שנמצאה ברשימת המיוצגים — ירוק בלי «לבדיקה».
+  'couple-employers': {
+    client: {
+      ...COUPLE, niAdvanceMonthly: 0, niIncomeBasisMonthly: 1, spouseNiAdvanceMonthly: 0, spouseNiBalance: 0,
+      niInsuranceBasis: { year: 2026, fromMonth: 10, toMonth: 12, months: 3, periodBasis: 2, category: 'עצמאי', advanceMonthly: 0, otherBases: [{ category: 'עובד', amount: 30_570 }] },
+      niIncomeList: { declaration: { year: 2026, fromMonth: 5, toMonth: 5, infoSource: 'הצהרה', incomeSource: 'עצמאי', amount: 1, receivedDate: '2026-07-07', status: 'תקף' }, assessment: null },
+      fieldMeta: { niIncomeBasisMonthly: AUTO_META, niIncomeList: AUTO_META, niInsuranceBasis: AUTO_META },
+      spouseNiDebitAuthorization: true, niDebitAuthorization: true,
+      niOccupations: [
+        { id: 'e1', type: 'employee', sourceLabel: 'עובד', source: 'btl_portal', fromDate: '2025-10-01', employerName: 'מעביד לדוגמה בע"מ', withholdingFile: '912345678' },
+        { id: 'e2', type: 'self_employed', sourceLabel: 'עצמאי', source: 'btl_portal', fromDate: '2026-05-01' },
+      ],
+      spouseNiOccupations: [{ id: 'e3', type: 'employee', sourceLabel: 'עובד', source: 'btl_portal', fromDate: '2022-02-01', employerName: 'חברה לדוגמה בע"מ', withholdingFile: '923456789' }],
+    } as Client,
+    job: job('succeeded', { system: 'btl', occupationsFrom: '2026-01-01', persons: [
+      { ...INSURED_RESULT, representation: { found: true, receivedDate: '2026-06-17' }, sections: { ...INSURED_RESULT.sections,
+        advance: { ok: true, value: { year: 2026, fromMonth: 10, toMonth: 12, months: 3, basisCategory: 'עצמאי', periodBasis: 2, advanceMonthly: 0,
+          bases: [{ category: 'עובד', amount: 30_570 }, { category: 'עצמאי', amount: 2 }] } },
+        occupations: { ok: true, warnings: [], value: [
+          { sourceLabel: 'עובד', fromDate: '2025-10-01', toDate: null, sourcePeriods: [], detail: { hoursBand: null, definitionIncome: null, definitionText: null, definitionRule: null, profession: null, registeredDate: null, status: 'תקף', employerName: 'מעביד לדוגמה בע"מ', withholdingFile: '912345678', periodFrom: '2025-10-01', periodTo: null } },
+          { sourceLabel: 'עצמאי', fromDate: '2026-05-01', toDate: null, sourcePeriods: [] },
+        ] },
+        directIncome: { ok: true, rows: 0, value: null, records: [], omitted: 0, candidatesComplete: true, empty: true },
+      } },
+      { role: 'spouse', label: 'רון ישראלי', ok: true, representation: { found: true, receivedDate: '2026-10-13' },
+        sections: {
+          advance: { ok: true, value: { year: 2026, fromMonth: 10, toMonth: 12, months: 3, basisCategory: null, periodBasis: null, advanceMonthly: 0 } },
+          occupations: { ok: true, warnings: [], value: [{ sourceLabel: 'עובד', fromDate: '2022-02-01', toDate: null, sourcePeriods: [], detail: { hoursBand: null, definitionIncome: null, definitionText: null, definitionRule: null, profession: null, registeredDate: null, status: 'תקף', employerName: 'חברה לדוגמה בע"מ', withholdingFile: '923456789', periodFrom: '2022-02-01', periodTo: null } }] },
+          directIncome: { ok: true, rows: 0, value: null, records: [], omitted: 0, candidatesComplete: true, empty: true },
+          debitAuthorization: { ok: true, value: true, source: 'table' },
+          balance: { ok: true, value: 0, source: 'ledger' },
+        } },
+    ] }),
+    title: 'זוג — מעבידים, בלי בסיס, נמצאה ברשימת המיוצגים',
+  },
   'couple-partial': {
     client: COUPLE,
     job: job('succeeded', { system: 'btl', persons: [INSURED_RESULT, {

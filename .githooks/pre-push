@@ -1,0 +1,4 @@
+#!/bin/sh
+# PIVO: בדיקה לפני כל push ל-master — scripts/pre-push-check.mjs (tsc, בדיקות יחידה, staging לפי scripts/impact-map.json, כללים חיים בייצור).
+# דילוג רק עם סיבה: PIVO_SKIP_CHECKS="..." git push
+exec node scripts/pre-push-check.mjs "$@"

@@ -1,0 +1,149 @@
+/* ─── «עבודות» — סקירה (21.10.2026) ─────────────────────────────────────────────────────────────────
+   ההפניה: docs/proposals/2026-10-21-tax-area-reimagined.html, מקטע «עבודות».
+   ‼ צבע = מידע: איחור אדום, «אצלי» בצבע המותג, «אצל הלקוח» ענבר. סוג וזהות — טקסט בלבד.
+   ‼ טוקנים בלבד (יש ערכה כהה). הרשימה מתארגנת לפי רוחב המכל, לא המסך — המסך יושב ליד מסילה. */
+
+.wov { container: wov / inline-size; display: flex; flex-direction: column; color: var(--ink-1); min-width: 0; }
+.wov button { font: inherit; color: inherit; }
+.wov-sp { flex: 1 1 auto; }
+
+/* ראש */
+.wov-head { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 14px; margin: 6px 0 20px; }
+.wov-title { margin: 0; font-size: var(--fs-34); font-weight: 700; letter-spacing: -.02em; line-height: 1.1; color: var(--ink-1); }
+.wov-chip { display: inline-flex; align-items: center; gap: 8px; min-height: 32px; padding: 4px 12px; border-radius: 999px; border: 1px solid var(--hairline-1);
+  background: var(--surface-2); color: var(--ink-2); font-size: var(--fs-13); cursor: pointer; }
+.wov-chip span { color: var(--ink-4); font-size: 11px; }
+.wov-chip.is-static { cursor: default; }
+@media (hover: hover) { .wov-chip:not(.is-static):hover { background: var(--surface-2-active); } .wov-chip:not(.is-static):hover span { color: var(--ink-1); } }
+.wov-sync { display: inline-flex; align-items: center; gap: 8px; min-height: 36px; padding: 6px 12px; border-radius: 9px; border: 1px solid var(--hairline-1);
+  background: transparent; color: var(--ink-3); font-size: var(--fs-13); cursor: pointer; white-space: nowrap; }
+.wov-sync em { font-style: normal; }
+.wov-sync svg { flex: none; color: var(--ink-4); }
+@media (hover: hover) { .wov-sync:hover { background: var(--surface-0); border-color: var(--bd-strong); color: var(--ink-1); } }
+.wov-badge { display: inline-grid; place-items: center; min-inline-size: 20px; block-size: 20px; padding: 0 6px; border-radius: 999px;
+  background: var(--chip-amber-bg); color: var(--chip-amber-tx); font-size: var(--fs-12); font-weight: 700; font-variant-numeric: tabular-nums; }
+
+/* עונת הדוחות */
+.wov-season { background: var(--surface-0); border: 1px solid var(--hairline-1); border-radius: 14px; padding: 18px 20px; box-shadow: var(--shadow); }
+.wov-season-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 12px; }
+.wov-season-head b { font-size: var(--fs-15); font-weight: 650; }
+.wov-season-head span { color: var(--ink-4); font-size: var(--fs-13); font-variant-numeric: tabular-nums; }
+.wov-bar { display: flex; gap: 2px; height: 10px; border-radius: 6px; overflow: hidden; }
+.wov-bar div { flex-basis: 0; min-width: 6px; }
+.wov-bar .is-click { cursor: pointer; }
+@media (hover: hover) { .wov-bar .is-click:hover { filter: brightness(1.08); } }
+.wov-legend { display: flex; flex-wrap: wrap; gap: 4px 18px; margin-top: 10px; font-size: var(--fs-13); color: var(--ink-3); }
+.wov-legend > * { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 0; border: 0; background: none; color: inherit; }
+.wov-legend button { cursor: pointer; border-radius: 6px; }
+@media (hover: hover) { .wov-legend button:hover { color: var(--ink-1); } }
+.wov-legend i { width: 8px; height: 8px; border-radius: 2px; }
+.wov-legend b { color: var(--ink-1); font-weight: 600; font-variant-numeric: tabular-nums; }
+.wov-bar .is-filed, .wov-legend .is-filed { background: var(--success); }
+.wov-bar .is-mine, .wov-legend .is-mine { background: var(--accent-fill); }
+.wov-bar .is-client, .wov-legend .is-client { background: var(--progress-partial); }
+.wov-bar .is-noRequest, .wov-legend .is-noRequest { background: var(--ink-quiet); }
+.wov-bar .is-other, .wov-legend .is-other { background: var(--bd-strong); }
+
+/* לשוניות + חיפוש */
+.wov-tools { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 12px; margin: 26px 0 4px; }
+.wov-tabs { display: inline-flex; gap: 4px; }
+.wov-tabs button { min-height: 36px; padding: 6px 14px; border-radius: 999px; border: 1px solid transparent; background: none; color: var(--ink-3); font-weight: 500; cursor: pointer; }
+.wov-n { margin-inline-start: 6px; color: var(--ink-4); font-weight: 400; font-variant-numeric: tabular-nums; }
+.wov-tabs button.is-on { background: var(--ink-1); color: var(--surface-0); }
+.wov-tabs button.is-on .wov-n { color: color-mix(in srgb, var(--surface-0) 70%, var(--ink-1)); }
+@media (hover: hover) { .wov-tabs button:not(.is-on):hover { background: var(--surface-2); } }
+.wov-find { display: flex; align-items: center; gap: 8px; height: 36px; inline-size: 200px; padding: 0 10px; border: 1px solid var(--hairline-1); border-radius: 10px; background: var(--surface-0); }
+.wov-find:focus-within { border-color: var(--accent); }
+.wov-find svg { flex: none; color: var(--ink-4); }
+.wov-find input { flex: 1; min-width: 0; border: 0; outline: 0; background: none; color: var(--ink-1); font: inherit; font-size: 16px; padding: 0; }
+.wov-find input::placeholder { color: var(--ink-4); }
+@media (prefers-reduced-motion: no-preference) { .wov-find { transition: inline-size .3s cubic-bezier(.2, .8, .2, 1), border-color .2s; } .wov-find:focus-within { inline-size: 260px; } }
+
+/* קבוצות ושורות */
+.wov-grp { margin-top: 24px; }
+.wov-grp h3 { margin: 0 4px 8px; font-size: var(--fs-13); font-weight: 600; color: var(--ink-4); letter-spacing: .02em; }
+.wov-grp h3.is-late { color: var(--danger); }
+.wov-list { list-style: none; margin: 0; padding: 0; background: var(--surface-0); border: 1px solid var(--hairline-1); border-radius: 14px; overflow: hidden; box-shadow: var(--shadow); }
+.wov-list > li + li { border-top: 1px solid var(--hairline-2); }
+.wov-item { inline-size: 100%; display: grid; grid-template-columns: 40px minmax(0, 1fr) auto auto; align-items: center; gap: 14px; padding: 14px 18px;
+  border: 0; background: none; text-align: start; cursor: pointer; }
+@media (hover: hover) { .wov-item:hover { background: var(--surface-1); } }
+.wov-item:active { background: var(--surface-2); }
+.wov-item:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.wov-ini { width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; background: var(--soft); color: var(--accent); font-size: var(--fs-13); font-weight: 600; }
+.wov-who { display: grid; min-width: 0; }
+.wov-who b { font-size: var(--fs-15); font-weight: 600; color: var(--ink-1); overflow-wrap: anywhere; }
+.wov-who span { font-size: var(--fs-13); color: var(--ink-3); overflow-wrap: anywhere; }
+.wov-st { display: flex; align-items: center; gap: 7px; font-size: var(--fs-13); color: var(--ink-3); min-width: 0; max-inline-size: 22rem; }
+.wov-st i { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--ink-quiet); }
+.wov-st.is-mine i { background: var(--accent); }
+.wov-st.is-client i { background: var(--warn); }
+.wov-due { display: grid; min-width: 88px; text-align: end; }
+.wov-due b { font-size: var(--fs-14); font-weight: 600; color: var(--ink-1); font-variant-numeric: tabular-nums; }
+.wov-due span { font-size: var(--fs-12); color: var(--ink-3); white-space: nowrap; }
+.wov-due.is-late b, .wov-due.is-late span { color: var(--danger); }
+
+/* הושלמו / בוטלו */
+.wov-closed { margin-top: 26px; display: grid; gap: 10px; }
+.wov-closed-links { display: flex; gap: 18px; flex-wrap: wrap; }
+.wov-link { border: 0; background: none; padding: 4px 2px; min-height: 32px; color: var(--ink-3); font-size: var(--fs-13); cursor: pointer; }
+@media (hover: hover) { .wov-link:hover { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; } }
+.wov-link[aria-expanded='true'] { color: var(--ink-1); font-weight: 600; }
+.wov-list.is-compact { box-shadow: none; }
+.wov-item.is-closed { grid-template-columns: minmax(0, 1fr) auto; padding: 10px 18px; }
+.wov-item.is-closed .wov-who b { font-size: var(--fs-14); font-weight: 500; color: var(--ink-2); }
+.wov-st.is-closed { color: var(--ink-4); }
+
+/* מצבים */
+.wov-msg { padding: 12px 4px; font-size: var(--fs-13); color: var(--ink-3); }
+.wov-msg.is-err { color: var(--danger); }
+.wov-empty { padding: 56px 20px; text-align: center; color: var(--ink-4); font-size: var(--fs-14); }
+.wov-empty b { display: block; margin-bottom: 4px; color: var(--ink-1); font-size: var(--fs-17); font-weight: 600; }
+
+/* צר (טלפון, או מסך צר ליד המסילה) — המצב מתחת לשם, המועד בצד */
+@container wov (max-width: 600px) {
+  .wov-head { margin: 2px 0 16px; }
+  .wov-title { font-size: 28px; }
+  .wov-sync { padding: 6px 9px; }
+  .wov-sync em { display: none; }
+  .wov-season { padding: 16px; }
+  .wov-legend { gap: 0 14px; }
+  .wov-tools { margin-top: 20px; }
+  .wov-find, .wov-find:focus-within { inline-size: 100%; }
+  .wov-tools .wov-sp { display: none; }
+  .wov-item { grid-template-columns: 36px minmax(0, 1fr) auto; gap: 4px 12px; padding: 13px 14px; }
+  .wov-ini { grid-row: 1 / span 2; }
+  .wov-st { grid-column: 2; grid-row: 2; max-inline-size: none; }
+  .wov-due { grid-column: 3; grid-row: 1 / span 2; min-width: 0; }
+  .wov-item.is-closed { grid-template-columns: minmax(0, 1fr); }
+  .wov-item.is-closed .wov-st { grid-column: 1; }
+}
+
+/* יריעת «עדכון משע״ם» — בפורטל לגוף המסמך */
+.wov-scrim { position: fixed; inset: 0; z-index: 1000; display: flex; justify-content: center; align-items: flex-start; padding: 72px 16px 24px;
+  background: rgba(20, 22, 26, .28); }
+.wov-sheet { direction: rtl; inline-size: min(620px, 100%); max-block-size: calc(100dvh - 96px); display: flex; flex-direction: column;
+  background: var(--surface-0); color: var(--ink-1); border-radius: 18px; box-shadow: var(--shadow-lg); overflow: hidden; }
+.wov-sheet-head { display: flex; align-items: center; gap: 12px; padding: 18px 22px 6px; }
+.wov-sheet-head h2 { flex: 1; margin: 0; font-size: var(--fs-20); font-weight: 650; }
+.wov-x { display: grid; place-items: center; inline-size: 36px; block-size: 36px; border: 0; border-radius: 50%; background: var(--surface-2); color: var(--ink-3); cursor: pointer; }
+@media (hover: hover) { .wov-x:hover { background: var(--surface-2-active); color: var(--ink-1); } }
+.wov-x:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.wov-sheet-body { overflow-y: auto; overscroll-behavior: contain; padding: 4px 22px 22px; }
+/* הלוח עצמו לא משתנה — רק המסגרת שלו מתמזגת ביריעה, והכותרת שלו כבר בראש היריעה */
+.wov-sheet-body > .shf-panel { border: 0; padding: 0; background: none; }
+.wov-sheet-body > .shf-panel > .shf-head h3 { position: absolute; inline-size: 1px; block-size: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+@media (prefers-reduced-motion: no-preference) {
+  .wov-scrim { animation: wov-fade .2s ease-out; }
+  .wov-sheet { animation: wov-rise .28s cubic-bezier(.2, .8, .2, 1); }
+}
+@keyframes wov-fade { from { opacity: 0; } }
+@keyframes wov-rise { from { opacity: 0; transform: translateY(-10px) scale(.98); } }
+@media (max-width: 640px) {
+  .wov-scrim { align-items: flex-end; padding: 0; }
+  .wov-sheet { inline-size: 100%; max-block-size: 90dvh; border-radius: 22px 22px 0 0; padding-bottom: env(safe-area-inset-bottom); }
+  .wov-sheet-head { padding: 16px 16px 4px; }
+  .wov-sheet-body { padding: 4px 16px 20px; }
+  @media (prefers-reduced-motion: no-preference) { .wov-sheet { animation-name: wov-up; } }
+}
+@keyframes wov-up { from { transform: translateY(100%); } }

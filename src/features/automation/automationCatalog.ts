@@ -89,15 +89,15 @@ export const AUTOMATION_ACTIONS: AutomationAction[] = [
   {
     id: 'shaam-sync', system: 'shaam', actionType: SHAAM_SYNC_INCOME_TAX_ACTION_TYPE,
     name: FLOW_ACTION_NAMES[SHAAM_SYNC_INCOME_TAX_ACTION_TYPE],
-    short: 'קורא את פרטי התיק בשע״ם ומשווה לכרטיס הלקוח.',
+    short: 'קורא את התיק בשע״ם — פרטים, יתרה, דוחות שלא הוגשו והצהרת הון — ומשווה לכרטיס.',
     effect: 'read', mode: 'בלחיצה', modeAuto: false,
     trigger: 'בלחיצה, בלשונית «תיק מס» של הלקוח',
-    what: 'נכנס לתיק במערכת גביית מס הכנסה (שאילתה 134) וקורא את השדות שבראש התיק. לא משנה דבר בשע״ם, ולא כותב לכרטיס לבד.',
+    what: 'נכנס לתיק במערכת גביית מס הכנסה: שאילתה 154 (פרטי התיק, יתרה, חבות והגשה לכל שנת מס, דרישת הצהרת הון), ו-134 רק כשיש מקדמות פעילות. לא משנה דבר בשע״ם, ולא כותב לכרטיס לבד.',
     manual: `«${FLOW_ACTION_NAMES[SHAAM_SYNC_INCOME_TAX_ACTION_TYPE]}» בכרטיס מס הכנסה, בלשונית «תיק מס» של הלקוח.`,
     automatic: null,
     flow: FLOW_CAPABILITY,
     needs: [NEEDS_WORKER, NEEDS_SHAAM, 'מספר תיק במס הכנסה בכרטיס הלקוח'],
-    results: 'בלשונית «תיק מס»: כל שדה מול מה שבשע״ם. שינוי נכנס לכרטיס רק כשמאשרים אותו.',
+    results: 'בלשונית «תיק מס»: כל שדה מול מה שבשע״ם — שינוי נכנס לכרטיס רק כשמאשרים אותו. דוחות שחייבים ולא הוגשו ודרישת הצהרת הון — ב«דוחות והצהרות».',
     clientTab: 'taxfile', clientTarget: 'taxfile:income_tax',
   },
   {

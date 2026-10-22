@@ -110,6 +110,36 @@ export function niBasisView(b: NiInsuranceBasis, ctx: NiBasisContext = {}): NiBa
   };
 }
 
+// ─── הכרטיס (21.10.2026, גיא: «אתה שלם עם זה?») ─────────────────────────────────
+// ‼ שורה אחת של מה שב"ל רושם, ומתחתיה רק מה שמסביר אותה: ההצהרה שממנה נגזר הבסיס, ושאר הבסיסים באותה
+//   שורה. «בסיס חודשי» ו«הערכת הכנסה» הוסרו מהכרטיס — חישובים של PIVO שנקראו כמו נתון (ו-«(2025)» בלי בסיס).
+
+/** «עובד» בב"ל = «שכיר» במשרד. */
+export function niBasisCategoryLabel(category?: string): string {
+  return category === 'עובד' ? 'שכיר' : category ?? '';
+}
+
+export function niBasisCard(b: NiInsuranceBasis, declaration?: NiIncomeEntry | null): { v: string; sub: string[] } {
+  const label = niBasisCategoryLabel(b.category);
+  const sub: string[] = [];
+  if (declaration && niIsSelfEmployedBasis(b)) sub.push(`לפי הצהרה של ${ils(declaration.amount)} לחודש (${niIncomePeriodText(declaration)})`);
+  for (const o of b.otherBases ?? []) sub.push(`${niBasisCategoryLabel(o.category)}: ${ils(o.amount)}`);
+  return { v: `${label ? `${label}: ` : ''}${ils(b.periodBasis)} · ${niBasisPeriodText(b)}`, sub };
+}
+
+/** ההסבר הקצר שמאחורי ה-«?» — שלוש שורות לכל היותר. */
+export function niBasisShortExplain(b: NiInsuranceBasis, ctx: { declaration?: NiIncomeEntry | null; basisMeta?: FieldMeta } = {}): NiHelpSection[] {
+  const lines: NiHelpLine[] = [{
+    text: [
+      ...[{ category: b.category ?? '', amount: b.periodBasis }, ...(b.otherBases ?? [])].map(x => `${niBasisCategoryLabel(x.category) || 'בסיס'} ${ils(x.amount)}`),
+    ].join(' · ') + ` לתקופה ${niBasisPeriodText(b)}${b.advanceMonthly != null ? ` · מקדמה ${ils(b.advanceMonthly)} לחודש` : ''}`,
+  }];
+  if (ctx.declaration && niIsSelfEmployedBasis(b)) lines.push({ text: `הבסיס כעצמאי נגזר מההצהרה שרשומה בב״ל: ${ils(ctx.declaration.amount)} לחודש (${niIncomePeriodText(ctx.declaration)})` });
+  lines.push({ text: 'הבסיס הוא ההכנסה שעליה ב״ל מחשב דמי ביטוח לתקופה; המקדמה נגזרת ממנו. הוא לא ההכנסה בפועל.' });
+  const saved = day(ctx.basisMeta?.syncedAt);
+  return [{ kind: 'read', title: `נקרא מביטוח לאומי${ctx.basisMeta?.source === 'automation' && saved ? ` · ${saved}` : ''}`, lines }];
+}
+
 // ─── ההסבר שמאחורי ה-«?» ─────────────────────────────────────────────────────
 
 /** שורה בהסבר: טקסט, ואופציונלית נוסחה שמוצגת משמאל לימין. */

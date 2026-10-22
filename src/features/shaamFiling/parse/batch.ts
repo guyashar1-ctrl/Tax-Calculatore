@@ -50,6 +50,8 @@ export interface Coverage {
 }
 
 export interface BatchSource {
+  /** 'manual' — מקור בלי קובץ (למשל שאילתה 154 מיישור הקו). ברירת מחדל בשרת: 'pdf'. */
+  method?: 'pdf' | 'manual';
   key: string; fileName: string; sha256?: string; size?: number; storagePath?: string; kind: ListKind; group?: WealthGroup; taxYear?: number;
   producedRaw?: string; producedOn?: string; status: 'ok' | 'empty_confirmed' | 'partial'; pages: { page?: number; pageTotal?: number; status: PageStatus; rows: number }[];
 }

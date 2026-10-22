@@ -110,9 +110,9 @@ export const TESTS: TestCase[] = [
     assert(!FORBIDDEN_IN_SAMPLE.test(office), `בתצוגה במשרד: ${office.match(FORBIDDEN_IN_SAMPLE)?.[0]}`);
   }),
 
-  test('רק livePortalActions ועוזריו (טעינה, פתיחה, כתובת קובץ) נוגעים בלקוח המסד וב-fetch', () => {
+  test('רק livePortalActions ועוזריו (טעינה, «הדוחות שלך», פתיחה, כתובת קובץ) נוגעים בלקוח המסד וב-fetch', () => {
     let rest = ACTIONS;
-    for (const head of ['export async function loadClientPortal<', 'async function confirmOpenedLive(', 'function resourceHrefLive(', 'export function livePortalActions(']) {
+    for (const head of ['export async function loadClientPortal<', 'async function loadFilingsLive(', 'async function loadFilingsOffice(', 'async function confirmOpenedLive(', 'function resourceHrefLive(', 'export function livePortalActions(']) {
       const s = sliceOf(rest, head);
       rest = rest.replace(s, '');
     }

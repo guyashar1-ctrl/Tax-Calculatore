@@ -151,7 +151,8 @@ export const ITEMS: InfoItem[] = [
     covers: { parts: ['יג'], annexItems: ['116ד.deferChildren', '116ד.useDeferred', '116ד.employer'] },
     officeNext: 'פרטי המעסיק לטופס (כתובת, טלפון, תיק ניכויים) — מטופס 101 או מהתלוש של המעסיק' },
   { key: 'household.settlement', area: 'household', label: 'יישוב מזכה', kind: 'confirm', per: 'couple', onlyIfOnCard: true, who: 'client', purposes: BOTH,
-    question: 'יישוב המגורים', why: 'מגורים ביישוב מזכה מקנים הנחה במס', input: 'confirm', cardKeys: ['qualifyingSettlementId'], covers: { parts: ['יד'] } },
+    question: 'יישוב המגורים', why: 'מגורים ביישוב מזכה מקנים הנחה במס', input: 'confirm', cardKeys: ['qualifyingSettlementId'], covers: { parts: ['יד'] },
+    officeNext: 'השתנה — לבדוק מתי עבר/ה, ולתקן ב«יישוב מזכה» בתיק המס (קביעה ידנית עם סיבה)' },
   // ‼ 21.10.2026 · כתובת המגורים — נשאלת בהערכת המס ובדוח רק כשחסרה בכרטיס (אין יותר «קליטה והשלמת תיק» נפרדת; גיא:
   //   «אני פשוט אשלח לו הערכת מס, וככה על הדרך אקבל איפה הוא גר, כמה ילדים…»). באישור המשרד — לכרטיס, עם היסטוריה.
   { key: 'household.address', area: 'household', label: 'כתובת מגורים', kind: 'confirm', per: 'couple', who: 'client', purposes: BOTH, onlyIfOnCard: false,

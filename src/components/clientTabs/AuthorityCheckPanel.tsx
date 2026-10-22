@@ -39,12 +39,14 @@ export function FieldAuthorityLine({ field, sourceLabel }: { field: AuthorityFie
       </div>
     );
   }
-  // ‼ כשל בלי הסבר משלו — ההסבר נאמר פעם אחת ברמה שמעליו (אדם/ריצה).
-  if (field.status === 'failed' && (field.error || field.authorityRaw)) {
+  // ‼ כשל — הנקודה האדומה מספיקה; «N שדות לא נקראו» נאמר פעם אחת בסיכום
+  // (21.10.2026: אותו משפט אדום מתחת לשני שדות היה רעש). שורה רק כשהרשות
+  // החזירה ערך גולמי שלא פוענח — זה מידע.
+  if (field.status === 'failed' && field.authorityRaw) {
     return (
       <div className="txf-authline is-failed">
-        {field.authorityRaw ? <><span className="txf-authline-tag">{sourceLabel}:</span> {field.authorityRaw} · </> : null}
-        {field.error}
+        <span className="txf-authline-tag">{sourceLabel}:</span> {field.authorityRaw}
+        {field.error ? <> · {field.error}</> : null}
       </div>
     );
   }

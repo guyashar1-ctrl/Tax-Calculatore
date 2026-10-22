@@ -1,0 +1,236 @@
+{
+  "_doc": "מפת השפעה לבדיקה שלפני push (scripts/pre-push-check.mjs). קובץ שהשתנה ⇒ הבדיקות של התחום שלו. run=true ⇒ רצה ועוצרת אם נכשלה; run=false ⇒ תזכורת בלבד (עד שהבדיקה תאומת כירוקה ותעבור ל-true). הגרסה המכנית של CLAUDE.md §12.5. תחום חדש בלי שורה כאן ⇒ אזהרה.",
+  "areas": [
+    {
+      "name": "ייצוג: בן/בת הזוג הרשום/ה, חתימות, הגשות בשע״ם",
+      "invariants": [
+        "INV-REP-01",
+        "INV-REP-02",
+        "INV-REP-03"
+      ],
+      "globs": [
+        "src/features/representation/**",
+        "src/utils/repScope.ts",
+        "src/utils/representationInsight.ts",
+        "src/features/annualReport/profile.ts",
+        "src/components/Representation*.tsx",
+        "src/components/ShaamNextActionButton.tsx",
+        "src/components/clientTabs/OnboardingTab.tsx",
+        "supabase/2*-*registered*.sql",
+        "supabase/2*-*signature*.sql",
+        "supabase/2*-*shaam*.sql",
+        "supabase/2*-*rep-*.sql",
+        "worker/src/handlers/shaam*.mjs",
+        "worker/src/shaamRepresentationSession.mjs"
+      ],
+      "suites": [
+        {
+          "script": "staging-test-registered-271.mjs",
+          "run": true
+        },
+        {
+          "script": "staging-test-shaam-presign-208.mjs",
+          "run": false,
+          "note": "נכשל מ-04.10 (218 דורש תיבת חתימה לכל חותם; הבדיקה בונה טפסים בלי תיבות) — לעדכן את הבדיקה"
+        },
+        {
+          "script": "staging-test-shaam-lifecycle-205.mjs",
+          "run": false,
+          "note": "נחסמת ב-staging על assert_domain_function_invariants (il_streets_for / il_localities_list מעבודת הכתובות שטרם שוחררה) — להפעיל כשזה ייסגר"
+        },
+        {
+          "script": "staging-test-representation-joint.mjs",
+          "run": true
+        }
+      ]
+    },
+    {
+      "name": "אוטומציה: «הפעל הכול», «המשך», משימות",
+      "invariants": [
+        "INV-AUTO-01",
+        "INV-AUTO-02",
+        "INV-AUTO-03"
+      ],
+      "globs": [
+        "src/components/RunAllAutomations.tsx",
+        "src/components/NiNextActionButton.tsx",
+        "src/lib/runAllStart.ts",
+        "src/lib/automationFollowups.ts",
+        "src/lib/automationJob*.ts",
+        "src/hooks/useAutomation*.ts",
+        "supabase/2*-*automation*.sql",
+        "supabase/2*-*run-all*.sql"
+      ],
+      "suites": [
+        {
+          "script": "staging-test-job-followups-270.mjs",
+          "run": true
+        }
+      ]
+    },
+    {
+      "name": "קליטה: עסק חדש, תעודות, «מסמכים מהלקוח»",
+      "invariants": [
+        "INV-REP-04"
+      ],
+      "globs": [
+        "src/utils/identityEvidence.ts",
+        "src/components/OnboardingPage.tsx",
+        "src/utils/businessSituation.ts",
+        "src/features/flows/compile.ts",
+        "supabase/2*-*license*.sql",
+        "supabase/2*-*new-business*.sql",
+        "supabase/2*-*identity*.sql"
+      ],
+      "suites": [
+        {
+          "script": "staging-test-new-business-234.mjs",
+          "run": true
+        },
+        {
+          "script": "staging-test-onboarding-roundtrip.mjs real",
+          "run": false,
+          "note": "נכשל על אותו assert (מגרסה ישנה של המיגרציות שהוא מחיל מחדש)"
+        }
+      ]
+    },
+    {
+      "name": "ספרייה · מסלולים · הודעות ללקוח (CLAUDE.md §12.5)",
+      "globs": [
+        "src/features/flows/**",
+        "src/features/requests/**",
+        "supabase/functions/send-process-open-email/**",
+        "supabase/21[4-6]-*.sql"
+      ],
+      "suites": [
+        {
+          "script": "staging-test-flows-notices.mjs",
+          "run": false,
+          "note": "נחסמת ב-staging על assert_domain_function_invariants (il_streets_for / il_localities_list מעבודת הכתובות שטרם שוחררה) — להפעיל כשזה ייסגר"
+        },
+        {
+          "script": "staging-test-flow-conditions.mjs",
+          "run": false,
+          "note": "נחסמת ב-staging על assert_domain_function_invariants (il_streets_for / il_localities_list מעבודת הכתובות שטרם שוחררה) — להפעיל כשזה ייסגר"
+        },
+        {
+          "script": "staging-test-notices-edge.mjs",
+          "run": false,
+          "note": "נחסמת ב-staging על assert_domain_function_invariants (il_streets_for / il_localities_list מעבודת הכתובות שטרם שוחררה) — להפעיל כשזה ייסגר"
+        }
+      ]
+    },
+    {
+      "name": "בקשות: טיוטה, «פרסם בדף», הדף האישי",
+      "invariants": [
+        "INV-REQ-01"
+      ],
+      "globs": [
+        "supabase/2*-*draft*.sql",
+        "supabase/2*-*portal*.sql",
+        "supabase/2*-*intake*.sql",
+        "src/components/flows/NoticeTray.tsx"
+      ],
+      "suites": [
+        {
+          "script": "staging-test-draft-reaches-page-276.mjs",
+          "run": true
+        }
+      ]
+    },
+    {
+      "name": "ביטוח לאומי: מסלולים, ביטול, בן/בת זוג",
+      "invariants": [
+        "INV-REP-05"
+      ],
+      "globs": [
+        "src/utils/niPersons.ts",
+        "src/components/NiCancelRequest.tsx",
+        "supabase/2*-*ni-*.sql",
+        "worker/src/handlers/btl*.mjs"
+      ],
+      "suites": [
+        {
+          "script": "staging-test-ni-cancel.mjs",
+          "run": true
+        },
+        {
+          "script": "staging-test-btl-representation.mjs",
+          "run": true
+        }
+      ]
+    },
+    {
+      "name": "בדיקה יומית וכללים חיים",
+      "invariants": [
+        "INV-OPS-01",
+        "INV-SEC-01"
+      ],
+      "globs": [
+        "scripts/prod-invariants-check.mjs",
+        "supabase/2*-*invariant*.sql",
+        "supabase/2*-*allowlist*.sql"
+      ],
+      "suites": [
+        {
+          "script": "staging-test-invariant-check-282.mjs",
+          "run": true
+        }
+      ]
+    },
+    {
+      "name": "ידע מקצועי: «שאל» ועדכון הידע (281)",
+      "invariants": [],
+      "globs": [
+        "src/features/taxKnowledge/**",
+        "supabase/functions/knowledge-answer/**",
+        "supabase/281-*.sql",
+        "scripts/knowledge-*.mjs",
+        "src/features/taxKnowledge/ask/*",
+        "src/features/taxKnowledge/corpus/*"
+      ],
+      "suites": [
+        {
+          "script": "staging-test-knowledge-answer.mjs",
+          "run": true
+        }
+      ]
+    },
+    {
+      "name": "דף אישי: «הדוחות שלך» ו«הדבר הבא» (280)",
+      "invariants": [],
+      "globs": [
+        "src/components/portal/*ilings*",
+        "src/components/portal/PortalFilings.tsx",
+        "supabase/280-*.sql",
+        "src/components/portal/portalActions.ts",
+        "src/components/PublicPortalPage.tsx",
+        "src/components/clientTabs/ClientPagePreviewDialog.tsx",
+        "src/components/clientTabs/PortalPreviewPanel.tsx",
+        "src/components/office/__fakeBackend.ts"
+      ],
+      "suites": [
+        {
+          "script": "staging-test-280-portal-filings.mjs",
+          "run": true
+        }
+      ]
+    },
+    {
+      "name": "«מס»: מתג, «עבודות» וסקירת העבודות (ממשק בלבד — e2e: scripts/e2e/tax-area.mjs)",
+      "invariants": [],
+      "globs": [
+        "src/features/taxArea/*"
+      ],
+      "suites": []
+    }
+  ],
+  "watched": [
+    "src/features/",
+    "src/components/",
+    "src/utils/",
+    "src/lib/",
+    "supabase/",
+    "worker/src/"
+  ]
+}

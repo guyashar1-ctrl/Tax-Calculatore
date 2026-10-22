@@ -204,18 +204,19 @@ export function hoursBandFromLabel(label) {
   return null;
 }
 
-const MAX_DETAILS_PER_SEGMENT = 2;
+const MAX_DETAILS_PER_SEGMENT = 4;
 
 /**
- * אילו רשומות בפירוט התקופה לפתוח ל«פירוט עיסוק»: רק עיסוק עצמאי שבתוקף
- * (שם השעות וההכנסה להגדרה רלוונטיים ל-6101 ולהגדרת עצמאי). ‼ לא פותחים
- * כל רשומה — כל לחיצה היא ניווט בחלון של הרו"ח.
+ * אילו רשומות בפירוט התקופה לפתוח ל«פירוט עיסוק»: עצמאי (שעות והכנסה
+ * להגדרה — 6101 והגדרת עצמאי) ועובד (שם המעביד ותיק הניכויים — נצפה חי
+ * 21.10.2026: «פירוט עיסוק» של עובד מציג «תיק ניכויים» ו«שם מעביד»), רק מה
+ * שנמשך אל תוך החלון. ‼ לא פותחים כל רשומה — כל לחיצה היא ניווט בחלון.
  */
 export function recordsToDetail(tables, asOf) {
   const r = parseOccupationRecords(tables);
   if (!r.ok) return [];
   return r.records
-    .filter(x => /^עצמאי/.test(x.label) && (x.toDate == null || x.toDate >= asOf))
+    .filter(x => /^(עצמאי|עובד)/.test(x.label) && (x.toDate == null || x.toDate >= asOf))
     .map(x => x.index)
     .slice(0, MAX_DETAILS_PER_SEGMENT);
 }
@@ -250,6 +251,10 @@ export function parseOccupationDetail(raw) {
       definitionRule: rule ? { weeklyHours: Number(rule[1]), averageWagePct: Number(rule[2]) } : null,
       profession: v('משלח יד') || null,
       registeredDate: parseBtlDate(v('תאריך רישום')),
+      // ‼ עובד בלבד. «תיק ניכויים» כאן הוא של המעביד — לא «תיק ניכויים»
+      // שבריכוז המידע (של המבוטח עצמו).
+      ...(v('שם מעביד') ? { employerName: v('שם מעביד') } : {}),
+      ...(v('תיק ניכויים').replace(/\D/g, '') ? { withholdingFile: v('תיק ניכויים').replace(/\D/g, '') } : {}),
       status: statusLine ? norm(statusLine.replace(/^מצב\s*:/, '')) || null : null,
     },
   };
@@ -294,22 +299,28 @@ export function segmentsToDrill(segments, asOf) {
  * ‼ «בתוקף» = בלי תאריך סיום, או שתאריך הסיום היום או אחריו.
  */
 export function buildOccupationChains(records, asOf) {
-  const byLabel = new Map();
   const seen = new Map();
   for (const r of records) {
-    const key = `${r.label}|${r.fromDate}|${r.toDate ?? ''}`;
-    if (seen.has(key)) {
-      // אותה רשומה משתי תקופות — הפירוט שנקרא באחת מהן לא הולך לאיבוד.
-      const first = seen.get(key);
-      if (!first.detail && r.detail) first.detail = r.detail;
-      continue;
-    }
+    const key = `${r.label}|${r.fromDate}|${r.toDate ?? ''}|${r.detail?.withholdingFile ?? ''}`;
+    const bare = `${r.label}|${r.fromDate}|${r.toDate ?? ''}|`;
+    // אותה רשומה משתי תקופות — הפירוט שנקרא באחת מהן לא הולך לאיבוד.
+    const first = seen.get(key) ?? (r.detail ? undefined : [...seen.values()].find(x => `${x.label}|${x.fromDate}|${x.toDate ?? ''}|` === bare));
+    if (first) { if (!first.detail && r.detail) first.detail = r.detail; continue; }
+    const twin = r.detail && seen.get(bare);
+    if (twin && !twin.detail) { twin.detail = r.detail; seen.delete(bare); seen.set(key, twin); continue; }
     seen.set(key, r);
-    if (!byLabel.has(r.label)) byLabel.set(r.label, []);
-    byLabel.get(r.label).push(r);
+  }
+  // ‼ שני מעבידים באותה תקופה הם שני עיסוקים «עובד» — הרצף נבנה לכל מעביד
+  // (תיק ניכויים) בנפרד, אחרת אחד מהם נבלע בשני.
+  const byLabel = new Map();
+  for (const r of seen.values()) {
+    const k = `${r.label}|${r.detail?.withholdingFile ?? ''}`;
+    if (!byLabel.has(k)) byLabel.set(k, []);
+    byLabel.get(k).push(r);
   }
   const chains = [];
-  for (const [label, list] of byLabel) {
+  for (const [groupKey, list] of byLabel) {
+    const label = list[0].label;
     list.sort((a, b) => a.fromDate.localeCompare(b.fromDate));
     let cur = null;
     for (const r of list) {
@@ -319,18 +330,24 @@ export function buildOccupationChains(records, asOf) {
         if (cur.toDate != null && (r.toDate == null || r.toDate > cur.toDate)) cur.toDate = r.toDate;
       } else {
         cur = { sourceLabel: label, fromDate: r.fromDate, toDate: r.toDate, sourcePeriods: [{ fromDate: r.fromDate, toDate: r.toDate }] };
+        Object.defineProperty(cur, 'groupKey', { value: groupKey, enumerable: false });
         chains.push(cur);
       }
     }
   }
   // ‼ הפירוט של הרצף = זה של הרשומה המאוחרת ביותר שנפתחה לה (המצב הנוכחי).
   for (const c of chains) {
-    const withDetail = list0(byLabel.get(c.sourceLabel))
+    const withDetail = list0(byLabel.get(c.groupKey))
       .filter(r => r.detail && r.fromDate >= c.fromDate && (c.toDate == null || r.fromDate <= c.toDate))
       .sort((a, b) => b.fromDate.localeCompare(a.fromDate))[0];
     if (withDetail) c.detail = withDetail.detail;
   }
+  // ‼ רצף «עובד» בלי פירוט שמכוסה כולו ברצף «עובד» עם מעביד — אותה עבודה
+  // שלא נפתחה הפעם (מכסת הפירוט), לא עבודה נוספת.
+  const covered = (c) => !c.detail?.withholdingFile && chains.some(o => o !== c && o.sourceLabel === c.sourceLabel
+    && o.detail?.withholdingFile && o.fromDate <= c.fromDate && (o.toDate == null || (c.toDate != null && c.toDate <= o.toDate)));
   return chains
+    .filter(c => !covered(c))
     .filter(c => c.toDate == null || c.toDate >= asOf)
     .sort((a, b) => a.fromDate.localeCompare(b.fromDate) || a.sourceLabel.localeCompare(b.sourceLabel));
 }
@@ -410,7 +427,10 @@ export function parseAdvanceLine(text) {
   // ‼ 11.10.2026 · נצפה חי (הדסה, שכירה + «עצמאי לא עונה להגדרה»):
   // «2026 / 12-10 בסיסים , עובד 10,326 ד"ב : 0» — רבים ופסיק, ובלי «סכום».
   // שם «ד"ב : 0» הוא הסכום; ב«ד"ב : 2026/1 סכום : 2062» הוא תקופה.
-  const basesText = t.match(/בסיס(?:ים)?\s*[:,]\s*(.*?)(?=ד["״']?ב\s*:|סכום\s*:|$)/);
+  // ‼ 21.10.2026 · נצפה חי: «בסיסים עובד 30,570 , עצמאי 2 ד"ב : 0» (בלי
+  // פסיק אחרי «בסיסים»), ו«2026 / 12-10 ד"ב : 0» — בלי בסיס כלל (שכירה
+  // שאין לה מקדמות). זו תשובה: אין בסיס, מקדמה 0 — לא «לא נקרא».
+  const basesText = t.match(/בסיס(?:ים)?\s*[:,]?\s*(.*?)(?=ד["״']?ב\s*:|סכום\s*:|$)/);
   const bases = basesText
     ? [...basesText[1].matchAll(/([^\d,:]+?)\s*(\d{1,3}(?:,\d{3})+|\d+)/g)]
       .map(m => ({ category: norm(m[1].replace(/^[\s,]+|[\s,]+$/g, '')), amount: parseMoney(m[2]) }))
@@ -418,7 +438,15 @@ export function parseAdvanceLine(text) {
     : [];
   const amount = t.match(/סכום\s*:\s*(\d{1,3}(?:,\d{3})+|\d+)/)
     ?? t.match(/ד["״']?ב\s*:\s*(\d{1,3}(?:,\d{3})+|\d+)(?!\s*[\d,/])/);
-  if (bases.length === 0 || !amount) return null;
+  if (!amount) return null;
+  if (bases.length === 0) {
+    // רק כשאין זכר לבסיס בשורה — «בסיס» שלא פוענח הוא כשל, לא «אין».
+    if (basesText) return null;
+    return {
+      year, fromMonth, toMonth, months: toMonth - fromMonth + 1,
+      basisCategory: null, periodBasis: null, advanceMonthly: parseMoney(amount[1]), raw: t,
+    };
+  }
   // הבסיס שעליו נגזרת המקדמה הוא של העצמאי; בלעדיו — הבסיס היחיד שנרשם.
   const basis = bases.find(x => /עצמאי/.test(x.category)) ?? bases[0];
   return {
@@ -838,7 +866,7 @@ export function findRepresentedRow(tables, idNumber) {
 // reason }. value:null במקטע שהצליח = «המקור אומר שאין» — שונה מ-ok:false
 // = «לא הצלחנו לקרוא». הצד של PIVO **לא כותב** דבר על מקטע שנכשל.
 
-const MAX_OCCUPATION_DRILLS = 6;
+const MAX_OCCUPATION_DRILLS = 10;
 
 function sectionError(e) {
   return { ok: false, reason: 'unexpected', detail: (e instanceof Error ? e.message : String(e)).slice(0, 160) };
@@ -848,7 +876,11 @@ function isSessionLost(e) {
   return e?.name === 'BtlSessionLost';
 }
 
-async function readOccupations(portal, asOf, pairs, idNumber) {
+/**
+ * ‼ `from` — תחילת החלון: עיסוק שנמשך אל תוכו נקרא (גם אם הסתיים מאז), וכל
+ * מה שהסתיים לפניו לא. ברירת המחדל היא היום (רק מה שבתוקף), כמו קודם.
+ */
+async function readOccupations(portal, from, pairs, idNumber) {
   const list = await portal.openOccupationList();
   if (!list.ok) return { ok: false, reason: list.reason };
   const seg = parseOccupationSegments(list.tables);
@@ -858,26 +890,26 @@ async function readOccupations(portal, asOf, pairs, idNumber) {
   const records = [];
   const failedDrills = [];
   const detailWarnings = [];
-  let queue = segmentsToDrill(seg.segments, asOf).map(s => s.index);
+  let queue = segmentsToDrill(seg.segments, from).map(s => s.index);
   while (queue.length && drilled.size < MAX_OCCUPATION_DRILLS) {
     const i = queue.shift();
     if (drilled.has(i)) continue;
     drilled.add(i);
-    const d = await portal.drillSegment(i, { detailRows: (tables) => recordsToDetail(tables, asOf) });
+    const d = await portal.drillSegment(i, { detailRows: (tables) => recordsToDetail(tables, from) });
     if (!d.ok) { failedDrills.push(i); continue; }
     const r = parseOccupationRecords(d.tables);
     if (!r.ok) { failedDrills.push(i); continue; }
     detailWarnings.push(...attachDetails(r.records, d.details, idNumber));
     records.push(...r.records);
     if (d.returned === false) break;
-    if (queue.length === 0) queue = extensionTargets(buildOccupationChains(records, asOf), seg.segments, drilled);
+    if (queue.length === 0) queue = extensionTargets(buildOccupationChains(records, from), seg.segments, drilled);
   }
   // ‼ אם אף שורה בתוקף לא פורטה — אין לנו תאריכים מלאים. לא ממציאים מתוך
   // שורות התקופה (שבהן «עצמאי, תלמיד…» הוא צירוף ולא עיסוק).
-  const current = segmentsToDrill(seg.segments, asOf);
+  const current = segmentsToDrill(seg.segments, from);
   if (current.length > 0 && records.length === 0) return { ok: false, reason: 'occupation_detail_unavailable' };
 
-  const value = buildOccupationChains(records, asOf);
+  const value = buildOccupationChains(records, from);
   const summary = parseOccupationSummary(pairValues(pairs, 'עיסוק')[0] ?? '');
   const warnings = compareWithSummary(value, summary);
   if (failedDrills.length) warnings.push(`drill_failed:${failedDrills.join(',')}`);
@@ -886,7 +918,7 @@ async function readOccupations(portal, asOf, pairs, idNumber) {
 }
 
 /** אדם אחד — פותח, מאמת זהות, וקורא כל מקטע בנפרד. */
-export async function readInsured(portal, subject, { asOf, log = () => {} } = {}) {
+export async function readInsured(portal, subject, { asOf, occupationsFrom, log = () => {} } = {}) {
   const base = { role: subject.role, label: subject.label ?? null };
   const opened = await portal.open(subject.idNumber);
   if (!opened.ok) {
@@ -913,7 +945,7 @@ export async function readInsured(portal, subject, { asOf, log = () => {} } = {}
     const a = parseAdvanceLine(line);
     return a ? { ok: true, value: a } : { ok: false, reason: 'advance_line_unparseable' };
   });
-  await run('occupations', () => readOccupations(portal, asOf, pairs, subject.idNumber));
+  await run('occupations', () => readOccupations(portal, occupationsFrom && occupationsFrom < asOf ? occupationsFrom : asOf, pairs, subject.idNumber));
   await run('directIncome', async () => {
     const r = await portal.openIncomeList();
     if (!r.ok) return { ok: false, reason: r.reason };
@@ -1011,13 +1043,13 @@ export async function readInsured(portal, subject, { asOf, log = () => {} } = {}
  * כמה אנשים, כל אחד בבידוד. ‼ כשל של אחד לא נוגע בתוצאה של האחר. נפילת
  * סשן עוצרת את מי שנשאר (אי אפשר לקרוא בלי סשן), אבל מה שכבר נקרא נשאר.
  */
-export async function readSubjects(portal, subjects, { asOf, log = () => {} } = {}) {
+export async function readSubjects(portal, subjects, { asOf, occupationsFrom, log = () => {} } = {}) {
   const persons = [];
   let sessionLost = false;
   for (const subject of subjects) {
     if (sessionLost) { persons.push({ role: subject.role, label: subject.label ?? null, ok: false, errorCode: 'session_lost' }); continue; }
     try {
-      persons.push(await readInsured(portal, subject, { asOf, log }));
+      persons.push(await readInsured(portal, subject, { asOf, occupationsFrom, log }));
     } catch (e) {
       if (isSessionLost(e)) {
         sessionLost = true;

@@ -173,7 +173,7 @@ export const EDIT_SECTIONS: EditSection[] = [
     fields: [
       // ‼ ארבעת אלה הוצגו בכרטיס «מול הרשויות» אך לא היה להם שדה עריכה בשום
       // מודל — ולכן לא היה אפשר לתקן אותם במסך שבו רואים אותם. סוג התיק,
-      // החוליה והענף הם גם השדות שיש להם מקור מוכח בשע״ם (שאילתה 134).
+      // החוליה והענף הם גם השדות שיש להם מקור מוכח בשע״ם (שאילתה 154).
       { key: 'incomeTaxFileType', label: 'סוג תיק', kind: 'text', authority: true, governed: true,
         note: 'הקוד כפי שמופיע בשע״ם, למשל 52.' },
       { key: 'taxOfficeName', label: 'פקיד שומה', kind: 'text', authority: true, governed: true },

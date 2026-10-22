@@ -79,6 +79,9 @@ export const TABLE_SCOPES: Record<string, TableScope> = {
   // 250 · חובות הגשה שנקלטו מרשימות שע״ם ומקורות הקליטה (הקובץ עצמו בדלי office-imports)
   shaam_filing_sources: { kind: "user_id" },
   shaam_filing_obligations: { kind: "user_id" },
+  // 281 · «ידע מקצועי»: השאלות שנשאלו ו«מה אני לומד» (הקבצים עצמם בדלי knowledge-inbox)
+  knowledge_questions: { kind: "user_id" },
+  knowledge_inbox: { kind: "user_id" },
   btl_portal_facts: { kind: "user_id" },
   btl_portal_documents: { kind: "user_id" },
   automation_jobs: { kind: "user_id" },
@@ -99,7 +102,14 @@ export const EXCLUDED: Record<string, string> = {
   google_calendar_connections: "מפתח גישה ליומן Google — סוד; מחברים מחדש ב«המשרד ← חיבורים»",
   automation_workers: "רישום מחשב העבודה (טביעת מפתח) — משייכים מחדש",
   automation_workstation_pairings: "קודי שיוך חד-פעמיים למחשב העבודה",
+  automation_job_followups: "תור «הפעל הכול» קצר-חיים (270) — מה שלא שוחרר מפעילים שוב בלחיצה",
+  invariant_check_runs: "יומן ריצות של הבדיקה היומית (282) — נבנה מחדש בריצה הבאה; ההפרות עצמן נפתחות כמשימות (שבגיבוי)",
   pivo_weekly_notes: "בוטלה ב-244 (15.10.2026) — «PIVO השבוע» נשמר עם השבוע במפת הדרך (vision_docs, שבגיבוי)",
+  // 285 · רשימות ציבוריות שנבנות מחדש מהמקור — לא נתוני משרד
+  il_localities: "רשימת היישובים של רשות האוכלוסין — scripts/load-il-address-lists.mjs",
+  il_streets: "רשימת הרחובות של רשות האוכלוסין — scripts/load-il-address-lists.mjs",
+  il_locality_aliases: "שמות נרדפים קבועים — במיגרציה 285",
+  tax_eligible_localities: "היישובים המזכים — 285-eligible-localities-seed.sql (נוצר מהקוד)",
 };
 
 export const TABLES = Object.keys(TABLE_SCOPES);

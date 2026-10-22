@@ -580,7 +580,7 @@ export function calculateTax(input: TaxCalcInput, taxData: TaxYearData): TaxCalc
       settlementCredit = sc.credit;
       settlementCreditExplanation = sc.explanation;
     } else {
-      settlementCreditExplanation = `היישוב שנבחר ("${client.qualifyingSettlementId}") אינו ברשימת היישובים המוטבים הרשמית לשנת ${input.year} - יש לעדכן בכרטיס הלקוח.`;
+      settlementCreditExplanation = `היישוב שנבחר ("${client.qualifyingSettlementId}") אינו ברשימת היישובים המוטבים הרשמית לשנת ${input.year}.`;
     }
   }
 

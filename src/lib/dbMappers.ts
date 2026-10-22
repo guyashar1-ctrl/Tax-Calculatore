@@ -115,6 +115,8 @@ const CLIENT_SERVER_OWNED = [
   'id', 'userId', 'createdAt', ...CLIENT_OMIT_ON_WRITE, 'fieldMeta', 'paperlessStatus',
   'portalToken', 'portalTokenExpiresAt', 'portalTokenLastUsedAt',
   'intakeToken', 'intakeTokenExpiresAt', 'intakeTokenLastUsedAt',
+  // 285 · חלקי הכתובת נגזרים בטריגר מ-city/address — עותק ישן מהמסך לא נשלח בחזרה
+  'cityCode', 'streetCode', 'streetName', 'houseNumber', 'apartment',
 ] as const;
 
 // שדות כרטיס שהטופס יכול לנקות. objectToRow מדלג על ''/undefined (כדי לא

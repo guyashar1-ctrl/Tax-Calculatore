@@ -21,7 +21,7 @@ import {
   outstandingDeliverableLabel, deliverableKeyFor,
   portalShowsStep, officeSortOrder,
 } from '../../types/onboarding';
-import type { Client, NiExternalState, NiTracking, RepAuthorityKind, RepresentationStatus } from '../../types';
+import type { Client, NiExternalState, NiTracking, RepAuthorityKind, RepresentationRequest, RepresentationStatus } from '../../types';
 import type { Quotation, QuotationItem } from '../../types/quotations';
 import { REP_AUTHORITY_LABELS, REPRESENTATION_STATUS_LABELS, NI_APPROVAL_PHONE, NI_EXTERNAL_STATE_LABELS } from '../../types';
 import { paperlessKindOf } from '../../features/taxFile/editModel';
@@ -29,6 +29,8 @@ import type { AdvanceResult } from '../../hooks/useOnboarding';
 import InstitutionAlignmentGroup, { InstitutionFocus } from './InstitutionAlignment';
 import { nextActionText, nextStepForClient } from '../../utils/onboardingNext';
 import { representationAction, type RepSendPhase } from '../../utils/representationAction';
+import { representationInsight } from '../../utils/representationInsight';
+import RunAllAutomations from '../RunAllAutomations';
 import { shaamPrepLine, type RepPrepFacts } from '../../features/representation/repPreparation';
 import { relativeTime } from '../../utils/clientDerived';
 import { formatDate } from '../../utils/dateFormat';
@@ -180,6 +182,8 @@ interface Props {
   repNote?: string;
   /** 235: מה שחסר בצילומי התעודה — העלאה מהמשרד בכרטיס הייצוג. */
   repIdAttach?: RepIdAttach;
+  /** 269: בקשת הייצוג — «הפעל הכול» ומה שהתקבל, בכרטיס הייצוג. */
+  repRequest?: RepresentationRequest;
   onRepIdAttached?: () => void;
   /** הטופס מוכן אבל המייל לא יצא — ראה repSendPhase. */
   repSendPhase?: RepSendPhase | null;
@@ -222,7 +226,7 @@ interface Props {
   /** מסלולי הביצוע של ב"ל (לקוח/בן-בת-זוג) — לכרטיס «ייצוג ברשות» (157). */
   niExecution?: { client?: NiTracking; spouse?: NiTracking };
   /** עדכון שדה פשוט על הכרטיס (spouseEmail) — לדיאלוג הוראות האישור העצמאיות. */
-  onUpdateClientFields?: (patch: Partial<Client>) => Promise<void>;
+  onUpdateClientFields?: (patch: Partial<Client>) => Promise<Client | void>;
   /** אחרי שליחה מוצלחת של הוראות האישור — קריאה מחדש של הביצוע והשלב (157). */
   onNiInstructionsSent?: () => Promise<void>;
   /**
@@ -517,7 +521,7 @@ const COLLECTION_METHODS = ['הוראת קבע בבנק', 'כרטיס אשראי
 
 export default function OnboardingTab({
   clientId, client, onClientPersisted, engagements, steps, events, loading, advance, refresh,
-  prevAccountant, onPrepareReleaseLetter, quotations, clientLeadIds, repStatusLabel, repStatus, repNote, repIdAttach, onRepIdAttached, repSendPhase, repFacts, onOpenRepresentation,
+  prevAccountant, onPrepareReleaseLetter, quotations, clientLeadIds, repStatusLabel, repStatus, repNote, repIdAttach, repRequest, onRepIdAttached, repSendPhase, repFacts, onOpenRepresentation,
   onOpenDocuments,
   clientDisplayName, clientEmail, embedded, focusRequest, onFocusConsumed, ballFilter, onOpenTaxFile,
   niExecution, onUpdateClientFields, onRequestAuthorityRepresentation, onNiInstructionsSent, onAttentionSummary,
@@ -2429,6 +2433,10 @@ export default function OnboardingTab({
                     repStatus={repStatus}
                     repNote={repNote}
                     repIdAttach={repIdAttach}
+                    repRequest={repRequest}
+                    client={client}
+                    spouseClient={spouseClient}
+                    onRunStarted={() => refresh?.()}
                     clientId={clientId}
                     onRepIdAttached={onRepIdAttached}
                     repSendPhase={repSendPhase}
@@ -5243,9 +5251,14 @@ function RepresentationUpgradeCard(p: UpgradeCardProps) {
 // מה שכן יש: הדלת למרכז הייצוג, כי משם עושים את העבודה — וגיא צדק שלא
 // הגיוני לצאת למסך הלקוחות כדי למצוא אותה.
 
-function RepresentationStepCard({ step, stepById, highlight, statusLabel, repStatus, repNote, repIdAttach, clientId, onRepIdAttached, repSendPhase, onOpen, hasBreakdown, approvalNeeded, menu }: {
+function RepresentationStepCard({ step, stepById, highlight, statusLabel, repStatus, repNote, repIdAttach, repRequest, client, spouseClient, onRunStarted, clientId, onRepIdAttached, repSendPhase, onOpen, hasBreakdown, approvalNeeded, menu }: {
   step: OnboardingStep;
   repIdAttach?: RepIdAttach;
+  /** 269: «הפעל הכול» ושורת «התקבל» — מהבקשה עצמה. */
+  repRequest?: RepresentationRequest;
+  client?: Client;
+  spouseClient?: Client;
+  onRunStarted?: () => void;
   clientId: string;
   onRepIdAttached?: () => void;
   stepById: Map<string, OnboardingStep>;
@@ -5272,9 +5285,22 @@ function RepresentationStepCard({ step, stepById, highlight, statusLabel, repSta
   /* ‼ «למרכז הייצוג» רק מנווט — ולכן המצב בשורה הסגורה אומר מה צריך לעשות שם
      («לחתום ולהוסיף חותמת»), ולא נבלע מאחורי הכפתור. */
   const shortAct = compact && act?.mine ? repShortAction(repStatus, repSendPhase) : null;
+  // ‼ 269: מה כבר התקבל מהלקוח — רק אחרי שהטופס הוגש (לפני זה repNote אומר עד איפה הגיע).
+  const received = open && repRequest?.onboardingStatus === 'submitted'
+    ? representationInsight(repRequest, client).identityReceived : [];
+  // «התקבל: פרטים · ת.ז. ליאת · ת.ז. אוריה ✓» — ומה שחסר, בנפרד.
+  const docWord = (k?: string) => (k === 'driverLicense' ? 'רישיון' : k === 'passport' ? 'דרכון' : 'ת.ז.');
+  const first = (n: string) => n.trim().split(/\s+/)[0] || n;
+  const gotIds = received.filter(r => r.got).map(r => `${docWord(r.docKind)} ${first(r.personName)}`);
+  const missingIds = received.filter(r => !r.got).map(r => first(r.personName));
+  const receivedLine = received.length > 0
+    ? `${['פרטים', ...gotIds].join(' · ')} ✓${missingIds.length ? ` · חסרה תעודה: ${missingIds.join(', ')}` : ''}`
+    : '';
+  const canRun = open && !!repRequest && !!client && (repStatus === 'awaiting_accountant' || repStatus === 'pending_signature');
   return (
     <StepCardShell step={step} stepById={stepById} highlight={highlight} menu={menu}
-      statusLabel={approvalNeeded && open ? 'הוגש בשע״ם' : act ? act.action : statusLabel}
+      /* ‼ 269: כשהרשימה החיה מוצגת — הכותרת («להזין ולהפיק טופס») אומרת את הפעולה; בלי שורות הסבר כפולות. */
+      statusLabel={approvalNeeded && open ? 'הוגש בשע״ם' : canRun ? '' : act ? act.action : statusLabel}
       state={shortAct ? { text: shortAct, tone: 'blue' } : undefined}
       primary={compact && onOpen && open && act?.mine ? (
         <button type="button" className="btn btn-sm btn-primary" onClick={onOpen}>למרכז הייצוג</button>
@@ -5290,7 +5316,7 @@ function RepresentationStepCard({ step, stepById, highlight, statusLabel, repSta
           </button>
         </div>
       ) : undefined}>
-      {!(approvalNeeded && open) && (
+      {!(approvalNeeded && open) && !canRun && (
         <div style={cardNote}>
           {act ? act.why
             : open ? 'הבדיקה, החתימה וההגשה נעשות במרכז הייצוג.'
@@ -5299,6 +5325,13 @@ function RepresentationStepCard({ step, stepById, highlight, statusLabel, repSta
       )}
       {compact && onOpen && open && !act?.mine && !hasBreakdown && (
         <div><button type="button" className="btn btn-sm btn-secondary" onClick={onOpen}>למרכז הייצוג ←</button></div>
+      )}
+      {receivedLine && <div style={cardNote}>התקבל: {receivedLine}</div>}
+      {/* ‼ 269: ההזנה ברשויות מכאן — אותו כפתור כמו במרכז הייצוג (RunAllAutomations). */}
+      {canRun && (
+        <div style={{ marginTop: '.55rem' }}>
+          <RunAllAutomations request={repRequest!} client={client!} spouseClient={spouseClient} onChanged={onRunStarted} />
+        </div>
       )}
       {/* 191: עד איפה הלקוח הגיע בקליטה, או צילום תעודה שחסר אחרי ההגשה. */}
       {open && repNote && (

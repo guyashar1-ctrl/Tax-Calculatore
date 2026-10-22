@@ -38,6 +38,8 @@ import EditControl from '../../features/taxFile/EditControl';
 import { AUTHORITY_AUTOMATION, buildAuthorityCheck } from '../../features/taxFile/authorityAutomation';
 import type { AuthorityAutomationSpec, AuthorityCheckResult } from '../../features/taxFile/authorityAutomation';
 import { shaamRepresentationAction } from '../../features/taxFile/shaamRepresentationAction';
+import { gmf154Filing, filingNoteText } from '../../features/shaamFiling/fromGmf154';
+import { useGmf154Import } from '../../features/shaamFiling/useGmf154Import';
 import { authorityFieldHelp } from '../../features/taxFile/authorityFieldHelp';
 import { AuthorityCheckButton, AuthorityCheckSummary, FieldStatusMark, FieldAuthorityLine, PersonSyncButton } from '../clientTabs/AuthorityCheckPanel';
 import NiOccupationsDisclosure from './NiOccupationsDisclosure';
@@ -47,8 +49,7 @@ import type { OccupationDraft } from '../clientTabs/InstitutionAlignment';
 import NiNextActionButton from '../NiNextActionButton';
 import AuthorityFieldHelp from './AuthorityFieldHelp';
 import { useBtlIncomeReads } from '../../hooks/useBtlIncomeReads';
-import BtlPortalRecordPanel from './BtlPortalRecordPanel';
-import { buildBtlRecordView, loadBtlPortalRecord, type BtlPortalRecord } from '../../features/nationalInsurance/btlPortalRecord';
+import { loadOccupationsWindowStart } from '../../features/nationalInsurance/occupationsWindow';
 
 export interface AuthoritiesPanelProps {
   client: Client;
@@ -154,6 +155,12 @@ export default function AuthoritiesPanel({
     (jobOverrides && a in jobOverrides ? jobOverrides[a] : authorityJobs[a]?.job) ?? null;
   authorityJobsRef.current = { income_tax: liveJobOf('income_tax'), vat: liveJobOf('vat'), national_insurance: liveJobOf('national_insurance') };
 
+  // ‼ (21.10.2026) קריאת מס הכנסה כוללת את 154 — השנים שחייבות ולא הוגשו ודרישות הצהרת הון נכנסות
+  // ל«מרשימות שע״ם» (250). לא במשימה מדומה (jobOverrides — הדגמה/צפייה).
+  const incomeTaxJob = liveJobOf('income_tax');
+  const filing154 = incomeTaxJob?.status === 'succeeded' ? gmf154Filing(incomeTaxJob.result) : null;
+  const { error: filingImportError } = useGmf154Import(client.id || undefined, incomeTaxJob, !(jobOverrides && 'income_tax' in jobOverrides));
+
   // ‼ (219) הקריאה האחרונה שהצליחה מב"ל — הצהרה שמורה שקריאה שלמה לא מצאה
   // אינה «מאומתת» בכרטיס, עוד לפני שאושרה ההצעה לעדכן.
   const niIncomeReads = useBtlIncomeReads(client.id || undefined, liveJobOf('national_insurance'), client.familyStatus === 'married' && !spouseClient);
@@ -162,23 +169,16 @@ export default function AuthoritiesPanel({
     [client, spouseClient, niExecution, niIncomeReads],
   );
 
-  // ‼ (207) «מה ביטוח לאומי רושם» — נשמר בשרת בסוף כל קריאה מוצלחת; נטען מחדש
-  // כשמשימת ב"ל מסתיימת. לא נכתב מכאן ולא משנה את הכרטיס.
-  const niJobDone = liveJobOf('national_insurance');
-  const niJobKey = niJobDone?.status === 'succeeded' ? (niJobDone.finishedAt ?? niJobDone.updatedAt ?? '') : '';
-  const [btlRecord, setBtlRecord] = useState<BtlPortalRecord | null>(null);
+  // ‼ (21.10.2026, גיא) «מה ביטוח לאומי רושם» הוסר מהכרטיס — טבלת השוואה
+  // פנימית אינה מידע לרו"ח. העובדות עדיין נשמרות בשרת (207, btl_portal_facts).
+  // ‼ מאיזו שנה קוראים עיסוקים — מההצעה של הלקוח (occupationsWindow.ts).
+  const [occupationsFrom, setOccupationsFrom] = useState<string | undefined>();
   useEffect(() => {
     if (!client.id) return;
     let alive = true;
-    void loadBtlPortalRecord(client.id).then(r => { if (alive) setBtlRecord(r); });
+    void loadOccupationsWindowStart(client.id).then(d => { if (alive) setOccupationsFrom(d); });
     return () => { alive = false; };
-  }, [client.id, niJobKey]);
-  const btlPanel = (role: 'client' | 'spouse', facts: AuthorityRowFact[]) => {
-    if (!btlRecord) return null;
-    const rep = facts.find(f => f.k === 'ייצוג');
-    const view = buildBtlRecordView(btlRecord[role], { client, role, pivoRepresentation: rep ? { text: rep.v, active: rep.tone === 'ok' } : undefined });
-    return view.empty ? null : <BtlPortalRecordPanel view={view} />;
-  };
+  }, [client.id]);
 
   // ‼ אישור מקובץ — פעם אחת לכרטיס, לא לשדה.
   const [approvingAuthority, setApprovingAuthority] = useState<TaxAuthority | null>(null);
@@ -450,7 +450,7 @@ export default function AuthoritiesPanel({
         const check = spec ? buildAuthorityCheck(spec, job, client, cardFields) : null;
         const checkByKey = new Map((check?.checkedAt ? check.fields : []).filter(x => x.fieldKey).map(x => [x.fieldKey, x]));
         const personCheck = (f: AuthorityRowFact) => { const k = factKey(f); return k ? checkByKey.get(k) : undefined; };
-        const inputRes = spec?.buildInput?.(client, spouseClient);
+        const inputRes = spec?.buildInput?.(client, spouseClient, { occupationsFrom });
         // ‼ שני סוגי «לא עכשיו»: רשות שהאוטומציה שלה עוד לא נבנתה — מושבת
         // באמת; קלט חסר בכרטיס — הלחיצה מסבירה. חיבור שאינו מוכן אינו
         // «חסימה»: הכפתור עצמו פותח את ההתחברות וממשיך (useAutomationGate).
@@ -615,8 +615,6 @@ export default function AuthoritiesPanel({
                       })}
                     </div>
 
-                    {row.authority === 'national_insurance' && !editingPerson && btlPanel(person.role, person.facts)}
-
                     {/* ‼ כשל של אדם אחד בריצה שהצליחה לאחר — כאן, בבלוק שלו, ולא בסיכום. */}
                     {check?.runErrorByPerson?.[person.role] && !editingPerson && (
                       <div className="txf-check-err txf-person-err">
@@ -693,8 +691,6 @@ export default function AuthoritiesPanel({
               </div>
             )}
 
-            {!twoPersons && row.authority === 'national_insurance' && !editingThis && btlPanel(row.persons?.[0]?.role ?? 'client', row.persons?.[0]?.facts ?? row.facts)}
-
             {/* ‼ סיכום הבדיקה פעם אחת לכרטיס: מה נבדק, כמה שינויים, כפתור
                 אישור אחד — גם שגיאת ריצה וגם סיבת חסימה, לא ליד כל שדה. */}
             {spec && !cardEditing && (
@@ -708,6 +704,14 @@ export default function AuthoritiesPanel({
                 onApprove={() => { if (check) void approveAuthorityChanges(spec, check); }}
               >
                 {(inputBlocked ?? unavailable) && !running && <div className="txf-check-note">{inputBlocked ?? unavailable}</div>}
+                {row.authority === 'income_tax' && filing154 && !running && (
+                  <div className="txf-check-note" data-gmf154-note>
+                    <span className="txf-check-grp">דוחות שנתיים</span> {filingNoteText(filing154)}
+                  </div>
+                )}
+                {row.authority === 'income_tax' && filing154 && filingImportError && (
+                  <div className="txf-check-err">השנים מ-154 לא נשמרו ב«דוחות והצהרות» ({filingImportError}). ייקלטו בקריאה הבאה.</div>
+                )}
               </AuthorityCheckSummary>
             )}
 

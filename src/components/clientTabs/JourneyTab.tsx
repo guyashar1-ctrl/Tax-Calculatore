@@ -9,7 +9,7 @@
 // מחכה לו מאדם אחר — ערבוב שלהן היה מוחק את המשמעות של "אצל מי הכדור".
 
 import { useMemo } from 'react';
-import type { Client, NiTracking, Task, RepresentationStatus } from '../../types';
+import type { Client, NiTracking, Task, RepresentationStatus, RepresentationRequest } from '../../types';
 import type { RepSendPhase } from '../../utils/representationAction';
 import type { RepPrepFacts } from '../../features/representation/repPreparation';
 import type { InstitutionKey } from '../../types/onboarding';
@@ -65,6 +65,7 @@ interface Props {
   /** 191: שורת הקליטה — מועברת כמו שהיא לכרטיס הייצוג. */
   repNote?: string;
   repIdAttach?: RepIdAttach;
+  repRequest?: RepresentationRequest;
   onRepIdAttached?: () => void;
   repSendPhase?: RepSendPhase | null;
   repFacts?: RepPrepFacts | null;
@@ -94,7 +95,7 @@ interface Props {
   focusRequest?: { stepId: string; tick: number } | null;
   onFocusConsumed?: () => void;
   /** עדכון שדה פשוט על הכרטיס (spouseEmail) — לדיאלוג הוראות האישור העצמאיות. */
-  onUpdateClientFields?: (patch: Partial<Client>) => Promise<void>;
+  onUpdateClientFields?: (patch: Partial<Client>) => Promise<Client | void>;
   /** אחרי שליחה מוצלחת של הוראות האישור — קריאה מחדש של הביצוע והשלב (157). */
   onNiInstructionsSent?: () => Promise<void>;
   onAttentionSummary?: (summary: { n: number; red: boolean }) => void;
@@ -381,6 +382,7 @@ export default function JourneyTab(p: Props) {
           repStatus={p.repStatus}
           repNote={p.repNote}
           repIdAttach={p.repIdAttach}
+          repRequest={p.repRequest}
           onRepIdAttached={p.onRepIdAttached}
           repSendPhase={p.repSendPhase}
           repFacts={p.repFacts}

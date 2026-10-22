@@ -7,7 +7,8 @@
 // ‼ אין כאן רכיב React ואין כאן תלות ברשות מסוימת: הטיפוסים והסיכום
 // משותפים למס הכנסה, מע״מ וביטוח לאומי. מה שמשתנה בין רשויות הוא רק
 // ה**מתאם** (adapter) שיודע להפוך תוצאת עובד גולמית לסט השוואה — ולמס
-// הכנסה זו שאילתה 134. מע״מ וב״ל יקבלו מתאם משלהם, לא UX משלהם.
+// הכנסה אלה שאילתות 154 (ו-134 כשיש מקדמות פעילות). מע״מ וב״ל יקבלו מתאם
+// משלהם, לא UX משלהם.
 //
 // ‼ מציע ולא כותב: שום דבר כאן לא נוגע ב-clients. הסט הזה הוא מה שהרו"ח
 // **רואה**; הכתיבה קורית רק דרך מסלול העובדות המנוהלות, אחרי לחיצה מפורשת.
@@ -26,7 +27,7 @@ import {
   niOccupationsFromBtl, niOccupationsKey, niOccupationsInline, niDate,
 } from '../nationalInsurance/niOccupations';
 import type { BtlOccupationChain } from '../nationalInsurance/niOccupations';
-import { niBasisView, niBasisPeriodText, niMonthsText } from '../nationalInsurance/niBasisDisplay';
+import { niBasisCard, niBasisPeriodText, niMonthsText } from '../nationalInsurance/niBasisDisplay';
 import {
   niIncomeKind, niIncomeListEmpty, niIncomeListKey, niIncomeReadOf, niIncomeSourceText, niIncomeUnit,
 } from '../nationalInsurance/niIncome';
@@ -161,6 +162,12 @@ export interface AuthorityCheckResult {
  * "עוד לא נבנה" — הכרטיס מציג פקד מושבת עם הסיבה, במקום כפתור שמבטיח
  * מה שאין (ראה ההיסטוריה ב-BtlFieldSync שהוסר).
  */
+/** מה שהכרטיס יודע מעבר ללקוח עצמו — למשל תחילת חלון העיסוקים (מההצעה). */
+export interface AuthorityInputContext {
+  /** 'YYYY-MM-DD' — עיסוקים בב"ל שנמשכים אל תוך התאריך הזה ואילך. */
+  occupationsFrom?: string;
+}
+
 export interface AuthorityAutomationSpec {
   authority: TaxAuthority;
   /** הטקסט על הפקד בכותרת הכרטיס. */
@@ -184,7 +191,7 @@ export interface AuthorityAutomationSpec {
    * כדי לבנות `subjects`. מס הכנסה/מע״מ מתעלמים ממנו, ולא צריכים לשנות
    * את החתימה שלהם כדי זה — פרמטר אופציונלי בסוף.
    */
-  buildInput?: (client: Client, spouseClient?: Client) => { input: Record<string, unknown> } | { blocked: string };
+  buildInput?: (client: Client, spouseClient?: Client, ctx?: AuthorityInputContext) => { input: Record<string, unknown> } | { blocked: string };
   /** הופך תוצאת משימה גולמית לסט השוואה. */
   interpret?: (job: AutomationJob | null, client: Client, supportedKeys: readonly string[]) => AuthorityFieldResult[];
   /** הסברים עסקיים ברמת קבוצה, מתוך תוצאת המשימה. */
@@ -193,7 +200,11 @@ export interface AuthorityAutomationSpec {
   personErrors?: (job: AutomationJob) => Partial<Record<PersonRole, string>>;
 }
 
-// ─── מס הכנסה — שאילתה 134 ─────────────────────────────────────────────────────
+// ─── מס הכנסה — שאילתות 154 + 134 ──────────────────────────────────────────────
+// ‼ מ-21.10.2026 העובד קורא קודם את 154 («מידע אודות שנות מס»): ראש התיק, סך
+// יתרת החוב/הזכות, מצב המקדמות, חבות והגשה לכל שנה ודרישות הצהרת הון. 134
+// נקראת רק כשיש מקדמות פעילות — לשיעור ולתדירות. ריצה ישנה (134 בלבד) עדיין
+// מתפרשת כאן: אותם מפתחות ב-result.fields.
 
 /**
  * תדירות מקדמות: הטקסט של שע״ם ⇄ הערך של PIVO.
@@ -257,6 +268,17 @@ function advanceBusinessState(
 }
 
 /**
+ * «דרישה עד 31/12/2026 · שנת 2025» ⇒ 'true' · «אין דרישה» ⇒ 'false'. ‼ רק שתי
+ * הצורות שנצפו ב-154; כל טקסט אחר לא ממופה — מוצג כלשונו, בלי הצעה.
+ */
+function mapWealthDemand(raw: string): string | null {
+  const t = raw.replace(/\s+/g, ' ').trim();
+  if (/^דרישה עד \d{2}\/\d{2}\/\d{4}/.test(t)) return 'true';
+  if (t === 'אין דרישה') return 'false';
+  return null;
+}
+
+/**
  * מה שדה מציג ומציע כשהרשות החזירה מצב עסקי במקום ערך.
  * `'info'` ⇒ אין ערך ואין הצעה, רק סמן ניטרלי (ההסבר בקבוצה).
  */
@@ -273,11 +295,13 @@ interface Shaam134FieldSource {
   group?: string;
   /** תוספת פירוש לערך שהוחזר. */
   hint?: (value: string) => string | undefined;
+  /** איך מציגים את ערך הרשות לרו"ח. ברירת מחדל: הגולמי. */
+  display?: (value: string) => string;
 }
 
 /**
- * מפתח השדה בכרטיס ⇄ המקור בשאילתה 134. ‼ רק שדות עם מיפוי מוכח חי —
- * שבעה. שדה שאינו כאן מוצג בכרטיס עם סמן «טרם נתמך», לא נעלם.
+ * מפתח השדה בכרטיס ⇄ המקור בתוצאת העובד (154, ומקדמות פעילות מ-134). ‼ רק
+ * שדות עם מיפוי מוכח חי. שדה שאינו כאן מוצג בכרטיס עם סמן «טרם נתמך», לא נעלם.
  */
 export const SHAAM_134_FIELD_SOURCES: Record<string, Shaam134FieldSource> = {
   incomeTaxFileType: {
@@ -297,15 +321,28 @@ export const SHAAM_134_FIELD_SOURCES: Record<string, Shaam134FieldSource> = {
     source: 'advanceFrequency', normalize: mapAdvanceFrequency, group: 'advances',
     businessValue: (f) => (advanceBusinessState(f) ? { value: '', display: 'אין', patch: null } : null),
   },
-  // ‼ «יתרה» ב-134 היא יתרת חשבון המקדמות לשנה — מופתה לשדה הזה לפי
-  // החלטת מוצר. כשאין חבות מקדמה כלל שע״ם לא מציגה קופסת יתרה (נצפה חי
-  // אצל no_advance), ולכן: סמן ניטרלי בלי ערך ובלי הצעה — **לא** 0
-  // מומצא, ולא אדום. ההסבר מגיע מהקבוצה.
+  // ‼ «יתרה» = סך יתרת החוב פחות סך יתרת הזכות של התיק (154). בריצה ישנה
+  // (134 בלבד) זו הייתה יתרת חשבון המקדמות לשנה, ושם כשאין חבות מקדמה אין
+  // קופסת יתרה כלל ⇒ סמן ניטרלי בלי הצעה — **לא** 0 מומצא, ולא אדום.
   incomeTaxBalance: {
-    source: 'balance', normalize: mapBalance, group: 'advances',
+    source: 'balance', normalize: mapBalance,
     businessValue: (f) => (advanceBusinessState(f) ? 'info' : null),
   },
+  // ‼ הצהרת הון מ-154 בלבד. «אין דרישה» הוא תוצאה: אין דרישה פתוחה לפי שע״ם.
+  // ריצה ישנה בלי המפתח ⇒ «לא נבדק» (ריק בלי מצב עסקי), לא כישלון.
+  capitalDeclarationRequired: {
+    source: 'wealthDemand', normalize: mapWealthDemand,
+  },
+  // ‼ המועד רק כשיש דרישה. בלי דרישה — סמן ניטרלי: לא מוחקים מועד שנרשם ביד.
+  capitalDeclarationDeadline: {
+    source: 'wealthDemandDue',
+    display: (v) => v.split('-').reverse().join('.'),
+    businessValue: (f) => (f.wealthDemand ? 'info' : null),
+  },
 };
+
+/** מפתחות שקיימים רק בתוצאה של 154 — ריצה ישנה בלעדיהם היא «לא נבדק», לא כשל. */
+const SHAAM_154_ONLY_SOURCES = new Set(['wealthDemand', 'wealthDemandDue']);
 
 /** הערך הגולמי בתיק — לא הטקסט המוצג. «סוג תיק» מוצג «52 · חד-צדית…» ושע״ם מחזירה «52». */
 function currentRaw(client: Client, fieldKey: string): string {
@@ -330,6 +367,9 @@ function interpretShaam134(
     if (!spec || !fields) return { fieldKey, label, status: 'unsupported', currentValue };
 
     const raw = (fields[spec.source] ?? '').trim();
+    if (raw === '' && SHAAM_154_ONLY_SOURCES.has(spec.source) && fields.wealthDemand === undefined) {
+      return { fieldKey, label, status: 'unsupported', currentValue };
+    }
     if (raw === '') {
       const business = spec.businessValue?.(fields) ?? null;
       if (business === 'info') {
@@ -361,7 +401,7 @@ function interpretShaam134(
     }
     const hint = spec.hint?.(normalized);
     const base = {
-      fieldKey, label, currentValue, authorityRaw: raw, authorityDisplay: raw,
+      fieldKey, label, currentValue, authorityRaw: raw, authorityDisplay: spec.display?.(normalized) ?? raw,
       authorityValue: normalized, hint, group: spec.group,
     };
     // ‼ ההשוואה היא בין הערכים המנורמלים, ולכן «0» של שע״ם מול «0» בתיק
@@ -387,7 +427,9 @@ interface BtlSection<T> {
 
 interface BtlAdvanceValue {
   year: number; fromMonth: number; toMonth: number; months: number;
-  basisCategory: string | null; periodBasis: number; advanceMonthly: number;
+  basisCategory: string | null; /** null ⇒ ב"ל רושם שאין בסיס לתקופה. */ periodBasis: number | null; advanceMonthly: number;
+  /** כל הבסיסים בשורה, כשיש יותר מאחד («בסיסים עובד 30,570 , עצמאי 2»). */
+  bases?: { category: string; amount: number }[];
 }
 
 /**
@@ -459,7 +501,8 @@ const SECTION_FAILED: Record<string, string> = {
 
 function sameBasis(a: NiInsuranceBasis | undefined, b: NiInsuranceBasis): boolean {
   return !!a && a.year === b.year && a.fromMonth === b.fromMonth && a.toMonth === b.toMonth
-    && a.periodBasis === b.periodBasis && (a.advanceMonthly ?? null) === (b.advanceMonthly ?? null);
+    && a.periodBasis === b.periodBasis && (a.advanceMonthly ?? null) === (b.advanceMonthly ?? null)
+    && JSON.stringify(a.otherBases ?? []) === JSON.stringify(b.otherBases ?? []);
 }
 
 function interpretBtlFile(
@@ -491,9 +534,12 @@ function interpretBtlFile(
     const failed = (key: string, section: keyof typeof SECTION_FAILED): AuthorityFieldResult =>
       ({ fieldKey: key, label: key, status: 'failed', currentValue: String(c[key] ?? ''), error: SECTION_FAILED[section], ...person });
 
-    // ── ייצוג: ראיה בלבד ──
+    // ── ייצוג ──
+    // ‼ (273) נפתח מרשימת המיוצגים בלי «ממתין» ⇒ זו ההוכחה שהייצוג תקף, והשרת
+    // מסמן אותו פעיל בעצמו — ירוק, בלי שורה. «ממתין…» ⇒ ראיה בלבד, כלשונה.
+    const repPending = !!(p.representation?.status || p.representation?.pendingAction);
     push({
-      fieldKey: repKey, label: 'ייצוג', status: 'info', currentValue: '',
+      fieldKey: repKey, label: 'ייצוג', status: repPending ? 'info' : 'match', currentValue: '',
       authorityDisplay: [
         'מופיע ברשימת המיוצגים',
         p.representation?.receivedDate ? `נקלט ${niDate(p.representation.receivedDate)}` : null,
@@ -558,7 +604,9 @@ function interpretBtlFile(
             provenance: 'עיסוקים והכנסות ← רשימת הכנסות · אין שורה תקפה של עצמאי',
             ...person,
           });
-        } else info(income.partial ? PARTIAL : 'אין הצהרה או שומה תקפה של עצמאי ברשימת ההכנסות');
+        } else if (income.partial) info(PARTIAL);
+        // ‼ קריאה שלמה שאומרת «אין», והכרטיס ריק — זה נבדק ותואם: ירוק.
+        else push({ fieldKey: k, label: k, status: 'match', currentValue: niIncomeListKey(current), authorityDisplay: 'אין הצהרה או שומה תקפה של עצמאי ברשימת ההכנסות', ...person });
       } else {
         const next = income.list;
         push({
@@ -615,6 +663,8 @@ function interpretBtlFile(
             provenance: `רשימת הכנסות · אין הצהרה תקפה${misread ? ` · ${niIncomeSourceText(misread)}` : ''}`,
             ...person,
           });
+        } else if (current == null) {
+          push({ fieldKey: k, label: k, status: 'match', currentValue: '', authorityDisplay: 'אין הצהרה חודשית ברשימת ההכנסות', ...person });
         } else info('אין הצהרה חודשית ברשימת ההכנסות');
       }
     }
@@ -633,30 +683,41 @@ function interpretBtlFile(
           patchValue: a.advanceMonthly, provenance: `ריכוז מידע · דמי ביטוח ${niMonthsText(a.fromMonth, a.toMonth, a.year)}`, ...person,
         });
 
+        // ‼ «2026 / 12-10 ד"ב : 0» — ב"ל רושם שאין בסיס לתקופה (שכיר בלי
+        // מקדמות). תשובה, לא כשל: ריק בכרטיס ⇒ תואם; בסיס ישן ⇒ מוצע לנקות.
+        if (a.periodBasis == null) {
+          const curBasis = c[kBasis] as NiInsuranceBasis | undefined;
+          const prov = `ריכוז מידע · אין בסיס · ${niMonthsText(a.fromMonth, a.toMonth, a.year)}`;
+          push(curBasis
+            ? { fieldKey: kBasis, label: kBasis, status: 'changed', currentValue: `${curBasis.periodBasis}|${niBasisPeriodText(curBasis)}`,
+                currentDisplay: `${ils(curBasis.periodBasis)} · ${niBasisPeriodText(curBasis)}`,
+                authorityDisplay: `אין בסיס ל${niMonthsText(a.fromMonth, a.toMonth, a.year)}`, authorityValue: '', patchValue: null,
+                provenance: prov, ...person }
+            : { fieldKey: kBasis, label: kBasis, status: 'match', currentValue: '', authorityDisplay: 'אין בסיס', provenance: prov, ...person });
+        } else {
         const basis: NiInsuranceBasis = {
           year: a.year, fromMonth: a.fromMonth, toMonth: a.toMonth, months: a.months,
           periodBasis: a.periodBasis, advanceMonthly: a.advanceMonthly,
           ...(a.basisCategory ? { category: a.basisCategory } : {}),
+          // ‼ 21.10.2026 · שאר הבסיסים באותה שורה (שכיר + עצמאי) — לתצוגה.
+          ...(a.bases && a.bases.length > 1 ? { otherBases: a.bases.filter(x => x.category !== a.basisCategory) } : {}),
           // ‼ (219) בלי sourceIncomeYear: ב"ל אינו מציג על איזו הכנסה נשען
           // הבסיס, ו«השנה של ההכנסה שנבחרה» אינה קשר מבוסס.
         };
         const curBasis = c[kBasis] as NiInsuranceBasis | undefined;
-        const occupations = s.occupations?.ok ? s.occupations.value ?? [] : [];
-        const view = niBasisView(basis, {
-          declaration: income.ok && !truncated ? income.list.declaration : null,
-          statusesCount: occupations.length || undefined,
-        });
+        const view = niBasisCard(basis, income.ok && !truncated ? income.list.declaration : null);
         push({
           fieldKey: kBasis, label: kBasis, status: sameBasis(curBasis, basis) ? 'match' : 'changed',
           currentValue: curBasis ? `${curBasis.periodBasis}|${niBasisPeriodText(curBasis)}` : '',
           currentDisplay: curBasis ? `${ils(curBasis.periodBasis)} · ${niBasisPeriodText(curBasis)}` : '—',
-          authorityDisplay: view.periodText,
+          authorityDisplay: view.v,
           authorityValue: `${basis.periodBasis}|${niBasisPeriodText(basis)}`,
           patchValue: basis,
-          hint: [view.monthlyText, view.reconstructionText].filter(Boolean).join(' · ') || undefined,
+          hint: view.sub.join(' · ') || undefined,
           provenance: `ריכוז מידע · בסיס ${a.basisCategory ?? ''} ${a.periodBasis} · ${niMonthsText(a.fromMonth, a.toMonth, a.year)}`.replace(/\s+/g, ' '),
           ...person,
         });
+        }
       }
     }
 
@@ -708,7 +769,7 @@ function interpretBtlFile(
 export const AUTHORITY_AUTOMATION: Partial<Record<TaxAuthority, AuthorityAutomationSpec>> = {
   income_tax: {
     authority: 'income_tax',
-    // ‼ «קריאת תיק» ולא «בדוק»: זו קריאת נתוני התיק (134), לא בדיקת ייצוג.
+    // ‼ «קריאת תיק» ולא «בדוק»: זו קריאת נתוני התיק (154/134), לא בדיקת ייצוג.
     // בדיקת קבלת הייצוג היא פעולה אחרת, על כרטיס הייצוג/האדם (NiNextActionButton).
     // ‼ אותו שם כמו במסלולים, ברצועה בכרטיס ובעמוד האוטומציות (FLOW_ACTION_NAMES).
     actionLabel: FLOW_ACTION_NAMES[SHAAM_SYNC_INCOME_TAX_ACTION_TYPE],
@@ -716,7 +777,8 @@ export const AUTHORITY_AUTOMATION: Partial<Record<TaxAuthority, AuthorityAutomat
     available: true,
     actionType: SHAAM_SYNC_INCOME_TAX_ACTION_TYPE,
     capability: SHAAM_READ_134,
-    sourceRef: 'shaam-134',
+    // ‼ מערכת גביית מס הכנסה (154/134) — לא שאילתה אחת. הצעות ישנות נשארו עם 'shaam-134'.
+    sourceRef: 'shaam-gmf',
     supportedFieldKeys: new Set(Object.keys(SHAAM_134_FIELD_SOURCES)),
     buildInput: (client) => {
       const res = incomeTaxFileInput(client);
@@ -770,12 +832,12 @@ export const AUTHORITY_AUTOMATION: Partial<Record<TaxAuthority, AuthorityAutomat
      * יושבים בכרטיס הזה**. בן/בת זוג עם כרטיס משלו/ה מתעדכן/ת משם — כך אף
      * אישור כאן לא כותב לכרטיס אחר.
      */
-    buildInput: (client, spouseClient) => {
+    buildInput: (client, spouseClient, ctx) => {
       const subjects: AutomationSubject[] = niPersons(client, spouseClient)
         .filter(p => !!p.idNumber && niEditable(p))
         .map(p => ({ role: p.role, idNumber: p.idNumber, label: p.name }));
       return subjects.length > 0
-        ? { input: { subjects } }
+        ? { input: { subjects, ...(ctx?.occupationsFrom ? { occupationsFrom: ctx.occupationsFrom } : {}) } }
         : { blocked: 'אין ת.ז. ידועה לאף אחד מהאנשים בכרטיס — אין את מי לבדוק מול ביטוח לאומי.' };
     },
     interpret: interpretBtlFile,

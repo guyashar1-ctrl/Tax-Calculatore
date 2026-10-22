@@ -403,3 +403,38 @@ p.ui-lines { margin: 0; }
 .ui-arrow-step { display: inline-block; max-inline-size: 100%; }
 .ui-arrow-step > bdi { unicode-bidi: isolate; }
 .ui-arrow { color: var(--ink-2); font-weight: 700; margin-inline: .4em; }
+
+/* ── כתובת מרשימה סגורה · AddressFields ─────────────────────────────────────
+   ‼ הרכיב יושב גם בדף של הלקוח (צבעי המשרד שלו, inline) וגם במשרד — ולכן
+   הרשימה הנפתחת לוקחת רקע/גבול מהערכה עם ברירת מחדל בהירה. */
+.addr-field { position: relative; }
+.addr-field label { display: block; }
+.addr-row { display: flex; gap: 10px; }
+.addr-row > .addr-field { flex: 1; min-width: 0; }
+.addr-combo { position: relative; }
+.addr-combo input { width: 100%; box-sizing: border-box; }
+.addr-list {
+  position: absolute; inset-inline: 0; top: calc(100% + 4px); z-index: 40;
+  background: var(--card, #fff); border: 1px solid var(--bd, #ddd); border-radius: 12px;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, .12); max-height: 260px; overflow: auto; padding: 4px;
+}
+.addr-opt { padding: 10px 11px; border-radius: 9px; font-size: 15px; cursor: pointer; color: var(--tx, #1a1a1a); }
+.addr-opt[aria-selected='true'], .addr-opt:hover { background: var(--soft, #e8eef5); }
+.addr-opt mark { background: none; color: var(--br, #3f5f8f); font-weight: 700; }
+.addr-opt.addr-none { color: var(--tx2, #63686f); cursor: default; background: none; }
+.addr-opt.addr-free { color: var(--br, #3f5f8f); font-weight: 600; border-top: 1px solid var(--bd, #ddd); border-radius: 0 0 9px 9px; }
+.addr-picked { display: flex; align-items: center; gap: 8px; width: 100%; box-sizing: border-box; }
+.addr-picked b { flex: 1; font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
+.addr-picked button { border: 0; background: none; color: var(--br, #3f5f8f); font: inherit; font-weight: 600; font-size: 13.5px; padding: 2px 4px; cursor: pointer; }
+.addr-tag { font-size: 12px; font-weight: 600; border-radius: 999px; padding: 1px 8px; background: var(--warn-bg, #fbf3e4); color: var(--warn, #8a5b0f); white-space: nowrap; }
+.addr-hint { margin-top: 5px; font-size: 12.5px; color: var(--warn, #8a5b0f); }
+.addr-loading { font-size: 13px; color: var(--tx2, #63686f); padding: 8px 0; }
+
+/* ── «יישוב מזכה» · SettlementStatus ─────────────────────────────────────── */
+.settle-status { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; }
+.settle-src { font-size: 12.5px; color: var(--tx2, #63686f); }
+.settle-link { border: 0; background: none; padding: 0 2px; color: var(--br, #3f5f8f); font: inherit; font-size: 13.5px; font-weight: 600; cursor: pointer; }
+.settle-warn { flex-basis: 100%; font-size: 13px; color: var(--warn, #8a5b0f); background: var(--warn-bg, #fbf3e4); border-radius: 8px; padding: 6px 9px; }
+.settle-edit { display: flex; flex-direction: column; gap: 6px; max-width: 360px; }
+.settle-actions { display: flex; gap: 6px; }
+.rec-addr { flex-basis: 100%; grid-column: 1 / -1; display: grid; grid-template-columns: 1fr; gap: 10px; }

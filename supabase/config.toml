@@ -116,3 +116,8 @@ verify_jwt = false
 # Google המדומה — סביבת הבדיקות בלבד; מסרבת לרוץ בייצור ואינה נפרסת אליו.
 [functions.fake-google-calendar]
 verify_jwt = false
+
+# 21.10.2026 · «ידע מקצועי» — תשובה מתוך הכללים המאומתים. נקראת מתוך המערכת ע"י משתמש מחובר ומורשה בלבד;
+# השער בודק את החתימה, והפונקציה בודקת authorized_users. המפתח ANTHROPIC_API_KEY — סוד בשרת בלבד.
+[functions.knowledge-answer]
+verify_jwt = true

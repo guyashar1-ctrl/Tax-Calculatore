@@ -6,8 +6,10 @@ import type { Client, NiOccupation } from '../../../types';
 import {
   niOccupationsFromBtl, niOccupationOverlaps, niOccupationsInYear, niOccupationPeriod,
   niOccupationsCountText, niOccupationTypeFromBtl, niOccupationsForDisplay,
-  niOccupationsKey, niOccupationsInline,
+  niOccupationsKey, niOccupationsInline, niOccupationsWindowStart,
 } from '../niOccupations';
+import { pickWindowQuote, quoteYears } from '../occupationsWindow';
+import type { QuotationItem } from '../../../types/quotations';
 import type { BtlOccupationChain } from '../niOccupations';
 import { AUTHORITY_AUTOMATION, buildAuthorityCheck } from '../../taxFile/authorityAutomation';
 import type { AutomationJob } from '../../../types/automation';
@@ -205,5 +207,53 @@ export const TESTS: TestCase[] = [
     const check = buildAuthorityCheck(spec, job([{ ...r, representation: { found: true, receivedDate: '2026-08-04', status: 'ממתין לאישור', pendingAction: 'ממתין תוקף' } }]), client, ALL_KEYS)!;
     const rep = check.fields.find(f => (f.authorityDisplay ?? '').startsWith('מופיע ברשימת המיוצגים'))!;
     equal(rep.authorityDisplay, 'מופיע ברשימת המיוצגים · נקלט 04/08/2026 · סטטוס: ממתין לאישור · ממתין תוקף');
+  }),
+  test('(21.10) ייצוג: נפתח מרשימת המיוצגים בלי «ממתין» ⇒ ירוק בלי שורה; עם «ממתין» ⇒ ראיה', () => {
+    const client = { id: 'c', familyStatus: 'single' } as unknown as Client;
+    const ok = buildAuthorityCheck(spec, job([{ ...personResult('client', 0), representation: { found: true, receivedDate: '2026-10-13' } }]), client, ALL_KEYS)!;
+    equal(ok.fields.find(f => (f.authorityDisplay ?? '').startsWith('מופיע ברשימת המיוצגים'))!.status, 'match');
+    const pending = buildAuthorityCheck(spec, job([{ ...personResult('client', 0), representation: { found: true, status: 'ממתין לאישור' } }]), client, ALL_KEYS)!;
+    equal(pending.fields.find(f => (f.authorityDisplay ?? '').startsWith('מופיע ברשימת המיוצגים'))!.status, 'info');
+  }),
+
+  test('(21.10) «ד"ב : 0» בלי בסיס ⇒ מקדמה 0, ובסיס «אין» תואם לכרטיס ריק — לא אדום', () => {
+    const client = { id: 'c', familyStatus: 'single' } as unknown as Client;
+    const r = personResult('client', 0, { advance: { ok: true, value: { year: 2026, fromMonth: 10, toMonth: 12, months: 3, basisCategory: null, periodBasis: null, advanceMonthly: 0 } } });
+    const check = buildAuthorityCheck(spec, job([r]), client, ALL_KEYS)!;
+    equal(check.fields.find(f => f.fieldKey === 'niInsuranceBasis')!.status, 'match');
+    equal(check.fields.find(f => f.fieldKey === 'niAdvanceMonthly')!.patchValue, 0);
+    assert(check.fields.find(f => f.fieldKey === 'niBalance')!.status !== 'failed', 'השדות שאחריו עדיין נבדקים');
+    const stale = { ...client, niInsuranceBasis: { year: 2025, fromMonth: 1, toMonth: 3, months: 3, periodBasis: 9000 } } as unknown as Client;
+    const c2 = buildAuthorityCheck(spec, job([r]), stale, ALL_KEYS)!.fields.find(f => f.fieldKey === 'niInsuranceBasis')!;
+    equal(c2.status, 'changed');
+    equal(c2.patchValue, null);
+  }),
+
+  test('(21.10) עובד אצל שני מעבידים ⇒ שתי רשומות עם שם ותיק ניכויים; המפתח מבחין ביניהן', () => {
+    const emp = (wf: string, name: string) => ({ hoursBand: null, definitionIncome: null, definitionText: null, definitionRule: null,
+      profession: null, registeredDate: null, status: 'תקף', periodFrom: '2025-10-01', periodTo: null, employerName: name, withholdingFile: wf });
+    const occ = niOccupationsFromBtl([
+      { sourceLabel: 'עובד', fromDate: '2025-10-01', toDate: null, sourcePeriods: [], detail: emp('911111111', 'מעביד א') },
+      { sourceLabel: 'עובד', fromDate: '2025-10-01', toDate: null, sourcePeriods: [], detail: emp('922222222', 'מעביד ב') },
+    ]);
+    deepEqual(occ.map(o => o.withholdingFile), ['911111111', '922222222']);
+    equal(new Set(occ.map(o => o.id)).size, 2);
+    assert(niOccupationsInline(occ).includes('מעביד א · תיק ניכויים 911111111'), niOccupationsInline(occ));
+    const again = niOccupationsFromBtl([
+      { sourceLabel: 'עובד', fromDate: '2025-10-01', toDate: null, sourcePeriods: [], detail: emp('922222222', 'מעביד ב') },
+    ], occ);
+    equal(again[0].id, occ[1].id, 'הזהות לפי תיק הניכויים, לא לפי השם «עובד»');
+  }),
+
+  test('(21.10) חלון העיסוקים: השנה הראשונה בהצעה, כולל שנים קודמות; בלי הצעה — שנת המס של המשרד', () => {
+    const items = [
+      { category: 'annual', year: 2026 }, { category: 'one_time', year: 2024 },
+    ] as unknown as QuotationItem[];
+    equal(niOccupationsWindowStart(quoteYears({ status: 'approved', items, expires_at: null }), 2025), '2024-01-01');
+    equal(niOccupationsWindowStart([], 2025), '2025-01-01');
+    const q = pickWindowQuote([
+      { status: 'draft', items: [], expires_at: null }, { status: 'sent', items: [], expires_at: null }, { status: 'approved', items, expires_at: null },
+    ]);
+    equal(q?.status, 'approved', 'מאושרת גוברת על חדשה יותר שנשלחה');
   }),
 ];

@@ -15,6 +15,7 @@
 - **אישור מפורש של גיא להצעה** ⇐ ביצוע מלא של ההיקף: מימוש, בדיקות, תיקונים, commit ודחיפה ל־`master` — בלי סבבי אישור נוספים. חוזרים אליו רק בחריגה מהותית, החלטה עסקית חדשה או חסם. האישור אינו כולל פעולות עסקיות חיצוניות שלא נכתבו בהצעה.
 - **דחיפה ל־`master` = שחרור לאתר החי** (Vercel אוטומטי; פונקציות Edge אוטומטיות אם השתנו). מסד בייצור ועובד המשרד אינם מתעדכנים לבד — רק אם נכללו בהצעה שאושרה.
 - **מודלים:** הצ׳אט המרכזי — העדפת Opus · High (גיא בוחר בממשק; לא לטעון החלפה). תת־סוכנים ומודלים לפי `docs/MODEL-WORKFLOW-POLICY.md`: זול למה שהוא עושה היטב, חזק כשמוצדק, הקשר מינימלי לכל סוכן, תיאום על קבצים משותפים, חיסכון בעלות הכוללת.
+- **שמירה על מה שכבר עובד (21.10.2026, אחרי ליאת ואוריה):** לפני שינוי או הסרה של כלל, שער או ברירת מחדל — `node scripts/who-depends.mjs`, ובהצעה הבלוק «עד היום / מעכשיו / מה עוד מושפע / איך אוכיח» (WORKING-AGREEMENT §4א). כללים חוצי-מסכים: `docs/INVARIANTS.md`. push ל-master עובר דרך `.githooks/pre-push` (tsc, בדיקות יחידה, staging לפי `scripts/impact-map.json`, בדיקת כללים חיה בייצור); אותה בדיקה רצה כל יום ב-08:30 ופותחת משימה ב«משימות» בהפרה (282). מה שלא אומת בתהליך מול רשות, מייל או טופס חתימה — לא עולה.
 - **סיום:** סיכום קצר בצ׳אט — מה השתנה, מה נבדק, מה פתוח, והאם **זמין לשימוש** או **רק נדחף**. **אין HTML בסיום** אלא אם גיא מבקש. מעדכנים את `docs/CODEX-PROJECT-STATE.md` (יומן ההמשכיות).
 
 ## תחילת עבודה
@@ -192,6 +193,8 @@
 | מה מבטיח המגש שיוצא לבד, ומתי | `trayQueue.ts` (רק `delivery='auto'` במסלול פעיל, בלי שעה שעברה); טקסטי שליחה/תוצאה — `noticeText.ts` (לא ידוע ≠ לא נשלח, וגם «אין תשובה מהשרת» = לא ידוע; «נרשם ביומן» רק כש-`logged`; `in_flight` עם `noticeId` = אותו מייל מחלון אחר, בלי — מייל אחר יוצא ו«המייל הזה לא נשלח») | `run-unit-tests.mjs` (noticeTray, noticeText) |
 | נוסח מייל לפי מצב (ראשון/מאוחר/קישור עם ממתינים) | `savedTemplateKey` + `baseTemplateFor` + `emailTemplateTitle` ב-`_shared/stepTemplates.ts` — השולח, `mailSample` ועמוד «מיילים» | `run-unit-tests.mjs` (emailTemplates, mailSample) |
 | עצירת מסלול | מה שנעצר נאכף בשרת (גם תזכורות הייצוג — `_rep_reminders_paused`); הטקסטים בחלונות העצירה/החידוש אומרים גם מה ממשיך | `staging-test-flows-notices.mjs` (24.x) |
+| בן/בת הזוג הרשום/ה, מקומות החתימה ב-2279, החלוקה להגשות בשע״ם | `docs/INVARIANTS.md` INV-REP-01..03: `submissionItOwner` (`features/representation/repPreparation.ts`) — כל `shaamSubmissions` דרכו; `_rep_registered_signer` / `_rep_learn_registered_spouse` (271/274); `shaamSpouseConfirmation.ts` | `staging-test-registered-271.mjs`, `run-unit-tests.mjs runAll`, `prod-invariants-check.mjs` |
+| «הפעל הכול» / «המשך» / קלט לעובד בהזנת ייצוג | `RunAllAutomations` + `runAllRows` (מהמשימות בשרת); `automation_job_followups` (270/272); הקלט — `repAutomationInputs.ts` בלבד | `staging-test-job-followups-270.mjs`, `run-unit-tests.mjs runAll` |
 | הדגמה | `staging-fake-email.mjs` + `staging-seed-demo.mjs`; רצועת «סביבת הדגמה» (`components/demo`); `supabase/staging-only/*` — לעולם לא לייצור | `docs/DESIGN-FLOWS-R3.md` §8 |
 | מה הלקוח רואה בדף (שער הפרסום) | כלל אחד לבקשה: `client_step_gate_open` (214) — בקשה שפורסמה מופיעה בדף אם אין קליטה פתוחה, או שהקליטה פורסמה, או שהבקשה פורסמה **לפני** שהקליטה נפתחה (לקוח שחוזר — מה שכבר היה בדף נשאר). `client_process_published` = אותו כלל לבקשה בלי זמן פרסום. משמש את הדף, המייל, המשימה האוטומטית ותזכורת כרטיס האישור. התאום במסך: `utils/clientPageGate.ts` («ממתין לפרסום»; «מההתקשרות הקודמת» מ-`payload.carriedFrom`) | `test-r4-notices.sql` (N.1–N.7), `test-r4-engine.sql` (R.18–R.22), `run-unit-tests.mjs` (clientPageGate) |
 | מסכי הדגמה ובדיקה בשרת פיתוח | ‼ לעולם לא מול הייצור, איך שלא הופעל השרת: `lib/demoIsolation.ts` + `lib/supabase.ts` (‎?test-*‎, ‎?office-app‎, ‎?demo‎, ‎?flows-demo‎, ‎?portal=demo‎ + כתובת ייצור ⇒ כתובת מבודדת, fetch חסום, בלי התחברות אוטומטית). שרתי ההדגמה רק דרך launch.json (5196 officeux, 5198 staging) | מבחן המלכודת: vite עם ‎--mode prodsim‎ על פורט פנוי + בדיקת דפדפן שכל מסכי ההדגמה שולחים 0 בקשות לייצור |
@@ -209,3 +212,22 @@
 - **בקשה חדשה = ענף ב-`_portal_step_items` + רשומה ב-registry + צירי מצב + בדיקת P.2** (הפריט בדף == הפריט בצפייה). נוסח שהיוצר כותב בתוך הגוף שלו (אישור הייצוג, המחולל) — בפונקציית payload שגם הצפייה קוראת לה (`_rep_client_approval_payload`, `_onboarding_system_payload`), לא עותק.
 - **בקשה שנבנית בדפדפן** (קטלוג «＋ בקשה חדשה», בקשה חופשית, עורך) — הצפייה שולחת את ה-payload של אותה פונקציית בנייה שהיצירה משתמשת בה (D3).
 - **הדגמה (`?office-app`)** מחזירה תשובות שנלכדו מ-staging (`scripts/capture-request-preview-fixtures.mjs`); בקשה שלא נלכדה — «אין דוגמה בהדגמה», לא ציור מומצא.
+
+## 13. שדה שמשפיע על המס — מסלול מלא, ולא הנחה (חובה, 22.10.2026)
+
+> נולד מתקלה: הלקוחה כתבה «שדרות», אבל «יישוב מזכה» נקבע רק בלחיצה ידנית במשרד, והשאלון הוריד את
+> השאלה כי «נגזר מהכתובת» — הנחה שלא נבדקה. כל חלק עבד לבד; המעבר ביניהם לא נבדק.
+
+1. **שדה שמשפיע על מס/זיכוי — ממפים כל כותב וכל צרכן**: מי מזין (לקוח, משרד, מסמך, שרת) ואיפה זה
+   משפיע. בדיקה אחת לפחות הולכת מקצה לקצה: «הלקוח מזין ⇐ החישוב משתנה».
+2. **«נקבע לבד»/«אוטומטי» — רק עם בדיקה שמוכיחה.** לא מורידים שאלה, לא כותבים הערה ולא מציגים
+   תיבה מסומנת על סמך הנחה.
+3. **דבר שקיים בעולם — מרשימה רשמית**: יישוב ורחוב (285, `components/ui/AddressFields`), בנק וסניף,
+   מדינה, קופה. טקסט חופשי רק כשאין רשימה, ואז הוא מסומן «לא מהרשימה» למשרד.
+4. **נקודת כניסה חדשה לשדה קיים** (טופס, קריאת מסמך, ענף ב-`_tax_fact_field_op`) — קודם בודקים מה
+   כבר נשען על השדה: גזירות בשרת, `_governed_client_columns` (ענף חדש חוסם שמירה רגילה עד שהמפתח
+   נכנס ל-`GOVERNED_FACT_KEYS`), ושאלות שמדלגות כי «ידוע בכרטיס».
+
+| נוגעים ב… | המקום היחיד | בדיקות |
+|---|---|---|
+| יישוב/רחוב/יישוב מזכה | כותבים רק `city` + `address` (פורמט `composeAddress`); המסד גוזר סמל, רחוב ו-`qualifying_settlement_id` בטריגר `clients_address_canonical` (285). ידני = `qualifying_settlement_override` + סיבה (`SettlementStatus`). רשימות: `scripts/load-il-address-lists.mjs`; יישובים מזכים: `eligibleSettlementCodes.ts` ⇒ `generate-eligible-localities-seed.mjs` | `run-unit-tests.mjs ilAddress`, `supabase/tests/test-285-address.sql`, `generate-eligible-localities-seed.mjs --check` |

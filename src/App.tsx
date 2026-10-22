@@ -1096,7 +1096,7 @@ export default function App() {
     return undefined;
   })();
   // ‼ 235: מה שחסר — כדי שהמשרד יעלה במקום הלקוח מתוך כרטיס הלקוח (office_attach_identity_doc
-  // מסנכרן לבד את «מסמכים מהלקוח»). רישיון ות.ז. בעסק חדש — כל אחד לסוג שלו.
+  // מסנכרן לבד את «מסמכים מהלקוח»).
   const selectedRepIdAttach = (() => {
     if (!selectedClient) return undefined;
     const req = requests.filter(r => r.linkedClientId === selectedClient.id)
@@ -1108,7 +1108,7 @@ export default function App() {
       requestId: req.id,
       missing: missing.map(m => ({
         person: m.person, name: m.personName,
-        kind: (m.exact ? m.kind : m.kind === 'passport' ? 'passport' : 'idOrLicense') as AttachKind,
+        kind: (m.kind === 'passport' ? 'passport' : 'idOrLicense') as AttachKind,
       })),
     };
   })();
@@ -1167,10 +1167,11 @@ export default function App() {
    * עדכון שדות פשוטים על הכרטיס (למשל spouseEmail) — לא עובדה מנוהלת, לא
    * ייצוג. ‼ הדיאלוג של הוראות האישור העצמאיות (157) הוא הקורא היחיד כרגע.
    */
-  async function handleUpdateClientFields(clientId: string, patch: Partial<Client>): Promise<void> {
+  async function handleUpdateClientFields(clientId: string, patch: Partial<Client>): Promise<Client> {
     const c = clients.find(x => x.id === clientId);
     if (!c) throw new Error('הכרטיס לא נמצא');
-    await updateClient({ ...c, ...patch });
+    // ‼ מחזירים את השורה מהשרת: טריגרים גוזרים בה שדות (יישוב מזכה מהכתובת, 285)
+    return updateClient({ ...c, ...patch });
   }
 
   /**
@@ -3074,6 +3075,7 @@ export default function App() {
             onboardingSteps={onboarding.steps}
             repNote={selectedRepNote}
             repIdAttach={selectedRepIdAttach}
+            repRequest={selectedRepRequest}
             onRepIdAttached={() => {
               if (selectedRepIdAttach) void reloadRequest(selectedRepIdAttach.requestId);
               onboarding.refresh?.();

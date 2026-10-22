@@ -39,11 +39,6 @@ export function docKindPrompt(kind: IdentityDocKind): string {
 
 export interface IdentityRequirement {
   person: RepTarget;
-  /**
-   * ‼ 234: רק תעודה מהסוג הזה מספקת את הדרישה (ערכת עסק חדש: ת.ז. וגם רישיון).
-   * בלי הדגל — כל צילום של האדם מספק, כמו קודם.
-   */
-  exact?: boolean;
   /** "יאיר סלע" / "בן/בת הזוג" */
   personName: string;
   kind: IdentityDocKind;
@@ -55,21 +50,14 @@ export interface IdentityRequirement {
  *
  * ‼ `secondaryByPerson` מגיע מהטופס עצמו. לבן/בת הזוג לא נשאל אמצעי זיהוי
  * נוסף, ולכן הוא נופל ל-`idCard` — התעודה שכל אדם מחזיק.
+ *
+ * ‼ 269 (גיא, 21.10.2026): בקשת הייצוג מבקשת רק תעודה מזהה אחת לאדם — מה שהרשות צריכה.
+ * רישיון נהיגה של עסק חדש אינו חלק ממנה: הוא פריט ב«מסמכים מהלקוח» (המחולל בשרת).
  */
-/**
- * ‼ 234 (גיא, 12.10.2026): עסק חדש שהמשרד פותח ⇒ מבעל העסק צילום תעודת זהות **וגם**
- * רישיון נהיגה — אלא אם סימן במפורש «אין לי רישיון נהיגה». בן/בת הזוג — כמו קודם.
- */
-export interface IdentityKitOptions {
-  newBusinessKit?: boolean;
-  noLicense?: Partial<Record<RepTarget, boolean>>;
-}
-
 export function identityRequirements(
   areas: AuthorityRepresentations | undefined,
   people: ScopePeople,
   secondaryByPerson: Partial<Record<RepTarget, OnboardingSecondaryType>>,
-  kit?: IdentityKitOptions,
 ): IdentityRequirement[] {
   const need = new Set<RepTarget>();
   for (const a of REP_AUTHORITY_ORDER) {
@@ -87,7 +75,7 @@ export function identityRequirements(
       need.add(t);
     }
   }
-  const base = (['client', 'spouse'] as RepTarget[])
+  return (['client', 'spouse'] as RepTarget[])
     .filter(t => need.has(t))
     .map(t => {
       const kind = docKindFor(secondaryByPerson[t]);
@@ -98,35 +86,14 @@ export function identityRequirements(
         prompt: docKindPrompt(kind),
       };
     });
-  if (!kit?.newBusinessKit) return base;
-  return base.flatMap((r): IdentityRequirement[] => r.person !== 'client' ? [r] : [
-    { ...r, kind: 'idCard', prompt: `צילום ${IDENTITY_DOC_LABELS.idCard}`, exact: true },
-    ...(kit.noLicense?.client ? [] : [{ ...r, kind: 'driverLicense' as const, prompt: `צילום ${IDENTITY_DOC_LABELS.driverLicense}`, exact: true }]),
-  ]);
 }
 
-/**
- * ערכת עסק חדש מצד המשרד. ‼ הכרטיס הוא המקור: «עסק חדש - אנחנו פותחים» = businessTransfer false
- * (המחולל מעתיק לשם את מה שסומן בליד). הטופס עצמו מקבל את אותה הכרעה מהשרת (prefill.newBusiness).
- */
-export function identityKitFor(
-  request: { identification?: { noDriverLicense?: Partial<Record<RepTarget, boolean>> } | null },
-  client: { businessTransfer?: boolean } | null | undefined,
-): IdentityKitOptions {
-  return { newBusinessKit: client?.businessTransfer === false, noLicense: request.identification?.noDriverLicense ?? {} };
-}
-
-/** שם הדרישה לשורת משרד: בערכה — גם איזו תעודה («יוסי - רישיון נהיגה»). */
-export const identityReqName = (r: IdentityRequirement): string =>
-  r.exact ? `${r.personName} - ${IDENTITY_DOC_LABELS[r.kind]}` : r.personName;
-
-/** מפתח יציב לדרישה — אדם + סוג (בערכת עסק חדש יש שתי דרישות לאותו אדם). */
+/** מפתח יציב לדרישה — אדם + סוג. */
 export const identityReqKey = (r: Pick<IdentityRequirement, 'person' | 'kind'>): string => `${r.person}:${r.kind}`;
 
-/** מה שהועלה ומספק את הדרישה הזו. */
+/** מה שהועלה ומספק את הדרישה הזו — כל צילום של האדם. */
 export function docsForRequirement(r: IdentityRequirement, uploaded: IdentityDocsMap | undefined) {
-  const all = uploaded?.[r.person] ?? [];
-  return r.exact ? all.filter(d => d.docKind === r.kind) : all;
+  return uploaded?.[r.person] ?? [];
 }
 
 /** מה שכבר הועלה, לפי אדם. */

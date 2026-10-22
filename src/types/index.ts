@@ -402,6 +402,9 @@ export interface NiOccupationBtlDetail {
   profession: string | null;
   registeredDate: string | null;
   status: string | null;
+  /** עובד: «שם מעביד» ו«תיק ניכויים» של המעביד, כפי שב"ל רשם (נצפה 21.10.2026). */
+  employerName?: string;
+  withholdingFile?: string;
   /** הרשומה שהפירוט שלה נקרא (תחילת הרשומה, לא בהכרח תחילת הרצף). */
   periodFrom: string;
   periodTo: string | null;
@@ -429,6 +432,8 @@ export interface NiInsuranceBasis {
   category?: string;
   /** המקדמה החודשית שהפורטל הציג לצד הבסיס. */
   advanceMonthly?: number;
+  /** 21.10.2026 · שאר הבסיסים באותה שורה («בסיסים עובד 30,570 , עצמאי 2») — לתצוגה בלבד, לא לחישוב. */
+  otherBases?: { category: string; amount: number }[];
   /**
    * ‼ היסטורי — עד 219 נגזר מ«שנת ההכנסה שנבחרה» ולא מקשר מבוסס. אינו נכתב
    * עוד ואינו נקרא בחישוב: ביטוח לאומי לא מציג על איזו הכנסה נשען הבסיס.
@@ -635,7 +640,13 @@ export interface Client {
   gender: Gender;
   phone: string;
   email: string;
-  city: string;                     // עיר מגורים (dropdown)
+  city: string;                     // יישוב — השם הרשמי כשזוהה ברשימה (285)
+  // ‼ נגזרים בשרת מ-city/address (טריגר clients_address_canonical, 285). אף מסך לא כותב אותם.
+  cityCode?: number | null;
+  streetCode?: number | null;
+  streetName?: string | null;
+  houseNumber?: string | null;
+  apartment?: string | null;
   address: string;
   /** מיקוד מגורים (206). חסר = לא ידוע — לא «אין». */
   zipCode?: string;
@@ -746,6 +757,8 @@ export interface Client {
   qualifyingSettlementId: string;     // '' = לא ישוב מזכה
   qualifyingSettlementOverride: boolean; // האם הוגדר ידנית (ולא זוהה אוטומטית)
   qualifyingSettlementCreditPoints: number; // ניתן לשינוי ידני
+  /** למה המשרד קבע ידנית (285) */
+  qualifyingSettlementNote?: string | null;
 
   // ── נכסים ──
   hasResidentialProperty: boolean;
@@ -1378,6 +1391,10 @@ export interface RepresentationExecution {
   incomeTax?: {
     /** הפרטים הוזנו בשע"ם ונפתחה בקשת ייצוג */
     enteredAt?: string;
+    /** 274: איזו הגשה סומנה (מפתח ההגשה הראשונה ברגע הסימון) — לנעילת החלוקה. */
+    key?: string;
+    /** 274: המערכים של ההגשה ברגע הסימון («מס הכנסה», «מע"מ») — כמו requestedSystems. */
+    requestedSystems?: string[];
   };
   /**
    * הזנות שע״ם נוספות, לפי מפתח `ShaamSubmission.key` (`person:spouse`).
@@ -1387,7 +1404,7 @@ export interface RepresentationExecution {
    * `incomeTax` לעיל (תאימות לאחור), והשאר כאן. בקשה ישנה שאין לה את המפה
    * הזאת מציגה בדיוק את מה שהציגה קודם.
    */
-  shaamEntries?: Record<string, { enteredAt?: string }>;
+  shaamEntries?: Record<string, { enteredAt?: string; requestedSystems?: string[] }>;
   /**
    * מצב האינטגרציה מול שע״ם, לפי אותו מפתח הגשה (`person:client`).
    *

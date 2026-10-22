@@ -4,3 +4,4 @@ export { default as ShaamFilingPanel, ShaamOpenRows, type ShaamFilingPanelProps 
 export { default as ClientObligationRows, type ClientObligationRowsProps } from './ClientObligationRows';
 export { useObligations } from './useObligations';
 export { needsRequest, type Obligation } from './model';
+export { gmf154Filing, openReturnYears, batchFromGmf154, isGmf154Source, type Gmf154Filing } from './fromGmf154';

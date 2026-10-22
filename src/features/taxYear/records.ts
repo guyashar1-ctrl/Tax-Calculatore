@@ -144,7 +144,7 @@ export function schemaFor(id: RecordSchemaId, c?: Client, ctx?: Record<string, s
       fields: [
         { key: 'city', label: 'יישוב', type: 'hebrewText', required: true, half: true },
         { key: 'street', label: 'רחוב', type: 'hebrewText', required: true, half: true },
-        { key: 'houseNumber', label: 'מספר בית', type: 'text', required: true, half: true, maxLength: 8 },
+        { key: 'houseNumber', label: 'מספר בית', type: 'text', required: false, half: true, maxLength: 8, hint: 'ביישוב בלי רחובות — לא חובה' },
         { key: 'apartment', label: 'דירה', type: 'text', half: true, maxLength: 8 },
         { key: 'zip', label: 'מיקוד', type: 'digits', half: true, maxLength: 7, hint: 'לא חובה' },
       ],

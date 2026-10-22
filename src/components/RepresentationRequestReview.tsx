@@ -15,7 +15,8 @@ import {
 import { registeredFileInfo, hasRegisteredSpouseChoice, registeredOwnerOf } from '../features/annualReport/profile';
 import { scopeLines, requestScope, peopleFromClient, shaamSubmissions, partBPartyNames } from '../utils/repScope';
 import { signatureDocumentsOf, signedDocIdFor } from '../utils/repDocuments';
-import { docsForRequirement, identityKitFor, identityReqName, identityRequirements } from '../utils/identityEvidence';
+import { submissionItOwner } from '../features/representation/repPreparation';
+import { docsForRequirement, identityRequirements } from '../utils/identityEvidence';
 import { representationInsight, missingIdentityLine, onboardingProgressLine } from '../utils/representationInsight';
 import { useDocumentDB, StoredDoc } from '../hooks/useIndexedDB';
 import { useAuth } from '../hooks/useAuth';
@@ -66,7 +67,7 @@ interface Props {
   /** ‼ 165: עובר כמו שהוא למרכז הביצוע — שער תנאי-הקדם של מסלולי הב"ל. */
   steps?: OnboardingStep[];
   onStepsChanged?: () => void;
-  onUpdateClientFields?: (patch: Partial<Client>) => Promise<void>;
+  onUpdateClientFields?: (patch: Partial<Client>) => Promise<Client | void>;
   /** 218 · הכנת מקומות החתימה בשרת כשהעובד לא בדק את התבנית — ראה מרכז הביצוע. */
   onPrepareShaamForms?: (layouts: ShaamFormLayouts) => Promise<Record<string, string> | null>;
 }
@@ -274,12 +275,7 @@ export default function RepresentationRequestReview({
     // איזו תעודה מצלמים — לפי אמצעי הזיהוי שכל אדם בחר; לבן/בת הזוג יש
     // בחירה משלו/ה כשיש לו/לה תיק (148)
     { client: request.identification?.secondaryType, spouse: request.identification?.spouseSecondaryType },
-    identityKitFor(request, linkedClient),
-  ).map(r => ({ name: identityReqName(r), got: docsForRequirement(r, request.identityDocs ?? undefined).length > 0 }));
-  // ‼ 234: בעסק חדש — «אין לי רישיון» הוא הצהרה של הלקוח, ומוצגת ליד הצילומים.
-  if (identityKitFor(request, linkedClient).newBusinessKit && request.identification?.noDriverLicense?.client) {
-    idEvidence.push({ name: 'הלקוח סימן «אין לי רישיון נהיגה»', got: true });
-  }
+  ).map(r => ({ name: r.personName, got: docsForRequirement(r, request.identityDocs ?? undefined).length > 0 }));
 
   // מספר התיק במ"ה הוא ת.ז. של הרשום. ממלאים מראש רק כשהוא אומת, ורק לשדה
   // ריק — מספר שהוקלד ידנית או נשמר בבקשה גובר.
@@ -406,9 +402,10 @@ export default function RepresentationRequestReview({
   // (מ"ה / מע"מ / ניכויים) על טופס אחד, כי טופס אחד הוא אדם אחד עם כל
   // התיקים שלו. זה גם מה שקורה בשע״ם: הזנה אחת לכל ת.ז.
   const docTargets = useMemo(() => {
-    const owner = registeredVerified
+    // ‼ 271: בקשה עם מ"ה שכבר נפתחה בשע״ם — נשארת אצל מי שהיא נפתחה עליו/ה.
+    const owner = submissionItOwner(request, null) ?? (registeredVerified
       ? (registered?.owner === 'spouse' ? 'spouse' as const : 'client' as const)
-      : undefined;
+      : undefined);
     const subs = shaamSubmissions(requestScope(request, linkedClient), people, owner);
     return subs.length
       ? subs.map(s => ({

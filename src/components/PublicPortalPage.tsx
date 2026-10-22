@@ -9,7 +9,7 @@
 //
 // ‼ מיתוג המשרד, לא PIVO — כמו כל מה שהלקוח רואה.
 
-import { createContext, lazy, Suspense, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, lazy, Suspense, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import TaxInfoScreen, { openTaxInfoFromHash } from '../features/taxYear/TaxInfoScreen';
 import { PortalTaxEstimate } from '../features/taxYear/extensions';
 import { openClientFormFromHash } from '../features/smartForms/clientForms/hash';
@@ -33,9 +33,11 @@ import { lamed } from '../utils/requestPresentation';
 import IdentityFlexPicker from '../features/identity/IdentityFlexPicker';
 import type { IdDocKind, IdPartsManifest } from '../features/identity/idFlex';
 import {
-  livePortalActions, loadClientPortal, officeViewActions, samplePortalActions, SAMPLE_SIMULATED_TEXT,
+  livePortalActions, loadClientPortal, officeViewActions, officeViewActionsFor, samplePortalActions, SAMPLE_SIMULATED_TEXT,
   type PortalActions, type PortalLinkedKind, type PortalMode,
 } from './portal/portalActions';
+import { PortalFilingsSection, PortalNextCard } from './portal/PortalFilings';
+import { dmy, dueByStep, pickNextAction, type PortalFilingsData } from './portal/portalFilingsModel';
 
 interface Props {
   token: string;
@@ -691,7 +693,7 @@ function ActionItem({ item, brand, accent, last, onDone }: {
   );
 
   return (
-    <div className="pp-item" style={{
+    <div className="pp-item" data-pp-key={item.key} style={{
       marginBottom: last ? 0 : 10,
       background: brand.cardBg, border: `1px solid ${brand.border}`, borderRadius: brand.radius + 2,
     }}>
@@ -713,7 +715,7 @@ function ActionItem({ item, brand, accent, last, onDone }: {
         ) : null
       ) : taxEstimate ? (
         <div style={{ marginTop: 11 }}>
-          {!open && <button type="button" onClick={() => setOpen(true)} style={readOnly || sample ? inertBtn : primaryBtn} aria-expanded={false} disabled={readOnly || sample}>לצפייה בהערכה</button>}
+          {!open && <button type="button" onClick={() => setOpen(true)} data-pp-primary style={readOnly || sample ? inertBtn : primaryBtn} aria-expanded={false} disabled={readOnly || sample}>לצפייה בהערכה</button>}
           {(readOnly || sample) && <div style={{ fontSize: 12.5, color: brand.muted, marginTop: 6 }}>כאן הלקוח קורא את ההערכה שהמשרד אישר. התצוגה המלאה — «סיכום ללקוח» בהערכת המס במשרד.</div>}
           {open && !readOnly && !sample && token && PortalTaxEstimate && <PortalTaxEstimate stepId={item.actionValue!} token={token} onClose={() => setOpen(false)} />}
         </div>
@@ -729,7 +731,7 @@ function ActionItem({ item, brand, accent, last, onDone }: {
           )}
           {/* ‼ 13.10.2026 · מסך שאלון ייעודי (TaxInfoScreen) — לא בתוך רשימת הבקשות. כשנשארו רק מסמכים —
               הכפתור אומר את זה, והמסך נפתח ישר לרשימת המסמכים (בלי לעבור שוב על השאלות). */}
-          <button type="button" onClick={() => setOpen(true)} style={readOnly || sample ? inertBtn : primaryBtn} aria-haspopup="dialog" disabled={readOnly || sample}>
+          <button type="button" onClick={() => setOpen(true)} data-pp-primary style={readOnly || sample ? inertBtn : primaryBtn} aria-haspopup="dialog" disabled={readOnly || sample}>
             {/מסמכ/.test(item.sub ?? '') && !/שאל/.test(item.sub ?? '') ? 'להעלאת המסמכים' : 'להשלמת המידע'}
           </button>
           {(readOnly || sample) && <div style={{ fontSize: 12.5, color: brand.muted, marginTop: 6 }}>כאן הלקוח עונה על השאלות במסך משלו, אחת למסך. התצוגה המלאה — «מה הלקוח רואה» בדף התהליך במשרד.</div>}
@@ -739,7 +741,7 @@ function ActionItem({ item, brand, accent, last, onDone }: {
         </div>
       ) : clientForm ? (
         <div style={{ marginTop: 11 }}>
-          <button type="button" onClick={() => setOpen(true)} style={readOnly || sample ? inertBtn : primaryBtn} aria-haspopup="dialog" disabled={readOnly || sample}>
+          <button type="button" onClick={() => setOpen(true)} data-pp-primary style={readOnly || sample ? inertBtn : primaryBtn} aria-haspopup="dialog" disabled={readOnly || sample}>
             {item.cta || 'למילוי וחתימה'}
           </button>
           {(readOnly || sample) && <div style={{ fontSize: 12.5, color: brand.muted, marginTop: 6 }}>כאן הלקוח משלים במסך משלו רק את מה שחסר, רואה את הטופס המלא כפי שיוגש וחותם.</div>}
@@ -769,7 +771,7 @@ function ActionItem({ item, brand, accent, last, onDone }: {
         </div>
       ) : bizDetails ? (
         <div style={{ marginTop: 11 }}>
-          {!open && <button type="button" onClick={() => setOpen(true)} style={primaryBtn} aria-expanded={false}>מילוי פרטים</button>}
+          {!open && <button type="button" onClick={() => setOpen(true)} data-pp-primary style={primaryBtn} aria-expanded={false}>מילוי פרטים</button>}
           {open && <BusinessDetailsBlock item={item} brand={brand} accent={accent} onDone={onDone}
             onCancel={() => setOpen(false)} />}
         </div>
@@ -779,14 +781,14 @@ function ActionItem({ item, brand, accent, last, onDone }: {
           {href && (readOnly
             ? <span style={inertBtn}>להמשך ←</span>
             : sample && linked
-              ? <button type="button" onClick={() => actions.openLinked(linked, item.actionValue)} style={primaryBtn}>להמשך ←</button>
+              ? <button type="button" onClick={() => actions.openLinked(linked, item.actionValue)} data-pp-primary style={primaryBtn}>להמשך ←</button>
               : sample
-                ? <a href={href} target="_blank" rel="noopener noreferrer" style={primaryBtn}>להמשך ←</a>
-                : <a href={href} style={primaryBtn}>להמשך ←</a>)}
+                ? <a href={href} data-pp-primary target="_blank" rel="noopener noreferrer" style={primaryBtn}>להמשך ←</a>
+                : <a href={href} data-pp-primary style={primaryBtn}>להמשך ←</a>)}
           {/* ‼ G2 · כל סוגי הבקשות נפתחים — גם בתצוגה במשרד ובדוגמה: ההסבר, הרשימה והשדות הם מה שהלקוח רואה.
               בתצוגה במשרד הפקדים שבפנים כבויים (readOnly); בדוגמה הם עובדים מקומית ולא שולחים דבר. */}
           {expandable && (
-            <button type="button" onClick={() => setOpen(o => !o)} style={primaryBtn} aria-expanded={open}>{primaryLabel}</button>
+            <button type="button" onClick={() => setOpen(o => !o)} data-pp-primary style={primaryBtn} aria-expanded={open}>{primaryLabel}</button>
           )}
         </div>
       )}
@@ -1665,7 +1667,7 @@ function PrevAccountantForm({ stepId, prefill, brand, accent, onDone }: {
  *   · sample — רק מי שמבקש אותו במפורש (הספרייה). הדף הציבורי אינו מעביר mode ולכן אינו יכול להגיע אליו.
  *   · actions — ברירת המחדל לפי המצב; מי שמזריק פעולות אחרות (בדיקות) מקבל אותן.
  */
-export function PortalView({ data, token = '', preview = false, embed = false, onReload = () => {}, mode: modeProp, actions: actionsProp, sampleHooks }: {
+export function PortalView({ data, token = '', preview = false, embed = false, onReload = () => {}, mode: modeProp, actions: actionsProp, sampleHooks, clientId }: {
   data: PortalData;
   token?: string;
   preview?: boolean;
@@ -1674,6 +1676,8 @@ export function PortalView({ data, token = '', preview = false, embed = false, o
   mode?: PortalMode;
   actions?: PortalActions;
   sampleHooks?: { onOpenLinked?: (kind: PortalLinkedKind, value?: string) => void };
+  /** 280 · בתצוגה במשרד — הכרטיס, כדי ש«הדוחות שלך» ייטענו (portal_filings_preview). בלי — הקטע לא מוצג. */
+  clientId?: string;
 }) {
   // ‼ X-2 · בלי טוקן אין פעולה של הלקוח שיכולה להצליח — זו תצוגה במשרד («הדף של …»,
   // התצוגה המקדימה). הפקדים כבויים גם ב«חי · עכשיו»: המשרד מסתכל, לא פועל בשם הלקוח.
@@ -1684,9 +1688,17 @@ export function PortalView({ data, token = '', preview = false, embed = false, o
   const portalActions = useMemo(
     () => actionsProp ?? (mode === 'live' ? livePortalActions(token)
       : mode === 'sample' ? samplePortalActions(sampleHooks)
-      : officeViewActions),
-    [actionsProp, mode, token, sampleHooks],
+      : officeViewActionsFor(clientId)),
+    [actionsProp, mode, token, sampleHooks, clientId],
   );
+  // 280 · «הדוחות שלך» — נטען דרך PortalActions (חי לפי טוקן · דוגמה מקומית · תצוגה במשרד לפי כרטיס), ומתרענן עם הדף.
+  const [filings, setFilings] = useState<PortalFilingsData | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    portalActions.loadFilings().then(f => { if (!cancelled) setFilings(f); }, () => { if (!cancelled) setFilings(null); });
+    return () => { cancelled = true; };
+  }, [portalActions, data]);
+  const rootRef = useRef<HTMLDivElement>(null);
   const reload = onReload;
   const brand = deriveQuotationBrand({
     id: '', firmName: data.firmName, branding: data.branding ?? {},
@@ -1706,6 +1718,9 @@ export function PortalView({ data, token = '', preview = false, embed = false, o
   const card: React.CSSProperties = {
     width: 560, maxWidth: '100%', background: brand.cardBg, border: `1px solid ${brand.border}`,
     borderRadius: brand.radius + 4, borderTop: `4px solid ${accent}`,
+    // 280 · הצבעים של המשרד ל«הדבר הבא» ו«הדוחות שלך» (portal/portalFilings.css)
+    ...({ '--pf-accent': accent, '--pf-ink': brand.ink, '--pf-muted': brand.muted, '--pf-border': brand.border,
+      '--pf-card': brand.cardBg, '--pf-radius': `${brand.radius}px` } as React.CSSProperties),
   };
   /** טיוטה / «יוסר» — רק מי שמסתכל בתיק של לקוח אמיתי. */
   const officeView = mode === 'officeView';
@@ -1831,12 +1846,38 @@ export function PortalView({ data, token = '', preview = false, embed = false, o
   const hasUnopenedDoc = unopenedCount > 0;
   const firstName = data.clientFirstName;
 
+  /* ‼ 280 · «הדבר הבא» — אחד מהפריטים שכבר ב«מה צריך ממך» (בסדר שבו הם מוצגים), עם המועד הקרוב ביותר לפי
+     «הדוחות שלך»; בלי מועד — הראשון. הכפתור פותח את אותה בקשה ברשימה, באותו כפתור שלה — לא עותק שלה. */
+  const next = pickNextAction(
+    [...groupsIn('action').flatMap(x => x.g.items.filter(i => i.bucket === 'action')), ...actions],
+    dueByStep(filings));
+  const nextLine = next
+    ? [progressLine(next.item), next.due ? `עד ${dmy(next.due)}` : null].filter(Boolean).join(' · ')
+    : '';
+  const openNext = (retry = true) => {
+    if (!next) return;
+    const root = rootRef.current;
+    const el = root?.querySelector<HTMLElement>(`[data-pp-key="${CSS.escape(next.item.key)}"]`);
+    if (!el) {
+      // בקשה בתוך קבוצה שנסגרה — פותחים את הקבוצה, ואז אותו דבר
+      const g = itemGroups.find(x => x.items.some(i => i.key === next.item.key));
+      const head = g && root?.querySelector<HTMLElement>(`[data-group="${CSS.escape(g.key)}"] .pp-group-head`);
+      if (head && retry && head.getAttribute('aria-expanded') !== 'true') { head.click(); requestAnimationFrame(() => openNext(false)); }
+      return;
+    }
+    el.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
+    el.classList.remove('pf-flash'); void el.offsetWidth; el.classList.add('pf-flash');
+    // ‼ אותה פעולה כמו הכפתור שבכרטיס עצמו (בתצוגה במשרד הוא כבוי — ואז רק מגיעים אליו).
+    const primary = el.querySelector<HTMLElement>('[data-pp-primary]');
+    if (primary && !(primary as HTMLButtonElement).disabled && primary.getAttribute('aria-expanded') !== 'true') primary.click();
+  };
+
   return (
     <PortalModeCtx.Provider value={mode}>
     <PortalActionsCtx.Provider value={portalActions}>
     <PortalTokenCtx.Provider value={token}>
     <div className={`pp-page${embed ? ' is-embed' : ''}`} style={page}>
-      <div className="pp-card" style={card}>
+      <div className="pp-card" style={card} ref={rootRef}>
         <Header />
 
         <div style={{ fontSize: 19, fontWeight: 650, color: brand.ink, marginBottom: 3 }}>
@@ -1845,7 +1886,11 @@ export function PortalView({ data, token = '', preview = false, embed = false, o
 
         {/* ‼ 05.10 · שורת סיכום אחת: מה ממתין לך עכשיו — גם כשזה בתוך קבוצה.
             ‼ 224 · ומה ממתין לבן/בת הזוג, בשמו — הדף והמייל משותפים לזוג. */}
-        {(waitingForYou.length > 0 || others.length > 0) && (
+        {next && <PortalNextCard title={next.item.label} line={nextLine || undefined} onOpen={() => openNext()}
+          buttonLabel={next.item.kind === 'info' ? 'לפרטים' : 'להשלמה'} />}
+
+        {/* ‼ 280 · בקשה אחת שממתינה (ואין לאדם אחר) — «הדבר הבא» כבר אומר אותה; השורה הייתה חוזרת עליה. */}
+        {((waitingForYou.length > 0 && !(next && waitingForYou.length === 1 && others.length === 0)) || others.length > 0) && (
           <div role="status" style={{
             margin: '12px 0 4px', padding: '11px 14px', borderRadius: brand.radius + 2, fontSize: 13.5, lineHeight: 1.55,
             background: brand.pageBg, color: brand.ink, border: `1px solid ${brand.border}`,
@@ -1991,6 +2036,10 @@ export function PortalView({ data, token = '', preview = false, embed = false, o
             ))}
           </>
         )}
+
+        {/* ── הדוחות שלך (280) ─────────────────────────────────────────────
+            לכל שנה: מה, של מי, עד מתי ומה המצב — לפי רשימות שע״ם שהמשרד קלט. בלי שורות — לא מוצג. */}
+        <PortalFilingsSection data={filings} fallbackFirstName={firstName} />
 
         {/* ── בטיפול המשרד ────────────────────────────────────────────────
             מה שאנחנו עושים עכשיו. שקט ובלי פקדים — זו תשובה לשאלה "ומה

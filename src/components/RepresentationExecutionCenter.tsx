@@ -31,7 +31,7 @@ import { getRequestSigners, effectiveSignStatus } from '../utils/repSigners';
 import { shaamSubmissions, requestScope, peopleFromClient, targetsOf } from '../utils/repScope';
 import { signatureDocumentsOf, allDocumentsStamped } from '../utils/repDocuments';
 import type { RepIdentityDocEntry } from '../types';
-import { form2279BothSign, matchRegisteredPersonName, verifyForm2279Layout } from '../features/representation/shaamRepresentation';
+import { form2279BothSign, matchRegisteredPersonName, verifyForm2279Layout, shaamSystemsOf, SHAAM_SYSTEM_SCREEN_LABELS } from '../features/representation/shaamRepresentation';
 import { readForm2279Layout } from '../utils/form2279Layout';
 import { useDocumentDB, type StoredDoc } from '../hooks/useIndexedDB';
 import { useEmailMessages } from '../hooks/useEmailMessages';
@@ -54,6 +54,7 @@ import { niPersons, niPersonIdentity, niRepresentationOf, niRepresentationAction
 import { shaamRepresentationAction } from '../features/taxFile/shaamRepresentationAction';
 import type { ShaamActionKind } from '../features/taxFile/shaamRepresentationAction';
 import ShaamNextActionButton from './ShaamNextActionButton';
+import RunAllAutomations from './RunAllAutomations';
 import type { ShaamSubmission } from '../utils/repScope';
 import {
   shaamDocumentsBlocked,
@@ -78,7 +79,7 @@ import { repCenterPlan, type RcPrepareItem } from '../features/representation/re
 import { shaamSettled } from '../features/representation/shaamRepresentation';
 import RepDocuments, { PoaViewer, type PoaEntry, type IdEntry } from './RepDocuments';
 import { signatureReadiness, placesSentence } from '../features/representation/signatureReadiness';
-import { repPreparationFacts, shaamEnteredAt, type ShaamPrepFact } from '../features/representation/repPreparation';
+import { repPreparationFacts, shaamEnteredAt, submissionItOwner, type ShaamPrepFact } from '../features/representation/repPreparation';
 import IdentityDocAttach from './IdentityDocAttach';
 import { partsSummary } from '../features/identity/idFlex';
 import { shaamDocumentsView } from '../features/representation/shaamDocumentsGate';
@@ -146,7 +147,7 @@ interface Props {
   /** נקרא אחרי שתנאי-קדם הושלמו (משרד/קישור-משתתף) — לרענון onboarding.steps. */
   onStepsChanged?: () => void;
   /** לשמירת כתובת מייל קנונית מתוך דיאלוג קישור-המשתתף (165). */
-  onUpdateClientFields?: (patch: Partial<Client>) => Promise<void>;
+  onUpdateClientFields?: (patch: Partial<Client>) => Promise<Client | void>;
   /**
    * 194 · שמירת מסמכי החתימה אחרי שטופס 2279 הובא משע״ם ואזורי החתימה
    * סומנו אוטומטית. ‼ כתיבה שקטה של **המסמכים בלבד** — בכוונה לא
@@ -599,22 +600,12 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
     await patch({ ...exec, shaamEntries: next }, `entry-${key}`);
   }
 
-  /** סימון הזנה של אדם. `owner` מסופק כשההזנה הזאת נושאת גם את ההכרעה במ"ה. */
-  async function markEntry(key: string, owner?: 'client' | 'spouse') {
-    if (owner && linkedClient && onConfirmRegisteredSpouse) {
-      setBusy(`entry-${key}`);
-      try {
-        await onConfirmRegisteredSpouse(linkedClient.id, owner);
-      } catch (e) {
-        setNote({ kind: 'err', text: e instanceof Error ? e.message : 'השמירה נכשלה' });
-        setBusy(null);
-        return;
-      }
-    }
-    if (entryAt(key)) { setBusy(null); return; }   // נתון ישן — רק ההכרעה נשמרת
+  /** סימון הזנה של אדם (ידני). ‼ 274: עם המערכים של ההגשה — כדי שהחלוקה תינעל כמו אחרי הזנה אוטומטית. */
+  async function markEntry(key: string, requestedSystems: string[]) {
+    if (entryAt(key)) return;
     await patch({
       ...exec,
-      shaamEntries: { ...(exec.shaamEntries ?? {}), [key]: { enteredAt: new Date().toISOString() } },
+      shaamEntries: { ...(exec.shaamEntries ?? {}), [key]: { enteredAt: new Date().toISOString(), requestedSystems } },
     }, `entry-${key}`);
   }
 
@@ -889,8 +880,9 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
   // ‼ תיק מס הכנסה נכנס בהזנה של בן/בת הזוג הרשום/ה — מספרו הוא ת.ז. שלו/ה,
   // ושם הוא מופיע בשע״ם. כל עוד לא הוכרע, הוא נספר אצל הנישום, וזו בדיוק
   // השאלה שנשאלת בשלב הזה.
+  // ‼ 271: אחרי שבקשה עם מ"ה נפתחה — מ"ה נשאר בה (submissionItOwner), גם כשהרשום/ה מתברר/ת אחר כך.
   const submissions = shaamSubmissions(
-    requestScope(request, linkedClient), scopePeople, regOwner ?? undefined,
+    requestScope(request, linkedClient), scopePeople, submissionItOwner(request, linkedClient),
   );
   // ההזנה הראשונה היא שלב 1; השאר נספרים אחריה.
   const firstEntry = submissions[0] ?? null;
@@ -904,21 +896,28 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
     ? registeredSpouseSentence(linkedClient, regOwner)
     : '';
 
-  /** סימון "הוזן בשע״ם". `owner` מסופק כשיש שני בני זוג — ואז הוא גם ההכרעה. */
-  async function markEnteredInShaam(owner?: 'client' | 'spouse') {
-    if (owner && linkedClient && onConfirmRegisteredSpouse) {
-      setBusy('it');
-      try {
-        await onConfirmRegisteredSpouse(linkedClient.id, owner);
-      } catch (e) {
-        setNote({ kind: 'err', text: e instanceof Error ? e.message : 'השמירה נכשלה' });
-        setBusy(null);
-        return;
-      }
+  /** סימון "הוזן בשע״ם" ידנית (ההזנה הראשונה). */
+  async function markEnteredInShaam(key: string, requestedSystems: string[]) {
+    if (it.enteredAt) return;
+    await patch({ ...exec, incomeTax: { ...it, enteredAt: new Date().toISOString(), key, requestedSystems } }, 'it');
+  }
+
+  /**
+   * ‼ 269 (גיא, 21.10.2026): «מי רשום/ה במס הכנסה» רק נשמר — לא מסמן «הוזן בשע״ם» ולא
+   * חוסם את ההזנה. הזנה על ת.ז. של מי שאינו הרשום ממשיכה בשע״ם לרשום/ה במס הכנסה,
+   * ואחריה ההכרעה נקראת משע״ם לבד (regAuto למטה). קודם הלחיצה על השם סימנה «הוזן»
+   * בלי שדבר הוזן.
+   */
+  async function confirmRegistered(owner: 'client' | 'spouse') {
+    if (!linkedClient || !onConfirmRegisteredSpouse) return;
+    setBusy('reg');
+    try {
+      await onConfirmRegisteredSpouse(linkedClient.id, owner);
+    } catch (e) {
+      setNote({ kind: 'err', text: e instanceof Error ? e.message : 'השמירה נכשלה' });
+    } finally {
+      setBusy(null);
     }
-    // שלב שכבר סומן (נתון ישן שנשאר לא-מאומת) — רק ההכרעה נשמרת, בלי לדרוס תאריך
-    if (it.enteredAt) { setBusy(null); return; }
-    await patch({ ...exec, incomeTax: { ...it, enteredAt: new Date().toISOString() } }, 'it');
   }
 
   /** שמות שני בני הזוג לכפתורי ההכרעה — השם עצמו הוא הכפתור. */
@@ -1447,16 +1446,17 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
       }];
     });
   });
-  const regChoiceNode = (busyKey: string, mark: (owner?: 'client' | 'spouse') => void) => (
+  const regChoiceNode = () => (
     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
       {regNames.map(r => (
         <button key={r.owner}
-          className={`btn btn-sm ${r.owner === regIntent ? 'btn-green' : 'btn-secondary'}`}
-          disabled={busy === busyKey}
-          title={regIntent === null ? 'טרם נקבע מי הרשום - הבחירה כאן היא שתקבע'
+          className="btn btn-sm btn-secondary"
+          aria-pressed={r.owner === regOwner}
+          disabled={busy === 'reg'}
+          title={regIntent === null ? 'טרם נקבע מי הרשום'
             : r.owner === regIntent ? 'זו הכוונה שנרשמה בפתיחת הייצוג' : 'שונה מהכוונה שנרשמה - יעדכן את התיק'}
-          onClick={() => { setEditingKey(null); void mark(r.owner); }}>
-          {busy === busyKey ? 'שומר…' : r.label}
+          onClick={() => { setEditingKey(null); void confirmRegistered(r.owner); }}>
+          {busy === 'reg' ? 'שומר…' : r.label}
         </button>
       ))}
     </div>
@@ -1469,7 +1469,10 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
       manualAt: first ? it.enteredAt : entryAt(sub.key),
       at: enteredAtOf(sub.key, first),
       asksHere: regChoice && !regVerified && sub.key === regRowKey,
-      mark: (owner?: 'client' | 'spouse') => (first ? markEnteredInShaam(owner) : markEntry(sub.key, owner)),
+      mark: () => {
+        const systems = shaamSystemsOf(sub).map(s => SHAAM_SYSTEM_SCREEN_LABELS[s]);
+        return first ? markEnteredInShaam(sub.key, systems) : markEntry(sub.key, systems);
+      },
       unmark: () => unmarkEntry(sub.key, first),
     };
   };
@@ -1484,14 +1487,7 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
       if (sub) {
         const c = entryCtl(sub);
         const t = shaamTrack(sub.key);
-        if (c.asksHere) {
-          body = (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <span className="rc-meta">מי מבין השניים רשום/ה במס הכנסה? הבחירה מעדכנת את התיק בכרטיס.</span>
-              {regChoiceNode(c.busyKey, c.mark)}
-            </div>
-          );
-        } else if (item.done) {
+        if (item.done) {
           ctl = <span className="rc-meta">{t?.requestNumber ? <>בקשה <span className="ltr-isolate">{t.requestNumber}</span></> : 'סומן כהוזן'}</span>;
         } else {
           ctl = (
@@ -1502,6 +1498,15 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
               </button>
             </>
           );
+          // ‼ 269: השאלה לא חוסמת את ההזנה — היא נענית לבד משע״ם אחרי ההזנה.
+          if (c.asksHere) {
+            body = (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <span className="rc-meta">מי רשום/ה במס הכנסה? לא חובה לפני ההזנה - מתעדכן מבדיקה בשע״ם.</span>
+                {regChoiceNode()}
+              </div>
+            );
+          }
         }
       }
     } else if (item.key === 'form') {
@@ -1674,7 +1679,17 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
   switch (plan.kind) {
     case 'prepare': {
       const left = plan.prepare.filter(i => !i.done).length || 1;
-      heroBody = <div className="rc-checklist" data-testid="rc-prepare">{plan.prepare.map(prepareRow)}</div>;
+      heroBody = (
+        <>
+          {/* ‼ 269: כל ההזנות (שע״ם, ב״ל לכל אדם) בלחיצה אחת — מעל השורות, שבהן כל אחת נשארת לבד. */}
+          {linkedClient && (
+            <div style={{ marginBottom: 12 }}>
+              <RunAllAutomations request={request} client={linkedClient} minRows={2} onChanged={onStepsChanged} />
+            </div>
+          )}
+          <div className="rc-checklist" data-testid="rc-prepare">{plan.prepare.map(prepareRow)}</div>
+        </>
+      );
       aside = {
         title: pageChannel ? pageTitle : `המייל ${toFirst}`,
         content: (
@@ -2032,7 +2047,7 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
               {editingKey === sub.key && (
                 <span className="rc-meta">מי רשום/ה במס הכנסה? הבחירה תעדכן את הבעלים ואת מספר התיק בכרטיס.</span>
               )}
-              {regChoiceNode(c.busyKey, c.mark)}
+              {regChoiceNode()}
               {editingKey === sub.key && <button type="button" className="rc-quiet" onClick={() => setEditingKey(null)}>ביטול</button>}
             </>
           ) : (sub.carriesIncomeTax && regChoice && regVerified) || c.manualAt ? (

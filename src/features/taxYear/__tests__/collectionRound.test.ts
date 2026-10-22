@@ -116,7 +116,7 @@ export const TESTS: TestCase[] = [
     const c = client({ city: 'חיפה', address: 'הנשיא 5', zipCode: '' } as never);
     const plan = cardUpdateFor(c, 'intake.address', { items: [{ city: 'חיפה', street: 'מוריה', houseNumber: '12', apartment: '4', zip: '3457101' }] }, from)!;
     equal(plan.proposals.map(p => p.fieldKey).sort().join(), 'address,zipCode');
-    equal((plan.proposals.find(p => p.fieldKey === 'address')!.newValue as unknown as { patch: { address: string } }).patch.address, 'מוריה 12 דירה 4');
+    equal((plan.proposals.find(p => p.fieldKey === 'address')!.newValue as unknown as { patch: { address: string } }).patch.address, 'מוריה 12, דירה 4');
     equal(cardUpdateFor(c, 'intake.address', { items: [{ city: 'חיפה', street: 'הנשיא', houseNumber: '5' }] }, from)!.proposals.length, 0);
   }),
 

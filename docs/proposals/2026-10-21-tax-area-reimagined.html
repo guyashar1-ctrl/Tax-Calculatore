@@ -1,0 +1,998 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>מס — מחדש</title>
+<style>
+:root{
+  --desk:#edecea; --page:#f8f7f5; --card:#fff; --bd:#e7e6e3; --bd2:#d9d8d4;
+  --tx:#1f2226; --tx2:#5f646b; --tx3:#949aa1;
+  --br:#3f5f8f; --br2:#34507a; --soft:#eef2f8; --soft2:#dfe7f2;
+  --ok:#24654e; --okbg:#eaf4ef; --warn:#8a5b0f; --warnbg:#fbf3e4; --err:#a63a3a; --errbg:#fbeded; --info:#6b4a87; --infobg:#f2ecf7;
+  --r:14px; --ease:cubic-bezier(.2,.8,.2,1);
+  --sh1:0 1px 2px rgba(20,22,26,.04),0 1px 3px rgba(20,22,26,.04);
+  --sh2:0 10px 30px -12px rgba(20,22,26,.18),0 2px 6px -2px rgba(20,22,26,.06);
+  --sh3:0 30px 80px -30px rgba(20,22,26,.45),0 8px 20px -10px rgba(20,22,26,.12);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{font-family:"Heebo","Segoe UI",Arial,system-ui,sans-serif;background:var(--desk);color:var(--tx);-webkit-font-smoothing:antialiased;font-size:15px;line-height:1.5}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+input{font:inherit;color:inherit}
+.num{font-variant-numeric:tabular-nums}
+
+/* ── סרגל ההדמיה (מחוץ למוצר) ── */
+.demo{height:44px;display:flex;align-items:center;gap:10px;padding:0 14px;background:#1d2024;color:#cfd3d8;font-size:13px;position:relative;z-index:50}
+.demo b{color:#fff;font-weight:600}
+.demo .tag{background:#2c3036;border-radius:6px;padding:2px 8px;color:#e9c27a;white-space:nowrap}
+.demo .jumps{display:flex;gap:2px;overflow-x:auto;scrollbar-width:none}
+.demo .jumps button,.demo .seg button{padding:5px 10px;border-radius:7px;color:#cfd3d8;white-space:nowrap}
+.demo .jumps button:hover,.demo .seg button:hover{background:#2c3036;color:#fff}
+.demo .jumps button.on{background:#3a3f46;color:#fff}
+.demo .sp{flex:1}
+.demo .seg{display:flex;background:#2c3036;border-radius:8px;padding:2px}
+.demo .seg button.on{background:#4a5059;color:#fff}
+.demo .about{background:#e9c27a;color:#1d2024;font-weight:600;padding:5px 12px;border-radius:7px;white-space:nowrap}
+
+/* ── מסגרת: מחשב / טלפון ── */
+.stage{height:calc(100vh - 44px);display:flex;justify-content:center;align-items:stretch}
+.stage.phone{align-items:center;padding:18px 0}
+.shell{position:relative;width:100%;height:100%;background:var(--page);overflow:hidden;container-type:inline-size;container-name:app}
+.stage.phone .shell{width:390px;height:min(820px,calc(100vh - 80px));border-radius:42px;border:10px solid #111;box-shadow:var(--sh3)}
+.vp{position:absolute;inset:0;overflow-y:auto;overflow-x:hidden;scroll-behavior:smooth}
+.stage.phone .vp{scrollbar-width:none}
+
+/* ── סרגל עליון של PIVO ── */
+.top{position:sticky;top:0;z-index:20;height:64px;display:flex;align-items:center;gap:28px;padding:0 28px;background:rgba(255,255,255,.78);backdrop-filter:blur(18px) saturate(170%);-webkit-backdrop-filter:blur(18px) saturate(170%);border-bottom:1px solid rgba(0,0,0,.05)}
+.logo{display:flex;align-items:center;gap:9px;font-weight:700;font-size:21px;letter-spacing:.5px;color:var(--tx)}
+.logo svg{width:28px;height:28px}
+.nav{display:flex;gap:4px}
+.nav a{padding:8px 12px;border-radius:9px;color:var(--tx2);font-size:15px;cursor:default}
+.nav a.on{color:var(--tx);font-weight:600;background:var(--s,#f1f0ee)}
+.top .sp{flex:1}
+.ava{width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,#c9b8a3,#8f7a63);display:grid;place-items:center;color:#fff;font-size:13px;font-weight:600}
+
+/* ── מתג המצב בתוך «מס» ── */
+.modebar{display:flex;justify-content:center;padding:26px 20px 0}
+.modes{position:relative;display:inline-flex;background:#ebeae7;border-radius:12px;padding:3px}
+.modes button{position:relative;z-index:1;padding:8px 22px;border-radius:9px;color:var(--tx2);font-weight:500;transition:color .25s}
+.modes button.on{color:var(--tx)}
+.modes .pill{position:absolute;top:3px;bottom:3px;border-radius:9px;background:#fff;box-shadow:var(--sh1);transition:all .38s var(--ease)}
+
+.view{display:none;animation:in .42s var(--ease)}
+.view.on{display:block}
+@keyframes in{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.wrap{max-width:1040px;margin:0 auto;padding:0 32px 80px}
+
+/* ════════════ עבודות ════════════ */
+.whead{display:flex;align-items:flex-end;gap:16px;margin:30px 0 22px}
+.whead h1{font-size:34px;font-weight:700;letter-spacing:-.02em;line-height:1.1}
+.whead .sp{flex:1}
+.sync{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--tx2);padding:7px 12px;border-radius:9px;border:1px solid var(--bd)}
+.sync:hover{background:#fff;border-color:var(--bd2)}
+.sync i{width:7px;height:7px;border-radius:50%;background:#3aa17a}
+
+.season{background:#fff;border:1px solid var(--bd);border-radius:var(--r);padding:18px 20px;box-shadow:var(--sh1)}
+.season .row1{display:flex;align-items:baseline;gap:10px;margin-bottom:12px}
+.season .row1 b{font-size:16px}
+.season .row1 span{color:var(--tx3);font-size:13px}
+.bar{display:flex;height:10px;border-radius:6px;overflow:hidden;gap:2px}
+.bar div{transition:filter .2s,flex .6s var(--ease);cursor:pointer}
+.bar div:hover{filter:brightness(1.08)}
+.legend{display:flex;gap:18px;flex-wrap:wrap;margin-top:10px;font-size:13px;color:var(--tx2)}
+.legend span{display:flex;align-items:center;gap:6px}
+.legend i{width:8px;height:8px;border-radius:2px}
+.legend b{color:var(--tx);font-weight:600}
+
+.wtools{display:flex;align-items:center;gap:12px;margin:28px 0 8px}
+.tabs{display:inline-flex;gap:4px}
+.tabs button{padding:7px 14px;border-radius:20px;color:var(--tx2);font-weight:500;border:1px solid transparent}
+.tabs button .n{color:var(--tx3);margin-inline-start:6px;font-weight:400}
+.tabs button.on{background:var(--tx);color:#fff}
+.tabs button.on .n{color:#b9bdc2}
+.tabs button:not(.on):hover{background:#efeeeb}
+.wtools .sp{flex:1}
+.find{display:flex;align-items:center;gap:8px;border:1px solid var(--bd);background:#fff;border-radius:10px;padding:0 10px;height:36px;width:200px;transition:width .3s var(--ease),border-color .2s}
+.find:focus-within{width:260px;border-color:var(--br)}
+.find input{border:0;outline:0;background:none;width:100%;font-size:14px}
+.find svg{flex:none;color:var(--tx3)}
+
+.grp{margin-top:26px}
+.grp h3{font-size:13px;font-weight:600;color:var(--tx3);margin:0 4px 8px;letter-spacing:.02em}
+.grp h3.late{color:var(--err)}
+.list{background:#fff;border:1px solid var(--bd);border-radius:var(--r);overflow:hidden;box-shadow:var(--sh1)}
+.item{display:grid;grid-template-columns:40px 1fr auto auto;align-items:center;gap:14px;padding:14px 18px;border-top:1px solid #f0efec;cursor:pointer;transition:background .15s}
+.item:first-child{border-top:0}
+.item:hover{background:#fafaf8}
+.item:active{background:#f4f3f0}
+.ini{width:36px;height:36px;border-radius:50%;background:var(--soft);color:var(--br);display:grid;place-items:center;font-size:13px;font-weight:600}
+.who b{display:block;font-weight:600;font-size:15px}
+.who span{font-size:13px;color:var(--tx2)}
+.st{font-size:13px;display:flex;align-items:center;gap:7px;color:var(--tx2);white-space:nowrap}
+.st i{width:7px;height:7px;border-radius:50%}
+.st.me i{background:var(--br)}
+.st.cl i{background:#c9a14a}
+.st.ready i{background:#3aa17a}
+.due{text-align:left;min-width:88px}
+.due b{display:block;font-size:14px;font-weight:600}
+.due span{font-size:12px;color:var(--tx3)}
+.due.late b,.due.late span{color:var(--err)}
+.empty{padding:60px 20px;text-align:center;color:var(--tx3)}
+.empty b{display:block;color:var(--tx);font-size:18px;margin-bottom:4px}
+
+/* מגירה */
+.scrim{position:absolute;inset:0;background:rgba(20,22,26,.18);opacity:0;pointer-events:none;transition:opacity .3s;z-index:30}
+.scrim.on{opacity:1;pointer-events:auto}
+.drawer{position:absolute;top:0;bottom:0;left:0;width:420px;max-width:100%;background:#fff;z-index:31;box-shadow:var(--sh3);transform:translateX(-104%);transition:transform .45s var(--ease);display:flex;flex-direction:column}
+.drawer.on{transform:none}
+.dhead{padding:22px 24px 6px;display:flex;align-items:flex-start;gap:12px}
+.dhead .t{flex:1}
+.dhead small{color:var(--tx3);font-size:13px}
+.dhead h2{font-size:22px;letter-spacing:-.01em;line-height:1.25}
+.x{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;color:var(--tx2);background:#f3f2ef;flex:none}
+.x:hover{background:#e9e8e4}
+.dbody{padding:10px 24px 24px;overflow-y:auto;flex:1}
+.steps{display:flex;margin:18px 0 26px}
+.steps div{flex:1;position:relative;text-align:center;font-size:12px;color:var(--tx3)}
+.steps div::before{content:"";display:block;width:12px;height:12px;border-radius:50%;margin:0 auto 6px;background:#e3e2de;position:relative;z-index:1}
+.steps div::after{content:"";position:absolute;top:5px;left:50%;width:100%;height:2px;background:#e3e2de}
+.steps div:first-child::after{display:none}
+.steps div.done{color:var(--tx2)}
+.steps div.done::before,.steps div.done::after{background:var(--br)}
+.steps div.cur{color:var(--tx);font-weight:600}
+.steps div.cur::before{background:#fff;border:3px solid var(--br);box-sizing:border-box}
+.steps div.cur::after{background:var(--br)}
+.miss{border:1px solid var(--bd);border-radius:12px;padding:4px 0;margin-bottom:22px}
+.miss div{display:flex;align-items:center;gap:10px;padding:10px 14px;font-size:14px}
+.miss div+div{border-top:1px solid #f0efec}
+.miss i{width:18px;height:18px;border-radius:50%;border:1.5px solid var(--bd2);flex:none}
+.miss i.v{border:0;background:var(--ok);display:grid;place-items:center}
+.miss i.v::after{content:"";width:8px;height:4px;border:2px solid #fff;border-top:0;border-right:0;transform:rotate(-45deg) translate(0,-1px)}
+.kv{display:flex;gap:6px;font-size:13px;color:var(--tx2);margin:2px 0 18px}
+.kv b{color:var(--tx);font-weight:500}
+.primary{width:100%;height:48px;border-radius:12px;background:var(--br);color:#fff;font-weight:600;font-size:16px;transition:background .2s,transform .1s}
+.primary:hover{background:var(--br2)}
+.primary:active{transform:scale(.985)}
+.links{display:flex;justify-content:space-between;margin-top:14px}
+.link{color:var(--br);font-size:14px;font-weight:500}
+.link:hover{text-decoration:underline}
+.dfoot{padding:16px 24px 22px;border-top:1px solid #f0efec}
+
+/* גיליון עדכון משע״ם */
+.sheet{position:absolute;left:50%;top:90px;width:520px;max-width:calc(100% - 32px);transform:translate(-50%,-12px) scale(.98);opacity:0;pointer-events:none;background:#fff;border-radius:18px;box-shadow:var(--sh3);z-index:32;transition:all .35s var(--ease);padding:22px}
+.sheet.on{opacity:1;transform:translate(-50%,0);pointer-events:auto}
+.sheet h2{font-size:20px;margin-bottom:4px}
+.sheet p{color:var(--tx2);font-size:14px}
+.drop{margin:18px 0 14px;border:1.5px dashed var(--bd2);border-radius:14px;padding:34px 16px;text-align:center;color:var(--tx2);transition:all .2s}
+.drop:hover{border-color:var(--br);background:var(--soft)}
+.drop b{color:var(--tx);display:block;font-size:16px;margin-bottom:2px}
+.srcs{display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--tx2)}
+.srcs div{display:flex;justify-content:space-between}
+.how{font-size:13px;color:var(--br);margin-top:12px;display:inline-block}
+.howtxt{display:none;margin-top:8px;font-size:13px;color:var(--tx2);background:#f7f6f3;border-radius:10px;padding:10px 12px}
+.howtxt.on{display:block}
+
+/* ════════════ ידע ════════════ */
+.khero{max-width:720px;margin:0 auto;padding:64px 0 10px;text-align:center;transition:padding .5s var(--ease)}
+.kv-mode .khero{padding-top:30px}
+.khero h1{font-size:44px;font-weight:700;letter-spacing:-.03em;line-height:1.08;transition:all .4s var(--ease)}
+.kv-mode .khero h1{font-size:0;opacity:0;margin:0}
+.khero .sub{color:var(--tx2);margin:10px 0 28px;font-size:17px;transition:all .35s}
+.kv-mode .khero .sub{opacity:0;margin:0;height:0;overflow:hidden}
+.ask{position:relative;display:flex;align-items:center;gap:12px;background:#fff;border:1px solid var(--bd);border-radius:18px;height:62px;padding:0 20px;box-shadow:var(--sh2);transition:box-shadow .25s,border-color .25s}
+.ask:focus-within{border-color:#b9c8dd;box-shadow:0 0 0 4px rgba(63,95,143,.10),var(--sh2)}
+.ask input{flex:1;border:0;outline:0;background:none;font-size:19px}
+.ask input::placeholder{color:#a9aeb4}
+.ask svg{color:var(--tx3);flex:none}
+.ask .clr{width:26px;height:26px;border-radius:50%;background:#efeeeb;display:none;place-items:center;color:var(--tx2)}
+.kv-mode .ask .clr{display:grid}
+.tries{display:flex;justify-content:center;gap:8px;flex-wrap:wrap;margin-top:16px}
+.tries button{font-size:14px;color:var(--tx2);padding:6px 12px;border-radius:20px;background:#efeeeb;transition:background .2s}
+.tries button:hover{background:#e5e4e0;color:var(--tx)}
+.kv-mode .tries{display:none}
+
+.home{transition:opacity .3s}
+.kv-mode .home{display:none}
+.sect{margin-top:56px}
+.sect h2{font-size:13px;color:var(--tx3);font-weight:600;margin:0 2px 12px;letter-spacing:.02em}
+.domains{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.dom{background:#fff;border:1px solid var(--bd);border-radius:14px;padding:16px;text-align:start;transition:transform .2s var(--ease),box-shadow .2s;min-height:96px;display:flex;flex-direction:column}
+.dom:hover{transform:translateY(-2px);box-shadow:var(--sh2)}
+.dom b{font-size:15px;font-weight:600;line-height:1.3}
+.dom span{margin-top:auto;font-size:12px;color:var(--tx3)}
+.dom.dim{cursor:default}
+.dom.dim:hover{transform:none;box-shadow:none}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.card{background:#fff;border:1px solid var(--bd);border-radius:14px;padding:18px}
+.path b{font-size:16px;display:block}
+.path small{color:var(--tx3);font-size:13px}
+.prog{height:6px;background:#efeeeb;border-radius:4px;margin:14px 0 10px;overflow:hidden}
+.prog div{height:100%;background:var(--br);border-radius:4px}
+.upd{display:flex;justify-content:space-between;align-items:baseline;padding:8px 0;font-size:14px}
+.upd+.upd{border-top:1px solid #f0efec}
+.upd span{color:var(--tx3);font-size:12px}
+
+.results{max-width:720px;margin:22px auto 0;display:none}
+.kv-mode .results{display:block}
+.answer{background:#fff;border:1px solid var(--bd);border-radius:20px;box-shadow:var(--sh2);padding:26px 28px;animation:pop .45s var(--ease)}
+@keyframes pop{from{opacity:0;transform:translateY(10px) scale(.99)}to{opacity:1;transform:none}}
+.answer .q{font-size:13px;color:var(--tx3);margin-bottom:14px;display:flex;gap:8px;align-items:center}
+.verd{display:flex;flex-direction:column;gap:12px}
+.vline{display:flex;align-items:flex-start;gap:14px}
+.vmark{width:34px;height:34px;border-radius:50%;flex:none;display:grid;place-items:center;font-weight:700;font-size:16px}
+.vmark.y{background:var(--okbg);color:var(--ok)}
+.vmark.n{background:#f1f0ed;color:var(--tx2)}
+.vmark.i{background:var(--soft);color:var(--br);font-size:13px}
+.vline b{display:block;font-size:20px;letter-spacing:-.01em;line-height:1.3}
+.vline span{color:var(--tx2);font-size:14px}
+.why{margin-top:20px;padding-top:16px;border-top:1px solid #f0efec;font-size:15px;color:#3b3f45}
+.meta{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px;align-items:center}
+.tag{font-size:12px;font-weight:600;padding:3px 9px;border-radius:20px}
+.tag.v{background:var(--okbg);color:var(--ok)}
+.tag.p{background:var(--warnbg);color:var(--warn)}
+.tag.o{background:var(--infobg);color:var(--info)}
+.tag.s{background:#f1f0ed;color:var(--tx2);font-weight:500}
+.more{margin-top:16px;display:flex;gap:18px}
+.src{display:none;margin-top:12px;background:#f7f6f3;border-radius:12px;padding:12px 14px;font-size:13px;color:var(--tx2)}
+.src.on{display:block}
+.rel{margin-top:28px}
+.rel h4{font-size:13px;color:var(--tx3);font-weight:600;margin:0 4px 8px}
+.rlist{background:#fff;border:1px solid var(--bd);border-radius:14px;overflow:hidden}
+.rlist button{display:flex;width:100%;justify-content:space-between;align-items:center;gap:10px;padding:13px 16px;text-align:start;border-top:1px solid #f0efec;transition:background .15s}
+.rlist button:first-child{border-top:0}
+.rlist button:hover{background:#fafaf8}
+.rlist small{color:var(--tx3);font-size:12px;white-space:nowrap}
+.none{text-align:center;padding:40px 20px;background:#fff;border:1px solid var(--bd);border-radius:20px}
+.none b{display:block;font-size:19px;margin-bottom:6px}
+.none p{color:var(--tx2);font-size:14px;margin-bottom:18px}
+.btn2{padding:10px 18px;border-radius:11px;background:var(--tx);color:#fff;font-weight:600}
+.btn2:hover{background:#000}
+
+/* תשובת AI */
+.aiby{display:flex;align-items:center;gap:8px;margin-top:16px;font-size:13px;color:var(--tx3)}
+.aiby .link{font-size:13px;margin-inline-start:auto}
+.spark{color:var(--automation,#b8437d);font-size:13px;margin-inline-end:6px}
+.cites div{display:grid;grid-template-columns:auto 1fr;gap:2px 10px;padding:9px 0;border-top:1px solid #ebeae7;align-items:baseline}
+.cites div:first-child{border-top:0;padding-top:2px}
+.cites b{font-weight:500;color:var(--tx);font-size:14px}
+.cites small{grid-column:2;font-size:12px;color:var(--tx3)}
+.thinking .q{margin-bottom:18px}
+.sk{height:14px;border-radius:7px;margin-top:12px;background:linear-gradient(90deg,#f1f0ed 0%,#e6e5e1 40%,#f1f0ed 80%);background-size:300% 100%;animation:sh 1.1s linear infinite}
+@keyframes sh{from{background-position:100% 0}to{background-position:-200% 0}}
+
+/* מה אני לומד · עדכון הידע */
+.inbox .it{display:flex;align-items:center;gap:12px;padding:12px 0;border-top:1px solid #f0efec}
+.inbox .it:first-of-type{border-top:0;padding-top:4px}
+.inbox .it b{display:block;font-weight:600;font-size:15px}
+.inbox .it small{font-size:12px;color:var(--tx3)}
+.inbox .it>div{flex:1;min-width:0}
+.st2{font-size:12px;font-weight:600;border-radius:20px;padding:3px 9px;white-space:nowrap}
+.st2.wait{background:#f1f0ed;color:var(--tx2)}
+.st2.in{background:var(--okbg);color:var(--ok)}
+.addrow{display:flex;gap:8px;margin-top:12px}
+.addrow input{flex:1;height:40px;border:1px dashed var(--bd2);border-radius:10px;padding:0 12px;background:#fafaf8;outline:0;font-size:14px;transition:border-color .2s}
+.addrow input:focus{border-style:solid;border-color:var(--br);background:#fff}
+.addrow button{width:40px;height:40px;border-radius:10px;border:1px solid var(--bd);display:grid;place-items:center;color:var(--tx2)}
+.addrow button:hover{background:#f3f2ef}
+.upcard{display:flex;flex-direction:column}
+.upnum{display:flex;gap:22px;margin:4px 0 16px}
+.upnum div b{display:block;font-size:26px;font-weight:700;letter-spacing:-.02em}
+.upnum div span{font-size:12px;color:var(--tx3)}
+.uplog{flex:1}
+.uplog div{font-size:14px;padding:7px 0;border-top:1px solid #f0efec;display:flex;justify-content:space-between;gap:10px}
+.uplog div span{color:var(--tx3);font-size:12px;white-space:nowrap}
+.runbtn{margin-top:14px;height:44px;border-radius:12px;background:var(--tx);color:#fff;font-weight:600;display:flex;align-items:center;justify-content:center;gap:8px}
+.runbtn:hover{background:#000}
+.newtag{font-size:11px;font-weight:700;color:var(--automation-text,#a63b72);background:var(--automation-soft,#fbe9f2);border-radius:20px;padding:2px 8px;margin-top:6px;width:max-content}
+.plan{display:flex;flex-direction:column;gap:2px;margin:18px 0 6px}
+.plan div{display:flex;align-items:center;gap:12px;padding:11px 0;border-top:1px solid #f0efec;font-size:15px}
+.plan div:first-child{border-top:0}
+.plan b{font-size:20px;min-width:44px;text-align:center;font-weight:700}
+.promptbox{display:none;margin-top:10px;background:#1f2226;color:#d8dce0;border-radius:12px;padding:12px 14px;font-size:12px;line-height:1.6;max-height:180px;overflow:auto;white-space:pre-wrap;direction:rtl}
+.promptbox.on{display:block}
+
+/* דף נושא */
+.crumb{font-size:13px;color:var(--tx3);margin:30px 0 8px;display:flex;gap:6px;align-items:center}
+.crumb button{color:var(--br)}
+.thead{display:flex;align-items:flex-end;gap:16px;flex-wrap:wrap}
+.thead h1{font-size:42px;letter-spacing:-.03em;line-height:1.05}
+.thead .sp{flex:1}
+.years{display:inline-flex;background:#ebeae7;border-radius:10px;padding:3px}
+.years button{padding:5px 13px;border-radius:8px;font-size:14px;color:var(--tx2)}
+.years button.on{background:#fff;color:var(--tx);box-shadow:var(--sh1);font-weight:600}
+.lead{font-size:20px;color:#3b3f45;margin:16px 0 26px;max-width:700px;line-height:1.5}
+.facts{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:10px}
+.fact{background:#fff;border:1px solid var(--bd);border-radius:14px;padding:16px 18px}
+.fact b{display:block;font-size:26px;letter-spacing:-.02em;font-weight:700;transition:opacity .2s}
+.fact span{font-size:13px;color:var(--tx3)}
+.tbody{display:grid;grid-template-columns:180px 1fr;gap:40px;margin-top:40px}
+.toc{position:sticky;top:90px;align-self:start;display:flex;flex-direction:column;gap:2px}
+.toc button{text-align:start;padding:7px 12px;border-radius:9px;color:var(--tx2);font-size:14px}
+.toc button:hover{background:#efeeeb;color:var(--tx)}
+.toc button.on{color:var(--tx);font-weight:600;background:#efeeeb}
+.tsec{margin-bottom:46px;scroll-margin-top:84px}
+.tsec>h2{font-size:22px;letter-spacing:-.01em;margin-bottom:14px}
+.rules{background:#fff;border:1px solid var(--bd);border-radius:16px;overflow:hidden}
+.rule{border-top:1px solid #f0efec}
+.rule:first-child{border-top:0}
+.rule>button{display:flex;width:100%;align-items:center;gap:12px;padding:15px 18px;text-align:start}
+.rule>button:hover{background:#fafaf8}
+.rule>button b{flex:1;font-weight:500;font-size:15px}
+.chev{transition:transform .3s var(--ease);color:var(--tx3);flex:none}
+.rule.open .chev{transform:rotate(-90deg)}
+.rbody{display:grid;grid-template-rows:0fr;transition:grid-template-rows .35s var(--ease)}
+.rule.open .rbody{grid-template-rows:1fr}
+.rbody>div{overflow:hidden}
+.rbody p{padding:0 18px 16px;color:var(--tx2);font-size:14px}
+.rbody p em{font-style:normal;color:var(--tx3);display:block;margin-top:6px;font-size:12px}
+.qa{display:flex;flex-direction:column;gap:8px}
+.qa button{display:flex;justify-content:space-between;align-items:center;background:#fff;border:1px solid var(--bd);border-radius:12px;padding:14px 16px;text-align:start;transition:border-color .2s}
+.qa button:hover{border-color:var(--bd2)}
+.doit{counter-reset:s;display:flex;flex-direction:column;gap:10px}
+.doit div{display:flex;gap:12px;align-items:flex-start;font-size:15px}
+.doit div::before{counter-increment:s;content:counter(s);width:24px;height:24px;border-radius:50%;background:var(--soft);color:var(--br);font-size:13px;font-weight:700;display:grid;place-items:center;flex:none}
+.quiz{background:#fff;border:1px solid var(--bd);border-radius:16px;padding:20px}
+.quiz>b{display:block;font-size:16px;margin-bottom:14px;font-weight:600}
+.opt{display:block;width:100%;text-align:start;padding:12px 14px;border:1px solid var(--bd);border-radius:11px;margin-top:8px;transition:all .2s}
+.opt:hover{border-color:var(--bd2);background:#fafaf8}
+.opt.good{border-color:#9fcdb7;background:var(--okbg)}
+.opt.bad{border-color:#e7b9b9;background:var(--errbg)}
+.fb{margin-top:12px;font-size:14px;color:var(--tx2);min-height:21px}
+.srclist div{font-size:14px;padding:9px 0;border-top:1px solid #ebeae7;display:flex;justify-content:space-between;gap:10px}
+.srclist div:first-child{border-top:0}
+.srclist span{color:var(--tx3);font-size:12px}
+
+/* ════════════ הדף האישי ════════════ */
+.portal{min-height:100%;background:#f6f5f2}
+.ptop{position:sticky;top:0;z-index:5;background:rgba(246,245,242,.85);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);padding:14px 20px;display:flex;align-items:center;gap:10px;border-bottom:1px solid rgba(0,0,0,.04)}
+.ptop .off{font-weight:600}
+.ptop .sp{flex:1}
+.ptop .smp{font-size:11px;background:#fbf3e4;color:#8a5b0f;padding:3px 8px;border-radius:20px;font-weight:600}
+.pwrap{max-width:560px;margin:0 auto;padding:22px 20px 60px}
+.hello{font-size:30px;font-weight:700;letter-spacing:-.02em;margin:6px 0 18px}
+.next{background:var(--br);color:#fff;border-radius:20px;padding:20px;box-shadow:0 16px 36px -18px rgba(63,95,143,.7)}
+.next small{opacity:.75;font-size:13px}
+.next b{display:block;font-size:21px;margin:4px 0 2px;letter-spacing:-.01em}
+.next span{opacity:.85;font-size:14px}
+.next button{margin-top:16px;width:100%;height:46px;border-radius:12px;background:#fff;color:var(--br);font-weight:700;font-size:16px}
+.next button:active{transform:scale(.985)}
+.ph{display:flex;align-items:baseline;justify-content:space-between;margin:32px 2px 10px}
+.ph h2{font-size:19px;letter-spacing:-.01em}
+.ph span{font-size:12px;color:var(--tx3)}
+.ycard{background:#fff;border-radius:18px;border:1px solid var(--bd);margin-bottom:10px;overflow:hidden}
+.yhead{display:flex;align-items:center;gap:10px;padding:14px 18px;width:100%;text-align:start}
+.yhead b{font-size:18px;font-weight:700}
+.yhead .sum{flex:1;font-size:13px;color:var(--tx3)}
+.ob{display:grid;grid-template-columns:1fr auto;gap:2px 12px;padding:13px 18px;border-top:1px solid #f0efec}
+.ob b{font-weight:600;font-size:15px}
+.ob .pp{font-size:13px;color:var(--tx2)}
+.ob .when{grid-row:span 2;text-align:left;align-self:center}
+.ob .when b{display:block;font-size:14px}
+.ob .when span{font-size:12px;color:var(--tx3)}
+.pill{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;border-radius:20px;padding:2px 9px;margin-top:4px;width:max-content}
+.pill.us{background:var(--soft);color:var(--br)}
+.pill.you{background:var(--warnbg);color:var(--warn)}
+.pill.done{background:var(--okbg);color:var(--ok)}
+.pill.no{background:#f1f0ed;color:var(--tx2)}
+.ob.muted b{color:var(--tx2);font-weight:500}
+.yfold{display:grid;grid-template-rows:0fr;transition:grid-template-rows .35s var(--ease)}
+.ycard.open .yfold{grid-template-rows:1fr}
+.yfold>div{overflow:hidden}
+.ycard .chev{margin-inline-start:4px}
+.ycard.open .chev{transform:rotate(-90deg)}
+.pnote{font-size:12px;color:var(--tx3);text-align:center;margin-top:14px}
+
+/* הודעה */
+.toast{position:absolute;bottom:24px;left:50%;transform:translate(-50%,20px);opacity:0;background:#1f2226;color:#fff;padding:11px 18px;border-radius:12px;font-size:14px;z-index:60;transition:all .35s var(--ease);pointer-events:none;max-width:calc(100% - 32px);text-align:center;box-shadow:var(--sh2)}
+.toast.on{opacity:1;transform:translate(-50%,0)}
+
+/* על ההצעה */
+.about-scrim{position:fixed;inset:0;background:rgba(20,22,26,.35);z-index:90;opacity:0;pointer-events:none;transition:opacity .3s}
+.about-scrim.on{opacity:1;pointer-events:auto}
+.aboutp{position:fixed;top:0;bottom:0;right:0;width:560px;max-width:100%;background:#fff;z-index:91;transform:translateX(104%);transition:transform .45s var(--ease);overflow-y:auto;padding:28px 30px 50px}
+.aboutp.on{transform:none}
+.aboutp h1{font-size:26px;letter-spacing:-.02em;margin-bottom:4px}
+.aboutp .d{color:var(--tx3);font-size:13px;margin-bottom:22px}
+.aboutp h2{font-size:15px;margin:22px 0 8px;color:var(--br)}
+.aboutp ul{padding-inline-start:18px;display:flex;flex-direction:column;gap:6px;font-size:14px;color:#3b3f45}
+.aboutp .atom{display:flex;flex-direction:column;align-items:center;gap:8px;margin:12px 0 4px;font-size:13px}
+.aboutp .atom .core{background:var(--br);color:#fff;border-radius:12px;padding:10px 16px;text-align:center;font-weight:600}
+.aboutp .atom .core small{display:block;font-weight:400;opacity:.8;font-size:12px}
+.aboutp .atom .arms{display:flex;gap:6px;flex-wrap:wrap;justify-content:center}
+.aboutp .atom .arms span{background:var(--soft);color:var(--br);border-radius:20px;padding:4px 10px}
+.aboutp .q1{background:var(--warnbg);border-radius:14px;padding:14px 16px;font-size:14px;color:#4a3a1a;margin-top:8px}
+.aboutp .q1 b{display:block;margin-bottom:4px;color:var(--warn)}
+.aboutp .x{position:absolute;top:22px;left:22px}
+
+/* ── טלפון (לפי רוחב המסגרת) ── */
+@container app (max-width:700px){
+  .top{padding:0 16px;gap:12px;height:56px}
+  .nav{display:none}
+  .logo{font-size:18px}
+  .modebar{padding-top:16px}
+  .wrap{padding:0 16px 70px}
+  .whead{margin:22px 0 16px}
+  .whead h1{font-size:28px}
+  .sync{padding:6px 9px}
+  .sync em{display:none}
+  .wtools{flex-wrap:wrap;margin-top:22px}
+  .find{width:100%}
+  .find:focus-within{width:100%}
+  .item{grid-template-columns:36px 1fr auto;padding:13px 14px;gap:12px}
+  .item .st{grid-column:2;grid-row:2;margin-top:-6px}
+  .item .due{grid-column:3;grid-row:1/span 2}
+  .drawer{width:100%;top:auto;height:auto;max-height:88%;border-radius:22px 22px 0 0;transform:translateY(104%)}
+  .drawer.on{transform:none}
+  .khero{padding-top:36px}
+  .khero h1{font-size:32px}
+  .khero .sub{font-size:15px}
+  .ask{height:54px;border-radius:15px;padding:0 14px}
+  .ask input{font-size:16px}
+  .domains{grid-template-columns:1fr 1fr}
+  .two{grid-template-columns:1fr}
+  .answer{padding:20px}
+  .vline b{font-size:18px}
+  .thead h1{font-size:32px}
+  .lead{font-size:17px}
+  .facts{grid-template-columns:1fr 1fr 1fr;gap:6px}
+  .fact{padding:12px}
+  .fact b{font-size:19px}
+  .tbody{grid-template-columns:1fr;gap:0;margin-top:26px}
+  .toc{position:sticky;top:56px;z-index:4;flex-direction:row;overflow-x:auto;background:rgba(248,247,245,.92);backdrop-filter:blur(12px);margin:0 -16px 18px;padding:8px 16px;scrollbar-width:none}
+  .toc button{white-space:nowrap}
+  .tsec{scroll-margin-top:110px}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+
+<div class="demo">
+  <span class="tag">הדמיה · נתוני דמה</span>
+  <div class="jumps" id="jumps">
+    <button data-go="works">עבודות</button>
+    <button data-go="kn">ידע</button>
+    <button data-go="askq">השאלה שלך</button>
+    <button data-go="topic">דף נושא</button>
+    <button data-go="portal">הדף של הלקוח</button>
+  </div>
+  <span class="sp"></span>
+  <div class="seg" id="dev"><button data-d="desk" class="on">מחשב</button><button data-d="phone">טלפון</button></div>
+  <button class="about" id="aboutBtn">על ההצעה</button>
+</div>
+
+<div class="stage" id="stage">
+ <div class="shell" id="shell">
+  <div class="vp" id="vp">
+
+   <!-- ═══ המשרד ═══ -->
+   <div id="office">
+    <header class="top">
+      <div class="logo"><svg viewBox="0 0 100 100"><rect width="100" height="100" rx="24" fill="#3F5F8F"/><path d="M22 50 A28 28 0 0 1 78 50 A21.5 21.5 0 0 1 34.5 50 A15.5 15.5 0 0 1 65.5 50 A9.5 9.5 0 0 1 46.5 50" fill="none" stroke="#fff" stroke-width="7" stroke-linecap="round"/></svg>PIVO</div>
+      <nav class="nav"><a>לקוחות</a><a>משימות</a><a>יומן</a><a class="on">מס</a></nav>
+      <span class="sp"></span>
+      <div class="ava">ג</div>
+    </header>
+
+    <div class="modebar"><div class="modes" id="modes"><span class="pill"></span><button data-m="works" class="on">עבודות לקוח</button><button data-m="kn">ידע מקצועי</button></div></div>
+
+    <!-- עבודות -->
+    <section class="view on" id="v-works"><div class="wrap">
+      <div class="whead">
+        <h1>עבודות</h1><span class="sp"></span>
+        <button class="sync" id="syncBtn"><i></i>שע״ם<em>&nbsp;· עודכן לפני יומיים</em>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg></button>
+      </div>
+
+      <div class="season">
+        <div class="row1"><b>דוחות 2025</b><span class="num">42 לקוחות חייבים</span></div>
+        <div class="bar" id="bar">
+          <div style="flex:18;background:#3aa17a" data-f="done" title="הוגשו"></div>
+          <div style="flex:4;background:#7fb89f" data-f="ready" title="מוכנים"></div>
+          <div style="flex:9;background:var(--br)" data-f="me" title="בהכנה"></div>
+          <div style="flex:11;background:#d9b46a" data-f="cl" title="אצל הלקוח"></div>
+        </div>
+        <div class="legend">
+          <span><i style="background:#3aa17a"></i>הוגשו <b class="num">18</b></span>
+          <span><i style="background:#7fb89f"></i>מוכנים לחתימה <b class="num">4</b></span>
+          <span><i style="background:var(--br)"></i>בהכנה <b class="num">9</b></span>
+          <span><i style="background:#d9b46a"></i>אצל הלקוח <b class="num">11</b></span>
+        </div>
+      </div>
+
+      <div class="wtools">
+        <div class="tabs" id="tabs">
+          <button data-t="me" class="on">אצלי<span class="n num"></span></button>
+          <button data-t="cl">אצל הלקוח<span class="n num"></span></button>
+          <button data-t="all">הכול<span class="n num"></span></button>
+        </div>
+        <span class="sp"></span>
+        <label class="find"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="wq" placeholder="לקוח"></label>
+      </div>
+      <div id="wlist"></div>
+    </div></section>
+
+    <!-- ידע -->
+    <section class="view" id="v-kn"><div class="wrap" id="kwrap">
+      <div class="khero">
+        <h1>מה תרצה לדעת?</h1>
+        <p class="sub">תשובה מאומתת, עם מקור.</p>
+        <label class="ask">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+          <input id="kq" placeholder="שאל בשפה חופשית" autocomplete="off">
+          <button class="clr" id="kclr" aria-label="נקה"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+        </label>
+        <div class="tries">
+          <button>קרן השתלמות לעוסק זעיר</button>
+          <button>תקרת עסק זעיר 2026</button>
+          <button>פנסיה וקרן השתלמות בעסק זעיר — דוח מלא או מקוצר?</button>
+        </div>
+      </div>
+
+      <div class="home">
+        <div class="sect"><h2>תחומים</h2><div class="domains" id="domains"></div></div>
+        <div class="sect two">
+          <div><h2>מה אני לומד</h2>
+            <div class="card inbox" id="inbox"></div></div>
+          <div><h2>עדכון הידע</h2>
+            <div class="card upcard">
+              <div class="upnum"><div><b class="num">214</b><span>כללים</span></div><div><b class="num">3</b><span>השתנו</span></div><div><b class="num">1</b><span>נושא חדש</span></div></div>
+              <div class="uplog">
+                <div><b>מיסוי בינלאומי</b><span>חדש · מהתואר</span></div>
+                <div><b>תקרת עסק זעיר 2026</b><span class="num">122,833 ₪</span></div>
+                <div><b>קרן השתלמות לעסק זעיר</b><span>נוספה תשובה</span></div>
+              </div>
+              <small style="color:var(--tx3);font-size:12px;margin-top:8px">עדכון אחרון: 18.10.2026</small>
+              <button class="runbtn" id="runBtn"><span class="spark" style="color:#e9a6c8;margin:0">✦</span>עדכן עכשיו</button>
+            </div></div>
+        </div>
+      </div>
+
+      <div class="results" id="results"></div>
+    </div></section>
+
+    <!-- דף נושא -->
+    <section class="view" id="v-topic"><div class="wrap">
+      <div class="crumb"><button data-open="kn">ידע</button><span>‹</span><span>עסק, מע״מ וניהול ספרים</span></div>
+      <div class="thead"><h1>עסק זעיר</h1><span class="sp"></span>
+        <div class="years" id="years"><button data-y="2024">2024</button><button data-y="2025">2025</button><button data-y="2026" class="on">2026</button></div></div>
+      <p class="lead">מסלול מס הכנסה: מנכים <b>30% מהמחזור</b> במקום הוצאות בפועל, לעסק שמחזורו עד <b class="num ceil">122,833 ₪</b>.</p>
+      <div class="facts">
+        <div class="fact"><b class="num ceil">122,833</b><span>תקרת מחזור (₪)</span></div>
+        <div class="fact"><b>30%</b><span>ניכוי נורמטיבי</span></div>
+        <div class="fact"><b class="num">2024</b><span>שנת תחילה</span></div>
+      </div>
+
+      <div class="tbody">
+        <nav class="toc" id="toc">
+          <button data-s="t-rules" class="on">כללים</button>
+          <button data-s="t-qa">שאלות</button>
+          <button data-s="t-do">בתיק</button>
+          <button data-s="t-quiz">תרגול</button>
+          <button data-s="t-src">מקורות</button>
+        </nav>
+        <div>
+          <div class="tsec" id="t-rules"><h2>כללים</h2><div class="rules" id="rules"></div></div>
+          <div class="tsec" id="t-qa"><h2>שאלות</h2><div class="qa" id="qa"></div></div>
+          <div class="tsec" id="t-do"><h2>בתיק</h2>
+            <div class="doit">
+              <div>מאמתים רישום כעסק זעיר — תאריך ומקור.</div>
+              <div>בוחרים מסלול דיווח: מקוצר או דוח מלא.</div>
+              <div>יש קרן השתלמות או פנסיה? בודקים אם הדוח המלא משתלם יותר.</div>
+            </div></div>
+          <div class="tsec" id="t-quiz"><h2>תרגול</h2>
+            <div class="quiz">
+              <b>לקוחה בעסק זעיר, דוח מלא, הפקידה לקרן השתלמות. מה נכון?</b>
+              <button class="opt" data-ok="0">אין ניכוי — הכול כלול ב-30%</button>
+              <button class="opt" data-ok="1">מנכים לפי 17(5א), בנוסף ל-30%</button>
+              <button class="opt" data-ok="0">זיכוי של 35% על ההפקדה</button>
+              <div class="fb" id="fb"></div>
+            </div></div>
+          <div class="tsec" id="t-src"><h2>מקורות</h2>
+            <div class="srclist">
+              <div>פקודת מס הכנסה, סעיפים 87ב–87ז<span>תיקון 2023 · בתוקף מ-1.1.2024</span></div>
+              <div>רשות המסים — דיווח שנתי מקוצר<span>נבדק 11.10.2026</span></div>
+              <div>חוק הביטוח הלאומי, סעיף 345(ב)(1)(א)<span>תיקון 237</span></div>
+            </div></div>
+        </div>
+      </div>
+    </div></section>
+
+   </div>
+
+   <!-- ═══ הדף האישי של הלקוח ═══ -->
+   <div id="portal" class="portal" style="display:none">
+    <div class="ptop"><span class="off">רו״ח לדוגמה</span><span class="sp"></span><span class="smp">דוגמה — לא לקוח אמיתי</span></div>
+    <div class="pwrap">
+      <div class="hello">שלום ישראל</div>
+      <div class="next">
+        <small>הדבר הבא</small>
+        <b>הצהרת הון</b>
+        <span>חסרים 3 מסמכים · עד 31.12.2026</span>
+        <button data-toast="בהדמיה: נפתחת הבקשה «הצהרת הון» — אותה בקשה שקיימת היום">להשלמה</button>
+      </div>
+
+      <div class="ph"><h2>הדוחות שלך</h2><span>לפי שע״ם · 19.10</span></div>
+
+      <div class="ycard open">
+        <button class="yhead"><b class="num">2025</b><span class="sum">2 פתוחים</span><svg class="chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg></button>
+        <div class="yfold"><div>
+          <div class="ob"><div><b>דוח שנתי</b><div class="pp">ישראל ישראלי</div><span class="pill us">בהכנה אצלנו</span></div><div class="when"><b class="num">30.11.2026</b><span>מועד הגשה</span></div></div>
+          <div class="ob"><div><b>הצהרת הון</b><div class="pp">ישראל ישראלי</div><span class="pill you">צריך ממך</span></div><div class="when"><b class="num">31.12.2026</b><span>לפי הדרישה</span></div></div>
+          <div class="ob muted"><div><b>ישראלה</b><div class="pp">אין חובת הגשה השנה</div></div><div class="when"></div></div>
+        </div></div>
+      </div>
+
+      <div class="ycard">
+        <button class="yhead"><b class="num">2024</b><span class="sum">הכול הוגש</span><span class="pill done" style="margin:0">✓</span><svg class="chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg></button>
+        <div class="yfold"><div>
+          <div class="ob"><div><b>דוח שנתי</b><div class="pp">ישראל ישראלי</div><span class="pill done">הוגש</span></div><div class="when"><b class="num">14.5.2025</b><span>הוגש</span></div></div>
+        </div></div>
+      </div>
+
+      <div class="ycard">
+        <button class="yhead"><b class="num">2021–2023</b><span class="sum">הכול הוגש</span><span class="pill done" style="margin:0">✓</span><svg class="chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg></button>
+        <div class="yfold"><div>
+          <div class="ob"><div><b>דוח שנתי 2023</b><div class="pp">ישראל ישראלי</div></div><div class="when"><b class="num">2.6.2024</b><span>הוגש</span></div></div>
+          <div class="ob"><div><b>דוח שנתי 2022</b><div class="pp">ישראל ישראלי</div></div><div class="when"><b class="num">29.5.2023</b><span>הוגש</span></div></div>
+          <div class="ob"><div><b>דוח שנתי 2021</b><div class="pp">ישראל ישראלי</div></div><div class="when"><b class="num">11.7.2022</b><span>הוגש</span></div></div>
+        </div></div>
+      </div>
+      <p class="pnote">המועדים כאן הם נתוני דמה.</p>
+    </div>
+   </div>
+
+  </div>
+  <div class="toast" id="toast"></div>
+    <div class="scrim" id="scrim"></div>
+    <aside class="drawer" id="drawer"></aside>
+    <div class="sheet" id="upSheet">
+      <div style="display:flex;align-items:flex-start;gap:12px"><div style="flex:1"><h2>עדכון הידע</h2><p>Claude עובר על הכול ומוסיף רק מה שנבדק מול מקור.</p></div><button class="x" data-close="sheet"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+      <div class="plan" id="plan"></div>
+      <button class="primary" id="copyPrompt">העתק את הפרומט</button>
+      <div class="links"><button class="link" id="showPrompt">הצג</button><span style="font-size:13px;color:var(--tx3)">מדביקים ב-Claude Code</span></div>
+      <div class="promptbox" id="promptBox"></div>
+    </div>
+    <div class="sheet" id="sheet">
+      <div style="display:flex;align-items:flex-start;gap:12px"><div style="flex:1"><h2>עדכון משע״ם</h2><p>הרשימות מסמנות מי חייב במה ועד מתי.</p></div><button class="x" data-close="sheet"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+      <div class="drop"><b>גרור PDF לכאן</b>אחד או כמה</div>
+      <div class="srcs"><div><span>מעקב הגשת דוחות</span><span class="num">19.10.2026</span></div><div><span>דרישות הצהרת הון</span><span class="num">12.10.2026</span></div></div>
+      <button class="how" id="howBtn">מה להפיק ואיך</button>
+      <div class="howtxt" id="howTxt">בשע״ם: «מעקב הגשת דוחות» ו«רשימת דרישות» להצהרות הון ← שמירה כ-PDF. הקובץ נשמר בתיקייה פרטית של המשרד, לא בתיקי הלקוחות.</div>
+    </div>
+ </div>
+</div>
+
+<div class="about-scrim" id="aboutScrim"></div>
+<aside class="aboutp" id="aboutP">
+  <button class="x" data-close="about"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+  <h1>«מס» — מחדש</h1>
+  <div class="d">הצעה · 21.10.2026 · הדמיה בלבד, שום דבר לא שונה במערכת</div>
+
+  <h2>מה הבנתי</h2>
+  <ul>
+    <li>«עבודות לקוח» צריך לענות מיד: מה עליי לעשות ועד מתי. בלי עומס.</li>
+    <li>הלקוח רואה בדף האישי שלו מי חייב בהגשה של מה ועד מתי.</li>
+    <li>«ידע מקצועי» יהיה בית הספר של רואי החשבון ויגדל לאורך התואר. לכן הבסיס חייב להיות נכון כבר עכשיו.</li>
+  </ul>
+
+  <h2>מה מצאתי</h2>
+  <ul>
+    <li>התשובה על קרן השתלמות בעסק זעיר <b>כבר כתובה</b> אצלנו, ומסומנת «מאומת». אבל היא קבורה באמצע הנושא «עסק זעיר».</li>
+    <li>החיפוש היום בודק רק את שמות הנושאים, לא את התוכן. גם «עוסק זעיר» לא מוצא «עסק זעיר».</li>
+    <li>כל נושא הוא דף ארוך בשמונה שלבים, והידע כתוב בתוך הקוד.</li>
+    <li>חובות ההגשה משע״ם כבר נקלטות לתיק של כל לקוח. הן פשוט לא מגיעות לדף האישי.</li>
+  </ul>
+
+  <h2>מה אני מציע</h2>
+  <ul>
+    <li><b>עבודות:</b> רשימה אחת לפי מועד, עם «אצלי» ו«אצל הלקוח». שורה אחת לכל עבודה, ולחיצה פותחת את הפעולה הבאה. ההעלאה משע״ם עוברת לכפתור קטן.</li>
+    <li><b>הדף האישי:</b> «הדוחות שלך» לפי שנים, וכרטיס אחד של «הדבר הבא». ההשלמה עצמה נשארת בבקשה הקיימת.</li>
+    <li><b>ידע:</b> שואלים במילים שלך. Claude מנסח תשובה <b>רק מתוך הכללים המאומתים</b>, ומציג את הכללים שעליהם נשען. אין כלל מתאים? אין תשובה, והשאלה נכנסת לעדכון הבא.</li>
+    <li><b>עדכון הידע:</b> «מה אני לומד» — נושאים וקבצים מהתואר. «עדכן עכשיו» מכין פרומט אחד ל-Claude Code: בודק את כל הכללים מול המקורות, קורא את חומרי התואר, עונה על שאלות פתוחות ופותח נושאים חדשים.</li>
+    <li><b>דף נושא:</b> קצר — כללים, שאלות, בתיק, תרגול ומקורות.</li>
+  </ul>
+
+  <h2>הבסיס לידע — יחידה אחת: «כלל»</h2>
+  <div class="atom">
+    <div class="core">כלל<small>טענה אחת · שנים · מעמד · מקור</small></div>
+    <div class="arms"><span>תשובה לשאלה</span><span>דף נושא</span><span>שיעור בקורס</span><span>תרגול</span><span>חישוב</span></div>
+  </div>
+  <ul>
+    <li>כל דבר נכתב פעם אחת, וכל השאר מצביע אליו. אם משהו משתנה, מתעדכן מקום אחד.</li>
+    <li>חומר מהתואר נכנס כשיעור שמצביע לכללים, ולא כעותק שני.</li>
+    <li>חומר מהתואר הוא קצה חוט, לא עובדה: כל טענה נבדקת מול חוק או פרסום רשמי ומסומנת מאומת, פרשנות או פתוח.</li>
+    <li>שאלה בלי תשובה לא הולכת לאיבוד. כך הספר גדל מהשאלות האמיתיות שלך.</li>
+  </ul>
+
+  <h2>איך עובדת תשובת ה-AI</h2>
+  <ul>
+    <li>רק השאלה והכללים יוצאים ל-Claude — <b>אף פעם לא פרטי לקוחות</b>.</li>
+    <li>כל משפט בתשובה חייב להצביע על כלל. השרת בודק שכל הכללים קיימים; אחרת — «אין כלל מאומת».</li>
+    <li>כלל שהוא פרשנות מסומן גם בתשובה.</li>
+    <li>עלות משוערת: בסביבות 10 אגורות לשאלה.</li>
+  </ul>
+
+  <h2>מה ייכלל בביצוע</h2>
+  <ul>
+    <li><b>שלב 1:</b> המסך החדש של «עבודות», «הדוחות שלך» בדף האישי, וידע שמתחיל בשאלה עם תשובת AI. בשביל זה כ-200 הטענות המאומתות שכבר כתובות עוברות כבר עכשיו למבנה «כלל». נכנסים גם «מה אני לומד» ו«עדכן עכשיו».</li>
+    <li><b>שלב 2:</b> דפי נושא חדשים לכל התחומים, תרגול ומסלולי לימוד.</li>
+    <li><b>לייצור:</b> האתר, ופונקציית שרת חדשה לתשובות. במסד בייצור יתווספו, אחרי גיבוי: קריאה בלבד של חובות שע״ם לדף האישי, ורשימת «מה אני לומד» עם תיקיית קבצים פרטית. העובד במחשב המשרד לא משתנה.</li>
+    <li>כל הרצה של «עדכן עכשיו» מסתיימת בעדכון האתר, ובסיכום קצר בצ׳אט: מה השתנה, מה נוסף ומה נשאר פתוח.</li>
+  </ul>
+
+  <div class="q1"><b>מה צריך ממך</b>מפתח API של Anthropic לתשובות ה-AI. אני לא מזין מפתחות בעצמי, אז אסביר לך בדיוק איפה להדביק אותו (כמה דקות).</div>
+</aside>
+
+<script>
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+const vp=$('#vp');
+const ICON_CHEV='<svg class="chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg>';
+const X='<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M6 6l12 12M18 6 6 18"/></svg>';
+
+function toast(t){const el=$('#toast');el.textContent=t;el.classList.add('on');clearTimeout(el._t);el._t=setTimeout(()=>el.classList.remove('on'),2600)}
+
+/* ── ניווט ── */
+let view='works';
+function go(v){
+  closeAll();
+  const isPortal=v==='portal';
+  $('#office').style.display=isPortal?'none':'';
+  $('#portal').style.display=isPortal?'':'none';
+  if(!isPortal){
+    $$('.view').forEach(e=>e.classList.toggle('on',e.id==='v-'+v));
+    setMode(v==='works'?'works':'kn');
+  }
+  view=v; vp.scrollTop=0;
+  $$('#jumps button').forEach(b=>b.classList.toggle('on',b.dataset.go===v||(b.dataset.go==='askq'&&v==='kn'&&kq.value)));
+}
+function setMode(m){
+  $$('#modes button').forEach(b=>b.classList.toggle('on',b.dataset.m===m));
+  const on=$('#modes button.on'),pill=$('#modes .pill');
+  requestAnimationFrame(()=>{const a=on.getBoundingClientRect(),p=$('#modes').getBoundingClientRect();
+    pill.style.width=a.width+'px';pill.style.left=(a.left-p.left)+'px'});
+}
+addEventListener('resize',()=>setMode($('#modes button.on').dataset.m));
+document.fonts&&document.fonts.ready.then(()=>setMode($('#modes button.on').dataset.m));
+$('#modes').addEventListener('click',e=>{const b=e.target.closest('button');if(b)go(b.dataset.m)});
+$('#jumps').addEventListener('click',e=>{
+  const b=e.target.closest('button');if(!b)return;
+  if(b.dataset.go==='askq'){go('kn');ask('קרן השתלמות לעוסק זעיר',true);$$('#jumps button').forEach(x=>x.classList.toggle('on',x===b));return}
+  if(b.dataset.go==='kn'){kq.value='';search('')}
+  go(b.dataset.go);
+});
+document.addEventListener('click',e=>{
+  const o=e.target.closest('[data-open]');if(o){if(o.dataset.open==='kn'){kq.value='';search('')}go(o.dataset.open)}
+  const t=e.target.closest('[data-toast]');if(t)toast(t.dataset.toast);
+  const c=e.target.closest('[data-close]');if(c){c.dataset.close==='about'?about(false):closeAll()}
+});
+
+/* ── מחשב / טלפון ── */
+$('#dev').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;
+  $$('#dev button').forEach(x=>x.classList.toggle('on',x===b));
+  $('#stage').classList.toggle('phone',b.dataset.d==='phone');setMode($('#modes button.on').dataset.m)});
+
+/* ════ עבודות ════ */
+const TODAY=new Date(2026,9,21);
+const W=[
+ {c:'משפחת כהן',t:'דוח שנתי 2025',s:'cl',st:'חסרים 2 מסמכים',d:'2026-10-15',step:0,miss:[['טופס 106 — רונית',0],['אישור ניכוי — פנסיה',0],['טופס 867 — בנק',1]]},
+ {c:'נועה ברק',t:'הצהרת הון 2025',s:'me',st:'מוכנה לחתימה',ready:1,d:'2026-10-24',step:2},
+ {c:'אבי מזרחי',t:'דוח שנתי 2025',s:'me',st:'בהכנה',d:'2026-10-26',step:1},
+ {c:'רונית שחר',t:'דוח שנתי 2025',s:'cl',st:'חסר טופס 106',d:'2026-10-30',step:0,miss:[['טופס 106 — מעסיק שני',0],['אישור לימודים',1]]},
+ {c:'דני אורן',t:'הערכת מס 2026',s:'me',st:'לבדיקה',d:'2026-11-03',step:1},
+ {c:'יוסי אלון',t:'דוח שנתי 2025',s:'me',st:'מוכן לחתימה',ready:1,d:'2026-11-15',step:2},
+ {c:'תמר גל',t:'קליטה',s:'cl',st:'ממתין לחתימה',d:'2026-11-20',step:0,miss:[['חתימה על ייפוי כוח',0]]},
+ {c:'עומר דהן',t:'דוח שנתי 2025',s:'me',st:'בהכנה',d:'2026-11-30',step:1},
+ {c:'מיכל רז',t:'הצהרת הון 2025',s:'cl',st:'חסרים 4 מסמכים',d:'2026-12-31',step:0,miss:[['יתרות בנק ל-31.12',0],['רכבים',0],['הלוואות',0],['תיק ני״ע',0]]},
+];
+const STEPS=['איסוף','הכנה','חתימה','הוגש'];
+let tab='me',wq='';
+const fmt=d=>{const x=new Date(d);return x.getDate()+'.'+(x.getMonth()+1)};
+function rel(d){const n=Math.round((new Date(d)-TODAY)/864e5);if(n<0)return{t:'באיחור '+(-n)+' ימים',late:1};if(n===0)return{t:'היום'};if(n===1)return{t:'מחר'};return{t:'עוד '+n+' ימים'}}
+function bucket(d){const n=(new Date(d)-TODAY)/864e5;if(n<0)return'late';if(n<=7)return'week';if(n<=40)return'month';return'later'}
+const BN={late:'באיחור',week:'השבוע',month:'עד סוף נובמבר',later:'בהמשך'};
+function renderWorks(){
+  const base=W.filter(w=>!wq||w.c.includes(wq));
+  const cnt={me:base.filter(w=>w.s==='me').length,cl:base.filter(w=>w.s==='cl').length,all:base.length};
+  $$('#tabs button').forEach(b=>b.querySelector('.n').textContent=cnt[b.dataset.t]);
+  const rows=base.filter(w=>tab==='all'||w.s===tab||bucket(w.d)==='late').sort((a,b)=>a.d.localeCompare(b.d));
+  if(!rows.length){$('#wlist').innerHTML='<div class="empty"><b>אין כאן כלום</b>הכול זז.</div>';return}
+  let html='';
+  for(const k of ['late','week','month','later']){
+    const g=rows.filter(w=>bucket(w.d)===k);if(!g.length)continue;
+    html+=`<div class="grp"><h3 class="${k==='late'?'late':''}">${BN[k]}</h3><div class="list">`+g.map(w=>{const r=rel(w.d);
+      return `<div class="item" data-i="${W.indexOf(w)}"><div class="ini">${w.c.replace('משפחת ','').slice(0,1)}</div>
+      <div class="who"><b>${w.c}</b><span>${w.t}</span></div>
+      <div class="st ${w.ready?'ready':w.s==='me'?'me':'cl'}"><i></i>${w.st}</div>
+      <div class="due ${r.late?'late':''}"><b class="num">${fmt(w.d)}</b><span>${r.t}</span></div></div>`}).join('')+'</div></div>';
+  }
+  $('#wlist').innerHTML=html;
+}
+$('#tabs').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;tab=b.dataset.t;$$('#tabs button').forEach(x=>x.classList.toggle('on',x===b));renderWorks()});
+$('#wq').addEventListener('input',e=>{wq=e.target.value.trim();renderWorks()});
+$('#bar').addEventListener('click',e=>{const f=e.target.dataset.f;if(!f)return;
+  if(f==='done'){toast('בהדמיה: 18 דוחות שהוגשו — נפתחים ברשימה נפרדת');return}
+  tab=f==='cl'?'cl':'me';$$('#tabs button').forEach(x=>x.classList.toggle('on',x.dataset.t===tab));renderWorks()});
+$('#wlist').addEventListener('click',e=>{const it=e.target.closest('.item');if(it)openWork(W[it.dataset.i])});
+
+function openWork(w){
+  const r=rel(w.d), first=w.c.replace('משפחת ','');
+  const act=w.s==='cl'?'תזכורת ל'+first:w.ready?'שלח לחתימה':'פתח את '+(w.t.startsWith('קליטה')?'הקליטה':w.t.startsWith('הצהרת')?'ההצהרה':w.t.startsWith('הערכת')?'ההערכה':'הדוח');
+  const msg=w.s==='cl'?'בהדמיה: נפתחת תזכורת עם תצוגה מקדימה — לא נשלח דבר':w.ready?'בהדמיה: נפתחת בקשת חתימה עם תצוגה מקדימה — לא נשלח דבר':'בהדמיה: נפתח מסך העבודה';
+  $('#drawer').innerHTML=`<div class="dhead"><div class="t"><small>${w.c}</small><h2>${w.t}</h2></div><button class="x" data-close="d">${X}</button></div>
+   <div class="dbody">
+     <div class="kv"><span>מועד</span><b class="num">${new Date(w.d).toLocaleDateString('he-IL')}</b><span>·</span><span style="${r.late?'color:var(--err)':''}">${r.t}</span></div>
+     <div class="steps">${STEPS.map((s,i)=>`<div class="${i<w.step?'done':i===w.step?'cur':''}">${s}</div>`).join('')}</div>
+     ${w.miss?`<div class="miss">${w.miss.map(([m,v])=>`<div><i class="${v?'v':''}"></i>${m}</div>`).join('')}</div>`:''}
+   </div>
+   <div class="dfoot"><button class="primary" data-toast="${msg}">${act}</button>
+     <div class="links"><button class="link" data-toast="בהדמיה: נפתחת הבקשה ב«בקשות» של הלקוח">בבקשות ←</button><button class="link" data-open="portal">כך זה נראה אצל הלקוח ←</button></div></div>`;
+  $('#scrim').classList.add('on');$('#drawer').classList.add('on');
+}
+function closeAll(){['#scrim','#drawer','#sheet','#upSheet'].forEach(s=>$(s).classList.remove('on'))}
+$('#scrim').addEventListener('click',closeAll);
+$('#syncBtn').addEventListener('click',()=>{$('#scrim').classList.add('on');$('#sheet').classList.add('on')});
+$('#howBtn').addEventListener('click',()=>$('#howTxt').classList.toggle('on'));
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeAll();about(false)}});
+
+/* ════ ידע ════ */
+const DOMS=[['דוח שנתי',2],['נקודות זיכוי ומדרגות',3],['שכירים ושכר',1],['פנסיה, השתלמות ופרישה',3],['ביטוח לאומי',3],['מקדמות והערכת מס',1],['עסק, מע״מ וניהול ספרים',5],['חברות ובעלי שליטה',0],['שכר דירה ונדל״ן',1],['הצהרת הון',1],['מקורות ועדכניות',2],['מיסוי בינלאומי',1,'new']];
+$('#domains').innerHTML=DOMS.map(([n,c,nw])=>nw?`<div class="dom dim"><b>${n}</b><span class="newtag">חדש · מהתואר</span></div>`:n.startsWith('עסק')?`<button class="dom" data-open="topic"><b>${n}</b><span class="num">${c} נושאים וכלים</span></button>`
+  :`<div class="dom dim"><b>${n}</b><span class="num">${c?c+' נושאים וכלים':'בבנייה'}</span></div>`).join('');
+
+const INBOX=[
+ {t:'מיסוי בינלאומי — שיעור 4',f:'2 קבצים',st:'in',n:'נקלט · נושא חדש · 9 כללים'},
+ {t:'חברות ארנק',f:'מצגת',st:'wait',n:'ממתין לעדכון'},
+];
+function renderInbox(){
+  $('#inbox').innerHTML=INBOX.map(i=>`<div class="it"><div><b>${i.t}</b><small>${i.f}</small></div><span class="st2 ${i.st}">${i.st==='in'?'נקלט':'ממתין'}</span></div>`).join('')+
+  `<form class="addrow" id="addForm"><input id="addIn" placeholder="נושא מהתואר, או גרור קובץ"><button aria-label="הוסף"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 5v14M5 12h14"/></svg></button></form>`;
+  $('#addForm').addEventListener('submit',e=>{e.preventDefault();const v=$('#addIn').value.trim();if(!v)return;INBOX.push({t:v,f:'בלי קבצים',st:'wait'});renderInbox();renderPlan();toast('נוסף — ייקלט בעדכון הבא')});
+}
+const WAIT=()=>INBOX.filter(i=>i.st==='wait');
+const OPENQ=['האם מענק מילואים לעצמאי חייב בביטוח לאומי?','פריסת מס שבח על דירה בירושה'];
+function renderPlan(){
+  $('#plan').innerHTML=`<div><b class="num">214</b>כללים — בדיקת עדכניות מול המקור</div><div><b class="num">${WAIT().length}</b>מהתואר — קריאה והוספה</div><div><b class="num">${OPENQ.length}</b>שאלות שלא נענו</div>`;
+}
+function promptText(){return `עדכון ידע מקצועי — PIVO
+קרא את docs/WORKING-AGREEMENT.md ואת מדיניות הידע.
+
+1. עדכניות: לכל כלל — בדוק מול המקור הרשמי אם השתנה (שנת מס, סכום, נוסח). שינוי ⇒ ערך חדש + הקודם להיסטוריה.
+2. מהתואר (קצות חוט, לא עובדות):
+${WAIT().map(i=>'   • '+i.t+' ('+i.f+')').join('\n')}
+   לכל פריט: חלץ טענות, אמת מול חוק/פרסום רשמי, סמן מאומת / פרשנות / פתוח. נושא שאין לו בית ⇒ דף נושא חדש.
+3. שאלות שלא נענו:
+${OPENQ.map(q=>'   • '+q).join('\n')}
+4. אל תמציא. בלי מקור ⇒ «פתוח».
+5. סכם: מה השתנה, מה נוסף, מה נשאר פתוח.`}
+$('#runBtn').addEventListener('click',()=>{renderPlan();$('#promptBox').textContent=promptText();$('#scrim').classList.add('on');$('#upSheet').classList.add('on')});
+$('#showPrompt').addEventListener('click',()=>{$('#promptBox').textContent=promptText();$('#promptBox').classList.toggle('on')});
+$('#copyPrompt').addEventListener('click',async()=>{try{await navigator.clipboard.writeText(promptText());toast('הפרומט הועתק — הדבק ב-Claude Code')}catch(e){$('#promptBox').textContent=promptText();$('#promptBox').classList.add('on');toast('סמן והעתק מהתיבה')}});
+renderInbox();
+const ST={v:['מאומת','v'],p:['פרשנות','p'],o:['פתוח','o']};
+const R={
+ r30:['30% מהמחזור במקום הוצאות בפועל ופחת','v','87ד(א)'],
+ rsf:['קרן השתלמות נשארת — 17(5א) הוחרג','v','87ד(א)'],
+ rshort:['בדיווח המקוצר אין שדה לקרן השתלמות','v','רשות המסים · דיווח שנתי מקוצר'],
+ rpen35:['דיווח מקוצר: זיכוי 35% על פנסיה, עד 5% מההכנסה החייבת, כשזו ההכנסה היחידה','v','45א(ב)'],
+ rpenfull:['פנסיה בדוח מלא — הכללים הרגילים','p','45א, 47 · אין החרגה; טרם נמצאה הנחיה'],
+ rni:['אין ניכוי דמי ביטוח לאומי (47א)','v','87ד(א)'],
+ rnibase:['בסיס ביטוח לאומי — 70% מהמחזור','p','חוק הב״ל 345(ב)(1)(א)'],
+ rceil:['התקרה = תקרת עוסק פטור: 120,000 ₪ (2024–2025), 122,833 ₪ (2026)','v','87ב'],
+ rcool:['צינון: שנתיים אחרי שנת היציאה','v','87ה(ב)'],
+};
+const A=[
+ {id:'sf',q:'קרן השתלמות בעסק זעיר',k:'קרן השתלמות קהש עסק זעיר ניכוי הפקדה 17(5א) 175א',
+  v:[['y','דוח מלא — כן','מנכים לפי 17(5א), בנוסף ל-30%'],['n','דיווח מקוצר — לא','אין בו שדה לקרן השתלמות']],
+  why:'ה-30% באים במקום הוצאות בפועל — אבל קרן השתלמות הוחרגה במפורש, ולכן היא נשארת.',
+  cites:['r30','rsf','rshort'],years:'2024 ואילך',rel:['combo','pen','ni']},
+ {id:'combo',q:'פנסיה וקרן השתלמות בעסק זעיר — דוח מלא או מקוצר?',k:'פנסיה קרן השתלמות עסק זעיר דוח מלא מקוצר דיווח כדאי',
+  v:[['i','דוח מלא','קרן השתלמות מנוכה לפי 17(5א). פנסיה — הכללים הרגילים של עצמאי.','p'],['i','דיווח מקוצר','רק זיכוי 35% על פנסיה, עד 5% מההכנסה החייבת. קרן השתלמות — אין.']],
+  why:'מי שמפקיד לשתיהן מאבד בדיווח המקוצר את קרן ההשתלמות. שווה לחשב את שתי הדרכים לפני שבוחרים.',
+  cites:['rsf','rshort','rpen35','rpenfull'],years:'2024 ואילך',rel:['sf','pen']},
+ {id:'pen',q:'פנסיה בעסק זעיר',k:'פנסיה גמל קצבה עסק זעיר זיכוי ניכוי 45א 47',
+  v:[['i','דיווח מקוצר','זיכוי 35% על ההפקדה, עד 5% מההכנסה החייבת — רק כשזו ההכנסה היחידה'],['i','דוח מלא','הכללים הרגילים של עצמאי','p']],
+  why:'החוק לא החריג את סעיפי הפנסיה, ולכן בדוח מלא חלים הכללים הרגילים.',cites:['rpen35','rpenfull'],years:'2024 ואילך',rel:['combo','sf']},
+ {id:'ni',q:'ביטוח לאומי בעסק זעיר',k:'ביטוח לאומי בל עסק זעיר 47א ניכוי דמי ביטוח בסיס',
+  v:[['n','ניכוי דמי ביטוח לאומי — אין','סעיף 47א לא חל'],['i','בסיס החיוב','כנראה 70% מהמחזור','p']],
+  why:'הניכוי הנורמטיבי מחליף גם את הניכוי של 47א.',cites:['rni','rnibase'],years:'2024 ואילך',rel:['sf','ceil']},
+ {id:'ceil',q:'תקרת המחזור לעסק זעיר',k:'תקרה מחזור עסק זעיר 2024 2025 2026 גבול סכום עוסק פטור',
+  v:[['i','2026 — 122,833 ₪',''],['i','2024–2025 — 120,000 ₪','']],
+  why:'התקרה שווה לתקרת עוסק פטור באותה שנה.',cites:['rceil'],years:'לפי שנה',rel:['cool','sf']},
+ {id:'cool',q:'חזרה לעסק זעיר אחרי יציאה',k:'צינון חזרה יציאה עסק זעיר שנתיים 87ה',
+  v:[['i','אפשר לחזור','שנתיים אחרי שנת היציאה']],
+  why:'מדריכי הרשות כותבים «שלוש שנים» כשהם כוללים את שנת היציאה. זו אותה תקופה.',cites:['rcool'],years:'2024 ואילך',rel:['ceil']},
+];
+A.forEach(a=>a.st=a.cites.some(c=>R[c][1]==='p')?'p':'v');
+const SYN={עוסק:'עסק',עוסקת:'עסק',עסקים:'עסק',זעירה:'זעיר',זעירים:'זעיר',השתלמויות:'השתלמות',קהש:'השתלמות','קה"ש':'השתלמות',בל:'ביטוח','ב"ל':'ביטוח',לאומי:'לאומי',פנסייה:'פנסיה',תקרת:'תקרה'};
+const PRE=/^[הובלמשכ]/;
+function toks(s){return s.replace(/[״׳'"]/g,'').replace(/[?.,!()\-–—]/g,' ').split(/\s+/).filter(t=>t.length>1).map(t=>{t=SYN[t]||t;const u=t.length>3&&PRE.test(t)?(SYN[t.slice(1)]||t.slice(1)):t;return[t,u]})}
+const STOP=new Set(['של','את','על','עם','יש','אם','מה','האם','איך','כמה','לא','גם','או','זה']);
+function score(e,q){const keys=toks(e.q+' '+e.k).flat();let hit=0,tot=0;
+  for(const [a,b] of toks(q)){if(STOP.has(a))continue;tot++;if(keys.some(k=>k.startsWith(a)||k.startsWith(b)||(k.length>2&&(a.startsWith(k)||b.startsWith(k)))))hit++}
+  return tot?hit/tot:0}
+const kq=$('#kq');
+function verdictHTML(a){return a.v.map(([m,b,s,p])=>`<div class="vline"><div class="vmark ${m}">${m==='y'?'✓':m==='n'?'✕':'i'}</div><div><b>${b}${p?' <span class="tag p" style="vertical-align:3px">פרשנות</span>':''}</b>${s?`<span>${s}</span>`:''}</div></div>`).join('')}
+function answerHTML(a){return `<div class="answer"><div class="q">${a.q}</div>
+  <div class="verd">${verdictHTML(a)}</div>
+  <div class="why">${a.why}</div>
+  <div class="meta"><span class="tag ${ST[a.st][1]}">${a.st==='p'?'חלקו פרשנות':'מאומת'}</span><span class="tag s">${a.years}</span></div>
+  <div class="aiby"><span class="spark">✦</span>נוסח בידי AI מתוך ${a.cites.length===1?'כלל אחד':a.cites.length+' כללים'} בלבד<button class="link" data-src>הכללים</button></div>
+  <div class="src cites">${a.cites.map(c=>`<div><span class="tag ${ST[R[c][1]][1]}">${ST[R[c][1]][0]}</span><b>${R[c][0]}</b><small>${R[c][2]}</small></div>`).join('')}<button class="link" data-open="topic" style="margin-top:8px">בנושא «עסק זעיר» ←</button></div></div>
+  <div class="rel"><h4>שאלות קרובות</h4><div class="rlist">${a.rel.map(id=>{const r=A.find(x=>x.id===id);return `<button data-ans="${id}"><span>${r.q}</span><small class="tag ${ST[r.st][1]}">${ST[r.st][0]}</small></button>`}).join('')}</div></div>`}
+const THINK=`<div class="answer thinking"><div class="q"><span class="spark">✦</span>מחפש בכללים המאומתים…</div><div class="sk" style="width:62%"></div><div class="sk" style="width:84%"></div><div class="sk" style="width:46%"></div></div>`;
+let seq=0;
+function search(q,instant){
+  q=q.trim();$('#kwrap').classList.toggle('kv-mode',!!q);const my=++seq;
+  if(!q){$('#results').innerHTML='';return}
+  const ranked=A.map(a=>[a,score(a,q)]).filter(x=>x[1]>0).sort((a,b)=>b[1]-a[1]);
+  const ties=ranked.filter(x=>x[1]===ranked[0]?.[1]);
+  if(ties.length>2&&ranked[0][1]>=.6){
+    $('#results').innerHTML=`<button class="answer" data-open="topic" style="width:100%;text-align:start;display:flex;align-items:center;gap:14px"><div style="flex:1"><div class="q">נושא · עסק, מע״מ וניהול ספרים</div><b style="font-size:24px;letter-spacing:-.01em">עסק זעיר</b><div style="color:var(--tx2);font-size:14px;margin-top:2px">30% מהמחזור במקום הוצאות בפועל</div></div>${ICON_CHEV}</button>
+     <div class="rel"><h4>שאלות בנושא</h4><div class="rlist">${ties.map(([r])=>`<button data-ans="${r.id}"><span>${r.q}</span><small class="tag ${ST[r.st][1]}">${ST[r.st][0]}</small></button>`).join('')}</div></div>`;return}
+  const done=html=>{if(my===seq)$('#results').innerHTML=html};
+  $('#results').innerHTML=THINK;
+  setTimeout(()=>{
+    if(ranked.length&&ranked[0][1]>=.6){done(answerHTML(ranked[0][0]));return}
+    done(`<div class="none"><b>אין כלל מאומת שעונה על זה</b><p>לא נמציא תשובה. השאלה תיכנס לעדכון הבא.</p><button class="btn2" data-research>שלח לבירור</button></div>`+
+     (ranked.length?`<div class="rel"><h4>אולי התכוונת</h4><div class="rlist">${ranked.slice(0,3).map(([r])=>`<button data-ans="${r.id}"><span>${r.q}</span><small class="tag ${ST[r.st][1]}">${ST[r.st][0]}</small></button>`).join('')}</div></div>`:''))
+  },instant?0:900);
+}
+let tmr;kq.addEventListener('input',()=>{clearTimeout(tmr);tmr=setTimeout(()=>search(kq.value),450)});
+$('#kclr').addEventListener('click',e=>{e.preventDefault();kq.value='';search('');kq.focus()});
+$$('.tries button').forEach(b=>b.addEventListener('click',()=>ask(b.textContent,true)));
+function ask(t,type){go('kn');if(!type){kq.value=t;search(t);return}
+  kq.value='';search('');let i=0;clearInterval(ask._i);ask._i=setInterval(()=>{kq.value=t.slice(0,++i);if(i>=t.length){clearInterval(ask._i);search(t)}},28)}
+$('#results').addEventListener('click',e=>{
+  if(e.target.closest('[data-src]'))e.target.closest('.answer').querySelector('.src').classList.toggle('on');
+  const r=e.target.closest('[data-ans]');if(r){const a=A.find(x=>x.id===r.dataset.ans);kq.value=a.q;$('#results').innerHTML=answerHTML(a);vp.scrollTop=0}
+  if(e.target.closest('[data-research]'))toast('בהדמיה: השאלה נכנסה לתור המחקר');
+});
+
+/* ── דף נושא ── */
+const RULES=[
+ ['30% מהמחזור במקום הוצאות בפועל ופחת','v','הוצאות בפועל לא מנוכות, גם אם הן גבוהות יותר. פחת לא מנוכה.','87ד(א)'],
+ ['קרן השתלמות נשארת','v','סעיף 17(5א) הוחרג מההחלפה. בפועל — רק בדוח מלא, כי בדיווח המקוצר אין שדה.','87ד(א)'],
+ ['אין ניכוי דמי ביטוח לאומי','v','סעיף 47א לא חל במסלול.','87ד(א)'],
+ ['התקרה = תקרת עוסק פטור','v','2024–2025: 120,000 ₪ · 2026: 122,833 ₪.','87ב'],
+ ['צינון: שנתיים אחרי שנת היציאה','v','«שלוש שנים» במדריכים כולל את שנת היציאה — אותה תקופה.','87ה(ב)'],
+ ['פנסיה בדוח מלא — הכללים הרגילים','p','אין החרגה בחוק, וטרם נמצאה הנחיה.','45א, 47'],
+ ['בסיס ביטוח לאומי — 70% מהמחזור','p','עולה מתיקון 345(ב)(1)(א). הנחיה של ביטוח לאומי לא אותרה.','חוק הב״ל'],
+];
+$('#rules').innerHTML=RULES.map(([t,s,b,src])=>`<div class="rule"><button>${ICON_CHEV}<b>${t}</b><span class="tag ${ST[s][1]}">${ST[s][0]}</span></button><div class="rbody"><div><p>${b}<em>${src}</em></p></div></div></div>`).join('');
+$('#rules').addEventListener('click',e=>{const b=e.target.closest('.rule>button');if(b)b.parentElement.classList.toggle('open')});
+$('#qa').innerHTML=A.map(a=>`<button data-q="${a.id}"><span>${a.q}</span>${ICON_CHEV}</button>`).join('');
+$('#qa').addEventListener('click',e=>{const b=e.target.closest('[data-q]');if(!b)return;const a=A.find(x=>x.id===b.dataset.q);go('kn');kq.value=a.q;$('#kwrap').classList.add('kv-mode');$('#results').innerHTML=answerHTML(a)});
+const CEIL={2024:'120,000',2025:'120,000',2026:'122,833'};
+$('#years').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;$$('#years button').forEach(x=>x.classList.toggle('on',x===b));
+  $$('.ceil').forEach(c=>{c.style.opacity=0;setTimeout(()=>{c.textContent=CEIL[b.dataset.y]+(c.closest('.lead')?' ₪':'');c.style.opacity=1},150)})});
+$('#toc').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;document.getElementById(b.dataset.s).scrollIntoView({behavior:'smooth'})});
+vp.addEventListener('scroll',()=>{if(view!=='topic')return;let cur='t-rules';$$('.tsec').forEach(s=>{if(s.getBoundingClientRect().top<200)cur=s.id});$$('#toc button').forEach(b=>b.classList.toggle('on',b.dataset.s===cur))});
+$$('.opt').forEach(o=>o.addEventListener('click',()=>{$$('.opt').forEach(x=>x.classList.remove('good','bad'));o.classList.add(o.dataset.ok==='1'?'good':'bad');
+  $('#fb').textContent=o.dataset.ok==='1'?'נכון. 17(5א) הוחרג מההחלפה ב-87ד(א).':'לא בדיוק — נסה שוב.'}));
+
+/* ── הדף האישי ── */
+$$('.ycard .yhead').forEach(h=>h.addEventListener('click',()=>h.parentElement.classList.toggle('open')));
+
+/* ── על ההצעה ── */
+function about(on){$('#aboutP').classList.toggle('on',on);$('#aboutScrim').classList.toggle('on',on)}
+$('#aboutBtn').addEventListener('click',()=>about(true));
+$('#aboutScrim').addEventListener('click',()=>about(false));
+
+/* מספרי סעיפים כמו 17(5א) ו-87ד(א) — מבודדים משמאל לימין, כמו שכותבים אותם */
+const SEC=/\d+[א-ת]?(?:\([^)\s]+\))+/g;
+function bidiFix(root){
+  const w=document.createTreeWalker(root,NodeFilter.SHOW_TEXT,{acceptNode:n=>n.parentElement&&!n.parentElement.closest('bdi,script,style,textarea,input,.promptbox')&&SEC.test(n.data)?1:2});
+  const list=[];while(w.nextNode())list.push(w.currentNode);
+  list.forEach(n=>{SEC.lastIndex=0;const f=document.createDocumentFragment();let last=0,m;
+    while((m=SEC.exec(n.data))){f.append(n.data.slice(last,m.index));const b=document.createElement('bdi');b.dir='ltr';b.textContent=m[0];f.append(b);last=m.index+m[0].length}
+    f.append(n.data.slice(last));n.replaceWith(f)});
+}
+bidiFix(document.body);
+new MutationObserver(ms=>ms.forEach(m=>m.addedNodes.forEach(n=>n.nodeType===1&&bidiFix(n)))).observe(document.body,{childList:true,subtree:true});
+
+renderWorks();go('works');
+</script>
+</body>
+</html>

@@ -7,7 +7,7 @@
 import { KnowledgeLinkContext, rememberKnowledgeReturn } from '../features/taxKnowledge/knowledgeLink';
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useMediaQuery } from '../hooks/useMediaQuery';
-import { Client, Task, REPRESENTATION_STATUS_BADGE, LifecycleStage, LIFECYCLE_STAGE_LABELS, NiTracking } from '../types';
+import { Client, Task, REPRESENTATION_STATUS_BADGE, LifecycleStage, LIFECYCLE_STAGE_LABELS, NiTracking, type RepresentationRequest } from '../types';
 import { ActivityEntry, ClientAlert } from '../types/clientWorkspace';
 import { useEmployees } from '../hooks/useEmployees';
 import { representationStatusLabel, type RepSendPhase } from '../utils/representationAction';
@@ -149,6 +149,8 @@ interface Props {
   repNote?: string;
   /** 235: מה שחסר בצילומי התעודה — להעלאה מהמשרד מתוך כרטיס הייצוג. */
   repIdAttach?: RepIdAttach;
+  /** 269: בקשת הייצוג — «הפעל הכול» ומה שהתקבל, בכרטיס הייצוג. */
+  repRequest?: RepresentationRequest;
   onRepIdAttached?: () => void;
   /** הטופס מוכן אבל המייל לא יצא — «נשלח» יהיה שקר. */
   repSendPhase?: RepSendPhase | null;
@@ -177,7 +179,7 @@ interface Props {
   /** אחרי שהבקשה נוצרה — קפיצה למשטח "בקשות" כדי שהעבודה תהיה גלויה מיד. */
   onOpenRequestStep?: (clientId: string) => void;
   /** עדכון שדה פשוט על הכרטיס (למשל spouseEmail) — לא עובדה מנוהלת. */
-  onUpdateClientFields?: (clientId: string, patch: Partial<Client>) => Promise<void>;
+  onUpdateClientFields?: (clientId: string, patch: Partial<Client>) => Promise<Client | void>;
   /** אחרי שליחה מוצלחת של הוראות האישור — קריאה מחדש של הביצוע והשלב. */
   onNiInstructionsSent?: (clientId: string) => Promise<void>;
   /** מסלולי הביצוע של ב"ל בבקשת הייצוג המקושרת — לצורך שורת "ייצוג" פר-אדם. */
@@ -264,6 +266,7 @@ export default function ClientWorkspace({
   onboardingSteps,
   repNote,
   repIdAttach,
+  repRequest,
   onRepIdAttached,
   repSendPhase,
   repFacts,
@@ -1006,6 +1009,7 @@ export default function ClientWorkspace({
             repStatus={client.representationStatus ?? undefined}
             repNote={repNote}
             repIdAttach={repIdAttach}
+            repRequest={repRequest}
             onRepIdAttached={onRepIdAttached}
             repSendPhase={repSendPhase}
             repFacts={repFacts}
@@ -1176,6 +1180,7 @@ export default function ClientWorkspace({
             repStatus={client.representationStatus ?? undefined}
             repNote={repNote}
             repIdAttach={repIdAttach}
+            repRequest={repRequest}
             onRepIdAttached={onRepIdAttached}
             repSendPhase={repSendPhase}
             repFacts={repFacts}

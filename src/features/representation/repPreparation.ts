@@ -56,9 +56,36 @@ export function shaamEnteredAt(exec: Exec, key: string, first: boolean): string 
   return t?.createdAt || t?.foundBeforeCreateAt || t?.observedAt || t?.syncedAt || t?.submittedAt || undefined;
 }
 
-export function repSubmissions(req: Pick<RepresentationRequest, 'scope'>, client: Client | null | undefined): ShaamSubmission[] {
+/**
+ * מי נושא/ת את מס הכנסה בהגשות. ‼ 271: אחרי שבקשה עם מס הכנסה נפתחה בשע״ם — ההגשה שלה,
+ * גם כשמתברר אחר כך שבן/בת הזוג השני/ה הוא/היא הרשום/ה (שע״ם מעבירה את מ"ה לרשום/ה בתוך
+ * אותה בקשה). בלי הנעילה, ההכרעה המאוחרת הייתה מפצלת את מ"ה להגשה חדשה — ומציעה בקשה שנייה.
+ * לפני שנפתחה בקשה — ההכרעה שבכרטיס, כמו קודם.
+ */
+export function submissionItOwner(
+  req: Pick<RepresentationRequest, 'execution'>,
+  client: Client | null | undefined,
+): RepTarget | undefined {
+  const exec = req.execution ?? {};
+  const personOf = (key: string | undefined) => /^person:(client|spouse)$/.exec(key ?? '')?.[1] as RepTarget | undefined;
+  const carriesIt = (sys: unknown) => Array.isArray(sys) && sys.includes('מס הכנסה');
+  for (const [key, t] of Object.entries(exec.shaam ?? {})) {
+    if (!shaamRequestExists(t) || t?.replacement) continue;
+    if (personOf(key) && carriesIt(t?.requestedSystems)) return personOf(key);
+  }
+  // ‼ 274: סימון «הוזן ידנית» נועל באותה צורה — הוא שומר את ההגשה ואת המערכים שלה ברגע הסימון.
+  if (exec.incomeTax?.enteredAt && personOf(exec.incomeTax.key) && carriesIt(exec.incomeTax.requestedSystems)) {
+    return personOf(exec.incomeTax.key);
+  }
+  for (const [key, e] of Object.entries(exec.shaamEntries ?? {})) {
+    if (e?.enteredAt && personOf(key) && carriesIt(e.requestedSystems)) return personOf(key);
+  }
+  return (client ? registeredOwnerOf(client) : null) ?? undefined;
+}
+
+export function repSubmissions(req: Pick<RepresentationRequest, 'scope' | 'execution'>, client: Client | null | undefined): ShaamSubmission[] {
   return shaamSubmissions(requestScope(req as RepresentationRequest, client ?? undefined), peopleFromClient(client),
-    (client ? registeredOwnerOf(client) : null) ?? undefined);
+    submissionItOwner(req, client));
 }
 
 /**

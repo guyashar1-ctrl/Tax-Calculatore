@@ -19,7 +19,8 @@ import type { AutomationJob } from '../types/automation';
 import { BTL_CREATE_REPRESENTATION_ACTION_TYPE, BTL_CHECK_REPRESENTATION_ACTION_TYPE } from '../types/automation';
 import { useAutomationJob } from '../hooks/useAutomationJobs';
 import { useAutomationGate } from '../hooks/useAutomationGate';
-import { niPersons, niPersonIdentity } from '../utils/niPersons';
+import { niPersons } from '../utils/niPersons';
+import { niCreateInput } from '../features/representation/repAutomationInputs';
 import type { NiRepresentationAction } from '../utils/niPersons';
 import ConfirmDialog from './ui/ConfirmDialog';
 
@@ -91,17 +92,13 @@ export default function NiNextActionButton({
       await check.run({ role, idNumber: person.idNumber, referenceNumber: track.referenceNumber });
       return;
     }
-    // ‼ «חסרים פרטים» נבדק כאן, לפני יצירת job — עדיף לומר לרו"ח מיד מה חסר
-    // בכרטיס מאשר לתת לעובד לגלות את זה אחרי שכבר תפס משימה.
-    const identity = person ? niPersonIdentity(person, client) : null;
-    if (!identity || identity.birthYear == null) {
-      setLocalError('חסרים בכרטיס פרטים הדרושים לטופס ביטוח לאומי (שם פרטי, שם משפחה או שנת לידה).');
+    // ‼ «חסרים פרטים» נבדק לפני יצירת job (repAutomationInputs).
+    const built = niCreateInput(client, role, spouseClient);
+    if (!built.ok) {
+      setLocalError(built.error);
       return;
     }
-    const r = await create.run({
-      role, idNumber: identity.idNumber, firstName: identity.firstName,
-      lastName: identity.lastName, birthYear: identity.birthYear,
-    }, { acknowledgeExternal });
+    const r = await create.run(built.input, { acknowledgeExternal });
     if (r?.code === 'requires_acknowledgement') setConfirmRetry(true);
   }
 

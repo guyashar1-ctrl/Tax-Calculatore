@@ -2,17 +2,18 @@
 /**
  * staging-test-new-business-234.mjs — שער הרגרסיה של מיגרציה 234 (עסק חדש שהמשרד פותח).
  *
- *  N1  עסק חדש מסומן בליד ⇒ עובר לכרטיס, «פתיחת תיקים» נוצרת, המסמכים = אישור בנק בלבד
- *      (בלי «תעודת עוסק», בלי ת.ז. — הייצוג אוסף אותה), פייפרלס נעול על פתיחת התיקים,
+ *  N1  עסק חדש מסומן בליד ⇒ עובר לכרטיס, «פתיחת תיקים» נוצרת, המסמכים = אישור בנק + רישיון
+ *      נהיגה (269; בלי «תעודת עוסק», בלי ת.ז. — הייצוג אוסף אותה), פייפרלס נעול על פתיחת התיקים,
  *      «פרטי העסק» פתוחה, וטופס הייצוג יודע שזה עסק חדש (prefill.newBusiness).
  *  N2  «פתח עכשיו» פותח את ההרשמה לפייפרלס ביד, עם שורה ביומן; החיבור ממשיך לחכות לה.
  *  N3  השלמת פתיחת התיקים פותחת את ההרשמה לפייפרלס מעצמה.
  *  N4  ליד שלא סומן (ברירת המחדל «אין רו"ח קודם») ⇒ לא עסק חדש: אין פתיחת תיקים.
  *  N5  עסק קיים בלי רו"ח קודם ⇒ אין פתיחת תיקים ואין מסלול רו"ח קודם.
- *  N6  עסק חדש בלי ייצוג ⇒ ת.ז. נשארת ברשימת המסמכים (אין מי שיאסוף אותה).
+ *  N6  עסק חדש בלי ייצוג ⇒ ת.ז. נשארת ברשימת המסמכים (אין מי שיאסוף אותה), ורישיון נהיגה.
  *  N7  «האם תעבוד גם מהבית?» — לא ⇒ תקין בלי שאלת החדר, ונשמר works_from_home=false.
- *  N8  «אין לי רישיון נהיגה» — נשמר על הבקשה וחוזר ב-get_onboarding.
- *  N9  (235) «אעלה מאוחר יותר» בעסק חדש ⇒ פריט ת.ז. ופריט רישיון; צירוף מהמשרד סוגר כל אחד בנפרד.
+ *  N8  (269) רשימה שהמשרד כבר הוסיף בה רישיון — לא נוסף שני.
+ *  N9  (269) «אעלה מאוחר יותר» בעסק חדש ⇒ רק פריט תעודה מזהה (בלי רישיון מהייצוג); רישיון
+ *      שהמשרד מצרף סוגר גם את פריט הרישיון שברשימה וגם את פריט התעודה המזהה.
  *
  * ‼ לקוחות דמה בלבד (שם משפחה NB234, הצעות nb234-*), נמחקים בהתחלה ובסוף.
  * הרצה:  node scripts/staging-test-new-business-234.mjs
@@ -119,8 +120,10 @@ try {
   const fo = await step(A.cid, 'file_opening');
   ok('N1 · פתיחת תיקים נוצרה', !!fo && fo.status !== 'completed', JSON.stringify(fo?.status));
   const docs = await step(A.cid, 'client_documents');
-  ok('N1 · מסמכים = אישור ניהול חשבון בלבד (בלי תעודת עוסק, בלי ת.ז.)', docKeys(docs) === 'bank_confirm', docKeys(docs));
-  ok('N1 · הכותרת נגזרת מהרשימה («להעלות מסמך אחד»/1)', /1|אחד/.test(docs?.payload?.clientTitle ?? ''), docs?.payload?.clientTitle);
+  ok('N1 · מסמכים = אישור ניהול חשבון + רישיון נהיגה (בלי תעודת עוסק, בלי ת.ז.)', docKeys(docs) === 'bank_confirm,drivers_license', docKeys(docs));
+  const lic = (docs?.payload?.checklist ?? []).find((i) => i.key === 'drivers_license');
+  ok('N1 · פריט הרישיון: «צילום רישיון נהיגה», docKind=driverLicense', lic?.label === 'צילום רישיון נהיגה' && lic?.docKind === 'driverLicense', JSON.stringify(lic));
+  ok('N1 · הכותרת נגזרת מהרשימה («להעלות 2 מסמכים»)', /2/.test(docs?.payload?.clientTitle ?? ''), docs?.payload?.clientTitle);
   const inv = await step(A.cid, 'paperless_invite');
   ok('N1 · הרשמה לפייפרלס נעולה על פתיחת התיקים', inv?.status === 'locked' && inv?.depends_on_step_id === fo?.id,
     `${inv?.status} ${inv?.depends_on_step_id} vs ${fo?.id}`);
@@ -184,7 +187,7 @@ try {
   console.log('— N6 · עסק חדש בלי ייצוג —');
   const E = await makeApprovedClient('e1', { bt: false, rep: false });
   const docsE = await step(E.cid, 'client_documents');
-  ok('N6 · ת.ז. ואישור בנק (בלי תעודת עוסק)', docKeys(docsE) === 'id_card,bank_confirm', docKeys(docsE));
+  ok('N6 · ת.ז., אישור בנק ורישיון נהיגה (בלי תעודת עוסק)', docKeys(docsE) === 'id_card,bank_confirm,drivers_license', docKeys(docsE));
 
   // ═══ N7 ═══════════════════════════════════════════════════════════════════
   console.log('— N7 · עבודה מהבית —');
@@ -205,23 +208,22 @@ try {
   const askName = await one(`select public._paperless_asks_business_name(${q(A.cid)}) v`);
   ok('N7 · הרשמה לפייפרלס לא שואלת שוב את שם העסק', askName.v === false);
 
-  // ═══ N8 ═══════════════════════════════════════════════════════════════════
-  console.log('— N8 · «אין לי רישיון נהיגה» —');
-  const { data: nl, error: nlErr } = await pure.rpc('onboarding_set_no_license', { p_token: tok.t, p_person: 'client', p_value: true });
-  ok('N8 · נשמר', !nlErr && nl?.ok === true, nlErr?.message ?? JSON.stringify(nl));
-  const { data: gob2 } = await pure.rpc('get_onboarding', { p_token: tok.t });
-  ok('N8 · חוזר ב-prefill.noDriverLicense.client', gob2?.[0]?.prefill?.noDriverLicense?.client === true, JSON.stringify(gob2?.[0]?.prefill));
-  const { data: nlBad } = await pure.rpc('onboarding_set_no_license', { p_token: 'nope', p_person: 'client', p_value: true });
-  ok('N8 · טוקן לא קיים נדחה', nlBad?.ok === false);
-  await pure.rpc('onboarding_set_no_license', { p_token: tok.t, p_person: 'client', p_value: false });
+  // ═══ N8 (269) ═════════════════════════════════════════════════════════════
+  console.log('— N8 · רישיון שכבר ברשימה של המשרד — לא נוסף שני —');
+  const dryF = await one(`select public.generate_onboarding_steps(e.id, true) r from public.engagements e where e.client_id = ${q(B.cid)} order by e.created_at desc limit 1`);
+  ok('N8 · הרצה יבשה עוברת', dryF?.r?.ok !== false, JSON.stringify(dryF?.r)?.slice(0, 200));
+  const gdef = await one(`select pg_get_functiondef('public.generate_onboarding_steps(text,boolean)'::regprocedure) d`);
+  ok('N8 · הכלל בודק רישיון קיים לפי מפתח או docKind', /d->>'key' = 'drivers_license' or d->>'docKind' = 'driverLicense'/.test(gdef.d));
 
-  // ═══ N9 (235) ═════════════════════════════════════════════════════════════
-  console.log('— N9 · «אעלה מאוחר יותר» בעסק חדש ⇒ ת.ז. ורישיון; העלאה מהמשרד סוגרת כל אחד בנפרד —');
+  // ═══ N9 (269) ═════════════════════════════════════════════════════════════
+  console.log('— N9 · «אעלה מאוחר יותר» בעסק חדש ⇒ רק תעודה מזהה; רישיון מהמשרד סוגר את שני הפריטים —');
   const reqA = (await one(`select representation_request_id r from public.clients where id = ${q(A.cid)}`)).r;
   await sqlq(`select public.ensure_identity_document_requests(${q(reqA)}, array['client'])`);
   const docsA = await step(A.cid, 'client_documents');
-  const keysA = (docsA?.payload?.checklist ?? []).map((i) => `${i.key}:${i.docKind ?? ''}`).join(',');
-  ok('N9 · נוספו ת.ז. (idCard) ורישיון (driverLicense)', keysA.includes('id_card:idCard') && keysA.includes('drivers_license:driverLicense'), keysA);
+  const listA = docsA?.payload?.checklist ?? [];
+  ok('N9 · נוסף פריט תעודה מזהה (id_card)', listA.some((i) => i.key === 'id_card'), docKeys(docsA));
+  ok('N9 · אין פריט רישיון שני מהייצוג', listA.filter((i) => i.key === 'drivers_license').length === 1, docKeys(docsA));
+  ok('N9 · פריט הת.ז. אינו «ת.ז. בלבד» (ת.ז. או רישיון)', !listA.find((i) => i.key === 'id_card')?.docKind, JSON.stringify(listA.find((i) => i.key === 'id_card')));
   const label = (await one(`select public.ensure_reserved_document_label('${USER_ID}') l`)).l;
   const mkDoc = async (cat) => (await one(`insert into public.documents (id, user_id, client_id, storage_path, file_name, file_type, file_size, category, label_id)
     values (replace(gen_random_uuid()::text,'-',''), '${USER_ID}', ${q(A.cid)}, 'nb234/none', 'nb234.jpg', 'image/jpeg', 1, ${q(cat)}, ${q(label)}) returning id`)).id;
@@ -230,12 +232,10 @@ try {
   ok('N9 · המשרד צירף רישיון', !at1e && at1?.ok === true, at1e?.message ?? JSON.stringify(at1));
   const after1 = (await step(A.cid, 'client_documents'))?.payload?.checklist ?? [];
   const st = (k) => after1.find((i) => i.key === k)?.done === true;
-  ok('N9 · פריט הרישיון נסגר, פריט הת.ז. לא', st('drivers_license') && !st('id_card'), JSON.stringify(after1.map((i) => [i.key, i.done])));
-  const idDoc = await mkDoc('id_card');
-  await user.rpc('office_attach_identity_doc', { p_request_id: reqA, p_person: 'client', p_document_id: idDoc, p_doc_kind: 'idCard' });
-  const after2 = (await step(A.cid, 'client_documents'))?.payload?.checklist ?? [];
-  ok('N9 · אחרי ת.ז. — גם פריט הת.ז. נסגר', after2.find((i) => i.key === 'id_card')?.done === true, JSON.stringify(after2.map((i) => [i.key, i.done])));
-  await sqlq(`delete from public.documents where id in (${q(licDoc)}, ${q(idDoc)})`);
+  ok('N9 · פריט הרישיון נסגר', st('drivers_license'), JSON.stringify(after1.map((i) => [i.key, i.done])));
+  ok('N9 · גם פריט התעודה המזהה נסגר (רישיון הוא תעודה מזהה)', st('id_card'), JSON.stringify(after1.map((i) => [i.key, i.done])));
+  ok('N9 · אישור הבנק נשאר פתוח', !st('bank_confirm'));
+  await sqlq(`delete from public.documents where id = ${q(licDoc)}`);
 } catch (e) {
   fail++;
   console.error('✗ חריגה:', e.message);
