@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>כרטיס הזיכויים לזוג</title>
+<style>
+  :root{
+    --page:#f8f7f5; --card:#fff; --bd:#e2e4e7; --bd2:#d3d6da; --tx:#25282d; --txc:#4b5058; --tx2:#63686f; --tx3:#8e949b;
+    --br:#3f5f8f; --soft:#e8eef5; --soft-bd:#c6d4e6; --s1:#fafaf9; --s2:#f3f2f0; --ok:#24654e; --ok-bg:#eaf4ef;
+    --warn:#8a5b0f; --warn-bg:#fbf3e4; --warn-bd:#ecd9b0;
+  }
+  *{box-sizing:border-box} html,body{margin:0}
+  body{font-family:"Segoe UI","Heebo",Arial,system-ui,sans-serif;background:var(--page);color:var(--tx);font-size:15px;line-height:1.5}
+  button{font:inherit;color:inherit;cursor:pointer}
+  .wrap{max-width:980px;margin:0 auto;padding:18px 16px 60px}
+  .flag{display:inline-block;background:var(--warn-bg);color:var(--warn);border:1px solid var(--warn-bd);border-radius:999px;padding:2px 10px;font-size:12.5px;font-weight:600}
+  h1{font-size:22px;margin:8px 0 4px} h2{font-size:17px;margin:0 0 8px}
+  .lead{color:var(--txc);margin:0 0 14px;max-width:760px}
+  .tabs{display:flex;gap:2px;border-bottom:1px solid var(--bd);margin-bottom:16px;overflow-x:auto}
+  .tab{border:0;background:none;padding:10px 12px;border-bottom:2px solid transparent;color:var(--tx2);font-weight:600;white-space:nowrap}
+  .tab[aria-selected=true]{color:var(--br);border-bottom-color:var(--br)}
+  .pane{display:none}.pane.on{display:block}
+  .seg{display:inline-flex;flex-wrap:wrap;border:1px solid var(--bd2);border-radius:10px;overflow:hidden;margin:0 8px 14px 0}
+  .seg button{border:0;background:#fff;padding:7px 12px;font-weight:600;font-size:13.5px;color:var(--tx2)}
+  .seg button[aria-pressed=true]{background:var(--br);color:#fff}
+  .note{font-size:13px;color:var(--tx2);margin:0 0 10px;max-width:760px}
+  .box{background:#fff;border:1px solid var(--bd);border-radius:12px;padding:14px 16px;margin:0 0 14px;max-width:760px}
+  .box ul{margin:6px 0 2px;padding-inline-start:20px;color:var(--txc)} .box li{margin:3px 0}
+  .tag{display:inline-block;font-size:12px;font-weight:600;border-radius:999px;padding:1px 9px;background:var(--s2);color:var(--tx2)}
+  .tag.prod{background:var(--warn-bg);color:var(--warn)} .tag.ok{background:var(--ok-bg);color:var(--ok)}
+
+  /* ── app (dummy) ── */
+  .stage{max-width:820px;transition:max-width .2s}
+  .stage.phone{max-width:390px;border:1px solid var(--bd2);border-radius:24px;padding:14px 10px;background:var(--page)}
+  .client-head{display:flex;align-items:baseline;gap:10px;margin:0 0 8px;flex-wrap:wrap}
+  .client-head b{font-size:20px} .muted{color:var(--tx2);font-size:13px}
+  .ctabs{display:flex;gap:18px;border-bottom:1px solid var(--bd);margin-bottom:12px;font-weight:600;color:var(--tx2);font-size:14.5px;overflow-x:auto}
+  .ctabs span{padding:8px 0;white-space:nowrap}.ctabs .on{color:var(--br);border-bottom:2px solid var(--br)}
+  .txf{background:#fff;border:1px solid var(--bd);border-radius:14px;overflow:hidden}
+  .row-head{display:flex;align-items:baseline;gap:12px;padding:12px 16px;flex-wrap:wrap}
+  .row-name{font-weight:600;min-width:80px}
+  .row-sum{flex:1;color:var(--tx2);font-size:13px;min-width:0}
+  .miss{font-size:12px;font-weight:600;color:var(--warn);background:var(--warn-bg);border-radius:7px;padding:2px 8px;white-space:nowrap}
+  .row-body{border-top:1px dashed var(--bd);background:var(--s1);padding:10px 16px 14px}
+  .inbox{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--soft);border:1px solid var(--soft-bd);border-radius:10px;padding:8px 12px;margin:0 0 12px;font-size:14px}
+  .inbox b{font-weight:600} .inbox .sp{flex:1;min-width:180px}
+  .people{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .stage.phone .people{grid-template-columns:1fr}
+  .person{background:#fff;border:1px solid var(--bd);border-radius:12px;padding:10px 12px}
+  .person h3{font-size:15px;margin:0 0 6px;display:flex;align-items:baseline;gap:8px}
+  .person h3 .tot{margin-inline-start:auto;font-size:13px;color:var(--tx2);font-weight:600}
+  .line{display:flex;gap:8px;font-size:13.5px;padding:3px 0;border-bottom:1px solid var(--s2)}
+  .line:last-of-type{border-bottom:0}
+  .line .d{flex:1;min-width:0} .line .p{white-space:nowrap;color:var(--txc)}
+  .line.missing .d{color:var(--warn)} .line.missing .p{color:var(--warn);font-weight:600}
+  .facts{margin-top:8px;padding-top:8px;border-top:1px dashed var(--bd);display:grid;grid-template-columns:auto 1fr;gap:3px 10px;font-size:13px}
+  .facts .k{color:var(--tx3)} .facts .v{color:var(--tx)}
+  .lnk{border:0;background:none;color:var(--br);font-weight:600;font-size:13px;padding:0}
+  .btn{border:1px solid var(--bd2);background:#fff;border-radius:9px;padding:6px 12px;font-weight:600;font-size:13.5px;white-space:nowrap}
+  .btn.pri{background:var(--br);border-color:var(--br);color:#fff}
+  .couple{margin-top:12px;font-size:13.5px;display:flex;gap:10px;flex-wrap:wrap;align-items:baseline}
+  .couple .k{color:var(--tx3);font-size:12px}
+  .empty{color:var(--tx2);font-size:13.5px;background:var(--warn-bg);border-radius:8px;padding:8px 10px}
+  .edit{display:grid;grid-template-columns:1fr 1fr;gap:8px 10px;margin-top:8px}
+  .edit label{font-size:12px;color:var(--tx3);display:block}
+  .edit input,.edit select{width:100%;border:1px solid var(--bd2);border-radius:8px;padding:6px 8px;font:inherit;font-size:13.5px;margin-top:2px;background:#fff}
+  .edit .full{grid-column:1/-1}
+  .edit .acts{grid-column:1/-1;display:flex;gap:6px}
+  .src{display:flex;justify-content:space-between;font-size:11px;color:var(--tx3);margin-top:12px;padding-top:9px;border-top:1px solid var(--s2)}
+  @media (max-width:640px){ .people{grid-template-columns:1fr} .row-sum{flex-basis:100%;order:3} }
+  .stage.phone .row-sum{flex-basis:100%;order:3}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <span class="flag">הדמיה — עוד לא קיים במערכת</span>
+  <h1>כרטיס הזיכויים — לכל אחד מבני הזוג</h1>
+  <p class="lead">בתיק המס, ב«זיכויים»: חלק לכל אחד. מה שחסר כדי לחשב — כתוב, ולא אפס בשקט. מה שהלקוח ענה בשאלון — נכנס בלחיצה.</p>
+
+  <div class="tabs" role="tablist">
+    <button class="tab" role="tab" aria-selected="true" data-p="p1">הכרטיס</button>
+    <button class="tab" role="tab" aria-selected="false" data-p="p2">מה ייכלל</button>
+  </div>
+
+  <section class="pane on" id="p1">
+    <div class="seg" id="state">
+      <button aria-pressed="false" data-s="today">היום</button>
+      <button aria-pressed="true" data-s="new">אחרי — מהשאלון</button>
+      <button aria-pressed="false" data-s="done">אחרי — הכול בפנים</button>
+    </div>
+    <div class="seg" id="view">
+      <button aria-pressed="true" data-v="desk">מחשב</button>
+      <button aria-pressed="false" data-v="phone">טלפון</button>
+    </div>
+    <p class="note" id="stateNote"></p>
+
+    <div class="stage" id="stage">
+      <div class="client-head"><b>ישראל ישראלי</b><span class="muted">דוגמה — לא לקוח אמיתי</span></div>
+      <div class="ctabs"><span>בקשות</span><span class="on">תיק מס</span><span>מסמכים</span></div>
+      <div class="txf">
+        <div class="row-head">
+          <span class="row-name">זיכויים</span>
+          <span class="row-sum" id="sum"></span>
+          <span id="missChip"></span>
+        </div>
+        <div class="row-body" id="body"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="pane" id="p2">
+    <div class="box">
+      <h2>ששת הפערים, בסבב אחד</h2>
+      <ul>
+        <li><b>בן/בת הזוג</b> — חלק משלו בכרטיס הזיכויים (שירות, תואר, עלייה, נכות, מילואים). הערכת המס והדוח מחשבים את שניהם. מילואים של אחד לא עוברים לשני.</li>
+        <li><b>שירות צבאי ולאומי</b> — חודש השחרור וחודשי השירות נשמרים בכרטיס, והחישוב לפיהם (לא «24 חודשים, ינואר»). הכלל לשירות קצר — יאומת בהנחיות הרשמיות לפני השינוי.</li>
+        <li><b>הורה פרוד שהילדים אצלו · מזונות לבן/בת זוג לשעבר</b> — נגזר מהכרטיס (מצב משפחתי + ילדים שגרים איתו), ושאלה אחת בשאלון על מזונות. יאומת במקור רשמי.</li>
+        <li><b>עלייה, תואר, נכות</b> — השאלון שואל את השנה/האחוז, ו«אשר ועדכן בתיק» כותב אותם עם היסטוריה. חסר ⇒ כתוב בכרטיס «הזיכוי לא נכלל».</li>
+        <li><b>השאלון הישן</b> — לא מציע עוד «גרוש» במקום «הורה יחיד»; בלי «זיכוי חלקי» לנכות 40%–89%.</li>
+        <li><b>נער/ה 16–17</b> — לפי תאריך הלידה שבכרטיס.</li>
+      </ul>
+    </div>
+    <div class="box">
+      <h2>מה יגיע לייצור</h2>
+      <ul>
+        <li><span class="tag">אתר</span> הכרטיס, החישוב, השאלון — עם הדחיפה.</li>
+        <li><span class="tag prod">מסד בייצור</span> שדות לחודש השחרור ולחודשי השירות (לכל אחד מבני הזוג), ושמירת פרטי בן/בת הזוג במקום אחד. גיבוי לפני.</li>
+        <li><span class="tag ok">בלי</span> שינוי בנתוני לקוחות קיימים, בלי מיילים ללקוחות ובלי פנייה לרשויות. כרטיסים קיימים יראו «חסר» עד שיושלמו.</li>
+      </ul>
+    </div>
+  </section>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+const VAL = 2904; // ערך נקודה לשנה, 2026 (242 ₪ לחודש)
+const money = n => '₪' + Math.round(n).toLocaleString('he-IL');
+let state = 'new', editing = null;
+
+const people = {
+  client: { name: 'ישראל', lines: [['תושב ישראל', 2.25], ['חייל משוחרר — שוחרר 08/2024, 32 חודשים', 2]],
+    facts: [['שירות', 'צבאי · שוחרר 08/2024 · 32 חודשים'], ['תואר', 'אין'], ['עלייה', 'לא'], ['נכות', 'אין'], ['מילואים (2025)', '—']] },
+  spouse: { name: 'ישראלה', lines: [['תושבת ישראל', 2.25], ['אישה', 0.5], ['ילד בן 6', 2]],
+    facts: [['שירות', 'לאומי · שוחררה 06/2018 · 24 חודשים'], ['תואר', '—'], ['עלייה', 'לא'], ['נכות', 'אין'], ['מילואים (2025)', '—']] },
+};
+
+function personHtml(key) {
+  const p = people[key];
+  let lines = [...p.lines];
+  const facts = p.facts.map(f => [...f]);
+  let missing = null;
+  if (key === 'spouse' && state !== 'today') {
+    if (state === 'new') {
+      missing = 'תואר — חסרה שנת הסיום';
+      facts[1][1] = 'כן · חסרה שנת הסיום';
+    } else {
+      lines.push(['תואר ראשון — הסתיים ב-2024', 1]);
+      facts[1][1] = 'ראשון · הסתיים 2024';
+    }
+  }
+  const pts = lines.reduce((a, l) => a + l[1], 0);
+  const editHtml = editing === key ? `
+    <div class="edit">
+      <label>שירות<select><option>צבאי</option><option ${key === 'spouse' ? 'selected' : ''}>לאומי</option><option>לא שירת/ה</option></select></label>
+      <label>חודש ושנת שחרור<input value="${key === 'spouse' ? '06/2018' : '08/2024'}" dir="ltr"></label>
+      <label>חודשי שירות<input value="${key === 'spouse' ? '24' : '32'}" inputmode="numeric" dir="ltr"></label>
+      <label>תואר<select><option>אין</option><option ${key === 'spouse' ? 'selected' : ''}>ראשון</option><option>שני</option><option>שלישי</option><option>מקצוע</option></select></label>
+      <label>שנת סיום<input value="${state === 'done' && key === 'spouse' ? '2024' : ''}" inputmode="numeric" dir="ltr" placeholder="למשל 2024"></label>
+      <label>אחוז נכות<input value="" inputmode="numeric" dir="ltr" placeholder="—"></label>
+      <div class="acts"><button class="btn pri" data-act="save">שמירה</button><button class="btn" data-act="cancel">ביטול</button></div>
+    </div>` : '';
+  return `
+    <div class="person">
+      <h3>${p.name}<span class="tot">${pts.toFixed(2).replace(/\.?0+$/, '')} נק׳ · ${money(pts * VAL)}</span></h3>
+      ${lines.map(l => `<div class="line"><span class="d">${l[0]}</span><span class="p">${l[1]} נק׳</span></div>`).join('')}
+      ${missing ? `<div class="line missing"><span class="d">${missing}</span><span class="p">הזיכוי לא נכלל</span></div>` : ''}
+      <div class="facts">${facts.map(f => `<span class="k">${f[0]}</span><span class="v">${f[1]}</span>`).join('')}</div>
+      ${editing === key ? editHtml : `<div style="margin-top:8px"><button class="lnk" data-edit="${key}">עריכה</button></div>`}
+    </div>`;
+}
+
+function render() {
+  document.querySelectorAll('#state button').forEach(b => b.setAttribute('aria-pressed', b.dataset.s === state));
+  const notes = {
+    today: 'כך זה היום: רק ישראל מחושב. ישראלה לא מחושבת בכלל, ואין מסך להשלים אותה.',
+    new: 'ישראלה ענתה בשאלון שסיימה תואר ב-2024. עד שהמשרד מאשר — כתוב מה חסר, והזיכוי לא נכלל.',
+    done: 'אחרי «אשר ועדכן בתיק»: השנה בכרטיס, עם היסטוריה, והזיכוי נכלל.',
+  };
+  $('#stateNote').textContent = notes[state];
+  const c = people.client.lines.reduce((a, l) => a + l[1], 0);
+  const s = state === 'today' ? 0 : people.spouse.lines.reduce((a, l) => a + l[1], 0) + (state === 'done' ? 1 : 0);
+  $('#sum').textContent = state === 'today'
+    ? `${c} נק׳ — ישראל`
+    : `ישראל ${c} · ישראלה ${s} נק׳`;
+  $('#missChip').innerHTML = state === 'new' ? '<span class="miss">חסר: שנת התואר של ישראלה</span>' : state === 'today' ? '<span class="miss">בן/בת הזוג לא מחושבים</span>' : '';
+
+  const inbox = state === 'new' ? `
+    <div class="inbox"><span class="sp">מהשאלון 2026 · <b>ישראלה</b>: תואר ראשון, הסתיים ב-2024 · צירפה אישור</span>
+      <button class="btn pri" data-act="apply">אשר ועדכן בתיק</button></div>` : '';
+  const spouseBlock = state === 'today'
+    ? `<div class="person"><h3>ישראלה</h3><div class="empty">לא מחושבת — אין בכרטיס פרטי זיכוי לבן/בת הזוג, ואין איפה להזין אותם.</div></div>`
+    : personHtml('spouse');
+  $('#body').innerHTML = `
+    ${inbox}
+    <div class="people">${personHtml('client')}${spouseBlock}</div>
+    <div class="couple"><span class="k">משותף</span><span>יישוב מזכה: לא · לפי הכתובת</span></div>
+    <div class="src"><span>מקור: כרטיס הלקוח · שאלון 2026</span></div>`;
+}
+
+document.addEventListener('click', e => {
+  const t = e.target.closest('button'); if (!t) return;
+  if (t.dataset.s) { state = t.dataset.s; editing = null; render(); }
+  if (t.dataset.v) { document.querySelectorAll('#view button').forEach(b => b.setAttribute('aria-pressed', b === t)); $('#stage').classList.toggle('phone', t.dataset.v === 'phone'); }
+  if (t.dataset.edit) { editing = t.dataset.edit; render(); }
+  if (t.dataset.act === 'cancel' || t.dataset.act === 'save') { editing = null; render(); }
+  if (t.dataset.act === 'apply') { state = 'done'; render(); }
+  if (t.classList.contains('tab')) {
+    document.querySelectorAll('.tab').forEach(x => x.setAttribute('aria-selected', x === t));
+    document.querySelectorAll('.pane').forEach(p => p.classList.toggle('on', p.id === t.dataset.p));
+  }
+});
+render();
+</script>
+</body>
+</html>

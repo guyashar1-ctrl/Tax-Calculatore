@@ -586,6 +586,11 @@ export interface SpouseData {
   academicDegreeType: 'bachelor' | 'master' | 'phd' | '';
   completedIdf: boolean;
   idfReleaseYear: number;
+  // 288 · כמו בכרטיס של בעל/ת התיק — של בן/בת הזוג עצמם
+  idfReleaseMonth?: number;
+  serviceMonths?: number;
+  paysAlimonyToEx?: boolean;
+  reserveCombatDaysPrevYear?: number;
   completedNationalService: boolean;
   nationalServiceYear: number;
 
@@ -750,6 +755,11 @@ export interface Client {
 
   completedIdf: boolean;
   idfReleaseYear: number;
+  /** 288 · חודש השחרור (1–12) וחודשי השירות — חסר ⇒ החישוב מניח ינואר ו-24 ומסמן */
+  idfReleaseMonth?: number | null;
+  serviceMonths?: number | null;
+  /** 288 · סעיף 40א — נשוי/אה בשנית ומשלם/ת מזונות לבן/בת זוג לשעבר */
+  paysAlimonyToEx?: boolean | null;
   completedNationalService: boolean;
   nationalServiceYear: number;
 

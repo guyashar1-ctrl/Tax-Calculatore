@@ -23,7 +23,7 @@ import { useTaxFacts } from '../../hooks/useTaxFacts';
 import { shortDate } from '../../utils/clientDerived';
 import { spouseDisplayName, registeredFileInfo, REGISTERED_UNVERIFIED_LABEL } from '../../features/annualReport/profile';
 import { getTaxYearData } from '../../data/taxData';
-import { calcCreditPoints } from '../../utils/taxCalculations';
+import { calcCreditPoints, calcSpouseCreditPoints } from '../../utils/taxCalculations';
 import {
   EDIT_FIELD_BY_KEY, EDIT_SECTIONS, editFieldValue, coerceEditField, editFieldDisplay,
   cardDealerKind, dealerTypeDisplay, currentKindHold, kindHoldPending,
@@ -36,6 +36,8 @@ import type { ListKey, ListItem } from '../../features/taxFile/listModel';
 import ListEditor from '../../features/taxFile/ListEditor';
 import AddressFields from '../ui/AddressFields';
 import SettlementStatus from '../../features/taxFile/SettlementStatus';
+import CreditsPeople from '../../features/taxFile/CreditsPeople';
+import { clientCreditGaps, spouseCreditGaps } from '../../features/taxFile/creditGaps';
 import EditControl from '../../features/taxFile/EditControl';
 import NiNextActionButton from '../NiNextActionButton';
 import AuthoritiesPanel from '../authorities/AuthoritiesPanel';
@@ -898,7 +900,17 @@ export default function TaxFileTab({
     }
     const top = [...buckets.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3)
       .map(([label, n]) => `${label} (${pts(n)})`);
+    // 288 · זוג: הסכום של כל אחד (בן/בת הזוג — כשאפשר לחשב)
+    if (client.familyStatus === 'married' && client.spouse?.gender) {
+      const sp = calcSpouseCreditPoints(client.spouse, client.children ?? [], year, taxData?.creditPointValue ?? 0).reduce((a, l) => a + l.points, 0);
+      return `${client.firstName || 'בעל/ת התיק'} ${pts(totalPoints)} · ${client.spouse.firstName || client.spouseFirstName || 'בן/בת הזוג'} ${pts(sp)} נק׳`;
+    }
     return top.length ? `${pts(totalPoints)} נק׳ — ${top.join(' + ')}` : `${pts(totalPoints)} נק׳`;
+  })();
+  // 288 · מה שחסר ולכן לא נכלל — בראש השורה, לא רק בפנים
+  const creditsMissing = (() => {
+    const ex = [...clientCreditGaps(client, year), ...spouseCreditGaps(client, year)].filter(g => g.effect === 'excluded');
+    return ex.length ? `חסר: ${ex.map(g => g.text).join(' · ')}` : undefined;
   })();
 
   /**
@@ -1593,13 +1605,19 @@ export default function TaxFileTab({
 
         <TRow
           id="credits" name="זיכויים" stale={isStale('reserve')}
-          summary={creditsSummary}
+          summary={creditsSummary} missing={creditsMissing}
           open={openRows.has('credits')} onToggle={toggleRow}
         >
+          {/* 288 · חלק לכל אחד מבני הזוג — שורות, מה חסר, עריכה (ההמחשה המאושרת) */}
+          <CreditsPeople client={client} year={year} cpValue={taxData?.creditPointValue ?? 0} clientLines={creditLines}
+            onEditClient={onUpdateClientFields && editingSection !== 'credits' ? () => startSectionEdit('credits', fieldsOf('service', 'residency', 'disability', 'alimony')) : undefined}
+            onSaveSpouse={onUpdateClientFields ? async spouse => {
+              const saved = await onUpdateClientFields({ spouse: spouse as Client['spouse'] });
+              onClientPersisted(saved ?? { ...client, spouse: spouse as Client['spouse'] });
+            } : undefined} />
           <div className="txf-kv">
-            {creditLines.map((l, i) => <KV key={i} k={l.description} v={`${l.points} נק׳${l.valueNIS ? ` · ${money(l.valueNIS)}` : ''}`} />)}
             <KV k="יישוב מזכה" v={<SettlementStatus client={client} onSave={onUpdateClientFields ? async patch => { const saved = await onUpdateClientFields(patch); onClientPersisted(saved ?? { ...client, ...patch }); } : undefined} />} />
-            <KV k="סה״כ" v={<b>{totalPoints.toFixed(2).replace(/\.?0+$/, '')} נק׳{totalValue ? ` · ${money(totalValue)}` : ''}</b>} />
+            <KV k={client.familyStatus === 'married' ? `סה״כ — ${client.firstName || 'בעל/ת התיק'}` : 'סה״כ'} v={<b>{totalPoints.toFixed(2).replace(/\.?0+$/, '')} נק׳{totalValue ? ` · ${money(totalValue)}` : ''}</b>} />
           </div>
           {/* ‼ קלטי הזיכוי — שירות, מילואים, לימודים, עלייה/תושבות/יישוב מזכה
               ונכות — מתגלים רק בעריכה: הם הקלט שמייצר את שורות הזיכוי
@@ -1607,7 +1625,7 @@ export default function TaxFileTab({
               לה כניסה. */}
           {editingSection === 'credits' && (
             <div className="txf-kv">
-              {fieldsOf('service', 'residency', 'disability').map(f => (
+              {fieldsOf('service', 'residency', 'disability', 'alimony').map(f => (
                 <EditableKV key={f.key} def={f} value={sectionDrafts[f.key] ?? ''}
                   onChange={v => setSectionDrafts(d => ({ ...d, [f.key]: v }))} />
               ))}
@@ -1616,7 +1634,7 @@ export default function TaxFileTab({
           {editingSection === 'credits' && <EditActions />}
           <SrcLine label={`מחושב חי מהכרטיס · ${year}`}
             onEdit={editingSection === 'credits' ? undefined
-              : () => startSectionEdit('credits', fieldsOf('service', 'residency', 'disability'))} />
+              : () => startSectionEdit('credits', fieldsOf('service', 'residency', 'disability', 'alimony'))} />
         </TRow>
 
         <UnknownRows section="family" />

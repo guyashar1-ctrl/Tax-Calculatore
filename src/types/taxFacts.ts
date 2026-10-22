@@ -108,12 +108,15 @@ export const GOVERNED_FACT_KEYS: ReadonlySet<string> = new Set([
   // ── 285 (22.10.2026) — ל-city/address/zip_code יש ענף ב-_tax_fact_field_op מאז 241, ולכן השרת דחה כל עריכה רגילה
   //    שלהם («עובדת מס מנוהלת») — בתיק המס ובכרטיס. מעכשיו דרך p_facts, עם היסטוריה, כמו כל עובדה.
   'city', 'address', 'zipCode',
+  // ── 288 — חודש השחרור, חודשי השירות, מזונות לבן/בת זוג לשעבר, ופרטי הזיכוי של בן/בת הזוג (מיזוג לתוך spouse) ──
+  'idfReleaseMonth', 'serviceMonths', 'paysAlimonyToEx', 'spouse',
 ]);
 
 export const GOVERNED_FIELD_LABELS: Record<string, string> = {
   familyStatus: 'מצב משפחתי', isNewImmigrant: 'עולה חדש', aliyahYear: 'שנת עלייה',
   marriageYear: 'שנת הנישואין', divorceYear: 'שנת הגירושין', widowhoodYear: 'שנת הפטירה',
   city: 'יישוב', address: 'כתובת', zipCode: 'מיקוד',
+  idfReleaseMonth: 'חודש השחרור', serviceMonths: 'חודשי שירות', paysAlimonyToEx: 'מזונות לבן/בת זוג לשעבר', spouse: 'פרטי בן/בת הזוג',
   isReturningResident: 'תושב חוזר', disabilityPercentage: 'אחוז נכות',
   hasAcademicDegree: 'תואר אקדמי', academicDegreeYear: 'שנת קבלת התואר',
   completedIdf: 'שירות צבאי', idfReleaseYear: 'שנת שחרור',

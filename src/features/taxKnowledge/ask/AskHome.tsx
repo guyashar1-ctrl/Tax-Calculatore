@@ -14,7 +14,8 @@ import { searchValues } from '../domainValues';
 import { RULESET_VERSION } from '../../taxRules/registry';
 import { searchRules } from './localSearch';
 import { bidiText } from './bidiText';
-import { addInbox, askQuestion, listInbox, openQuestions, removeInbox, type AskResult, type InboxItem, type OpenQuestion } from './askApi';
+import { AVAILABLE } from '../availability';
+import { addInbox, askQuestion, listInbox, logQuestion, openQuestions, removeInbox, type AskResult, type InboxItem, type OpenQuestion } from './askApi';
 import { buildUpdatePrompt } from './updatePrompt';
 import './ask.css';
 
@@ -35,7 +36,7 @@ export default function AskHome({ onGo, onOpenTopic, moved }: Props) {
   const [rules, setRules] = useState<KnowledgeRule[]>([]);
   const [q, setQ] = useState('');
   const [asked, setAsked] = useState<string | null>(null);
-  const [result, setResult] = useState<AskResult | 'loading' | null>(null);
+  const [result, setResult] = useState<AskResult | 'loading' | 'saved' | null>(null);
   const [showRules, setShowRules] = useState(false);
   const [inbox, setInbox] = useState<InboxItem[] | null>(null);
   const [questions, setQuestions] = useState<OpenQuestion[]>([]);
@@ -55,6 +56,16 @@ export default function AskHome({ onGo, onOpenTopic, moved }: Props) {
   async function ask(text: string) {
     const t = text.trim();
     if (t.length < 2) return;
+    // ‼ בלי תשובה מנוסחת (AVAILABLE.askAi): מה שכתוב אצלנו כבר מוצג; שאלה שאין לה כלל — נשמרת לעדכון הבא
+    if (!AVAILABLE.askAi) {
+      setQ(t);
+      if (rules.length && !searchRules(rules, t, 1).length && !searchValues(t.split(/\s+/)).length) {
+        const saved = await logQuestion(t);
+        setAsked(t); setResult(saved ? 'saved' : null);
+        if (saved) void openQuestions().then(setQuestions);
+      }
+      return;
+    }
     const my = ++seq.current;
     setQ(t); setAsked(t); setResult('loading'); setShowRules(false);
     const r = await askQuestion(t);
@@ -69,7 +80,7 @@ export default function AskHome({ onGo, onOpenTopic, moved }: Props) {
     else if (r.domain) onGo({ mode: 'learn', domain: r.domain });
   };
 
-  const answer = result && result !== 'loading' && result.kind === 'answer' ? result.answer : null;
+  const answer = result && result !== 'loading' && result !== 'saved' && result.kind === 'answer' ? result.answer : null;
   const stale = asked !== null && typing !== asked; // ממשיכים להקליד אחרי ששאלו — התשובה הקודמת נסגרת
 
   return (
@@ -80,9 +91,9 @@ export default function AskHome({ onGo, onOpenTopic, moved }: Props) {
           <svg className="ak-ask-ic" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" strokeWidth="2" /><path d="m20 20-3.5-3.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
           <input ref={inputRef} value={q} onChange={e => setQ(e.target.value)} placeholder="שאל במילים שלך" aria-label="שאלה מקצועית" enterKeyHint="search" autoComplete="off" data-ask-input />
           {q && <button type="button" className="ak-clear" onClick={clear} aria-label="ניקוי">✕</button>}
-          <button type="submit" className="ak-go" disabled={q.trim().length < 2} aria-label="קבל תשובה" data-ask-go>
+          {AVAILABLE.askAi && <button type="submit" className="ak-go" disabled={q.trim().length < 2} aria-label="קבל תשובה" data-ask-go>
             <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M19 12H5m6-6-6 6 6 6" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" /></svg>
-          </button>
+          </button>}
         </form>
         {!active && (
           <div className="ak-tries">{EXAMPLES.map(x => <button key={x} type="button" onClick={() => void ask(x)} data-ask-example>{x}</button>)}</div>
@@ -128,7 +139,14 @@ export default function AskHome({ onGo, onOpenTopic, moved }: Props) {
             </div>
           )}
 
-          {asked && !stale && result && result !== 'loading' && result.kind === 'unavailable' && (
+          {asked && !stale && result === 'saved' && (
+            <div className="ak-none" data-ask-saved>
+              <b>אין עדיין כלל שעונה על זה</b>
+              <p>השאלה נשמרה לעדכון הבא.</p>
+            </div>
+          )}
+
+          {asked && !stale && result && result !== 'loading' && result !== 'saved' && result.kind === 'unavailable' && (
             <div className="ak-none" data-ask-unavailable={result.reason}>
               <b>התשובה האוטומטית לא זמינה כרגע</b>
               <p>{result.questionId ? 'השאלה נשמרה לעדכון הבא. ' : ''}בינתיים — מה שכתוב אצלנו:</p>
@@ -156,10 +174,10 @@ export default function AskHome({ onGo, onOpenTopic, moved }: Props) {
                   </li>
                 ))}
               </ul>
-              {!asked || stale ? <p className="ak-hint">Enter — לתשובה מנוסחת</p> : null}
+              {AVAILABLE.askAi && (!asked || stale) ? <p className="ak-hint">Enter — לתשובה מנוסחת</p> : null}
             </section>
           )}
-          {typing && !hits.length && !valueHits.length && rules.length > 0 && (!asked || stale) && <p className="ak-hint">Enter — לתשובה מנוסחת מכל הכללים</p>}
+          {typing && !hits.length && !valueHits.length && rules.length > 0 && (!asked || stale) && <p className="ak-hint">{AVAILABLE.askAi ? 'Enter — לתשובה מנוסחת מכל הכללים' : 'לא נמצא אצלנו. Enter — לשמור את השאלה לעדכון הבא'}</p>}
         </div>
       )}
 

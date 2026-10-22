@@ -12,6 +12,12 @@ export interface Availability {
   wealthRequest: boolean;
   /** שנות מס, שאלון שנתי ואיסוף (features/taxYear, מיגרציה 229). */
   taxYear: boolean;
+  /**
+   * «שאל»: תשובה מנוסחת בידי AI מהכללים (knowledge-answer). ‼ 22.10.2026 — כבוי: המפתח החינמי של Gemini עמד
+   * בשתי שאלות ואז חרג ממכסה (כל שאלה שולחת את כל המאגר), והמכסה משותפת לקריאת מסמכי הלקוחות. גיא: «אם זה לא
+   * חינם או שאתה לא מבסוט — נוותר». בלי זה: החיפוש המיידי בכללים, ושאלה בלי כלל נשמרת לעדכון הבא.
+   */
+  askAi: boolean;
 }
 
 export const AVAILABLE: Availability = {
@@ -19,6 +25,7 @@ export const AVAILABLE: Availability = {
   annualReturn: false,
   wealthRequest: true,
   taxYear: true,
+  askAi: false,
 };
 
 /** תווית אחידה ליכולת שטרם שוחררה. */

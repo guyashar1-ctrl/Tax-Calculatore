@@ -393,7 +393,7 @@ export const annualReportTree: QuestionTree = {
       visibleWhen: (m) => m.identity?.hasDisability === true && !m.identity?.disabilityBand,
       options: [
         { value: 'low', label: 'מתחת ל-40% (לא מקנה זיכוי)' },
-        { value: 'high', label: '40%-89% (זיכוי חלקי)' },
+        { value: 'high', label: '40%–89%' },
         { value: 'full', label: '90% ומעלה (פטור מלא לפי סעיף 9(5))' },
       ],
       applyToModel: (m, a) => ({

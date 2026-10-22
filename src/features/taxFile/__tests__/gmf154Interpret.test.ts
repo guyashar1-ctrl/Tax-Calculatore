@@ -5,6 +5,7 @@ import type { TestCase } from '../../../testkit/tinyTest';
 import type { Client } from '../../../types';
 import type { AutomationJob } from '../../../types/automation';
 import { AUTHORITY_AUTOMATION } from '../authorityAutomation';
+import { reportingStatusOk } from '../../../utils/reportingStatus';
 
 const spec = AUTHORITY_AUTOMATION.income_tax!;
 const KEYS = ['capitalDeclarationRequired', 'capitalDeclarationDeadline', 'incomeTaxBalance', 'taxOfficeName', 'pitAdvancePercent'];
@@ -91,5 +92,21 @@ export const TESTS: TestCase[] = [
     equal(pending.status, 'info');
     equal(pending.authorityDisplay, 'ממתין לאישור יזום');
     equal(run2('קיים אישור', 'none').status, 'info', 'סותר — מידע, לא הצעה');
+  }),
+  test('מצב דיווחים: בלי מקדמות פעילות ⇒ «אין מקדמות»; עם מקדמות ⇒ ניטרלי עד שנקרא מ-134', () => {
+    const read = (fields: Record<string, string>, c = client()) => spec.interpret!(job(fields), c, ['incomeTaxReportingStatus'])[0];
+    const none = read({ advanceStatus: 'cancelled', advanceStatusRaw: 'בוטלה (שעור דו)' });
+    equal(none.status, 'changed');
+    equal(none.authorityValue, 'אין מקדמות');
+    equal(read({ advanceStatus: 'no_advance' }, client({ incomeTaxReportingStatus: 'אין מקדמות' })).status, 'match');
+    const active = read({ advanceRate: '15%', advanceFrequency: 'דו-חדשי', advanceStatus: 'active' });
+    equal(active.status, 'info');
+    equal(active.authorityValue, undefined, 'בלי הצעה');
+  }),
+  test('«אין מקדמות» אינו חוסר — לא דגל ולא כתום', () => {
+    assert(reportingStatusOk('אין מקדמות'), 'אין מקדמות');
+    assert(reportingStatusOk(' אין דיווחים חסרים '), 'אין דיווחים חסרים');
+    assert(!reportingStatusOk('חסר דיווח 07-08/2026'), 'חסר');
+    assert(!reportingStatusOk(''), 'ריק');
   }),
 ];

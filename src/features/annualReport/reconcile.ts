@@ -51,7 +51,10 @@ export function computeDiffs(session: Pick<AnnualReportSession, 'model'>, client
   if (m.identity?.maritalStatus) {
     const inCard = client.familyStatus;
     const mapped = m.identity.maritalStatus === 'separated' ? 'divorced' : m.identity.maritalStatus;
-    if (inCard !== mapped) {
+    // ‼ 288 · «הורה יחיד» בכרטיס אינו סתירה ל«גרוש/ה» או «רווק/ה» בשאלון הישן (אין בו האפשרות הזאת) — לא מציעים
+    //   להחליף אותו: ההחלפה הורידה את נקודת ההורה היחיד.
+    const soleParentCompatible = inCard === 'singleParent' && ['divorced', 'single', 'widowed'].includes(mapped);
+    if (inCard !== mapped && !soleParentCompatible) {
       out.push({
         key: 'maritalStatus',
         label: 'סטטוס משפחתי',

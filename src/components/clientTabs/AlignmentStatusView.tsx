@@ -25,6 +25,7 @@ import { useBtlIncomeReads } from '../../hooks/useBtlIncomeReads';
 import { computeAuthorityFlags, actionableFlagCount } from '../../utils/authorityFlags';
 import type { AuthorityFlag } from '../../utils/authorityFlags';
 import { shortDate } from '../../utils/clientDerived';
+import { reportingStatusOk } from '../../utils/reportingStatus';
 
 const ORDER: InstitutionKey[] = ['btl', 'vat', 'income'];
 
@@ -159,7 +160,7 @@ function rowsFor(key: InstitutionKey, client: Client, incomeRead?: NiIncomeRead 
     if (client.incomeTaxReportingStatus) {
       out.push({
         k: 'מצב דיווחים', v: client.incomeTaxReportingStatus, diffKey: 'reportingStatus',
-        tone: client.incomeTaxReportingStatus.trim() === 'אין דיווחים חסרים' ? 'ok' : 'warn',
+        tone: reportingStatusOk(client.incomeTaxReportingStatus) ? 'ok' : 'warn',
       });
     }
     if (client.capitalDeclarationRequired != null) {

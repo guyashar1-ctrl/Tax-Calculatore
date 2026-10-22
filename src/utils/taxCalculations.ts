@@ -49,7 +49,16 @@ interface TaxPerson {
   qualifyingSettlementId: string;
   reserveCombatDaysPrevYear?: number;
   spouseNoIncomeEligible?: boolean;
+  // 288 · חודש השחרור וחודשי השירות (חסר ⇒ ינואר ו-24 — ומסומן בכרטיס כהנחה)
+  idfReleaseMonth?: number;
+  serviceMonths?: number;
+  /** סעיף 40א — משלם/ת מזונות לבן/בת זוג לשעבר */
+  paysAlimonyToEx?: boolean;
+  /** לנקודת «נער/ה» (16–17) */
+  birthYear?: number;
 }
+
+const yearOf = (iso?: string) => { const y = Number((iso ?? '').slice(0, 4)); return y > 1900 ? y : undefined; };
 
 function clientToTaxPerson(client: Client): TaxPerson {
   return {
@@ -69,6 +78,10 @@ function clientToTaxPerson(client: Client): TaxPerson {
     qualifyingSettlementId: client.qualifyingSettlementId,
     reserveCombatDaysPrevYear: client.reserveCombatDaysPrevYear,
     spouseNoIncomeEligible: client.spouseNoIncomeEligible,
+    idfReleaseMonth: client.idfReleaseMonth ?? undefined,
+    serviceMonths: client.serviceMonths ?? undefined,
+    paysAlimonyToEx: client.paysAlimonyToEx ?? undefined,
+    birthYear: yearOf(client.birthDate),
   };
 }
 
@@ -96,13 +109,19 @@ function spouseToTaxPerson(spouse: SpouseData, children: Child[]): TaxPerson {
     completedNationalService: spouse.completedNationalService,
     nationalServiceYear: spouse.nationalServiceYear,
     qualifyingSettlementId: spouse.qualifyingSettlementId,
+    // ‼ של בן/בת הזוג עצמם — לא של בעל/ת הכרטיס (מילואים, «בן זוג ללא הכנסה»)
+    reserveCombatDaysPrevYear: spouse.reserveCombatDaysPrevYear,
+    idfReleaseMonth: spouse.idfReleaseMonth,
+    serviceMonths: spouse.serviceMonths,
+    paysAlimonyToEx: spouse.paysAlimonyToEx,
+    birthYear: yearOf(spouse.birthDate),
   };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // נקודות זיכוי — מותאם למנוע V2 (הכללים המאומתים)
-// הערה: בפרטי לקוח אין חודש עלייה/שחרור ואין משך שירות — לכן הונחו:
-// חודש ינואר, ושירות מלא (2 נק' לחייל). ניתן לדייק דרך אשף נקודות הזיכוי.
+// 288: חודש השחרור וחודשי השירות — מהכרטיס. חסר ⇒ ינואר ו-24 חודשים, וכרטיס הזיכויים
+// אומר שזו הנחה (creditGaps). חודש עלייה — עדיין ינואר.
 // ─────────────────────────────────────────────────────────────────────────────
 
 function personToProfile(person: TaxPerson, year: number): CreditProfile {
@@ -115,6 +134,10 @@ function personToProfile(person: TaxPerson, year: number): CreditProfile {
   }
 
   const anyAlimonyPaid = person.children.some(c => (c.monthlyAlimonyPaid ?? 0) > 0);
+  // ‼ 288 · סעיף 40(ב): גרוש/ה שהילדים אצלו/ה (custody='self') — נקודות הילדים במסלול הראשון ועוד נקודה
+  //   (40(ב)(2)). רק ההורה השני «משתתף בכלכלת ילדיו». קודם כל גרוש/ה עם ילדים קיבל/ה את נקודת ההורה השני.
+  const divorcedWithKids = person.familyStatus === 'divorced' && person.children.length > 0;
+  const custodial = divorcedWithKids && person.children.some(c => c.custody === 'self');
 
   return {
     year,
@@ -123,19 +146,25 @@ function personToProfile(person: TaxPerson, year: number): CreditProfile {
     // ‼ סעיף 45: לנשואים — הנקודות להורה אחד בלבד (ברירת המחדל: בעל/ת הכרטיס; בצד בן/בת הזוג — childrenFromSpouseView)
     children: person.children.map(c => ({ birthYear: c.birthYear, hasDisability: c.hasDisability,
       disabilityPointsElsewhere: person.familyStatus === 'married' && c.hasDisability && (c.disabilityPointsTo ?? 'client') !== 'client' })),
-    parentRole: person.gender === 'female' ? 'allowanceParent' : 'otherParent',
+    // הילדים אצל ההורה השני (custody='spouse' בכרטיס של גרוש/ה) ⇒ המסלול השני, גם לאם
+    parentRole: custodial ? 'allowanceParent'
+      : divorcedWithKids && person.children.every(c => c.custody === 'spouse') ? 'otherParent'
+      : person.gender === 'female' ? 'allowanceParent' : 'otherParent',
     isSoleParent: person.familyStatus === 'singleParent',
-    participatesInChildSupport: (person.familyStatus === 'divorced' && person.children.length > 0) || anyAlimonyPaid,
+    participatesInChildSupport: (divorcedWithKids && !custodial) || anyAlimonyPaid,
+    custodialSeparatedParent: custodial,
     isNewImmigrant: person.isNewImmigrant,
     aliyahYear: person.aliyahYear || undefined,
     reserveCombatDaysPrevYear: person.reserveCombatDaysPrevYear || undefined,
     // ‼ רק לנשואים — סעיף 37 חל על בני זוג בלבד.
     spouseNoIncomeEligible: person.familyStatus === 'married' && person.spouseNoIncomeEligible === true,
     service: person.completedIdf && person.idfReleaseYear > 0
-      ? { kind: 'military', months: 24, releaseYear: person.idfReleaseYear }
+      ? { kind: 'military', months: person.serviceMonths || 24, releaseYear: person.idfReleaseYear, releaseMonth: person.idfReleaseMonth }
       : person.completedNationalService && person.nationalServiceYear > 0
-        ? { kind: 'national', months: 24, releaseYear: person.nationalServiceYear }
+        ? { kind: 'national', months: person.serviceMonths || 24, releaseYear: person.nationalServiceYear, releaseMonth: person.idfReleaseMonth }
         : undefined,
+    paysAlimonyToEx: person.familyStatus === 'married' && person.paysAlimonyToEx === true,
+    teenBirthYear: person.birthYear,
     degrees,
     // נכות 90%+ ⇒ מועמד לפטור 9(5) (לא נקודות זיכוי!). דיוק מלא — באשף.
     qualifiesForDisabilityExemption: person.disabilityPercentage >= 90,
@@ -754,7 +783,8 @@ export function calculateTax(input: TaxCalcInput, taxData: TaxYearData): TaxCalc
  */
 export function spouseAsClient(client: Client): Client | null {
   const spouse = client.spouse;
-  if (!spouse) return null;
+  // ‼ 288: בלי מין אין חישוב (נקודת אישה, מסלול הילדים) — לא מנחשים
+  if (!spouse || !spouse.gender) return null;
   return {
     ...client,
     id: client.id + '_spouse',
@@ -795,6 +825,12 @@ export function spouseAsClient(client: Client): Client | null {
     employerPensionPct: spouse.employerPensionPct,
     hasKrenHashtalmut: spouse.hasKrenHashtalmut,
     krenHashtalmutMonthly: spouse.krenHashtalmutMonthly,
+    // ‼ 288: אלה של בן/בת הזוג עצמם. קודם עברו מבעל/ת הכרטיס דרך ...client — ימי המילואים נספרו פעמיים.
+    reserveCombatDaysPrevYear: spouse.reserveCombatDaysPrevYear ?? 0,
+    spouseNoIncomeEligible: false,
+    idfReleaseMonth: spouse.idfReleaseMonth ?? null,
+    serviceMonths: spouse.serviceMonths ?? null,
+    paysAlimonyToEx: spouse.paysAlimonyToEx ?? null,
     spouse: null,
   };
 }

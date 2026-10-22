@@ -26,6 +26,12 @@ export async function askQuestion(question: string): Promise<AskResult> {
   }
 }
 
+/** שאלה שאין לה כלל — נשמרת לעדכון הבא («לא נבדקה»: answerable=null), בלי תשובה. */
+export async function logQuestion(question: string): Promise<boolean> {
+  const { error } = await supabase.from('knowledge_questions').insert({ question });
+  return !error;
+}
+
 export interface OpenQuestion { id: string; question: string; createdAt: string; answerable: boolean | null }
 /** שאלות שלא נענו מכללים ועוד לא נסגרו בעדכון — תור המחקר. */
 export async function openQuestions(): Promise<OpenQuestion[]> {

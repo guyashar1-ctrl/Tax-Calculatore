@@ -40,7 +40,7 @@ export const TESTS: TestCase[] = [
     equal(st.map(e => e.subjectRole).join(','), 'client,spouse');
     const init = (r: string) => { const e = st.find(x => x.subjectRole === r)!; return e.prompt.input.kind === 'record' ? e.prompt.input.initial ?? [] : []; };
     equal(JSON.stringify(init('client')), JSON.stringify([{ kind: 'ba', year: '2022' }]));
-    equal(JSON.stringify(init('spouse')), JSON.stringify([{ kind: 'army', year: '2023' }]));
+    equal(JSON.stringify(init('spouse')), JSON.stringify([{ kind: 'army', branch: 'idf', year: '2023' }]));
     assert(!plan.some(e => e.itemKey === 'household.degree' || e.itemKey === 'household.release'), 'שורת תואר/שחרור נשארה');
     const less = plan.filter(e => e.itemKey === ANNUAL_LESS_KEY).flatMap(e => (e.prompt.input.kind === 'multi' ? e.prompt.input.options : []));
     assert(!less.some(o => o.key === 'household.creditChanges'), 'ריבוע לימודים כפול');
@@ -58,7 +58,7 @@ export const TESTS: TestCase[] = [
     equal(Object.keys(validateRecord(s, { kind: 'ba', year: '2022' })).join(','), 'intern');
     equal(Object.keys(validateRecord(s, { kind: 'ba', year: '2022', intern: 'no' })).length, 0);
     equal(Object.keys(validateRecord(s, { kind: 'ba', year: '2022', intern: 'yes' })).sort().join(','), 'internFrom,internTo');
-    equal(Object.keys(validateRecord(s, { kind: 'army', year: '2023' })).join(','), 'month');
+    equal(Object.keys(validateRecord(s, { kind: 'army', year: '2023' })).join(','), 'branch,month'); // 288 · גם איזה שירות
     equal(Object.keys(validateRecord(s, { kind: 'ba', year: '2016' })).length, 0); // תואר ישן — בלי שאלת התמחות
     equal(s.summary({ kind: 'ba', year: '2022', intern: 'yes', internFrom: '2023', internTo: '2024' }), 'תואר ראשון · 2022 · התמחות 2023–2024');
     equal(s.summary({ kind: 'army', month: '08', year: '2023' }), 'צבא או שירות לאומי · אוגוסט 2023');

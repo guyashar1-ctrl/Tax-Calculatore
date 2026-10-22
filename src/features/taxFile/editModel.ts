@@ -353,6 +353,11 @@ export const EDIT_SECTIONS: EditSection[] = [
       { key: 'idfReleaseYear', label: 'שנת שחרור', kind: 'number', credit: true, governed: true },
       { key: 'completedNationalService', label: 'שירות לאומי', kind: 'bool', credit: true, governed: true },
       { key: 'nationalServiceYear', label: 'שנת סיום שירות לאומי', kind: 'number', credit: true, governed: true },
+      // 288 · בלעדיהם החישוב הניח ינואר ו-24 חודשים
+      { key: 'idfReleaseMonth', label: 'חודש השחרור', kind: 'select', credit: true, governed: true,
+        options: ['ינואר', 'פברואר', 'מרץ', 'אפריל', 'מאי', 'יוני', 'יולי', 'אוגוסט', 'ספטמבר', 'אוקטובר', 'נובמבר', 'דצמבר'].map((m, i) => [String(i + 1), m] as [string, string]) },
+      { key: 'serviceMonths', label: 'חודשי שירות', kind: 'number', credit: true, governed: true,
+        note: 'סעיף 39א — 23 ומעלה לגבר, 22 ומעלה לאישה: 2 נק׳ בשנה; 12 ומעלה: נקודה אחת' },
       { key: 'reserveCombatDaysPrevYear', label: 'ימי מילואים כלוחם/ת (שנה קודמת)', kind: 'number',
         credit: true, governed: true, note: 'סעיף 39ב — מזכה משנת המס 2026' },
       { key: 'hasAcademicDegree', label: 'תואר אקדמי', kind: 'bool', credit: true, governed: true },
@@ -373,6 +378,14 @@ export const EDIT_SECTIONS: EditSection[] = [
       { key: 'isReturningResident', label: 'תושב/ת חוזר/ת', kind: 'bool', credit: true, governed: true },
       { key: 'qualifyingSettlementId', label: 'יישוב מזכה', kind: 'text', credit: true, governed: true,
         note: 'מזהה היישוב מרשימת היישובים המזכים' },
+    ],
+  },
+  {
+    // 288 · סעיף 40א — נקודה לגרוש/ה שנישא/ה בשנית ומשלם/ת מזונות לבן/בת הזוג לשעבר
+    id: 'alimony', family: 'family', title: 'מזונות לבן/בת זוג לשעבר',
+    summary: c => (c.paysAlimonyToEx ? 'משלם/ת' : c.paysAlimonyToEx === false ? 'לא' : UNKNOWN),
+    fields: [
+      { key: 'paysAlimonyToEx', label: 'משלם/ת מזונות לבן/בת זוג לשעבר (נשוי/אה בשנית)', kind: 'bool', credit: true, governed: true },
     ],
   },
   {
