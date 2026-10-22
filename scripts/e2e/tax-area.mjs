@@ -322,18 +322,23 @@ async function run(vp) {
     if (mobile) ok(await noHScroll(page), 'טלפון: תוצאות בזמן הקלדה בלי גלילה הצידה');
     await page.locator('[data-ask-hit^="microBusiness."]').first().click(); await sleep(800);
     ok(/^#\/tax\/learn\/[a-z]+\/microBusiness$/.test(await page.evaluate(() => location.hash)) && await page.locator('[data-topic="microBusiness"]').count() === 1, 'לחיצה על תוצאה פותחת את הנושא «עסק זעיר»', await page.evaluate(() => location.hash));
-    // Enter — בהדגמה אין תשובה מנוסחת: אומרים את זה, ומה שכתוב אצלנו נשאר
+    // ‼ 22.10: תשובה מנוסחת כבויה (AVAILABLE.askAi) — אין כפתור «קבל תשובה», ו-Enter לא מחליף את מה שכתוב אצלנו
     await go(page, '/tax/learn');
-    await askIn.fill('קרן השתלמות לעוסק זעיר'); await askIn.press('Enter'); await sleep(1500);
-    ok(await page.locator('[data-ask-unavailable]').count() === 1 && await page.locator('[data-ask-hit]').count() > 0, 'Enter: «התשובה האוטומטית לא זמינה» (הדגמה) — ומה שכתוב אצלנו נשאר מתחת', await text(page.locator('.ak-results')));
-    await shot(page, `${vp}-05c-ask-unavailable`);
+    ok(await page.locator('[data-ask-go]').count() === 0, 'אין כפתור «קבל תשובה» כשהתשובה המנוסחת כבויה');
+    await askIn.fill('קרן השתלמות לעוסק זעיר'); await askIn.press('Enter'); await sleep(800);
+    ok(await page.locator('[data-ask-hit]').count() > 0 && await page.locator('[data-ask-unavailable], [data-ask-answer], [data-ask-thinking]').count() === 0, 'Enter: מה שכתוב אצלנו נשאר — בלי «לא זמין» ובלי המתנה', await text(page.locator('.ak-results')));
+    await shot(page, `${vp}-05c-ask-enter`);
     await page.locator('.ak-clear').click(); await sleep(300);
-    ok(await askIn.inputValue() === '' && await page.locator('[data-domain-card]').count() >= 8 && await page.locator('[data-ask-unavailable]').count() === 0, '✕ מנקה את השאלה וחוזר לתחומים');
-    // דוגמה בלחיצה — שואלת ישר
+    ok(await askIn.inputValue() === '' && await page.locator('[data-domain-card]').count() >= 8, '✕ מנקה את השאלה וחוזר לתחומים');
+    // שאלה בלי שום כלל — אומרים את זה במקום ריק
+    await askIn.fill('זזזזזז קקקקקק'); await sleep(500);
+    ok(/לא נמצא אצלנו/.test(await text(page.locator('.ak-results'))), 'בלי כלל: «לא נמצא אצלנו» ו-Enter שומר לעדכון הבא', await text(page.locator('.ak-results')));
+    await page.locator('.ak-clear').click(); await sleep(300);
+    // דוגמה בלחיצה — ממלאת ומראה מה כתוב אצלנו
     const ex = page.locator('[data-ask-example]').first();
     const exText = (await text(ex)).trim();
-    await ex.click(); await sleep(1500);
-    ok(await askIn.inputValue() === exText && await page.locator('[data-ask-unavailable]').count() === 1, 'דוגמה: לחיצה ממלאת את התיבה ושואלת', exText);
+    await ex.click(); await sleep(800);
+    ok(await askIn.inputValue() === exText && await page.locator('[data-ask-hit]').count() > 0, 'דוגמה: לחיצה ממלאת את התיבה ומראה מה כתוב אצלנו', exText);
     // ערך לשנה בזמן הקלדה
     await go(page, '/tax/learn');
     await askIn.fill('מס רכישה'); await sleep(500);
