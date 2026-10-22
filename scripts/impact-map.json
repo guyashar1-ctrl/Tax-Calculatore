@@ -207,7 +207,8 @@
         "src/components/PublicPortalPage.tsx",
         "src/components/clientTabs/ClientPagePreviewDialog.tsx",
         "src/components/clientTabs/PortalPreviewPanel.tsx",
-        "src/components/office/__fakeBackend.ts"
+        "src/components/office/__fakeBackend.ts",
+        "src/components/office/__fakeTaxYear.ts"
       ],
       "suites": [
         {
