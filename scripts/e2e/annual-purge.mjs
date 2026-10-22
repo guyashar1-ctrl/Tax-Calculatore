@@ -62,6 +62,13 @@ async function answerAll(pp) {
       await pp.waitForFunction(([t, pr]) => { const f = document.querySelector('.ty-flow'); return !!f?.hasAttribute('data-annual-docs') || (f?.querySelector('.ty-q')?.textContent ?? '') !== t || f?.getAttribute('data-person') !== pr; }, [t0, p0], { timeout: 40000 }).catch(() => {});
       await pp.waitForTimeout(300); continue;
     }
+    // 22.10.2026 · סבב 2.1: מסך סימון (כן/לא של אותו נושא) — «אף אחד מאלה — הבא»
+    if ((await pp.locator('.ty-flow').getAttribute('data-screen')) === 'checklist') {
+      const t0 = (await text(flow.locator('.ty-q').first())).trim();
+      await flow.locator('.ty-nav .btn-primary').click();
+      await pp.waitForFunction((t) => { const f = document.querySelector('.ty-flow'); return !!f?.hasAttribute('data-annual-docs') || (f?.querySelector('.ty-q')?.textContent ?? '') !== t; }, t0, { timeout: 40000 }).catch(() => {});
+      await pp.waitForTimeout(300); continue;
+    }
     if ((await pp.locator('.ty-flow').getAttribute('data-screen')) === 'group') {
       for (const c of await flow.locator('.ty-group-card').all()) await c.locator('[data-tile="none"]').click();
       await flow.locator('.ty-nav .btn-primary').click(); await pp.waitForTimeout(600); continue;
