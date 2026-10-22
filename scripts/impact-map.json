@@ -223,6 +223,43 @@
         "src/features/taxArea/*"
       ],
       "suites": []
+    },
+    {
+      "name": "שאלון הדוח השנתי (הדף האישי, סבב 2): מסכים לכל אדם, «זה עדיין נכון?», לימודים וצבא",
+      "invariants": [],
+      "globs": [
+        "src/features/taxYear/AnnualFlow.tsx",
+        "src/features/taxYear/flowDraft.ts",
+        "src/features/taxYear/screens.ts",
+        "src/features/taxYear/asks.ts",
+        "src/features/taxYear/catalog.ts",
+        "src/features/taxYear/picture.ts",
+        "src/features/taxYear/oneRound.ts",
+        "src/features/taxYear/AnnualSummary.tsx",
+        "supabase/2*-*annual*.sql"
+      ],
+      "suites": [
+        {
+          "script": "e2e/annual-r2.mjs",
+          "run": false,
+          "note": "בדפדפן מול staging — דורש שרת: STAGING_ENV_DIR=… node scripts/e2e/annual-r2.mjs --base=http://localhost:<port> --widths=1280,390,360"
+        },
+        {
+          "script": "e2e/annual-one-round.mjs",
+          "run": false,
+          "note": "בדפדפן מול staging — דורש שרת"
+        },
+        {
+          "script": "e2e/annual-purge.mjs",
+          "run": false,
+          "note": "בדפדפן מול staging — דורש שרת"
+        },
+        {
+          "script": "e2e/annual-prior-return.mjs",
+          "run": false,
+          "note": "בדפדפן מול staging — דורש שרת"
+        }
+      ]
     }
   ],
   "watched": [
