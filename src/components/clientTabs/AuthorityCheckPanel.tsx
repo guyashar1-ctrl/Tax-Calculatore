@@ -194,8 +194,9 @@ export function AuthorityCheckSummary({
           )}
         </div>
       )}
-      {/* ‼ ההסבר העסקי — פעם אחת לקבוצה, בטקסט משני. לא מתחת לכל שדה. */}
-      {result?.groupNotes.map(n => (
+      {/* ‼ ההסבר העסקי — פעם אחת לקבוצה, בטקסט משני. לא מתחת לכל שדה. ‼ 22.10.2026 · לא כשהכול תקין:
+          המצב עצמו מוצג בשדה («אין מקדמות» + הסיבה). */}
+      {!quiet && result?.groupNotes.map(n => (
         <div className="txf-check-note" key={n.group}>
           <span className="txf-check-grp">{n.label}</span> {n.text}
         </div>

@@ -229,7 +229,16 @@ export function buildAuthorityRows(
     const adv = client.pitAdvancePercent != null
       ? `${client.pitAdvancePercent}%${client.pitAdvanceFrequency ? ` · ${VAT_FREQ_LABELS[client.pitAdvanceFrequency]}` : ''}`
       : null;
-    facts.push({ k: 'שיעור מקדמות', v: client.pitAdvancePercent != null ? `${client.pitAdvancePercent}%` : EMPTY, editKey: 'pitAdvancePercent', syncKey: 'pitAdvancePercent' });
+    // ‼ 22.10.2026 · «לא נדרש» / «בוטלה» נשמרים כ-0% בלי תדירות — מוצג «אין מקדמות» והסיבה מתחת, בשדה עצמו
+    //   (קודם: «0%» כאן ושורת «מקדמות · המקדמות בוטלו» בסיכום — גיא: «למה זה עדיין מופיע?»).
+    const noAdvance = client.pitAdvancePercent === 0 && !client.pitAdvanceFrequency;
+    const advNote = (client.fieldMeta?.pitAdvancePercent as { note?: string } | undefined)?.note;
+    facts.push({
+      k: 'שיעור מקדמות',
+      v: noAdvance ? 'אין מקדמות' : client.pitAdvancePercent != null ? `${client.pitAdvancePercent}%` : EMPTY,
+      ...(noAdvance && advNote ? { sub: [advNote] } : {}),
+      editKey: 'pitAdvancePercent', syncKey: 'pitAdvancePercent',
+    });
     facts.push({
       k: 'תדירות מקדמות',
       v: client.pitAdvanceFrequency ? VAT_FREQ_LABELS[client.pitAdvanceFrequency] : EMPTY,

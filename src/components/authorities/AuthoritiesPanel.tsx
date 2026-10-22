@@ -38,7 +38,7 @@ import EditControl from '../../features/taxFile/EditControl';
 import { AUTHORITY_AUTOMATION, buildAuthorityCheck } from '../../features/taxFile/authorityAutomation';
 import type { AuthorityAutomationSpec, AuthorityCheckResult } from '../../features/taxFile/authorityAutomation';
 import { shaamRepresentationAction } from '../../features/taxFile/shaamRepresentationAction';
-import { gmf154Filing, filingNoteText } from '../../features/shaamFiling/fromGmf154';
+import { gmf154Filing, filingNoteText, openReturnYears } from '../../features/shaamFiling/fromGmf154';
 import { useGmf154Import } from '../../features/shaamFiling/useGmf154Import';
 import { authorityFieldHelp } from '../../features/taxFile/authorityFieldHelp';
 import { AuthorityCheckButton, AuthorityCheckSummary, FieldStatusMark, FieldAuthorityLine, PersonSyncButton } from '../clientTabs/AuthorityCheckPanel';
@@ -711,7 +711,8 @@ export default function AuthoritiesPanel({
                 onRetry={spec.available && !running && !inputBlocked ? () => runCheck() : undefined}
               >
                 {(inputBlocked ?? unavailable) && !running && <div className="txf-check-note">{inputBlocked ?? unavailable}</div>}
-                {row.authority === 'income_tax' && filing154 && !running && (
+                {/* ‼ 22.10.2026 · רק כשיש דוח שחייב ולא הוגש — «כל הדוחות הוגשו» אינו פעולה. */}
+                {row.authority === 'income_tax' && filing154 && !running && openReturnYears(filing154).length > 0 && (
                   <div className="txf-check-note" data-gmf154-note>
                     <span className="txf-check-grp">דוחות שנתיים</span> {filingNoteText(filing154)}
                   </div>
