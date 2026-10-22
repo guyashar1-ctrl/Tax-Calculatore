@@ -93,7 +93,7 @@ export const TESTS: TestCase[] = [
     equal(pending.authorityDisplay, 'ממתין לאישור יזום');
     equal(run2('קיים אישור', 'none').status, 'info', 'סותר — מידע, לא הצעה');
   }),
-  test('מצב דיווחים: בלי מקדמות פעילות ⇒ «אין מקדמות»; עם מקדמות ⇒ ניטרלי עד שנקרא מ-134', () => {
+  test('מצב דיווחים: בלי מקדמות פעילות ⇒ «אין מקדמות»; עם מקדמות ⇒ ניטרלי עד שנקרא מ-134; נקרא ⇒ הצעה', () => {
     const read = (fields: Record<string, string>, c = client()) => spec.interpret!(job(fields), c, ['incomeTaxReportingStatus'])[0];
     const none = read({ advanceStatus: 'cancelled', advanceStatusRaw: 'בוטלה (שעור דו)' });
     equal(none.status, 'changed');
@@ -102,6 +102,10 @@ export const TESTS: TestCase[] = [
     const active = read({ advanceRate: '15%', advanceFrequency: 'דו-חדשי', advanceStatus: 'active' });
     equal(active.status, 'info');
     equal(active.authorityValue, undefined, 'בלי הצעה');
+    const read134 = read({ advanceStatus: 'active', reportingStatus: 'אין דיווחים חסרים' });
+    equal(read134.status, 'changed', 'מקדמות פעילות + 134 ⇒ הצעה מהמונה של שע״ם');
+    equal(read134.authorityValue, 'אין דיווחים חסרים');
+    equal(read({ advanceStatus: 'active', reportingStatus: 'חסר דיווח: 07-08/2026' }, client({ incomeTaxReportingStatus: 'חסר דיווח: 07-08/2026' })).status, 'match');
   }),
   test('«אין מקדמות» אינו חוסר — לא דגל ולא כתום', () => {
     assert(reportingStatusOk('אין מקדמות'), 'אין מקדמות');

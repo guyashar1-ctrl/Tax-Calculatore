@@ -331,9 +331,9 @@ export const SHAAM_134_FIELD_SOURCES: Record<string, Shaam134FieldSource> = {
     source: 'balance', normalize: mapBalance,
     businessValue: (f) => (advanceBusinessState(f) ? 'info' : null),
   },
-  // ‼ «מצב דיווחים» = דיווחי המקדמות (134). בלי מקדמות פעילות (154: «לא נדרש» / «בוטלה») ⇒
-  // «אין מקדמות». עם מקדמות — ‼ עדיין לא נקרא (ערכי «מצב דיווח» של לקוח פעיל טרם נצפו חי):
-  // סמן ניטרלי, בלי הצעה ובלי «לא נקרא».
+  // ‼ «מצב דיווחים» = דיווחי המקדמות. בלי מקדמות פעילות (154: «לא נדרש» / «בוטלה») ⇒ «אין מקדמות».
+  // עם מקדמות — מ-134 (worker/src/gmf134.mjs: המונה moneDvcChaser והתקופות, נצפה חי 23.10.2026):
+  // «אין דיווחים חסרים» / «חסר דיווח: 07-08/2026». ריצה בלי הנתון — סמן ניטרלי, בלי «לא נקרא».
   incomeTaxReportingStatus: {
     source: 'reportingStatus',
     businessValue: (f) => (advanceBusinessState(f)

@@ -719,6 +719,8 @@ export const GMF_QUERY_ADVANCES = '134';
 export const GMF_134_ENTRY_PATH = '/gmf-134/main/knisa';
 export const GMF_134_DATA_PATH = '/gmf-134/main/meda';
 const GMF_134_CONTINUE = '#btnContinue';
+/** ‼ נצפה חי 23.10.2026: מסך הנתונים של 134 טוען את התיק (כולל lstTkufot — «מצב דיווח») מכאן. */
+const GMF_134_TIK_API = '/gmf134Api/api/gmf134/getTikData';
 const GMF_134_YEAR_RADIO = '#ex1';
 const GMF_134_INFO_RADIO = '#entranceRadioList-1';
 
@@ -848,6 +850,7 @@ export async function openAdvancesInfo(page, fileNumber) {
   note(`entry:tik=${tikOnEntry.ok ? 'ok' : 'MISMATCH'}(${tikOnEntry.got})`);
   if (!tikOnEntry.ok) return { ok: false, reason: 'entry_file_not_applied', steps };
 
+  const tikP = captureJson(work, GMF_134_TIK_API, 40000);
   try {
     await work.locator(GMF_134_CONTINUE).click({ timeout: 10000 });
   } catch (e) {
@@ -860,7 +863,10 @@ export async function openAdvancesInfo(page, fileNumber) {
   if (!data.pathname.startsWith(GMF_134_DATA_PATH)) {
     return { ok: false, reason: 'data_screen_missing', pathname: data.pathname, steps };
   }
-  return { ok: true, page: work, pathname: data.pathname, steps };
+  // ‼ «מצב דיווח» לכל תקופה — מה-JSON; חסר ⇒ פשוט לא מדווחים עליו (השדות שמהמסך עדיין נקראים).
+  const tik = (await tikP)?.body ?? null;
+  note(`tikData:${tik ? 'ok' : 'none'}`);
+  return { ok: true, page: work, pathname: data.pathname, tik, steps };
 }
 
 // ─── שאילתה 154 — «מידע אודות שנות מס» ─────────────────────────────────────

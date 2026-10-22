@@ -11,6 +11,7 @@ register('./fixtures/shaam-sim/loader.mjs', import.meta.url);
 const { world, tab, resetWorld, SimPage } = await import('./fixtures/shaam-sim/world.mjs');
 const sync = await import('../src/handlers/shaamSyncIncomeTaxFile.mjs');
 const { sample154 } = await import('./fixtures/gmf154-sample.mjs');
+const { tik134 } = await import('./fixtures/gmf134-sample.mjs');
 
 const logs = [];
 const ctx = () => ({ log: (...a) => logs.push(a.join(' ')), workerId: 'sim', job: { id: 'job', progress: {}, revision: 0 } });
@@ -81,4 +82,15 @@ test('תיק אחר במסך של 154 ⇒ נעצר, לא נופל ל-134', async
   const queries = connected(sample154({ fileNumber: '987654321' }));
   await assert.rejects(sync.run(ctx(), { fileNumber: FILE }), (e) => e.code === 'file_mismatch');
   assert.deepEqual(queries, ['154']);
+});
+
+test('מקדמות פעילות ⇒ «מצב דיווחים» מ-134: המונה של שע״ם והתקופות', async () => {
+  connected(sample154({ sugDrisha: 'שעור דו' }));
+  world.gmf134 = tik134({ missing: { 202607: 'לא דווח' } });
+  const r = await sync.run(ctx(), { fileNumber: FILE });
+  assert.equal(r.result.fields.reportingStatus, 'חסר דיווח: 07-08/2026');
+  assert.equal(r.result.advancePeriods.length, 6);
+  connected(sample154({ sugDrisha: 'שעור דו' }));
+  world.gmf134 = tik134();
+  assert.equal((await sync.run(ctx(), { fileNumber: FILE })).result.fields.reportingStatus, 'אין דיווחים חסרים');
 });

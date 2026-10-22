@@ -38,6 +38,8 @@ export const world = {
   gmf154: null,
   /** הפורטל פג בשרת והתפריט עוד על המסך: הלחיצה בכותרת לא מזיזה את הדף (302 ל-otpCts, נצפה 21.10). */
   gmfApiExpired: false,
+  /** שאילתה 134: תשובת getTikData (lstTkufot, moneDvcChaser). null ⇒ לא נלכדה. */
+  gmf134: null,
 };
 
 export function resetWorld() {
@@ -45,7 +47,7 @@ export function resetWorld() {
     chrome: 'closed', portal: false, gmfSession: false,
     savedCredential: USERNAME, savedPasswordAccepted: true, pages: [],
     pivo: { picks: 0, submits: 0, focusClicks: 0, gotos: [] }, humanSubmits: 0, humanScript: [], reports: [],
-    gmf154: null, gmfApiExpired: false,
+    gmf154: null, gmfApiExpired: false, gmf134: null,
   });
 }
 
@@ -160,7 +162,12 @@ export class SimPage {
       else if (this.fields['#mavarShilta'] === '181') this.path = '/gmf-181/main/main181';
       return;
     }
-    if (sel === '#btnContinue') { this.path = '/gmf-134/main/meda'; return; }
+    if (sel === '#btnContinue') {
+      this.path = '/gmf-134/main/meda';
+      if (world.gmf134) this.#respond('/gmf134Api/api/gmf134/getTikData', world.gmf134);
+      this.#rejectWaiters();
+      return;
+    }
     if (sel === '#btnNext' && this.path.startsWith('/gmf-154')) {
       this.page154 += 1;
       world.pivo.pages154 = (world.pivo.pages154 ?? 0) + 1;

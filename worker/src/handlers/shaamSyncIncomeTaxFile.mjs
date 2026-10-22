@@ -16,6 +16,7 @@ import {
   extractIncomeTaxFileFacts, verifyFileDetailsFor,
 } from '../browserSession.mjs';
 import { parseTaxYears, openYears } from '../gmf154.mjs';
+import { reportingFrom134 } from '../gmf134.mjs';
 import { NeedsHumanError, PermanentError } from '../errors.mjs';
 import { isGmfLoginPath, reloginGmf, gmfReloginMessage, noteFirstPasswordLanding } from '../gmfRelogin.mjs';
 
@@ -102,6 +103,7 @@ export async function run(ctx, input) {
     }
 
     let fields = years ? { ...years.fields } : {};
+    let advancePeriods = null;
     let path = years ? opened154.pathname : null;
     const need134 = !years || years.advance === 'active';
     if (need134) {
@@ -138,6 +140,15 @@ export async function run(ctx, input) {
           fields = from134;
         }
         path = path ? `${path} + ${opened.pathname}` : opened.pathname;
+        // «מצב דיווחים» (דיווחי המקדמות) — מהמונה ומהתקופות של 134.
+        const rep = reportingFrom134(opened.tik);
+        if (rep.status) {
+          fields.reportingStatus = rep.status;
+          advancePeriods = rep.periods;
+          ctx.log(`134: מצב דיווחים — ${rep.status}`);
+        } else {
+          unavailable.push({ key: 'reportingStatus', reason: opened.tik ? 'no_counter' : 'tik_not_captured' });
+        }
       }
     }
 
@@ -157,6 +168,7 @@ export async function run(ctx, input) {
         area: 'income_tax_file',
         path, fields, unavailable,
         ...(years ? { filing: years.filing } : {}),
+        ...(advancePeriods ? { advancePeriods } : {}),
       },
     };
   } finally {
