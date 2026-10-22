@@ -102,6 +102,18 @@ function Field({ f, r, err, dir, id, onChange }: { f: RecordField; r: RecordValu
       </div>
     );
   }
+  if (f.type === 'pick') {
+    return (
+      <label className={cls} htmlFor={id}>
+        <span className="rec-label">{f.label}</span>
+        <select id={id} value={String(v ?? '')} aria-invalid={!!err} aria-describedby={describedBy} onChange={e => onChange({ [f.key]: e.target.value || undefined })}>
+          <option value="">בחירה…</option>
+          {f.options!.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+        </select>
+        {foot}
+      </label>
+    );
+  }
   if (f.type === 'monthIn' && f.year) {
     // ‼ 20.10.2026 · חודש בשנת הדוח בלבד; «לפני» שומר את התאריך מהתיק כשהוא לפני השנה (לא ממציאים תאריך)
     const Y = f.year;

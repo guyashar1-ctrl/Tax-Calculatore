@@ -16,7 +16,12 @@ const P: Record<string, string> = {
   'household.creditChanges': 'M2 9l10-5 10 5-10 5zM6 11v5c3 2 9 2 12 0v-5',
   'foreign.income': 'M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18M3 12h18M12 3c3 3.5 3 14.5 0 18M12 3c-3 3.5-3 14.5 0 18',
   'sales.sold': 'M3 12V4h8l10 10-8 8zM7.5 8.5h.01',
-  'household.familyChange': 'M5 7a3 3 0 1 0 6 0a3 3 0 1 0-6 0M13 7a3 3 0 1 0 6 0a3 3 0 1 0-6 0M3 20c0-3 2.2-5 5-5s5 2 5 5M11 20c0-3 2.2-5 5-5s5 2 5 5',
+  // 21.10.2026 · סבב 2
+  'savings.withdrawal': 'M3 6h18v12H3zM12 9v6M9.5 12.5L12 15l2.5-2.5',
+  'business.started': 'M4 20V9l8-5 8 5v11M9 20v-6h6v6',
+  'household.aliyah': 'M3 17l6-3 4 2 8-5M3 21h18M14 4l3 3-3 3',
+  'household.relativeCare': 'M4 21V9l8-5 8 5v12M12 10v6M9 13h6',
+  'household.familyChange':'M5 7a3 3 0 1 0 6 0a3 3 0 1 0-6 0M13 7a3 3 0 1 0 6 0a3 3 0 1 0-6 0M3 20c0-3 2.2-5 5-5s5 2 5 5M11 20c0-3 2.2-5 5-5s5 2 5 5',
 };
 
 export function TileIcon({ k }: { k: string }) {

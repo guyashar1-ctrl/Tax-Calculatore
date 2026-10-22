@@ -10,7 +10,7 @@ import { test, equal, assert } from '../../../testkit/tinyTest';
 import type { TestCase } from '../../../testkit/tinyTest';
 import type { Client } from '../../../types';
 import { buildYearPicture, type PictureInput } from '../picture';
-import { buildAskPlan, ANNUAL_GRID_KEY, type AskCtx } from '../asks';
+import { buildAskPlan, ANNUAL_GRID_KEY, ANNUAL_LESS_KEY, type AskCtx } from '../asks';
 import { withOneRound } from '../oneRound';
 import { askIdentity, draftToAnswer, expandWithDrafts, readyToSend, answerText, type Draft } from '../flowDraft';
 import { genderize, genderOf } from '../gender';
@@ -31,17 +31,19 @@ const published = (c: Client): InfoAsk[] => planFor(c).map(e => ({ id: `a${++n}`
   subjectRole: e.subjectRole, entityKind: e.entityKind, entityRef: e.entityRef, prompt: e.prompt, state: 'published', createdAt: '2026-10-20' }) as InfoAsk);
 
 export const TESTS: TestCase[] = [
-  test('טיוטה: סימון «תשלום מביטוח לאומי» פותח «מה שולם?» לכל אחד — בדפדפן, ושום דבר לא «מוכן לשליחה» חוץ מהשאלות האמיתיות', () => {
+  test('טיוטה: סימון «ביטוח לאומי» במסך של כל אחד פותח «מה שולם?» שלו — בדפדפן, ושום דבר לא «מוכן לשליחה» חוץ מהשאלות האמיתיות', () => {
     const asks = published(client());
-    const grid = asks.find(a => a.itemKey === ANNUAL_GRID_KEY)!;
-    const drafts: Record<string, Draft> = { [askIdentity(grid)]: { selected: ['niBenefits.received'] } };
+    const grid = asks.find(a => a.itemKey === ANNUAL_GRID_KEY && a.subjectRole === 'client')!;
+    const grid2 = asks.find(a => a.itemKey === ANNUAL_GRID_KEY && a.subjectRole === 'spouse')!;
+    const drafts: Record<string, Draft> = { [askIdentity(grid)]: { selected: ['niBenefits.received'] }, [askIdentity(grid2)]: { selected: ['niBenefits.received'] } };
     const ex = expandWithDrafts(asks, drafts);
     const kinds = ex.filter(a => a.itemKey === 'niBenefits.kinds');
     equal(kinds.map(a => a.subjectRole).join(','), 'client,spouse');
+    equal(expandWithDrafts(asks, { [askIdentity(grid)]: { selected: ['niBenefits.received'] } }).filter(a => a.itemKey === 'niBenefits.kinds').map(a => a.subjectRole).join(','), 'client');
     assert(kinds.every(a => a.id.startsWith('v:')), 'וירטואליות עד השליחה');
     assert(!ex.some(a => a.itemKey === 'niBenefits.cert' || a.itemKey === 'niBenefits.maternity'), 'אין אישור ב״ל ואין «דמי לידה?» לבד');
     // ביטול הסימון ⇒ ההמשך נעלם
-    equal(expandWithDrafts(asks, { [askIdentity(grid)]: { selected: [] , none: true } }).filter(a => a.itemKey === 'niBenefits.kinds').length, 0);
+    equal(expandWithDrafts(asks, { [askIdentity(grid)]: { selected: [] , none: true }, [askIdentity(grid2)]: { selected: [], none: true } }).filter(a => a.itemKey === 'niBenefits.kinds').length, 0);
     // בשליחה: רק אמיתיות (הרשת וכו׳) — «מה שולם?» נשלח בסבב הבא, אחרי שהשרת פתח אותה
     const ready = readyToSend(ex, { ...drafts, [askIdentity(kinds[0])]: { selected: ['niBenefits.maternity'] } });
     assert(ready.some(r => r.ask.id === grid.id) && !ready.some(r => r.ask.id.startsWith('v:')), 'נשלחות רק אמיתיות');
@@ -52,20 +54,27 @@ export const TESTS: TestCase[] = [
   }),
   test('«מה שולם?»: «דמי לידה» היא העובדה niBenefits.maternity (כמו התשובה הישנה), ותצוגה קצרה בסיכום', () => {
     const asks = published(client());
-    const grid = asks.find(a => a.itemKey === ANNUAL_GRID_KEY)!;
+    const grid = asks.find(a => a.itemKey === ANNUAL_GRID_KEY && a.subjectRole === 'spouse')!;
     const k = expandWithDrafts(asks, { [askIdentity(grid)]: { selected: ['niBenefits.received'] } }).find(a => a.itemKey === 'niBenefits.kinds' && a.subjectRole === 'spouse')!;
     assert(k.prompt.input.kind === 'multi' && k.prompt.input.options.some(o => o.key === 'niBenefits.maternity' && o.role === 'spouse'), 'אפשרות דמי לידה לבת הזוג');
     equal(answerText(k, { selected: ['niBenefits.maternity'] }), 'דמי לידה');
     equal(k.prompt.subjectName, 'נועה');
   }),
-  test('ריבועים: שם + דוגמה + קבוצה; «שינוי במשפחה ב-2025» עם דוגמה לנשוי; «מה כבר ידוע לנו» לפני הריבועים', () => {
-    const grid = planFor(client()).find(e => e.itemKey === ANNUAL_GRID_KEY)!;
-    if (grid.prompt.input.kind !== 'multi') throw new Error('אין רשת');
-    const fam = grid.prompt.input.options.find(o => o.key === 'household.familyChange')!;
-    equal(fam.label, 'שינוי במשפחה ב-2025');
-    equal(fam.example, 'גירושין, פרידה או פטירה');
-    equal(grid.prompt.input.options.find(o => o.key === 'pension.received')?.label, 'קבלת פנסיה או קצבה');
-    equal(grid.prompt.input.options.find(o => o.key === 'savings.selfDeposits')?.group, 'less');
+  test('סבב 2 · ריבועים: לכל אדם «מאיפה נכנס כסף» ו«מה מוריד מס», עם שם, דוגמה ו«?»; «מה כבר ידוע לנו» לפני הריבועים', () => {
+    const plan = planFor(client());
+    const grid = plan.find(e => e.itemKey === ANNUAL_GRID_KEY && e.subjectRole === 'client')!;
+    const less = plan.find(e => e.itemKey === ANNUAL_LESS_KEY && e.subjectRole === 'spouse')!;
+    if (grid.prompt.input.kind !== 'multi' || less.prompt.input.kind !== 'multi') throw new Error('אין רשת');
+    equal(grid.prompt.title, 'מאיפה נכנס לך כסף ב-2025?');
+    equal(less.prompt.title, 'מה יכול להוריד לנועה מס?');
+    equal(less.prompt.subjectName, 'נועה');
+    equal(grid.prompt.subjectName, 'דני');
+    assert(!grid.prompt.input.options.some(o => o.key === 'household.familyChange'), '«שינוי במשפחה» הוא שורה, לא ריבוע');
+    equal(grid.prompt.input.options.find(o => o.key === 'pension.received')?.label, 'פנסיה או קצבה');
+    equal(grid.prompt.input.options.find(o => o.key === 'pension.received')?.hint, 'תשלום חודשי. סכום חד-פעמי — ב«משיכה מקופה».');
+    equal(less.prompt.input.options.find(o => o.key === 'savings.selfDeposits')?.group, 'less');
+    equal(less.prompt.input.options.find(o => o.key === 'household.creditChanges')?.example, 'מ-2020');
+    assert(!!grid.prompt.otherNote && !less.prompt.otherNote, '«משהו אחר?» רק במסך הכסף');
     const known = Object.fromEntries(grid.prompt.known ?? []);
     equal(known['מצב משפחתי'], 'נשואים מ-2023');
     equal(known['נועה'], 'משרד החינוך');
@@ -111,15 +120,16 @@ export const TESTS: TestCase[] = [
     equal(all.filter(f => f.itemKey === 'salary.form106').length, 1);
     assert(all.some(f => f.itemKey === 'salary.employerDetails'), 'פרטי המעסיק החדש נשאלים');
   }),
-  test('אלמן: ריבוע ביטוח לאומי פותח «מה שולם?» ללקוח בלבד; נכות של מי שנפטרה — בענף הפטירה', () => {
+  test('אלמן: מסכי ריבועים רק ללקוח; «נכון» בשורת המשפחה פותח את ענף הפטירה; נכות של מי שנפטרה — בענף', () => {
     const c = client({ familyStatus: 'widowed', widowhoodYear: 2025, gender: 'male', spouseFirstName: 'רחל' } as Partial<Client>);
-    const grid = planFor(c).find(e => e.itemKey === ANNUAL_GRID_KEY)!;
+    const plan = planFor(c);
+    equal(plan.filter(e => e.itemKey === ANNUAL_GRID_KEY || e.itemKey === ANNUAL_LESS_KEY).map(e => e.subjectRole).join(','), 'client,client');
+    const grid = plan.find(e => e.itemKey === ANNUAL_GRID_KEY)!;
     if (grid.prompt.input.kind !== 'multi') throw new Error('אין רשת');
     const ni = grid.prompt.input.options.find(o => o.key === 'niBenefits.received')!;
     equal((ni.followUps ?? []).map(f => `${f.itemKey}@${f.subjectRole}`).join(','), 'niBenefits.kinds@client');
-    const death = grid.prompt.input.options.find(o => o.key === 'household.familyChange')!;
-    equal(death.label, 'רחל נפטרה');
-    const income = (death.followUps ?? []).find(f => f.itemKey === 'family.deathIncome')!;
+    const fam = plan.find(e => e.itemKey === 'household.maritalAtYearEnd')!;
+    const income = (fam.prompt.onYes ?? []).find(f => f.itemKey === 'family.deathIncome')!;
     assert(income.prompt.input.kind === 'multi' && income.prompt.input.options.some(o => o.key === 'special.disability' && o.role === 'spouse'), 'נכות של רחל בענף');
     assert(income.prompt.input.kind === 'multi' && !income.prompt.input.options.some(o => (o.followUps ?? []).some(f => f.itemKey === 'niBenefits.cert')), 'אישור ב״ל לא מהלקוח');
     assert(!/\//.test(income.prompt.title), income.prompt.title);

@@ -1,6 +1,12 @@
 // ─── הדף האישי: שאלון הדוח השנתי — מחדש (20.10.2026; docs/proposals/2026-10-20-annual-questionnaire-v2.html) ─────────
-// ‼ ההמחשה שגיא אישר: «מה כבר ידוע לנו» → ריבועים עם ציור ודוגמה → שאלה אחת בכל מסך → «רגע לפני ששולחים» (אפשר לשנות
-//   הכול) → «שליחה למשרד» → המסמכים, רק בסוף, בשמות ברורים, ומה שאנחנו מוציאים בשורה אחת.
+// ‼ ההמחשה שגיא אישר: «מה כבר ידוע לנו» → ריבועים עם ציור ודוגמה → שאלה אחת בכל מסך → «שליחה למשרד» → המסמכים,
+//   רק בסוף, בשמות ברורים, ומה שאנחנו מוציאים בשורה אחת.
+// ‼ 21.10.2026 · סבב 2 (docs/proposals/2026-10-21-annual-questionnaire-fixes.html, גיא אישר):
+//   · «זה עדיין נכון?» — «נכון» מקפל את השורה ל-✓; «השתנה» נפתח בתוך השורה (בחירה קטנה או עריכה), לא במסך נוסף.
+//   · לכל אדם שני מסכי ריבועים: «מאיפה נכנס לך כסף» ו«מה יכול להוריד לך מס» — בלי «של מי».
+//   · «?» בריבוע פותח שורת הסבר; כלום לא סומן ⇒ הכפתור אומר «לא היה כלום — הבא»; «משהו אחר?» — הערה למשרד.
+//   · «לימודים וצבא» — מסך אחד בסוף לכל בני הבית (flowDraft.ts › walkScreens).
+//   · בלי הודעות שגיאה למטה: «הבא» מוביל למה שחסר, והוא רועד קלות עם «חסר כאן».
 // ‼ שום דבר לא נשלח ושום דבר לא ננעל עד «שליחה למשרד» (flowDraft.ts). הטיוטה נשמרת במכשיר ובשרת (saved_draft של שאלה פתוחה).
 // ‼ ההמשך שתשובה פותחת — מאותם צילומים שהשרת פותח; בשליחה השרת פותח אותם באמת, ואז נשלחות תשובותיהם (בסבבים, לפי הסדר).
 // ‼ בתצוגה מקדימה (מהמשרד) — הכול עובד מקומית, בלי שליחה ובלי העלאה.
@@ -8,10 +14,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import * as api from './api';
 import { DOCS } from './documents';
-import { ANNUAL_GRID_KEY, UNAVAILABLE_LABEL, type AskAnswer } from './asks';
+import { ANNUAL_GRIDS, UNAVAILABLE_LABEL, type AskAnswer } from './asks';
 import type { InfoAsk } from './types';
 import { screenAsks, sortAsks, type Screen } from './screens';
-import { answerText, askIdentity, draftToAnswer, expandWithDrafts, isVirtual, readyToSend, shownDraft, walkScreens, type Draft } from './flowDraft';
+import { askIdentity, draftToAnswer, expandWithDrafts, inlineOf, isVirtual, readyToSend, shownDraft, walkScreens, type Draft } from './flowDraft';
 import { cleanRecord, schemaFor, type RecordAnswer } from './records';
 import RecordEditor, { loadBankDirectory } from './RecordEditor';
 import { EntityEditor } from './TaxInfoFlow';
@@ -28,11 +34,25 @@ interface Props {
   onClose?: () => void;
 }
 
-type Step = { kind: 'known' } | Screen | { kind: 'review' };
+type Step = { kind: 'known' } | Screen;
 type Store = { v2: Record<string, Draft>; at: number; ours?: string[] };
 
 const isFile = (a: InfoAsk) => a.prompt.input.kind === 'file';
+const isGridAsk = (a: InfoAsk) => ANNUAL_GRIDS.includes(a.itemKey);
 const unsureOf = (a?: 'm' | 'f' | 'p') => (a === 'm' ? 'לא בטוח' : a === 'f' ? 'לא בטוחה' : 'לא בטוחים');
+const NO_NAME = '';
+
+/** שם קצר לשורה במסך «זה עדיין נכון?» — הנושא, לא השאלה. */
+const ROW_LABEL: Record<string, string> = {
+  'household.maritalAtYearEnd': 'המשפחה', 'household.children': 'ילדים', 'household.address': 'כתובת', 'household.settlement': 'יישוב',
+  'salary.employers': 'עבודה', 'business.active': 'עסק', 'rent.properties': 'נכסים מושכרים', 'capital.accounts': 'חשבונות השקעה',
+  'filing.refundAccount': 'חשבון להחזר מס',
+};
+/** «השתנה» — ובכתובת «עברנו». */
+const CHANGE_LABEL: Record<string, string> = { 'household.address': 'עברנו' };
+/** הסדר בשורות: משפחה · ילדים · כתובת · עבודה · … · חשבון להחזר (בסוף). */
+const rowRank = (a: InfoAsk) => { const k = Object.keys(ROW_LABEL).indexOf(a.itemKey); return k < 0 ? 50 : a.itemKey === 'filing.refundAccount' ? 99 : k; };
+const rowLabel = (a: InfoAsk) => ROW_LABEL[a.itemKey] ?? a.prompt.title.replace(/ — זה מה שידוע לנו$/, '');
 
 function readLocal(key: string): Store | null {
   try { const s = localStorage.getItem(key); return s ? JSON.parse(s) as Store : null; } catch { return null; }
@@ -41,14 +61,25 @@ function writeLocal(key: string, v: Store | null) {
   try { if (v) localStorage.setItem(key, JSON.stringify(v)); else localStorage.removeItem(key); } catch { /* מצב פרטי — הטיוטה בשרת */ }
 }
 
+/** שורה ב«זה עדיין נכון?»: מה שמוצג מהתיק (אישור — השורות; רשומה ממולאת — הסיכום). */
+function rowValue(a: InfoAsk): string[] {
+  const input = a.prompt.input;
+  if (input.kind === 'confirm') return input.lines;
+  if (input.kind === 'record') {
+    const schema = schemaFor(input.schema, undefined, input.context);
+    return (input.initial ?? []).map(r => schema.summary(r)).filter(Boolean);
+  }
+  return [];
+}
+
 export default function AnnualFlow({ stepId, token, title, initialAsks, fetchAsks, onClose }: Props) {
   const preview = !token;
   const localKey = `ty-draft:${stepId}`;
   const [asks, setAsks] = useState<InfoAsk[]>(initialAsks);
-  // השאלה שבה נשמרת הטיוטה בשרת — מסך הרשת אם עוד פתוח, אחרת השאלה הפתוחה הראשונה
+  // השאלה שבה נשמרת הטיוטה בשרת — מסך הריבועים הראשון שעוד פתוח, אחרת השאלה הפתוחה הראשונה
   const anchor = useMemo(() => {
-    const open = sortAsks(asks).filter(a => a.state === 'published' && !isFile(a));
-    return open.find(a => a.itemKey === ANNUAL_GRID_KEY) ?? open[0];
+    const open = sortAsks(asks).filter(a => a.state === 'published' && !isFile(a) && !isVirtual(a));
+    return open.find(isGridAsk) ?? open[0];
   }, [asks]);
   const [drafts, setDrafts] = useState<Record<string, Draft>>(() => {
     const server = (initialAsks.find(a => (a.savedDraft as Store | undefined)?.v2)?.savedDraft as Store | undefined) ?? null;
@@ -56,30 +87,34 @@ export default function AnnualFlow({ stepId, token, title, initialAsks, fetchAsk
     const best = [server, local].filter((x): x is Store => !!x).sort((a, b) => b.at - a.at)[0];
     return best?.v2 ?? {};
   });
-  const [opened, setOpened] = useState<Set<string>>(new Set());
-  const [marks, setMarks] = useState<Record<string, 'ok' | 'changed'>>({});
+  // ‼ סבב 2: «השתנה» נערך בתוך השורה — אין יותר מסך נפרד לאישור שהשתנה
+  const opened = useMemo(() => new Set<string>(), []);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [tried, setTried] = useState(false);
+  const [shake, setShake] = useState(0);
+  const [help, setHelp] = useState<string | null>(null);
+  const [otherOpen, setOtherOpen] = useState<Record<string, boolean>>({});
   const [noteOpen, setNoteOpen] = useState(false);
   const [docOpen, setDocOpen] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [ours, setOurs] = useState<string[]>(() => (preview ? [] : readLocal(`${localKey}:ours`)?.ours ?? []));
   const hasOpen = (list: InfoAsk[]) => list.some(a => a.state === 'published' && !isFile(a));
   const [phase, setPhase] = useState<'ask' | 'docs'>(() => (hasOpen(initialAsks) ? 'ask' : 'docs'));
+  const flowRef = useRef<HTMLDivElement>(null);
 
   const expanded = useMemo(() => expandWithDrafts(asks, drafts), [asks, drafts]);
-  const grid = expanded.find(a => a.itemKey === ANNUAL_GRID_KEY);
+  const grid = expanded.find(isGridAsk);
   const steps: Step[] = useMemo(() => {
     const walk = walkScreens(expanded, opened);
-    // ‼ כשיש אישורים מהכרטיס — הם המסך הראשון («מה שכבר ידוע לנו — נכון?»); בלי אישורים — «מה כבר ידוע לנו» לתצוגה בלבד
+    // ‼ כשיש אישורים מהכרטיס — הם המסך הראשון («זה עדיין נכון?»); בלי אישורים — «מה כבר ידוע לנו» לתצוגה בלבד
     const hasConfirm = walk.some(s => s.kind === 'confirmAll' || (s.kind === 'ask' && s.ask.prompt.input.kind === 'confirm'));
     const known = !hasConfirm && grid && grid.state === 'published' && (grid.prompt.known?.length ?? 0) > 0 ? [{ kind: 'known' as const }] : [];
-    return [...known, ...walk, { kind: 'review' }];
+    return [...known, ...walk];
   }, [expanded, opened, grid]);
   const [i, setI] = useState(() => {
     // חזרה מאותו קישור: למסך הראשון שעוד אין לו תשובה בטיוטה
-    const k = steps.findIndex(s => s.kind !== 'known' && s.kind !== 'review' && screenAsks(s).some(a => a.state === 'published' && !drafts[askIdentity(a)]));
+    const k = steps.findIndex(s => s.kind !== 'known' && screenAsks(s).some(a => a.state === 'published' && !drafts[askIdentity(a)]));
     return k < 0 ? Math.max(0, steps.length - 1) : (k === 1 && steps[0].kind === 'known' ? 0 : k);
   });
 
@@ -97,10 +132,21 @@ export default function AnnualFlow({ stepId, token, title, initialAsks, fetchAsk
   useEffect(() => () => window.clearTimeout(timer.current), []);
   const putDrafts = (patch: Record<string, Draft>) => setDrafts(d => { const n = { ...d, ...patch }; persist(n); return n; });
 
+  // ‼ «הבא» כשחסר משהו: גוללים אל הדבר הראשון שחסר, והוא רועד קלות (בלי הודעת שגיאה למטה)
+  useEffect(() => {
+    if (!shake) return;
+    const el = flowRef.current?.querySelector<HTMLElement>('.is-bad, .has-err');
+    if (!el) return;
+    el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    el.classList.remove('ty-shake'); void el.offsetWidth; el.classList.add('ty-shake');
+  }, [shake]);
+  const fail = () => { setTried(true); setShake(n => n + 1); };
+
   const idx = Math.max(0, Math.min(steps.length - 1, i));
   const step = steps[idx];
-  const progress = Math.round((idx / Math.max(1, steps.length - 1)) * 100);
-  const go = (n: number) => { setTried(false); setErr(null); setI(Math.max(0, n)); };
+  const last = idx === steps.length - 1;
+  const progress = Math.round((idx / Math.max(1, steps.length)) * 100);
+  const go = (n: number) => { setTried(false); setErr(null); setHelp(null); setI(Math.max(0, n)); window.scrollTo?.({ top: 0 }); };
 
   const top = (
     <>
@@ -110,11 +156,79 @@ export default function AnnualFlow({ stepId, token, title, initialAsks, fetchAsk
     </>
   );
 
+  // ── המסך שעוד חסרה בו תשובה (לפני השליחה) ──
+  const answered = (a: InfoAsk) => a.state !== 'published' || !!(drafts[askIdentity(a)] && draftToAnswer(a, drafts[askIdentity(a)]));
+  const rowOk = (a: InfoAsk): boolean => {
+    if (a.state !== 'published') return true;
+    const d = drafts[askIdentity(a)];
+    if (!d?.choice) return false;
+    if (d.choice === 'yes') return true;
+    const inl = inlineOf(expanded, a);
+    return !!draftToAnswer(a, d) && inl.every(x => !!drafts[askIdentity(x)] && !!draftToAnswer(x, drafts[askIdentity(x)]));
+  };
+  const screenOk = (s: Step) => s.kind === 'known' || (s.kind === 'confirmAll' ? s.asks.every(rowOk) : screenAsks(s).every(a => isGridAsk(a) || answered(a)));
+
+  const send = async () => {
+    if (preview) return;
+    const miss = steps.findIndex(s => !screenOk(s));
+    if (miss >= 0) { go(miss); window.setTimeout(fail, 30); return; }
+    setBusy(true); setErr(null);
+    // ‼ מסך ריבועים שלא נגעו בו — מה שמוצג (סימון מראש) הוא התשובה, וריק = «לא היה כלום»
+    const dd = { ...drafts };
+    for (const g of expanded.filter(a => isGridAsk(a) && a.state === 'published' && !drafts[askIdentity(a)])) {
+      const s = shownDraft(g, undefined);
+      dd[askIdentity(g)] = s.selected?.length ? s : { none: true, selected: [] };
+    }
+    // מה שאנחנו מוציאים — מהריבועים שסומנו (לפני שהטיוטה נמחקת)
+    const oursNow = [...new Set(expanded.filter(isGridAsk).flatMap(g => {
+      const gd = dd[askIdentity(g)];
+      return g.prompt.input.kind === 'multi' && gd?.selected ? g.prompt.input.options.filter(o => gd.selected!.includes(o.key)).flatMap(o => o.ours ?? []) : [];
+    }))];
+    let cur = asks;
+    try {
+      const dir = { v: null as Awaited<ReturnType<typeof loadBankDirectory>> | null, loaded: false };
+      for (let pass = 0; pass < 6; pass++) {
+        const ready = readyToSend(sortAsks(expandWithDrafts(cur, dd)), dd);
+        if (!ready.length) break;
+        for (const { ask, answer } of ready) {
+          const payload = await cleanAnswer(ask, answer, dir);
+          const r = await api.portalSubmit(token!, ask.id, payload);
+          if (!r.ok) throw new Error(r.error ?? 'failed');
+          cur = cur.map(x => (x.id === ask.id ? { ...x, state: 'answered' as const, savedDraft: undefined } : x));
+        }
+        cur = (await fetchAsks()).asks;
+      }
+    } catch {
+      setBusy(false); setAsks(cur); setErr('השליחה לא הושלמה — נסו שוב. מה שנשלח נשמר.');
+      return;
+    }
+    writeLocal(localKey, null);
+    writeLocal(`${localKey}:ours`, { v2: {}, at: Date.now(), ours: oursNow });
+    setOurs(oursNow);
+    setAsks(cur); setBusy(false); setPhase('docs');
+  };
+
+  const sendLabel = (
+    <><svg className="ty-send-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12l16-8-6 16-3-6z" /></svg>{busy ? 'שולח…' : 'שליחה למשרד'}</>
+  );
+  const nav = (onNext: () => void, label?: string, quiet = false) => (
+    <>
+      {err && <div className="ty-err" role="alert">{err}</div>}
+      <div className="ty-nav">
+        <button type="button" className="btn btn-ghost" disabled={idx === 0 || busy} onClick={() => go(idx - 1)}>הקודם</button>
+        <button type="button" className={`btn btn-primary${quiet ? ' is-quiet' : ''}`} disabled={busy || (last && preview)} onClick={onNext} data-annual-send={last ? '' : undefined}>
+          {last ? sendLabel : label ?? 'הבא'}
+        </button>
+      </div>
+    </>
+  );
+  const advance = () => (last ? void send() : go(idx + 1));
+
   // ── אחרי השליחה: המסמכים, רק בסוף ──
   if (phase === 'docs') {
     const files = sortAsks(asks).filter(a => isFile(a) && (a.state === 'published' || (a.state === 'unavailable' && a.unavailable?.code !== 'needHelp')));
     const done = sortAsks(asks).filter(a => isFile(a) && a.state === 'answered');
-    const help = asks.filter(a => isFile(a) && a.state === 'unavailable' && a.unavailable?.code === 'needHelp');
+    const help2 = asks.filter(a => isFile(a) && a.state === 'unavailable' && a.unavailable?.code === 'needHelp');
     const later = async (a: InfoAsk) => {
       if (preview) return;
       setBusy(true);
@@ -131,54 +245,66 @@ export default function AnnualFlow({ stepId, token, title, initialAsks, fetchAsk
       return null;
     };
     const left = files.length;
+    const total = left + done.length;
+    // ‼ סבב 2: המסמכים לפי אדם (שם על כל קבוצה), ומה שמשותף — בסוף
+    const rank = (n: string) => { const r = [...files, ...done].find(a => (a.prompt.subjectName ?? NO_NAME) === n)?.subjectRole; return n === NO_NAME ? 3 : r === 'client' ? 0 : r === 'spouse' ? 1 : 2; };
+    const people = [...new Set([...files, ...done].map(a => a.prompt.subjectName ?? NO_NAME))].sort((x, y) => rank(x) - rank(y));
+    const byPerson = people.length > 1;
+    const row = (a: InfoAsk) => (
+      <li key={a.id} className={`ty-owed-item${a.state === 'unavailable' ? ' is-later' : ''}`} data-owed={a.id}>
+        <div className="ty-owed-row">
+          <span className="ty-owed-title"><b>{a.prompt.title}</b>
+            <small>{[byPerson ? '' : a.prompt.subjectName, a.state === 'unavailable' ? UNAVAILABLE_LABEL[a.unavailable?.code ?? 'legacy'] : ''].filter(Boolean).join(' · ')}</small></span>
+          {docOpen !== a.id && (
+            <span className="ty-owed-acts">
+              <button type="button" className="btn btn-sm btn-primary" disabled={preview} onClick={() => setDocOpen(a.id)}>העלאה</button>
+              {a.state === 'published' && <button type="button" className="ty-link" disabled={preview || busy} onClick={() => void later(a)}>אחר כך</button>}
+            </span>
+          )}
+        </div>
+        {docOpen === a.id && a.prompt.input.kind === 'file' && (
+          <DocPartsPicker docKind={a.prompt.input.docKind} fileName={DOCS[a.prompt.input.docKind]?.label ?? 'מסמך'} storeKey={`${stepId}:${a.id}`} disabled={preview}
+            onConfirm={async (pdf, manifest) => { const e = await upload(a, pdf, manifest); if (!e) setDocOpen(null); return e; }} />
+        )}
+      </li>
+    );
+    const doneRow = (a: InfoAsk) => (
+      <li key={a.id} className="ty-owed-item is-done" data-done={a.id}>
+        <div className="ty-owed-row"><span className="ty-owed-title"><b>{a.prompt.title}</b>{!byPerson && a.prompt.subjectName && <small>{a.prompt.subjectName}</small>}</span><span className="ty-done-tag">✓</span></div>
+      </li>
+    );
     return (
-      <div className="ty-flow" aria-live="polite" data-finish data-annual-docs>
+      <div className="ty-flow" aria-live="polite" data-finish data-annual-docs ref={flowRef}>
         {top}
-        <p className="ty-q">{left ? 'נשלח ✓ — מה להעלות' : done.length ? 'הכול הועלה. תודה!' : 'נשלח ✓ תודה!'}</p>
-        {left > 0 && <p className="ty-q-sub">{left === 1 ? 'מסמך אחד' : `${left} מסמכים`}. אפשר עכשיו או אחר כך, מאותו קישור.</p>}
-        <ul className="ty-owed-list">
-          {files.map(a => (
-            <li key={a.id} className={`ty-owed-item${a.state === 'unavailable' ? ' is-later' : ''}`} data-owed={a.id}>
-              <div className="ty-owed-row">
-                <span className="ty-owed-title"><b>{a.prompt.title}</b>
-                  <small>{[a.prompt.subjectName, a.state === 'unavailable' ? UNAVAILABLE_LABEL[a.unavailable?.code ?? 'legacy'] : ''].filter(Boolean).join(' · ')}</small></span>
-                {docOpen !== a.id && (
-                  <span className="ty-owed-acts">
-                    <button type="button" className="btn btn-sm btn-primary" disabled={preview} onClick={() => setDocOpen(a.id)}>העלאה</button>
-                    {a.state === 'published' && <button type="button" className="ty-link" disabled={preview || busy} onClick={() => void later(a)}>אחר כך</button>}
-                  </span>
-                )}
-              </div>
-              {docOpen === a.id && a.prompt.input.kind === 'file' && (
-                <DocPartsPicker docKind={a.prompt.input.docKind} fileName={DOCS[a.prompt.input.docKind]?.label ?? 'מסמך'} storeKey={`${stepId}:${a.id}`} disabled={preview}
-                  onConfirm={async (pdf, manifest) => { const e = await upload(a, pdf, manifest); if (!e) setDocOpen(null); return e; }} />
-              )}
-            </li>
-          ))}
-          {done.map(a => (
-            <li key={a.id} className="ty-owed-item is-done" data-done={a.id}>
-              <div className="ty-owed-row"><span className="ty-owed-title"><b>{a.prompt.title}</b>{a.prompt.subjectName && <small>{a.prompt.subjectName}</small>}</span><span className="ty-done-tag">✓ הועלה</span></div>
-            </li>
-          ))}
-        </ul>
-        {help.length > 0 && <p className="ty-q-sub" role="note">ביקשת עזרה ב{help.length === 1 ? `: ${help[0].prompt.title}` : `-${help.length} מסמכים`}. המשרד יחזור אליך.</p>}
-        {ours.length > 0 && <p className="ty-ours" data-ours>אנחנו מוציאים בעצמנו: {ours.join(' · ')}</p>}
+        <p className="ty-q">{left ? 'קיבלנו. עכשיו המסמכים' : done.length ? 'הכול הועלה. תודה!' : 'קיבלנו. תודה!'}</p>
+        {total > 0 && <p className="ty-q-sub" data-doc-count>{done.length} מתוך {total}{left ? ' · אפשר גם אחר כך, מאותו קישור' : ''}</p>}
+        {people.map(p => {
+          const mine = (l: InfoAsk[]) => l.filter(a => (a.prompt.subjectName ?? NO_NAME) === p);
+          return (
+            <section key={p || 'home'} className="ty-docs-person">
+              {byPerson && <span className={`ty-person${p === NO_NAME ? ' is-home' : ''}`}><i aria-hidden="true">{p ? p[0] : '✱'}</i>{p || 'המשפחה'}</span>}
+              <ul className="ty-owed-list">{mine(files).map(row)}{mine(done).map(doneRow)}</ul>
+            </section>
+          );
+        })}
+        {help2.length > 0 && <p className="ty-q-sub" role="note">ביקשת עזרה ב{help2.length === 1 ? `: ${help2[0].prompt.title}` : `-${help2.length} מסמכים`}. המשרד יחזור אליך.</p>}
+        {ours.length > 0 && <p className="ty-ours" data-ours>{ours.length === 1 && ours[0].includes('ביטוח לאומי') ? 'ביטוח לאומי — אנחנו מוציאים.' : `אנחנו מוציאים בעצמנו: ${ours.join(' · ')}`}</p>}
         <div className="ty-actions">
           {hasOpen(asks) && <button type="button" className="btn btn-ghost" onClick={() => { setPhase('ask'); go(0); }}>לחזור לשאלות</button>}
-          {onClose && <button type="button" className="btn btn-primary" onClick={onClose}>{left ? 'אמשיך אחר כך' : 'סיום'}</button>}
+          {onClose && <button type="button" className="btn btn-primary" onClick={onClose}>{left ? 'אמשיך אחר כך' : 'סיימתי'}</button>}
         </div>
       </div>
     );
   }
 
-  // ── מסך «מה כבר ידוע לנו» ──
+  // ── מסך «מה כבר ידוע לנו» (בלי אישורים מהכרטיס — לתצוגה בלבד) ──
   if (step.kind === 'known' && grid) {
     const gd = drafts[askIdentity(grid)] ?? {};
     return (
-      <div className="ty-flow" data-screen="known">
+      <div className="ty-flow" data-screen="known" ref={flowRef}>
         {top}
         <p className="ty-q">{title}</p>
-        <p className="ty-q-sub">בערך 5 דקות. אפשר לעצור ולחזור — הכול נשמר.</p>
+        <p className="ty-q-sub">5 דקות. הכול נשמר.</p>
         <p className="ty-known-h">מה כבר ידוע לנו</p>
         <dl className="ty-known">{grid.prompt.known!.map(([k, v]) => <div key={k}><dt>{k}</dt><dd>{v}</dd></div>)}</dl>
         {!noteOpen && !gd.note && <button type="button" className="ty-link" onClick={() => setNoteOpen(true)}>משהו לא נכון?</button>}
@@ -195,114 +321,20 @@ export default function AnnualFlow({ stepId, token, title, initialAsks, fetchAsk
     );
   }
 
-  // ── «רגע לפני ששולחים» ──
-  if (step.kind === 'review') {
-    const rows = steps.map((s, k) => ({ s, k })).filter(x => x.s.kind !== 'known' && x.s.kind !== 'review');
-    const missing = rows.filter(({ s }) => screenAsks(s as Screen).some(a => a.state === 'published' && !(drafts[askIdentity(a)] && draftToAnswer(a, drafts[askIdentity(a)]))));
-    const send = async () => {
-      if (preview || missing.length) return;
-      setBusy(true); setErr(null);
-      // מה שאנחנו מוציאים — מהאריחים שסומנו (לפני שהטיוטה נמחקת)
-      const gd = grid ? drafts[askIdentity(grid)] : undefined;
-      const oursNow = grid && grid.prompt.input.kind === 'multi' && gd?.selected ? grid.prompt.input.options.filter(o => gd.selected!.includes(o.key)).flatMap(o => o.ours ?? []) : [];
-      let cur = asks;
-      try {
-        const dir = { v: null as Awaited<ReturnType<typeof loadBankDirectory>> | null, loaded: false };
-        for (let pass = 0; pass < 6; pass++) {
-          const ready = readyToSend(sortAsks(expandWithDrafts(cur, drafts)), drafts);
-          if (!ready.length) break;
-          for (const { ask, answer } of ready) {
-            const payload = await cleanAnswer(ask, answer, dir);
-            const r = await api.portalSubmit(token!, ask.id, payload);
-            if (!r.ok) throw new Error(r.error ?? 'failed');
-            cur = cur.map(x => (x.id === ask.id ? { ...x, state: 'answered' as const, savedDraft: undefined } : x));
-          }
-          cur = (await fetchAsks()).asks;
-        }
-      } catch {
-        setBusy(false); setAsks(cur); setErr('השליחה לא הושלמה — נסו שוב. מה שנשלח נשמר.');
-        return;
-      }
-      writeLocal(localKey, null);
-      writeLocal(`${localKey}:ours`, { v2: {}, at: Date.now(), ours: oursNow });
-      setOurs(oursNow);
-      setAsks(cur); setBusy(false); setPhase('docs');
-    };
-    return (
-      <div className="ty-flow" data-screen="review">
-        {top}
-        <p className="ty-q">רגע לפני ששולחים</p>
-        <p className="ty-q-sub">אפשר לשנות כל דבר. שום דבר עוד לא נשלח.</p>
-        <ul className="ty-review">
-          {rows.map(({ s, k }) => {
-            const list = screenAsks(s as Screen);
-            const head = s.kind === 'confirmAll' ? 'מה שכבר ידוע לנו' : list[0].itemKey === ANNUAL_GRID_KEY ? list[0].prompt.title : list[0].prompt.title;
-            const lines = list.map(a => {
-              const d = drafts[askIdentity(a)];
-              const t = a.state === 'published' ? answerText(a, d) : 'נשלח קודם';
-              return `${list.length > 1 && a.prompt.subjectName ? `${a.prompt.subjectName}: ` : list.length > 1 && s.kind === 'group' ? 'שלך: ' : ''}${t || '— חסר'}`;
-            });
-            const isMissing = missing.some(m => m.k === k);
-            return (
-              <li key={k} className={`ty-review-row${isMissing ? ' is-missing' : ''}`} data-review-row>
-                <div><b>{head}</b>{lines.map((l, n) => <span key={n}>{l}</span>)}</div>
-                <button type="button" className="ty-link" onClick={() => go(k)}>שינוי</button>
-              </li>
-            );
-          })}
-        </ul>
-        {missing.length > 0 && <div className="ty-err" role="alert">{missing.length === 1 ? 'שאלה אחת עוד בלי תשובה' : `${missing.length} שאלות עוד בלי תשובה`} — «שינוי» ליד השורה.</div>}
-        {err && <div className="ty-err" role="alert">{err}</div>}
-        <div className="ty-nav">
-          <button type="button" className="btn btn-ghost" disabled={busy} onClick={() => go(idx - 1)}>הקודם</button>
-          <button type="button" className="btn btn-primary" disabled={busy || preview || missing.length > 0} onClick={() => void send()} data-annual-send>{busy ? 'שולח…' : 'שליחה למשרד'}</button>
-        </div>
-      </div>
-    );
-  }
-
-  // ── «מה שכבר ידוע לנו — נכון?» (אישורים מהכרטיס) — בטיוטה ──
+  // ── «זה עדיין נכון?» — כל שורה: «נכון» מקפל ל-✓, «השתנה» נפתח בתוכה ──
   const scr = step as Screen;
   if (scr.kind === 'confirmAll') {
     const list = scr.asks;
-    const nextAll = () => {
-      const patch: Record<string, Draft> = {};
-      const changed = list.filter(a => (marks[a.id] ?? (drafts[askIdentity(a)]?.choice === 'changed' ? 'changed' : 'ok')) === 'changed');
-      for (const a of list) if (!changed.includes(a)) patch[askIdentity(a)] = { choice: 'yes' };
-      for (const a of changed) patch[askIdentity(a)] = { ...drafts[askIdentity(a)], choice: 'changed' };
-      putDrafts(patch);
-      const nextOpened = new Set([...opened, ...changed.map(a => a.id)]);
-      setOpened(nextOpened);
-      go(idx + 1);
-    };
+    const next = () => (list.every(rowOk) ? advance() : fail());
     return (
-      <div className="ty-flow" data-screen="confirmAll">
+      <div className="ty-flow" data-screen="confirmAll" ref={flowRef}>
         {top}
-        <p className="ty-q" id="q-confirm-all">מה שכבר ידוע לנו — נכון?</p>
-        {idx === 0 && <p className="ty-q-sub">בערך 5 דקות. אפשר לעצור ולחזור — הכול נשמר.</p>}
-        <ul className="ty-confirm-list" aria-labelledby="q-confirm-all">
-          {list.map(a => {
-            const lines = a.prompt.input.kind === 'confirm' ? a.prompt.input.lines : [];
-            const m = marks[a.id] ?? (drafts[askIdentity(a)]?.choice === 'changed' ? 'changed' : 'ok');
-            return (
-              <li key={a.id} className={`ty-confirm-row${m === 'changed' ? ' is-changed' : ''}`} data-confirm={a.itemKey}>
-                <div className="ty-confirm-main">
-                  <b>{a.prompt.title.replace(/ — זה מה שידוע לנו$/, '')}</b>
-                  {a.prompt.subjectName && <small>של {a.prompt.subjectName}</small>}
-                  <ul className="ty-lines is-compact">{lines.map((l, k) => <li key={k}>{l}</li>)}</ul>
-                </div>
-                <div className="ty-seg" role="group" aria-label={`${a.prompt.title}: נכון או יש שינוי`}>
-                  <button type="button" aria-pressed={m === 'ok'} onClick={() => setMarks(x => ({ ...x, [a.id]: 'ok' }))}>נכון</button>
-                  <button type="button" aria-pressed={m === 'changed'} onClick={() => setMarks(x => ({ ...x, [a.id]: 'changed' }))}>יש שינוי</button>
-                </div>
-              </li>
-            );
-          })}
+        <p className="ty-q" id="q-confirm-all">זה עדיין נכון?</p>
+        {idx === 0 && <p className="ty-q-sub">5 דקות. הכול נשמר.</p>}
+        <ul className="ty-krows" aria-labelledby="q-confirm-all">
+          {[...list].sort((x, y) => rowRank(x) - rowRank(y)).map(a => <KnownRow key={a.id} ask={a} drafts={drafts} putDrafts={putDrafts} inline={inlineOf(expanded, a)} bad={tried && !rowOk(a)} preview={preview} />)}
         </ul>
-        <div className="ty-nav">
-          <button type="button" className="btn btn-ghost" disabled={idx === 0} onClick={() => go(idx - 1)}>הקודם</button>
-          <button type="button" className="btn btn-primary" onClick={nextAll}>{list.some(a => marks[a.id] === 'changed') ? 'הבא — לתקן מה שהשתנה' : 'כן, הכול נכון'}</button>
-        </div>
+        {nav(next)}
       </div>
     );
   }
@@ -311,47 +343,171 @@ export default function AnnualFlow({ stepId, token, title, initialAsks, fetchAsk
   const list = screenAsks(scr);
   const first = list[0];
   const sent = list.every(a => a.state !== 'published');
-  const valid = list.every(a => a.state !== 'published' || !!draftToAnswer(a, shownDraft(a, drafts[askIdentity(a)])));
+  const isGrid = isGridAsk(first);
+  const gridDraft = isGrid ? shownDraft(first, drafts[askIdentity(first)]) : undefined;
+  const gridEmpty = isGrid && first.state === 'published' && !gridDraft?.none && !(gridDraft?.selected?.length);
   const next = () => {
-    if (!sent && !valid) { setTried(true); return; }
-    // מה שמוצג (גם סימון מראש) הוא התשובה — נשמר בטיוטה, וההמשך שלו נכנס מיד אחרי המסך הזה
     const patch: Record<string, Draft> = {};
-    for (const a of list) if (a.state === 'published') patch[askIdentity(a)] = shownDraft(a, drafts[askIdentity(a)]);
+    // ‼ מסך ריבועים בלי סימון = «לא היה כלום» (הכפתור אמר את זה); «משהו אחר?» נשמר כהערה למשרד
+    if (isGrid && first.state === 'published' && gridEmpty) patch[askIdentity(first)] = { ...gridDraft, none: true, selected: [] };
+    const valid = list.every(a => a.state !== 'published' || patch[askIdentity(a)] || !!draftToAnswer(a, shownDraft(a, drafts[askIdentity(a)])));
+    if (!sent && !valid) { fail(); return; }
+    // מה שמוצג (גם סימון מראש) הוא התשובה — נשמר בטיוטה, וההמשך שלו נכנס מיד אחרי המסך הזה
+    for (const a of list) if (a.state === 'published' && !patch[askIdentity(a)]) patch[askIdentity(a)] = shownDraft(a, drafts[askIdentity(a)]);
     const nd = { ...drafts, ...patch };
     putDrafts(patch);
     const ns = [...(steps[0]?.kind === 'known' ? [{ kind: 'known' as const }] : []), ...walkScreens(expandWithDrafts(asks, nd), opened)];
     const at = ns.findIndex(s => s.kind !== 'known' && screenAsks(s).some(a => askIdentity(a) === askIdentity(first)));
-    go((at >= 0 ? at : idx) + 1);
+    const to = (at >= 0 ? at : idx) + 1;
+    if (to >= ns.length) { void send(); return; }
+    go(to);
   };
-  const isGrid = first.itemKey === ANNUAL_GRID_KEY;
+  const person = first.prompt.subjectName;
   return (
-    <div className="ty-flow" data-screen={scr.kind === 'group' ? 'group' : first.prompt.input.kind}>
+    <div className="ty-flow" data-screen={isGrid ? 'grid' : scr.kind === 'group' ? 'group' : first.prompt.input.kind} data-person={isGrid ? first.subjectRole : undefined} ref={flowRef}>
       {top}
       {first.prompt.correction && <div className="ty-correction" role="note"><b>המשרד ביקש לתקן:</b> {first.prompt.correction}</div>}
+      {isGrid && person && <span className={`ty-person${first.subjectRole === 'spouse' ? ' is-p2' : ''}`}><i aria-hidden="true">{person[0]}</i>{person}</span>}
       <p className="ty-q" id={`q-${first.id}`}>{first.prompt.title}</p>
-      {scr.kind === 'ask' && (first.prompt.subjectName || (first.prompt.periodText && !isGrid)) && (
+      {!isGrid && scr.kind === 'ask' && (first.prompt.subjectName || first.prompt.periodText) && (
         <p className="ty-q-meta">
           {first.prompt.subjectName && <span className="ty-tag">{first.prompt.subjectName}</span>}
-          {first.prompt.periodText && !isGrid && <span className="ty-tag is-period">{first.prompt.periodText}</span>}
+          {first.prompt.periodText && <span className="ty-tag is-period">{first.prompt.periodText}</span>}
         </p>
       )}
-      {first.prompt.hint && <p className="ty-hint" id={`h-${first.id}`}>{first.prompt.hint}</p>}
+      {first.prompt.hint && !isGrid && scr.kind === 'ask' && <p className="ty-hint" id={`h-${first.id}`}>{first.prompt.hint}</p>}
       {sent && <span className="ty-done-mark">✓ נשלח קודם</span>}
-      {list.map(a => (
-        <div key={a.id} className={scr.kind === 'group' ? 'ty-group-card' : undefined}>
-          {scr.kind === 'group' && <p className="ty-group-who">{a.prompt.subjectName ?? 'שלך'}</p>}
-          {a.state === 'published' && (
-            <AskInput ask={a} d={shownDraft(a, drafts[askIdentity(a)])} setD={p => putDrafts({ [askIdentity(a)]: { ...shownDraft(a, drafts[askIdentity(a)]), ...p } })} tried={tried} preview={preview} />
-          )}
-          {a.state !== 'published' && scr.kind === 'group' && <span className="ty-done-mark">✓ נשלח קודם</span>}
-        </div>
-      ))}
-      {first.prompt.why && <details className="ty-why-q"><summary>למה שואלים?</summary><p>{first.prompt.why}</p></details>}
-      {tried && !valid && <div className="ty-err" role="alert">{first.prompt.input.kind === 'multi' ? (isGrid ? 'סמנו מה היה, או «לא היה אף אחד מאלה»' : 'סמנו לפחות אחד') : first.prompt.input.kind === 'record' || first.prompt.input.kind === 'entity' ? 'חסרים פרטים — מסומנים באדום' : 'נא לבחור תשובה'}</div>}
-      <div className="ty-nav">
-        <button type="button" className="btn btn-ghost" disabled={idx === 0} onClick={() => go(idx - 1)}>הקודם</button>
-        <button type="button" className="btn btn-primary" onClick={next}>הבא</button>
+      {list.map(a => {
+        const d = shownDraft(a, drafts[askIdentity(a)]);
+        const setD = (p: Draft) => putDrafts({ [askIdentity(a)]: { ...shownDraft(a, drafts[askIdentity(a)]), ...p } });
+        const bad = tried && a.state === 'published' && !draftToAnswer(a, d);
+        return (
+          <div key={a.id} className={scr.kind === 'group' ? `ty-group-card${bad ? ' is-bad' : ''}` : bad ? 'ty-ask-wrap is-bad' : undefined}>
+            {scr.kind === 'group' && <p className="ty-group-who"><span className={`ty-person${a.subjectRole === 'spouse' ? ' is-p2' : ''}`}><i aria-hidden="true">{(a.prompt.subjectName ?? 'א')[0]}</i>{a.prompt.subjectName ?? 'שלך'}</span>{a.prompt.input.kind === 'record' && (a.prompt.input.initial?.length ?? 0) > 0 && <small className="ty-from-card">מהתיק</small>}</p>}
+            {a.state === 'published' && (isGrid
+              ? <GridTiles ask={a} d={d} setD={setD} help={help} setHelp={setHelp} other={!!otherOpen[a.id] || !!d.note} openOther={() => setOtherOpen(o => ({ ...o, [a.id]: true }))} />
+              : <AskInput ask={a} d={d} setD={setD} tried={tried} preview={preview} />)}
+            {a.state !== 'published' && scr.kind === 'group' && <span className="ty-done-mark">✓ נשלח קודם</span>}
+            {bad && <span className="ty-need">{a.prompt.input.kind === 'multi' ? 'בחרו לפחות אחד' : 'חסר כאן'}</span>}
+          </div>
+        );
+      })}
+      {first.prompt.why && !isGrid && <details className="ty-why-q"><summary>למה שואלים?</summary><p>{first.prompt.why}</p></details>}
+      {nav(next, gridEmpty ? 'לא היה כלום — הבא' : 'הבא', gridEmpty)}
+    </div>
+  );
+}
+
+// ── שורה ב«זה עדיין נכון?» ──────────────────────────────────────────────────────────────────────────────────
+function KnownRow({ ask, drafts, putDrafts, inline, bad, preview }: {
+  ask: InfoAsk; drafts: Record<string, Draft>; putDrafts: (p: Record<string, Draft>) => void; inline: InfoAsk[]; bad: boolean; preview: boolean;
+}) {
+  const id = askIdentity(ask);
+  const d = drafts[id] ?? {};
+  const value = rowValue(ask);
+  const label = rowLabel(ask);
+  const who = ask.prompt.subjectName;
+  if (ask.state !== 'published') {
+    return <li className="ty-krow is-done" data-confirm={ask.itemKey}><span className="ty-krow-tick" aria-hidden="true">✓</span><span className="ty-krow-t"><b>{label}</b>נשלח קודם</span></li>;
+  }
+  // ‼ «נכון» — השורה מתקפלת ל-✓ (טאפ פותח שוב)
+  if (d.choice === 'yes') {
+    return (
+      <li data-confirm={ask.itemKey}>
+        <button type="button" className="ty-krow is-done" onClick={() => putDrafts({ [id]: { ...d, choice: undefined } })} aria-label={`${label}: נכון — לפתוח שוב`}>
+          <span className="ty-krow-tick" aria-hidden="true">✓</span>
+          <span className="ty-krow-t"><b>{label}{who ? ` · ${who}` : ''}</b>{value.join(' · ')}</span>
+        </button>
+      </li>
+    );
+  }
+  const input = ask.prompt.input;
+  const set = (p: Draft) => putDrafts({ [id]: { ...d, ...p } });
+  const edit = input.kind === 'confirm' ? input.edit : input.kind === 'record' ? { schema: input.schema, initial: input.initial, context: input.context } : undefined;
+  const rec: RecordAnswer = d.record ?? { items: ((edit?.initial ?? []) as RecordAnswer['items']) };
+  // ‼ בחירה בתוך השורה (המשפחה / הילדים): הבחירה שלה, וגם טקסט השינוי של השורה עצמה — שמות מה שנבחר
+  const pickInline = (x: InfoAsk, key: string) => {
+    if (x.prompt.input.kind !== 'multi') return;
+    const xd = drafts[askIdentity(x)] ?? {};
+    const sel = (xd.selected ?? []).includes(key) ? (xd.selected ?? []).filter(k => k !== key) : [...(xd.selected ?? []), key];
+    const labels = x.prompt.input.options.filter(o => sel.includes(o.key)).map(o => o.label).join(' · ');
+    const patch: Record<string, Draft> = { [askIdentity(x)]: { ...xd, none: false, selected: sel }, [id]: { ...d, choice: 'changed', text: labels } };
+    // נולד ילד ⇒ שורה חדשה ברשימת הילדים (שם ותאריך לידה)
+    if (edit && key === 'household.newChild') {
+      const base = (edit.initial ?? []) as RecordAnswer['items'];
+      patch[id] = { ...patch[id], record: sel.includes(key) ? { items: [...base, {}] } : { items: base } };
+    }
+    putDrafts(patch);
+  };
+  const newChild = inline.some(x => (drafts[askIdentity(x)]?.selected ?? []).includes('household.newChild'));
+  // ‼ נולד ילד — רק השם ותאריך הלידה של הילד החדש (הרשימה שבתיק נשלחת כמו שהיא); שאר השורות — עריכה מלאה
+  const kidOnly = ask.itemKey === 'household.children' && newChild;
+  const showEditor = d.choice === 'changed' && !!edit && !inline.length;
+  const kid = (rec.items[rec.items.length - 1] ?? {}) as Record<string, string>;
+  const setKid = (patch: Record<string, string>) => set({ record: { items: [...rec.items.slice(0, -1), { ...kid, ...patch }] } });
+  return (
+    <li className={`ty-krow-card${bad ? ' is-bad' : ''}`} data-confirm={ask.itemKey}>
+      <div className="ty-krow-l">{label}{who && <span className="ty-who">{who}</span>}</div>
+      <div className="ty-krow-v">{value.length ? value.map((l, k) => <span key={k}>{l}</span>) : <span>אין אצלנו פרטים</span>}</div>
+      <div className="ty-seg" role="group" aria-label={`${label}: נכון או השתנה`}>
+        <button type="button" aria-pressed={false} onClick={() => set({ choice: 'yes', text: undefined, record: undefined })}>נכון</button>
+        <button type="button" aria-pressed={d.choice === 'changed'} onClick={() => set({ choice: 'changed' })}>{CHANGE_LABEL[ask.itemKey] ?? 'השתנה'}</button>
       </div>
+      {d.choice === 'changed' && (
+        <div className="ty-krow-sub">
+          {inline.map(x => x.prompt.input.kind === 'multi' && (
+            <div key={x.id} className="ty-chips" role="group" aria-label={x.prompt.title}>
+              {x.prompt.input.options.map(o => {
+                const on = (drafts[askIdentity(x)]?.selected ?? []).includes(o.key);
+                return <button key={o.key} type="button" className="ty-chip" aria-pressed={on} onClick={() => pickInline(x, o.key)}>{o.label}</button>;
+              })}
+            </div>
+          ))}
+          {kidOnly && d.choice === 'changed' && (
+            <div className="ty-kid">
+              <label className={`ty-field${bad && !kid.firstName ? ' has-err' : ''}`}>שם<input value={kid.firstName ?? ''} onChange={e => setKid({ firstName: e.target.value })} /></label>
+              <label className={`ty-field${bad && !kid.birthDate ? ' has-err' : ''}`}>תאריך לידה<input type="date" dir="ltr" max={new Date().toISOString().slice(0, 10)} value={kid.birthDate ?? ''} onChange={e => setKid({ birthDate: e.target.value })} /></label>
+            </div>
+          )}
+          {showEditor && edit && <RecordEditor schemaId={edit.schema} context={edit.context} value={rec} onChange={v => set({ record: v })} showErrors={bad} disabled={preview} />}
+          {!edit && !inline.length && <label className="ty-field">מה השתנה?<textarea value={d.text ?? ''} onChange={e => set({ text: e.target.value })} /></label>}
+        </div>
+      )}
+      {bad && <span className="ty-need">חסר כאן</span>}
+    </li>
+  );
+}
+
+// ── מסך הריבועים של אדם אחד ──────────────────────────────────────────────────────────────────────────────────
+function GridTiles({ ask, d, setD, help, setHelp, other, openOther }: {
+  ask: InfoAsk; d: Draft; setD: (p: Draft) => void; help: string | null; setHelp: (k: string | null) => void; other: boolean; openOther: () => void;
+}) {
+  const input = ask.prompt.input;
+  if (input.kind !== 'multi') return null;
+  const toggle = (key: string, on: boolean) => setD({ none: false, selected: on ? (d.selected ?? []).filter(k => k !== key) : [...(d.selected ?? []), key] });
+  return (
+    <div className="ty-grid-wrap" role="group" aria-labelledby={`q-${ask.id}`}>
+      <div className="ty-grid">
+        {input.options.map(o => {
+          const on = !d.none && (d.selected ?? []).includes(o.key);
+          const hk = `${ask.id}:${o.key}`;
+          return (
+            <div key={o.key} className={`ty-tile2${on ? ' is-on' : ''}`}>
+              <button type="button" className="ty-tile2-main" aria-pressed={on} data-tile={o.key} onClick={() => toggle(o.key, on)}>
+                <span className="ty-tile2-ic"><TileIcon k={o.key} /><span className="ty-tile2-ok" aria-hidden="true">✓</span></span>
+                <b>{o.label}</b>
+                {o.example && <small className="ty-tile-ex">{o.example}</small>}
+                {o.note && <small className="ty-tile-note">{o.note}</small>}
+              </button>
+              {o.hint && <button type="button" className="ty-tile2-q" aria-label={`מה זה — ${o.label}?`} aria-expanded={help === hk} onClick={() => setHelp(help === hk ? null : hk)}><span>?</span></button>}
+              {help === hk && o.hint && <p className="ty-tile2-help">{o.hint}</p>}
+            </div>
+          );
+        })}
+      </div>
+      {ask.prompt.otherNote && (other
+        ? <input className="ty-other" aria-label="משהו אחר" placeholder="זכייה, תמלוגים, השכרת ציוד…" value={d.note ?? ''} autoFocus={!d.note} onChange={e => setD({ note: e.target.value })} />
+        : <button type="button" className="ty-link ty-other-link" onClick={openOther}>משהו אחר?</button>)}
     </div>
   );
 }
@@ -375,34 +531,19 @@ function AskInput({ ask, d, setD, tried, preview }: { ask: InfoAsk; d: Draft; se
   const unsure = unsureOf(ask.prompt.addressee);
   if (input.kind === 'multi') {
     const toggle = (key: string, on: boolean) => setD({ none: false, selected: on ? (d.selected ?? []).filter(k => k !== key) : [...(d.selected ?? []), key] });
-    const grouped = input.options.some(o => o.group);
     const tile = (o: (typeof input.options)[number]) => {
       const on = !d.none && (d.selected ?? []).includes(o.key);
       return (
-        <button key={o.key} type="button" className={`ty-tile${grouped ? ' is-rich' : ''}`} aria-pressed={on} data-tile={o.key} onClick={() => toggle(o.key, on)}>
+        <button key={o.key} type="button" className="ty-tile" aria-pressed={on} data-tile={o.key} onClick={() => toggle(o.key, on)}>
           <span className="ty-tile-check" aria-hidden="true">{on ? '✓' : ''}</span>
-          {grouped && <TileIcon k={o.key} />}
           <span className="ty-tile-text"><b>{o.label}</b>{o.example && <small className="ty-tile-ex">{o.example}</small>}{o.note && <small className="ty-tile-note">{o.note}</small>}</span>
         </button>
       );
     };
-    const noneLabel = ask.itemKey === ANNUAL_GRID_KEY ? (ask.prompt.addressee === 'p' ? 'לא היה לנו אף אחד מאלה' : 'לא היה אף אחד מאלה') : 'אף אחד מאלה';
     return (
       <div className="ty-grid-wrap" role="group" aria-labelledby={`q-${ask.id}`}>
-        {grouped ? (
-          <>
-            {(['in', 'less'] as const).map(g => {
-              const opts = input.options.filter(o => (o.group ?? 'in') === g);
-              return opts.length ? (
-                <section key={g} className="ty-grid-sec">
-                  <p className="ty-grid-h">{g === 'in' ? 'כסף שנכנס' : 'מה שיכול להקטין את המס'}</p>
-                  <div className="ty-grid">{opts.map(tile)}</div>
-                </section>
-              ) : null;
-            })}
-          </>
-        ) : <div className="ty-grid">{input.options.map(tile)}</div>}
-        <button type="button" className="ty-tile is-wide" aria-pressed={!!d.none} data-tile="none" onClick={() => setD({ none: !d.none, selected: [] })}>{noneLabel}</button>
+        <div className="ty-grid">{input.options.map(tile)}</div>
+        <button type="button" className="ty-tile is-wide" aria-pressed={!!d.none} data-tile="none" onClick={() => setD({ none: !d.none, selected: [] })}>אף אחד מאלה</button>
       </div>
     );
   }

@@ -164,11 +164,12 @@ async function runWidth(width) {
     ok(asks.length > 0 && asks.every(a => a.state === 'published'), `השאלון פורסם (${asks.length} שאלות)`, asks.map(a => `${a.item_key}:${a.state}`).join(','));
     // ‼ 20.10.2026 · בשנת הפטירה, קצבה ונכות שהיו רק של בת הזוג — לא אריח של הלקוח; הקצבה מסומנת בענף הפטירה
     ok(!o('pension.received')?.preset && !o('special.disability')?.preset, 'קצבה ונכות של בת הזוג — לא מסומנות כאריחים של הלקוח', JSON.stringify([o('pension.received')?.preset, o('special.disability')?.preset]));
-    const famFu = (o('household.familyChange')?.followUps ?? []).find(f => f.itemKey === 'family.deathIncome');
+    // ‼ 21.10.2026 · סבב 2: ענף הפטירה נפתח מ«נכון» בשורת המשפחה («אלמן מ-2025»), לא מריבוע
+    const famAsk = asks.find(a => a.item_key === 'household.maritalAtYearEnd');
+    const famFu = (famAsk?.prompt?.onYes ?? []).find(f => f.itemKey === 'family.deathIncome');
     const gotPension = (famFu?.prompt?.input?.options ?? []).find(x => x.key === 'family.deathGotPension');
     ok(!!gotPension?.preset && /^ב-2024: מינהלת הגמלאות/.test(gotPension?.note ?? ''), 'בענף הפטירה: «קצבה או פנסיה» מסומן מראש — «ב-2024: מינהלת הגמלאות · רחל»', JSON.stringify(gotPension));
-    const fam = o('household.familyChange');
-    ok(!!fam?.preset && fam.label === 'רחל נפטר/ה' && (fam.followUps ?? []).map(f => f.itemKey)[0] === 'family.death', 'אריח הפטירה: מסומן, בשם מהדוח, ופותח ישר את הענף', JSON.stringify(fam).slice(0, 300));
+    ok((famAsk?.prompt?.onYes ?? [])[0]?.itemKey === 'family.death' && !o('household.familyChange'), 'שורת המשפחה פותחת ישר את ענף הפטירה; אין ריבוע «שינוי במשפחה»', JSON.stringify(famAsk?.prompt?.onYes?.[0]?.itemKey));
     ok(!asks.some(a => a.item_key === 'household.familyEvent'), 'בלי «מה קרה?» — האירוע ידוע מהתיק');
     // ‼ חשבון מהדוח הקודם — קודם «היה פתוח ב-2025?» (period.account), ואחריו ה-867; מעסיק — ה-106 מיד, לכל אחד
     ok(asks.filter(a => a.item_key === 'salary.form106').length === 2 && asks.some(a => a.item_key === 'period.account'), 'מה שנכנס לכרטיס כבר נשאל: 106 לכל מעסיק, והחשבון — «עדיין היה פתוח?»', asks.map(a => a.item_key).join(','));
@@ -183,23 +184,19 @@ async function runWidth(width) {
     await card.getByRole('button', { name: /^(להשלמת המידע|להעלאת המסמכים)$/ }).click();
     const flow = pp.locator('.ty-flow');
     await flow.waitFor({ timeout: 15000 });
-    for (let i = 0; i < 8 && !(await flow.locator('.ty-tile').count()); i++) {
-      const confirm = flow.getByRole('button', { name: 'כן, הכול נכון' });
-      if (await confirm.count()) { const t = await text(flow.locator('.ty-q')); await confirm.click(); await pp.waitForFunction((x) => (document.querySelector('.ty-flow .ty-q')?.textContent ?? '') !== x, t, { timeout: 20000 }).catch(() => {}); continue; }
-      break;
-    }
-    const pressed = async (k) => (await flow.locator(`.ty-tile[data-tile="${k}"]`).getAttribute('aria-pressed').catch(() => null)) === 'true';
-    ok(await pressed('household.familyChange') && !(await pressed('pension.received')) && !(await pressed('special.disability')), 'בדף: אריח הפטירה מסומן; קצבה ונכות של בת הזוג — לא כאריחים של הלקוח');
-    ok((await text(flow.locator('.ty-tile[data-tile="household.familyChange"] .ty-tile-note'))).includes('ידוע לנו'), 'בדף: מתחת לאריח הפטירה — «ידוע לנו מהתיק»', await text(flow.locator('.ty-tile[data-tile="household.familyChange"]')));
-    ok(!(await pressed('donations.given')), 'בדף: אריח שלא היה בדוח הקודם — לא מסומן');
-    ok(await pp.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), 'בדף: בלי גלילה הצידה — מסך הרשת');
-    await (SHOTS ? flow.screenshot({ path: join(SHOTS, `03-portal-grid-${width}.png`) }) : Promise.resolve()).catch(() => {});
-    const gridTitle = await text(flow.locator('.ty-q'));
-    await flow.getByRole('button', { name: /^(הבא|שליחה למשרד)$/ }).click();
-    await pp.waitForFunction((x) => (document.querySelector('.ty-flow .ty-q')?.textContent ?? '') !== x, gridTitle, { timeout: 20000 }).catch(() => {});
+    // «זה עדיין נכון?»: שורת המשפחה אומרת «אלמן מ-2025» — «נכון» פותח את ענף הפטירה, מיד אחרי המסך
+    const famRow = await text(flow.locator('[data-confirm="household.maritalAtYearEnd"]'));
+    ok(/אלמן/.test(famRow) && /2025/.test(famRow), 'בדף: שורת המשפחה — «אלמן מ-2025»', famRow);
+    for (const k of await flow.locator('[data-confirm]').evaluateAll(els => els.filter(e => e.querySelector('.ty-seg')).map(e => e.getAttribute('data-confirm'))))
+      await flow.locator(`[data-confirm="${k}"] .ty-seg button`, { hasText: 'נכון' }).click();
+    ok(await pp.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), 'בדף: בלי גלילה הצידה — «זה עדיין נכון?»');
+    await (SHOTS ? flow.screenshot({ path: join(SHOTS, `03-portal-known-${width}.png`) }) : Promise.resolve()).catch(() => {});
+    const knownTitle = await text(flow.locator('.ty-q'));
+    await flow.locator('.ty-nav .btn-primary').click();
+    await pp.waitForFunction((x) => (document.querySelector('.ty-flow .ty-q')?.textContent ?? '') !== x, knownTitle, { timeout: 20000 }).catch(() => {});
     const next = await text(flow.locator('.ty-q'));
     const hint = await text(flow);
-    ok(/נפטר/.test(next) && hint.includes('משתתפים בצערך'), 'אחרי הרשת — ישר שאלת הפטירה, עם משפט ההשתתפות (בלי «מה קרה?»)', next);
+    ok(/נפטר/.test(next) && hint.includes('משתתפים בצערך'), 'אחרי «נכון» — ישר שאלת הפטירה, עם משפט ההשתתפות (בלי «מה קרה?»)', next);
     await (SHOTS ? flow.screenshot({ path: join(SHOTS, `04-portal-death-${width}.png`) }) : Promise.resolve()).catch(() => {});
     await ctx.close();
   } catch (e) {

@@ -166,9 +166,10 @@ export const ITEMS: InfoItem[] = [
   // או מעבר ליישוב מזכה — שאינם בכרטיס — לא היו עולים בכלל. שאלה אחת, רק כשיש מה לפספס;
   // «כן» ⇒ המשרד מעדכן את הכרטיס, ומשם האישור הרגיל.
   { key: 'household.creditChanges', area: 'household', label: 'שינוי שמזכה בהנחה (תואר, שחרור, מעבר יישוב)', kind: 'screener', per: 'person', who: 'client', purposes: BOTH,
-    question: 'בשנים האחרונות, האם {name} סיים/ה תואר או לימודי מקצוע, השתחרר/ה משירות צבאי או לאומי, או עבר/ה לגור ביישוב אחר?',
-    coupleQuestion: 'בשנים האחרונות, האם מישהו מכם סיים תואר או לימודי מקצוע, השתחרר משירות צבאי או לאומי, או עבר לגור ביישוב אחר?',
-    why: 'כל אחד מהשינויים האלה יכול לזכות בנקודות זיכוי או בהנחה ביישוב, והוא עדיין לא רשום אצלנו', input: 'yesno', covers: { parts: ['יג', 'יד'] } },
+    // ‼ 21.10.2026 · סבב 2: היישוב נבדק לפי הכתובת (שורת «זה עדיין נכון?») — לא כאן
+    question: 'בשנים האחרונות, האם {name} סיים/ה תואר או לימודי מקצוע, או השתחרר/ה משירות צבאי או לאומי?',
+    coupleQuestion: 'בשנים האחרונות, האם מישהו מכם סיים תואר או לימודי מקצוע, או השתחרר משירות צבאי או לאומי?',
+    why: 'סיום לימודים או שירות מזכה בנקודות זיכוי בשנים שאחרי', input: 'yesno', covers: { parts: ['יג', 'יד'] } },
   // 12.10.2026 · טופס 119 (תואר/מקצוע): התמחות ופרטי המעסיק
   { key: 'household.degreeDocs', area: 'household', label: 'אישור תואר או מקצוע, ואישור סיום התמחות', kind: 'document', per: 'person', who: 'client', purposes: ['annual'], after: 'household.creditChanges',
     question: 'אישור הזכאות לתואר או לתעודת המקצוע, ואישור סיום התמחות אם הייתה', why: 'נקודות הזיכוי לתואר ניתנות לפי מועד הסיום, ולמתמחים — לפי שנות ההתמחות', input: 'file', docKind: 'degreeCert', knownBasis: DOC_KNOWN,
@@ -563,29 +564,101 @@ ITEMS.push(
 //   השרת (_tax_year_items, 262) מכיר את כל המפתחות.
 // ‼ 20.10.2026 (גיא: «הניסוח ממש לא טוב… פנסיה זה הפקדה?») — שם עצם קצר + שורת דוגמה גלויה (ANNUAL_TILE_EXAMPLE),
 //   בהשראת «תיאום מס — הקלות מס» בשע״ם. קבלה ≠ הפקדה; «שינוי במשפחה» — הדוגמה לפי המצב בכרטיס (asks.ts › buildMultiEntry).
+// ‼ 21.10.2026 · סבב 2 (docs/proposals/2026-10-21-annual-questionnaire-fixes.html, גיא אישר): לכל אדם שני מסכים —
+//   «מאיפה נכנס לך כסף» ו«מה יכול להוריד לך מס» — במקום «של מי». «שינוי במשפחה» ו«מעבר דירה» יצאו מהריבועים
+//   (המשפחה והכתובת — בשורות «זה עדיין נכון?»); חזר «חיסכון או מניות בבנק»; חדשים: משיכה מקופה, עסק, עלייה, קרוב במוסד.
 const ANNUAL_TILES: Record<string, string> = {
   'household.familyChange': 'שינוי במשפחה',
-  'salary.worked': 'משכורת', 'salary.equity': 'מניות או אופציות מהמעסיק', 'pension.received': 'קבלת פנסיה או קצבה', 'niBenefits.received': 'תשלום מביטוח לאומי',
-  'rent.newRental': 'השכרת דירה או נכס', 'rent.otherProperty': 'השכרת ציוד, רכב או קרקע', 'capital.newAccount': 'ריבית, פיקדון או מניות',
-  'savings.selfDeposits': 'הפקדה עצמאית לפנסיה', 'savings.insurance': 'ביטוח חיים פרטי', 'donations.given': 'תרומות',
-  'special.disability': 'נכות או מחלה קשה', 'household.creditChanges': 'תואר, שחרור או מעבר דירה',
-  'foreign.income': 'הכנסה או חשבון בחו״ל', 'sales.sold': 'מכירת דירה, מניות או קריפטו',
+  'salary.worked': 'משכורת', 'salary.equity': 'מניות מהעבודה', 'pension.received': 'פנסיה או קצבה', 'niBenefits.received': 'ביטוח לאומי',
+  'rent.newRental': 'שכר דירה', 'rent.otherProperty': 'השכרת ציוד, רכב או קרקע', 'capital.newAccount': 'חיסכון או מניות בבנק',
+  'savings.withdrawal': 'משיכה מקופה', 'business.started': 'עסק או חשבוניות',
+  'savings.selfDeposits': 'הפקדה לפנסיה לבד', 'savings.insurance': 'ביטוח חיים', 'donations.given': 'תרומות',
+  'special.disability': 'אחוזי נכות', 'household.creditChanges': 'סיום לימודים או צבא',
+  'household.aliyah': 'עלייה או חזרה לארץ', 'household.relativeCare': 'קרוב במוסד סיעודי',
+  'foreign.income': 'כסף בחו״ל', 'sales.sold': 'מכירה',
 };
 /** שורת הדוגמה מתחת לריבוע. */
 export const ANNUAL_TILE_EXAMPLE: Record<string, string> = {
-  'salary.worked': 'גם החלפת עבודה או עבודה נוספת', 'salary.equity': 'חלק מהשכר, גם בלי מכירה',
-  'pension.received': 'מקרן פנסיה, מהמדינה, קצבת שאירים', 'niBenefits.received': 'אבטלה, מילואים, דמי לידה, נכות',
-  'rent.newRental': 'בארץ או בחו״ל', 'rent.otherProperty': 'לא דירה', 'capital.newAccount': 'בבנק או בבית השקעות',
-  'savings.selfDeposits': 'לא דרך המשכורת', 'savings.insurance': 'לא דרך המשכורת', 'donations.given': 'לעמותה, עם קבלה',
-  'special.disability': 'אחוזי נכות, עם אישור', 'household.creditChanges': 'סיום לימודים, צבא או יישוב מזכה',
-  'foreign.income': 'עבודה, נכס או חשבון בנק', 'sales.sold': 'גם מכירה בהפסד',
+  'salary.worked': 'גם מעבודה נוספת', 'salary.equity': 'RSU, אופציות — גם בלי מכירה',
+  'pension.received': 'מקרן, מהמדינה או מביטוח', 'niBenefits.received': 'מילואים, לידה, אבטלה, זקנה',
+  'rent.newRental': 'בארץ או בחו״ל', 'rent.otherProperty': 'לא דירה', 'capital.newAccount': 'ריבית, פיקדון, תיק השקעות',
+  'savings.withdrawal': 'פיצויים, השתלמות, גמל', 'business.started': 'גם אם נפתח השנה',
+  'savings.selfDeposits': 'לא דרך התלוש', 'savings.insurance': 'או אובדן כושר — פרטי', 'donations.given': 'עם קבלה',
+  'special.disability': 'או מחלה קשה', 'household.creditChanges': 'מ-{since}',
+  'household.aliyah': 'מ-{aliyahSince}', 'household.relativeCare': 'הורה, בן או בת זוג',
+  'foreign.income': 'עבודה, נכס או חשבון', 'sales.sold': 'דירה, מניות, קריפטו — גם בהפסד',
 };
-/** הקבוצה במסך: מה שיכול להקטין את המס — השאר «כסף שנכנס». */
-export const ANNUAL_TILE_LESS = new Set(['savings.selfDeposits', 'savings.insurance', 'donations.given', 'special.disability', 'household.creditChanges', 'household.familyChange']);
+/** «?» בריבוע — שורת הסבר אחת, רק בשאלון השנתי (ההסברים הארוכים ב-hints.ts משרתים גם את הערכת המס). */
+export const ANNUAL_TILE_HELP: Record<string, string> = {
+  'salary.worked': 'עבודה עם תלוש — גם חלקית או לחלק מהשנה.',
+  'niBenefits.received': 'כל תשלום מביטוח לאומי. את האישור אנחנו מוציאים.',
+  'pension.received': 'תשלום חודשי. סכום חד-פעמי — ב«משיכה מקופה».',
+  'rent.newRental': 'כסף שמקבלים משוכר, על נכס שבבעלותך.',
+  'capital.newAccount': 'גם בלי מכירה. עו״ש רגיל — לא.',
+  'salary.equity': 'גם אם נמכרו — רק כאן, לא ב«מכירה».',
+  'savings.withdrawal': 'כסף שיצא מקופה: פיצויים בעזיבה, משיכה מוקדמת, סגירת קופה.',
+  'business.started': 'עוסק פטור או מורשה, או עבודה בחשבוניות.',
+  'foreign.income': 'גם חשבון בלי פעילות.',
+  'sales.sold': 'גם החלפה בין מטבעות קריפטו.',
+  'donations.given': 'לעמותה מוכרת. קבלה דיגיטלית מספיקה.',
+  'savings.selfDeposits': 'כעצמאים, בהוראת קבע, או מעבר למה שהמעסיק מפקיד. גם קרן השתלמות.',
+  'savings.insurance': 'למשל ביטוח חיים למשכנתה. ביטוח דירה — לא.',
+  'household.creditChanges': 'תואר, לימודי מקצוע, או שחרור מצבא או משירות לאומי.',
+  'special.disability': 'אחוזים מביטוח לאומי, ממשרד הביטחון או מפקיד השומה.',
+  'household.aliyah': 'עולים ותושבים חוזרים מקבלים הקלות לכמה שנים.',
+  'household.relativeCare': 'מי שמשלם על החזקה במוסד מקבל זיכוי.',
+};
+/** המסך השני של כל אדם: מה שיכול להוריד מס — השאר «מאיפה נכנס כסף». */
+export const ANNUAL_TILE_LESS = new Set(['savings.selfDeposits', 'savings.insurance', 'donations.given', 'special.disability', 'household.creditChanges', 'household.aliyah', 'household.relativeCare']);
+/** ‼ סבב 2: לא ריבועים בשאלון השנתי — המשפחה בשורת «זה עדיין נכון?», השכרת ציוד ב«משהו אחר?». */
+export const ANNUAL_TILE_OFF = new Set(['household.familyChange', 'rent.otherProperty']);
 const NONE: Purpose[] = [];
 ITEMS.push(
-  { key: 'annual.whatHappened', area: 'special', label: 'מה היה לכם בשנה (מסך הרשת)', kind: 'screener', per: 'couple', who: 'client', purposes: NONE, input: 'multi',
-    question: 'מה היה לכם ב-{year}?', why: 'מה שתסמנו — נשאל עליו שאלה קצרה ונבקש את המסמך המתאים. מה שלא תסמנו — לא נשאל.' },
+  { key: 'annual.whatHappened', area: 'special', label: 'מאיפה נכנס כסף בשנה (מסך הריבועים, לכל אדם)', kind: 'screener', per: 'couple', who: 'client', purposes: NONE, input: 'multi',
+    question: 'מאיפה נכנס ל{name} כסף ב-{year}?', why: 'מה שתסמנו — נבקש עליו את המסמך המתאים. מה שלא תסמנו — לא נשאל.' },
+  { key: 'annual.lessTax', area: 'special', label: 'מה יכול להוריד מס (מסך הריבועים השני, לכל אדם)', kind: 'screener', per: 'couple', who: 'client', purposes: NONE, input: 'multi',
+    question: 'מה יכול להוריד ל{name} מס?', why: 'על כל אלה יש הקלה במס — רק עם אישור.' },
+  // ── 21.10.2026 · סבב 2: ריבועים חדשים (בדיקת הכיסוי) ──
+  { key: 'savings.withdrawal', area: 'savings', label: 'משיכת כסף מקופה בשנה (פיצויים, השתלמות, גמל)', kind: 'screener', per: 'person', who: 'client', purposes: ['annual'],
+    question: 'האם {name} משך/ה השנה כסף מקופה — פיצויים, קרן השתלמות או קופת גמל?', why: 'משיכה מקופה יכולה להיות חייבת במס — לפי סוג הכסף ומתי הופקד', input: 'yesno', covers: { parts: ['ג', 'ו'] },
+    officeNext: 'פיצויים — 161 (פטור, פריסה 8(ג)(3), רצף); השתלמות לפני 6 שנים / גמל שלא כדין — 35%; הוני מוכר — פטור' },
+  { key: 'savings.withdrawalDocs', area: 'savings', label: 'אישור משיכה מקופה וטופס 161', kind: 'document', per: 'person', who: 'client', purposes: ['annual'], after: 'savings.withdrawal',
+    question: 'אישור המשיכה מהקופה — ואם היו פיצויים, גם הטופס מהמעסיק', why: 'באישור רואים כמה נמשך, מאיזה כסף וכמה מס נוכה', input: 'file', docKind: 'severanceDocs', knownBasis: DOC_KNOWN },
+  { key: 'business.started', area: 'business', label: 'עסק או עבודה בחשבוניות (כשאין עסק בתיק)', kind: 'screener', per: 'person', who: 'client', purposes: ['annual'], coveredBy: 'business.active', cardKeys: ['businesses'],
+    question: 'האם {name} עבד/ה השנה כעצמאי/ת או עם חשבוניות?', why: 'הכנסה מעסק מדווחת בדוח — גם בשנה הראשונה', input: 'yesno', covers: { parts: ['ג'] },
+    officeNext: 'לפתוח עסק בכרטיס (סוג עוסק, ניהול ספרים); 6111 / רווח והפסד; ביטוח לאומי עצמאי ומקדמות' },
+  { key: 'business.startedDocs', area: 'business', label: 'סיכום הכנסות והוצאות של העסק', kind: 'document', per: 'person', who: 'client', purposes: ['annual'], after: 'business.started',
+    question: 'סיכום ההכנסות וההוצאות של העסק ב-{year}', why: 'ממנו נבנה דוח העסק — מתוכנת החשבוניות או מהספרים', input: 'file', docKind: 'annualPnl', knownBasis: DOC_KNOWN },
+  { key: 'household.aliyah', area: 'household', label: 'עלייה או חזרה לישראל (נקודות עולה, פטור תושב חוזר)', kind: 'screener', per: 'person', who: 'client', purposes: ['annual'],
+    question: 'האם {name} עלה/תה לארץ או חזר/ה אליה אחרי שנים בחו״ל?', why: 'עולים ותושבים חוזרים מקבלים נקודות זיכוי ופטורים לכמה שנים', input: 'yesno', covers: { parts: ['יג'] },
+    officeNext: 'עולה — נקודות לפי סעיף 35; תושב חוזר ותיק — פטור 14(א) על הכנסות מחו״ל לעשר שנים; תאריך העלייה מהתעודה' },
+  { key: 'household.aliyahDocs', area: 'household', label: 'תעודת עולה או אישור תושב חוזר', kind: 'document', per: 'person', who: 'client', purposes: ['annual'], after: 'household.aliyah',
+    question: 'תעודת העולה או האישור על מעמד תושב חוזר', why: 'בה רשום התאריך שממנו נספרות השנים', input: 'file', docKind: 'specialStatusCert', knownBasis: DOC_KNOWN },
+  { key: 'household.relativeCare', area: 'household', label: 'קרוב במוסד סיעודי (זיכוי סעיף 44)', kind: 'screener', per: 'person', who: 'client', purposes: ['annual'],
+    question: 'האם {name} שילם/ה השנה על החזקת קרוב — הורה, בן או בת זוג, או ילד — במוסד סיעודי?', why: 'על החזקת קרוב במוסד יש זיכוי ממס', input: 'yesno', covers: { parts: ['יד'] },
+    officeNext: 'סעיף 44: זיכוי 35% על ההוצאה שמעל 12.5% מההכנסה החייבת; לבדוק מי שילם בפועל' },
+  { key: 'household.relativeCareDocs', area: 'household', label: 'קבלות מהמוסד ואישור על מצב הקרוב', kind: 'document', per: 'person', who: 'client', purposes: ['annual'], after: 'household.relativeCare',
+    question: 'הקבלות מהמוסד על התשלום, ואישור על מצבו של הקרוב', why: 'הזיכוי ניתן לפי מה ששולם בפועל', input: 'file', docKind: 'ownRentDocs', knownBasis: DOC_KNOWN },
+  // ── לימודים וצבא: מקום אחד לכל אדם (מה שבתיק — ממולא; תואר ⇐ «ואז התמחות?», שחרור ⇐ חודש ושנה) ──
+  { key: 'household.studies', area: 'household', label: 'לימודים, שחרור והתמחות', kind: 'detail', per: 'person', who: 'client', purposes: NONE, input: 'record',
+    question: 'לימודים וצבא', why: 'סיום תואר או שירות מזכה בנקודות זיכוי בשנים שאחרי — ולמתמחים, משנת סיום ההתמחות',
+    officeNext: 'תואר — 40ג (שדה 181/182, קוד ושנה); התמחות — 40ג(ג1), טופס 119; שחרור — 39 (חודש ושנה, אורך השירות מהתעודה)' },
+  { key: 'household.releaseDocs', area: 'household', label: 'תעודת שחרור', kind: 'document', per: 'person', who: 'client', purposes: NONE,
+    question: 'תעודת השחרור', why: 'בה רשומים חודש השחרור ואורך השירות', input: 'file', docKind: 'creditCerts' },
+  { key: 'household.internshipDocs', area: 'household', label: 'אישור סיום התמחות', kind: 'document', per: 'person', who: 'client', purposes: NONE,
+    question: 'אישור על ההתמחות — מתי התחילה ומתי הסתיימה', why: 'לפיו הנקודות מתחילות אחרי ההתמחות (טופס 119)', input: 'file', docKind: 'creditCerts' },
+  // ── שורת הילדים: «השתנה» ⇒ נולד ילד / ילד עם מוגבלות ──
+  { key: 'household.childChange', area: 'household', label: 'מה השתנה בילדים', kind: 'detail', per: 'couple', who: 'client', purposes: NONE, input: 'multi',
+    question: 'מה השתנה?', why: 'לכל ילד נקודות זיכוי לפי גילו; לילד עם מוגבלות — נקודות נוספות' },
+  { key: 'household.newChild', area: 'household', label: 'נולד ילד בשנה', kind: 'screener', per: 'couple', who: 'client', purposes: NONE },
+  { key: 'household.newChildDocs', area: 'household', label: 'ספח תעודת הזהות עם הילד החדש', kind: 'document', per: 'couple', who: 'client', purposes: NONE,
+    question: 'ספח תעודת הזהות — עם הילד החדש', why: 'ממנו לוקחים את תאריך הלידה', input: 'file', docKind: 'idCard' },
+  { key: 'household.disabledChild', area: 'household', label: 'ילד עם מוגבלות (סעיף 45)', kind: 'screener', per: 'couple', who: 'client', purposes: NONE },
+  { key: 'household.disabledChildDocs', area: 'household', label: 'אישור על מצב הילד', kind: 'document', per: 'couple', who: 'client', purposes: NONE,
+    question: 'אישור על מצב הילד — למשל אישור קצבת ילד נכה', why: 'לפיו ניתנות נקודות הזיכוי הנוספות (טופס 116א)', input: 'file', docKind: 'specialStatusCert' },
+  // ── שורת הכתובת: «עברנו» ⇒ אישור תושבות (יישוב מזכה דורש 12 חודשים) ──
+  { key: 'household.addressCert', area: 'household', label: 'אישור תושבות ביישוב החדש', kind: 'document', per: 'couple', who: 'client', purposes: NONE,
+    question: 'אישור תושבות — מהרשות המקומית', why: 'הטבת היישוב ניתנת לפי תקופת המגורים בו', input: 'file', docKind: 'settlementCert' },
   // ── 20.10.2026 · «מה שולם מביטוח לאומי?» — בחירה לכל אדם במקום «האם מתוך זה קיבל/ה דמי לידה?» (שנשאל גם אלמן — גיא, יריב).
   //    האישור השנתי — המשרד מוציא (niBenefits.cert). «דמי לידה» כאן = העובדה niBenefits.maternity, כמו התשובה הישנה.
   { key: 'niBenefits.kinds', area: 'niBenefits', label: 'מה שולם מביטוח לאומי', kind: 'detail', per: 'person', who: 'client', purposes: NONE, input: 'multi',

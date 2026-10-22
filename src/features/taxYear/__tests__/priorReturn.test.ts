@@ -34,8 +34,9 @@ const planFor = (c: Client, lastYear?: Parameters<typeof buildAskPlan>[1]['lastY
   const p = buildYearPicture({ client: c, taxYear: 2025, purpose: 'annual', today: '2026-10-19', facts: [], evidence: [], asks: [] });
   return buildAskPlan([...p.toConfirm, ...p.toAsk], { client: c, taxYear: 2025, purpose: 'annual', lastYear });
 };
-const gridOf = (c: Client, lastYear?: Parameters<typeof planFor>[1]) => {
-  const g = planFor(c, lastYear).find(e => e.itemKey === ANNUAL_GRID_KEY);
+// ‼ 21.10.2026 · סבב 2: מסך ריבועים לכל אדם — role בוחר של מי
+const gridOf = (c: Client, lastYear?: Parameters<typeof planFor>[1], role = 'client') => {
+  const g = planFor(c, lastYear).find(e => e.itemKey === ANNUAL_GRID_KEY && e.subjectRole === role);
   if (!g || g.prompt.input.kind !== 'multi') throw new Error('אין מסך רשת');
   return g.prompt.input.options;
 };
@@ -90,21 +91,23 @@ export const TESTS: TestCase[] = [
     equal(rows.find(r => r.kind === 'disability')?.person, 'client');
     equal(rows.find(r => r.kind === 'employer' && r.name.includes('רובוטיקס'))?.person, 'spouse');
   }),
-  test('בשאלון: אריח שהיה בדוח הקודם — מסומן מראש, עם «ב-2024: …»', () => {
+  test('בשאלון: אריח שהיה בדוח הקודם — מסומן מראש אצל מי שהיה לו, עם «ב-2024: …»', () => {
     const c = client();
     const { hints } = priorReturnApply(c, priorReturnRows(c, READING), READING, SRC);
-    const o = gridOf(c, hints).find(x => x.key === 'pension.received');
+    // הקצבה הייתה של בת הזוג ⇒ מסומנת במסך שלה, לא במסך של הלקוח
+    const o = gridOf(c, hints, 'spouse').find(x => x.key === 'pension.received');
     assert(!!o?.preset, 'לא מסומן מראש');
     assert(!!o?.note?.startsWith('ב-2024: מינהלת הגמלאות'), o?.note ?? '');
-    assert(!gridOf(c, hints).find(x => x.key === 'donations.given')?.preset, 'אריח שלא היה סומן');
+    assert(!gridOf(c, hints).find(x => x.key === 'pension.received')?.preset, 'סומן גם אצל הלקוח');
+    assert(!gridOf(c, hints, 'spouse').find(x => x.key === 'salary.equity')?.preset, 'אריח שלא היה סומן');
   }),
-  test('אלמן/ה מ-2025 בכרטיס: אריח הפטירה מסומן ופותח ישר את הענף (בלי «מה קרה?»); 106 של בן/בת הזוג פעם אחת; השם מהדוח הקודם', () => {
+  test('אלמן/ה מ-2025 בכרטיס: «נכון» בשורת המשפחה פותח ישר את ענף הפטירה (בלי «מה קרה?»); 106 של בן/בת הזוג פעם אחת; השם מהדוח הקודם', () => {
     const c = client({ familyStatus: 'widowed', widowhoodYear: 2025, spouseFirstName: undefined,
       employers: [{ id: 'e1', name: 'ישראלי רובוטיקס' }, { id: 'e2', name: 'משרד ממשלתי לדוגמה', belongsToSpouse: true }] as Client['employers'] });
-    const o = gridOf(c, { year: 2024, tiles: {}, spouseName: 'ישראלה' }).find(x => x.key === 'household.familyChange');
-    assert(!!o?.preset, 'אריח האירוע לא מסומן');
-    equal(o?.label, 'ישראלה נפטרה'); // 20.10.2026 · בלי לוכסנים (gender.ts)
-    const f = fus(o);
+    const fam = planFor(c, { year: 2024, tiles: {}, spouseName: 'ישראלה' }).find(e => e.itemKey === 'household.maritalAtYearEnd');
+    const f = fam?.prompt.onYes ?? [];
+    assert(!!f[0]?.prompt.title.includes('ישראלה'), f[0]?.prompt.title ?? '');
+    assert(!gridOf(c).some(x => x.key === 'household.familyChange'), '«שינוי במשפחה» נשאר ריבוע');
     equal(f.map(x => x.itemKey).join(','), 'family.death,family.deathIncome,family.deathPayouts,family.survivorPensions,family.deathDocs');
     const inc = f.find(x => x.itemKey === 'family.deathIncome');
     const salary = inc?.prompt.input.kind === 'multi' ? inc.prompt.input.options.find(x => x.key === 'family.deathGotSalary') : undefined;
@@ -112,10 +115,10 @@ export const TESTS: TestCase[] = [
     equal(planFor(c).filter(e => e.itemKey === 'salary.form106' && e.subjectRole === 'spouse').length, 1);
     assert(!planFor(c).some(e => e.itemKey === 'household.familyEvent'), '«מה קרה?» נשאל');
   }),
-  test('נשוי/אה בלי אירוע בכרטיס — «מה קרה?» כמו קודם, בלי סימון מראש', () => {
-    const o = gridOf(client()).find(x => x.key === 'household.familyChange');
-    assert(!o?.preset, 'סומן מראש');
-    equal(fus(o)[0]?.itemKey, 'household.familyEvent');
+  test('נשוי/אה בלי אירוע בכרטיס — «מה קרה?» רק אחרי «השתנה» בשורת המשפחה, ו«נכון» לא פותח כלום', () => {
+    const fam = planFor(client()).find(e => e.itemKey === 'household.maritalAtYearEnd');
+    equal(fam?.prompt.onChanged?.[0]?.itemKey, 'household.familyEvent');
+    equal((fam?.prompt.onYes ?? []).length, 0);
   }),
   test('איתור הסט: שנה קודמת בלבד; תווית «סט שהוגש», קטגוריה 1301 או שם קובץ', () => {
     assert(isPriorReturnDoc({ fileName: 'x.pdf', year: '2024', label: 'סט שהוגש למס הכנסה' }, 2025), 'תווית');

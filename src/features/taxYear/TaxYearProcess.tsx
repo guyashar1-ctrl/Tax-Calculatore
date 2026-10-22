@@ -652,7 +652,7 @@ function ReviewLine({ r, who, busy, run, client, onReturn, applyCard }: { r: Rev
         {plan && plan.omitted.length > 0 && (
           <div className="ty-omitted" data-omitted-list>
             <b>{plan.omitted.length === 1 ? 'פריט אחד בתיק לא הופיע בתשובה' : `${plan.omitted.length} פריטים בתיק לא הופיעו בתשובה`} — מה לעשות?</b>
-            {plan.omitted.map(o => <OmittedChoice key={o.id} o={o} d={dec[o.id]} busy={busy} onChange={d => setDec(x => ({ ...x, [o.id]: d }))} />)}
+            {plan.omitted.map((o, k) => <OmittedChoice key={o.id || `${o.kind}-${k}`} o={o} d={dec[o.id]} busy={busy} onChange={d => setDec(x => ({ ...x, [o.id]: d }))} />)}
             <small>כלום לא נמחק בלי הכרעה. הערך הקודם נשמר בהיסטוריית התיק.</small>
           </div>
         )}

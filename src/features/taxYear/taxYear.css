@@ -593,3 +593,70 @@ button.rp-cell:disabled { cursor: default; }
 .ty-done-tag { color: var(--ok, #24654e); font-weight: 600; font-size: var(--fs-13); flex-shrink: 0; }
 .ty-ours { margin: 0; font-size: var(--fs-13); color: var(--tx2); background: var(--s4, #efede9); border-radius: 12px; padding: .6rem .8rem; }
 @media (max-width: 380px) { .ty-tile.is-rich { min-height: 104px; } }
+
+/* ── 21.10.2026 · סבב 2 (docs/proposals/2026-10-21-annual-questionnaire-fixes.html) ──────────────────────────── */
+/* האדם שהמסך עליו — עיגול עם האות הראשונה; בן/בת הזוג בצבע אחר */
+.ty-person { align-self: flex-start; display: inline-flex; align-items: center; gap: .45rem; font-size: var(--fs-13); font-weight: 700; color: var(--chip-blue-tx); background: var(--chip-blue-bg); border-radius: 999px; padding: .2rem .75rem .2rem .25rem; }
+.ty-person i { font-style: normal; width: 1.45rem; height: 1.45rem; border-radius: 50%; background: var(--chip-blue-tx); color: #fff; display: grid; place-items: center; font-size: var(--fs-12); }
+.ty-person.is-p2 { color: var(--chip-violet-tx); background: var(--chip-violet-bg); }
+.ty-person.is-p2 i { background: var(--chip-violet-tx); }
+.ty-person.is-home { color: var(--tx2); background: var(--chip-slate-bg); }
+.ty-person.is-home i { background: var(--tx3, #8e949b); }
+[data-person="spouse"] .ty-tile2.is-on { border-color: var(--chip-violet-tx); background: var(--chip-violet-bg); }
+[data-person="spouse"] .ty-tile2-ic, [data-person="spouse"] .ty-tile2-ic .ty-tile-ic { color: var(--chip-violet-tx); }
+[data-person="spouse"] .ty-tile2-ok { background: var(--chip-violet-tx); }
+
+/* «זה עדיין נכון?» — שורה פתוחה, ושורה שאושרה (מקופלת ל-✓) */
+.ty-krows { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .55rem; }
+.ty-krow-card { border: 1px solid var(--bd); border-radius: 14px; background: var(--card); padding: .75rem .85rem; display: flex; flex-direction: column; gap: .45rem; }
+.ty-krow-l { font-size: var(--fs-13); font-weight: 650; color: var(--tx2); display: flex; align-items: center; gap: .4rem; }
+.ty-who { font-size: var(--fs-12); font-weight: 700; color: var(--chip-blue-tx); background: var(--chip-blue-bg); border-radius: 999px; padding: 0 .55rem; }
+.ty-krow-v { display: flex; flex-direction: column; font-size: var(--fs-15, 15px); }
+.ty-krow-card .ty-seg { align-self: flex-start; }
+.ty-krow-card .ty-seg button { min-width: 4.5rem; }
+.ty-krow-sub { border-top: 1px dashed var(--bd); padding-top: .6rem; display: flex; flex-direction: column; gap: .6rem; }
+.ty-krow { width: 100%; display: flex; align-items: center; gap: .6rem; border: 1px solid var(--bd); border-radius: 14px; background: var(--card); padding: .6rem .85rem; font: inherit; color: var(--tx); text-align: start; cursor: pointer; min-height: 48px;
+  animation: ty-fold .22s ease; }
+.ty-krow-tick { flex: none; width: 1.45rem; height: 1.45rem; border-radius: 50%; background: var(--chip-green-bg); color: var(--chip-green-tx); display: grid; place-items: center; font-size: var(--fs-13); font-weight: 700; }
+.ty-krow-t { flex: 1; min-width: 0; font-size: var(--fs-14); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ty-krow-t b { font-weight: 600; color: var(--tx2); margin-inline-end: .4rem; }
+@keyframes ty-fold { from { opacity: .4; transform: scaleY(.88); } to { opacity: 1; transform: none; } }
+.ty-chips { display: flex; flex-wrap: wrap; gap: .45rem; }
+.ty-chip { font: inherit; font-size: var(--fs-14); font-weight: 600; border: 1.5px solid var(--bd-strong); background: var(--card); color: var(--tx); border-radius: 999px; padding: .4rem .9rem; min-height: 44px; cursor: pointer; }
+.ty-chip[aria-pressed="true"] { border-color: var(--br); background: var(--soft); color: var(--br-strong); }
+
+/* מה שחסר: מסגרת, שתי מילים, רעידה קלה — בלי הודעה למטה */
+.ty-krow-card.is-bad, .ty-group-card.is-bad { border-color: var(--danger); }
+.ty-need { color: var(--danger); font-size: var(--fs-12); font-weight: 650; }
+.ty-shake { animation: ty-shake .35s ease; }
+@keyframes ty-shake { 20% { transform: translateX(-6px); } 40% { transform: translateX(5px); } 60% { transform: translateX(-3px); } 80% { transform: translateX(2px); } }
+@media (prefers-reduced-motion: reduce) { .ty-shake, .ty-krow { animation: none; } }
+
+/* ריבוע: ציור עם ✓ קטן, שם, דוגמה, ו«?» לשורת הסבר */
+.ty-tile2 { position: relative; display: flex; flex-direction: column; border: 1.5px solid var(--bd-strong); border-radius: 14px; background: var(--card); transition: border-color .15s, background .15s; }
+.ty-tile2.is-on { border-color: var(--br); background: var(--soft); }
+.ty-tile2-main { font: inherit; color: var(--tx); display: flex; flex-direction: column; align-items: flex-start; gap: .3rem; width: 100%; min-height: 100px; padding: .75rem .75rem .65rem; border: 0; background: none; text-align: start; cursor: pointer; border-radius: 14px; }
+.ty-tile2-main:active { transform: scale(.98); }
+.ty-tile2-main b { font-size: var(--fs-14); line-height: 1.3; padding-inline-end: 1.4rem; }
+.ty-tile2-ic { position: relative; display: inline-flex; color: var(--br); }
+.ty-tile2-ok { position: absolute; bottom: -3px; inset-inline-start: -7px; width: 17px; height: 17px; border-radius: 50%; background: var(--br); color: #fff; font-size: 10.5px; font-weight: 700; display: grid; place-items: center; border: 2px solid var(--card);
+  transform: scale(0); transition: transform .18s cubic-bezier(.3, 1.6, .5, 1); }
+.ty-tile2.is-on .ty-tile2-ok { transform: scale(1); }
+.ty-tile2-q { position: absolute; top: .35rem; inset-inline-end: .35rem; width: 32px; height: 32px; border: 0; background: none; padding: 0; cursor: pointer; color: var(--tx3, #8e949b); font: inherit; font-size: var(--fs-12); font-weight: 700; }
+.ty-tile2-q span { display: grid; place-items: center; width: 20px; height: 20px; margin: auto; border-radius: 50%; border: 1.3px solid var(--bd-strong); background: var(--card); }
+.ty-tile2-q[aria-expanded="true"] span { border-color: var(--br); color: var(--br); }
+.ty-tile2-help { margin: 0 .5rem .55rem; padding: .4rem .55rem; border-radius: 9px; background: var(--card); border: 1px solid var(--bd); font-size: var(--fs-12); color: var(--tx2); line-height: 1.4; }
+.ty-other-link { align-self: flex-start; font-weight: 600; }
+.ty-other { font: inherit; font-size: var(--fs-15, 15px); width: 100%; border: 1.5px solid var(--bd-strong); border-radius: 12px; padding: .6rem .75rem; background: var(--card); }
+
+/* «לא היה כלום — הבא» — כפתור שקט; «שליחה למשרד» עם מטוס נייר */
+.btn.btn-primary.is-quiet { background: var(--soft); color: var(--br-strong); border-color: var(--soft); }
+.ty-send-ic { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 2; vertical-align: -3px; margin-inline-end: .35rem; }
+
+/* מסמכים לפי אדם; «מהתיק» ליד שם במסך הלימודים */
+.ty-docs-person { display: flex; flex-direction: column; gap: .45rem; }
+.ty-from-card { font-size: var(--fs-12); font-weight: 600; color: var(--tx2); margin-inline-start: .45rem; }
+.ty-kid { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; }
+@media (max-width: 380px) { .ty-kid { grid-template-columns: 1fr; } }
+.ty-kid .ty-field.has-err input { border-color: var(--danger); }
+.ty-group-who .ty-person { margin-inline-end: .35rem; }

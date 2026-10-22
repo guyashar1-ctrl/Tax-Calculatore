@@ -6,7 +6,7 @@
 // ‼ תשובה להערכה נשמרת עם התקופה שלה (ינואר עד החתך), ולכן בדוח השנתי היא חלקית.
 
 import type { Client } from '../../types';
-import { AREA_BY_ID, ITEMS, ITEM_BY_KEY, type InfoItem, CATALOG_VERSION, ANNUAL_TILE_EXAMPLE, ANNUAL_TILE_LESS } from './catalog';
+import { AREA_BY_ID, ITEMS, ITEM_BY_KEY, type InfoItem, CATALOG_VERSION, ANNUAL_TILE_EXAMPLE, ANNUAL_TILE_LESS, ANNUAL_TILE_HELP, ANNUAL_TILE_OFF } from './catalog';
 import { genderize, genderOf, addresseeOf } from './gender';
 import { DOCS, followUpFor } from './documents';
 import { PROVISIONAL, provisionalRef, type ItemStatus } from './picture';
@@ -15,7 +15,7 @@ import type { LastYearHints } from './priorReturn';
 import { cleanEntity, entityValid, visibleFields, type EntityItem } from './entities';
 import { hintFor } from './hints';
 import { RECORD_OF, isPeriodItem, dealerOf } from './structured';
-import { initialFromCard } from './records';
+import { initialFromCard, answerValid, schemaFor } from './records';
 import { periodOfRequest, periodWords, propertySpan, accountSpan, spanText } from './temporal';
 import { DEALER_KIND_LABELS } from '../taxFile/editModel';
 import { familyStatusEventYear } from '../../utils/familyStatusYear';
@@ -157,7 +157,9 @@ export function promptFor(s: ItemStatus, ctx: AskCtx): AskPrompt {
 function promptForRaw(s: ItemStatus, ctx: AskCtx): AskPrompt {
   const it = s.item;
   const c = ctx.client;
-  const subjName = s.subjectRole === 'spouse' ? (c.spouseFirstName || c.spouse?.firstName || 'בן/בת הזוג') : undefined;
+  // ‼ 21.10.2026 · סבב 2: בדוח השנתי של זוג — גם השורות והמסמכים של הלקוח עצמו נושאים את שמו («טופס 106 · ישראל»)
+  const subjName = s.subjectRole === 'spouse' ? (c.spouseFirstName || c.spouse?.firstName || 'בן/בת הזוג')
+    : ctx.purpose === 'annual' && c.familyStatus === 'married' && s.subjectRole === 'client' && c.firstName ? c.firstName : undefined;
   const fill = (t: string) => fillTemplate(t, c, s.subjectRole)
     .split('{year}').join(String(ctx.taxYear)).split('{spouse}').join(c.spouseFirstName || c.spouse?.firstName || 'בן/בת הזוג')
     .split('{entity}').join(s.entityLabel ?? '')
@@ -180,7 +182,7 @@ function promptForRaw(s: ItemStatus, ctx: AskCtx): AskPrompt {
   // ‼ בדף האישי אין כרטיס — שמות בני הזוג (לבחירת «על שם מי») נשמרים בשאלה עצמה
   const people: Record<string, string> = { clientName: c.firstName || 'אני', ...(c.familyStatus === 'married' ? { spouseName: c.spouseFirstName || c.spouse?.firstName || 'בן/בת הזוג', married: '1' } : {}),
     // ‼ 20.10.2026 · מעסיק בדוח השנתי: חודשים בתוך השנה בלבד (records.ts › 'monthIn')
-    ...(ctx.purpose === 'annual' && schema === 'employer' ? { taxYear: String(ctx.taxYear) } : {}) };
+    ...(ctx.purpose === 'annual' && (schema === 'employer' || schema === 'studies') ? { taxYear: String(ctx.taxYear) } : {}) };
   if (it.kind === 'confirm' || (s.state === 'fromCard' && it.cardKeys)) {
     const lines = cardLines(it, c, s);
     // ‼ בכרטיס אין כלום לאשר — שאלה מובנית (רשומה: ילדים, חשבון בנק; או בחירה) במקום «אין אצלנו פרטים»
@@ -252,12 +254,16 @@ export function buildAskPlan(statuses: ItemStatus[], ctx0: AskCtx): AskPlanEntry
   const used = new Set<ItemStatus>();
   const married = c.familyStatus === 'married';
   // ‼ 16.10.2026 · היכרות: כל שאלות הפתיחה — מסך רשת אחד «סמנו מה יש לכם» (קיבוץ; העובדות נשמרות לכל מפתח)
-  const grid = ctx.purpose === 'intake' || ctx.purpose === 'annual' ? buildMultiEntry(statuses, ctx) : null;
-  if (grid) { for (const s of grid.statuses) used.add(s); }
+  // ‼ 21.10.2026 · סבב 2: בדוח השנתי — מסכי ריבועים לכל אדם (כסף שנכנס · מה מוריד מס); בהיכרות — מסך אחד
+  const grids = ctx.purpose === 'intake' || ctx.purpose === 'annual' ? buildMultiEntries(statuses, ctx) : [];
+  for (const g of grids) for (const s of g.statuses) used.add(s);
+  const pushGrids = () => { if (grids.length && !out.includes(grids[0])) out.push(...grids); };
   for (const s of statuses) {
     if (used.has(s)) continue;
+    // ‼ סבב 2: ריבוע שיצא מהשאלון השנתי (שינוי במשפחה, השכרת ציוד) — לא נשאל לבד
+    if (ctx.purpose === 'annual' && ANNUAL_TILE_OFF.has(s.item.key)) { used.add(s); continue; }
     // המסך נכנס במקום שאלת הפתיחה הראשונה — אחרי האישורים מהכרטיס
-    if (grid && !out.includes(grid) && s.item.kind === 'screener') out.push(grid);
+    if (s.item.kind === 'screener') pushGrids();
     // ‼ 19.10.2026 · מה שידוע מהכרטיס (fromCard) — אישור «זה מה שידוע לנו», לא «מי מכם?»
     const pair = married && s.item.coupleQuestion && s.item.per === 'person' && !s.entityRef && s.state !== 'fromCard'
       ? statuses.find(o => o !== s && o.item.key === s.item.key && !o.entityRef && o.state !== 'fromCard' && o.subjectRole !== s.subjectRole && (o.subjectRole === 'client' || o.subjectRole === 'spouse'))
@@ -284,8 +290,8 @@ export function buildAskPlan(statuses: ItemStatus[], ctx0: AskCtx): AskPlanEntry
       label: s.item.label,
     });
   }
-  if (grid && !out.includes(grid)) out.push(grid);
-  return out;
+  pushGrids();
+  return ctx.purpose === 'annual' ? annualRows(out, ctx) : out;
 }
 
 // ── 16.10.2026 · מסך הרשת «סמנו מה יש לכם» ─────────────────────────────────────────────────────────
@@ -297,7 +303,10 @@ export function buildAskPlan(statuses: ItemStatus[], ctx0: AskCtx): AskPlanEntry
 //   קצרה כשצריך (ANNUAL_FOLLOW) — כמה שאלות יחד (followUps, 262). כך השאלון נגמר בסבב אחד, והמסמכים נבנים מהתשובות.
 export const GRID_KEY = 'intake.whatYouHave';
 export const ANNUAL_GRID_KEY = 'annual.whatHappened';
-export const GRID_KEYS = [GRID_KEY, ANNUAL_GRID_KEY];
+/** 21.10.2026 · סבב 2: המסך השני של כל אדם בדוח השנתי — «מה יכול להוריד לך מס?». */
+export const ANNUAL_LESS_KEY = 'annual.lessTax';
+export const GRID_KEYS = [GRID_KEY, ANNUAL_GRID_KEY, ANNUAL_LESS_KEY];
+export const ANNUAL_GRIDS = [ANNUAL_GRID_KEY, ANNUAL_LESS_KEY];
 
 /**
  * ‼ 20.10.2026 · בקשת דוח שנתי שנפתחה בגרסה הקודמת של השאלון: שאלת פתיחה נפרדת לכל נושא («מי מכם?» / כן-לא)
@@ -313,16 +322,20 @@ export function isLegacyAnnual(asks: { itemKey: string; state: string; prompt: A
 }
 const GRID_ORDER = ['intake.employed', 'intake.selfEmployed', 'intake.rents', 'intake.hasInvestments', 'intake.selfDeposits', 'intake.foreign', 'intake.crypto',
   'intake.allowances', 'intake.insurance', 'intake.credits', 'intake.special'];
-const ANNUAL_ORDER = ['household.familyChange', 'salary.worked', 'salary.equity', 'pension.received', 'niBenefits.received', 'rent.newRental', 'rent.otherProperty', 'capital.newAccount',
-  'savings.selfDeposits', 'savings.insurance', 'donations.given', 'special.disability', 'household.creditChanges', 'foreign.income', 'sales.sold'];
+// ‼ 21.10.2026 · סבב 2: לפי שכיחות (ביקורת החוויה) — כסף שנכנס, ואחריו מה שמוריד מס
+const ANNUAL_ORDER = ['salary.worked', 'niBenefits.received', 'pension.received', 'rent.newRental', 'capital.newAccount', 'salary.equity', 'savings.withdrawal',
+  'business.started', 'foreign.income', 'sales.sold',
+  'donations.given', 'savings.selfDeposits', 'savings.insurance', 'household.creditChanges', 'special.disability', 'household.aliyah', 'household.relativeCare'];
 /** מה נפתח מיד כשמסמנים אריח בדוח השנתי. מסמך לישות שאינה בתיק — עם המזהה הזמני (כמו בהיכרות). */
 export const ANNUAL_FOLLOW: Record<string, string[]> = {
   'household.familyChange': ['household.familyEvent'],
   'salary.worked': ['salary.form106'], 'salary.equity': ['salary.equityDocs'], 'pension.received': ['pension.certs'], 'niBenefits.received': [] /* 20.10.2026 · niKindsAsks; האישור — המשרד */,
   'rent.newRental': ['rent.contract'], 'rent.otherProperty': ['rent.otherPropertyDocs'], 'capital.newAccount': ['capital.form867'],
   'savings.selfDeposits': ['savings.fundCerts'], 'savings.insurance': ['savings.insuranceCert'], 'donations.given': ['donations.receipts'],
-  'special.disability': ['special.disabilityCert'], 'household.creditChanges': ['household.degreeDocs'],
+  'special.disability': ['special.disabilityCert'], 'household.creditChanges': [] /* 21.10.2026 · studiesAsk — מסך «לימודים וצבא» */,
   'foreign.income': ['foreign.statements'], 'sales.sold': ['sales.docs'],
+  'savings.withdrawal': ['savings.withdrawalDocs'], 'business.started': ['business.startedDocs'],
+  'household.aliyah': ['household.aliyahDocs'], 'household.relativeCare': ['household.relativeCareDocs'],
 };
 /** כותרת למסמך שנפתח מהרשת לישות שעוד אין לה שם — «מכל מעסיק», לא «מהמעסיק החדש». */
 const GRID_DOC_TITLE: Record<string, string> = {
@@ -333,6 +346,143 @@ const GRID_DOC_TITLE: Record<string, string> = {
   'foreign.statements': 'הדוחות השנתיים מחו״ל (בנק, ברוקר או מעסיק)',
 };
 const spouseNameOf = (c: Client) => c.spouseFirstName || c.spouse?.firstName || 'בן/בת הזוג';
+
+/**
+ * ‼ 21.10.2026 · סבב 2 (גיא אישר את ההמחשה): בדוח השנתי — לכל אדם שני מסכים: «מאיפה נכנס לך כסף ב-{שנה}?» ו«מה יכול
+ *   להוריד לך מס?». כך אין «של מי» (ביקורת החוויה: שבבים בתוך ריבוע חצי-רוחב נשברים ב-360), והעובדות נשמרות לאדם עצמו.
+ *   ריבוע של משק הבית (שכר דירה, חיסכון בבנק) — גם הוא לאדם (הבעלים); picture.ts › screenerState מאחד לזוג.
+ *   שנת פטירה שידועה מהכרטיס — מסכים רק לאדם שנשאר; מה שבן/בת הזוג קיבל/ה — בענף הפטירה (annualRows).
+ */
+function buildMultiEntries(statuses: ItemStatus[], ctx: AskCtx): AskPlanEntry[] {
+  if (ctx.purpose !== 'annual') { const one = buildMultiEntry(statuses, ctx); return one ? [one] : []; }
+  const c = ctx.client;
+  const tiles = statuses.filter(s => s.item.kind === 'screener' && s.item.who === 'client' && !!s.item.tile && s.state === 'missing' && !s.entityRef
+    && s.item.purposes.includes('annual') && !s.item.rare && !ANNUAL_TILE_OFF.has(s.item.key));
+  if (!tiles.length) return [];
+  const people: SubjectRole[] = c.familyStatus === 'married' && knownFamilyEvent(c, ctx.taxYear) !== 'death' ? ['client', 'spouse'] : ['client'];
+  // ‼ מי שלימודים או שחרור שלו כבר בתיק — מקבל את מסך «לימודים וצבא» ממולא (annualRows); הריבוע מיותר אצלו
+  const cardStudies = new Set(statuses.filter(s => s.item.key === 'household.degree' || s.item.key === 'household.release').map(s => s.subjectRole));
+  const out: AskPlanEntry[] = [];
+  for (const role of people) {
+    for (const gridKey of ANNUAL_GRIDS) {
+      const less = gridKey === ANNUAL_LESS_KEY;
+      const mine = tiles.filter(s => ANNUAL_TILE_LESS.has(s.item.key) === less && (s.item.per === 'couple' || s.subjectRole === role)
+        && !(s.item.key === 'household.creditChanges' && (cardStudies.has(role) || cardStudies.has('couple'))));
+      const keys = [...new Set(mine.map(s => s.item.key))].sort((a, b) => (ANNUAL_ORDER.indexOf(a) + 1 || 99) - (ANNUAL_ORDER.indexOf(b) + 1 || 99));
+      if (!keys.length) continue;
+      const options = keys.map(key => annualTile(key, role, ctx));
+      const item = ITEM_BY_KEY[gridKey];
+      const p = promptFor({ subjectRole: role, item, area: item.area, state: 'missing', detail: '', facts: [], evidence: [], askable: true } as ItemStatus, ctx);
+      out.push({
+        key: `${gridKey}|${role}`, statuses: mine, itemKey: gridKey, subjectRole: role,
+        prompt: { templateVersion: CATALOG_VERSION, title: p.title, why: p.why, ...(p.subjectName ? { subjectName: p.subjectName } : {}),
+          input: { kind: 'multi', options }, addressee: addresseeOf(c), order: out.length, ...(less ? {} : { otherNote: true }),
+          ...(!out.length ? { known: knownLines(c) } : {}) },
+        label: `${item.label} · ${p.subjectName ?? c.firstName ?? 'הלקוח'} · ${options.length} ריבועים`,
+      });
+    }
+  }
+  // ‼ ריבוע שלא הוצג (לימודים אצל מי שכבר בתיק) — נצרך כאן, כדי שלא יישאל לבד כ«מי מכם?»
+  if (out.length) out[0] = { ...out[0], statuses: [...out[0].statuses, ...tiles.filter(s => !out.some(e => e.statuses.includes(s)))] };
+  return out;
+}
+
+/** ריבוע אחד בדוח השנתי, לאדם אחד: שם, דוגמה, «?», מה שנפתח כשמסמנים, וסימון מראש מהדוח הקודם. */
+function annualTile(key: string, role: SubjectRole, ctx: AskCtx): MultiOption {
+  const it = ITEM_BY_KEY[key];
+  const example = (ANNUAL_TILE_EXAMPLE[key] ?? '').split('{since}').join(String(ctx.taxYear - 5)).split('{aliyahSince}').join(String(ctx.taxYear - 10));
+  const followUps = key === 'niBenefits.received' ? niKindsAsks(role, ctx)
+    : key === 'household.creditChanges' ? [studiesAsk(role, ctx)]
+    : (ANNUAL_FOLLOW[key] ?? []).map((k, i) => annualFollowUp(k, role, ctx, i)).filter((x): x is MultiFollowUp => !!x);
+  // ‼ הדוח הקודם: מסומן מראש רק אצל מי שהיה לו (בלי פירוט אנשים — אצל הלקוח)
+  const who = ctx.lastYear?.tilePeople?.[key];
+  const mineLast = !!ctx.lastYear?.tiles[key] && !spouseOnlyInDeathYear(ctx, key)
+    && (who?.length ? who.includes(role as 'client' | 'spouse') || who.includes('joint') : role === 'client');
+  return {
+    key, role, label: it.tile!, ...(example ? { example } : {}), group: ANNUAL_TILE_LESS.has(key) ? 'less' : 'in',
+    ...(ANNUAL_TILE_HELP[key] ? { hint: ANNUAL_TILE_HELP[key] } : {}),
+    ...(key === 'niBenefits.received' ? { ours: ['האישור השנתי מביטוח לאומי'] } : {}),
+    ...(followUps.length ? { followUps } : {}),
+    ...(mineLast ? { note: `ב-${ctx.lastYear!.year}: ${ctx.lastYear!.tiles[key]}`, preset: true } : {}),
+  };
+}
+
+/**
+ * ‼ 21.10.2026 · «לימודים וצבא» לאדם אחד: רשומה (סוג, שנה, חודש לשחרור, «ואז התמחות?»), ממולאת ממה שבתיק כשיש.
+ *   המסמך נפתח לפי מה שנבחר (onValue, 286): תואר/מקצוע ⇒ אישור זכאות · צבא ⇒ תעודת שחרור · התמחות ⇒ אישור התמחות.
+ */
+export function studiesAsk(role: SubjectRole, ctx: AskCtx, fromCard = false): MultiFollowUp {
+  const it = ITEM_BY_KEY['household.studies'];
+  const p = promptFor({ subjectRole: role, item: it, area: it.area, state: 'missing', detail: '', facts: [], evidence: [], askable: true } as ItemStatus, ctx);
+  const doc = (key: string, title: string) => ({ itemKey: key, subjectRole: role, prompt: { ...promptFor({ subjectRole: role, item: ITEM_BY_KEY[key], area: 'household', state: 'missing', detail: '', facts: [], evidence: [], askable: true } as ItemStatus, ctx), title, templateVersion: CATALOG_VERSION } });
+  const initial = fromCard ? initialFromCard('studies', ctx.client, role) : [];
+  const input = p.input.kind === 'record' ? { ...p.input, ...(initial.length ? { initial } : {}) } : p.input;
+  return {
+    itemKey: 'household.studies', subjectRole: role,
+    prompt: { ...p, input, templateVersion: CATALOG_VERSION, ...(fromCard && initial.length ? { hint: 'מהתיק — אפשר לתקן' } : {}),
+      onValue: [
+        { field: 'kind', in: ['ba', 'ma', 'pro'], ask: doc('household.degreeDocs', 'אישור זכאות לתואר או תעודת המקצוע') },
+        { field: 'kind', in: ['army'], ask: doc('household.releaseDocs', 'תעודת השחרור') },
+        { field: 'intern', in: ['yes'], ask: doc('household.internshipDocs', 'אישור סיום ההתמחות') },
+      ] },
+  };
+}
+
+/**
+ * ‼ 21.10.2026 · סבב 2 — שורות «זה עדיין נכון?» בדוח השנתי:
+ *   · המשפחה: «השתנה» ⇒ בחירה בתוך השורה (נפרדנו / {שם} נפטר/ה) והענף שלה; אירוע שכבר בכרטיס (אלמן/ה מ-{שנה}) ⇒ «נכון» פותח את הענף.
+ *   · ילדים: «השתנה» ⇒ נולד ילד / ילד עם מוגבלות, כל אחד עם המסמך שלו.
+ *   · כתובת: «עברנו» ⇒ אישור תושבות.
+ *   · תואר ושחרור מהכרטיס ⇒ לא שורה כאן: מסך «לימודים וצבא» ממולא (עם «ואז התמחות?»).
+ *   · חשבון להחזר: כשבתיק יש חשבון — שורה ממולאת; «נכון» שולח את מה שבתיק.
+ */
+function annualRows(plan: AskPlanEntry[], ctx: AskCtx): AskPlanEntry[] {
+  const c = ctx.client;
+  const out: AskPlanEntry[] = [];
+  const studied = new Set<string>();
+  const ev = knownFamilyEvent(c, ctx.taxYear);
+  for (const e of plan) {
+    if (e.itemKey === 'household.degree' || e.itemKey === 'household.release') {
+      for (const role of (e.subjectRole === 'couple' ? ['client', 'spouse'] : [e.subjectRole]) as SubjectRole[]) {
+        if (studied.has(role)) continue;
+        studied.add(role);
+        const s = studiesAsk(role, ctx, true);
+        out.push({ key: `household.studies|${role}|`, statuses: e.statuses, itemKey: s.itemKey, subjectRole: role, prompt: s.prompt, label: `לימודים וצבא · ${role === 'spouse' ? spouseNameOf(c) : c.firstName ?? 'הלקוח'}` });
+      }
+      continue;
+    }
+    if (e.prompt.input.kind === 'confirm' && e.itemKey === 'household.maritalAtYearEnd') {
+      const b = familyBranches(ctx);
+      const known = ev ? b[ev] : null;
+      const inline = branchAsk('household.familyEvent', 'couple', ctx, 0, { inline: true, title: 'מה קרה?',
+        input: { kind: 'multi', options: c.familyStatus === 'married' ? [{ ...b.divorce, label: 'נפרדנו' }, b.death] : [b.marriage, b.divorce] } });
+      out.push({ ...e, prompt: { ...e.prompt, ...(known?.followUps?.length ? { onYes: known.followUps } : {}), ...(inline ? { onChanged: [inline] } : {}) } });
+      continue;
+    }
+    if (e.prompt.input.kind === 'confirm' && e.itemKey === 'household.children') {
+      const inline = branchAsk('household.childChange', 'couple', ctx, 0, { inline: true, title: 'מה השתנה?', input: { kind: 'multi', options: [
+        opt('household.newChild', 'couple', 'נולד ילד', [branchAsk('household.newChildDocs', 'couple', ctx, 20)]),
+        opt('household.disabledChild', 'couple', 'ילד עם מוגבלות', [branchAsk('household.disabledChildDocs', 'couple', ctx, 21)]),
+      ] } });
+      out.push({ ...e, prompt: { ...e.prompt, ...(inline ? { onChanged: [inline] } : {}) } });
+      continue;
+    }
+    if (e.prompt.input.kind === 'confirm' && e.itemKey === 'household.address') {
+      const cert = branchAsk('household.addressCert', 'couple', ctx, 22);
+      out.push({ ...e, prompt: { ...e.prompt, ...(cert ? { onChanged: [cert] } : {}) } });
+      continue;
+    }
+    if (e.itemKey === 'filing.refundAccount' && e.prompt.input.kind === 'record') {
+      // ‼ «על שם מי» אין בכרטיס — מוצג «על שם {לקוח}» לאישור (החזר עובר רק לחשבון של בן הזוג הרשום); אחרת «השתנה»
+      const initial = initialFromCard('bank', c, 'client').map(r => ({ owners: 'client', ...r }));
+      const ok = e.prompt.input.context && initial.length && answerValid(schemaFor('bank', undefined, e.prompt.input.context), { items: initial });
+      out.push(ok ? { ...e, prompt: { ...e.prompt, title: 'חשבון להחזר מס', knownRow: true, input: { ...e.prompt.input, initial } } } : e);
+      continue;
+    }
+    out.push(e);
+  }
+  return out;
+}
 
 function buildMultiEntry(statuses: ItemStatus[], ctx: AskCtx): AskPlanEntry | null {
   const c = ctx.client;
@@ -665,12 +815,26 @@ export function onYesFor(p: AskPrompt, answer: AskAnswer): MultiFollowUp[] {
   }
 }
 
+/** ‼ 21.10.2026 · אותו כלל כמו השרת (286): «השתנה» בשורת «זה עדיין נכון?» פותח את prompt.onChanged. */
+export function onChangedFor(p: AskPrompt, answer: AskAnswer): MultiFollowUp[] {
+  if (!p.onChanged?.length) return [];
+  return answer.kind === 'changed' || (answer.kind === 'record' && answer.assertion === 'changed') ? p.onChanged : [];
+}
+
+/** ‼ 21.10.2026 · אותו כלל כמו השרת (286): ערך ברשומה (לימודים וצבא) פותח את המסמך שלו — אם אחד הפריטים מתאים. */
+export function onValueFor(p: AskPrompt, answer: AskAnswer): MultiFollowUp[] {
+  if (!p.onValue?.length || answer.kind !== 'record' || answer.none || !answer.value || typeof answer.value !== 'object') return [];
+  const items = (answer.value as { items?: unknown }).items;
+  if (!Array.isArray(items)) return [];
+  return p.onValue.filter(r => items.some(x => !!x && typeof x === 'object' && r.in.includes(String((x as Record<string, unknown>)[r.field] ?? '')))).map(r => r.ask);
+}
+
 /**
  * תשובה ⇒ עובדות. ‼ 20.10.2026 · וגם מה שהתשובה פותחת מיד (prompt.onYes — «סבב אחד»), באותו כלל כמו השרת (264).
  */
 export function answerToFacts(ask: InfoAsk, answer: AskAnswer, ctx: AskCtx, today: string): AnswerResult {
   const r = factsOfAnswer(ask, answer, ctx, today);
-  const more = onYesFor(ask.prompt, answer);
+  const more = [...onYesFor(ask.prompt, answer), ...onChangedFor(ask.prompt, answer), ...onValueFor(ask.prompt, answer)];
   return more.length ? { ...r, followUps: [...(r.followUps ?? []), ...more] } : r;
 }
 

@@ -10,7 +10,9 @@ import type { DatedValue } from './temporal';
 import { isValidIsraeliId } from '../../utils/israeliId';
 import { familyStatusYearProblem } from '../../utils/familyStatusYear';
 
-export type FieldType = 'text' | 'dated' | 'date' | 'number' | 'percent' | 'choice' | 'digits' | 'bank' | 'branch' | 'hebrewText' | 'monthIn';
+export type FieldType = 'text' | 'dated' | 'date' | 'number' | 'percent' | 'choice' | 'digits' | 'bank' | 'branch' | 'hebrewText' | 'monthIn'
+  /** 21.10.2026 · בחירה מרשימה ארוכה (שנה, חודש) — רשימה נפתחת, לא כפתורים. */
+  | 'pick';
 
 export interface RecordField {
   key: string;
@@ -114,6 +116,7 @@ const DEALER = [
   { value: 'patur', label: 'עוסק פטור' }, { value: 'murshe', label: 'עוסק מורשה' }, { value: 'zeir', label: 'עוסק זעיר' },
   { value: 'company', label: 'חברה' }, { value: 'unknown', label: 'לא יודע/ת' },
 ];
+export const STUDY_KINDS = [{ value: 'ba', label: 'תואר ראשון' }, { value: 'ma', label: 'תואר שני' }, { value: 'pro', label: 'לימודי מקצוע' }, { value: 'army', label: 'צבא או שירות לאומי' }];
 const LIVES = [
   { value: 'withUs', label: 'גר/ה איתנו' }, { value: 'otherParent', label: 'אצל ההורה השני' }, { value: 'shared', label: 'משמורת משותפת' },
 ];
@@ -306,6 +309,27 @@ export function schemaFor(id: RecordSchemaId, c?: Client, ctx?: Record<string, s
       ],
       summary: r => [he(r.date) && `מ-${he(r.date)}`, str(r.spouseName)].filter(Boolean).join(' · '),
     };
+    // ‼ 21.10.2026 · סבב 2: לימודים, שחרור והתמחות — מקום אחד לכל אדם. מה שבתיק מגיע ממולא; תואר ⇐ «ואז התמחות?»
+    //   (40ג(ג1): הנקודות יכולות להתחיל אחרי ההתמחות); שחרור ⇐ חודש ושנה (39: 36 חודשים מהחודש שאחרי).
+    case 'studies': {
+      const Y = Number(ctx?.taxYear) || new Date().getFullYear() - 1;
+      const years = Array.from({ length: 10 }, (_, k) => String(Y - 9 + k)).map(y => ({ value: y, label: y }));
+      const degree = (r: RecordValue) => ['ba', 'ma', 'pro'].includes(str(r.kind));
+      return {
+        id, noun: 'לימודים', addLabel: '＋ עוד לימודים או שירות', multiple: true,
+        fields: [
+          { key: 'kind', label: 'מה סיימת?', type: 'choice', required: true, options: STUDY_KINDS },
+          { key: 'month', label: 'חודש', type: 'pick', required: true, half: true, options: MONTH_NAMES.map((m, k) => ({ value: String(k + 1).padStart(2, '0'), label: m })), showIf: r => r.kind === 'army' },
+          { key: 'year', label: 'באיזו שנה?', type: 'pick', required: true, half: true, options: years, showIf: r => !!r.kind },
+          { key: 'intern', label: 'ואז התמחות?', type: 'choice', required: true, options: [{ value: 'no', label: 'לא' }, { value: 'yes', label: 'כן' }],
+            showIf: r => degree(r) && !!str(r.year) && Number(r.year) >= Y - 8 },
+          { key: 'internFrom', label: 'התמחות מ-', type: 'pick', required: true, half: true, options: years, showIf: r => degree(r) && r.intern === 'yes' },
+          { key: 'internTo', label: 'עד', type: 'pick', required: true, half: true, options: years, showIf: r => degree(r) && r.intern === 'yes' },
+        ],
+        summary: r => [label(STUDY_KINDS, r.kind), r.kind === 'army' && str(r.month) ? `${MONTH_NAMES[Number(r.month) - 1]} ${str(r.year)}` : str(r.year),
+          r.intern === 'yes' ? `התמחות ${str(r.internFrom)}–${str(r.internTo)}` : ''].filter(Boolean).join(' · '),
+      };
+    }
     case 'maternityAmounts': return {
       id, noun: 'סכומים', addLabel: '', multiple: false,
       fields: [
@@ -435,6 +459,16 @@ export function initialFromCard(id: RecordSchemaId, c: Client, role: 'client' | 
       if (!b) return [];
       const code = /^\d{1,2}$/.test(String((b as { bankCode?: string }).bankCode ?? '')) ? (b as { bankCode?: string }).bankCode : undefined;
       return [{ id: b.id, foreign: 'no', bankCode: code ?? '', bankName: b.bankName, branchCode: b.branchNumber ?? '', accountNumber: b.accountNumber ?? '' }];
+    }
+    // ‼ 21.10.2026 · לימודים וצבא: התואר והשחרור מהתיק (תואר שלישי נרשם כתואר שני — המשרד מכריע)
+    case 'studies': {
+      const d = spouse ? c.spouse : c;
+      if (!d) return [];
+      const out: RecordValue[] = [];
+      if (d.hasAcademicDegree && d.academicDegreeYear) out.push({ kind: d.academicDegreeType === 'bachelor' || !d.academicDegreeType ? 'ba' : 'ma', year: String(d.academicDegreeYear) });
+      const ry = d.completedIdf ? d.idfReleaseYear : d.completedNationalService ? d.nationalServiceYear : 0;
+      if (ry) out.push({ kind: 'army', year: String(ry) });
+      return out;
     }
     case 'address':
       return c.city || c.address ? [{ city: c.city ?? '', street: (c as { street?: string }).street ?? c.address ?? '', houseNumber: (c as { houseNumber?: string }).houseNumber ?? '', zip: c.zipCode ?? '' }] : [];

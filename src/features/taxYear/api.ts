@@ -230,7 +230,8 @@ export function answerPayload(a: AskAnswer): Row {
     // 241 · רשומה מובנית — הערך נשמר בעובדה כפי שהוא (השרת בודק צורה וגודל)
     case 'record': return { kind: 'record', value: a.value, none: a.none, assertion: a.assertion, was: a.was };
     // 253 · מסך הרשת ו«של מי / איפה» — השרת שומר כן/לא לכל אריח, מאמת «איפה» מול הרשימה שלו
-    case 'multi': return { kind: 'multi', selected: a.selected };
+    // ‼ 21.10.2026 · ההערה («משהו אחר?» / «משהו לא נכון?») נשלחת עם התשובה — השרת שומר אותה כהערה למשרד (267)
+    case 'multi': return { kind: 'multi', selected: a.selected, ...(a.note ? { note: a.note } : {}) };
     case 'entity': return { kind: 'entity', items: a.items };
   }
 }

@@ -7,8 +7,8 @@
 // ‼ מסמכים לא נשאלים באמצע: הם ברשימה אחת בסוף, אחרי השליחה (גיא: «כל המסמכים — רק בסוף, בצורה מסודרת»).
 
 import type { InfoAsk, MultiFollowUp, AskPrompt } from './types';
-import { buildScreens, screenAsks, type Screen } from './screens';
-import { onYesFor, type AskAnswer } from './asks';
+import { buildScreens, screenAsks, STUDIES_KEY, type Screen } from './screens';
+import { onYesFor, onChangedFor, onValueFor, type AskAnswer } from './asks';
 import { answerValid, schemaFor, type RecordAnswer } from './records';
 import { cleanEntity, entityValid, type EntityItem } from './entities';
 import type { UnavailableCode } from './types';
@@ -79,7 +79,8 @@ export function opensOf(ask: InfoAsk, a: AskAnswer): MultiFollowUp[] {
   if (a.kind === 'multi' && ask.prompt.input.kind === 'multi') {
     return ask.prompt.input.options.filter(o => a.selected.includes(o.key)).flatMap(o => [...(o.followUps ?? []), ...(o.followUp ? [o.followUp] : [])]);
   }
-  return onYesFor(ask.prompt, a);
+  // ‼ 21.10.2026 · סבב 2: גם «השתנה» (onChanged) וערך ברשומה (onValue) — אותו כלל כמו השרת (286)
+  return [...onYesFor(ask.prompt, a), ...onChangedFor(ask.prompt, a), ...onValueFor(ask.prompt, a)];
 }
 
 /** שאלה וירטואלית זוכרת מי פתח אותה — כדי שתבוא מיד אחרי השאלה הזו (walkScreens). */
@@ -105,8 +106,9 @@ export function expandWithDrafts(asks: InfoAsk[], drafts: Record<string, Draft>,
       if (a.state !== 'published') continue;
       const d = drafts[askIdentity(a)];
       const ans = d ? draftToAnswer(a, d) : null;
-      if (!ans) continue;
-      for (const f of opensOf(a, ans)) {
+      // ‼ 21.10.2026 · «השתנה» פותח את מה שבתוך השורה מיד — גם לפני שהשינוי עצמו מלא (נולד ילד ⇐ השם והתאריך נכתבים אחרי הבחירה)
+      const opens = ans ? opensOf(a, ans) : d?.choice === 'changed' ? (a.prompt.onChanged ?? []).filter(f => f.prompt.inline) : [];
+      for (const f of opens) {
         const id = askIdentity(f);
         if (seen.has(id)) continue;
         seen.add(id);
@@ -130,11 +132,26 @@ export function walkScreens(asks: InfoAsk[], opened: ReadonlySet<string>): Scree
     const by = (a as VirtualAsk).openedBy;
     if (isVirtual(a) && by) kids.set(by, [...(kids.get(by) ?? []), a]);
   }
+  // ‼ 21.10.2026 · סבב 2: שאלה «בתוך השורה» (inline) אינה מסך — מה שהיא פותחת בא מיד אחרי המסך של השורה;
+  //   «לימודים וצבא» של כל בני הבית — מסך אחד בסוף (גם מה שבתיק וגם מה שנפתח מריבוע).
+  const studies: InfoAsk[] = [];
+  const kidsOf = (a: InfoAsk): InfoAsk[] => (kids.get(a.id) ?? []).flatMap(k => (k.prompt.inline ? kidsOf(k) : [k]))
+    .filter(k => (k.itemKey === STUDIES_KEY ? (studies.push(k), false) : true));
   const place = (list: Screen[], depth: number): Screen[] => list.flatMap(s => {
-    const ch = depth < 6 ? screenAsks(s).flatMap(a => kids.get(a.id) ?? []) : [];
-    return ch.length ? [s, ...place(buildScreens(ch, opened), depth + 1)] : [s];
+    const ch = depth < 6 ? screenAsks(s).flatMap(a => [...kidsOf(a), ...inlineOf(live, a).filter(x => !isVirtual(x)).flatMap(kidsOf)]) : [];
+    return ch.length ? [s, ...place(buildScreens(ch, opened, { knownAll: true }), depth + 1)] : [s];
   });
-  return place(buildScreens(live.filter(a => !isVirtual(a) || !(a as VirtualAsk).openedBy), opened), 0);
+  const top = live.filter(a => (!isVirtual(a) || !(a as VirtualAsk).openedBy) && !a.prompt.inline);
+  const main = place(buildScreens(top.filter(a => a.itemKey !== STUDIES_KEY), opened, { knownAll: true }), 0);
+  const seen = new Set<string>();
+  const allStudies = [...top.filter(a => a.itemKey === STUDIES_KEY), ...studies].filter(a => (seen.has(askIdentity(a)) ? false : (seen.add(askIdentity(a)), true)))
+    .sort((a, b) => (a.subjectRole === 'client' ? 0 : 1) - (b.subjectRole === 'client' ? 0 : 1));
+  return allStudies.length ? [...main, ...place(buildScreens(allStudies, opened, { knownAll: true }), 1)] : main;
+}
+
+/** 21.10.2026 · השאלות «בתוך השורה» של שורת אישור (בחירה קטנה: נפרדנו / נולד ילד) — מוצגות בה, לא כמסך. */
+export function inlineOf(asks: InfoAsk[], parent: InfoAsk): InfoAsk[] {
+  return asks.filter(a => a.prompt.inline && ((a as VirtualAsk).openedBy === parent.id || (!isVirtual(a) && !!parent.prompt.onChanged?.some(f => askIdentity(f) === askIdentity(a)))));
 }
 
 /** מה נשלח עכשיו: שאלות אמיתיות פתוחות (לא מסמך) שיש להן תשובה בטיוטה. */

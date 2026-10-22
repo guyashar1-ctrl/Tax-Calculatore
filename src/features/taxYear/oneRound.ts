@@ -86,7 +86,9 @@ export function withOneRound(plan: AskPlanEntry[], inp: PictureInput, ctx: AskCt
         const optTaken = new Set([...taken, ...withEntity(existing), ...asOptions]);
         const optAsks = [...asks, ...existing.map(f => fakeAsk(f, ctx))];
         const yesFacts = asFacts(answerToFacts(planned[i], { kind: 'multi', selected: [o.key] }, ctx, inp.today).facts.filter(f => f.itemKey === o.key));
-        const more = speculate(inp, ctx, [...inp.facts, ...yesFacts], optAsks, optTaken, depth);
+        // ‼ 21.10.2026 · סבב 2: מה שהריבוע כבר פותח (למשל מסמכי המכירה של בן/בת הזוג) — לא שוב בתפקיד אחר (עסקה נרשמת על הלקוח)
+        const own = new Set(existing.map(f => f.itemKey));
+        const more = speculate(inp, ctx, [...inp.facts, ...yesFacts], optAsks, optTaken, depth).filter(f => !own.has(f.itemKey));
         return more.length ? { ...o, followUps: [...(o.followUps ?? []), ...more] } : o;
       });
       return { ...e, prompt: { ...e.prompt, input: { ...inpE, options } } };

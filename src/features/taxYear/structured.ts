@@ -20,6 +20,7 @@ export const RECORD_OF: Record<string, RecordSchemaId> = {
   'niBenefits.maternityPeriod': 'maternityPeriod', 'niBenefits.maternityAmounts': 'maternityAmounts',
   'intake.marriageYear': 'familyYear', 'intake.divorceYear': 'familyYear', 'intake.widowhoodYear': 'familyYear',
   'family.death': 'deathEvent', 'family.divorce': 'divorceEvent', 'family.marriage': 'marriageEvent',
+  'household.studies': 'studies',
   'period.property': 'period', 'period.account': 'period', 'wealth.period.property': 'period', 'wealth.period.account': 'period',
 };
 

@@ -7,7 +7,7 @@
 // ‼ מסמך שהתקבל אינו מידע מאושר: «התקבל, ממתין לבדיקה» ≠ «ידוע».
 
 import type { Client } from '../../types';
-import { AREAS, ITEMS, ITEM_BY_KEY, type AreaId, type InfoItem } from './catalog';
+import { AREAS, ITEMS, ITEM_BY_KEY, ANNUAL_TILE_OFF, type AreaId, type InfoItem } from './catalog';
 import { canRequestNow, DOCS } from './documents';
 import type { EntityKind, Evidence, FactBasis, InfoAsk, Purpose, SubjectRole, YearFact } from './types';
 import { accountSpan, entityRelevance, periodOfRequest, propertySpan, type Relevance } from './temporal';
@@ -243,7 +243,18 @@ function familyStatusAnswered(facts: YearFact[]): Client['familyStatus'] | undef
 /** 16.10.2026 · מצב שאלת פתיחה מעובדות בלבד (מסך הרשת של זוג שומר לתפקיד 'couple') — בלי הכרטיס. */
 function factState(key: string, role: SubjectRole, facts: YearFact[]): 'yes' | 'no' | 'unknown' {
   const latest = facts.filter(f => f.itemKey === key && f.subjectRole === role && (f.status === 'accepted' || f.status === 'pending')).sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
-  return latest ? (latest.answer === 'value' && latest.value !== false ? 'yes' : 'no') : 'unknown';
+  return latest ? (latest.answer === 'value' && latest.value !== false ? 'yes' : 'no') : role === 'couple' && coupleItem(key) ? personsState(key, facts) : 'unknown';
+}
+
+/**
+ * ‼ 21.10.2026 · סבב 2: בדוח השנתי כל אדם עונה במסך משלו — גם על ריבוע של משק הבית (שכר דירה, חיסכון בבנק).
+ *   לזוג: «כן» אם אחד מהם סימן; «לא» אם ענו ואף אחד לא סימן.
+ */
+const anyState = (l: ('yes' | 'no' | 'unknown')[]) => (l.includes('yes') ? 'yes' : l.includes('no') ? 'no' : 'unknown');
+const coupleItem = (key: string) => ITEMS.find(i => i.key === key)?.per === 'couple';
+function personsState(key: string, facts: YearFact[]): 'yes' | 'no' | 'unknown' {
+  const st = (['client', 'spouse'] as const).map(r => factState(key, r, facts));
+  return st.includes('yes') ? 'yes' : st.includes('no') ? 'no' : 'unknown';
 }
 
 /** מצב שאלת הפתיחה לאדם: מעובדות (מאושרות או ממתינות) ומהכרטיס. */
@@ -251,6 +262,7 @@ function screenerState(key: string, role: SubjectRole, c: Client, facts: YearFac
   const live = facts.filter(f => f.itemKey === key && f.subjectRole === role && (f.status === 'accepted' || f.status === 'pending'));
   const latest = live.sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
   if (latest) return latest.answer === 'value' && latest.value !== false ? 'yes' : 'no';
+  if (role === 'couple' && coupleItem(key)) { const p = personsState(key, facts); if (p !== 'unknown') return p; }
   const it = ITEMS.find(i => i.key === key);
   // רשימה בכרטיס (מעסיקים, עסקים) = מצב עדכני ⇒ «כן». סכום שנתי מהעבר (תרומות 2024) = רמז לאישור, לא «כן» לשנה הזו.
   if (it && (it.kind === 'confirm' || it.key === 'salary.worked') && cardHas(it, c, { subjectRole: role })) return 'yes';
@@ -295,6 +307,9 @@ export function buildYearPicture(inp: PictureInput): YearPicture {
   const statuses: ItemStatus[] = [];
   // ‼ מי שתואר/שחרור/יישוב לא נשאלו אצלו כי הכרטיס ריק או ישן — רק לו נשאלת household.creditChanges.
   const gatedByCard = new Map<SubjectRole, string[]>();
+  /** 21.10.2026 · ל-{אדם} יש «לימודים וצבא» (שאלה או תשובה) — שם נשאלים התואר, השחרור וההתמחות. */
+  const studiesOf = (role: SubjectRole) => asks.some(a => a.itemKey === 'household.studies' && a.subjectRole === role && a.state !== 'cancelled')
+    || facts.some(f => f.itemKey === 'household.studies' && f.subjectRole === role);
   const gate = (role: SubjectRole, what: string) => {
     const roles: SubjectRole[] = role === 'couple' ? ['client', ...(c.spouse ? ['spouse' as const] : [])] : [role];
     for (const r of roles) gatedByCard.set(r, [...(gatedByCard.get(r) ?? []), what]);
@@ -369,7 +384,12 @@ export function buildYearPicture(inp: PictureInput): YearPicture {
 
     for (const t of targetsWithProvisional(item)) {
       // ‼ 16.10.2026 · מסך הרשת של זוג נשוי שומר את שאלת הפתיחה (ואת «של מי / איפה») לתפקיד 'couple' — עובדה כזו מכסה את שני האנשים
-      const tf = itemFacts.filter(f => sameTarget(f, t) || coupleCovers(f, item, t) || provCovers(f, t));
+      const tf0 = itemFacts.filter(f => sameTarget(f, t) || coupleCovers(f, item, t) || provCovers(f, t));
+      // ‼ 21.10.2026 · סבב 2: ריבוע של משק הבית (שכר דירה, חיסכון בבנק) נענה בדוח השנתי במסך של כל אדם — «כן» של אחד מהם הוא «כן» לזוג;
+      //   «לא» רק כששניהם ענו «לא» (לא «לא» של אחד שסוגר «כן» של השני)
+      const personal = !tf0.length && item.per === 'couple' && item.kind === 'screener' && t.subjectRole === 'couple' && !t.entityRef
+        ? itemFacts.filter(f => (f.subjectRole === 'client' || f.subjectRole === 'spouse') && !f.entityRef) : [];
+      const tf = personal.length ? (personal.some(f => f.answer === 'value') ? personal.filter(f => f.answer === 'value') : personal) : tf0;
       // ‼ 20.10.2026 · מסמך שהועלה לשאלה של «שניכם» (מסך הרשת של זוג) מכסה את שני האנשים — בלי זה התבקש שוב מכל אחד
       const tev = item.docKind
         ? evidence.filter(e => e.docKind === item.docKind && (e.taxYear == null || e.taxYear === y)
@@ -378,7 +398,9 @@ export function buildYearPicture(inp: PictureInput): YearPicture {
       const ask = asks.find(a => a.state !== 'cancelled' && a.state !== 'answered'
         && ((a.itemKey === item.key && askCovers(a, t))
           // 16.10.2026 · מסך הרשת «סמנו מה יש לכם» — שאלה אחת שמכסה כל אריח (שאלת פתיחה) בתפקיד שלו
-          || (a.prompt.input.kind === 'multi' && a.prompt.input.options.some(o => o.key === item.key && askCovers({ subjectRole: o.role }, t)))));
+          || (a.prompt.input.kind === 'multi' && a.prompt.input.options.some(o => o.key === item.key && (askCovers({ subjectRole: o.role }, t)
+            // ‼ סבב 2: ריבוע של משק הבית במסך של אדם — מכסה את הזוג
+            || (item.per === 'couple' && t.subjectRole === 'couple' && !t.entityRef && (o.role === 'client' || o.role === 'spouse')))))));
       // ‼ 13.10.2026 · תחולה: שאלת התחולה עצמה — רק לישות שהכרטיס לא יודע עליה (או שכבר נשאלה/נענתה).
       //   פריט שתלוי בישות — רק כשהישות בוודאות בתקופה; «לא ידוע» מחכה לתשובה, «מחוץ לתקופה» — לא חל.
       if (temporal && (t.entityKind === 'property' || t.entityKind === 'account') && t.entityRef && !isProvisionalRef(t.entityRef)) {
@@ -397,7 +419,8 @@ export function buildYearPicture(inp: PictureInput): YearPicture {
       // 0. לא שואלים מה שהכרטיס כבר עונה: מעסיקים בכרטיס ⇒ אישור הרשימה, לא «עבדת כשכיר?»
       if (item.coveredBy && tf.length === 0 && !ask) {
         const cov = ITEMS.find(i => i.key === item.coveredBy);
-        if (cov && cardHas(cov, c, t)) continue;
+        // ‼ 21.10.2026 · חשבון בנק רגיל (להחזר) אינו «חשבון השקעות» — בלי זה מי שיש לו חשבון בנק בתיק לא נשאל על ריבית, פיקדון או מניות
+        if (item.key === 'capital.newAccount' ? (c.investmentAccounts ?? []).some(a => !a.isClosed) : cov && cardHas(cov, c, t)) continue;
       }
       // ‼ 13.10.2026 · «האם עצמאי?» לא נשאל כשהתיק כבר יודע שהאדם רשום כעוסק (הפרטים החסרים — בפריט הפרטים)
       if (item.key === 'intake.selfEmployed' && tf.length === 0 && !ask && t.subjectRole !== 'couple'
@@ -406,6 +429,12 @@ export function buildYearPicture(inp: PictureInput): YearPicture {
       if (item.onlyMarried && !isMarried(c)) continue;
       // פרטי עסק חדש — רק כשבכרטיס אין לאדם עסק (אחרת: אישור העסק שבכרטיס)
       if (item.noCardEntity === 'businesses' && tf.length === 0 && !ask && (c.businesses ?? []).some(b => !b.isClosed && !!b.belongsToSpouse === (t.subjectRole === 'spouse'))) continue;
+      // ‼ 21.10.2026 · סבב 2 (השאלון השנתי): «שינוי במשפחה» ו«השכרת ציוד» אינם ריבועים (שורת המשפחה · «משהו אחר?»);
+      //   תואר, שחרור ו«סיום לימודים» של אדם שיש לו «לימודים וצבא» — נשאלו שם. בלי זה המשרד ראה «עוד שאלות» אחרי שהלקוח סיים.
+      if (purpose === 'annual' && tf.length === 0 && !ask) {
+        if (ANNUAL_TILE_OFF.has(item.key)) continue;
+        if (['household.degree', 'household.release', 'household.creditChanges'].includes(item.key) && studiesOf(t.subjectRole)) continue;
+      }
       // תואר ושחרור מזכים בנקודות רק בשנים שאחרי הסיום/השחרור — מה שהסתיים מזמן לא נשאל
       if ((item.key === 'household.degree' || item.key === 'household.release') && tf.length === 0 && !ask) {
         const d = (t.subjectRole === 'spouse' ? c.spouse : c) as unknown as Record<string, number | undefined> | undefined;
@@ -437,7 +466,10 @@ export function buildYearPicture(inp: PictureInput): YearPicture {
         const role: SubjectRole = t.ownerRole ?? (t.subjectRole === 'couple' ? 'client' : t.subjectRole);
         // ישות זמנית: השער הוא התשובה של מי שענה «כן» — לא של משק הבית
         const primary: SubjectRole = t.gateRole ? t.gateRole : item.per === 'couple' || t.subjectRole === 'couple' ? 'couple' : role;
-        const gate = screenerState(item.after, primary, c, facts, y);
+        // ‼ 21.10.2026 · סבב 2: עסקה (נכס שנמכר) נרשמת על הלקוח, אבל כל אחד מבני הזוג עונה במסך משלו — «כן» של אחד מהם פותח
+        const gate = item.per === 'transaction' && !t.gateRole
+          ? anyState((['client', 'spouse', 'couple'] as const).map(r => screenerState(item.after!, r, c, facts, y)))
+          : screenerState(item.after, primary, c, facts, y);
         // ‼ 16.10.2026 · שאלת פתיחה של משק הבית (מסך הרשת של זוג) פותחת פריט לאדם, ושל האדם (יחיד) — פריט של משק הבית
         //   ‼ מאדם למשק הבית — רק מעובדה (תשובת מסך הרשת), לא מהכרטיס: הכרטיס של הלקוח אינו עונה על בן/בת הזוג
         const gate2 = gate === 'unknown' && !t.gateRole ? (primary === 'couple' ? screenerState(item.after, 'client', c, facts, y) : factState(item.after, 'couple', facts)) : gate;

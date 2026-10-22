@@ -22,7 +22,7 @@ import { ITEM_BY_KEY } from './catalog';
 import { DOCS } from './documents';
 import { supabase } from '../../lib/supabase';
 import PriorReturnPrep from './PriorReturnPrep';
-import { knownFamilyEvent } from './asks';
+import { knownFamilyEvent, ANNUAL_GRIDS } from './asks';
 import { genderOf } from './gender';
 import { cardUpdateFor, updatesCard } from './recordToCard';
 import { isOpenStep } from './taxWork';
@@ -131,13 +131,18 @@ export default function AnnualSummary({ client, step, year, data, busy, run, mor
   const filling = waiting.length > 0;
 
   // ── הפירוט: מה הלקוח אמר שהיה ושלא היה ──
-  const gridAsk = asks.find(a => a.itemKey === 'annual.whatHappened' && a.state === 'answered');
-  const notThisYear = gridAsk && gridAsk.prompt.input.kind === 'multi'
-    ? gridAsk.prompt.input.options.filter(o => facts.some(f => f.itemKey === o.key && f.answer === 'no')).map(o => o.label) : [];
+  // ‼ 21.10.2026 · סבב 2: מסכי ריבועים לכל אדם (כסף שנכנס · מה מוריד מס) — כל ריבוע עם שם האדם כשיש שניים
+  const gridAsks = asks.filter(a => ANNUAL_GRIDS.includes(a.itemKey) && a.state === 'answered');
+  const twoPeople = new Set(gridAsks.map(a => a.subjectRole)).size > 1;
+  const gridLabels = (pick: (f: (typeof facts)[number]) => boolean) => gridAsks.flatMap(g => g.prompt.input.kind === 'multi'
+    ? g.prompt.input.options.filter(o => facts.some(f => f.itemKey === o.key && f.subjectRole === o.role && f.askId === g.id && pick(f)))
+      .map(o => (twoPeople && g.prompt.subjectName ? `${o.label} (${g.prompt.subjectName})` : o.label)) : []);
+  const notThisYear = gridLabels(f => f.answer === 'no');
   const businesses = (client.businesses ?? []).filter(b => !b.isClosed);
   const notSure = asks.filter(a => a.officeNote && !a.noteResolvedAt);
-  const yesThisYear = gridAsk && gridAsk.prompt.input.kind === 'multi'
-    ? gridAsk.prompt.input.options.filter(o => facts.some(f => f.itemKey === o.key && yes(f))).map(o => o.label) : [];
+  /** איפה הלקוח כתב את ההערה — «משהו אחר?» במסך הכסף, אחרת השאלה עצמה. */
+  const noteWhere = (a: (typeof asks)[number]) => (ANNUAL_GRIDS.includes(a.itemKey) ? `משהו אחר${a.prompt.subjectName ? ` · ${a.prompt.subjectName}` : ''}` : a.prompt.title);
+  const yesThisYear = gridLabels(yes);
 
   // ── שנת פטירה ──
   // ‼ אלמן/ה מ-{שנה} בכרטיס — הענף נפתח ישר מהרשת (asks.ts › knownFamilyEvent), בלי עובדת «נפטר/ה»
@@ -259,6 +264,13 @@ export default function AnnualSummary({ client, step, year, data, busy, run, mor
           act: open ? btn('תזכורת', goRemind) : undefined,
           children: remindHint ? <small role="status">התזכורת יוצאת מ«הדף של {firstName}» בלשונית «בקשות».</small> : undefined }
       : { key: 'docs', ok: true, title: files.length === 1 ? 'המסמך התקבל' : `כל ${files.length} המסמכים התקבלו`, data: { 'data-as-client-docs': '' } });
+  }
+  // ב2. ‼ 21.10.2026 · סבב 2: מה שהלקוח כתב («משהו אחר?» במסך הכסף, «לא בטוח») — גלוי כאן, לפני האישורים (לא רק בפירוט)
+  if (notSure.length > 0) {
+    const one = notSure[0];
+    rows.push({ key: 'notes', title: notSure.length === 1 ? `«${one.officeNote}»` : `${notSure.length} הערות מ${firstName}`,
+      sub: notSure.length === 1 ? noteWhere(one) : notSure.map(a => `«${a.officeNote}»`).join(' · '), data: { 'data-as-notes': '' },
+      act: btn(notSure.length === 1 ? 'סגור' : 'סגור הכול', () => void run(async () => { for (const a of notSure) { const r = await api.resolveNote(a.id); if (!r.ok) return r; } return { ok: true }; }, 'סומן שנסגר'), { disabled: busy }) });
   }
   // ג. תשובות לאישור
   if (simplePending.length > 0) {
@@ -395,8 +407,8 @@ export default function AnnualSummary({ client, step, year, data, busy, run, mor
             {notThisYear.length > 0 && <div><dt>לא היה ב-{year}</dt><dd>{many(notThisYear.length, 'נושא אחד', 'נושאים')}</dd></div>}
             {notSure.map(a => (
               <div key={a.id} className="as-kv-open">
-                <dt>לא בטוח</dt>
-                <dd><span>{a.prompt.title} · «{a.officeNote}»</span>
+                <dt>הערה</dt>
+                <dd><span>{noteWhere(a)} · «{a.officeNote}»</span>
                   <button type="button" className="btn btn-sm btn-ghost" disabled={busy} onClick={() => void run(() => api.resolveNote(a.id), 'סומן שנסגר')}>סגור</button></dd>
               </div>
             ))}

@@ -48,15 +48,29 @@ async function answerAll(pp) {
       if (await flow.locator('[data-annual-send]').isDisabled()) return { done: false, uploaded, stuck: (await text(flow)).replace(/\s+/g, ' ').slice(0, 600) };
       await flow.locator('[data-annual-send]').click(); await pp.locator('.ty-flow[data-annual-docs]').waitFor({ timeout: 40000 }); continue;
     }
+    // ‼ 21.10.2026 · סבב 2: «זה עדיין נכון?» — «נכון» בכל שורה; מסכי ריבועים לכל אדם; «הבא» = הכפתור הראשי
+    const scr2 = await pp.locator('.ty-flow').getAttribute('data-screen');
+    if (scr2 === 'confirmAll' || scr2 === 'grid') {
+      const t0 = (await text(flow.locator('.ty-q').first())).trim();
+      if (scr2 === 'confirmAll') {
+        for (let n = 0; n < 20; n++) { const b = flow.locator('.ty-krow-card .ty-seg button', { hasText: /^נכון$/ }).first(); if (!(await b.count())) break; await b.click(); }
+      } else {
+      for (const k of ['donations.given']) { const t = flow.locator(`.ty-tile2-main[data-tile="${k}"]`); if (await t.count() && (await t.getAttribute('aria-pressed')) !== 'true') await t.click(); }
+      }
+      const p0 = await flow.getAttribute('data-person');
+      await flow.locator('.ty-nav .btn-primary').click();
+      await pp.waitForFunction(([t, pr]) => { const f = document.querySelector('.ty-flow'); return !!f?.hasAttribute('data-annual-docs') || (f?.querySelector('.ty-q')?.textContent ?? '') !== t || f?.getAttribute('data-person') !== pr; }, [t0, p0], { timeout: 40000 }).catch(() => {});
+      await pp.waitForTimeout(300); continue;
+    }
     if ((await pp.locator('.ty-flow').getAttribute('data-screen')) === 'group') {
       for (const c of await flow.locator('.ty-group-card').all()) await c.locator('[data-tile="none"]').click();
-      await flow.getByRole('button', { name: /^הבא$/ }).click(); await pp.waitForTimeout(400); continue;
+      await flow.locator('.ty-nav .btn-primary').click(); await pp.waitForTimeout(600); continue;
     }
     if (await flow.locator('.ty-q', { hasText: /תודה!|התשובות נשלחו למשרד/ }).count()) return { done: true, uploaded };
-    if (await flow.locator('.ty-done-mark').count()) { await flow.getByRole('button', { name: /^(הבא|שליחה למשרד)$/ }).click(); await pp.waitForTimeout(300); continue; }
+    if (await flow.locator('.ty-done-mark').count()) { await flow.locator('.ty-nav .btn-primary').click(); await pp.waitForTimeout(300); continue; }
     const title = (await text(flow.locator('.ty-q').first())).trim();
     const next = async () => {
-      await flow.getByRole('button', { name: /^(הבא|שליחה למשרד)$/ }).click();
+      await flow.locator('.ty-nav .btn-primary').click();
       await pp.waitForFunction((t) => (document.querySelector('.ty-flow .ty-q')?.textContent ?? '') !== t || !!document.querySelector('.ty-flow .ty-err'), title, { timeout: 20000 }).catch(() => {});
       await pp.waitForTimeout(250);
     };
