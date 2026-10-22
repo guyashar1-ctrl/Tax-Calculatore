@@ -37,6 +37,13 @@ Ask Guy which business process or automation he wants to improve first. Inspect 
 
 ## Decision log / review evidence
 
+### 2026-10-22 — «עדכון סטטוס מס» יוצא מהקליטה; טיוטה תמיד מגיעה לדף (גיא אישר: «מאשר את ההצעה כולה. גם אצל אמיר ויסמרק להסיר את השאלון.»)
+- הבעיה (ליאת ברנשטיין, צילום 21.10): השאלון סומן «טיוטה» ונספר ב«4 בקשות עוד לא בדף», אבל `_portal_step_items` הציג אותו רק ב-waiting_client והפרסום השאיר אותו pending ⇒ לא ב«איך זה ייראה» ולא בדף גם אחרי «פרסם בדף». אצל אמיר ויסמרק — פורסם 12.10 ומעולם לא הוצג.
+- 276 (ייצור 22.10, אחרי גיבוי `backup_intake276_20261022` + `C:/Users/guyas/PIVO/backups/intake276-20261022`; נרשמה 20261022082924): טריגר `onboarding_steps_intake_published_waits` (פורסם+pending ⇒ waiting_client, ball client), הזרקה לענף השאלון ב-`_portal_step_items` (טיוטה בצפייה, בלי קישור), והשאלון של ליאת ושל אמיר בוטל (`_set_step_status`, נרשם ב«פעילות»). commit 21319a3 ב-master.
+- בדיקות: `staging-test-draft-reaches-page-276.mjs` — לפני 31/37 (רק השאלון), אחרי 37/37, run=true ב-impact-map. test-r4-notices 42/42, test-r4-engine 143/143, test-notices-flows 121/121 (הורצו ישירות עם revoke זמני של il_streets_for/il_localities_list בתוך הטרנזקציה). test-222 50/51 — P.2ה paperless_invite נכשלת זהה גם בלי 276 (פער קיים, לא נבדק). prod-invariants-check ירוק. בייצור נבדקו כל הטיוטות הפתוחות ב-`build_client_portal('preview')` — רק השאלון של ליאת חסר.
+- INV-REQ-01 ב-docs/INVARIANTS.md. לא נוסף ל-`pivo_invariant_violations` (פונקציה של סשן אחר מאותו בוקר) — הטריגר מונע את המצב.
+- מסלול «קליטת לקוח חדש» (6a1d0a71…, v2 כולל `intake_questionnaire` לעוסק מורשה/פטור/חברה/החזר מס): הסרת הפריט דרך «מסלולים» — **טרם בוצעה** (22.10): הדפדפן שליד הצ׳אט לא נשאר מחובר, ו-Claude in Chrome לא היה מחובר. עד שתוסר — לקוח חדש מהסוגים האלה עדיין יקבל את השאלון (כטיוטה, ועכשיו היא כן תגיע לדף אחרי פרסום). לא לכתוב את חמש רשימות ברירת המחדל ישירות — רק שמירה במסלולים (compileOnboarding).
+
 ### 2026-10-22 — יישוב ורחוב מרשימה סגורה + «יישוב מזכה» מהכתובת (285) (גיא אישר: «מאשר את ההצעה כמו שהיא, כולל עדכון המסד בייצור וחיבור הלקוחות הקיימים»)
 - Trigger: לקוחה מקלידה עיר בקליטה, ו«יישוב מזכה» נקבע רק בלחיצה ידנית במשרד (תיבת «סנכרן מהעיר» מסומנת ולא רצה); השאלון השנתי דילג כי «ידוע בכרטיס». הצעה: docs/proposals/2026-10-21-closed-address-list.html.
 - Built: AddressFields (יישוב/רחוב מרשימה, מיקוד חופשי במקומו) בקליטה, ייפוי כוח, כרטיס, «פרטי הנישום», השאלון (RecordEditor address), CardSectionEditor; SettlementStatus  (לפי הכתובת / ידני+סיבה / «לא זוהה») בתיק המס ובכרטיס; שאלה «גר/ה ב… כל השנה» + officeNext; resolveSettlement לפי סמל בין שנים; handleUpdateClientFields מחזיר את שורת השרת.
