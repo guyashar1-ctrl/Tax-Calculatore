@@ -228,14 +228,7 @@
       "name": "שאלון הדוח השנתי (הדף האישי, סבב 2): מסכים לכל אדם, «זה עדיין נכון?», לימודים וצבא",
       "invariants": [],
       "globs": [
-        "src/features/taxYear/AnnualFlow.tsx",
-        "src/features/taxYear/flowDraft.ts",
-        "src/features/taxYear/screens.ts",
-        "src/features/taxYear/asks.ts",
-        "src/features/taxYear/catalog.ts",
-        "src/features/taxYear/picture.ts",
-        "src/features/taxYear/oneRound.ts",
-        "src/features/taxYear/AnnualSummary.tsx",
+        "src/features/taxYear/**",
         "supabase/2*-*annual*.sql"
       ],
       "suites": [

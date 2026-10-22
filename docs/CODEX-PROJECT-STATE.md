@@ -1200,9 +1200,12 @@ User requests end-of-office-flow extraction guides with annotated screenshots, m
 - **פתוח:** `ANTHROPIC_API_KEY` לא הוגדר בייצור וב-staging. עד שיוגדר — «התשובה האוטומטית לא זמינה» + חיפוש מקומי, והשאלות נרשמות. נתיב ה-AI לא נבדק מול מודל אמיתי.
 - **בדיקות:** tsc · 2101 בדיקות יחידה · build · `staging-test-knowledge-answer` · `staging-test-280-portal-filings` (28/28) · דפדפן הדגמה במחשב ובטלפון.
 - **עקיפת מעקב:** ‎`scripts/e2e/tax-area.mjs` עודכן לממשק החדש.
-### 2026-10-21 — שאלון הדוח השנתי, סבב 2 (גיא אישר את ההמחשה docs/proposals/2026-10-21-annual-questionnaire-fixes.html) — בתהליך, לא קומט ולא נדחף
-- worktree: C:\Users\guyas\pivo-wt\annual-r2, ענף feat/annual-r2 (מ-origin/master 77a4a25). שרת staging: launch.json «annual-r2-staging» (5371).
-- בוצע: מסכים לכל אדם (annual.whatHappened / annual.lessTax), «זה עדיין נכון?» עם קיפול ועריכה בתוך השורה (onChanged), «לימודים וצבא» (household.studies, onValue, התמחות 40ג(ג1)), ריבועים חדשים, «משהו אחר?» → office_note (תוקן גם באג: answerPayload לא שלח note), חשבון בנק רגיל כבר לא מסתיר את ריבוע 867, הערות הלקוח ב«מה עליך לעשות».
-- מסד: 271-annual-questionnaire-round2.sql (269/270 תפוסים ב-rep-run-all). הוחל ב-staging בלבד; round trip מחזיר md5 של הייצור (e283b944…). ייצור — לא הוחל, אין גיבוי עדיין.
-- בדיקות: יחידה 2058/0; tsc + vite build תקינים; e2e annual-r2 159/0 (1280/390/360), annual-prior-return 62/0.
-- פתוח: annual-one-round — «Page crashed» בדפדפן אחרי פרסום (לחקור: לולאת רינדור/זיכרון ב-AnnualFlow?); annual-purge — סיכום המשרד לא נטען ב-40ש׳; לבדוק גבול אדום בשדות «נולד ילד». ואז: גיבוי ייצור, 271 בייצור, קומיט ודחיפה.
+### 2026-10-22 — שאלון הדוח השנתי, סבב 2 (גיא אישר את ההמחשה docs/proposals/2026-10-21-annual-questionnaire-fixes.html) — בייצור
+- master 50191e98 (קוד 11272a85 + מיזוג + impact-map); מסד: 286-annual-questionnaire-round2.sql בייצור (נרשם 20261022094409), גוף portal_submit_tax_info md5 0735fa64… זהה ל-staging; 312 פריטים.
+  גיבוי: C:/Users/guyas/PIVO/backups/annual-r2-20261022 (+ סכימה backup_annual_r2_20261022); חזרה: scripts/sql/286/rollback-286.sql (נבדק ב-staging: מחזיר md5 e283b944… של לפני).
+  ‼ 269–271 ו-285 תפוסים (rep-run-all, master, address-list) — לכן 286.
+- לקוח: לכל אדם «מאיפה נכנס לך כסף» (annual.whatHappened) ו«מה יכול להוריד לך מס» (annual.lessTax); «זה עדיין נכון?» מתקפל, «השתנה» בתוך השורה (onChanged; משפחה/נולד ילד/ילד עם מוגבלות/כתובת/חשבון להחזר — knownRow); «לימודים וצבא» (household.studies, onValue, «ואז התמחות?» 40ג(ג1), חודש שחרור) — מסך אחד בסוף; «?» בריבוע; ריק ⇒ «לא היה כלום — הבא»; «משהו אחר?» ⇒ office_note; מסמכים לפי אדם עם מונה.
+- תיקוני באגים שנמצאו: answerPayload לא שלח note (גם «משהו לא נכון?» של 267); חשבון בנק רגיל הסתיר את ריבוע 867 (picture: רק investmentAccounts); «עוד שאלות» אחרי שליחה (picture: studiesOf, ANNUAL_TILE_OFF); מכירה/משק בית של בן/בת הזוג (anyState, personsState); כפילות 106/מסמכי מכירה (oneRound own).
+- משרד: הערות הלקוח ב«מה עליך לעשות» (ב2), «היה ב-2025: משכורת (דוד)…».
+- בדיקות: יחידה 2120/0; e2e: annual-r2 159/0 (1280/390/360), annual-one-round 26/0, annual-purge 38/0, annual-prior-return 62/0 (1280/390) — על הקוד אחרי המיזוג; pre-push guard ירוק.
+- פתוח/לא נעשה: שאלת המשך למענקי מילואים/מפונים 2025 (מעמד מס לא אומת); גרושים — אצל מי הילדים/מזונות; מכירות ברוקר בחו״ל; תזכורת ינואר ל-10% שכירות. שאלונים שכבר נפתחו לפני השחרור — נשארים בגרסה הקודמת.
