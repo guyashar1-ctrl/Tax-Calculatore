@@ -28,6 +28,7 @@ import { cardUpdateFor, updatesCard } from './recordToCard';
 import { isOpenStep } from './taxWork';
 import { ANNUAL_STAGES, STAGE, annualStage } from './annualStage';
 import { RETURNS_EVENT, type ReturnsEventDetail } from '../annualReturn/api';
+import { niEmployersInYear, niEmployersText } from '../nationalInsurance/niOccupations';
 
 /** כמה שורות «מה עליך לעשות» גלויות; השאר — «ועוד N». */
 const TODO_VISIBLE = 4;
@@ -341,6 +342,10 @@ export default function AnnualSummary({ client, step, year, data, busy, run, mor
 
   // ── פירוט: מה היה ומה לא, לפי הלקוח; «לא בטוח»; והדרך לחישוב המלא ──
   const [detail, setDetail] = useState(false);
+  const btlEmployers = ([['', client.niOccupations], [client.familyStatus === 'married' ? (client.spouseFirstName || 'בן/בת הזוג') : '', client.spouseNiOccupations]] as const)
+    .filter(([who, list], i) => (i === 0 || !!who) && !!list?.length)
+    .map(([who, list]) => ({ who, text: niEmployersText(niEmployersInYear(list ?? [], year)) }))
+    .filter(e => !!e.text);
 
   return (
     <section className="as-wrap" data-annual-summary aria-label={`דוח שנתי ${year} — הסיכום`}>
@@ -392,6 +397,8 @@ export default function AnnualSummary({ client, step, year, data, busy, run, mor
         {detail && (
           <dl className="as-kv">
             {yesThisYear.length > 0 && <div><dt>היה ב-{year}</dt><dd>{yesThisYear.join(' · ')}</dd></div>}
+            {/* ‼ 21.10.2026 · תזכורת: מעסיקים שב״ל רושם בשנה — לכל אחד 106. לא נכתב מכאן דבר. */}
+            {btlEmployers.map(e => <div key={e.who} data-annual-btl-employers><dt>מעסיקים לפי ב״ל{e.who ? ` · ${e.who}` : ''}</dt><dd>{e.text}</dd></div>)}
             {notThisYear.length > 0 && <div><dt>לא היה ב-{year}</dt><dd>{many(notThisYear.length, 'נושא אחד', 'נושאים')}</dd></div>}
             {notSure.map(a => (
               <div key={a.id} className="as-kv-open">

@@ -33,6 +33,8 @@ interface Props {
    * לא מסך תהליך שלישי. בלי הפרופ (מסכי בדיקה) — כמו קודם, דף התהליך.
    */
   onOpenRequest?: (stepId: string) => void;
+  /** כמה חובות פתוחות מוצגות מתחת «מרשימות שע״ם» (ClientObligationRows). */
+  shaamOpen?: number;
 }
 
 /** סדר: שנה / יום ההצהרה — החדש למעלה. */
@@ -40,7 +42,7 @@ const periodKey = (s: OnboardingStep) => { const p = (s.payload ?? {}) as unknow
 const OPEN = (s: OnboardingStep) => !['completed', 'verified', 'skipped', 'cancelled', 'failed'].includes(s.status);
 const money = (n: number) => `${n.toLocaleString('he-IL')} ₪`;
 
-export default function TaxYearsSection({ client, onChanged, onClientPersisted, onOpenRequest }: Props) {
+export default function TaxYearsSection({ client, onChanged, onClientPersisted, onOpenRequest, shaamOpen = 0 }: Props) {
   const [steps, setSteps] = useState<OnboardingStep[]>([]);
   /** 16.10.2026 · עבודות שבוטלו — כאן הבית של «החזר…» (ב«מס › עבודות לקוחות» יש עכשיו סקירה בלבד). */
   const [cancelled, setCancelled] = useState<OnboardingStep[]>([]);
@@ -140,8 +142,9 @@ export default function TaxYearsSection({ client, onChanged, onClientPersisted, 
     <div style={{ display: 'flex', flexDirection: 'column', gap: '.6rem' }} data-section="works">
       {msg && <div className={msg.ok ? 'ty-ok' : 'ty-err'} role={msg.ok ? 'status' : 'alert'}>{msg.text}</div>}
       {/* ‼ 21.10.2026 (ההמחשה המאושרת): שורה לכל עבודה פתוחה — שנה · סוג · מצב · «פתח ←». מה שהושלם או בוטל — ב«היסטוריה». */}
+      {/* ‼ 21.10.2026 (גיא): כשמתחת יש חובה פתוחה «מרשימות שע״ם», «אין … פתוחים» סותר אותה — לא מציגים. */}
       {openWorks.length === 0
-        ? <p className="ty-note" style={{ margin: 0 }}>אין דוח או הצהרה פתוחים.</p>
+        ? (shaamOpen > 0 ? null : <p className="ty-note" style={{ margin: 0 }}>אין דוח או הצהרה פתוחים.</p>)
         : (
           <ul className="tf-works" aria-label="דוחות והצהרות">
             {openWorks.map(w => {

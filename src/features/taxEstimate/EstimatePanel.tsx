@@ -26,6 +26,7 @@ import { AmountView, DocPick, NumField, PERSON, Periods, he, nis, today, uid } f
 import type { CapitalKind, EstimateDraft, EstimateVersion, ForecastMethod, IncomeLine, ItAdvanceSetup, NiAdvanceSetup, Person, SourceRef } from './types';
 import './estimate.css';
 import { clientForTaxYear } from '../../utils/familyStatusYear';
+import { niEmployersInYear, niEmployersText } from '../nationalInsurance/niOccupations';
 
 const SOURCE_HE: Record<IncomeLine['source'], string> = { salary: 'משכורת', business: 'עסק', rent: 'שכר דירה', capital: 'שוק ההון', other: 'אחר' };
 const CAPITAL_KIND_HE: Record<CapitalKind, string> = {
@@ -85,6 +86,10 @@ export default function EstimatePanel({ client, step, year, cutoffMonth, facts, 
   const pre = useMemo(() => buildDraft({ client, taxYear: year, cutoffMonth, facts, evidence, today: today() }), [client, year, cutoffMonth, facts, evidence]);
   // ‼ נשוי/אה בשנת המס (לא היום) — קובע אם יש בן/בת זוג בשורות ובחלוקה
   const marriedInYear = clientForTaxYear(client, year).familyStatus === 'married';
+  const btlEmployers = ([['', client.niOccupations], [marriedInYear ? PERSON.spouse : '', client.spouseNiOccupations]] as const)
+    .filter(([who, list], i) => (i === 0 || !!who) && !!list?.length)
+    .map(([who, list]) => ({ who, text: niEmployersText(niEmployersInYear(list ?? [], year)) }))
+    .filter(e => !!e.text);
 
   const load = async () => {
     try {
@@ -250,6 +255,8 @@ export default function EstimatePanel({ client, step, year, cutoffMonth, facts, 
             <small>תאריך ההכנה {he(eff.preparedOn)} — נפרד מהחתך ומתאריך בדיקת היתרות ברשויות.</small>
           </label>
           {eff.lines.length === 0 && <p className="ty-note">אין בכרטיס עסק, מעסיק או נכס מושכר. להוסיף שורה ידנית.</p>}
+          {/* ‼ 21.10.2026 · תזכורת בלבד: מעסיקים שב״ל רושם בשנה — כדי שלא תחסר שורת משכורת. לא נוספת שורה לבד. */}
+          {btlEmployers.map(e => <p key={e.who} className="ty-note" data-te-btl-employers>מעסיקים לפי ב״ל ב-{year}{e.who ? ` (${e.who})` : ''}: {e.text}</p>)}
           {eff.lines.map(l => {
             const f = forecastFor(l, eff), a = annualFor(l, eff);
             const lineHints = pre.hints.filter(h => h.lineId === l.id || h.lineId === l.entityRef);

@@ -195,7 +195,10 @@ const CASES: Record<string, { client: Client; job: AutomationJob | null; title: 
   // בלי בסיס («ד"ב : 0»), שנמצאה ברשימת המיוצגים — ירוק בלי «לבדיקה».
   'couple-employers': {
     client: {
-      ...COUPLE, niAdvanceMonthly: 0, niIncomeBasisMonthly: undefined, niInsuranceBasis: undefined, spouseNiAdvanceMonthly: 0, spouseNiBalance: 0,
+      ...COUPLE, niAdvanceMonthly: 0, niIncomeBasisMonthly: 1, spouseNiAdvanceMonthly: 0, spouseNiBalance: 0,
+      niInsuranceBasis: { year: 2026, fromMonth: 10, toMonth: 12, months: 3, periodBasis: 2, category: 'עצמאי', advanceMonthly: 0, otherBases: [{ category: 'עובד', amount: 30_570 }] },
+      niIncomeList: { declaration: { year: 2026, fromMonth: 5, toMonth: 5, infoSource: 'הצהרה', incomeSource: 'עצמאי', amount: 1, receivedDate: '2026-07-07', status: 'תקף' }, assessment: null },
+      fieldMeta: { niIncomeBasisMonthly: AUTO_META, niIncomeList: AUTO_META, niInsuranceBasis: AUTO_META },
       spouseNiDebitAuthorization: true, niDebitAuthorization: true,
       niOccupations: [
         { id: 'e1', type: 'employee', sourceLabel: 'עובד', source: 'btl_portal', fromDate: '2025-10-01', employerName: 'מעביד לדוגמה בע"מ', withholdingFile: '912345678' },

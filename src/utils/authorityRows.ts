@@ -10,7 +10,7 @@
 
 import type { Client, NiOccupation, TaxAuthority, TaxFileInfo } from '../types';
 import { niOccupationsCountText } from '../features/nationalInsurance/niOccupations';
-import { niBasisExplain, niBasisView } from '../features/nationalInsurance/niBasisDisplay';
+import { niBasisCard, niBasisShortExplain } from '../features/nationalInsurance/niBasisDisplay';
 import type { NiHelpSection } from '../features/nationalInsurance/niBasisDisplay';
 import {
   niIncomeMonthly, niIncomePeriodText, niIncomeSourceText, niIncomeTrust, niIncomeUnit,
@@ -443,25 +443,13 @@ export function buildAuthorityRows(
         });
       }
       if (pf.insuranceBasis) {
-        const declaration = trust.kind === 'declaration' ? trust.entry : null;
-        const view = niBasisView(pf.insuranceBasis, {
-          declaration,
-          statusesCount: pf.occupations.length || undefined,
-        });
-        // ‼ רק «קרוב» נאמר כאן. «לא קרוב» אינו פסק דין — ההסבר ב-«?».
-        const recon = view.reconstructionText
-          ? `${view.reconstructionText}${view.nearDeclaration === true ? ' · קרוב להצהרה' : ''}`
-          : view.reconstructionNote;
+        // ‼ 21.10.2026 · שורה אחת של מה שב"ל רושם + ההצהרה שממנה נגזר + שאר הבסיסים (niBasisCard).
+        const declaration = trust.kind === 'declaration' ? trust.entry : listDecl;
+        const card = niBasisCard(pf.insuranceBasis, declaration);
         facts.push({
-          k: 'בסיס לדמי ביטוח', v: view.periodText, helpKey: 'niInsuranceBasis',
-          sub: [view.monthlyText, recon].filter((x): x is string => !!x),
-          explain: niBasisExplain(pf.insuranceBasis, {
-            declaration,
-            declarationUnverified: trust.kind === 'unverified',
-            assessment,
-            statusesCount: pf.occupations.length || undefined,
-            basisMeta: meta.insuranceBasis,
-          }),
+          k: 'בסיס לדמי ביטוח', v: card.v, helpKey: 'niInsuranceBasis',
+          ...(card.sub.length ? { sub: card.sub } : {}),
+          explain: niBasisShortExplain(pf.insuranceBasis, { declaration, basisMeta: meta.insuranceBasis }),
           ...sync('insuranceBasis'),
         });
       } else {

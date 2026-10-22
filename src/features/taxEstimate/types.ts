@@ -380,6 +380,10 @@ export interface AuthorityAdvance {
   schedule: { period: string; current: number; recommended: number }[];
   /** ב״ל: הפירוק ללאומי ולבריאות (נוסף 16.10.2026). */
   split?: { ni: number; health: number };
+  /** 21.10.2026 · ב״ל: ההצהרה שרשומה היום ברשימת ההכנסות — ממנה נגזרת המקדמה של היום. */
+  registered?: string;
+  /** 21.10.2026 · איפה משנים — גיא מגיש בעצמו באתר הרשות; PIVO לא משנה מקדמות. */
+  whereToChange?: string;
   /** החישוב במספרים — לבדיקה ידנית. */
   explain: string[];
   /**

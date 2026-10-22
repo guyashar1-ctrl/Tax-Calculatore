@@ -103,6 +103,7 @@ export const EXCLUDED: Record<string, string> = {
   automation_workers: "רישום מחשב העבודה (טביעת מפתח) — משייכים מחדש",
   automation_workstation_pairings: "קודי שיוך חד-פעמיים למחשב העבודה",
   automation_job_followups: "תור «הפעל הכול» קצר-חיים (270) — מה שלא שוחרר מפעילים שוב בלחיצה",
+  invariant_check_runs: "יומן ריצות של הבדיקה היומית (282) — נבנה מחדש בריצה הבאה; ההפרות עצמן נפתחות כמשימות (שבגיבוי)",
   pivo_weekly_notes: "בוטלה ב-244 (15.10.2026) — «PIVO השבוע» נשמר עם השבוע במפת הדרך (vision_docs, שבגיבוי)",
 };
 

@@ -3,9 +3,9 @@
  * prod-invariants-check.mjs — בדיקה שקטה של כללים חוצי-מסכים בנתונים החיים (קריאה בלבד).
  *
  * ‼ למה (21.10.2026, ליאת ואוריה): שינוי בקוד (269) שבר כלל שחי בקובץ אחר (218: מי חותם/ת
- *   ב«בן זוג רשום»), והטעות נראתה רק בעין, בטופס של לקוחה אמיתית. בדיקה כזאת הייתה מראה
- *   את זה תוך דקות. כל בדיקה כאן = כלל מ-docs/INVARIANTS.md, עם המזהה שלו.
- * ‼ קריאה בלבד: רק SELECT, דרך readProd (staging-lib). שום כתיבה, שום מייל, שום רשות.
+ *   ב«בן זוג רשום»), והטעות נראתה רק בעין, בטופס של לקוחה אמיתית. כל בדיקה = כלל מ-docs/INVARIANTS.md.
+ * ‼ הבדיקות עצמן חיות במקום אחד — public.pivo_invariant_violations() (282), שגם רצה כל יום
+ *   (run_invariant_check, pg_cron). כאן רק קוראים לה (קריאה בלבד), ובנוסף INV-SEC-01.
  *
  *   שימוש:  node scripts/prod-invariants-check.mjs            (ייצור)
  *           node scripts/prod-invariants-check.mjs --staging  (סביבת הבדיקות)
@@ -16,93 +16,44 @@ import { readProd, sql, STAGING_REF, PROD_REF } from './staging-lib.mjs';
 const staging = process.argv.includes('--staging');
 const q = (query) => (staging ? sql(STAGING_REF, query) : readProd(query));
 
-// ‼ ידועות ומוכרות לפני 21.10.2026 — לא חוסמות; שם חדש ברשימה כן חוסם.
-const KNOWN_ANON_LEGACY = ['portal_tax_estimate', 'portal_note_tax_evidence_parts', 'portal_submit_tax_info',
-  'portal_tax_info', 'portal_save_tax_info_draft', 'intake_replaced_state'];
-
-const CHECKS = [
-  {
-    id: 'INV-REP-02',
-    title: 'בטופס של זוג: ב«חתימת בן זוג רשום» חותם/ת הרשום/ה',
-    sql: `
-      select r.id as request, r.client_name, d ->> 'key' as submission,
-             (select x ->> 'signerId' from jsonb_array_elements(d -> 'fields') x
-               where x ->> 'kind' = 'signature' and (x ->> 'xPct')::numeric between 0.39 and 0.40 limit 1) as in_slot,
-             public._rep_registered_signer(r.id, d ->> 'key') as should_be
-        from public.representation_requests r
-        join public.clients c on c.id = r.linked_client_id,
-             jsonb_array_elements(case when jsonb_typeof(r.signature_documents) = 'array' then r.signature_documents else '[]'::jsonb end) d
-       where r.status in ('awaiting_accountant', 'pending_signature', 'awaiting_stamp')
-         and coalesce(c.family_status, '') = 'married'
-         and (r.execution #> array['shaam', d ->> 'key', 'requestedSystems']) ? 'מס הכנסה'
-         and (select count(*) from jsonb_array_elements(d -> 'fields') x where x ->> 'kind' = 'signature') = 2
-         and (select x ->> 'signerId' from jsonb_array_elements(d -> 'fields') x
-               where x ->> 'kind' = 'signature' and (x ->> 'xPct')::numeric between 0.39 and 0.40 limit 1)
-             is distinct from public._rep_registered_signer(r.id, d ->> 'key')`,
-  },
-  {
-    id: 'INV-REP-03',
-    title: 'מס הכנסה בבקשה אחת בלבד בשע״ם לכל בקשת ייצוג',
-    sql: `
-      select r.id as request, r.client_name, count(*) as requests_with_income_tax
-        from public.representation_requests r,
-             jsonb_each(case when jsonb_typeof(r.execution -> 'shaam') = 'object' then r.execution -> 'shaam' else '{}'::jsonb end) e(k, v)
-       where (v -> 'requestedSystems') ? 'מס הכנסה' and not (v ? 'replacement')
-       group by r.id, r.client_name having count(*) > 1`,
-  },
-  {
-    id: 'INV-AUTO-01',
-    title: '«המשך» לא תקוע: ממתין לקודמת שכבר הסתיימה (לא מ«ממתין לך») יותר מ-10 דקות',
-    sql: `
-      select f.id as followup, f.client_id, f.action_type, j.status as previous_status, j.updated_at
-        from public.automation_job_followups f
-        join public.automation_jobs j on j.id = f.after_job_id
-       where f.status = 'waiting' and j.status in ('succeeded', 'failed')
-         and j.updated_at < now() - interval '10 minutes'`,
-  },
-  {
-    id: 'INV-AUTO-02',
-    title: 'לא שתי משימות הזנה לאותו אדם שהצליחו באותו יום (שליחה כפולה)',
-    sql: `
-      select client_id, action_type, coalesce(input ->> 'submissionKey', input ->> 'role') as who, count(*) as succeeded_today
-        from public.automation_jobs
-       where action_type in ('shaam.create_representation', 'btl.create_representation')
-         and status = 'succeeded' and created_at > now() - interval '1 day'
-         and coalesce(result ->> 'reconciled', 'false') <> 'true'
-       group by 1, 2, 3 having count(*) > 1`,
-  },
-  {
-    id: 'INV-SEC-01',
-    title: 'אין פונקציה חדשה פתוחה ל-anon מחוץ לרשימה (מעבר למוכרות מלפני 21.10)',
-    run: async () => {
-      try {
-        await q('select public.assert_domain_function_invariants()');
-        return [];
-      } catch (e) {
-        const m = /מחוץ לרשימה: ([^"\\\n]+)/.exec(String(e.message));
-        if (!m) return [{ error: String(e.message).slice(0, 300) }];
-        const names = m[1].split(',').map(s => s.trim()).filter(Boolean);
-        return names.filter(n => !KNOWN_ANON_LEGACY.includes(n)).map(n => ({ function: n }));
-      }
-    },
-  },
-];
+const DATA_CHECKS = ['INV-REP-02', 'INV-REP-03', 'INV-AUTO-01', 'INV-AUTO-02'];
 
 let failed = 0;
+const line = (ok, id, text) => console.log(`  ${ok ? '✓' : '✗'} ${id}${text ? ` · ${text}` : ''}`);
 console.log(`בדיקת כללים חיים · ${staging ? `staging (${STAGING_REF})` : `ייצור (${PROD_REF})`} · קריאה בלבד\n`);
-for (const c of CHECKS) {
-  let rows;
-  try {
-    rows = c.run ? await c.run() : await q(c.sql);
-  } catch (e) {
+
+try {
+  const rows = await q('select public.pivo_invariant_violations() as v');
+  const v = rows?.[0]?.v ?? [];
+  const byId = new Map(v.map(x => [x.id, x]));
+  for (const id of DATA_CHECKS) {
+    const x = byId.get(id);
+    if (!x) { line(true, id); continue; }
     failed++;
-    console.log(`  ✗ ${c.id} · ${c.title} — הבדיקה עצמה נכשלה: ${String(e.message).slice(0, 200)}`);
-    continue;
+    line(false, id, `${x.title} — ${x.rows.length} מקרים:`);
+    for (const r of x.rows.slice(0, 10)) console.log(`      ${JSON.stringify(r)}`);
   }
-  if (!rows || rows.length === 0) { console.log(`  ✓ ${c.id} · ${c.title}`); continue; }
+  for (const x of v) if (!DATA_CHECKS.includes(x.id)) { failed++; line(false, x.id, x.title); }
+} catch (e) {
   failed++;
-  console.log(`  ✗ ${c.id} · ${c.title} — ${rows.length} הפרות:`);
-  for (const r of rows.slice(0, 10)) console.log(`      ${JSON.stringify(r)}`);
+  console.log(`  ✗ pivo_invariant_violations — הבדיקה עצמה נכשלה: ${String(e.message).slice(0, 200)}`);
 }
+
+// INV-SEC-01 · אין פונקציה חדשה פתוחה ל-anon מחוץ לרשימה
+try {
+  await q('select public.assert_domain_function_invariants()');
+  line(true, 'INV-SEC-01');
+} catch (e) {
+  // ‼ מ-284 הבדיקה ירוקה בייצור — כל פונקציה פתוחה ל-anon שלא ברשימת ההיתר היא הפרה.
+  const m = /מחוץ לרשימה: ([^"\\\n]+)/.exec(String(e.message));
+  {
+    failed++;
+    line(false, 'INV-SEC-01', m ? `פתוחות ל-anon: ${m[1].trim()}` : String(e.message).slice(0, 200));
+    // ‼ אם הפתיחה מכוונת (למשל דף לקוח ציבורי שקורא רשימה) — מוסיפים לרשימת ההיתר של
+    //   assert_domain_function_invariants במיגרציה, עם סיבה במשפט. לא מוחקים את הבדיקה ולא מוסיפים כאן.
+    console.log('      אם זה מכוון — להוסיף לרשימת ההיתר של assert_domain_function_invariants במיגרציה, עם סיבה.');
+  }
+}
+
 console.log(failed ? `\n${failed} כללים מופרים — לבדוק לפני שממשיכים.` : '\nהכול תקין.');
 process.exitCode = failed ? 1 : 0;

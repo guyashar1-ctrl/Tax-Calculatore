@@ -14,6 +14,7 @@ import { getTaxYearData } from '../../data/taxData';
 import { gate, describeProblem, RULESET_VERSION, num, usedRule } from '../taxRules/registry';
 import { microBusiness, niNonWorkIncome, niSelfEmployedQuarter, selfEmployedPension, studyFundLimit } from '../taxRules/calc';
 import { niOccupationsInYear } from '../nationalInsurance/niOccupations';
+import { niIncomePeriodText } from '../nationalInsurance/niIncome';
 import { buildAlignment, buildCashflow } from './cashflow';
 import { compareSpouses, jointTax } from './spouseCalc';
 import type { SpouseComparison, SpouseSide } from './spouseCalc';
@@ -28,6 +29,23 @@ const r0 = (n: number) => Math.round(n);
 const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0);
 const period = (y: number, m: number) => `${y}-${String(m).padStart(2, '0')}`;
 const nis = (n: number) => `${Math.round(n).toLocaleString('he-IL')} ₪`;
+
+/**
+ * 21.10.2026 · איפה משנים את המקדמה — רק כשיש מה לשנות (אותו סף כמו משימות ההמשך, followUps.ts).
+ * מ״ה: 2216א / 2216ב (taxRules: itaForm2216b, rules.ts — עד 31.01 לשנה הבאה). ב״ל: «שינוי מקדמות» בפורטל
+ * המייצגים (נצפה חי 21.10.2026: עיסוקים והכנסות ← שינוי מקדמות) או טופס 672.
+ */
+export function whereToChange(a: Pick<AuthorityAdvance, 'authority' | 'current' | 'recommended' | 'belowChangeThreshold'>): string | undefined {
+  if (a.current == null || a.recommended == null) return undefined;
+  if (a.authority === 'it') {
+    if (Math.abs(a.recommended - a.current) < 0.1) return undefined;
+    return a.recommended > a.current
+      ? 'הגדלה — דרך המייצג (טופס 2216ב) או תשלום על חשבון'
+      : 'הקטנה — טופס 2216א או דרך המייצג (2216ב), עד 31.01 של השנה הבאה';
+  }
+  if (a.belowChangeThreshold || Math.abs(a.recommended - a.current) < 1) return undefined;
+  return 'באתר המייצגים של ב״ל: עיסוקים והכנסות ← שינוי מקדמות (או טופס 672)';
+}
 const PERSON_HE: Record<Person, string> = { client: 'הלקוח', spouse: 'בן/בת הזוג' };
 /** מקדמה בסכום קבוע: 10 תשלומים שווים, פברואר עד נובמבר (it.advances.methods — מדריך 2025 פרק ח ס׳ 1ב; 175(א)). */
 const FIXED_PAYMENTS = 10;
@@ -756,6 +774,16 @@ export function computeEstimate(draft: EstimateDraft, ctx: Ctx, opts: { extraStu
         `שולם עד החתך ${nis(niPaid)}; במקדמה הנוכחית עוד ${nis((cur ?? 0) * (12 - cutoff))}`,
       ] : [],
     });
+  }
+
+  // ── 7. (21.10.2026) מה רשום היום, ואיפה משנים — גיא מגיש בעצמו; PIVO לא משנה מקדמות ──
+  for (const a of advances) {
+    if (a.authority === 'ni') {
+      const d = (a.person === 'spouse' ? client.spouseNiIncomeList : client.niIncomeList)?.declaration;
+      if (d) a.registered = `רשומה בב״ל הצהרה של ${nis(d.amount)} לחודש (${niIncomePeriodText(d)}) — ממנה המקדמה של היום`;
+    }
+    const whereTo = whereToChange(a);
+    if (whereTo) a.whereToChange = whereTo;
   }
 
   // ── 7א. מצב היישור מול הרשויות — חסר אינו 0, חיוב אינו תשלום, «הלקוח מסר» אינו קריאה ──

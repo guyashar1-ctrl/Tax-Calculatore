@@ -27,7 +27,7 @@ import {
   niOccupationsFromBtl, niOccupationsKey, niOccupationsInline, niDate,
 } from '../nationalInsurance/niOccupations';
 import type { BtlOccupationChain } from '../nationalInsurance/niOccupations';
-import { niBasisView, niBasisPeriodText, niMonthsText } from '../nationalInsurance/niBasisDisplay';
+import { niBasisCard, niBasisPeriodText, niMonthsText } from '../nationalInsurance/niBasisDisplay';
 import {
   niIncomeKind, niIncomeListEmpty, niIncomeListKey, niIncomeReadOf, niIncomeSourceText, niIncomeUnit,
 } from '../nationalInsurance/niIncome';
@@ -428,6 +428,8 @@ interface BtlSection<T> {
 interface BtlAdvanceValue {
   year: number; fromMonth: number; toMonth: number; months: number;
   basisCategory: string | null; /** null ⇒ ב"ל רושם שאין בסיס לתקופה. */ periodBasis: number | null; advanceMonthly: number;
+  /** כל הבסיסים בשורה, כשיש יותר מאחד («בסיסים עובד 30,570 , עצמאי 2»). */
+  bases?: { category: string; amount: number }[];
 }
 
 /**
@@ -499,7 +501,8 @@ const SECTION_FAILED: Record<string, string> = {
 
 function sameBasis(a: NiInsuranceBasis | undefined, b: NiInsuranceBasis): boolean {
   return !!a && a.year === b.year && a.fromMonth === b.fromMonth && a.toMonth === b.toMonth
-    && a.periodBasis === b.periodBasis && (a.advanceMonthly ?? null) === (b.advanceMonthly ?? null);
+    && a.periodBasis === b.periodBasis && (a.advanceMonthly ?? null) === (b.advanceMonthly ?? null)
+    && JSON.stringify(a.otherBases ?? []) === JSON.stringify(b.otherBases ?? []);
 }
 
 function interpretBtlFile(
@@ -696,23 +699,21 @@ function interpretBtlFile(
           year: a.year, fromMonth: a.fromMonth, toMonth: a.toMonth, months: a.months,
           periodBasis: a.periodBasis, advanceMonthly: a.advanceMonthly,
           ...(a.basisCategory ? { category: a.basisCategory } : {}),
+          // ‼ 21.10.2026 · שאר הבסיסים באותה שורה (שכיר + עצמאי) — לתצוגה.
+          ...(a.bases && a.bases.length > 1 ? { otherBases: a.bases.filter(x => x.category !== a.basisCategory) } : {}),
           // ‼ (219) בלי sourceIncomeYear: ב"ל אינו מציג על איזו הכנסה נשען
           // הבסיס, ו«השנה של ההכנסה שנבחרה» אינה קשר מבוסס.
         };
         const curBasis = c[kBasis] as NiInsuranceBasis | undefined;
-        const occupations = s.occupations?.ok ? s.occupations.value ?? [] : [];
-        const view = niBasisView(basis, {
-          declaration: income.ok && !truncated ? income.list.declaration : null,
-          statusesCount: occupations.length || undefined,
-        });
+        const view = niBasisCard(basis, income.ok && !truncated ? income.list.declaration : null);
         push({
           fieldKey: kBasis, label: kBasis, status: sameBasis(curBasis, basis) ? 'match' : 'changed',
           currentValue: curBasis ? `${curBasis.periodBasis}|${niBasisPeriodText(curBasis)}` : '',
           currentDisplay: curBasis ? `${ils(curBasis.periodBasis)} · ${niBasisPeriodText(curBasis)}` : '—',
-          authorityDisplay: view.periodText,
+          authorityDisplay: view.v,
           authorityValue: `${basis.periodBasis}|${niBasisPeriodText(basis)}`,
           patchValue: basis,
-          hint: [view.monthlyText, view.reconstructionText].filter(Boolean).join(' · ') || undefined,
+          hint: view.sub.join(' · ') || undefined,
           provenance: `ריכוז מידע · בסיס ${a.basisCategory ?? ''} ${a.periodBasis} · ${niMonthsText(a.fromMonth, a.toMonth, a.year)}`.replace(/\s+/g, ' '),
           ...person,
         });

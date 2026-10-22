@@ -56,7 +56,10 @@ const run = (label, cmd, args) => {
   //   נחשב עובר רק כשהסיכום של הבדיקה עצמה אומר «0 נכשלו».
   const exitCrash = r.status !== 0 && /UV_HANDLE_CLOSING/.test(all) && /(^|\s)0 נכשלו/.test(all);
   const ok = r.status === 0 || exitCrash;
-  const tail = `${r.stdout ?? ''}${r.stderr ?? ''}`.trim().split('\n').slice(ok ? -1 : -25).join('\n');
+  // בכישלון — קודם השורות שנכשלו (עם שתי שורות אחריהן), ואז הסוף.
+  const lines = all.trim().split('\n');
+  const failLines = ok ? [] : lines.flatMap((l, i) => (/^\s*✗/.test(l) ? lines.slice(i, i + 3) : [])).slice(0, 30);
+  const tail = (ok ? lines.slice(-1) : [...failLines, ...(failLines.length ? ['…'] : []), ...lines.slice(-6)]).join('\n');
   say(`${ok ? '  ✓' : '  ✗'} ${label} (${Math.round((Date.now() - s) / 1000)}ש')${tail ? '\n' + tail.replace(/^/gm, '    ') : ''}`);
   return ok;
 };
