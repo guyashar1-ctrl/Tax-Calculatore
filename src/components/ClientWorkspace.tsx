@@ -179,7 +179,7 @@ interface Props {
   /** אחרי שהבקשה נוצרה — קפיצה למשטח "בקשות" כדי שהעבודה תהיה גלויה מיד. */
   onOpenRequestStep?: (clientId: string) => void;
   /** עדכון שדה פשוט על הכרטיס (למשל spouseEmail) — לא עובדה מנוהלת. */
-  onUpdateClientFields?: (clientId: string, patch: Partial<Client>) => Promise<void>;
+  onUpdateClientFields?: (clientId: string, patch: Partial<Client>) => Promise<Client | void>;
   /** אחרי שליחה מוצלחת של הוראות האישור — קריאה מחדש של הביצוע והשלב. */
   onNiInstructionsSent?: (clientId: string) => Promise<void>;
   /** מסלולי הביצוע של ב"ל בבקשת הייצוג המקושרת — לצורך שורת "ייצוג" פר-אדם. */

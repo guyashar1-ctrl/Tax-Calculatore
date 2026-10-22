@@ -24,8 +24,8 @@ import {
 } from '../../types';
 import { ClientContact, Employee } from '../../types/clientWorkspace';
 import { clientDisplayName, spouseDisplayName } from '../../features/annualReport/profile';
-import { getEligibleSettlements, resolveSettlement } from '../../data/eligibleSettlements';
-import { CURRENT_TAX_YEAR } from '../../data/taxData';
+import AddressFields from '../ui/AddressFields';
+import SettlementStatus from '../../features/taxFile/SettlementStatus';
 import LinkedDocsWidget from '../LinkedDocsWidget';
 import EmailInput from '../ui/EmailInput';
 import HebrewTextInput from '../ui/HebrewTextInput';
@@ -420,15 +420,6 @@ export default function PersonalContactsTab({
     patch({ children: client.children.filter(c => c.id !== id) });
   }
 
-  // ── יישוב מוטב ─────────────────────────────────────────────────────
-  function syncSettlementFromCity() {
-    const found = resolveSettlement(client.city, CURRENT_TAX_YEAR);
-    patch({
-      qualifyingSettlementId: found?.name ?? '',
-      qualifyingSettlementCreditPoints: 0,
-      qualifyingSettlementOverride: false,
-    });
-  }
 
   // ── תגיות ──────────────────────────────────────────────────────────
   function addTag() {
@@ -503,9 +494,6 @@ export default function PersonalContactsTab({
   }
 
   const isMarried = client.familyStatus === 'married';
-  const resolvedSettlement = client.qualifyingSettlementId
-    ? resolveSettlement(client.qualifyingSettlementId, CURRENT_TAX_YEAR)
-    : undefined;
 
   return (
     <div className="cw-tabpanel">
@@ -546,60 +534,14 @@ export default function PersonalContactsTab({
             <label>אימייל</label>
             <EmailInput value={client.email} onChange={e => update('email', e.target.value)} />
           </div>
-          <div className="form-group span-2">
-            <label>כתובת</label>
-            <HebrewTextInput value={client.address} onChange={e => update('address', e.target.value)} />
-          </div>
-          <div className="form-group">
-            <label>עיר</label>
-            <HebrewTextInput value={client.city} onChange={e => update('city', e.target.value)} />
-          </div>
+          <AddressFields city={client.city} address={client.address} fieldClassName="form-group"
+            onChange={v => patch({ city: v.city, address: v.address })} />
         </div>
 
-        {/* ── יישוב מוטב ── */}
+        {/* ── יישוב מזכה — נקבע בשרת לפי היישוב שבכתובת (285); כאן רואים ומתקנים ידנית ── */}
         <div className="cw-subsection" style={{ marginTop: '.75rem' }}>
-          <div className="cw-subsection-title">יישוב מוטב (זיכוי באחוזים מההכנסה - סעיף 11)</div>
-          <div className="form-grid form-grid-3">
-            <div className="form-group">
-              <label>יישוב מוטב</label>
-              <select
-                value={resolvedSettlement?.name ?? ''}
-                onChange={e => {
-                  patch({
-                    qualifyingSettlementId: e.target.value,
-                    qualifyingSettlementCreditPoints: 0,
-                    qualifyingSettlementOverride: e.target.value !== '',
-                  });
-                }}
-              >
-                <option value="">- לא יישוב מוטב -</option>
-                {getEligibleSettlements(CURRENT_TAX_YEAR).map(s => (
-                  <option key={s.name} value={s.name}>{s.name} ({s.ratePercent}%)</option>
-                ))}
-              </select>
-              {resolvedSettlement && (
-                <div className="cw-field-meta">
-                  זיכוי {resolvedSettlement.ratePercent}% מההכנסה מיגיעה אישית, עד תקרה ₪{resolvedSettlement.ceilingAnnual.toLocaleString('he-IL')} לשנה
-                </div>
-              )}
-              {client.qualifyingSettlementId && !resolvedSettlement && (
-                <div className="cw-field-meta" style={{ color: 'var(--red, var(--err))' }}>
-                  "{client.qualifyingSettlementId}" אינו ברשימת היישובים המוטבים הרשמית - יש לבחור מחדש
-                </div>
-              )}
-            </div>
-
-            <div className="form-group">
-              <label className="checkbox-row" style={{ marginTop: '1.4rem' }}>
-                <input
-                  type="checkbox"
-                  checked={!client.qualifyingSettlementOverride}
-                  onChange={() => syncSettlementFromCity()}
-                />
-                סנכרן אוטומטית מהעיר ({client.city || '-'})
-              </label>
-            </div>
-          </div>
+          <div className="cw-subsection-title">יישוב מזכה (סעיף 11)</div>
+          <SettlementStatus client={client} onSave={async p => patch(p)} />
         </div>
 
         {/* ── אזרחויות נוספות (FATCA / CRS / אמנות מס) ── */}

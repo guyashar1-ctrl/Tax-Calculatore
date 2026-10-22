@@ -28,7 +28,7 @@ import SignaturePad from './SignaturePad';
 import { isValidIsraeliId } from '../utils/israeliId';
 import { isValidEmail } from '../utils/email';
 import EmailInput from './ui/EmailInput';
-import HebrewTextInput from './ui/HebrewTextInput';
+import AddressFields from './ui/AddressFields';
 import { customerProcessMap } from '../lib/representationJourney';
 import SampleSimulatedNote from './linkedScreens/SampleNote';
 import { sampleOnboardingActions } from './linkedScreens/sampleOnboardingActions';
@@ -329,6 +329,7 @@ export function OnboardingView(props: OnboardingViewProps) {
   const [phone, setPhone] = useState(v0.phone);
   const [email, setEmail] = useState(v0.email);
   const [city, setCity] = useState(v0.city);
+  const [addressProblem, setAddressProblem] = useState<string | null>(null);
   const [address, setAddress] = useState(v0.address);
   // ── מצב משפחתי ──
   const [familyStatus, setFamilyStatus] = useState<FamilyStatus | ''>(v0.familyStatus);
@@ -530,8 +531,7 @@ export function OnboardingView(props: OnboardingViewProps) {
     if (s === 2) {
       if (!/^[\d\-+\s()]{9,}$/.test(phone.trim())) return 'יש להזין מספר טלפון תקין';
       if (!isValidEmail(email)) return 'יש להזין כתובת מייל תקינה';
-      if (!city.trim()) return 'יש להזין עיר מגורים';
-      if (!address.trim()) return 'יש להזין כתובת (רחוב ומספר)';
+      if (addressProblem) return addressProblem;
     }
     if (s === 4) {
       // ‼ הצילום נדרש, אבל אינו חייב להיות ביד עכשיו (191): מי שבחר «אעלה
@@ -1018,19 +1018,10 @@ export function OnboardingView(props: OnboardingViewProps) {
               </label>
             </div>
 
-            <div style={fieldBox}>
-              <label style={label}>עיר מגורים
-                <HebrewTextInput style={inputStyle} value={city} onChange={e => setCity(e.target.value)}
-                  placeholder="תל אביב" autoComplete="address-level2" />
-              </label>
-            </div>
-
-            <div style={{ marginBottom: 22 }}>
-              <label style={label}>רחוב ומספר בית
-                <HebrewTextInput style={inputStyle} value={address} onChange={e => setAddress(e.target.value)}
-                  placeholder="הרצל 10, דירה 3" autoComplete="street-address" />
-              </label>
-            </div>
+            <AddressFields city={city} address={address} offline={sample}
+              onChange={v => { setCity(v.city); setAddress(v.address); }} onProblem={setAddressProblem}
+              cityLabel="יישוב מגורים" inputStyle={inputStyle} labelStyle={label} fieldStyle={fieldBox} />
+            <div style={{ marginBottom: 8 }} />
           </>
         )}
 

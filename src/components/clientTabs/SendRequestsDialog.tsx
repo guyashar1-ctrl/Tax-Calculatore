@@ -40,7 +40,7 @@ interface Props {
   /** פותח את המגש כשקבוצה מסוימת במוקד — למשל מכפתור «שלח לדין את ההוראות». */
   focusKey?: string;
   /** כתובת שהוזנה כאן נכתבת לכרטיס — הקנוני, כמו ב-NiInstructionsDialog. */
-  onUpdateClientFields?: (patch: Partial<Client>) => Promise<void>;
+  onUpdateClientFields?: (patch: Partial<Client>) => Promise<Client | void>;
   onClose: () => void;
   /** אחרי שליחה מוצלחת אחת לפחות — הקורא מרענן בקשות/ביצוע/מוכנות. */
   onSent: () => void;

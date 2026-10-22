@@ -6,7 +6,7 @@
 // המלאה בכרטיס.
 
 import { useState } from 'react';
-import HebrewTextInput from '../../components/ui/HebrewTextInput';
+import AddressFields from '../../components/ui/AddressFields';
 import FamilyStatusYearField from '../../components/FamilyStatusYearField';
 import { FAMILY_STATUS_YEAR_KEY } from '../../utils/familyStatusYear';
 import type { Client, Child, EmployerInfo, InvestmentAccount, BankAccountInfo, PensionFundInfo } from '../../types';
@@ -159,14 +159,8 @@ function IdentityEditor({ client, onPatch, onClose }: { client: Client; onPatch:
           <label>תאריך לידה</label>
           <input type="date" value={birthDate} onChange={(e) => setBirthDate(e.target.value)} dir="ltr" />
         </div>
-        <div className="form-group">
-          <label>עיר</label>
-          <HebrewTextInput value={city} onChange={(e) => setCity(e.target.value)} />
-        </div>
-        <div className="form-group">
-          <label>כתובת</label>
-          <HebrewTextInput value={address} onChange={(e) => setAddress(e.target.value)} />
-        </div>
+        <AddressFields city={city} address={address} fieldClassName="form-group"
+          onChange={v => { setCity(v.city); setAddress(v.address); }} />
 
         {sub('משפחה ותושבות')}
         <div className="form-group">

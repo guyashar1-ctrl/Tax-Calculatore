@@ -8,7 +8,11 @@ import { useEffect, useId, useMemo, useState } from 'react';
 import type { Client } from '../../types';
 import type { RecordSchemaId } from './types';
 import type { DatedValue } from './temporal';
+import AddressFields from '../../components/ui/AddressFields';
+import { composeAddress, splitAddress } from '../../utils/ilAddress';
 import { PRECISION_LABEL, monthInKey, schemaFor, validateRecord, type BankDirectory, type RecordAnswer, type RecordField, type RecordValue } from './records';
+
+const ADDRESS_KEYS = new Set(['city', 'street', 'houseNumber', 'apartment']);
 
 let dirPromise: Promise<BankDirectory | null> | null = null;
 /** רשימת הבנקים והסניפים — נטענת פעם אחת, רק כשיש שדה בנק. כשל טעינה ⇒ הזנה ידנית (לא חוסם). */
@@ -62,7 +66,16 @@ export default function RecordEditor({ schemaId, client, context, value, onChang
           <fieldset key={i} className="rec-card" disabled={disabled}>
             {schema.multiple && <legend className="rec-legend">{schema.noun} {items.length > 1 ? i + 1 : ''}</legend>}
             <div className="rec-grid">
-              {schema.fields.filter(f => !f.showIf || f.showIf(r)).map(f => (
+              {schemaId === 'address' && (
+                // יישוב ורחוב מהרשימה הסגורה (285); מיקוד — כשדה רגיל
+                <div className="rec-field rec-addr">
+                  <AddressFields city={String(r.city ?? '')} fieldClassName="rec-addr-part"
+                    address={composeAddress(String(r.street ?? ''), String(r.houseNumber ?? ''), String(r.apartment ?? ''))}
+                    onChange={a => { const p = splitAddress(a.address); setItem(i, { city: a.city, street: p.street, houseNumber: p.house, apartment: p.apartment }); }} />
+                  {(errs.city || errs.street) && <span className="rec-err" role="alert">{errs.city || errs.street}</span>}
+                </div>
+              )}
+              {schema.fields.filter(f => !f.showIf || f.showIf(r)).filter(f => schemaId !== 'address' || !ADDRESS_KEYS.has(f.key)).map(f => (
                 <Field key={f.key} f={f} r={r} err={errs[f.key]} dir={dir} id={`${uid}-${i}-${f.key}`} onChange={v => setItem(i, v)} />
               ))}
             </div>

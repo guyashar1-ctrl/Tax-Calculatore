@@ -1167,10 +1167,11 @@ export default function App() {
    * עדכון שדות פשוטים על הכרטיס (למשל spouseEmail) — לא עובדה מנוהלת, לא
    * ייצוג. ‼ הדיאלוג של הוראות האישור העצמאיות (157) הוא הקורא היחיד כרגע.
    */
-  async function handleUpdateClientFields(clientId: string, patch: Partial<Client>): Promise<void> {
+  async function handleUpdateClientFields(clientId: string, patch: Partial<Client>): Promise<Client> {
     const c = clients.find(x => x.id === clientId);
     if (!c) throw new Error('הכרטיס לא נמצא');
-    await updateClient({ ...c, ...patch });
+    // ‼ מחזירים את השורה מהשרת: טריגרים גוזרים בה שדות (יישוב מזכה מהכתובת, 285)
+    return updateClient({ ...c, ...patch });
   }
 
   /**

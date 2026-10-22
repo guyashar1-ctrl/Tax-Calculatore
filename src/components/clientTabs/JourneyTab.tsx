@@ -95,7 +95,7 @@ interface Props {
   focusRequest?: { stepId: string; tick: number } | null;
   onFocusConsumed?: () => void;
   /** עדכון שדה פשוט על הכרטיס (spouseEmail) — לדיאלוג הוראות האישור העצמאיות. */
-  onUpdateClientFields?: (patch: Partial<Client>) => Promise<void>;
+  onUpdateClientFields?: (patch: Partial<Client>) => Promise<Client | void>;
   /** אחרי שליחה מוצלחת של הוראות האישור — קריאה מחדש של הביצוע והשלב (157). */
   onNiInstructionsSent?: () => Promise<void>;
   onAttentionSummary?: (summary: { n: number; red: boolean }) => void;

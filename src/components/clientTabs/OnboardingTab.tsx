@@ -226,7 +226,7 @@ interface Props {
   /** מסלולי הביצוע של ב"ל (לקוח/בן-בת-זוג) — לכרטיס «ייצוג ברשות» (157). */
   niExecution?: { client?: NiTracking; spouse?: NiTracking };
   /** עדכון שדה פשוט על הכרטיס (spouseEmail) — לדיאלוג הוראות האישור העצמאיות. */
-  onUpdateClientFields?: (patch: Partial<Client>) => Promise<void>;
+  onUpdateClientFields?: (patch: Partial<Client>) => Promise<Client | void>;
   /** אחרי שליחה מוצלחת של הוראות האישור — קריאה מחדש של הביצוע והשלב (157). */
   onNiInstructionsSent?: () => Promise<void>;
   /**

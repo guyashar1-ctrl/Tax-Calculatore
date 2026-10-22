@@ -37,6 +37,15 @@ Ask Guy which business process or automation he wants to improve first. Inspect 
 
 ## Decision log / review evidence
 
+### 2026-10-22 — יישוב ורחוב מרשימה סגורה + «יישוב מזכה» מהכתובת (285) (גיא אישר: «מאשר את ההצעה כמו שהיא, כולל עדכון המסד בייצור וחיבור הלקוחות הקיימים»)
+- Trigger: לקוחה מקלידה עיר בקליטה, ו«יישוב מזכה» נקבע רק בלחיצה ידנית במשרד (תיבת «סנכרן מהעיר» מסומנת ולא רצה); השאלון השנתי דילג כי «ידוע בכרטיס». הצעה: docs/proposals/2026-10-21-closed-address-list.html.
+- Built: AddressFields (יישוב/רחוב מרשימה, מיקוד חופשי במקומו) בקליטה, ייפוי כוח, כרטיס, «פרטי הנישום», השאלון (RecordEditor address), CardSectionEditor; SettlementStatus  (לפי הכתובת / ידני+סיבה / «לא זוהה») בתיק המס ובכרטיס; שאלה «גר/ה ב… כל השנה» + officeNext; resolveSettlement לפי סמל בין שנים; handleUpdateClientFields מחזיר את שורת השרת.
+- Bug found & fixed (live since 241): city/address/zip_code יש להם ענף ב-_tax_fact_field_op ⇒ update_client_fields דחה כל שמירה רגילה («עובדת מס מנוהלת»). עכשיו ב-GOVERNED_FACT_KEYS (דרך p_facts, עם היסטוריה).
+- DB (ייצור, אחרי גיבוי backup_r285_20261022 + C:/Users/guyas/PIVO/backups/r285_20261022): 285-closed-address-list.sql (il_localities/il_streets/il_locality_aliases/tax_eligible_localities, il_norm, _il_address_parts, טריגר clients_address_canonical, קודמוד override ב-_tax_fact_field_op), 285-eligible-localities-seed.sql (970 שורות, 2025–2026), טעינת רשימות (1,316 יישובים, 63,577 רחובות, data.gov.il 19.10), 285-backfill-client-localities.sql: 19/19 כרטיסים עם עיר חוברו, 9 עם רחוב; לקוחה אמיתית ברתמים קיבלה יישוב מזכה (היה ריק). מספר 275 שהיה בשימוש ב-staging — שונה ל-285 (275–284 תפוסים).
+- Tests: unit 2088/0 (+8 ilAddress), test-285-address.sql עבר ב-staging (A–D), seed --check, tsc; דפדפן staging: תיק מס במחשב (לא זוהה ⇒ בחירה ⇒ «קריית שמונה · 20% · לפי הכתובת» בלי רענון; ידני+סיבה; חזרה לפי הכתובת), קליטה ב-375 (חיפוש, מעבר פוקוס, בלי גלילה אופקית).
+- Not verified: השאלון השנתי (RecordEditor) בדפדפן; הכרטיס הישן (PersonalContactsTab) בדפדפן; מכשיר אמיתי. 3 יישובים מזכים בלי סמל רשמי (אבנת, מצדות יהודה, מולדה) — לא יזוהו לבד.
+- Next: ינואר — רשימת היישובים המזכים החדשה ⇒ eligibleSettlements.ts + eligibleSettlementCodes.ts ⇒ המחולל ⇒ החלה; רענון רחובות מדי פעם (load-il-address-lists.mjs). אחר כך (גיא: «תטפל ישר אחרי זה גם ביתר הפערים») — סבב פערי הזיכויים.
+
 ### 2026-10-22 — המשך הבקרה (גיא: «תמשיך»): בדיקה יומית, בדיקת האבטחה ירוקה, עוד בדיקות רצות לבד
 - 282 (ייצור, במקור 275 — שונה בגלל 275 של עבודת הכתובות): `pivo_invariant_violations()` = מקום אחד לבדיקות (גם הסקריפט קורא לה); `run_invariant_check()` + pg_cron `invariant-check-daily` 05:30 UTC; `invariant_check_runs`; הפרה ⇒ משימה דחופה אחת ב«משימות» (בלי מייל). ריצה ידנית בייצור: ok.
 - 283: «המשך תקוע» לפי finished_at — staging-test-invariant-check-282 תפס ש-updated_at מתעדכן בכל שינוי. 284: שש פונקציות «מס» בדף האישי (כולן מוגנות ב-_portal_client(p_token)/resolve_intake_token) לרשימת ההיתר ⇒ assert_domain_function_invariants **ירוקה בייצור לראשונה**; הסקריפט בלי רשימת חריגים משלו.

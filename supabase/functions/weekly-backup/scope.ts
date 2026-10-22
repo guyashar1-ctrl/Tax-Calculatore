@@ -105,6 +105,11 @@ export const EXCLUDED: Record<string, string> = {
   automation_job_followups: "תור «הפעל הכול» קצר-חיים (270) — מה שלא שוחרר מפעילים שוב בלחיצה",
   invariant_check_runs: "יומן ריצות של הבדיקה היומית (282) — נבנה מחדש בריצה הבאה; ההפרות עצמן נפתחות כמשימות (שבגיבוי)",
   pivo_weekly_notes: "בוטלה ב-244 (15.10.2026) — «PIVO השבוע» נשמר עם השבוע במפת הדרך (vision_docs, שבגיבוי)",
+  // 285 · רשימות ציבוריות שנבנות מחדש מהמקור — לא נתוני משרד
+  il_localities: "רשימת היישובים של רשות האוכלוסין — scripts/load-il-address-lists.mjs",
+  il_streets: "רשימת הרחובות של רשות האוכלוסין — scripts/load-il-address-lists.mjs",
+  il_locality_aliases: "שמות נרדפים קבועים — במיגרציה 285",
+  tax_eligible_localities: "היישובים המזכים — 285-eligible-localities-seed.sql (נוצר מהקוד)",
 };
 
 export const TABLES = Object.keys(TABLE_SCOPES);

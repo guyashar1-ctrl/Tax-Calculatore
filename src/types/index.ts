@@ -640,7 +640,13 @@ export interface Client {
   gender: Gender;
   phone: string;
   email: string;
-  city: string;                     // עיר מגורים (dropdown)
+  city: string;                     // יישוב — השם הרשמי כשזוהה ברשימה (285)
+  // ‼ נגזרים בשרת מ-city/address (טריגר clients_address_canonical, 285). אף מסך לא כותב אותם.
+  cityCode?: number | null;
+  streetCode?: number | null;
+  streetName?: string | null;
+  houseNumber?: string | null;
+  apartment?: string | null;
   address: string;
   /** מיקוד מגורים (206). חסר = לא ידוע — לא «אין». */
   zipCode?: string;
@@ -751,6 +757,8 @@ export interface Client {
   qualifyingSettlementId: string;     // '' = לא ישוב מזכה
   qualifyingSettlementOverride: boolean; // האם הוגדר ידנית (ולא זוהה אוטומטית)
   qualifyingSettlementCreditPoints: number; // ניתן לשינוי ידני
+  /** למה המשרד קבע ידנית (285) */
+  qualifyingSettlementNote?: string | null;
 
   // ── נכסים ──
   hasResidentialProperty: boolean;

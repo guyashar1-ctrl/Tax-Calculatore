@@ -34,6 +34,8 @@ import type { EditField, FamilyKey, KindHold, KindHoldNotice } from '../../featu
 import { LIST_SPECS, cleanList } from '../../features/taxFile/listModel';
 import type { ListKey, ListItem } from '../../features/taxFile/listModel';
 import ListEditor from '../../features/taxFile/ListEditor';
+import AddressFields from '../ui/AddressFields';
+import SettlementStatus from '../../features/taxFile/SettlementStatus';
 import EditControl from '../../features/taxFile/EditControl';
 import NiNextActionButton from '../NiNextActionButton';
 import AuthoritiesPanel from '../authorities/AuthoritiesPanel';
@@ -105,7 +107,7 @@ interface Props {
   /** קפיצה למשטח "בקשות" אחרי שנוצרה בקשה — שם היא חיה. */
   onOpenRequestStep?: () => void;
   /** עדכון שדה פשוט על הכרטיס (spouseEmail) — לדיאלוג הוראות האישור. */
-  onUpdateClientFields?: (patch: Partial<Client>) => Promise<void>;
+  onUpdateClientFields?: (patch: Partial<Client>) => Promise<Client | void>;
   /** אחרי שליחה מוצלחת של הוראות האישור — קריאה מחדש של הביצוע והשלב (157). */
   onNiInstructionsSent?: () => Promise<void>;
   /** מסלולי הביצוע של ב"ל בבקשת הייצוג המקושרת — לצורך שורת "ייצוג" פר-אדם. */
@@ -530,10 +532,10 @@ export default function TaxFileTab({
         if (fresh !== undefined) holdBefore = fresh;
       }
       try {
-        await onUpdateClientFields(plain);
+        const saved = await onUpdateClientFields(plain);
         // ‼ הכרטיס שבמסך הוא עותק: בלי האימוץ הזה הערך החדש נשמר בשרת
         //   והמסך ממשיך להציג את הישן עד רענון.
-        onClientPersisted({ ...client, ...plain });
+        onClientPersisted(saved ?? { ...client, ...plain });
         // ‼ 05.10 (סבב 2): שם עסק שנשמר כאן עשוי לסגור בשרת בקשת «פרטי העסק» שחיכתה רק לו
         // (_clients_business_name_changed, 220) — הבקשות נקראות מחדש, אחרת «לטיפולך» נשאר עד רענון.
         if ('businessName' in plain) onRequestsChanged?.();
@@ -1080,7 +1082,16 @@ export default function TaxFileTab({
         >
           <div className="txf-kv">
             {editingSection === 'identity'
-              ? identityFields().map(f => (
+              ? identityFields().map(f => f.key === 'address' ? null : f.key === 'city' ? (
+                  // יישוב + כתובת = שורה אחת, מהרשימה הסגורה (285)
+                  <div key="city" data-field="city">
+                    <div className="k">כתובת מגורים</div>
+                    <div className="v txf-inline-edit">
+                      <AddressFields city={sectionDrafts.city ?? ''} address={sectionDrafts.address ?? ''}
+                        onChange={v => setSectionDrafts(d => ({ ...d, city: v.city, address: v.address }))} />
+                    </div>
+                  </div>
+                ) : (
                   <EditableKV key={f.key} def={f} value={sectionDrafts[f.key] ?? ''}
                     onChange={v => setSectionDrafts(d => ({ ...d, [f.key]: v }))}
                     hint={f.key === 'dealerType' && !cardKindKnown ? kindHoldFieldHint(kindHold) : null} />
@@ -1094,6 +1105,9 @@ export default function TaxFileTab({
                     );
                   }
                   const v = editFieldValue(client, f);
+                  if (f.key === 'city' && v && !client.cityCode) {
+                    return <KV key={f.key} k={f.label} v={<>{v} <span className="txf-miss" style={{ color: 'var(--warn)' }}>לא זוהה ברשימת היישובים</span></>} />;
+                  }
                   return (
                     <KV key={f.key} k={f.label}
                       v={v
@@ -1584,7 +1598,7 @@ export default function TaxFileTab({
         >
           <div className="txf-kv">
             {creditLines.map((l, i) => <KV key={i} k={l.description} v={`${l.points} נק׳${l.valueNIS ? ` · ${money(l.valueNIS)}` : ''}`} />)}
-            <KV k="יישוב מזכה" v={client.qualifyingSettlementId || 'לא'} />
+            <KV k="יישוב מזכה" v={<SettlementStatus client={client} onSave={onUpdateClientFields ? async patch => { const saved = await onUpdateClientFields(patch); onClientPersisted(saved ?? { ...client, ...patch }); } : undefined} />} />
             <KV k="סה״כ" v={<b>{totalPoints.toFixed(2).replace(/\.?0+$/, '')} נק׳{totalValue ? ` · ${money(totalValue)}` : ''}</b>} />
           </div>
           {/* ‼ קלטי הזיכוי — שירות, מילואים, לימודים, עלייה/תושבות/יישוב מזכה

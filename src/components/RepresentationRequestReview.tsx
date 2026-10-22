@@ -67,7 +67,7 @@ interface Props {
   /** ‼ 165: עובר כמו שהוא למרכז הביצוע — שער תנאי-הקדם של מסלולי הב"ל. */
   steps?: OnboardingStep[];
   onStepsChanged?: () => void;
-  onUpdateClientFields?: (patch: Partial<Client>) => Promise<void>;
+  onUpdateClientFields?: (patch: Partial<Client>) => Promise<Client | void>;
   /** 218 · הכנת מקומות החתימה בשרת כשהעובד לא בדק את התבנית — ראה מרכז הביצוע. */
   onPrepareShaamForms?: (layouts: ShaamFormLayouts) => Promise<Record<string, string> | null>;
 }
