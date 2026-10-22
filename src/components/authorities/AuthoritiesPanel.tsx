@@ -184,6 +184,12 @@ export default function AuthoritiesPanel({
   const [approvingAuthority, setApprovingAuthority] = useState<TaxAuthority | null>(null);
   const [approveError, setApproveError] = useState<string | null>(null);
   const [approveNotice, setApproveNotice] = useState<string | null>(null);
+  // ‼ 22.10.2026 · «אושר ונרשם ביומן» — אישור חד-פעמי למה שנלחץ, לא מצב: נעלם לבד.
+  useEffect(() => {
+    if (!approveNotice) return;
+    const t = window.setTimeout(() => setApproveNotice(null), 5000);
+    return () => window.clearTimeout(t);
+  }, [approveNotice]);
 
   // ─── עריכה במקום של עובדות הרשות ───────────────────────────────────────────
   // ‼ המפתח הוא מזהה השורה ('auth-vat', 'auth-national_insurance:spouse').
@@ -702,6 +708,7 @@ export default function AuthoritiesPanel({
                 approveError={approvingAuthority === null ? approveError : null}
                 approveNotice={approvingAuthority === null ? approveNotice : null}
                 onApprove={() => { if (check) void approveAuthorityChanges(spec, check); }}
+                onRetry={spec.available && !running && !inputBlocked ? () => runCheck() : undefined}
               >
                 {(inputBlocked ?? unavailable) && !running && <div className="txf-check-note">{inputBlocked ?? unavailable}</div>}
                 {row.authority === 'income_tax' && filing154 && !running && (

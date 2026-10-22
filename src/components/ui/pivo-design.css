@@ -4895,6 +4895,7 @@ input.pg-search:focus { box-shadow: 0 0 0 2px var(--focus-ring); border-color: t
 .txf-check-line{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:var(--fs-12)}
 .txf-check-sum{color:var(--ink-2)}
 .txf-check-at{color:var(--ink-4);font-size:11px}
+.txf-check.is-quiet{margin-top:8px;padding-top:0;border-top:0}
 .txf-check-line .ui-btn{margin-inline-start:auto}
 .txf-check-err{font-size:var(--fs-12);color:var(--danger)}
 .txf-check-note{font-size:11px;color:var(--ink-3)}

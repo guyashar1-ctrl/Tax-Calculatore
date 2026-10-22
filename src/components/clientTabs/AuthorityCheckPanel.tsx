@@ -144,37 +144,41 @@ export interface AuthorityCheckSummaryProps {
   approveError?: string | null;
   approveNotice?: string | null;
   onApprove: () => void;
+  /** «קרא שוב» — כשקריאה של שדה נכשלה. אותה פעולה כמו הכפתור בכותרת. */
+  onRetry?: () => void;
   /** תוספת מתחת לסיכום — למשל סיבת חסימה של המוכנות, פעם אחת לכרטיס. */
   children?: ReactNode;
 }
 
 /**
- * הסיכום היחיד של הבדיקה: «נבדקו 8 שדות · 2 שינויים · 4 טרם נתמכים», ואם
- * יש שינויים — כפתור אחד «אשר N שינויים». שגיאת ריצה מופיעה כאן פעם אחת.
+ * הסיכום היחיד של הבדיקה — ‼ רק כשיש מה לעשות (22.10.2026, גיא: «למה יש את זה אם הכל סבבה»):
+ * «2 שינויים · אשר» / «שדה אחד לא נקרא · קרא שוב». הכול תקין ⇒ רק «נבדק 22:34» קטן.
+ * «טרם נתמכים» / «לא נבדקו הפעם» הוסרו — פרט פנימי; הנקודה האפורה ליד השדה אומרת את זה.
  */
 export function AuthorityCheckSummary({
-  result, sourceLabel, runError, approving, approveError, approveNotice, onApprove, children,
+  result, sourceLabel, runError, approving, approveError, approveNotice, onApprove, onRetry, children,
 }: AuthorityCheckSummaryProps) {
   if (!result && !runError && !children) return null;
   const s = result?.summary;
   const at = checkedAtText(result?.checkedAt);
   const changed = s?.changed ?? 0;
+  const failed = s?.failed ?? 0;
+  const checked = !!(s && result?.checkedAt);
 
   const parts: string[] = [];
-  if (s && result?.checkedAt) {
-    parts.push(`נבדקו ${s.checked} שדות`);
-    parts.push(changed === 0 ? 'אין שינויים' : changed === 1 ? 'שינוי אחד' : `${changed} שינויים`);
-    if (s.failed > 0) parts.push(s.failed === 1 ? 'שדה אחד לא נקרא' : `${s.failed} שדות לא נקראו`);
-    if (s.unsupported > 0) parts.push(`${s.unsupported} טרם נתמכים`);
-    if ((s.notChecked ?? 0) > 0) parts.push(`${s.notChecked} לא נבדקו הפעם`);
+  if (checked) {
+    if (changed > 0) parts.push(changed === 1 ? 'שינוי אחד' : `${changed} שינויים`);
+    if (failed > 0) parts.push(failed === 1 ? 'שדה אחד לא נקרא' : `${failed} שדות לא נקראו`);
   }
+  const quiet = checked && parts.length === 0;
   // ‼ בזמן ריצה אין עדיין מה לסכם — בלי זה נשארת מסגרת ריקה עם קו מפריד.
-  const hasContent = parts.length > 0 || (result?.groupNotes.length ?? 0) > 0 || !!runError || !!result?.runError
+  const hasContent = checked || (result?.groupNotes.length ?? 0) > 0 || !!runError || !!result?.runError
     || !!approveError || !!approveNotice || !!children;
   if (!hasContent) return null;
 
   return (
-    <div className="txf-check">
+    <div className={`txf-check${quiet ? ' is-quiet' : ''}`}>
+      {quiet && at && <div className="txf-check-at" data-check-quiet>נבדק מול {sourceLabel} · {at}</div>}
       {parts.length > 0 && (
         <div className="txf-check-line">
           <span className="txf-check-sum">{parts.join(' · ')}</span>
@@ -184,6 +188,9 @@ export function AuthorityCheckSummary({
               onClick={onApprove}>
               {approving ? 'מאשר…' : changed === 1 ? 'אשר שינוי אחד' : `אשר ${changed} שינויים`}
             </button>
+          )}
+          {failed > 0 && changed === 0 && onRetry && (
+            <button type="button" className="ui-btn ui-btn-sm" onClick={onRetry}>קרא שוב</button>
           )}
         </div>
       )}
