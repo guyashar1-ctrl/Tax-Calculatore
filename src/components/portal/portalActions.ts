@@ -17,6 +17,7 @@ import {
   type PortalBusinessDetailsInput,
   type PortalBusinessDetailsResult,
 } from '../../features/requests/api';
+import type { PortalFilingsData } from './portalFilingsModel';
 
 export type PortalMode = 'live' | 'sample' | 'officeView';
 
@@ -50,6 +51,8 @@ export interface PortalActions {
   openLinked(kind: PortalLinkedKind, value?: string): void;
   /** הכתובת שפותחת קובץ אחד. קובץ פרטי מתיק הלקוח נפתח רק אצל הלקוח עצמו (null בשאר המצבים). */
   resourceHref(stepId: string | undefined, r: PortalResourceRef): string | null;
+  /** 280 · «הדוחות שלך». null = אין מה להציג (טוקן לא תקין, אין כרטיס בתצוגה במשרד, שגיאה). בדוגמה — נתוני דוגמה, בלי רשת. */
+  loadFilings(): Promise<PortalFilingsData | null>;
 }
 
 /** טעינת הדף האמיתי לפי טוקן. null = הקישור אינו תקין. */
@@ -58,6 +61,20 @@ export async function loadClientPortal<T extends { ok?: boolean }>(token: string
   const row = data as T | null;
   if (error || !row?.ok) return null;
   return row;
+}
+
+/** 280 · «הדוחות שלך» של הלקוח — לפי הטוקן של הדף (portal_filings). */
+async function loadFilingsLive(token: string): Promise<PortalFilingsData | null> {
+  const { data, error } = await supabase.rpc('portal_filings', { p_token: token });
+  const row = data as PortalFilingsData | null;
+  return error || !row?.ok ? null : row;
+}
+
+/** 280 · אותה תשובה בתצוגה במשרד — רק למשרד שהכרטיס שלו (portal_filings_preview). */
+async function loadFilingsOffice(clientId: string): Promise<PortalFilingsData | null> {
+  const { data, error } = await supabase.rpc('portal_filings_preview', { p_client_id: clientId });
+  const row = data as PortalFilingsData | null;
+  return error || !row?.ok ? null : row;
 }
 
 /**
@@ -137,6 +154,7 @@ export function livePortalActions(token: string): PortalActions {
     // הקישורים החיים הם <a href> אמיתיים — הפונקציה הזאת קיימת רק בשביל הדוגמה.
     openLinked: () => {},
     resourceHref: (stepId, r) => resourceHrefLive(token, stepId, r),
+    loadFilings: () => loadFilingsLive(token),
   };
 }
 
@@ -156,6 +174,8 @@ export function samplePortalActions(hooks?: { onOpenLinked?: (kind: PortalLinked
     openLinked: (kind, value) => hooks?.onOpenLinked?.(kind, value),
     // קובץ מספריית המשרד נפתח; קובץ פרטי מתיק לקוח — אין לו כתובת, והדף כותב «נפתח רק אצל הלקוח».
     resourceHref: (_stepId, r) => r.url ?? null,
+    // ‼ «צפייה» בספרייה מראה בקשה אחת — כפי שהלקוח מקבל אותה. «הדוחות שלך» אינו חלק מבקשה, ולכן לא מוצג כאן (CLAUDE.md §12.6).
+    loadFilings: async () => null,
   };
 }
 
@@ -171,4 +191,11 @@ export const officeViewActions: PortalActions = {
   notifyAccountant: () => {},
   openLinked: () => {},
   resourceHref: (_stepId, r) => r.url ?? null,
+  // בלי כרטיס אין מה לטעון; עם כרטיס — officeViewActionsFor.
+  loadFilings: async () => null,
 };
+
+/** 280 · התצוגה במשרד של כרטיס מסוים: אותן פעולות כבויות, ו«הדוחות שלך» נטענים לפי הכרטיס. */
+export function officeViewActionsFor(clientId: string | undefined): PortalActions {
+  return clientId ? { ...officeViewActions, loadFilings: () => loadFilingsOffice(clientId) } : officeViewActions;
+}

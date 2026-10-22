@@ -71,6 +71,8 @@ const PUBLIC_SURFACE = new Set([
   // רשום ב-sign_tokens של גרסה נעולה, לא פג, לתפקיד אחד; נמחק אחרי חתימה.
   // אותה רשימה כמו v_anon_ok ב-assert_domain_function_invariants (206).
   'get_smart_form_signing', 'submit_smart_form_signature',
+  // 280: «הדוחות שלך» בדף האישי — טוקן הדף בלבד (_portal_client, כולל תפוגה), קריאה בלבד.
+  'portal_filings',
 ]);
 
 async function cleanup() {

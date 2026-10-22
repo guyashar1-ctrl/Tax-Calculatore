@@ -1,0 +1,88 @@
+/* ─── «הדבר הבא» ו«הדוחות שלך» בדף האישי (280) ─────────────────────────────────────────────
+   ההדמיה המאושרת: docs/proposals/2026-10-21-tax-area-reimagined.html (#portal) — אותם יחסים, ריווחים ותגים.
+   ‼ צבע ההדגשה, הדיו, הגבולות והרדיוס — של המשרד: הדף מעביר אותם כמשתנים (--pf-accent, --pf-ink, --pf-muted,
+   --pf-border, --pf-card, --pf-radius) על .pp-card. תגי המצב בצבעים קבועים: אצלך (חום-צהוב) · אצלנו (צבע המשרד,
+   רקע בהיר) · הוגש (ירוק) · אין חובה (אפור). */
+
+/* ── הדבר הבא ── */
+.pf-next {
+  margin: 14px 0 6px; padding: 20px; color: #fff;
+  background: var(--pf-accent, #3f5f8f);
+  border-radius: calc(var(--pf-radius, 12px) + 8px);
+  box-shadow: 0 16px 36px -18px color-mix(in srgb, var(--pf-accent, #3f5f8f) 70%, transparent);
+}
+.pf-next small { display: block; opacity: .75; font-size: 13px; }
+.pf-next b { display: block; font-size: 21px; font-weight: 700; margin: 4px 0 2px; letter-spacing: -.01em; overflow-wrap: anywhere; }
+.pf-next span { display: block; opacity: .85; font-size: 14px; line-height: 1.5; }
+.pf-next button {
+  margin-top: 16px; width: 100%; min-height: 46px; border: 0; cursor: pointer; font: inherit;
+  border-radius: calc(var(--pf-radius, 12px) + 2px); background: #fff; color: var(--pf-accent, #3f5f8f);
+  font-weight: 700; font-size: 16px; touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+  transition: transform 160ms cubic-bezier(.23, 1, .32, 1);
+}
+.pf-next button:active { transform: scale(.985); }
+.pf-next button:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
+
+/* הבקשה שנפתחה מ«הדבר הבא» — סימון קצר ברשימה */
+.pp-item.pf-flash, .pp-group.pf-flash { animation: pf-flash 1.6s ease-out; }
+@keyframes pf-flash {
+  0%, 35% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--pf-accent, #3f5f8f) 45%, transparent); }
+  100% { box-shadow: 0 0 0 3px transparent; }
+}
+
+/* ── הדוחות שלך ── */
+.pf-sec { margin-top: 32px; }
+.pf-ph { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin: 0 2px 10px; }
+.pf-ph h2 { margin: 0; font-size: 19px; font-weight: 700; letter-spacing: -.01em; color: var(--pf-ink, #1f2226); }
+.pf-ph span { font-size: 12px; color: var(--pf-muted, #949aa1); white-space: nowrap; }
+
+.pf-ycard {
+  background: var(--pf-card, #fff); border: 1px solid var(--pf-border, #e7e6e3);
+  border-radius: calc(var(--pf-radius, 12px) + 6px); margin-bottom: 10px; overflow: hidden;
+}
+.pf-yhead {
+  appearance: none; border: 0; background: none; font: inherit; cursor: pointer; color: var(--pf-ink, #1f2226);
+  display: flex; align-items: center; gap: 10px; width: 100%; min-height: 52px; padding: 14px 18px; text-align: start;
+}
+.pf-yhead:focus-visible { outline: 3px solid var(--pf-accent, #3f5f8f); outline-offset: -3px; }
+.pf-yhead > b { font-size: 18px; font-weight: 700; }
+.pf-sum { flex: 1; font-size: 13px; color: var(--pf-muted, #949aa1); }
+.pf-chev { flex-shrink: 0; margin-inline-start: 4px; color: var(--pf-muted, #949aa1); transition: transform .3s cubic-bezier(.2, .8, .2, 1); }
+.pf-ycard.is-open .pf-chev { transform: rotate(-90deg); }
+.pf-fold { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .35s cubic-bezier(.2, .8, .2, 1); }
+.pf-ycard.is-open .pf-fold { grid-template-rows: 1fr; }
+.pf-fold > div { overflow: hidden; min-height: 0; }
+
+.pf-ob {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 12px;
+  padding: 13px 18px; border-top: 1px solid color-mix(in srgb, var(--pf-border, #e7e6e3) 70%, transparent);
+}
+.pf-what { min-width: 0; }
+.pf-what > b { display: block; font-weight: 600; font-size: 15px; color: var(--pf-ink, #1f2226); }
+.pf-pp { font-size: 13px; color: var(--pf-muted, #5f646b); }
+.pf-when { text-align: left; align-self: center; white-space: nowrap; }
+.pf-when b { display: block; font-size: 14px; font-weight: 600; color: var(--pf-ink, #1f2226); }
+.pf-when span { font-size: 12px; color: var(--pf-muted, #949aa1); }
+.pf-ob.is-muted .pf-what > b { color: var(--pf-muted, #5f646b); font-weight: 500; }
+.pf-num { font-variant-numeric: tabular-nums; }
+
+.pf-pill {
+  display: inline-flex; align-items: center; gap: 5px; width: max-content; margin-top: 4px;
+  font-size: 12px; font-weight: 600; line-height: 1.5; border-radius: 20px; padding: 2px 9px;
+}
+.pf-pill.is-you { background: #fbf3e4; color: #8a5b0f; }
+.pf-pill.is-us { background: color-mix(in srgb, var(--pf-accent, #3f5f8f) 10%, #fff); color: var(--pf-accent, #3f5f8f); }
+.pf-pill.is-done { background: #eaf4ef; color: #24654e; }
+.pf-pill.is-no { background: #f1f0ed; color: #5f646b; }
+.pf-yhead .pf-check { margin: 0; }
+
+@media (max-width: 480px) {
+  .pf-next { padding: 18px 16px; }
+  .pf-next b { font-size: 19px; }
+  .pf-yhead { padding: 13px 14px; }
+  .pf-ob { padding: 12px 14px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pf-fold, .pf-chev, .pf-next button { transition: none; }
+  .pp-item.pf-flash, .pp-group.pf-flash { animation: none; }
+}

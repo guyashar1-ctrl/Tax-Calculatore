@@ -166,3 +166,17 @@
 .ta-note-h { margin: 0 0 6px; font-size: var(--fs-14, 14px); font-weight: 650; color: var(--tx); }
 .ta-note ul { margin: 0; padding-inline-start: 18px; display: flex; flex-direction: column; gap: 6px; font-size: var(--fs-13); line-height: 1.6; color: var(--tx); }
 .ta-note-where { margin: 8px 0 0; font-size: var(--fs-12, 12px); color: var(--tx2); }
+
+/* ── 21.10.2026 · בלי מסילה: מתג אחד בראש, עמוד ברוחב קריאה (ההצעה המאושרת, v-works / v-kn) ── */
+.tax-area.ta2 { display: block; }
+.ta2-top { display: flex; justify-content: center; padding: 18px 0 6px; }
+.ta2-modes { display: inline-flex; gap: 2px; padding: 3px; border-radius: 12px; background: var(--surface-2, var(--s2)); }
+.ta2-mode { min-height: 36px; padding: 6px 20px; border: 0; border-radius: 9px; background: transparent; font: inherit; font-size: var(--fs-14, 14px); font-weight: 500; color: var(--ink-3, var(--tx2)); cursor: pointer; }
+.ta2-mode.is-on { background: var(--card); color: var(--ink-1, var(--tx)); font-weight: 600; box-shadow: 0 1px 2px rgba(0, 0, 0, .08); }
+.ta2-mode:focus-visible { outline: 2px solid var(--accent, var(--br)); outline-offset: 1px; }
+.ta2-mode:active { transform: scale(.97); }
+@media (prefers-reduced-motion: no-preference) { .ta2-mode { transition: background-color .15s ease-out, color .15s ease-out, transform .12s ease-out; } }
+.ta2-pane { max-width: 1040px; margin: 0 auto; width: 100%; }
+.ta2-crumbs { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-top: 8px; }
+.ta2-year { display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; font-size: var(--fs-13, 13px); color: var(--ink-3, var(--tx2)); }
+.ta2-year select { font: inherit; padding: 4px 8px; border-radius: 8px; border: 1px solid var(--bd); background: var(--card); color: var(--tx); }

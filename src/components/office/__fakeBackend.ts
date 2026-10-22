@@ -26,6 +26,7 @@ import type { PreviewRequest } from '../../features/requestPreview/types';
 import { mergeOfficeOverrides, type RequestTemplate, type TemplateEntry } from '../../lib/requestTemplates';
 import { documentLibrary } from '../../lib/clientGuide';
 import { REP_PORTAL_CARD_FIXED, resolveRepPortalCard, type RepPortalCardOverride } from '../../../supabase/functions/_shared/repTemplates.ts';
+import { sampleFilings } from '../portal/portalFilingsModel';
 import { seedMeetings, seedPeople, fakeSplitLeadCompanion, fakeMoveContactToLead, fakeGoogleStatus, fakeMeetingsInvoke } from '../../features/meetings/__fakeMeetings';
 
 type Row = Record<string, unknown>;
@@ -940,6 +941,9 @@ export function installFakeBackend() {
     if (name === 'get_client_portal_preview') return { data: demoPortal(String(args.p_mode ?? 'live')), error: null };
     // הדף האישי עצמו (‎?portal=demo&office-app‎) — רק לטוקן הדמו.
     if (name === 'get_client_portal') return { data: args.p_token === 'demo' ? demoPortal() : { ok: false }, error: null };
+    // 280 · «הדוחות שלך» בדף של דוד — נתוני הדוגמה עם השם שלו (ההדגמה אינה מחשבת מצבים; השרת עושה את זה ב-_portal_filings).
+    if (name === 'portal_filings') return { data: args.p_token === 'demo' ? sampleFilings({ client: 'דוד', spouse: null }) : { ok: false, error: 'invalid' }, error: null };
+    if (name === 'portal_filings_preview') return { data: args.p_client_id === DEMO_CLIENT ? sampleFilings({ client: 'דוד', spouse: null }) : { ok: true, years: [] }, error: null };
     if (name === 'portal_submit_step' && args.p_step_id === DEMO_REP_STEP) {
       demoRepDeclared = true;
       logWrite('rpc.portal_submit_step', { stepId: DEMO_REP_STEP });
