@@ -300,6 +300,8 @@ interface Shaam134FieldSource {
   hint?: (value: string) => string | undefined;
   /** איך מציגים את ערך הרשות לרו"ח. ברירת מחדל: הגולמי. */
   display?: (value: string) => string;
+  /** המצב העסקי גובר על הערך שנקרא (למשל «אין מקדמות» על פני מונה דיווחים של 134). */
+  preferBusiness?: boolean;
 }
 
 /**
@@ -335,7 +337,7 @@ export const SHAAM_134_FIELD_SOURCES: Record<string, Shaam134FieldSource> = {
   // עם מקדמות — מ-134 (worker/src/gmf134.mjs: המונה moneDvcChaser והתקופות, נצפה חי 23.10.2026):
   // «אין דיווחים חסרים» / «חסר דיווח: 07-08/2026». ריצה בלי הנתון — סמן ניטרלי, בלי «לא נקרא».
   incomeTaxReportingStatus: {
-    source: 'reportingStatus',
+    source: 'reportingStatus', preferBusiness: true,
     businessValue: (f) => (advanceBusinessState(f)
       ? { value: REPORTING_NO_ADVANCES, display: REPORTING_NO_ADVANCES } : 'info'),
   },
@@ -424,7 +426,7 @@ function interpretShaam134(
     const currentValue = currentRaw(client, fieldKey);
     if (!spec || !fields) return { fieldKey, label, status: 'unsupported', currentValue };
 
-    const raw = (fields[spec.source] ?? '').trim();
+    const raw = spec.preferBusiness && advanceBusinessState(fields) ? '' : (fields[spec.source] ?? '').trim();
     if (raw === '' && SHAAM_154_ONLY_SOURCES.has(spec.source) && fields.wealthDemand === undefined) {
       return { fieldKey, label, status: 'unsupported', currentValue };
     }

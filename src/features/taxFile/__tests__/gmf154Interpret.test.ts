@@ -98,6 +98,8 @@ export const TESTS: TestCase[] = [
     const none = read({ advanceStatus: 'cancelled', advanceStatusRaw: 'בוטלה (שעור דו)' });
     equal(none.status, 'changed');
     equal(none.authorityValue, 'אין מקדמות');
+    // ‼ 23.10: ריצה של 134 בלבד על תיק שהמקדמות בו בוטלו החזירה גם «אין דיווחים חסרים» — «אין מקדמות» גובר.
+    equal(read({ advanceStatus: 'cancelled', reportingStatus: 'אין דיווחים חסרים' }).authorityValue, 'אין מקדמות');
     equal(read({ advanceStatus: 'no_advance' }, client({ incomeTaxReportingStatus: 'אין מקדמות' })).status, 'match');
     const active = read({ advanceRate: '15%', advanceFrequency: 'דו-חדשי', advanceStatus: 'active' });
     equal(active.status, 'info');

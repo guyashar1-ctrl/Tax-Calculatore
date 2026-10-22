@@ -94,3 +94,21 @@ test('מקדמות פעילות ⇒ «מצב דיווחים» מ-134: המונה
   world.gmf134 = tik134();
   assert.equal((await sync.run(ctx(), { fileNumber: FILE })).result.fields.reportingStatus, 'אין דיווחים חסרים');
 });
+
+test('ה-JSON של 154 לא הגיע בזמן ⇒ רענון אחד של המסך, ו-154 נקראת (לא נופלים ל-134)', async () => {
+  const queries = connected(sample154({ sugDrisha: 'לא נדרש' }));
+  world.gmf154Slow = true;
+  const r = await sync.run(ctx(), { fileNumber: FILE });
+  assert.equal(r.result.query, '154');
+  assert.deepEqual(queries, ['154']);
+  assert.ok(r.result.filing);
+});
+
+test('מקדמות בוטלו + 134 (154 לא נקראה) ⇒ בלי «מצב דיווחים» מהמונה', async () => {
+  connected(null);
+  world.gmf134 = { moneDvcChaser: 0, lstTkufot: [] };
+  world.gmf134Raw = { advanceStatus: { ok: true, text: 'cancelled' }, advanceStatusRaw: { ok: true, text: 'בוטלה (שעור דו)' } };
+  const r = await sync.run(ctx(), { fileNumber: FILE });
+  assert.equal(r.result.query, '134');
+  assert.equal(r.result.fields.reportingStatus, undefined);
+});

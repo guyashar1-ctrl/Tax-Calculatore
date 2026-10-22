@@ -47,7 +47,7 @@ export function resetWorld() {
     chrome: 'closed', portal: false, gmfSession: false,
     savedCredential: USERNAME, savedPasswordAccepted: true, pages: [],
     pivo: { picks: 0, submits: 0, focusClicks: 0, gotos: [] }, humanSubmits: 0, humanScript: [], reports: [],
-    gmf154: null, gmfApiExpired: false, gmf134: null,
+    gmf154: null, gmfApiExpired: false, gmf134: null, gmf134Raw: null,
   });
 }
 
@@ -118,7 +118,14 @@ export class SimPage {
   go(path) { this.path = path; this.pass = { value: '', autofilled: false, focused: false }; }
 
   async bringToFront() {}
-  async reload() {}
+  async reload() {
+    // ‼ מסך 154 שנטען מחדש מבקש שוב את ה-JSON (כמו בדפדפן).
+    if (this.path.startsWith('/gmf-154') && world.gmf154) {
+      this.#respond('/gmf154Api/api/getPrtKnisaShilta', world.gmf154.head);
+      this.#respond('/gmf154Api/api/getPrtTavla', world.gmf154.pages[0]);
+    }
+    this.#rejectWaiters();
+  }
   async waitForLoadState() {}
   async waitForURL() {}
   async waitForTimeout(ms) { await advance(ms); }
@@ -153,6 +160,7 @@ export class SimPage {
         if (!world.gmf154) { this.#rejectWaiters(); return; }
         this.path = '/gmf-154/main/gmf154-data';
         this.page154 = 0;
+        if (world.gmf154Slow) { world.gmf154Slow = false; this.#rejectWaiters(); return; }
         this.#respond('/gmf154Api/api/getPrtKnisaShilta', world.gmf154.head);
         this.#respond('/gmf154Api/api/getPrtTavla', world.gmf154.pages[0]);
         this.#rejectWaiters();
@@ -222,7 +230,7 @@ export class SimPage {
     }
     if (src.includes('.modal.d-block, .modal.show\'')) return { blocked: false };
     if (src.includes('#userDatails')) return world.gmfUser ?? 'ישר גיא';
-    if (src.includes('app-meda-header')) return { pathname: this.path, taxOffice: { ok: true, text: '26 - רחובות' } };
+    if (src.includes('app-meda-header')) return { pathname: this.path, taxOffice: { ok: true, text: '26 - רחובות' }, ...(world.gmf134Raw ?? {}) };
     if (src.includes('labelText')) return { infoExists: true, infoChecked: true, labelText: 'מידע לתיק', yearChecked: true };
     if (src.includes('fileNumberInScreenText')) {
       const leftMenu = !this.path.startsWith('/gmf-main-menu');

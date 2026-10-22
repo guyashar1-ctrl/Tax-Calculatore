@@ -141,12 +141,14 @@ export async function run(ctx, input) {
         }
         path = path ? `${path} + ${opened.pathname}` : opened.pathname;
         // «מצב דיווחים» (דיווחי המקדמות) — מהמונה ומהתקופות של 134.
-        const rep = reportingFrom134(opened.tik);
+        // ‼ «מצב דיווחים» רק כשיש מקדמות פעילות. מקדמות שבוטלו / לא נדרשו ⇒ PIVO כותבת «אין מקדמות»
+        // (23.10.2026: המונה של 134 אמר «אין דיווחים חסרים» על תיק שהמקדמות בו בוטלו).
+        const rep = fields.advanceStatus && fields.advanceStatus !== 'active' ? { status: null, periods: [] } : reportingFrom134(opened.tik);
         if (rep.status) {
           fields.reportingStatus = rep.status;
           advancePeriods = rep.periods;
           ctx.log(`134: מצב דיווחים — ${rep.status}`);
-        } else {
+        } else if (!fields.advanceStatus || fields.advanceStatus === 'active') {
           unavailable.push({ key: 'reportingStatus', reason: opened.tik ? 'no_counter' : 'tik_not_captured' });
         }
       }

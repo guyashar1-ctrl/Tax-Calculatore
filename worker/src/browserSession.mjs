@@ -927,8 +927,8 @@ export async function openTaxYearsInfo(page, fileNumber, { maxPages = GMF_154_MA
 
   const submit = work.locator(GMF_HEADER_SUBMIT).first();
   if (!(await submit.count())) return { ok: false, reason: 'header_submit_missing', steps };
-  const headP = captureJson(work, GMF_154_HEAD_API, 40000);
-  const tableP = captureJson(work, GMF_154_TABLE_API, 40000);
+  const headP = captureJson(work, GMF_154_HEAD_API, 60000);
+  const tableP = captureJson(work, GMF_154_TABLE_API, 60000);
   try {
     await submit.click({ timeout: 10000 });
   } catch (e) {
@@ -936,7 +936,7 @@ export async function openTaxYearsInfo(page, fileNumber, { maxPages = GMF_154_MA
   }
   await work.waitForURL((u) => new URL(u).pathname.startsWith(GMF_154_DATA_PATH), { timeout: 30000 })
     .catch(() => {});
-  const [head, first] = await Promise.all([headP, tableP]);
+  let [head, first] = await Promise.all([headP, tableP]);
   const data = await settlePage(work, { idleMs: 15000, watchMs: 2000 });
   note(`data:${data.pathname} head=${head?.status ?? 'none'} table=${first?.status ?? 'none'}`);
   if (data.hasPasswordField) return { ok: false, reason: 'gmf_not_ready', pathname: data.pathname, steps };
@@ -944,6 +944,15 @@ export async function openTaxYearsInfo(page, fileNumber, { maxPages = GMF_154_MA
     const lost = await gmfSessionLost(work);
     if (lost) { note(`session:lost → ${lost}`); return { ok: false, reason: 'gmf_not_ready', pathname: lost, steps }; }
     return { ok: false, reason: 'data_screen_missing', pathname: data.pathname, steps };
+  }
+  // ‼ נצפה חי 23.10.2026 (רשת איטית, «fetch failed» ביומן): המסך נפתח אבל ה-JSON הגיע אחרי שהפסקנו
+  // לחכות ⇒ נפלנו ל-134 בלי הון וייצוג. רענון אחד של אותו מסך — קריאה בלבד — ושוב מחכים.
+  if (!head?.body || !first?.body) {
+    note('data:reload (JSON not captured)');
+    const h2 = captureJson(work, GMF_154_HEAD_API, 60000);
+    const t2 = captureJson(work, GMF_154_TABLE_API, 60000);
+    await work.reload({ waitUntil: 'domcontentloaded', timeout: 30000 }).catch(() => {});
+    [head, first] = await Promise.all([h2, t2]);
   }
   if (!head?.body || !first?.body) return { ok: false, reason: 'data_not_captured', steps };
 
