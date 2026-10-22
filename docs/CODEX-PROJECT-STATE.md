@@ -37,6 +37,13 @@ Ask Guy which business process or automation he wants to improve first. Inspect 
 
 ## Decision log / review evidence
 
+### 2026-10-22 — בסיס ב״ל בשורה אחת, «איפה משנים» בהערכה, מעסיקים מב״ל ליד 106 (גיא אישר: «Approved. Go ahead with the three parts of the proposal and release them to the live site.»)
+- Decision (memory advance-changes-guy-submits): PIVO calculates and shows exactly what to change; Guy submits advance changes himself — no submit automation.
+- Card (`niBasisCard`, `niBasisShortExplain` in niBasisDisplay.ts; authorityRows): «עצמאי: 2 ₪ · אוקטובר–דצמבר 2026» + «לפי הצהרה של 1 ₪ לחודש (מאי 2026)» + other bases («שכיר: 30,570 ₪», new `NiInsuranceBasis.otherBases` from the worker's `bases`); monthly basis + income reconstruction removed from card and change hint; «?» = one section ≤3 lines. niBasisView/niBasisExplain kept (tests).
+- Estimate (engine.ts `whereToChange`, AuthorityAdvance.registered/whereToChange, AuthorityView): NI registered declaration line; «איפה משנים» only when a change passes the followUps threshold — NI «באתר המייצגים של ב״ל: עיסוקים והכנסות ← שינוי מקדמות (או טופס 672)» (menu observed live 21.10); IT 2216א/2216ב (existing rules/sources). Open: official path for a SHAAM-connected representative not found (gov.il 2216ב page says «מייצג שלא מחובר לשע״ם»; 403 to WebFetch).
+- Employers reminder (`niEmployersInYear/niEmployersText`): EstimatePanel note above income lines; AnnualSummary «פירוט» row «מעסיקים לפי ב״ל». Display only.
+- Tests: unit 2080/0 (4 card tests updated to the new display), tsc clean, vite build OK; visual `?test-btl-sync&case=couple-employers` desktop + 375 (no overflow). Estimate/annual UI lines not visually checked (no harness opened) — covered by tsc only. Site only; no DB, no worker.
+
 ### 2026-10-21 (לילה) — בקרה על «שינוי ששובר משהו קיים» + 3 נקודות תורפה (גיא אישר: «Approved: the 3 weak spots in representation first, then the automatic check before every push, the dependency search, the rules list, the change note and the production check»)
 - בדיקה מעמיקה (Fable, קריאה בלבד): שורש — הכלל «מי חותם/ת ב'בן זוג רשום'» לא היה כתוב; אין hook/CI; 269 נרשם «לא אומת» ובכל זאת נדחף.
 - נקודות תורפה: ① `_rep_approval_people` — אחרי ההגשה כבר נשען על המעקב (נבדק, R7) — אין פיצול; ‼ שאלה מציאותית פתוחה: אצל ליאת, מי מבני הזוג מקבל משע״ם את קישור האישור — לראות אחרי ההגשה (קריאה בלבד). ② «הוזן ידנית» שומר עכשיו key + requestedSystems ונועל (274, runAll.test). ③ 274 (במקור 273 — שונה בגלל התנגשות עם 273-btl של הסשן המקביל; בייצור נרשם בשם 273-learn-registered-logged): `_rep_learn_registered_spouse` רושם שורה ב«פעילות» (ו«במקום X» כשמחליף הכרעה); ליאת קיבלה שורה בדיעבד (274-liat.sql).

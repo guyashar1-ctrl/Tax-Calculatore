@@ -157,6 +157,24 @@ export function niOccupationEmployerText(o: NiOccupation): string {
 }
 
 /**
+ * מעסיקים שב"ל רושם בשנה — תזכורת ליד 106 בהערכה ובדוח השנתי (21.10.2026). ‼ תזכורת בלבד: לא נכתב ממנה
+ * דבר לשנת המס. רק עיסוק «עובד» עם שם מעביד או תיק ניכויים שנקראו מב"ל (או הוזנו ביד).
+ */
+export function niEmployersInYear(list: readonly NiOccupation[], year: number): NiOccupation[] {
+  return niOccupationsInYear(list, year)
+    .filter(o => o.type === 'employee' && !!(o.employerName ?? o.btlDetail?.employerName ?? o.withholdingFile ?? o.btlDetail?.withholdingFile));
+}
+
+/** «מעביד א (תיק ניכויים 9…) · מעביד ב» — שורה אחת. */
+export function niEmployersText(list: readonly NiOccupation[]): string {
+  return list.map(o => {
+    const name = o.employerName ?? o.btlDetail?.employerName ?? 'מעביד';
+    const file = o.withholdingFile ?? o.btlDetail?.withholdingFile;
+    return `${name}${file ? ` (תיק ניכויים ${file})` : ''}`;
+  }).join(' · ');
+}
+
+/**
  * תחילת חלון העיסוקים: השנה הראשונה בהצעת המחיר של הלקוח — כולל שנים
  * קודמות שבהצעה (החלטת גיא 21.10.2026). בלי הצעה — שנת המס הנוכחית של
  * המשרד. עיסוק שהתחיל קודם ונמשך אל תוך השנה נכלל (העובד מסנן לפי חפיפה).

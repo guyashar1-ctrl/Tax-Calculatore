@@ -96,6 +96,7 @@
 .te-auth-figs span { color: var(--tx2); font-size: var(--fs-12); }
 .te-auth-figs b { font-variant-numeric: tabular-nums; font-size: var(--fs-14); }
 .te-auth-line { margin: 0; font-size: var(--fs-13); }
+.te-auth-line.te-auth-sub { color: var(--ink-3); font-size: var(--fs-12); }
 .te-auth-more { align-self: flex-start; }
 .te-auth-body { display: flex; flex-direction: column; gap: .4rem; font-size: var(--fs-13); }
 .te-auth-vat { margin: 0; font-size: var(--fs-13); color: var(--tx2); }

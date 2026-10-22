@@ -66,6 +66,9 @@ function AuthorityCard({ a, who, align, items, household }: { a: AuthorityAdvanc
       </div>
       {a.authority === 'it' && household && <p className="te-auth-line te-auth-hh">מס הכנסה של משק הבית כולו (גם המשכורות והניכוי מהן): {bal(household.balanceAtCurrent)} במקדמה של היום — זו היתרה שתתברר בדוח השנתי.</p>}
       <p className="te-auth-line">מקדמה: היום <b>{fmtAdv(a, a.current)}</b> · מומלץ <b>{a.recommended == null ? 'ללא המלצה' : fmtAdv(a, a.recommended)}</b>{a.belowChangeThreshold ? ' — שינוי קטן מ-10%, אין עילה לתיקון' : ''}</p>
+      {a.registered && <p className="te-auth-line te-auth-sub" data-te-registered>{a.registered}</p>}
+      {/* ‼ 21.10.2026 · גיא מגיש את השינוי בעצמו — שורה אחת «איפה», בלי כפתור הגשה. */}
+      {a.whereToChange && <p className="te-auth-line" data-te-where>איפה משנים: <b>{a.whereToChange}</b></p>}
       <p className="te-auth-line">
         {isNum(a.catchUp) && a.catchUp.value > 0
           ? <>השלמה לתקופות שעברו: <b>{nis(a.catchUp.value)}</b> — {a.authority === 'it' ? 'לפי דרישת פקיד השומה או כתשלום מרצון' : '«הגדלת מקדמות», במועד שב״ל קובע'}. </>
