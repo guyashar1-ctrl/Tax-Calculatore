@@ -159,6 +159,37 @@
           "run": true
         }
       ]
+    },
+    {
+      "name": "ידע מקצועי: «שאל» ועדכון הידע (281)",
+      "invariants": [],
+      "globs": [
+        "src/features/taxKnowledge/**",
+        "supabase/functions/knowledge-answer/**",
+        "supabase/281-*.sql",
+        "scripts/knowledge-*.mjs"
+      ],
+      "suites": [
+        {
+          "script": "staging-test-knowledge-answer.mjs",
+          "run": true
+        }
+      ]
+    },
+    {
+      "name": "דף אישי: «הדוחות שלך» ו«הדבר הבא» (280)",
+      "invariants": [],
+      "globs": [
+        "src/components/portal/*ilings*",
+        "src/components/portal/PortalFilings.tsx",
+        "supabase/280-*.sql"
+      ],
+      "suites": [
+        {
+          "script": "staging-test-280-portal-filings.mjs",
+          "run": true
+        }
+      ]
     }
   ],
   "watched": [
