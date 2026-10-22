@@ -253,6 +253,28 @@
           "note": "בדפדפן מול staging — דורש שרת"
         }
       ]
+    },
+    {
+      "name": "מס הכנסה: קריאת התיק משע״ם (154 ו-134 במקדמות), חובות הגשה «מרשימות שע״ם»",
+      "globs": [
+        "src/features/taxFile/authorityAutomation.ts",
+        "src/utils/authorityRows.ts",
+        "src/components/authorities/AuthoritiesPanel.tsx",
+        "src/components/clientTabs/AuthorityCheckPanel.tsx",
+        "src/components/clientTabs/InstitutionAlignment.tsx",
+        "src/features/shaamFiling/**",
+        "worker/src/gmf154.mjs",
+        "worker/src/browserSession.mjs",
+        "worker/src/handlers/shaamSyncIncomeTaxFile.mjs",
+        "supabase/250-*.sql"
+      ],
+      "suites": [
+        {
+          "script": "e2e/shaam-filing-staging.mjs",
+          "run": false,
+          "note": "קליטת 250 מול staging. הקריאה עצמה: npm run test:worker (gmf154, shaam-sync-154.flow מול הסימולטור); מיפוי הכרטיס: run-unit-tests.mjs gmf154"
+        }
+      ]
     }
   ],
   "watched": [
