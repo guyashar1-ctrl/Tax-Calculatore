@@ -23,8 +23,13 @@ const USER_ID = readFileSync(resolve(ROOT, 'STAGING_USER_ID'), 'utf8').trim();
 // הבדיקה הייתה מגדירה מחדש את הגרסה של 216 ובודקת אותה במקום את מה שרץ.
 const LATER = readdirSync(resolve(ROOT, 'supabase')).filter(f => /^2(1[7-9]|2\d)-.*\.sql$/.test(f))
   .sort((a, b) => parseInt(a) - parseInt(b)).map(f => 'supabase/' + f);
-const MIGRATIONS = ['supabase/214-client-notices.sql', 'supabase/215-flows.sql', 'supabase/216-flows-onboarding-integration.sql', ...LATER]
-  .map(f => readFileSync(resolve(ROOT, f), 'utf8')).join('\n');
+// ‼ 23.10.2026: ההחלה מחדש של 214–229 נכשלת על נתוני staging של היום (גרסה ישנה של
+// onboarding_steps_step_type_check לא מכירה סוגי שלבים שנוספו אחר כך). הפונקציות חיות ב-staging
+// מזמן, ולכן ברירת המחדל = הפונקציות החיות. ROUNDTRIP_REPLAY=1 — ההתנהגות הישנה.
+const MIGRATIONS = process.env.ROUNDTRIP_REPLAY === '1'
+  ? ['supabase/214-client-notices.sql', 'supabase/215-flows.sql', 'supabase/216-flows-onboarding-integration.sql', ...LATER]
+      .map(f => readFileSync(resolve(ROOT, f), 'utf8')).join('\n')
+  : '';
 const MODE = process.argv[2] === 'synthetic' ? 'synthetic' : 'real';
 const TEST = readFileSync(resolve(ROOT, 'scripts/sql/test-onboarding-roundtrip.sql'), 'utf8')
   .replaceAll('__USER__', USER_ID).replaceAll('__MODE__', MODE);

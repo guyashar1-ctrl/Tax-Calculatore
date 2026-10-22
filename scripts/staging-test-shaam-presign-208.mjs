@@ -62,8 +62,10 @@ begin
               'creationNotice', jsonb_build_object('text', v_notice, 'at', now()),
               'requestedSystems', '["מס הכנסה","ניכויים"]'::jsonb))) end,
             case when v_s = 'D' then '[]'::jsonb else jsonb_build_array(jsonb_build_object('key', 'person:client', 'title', 'x',
-              'pdfDocId', v_c || '-form', 'pdfFileName', 'ייפוי כוח.pdf', 'fields', '[]'::jsonb, 'createdAt', now(), 'signedPdfStoredId', null)) end,
-            case when v_s = 'D' then null else jsonb_build_object('pdfDocId', v_c || '-form', 'fields', '[]'::jsonb) end);
+              'pdfDocId', v_c || '-form', 'pdfFileName', 'ייפוי כוח.pdf',
+              -- ‼ 23.10.2026: מאז 218 «מוכן לחתימה» דורש תיבת חתימה לחותם ותיבת משרד. אותו בונה כמו בייצור.
+              'fields', public._rep_build_2279_fields('client', false), 'createdAt', now(), 'signedPdfStoredId', null)) end,
+            case when v_s = 'D' then null else jsonb_build_object('pdfDocId', v_c || '-form', 'fields', public._rep_build_2279_fields('client', false)) end);
     update public.clients set representation_request_id = v_r where id = v_c;
     insert into qa_fx values (v_s, v_c, v_r);
   end loop;

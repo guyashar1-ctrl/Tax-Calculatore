@@ -30,13 +30,11 @@
         },
         {
           "script": "staging-test-shaam-presign-208.mjs",
-          "run": false,
-          "note": "נכשל מ-04.10 (218 דורש תיבת חתימה לכל חותם; הבדיקה בונה טפסים בלי תיבות) — לעדכן את הבדיקה"
+          "run": true
         },
         {
           "script": "staging-test-shaam-lifecycle-205.mjs",
-          "run": false,
-          "note": "נחסמת ב-staging על assert_domain_function_invariants (il_streets_for / il_localities_list מעבודת הכתובות שטרם שוחררה) — להפעיל כשזה ייסגר"
+          "run": true
         },
         {
           "script": "staging-test-representation-joint.mjs",
@@ -89,8 +87,11 @@
         },
         {
           "script": "staging-test-onboarding-roundtrip.mjs real",
-          "run": false,
-          "note": "נכשל על אותו assert (מגרסה ישנה של המיגרציות שהוא מחיל מחדש)"
+          "run": true
+        },
+        {
+          "script": "staging-test-onboarding-roundtrip.mjs synthetic",
+          "run": true
         }
       ]
     },
@@ -105,18 +106,15 @@
       "suites": [
         {
           "script": "staging-test-flows-notices.mjs",
-          "run": false,
-          "note": "נחסמת ב-staging על assert_domain_function_invariants (il_streets_for / il_localities_list מעבודת הכתובות שטרם שוחררה) — להפעיל כשזה ייסגר"
+          "run": true
         },
         {
           "script": "staging-test-flow-conditions.mjs",
-          "run": false,
-          "note": "נחסמת ב-staging על assert_domain_function_invariants (il_streets_for / il_localities_list מעבודת הכתובות שטרם שוחררה) — להפעיל כשזה ייסגר"
+          "run": true
         },
         {
           "script": "staging-test-notices-edge.mjs",
-          "run": false,
-          "note": "נחסמת ב-staging על assert_domain_function_invariants (il_streets_for / il_localities_list מעבודת הכתובות שטרם שוחררה) — להפעיל כשזה ייסגר"
+          "run": true
         }
       ]
     },
