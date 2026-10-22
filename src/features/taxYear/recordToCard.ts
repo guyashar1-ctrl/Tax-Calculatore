@@ -68,7 +68,7 @@ export interface CardUpdatePlan {
 }
 
 /** איזה פריט יודע לעדכן את התיק. */
-export const updatesCard = (itemKey: string) => ['children', 'bank', 'address', 'employer', 'familyYear'].includes(RECORD_OF[itemKey] ?? '')
+export const updatesCard = (itemKey: string) => ['children', 'bank', 'address', 'employer', 'familyYear', 'studies'].includes(RECORD_OF[itemKey] ?? '')
   // ‼ «מעסיק חדש» (פרטי ישות שנולדה מ«כן») נכנס לתיק ב«הוסף לתיק» עם אותו מזהה זמני — לא כאן, כדי לא להוסיף פעמיים
   && !/Details$/.test(itemKey);
 
@@ -82,6 +82,7 @@ export function cardUpdateFor(c: Client, itemKey: string, value: unknown, from: 
   if (schema === 'bank') return bankPlan(c, items[0], from, decisions);
   if (schema === 'address') return addressPlan(c, items[0], from);
   if (schema === 'familyYear') return familyYearPlan(c, itemKey, items[0], from);
+  if (schema === 'studies') return studiesPlan(c, items, from, subjectRole === 'spouse');
   return null;
 }
 
@@ -241,6 +242,40 @@ function addressPlan(c: Client, r: RecordValue, from: From): CardUpdatePlan | nu
     lines.push(`${LABEL[k]}: ${cur || '—'} ← ${v}`);
   }
   return { proposals, lines: lines.length ? lines : ['הכתובת זהה למה שבתיק'], omitted: [] };
+}
+
+// ‼ 288 · «לימודים וצבא» ⇒ התיק: תואר + שנה, שחרור + חודש + חודשי שירות. לבעל/ת התיק — עובדות מנוהלות;
+//   לבן/בת הזוג — הצעה אחת «spouse» שממוזגת לתוך האובייקט (288). לימודי מקצוע — אין שדה בתיק: שורה למשרד.
+function studiesPlan(c: Client, items: RecordValue[], from: From, spouse: boolean): CardUpdatePlan | null {
+  const want: Record<string, unknown> = {};
+  const lines: string[] = [];
+  const degrees = items.filter(r => ['ba', 'ma'].includes(s(r.kind)) && Number(r.year) > 0).sort((a, b) => Number(b.year) - Number(a.year));
+  if (degrees[0]) Object.assign(want, { hasAcademicDegree: true, academicDegreeType: s(degrees[0].kind) === 'ma' ? 'master' : 'bachelor', academicDegreeYear: Number(degrees[0].year) });
+  const army = items.find(r => s(r.kind) === 'army' && Number(r.year) > 0);
+  if (army) {
+    const idf = s(army.branch) !== 'national';
+    Object.assign(want, idf
+      ? { completedIdf: true, idfReleaseYear: Number(army.year), completedNationalService: false }
+      : { completedNationalService: true, nationalServiceYear: Number(army.year), completedIdf: false });
+    if (Number(army.month) >= 1) want.idfReleaseMonth = Number(army.month);
+    if (Number(army.months) > 0) want.serviceMonths = Number(army.months);
+  }
+  if (items.some(r => s(r.kind) === 'pro')) lines.push('לימודי מקצוע — אין להם שדה בתיק; לבדוק את הזכאות (סעיף 40ג) ידנית');
+  const base = (spouse ? c.spouse ?? {} : c) as unknown as Record<string, unknown>;
+  const changed = Object.entries(want).filter(([k, v]) => base[k] !== v);
+  if (!changed.length) return { proposals: [], lines: lines.length ? lines : ['זהה למה שבתיק'], omitted: [] };
+  const HE: Record<string, string> = { hasAcademicDegree: 'תואר', academicDegreeType: 'סוג התואר', academicDegreeYear: 'שנת התואר', completedIdf: 'שירות צבאי',
+    idfReleaseYear: 'שנת השחרור', completedNationalService: 'שירות לאומי', nationalServiceYear: 'שנת סיום השירות', idfReleaseMonth: 'חודש השחרור', serviceMonths: 'חודשי שירות' };
+  const show = (v: unknown) => (v === true ? 'כן' : v === false ? 'לא' : v == null || v === '' ? '—' : String(v));
+  for (const [k, v] of changed) lines.push(`${spouse ? 'בן/בת הזוג · ' : ''}${HE[k] ?? k}: ${show(base[k])} ← ${show(v)}`);
+  const note = `תשובה מאושרת (${from.itemKey}, ${from.year}); עובדה ${from.factId}`;
+  const proposals: ProposedFact[] = spouse
+    ? [{ fieldKey: 'spouse', label: 'פרטי בן/בת הזוג — לימודים ושירות, מתשובה מאושרת',
+        oldValue: { display: 'לפני העדכון', patch: { spouse: c.spouse ?? null } },
+        newValue: { display: changed.map(([k, v]) => `${HE[k] ?? k}: ${show(v)}`).join(', '), patch: { spouse: Object.fromEntries(changed) } }, note }]
+    : changed.map(([k, v]) => ({ fieldKey: k, label: `${HE[k] ?? k} — מתשובה מאושרת`,
+        oldValue: { display: show(base[k]), patch: { [k]: base[k] ?? null } }, newValue: { display: show(v), patch: { [k]: v } }, note }));
+  return { proposals, lines, omitted: [] };
 }
 
 // ‼ 16.10.2026 · ממתי המצב המשפחתי: intake.marriageYear ⇒ marriageYear (וכו׳) — שם השדה הוא סוף מפתח הפריט.

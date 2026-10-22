@@ -319,8 +319,11 @@ export function schemaFor(id: RecordSchemaId, c?: Client, ctx?: Record<string, s
         id, noun: 'לימודים', addLabel: '＋ עוד לימודים או שירות', multiple: true,
         fields: [
           { key: 'kind', label: 'מה סיימת?', type: 'choice', required: true, options: STUDY_KINDS },
+          // 288 · צבא או שירות לאומי, וכמה חודשים — 39א: 23+ לגבר / 22+ לאישה = 2 נק׳ בשנה; 12+ = נקודה
+          { key: 'branch', label: 'איזה שירות?', type: 'choice', required: true, options: [{ value: 'idf', label: 'צבא' }, { value: 'national', label: 'שירות לאומי' }], showIf: r => r.kind === 'army' },
           { key: 'month', label: 'חודש', type: 'pick', required: true, half: true, options: MONTH_NAMES.map((m, k) => ({ value: String(k + 1).padStart(2, '0'), label: m })), showIf: r => r.kind === 'army' },
           { key: 'year', label: 'באיזו שנה?', type: 'pick', required: true, half: true, options: years, showIf: r => !!r.kind },
+          { key: 'months', label: 'כמה חודשים שירתת?', type: 'number', half: true, hint: 'כתוב בתעודת השחרור', showIf: r => r.kind === 'army' },
           { key: 'intern', label: 'ואז התמחות?', type: 'choice', required: true, options: [{ value: 'no', label: 'לא' }, { value: 'yes', label: 'כן' }],
             showIf: r => degree(r) && !!str(r.year) && Number(r.year) >= Y - 8 },
           { key: 'internFrom', label: 'התמחות מ-', type: 'pick', required: true, half: true, options: years, showIf: r => degree(r) && r.intern === 'yes' },
@@ -467,7 +470,9 @@ export function initialFromCard(id: RecordSchemaId, c: Client, role: 'client' | 
       const out: RecordValue[] = [];
       if (d.hasAcademicDegree && d.academicDegreeYear) out.push({ kind: d.academicDegreeType === 'bachelor' || !d.academicDegreeType ? 'ba' : 'ma', year: String(d.academicDegreeYear) });
       const ry = d.completedIdf ? d.idfReleaseYear : d.completedNationalService ? d.nationalServiceYear : 0;
-      if (ry) out.push({ kind: 'army', year: String(ry) });
+      if (ry) out.push({ kind: 'army', branch: d.completedIdf ? 'idf' : 'national', year: String(ry),
+        ...(d.idfReleaseMonth ? { month: String(d.idfReleaseMonth).padStart(2, '0') } : {}),
+        ...(d.serviceMonths ? { months: String(d.serviceMonths) } : {}) });
       return out;
     }
     case 'address':

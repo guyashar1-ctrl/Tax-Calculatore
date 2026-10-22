@@ -236,8 +236,8 @@ export function computeEstimate(draft: EstimateDraft, ctx: Ctx, opts: { extraStu
     salary: tot(p, 'salary'), business: tot(p, 'business'), adj: sum(draft.adjustments.filter(a => a.person === p).map(a => a.amount)),
     rent: tot(p, 'rent'), capital: tot(p, 'capital') - ownCoInterest(p), other: tot(p, 'other') + orphan(p) + ownCoInterest(p),
   }])) as Record<Person, { salary: number; business: number; adj: number; rent: number; capital: number; other: number }>;
-  if (hasSpouseLines && (!married || !client.spouse)) {
-    partial.push({ code: 'spouse_card_missing', text: 'הכנסות בן/בת הזוג לא חושבו: אין בכרטיס פרטי בן/בת זוג (נדרשים לנקודות הזיכוי) — להשלים את הכרטיס' });
+  if (hasSpouseLines && (!married || !client.spouse?.gender)) {
+    partial.push({ code: 'spouse_card_missing', text: 'הכנסות בן/בת הזוג לא חושבו: חסרים פרטי הזיכוי של בן/בת הזוג — להשלים בתיק המס ← «זיכויים» ← עריכה' });
   }
   // ── 2א. הכנסה הונית לפי סוגה — בלי סוג אין שיעור (לא מנחשים 25%) ──
   {
