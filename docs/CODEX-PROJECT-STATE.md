@@ -37,6 +37,11 @@ Ask Guy which business process or automation he wants to improve first. Inspect 
 
 ## Decision log / review evidence
 
+### 2026-10-22 — המשך הבקרה (גיא: «תמשיך»): בדיקה יומית, בדיקת האבטחה ירוקה, עוד בדיקות רצות לבד
+- 282 (ייצור, במקור 275 — שונה בגלל 275 של עבודת הכתובות): `pivo_invariant_violations()` = מקום אחד לבדיקות (גם הסקריפט קורא לה); `run_invariant_check()` + pg_cron `invariant-check-daily` 05:30 UTC; `invariant_check_runs`; הפרה ⇒ משימה דחופה אחת ב«משימות» (בלי מייל). ריצה ידנית בייצור: ok.
+- 283: «המשך תקוע» לפי finished_at — staging-test-invariant-check-282 תפס ש-updated_at מתעדכן בכל שינוי. 284: שש פונקציות «מס» בדף האישי (כולן מוגנות ב-_portal_client(p_token)/resolve_intake_token) לרשימת ההיתר ⇒ assert_domain_function_invariants **ירוקה בייצור לראשונה**; הסקריפט בלי רשימת חריגים משלו.
+- impact-map: run=true גם ל-representation-joint (12/12), ni-cancel (61/61), btl-representation (45/45), invariant-check-282 (7/7). נשארו תזכורת: presign-208 (שבור מ-04.10 — 218 דורש תיבת חתימה לכל חותם, הבדיקה לא עודכנה); lifecycle-205, flows-notices, flow-conditions, notices-edge, onboarding-roundtrip — נחסמות ב-staging על il_streets_for / il_localities_list (עבודת הכתובות, טרם שוחררה; כשתשוחרר — רשימת ההיתר או ש-push שלה ייעצר).
+
 ### 2026-10-22 — בסיס ב״ל בשורה אחת, «איפה משנים» בהערכה, מעסיקים מב״ל ליד 106 (גיא אישר: «Approved. Go ahead with the three parts of the proposal and release them to the live site.»)
 - Decision (memory advance-changes-guy-submits): PIVO calculates and shows exactly what to change; Guy submits advance changes himself — no submit automation.
 - Card (`niBasisCard`, `niBasisShortExplain` in niBasisDisplay.ts; authorityRows): «עצמאי: 2 ₪ · אוקטובר–דצמבר 2026» + «לפי הצהרה של 1 ₪ לחודש (מאי 2026)» + other bases («שכיר: 30,570 ₪», new `NiInsuranceBasis.otherBases` from the worker's `bases`); monthly basis + income reconstruction removed from card and change hint; «?» = one section ≤3 lines. niBasisView/niBasisExplain kept (tests).
