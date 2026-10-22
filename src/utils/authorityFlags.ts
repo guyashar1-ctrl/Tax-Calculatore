@@ -15,6 +15,7 @@ import type { Client } from '../types';
 import type { OnboardingStep } from '../types/onboarding';
 import { niPersons, niEditable, niRepresentationOf, niRepresentationAction } from './niPersons';
 import type { NiExecutionByRole, NiRepresentationAction } from './niPersons';
+import { reportingStatusOk } from './reportingStatus';
 
 export type FlagSeverity = 'high' | 'medium' | 'info';
 
@@ -251,7 +252,7 @@ export function computeAuthorityFlags(
 
   // ── דיווחים חסרים ──
   const reporting = client.incomeTaxReportingStatus?.trim();
-  if (reporting && reporting !== 'אין דיווחים חסרים') {
+  if (reporting && !reportingStatusOk(reporting)) {
     flags.push({
       key: 'incomeTaxReportingStatus',
       severity: 'medium',
