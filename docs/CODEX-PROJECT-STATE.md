@@ -1216,6 +1216,19 @@ User requests end-of-office-flow extraction guides with annotated screenshots, m
 - **פתוח:** `ANTHROPIC_API_KEY` לא הוגדר בייצור וב-staging. עד שיוגדר — «התשובה האוטומטית לא זמינה» + חיפוש מקומי, והשאלות נרשמות. נתיב ה-AI לא נבדק מול מודל אמיתי.
 - **בדיקות:** tsc · 2101 בדיקות יחידה · build · `staging-test-knowledge-answer` · `staging-test-280-portal-filings` (28/28) · דפדפן הדגמה במחשב ובטלפון.
 - **עקיפת מעקב:** ‎`scripts/e2e/tax-area.mjs` עודכן לממשק החדש.
+### 2026-10-22 — שאלון הדוח השנתי, סבב 2.1 (גיא: «בלי טקסט חופשי», «תראה מה כבר מופיע אצלך», כפילות «הדבר הבא», «תעשה שוב בדיקה מעמיקה») — בייצור
+- מסד: 287-annual-questionnaire-round2-1.sql (נוצר ב-scripts/sql/287/build.mjs) — _tax_year_items 319 (+7 income.*), ו-_portal_step_items: לדוח השנתי «רק מה שהשתנה · אפשר לעצור ולהמשיך» במקום «N שאלות». staging: הוחל, חזרה (rollback-287) והחלה חוזרת נבדקו; verify-222-body ירוק. ייצור: נרשם 20261022131700; md5 של הפריטים זהה ל-staging (681e000b…). גיבוי: C:/Users/guyas/PIVO/backups/annual-r21-20261022 (+ סכימה backup_annual_r21_20261022).
+- דף אישי: «הדבר הבא» כבר אינו כרטיס נפרד (PortalNextCard הוסר) — סימון קטן + מסגרת על הבקשה עצמה ברשימה, רק כשיש יותר מבקשה אחת; בקשה יחידה מופיעה פעם אחת (בדיקה portalFilings).
+- שאלון: «הכנסה אחרת» (income.other ⇒ income.otherKinds: זכייה/תמלוגים/השכרת ציוד/משהו אחר) במקום «משהו אחר?» בטקסט; «משהו אחר» ⇒ שורה במשרד «לברר עם {שם}: הכנסה אחרת» + «סמן שבורר» (annual.officeDecision unlisted-{role}).
+  מסכי סימון (screens.ts › checklists, גם על כל הזרימה ב-walkScreens): כן/לא מאותו נושא ואותה ישות — מסך אחד; נכס אחד — שאלות הנכס והזוג יחד.
+  ANNUAL_OFFICE_DETAIL (catalog): פרטים שהמסמך נותן — who=office בדוח השנתי, עם officeNext מאיפה; המסמך עצמו נשאר אצל הלקוח. ‼ פרטי רכב (ק״מ) וקשר לקונה — המשרד בודק בשיחה; מופיע בהוראה.
+  «איפה (עוד) עבדת ב-{שנה}?» + «כבר אצלנו» (prompt.onCard). period.account/property — שורה ב«זה עדיין נכון?». oneRound: בלי השערות «זה עדיין נכון?» בשנתי.
+  בלי לוכסנים ללקוח: cardLines מנוקדות לפי מין (עובדת), «תרמה» (gender.unfinal), «נכס של רחל» (prompt.checkLabel), «עוד ילד», «מה הסתיים?», «כמה חודשי שירות?». ילדים וכתובת מיד אחרי «זה עדיין נכון?» (screens RANK). מסך חשבון ההחזר: בלי כפילות ובלי תג שנה.
+- מיזוג: origin/master (288 כרטיס הזיכויים) — קונפליקט אחד ב-records.ts (נשמרו שני השינויים).
+- בדיקות: יחידה 2140/0; e2e annual-r2 177/0 (1280/390/360), annual-one-round 26/0 — לפני המיזוג; אחרי המיזוג (c544b935): annual-r2 177/0 (1280/390/360), one-round 26/0, purge 19/0, prior-return 62/0 (1280/390). סיור מלא (scratchpad tour.mjs, פרופיל מלא ופשוט) עד דף המסמכים: 12 מסכים בפרופיל מלא (כל הריבועים מסומנים), 16 בלקוח חדש.
+- ‼ scripts/e2e/annual-v2.mjs ישן (מלפני סבב 2, לא ב-impact-map) — נכשל על העיצוב הקודם; scripts/e2e/intake-closed-lists.mjs ישן — הבוררים data-rp-status / data-intake-open כבר לא קיימים באתר. לא רגרסיות של הסבב.
+- פתוח: שאלונים שכבר פורסמו לפני השחרור נשארים כפי שהם (בלי onCard / checkLabel; התווית בלי השם).
+
 ### 2026-10-22 — שאלון הדוח השנתי, סבב 2 (גיא אישר את ההמחשה docs/proposals/2026-10-21-annual-questionnaire-fixes.html) — בייצור
 - master 50191e98 (קוד 11272a85 + מיזוג + impact-map); מסד: 286-annual-questionnaire-round2.sql בייצור (נרשם 20261022094409), גוף portal_submit_tax_info md5 0735fa64… זהה ל-staging; 312 פריטים.
   גיבוי: C:/Users/guyas/PIVO/backups/annual-r2-20261022 (+ סכימה backup_annual_r2_20261022); חזרה: scripts/sql/286/rollback-286.sql (נבדק ב-staging: מחזיר md5 e283b944… של לפני).
