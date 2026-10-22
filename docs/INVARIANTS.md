@@ -66,6 +66,15 @@
 - **סקריפט:** `scripts/prod-invariants-check.mjs` קורא לאותה פונקציה (לפני כל push ואחרי מיגרציה).
 - **מוכיח:** `staging-test-invariant-check-282.mjs` (D1–D4).
 
+## בקשות — הדף האישי של הלקוח
+
+### INV-REQ-01 · «טיוטה» במשרד = פריט בדף אחרי «פרסם בדף»
+- **הכלל:** כל בקשה שהמשרד מסמן עליה «טיוטה» (ונספרת ב«N בקשות עוד לא בדף») מופיעה ב«איך זה ייראה», ואחרי הפרסום מופיעה בדף האמיתי של הלקוח. בקשה שהדף מציג רק במצב מסוים — הפרסום מביא אותה למצב הזה.
+- **קוד:** `isDraftStep` + `portalShowsStep` (`types/onboarding.ts`, `OnboardingTab.tsx`), המגש `NoticeTray.tsx`.
+- **SQL:** `_portal_step_items` (הענף של כל סוג), `build_client_portal` ('preview' / 'live'), `publish_case_changes`. «עדכון סטטוס מס»: הטריגר `onboarding_steps_intake_published_waits` — פורסם ⇒ `waiting_client` (276).
+- **מי צורך:** `sync_intake_step_from_sessions` (פתיחה מחדש של שאלון שפורסם ⇒ ממתין ללקוח), `requestAttention.ts` (אצל מי הכדור).
+- **מוכיח:** `staging-test-draft-reaches-page-276.mjs` (D1–D2 לכל סוג, Q1–Q2). (בלי בדיקה חיה: הטריגר מונע את המצב התקוע.)
+
 ## אבטחה
 
 ### INV-SEC-01 · שום פונקציה חדשה לא פתוחה ל-anon מחוץ לרשימה
