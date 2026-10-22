@@ -100,7 +100,8 @@ export const TESTS: TestCase[] = [
     const scr = p0.statuses.find(s => s.item.key === 'foreign.income')!;
     assert(!scr.officeAction, `נשארה רק התראה כללית: ${scr.officeAction}`);
     const det = p0.statuses.find(s => s.item.key === 'foreign.sourceDetails')!;
-    assert(!!det && det.provisional && det.state === 'missing' && det.askable, `פרטי המקור החדש לא נשאלים: ${det?.state}`);
+    // ‼ 22.10.2026 · סבב 2.1: בדוח השנתי מה שהדוח מחו״ל אומר (מדינה, סוג, גוף) — אצל המשרד; הדוח עצמו — מהלקוח
+    assert(!!det && det.provisional && det.state === 'missing' && p0.officeTodo.includes(det), `פרטי המקור החדש לא אצל המשרד: ${det?.state}`);
     equal(det.entityRef, 'frn-new-client-2025');
     const doc0 = p0.statuses.find(s => s.item.key === 'foreign.statements' && s.entityRef === 'frn-new-client-2025')!;
     assert(!!doc0 && doc0.askable, `הדוח מהמקור החדש לא מתבקש: ${doc0?.state}`);

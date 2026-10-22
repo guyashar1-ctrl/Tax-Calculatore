@@ -16,7 +16,7 @@ import {
   buildFilingCards, dm, dmy, dueByStep, pickNextAction, sampleFilings, yearsLabel,
   type PortalFilingItem, type PortalFilingsData,
 } from '../portalFilingsModel';
-import { PortalFilingsSection, PortalNextCard } from '../PortalFilings';
+import { PortalFilingsSection } from '../PortalFilings';
 import { PortalView } from '../../PublicPortalPage';
 import type { PortalData, PortalItem } from '../../PublicPortalPage';
 
@@ -140,27 +140,22 @@ export const TESTS: TestCase[] = [
     equal(pickNextAction([], new Map()), null);
   }),
 
-  test('כרטיס «הדבר הבא»: כותרת, שורה וכפתור אחד', () => {
-    const html = renderToStaticMarkup(createElement(PortalNextCard, { title: 'הצהרת הון', line: 'חסרים 3 מסמכים · עד 31.12.2026', onOpen: () => {} }));
-    for (const s of ['הדבר הבא', 'הצהרת הון', 'חסרים 3 מסמכים · עד 31.12.2026', '>להשלמה</button>']) assert(html.includes(s), `חסר: ${s}`);
-    equal((html.match(/<button/g) ?? []).length, 1);
-  }),
-
-  test('בדף: «הדבר הבא» מופיע כשמשהו ממתין ללקוח — והרשימה נשארת; בלי מה לעשות — אין כרטיס', () => {
+  test('בדף: «הדבר הבא» הוא סימון על הבקשה עצמה — אין כרטיס נפרד, ואף בקשה לא מופיעה פעמיים', () => {
     const items: PortalItem[] = [
       { bucket: 'action', key: 'docs', label: 'מסמכים שביקשנו', sub: '1 מתוך 3 התקבלו', actionKind: 'portal', actionValue: 'st1', kind: 'documents', checklist: [
         { key: 'a', label: 'א', done: true }, { key: 'b', label: 'ב', done: false }, { key: 'c', label: 'ג', done: false }] },
       { bucket: 'action', key: 'taxinfo_q', label: 'הדוח השנתי 2025', sub: '3 שאלות', actionKind: 'taxInfo', actionValue: 'st2' },
     ];
+    const count = (html: string, s: string) => html.split(s).length - 1;
     const html = renderToStaticMarkup(createElement(PortalView, { data: portalData(items), mode: 'sample' }));
-    assert(/data-testid="portal-next"/.test(html), 'יש כרטיס');
-    assert(/<b[^>]*>מסמכים שביקשנו<\/b><span>1 מתוך 3 התקבלו<\/span>/.test(html), 'בלי מועדים — הראשון, עם שורת ההתקדמות שלו');
-    assert(/data-pp-key="docs"/.test(html) && /data-pp-key="taxinfo_q"/.test(html), 'הרשימה עצמה נשארת');
+    assert(!/portal-next/.test(html), 'אין כרטיס נפרד');
+    equal(count(html, 'הדבר הבא'), 1, 'סימון אחד');
+    assert(/data-pp-key="docs" data-pp-next=""/.test(html), 'בלי מועדים — הראשון מסומן');
+    equal(count(html, '>מסמכים שביקשנו<'), 1); equal(count(html, '>הדוח השנתי 2025<'), 1);
     assert(html.includes('יש 2 בקשות שממתינות לך'), 'שורת הסיכום נשארת כשיש יותר מאחת');
     const one = renderToStaticMarkup(createElement(PortalView, { data: portalData([items[1]]), mode: 'sample' }));
-    assert(!one.includes('יש בקשה אחת שממתינה לך'), 'בקשה אחת — «הדבר הבא» אומר אותה, בלי שורה שחוזרת עליה');
-    const none = renderToStaticMarkup(createElement(PortalView, { data: portalData([{ bucket: 'office', key: 'o', label: 'בטיפול' }]), mode: 'sample' }));
-    assert(!/portal-next/.test(none), 'אין מה לעשות ⇒ אין כרטיס');
+    equal(count(one, '>הדוח השנתי 2025<'), 1, 'בקשה אחת — פעם אחת בלבד');
+    assert(!one.includes('הדבר הבא') && !one.includes('יש בקשה אחת שממתינה לך'), 'בקשה יחידה — בלי סימון ובלי שורה שחוזרת עליה');
   }),
 
   test('דוגמה: שמות הדוגמה, יחסי לשנה הנוכחית, כל המצבים — ובלי רשת', async () => {

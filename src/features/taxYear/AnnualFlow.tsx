@@ -16,7 +16,8 @@ import * as api from './api';
 import { DOCS } from './documents';
 import { ANNUAL_GRIDS, UNAVAILABLE_LABEL, type AskAnswer } from './asks';
 import type { InfoAsk } from './types';
-import { screenAsks, sortAsks, type Screen } from './screens';
+import { checklistParent, screenAsks, sortAsks, type Screen } from './screens';
+import { CHECKLIST_LABEL, CHECKLIST_TITLE } from './catalog';
 import { askIdentity, draftToAnswer, expandWithDrafts, inlineOf, isVirtual, readyToSend, shownDraft, walkScreens, type Draft } from './flowDraft';
 import { cleanRecord, schemaFor, type RecordAnswer } from './records';
 import RecordEditor, { loadBankDirectory } from './RecordEditor';
@@ -52,7 +53,7 @@ const ROW_LABEL: Record<string, string> = {
 const CHANGE_LABEL: Record<string, string> = { 'household.address': 'עברנו' };
 /** הסדר בשורות: משפחה · ילדים · כתובת · עבודה · … · חשבון להחזר (בסוף). */
 const rowRank = (a: InfoAsk) => { const k = Object.keys(ROW_LABEL).indexOf(a.itemKey); return k < 0 ? 50 : a.itemKey === 'filing.refundAccount' ? 99 : k; };
-const rowLabel = (a: InfoAsk) => ROW_LABEL[a.itemKey] ?? a.prompt.title.replace(/ — זה מה שידוע לנו$/, '');
+const rowLabel = (a: InfoAsk) => a.prompt.known?.[0]?.[0] ?? ROW_LABEL[a.itemKey] ?? a.prompt.title.replace(/ — זה מה שידוע לנו$/, '');
 
 function readLocal(key: string): Store | null {
   try { const s = localStorage.getItem(key); return s ? JSON.parse(s) as Store : null; } catch { return null; }
@@ -64,6 +65,7 @@ function writeLocal(key: string, v: Store | null) {
 /** שורה ב«זה עדיין נכון?»: מה שמוצג מהתיק (אישור — השורות; רשומה ממולאת — הסיכום). */
 function rowValue(a: InfoAsk): string[] {
   const input = a.prompt.input;
+  if (a.prompt.known?.[0]) return [a.prompt.known[0][1]];
   if (input.kind === 'confirm') return input.lines;
   if (input.kind === 'record') {
     const schema = schemaFor(input.schema, undefined, input.context);
@@ -150,32 +152,38 @@ export default function AnnualFlow({ stepId, token, title, initialAsks, fetchAsk
 
   const top = (
     <>
-      <div className="ty-flow-top"><span>{title}</span><span className={`ty-saved${saved ? ' is-on' : ''}`} aria-live="polite">{saved ? 'נשמר ✓' : ''}</span></div>
+      <div className="ty-flow-top"><span /><span className={`ty-saved${saved ? ' is-on' : ''}`} aria-live="polite">{saved ? 'נשמר ✓' : ''}</span></div>
       <div className="ty-progress" role="progressbar" aria-valuenow={phase === 'docs' ? 100 : progress} aria-valuemin={0} aria-valuemax={100} aria-label="התקדמות"><i style={{ width: `${phase === 'docs' ? 100 : progress}%` }} /></div>
       {preview && <div className="ty-note">תצוגה בלבד — כך זה ייראה ללקוח. אין כאן שליחה.</div>}
     </>
   );
 
   // ── המסך שעוד חסרה בו תשובה (לפני השליחה) ──
-  const answered = (a: InfoAsk) => a.state !== 'published' || !!(drafts[askIdentity(a)] && draftToAnswer(a, drafts[askIdentity(a)]));
-  const rowOk = (a: InfoAsk): boolean => {
+  // ‼ אותו בדיקה במסך ובשליחה — בשליחה מהמסך האחרון התשובות הטריות עוד לא בסטייט (מעבירים אותן)
+  const answeredIn = (dr: Record<string, Draft>, a: InfoAsk) => a.state !== 'published' || !!(dr[askIdentity(a)] && draftToAnswer(a, dr[askIdentity(a)]));
+  const rowOkIn = (dr: Record<string, Draft>, a: InfoAsk): boolean => {
     if (a.state !== 'published') return true;
-    const d = drafts[askIdentity(a)];
+    const d = dr[askIdentity(a)];
     if (!d?.choice) return false;
     if (d.choice === 'yes') return true;
     const inl = inlineOf(expanded, a);
-    return !!draftToAnswer(a, d) && inl.every(x => !!drafts[askIdentity(x)] && !!draftToAnswer(x, drafts[askIdentity(x)]));
+    return !!draftToAnswer(a, d) && inl.every(x => !!dr[askIdentity(x)] && !!draftToAnswer(x, dr[askIdentity(x)]));
   };
-  const screenOk = (s: Step) => s.kind === 'known' || (s.kind === 'confirmAll' ? s.asks.every(rowOk) : screenAsks(s).every(a => isGridAsk(a) || answered(a)));
+  const screenOkIn = (dr: Record<string, Draft>, s: Step) => s.kind === 'known' || s.kind === 'checklist'
+    || (s.kind === 'confirmAll' ? s.asks.every(a => rowOkIn(dr, a)) : screenAsks(s).every(a => isGridAsk(a) || answeredIn(dr, a)));
+  const rowOk = (a: InfoAsk) => rowOkIn(drafts, a);
 
-  const send = async () => {
+  const send = async (fresh?: Record<string, Draft>) => {
     if (preview) return;
-    const miss = steps.findIndex(s => !screenOk(s));
+    const drafts0 = fresh ?? drafts;
+    const miss = steps.findIndex(s => !screenOkIn(drafts0, s));
     if (miss >= 0) { go(miss); window.setTimeout(fail, 30); return; }
     setBusy(true); setErr(null);
     // ‼ מסך ריבועים שלא נגעו בו — מה שמוצג (סימון מראש) הוא התשובה, וריק = «לא היה כלום»
-    const dd = { ...drafts };
-    for (const g of expanded.filter(a => isGridAsk(a) && a.state === 'published' && !drafts[askIdentity(a)])) {
+    const dd = { ...drafts0 };
+    // ‼ מסך סימון שלא נגעו בו — «לא» על כל שאלה בו
+    for (const a of expanded.filter(a => a.state === 'published' && !dd[askIdentity(a)] && checklistParent(a))) dd[askIdentity(a)] = { choice: 'no' };
+    for (const g of expanded.filter(a => isGridAsk(a) && a.state === 'published' && !dd[askIdentity(a)])) {
       const s = shownDraft(g, undefined);
       dd[askIdentity(g)] = s.selected?.length ? s : { none: true, selected: [] };
     }
@@ -339,6 +347,42 @@ export default function AnnualFlow({ stepId, token, title, initialAsks, fetchAsk
     );
   }
 
+  // ── 22.10.2026 · סבב 2.1: מסך סימון — שאלות כן/לא מאותו נושא (חו״ל, מכירה, נכס מושכר, עסק); מה שלא סומן — «לא» ──
+  if (scr.kind === 'checklist') {
+    const list = scr.asks;
+    const lead = list[0];
+    const yes = (a: InfoAsk) => drafts[askIdentity(a)]?.choice === 'yes';
+    const any = list.some(yes);
+    const nextC = () => {
+      const patch: Record<string, Draft> = {};
+      for (const a of list) if (a.state === 'published' && !yes(a)) patch[askIdentity(a)] = { choice: 'no' };
+      const nd = { ...drafts, ...patch };
+      putDrafts(patch);
+      const ns = [...(steps[0]?.kind === 'known' ? [{ kind: 'known' as const }] : []), ...walkScreens(expandWithDrafts(asks, nd), opened)];
+      const at = ns.findIndex(s => s.kind !== 'known' && screenAsks(s).some(x => askIdentity(x) === askIdentity(lead)));
+      const to = (at >= 0 ? at : idx) + 1;
+      if (to >= ns.length) { void send(nd); return; }
+      go(to);
+    };
+    const title = (CHECKLIST_TITLE[scr.parent] ?? '').split('{entity}').join('העסק').split('{year}').join(String(lead.taxYear));
+    return (
+      <div className="ty-flow" data-screen="checklist" data-person={lead.subjectRole} ref={flowRef}>
+        {top}
+        {lead.prompt.subjectName && <span className={`ty-person${lead.subjectRole === 'spouse' ? ' is-p2' : ''}`}><i aria-hidden="true">{lead.prompt.subjectName[0]}</i>{lead.prompt.subjectName}</span>}
+        <p className="ty-q" id={`q-${lead.id}`}>{title}</p>
+        <div className="ty-checks" role="group" aria-labelledby={`q-${lead.id}`}>
+          {list.map(a => (
+            <button key={a.id} type="button" className="ty-check" aria-pressed={yes(a)} data-check={a.itemKey} disabled={a.state !== 'published'}
+              onClick={() => putDrafts({ [askIdentity(a)]: { choice: yes(a) ? 'no' : 'yes' } })}>
+              <span className="ty-check-box" aria-hidden="true">{yes(a) ? '✓' : ''}</span>{a.prompt.checkLabel ?? CHECKLIST_LABEL[a.itemKey]?.replace(/ או [^,]*{spouse}$/, '')}
+            </button>
+          ))}
+        </div>
+        {nav(nextC, any ? 'הבא' : 'אף אחד מאלה — הבא', !any)}
+      </div>
+    );
+  }
+
   // ── שאלה (או כמה אנשים באותה שאלה) ──
   const list = screenAsks(scr);
   const first = list[0];
@@ -359,7 +403,7 @@ export default function AnnualFlow({ stepId, token, title, initialAsks, fetchAsk
     const ns = [...(steps[0]?.kind === 'known' ? [{ kind: 'known' as const }] : []), ...walkScreens(expandWithDrafts(asks, nd), opened)];
     const at = ns.findIndex(s => s.kind !== 'known' && screenAsks(s).some(a => askIdentity(a) === askIdentity(first)));
     const to = (at >= 0 ? at : idx) + 1;
-    if (to >= ns.length) { void send(); return; }
+    if (to >= ns.length) { void send(nd); return; }
     go(to);
   };
   const person = first.prompt.subjectName;
@@ -376,6 +420,12 @@ export default function AnnualFlow({ stepId, token, title, initialAsks, fetchAsk
         </p>
       )}
       {first.prompt.hint && !isGrid && scr.kind === 'ask' && <p className="ty-hint" id={`h-${first.id}`}>{first.prompt.hint}</p>}
+      {scr.kind === 'ask' && !!first.prompt.onCard?.length && (
+        <>
+          <p className="ty-known-h">כבר אצלנו</p>
+          <dl className="ty-known" data-on-card>{first.prompt.onCard.map(([k, v]) => <div key={k}><dt>{k}</dt><dd>{v}</dd></div>)}</dl>
+        </>
+      )}
       {sent && <span className="ty-done-mark">✓ נשלח קודם</span>}
       {list.map(a => {
         const d = shownDraft(a, drafts[askIdentity(a)]);

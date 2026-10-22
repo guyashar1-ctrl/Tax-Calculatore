@@ -7,7 +7,7 @@
 // ‼ מסמך שהתקבל אינו מידע מאושר: «התקבל, ממתין לבדיקה» ≠ «ידוע».
 
 import type { Client } from '../../types';
-import { AREAS, ITEMS, ITEM_BY_KEY, ANNUAL_TILE_OFF, type AreaId, type InfoItem } from './catalog';
+import { AREAS, ITEMS, ITEM_BY_KEY, ANNUAL_TILE_OFF, ANNUAL_OFFICE_DETAIL, type AreaId, type InfoItem } from './catalog';
 import { canRequestNow, DOCS } from './documents';
 import type { EntityKind, Evidence, FactBasis, InfoAsk, Purpose, SubjectRole, YearFact } from './types';
 import { accountSpan, entityRelevance, periodOfRequest, propertySpan, type Relevance } from './temporal';
@@ -307,6 +307,8 @@ export function buildYearPicture(inp: PictureInput): YearPicture {
   const statuses: ItemStatus[] = [];
   // ‼ מי שתואר/שחרור/יישוב לא נשאלו אצלו כי הכרטיס ריק או ישן — רק לו נשאלת household.creditChanges.
   const gatedByCard = new Map<SubjectRole, string[]>();
+  /** ‼ 22.10.2026 · סבב 2.1: בדוח השנתי פרטים שהמסמך נותן — אצל המשרד, לא שאלה ללקוח (catalog › ANNUAL_OFFICE_DETAIL). */
+  const whoOf = (it: InfoItem) => (purpose === 'annual' && ANNUAL_OFFICE_DETAIL.has(it.key) ? 'office' : it.who);
   /** 21.10.2026 · ל-{אדם} יש «לימודים וצבא» (שאלה או תשובה) — שם נשאלים התואר, השחרור וההתמחות. */
   const studiesOf = (role: SubjectRole) => asks.some(a => a.itemKey === 'household.studies' && a.subjectRole === role && a.state !== 'cancelled')
     || facts.some(f => f.itemKey === 'household.studies' && f.subjectRole === role);
@@ -414,7 +416,7 @@ export function buildYearPicture(inp: PictureInput): YearPicture {
       }
       const base = { ...t, item, area: item.area, facts: tf, evidence: tev, ask } as const;
       const push = (state: ItemState, detail: string, extra: Partial<ItemStatus> = {}) =>
-        statuses.push({ ...base, state, detail, askable: item.who === 'client' && (state === 'missing' || state === 'fromCard' || state === 'partial'), ...extra });
+        statuses.push({ ...base, state, detail, askable: whoOf(item) === 'client' && (state === 'missing' || state === 'fromCard' || state === 'partial'), ...extra });
 
       // 0. לא שואלים מה שהכרטיס כבר עונה: מעסיקים בכרטיס ⇒ אישור הרשימה, לא «עבדת כשכיר?»
       if (item.coveredBy && tf.length === 0 && !ask) {
@@ -434,6 +436,9 @@ export function buildYearPicture(inp: PictureInput): YearPicture {
       if (purpose === 'annual' && tf.length === 0 && !ask) {
         if (ANNUAL_TILE_OFF.has(item.key)) continue;
         if (['household.degree', 'household.release', 'household.creditChanges'].includes(item.key) && studiesOf(t.subjectRole)) continue;
+        // ‼ 22.10.2026 · סבב 2.1: «פתוח כל 2025» / «בבעלותכם כל 2025» בשורה של החשבון או הנכס — הוא האישור של הרשימה
+        if ((item.key === 'capital.accounts' && facts.some(f => f.itemKey === 'period.account'))
+          || (item.key === 'rent.properties' && facts.some(f => f.itemKey === 'period.property'))) continue;
       }
       // תואר ושחרור מזכים בנקודות רק בשנים שאחרי הסיום/השחרור — מה שהסתיים מזמן לא נשאל
       if ((item.key === 'household.degree' || item.key === 'household.release') && tf.length === 0 && !ask) {
@@ -676,11 +681,11 @@ export function buildYearPicture(inp: PictureInput): YearPicture {
     purpose, taxYear: y, statuses,
     // אישור מהכרטיס כשבכרטיס אין כלום — נשאל רק כשיש לו שאלה מובנית (whenEmpty); אחרת «לא ידוע», לא «אין אצלנו פרטים»
     // ‼ 20.10.2026 · בדוח השנתי פריט עם annualVia נשאל רק כאפשרות במסך הבחירה שלו (לא «האם מתוך זה… דמי לידה?» לבד)
-    toAsk: statuses.filter(s => s.item.who === 'client' && s.state === 'missing' && (s.item.kind !== 'confirm' || !!s.item.whenEmpty) && !(purpose === 'annual' && s.item.annualVia)),
+    toAsk: statuses.filter(s => whoOf(s.item) === 'client' && s.state === 'missing' && (s.item.kind !== 'confirm' || !!s.item.whenEmpty) && !(purpose === 'annual' && s.item.annualVia)),
     toConfirm: statuses.filter(s => s.state === 'fromCard' && s.item.who === 'client'),
     toComplete: statuses.filter(s => s.state === 'partial' && s.item.who === 'client'),
     // מסמך שאושר ומחכה להזנת הסכומים ממנו — ראשון (המסמך כבר כאן)
-    officeTodo: statuses.filter(s => !!s.officeAction || s.item.who === 'office' && (s.state === 'missing' || s.state === 'partial' || s.state === 'fromCard' || (s.state === 'docReceived' && s.item.kind !== 'document')))
+    officeTodo: statuses.filter(s => !!s.officeAction || whoOf(s.item) === 'office' && (s.state === 'missing' || s.state === 'partial' || s.state === 'fromCard' || (s.state === 'docReceived' && s.item.kind !== 'document')))
       .sort((a, b) => Number(b.state === 'docReceived') - Number(a.state === 'docReceived')),
     toReview: statuses.filter(s => s.state === 'pendingReview' || (s.state === 'docReceived' && s.item.kind === 'document')),
     waiting: statuses.filter(s => s.state === 'asked' || s.state === 'unavailable'),

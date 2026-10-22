@@ -250,7 +250,7 @@ export default function TaxInfoFlow({ stepId, token, previewClientId, previewAsk
   }
 
   // הקבוצה (כמה אנשים באותה שאלה) קיימת רק בדוח השנתי — כאן תמיד שאלה אחת
-  const ask = screen.kind === 'group' ? screen.asks[0] : screen.ask;
+  const ask = screen.kind === 'ask' ? screen.ask : screen.asks[0];
   // ‼ 19.10.2026 · אריחים שסומנו מראש (הדוח הקודם / אירוע מהכרטיס) — הבחירה ההתחלתית, עד שהלקוח נוגע
   const d = draft[ask.id] ?? (ask.prompt.input.kind === 'multi' && ask.prompt.input.options.some(o => o.preset)
     ? { selected: ask.prompt.input.options.filter(o => o.preset).map(o => o.key) } : {});

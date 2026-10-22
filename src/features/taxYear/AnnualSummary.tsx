@@ -273,6 +273,14 @@ export default function AnnualSummary({ client, step, year, data, busy, run, mor
       sub: notSure.length === 1 ? noteWhere(one) : notSure.map(a => `«${a.officeNote}»`).join(' · '), data: { 'data-as-notes': '' },
       act: btn(notSure.length === 1 ? 'סגור' : 'סגור הכול', () => void run(async () => { for (const a of notSure) { const r = await api.resolveNote(a.id); if (!r.ok) return r; } return { ok: true }; }, 'סומן שנסגר'), { disabled: busy }) });
   }
+  // ב3. ‼ 22.10.2026 · «הכנסה אחרת ← משהו אחר» (במקום טקסט חופשי) — המשרד מתקשר לברר
+  for (const f of facts.filter(x => x.itemKey === 'income.unlisted' && yes(x) && x.value !== false)) {
+    const k = `unlisted-${f.subjectRole}`;
+    rows.push(decisionDone(k)
+      ? { key: k, ok: true, title: `בורר: הכנסה אחרת — ${whoOf(f.subjectRole)}` }
+      : { key: k, title: `לברר עם ${whoOf(f.subjectRole)}: הכנסה אחרת שלא ברשימה`, sub: ITEM_BY_KEY['income.unlisted']?.officeNext, data: { 'data-as-unlisted': f.subjectRole },
+          act: btn('סמן שבורר', () => void markDecision(k), { disabled: busy }) });
+  }
   // ג. תשובות לאישור
   if (simplePending.length > 0) {
     rows.push({ key: 'approve', title: `${many(simplePending.length, 'תשובה אחת', 'תשובות')} לאישור`, sub: otherPending > 0 ? `ועוד ${otherPending} לבדוק בפירוט` : undefined, data: { 'data-as-approve': '' },

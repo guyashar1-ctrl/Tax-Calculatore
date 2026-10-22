@@ -74,7 +74,9 @@ export const TESTS: TestCase[] = [
     equal(grid.prompt.input.options.find(o => o.key === 'pension.received')?.hint, 'תשלום חודשי. סכום חד-פעמי — ב«משיכה מקופה».');
     equal(less.prompt.input.options.find(o => o.key === 'savings.selfDeposits')?.group, 'less');
     equal(less.prompt.input.options.find(o => o.key === 'household.creditChanges')?.example, 'מ-2020');
-    assert(!!grid.prompt.otherNote && !less.prompt.otherNote, '«משהו אחר?» רק במסך הכסף');
+    // ‼ 22.10.2026 · בלי טקסט חופשי: «משהו אחר?» הוחלף בריבוע «הכנסה אחרת»
+    assert(!grid.prompt.otherNote && !less.prompt.otherNote, 'נשאר «משהו אחר?» בטקסט חופשי');
+    assert(grid.prompt.input.options.some(o => o.key === 'income.other'), 'אין ריבוע «הכנסה אחרת»');
     const known = Object.fromEntries(grid.prompt.known ?? []);
     equal(known['מצב משפחתי'], 'נשואים מ-2023');
     equal(known['נועה'], 'משרד החינוך');

@@ -9,7 +9,7 @@
 //
 // ‼ מיתוג המשרד, לא PIVO — כמו כל מה שהלקוח רואה.
 
-import { createContext, lazy, Suspense, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { createContext, lazy, Suspense, useContext, useEffect, useMemo, useState } from 'react';
 import TaxInfoScreen, { openTaxInfoFromHash } from '../features/taxYear/TaxInfoScreen';
 import { PortalTaxEstimate } from '../features/taxYear/extensions';
 import { openClientFormFromHash } from '../features/smartForms/clientForms/hash';
@@ -36,7 +36,7 @@ import {
   livePortalActions, loadClientPortal, officeViewActions, officeViewActionsFor, samplePortalActions, SAMPLE_SIMULATED_TEXT,
   type PortalActions, type PortalLinkedKind, type PortalMode,
 } from './portal/portalActions';
-import { PortalFilingsSection, PortalNextCard } from './portal/PortalFilings';
+import { PortalFilingsSection } from './portal/PortalFilings';
 import { dmy, dueByStep, pickNextAction, type PortalFilingsData } from './portal/portalFilingsModel';
 
 interface Props {
@@ -56,6 +56,9 @@ const PortalModeCtx = createContext<PortalMode>('officeView');
 const PortalActionsCtx = createContext<PortalActions>(officeViewActions);
 /** 229 · «השלמת מידע» קוראת ושולחת עם הטוקן של הדף (portal_tax_info / portal_submit_tax_info). */
 const PortalTokenCtx = createContext<string>('');
+/** ‼ 22.10.2026 · «הדבר הבא» הוא סימון על הבקשה עצמה ברשימה — לא כרטיס נפרד שחוזר על הכותרת שלה.
+ *  tag — רק כשיש יותר מבקשה אחת (בקשה יחידה היא ממילא הדבר הבא). */
+const PortalNextCtx = createContext<{ key: string; due?: string; tag: boolean } | null>(null);
 
 function usePortal() {
   const mode = useContext(PortalModeCtx);
@@ -677,7 +680,9 @@ function ActionItem({ item, brand, accent, last, onDone }: {
   /** 232 · הערכת המס שפורסמה — הגרסה המאושרת עצמה, לקריאה בתוך הכרטיס. */
   const taxEstimate = item.actionKind === 'taxEstimate' && !!item.actionValue;
   const token = useContext(PortalTokenCtx);
-  const prog = progressLine(item);
+  const nx = useContext(PortalNextCtx);
+  const isNext = nx?.key === item.key;
+  const prog = [progressLine(item), isNext && nx?.due ? `עד ${dmy(nx.due)}` : null].filter(Boolean).join(' · ') || undefined;
 
   const primaryBtn: React.CSSProperties = {
     display: 'inline-block', flexShrink: 0, textDecoration: 'none', cursor: 'pointer', border: 'none',
@@ -693,10 +698,11 @@ function ActionItem({ item, brand, accent, last, onDone }: {
   );
 
   return (
-    <div className="pp-item" data-pp-key={item.key} style={{
+    <div className="pp-item" data-pp-key={item.key} data-pp-next={isNext && nx?.tag ? '' : undefined} style={{
       marginBottom: last ? 0 : 10,
-      background: brand.cardBg, border: `1px solid ${brand.border}`, borderRadius: brand.radius + 2,
+      background: brand.cardBg, border: `1px solid ${isNext && nx?.tag ? accent : brand.border}`, borderRadius: brand.radius + 2,
     }}>
+      {isNext && nx?.tag && <div style={{ fontSize: 12, fontWeight: 650, color: accent, marginBottom: 3 }}>הדבר הבא</div>}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <span style={{ flex: 1, fontSize: 14.5, fontWeight: 650, color: brand.ink }}>{item.label}</span>
         {readOnly && item.draft && <DraftChip />}
@@ -1698,7 +1704,6 @@ export function PortalView({ data, token = '', preview = false, embed = false, o
     portalActions.loadFilings().then(f => { if (!cancelled) setFilings(f); }, () => { if (!cancelled) setFilings(null); });
     return () => { cancelled = true; };
   }, [portalActions, data]);
-  const rootRef = useRef<HTMLDivElement>(null);
   const reload = onReload;
   const brand = deriveQuotationBrand({
     id: '', firmName: data.firmName, branding: data.branding ?? {},
@@ -1851,33 +1856,16 @@ export function PortalView({ data, token = '', preview = false, embed = false, o
   const next = pickNextAction(
     [...groupsIn('action').flatMap(x => x.g.items.filter(i => i.bucket === 'action')), ...actions],
     dueByStep(filings));
-  const nextLine = next
-    ? [progressLine(next.item), next.due ? `עד ${dmy(next.due)}` : null].filter(Boolean).join(' · ')
-    : '';
-  const openNext = (retry = true) => {
-    if (!next) return;
-    const root = rootRef.current;
-    const el = root?.querySelector<HTMLElement>(`[data-pp-key="${CSS.escape(next.item.key)}"]`);
-    if (!el) {
-      // בקשה בתוך קבוצה שנסגרה — פותחים את הקבוצה, ואז אותו דבר
-      const g = itemGroups.find(x => x.items.some(i => i.key === next.item.key));
-      const head = g && root?.querySelector<HTMLElement>(`[data-group="${CSS.escape(g.key)}"] .pp-group-head`);
-      if (head && retry && head.getAttribute('aria-expanded') !== 'true') { head.click(); requestAnimationFrame(() => openNext(false)); }
-      return;
-    }
-    el.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
-    el.classList.remove('pf-flash'); void el.offsetWidth; el.classList.add('pf-flash');
-    // ‼ אותה פעולה כמו הכפתור שבכרטיס עצמו (בתצוגה במשרד הוא כבוי — ואז רק מגיעים אליו).
-    const primary = el.querySelector<HTMLElement>('[data-pp-primary]');
-    if (primary && !(primary as HTMLButtonElement).disabled && primary.getAttribute('aria-expanded') !== 'true') primary.click();
-  };
+  const nextCtx = next ? { key: next.item.key, due: next.due, tag: waitingForYou.length > 1 } : null;
+  // הבקשה הבאה ראשונה ברשימה (כשהיא לא בתוך קבוצה)
+  const actionsInOrder = next ? [...actions].sort((x, y) => Number(y.key === next.item.key) - Number(x.key === next.item.key)) : actions;
 
   return (
     <PortalModeCtx.Provider value={mode}>
     <PortalActionsCtx.Provider value={portalActions}>
     <PortalTokenCtx.Provider value={token}>
     <div className={`pp-page${embed ? ' is-embed' : ''}`} style={page}>
-      <div className="pp-card" style={card} ref={rootRef}>
+      <div className="pp-card" style={card}>
         <Header />
 
         <div style={{ fontSize: 19, fontWeight: 650, color: brand.ink, marginBottom: 3 }}>
@@ -1885,12 +1873,9 @@ export function PortalView({ data, token = '', preview = false, embed = false, o
         </div>
 
         {/* ‼ 05.10 · שורת סיכום אחת: מה ממתין לך עכשיו — גם כשזה בתוך קבוצה.
-            ‼ 224 · ומה ממתין לבן/בת הזוג, בשמו — הדף והמייל משותפים לזוג. */}
-        {next && <PortalNextCard title={next.item.label} line={nextLine || undefined} onOpen={() => openNext()}
-          buttonLabel={next.item.kind === 'info' ? 'לפרטים' : 'להשלמה'} />}
-
-        {/* ‼ 280 · בקשה אחת שממתינה (ואין לאדם אחר) — «הדבר הבא» כבר אומר אותה; השורה הייתה חוזרת עליה. */}
-        {((waitingForYou.length > 0 && !(next && waitingForYou.length === 1 && others.length === 0)) || others.length > 0) && (
+            ‼ 224 · ומה ממתין לבן/בת הזוג, בשמו — הדף והמייל משותפים לזוג.
+            ‼ 22.10 · בקשה אחת שממתינה (ואין לאדם אחר) — הרשימה מיד מתחת אומרת אותה; השורה הייתה חוזרת עליה. */}
+        {((waitingForYou.length > 1) || others.length > 0) && (
           <div role="status" style={{
             margin: '12px 0 4px', padding: '11px 14px', borderRadius: brand.radius + 2, fontSize: 13.5, lineHeight: 1.55,
             background: brand.pageBg, color: brand.ink, border: `1px solid ${brand.border}`,
@@ -1911,11 +1896,13 @@ export function PortalView({ data, token = '', preview = false, embed = false, o
         {actions.length > 0 || groupsIn('action').length > 0 ? (
           <>
             <div style={{ ...sectionTitle, color: accent, marginTop: 16, marginBottom: 8 }}>מה צריך ממך</div>
-            {groupsIn('action').map(renderGroup)}
-            {actions.map((item, i) => (
-              <ActionItem key={item.key} item={item} brand={brand} accent={accent}
-                last={i === actions.length - 1} onDone={reload} />
-            ))}
+            <PortalNextCtx.Provider value={nextCtx}>
+              {groupsIn('action').map(renderGroup)}
+              {actionsInOrder.map((item, i) => (
+                <ActionItem key={item.key} item={item} brand={brand} accent={accent}
+                  last={i === actionsInOrder.length - 1} onDone={reload} />
+              ))}
+            </PortalNextCtx.Provider>
           </>
         ) : hasUnopenedDoc ? (
           /* ‼ מוביל במה שרלוונטי, לא בהיעדר חובות. "אין לך משימות" ראשון

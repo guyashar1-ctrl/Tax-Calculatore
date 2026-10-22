@@ -81,7 +81,8 @@ export const TESTS: TestCase[] = [
     assert(!keysOf(p, 'px').includes('rent.income'), 'שכר דירה נשאל לפני התחולה');
     const plan = buildAskPlan([...p.toConfirm, ...p.toAsk], { client: c, taxYear: 2025, purpose: 'annual' });
     const q = plan.find(e => e.itemKey === 'period.property')!;
-    assert(q.prompt.title.includes('הורד 4') && q.prompt.title.includes('בשנת 2025'), q.prompt.title);
+    // ‼ 22.10.2026 · סבב 2.1: בדוח השנתי — שורה במסך «זה עדיין נכון?» («הורד 4 — נכס בבעלותכם כל 2025»), לא מסך משלו
+    assert(q.prompt.title.includes('הורד 4') && JSON.stringify(q.prompt.known).includes('2025'), `${q.prompt.title} · ${JSON.stringify(q.prompt.known)}`);
     equal(q.prompt.input.kind, 'record');
     // התשובה «התחיל אחרי 2025» ⇒ הנכס לא חל לשנה
     const after = annual({ client: c, facts: [fact({ itemKey: 'period.property', entityKind: 'property', entityRef: 'px', value: { inPeriod: 'after' } })] });

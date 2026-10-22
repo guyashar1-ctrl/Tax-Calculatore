@@ -19,8 +19,11 @@ export function genderize(text: string, g: G | undefined): string {
   let out = text;
   for (const [form, pair] of Object.entries(SPECIAL)) out = out.split(form).join(pair[k]);
   // X/ה · X/ת · X/ית — זכר: X; נקבה: X + הסיומת
-  return out.replace(/([א-ת]+)\/(ה|ת|ית)(?![א-ת])/g, (all, base: string, suf: string) => (KEEP.has(base) ? all : g === 'm' ? base : base + suf));
+  // ‼ 22.10.2026 · אות סופית לפני סיומת נקבה חוזרת לצורתה הרגילה: «תרם/ה» ⇒ «תרמה» (לא «תרםה»)
+  return out.replace(/([א-ת]+)\/(ה|ת|ית)(?![א-ת])/g, (all, base: string, suf: string) => (KEEP.has(base) ? all : g === 'm' ? base : unfinal(base) + suf));
 }
+const FINAL: Record<string, string> = { 'ם': 'מ', 'ן': 'נ', 'ץ': 'צ', 'ף': 'פ', 'ך': 'כ' };
+const unfinal = (w: string) => (FINAL[w.slice(-1)] ? w.slice(0, -1) + FINAL[w.slice(-1)] : w);
 
 const fromGender = (x?: Gender | string | null): G | undefined => (x === 'male' ? 'm' : x === 'female' ? 'f' : undefined);
 

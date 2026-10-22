@@ -52,7 +52,8 @@ const toFollowUp = (e: AskPlanEntry): MultiFollowUp =>
  */
 function speculate(inp: PictureInput, ctx: AskCtx, facts: YearFact[], asks: InfoAsk[], taken: Set<string>, depth: number): MultiFollowUp[] {
   const pic = buildYearPicture({ ...inp, facts, asks });
-  const fresh = [...pic.toConfirm, ...pic.toAsk].filter(s => !isGridMaterial(s) && !isTaken(taken, { itemKey: s.item.key, subjectRole: s.subjectRole, entityRef: s.entityRef === 'new' ? undefined : s.entityRef }));
+  // ‼ 22.10.2026 · סבב 2.1: בדוח השנתי — בלי «זה עדיין נכון?» נוסף באמצע על מה שהלקוח הרגע אישר (חשבון, נכס)
+  const fresh = [...(ctx.purpose === 'annual' ? [] : pic.toConfirm), ...pic.toAsk].filter(s => !isGridMaterial(s) && !isTaken(taken, { itemKey: s.item.key, subjectRole: s.subjectRole, entityRef: s.entityRef === 'new' ? undefined : s.entityRef }));
   if (!fresh.length) return [];
   const plan = buildAskPlan(fresh, ctx).filter(e => !GRID_KEYS.includes(e.itemKey) && !isTaken(taken, e));
   if (!plan.length) return [];

@@ -131,7 +131,7 @@ export function schemaFor(id: RecordSchemaId, c?: Client, ctx?: Record<string, s
   const owner = OWNER(c ?? (ctx?.clientName ? { firstName: ctx.clientName, spouseFirstName: ctx.spouseName, familyStatus: ctx.married ? 'married' : 'single', spouse: null } as unknown as Client : undefined));
   switch (id) {
     case 'children': return {
-      id, noun: 'ילד/ה', addLabel: '＋ הוספת ילד/ה', multiple: true, noneLabel: 'אין ילדים',
+      id, noun: 'ילד', addLabel: '＋ עוד ילד', multiple: true, noneLabel: 'אין ילדים',
       fields: [
         { key: 'firstName', label: 'שם פרטי', type: 'text', required: true, half: true },
         { key: 'birthDate', label: 'תאריך לידה', type: 'date', required: true, half: true },
@@ -146,14 +146,14 @@ export function schemaFor(id: RecordSchemaId, c?: Client, ctx?: Record<string, s
         { key: 'street', label: 'רחוב', type: 'hebrewText', required: true, half: true },
         { key: 'houseNumber', label: 'מספר בית', type: 'text', required: false, half: true, maxLength: 8, hint: 'ביישוב בלי רחובות — לא חובה' },
         { key: 'apartment', label: 'דירה', type: 'text', half: true, maxLength: 8 },
-        { key: 'zip', label: 'מיקוד', type: 'digits', half: true, maxLength: 7, hint: 'לא חובה' },
+        { key: 'zip', label: 'מיקוד', type: 'digits', half: true, maxLength: 7 },
       ],
       summary: r => [[str(r.street), str(r.houseNumber)].filter(Boolean).join(' '), r.apartment ? `דירה ${str(r.apartment)}` : '', str(r.city), str(r.zip)].filter(Boolean).join(', '),
     };
     case 'bank': return {
       id, noun: 'חשבון', addLabel: '', multiple: false,
       fields: [
-        { key: 'foreign', label: 'החשבון בחו״ל', type: 'choice', options: [{ value: 'no', label: 'חשבון בישראל' }, { value: 'yes', label: 'חשבון בחו״ל' }] },
+        { key: 'foreign', label: 'איפה החשבון?', type: 'choice', options: [{ value: 'no', label: 'חשבון בישראל' }, { value: 'yes', label: 'חשבון בחו״ל' }] },
         { key: 'bankCode', label: 'בנק', type: 'bank', required: true, showIf: r => r.foreign !== 'yes', hint: 'אפשר לחפש לפי שם או מספר הבנק' },
         { key: 'branchCode', label: 'סניף', type: 'branch', required: true, showIf: r => r.foreign !== 'yes', hint: 'מספר בן 3 ספרות, או חיפוש לפי שם הסניף או העיר' },
         { key: 'accountNumber', label: 'מספר חשבון', type: 'digits', required: true, maxLength: 13, showIf: r => r.foreign !== 'yes', hint: 'בלי מספר הבנק והסניף. אפסים בהתחלה — כמו שמופיע' },
@@ -184,7 +184,7 @@ export function schemaFor(id: RecordSchemaId, c?: Client, ctx?: Record<string, s
         { key: 'name', label: 'שם המעסיק', type: 'text', required: true },
         { key: 'startDate', label: 'ממתי', type: 'dated', required: true, half: true },
         { key: 'endDate', label: 'עד מתי (אם הסתיים)', type: 'dated', half: true, hint: 'עדיין עובד/ת שם — להשאיר ריק' },
-        { key: 'role', label: 'תפקיד', type: 'text', hint: 'לא חובה' },
+        { key: 'role', label: 'תפקיד', type: 'text' },
       ],
       summary: r => [str(r.name), datedText(r.startDate) && `מ-${datedText(r.startDate)}`, datedText(r.endDate) && `עד ${datedText(r.endDate)}`, str(r.role)].filter(Boolean).join(' · '),
     };
@@ -318,7 +318,7 @@ export function schemaFor(id: RecordSchemaId, c?: Client, ctx?: Record<string, s
       return {
         id, noun: 'לימודים', addLabel: '＋ עוד לימודים או שירות', multiple: true,
         fields: [
-          { key: 'kind', label: 'מה סיימת?', type: 'choice', required: true, options: STUDY_KINDS },
+          { key: 'kind', label: 'מה הסתיים?', type: 'choice', required: true, options: STUDY_KINDS },
           { key: 'month', label: 'חודש', type: 'pick', required: true, half: true, options: MONTH_NAMES.map((m, k) => ({ value: String(k + 1).padStart(2, '0'), label: m })), showIf: r => r.kind === 'army' },
           { key: 'year', label: 'באיזו שנה?', type: 'pick', required: true, half: true, options: years, showIf: r => !!r.kind },
           { key: 'intern', label: 'ואז התמחות?', type: 'choice', required: true, options: [{ value: 'no', label: 'לא' }, { value: 'yes', label: 'כן' }],

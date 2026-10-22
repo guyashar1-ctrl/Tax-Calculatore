@@ -7,7 +7,7 @@
 // ‼ מסמכים לא נשאלים באמצע: הם ברשימה אחת בסוף, אחרי השליחה (גיא: «כל המסמכים — רק בסוף, בצורה מסודרת»).
 
 import type { InfoAsk, MultiFollowUp, AskPrompt } from './types';
-import { buildScreens, screenAsks, STUDIES_KEY, type Screen } from './screens';
+import { buildScreens, checklists, screenAsks, STUDIES_KEY, type Screen } from './screens';
 import { onYesFor, onChangedFor, onValueFor, type AskAnswer } from './asks';
 import { answerValid, schemaFor, type RecordAnswer } from './records';
 import { cleanEntity, entityValid, type EntityItem } from './entities';
@@ -146,7 +146,7 @@ export function walkScreens(asks: InfoAsk[], opened: ReadonlySet<string>): Scree
   const seen = new Set<string>();
   const allStudies = [...top.filter(a => a.itemKey === STUDIES_KEY), ...studies].filter(a => (seen.has(askIdentity(a)) ? false : (seen.add(askIdentity(a)), true)))
     .sort((a, b) => (a.subjectRole === 'client' ? 0 : 1) - (b.subjectRole === 'client' ? 0 : 1));
-  return allStudies.length ? [...main, ...place(buildScreens(allStudies, opened, { knownAll: true }), 1)] : main;
+  return checklists(allStudies.length ? [...main, ...place(buildScreens(allStudies, opened, { knownAll: true }), 1)] : main);
 }
 
 /** 21.10.2026 · השאלות «בתוך השורה» של שורת אישור (בחירה קטנה: נפרדנו / נולד ילד) — מוצגות בה, לא כמסך. */

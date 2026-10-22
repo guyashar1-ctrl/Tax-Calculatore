@@ -49,13 +49,14 @@ export const TESTS: TestCase[] = [
     const unknown = [...covered].filter(k => !known.has(k));
     equal(unknown.join(', '), '', 'covers מפנה לשדה שאינו במיפוי');
   }),
-  test('עסק עם רכב: «כן» לרכב ⇒ פרטי הרכב ורישיון ללקוח, הוצאות הרכב למשרד; «לא» ⇒ כלום מזה', () => {
+  test('עסק עם רכב: «כן» לרכב ⇒ רישיון ללקוח, פרטי הרכב והוצאותיו למשרד; «לא» ⇒ כלום מזה', () => {
     const c = client({ businesses: [{ id: 'b1', name: 'סטודיו' }] as Client['businesses'] });
     const yr = (p: Partial<YearFact> & Pick<YearFact, 'itemKey'>) => fact({ taxYear: 2025, periodKind: 'year', periodTo: '2025-12-31', ...p });
     const base = [yr({ itemKey: 'business.active' })];
     const yes = buildYearPicture({ client: c, taxYear: 2025, purpose: 'annual', today: TODAY, facts: [...base, yr({ itemKey: 'business.vehicle', entityKind: 'business', entityRef: 'b1' })], evidence: [], asks: [] });
     const ask1 = keys(yes.toAsk);
-    assert(ask1.includes('business.vehicleDetails') && ask1.includes('business.vehicleLicense'), ask1.join());
+    assert(ask1.includes('business.vehicleLicense') && !ask1.includes('business.vehicleDetails'), ask1.join());
+    assert(yes.officeTodo.some(s => s.item.key === 'business.vehicleDetails' && s.entityRef === 'b1'), 'פרטי הרכב לא אצל המשרד');
     assert(yes.officeTodo.some(s => s.item.key === 'business.vehicleExpenses' && s.entityRef === 'b1'), 'הוצאות הרכב לא אצל המשרד');
     const no = buildYearPicture({ client: c, taxYear: 2025, purpose: 'annual', today: TODAY, facts: [...base, yr({ itemKey: 'business.vehicle', entityKind: 'business', entityRef: 'b1', value: false })], evidence: [], asks: [] });
     assert(![...no.toAsk, ...no.officeTodo].some(s => /^business.vehicle(Details|License|Expenses)$/.test(s.item.key)), '«לא» לרכב ועדיין נשאל');

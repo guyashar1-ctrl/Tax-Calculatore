@@ -4,10 +4,11 @@
  *
  *   זוג נשוי: לדוד תואר ראשון 2022 בכרטיס, לרחל שחרור 2023; בלי מעסיק בכרטיס; חשבון בנק בכרטיס.
  *   «זה עדיין נכון?» (חסר ⇒ «חסר כאן» בלי הודעה למטה; «נכון» מקפל; ילדים «השתנה» ⇒ «נולד ילד» בתוך השורה)
- *   → «מאיפה נכנס לך כסף ב-2025?» (שם, «?», «משהו אחר?») → ההמשך → «מה יכול להוריד לך מס?»
+ *   → «מאיפה נכנס לך כסף ב-2025?» (שם, «?», «הכנסה אחרת» ⇐ «משהו אחר» — בלי טקסט חופשי) → ההמשך → «מה יכול להוריד לך מס?»
  *   → המסכים של רחל (ריק ⇒ «לא היה כלום — הבא») → «לימודים וצבא» אחד לשניהם (התמחות · חודש שחרור) → «שליחה למשרד»
  *   → המסמכים לפי אדם: 106, אישור זכאות, אישור התמחות, תעודת שחרור, ספח — ו«ביטוח לאומי — אנחנו מוציאים».
- *   בשרת: עובדות לכל אדם, «משהו אחר?» כהערה למשרד, המסמכים נפתחו מ-onValue / onChanged (271).
+ *   בשרת: עובדות לכל אדם, «משהו אחר» כעובדה (income.unlisted) ⇒ «לברר עם דוד» אצל המשרד, המסמכים נפתחו מ-onValue / onChanged (271).
+ *   סבב 2.1 (22.10): בדף — הבקשה פעם אחת (בלי כרטיס «הדבר הבא» נפרד), «רק מה שהשתנה» (287); «איפה רחל עבדה ב-2025?».
  *
  *   STAGING_ENV_DIR=<תיקייה עם .env.staging ו-.env.local> node scripts/e2e/annual-r2.mjs --base=http://localhost:5371 [--widths=1280,390,360] [--shots=<dir>]
  *
@@ -77,6 +78,10 @@ async function runWidth(width) {
     const pp = await ctx.newPage(); onErr(pp, 'portal');
     await pp.goto(env.portalUrl(), { waitUntil: 'domcontentloaded' });
     await pp.waitForFunction(() => document.body.innerText.includes('הדוח השנתי 2025'), null, { timeout: 30000 });
+    const page0 = await text(pp.locator('.pp-card'));
+    ok(page0.split('הדוח השנתי 2025').length - 1 === 1 && !/הדבר הבא/.test(page0) && !(await pp.locator('[data-testid="portal-next"]').count()), 'בדף: הבקשה פעם אחת, בלי כרטיס נפרד', page0.slice(0, 400));
+    ok(/רק מה שהשתנה · אפשר לעצור ולהמשיך/.test(page0), 'בדף: «רק מה שהשתנה» (287), לא «N שאלות»', page0.slice(0, 400));
+    await shot(pp, 'portal');
     const card = pp.locator('.pp-item', { has: pp.getByText('הדוח השנתי 2025', { exact: true }) }).first();
     await card.getByRole('button', { name: /^(להשלמת המידע|להעלאת המסמכים)$/ }).click();
     const flow = pp.locator('.ty-flow');
@@ -123,8 +128,8 @@ async function runWidth(width) {
     ok(/סכום חד-פעמי/.test(await text(flow.locator('.ty-tile2-help'))), '«?» פותח שורת הסבר', await text(flow.locator('.ty-tile2-help')));
     for (const k of ['salary.worked', 'niBenefits.received']) await flow.locator(`[data-tile="${k}"]`).click();
     ok((await text(navBtn())).trim() === 'הבא', 'אחרי סימון — «הבא»');
-    await flow.locator('.ty-other-link').click();
-    await flow.locator('.ty-other').fill('זכייה בפרס');
+    ok(!(await flow.locator('.ty-other-link, .ty-other, textarea').count()), 'בלי טקסט חופשי במסך הריבועים');
+    await flow.locator('[data-tile="income.other"]').click();
     await shot(pp, 'grid-client');
     await next();
 
@@ -138,7 +143,7 @@ async function runWidth(width) {
           await next(); continue;
         }
         if (await flow.locator('.ty-tile[data-tile]').count()) {
-          const t0 = flow.locator('.ty-tile[data-tile="niBenefits.kindReserve"]');
+          const t0 = flow.locator('.ty-tile[data-tile="niBenefits.kindReserve"], .ty-tile[data-tile="income.unlisted"]');
           if (await t0.count()) await t0.click(); else await flow.locator('.ty-tile[data-tile="none"]').click();
           await next(); continue;
         }
@@ -166,6 +171,8 @@ async function runWidth(width) {
     ok((await q()) === 'מה יכול להוריד לרחל מס?', '«מה יכול להוריד לרחל מס?»', await q());
     ok(/לא היה כלום/.test(await text(navBtn())), 'ריק ⇒ «לא היה כלום — הבא»');
     await next();
+    ok(seen.some(t => t.endsWith(':מה הייתה ההכנסה?')), '«הכנסה אחרת» ⇒ «מה הייתה ההכנסה?» (בחירה)', seen.join(' | '));
+    ok(seen.some(t => t.endsWith(':איפה רחל עבדה ב-2025?')), 'מקום עבודה: «איפה רחל עבדה ב-2025?»', seen.join(' | '));
 
     // «לימודים וצבא» — מסך אחד לשניהם, ממולא מהתיק
     await walkTo(async () => /לימודים וצבא/.test(await q()));
@@ -201,8 +208,9 @@ async function runWidth(width) {
     const st = facts.filter(f => f.item_key === 'household.studies');
     ok(st.some(f => f.subject_role === 'client' && JSON.stringify(f.value).includes('"intern":"yes"') && JSON.stringify(f.value).includes('2024')), 'לימודים של דוד — עם ההתמחות', JSON.stringify(st).slice(0, 300));
     ok(st.some(f => f.subject_role === 'spouse' && JSON.stringify(f.value).includes('"month":"08"')), 'שחרור של רחל — עם החודש', JSON.stringify(st).slice(0, 300));
-    const note = await env.sql(`select office_note from public.tax_info_asks where client_id = '${id}' and item_key = 'annual.whatHappened' and subject_role = 'client'`);
-    ok(note[0]?.office_note === 'זכייה בפרס', '«משהו אחר?» — הערה למשרד', JSON.stringify(note));
+    ok(facts.some(f => f.item_key === 'income.unlisted' && f.subject_role === 'client' && f.answer === 'value'), '«משהו אחר» — עובדה לדוד (לא טקסט)', JSON.stringify(facts.filter(f => f.item_key.startsWith('income.'))));
+    const note = await env.sql(`select count(*)::int n from public.tax_info_asks where client_id = '${id}' and office_note is not null`);
+    ok(note[0].n === 0, 'אין הערות בטקסט חופשי', JSON.stringify(note));
     const opened = await env.sql(`select item_key, subject_role from public.tax_info_asks where client_id = '${id}' and item_key in ('household.childChange','household.newChildDocs','household.internshipDocs','household.releaseDocs','household.degreeDocs')`);
     ok(['household.childChange', 'household.newChildDocs', 'household.internshipDocs', 'household.releaseDocs', 'household.degreeDocs'].every(k => opened.some(a => a.item_key === k)), 'השרת פתח את ההמשך (onChanged / onValue)', JSON.stringify(opened));
     const pub = await env.sql(`select item_key from public.tax_info_asks where client_id = '${id}' and state = 'published' and prompt->'input'->>'kind' <> 'file'`);
@@ -216,7 +224,7 @@ async function runWidth(width) {
     await page.waitForTimeout(1500);
     const sum = await text(page.locator('[data-annual-summary]'));
     ok(/מה עליך לעשות/.test(sum), 'אצלך: «מה עליך לעשות»', sum.slice(0, 200));
-    ok(/זכייה בפרס/.test(sum), 'אצלך: «משהו אחר?» של הלקוח', sum.slice(0, 600));
+    ok(/לברר עם דוד: הכנסה אחרת/.test(sum) && (await page.locator('[data-as-unlisted="client"]').count()) === 1, 'אצלך: «לברר עם דוד: הכנסה אחרת»', sum.slice(0, 600));
     ok(!(await page.locator('[data-annual-more]').count()), 'סבב אחד: אחרי השליחה אין «עוד שאלות» לפרסם', await text(page.locator('[data-annual-more]')));
     if (await page.locator('[data-annual-answers] > button').count()) {
       await page.locator('[data-annual-answers] > button').click();

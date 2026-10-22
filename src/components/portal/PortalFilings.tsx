@@ -1,4 +1,4 @@
-// ─── «הדבר הבא» ו«הדוחות שלך» בדף האישי (280) ─────────────────────────────────────────────
+// ─── «הדוחות שלך» בדף האישי (280; «הדבר הבא» — סימון על הבקשה ברשימה, PublicPortalPage) ─────────────────────────────────────────────
 // ההדמיה המאושרת: docs/proposals/2026-10-21-tax-area-reimagined.html (#portal).
 // ‼ הצבעים — של המשרד (משתני CSS שהדף מעביר), לא של PIVO. תגי המצב בצבעים קבועים (אצלך / אצלנו / הוגש / אין).
 // ‼ אין כאן שום פנייה לשרת: הנתונים מגיעים מ-PortalActions.loadFilings (חי / דוגמה / תצוגה במשרד).
@@ -6,21 +6,6 @@
 import { useId, useMemo, useState } from 'react';
 import { buildFilingCards, type FilingRow, type FilingYearCard, type PortalFilingsData } from './portalFilingsModel';
 import './portalFilings.css';
-
-/** «הדבר הבא» — כרטיס אחד בראש הדף: הפעולה הדחופה ביותר שממתינה ללקוח. הכפתור פותח את אותה בקשה ברשימה. */
-export function PortalNextCard({ title, line, buttonLabel = 'להשלמה', onOpen }: {
-  title: string; line?: string; buttonLabel?: string; onOpen: () => void;
-}) {
-  const id = useId();
-  return (
-    <section className="pf-next" aria-labelledby={`${id}-t`} data-testid="portal-next">
-      <small>הדבר הבא</small>
-      <b id={`${id}-t`}>{title}</b>
-      {line && <span>{line}</span>}
-      <button type="button" onClick={onOpen}>{buttonLabel}</button>
-    </section>
-  );
-}
 
 function Row({ row }: { row: FilingRow }) {
   return (

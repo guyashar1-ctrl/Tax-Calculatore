@@ -87,7 +87,7 @@ export default function RecordEditor({ schemaId, client, context, value, onChang
       })}
       {!value.none && schema.multiple && <button type="button" className="rec-add" disabled={disabled} onClick={add}>{schema.addLabel}</button>}
       {needsDir && dir?.sourceUpdated && (
-        <p className="rec-src">רשימת הבנקים והסניפים: בנק ישראל (סניפים פיזיים), עודכנה {dir.sourceUpdated.slice(0, 10).split('-').reverse().join('.')}. סניף שלא ברשימה — אפשר להזין את מספרו.</p>
+        <p className="rec-src" title={`רשימת הבנקים והסניפים: בנק ישראל (סניפים פיזיים), עודכנה ${dir.sourceUpdated.slice(0, 10).split('-').reverse().join('.')}`}>סניף שלא ברשימה — אפשר להזין את מספרו.</p>
       )}
     </div>
   );

@@ -192,7 +192,7 @@ function portalView(t: Tables, clientId: string, stepId: unknown): Row {
   return { ok: true, stepId: s.id, taxYear: p.taxYear, title: p.title, asks };
 }
 
-/** פריט בדף האישי — אותו ענף כמו ב-_portal_step_items (229). */
+/** פריט בדף האישי — אותו ענף כמו ב-_portal_step_items (229; הדוח השנתי — 287). */
 export function taxInfoPortalItem(t: Tables, r: Row): Row | null {
   if (r.step_type !== 'info_collection') return null;
   const asks = (t.tax_info_asks ?? []).filter(a => a.step_id === r.id);
@@ -204,7 +204,7 @@ export function taxInfoPortalItem(t: Tables, r: Row): Row | null {
   const done = asks.filter(a => a.state === 'answered').length;
   const label = String(((r.payload ?? {}) as Row).title || 'השלמת מידע');
   const docs = (n: number) => (n === 1 ? 'מסמך אחד' : `${n} מסמכים`);
-  if (open > 0) return { bucket: 'action', key: `taxinfo_${r.id}`, label, sub: `${open === 1 ? 'שאלה אחת' : `${open} שאלות`} · אפשר לעצור ולהמשיך`, actionKind: 'taxInfo', actionValue: r.id };
+  if (open > 0) return { bucket: 'action', key: `taxinfo_${r.id}`, label, sub: `${((r.payload ?? {}) as Row).purpose === 'annual' ? 'רק מה שהשתנה' : open === 1 ? 'שאלה אחת' : `${open} שאלות`} · אפשר לעצור ולהמשיך`, actionKind: 'taxInfo', actionValue: r.id };
   if (owed > 0) return { bucket: 'action', key: `taxinfo_${r.id}`, label, sub: `${owed === 1 ? 'נשאר מסמך אחד' : `נשארו ${owed} מסמכים`} להשלמה · אפשר להעלות כשהם אצלך`, actionKind: 'taxInfo', actionValue: r.id };
   if (help > 0) return { bucket: 'office', key: `taxinfo_${r.id}`, label, sub: `ביקשת עזרה ב${docs(help)} — המשרד יחזור אליך`, actionKind: 'taxInfo', actionValue: r.id };
   if (done > 0) return { bucket: 'done', key: `taxinfo_${r.id}`, label: `${label} · נשלח למשרד` };

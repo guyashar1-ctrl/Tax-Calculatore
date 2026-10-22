@@ -6,7 +6,7 @@
 // ‼ תשובה להערכה נשמרת עם התקופה שלה (ינואר עד החתך), ולכן בדוח השנתי היא חלקית.
 
 import type { Client } from '../../types';
-import { AREA_BY_ID, ITEMS, ITEM_BY_KEY, type InfoItem, CATALOG_VERSION, ANNUAL_TILE_EXAMPLE, ANNUAL_TILE_LESS, ANNUAL_TILE_HELP, ANNUAL_TILE_OFF } from './catalog';
+import { AREA_BY_ID, ITEMS, ITEM_BY_KEY, type InfoItem, CATALOG_VERSION, ANNUAL_TILE_EXAMPLE, ANNUAL_TILE_LESS, ANNUAL_TILE_HELP, ANNUAL_TILE_OFF, ANNUAL_OFFICE_DETAIL, CHECKLIST_LABEL } from './catalog';
 import { genderize, genderOf, addresseeOf } from './gender';
 import { DOCS, followUpFor } from './documents';
 import { PROVISIONAL, provisionalRef, type ItemStatus } from './picture';
@@ -27,8 +27,17 @@ const FAMILY: Record<string, [string, string, string]> = {
 const familyWord = (c: Client) => { const w = FAMILY[c.familyStatus]; return w ? w[c.gender === 'male' ? 0 : c.gender === 'female' ? 1 : 2] : c.familyStatus; };
 const MONTHS = ['', 'ינואר', 'פברואר', 'מרץ', 'אפריל', 'מאי', 'יוני', 'יולי', 'אוגוסט', 'ספטמבר', 'אוקטובר', 'נובמבר', 'דצמבר'];
 
-/** מה ידוע מהכרטיס — שורות קצרות לרשימת «זה מה שידוע לנו». */
+/**
+ * מה ידוע מהכרטיס — שורות קצרות לרשימת «זה מה שידוע לנו».
+ * ‼ 22.10.2026 · בלי לוכסנים ללקוח («עובד/ת במשרד החינוך» ⇒ «עובדת»): לפי המין של האדם; לזוג נשוי — רבים.
+ */
 export function cardLines(item: InfoItem, c: Client, s: Pick<ItemStatus, 'subjectRole'> & { lineRefs?: string[] }): string[] {
+  const lines = cardLinesRaw(item, c, s);
+  if (s.subjectRole === 'couple' && c.familyStatus === 'married') return lines.map(l => l.replace(/^גר\/ה /, 'גרים '));
+  return lines.map(l => genderize(l, genderOf(c, s.subjectRole === 'spouse' ? 'spouse' : 'client')));
+}
+
+function cardLinesRaw(item: InfoItem, c: Client, s: Pick<ItemStatus, 'subjectRole'> & { lineRefs?: string[] }): string[] {
   const spouse = s.subjectRole === 'spouse';
   // ‼ 13.10.2026 · רשימה לתקופה: רק הישויות שבוודאות בתקופה (picture.ts › lineRefs), עם התאריכים הידועים
   const only = <T extends { id: string }>(list: T[]) => (s.lineRefs ? list.filter(x => s.lineRefs!.includes(x.id)) : list);
@@ -152,7 +161,30 @@ export function voice(p: AskPrompt, c: Client, role: string): AskPrompt {
 }
 
 export function promptFor(s: ItemStatus, ctx: AskCtx): AskPrompt {
-  return voice(promptForRaw(s, ctx), ctx.client, s.subjectRole);
+  const p = voice(promptForRaw(s, ctx), ctx.client, s.subjectRole);
+  // ‼ 22.10.2026 · «של בן/בת הזוג» ⇒ השם; בלי בן/בת זוג — רק «ירושה או מתנה»
+  const cl = ctx.purpose === 'annual' ? CHECKLIST_LABEL[s.item.key] : undefined;
+  if (cl?.includes('{spouse}')) {
+    const c = ctx.client;
+    const other = s.subjectRole === 'spouse' ? c.firstName : c.familyStatus === 'married' ? (c.spouseFirstName || c.spouse?.firstName) : undefined;
+    return { ...p, checkLabel: other ? cl.split('{spouse}').join(other) : cl.replace(/, (.+) או [^,]*{spouse}$/, ' או $1') };
+  }
+  // ‼ 22.10.2026 · סבב 2.1 (גיא: «מקום העבודה החדש» בלי שום הקשר): בדוח השנתי — «איפה עבדת ב-{שנה}?», בלי תג שנה
+  //   ובלי שורת הוראות; «התחיל» כבר «לפני {שנה}» ו«עד» כבר «עדיין שם» — ברוב המקרים ממלאים רק את השם.
+  if (ctx.purpose === 'annual' && s.item.key === 'salary.employerDetails' && p.input.kind === 'record') {
+    const c = ctx.client;
+    const sp = c.spouseFirstName || c.spouse?.firstName || 'בן/בת הזוג';
+    // ‼ גיא: «תראה בצורה מסודרת מה כבר מופיע אצלך» — מקומות העבודה שבכרטיס מעל השדות, והשאלה היא על מקום נוסף
+    const onCard: [string, string][] = (c.employers ?? []).filter(e => !!e.belongsToSpouse === (s.subjectRole === 'spouse') && e.name)
+      .map(e => [e.name, e.endDate ? `עד ${e.endDate.slice(0, 4)}` : e.startDate ? `מ-${e.startDate.slice(0, 4)}` : 'כבר אצלנו']);
+    const where = onCard.length ? 'איפה עוד' : 'איפה';
+    const title = s.subjectRole === 'spouse' ? genderize(`${where} ${sp} עבד/ה ב-${ctx.taxYear}?`, genderOf(c, 'spouse')) : `${where} עבדת ב-${ctx.taxYear}?`;
+    const initial = p.input.initial?.length ? p.input.initial : [{ startDate: { precision: 'unknown' } }];
+    return { ...p, title, hint: undefined, periodText: undefined, ...(onCard.length ? { onCard } : {}), input: { ...p.input, initial } };
+  }
+  // חשבון להחזר, ילדים וכתובת של היום — בלי תג «בשנת 2025» (הכתובת «היום» והתג סתרו זה את זה)
+  if (ctx.purpose === 'annual' && ['filing.refundAccount', 'household.children', 'household.address'].includes(s.item.key)) return { ...p, periodText: undefined };
+  return p;
 }
 
 function promptForRaw(s: ItemStatus, ctx: AskCtx): AskPrompt {
@@ -325,7 +357,7 @@ const GRID_ORDER = ['intake.employed', 'intake.selfEmployed', 'intake.rents', 'i
   'intake.allowances', 'intake.insurance', 'intake.credits', 'intake.special'];
 // ‼ 21.10.2026 · סבב 2: לפי שכיחות (ביקורת החוויה) — כסף שנכנס, ואחריו מה שמוריד מס
 const ANNUAL_ORDER = ['salary.worked', 'niBenefits.received', 'pension.received', 'rent.newRental', 'capital.newAccount', 'salary.equity', 'savings.withdrawal',
-  'business.started', 'foreign.income', 'sales.sold',
+  'business.started', 'foreign.income', 'sales.sold', 'income.other',
   'donations.given', 'savings.selfDeposits', 'savings.insurance', 'household.creditChanges', 'special.disability', 'household.aliyah', 'household.relativeCare'];
 /** מה נפתח מיד כשמסמנים אריח בדוח השנתי. מסמך לישות שאינה בתיק — עם המזהה הזמני (כמו בהיכרות). */
 export const ANNUAL_FOLLOW: Record<string, string[]> = {
@@ -377,7 +409,7 @@ function buildMultiEntries(statuses: ItemStatus[], ctx: AskCtx): AskPlanEntry[] 
       out.push({
         key: `${gridKey}|${role}`, statuses: mine, itemKey: gridKey, subjectRole: role,
         prompt: { templateVersion: CATALOG_VERSION, title: p.title, why: p.why, ...(p.subjectName ? { subjectName: p.subjectName } : {}),
-          input: { kind: 'multi', options }, addressee: addresseeOf(c), order: out.length, ...(less ? {} : { otherNote: true }),
+          input: { kind: 'multi', options }, addressee: addresseeOf(c), order: out.length,
           ...(!out.length ? { known: knownLines(c) } : {}) },
         label: `${item.label} · ${p.subjectName ?? c.firstName ?? 'הלקוח'} · ${options.length} ריבועים`,
       });
@@ -394,6 +426,7 @@ function annualTile(key: string, role: SubjectRole, ctx: AskCtx): MultiOption {
   const example = (ANNUAL_TILE_EXAMPLE[key] ?? '').split('{since}').join(String(ctx.taxYear - 5)).split('{aliyahSince}').join(String(ctx.taxYear - 10));
   const followUps = key === 'niBenefits.received' ? niKindsAsks(role, ctx)
     : key === 'household.creditChanges' ? [studiesAsk(role, ctx)]
+    : key === 'income.other' ? [otherIncomeAsk(role, ctx)].filter((x): x is MultiFollowUp => !!x)
     : (ANNUAL_FOLLOW[key] ?? []).map((k, i) => annualFollowUp(k, role, ctx, i)).filter((x): x is MultiFollowUp => !!x);
   // ‼ הדוח הקודם: מסומן מראש רק אצל מי שהיה לו (בלי פירוט אנשים — אצל הלקוח)
   const who = ctx.lastYear?.tilePeople?.[key];
@@ -412,6 +445,16 @@ function annualTile(key: string, role: SubjectRole, ctx: AskCtx): MultiOption {
  * ‼ 21.10.2026 · «לימודים וצבא» לאדם אחד: רשומה (סוג, שנה, חודש לשחרור, «ואז התמחות?»), ממולאת ממה שבתיק כשיש.
  *   המסמך נפתח לפי מה שנבחר (onValue, 286): תואר/מקצוע ⇒ אישור זכאות · צבא ⇒ תעודת שחרור · התמחות ⇒ אישור התמחות.
  */
+export function otherIncomeAsk(role: SubjectRole, ctx: AskCtx): MultiFollowUp | null {
+  // ‼ 22.10.2026 · «הכנסה אחרת» — בחירה סגורה לאדם אחד, כל אפשרות עם האישור שלה; «משהו אחר» ⇒ המשרד מברר (בלי הקלדה)
+  return branchAsk('income.otherKinds', role, ctx, 0.6, { input: { kind: 'multi', options: [
+    opt('income.prize', role, 'זכייה או פרס', [branchAsk('income.prizeDocs', role, ctx, 30)]),
+    opt('income.royalties', role, 'תמלוגים', [branchAsk('income.royaltiesDocs', role, ctx, 31)]),
+    opt('rent.otherProperty', role, 'השכרת ציוד, רכב או קרקע', [branchAsk('rent.otherPropertyDocs', role, ctx, 32)]),
+    opt('income.unlisted', role, 'משהו אחר', []),
+  ] } });
+}
+
 export function studiesAsk(role: SubjectRole, ctx: AskCtx, fromCard = false): MultiFollowUp {
   const it = ITEM_BY_KEY['household.studies'];
   const p = promptFor({ subjectRole: role, item: it, area: it.area, state: 'missing', detail: '', facts: [], evidence: [], askable: true } as ItemStatus, ctx);
@@ -471,6 +514,17 @@ function annualRows(plan: AskPlanEntry[], ctx: AskCtx): AskPlanEntry[] {
     if (e.prompt.input.kind === 'confirm' && e.itemKey === 'household.address') {
       const cert = branchAsk('household.addressCert', 'couple', ctx, 22);
       out.push({ ...e, prompt: { ...e.prompt, ...(cert ? { onChanged: [cert] } : {}) } });
+      continue;
+    }
+    // ‼ 22.10.2026 · סבב 2.1: פרטים שהמסמך נותן או שהמשרד מברר — לא נשאלים את הלקוח בדוח השנתי
+    if (ANNUAL_OFFICE_DETAIL.has(e.itemKey)) continue;
+    // ‼ חשבון או נכס מהתיק שלא ידוע אם היו קיימים בשנה — שורה ב«זה עדיין נכון?» («פתוח כל 2025»), לא מסך באמצע
+    if ((e.itemKey === 'period.account' || e.itemKey === 'period.property') && e.prompt.input.kind === 'record') {
+      const what = e.statuses[0]?.entityLabel ?? '';
+      const account = e.itemKey === 'period.account';
+      out.push({ ...e, prompt: { ...e.prompt, title: what, knownRow: true,
+        known: [[account ? 'חשבון השקעות' : 'נכס', `${what} — ${account ? 'פתוח' : 'בבעלותכם'} כל ${ctx.taxYear}`]],
+        input: { ...e.prompt.input, initial: [{ inPeriod: 'all' }] } } });
       continue;
     }
     if (e.itemKey === 'filing.refundAccount' && e.prompt.input.kind === 'record') {

@@ -65,7 +65,12 @@ export const TESTS: TestCase[] = [
     equal(fus(opts.find(o => o.key === 'donations.given'))[0]?.itemKey, 'donations.receipts');
     equal(fus(opts.find(o => o.key === 'savings.withdrawal'))[0]?.itemKey, 'savings.withdrawalDocs');
     // ‼ ביטוח לאומי פותח «מה שולם?» לאדם הזה בלבד; «לימודים או צבא» — מסך הלימודים
-    assert(opts.filter(o => o.key !== 'niBenefits.received' && o.key !== 'household.creditChanges').every(o => fus(o).every(f => f.prompt.input.kind === 'file')), 'אריח שפותח משהו שאינו מסמך');
+    assert(opts.filter(o => !['niBenefits.received', 'household.creditChanges', 'income.other'].includes(o.key)).every(o => fus(o).every(f => f.prompt.input.kind === 'file')), 'אריח שפותח משהו שאינו מסמך');
+    // ‼ 22.10.2026 · «הכנסה אחרת» (במקום «משהו אחר?» בטקסט חופשי) — בחירה סגורה: זכייה / תמלוגים / משהו אחר ⇒ המשרד מתקשר
+    const other = fus(opts.find(o => o.key === 'income.other'));
+    equal(other.map(f => f.itemKey).join(','), 'income.otherKinds');
+    equal(other[0].prompt.input.kind, 'multi');
+    equal((other[0].prompt.input as { options: { key: string }[] }).options.map(o => o.key).join(','), 'income.prize,income.royalties,rent.otherProperty,income.unlisted');
     equal(fus(opts.find(o => o.key === 'niBenefits.received')).map(f => f.itemKey + '@' + f.subjectRole).join(','), 'niBenefits.kinds@client');
     equal(fus(gridOf(client(), ANNUAL_GRID_KEY, 'spouse').find(o => o.key === 'niBenefits.received')).map(f => f.itemKey + '@' + f.subjectRole).join(','), 'niBenefits.kinds@spouse');
     assert(opts.every(o => !!o.group && !!o.example && !!o.hint), 'ריבוע בלי דוגמה, קבוצה או «?»');

@@ -4,32 +4,6 @@
    --pf-border, --pf-card, --pf-radius) על .pp-card. תגי המצב בצבעים קבועים: אצלך (חום-צהוב) · אצלנו (צבע המשרד,
    רקע בהיר) · הוגש (ירוק) · אין חובה (אפור). */
 
-/* ── הדבר הבא ── */
-.pf-next {
-  margin: 14px 0 6px; padding: 20px; color: #fff;
-  background: var(--pf-accent, #3f5f8f);
-  border-radius: calc(var(--pf-radius, 12px) + 8px);
-  box-shadow: 0 16px 36px -18px color-mix(in srgb, var(--pf-accent, #3f5f8f) 70%, transparent);
-}
-.pf-next small { display: block; opacity: .75; font-size: 13px; }
-.pf-next b { display: block; font-size: 21px; font-weight: 700; margin: 4px 0 2px; letter-spacing: -.01em; overflow-wrap: anywhere; }
-.pf-next span { display: block; opacity: .85; font-size: 14px; line-height: 1.5; }
-.pf-next button {
-  margin-top: 16px; width: 100%; min-height: 46px; border: 0; cursor: pointer; font: inherit;
-  border-radius: calc(var(--pf-radius, 12px) + 2px); background: #fff; color: var(--pf-accent, #3f5f8f);
-  font-weight: 700; font-size: 16px; touch-action: manipulation; -webkit-tap-highlight-color: transparent;
-  transition: transform 160ms cubic-bezier(.23, 1, .32, 1);
-}
-.pf-next button:active { transform: scale(.985); }
-.pf-next button:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
-
-/* הבקשה שנפתחה מ«הדבר הבא» — סימון קצר ברשימה */
-.pp-item.pf-flash, .pp-group.pf-flash { animation: pf-flash 1.6s ease-out; }
-@keyframes pf-flash {
-  0%, 35% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--pf-accent, #3f5f8f) 45%, transparent); }
-  100% { box-shadow: 0 0 0 3px transparent; }
-}
-
 /* ── הדוחות שלך ── */
 .pf-sec { margin-top: 32px; }
 .pf-ph { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin: 0 2px 10px; }
@@ -77,12 +51,9 @@
 .pf-yhead .pf-check { margin: 0; }
 
 @media (max-width: 480px) {
-  .pf-next { padding: 18px 16px; }
-  .pf-next b { font-size: 19px; }
   .pf-yhead { padding: 13px 14px; }
   .pf-ob { padding: 12px 14px; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .pf-fold, .pf-chev, .pf-next button { transition: none; }
-  .pp-item.pf-flash, .pp-group.pf-flash { animation: none; }
+  .pf-fold, .pf-chev { transition: none; }
 }

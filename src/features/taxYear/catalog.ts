@@ -146,7 +146,7 @@ export const ITEMS: InfoItem[] = [
   { key: 'household.children', area: 'household', label: 'ילדים', kind: 'confirm', per: 'couple', who: 'client', purposes: BOTH,
     question: 'הילדים', why: 'לכל ילד מגיעות נקודות זיכוי לפי גילו', input: 'confirm', cardKeys: ['children'], covers: { parts: ['יג'] },
     // ‼ 21.10.2026 · בלי «קליטה» נפרדת (גיא): לקוח חדש שאין לו ילדים בכרטיס נשאל כאן — בהערכת המס או בדוח
-    whenEmpty: { question: 'הילדים שלכם — שם ותאריך לידה לכל ילד', input: 'record' } },
+    whenEmpty: { question: 'הילדים שלכם', input: 'record' } },
   { key: 'household.childDeferral', area: 'household', label: 'דחיית נקודת זיכוי לילד שנולד (116ד)', kind: 'detail', per: 'child', who: 'office', purposes: ['annual'],
     covers: { parts: ['יג'], annexItems: ['116ד.deferChildren', '116ד.useDeferred', '116ד.employer'] },
     officeNext: 'פרטי המעסיק לטופס (כתובת, טלפון, תיק ניכויים) — מטופס 101 או מהתלוש של המעסיק' },
@@ -237,7 +237,7 @@ export const ITEMS: InfoItem[] = [
     covers: { annexItems: ['1320.vehicleDetails', '1320.vehicleExpenses'] } },
   { key: 'business.vehicleDetails', area: 'business', label: 'פרטי הרכב: מספר, חודשי שימוש וק״מ', kind: 'detail', per: 'business', who: 'client', purposes: ['annual'], after: 'business.vehicle',
     question: 'פרטי הרכב: מספר הרכב, מאיזה חודש עד איזה חודש שימש לעסק, וכמה ק״מ הראה המד בתחילת השנה ובסופה', why: 'אלה הפרטים שהדוח דורש לכל רכב', input: 'text',
-    covers: { annexItems: ['1320.vehicleDetails'] } },
+    covers: { annexItems: ['1320.vehicleDetails'] }, officeNext: 'מספר הרכב — מהרישיון; חודשי השימוש וק״מ — מהספרים או בשיחה עם הלקוח' },
   { key: 'business.vehicleLicense', area: 'business', label: 'רישיון הרכב', kind: 'document', per: 'business', who: 'client', purposes: ['annual'], after: 'business.vehicle',
     question: 'רישיון הרכב', why: 'מהרישיון נלקחים סוג הרכב ושנת הייצור', input: 'file', docKind: 'vehicleLicense', knownBasis: DOC_KNOWN,
     covers: { annexItems: ['1320.vehicleDetails'] } },
@@ -312,7 +312,8 @@ export const ITEMS: InfoItem[] = [
   { key: 'rent.properties', area: 'rent', label: 'נכסים מושכרים', kind: 'confirm', per: 'couple', who: 'client', purposes: BOTH,
     question: 'הנכסים המושכרים', why: 'שכר דירה ממוסה לפי מסלול שנבחר לכל נכס', input: 'confirm', cardKeys: ['properties', 'hasRentalIncome'], covers: { parts: ['ד', 'ה', 'י'] } },
   { key: 'rent.income', area: 'rent', label: 'שכר דירה שהתקבל', kind: 'amount', per: 'property', who: 'client', purposes: BOTH, after: 'rent.properties',
-    question: 'כמה שכר דירה התקבל השנה על {entity}?', why: 'הסכום קובע אם יש פטור ובאיזה מסלול', input: 'amount', knownBasis: AMOUNT_KNOWN, covers: { parts: ['ד', 'ה', 'י'], annexItems: ['1321.houseRentIncome', '1321.rent10Income'] } },
+    question: 'כמה שכר דירה התקבל השנה על {entity}?', why: 'הסכום קובע אם יש פטור ובאיזה מסלול', input: 'amount', knownBasis: AMOUNT_KNOWN, covers: { parts: ['ד', 'ה', 'י'], annexItems: ['1321.houseRentIncome', '1321.rent10Income'] },
+    officeNext: 'מהחוזה: שכר חודשי × חודשי השכירות; חודשים בלי שוכר או שינוי בשכר — לוודא עם הלקוח' },
   { key: 'rent.incomeTotal', area: 'rent', label: 'שכר דירה — סכום כולל בלי פירוט לנכס (מהכרטיס)', kind: 'amount', per: 'couple', who: 'office', purposes: BOTH, knownBasis: AMOUNT_KNOWN, rare: true },
   { key: 'rent.expenses', area: 'rent', label: 'הוצאות השכרה', kind: 'amount', per: 'couple', who: 'client', purposes: BOTH, after: 'rent.properties', question: 'היו השנה הוצאות על הנכסים המושכרים (תיקונים, ריבית על המשכנתה, ועד בית, ביטוח)?', why: 'במסלול הרגיל ההוצאות מקטינות את ההכנסה החייבת', input: 'yesno', knownBasis: AMOUNT_KNOWN, covers: { annexItems: ['1321.houseExpenses'] } },
   { key: 'rent.contract', area: 'rent', label: 'חוזה שכירות', kind: 'document', per: 'property', who: 'client', purposes: ['annual'], after: 'rent.properties',
@@ -381,14 +382,15 @@ export const ITEMS: InfoItem[] = [
     coupleQuestion: 'האם מישהו מכם מכר השנה דירה, מגרש, מטבע דיגיטלי, מניות שלא דרך בנק, או חלק בעסק?',
     question: 'האם {name} מכר/ה השנה דירה, מגרש, מטבע דיגיטלי, מניות שלא דרך בנק, או חלק בעסק?', why: 'רווח ממכירה ממוסה בנפרד, ולפעמים יש פטור', input: 'yesno', covers: { parts: ['ח', 'טו'] } },
   { key: 'sales.transaction', area: 'sales', label: 'עסקה: נכס, תאריך, תמורה', kind: 'detail', per: 'transaction', who: 'client', purposes: BOTH, after: 'sales.sold',
-    question: 'מה נמכר, מתי ובכמה?', why: 'הפרטים הבסיסיים של העסקה', input: 'text', covers: { annexItems: ['1399י.assetDetails', '1399י.saleProceeds', '1399י.originalCost'] } },
+    question: 'מה נמכר, מתי ובכמה?', why: 'הפרטים הבסיסיים של העסקה', input: 'text', covers: { annexItems: ['1399י.assetDetails', '1399י.saleProceeds', '1399י.originalCost'] },
+    officeNext: 'מחוזה המכר ומסמכי הרכישה: הנכס, תאריכי רכישה ומכירה, תמורה ועלות' },
   { key: 'sales.circumstances', area: 'sales', label: 'נסיבות המכירה: של בן/בת הזוג, ירושה, מתנה, 102 או הפקעה', kind: 'screener', per: 'transaction', who: 'client', purposes: BOTH, after: 'sales.sold',
     question: 'האם מה שנמכר היה של בן/בת הזוג, התקבל בירושה או במתנה, הוקצה לך כעובד (מניות או אופציות), או נלקח בהפקעה?', why: 'כל אחד מאלה משנה את טופס הדיווח ואת חישוב הרווח', input: 'yesno',
     covers: { annexItems: ['1399י.ownershipFlags', '1399י.sellerStatus'] }, officeNext: 'לסמן בטופס 1399י; בעל מניות מהותי ותושבות — המשרד בודק לכל מכירה' },
   // ── 12.10.2026 · שדות נספח 1399י שלא היה להם מקור משלהם ──
   { key: 'sales.buyer', area: 'sales', label: 'הקונה וקשר אליו', kind: 'detail', per: 'transaction', who: 'client', purposes: ['annual'], after: 'sales.sold',
     question: 'למי מכרת? האם הקונה קרוב משפחה, שותף או חברה שקשורה אליך?', why: 'מכירה לקרוב או לצד קשור מדווחת אחרת', input: 'text',
-    covers: { annexItems: ['1399י.buyer'] } },
+    covers: { annexItems: ['1399י.buyer'] }, officeNext: 'שם הקונה — מחוזה המכר; קרבה או צד קשור — לשאול את הלקוח (משנה את הדיווח)' },
   { key: 'sales.expenseDocs', area: 'sales', label: 'חשבוניות השבחה והוצאות מכירה', kind: 'document', per: 'transaction', who: 'client', purposes: ['annual'], after: 'sales.sold',
     question: 'חשבוניות על שיפוצים או השבחה במה שנמכר, והוצאות המכירה (תיווך, עורך דין, שמאי)', why: 'הוצאות כאלה מפחיתות את הרווח — רק עם חשבוניות', input: 'file', docKind: 'saleExpenseDocs', knownBasis: DOC_KNOWN,
     covers: { annexItems: ['1399י.improvements', '1399י.holdingAndSaleExpenses'] }, officeNext: 'השבחה — לכל אחת תאריך גמר וסכום; הוצאות החזקה — רק מה שלא הותר ולא הופחת' },
@@ -487,7 +489,8 @@ export const ITEMS: InfoItem[] = [
   { key: 'donations.given', area: 'donations', label: 'תרומות למוסדות מוכרים', kind: 'screener', per: 'person', who: 'client', purposes: BOTH,
     coupleQuestion: 'האם מישהו מכם תרם השנה למוסדות (עמותות, בתי ספר, בתי חולים)?',
     question: 'האם {name} תרם/ה השנה למוסדות (עמותות, בתי ספר, בתי חולים)?', why: 'על תרומה למוסד מוכר מגיע זיכוי של 35%', input: 'yesno', cardKeys: ['donationsAnnual'], covers: { parts: ['יד'] } },
-  { key: 'donations.amount', area: 'donations', label: 'סכום התרומות בשנה', kind: 'amount', per: 'person', who: 'client', purposes: BOTH, after: 'donations.given', question: 'בערך כמה {name} תרם/ה השנה?', why: 'הסכום קובע את הזיכוי', input: 'amount', knownBasis: AMOUNT_KNOWN, covers: { parts: ['יד'] } },
+  { key: 'donations.amount', area: 'donations', label: 'סכום התרומות בשנה', kind: 'amount', per: 'person', who: 'client', purposes: BOTH, after: 'donations.given', question: 'בערך כמה {name} תרם/ה השנה?', why: 'הסכום קובע את הזיכוי', input: 'amount', knownBasis: AMOUNT_KNOWN, covers: { parts: ['יד'] },
+    officeNext: 'סכום הקבלות ממוסדות מוכרים (סעיף 46)' },
   { key: 'donations.receipts', area: 'donations', label: 'קבלות על תרומות', kind: 'document', per: 'person', who: 'client', purposes: ['annual'], after: 'donations.given',
     question: 'הקבלות על התרומות', why: 'הזיכוי ניתן רק לפי קבלות', input: 'file', docKind: 'donationReceipts', knownBasis: DOC_KNOWN, covers: { parts: ['יד'] } },
 
@@ -572,7 +575,7 @@ const ANNUAL_TILES: Record<string, string> = {
   'household.familyChange': 'שינוי במשפחה',
   'salary.worked': 'משכורת', 'salary.equity': 'מניות מהעבודה', 'pension.received': 'פנסיה או קצבה', 'niBenefits.received': 'ביטוח לאומי',
   'rent.newRental': 'שכר דירה', 'rent.otherProperty': 'השכרת ציוד, רכב או קרקע', 'capital.newAccount': 'חיסכון או מניות בבנק',
-  'savings.withdrawal': 'משיכה מקופה', 'business.started': 'עסק או חשבוניות',
+  'savings.withdrawal': 'משיכה מקופה', 'business.started': 'עסק או חשבוניות', 'income.other': 'הכנסה אחרת',
   'savings.selfDeposits': 'הפקדה לפנסיה לבד', 'savings.insurance': 'ביטוח חיים', 'donations.given': 'תרומות',
   'special.disability': 'אחוזי נכות', 'household.creditChanges': 'סיום לימודים או צבא',
   'household.aliyah': 'עלייה או חזרה לארץ', 'household.relativeCare': 'קרוב במוסד סיעודי',
@@ -583,7 +586,7 @@ export const ANNUAL_TILE_EXAMPLE: Record<string, string> = {
   'salary.worked': 'גם מעבודה נוספת', 'salary.equity': 'RSU, אופציות — גם בלי מכירה',
   'pension.received': 'מקרן, מהמדינה או מביטוח', 'niBenefits.received': 'מילואים, לידה, אבטלה, זקנה',
   'rent.newRental': 'בארץ או בחו״ל', 'rent.otherProperty': 'לא דירה', 'capital.newAccount': 'ריבית, פיקדון, תיק השקעות',
-  'savings.withdrawal': 'פיצויים, השתלמות, גמל', 'business.started': 'גם אם נפתח השנה',
+  'savings.withdrawal': 'פיצויים, השתלמות, גמל', 'business.started': 'גם אם נפתח השנה', 'income.other': 'זכייה, תמלוגים, השכרת ציוד',
   'savings.selfDeposits': 'לא דרך התלוש', 'savings.insurance': 'או אובדן כושר — פרטי', 'donations.given': 'עם קבלה',
   'special.disability': 'או מחלה קשה', 'household.creditChanges': 'מ-{since}',
   'household.aliyah': 'מ-{aliyahSince}', 'household.relativeCare': 'הורה, בן או בת זוג',
@@ -599,6 +602,7 @@ export const ANNUAL_TILE_HELP: Record<string, string> = {
   'salary.equity': 'גם אם נמכרו — רק כאן, לא ב«מכירה».',
   'savings.withdrawal': 'כסף שיצא מקופה: פיצויים בעזיבה, משיכה מוקדמת, סגירת קופה.',
   'business.started': 'עוסק פטור או מורשה, או עבודה בחשבוניות.',
+  'income.other': 'כל הכנסה שלא ברשימה — גם חד-פעמית.',
   'foreign.income': 'גם חשבון בלי פעילות.',
   'sales.sold': 'גם החלפה בין מטבעות קריפטו.',
   'donations.given': 'לעמותה מוכרת. קבלה דיגיטלית מספיקה.',
@@ -613,6 +617,33 @@ export const ANNUAL_TILE_HELP: Record<string, string> = {
 export const ANNUAL_TILE_LESS = new Set(['savings.selfDeposits', 'savings.insurance', 'donations.given', 'special.disability', 'household.creditChanges', 'household.aliyah', 'household.relativeCare']);
 /** ‼ סבב 2: לא ריבועים בשאלון השנתי — המשפחה בשורת «זה עדיין נכון?», השכרת ציוד ב«משהו אחר?». */
 export const ANNUAL_TILE_OFF = new Set(['household.familyChange', 'rent.otherProperty']);
+/**
+ * ‼ 22.10.2026 · סבב 2.1 (גיא: «לא עומד בסטנדרט») — בדוח השנתי הלקוח לא נשאל פרטים שהמסמך כבר נותן או שהמשרד
+ *   מברר רק במקרה חריג: מה בדיוק נמכר ולמי, שותפים בנכס, כמה שכר דירה, של מי החשבון (מופיע ב-867), שם הקופה (מופיע
+ *   באישור), כמה תרמת (בקבלות), פרטי רכב ושותפים בעסק, פרטי מקור בחו״ל. הם עוברים לרשימת המשרד (picture › officeTodo).
+ */
+export const ANNUAL_OFFICE_DETAIL = new Set([
+  'foreign.sourceDetails', 'foreign.owner', 'sales.transaction', 'sales.buyer', 'rent.coOwners', 'rent.income', 'capital.owner',
+  'savings.fundDetails', 'donations.amount', 'business.vehicleDetails', 'business.partners',
+]);
+/**
+ * ‼ 22.10.2026 · סבב 2.1 — שאלות כן/לא שנפתחות מאותו נושא (חו״ל, מכירה, נכס מושכר, עסק) — מסך אחד של סימון, לא מסך לכל שאלה.
+ *   הכותרת לפי הנושא; לכל שאלה תווית קצרה. מה שלא סומן — «לא».
+ */
+export const CHECKLIST_TITLE: Record<string, string> = {
+  'foreign.income': 'מה מאלה היה בחו״ל?', 'sales.sold': 'משהו מאלה נכון לגבי המכירה?',
+  'rent.properties': 'משהו מאלה נכון לגבי הנכס המושכר?', 'rent.newRental': 'משהו מאלה נכון לגבי הנכס המושכר?',
+  'business.active': 'מה מאלה היה ב{entity} ב-{year}?',
+};
+export const CHECKLIST_LABEL: Record<string, string> = {
+  'foreign.securitiesSold': 'מכירת מניות דרך ברוקר', 'foreign.work': 'עבודה, עסק או קצבה', 'foreign.rentalProperty': 'נכס מושכר',
+  'foreign.company': 'חברה (10% ומעלה)', 'foreign.taxRefund': 'החזר מס מרשות זרה',
+  'sales.circumstances': 'ירושה, מתנה או נכס של {spouse}', 'sales.specialDeal': 'החלפה, נכס חלופי או הלוואה לקונה',
+  'rent.coOwned': 'יש עוד בעלים בנכס', 'rent.expenses': 'היו הוצאות על הנכס', 'rent.keyMoney': 'דמי מפתח', 'rent.ownRent': 'אנחנו גרים בשכירות',
+  'business.assetsChanged': 'קנייה או מכירה של ציוד או רכב', 'business.inventory': 'מלאי', 'business.employees': 'עובדים',
+  'business.badDebts': 'חוב שלא ייגבה', 'business.vehicle': 'רכב בשימוש העסק', 'business.partnership': 'שותפים בעסק',
+  'business.rentsPremises': 'שכירות של משרד או חנות',
+};
 const NONE: Purpose[] = [];
 ITEMS.push(
   { key: 'annual.whatHappened', area: 'special', label: 'מאיפה נכנס כסף בשנה (מסך הריבועים, לכל אדם)', kind: 'screener', per: 'couple', who: 'client', purposes: NONE, input: 'multi',
@@ -640,6 +671,20 @@ ITEMS.push(
     officeNext: 'סעיף 44: זיכוי 35% על ההוצאה שמעל 12.5% מההכנסה החייבת; לבדוק מי שילם בפועל' },
   { key: 'household.relativeCareDocs', area: 'household', label: 'קבלות מהמוסד ואישור על מצב הקרוב', kind: 'document', per: 'person', who: 'client', purposes: ['annual'], after: 'household.relativeCare',
     question: 'הקבלות מהמוסד על התשלום, ואישור על מצבו של הקרוב', why: 'הזיכוי ניתן לפי מה ששולם בפועל', input: 'file', docKind: 'ownRentDocs', knownBasis: DOC_KNOWN },
+  // ── 22.10.2026 · סבב 2.1: «הכנסה אחרת» — ריבוע ובחירה סגורה, במקום «משהו אחר?» בטקסט חופשי (גיא) ──
+  { key: 'income.other', area: 'special', label: 'הכנסה אחרת (זכייה, תמלוגים, השכרת ציוד)', kind: 'screener', per: 'person', who: 'client', purposes: ['annual'],
+    question: 'האם ל{name} הייתה השנה הכנסה אחרת — זכייה, תמלוגים או השכרת ציוד?', why: 'כל הכנסה נכנסת לדוח — גם חד-פעמית', input: 'yesno', covers: { parts: ['ד', 'ה'] } },
+  { key: 'income.otherKinds', area: 'special', label: 'מה הייתה ההכנסה האחרת', kind: 'detail', per: 'person', who: 'client', purposes: NONE, input: 'multi',
+    question: 'מה הייתה ההכנסה?', why: 'לכל אחת נבקש רק את האישור שלה' },
+  { key: 'income.prize', area: 'special', label: 'זכייה או פרס', kind: 'screener', per: 'person', who: 'client', purposes: NONE },
+  { key: 'income.prizeDocs', area: 'special', label: 'אישור על הזכייה', kind: 'document', per: 'person', who: 'client', purposes: NONE,
+    question: 'האישור על הזכייה — ממי שנתן את הפרס', why: 'בו רשום הסכום והמס שנוכה', input: 'file', docKind: 'other',
+    officeNext: 'זכיות והימורים (special.gambling) — 124ב; מס שנוכה במקור לפי האישור' },
+  { key: 'income.royalties', area: 'special', label: 'תמלוגים', kind: 'screener', per: 'person', who: 'client', purposes: NONE },
+  { key: 'income.royaltiesDocs', area: 'special', label: 'דוח שנתי על תמלוגים', kind: 'document', per: 'person', who: 'client', purposes: NONE,
+    question: 'הדוח השנתי על התמלוגים — מהגוף שמשלם', why: 'בו רשום כמה שולם וכמה מס נוכה', input: 'file', docKind: 'otherPropertyDocs' },
+  { key: 'income.unlisted', area: 'special', label: 'הכנסה אחרת שלא ברשימה — לברר', kind: 'screener', per: 'person', who: 'client', purposes: NONE,
+    officeNext: 'להתקשר ולברר מה ההכנסה; לפי הסוג — לבקש את האישור' },
   // ── לימודים וצבא: מקום אחד לכל אדם (מה שבתיק — ממולא; תואר ⇐ «ואז התמחות?», שחרור ⇐ חודש ושנה) ──
   { key: 'household.studies', area: 'household', label: 'לימודים, שחרור והתמחות', kind: 'detail', per: 'person', who: 'client', purposes: NONE, input: 'record',
     question: 'לימודים וצבא', why: 'סיום תואר או שירות מזכה בנקודות זיכוי בשנים שאחרי — ולמתמחים, משנת סיום ההתמחות',

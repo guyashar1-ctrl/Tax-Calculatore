@@ -111,14 +111,16 @@ export const TESTS: TestCase[] = [
     const ans = draftToAnswer(r, { choice: 'yes' });
     assert(ans?.kind === 'record' && JSON.stringify(ans.value).includes('4821') && JSON.stringify(ans.value).includes('client'), JSON.stringify(ans));
   }),
-  test('ריבוע של משק הבית שבן/בת הזוג סימן ⇒ נענה לזוג (לא «חסר»); מכירה של בן/בת הזוג ⇒ פרטי העסקה', () => {
+  test('ריבוע של משק הבית שבן/בת הזוג סימן ⇒ נענה לזוג (לא «חסר»); מכירה של בן/בת הזוג ⇒ החוזה מהלקוח, הפרטים אצל המשרד', () => {
     const c = client();
     const p = buildYearPicture(pin(c, [
       fact({ itemKey: 'rent.newRental', subjectRole: 'client', answer: 'no', value: undefined }), fact({ itemKey: 'rent.newRental', subjectRole: 'spouse' }),
       fact({ itemKey: 'sales.sold', subjectRole: 'client', answer: 'no', value: undefined }), fact({ itemKey: 'sales.sold', subjectRole: 'spouse' }),
     ]));
     equal(p.statuses.find(s => s.item.key === 'rent.newRental' && s.subjectRole === 'couple')?.state, 'pendingReview');
-    assert(p.toAsk.some(s => s.item.key === 'sales.transaction'), 'פרטי העסקה לא נשאלו');
+    // ‼ 22.10.2026 · סבב 2.1: פרטי העסקה — מהחוזה, אצל המשרד (ANNUAL_OFFICE_DETAIL); החוזה עצמו — מהלקוח
+    assert(p.officeTodo.some(s => s.item.key === 'sales.transaction') && !p.toAsk.some(s => s.item.key === 'sales.transaction'), 'פרטי העסקה לא אצל המשרד');
+    assert(p.toAsk.some(s => s.item.key === 'sales.docs'), 'חוזה המכר לא מתבקש');
     const no = buildYearPicture(pin(c, [fact({ itemKey: 'rent.newRental', subjectRole: 'client', answer: 'no', value: undefined }), fact({ itemKey: 'rent.newRental', subjectRole: 'spouse', answer: 'no', value: undefined })]));
     equal(no.statuses.find(s => s.item.key === 'rent.newRental' && s.subjectRole === 'couple')?.state, 'pendingReview');
   }),
