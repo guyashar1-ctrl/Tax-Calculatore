@@ -28,6 +28,7 @@ import {
 import type { NiExecutionByRole, NiRepresentationAction } from './niPersons';
 import { registeredFileInfo } from '../features/annualReport/profile';
 import { incomeTaxFileType } from '../data/incomeTaxFileTypes';
+import { reportingStatusOk } from './reportingStatus';
 
 const PERSON_AUTHORITY: Partial<Record<TaxAuthority, 'vat' | 'withholding' | 'nationalInsurance'>> = {
   vat: 'vat', deductions: 'withholding', national_insurance: 'nationalInsurance',
@@ -253,7 +254,7 @@ export function buildAuthorityRows(
       ? { k: 'יתרה', v: bal.text, tone: bal.tone, editKey: 'incomeTaxBalance', syncKey: 'incomeTaxBalance' }
       : { k: 'יתרה', v: EMPTY, editKey: 'incomeTaxBalance', syncKey: 'incomeTaxBalance' });
     if (client.incomeTaxReportingStatus) {
-      const ok = client.incomeTaxReportingStatus.trim() === 'אין דיווחים חסרים';
+      const ok = reportingStatusOk(client.incomeTaxReportingStatus);
       facts.push({ k: 'מצב דיווחים', v: client.incomeTaxReportingStatus, tone: ok ? 'ok' : 'warn', editKey: 'incomeTaxReportingStatus' });
     } else {
       facts.push({ k: 'מצב דיווחים', v: EMPTY, editKey: 'incomeTaxReportingStatus' });

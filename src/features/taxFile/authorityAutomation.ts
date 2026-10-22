@@ -23,6 +23,7 @@ import { EDIT_FIELD_BY_KEY, editFieldValue } from './editModel';
 import { incomeTaxFileType } from '../../data/incomeTaxFileTypes';
 import { niPersons, niEditable } from '../../utils/niPersons';
 import { incomeTaxFileInput } from './incomeTaxFileInput';
+import { REPORTING_NO_ADVANCES } from '../../utils/reportingStatus';
 import {
   niOccupationsFromBtl, niOccupationsKey, niOccupationsInline, niDate,
 } from '../nationalInsurance/niOccupations';
@@ -329,6 +330,14 @@ export const SHAAM_134_FIELD_SOURCES: Record<string, Shaam134FieldSource> = {
   incomeTaxBalance: {
     source: 'balance', normalize: mapBalance,
     businessValue: (f) => (advanceBusinessState(f) ? 'info' : null),
+  },
+  // ‼ «מצב דיווחים» = דיווחי המקדמות (134). בלי מקדמות פעילות (154: «לא נדרש» / «בוטלה») ⇒
+  // «אין מקדמות». עם מקדמות — ‼ עדיין לא נקרא (ערכי «מצב דיווח» של לקוח פעיל טרם נצפו חי):
+  // סמן ניטרלי, בלי הצעה ובלי «לא נקרא».
+  incomeTaxReportingStatus: {
+    source: 'reportingStatus',
+    businessValue: (f) => (advanceBusinessState(f)
+      ? { value: REPORTING_NO_ADVANCES, display: REPORTING_NO_ADVANCES } : 'info'),
   },
   // ‼ הצהרת הון מ-154 בלבד. «אין דרישה» הוא תוצאה: אין דרישה פתוחה לפי שע״ם.
   // ריצה ישנה בלי המפתח ⇒ «לא נבדק» (ריק בלי מצב עסקי), לא כישלון.
