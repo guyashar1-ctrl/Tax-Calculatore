@@ -6,9 +6,10 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const configRoot = process.argv[2] ? resolve(process.argv[2]) : root;
 const { writeStaging, assertTriggersEnabled } = await import(pathToFileURL(resolve(configRoot, 'scripts/staging-lib.mjs')));
 await assertTriggersEnabled();
-const test = readFileSync(resolve(root, 'scripts/sql/291-test-quotation-dealer-default.sql'), 'utf8');
+const test = readFileSync(resolve(root, 'scripts/sql/291-test-quotation-dealer-default.sql'), 'utf8').replace(/\r\n/g, '\n');
 // Same backfill, restricted to this transaction's fixtures. Keep the outer rollback.
 const backfill = readFileSync(resolve(root, 'scripts/sql/291-backfill-quotation-dealer-default.sql'), 'utf8')
+  .replace(/\r\n/g, '\n')
   .replace(/^begin;$/m, '').replace(/^commit;$/m, '')
   .replace("where nullif(btrim(c.dealer_type),'') is null", "where c.id like 'test291-%' and nullif(btrim(c.dealer_type),'') is null");
 const final = `
