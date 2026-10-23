@@ -132,3 +132,18 @@ test('מערכת הייצוג לא מחוברת ⇒ «לא נבדק», בלי כ
   assert.equal(r.result.fields.debitAuthorization, undefined);
   assert.ok(r.result.unavailable.some((u) => u.key === 'representedList' && u.reason === 'representation_not_connected'));
 });
+
+test('«רשימת מיוצגים» היא הלשונית הראשונה ⇒ «שע״ם» והקריאה לא מזיזים אותה (נצפה חי 23.10)', async () => {
+  const connect = await import('../src/handlers/shaamConnect.mjs');
+  connected(sample154({ sugDrisha: 'לא נדרש' }));
+  // כמו בחלון החי: GMF עומדת על מסך 134 (לא על התפריט), והרשימה ראשונה.
+  tab().go('/gmf-134/main/meda');
+  const resh = new SimPage('/srReshMeyuzagim/');
+  world.pages.unshift(resh);
+  world.resh = { body: reshBody(FILE), post: reshPost(FILE) };
+  await connect.run(ctx());
+  assert.ok(resh.path.startsWith('/srReshMeyuzagim'), `«שע״ם» הזיז את הלשונית ל-${resh.path}`);
+  const r = await sync.run(ctx(), { fileNumber: FILE });
+  assert.ok(resh.path.startsWith('/srReshMeyuzagim'));
+  assert.equal(r.result.fields.debitAuthorization, 'קיימת · 12-170-48047');
+});

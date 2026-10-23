@@ -143,7 +143,7 @@ export async function attach() {
     // מחזירים רק אותה, לכל לשונית שאינה Citrix, כולל לשוניות שייפתחו בהמשך.
     await Promise.all(context.pages().map(enableFocusEmulation));
     context.on('page', (p) => { enableFocusEmulation(p); });
-    const page = context.pages()[0] ?? await context.newPage();
+    const page = await pickWorkPage(context);
     return { ok: true, browser, page };
   } catch (e) {
     const detail = e instanceof Error ? e.message : String(e);
@@ -902,6 +902,19 @@ const RESH_PATH = '/srReshMeyuzagim';
 const RESH_API = '/srReshMeyuzagimApi/api/ReshMeyuzagim/ShlifReshMeyuzagim';
 const RESH_TIK_INPUT = 'input#tik1';
 const RESH_SEARCH = 'button:has-text("חיפוש")';
+
+/**
+ * לשונית העבודה של העובד — הראשונה שאינה «רשימת מיוצגים».
+ * ‼ 23.10.2026, נצפה חי: הלשונית שגיא התחבר בה הייתה הראשונה בחלון, ו«שע״ם» בכותרת
+ * ניווט אותה ל-GMF — הכניסה למערכת הייצוג אבדה והקריאה הבאה החזירה «לא נבדק».
+ */
+export async function pickWorkPage(context) {
+  for (const p of context.pages()) {
+    try { if (new URL(p.url()).pathname.startsWith(RESH_PATH)) continue; } catch { /* about:blank */ }
+    return p;
+  }
+  return context.newPage();
+}
 
 /** @returns {{ok:true, body, post} | {ok:false, reason}} */
 export async function readRepresentedList(context, fileNumber) {

@@ -3,12 +3,13 @@
 import { world, context, SimPage } from './world.mjs';
 
 export * from '../../../src/browserSession.mjs';
+import { pickWorkPage } from '../../../src/browserSession.mjs';
 
 export async function attach() {
   if (world.chrome === 'closed') return { ok: false, reason: 'not_running', detail: 'sim' };
   if (world.chrome === 'dialog') return { ok: false, reason: 'blocked', detail: 'sim' };
   if (!world.pages.length) world.pages.push(new SimPage());
-  return { ok: true, browser: null, page: world.pages[0], context };
+  return { ok: true, browser: null, page: await pickWorkPage(context), context };
 }
 
 export async function detach() {}
