@@ -43,8 +43,21 @@ interface Props {
    */
   completeLabel?: string;
   onComplete: (values: Record<string, SignatureValue>, fields: SignatureField[]) => void;
-  onCancel: () => void;
+  /**
+   * ✕ ו«ביטול». ‼ בלי — אין להם כפתור בכלל. בקישור של הלקוח «ביטול» טען את
+   * הדף מחדש ומחק כל מה שנעשה, והלקוח נכנס שוב ושוב בלולאה (ליאת, 23.10.2026).
+   */
+  onCancel?: () => void;
+  /** «נסו שוב» כשה-PDF לא נטען — כשאין ביטול. */
+  onRetry?: () => void;
+  /** מה החותם עושה בחדר — כדי לדעת איפה נתקע. לא משנה דבר במסך. */
+  onEvent?: (event: SignRoomEvent, detail?: string) => void;
 }
+
+export type SignRoomEvent =
+  | 'ready' | 'load_error' | 'render_error'
+  | 'pad_open' | 'pad_cancel' | 'pad_confirm'
+  | 'tap_other' | 'tap_miss' | 'finish';
 
 /** תוכן שהרו"ח הניח בהפקה — נצרב תמיד, לא שייך לאף חותם. */
 const STATIC_KINDS: SignatureFieldKind[] = ['label', 'check', 'cross'];
@@ -76,6 +89,16 @@ export default function SigningRoom(p: Props) {
 
   const markerRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
+  /** הודעה קצרה במקום ההנחיה — אחרי לחיצה שלא עשתה כלום. */
+  const [note, setNote] = useState<string | null>(null);
+  useEffect(() => {
+    if (!note) return;
+    const t = setTimeout(() => setNote(null), 5000);
+    return () => clearTimeout(t);
+  }, [note]);
+
+  const emit = (event: SignRoomEvent, detail?: string) => { try { p.onEvent?.(event, detail); } catch { /* מעקב בלבד */ } };
+
   // ── טעינת ה-PDF פעם אחת ──
   useEffect(() => {
     let cancelled = false;
@@ -85,11 +108,16 @@ export default function SigningRoom(p: Props) {
         if (cancelled) return;
         setPdfDoc(doc);
         setPages(pgs.map(pg => ({ width: pg.width, height: pg.height })));
+        emit('ready', `pages=${pgs.length} vw=${typeof window !== 'undefined' ? window.innerWidth : 0}`);
       } catch (err: any) {
-        if (!cancelled) setLoadError(err?.message || String(err));
+        if (!cancelled) {
+          setLoadError(err?.message || String(err));
+          emit('load_error', String(err?.message || err));
+        }
       }
     })();
     return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [p.pdfBytes]);
 
   const activeColor = colorForSigner(p.signers, p.activeSignerId);
@@ -134,6 +162,7 @@ export default function SigningRoom(p: Props) {
   // ── לחיצה על שדה של החותם הנוכחי ──
   function clickField(field: SignatureField) {
     if (field.signerId !== p.activeSignerId) return;
+    emit('pad_open', field.kind);
     if (field.kind === 'text') {
       setTextModal({ field });
       return;
@@ -146,24 +175,65 @@ export default function SigningRoom(p: Props) {
     }
   }
 
+  /**
+   * הכפתור הגדול בתחתית: פותח ישר את המקום הבא. ‼ בטלפון מקום החתימה על
+   * הטופס הוא מלבן של סנטימטר — אסור שהחתימה תהיה תלויה בפגיעה בו.
+   */
+  function openNext() {
+    if (!nextUnfilled) return;
+    scrollToField(nextUnfilled.id);
+    clickField(nextUnfilled);
+  }
+
+  /** לחיצה על מקום של חותם אחר — לא «כלום»: אומרים של מי הוא ואיפה שלך. */
+  function clickOtherField(field: SignatureField) {
+    const owner = p.signers.find(s => s.id === field.signerId)?.name?.split(' ')[0] || 'חותם אחר';
+    emit('tap_other', field.signerId);
+    if (!nextUnfilled) return;
+    setNote(`זה המקום של ${owner}. שלך מסומן ומהבהב`);
+    scrollToField(nextUnfilled.id);
+  }
+
+  function tapPage(pageIndex: number, xPct: number, yPct: number) {
+    if (!nextUnfilled) return;
+    const own = myFields.filter(f => !values[f.id] && f.pageIndex === pageIndex);
+    const dist = own.length
+      ? Math.min(...own.map(f => Math.hypot(xPct - (f.xPct + f.widthPct / 2), yPct - (f.yPct + f.heightPct / 2))))
+      : -1;
+    emit('tap_miss', `page=${pageIndex} d=${dist.toFixed(3)}`);
+    setNote('לחתימה - הכפתור למטה');
+  }
+
   function applyImage(field: SignatureField, dataUrl: string) {
     setFieldValue(field, { imageDataUrl: dataUrl });
     setLastMark(prev => ({ ...prev, [field.kind]: dataUrl }));
     setSignModal(null);
     setReusePrompt(null);
+    emit('pad_confirm', field.kind);
   }
 
   if (loadError) {
+    const close = p.onCancel ?? p.onRetry;
     return (
       <div className="modal-backdrop" onClick={p.onCancel}>
         <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 460 }}>
           <div className="modal-header"><h3>שגיאה בטעינת המסמך</h3></div>
           <div className="modal-body"><div style={{ color: 'var(--danger)' }}>{loadError}</div></div>
-          <div className="modal-footer"><button className="btn btn-secondary" onClick={p.onCancel}>סגור</button></div>
+          {close && (
+            <div className="modal-footer">
+              <button className="btn btn-secondary" onClick={close}>{p.onCancel ? 'סגור' : 'נסו שוב'}</button>
+            </div>
+          )}
         </div>
       </div>
     );
   }
+
+  const remaining = myFields.length - doneCount;
+  const nextLabel = !nextUnfilled ? ''
+    : nextUnfilled.kind === 'signature' ? '✍ לחתום כאן'
+    : nextUnfilled.kind === 'text' ? `מילוי ${nextUnfilled.placeholder || SIGNATURE_FIELD_KIND_LABELS.text}`
+    : `הוספת ${SIGNATURE_FIELD_KIND_LABELS[nextUnfilled.kind]}`;
 
   return (
     <div className="modal-backdrop" style={{ alignItems: 'stretch' }}>
@@ -178,30 +248,28 @@ export default function SigningRoom(p: Props) {
               נחתמו {doneCount} מתוך {myFields.length}
             </div>
           </div>
-          <button type="button" className="btn btn-ghost btn-icon" onClick={p.onCancel}>✕</button>
+          {p.onCancel && <button type="button" className="btn btn-ghost btn-icon" onClick={p.onCancel}>✕</button>}
         </div>
 
-        {/* פס הנחיה + כפתור "למקום הבא" */}
-        <div style={{
+        {/* פס הנחיה — או הודעה אחרי לחיצה שלא עשתה כלום */}
+        <div role={note ? 'status' : undefined} style={{
           display: 'flex', alignItems: 'center', gap: '.75rem', padding: '.6rem 1rem',
-          background: allDone ? 'var(--green-light)' : `${activeColor}12`, borderBottom: '1px solid var(--hairline-1)',
+          background: note ? 'var(--warn-light, #FFF4E0)' : allDone ? 'var(--green-light)' : `${activeColor}12`,
+          borderBottom: '1px solid var(--hairline-1)',
         }}>
-          <span style={{ fontSize: 'var(--fs-20)' }}>{allDone ? '✅' : '👇'}</span>
+          <span style={{ fontSize: 'var(--fs-20)' }}>{note ? '👇' : allDone ? '✅' : '✍'}</span>
           <div style={{ flex: 1, fontSize: 'var(--fs-14)', color: 'var(--ink-1)' }}>
-            {allDone
-              ? 'כל מקומות החתימה מולאו. אפשר לסיים.'
-              : <>לחצו על מקום החתימה המסומן כדי לחתום. נותרו <strong>{myFields.length - doneCount}</strong> מקומות.</>}
+            {note
+              ? note
+              : allDone
+                ? 'כל מקומות החתימה מולאו. אפשר לסיים.'
+                : remaining === 1 ? 'מקום אחד לחתימה - מסומן בטופס' : `${remaining} מקומות לחתימה - מסומנים בטופס`}
             {p.adjustable && (
               <div style={{ fontSize: 'var(--fs-13)', color: 'var(--ink-3)', marginTop: 2 }}>
                 כל חתימה על הטופס - שלכם ושל הלקוח - ניתנת לגרירה, ולשינוי גודל מהפינה. כך היא תיצרב ב-PDF.
               </div>
             )}
           </div>
-          {!allDone && nextUnfilled && (
-            <button type="button" className="btn btn-secondary btn-sm" onClick={() => scrollToField(nextUnfilled.id)}>
-              למקום הבא ↓
-            </button>
-          )}
         </div>
 
         {/* גוף — עמודי ה-PDF עם הסימונים */}
@@ -221,6 +289,9 @@ export default function SigningRoom(p: Props) {
                   values={values}
                   adjustable={!!p.adjustable}
                   onClickField={clickField}
+                  onClickOtherField={clickOtherField}
+                  onTapPage={(x, y) => tapPage(idx, x, y)}
+                  onRenderError={msg => emit('render_error', msg)}
                   onAdjustField={(id, rect) => setGeom(prev => ({ ...prev, [id]: rect }))}
                   registerRef={(fid, el) => { markerRefs.current[fid] = el; }}
                 />
@@ -229,17 +300,25 @@ export default function SigningRoom(p: Props) {
           )}
         </div>
 
-        {/* כפתורי תחתית */}
+        {/* כפתורי תחתית. ‼ הכפתור הראשי לעולם לא כבוי: עד שהכול נחתם הוא פותח
+            את המקום הבא — אצבע על טלפון מגיעה לכאן גם כשהיא מפספסת את הטופס. */}
         <div className="modal-footer">
-          <button type="button" className="btn btn-secondary" onClick={p.onCancel}>ביטול</button>
+          {p.onCancel && <button type="button" className="btn btn-secondary" onClick={p.onCancel}>ביטול</button>}
           <div style={{ flex: 1 }} />
           <button
             type="button"
             className="btn btn-primary"
-            disabled={!allDone}
-            onClick={() => p.onComplete(values, fields)}
+            disabled={!pdfDoc || (!allDone && !nextUnfilled)}
+            style={{ minHeight: 48, minWidth: 160, fontSize: 'var(--fs-16, 1rem)' }}
+            onClick={() => {
+              if (!allDone) { openNext(); return; }
+              emit('finish');
+              p.onComplete(values, fields);
+            }}
           >
-            {allDone ? (p.completeLabel || 'סיום וחתימה') : `נותרו ${myFields.length - doneCount} מקומות`}
+            {allDone ? (p.completeLabel || 'סיום וחתימה')
+              : !nextUnfilled ? `נותרו ${remaining} מקומות`
+              : remaining > 1 ? `${nextLabel} (${remaining})` : nextLabel}
           </button>
         </div>
       </div>
@@ -251,7 +330,7 @@ export default function SigningRoom(p: Props) {
           color={activeColor}
           savedMark={signModal.field.kind === 'stamp' ? p.savedMarks?.stamp : p.savedMarks?.signature}
           onConfirm={(dataUrl) => applyImage(signModal.field, dataUrl)}
-          onCancel={() => setSignModal(null)}
+          onCancel={() => { setSignModal(null); emit('pad_cancel', signModal.field.kind); }}
         />
       )}
 
@@ -307,6 +386,10 @@ interface PageProps {
   values: Record<string, SignatureValue>;
   adjustable: boolean;
   onClickField: (f: SignatureField) => void;
+  onClickOtherField: (f: SignatureField) => void;
+  /** לחיצה על הטופס עצמו, לא על מקום חתימה (מיקום יחסי 0..1). */
+  onTapPage: (xPct: number, yPct: number) => void;
+  onRenderError: (message: string) => void;
   onAdjustField: (fieldId: string, rect: FieldRect) => void;
   registerRef: (fieldId: string, el: HTMLDivElement | null) => void;
 }
@@ -375,14 +458,26 @@ function SigningPage(p: PageProps) {
         await renderPage(p.pdfDoc, p.pageIndex, canvas, 1.4);
         if (!cancelled) setReady(true);
       } catch (e: any) {
-        if (e?.name !== 'RenderingCancelledException') console.error('render page failed', e);
+        if (e?.name !== 'RenderingCancelledException') {
+          console.error('render page failed', e);
+          p.onRenderError(String(e?.message || e));
+        }
       }
     })();
     return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [p.pdfDoc, p.pageIndex]);
 
+  function tapPage(e: React.MouseEvent<HTMLDivElement>) {
+    // רק לחיצה על הטופס עצמו — מקום חתימה עוצר את האירוע בעצמו
+    if (e.target !== canvasRef.current && e.target !== wrapRef.current) return;
+    const r = wrapRef.current?.getBoundingClientRect();
+    if (!r?.width || !r.height) return;
+    p.onTapPage((e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height);
+  }
+
   return (
-    <div ref={wrapRef} style={{ position: 'relative', boxShadow: '0 2px 10px rgba(0,0,0,.12)', background: 'white', lineHeight: 0 }}>
+    <div ref={wrapRef} onClick={tapPage} style={{ position: 'relative', boxShadow: '0 2px 10px rgba(0,0,0,.12)', background: 'white', lineHeight: 0 }}>
       <canvas ref={canvasRef} style={{ display: 'block', maxWidth: '100%' }} />
       {ready && p.fields.map(f => {
         // תוכן קבוע שהרו"ח הניח בהפקה — מוצג כפי שיודפס, לא אינטראקטיבי
@@ -415,11 +510,18 @@ function SigningPage(p: PageProps) {
         const label = SIGNATURE_FIELD_KIND_LABELS[f.kind];
         // גרירה מותרת רק על מה שכבר נחתם — מלבן ריק אין טעם להזיז
         const movable = p.adjustable && filled;
+        // ‼ מקום שמחכה לחותם הזה מקבל אזור לחיצה גדול מהמלבן: על טלפון המלבן
+        // הוא ~46×14 פיקסלים, ואצבע שמפספסת אותו לא קיבלה שום תגובה.
+        const open = mine && !filled;
         return (
           <div
             key={f.id}
             ref={el => p.registerRef(f.id, el)}
-            onClick={() => { if (justDragged.current) return; if (mine && !filled) p.onClickField(f); }}
+            onClick={() => {
+              if (justDragged.current) return;
+              if (open) p.onClickField(f);
+              else if (!mine && !filled) p.onClickOtherField(f);
+            }}
             onPointerDown={movable ? e => beginDrag(e, f, 'move') : undefined}
             onPointerMove={movable ? moveDrag : undefined}
             onPointerUp={movable ? endDrag : undefined}
@@ -443,10 +545,19 @@ function SigningPage(p: PageProps) {
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              overflow: movable ? 'visible' : 'hidden',
-              animation: mine && !filled ? 'sigPulse 1.6s ease-in-out infinite' : undefined,
+              overflow: movable || open ? 'visible' : 'hidden',
+              animation: open ? 'sigPulse 1.6s ease-in-out infinite' : undefined,
             }}
           >
+            {open && (
+              <span
+                aria-hidden
+                style={{
+                  position: 'absolute', insetInline: -10, top: '50%',
+                  height: 'max(calc(100% + 24px), 44px)', transform: 'translateY(-50%)',
+                }}
+              />
+            )}
             {filled ? (
               val.imageDataUrl
                 ? <img src={val.imageDataUrl} alt="" draggable={false}

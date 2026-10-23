@@ -6,6 +6,7 @@ export const samplePublicSignActions: PublicSignActions = {
   async loadDocument() { throw new Error('תצוגה לדוגמה: טופס אחד בלבד'); },
   submit: async () => SIMULATED,
   restart() { /* בתצוגה לדוגמה «ביטול» מאפס את החדר במסך עצמו */ },
+  track() { /* אין יומן לדוגמה */ },
   navigate() { /* אין מעבר לדף אחר */ },
   spouse: {
     handoff: async () => SIMULATED,

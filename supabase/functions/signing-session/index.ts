@@ -9,6 +9,8 @@
 //                          (portal) לעולם לא חושף את הטוקן של בן/בת הזוג.
 //   action=invite_spouse → "לשלוח בנפרד": הנישום מזין כאן את המייל של בן/בת
 //                          הזוג — רק ברגע הזה המייל נאסף — ונשלח קישור אישי.
+//   action=track         → שורה ביומן הפונקציה בלבד (לא טבלה): מה החותם עשה בדף —
+//                          כדי לדעת איפה לקוח נתקע. חיפוש ביומן: "[sign-track]".
 // אבטחה: verify_jwt=false בשער; הזיהוי הוא הטוקן האקראי (32 hex) עצמו, כמו onboarding.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { isUnknownOutcome, unknownOutcomeReply } from "../_shared/resendResult.ts";
@@ -23,7 +25,7 @@ Deno.serve(async (req: Request) => {
   const json = (b: unknown, s = 200) => new Response(JSON.stringify(b), { status: s, headers: { ...cors, "Content-Type": "application/json" } });
 
   try {
-    const { action, token, values, email } = await req.json();
+    const { action, token, values, email, event, detail } = await req.json();
     if (!token || typeof token !== "string") return json({ error: "missing token" }, 400);
 
     const admin = createClient(
@@ -31,6 +33,26 @@ Deno.serve(async (req: Request) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
       { auth: { autoRefreshToken: false, persistSession: false } },
     );
+
+    if (action === "track") {
+      // ‼ רשימה סגורה וטקסט קצר — הדפדפן לא כותב ליומן מה שבא לו
+      const EVENTS = ["ready", "load_error", "render_error", "pad_open", "pad_cancel", "pad_confirm",
+        "tap_other", "tap_miss", "finish", "leave", "page_error"];
+      if (typeof event !== "string" || !EVENTS.includes(event)) return json({ error: "bad_event" }, 400);
+      const { data: row } = await admin
+        .from("representation_requests")
+        .select("id, signers")
+        .contains("signers", JSON.stringify([{ signToken: token }]))
+        .maybeSingle();
+      const who = Array.isArray(row?.signers) ? row.signers.find((s: any) => s?.signToken === token) : null;
+      if (!row || !who) return json({ error: "not_found" }, 404);
+      console.log("[sign-track]", JSON.stringify({
+        request: row.id, signer: who.id, event,
+        detail: typeof detail === "string" ? detail.slice(0, 160) : "",
+        ua: (req.headers.get("user-agent") || "").slice(0, 160),
+      }));
+      return json({ ok: true });
+    }
 
     // איתור הבקשה לפי טוקן החותם (בתוך מערך ה-signers)
     const { data: reqRow, error: findErr } = await admin

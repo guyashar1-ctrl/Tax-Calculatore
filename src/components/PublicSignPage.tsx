@@ -2,9 +2,9 @@
 // הלקוח (או בן/בת הזוג) מגיע לכאן מקישור אישי (?sign=<token>), רואה את ה-PDF
 // האמיתי עם אזורי החתימה שלו מסומנים, וחותם דרך חדר החתימה. ללא התחברות.
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { SignatureField, SignatureValue, Signer } from '../types';
-import { supabase } from '../lib/supabase';
+import { supabase, SUPABASE_URL } from '../lib/supabase';
 import { flushAccountantNotifications } from '../lib/notifyAccountant';
 import SigningRoom from './signatureRequest/SigningRoom';
 import ClientPageState from './ui/ClientPageState';
@@ -53,8 +53,13 @@ export interface PublicSignActions {
   /** שליחת כל חתימות החותם — פעם אחת, בסוף כל הטפסים. */
   submit(values: Record<string, SignatureValue>):
     Promise<{ status: 'submitted'; spousePending: boolean; spouseName: string } | SimulatedResult>;
-  /** «ביטול» בחדר החתימה ו«נסו שוב» אחרי תקלה — טעינה מחדש של הדף. */
+  /** «נסו שוב» אחרי תקלה — טעינה מחדש של הדף. */
   restart(): void;
+  /**
+   * מה החותם עשה בדף — שורה ביומן השרת, כדי לדעת איפה לקוח נתקע. לא חוסם ולא
+   * זורק; אינו כותב לשום טבלה ואינו מופיע במסכי המשרד.
+   */
+  track(event: string, detail?: string): void;
   /** מעבר לדף החתימה של בן/בת הזוג באותו מכשיר. */
   navigate(url: string): void;
   spouse: {
@@ -79,6 +84,21 @@ export function livePublicSignActions(token: string): PublicSignActions {
       return { status: 'submitted', spousePending: !!data.spousePending, spouseName: data.spouseName || '' };
     },
     restart() { window.location.reload(); },
+    track(event, detail) {
+      // keepalive: גם «יציאה» שנשלחת ברגע סגירת הדף מגיעה
+      try {
+        void fetch(`${SUPABASE_URL}/functions/v1/signing-session`, {
+          method: 'POST',
+          keepalive: true,
+          headers: {
+            'Content-Type': 'application/json',
+            apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
+            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          },
+          body: JSON.stringify({ action: 'track', token, event, detail: detail || '' }),
+        }).catch(() => { /* מעקב בלבד */ });
+      } catch { /* מעקב בלבד */ }
+    },
     navigate(url) { window.location.href = url; },
     spouse: {
       async handoff() {
@@ -331,6 +351,7 @@ export default function PublicSignPage({ token }: { token: string }) {
         // ‼ הלקוח לא רואה את הטקסט הטכני: הוא לרוב באנגלית, לא אומר לו כלום,
         //   ולפעמים חושף פרטי שרת. הפירוט נשאר ב-console לצורך אבחון.
         console.error('[PublicSignPage] טעינת המסמך נכשלה', e);
+        actions.track('page_error', String((e as Error)?.message || e));
         setLoaded({ kind: 'error', message: 'לא הצלחנו לטעון את המסמך. נסו לרענן את הדף, ואם זה חוזר - פנו למשרד.' });
       }
     })();
@@ -384,6 +405,16 @@ export function PublicSignView(props: PublicSignViewProps) {
     const t = setTimeout(() => setSimNote(false), 9000);
     return () => clearTimeout(t);
   }, [simNote]);
+
+  // יציאה מהדף באמצע החתימה — הרגע שבו לקוח מוותר. נרשם עם המקום שבו עמד.
+  const phaseRef = useRef(phase);
+  phaseRef.current = phase;
+  useEffect(() => {
+    if (sample) return;
+    const onHide = () => actions.track('leave', `phase=${phaseRef.current}`);
+    window.addEventListener('pagehide', onHide);
+    return () => window.removeEventListener('pagehide', onHide);
+  }, [sample, actions]);
 
   /** רשימת המסמכים, עם נפילה-לאחור לשרת שעוד לא מכיר ריבוי טפסים. */
   function docsOf(sess: Session) {
@@ -509,7 +540,11 @@ export function PublicSignView(props: PublicSignViewProps) {
           : `✍ חתימה על ייפוי כוח - ${session.signerName}`}
         completeLabel={many && docIndex < list.length - 1 ? 'המשך לטופס הבא' : undefined}
         onComplete={handleComplete}
-        onCancel={() => (sample ? setRoomKey(k => k + 1) : actions.restart())}
+        // ‼ בקישור האמיתי אין «ביטול»: הוא טען את הדף מחדש ומחק את מה שנחתם, ולקוחה
+        // נכנסה תשע פעמים בשבע דקות בלי להגיע לשליחה (23.10.2026). יוצאים בסגירת הדף.
+        onCancel={sample ? () => setRoomKey(k => k + 1) : undefined}
+        onRetry={() => actions.restart()}
+        onEvent={sample ? undefined : (e, d) => actions.track(e, d)}
       />
       {/* ‼ הכפתור «סיום וחתימה» חי בתוך חדר החתימה, ולכן המשפט עומד מעל תחתיתו —
           לא בתוך הפקד. לחיצה עליו סוגרת אותו. */}
