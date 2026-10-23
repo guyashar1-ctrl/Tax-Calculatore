@@ -2,11 +2,12 @@ import { useEffect, useId, useRef, useState } from 'react';
 import { paperlessAnswersPending, type PaperlessAnswers } from './paperlessAnswers';
 import './paperlessQuestions.css';
 
-export default function PaperlessQuestions({ answers, onSave, client = false, readOnly = false }: {
+export default function PaperlessQuestions({ answers, onSave, client = false, readOnly = false, clientCompletesMissing = true }: {
   answers: PaperlessAnswers;
   onSave: (next: PaperlessAnswers, expected: PaperlessAnswers) => Promise<{ ok: boolean; error?: string; simulated?: boolean }>;
   client?: boolean;
   readOnly?: boolean;
+  clientCompletesMissing?: boolean;
 }) {
   const id = useId();
   const [saved, setSaved] = useState(answers);
@@ -76,7 +77,9 @@ export default function PaperlessQuestions({ answers, onSave, client = false, re
     </div>}
     <div className="plq-foot" aria-live="polite">
       {error ? <span role="alert" className="plq-error">{error}</span>
-        : busy ? 'שומר…' : !client && pending ? 'לא חייבים למלא כאן — הלקוח ישלים את החסר בדף האישי.'
+        : busy ? 'שומר…' : !client && pending ? (clientCompletesMissing
+          ? 'לא חייבים למלא כאן — הלקוח ישלים את החסר בדף האישי.'
+          : 'התהליך הושלם. אפשר לעדכן כאן פרטים בעת הצורך.')
         : message === 'נשמר' && pending ? '' : message}
     </div>
   </div>;

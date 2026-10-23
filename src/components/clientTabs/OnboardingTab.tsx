@@ -1090,7 +1090,9 @@ export default function OnboardingTab({
   // כרטיס הפייפרלס צריך לקרוא אותו — לא רק לכתוב אליו.
   const retainerStep = stepForCurrentWork(clientSteps, 'retainer_authorization', clientEngagements[0]?.id);
   const questionStepId = paperlessSteps.find(s => s.stepType === 'paperless_invite' && isStepOpen(s.status))?.id
-    ?? paperlessSteps.find(s => s.stepType === 'paperless_connection' && isStepOpen(s.status))?.id;
+    ?? paperlessSteps.find(s => s.stepType === 'paperless_connection' && isStepOpen(s.status))?.id
+    ?? paperlessSteps.find(s => s.stepType === 'paperless_invite' && s.status !== 'cancelled')?.id
+    ?? paperlessSteps.find(s => s.stepType === 'paperless_connection' && s.status !== 'cancelled')?.id;
   async function savePaperlessAnswers(next: PaperlessAnswers, expected: PaperlessAnswers) {
     const { data, error } = await supabase.rpc('save_paperless_answers', {
       p_client_id: clientId, p_answers: next, p_expected: expected,
@@ -4427,7 +4429,7 @@ function PaperlessStepCard(p: PaperlessCardProps) {
   return (
     <StepCardShell step={step} stepById={stepById} highlight={highlight} menu={p.menu}>
       {p.showQuestions && <div style={{ marginTop: '.6rem', marginBottom: '.8rem' }}>
-        <PaperlessQuestions answers={answers} onSave={p.onAnswersSave} />
+        <PaperlessQuestions answers={answers} onSave={p.onAnswersSave} clientCompletesMissing={open} />
       </div>}
           {isInvite ? (p.showQuestions && paperlessAnswersPending(answers) ? null : (
             <InviteBody path={path} status={step.status} questionsPending={paperlessAnswersPending(answers)} awaitingPublish={!!awaitingPublish?.has(step.id)} step={step} client={p.client} />
