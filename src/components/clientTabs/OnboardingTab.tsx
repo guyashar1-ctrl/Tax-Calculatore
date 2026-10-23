@@ -26,7 +26,7 @@ import type { Quotation, QuotationItem } from '../../types/quotations';
 import { REP_AUTHORITY_LABELS, REPRESENTATION_STATUS_LABELS, NI_APPROVAL_PHONE, NI_EXTERNAL_STATE_LABELS } from '../../types';
 import PaperlessQuestions from '../../features/requests/PaperlessQuestions';
 import { paperlessAnswers, paperlessAnswersPending, paperlessAnswerError, type PaperlessAnswers } from '../../features/requests/paperlessAnswers';
-import { paperlessKindOf } from '../../features/taxFile/editModel';
+import { cardDealerKind, dealerKindLabel } from '../../features/taxFile/editModel';
 import type { AdvanceResult } from '../../hooks/useOnboarding';
 import InstitutionAlignmentGroup, { InstitutionFocus } from './InstitutionAlignment';
 import { nextActionText, nextStepForClient } from '../../utils/onboardingNext';
@@ -4594,23 +4594,16 @@ function InviteBody({ path, status, questionsPending, awaitingPublish, step, cli
     );
   }
   const waiting = status === 'waiting_client' || status === 'pending';
-  // ‼ 260 · אותו כלל כמו 'paperlessKind' בדף: מה כתוב ללקוח לבחור ב«סוג עסק» בפייפרלס (שם ברירת המחדל «מורשה»).
-  const plKind = paperlessKindOf(client);
+  const dealerLabel = dealerKindLabel(cardDealerKind(client));
+  if (waiting) return (
+    <div data-testid="pl-kind-office" style={{ ...cardNote, ...(!dealerLabel ? { color: 'var(--warn)' } : {}) }}>
+      סוג העוסק: {dealerLabel ?? 'טרם נקבע'}
+    </div>
+  );
+  // Preserve who reported registration; this is a declaration, not a Paperless check.
   return (
     <div style={cardNote}>
-      {waiting
-        ? (awaitingPublish
-          ? 'קישור ההרשמה יופיע ללקוח בדף האישי אחרי «פרסם בדף», יחד עם כפתור «נרשמתי לפייפרלס». ברגע שילחץ, שלב החיבור ייפתח אצלך מעצמו.'
-          : 'קישור ההרשמה מופיע ללקוח בדף האישי, יחד עם כפתור «נרשמתי לפייפרלס». ברגע שילחץ, שלב החיבור ייפתח אצלך מעצמו.')
-        /* ‼ 05.10: לא «הלקוח נרשם» כשמי שסימן הוא המשרד — על מה זה נשען, ומתי. אין
-           אינטגרציה עם פייפרלס: זו הצהרה של הלקוח או של המשרד, לא בדיקה. */
-        : `${paperlessSignupEvidence(step).detail} אפשר להיכנס לחשבון ולהשלים את ההקמה.`}
-      {waiting && (plKind
-        ? <div data-testid="pl-kind-office">בדף כתוב לו לבחור ב«סוג עסק»: «{plKind}».</div>
-        : <div data-testid="pl-kind-office" style={{ color: 'var(--warn)' }}>
-            ⚠ סוג העוסק לא נקבע בכרטיס, ולכן בדף לא כתוב ללקוח מה לבחור ב«סוג עסק» בפייפרלס (שם ברירת המחדל «מורשה»).
-            קובעים אותו בתיק המס ← «פרטי הנישום».
-          </div>)}
+      {paperlessSignupEvidence(step).detail} אפשר להיכנס לחשבון ולהשלים את ההקמה.
     </div>
   );
 }
