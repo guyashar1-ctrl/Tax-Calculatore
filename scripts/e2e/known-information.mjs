@@ -8,11 +8,12 @@ const { chromium } = createRequire(process.env.PW_CORE ?? 'C:/Users/guyas/Deskto
 const env = await prepare();
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
 const shots = resolve('../known-information-evidence'); mkdirSync(shots, { recursive: true });
+const widths = (process.argv.find(a => a.startsWith('--widths='))?.slice('--widths='.length) ?? '1280,390,360').split(',').map(Number);
 const lit = v => `$known$${typeof v === 'string' ? v : JSON.stringify(v)}$known$`;
 let passed = 0;
 const ok = (b, message) => { if (!b) throw new Error(message); passed++; console.log(`✓ ${message}`); };
 try {
-  for (const width of [1280, 390, 360]) {
+  for (const width of widths) {
     const id = env.clientId;
     await env.sql(`update public.clients set employers='[]', ni_occupations='[
       {"id":"n1","type":"employee","employerName":"המעסיק מביטוח לאומי","fromDate":"2020-03-01","toDate":"2025-08-31"},
@@ -53,11 +54,19 @@ try {
     await flow.locator('[data-confirm="salary.employerDetails"]').first().getByRole('button', { name: 'נכון', exact: true }).click();
     await flow.getByRole('button', { name: 'עבודה: נכון — לפתוח שוב', exact: true }).first().click();
     ok(await flow.getAttribute('data-screen') === 'confirmAll' && await flow.locator('.rec-field').count() === 0, `${width}: reopening one approved row keeps the confirmation screen`);
+    const clientRow = flow.locator('[data-confirm="salary.employerDetails"]').first();
+    await clientRow.getByRole('button', { name: 'הוספת מעסיק · דוד', exact: true }).click();
+    const employerCards = clientRow.locator('.rec-card');
+    ok(await employerCards.count() === 2 && await employerCards.first().locator('input').first().inputValue() === 'המעסיק מביטוח לאומי', `${width}: direct add preserves known employer`);
+    await employerCards.last().locator('input').first().fill('מעסיק נוסף לדוד');
+    await employerCards.last().locator('select').first().selectOption('unknown');
+    ok(await employerCards.last().locator('select').last().inputValue() === 'unknown', `${width}: new employer has no assumed employment end`);
+    await clientRow.locator('.ty-seg').getByRole('button', { name: 'נכון', exact: true }).click();
     await flow.getByRole('button', { name: 'הכול נכון, ממשיכים', exact: true }).click();
     await flow.locator('[data-annual-send]').waitFor();
     await page.waitForTimeout(1300);
     const saved = (await env.sql(`select saved_draft from public.tax_info_asks where step_id='${step}' and item_key='annual.whatHappened'`))[0].saved_draft;
-    ok(JSON.stringify(saved).includes('המעסיק מביטוח לאומי') && JSON.stringify(saved).includes('המעסיק של רחל'), `${width}: grouped approval saves actual values`);
+    ok(JSON.stringify(saved).includes('המעסיק מביטוח לאומי') && JSON.stringify(saved).includes('המעסיק של רחל') && JSON.stringify(saved).includes('מעסיק נוסף לדוד'), `${width}: grouped approval saves actual values including added employer`);
     // Change the source after approval. A reload must retain the confirmed snapshot.
     await env.sql(`update public.clients set ni_occupations='[]',spouse_ni_occupations='[]' where id='${id}'`);
     await page.reload({ waitUntil: 'domcontentloaded' });
@@ -69,7 +78,7 @@ try {
     await flow.locator('[data-annual-send]').click();
     await page.locator('.ty-flow[data-finish]').waitFor({ timeout: 30000 });
     const facts = await env.sql(`select value,status from public.tax_year_facts where client_id='${id}' and request_id='${parent}' and item_key='salary.employerDetails'`);
-    ok(facts.length === 2 && facts.every(f => f.status === 'pending') && JSON.stringify(facts).includes('המעסיק מביטוח לאומי'), `${width}: displayed records reach office as pending facts`);
+    ok(facts.length === 2 && facts.every(f => f.status === 'pending') && JSON.stringify(facts).includes('המעסיק מביטוח לאומי') && JSON.stringify(facts).includes('מעסיק נוסף לדוד'), `${width}: displayed records including added employer reach office as pending facts`);
     ok(!blocked.length && !errors.length, `${width}: no production requests or browser exceptions`);
     await env.sql(`update public.onboarding_steps set status='cancelled' where id='${parent}'`);
     await ctx.close();

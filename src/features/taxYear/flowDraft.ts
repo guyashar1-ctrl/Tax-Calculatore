@@ -9,7 +9,7 @@
 import type { InfoAsk, MultiFollowUp, AskPrompt } from './types';
 import { buildScreens, checklists, screenAsks, STUDIES_KEY, type Screen } from './screens';
 import { onYesFor, onChangedFor, onValueFor, type AskAnswer } from './asks';
-import { answerValid, schemaFor, type RecordAnswer } from './records';
+import { answerValid, emptyRecordFor, schemaFor, type RecordAnswer } from './records';
 import { cleanEntity, entityValid, type EntityItem } from './entities';
 import type { UnavailableCode } from './types';
 import { UNAVAILABLE_LABEL } from './asks';
@@ -29,6 +29,16 @@ export function confirmedDraft(ask: InfoAsk, d: Draft = {}): Draft {
   const input = ask.prompt.input;
   return input.kind === 'record' ? { ...d, choice: 'yes', confirmedKnown: true, record: d.record ?? { items: (input.initial ?? []) as RecordAnswer['items'] } }
     : { ...d, choice: 'yes', text: undefined, record: undefined };
+}
+
+/** Append to the person's known list, keeping every existing row and edit. */
+export function addedEmployerDraft(ask: InfoAsk, d: Draft = {}): Draft {
+  const input = ask.prompt.input;
+  const edit = input.kind === 'confirm' ? input.edit : input.kind === 'record' ? input : undefined;
+  if (edit?.schema !== 'employer') return d;
+  const base = d.record?.items ?? edit.initial ?? [];
+  return { ...d, choice: 'changed', confirmedKnown: false,
+    record: { items: [...base, emptyRecordFor(schemaFor('employer', undefined, edit.context))], none: false } };
 }
 
 const VIRTUAL = 'v:';

@@ -460,6 +460,13 @@ export function schemaFor(id: RecordSchemaId, c?: Client, ctx?: Record<string, s
 
 // ── בדיקה ──────────────────────────────────────────────────────────────────────
 
+/** Defaults for a genuinely new row; absence of an end date is not a statement
+ * that the person still works there. */
+export function emptyRecordFor(schema: RecordSchema): RecordValue {
+  return { ...Object.fromEntries(schema.fields.filter(f => f.type === 'choice' && f.key === 'foreign').map(f => [f.key, 'no'])),
+    ...(schema.id === 'employer' && schema.fields.some(f => f.type === 'monthIn') ? { endDate: { precision: 'unknown' } } : {}) };
+}
+
 const HEBREW_OK = /^[֐-׿0-9\s"'׳״\-.,()/]+$/;
 
 export interface BankDirectory {

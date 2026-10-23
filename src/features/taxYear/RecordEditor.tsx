@@ -10,7 +10,7 @@ import type { RecordSchemaId } from './types';
 import type { DatedValue } from './temporal';
 import AddressFields from '../../components/ui/AddressFields';
 import { composeAddress, splitAddress } from '../../utils/ilAddress';
-import { PRECISION_LABEL, monthInKey, schemaFor, validateRecord, type BankDirectory, type RecordAnswer, type RecordField, type RecordValue } from './records';
+import { PRECISION_LABEL, emptyRecordFor, monthInKey, schemaFor, validateRecord, type BankDirectory, type RecordAnswer, type RecordField, type RecordValue } from './records';
 
 const ADDRESS_KEYS = new Set(['city', 'street', 'houseNumber', 'apartment']);
 
@@ -34,13 +34,10 @@ interface Props {
   disabled?: boolean;
 }
 
-const emptyFor = (fields: RecordField[]): RecordValue =>
-  Object.fromEntries(fields.filter(f => f.type === 'choice' && f.key === 'foreign').map(f => [f.key, 'no']));
-
 export default function RecordEditor({ schemaId, client, context, value, onChange, showErrors, disabled }: Props) {
   const schema = useMemo(() => schemaFor(schemaId, client, context), [schemaId, client, context]);
   const uid = useId();
-  const items = value.items.length || value.none ? value.items : [emptyFor(schema.fields)];
+  const items = value.items.length || value.none ? value.items : [emptyRecordFor(schema)];
   const [dir, setDir] = useState<BankDirectory | null>(null);
   const needsDir = schema.fields.some(f => f.type === 'bank' || f.type === 'branch');
   useEffect(() => { if (needsDir) void loadBankDirectory().then(setDir); }, [needsDir]);
@@ -50,14 +47,14 @@ export default function RecordEditor({ schemaId, client, context, value, onChang
     onChange({ items: next, none: false });
   };
   const remove = (i: number) => onChange({ items: items.filter((_, k) => k !== i), none: false });
-  const add = () => onChange({ items: [...items, emptyFor(schema.fields)], none: false });
+  const add = () => onChange({ items: [...items, emptyRecordFor(schema)], none: false });
 
   return (
     <div className="rec" data-record={schemaId}>
       {schema.noneLabel && (
         <div className="ty-choices" role="group" aria-label="יש או אין">
           <button type="button" className="ty-choice" aria-pressed={!!value.none} disabled={disabled}
-            onClick={() => onChange(value.none ? { items: [emptyFor(schema.fields)] } : { items: [], none: true })}>{schema.noneLabel}</button>
+            onClick={() => onChange(value.none ? { items: [emptyRecordFor(schema)] } : { items: [], none: true })}>{schema.noneLabel}</button>
         </div>
       )}
       {!value.none && items.map((r, i) => {

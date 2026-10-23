@@ -18,7 +18,7 @@ import { ANNUAL_GRIDS, UNAVAILABLE_LABEL, type AskAnswer } from './asks';
 import type { InfoAsk } from './types';
 import { checklistParent, screenAsks, sortAsks, type Screen } from './screens';
 import { CHECKLIST_LABEL, CHECKLIST_TITLE } from './catalog';
-import { askIdentity, confirmedDraft, draftToAnswer, expandWithDrafts, inlineOf, isVirtual, readyToSend, shownDraft, walkScreens, type Draft } from './flowDraft';
+import { addedEmployerDraft, askIdentity, confirmedDraft, draftToAnswer, expandWithDrafts, inlineOf, isVirtual, readyToSend, shownDraft, walkScreens, type Draft } from './flowDraft';
 import { cleanRecord, schemaFor, type RecordAnswer } from './records';
 import RecordEditor, { loadBankDirectory } from './RecordEditor';
 import { EntityEditor } from './TaxInfoFlow';
@@ -473,23 +473,34 @@ function KnownRow({ ask, drafts, putDrafts, inline, bad, preview }: {
   const value = rowValue(ask, d);
   const label = rowLabel(ask);
   const who = ask.prompt.subjectName;
+  const rowRef = useRef<HTMLLIElement>(null);
+  const input = ask.prompt.input;
+  const set = (p: Draft) => putDrafts({ [id]: { ...d, ...p } });
+  const edit = input.kind === 'confirm' ? input.edit : input.kind === 'record' ? { schema: input.schema, initial: input.initial, context: input.context } : undefined;
+  const addEmployer = edit?.schema === 'employer' ? (
+    <button type="button" className="rec-add" aria-label={`הוספת מעסיק${who ? ` · ${who}` : ''}`} onClick={() => {
+      set(addedEmployerDraft(ask, d));
+      window.requestAnimationFrame(() => {
+        const cards = rowRef.current?.querySelectorAll('.rec-card');
+        if (cards?.length) cards[cards.length - 1].querySelector<HTMLElement>('input,select')?.focus();
+      });
+    }}>＋ הוספת מעסיק</button>
+  ) : null;
   if (ask.state !== 'published') {
     return <li className="ty-krow is-done" data-confirm={ask.itemKey}><span className="ty-krow-tick" aria-hidden="true">✓</span><span className="ty-krow-t"><b>{label}</b>נשלח קודם</span></li>;
   }
   // ‼ «נכון» — השורה מתקפלת ל-✓ (טאפ פותח שוב)
   if (d.choice === 'yes') {
     return (
-      <li data-confirm={ask.itemKey}>
+      <li ref={rowRef} data-confirm={ask.itemKey}>
         <button type="button" className="ty-krow is-done" onClick={() => putDrafts({ [id]: { ...d, choice: undefined } })} aria-label={`${label}: נכון — לפתוח שוב`}>
           <span className="ty-krow-tick" aria-hidden="true">✓</span>
           <span className="ty-krow-t"><b>{label}{who ? ` · ${who}` : ''}</b>{value.join(' · ')}</span>
         </button>
+        {addEmployer}
       </li>
     );
   }
-  const input = ask.prompt.input;
-  const set = (p: Draft) => putDrafts({ [id]: { ...d, ...p } });
-  const edit = input.kind === 'confirm' ? input.edit : input.kind === 'record' ? { schema: input.schema, initial: input.initial, context: input.context } : undefined;
   const rec: RecordAnswer = d.record ?? { items: ((edit?.initial ?? []) as RecordAnswer['items']) };
   // ‼ בחירה בתוך השורה (המשפחה / הילדים): הבחירה שלה, וגם טקסט השינוי של השורה עצמה — שמות מה שנבחר
   const pickInline = (x: InfoAsk, key: string) => {
@@ -512,13 +523,14 @@ function KnownRow({ ask, drafts, putDrafts, inline, bad, preview }: {
   const kid = (rec.items[rec.items.length - 1] ?? {}) as Record<string, string>;
   const setKid = (patch: Record<string, string>) => set({ record: { items: [...rec.items.slice(0, -1), { ...kid, ...patch }] } });
   return (
-    <li className={`ty-krow-card${bad ? ' is-bad' : ''}`} data-confirm={ask.itemKey}>
+    <li ref={rowRef} className={`ty-krow-card${bad ? ' is-bad' : ''}`} data-confirm={ask.itemKey}>
       <div className="ty-krow-l">{label}{who && <span className="ty-who">{who}</span>}</div>
       <div className="ty-krow-v">{value.length ? value.map((l, k) => <span key={k}>{l}</span>) : <span>אין אצלנו פרטים</span>}</div>
       <div className="ty-seg" role="group" aria-label={`${label}: נכון או השתנה`}>
         <button type="button" aria-pressed={false} onClick={() => set(confirmedDraft(ask, d))}>נכון</button>
         <button type="button" aria-pressed={d.choice === 'changed'} onClick={() => set({ choice: 'changed' })}>{CHANGE_LABEL[ask.itemKey] ?? 'השתנה'}</button>
       </div>
+      {d.choice !== 'changed' && addEmployer}
       {d.choice === 'changed' && (
         <div className="ty-krow-sub">
           {inline.map(x => x.prompt.input.kind === 'multi' && (

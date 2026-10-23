@@ -2,7 +2,7 @@ import { test, equal, assert, type TestCase } from '../../../testkit/tinyTest';
 import type { Client } from '../../../types';
 import type { InfoAsk } from '../types';
 import { prefillOpenAsks } from '../knownPrefill';
-import { confirmedDraft, draftToAnswer } from '../flowDraft';
+import { addedEmployerDraft, confirmedDraft, draftToAnswer } from '../flowDraft';
 
 const c = { id: 'c', firstName: 'ישראל', familyStatus: 'single', employers: [],
   niOccupations: [{ id: 'ni1', type: 'employee', employerName: 'משרד לדוגמה', fromDate: '2020-03-01', toDate: '2025-08-31' }] } as unknown as Client;
@@ -11,6 +11,25 @@ const ask = (extra: Partial<InfoAsk> = {}): InfoAsk => ({ id: 'a', clientId: 'c'
   prompt: { title: 'איפה עבדת ב-2025?', why: '', input: { kind: 'record', schema: 'employer', context: { taxYear: '2025' } } },
   ...extra } as InfoAsk);
 export const TESTS: TestCase[] = [
+  test('adding a missing employer preserves known rows and asks only for the new record', () => {
+    const [a] = prefillOpenAsks([ask()], c, 'annual', 2025);
+    const original = confirmedDraft(a);
+    const added = addedEmployerDraft(a, original);
+    equal(added.record?.items.length, 2);
+    equal(added.record?.items[0].name, 'משרד לדוגמה');
+    equal(added.record?.items[1].name, undefined);
+    equal((added.record?.items[1].endDate as { precision: string }).precision, 'unknown');
+    equal(draftToAnswer(a, added), null, 'an empty added employer must be completed');
+    const filled = { ...added, record: { items: [...added.record!.items.slice(0, 1), { name: 'מעסיק נוסף', startDate: { precision: 'unknown' }, endDate: { precision: 'unknown' } }] } };
+    const answer = draftToAnswer(a, filled);
+    assert(answer?.kind === 'record' && JSON.stringify(answer.value).includes('מעסיק נוסף') && JSON.stringify(answer.value).includes('משרד לדוגמה'), 'known and additional employers are sent together');
+    equal(original.record?.items.length, 1, 'existing draft is not mutated');
+    assert(a.prompt.input.kind === 'record', 'known employer record');
+    const confirmation: InfoAsk = { ...a, prompt: { ...a.prompt, input: { kind: 'confirm', lines: ['משרד לדוגמה'],
+      edit: { schema: 'employer', initial: a.prompt.input.initial, context: a.prompt.input.context } } } };
+    const changed = draftToAnswer(confirmation, { ...addedEmployerDraft(confirmation), record: filled.record });
+    assert(changed?.kind === 'record' && changed.assertion === 'changed', 'addition also works for card confirmation questions');
+  }),
   test('an already published blank question receives known records and submits the displayed values', () => {
     const original = ask();
     const [a] = prefillOpenAsks([original], c, 'annual', 2025);
