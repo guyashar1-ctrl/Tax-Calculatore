@@ -175,12 +175,14 @@ export default function TaxYearProcess({ client, step, infoStep, onClose, onChan
 
   // ‼ 236 · עדכון הכרטיס מתשובה מאושרת: הצעה שמוחלת מיד (apply_tax_facts) — עם הערך הקודם, המקור וההיסטוריה.
   //   הכרטיס השתנה בינתיים ⇒ ההצעה נשארת ממתינה בתיק המס, לא נדרסת.
-  const applyCard = async (items: ProposedFact[], sourceRef: string): Promise<{ ok: boolean; error?: string }> => {
+  const applyCard = async (items: ProposedFact[], sourceRef: string): Promise<{ ok: boolean; error?: string; client?: Client }> => {
     const r = await applyTaxFacts(client.id, 'questionnaire', sourceRef, items);
     if (!r.ok) return { ok: false, error: r.error ?? 'apply_failed' };
-    if (r.client && onClientPersisted) onClientPersisted(clientFromDb(r.client));
+    const fresh = r.client ? clientFromDb(r.client) : undefined;
+    if (fresh && onClientPersisted) onClientPersisted(fresh);
     if ((r.pending ?? 0) > 0) return { ok: false, error: 'card_changed_meanwhile' };
-    return { ok: true };
+    // ‼ 290 · הכרטיס אחרי העדכון — כדי שעדכון שני של אותו שדה (פרטי בן/בת הזוג) ייבנה עליו ולא ייחשב «השתנה בינתיים»
+    return { ok: true, client: fresh };
   };
 
   // ‼ «החזר ללקוח לתיקון»: התשובה (או המסמך) נדחית עם ההערה ונשארת בהיסטוריה; אותה שאלה נוספת שוב
@@ -523,7 +525,7 @@ const count = (n: number, one: string, many: string) => (n === 1 ? one : `${n} $
 
 type ReturnFrom = Parameters<typeof correctionAsk>[0];
 
-type ApplyCard = (items: ProposedFact[], sourceRef: string) => Promise<{ ok: boolean; error?: string }>;
+type ApplyCard = (items: ProposedFact[], sourceRef: string) => Promise<{ ok: boolean; error?: string; client?: Client }>;
 
 function ReviewPanel({ client, review, notSure, busy, run, evidence, onReturn, applyCard }: {
   onReturn: (from: ReturnFrom, note: string) => Promise<boolean>;

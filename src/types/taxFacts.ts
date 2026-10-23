@@ -110,6 +110,8 @@ export const GOVERNED_FACT_KEYS: ReadonlySet<string> = new Set([
   'city', 'address', 'zipCode',
   // ── 288 — חודש השחרור, חודשי השירות, מזונות לבן/בת זוג לשעבר, ופרטי הזיכוי של בן/בת הזוג (מיזוג לתוך spouse) ──
   'idfReleaseMonth', 'serviceMonths', 'paysAlimonyToEx', 'spouse',
+  // ── 290 — חודש העלייה (עמודה חדשה) ושנת החזרה לארץ (העמודה קיימת; עד עכשיו בלי ענף) — מהשאלון, באישור המשרד ──
+  'aliyahMonth', 'returningYear',
 ]);
 
 export const GOVERNED_FIELD_LABELS: Record<string, string> = {
@@ -118,6 +120,7 @@ export const GOVERNED_FIELD_LABELS: Record<string, string> = {
   city: 'יישוב', address: 'כתובת', zipCode: 'מיקוד',
   idfReleaseMonth: 'חודש השחרור', serviceMonths: 'חודשי שירות', paysAlimonyToEx: 'מזונות לבן/בת זוג לשעבר', spouse: 'פרטי בן/בת הזוג',
   isReturningResident: 'תושב חוזר', disabilityPercentage: 'אחוז נכות',
+  aliyahMonth: 'חודש העלייה', returningYear: 'שנת החזרה לארץ',
   hasAcademicDegree: 'תואר אקדמי', academicDegreeYear: 'שנת קבלת התואר',
   completedIdf: 'שירות צבאי', idfReleaseYear: 'שנת שחרור',
   completedNationalService: 'שירות לאומי', nationalServiceYear: 'שנת סיום שירות לאומי',

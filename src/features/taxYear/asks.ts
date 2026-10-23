@@ -15,7 +15,7 @@ import type { LastYearHints } from './priorReturn';
 import { cleanEntity, entityValid, visibleFields, type EntityItem } from './entities';
 import { hintFor } from './hints';
 import { RECORD_OF, isPeriodItem, dealerOf } from './structured';
-import { initialFromCard, answerValid, schemaFor } from './records';
+import { initialFromCard, answerValid, schemaFor, kidsContext } from './records';
 import { periodOfRequest, periodWords, propertySpan, accountSpan, spanText } from './temporal';
 import { DEALER_KIND_LABELS } from '../taxFile/editModel';
 import { familyStatusEventYear } from '../../utils/familyStatusYear';
@@ -196,7 +196,8 @@ function promptForRaw(s: ItemStatus, ctx: AskCtx): AskPrompt {
   const fill = (t: string) => fillTemplate(t, c, s.subjectRole)
     .split('{year}').join(String(ctx.taxYear)).split('{spouse}').join(c.spouseFirstName || c.spouse?.firstName || 'בן/בת הזוג')
     .split('{entity}').join(s.entityLabel ?? '')
-    .split('{since}').join(s.entityLabel ? `סוף ${s.entityLabel}` : 'ההערכה');
+    .split('{since}').join(s.entityLabel ? `סוף ${s.entityLabel}` : 'ההערכה')
+    .split('{prevYear}').join(String(ctx.taxYear - 1));
   // ‼ הצהרת המשך: «מה השתנה מאז» במקום השאלה המלאה, ומה שידוע מההצהרה הקודמת בתחום
   const followup = ctx.purpose === 'wealth' && ctx.declKind === 'followup';
   const qText = (followup && it.followupQuestion) || it.question;
@@ -215,7 +216,9 @@ function promptForRaw(s: ItemStatus, ctx: AskCtx): AskPrompt {
   // ‼ בדף האישי אין כרטיס — שמות בני הזוג (לבחירת «על שם מי») נשמרים בשאלה עצמה
   const people: Record<string, string> = { clientName: c.firstName || 'אני', ...(c.familyStatus === 'married' ? { spouseName: c.spouseFirstName || c.spouse?.firstName || 'בן/בת הזוג', married: '1' } : {}),
     // ‼ 20.10.2026 · מעסיק בדוח השנתי: חודשים בתוך השנה בלבד (records.ts › 'monthIn')
-    ...(ctx.purpose === 'annual' && (schema === 'employer' || schema === 'studies') ? { taxYear: String(ctx.taxYear) } : {}) };
+    ...(ctx.purpose === 'annual' && (schema === 'employer' || schema === 'studies' || schema === 'aliyah' || schema === 'disability') ? { taxYear: String(ctx.taxYear) } : {}),
+    // ‼ 290 · בחירת ילד (ילד עם מוגבלות, מזונות ילדים) — הילדים שבתיק נשמרים בשאלה עצמה
+    ...(schema === 'childDisability' || schema === 'childSupport' ? { kids: kidsContext(c) } : {}) };
   if (it.kind === 'confirm' || (s.state === 'fromCard' && it.cardKeys)) {
     const lines = cardLines(it, c, s);
     // ‼ בכרטיס אין כלום לאשר — שאלה מובנית (רשומה: ילדים, חשבון בנק; או בחירה) במקום «אין אצלנו פרטים»
@@ -248,7 +251,9 @@ function promptForRaw(s: ItemStatus, ctx: AskCtx): AskPrompt {
     // ‼ 13.10.2026 (גיא): בתיק ידוע שהאדם רשום כעוסק אבל העסק עצמו לא רשום — מציגים את מה שידוע ומבקשים להשלים
     const dealer = it.key === 'intake.businessDetails' ? dealerOf(c, role) : null;
     const lead = dealer ? `רשום/ה אצלנו כ${DEALER_KIND_LABELS[dealer]}. ` : '';
-    const initial = dealer ? [{ dealer: dealer === 'licensed' ? 'murshe' : dealer === 'exempt' ? 'patur' : dealer === 'company' ? 'company' : '' }] : undefined;
+    // ‼ 290 · עלייה ונכות: מה שבתיק — ממולא (לאישור או לתיקון), לא נשאל מאפס
+    const card = schema === 'aliyah' || schema === 'disability' || schema === 'spouseBasics' || schema === 'reserveDays' ? initialFromCard(schema, c, role) : [];
+    const initial = dealer ? [{ dealer: dealer === 'licensed' ? 'murshe' : dealer === 'exempt' ? 'patur' : dealer === 'company' ? 'company' : '' }] : card.length ? card : undefined;
     return { ...base, title: `${lead}${fillP(qText ?? it.label)}`, input: { kind: 'record', schema, ...(initial ? { initial } : {}), ...(Object.keys(context).length ? { context } : {}) } };
   }
   if (it.input === 'amount') return { ...base, title: fillP(qText ?? it.label), input: { kind: 'amount' } };
@@ -358,17 +363,20 @@ const GRID_ORDER = ['intake.employed', 'intake.selfEmployed', 'intake.rents', 'i
 // ‼ 21.10.2026 · סבב 2: לפי שכיחות (ביקורת החוויה) — כסף שנכנס, ואחריו מה שמוריד מס
 const ANNUAL_ORDER = ['salary.worked', 'niBenefits.received', 'pension.received', 'rent.newRental', 'capital.newAccount', 'salary.equity', 'savings.withdrawal',
   'business.started', 'foreign.income', 'sales.sold', 'income.other',
-  'donations.given', 'savings.selfDeposits', 'savings.insurance', 'household.creditChanges', 'special.disability', 'household.aliyah', 'household.relativeCare'];
+  'donations.given', 'savings.selfDeposits', 'savings.insurance', 'household.creditChanges', 'special.disability', 'household.aliyah', 'household.relativeCare', 'household.alimonyPaid', 'household.reserveDuty'];
 /** מה נפתח מיד כשמסמנים אריח בדוח השנתי. מסמך לישות שאינה בתיק — עם המזהה הזמני (כמו בהיכרות). */
 export const ANNUAL_FOLLOW: Record<string, string[]> = {
   'household.familyChange': ['household.familyEvent'],
   'salary.worked': ['salary.form106'], 'salary.equity': ['salary.equityDocs'], 'pension.received': ['pension.certs'], 'niBenefits.received': [] /* 20.10.2026 · niKindsAsks; האישור — המשרד */,
   'rent.newRental': ['rent.contract'], 'rent.otherProperty': ['rent.otherPropertyDocs'], 'capital.newAccount': ['capital.form867'],
   'savings.selfDeposits': ['savings.fundCerts'], 'savings.insurance': ['savings.insuranceCert'], 'donations.given': ['donations.receipts'],
-  'special.disability': ['special.disabilityCert'], 'household.creditChanges': [] /* 21.10.2026 · studiesAsk — מסך «לימודים וצבא» */,
+  // ‼ 290 · נכות ועלייה: קודם הפרטים לכרטיס (אחוז וממתי · מעמד, חודש ושנה), ואחר כך המסמך
+  'special.disability': ['special.disabilityDetails', 'special.disabilityCert'], 'household.creditChanges': [] /* 21.10.2026 · studiesAsk — מסך «לימודים וצבא» */,
   'foreign.income': ['foreign.statements'], 'sales.sold': ['sales.docs'],
   'savings.withdrawal': ['savings.withdrawalDocs'], 'business.started': ['business.startedDocs'],
-  'household.aliyah': ['household.aliyahDocs'], 'household.relativeCare': ['household.relativeCareDocs'],
+  'household.aliyah': ['household.aliyahDetails', 'household.aliyahDocs'], 'household.relativeCare': ['household.relativeCareDocs'],
+  // ‼ 290 · מילואים כלוחם/ת ⇒ כמה ימים (לכרטיס) ואז האישור מצה״ל
+  'household.reserveDuty': ['household.reserveDays', 'household.reserveDocs'],
 };
 /** כותרת למסמך שנפתח מהרשת לישות שעוד אין לה שם — «מכל מעסיק», לא «מהמעסיק החדש». */
 const GRID_DOC_TITLE: Record<string, string> = {
@@ -389,7 +397,8 @@ const spouseNameOf = (c: Client) => c.spouseFirstName || c.spouse?.firstName || 
 function buildMultiEntries(statuses: ItemStatus[], ctx: AskCtx): AskPlanEntry[] {
   if (ctx.purpose !== 'annual') { const one = buildMultiEntry(statuses, ctx); return one ? [one] : []; }
   const c = ctx.client;
-  const tiles = statuses.filter(s => s.item.kind === 'screener' && s.item.who === 'client' && !!s.item.tile && s.state === 'missing' && !s.entityRef
+  // ‼ 290 · ריבוע = שאלת פתיחה, או שאלת כן/לא עם ריבוע (מזונות לגרוש/ה — kind 'amount' מאז 253, נענה כן/לא)
+  const tiles = statuses.filter(s => (s.item.kind === 'screener' || s.item.input === 'yesno') && s.item.who === 'client' && !!s.item.tile && s.state === 'missing' && !s.entityRef
     && s.item.purposes.includes('annual') && !s.item.rare && !ANNUAL_TILE_OFF.has(s.item.key));
   if (!tiles.length) return [];
   const people: SubjectRole[] = c.familyStatus === 'married' && knownFamilyEvent(c, ctx.taxYear) !== 'death' ? ['client', 'spouse'] : ['client'];
@@ -423,7 +432,7 @@ function buildMultiEntries(statuses: ItemStatus[], ctx: AskCtx): AskPlanEntry[] 
 /** ריבוע אחד בדוח השנתי, לאדם אחד: שם, דוגמה, «?», מה שנפתח כשמסמנים, וסימון מראש מהדוח הקודם. */
 function annualTile(key: string, role: SubjectRole, ctx: AskCtx): MultiOption {
   const it = ITEM_BY_KEY[key];
-  const example = (ANNUAL_TILE_EXAMPLE[key] ?? '').split('{since}').join(String(ctx.taxYear - 5)).split('{aliyahSince}').join(String(ctx.taxYear - 10));
+  const example = (ANNUAL_TILE_EXAMPLE[key] ?? '').split('{since}').join(String(ctx.taxYear - 5)).split('{aliyahSince}').join(String(ctx.taxYear - 10)).split('{prevYear}').join(String(ctx.taxYear - 1));
   const followUps = key === 'niBenefits.received' ? niKindsAsks(role, ctx)
     : key === 'household.creditChanges' ? [studiesAsk(role, ctx)]
     : key === 'income.other' ? [otherIncomeAsk(role, ctx)].filter((x): x is MultiFollowUp => !!x)
@@ -506,7 +515,8 @@ function annualRows(plan: AskPlanEntry[], ctx: AskCtx): AskPlanEntry[] {
     if (e.prompt.input.kind === 'confirm' && e.itemKey === 'household.children') {
       const inline = branchAsk('household.childChange', 'couple', ctx, 0, { inline: true, title: 'מה השתנה?', input: { kind: 'multi', options: [
         opt('household.newChild', 'couple', 'נולד ילד', [branchAsk('household.newChildDocs', 'couple', ctx, 20)]),
-        opt('household.disabledChild', 'couple', 'ילד עם מוגבלות', [branchAsk('household.disabledChildDocs', 'couple', ctx, 21)]),
+        // ‼ 290 · איזה ילד, ולמי הנקודות — לכרטיס; ואז האישור
+        opt('household.disabledChild', 'couple', 'ילד עם מוגבלות', [branchAsk('household.disabledChildDetails', 'couple', ctx, 20.5), branchAsk('household.disabledChildDocs', 'couple', ctx, 21)]),
       ] } });
       out.push({ ...e, prompt: { ...e.prompt, ...(inline ? { onChanged: [inline] } : {}) } });
       continue;
@@ -707,7 +717,7 @@ function familyBranches(ctx: AskCtx): Record<'death' | 'divorce' | 'marriage', M
       // ‼ 20.10.2026 · ביטוח לאומי — המשרד מוציא את האישור (העובדה niBenefits.received של בן/בת הזוג ⇒ niBenefits.cert במשימות המשרד)
       opt('niBenefits.received', 'spouse', 'דמי מחלה או קצבת נכות מביטוח לאומי', []),
       // ‼ 20.10.2026 · נכות או מחלה קשה של מי שנפטר/ה — כאן, לא בריבוע של הלקוח (גיא: «אשתו נפטרה מסרטן — לא ברור אם לסמן»)
-      lastYearOf(ctx, 'special.disability', opt('special.disability', 'spouse', 'נכות או מחלה קשה, עם אחוזי נכות', [branchAsk('special.disabilityCert', 'spouse', ctx, 8.5)])),
+      lastYearOf(ctx, 'special.disability', opt('special.disability', 'spouse', 'נכות או מחלה קשה, עם אחוזי נכות', [branchAsk('special.disabilityDetails', 'spouse', ctx, 8.4), branchAsk('special.disabilityCert', 'spouse', ctx, 8.5)])),
       opt('family.deathGotDisabilityIns', 'spouse', 'אובדן כושר עבודה מחברת ביטוח', [branchAsk('family.disabilityInsDocs', 'spouse', ctx, 9)]),
     ] } }),
     branchAsk('family.deathPayouts', 'couple', ctx, 3, { input: { kind: 'multi', options: [
@@ -725,8 +735,10 @@ function familyBranches(ctx: AskCtx): Record<'death' | 'divorce' | 'marriage', M
     ] } }),
     branchAsk('family.deathDocs', 'couple', ctx, 5),
   ]);
+  // ‼ 290 · «אני משלם/ת» מזונות ⇒ כמה בחודש לכל ילד (onValue, 286)
+  const support = branchAsk('family.childSupport', 'couple', ctx, 1.5);
   const divorce = opt('family.eventDivorce', 'couple', 'התגרשנו או נפרדנו', [
-    branchAsk('family.divorce', 'couple', ctx, 1), branchAsk('family.divorceDocs', 'couple', ctx, 2)]);
+    branchAsk('family.divorce', 'couple', ctx, 1, support ? { onValue: [{ field: 'alimony', in: ['pay'], ask: support }] } : {}), branchAsk('family.divorceDocs', 'couple', ctx, 2)]);
   const marriage = opt('family.eventMarriage', 'couple', 'התחתנתי', [
     branchAsk('family.marriage', 'couple', ctx, 1), branchAsk('family.marriageSpouseDocs', 'couple', ctx, 2)]);
   return { death, divorce, marriage };

@@ -32,12 +32,15 @@ const fmt = (n: number) =>
 // ממשק גנרי לנתוני נישום (ראשי או בן/בת זוג)
 // ─────────────────────────────────────────────────────────────────────────────
 
-interface TaxPerson {
+// ‼ 290 · מיוצא לבדיקת השמירה (questionnaireCovers.test.ts): כל קלט כאן — עם פריט בשאלון שכותב אותו, או סיבה מפורשת
+export interface TaxPerson {
   gender: Gender;
   familyStatus?: string;
   children: Child[];
   isNewImmigrant: boolean;
   aliyahYear: number;
+  /** 290 · חודש העלייה (1–12); חסר ⇒ ינואר */
+  aliyahMonth?: number;
   disabilityPercentage: number;
   hasAcademicDegree: boolean;
   academicDegreeYear: number;
@@ -60,13 +63,14 @@ interface TaxPerson {
 
 const yearOf = (iso?: string) => { const y = Number((iso ?? '').slice(0, 4)); return y > 1900 ? y : undefined; };
 
-function clientToTaxPerson(client: Client): TaxPerson {
+export function clientToTaxPerson(client: Client): TaxPerson {
   return {
     gender: client.gender,
     familyStatus: client.familyStatus,
     children: client.children,
     isNewImmigrant: client.isNewImmigrant,
     aliyahYear: client.aliyahYear,
+    aliyahMonth: client.aliyahMonth ?? undefined,
     disabilityPercentage: client.disabilityPercentage,
     hasAcademicDegree: client.hasAcademicDegree,
     academicDegreeYear: client.academicDegreeYear,
@@ -93,13 +97,14 @@ export function childrenFromSpouseView(children: Child[]): Child[] {
   return children.map(c => (c.hasDisability ? { ...c, disabilityPointsTo: c.disabilityPointsTo === 'spouse' ? 'client' as const : 'spouse' as const } : c));
 }
 
-function spouseToTaxPerson(spouse: SpouseData, children: Child[]): TaxPerson {
+export function spouseToTaxPerson(spouse: SpouseData, children: Child[]): TaxPerson {
   return {
     gender: spouse.gender,
     familyStatus: 'married',
     children: childrenFromSpouseView(children),
     isNewImmigrant: spouse.isNewImmigrant,
     aliyahYear: spouse.aliyahYear,
+    aliyahMonth: spouse.aliyahMonth,
     disabilityPercentage: spouse.disabilityPercentage,
     hasAcademicDegree: spouse.hasAcademicDegree,
     academicDegreeYear: spouse.academicDegreeYear,
@@ -121,7 +126,7 @@ function spouseToTaxPerson(spouse: SpouseData, children: Child[]): TaxPerson {
 // ─────────────────────────────────────────────────────────────────────────────
 // נקודות זיכוי — מותאם למנוע V2 (הכללים המאומתים)
 // 288: חודש השחרור וחודשי השירות — מהכרטיס. חסר ⇒ ינואר ו-24 חודשים, וכרטיס הזיכויים
-// אומר שזו הנחה (creditGaps). חודש עלייה — עדיין ינואר.
+// אומר שזו הנחה (creditGaps). 290: חודש העלייה — מהכרטיס; חסר ⇒ ינואר, ומסומן.
 // ─────────────────────────────────────────────────────────────────────────────
 
 function personToProfile(person: TaxPerson, year: number): CreditProfile {
@@ -155,6 +160,7 @@ function personToProfile(person: TaxPerson, year: number): CreditProfile {
     custodialSeparatedParent: custodial,
     isNewImmigrant: person.isNewImmigrant,
     aliyahYear: person.aliyahYear || undefined,
+    aliyahMonth: person.aliyahMonth || undefined,
     reserveCombatDaysPrevYear: person.reserveCombatDaysPrevYear || undefined,
     // ‼ רק לנשואים — סעיף 37 חל על בני זוג בלבד.
     spouseNoIncomeEligible: person.familyStatus === 'married' && person.spouseNoIncomeEligible === true,
@@ -804,6 +810,7 @@ export function spouseAsClient(client: Client): Client | null {
     taxCoordinationDetails: '',
     isNewImmigrant: spouse.isNewImmigrant,
     aliyahYear: spouse.aliyahYear,
+    aliyahMonth: spouse.aliyahMonth ?? null,
     isReturningResident: spouse.isReturningResident,
     returningYear: spouse.returningYear,
     disabilityPercentage: spouse.disabilityPercentage,

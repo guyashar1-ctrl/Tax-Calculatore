@@ -35,7 +35,7 @@ const TODO_VISIBLE = 4;
 
 type Ask = YearData['asks'][number];
 type Run = (fn: () => Promise<unknown>, done?: string) => Promise<boolean>;
-type ApplyCard = (items: ProposedFact[], sourceRef: string) => Promise<{ ok: boolean; error?: string }>;
+type ApplyCard = (items: ProposedFact[], sourceRef: string) => Promise<{ ok: boolean; error?: string; client?: Client }>;
 
 interface Props {
   client: Client;
@@ -171,8 +171,13 @@ export default function AnnualSummary({ client, step, year, data, busy, run, mor
   const [cardOff, setCardOff] = useState<Set<string>>(() => new Set());
   const cardChosen = cardRows.filter(r => r.ready && !cardOff.has(r.f.id));
   const applyChosen = () => applyCard && void run(async () => {
+    // ‼ 290 · כמה תשובות שממזגות לתוך פרטי בן/בת הזוג (מין, מזונות, עלייה, לימודים): כל הצעה נבנית מחדש על הכרטיס שאחרי
+    //   הקודמת — אחרת השנייה נראית «הכרטיס השתנה בינתיים» ונעצרת
+    let cur = client;
     for (const r of cardChosen) {
-      const a = await applyCard(r.plan.proposals, `tax_year_fact:${r.f.id}`);
+      const plan = cur === client ? r.plan : cardUpdateFor(cur, r.f.itemKey, r.f.value, { factId: r.f.id, itemKey: r.f.itemKey, year: r.f.taxYear }, r.f.subjectRole) ?? r.plan;
+      const a = plan.proposals.length ? await applyCard(plan.proposals, `tax_year_fact:${r.f.id}`) : { ok: true as const, client: undefined };
+      if (a.client) cur = a.client;
       const d = await api.decideFacts([r.f.id], 'accept') as { ok?: boolean; error?: string };
       if (d && d.ok === false) return d;
       if (!a.ok) return a;

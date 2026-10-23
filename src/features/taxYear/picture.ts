@@ -131,6 +131,14 @@ export interface YearPicture {
 const ENTITY_HE: Partial<Record<InfoItem['per'], string>> = { employer: 'מעסיק', business: 'עסק', property: 'נכס מושכר', account: 'חשבון השקעות', foreign_source: 'מקור הכנסה בחו״ל', fund: 'קופה' };
 
 const isMarried = (c: Client) => c.familyStatus === 'married';
+/** ‼ 290 · InfoItem.onlyIfMissing — מתי הנתון «חסר בכרטיס». */
+export const MISSING_ON_CARD: Record<NonNullable<InfoItem['onlyIfMissing']>, (c: Client) => boolean> = {
+  // בן/בת הזוג: אין אובייקט spouse, או שחסר בו מין או תאריך לידה
+  spouseBasics: c => !c.spouse?.gender || !c.spouse?.birthDate,
+  // סעיף 37: הזכאות לא נקבעה, ובכרטיס אין לבן/בת הזוג מעסיק או עסק פעילים (מה שהכרטיס כבר יודע על ההכנסה)
+  noIncomeCredit: c => c.spouseNoIncomeEligible == null
+    && !(c.employers ?? []).some(e => e.belongsToSpouse && !e.endDate) && !(c.businesses ?? []).some(b => b.belongsToSpouse && !b.isClosed),
+};
 const name = (c: Client, role: 'client' | 'spouse') =>
   role === 'spouse' ? (c.spouseFirstName || c.spouse?.firstName || 'בן/בת הזוג') : (c.firstName || 'הלקוח');
 
@@ -429,6 +437,9 @@ export function buildYearPicture(inp: PictureInput): YearPicture {
         && dealerOf(c, t.subjectRole)) continue;
       if (item.onlyIfOnCard && tf.length === 0 && !ask && !cardHas(item, c, t)) { if (GATED_LABEL[item.key]) gate(t.subjectRole, GATED_LABEL[item.key]); continue; }
       if (item.onlyMarried && !isMarried(c)) continue;
+      // ‼ 290 · נשאל רק כשהנתון חסר בכרטיס; תשובה או שאלה שכבר קיימות — ממשיכות להיספר (ממתין לבדיקה / נשאל)
+      if (item.onlyIfMissing && tf.length === 0 && !ask && !MISSING_ON_CARD[item.onlyIfMissing](c)) continue;
+      if (item.fromTaxYear && y < item.fromTaxYear && tf.length === 0 && !ask) continue;
       // פרטי עסק חדש — רק כשבכרטיס אין לאדם עסק (אחרת: אישור העסק שבכרטיס)
       if (item.noCardEntity === 'businesses' && tf.length === 0 && !ask && (c.businesses ?? []).some(b => !b.isClosed && !!b.belongsToSpouse === (t.subjectRole === 'spouse'))) continue;
       // ‼ 21.10.2026 · סבב 2 (השאלון השנתי): «שינוי במשפחה» ו«השכרת ציוד» אינם ריבועים (שורת המשפחה · «משהו אחר?»);

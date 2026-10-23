@@ -12,7 +12,7 @@ import type { BankAccountInfo, Child, Client, EmployerInfo } from '../../types';
 import type { ProposedFact } from '../../types/taxFacts';
 import type { DatedValue } from './temporal';
 import { RECORD_OF } from './structured';
-import type { RecordValue } from './records';
+import { CUSTODY_OF_LIVES, type RecordValue } from './records';
 
 type From = { factId: string; itemKey: string; year: number };
 
@@ -67,12 +67,28 @@ export interface CardUpdatePlan {
   omitted: Omitted[];
 }
 
+/**
+ * ‼ 290 · תשובה שאינה רשומה ובכל זאת מעדכנת את התיק: כן/לא (מזונות לבן/בת זוג לשעבר — 40א) ובחירה (סעיף 37 — בן/בת זוג בלי הכנסה).
+ *   ל«לא» אין ערך בעובדה (value = null) — וגם הוא נכתב: «לא» ≠ «לא ידוע».
+ */
+const SIMPLE_CARD: Record<string, (c: Client, value: unknown, from: From, spouse: boolean) => CardUpdatePlan | null> = {
+  'household.alimonyPaid': (c, v, from, spouse) => alimonyPlan(c, v, from, spouse),
+  'household.noIncomeSpouse': (c, v, from) => noIncomePlan(c, v, from),
+};
+/** סכמות רשומה שמעדכנות את התיק. */
+const CARD_SCHEMAS = ['children', 'bank', 'address', 'employer', 'familyYear', 'studies', 'aliyah', 'disability', 'spouseBasics', 'reserveDays', 'childDisability', 'childSupport'];
+/** פרטים שאינם ישות חדשה (מותר שהמפתח יסתיים ב-Details). */
+const NOT_ENTITY = ['aliyah', 'disability', 'childDisability'];
+
 /** איזה פריט יודע לעדכן את התיק. */
-export const updatesCard = (itemKey: string) => ['children', 'bank', 'address', 'employer', 'familyYear', 'studies'].includes(RECORD_OF[itemKey] ?? '')
-  // ‼ «מעסיק חדש» (פרטי ישות שנולדה מ«כן») נכנס לתיק ב«הוסף לתיק» עם אותו מזהה זמני — לא כאן, כדי לא להוסיף פעמיים
-  && !/Details$/.test(itemKey);
+export const updatesCard = (itemKey: string) => !!SIMPLE_CARD[itemKey] || (CARD_SCHEMAS.includes(RECORD_OF[itemKey] ?? '')
+  // ‼ «מעסיק חדש» (פרטי ישות שנולדה מ«כן») נכנס לתיק ב«הוסף לתיק» עם אותו מזהה זמני — לא כאן, כדי לא להוסיף פעמיים.
+  //   290: פרטי עלייה ונכות אינם ישות — הם כן כאן.
+  && (!/Details$/.test(itemKey) || NOT_ENTITY.includes(RECORD_OF[itemKey] ?? '')));
 
 export function cardUpdateFor(c: Client, itemKey: string, value: unknown, from: From, subjectRole: string = 'client', decisions: Record<string, OmitDecision> = {}): CardUpdatePlan | null {
+  const simple = SIMPLE_CARD[itemKey];
+  if (simple) return simple(c, value, from, subjectRole === 'spouse');
   const schema = RECORD_OF[itemKey];
   const items = recordItems(value);
   if (!items) return null;
@@ -83,6 +99,12 @@ export function cardUpdateFor(c: Client, itemKey: string, value: unknown, from: 
   if (schema === 'address') return addressPlan(c, items[0], from);
   if (schema === 'familyYear') return familyYearPlan(c, itemKey, items[0], from);
   if (schema === 'studies') return studiesPlan(c, items, from, subjectRole === 'spouse');
+  if (schema === 'aliyah') return aliyahPlan(c, items[0], from, subjectRole === 'spouse');
+  if (schema === 'disability') return disabilityPlan(c, items[0], from, subjectRole === 'spouse');
+  if (schema === 'spouseBasics') return spouseBasicsPlan(c, items[0], from);
+  if (schema === 'reserveDays') return reservePlan(c, items[0], from, subjectRole === 'spouse');
+  if (schema === 'childDisability') return childDisabilityPlan(c, items, from);
+  if (schema === 'childSupport') return childSupportPlan(c, items, from);
   return null;
 }
 
@@ -111,18 +133,21 @@ function childrenPlan(c: Client, items: RecordValue[], from: From, decisions: Re
     const firstName = s(r.firstName);
     if (!firstName || !isoDay(birthDate)) continue;
     const livesWith = s(r.livesWith);
-    const lives = livesWith ? { livesWithTaxpayer: livesWith === 'withUs' || livesWith === 'shared' } : {};
+    // ‼ 290 · «איפה גר/ה» ⇒ גם המשמורת (Child.custody) — ממנה החישוב קובע את מסלול נקודות הילדים של הורה שאינו נשוי (40(ב))
+    const custody = CUSTODY_OF_LIVES[livesWith];
+    const lives = custody ? { livesWithTaxpayer: livesWith === 'withUs' || livesWith === 'shared', custody } : {};
     const i = r.id ? next.findIndex(x => x.id === r.id) : -1;
     if (i >= 0) {
       const was = next[i];
-      if (was.firstName === firstName && was.birthDate === birthDate && (!livesWith || was.livesWithTaxpayer === lives.livesWithTaxpayer)) continue;
+      const sameLives = !custody || (was.livesWithTaxpayer === lives.livesWithTaxpayer && was.custody === custody);
+      if (was.firstName === firstName && was.birthDate === birthDate && sameLives) continue;
       next[i] = { ...was, firstName, birthDate, birthYear: Number(birthDate.slice(0, 4)), ...lives };
-      lines.push(`עדכון: ${was.firstName || 'ילד/ה'}${was.birthDate !== birthDate ? ` — תאריך לידה ${was.birthDate ? he(was.birthDate) : '—'} ← ${he(birthDate)}` : ''}${was.firstName !== firstName ? ` — שם ← ${firstName}` : ''}`);
+      lines.push(`עדכון: ${was.firstName || 'ילד/ה'}${was.birthDate !== birthDate ? ` — תאריך לידה ${was.birthDate ? he(was.birthDate) : '—'} ← ${he(birthDate)}` : ''}${was.firstName !== firstName ? ` — שם ← ${firstName}` : ''}${!sameLives ? ` — גר/ה: ${LIVES_HE[livesWith]}` : ''}`);
     } else {
       // ‼ ילד «חדש» עם אותו שם ותאריך לידה כמו ילד קיים — אותו ילד, לא כפילות
       if (next.some(x => x.firstName === firstName && x.birthDate === birthDate)) continue;
       next.push({ id: newId('child'), firstName, birthDate, birthYear: Number(birthDate.slice(0, 4)), hasDisability: false, ...lives });
-      lines.push(`נוסף: ${firstName}, נולד/ה ${he(birthDate)}`);
+      lines.push(`נוסף: ${firstName}, נולד/ה ${he(birthDate)}${custody ? ` — גר/ה: ${LIVES_HE[livesWith]}` : ''}`);
     }
   }
   const answered = new Set(items.map(r => s(r.id)).filter(Boolean));
@@ -261,21 +286,132 @@ function studiesPlan(c: Client, items: RecordValue[], from: From, spouse: boolea
     if (Number(army.months) > 0) want.serviceMonths = Number(army.months);
   }
   if (items.some(r => s(r.kind) === 'pro')) lines.push('לימודי מקצוע — אין להם שדה בתיק; לבדוק את הזכאות (סעיף 40ג) ידנית');
+  return personPlan(c, want, from, spouse, 'לימודים ושירות', lines);
+}
+
+const PERSON_HE: Record<string, string> = { hasAcademicDegree: 'תואר', academicDegreeType: 'סוג התואר', academicDegreeYear: 'שנת התואר', completedIdf: 'שירות צבאי',
+  idfReleaseYear: 'שנת השחרור', completedNationalService: 'שירות לאומי', nationalServiceYear: 'שנת סיום השירות', idfReleaseMonth: 'חודש השחרור', serviceMonths: 'חודשי שירות',
+  isNewImmigrant: 'עולה חדש/ה', aliyahYear: 'שנת העלייה', aliyahMonth: 'חודש העלייה', isReturningResident: 'תושב/ת חוזר/ת', returningYear: 'שנת החזרה',
+  disabilityPercentage: 'אחוזי נכות', paysAlimonyToEx: 'מזונות לבן/בת זוג לשעבר', gender: 'מין', birthDate: 'תאריך לידה',
+  reserveCombatDaysPrevYear: 'ימי מילואים כלוחם/ת (שנה קודמת)', spouseNoIncomeEligible: 'בן/בת זוג בלי הכנסה (סעיף 37)' };
+const showV = (v: unknown) => (v === true ? 'כן' : v === false ? 'לא' : v === 'female' ? 'אישה' : v === 'male' ? 'גבר' : v == null || v === '' ? '—' : String(v));
+
+/**
+ * ‼ 288/290 · עובדות של אדם ⇒ הצעות. לבעל/ת התיק — עובדה מנוהלת לכל שדה; לבן/בת הזוג — הצעה אחת «spouse» שממוזגת
+ *   לתוך האובייקט (288). אין עדיין אובייקט spouse ⇒ נזרעים השם והת.ז. מהעמודות השטוחות, כדי שלא ייווצר בן/בת זוג בלי שם.
+ */
+function personPlan(c: Client, want: Record<string, unknown>, from: From, spouse: boolean, what: string, lines: string[] = []): CardUpdatePlan {
   const base = (spouse ? c.spouse ?? {} : c) as unknown as Record<string, unknown>;
   const changed = Object.entries(want).filter(([k, v]) => base[k] !== v);
   if (!changed.length) return { proposals: [], lines: lines.length ? lines : ['זהה למה שבתיק'], omitted: [] };
-  const HE: Record<string, string> = { hasAcademicDegree: 'תואר', academicDegreeType: 'סוג התואר', academicDegreeYear: 'שנת התואר', completedIdf: 'שירות צבאי',
-    idfReleaseYear: 'שנת השחרור', completedNationalService: 'שירות לאומי', nationalServiceYear: 'שנת סיום השירות', idfReleaseMonth: 'חודש השחרור', serviceMonths: 'חודשי שירות' };
-  const show = (v: unknown) => (v === true ? 'כן' : v === false ? 'לא' : v == null || v === '' ? '—' : String(v));
-  for (const [k, v] of changed) lines.push(`${spouse ? 'בן/בת הזוג · ' : ''}${HE[k] ?? k}: ${show(base[k])} ← ${show(v)}`);
+  for (const [k, v] of changed) lines.push(`${spouse ? 'בן/בת הזוג · ' : ''}${PERSON_HE[k] ?? k}: ${showV(base[k])} ← ${showV(v)}`);
   const note = `תשובה מאושרת (${from.itemKey}, ${from.year}); עובדה ${from.factId}`;
+  const seed: Record<string, string> = {};
+  if (spouse && !c.spouse) {
+    for (const [k, v] of [['firstName', c.spouseFirstName], ['lastName', c.spouseLastName], ['idNumber', c.spouseIdNumber]] as const) if (s(v)) seed[k] = s(v);
+  }
   const proposals: ProposedFact[] = spouse
-    ? [{ fieldKey: 'spouse', label: 'פרטי בן/בת הזוג — לימודים ושירות, מתשובה מאושרת',
+    ? [{ fieldKey: 'spouse', label: `פרטי בן/בת הזוג — ${what}, מתשובה מאושרת`,
         oldValue: { display: 'לפני העדכון', patch: { spouse: c.spouse ?? null } },
-        newValue: { display: changed.map(([k, v]) => `${HE[k] ?? k}: ${show(v)}`).join(', '), patch: { spouse: Object.fromEntries(changed) } }, note }]
-    : changed.map(([k, v]) => ({ fieldKey: k, label: `${HE[k] ?? k} — מתשובה מאושרת`,
-        oldValue: { display: show(base[k]), patch: { [k]: base[k] ?? null } }, newValue: { display: show(v), patch: { [k]: v } }, note }));
+        newValue: { display: changed.map(([k, v]) => `${PERSON_HE[k] ?? k}: ${showV(v)}`).join(', '), patch: { spouse: { ...seed, ...Object.fromEntries(changed) } } }, note }]
+    : changed.map(([k, v]) => ({ fieldKey: k, label: `${PERSON_HE[k] ?? k} — מתשובה מאושרת`,
+        oldValue: { display: showV(base[k]), patch: { [k]: base[k] ?? null } }, newValue: { display: showV(v), patch: { [k]: v } }, note }));
   return { proposals, lines, omitted: [] };
+}
+
+const LIVES_HE: Record<string, string> = { withUs: 'איתנו', otherParent: 'אצל ההורה השני', shared: 'משמורת משותפת' };
+
+// ‼ 290 · עלייה או חזרה ⇒ עולה + שנה + חודש (סעיף 35 סופר חודשי ותק), או תושב/ת חוזר/ת + שנה. המעמד השני לא נמחק בשקט.
+function aliyahPlan(c: Client, r: RecordValue, from: From, spouse: boolean): CardUpdatePlan | null {
+  const y = Number(s(r.year)), m = Number(s(r.month));
+  if (!Number.isInteger(y) || y < 1900) return null;
+  const status = s(r.status);
+  const want: Record<string, unknown> = status === 'returning' ? { isReturningResident: true, returningYear: y }
+    : status === 'immigrant' ? { isNewImmigrant: true, aliyahYear: y, ...(m >= 1 && m <= 12 ? { aliyahMonth: m } : {}) } : {};
+  if (!Object.keys(want).length) return null;
+  const d = (spouse ? c.spouse : c) as { isNewImmigrant?: boolean; isReturningResident?: boolean } | null | undefined;
+  const lines = status === 'returning' && d?.isNewImmigrant ? ['בתיק רשום/ה גם כעולה — לבדוק איזה מעמד נכון']
+    : status === 'immigrant' && d?.isReturningResident ? ['בתיק רשום/ה גם כתושב/ת חוזר/ת — לבדוק איזה מעמד נכון'] : [];
+  return personPlan(c, want, from, spouse, 'עלייה', lines);
+}
+
+// ‼ 290 · אחוזי נכות ⇒ disabilityPercentage. «ממתי» אין לו שדה בתיק — שורה למשרד כשהנכות התחילה בשנת הדוח (9(5): 185 יום).
+function disabilityPlan(c: Client, r: RecordValue, from: From, spouse: boolean): CardUpdatePlan | null {
+  if (s(r.determined) !== 'yes') return { proposals: [], lines: ['עוד לא נקבעו אחוזי נכות — אין מה לעדכן בתיק'], omitted: [] };
+  const pct = Number(s(r.percent));
+  if (!(pct > 0 && pct <= 100)) return null;
+  const m = Number(s(r.month));
+  const lines = Number(s(r.year)) === from.year ? [`הנכות מ-${m >= 1 ? `${String(m).padStart(2, '0')}/` : ''}${from.year} — לבדוק את תקופת הפטור (9(5))`] : [];
+  return personPlan(c, { disabilityPercentage: pct }, from, spouse, 'נכות', lines);
+}
+
+// ‼ 290 · סעיף 40א — רק לנשואים (נשוי/אה בשנית). «כן» ⇒ true, «לא» (value = null) ⇒ false.
+function alimonyPlan(c: Client, value: unknown, from: From, spouse: boolean): CardUpdatePlan | null {
+  if (c.familyStatus !== 'married') return null;
+  const yes = value === true || (!!value && typeof value === 'object' && (value as { yes?: unknown }).yes === true);
+  if (!yes && value != null && value !== false) return null;
+  return personPlan(c, { paysAlimonyToEx: yes }, from, spouse, 'מזונות לבן/בת זוג לשעבר');
+}
+
+// ‼ 290 · מין ותאריך לידה של בן/בת הזוג ⇒ clients.spouse (בלי מין הזיכויים שלהם לא מחושבים; תאריך הלידה — נקודת «נער/ה»).
+function spouseBasicsPlan(c: Client, r: RecordValue, from: From): CardUpdatePlan | null {
+  if (c.familyStatus !== 'married') return null;
+  const gender = s(r.gender), birthDate = s(r.birthDate).slice(0, 10);
+  const want: Record<string, unknown> = { ...(gender === 'female' || gender === 'male' ? { gender } : {}), ...(isoDay(birthDate) ? { birthDate } : {}) };
+  if (!Object.keys(want).length) return null;
+  return personPlan(c, want, from, true, 'מין ותאריך לידה');
+}
+
+// ‼ 290 · סעיף 39ב — ימי מילואים כלוחם/ת בשנה שלפני ⇒ reserveCombatDaysPrevYear (לבן/בת הזוג — במיזוג).
+function reservePlan(c: Client, r: RecordValue, from: From, spouse: boolean): CardUpdatePlan | null {
+  const days = Number(s(r.days));
+  if (!Number.isInteger(days) || days < 0 || days > 366) return null;
+  return personPlan(c, { reserveCombatDaysPrevYear: days }, from, spouse, 'מילואים');
+}
+
+// ‼ 290 · סעיף 37 — בחירה אחת: גיל פרישה / עיוור / נכה ⇒ זכאות; «אף אחד» / «הייתה הכנסה» ⇒ לא זכאי («לא» ≠ «לא ידוע»).
+function noIncomePlan(c: Client, value: unknown, from: From): CardUpdatePlan | null {
+  if (c.familyStatus !== 'married' || typeof value !== 'string') return null;
+  const yes = ['retirement', 'blind', 'disabled'].includes(value);
+  if (!yes && !['none', 'hadIncome'].includes(value)) return null;
+  const lines = yes ? [`לבדוק אישור — ${value === 'retirement' ? 'גיל הפרישה' : value === 'blind' ? 'עיוורון' : 'נכות'}`] : [];
+  return personPlan(c, { spouseNoIncomeEligible: yes }, from, false, 'סעיף 37', lines);
+}
+
+const kidName = (k: Child) => k.firstName || (k.birthYear ? `ילד/ה ${k.birthYear}` : 'ילד/ה');
+
+// ‼ 290 · סעיף 45 — ילד עם מוגבלות ⇒ hasDisability; לזוג — למי הנקודות (disabilityPointsTo, יחסית לכרטיס). לא מוריד סימון קיים.
+function childDisabilityPlan(c: Client, items: RecordValue[], from: From): CardUpdatePlan {
+  const current = (c.children ?? []) as Child[];
+  const married = c.familyStatus === 'married';
+  const lines: string[] = [];
+  const next = current.map(k => ({ ...k }));
+  for (const r of items) {
+    const k = next.find(x => x.id === s(r.child));
+    if (!k) { lines.push('ילד שלא בתיק — להוסיף אותו קודם לרשימת הילדים'); continue; }
+    const to = married && (r.pointsTo === 'client' || r.pointsTo === 'spouse') ? r.pointsTo : undefined;
+    if (k.hasDisability && (!to || k.disabilityPointsTo === to)) continue;
+    k.hasDisability = true;
+    if (to) k.disabilityPointsTo = to;
+    lines.push(`${kidName(k)} — ילד/ה עם מוגבלות${to ? ` · הנקודות ל${to === 'spouse' ? (c.spouseFirstName || c.spouse?.firstName || 'בן/בת הזוג') : (c.firstName || 'בעל/ת התיק')}` : ''}`);
+  }
+  return finish('children', 'ילדים', c, current, next, lines, [], from, `${current.filter(k => k.hasDisability).length} ילדים עם מוגבלות`);
+}
+
+// ‼ 290 · מזונות ילדים ששולמו ⇒ Child.monthlyAlimonyPaid (לכל ילד, בחודש) — «משתתף בכלכלת ילדיו».
+function childSupportPlan(c: Client, items: RecordValue[], from: From): CardUpdatePlan {
+  const current = (c.children ?? []) as Child[];
+  const lines: string[] = [];
+  const next = current.map(k => ({ ...k }));
+  for (const r of items) {
+    const k = next.find(x => x.id === s(r.child));
+    const amt = Number(s(r.monthly));
+    if (!k) { lines.push('ילד שלא בתיק — להוסיף אותו קודם לרשימת הילדים'); continue; }
+    if (!(amt >= 0) || k.monthlyAlimonyPaid === amt) continue;
+    k.monthlyAlimonyPaid = amt;
+    lines.push(`${kidName(k)} — מזונות ${amt.toLocaleString('he-IL')} ₪ בחודש`);
+  }
+  return finish('children', 'ילדים', c, current, next, lines, [], from, `${current.filter(k => (k.monthlyAlimonyPaid ?? 0) > 0).length} ילדים עם מזונות`);
 }
 
 // ‼ 16.10.2026 · ממתי המצב המשפחתי: intake.marriageYear ⇒ marriageYear (וכו׳) — שם השדה הוא סוף מפתח הפריט.

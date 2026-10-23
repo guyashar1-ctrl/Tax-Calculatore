@@ -65,7 +65,10 @@ export const TESTS: TestCase[] = [
     equal(fus(opts.find(o => o.key === 'donations.given'))[0]?.itemKey, 'donations.receipts');
     equal(fus(opts.find(o => o.key === 'savings.withdrawal'))[0]?.itemKey, 'savings.withdrawalDocs');
     // ‼ ביטוח לאומי פותח «מה שולם?» לאדם הזה בלבד; «לימודים או צבא» — מסך הלימודים
-    assert(opts.filter(o => !['niBenefits.received', 'household.creditChanges', 'income.other'].includes(o.key)).every(o => fus(o).every(f => f.prompt.input.kind === 'file')), 'אריח שפותח משהו שאינו מסמך');
+    // ‼ 290 · נכות ועלייה פותחים קודם את הפרטים לכרטיס (רשומה), ואז את המסמך
+    assert(opts.filter(o => !['niBenefits.received', 'household.creditChanges', 'income.other', 'special.disability', 'household.aliyah'].includes(o.key)).every(o => fus(o).every(f => f.prompt.input.kind === 'file')), 'אריח שפותח משהו שאינו מסמך');
+    equal(fus(opts.find(o => o.key === 'special.disability')).map(f => `${f.itemKey}:${f.prompt.input.kind}`).join(','), 'special.disabilityDetails:record,special.disabilityCert:file');
+    equal(fus(opts.find(o => o.key === 'household.aliyah')).map(f => `${f.itemKey}:${f.prompt.input.kind}`).join(','), 'household.aliyahDetails:record,household.aliyahDocs:file');
     // ‼ 22.10.2026 · «הכנסה אחרת» (במקום «משהו אחר?» בטקסט חופשי) — בחירה סגורה: זכייה / תמלוגים / משהו אחר ⇒ המשרד מתקשר
     const other = fus(opts.find(o => o.key === 'income.other'));
     equal(other.map(f => f.itemKey).join(','), 'income.otherKinds');

@@ -120,6 +120,23 @@ export const STUDY_KINDS = [{ value: 'ba', label: 'תואר ראשון' }, { val
 const LIVES = [
   { value: 'withUs', label: 'גר/ה איתנו' }, { value: 'otherParent', label: 'אצל ההורה השני' }, { value: 'shared', label: 'משמורת משותפת' },
 ];
+/** ‼ 290 · «איפה גר/ה» ⇔ משמורת בתיק (Child.custody): 'spouse' בכרטיס של הורה שאינו נשוי = ההורה השני. */
+export const CUSTODY_OF_LIVES: Record<string, 'self' | 'spouse' | 'shared'> = { withUs: 'self', otherParent: 'spouse', shared: 'shared' };
+const LIVES_OF_CUSTODY: Record<string, string> = { self: 'withUs', spouse: 'otherParent', shared: 'shared' };
+const GENDERS = [{ value: 'female', label: 'אישה' }, { value: 'male', label: 'גבר' }];
+/** ‼ 290 · הילדים לבחירה: מהשאלה (context.kids — [{id, name}]) בדף האישי, אחרת מהכרטיס. */
+export const kidsContext = (c: Client) => JSON.stringify((c.children ?? []).map(k => ({ id: k.id, name: k.firstName || (k.birthYear ? `ילד/ה ${k.birthYear}` : 'ילד/ה') })));
+function kidsOf(ctx: Record<string, string> | undefined, c?: Client): { value: string; label: string }[] {
+  let list: { id: string; name: string }[] = [];
+  try { list = JSON.parse(ctx?.kids ?? (c ? kidsContext(c) : '[]')); } catch { list = []; }
+  return list.filter(k => k && k.id).map(k => ({ value: k.id, label: k.name }));
+}
+const ALIYAH_STATUS = [{ value: 'immigrant', label: 'עולה חדש/ה' }, { value: 'returning', label: 'תושב/ת חוזר/ת' }];
+const DISABILITY_SET = [{ value: 'yes', label: 'כן' }, { value: 'no', label: 'עוד לא' }];
+const MONTH_OPTIONS = MONTH_NAMES.map((m, k) => ({ value: String(k + 1).padStart(2, '0'), label: m }));
+const yearOptions = (from: number, to: number) => Array.from({ length: to - from + 1 }, (_, k) => String(from + k)).map(y => ({ value: y, label: y }));
+/** «מרץ 2023» — או רק השנה כשאין חודש. */
+const monthYear = (m: unknown, y: unknown, pre = '') => (str(y) ? `${pre}${Number(m) >= 1 ? `${MONTH_NAMES[Number(m) - 1]} ` : ''}${str(y)}` : '');
 const IN_PERIOD = (w: string) => [
   { value: 'all', label: `כן — ${w} כולה` }, { value: 'part', label: `כן — רק בחלק מ${w}` },
   { value: 'after', label: `לא — התחיל אחרי ${w}` }, { value: 'before', label: `לא — הסתיים לפני ${w}` }, { value: 'unsure', label: 'לא בטוח/ה' },
@@ -333,6 +350,77 @@ export function schemaFor(id: RecordSchemaId, c?: Client, ctx?: Record<string, s
           r.intern === 'yes' ? `התמחות ${str(r.internFrom)}–${str(r.internTo)}` : ''].filter(Boolean).join(' · '),
       };
     }
+    // ‼ 23.10.2026 · 290: עלייה או חזרה — המעמד, חודש ושנה (סעיף 35: הנקודות לפי חודשי ותק, לא לפי שנה). השנים — כמו הריבוע («מ-{שנה-10}»).
+    case 'aliyah': {
+      const Y = Number(ctx?.taxYear) || new Date().getFullYear() - 1;
+      return {
+        id, noun: 'עלייה', addLabel: '', multiple: false,
+        fields: [
+          { key: 'status', label: 'מה מתאים?', type: 'choice', required: true, options: ALIYAH_STATUS },
+          { key: 'month', label: 'חודש', type: 'pick', required: true, half: true, options: MONTH_OPTIONS },
+          { key: 'year', label: 'שנה', type: 'pick', required: true, half: true, options: yearOptions(Y - 10, Y) },
+        ],
+        summary: r => [label(ALIYAH_STATUS, r.status), monthYear(r.month, r.year)].filter(Boolean).join(' · '),
+      };
+    }
+    // ‼ 23.10.2026 · 290: אחוזי נכות וממתי — או «עוד לא נקבעו» (הריבוע הוא גם «מחלה קשה»). החודש נשאל רק כשהנכות התחילה
+    //   בשנת הדוח או בשנה שלפניה (9(5): 185 יום בשנה); לפני כן — השנה מספיקה.
+    case 'disability': {
+      const Y = Number(ctx?.taxYear) || new Date().getFullYear() - 1;
+      const years = [...yearOptions(Y - 29, Y).reverse(), { value: 'earlier', label: `לפני ${Y - 29}` }];
+      const set = (r: RecordValue) => r.determined === 'yes';
+      return {
+        id, noun: 'נכות', addLabel: '', multiple: false,
+        fields: [
+          { key: 'determined', label: 'נקבעו אחוזי נכות?', type: 'choice', required: true, options: DISABILITY_SET },
+          { key: 'percent', label: 'כמה אחוזים?', type: 'percent', required: true, half: true, hint: 'כמו שכתוב באישור', showIf: set },
+          { key: 'year', label: 'מאיזו שנה?', type: 'pick', required: true, half: true, options: years, showIf: set },
+          { key: 'month', label: 'מאיזה חודש?', type: 'pick', required: true, half: true, options: MONTH_OPTIONS, showIf: r => set(r) && Number(r.year) >= Y - 1 },
+        ],
+        summary: r => (!set(r) ? label(DISABILITY_SET, r.determined)
+          : [r.percent !== undefined && r.percent !== '' ? `${str(r.percent)}%` : '', r.year === 'earlier' ? `לפני ${Y - 29}` : monthYear(r.month, r.year, 'מ-')].filter(Boolean).join(' · ')),
+      };
+    }
+    // ‼ 290 · מין ותאריך לידה של בן/בת הזוג — מה שבתיק ממולא
+    case 'spouseBasics': return {
+      id, noun: 'פרטים', addLabel: '', multiple: false,
+      fields: [
+        { key: 'gender', label: 'אישה או גבר?', type: 'choice', required: true, options: GENDERS },
+        { key: 'birthDate', label: 'תאריך לידה', type: 'date', required: true, half: true },
+      ],
+      summary: r => [label(GENDERS, r.gender), he(r.birthDate) && `נולד/ה ${he(r.birthDate)}`].filter(Boolean).join(' · '),
+    };
+    // ‼ 290 · סעיף 39ב — ימי מילואים כלוחם בשנה שלפני שנת המס
+    case 'reserveDays': return {
+      id, noun: 'ימים', addLabel: '', multiple: false,
+      fields: [{ key: 'days', label: 'כמה ימים?', type: 'number', required: true, half: true, hint: 'כמו שכתוב באישור מצה״ל' }],
+      summary: r => (str(r.days) ? `${str(r.days)} ימים` : ''),
+    };
+    // ‼ 290 · סעיף 45 — איזה ילד, ולזוג: למי מבני הזוג הנקודות (להורה אחד). הילדים — מהשאלה (context.kids), אין כרטיס בדף.
+    case 'childDisability': {
+      const kids = kidsOf(ctx, c);
+      const parents = owner.filter(o => o.value === 'client' || o.value === 'spouse');
+      return {
+        id, noun: 'ילד', addLabel: '＋ עוד ילד', multiple: true,
+        fields: [
+          { key: 'child', label: 'איזה ילד?', type: 'choice', required: true, options: kids },
+          { key: 'pointsTo', label: 'למי מכם הנקודות?', type: 'choice', required: true, options: parents, showIf: () => parents.length > 1, hint: 'הנקודות ניתנות להורה אחד' },
+        ],
+        summary: r => [label(kids, r.child), r.pointsTo ? `הנקודות ל${label(parents, r.pointsTo)}` : ''].filter(Boolean).join(' · '),
+      };
+    }
+    // ‼ 290 · מזונות ילדים ששולמו — לכל ילד, בחודש (Child.monthlyAlimonyPaid)
+    case 'childSupport': {
+      const kids = kidsOf(ctx, c);
+      return {
+        id, noun: 'ילד', addLabel: '＋ עוד ילד', multiple: true, noneLabel: 'רק מזונות לבן/בת הזוג לשעבר',
+        fields: [
+          { key: 'child', label: 'לאיזה ילד?', type: 'choice', required: true, options: kids },
+          { key: 'monthly', label: 'כמה בחודש (₪)?', type: 'number', required: true, half: true },
+        ],
+        summary: r => [label(kids, r.child), str(r.monthly) ? `${Number(r.monthly).toLocaleString('he-IL')} ₪ בחודש` : ''].filter(Boolean).join(' · '),
+      };
+    }
     case 'maternityAmounts': return {
       id, noun: 'סכומים', addLabel: '', multiple: false,
       fields: [
@@ -456,7 +544,34 @@ export function initialFromCard(id: RecordSchemaId, c: Client, role: 'client' | 
   const spouse = role === 'spouse';
   switch (id) {
     case 'children':
-      return (c.children ?? []).map(ch => ({ id: ch.id, firstName: ch.firstName ?? '', birthDate: ch.birthDate || (ch.birthYear ? `${ch.birthYear}-01-01` : '') }));
+      // ‼ 290 · «איפה גר/ה» מהמשמורת שבתיק (רק להורה שאינו נשוי השדה מוצג; אצל נשוי הוא יורד בניקוי)
+      return (c.children ?? []).map(ch => ({ id: ch.id, firstName: ch.firstName ?? '', birthDate: ch.birthDate || (ch.birthYear ? `${ch.birthYear}-01-01` : ''),
+        ...(ch.custody && LIVES_OF_CUSTODY[ch.custody] ? { livesWith: LIVES_OF_CUSTODY[ch.custody] } : {}) }));
+    // ‼ 290 · מה שבתיק — ממולא לאישור או לתיקון
+    case 'aliyah': {
+      const d = spouse ? c.spouse : c;
+      if (!d) return [];
+      const month = (n?: number | null) => (n && n >= 1 ? { month: String(n).padStart(2, '0') } : {});
+      if (d.isNewImmigrant && d.aliyahYear) return [{ status: 'immigrant', year: String(d.aliyahYear), ...month(d.aliyahMonth) }];
+      if (d.isReturningResident && d.returningYear) return [{ status: 'returning', year: String(d.returningYear) }];
+      return [];
+    }
+    case 'disability': {
+      const d = spouse ? c.spouse : c;
+      return d && d.disabilityPercentage > 0 ? [{ determined: 'yes', percent: d.disabilityPercentage }] : [];
+    }
+    case 'spouseBasics': {
+      const s = c.spouse;
+      return s && (s.gender || s.birthDate) ? [{ ...(s.gender ? { gender: s.gender } : {}), ...(s.birthDate ? { birthDate: s.birthDate.slice(0, 10) } : {}) }] : [];
+    }
+    case 'reserveDays': {
+      const d = spouse ? c.spouse : c;
+      return d?.reserveCombatDaysPrevYear ? [{ days: d.reserveCombatDaysPrevYear }] : [];
+    }
+    case 'childDisability':
+      return (c.children ?? []).filter(k => k.hasDisability).map(k => ({ child: k.id, ...(k.disabilityPointsTo ? { pointsTo: k.disabilityPointsTo } : {}) }));
+    case 'childSupport':
+      return (c.children ?? []).filter(k => (k.monthlyAlimonyPaid ?? 0) > 0).map(k => ({ child: k.id, monthly: k.monthlyAlimonyPaid }));
     case 'bank': {
       const b = (c.bankAccounts ?? []).find(x => x.isPrimary) ?? (c.bankAccounts ?? [])[0];
       if (!b) return [];

@@ -11,7 +11,7 @@ export interface CreditGap {
 }
 
 type CreditFacts = Pick<SpouseData, 'completedIdf' | 'idfReleaseYear' | 'completedNationalService' | 'nationalServiceYear'
-  | 'hasAcademicDegree' | 'academicDegreeYear' | 'isNewImmigrant' | 'aliyahYear'> & { idfReleaseMonth?: number | null; serviceMonths?: number | null };
+  | 'hasAcademicDegree' | 'academicDegreeYear' | 'isNewImmigrant' | 'aliyahYear'> & { idfReleaseMonth?: number | null; serviceMonths?: number | null; aliyahMonth?: number | null };
 
 /** שירות שחלון 36 החודשים שלו נוגע בשנת המס — רק אז חודש/משך משנים את הסכום. */
 const serviceRelevant = (releaseYear: number, year: number) => releaseYear > 0 && releaseYear >= year - 3 && releaseYear <= year;
@@ -26,6 +26,8 @@ export function personCreditGaps(p: CreditFacts, year: number): CreditGap[] {
   }
   if (p.hasAcademicDegree && !p.academicDegreeYear) out.push({ text: 'תואר — חסרה שנת הסיום', effect: 'excluded' });
   if (p.isNewImmigrant && !p.aliyahYear) out.push({ text: 'עלייה — חסרה שנת העלייה', effect: 'excluded' });
+  // 290 · סעיף 35 סופר חודשי ותק (עד 54) — החודש משנה את הסכום רק בשנים שבחלון
+  if (p.isNewImmigrant && p.aliyahYear && !p.aliyahMonth && year >= p.aliyahYear && year <= p.aliyahYear + 4) out.push({ text: 'עלייה — חודש העלייה לא ידוע (הונח ינואר)', effect: 'included' });
   return out;
 }
 

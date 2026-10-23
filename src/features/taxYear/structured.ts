@@ -21,6 +21,8 @@ export const RECORD_OF: Record<string, RecordSchemaId> = {
   'intake.marriageYear': 'familyYear', 'intake.divorceYear': 'familyYear', 'intake.widowhoodYear': 'familyYear',
   'family.death': 'deathEvent', 'family.divorce': 'divorceEvent', 'family.marriage': 'marriageEvent',
   'household.studies': 'studies',
+  'household.aliyahDetails': 'aliyah', 'special.disabilityDetails': 'disability',
+  'household.spouseBasics': 'spouseBasics', 'household.reserveDays': 'reserveDays', 'household.disabledChildDetails': 'childDisability', 'family.childSupport': 'childSupport',
   'period.property': 'period', 'period.account': 'period', 'wealth.period.property': 'period', 'wealth.period.account': 'period',
 };
 

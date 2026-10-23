@@ -117,6 +117,13 @@ async function runWidth(width) {
     await shot(pp, 'known');
     await next();
 
+    // 290 · בן/בת הזוג בלי מין/תאריך לידה בכרטיס ⇒ שאלה אחת מוקדמת (בלי זה הזיכויים שלה לא מחושבים)
+    ok((await q()).includes('רחל') && await flow.locator('.rec-seg-btn', { hasText: 'אישה' }).count() > 0, 'פרטי בן/בת הזוג — אישה או גבר, תאריך לידה (290)', await q());
+    await flow.locator('.rec-seg-btn', { hasText: 'אישה' }).first().click();
+    await flow.locator('input[type="date"]').first().fill('1988-04-12');
+    await shot(pp, 'spouse-basics');
+    await next();
+
     // המסכים של דוד
     ok(await scr() === 'grid' && (await flow.getAttribute('data-person')) === 'client', 'המסך הבא: הריבועים של דוד', await scr());
     ok((await q()) === 'מאיפה נכנס לך כסף ב-2025?', 'הכותרת אומרת «כסף»', await q());

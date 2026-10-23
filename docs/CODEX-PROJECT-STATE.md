@@ -37,6 +37,14 @@ Ask Guy which business process or automation he wants to improve first. Inspect 
 
 ## Decision log / review evidence
 
+### 2026-10-23 — השאלון סוגר 100% מקלטי הזיכוי (290) (גיא: «השאלון חייב לסגור 100%… לא רוצה להכניס שום דבר ידני»; «אשר בלחיצה אחת מספיק»)
+- Trigger: אחרי 288 נשארו שנת עלייה/אחוז נכות «מהתעודה, ידני» — חריגה שגיא דחה.
+- Built (src/features/taxYear): household.aliyahDetails (עולה/תושב חוזר, חודש, שנה ⇒ isNewImmigrant/aliyahYear/aliyahMonth או isReturningResident/returningYear); special.disabilityDetails (אחוז, ממתי); household.alimonyPaid — ריבוע לנשואים, כן/לא ⇒ paysAlimonyToEx; household.spouseBasics (מין + תאריך לידה, רק כשחסר — דגל onlyIfMissing ב-picture.ts) ⇒ spouse; ילדים: «איפה גר/ה» ⇒ Child.custody; household.reserveDuty/reserveDays/reserveDocs (39ב, משנת 2026) ⇒ reserveCombatDaysPrevYear; household.noIncomeSpouse (§37) ⇒ spouseNoIncomeEligible; household.disabledChildDetails (איזה ילד, למי הנקודות) ⇒ hasDisability/disabilityPointsTo; family.childSupport (סכום לילד) ⇒ monthlyAlimonyPaid. כולם דרך «אשר ועדכן בתיק» (recordToCard; בן/בת הזוג ⇒ מיזוג spouse). אישור מרוכז בונה מחדש כל הצעה על הכרטיס המעודכן (AnnualSummary).
+- Guard: src/utils/__tests__/creditInputsCovered.test.ts — כל קלט של החישוב (TaxPerson, לקוח ובן/בת זוג) חייב פריט שאלון שכותב אותו, או byDesign עם סיבה; אפס «open».
+- DB (ייצור, אחרי גיבוי backup_r290_credits_20261023): 290-questionnaire-closes-credits.sql (scripts/sql/290/build.mjs + rollback-290.sql) — _tax_year_items (328 פריטים), clients.aliyah_month, ענפי aliyahMonth/returningYear ב-_tax_fact_field_op. ‼ 289 נתפס באותו יום (289-paperless-first) ⇒ 290; ב-staging הסימון «289 · עלייה» הוחלף ל-«290 · עלייה» לפני ההחלה.
+- Tests: unit 2162/0; e2e scripts/e2e/annual-r2.mjs מול staging 120/0 (1280 + 390), כולל מסך «כמה פרטים על רחל» (נוסף לסקריפט).
+- Not verified: «אשר ועדכן בתיק» של הפריטים החדשים בדפדפן (רק ביחידה); מכשיר אמיתי; לקוחות קיימים יקבלו את השאלות בשאלון הבא שיישלח.
+
 ### 2026-10-23 — השלמת הבקרה (גיא: «תשלים את זה»): כל בדיקות ה-staging של הייצוג/מסלולים/הודעות רצות לפני push
 - assert_domain_function_invariants ירוקה בייצור וב-staging (עבודת הכתובות הוסיפה את il_* לרשימת ההיתר).
 - הופעלו (run=true): flows-notices 121/0, flow-conditions 12/0, notices-edge 22/0, shaam-lifecycle-205, shaam-presign-208, onboarding-roundtrip real+synthetic 6/0 כל אחד.

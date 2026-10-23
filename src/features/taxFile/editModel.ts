@@ -375,7 +375,11 @@ export const EDIT_SECTIONS: EditSection[] = [
     fields: [
       { key: 'isNewImmigrant', label: 'עולה חדש/ה', kind: 'bool', credit: true, governed: true },
       { key: 'aliyahYear', label: 'שנת עלייה', kind: 'number', credit: true, governed: true },
+      // 290 · סעיף 35 סופר חודשי ותק — בלי החודש החישוב מניח ינואר
+      { key: 'aliyahMonth', label: 'חודש העלייה', kind: 'select', credit: true, governed: true,
+        options: ['ינואר', 'פברואר', 'מרץ', 'אפריל', 'מאי', 'יוני', 'יולי', 'אוגוסט', 'ספטמבר', 'אוקטובר', 'נובמבר', 'דצמבר'].map((m, i) => [String(i + 1), m] as [string, string]) },
       { key: 'isReturningResident', label: 'תושב/ת חוזר/ת', kind: 'bool', credit: true, governed: true },
+      { key: 'returningYear', label: 'שנת החזרה לארץ', kind: 'number', credit: true, governed: true },
       { key: 'qualifyingSettlementId', label: 'יישוב מזכה', kind: 'text', credit: true, governed: true,
         note: 'מזהה היישוב מרשימת היישובים המזכים' },
     ],

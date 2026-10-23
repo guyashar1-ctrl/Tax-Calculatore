@@ -577,6 +577,8 @@ export interface SpouseData {
   // ── נקודות זיכוי ──
   isNewImmigrant: boolean;
   aliyahYear: number;
+  /** 290 · חודש העלייה (1–12) — סעיף 35 סופר חודשי ותק; חסר ⇒ החישוב מניח ינואר */
+  aliyahMonth?: number;
   isReturningResident: boolean;
   returningYear: number;
   disabilityPercentage: number;
@@ -742,6 +744,8 @@ export interface Client {
   // ── נקודות זיכוי ──
   isNewImmigrant: boolean;
   aliyahYear: number;
+  /** 290 · חודש העלייה (1–12) — סעיף 35 סופר חודשי ותק; חסר ⇒ החישוב מניח ינואר ומסמן */
+  aliyahMonth?: number | null;
 
   isReturningResident: boolean;
   returningYear: number;

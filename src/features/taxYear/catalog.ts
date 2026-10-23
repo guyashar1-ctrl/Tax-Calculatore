@@ -133,6 +133,14 @@ export interface InfoItem {
    * (השדה מ-FAMILY_STATUS_YEAR_KEY, utils/familyStatusYear.ts).
    */
   familyYearFor?: 'married' | 'divorced' | 'widowed';
+  /**
+   * ‼ 23.10.2026 · 290: נשאל רק כשהנתון הזה חסר בכרטיס (picture.ts › MISSING_ON_CARD). אחרי תשובה או שאלה — נשאר במעקב כרגיל.
+   *   'spouseBasics' — מין או תאריך לידה של בן/בת הזוג: בלי מין הזיכויים שלהם לא מחושבים בכלל (creditGaps › spouseCreditGaps).
+   *   'noIncomeCredit' — סעיף 37: זוג נשוי, בכרטיס אין לבן/בת הזוג מעסיק או עסק, והזכאות עוד לא נקבעה.
+   */
+  onlyIfMissing?: 'spouseBasics' | 'noIncomeCredit';
+  /** ‼ 290 · נשאל רק מהשנה הזו (39ב — נקודות ללוחמי מילואים מ-2026). */
+  fromTaxYear?: number;
 }
 
 const BOTH: Purpose[] = ['estimate', 'annual'];
@@ -177,8 +185,19 @@ export const ITEMS: InfoItem[] = [
     covers: { annexItems: ['119.internship'] }, officeNext: 'מסיימי התמחות מ-2012 בוחרים שנת תחילה; תחום ותאריכים — לטופס 119' },
   { key: 'household.creditEmployer', area: 'household', label: 'פרטי המעסיק לטופס 119', kind: 'detail', per: 'person', who: 'office', purposes: ['annual'], after: 'household.creditChanges',
     covers: { annexItems: ['119.employer'] }, officeNext: 'כתובת ותיק ניכויים — מטופס 106 או מהתלוש; כשהנמען פקיד השומה ייתכן שלא נדרש' },
-  { key: 'household.alimonyPaid', area: 'household', label: 'מזונות ששולמו לבן/בת זוג לשעבר', kind: 'amount', per: 'person', who: 'client', purposes: BOTH,
-    question: 'האם {name} שילם/ה השנה מזונות לבן או בת זוג לשעבר?', why: 'מי שנישא מחדש ומשלם מזונות זכאי לנקודת זיכוי', input: 'yesno', covers: { parts: ['יג'] }, rare: true },
+  // ‼ 290 · סעיף 40א חל רק על מי שנשוי/אה בשנית — בדוח השנתי ריבוע ב«מה יכול להוריד לך מס?» לכל נשוי/אה (לא «חריג»).
+  //   באישור ⇒ paysAlimonyToEx בכרטיס (recordToCard); בהערכת המס — מה שבכרטיס.
+  { key: 'household.alimonyPaid', area: 'household', label: 'מזונות ששולמו לבן/בת זוג לשעבר', kind: 'amount', per: 'person', who: 'client', purposes: ['annual'],
+    question: 'האם {name} שילם/ה השנה מזונות לבן או בת זוג לשעבר?', why: 'מי שנישא מחדש ומשלם מזונות זכאי לנקודת זיכוי', input: 'yesno', covers: { parts: ['יג'] }, onlyMarried: true },
+  // ‼ 290 · מין ותאריך לידה של בן/בת הזוג — פעם אחת, מוקדם, רק לזוג נשוי שבכרטיס חסר אחד מהם. באישור ⇒ clients.spouse (recordToCard)
+  { key: 'household.spouseBasics', area: 'household', label: 'בן/בת הזוג: מין ותאריך לידה (לחישוב הזיכויים)', kind: 'detail', per: 'couple', who: 'client', purposes: BOTH,
+    question: 'כמה פרטים על {spouse}', why: 'נקודות הזיכוי של כל אחד מכם תלויות בכך', input: 'record', onlyMarried: true, onlyIfMissing: 'spouseBasics' },
+  // ‼ 290 · סעיף 37 — נקודה כשלבן/בת הזוג אין הכנסה ואחד מכם בגיל פרישה, עיוור/ת או נכה. רק כשבכרטיס אין לבן/בת הזוג עבודה או עסק.
+  { key: 'household.noIncomeSpouse', area: 'household', label: 'בן/בת זוג בלי הכנסה (סעיף 37)', kind: 'detail', per: 'couple', who: 'client', purposes: BOTH,
+    question: 'אם ל{spouse} לא הייתה הכנסה ב-{year} — מה מאלה נכון?', why: 'במצבים האלה מגיעה נקודת זיכוי נוספת', input: 'choice',
+    options: [{ value: 'retirement', label: 'אחד מאיתנו בגיל פרישה' }, { value: 'blind', label: 'אחד מאיתנו עיוור/ת' }, { value: 'disabled', label: 'אחד מאיתנו נכה' },
+      { value: 'none', label: 'אף אחד מאלה' }, { value: 'hadIncome', label: 'הייתה הכנסה' }],
+    onlyMarried: true, onlyIfMissing: 'noIncomeCredit', officeNext: 'סעיף 37 — לבדוק אישור על העיוורון או הנכות, או גיל הפרישה' },
 
   // ── משכורת ──
   { key: 'salary.worked', area: 'salary', label: 'עבד/ה כשכיר/ה בשנה', kind: 'screener', per: 'person', who: 'client', purposes: BOTH, coveredBy: 'salary.employers',
@@ -579,6 +598,7 @@ const ANNUAL_TILES: Record<string, string> = {
   'savings.selfDeposits': 'הפקדה לפנסיה לבד', 'savings.insurance': 'ביטוח חיים', 'donations.given': 'תרומות',
   'special.disability': 'אחוזי נכות', 'household.creditChanges': 'סיום לימודים או צבא',
   'household.aliyah': 'עלייה או חזרה לארץ', 'household.relativeCare': 'קרוב במוסד סיעודי',
+  'household.alimonyPaid': 'מזונות לגרוש/ה', 'household.reserveDuty': 'מילואים כלוחם/ת',
   'foreign.income': 'כסף בחו״ל', 'sales.sold': 'מכירה',
 };
 /** שורת הדוגמה מתחת לריבוע. */
@@ -590,6 +610,7 @@ export const ANNUAL_TILE_EXAMPLE: Record<string, string> = {
   'savings.selfDeposits': 'לא דרך התלוש', 'savings.insurance': 'או אובדן כושר — פרטי', 'donations.given': 'עם קבלה',
   'special.disability': 'או מחלה קשה', 'household.creditChanges': 'מ-{since}',
   'household.aliyah': 'מ-{aliyahSince}', 'household.relativeCare': 'הורה, בן או בת זוג',
+  'household.alimonyPaid': 'לבן או בת זוג קודמים', 'household.reserveDuty': 'ב-{prevYear}',
   'foreign.income': 'עבודה, נכס או חשבון', 'sales.sold': 'דירה, מניות, קריפטו — גם בהפסד',
 };
 /** «?» בריבוע — שורת הסבר אחת, רק בשאלון השנתי (ההסברים הארוכים ב-hints.ts משרתים גם את הערכת המס). */
@@ -612,9 +633,11 @@ export const ANNUAL_TILE_HELP: Record<string, string> = {
   'special.disability': 'אחוזים מביטוח לאומי, ממשרד הביטחון או מפקיד השומה.',
   'household.aliyah': 'עולים ותושבים חוזרים מקבלים הקלות לכמה שנים.',
   'household.relativeCare': 'מי שמשלם על החזקה במוסד מקבל זיכוי.',
+  'household.alimonyPaid': 'מי שנישא שוב ומשלם מזונות לגרוש/ה מקבל נקודת זיכוי. מזונות ילדים — לא.',
+  'household.reserveDuty': 'ימי מילואים כלוחם בשנה שלפני מזכים בנקודות זיכוי.',
 };
 /** המסך השני של כל אדם: מה שיכול להוריד מס — השאר «מאיפה נכנס כסף». */
-export const ANNUAL_TILE_LESS = new Set(['savings.selfDeposits', 'savings.insurance', 'donations.given', 'special.disability', 'household.creditChanges', 'household.aliyah', 'household.relativeCare']);
+export const ANNUAL_TILE_LESS = new Set(['savings.selfDeposits', 'savings.insurance', 'donations.given', 'special.disability', 'household.creditChanges', 'household.aliyah', 'household.relativeCare', 'household.alimonyPaid', 'household.reserveDuty']);
 /** ‼ סבב 2: לא ריבועים בשאלון השנתי — המשפחה בשורת «זה עדיין נכון?», השכרת ציוד ב«משהו אחר?». */
 export const ANNUAL_TILE_OFF = new Set(['household.familyChange', 'rent.otherProperty']);
 /**
@@ -664,8 +687,20 @@ ITEMS.push(
   { key: 'household.aliyah', area: 'household', label: 'עלייה או חזרה לישראל (נקודות עולה, פטור תושב חוזר)', kind: 'screener', per: 'person', who: 'client', purposes: ['annual'],
     question: 'האם {name} עלה/תה לארץ או חזר/ה אליה אחרי שנים בחו״ל?', why: 'עולים ותושבים חוזרים מקבלים נקודות זיכוי ופטורים לכמה שנים', input: 'yesno', covers: { parts: ['יג'] },
     officeNext: 'עולה — נקודות לפי סעיף 35; תושב חוזר ותיק — פטור 14(א) על הכנסות מחו״ל לעשר שנים; תאריך העלייה מהתעודה' },
+  // ‼ 290 · «כן» בריבוע ⇒ המעמד, חודש ושנה (סעיף 35 סופר חודשי ותק). באישור ⇒ עולה + שנה + חודש, או תושב חוזר + שנה, בכרטיס
+  { key: 'household.aliyahDetails', area: 'household', label: 'עלייה או חזרה: מעמד, חודש ושנה', kind: 'detail', per: 'person', who: 'client', purposes: ['annual'], after: 'household.aliyah', input: 'record',
+    question: 'מתי {name} עלה/תה או חזר/ה לארץ?', why: 'הנקודות לעולה ניתנות לפי החודשים מאז העלייה',
+    officeNext: '«אשר ועדכן בתיק» — עולה: שנה וחודש; תושב חוזר: שנה. תושב חוזר ותיק — לפי האישור' },
   { key: 'household.aliyahDocs', area: 'household', label: 'תעודת עולה או אישור תושב חוזר', kind: 'document', per: 'person', who: 'client', purposes: ['annual'], after: 'household.aliyah',
     question: 'תעודת העולה או האישור על מעמד תושב חוזר', why: 'בה רשום התאריך שממנו נספרות השנים', input: 'file', docKind: 'specialStatusCert', knownBasis: DOC_KNOWN },
+  // ‼ 290 · סעיף 39ב — נקודות ללוחמי מילואים מ-2026, לפי ימי המילואים כלוחם בשנה שלפני שנת המס. ריבוע ⇒ כמה ימים ⇒ האישור
+  { key: 'household.reserveDuty', area: 'household', label: 'מילואים כלוחם/ת בשנה שלפני (סעיף 39ב)', kind: 'screener', per: 'person', who: 'client', purposes: ['annual'], fromTaxYear: 2026,
+    question: 'האם {name} עשה/תה מילואים כלוחם/ת ב-{prevYear}?', why: 'ימי מילואים כלוחם מזכים בנקודות זיכוי', input: 'yesno', covers: { parts: ['יג'] } },
+  { key: 'household.reserveDays', area: 'household', label: 'ימי מילואים כלוחם/ת בשנה שלפני', kind: 'detail', per: 'person', who: 'client', purposes: ['annual'], after: 'household.reserveDuty', input: 'record', fromTaxYear: 2026,
+    question: 'כמה ימי מילואים כלוחם/ת היו ל{name} ב-{prevYear}?', why: 'מספר הימים קובע כמה נקודות מגיעות',
+    officeNext: '«אשר ועדכן בתיק» — ימי המילואים נכתבים בכרטיס; לבדוק מול האישור' },
+  { key: 'household.reserveDocs', area: 'household', label: 'אישור ימי מילואים מצה״ל', kind: 'document', per: 'person', who: 'client', purposes: ['annual'], after: 'household.reserveDuty', fromTaxYear: 2026,
+    question: 'האישור מצה״ל על ימי המילואים ב-{prevYear}', why: 'בו רשום כמה ימים שירתת כלוחם', input: 'file', docKind: 'creditCerts', knownBasis: DOC_KNOWN },
   { key: 'household.relativeCare', area: 'household', label: 'קרוב במוסד סיעודי (זיכוי סעיף 44)', kind: 'screener', per: 'person', who: 'client', purposes: ['annual'],
     question: 'האם {name} שילם/ה השנה על החזקת קרוב — הורה, בן או בת זוג, או ילד — במוסד סיעודי?', why: 'על החזקת קרוב במוסד יש זיכוי ממס', input: 'yesno', covers: { parts: ['יד'] },
     officeNext: 'סעיף 44: זיכוי 35% על ההוצאה שמעל 12.5% מההכנסה החייבת; לבדוק מי שילם בפועל' },
@@ -700,6 +735,9 @@ ITEMS.push(
   { key: 'household.newChildDocs', area: 'household', label: 'ספח תעודת הזהות עם הילד החדש', kind: 'document', per: 'couple', who: 'client', purposes: NONE,
     question: 'ספח תעודת הזהות — עם הילד החדש', why: 'ממנו לוקחים את תאריך הלידה', input: 'file', docKind: 'idCard' },
   { key: 'household.disabledChild', area: 'household', label: 'ילד עם מוגבלות (סעיף 45)', kind: 'screener', per: 'couple', who: 'client', purposes: NONE },
+  // ‼ 290 · «ילד עם מוגבלות» ⇒ איזה ילד, ולזוג — למי מכם הנקודות (סעיף 45: להורה אחד). באישור ⇒ Child.hasDisability + disabilityPointsTo
+  { key: 'household.disabledChildDetails', area: 'household', label: 'איזה ילד עם מוגבלות, ולמי הנקודות', kind: 'detail', per: 'couple', who: 'client', purposes: NONE, input: 'record',
+    question: 'איזה ילד?', why: 'לילד עם מוגבלות מגיעות נקודות זיכוי נוספות' },
   { key: 'household.disabledChildDocs', area: 'household', label: 'אישור על מצב הילד', kind: 'document', per: 'couple', who: 'client', purposes: NONE,
     question: 'אישור על מצב הילד — למשל אישור קצבת ילד נכה', why: 'לפיו ניתנות נקודות הזיכוי הנוספות (טופס 116א)', input: 'file', docKind: 'specialStatusCert' },
   // ── שורת הכתובת: «עברנו» ⇒ אישור תושבות (יישוב מזכה דורש 12 חודשים) ──
@@ -736,6 +774,10 @@ ITEMS.push(
     question: 'האם ל{name} נקבעו אחוזי נכות, או שיש מחלה קשה?', coupleQuestion: 'האם למישהו מכם נקבעו אחוזי נכות, או שיש מחלה קשה?',
     why: 'נכות של 90% ומעלה פוטרת חלק גדול מההכנסה ממס — רק עם אישור', input: 'yesno', covers: { parts: ['י'] },
     officeNext: 'פטור 9(5): נכות 100% (או 90% מצטבר) לתקופה של 185 יום לפחות, לפי אישור פקיד השומה' },
+  // ‼ 290 · «כן» בריבוע ⇒ כמה אחוזים וממתי (או «עוד לא נקבעו»). באישור ⇒ disabilityPercentage בכרטיס; «ממתי» — שורה למשרד
+  { key: 'special.disabilityDetails', area: 'special', label: 'אחוזי נכות וממתי', kind: 'detail', per: 'person', who: 'client', purposes: ['annual'], after: 'special.disability', input: 'record',
+    question: 'אחוזי הנכות של {name}', why: 'מ-90% יש פטור ממס על חלק מההכנסה — לפי התקופה',
+    officeNext: '«אשר ועדכן בתיק» — האחוז נכתב בכרטיס; נכות מתוך השנה — לבדוק 185 יום (9(5))' },
   { key: 'special.disabilityCert', area: 'special', label: 'אישור אחוזי נכות', kind: 'document', per: 'person', who: 'client', purposes: ['annual'], after: 'special.disability',
     question: 'האישור על אחוזי הנכות — מפקיד השומה או מביטוח לאומי', why: 'הפטור ניתן רק לפי האישור, לתקופה שבו', input: 'file', docKind: 'specialStatusCert', knownBasis: DOC_KNOWN },
   // ── דירה או חשבון חדשים, כשבתיק אין (בתיק יש — אישור «זה מה שידוע לנו») ──
@@ -806,6 +848,9 @@ ITEMS.push(
   { key: 'family.divorce', area: 'household', label: 'גירושין: תאריך, ילדים ומזונות', kind: 'detail', per: 'couple', who: 'client', purposes: NONE, input: 'record', after: 'family.eventDivorce',
     question: 'הגירושין או הפרידה — הפרטים', why: 'מהתאריך משתנה מי מגיש ואילו נקודות זיכוי מגיעות לכל הורה',
     officeNext: 'מצב משפחתי לפי שנת המס (familyStatusForYear); מזונות לבן/בת זוג לשעבר — נקודת זיכוי למי שנישא מחדש' },
+  // ‼ 290 · «אני משלם/ת» מזונות ⇒ כמה בחודש לכל ילד (Child.monthlyAlimonyPaid — «משתתף בכלכלת ילדיו»)
+  { key: 'family.childSupport', area: 'household', label: 'מזונות ילדים ששולמו — לכל ילד', kind: 'detail', per: 'couple', who: 'client', purposes: NONE, input: 'record',
+    question: 'מזונות לילדים — כמה בחודש?', why: 'מי שמשלם מזונות לילדיו זכאי לנקודת זיכוי' },
   { key: 'family.divorceDocs', area: 'household', label: 'הסכם או פסק דין גירושין', kind: 'document', per: 'couple', who: 'client', purposes: NONE,
     question: 'הסכם הגירושין או פסק הדין', why: 'בו כתוב התאריך, אצל מי הילדים והמזונות', input: 'file', docKind: 'divorceDocs' },
   { key: 'family.marriage', area: 'household', label: 'נישואין: תאריך ובן/בת הזוג', kind: 'detail', per: 'couple', who: 'client', purposes: NONE, input: 'record', after: 'family.eventMarriage',

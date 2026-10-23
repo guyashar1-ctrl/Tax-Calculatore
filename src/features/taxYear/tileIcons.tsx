@@ -21,6 +21,10 @@ const P: Record<string, string> = {
   'business.started': 'M4 20V9l8-5 8 5v11M9 20v-6h6v6',
   'household.aliyah': 'M3 17l6-3 4 2 8-5M3 21h18M14 4l3 3-3 3',
   'household.relativeCare': 'M4 21V9l8-5 8 5v12M12 10v6M9 13h6',
+  // 290 · מזונות לגרוש/ה — מטבע ביד
+  // 290 · מילואים — קסדה
+  'household.reserveDuty': 'M4 15a8 8 0 0 1 16 0zM2 15h20M8 15v3h8v-3',
+  'household.alimonyPaid': 'M12 4a4 4 0 1 0 0 8a4 4 0 1 0 0-8M3 20l4-4h6l5-3 2 2-6 5H3',
   'household.familyChange':'M5 7a3 3 0 1 0 6 0a3 3 0 1 0-6 0M13 7a3 3 0 1 0 6 0a3 3 0 1 0-6 0M3 20c0-3 2.2-5 5-5s5 2 5 5M11 20c0-3 2.2-5 5-5s5 2 5 5',
 };
 
