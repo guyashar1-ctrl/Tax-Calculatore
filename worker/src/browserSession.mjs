@@ -887,8 +887,41 @@ function captureJson(page, path, timeout) {
   return page.waitForResponse((r) => {
     try { return new URL(r.url()).pathname === path; } catch { return false; }
   }, { timeout })
-    .then(async (r) => ({ status: r.status(), body: await r.json().catch(() => null) }))
+    .then(async (r) => ({
+      status: r.status(), body: await r.json().catch(() => null),
+      post: (() => { try { return r.request().postData(); } catch { return null; } })(),
+    }))
     .catch(() => null);
+}
+
+// ─── «רשימת מיוצגים» (פורטל המייצגים) ────────────────────────────────────
+// ‼ נצפה חי 23.10.2026. מערכת עם כניסה משלה (סשן לכל לשונית): קוראים רק מלשונית שכבר
+// מחוברת — לא נכנסים, לא מאשרים סיסמה, ולא מזיזים את לשונית GMF. חיפוש אחד לפי מספר תיק
+// מחזיר את כל נושאי המס בתיק (ראה representedList.mjs). ‼ לא נוגעים באייקון הפח.
+const RESH_PATH = '/srReshMeyuzagim';
+const RESH_API = '/srReshMeyuzagimApi/api/ReshMeyuzagim/ShlifReshMeyuzagim';
+const RESH_TIK_INPUT = 'input#tik1';
+const RESH_SEARCH = 'button:has-text("חיפוש")';
+
+/** @returns {{ok:true, body, post} | {ok:false, reason}} */
+export async function readRepresentedList(context, fileNumber) {
+  const page = await pickPageOn(context, RESH_PATH, RESH_TIK_INPUT);
+  if (!page) return { ok: false, reason: 'representation_not_connected' };
+  if (await page.$('input[type=password]').catch(() => null)) return { ok: false, reason: 'representation_login_required' };
+  // ‼ סינונים שנשארו מחיפוש קודם (תיבות סימון) — מבטלים; תאריכים שנשארו נתפסים בבדיקת הבקשה.
+  await page.evaluate(() => {
+    document.querySelectorAll('input#chkhrs:checked, input#sugTik:checked').forEach((c) => c.click());
+  }).catch(() => {});
+  try {
+    await page.fill(`${RESH_TIK_INPUT}:visible`, String(fileNumber).replace(/\D/g, ''), { timeout: 8000 });
+  } catch { return { ok: false, reason: 'search_field_missing' }; }
+  const resP = captureJson(page, RESH_API, 60000);
+  try {
+    await page.locator(RESH_SEARCH).first().click({ timeout: 8000 });
+  } catch { return { ok: false, reason: 'search_click_failed' }; }
+  const res = await resP;
+  if (!res?.body) return { ok: false, reason: 'data_not_captured' };
+  return { ok: true, body: res.body, post: res.post };
 }
 
 /**

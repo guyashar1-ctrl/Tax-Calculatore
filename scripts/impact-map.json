@@ -264,6 +264,7 @@
         "src/features/shaamFiling/**",
         "worker/src/gmf154.mjs",
         "worker/src/gmf134.mjs",
+        "worker/src/representedList.mjs",
         "worker/src/browserSession.mjs",
         "worker/src/handlers/shaamSyncIncomeTaxFile.mjs",
         "supabase/250-*.sql"

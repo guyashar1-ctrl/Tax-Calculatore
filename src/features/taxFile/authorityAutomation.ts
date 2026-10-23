@@ -281,6 +281,14 @@ function mapWealthDemand(raw: string): string | null {
   return null;
 }
 
+/** «קיימת · 12-170-48047» ⇒ 'true' · «אין הרשאה» ⇒ 'false' (רשימת מיוצגים). כל טקסט אחר — לא ממופה. */
+function mapDebitAuthorization(raw: string): string | null {
+  const t = raw.replace(/\s+/g, ' ').trim();
+  if (/^קיימת/.test(t)) return 'true';
+  if (t === 'אין הרשאה') return 'false';
+  return null;
+}
+
 /**
  * מה שדה מציג ומציע כשהרשות החזירה מצב עסקי במקום ערך.
  * `'info'` ⇒ אין ערך ואין הצעה, רק סמן ניטרלי (ההסבר בקבוצה).
@@ -341,6 +349,10 @@ export const SHAAM_134_FIELD_SOURCES: Record<string, Shaam134FieldSource> = {
     businessValue: (f) => (advanceBusinessState(f)
       ? { value: REPORTING_NO_ADVANCES, display: REPORTING_NO_ADVANCES } : 'info'),
   },
+  // ‼ «רשימת מיוצגים» (23.10.2026) — רק כשמערכת הייצוג הייתה מחוברת בזמן הקריאה; אחרת «לא נבדק».
+  incomeTaxDebitAuthorization: {
+    source: 'debitAuthorization', normalize: mapDebitAuthorization,
+  },
   // ‼ הצהרת הון מ-154 בלבד. «אין דרישה» הוא תוצאה: אין דרישה פתוחה לפי שע״ם.
   // ריצה ישנה בלי המפתח ⇒ «לא נבדק» (ריק בלי מצב עסקי), לא כישלון.
   capitalDeclarationRequired: {
@@ -355,8 +367,15 @@ export const SHAAM_134_FIELD_SOURCES: Record<string, Shaam134FieldSource> = {
   },
 };
 
-/** מפתחות שקיימים רק בתוצאה של 154 — ריצה ישנה בלעדיהם היא «לא נבדק», לא כשל. */
-const SHAAM_154_ONLY_SOURCES = new Set(['wealthDemand', 'wealthDemandDue']);
+/**
+ * מקורות שלא תמיד נקראים — ריצה בלעדיהם היא «לא נבדק», לא כשל: הון מ-154 (ריצה ישנה),
+ * הרשאה לחיוב מ«רשימת מיוצגים» (רק כשמערכת הייצוג מחוברת).
+ */
+const OPTIONAL_SOURCES: Record<string, (f: Record<string, string>) => boolean> = {
+  wealthDemand: (f) => f.wealthDemand !== undefined,
+  wealthDemandDue: (f) => f.wealthDemand !== undefined,
+  debitAuthorization: (f) => f.debitAuthorization !== undefined,
+};
 
 /**
  * שדות בכרטיס שאינם עובדה מנוהלת, ושהקריאה מאשרת או מציגה — בלי הצעת שינוי לעולם (22.10.2026, גיא).
@@ -381,8 +400,14 @@ function interpretShaamReadOnly(fieldKey: string, job: AutomationJob, client: Cl
   }
   if (fieldKey === 'incomeTaxRepresentation') {
     const rep = (fields.mainRepresentative ?? '').trim();
-    if (!rep || !fields.representedByMe) return null;
     const active = (client.taxFiles ?? []).some(f => f.authority === 'income_tax' && f.repStatus === 'active');
+    // ‼ «רשימת מיוצגים» אומרת «ראשי» / «נוסף» במפורש — גוברת על ההסקה מ-154.
+    const listed = (fields.repType ?? '').trim();
+    if (listed === 'ראשי' || listed === 'נוסף') {
+      const display = listed === 'ראשי' ? 'מייצג ראשי' : `מייצג נוסף${rep && fields.representedByMe === 'no' ? ` · ראשי: ${rep}` : ''}`;
+      return { fieldKey, label: 'ייצוג', status: active ? 'match' : 'info', currentValue: '', authorityDisplay: display, showOnMatch: true };
+    }
+    if (!rep || !fields.representedByMe) return null;
     // ‼ 22.10.2026 (גיא): «ראשי» או «נוסף» כתוב בשורה. ב-154 יש רק «מייצג ראשי»; GMF פותחת רק תיק
     // שמייצגים — ולכן כשהראשי הוא מישהו אחר, אנחנו המייצג הנוסף.
     if (fields.representedByMe === 'yes') {
@@ -427,7 +452,7 @@ function interpretShaam134(
     if (!spec || !fields) return { fieldKey, label, status: 'unsupported', currentValue };
 
     const raw = spec.preferBusiness && advanceBusinessState(fields) ? '' : (fields[spec.source] ?? '').trim();
-    if (raw === '' && SHAAM_154_ONLY_SOURCES.has(spec.source) && fields.wealthDemand === undefined) {
+    if (raw === '' && OPTIONAL_SOURCES[spec.source] && !OPTIONAL_SOURCES[spec.source](fields)) {
       return { fieldKey, label, status: 'unsupported', currentValue };
     }
     if (raw === '') {

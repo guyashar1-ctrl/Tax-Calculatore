@@ -115,4 +115,21 @@ export const TESTS: TestCase[] = [
     assert(!reportingStatusOk('חסר דיווח 07-08/2026'), 'חסר');
     assert(!reportingStatusOk(''), 'ריק');
   }),
+  test('הרשאה לחיוב מ«רשימת מיוצגים»: קיימת/אין ⇒ הצעה; בלי הרשימה ⇒ לא נבדק', () => {
+    const read = (fields: Record<string, string>, c = client()) => spec.interpret!(job(fields), c, ['incomeTaxDebitAuthorization'])[0];
+    const yes = read({ debitAuthorization: 'קיימת · 12-170-48047' });
+    equal(yes.status, 'changed');
+    equal(yes.authorityValue, 'true');
+    equal(yes.authorityDisplay, 'קיימת · 12-170-48047');
+    equal(read({ debitAuthorization: 'אין הרשאה' }, client({ incomeTaxDebitAuthorization: false })).status, 'match');
+    equal(read({ taxOffice: 'x' }).status, 'unsupported', 'מערכת הייצוג לא הייתה מחוברת');
+  }),
+  test('ייצוג: «ראשי»/«נוסף» מ«רשימת מיוצגים» גוברים על ההסקה', () => {
+    const c = client({ taxFiles: [{ id: 't', authority: 'income_tax', owner: 'client', repStatus: 'active', fileNumber: '1' }] as Client['taxFiles'] });
+    const read = (fields: Record<string, string>) => spec.interpret!(job(fields), c, ['incomeTaxRepresentation'])[0];
+    const extra = read({ repType: 'נוסף', mainRepresentative: 'כהן דנה', representedByMe: 'no' });
+    equal(extra.status, 'match');
+    equal(extra.authorityDisplay, 'מייצג נוסף · ראשי: כהן דנה');
+    equal(read({ repType: 'ראשי' }).authorityDisplay, 'מייצג ראשי');
+  }),
 ];

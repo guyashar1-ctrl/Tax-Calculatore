@@ -286,7 +286,8 @@ const INSTITUTIONS: Record<InstitutionKey, InstitutionConfig> = {
       {
         key: 'incomeTaxDebitAuthorization', label: 'הרשאה לחיוב חשבון', options: AUTH_OPTS, badValues: ['אין הרשאה'],
         governedKey: 'incomeTaxDebitAuthorization', governedPatch: bad => !bad,
-        where: ['פורטל המייצגים ← מס הכנסה ← הרשאה לחיוב חשבון'],
+        // ‼ 23.10.2026: נקרא מ«רשימת מיוצגים» כשמערכת הייצוג מחוברת.
+        where: ['פורטל המייצגים ← רשימת מיוצגים ← «הרשאה לחיוב חשבון»'],
         outcome: () => ({ kind: 'request', title: 'הקמת הרשאה לחיוב במס הכנסה',
           sub: 'להקים הרשאה לחיוב חשבון במס הכנסה דרך פורטל המייצגים.' }),
       },

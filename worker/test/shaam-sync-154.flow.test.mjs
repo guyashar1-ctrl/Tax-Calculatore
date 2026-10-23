@@ -12,6 +12,7 @@ const { world, tab, resetWorld, SimPage } = await import('./fixtures/shaam-sim/w
 const sync = await import('../src/handlers/shaamSyncIncomeTaxFile.mjs');
 const { sample154 } = await import('./fixtures/gmf154-sample.mjs');
 const { tik134 } = await import('./fixtures/gmf134-sample.mjs');
+const { reshBody, reshPost } = await import('./fixtures/represented-list-sample.mjs');
 
 const logs = [];
 const ctx = () => ({ log: (...a) => logs.push(a.join(' ')), workerId: 'sim', job: { id: 'job', progress: {}, revision: 0 } });
@@ -111,4 +112,23 @@ test('מקדמות בוטלו + 134 (154 לא נקראה) ⇒ בלי «מצב ד
   const r = await sync.run(ctx(), { fileNumber: FILE });
   assert.equal(r.result.query, '134');
   assert.equal(r.result.fields.reportingStatus, undefined);
+});
+
+test('«רשימת מיוצגים» בלשונית מחוברת ⇒ הרשאה, נוסף וארכה בחיפוש אחד; לשונית GMF לא זזה', async () => {
+  connected(sample154({ sugDrisha: 'לא נדרש' }));
+  world.pages.push(new SimPage('/srReshMeyuzagim/'));
+  world.resh = { body: reshBody(FILE), post: reshPost(FILE) };
+  const r = await sync.run(ctx(), { fileNumber: FILE });
+  assert.equal(r.result.fields.debitAuthorization, 'קיימת · 12-170-48047');
+  assert.equal(r.result.fields.repType, 'נוסף');
+  assert.equal(r.result.fields.extensionUntil, '30/11/2026');
+  assert.equal(r.result.representedList.length, 2);
+  assert.ok(tab().path.startsWith('/gmf-154'), 'לשונית GMF נשארה על 154');
+});
+
+test('מערכת הייצוג לא מחוברת ⇒ «לא נבדק», בלי כניסה', async () => {
+  connected(sample154({ sugDrisha: 'לא נדרש' }));
+  const r = await sync.run(ctx(), { fileNumber: FILE });
+  assert.equal(r.result.fields.debitAuthorization, undefined);
+  assert.ok(r.result.unavailable.some((u) => u.key === 'representedList' && u.reason === 'representation_not_connected'));
 });

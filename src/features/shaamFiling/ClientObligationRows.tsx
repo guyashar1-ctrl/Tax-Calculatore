@@ -32,7 +32,10 @@ export default function ClientObligationRows({ client, onOpenRequests, onChanged
   const { job } = useAutomationJob(client.id || undefined, SHAAM_SYNC_INCOME_TAX_ACTION_TYPE);
   const filing = job?.status === 'succeeded' ? gmf154Filing(job.result) : null;
   const checkedOn = filing ? dmy((job?.finishedAt ?? job?.updatedAt ?? '').slice(0, 10)) : '';
-  const summary = filing ? [filingSummaryText(filing), checkedOn && `נבדק ${checkedOn}`].filter(Boolean).join(' · ') : '';
+  // ‼ הארכה להגשת הדוח — מ«רשימת מיוצגים» באותה קריאה (כשמערכת הייצוג הייתה מחוברת).
+  const f = (job?.status === 'succeeded' ? (job.result as { fields?: Record<string, string> } | undefined)?.fields : undefined) ?? {};
+  const extension = f.extensionUntil ? `ארכה עד ${f.extensionUntil.replace(/\//g, '.')}${f.extensionSource ? ` (${f.extensionSource})` : ''}` : '';
+  const summary = filing ? [filingSummaryText(filing), extension, checkedOn && `נבדק ${checkedOn}`].filter(Boolean).join(' · ') : '';
   if (!rows.length && !summary) return null;
   const open = rows.filter(o => o.state === 'open');
   const filed = rows.filter(o => o.state === 'history' || o.state === 'filed_per_shaam');

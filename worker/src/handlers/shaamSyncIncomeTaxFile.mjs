@@ -12,11 +12,12 @@
 // ‼ 154 שלא נפתחה מסיבה שאינה התחברות/חלונית ⇒ ממשיכים ל-134 כמו קודם, ומדווחים
 // שהשנים לא נקראו. התחברות/חלונית ⇒ עוצרים, כמו תמיד.
 import {
-  attach, detach, openAdvancesInfo, openTaxYearsInfo,
+  attach, detach, openAdvancesInfo, openTaxYearsInfo, readRepresentedList,
   extractIncomeTaxFileFacts, verifyFileDetailsFor,
 } from '../browserSession.mjs';
 import { parseTaxYears, openYears } from '../gmf154.mjs';
 import { reportingFrom134 } from '../gmf134.mjs';
+import { parseRepresentedList, incomeTaxFieldsFrom } from '../representedList.mjs';
 import { NeedsHumanError, PermanentError } from '../errors.mjs';
 import { isGmfLoginPath, reloginGmf, gmfReloginMessage, noteFirstPasswordLanding } from '../gmfRelogin.mjs';
 
@@ -154,6 +155,25 @@ export async function run(ctx, input) {
       }
     }
 
+    // ‼ «רשימת מיוצגים» — הרשאה לחיוב, ראשי/נוסף וארכה, בחיפוש אחד. רק כשמערכת הייצוג
+    // מחוברת בלשונית קיימת; אחרת «לא נבדק», בלי כניסה ובלי לעזוב את GMF (גיא, 23.10.2026).
+    let representedList = null;
+    const rl = await readRepresentedList(conn.page.context(), fileNumber);
+    if (rl.ok) {
+      const parsed = parseRepresentedList(rl.body, { fileNumber, post: rl.post });
+      if (parsed.ok) {
+        representedList = parsed.rows;
+        Object.assign(fields, incomeTaxFieldsFrom(parsed.rows));
+        ctx.log(`רשימת מיוצגים: ${parsed.rows.map((r) => `${r.subjectRaw} ${r.repType ?? '?'}${r.debitAccount ? ' · הרשאה' : ''}${r.extensionUntil ? ` · ארכה ${r.extensionUntil}` : ''}`).join(' | ')}`);
+      } else {
+        ctx.log(`רשימת מיוצגים לא שימשה (${parsed.reason})`);
+        unavailable.push({ key: 'representedList', reason: parsed.reason });
+      }
+    } else {
+      ctx.log(`רשימת מיוצגים לא נקראה (${rl.reason})`);
+      unavailable.push({ key: 'representedList', reason: rl.reason });
+    }
+
     ctx.log(`נקראו ${Object.keys(fields).length} שדות · חסרים/דו-משמעיים: ${unavailable.length}`);
     if (unavailable.length) ctx.log('לא נקרא: ' + JSON.stringify(unavailable));
     if (Object.keys(fields).length === 0) {
@@ -171,6 +191,7 @@ export async function run(ctx, input) {
         path, fields, unavailable,
         ...(years ? { filing: years.filing } : {}),
         ...(advancePeriods ? { advancePeriods } : {}),
+        ...(representedList ? { representedList } : {}),
       },
     };
   } finally {

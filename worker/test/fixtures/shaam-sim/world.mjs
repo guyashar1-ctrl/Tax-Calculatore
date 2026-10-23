@@ -38,6 +38,8 @@ export const world = {
   gmf154: null,
   /** הפורטל פג בשרת והתפריט עוד על המסך: הלחיצה בכותרת לא מזיזה את הדף (302 ל-otpCts, נצפה 21.10). */
   gmfApiExpired: false,
+  /** «רשימת מיוצגים»: { body, post } לחיפוש. הלשונית עצמה — SimPage ב-'/srReshMeyuzagim/'. */
+  resh: null,
   /** שאילתה 134: תשובת getTikData (lstTkufot, moneDvcChaser). null ⇒ לא נלכדה. */
   gmf134: null,
 };
@@ -47,7 +49,7 @@ export function resetWorld() {
     chrome: 'closed', portal: false, gmfSession: false,
     savedCredential: USERNAME, savedPasswordAccepted: true, pages: [],
     pivo: { picks: 0, submits: 0, focusClicks: 0, gotos: [] }, humanSubmits: 0, humanScript: [], reports: [],
-    gmf154: null, gmfApiExpired: false, gmf134: null, gmf134Raw: null,
+    gmf154: null, gmfApiExpired: false, gmf134: null, gmf134Raw: null, resh: null,
   });
 }
 
@@ -104,8 +106,8 @@ export class SimPage {
   waitForResponse(pred) {
     return new Promise((resolve, reject) => { this.waiters.push({ pred, resolve, reject }); });
   }
-  #respond(path, body) {
-    const res = { url: () => ORIGIN + path, status: () => 200, json: async () => body };
+  #respond(path, body, post = null) {
+    const res = { url: () => ORIGIN + path, status: () => 200, json: async () => body, request: () => ({ postData: () => post }) };
     const hit = this.waiters.find((w) => w.pred(res));
     if (hit) { this.waiters = this.waiters.filter((w) => w !== hit); hit.resolve(res); }
   }
@@ -176,6 +178,11 @@ export class SimPage {
       this.#rejectWaiters();
       return;
     }
+    if (sel.includes('חיפוש') && this.path.startsWith('/srReshMeyuzagim')) {
+      if (world.resh) this.#respond('/srReshMeyuzagimApi/api/ReshMeyuzagim/ShlifReshMeyuzagim', world.resh.body, JSON.stringify(world.resh.post));
+      this.#rejectWaiters();
+      return;
+    }
     if (sel === '#btnNext' && this.path.startsWith('/gmf-154')) {
       this.page154 += 1;
       world.pivo.pages154 = (world.pivo.pages154 ?? 0) + 1;
@@ -189,6 +196,7 @@ export class SimPage {
     if (sel === '#pass') return this.onGmfLogin();
     if (sel === '#gmftxtMisTik' || sel === '#mavarShilta') return gmfWork;
     if (sel === '#btnNext') return this.path.startsWith('/gmf-154') && !!world.gmf154?.pages[this.page154 + 1];
+    if (sel.startsWith('input#tik1')) return this.path.startsWith('/srReshMeyuzagim');
     return gmfWork;
   }
 
