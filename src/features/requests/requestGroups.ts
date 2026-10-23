@@ -88,7 +88,8 @@ export const REQUEST_GROUPS: Record<RequestGroupKey, RequestGroupDef> = {
   },
 };
 
-export const GROUP_ORDER: RequestGroupKey[] = ['paperless', 'prevAccountant', 'representation'];
+// 23.10.2026 · הייצוג תמיד ראשון, גם כשממתינים לאחרים או כשהושלם.
+export const GROUP_ORDER: RequestGroupKey[] = ['representation', 'paperless', 'prevAccountant'];
 
 const MEMBER_RANK = new Map<string, number>();
 for (const g of GROUP_ORDER) REQUEST_GROUPS[g].members.forEach((m, i) => MEMBER_RANK.set(`${g}:${m.stepType}`, i));
@@ -290,8 +291,8 @@ export interface PortalGroup<T extends PortalItemLike> {
 }
 
 /**
- * מקבצת את פריטי הדף לקבוצות. פריט בודד — נשאר כמו שהוא. קבוצה של פריט אחד בלבד
- * אינה קבוצה (אין מה להחזיק יחד) — הפריט נשאר בודד, בדיוק כמו קודם.
+ * מקבצת את פריטי הדף לקבוצות. הייצוג שומר על המקום הקבוע בראש הדף גם כשנשאר
+ * בו פריט אחד. בקבוצות אחרות פריט בודד נשאר בודד, כמו קודם.
  */
 export function groupPortalItems<T extends PortalItemLike>(items: T[]): { groups: PortalGroup<T>[]; singles: T[] } {
   const hasPaperless = items.some(i => PORTAL_PAPERLESS_KEYS.has(i.key));
@@ -308,7 +309,7 @@ export function groupPortalItems<T extends PortalItemLike>(items: T[]): { groups
   for (const key of GROUP_ORDER) {
     const list = by.get(key);
     if (!list) continue;
-    if (list.length < 2) { singles.push(...list); continue; }
+    if (list.length < 2 && key !== 'representation') { singles.push(...list); continue; }
     list.sort((a, b) => (PORTAL_CHILD_RANK[a.key] ?? 50) - (PORTAL_CHILD_RANK[b.key] ?? 50));
     groups.push({ key, title: REQUEST_GROUPS[key].title, summary: REQUEST_GROUPS[key].clientSummary, items: list });
   }

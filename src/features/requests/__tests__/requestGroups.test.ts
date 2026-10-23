@@ -31,6 +31,34 @@ const appr = (id: string, answersId: string, pct: number, entered: string | null
 });
 
 export const TESTS: TestCase[] = [
+  test('הדף: הייצוג ראשון גם כשהוא ממתין למשרד, נעול או הושלם ופייפרלס דורש פעולה', () => {
+    for (const bucket of ['action', 'office', 'future', 'done']) {
+      const items = [
+        { key: 'prev_accountant', bucket: 'action' }, { key: 'prev_details', bucket: 'office' },
+        { key: 'paperless_signup', bucket: 'action' }, { key: 'paperless_connect', bucket: 'office' },
+        { key: 'rep_sign', bucket }, { key: 'rep_approval', bucket },
+      ];
+      const r = groupPortalItems(items);
+      deepEqual(r.groups.map(g => g.key), ['representation', 'paperless', 'prevAccountant']);
+      equal(portalGroupStatus(r.groups[0].items).tone, bucket);
+      // הסדר הוא תצוגה בלבד; אין שינוי במצבים או שכפול פריטים.
+      equal(r.groups.flatMap(g => g.items).length + r.singles.length, items.length);
+      assert(r.groups[0].items.every(i => i.bucket === bucket), 'מצב הייצוג נשמר');
+    }
+  }),
+  test('הדף: ייצוג של פריט אחד שומר על הקבוצה והמקום הראשון בכל שלב', () => {
+    for (const item of [
+      { key: 'rep_fill', bucket: 'action' }, { key: 'rep_office', bucket: 'office' },
+      { key: 'rep_done', bucket: 'done' }, { key: 'authrep_spouse', bucket: 'future' },
+      { key: 'identity', kind: 'identity_confirm', bucket: 'action' },
+    ]) {
+      const r = groupPortalItems([{ key: 'paperless_signup', bucket: 'action' },
+        { key: 'paperless_connect', bucket: 'office' }, item]);
+      equal(r.groups[0].key, 'representation');
+      deepEqual(r.groups[0].items, [item]);
+      assert(!r.singles.includes(item), 'הייצוג לא מופיע שוב כפריט בודד');
+    }
+  }),
   // ── 15.10 · אמיר: אותה קבוצת ייצוג במשרד ובדף ────────────────
   test('הדף: «פתיחת התיקים» לא בקבוצת הייצוג — הקבוצה מוצגת כהושלמה כמו במשרד', () => {
     // ‼ הפריטים המדויקים ש-build_client_portal החזירה לאמיר ויסמרק (מפתחות ותיבות בלבד).

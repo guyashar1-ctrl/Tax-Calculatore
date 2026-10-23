@@ -1806,7 +1806,10 @@ export function PortalView({ data, token = '', preview = false, embed = false, o
   const groupedKeys = new Set(itemGroups.flatMap(g => g.items.map(i => i.key)));
   const free = (i: PortalItem) => !groupedKeys.has(i.key);
   const groupCards = itemGroups.map(g => ({ g, st: portalGroupStatus(g.items) }));
-  const groupsIn = (tone: 'action' | 'office' | 'future' | 'done') => groupCards.filter(x => x.st.tone === tone);
+  // 23.10 · בית קבוע לייצוג בראש הדף, בלי לשנות את המצב או להכפיל את הבקשה במקטעי המצב.
+  const representationCard = groupCards.find(x => x.g.key === 'representation');
+  const groupsIn = (tone: 'action' | 'office' | 'future' | 'done') =>
+    groupCards.filter(x => x.g.key !== 'representation' && x.st.tone === tone);
   const actions  = data.items.filter(i => i.bucket === 'action' && !isSentDoc(i) && free(i) && !i.forPerson)
     .sort((a, b) => optionalLast(a) - optionalLast(b));
   // ‼ הודעה מהמשרד אינה "בטיפול המשרד": אין מאחוריה עבודה שמתבצעת, ולכן היא
@@ -1854,7 +1857,7 @@ export function PortalView({ data, token = '', preview = false, embed = false, o
   /* ‼ 280 · «הדבר הבא» — אחד מהפריטים שכבר ב«מה צריך ממך» (בסדר שבו הם מוצגים), עם המועד הקרוב ביותר לפי
      «הדוחות שלך»; בלי מועד — הראשון. הכפתור פותח את אותה בקשה ברשימה, באותו כפתור שלה — לא עותק שלה. */
   const next = pickNextAction(
-    [...groupsIn('action').flatMap(x => x.g.items.filter(i => i.bucket === 'action')), ...actions],
+    [...groupCards.filter(x => x.st.tone === 'action').flatMap(x => x.g.items.filter(i => i.bucket === 'action')), ...actions],
     dueByStep(filings));
   const nextCtx = next ? { key: next.item.key, due: next.due, tag: waitingForYou.length > 1 } : null;
   // הבקשה הבאה ראשונה ברשימה (כשהיא לא בתוך קבוצה)
@@ -1893,6 +1896,11 @@ export function PortalView({ data, token = '', preview = false, embed = false, o
             ))}
           </div>
         )}
+        {representationCard && (
+          <PortalNextCtx.Provider value={nextCtx}>
+            {renderGroup(representationCard)}
+          </PortalNextCtx.Provider>
+        )}
         {actions.length > 0 || groupsIn('action').length > 0 ? (
           <>
             <div style={{ ...sectionTitle, color: accent, marginTop: 16, marginBottom: 8 }}>מה צריך ממך</div>
@@ -1904,7 +1912,7 @@ export function PortalView({ data, token = '', preview = false, embed = false, o
               ))}
             </PortalNextCtx.Provider>
           </>
-        ) : hasUnopenedDoc ? (
+        ) : representationCard?.st.tone === 'action' ? null : hasUnopenedDoc ? (
           /* ‼ מוביל במה שרלוונטי, לא בהיעדר חובות. "אין לך משימות" ראשון
              נקרא כ"אין כאן שום דבר בשבילי" — גם כשמיד מתחתיו מחכה מסמך
              שהמשרד שלח. מסמך שטרם נפתח אינו חובה, אבל הוא כן הדבר הרלוונטי
@@ -1914,7 +1922,8 @@ export function PortalView({ data, token = '', preview = false, embed = false, o
               ? 'המשרד שלח לך מסמך חדש.'
               : `המשרד שלח לך ${unopenedCount} מסמכים חדשים.`}
           </div>
-        ) : (done.length > 0 || groupsIn('done').length > 0) && future.length === 0 && office.length === 0
+        ) : (done.length > 0 || groupsIn('done').length > 0 || representationCard?.st.tone === 'done')
+            && (!representationCard || representationCard.st.tone === 'done') && future.length === 0 && office.length === 0
             && groupsIn('office').length === 0 && groupsIn('future').length === 0 && others.length === 0 ? (
           /* ‼ "הכול הושלם" רק כשבאמת אין המשך. עם שלב עתידי נעול או עם משהו
              שבטיפולנו זה היה שקר קטן שמייצר פנייה: הלקוח קורא שסיים, ואז

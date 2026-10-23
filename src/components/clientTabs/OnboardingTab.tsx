@@ -3738,8 +3738,8 @@ export default function OnboardingTab({
                   </div>
                 </div>)),
             }) : null;
-        /* סדר אחד: דורש טיפול (אדום) → לטיפולי → אצל אחרים → נעול → קבוצה שהושלמה. בתוך כל
-           דרגה — הסדר שנקבע לבקשות (sort_order), כמו קודם. קבוצה — לפי המצב הנגזר שלה. */
+        /* 23.10 · הייצוג נשאר ראשון בכל מצב, גם כשהושלם. שאר הרשימה ממשיכה
+           לפי דורש טיפול → לטיפולי → אצל אחרים → נעול, ובתוך דרגה לפי sort_order. */
         const rank = (p: Placed) => p.attn.kind === 'mine' ? (p.attn.tone === 'red' ? 0 : 1)
           : p.attn.waitingOn === 'locked' ? 3 : 2;
         const ordered = [
@@ -3749,17 +3749,17 @@ export default function OnboardingTab({
               const g = renderRepGroup(flowItem(p.step, p.node, p.attn), [p.step, ...repGroupParts], {
                 countAlso: visibleSteps.filter(x => x.status !== 'cancelled' && isRepresentationPart(x) && ofCurrentRequest(x) && !isCreationProblem(x)),
               });
-              return { r: rank(p), i, node: g.node, isGroup: true };
+              return { r: -1, i, node: g.node, isGroup: true };
             }
-            return { r: rank(p), i, node: flowItem(p.step, p.node, p.attn), isGroup: false };
+            return { r: isRepresentationPart(p.step) || p.step.stepType === 'rep_client_approval' ? -1 : rank(p),
+              i, node: flowItem(p.step, p.node, p.attn), isGroup: false };
           }),
           ...groupPlaced.filter(g => g.tone !== 'done').map((g, i) => ({ r: g.rank, i: -100 + i, node: g.node, isGroup: true })),
-          ...(repGroupPlaced && repGroupPlaced.tone !== 'done' ? [{ r: repGroupPlaced.rank, i: -50, node: repGroupPlaced.node, isGroup: true }] : []),
+          ...(repGroupPlaced ? [{ r: -1, i: -50, node: repGroupPlaced.node, isGroup: true }] : []),
         ].sort((a, b) => a.r - b.r || a.i - b.i);
-        /* ‼ 15.10 · קבוצה שכל מה שבה הושלם היא היסטוריה: מקומה ב«הושלמו», לא בין מה שפתוח. קודם היא
-           נשארה בתחתית הרשימה הפעילה עם «הושלם» — «ייצוג מול הרשויות» שהושלם נראה כעבודה פתוחה. */
-        completedGroupNodes.push(...groupPlaced.filter(g => g.tone === 'done').map(g => g.node),
-          ...(repGroupPlaced && repGroupPlaced.tone === 'done' ? [repGroupPlaced.node] : []));
+        /* קבוצות אחרות שהושלמו נשארות בהיסטוריה. הייצוג שהושלם מוצג בראש,
+           מקופל ועם מצב «הושלם» — בלי לפתוח מחדש אף בקשה. */
+        completedGroupNodes.push(...groupPlaced.filter(g => g.tone === 'done').map(g => g.node));
         /* ‼ «2 ממתינים לדוד» בשורת המסלול נספר לפי השורות שכאן: תהליך מקופל הוא שורה
            אחת, ומצבו — של השורה כולה (summarizeRow), בדיוק מה שהשורה מציגה. */
         const rowTop = new Map<string, OnboardingStep>();
@@ -3799,8 +3799,9 @@ export default function OnboardingTab({
               </p>
             )}
             <div className="rl-list rg-cards">
+              {ordered.filter(x => x.r === -1).map(x => x.node)}
               {/* ‼ ידוע שיש רו״ח קודם ואין מסלול — פותחים את אותו מסלול בדיוק
-                  (create_onboarding_request). החלטה של המשרד ⇒ בראש הרשימה. */}
+                  (create_onboarding_request). החלטה של המשרד ⇒ אחרי הייצוג. */}
               {needsPrevTrack && (
                 <div className="rl-item is-mine">
                   <span className="rl-dot" aria-hidden="true" />
@@ -3823,7 +3824,7 @@ export default function OnboardingTab({
                   </div>
                 </div>
               )}
-              {ordered.map(x => x.node)}
+              {ordered.filter(x => x.r !== -1).map(x => x.node)}
               {ordered.length === 0 && !needsPrevTrack && !loading && (
                 <div className="rl-empty">
                   אין בקשות פתוחות.{' '}
