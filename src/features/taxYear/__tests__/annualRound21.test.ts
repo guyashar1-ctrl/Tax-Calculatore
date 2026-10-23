@@ -67,8 +67,8 @@ export const TESTS: TestCase[] = [
   }),
   test('בלי לוכסנים: «עובדת במשרד» לבן/בת הזוג; «נכס של ישראלה» בסימון; נכס אחד — מסך סימון אחד גם לזוג וגם לנכס', () => {
     const c = client({ spouse: { firstName: 'ישראלה', gender: 'female' } } as Partial<Client>);
-    equal(cardLines(ITEM_BY_KEY['salary.employers'], c, { subjectRole: 'spouse' }).join(), 'עובדת בחברת דוגמה');
-    equal(cardLines(ITEM_BY_KEY['salary.employers'], c, { subjectRole: 'client' }).join(), 'עובד במשרד דוגמה');
+    equal(cardLines(ITEM_BY_KEY['salary.employers'], c, { subjectRole: 'spouse' }).join(), 'חברת דוגמה');
+    equal(cardLines(ITEM_BY_KEY['salary.employers'], c, { subjectRole: 'client' }).join(), 'משרד דוגמה · מ-2019-03-01');
     const st = (role: 'client' | 'spouse') => ({ item: ITEM_BY_KEY['sales.circumstances'], subjectRole: role, state: 'missing', facts: [], askable: true } as unknown as ItemStatus);
     equal(promptFor(st('client'), { client: c, taxYear: 2025, purpose: 'annual' }).checkLabel, 'ירושה, מתנה או נכס של ישראלה');
     equal(promptFor(st('spouse'), { client: c, taxYear: 2025, purpose: 'annual' }).checkLabel, 'ירושה, מתנה או נכס של ישראל');

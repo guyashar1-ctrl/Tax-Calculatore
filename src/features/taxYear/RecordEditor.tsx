@@ -131,13 +131,15 @@ function Field({ f, r, err, dir, id, onChange }: { f: RecordField; r: RecordValu
     // ‼ 20.10.2026 · חודש בשנת הדוח בלבד; «לפני» שומר את התאריך מהתיק כשהוא לפני השנה (לא ממציאים תאריך)
     const Y = f.year;
     const cur = monthInKey(v, Y, f.edge ?? 'start');
-    const pick = (k: string) => onChange({ [f.key]: k === '' ? undefined : k === 'before'
-      ? ((v as DatedValue | undefined)?.date && (v as DatedValue).date! < `${Y}-01-01` ? v : { precision: 'unknown' })
+    const pick = (k: string) => onChange({ [f.key]: k === 'after' ? v : k === 'unknown' ? { precision: 'unknown' } : k === '' ? undefined : k === 'before'
+      ? ((v as DatedValue | undefined)?.date && (v as DatedValue).date! < `${Y}-01-01` ? v : { precision: 'unknown', beforeYear: Y })
       : { precision: 'month', date: `${Y}-${k}-01` } });
     return (
       <label className={cls} htmlFor={id}>
         <span className="rec-label">{f.label}</span>
         <select id={id} value={cur} aria-invalid={!!err} aria-describedby={describedBy} onChange={e => pick(e.target.value)}>
+          <option value="unknown">לא ידוע / צריך לבדוק</option>
+          {f.edge === 'end' && cur === 'after' && <option value="after">הסתיים אחרי {Y}</option>}
           {f.edge === 'end' ? <option value="">עדיין שם</option> : <>{!cur && <option value="">בחירה…</option>}<option value="before">לפני {Y}</option></>}
           {MONTHS_HE.map((m, i) => { const k = String(i + 1).padStart(2, '0'); return <option key={k} value={k}>{m} {Y}</option>; })}
         </select>

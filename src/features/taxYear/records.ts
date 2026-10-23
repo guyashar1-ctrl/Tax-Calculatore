@@ -72,6 +72,9 @@ const MONTH_NAMES = ['ינואר', 'פברואר', 'מרץ', 'אפריל', 'מא
 export function monthInText(v: unknown, year: number, edge: 'start' | 'end'): string {
   const d = v as DatedValue | undefined;
   if (!d || !d.precision) return edge === 'end' ? 'עדיין שם' : '';
+  if (edge === 'end' && d.precision === 'unknown') return 'מועד הסיום לא ידוע';
+  if (edge === 'start' && d.precision === 'unknown') return d.beforeYear ? `לפני ${d.beforeYear}` : 'מועד ההתחלה לא ידוע';
+  if (d.date?.startsWith(String(year)) && d.precision === 'day') return `${edge === 'start' ? 'מ' : 'עד '}${MONTH_NAMES[Number(d.date.slice(5, 7)) - 1]} ${year}`;
   if (d.precision === 'month' && d.date?.startsWith(String(year))) return `${edge === 'start' ? 'מ' : 'עד '}${MONTH_NAMES[Number(d.date.slice(5, 7)) - 1]} ${year}`;
   return edge === 'start' ? `לפני ${year}` : `עד ${datedText(d)}`;
 }
@@ -79,6 +82,10 @@ export function monthInText(v: unknown, year: number, edge: 'start' | 'end'): st
 export function monthInKey(v: unknown, year: number, edge: 'start' | 'end'): string {
   const d = v as DatedValue | undefined;
   if (!d || !d.precision) return '';
+  if (edge === 'end' && d.precision === 'unknown') return 'unknown';
+  if (edge === 'start' && d.precision === 'unknown') return d.beforeYear ? 'before' : 'unknown';
+  if (edge === 'end' && d.date && d.date > `${year}-12-31`) return 'after';
+  if (d.precision === 'day' && d.date?.startsWith(String(year))) return d.date.slice(5, 7);
   if (d.precision === 'month' && d.date?.startsWith(String(year))) return d.date.slice(5, 7);
   return edge === 'start' ? 'before' : '';
 }
@@ -151,10 +158,11 @@ export function schemaFor(id: RecordSchemaId, c?: Client, ctx?: Record<string, s
       id, noun: 'ילד', addLabel: '＋ עוד ילד', multiple: true, noneLabel: 'אין ילדים',
       fields: [
         { key: 'firstName', label: 'שם פרטי', type: 'text', required: true, half: true },
-        { key: 'birthDate', label: 'תאריך לידה', type: 'date', required: true, half: true },
+        { key: 'birthDate', label: 'תאריך לידה', type: 'date', required: true, half: true, showIf: r => !r.id || !r.birthYear || !!r.birthDate },
+        { key: 'birthYear', label: 'שנת לידה', type: 'number', required: true, half: true, showIf: r => !!r.id && !!r.birthYear && !r.birthDate },
         { key: 'livesWith', label: 'איפה גר/ה', type: 'choice', options: LIVES, showIf: () => c?.familyStatus !== 'married' && !ctx?.married, hint: 'רלוונטי להורה שאינו נשוי — נקודות הזיכוי תלויות בכך' },
       ],
-      summary: r => [str(r.firstName) || 'ילד', he(r.birthDate) && `תאריך לידה ${he(r.birthDate)}`, r.livesWith ? label(LIVES, r.livesWith) : ''].filter(Boolean).join(' · '),
+      summary: r => [str(r.firstName) || 'ילד', he(r.birthDate) ? `תאריך לידה ${he(r.birthDate)}` : r.birthYear ? `שנת לידה ${str(r.birthYear)}` : '', r.livesWith ? label(LIVES, r.livesWith) : ''].filter(Boolean).join(' · '),
     };
     case 'address': return {
       id, noun: 'כתובת', addLabel: '', multiple: false,
@@ -188,6 +196,7 @@ export function schemaFor(id: RecordSchemaId, c?: Client, ctx?: Record<string, s
       const Y = Number(ctx?.taxYear) || 0;
       if (Y) return {
         id, noun: 'מעסיק', addLabel: '＋ עוד מעסיק', multiple: true,
+        noneLabel: ctx?.additionalEmployer ? 'אין מקום עבודה נוסף' : `לא היו מעסיקים ב-${Y}`,
         fields: [
           { key: 'name', label: 'שם המעסיק', type: 'text', required: true, placeholder: 'למשל: המדינה, בנק לאומי' },
           { key: 'startDate', label: 'מתי התחיל', type: 'monthIn', year: Y, edge: 'start', required: true, half: true },
@@ -494,6 +503,8 @@ export function validateRecord(schema: RecordSchema, r: RecordValue): Record<str
     if (p) err.year = p;
   }
   // ‼ 20.10.2026 · מעסיק בשנת הדוח: הסיום לא לפני ההתחלה
+  if (schema.id === 'children' && r.birthYear && !r.birthDate &&
+      (!Number.isInteger(Number(r.birthYear)) || Number(r.birthYear) < 1900 || Number(r.birthYear) > new Date().getFullYear())) err.birthYear = 'שנת לידה לא תקינה';
   if (schema.id === 'employer' && !err.endDate) {
     const a = r.startDate as DatedValue | undefined; const b = r.endDate as DatedValue | undefined;
     if (a?.precision === 'month' && b?.precision === 'month' && (b.date ?? '') < (a.date ?? '')) err.endDate = 'הסיום לפני ההתחלה';
@@ -540,12 +551,13 @@ export function cleanRecord(schema: RecordSchema, r: RecordValue, dir?: BankDire
 
 // ── מהכרטיס: מה שידוע, לאישור או לתיקון ────────────────────────────────────────────
 
-export function initialFromCard(id: RecordSchemaId, c: Client, role: 'client' | 'spouse' | 'couple'): RecordValue[] {
+export function initialFromCard(id: RecordSchemaId, c: Client, role: 'client' | 'spouse' | 'couple', taxYear?: number): RecordValue[] {
   const spouse = role === 'spouse';
   switch (id) {
     case 'children':
       // ‼ 290 · «איפה גר/ה» מהמשמורת שבתיק (רק להורה שאינו נשוי השדה מוצג; אצל נשוי הוא יורד בניקוי)
-      return (c.children ?? []).map(ch => ({ id: ch.id, firstName: ch.firstName ?? '', birthDate: ch.birthDate || (ch.birthYear ? `${ch.birthYear}-01-01` : ''),
+      return (c.children ?? []).map(ch => ({ id: ch.id, firstName: ch.firstName ?? '', birthDate: ch.birthDate || '',
+        ...(!ch.birthDate && ch.birthYear ? { birthYear: ch.birthYear } : {}),
         ...(ch.custody && LIVES_OF_CUSTODY[ch.custody] ? { livesWith: LIVES_OF_CUSTODY[ch.custody] } : {}) }));
     // ‼ 290 · מה שבתיק — ממולא לאישור או לתיקון
     case 'aliyah': {
@@ -573,7 +585,8 @@ export function initialFromCard(id: RecordSchemaId, c: Client, role: 'client' | 
     case 'childSupport':
       return (c.children ?? []).filter(k => (k.monthlyAlimonyPaid ?? 0) > 0).map(k => ({ child: k.id, monthly: k.monthlyAlimonyPaid }));
     case 'bank': {
-      const b = (c.bankAccounts ?? []).find(x => x.isPrimary) ?? (c.bankAccounts ?? [])[0];
+      const active = (c.bankAccounts ?? []).filter(x => !x.closedAt);
+      const b = active.find(x => x.isPrimary) ?? active[0];
       if (!b) return [];
       const code = /^\d{1,2}$/.test(String((b as { bankCode?: string }).bankCode ?? '')) ? (b as { bankCode?: string }).bankCode : undefined;
       return [{ id: b.id, foreign: 'no', bankCode: code ?? '', bankName: b.bankName, branchCode: b.branchNumber ?? '', accountNumber: b.accountNumber ?? '' }];
@@ -592,9 +605,27 @@ export function initialFromCard(id: RecordSchemaId, c: Client, role: 'client' | 
     }
     case 'address':
       return c.city || c.address ? [{ city: c.city ?? '', street: (c as { street?: string }).street ?? c.address ?? '', houseNumber: (c as { houseNumber?: string }).houseNumber ?? '', zip: c.zipCode ?? '' }] : [];
+    case 'property':
+      return (c.properties ?? []).map(p => ({ id: p.id, address: p.address, city: p.city ?? '',
+        ...(p.purchaseDate ? { purchaseDate: { date: p.purchaseDate, precision: p.purchasePrecision ?? 'day' } } :
+          p.purchaseYear ? { purchaseDate: { date: `${p.purchaseYear}-01-01`, precision: 'year' } } : {}),
+        ...(p.soldDate ? { soldDate: { date: p.soldDate, precision: p.soldPrecision ?? 'day' } } : {}) }));
+    case 'account':
+      return (c.investmentAccounts ?? []).map(a => ({ id: a.id, institution: a.institutionName,
+        last4: a.accountNumber?.slice(-4) ?? '',
+        ...(a.openedDate ? { openedDate: { date: a.openedDate, precision: a.openedPrecision ?? 'day' } } : {}) }));
+    case 'fund':
+      return (c.pensionFunds ?? []).map(f => ({ id: f.id, company: f.institutionName,
+        fundType: ({ new_pension: 'pension', old_pension: 'pension', manager_insurance: 'managerIns', kupat_gemel: 'gemel', study_fund: 'study', other: 'other' })[f.kind] }));
+    case 'foreign':
+      return (c.foreignAccounts ?? []).map(a => ({ id: a.id, institution: a.institutionName ?? '', country: a.country ?? '' }));
     case 'employer':
-      return (c.employers ?? []).filter(e => !!e.belongsToSpouse === spouse && !e.endDate)
-        .map(e => ({ id: e.id, name: e.name, startDate: e.startDate ? { date: e.startDate.slice(0, 10), precision: /^\d{4}-01-01$/.test(e.startDate) ? 'year' : 'day' } : undefined, role: e.role ?? '' }));
+      return (c.employers ?? []).filter(e => !!e.belongsToSpouse === spouse && (taxYear ?
+        (!e.startDate || e.startDate <= `${taxYear}-12-31`) && (!e.endDate || e.endDate >= `${taxYear}-01-01`) : !e.endDate))
+        .map(e => ({ id: e.id, name: e.name,
+          startDate: e.startDate ? { date: e.startDate.slice(0, 10), precision: 'day' } : undefined,
+          endDate: e.endDate ? { date: e.endDate.slice(0, 10), precision: 'day' } : e.id.startsWith('ni-') ? { precision: 'unknown' } : undefined,
+          role: e.role ?? '' }));
     case 'business': {
       const b = (c.businesses ?? []).find(x => !!x.belongsToSpouse === spouse && !x.isClosed);
       // 251 · תאריך פתיחה מלא כשיש (טופס 821 / הכרטיס); אחרת — השנה בלבד

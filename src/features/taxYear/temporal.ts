@@ -8,7 +8,7 @@ import type { YearFact } from './types';
 export type DatePrecision = 'day' | 'month' | 'year' | 'approx' | 'unknown';
 
 /** תאריך עם דיוק ידוע. `date` בפורמט YYYY-MM-DD; בדיוק חלקי — היום/החודש הראשונים, ו-precision אומר כמה לסמוך. */
-export interface DatedValue { date?: string; precision: DatePrecision }
+export interface DatedValue { date?: string; precision: DatePrecision; /** A known boundary, without inventing an exact date. */ beforeYear?: number }
 
 /** תקופה שאליה שואלים: שנת מס (1.1–31.12), חלק משנה (הערכה עד החתך) או יום אחד (הצהרת הון / קליטה). */
 export interface Period { from: string; to: string }

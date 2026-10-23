@@ -15,13 +15,21 @@ import type { UnavailableCode } from './types';
 import { UNAVAILABLE_LABEL } from './asks';
 import { INSTITUTION_LISTS } from '../../data/institutions';
 
-export type Draft = { choice?: string; text?: string; amount?: string; note?: string; reason?: string; record?: RecordAnswer; code?: UnavailableCode | 'notRelevant';
+export type Draft = { choice?: string; text?: string; amount?: string; note?: string; reason?: string; record?: RecordAnswer; confirmedKnown?: boolean; code?: UnavailableCode | 'notRelevant';
   /** מסך הרשת: המפתחות שסומנו; `none` — «אין לנו אף אחד מאלה». */
   selected?: string[]; none?: boolean;
   /** של מי / איפה. */
   items?: EntityItem[] };
 
 export const askIdentity = (a: { itemKey: string; subjectRole: string; entityRef?: string | null }) => `${a.itemKey}|${a.subjectRole}|${a.entityRef ?? ''}`;
+
+/** Persist the values the person actually confirmed, including live prefills.
+ * A later card update must not change a saved confirmation silently. */
+export function confirmedDraft(ask: InfoAsk, d: Draft = {}): Draft {
+  const input = ask.prompt.input;
+  return input.kind === 'record' ? { ...d, choice: 'yes', confirmedKnown: true, record: d.record ?? { items: (input.initial ?? []) as RecordAnswer['items'] } }
+    : { ...d, choice: 'yes', text: undefined, record: undefined };
+}
 
 const VIRTUAL = 'v:';
 export const isVirtual = (a: { id: string }) => a.id.startsWith(VIRTUAL);

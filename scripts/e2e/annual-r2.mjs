@@ -92,15 +92,16 @@ async function runWidth(width) {
     const next = async () => { const t = await q(); const s = await scr(); const pr = await flow.getAttribute('data-person'); await navBtn().click(); await pp.waitForFunction(([t0, s0, p0]) => { const f = document.querySelector('.ty-flow'); return (f?.querySelector('.ty-q')?.textContent ?? '') !== t0 || f?.getAttribute('data-screen') !== s0 || f?.getAttribute('data-person') !== p0 || !!f?.querySelector('.is-bad'); }, [t, s, pr], { timeout: 10000 }).catch(() => {}); await pp.waitForTimeout(200); };
 
     // «זה עדיין נכון?»
-    ok(await scr() === 'confirmAll' && (await q()) === 'זה עדיין נכון?', 'מסך ראשון: «זה עדיין נכון?»', `${await scr()} · ${await q()}`);
+    ok(await scr() === 'confirmAll' && (await q()) === 'הפרטים לשנת 2025 נכונים?', 'מסך ראשון: אישור הפרטים לשנת הדוח', `${await scr()} · ${await q()}`);
     const rows0 = await text(flow.locator('.ty-krows'));
     ok(/חשבון להחזר מס/.test(rows0) && /4821/.test(rows0), 'חשבון להחזר מהתיק — שורה ממולאת', rows0.slice(0, 400));
     ok(/כתובת/.test(rows0) && /חיפה/.test(rows0), 'כתובת — שורה', rows0.slice(0, 300));
     ok(!/לימודים/.test(rows0), 'לימודים — לא כאן (מסך משלו בסוף)', rows0.slice(0, 300));
+    const rowCard = (k) => flow.locator(`[data-confirm="${k}"]`);
+    await rowCard('household.children').locator('.ty-seg button', { hasText: 'השתנה' }).click();
     await navBtn().click(); await pp.waitForTimeout(500);
     ok(await flow.locator('.ty-krow-card.is-bad').count() > 0 && /חסר כאן/.test(await text(flow)) && !(await flow.locator('.ty-err').count()), '«הבא» כשחסר ⇒ «חסר כאן» על השורה, בלי הודעה למטה');
     await shot(pp, 'known-missing');
-    const rowCard = (k) => flow.locator(`[data-confirm="${k}"]`);
     for (const k of ['household.maritalAtYearEnd', 'household.address', 'filing.refundAccount']) {
       if (await rowCard(k).count()) await rowCard(k).locator('.ty-seg button', { hasText: 'נכון' }).click();
     }

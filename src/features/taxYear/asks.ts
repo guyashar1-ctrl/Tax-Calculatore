@@ -19,6 +19,7 @@ import { initialFromCard, answerValid, schemaFor, kidsContext } from './records'
 import { periodOfRequest, periodWords, propertySpan, accountSpan, spanText } from './temporal';
 import { DEALER_KIND_LABELS } from '../taxFile/editModel';
 import { familyStatusEventYear } from '../../utils/familyStatusYear';
+import { questionnaireClient } from './knownClient';
 
 const FAMILY: Record<string, [string, string, string]> = {
   single: ['רווק', 'רווקה', 'רווק/ה'], married: ['נשוי', 'נשואה', 'נשוי/אה'], divorced: ['גרוש', 'גרושה', 'גרוש/ה'],
@@ -61,7 +62,8 @@ function cardLinesRaw(item: InfoItem, c: Client, s: Pick<ItemStatus, 'subjectRol
     }
     case 'salary.worked':
     case 'salary.employers':
-      return (c.employers ?? []).filter(e => !!e.belongsToSpouse === spouse).map(e => `עובד/ת ב${e.name}`);
+      return (c.employers ?? []).filter(e => !!e.belongsToSpouse === spouse).map(e =>
+        `${e.name}${e.startDate ? ` · מ-${e.startDate}` : ''}${e.endDate ? ` · עד ${e.endDate}` : ''}${e.id.startsWith('ni-') ? ' · לפי ביטוח לאומי' : ''}`);
     case 'business.active':
       return (c.businesses ?? []).filter(b => !!b.belongsToSpouse === spouse && !b.isClosed).map(b => `עסק: ${b.name}`);
     case 'rent.properties':
@@ -161,6 +163,7 @@ export function voice(p: AskPrompt, c: Client, role: string): AskPrompt {
 }
 
 export function promptFor(s: ItemStatus, ctx: AskCtx): AskPrompt {
+  ctx = { ...ctx, client: questionnaireClient(ctx.client, ctx.purpose === 'annual' || ctx.purpose === 'estimate' ? ctx.taxYear : undefined) };
   const p = voice(promptForRaw(s, ctx), ctx.client, s.subjectRole);
   // ‼ 22.10.2026 · «של בן/בת הזוג» ⇒ השם; בלי בן/בת זוג — רק «ירושה או מתנה»
   const cl = ctx.purpose === 'annual' ? CHECKLIST_LABEL[s.item.key] : undefined;
@@ -179,8 +182,9 @@ export function promptFor(s: ItemStatus, ctx: AskCtx): AskPrompt {
       .map(e => [e.name, e.endDate ? `עד ${e.endDate.slice(0, 4)}` : e.startDate ? `מ-${e.startDate.slice(0, 4)}` : 'כבר אצלנו']);
     const where = onCard.length ? 'איפה עוד' : 'איפה';
     const title = s.subjectRole === 'spouse' ? genderize(`${where} ${sp} עבד/ה ב-${ctx.taxYear}?`, genderOf(c, 'spouse')) : `${where} עבדת ב-${ctx.taxYear}?`;
-    const initial = p.input.initial?.length ? p.input.initial : [{ startDate: { precision: 'unknown' } }];
-    return { ...p, title, hint: undefined, periodText: undefined, ...(onCard.length ? { onCard } : {}), input: { ...p.input, initial } };
+    const initial = p.input.initial?.length ? p.input.initial : [{ endDate: { precision: 'unknown' } }];
+    return { ...p, title, hint: undefined, periodText: undefined, ...(onCard.length ? { onCard } : {}), input: { ...p.input, initial,
+      ...(onCard.length ? { context: { ...p.input.context, additionalEmployer: '1' } } : {}) } };
   }
   // חשבון להחזר, ילדים וכתובת של היום — בלי תג «בשנת 2025» (הכתובת «היום» והתג סתרו זה את זה)
   if (ctx.purpose === 'annual' && ['filing.refundAccount', 'household.children', 'household.address'].includes(s.item.key)) return { ...p, periodText: undefined };
@@ -228,7 +232,8 @@ function promptForRaw(s: ItemStatus, ctx: AskCtx): AskPrompt {
       return { ...base, title: fillP(w.question), input: w.input === 'choice' && w.options ? { kind: 'choice', options: w.options } : { kind: 'text' } };
     }
     // «משהו השתנה» — עריכה של מה שבתיק בשדות נפרדים, כשיש לפריט רשומה מובנית
-    const initial = schema ? initialFromCard(schema, c, role) : [];
+    const initial = (schema ? initialFromCard(schema, c, role, ctx.purpose === 'annual' || ctx.purpose === 'estimate' ? ctx.taxYear : undefined) : [])
+      .filter(r => !s.lineRefs || s.lineRefs.includes(String(r.id)));
     return {
       // ‼ 19.10.2026 · שאלת פתיחה שידועה מהכרטיס (ביטוח חיים, תרומות) — הכותרת היא הנושא, לא השאלה («האם לך יש…? — זה מה שידוע לנו»)
       ...base, title: `${it.kind === 'screener' ? it.label : fillP(qText ?? it.label)}${periodText && listOrTimed(it.key) ? ` ${periodText}` : ''} — זה מה שידוע לנו`,
@@ -252,9 +257,10 @@ function promptForRaw(s: ItemStatus, ctx: AskCtx): AskPrompt {
     const dealer = it.key === 'intake.businessDetails' ? dealerOf(c, role) : null;
     const lead = dealer ? `רשום/ה אצלנו כ${DEALER_KIND_LABELS[dealer]}. ` : '';
     // ‼ 290 · עלייה ונכות: מה שבתיק — ממולא (לאישור או לתיקון), לא נשאל מאפס
-    const card = schema === 'aliyah' || schema === 'disability' || schema === 'spouseBasics' || schema === 'reserveDays' ? initialFromCard(schema, c, role) : [];
-    const initial = dealer ? [{ dealer: dealer === 'licensed' ? 'murshe' : dealer === 'exempt' ? 'patur' : dealer === 'company' ? 'company' : '' }] : card.length ? card : undefined;
-    return { ...base, title: `${lead}${fillP(qText ?? it.label)}`, input: { kind: 'record', schema, ...(initial ? { initial } : {}), ...(Object.keys(context).length ? { context } : {}) } };
+    const card = !it.onlyNew && !isPeriodItem(it.key) ? initialFromCard(schema, c, role, ctx.purpose === 'annual' || ctx.purpose === 'estimate' ? ctx.taxYear : undefined) : [];
+    const initial = dealer ? [{ ...(card[0] ?? {}), dealer: dealer === 'licensed' ? 'murshe' : dealer === 'exempt' ? 'patur' : dealer === 'company' ? 'company' : '' }] : card.length ? card : undefined;
+    const complete = !!initial?.length && answerValid(schemaFor(schema, undefined, context), { items: initial });
+    return { ...base, title: `${lead}${fillP(qText ?? it.label)}`, ...(ctx.purpose === 'annual' && complete ? { knownRow: true } : {}), input: { kind: 'record', schema, ...(initial ? { initial } : {}), ...(Object.keys(context).length ? { context } : {}) } };
   }
   if (it.input === 'amount') return { ...base, title: fillP(qText ?? it.label), input: { kind: 'amount' } };
   if (it.input === 'text') return { ...base, title: fillP(qText ?? it.label), input: { kind: 'text' } };
@@ -284,6 +290,7 @@ export interface AskPlanEntry {
  * «מי מכם?» (העובדות נשמרות לכל אדם בנפרד). שאר הפריטים — שאלה לכל יעד.
  */
 export function buildAskPlan(statuses: ItemStatus[], ctx0: AskCtx): AskPlanEntry[] {
+  ctx0 = { ...ctx0, client: questionnaireClient(ctx0.client, ctx0.purpose === 'annual' || ctx0.purpose === 'estimate' ? ctx0.taxYear : undefined) };
   // ‼ שם בן/בת הזוג מהדוח הקודם — לנוסח בלבד (כרטיס בלי שם, למשל אלמן/ה), לא נכתב לכרטיס
   const ctx = ctx0.lastYear?.spouseName && !ctx0.client.spouseFirstName && !ctx0.client.spouse?.firstName
     ? { ...ctx0, client: { ...ctx0.client, spouseFirstName: ctx0.lastYear.spouseName } } : ctx0;

@@ -7,6 +7,7 @@
 // ‼ מסמך שהתקבל אינו מידע מאושר: «התקבל, ממתין לבדיקה» ≠ «ידוע».
 
 import type { Client } from '../../types';
+import { questionnaireClient } from './knownClient';
 import { AREAS, ITEMS, ITEM_BY_KEY, ANNUAL_TILE_OFF, ANNUAL_OFFICE_DETAIL, type AreaId, type InfoItem } from './catalog';
 import { canRequestNow, DOCS } from './documents';
 import type { EntityKind, Evidence, FactBasis, InfoAsk, Purpose, SubjectRole, YearFact } from './types';
@@ -310,6 +311,7 @@ const gateRoleOfRef = (ref: string): SubjectRole => (ref.match(/-new-(client|spo
 // ── החישוב ───────────────────────────────────────────────────────────────────
 
 export function buildYearPicture(inp: PictureInput): YearPicture {
+  inp = { ...inp, client: questionnaireClient(inp.client, inp.purpose === 'annual' || inp.purpose === 'estimate' ? inp.taxYear : undefined) };
   const { client: c, taxYear: y, purpose, facts, evidence, asks, today } = inp;
   const opened = new Set(inp.openedRare ?? []);
   const statuses: ItemStatus[] = [];

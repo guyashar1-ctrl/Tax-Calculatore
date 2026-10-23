@@ -18,7 +18,7 @@ import { ANNUAL_GRIDS, UNAVAILABLE_LABEL, type AskAnswer } from './asks';
 import type { InfoAsk } from './types';
 import { checklistParent, screenAsks, sortAsks, type Screen } from './screens';
 import { CHECKLIST_LABEL, CHECKLIST_TITLE } from './catalog';
-import { askIdentity, draftToAnswer, expandWithDrafts, inlineOf, isVirtual, readyToSend, shownDraft, walkScreens, type Draft } from './flowDraft';
+import { askIdentity, confirmedDraft, draftToAnswer, expandWithDrafts, inlineOf, isVirtual, readyToSend, shownDraft, walkScreens, type Draft } from './flowDraft';
 import { cleanRecord, schemaFor, type RecordAnswer } from './records';
 import RecordEditor, { loadBankDirectory } from './RecordEditor';
 import { EntityEditor } from './TaxInfoFlow';
@@ -46,7 +46,7 @@ const NO_NAME = '';
 /** שם קצר לשורה במסך «זה עדיין נכון?» — הנושא, לא השאלה. */
 const ROW_LABEL: Record<string, string> = {
   'household.maritalAtYearEnd': 'המשפחה', 'household.children': 'ילדים', 'household.address': 'כתובת', 'household.settlement': 'יישוב',
-  'salary.employers': 'עבודה', 'business.active': 'עסק', 'rent.properties': 'נכסים מושכרים', 'capital.accounts': 'חשבונות השקעה',
+  'salary.employers': 'עבודה', 'salary.employerDetails': 'עבודה', 'business.active': 'עסק', 'rent.properties': 'נכסים מושכרים', 'capital.accounts': 'חשבונות השקעה',
   'filing.refundAccount': 'חשבון להחזר מס',
 };
 /** «השתנה» — ובכתובת «עברנו». */
@@ -63,13 +63,13 @@ function writeLocal(key: string, v: Store | null) {
 }
 
 /** שורה ב«זה עדיין נכון?»: מה שמוצג מהתיק (אישור — השורות; רשומה ממולאת — הסיכום). */
-function rowValue(a: InfoAsk): string[] {
+function rowValue(a: InfoAsk, draft?: Draft): string[] {
   const input = a.prompt.input;
   if (a.prompt.known?.[0]) return [a.prompt.known[0][1]];
   if (input.kind === 'confirm') return input.lines;
   if (input.kind === 'record') {
     const schema = schemaFor(input.schema, undefined, input.context);
-    return (input.initial ?? []).map(r => schema.summary(r)).filter(Boolean);
+    return (draft?.record?.items ?? input.initial ?? []).map(r => schema.summary(r)).filter(Boolean);
   }
   return [];
 }
@@ -105,7 +105,13 @@ export default function AnnualFlow({ stepId, token, title, initialAsks, fetchAsk
   const [phase, setPhase] = useState<'ask' | 'docs'>(() => (hasOpen(initialAsks) ? 'ask' : 'docs'));
   const flowRef = useRef<HTMLDivElement>(null);
 
-  const expanded = useMemo(() => expandWithDrafts(asks, drafts), [asks, drafts]);
+  const expanded = useMemo(() => expandWithDrafts(asks.map(a => {
+    // A device-local draft may predate the server's new prefill. Keep its editor
+    // visible until the person explicitly confirms or changes those values.
+    const d = drafts[askIdentity(a)];
+    return a.prompt.knownRow && a.prompt.input.kind === 'record' && d?.record && !d.choice && !d.confirmedKnown
+      ? { ...a, prompt: { ...a.prompt, knownRow: false } } : a;
+  }), drafts), [asks, drafts]);
   const grid = expanded.find(isGridAsk);
   const steps: Step[] = useMemo(() => {
     const walk = walkScreens(expanded, opened);
@@ -230,7 +236,6 @@ export default function AnnualFlow({ stepId, token, title, initialAsks, fetchAsk
       </div>
     </>
   );
-  const advance = () => (last ? void send() : go(idx + 1));
 
   // ── אחרי השליחה: המסמכים, רק בסוף ──
   if (phase === 'docs') {
@@ -333,16 +338,27 @@ export default function AnnualFlow({ stepId, token, title, initialAsks, fetchAsk
   const scr = step as Screen;
   if (scr.kind === 'confirmAll') {
     const list = scr.asks;
-    const next = () => (list.every(rowOk) ? advance() : fail());
+    const next = () => {
+      const patch = Object.fromEntries(list.filter(a => a.state === 'published' && !drafts[askIdentity(a)]?.choice)
+        .map(a => [askIdentity(a), confirmedDraft(a, drafts[askIdentity(a)])]));
+      const nd = { ...drafts, ...patch };
+      if (!list.every(a => rowOkIn(nd, a))) { fail(); return; }
+      putDrafts(patch);
+      const ns = walkScreens(expandWithDrafts(asks, nd), opened);
+      const at = ns.findIndex(s => screenAsks(s).some(a => a.id === list[0].id));
+      const to = (at >= 0 ? at : idx) + 1;
+      if (to >= ns.length) { void send(nd); return; }
+      go(to);
+    };
     return (
       <div className="ty-flow" data-screen="confirmAll" ref={flowRef}>
         {top}
-        <p className="ty-q" id="q-confirm-all">זה עדיין נכון?</p>
+        <p className="ty-q" id="q-confirm-all">הפרטים לשנת {list[0].taxYear} נכונים?</p>
         {idx === 0 && <p className="ty-q-sub">5 דקות. הכול נשמר.</p>}
         <ul className="ty-krows" aria-labelledby="q-confirm-all">
           {[...list].sort((x, y) => rowRank(x) - rowRank(y)).map(a => <KnownRow key={a.id} ask={a} drafts={drafts} putDrafts={putDrafts} inline={inlineOf(expanded, a)} bad={tried && !rowOk(a)} preview={preview} />)}
         </ul>
-        {nav(next)}
+        {nav(next, list.some(a => drafts[askIdentity(a)]?.choice === 'changed') ? 'שמירת התיקונים והמשך' : 'הכול נכון, ממשיכים')}
       </div>
     );
   }
@@ -454,7 +470,7 @@ function KnownRow({ ask, drafts, putDrafts, inline, bad, preview }: {
 }) {
   const id = askIdentity(ask);
   const d = drafts[id] ?? {};
-  const value = rowValue(ask);
+  const value = rowValue(ask, d);
   const label = rowLabel(ask);
   const who = ask.prompt.subjectName;
   if (ask.state !== 'published') {
@@ -500,7 +516,7 @@ function KnownRow({ ask, drafts, putDrafts, inline, bad, preview }: {
       <div className="ty-krow-l">{label}{who && <span className="ty-who">{who}</span>}</div>
       <div className="ty-krow-v">{value.length ? value.map((l, k) => <span key={k}>{l}</span>) : <span>אין אצלנו פרטים</span>}</div>
       <div className="ty-seg" role="group" aria-label={`${label}: נכון או השתנה`}>
-        <button type="button" aria-pressed={false} onClick={() => set({ choice: 'yes', text: undefined, record: undefined })}>נכון</button>
+        <button type="button" aria-pressed={false} onClick={() => set(confirmedDraft(ask, d))}>נכון</button>
         <button type="button" aria-pressed={d.choice === 'changed'} onClick={() => set({ choice: 'changed' })}>{CHANGE_LABEL[ask.itemKey] ?? 'השתנה'}</button>
       </div>
       {d.choice === 'changed' && (

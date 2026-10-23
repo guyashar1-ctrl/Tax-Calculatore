@@ -7,6 +7,8 @@ import type { AskAnswer } from './asks';
 import type { Evidence, FactAnswer, InfoAsk, Purpose, YearFact } from './types';
 import type { GateEngagement } from '../../utils/clientPageGate';
 import { parseOpenQuestionnaire, type OpenQuestionnaire } from './oneQuestionnaire';
+import type { Client } from '../../types';
+import { prefillOpenAsks } from './knownPrefill';
 
 type Row = Record<string, unknown>;
 const s = (v: unknown) => (v == null ? undefined : String(v));
@@ -191,7 +193,8 @@ export const recordLegacyFacts = (clientId: string, sessionId: string, facts: un
 
 // ── הדף האישי ────────────────────────────────────────────────────────────────
 export interface PortalTaxInfo { stepId: string; taxYear: number; title: string; asks: (InfoAsk & { officeNote?: string })[] }
-const portalView = (r: Row): PortalTaxInfo => ({
+const portalView = (r: Row): PortalTaxInfo => {
+  const view: PortalTaxInfo = {
   stepId: String(r.stepId), taxYear: Number(r.taxYear), title: String(r.title ?? ''),
   asks: ((r.asks ?? []) as Row[]).map(a => ({
     id: String(a.id), clientId: '', taxYear: Number(r.taxYear), stepId: String(r.stepId), parentStepId: '', itemKey: String(a.itemKey),
@@ -199,7 +202,12 @@ const portalView = (r: Row): PortalTaxInfo => ({
     state: a.state as InfoAsk['state'], savedDraft: a.savedDraft ?? undefined, unavailable: (a.unavailable ?? undefined) as InfoAsk['unavailable'],
     createdAt: '', answeredAt: s(a.answeredAt),
   })),
-});
+  };
+  if (r.knownClient && typeof r.knownClient === 'object') {
+    view.asks = prefillOpenAsks(view.asks, r.knownClient as Client, r.purpose as Purpose, view.taxYear);
+  }
+  return view;
+};
 export async function portalLoad(token: string, stepId: string): Promise<PortalTaxInfo> {
   const r = await call('portal_tax_info', { p_token: token, p_step_id: stepId });
   if (!r.ok) throw new Error(r.error);

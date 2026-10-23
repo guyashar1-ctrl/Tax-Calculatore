@@ -131,7 +131,23 @@ function childrenPlan(c: Client, items: RecordValue[], from: From, decisions: Re
   for (const r of items) {
     const birthDate = s(r.birthDate).slice(0, 10);
     const firstName = s(r.firstName);
-    if (!firstName || !isoDay(birthDate)) continue;
+    if (!firstName) continue;
+    // Legacy card records may know only the year. Keep that precision when
+    // another child is added, rather than manufacturing a January birthday.
+    if (!isoDay(birthDate)) {
+      const at = next.findIndex(x => x.id === r.id);
+      const year = Number(r.birthYear);
+      if (at >= 0 && !next[at].birthDate && Number.isInteger(year) && year >= 1900 && year <= new Date().getFullYear()) {
+        const custody = CUSTODY_OF_LIVES[s(r.livesWith)];
+        const lives = custody ? { custody, livesWithTaxpayer: r.livesWith === 'withUs' || r.livesWith === 'shared' } : {};
+        if (next[at].firstName !== firstName || next[at].birthYear !== year ||
+            (custody && (next[at].custody !== custody || next[at].livesWithTaxpayer !== lives.livesWithTaxpayer))) {
+          next[at] = { ...next[at], firstName, birthYear: year, ...lives };
+          lines.push(`עדכון: ${firstName}, שנת לידה ${year}`);
+        }
+      }
+      continue;
+    }
     const livesWith = s(r.livesWith);
     // ‼ 290 · «איפה גר/ה» ⇒ גם המשמורת (Child.custody) — ממנה החישוב קובע את מסלול נקודות הילדים של הורה שאינו נשוי (40(ב))
     const custody = CUSTODY_OF_LIVES[livesWith];

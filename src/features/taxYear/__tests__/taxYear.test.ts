@@ -84,7 +84,7 @@ export const TESTS: TestCase[] = [
     equal(st(p, 'salary.employers', 'client')?.state, 'fromCard');
     equal(st(p, 'salary.employers', 'spouse')?.state, 'fromCard');
     const lines = promptFor(st(p, 'salary.employers', 'spouse')!, { client: married, taxYear: 2026, purpose: 'estimate' });
-    assert(lines.input.kind === 'confirm' && lines.input.lines.join() === 'עובד/ת בבית חולים', JSON.stringify(lines.input));
+    assert(lines.input.kind === 'confirm' && lines.input.lines.join() === 'בית חולים', JSON.stringify(lines.input));
     equal(lines.subjectName, 'מיכל');
     assert(p.toConfirm.length >= 4, 'רשימת אישור');
     // מעביד, עסק, נכס וחשבון — יעד נפרד לכל אחד

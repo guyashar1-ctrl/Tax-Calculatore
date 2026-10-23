@@ -97,7 +97,8 @@ export const TESTS: TestCase[] = [
     equal(validateRecord(s, { name: 'המדינה', startDate: { precision: 'month', date: '2026-10-01' } }).startDate, 'רק חודש ב-2025');
     equal(validateRecord(s, { name: 'א', startDate: { precision: 'month', date: '2025-05-01' }, endDate: { precision: 'month', date: '2025-02-01' } }).endDate, 'הסיום לפני ההתחלה');
     equal(monthInText(undefined, 2025, 'end'), 'עדיין שם');
-    equal(monthInText({ precision: 'unknown' }, 2025, 'start'), 'לפני 2025');
+    equal(monthInText({ precision: 'unknown' }, 2025, 'start'), 'מועד ההתחלה לא ידוע');
+    equal(monthInText({ precision: 'unknown', beforeYear: 2025 }, 2025, 'start'), 'לפני 2025');
     // בלי שנת דוח (היכרות) — כמו קודם
     equal(schemaFor('employer').fields.find(f => f.key === 'startDate')?.type, 'dated');
   }),
