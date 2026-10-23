@@ -10,6 +10,8 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 export const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+/** Isolated worktrees read existing credentials in place instead of copying secret files. */
+export const CONFIG_ROOT = resolve(process.env.PIVO_CONFIG_ROOT || ROOT);
 
 /** ‼ הפרודקשן. אסור לכתיבה מכל סקריפט בתיקייה הזאת. */
 export const PROD_REF = 'uoweoqtuiettozagwgdw';
@@ -18,7 +20,7 @@ export const STAGING_REF = 'evdfxjqrkgugssfrdoxd';
 
 export function loadEnv(file = '.env.local') {
   const env = {};
-  for (const line of readFileSync(resolve(ROOT, file), 'utf8').split(/\r?\n/)) {
+  for (const line of readFileSync(resolve(CONFIG_ROOT, file), 'utf8').split(/\r?\n/)) {
     const m = line.match(/^([A-Za-z_][A-Za-z0-9_]*)=(.*)$/);
     if (m) env[m[1]] = m[2].trim();
   }

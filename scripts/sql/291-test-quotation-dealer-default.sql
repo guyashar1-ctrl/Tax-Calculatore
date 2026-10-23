@@ -104,6 +104,10 @@ begin
   if r->>'status' <> 'approved' or (select dealer_type from public.clients where id=c||'new') <> 'exempt' then
     raise exception 'public approval did not set exempt: %',r; end if;
   insert into test_291_results values ('public approval sets exempt without extra action',true);
+  -- 292 asks missing setup facts before exposing signup. Complete those fixture answers first.
+  if to_regprocedure('public._set_paperless_path_core(text,text,text,text,text)') is not null then
+    perform public._set_paperless_path_core(c||'new','none','none',null,'accountant');
+  end if;
   r := public.build_client_portal(c||'new','preview');
   if not jsonb_path_exists(r, '$.**.paperlessKind ? (@ == "פטור")') then
     raise exception 'portal missing exempt instructions: %',left(r::text,1200); end if;

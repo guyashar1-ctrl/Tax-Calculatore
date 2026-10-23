@@ -276,6 +276,22 @@
           "note": "קליטת 250 מול staging. הקריאה עצמה: npm run test:worker (gmf154, shaam-sync-154.flow מול הסימולטור); מיפוי הכרטיס: run-unit-tests.mjs gmf154"
         }
       ]
+    },
+    {
+      "name": "פייפרלס: תשובות משותפות במשרד ובדף האישי",
+      "globs": [
+        "supabase/292-paperless-shared-questions.sql",
+        "src/features/requests/paperlessAnswers.ts",
+        "src/features/requests/PaperlessQuestions.tsx",
+        "src/components/portal/portalActions.ts",
+        "src/components/PublicPortalPage.tsx"
+      ],
+      "suites": [
+        {
+          "script": "test-292-paperless-shared-questions.mjs",
+          "run": true
+        }
+      ]
     }
   ],
   "watched": [

@@ -24,6 +24,8 @@ import {
 import type { Client, NiExternalState, NiTracking, RepAuthorityKind, RepresentationRequest, RepresentationStatus } from '../../types';
 import type { Quotation, QuotationItem } from '../../types/quotations';
 import { REP_AUTHORITY_LABELS, REPRESENTATION_STATUS_LABELS, NI_APPROVAL_PHONE, NI_EXTERNAL_STATE_LABELS } from '../../types';
+import PaperlessQuestions from '../../features/requests/PaperlessQuestions';
+import { paperlessAnswers, paperlessAnswersPending, paperlessAnswerError, type PaperlessAnswers } from '../../features/requests/paperlessAnswers';
 import { paperlessKindOf } from '../../features/taxFile/editModel';
 import type { AdvanceResult } from '../../hooks/useOnboarding';
 import InstitutionAlignmentGroup, { InstitutionFocus } from './InstitutionAlignment';
@@ -485,24 +487,6 @@ function lockHint(
 export type PaperlessStatus = 'none' | 'other_rep' | 'self' | 'not_applicable';
 export type PaperlessDataSource = 'none' | 'other_software';
 
-const PAPERLESS_STATUS_OPTIONS: { value: PaperlessStatus; label: string }[] = [
-  { value: 'none', label: 'לא' },
-  { value: 'other_rep', label: 'כן, אצל מייצג אחר' },
-  { value: 'self', label: 'כן, עצמאית' },
-  { value: 'not_applicable', label: 'לא יעבוד עם פייפרלס' },
-];
-
-const DATA_SOURCE_OPTIONS: { value: PaperlessDataSource; label: string }[] = [
-  { value: 'none', label: 'עסק חדש, אין' },
-  { value: 'other_software', label: 'כן, מתוכנה אחרת' },
-];
-
-const PAPERLESS_RPC_ERROR: Record<string, string> = {
-  bad_values: 'הערכים שנבחרו אינם תקינים.',
-  no_paperless_steps: 'אין ללקוח הזה שלבי פייפרלס.',
-  forbidden: 'אין הרשאה לשנות את המסלול של הלקוח הזה.',
-};
-
 const MONTH_NAMES = ['ינואר', 'פברואר', 'מרץ', 'אפריל', 'מאי', 'יוני', 'יולי', 'אוגוסט', 'ספטמבר', 'אוקטובר', 'נובמבר', 'דצמבר'];
 
 /** 'YYYY-MM' → 'ספטמבר 2026'. */
@@ -555,10 +539,6 @@ export default function OnboardingTab({
     /** בלי — «הושלם». עם — הפעולה הזאת (למשל «אין צורך» באישור אישי של בן/בת הזוג). */
     action?: { name: string; payload: Record<string, unknown> };
   } | null>(null);
-  // "שנה מסלול" — פותח מחדש את הטריאז' על שלב שכבר נענה
-  const [retriageStepId, setRetriageStepId] = useState<string | null>(null);
-  const [triageBusy, setTriageBusy] = useState(false);
-  const [triageError, setTriageError] = useState<string | null>(null);
   const [highlightStepId, setHighlightStepId] = useState<string | null>(null);
   // מה שהושלם לא נעלם, אבל גם לא תופס את המסך — הוא מקופל עד שמבקשים אותו.
   const [showDone, setShowDone] = useState(false);
@@ -1109,35 +1089,16 @@ export default function OnboardingTab({
   // ‼ שני הסעיפים האחרונים ברשימת החיבור נשמרים כחותמות על שלב התשלום, ולכן
   // כרטיס הפייפרלס צריך לקרוא אותו — לא רק לכתוב אליו.
   const retainerStep = stepForCurrentWork(clientSteps, 'retainer_authorization', clientEngagements[0]?.id);
-  const triageUnanswered = (s: OnboardingStep) =>
-    !s.payload.paperlessStatus || s.payload.paperlessStatus === 'unknown';
-  // הטריאז' מוצג פעם אחת בלבד — על השלב הראשון שטרם נענה, לא על שניהם.
-  const triageAnchorId = paperlessSteps.find(triageUnanswered)?.id ?? null;
-
-  async function submitTriage(answers: { paperlessStatus: PaperlessStatus; dataSource: PaperlessDataSource; softwareName: string }) {
-    setTriageBusy(true);
-    setTriageError(null);
-    try {
-      const { data, error: rpcError } = await supabase.rpc('set_paperless_path', {
-        p_client_id: clientId,
-        p_paperless_status: answers.paperlessStatus,
-        // לקוח שכבר בפייפרלס — ההיסטוריה שלו שם, ואין שאלה שנייה.
-        // ‼ מי שלא יעבוד עם פייפרלס — אין לו "היסטוריה בפייפרלס" לאמת.
-        p_data_source: answers.paperlessStatus === 'none' ? answers.dataSource
-          : answers.paperlessStatus === 'not_applicable' ? 'none' : 'paperless',
-        p_software_name: answers.softwareName.trim() || null,
-      });
-      if (rpcError) { setTriageError(rpcError.message); return; }
-      const res = data as { ok?: boolean; error?: string } | null;
-      if (!res?.ok) {
-        setTriageError(PAPERLESS_RPC_ERROR[res?.error ?? ''] ?? 'שמירת המסלול נכשלה.');
-        return;
-      }
-      setRetriageStepId(null);
-      refresh?.();
-    } finally {
-      setTriageBusy(false);
-    }
+  const questionStepId = paperlessSteps.find(s => s.stepType === 'paperless_invite' && isStepOpen(s.status))?.id
+    ?? paperlessSteps.find(s => s.stepType === 'paperless_connection' && isStepOpen(s.status))?.id;
+  async function savePaperlessAnswers(next: PaperlessAnswers, expected: PaperlessAnswers) {
+    const { data, error } = await supabase.rpc('save_paperless_answers', {
+      p_client_id: clientId, p_answers: next, p_expected: expected,
+    });
+    const result = data as { ok?: boolean; error?: string } | null;
+    if (error || !result?.ok) return { ok: false, error: paperlessAnswerError(result?.error) };
+    refresh?.();
+    return { ok: true };
   }
 
   // ─── הקישור האחיד ללקוח ──────────────────────────────────────────────────
@@ -2359,12 +2320,8 @@ export default function OnboardingTab({
                     onCardEntered={() => void markCardEntered(step)}
                     busy={busy}
                     highlight={highlightStepId === step.id}
-                    showTriage={retriageStepId === step.id || triageAnchorId === step.id}
-                    triageBusy={triageBusy}
-                    triageError={triageError}
-                    onTriage={submitTriage}
-                    onRetriage={() => { setTriageError(null); setRetriageStepId(step.id); }}
-                    onCancelTriage={() => setRetriageStepId(null)}
+                    showQuestions={questionStepId === step.id}
+                    onAnswersSave={savePaperlessAnswers}
                     onConfirm={(title, message, confirmLabel) =>
                       setConfirmState({ stepId: step.id, title, message, confirmLabel })}
                     onRun={(action, payload) => void run(step, action, payload)}
@@ -4431,26 +4388,16 @@ interface PaperlessCardProps {
   onRetainerCardSet: () => void;
   /** הלקוח הזין כרטיס — סוגר את החיבור ומשחרר את הרשאת התשלום. */
   onCardEntered: () => void;
-  showTriage: boolean;
-  triageBusy: boolean;
-  triageError: string | null;
-  onTriage: (a: { paperlessStatus: PaperlessStatus; dataSource: PaperlessDataSource; softwareName: string }) => void;
-  onRetriage: () => void;
-  onCancelTriage: () => void;
+  showQuestions: boolean;
+  onAnswersSave: (next: PaperlessAnswers, expected: PaperlessAnswers) => Promise<{ ok: boolean; error?: string }>;
   onConfirm: (title: string, message: string, confirmLabel: string) => void;
   onRun: (action: string, payload?: Record<string, unknown>) => void;
   menu: React.ReactNode;
 }
 
 function PaperlessStepCard(p: PaperlessCardProps) {
-  const { step, stepById, busy, highlight, showTriage } = p;
+  const { step, stepById, busy, highlight } = p;
   const { awaitingPublish, homeOffice } = useContext(RowOpenContext);
-  const [status, setStatus] = useState<PaperlessStatus | ''>((step.payload.paperlessStatus as PaperlessStatus) || '');
-  const [source, setSource] = useState<PaperlessDataSource | ''>(
-    step.payload.dataSource === 'other_software' ? 'other_software'
-      : step.payload.dataSource === 'none' ? 'none' : '');
-  const [softwareName, setSoftwareName] = useState(String(step.payload.softwareName ?? ''));
-
   const isInvite = step.stepType === 'paperless_invite';
   const path = (step.payload.paperlessStatus as PaperlessStatus | undefined);
   const open = isStepOpen(step.status);
@@ -4464,7 +4411,6 @@ function PaperlessStepCard(p: PaperlessCardProps) {
   const retainerIsDigital = !!p.retainer && p.retainer.payload.method !== 'manual_arrangement';
   const cardPending = !isInvite && path !== 'not_applicable' && retainerIsDigital
     && !paperlessSetupItems(step, p.retainer).find(i => i.key === CARD_ENTERED_KEY)?.done;
-  const canSubmit = status !== '' && (status !== 'none' || source !== '');
   /* ‼ 05.10 (סבב 2) · תנאי ההשלמה של ההקמה — אותו כלל כמו בשרת (_paperless_setup_block_reason, 220):
      «פרטי העסק» פתוחה, או אחוז מאושר שטרם סומן כמוזן בפייפרלס ⇒ אין «סיימתי». העבודה במקביל
      (סעיפי ההקמה, הכרטיס) ממשיכה. השרת אוכף גם אם המסך ישן. */
@@ -4475,66 +4421,17 @@ function PaperlessStepCard(p: PaperlessCardProps) {
     : hoNotEntered ? 'אחוז המשרד הביתי שאושר עוד לא סומן כמוזן בפייפרלס — מסמנים «הוזן בפייפרלס» בבדיקת ההגדרות.'
     : null;
   // "לא יעבוד עם פייפרלס" מייתר את שאלת ההיסטוריה — אין לאן לייבא אותה.
-  const asksHistory = status === 'none';
+  const answerStep = [...stepById.values()].filter(s => s.stepType === 'paperless_invite' && s.status !== 'cancelled').sort((a,b) => (b.createdAt ?? '').localeCompare(a.createdAt ?? ''))[0] ?? step;
+  const answers = paperlessAnswers(answerStep.payload, p.client.paperlessStatus);
 
   return (
     <StepCardShell step={step} stepById={stepById} highlight={highlight} menu={p.menu}>
-      {showTriage ? (
-        <div style={{ marginTop: '.5rem', display: 'flex', flexDirection: 'column', gap: '.55rem' }}>
-          <div style={{ fontSize: 'var(--fs-13)', color: 'var(--ink-2)' }}>
-            שתי שאלות שקובעות את המסלול. נשאלות פעם אחת ללקוח.
-          </div>
-
-          <RadioRow
-            label="הלקוח כבר עובד עם פייפרלס?"
-            name={`pl-status-${step.id}`}
-            value={status}
-            options={PAPERLESS_STATUS_OPTIONS}
-            onChange={v => setStatus(v as PaperlessStatus)}
-          />
-
-          {asksHistory && (
-            <RadioRow
-              label="יש היסטוריה לייבא?"
-              name={`pl-source-${step.id}`}
-              value={source}
-              options={DATA_SOURCE_OPTIONS}
-              onChange={v => setSource(v as PaperlessDataSource)}
-            />
-          )}
-
-          {asksHistory && source === 'other_software' && (
-            <label style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)', maxWidth: 320 }}>
-              שם התוכנה
-              <input value={softwareName} onChange={e => setSoftwareName(e.target.value)}
-                placeholder="חשבשבת, ריווחית…" style={{ marginTop: 3, width: '100%' }} />
-            </label>
-          )}
-
-          {p.triageError && (
-            <div style={{ fontSize: 'var(--fs-12)', color: 'var(--err)' }}>⚠ {p.triageError}</div>
-          )}
-
-          <div style={{ display: 'flex', gap: '.35rem' }}>
-            <button type="button" className="btn btn-sm btn-primary"
-              disabled={!canSubmit || p.triageBusy}
-              onClick={() => status !== '' && p.onTriage({
-                paperlessStatus: status,
-                dataSource: status === 'none' ? (source || 'none') : 'none',
-                softwareName,
-              })}>
-              {p.triageBusy ? 'שומר…' : 'שמור מסלול'}
-            </button>
-            {path && (
-              <button type="button" className="btn btn-sm btn-ghost" onClick={p.onCancelTriage}>ביטול</button>
-            )}
-          </div>
-        </div>
-      ) : (
-        <>
-          {isInvite ? (
-            <InviteBody path={path} status={step.status} awaitingPublish={!!awaitingPublish?.has(step.id)} step={step} client={p.client} />
-          ) : (
+      {p.showQuestions && <div style={{ marginTop: '.6rem', marginBottom: '.8rem' }}>
+        <PaperlessQuestions answers={answers} onSave={p.onAnswersSave} />
+      </div>}
+          {isInvite ? (p.showQuestions && paperlessAnswersPending(answers) ? null : (
+            <InviteBody path={path} status={step.status} questionsPending={paperlessAnswersPending(answers)} awaitingPublish={!!awaitingPublish?.has(step.id)} step={step} client={p.client} />
+          )) : (
             <ConnectionBody path={path} softwareName={String(step.payload.softwareName ?? '')}
               step={step} client={p.client} retainer={p.retainer} busy={busy} onRun={p.onRun}
               invite={[...stepById.values()].find(s => s.stepType === 'paperless_invite' && s.status !== 'cancelled')}
@@ -4544,7 +4441,7 @@ function PaperlessStepCard(p: PaperlessCardProps) {
           <div style={{ display: 'flex', gap: '.35rem', flexWrap: 'wrap', marginTop: '.55rem', alignItems: 'center' }}>
             {/* ‼ אין כאן יותר "הכן מייל הזמנה". קישור ההרשמה חי בדף האישי
                 של הלקוח, ככל בקשה אחרת — לא במייל נפרד לבקשה הזאת. */}
-            {isInvite && open && path !== 'none' && path !== undefined && (
+            {isInvite && open && !paperlessAnswersPending(answers) && path !== 'none' && path !== undefined && (
               <button type="button" className="btn btn-sm btn-secondary" disabled={busy}
                 onClick={() => p.onRun('skip', { reason: 'already_connected', note: 'הלקוח כבר בפייפרלס - אין צורך בהרשמה' })}>
                 סמן שאין צורך בהרשמה
@@ -4553,7 +4450,7 @@ function PaperlessStepCard(p: PaperlessCardProps) {
             {/* ‼ ההשלמה הרגילה של השלב הזה היא של הלקוח ("נרשמתי לפייפרלס"
                 בדף האישי). הכפתור כאן הוא המסלול הידני — הלקוח אמר בטלפון,
                 או שראינו אותו בפייפרלס — בדיוק כמו "הלקוח השלים" בשאר הבקשות. */}
-            {isInvite && open && (
+            {isInvite && open && !paperlessAnswersPending(answers) && (
               <button type="button" className="btn btn-sm btn-secondary" disabled={busy}
                 title="לשימוש כשהלקוח הודיע מחוץ למערכת - בדרך כלל הוא מאשר בעצמו בדף האישי"
                 onClick={() => p.onRun('complete', { completionMethod: 'manual' })}>הלקוח נרשם</button>
@@ -4598,12 +4495,9 @@ function PaperlessStepCard(p: PaperlessCardProps) {
                 onClick={p.onReopen}>בטל את אישור ההרשמה</button>
             )}
 
-            {path && (
-              <button type="button" className="btn btn-sm btn-ghost" onClick={p.onRetriage}>שנה מסלול</button>
-            )}
+
           </div>
-        </>
-      )}
+
     </StepCardShell>
   );
 }
@@ -4668,7 +4562,10 @@ function BusinessDetailsCard({ step, stepById, client, highlight, menu, onOpenTa
 
 /** מה קורה בשלב ההזמנה, לפי המסלול שנבחר.
  *  ‼ awaitingPublish — הקליטה טרם פורסמה: מה שבדף «יופיע», לא «מופיע» (clientPageGate). */
-function InviteBody({ path, status, awaitingPublish, step, client }: { path?: PaperlessStatus; status: string; awaitingPublish?: boolean; step: OnboardingStep; client: Client }) {
+function InviteBody({ path, status, questionsPending, awaitingPublish, step, client }: { path?: PaperlessStatus; status: string; questionsPending?: boolean; awaitingPublish?: boolean; step: OnboardingStep; client: Client }) {
+  if (questionsPending && isStepOpen(step.status)) return <div style={cardNote}>
+    {awaitingPublish ? 'אחרי פרסום בדף, הלקוח ישלים את הפרטים החסרים.' : 'הלקוח ישלים את הפרטים החסרים בדף האישי. ההמשך יותאם לתשובותיו.'}
+  </div>;
   if (path === 'not_applicable') {
     return (
       <div style={cardNote}>
@@ -4744,7 +4641,7 @@ function ConnectionBody({ path, softwareName, step, client, retainer, busy, onRu
   if (path === 'not_applicable') {
     return (
       <div style={cardNote}>
-        אין חיבור לפייפרלס ללקוח הזה. אם זה ישתנה - "שנה מסלול" יחזיר את
+        אין חיבור לפייפרלס ללקוח הזה. עדכון התשובה על חשבון הפייפרלס יחזיר את
         ההזמנה והחיבור, והתשלום יחזור להיות תלוי בהם.
       </div>
     );
@@ -7138,29 +7035,6 @@ function JourneyRow({ step, stepById, highlight, danger, statusLabel, noteLine, 
           שגורם ל"הרשאה לחיוב חודשי" להיקרא כהמשך של הפייפרלס ולא כבקשה
           נפרדת ברשימה. אב-הטיפוס: card > card.child. */}
       {nested}
-    </div>
-  );
-}
-
-/** שורת בחירה אחת מתוך כמה — הטריאז' של הפייפרלס. */
-function RadioRow({ label, name, value, options, onChange }: {
-  label: string;
-  name: string;
-  value: string;
-  options: { value: string; label: string }[];
-  onChange: (v: string) => void;
-}) {
-  return (
-    <div>
-      <div style={{ fontSize: 'var(--fs-13)', fontWeight: 600, color: 'var(--ink-2)', marginBottom: '.2rem' }}>{label}</div>
-      <div style={{ display: 'flex', gap: '.8rem', flexWrap: 'wrap' }}>
-        {options.map(o => (
-          <label key={o.value} style={{ display: 'flex', alignItems: 'center', gap: '.3rem', fontSize: 'var(--fs-13)', color: 'var(--ink-2)' }}>
-            <input type="radio" name={name} checked={value === o.value} onChange={() => onChange(o.value)} />
-            {o.label}
-          </label>
-        ))}
-      </div>
     </div>
   );
 }

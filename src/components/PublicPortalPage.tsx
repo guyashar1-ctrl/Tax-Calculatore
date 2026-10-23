@@ -26,6 +26,8 @@ import { photoGuideFor, photoGuideStepCount } from './portal/photoGuides';
 import { linkHost } from '../features/links/linkDestinations';
 import { REP_PORTAL_CARD_FIXED } from '../../supabase/functions/_shared/repTemplates.ts';
 import './portal/portalPage.css';
+import PaperlessQuestions from '../features/requests/PaperlessQuestions';
+import { paperlessAnswerError, type PaperlessAnswers } from '../features/requests/paperlessAnswers';
 import HomeOfficeForm from '../features/requests/HomeOfficeForm';
 import type { ValidHomeOffice } from '../features/requests/homeOffice';
 import { groupPortalItems, portalChildTitle, portalGroupStatus, type PortalGroup } from '../features/requests/requestGroups';
@@ -114,7 +116,7 @@ export interface PortalItem {
   /* ‼ 'message' — הודעה מהמשרד, בלי שום פעולה ובלי מונה. היא אינה יושבת תחת
      «מה צריך ממך» (אין מה לעשות) ולא תחת «בטיפול המשרד» (לא בהכרח מטפלים
      במשהו) — יש לה מקום שקט משלה. יורדת מהדף כשהמשרד סוגר אותה. */
-  kind?: 'documents' | 'prev_accountant' | 'custom' | 'paperless_signup' | 'guide' | 'info' | 'declare' | 'message'
+  kind?: 'paperless_questions' | 'documents' | 'prev_accountant' | 'custom' | 'paperless_signup' | 'guide' | 'info' | 'declare' | 'message'
     /* ‼ 208 · שע״ם דורשת צילום תעודה, ובתיק כבר יש אחד: הלקוח רואה אותו ומאשר
        שהוא שלו, או מעלה אחר. קיום הקובץ אינו אישור. */
     | 'identity_confirm'
@@ -172,6 +174,7 @@ export interface PortalItem {
   businessName?: string;
   /** 260 · מה לבחור ב«סוג עסק» בהרשמה לפייפרלס, לפי הכרטיס. '' = לא נקבע; חסר = שרת ישן או חשבון קיים. */
   paperlessKind?: string;
+  paperlessAnswers?: PaperlessAnswers;
   /** 220 · התשובות האחרונות על עבודה מהבית — מילוי-מראש לתיקון. */
   homeOffice?: { worksFromHome?: boolean | null; hasDedicatedRoom: boolean; totalRooms: number | null; businessRooms: number | null; note: string | null } | null;
   /** רשימת המסמכים שביקשנו — מה התקבל ומה עוד חסר. */
@@ -658,6 +661,7 @@ function ActionItem({ item, brand, accent, last, onDone }: {
   const inPage = item.actionKind === 'portal';
   const expandable = inPage && (item.kind === 'documents' || item.kind === 'custom' || item.kind === 'prev_accountant');
   const signup = inPage && item.kind === 'paperless_signup';
+  const paperlessQuestions = inPage && item.kind === 'paperless_questions';
   /** חומר עזר שעדיין מבקש הצהרה ("עברתי עליו") — הכל גלוי מיד: כפתור
    *  הפתיחה והסימון, בלי כרטיס שנפתח. ‼ מסמך שנשלח ללקוח אינו מגיע לכאן. */
   const guide = inPage && item.kind === 'guide' && !!item.resourceUrl;
@@ -762,6 +766,10 @@ function ActionItem({ item, brand, accent, last, onDone }: {
       ) : guide ? (
         <div style={{ marginTop: 11 }}>
           <GuideBlock item={item} brand={brand} accent={accent} onDone={onDone} />
+        </div>
+      ) : paperlessQuestions ? (
+        <div style={{ marginTop: 11 }}>
+          <PaperlessQuestionsBlock item={item} onDone={onDone} />
         </div>
       ) : signup ? (
         <div style={{ marginTop: 11 }}>
@@ -1203,6 +1211,18 @@ function NiApprovalBlock({ item, brand, accent }: {
  * היחיד שבו הלקוח ממילא עוסק בפייפרלס. ידוע ⇒ מוצג לאישור; לא ידוע ⇒ נשאל.
  * מה שנשלח נשמר ב-clients.business_name בלבד — אין עותק שני על הבקשה.
  */
+function PaperlessQuestionsBlock({ item, onDone }: { item: PortalItem; onDone: () => void }) {
+  const { actions, readOnly } = usePortal();
+  if (!item.paperlessAnswers || !item.actionValue) return null;
+  return <PaperlessQuestions client answers={item.paperlessAnswers} readOnly={readOnly}
+    onSave={async (next, expected) => {
+      const result = await actions.submitStep(item.actionValue!, { paperlessAnswers: next, expectedPaperlessAnswers: expected });
+      if (!result.ok) return { ok: false, error: paperlessAnswerError(result.error) };
+      if (!result.simulated) onDone();
+      return { ...result, ok: !!result.ok };
+    }} />;
+}
+
 function PaperlessSignupBlock({ item, brand, accent, onDone }: {
   item: PortalItem;
   brand: { ink: string; muted: string; border: string; radius: number; cardBg: string };

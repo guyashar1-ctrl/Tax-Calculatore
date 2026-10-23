@@ -71,7 +71,7 @@ function objectToRow<T extends Record<string, any>>(obj: T, exclude: string[] = 
 // והמיזוג). שמירה רגילה של הכרטיס לא מחזירה אותם: המסך עלול להחזיק ערך שהתיישן
 // מרגע הטעינה, ושליחתו בחזרה הייתה מגלגלת את השלב אחורה. העברה לארכיון כותבת את
 // העמודה ישירות (setClientLifecycleStage ב-useClients) ולא דרך המיפוי הזה.
-const CLIENT_OMIT_ON_WRITE = ['updatedAt', 'lifecycleStage', 'mergedFromLeadId'];
+const CLIENT_OMIT_ON_WRITE = ['updatedAt', 'lifecycleStage', 'mergedFromLeadId', 'paperlessStatus'];
 
 // שדות מחרוזת שהאפליקציה מניחה שתמיד קיימים (קוראת עליהם .charAt/.toLowerCase/.localeCompare).
 // ב-DB הם עלולים להיות null (למשל לקוח שנוצר חלקית / יובא) — מאפסים ל-'' כדי שלא יקרוס.

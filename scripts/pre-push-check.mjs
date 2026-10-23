@@ -15,6 +15,7 @@ import { readFileSync, existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 const ROOT = resolve(process.cwd());
+const CONFIG_ROOT = resolve(process.env.PIVO_CONFIG_ROOT || ROOT);
 const t0 = Date.now();
 const say = (s) => process.stderr.write(s + '\n');
 
@@ -92,7 +93,7 @@ if (hitAreas.length) say(`\nתחומים שהשתנו: ${hitAreas.map(a => a.nam
 const invs = [...new Set(hitAreas.flatMap(a => a.invariants ?? []))];
 if (invs.length) say(`כללים שעלולים להיפגע (docs/INVARIANTS.md): ${invs.join(', ')}`);
 if (toRun.size) {
-  const envOk = existsSync(resolve(ROOT, '.env.staging')) && existsSync(resolve(ROOT, 'STAGING_USER_ID'));
+  const envOk = existsSync(resolve(CONFIG_ROOT, '.env.staging')) && existsSync(resolve(ROOT, 'STAGING_USER_ID'));
   if (!envOk) {
     say('✋ חסרים .env.staging / STAGING_USER_ID בעותק הזה — בדיקות ה-staging של התחום לא יכולות לרוץ.');
     failed.push('staging-env');
@@ -107,7 +108,7 @@ if (reminders.size) say(`\nתזכורת — בדיקות של התחום שעו�
 if (unmapped.length) say(`\n⚠ קבצים בתחום שאין לו שורה ב-scripts/impact-map.json (להוסיף):\n   ${unmapped.slice(0, 12).join('\n   ')}`);
 
 // ── 3 · הכללים החיים בייצור (קריאה בלבד) ───────────────────────────────────
-if (existsSync(resolve(ROOT, '.env.local'))) {
+if (existsSync(resolve(CONFIG_ROOT, '.env.local'))) {
   if (!run('כללים חיים בייצור (קריאה בלבד)', process.execPath, ['scripts/prod-invariants-check.mjs'])) failed.push('prod-invariants');
 } else {
   say('⚠ אין .env.local — הבדיקה החיה בייצור לא רצה.');

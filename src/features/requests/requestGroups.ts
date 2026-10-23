@@ -280,6 +280,7 @@ export function portalItemGroup(item: PortalItemLike, hasPaperless: boolean): Re
 }
 
 export function portalChildTitle(item: PortalItemLike): string {
+  if (item.kind === 'paperless_questions') return item.label || 'פרטים לקראת החיבור לפייפרלס';
   return PORTAL_CHILD_TITLE[item.key] ?? item.label ?? '';
 }
 

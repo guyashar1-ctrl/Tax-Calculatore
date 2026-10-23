@@ -1,0 +1,16 @@
+.plq { display: grid; gap: 12px; color: inherit; font-size: 13px; line-height: 1.5; }
+.plq fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+.plq legend { padding: 0; margin-bottom: 4px; font-weight: 600; }
+.plq-options { display: flex; flex-wrap: wrap; column-gap: 18px; row-gap: 2px; }
+.plq-options label { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; cursor: pointer; }
+.plq input[type="radio"] { margin: 0; width: 16px; height: 16px; accent-color: var(--accent, #315d78); }
+.plq input:focus-visible, .plq button:focus-visible { outline: 2px solid var(--accent, #315d78); outline-offset: 3px; }
+.plq-software > label { display: block; font-weight: 600; margin-bottom: 4px; }
+.plq-software > div { display: flex; gap: 8px; max-width: 360px; }
+.plq-software input { min-width: 0; width: 100%; color: inherit; background: transparent; border: 1px solid var(--border, #cbd5df); border-radius: 6px; padding: 8px 10px; font: inherit; }
+.plq-software button { font: inherit; color: inherit; border: 1px solid var(--border, #cbd5df); background: transparent; border-radius: 6px; padding: 8px 12px; cursor: pointer; }
+.plq button:disabled { opacity: .5; cursor: default; }
+.plq-foot { font-size: 12px; color: var(--ink-3, #64748b); min-height: 0; }
+.plq-foot:empty { display: none; }
+.plq-error { color: var(--err, #b42318); }
+@media (max-width: 600px) { .plq-options { flex-direction: column; gap: 0; } .plq-options label { min-height: 44px; } .plq-software input, .plq-software button { min-height: 44px; font-size: 16px; } }

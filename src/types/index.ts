@@ -634,6 +634,8 @@ export const EMPTY_SPOUSE: SpouseData = {
 export type ClientType = 'individual' | 'company';
 
 export interface Client {
+  /** Shared Paperless answer; written only through the workflow RPC. */
+  paperlessStatus?: 'unknown' | 'none' | 'self' | 'other_rep' | 'not_applicable';
   id: string;
 
   /** סוג לקוח (ברירת מחדל: 'individual'). מכין לתמיכה בחברות בעתיד. */
