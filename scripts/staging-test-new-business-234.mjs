@@ -3,10 +3,12 @@
  * staging-test-new-business-234.mjs — שער הרגרסיה של מיגרציה 234 (עסק חדש שהמשרד פותח).
  *
  *  N1  עסק חדש מסומן בליד ⇒ עובר לכרטיס, «פתיחת תיקים» נוצרת, המסמכים = אישור בנק + רישיון
- *      נהיגה (269; בלי «תעודת עוסק», בלי ת.ז. — הייצוג אוסף אותה), פייפרלס נעול על פתיחת התיקים,
- *      «פרטי העסק» פתוחה, וטופס הייצוג יודע שזה עסק חדש (prefill.newBusiness).
- *  N2  «פתח עכשיו» פותח את ההרשמה לפייפרלס ביד, עם שורה ביומן; החיבור ממשיך לחכות לה.
- *  N3  השלמת פתיחת התיקים פותחת את ההרשמה לפייפרלס מעצמה.
+ *      נהיגה (269; בלי «תעודת עוסק», בלי ת.ז. — הייצוג אוסף אותה), ההרשמה לפייפרלס פתוחה מיד
+ *      (289 — לא מחכה לפתיחת התיקים), «פרטי העסק» פתוחה, וטופס הייצוג יודע שזה עסק חדש.
+ *  N2  (289) עוסק מורשה חדש: «חיבור פייפרלס לרשות המסים» מחכה לשני הורים — החיבור לפייפרלס
+ *      ופתיחת התיקים — והדף אומר את שניהם.
+ *  N3  (289) השלמת פתיחת התיקים לבדה לא פותחת אותו (החיבור עוד חסר), וחיבור לבדו גם לא; שניהם
+ *      ⇒ נפתח מעצמו. «פתח עכשיו» פותח אותו ביד, עם שורה ביומן; לחיצה שנייה = noop; anon חסום.
  *  N4  ליד שלא סומן (ברירת המחדל «אין רו"ח קודם») ⇒ לא עסק חדש: אין פתיחת תיקים.
  *  N5  עסק קיים בלי רו"ח קודם ⇒ אין פתיחת תיקים ואין מסלול רו"ח קודם.
  *  N6  עסק חדש בלי ייצוג ⇒ ת.ז. נשארת ברשימת המסמכים (אין מי שיאסוף אותה), ורישיון נהיגה.
@@ -125,14 +127,13 @@ try {
   ok('N1 · פריט הרישיון: «צילום רישיון נהיגה», docKind=driverLicense', lic?.label === 'צילום רישיון נהיגה' && lic?.docKind === 'driverLicense', JSON.stringify(lic));
   ok('N1 · הכותרת נגזרת מהרשימה («להעלות 2 מסמכים»)', /2/.test(docs?.payload?.clientTitle ?? ''), docs?.payload?.clientTitle);
   const inv = await step(A.cid, 'paperless_invite');
-  ok('N1 · הרשמה לפייפרלס נעולה על פתיחת התיקים', inv?.status === 'locked' && inv?.depends_on_step_id === fo?.id,
-    `${inv?.status} ${inv?.depends_on_step_id} vs ${fo?.id}`);
-  const arc = await one(`select count(*)::int n from public.onboarding_step_dependencies where step_id = ${q(inv?.id)} and depends_on_step_id = ${q(fo?.id)}`);
-  ok('N1 · הקשת נרשמה בטבלת התלויות', arc.n === 1, String(arc.n));
-  const reason = await one(`select public.portal_lock_reason(${q(inv?.id)}) r`);
-  ok('N1 · בדף: «ייפתח אחרי פתיחת התיקים ברשויות»', reason.r === 'ייפתח אחרי פתיחת התיקים ברשויות', reason.r);
+  ok('N1 · (289) ההרשמה לפייפרלס פתוחה מיד — לא מחכה לפתיחת התיקים', inv?.status === 'pending' && inv?.depends_on_step_id === null,
+    `${inv?.status} ${inv?.depends_on_step_id}`);
+  const arc = await one(`select count(*)::int n from public.onboarding_step_dependencies where step_id = ${q(inv?.id)}`);
+  ok('N1 · (289) אין להרשמה קשת תלות', arc.n === 0, String(arc.n));
   const conn = await step(A.cid, 'paperless_connection');
-  ok('N1 · החיבור לפייפרלס נעול (אחרי ההרשמה)', conn?.status === 'locked', conn?.status);
+  ok('N1 · החיבור לפייפרלס נעול על ההרשמה', conn?.status === 'locked' && conn?.depends_on_step_id === inv?.id, conn?.status);
+  ok('N1 · (289) עוסק פטור — אין «חיבור לרשות המסים»', !(await step(A.cid, 'paperless_tax_authority')));
   const bd = await step(A.cid, 'business_details');
   ok('N1 · «פרטי העסק» פתוחה עכשיו', bd?.status === 'pending', bd?.status);
   const nbf = await one(`select public._client_is_new_business(${q(A.cid)}) v`);
@@ -142,28 +143,52 @@ try {
   ok('N1 · טופס הייצוג: prefill.newBusiness = true', !goErr && gob?.[0]?.prefill?.newBusiness === true, goErr?.message ?? JSON.stringify(gob?.[0]?.prefill));
 
   // ═══ N2 ═══════════════════════════════════════════════════════════════════
-  console.log('— N2 · «פתח עכשיו» —');
-  const { data: op, error: opErr } = await user.rpc('office_open_locked_step', { p_step_id: inv.id });
-  ok('N2 · office_open_locked_step מחזיר ok', !opErr && op?.ok === true, opErr?.message ?? JSON.stringify(op));
-  const inv2 = await step(A.cid, 'paperless_invite');
-  ok('N2 · ההרשמה פתוחה ובלי תלות', inv2?.status === 'pending' && inv2?.depends_on_step_id === null, `${inv2?.status} ${inv2?.depends_on_step_id}`);
-  const ev2 = await one(`select note from public.onboarding_events where step_id = ${q(inv.id)} and meta->>'openedEarly' = 'true' order by at desc limit 1`);
-  ok('N2 · שורה ביומן: «המשרד פתח את הבקשה עכשיו - בלי לחכות ל…»', /המשרד פתח את הבקשה עכשיו/.test(ev2?.note ?? ''), ev2?.note);
-  const conn2 = await step(A.cid, 'paperless_connection');
-  ok('N2 · החיבור עדיין ממתין להרשמה', conn2?.status === 'locked', conn2?.status);
-  const { data: op2 } = await user.rpc('office_open_locked_step', { p_step_id: inv.id });
-  ok('N2 · לחיצה שנייה = noop', op2?.ok === true && op2?.noop === true, JSON.stringify(op2));
-  const { data: forb } = await pure.rpc('office_open_locked_step', { p_step_id: conn.id }).then((r) => r, (e) => ({ data: { error: e.message } }));
-  ok('N2 · anon לא יכול לפתוח', !forb?.ok, JSON.stringify(forb));
+  console.log('— N2 · (289) עוסק מורשה חדש: החיבור לרשות המסים מחכה גם לפתיחת התיקים —');
+  const L = await makeApprovedClient('l1', { bt: false, dealer: 'licensed' });
+  const foL = await step(L.cid, 'file_opening');
+  const invL = await step(L.cid, 'paperless_invite');
+  const connL = await step(L.cid, 'paperless_connection');
+  const taL = await step(L.cid, 'paperless_tax_authority');
+  ok('N2 · ההרשמה לפייפרלס פתוחה', invL?.status === 'pending', invL?.status);
+  ok('N2 · «חיבור לרשות המסים» נוצר ונעול', taL?.status === 'locked', taL?.status);
+  const parentsOf = async (id) => (await sqlq(
+    `select depends_on_step_id p from public.onboarding_step_dependencies where step_id = ${q(id)}`)).map((r) => r.p).sort().join(',');
+  ok('N2 · שני הורים: החיבור לפייפרלס + פתיחת התיקים', (await parentsOf(taL?.id)) === [connL?.id, foL?.id].sort().join(','),
+    await parentsOf(taL?.id));
+  const rL = await one(`select public.portal_lock_reason(${q(taL?.id)}) r`);
+  ok('N2 · בדף: מחכה גם לפתיחת התיקים', /פתיחת התיקים ברשויות/.test(rL.r ?? ''), rL.r);
 
   // ═══ N3 ═══════════════════════════════════════════════════════════════════
-  console.log('— N3 · השלמת פתיחת התיקים פותחת את הפייפרלס —');
-  const B = await makeApprovedClient('b1', { bt: false });
-  const foB = await step(B.cid, 'file_opening');
-  const { data: adv, error: advErr } = await user.rpc('advance_onboarding_step', { p_step_id: foB.id, p_action: 'complete', p_payload: {} });
-  ok('N3 · פתיחת התיקים הושלמה', !advErr && adv?.ok !== false, advErr?.message ?? JSON.stringify(adv));
-  const invB = await step(B.cid, 'paperless_invite');
-  ok('N3 · ההרשמה לפייפרלס נפתחה מעצמה', invB?.status === 'pending', invB?.status);
+  console.log('— N3 · (289) נפתח רק כששני ההורים הושלמו —');
+  const { data: advL, error: advLErr } = await user.rpc('advance_onboarding_step', { p_step_id: foL.id, p_action: 'complete', p_payload: {} });
+  ok('N3 · פתיחת התיקים הושלמה', !advLErr && advL?.ok !== false, advLErr?.message ?? JSON.stringify(advL));
+  ok('N3 · תיקים לבד — עדיין נעול (החיבור חסר)', (await step(L.cid, 'paperless_tax_authority'))?.status === 'locked');
+  const rL2 = await one(`select public.portal_lock_reason(${q(taL?.id)}) r`);
+  ok('N3 · הדף כבר לא מזכיר את התיקים', !/פתיחת התיקים/.test(rL2.r ?? '') && !!rL2.r, rL2.r);
+  // החיבור «הושלם» (בלי לעבור את סעיפי ההקמה — לא זה הנבדק כאן)
+  const completeConn = async (cid, connId) => {
+    await sqlq(`update public.onboarding_steps set status = 'skipped' where client_id = ${q(cid)} and step_type = 'business_details';
+                update public.onboarding_steps set status = 'completed', completed_at = now() where id = ${q(connId)};
+                select public.unlock_dependent_steps(${q(connId)});`);
+  };
+  await completeConn(L.cid, connL.id);
+  ok('N3 · תיקים + חיבור ⇒ נפתח מעצמו', (await step(L.cid, 'paperless_tax_authority'))?.status === 'pending');
+
+  const M = await makeApprovedClient('m1', { bt: false, dealer: 'licensed' });
+  const connM = await step(M.cid, 'paperless_connection');
+  const taM = await step(M.cid, 'paperless_tax_authority');
+  await completeConn(M.cid, connM.id);
+  ok('N3 · חיבור לבד — עדיין נעול (התיקים חסרים)', (await step(M.cid, 'paperless_tax_authority'))?.status === 'locked');
+  const { data: op, error: opErr } = await user.rpc('office_open_locked_step', { p_step_id: taM.id });
+  ok('N3 · «פתח עכשיו» מחזיר ok', !opErr && op?.ok === true, opErr?.message ?? JSON.stringify(op));
+  const taM2 = await step(M.cid, 'paperless_tax_authority');
+  ok('N3 · נפתח ובלי תלות', taM2?.status === 'pending' && taM2?.depends_on_step_id === null, `${taM2?.status} ${taM2?.depends_on_step_id}`);
+  const evM = await one(`select note from public.onboarding_events where step_id = ${q(taM.id)} and meta->>'openedEarly' = 'true' order by at desc limit 1`);
+  ok('N3 · שורה ביומן: «המשרד פתח את הבקשה עכשיו - בלי לחכות ל…»', /המשרד פתח את הבקשה עכשיו/.test(evM?.note ?? ''), evM?.note);
+  const { data: op2 } = await user.rpc('office_open_locked_step', { p_step_id: taM.id });
+  ok('N3 · לחיצה שנייה = noop', op2?.ok === true && op2?.noop === true, JSON.stringify(op2));
+  const { data: forb } = await pure.rpc('office_open_locked_step', { p_step_id: conn.id }).then((r) => r, (e) => ({ data: { error: e.message } }));
+  ok('N3 · anon לא יכול לפתוח', !forb?.ok, JSON.stringify(forb));
 
   // ═══ N4 ═══════════════════════════════════════════════════════════════════
   console.log('— N4 · ליד שלא סומן —');
@@ -210,7 +235,7 @@ try {
 
   // ═══ N8 (269) ═════════════════════════════════════════════════════════════
   console.log('— N8 · רישיון שכבר ברשימה של המשרד — לא נוסף שני —');
-  const dryF = await one(`select public.generate_onboarding_steps(e.id, true) r from public.engagements e where e.client_id = ${q(B.cid)} order by e.created_at desc limit 1`);
+  const dryF = await one(`select public.generate_onboarding_steps(e.id, true) r from public.engagements e where e.client_id = ${q(L.cid)} order by e.created_at desc limit 1`);
   ok('N8 · הרצה יבשה עוברת', dryF?.r?.ok !== false, JSON.stringify(dryF?.r)?.slice(0, 200));
   const gdef = await one(`select pg_get_functiondef('public.generate_onboarding_steps(text,boolean)'::regprocedure) d`);
   ok('N8 · הכלל בודק רישיון קיים לפי מפתח או docKind', /d->>'key' = 'drivers_license' or d->>'docKind' = 'driverLicense'/.test(gdef.d));

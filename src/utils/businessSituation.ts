@@ -19,7 +19,7 @@ export const BUSINESS_SITUATION_LABELS: Record<BusinessSituation, string> = {
 
 /** מה כל בחירה מפעילה בקליטה — שורה אחת, לאותו מסך שבו בוחרים. */
 export const BUSINESS_SITUATION_HINTS: Record<BusinessSituation, string> = {
-  new: 'נפתח את התיקים ברשויות. פייפרלס ייפתח ללקוח אחרי פתיחת התיקים.',
+  new: 'נפתח את התיקים ברשויות. פייפרלס נפתח ללקוח מיד; רק החיבור לרשות המסים מחכה לתיקים.',
   transfer: 'מכתב העברת טיפול וחומרים מהרו״ח הקודם.',
   existing: 'בלי פתיחת תיקים ובלי מכתב העברה.',
 };

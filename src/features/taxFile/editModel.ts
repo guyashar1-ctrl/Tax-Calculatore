@@ -161,7 +161,7 @@ export const EDIT_SECTIONS: EditSection[] = [
       // ‼ 234: שדה אחד במסך, שתי עמודות במסד (businessSituation.ts) — editFieldValue / withBusinessSituation.
       { key: 'businessTransfer', label: 'מצב העסק בקליטה', kind: 'select',
         options: BUSINESS_SITUATION_ORDER.map(k => [k, BUSINESS_SITUATION_LABELS[k]] as [string, string]),
-        note: 'קובע אילו בקשות נוצרות בקליטה: עסק חדש ⇒ פתיחת תיקים, ופייפרלס אחריה; עובר מרו״ח אחר ⇒ מכתב העברה. לא משנה בקשות קיימות.' },
+        note: 'קובע אילו בקשות נוצרות בקליטה: עסק חדש ⇒ פתיחת תיקים (פייפרלס נפתח מיד, החיבור לרשות המסים — אחריה); עובר מרו״ח אחר ⇒ מכתב העברה. לא משנה בקשות קיימות.' },
     ],
   },
   {

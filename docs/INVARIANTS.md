@@ -75,6 +75,13 @@
 - **מי צורך:** `sync_intake_step_from_sessions` (פתיחה מחדש של שאלון שפורסם ⇒ ממתין ללקוח), `requestAttention.ts` (אצל מי הכדור).
 - **מוכיח:** `staging-test-draft-reaches-page-276.mjs` (D1–D2 לכל סוג, Q1–Q2). (בלי בדיקה חיה: הטריגר מונע את המצב התקוע.)
 
+### INV-REQ-02 · פייפרלס נפתח באישור ההצעה — גם בעסק חדש; רק החיבור לרשות המסים מחכה לפתיחת התיקים
+- **הכלל:** הגבייה עוברת בפייפרלס (גיא, 23.10.2026), ולכן ההרשמה, החיבור והכרטיס לא מחכים לשום בקשה אחרת חוץ מהשרשרת של עצמם. «חיבור פייפרלס לרשות המסים» מחכה גם לחיבור וגם לפתיחת התיקים (מספרי הקצאה בלי תיק — אין). הסדר בדף ובמייל הראשון — פייפרלס ראשון — הוא נתון של המסלול (sortIndex), לא כלל בשרת.
+- **SQL:** `generate_onboarding_steps` (בלי נעילה של `paperless_invite`, 289 §1), הטריגר `z_paperless_tax_authority_waits_for_files` (289 §2 — כל נתיבי היצירה, גם 132), `portal_lock_reason` (כל ההורים החוסמים).
+- **קוד:** הטקסטים — `journeyDefaults.ts`, `FlowsPage.tsx` («בעסק חדש»), `businessSituation.ts`, `editModel.ts`. הסדר — `scripts/289-paperless-first-flow.mjs` (שמירה דרך `save_office_flow` עם `compileOnboarding`).
+- **מי צורך:** `office_open_locked_step` («פתח עכשיו» מוחק את כל הקשתות), `requestGroups.ts` (מקבץ לפי סוג, לא לפי עמודת ההורה).
+- **מוכיח:** `staging-test-new-business-234.mjs` (N1 — ההרשמה פתוחה; N2–N3 — שני הורים, נפתח רק כששניהם הושלמו, «פתח עכשיו»).
+
 ## אבטחה
 
 ### INV-SEC-01 · שום פונקציה חדשה לא פתוחה ל-anon מחוץ לרשימה

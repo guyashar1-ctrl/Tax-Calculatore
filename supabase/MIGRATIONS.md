@@ -708,3 +708,6 @@ order by version;
 
 ## 268 · כתובת המגורים בהערכת המס ובדוח — בלי «קליטה» נפרדת (2026-10-21, בייצור — נרשם 20261021072909; גיבוי PIVO/backups/office-ux-20261021)
 `_tax_year_items`: 294 פריטים (+`household.address`). גיא: לקוח חדש ⇒ «הערכת מס», ועל הדרך כתובת וילדים (`household.children` קיבל whenEmpty). נוצר ב-`scripts/sql/268/build.mjs`; חזרה `scripts/sql/268/rollback-268.sql`. staging: החלה, חזרה (md5 זהה), החלה שוב.
+
+## 289 · פייפרלס נפתח באישור ההצעה — גם בעסק חדש (2026-10-23)
+גיא: הגבייה עוברת רק בפייפרלס. (1) `generate_onboarding_steps`: הוסרה נעילת `paperless_invite` על `file_opening` (234 §2ה) — עוגן כפול עם אימות מהמסד. (2) טריגר `z_paperless_tax_authority_waits_for_files`: `paperless_tax_authority` מקבל הורה שני — פתיחת התיקים הפתוחה — בכל נתיב יצירה; ופתיחת תיקים שנוצרת אחר כך מתווספת להורים של שלב נעול. שורות קיימות לא משתנות. הסדר («פייפרלס ראשון») — `scripts/289-paperless-first-flow.mjs` (גרסה חדשה של המסלול דרך `save_office_flow`). INV-REQ-02. staging 23.10: הוחל, `staging-test-new-business-234.mjs` 51/51.
