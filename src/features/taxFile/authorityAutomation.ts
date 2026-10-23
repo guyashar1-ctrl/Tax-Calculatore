@@ -23,7 +23,8 @@ import { EDIT_FIELD_BY_KEY, editFieldValue } from './editModel';
 import { incomeTaxFileType } from '../../data/incomeTaxFileTypes';
 import { niPersons, niEditable } from '../../utils/niPersons';
 import { incomeTaxFileInput } from './incomeTaxFileInput';
-import { REPORTING_NO_ADVANCES } from '../../utils/reportingStatus';
+import { REPORTING_NO_ADVANCES, reportingStatusOk } from '../../utils/reportingStatus';
+import { BANKS } from '../../data/institutions';
 import {
   niOccupationsFromBtl, niOccupationsKey, niOccupationsInline, niDate,
 } from '../nationalInsurance/niOccupations';
@@ -289,6 +290,14 @@ function mapDebitAuthorization(raw: string): string | null {
   return null;
 }
 
+/** «קיימת · 12-170-48047» ⇒ «בנק הפועלים · סניף 170 · חשבון 48047» (שם הבנק מטבלת הבנקים לפי קוד). */
+export function debitAccountText(raw: string): string | null {
+  const m = raw.match(/(\d+)-(\d+)-(\d+)/);
+  if (!m) return null;
+  const bank = BANKS.find(b => b.id === `bank-${m[1].padStart(2, '0')}`)?.label ?? `בנק ${m[1]}`;
+  return `${bank} · סניף ${m[2]} · חשבון ${m[3]}`;
+}
+
 /**
  * מה שדה מציג ומציע כשהרשות החזירה מצב עסקי במקום ערך.
  * `'info'` ⇒ אין ערך ואין הצעה, רק סמן ניטרלי (ההסבר בקבוצה).
@@ -307,9 +316,9 @@ interface Shaam134FieldSource {
   /** תוספת פירוש לערך שהוחזר. */
   hint?: (value: string) => string | undefined;
   /** איך מציגים את ערך הרשות לרו"ח. ברירת מחדל: הגולמי. */
-  display?: (value: string) => string;
-  /** המצב העסקי גובר על הערך שנקרא (למשל «אין מקדמות» על פני מונה דיווחים של 134). */
-  preferBusiness?: boolean;
+  display?: (value: string, raw: string) => string;
+  /** להציג את ערך הרשות גם כשתואם (ירוק). */
+  showOnMatch?: (value: string) => boolean;
 }
 
 /**
@@ -341,17 +350,14 @@ export const SHAAM_134_FIELD_SOURCES: Record<string, Shaam134FieldSource> = {
     source: 'balance', normalize: mapBalance,
     businessValue: (f) => (advanceBusinessState(f) ? 'info' : null),
   },
-  // ‼ «מצב דיווחים» = דיווחי המקדמות. בלי מקדמות פעילות (154: «לא נדרש» / «בוטלה») ⇒ «אין מקדמות».
-  // עם מקדמות — מ-134 (worker/src/gmf134.mjs: המונה moneDvcChaser והתקופות, נצפה חי 23.10.2026):
-  // «אין דיווחים חסרים» / «חסר דיווח: 07-08/2026». ריצה בלי הנתון — סמן ניטרלי, בלי «לא נקרא».
-  incomeTaxReportingStatus: {
-    source: 'reportingStatus', preferBusiness: true,
-    businessValue: (f) => (advanceBusinessState(f)
-      ? { value: REPORTING_NO_ADVANCES, display: REPORTING_NO_ADVANCES } : 'info'),
-  },
+  // ‼ «מצב דיווחים» — ראה interpretReportingStatus (התראה בלבד).
+  incomeTaxReportingStatus: { source: 'reportingStatus' },
   // ‼ «רשימת מיוצגים» (23.10.2026) — רק כשמערכת הייצוג הייתה מחוברת בזמן הקריאה; אחרת «לא נבדק».
+  // הבנק מוצג מתחת לשדה מהקריאה עצמה («שע״ם: בנק הפועלים · סניף 170 · חשבון 48047»).
   incomeTaxDebitAuthorization: {
     source: 'debitAuthorization', normalize: mapDebitAuthorization,
+    display: (v, raw) => (v === 'true' ? debitAccountText(raw) ?? raw : raw),
+    showOnMatch: (v) => v === 'true',
   },
   // ‼ הצהרת הון מ-154 בלבד. «אין דרישה» הוא תוצאה: אין דרישה פתוחה לפי שע״ם.
   // ריצה ישנה בלי המפתח ⇒ «לא נבדק» (ריק בלי מצב עסקי), לא כישלון.
@@ -431,6 +437,29 @@ function currentRaw(client: Client, fieldKey: string): string {
   return def ? editFieldValue(client, def) : String((client as unknown as Record<string, unknown>)[fieldKey] ?? '');
 }
 
+/**
+ * «מצב דיווחים» כהתראה (24.10.2026, גיא: «אני מדווח מפייפרלס»). הצעה רק כששע״ם רואה דיווח
+ * חסר, או כשחוסר שנרשם בתיק כבר הושלם (ניקוי). «הכול תקין» / «אין מקדמות» ⇒ תואם, בלי לכתוב.
+ * מקדמות פעילות בלי נתון מ-134 ⇒ סמן ניטרלי.
+ */
+function interpretReportingStatus(
+  fields: Record<string, string>, label: string, currentValue: string,
+): AuthorityFieldResult {
+  const fieldKey = 'incomeTaxReportingStatus';
+  const read = advanceBusinessState(fields) ? REPORTING_NO_ADVANCES : (fields.reportingStatus ?? '').trim();
+  if (!read) return { fieldKey, label, status: 'info', currentValue };
+  const cur = currentValue.trim();
+  const curMissing = !!cur && !reportingStatusOk(cur);
+  if (reportingStatusOk(read)) {
+    return curMissing
+      ? { fieldKey, label, status: 'changed', currentValue, authorityValue: '', authorityDisplay: read, patchValue: null }
+      : { fieldKey, label, status: 'match', currentValue };
+  }
+  return read === cur
+    ? { fieldKey, label, status: 'match', currentValue }
+    : { fieldKey, label, status: 'changed', currentValue, authorityValue: read, authorityDisplay: read };
+}
+
 function interpretShaam134(
   job: AutomationJob | null, client: Client, supportedKeys: readonly string[],
 ): AuthorityFieldResult[] {
@@ -450,8 +479,9 @@ function interpretShaam134(
     const label = EDIT_FIELD_BY_KEY[fieldKey]?.label ?? fieldKey;
     const currentValue = currentRaw(client, fieldKey);
     if (!spec || !fields) return { fieldKey, label, status: 'unsupported', currentValue };
+    if (fieldKey === 'incomeTaxReportingStatus') return interpretReportingStatus(fields, label, currentValue);
 
-    const raw = spec.preferBusiness && advanceBusinessState(fields) ? '' : (fields[spec.source] ?? '').trim();
+    const raw = (fields[spec.source] ?? '').trim();
     if (raw === '' && OPTIONAL_SOURCES[spec.source] && !OPTIONAL_SOURCES[spec.source](fields)) {
       return { fieldKey, label, status: 'unsupported', currentValue };
     }
@@ -486,8 +516,9 @@ function interpretShaam134(
     }
     const hint = spec.hint?.(normalized);
     const base = {
-      fieldKey, label, currentValue, authorityRaw: raw, authorityDisplay: spec.display?.(normalized) ?? raw,
+      fieldKey, label, currentValue, authorityRaw: raw, authorityDisplay: spec.display?.(normalized, raw) ?? raw,
       authorityValue: normalized, hint, group: spec.group,
+      ...(spec.showOnMatch?.(normalized) ? { showOnMatch: true } : {}),
     };
     // ‼ ההשוואה היא בין הערכים המנורמלים, ולכן «0» של שע״ם מול «0» בתיק
     // הוא **תואם**, ואפס אינו מקרה מיוחד. שדה ריק בתיק («—») מול ערך

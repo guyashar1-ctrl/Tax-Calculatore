@@ -157,11 +157,9 @@ function rowsFor(key: InstitutionKey, client: Client, incomeRead?: NiIncomeRead 
       });
     }
     out.push(balanceRow('יתרה', client.incomeTaxBalance, 'incomeTaxBalance'));
-    if (client.incomeTaxReportingStatus) {
-      out.push({
-        k: 'מצב דיווחים', v: client.incomeTaxReportingStatus, diffKey: 'reportingStatus',
-        tone: reportingStatusOk(client.incomeTaxReportingStatus) ? 'ok' : 'warn',
-      });
+    // ‼ התראה בלבד (24.10.2026, גיא): הדיווחים מפייפרלס — השורה רק כששע״ם רואה חוסר.
+    if (client.incomeTaxReportingStatus && !reportingStatusOk(client.incomeTaxReportingStatus)) {
+      out.push({ k: 'מצב דיווחים', v: client.incomeTaxReportingStatus, diffKey: 'reportingStatus', tone: 'warn' });
     }
     if (client.capitalDeclarationRequired != null) {
       out.push(client.capitalDeclarationRequired

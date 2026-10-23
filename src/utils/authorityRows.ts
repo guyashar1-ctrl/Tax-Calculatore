@@ -109,6 +109,11 @@ export interface AuthorityRowFact {
   /** שורות משנה קטנות מתחת לערך (למשל הבסיס לחודש ושחזור ההכנסה). */
   sub?: string[];
   /**
+   * לא מוצג כשאין מה לומר, אבל **נשאר בהשוואה מול הרשות** — שינוי שהרשות מציעה בו מציג
+   * אותו (24.10.2026, גיא: «מצב דיווחים» רק כשחסר, «תדירות» לא כשאין מקדמות).
+   */
+  quiet?: boolean;
+  /**
    * הסבר הערכים של הלקוח הזה מאחורי ה-«?» — מה נקרא, מה חושב, מה הוערך
    * (219). קיים היום על «בסיס לדמי ביטוח» בלבד.
    */
@@ -246,6 +251,7 @@ export function buildAuthorityRows(
       v: client.pitAdvanceFrequency ? VAT_FREQ_LABELS[client.pitAdvanceFrequency] : EMPTY,
       editKey: 'pitAdvanceFrequency',
       syncKey: 'pitAdvanceFrequency',
+      ...(noAdvance ? { quiet: true } : {}),
     });
     const bal = balanceText(client.incomeTaxBalance);
     // ‼ «יתרה» מתעדכנת מסך יתרת החוב/הזכות של התיק בשאילתה 154 (21.10.2026).
@@ -253,12 +259,11 @@ export function buildAuthorityRows(
     facts.push(bal
       ? { k: 'יתרה', v: bal.text, tone: bal.tone, editKey: 'incomeTaxBalance', syncKey: 'incomeTaxBalance' }
       : { k: 'יתרה', v: EMPTY, editKey: 'incomeTaxBalance', syncKey: 'incomeTaxBalance' });
-    if (client.incomeTaxReportingStatus) {
-      const ok = reportingStatusOk(client.incomeTaxReportingStatus);
-      facts.push({ k: 'מצב דיווחים', v: client.incomeTaxReportingStatus, tone: ok ? 'ok' : 'warn', editKey: 'incomeTaxReportingStatus' });
-    } else {
-      facts.push({ k: 'מצב דיווחים', v: EMPTY, editKey: 'incomeTaxReportingStatus' });
-    }
+    // ‼ «מצב דיווחים» = התראה: הדיווחים עצמם מפייפרלס, והשורה מופיעה רק כששע״ם רואה חוסר.
+    const reporting = client.incomeTaxReportingStatus?.trim();
+    facts.push(reporting && !reportingStatusOk(reporting)
+      ? { k: 'מצב דיווחים', v: reporting, tone: 'warn', editKey: 'incomeTaxReportingStatus' }
+      : { k: 'מצב דיווחים', v: reporting || EMPTY, editKey: 'incomeTaxReportingStatus', quiet: true });
     if (client.capitalDeclarationRequired != null) {
       facts.push(client.capitalDeclarationRequired
         ? { k: 'הצהרת הון', tone: 'warn', editKey: 'capitalDeclarationRequired', syncKey: 'capitalDeclarationRequired',

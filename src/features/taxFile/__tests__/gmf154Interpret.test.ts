@@ -6,6 +6,7 @@ import type { Client } from '../../../types';
 import type { AutomationJob } from '../../../types/automation';
 import { AUTHORITY_AUTOMATION } from '../authorityAutomation';
 import { reportingStatusOk } from '../../../utils/reportingStatus';
+import { buildAuthorityRows } from '../../../utils/authorityRows';
 
 const spec = AUTHORITY_AUTOMATION.income_tax!;
 const KEYS = ['capitalDeclarationRequired', 'capitalDeclarationDeadline', 'incomeTaxBalance', 'taxOfficeName', 'pitAdvancePercent'];
@@ -93,21 +94,33 @@ export const TESTS: TestCase[] = [
     equal(pending.authorityDisplay, 'ממתין לאישור יזום');
     equal(run2('קיים אישור', 'none').status, 'info', 'סותר — מידע, לא הצעה');
   }),
-  test('מצב דיווחים: בלי מקדמות פעילות ⇒ «אין מקדמות»; עם מקדמות ⇒ ניטרלי עד שנקרא מ-134; נקרא ⇒ הצעה', () => {
+  test('מצב דיווחים = התראה: הצעה רק כשחסר דיווח, או לנקות חוסר שהושלם; «תקין»/«אין מקדמות» ⇒ תואם בלי לכתוב', () => {
     const read = (fields: Record<string, string>, c = client()) => spec.interpret!(job(fields), c, ['incomeTaxReportingStatus'])[0];
-    const none = read({ advanceStatus: 'cancelled', advanceStatusRaw: 'בוטלה (שעור דו)' });
-    equal(none.status, 'changed');
-    equal(none.authorityValue, 'אין מקדמות');
-    // ‼ 23.10: ריצה של 134 בלבד על תיק שהמקדמות בו בוטלו החזירה גם «אין דיווחים חסרים» — «אין מקדמות» גובר.
-    equal(read({ advanceStatus: 'cancelled', reportingStatus: 'אין דיווחים חסרים' }).authorityValue, 'אין מקדמות');
-    equal(read({ advanceStatus: 'no_advance' }, client({ incomeTaxReportingStatus: 'אין מקדמות' })).status, 'match');
-    const active = read({ advanceRate: '15%', advanceFrequency: 'דו-חדשי', advanceStatus: 'active' });
-    equal(active.status, 'info');
-    equal(active.authorityValue, undefined, 'בלי הצעה');
-    const read134 = read({ advanceStatus: 'active', reportingStatus: 'אין דיווחים חסרים' });
-    equal(read134.status, 'changed', 'מקדמות פעילות + 134 ⇒ הצעה מהמונה של שע״ם');
-    equal(read134.authorityValue, 'אין דיווחים חסרים');
+    equal(read({ advanceStatus: 'cancelled', advanceStatusRaw: 'בוטלה (שעור דו)' }).status, 'match', 'אין מקדמות ⇒ שקט');
+    equal(read({ advanceStatus: 'active', reportingStatus: 'אין דיווחים חסרים' }).status, 'match', 'הכול תקין ⇒ שקט');
+    equal(read({ advanceStatus: 'active' }).status, 'info', 'מקדמות פעילות בלי 134 ⇒ ניטרלי');
+    const missing = read({ advanceStatus: 'active', reportingStatus: 'חסר דיווח: 07-08/2026' });
+    equal(missing.status, 'changed');
+    equal(missing.authorityValue, 'חסר דיווח: 07-08/2026');
     equal(read({ advanceStatus: 'active', reportingStatus: 'חסר דיווח: 07-08/2026' }, client({ incomeTaxReportingStatus: 'חסר דיווח: 07-08/2026' })).status, 'match');
+    const filled = read({ advanceStatus: 'active', reportingStatus: 'אין דיווחים חסרים' }, client({ incomeTaxReportingStatus: 'חסר דיווח: 07-08/2026' }));
+    equal(filled.status, 'changed', 'חוסר שהושלם ⇒ הצעה לנקות');
+    equal(filled.patchValue, null);
+    // ‼ 23.10: 134 על תיק שהמקדמות בו בוטלו אמר «אין דיווחים חסרים» — «אין מקדמות» גובר, ושניהם תקינים.
+    equal(read({ advanceStatus: 'cancelled', reportingStatus: 'חסר דיווח: 01-02/2026' }).status, 'match');
+  }),
+  test('כרטיס: «מצב דיווחים» שקט כשתקין/ריק וכתום כשחסר; «תדירות» שקטה כשאין מקדמות', () => {
+    const facts = (over: Partial<Client>) => buildAuthorityRows(client(over)).find(r => r.authority === 'income_tax')!.facts;
+    const rep = (over: Partial<Client>) => facts(over).find(f => f.k === 'מצב דיווחים')!;
+    equal(rep({ incomeTaxReportingStatus: 'אין דיווחים חסרים' }).quiet, true);
+    equal(rep({ incomeTaxReportingStatus: 'אין מקדמות' }).quiet, true);
+    equal(rep({}).quiet, true, 'ריק ⇒ שקט, אבל נשאר בהשוואה');
+    const miss = rep({ incomeTaxReportingStatus: 'חסר דיווח: 07-08/2026' });
+    equal(miss.quiet, undefined);
+    equal(miss.tone, 'warn');
+    const freq = (over: Partial<Client>) => facts(over).find(f => f.k === 'תדירות מקדמות')!;
+    equal(freq({ pitAdvancePercent: 0 }).quiet, true, 'אין מקדמות ⇒ רק «שיעור מקדמות: אין מקדמות»');
+    equal(freq({ pitAdvancePercent: 15, pitAdvanceFrequency: 'bi_monthly' }).quiet, undefined);
   }),
   test('«אין מקדמות» אינו חוסר — לא דגל ולא כתום', () => {
     assert(reportingStatusOk('אין מקדמות'), 'אין מקדמות');
@@ -120,7 +133,12 @@ export const TESTS: TestCase[] = [
     const yes = read({ debitAuthorization: 'קיימת · 12-170-48047' });
     equal(yes.status, 'changed');
     equal(yes.authorityValue, 'true');
-    equal(yes.authorityDisplay, 'קיימת · 12-170-48047');
+    equal(yes.authorityDisplay, 'בנק הפועלים · סניף 170 · חשבון 48047');
+    const known = read({ debitAuthorization: 'קיימת · 18-1-223167724' }, client({ incomeTaxDebitAuthorization: true }));
+    equal(known.status, 'match');
+    equal(known.showOnMatch, true, 'הבנק כתוב מתחת לשדה גם כשירוק');
+    equal(known.authorityDisplay, 'One Zero — הבנק הדיגיטלי · סניף 1 · חשבון 223167724');
+    equal(read({ debitAuthorization: 'קיימת · 99-5-1' }).authorityDisplay, 'בנק 99 · סניף 5 · חשבון 1', 'קוד לא מוכר — המספר');
     equal(read({ debitAuthorization: 'אין הרשאה' }, client({ incomeTaxDebitAuthorization: false })).status, 'match');
     equal(read({ taxOffice: 'x' }).status, 'unsupported', 'מערכת הייצוג לא הייתה מחוברת');
   }),

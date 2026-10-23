@@ -669,6 +669,7 @@ export default function AuthoritiesPanel({
               <div className="txf-kv">
                 {row.facts.map((f, i) => {
                   const fieldCheck = check?.checkedAt ? check.fields[i] : undefined;
+                  if (f.quiet && fieldCheck?.status !== 'changed') return null;
                   return (
                     <div key={i}>
                       {/* ‼ סמן המצב לפני התווית, קטן וללא מילים — רק אחרי בדיקה. */}
