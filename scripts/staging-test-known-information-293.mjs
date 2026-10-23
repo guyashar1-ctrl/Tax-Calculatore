@@ -1,5 +1,5 @@
 // Staging-only contract/security test. No production write path.
-// STAGING_ENV_DIR=... node scripts/staging-test-known-information-292.mjs [--apply]
+// STAGING_ENV_DIR=... node scripts/staging-test-known-information-293.mjs [--apply]
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { writeStaging, readProd } from './staging-lib.mjs';
@@ -13,7 +13,7 @@ if (process.argv.includes('--apply')) {
     const path = resolve(backup, `${name}-tax-info-view-before.sql`);
     if (!existsSync(path)) writeFileSync(path, rows[0].def);
   }
-  await writeStaging(readFileSync('supabase/292-questionnaire-known-information.sql', 'utf8'));
+  await writeStaging(readFileSync('supabase/293-questionnaire-known-information.sql', 'utf8'));
 }
 const env = await prepare();
 const lit = v => `$known$${typeof v === 'string' ? v : JSON.stringify(v)}$known$`;
@@ -52,12 +52,12 @@ try {
   ok(!priv.a && !priv.b && !priv.c, 'private helpers are inaccessible to public callers');
   const invalid = (await env.sql(`begin; set local role anon; select public.portal_tax_info('invalid-known-information-token',${lit(step)}) as r; commit;`))[0].r;
   ok(!invalid.ok && !invalid.knownClient, 'invalid portal token cannot read context');
-  await writeStaging(readFileSync('supabase/292-questionnaire-known-information.sql', 'utf8'));
+  await writeStaging(readFileSync('supabase/293-questionnaire-known-information.sql', 'utf8'));
   ok((await rpc(step)).ok, 'migration can be reapplied safely');
-  await writeStaging(readFileSync('scripts/sql/292/rollback.sql', 'utf8'));
+  await writeStaging(readFileSync('scripts/sql/293/rollback.sql', 'utf8'));
   const reverted = await rpc(step);
   ok(reverted.ok && !reverted.knownClient && reverted.asks[0].savedDraft.text === 'טיוטה שמורה', 'rollback preserves portal access and customer drafts');
-  await writeStaging(readFileSync('supabase/292-questionnaire-known-information.sql', 'utf8'));
+  await writeStaging(readFileSync('supabase/293-questionnaire-known-information.sql', 'utf8'));
   ok(!!(await rpc(step)).knownClient, 'migration works again after rollback');
   console.log(`${passed} passed`);
 } finally {

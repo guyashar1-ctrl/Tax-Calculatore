@@ -278,6 +278,20 @@
       ]
     },
     {
+      "name": "שאלונים: אישור מידע קיים והוספת פרטים חסרים",
+      "invariants": ["INV-UX-01"],
+      "globs": [
+        "src/features/taxYear/**",
+        "supabase/293-questionnaire-known-information.sql",
+        "scripts/staging-test-known-information-293.mjs"
+      ],
+      "suites": [
+        { "script": "staging-test-known-information-293.mjs", "run": true },
+        { "script": "e2e/known-information.mjs", "run": false,
+          "note": "דפדפן מול staging, דורש שרת ו-STAGING_ENV_DIR; רוחבים 1280/390/360" }
+      ]
+    },
+    {
       "name": "פייפרלס: תשובות משותפות במשרד ובדף האישי",
       "globs": [
         "supabase/292-paperless-shared-questions.sql",

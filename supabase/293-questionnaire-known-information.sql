@@ -95,11 +95,11 @@ do $$
 declare d text; anchor text := '''asks'', coalesce';
 begin
   d := replace(pg_get_functiondef('public._tax_info_view(text,text)'::regprocedure), E'\r\n', E'\n');
-  if position('292-known-information' in d) > 0 then return; end if;
+  if position('293-known-information' in d) > 0 then return; end if;
   if (length(d) - length(replace(d, anchor, ''))) / length(anchor) <> 1 then
-    raise exception '292: _tax_info_view response anchor must occur once';
+    raise exception '293: _tax_info_view response anchor must occur once';
   end if;
   execute replace(d, anchor, '''knownClient'', public._tax_info_known_client(p_client_id, p_step_id),
-    ''purpose'', coalesce(s.payload->>''purpose'', ''annual''), /* 292-known-information */ ''asks'', coalesce');
+    ''purpose'', coalesce(s.payload->>''purpose'', ''annual''), /* 293-known-information */ ''asks'', coalesce');
 end $$;
 commit;
