@@ -87,9 +87,7 @@ create or replace function public.save_paperless_answers(p_client_id text,p_answ
 returns jsonb language plpgsql security definer set search_path=public as $$
 begin
   if auth.uid() is null or not public.is_authorized() or not exists (
-    select 1 from public.clients c where c.id=p_client_id and (c.user_id=auth.uid() or exists (
-      select 1 from public.profiles x join public.profiles y on y.office_id=x.office_id
-       where x.id=auth.uid() and y.id=c.user_id and x.office_id is not null))) then
+    select 1 from public.clients c where c.id=p_client_id and c.user_id=auth.uid()) then
     return jsonb_build_object('ok',false,'error','forbidden'); end if;
   return public._save_paperless_answers(p_client_id,p_answers,p_expected,'accountant');
 end; $$;

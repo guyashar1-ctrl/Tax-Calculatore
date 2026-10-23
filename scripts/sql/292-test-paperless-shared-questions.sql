@@ -23,7 +23,7 @@ begin
   return jsonb_build_object('client',cid,'invite',inv,'connection',conn,'token',cid||'-token');
 end; $$;
 do $$
-declare uid uuid; f jsonb; f2 jsonb; a jsonb; initial jsonb; next jsonb; r jsonb; page jsonb;
+declare uid uuid; other_uid uuid; f jsonb; f2 jsonb; a jsonb; initial jsonb; next jsonb; r jsonb; page jsonb;
   before_n int; after_n int; source text; v_status text;
 begin
   select u.id into uid from auth.users u join public.authorized_users a on lower(a.email)=lower(u.email)
@@ -51,6 +51,16 @@ begin
   perform set_config('request.jwt.claim.sub','',true); perform set_config('request.jwt.claims','{}',true);
   r:=public.save_paperless_answers(f->>'client',next,a);
   perform pg_temp.ok292(r->>'error'='forbidden','office endpoint denies anonymous writes');
+  -- Match existing client ownership/RLS, even for a different authorized user in the same office.
+  select u.id into other_uid from auth.users u join public.authorized_users z on lower(z.email)=lower(u.email)
+    join public.profiles p on p.id=u.id where z.active and u.id<>uid limit 1;
+  if other_uid is null then raise exception 'needs second authorized staging user'; end if;
+  update public.profiles set office_id=(select office_id from public.profiles where id=uid) where id=other_uid;
+  perform set_config('request.jwt.claims',jsonb_build_object('sub',other_uid,'role','authenticated')::text,true);
+  perform set_config('request.jwt.claim.sub',other_uid::text,true);
+  r:=public.save_paperless_answers(f->>'client',next,a);
+  perform pg_temp.ok292(r->>'error'='forbidden','different authorized user in same office cannot change another owner client');
+  perform set_config('request.jwt.claim.sub','',true); perform set_config('request.jwt.claims','{}',true);
   next:='{"paperlessStatus":"self","dataSource":"paperless","softwareName":""}';
   r:=pg_temp.submit292(f->>'token',f->>'invite',next,a);
   perform pg_temp.ok292(r->>'error'='answers_changed','client cannot replace known office account answer');
@@ -93,6 +103,12 @@ begin
     page:=public.build_client_portal(f2->>'client','live');
     perform pg_temp.ok292(not jsonb_path_exists(page,'$.** ? (@.kind == "paperless_signup" || @.kind == "paperless_questions")'),v_status||' does not request duplicate signup');
   end loop;
+  f2:=pg_temp.make292(uid);
+  perform public._set_step_status(f2->>'invite','completed','client','legacy registration fixture','{}');
+  page:=public.build_client_portal(f2->>'client','live');
+  perform pg_temp.ok292(jsonb_path_exists(page,'$.items[*] ? (@.kind == "paperless_questions" && @.actionValue == $conn)',jsonb_build_object('conn',f2->>'connection')),'legacy completed signup asks missing facts through active connection');
+  r:=pg_temp.submit292(f2->>'token',f2->>'connection','{"paperlessStatus":"self","dataSource":"paperless","softwareName":""}',public._paperless_answers(f2->>'client'));
+  perform pg_temp.ok292(r->>'ok'='true' and (select status='completed' from public.onboarding_steps where id=f2->>'invite'),'completing legacy facts preserves completed registration');
   perform pg_temp.ok292(not has_function_privilege('anon','public._set_paperless_path_core(text,text,text,text,text)','execute')
     and not has_function_privilege('authenticated','public._save_paperless_answers(text,jsonb,jsonb,text)','execute'),'private core not accessible through API');
   perform pg_temp.ok292(has_function_privilege('anon','public.portal_submit_step(text,text,jsonb)','execute'),'token endpoint available to client without login');
