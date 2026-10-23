@@ -307,6 +307,17 @@
           "run": true
         }
       ]
+    },
+    {
+      "name": "דף החתימה של הלקוח (?sign=) וחדר החתימה (ממשק — בדפדפן: ?test-linked&screen=sign&couple=1 ב-360: תיבת בן הזוג, «לחתום כאן», ציור, «סיום וחתימה»; מעקב: [sign-track] ביומן signing-session)",
+      "globs": [
+        "src/components/PublicSignPage.tsx",
+        "src/components/signatureRequest/SigningRoom.tsx",
+        "src/components/SignaturePad.tsx",
+        "src/components/linkedScreens/sampleSignActions.ts",
+        "supabase/functions/signing-session/**"
+      ],
+      "suites": []
     }
   ],
   "watched": [
