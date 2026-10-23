@@ -22,6 +22,8 @@ import type { AdditionalCharge } from '../types/charges';
 import { buildPersonRows, searchPersonRows, type PersonRow } from '../utils/personDirectory';
 import { nextActionForClient, clientStepsOf } from '../utils/nextActionForClient';
 import { nextStepForClient, nextActionText } from '../utils/onboardingNext';
+import { stepNeedsMe } from '../utils/requestAttention';
+import { paperlessOfficeWait } from '../features/requests/officeWait';
 import { isStepOpen } from '../types/onboarding';
 import { getClientOpenTasks } from '../utils/clientDerived';
 import type { NextActionButton } from '../utils/journeyPresentation';
@@ -328,10 +330,12 @@ export default function PersonDirectory(p: Props) {
       // בכוונה) — כאן מציגים את השלב הבא ואת ההתקדמות, והעומק בתיק המלא.
       const next = nextStepForClient(clientSteps);
       const done = clientSteps.filter(s => !isStepOpen(s.status)).length;
+      // ‼ 289: פייפרלס שמחכה למשרד אומר כמה זמן — גם ברשימת האנשים, לא רק בתיק.
+      const wait = next && stepNeedsMe(next) ? paperlessOfficeWait(next, clientSteps) : null;
       now = {
         title: STAGE_NOW_TITLE.onboarding,
         detail: next
-          ? `${nextActionText(next)} · ${done} מתוך ${clientSteps.length} הושלמו`
+          ? `${nextActionText(next)}${wait ? ` · ${wait.text}` : ''} · ${done} מתוך ${clientSteps.length} הושלמו`
           : 'הכול ממתין לצד אחר',
       };
       if (client.representationRequestId && client.representationStatus

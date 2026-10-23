@@ -72,6 +72,7 @@ import {
 } from '../../features/requests/requestGroups';
 import { paperlessSignupEvidence, connectionIntro, paperlessSettingsItems, settingsReviewCount, type SettingsReview, type SettingsReviewKey } from '../../features/requests/paperlessEvidence';
 import { deriveHomeOffice, homeOfficeLine, type HomeOfficeHistory, type HomeOfficeState } from '../../features/requests/homeOffice';
+import { paperlessOfficeWait } from '../../features/requests/officeWait';
 import { useHomeOffice } from '../../features/requests/useHomeOffice';
 import HomeOfficePanel from '../../features/requests/HomeOfficePanel';
 import { confirmHomeOfficeInPaperless } from '../../features/requests/api';
@@ -3613,7 +3614,14 @@ export default function OnboardingTab({
           for (const k of kids) {
             groupNamesMap.set(k.s.id, k.view.title);
             const hint = childHint(k.s, g);
-            if (hint) groupViewMap.set(k.s.id, { sub: hint });
+            // ‼ 289: בקשת פייפרלס שמחכה למשרד אומרת כמה זמן — הגבייה עוברת בה.
+            const wait = attnOf(k.s).kind === 'mine' ? paperlessOfficeWait(k.s, clientSteps, depParents.get(k.s.id)) : null;
+            if (hint || wait) {
+              groupViewMap.set(k.s.id, {
+                ...(hint ? { sub: hint } : {}),
+                ...(wait ? { state: { text: wait.text, tone: wait.late ? 'amber' : 'blue' } } : {}),
+              });
+            }
           }
           const red = kids.some(k => isStepOpen(k.s.status) && attnOf(k.s).tone === 'red');
           return {
