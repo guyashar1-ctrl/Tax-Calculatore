@@ -19,12 +19,9 @@
  *
  *   הרצה:  node scripts/staging-test-280-portal-filings.mjs   (‏.env.local + .env.staging בשורש העותק)
  */
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
-import { ROOT, STAGING_REF, PROD_REF, writeStaging } from './staging-lib.mjs';
+import { STAGING_REF, PROD_REF, writeStaging, loadEnv } from './staging-lib.mjs';
 
-const envStaging = Object.fromEntries(readFileSync(resolve(ROOT, '.env.staging'), 'utf8').split(/\r?\n/)
-  .map(l => l.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/)).filter(Boolean).map(m => [m[1], m[2].trim()]));
+const envStaging = loadEnv('.env.staging');
 const URL = envStaging.VITE_SUPABASE_URL, ANON = envStaging.VITE_SUPABASE_ANON_KEY;
 if (!URL?.includes(STAGING_REF) || URL.includes(PROD_REF)) { console.error('✋ .env.staging אינו staging'); process.exit(1); }
 

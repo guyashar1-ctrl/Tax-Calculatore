@@ -6,6 +6,6 @@ const config=process.argv[2] ? resolve(process.argv[2]) : root;
 const {writeStaging,assertTriggersEnabled}=await import(pathToFileURL(resolve(config,'scripts/staging-lib.mjs')));
 await assertTriggersEnabled();
 const rows=await writeStaging(readFileSync(resolve(root,'scripts/sql/292-test-paperless-shared-questions.sql'),'utf8'));
-if (!Array.isArray(rows)||rows.length<28||rows.some(r=>!r.ok)) throw Error(JSON.stringify(rows));
+if (!Array.isArray(rows)||rows.length<29||rows.some(r=>!r.ok)) throw Error(JSON.stringify(rows));
 console.log(`${rows.length} passed; all staging fixtures rolled back.`);
 for(const row of rows) console.log(`PASS ${row.name}`);

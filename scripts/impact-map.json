@@ -283,6 +283,7 @@
         "supabase/292-paperless-shared-questions.sql",
         "src/features/requests/paperlessAnswers.ts",
         "src/features/requests/PaperlessQuestions.tsx",
+        "src/lib/dbMappers.ts",
         "src/components/portal/portalActions.ts",
         "src/components/PublicPortalPage.tsx"
       ],
