@@ -80,7 +80,9 @@ for (const [name, vp] of [['desktop', { width: 1280, height: 860 }], ['phone', {
 
   await page.evaluate(() => { location.hash = '#/clients/p/sample-4'; }); await page.waitForTimeout(1500);
   const qv = page.locator('[data-testid="qv-family"]');
-  ok(await qv.count() === 1 && (await qv.innerText()).includes('נשוי/אה · ממתי? טרם נרשם'), 'תצוגה מהירה: «מצב משפחתי: נשוי/אה · ממתי? טרם נרשם»', await qv.innerText().catch(() => 'אין'));
+  // ‼ 25.10.2026: התצוגה המהירה בניסוח תיק המס («נשוי ל…»), בלי לוכסן ובלי «ממתי?» — השנה החסרה בתיק עצמו
+  { const t = await qv.innerText().catch(() => 'אין');
+    ok(await qv.count() === 1 && /מצב משפחתי: (נשוי|נשואה|בנישואין)/.test(t) && !t.includes('/') && !t.includes('ממתי'), 'תצוגה מהירה: «מצב משפחתי: נשוי ל…» בלי לוכסן ובלי «ממתי?»', t); }
   await shot('6-quickview');
 
   ok(errs.length === 0, 'אין שגיאות בקונסול', errs.join(' | '));

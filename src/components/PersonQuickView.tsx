@@ -14,7 +14,7 @@ import type { RecentDoc } from '../hooks/useRecentDocuments';
 import type { AdditionalCharge } from '../types/charges';
 import { CHARGE_STATUS_LABELS, CHARGE_STATUS_BADGE, CHARGE_NEXT_ACTION } from '../types/charges';
 import { formatDate, daysLate } from '../utils/dateFormat';
-import { familyStatusDisplay } from '../utils/familyStatusYear';
+import { familyPhrase } from '../features/taxFile/headline';
 
 export interface QuickViewAction {
   label: string;
@@ -228,9 +228,10 @@ export default function PersonQuickView(p: Props) {
           </div>
         )}
 
-        {/* מצב משפחתי עם «ממתי» — ‼ בלי ריק שקט: חסרה שנה ⇒ «ממתי? טרם נרשם» (utils/familyStatusYear.ts) */}
+        {/* ‼ 25.10.2026 (גיא): אותו ניסוח כמו השורה בראש תיק המס — «נשוי לדין», בלי לוכסנים
+            ובלי «ממתי? טרם נרשם»; שנה חסרה מוצגת בסעיף המשפחה בתיק (features/taxFile/headline.ts). */}
         {p.row.client?.familyStatus && (
-          <div className="pd-regline" data-testid="qv-family">מצב משפחתי: <b>{familyStatusDisplay(p.row.client)}</b></div>
+          <div className="pd-regline" data-testid="qv-family">מצב משפחתי: <b>{familyPhrase(p.row.client)}</b></div>
         )}
 
         {niViaSpouseLine && (
