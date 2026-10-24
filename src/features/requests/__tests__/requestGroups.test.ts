@@ -3,7 +3,7 @@ import { test, equal, assert, deepEqual, type TestCase } from '../../../testkit/
 import type { OnboardingStep, OnboardingStepType, OnboardingStepStatus, OnboardingBall } from '../../../types/onboarding';
 import {
   buildStepGroups, groupProgress, groupStatus, childPhase, officeGroupOf, groupPortalItems, portalGroupStatus, portalChildTitle, portalPinnedGroup,
-  type GroupChildView,
+  groupPinsFirst, type GroupChildView,
 } from '../requestGroups';
 import {
   validateHomeOffice, roomRatioPercent, proposedPercent, deriveHomeOffice, homeOfficeLine, HOME_OFFICE_CAP_PERCENT,
@@ -74,6 +74,14 @@ export const TESTS: TestCase[] = [
     // ייצוג של פריט אחד שהושלם — אותו דבר.
     const single = groupPortalItems([{ key: 'rep_done', bucket: 'done' }]).groups.map(g => ({ g, st: portalGroupStatus(g.items) }));
     equal(portalPinnedGroup(single), undefined);
+  }),
+  test('המשרד: אותו כלל — ייצוג שהושלם לא ננעץ ויורד ל«הושלמו»; פתוח ננעץ; קבוצה אחרת לעולם לא (25.10)', () => {
+    const toneOf = (steps: OnboardingStep[]) => groupStatus([], groupProgress(steps)).tone;
+    const allDone = [step('representation', 'completed'), step('rep_client_approval', 'completed')];
+    equal(groupPinsFirst('representation', toneOf(allDone) === 'done'), false);
+    const open = [step('representation', 'completed'), step('rep_client_approval', 'pending')];
+    equal(groupPinsFirst('representation', toneOf(open) === 'done'), true);
+    for (const key of ['paperless', 'prevAccountant']) equal(groupPinsFirst(key, false), false);
   }),
   // ── 15.10 · אמיר: אותה קבוצת ייצוג במשרד ובדף ────────────────
   test('הדף: «פתיחת התיקים» לא בקבוצת הייצוג — הקבוצה מוצגת כהושלמה כמו במשרד', () => {

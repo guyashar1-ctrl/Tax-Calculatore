@@ -328,13 +328,15 @@ export function portalGroupStatus(items: PortalItemLike[]): PortalGroupStatus {
 }
 
 /**
- * הקבוצה שננעצת בראש הדף האישי: הייצוג — רק כל עוד יש בו משהו פתוח.
- * ‼ 24.10.2026 (גיא): ייצוג שהושלם יורד ל«מה שכבר סיימנו» כמו כל מה שהושלם (19.10);
- * הנעיצה מ-23.10 נשארת לייצוג פתוח. במשרד הייצוג ראשון גם כשהושלם — שם אין שינוי.
+ * כלל אחד למשרד ולדף הלקוח: קבוצה ננעצת ראשונה רק כשהיא הייצוג ויש בו משהו פתוח.
+ * ‼ קבוצה שהושלמה היא היסטוריה — גם הייצוג — ויורדת ל«הושלמו» (משרד) / «מה שכבר סיימנו» (דף)
+ * (גיא: 19.10; 24.10 לדף; 25.10 למשרד). הנעיצה מ-23.10 נשארת לייצוג פתוח בלבד.
  */
+export const groupPinsFirst = (key: string, done: boolean): boolean => key === 'representation' && !done;
+
+/** הקבוצה שננעצת בראש הדף האישי — לפי `groupPinsFirst`. */
 export function portalPinnedGroup<T extends { g: { key: string }; st: PortalGroupStatus }>(cards: T[]): T | undefined {
-  const rep = cards.find(x => x.g.key === 'representation');
-  return rep && rep.st.tone !== 'done' ? rep : undefined;
+  return cards.find(x => groupPinsFirst(x.g.key, x.st.tone === 'done'));
 }
 
 /** האם יש לקבוצה עבודה פתוחה (לברירת המחדל פתוח/מקופל). */

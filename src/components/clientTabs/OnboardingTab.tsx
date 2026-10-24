@@ -69,7 +69,7 @@ import Sheet from '../ui/Sheet';
 import './requestsSurface.css';
 import '../../features/requests/requestGroups.css';
 import {
-  buildStepGroups, groupProgress, groupStatus, memberDef, REQUEST_GROUPS,
+  buildStepGroups, groupPinsFirst, groupProgress, groupStatus, memberDef, REQUEST_GROUPS,
   type GroupChildView, type StepGroup,
 } from '../../features/requests/requestGroups';
 import { paperlessSignupEvidence, connectionIntro, paperlessSettingsItems, settingsReviewCount, type SettingsReview, type SettingsReviewKey } from '../../features/requests/paperlessEvidence';
@@ -3697,28 +3697,31 @@ export default function OnboardingTab({
                   </div>
                 </div>)),
             }) : null;
-        /* 23.10 · הייצוג נשאר ראשון בכל מצב, גם כשהושלם. שאר הרשימה ממשיכה
-           לפי דורש טיפול → לטיפולי → אצל אחרים → נעול, ובתוך דרגה לפי sort_order. */
+        /* ייצוג פתוח — ראשון (23.10); ייצוג שהושלם — ל«הושלמו» כמו כל קבוצה (groupPinsFirst, 25.10).
+           שאר הרשימה: דורש טיפול → לטיפולי → אצל אחרים → נעול, ובתוך דרגה לפי sort_order. */
         const rank = (p: Placed) => p.attn.kind === 'mine' ? (p.attn.tone === 'red' ? 0 : 1)
           : p.attn.waitingOn === 'locked' ? 3 : 2;
+        const repDoneNodes: React.ReactNode[] = [];
         const ordered = [
-          ...placed.map((p, i) => {
+          ...placed.flatMap((p, i) => {
             if (p.kind === 'representation') {
               // ‼ הבקשה הפתוחה — השורה הקיימת (עם «לפי רשות ואדם») בתוך מעטפת הקבוצה.
               const g = renderRepGroup(flowItem(p.step, p.node, p.attn), [p.step, ...repGroupParts], {
                 countAlso: visibleSteps.filter(x => x.status !== 'cancelled' && isRepresentationPart(x) && ofCurrentRequest(x) && !isCreationProblem(x)),
               });
-              return { r: -1, i, node: g.node, isGroup: true };
+              if (!groupPinsFirst('representation', g.tone === 'done')) { repDoneNodes.push(g.node); return []; }
+              return [{ r: -1, i, node: g.node, isGroup: true }];
             }
-            return { r: isRepresentationPart(p.step) || p.step.stepType === 'rep_client_approval' ? -1 : rank(p),
-              i, node: flowItem(p.step, p.node, p.attn), isGroup: false };
+            return [{ r: isRepresentationPart(p.step) || p.step.stepType === 'rep_client_approval' ? -1 : rank(p),
+              i, node: flowItem(p.step, p.node, p.attn), isGroup: false }];
           }),
           ...groupPlaced.filter(g => g.tone !== 'done').map((g, i) => ({ r: g.rank, i: -100 + i, node: g.node, isGroup: true })),
-          ...(repGroupPlaced ? [{ r: -1, i: -50, node: repGroupPlaced.node, isGroup: true }] : []),
+          ...(repGroupPlaced && groupPinsFirst('representation', repGroupPlaced.tone === 'done')
+            ? [{ r: -1, i: -50, node: repGroupPlaced.node, isGroup: true }] : []),
         ].sort((a, b) => a.r - b.r || a.i - b.i);
-        /* קבוצות אחרות שהושלמו נשארות בהיסטוריה. הייצוג שהושלם מוצג בראש,
-           מקופל ועם מצב «הושלם» — בלי לפתוח מחדש אף בקשה. */
-        completedGroupNodes.push(...groupPlaced.filter(g => g.tone === 'done').map(g => g.node));
+        if (repGroupPlaced && !groupPinsFirst('representation', repGroupPlaced.tone === 'done')) repDoneNodes.push(repGroupPlaced.node);
+        // ‼ קבוצה שהושלמה היא היסטוריה (INV-REQ-03) — הייצוג ראשון גם ב«הושלמו», לפי GROUP_ORDER.
+        completedGroupNodes.push(...repDoneNodes, ...groupPlaced.filter(g => g.tone === 'done').map(g => g.node));
         /* ‼ «2 ממתינים לדוד» בשורת המסלול נספר לפי השורות שכאן: תהליך מקופל הוא שורה
            אחת, ומצבו — של השורה כולה (summarizeRow), בדיוק מה שהשורה מציגה. */
         const rowTop = new Map<string, OnboardingStep>();
