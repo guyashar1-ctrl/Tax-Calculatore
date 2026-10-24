@@ -2,7 +2,7 @@
 import { test, equal, assert, deepEqual, type TestCase } from '../../../testkit/tinyTest';
 import type { OnboardingStep, OnboardingStepType, OnboardingStepStatus, OnboardingBall } from '../../../types/onboarding';
 import {
-  buildStepGroups, groupProgress, groupStatus, childPhase, officeGroupOf, groupPortalItems, portalGroupStatus, portalChildTitle,
+  buildStepGroups, groupProgress, groupStatus, childPhase, officeGroupOf, groupPortalItems, portalGroupStatus, portalChildTitle, portalPinnedGroup,
   type GroupChildView,
 } from '../requestGroups';
 import {
@@ -58,6 +58,22 @@ export const TESTS: TestCase[] = [
       deepEqual(r.groups[0].items, [item]);
       assert(!r.singles.includes(item), 'הייצוג לא מופיע שוב כפריט בודד');
     }
+  }),
+  test('הדף: ייצוג פתוח ננעץ בראש; ייצוג שהושלם לא ננעץ ויורד ל«מה שכבר סיימנו» (24.10)', () => {
+    const cardsFor = (bucket: string) => groupPortalItems([
+      { key: 'paperless_signup', bucket: 'action' }, { key: 'paperless_connect', bucket: 'office' },
+      { key: 'rep_sign', bucket }, { key: 'rep_approval', bucket },
+    ]).groups.map(g => ({ g, st: portalGroupStatus(g.items) }));
+    for (const bucket of ['action', 'office', 'future']) {
+      equal(portalPinnedGroup(cardsFor(bucket))?.g.key, 'representation');
+    }
+    const done = cardsFor('done');
+    equal(portalPinnedGroup(done), undefined);
+    // ‼ הקבוצה לא נעלמת — היא בין הקבוצות שהושלמו, ומשם לשורת «מה שכבר סיימנו».
+    deepEqual(done.filter(x => x.st.tone === 'done').map(x => x.g.key), ['representation']);
+    // ייצוג של פריט אחד שהושלם — אותו דבר.
+    const single = groupPortalItems([{ key: 'rep_done', bucket: 'done' }]).groups.map(g => ({ g, st: portalGroupStatus(g.items) }));
+    equal(portalPinnedGroup(single), undefined);
   }),
   // ── 15.10 · אמיר: אותה קבוצת ייצוג במשרד ובדף ────────────────
   test('הדף: «פתיחת התיקים» לא בקבוצת הייצוג — הקבוצה מוצגת כהושלמה כמו במשרד', () => {

@@ -327,6 +327,16 @@ export function portalGroupStatus(items: PortalItemLike[]): PortalGroupStatus {
   return { tag: 'הושלם', tone: 'done', rank: 3 };
 }
 
+/**
+ * הקבוצה שננעצת בראש הדף האישי: הייצוג — רק כל עוד יש בו משהו פתוח.
+ * ‼ 24.10.2026 (גיא): ייצוג שהושלם יורד ל«מה שכבר סיימנו» כמו כל מה שהושלם (19.10);
+ * הנעיצה מ-23.10 נשארת לייצוג פתוח. במשרד הייצוג ראשון גם כשהושלם — שם אין שינוי.
+ */
+export function portalPinnedGroup<T extends { g: { key: string }; st: PortalGroupStatus }>(cards: T[]): T | undefined {
+  const rep = cards.find(x => x.g.key === 'representation');
+  return rep && rep.st.tone !== 'done' ? rep : undefined;
+}
+
 /** האם יש לקבוצה עבודה פתוחה (לברירת המחדל פתוח/מקופל). */
 export const groupHasOpenWork = (steps: Pick<OnboardingStep, 'status'>[]): boolean =>
   steps.some(s => isStepOpen(s.status));

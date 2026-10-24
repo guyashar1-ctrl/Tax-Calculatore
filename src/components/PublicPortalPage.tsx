@@ -30,7 +30,7 @@ import PaperlessQuestions from '../features/requests/PaperlessQuestions';
 import { paperlessAnswerError, type PaperlessAnswers } from '../features/requests/paperlessAnswers';
 import HomeOfficeForm from '../features/requests/HomeOfficeForm';
 import type { ValidHomeOffice } from '../features/requests/homeOffice';
-import { groupPortalItems, portalChildTitle, portalGroupStatus, type PortalGroup } from '../features/requests/requestGroups';
+import { groupPortalItems, portalChildTitle, portalGroupStatus, portalPinnedGroup, type PortalGroup } from '../features/requests/requestGroups';
 import { lamed } from '../utils/requestPresentation';
 import IdentityFlexPicker from '../features/identity/IdentityFlexPicker';
 import type { IdDocKind, IdPartsManifest } from '../features/identity/idFlex';
@@ -1826,10 +1826,11 @@ export function PortalView({ data, token = '', preview = false, embed = false, o
   const groupedKeys = new Set(itemGroups.flatMap(g => g.items.map(i => i.key)));
   const free = (i: PortalItem) => !groupedKeys.has(i.key);
   const groupCards = itemGroups.map(g => ({ g, st: portalGroupStatus(g.items) }));
-  // 23.10 · בית קבוע לייצוג בראש הדף, בלי לשנות את המצב או להכפיל את הבקשה במקטעי המצב.
-  const representationCard = groupCards.find(x => x.g.key === 'representation');
+  // 23.10 · בית קבוע לייצוג פתוח בראש הדף, בלי לשנות את המצב או להכפיל את הבקשה במקטעי המצב.
+  // 24.10 · ייצוג שהושלם אינו ננעץ — הוא נכנס ל«מה שכבר סיימנו» כמו כל קבוצה שהושלמה.
+  const representationCard = portalPinnedGroup(groupCards);
   const groupsIn = (tone: 'action' | 'office' | 'future' | 'done') =>
-    groupCards.filter(x => x.g.key !== 'representation' && x.st.tone === tone);
+    groupCards.filter(x => x !== representationCard && x.st.tone === tone);
   const actions  = data.items.filter(i => i.bucket === 'action' && !isSentDoc(i) && free(i) && !i.forPerson)
     .sort((a, b) => optionalLast(a) - optionalLast(b));
   // ‼ הודעה מהמשרד אינה "בטיפול המשרד": אין מאחוריה עבודה שמתבצעת, ולכן היא
@@ -1942,8 +1943,8 @@ export function PortalView({ data, token = '', preview = false, embed = false, o
               ? 'המשרד שלח לך מסמך חדש.'
               : `המשרד שלח לך ${unopenedCount} מסמכים חדשים.`}
           </div>
-        ) : (done.length > 0 || groupsIn('done').length > 0 || representationCard?.st.tone === 'done')
-            && (!representationCard || representationCard.st.tone === 'done') && future.length === 0 && office.length === 0
+        ) : (done.length > 0 || groupsIn('done').length > 0)
+            && !representationCard && future.length === 0 && office.length === 0
             && groupsIn('office').length === 0 && groupsIn('future').length === 0 && others.length === 0 ? (
           /* ‼ "הכול הושלם" רק כשבאמת אין המשך. עם שלב עתידי נעול או עם משהו
              שבטיפולנו זה היה שקר קטן שמייצר פנייה: הלקוח קורא שסיים, ואז
