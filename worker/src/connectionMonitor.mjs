@@ -303,7 +303,10 @@ export async function tickConnectionMonitor(userId, workerId, log, { scope = 'al
       if (now - lastProbe >= SERVER_PROBE_MS) {
         lastProbe = now;
         const probe = await probeServerSession(conn.page);
-        if (probe.ok) {
+        if (probe.skipped) {
+          // הרו"ח באמצע הכניסה — לא נמדד. הבדיקה תרוץ בסבב הראשון אחרי שהכניסה תסתיים.
+          lastProbe = 0;
+        } else if (probe.ok) {
           shaam = probe.authenticated;
           log(`בדיקת סשן פורטל: ${probe.authenticated ? 'חי' : 'פג'} · ${probe.detail}`);
           // ‼ רק אישור **מהשרת** שהסשן פג פותח מחזור חיים חדש — לא כשל רשת.

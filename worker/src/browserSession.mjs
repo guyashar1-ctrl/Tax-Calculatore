@@ -262,10 +262,20 @@ export async function classifyShaamAuth(page, { timeoutMs = 12000 } = {}) {
  * שני סימנים, והחזק שבהם ראשון:
  *   1. הפניה ל-/taxes-login/ ⇒ מנותק. מבני, לא תלוי בשפה או בניסוח.
  *   2. קישור "יציאה" בגוף העמוד ⇒ מחובר (screens.md · מסך E).
+ *
+ * ‼ לא בודקים כשלשונית כלשהי באמצע מסכי הכניסה (קוד חד-פעמי, מספר מעסיק).
+ * הבקשה בלי סשן נוחתת על /taxes-login/login/otpCts, ושע״ם מתחיל שם את רצף
+ * הקוד מחדש — הקוד שהרו"ח מקליד שניות אחר כך כבר לא תקף והוא מוחזר להתחלה.
+ * נצפה בייצור (23.10 ו-24.10.2026): הבדיקה רצה ~40 שניות אחרי פתיחת החלון,
+ * בדיוק במסך הקוד, ולכן הכניסה הראשונה נכשלה תמיד והשנייה עברה. המסך עצמו
+ * כבר אומר «לא מחובר», כך שהבדיקה לא הייתה מוסיפה מידע. skipped ⇒ לא נמדד.
  */
 const LOGIN_REDIRECT = '/taxes-login/';
 export async function probeServerSession(page) {
   if (!page.url().startsWith(SHAAM_ORIGIN)) return { ok: false, authenticated: false, detail: 'not_on_shaam' };
+  if (shaamLoginInProgress(page)) {
+    return { ok: false, skipped: true, authenticated: false, detail: 'login_in_progress' };
+  }
   try {
     const r = await page.evaluate(async () => {
       try {
@@ -1541,6 +1551,18 @@ export async function peekShaamProgress(context) {
  */
 export function isFirstPasswordPath(pathname) {
   return /^\/(taxes-login|dbusbyip1|srlogininternet)\//i.test(pathname ?? '');
+}
+
+/** האם לשונית שע״ם כלשהי בחלון עומדת על מסך של הסיסמה הראשונה. בלי ניווט. */
+function shaamLoginInProgress(page) {
+  let pages;
+  try { pages = page.context().pages(); } catch { pages = [page]; }
+  return pages.some((p) => {
+    try {
+      const url = new URL(p.url());
+      return url.origin === SHAAM_ORIGIN && isFirstPasswordPath(url.pathname);
+    } catch { return false; }
+  });
 }
 
 /**
