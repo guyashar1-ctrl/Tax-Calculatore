@@ -106,23 +106,22 @@ export default function PersonQuickView(p: Props) {
    * שלו מעצם הדבר, ובלי תיק מ"ה בכרטיס אין מה לומר. בזוג זה כל המידע — הוא
    * קובע באיזו ת.ז. מתנהלים מול מ"ה, וזה לא נגזר מהשם שבראש הכרטיס.
    *
-   * ‼ שורה ולא תג בן מילה אחת (הכרעת גיא 2026-08-20): "· רשום" דרש ריחוף
-   * כדי להבין מה רשום ואיפה, ולכן בפועל לא נקרא.
+   * ‼ 25.10.2026 (גיא): תווית מתחת לת.ז. של הרשום/ה, בתוך הטבלה — לא שורה
+   * מתחתיה. שורת «תיק מס הכנסה ע״ש X» דרשה לחבר לבד את השם לעמודה ולמספר.
    *
-   * ‼ דגל is-spouse מתהפך כשהתיק מוחזק דרך `spouseClient` (holder='spouse'):
+   * ‼ הצד מתהפך כשהתיק מוחזק דרך `spouseClient` (holder='spouse'):
    * `regFile.owner` שם הוא יחסי לכרטיס המחזיק, לא לכרטיס הזה. ראה
    * `resolveIncomeTaxHousehold`.
    */
   const regSpouseFlag = !regFile ? false
     : household?.holder === 'spouse' ? regFile.owner === 'client'
     : regFile.owner === 'spouse';
-  const regLine = spouseName && regFile
-    ? (regFile.owner === 'joint'
-        ? { text: 'תיק מס הכנסה משותף', name: '', spouse: false, unverified: false }
-        : {
-            text: household?.holder === 'spouse' ? 'תיק מס הכנסה משותף ע״ש' : 'תיק מס הכנסה ע״ש',
-            name: regFile.name, spouse: regSpouseFlag, unverified: regFile.unverified,
-          })
+  const regTag = spouseName && regFile
+    ? {
+        side: regFile.owner === 'joint' ? 'both' as const : regSpouseFlag ? 'theirs' as const : 'mine' as const,
+        text: regFile.owner === 'joint' ? 'תיק מ״ה משותף' : 'תיק מס הכנסה',
+        unverified: regFile.owner !== 'joint' && regFile.unverified,
+      }
     : null;
   /**
    * ביטוח לאומי שהושג עבור בן/בת הזוג דרך הכרטיס השני — לא "טרם התבקש".
@@ -138,10 +137,25 @@ export default function PersonQuickView(p: Props) {
   const { row } = p;
   /** שלוש שורות ההשוואה — אותם פרטים לשני בני הזוג, בסדר קבוע. */
   const pairRows = [
-    { lab: 'תעודת זהות', mine: row.idNumber?.trim(), theirs: p.row.client?.spouseIdNumber?.trim(), ltr: true },
-    { lab: 'טלפון', mine: row.phone?.trim(), theirs: p.row.client?.spousePhone?.trim(), ltr: true },
-    { lab: 'אימייל', mine: row.email?.trim(), theirs: p.row.client?.spouseEmail?.trim(), ltr: true },
+    { lab: 'תעודת זהות', mine: row.idNumber?.trim(), theirs: p.row.client?.spouseIdNumber?.trim(), ltr: true, reg: true },
+    { lab: 'טלפון', mine: row.phone?.trim(), theirs: p.row.client?.spousePhone?.trim(), ltr: true, reg: false },
+    { lab: 'אימייל', mine: row.email?.trim(), theirs: p.row.client?.spouseEmail?.trim(), ltr: true, reg: false },
   ];
+  const pairCell = (value: string | undefined, ltr: boolean, tagged: boolean) => (
+    <div className="pd-pair-cell">
+      <div className={`pd-pair-val${ltr && value ? ' pd-ltr' : ''}${value ? '' : ' is-missing'}`}>
+        {value || 'טרם התקבל'}
+      </div>
+      {tagged && regTag && (
+        <>
+          <span className={`pd-pair-tag${regTag.unverified ? ' is-unverified' : ''}`} title={REG_HINT}>
+            {regTag.text}
+          </span>
+          {regTag.unverified && <div className="pd-pair-note">{REGISTERED_UNVERIFIED_LABEL}</div>}
+        </>
+      )}
+    </div>
+  );
   return (
     <>
       <div className="pd-qv-head">
@@ -192,12 +206,8 @@ export default function PersonQuickView(p: Props) {
             {pairRows.map(r => (
               <div className="pd-pair-row" key={r.lab}>
                 <div className="pd-pair-lab">{r.lab}</div>
-                <div className={`pd-pair-val${r.ltr ? ' pd-ltr' : ''}${r.mine ? '' : ' is-missing'}`}>
-                  {r.mine || 'טרם התקבל'}
-                </div>
-                <div className={`pd-pair-val${r.ltr ? ' pd-ltr' : ''}${r.theirs ? '' : ' is-missing'}`}>
-                  {r.theirs || 'טרם התקבל'}
-                </div>
+                {pairCell(r.mine, r.ltr, r.reg && regTag?.side !== 'theirs')}
+                {pairCell(r.theirs, r.ltr, r.reg && regTag?.side !== 'mine')}
               </div>
             ))}
           </div>
@@ -221,12 +231,6 @@ export default function PersonQuickView(p: Props) {
         {/* מצב משפחתי עם «ממתי» — ‼ בלי ריק שקט: חסרה שנה ⇒ «ממתי? טרם נרשם» (utils/familyStatusYear.ts) */}
         {p.row.client?.familyStatus && (
           <div className="pd-regline" data-testid="qv-family">מצב משפחתי: <b>{familyStatusDisplay(p.row.client)}</b></div>
-        )}
-        {regLine && (
-          <div className={`pd-regline${regLine.spouse ? ' is-spouse' : ''}`} title={REG_HINT}>
-            {regLine.text}{regLine.name && <> <b>{regLine.name}</b></>}
-            {regLine.unverified && <> · <span className="reg-unverified">{REGISTERED_UNVERIFIED_LABEL}</span></>}
-          </div>
         )}
 
         {niViaSpouseLine && (

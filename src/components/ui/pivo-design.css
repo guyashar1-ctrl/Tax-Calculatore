@@ -2605,7 +2605,10 @@ input.pg-search:focus { box-shadow: 0 0 0 2px var(--focus-ring); border-color: t
 .pd-empty{text-align:center;padding:64px 20px}
 .pd-empty h3{font-size:var(--fs-15);font-weight:600;margin-bottom:6px}
 .pd-empty p{font-size:var(--fs-13);color:var(--ink-3)}
+/* ‼ ערך LTR (ת.ז., טלפון, מייל) נצמד לימין כמו התווית שמעליו — direction:ltr
+   לבד מושך אותו לשמאל, והוא נראה שייך לעמודה הלא נכונה (גיא, 25.10.2026). */
 .pd-ltr{direction:ltr;unicode-bidi:isolate}
+.pd-ltr:not(input){text-align:right}
 
 /* ── המגירה / היריעה ── */
 .pd-scrim{position:fixed;inset:0;background:rgba(28,30,34,.24);z-index:890}
@@ -2653,14 +2656,17 @@ input.pg-search:focus { box-shadow: 0 0 0 2px var(--focus-ring); border-color: t
 /* פרט שטרם התקבל אינו נתון — משקל רגיל ואפור, אחרת "טרם התקבל" צועק
    כמו מספר ת.ז. אמיתי והעין נעצרת עליו לשווא. */
 .pd-pair-val.is-missing{font-weight:400;color:var(--ink-4);font-size:var(--fs-12)}
-/* בן/בת הזוג הרשום/ה — נגזר מתיק מס הכנסה, לא סטטוס בפני עצמו.
-   שורה שקטה מתחת לגריד ולא תג בתוכו: תג בן מילה אחת דרש ריחוף כדי להבין
-   מה רשום ואיפה, ולכן לא נקרא. השם מודגש כי הוא כל התשובה. ענבר רק כשהתיק
-   על בן/בת הזוג — שם זה קובע באיזו ת.ז. מתנהלים מול מ"ה; על שם הלקוח זו
-   ברירת המחדל ואין על מה להתריע. */
+.pd-pair-cell{min-width:0}
+/* בן/בת הזוג הרשום/ה — תווית מתחת לת.ז. שבה מתנהלים מול מ"ה, בתוך העמודה
+   של אותו אדם. משפט שלם ולא מילה אחת: «· רשום» דרש ריחוף ולא נקרא.
+   ענבר רק כשטרם אומת מול שע"ם. */
+.pd-pair-tag{display:inline-block;margin-top:4px;padding:1px 6px;border-radius:var(--r-chip);white-space:nowrap;
+  font-size:var(--fs-11,11px);font-weight:600;line-height:1.6;
+  background:var(--chip-blue-bg);color:var(--chip-blue-tx)}
+.pd-pair-tag.is-unverified{background:var(--warn-bg);color:var(--warn)}
+.pd-pair-note{margin-top:2px;font-size:var(--fs-11,11px);color:var(--warn)}
 .pd-regline{margin-top:7px;font-size:var(--fs-12);color:var(--ink-3);line-height:1.5}
 .pd-regline b{font-weight:600;color:var(--ink-1)}
-.pd-regline.is-spouse b{color:var(--warn)}
 .pd-val{font-size:var(--fs-13);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .pd-section{margin-top:20px}
 .pd-st{font-size:var(--fs-13);font-weight:700;margin-bottom:8px}
