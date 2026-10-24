@@ -41,6 +41,13 @@ import SigningRoom, { SavedMarks } from './signatureRequest/SigningRoom';
 import { burnSignaturesIntoPdf } from '../utils/signaturePdf';
 import type { OnboardingStep } from '../types/onboarding';
 
+// ‼ 294 · המחיקה סוגרת גם את הבקשות הפתוחות שלה (בכרטיס ובדף הלקוח) — ולא נוגעת ברשות.
+const DELETE_CONFIRM = 'למחוק את בקשת הייצוג?\n\n'
+  + '· הקבצים שהועלו לבקשה יימחקו.\n'
+  + '· הבקשות הפתוחות שלה ייסגרו, גם בדף של הלקוח.\n'
+  + '· הכרטיס נשאר.\n\n'
+  + 'זה לא מבטל בקשה או ייצוג אצל הרשויות.';
+
 interface Props {
   request: RepresentationRequest;
   onBack: () => void;
@@ -629,7 +636,7 @@ export default function RepresentationRequestReview({
               )}
               <button type="button" className="rc-quiet rq-danger"
                 onClick={() => {
-                  if (confirm('למחוק את הבקשה? פעולה זו תמחק את הקבצים שהועלו לבקשה. הלקוח המקושר יישאר בכרטיס שלו - רק שדות הייצוג יתאפסו.')) onDelete(request.id);
+                  if (confirm(DELETE_CONFIRM)) onDelete(request.id);
                 }}>מחיקה</button>
             </div>
           </div>
@@ -704,7 +711,7 @@ export default function RepresentationRequestReview({
           <button
             className="btn btn-danger"
             onClick={() => {
-              if (confirm('למחוק את הבקשה? פעולה זו תמחק את הקבצים שהועלו לבקשה. הלקוח המקושר יישאר בכרטיס שלו - רק שדות הייצוג יתאפסו.')) onDelete(request.id);
+              if (confirm(DELETE_CONFIRM)) onDelete(request.id);
             }}
           >מחק</button>
         </div>

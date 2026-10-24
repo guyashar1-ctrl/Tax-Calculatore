@@ -2065,13 +2065,20 @@ export default function App() {
    */
   async function handleDeleteRequest(id: string) {
     const req = requests.find(r => r.id === id);
+    // ‼ קודם השרת (294 — מוחק וסוגר את השורות שלה), ורק אחריו הקבצים: מחיקה שנדחתה לא מאבדת קבצים.
+    try {
+      await removeRequest(id);
+    } catch (e) {
+      console.error('מחיקת בקשת הייצוג נכשלה:', e);
+      alert('המחיקה לא בוצעה. הבקשה נשארה כמו שהייתה.');
+      return;
+    }
     try {
       const oldFiles = await db.getDocsByClient(`req-${id}`);
       await Promise.all(oldFiles.map(d => db.deleteDoc(d.id)));
     } catch {
       // ignore
     }
-    await removeRequest(id);
     if (req?.linkedClientId) {
       const c = clients.find(x => x.id === req.linkedClientId);
       if (c) {

@@ -45,6 +45,11 @@
 - **SQL:** `ni_targets_of` (212).
 - ‼ **מימוש כפול** (TS + SQL) בלי בדיקת התאמה ביניהם — שינוי באחד מחייב את השני.
 
+### INV-REP-06 · מחיקת בקשת ייצוג סוגרת את השורות הפתוחות שלה ב«בקשות» — ולא נוגעת ברשות
+- **הכלל:** מוחקים בקשת ייצוג רק דרך `delete_representation_request` (294), ולא ב-delete ישיר. באותה פעולה נסגרות מיד (`cancelled`) השורות הפתוחות שמצביעות עליה (`representationRequestId` / `shaamIdentity.requestId` / `requestId`), וגם «בקשת ייצוג» ו«זירוז אישור», אם לא נשארה לכרטיס בקשה אחרת. שורה שהושלמה נשארת היסטוריה. שום דבר לא מבוטל אצל הרשות.
+- **קוד:** `useRepresentationRequests.deleteRequest`, `App.handleDeleteRequest` (קודם השרת, אחריו הקבצים). רשת ביטחון: `OnboardingTab.removalKindOf` — «בקשת ייצוג» בלי `representationRequestId` בכרטיס מקבלת הסרה רגילה ב-⋯.
+- **מוכיח:** `scripts/sql/test-294-delete-representation-request.sql` (D.1–D.5, ב-staging).
+
 ## אוטומציה — משימות מול רשויות
 
 ### INV-AUTO-01 · פעולה משנה ברשות: ניסיון אחד; «המשך» נכנס לתור רק כשהקודמת הסתיימה (לא מ«ממתין לך»)

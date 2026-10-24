@@ -136,9 +136,13 @@ export function useRepresentationRequests(userId: string | undefined, opts?: Rep
     return updated;
   }
 
+  /** ‼ 294 · דרך השרת ולא delete ישיר: אותה פעולה סוגרת את השורות הפתוחות של הבקשה
+   *  ב«בקשות» (ובדף הלקוח). מחיקה ישירה השאירה «בקשת ייצוג» יתומה שאי אפשר להסיר. */
   async function deleteRequest(id: string): Promise<void> {
-    const { error } = await supabase.from('representation_requests').delete().eq('id', id);
+    const { data, error } = await supabase.rpc('delete_representation_request', { p_request_id: id });
     if (error) throw error;
+    const res = data as { ok?: boolean; error?: string } | null;
+    if (!res?.ok) throw new Error(res?.error ?? 'delete_failed');
     hydratedRef.current.delete(id);
     setRequests(prev => prev.filter(r => r.id !== id));
   }

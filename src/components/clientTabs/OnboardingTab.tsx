@@ -1524,7 +1524,8 @@ export default function OnboardingTab({
 
   /** סוג השורה לעניין ההסרה — מאותם פרדיקטים שהכרטיסים כבר משתמשים בהם (אין כלל שני). */
   const removalKindOf = (step: OnboardingStep): RemovalKind => {
-    if (step.stepType === 'representation') return 'rep_parent';
+    // ‼ 294 · «בקשת ייצוג» בלי בקשה מאחוריה (נמחקה לפני 294) — אין לאן לשלוח, ולכן הסרה רגילה.
+    if (step.stepType === 'representation') return client.representationRequestId ? 'rep_parent' : 'standard';
     if (step.stepType === 'authority_representation') return isStalePart(step) ? 'standard' : 'ni_part';
     if (step.stepType === 'representation_upgrade') return 'rep_upgrade';
     if (isCreationProblem(step)) return 'creation_problem';
