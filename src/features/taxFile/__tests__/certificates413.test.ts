@@ -65,6 +65,27 @@ export const TESTS: TestCase[] = [
     equal(fact(base({ withholdingStatus: 'exempt' } as Partial<Client>), 'ניכוי מס במקור').v, 'פטור מניכוי');
     equal(fact(base({ bookStatus: 'rejected', fieldMeta: { bookStatus: certMeta({ status: 'none' }) } } as Partial<Client>), 'ניהול ספרים').v, 'נפסל');
   }),
+  test('300 · אין אישור ולא ניתן להנפיק ⇒ ההודעה של שע״ם בשורה, בלי כפתור; הכפתור עובר לניהול ספרים', () => {
+    const c = base({
+      withholdingStatus: 'none',
+      fieldMeta: {
+        withholdingStatus: certMeta({ status: 'none', message: 'לא ניתן להנפיק אישור הקטנות - קיים חוב', blocked: true }),
+        bookStatus: certMeta({ status: 'none', message: 'ממתין לייזום' }),
+      },
+    } as Partial<Client>);
+    const w = fact(c, 'ניכוי מס במקור');
+    equal(w.v, 'אין אישור בתוקף');
+    equal((w.sub ?? [])[0], 'שע״ם: לא ניתן להנפיק אישור הקטנות - קיים חוב');
+    equal(w.certAction, undefined, 'שע״ם סירבה — אין כפתור');
+    const b = fact(c, 'ניהול ספרים');
+    equal(b.certAction?.kind, 'issue', 'ניהול ספרים עדיין אפשרי');
+    const both = base({ fieldMeta: {
+      withholdingStatus: certMeta({ status: 'none', message: 'x', blocked: true }),
+      bookStatus: certMeta({ status: 'none', message: 'לא ניתן להנפיק אישור גופים - לא קיים תיק מע״מ', blocked: true }),
+    } } as Partial<Client>);
+    equal(fact(both, 'ניהול ספרים').certAction, undefined);
+    equal((fact(both, 'ניהול ספרים').sub ?? [])[0], 'שע״ם: לא ניתן להנפיק אישור גופים - לא קיים תיק מע״מ');
+  }),
   test('שיעורים שונים — כל סעיף בשמו', () => {
     equal(certificateRatesShort({ status: 'valid', rates: [{ section: 'שירותים', rate: 5 }, { section: 'שכר', rate: 10 }] }), '5% שירותים · 10% שכר');
   }),

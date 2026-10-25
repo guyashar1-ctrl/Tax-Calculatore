@@ -48,6 +48,25 @@ export async function readOne(work, entity, kind, log) {
   return { ok: true, info, body: opened.body, ...(pdf.ok ? { buffer: pdf.buffer } : { printError: pdf.reason }) };
 }
 
+/**
+ * «אין אישור, ולא ניתן להנפיק» — ההודעה של שע״ם נשמרת בכרטיס (גיא, 25.10.2026: «צריך לציין את
+ * ההודעה»). blocked = הסירוב כבר בפתיחת הכרטיס ⇒ אין טעם בכפתור «הנפק».
+ */
+export function messagePayload(kind, { message, blocked, info = null }) {
+  return {
+    kind, year: info?.year ?? null, status: 'none',
+    statusText: info?.statusText || 'אין אישור בתוקף',
+    message: String(message ?? '').trim() || null, blocked: !!blocked,
+    entity: info?.entity ?? null,
+  };
+}
+
+export async function saveMessage(ctx, kind, opts) {
+  const r = await putCertificate(ctx.workerId, ctx.job.id, { certificate: messagePayload(kind, opts) });
+  if (!r?.ok) ctx.log(`413 ${CERT_LABEL[kind]}: שמירת ההודעה נכשלה (${r?.error ?? 'unknown'})`);
+  return r;
+}
+
 /** שומר אישור אחד בשרת. כשל שמירה אינו מפיל את הקריאה — מדווח. */
 export async function saveOne(ctx, read, extra = {}) {
   const r = await putCertificate(ctx.workerId, ctx.job.id, {
@@ -69,6 +88,11 @@ export async function readAndSaveCertificates(ctx, work, entity) {
     if (!read.ok) {
       summary[kind] = { ok: false, reason: read.reason, ...(read.text ? { text: read.text } : {}) };
       ctx.log(`413 ${CERT_LABEL[kind]}: לא נקרא (${read.reason}${read.text ? ` · ${read.text}` : ''})`);
+      // ‼ שע״ם סירבה לפתוח את הכרטיס עם הודעה — זו תשובה, לא כשל: נשמרת בכרטיס.
+      if (read.reason === 'refused' && read.text) {
+        const saved = await saveMessage(ctx, kind, { message: read.text, blocked: true });
+        summary[kind] = { ok: true, status: 'none', message: read.text, blocked: true, saved: !!saved?.ok };
+      }
     } else {
       const saved = await saveOne(ctx, read);
       summary[kind] = {

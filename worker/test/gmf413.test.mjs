@@ -3,6 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { parseIshur, plannedRates, rateFromError, ratesText, decToIso } from '../src/gmf413.mjs';
+import { messagePayload } from '../src/certificates413.mjs';
 
 const NOW = new Date('2026-10-25T09:00:00Z');
 const hkt = (cur, tkn, sw) => ({ ahzKdm: cur, ahzCur: cur, ahzTkn: tkn, swSeif: sw });
@@ -99,6 +100,14 @@ test('התכנית: שיעור מבוקש, לא מעל שיעור התקנות',
 test('התכנית: שותפות לא יורדת מתחת לשיעור המוצע', () => {
   const info = parseIshur({ ...noneWithholding, swShutfut: true }, 'withholding', { now: NOW });
   assert.deepEqual(plannedRates(info, null).rows.map((r) => r.rate), [5, 5, 5]);
+});
+
+test('300 · הודעת סירוב נשלחת כ«אין אישור» עם ההודעה והסימון', () => {
+  const p = messagePayload('bookkeeping', { message: ' לא ניתן להנפיק אישור גופים - לא קיים תיק מע״מ ', blocked: true });
+  assert.equal(p.status, 'none');
+  assert.equal(p.message, 'לא ניתן להנפיק אישור גופים - לא קיים תיק מע״מ');
+  assert.equal(p.blocked, true);
+  assert.equal(p.kind, 'bookkeeping');
 });
 
 test('rateFromError — רק כשיש מספר', () => {

@@ -45,7 +45,9 @@ export function CertificateIssueButton({ job, busy, blocked, allowRate = true, o
   // ‼ תוצאה של ריצה שנכשלה — מתחת לכפתור, במילים של העובד. ריצה ישנה (מעל יממה) אינה מצב.
   const finished = job?.finishedAt ?? job?.updatedAt ?? job?.createdAt;
   const fresh = !!finished && Date.now() - new Date(finished).getTime() < 24 * 3600_000;
-  const failure = fresh && job && (job.status === 'failed' || job.status === 'needs_human')
+  // ‼ 300 · דחייה של שע״ם («certificate_not_issued») כבר כתובה בשורה עצמה («שע״ם: …») — לא פעמיים.
+  const failure = fresh && job && (job.status === 'needs_human'
+    || (job.status === 'failed' && job.errorCode !== 'certificate_not_issued'))
     ? (job.status === 'needs_human' ? job.needsHuman : job.errorDetail) : null;
 
   const start = async (desired: number | null) => {

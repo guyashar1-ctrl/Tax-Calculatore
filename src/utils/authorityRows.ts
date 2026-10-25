@@ -170,6 +170,10 @@ export interface CertificateMeta {
   ratesText?: string | null;
   issued?: boolean;
   note?: string | null;
+  /** 300 · ההודעה של שע״ם כשאין אישור ולא ניתן להנפיק. */
+  message?: string | null;
+  /** 300 · שע״ם סירבה כבר בפתיחת הכרטיס — בלי כפתור «הנפק». */
+  blocked?: boolean;
   documentId?: string | null;
   checkedAt?: string;
 }
@@ -326,8 +330,10 @@ export function buildAuthorityRows(
         ...(wCert.issued && wCert.note ? { sub: [wCert.note] } : {}),
         ...(wCert.documentId ? { certAction: { kind: 'view' as const, documentId: wCert.documentId } } : {}) });
     } else if (wCert?.status === 'none' || client.withholdingStatus === 'none') {
+      // ‼ 300 · «אין אישור ולא ניתן להנפיק» — ההודעה של שע״ם מתחת, ובלי כפתור כששע״ם כבר סירבה.
       facts.push({ k: 'ניכוי מס במקור', v: 'אין אישור בתוקף', tone: 'warn', editKey: 'withholdingStatus',
-        certAction: { kind: 'issue' } });
+        ...(wCert?.message ? { sub: [`שע״ם: ${wCert.message}`] } : {}),
+        ...(wCert?.blocked ? {} : { certAction: { kind: 'issue' as const } }) });
     } else if (client.withholdingStatus) {
       const t = WITHHOLDING_LABELS[client.withholdingStatus];
       facts.push({ k: 'ניכוי מס במקור',
@@ -339,7 +345,8 @@ export function buildAuthorityRows(
     // השיעורים כבר בשורה שמעל כשיש אישור — «פירוט ניכוי» נשאר בהשוואה, לא בתצוגה.
     facts.push({ k: 'פירוט ניכוי', v: client.withholdingDetail || EMPTY, editKey: 'withholdingDetail',
       ...(wCertValid ? { quiet: true } : {}) });
-    const wNeedsIssue = !wCertValid;
+    // הכפתור יושב בשורת הניכוי כשהוא שם; אחרת — בשורת ניהול הספרים.
+    const wNeedsIssue = !wCertValid && !wCert?.blocked;
     if (bCert?.status === 'valid' && client.bookStatus !== 'rejected') {
       facts.push({ k: 'ניהול ספרים', v: join(['תקין', bCert.validUntil ? `עד ${shortDate(bCert.validUntil)}` : null]),
         tone: 'ok', editKey: 'bookStatus',
@@ -349,7 +356,8 @@ export function buildAuthorityRows(
     } else if (bCert?.status === 'none') {
       // ‼ «אין אישור» ≠ «נפסל». כפתור ההנפקה אחד — ליד ניכוי במקור כשגם הוא חסר.
       facts.push({ k: 'ניהול ספרים', v: 'אין אישור בתוקף', tone: 'warn', editKey: 'bookStatus',
-        ...(wNeedsIssue ? {} : { certAction: { kind: 'issue' as const } }) });
+        ...(bCert.message ? { sub: [`שע״ם: ${bCert.message}`] } : {}),
+        ...(wNeedsIssue || bCert.blocked ? {} : { certAction: { kind: 'issue' as const } }) });
     } else if (client.bookStatus === 'kosher') {
       facts.push({ k: 'ניהול ספרים', v: 'תקין', tone: 'ok', editKey: 'bookStatus' });
     } else {

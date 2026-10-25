@@ -9,7 +9,7 @@
 import { attach, detach } from '../browserSession.mjs';
 import { open413, issueWithholding, issueBookkeeping, backToEntry } from '../gmf413Session.mjs';
 import { plannedRates, rateFromError, ratesText } from '../gmf413.mjs';
-import { readOne, saveOne, CERT_LABEL } from '../certificates413.mjs';
+import { readOne, saveOne, saveMessage, CERT_LABEL } from '../certificates413.mjs';
 import { progressTracker, assertNotAlreadyAttempted } from '../shaamSafety.mjs';
 import { NeedsHumanError, PermanentError } from '../errors.mjs';
 
@@ -34,6 +34,11 @@ function failureText(kind, out) {
   if (out.reason === 'rejected' || out.reason === 'refused') return `${head}שע״ם לא הנפיקה — «${out.text || 'ללא הסבר'}».`;
   return head + (REASON_TEXT[out.reason] ?? `לא הונפק (${out.reason}).`);
 }
+
+/** ההודעה שנשמרת בכרטיס כשההנפקה לא קרתה: של שע״ם כשיש, אחרת ההסבר שלנו. */
+const messageOf = (out) => ((out.reason === 'rejected' || out.reason === 'refused') && out.text ? out.text : REASON_TEXT[out.reason] ?? null);
+/** סירוב שאין טעם לנסות שוב בלחיצה (בפתיחת הכרטיס, נעילה, ליקויים). */
+const BLOCKING = new Set(['locked', 'deficiencies']);
 
 export async function run(ctx, input) {
   const entity = String(input?.certEntity ?? '').replace(/\D/g, '');
@@ -65,6 +70,7 @@ export async function run(ctx, input) {
     if (!w.ok) {
       failures.push(failureText('withholding', w));
       outcome.withholding = { issued: false, reason: w.reason, text: w.text ?? null };
+      if (w.reason === 'refused' && w.text) await saveMessage(ctx, 'withholding', { message: w.text, blocked: true });
     } else if (w.info.valid) {
       const saved = await saveOne(ctx, w);
       outcome.withholding = { issued: false, already: true, ratesText: ratesText(w.info.rates), validUntil: w.info.validUntil, documentId: saved?.documentId ?? null };
@@ -72,6 +78,7 @@ export async function run(ctx, input) {
       const out = { reason: w.info.locked ? 'locked' : 'deficiencies' };
       failures.push(failureText('withholding', out));
       outcome.withholding = { issued: false, ...out };
+      await saveMessage(ctx, 'withholding', { message: messageOf(out), blocked: BLOCKING.has(out.reason), info: w.info });
     } else {
       const plan = plannedRates(w.info, desired);
       const replan = (text, cur) => {
@@ -104,6 +111,7 @@ export async function run(ctx, input) {
       } else {
         failures.push(failureText('withholding', out));
         outcome.withholding = { issued: false, reason: out.reason, text: out.text ?? null };
+        await saveMessage(ctx, 'withholding', { message: messageOf(out), blocked: false, info: w.info });
       }
     }
     await backToEntry(work);
@@ -113,6 +121,7 @@ export async function run(ctx, input) {
     if (!b.ok) {
       failures.push(failureText('bookkeeping', b));
       outcome.bookkeeping = { issued: false, reason: b.reason, text: b.text ?? null };
+      if (b.reason === 'refused' && b.text) await saveMessage(ctx, 'bookkeeping', { message: b.text, blocked: true });
     } else if (b.info.valid) {
       const saved = await saveOne(ctx, b, outcome.withholding?.issued ? { issued: true } : {});
       outcome.bookkeeping = { issued: false, already: true, validUntil: b.info.validUntil, documentId: saved?.documentId ?? null };
@@ -131,6 +140,7 @@ export async function run(ctx, input) {
       } else {
         failures.push(failureText('bookkeeping', out));
         outcome.bookkeeping = { issued: false, reason: out.reason, text: out.text ?? null };
+        await saveMessage(ctx, 'bookkeeping', { message: messageOf(out), blocked: false, info: b.info });
       }
     }
 

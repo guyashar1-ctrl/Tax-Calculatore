@@ -110,6 +110,13 @@ try {
   c = await one(`select withholding_status, withholding_valid_until from public.clients where id = '${CLIENT}'`);
   ok('withholding_status = none, התוקף נמחק', c?.withholding_status === 'none' && c?.withholding_valid_until == null, JSON.stringify(c));
 
+  console.log('4ב · אין אישור ולא ניתן להנפיק ⇒ ההודעה של שע״ם נשמרת (300)');
+  const msg = 'לא ניתן להנפיק אישור גופים - לא קיים תיק מע״מ';
+  const r4 = await call(H, { op: 'put_certificate', workerId, jobId: JOB,
+    certificate: { kind: 'bookkeeping', year: null, status: 'none', statusText: 'אין אישור בתוקף', message: msg, blocked: true } });
+  c = await one(`select field_meta->'bookStatus'->'cert' as cert, book_status from public.clients where id = '${CLIENT}'`);
+  ok('message + blocked בכרטיס', r4.body?.ok && c?.cert?.message === msg && c?.cert?.blocked === true && c?.cert?.status === 'none', JSON.stringify({ r4: r4.body, c }));
+
   console.log('5 · גבול: משימה שאינה רצה');
   await writeStaging(`update public.automation_jobs set status = 'succeeded', finished_at = now() where id = '${JOB}'`);
   const r5 = await call(H, { op: 'put_certificate', workerId, jobId: JOB, certificate: withholding, contentBase64: PDF.toString('base64') });
