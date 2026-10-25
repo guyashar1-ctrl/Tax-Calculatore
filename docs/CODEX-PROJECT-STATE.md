@@ -37,6 +37,13 @@ Ask Guy which business process or automation he wants to improve first. Inspect 
 
 ## Decision log / review evidence
 
+### 2026-10-25 — «ייצוג מול הרשויות» בשתי שורות + «רישום ייצוג» (גיא: «בלחיצת כפתור אני מבין מה קורה במס הכנסה ומפעיל את האוטומציה»; «שהכפתור יגיד מה חוסם»)
+- **אושר:** `docs/proposals/2026-10-25-rep-row-two-lines.html` + עדכון והפעלה מחדש של העובד («Approved. Build it, including updating and restarting…»). שורת ב״ל אחת לשניהם (בחירת גיא).
+- **מה השתנה (6c9fc0b6):** `RepresentationStepCard` במשטח המפושט = שורת מס הכנסה (מצב + הצעד הבא: הפעל הכול / לחתום ולשלוח / בדוק אם נקלט) + שורת ב״ל (`NiContinueButton`: הזנה/בדיקה לשניהם כשרשרת runChain; כשיש הוראות — מה יקרה ו«בצע» פותח את חלון השליחה). הפירוט הקודם מאחורי «פירוט». `useAutomationGate`: עוקב אחרי משימת ensure (ממתין לך / נכשל + סיבה) ושולח `takeover:true`. עובד: `runCapabilities(..., {takeover})` פותח את השכבה גם מעל מסך של הרו"ח; בלי — `work_screen` במקום unknown; הודעות בעברית. כותרת: נורית «רישום ייצוג» ליד «שע״ם».
+- **בדיקות:** tsc · יחידה 2214/0 · עובד 345/0 (חדש capability-work-screen) · pre-push מלא ירוק · דפדפן מול staging (מחשב + 390): שתי השורות, «המשך» ← אישור ← חלון השליחה, נורית נפרדת, משימת ensure עם takeover, «ממתין לך»/«נכשל» מוצגים (עובד מדומה, לא שע״ם אמיתי).
+- **עובד בייצור:** worker-production ← 6c9fc0b, תהליך חדש 12:17:52 (PID 7544), `automation_workers.version = 0.1.0+6c9fc0b`. כולל את c03628d של הסשן המקביל (שהיה על הדיסק בלי הפעלה מחדש).
+- **לא אומת:** פתיחת «רישום ייצוג» מול שע״ם האמיתי — מחכה ללחיצה של גיא (לא הפעלתי בחלון שלו).
+
 ### 2026-10-25 — «לחתום ולשלוח לשע״ם» בלחיצה אחת · ב״ל לכל אחד מבני הזוג (ליאת ואוריה; גיא: «למה אין לי כפתור פשוט שיפעיל את האוטומציה», «לא ברור איך זה עובד עם בעלה»)
 - **אושר:** `docs/proposals/2026-10-25-rep-stamp-and-ni-per-person.html` («מאשר את ההצעה כולה — תבצע»). הכרעה: בן/בת זוג בלי מייל משלו ⇒ מייל הדף לבעל הכרטיס נחשב שליחת הוראות (INV-REP-07).
 - **מה השתנה:** `StampAndSendShaam` (שורת הייצוג ב«בקשות» + שלב החתימה במרכז הייצוג) — חדר החתימה ואז `ShaamNextActionButton` עם `autoRun` (אותם שערים; לא רץ בלי מחשב/עם ניסיון שנעצר). קוד הצריבה המשותף `features/representation/stampDocument.ts`. מיגרציה **296** (ולא 295 — נתפס במקביל ע״י wealth): `_ensure_ni_steps_from_execution` מהטריגר, `_ni_spouse_page_ready`, `_ni_mark_page_delivered`, הזרקות ב-`_portal_step_items`/`_client_announceable_steps`/`client_ready_to_send`/`complete_client_notice`, `_client_step_title`/`_portal_key`. מייל הדף: כרטיס «מה צריך מ{שם}» עם האסמכתא. בשורה: «שלח במייל הדף».
