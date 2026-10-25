@@ -229,9 +229,15 @@
       "globs": [
         "src/features/taxYear/**",
         "src/utils/creditPoints.ts",
+        "src/features/annualReturn/**",
         "supabase/2*-*annual*.sql"
       ],
       "suites": [
+        {
+          "script": "e2e/annual-office.mjs",
+          "run": false,
+          "note": "הדוח השנתי במשרד («חומרים» ליד «הדוח»), בדפדפן מול staging — דורש שרת: STAGING_ENV_DIR=… node scripts/e2e/annual-office.mjs --base=http://localhost:<port> --widths=1280,390"
+        },
         {
           "script": "e2e/annual-r2.mjs",
           "run": false,

@@ -34,7 +34,7 @@ const ANNEX_HE = { filled: 'מולא', partial: 'חלקי', manual: 'מולא י
 /** פער שהשלמה מקצועית לא סוגרת: נסגר בנתון / בעורך / בבקרה — או שאינו נתמך. */
 const NOT_COMPLETABLE = (g: { code: string; kind: string }) => !['data', 'calc'].includes(g.kind) || /^(cov_|annex1320_|control_|ni_paid_|insured_salary_)/.test(g.code);
 
-function initialDraft(client: Client, year: number, est?: EstimateVersion): ReturnDraft {
+export function initialDraft(client: Client, year: number, est?: EstimateVersion): ReturnDraft {
   const micro: ReturnDraft['micro'] = {};
   for (const l of est?.draft.lines ?? []) if (l.source === 'business' && l.entityRef && (l.track || l.micro)) micro[l.entityRef] = { ...(l.micro ?? {}), track: l.track };
   return { taxYear: year, preparedOn: today(), persons: defaultPersons(client, year), completions: [], adjustments: [], micro, niOverrides: est?.draft.niOverrides, decisions: [] };

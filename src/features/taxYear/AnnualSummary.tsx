@@ -83,8 +83,8 @@ const many = (n: number, one: string, plural: string) => (n === 1 ? one : `${n} 
 const firstTwo = (list: string[]) => list.slice(0, 2).join(' · ') + (list.length > 2 ? ` ועוד ${list.length - 2}` : '');
 
 /** «רק אתה יודע»: אילו שדות לכל אדם — מקדמות וניכוי במקור רק לבעל עסק; הפסדים מועברים ללקוח (ולבן/בת זוג עם עסק). */
-interface OykField { id: string; role: 'client' | 'spouse'; name: string; key: string; label: string }
-function oykFields(client: Client, businesses: ('client' | 'spouse')[]): OykField[] {
+export interface OykField { id: string; role: 'client' | 'spouse'; name: string; key: string; label: string }
+export function oykFields(client: Client, businesses: ('client' | 'spouse')[]): OykField[] {
   const people: { role: 'client' | 'spouse'; name: string; business: boolean }[] = [
     { role: 'client', name: client.firstName || 'הלקוח', business: businesses.includes('client') },
     ...(client.familyStatus === 'married' ? [{ role: 'spouse' as const, name: client.spouseFirstName || client.spouse?.firstName || 'בן/בת הזוג', business: businesses.includes('spouse') }] : []),
@@ -95,7 +95,7 @@ function oykFields(client: Client, businesses: ('client' | 'spouse')[]): OykFiel
     .map(i => ({ id: `oyk-${p.role}-${i.key}`, role: p.role, name: p.name, key: i.key, label: i.label })));
 }
 /** הערך שהמשרד רשם לשנה (לא תשובת לקוח). ‼ ריק = לא ידוע — לא 0. */
-function oykCurrent(facts: YearFact[], key: string, role: string): number | null {
+export function oykCurrent(facts: YearFact[], key: string, role: string): number | null {
   const f = facts.filter(x => x.itemKey === key && x.subjectRole === role && x.status === 'accepted' && x.source !== 'portal')
     .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))[0];
   return f ? (f.answer === 'zero' ? 0 : typeof f.value === 'number' ? f.value : null) : null;
@@ -462,7 +462,7 @@ function Todo({ row, primary }: { row: TodoRow; primary: boolean }) {
  * «רק אתה יודע» — מה שהלקוח לא יודע לענות: מקדמות, ניכוי במקור, ביטוח לאומי כעצמאי, הפסדים מועברים.
  * ‼ נשמר כעובדת משרד לשנה (record_tax_year_fact) — אותו פריט שהערכת המס של אותה שנה קוראת. ריק = לא ידוע (לא 0).
  */
-function OykInputs({ client, year, stepId, fields, facts, busy, run }: {
+export function OykInputs({ client, year, stepId, fields, facts, busy, run }: {
   client: Client; year: number; stepId: string; fields: OykField[]; facts: YearFact[]; busy: boolean; run: Run;
 }) {
   const [draft, setDraft] = useState<Record<string, string>>({});

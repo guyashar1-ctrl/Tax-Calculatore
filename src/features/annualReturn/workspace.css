@@ -1,0 +1,115 @@
+/* ── הדוח השנתי במשרד: «חומרים» ליד «הדוח» (25.10.2026) ── */
+.aw { display: flex; flex-direction: column; gap: 14px; }
+.aw-top { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.aw-title h3 { margin: 0; font-size: var(--fs-17, 17px); }
+.aw-title span { color: var(--tx2); font-size: var(--fs-13); }
+.aw-status { flex: 1; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.aw-status > span { color: var(--txc, var(--tx2)); font-size: var(--fs-14); }
+.aw-msg { margin: 0; font-size: var(--fs-13); color: var(--warn, #8a5b0f); }
+.aw-grid { display: grid; grid-template-columns: minmax(280px, 380px) 1fr; gap: 16px; align-items: start; }
+.aw-col-h { display: flex; align-items: baseline; gap: 8px; margin: 0 2px 8px; }
+.aw-col-h h4 { margin: 0; font-size: var(--fs-15, 15px); }
+.aw-col-h small { color: var(--tx2); font-size: var(--fs-13); }
+.aw-empty { color: var(--tx2); font-size: var(--fs-13); margin: 6px 2px; }
+
+/* חומרים — לפי אדם, בצבע של האדם (כמו בשאלון) */
+.aw-grp { margin-bottom: 12px; --pc: var(--chip-blue-tx); }
+.aw-grp[data-who="spouse"] { --pc: var(--chip-violet-tx); }
+.aw-grp[data-who="home"] { --pc: var(--chip-green-tx); }
+.aw-grp-h { display: flex; align-items: center; gap: 7px; margin: 0 2px 6px; font-size: var(--fs-13); font-weight: 700; color: var(--tx2); }
+.aw-grp-h i { inline-size: 20px; block-size: 20px; border-radius: 50%; background: var(--pc); color: var(--card); display: grid; place-items: center; font-style: normal; font-size: 11px; }
+.aw-mat { display: flex; align-items: center; gap: 10px; background: var(--card); border: 1px solid var(--bd); border-radius: 12px; padding: 9px 11px; margin-bottom: 6px; }
+.aw-ic { inline-size: 30px; block-size: 30px; border-radius: 9px; background: var(--soft); display: grid; place-items: center; flex-shrink: 0; }
+.aw-ic svg { inline-size: 17px; block-size: 17px; stroke: var(--br); fill: none; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.aw-mat.is-wait .aw-ic { background: var(--s3); } .aw-mat.is-wait .aw-ic svg { stroke: var(--tx3); }
+.aw-mat.is-done .aw-ic, .aw-mat.is-got .aw-ic { background: var(--chip-green-bg); } .aw-mat.is-done .aw-ic svg, .aw-mat.is-got .aw-ic svg { stroke: var(--chip-green-tx); }
+.aw-t { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.aw-t b { font-size: var(--fs-14); font-weight: 600; line-height: 1.3; overflow-wrap: anywhere; }
+.aw-t small { font-size: var(--fs-12); color: var(--tx2); }
+.aw-act { border: 1.5px solid var(--br); background: var(--card); color: var(--br); border-radius: 9px; padding: 5px 12px; font: inherit; font-weight: 700; font-size: var(--fs-13); cursor: pointer; white-space: nowrap; min-height: 34px; }
+.aw-act:disabled { opacity: .5; cursor: default; }
+.aw-link { border: 0; background: none; color: var(--br); font: inherit; font-weight: 600; font-size: var(--fs-13); cursor: pointer; padding: 4px 2px; white-space: nowrap; }
+.aw-tag { font-size: var(--fs-12); font-weight: 600; color: var(--tx3); white-space: nowrap; }
+.aw-tag.is-ok { color: var(--chip-green-tx); }
+.aw-inline { background: var(--card); border: 1px dashed var(--bd); border-radius: 12px; padding: 10px 12px; margin: -2px 0 8px; }
+
+/* הדוח */
+.aw-card { background: var(--card); border: 1px solid var(--bd); border-radius: 14px; overflow: hidden; }
+.aw-rep-top { display: flex; align-items: center; gap: 14px; padding: 12px 14px; border-bottom: 1px solid var(--bd); }
+.aw-ring { inline-size: 60px; block-size: 60px; position: relative; flex-shrink: 0; }
+.aw-ring svg { inline-size: 60px; block-size: 60px; transform: rotate(-90deg); }
+.aw-ring circle { fill: none; stroke-width: 6; }
+.aw-ring .bg { stroke: var(--s3); }
+.aw-ring .fg { stroke: var(--chip-green-tx); stroke-linecap: round; transition: stroke-dashoffset .6s cubic-bezier(.23, 1, .32, 1); }
+.aw-ring span { position: absolute; inset: 0; display: grid; place-items: center; font-weight: 700; font-size: var(--fs-14); }
+.aw-est small { display: block; color: var(--tx2); font-size: var(--fs-12); }
+.aw-est b { font-size: var(--fs-18, 18px); }
+.aw-est b.is-refund { color: var(--chip-green-tx); }
+.aw-tabs { display: flex; gap: 4px; padding: 8px 12px 0; border-bottom: 1px solid var(--bd); overflow-x: auto; }
+.aw-tabs button { border: 0; background: none; font: inherit; font-size: var(--fs-13); font-weight: 600; color: var(--tx2); padding: 7px 10px; border-bottom: 2px solid transparent; cursor: pointer; white-space: nowrap; }
+.aw-tabs button[aria-selected="true"] { color: var(--br-strong, var(--br)); border-bottom-color: var(--br); }
+.aw-sum { padding: 4px 0 10px; }
+.aw-sec { --pc: var(--chip-blue-tx); }
+.aw-sec[data-person="spouse"] { --pc: var(--chip-violet-tx); }
+.aw-sec[data-person="joint"] { --pc: var(--chip-green-tx); }
+.aw-sec-h { display: flex; align-items: center; gap: 7px; padding: 10px 14px 3px; font-size: var(--fs-13); font-weight: 700; color: var(--tx2); }
+.aw-sec-h i { inline-size: 8px; block-size: 8px; border-radius: 50%; background: var(--pc); }
+.aw-row { display: flex; align-items: center; gap: 8px; padding: 4px 14px; font-size: var(--fs-14); }
+.aw-row .l { flex: 1; min-width: 0; color: var(--txc, var(--tx)); }
+.aw-row .s { font-size: var(--fs-12); color: var(--tx3); white-space: nowrap; }
+.aw-row .c { font-size: var(--fs-12); color: var(--tx3); font-variant-numeric: tabular-nums; min-inline-size: 28px; text-align: end; }
+.aw-row .v { font-weight: 600; font-variant-numeric: tabular-nums; min-inline-size: 92px; text-align: end; direction: ltr; border-radius: 6px; padding: 1px 5px; transition: background-color .6s ease; }
+.aw-row .v.is-lit, .aw-val.is-lit { background: var(--chip-green-bg); }
+.aw-form { padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 8px; }
+.aw-annex-vals { border: 1px solid var(--bd); border-radius: 10px; padding: 4px 0; }
+.aw-annex-vals .aw-row { padding-inline: 10px; }
+.aw-pages { display: flex; gap: 6px; flex-wrap: wrap; }
+.aw-pages button { border: 1px solid var(--bd-strong); background: var(--card); border-radius: 999px; padding: 3px 10px; font: inherit; font-size: var(--fs-12); font-weight: 600; color: var(--tx2); cursor: pointer; }
+.aw-pages button[aria-pressed="true"] { border-color: var(--br); color: var(--br); background: var(--soft); }
+.aw-paper { position: relative; inline-size: 100%; background: #fff; border: 1px solid var(--bd); }
+.aw-paper img { display: block; inline-size: 100%; block-size: auto; user-select: none; }
+.aw-val { position: absolute; display: flex; align-items: center; justify-content: flex-end; padding: 0 2px; font: 600 clamp(7px, 1.05vw, 11px)/1 system-ui, sans-serif; color: #0b3a8c; direction: ltr; overflow: hidden; white-space: nowrap; border-radius: 2px; transition: background-color .6s ease; }
+
+.aw-adv { border-top: 1px dashed var(--bd); padding-top: 8px; }
+.aw-adv-body { margin-top: 10px; }
+
+/* חלונית ההזנה */
+.aw-scrim { position: fixed; inset: 0; background: rgba(20, 22, 26, .38); display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 60; animation: aw-fade .18s ease; }
+@keyframes aw-fade { from { opacity: 0; } to { opacity: 1; } }
+.aw-panel { background: var(--card); border-radius: 16px; inline-size: min(980px, 100%); max-block-size: 92vh; display: grid; grid-template-columns: 1fr 330px; overflow: hidden; animation: aw-rise .24s cubic-bezier(.23, 1, .32, 1); }
+.aw-panel.no-file { grid-template-columns: 1fr; inline-size: min(420px, 100%); }
+@keyframes aw-rise { from { transform: translateY(10px); opacity: .6; } to { transform: none; opacity: 1; } }
+.aw-doc { background: var(--s3); min-block-size: 420px; display: flex; align-items: center; justify-content: center; }
+.aw-doc iframe { inline-size: 100%; block-size: 100%; min-block-size: 70vh; border: 0; background: #fff; }
+.aw-doc img { max-inline-size: 100%; max-block-size: 88vh; object-fit: contain; }
+.aw-form-side { padding: 16px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
+.aw-form-side h4 { margin: 0 0 4px; font-size: var(--fs-16, 16px); }
+.aw-note { margin: 0; color: var(--tx2); font-size: var(--fs-13); }
+.aw-fl { display: flex; flex-direction: column; gap: 3px; }
+.aw-fl > span { display: flex; justify-content: space-between; font-size: var(--fs-13); font-weight: 600; color: var(--txc, var(--tx)); }
+.aw-fl > span em { font-style: normal; color: var(--tx3); font-weight: 500; }
+.aw-fl input, .aw-fl select { border: 1.5px solid var(--bd-strong); border-radius: 9px; padding: 8px 10px; font: inherit; font-size: var(--fs-15, 15px); background: var(--card); color: var(--tx); font-variant-numeric: tabular-nums; min-block-size: 42px; }
+.aw-fl input { text-align: end; }
+.aw-fl input:focus, .aw-fl select:focus { outline: none; border-color: var(--br); }
+.aw-seg { display: inline-flex; border: 1px solid var(--bd-strong); border-radius: 999px; overflow: hidden; align-self: flex-start; }
+.aw-seg button { border: 0; background: transparent; font: inherit; font-size: var(--fs-13); padding: 6px 14px; min-block-size: 40px; color: var(--tx2); cursor: pointer; }
+.aw-seg button[aria-pressed="true"] { background: var(--soft); color: var(--br-strong, var(--br)); font-weight: 650; }
+.aw-problems { margin: 0; padding-inline-start: 18px; color: var(--danger); font-size: var(--fs-13); }
+.aw-err { margin: 0; color: var(--danger); font-size: var(--fs-13); }
+.aw-foot { display: flex; gap: 8px; margin-top: 6px; }
+.aw-foot .btn-primary { flex: 1; min-block-size: 42px; }
+
+/* הסט */
+.aw-set { background: var(--card); border-radius: 16px; inline-size: min(440px, 100%); padding: 18px 20px; animation: aw-rise .24s cubic-bezier(.23, 1, .32, 1); }
+.aw-set h4 { margin: 0 0 10px; font-size: var(--fs-16, 16px); }
+.aw-set ol { margin: 0 0 14px; padding-inline-start: 20px; font-size: var(--fs-14); color: var(--txc, var(--tx)); }
+.aw-set li { padding: 2px 0; } .aw-set li small { color: var(--tx3); }
+.aw-set-foot { display: flex; gap: 8px; } .aw-set-foot .btn-primary { flex: 1; }
+
+@media (max-width: 860px) {
+  .aw-grid { grid-template-columns: 1fr; }
+  .aw-panel { grid-template-columns: 1fr; max-block-size: 96vh; overflow-y: auto; }
+  .aw-doc { min-block-size: 240px; }
+  .aw-doc iframe { min-block-size: 50vh; }
+}
+@media (prefers-reduced-motion: reduce) { .aw-scrim, .aw-panel, .aw-set { animation: none; } .aw-ring .fg, .aw-row .v, .aw-val { transition: none; } }

@@ -20,6 +20,7 @@ import { groupForReview, describeValue, type ReviewRow } from './review';
 import * as api from './api';
 import type { Evidence, FactBasis, Purpose } from './types';
 import AnnualSummary from './AnnualSummary';
+import AnnualWorkspace from '../annualReturn/AnnualWorkspace';
 import TaxInfoFlow from './TaxInfoFlow';
 import WealthDeclarationPanel, { previousByArea, wealthSubtitle, type WealthPayload } from './WealthDeclarationPanel';
 import QuestionnaireMap from './QuestionnaireMap';
@@ -110,6 +111,8 @@ export default function TaxYearProcess({ client, step, infoStep, onClose, onChan
   const [qOpen, setQOpen] = useState(false);
   // ‼ 19.10.2026 · דוח שנתי: «פירוט מלא» מקופל; «השלמות במשרד» בסיכום פותח אותו על «להשלים במשרד»
   const [fullOpen, setFullOpen] = useState(false);
+  // ‼ 25.10.2026 · דוח שנתי: מסך אחד — «חומרים» ליד «הדוח» (AnnualWorkspace); כל מה שהיה כאן — ב«כלים מתקדמים»
+  const [annualAdv, setAnnualAdv] = useState(false);
   const fullRef = useRef<HTMLElement>(null);
   const [pick, setPick] = useState<'office' | 'ask' | 'publish' | null>(null);
   // ‼ שאלון קליטה ישן שעדיין פתוח אצל הלקוח — כדי לא לשאול פעמיים את הפרטים הקבועים (229 קושר אותו לבקשה)
@@ -331,6 +334,10 @@ export default function TaxYearProcess({ client, step, infoStep, onClose, onChan
           {flash && <div className="ty-ok" role="status">{flash}</div>}
           {/* ‼ 19.10.2026 · דוח שנתי: דף הסיכום (מה למלא · מסמכים · רק אתה יודע · הכרעות · מה פתוח) למעלה; כל השאר — מקופל
               ב«פירוט מלא» (הדמיה מאושרת docs/proposals/2026-10-19-simple-annual-questionnaire.html). */}
+          {purpose === 'annual' && data && <AnnualWorkspace client={client} step={step} year={year} data={data} busy={busy} run={run} statuses={picture.statuses} applyCard={applyCard}
+            advancedOpen={annualAdv} onAdvanced={setAnnualAdv} officeTodo={picture.officeTodo}
+            onOfficeTodo={() => { setAnnualAdv(true); setPick('office'); setFullOpen(true); requestAnimationFrame(() => fullRef.current?.scrollIntoView({ block: 'start' })); }} />}
+          <div hidden={purpose === 'annual' && !annualAdv} data-annual-advanced={purpose === 'annual' ? '' : undefined}>
           {purpose === 'annual' && data && <AnnualSummary client={client} step={step} year={year} data={data} busy={busy} run={run} more={annualMore} onClientPersisted={onClientPersisted}
             legacy={legacyAnnual && isOpenStep(step) ? { reopen: () => run(() => reopenAnnualInNewVersion(client, step.id, year), `הבקשה הקודמת נסגרה ונשמרה בהיסטוריה, ונפתחה «דוח שנתי ${year}» חדשה — בשורה שלה ב«בקשות». בלי מייל.`) } : undefined}
             officeTodo={picture.officeTodo.length ? { count: picture.officeTodo.length, open: () => { setPick('office'); setFullOpen(true); requestAnimationFrame(() => fullRef.current?.scrollIntoView({ block: 'start' })); } } : undefined}
@@ -460,6 +467,7 @@ export default function TaxYearProcess({ client, step, infoStep, onClose, onChan
             )}
           </section>
           </FullDetails>
+          </div>
         </div>
       </div>
       {preview && infoStep && (

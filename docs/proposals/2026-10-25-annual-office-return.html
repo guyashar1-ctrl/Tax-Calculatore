@@ -1,0 +1,349 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>הדוח השנתי במשרד</title>
+<style>
+  :root{
+    --page:#f6f5f2; --card:#fff; --bd:#e4e2dd; --bd2:#d6d3cc;
+    --tx:#25282d; --txc:#4b5058; --tx2:#666b72; --tx3:#92979e;
+    --br:#3f5f8f; --br-soft:#edf2f8;
+    --p1:#3f5f8f; --p1-soft:#edf2f8; --p2:#6b4a8e; --p2-soft:#f3eef8; --p0:#2f6b52; --p0-soft:#ebf3ee;
+    --ok:#24654e; --ok-bg:#e9f4ee; --warn:#8a5b0f; --warn-bg:#fbf3e4; --wait:#8e949b;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{font-family:"Segoe UI","Heebo",Arial,system-ui,sans-serif;background:var(--page);color:var(--tx);font-size:15px;line-height:1.5}
+  button,input{font:inherit;color:inherit}
+  button{cursor:pointer}
+  .wrap{max-width:1180px;margin:0 auto;padding:18px 16px 60px}
+  .flag{display:inline-block;background:var(--warn-bg);color:var(--warn);border:1px solid #ecd9b0;border-radius:999px;padding:2px 10px;font-size:12.5px;font-weight:600}
+  h1{font-size:23px;margin:8px 0 4px}
+  .lead{color:var(--txc);margin:0 0 12px;max-width:760px}
+  details.scope{background:#fff;border:1px solid var(--bd);border-radius:12px;padding:10px 14px;margin:0 0 10px;max-width:760px}
+  details.scope summary{cursor:pointer;font-weight:600;color:var(--br)}
+  details.scope ul{margin:8px 0 2px;padding-inline-start:20px;color:var(--txc);font-size:14px}
+  details.scope li{margin:4px 0}
+  .tools{display:flex;gap:8px;align-items:center;margin:14px 0 10px;flex-wrap:wrap}
+  .seg{display:inline-flex;border:1px solid var(--bd2);border-radius:999px;overflow:hidden;background:#fff}
+  .seg button{border:0;background:none;padding:5px 14px;font-size:13px;font-weight:600;color:var(--tx2)}
+  .seg button[aria-pressed=true]{background:var(--br);color:#fff}
+  .restart{border:0;background:none;color:var(--br);font-weight:600;font-size:13px}
+
+  /* ── המסך ── */
+  .app{background:var(--page);border:1px solid var(--bd);border-radius:16px;overflow:hidden;transition:max-width .3s ease;margin-inline:auto}
+  .app.phone{max-width:390px}
+  .top{background:#fff;border-bottom:1px solid var(--bd);padding:14px 20px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+  .top h2{margin:0;font-size:19px}
+  .top .who{color:var(--tx2);font-size:14px}
+  .status{margin-inline-start:auto;display:flex;align-items:center;gap:10px}
+  .status span{font-size:14px;color:var(--txc)}
+  .btn{border:0;border-radius:10px;padding:10px 16px;font-weight:700;background:var(--br);color:#fff;transition:background .2s,opacity .2s,transform .1s}
+  .btn:active{transform:scale(.98)}
+  .btn[disabled]{opacity:.35;cursor:default}
+  .btn.ghost{background:none;color:var(--br);padding:8px 10px}
+  .grid{display:grid;grid-template-columns:380px 1fr;gap:18px;padding:18px 20px 22px}
+  .app.phone .grid{grid-template-columns:1fr;padding:14px}
+  .col-h{display:flex;align-items:baseline;gap:8px;margin:0 2px 10px}
+  .col-h h3{margin:0;font-size:15px}
+  .col-h small{color:var(--tx2);font-size:13px}
+
+  /* חומרים */
+  .grp{margin-bottom:14px}
+  .grp-h{display:flex;align-items:center;gap:7px;font-size:13px;font-weight:700;color:var(--tx2);margin:0 2px 6px}
+  .grp-h i{width:20px;height:20px;border-radius:50%;display:grid;place-items:center;color:#fff;font-style:normal;font-size:11px}
+  .mat{display:flex;align-items:center;gap:10px;background:#fff;border:1px solid var(--bd);border-radius:12px;padding:10px 12px;margin-bottom:6px;transition:border-color .2s,background .3s}
+  .mat .t{flex:1;min-width:0}
+  .mat b{display:block;font-size:14.5px;font-weight:600;line-height:1.3}
+  .mat small{font-size:12.5px;color:var(--tx2)}
+  .mat .act{border:1.5px solid var(--br);background:#fff;color:var(--br);border-radius:9px;padding:5px 12px;font-weight:700;font-size:13.5px;white-space:nowrap}
+  .mat .tag{font-size:12.5px;font-weight:600;color:var(--wait);white-space:nowrap}
+  .mat.done{background:#fafcfb}
+  .mat.done .tag{color:var(--ok)}
+  .mat.flash{border-color:var(--ok);background:var(--ok-bg)}
+  .ico{width:30px;height:30px;border-radius:9px;background:var(--br-soft);display:grid;place-items:center;flex-shrink:0}
+  .ico svg{width:17px;height:17px;stroke:var(--br);fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+  .mat.wait .ico{background:#f1efeb}
+  .mat.wait .ico svg{stroke:var(--wait)}
+  .mat.done .ico{background:var(--ok-bg)}
+  .mat.done .ico svg{stroke:var(--ok)}
+
+  /* הדוח */
+  .rep{background:#fff;border:1px solid var(--bd);border-radius:14px;overflow:hidden}
+  .rep-top{display:flex;align-items:center;gap:16px;padding:14px 16px;border-bottom:1px solid var(--bd)}
+  .ring{width:64px;height:64px;flex-shrink:0;position:relative}
+  .ring svg{width:64px;height:64px;transform:rotate(-90deg)}
+  .ring circle{fill:none;stroke-width:6}
+  .ring .bg{stroke:#eceae5}
+  .ring .fg{stroke:var(--ok);stroke-linecap:round;transition:stroke-dashoffset .6s cubic-bezier(.23,1,.32,1)}
+  .ring span{position:absolute;inset:0;display:grid;place-items:center;font-weight:700;font-size:15px}
+  .est{flex:1}
+  .est small{display:block;color:var(--tx2);font-size:13px}
+  .est b{font-size:20px;transition:color .3s}
+  .est b.pos{color:var(--ok)}
+  .sec{border-bottom:1px solid #f0eee9}
+  .sec:last-child{border-bottom:0}
+  .sec-h{display:flex;align-items:center;gap:8px;padding:10px 16px 4px;font-size:13px;font-weight:700;color:var(--tx2)}
+  .row{display:flex;align-items:center;gap:10px;padding:5px 16px;font-size:14px}
+  .row .l{flex:1;min-width:0;color:var(--txc)}
+  .row .code{font-size:11.5px;color:var(--tx3);font-variant-numeric:tabular-nums;min-width:28px;text-align:left}
+  .row .v{font-weight:600;font-variant-numeric:tabular-nums;min-width:96px;text-align:left;transition:background .6s;border-radius:6px;padding:1px 5px}
+  .row .v.wait{color:var(--tx3);font-weight:500;font-size:13px}
+  .row .v.hit{background:#dff0e6}
+  .row .src{font-size:11.5px;color:var(--tx3);white-space:nowrap}
+  .sec:last-child .row:last-child{padding-bottom:12px}
+  .pdot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+
+  /* חלונית הזנה */
+  .scrim{position:fixed;inset:0;background:rgba(20,22,26,.35);display:none;align-items:center;justify-content:center;padding:16px;z-index:5}
+  .scrim.on{display:flex;animation:fade .2s ease}
+  @keyframes fade{from{opacity:0}to{opacity:1}}
+  .panel{background:#fff;border-radius:16px;max-width:860px;width:100%;max-height:92vh;overflow:auto;display:grid;grid-template-columns:1fr 320px;animation:rise .25s cubic-bezier(.23,1,.32,1)}
+  @keyframes rise{from{transform:translateY(10px);opacity:.6}to{transform:none;opacity:1}}
+  .app.phone ~ .scrim .panel, .panel.narrow{grid-template-columns:1fr}
+  .doc{background:#efede8;padding:18px;display:flex;align-items:center;justify-content:center;min-height:300px}
+  .paper{background:#fff;width:100%;max-width:380px;border-radius:6px;box-shadow:0 4px 18px rgba(0,0,0,.08);padding:16px 18px;font-size:12px;color:#555}
+  .paper h4{margin:0 0 8px;font-size:13px;color:#333;text-align:center}
+  .paper .pl{display:flex;justify-content:space-between;border-bottom:1px dashed #e3e0da;padding:4px 0}
+  .paper .pl b{color:#333;font-variant-numeric:tabular-nums}
+  .paper .pl.lit{background:#fff6d6}
+  .form{padding:18px}
+  .form h4{margin:0 0 2px;font-size:16px}
+  .form p{margin:0 0 12px;color:var(--tx2);font-size:13px}
+  .fl{display:block;margin-bottom:9px}
+  .fl span{display:flex;justify-content:space-between;font-size:13px;font-weight:600;color:var(--txc);margin-bottom:3px}
+  .fl span em{font-style:normal;color:var(--tx3);font-weight:500}
+  .fl input{width:100%;border:1.5px solid #e0ddd6;border-radius:9px;padding:8px 10px;font-size:15px;direction:ltr;text-align:right;font-variant-numeric:tabular-nums}
+  .fl input:focus{outline:none;border-color:var(--br)}
+  .form .foot{display:flex;gap:8px;align-items:center;margin-top:12px}
+  .form .foot .btn{flex:1}
+
+  /* הסט */
+  .set{background:#fff;border-radius:16px;max-width:460px;width:100%;padding:20px;animation:rise .25s cubic-bezier(.23,1,.32,1)}
+  .set h4{margin:0 0 12px;font-size:17px}
+  .set ol{margin:0 0 14px;padding-inline-start:20px;color:var(--txc);font-size:14px}
+  .set li{padding:3px 0}
+  .set li small{color:var(--tx3)}
+  .toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%) translateY(20px);background:#25282d;color:#fff;border-radius:10px;padding:9px 16px;font-size:14px;opacity:0;transition:all .25s;z-index:9}
+  .toast.on{opacity:1;transform:translateX(-50%)}
+  @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+  @media (max-width:760px){
+    .app{max-width:none!important}
+    .grid{grid-template-columns:1fr!important;padding:14px!important}
+    .panel{grid-template-columns:1fr!important}
+    .doc{min-height:200px}
+    .status{margin-inline-start:0;width:100%}
+    .status .btn{flex:1}
+    .tools .view{display:none}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <span class="flag">המחשה · נתוני דמה · עוד לא באתר</span>
+  <h1>הדוח השנתי במשרד</h1>
+  <p class="lead">מסך אחד: מה הגיע, והדוח שמתמלא. בלי אישורים בדרך. לחצו «הזנה» על טופס 106.</p>
+  <details class="scope">
+    <summary>מה ייכלל בביצוע, ומה יגיע לאתר</summary>
+    <ul>
+      <li><b>במקום כרטיס הבקשה של היום:</b> «חומרים» ליד «הדוח». בלי «43 תשובות לאישור», בלי «פירוט», בלי קודים ובדיקות פנימיות.</li>
+      <li><b>התשובות נכנסות לבד</b> — לדוח ולתיק (ילד שנולד, מעסיק חדש). מה שמגיע מהשאלון מסומן «מהשאלון».</li>
+      <li><b>הזנה:</b> המסמך ליד השדות, «שמירה» — והמספרים בדוח. בהמשך המערכת תקרא את המסמך לבד.</li>
+      <li><b>רווח והפסד:</b> שורה «אצלך» לבעל עסק — מחזור ורווח.</li>
+      <li><b>הסוף:</b> «הדפסת הסט» — עמוד ריכוז, 1301, נספחים ואסמכתאות, בסדר הזה.</li>
+      <li><b>ההערכה למעלה</b> — מאותו מנוע של המערכת, מתעדכנת עם כל מסמך.</li>
+      <li><b>פתוח להחלטה:</b> חתימת הלקוח על הסט (הוחלט ב-16.10) — נשארת, או רק הדפסה?</li>
+      <li><b>לאתר:</b> קוד האתר. ייתכן שינוי במסד (שורות המקור של הדוח כבר קיימות), עם גיבוי. העובד במשרד לא משתנה.</li>
+    </ul>
+  </details>
+
+  <div class="tools">
+    <div class="seg view" role="group" aria-label="תצוגה"><button type="button" data-view="desk" aria-pressed="true">מחשב</button><button type="button" data-view="phone" aria-pressed="false">טלפון</button></div>
+    <button type="button" class="restart" id="restart">↺ מההתחלה</button>
+  </div>
+
+  <div class="app" id="app">
+    <div class="top">
+      <div><h2>דוח שנתי 2025</h2><span class="who">ישראל וישראלה ישראלי · השאלון התקבל ב-24.10</span></div>
+      <div class="status"><span id="statusTxt"></span><button type="button" class="btn" id="printBtn" disabled>הדפסת הסט</button></div>
+    </div>
+    <div class="grid">
+      <section>
+        <div class="col-h"><h3>חומרים</h3><small id="matCount"></small></div>
+        <div id="mats"></div>
+      </section>
+      <section>
+        <div class="col-h"><h3>הדוח</h3><small>1301 ונספחים · מתמלא לבד</small></div>
+        <div class="rep" id="rep"></div>
+      </section>
+    </div>
+  </div>
+</div>
+
+<div class="scrim" id="scrim"></div>
+<div class="toast" id="toast"></div>
+
+<script>
+(() => {
+  const P = { c: { name: 'ישראל', color: 'var(--p1)' }, s: { name: 'ישראלה', color: 'var(--p2)' }, f: { name: 'משותף', color: 'var(--p0)' } };
+  const ICON = {
+    doc: '<path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4M9.5 12h5M9.5 15.5h5"/>',
+    wait: '<circle cx="12" cy="12" r="8"/><path d="M12 8v4l2.5 1.5"/>',
+    done: '<path d="M6 12.5l4 4 8-9"/>',
+    calc: '<rect x="6" y="3" width="12" height="18" rx="2"/><path d="M9 7h6M9 11h1M12 11h1M15 11h0M9 15h1M12 15h1M15 15h0"/>',
+  };
+  // כל מסמך: מה ממנו נכנס לדוח. ‼ הקודים לפי «מה לוקחים מ-106» (PLAN-GUIDED-RETURN-PREP §2.3.1)
+  const MATS0 = [
+    { id: 'w1', p: 'c', title: 'טופס 106 · כהן ושות׳', state: 'here', fields: [
+      ['salary', 'הכנסה חייבת', '158', 96400], ['tax', 'מס שנוכה', '042', 8120], ['ins', 'הכנסה מבוטחת', '244', 96400],
+      ['pen', 'הפקדת עובד לקצבה', '045', 5784], ['emp', 'הפקדת מעסיק', '248', 6266], ['hish', 'קרן השתלמות שחויבה', '218', 0]] },
+    { id: 'w2', p: 'c', title: 'טופס 106 · לוי הנדסה', state: 'wait', note: 'ממתין ללקוח · מאוקטובר' },
+    { id: 'res', p: 'c', title: 'אישור ימי מילואים', state: 'here', fields: [['days', 'ימי מילואים כלוחם ב-2025', '', 42]], note: 'לנקודות של 2026' },
+    { id: 'w3', p: 's', title: 'טופס 106 · פרי הגליל', state: 'here', fields: [
+      ['salary', 'הכנסה חייבת', '172', 131200], ['tax', 'מס שנוכה', '042', 14950], ['ins', 'הכנסה מבוטחת', '245', 131200],
+      ['pen', 'הפקדת עובד לקצבה', '086', 7872], ['emp', 'הפקדת מעסיק', '249', 8528], ['hish', 'קרן השתלמות שחויבה', '219', 0]] },
+    { id: 'pnl', p: 's', title: 'רווח והפסד · הסטודיו של ישראלה', state: 'mine', fields: [['turn', 'מחזור', '', 84000], ['profit', 'רווח', '', 52300]], note: 'אצלך להכין' },
+    { id: 'ni', p: 'f', title: 'אישור שנתי מביטוח לאומי', state: 'done', note: 'יצא אוטומטית · הוזן' },
+    { id: 'don', p: 'f', title: 'קבלות תרומה', state: 'here', fields: [['don', 'סך התרומות', '', 1800]] },
+  ];
+  let mats, vals, toastT;
+  const fresh = () => {
+    mats = MATS0.map(m => ({ ...m }));
+    // מה שכבר בדוח מהשאלון ומהתיק — בלי שום אישור
+    vals = { c_salary: null, c_tax: null, s_salary: null, s_tax: null, s_profit: null, f_don: null, c_days: null, ni: 1 };
+  };
+  const fmt = n => n == null ? '' : Number(n).toLocaleString('he-IL');
+  const $ = s => document.querySelector(s);
+
+  // ── מה מופיע בדוח: שורה ← מאיזה מסמך ──
+  const ROWS = () => [
+    { h: 'פרטים ומשפחה', rows: [
+      ['שמות ות״ז', '', 'ישראל · ישראלה', 'מהתיק'], ['מצב משפחתי', '', 'נשואים · דוח משותף', 'מהשאלון'],
+      ['ילדים', '', 'נוי (2019) · תום (2025)', 'מהשאלון'], ['כתובת', '', 'הרצל 12, חיפה', 'מהשאלון'] ] },
+    { h: 'ישראל', p: 'c', rows: [
+      ['משכורת', '158', vals.c_salary, vals.c_salary == null ? 'ממתין ל-106' : '106'],
+      ['מס שנוכה', '042', vals.c_tax, vals.c_tax == null ? 'ממתין ל-106' : '106'],
+      ['נקודות זיכוי', '', '2.25', 'מהשאלון'] ] },
+    { h: 'ישראלה', p: 's', rows: [
+      ['משכורת', '172', vals.s_salary, vals.s_salary == null ? 'ממתין ל-106' : '106'],
+      ['רווח מעסק', '170', vals.s_profit, vals.s_profit == null ? 'ממתין לרו״ה' : 'רו״ה'],
+      ['מס שנוכה', '042', vals.s_tax, vals.s_tax == null ? 'ממתין ל-106' : '106'],
+      ['נקודות זיכוי', '', '2.75 + ילדים', 'מהשאלון'] ] },
+    { h: 'ניכויים וזיכויים', rows: [
+      ['תרומות (סעיף 46)', '037', vals.f_don, vals.f_don == null ? 'ממתין לקבלות' : 'קבלות'],
+      ['מילואים כלוחם — ל-2026', '', vals.c_days == null ? null : `${vals.c_days} ימים`, vals.c_days == null ? 'ממתין לאישור' : 'לכרטיס'] ] },
+  ];
+
+  let lit = new Set();
+  function render() {
+    const left = mats.filter(m => m.state !== 'done').length;
+    $('#matCount').textContent = left ? `${left} פתוחים` : 'הכול הוזן';
+    const ready = mats.every(m => m.state === 'done' || m.state === 'wait') && !mats.some(m => m.state === 'wait') ;
+    $('#printBtn').disabled = !ready;
+    const waiting = mats.filter(m => m.state === 'wait').length;
+    $('#statusTxt').textContent = ready ? 'הכול מוכן' : waiting ? `ממתין ל-${waiting} מהלקוח · ${mats.filter(m => m.state === 'here' || m.state === 'mine').length} אצלך` : `${left} אצלך`;
+
+    // חומרים לפי אדם
+    $('#mats').innerHTML = ['c', 's', 'f'].map(p => {
+      const list = mats.filter(m => m.p === p);
+      return `<div class="grp"><div class="grp-h"><i style="background:${P[p].color}">${p === 'f' ? '✱' : P[p].name[0]}</i>${P[p].name}</div>${list.map(m => {
+        const cls = m.state === 'done' ? 'done' : m.state === 'wait' ? 'wait' : '';
+        const ic = m.state === 'done' ? ICON.done : m.state === 'wait' ? ICON.wait : m.state === 'mine' ? ICON.calc : ICON.doc;
+        const right = m.state === 'done' ? '<span class="tag">✓ הוזן</span>' : m.state === 'wait' ? '<span class="tag">ממתין</span>'
+          : `<button type="button" class="act" data-open="${m.id}">${m.state === 'mine' ? 'הכנה' : 'הזנה'}</button>`;
+        const sub = m.state === 'here' ? (m.note ? `הגיע · ${m.note}` : 'הגיע') : m.note ?? '';
+        return `<div class="mat ${cls}${lit.has(m.id) ? ' flash' : ''}" data-mat="${m.id}"><span class="ico"><svg viewBox="0 0 24 24">${ic}</svg></span><span class="t"><b>${m.title}</b><small>${sub}</small></span>${right}</div>`;
+      }).join('')}</div>`;
+    }).join('');
+
+    // הדוח
+    const rows = ROWS();
+    const all = rows.flatMap(s => s.rows), filled = all.filter(r => r[2] != null).length;
+    const pct = Math.round((filled / all.length) * 100);
+    const withheld = (vals.c_tax ?? 0) + (vals.s_tax ?? 0);
+    // ‼ בהמחשה — מספר דמה שזז עם ההזנה; במימוש — computeEstimate של המערכת
+    const est = withheld ? Math.round(withheld * 0.07 + (vals.f_don ?? 0) * 0.35 - (vals.s_profit ?? 0) * 0.14) : null;
+    const C = 2 * Math.PI * 27;
+    $('#rep').innerHTML = `
+      <div class="rep-top">
+        <div class="ring"><svg viewBox="0 0 64 64"><circle class="bg" cx="32" cy="32" r="27"/><circle class="fg" cx="32" cy="32" r="27" stroke-dasharray="${C}" stroke-dashoffset="${C * (1 - pct / 100)}"/></svg><span>${pct}%</span></div>
+        <div class="est"><small>הערכה כרגע</small><b class="${est > 0 ? 'pos' : ''}">${est == null ? 'מחכה למשכורת ראשונה' : est > 0 ? `החזר ${fmt(est)} ₪` : `לתשלום ${fmt(-est)} ₪`}</b></div>
+      </div>
+      ${rows.map(s => `<div class="sec"><div class="sec-h">${s.p ? `<span class="pdot" style="background:${P[s.p].color}"></span>` : ''}${s.h}</div>${s.rows.map(([l, code, v, src]) => {
+        const key = `${s.h}|${l}`;
+        return `<div class="row"><span class="l">${l}</span><span class="src">${src}</span><span class="code">${code}</span><span class="v${v == null ? ' wait' : ''}${lit.has(key) ? ' hit' : ''}">${v == null ? '—' : typeof v === 'number' ? `${fmt(v)} ₪` : v}</span></div>`;
+      }).join('')}</div>`).join('')}`;
+
+    document.querySelectorAll('[data-open]').forEach(b => b.onclick = () => openPanel(b.dataset.open));
+  }
+
+  function openPanel(id) {
+    const m = mats.find(x => x.id === id);
+    const scrim = $('#scrim');
+    const narrow = $('#app').classList.contains('phone') || innerWidth < 760;
+    scrim.innerHTML = `<div class="panel${narrow ? ' narrow' : ''}" role="dialog" aria-label="${m.title}">
+      ${m.state === 'mine' ? '' : `<div class="doc"><div class="paper"><h4>${m.title.split(' · ')[0]} — ${m.title.split(' · ')[1] ?? ''}</h4>${m.fields.map(([k, l, code, v]) =>
+        `<div class="pl" data-pl="${k}"><span>${code ? `${code} · ` : ''}${l}</span><b>${fmt(v)}</b></div>`).join('')}<div class="pl"><span>שנת מס</span><b>2025</b></div></div></div>`}
+      <div class="form"><h4>${m.title}</h4><p>${m.state === 'mine' ? 'מהספרים של העסק' : 'הקלידו מהמסמך. «שמירה» — והמספרים בדוח.'}</p>
+        ${m.fields.map(([k, l, code, v]) => `<label class="fl"><span>${l}<em>${code}</em></span><input inputmode="numeric" data-f="${k}" value="${fmt(v)}"></label>`).join('')}
+        <div class="foot"><button type="button" class="btn" id="save">שמירה</button><button type="button" class="btn ghost" id="cancel">ביטול</button></div>
+      </div></div>`;
+    scrim.classList.add('on');
+    const first = scrim.querySelector('input'); first?.focus(); first?.select();
+    scrim.querySelectorAll('input').forEach(inp => inp.onfocus = () => { scrim.querySelectorAll('.pl').forEach(x => x.classList.toggle('lit', x.dataset.pl === inp.dataset.f)); });
+    scrim.querySelector('#cancel').onclick = close;
+    scrim.onclick = e => { if (e.target === scrim) close(); };
+    scrim.querySelector('#save').onclick = () => {
+      const num = k => Number((scrim.querySelector(`[data-f="${k}"]`).value || '0').replace(/[^\d]/g, ''));
+      const hits = [];
+      if (m.p === 'c' && m.fields[0][0] === 'salary') { vals.c_salary = (vals.c_salary ?? 0) + num('salary'); vals.c_tax = (vals.c_tax ?? 0) + num('tax'); hits.push('ישראל|משכורת', 'ישראל|מס שנוכה'); }
+      if (m.p === 's' && m.fields[0][0] === 'salary') { vals.s_salary = num('salary'); vals.s_tax = num('tax'); hits.push('ישראלה|משכורת', 'ישראלה|מס שנוכה'); }
+      if (id === 'pnl') { vals.s_profit = num('profit'); hits.push('ישראלה|רווח מעסק'); }
+      if (id === 'don') { vals.f_don = num('don'); hits.push('ניכויים וזיכויים|תרומות (סעיף 46)'); }
+      if (id === 'res') { vals.c_days = num('days'); hits.push('ניכויים וזיכויים|מילואים כלוחם — ל-2026'); }
+      m.state = 'done'; m.note = 'הוזן עכשיו';
+      close();
+      lit = new Set([...hits, id]);
+      render();
+      setTimeout(() => { lit = new Set(); render(); }, 1600);
+    };
+    document.addEventListener('keydown', esc);
+  }
+  function esc(e) { if (e.key === 'Escape') close(); }
+  function close() { $('#scrim').classList.remove('on'); $('#scrim').innerHTML = ''; document.removeEventListener('keydown', esc); }
+
+  $('#printBtn').onclick = () => {
+    const scrim = $('#scrim');
+    scrim.innerHTML = `<div class="set" role="dialog" aria-label="הסט"><h4>הסט — דוח שנתי 2025</h4><ol>
+      <li>עמוד ריכוז <small>· מהשאלון ומהתיק</small></li><li>טופס 1301</li><li>נספח פירוטים</li><li>1320 · רווח והפסד</li>
+      <li>אסמכתאות <small>· 3 טופסי 106, אישור ב״ל, קבלות תרומה, אישור מילואים</small></li></ol>
+      <div class="foot" style="display:flex;gap:8px"><button type="button" class="btn" id="doPrint" style="flex:1">הדפסה</button><button type="button" class="btn ghost" id="cancel">סגירה</button></div></div>`;
+    scrim.classList.add('on');
+    scrim.querySelector('#cancel').onclick = close;
+    scrim.querySelector('#doPrint').onclick = () => { close(); toast('בהמחשה אין הדפסה — במימוש: PDF אחד בסדר הזה'); };
+    scrim.onclick = e => { if (e.target === scrim) close(); };
+  };
+  function toast(t) { const el = $('#toast'); el.textContent = t; el.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => el.classList.remove('on'), 2600); }
+
+  // «ממתין ללקוח» — בהמחשה: לחיצה על השורה מדמה שהלקוח העלה
+  document.addEventListener('click', e => {
+    const row = e.target.closest('.mat.wait');
+    if (!row) return;
+    const m = mats.find(x => x.id === row.dataset.mat);
+    m.state = 'here'; m.note = 'הגיע עכשיו';
+    m.fields = [['salary', 'הכנסה חייבת', '158', 28600], ['tax', 'מס שנוכה', '042', 2210], ['ins', 'הכנסה מבוטחת', '244', 28600], ['pen', 'הפקדת עובד לקצבה', '045', 1716], ['emp', 'הפקדת מעסיק', '248', 1859], ['hish', 'קרן השתלמות שחויבה', '218', 0]];
+    toast('הלקוח העלה את הטופס (הדמיה)');
+    render();
+  });
+
+  document.querySelectorAll('[data-view]').forEach(b => b.onclick = () => {
+    document.querySelectorAll('[data-view]').forEach(x => x.setAttribute('aria-pressed', x === b));
+    $('#app').classList.toggle('phone', b.dataset.view === 'phone');
+  });
+  $('#restart').onclick = () => { fresh(); lit = new Set(); render(); };
+  fresh(); render();
+})();
+</script>
+</body>
+</html>

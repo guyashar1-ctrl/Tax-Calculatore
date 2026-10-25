@@ -70,7 +70,7 @@ async function runWidth(width) {
     await page.locator('[data-tax-file-toggle]').waitFor({ timeout: 15000 });
     await page.locator('[data-tax-file-toggle]').click();
     await page.locator('[data-annual-one-click]').click();
-    await page.locator('[data-annual-summary]').first().waitFor({ timeout: 40000 });
+    await page.locator('[data-annual-workspace]').first().waitFor({ timeout: 40000 }); /* 25.10 · הסיכום הקודם — ב«כלים מתקדמים» */ if (await page.locator('[data-annual-summary]').first().isHidden()) await page.locator('[data-aw-advanced]').first().click(); await page.locator('[data-annual-summary]').first().waitFor({ timeout: 40000 });
     const asks0 = await env.sql(`select item_key, subject_role from public.tax_info_asks where client_id = '${id}' and state = 'published'`);
     const grids = asks0.filter(a => a.item_key === 'annual.whatHappened' || a.item_key === 'annual.lessTax').map(a => `${a.item_key}@${a.subject_role}`).sort();
     ok(grids.join(',') === 'annual.lessTax@client,annual.lessTax@spouse,annual.whatHappened@client,annual.whatHappened@spouse', 'מסכי ריבועים לכל אדם (כסף · מס)', grids.join(','));
@@ -270,7 +270,7 @@ async function runWidth(width) {
     const [stp] = await env.sql(`select id from public.onboarding_steps where client_id = '${id}' and step_type = 'annual_return'`);
     await page.goto(env.officeUrl(id, `journey/${stp.id}`), { waitUntil: 'domcontentloaded' });
     await page.reload({ waitUntil: 'domcontentloaded' });
-    await page.locator('[data-annual-summary]').first().waitFor({ timeout: 40000 });
+    await page.locator('[data-annual-workspace]').first().waitFor({ timeout: 40000 }); /* 25.10 · הסיכום הקודם — ב«כלים מתקדמים» */ if (await page.locator('[data-annual-summary]').first().isHidden()) await page.locator('[data-aw-advanced]').first().click(); await page.locator('[data-annual-summary]').first().waitFor({ timeout: 40000 });
     await page.waitForTimeout(1500);
     const sum = await text(page.locator('[data-annual-summary]'));
     ok(/מה עליך לעשות/.test(sum), 'אצלך: «מה עליך לעשות»', sum.slice(0, 200));

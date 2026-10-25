@@ -136,7 +136,7 @@ async function runWidth(width) {
     await addBtn.waitFor({ timeout: 40000 }); await addBtn.click();
     await page.locator('[data-tax-file-toggle]').click(); // «תיק המס» נפתחת; דוח שנתי מסומן מראש
     await page.locator('[data-annual-one-click]').click();
-    await page.locator('[data-annual-summary]').first().waitFor({ timeout: 40000 }).catch(async (e) => {
+    await page.locator('[data-annual-workspace]').first().waitFor({ timeout: 40000 }); /* 25.10 · הסיכום הקודם — ב«כלים מתקדמים» */ if (await page.locator('[data-annual-summary]').first().isHidden()) await page.locator('[data-aw-advanced]').first().click(); await page.locator('[data-annual-summary]').first().waitFor({ timeout: 40000 }).catch(async (e) => {
       console.log('    [debug] ' + (await page.locator('body').innerText()).replace(/s+/g, ' ').slice(0, 1500));
       if (SHOTS) await page.screenshot({ path: join(SHOTS, 'stuck-' + width + '.png') });
       throw e;
@@ -168,7 +168,7 @@ async function runWidth(width) {
     ok(left[0].n === 0, 'בשרת: אין שאלה שמחכה ללקוח', `published=${left[0].n}`);
     const [st] = await env.sql(`select id from public.onboarding_steps where client_id = '${id}' and step_type = 'annual_return'`);
     await page.goto(env.officeUrl(id, `journey/${st.id}`), { waitUntil: 'domcontentloaded' });
-    await page.locator('[data-annual-summary]').first().waitFor({ timeout: 40000 });
+    await page.locator('[data-annual-workspace]').first().waitFor({ timeout: 40000 }); /* 25.10 · הסיכום הקודם — ב«כלים מתקדמים» */ if (await page.locator('[data-annual-summary]').first().isHidden()) await page.locator('[data-aw-advanced]').first().click(); await page.locator('[data-annual-summary]').first().waitFor({ timeout: 40000 });
     await page.waitForTimeout(1500);
     const more = await text(page.locator('[data-annual-more]'));
     ok(!more, 'בסיכום אין «עוד שאלות … הכן ופרסם» — השאלון נגמר בסבב אחד', more);

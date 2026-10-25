@@ -126,6 +126,15 @@ const T2025: DocTemplate[] = [
       ...lte(v, 'pnl.profit', 'pnl.turnover', 'הרווח גדול מהמחזור — לבדוק'),
       ...(typeof v['pnl.turnover'] === 'number' && (v['pnl.turnover'] as number) > 300_000 ? ['מחזור מעל 300,000 ₪ — ייתכן שחייבים בטופס 6111 (לבדוק כולל מע״מ)'] : [])],
   },
+  // ‼ 25.10.2026 · קבלות על תרומות — הסכום הכולל מהקבלות (סעיף 46). העובדה donations.amount היא אותה שהשאלון כותב, והמנוע סוכם אותה.
+  {
+    docKind: 'donationReceipts', title: 'קבלות על תרומות', per: 'person',
+    intro: 'סכום כל הקבלות של האדם בשנה — רק למוסדות עם אישור לפי סעיף 46.',
+    lines: [
+      { key: 'don.total', label: 'סך התרומות בשנה', where: 'סכום הקבלות', itemKey: 'donations.amount', component: 'amount', input: 'amount', goesTo: '037 / 237' },
+    ],
+    validate: v => pos(v, 'don.total', 'סך התרומות'),
+  },
 ];
 
 export const DOC_TEMPLATES: Record<number, DocTemplate[]> = { 2025: T2025 };

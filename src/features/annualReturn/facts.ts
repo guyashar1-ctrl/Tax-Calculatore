@@ -40,6 +40,8 @@ const ALIASES: Record<string, Record<string, string>> = {
   'savings.selfAmounts': { pension: 'pension', selfEmployedPensionAmount: 'pension', 'spouse.selfEmployedPensionAmount': 'pension',
     studyFund: 'studyFund', krenHashtalmutSE: 'studyFund', 'spouse.krenHashtalmutSE': 'studyFund' },
   'savings.insuranceAmounts': { life: 'life', lifeInsuranceAnnual: 'life', disability: 'disability', disabilityInsuranceAnnual: 'disability' },
+  // 25.10.2026 · קבלות על תרומות (docTemplates) — הסכום הכולל
+  'donations.amount': { amount: 'amount', total: 'amount' },
 };
 /** עובדה שערכה מספר — לאיזה רכיב הוא שייך. */
 const DEFAULT_COMPONENT: Record<string, string> = {

@@ -70,7 +70,7 @@ export const TESTS: TestCase[] = [
       const read = readComponents({ id: 'x', clientId: 'c', taxYear: 2025, itemKey: l.itemKey, subjectRole: 'client', periodKind: 'year', answer: 'value', value: { [l.component]: 7 }, basis: 'final', source: 'office', status: 'accepted', createdAt: '' });
       assert(read.length === 1 && read[0].amount === 7, `${t.docKind}/${l.key}: הרכיב ${l.component} לא נקרא`);
     }
-    equal(DOC_TEMPLATES[2025].length, 6);
+    equal(DOC_TEMPLATES[2025].length, 7); // 25.10.2026 · + קבלות על תרומות
     equal(templateFor('form106', 2024)?.year, 2025, 'שנה בלי מרשם — המרשם הקיים (מסומן)');
     equal(entitiesFor(templateFor('form106', 2025)!.template, barak(), 'spouse').map(e => e.id).join(), 'em2', 'המעסיקים של בת הזוג בלבד');
     equal(entitiesFor(templateFor('annualPnl', 2025)!.template, barak(), 'client').length, 0, 'לעמרי אין עסק');

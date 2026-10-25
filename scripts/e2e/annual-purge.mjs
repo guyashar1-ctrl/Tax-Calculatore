@@ -150,7 +150,7 @@ async function runWidth(width) {
     await addBtn.waitFor({ timeout: 40000 }); await addBtn.click();
     await page.locator('[data-tax-file-toggle]').click(); // «תיק המס» נפתחת; דוח שנתי מסומן מראש
     await page.locator('[data-annual-one-click]').click();
-    await page.locator('[data-annual-summary]').first().waitFor({ timeout: 40000 });
+    await page.locator('[data-annual-workspace]').first().waitFor({ timeout: 40000 }); /* 25.10 · הסיכום הקודם — ב«כלים מתקדמים» */ if (await page.locator('[data-annual-summary]').first().isHidden()) await page.locator('[data-aw-advanced]').first().click(); await page.locator('[data-annual-summary]').first().waitFor({ timeout: 40000 });
     const [st] = await env.sql(`select id from public.onboarding_steps where client_id = '${id}' and step_type = 'annual_return' and status <> 'cancelled'`);
     ok(!!st, 'דוח שנתי נפתח');
 
@@ -194,7 +194,7 @@ async function runWidth(width) {
     await page.getByRole('button', { name: /＋ בקשה חדשה/ }).first().click();
     await page.locator('[data-tax-file-toggle]').click();
     await page.locator('[data-annual-one-click]').click();
-    await page.locator('[data-annual-summary]').first().waitFor({ timeout: 40000 });
+    await page.locator('[data-annual-workspace]').first().waitFor({ timeout: 40000 }); /* 25.10 · הסיכום הקודם — ב«כלים מתקדמים» */ if (await page.locator('[data-annual-summary]').first().isHidden()) await page.locator('[data-aw-advanced]').first().click(); await page.locator('[data-annual-summary]').first().waitFor({ timeout: 40000 });
     const reopened = await env.sql(`select a.item_key from public.tax_info_asks a join public.onboarding_steps s on s.id = a.parent_step_id where a.client_id = '${id}' and s.status <> 'cancelled'`);
     if (!reopened.some(a => a.item_key === 'annual.whatHappened')) console.log('    [debug] steps', JSON.stringify(await env.sql(`select step_type, status, payload->>'held' held, (select count(*) from public.tax_info_asks x where x.parent_step_id = s.id) n from public.onboarding_steps s where client_id = '${id}' order by created_at`)), 'body:', (await page.locator('body').innerText()).replace(/s+/g, ' ').slice(0, 600));
     ok(reopened.some(a => a.item_key === 'annual.whatHappened'), 'אחרי ביטול ופתיחה מחדש — מסך הריבועים חוזר (לא «השאלון הישן»)', reopened.map(a => a.item_key).join(','));
