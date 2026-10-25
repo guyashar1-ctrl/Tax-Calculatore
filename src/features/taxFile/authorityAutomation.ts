@@ -25,6 +25,7 @@ import { EDIT_FIELD_BY_KEY, editFieldValue, cardDealerKind } from './editModel';
 import { incomeTaxFileType } from '../../data/incomeTaxFileTypes';
 import { niPersons, niEditable } from '../../utils/niPersons';
 import { incomeTaxFileInput } from './incomeTaxFileInput';
+import { authorityRepStatus } from '../../utils/personRepresentation';
 import { REPORTING_NO_ADVANCES, reportingStatusOk } from '../../utils/reportingStatus';
 import { BANKS } from '../../data/institutions';
 import {
@@ -36,7 +37,7 @@ import {
   niIncomeKind, niIncomeListEmpty, niIncomeListKey, niIncomeReadOf, niIncomeSourceText, niIncomeUnit,
 } from '../nationalInsurance/niIncome';
 import type { NiIncomeSection } from '../nationalInsurance/niIncome';
-import { BTL_REPRESENTATION_KEY } from '../nationalInsurance/btlFieldKeys';
+import { BTL_REPRESENTATION_KEY, BTL_ID_KEY } from '../nationalInsurance/btlFieldKeys';
 
 /**
  * מי בדיוק, ברמת אדם — הנושא שהמשימה שואלת עליו (154). ‼ קיים כדי שרשות
@@ -443,7 +444,7 @@ function interpretShaamReadOnly(fieldKey: string, job: AutomationJob, client: Cl
   }
   if (fieldKey === 'incomeTaxRepresentation') {
     const rep = (fields.mainRepresentative ?? '').trim();
-    const active = (client.taxFiles ?? []).some(f => f.authority === 'income_tax' && f.repStatus === 'active');
+    const active = authorityRepStatus(client, 'income_tax') === 'active';
     // ‼ «רשימת מיוצגים» אומרת «ראשי» / «נוסף» במפורש — גוברת על ההסקה מ-154.
     const listed = (fields.repType ?? '').trim();
     if (listed === 'ראשי' || listed === 'נוסף') {
@@ -617,7 +618,7 @@ interface BtlPersonResult {
 export const BTL_FIELD_KEYS: readonly string[] = (['client', 'spouse'] as const).flatMap(r => [
   NI_FACT_KEYS[r].occupations, NI_FACT_KEYS[r].incomeBasisMonthly, NI_FACT_KEYS[r].advanceMonthly,
   NI_FACT_KEYS[r].balance, NI_FACT_KEYS[r].debitAuthorization, NI_FACT_KEYS[r].insuranceBasis,
-  NI_FACT_KEYS[r].incomeList, BTL_REPRESENTATION_KEY[r],
+  NI_FACT_KEYS[r].incomeList, BTL_REPRESENTATION_KEY[r], BTL_ID_KEY[r],
 ]);
 
 /** «הצהרה · יוני 2025: 16,500 ₪ לחודש · שומה עצמי · ינואר–דצמבר 2025: 47,800 ₪ לשנה». */
@@ -685,6 +686,8 @@ function interpretBtlFile(
         : { fieldKey: repKey, label: 'ייצוג', status: 'failed', currentValue: '', ...person });
       continue;
     }
+    // ‼ נפתח ונקרא ⇒ הפורטל אישר שהתיק הוא של ת.ז. הזו (נבדק בכותרת לפני כל קריאה).
+    push({ fieldKey: BTL_ID_KEY[p.role], label: 'ת.ז.', status: 'match', currentValue: '', ...person });
     const s = p.sections ?? {};
     const failed = (key: string, section: keyof typeof SECTION_FAILED): AuthorityFieldResult =>
       ({ fieldKey: key, label: key, status: 'failed', currentValue: String(c[key] ?? ''), error: SECTION_FAILED[section], ...person });
@@ -1029,7 +1032,7 @@ function interpretVatReadOnly(fieldKey: string, job: AutomationJob, client: Clie
   if (fieldKey === 'vatRepresentation') {
     const rep = (fields.mainRepresentative ?? '').trim();
     if (!rep || !fields.representedByMe) return null;
-    const active = (client.taxFiles ?? []).some(f => f.authority === 'vat' && f.repStatus === 'active');
+    const active = authorityRepStatus(client, 'vat') === 'active';
     // ‼ מערכת מע״מ פותחת רק תיק שמייצגים — ולכן כשהראשי הוא מישהו אחר, אנחנו המייצג הנוסף.
     return fields.representedByMe === 'yes'
       ? { fieldKey, label: 'ייצוג', status: active ? 'match' : 'info', currentValue: '', authorityDisplay: 'מייצג ראשי', showOnMatch: true }

@@ -4,6 +4,7 @@ import { test, equal } from '../../../testkit/tinyTest';
 import type { TestCase } from '../../../testkit/tinyTest';
 import type { Client } from '../../../types';
 import type { AutomationJob } from '../../../types/automation';
+import { buildAuthorityRows } from '../../../utils/authorityRows';
 import { AUTHORITY_AUTOMATION, VAT_FIELD_SOURCES, VAT_READ_ONLY_KEYS, vatOsekInput } from '../authorityAutomation';
 
 const spec = AUTHORITY_AUTOMATION.vat!;
@@ -22,6 +23,17 @@ const LICENSED = {
 };
 
 export const TESTS: TestCase[] = [
+  test('ייצוג: המרשם בשרת «פעיל» גובר על עותק «ממתין» מהקליטה — בכרטיס ובבדיקה מול שע״ם (אייל, 25.10)', () => {
+    const c = client({
+      taxFiles: [{ id: 'v', authority: 'vat', fileNumber: '213948433', owner: 'client', repStatus: 'pending' }],
+      authorityRepresentations: { vat: { level: 'primary', status: 'active' } },
+    } as Partial<Client>);
+    const vatRow = buildAuthorityRows(c).find(r => r.authority === 'vat')!;
+    equal(vatRow.facts.find(f => f.k === 'ייצוג')!.v, 'ייצוג פעיל');
+    const j = { id: 'j', status: 'succeeded', input: { osekNumber: '213948433' },
+      result: { fields: { ...LICENSED, mainRepresentative: 'ישר גיא', representedByMe: 'yes' } } } as unknown as AutomationJob;
+    equal(spec.interpret!(j, c, RO).find(x => x.fieldKey === 'vatRepresentation')!.status, 'match');
+  }),
   test('מספר עוסק שנפתח = המספר בכרטיס ⇒ ירוק; ייצוג ראשי של המחובר ⇒ ירוק', () => {
     const c = client({ taxFiles: [{ id: '1', authority: 'vat', fileNumber: '314667346', owner: 'client', repStatus: 'active' }] } as Partial<Client>);
     const j = { id: 'j', status: 'succeeded', input: { osekNumber: '314667346' },

@@ -8,7 +8,7 @@
 // מה שמניע עבודה שוטפת (מקדמות, תדירות דיווח, מקדמה חודשית) ומה שהוא כסף
 // (יתרה). מספרי התיקים ירדו לפירוט הפתוח, פעם אחת.
 
-import type { Client, NiOccupation, TaxAuthority, TaxFileInfo } from '../types';
+import type { Client, NiOccupation, TaxAuthority } from '../types';
 import { niOccupationsCountText } from '../features/nationalInsurance/niOccupations';
 import { niBasisCard, niBasisShortExplain } from '../features/nationalInsurance/niBasisDisplay';
 import type { NiHelpSection } from '../features/nationalInsurance/niBasisDisplay';
@@ -17,11 +17,11 @@ import {
   niUnverifiedIncomeNote,
 } from '../features/nationalInsurance/niIncome';
 import type { NiIncomeRead } from '../features/nationalInsurance/niIncome';
-import { BTL_REPRESENTATION_KEY } from '../features/nationalInsurance/btlFieldKeys';
+import { BTL_REPRESENTATION_KEY, BTL_ID_KEY } from '../features/nationalInsurance/btlFieldKeys';
 import { TAX_AUTHORITY_LABELS, TAX_FILE_REP_STATUS_LABELS } from '../types';
 import { VAT_FREQ_LABELS } from '../types/clientWorkspace';
 import { shortDate } from './clientDerived';
-import { resolvePersonAuthority, resolveIncomeTaxHousehold } from './personRepresentation';
+import { resolvePersonAuthority, resolveIncomeTaxHousehold, authorityRepStatus } from './personRepresentation';
 import {
   niPersons, niFactsOf, niFactMetaOf, niFileOf, niFieldKeys, niEditable, niRepresentationOf, niRepresentationAction,
 } from './niPersons';
@@ -178,11 +178,11 @@ export function buildAuthorityRows(
 ): AuthorityRow[] {
   const files = client.taxFiles ?? [];
   const filesOf = (a: TaxAuthority) => files.filter(f => f.authority === a);
+  // ‼ מצב הייצוג מהמרשם שבשרת, לא מהעותק בתיק — ראה authorityRepStatus.
   const repOf = (a: TaxAuthority): string | null => {
-    const list = filesOf(a);
-    if (!list.length) return null;
-    const active = list.find((f: TaxFileInfo) => f.repStatus === 'active');
-    return TAX_FILE_REP_STATUS_LABELS[(active ?? list[0]).repStatus];
+    if (!filesOf(a).length) return null;
+    const st = authorityRepStatus(client, a);
+    return st ? TAX_FILE_REP_STATUS_LABELS[st] : null;
   };
   const numbersOf = (a: TaxAuthority) =>
     filesOf(a).map(f => f.fileNumber).filter(Boolean).join(' · ');
@@ -390,7 +390,7 @@ export function buildAuthorityRows(
       };
     });
 
-    const personRows: AuthorityRowPerson[] = built.map(({ person, pf, meta, file, rep, niAction, editable, keys }) => {
+    const personRows: AuthorityRowPerson[] = built.map(({ person, pf, meta, rep, niAction, editable, keys }) => {
       const bal = balanceText(pf.balance);
       const auth = authText(pf.debitAuthorization);
       const facts: AuthorityRow['facts'] = [];
@@ -400,11 +400,10 @@ export function buildAuthorityRows(
       // בעובדות עצמן (לא רק בכותרת) כדי שלקוח/ה יחיד/ה — הענף ללא כותרת-שם
       // — ימשיך להראות אותה בדיוק כמו לפני 154; בבלוק-אדם עם כותרת היא
       // מוסתרת כפילות ב-TaxFileTab, לא כאן.
-      facts.push({ k: 'ת.ז.', v: person.idNumber || EMPTY });
-      facts.push({
-        k: 'מספר תיק', v: file?.fileNumber || EMPTY,
-        ...(editable ? { taxFileNumberAuthority: 'national_insurance' as TaxAuthority, taxFileNumberOwner: person.role } : {}),
-      });
+      // ‼ «מספר תיק» הוסר (25.10.2026, גיא): לאדם פרטי מספר התיק בב״ל הוא
+      // מספר הזהות — בכל התיקים שמולאו במערכת הוא היה זהה לת.ז. הרשומה עצמה
+      // נשארת (מצב הייצוג נקרא ממנה); רק השורה הכפולה ירדה.
+      facts.push({ k: 'ת.ז.', v: person.idNumber || EMPTY, ...(editable ? { btlSyncKey: BTL_ID_KEY[person.role] } : {}) });
       // ‼ מפתחות הסנכרון מול הפורטל (btl.sync_file) — לכל אדם שהנתונים
       // שלו יושבים בכרטיס הזה. אדם מקושר מתעדכן מהכרטיס שלו/ה. הקריאה
       // מהרשות אינה מחליפה את העריכה הידנית — שתיהן קיימות.

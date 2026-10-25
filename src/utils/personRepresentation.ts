@@ -7,9 +7,34 @@
 // ‼ מקור אמת אחד: הכרטיס שביקש בפועל. הכרטיס השני רק **קורא** אותו דרך
 // הקישור. אין כאן שום כתיבה — כל הפונקציות בקובץ הזה טהורות.
 
-import type { Client, RepAuthorityKind } from '../types';
+import type { Client, RepAuthorityKind, TaxAuthority, TaxFileRepStatus } from '../types';
 import { targetsOf } from './repScope';
 import { registeredFileInfo } from '../features/annualReport/profile';
+
+const REGISTRY_KEY: Partial<Record<TaxAuthority, RepAuthorityKind>> = {
+  income_tax: 'incomeTax', vat: 'vat', deductions: 'withholding',
+};
+
+/**
+ * מצב הייצוג של הכרטיס הזה ברשות — לשורת «ייצוג» ולבדיקה מול שע״ם.
+ *
+ * ‼ מרשם הרשויות (`authorityRepresentations`) נגזר בשרת מבקשת הייצוג ומסומן
+ * «פעיל» כשהייצוג מתקבל (apply_client_representation). `taxFiles[].repStatus`
+ * הוא עותק שנכתב בקליטה ולא מתעדכן — 25.10.2026 נמצאו 12 תיקים «בתהליך»/«אין»
+ * אצל לקוחות שהמרשם שלהם «פעיל» (אייל: מע״מ «בתהליך» כששע״ם מראה מייצג ראשי).
+ * ולכן: פעיל באחד מהשניים ⇒ פעיל; אחרת המרשם, ורק בהיעדרו העותק מהתיק.
+ */
+export function authorityRepStatus(client: Client, authority: TaxAuthority): TaxFileRepStatus | null {
+  const files = (client.taxFiles ?? []).filter(f => f.authority === authority);
+  const key = REGISTRY_KEY[authority];
+  const rec = key ? client.authorityRepresentations?.[key] : undefined;
+  // מע״מ/ניכויים שייכים לאדם: רשומה שאינה עבור הלקוח עצמו (רק בן/בת הזוג) אינה שלו.
+  const own = rec && (authority === 'income_tax' || targetsOf(client.authorityRepresentations, key!).includes('client'));
+  const reg: TaxFileRepStatus | null = !own ? null
+    : rec.status === 'active' ? 'active' : rec.status === 'in_process' ? 'pending' : rec.status === 'none' ? 'none' : null;
+  if (reg === 'active' || files.some(f => f.repStatus === 'active')) return 'active';
+  return reg ?? (files[0]?.repStatus ?? null);
+}
 
 export interface PersonAuthorityState {
   /** קיים ייצוג (בתהליך או פעיל) לרשות הזאת, עבור האדם הזה. */

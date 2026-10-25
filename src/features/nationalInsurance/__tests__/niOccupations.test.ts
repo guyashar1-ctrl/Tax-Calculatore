@@ -154,9 +154,10 @@ export const TESTS: TestCase[] = [
 
   test('עדכון לאדם אחד: השדות של האחר «לא נבדקו», לא «טרם נתמכים»', () => {
     const client = { id: 'c', familyStatus: 'married' } as unknown as Client;
-    const cardFields = [...ALL_KEYS, { label: 'מספר תיק' }];
+    const cardFields = [...ALL_KEYS, { label: 'הערה' }];
     const check = buildAuthorityCheck(spec, job([personResult('client', 2062)]), client, cardFields)!;
-    equal(check.summary.notChecked, 8, 'שמונת השדות של בן/בת הזוג (כולל רשימת ההכנסות, 219)');
+    equal(check.summary.notChecked, 9, 'תשעת השדות של בן/בת הזוג (כולל רשימת ההכנסות 219, ות.ז.)');
+    equal(check.fields.find(f => f.fieldKey === 'niIdNumber')!.status, 'match', 'ת.ז. של מי שנקרא — ירוקה');
     equal(check.summary.unsupported, 1, 'רק השורה שאין לה מקור');
   }),
 
