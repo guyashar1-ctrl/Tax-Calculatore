@@ -10,6 +10,7 @@ import * as shaamOpenIncomeTax from './handlers/shaamOpenIncomeTax.mjs';
 import * as shaamOpenClientFile from './handlers/shaamOpenClientFile.mjs';
 import * as shaamSyncIncomeTaxFile from './handlers/shaamSyncIncomeTaxFile.mjs';
 import * as shaamSyncVatFile from './handlers/shaamSyncVatFile.mjs';
+import * as shaamIssueCertificates from './handlers/shaamIssueCertificates.mjs';
 import * as shaamCreateRepresentation from './handlers/shaamCreateRepresentation.mjs';
 import * as shaamSubmitPoa from './handlers/shaamSubmitPoa.mjs';
 import * as shaamCheckRepresentation from './handlers/shaamCheckRepresentation.mjs';
@@ -25,6 +26,8 @@ const HANDLERS = [
   shaamSyncIncomeTaxFile,
   // קריאת «פרטי עוסק» במערכת הגבייה של מע״מ — קריאה בלבד.
   shaamSyncVatFile,
+  // 413 — הנפקת אישור ניכוי מס במקור + ניהול ספרים. משנה מצב ברשות: רק בלחיצה.
+  shaamIssueCertificates,
   // מחזור חיי בקשת הייצוג בשע״ם (194): יצירה+הבאת טופס · שידור חתום · בדיקת מצב.
   shaamCreateRepresentation, shaamSubmitPoa, shaamCheckRepresentation,
   btlConnect, btlDisconnect, btlCreateRepresentation, btlCheckRepresentation,

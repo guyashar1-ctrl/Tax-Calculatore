@@ -463,6 +463,15 @@ function interpretShaamReadOnly(fieldKey: string, job: AutomationJob, client: Cl
     return { fieldKey, label: 'ייצוג', status: 'info', currentValue: '', authorityDisplay: `מייצג נוסף · ראשי: ${rep}` };
   }
   if (fieldKey === 'withholdingStatus') {
+    // ‼ 297 · כשנקרא 413 — זה המקור: השרת כבר כתב את האישור לכרטיס (record_authority_certificate).
+    const w = (job.result as { certificates?: { withholding?: { ok?: boolean; status?: string; statusText?: string; ratesText?: string; validUntil?: string } } } | undefined)
+      ?.certificates?.withholding;
+    if (w?.ok) {
+      const display = w.status === 'valid'
+        ? [w.ratesText, w.validUntil ? `עד ${w.validUntil.split('-').reverse().join('.')}` : ''].filter(Boolean).join(' · ')
+        : (w.statusText || 'אין אישור בתוקף');
+      return { fieldKey, label: 'ניכוי מס במקור', status: 'match', currentValue: client.withholdingStatus ?? '', authorityDisplay: display };
+    }
     const raw = (result.filing?.header?.withholdingApproval ?? '').trim();
     if (!raw) return null;
     const card = client.withholdingStatus;
@@ -1008,6 +1017,17 @@ export const VAT_FIELD_SOURCES: Record<string, { sources: string[]; map: (f: Rec
  * מספר העוסק: מה שרשום בתיק המע״מ של הכרטיס. ‼ בלעדיו — ת.ז., ורק לעוסק
  * יחיד (מורשה/פטור): אצלו מספר העוסק הוא מספר הזהות. לחברה אין ניחוש.
  */
+/**
+ * 297 · למי מנפיקים/קוראים אישור שנתי ב-413: מספר העוסק (לעוסק יחיד — הת.ז. שלו/ה).
+ * ‼ בלי עסק בכרטיס אין אישורים: שכיר לא צריך אישור ניכוי במקור או ניהול ספרים.
+ */
+export function certificateEntityInput(client: Client): { certEntity: string } | { blocked: string } {
+  const r = vatOsekInput(client);
+  return 'osekNumber' in r
+    ? { certEntity: r.osekNumber }
+    : { blocked: 'אין עסק בכרטיס (מספר עוסק) — אין למי להנפיק אישור ניכוי במקור או ניהול ספרים.' };
+}
+
 export function vatOsekInput(client: Client): { osekNumber: string } | { blocked: string } {
   const digits = (s: string | undefined) => (s ?? '').replace(/\D/g, '');
   const files = (client.taxFiles ?? []).filter(t => t.authority === 'vat');
@@ -1102,7 +1122,12 @@ export const AUTHORITY_AUTOMATION: Partial<Record<TaxAuthority, AuthorityAutomat
     supportedFieldKeys: new Set([...Object.keys(SHAAM_134_FIELD_SOURCES), ...SHAAM_READ_ONLY_KEYS]),
     buildInput: (client) => {
       const res = incomeTaxFileInput(client);
-      return 'fileNumber' in res ? { input: { fileNumber: res.fileNumber } } : res;
+      // ‼ 297 · 413 (אישורי ניכוי וניהול ספרים) לפי ת.ז. של בעל העסק — העוסק במע״מ, לא מספר
+      // התיק במס הכנסה (בתיק משותף שרשום על בן/בת הזוג הם שונים). בלי עסק — לא קוראים 413.
+      const cert = certificateEntityInput(client);
+      return 'fileNumber' in res
+        ? { input: { fileNumber: res.fileNumber, ...('certEntity' in cert ? { certEntity: cert.certEntity } : {}) } }
+        : res;
     },
     interpret: interpretShaam134,
     groupNotes: (fields) => {

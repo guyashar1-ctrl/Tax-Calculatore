@@ -24,6 +24,10 @@ import type { Client, TaxAuthority, NiOccupation } from '../../types';
 import { TAX_AUTHORITY_LABELS } from '../../types';
 import type { TaxFactChange, ProposedFact } from '../../types/taxFacts';
 import type { AutomationJob } from '../../types/automation';
+import { SHAAM_ISSUE_CERTIFICATES_ACTION_TYPE } from '../../types/automation';
+import { supabase } from '../../lib/supabase';
+import { clientFromDb } from '../../lib/dbMappers';
+import { CertificateViewButton, CertificateIssueButton } from './CertificateAction';
 import { proposeTaxFacts, listPendingTaxFactChanges } from '../../lib/taxFacts';
 import { useTaxFacts } from '../../hooks/useTaxFacts';
 import { useAutomationJob } from '../../hooks/useAutomationJobs';
@@ -35,7 +39,7 @@ import type { NiExecutionByRole } from '../../utils/niPersons';
 import { EDIT_FIELD_BY_KEY, editFieldValue, coerceEditField, editFieldDisplay } from '../../features/taxFile/editModel';
 import type { EditField } from '../../features/taxFile/editModel';
 import EditControl from '../../features/taxFile/EditControl';
-import { AUTHORITY_AUTOMATION, buildAuthorityCheck } from '../../features/taxFile/authorityAutomation';
+import { AUTHORITY_AUTOMATION, buildAuthorityCheck, certificateEntityInput } from '../../features/taxFile/authorityAutomation';
 import type { AuthorityAutomationSpec, AuthorityCheckResult } from '../../features/taxFile/authorityAutomation';
 import { shaamRepresentationAction } from '../../features/taxFile/shaamRepresentationAction';
 import { gmf154Filing } from '../../features/shaamFiling/fromGmf154';
@@ -146,6 +150,9 @@ export default function AuthoritiesPanel({
   const jobIncomeTax = useAutomationJob(client.id || undefined, AUTHORITY_AUTOMATION.income_tax?.actionType ?? '');
   const jobVat = useAutomationJob(client.id || undefined, AUTHORITY_AUTOMATION.vat?.actionType ?? '');
   const jobBtl = useAutomationJob(client.id || undefined, AUTHORITY_AUTOMATION.national_insurance?.actionType ?? '');
+  // ‼ 297 · «הנפק אישורים» (413) — פעולה משנה ברשות, בלחיצה בלבד.
+  const jobCerts = useAutomationJob(client.id || undefined, SHAAM_ISSUE_CERTIFICATES_ACTION_TYPE);
+  const certInput = certificateEntityInput(client);
   const authorityJobs: Partial<Record<TaxAuthority, ReturnType<typeof useAutomationJob>>> = {
     income_tax: jobIncomeTax, vat: jobVat, national_insurance: jobBtl,
   };
@@ -160,6 +167,28 @@ export default function AuthoritiesPanel({
   const incomeTaxJob = liveJobOf('income_tax');
   const filing154 = incomeTaxJob?.status === 'succeeded' ? gmf154Filing(incomeTaxJob.result) : null;
   const { error: filingImportError } = useGmf154Import(client.id || undefined, incomeTaxJob, !(jobOverrides && 'income_tax' in jobOverrides));
+
+  // ‼ 297 · השרת כותב את האישורים לכרטיס בזמן הריצה (קריאת התיק / הנפקה) — כשריצה כזו נגמרת,
+  // מושכים את הכרטיס מחדש פעם אחת, כדי שהשורה תראה מה נשמר בלי רענון הדף.
+  // ‼ מה שכבר היה גמור כשהמשימות נטענו לראשונה — הכרטיס כבר עדכני לגביו.
+  const certSeen = useRef<Set<string> | null>(null);
+  const certJobs = [jobOverrides ? null : incomeTaxJob, jobCerts.job];
+  const certJobKey = certJobs.map(j => (j && (j.status === 'succeeded' || j.status === 'failed') ? `${j.id}:${j.status}` : '')).join('|');
+  const certLoading = jobIncomeTax.loading || jobCerts.loading;
+  useEffect(() => {
+    if (!client.id || certLoading) return;
+    const done = certJobKey.split('|').filter(Boolean);
+    if (!certSeen.current) { certSeen.current = new Set(done); return; }
+    const fresh = done.filter(k => !certSeen.current!.has(k));
+    if (!fresh.length) return;
+    fresh.forEach(k => certSeen.current!.add(k));
+    let alive = true;
+    void supabase.from('clients').select('*').eq('id', client.id).maybeSingle().then(({ data }) => {
+      if (alive && data) onClientPersisted(clientFromDb(data));
+    });
+    return () => { alive = false; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [certJobKey, client.id, certLoading]);
 
   // ‼ (219) הקריאה האחרונה שהצליחה מב"ל — הצהרה שמורה שקריאה שלמה לא מצאה
   // אינה «מאומתת» בכרטיס, עוד לפני שאושרה ההצעה לעדכן.
@@ -675,6 +704,15 @@ export default function AuthoritiesPanel({
                       {/* ‼ סמן המצב לפני התווית, קטן וללא מילים — רק אחרי בדיקה. */}
                       <FieldLabel f={f} status={fieldCheck && <FieldStatusMark status={fieldCheck.status} />} />
                       {renderValue(f, editingThis, 'client')}
+                      {/* ‼ 297 · «צפה» באישור מ-413, או «הנפק אישורים» כשאין — רק כשיש עסק בכרטיס. */}
+                      {f.certAction && !editingThis && (f.certAction.kind === 'view'
+                        ? <CertificateViewButton documentId={f.certAction.documentId} title={`אישור ${f.k}`} />
+                        : <CertificateIssueButton job={jobCerts.job} busy={jobCerts.busy}
+                            blocked={'blocked' in certInput ? certInput.blocked : null}
+                            onRun={desired => jobCerts.run({
+                              ...('certEntity' in certInput ? { certEntity: certInput.certEntity } : {}),
+                              ...(desired != null ? { desiredRate: desired } : {}),
+                            })} />)}
                       {/* ‼ שורת הרשות רק כשיש מה לומר; האישור מקובץ בסיכום. */}
                       {fieldCheck && !editingThis && spec && (
                         <FieldAuthorityLine field={fieldCheck} sourceLabel={spec.sourceLabel} />

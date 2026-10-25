@@ -797,6 +797,14 @@ export default function TaxFileTab({
 
   const married = client.familyStatus === 'married';
   const spouseName = spouseDisplayName(client);
+  // ‼ 25.10.2026 (גיא): הת.ז. של בן/בת הזוג ב«פרטים אישיים», ובולט כשהתיק במס הכנסה רשום על שמו/ה.
+  // ההכרעה מי רשום — מהכרטיס שמחזיק את התיק (משותף לשני הכרטיסים), ורק כשהוכרעה.
+  const spouseId = (spouseClient?.idNumber || client.spouseIdNumber || '').trim();
+  const spouseFirst = (spouseClient?.firstName || client.spouseFirstName || spouseName.split(/\s+/)[0] || '').trim();
+  const regInfo = registeredFileInfo(household.holderClient ?? client);
+  const digitsOnly = (s?: string) => (s ?? '').replace(/\D/g, '').replace(/^0+/, '');
+  const spouseIsRegistered = married && !!regInfo && !regInfo.unverified && !!spouseId
+    && digitsOnly(regInfo.idNumber) === digitsOnly(spouseId);
   const businesses = client.businesses ?? [];
   const employers = client.employers ?? [];
   const properties = client.properties ?? [];
@@ -1085,6 +1093,7 @@ export default function TaxFileTab({
             client.idNumber && `ת.ז. ${client.idNumber}`,
             client.phone, client.city,
             !dealerTypeDisplay(client).unknown && dealerTypeDisplay(client).text,
+            married && spouseId && (spouseIsRegistered ? `תיק מ״ה: ${spouseFirst} ${spouseId}` : `${spouseFirst} ${spouseId}`),
           ].filter(Boolean).join(' · ')}
           missing={identityMissing.length ? `חסר: ${identityMissing.join(', ')}` : undefined}
           exception={kindHoldPending(kindHold) && kindHold.held.length > 0
@@ -1158,6 +1167,19 @@ export default function TaxFileTab({
               </div>
             );
           })()}
+          {editingSection !== 'identity' && married && (
+            <div className="txf-kv" data-spouse-identity>
+              <KV k={`ת.ז. ${spouseFirst || 'בן או בת הזוג'}`}
+                v={<>
+                  {spouseId ? <span className="ltr-isolate">{spouseId}</span> : <span className="txf-miss">חסר</span>}
+                  {spouseIsRegistered && (
+                    <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--accent, var(--ink-2))', marginTop: 2 }}>
+                      התיק במס הכנסה רשום על שם {spouseFirst}
+                    </div>
+                  )}
+                </>} />
+            </div>
+          )}
           {editingSection !== 'identity' && client.mailingAddress && (
             <div className="txf-kv">
               <KV k="מען למכתבים" v={[

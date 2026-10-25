@@ -175,6 +175,12 @@ export const SHAAM_SYNC_INCOME_TAX_ACTION_TYPE = 'shaam.sync_income_tax_file';
 export const SHAAM_SYNC_VAT_ACTION_TYPE = 'shaam.sync_vat_file';
 /** ‼ שם אחד לכפתור בכרטיס ולעמוד האוטומציות. לא פעולת מסלול (FLOW_ACTIONS). */
 export const SHAAM_SYNC_VAT_ACTION_NAME = 'קריאת תיק מע״מ מהשע״ם';
+/**
+ * 297 · «הנפק אישורים» — מסך 413: אישור ניכוי מס במקור + אישור ניהול ספרים, בשיעור הנמוך ביותר
+ * שמותר (או בשיעור שנבחר). ‼ משנה מצב ברשות — רק בלחיצה. input: `{ certEntity, desiredRate? }`.
+ */
+export const SHAAM_ISSUE_CERTIFICATES_ACTION_TYPE = 'shaam.issue_annual_certificates';
+export const SHAAM_ISSUE_CERTIFICATES_ACTION_NAME = 'הנפקת אישורי ניכוי וניהול ספרים';
 /** «עדכן נתונים מביטוח לאומי» — קריאת תיק המבוטח לכל אדם (קריאה בלבד). */
 export const BTL_SYNC_FILE_ACTION_TYPE = 'btl.sync_file';
 /** 168: שחזור נקודתי — "הכן רק capability X", לא warm-up מלא. ראה פרק 16 §16.1. */

@@ -52,6 +52,18 @@ export const putDocument = (workerId, jobId, doc) =>
     description: doc.description, linkedTo: doc.linkedTo, linkedLabel: doc.linkedLabel,
   });
 
+/**
+ * 297 · אישור שנתי מ-413 (ניכוי מס במקור / ניהול ספרים) — המצב, והקובץ כשיש.
+ * השרת שומר את ה-PDF בתיקיית «אישורים ממס הכנסה» ומעדכן את שורת הכרטיס. אותו גבול כמו
+ * put_document: רק ל-job שהעובד מחזיק עכשיו.
+ */
+export const putCertificate = (workerId, jobId, cert) =>
+  call({
+    op: 'put_certificate', workerId, jobId,
+    certificate: cert.certificate,
+    ...(cert.buffer ? { contentBase64: cert.buffer.toString('base64') } : {}),
+  });
+
 /** 194 · קריאת מסמך של אותו לקוח — לשידור הטופס החתום חזרה לשע״ם. */
 export const getDocument = async (workerId, jobId, documentId) => {
   const r = await call({ op: 'get_document', workerId, jobId, documentId });

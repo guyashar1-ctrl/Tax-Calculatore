@@ -19,6 +19,7 @@ import {
   SHAAM_SYNC_INCOME_TAX_ACTION_TYPE, SHAAM_CREATE_REPRESENTATION_ACTION_TYPE, SHAAM_SUBMIT_POA_ACTION_TYPE,
   SHAAM_CHECK_REPRESENTATION_ACTION_TYPE, BTL_SYNC_FILE_ACTION_TYPE, BTL_CREATE_REPRESENTATION_ACTION_TYPE,
   BTL_CHECK_REPRESENTATION_ACTION_TYPE, SHAAM_SYNC_VAT_ACTION_TYPE, SHAAM_SYNC_VAT_ACTION_NAME,
+  SHAAM_ISSUE_CERTIFICATES_ACTION_TYPE, SHAAM_ISSUE_CERTIFICATES_ACTION_NAME,
 } from '../../types/automation';
 import { FLOW_ACTION_NAMES } from '../flows/types';
 
@@ -89,15 +90,28 @@ export const AUTOMATION_ACTIONS: AutomationAction[] = [
   {
     id: 'shaam-sync', system: 'shaam', actionType: SHAAM_SYNC_INCOME_TAX_ACTION_TYPE,
     name: FLOW_ACTION_NAMES[SHAAM_SYNC_INCOME_TAX_ACTION_TYPE],
-    short: 'קורא את התיק בשע״ם — פרטים, יתרה, דוחות שלא הוגשו והצהרת הון — ומשווה לכרטיס.',
+    short: 'קורא את התיק בשע״ם — פרטים, יתרה, דוחות שלא הוגשו, הצהרת הון ואישורי ניכוי וניהול ספרים — ומשווה לכרטיס.',
     effect: 'read', mode: 'בלחיצה', modeAuto: false,
     trigger: 'בלחיצה, בלשונית «תיק מס» של הלקוח',
-    what: 'נכנס לתיק במערכת גביית מס הכנסה: שאילתה 154 (פרטי התיק, יתרה, חבות והגשה לכל שנת מס, דרישת הצהרת הון), ו-134 רק כשיש מקדמות פעילות. לא משנה דבר בשע״ם, ולא כותב לכרטיס לבד.',
+    what: 'נכנס לתיק במערכת גביית מס הכנסה: שאילתה 154 (פרטי התיק, יתרה, חבות והגשה לכל שנת מס, דרישת הצהרת הון), ו-134 רק כשיש מקדמות פעילות. לבעל עסק — גם 413: מצב אישור ניכוי מס במקור ואישור ניהול ספרים, והעתק של כל אישור בתוקף נשמר במסמכי הלקוח. לא משנה דבר בשע״ם.',
     manual: `«${FLOW_ACTION_NAMES[SHAAM_SYNC_INCOME_TAX_ACTION_TYPE]}» בכרטיס מס הכנסה, בלשונית «תיק מס» של הלקוח.`,
     automatic: null,
     flow: FLOW_CAPABILITY,
     needs: [NEEDS_WORKER, NEEDS_SHAAM, 'מספר תיק במס הכנסה בכרטיס הלקוח'],
-    results: 'בלשונית «תיק מס»: כל שדה מול מה שבשע״ם — שינוי נכנס לכרטיס רק כשמאשרים אותו. דוחות שחייבים ולא הוגשו ודרישת הצהרת הון — ב«דוחות והצהרות».',
+    results: 'בלשונית «תיק מס»: כל שדה מול מה שבשע״ם — שינוי נכנס לכרטיס רק כשמאשרים אותו. אישורי ניכוי וניהול ספרים נכנסים לבד, עם «צפה». דוחות שחייבים ולא הוגשו ודרישת הצהרת הון — ב«דוחות והצהרות».',
+    clientTab: 'taxfile', clientTarget: 'taxfile:income_tax',
+  },
+  {
+    id: 'shaam-certificates', system: 'shaam', actionType: SHAAM_ISSUE_CERTIFICATES_ACTION_TYPE,
+    name: SHAAM_ISSUE_CERTIFICATES_ACTION_NAME,
+    short: 'מנפיק בשע״ם אישור ניכוי מס במקור ואישור ניהול ספרים, ושומר אותם במסמכי הלקוח.',
+    effect: 'change', mode: 'בלחיצה', modeAuto: false,
+    trigger: 'בלחיצה, ב«ניכוי מס במקור» בכרטיס מס הכנסה — כשאין אישור בתוקף',
+    what: 'במסך 413: מבקש פטור מלא, ואם שע״ם לא מתירה (למשל עסק חדש — לפחות 5%) יורד לבד לשיעור הנמוך ביותר שמותר. אפשר לבחור שיעור אחר. אחר כך מנפיק את אישור ניהול הספרים אם חסר. אישור שכבר בתוקף לא מונפק שוב.',
+    manual: '«הנפק אישורים» ליד «ניכוי מס במקור», בלשונית «תיק מס».',
+    automatic: null,
+    needs: [NEEDS_WORKER, NEEDS_SHAAM, 'עסק בכרטיס (מספר עוסק, או ת.ז. לעוסק יחיד)'],
+    results: 'בכרטיס מס הכנסה: השיעור והתוקף, «צפה» בכל אישור — והקובץ בתיקיית «אישורים ממס הכנסה» במסמכים.',
     clientTab: 'taxfile', clientTarget: 'taxfile:income_tax',
   },
   {
@@ -280,6 +294,12 @@ function succeeded(job: AutomationJob): Omit<RunSummary, 'auto'> {
       return r.referenceNumber
         ? { label: 'הוזן — התקבלה אסמכתא', tone: 'ok' }
         : { label: 'הסתיימה', tone: 'muted' };
+    case SHAAM_ISSUE_CERTIFICATES_ACTION_TYPE: {
+      const o = (r.outcome ?? {}) as Record<string, { issued?: boolean } | undefined>;
+      return o.withholding?.issued || o.bookkeeping?.issued
+        ? { label: 'הונפק בשע״ם ונשמר במסמכים', tone: 'ok' }
+        : { label: 'כבר היו אישורים בתוקף — נשמרו במסמכים', tone: 'muted' };
+    }
     case SHAAM_SYNC_INCOME_TAX_ACTION_TYPE:
     case SHAAM_SYNC_VAT_ACTION_TYPE:
     case BTL_SYNC_FILE_ACTION_TYPE:

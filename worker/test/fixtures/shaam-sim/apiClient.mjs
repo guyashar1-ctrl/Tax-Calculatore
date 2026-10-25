@@ -7,5 +7,6 @@ export const complete = async () => ({ ok: true });
 export const fail = async () => ({ ok: true });
 export const reportStatus = async (userId, workerId, status) => { world.reports.push(status); return { ok: true, resumed: [] }; };
 export const putDocument = async () => ({ ok: true });
+export const putCertificate = async () => ({ ok: true, documentId: null });
 export const getDocument = async () => null;
 export const updateJobProgress = async (workerId, jobId, revision) => ({ ok: true, job: { revision: revision + 1, cancel_requested: false } });

@@ -32,7 +32,7 @@ import {
 type Op =
   | "register"
   | "claim" | "heartbeat" | "complete" | "fail" | "status" | "progress" | "resolve_needs_human"
-  | "put_document" | "get_document" | "get_identity_document"
+  | "put_document" | "get_document" | "get_identity_document" | "put_certificate"
   | "pdf_claim" | "pdf_complete" | "pdf_fail";
 
 interface Body {
@@ -66,6 +66,8 @@ interface Body {
   description?: string;
   linkedTo?: string;
   linkedLabel?: string;
+  /** 297 · put_certificate — מצב אישור שנתי מ-413 (ניכוי מס במקור / ניהול ספרים). */
+  certificate?: Record<string, unknown>;
   /** 204 · get_identity_document — הת.ז. מכותרת המסך בשע״ם, וסוג השורה. */
   entityId?: string;
   slotKind?: string;
@@ -476,6 +478,61 @@ Deno.serve(async (req: Request) => {
         return json({ ok: false, error: docErr.message }, 500);
       }
       return json({ ok: true, documentId: body.documentId, size: bytes.length });
+    }
+
+    // ── 297 · אישור שנתי מ-413 (ניכוי מס במקור / ניהול ספרים) ─────────────────
+    // ‼ אותו גבול כמו put_document: job שרץ ומוחזק ע״י העובד הזה (נבדק שוב בתוך
+    // record_authority_certificate). הקובץ — אם יש — נשמר כאן; המסמך, התיקייה ושורת הכרטיס בפונקציה.
+    if (body.op === "put_certificate") {
+      const cert = body.certificate;
+      const kind = String(cert?.kind ?? "");
+      if (!body.jobId || !cert || (kind !== "withholding" && kind !== "bookkeeping")) {
+        return json({ ok: false, error: "bad_request: jobId+certificate required" }, 400);
+      }
+      let document: Record<string, unknown> | null = null;
+      let uploadedPath: string | null = null;
+      if (body.contentBase64) {
+        const { data: ctx, error: ctxErr } = await admin.rpc("automation_job_document_context", {
+          p_worker_id: body.workerId, p_job_id: body.jobId,
+        });
+        if (ctxErr) return json({ ok: false, error: ctxErr.message }, 500);
+        if (!ctx?.ok) return json({ ok: false, error: ctx?.error ?? "not_owner_or_finished" }, 403);
+        if (!ctx.client_id) return json({ ok: false, error: "job_has_no_client" }, 400);
+        let bytes: Uint8Array;
+        try { bytes = decodeBase64(body.contentBase64); }
+        catch { return json({ ok: false, error: "bad_base64" }, 400); }
+        if (bytes.length === 0) return json({ ok: false, error: "empty_document" }, 400);
+        if (bytes.length > MAX_DOC_BYTES) return json({ ok: false, error: "document_too_large" }, 413);
+        if (!(bytes[0] === 0x25 && bytes[1] === 0x50 && bytes[2] === 0x44 && bytes[3] === 0x46)) {
+          return json({ ok: false, error: "not_a_pdf" }, 400);
+        }
+        // ‼ מזהה לפי גרסת האישור (שנה + תאריך העדכון שלו ב-413): קריאה חוזרת של אותו אישור דורסת
+        // את אותו קובץ; אישור שהונפק מחדש — מסמך חדש, והקודם נשאר בתיקייה.
+        const year = String(cert.year ?? "").replace(/\D/g, "") || "x";
+        const version = String(cert.updatedOn ?? cert.validFrom ?? "").replace(/\D/g, "") || "0";
+        const documentId = `cert413-${ctx.client_id}-${kind}-${year}-${version}`;
+        const path = `${ctx.user_id}/${ctx.client_id}/${documentId}`;
+        const { data: prior } = await admin.from("documents").select("id").eq("id", documentId).maybeSingle();
+        const { error: upErr } = await admin.storage.from(DOC_BUCKET)
+          .upload(path, bytes, { contentType: "application/pdf", upsert: true });
+        if (upErr) return json({ ok: false, error: upErr.message }, 500);
+        if (!prior) uploadedPath = path;
+        const until = String(cert.validUntil ?? "");
+        const untilText = /^\d{4}-\d{2}-\d{2}$/.test(until) ? until.split("-").reverse().join(".") : "";
+        document = {
+          id: documentId, path, size: bytes.length,
+          fileName: `${kind === "withholding" ? "אישור ניכוי מס במקור" : "אישור ניהול ספרים"} ${year}.pdf`,
+          description: untilText ? `בתוקף עד ${untilText}` : null,
+        };
+      }
+      const { data: rec, error: recErr } = await admin.rpc("record_authority_certificate", {
+        p_worker_id: body.workerId, p_job_id: body.jobId, p_cert: cert, p_document: document,
+      });
+      if (recErr || !rec?.ok) {
+        if (uploadedPath) await admin.storage.from(DOC_BUCKET).remove([uploadedPath]);
+        return json({ ok: false, error: recErr?.message ?? rec?.error ?? "record_failed" }, recErr ? 500 : 403);
+      }
+      return json({ ok: true, documentId: rec.documentId ?? null });
     }
 
     // ── 204 · המסמך המזהה ששע״ם דורשת — כ-PDF אחד ────────────────────────────

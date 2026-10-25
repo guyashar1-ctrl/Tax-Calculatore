@@ -21,6 +21,8 @@ import { reportingFrom134 } from '../gmf134.mjs';
 import { parseRepresentedList, incomeTaxFieldsFrom } from '../representedList.mjs';
 import { NeedsHumanError, PermanentError } from '../errors.mjs';
 import { isGmfLoginPath, reloginGmf, gmfReloginMessage, noteFirstPasswordLanding } from '../gmfRelogin.mjs';
+import { open413 } from '../gmf413Session.mjs';
+import { readAndSaveCertificates } from '../certificates413.mjs';
 
 export const actionType = 'shaam.sync_income_tax_file';
 
@@ -200,6 +202,33 @@ export async function run(ctx, input) {
       else unavailable.push({ key: 'debitAuthorization181', reason: da181.reason });
     }
 
+    // ‼ 25.10.2026 · 413 «אישורים שנתיים» (גיא: «זה אמור לסגור לנו את קריאת התיק»): מצב אישור
+    // ניכוי מס במקור ואישור ניהול ספרים, והעתק PDF של כל אישור בתוקף — לתיק הלקוח. לפי ת.ז. של
+    // בעל העסק (certEntity, העוסק במע״מ); בלי עסק אין אישורים לקרוא. בלשונית משלה, אחרונה —
+    // כשל כאן לא מפיל את מה שכבר נקרא.
+    let certificates = null;
+    const certEntity = String(input?.certEntity ?? '').replace(/\D/g, '');
+    if (certEntity) {
+      const t413 = Date.now();
+      let tab = null;
+      try {
+        const opened = await open413(conn.page);
+        if (!opened.ok) {
+          ctx.log(`413 לא נפתחה (${opened.reason})`);
+          unavailable.push({ key: 'certificates', reason: opened.reason });
+        } else {
+          tab = opened.created ? opened.page : null;
+          certificates = await readAndSaveCertificates(ctx, opened.page, certEntity);
+          ctx.log(`413: ${Math.round((Date.now() - t413) / 1000)} ש׳`);
+        }
+      } catch (e) {
+        ctx.log(`413 נכשלה: ${String(e?.message ?? e).slice(0, 160)}`);
+        unavailable.push({ key: 'certificates', reason: 'error' });
+      } finally {
+        if (tab) await tab.close().catch(() => {});
+      }
+    }
+
     ctx.log(`נקראו ${Object.keys(fields).length} שדות · חסרים/דו-משמעיים: ${unavailable.length}`);
     if (unavailable.length) ctx.log('לא נקרא: ' + JSON.stringify(unavailable));
     if (Object.keys(fields).length === 0) {
@@ -218,6 +247,7 @@ export async function run(ctx, input) {
         ...(years ? { filing: years.filing } : {}),
         ...(advancePeriods ? { advancePeriods } : {}),
         ...(representedList ? { representedList } : {}),
+        ...(certificates ? { certificates } : {}),
       },
     };
   } finally {

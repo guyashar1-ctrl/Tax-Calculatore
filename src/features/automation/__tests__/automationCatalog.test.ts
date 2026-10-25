@@ -23,6 +23,7 @@ const job = (p: Partial<AutomationJob>): AutomationJob => ({
 // מה שהעובד יודע להריץ (worker/src/dispatcher.mjs) — רשימה סגורה, מועתקת במכוון.
 const WORKER_HANDLERS = new Set([
   'shaam.sync_income_tax_file', 'shaam.sync_vat_file', 'shaam.create_representation', 'shaam.submit_poa', 'shaam.check_representation',
+  'shaam.issue_annual_certificates',
   'btl.sync_file', 'btl.create_representation', 'btl.check_representation',
 ]);
 

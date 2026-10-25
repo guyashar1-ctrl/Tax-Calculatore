@@ -106,6 +106,11 @@ export interface AuthorityRowFact {
    * ראה docs/PLAN-BTL-ADD-SPOUSE-REPRESENTATION.md.
    */
   niRepAction?: NiRepresentationAction;
+  /**
+   * 297 · אישור שנתי מ-413 ליד «ניכוי מס במקור» / «ניהול ספרים»: 'view' — «צפה» באישור שנשמר
+   * במסמכים; 'issue' — «הנפק אישורים» (רק כשאין אישור בתוקף; הכרטיס מציג רק כשיש עסק).
+   */
+  certAction?: { kind: 'view'; documentId: string } | { kind: 'issue' };
   /** שורות משנה קטנות מתחת לערך (למשל הבסיס לחודש ושחזור ההכנסה). */
   sub?: string[];
   /**
@@ -155,6 +160,30 @@ function authText(v?: boolean): { text: string; tone: 'warn' | 'ok' } | null {
 const WITHHOLDING_LABELS = {
   exempt: 'פטור מניכוי', rates: 'שיעורים לפי פעילות', none: 'אין אישור תקף',
 } as const;
+
+/** 297 · פרטי האישור מ-413, כפי שהשרת רשם ליד השדה (field_meta.<שדה>.cert). */
+export interface CertificateMeta {
+  status: 'valid' | 'none';
+  statusText?: string;
+  validUntil?: string | null;
+  rates?: { section: string; rate: number | 'exempt' }[];
+  ratesText?: string | null;
+  issued?: boolean;
+  note?: string | null;
+  documentId?: string | null;
+  checkedAt?: string;
+}
+export function certificateOf(client: Client, key: 'withholdingStatus' | 'bookStatus'): CertificateMeta | null {
+  const cert = (client.fieldMeta?.[key] as { cert?: CertificateMeta } | undefined)?.cert;
+  return cert && (cert.status === 'valid' || cert.status === 'none') ? cert : null;
+}
+/** «5%» / «פטור מלא» / «5% שירותים · 10% שכר» — כמה שפחות מילים. */
+export function certificateRatesShort(cert: CertificateMeta): string {
+  const rates = cert.rates ?? [];
+  if (!rates.length) return cert.ratesText ?? '';
+  if (rates.every(r => r.rate === rates[0].rate)) return rates[0].rate === 'exempt' ? 'פטור מלא' : `${rates[0].rate}%`;
+  return rates.map(r => `${r.rate === 'exempt' ? 'פטור' : `${r.rate}%`} ${r.section}`).join(' · ');
+}
 
 /** מחבר חלקי סיכום, מדלג על ריקים. */
 function join(parts: (string | null | undefined)[]): string {
@@ -210,7 +239,13 @@ export function buildAuthorityRows(
     const facts: AuthorityRow['facts'] = [];
     const num = numbersOf('income_tax');
     // ‼ syncKey — הקריאה משע״ם מאשרת את המספר (ירוק), בלי הצעת שינוי (SHAAM_READ_ONLY_KEYS).
-    facts.push({ k: 'מספר תיק', v: num || EMPTY, taxFileNumberAuthority: 'income_tax', ...(num ? { syncKey: 'incomeTaxFileNumber' } : {}) });
+    // ‼ 25.10.2026 (גיא): בתיק משותף — על מי התיק רשום, עם הת.ז., מתחת למספר. הרשום/ה הוא/היא
+    // מי שמספר התיק הוא הת.ז. שלו/ה; בלי הכרעה — לא מנחשים.
+    const regHere = num && client.familyStatus === 'married' ? registeredFileInfo(client) : null;
+    const regSub = regHere && !regHere.unverified && regHere.owner === 'spouse'
+      ? [`רשום על ${regHere.name}${client.spouseIdNumber ? ` · ת.ז. ${client.spouseIdNumber}` : ''}`]
+      : regHere && !regHere.unverified ? [`רשום על ${regHere.name}`] : undefined;
+    facts.push({ k: 'מספר תיק', v: num || EMPTY, taxFileNumberAuthority: 'income_tax', ...(num ? { syncKey: 'incomeTaxFileNumber' } : {}), ...(regSub ? { sub: regSub } : {}) });
     // ‼ התיק אצל בן/בת הזוג המקושר/ת — לא "עדיין לא נבדק", אלא תיק משותף
     // שכבר קיים, בכתובת אחרת. שם ומצב האימות מגיעים דרך registeredFileInfo
     // על הכרטיס שמחזיק את התיק בפועל, לא על הכרטיס הזה.
@@ -278,18 +313,45 @@ export function buildAuthorityRows(
       editKey: 'capitalDeclarationDeadline',
       syncKey: 'capitalDeclarationDeadline',
     });
-    if (client.withholdingStatus) {
+    // ‼ 297 · אישורים מ-413: כשהשרת רשם אישור (field_meta.<שדה>.cert) — השורה אומרת את מה ששע״ם
+    // אומרת, עם «צפה» באישור עצמו, או «הנפק אישורים» כשאין. הערך הקנוני נכתב באותה פעולה, ולכן
+    // התצוגה והעובדה לא נפרדות. עריכה ידנית אחר כך מחליפה את field_meta ⇒ חוזרים לתצוגה הרגילה.
+    const wCert = certificateOf(client, 'withholdingStatus');
+    const bCert = certificateOf(client, 'bookStatus');
+    const wCertValid = wCert?.status === 'valid' && client.withholdingStatus !== 'none';
+    if (wCertValid && wCert) {
+      facts.push({ k: 'ניכוי מס במקור',
+        v: join([certificateRatesShort(wCert), wCert.validUntil ? `עד ${shortDate(wCert.validUntil)}` : null]),
+        tone: 'ok', editKey: 'withholdingStatus',
+        ...(wCert.issued && wCert.note ? { sub: [wCert.note] } : {}),
+        ...(wCert.documentId ? { certAction: { kind: 'view' as const, documentId: wCert.documentId } } : {}) });
+    } else if (wCert?.status === 'none' || client.withholdingStatus === 'none') {
+      facts.push({ k: 'ניכוי מס במקור', v: 'אין אישור בתוקף', tone: 'warn', editKey: 'withholdingStatus',
+        certAction: { kind: 'issue' } });
+    } else if (client.withholdingStatus) {
       const t = WITHHOLDING_LABELS[client.withholdingStatus];
       facts.push({ k: 'ניכוי מס במקור',
         v: client.withholdingStatus === 'rates' && client.withholdingDetail ? `${t} · ${client.withholdingDetail}` : t,
-        tone: client.withholdingStatus === 'none' ? 'warn' : 'ok', editKey: 'withholdingStatus' });
+        tone: 'ok', editKey: 'withholdingStatus' });
     } else {
-      facts.push({ k: 'ניכוי מס במקור', v: EMPTY, editKey: 'withholdingStatus' });
+      facts.push({ k: 'ניכוי מס במקור', v: EMPTY, editKey: 'withholdingStatus', certAction: { kind: 'issue' } });
     }
-    facts.push({ k: 'פירוט ניכוי', v: client.withholdingDetail || EMPTY, editKey: 'withholdingDetail' });
-    if (client.bookStatus && client.bookStatus !== 'unknown') {
-      facts.push({ k: 'ניהול ספרים', v: client.bookStatus === 'kosher' ? 'תקין' : 'נפסל',
-        tone: client.bookStatus === 'kosher' ? 'ok' : 'warn', editKey: 'bookStatus' });
+    // השיעורים כבר בשורה שמעל כשיש אישור — «פירוט ניכוי» נשאר בהשוואה, לא בתצוגה.
+    facts.push({ k: 'פירוט ניכוי', v: client.withholdingDetail || EMPTY, editKey: 'withholdingDetail',
+      ...(wCertValid ? { quiet: true } : {}) });
+    const wNeedsIssue = !wCertValid;
+    if (bCert?.status === 'valid' && client.bookStatus !== 'rejected') {
+      facts.push({ k: 'ניהול ספרים', v: join(['תקין', bCert.validUntil ? `עד ${shortDate(bCert.validUntil)}` : null]),
+        tone: 'ok', editKey: 'bookStatus',
+        ...(bCert.documentId ? { certAction: { kind: 'view' as const, documentId: bCert.documentId } } : {}) });
+    } else if (client.bookStatus === 'rejected') {
+      facts.push({ k: 'ניהול ספרים', v: 'נפסל', tone: 'warn', editKey: 'bookStatus' });
+    } else if (bCert?.status === 'none') {
+      // ‼ «אין אישור» ≠ «נפסל». כפתור ההנפקה אחד — ליד ניכוי במקור כשגם הוא חסר.
+      facts.push({ k: 'ניהול ספרים', v: 'אין אישור בתוקף', tone: 'warn', editKey: 'bookStatus',
+        ...(wNeedsIssue ? {} : { certAction: { kind: 'issue' as const } }) });
+    } else if (client.bookStatus === 'kosher') {
+      facts.push({ k: 'ניהול ספרים', v: 'תקין', tone: 'ok', editKey: 'bookStatus' });
     } else {
       facts.push({ k: 'ניהול ספרים', v: EMPTY, editKey: 'bookStatus' });
     }
