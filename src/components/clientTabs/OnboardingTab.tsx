@@ -6,6 +6,7 @@
 
 import { createContext, Fragment, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import StampAndSendShaam from '../StampAndSendShaam';
+import NiContinueButton, { type NiPersonNext } from '../NiContinueButton';
 import { allDocumentsStamped } from '../../utils/repDocuments';
 import type {
   Engagement, InstitutionKey, OnboardingEvent, OnboardingStep, StepChecklistItem,
@@ -1901,6 +1902,53 @@ export default function OnboardingTab({
     });
   };
 
+  /* ── 25.10.2026 · שורת ביטוח לאומי אחת לשני בני הזוג (ההמחשה 2026-10-25-rep-row-two-lines) ──
+     לכל אדם: המצב שלו במילים, והצעד הבא שלו (הזנה / הוראות / בדיקה). «המשך» עושה את כולם.
+     ‼ השורה נשארת פתוחה עד שב״ל מאשר בפועל (confirmedAt) — «ממתין לאישור של X» עד אז. */
+  const niLinePersons = (): (NiPersonNext & { text: string; tone: 'ok' | 'wait' | 'warn' | 'red' })[] =>
+    niTargetRoles.map(role => {
+      const first = partNames[role];
+      const step = clientSteps.find(s => s.stepType === 'authority_representation' && s.status !== 'cancelled'
+        && roleOfPart(s) === role && belongsToRepresentationRequest(s, currentReqId));
+      const track = niExecution?.[role];
+      const m = step ? authRepModelFor(step) : authRepRowModel({
+        open: true, first, track, tone: 'blue', missing: [], job: attnCtx.niJobs?.[role] ?? null,
+        ridesWithSignature: niWithSignature, viaPage: niViaPage(role),
+      });
+      const closed = !!step && !isStepOpen(step.status);
+      const base = { role, first, track };
+      if (m.confirmed || closed) return { ...base, next: null, text: 'אושר ✓', tone: 'ok' as const };
+      if (m.gated) return { ...base, next: null, text: 'חסרים פרטים בכרטיס (בפירוט)', tone: 'warn' as const };
+      if (m.live) return { ...base, next: null, text: 'PIVO עובד בביטוח לאומי…', tone: 'wait' as const };
+      if (m.expired) return { ...base, next: 'enter' as const, text: 'האסמכתא פגה — צריך להזין מחדש', tone: 'red' as const };
+      if (m.stuck && !m.autoAction) return { ...base, next: null, text: 'PIVO נתקע (בפירוט)', tone: 'red' as const };
+      if (m.sent) return { ...base, next: 'check' as const, text: `ממתין לאישור של ${first}`, tone: 'wait' as const };
+      if (m.withSignature) return { ...base, next: null, text: 'ההוראות יוצאות עם בקשת החתימה', tone: 'wait' as const };
+      if (m.readyToSend) return { ...base, next: 'send' as const, sendFocus: niSendFocus(role),
+        text: m.viaPage ? 'בדף · טרם נשלח במייל' : 'עוד לא קיבל/ה הוראות', tone: 'red' as const };
+      if (track?.enteredAt && !track.referenceNumber) return { ...base, next: null, text: 'הוזן · ממתין לאסמכתא', tone: 'wait' as const };
+      return { ...base, next: 'enter' as const, text: 'טרם הוזן בביטוח לאומי', tone: 'wait' as const };
+    });
+  const renderNiLine = (): React.ReactNode => {
+    if (niTargetRoles.length === 0) return null;
+    const persons = niLinePersons();
+    return (
+      <div className="rep2-line">
+        <div className="rep2-who">ביטוח לאומי</div>
+        <div className="rep2-state">
+          {persons.map(p => (
+            <span key={p.role} className="rep2-person">
+              {persons.length > 1 && <>{p.first}: </>}<span className={`is-${p.tone}`}>{p.text}</span>
+            </span>
+          ))}
+        </div>
+        <NiContinueButton client={client} spouseClient={spouseClient} persons={persons}
+          onSend={key => setSendRequestsFocus(key)}
+          onChanged={() => { void onNiInstructionsSent?.(); refresh?.(); setReadyTick(t => t + 1); }} />
+      </div>
+    );
+  };
+
   /** שלבי «ייצוג מול הרשויות» שיש להם חלקים — נמלא ברינדור הרשימה (renderRow). */
   const repBreakdownIds = new Set<string>();
 
@@ -2416,6 +2464,10 @@ export default function OnboardingTab({
                     hasBreakdown={repBreakdownIds.has(step.id)}
                     approvalNeeded={approvalActive}
                     menu={menu}
+                    itName={taxAuthorityScopeLine(client.authorityRepresentations as Record<string, { status?: string } | undefined> | undefined).replace(/^רשות המסים · /, '')}
+                    niLine={renderNiLine()}
+                    approvalText={approvalNeedText}
+                    approvalGuide={<RepApprovalGuideButton onClick={() => setApprovalGuideOpen(true)} className="rl-part-guide" />}
                   />
                 );
               }
@@ -5166,8 +5218,15 @@ function RepresentationUpgradeCard(p: UpgradeCardProps) {
 // מה שכן יש: הדלת למרכז הייצוג, כי משם עושים את העבודה — וגיא צדק שלא
 // הגיוני לצאת למסך הלקוחות כדי למצוא אותה.
 
-function RepresentationStepCard({ step, stepById, highlight, statusLabel, repStatus, repNote, repIdAttach, repRequest, client, spouseClient, onRunStarted, clientId, onRepIdAttached, onSaveSignedPdf, repSendPhase, onOpen, hasBreakdown, approvalNeeded, menu }: {
+function RepresentationStepCard({ step, stepById, highlight, statusLabel, repStatus, repNote, repIdAttach, repRequest, client, spouseClient, onRunStarted, clientId, onRepIdAttached, onSaveSignedPdf, repSendPhase, onOpen, hasBreakdown, approvalNeeded, menu, itName, niLine, approvalText, approvalGuide }: {
   step: OnboardingStep;
+  /** 25.10.2026 · שתי שורות: שם השורה של רשות המסים («מס הכנסה, מע״מ»). */
+  itName?: string;
+  /** שורת ביטוח לאומי — אחת לשני בני הזוג (null ⇒ ב״ל לא בהיקף). */
+  niLine?: React.ReactNode;
+  /** «נדרש אישור של … באזור האישי» — כששע״ם ממתינה לאישור הלקוח. */
+  approvalText?: string;
+  approvalGuide?: React.ReactNode;
   /** «לחתום ולשלוח לשע״ם» — שמירת הטופס החתום (App.handleSaveSignedPdf). */
   onSaveSignedPdf?: (req: RepresentationRequest, values: Record<string, SignatureValue>, docs: RepSignatureDocument[]) => Promise<void> | void;
   repIdAttach?: RepIdAttach;
@@ -5222,6 +5281,72 @@ function RepresentationStepCard({ step, stepById, highlight, statusLabel, repSta
     <StampAndSendShaam request={repRequest} linkedClient={client} onSaveSignedPdf={onSaveSignedPdf}
       onChanged={onRunStarted} />
   ) : null;
+  const rowCtx2 = useContext(RowOpenContext);
+  const [detailOpen, setDetailOpen] = useState(false);
+
+  /* ══ 25.10.2026 · «ייצוג מול הרשויות» בשתי שורות (ההמחשה 2026-10-25-rep-row-two-lines) ══
+     גיא: «בלחיצת כפתור אני מבין מה קורה במס הכנסה ומפעיל את האוטומציה; אותו דבר בביטוח לאומי».
+     שורה לכל רשות: משפט מצב אחד + כפתור הצעד הבא. כל השאר (מה התקבל, פירוט לפי אדם, מרכז
+     הייצוג) — מאחורי «פירוט». ‼ רק במשטח המפושט (compact); המסך הישן — כמו שהיה. */
+  if (compact && open) {
+    const signedNames = (repRequest?.signers ?? []).filter(s => s.signStatus === 'signed').map(s => first(s.name));
+    const itState = approvalNeeded && approvalText ? approvalText
+      : repStatus === 'awaiting_stamp'
+        ? (stampedAlready ? 'נחתם · נשאר לשלוח לשע״ם'
+          : `${signedNames.length > 1 ? `${signedNames.join(' ו')} חתמו` : signedNames.length === 1 ? `${signedNames[0]} חתם/ה` : 'הלקוח חתם'} · נשאר: החתימה שלך ושליחה לשע״ם`)
+      : repStatus === 'awaiting_authorities' ? 'הוגש לשע״ם · ממתין שהרשות תקלוט'
+      : repStatus === 'active' ? 'הייצוג פעיל'
+      : act ? act.action : (statusLabel ?? '');
+    const itAction = stampHere
+      ?? (repStatus === 'awaiting_authorities' && repRequest && client && onSaveSignedPdf && !approvalNeeded
+        ? <StampAndSendShaam request={repRequest} linkedClient={client} onSaveSignedPdf={onSaveSignedPdf} onChanged={onRunStarted} />
+        : null)
+      ?? (approvalNeeded ? approvalGuide ?? null : null)
+      ?? (canRun && repStatus === 'awaiting_accountant'
+        ? <RunAllAutomations request={repRequest!} client={client!} spouseClient={spouseClient} onChanged={onRunStarted} />
+        : null)
+      ?? (repStatus === 'pending_signature' && repSendPhase && repSendPhase !== 'on_page' && onOpen
+        ? <button type="button" className="btn btn-sm btn-primary" onClick={onOpen}>להכין ולשלוח לחתימה ←</button>
+        : null);
+    const nested = rowCtx2.nestedByStep?.get(step.id);
+    return (
+      <div className={`rep2${highlight ? ' is-highlight' : ''}`} data-step-id={step.id}>
+        <div className="rep2-line">
+          <div className="rep2-who">{itName || 'רשות המסים'}</div>
+          <div className="rep2-state">
+            {itState}
+            {repNote && <span className={`rep2-sub${repNote.startsWith('חסר') ? ' is-warn' : ''}`}>{repNote}</span>}
+          </div>
+          <div className="rep2-act">{itAction}</div>
+        </div>
+        {open && repIdAttach && repIdAttach.missing.length > 0 && (
+          <div className="rep2-extra">
+            <IdentityDocAttach requestId={repIdAttach.requestId} clientId={clientId}
+              missing={repIdAttach.missing} onAttached={() => onRepIdAttached?.()} />
+          </div>
+        )}
+        {niLine}
+        <div className="rep2-foot">
+          {(nested || receivedLine || onOpen) && (
+            <button type="button" className="rep2-more" aria-expanded={detailOpen} onClick={() => setDetailOpen(o => !o)}>
+              {detailOpen ? 'הסתר פירוט' : 'פירוט'}
+            </button>
+          )}
+          <span className="rep2-menu">{menu}</span>
+        </div>
+        {detailOpen && (
+          <div className="rep2-detail">
+            {receivedLine && <div style={cardNote}>התקבל: {receivedLine}</div>}
+            {nested}
+            {onOpen && !nested && (
+              <div><button type="button" className="ui-linkbtn" onClick={onOpen}>למרכז הייצוג ←</button></div>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <StepCardShell step={step} stepById={stepById} highlight={highlight} menu={menu}
       /* ‼ 269: כשהרשימה החיה מוצגת — הכותרת («להזין ולהפיק טופס») אומרת את הפעולה; בלי שורות הסבר כפולות. */

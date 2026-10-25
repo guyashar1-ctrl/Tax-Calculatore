@@ -230,8 +230,14 @@ export default function ShaamNextActionButton({
           if (stop?.mayHaveActed) { setConfirmRetry(true); return; }
           gate.runOrConnect(() => void run());
         }}>
-        {hook.busy ? busyLabel : gate.connecting ? 'ממתין לחיבור…' : action.label}
+        {hook.busy ? busyLabel : gate.connecting ? (gate.notice ? 'ממתין לך בחלון שע״ם…' : 'פותח בשע״ם…') : action.label}
       </button>
+      {/* ‼ 25.10.2026 · מה עוצר, במילים — ממתין לך בחלון שע״ם, או לא נפתח (ולחיצה נוספת מנסה שוב). */}
+      {gate.notice && !running && (
+        <div className={errorClassName} style={gate.notice.tone === 'wait' ? { color: 'var(--ink-2)' } : undefined}>
+          {gate.notice.text}
+        </div>
+      )}
       {/* ‼ מוצג תמיד כשחסר נתון — לא רק אחרי לחיצה. הרו"ח רואה מה חסם
           עוד לפני שהוא מנסה. */}
       {!localError && missingText && <div className={errorClassName}>{missingText}</div>}

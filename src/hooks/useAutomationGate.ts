@@ -68,7 +68,17 @@ export interface AutomationGate {
   workerOffline: boolean;
   /** מריץ אם מוכן; אחרת פותח התחברות ומריץ לבד כשתהיה מוכנה. */
   runOrConnect: (run: () => void) => void;
+  /**
+   * 25.10.2026 (ליאת): מה קורה עם פתיחת השכבה החסרה — במילים, לא «ממתין לחיבור…» בלי סוף.
+   * 'wait' = ממתינים לרו"ח בחלון שע״ם (נמשיך לבד) · 'error' = לא נפתחה; לחיצה נוספת מנסה שוב.
+   */
+  notice: { tone: 'wait' | 'error'; text: string } | null;
 }
+
+/** שכבות שע״ם שנפתחות בנפרד — שם קצר לטקסט שבכפתור. */
+const LAYER_NAMES: Record<string, string> = {
+  representation: 'רישום הייצוג', vat: 'מע״מ', nikui: 'מערכת הניכויים', gmf: 'גביית מס הכנסה',
+};
 
 /**
  * @param capability שם היכולת שהפעולה צריכה (מפתח ב-SHAAM_CAPABILITIES),
@@ -82,6 +92,9 @@ export function useAutomationGate(capability: string): AutomationGate {
   // ‼ 203 · «אין מי שיריץ» נמדד לרשות של הפעולה: פעולת ב״ל ⇒ מחשב חי עם ב״ל.
   const offline = capabilityAuthority(capability) === 'btl' ? readiness.btlWorkerOffline : readiness.workerOffline;
   const [connecting, setConnecting] = useState(false);
+  const [notice, setNotice] = useState<AutomationGate['notice']>(null);
+  /** משימת השחזור הנקודתי שהכפתור הזה יצר — כדי לדעת אם נכשלה או ממתינה לרו"ח. */
+  const [ensureJobId, setEnsureJobId] = useState<string | null>(null);
 
   // ‼ 27.09.2026: בזמן ההמתנה — שואלים כל 2 שניות, **גם כשהלשונית מוסתרת**.
   // הספק (ShaamReadinessProvider) לא מושך כשהלשונית ברקע, וזה בדיוק המצב
@@ -106,8 +119,38 @@ export function useAutomationGate(capability: string): AutomationGate {
     const run = pending.current;
     pending.current = null;
     setConnecting(false);
+    setNotice(null);
+    setEnsureJobId(null);
     run();
   }, [cap.ready]);
+
+  // ‼ מה עלה בגורל השחזור הנקודתי: נכשל ⇒ מפסיקים לחכות ואומרים למה; ממתין לרו"ח ⇒
+  // ממשיכים לחכות, עם ההנחיה של העובד (למשל «השלימו את ההתחברות לרישום הייצוג בחלון שע״ם»).
+  useEffect(() => {
+    if (!ensureJobId || !connecting) return;
+    let stop = false;
+    const tick = async () => {
+      const { data } = await supabase.from('automation_jobs').select('*').eq('id', ensureJobId).maybeSingle();
+      if (stop || !data) return;
+      const job = automationJobFromDb(data);
+      if (job.status === 'failed' || job.status === 'cancelled') {
+        pending.current = null;
+        setConnecting(false);
+        setEnsureJobId(null);
+        // ‼ עובד ישן כותב «שחזור representation לא הצליח (…)» — לא מציגים לרו"ח שם טכני.
+        const raw = job.errorDetail ?? '';
+        const legacy = /^שחזור (\w+) לא הצליח/.exec(raw);
+        setNotice({ tone: 'error', text: legacy
+          ? `לא הצלחתי לפתוח את ${LAYER_NAMES[legacy[1]] ?? 'המערכת'} בחלון שע״ם. לחצו שוב כדי לנסות.`
+          : raw || 'לא הצלחתי לפתוח את המערכת בשע״ם. לחצו שוב כדי לנסות.' });
+      } else if (job.status === 'needs_human') {
+        setNotice({ tone: 'wait', text: job.needsHuman || 'חלון שע״ם ממתין לך — אחרי ההתחברות אמשיך לבד.' });
+      }
+    };
+    void tick();
+    const t = setInterval(() => void tick(), CONNECT_WAIT_POLL_MS);
+    return () => { stop = true; clearInterval(t); };
+  }, [ensureJobId, connecting]);
 
   const runOrConnect = useCallback((run: () => void) => {
     if (cap.ready) { run(); return; }
@@ -119,20 +162,33 @@ export function useAutomationGate(capability: string): AutomationGate {
     const authority = capabilityAuthority(capability);
     pending.current = run;
     setConnecting(true);
+    setNotice(null);
     // ‼ פורטל שע״ם כבר מחובר אבל שכבה אחת חסרה (מע״מ/מגן/ייצוג) — שחזור
     // נקודתי של אותה שכבה (shaam.ensure_capability), לא התחברות מלאה מחדש.
+    // ‼ takeover: הלחיצה היא בקשה מפורשת של הרו"ח — העובד פותח את השכבה גם כשחלון
+    // שע״ם עומד על מסך שהרו"ח פתח (בלי זה הוא דילג, והכפתור חיכה בלי סוף).
     const targeted = authority === 'shaam' && readiness.ready && cap.missingLayer && cap.missingLayer !== 'portal' && cap.missingLayer !== 'gmf';
+    const layerName = targeted ? (LAYER_NAMES[cap.missingLayer as string] ?? cap.missingLayer) : null;
     const start = targeted
-      ? createAutomationJob(null, SHAAM_ENSURE_CAPABILITY_ACTION_TYPE, { capability: cap.missingLayer })
-          .then(r => (r.ok ? { ok: true as const } : { ok: false as const, error: r.error }))
-      : startAuthorityConnect(authority);
+      ? createAutomationJob(null, SHAAM_ENSURE_CAPABILITY_ACTION_TYPE, { capability: cap.missingLayer, takeover: true })
+          .then(r => (r.ok ? { ok: true as const, jobId: r.job?.id ?? null } : { ok: false as const, error: r.error }))
+      : startAuthorityConnect(authority).then(r => ({ ...r, jobId: null as string | null }));
     void start.then(r => {
-      if (r.ok) { showToast(CONNECT_TOAST[authority]); void readiness.refresh(); return; }
+      if (r.ok) {
+        if (layerName) {
+          setEnsureJobId(r.jobId ?? null);
+          setNotice({ tone: 'wait', text: `פותח את ${layerName} בחלון שע״ם — אם תתבקש התחברות, השלימו אותה שם, ואמשיך לבד.` });
+        } else {
+          showToast(CONNECT_TOAST[authority]);
+        }
+        void readiness.refresh();
+        return;
+      }
       pending.current = null;
       setConnecting(false);
-      showToast(r.error ?? 'לא הצלחתי לפתוח את ההתחברות');
+      setNotice({ tone: 'error', text: r.error ?? 'לא הצלחתי לפתוח את ההתחברות' });
     });
   }, [cap.ready, cap.blockedReason, cap.missingLayer, capability, readiness, showToast]);
 
-  return { ready: cap.ready, blockedReason: cap.blockedReason, connecting, unverified: !!cap.unverified, workerOffline: offline, runOrConnect };
+  return { ready: cap.ready, blockedReason: cap.blockedReason, connecting, unverified: !!cap.unverified, workerOffline: offline, runOrConnect, notice };
 }

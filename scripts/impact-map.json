@@ -145,6 +145,7 @@
       "globs": [
         "src/utils/niPersons.ts",
         "src/utils/authorityRepresentationRow.ts",
+        "src/components/NiContinueButton.tsx",
         "src/components/NiCancelRequest.tsx",
         "supabase/2*-*ni-*.sql",
         "worker/src/handlers/btl*.mjs"

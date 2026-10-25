@@ -19,7 +19,12 @@ const SHAAM_AUTH_PENDING =
   'חלון שע״ם פתוח וממתין לך. יש להשלים בו בחירת אישור דיגיטלי והזנת PIN — ' +
   'ואז אמשיך אוטומטית, בלי צורך ללחוץ שוב.';
 
-const MISSING_CAPABILITY = 'לא צוינה יכולת לשחזור (capability חסר בקלט).';
+const CAPABILITY_NAME = { representation: 'רישום הייצוג', vat: 'מע״מ', nikui: 'מערכת הניכויים', gmf: 'גביית מס הכנסה' };
+
+const WORK_SCREEN =
+  'חלון שע״ם עומד על מסך שעבדת בו, ולכן לא עברתי ממנו. לחצו שוב כדי שאפתח את המערכת בכל זאת.';
+
+const MISSING_CAPABILITY ='לא צוינה יכולת לשחזור (capability חסר בקלט).';
 
 const BOOTSTRAP_REQUIRED =
   'זהו חיבור חדש לשע״ם: קודם התחברו מהכותרת (כרטיס+PIN, וכניסה למערכת גביית מס הכנסה). ' +
@@ -62,8 +67,12 @@ export async function run(ctx, input = {}) {
       throw new NeedsHumanError(SHAAM_AUTH_PENDING, 'awaiting_shaam_auth');
     }
 
-    const { progress } = await runCapabilities(ctx, conn.page, [capability]);
+    // takeover: הרו"ח לחץ על פעולה שצריכה את השכבה הזאת — פותחים אותה גם מעל מסך שלו.
+    const { progress } = await runCapabilities(ctx, conn.page, [capability], { takeover: input.takeover === true });
     const evidence = progress?.capabilities?.[capability];
+    if (evidence?.reasonCode === 'work_screen') {
+      throw new PermanentError(WORK_SCREEN, 'ensure_capability_work_screen');
+    }
 
     if (evidence?.state === 'ready') {
       return { result: { ready: true, capability, evidence } };
@@ -81,7 +90,7 @@ export async function run(ctx, input = {}) {
       );
     }
     throw new PermanentError(
-      `שחזור ${capability} לא הצליח (${evidence?.reasonCode ?? 'unknown'}).`,
+      `לא הצלחתי לפתוח את ${CAPABILITY_NAME[capability] ?? capability} בחלון שע״ם (${evidence?.reasonCode ?? 'unknown'}). לחצו שוב כדי לנסות.`,
       'ensure_capability_unavailable',
     );
   } finally {

@@ -151,6 +151,12 @@ export default function RunAllAutomations({ request, client, spouseClient, minRo
           </button>
         </div>
       )}
+      {/* ‼ 25.10.2026 · מה עוצר — במילים (ממתין לך בחלון שע״ם / לא נפתח). */}
+      {(shaamGate.notice ?? btlGate.notice) && (
+        <div style={{ fontSize: 12, marginTop: 4, color: (shaamGate.notice ?? btlGate.notice)!.tone === 'error' ? 'var(--err)' : 'var(--ink-2)' }}>
+          {(shaamGate.notice ?? btlGate.notice)!.text}
+        </div>
+      )}
     </div>
   );
 }

@@ -190,7 +190,7 @@ const ADAPTERS = { gmf: ensureGmf, vat: ensureVat, nikui: ensureNikui, represent
  * ‼ ctx.job הוא שורת ה-job המלאה (id/progress/revision), לא רק ה-input —
  * ראה index.mjs: runJob מעביר את זה במפורש כדי שאפשר יהיה לכתוב CAS.
  */
-export async function runCapabilities(ctx, page, capabilities) {
+export async function runCapabilities(ctx, page, capabilities, opts = {}) {
   const { job, workerId } = ctx;
   const list = (capabilities?.length ? capabilities : DEFAULT_CAPABILITIES)
     .filter((c) => ADAPTERS[c]);
@@ -207,8 +207,16 @@ export async function runCapabilities(ctx, page, capabilities) {
     // לא נבדקת שוב באותו job.
     if (progress.capabilities[capability]?.state === 'deferred') continue;
 
-    if (await isOnWorkScreen(page)) {
+    // ‼ 25.10.2026 (ליאת): «לחתום ולשלוח» / «התחבר לרישום ייצוג» — הרו"ח ביקש במפורש את
+    // השכבה הזאת, ולכן היא נפתחת גם מעל מסך שנפתח עבורו (opts.takeover). בלי בקשה מפורשת
+    // (warm-up ברקע) — לא נוגעים במסך שלו, ואומרים למה (reasonCode work_screen) במקום «unknown».
+    if (!opts.takeover && await isOnWorkScreen(page)) {
       ctx.log('דילוג על יתר ה-capabilities: הדפדפן עומד על מסך שנפתח עבור הרו"ח');
+      if (!progress.capabilities[capability]) {
+        progress.capabilities[capability] = {
+          state: 'unavailable', reasonCode: 'work_screen', evidenceKind: 'dom_state', observedAt: new Date().toISOString(),
+        };
+      }
       break;
     }
 

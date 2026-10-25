@@ -15,6 +15,7 @@ import {
   groupWaitingState, lamed, moreMineLabel, MINE_STATE_TEXT, repShortAction, rowStateFor,
 } from '../requestPresentation';
 import { authRepRowModel, niTrackNeedsSend } from '../authorityRepresentationRow';
+import { niContinueHint, niContinueLines } from '../../components/NiContinueButton';
 import { niCancelledText } from '../niPersons';
 import { subjectRoleOf } from '../../components/clientTabs/InlineComposer';
 import { hideStepDoneText } from '../../features/flows/api';
@@ -159,6 +160,25 @@ export const TESTS: TestCase[] = [
     equal(groupWaitingState(['client', 'spouse'], false, { client: 'הלקוח', spouse: 'רותם' }).text, 'ממתין ללקוח ולרותם');
     equal(authRepRowModel({ open: true, first: 'הלקוח', tone: 'gray', missing: [], today: '2026-10-04',
       track: { referenceNumber: '1', instructionsSentAt: '2026-10-01', deadline: '2026-11-01' } }).state?.text, 'ממתין ללקוח');
+  }),
+
+  // ── 25.10: שורת ב״ל אחת — «המשך» עושה לכל אחד את הצעד שלו ───────────────────
+  test('«המשך» בב״ל: בדיקה לליאת + ההוראות של אוריה במייל הדף, במילים', () => {
+    const persons = [
+      { role: 'client' as const, first: 'ישראלה', next: 'check' as const, track: { referenceNumber: '70000001' } },
+      { role: 'spouse' as const, first: 'ישראל', next: 'send' as const, sendFocus: 'owner' },
+    ];
+    equal(niContinueHint(persons), 'בדיקה + ההוראות של ישראל במייל הדף');
+    deepEqual(niContinueLines(persons), [
+      'בדיקה בביטוח לאומי אם ישראלה אישר/ה',
+      'ההוראות של ישראל — במייל הדף (נפתח חלון השליחה)',
+    ]);
+    // שניהם ממתינים לאישור ⇒ בדיקה לשניהם, בלי מייל.
+    equal(niContinueHint([
+      { role: 'client', first: 'א', next: 'check' }, { role: 'spouse', first: 'ב', next: 'check' },
+    ]), 'בדיקה לשניהם');
+    // מייל ייעודי (יש לו כתובת) — נאמר כמייל אליו.
+    equal(niContinueHint([{ role: 'spouse', first: 'ב', next: 'send', sendFocus: 'ni:spouse' }]), 'מייל לב');
   }),
 
   // ── 296: בן/בת זוג בלי מייל — ההוראות יוצאות במייל הדף ───────────────────────
