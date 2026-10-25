@@ -23,8 +23,12 @@ create or replace function public._r296_patch(p_fn regprocedure, p_old text, p_n
 returns void language plpgsql as $$
 declare
   v_def text := pg_get_functiondef(p_fn);
-  v_n int := (length(v_def) - length(replace(v_def, p_old, ''))) / greatest(length(p_old), 1);
+  v_n int;
 begin
+  -- ‼ הקובץ עשוי להגיע עם CRLF (git ב-Windows), והגופים החיים הם LF — העוגנים בלי \r.
+  p_old := replace(p_old, E'\r', '');
+  p_new := replace(p_new, E'\r', '');
+  v_n := (length(v_def) - length(replace(v_def, p_old, ''))) / greatest(length(p_old), 1);
   if position(p_new in v_def) > 0 then return; end if;   -- כבר הוחל
   if v_n <> 1 then
     raise exception '296: anchor count % (expected 1) in %: %', v_n, p_fn, left(p_old, 120);
