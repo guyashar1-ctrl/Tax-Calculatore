@@ -63,8 +63,12 @@ async function screenState(page) {
       error: t(ids.error) || null,
       hasPassword: !!document.querySelector('input[type=password]'),
       complete: document.readyState === 'complete',
+      // ‼ «פרטי עוסק» ריק: אין עוסק בכותרת, אין שגיאה, והשדה ריק. נצפה
+      // (25.10.2026) כשהלשונית עמדה פתוחה לילה שלם: ה-postback הראשון רק
+      // «מאפס» את המסך, והשני כבר פותח את העוסק.
+      blank: !t(ids.title) && !t(ids.error) && !(document.getElementById(ids.input)?.value ?? '').trim(),
     };
-  }, { title: TITLE_OSEK, error: OSEK_ERROR }).catch(() => null);
+  }, { title: TITLE_OSEK, error: OSEK_ERROR, input: OSEK_INPUT }).catch(() => null);
 }
 
 /** מפעיל postback בלחיצת DOM, וממתין עד שהתנאי על המסך מתקיים. */
@@ -90,17 +94,26 @@ export async function openOsek(page, osekNumber) {
   if (before?.osek === osekNumber && !before.error && /\/emhanosek\//i.test(before.pathname)) {
     return { ok: true, state: before, reused: true };
   }
-  const set = await page.evaluate(({ id, v }) => {
-    const el = document.getElementById(id);
-    if (!el) return null;
-    el.value = v;
-    return el.value;
-  }, { id: OSEK_INPUT, v: osekNumber }).catch(() => null);
-  if (set !== osekNumber) return { ok: false, reason: 'osek_value_not_applied' };
-  // ‼ שגיאה ישנה («לא קיים») עלולה להישאר על המסך עד שהתשובה מגיעה —
-  // מכריעים רק לפי מספר שהשתנה או שגיאה במסך שכבר אינו המסך הקודם.
-  const s = await postbackAndWait(page, OSEK_SUBMIT, (st) =>
-    st.osek === osekNumber || (!!st.error && (st.osek !== before?.osek || st.pathname !== before?.pathname || !before?.error)));
+  let s = null;
+  let prev = before;
+  // ‼ לכל היותר שתי הגשות: השנייה רק כשהראשונה נחתה על מסך ריק (ראה blank).
+  for (let round = 0; round < 2; round++) {
+    const set = await page.evaluate(({ id, v }) => {
+      const el = document.getElementById(id);
+      if (!el) return null;
+      el.value = v;
+      return el.value;
+    }, { id: OSEK_INPUT, v: osekNumber }).catch(() => null);
+    if (set !== osekNumber) return { ok: false, reason: 'osek_value_not_applied' };
+    // ‼ שגיאה ישנה («לא קיים») עלולה להישאר על המסך עד שהתשובה מגיעה —
+    // מכריעים רק לפי מספר שהשתנה או שגיאה במסך שכבר אינו המסך הקודם.
+    const was = prev;
+    s = await postbackAndWait(page, OSEK_SUBMIT, (st) =>
+      st.osek === osekNumber || st.blank
+      || (!!st.error && (st.osek !== was?.osek || st.pathname !== was?.pathname || !was?.error)));
+    if (!s?.blank || s.hasPassword) break;
+    prev = s;
+  }
   if (!s) return { ok: false, reason: 'no_screen' };
   if (s.hasPassword) return { ok: false, reason: 'login_required' };
   if (s.osek === osekNumber && !s.error) return { ok: true, state: s, reused: false };
@@ -135,10 +148,23 @@ export async function readOsekTabs(page, osekNumber, note = () => {}) {
     if (!onPage(state, tab)) {
       if (!(await page.$('#' + tab.link))) return { ok: false, reason: 'tab_missing', detail: tab.link };
       const t0 = Date.now();
-      state = await postbackAndWait(page, tab.link, (st) => onPage(st, tab) && st.osek === osekNumber);
+      state = await postbackAndWait(page, tab.link, (st) => st.blank || (onPage(st, tab) && st.osek === osekNumber));
       note(`לשונית ${tab.page} · ${Math.round((Date.now() - t0) / 1000)} ש׳`);
       if (!state) return { ok: false, reason: 'no_screen' };
       if (state.hasPassword) return { ok: false, reason: 'login_required' };
+      // ‼ השרת «שכח» את העוסק (ראה blank) — פותחים אותו שוב פעם אחת; הזנה
+      // מתוך לשונית נשארת באותה לשונית.
+      if (state.blank) {
+        const again = await openOsek(page, osekNumber);
+        if (!again.ok) return { ok: false, reason: again.reason, detail: again.detail };
+        state = again.state;
+        note(`העוסק נפתח מחדש אחרי מסך ריק · ${state.pathname}`);
+        if (!onPage(state, tab)) {
+          state = await postbackAndWait(page, tab.link, (st) => onPage(st, tab) && st.osek === osekNumber);
+          if (!state) return { ok: false, reason: 'no_screen' };
+          if (state.hasPassword) return { ok: false, reason: 'login_required' };
+        }
+      }
       if (!onPage(state, tab)) return { ok: false, reason: 'tab_timeout', detail: tab.page };
     }
     if (state.osek !== osekNumber) return { ok: false, reason: 'osek_mismatch', detail: state.osek };
