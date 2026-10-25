@@ -431,7 +431,7 @@ const OPTIONAL_SOURCES: Record<string, (f: Record<string, string>) => boolean> =
  *   · ניכוי מס במקור — הטקסט של שע״ם («קיים אישור» / «אין אישור» / «ממתין לאישור יזום»). ירוק רק
  *     כשהוא תואם לכרטיס; «קיים אישור» לא אומר פטור או לפי שיעורים — ולכן לא מוצע שינוי.
  */
-export const SHAAM_READ_ONLY_KEYS = ['incomeTaxFileNumber', 'incomeTaxRepresentation', 'withholdingStatus'] as const;
+export const SHAAM_READ_ONLY_KEYS = ['incomeTaxFileNumber', 'incomeTaxRepresentation', 'withholdingStatus', 'bookStatus'] as const;
 const digits9 = (v: unknown) => String(v ?? '').replace(/\D/g, '').padStart(9, '0');
 
 function interpretShaamReadOnly(fieldKey: string, job: AutomationJob, client: Client): AuthorityFieldResult | null {
@@ -477,6 +477,19 @@ function interpretShaamReadOnly(fieldKey: string, job: AutomationJob, client: Cl
     const card = client.withholdingStatus;
     const same = (raw === 'קיים אישור' && (card === 'exempt' || card === 'rates')) || (raw === 'אין אישור' && card === 'none');
     return { fieldKey, label: 'ניכוי מס במקור', status: same ? 'match' : 'info', currentValue: card ?? '', authorityDisplay: raw };
+  }
+  // ‼ 297 · ניהול ספרים — רק מ-413 (אין לו מקור אחר בשע״ם). השרת כבר כתב את האישור לכרטיס
+  // (record_authority_certificate), ולכן זו אישרור: תקין · עד … ⇒ ירוק; אין אישור ⇒ סמן מידע.
+  if (fieldKey === 'bookStatus') {
+    const b = (job.result as { certificates?: { bookkeeping?: { ok?: boolean; status?: string; statusText?: string; message?: string; validUntil?: string } } } | undefined)
+      ?.certificates?.bookkeeping;
+    if (!b?.ok) return null;
+    if (b.status === 'valid') {
+      return { fieldKey, label: 'ניהול ספרים', status: 'match', currentValue: client.bookStatus ?? '',
+        authorityDisplay: ['תקין', b.validUntil ? `עד ${b.validUntil.split('-').reverse().join('.')}` : ''].filter(Boolean).join(' · ') };
+    }
+    return { fieldKey, label: 'ניהול ספרים', status: 'info', currentValue: client.bookStatus ?? '',
+      authorityDisplay: b.message || b.statusText || 'אין אישור בתוקף' };
   }
   return null;
 }

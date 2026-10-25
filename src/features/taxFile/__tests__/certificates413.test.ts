@@ -114,6 +114,17 @@ export const TESTS: TestCase[] = [
     const unverified = base({ ...c, registeredSpouseVerified: false } as Partial<Client>);
     equal(fact(unverified, 'מספר תיק').sub, undefined, 'בלי הכרעה — לא מנחשים');
   }),
+  test('בדיקת התיק: ניהול ספרים מ-413 — בתוקף ⇒ ירוק; אין ⇒ מידע עם ההודעה', () => {
+    const mk = (bookkeeping: Record<string, unknown>) => ({ id: 'j', status: 'succeeded', input: { fileNumber: '1' },
+      result: { fields: {}, certificates: { bookkeeping } } }) as unknown as AutomationJob;
+    const read = (bk: Record<string, unknown>) => AUTHORITY_AUTOMATION.income_tax!.interpret!(mk(bk), base({ bookStatus: 'kosher' } as Partial<Client>), ['bookStatus'])[0];
+    const ok = read({ ok: true, status: 'valid', validUntil: '2027-03-31' });
+    equal(ok.status, 'match');
+    equal(ok.authorityDisplay, 'תקין · עד 31.03.2027');
+    const none = read({ ok: true, status: 'none', message: 'לא ניתן להנפיק אישור גופים - לא קיים תיק מע״מ' });
+    equal(none.status, 'info');
+    equal(none.authorityDisplay, 'לא ניתן להנפיק אישור גופים - לא קיים תיק מע״מ');
+  }),
   test('בדיקת התיק: 413 גובר על kodIsur של 154 ומוצג תואם', () => {
     const job = { id: 'j', status: 'succeeded', input: { fileNumber: '1' },
       result: { fields: {}, filing: { header: { withholdingApproval: 'ממתין לאישור יזום' } },
