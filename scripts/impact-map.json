@@ -336,6 +336,18 @@
         "supabase/functions/signing-session/**"
       ],
       "suites": []
+    },
+    {
+      "name": "אישורים שנתיים מ-413 (ניכוי מס במקור / ניהול ספרים): קריאה בסוף קריאת תיק מ״ה, הנפקה בלחיצה, שמירה במסמכים",
+      "globs": [
+        "supabase/297-shaam-annual-certificates.sql",
+        "worker/src/gmf413.mjs",
+        "worker/src/gmf413Session.mjs",
+        "worker/src/certificates413.mjs",
+        "worker/src/handlers/shaamIssueCertificates.mjs",
+        "src/components/authorities/CertificateAction.tsx"
+      ],
+      "suites": [{ "script": "staging-test-413-certificates.mjs", "run": true }]
     }
   ],
   "watched": [

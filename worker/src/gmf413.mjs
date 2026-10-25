@@ -109,7 +109,7 @@ export function plannedRates(info, desired = null) {
     if (s.standard != null) r = Math.min(r, s.standard);
     return { index: s.index, section: s.section, exempt: r === 0, rate: r === 0 ? null : r };
   });
-  const reason = floor > want ? `עסק חדש — ${floor}% הוא השיעור הנמוך ביותר שמותר` : null;
+  const reason = floor > want ? `עסק חדש — המינימום ${floor}%` : null;
   return { rows, floor, reason };
 }
 

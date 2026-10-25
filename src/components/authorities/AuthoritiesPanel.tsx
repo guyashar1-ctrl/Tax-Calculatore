@@ -707,7 +707,7 @@ export default function AuthoritiesPanel({
                       {/* ‼ 297 · «צפה» באישור מ-413, או «הנפק אישורים» כשאין — רק כשיש עסק בכרטיס. */}
                       {f.certAction && !editingThis && (f.certAction.kind === 'view'
                         ? <CertificateViewButton documentId={f.certAction.documentId} title={`אישור ${f.k}`} />
-                        : <CertificateIssueButton job={jobCerts.job} busy={jobCerts.busy}
+                        : <CertificateIssueButton job={jobCerts.job} busy={jobCerts.busy} allowRate={f.editKey === 'withholdingStatus'}
                             blocked={'blocked' in certInput ? certInput.blocked : null}
                             onRun={desired => jobCerts.run({
                               ...('certEntity' in certInput ? { certEntity: certInput.certEntity } : {}),

@@ -28,9 +28,11 @@ export function CertificateViewButton({ documentId, title }: { documentId: strin
 
 const OPEN = new Set(['queued', 'running']);
 
-export function CertificateIssueButton({ job, busy, blocked, onRun }: {
+export function CertificateIssueButton({ job, busy, blocked, allowRate = true, onRun }: {
   job: AutomationJob | null;
   busy: boolean;
+  /** «שיעור אחר» — רק ליד ניכוי במקור; לניהול ספרים אין שיעור. */
+  allowRate?: boolean;
   /** למה אי אפשר (אין עסק בכרטיס) — אז לא מציירים כלום. */
   blocked: string | null;
   onRun: (desiredRate: number | null) => Promise<StartJobResult>;
@@ -63,7 +65,7 @@ export function CertificateIssueButton({ job, busy, blocked, onRun }: {
           onClick={() => void start(null)}>
           <span className="txf-check-lbl">{running ? 'מנפיק…' : 'הנפק אישורים'}</span>
         </button>
-        {!running && !other && (
+        {allowRate && !running && !other && (
           <button type="button" className="ui-linkbtn" onClick={() => setOther(true)}>שיעור אחר</button>
         )}
       </div>

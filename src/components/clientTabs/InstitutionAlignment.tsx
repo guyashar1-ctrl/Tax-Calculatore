@@ -243,7 +243,7 @@ const INSTITUTIONS: Record<InstitutionKey, InstitutionConfig> = {
       },
       {
         kicker: 'ניכוי במקור וניהול ספרים',
-        where: ['אישורי ניכוי במקור וניהול ספרים'],
+        where: ['גביית מס הכנסה ← 413 הנפקת אישורים שנתיים ← «הקטנות» / «גופים»'],
         fields: [
           // ‼ נכתב כעובדה מנוהלת ולא רק כ-payload: 'שיעורים' ו'אין אישור תקף'
           // שניהם hasExemptFromWithholding=false, ולכן בלי השדה הזה הדגל
@@ -251,7 +251,8 @@ const INSTITUTIONS: Record<InstitutionKey, InstitutionConfig> = {
           { key: 'withholdingStatus', label: 'מצב ניכוי במקור', type: 'select',
             options: ['פטור מניכוי', 'שיעור/ים לפי פעילות', 'אין אישור תקף'],
             governedKey: 'withholdingStatus',
-            where: ['יש אישור או אין: גביית מס הכנסה ← 154 מידע אודות שנות מס ← «אישור ניכוי מס במקור»', 'פטור או שיעורים: אישורי ניכוי במקור וניהול ספרים'],
+            // ‼ 297 · «קריאת תיק מס הכנסה מהשע״ם» קוראת את זה לבד מ-413 ושומרת את האישור במסמכים.
+            where: ['גביית מס הכנסה ← 413 הנפקת אישורים שנתיים ← מספר ישות (בעל העסק) ← «הקטנות» ← «הדפסת העתק אישור»'],
             toPatchValue: v => v === 'פטור מניכוי' ? 'exempt' : v === 'אין אישור תקף' ? 'none' : 'rates',
             attach: { docKey: 'withholdingCertificate', linkLabel: 'אישור ניכוי מס במקור',
               category: 'business_document' } },
@@ -259,6 +260,7 @@ const INSTITUTIONS: Record<InstitutionKey, InstitutionConfig> = {
             placeholder: 'למשל: 0% שירותים, 30% קבלנות' },
           { key: 'bookStatus', label: 'ניהול ספרים', type: 'select',
             options: ['תקין', 'נפסל', 'לא ידוע'], governedKey: 'bookStatus',
+            where: ['גביית מס הכנסה ← 413 הנפקת אישורים שנתיים ← מספר ישות (בעל העסק) ← «גופים» ← «הדפסת העתק אישור»'],
             toPatchValue: v => v === 'תקין' ? 'kosher' : v === 'נפסל' ? 'rejected' : 'unknown',
             attach: { docKey: 'bookkeepingCertificate', linkLabel: 'אישור ניהול ספרים',
               category: 'business_document' } },

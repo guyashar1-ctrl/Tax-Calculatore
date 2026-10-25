@@ -612,7 +612,11 @@ export function buildAuthorityRows(
     // ‼ «תוקף האישור» נשאר לקריאה בלבד: withholdingValidUntil אינו עובדה
     // מנוהלת (אינו ב-GOVERNED_FACT_KEYS), ולכן אין לו מסלול כתיבה עם
     // פרובננס. עריכה כאן הייתה עוקפת את ההיסטוריה בשקט.
-    facts.push({ k: 'תוקף האישור', v: client.withholdingValidUntil ? shortDate(client.withholdingValidUntil) : EMPTY });
+    // ‼ 297 · כשהאישור נקרא מ-413 הוא מוצג בכרטיס מס הכנסה («ניכוי מס במקור · עד …») — כאן לא שוב,
+    // ולא מקים כרטיס ניכויים ריק רק בגלל התאריך.
+    const certShown = !!certificateOf(client, 'withholdingStatus');
+    facts.push({ k: 'תוקף האישור', v: client.withholdingValidUntil ? shortDate(client.withholdingValidUntil) : EMPTY,
+      ...(certShown ? { quiet: true } : {}) });
     facts.push(rep
       ? { k: 'ייצוג', v: rep, tone: rep === 'ייצוג פעיל' ? 'ok' : undefined }
       : dedViaSpouse ? { k: 'ייצוג', v: dedViaSpouse, tone: 'ok' } : { k: 'ייצוג', v: EMPTY });
@@ -626,7 +630,7 @@ export function buildAuthorityRows(
       // ‼ נגזר מהנתונים ולא מאורך הרשימה: לקוח בלי עובדים עדיין לא מקבל
       // כרטיס ניכויים ריק.
       present: dedFiles.length > 0 || !!num || client.withholdingRate != null
-        || !!client.withholdingValidUntil || !!rep || !!dedViaSpouse,
+        || (!!client.withholdingValidUntil && !certShown) || !!rep || !!dedViaSpouse,
     });
   }
 

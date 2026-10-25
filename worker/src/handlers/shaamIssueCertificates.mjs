@@ -87,7 +87,7 @@ export async function run(ctx, input) {
         await backToEntry(work);
         const after = await readOne(work, entity, 'withholding', ctx.log);
         const requested = desired == null ? 'הנמוך ביותר' : `${desired}%`;
-        const note = plan.reason ?? (out.plan !== plan ? 'שע״ם דחתה את השיעור המבוקש' : null);
+        const note = plan.reason ?? (out.plan !== plan ? 'שע״ם לא אישרה את המבוקש — הונפק הקרוב שמותר' : null);
         const saved = after.ok ? await saveOne(ctx, after, { issued: true, requested, note }) : null;
         outcome.withholding = {
           issued: true, requested, note,
