@@ -25,8 +25,6 @@ import { useAuthorityConnections } from '../hooks/useAuthorityConnections';
 import type { AuthorityConnState, ConnPhase } from '../hooks/useAuthorityConnections';
 import { SHAAM_WARMUP_CAPABILITY_LABELS } from '../types/automation';
 import type { ShaamWarmupCapability } from '../types/automation';
-import { SHAAM_SUBMIT_POA_ACTION_TYPE } from '../types/automation';
-import { useAutomationGate } from '../hooks/useAutomationGate';
 
 interface Props {
   userId: string | undefined;
@@ -350,37 +348,7 @@ export default function AuthorityConnectionButtons({ userId }: Props) {
   return (
     <div className="authconn" ref={containerRef}>
       {renderButton('shaam', shaam)}
-      {shaam.phase === 'ready' && <RepresentationLight />}
       {renderButton('btl', btl)}
-    </div>
-  );
-}
-
-/**
- * ‼ 25.10.2026 (ליאת): «שע״ם» ירוק = פורטל + גביית מס הכנסה. שליחת ייפוי כוח עוברת ב«רישום
- * הייצוג» — מערכת עם כניסה משלה, שיכולה להיות מנותקת כשהנורית ירוקה. נורית נפרדת, רק כשמחוברים
- * לשע״ם; לחיצה כשהיא כבויה פותחת את רישום הייצוג בחלון שע״ם (אותו שער כמו הכפתורים).
- */
-function RepresentationLight() {
-  const gate = useAutomationGate(SHAAM_SUBMIT_POA_ACTION_TYPE);
-  const on = gate.ready;
-  const title = on ? 'רישום ייצוג בשע״ם — מחובר'
-    : gate.connecting ? (gate.notice?.text ?? 'פותח את רישום הייצוג בחלון שע״ם…')
-    : gate.notice?.tone === 'error' ? `${gate.notice.text}`
-    : 'רישום ייצוג בשע״ם — לא מחובר · לחיצה פותחת את ההתחברות';
-  return (
-    <div className="authconn-item">
-      <button
-        type="button"
-        className={`authconn-btn ${on ? 'is-on' : gate.connecting ? 'is-pending' : ''}`}
-        title={title}
-        aria-label={title}
-        disabled={on || gate.connecting}
-        onClick={() => gate.runOrConnect(() => {})}
-      >
-        <span className={`authconn-dot${gate.connecting ? ' is-pulse' : ''}`} aria-hidden="true" />
-        <span>רישום ייצוג</span>
-      </button>
     </div>
   );
 }
