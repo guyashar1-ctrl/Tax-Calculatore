@@ -161,6 +161,27 @@ export const TESTS: TestCase[] = [
       track: { referenceNumber: '1', instructionsSentAt: '2026-10-01', deadline: '2026-11-01' } }).state?.text, 'ממתין ללקוח');
   }),
 
+  // ── 296: בן/בת זוג בלי מייל — ההוראות יוצאות במייל הדף ───────────────────────
+  test('296 · בן זוג בלי מייל: «שלח במייל הדף», ואחרי השליחה — ממתין לו', () => {
+    const base = { open: true, first: 'ישראל', tone: 'blue' as const, missing: [], today: '2026-10-25' };
+    const m = authRepRowModel({ ...base, viaPage: true, track: { referenceNumber: '70000002', deadline: '2026-12-20' } });
+    equal(m.viaPage, true);
+    deepEqual(m.primary, { kind: 'send', label: 'שלח במייל הדף' });
+    equal(m.state?.text, 'בדף · טרם נשלח במייל');
+    // עם מייל משלו — המסלול הקודם, בלי שינוי.
+    const own = authRepRowModel({ ...base, track: { referenceNumber: '70000002', deadline: '2026-12-20' } });
+    deepEqual(own.primary, { kind: 'send', label: 'שלח הוראות' });
+    equal(own.viaPage, false);
+    // נשלח במייל הדף ⇒ כמו כל שליחה: ממתין לאישור שלו, בלי כפתור שליחה.
+    const sent = authRepRowModel({ ...base, viaPage: true, tone: 'gray',
+      track: { referenceNumber: '70000002', deadline: '2026-12-20', instructionsSentAt: '2026-10-25' } });
+    equal(sent.viaPage, false);
+    equal(sent.primary, null);
+    // יוצא עם בקשת החתימה גובר — אין שליחה נפרדת.
+    equal(authRepRowModel({ ...base, viaPage: true, ridesWithSignature: true,
+      track: { referenceNumber: '70000002', deadline: '2026-12-20' } }).viaPage, false);
+  }),
+
   // ── G G1.b: צילום התעודה של בן/בת הזוג ───────────────────────────────────────
   test('צילום תעודה של בן/בת הזוג — הנושא הוא בן/בת הזוג גם בלי subjectRole', () => {
     equal(subjectRoleOf({ shaamIdentity: { person: 'spouse', kind: 'idCard' } }), 'spouse');

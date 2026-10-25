@@ -3087,6 +3087,7 @@ export default function App() {
             repNote={selectedRepNote}
             repIdAttach={selectedRepIdAttach}
             repRequest={selectedRepRequest}
+            onSaveRepSignedPdf={handleSaveSignedPdf}
             onRepIdAttached={() => {
               if (selectedRepIdAttach) void reloadRequest(selectedRepIdAttach.requestId);
               onboarding.refresh?.();

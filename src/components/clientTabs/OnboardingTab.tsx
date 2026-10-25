@@ -5,6 +5,8 @@
 // היא כלל עסקי שהרו"ח צריך לראות, אחרת הוא מחפש שלב שנעלם.
 
 import { createContext, Fragment, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import StampAndSendShaam from '../StampAndSendShaam';
+import { allDocumentsStamped } from '../../utils/repDocuments';
 import type {
   Engagement, InstitutionKey, OnboardingEvent, OnboardingStep, StepChecklistItem,
 } from '../../types/onboarding';
@@ -21,7 +23,7 @@ import {
   outstandingDeliverableLabel, deliverableKeyFor,
   portalShowsStep, officeSortOrder,
 } from '../../types/onboarding';
-import type { Client, NiExternalState, NiTracking, RepAuthorityKind, RepresentationRequest, RepresentationStatus } from '../../types';
+import type { Client, NiExternalState, NiTracking, RepAuthorityKind, RepresentationRequest, RepresentationStatus, RepSignatureDocument, SignatureValue } from '../../types';
 import type { Quotation, QuotationItem } from '../../types/quotations';
 import { REP_AUTHORITY_LABELS, REPRESENTATION_STATUS_LABELS, NI_APPROVAL_PHONE, NI_EXTERNAL_STATE_LABELS } from '../../types';
 import PaperlessQuestions from '../../features/requests/PaperlessQuestions';
@@ -188,6 +190,8 @@ interface Props {
   /** 269: בקשת הייצוג — «הפעל הכול» ומה שהתקבל, בכרטיס הייצוג. */
   repRequest?: RepresentationRequest;
   onRepIdAttached?: () => void;
+  /** «לחתום ולשלוח לשע״ם» בשורת הייצוג — אותה שמירה כמו במרכז הייצוג (App.handleSaveSignedPdf). */
+  onSaveRepSignedPdf?: (req: RepresentationRequest, values: Record<string, SignatureValue>, docs: RepSignatureDocument[]) => Promise<void> | void;
   /** הטופס מוכן אבל המייל לא יצא — ראה repSendPhase. */
   repSendPhase?: RepSendPhase | null;
   /**
@@ -506,7 +510,7 @@ const COLLECTION_METHODS = ['הוראת קבע בבנק', 'כרטיס אשראי
 
 export default function OnboardingTab({
   clientId, client, onClientPersisted, engagements, steps, events, loading, advance, refresh,
-  prevAccountant, onPrepareReleaseLetter, quotations, clientLeadIds, repStatusLabel, repStatus, repNote, repIdAttach, repRequest, onRepIdAttached, repSendPhase, repFacts, onOpenRepresentation,
+  prevAccountant, onPrepareReleaseLetter, quotations, clientLeadIds, repStatusLabel, repStatus, repNote, repIdAttach, repRequest, onRepIdAttached, onSaveRepSignedPdf, repSendPhase, repFacts, onOpenRepresentation,
   onOpenDocuments,
   clientDisplayName, clientEmail, embedded, focusRequest, onFocusConsumed, ballFilter, onOpenTaxFile,
   niExecution, onUpdateClientFields, onRequestAuthorityRepresentation, onNiInstructionsSent, onAttentionSummary,
@@ -1130,6 +1134,10 @@ export default function OnboardingTab({
   };
   /** ‼ ההוראות לב"ל ייצאו עם בקשת החתימה — אין «שלח הוראות» נפרד (כמו מרכז הייצוג). */
   const niWithSignature = niRidesWithSignature({ repStatus, repSendPhase });
+  /** ‼ 296 · בן/בת זוג בלי מייל משלו — האישור בדף, וההוראות במייל הדף (אותו כלל כמו _ni_spouse_page_ready). */
+  const niViaPage = (role: 'client' | 'spouse') => role === 'spouse' && !client.spouseEmail?.trim();
+  /** «שלח»: מייל ייעודי לאדם, או — כשהאישור עובר דרך הדף — הקבוצה של הדף. */
+  const niSendFocus = (role: 'client' | 'spouse') => (niViaPage(role) ? 'owner' : `ni:${role}`);
   /* ── ב"ל לפי אדם בפירוט «ייצוג מול הרשויות» ──────────────────────────────────
      ‼ רק מי שברשימת ביטוח לאומי (targetsOf — אותו כלל כמו ni_targets_of בשרת). אדם שבוטל
      שומר את מסלול הביצוע כהיסטוריה (212) — הוא לא «ממתין לאישור», הבקשה שלו בוטלה. */
@@ -1889,6 +1897,7 @@ export default function OnboardingTab({
       job: stale ? null : attnCtx.niJobs?.[role] ?? null,
       missing: open ? ((s.payload?.prerequisites as { missing?: string[] } | undefined)?.missing ?? []) : [],
       ridesWithSignature: niWithSignature && (openRepParent ? ofCurrentRequest(s) : false),
+      viaPage: niViaPage(role),
     });
   };
 
@@ -2400,6 +2409,7 @@ export default function OnboardingTab({
                     onRunStarted={() => refresh?.()}
                     clientId={clientId}
                     onRepIdAttached={onRepIdAttached}
+                    onSaveSignedPdf={onSaveRepSignedPdf}
                     repSendPhase={repSendPhase}
                     onOpen={onOpenRepresentation}
                     /* ‼ עם חלקים — «למרכז הייצוג ←» יושב בתחתית «לפי רשות ואדם». */
@@ -2458,7 +2468,7 @@ export default function OnboardingTab({
                     spouseClient={spouseClient}
                     /* ‼ v3: השליחה עוברת דרך המגש האחד — לא דיאלוג נסתר בתוך הכרטיס.
                        הקבוצה של האדם הזה נפתחת במוקד. */
-                    onSendInstructions={() => setSendRequestsFocus(`ni:${subjectRole}`)}
+                    onSendInstructions={() => setSendRequestsFocus(niSendFocus(subjectRole))}
                     onExecutionChanged={() => { void onNiInstructionsSent?.(); refresh?.(); setReadyTick(t => t + 1); }}
                     currentValues={{
                       spouseFirstName: client.spouseFirstName, spouseLastName: client.spouseLastName,
@@ -3445,7 +3455,7 @@ export default function OnboardingTab({
             if (m.primary?.kind === 'gate') return { node: (
               <button type="button" className="btn btn-sm btn-primary" onClick={() => focusStep(lead.id)}>השלמת פרטים</button>) };
             if (m.primary?.kind === 'send') return { node: (
-              <button type="button" className="btn btn-sm btn-primary" onClick={() => setSendRequestsFocus(`ni:${role}`)}>שלח הוראות</button>) };
+              <button type="button" className="btn btn-sm btn-primary" onClick={() => setSendRequestsFocus(niSendFocus(role))}>{m.primary.label}</button>) };
             if (m.primary?.kind === 'enter') return { node: (
               <NiNextActionButton client={client} spouseClient={spouseClient} role={role}
                 action={{ kind: 'enter_btl', label: m.primary.label }} track={niExecution?.[role]}
@@ -5156,8 +5166,10 @@ function RepresentationUpgradeCard(p: UpgradeCardProps) {
 // מה שכן יש: הדלת למרכז הייצוג, כי משם עושים את העבודה — וגיא צדק שלא
 // הגיוני לצאת למסך הלקוחות כדי למצוא אותה.
 
-function RepresentationStepCard({ step, stepById, highlight, statusLabel, repStatus, repNote, repIdAttach, repRequest, client, spouseClient, onRunStarted, clientId, onRepIdAttached, repSendPhase, onOpen, hasBreakdown, approvalNeeded, menu }: {
+function RepresentationStepCard({ step, stepById, highlight, statusLabel, repStatus, repNote, repIdAttach, repRequest, client, spouseClient, onRunStarted, clientId, onRepIdAttached, onSaveSignedPdf, repSendPhase, onOpen, hasBreakdown, approvalNeeded, menu }: {
   step: OnboardingStep;
+  /** «לחתום ולשלוח לשע״ם» — שמירת הטופס החתום (App.handleSaveSignedPdf). */
+  onSaveSignedPdf?: (req: RepresentationRequest, values: Record<string, SignatureValue>, docs: RepSignatureDocument[]) => Promise<void> | void;
   repIdAttach?: RepIdAttach;
   /** 269: «הפעל הכול» ושורת «התקבל» — מהבקשה עצמה. */
   repRequest?: RepresentationRequest;
@@ -5189,7 +5201,9 @@ function RepresentationStepCard({ step, stepById, highlight, statusLabel, repSta
   const { compact } = useContext(RowOpenContext);
   /* ‼ «למרכז הייצוג» רק מנווט — ולכן המצב בשורה הסגורה אומר מה צריך לעשות שם
      («לחתום ולהוסיף חותמת»), ולא נבלע מאחורי הכפתור. */
-  const shortAct = compact && act?.mine ? repShortAction(repStatus, repSendPhase) : null;
+  // ‼ כבר חתמתי (הטופס החתום נשמר) ⇒ מה שנשאר הוא השליחה, לא «לחתום ולהוסיף חותמת».
+  const stampedAlready = open && repStatus === 'awaiting_stamp' && !!repRequest && allDocumentsStamped(repRequest);
+  const shortAct = compact && act?.mine ? (stampedAlready ? 'לשלוח לשע״ם' : repShortAction(repStatus, repSendPhase)) : null;
   // ‼ 269: מה כבר התקבל מהלקוח — רק אחרי שהטופס הוגש (לפני זה repNote אומר עד איפה הגיע).
   const received = open && repRequest?.onboardingStatus === 'submitted'
     ? representationInsight(repRequest, client).identityReceived : [];
@@ -5202,17 +5216,23 @@ function RepresentationStepCard({ step, stepById, highlight, statusLabel, repSta
     ? `${['פרטים', ...gotIds].join(' · ')} ✓${missingIds.length ? ` · חסרה תעודה: ${missingIds.join(', ')}` : ''}`
     : '';
   const canRun = open && !!repRequest && !!client && (repStatus === 'awaiting_accountant' || repStatus === 'pending_signature');
+  /* ‼ 25.10 (ליאת ואוריה): כולם חתמו ⇒ החתימה שלי והשליחה לשע״ם בלחיצה אחת, כאן —
+     לא «למרכז הייצוג» ושם עוד שתי לחיצות. */
+  const stampHere = open && repStatus === 'awaiting_stamp' && !!repRequest && !!client && !!onSaveSignedPdf ? (
+    <StampAndSendShaam request={repRequest} linkedClient={client} onSaveSignedPdf={onSaveSignedPdf}
+      onChanged={onRunStarted} />
+  ) : null;
   return (
     <StepCardShell step={step} stepById={stepById} highlight={highlight} menu={menu}
       /* ‼ 269: כשהרשימה החיה מוצגת — הכותרת («להזין ולהפיק טופס») אומרת את הפעולה; בלי שורות הסבר כפולות. */
-      statusLabel={approvalNeeded && open ? 'הוגש בשע״ם' : canRun ? '' : act ? act.action : statusLabel}
+      statusLabel={approvalNeeded && open ? 'הוגש בשע״ם' : canRun ? '' : stampedAlready ? 'נחתם · לשלוח לשע״ם' : act ? act.action : statusLabel}
       state={shortAct ? { text: shortAct, tone: 'blue' } : undefined}
-      primary={compact && onOpen && open && act?.mine ? (
+      primary={compact && stampHere ? stampHere : compact && onOpen && open && act?.mine ? (
         <button type="button" className="btn btn-sm btn-primary" onClick={onOpen}>למרכז הייצוג</button>
       ) : undefined}
       /* ‼ v3: הפעולה גלויה גם כשהכרטיס סגור — כרטיס כחול בלי כפתור הוא בדיוק
          מה שגרם לחפש במסכים. */
-      always={!compact && onOpen && open ? (
+      always={!compact && stampHere ? <div style={{ marginTop: '.55rem' }}>{stampHere}</div> : !compact && onOpen && open ? (
         <div style={{ marginTop: '.55rem' }}>
           <button type="button"
             className={`btn btn-sm ${act?.mine ? 'btn-primary' : 'btn-secondary'}`}
@@ -5305,7 +5325,7 @@ function AuthorityRepresentationStepCard({
   const open = isStepOpen(step.status);
   const role: 'client' | 'spouse' = step.payload?.subjectRole === 'spouse' ? 'spouse' : 'client';
   void attn;
-  const { sent, confirmed, expired, readyToSend, withSignature, live, stuck, failed, gated, autoAction } = model;
+  const { sent, confirmed, expired, readyToSend, withSignature, viaPage, live, stuck, failed, gated, autoAction } = model;
   const deadline = track?.deadline ? formatDate(track.deadline, 'form') : null;
   const fmtStamp = (iso?: string) => (iso ? formatDate(iso, 'list') : '');
 
@@ -5325,12 +5345,14 @@ function AuthorityRepresentationStepCard({
           ? `${track!.foundExternally ? 'ייפוי הכוח קיים בביטוח לאומי' : 'PIVO הזין את ייפוי הכוח בביטוח לאומי'} · אסמכתא ${track!.referenceNumber}${deadline ? ` · לאשר עד ${deadline}` : ''}`
             // ‼ כמו מרכז הייצוג: לפני מייל החתימה ההוראות יוצאות איתו — לא במייל נפרד.
             + (withSignature ? ' · ההוראות יוצאות עם בקשת החתימה' : '')
+            + (viaPage ? ' · בדף האישי, ויוצא במייל הדף הבא' : '')
           : track?.enteredAt
             ? 'הוזן בביטוח לאומי · ממתינים לאסמכתא.'
             : open
               ? 'טרם הוזן ייפוי כוח בביטוח לאומי — PIVO מזין מהחלון של ביטוח לאומי.'
               : 'הבקשה נסגרה.';
-  const lead = readyToSend ? `${first} צריכ/ה לאשר את ייפוי הכוח — ההוראות עוד לא נשלחו אליו/ה.` : null;
+  const lead = viaPage ? `${first} צריכ/ה לאשר את ייפוי הכוח — האישור כבר בדף האישי, ועוד לא נשלח במייל.`
+    : readyToSend ? `${first} צריכ/ה לאשר את ייפוי הכוח — ההוראות עוד לא נשלחו אליו/ה.` : null;
 
   /* ── שורת PIVO — בתוך הכרטיס, לא קטגוריה משלה ─────────────────────────── */
   const jobVerb = job?.actionType === BTL_CHECK_REPRESENTATION_ACTION_TYPE
@@ -5357,7 +5379,7 @@ function AuthorityRepresentationStepCard({
         {open && readyToSend && (
           <div style={{ marginTop: '.55rem', display: 'flex', gap: '.4rem', flexWrap: 'wrap' }}>
             <button type="button" className="btn btn-sm btn-primary" onClick={onSendInstructions}>
-              שלח {lamed(first)} את ההוראות
+              {viaPage ? 'שלח במייל הדף' : <>שלח {lamed(first)} את ההוראות</>}
             </button>
           </div>
         )}
@@ -5436,6 +5458,8 @@ function AuthorityRepresentationStepCard({
     <div style={cardNote}>
       {confirmed
         ? 'הייצוג בביטוח לאומי פעיל. הפירוט המלא - במרכז הייצוג.'
+        : viaPage
+          ? `ל${first} אין מייל משלו/ה, ולכן האישור מופיע בדף האישי המשותף («מה צריך מ${first}») ויוצא במייל הדף הבא, עם מספר האסמכתא והמועד. «נשלח» נרשם רק כשהמייל הזה יוצא.`
         : readyToSend
           ? `המייל ${lamed(first)}: מספר האסמכתא, המועד האחרון, וקישור למסך האישור באתר ביטוח לאומי (או בטלפון ${NI_APPROVAL_PHONE}). כשיאושר - PIVO יזהה את זה בבדיקה, והבקשה תעבור ל«הושלמו».`
           : sent
@@ -5454,10 +5478,12 @@ function AuthorityRepresentationStepCard({
       !track?.referenceNumber && track?.enteredAt ? 'הוזן בביטוח לאומי · ממתינים לאסמכתא' : null,
       !track?.referenceNumber && !track?.enteredAt && open ? 'טרם הוזן ייפוי כוח בביטוח לאומי' : null,
       withSignature ? 'ההוראות יוצאות עם בקשת החתימה' : null,
+      viaPage ? 'בדף האישי · טרם נשלח במייל' : null,
       track?.foundExternally ? 'נמצא קיים בב״ל (לא הוזן מכאן)' : null,
     ].filter(Boolean).join(' · ');
     const shortNote = confirmed ? 'הפירוט המלא — במרכז הייצוג.'
       : withSignature ? `ההוראות ${lamed(first)} (אסמכתא, מועד וקישור לאישור) יוצאות במייל של בקשת החתימה — אין מייל נפרד.`
+      : viaPage ? `האישור של ${first} בדף האישי המשותף, ויוצא במייל הדף הבא — עם האסמכתא, המועד וקישור לאישור.`
       : readyToSend ? `המייל ${lamed(first)} כולל את האסמכתא, המועד וקישור לאישור באתר ביטוח לאומי.`
       : sent ? `${first} מאשר/ת באתר ביטוח לאומי או בטלפון ⁨${NI_APPROVAL_PHONE}⁩. אחר כך — «בדוק קבלת הייצוג».`
       : 'PIVO מזין את ייפוי הכוח מהחלון של ביטוח לאומי; המבוטח מאשר את האסמכתא בעצמו.';

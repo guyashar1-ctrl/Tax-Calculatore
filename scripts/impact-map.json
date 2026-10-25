@@ -15,6 +15,7 @@
         "src/features/annualReport/profile.ts",
         "src/components/Representation*.tsx",
         "src/components/ShaamNextActionButton.tsx",
+        "src/components/StampAndSendShaam.tsx",
         "src/components/clientTabs/OnboardingTab.tsx",
         "supabase/2*-*registered*.sql",
         "supabase/2*-*signature*.sql",
@@ -143,6 +144,7 @@
       ],
       "globs": [
         "src/utils/niPersons.ts",
+        "src/utils/authorityRepresentationRow.ts",
         "src/components/NiCancelRequest.tsx",
         "supabase/2*-*ni-*.sql",
         "worker/src/handlers/btl*.mjs"
@@ -154,6 +156,14 @@
         },
         {
           "script": "staging-test-btl-representation.mjs",
+          "run": true
+        },
+        {
+          "script": "test-296-ni-spouse-page.mjs",
+          "run": true
+        },
+        {
+          "script": "staging-test-296-ni-page-email.mjs",
           "run": true
         }
       ]

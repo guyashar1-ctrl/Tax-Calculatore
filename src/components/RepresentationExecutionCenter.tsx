@@ -13,6 +13,8 @@ import {
   NiTracking,
   NI_APPROVAL_PHONE,
   Client,
+  type RepSignatureDocument,
+  type SignatureValue,
 } from '../types';
 import type { Engagement, OnboardingStep } from '../types/onboarding';
 import { isStepOpen } from '../types/onboarding';
@@ -54,6 +56,7 @@ import { niPersons, niPersonIdentity, niRepresentationOf, niRepresentationAction
 import { shaamRepresentationAction } from '../features/taxFile/shaamRepresentationAction';
 import type { ShaamActionKind } from '../features/taxFile/shaamRepresentationAction';
 import ShaamNextActionButton from './ShaamNextActionButton';
+import StampAndSendShaam from './StampAndSendShaam';
 import RunAllAutomations from './RunAllAutomations';
 import type { ShaamSubmission } from '../utils/repScope';
 import {
@@ -103,6 +106,11 @@ interface Props {
   onProduce: () => void;
   /** פותח את חדר החתימה של הרו"ח — חתימה + חותמת על הטופס שהלקוח חתם. */
   onStamp: () => void;
+  /**
+   * שמירת הטופס החתום (App.handleSaveSignedPdf). כשקיים — «חתימה וחותמת» הוא
+   * StampAndSendShaam: עובר על כל הטפסים, ואחרי האחרון השליחה לשע״ם יוצאת לבד.
+   */
+  onSaveSignedPdf?: (req: RepresentationRequest, values: Record<string, SignatureValue>, docs: RepSignatureDocument[]) => Promise<void> | void;
   /** סימון שהטופס החתום הוגש בשע"ם. */
   onMarkSentToShaam: () => void;
   /** סימון שהייצוג אושר בשע"ם. */
@@ -460,7 +468,7 @@ export type ShaamFormLayouts = Record<string, { ok: boolean; problems: string[];
 /** מה שהשרת החזיר ואינו «הסתיים» — וההכנה נשארה פתוחה. */
 const PREP_DONE = new Set(['prepared', 'exists', 'layout_mismatch', 'held_sent', 'signed_untouched']);
 
-export default function RepresentationExecutionCenter({ request, niIncluded, niCoversSpouse, onSaveExecution, onProduce, onStamp, onMarkSentToShaam, onMarkActive, onSendToSigner, userId, repApprovalOverride, repApprovalPeopleOverride, linkedClient, onConfirmRegisteredSpouse, steps, engagements, onStepsChanged, onUpdateClientFields, onPrepareShaamForms, dataPanel, requestPanel, onRegenerateSignedPdf, regeneratingSignedPdf, documentSourceOverride }: Props) {
+export default function RepresentationExecutionCenter({ request, niIncluded, niCoversSpouse, onSaveExecution, onProduce, onStamp, onSaveSignedPdf, onMarkSentToShaam, onMarkActive, onSendToSigner, userId, repApprovalOverride, repApprovalPeopleOverride, linkedClient, onConfirmRegisteredSpouse, steps, engagements, onStepsChanged, onUpdateClientFields, onPrepareShaamForms, dataPanel, requestPanel, onRegenerateSignedPdf, regeneratingSignedPdf, documentSourceOverride }: Props) {
   const exec = request.execution || {};
   const it = exec.incomeTax || {};
   const ni = exec.nationalInsurance || {};
@@ -616,6 +624,9 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
 
   // מייל "הייצוג אושר" — נשלח רק מכאן, ורק אחרי שראו אותו
   const [previewActive, setPreviewActive] = useState(false);
+  /** הרו"ח חתם עכשיו דרך «חתימה וחותמת» ⇒ «שלח טופס חתום לשע״ם» נלחץ לבד, פעם אחת לכל הגשה. */
+  const [autoSubmitArmed, setAutoSubmitArmed] = useState(false);
+  const [autoSubmitDone, setAutoSubmitDone] = useState<Set<string>>(() => new Set());
   // תצוגה מקדימה של מייל החתימה. השליחה עצמה נשארת בכפתור המשותף, שגם מסמן
   // שההוראות לב"ל יצאו — ולכן כאן צפייה בלבד.
   const [previewSignerId, setPreviewSignerId] = useState<string | null>(null);
@@ -1191,6 +1202,9 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
         request={request} linkedClient={linkedClient ?? null} submission={sub}
         action={a} tracking={shaamTrack(sub.key)} married={scopePeople.married}
         onChanged={onStepsChanged} className={className} errorClassName="rep-track-next-err"
+        /* «חתימה וחותמת ושליחה» — אחרי החתימה בשלב הקודם, השליחה יוצאת לבד (פעם אחת). */
+        autoRun={autoSubmitArmed && a.kind === 'submit' && !autoSubmitDone.has(sub.key)}
+        onAutoRunDone={() => setAutoSubmitDone(prev => new Set(prev).add(sub.key))}
       />
     );
   };
@@ -1844,9 +1858,17 @@ export default function RepresentationExecutionCenter({ request, niIncluded, niC
         title: 'החתימה שלך',
         content: (
           <>
-            <button className="btn btn-primary" data-testid="rc-stamp" onClick={onStamp}>
-              {poaDocs.length > 1 && nextToStamp ? `חתימה וחותמת · ${nextToStamp.title}` : 'חתימה וחותמת'}
-            </button>
+            {linkedClient && onSaveSignedPdf ? (
+              <span data-testid="rc-stamp">
+                <StampAndSendShaam request={request} linkedClient={linkedClient} onSaveSignedPdf={onSaveSignedPdf}
+                  onChanged={onStepsChanged} className="btn btn-primary" sendInline={false}
+                  onStamped={() => setAutoSubmitArmed(true)} />
+              </span>
+            ) : (
+              <button className="btn btn-primary" data-testid="rc-stamp" onClick={onStamp}>
+                {poaDocs.length > 1 && nextToStamp ? `חתימה וחותמת · ${nextToStamp.title}` : 'חתימה וחותמת'}
+              </button>
+            )}
             {signedAt && <div className="rc-aside-line">הטופס נחתם בידי {firstName || 'הלקוח'} ב-{fmt(signedAt)}</div>}
           </>
         ),

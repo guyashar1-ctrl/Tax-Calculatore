@@ -8,7 +8,7 @@
 // ‼ משימות המשרד אינן שורות מסע. משימה היא עבודה שלי, בקשה היא משהו שאני
 // מחכה לו מאדם אחר — ערבוב שלהן היה מוחק את המשמעות של "אצל מי הכדור".
 
-import { useMemo } from 'react';
+import { useMemo, type ComponentProps } from 'react';
 import type { Client, NiTracking, Task, RepresentationStatus, RepresentationRequest } from '../../types';
 import type { RepSendPhase } from '../../utils/representationAction';
 import type { RepPrepFacts } from '../../features/representation/repPreparation';
@@ -67,6 +67,7 @@ interface Props {
   repIdAttach?: RepIdAttach;
   repRequest?: RepresentationRequest;
   onRepIdAttached?: () => void;
+  onSaveRepSignedPdf?: ComponentProps<typeof OnboardingTab>['onSaveRepSignedPdf'];
   repSendPhase?: RepSendPhase | null;
   repFacts?: RepPrepFacts | null;
   // ── מרכז השליטה ──
@@ -384,6 +385,7 @@ export default function JourneyTab(p: Props) {
           repIdAttach={p.repIdAttach}
           repRequest={p.repRequest}
           onRepIdAttached={p.onRepIdAttached}
+          onSaveRepSignedPdf={p.onSaveRepSignedPdf}
           repSendPhase={p.repSendPhase}
           repFacts={p.repFacts}
           onOpenRepresentation={p.onOpenRepresentation}

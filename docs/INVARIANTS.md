@@ -50,6 +50,12 @@
 - **קוד:** `useRepresentationRequests.deleteRequest`, `App.handleDeleteRequest` (קודם השרת, אחריו הקבצים). רשת ביטחון: `OnboardingTab.removalKindOf` — «בקשת ייצוג» בלי `representationRequestId` בכרטיס מקבלת הסרה רגילה ב-⋯.
 - **מוכיח:** `scripts/sql/test-294-delete-representation-request.sql` (D.1–D.5, ב-staging).
 
+### INV-REP-07 · ב״ל לכל אדם עם אסמכתא = שורה ב«בקשות»; בן/בת זוג בלי מייל — דרך הדף, ו«נשלח» רק ממייל שנשא את האסמכתא
+- **הכלל:** אסמכתא בביצוע (`execution.nationalInsurance[Spouse].referenceNumber`) פותחת שלב «ייצוג ברשות» לאדם שברשימת ב״ל, אם אין לו שלב פתוח (זהות: כרטיס + סוג + רשות + נושא) — גם בקליטה ראשונה (296). מי שכבר אישר — לא נפתח. בן/בת זוג בלי מייל משלו: האישור מופיע בדף של בעל הכרטיס («מה צריך מ{שם}»), נכלל במייל הדף ולא בקבוצה נפרדת שדורשת כתובת; `instructionsSentAt` נרשם לו/ה רק כשמייל דף שנשלח נשא את הפריט ואת מספר האסמכתא שלו/ה (`instructionsSentWith='page'`). הכרעת גיא 25.10.2026.
+- **SQL:** `_ensure_ni_steps_from_execution` (מהטריגר `tg_sync_authority_rep_from_execution`), `_ni_spouse_page_ready`, `_ni_mark_page_delivered` (מ-`complete_client_notice`), ההזרקות ב-`_portal_step_items`, `_client_announceable_steps`, `client_ready_to_send`.
+- **קוד:** `authRepRowModel.viaPage` + `niViaPage` ב-`OnboardingTab` (אותו תנאי: `spouse` ו-`spouseEmail` ריק), הכרטיס «מה צריך מ…» ב-`send-process-open-email`.
+- **מוכיח:** `scripts/test-296-ni-spouse-page.mjs` (22 בדיקות), `scripts/staging-test-296-ni-page-email.mjs` (מקצה לקצה, מסלול בדיקה), `requestsLaneRound5.test.ts` (296).
+
 ## אוטומציה — משימות מול רשויות
 
 ### INV-AUTO-01 · פעולה משנה ברשות: ניסיון אחד; «המשך» נכנס לתור רק כשהקודמת הסתיימה (לא מ«ממתין לך»)

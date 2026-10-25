@@ -47,6 +47,9 @@ interface PortalItem {
   bucket?: string; key?: string; label?: string; sub?: string; kind?: string;
   actionValue?: string;
   resources?: PortalRes[];
+  /** ni_approval (224): בשם מי האישור, ומספרי האסמכתא/המועד שלו. */
+  forPerson?: string;
+  refs?: { label?: string; value?: string }[];
 }
 interface NoticeItem { stepId: string; stepType: string; title?: string; isDocument?: boolean; portalKey?: string }
 
@@ -409,12 +412,43 @@ Deno.serve(async (req: Request) => {
         </td></tr>`;
     }
 
+    // ── 296 · אישור ב"ל של בן/בת זוג בלי מייל משלו — במייל הדף, בשמו ועם האסמכתא שלו ─
+    // ‼ complete_client_notice (296) רושם «ההוראות נשלחו» אצלו רק אם המספר באמת במייל.
+    let niPersonHtml = "";
+    if (kind !== "update") {
+      const f = emailFont(brand);
+      for (const it of items) {
+        const p = it.portalKey ? byKey.get(it.portalKey) : undefined;
+        if (p?.kind !== "ni_approval" || !p.forPerson) continue;
+        const refs = (p.refs ?? []).filter(r => String(r.value ?? "").trim() && r.value !== "—");
+        if (refs.length === 0) continue;
+        const [ref, ...more] = refs;
+        niPersonHtml += `
+        <tr><td dir="rtl" align="right" style="text-align:right;padding:18px 40px 6px;">
+          <div style="border:1.5px solid ${brand.accent};border-radius:${brand.radius + 2}px;padding:18px 18px 20px;background:${brand.pageBg};">
+            <div style="font-family:${f};text-align:right;font-size:12.5px;font-weight:700;color:${brand.accent};">מה צריך מ${esc(p.forPerson)}</div>
+            <div style="font-family:${f};text-align:right;font-size:18px;font-weight:700;color:${brand.ink};padding-top:3px;">אישור ייפוי הכוח בביטוח הלאומי</div>
+            <div style="font-family:${f};text-align:right;font-size:14px;color:${brand.muted};line-height:1.7;padding-top:4px;">את ייפוי הכוח של ${esc(p.forPerson)} כבר הזנו בביטוח הלאומי. נשאר רק האישור של ${esc(p.forPerson)} - לכל אחד מבני הזוג מספר אסמכתא נפרד ואישור נפרד.</div>
+            <div style="border:1px solid ${brand.border};border-radius:${brand.radius}px;padding:14px;background:#ffffff;margin-top:10px;">
+              <div style="font-family:${f};text-align:center;font-size:12.5px;color:${brand.muted};">${esc(String(ref.label ?? "מספר האסמכתא"))}</div>
+              <div dir="ltr" style="font-family:${f};text-align:center;font-size:30px;font-weight:700;letter-spacing:.06em;color:${brand.accent};padding-top:2px;">${esc(String(ref.value))}</div>
+              ${more.map(m => `<div style="font-family:${f};text-align:center;font-size:13.5px;color:#8A4B00;padding-top:6px;">${esc(String(m.label ?? ""))} <strong style="color:#7A3E00;">${esc(String(m.value))}</strong></div>`).join("")}
+            </div>
+            <div style="font-family:${f};text-align:right;font-size:14px;color:${brand.muted};line-height:1.85;padding-top:12px;">
+              <strong style="color:${brand.ink};">באתר:</strong> נכנסים ל<a href="${esc(NI_SITE)}" style="color:${brand.accent};font-weight:700;">${esc(NI_SITE_LABEL)}</a>, מקלידים את תעודת הזהות של ${esc(p.forPerson)} ואת מספר האסמכתא, מזדהים בכרטיס אשראי או בטלפון/מייל המעודכנים בביטוח הלאומי, ומאשרים.<br />
+              <strong style="color:${brand.ink};">בטלפון:</strong> <span dir="ltr">${esc(NI_PHONE)}</span> (מענה קולי) - עם מספר האסמכתא.
+            </div>
+          </div>
+        </td></tr>`;
+      }
+    }
+
     const waiting = kind === "new" ? items.filter(i => !i.isDocument).length + otherActions.length
       : kind === "reminder" ? items.length : actions.length;
     const html = buildBrandedEmail(brand, {
       heading,
       bodyHtml: esc(rendered.body).replace(/\n/g, "<br />"),
-      extraHtml: signingHtml || undefined,
+      extraHtml: (signingHtml + niPersonHtml) || undefined,
       afterCtaHtml: afterCta,
       ctaLabel: wording.ctaLabel,
       ctaHref: portalUrl,

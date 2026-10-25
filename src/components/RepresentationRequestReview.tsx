@@ -14,14 +14,13 @@ import {
 } from '../types';
 import { registeredFileInfo, hasRegisteredSpouseChoice, registeredOwnerOf } from '../features/annualReport/profile';
 import { scopeLines, requestScope, peopleFromClient, shaamSubmissions, partBPartyNames } from '../utils/repScope';
-import { signatureDocumentsOf, signedDocIdFor } from '../utils/repDocuments';
+import { signatureDocumentsOf } from '../utils/repDocuments';
 import { submissionItOwner } from '../features/representation/repPreparation';
 import { docsForRequirement, identityRequirements } from '../utils/identityEvidence';
 import { representationInsight, missingIdentityLine, onboardingProgressLine } from '../utils/representationInsight';
 import { useDocumentDB, StoredDoc } from '../hooks/useIndexedDB';
 import { useAuth } from '../hooks/useAuth';
 import { supabase } from '../lib/supabase';
-import { downloadPrivateDataUrl } from '../utils/privateAsset';
 import { generateSignedPoaPdf, downloadPdfBytes, toPureArrayBuffer } from '../utils/poaPdfGenerator';
 import SignaturePad from './SignaturePad';
 import RepSignersStatus from './RepSignersStatus';
@@ -37,8 +36,8 @@ import { repSendPhase, representationStatusLabel } from '../utils/representation
 import { isSpouseRequest, getRequestSigners, effectiveSignStatus } from '../utils/repSigners';
 import { SignatureField, SignatureValue } from '../types';
 import PoaProduceEditor from './signatureRequest/PoaProduceEditor';
-import SigningRoom, { SavedMarks } from './signatureRequest/SigningRoom';
-import { burnSignaturesIntoPdf } from '../utils/signaturePdf';
+import SigningRoom from './signatureRequest/SigningRoom';
+import { loadBrandingImage, loadStampRoom, stampAndStore, type StampRoomState } from '../features/representation/stampDocument';
 import type { OnboardingStep } from '../types/onboarding';
 
 // ‼ 294 · המחיקה סוגרת גם את הבקשות הפתוחות שלה (בכרטיס ובדף הלקוח) — ולא נוגעת ברשות.
@@ -376,11 +375,6 @@ export default function RepresentationRequestReview({
     };
   }
 
-  // חותמת/חתימה מהדלי הפרטי כ-dataURL. pdf-lib תומך ב-PNG/JPG בלבד — SVG מדולג.
-  async function loadBrandingImage(path?: string): Promise<string | undefined> {
-    if (!path || /\.svg$/i.test(path)) return undefined;
-    return downloadPrivateDataUrl(path);
-  }
   const loadStampDataUrl = () => loadBrandingImage(profile?.branding?.stampPath);
 
   // טעינת החתימה השמורה פעם אחת, כדי שתהיה זמינה ככפתור בטופס חלק ב'
@@ -397,7 +391,7 @@ export default function RepresentationRequestReview({
   // ── זרימת החתימה החדשה: עורך הפקה + חדר חתימה של הרו"ח ──
   const setup = request.signatureSetup;
   const [showProduceEditor, setShowProduceEditor] = useState(false);
-  const [stampRoom, setStampRoom] = useState<{ doc: RepSignatureDocument; pdfBytes: ArrayBuffer; marks: SavedMarks } | null>(null);
+  const [stampRoom, setStampRoom] = useState<StampRoomState | null>(null);
   const [stampError, setStampError] = useState('');
   const [finalizing, setFinalizing] = useState(false);
 
@@ -442,13 +436,7 @@ export default function RepresentationRequestReview({
     if (!d) return;
     setStampError('');
     try {
-      const stored = await db.getDoc(d.pdfDocId);
-      if (!stored || stored.fileData.byteLength === 0) throw new Error('ה-PDF שהועלה לא נמצא במאגר המסמכים');
-      const [sig, stamp] = await Promise.all([
-        loadBrandingImage(profile?.branding?.signaturePath),
-        loadBrandingImage(profile?.branding?.stampPath),
-      ]);
-      setStampRoom({ doc: d, pdfBytes: stored.fileData, marks: { signature: sig, stamp } });
+      setStampRoom(await loadStampRoom(db, d, profile?.branding));
     } catch (e) {
       setStampError(e instanceof Error ? e.message : String(e));
     }
@@ -457,32 +445,13 @@ export default function RepresentationRequestReview({
   /** fields = השדות כפי שהם אחרי גרירה/שינוי גודל בחדר החתימה, ולכן הם שנצרבים. */
   async function handleStampComplete(values: Record<string, SignatureValue>, fields?: SignatureField[]) {
     if (!stampRoom) return;
-    const target = stampRoom.doc;
     setFinalizing(true);
     try {
-      const merged = { ...(request.signatureValues || {}), ...values };
-      const burned = await burnSignaturesIntoPdf(stampRoom.pdfBytes.slice(0), fields || target.fields, merged);
-      const storedId = signedDocIdFor(request.id, target.key);
-      // ‼ D4 (179): מסמך שנוצר אוטומטית מקבל תווית מערכת קבועה.
-      const labelId = await db.ensureSystemLabel('ייפוי כוח חתום');
-      await db.saveDoc({
-        id: storedId,
-        clientId: request.linkedClientId,
-        fileName: `${request.clientName || 'לקוח'} - ייפוי כוח חתום${poaDocs.length > 1 ? ` - ${target.title}` : ''}.pdf`,
-        fileType: 'application/pdf',
-        fileSize: burned.byteLength,
-        category: 'other',
-        year: 'general',
-        labelId,
-        uploadedAt: new Date().toISOString(),
-        description: `ייפוי כוח חתום (כל החותמים + חותמת המשרד)${poaDocs.length > 1 ? ` - ${target.title}` : ''}`,
-        notes: '',
-        fileData: toPureArrayBuffer(burned),
-      });
+      // ‼ אותה צריבה ושמירה כמו «לחתום ולשלוח לשע״ם» בשורה (stampDocument.ts).
+      const out = await stampAndStore(db, request, poaDocs, stampRoom, values, fields);
       // ‼ רק המסמך הזה מסומן כהוחתם. הסטטוס יתקדם רק כשכולם יוחתמו.
-      await onSaveSignedPdf(request, merged,
-        poaDocs.map(d => d.key === target.key ? { ...d, signedPdfStoredId: storedId } : d));
-      const blob = new Blob([toPureArrayBuffer(burned)], { type: 'application/pdf' });
+      await onSaveSignedPdf(request, out.values, out.docs);
+      const blob = new Blob([out.pdf], { type: 'application/pdf' });
       setGeneratedPdfUrl(URL.createObjectURL(blob));
       setStampRoom(null);
     } catch (e) {
@@ -993,6 +962,7 @@ export default function RepresentationRequestReview({
               onSaveExecution={(execution) => onSaveExecution(request, execution)}
               onProduce={() => setShowProduceEditor(true)}
               onStamp={() => void openStampRoom()}
+              onSaveSignedPdf={onSaveSignedPdf}
               onMarkSentToShaam={() => void onMarkSentToShaam(request)}
               onMarkActive={() => onMarkActive(request)}
               onSendToSigner={sendSignatureEmail}

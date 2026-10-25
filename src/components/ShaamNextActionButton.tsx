@@ -46,6 +46,14 @@ interface Props {
   onChanged?: () => void;
   className?: string;
   errorClassName?: string;
+  /**
+   * «לחתום ולשלוח לשע״ם» (StampAndSendShaam): לחיצה אחת של הרו"ח כבר ביקשה את השליחה,
+   * ולכן הכפתור לוחץ על עצמו פעם אחת — באותו מסלול בדיוק (חיבור, נתון חסר, ניסיון שנעצר).
+   * ‼ לא רץ לבד כשאין מחשב עבודה, כשנדרש אישור לניסיון חוזר, או כשהפעולה מושבתת.
+   */
+  autoRun?: boolean;
+  /** נקרא פעם אחת כשההפעלה העצמית בוצעה (או כשהוחלט שלא להריץ) — כדי לא לחזור עליה. */
+  onAutoRunDone?: () => void;
 }
 
 const forSubmission = (job: AutomationJob | null, key: string) =>
@@ -53,7 +61,7 @@ const forSubmission = (job: AutomationJob | null, key: string) =>
 
 export default function ShaamNextActionButton({
   request, linkedClient, submission, action, tracking, married, onChanged,
-  className = 'ui-btn ui-btn-sm', errorClassName = 'txf-qt-err',
+  className = 'ui-btn ui-btn-sm', errorClassName = 'txf-qt-err', autoRun, onAutoRunDone,
 }: Props) {
   const actionType = action?.actionType ?? '';
   const hook = useAutomationJob(linkedClient?.id || undefined, actionType);
@@ -72,6 +80,17 @@ export default function ShaamNextActionButton({
     if (st === 'succeeded' && prev.current !== 'succeeded') onChanged?.();
     prev.current = st;
   }, [hook.job, submission.key, onChanged]);
+
+  // ‼ ההפעלה העצמית (autoRun) — פעם אחת, אחרי שהמשימה האחרונה נטענה (כדי לראות ניסיון
+  // שנעצר באמצע), דרך אותה לחיצה שמוגדרת למטה (autoClick).
+  const autoClick = useRef<(() => void) | null>(null);
+  const autoDone = useRef(false);
+  useEffect(() => {
+    if (!autoRun || autoDone.current || hook.loading || !autoClick.current) return;
+    autoDone.current = true;
+    autoClick.current();
+    onAutoRunDone?.();
+  }, [autoRun, hook.loading, onAutoRunDone]);
 
   if (!action) return null;
 
@@ -182,6 +201,12 @@ export default function ShaamNextActionButton({
   // ‼ «רך» (ורוד בהיר) = באמת לא מחובר. מערכת-משנה שרק לא נבדקה עדיין
   // (שע״ם מחוברת) אינה «לא מחובר» — הלחיצה פותחת אותה וממשיכה.
   const soft = !busy && !running && !gate.ready && !gate.unverified && !action.disabled && !missingData;
+  autoClick.current = () => {
+    // בלי מחשב עבודה / פעולה מושבתת / נתון חסר / משימה שכבר רצה — הכפתור נשאר, עם ההסבר שלו.
+    if (action.disabled || missingData || running || gate.workerOffline) return;
+    if (stop?.mayHaveActed) { setConfirmRetry(true); return; }
+    gate.runOrConnect(() => void run());
+  };
   const title = action.disabled ? action.reason
     : missingData ? missingData
     : soft ? `${gate.blockedReason ?? 'לא מחובר'}${gate.workerOffline ? '' : ' · לחיצה פותחת את ההתחברות'}`

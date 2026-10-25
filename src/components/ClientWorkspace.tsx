@@ -7,7 +7,7 @@
 import { KnowledgeLinkContext, rememberKnowledgeReturn } from '../features/taxKnowledge/knowledgeLink';
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useMediaQuery } from '../hooks/useMediaQuery';
-import { Client, Task, REPRESENTATION_STATUS_BADGE, LifecycleStage, LIFECYCLE_STAGE_LABELS, NiTracking, type RepresentationRequest } from '../types';
+import { Client, Task, REPRESENTATION_STATUS_BADGE, LifecycleStage, LIFECYCLE_STAGE_LABELS, NiTracking, type RepresentationRequest, type RepSignatureDocument, type SignatureValue } from '../types';
 import { ActivityEntry, ClientAlert } from '../types/clientWorkspace';
 import { useEmployees } from '../hooks/useEmployees';
 import { representationStatusLabel, type RepSendPhase } from '../utils/representationAction';
@@ -152,6 +152,8 @@ interface Props {
   /** 269: בקשת הייצוג — «הפעל הכול» ומה שהתקבל, בכרטיס הייצוג. */
   repRequest?: RepresentationRequest;
   onRepIdAttached?: () => void;
+  /** «לחתום ולשלוח לשע״ם» בשורת הייצוג — אותה שמירה כמו במרכז הייצוג (App.handleSaveSignedPdf). */
+  onSaveRepSignedPdf?: (req: RepresentationRequest, values: Record<string, SignatureValue>, docs: RepSignatureDocument[]) => Promise<void> | void;
   /** הטופס מוכן אבל המייל לא יצא — «נשלח» יהיה שקר. */
   repSendPhase?: RepSendPhase | null;
   /** מצב כל הגשה לפי אדם ורשות — אותן עובדות כמו במרכז הייצוג (repPreparation). */
@@ -268,6 +270,7 @@ export default function ClientWorkspace({
   repIdAttach,
   repRequest,
   onRepIdAttached,
+  onSaveRepSignedPdf,
   repSendPhase,
   repFacts,
   onboardingEvents,
@@ -1011,6 +1014,7 @@ export default function ClientWorkspace({
             repIdAttach={repIdAttach}
             repRequest={repRequest}
             onRepIdAttached={onRepIdAttached}
+            onSaveRepSignedPdf={onSaveRepSignedPdf}
             repSendPhase={repSendPhase}
             repFacts={repFacts}
             onPinNote={(note) => update('pinnedNote', note)}
@@ -1182,6 +1186,7 @@ export default function ClientWorkspace({
             repIdAttach={repIdAttach}
             repRequest={repRequest}
             onRepIdAttached={onRepIdAttached}
+            onSaveRepSignedPdf={onSaveRepSignedPdf}
             repSendPhase={repSendPhase}
             repFacts={repFacts}
             onOpenRepresentation={onOpenRepresentation

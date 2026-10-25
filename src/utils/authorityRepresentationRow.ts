@@ -30,6 +30,11 @@ export interface AuthRepInput {
   missing: string[];
   /** ההוראות ייצאו עם בקשת החתימה (niRidesWithSignature) — אין שליחה נפרדת. */
   ridesWithSignature?: boolean;
+  /**
+   * 296 · בן/בת זוג בלי מייל משלו: האישור בדף של בעל הכרטיס, וההוראות יוצאות במייל
+   * הדף (הכרעת גיא 25.10). השליחה = מייל הדף, לא מייל ייעודי שדורש כתובת.
+   */
+  viaPage?: boolean;
   /** סוג המשימה של בדיקת הקבלה — כדי לנסח «בודק» מול «מזין». */
   checkActionType?: string;
   today?: string;
@@ -38,7 +43,7 @@ export interface AuthRepInput {
 /** הפעולה בשורה הסגורה — רק כשהתור שלך. */
 export type AuthRepPrimary =
   | { kind: 'gate'; label: 'השלמת פרטים' }
-  | { kind: 'send'; label: 'שלח הוראות' }
+  | { kind: 'send'; label: 'שלח הוראות' | 'שלח במייל הדף' }
   | { kind: 'enter'; label: 'הזן בב״ל' | 'הזן מחדש' }
   | null;
 
@@ -50,6 +55,8 @@ export interface AuthRepRowModel {
   readyToSend: boolean;
   /** יש אסמכתא וההוראות ייצאו עם בקשת החתימה. */
   withSignature: boolean;
+  /** readyToSend, וההוראות יוצאות במייל הדף של בעל הכרטיס (296). */
+  viaPage: boolean;
   live: boolean;
   stuck: boolean;
   failed: boolean;
@@ -70,6 +77,7 @@ export function authRepRowModel(i: AuthRepInput): AuthRepRowModel {
   const hasRef = !!t?.referenceNumber;
   const withSignature = hasRef && !sent && !expired && !!i.ridesWithSignature;
   const readyToSend = hasRef && !sent && !expired && !i.ridesWithSignature;
+  const viaPage = readyToSend && !!i.viaPage;
   const live = !!i.job && (i.job.status === 'queued' || i.job.status === 'running');
   const stuck = !!i.job && i.job.status === 'needs_human';
   const failed = !!i.job && i.job.status === 'failed';
@@ -84,7 +92,7 @@ export function authRepRowModel(i: AuthRepInput): AuthRepRowModel {
 
   const primary: AuthRepPrimary = !i.open ? null
     : gated ? { kind: 'gate', label: 'השלמת פרטים' }
-    : readyToSend ? { kind: 'send', label: 'שלח הוראות' }
+    : readyToSend ? { kind: 'send', label: viaPage ? 'שלח במייל הדף' : 'שלח הוראות' }
     : autoAction && !live && autoAction.kind === 'enter_btl' ? { kind: 'enter', label: expired ? 'הזן מחדש' : 'הזן בב״ל' }
     : null;
 
@@ -95,10 +103,11 @@ export function authRepRowModel(i: AuthRepInput): AuthRepRowModel {
     : expired ? { text: 'האסמכתא פגה', tone: 'red' }
     : sent && !confirmed ? { text: `ממתין ${lamed(i.first)}`, tone: 'gray' }
     : withSignature ? { text: 'יוצא עם החתימה', tone: 'gray' }
+    : viaPage ? { text: 'בדף · טרם נשלח במייל', tone: 'blue' }
     : t?.enteredAt && !t?.referenceNumber ? { text: 'ממתין לאסמכתא', tone: 'gray' }
     : undefined;
 
-  return { sent, confirmed, expired, readyToSend, withSignature, live, stuck, failed, gated, autoAction, primary, state };
+  return { sent, confirmed, expired, readyToSend, withSignature, viaPage, live, stuck, failed, gated, autoAction, primary, state };
 }
 
 /**
