@@ -24,12 +24,16 @@ import { initialDraft } from './AnnualReturnPanel';
 import * as api from './api';
 import { DOC_TEMPLATES, entitiesFor, linesToSave, missingRequired, templateFor, type LineValues } from './docTemplates';
 import type { ReturnDraft, ReturnOutputs } from './types';
-import { autoAcceptPlan, balanceText, filledPct, isReady, materialsOf, neededAnnexes, summaryRows, type Material, type Who } from './workspace';
-import { annexValues, pagesOf, slugOfForm, valuesOnPage } from './formPages';
+import { autoAcceptPlan, balanceText, filledPct, isReady, materialsOf, neededAnnexes, type Material, type Who } from './workspace';
+import { slugOfForm } from './formPages';
 import { loadDocumentFile, isPdf, type LoadedFile } from './docFile';
 import { openPrintSet, setContents } from './printSet';
+import { loadSigning, sendForSigning, signErrorText, signSnapshot, signersOf, snapshotKey, storeSigned, type Signing } from './signing';
+import { buildSignedSetPdf, sha256Hex } from './signedSet';
+import { supabase } from '../../lib/supabase';
 import type { FormSlug } from '../taxKnowledge/formMap/model';
 import './workspace.css';
+import { FormView, Ring, Summary } from './ReturnView';
 
 type Run = (fn: () => Promise<unknown>, done?: string) => Promise<boolean>;
 type ApplyCard = (items: ProposedFact[], sourceRef: string) => Promise<{ ok: boolean; error?: string; client?: Client }>;
@@ -51,7 +55,6 @@ interface Props {
   onOfficeTodo: () => void;
 }
 
-const nis = (n: number) => `${Math.round(n).toLocaleString('he-IL')} ₪`;
 /** פריטים שהמספרים שלהם נכנסים מהקלדת מסמך (106, 867, קופות, רו״ה…) — כבר שורות ב«חומרים». */
 const TEMPLATE_ITEMS = new Set(Object.values(DOC_TEMPLATES).flat().flatMap(t => t.lines.map(l => l.itemKey)));
 const OYK_KEYS = new Set(['payments.advances', 'payments.withholding', 'payments.niPaid', 'carryForward.balances']);
@@ -149,8 +152,50 @@ export default function AnnualWorkspace({ client, step, year, data, busy, run, s
 
   const waiting = mats.filter(m => m.state === 'wait').length;
   const mine = mats.filter(m => m.state === 'here' || m.state === 'mine').length + openExtras;
-  const status = !sent ? 'השאלון עוד לא נשלח' : filling ? `${firstName} באמצע השאלון` : ready ? 'הכול מוכן'
+  const status0 = !sent ? 'השאלון עוד לא נשלח' : filling ? `${firstName} באמצע השאלון` : ready ? 'הכול מוכן'
     : [waiting ? `ממתין ל-${waiting} מ${firstName}` : '', mine ? `${mine} אצלך` : ''].filter(Boolean).join(' · ') || 'הכול מוכן';
+
+  // ── 297 · חתימת הלקוח על הסט: «שליחה לחתימה» = האישור של המשרד; «נחתם» — רק מהשרת ──
+  const [signing, setSigning] = useState<Signing | null>(null);
+  const refreshSigning = () => loadSigning(step.id).then(setSigning).catch(() => setSigning(null));
+  useEffect(() => { void refreshSigning(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [step.id, data]);
+  const docsDone = mats.filter(m => m.state === 'done' || m.state === 'got').map(m => ({ title: m.title, who: nameOf(m.who) }));
+  const snap = out ? signSnapshot(out, { year, clientName: firstName, spouseName: married ? spouseName : undefined, docs: docsDone }) : null;
+  const changed = !!(signing && snap && snapshotKey(signing.snapshot) !== snapshotKey(snap));
+  const pendingNames = signing ? signing.signers.filter(g => !signing.signed[g.role]).map(g => g.name) : [];
+  const status = !signing ? status0 : changed ? 'הדוח השתנה מאז החתימה' : signing.state === 'signed' ? (signing.signers.length > 1 ? 'שניהם חתמו' : 'נחתם')
+    : `נשלח לחתימה · ממתין ל${pendingNames.join(' ול')}`;
+  const send = () => snap && void run(async () => {
+    const r = await sendForSigning(step.id, snap, signersOf(client));
+    if (!r.ok) { setMsg(signErrorText(r.error)); return r; }
+    setMsg(null); await refreshSigning(); return r;
+  }, `נשלח לחתימה — מופיע בדף של ${firstName}. המייל, אם צריך — מ«הדף של ${firstName}».`);
+  // ‼ הקובץ החתום: כשכולם חתמו — נבנה מהצילום ומהחתימות שבשרת, נשמר במסמכים של הלקוח (פעם אחת)
+  const storing = useRef(false);
+  useEffect(() => {
+    if (!signing || signing.state !== 'signed' || signing.signedDocumentId || storing.current) return;
+    storing.current = true;
+    void (async () => {
+      try {
+        const { data: u } = await supabase.auth.getUser();
+        if (!u.user) return;
+        const bytes = await buildSignedSetPdf(signing);
+        const sha = await sha256Hex(bytes);
+        const path = `${u.user.id}/${client.id}/arsign-${signing.id}-v${signing.version}`;
+        const up = await supabase.storage.from('client-documents').upload(path, new Blob([bytes as BlobPart], { type: 'application/pdf' }), { contentType: 'application/pdf', upsert: true });
+        if (up.error) { setMsg('הקובץ החתום לא נשמר — ננסה שוב בפתיחה הבאה'); return; }
+        const r = await storeSigned(signing.id, path, bytes.length, sha);
+        if (!r.ok) setMsg('הקובץ החתום לא נשמר — ננסה שוב בפתיחה הבאה');
+        await refreshSigning();
+      } finally { storing.current = false; }
+    })();
+    /* eslint-disable-next-line react-hooks/exhaustive-deps */
+  }, [signing?.id, signing?.state, signing?.signedDocumentId]);
+  const openSigned = async () => {
+    if (!signing?.signedDocumentId) return;
+    const f = await loadDocumentFile(signing.signedDocumentId);
+    if (f) window.open(f.url, '_blank'); else setMsg('הקובץ לא נטען');
+  };
 
   const markDecision = (key: string) => run(() => tyApi.recordFact(client.id, {
     taxYear: year, itemKey: 'annual.officeDecision', subjectRole: 'couple', periodKind: 'year', periodFrom: `${year}-01-01`, periodTo: `${year}-12-31`,
@@ -164,9 +209,24 @@ export default function AnnualWorkspace({ client, step, year, data, busy, run, s
     <section className="aw" data-annual-workspace aria-label={`דוח שנתי ${year}`}>
       <header className="aw-top">
         <div className="aw-status"><span data-aw-status>{status}</span>
-          <button type="button" className="btn btn-primary" disabled={!ready || !out} onClick={() => setShowSet(true)} data-aw-print>הדפסת הסט</button>
+          <span className="aw-btns">
+            <button type="button" className={`btn ${ready && (!signing || changed) ? 'btn-ghost' : 'btn-primary'}`} disabled={!ready || !out} onClick={() => setShowSet(true)} data-aw-print>הדפסת הסט</button>
+            {ready && out && (!signing || changed) && <button type="button" className="btn btn-primary" disabled={busy} onClick={send} data-aw-send-sign>{signing ? 'שליחה מחדש' : 'שליחה לחתימה'}</button>}
+            {signing?.signedDocumentId && !changed && <button type="button" className="btn btn-ghost" onClick={() => void openSigned()} data-aw-signed-file>הקובץ החתום</button>}
+          </span>
         </div>
       </header>
+      {signing && (
+        <div className="aw-signers" data-aw-signing={changed ? 'changed' : signing.state}>
+          {signing.signers.map(g => (
+            <div key={g.role} className={`aw-signer${signing.signed[g.role] ? ' is-done' : ''}`} data-who={g.role} data-aw-signer={g.role}>
+              <i aria-hidden="true">{g.name[0]}</i><b>{g.name}</b>
+              <span>{signing.signed[g.role] ? `${g.gender === 'f' ? '✓ חתמה' : '✓ חתם'} · ${new Date(signing.signed[g.role]!).toLocaleDateString('he-IL')}` : 'ממתין'}</span>
+            </div>
+          ))}
+          {changed && <p className="aw-changed" role="note">הדוח עודכן אחרי ש{signing.state === 'signed' ? 'נחתם' : 'נשלח לחתימה'}. החתימה הקודמת נשמרת בהיסטוריה.</p>}
+        </div>
+      )}
       {msg && <p className="aw-msg" role="status">{msg}</p>}
 
       <div className="aw-grid">
@@ -202,7 +262,7 @@ export default function AnnualWorkspace({ client, step, year, data, busy, run, s
                 )}
                 {extrasHere && extra === 'oyk' && <div className="aw-inline"><OykInputs client={client} year={year} stepId={step.id} fields={oyk} facts={data.facts.filter(f => f.taxYear === year)} busy={busy} run={run} /></div>}
                 {extrasHere && notes.map(a => (
-                  <div key={a.id} className="aw-mat is-mine" data-aw-note>
+                  <div key={a.id} className="aw-mat is-mine" data-aw-hint>
                     <span className="aw-ic" aria-hidden="true" dangerouslySetInnerHTML={{ __html: `<svg viewBox="0 0 24 24">${ICON.mine}</svg>` }} />
                     <span className="aw-t"><b>«{a.officeNote}»</b><small>{a.prompt.subjectName ?? firstName}</small></span>
                     <button type="button" className="aw-act" disabled={busy} onClick={() => void run(() => tyApi.resolveNote(a.id), 'סומן שנסגר')}>סגור</button>
@@ -216,7 +276,7 @@ export default function AnnualWorkspace({ client, step, year, data, busy, run, s
                   </div>
                 ))}
                 {extrasHere && officeRest.length > 0 && (
-                  <div className="aw-mat is-mine" data-aw-office-rest>
+                  <div className="aw-mat is-mine" data-aw-office-rest={officeRest.map(s => `${s.item.key}:${s.subjectRole}:${s.entityKind ?? ""}:${s.entityRef ?? ""}`).join(",")}>
                     <span className="aw-ic" aria-hidden="true" dangerouslySetInnerHTML={{ __html: `<svg viewBox="0 0 24 24">${ICON.mine}</svg>` }} />
                     <span className="aw-t"><b>להשלים במשרד{officeRest.length > 1 ? ` · ${officeRest.length}` : ''}</b><small>{officeRest.slice(0, 2).map(s => s.item.label).join(' · ')}{officeRest.length > 2 ? ` ועוד ${officeRest.length - 2}` : ''}</small></span>
                     <button type="button" className="aw-act" onClick={onOfficeTodo}>להשלים</button>
@@ -280,72 +340,6 @@ export default function AnnualWorkspace({ client, step, year, data, busy, run, s
   );
 }
 
-function Ring({ pct }: { pct: number }) {
-  const C = 2 * Math.PI * 27;
-  return (
-    <div className="aw-ring" role="img" aria-label={`${pct}% מהדוח מלא`} data-aw-pct={pct}>
-      <svg viewBox="0 0 64 64"><circle className="bg" cx="32" cy="32" r="27" /><circle className="fg" cx="32" cy="32" r="27" strokeDasharray={C} strokeDashoffset={C * (1 - pct / 100)} /></svg>
-      <span>{pct}%</span>
-    </div>
-  );
-}
-
-/** הסיכום: מה שיש בו סכום, לפי אדם — שורה לכל שדה, עם הקוד ומאיפה הגיע. */
-function Summary({ out, lit, firstName, spouseName, married }: { out: ReturnOutputs; lit: Set<string>; firstName: string; spouseName: string; married: boolean }) {
-  const rows = summaryRows(out);
-  const people: { p: 'client' | 'spouse' | 'joint'; name: string }[] = [{ p: 'client', name: firstName }, ...(married ? [{ p: 'spouse' as const, name: spouseName }] : []), { p: 'joint', name: married ? 'משותף' : 'כללי' }];
-  if (!rows.length) return <p className="aw-empty">עוד אין סכומים בדוח — הם נכנסים עם התשובות והמסמכים.</p>;
-  return (
-    <div className="aw-sum">
-      {people.map(({ p, name }) => {
-        const mine = rows.filter(r => r.person === p);
-        if (!mine.length) return null;
-        return (
-          <div key={p} className="aw-sec" data-person={p}>
-            <div className="aw-sec-h"><i aria-hidden="true" />{name}</div>
-            {mine.map(r => (
-              <div key={`${r.code}-${r.label}`} className="aw-row" data-aw-code={r.code}>
-                <span className="l">{r.label}</span><span className="s">{r.from}</span><span className="c">{r.code}</span>
-                <span className={`v${lit.has(r.code) ? ' is-lit' : ''}`}>{nis(r.amount)}</span>
-              </div>
-            ))}
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-/** הטופס עצמו: עמוד אחרי עמוד, עם הערכים בשדות (1301); בנספח — גם רשימת הערכים. */
-function FormView({ slug, out, lit }: { slug: FormSlug; out: ReturnOutputs; lit: Set<string> }) {
-  const pages = pagesOf(slug);
-  const [page, setPage] = useState(1);
-  useEffect(() => { setPage(1); }, [slug]);
-  const pg = pages[page - 1];
-  const vals = pg ? valuesOnPage(slug, pg.n, out) : [];
-  const formId = slug === '1301' ? '1301' : out.formCoverage.annexes.find(a => slugOfForm(a.formId) === slug)?.formId ?? slug;
-  const list = slug === '1301' ? [] : annexValues(formId, out);
-  return (
-    <div className="aw-form" data-aw-form={slug}>
-      {list.length > 0 && <div className="aw-annex-vals">{list.map((v, i) => <div key={i} className="aw-row"><span className="l">{v.label}</span><span className="v">{v.text}</span></div>)}</div>}
-      {pages.length > 1 && (
-        <div className="aw-pages" role="group" aria-label="עמודים">
-          {pages.map(p => <button key={p.n} type="button" aria-pressed={p.n === page} onClick={() => setPage(p.n)}>עמ׳ {p.n}</button>)}
-        </div>
-      )}
-      {pg && (
-        <div className="aw-paper" style={{ aspectRatio: `${pg.w} / ${pg.h}` }}>
-          <img src={pg.img} alt={`${formId} — עמוד ${pg.n}`} draggable={false} />
-          {vals.map(v => (
-            <span key={v.key} className={`aw-val${lit.has(v.code) ? ' is-lit' : ''}`} data-aw-val={v.code}
-              style={{ left: `${v.box[0] * 100}%`, top: `${v.box[1] * 100}%`, width: `${v.box[2] * 100}%`, height: `${v.box[3] * 100}%` }}>{v.text}</span>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
 /** «הזנה»: המסמך עצמו ליד השדות מהתבנית; «שמירה» ⇒ שורות מקור ⇒ הדוח. מסמך בלי מספרים — רק צפייה. */
 function EntryPanel({ m, client, year, stepId, facts, run, spouseName, onClose }: {
   m: Material; client: Client; year: number; stepId: string; facts: YearData['facts']; run: Run; spouseName: string; onClose: () => void;
@@ -397,7 +391,7 @@ function EntryPanel({ m, client, year, stepId, facts, run, spouseName, onClose }
         )}
         <div className="aw-form-side">
           <h4>{m.title}</h4>
-          {!t ? <p className="aw-note">מהמסמך הזה אין מספרים להקליד — מספיק שהגיע.</p> : (
+          {!t ? <p className="aw-hint">מהמסמך הזה אין מספרים להקליד — מספיק שהגיע.</p> : (
             <>
               {askWho && (
                 <div className="aw-seg" role="group" aria-label="של מי">
@@ -417,11 +411,11 @@ function EntryPanel({ m, client, year, stepId, facts, run, spouseName, onClose }
                 </label>
               ))}
               {problems.length > 0 && Object.values(values).some(v => typeof v === 'number') && <ul className="aw-problems" role="alert">{problems.map(p => <li key={p}>{p}</li>)}</ul>}
-              {needEntity && <p className="aw-note">לבחור {t.per === 'employer' ? 'מעסיק' : 'למי המסמך שייך'}.</p>}
+              {needEntity && <p className="aw-hint">לבחור {t.per === 'employer' ? 'מעסיק' : 'למי המסמך שייך'}.</p>}
               {err && <p className="aw-err" role="alert">{err}</p>}
             </>
           )}
-          <div className="aw-foot">
+          <div className="aw-pfoot">
             {t && <button type="button" className="btn btn-primary" disabled={problems.length > 0 || needEntity} onClick={() => void save()} data-aw-save>שמירה</button>}
             <button type="button" className="btn btn-ghost" onClick={onClose}>{t ? 'ביטול' : 'סגירה'}</button>
           </div>

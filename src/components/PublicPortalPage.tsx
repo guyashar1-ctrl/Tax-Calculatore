@@ -15,6 +15,8 @@ import { PortalTaxEstimate } from '../features/taxYear/extensions';
 import { openClientFormFromHash } from '../features/smartForms/clientForms/hash';
 // 247 · מסך הטופס הרשמי (מילוי וחתימה) — נטען רק כשנפתח (pdf-lib, הגופנים והתבנית)
 const ClientFormScreen = lazy(() => import('../features/smartForms/clientForms/ClientFormScreen'));
+/** 297 · הדוח השנתי לחתימה — נטען רק כשפותחים. */
+const AnnualSignScreen = lazy(() => import('../features/annualReturn/AnnualSignScreen'));
 import { FirmBranding } from '../types/firmProfile';
 import { MESSAGE_DEFAULT_TITLE } from '../lib/sendDocuments';
 import { deriveQuotationBrand } from './quotations/quotationBranding';
@@ -103,7 +105,7 @@ export interface PortalItem {
   label: string;
   sub?: string;
   /** 'portal' = הפעולה נעשית כאן בעמוד, בלי לנווט לטוקן אחר. */
-  actionKind?: 'onboard' | 'sign' | 'intake' | 'external' | 'quote' | 'portal' | 'taxInfo' | 'taxEstimate';
+  actionKind?: 'onboard' | 'sign' | 'intake' | 'external' | 'quote' | 'portal' | 'taxInfo' | 'taxEstimate' | 'annualSign';
   actionValue?: string;
   /**
    * מה בדיוק הפעולה בתוך העמוד.
@@ -683,6 +685,8 @@ function ActionItem({ item, brand, accent, last, onDone }: {
   const taxInfo = item.actionKind === 'taxInfo' && !!item.actionValue;
   /** 232 · הערכת המס שפורסמה — הגרסה המאושרת עצמה, לקריאה בתוך הכרטיס. */
   const taxEstimate = item.actionKind === 'taxEstimate' && !!item.actionValue;
+  /** 297 · הדוח השנתי לחתימה — הצילום שהמשרד שלח, וחתימה לכל אחד מבני הזוג. */
+  const annualSign = item.actionKind === 'annualSign' && !!item.actionValue;
   const token = useContext(PortalTokenCtx);
   const nx = useContext(PortalNextCtx);
   const isNext = nx?.key === item.key;
@@ -723,6 +727,12 @@ function ActionItem({ item, brand, accent, last, onDone }: {
             whiteSpace: 'pre-line',
           }}>{item.note}</p>
         ) : null
+      ) : annualSign ? (
+        <div style={{ marginTop: 11 }}>
+          {!open && <button type="button" onClick={() => setOpen(true)} data-pp-primary style={readOnly || sample ? inertBtn : primaryBtn} aria-expanded={false} disabled={readOnly || sample}>לצפייה וחתימה</button>}
+          {(readOnly || sample) && <div style={{ fontSize: 12.5, color: brand.muted, marginTop: 6 }}>כאן הלקוח רואה את הדוח וחותם. בתצוגה — בלי חתימה.</div>}
+          {open && !readOnly && !sample && token && <Suspense fallback={<p style={{ fontSize: 13 }}>טוען…</p>}><AnnualSignScreen stepId={item.actionValue!} token={token} onClose={() => setOpen(false)} /></Suspense>}
+        </div>
       ) : taxEstimate ? (
         <div style={{ marginTop: 11 }}>
           {!open && <button type="button" onClick={() => setOpen(true)} data-pp-primary style={readOnly || sample ? inertBtn : primaryBtn} aria-expanded={false} disabled={readOnly || sample}>לצפייה בהערכה</button>}

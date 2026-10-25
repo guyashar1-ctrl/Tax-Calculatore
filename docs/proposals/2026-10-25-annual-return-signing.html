@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>חתימה על הדוח השנתי</title>
+<style>
+  :root{
+    --page:#f6f5f2; --card:#fff; --bd:#e4e2dd; --bd2:#d6d3cc;
+    --tx:#25282d; --txc:#4b5058; --tx2:#666b72; --tx3:#92979e;
+    --br:#3f5f8f; --soft:#edf2f8; --p2:#6b4a8e; --p2-soft:#f3eef8; --p0:#2f6b52;
+    --ok:#24654e; --ok-bg:#e9f4ee; --warn:#8a5b0f; --warn-bg:#fbf3e4;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{font-family:"Segoe UI","Heebo",Arial,system-ui,sans-serif;background:var(--page);color:var(--tx);font-size:15px;line-height:1.5}
+  button,input{font:inherit;color:inherit}
+  button{cursor:pointer}
+  .wrap{max-width:1180px;margin:0 auto;padding:18px 16px 60px}
+  .flag{display:inline-block;background:var(--warn-bg);color:var(--warn);border:1px solid #ecd9b0;border-radius:999px;padding:2px 10px;font-size:12.5px;font-weight:600}
+  h1{font-size:23px;margin:8px 0 4px}
+  .lead{color:var(--txc);margin:0 0 12px;max-width:760px}
+  details.scope{background:#fff;border:1px solid var(--bd);border-radius:12px;padding:10px 14px;margin:0 0 10px;max-width:760px}
+  details.scope summary{cursor:pointer;font-weight:600;color:var(--br)}
+  details.scope ul{margin:8px 0 2px;padding-inline-start:20px;color:var(--txc);font-size:14px}
+  details.scope li{margin:4px 0}
+  .restart{border:0;background:none;color:var(--br);font-weight:600;font-size:13px;margin:6px 0 0}
+
+  .stage{display:grid;grid-template-columns:1fr 390px;gap:24px;align-items:start;margin-top:14px}
+  .lbl{font-size:13px;font-weight:700;color:var(--tx2);margin:0 2px 8px;display:flex;align-items:center;gap:6px}
+  .lbl i{width:20px;height:20px;border-radius:50%;background:var(--br);color:#fff;display:grid;place-items:center;font-style:normal;font-size:11px}
+
+  /* ── המשרד ── */
+  .office{background:#fff;border:1px solid var(--bd);border-radius:16px;overflow:hidden}
+  .orow{display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--bd)}
+  .orow b{font-size:16px}
+  .orow .pill{font-size:12.5px;font-weight:600;border-radius:999px;padding:2px 10px;background:var(--soft);color:var(--br)}
+  .orow .pill.ok{background:var(--ok-bg);color:var(--ok)}
+  .orow .pill.warn{background:var(--warn-bg);color:var(--warn)}
+  .obody{padding:14px 16px 16px}
+  .ostatus{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .ostatus .t{flex:1;min-width:180px;font-size:14px;color:var(--txc)}
+  .btn{border:0;border-radius:10px;padding:10px 16px;font-weight:700;background:var(--br);color:#fff;transition:background .2s,opacity .2s,transform .1s}
+  .btn:active{transform:scale(.98)}
+  .btn.ghost{background:none;color:var(--br);border:1.5px solid var(--br);padding:8.5px 14px}
+  .btn[disabled]{opacity:.35;cursor:default}
+  .signers{display:flex;flex-direction:column;gap:6px;margin-top:12px}
+  .signer{display:flex;align-items:center;gap:10px;border:1px solid var(--bd);border-radius:12px;padding:9px 12px;transition:background .3s,border-color .3s}
+  .signer .av{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;color:#fff;font-size:12px;font-weight:700}
+  .signer .n{flex:1;font-weight:600;font-size:14px}
+  .signer .s{font-size:13px;color:var(--tx3);font-weight:600}
+  .signer.done{background:#f6fbf8;border-color:#cfe6d9}
+  .signer.done .s{color:var(--ok)}
+  .ghostrep{margin-top:14px;display:grid;grid-template-columns:150px 1fr;gap:12px;opacity:.55}
+  .ghostrep div{height:62px;border-radius:12px;background:#f1efeb}
+  .note{font-size:12.5px;color:var(--tx2);margin:10px 0 0}
+  .changed{margin-top:12px;background:var(--warn-bg);border:1px solid #ecd9b0;border-radius:12px;padding:10px 12px;font-size:14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .changed span{flex:1;min-width:180px}
+  .sim{margin-top:14px;border-top:1px dashed var(--bd);padding-top:10px;font-size:12.5px;color:var(--tx3);display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .sim button{border:1px solid var(--bd2);background:#fff;border-radius:999px;padding:3px 10px;font-size:12.5px;color:var(--tx2);font-weight:600}
+
+  /* ── הדף של הלקוח ── */
+  .phone{width:390px;max-width:100%;background:#16181c;border-radius:34px;padding:9px;box-shadow:0 10px 30px rgba(0,0,0,.16)}
+  .screen{background:var(--page);border-radius:26px;height:780px;overflow:hidden;display:flex;flex-direction:column}
+  .phead{background:#fff;padding:14px 18px 12px;border-bottom:1px solid #eceae6}
+  .phead b{font-size:16px;display:block}
+  .phead small{color:var(--tx2);font-size:12.5px}
+  .pbody{flex:1;overflow-y:auto;padding:14px 14px 18px}
+  .item{background:#fff;border:1px solid var(--bd);border-radius:16px;padding:14px;margin-bottom:10px}
+  .item.focus{border-color:var(--br);box-shadow:0 0 0 3px var(--soft)}
+  .item h3{margin:0 0 2px;font-size:16px}
+  .item p{margin:0 0 10px;color:var(--tx2);font-size:13.5px}
+  .item .btn{width:100%}
+  .item.dim{opacity:.6}
+  .item .done{color:var(--ok);font-weight:700;font-size:14px}
+  .pages{display:flex;flex-direction:column;gap:10px}
+  .pg{background:#fff;border:1px solid var(--bd);border-radius:10px;padding:10px 12px;font-size:12px;color:var(--txc)}
+  .pg h4{margin:0 0 6px;font-size:13.5px;color:var(--tx)}
+  .pg .r{display:flex;justify-content:space-between;border-bottom:1px dashed #ece9e3;padding:3px 0}
+  .pg .r b{font-variant-numeric:tabular-nums;color:var(--tx)}
+  .pg.form{padding:8px}
+  .formimg{position:relative;aspect-ratio:1/1.35;background:repeating-linear-gradient(#fff 0 13px,#f2f0ec 13px 14px);border-radius:4px;border:1px solid #e9e6e0}
+  .formimg span{position:absolute;font-size:10px;font-weight:700;color:#0b3a8c;direction:ltr}
+  .formimg .tag{position:absolute;top:6px;right:8px;font-size:11px;font-weight:700;color:var(--tx2);direction:rtl}
+  .bal{font-size:18px;font-weight:800;color:var(--ok);margin:2px 0 6px}
+  .decl{background:#fff;border:1px solid var(--bd);border-radius:12px;padding:12px;font-size:13.5px;margin-top:10px}
+  .decl label{display:flex;gap:9px;align-items:flex-start;cursor:pointer}
+  .decl input{width:20px;height:20px;margin-top:1px;accent-color:var(--br);flex-shrink:0}
+  .who{display:inline-flex;align-items:center;gap:7px;font-size:13px;font-weight:700;border-radius:999px;padding:3px 11px 3px 4px;margin:12px 0 6px;color:var(--br);background:var(--soft)}
+  .who i{width:22px;height:22px;border-radius:50%;background:var(--br);color:#fff;display:grid;place-items:center;font-style:normal;font-size:12px}
+  .who.p2{color:var(--p2);background:var(--p2-soft)}
+  .who.p2 i{background:var(--p2)}
+  .pad{position:relative;background:#fff;border:1.5px dashed var(--bd2);border-radius:12px;height:150px;touch-action:none}
+  .pad canvas{width:100%;height:100%;display:block;border-radius:12px}
+  .pad .hint{position:absolute;inset:0;display:grid;place-items:center;color:var(--tx3);font-size:13.5px;pointer-events:none}
+  .padrow{display:flex;justify-content:space-between;align-items:center;margin:6px 2px 0}
+  .link{border:0;background:none;color:var(--br);font-weight:600;font-size:13px;padding:4px 2px}
+  .pfoot{background:#fff;border-top:1px solid #eceae6;padding:10px 14px 14px;display:flex;gap:10px}
+  .pfoot .btn{flex:1}
+  .hero{text-align:center;padding:30px 10px}
+  .hero .okc{width:64px;height:64px;border-radius:50%;background:var(--ok-bg);color:var(--ok);display:grid;place-items:center;font-size:30px;margin:0 auto 10px;font-weight:700;animation:pop .35s cubic-bezier(.3,1.6,.5,1)}
+  @keyframes pop{from{transform:scale(.4);opacity:0}to{transform:none;opacity:1}}
+  .fade{animation:fade .25s ease}
+  @keyframes fade{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
+  @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+  @media (max-width:860px){.stage{grid-template-columns:1fr}.phone{padding:0;background:none;box-shadow:none;width:100%}.screen{border-radius:16px;border:1px solid var(--bd);height:720px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <span class="flag">המחשה · נתוני דמה · עוד לא באתר</span>
+  <h1>חתימה על הדוח השנתי</h1>
+  <p class="lead">במשרד: «שליחה לחתימה». אצל הלקוח: רואים, מסמנים, חותמים. נסו: שלחו מהמשרד, ואז חתמו בטלפון.</p>
+  <details class="scope">
+    <summary>מה ייכלל בביצוע, ומה יגיע לאתר</summary>
+    <ul>
+      <li><b>במשרד:</b> «שליחה לחתימה» ליד «הדפסת הסט», רק כשהכול מוכן. הלחיצה היא האישור שלך — בלי שלב נוסף.</li>
+      <li><b>מה נחתם:</b> עמוד הריכוז, 1301 והנספחים — קובץ PDF אחד, נעול. בלי המסמכים שהלקוח העלה.</li>
+      <li><b>מי חותם:</b> הלקוח, ובדוח משותף גם בן/בת הזוג — כל אחד בנפרד. אתה לא חותם.</li>
+      <li><b>איך מגיע:</b> פריט בדף האישי, עם מייל הדף הרגיל — רק כשאתה שולח, לא מייל נפרד.</li>
+      <li><b>אחרי החתימה:</b> «נחתם» — רק עם חתימה שמורה בשרת. הקובץ החתום נשמר במסמכים של הלקוח.</li>
+      <li><b>שינוי אחרי החתימה:</b> «השתנה מאז החתימה» ו«שליחה מחדש» — החתימה הקודמת נשארת בהיסטוריה.</li>
+      <li><b>לאתר:</b> קוד האתר, ושינוי במסד בייצור (סוג מסמך חדש לחתימה והפריט בדף האישי) — עם גיבוי ובדיקה לפני. ייתכן עדכון פונקציית שרת של הקובץ החתום. העובד במשרד לא משתנה.</li>
+    </ul>
+  </details>
+  <button type="button" class="restart" id="restart">↺ מההתחלה</button>
+
+  <div class="stage">
+    <section>
+      <p class="lbl"><i>1</i>במשרד — שורת «דוח שנתי 2025»</p>
+      <div class="office" id="office"></div>
+    </section>
+    <section>
+      <p class="lbl"><i>2</i>הדף האישי של ישראל — בטלפון</p>
+      <div class="phone"><div class="screen" id="screen"></div></div>
+    </section>
+  </div>
+</div>
+
+<script>
+(() => {
+  const P = { c: { name: 'ישראל', color: 'var(--br)', f: false }, s: { name: 'ישראלה', color: 'var(--p2)', f: true } };
+  // מצב: ready → sent → (signed.c / signed.s) → done; changed אחרי done
+  let S = fresh();
+  function fresh() { return { stage: 'ready', signed: { c: false, s: false }, view: 'list', decl: false, inked: false, who: 'c', changed: false }; }
+  const $ = s => document.querySelector(s);
+
+  function office() {
+    const st = S.stage, both = S.signed.c && S.signed.s;
+    const pill = st === 'ready' ? '<span class="pill">מוכן</span>'
+      : both && !S.changed ? '<span class="pill ok">נחתם</span>'
+      : S.changed ? '<span class="pill warn">השתנה מאז החתימה</span>' : '<span class="pill">נשלח לחתימה</span>';
+    const text = st === 'ready' ? 'הכול מוכן'
+      : both && !S.changed ? 'שניהם חתמו · הקובץ החתום במסמכים'
+      : S.changed ? 'מספר בדוח השתנה אחרי החתימה'
+      : `ממתין ל${[!S.signed.c && P.c.name, !S.signed.s && P.s.name].filter(Boolean).join(' ול')}`;
+    const signer = k => `<div class="signer${S.signed[k] ? ' done' : ''}"><span class="av" style="background:${P[k].color}">${P[k].name[0]}</span><span class="n">${P[k].name}</span><span class="s">${S.signed[k] ? (P[k].f ? '✓ חתמה' : '✓ חתם') : 'ממתין'}</span></div>`;
+    $('#office').innerHTML = `
+      <div class="orow"><b>דוח שנתי 2025</b>${pill}</div>
+      <div class="obody">
+        <div class="ostatus">
+          <span class="t">${text}</span>
+          <button type="button" class="btn ghost" id="print">הדפסת הסט</button>
+          ${st === 'ready' ? '<button type="button" class="btn" id="send">שליחה לחתימה</button>' : ''}
+          ${both && !S.changed ? '<button type="button" class="btn ghost" id="openSigned">הקובץ החתום</button>' : ''}
+        </div>
+        ${st !== 'ready' ? `<div class="signers fade">${signer('c')}${signer('s')}</div>` : ''}
+        ${S.changed ? `<div class="changed fade"><span>הדוח עודכן אחרי החתימה. החתימה הקודמת נשמרת בהיסטוריה.</span><button type="button" class="btn" id="resend">שליחה מחדש</button></div>` : ''}
+        ${st === 'ready' ? '<p class="note">הלחיצה היא האישור שלך. הפריט יופיע בדף של ישראל, עם מייל הדף.</p>' : ''}
+        <div class="ghostrep"><div></div><div></div></div>
+        ${both && !S.changed ? '<div class="sim">הדמיה: <button type="button" id="mkChange">מספר השתנה אחרי החתימה</button></div>' : ''}
+      </div>`;
+    const on = (id, fn) => { const el = document.getElementById(id); if (el) el.onclick = fn; };
+    on('send', () => { S.stage = 'sent'; S.view = 'list'; render(); flashItem(); });
+    on('resend', () => { S = { ...fresh(), stage: 'sent' }; render(); flashItem(); });
+    on('print', () => alert('בהמחשה אין הדפסה — במימוש: אותו סט, כמו היום'));
+    on('openSigned', () => alert('בהמחשה אין קובץ — במימוש: ה-PDF החתום מהמסמכים של הלקוח'));
+    on('mkChange', () => { S.changed = true; render(); });
+  }
+
+  function phone() {
+    const scr = $('#screen');
+    const head = `<div class="phead"><b>שלום ישראל</b><small>משרד רו״ח לדוגמה</small></div>`;
+    if (S.stage === 'ready' || S.changed && S.view === 'list') {
+      scr.innerHTML = `${head}<div class="pbody"><div class="item dim"><h3>הדוח השנתי 2025</h3><p>המסמכים התקבלו — המשרד מכין את הדוח.</p><span class="done">✓ הכול נשלח</span></div></div>`;
+      return;
+    }
+    if (S.view === 'list') {
+      const both = S.signed.c && S.signed.s;
+      scr.innerHTML = `${head}<div class="pbody fade">
+        <div class="item${both ? '' : ' focus'}" id="it"><h3>הדוח השנתי 2025${both ? '' : ' — לחתימה'}</h3>
+          ${both ? '<p>שניכם חתמתם. המשרד מגיש את הדוח.</p><span class="done">✓ נחתם</span>'
+            : `<p>${S.signed.c || S.signed.s ? `${S.signed.c ? `${P.c.name} חתם` : `${P.s.name} חתמה`}. נשארה החתימה של ${S.signed.c ? P.s.name : P.c.name}.` : 'הדוח מוכן. עוברים עליו וחותמים — שניכם.'}</p><button type="button" class="btn" id="open">לצפייה וחתימה</button>`}
+        </div>
+        <div class="item dim"><h3>מסמכים לשנת 2025</h3><span class="done">✓ הכול נשלח</span></div>
+      </div>`;
+      const o = document.getElementById('open');
+      if (o) o.onclick = () => { S.view = 'doc'; S.who = S.signed.c ? 's' : 'c'; S.decl = false; S.inked = false; render(); };
+      return;
+    }
+    if (S.view === 'thanks') {
+      const both = S.signed.c && S.signed.s;
+      scr.innerHTML = `${head}<div class="pbody"><div class="hero"><div class="okc">✓</div><h3 style="margin:0 0 4px">${both ? 'נחתם. תודה!' : `תודה, ${P[S.who].name}`}</h3>
+        <p style="color:var(--tx2);margin:0 0 16px">${both ? 'המשרד יגיש את הדוח. עותק חתום נשמר אצלכם בדף.' : `עכשיו ${P[S.signed.c ? 's' : 'c'].name} — מאותו טלפון, או מהדף שלכם בכל מכשיר.`}</p>
+        <button type="button" class="btn" id="back">${both ? 'חזרה לדף' : `לחתימה של ${P[S.signed.c ? 's' : 'c'].name}`}</button></div></div>`;
+      document.getElementById('back').onclick = () => { if (both) { S.view = 'list'; } else { S.view = 'doc'; S.who = S.signed.c ? 's' : 'c'; S.decl = false; S.inked = false; } render(); };
+      return;
+    }
+    // הדוח והחתימה
+    const k = S.who;
+    scr.innerHTML = `<div class="phead"><b>הדוח השנתי 2025</b><small>עמוד ריכוז · 1301 · נספחים</small></div>
+      <div class="pbody fade">
+        <div class="pages">
+          <div class="pg"><h4>עמוד ריכוז</h4><div class="bal">החזר משוער 3,420 ₪</div>
+            <div class="r"><span>משכורת · ישראל</span><b>124,400 ₪</b></div>
+            <div class="r"><span>משכורת · ישראלה</span><b>131,200 ₪</b></div>
+            <div class="r"><span>רווח מעסק · ישראלה</span><b>52,300 ₪</b></div>
+            <div class="r"><span>תרומות</span><b>1,800 ₪</b></div></div>
+          <div class="pg form"><div class="formimg"><span class="tag">טופס 1301 · עמ׳ 2</span><span style="top:30%;left:12%">124,400</span><span style="top:36%;left:12%">131,200</span><span style="top:48%;left:12%">52,300</span></div></div>
+          <div class="pg"><h4>1320 · עסק</h4><div class="r"><span>מחזור</span><b>84,000 ₪</b></div><div class="r"><span>רווח</span><b>52,300 ₪</b></div></div>
+        </div>
+        <span class="who${k === 's' ? ' p2' : ''}"><i>${P[k].name[0]}</i>החתימה של ${P[k].name}</span>
+        <div class="decl"><label><input type="checkbox" id="decl" ${S.decl ? 'checked' : ''}><span>${P[k].f ? 'אני מצהירה' : 'אני מצהיר'} שהפרטים בדוח נכונים ומלאים.</span></label></div>
+        <div class="pad" style="margin-top:10px"><canvas id="cv"></canvas>${S.inked ? '' : '<span class="hint">חתמו כאן באצבע</span>'}</div>
+        <div class="padrow"><span style="font-size:12px;color:var(--tx3)">${P[k].name} · ${new Date().toLocaleDateString('he-IL')}</span><button type="button" class="link" id="clear">ניקוי</button></div>
+      </div>
+      <div class="pfoot"><button type="button" class="btn ghost" id="later" style="flex:0 0 auto">אחר כך</button><button type="button" class="btn" id="sign" ${S.decl && S.inked ? '' : 'disabled'}>חתימה</button></div>`;
+    document.getElementById('decl').onchange = e => { S.decl = e.target.checked; document.getElementById('sign').disabled = !(S.decl && S.inked); };
+    document.getElementById('later').onclick = () => { S.view = 'list'; render(); };
+    document.getElementById('clear').onclick = () => { S.inked = false; render(); };
+    document.getElementById('sign').onclick = () => { S.signed[k] = true; S.view = 'thanks'; render(); };
+    pad(document.getElementById('cv'));
+  }
+
+  function pad(cv) {
+    const r = cv.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+    cv.width = r.width * dpr; cv.height = r.height * dpr;
+    const ctx = cv.getContext('2d'); ctx.scale(dpr, dpr); ctx.lineWidth = 2.4; ctx.lineCap = 'round'; ctx.strokeStyle = '#1d2a44';
+    let down = false;
+    const pt = e => { const b = cv.getBoundingClientRect(); return [e.clientX - b.left, e.clientY - b.top]; };
+    cv.onpointerdown = e => { down = true; cv.setPointerCapture(e.pointerId); ctx.beginPath(); ctx.moveTo(...pt(e)); };
+    cv.onpointermove = e => { if (!down) return; ctx.lineTo(...pt(e)); ctx.stroke();
+      if (!S.inked) { S.inked = true; const h = cv.parentElement.querySelector('.hint'); if (h) h.remove(); document.getElementById('sign').disabled = !S.decl; } };
+    cv.onpointerup = () => { down = false; };
+  }
+
+  function flashItem() { requestAnimationFrame(() => { const it = document.getElementById('it'); if (it) it.animate([{ transform: 'scale(.97)' }, { transform: 'none' }], { duration: 260 }); }); }
+  function render() { office(); phone(); }
+  $('#restart').onclick = () => { S = fresh(); render(); };
+  render();
+})();
+</script>
+</body>
+</html>

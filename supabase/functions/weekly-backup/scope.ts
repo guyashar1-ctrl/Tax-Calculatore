@@ -76,6 +76,7 @@ export const TABLE_SCOPES: Record<string, TableScope> = {
   // 231 · גרסאות הערכת מס — קלט, הנחות, הכרעות ותוצאה (הגרסה המאושרת אינה ניתנת לשחזור מחישוב חוזר)
   tax_estimates: { kind: "user_id" },
   annual_returns: { kind: "user_id" }, // 233 · גרסאות הדוח השנתי (17.10.2026)
+  annual_return_signings: { kind: "user_id" }, // 297 · החתימה על סט הדוח השנתי בדף האישי (25.10.2026)
   // 250 · חובות הגשה שנקלטו מרשימות שע״ם ומקורות הקליטה (הקובץ עצמו בדלי office-imports)
   shaam_filing_sources: { kind: "user_id" },
   shaam_filing_obligations: { kind: "user_id" },

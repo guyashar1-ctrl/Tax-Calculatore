@@ -260,7 +260,79 @@ async function runWidth(width) {
     for (let k = 0; k < 6; k++) { const b = ws.locator('[data-aw-note] button, [data-aw-unlisted] button').first(); if (!(await b.count())) break; await b.click(); await page.waitForTimeout(1200); }
     await page.waitForTimeout(1000);
     await shot(page, 'office-done');
+    console.log('    [office-rest] ' + await ws.locator('[data-aw-office-rest]').first().getAttribute('data-aw-office-rest').catch(() => ''));
     console.log('    [status] ' + await text(ws.locator('[data-aw-status]')) + ' · ' + (await text(ws.locator('.aw-mats'))).replace(/\s+/g, ' ').slice(0, 300));
+
+    // 6ב · «להשלים במשרד» — העורכים הקיימים אינם נושא הבדיקה הזו: עובדה מאושרת לכל פריט, כדי להגיע ל«מוכן»
+    const rest = await ws.locator('[data-aw-office-rest]').first().getAttribute('data-aw-office-rest', { timeout: 3000 }).catch(() => null);
+    if (rest) {
+      for (const it of rest.split(',')) {
+        const [key, role0, ek, er] = it.split(':');
+        // ‼ שורה אחת לנושא — גם כשהוא לשני בני הזוג; ממלאים לשניהם
+        for (const role of (role0 === 'client' || role0 === 'spouse') ? ['client', 'spouse'] : [role0])
+        await env.sql(`insert into public.tax_year_facts (user_id, client_id, tax_year, item_key, subject_role, entity_kind, entity_ref, period_kind, period_from, period_to, answer, value, basis, source, status, request_id)
+          select user_id, id, 2025, '${key}', '${role}', ${ek ? `'${ek}'` : 'null'}, ${er ? `'${er}'` : 'null'}, 'year', '2025-01-01', '2025-12-31', 'value', '"בדיקה"'::jsonb, 'actual', 'office', 'accepted', '${st.id}'
+          from public.clients where id='${id}'`);
+      }
+      await page.goto(env.officeUrl(id, `journey/${st.id}`), { waitUntil: 'domcontentloaded' }); await page.reload({ waitUntil: 'domcontentloaded' });
+      await ws.waitFor({ timeout: 40000 });
+      await page.waitForTimeout(2500);
+    }
+
+    console.log('    [after-seed] ' + await ws.locator('[data-aw-office-rest]').first().getAttribute('data-aw-office-rest', { timeout: 2000 }).catch(() => '(none)') + ' · ' + await text(ws.locator('[data-aw-open]')) + ' · ' + (await text(ws.locator('.aw-mats'))).replace(/s+/g, ' ').slice(0, 400));
+    // 6ג · 297 · שליחה לחתימה ⇒ הדף: שניהם חותמים ⇒ «נחתם» והקובץ החתום
+    const sendSign = ws.locator('[data-aw-send-sign]');
+    if (await sendSign.count()) {
+      ok(/שליחה לחתימה/.test(await text(sendSign)), '«שליחה לחתימה» כשהכול מוכן');
+      await sendSign.click();
+      await ws.locator('[data-aw-signer="client"]').waitFor({ timeout: 20000 });
+      ok(/נשלח לחתימה/.test(await text(ws.locator('[data-aw-status]'))) && await ws.locator('[data-aw-signer]').count() === 2, 'במשרד: «נשלח לחתימה» ושני החותמים', await text(ws.locator('[data-aw-status]')));
+      await shot(page, 'sign-sent');
+      const sp = await ctx.newPage(); onErr(sp, 'portal-sign');
+      await sp.goto(env.portalUrl(), { waitUntil: 'domcontentloaded' });
+      await sp.waitForFunction(() => document.body.innerText.includes('הדוח השנתי 2025 — לחתימה'), null, { timeout: 40000 });
+      const item = sp.locator('.pp-item', { has: sp.getByText('הדוח השנתי 2025 — לחתימה', { exact: true }) }).first();
+      ok(/שניכם חותמים/.test(await text(item)), 'בדף: «הדוח השנתי 2025 — לחתימה» · «שניכם חותמים»', await text(item));
+      await item.getByRole('button', { name: 'לצפייה וחתימה' }).click();
+      const scr = sp.locator('[data-annual-sign]');
+      await scr.waitFor({ timeout: 20000 });
+      await scr.locator('[data-as-tab="1301"]').click();
+      await scr.locator('[data-aw-form="1301"] img').waitFor({ timeout: 20000 });
+      ok(await scr.locator('[data-aw-form="1301"] img').count() === 1, 'בדף: הלקוח רואה את 1301 עצמו');
+      await shot(sp, 'sign-portal');
+      for (const [who, name] of [['client', 'דוד'], ['spouse', 'רחל']]) {
+        await scr.locator('[data-as-sign]').waitFor({ timeout: 15000 });
+        const whoTxt = await scr.locator('.as-who').first().textContent().catch(() => '');
+        ok(new RegExp(`החתימה של ${name}`).test(whoTxt), `בדף: החתימה של ${name}`, whoTxt);
+        ok(await scr.locator('[data-as-sign]').isDisabled(), `${name}: בלי הצהרה וחתימה — «חתימה» כבויה`);
+        await scr.locator('[data-as-decl]').check();
+        const pad = scr.locator('.as-pad canvas');
+        await pad.scrollIntoViewIfNeeded(); await sp.waitForTimeout(300);
+        const bb = await pad.boundingBox();
+        await sp.mouse.move(bb.x + 30, bb.y + 60); await sp.mouse.down();
+        for (let i = 1; i <= 12; i++) await sp.mouse.move(bb.x + 30 + i * 18, bb.y + 60 + Math.sin(i) * 25);
+        await sp.mouse.up();
+        await scr.locator('[data-as-sign]').click();
+        await sp.waitForFunction((n) => (document.querySelector('[data-annual-sign] .as-thanks')?.textContent ?? '').includes(n === 'רחל' ? 'נחתם' : `תודה, ${n}`), name, { timeout: 20000 }).catch(() => {});
+        if (who === 'client') { const th = await scr.locator('.as-thanks').first().textContent().catch(() => ''); ok(/תודה, דוד/.test(th) && /עכשיו רחל/.test(th), 'אחרי דוד: «תודה, דוד · עכשיו רחל»', th); }
+      }
+      ok(/נחתם/.test(await text(scr.locator('.as-thanks'))), 'בדף: «נחתם. תודה!»', await text(scr.locator('.as-thanks')));
+      await shot(sp, 'sign-done');
+      const sg = (await env.sql(`select state, signatures ? 'client' and signatures ? 'spouse' both from public.annual_return_signings where request_id='${st.id}' and state <> 'superseded'`))[0];
+      ok(sg?.state === 'signed' && sg.both, 'בשרת: נחתם עם שתי החתימות', JSON.stringify(sg));
+      await sp.close();
+      // המשרד: «שניהם חתמו», והקובץ החתום נשמר במסמכים לבד
+      await page.goto(env.officeUrl(id, `journey/${st.id}`), { waitUntil: 'domcontentloaded' }); await page.reload({ waitUntil: 'domcontentloaded' });
+      await ws.waitFor({ timeout: 40000 });
+      await ws.locator('[data-aw-signed-file]').waitFor({ timeout: 60000 }).catch(() => {});
+      ok(/שניהם חתמו/.test(await text(ws.locator('[data-aw-status]'))), 'במשרד: «שניהם חתמו»', await text(ws.locator('[data-aw-status]')));
+      const doc = (await env.sql(`select d.category, d.file_type, d.description from public.annual_return_signings g join public.documents d on d.id = g.signed_document_id where g.request_id='${st.id}' and g.state='signed'`))[0];
+      ok(doc?.category === 'form_1301' && doc.file_type === 'application/pdf', 'הקובץ החתום נשמר במסמכים של הלקוח', JSON.stringify(doc));
+      ok(await ws.locator('[data-aw-signed-file]').count() === 1, 'במשרד: «הקובץ החתום»');
+      await shot(page, 'sign-office-done');
+    } else {
+      ok(false, '«שליחה לחתימה» לא הופיע', await text(ws.locator('[data-aw-status]')));
+    }
 
     // 7 · הסט (כשמוכן) — או שהכפתור כבוי עם הסיבה
     const printBtn = ws.locator('[data-aw-print]');

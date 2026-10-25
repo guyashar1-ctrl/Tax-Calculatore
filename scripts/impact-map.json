@@ -245,6 +245,11 @@
       ],
       "suites": [
         {
+          "script": "staging-test-annual-signing-298.mjs",
+          "run": true,
+          "note": "298 · חתימת הלקוח על סט הדוח השנתי בדף האישי (שליחה, חתימה לכל אחד, «השתנה מאז», שמירת הקובץ)"
+        },
+        {
           "script": "e2e/annual-office.mjs",
           "run": false,
           "note": "הדוח השנתי במשרד («חומרים» ליד «הדוח»), בדפדפן מול staging — דורש שרת: STAGING_ENV_DIR=… node scripts/e2e/annual-office.mjs --base=http://localhost:<port> --widths=1280,390"
