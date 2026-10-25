@@ -37,7 +37,10 @@ interface Props {
 export default function RecordEditor({ schemaId, client, context, value, onChange, showErrors, disabled }: Props) {
   const schema = useMemo(() => schemaFor(schemaId, client, context), [schemaId, client, context]);
   const uid = useId();
-  const items = value.items.length || value.none ? value.items : [emptyRecordFor(schema)];
+  // ‼ 25.10.2026 · «אין» הוא תשובה שווה ל«יש»: קודם שני כפתורים, ורק אחרי «יש» — הכרטיסים (records.ts › gate)
+  const gate = schema.noneLabel ? schema.gate ?? { yes: 'יש', no: schema.noneLabel } : null;
+  const has = !value.none && value.items.length > 0;
+  const items = value.items.length || value.none || gate ? value.items : [emptyRecordFor(schema)];
   const [dir, setDir] = useState<BankDirectory | null>(null);
   const needsDir = schema.fields.some(f => f.type === 'bank' || f.type === 'branch');
   useEffect(() => { if (needsDir) void loadBankDirectory().then(setDir); }, [needsDir]);
@@ -51,10 +54,15 @@ export default function RecordEditor({ schemaId, client, context, value, onChang
 
   return (
     <div className="rec" data-record={schemaId}>
-      {schema.noneLabel && (
-        <div className="ty-choices" role="group" aria-label="יש או אין">
-          <button type="button" className="ty-choice" aria-pressed={!!value.none} disabled={disabled}
-            onClick={() => onChange(value.none ? { items: [emptyRecordFor(schema)] } : { items: [], none: true })}>{schema.noneLabel}</button>
+      {gate && (
+        <div className="rec-gate" role="group" aria-label="יש או אין">
+          <button type="button" aria-pressed={has} disabled={disabled} data-gate="yes"
+            onClick={() => { if (!has) onChange({ items: value.items.length ? value.items : [emptyRecordFor(schema)], none: false }); }}>
+            {schemaId === 'children' && <GateIcon k="yes" />}{gate.yes}
+          </button>
+          <button type="button" aria-pressed={!!value.none} disabled={disabled} data-gate="no" onClick={() => onChange({ items: [], none: true })}>
+            {schemaId === 'children' && <GateIcon k="no" />}{gate.no}
+          </button>
         </div>
       )}
       {!value.none && items.map((r, i) => {
@@ -82,11 +90,20 @@ export default function RecordEditor({ schemaId, client, context, value, onChang
           </fieldset>
         );
       })}
-      {!value.none && schema.multiple && <button type="button" className="rec-add" disabled={disabled} onClick={add}>{schema.addLabel}</button>}
+      {!value.none && schema.multiple && (!gate || has) && <button type="button" className="rec-add" disabled={disabled} onClick={add}>{schema.addLabel}</button>}
       {needsDir && dir?.sourceUpdated && (
         <p className="rec-src" title={`רשימת הבנקים והסניפים: בנק ישראל (סניפים פיזיים), עודכנה ${dir.sourceUpdated.slice(0, 10).split('-').reverse().join('.')}`}>סניף שלא ברשימה — אפשר להזין את מספרו.</p>
       )}
     </div>
+  );
+}
+
+function GateIcon({ k }: { k: 'yes' | 'no' }) {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      {k === 'yes' ? <path d="M9 7a2.5 2.5 0 1 0 0-.01M16.5 9a2 2 0 1 0 0-.01M4.5 20c0-3 2-5 4.5-5s4.5 2 4.5 5M13.5 20c.2-2.4 1.4-4 3-4s2.8 1.6 3 4" />
+        : <><circle cx="12" cy="12" r="8" /><path d="M8.5 12h7" /></>}
+    </svg>
   );
 }
 

@@ -179,7 +179,11 @@ function soldierPointsForYear(s: ServiceInfo, gender: Gender, taxYear: number): 
 
 // ─── מילואים — לוחמים (סעיף 39ב, החל מ-2026 בגין השנה הקודמת) ──────────────
 function reservePoints(days: number, taxYear: number): number {
-  if (taxYear < 2026 || days < 30) return 0;
+  if (taxYear < 2026) return 0;
+  // ‼ 25.10.2026 · הטבלה של 2026–2027 היא הוראת שעה; מ-2028 — הקבועה: מ-20 ימים 0.75, ועוד 0.25 לכל 5 ימים, עד 4
+  //   (לפי משרדי רו״ח וחברות שכר שמצטטים את תיקון 283 — לאמת מול נוסח החוק לפני שנת המס 2028)
+  if (taxYear >= 2028) return days < 20 ? 0 : Math.min(4, 0.75 + Math.floor((days - 20) / 5) * 0.25);
+  if (days < 30) return 0;
   if (days < 40) return 0.5;
   if (days < 50) return 0.75;
   // מ-50 ימים: 1 נקודה, +0.25 לכל 5 ימים נוספים, עד 4 נקודות

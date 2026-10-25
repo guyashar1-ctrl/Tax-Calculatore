@@ -72,7 +72,7 @@ export const TESTS: TestCase[] = [
     const screens = screeners.filter(s => !s.item.tile).length + (screeners.some(s => s.item.tile) ? 1 : 0);
     assert(screens <= 8, `${screens} מסכי פתיחה`);
     // שמות מסמכים שהלקוח מכיר (טופס 106, 867) מותרים; קודי שדות וסעיפים — לא
-    const titles = p.toAsk.map(s => promptFor(s, { client: c, taxYear: 2025, purpose: 'annual' }).title.replace(/טופס (106|867)/g, ''));
+    const titles = p.toAsk.map(s => promptFor(s, { client: c, taxYear: 2025, purpose: 'annual' }).title.replace(/טופס (106|867)/g, '').replace(/\b20\d\d\b/g, ''));
     assert(titles.every(t => !/קוד|סעיף|\d{3}/.test(t)), `קוד טופס בשאלה: ${titles.find(t => /קוד|סעיף|\d{3}/.test(t))}`);
     assert(!p.statuses.some(s => s.item.rare), 'פריט חריג נפתח בלי שהמשרד סימן');
   }),

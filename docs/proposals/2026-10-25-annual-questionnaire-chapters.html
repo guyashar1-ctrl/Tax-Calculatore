@@ -1,0 +1,583 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>שאלון שנתי — פרקים</title>
+<style>
+  :root{
+    --page:#f8f7f5; --bd:#e2e4e7; --bd-strong:#d3d6da;
+    --tx:#25282d; --txc:#4b5058; --tx2:#63686f; --tx3:#8e949b;
+    --ok:#24654e; --ok-bg:#eaf4ef; --warn:#8a5b0f; --warn-bg:#fbf3e4; --danger:#9b2c2c;
+    --c1:#3f5f8f; --c1-soft:#edf2f8;
+    --c2:#7a4f8f; --c2-soft:#f4eef7;
+    --c0:#4d6b5c; --c0-soft:#edf3ef;
+    --acc:var(--c1); --acc-soft:var(--c1-soft);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{font-family:"Segoe UI","Heebo",Arial,system-ui,sans-serif;background:var(--page);color:var(--tx);font-size:15px;line-height:1.5}
+  button,input,select{font:inherit;color:inherit}
+  button{cursor:pointer}
+  .wrap{max-width:1120px;margin:0 auto;padding:18px 16px 60px}
+  .flag{display:inline-block;background:var(--warn-bg);color:var(--warn);border:1px solid #ecd9b0;border-radius:999px;padding:2px 10px;font-size:12.5px;font-weight:600}
+  h1{font-size:23px;margin:8px 0 4px}
+  .lead{color:var(--txc);margin:0 0 12px;max-width:760px}
+  details.scope{background:#fff;border:1px solid var(--bd);border-radius:12px;padding:10px 14px;margin:0 0 10px;max-width:760px}
+  details.scope summary{cursor:pointer;font-weight:600;color:var(--c1)}
+  details.scope ul{margin:8px 0 2px;padding-inline-start:20px;color:var(--txc);font-size:14px}
+  details.scope li{margin:4px 0}
+
+  .tools{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:14px 0 0}
+  .seg{display:inline-flex;border:1px solid var(--bd-strong);border-radius:999px;overflow:hidden;background:#fff}
+  .seg button{border:0;background:none;padding:5px 14px;font-size:13px;font-weight:600;color:var(--tx2)}
+  .seg button[aria-pressed=true]{background:var(--c1);color:#fff}
+  .restart{border:0;background:none;color:var(--c1);font-weight:600;font-size:13px}
+
+  .row2{display:flex;gap:28px;align-items:flex-start;flex-wrap:wrap;margin-top:14px}
+  .phone{width:390px;max-width:100%;background:#16181c;border-radius:34px;padding:9px;box-shadow:0 10px 30px rgba(0,0,0,.16);transition:width .3s ease}
+  .phone.desk{width:720px;border-radius:14px;padding:6px}
+  .screen{background:#f6f5f2;border-radius:26px;height:770px;overflow:hidden;display:flex;flex-direction:column}
+  .phone.desk .screen{border-radius:10px;height:700px}
+  .phone.desk .c-body,.phone.desk .c-head-in,.phone.desk .c-foot-in{max-width:600px;margin-inline:auto;width:100%}
+  .aside{flex:1;min-width:250px;max-width:420px;color:var(--txc);font-size:14px}
+  .aside h3{font-size:15px;margin:2px 0 8px;color:var(--tx)}
+  .aside ul{margin:0 0 14px;padding-inline-start:18px}
+  .aside li{margin:6px 0}
+  .aside .was{display:block;color:var(--tx3);font-size:12.5px}
+  .jump{display:flex;flex-direction:column;gap:10px;margin-top:18px}
+  .jgrp b{display:block;font-size:12px;color:var(--tx3);margin-bottom:4px}
+  .jgrp div{display:flex;flex-wrap:wrap;gap:6px}
+  .jump button{border:1px solid var(--bd-strong);background:#fff;border-radius:999px;padding:4px 11px;font-size:12.5px;color:var(--tx2);font-weight:600}
+  .jump button[aria-current=true]{border-color:var(--c1);color:var(--c1);background:var(--c1-soft)}
+
+  /* ── the client page ── */
+  .c-head{background:#fff;border-bottom:1px solid #eceae6;padding:12px 16px 10px}
+  .c-top{display:flex;justify-content:space-between;align-items:center;height:20px;font-size:12.5px;color:var(--tx2);font-weight:600}
+  /* «נשמר» — מקום שמור מראש: מופיע ונעלם בלי להזיז שום דבר */
+  .saved{color:var(--ok);opacity:0;transition:opacity .25s ease;width:60px;text-align:left}
+  .saved.on{opacity:1}
+  .chs{display:flex;gap:6px;margin-top:9px}
+  .ch{flex:1;min-width:0}
+  .ch .bar{height:5px;background:#ebe9e5;border-radius:9px;overflow:hidden}
+  .ch .bar i{display:block;height:100%;width:0;border-radius:9px;transition:width .35s ease}
+  .ch span{display:block;font-size:11.5px;color:var(--tx3);margin-top:4px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .ch.cur span{color:var(--tx)}
+  .ch.done span{color:var(--tx2)}
+
+  .c-body{flex:1;overflow-y:auto;padding:18px 16px 14px;scroll-behavior:smooth}
+  .c-foot{background:#fff;border-top:1px solid #eceae6;padding:10px 16px 14px}
+  .c-foot-in{display:flex;gap:10px;align-items:center}
+  .q{font-size:22px;font-weight:700;line-height:1.3;margin:0 0 14px}
+  .qs{color:var(--tx2);font-size:14px;margin:-10px 0 14px}
+  .btn{border:0;border-radius:12px;padding:13px 18px;font-weight:700;font-size:16px;background:var(--acc);color:#fff;flex:1;transition:background .25s}
+  .ghost{border:0;background:none;color:var(--tx2);font-weight:600;padding:10px 6px}
+  .ghost[disabled]{opacity:.35;cursor:default}
+  .in{animation:in .28s cubic-bezier(.23,1,.32,1)}
+  @keyframes in{from{opacity:0;transform:translateX(-14px)}to{opacity:1;transform:none}}
+  .back{animation:back .28s cubic-bezier(.23,1,.32,1)}
+  @keyframes back{from{opacity:0;transform:translateX(14px)}to{opacity:1;transform:none}}
+  .shake{animation:shake .35s ease}
+  @keyframes shake{20%{transform:translateX(-6px)}40%{transform:translateX(5px)}60%{transform:translateX(-3px)}80%{transform:translateX(2px)}}
+  @media (prefers-reduced-motion:reduce){.in,.back,.shake,.opener{animation:none}}
+  .need{display:block;color:var(--danger);font-size:12.5px;font-weight:600;margin-top:6px}
+
+  /* פתיחת פרק: מי עכשיו */
+  .opener{display:flex;align-items:center;gap:10px;margin:0 0 14px;animation:pop .4s cubic-bezier(.3,1.5,.5,1)}
+  @keyframes pop{from{transform:scale(.85);opacity:0}to{transform:none;opacity:1}}
+  .av{width:40px;height:40px;border-radius:50%;background:var(--acc);color:#fff;display:grid;place-items:center;font-weight:700;font-size:18px;flex-shrink:0}
+  .opener b{display:block;font-size:17px}
+  .opener small{color:var(--tx2);font-size:13px}
+  .who{display:inline-flex;align-items:center;gap:7px;font-size:13px;font-weight:700;color:var(--acc);background:var(--acc-soft);border-radius:999px;padding:3px 11px 3px 4px;margin-bottom:10px}
+  .who i{width:22px;height:22px;border-radius:50%;background:var(--acc);color:#fff;display:grid;place-items:center;font-style:normal;font-size:12px}
+
+  /* שורה ידועה: נכון / השתנה */
+  .kn{background:#fff;border:1px solid #e6e3de;border-radius:14px;padding:12px 14px;margin-bottom:10px}
+  .kn.bad{border-color:#e3b4b4}
+  .kn-h{display:flex;justify-content:space-between;align-items:center;gap:8px}
+  .kn-l{font-size:13px;color:var(--tx2);font-weight:600}
+  .src{font-size:11.5px;color:var(--tx3);font-weight:600;background:#f1efeb;border-radius:999px;padding:1px 8px}
+  .kn-v{font-size:15px;margin:3px 0 10px}
+  .kn-v div{display:flex;justify-content:space-between;gap:10px;padding:2px 0}
+  .kn-v em{font-style:normal;color:var(--tx2);white-space:nowrap}
+  .kn.done{display:flex;align-items:center;gap:10px;padding:10px 14px;width:100%;text-align:start;cursor:pointer}
+  .kn.done .tick{width:22px;height:22px;border-radius:50%;background:var(--ok-bg);color:var(--ok);display:grid;place-items:center;font-size:13px;font-weight:700;flex-shrink:0}
+  .kn.done .t{flex:1;min-width:0;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .kn.done .t b{font-weight:600;color:var(--tx2);margin-inline-end:6px}
+  .seg2{display:inline-flex;border:1.5px solid #e0ddd6;border-radius:10px;overflow:hidden}
+  .seg2 button{border:0;background:#fff;padding:7px 16px;font-size:14px;font-weight:600;color:var(--tx2)}
+  .seg2 button+button{border-inline-start:1.5px solid #e0ddd6}
+  .seg2 button[aria-pressed=true]{background:var(--acc);color:#fff}
+  .sub{margin-top:12px;padding-top:12px;border-top:1px dashed #e6e3de}
+  .chips{display:flex;flex-wrap:wrap;gap:7px}
+  .chip{border:1.5px solid #e0ddd6;background:#fff;border-radius:999px;padding:6px 13px;font-size:14px;font-weight:600}
+  .chip[aria-pressed=true]{border-color:var(--acc);background:var(--acc-soft);color:var(--acc)}
+  .er{display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding:6px 0;border-top:1px solid #f0eee9;font-size:14px}
+  .er:first-child{border-top:0}
+  .er b{flex:1 1 100%;font-weight:600}
+  .sel,.txt{border:1.5px solid #e0ddd6;border-radius:9px;padding:6px 8px;background:#fff;font-size:14.5px}
+  .txt{width:100%}
+  .er .sel{flex:1;min-width:0}
+  .add{border:1.5px dashed #cfd6e2;background:none;color:var(--acc);border-radius:10px;padding:8px 12px;font-weight:600;font-size:14px;margin-top:8px}
+
+  /* יש / אין — שני כפתורים גדולים */
+  .yn{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
+  .yn button{display:flex;flex-direction:column;align-items:center;gap:6px;border:1.5px solid #e0ddd6;background:#fff;border-radius:16px;padding:18px 10px 14px;font-weight:700;font-size:16px;transition:border-color .15s,background .15s,transform .1s}
+  .yn button:active{transform:scale(.98)}
+  .yn button[aria-pressed=true]{border-color:var(--acc);background:var(--acc-soft);color:var(--acc)}
+  .yn svg{width:30px;height:30px;stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;color:var(--acc)}
+  .yn.bad button{border-color:#e3b4b4}
+  .kid{background:#fff;border:1px solid #e6e3de;border-radius:14px;padding:12px 14px;margin-bottom:10px;animation:in .25s ease}
+  .kid-h{display:flex;justify-content:space-between;align-items:center;font-size:13px;color:var(--tx2);font-weight:700;margin-bottom:8px}
+  .kid-h button{border:0;background:none;color:var(--tx3);font-size:13px;font-weight:600}
+  .f{display:block;margin-bottom:10px}
+  .f>span{display:block;font-size:13px;font-weight:600;color:var(--txc);margin-bottom:4px}
+  .f.bad .txt,.f.bad .sel{border-color:#d99a9a;background:#fdf7f7}
+  .date{display:grid;grid-template-columns:1fr 1.4fr 1.1fr;gap:6px}
+
+  /* ריבועים */
+  .tiles{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:12px}
+  .phone.desk .tiles{grid-template-columns:1fr 1fr 1fr}
+  .tile{position:relative;background:#fff;border:1.5px solid #e4e1db;border-radius:14px;transition:border-color .15s,background .15s,transform .1s;text-align:start;display:flex;flex-direction:column;align-items:flex-start;gap:5px;padding:12px 12px 11px;min-height:100px}
+  .tile:active{transform:scale(.98)}
+  .tile.on{border-color:var(--acc);background:var(--acc-soft)}
+  .ic{position:relative;display:inline-block}
+  .ic svg{width:27px;height:27px;stroke:var(--acc);fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+  .ic .ok{position:absolute;bottom:-3px;left:-7px;width:17px;height:17px;border-radius:50%;background:var(--acc);color:#fff;font-size:10.5px;font-weight:700;display:grid;place-items:center;border:2px solid #fff;transform:scale(0);transition:transform .18s cubic-bezier(.3,1.6,.5,1)}
+  .tile.on .ic .ok{transform:scale(1)}
+  .tile b{font-size:14.5px;line-height:1.3}
+  .tile small{font-size:12.5px;color:var(--tx2);line-height:1.35}
+  .tile .new{position:absolute;left:8px;top:8px;font-size:10.5px;font-weight:700;color:var(--ok);background:var(--ok-bg);border-radius:999px;padding:1px 7px}
+  .follow{background:#fff;border:1.5px solid var(--acc);border-radius:14px;padding:12px 14px;margin:-2px 0 12px;animation:in .25s ease}
+  .follow.bad{border-color:#d99a9a}
+  .follow p{margin:0 0 8px;font-weight:700;font-size:15px}
+  .step{display:inline-flex;align-items:center;border:1.5px solid #e0ddd6;border-radius:12px;overflow:hidden;background:#fff}
+  .step button{border:0;background:#f4f2ee;width:42px;height:42px;font-size:20px;font-weight:700;color:var(--acc)}
+  .step input{width:70px;border:0;text-align:center;font-size:18px;font-weight:700;background:#fff}
+  .hint{font-size:12.5px;color:var(--tx2);margin-top:6px}
+
+  /* סיכום */
+  .sum{background:#fff;border:1px solid #e6e3de;border-radius:14px;margin-bottom:10px;overflow:hidden}
+  .sum-h{display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid #f0eee9;font-weight:700}
+  .sum-h .av{width:26px;height:26px;font-size:13px}
+  .sum-h button{margin-inline-start:auto;border:0;background:none;color:var(--c1);font-weight:600;font-size:13px}
+  .sum ul{list-style:none;margin:0;padding:6px 14px 10px}
+  .sum li{display:flex;justify-content:space-between;gap:10px;padding:4px 0;font-size:14px}
+  .sum li span{color:var(--tx2)}
+  .doc{display:flex;gap:10px;align-items:center;background:#fff;border:1px solid #e6e3de;border-radius:14px;padding:11px 12px;margin-bottom:8px}
+  .doc .t{flex:1;min-width:0}
+  .doc b{display:block;font-size:14.5px;line-height:1.3}
+  .doc span{font-size:12.5px;color:var(--tx2)}
+  .doc.mark{border-color:#bcd9c8;box-shadow:0 0 0 3px #eaf4ef}
+  .up{border:0;background:var(--c1);color:#fff;border-radius:10px;padding:8px 13px;font-weight:700;font-size:13.5px;white-space:nowrap}
+  .dgrp{display:flex;align-items:center;gap:8px;margin:14px 2px 8px;font-weight:700;font-size:14px}
+  .dgrp .av{width:24px;height:24px;font-size:12px}
+  .hero{text-align:center;padding:6px 0 4px}
+  .hero .okc{width:56px;height:56px;border-radius:50%;background:var(--ok-bg);color:var(--ok);display:grid;place-items:center;font-size:26px;margin:0 auto 8px;font-weight:700;animation:pop .35s cubic-bezier(.3,1.6,.5,1)}
+
+  @media (max-width:640px){
+    .wrap{padding:12px 16px 50px}
+    .phone,.phone.desk{padding:0;background:none;box-shadow:none;border-radius:0;width:100%}
+    .screen,.phone.desk .screen{border-radius:16px;height:720px;border:1px solid var(--bd)}
+    .row2{gap:18px}
+    .tools .seg.view{display:none}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <span class="flag">המחשה · נתוני דמה · עוד לא באתר</span>
+  <h1>שאלון הדוח השנתי — פרקים לפי אדם</h1>
+  <p class="lead">קודם המשפחה, אחר כך כל אחד מבני הזוג עד הסוף, ואז שליחה. אפשר ללחוץ על הכול בטלפון.</p>
+  <details class="scope">
+    <summary>מה ייכלל בביצוע, ומה יגיע לאתר</summary>
+    <ul>
+      <li><b>הסדר:</b> המשפחה ← {לקוח} ← {בן/בת זוג} ← שליחה. פרטי בן/בת הזוג, הלימודים והצבא — בפרק של האדם עצמו.</li>
+      <li><b>ילדים:</b> קודם «יש» / «אין», ורק אז כרטיסים. אותו דבר ב«לא היו מעסיקים» ובמזונות ילדים.</li>
+      <li><b>«חסר»:</b> רק אחרי «הבא», ורק בשדה שחסר.</li>
+      <li><b>תאריכים:</b> בחודשים של השנה («עד אוגוסט», «כל השנה»). «מביטוח לאומי» — פעם אחת בכרטיס.</li>
+      <li><b>בלי קפיצות:</b> «נשמר ✓» במקום קבוע. «＋ מעסיק נוסף» רק אחרי «השתנה».</li>
+      <li><b>משכורת:</b> הפרק נפתח בעבודה, ואחריה «מאיפה <u>עוד</u> נכנס לך כסף?».</li>
+      <li><b>מילואים:</b> ריבוע «מילואים כלוחם ב-2025» ← כמה ימים ← האישור מצה״ל. נכנס לכרטיס לנקודות של 2026.</li>
+      <li><b>עסק:</b> מבקשים חשבוניות וקבלות, לא «דוח הכנסות והוצאות».</li>
+      <li><b>במנוע:</b> טבלת המילואים הקבועה מ-2028 (מ-20 ימים).</li>
+      <li><b>לאתר:</b> קוד האתר. שאלון שכבר נשלח ללקוח מקבל את הסדר, התאריכים והתיקונים. ריבוע המילואים — רק בשאלון חדש, ואם הוא דורש רישום בשרת: שינוי במסד בייצור, עם גיבוי. העובד במשרד לא משתנה.</li>
+      <li><b>לא בסבב הזה:</b> מענקי מילואים ב-2025 — עד שנאמת מה חייב במס.</li>
+    </ul>
+  </details>
+
+  <div class="tools">
+    <div class="seg view" role="group" aria-label="תצוגה">
+      <button type="button" data-view="phone" aria-pressed="true">טלפון</button>
+      <button type="button" data-view="desk" aria-pressed="false">מחשב</button>
+    </div>
+    <button type="button" class="restart" id="restart">↺ מההתחלה</button>
+  </div>
+
+  <div class="row2">
+    <div class="phone" id="phone"><div class="screen" id="screen"></div></div>
+    <div class="aside">
+      <div id="aside"></div>
+      <div class="jump" id="jump"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  const YEAR = 2025;
+  const MONTHS = ['ינואר','פברואר','מרץ','אפריל','מאי','יוני','יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'];
+  const P = {
+    c: { name:'ישראל', color:'--c1', soft:'--c1-soft' },
+    s: { name:'ישראלה', color:'--c2', soft:'--c2-soft' },
+  };
+  const ICON = {
+    kids:'<path d="M9 7a2.5 2.5 0 1 0 0-.01M16.5 9a2 2 0 1 0 0-.01M4.5 20c0-3 2-5 4.5-5s4.5 2 4.5 5M13.5 20c.2-2.4 1.4-4 3-4s2.8 1.6 3 4"/>',
+    none:'<circle cx="12" cy="12" r="8"/><path d="M8.5 12h7"/>',
+    ni:'<path d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6z"/><path d="M9 12l2 2 4-4"/>',
+    pension:'<circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/>',
+    rent:'<path d="M4 11l8-6 8 6v8H4z"/><path d="M10 19v-5h4v5"/>',
+    bank:'<path d="M4 17l5-5 4 3 7-7"/><path d="M15 8h5v5"/>',
+    equity:'<rect x="4" y="5" width="16" height="14" rx="2"/><path d="M8 15l3-3 2 2 3-4"/>',
+    withdraw:'<rect x="4" y="6" width="16" height="12" rx="2"/><path d="M12 9v6M9.5 12.5L12 15l2.5-2.5"/>',
+    biz:'<rect x="4" y="7" width="16" height="12" rx="2"/><path d="M9 7V5h6v2M4 12h16"/>',
+    abroad:'<circle cx="12" cy="12" r="8"/><path d="M4 12h16M12 4c2.5 2.5 2.5 13.5 0 16M12 4c-2.5 2.5-2.5 13.5 0 16"/>',
+    sold:'<path d="M5 12l7-7h7v7l-7 7z"/><circle cx="15" cy="9" r="1.2"/>',
+    other:'<circle cx="7" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="17" cy="12" r="1.3"/>',
+    donate:'<path d="M12 20s-7-4.5-7-10a4 4 0 0 1 7-2.5A4 4 0 0 1 19 10c0 5.5-7 10-7 10z"/>',
+    deposit:'<path d="M5 10h14v9H5z"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/>',
+    insure:'<path d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6z"/>',
+    disab:'<circle cx="11" cy="5" r="1.6"/><path d="M11 8v5h5l2 5M8 11a5 5 0 1 0 6 7"/>',
+    aliyah:'<path d="M3 15l7-1 6-7c1-1 3-1 3 0s-1 2-2 3l-6 6-2 5-2-1 1-4-4-1z"/>',
+    care:'<path d="M4 20V9l8-5 8 5v11"/><path d="M12 11v5M9.5 13.5h5"/>',
+    alimony:'<circle cx="8" cy="8" r="2.5"/><circle cx="16" cy="8" r="2.5"/><path d="M4 19c0-3 2-5 4-5M20 19c0-3-2-5-4-5M10 16h4"/>',
+    reserve:'<path d="M12 3l2.5 5 5.5.8-4 3.9.9 5.5L12 15.6 7.1 18.2 8 12.7 4 8.8l5.5-.8z"/>',
+  };
+  const icon = k => `<span class="ic"><svg viewBox="0 0 24 24" aria-hidden="true">${ICON[k]}</svg><span class="ok">✓</span></span>`;
+
+  const IN_TILES = [
+    ['ni','ni','ביטוח לאומי','מילואים, לידה, אבטלה'], ['pension','pension','פנסיה או קצבה','מקרן, מהמדינה או מביטוח'],
+    ['rent','rent','שכר דירה','בארץ או בחו״ל'], ['bank','bank','חיסכון או מניות בבנק','רווחים, דיבידנד'],
+    ['equity','equity','מניות מהעבודה','RSU, אופציות'], ['withdraw','withdraw','משיכה מקופה','פיצויים, השתלמות, גמל'],
+    ['biz','biz','עסק או חשבוניות','גם אם נפתח השנה'], ['abroad','abroad','כסף מחו״ל','עבודה, חשבון, ברוקר'],
+    ['sold','sold','מכירת נכס','דירה, קרקע, רכב לעסק'], ['other','other','הכנסה אחרת','זכייה, תמלוגים'],
+  ];
+  const LESS_TILES = [
+    ['donate','donate','תרומות','עם קבלה'], ['deposit','deposit','הפקדה לפנסיה בעצמך','לא דרך המשכורת'],
+    ['insure','insure','ביטוח חיים פרטי','או אובדן כושר'], ['disab','disab','נכות','אחוזי נכות או עיוורון'],
+    ['reserve','reserve',`מילואים כלוחם ב-${YEAR}`,`מוריד מס ב-${YEAR + 1}`, true], ['aliyah','aliyah','עלייה או חזרה','בשנים האחרונות'],
+    ['care','care','קרוב במוסד','סיעודי, מוגבלות'], ['alimony','alimony','מזונות לגרוש/ה','לפי פסק דין'],
+  ];
+  const WORK = {
+    c: [ { name:'כהן ושות׳ רואי חשבון', from:'2024-07', to:'2025-08' }, { name:'לוי הנדסה בע״מ', from:'2025-10', to:'' } ],
+    s: [ { name:'פרי הגליל בע״מ', from:'2022-02', to:'' }, { name:'משרד החינוך', from:'2025-01', to:'2025-02' } ],
+  };
+  const STUDY = { c: 'תואר ראשון · הסתיים ב-2023', s: 'שחרור מצה״ל · 2021' };
+
+  // ‼ התאריך בשפה של השנה: «עד אוגוסט», «מאוקטובר», «כל השנה»
+  function span(w) {
+    const [fy, fm] = w.from.split('-').map(Number);
+    const [ty, tm] = w.to ? w.to.split('-').map(Number) : [9999, 12];
+    const s = fy < YEAR ? 1 : fm, e = ty > YEAR ? 12 : tm;
+    if (s === 1 && e === 12) return 'כל השנה';
+    if (s === 1) return `עד ${MONTHS[e - 1]}`;
+    if (e === 12) return `מ${MONTHS[s - 1]}`;
+    return `${MONTHS[s - 1]} עד ${MONTHS[e - 1]}`;
+  }
+
+  const fresh = () => ({
+    fam: { status: null, addr: null, statusWhat: null, moveMonth: '' },
+    kids: { has: null, list: [{ name: '', d: '', m: '', y: '' }] },
+    work: { c: null, s: null }, workEdit: { c: WORK.c.map(w => ({ ...w })), s: WORK.s.map(w => ({ ...w })) },
+    tin: { c: new Set(), s: new Set() }, tless: { c: new Set(), s: new Set() },
+    reserve: { c: 0, s: 0 }, study: { c: null, s: null },
+    basics: { sex: null, d: '', m: '', y: '' },
+  });
+  let S = fresh(), i = 0, tried = false, dir = 'in', view = 'phone';
+
+  // ── הפרקים והמסכים ──
+  const CH = [
+    { id: 'fam', label: 'המשפחה', color: '--c0', soft: '--c0-soft' },
+    { id: 'c', label: P.c.name, color: P.c.color, soft: P.c.soft },
+    { id: 's', label: P.s.name, color: P.s.color, soft: P.s.soft },
+    { id: 'send', label: 'שליחה', color: '--c1', soft: '--c1-soft' },
+  ];
+  const SC = [
+    { ch: 'fam', id: 'famKnown', label: 'מה ידוע' },
+    { ch: 'fam', id: 'kids', label: 'ילדים' },
+    { ch: 'c', id: 'work', p: 'c', label: 'עבודה' },
+    { ch: 'c', id: 'in', p: 'c', label: 'עוד כסף' },
+    { ch: 'c', id: 'less', p: 'c', label: 'מוריד מס' },
+    { ch: 'c', id: 'study', p: 'c', label: 'לימודים וצבא' },
+    { ch: 's', id: 'basics', p: 's', label: 'פרטים' },
+    { ch: 's', id: 'work', p: 's', label: 'עבודה' },
+    { ch: 's', id: 'in', p: 's', label: 'עוד כסף' },
+    { ch: 's', id: 'less', p: 's', label: 'מוריד מס' },
+    { ch: 's', id: 'study', p: 's', label: 'לימודים וצבא' },
+    { ch: 'send', id: 'review', label: 'לפני ששולחים' },
+    { ch: 'send', id: 'docs', label: 'מסמכים' },
+  ];
+
+  const ASIDE = {
+    famKnown: { h: 'פרק «המשפחה»', now: ['רק מה שמשותף: מצב משפחתי וכתובת.', '«נכון» מקפל לשורה. «השתנה» — בחירה קטנה, בלי הקלדה.'], was: 'היום: מסך אחד שמערבב את המשפחה עם העבודה של שניכם.' },
+    kids: { h: 'ילדים — קודם יש או אין', now: ['שני כפתורים גדולים. כרטיסים רק אחרי «יש».', 'תאריך לידה בעברית: יום · חודש · שנה.', 'נסו «הבא» בלי למלא — «חסר» רק בשדה הריק.'], was: 'היום: כרטיס ריק פתוח, «אין ילדים» נראה כמו עוד שדה, ו«חסר» באדום.' },
+    work: { h: 'הפרק נפתח בעבודה', now: ['תאריכים בחודשים של 2025: «עד אוגוסט», «מאוקטובר».', '«מביטוח לאומי» — פעם אחת, בראש הכרטיס.', '«＋ מעסיק נוסף» רק אחרי «השתנה».'], was: 'היום: «מ-2024-07-01 · עד 2025-08-20 · לפי ביטוח לאומי» בכל שורה.' },
+    in: { h: 'מאיפה עוד נכנס כסף', now: ['«עוד» — כי העבודה כבר נשאלה במסך הקודם.', 'מי שאין לו מעסיק בתיק — מקבל כאן ריבוע «משכורת» ראשון.', 'סמנו «עסק או חשבוניות» ותראו במסמכים מה מבקשים.'], was: 'היום: מסך בלי משכורת, אחרי שאלה על בן/בת הזוג.' },
+    less: { h: 'מה יכול להוריד לך מס', now: ['חדש: «מילואים כלוחם ב-2025» — ימי 2025 נותנים נקודות ב-2026.', 'סמנו אותו: נפתחת שאלה אחת — כמה ימים.', 'האישור מצה״ל — בסוף, עם המסמכים.'], was: 'היום: המילואים נשאלים רק מ-2026.' },
+    study: { h: 'לימודים וצבא — של האדם הזה', now: ['בתוך הפרק שלו, לא בסוף של כולם.', 'כפתור הסיום אומר לאן עוברים: «ממשיכים ל{שם}».'], was: 'היום: מסך משותף לכולם בסוף השאלון.' },
+    basics: { h: 'פרק חדש — שם אחר וצבע אחר', now: ['ברור מיד שעכשיו מדברים על ישראלה.', 'הפרטים שלה — כאן, בפרק שלה.'], was: 'היום: השאלה הזאת מופיעה לבד, רגע לפני ההכנסות של ישראל.' },
+    review: { h: 'לפני ששולחים', now: ['הסיכום לפי אותם פרקים.', '«שינוי» מחזיר לפרק.'], was: '' },
+    docs: { h: 'המסמכים, לפי אדם', now: ['עסק: חשבוניות וקבלות — את הדוח מכין המשרד.', 'מילואים: האישור מצה״ל.'], was: 'היום: «סיכום הכנסות והוצאות של העסק».' },
+  };
+
+  const $ = s => document.querySelector(s);
+  const screenEl = $('#screen');
+  const setAcc = (color, soft) => { screenEl.style.setProperty('--acc', `var(${color})`); screenEl.style.setProperty('--acc-soft', `var(${soft})`); };
+
+  let saveT;
+  function saved() {
+    const el = $('#saved'); if (!el) return;
+    clearTimeout(saveT);
+    saveT = setTimeout(() => { el.classList.add('on'); setTimeout(() => el.classList.remove('on'), 1200); }, 500);
+  }
+
+  // ── ציור ──
+  function render() {
+    const sc = SC[i], ch = CH.find(c => c.id === sc.ch);
+    setAcc(ch.color, ch.soft);
+    const chIdx = CH.indexOf(ch);
+    const bars = CH.map((c, k) => {
+      const mine = SC.filter(s => s.ch === c.id), pos = mine.indexOf(sc);
+      const pct = k < chIdx ? 100 : k > chIdx ? 0 : Math.round(((pos + 1) / mine.length) * 100);
+      return `<div class="ch${k === chIdx ? ' cur' : k < chIdx ? ' done' : ''}"><div class="bar"><i style="width:${pct}%;background:var(${c.color})"></i></div><span>${c.label}</span></div>`;
+    }).join('');
+    const firstInCh = SC.findIndex(s => s.ch === sc.ch) === i;
+    screenEl.innerHTML = `
+      <div class="c-head"><div class="c-head-in">
+        <div class="c-top"><span>הדוח השנתי ${YEAR}</span><span class="saved" id="saved" aria-live="polite">נשמר ✓</span></div>
+        <div class="chs">${bars}</div>
+      </div></div>
+      <div class="c-body" id="body"><div class="${dir}">${body(sc, firstInCh)}</div></div>
+      <div class="c-foot"><div class="c-foot-in">
+        <button type="button" class="ghost" id="prev" ${i === 0 ? 'disabled' : ''}>הקודם</button>
+        ${sc.id === 'docs' ? '' : `<button type="button" class="btn" id="next">${nextLabel(sc)}</button>`}
+      </div></div>`;
+    wire(sc);
+    renderAside(sc);
+  }
+
+  function nextLabel(sc) {
+    const nx = SC[i + 1];
+    if (sc.id === 'review') return 'שליחה למשרד';
+    if (nx && nx.ch !== sc.ch) return nx.ch === 'send' ? 'ממשיכים לסיכום' : `ממשיכים ל${CH.find(c => c.id === nx.ch).label}`;
+    const changed = sc.id === 'famKnown' ? (S.fam.status === 'no' || S.fam.addr === 'no') : sc.id === 'work' ? S.work[sc.p] === 'no' : false;
+    if (sc.id === 'famKnown' || sc.id === 'work') return changed ? 'הבא' : 'הכול נכון, ממשיכים';
+    return 'הבא';
+  }
+
+  const opener = (p, sub) => `<div class="opener"><span class="av">${P[p].name[0]}</span><span><b>${P[p].name}</b><small>${sub}</small></span></div>`;
+  const who = p => `<span class="who"><i>${P[p].name[0]}</i>${P[p].name}</span>`;
+
+  function knownRow(key, label, linesHtml, val, src, sub) {
+    if (val === 'yes') return `<button type="button" class="kn done" data-reopen="${key}"><span class="tick">✓</span><span class="t"><b>${label}</b>${linesHtml.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()}</span></button>`;
+    const bad = tried && !val ? ' bad' : '';
+    return `<div class="kn${bad}" data-row="${key}">
+      <div class="kn-h"><span class="kn-l">${label}</span>${src ? `<span class="src">${src}</span>` : ''}</div>
+      <div class="kn-v">${linesHtml}</div>
+      <div class="seg2" role="group" aria-label="${label}"><button type="button" data-k="${key}" data-v="yes" aria-pressed="false">נכון</button><button type="button" data-k="${key}" data-v="no" aria-pressed="${val === 'no'}">השתנה</button></div>
+      ${tried && !val ? '<span class="need">חסר</span>' : ''}
+      ${val === 'no' ? `<div class="sub">${sub}</div>` : ''}
+    </div>`;
+  }
+
+  const monthSel = (val, attrs, first) => `<select class="sel" ${attrs}>${first}${MONTHS.map((m, k) => `<option value="${k + 1}" ${String(val) === String(k + 1) ? 'selected' : ''}>${m}</option>`).join('')}</select>`;
+  const dateFields = (o, pfx, bad) => `<div class="date">
+      <select class="sel" data-f="${pfx}d" aria-label="יום"><option value="">יום</option>${Array.from({ length: 31 }, (_, k) => `<option ${o.d == k + 1 ? 'selected' : ''}>${k + 1}</option>`).join('')}</select>
+      <select class="sel" data-f="${pfx}m" aria-label="חודש"><option value="">חודש</option>${MONTHS.map((m, k) => `<option value="${k + 1}" ${o.m == k + 1 ? 'selected' : ''}>${m}</option>`).join('')}</select>
+      <select class="sel" data-f="${pfx}y" aria-label="שנה"><option value="">שנה</option>${Array.from({ length: 60 }, (_, k) => YEAR - k).map(y => `<option ${o.y == y ? 'selected' : ''}>${y}</option>`).join('')}</select>
+    </div>${bad ? '<span class="need">חסר</span>' : ''}`;
+
+  function body(sc, firstInCh) {
+    const p = sc.p;
+    switch (sc.id) {
+      case 'famKnown':
+        return `<p class="q">המשפחה ב-${YEAR} — עדיין נכון?</p><p class="qs">5 דקות. הכול נשמר.</p>
+          ${knownRow('status', 'מצב משפחתי', `<div>נשוי · ${P.s.name}</div>`, S.fam.status, '', `<div class="chips">${['התחתנו השנה', 'התגרשנו או נפרדנו', 'התאלמנתי'].map(t => `<button type="button" class="chip" data-st="${t}" aria-pressed="${S.fam.statusWhat === t}">${t}</button>`).join('')}</div>`)}
+          ${knownRow('addr', 'כתובת', '<div>הרצל 12, ראשון לציון</div>', S.fam.addr, '', `<div class="f"><span>עברנו בחודש</span>${monthSel(S.fam.moveMonth, 'data-move', '<option value="">בחירה…</option>')}</div><div class="hint">את הכתובת החדשה בוחרים מהרשימה — כמו היום.</div>`)}`;
+      case 'kids': {
+        const k = S.kids, gateBad = tried && k.has === null;
+        let h = `<p class="q">יש לכם ילדים?</p><p class="qs">גם מעל גיל 18, וגם מי שגר אצל ההורה השני.</p>
+          <div class="yn${gateBad ? ' bad' : ''}" id="yn">
+            <button type="button" data-has="yes" aria-pressed="${k.has === 'yes'}"><svg viewBox="0 0 24 24" aria-hidden="true">${ICON.kids}</svg>יש</button>
+            <button type="button" data-has="no" aria-pressed="${k.has === 'no'}"><svg viewBox="0 0 24 24" aria-hidden="true">${ICON.none}</svg>אין</button>
+          </div>${gateBad ? '<span class="need" style="margin:-6px 0 10px">בחרו יש או אין</span>' : ''}`;
+        if (k.has === 'yes') {
+          h += k.list.map((c, n) => {
+            const nb = tried && !c.name.trim(), db = tried && !(c.d && c.m && c.y);
+            return `<div class="kid"><div class="kid-h"><span>ילד ${k.list.length > 1 ? n + 1 : ''}</span>${k.list.length > 1 ? `<button type="button" data-rm="${n}">הסרה</button>` : ''}</div>
+              <label class="f${nb ? ' bad' : ''}"><span>שם פרטי</span><input class="txt" data-kn="${n}" value="${c.name}" autocomplete="off">${nb ? '<span class="need">חסר</span>' : ''}</label>
+              <div class="f${db ? ' bad' : ''}" data-kd="${n}"><span>תאריך לידה</span>${dateFields(c, 'k', db)}</div></div>`;
+          }).join('') + '<button type="button" class="add" id="addKid">＋ עוד ילד</button>';
+        }
+        return h;
+      }
+      case 'work': {
+        const lines = WORK[p].map(w => `<div><span>${w.name}</span><em>${span(w)}</em></div>`).join('');
+        const edit = S.workEdit[p].map((w, n) => {
+          const fm = w.from.startsWith(String(YEAR)) ? Number(w.from.slice(5)) : 'before';
+          const tm = w.to ? (w.to.startsWith(String(YEAR)) ? Number(w.to.slice(5)) : 'after') : 'still';
+          return `<div class="er"><b>${w.name || '<input class="txt" placeholder="שם המעסיק" data-wn="' + n + '">'}</b>
+            <select class="sel" data-wf="${n}"><option value="before" ${fm === 'before' ? 'selected' : ''}>מלפני ${YEAR}</option>${MONTHS.map((m, k) => `<option value="${k + 1}" ${fm === k + 1 ? 'selected' : ''}>מ${m}</option>`).join('')}</select>
+            <select class="sel" data-wt="${n}"><option value="still" ${tm === 'still' ? 'selected' : ''}>עדיין שם</option>${MONTHS.map((m, k) => `<option value="${k + 1}" ${tm === k + 1 ? 'selected' : ''}>עד ${m}</option>`).join('')}</select></div>`;
+        }).join('');
+        return `${firstInCh ? opener(p, 'עכשיו עליך — 4 מסכים קצרים') : who(p)}
+          <p class="q">העבודה של ${P[p].name} ב-${YEAR}</p>
+          ${knownRow('work-' + p, 'מקומות עבודה', lines, S.work[p], 'מביטוח לאומי', `${edit}<button type="button" class="add" data-addw="${p}">＋ מעסיק נוסף</button>`)}`;
+      }
+      case 'in':
+      case 'less': {
+        const set = (sc.id === 'in' ? S.tin : S.tless)[p];
+        const list = sc.id === 'in' ? IN_TILES : LESS_TILES;
+        const title = sc.id === 'in' ? `מאיפה <u>עוד</u> נכנס ל${P[p].name} כסף ב-${YEAR}?` : `מה יכול להוריד ל${P[p].name} מס?`;
+        let tiles = '', follow = '';
+        list.forEach(([key, ic, label, ex, isNew]) => {
+          tiles += `<button type="button" class="tile${set.has(key) ? ' on' : ''}" data-tile="${key}" aria-pressed="${set.has(key)}">${isNew ? '<span class="new">חדש</span>' : ''}${icon(ic)}<b>${label}</b><small>${ex}</small></button>`;
+        });
+        if (sc.id === 'less' && set.has('reserve')) {
+          const bad = tried && !(S.reserve[p] > 0);
+          follow = `<div class="follow${bad ? ' bad' : ''}" id="reserveQ"><p>כמה ימי מילואים כלוחם/ת ב-${YEAR}?</p>
+            <div class="step"><button type="button" data-rs="-1" aria-label="פחות">−</button><input inputmode="numeric" data-rv value="${S.reserve[p] || ''}" aria-label="ימים"><button type="button" data-rs="1" aria-label="יותר">+</button></div>
+            <div class="hint">כמו שכתוב באישור מצה״ל. מ-30 ימים מגיעות נקודות זיכוי ב-${YEAR + 1}.</div>${bad ? '<span class="need">חסר</span>' : ''}</div>`;
+        }
+        return `${who(p)}<p class="q">${title}</p><p class="qs">סמנו מה שהיה. אפשר גם כלום.</p><div class="tiles">${tiles}</div>${follow}`;
+      }
+      case 'study':
+        return `${who(p)}<p class="q">לימודים וצבא — ${P[p].name}</p>
+          ${knownRow('study-' + p, 'ידוע לנו', `<div>${STUDY[p]}</div>`, S.study[p], 'מהתיק', `<div class="chips">${['תואר נוסף', 'לימודי מקצוע', 'התמחות', 'משהו לא נכון'].map(t => `<button type="button" class="chip" aria-pressed="false" data-chip>${t}</button>`).join('')}</div>`)}`;
+      case 'basics': {
+        const b = S.basics, sb = tried && !b.sex, db = tried && !(b.d && b.m && b.y);
+        return `${opener('s', 'עכשיו על ישראלה — 5 מסכים קצרים')}
+          <p class="q">כמה פרטים על ${P.s.name}</p><p class="qs">לחישוב נקודות הזיכוי שלה.</p>
+          <div class="f${sb ? ' bad' : ''}"><span>מין</span><div class="seg2" role="group" aria-label="מין"><button type="button" data-sex="f" aria-pressed="${b.sex === 'f'}">אישה</button><button type="button" data-sex="m" aria-pressed="${b.sex === 'm'}">גבר</button></div>${sb ? '<span class="need">חסר</span>' : ''}</div>
+          <div class="f${db ? ' bad' : ''}"><span>תאריך לידה</span>${dateFields(b, 'b', db)}</div>`;
+      }
+      case 'review': {
+        const tileNames = (set, list) => list.filter(t => set.has(t[0])).map(t => t[2]).join(' · ') || 'כלום';
+        const kidsTxt = S.kids.has === 'no' ? 'אין' : S.kids.list.filter(c => c.name).map(c => c.name).join(' · ') || '—';
+        const person = p => `<div class="sum"><div class="sum-h"><span class="av" style="background:var(${P[p].color})">${P[p].name[0]}</span>${P[p].name}<button type="button" data-goto="${SC.findIndex(s => s.p === p)}">שינוי</button></div><ul>
+          <li>עבודה <span>${S.work[p] === 'no' ? 'עודכן' : 'נכון'}</span></li>
+          <li>עוד כסף <span>${tileNames(S.tin[p], IN_TILES)}</span></li>
+          <li>מוריד מס <span>${tileNames(S.tless[p], LESS_TILES)}${S.tless[p].has('reserve') && S.reserve[p] ? ` (${S.reserve[p]} ימים)` : ''}</span></li></ul></div>`;
+        return `<p class="q">רגע לפני ששולחים</p>
+          <div class="sum"><div class="sum-h"><span class="av" style="background:var(--c0)">✱</span>המשפחה<button type="button" data-goto="0">שינוי</button></div><ul>
+            <li>מצב משפחתי <span>${S.fam.status === 'no' ? (S.fam.statusWhat || 'השתנה') : 'נשוי'}</span></li><li>ילדים <span>${kidsTxt}</span></li></ul></div>
+          ${person('c')}${person('s')}`;
+      }
+      case 'docs': {
+        const docs = p => {
+          const out = [['טופס 106 — מכל מעסיק', `${WORK[p].length} מעסיקים`]];
+          if (S.tin[p].has('biz')) out.push(['החשבוניות והקבלות שהוצאת ב-' + YEAR, 'או ייצוא מתוכנת החשבוניות', true], ['קבלות על הוצאות של העסק', 'צילום או PDF', true]);
+          if (S.tless[p].has('reserve')) out.push(['אישור ימי מילואים מצה״ל', 'מאתר המילואים', true]);
+          if (S.tless[p].has('donate')) out.push(['קבלות על תרומות', 'סעיף 46']);
+          return `<div class="dgrp"><span class="av" style="background:var(${P[p].color})">${P[p].name[0]}</span>${P[p].name}</div>` +
+            out.map(([t, s, mark]) => `<div class="doc${mark ? ' mark' : ''}"><div class="t"><b>${t}</b><span>${s}</span></div><button type="button" class="up">העלאה</button></div>`).join('');
+        };
+        return `<div class="hero"><div class="okc">✓</div><p class="q" style="margin-bottom:4px">קיבלנו. עכשיו המסמכים</p><p class="qs" style="margin:0">אפשר גם אחר כך, מאותו קישור.</p></div>${docs('c')}${docs('s')}`;
+      }
+    }
+    return '';
+  }
+
+  // ── בדיקה לפני «הבא» ──
+  function valid(sc) {
+    const p = sc.p, full = o => o.d && o.m && o.y;
+    switch (sc.id) {
+      case 'famKnown': return S.fam.status && S.fam.addr;
+      case 'kids': return S.kids.has === 'no' || (S.kids.has === 'yes' && S.kids.list.every(c => c.name.trim() && full(c)));
+      case 'work': return !!S.work[p];
+      case 'less': return !S.tless[p].has('reserve') || S.reserve[p] > 0;
+      case 'study': return !!S.study[p];
+      case 'basics': return S.basics.sex && full(S.basics);
+    }
+    return true;
+  }
+
+  function go(n) { dir = n < i ? 'back' : 'in'; tried = false; i = Math.max(0, Math.min(SC.length - 1, n)); render(); }
+
+  function wire(sc) {
+    const p = sc.p, body = $('#body');
+    $('#prev').onclick = () => go(i - 1);
+    const next = $('#next');
+    if (next) next.onclick = () => {
+      if (!valid(sc)) {
+        tried = true; render();
+        const el = $('#body').querySelector('.bad, .need');
+        if (el) { const card = el.closest('.kn, .kid, .follow, .f, .yn') || el; card.scrollIntoView({ block: 'center' }); card.classList.remove('shake'); void card.offsetWidth; card.classList.add('shake'); }
+        return;
+      }
+      go(i + 1);
+    };
+    const rerender = () => { const top = body.scrollTop; dir = ''; render(); $('#body').scrollTop = top; saved(); };
+
+    body.querySelectorAll('[data-k]').forEach(b => b.onclick = () => {
+      const k = b.dataset.k, v = b.dataset.v;
+      if (k === 'status') S.fam.status = v; else if (k === 'addr') S.fam.addr = v;
+      else if (k.startsWith('work-')) S.work[k.slice(5)] = v; else if (k.startsWith('study-')) S.study[k.slice(6)] = v;
+      rerender();
+    });
+    body.querySelectorAll('[data-reopen]').forEach(b => b.onclick = () => {
+      const k = b.dataset.reopen;
+      if (k === 'status') S.fam.status = null; else if (k === 'addr') S.fam.addr = null;
+      else if (k.startsWith('work-')) S.work[k.slice(5)] = null; else if (k.startsWith('study-')) S.study[k.slice(6)] = null;
+      rerender();
+    });
+    body.querySelectorAll('[data-st]').forEach(b => b.onclick = () => { S.fam.statusWhat = b.dataset.st; rerender(); });
+    body.querySelectorAll('[data-chip]').forEach(b => b.onclick = () => { b.setAttribute('aria-pressed', b.getAttribute('aria-pressed') !== 'true'); saved(); });
+    const mv = body.querySelector('[data-move]'); if (mv) mv.onchange = e => { S.fam.moveMonth = e.target.value; saved(); };
+
+    body.querySelectorAll('[data-has]').forEach(b => b.onclick = () => { S.kids.has = b.dataset.has; tried = false; rerender(); });
+    body.querySelectorAll('[data-kn]').forEach(inp => inp.oninput = e => { S.kids.list[+inp.dataset.kn].name = e.target.value; saved(); });
+    body.querySelectorAll('[data-kd]').forEach(box => box.querySelectorAll('select').forEach(sel => sel.onchange = e => {
+      S.kids.list[+box.dataset.kd][sel.dataset.f.slice(1)] = e.target.value; saved();
+    }));
+    body.querySelectorAll('[data-rm]').forEach(b => b.onclick = () => { S.kids.list.splice(+b.dataset.rm, 1); rerender(); });
+    const ak = $('#addKid'); if (ak) ak.onclick = () => { S.kids.list.push({ name: '', d: '', m: '', y: '' }); rerender(); };
+
+    body.querySelectorAll('[data-addw]').forEach(b => b.onclick = () => { S.workEdit[p].push({ name: '', from: `${YEAR}-01`, to: '' }); rerender(); });
+    body.querySelectorAll('select[data-wf], select[data-wt], input[data-wn]').forEach(el => el.onchange = () => saved());
+
+    body.querySelectorAll('[data-tile]').forEach(b => b.onclick = () => {
+      const set = (sc.id === 'in' ? S.tin : S.tless)[p], k = b.dataset.tile;
+      set.has(k) ? set.delete(k) : set.add(k);
+      rerender();
+      if (k === 'reserve' && set.has('reserve')) { const q = $('#reserveQ'); if (q) q.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }
+    });
+    body.querySelectorAll('[data-rs]').forEach(b => b.onclick = () => { S.reserve[p] = Math.max(0, (S.reserve[p] || 0) + Number(b.dataset.rs)); rerender(); });
+    const rv = body.querySelector('[data-rv]'); if (rv) rv.oninput = e => { S.reserve[p] = Math.max(0, parseInt(e.target.value.replace(/\D/g, ''), 10) || 0); saved(); };
+
+    body.querySelectorAll('[data-sex]').forEach(b => b.onclick = () => { S.basics.sex = b.dataset.sex; rerender(); });
+    body.querySelectorAll('select[data-f^="b"]').forEach(sel => sel.onchange = e => { S.basics[sel.dataset.f.slice(1)] = e.target.value; saved(); });
+
+    body.querySelectorAll('[data-goto]').forEach(b => b.onclick = () => go(+b.dataset.goto));
+    body.querySelectorAll('.up').forEach(b => b.onclick = () => { b.textContent = '✓'; b.style.background = 'var(--ok)'; });
+  }
+
+  function renderAside(sc) {
+    const a = ASIDE[sc.id];
+    const extra = sc.id === 'work' && sc.p === 's' ? '<li>אצל ישראלה: «כל השנה», «עד פברואר».</li>' : '';
+    $('#aside').innerHTML = `<h3>${a.h}</h3><ul>${a.now.map(t => `<li>${t}</li>`).join('')}${extra}</ul>${a.was ? `<span class="was">${a.was}</span>` : ''}`;
+    $('#jump').innerHTML = CH.map(c => `<div class="jgrp"><b>${c.label}</b><div>${SC.map((s, k) => s.ch === c.id ? `<button type="button" data-j="${k}" aria-current="${k === i}">${s.label}</button>` : '').join('')}</div></div>`).join('');
+    $('#jump').querySelectorAll('[data-j]').forEach(b => b.onclick = () => go(+b.dataset.j));
+  }
+
+  document.querySelectorAll('[data-view]').forEach(b => b.onclick = () => {
+    view = b.dataset.view;
+    document.querySelectorAll('[data-view]').forEach(x => x.setAttribute('aria-pressed', x === b));
+    $('#phone').classList.toggle('desk', view === 'desk');
+  });
+  $('#restart').onclick = () => { S = fresh(); go(0); };
+  render();
+})();
+</script>
+</body>
+</html>

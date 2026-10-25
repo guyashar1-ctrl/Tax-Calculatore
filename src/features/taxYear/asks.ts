@@ -32,13 +32,50 @@ const MONTHS = ['', 'ינואר', 'פברואר', 'מרץ', 'אפריל', 'מא�
  * מה ידוע מהכרטיס — שורות קצרות לרשימת «זה מה שידוע לנו».
  * ‼ 22.10.2026 · בלי לוכסנים ללקוח («עובד/ת במשרד החינוך» ⇒ «עובדת»): לפי המין של האדם; לזוג נשוי — רבים.
  */
-export function cardLines(item: InfoItem, c: Client, s: Pick<ItemStatus, 'subjectRole'> & { lineRefs?: string[] }): string[] {
-  const lines = cardLinesRaw(item, c, s);
+export function cardLines(item: InfoItem, c: Client, s: Pick<ItemStatus, 'subjectRole'> & { lineRefs?: string[] }, taxYear?: number): string[] {
+  const lines = cardLinesRaw(item, c, s, taxYear);
   if (s.subjectRole === 'couple' && c.familyStatus === 'married') return lines.map(l => l.replace(/^גר\/ה /, 'גרים '));
   return lines.map(l => genderize(l, genderOf(c, s.subjectRole === 'spouse' ? 'spouse' : 'client')));
 }
 
-function cardLinesRaw(item: InfoItem, c: Client, s: Pick<ItemStatus, 'subjectRole'> & { lineRefs?: string[] }): string[] {
+/** מקור השורה — תווית אחת בראש הכרטיס במסך, לא בכל שורה (workLineView). */
+export const NI_SOURCE = 'לפי ביטוח לאומי';
+const isoDay = /^(\d{4})-(\d{2})(?:-\d{2})?$/;
+
+/**
+ * ‼ 25.10.2026 · גיא: «תראה איך כתבת את התאריכים» (מ-2024-07-01 · עד 2025-08-20). בשאלון לשנה — החודשים בתוך השנה:
+ *   «כל השנה», «עד אוגוסט», «מאוקטובר», «ינואר עד מרץ». השנה כבר בכותרת.
+ */
+export function employerWhen(start: string | undefined, end: string | undefined, year: number): string {
+  const s = start?.match(isoDay), e = end?.match(isoDay);
+  // בלי שום תאריך — לא טוענים «כל השנה»
+  if (!s && !e) return '';
+  const from = !s || Number(s[1]) < year ? 1 : Number(s[1]) > year ? 13 : Number(s[2]);
+  const to = !e || Number(e[1]) > year ? 12 : Number(e[1]) < year ? 0 : Number(e[2]);
+  if (to < 1) return `הסתיים לפני ${year}`;
+  if (from > 12) return `התחיל אחרי ${year}`;
+  if (to < from) return '';
+  if (from === 1 && to === 12) return 'כל השנה';
+  if (from === 1) return `עד ${MONTHS[to]}`;
+  if (to === 12) return `מ${MONTHS[from]}`;
+  return from === to ? `ב${MONTHS[from]}` : `${MONTHS[from]} עד ${MONTHS[to]}`;
+}
+
+/**
+ * שורת עבודה כפי שמוצגת: שם, מתי, והאם המקור ביטוח לאומי. גם שורות שנשמרו לפני 25.10 (תאריכי ISO בצילום השאלה) —
+ * הצילום לא משתנה, רק התצוגה.
+ */
+export function workLineView(line: string, year: number): { name: string; when: string; ni: boolean } {
+  const parts = line.split(' · ');
+  const ni = parts.includes(NI_SOURCE);
+  const rest = parts.slice(1).filter(p => p !== NI_SOURCE);
+  const iso = (p: string, pre: string) => (p.startsWith(pre) && isoDay.test(p.slice(pre.length)) ? p.slice(pre.length) : undefined);
+  const start = rest.map(p => iso(p, 'מ-')).find(Boolean), end = rest.map(p => iso(p, 'עד ')).find(Boolean);
+  const when = start || end ? employerWhen(start, end, year) : rest.join(' · ');
+  return { name: parts[0], when, ni };
+}
+
+function cardLinesRaw(item: InfoItem, c: Client, s: Pick<ItemStatus, 'subjectRole'> & { lineRefs?: string[] }, taxYear?: number): string[] {
   const spouse = s.subjectRole === 'spouse';
   // ‼ 13.10.2026 · רשימה לתקופה: רק הישויות שבוודאות בתקופה (picture.ts › lineRefs), עם התאריכים הידועים
   const only = <T extends { id: string }>(list: T[]) => (s.lineRefs ? list.filter(x => s.lineRefs!.includes(x.id)) : list);
@@ -62,8 +99,10 @@ function cardLinesRaw(item: InfoItem, c: Client, s: Pick<ItemStatus, 'subjectRol
     }
     case 'salary.worked':
     case 'salary.employers':
-      return (c.employers ?? []).filter(e => !!e.belongsToSpouse === spouse).map(e =>
-        `${e.name}${e.startDate ? ` · מ-${e.startDate}` : ''}${e.endDate ? ` · עד ${e.endDate}` : ''}${e.id.startsWith('ni-') ? ' · לפי ביטוח לאומי' : ''}`);
+      return (c.employers ?? []).filter(e => !!e.belongsToSpouse === spouse).map(e => {
+        const when = taxYear ? employerWhen(e.startDate, e.endDate, taxYear) : [e.startDate && `מ-${e.startDate}`, e.endDate && `עד ${e.endDate}`].filter(Boolean).join(' · ');
+        return [e.name, when, e.id.startsWith('ni-') ? NI_SOURCE : ''].filter(Boolean).join(' · ');
+      });
     case 'business.active':
       return (c.businesses ?? []).filter(b => !!b.belongsToSpouse === spouse && !b.isClosed).map(b => `עסק: ${b.name}`);
     case 'rent.properties':
@@ -201,7 +240,7 @@ function promptForRaw(s: ItemStatus, ctx: AskCtx): AskPrompt {
     .split('{year}').join(String(ctx.taxYear)).split('{spouse}').join(c.spouseFirstName || c.spouse?.firstName || 'בן/בת הזוג')
     .split('{entity}').join(s.entityLabel ?? '')
     .split('{since}').join(s.entityLabel ? `סוף ${s.entityLabel}` : 'ההערכה')
-    .split('{prevYear}').join(String(ctx.taxYear - 1));
+    .split('{prevYear}').join(String(ctx.taxYear - 1)).split('{reserveYear}').join(String(reserveYearOf(ctx.taxYear)));
   // ‼ הצהרת המשך: «מה השתנה מאז» במקום השאלה המלאה, ומה שידוע מההצהרה הקודמת בתחום
   const followup = ctx.purpose === 'wealth' && ctx.declKind === 'followup';
   const qText = (followup && it.followupQuestion) || it.question;
@@ -224,7 +263,7 @@ function promptForRaw(s: ItemStatus, ctx: AskCtx): AskPrompt {
     // ‼ 290 · בחירת ילד (ילד עם מוגבלות, מזונות ילדים) — הילדים שבתיק נשמרים בשאלה עצמה
     ...(schema === 'childDisability' || schema === 'childSupport' ? { kids: kidsContext(c) } : {}) };
   if (it.kind === 'confirm' || (s.state === 'fromCard' && it.cardKeys)) {
-    const lines = cardLines(it, c, s);
+    const lines = cardLines(it, c, s, ctx.taxYear);
     // ‼ בכרטיס אין כלום לאשר — שאלה מובנית (רשומה: ילדים, חשבון בנק; או בחירה) במקום «אין אצלנו פרטים»
     if (!lines.length && it.whenEmpty) {
       const w = it.whenEmpty;
@@ -393,6 +432,11 @@ const GRID_DOC_TITLE: Record<string, string> = {
   'rent.contract': 'חוזה השכירות של הדירה או הנכס',
   'foreign.statements': 'הדוחות השנתיים מחו״ל (בנק, ברוקר או מעסיק)',
 };
+/**
+ * ‼ סעיף 39ב (תיקון 283): נקודות ללוחמי מילואים משנת המס 2026, לפי ימי המילואים כלוחם בשנה שלפניה. ל-2025 אין נקודות —
+ *   ולכן שאלון 2025 שואל על 2025 עצמה (הנקודות של 2026: טופס 101 לשכיר, מקדמות לעצמאי). מ-2026 — על השנה שלפני.
+ */
+export const reserveYearOf = (taxYear: number) => (taxYear < 2026 ? taxYear : taxYear - 1);
 const spouseNameOf = (c: Client) => c.spouseFirstName || c.spouse?.firstName || 'בן/בת הזוג';
 
 /**
@@ -424,7 +468,7 @@ function buildMultiEntries(statuses: ItemStatus[], ctx: AskCtx): AskPlanEntry[] 
       const p = promptFor({ subjectRole: role, item, area: item.area, state: 'missing', detail: '', facts: [], evidence: [], askable: true } as ItemStatus, ctx);
       out.push({
         key: `${gridKey}|${role}`, statuses: mine, itemKey: gridKey, subjectRole: role,
-        prompt: { templateVersion: CATALOG_VERSION, title: p.title, why: p.why, ...(p.subjectName ? { subjectName: p.subjectName } : {}),
+        prompt: { templateVersion: CATALOG_VERSION, title: gridTitle(gridKey, p.title, options), why: p.why, ...(p.subjectName ? { subjectName: p.subjectName } : {}),
           input: { kind: 'multi', options }, addressee: addresseeOf(c), order: out.length,
           ...(!out.length ? { known: knownLines(c) } : {}) },
         label: `${item.label} · ${p.subjectName ?? c.firstName ?? 'הלקוח'} · ${options.length} ריבועים`,
@@ -436,10 +480,19 @@ function buildMultiEntries(statuses: ItemStatus[], ctx: AskCtx): AskPlanEntry[] 
   return out;
 }
 
+/**
+ * ‼ 25.10.2026 · גיא: «במאיפה נכנס לך כסף אני לא רואה משכורת». המשכורת לא ריבוע כשהמעסיקים כבר בתיק — הם נשאלים במסך
+ *   העבודה, מיד לפני המסך הזה (באותו פרק). ואז הכותרת אומרת «עוד». גם לשאלה שכבר נשלחה (הכותרת בצילום) — בתצוגה.
+ */
+export function gridTitle(itemKey: string, title: string, options: { key: string }[]): string {
+  return itemKey === ANNUAL_GRID_KEY && !options.some(o => o.key === 'salary.worked') ? title.replace(/^מאיפה נכנס/, 'מאיפה עוד נכנס') : title;
+}
+
 /** ריבוע אחד בדוח השנתי, לאדם אחד: שם, דוגמה, «?», מה שנפתח כשמסמנים, וסימון מראש מהדוח הקודם. */
 function annualTile(key: string, role: SubjectRole, ctx: AskCtx): MultiOption {
   const it = ITEM_BY_KEY[key];
-  const example = (ANNUAL_TILE_EXAMPLE[key] ?? '').split('{since}').join(String(ctx.taxYear - 5)).split('{aliyahSince}').join(String(ctx.taxYear - 10)).split('{prevYear}').join(String(ctx.taxYear - 1));
+  const example = (ANNUAL_TILE_EXAMPLE[key] ?? '').split('{since}').join(String(ctx.taxYear - 5)).split('{aliyahSince}').join(String(ctx.taxYear - 10)).split('{prevYear}').join(String(ctx.taxYear - 1))
+    .split('{reserveYear}').join(String(reserveYearOf(ctx.taxYear))).split('{reserveNext}').join(reserveYearOf(ctx.taxYear) === ctx.taxYear ? ` · מוריד מס ב-${ctx.taxYear + 1}` : '');
   const followUps = key === 'niBenefits.received' ? niKindsAsks(role, ctx)
     : key === 'household.creditChanges' ? [studiesAsk(role, ctx)]
     : key === 'income.other' ? [otherIncomeAsk(role, ctx)].filter((x): x is MultiFollowUp => !!x)

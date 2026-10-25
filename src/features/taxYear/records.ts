@@ -53,6 +53,11 @@ export interface RecordSchema {
   multiple: boolean;
   /** «אין ילדים» — תשובה, לא «חסר». */
   noneLabel?: string;
+  /**
+   * ‼ 25.10.2026 · גיא: «נראה שחייב להזין כאילו יש לך ילדים». עם noneLabel — קודם שני כפתורים גדולים (יש / אין), והכרטיסים
+   *   נפתחים רק אחרי «יש» (RecordEditor). כאן — הנוסח שלהם; בלי — «יש» ו-noneLabel.
+   */
+  gate?: { yes: string; no: string };
   fields: RecordField[];
   summary: (r: RecordValue) => string;
 }
@@ -155,7 +160,7 @@ export function schemaFor(id: RecordSchemaId, c?: Client, ctx?: Record<string, s
   const owner = OWNER(c ?? (ctx?.clientName ? { firstName: ctx.clientName, spouseFirstName: ctx.spouseName, familyStatus: ctx.married ? 'married' : 'single', spouse: null } as unknown as Client : undefined));
   switch (id) {
     case 'children': return {
-      id, noun: 'ילד', addLabel: '＋ עוד ילד', multiple: true, noneLabel: 'אין ילדים',
+      id, noun: 'ילד', addLabel: '＋ עוד ילד', multiple: true, noneLabel: 'אין ילדים', gate: { yes: 'יש', no: 'אין' },
       fields: [
         { key: 'firstName', label: 'שם פרטי', type: 'text', required: true, half: true },
         { key: 'birthDate', label: 'תאריך לידה', type: 'date', required: true, half: true, showIf: r => !r.id || !r.birthYear || !!r.birthDate },
@@ -197,6 +202,7 @@ export function schemaFor(id: RecordSchemaId, c?: Client, ctx?: Record<string, s
       if (Y) return {
         id, noun: 'מעסיק', addLabel: '＋ עוד מעסיק', multiple: true,
         noneLabel: ctx?.additionalEmployer ? 'אין מקום עבודה נוסף' : `לא היו מעסיקים ב-${Y}`,
+        gate: ctx?.additionalEmployer ? { yes: 'יש', no: 'אין' } : { yes: 'היו', no: 'לא היו' },
         fields: [
           { key: 'name', label: 'שם המעסיק', type: 'text', required: true, placeholder: 'למשל: המדינה, בנק לאומי' },
           { key: 'startDate', label: 'מתי התחיל', type: 'monthIn', year: Y, edge: 'start', required: true, half: true },
@@ -423,6 +429,7 @@ export function schemaFor(id: RecordSchemaId, c?: Client, ctx?: Record<string, s
       const kids = kidsOf(ctx, c);
       return {
         id, noun: 'ילד', addLabel: '＋ עוד ילד', multiple: true, noneLabel: 'רק מזונות לבן/בת הזוג לשעבר',
+        gate: { yes: 'גם מזונות לילדים', no: 'רק לבן/בת הזוג לשעבר' },
         fields: [
           { key: 'child', label: 'לאיזה ילד?', type: 'choice', required: true, options: kids },
           { key: 'monthly', label: 'כמה בחודש (₪)?', type: 'number', required: true, half: true },

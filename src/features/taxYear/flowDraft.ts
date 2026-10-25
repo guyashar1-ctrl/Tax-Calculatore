@@ -144,6 +144,31 @@ export function expandWithDrafts(asks: InfoAsk[], drafts: Record<string, Draft>,
  *   שנפתח מתשובה מאוחרת הצטרף למסך האישורים הראשון — הלקוח לא ראה אותו, ו«שליחה» נחסמה («חסר»).
  */
 export function walkScreens(asks: InfoAsk[], opened: ReadonlySet<string>): Screen[] {
+  return walkChapters(asks, opened).map(x => x.screen);
+}
+
+/** 25.10.2026 · פרק בשאלון: מה שמשותף למשפחה, ואז כל אחד מבני הזוג עד הסוף. */
+export type Chapter = 'family' | 'client' | 'spouse';
+export const CHAPTERS: Chapter[] = ['family', 'client', 'spouse'];
+// ‼ מין ותאריך הלידה של בן/בת הזוג, ו«בלי הכנסה» (סעיף 37), נשמרים לזוג — אבל הם על בן/בת הזוג: הם פותחים את הפרק שלו/ה
+const SPOUSE_FIRST = ['household.spouseBasics', 'household.noIncomeSpouse'];
+export const chapterOf = (a: Pick<InfoAsk, 'itemKey' | 'subjectRole'>): Chapter =>
+  (SPOUSE_FIRST.includes(a.itemKey) ? 'spouse' : a.subjectRole === 'client' || a.subjectRole === 'spouse' ? a.subjectRole : 'family');
+
+/** מסך שמערבב פרקים (אישורים של כולם, אותה שאלה לשני בני הזוג) — מסך לכל פרק. */
+function splitByChapter(s: Screen): Screen[] {
+  if (s.kind !== 'confirmAll' && s.kind !== 'group') return [s];
+  const by = CHAPTERS.map(ch => s.asks.filter(a => chapterOf(a) === ch)).filter(l => l.length);
+  if (by.length < 2) return [s];
+  return by.map(l => (s.kind === 'confirmAll' ? { kind: 'confirmAll' as const, asks: l } : l.length > 1 ? { kind: 'group' as const, asks: l } : { kind: 'ask' as const, ask: l[0] }));
+}
+
+/**
+ * ‼ 25.10.2026 · גיא (ההמחשה docs/proposals/2026-10-25-annual-questionnaire-chapters.html): «למה לא לסיים עם גיא ואז עם דין?»
+ *   הסדר: המשפחה ← הלקוח ← בן/בת הזוג. בתוך פרק — הסדר הקודם (אישורים, ריבועים וההמשך שלהם); «לימודים וצבא» — בסוף הפרק של האדם.
+ *   מה שתשובה פותחת נשאר בפרק של המסך שפתח אותו (גם כשהוא נשמר לזוג).
+ */
+export function walkChapters(asks: InfoAsk[], opened: ReadonlySet<string>): { screen: Screen; chapter: Chapter }[] {
   const live = asks.filter(a => a.prompt.input.kind !== 'file');
   const kids = new Map<string, InfoAsk[]>();
   for (const a of live) {
@@ -151,7 +176,7 @@ export function walkScreens(asks: InfoAsk[], opened: ReadonlySet<string>): Scree
     if (isVirtual(a) && by) kids.set(by, [...(kids.get(by) ?? []), a]);
   }
   // ‼ 21.10.2026 · סבב 2: שאלה «בתוך השורה» (inline) אינה מסך — מה שהיא פותחת בא מיד אחרי המסך של השורה;
-  //   «לימודים וצבא» של כל בני הבית — מסך אחד בסוף (גם מה שבתיק וגם מה שנפתח מריבוע).
+  //   «לימודים וצבא» — מסך לכל אדם בסוף הפרק שלו (גם מה שבתיק וגם מה שנפתח מריבוע).
   const studies: InfoAsk[] = [];
   const kidsOf = (a: InfoAsk): InfoAsk[] => (kids.get(a.id) ?? []).flatMap(k => (k.prompt.inline ? kidsOf(k) : [k]))
     .filter(k => (k.itemKey === STUDIES_KEY ? (studies.push(k), false) : true));
@@ -160,11 +185,21 @@ export function walkScreens(asks: InfoAsk[], opened: ReadonlySet<string>): Scree
     return ch.length ? [s, ...place(buildScreens(ch, opened, { knownAll: true }), depth + 1)] : [s];
   });
   const top = live.filter(a => (!isVirtual(a) || !(a as VirtualAsk).openedBy) && !a.prompt.inline);
-  const main = place(buildScreens(top.filter(a => a.itemKey !== STUDIES_KEY), opened, { knownAll: true }), 0);
+  const tops = buildScreens(top.filter(a => a.itemKey !== STUDIES_KEY), opened, { knownAll: true }).flatMap(splitByChapter);
+  // ‼ ההמשך של כל פרק נבנה לפני הלימודים — כך שלימודים שנפתחו מריבוע כבר נאספו
+  const placed = CHAPTERS.map(ch => {
+    const mine = tops.filter(s => chapterOf(screenAsks(s)[0]) === ch);
+    const lead = (s: Screen) => { const k = SPOUSE_FIRST.indexOf(screenAsks(s)[0].itemKey); return k < 0 ? 9 : k; };
+    if (ch === 'spouse') mine.sort((a, b) => lead(a) - lead(b));
+    return place(mine, 0);
+  });
   const seen = new Set<string>();
-  const allStudies = [...top.filter(a => a.itemKey === STUDIES_KEY), ...studies].filter(a => (seen.has(askIdentity(a)) ? false : (seen.add(askIdentity(a)), true)))
-    .sort((a, b) => (a.subjectRole === 'client' ? 0 : 1) - (b.subjectRole === 'client' ? 0 : 1));
-  return checklists(allStudies.length ? [...main, ...place(buildScreens(allStudies, opened, { knownAll: true }), 1)] : main);
+  const allStudies = [...top.filter(a => a.itemKey === STUDIES_KEY), ...studies].filter(a => (seen.has(askIdentity(a)) ? false : (seen.add(askIdentity(a)), true)));
+  return CHAPTERS.flatMap((ch, k) => {
+    const st = allStudies.filter(a => chapterOf(a) === ch);
+    const list = st.length ? [...placed[k], ...place(buildScreens(st, opened, { knownAll: true }), 1)] : placed[k];
+    return checklists(list).map(screen => ({ screen, chapter: ch }));
+  });
 }
 
 /** 21.10.2026 · השאלות «בתוך השורה» של שורת אישור (בחירה קטנה: נפרדנו / נולד ילד) — מוצגות בה, לא כמסך. */

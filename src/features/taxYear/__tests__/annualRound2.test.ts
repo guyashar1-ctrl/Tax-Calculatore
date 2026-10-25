@@ -84,7 +84,8 @@ export const TESTS: TestCase[] = [
     const addr = planFor(client()).find(e => e.itemKey === 'household.address')!;
     equal(onChangedFor(addr.prompt, { kind: 'changed', note: 'עברנו' })[0]?.itemKey, 'household.addressCert');
   }),
-  test('הסדר בדף: «מה קרה?» בתוך שורת המשפחה (לא מסך), הענף שלו מיד אחריה, ו«לימודים וצבא» — מסך אחד בסוף', () => {
+  // ‼ 25.10.2026 · פרקים: «לימודים וצבא» — בסוף הפרק של כל אדם (לא מסך משותף בסוף)
+  test('הסדר בדף: «מה קרה?» בתוך שורת המשפחה (לא מסך), הענף שלו מיד אחריה, ו«לימודים וצבא» — בסוף הפרק של כל אדם', () => {
     const asks = published(client());
     const fam = asks.find(a => a.itemKey === 'household.maritalAtYearEnd')!;
     const drafts: Record<string, Draft> = { [askIdentity(fam)]: { choice: 'changed', text: 'ישראלה נפטרה' } };
@@ -98,8 +99,10 @@ export const TESTS: TestCase[] = [
     assert(!keys.includes('household.familyEvent'), '«מה קרה?» הוא מסך');
     equal(screens[0].kind, 'confirmAll');
     equal(keys[1], 'family.death'); // הענף מיד אחרי השורה
-    equal(keys[keys.length - 1], 'household.studies+household.studies');
-    equal(screens[screens.length - 1].kind, 'group');
+    equal(keys[keys.length - 1], 'household.studies');
+    equal(screenAsks(screens[screens.length - 1])[0].subjectRole, 'spouse');
+    const cStudy = keys.findIndex((k, j) => k === 'household.studies' && screenAsks(screens[j])[0].subjectRole === 'client');
+    assert(cStudy > keys.indexOf(ANNUAL_LESS_KEY) && cStudy < keys.length - 1, 'הלימודים של הלקוח לא בסוף הפרק שלו');
     assert(keys.indexOf(ANNUAL_GRID_KEY) > 1 && keys.indexOf(ANNUAL_LESS_KEY) > keys.indexOf(ANNUAL_GRID_KEY), 'מסכי הריבועים לא בסדר');
   }),
   test('חשבון להחזר מהתיק — שורה ממולאת ב«זה עדיין נכון?»; «נכון» שולח אובייקט בנק', () => {

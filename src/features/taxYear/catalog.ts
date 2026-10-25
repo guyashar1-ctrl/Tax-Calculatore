@@ -610,7 +610,7 @@ export const ANNUAL_TILE_EXAMPLE: Record<string, string> = {
   'savings.selfDeposits': 'לא דרך התלוש', 'savings.insurance': 'או אובדן כושר — פרטי', 'donations.given': 'עם קבלה',
   'special.disability': 'או מחלה קשה', 'household.creditChanges': 'מ-{since}',
   'household.aliyah': 'מ-{aliyahSince}', 'household.relativeCare': 'הורה, בן או בת זוג',
-  'household.alimonyPaid': 'לבן או בת זוג קודמים', 'household.reserveDuty': 'ב-{prevYear}',
+  'household.alimonyPaid': 'לבן או בת זוג קודמים', 'household.reserveDuty': 'ב-{reserveYear}{reserveNext}',
   'foreign.income': 'עבודה, נכס או חשבון', 'sales.sold': 'דירה, מניות, קריפטו — גם בהפסד',
 };
 /** «?» בריבוע — שורת הסבר אחת, רק בשאלון השנתי (ההסברים הארוכים ב-hints.ts משרתים גם את הערכת המס). */
@@ -634,7 +634,7 @@ export const ANNUAL_TILE_HELP: Record<string, string> = {
   'household.aliyah': 'עולים ותושבים חוזרים מקבלים הקלות לכמה שנים.',
   'household.relativeCare': 'מי שמשלם על החזקה במוסד מקבל זיכוי.',
   'household.alimonyPaid': 'מי שנישא שוב ומשלם מזונות לגרוש/ה מקבל נקודת זיכוי. מזונות ילדים — לא.',
-  'household.reserveDuty': 'ימי מילואים כלוחם בשנה שלפני מזכים בנקודות זיכוי.',
+  'household.reserveDuty': 'מ-30 ימי מילואים כלוחם בשנה — נקודות זיכוי בשנה שאחריה.',
 };
 /** המסך השני של כל אדם: מה שיכול להוריד מס — השאר «מאיפה נכנס כסף». */
 export const ANNUAL_TILE_LESS = new Set(['savings.selfDeposits', 'savings.insurance', 'donations.given', 'special.disability', 'household.creditChanges', 'household.aliyah', 'household.relativeCare', 'household.alimonyPaid', 'household.reserveDuty']);
@@ -682,8 +682,8 @@ ITEMS.push(
   { key: 'business.started', area: 'business', label: 'עסק או עבודה בחשבוניות (כשאין עסק בתיק)', kind: 'screener', per: 'person', who: 'client', purposes: ['annual'], coveredBy: 'business.active', cardKeys: ['businesses'],
     question: 'האם {name} עבד/ה השנה כעצמאי/ת או עם חשבוניות?', why: 'הכנסה מעסק מדווחת בדוח — גם בשנה הראשונה', input: 'yesno', covers: { parts: ['ג'] },
     officeNext: 'לפתוח עסק בכרטיס (סוג עוסק, ניהול ספרים); 6111 / רווח והפסד; ביטוח לאומי עצמאי ומקדמות' },
-  { key: 'business.startedDocs', area: 'business', label: 'סיכום הכנסות והוצאות של העסק', kind: 'document', per: 'person', who: 'client', purposes: ['annual'], after: 'business.started',
-    question: 'סיכום ההכנסות וההוצאות של העסק ב-{year}', why: 'ממנו נבנה דוח העסק — מתוכנת החשבוניות או מהספרים', input: 'file', docKind: 'annualPnl', knownBasis: DOC_KNOWN },
+  { key: 'business.startedDocs', area: 'business', label: 'חשבוניות וקבלות של העסק', kind: 'document', per: 'person', who: 'client', purposes: ['annual'], after: 'business.started',
+    question: 'החשבוניות והקבלות של העסק ב-{year}', why: 'מהן המשרד בונה את דוח העסק', input: 'file', docKind: 'annualPnl', knownBasis: DOC_KNOWN },
   { key: 'household.aliyah', area: 'household', label: 'עלייה או חזרה לישראל (נקודות עולה, פטור תושב חוזר)', kind: 'screener', per: 'person', who: 'client', purposes: ['annual'],
     question: 'האם {name} עלה/תה לארץ או חזר/ה אליה אחרי שנים בחו״ל?', why: 'עולים ותושבים חוזרים מקבלים נקודות זיכוי ופטורים לכמה שנים', input: 'yesno', covers: { parts: ['יג'] },
     officeNext: 'עולה — נקודות לפי סעיף 35; תושב חוזר ותיק — פטור 14(א) על הכנסות מחו״ל לעשר שנים; תאריך העלייה מהתעודה' },
@@ -694,13 +694,14 @@ ITEMS.push(
   { key: 'household.aliyahDocs', area: 'household', label: 'תעודת עולה או אישור תושב חוזר', kind: 'document', per: 'person', who: 'client', purposes: ['annual'], after: 'household.aliyah',
     question: 'תעודת העולה או האישור על מעמד תושב חוזר', why: 'בה רשום התאריך שממנו נספרות השנים', input: 'file', docKind: 'specialStatusCert', knownBasis: DOC_KNOWN },
   // ‼ 290 · סעיף 39ב — נקודות ללוחמי מילואים מ-2026, לפי ימי המילואים כלוחם בשנה שלפני שנת המס. ריבוע ⇒ כמה ימים ⇒ האישור
-  { key: 'household.reserveDuty', area: 'household', label: 'מילואים כלוחם/ת בשנה שלפני (סעיף 39ב)', kind: 'screener', per: 'person', who: 'client', purposes: ['annual'], fromTaxYear: 2026,
-    question: 'האם {name} עשה/תה מילואים כלוחם/ת ב-{prevYear}?', why: 'ימי מילואים כלוחם מזכים בנקודות זיכוי', input: 'yesno', covers: { parts: ['יג'] } },
-  { key: 'household.reserveDays', area: 'household', label: 'ימי מילואים כלוחם/ת בשנה שלפני', kind: 'detail', per: 'person', who: 'client', purposes: ['annual'], after: 'household.reserveDuty', input: 'record', fromTaxYear: 2026,
-    question: 'כמה ימי מילואים כלוחם/ת היו ל{name} ב-{prevYear}?', why: 'מספר הימים קובע כמה נקודות מגיעות',
-    officeNext: '«אשר ועדכן בתיק» — ימי המילואים נכתבים בכרטיס; לבדוק מול האישור' },
-  { key: 'household.reserveDocs', area: 'household', label: 'אישור ימי מילואים מצה״ל', kind: 'document', per: 'person', who: 'client', purposes: ['annual'], after: 'household.reserveDuty', fromTaxYear: 2026,
-    question: 'האישור מצה״ל על ימי המילואים ב-{prevYear}', why: 'בו רשום כמה ימים שירתת כלוחם', input: 'file', docKind: 'creditCerts', knownBasis: DOC_KNOWN },
+  // ‼ 25.10.2026 · גם בשאלון 2025: ימי 2025 נותנים את הנקודות של 2026 ({reserveYear} — asks.ts › reserveYearOf)
+  { key: 'household.reserveDuty', area: 'household', label: 'מילואים כלוחם/ת (סעיף 39ב)', kind: 'screener', per: 'person', who: 'client', purposes: ['annual'], fromTaxYear: 2025,
+    question: 'האם {name} עשה/תה מילואים כלוחם/ת ב-{reserveYear}?', why: 'ימי מילואים כלוחם מזכים בנקודות זיכוי', input: 'yesno', covers: { parts: ['יג'] } },
+  { key: 'household.reserveDays', area: 'household', label: 'ימי מילואים כלוחם/ת', kind: 'detail', per: 'person', who: 'client', purposes: ['annual'], after: 'household.reserveDuty', input: 'record', fromTaxYear: 2025,
+    question: 'כמה ימי מילואים כלוחם/ת היו ל{name} ב-{reserveYear}?', why: 'מספר הימים קובע כמה נקודות מגיעות',
+    officeNext: '«אשר ועדכן בתיק» — ימי המילואים נכתבים בכרטיס (לנקודות של השנה שאחריהם); לבדוק מול האישור. שכיר — טופס 101 אצל המעסיק; עצמאי — מקדמות' },
+  { key: 'household.reserveDocs', area: 'household', label: 'אישור ימי מילואים מצה״ל', kind: 'document', per: 'person', who: 'client', purposes: ['annual'], after: 'household.reserveDuty', fromTaxYear: 2025,
+    question: 'האישור מצה״ל על ימי המילואים ב-{reserveYear}', why: 'בו רשום כמה ימים שירתת כלוחם', input: 'file', docKind: 'creditCerts', knownBasis: DOC_KNOWN },
   { key: 'household.relativeCare', area: 'household', label: 'קרוב במוסד סיעודי (זיכוי סעיף 44)', kind: 'screener', per: 'person', who: 'client', purposes: ['annual'],
     question: 'האם {name} שילם/ה השנה על החזקת קרוב — הורה, בן או בת זוג, או ילד — במוסד סיעודי?', why: 'על החזקת קרוב במוסד יש זיכוי ממס', input: 'yesno', covers: { parts: ['יד'] },
     officeNext: 'סעיף 44: זיכוי 35% על ההוצאה שמעל 12.5% מההכנסה החייבת; לבדוק מי שילם בפועל' },

@@ -6,6 +6,8 @@
  *   «זה עדיין נכון?» (חסר ⇒ «חסר כאן» בלי הודעה למטה; «נכון» מקפל; ילדים «השתנה» ⇒ «נולד ילד» בתוך השורה)
  *   → «מאיפה נכנס לך כסף ב-2025?» (שם, «?», «הכנסה אחרת» ⇐ «משהו אחר» — בלי טקסט חופשי) → ההמשך → «מה יכול להוריד לך מס?»
  *   → המסכים של רחל (ריק ⇒ «לא היה כלום — הבא») → «לימודים וצבא» אחד לשניהם (התמחות · חודש שחרור) → «שליחה למשרד»
+ *   25.10 · פרקים: המשפחה ← דוד (ריבועים, לימודים) ← רחל (מין ותאריך לידה, ריבועים, לימודים) ← «רגע לפני ששולחים»; צבע לכל פרק;
+ *   «נשמר ✓» לא מזיז את המסך; בטלפון — ילדים «יש / אין» לפני הכרטיסים.
  *   → המסמכים לפי אדם: 106, אישור זכאות, אישור התמחות, תעודת שחרור, ספח — ו«ביטוח לאומי — אנחנו מוציאים».
  *   בשרת: עובדות לכל אדם, «משהו אחר» כעובדה (income.unlisted) ⇒ «לברר עם דוד» אצל המשרד, המסמכים נפתחו מ-onValue / onChanged (271).
  *   סבב 2.1 (22.10): בדף — הבקשה פעם אחת (בלי כרטיס «הדבר הבא» נפרד), «רק מה שהשתנה» (287); «איפה רחל עבדה ב-2025?».
@@ -38,14 +40,15 @@ async function runWidth(width) {
   const id = env.clientId;
   const shot = async (p, name) => { if (SHOTS) await p.screenshot({ path: join(SHOTS, `${name}-${width}.png`), fullPage: false }).catch(() => {}); };
   try {
+    const mobile = width < 700;
+    // ‼ 25.10.2026 · בטלפון — בלי ילדים בתיק, כדי לבדוק את «יש / אין»
     await env.sql(`update public.clients set employers = '[]'::jsonb, properties = '[]'::jsonb, investment_accounts = '[]'::jsonb, gender = 'male', marriage_year = 2023,
-      children = '[{"id":"k1","firstName":"נוי","birthYear":2019}]'::jsonb, city = 'חיפה', address = 'הרצל 12',
+      children = ${mobile ? "'[]'" : `'[{"id":"k1","firstName":"נוי","birthYear":2019}]'`}::jsonb, city = 'חיפה', address = 'הרצל 12',
       has_academic_degree = true, academic_degree_year = 2022, academic_degree_type = 'bachelor',
       spouse = '{"firstName":"רחל","completedIdf":true,"idfReleaseYear":2023}'::jsonb,
       bank_accounts = '[{"id":"b1","bankName":"לאומי","bankCode":"10","branchNumber":"800","accountNumber":"4821","isPrimary":true}]'::jsonb
       where id = '${id}'`);
     await env.sql(`delete from public.onboarding_steps where client_id = '${id}' and step_type = 'intake_questionnaire'`);
-    const mobile = width < 700;
     const ctx = await browser.newContext({ viewport: { width, height: mobile ? 800 : 900 }, deviceScaleFactor: mobile ? 2 : 1, isMobile: mobile, hasTouch: mobile, locale: 'he-IL' });
     await env.initContext(ctx);
     await ctx.route('**/*', (route) => {
@@ -91,14 +94,24 @@ async function runWidth(width) {
     const navBtn = () => flow.locator('.ty-nav .btn-primary');
     const next = async () => { const t = await q(); const s = await scr(); const pr = await flow.getAttribute('data-person'); await navBtn().click(); await pp.waitForFunction(([t0, s0, p0]) => { const f = document.querySelector('.ty-flow'); return (f?.querySelector('.ty-q')?.textContent ?? '') !== t0 || f?.getAttribute('data-screen') !== s0 || f?.getAttribute('data-person') !== p0 || !!f?.querySelector('.is-bad'); }, [t, s, pr], { timeout: 10000 }).catch(() => {}); await pp.waitForTimeout(200); };
 
-    // «זה עדיין נכון?»
-    ok(await scr() === 'confirmAll' && (await q()) === 'הפרטים לשנת 2025 נכונים?', 'מסך ראשון: אישור הפרטים לשנת הדוח', `${await scr()} · ${await q()}`);
+    // ‼ 25.10.2026 · פרקים (docs/proposals/2026-10-25-annual-questionnaire-chapters.html): המשפחה ← דוד ← רחל ← «רגע לפני ששולחים»
+    const partsTxt = (await text(flow.locator('.ty-parts'))).replace(/\s+/g, ' ');
+    ok(/המשפחה/.test(partsTxt) && /דוד/.test(partsTxt) && /רחל/.test(partsTxt) && /שליחה/.test(partsTxt), 'פס הפרקים: המשפחה · דוד · רחל · שליחה', partsTxt);
+    ok(await scr() === 'confirmAll' && (await q()) === 'המשפחה ב-2025 — עדיין נכון?' && (await flow.getAttribute('data-part')) === 'family', 'מסך ראשון: המשפחה', `${await scr()} · ${await q()}`);
     const rows0 = await text(flow.locator('.ty-krows'));
     ok(/חשבון להחזר מס/.test(rows0) && /4821/.test(rows0), 'חשבון להחזר מהתיק — שורה ממולאת', rows0.slice(0, 400));
     ok(/כתובת/.test(rows0) && /חיפה/.test(rows0), 'כתובת — שורה', rows0.slice(0, 300));
-    ok(!/לימודים/.test(rows0), 'לימודים — לא כאן (מסך משלו בסוף)', rows0.slice(0, 300));
+    ok(!/לימודים/.test(rows0), 'לימודים — לא כאן (בפרק של כל אדם)', rows0.slice(0, 300));
     const rowCard = (k) => flow.locator(`[data-confirm="${k}"]`);
-    await rowCard('household.children').locator('.ty-seg button', { hasText: 'השתנה' }).click();
+    // ‼ «נשמר ✓» במקום שמור — הופעתו לא מזיזה את המסך (גיא: «המסך לא מפסיק לקפוץ»)
+    const qTop = () => flow.locator('.ty-q').first().evaluate(e => Math.round(e.getBoundingClientRect().top + window.scrollY));
+    const y0 = await qTop();
+    await rowCard('household.address').locator('.ty-seg button', { hasText: 'נכון' }).click();
+    const savedOn = await flow.locator('.ty-saved.is-on').waitFor({ timeout: 4000 }).then(() => 1, () => 0);
+    ok(await qTop() === y0, `«נשמר ✓» לא מזיז את הכותרת${savedOn ? '' : ' (הסימון לא הופיע בחלון)'}`, `${y0} → ${await qTop()}`);
+    await rowCard('household.address').locator('.ty-krow').click();
+    if (!mobile) await rowCard('household.children').locator('.ty-seg button', { hasText: 'השתנה' }).click();
+    else await rowCard('household.maritalAtYearEnd').locator('.ty-seg button', { hasText: 'השתנה' }).click();
     await navBtn().click(); await pp.waitForTimeout(500);
     ok(await flow.locator('.ty-krow-card.is-bad').count() > 0 && /חסר כאן/.test(await text(flow)) && !(await flow.locator('.ty-err').count()), '«הבא» כשחסר ⇒ «חסר כאן» על השורה, בלי הודעה למטה');
     await shot(pp, 'known-missing');
@@ -106,29 +119,37 @@ async function runWidth(width) {
       if (await rowCard(k).count()) await rowCard(k).locator('.ty-seg button', { hasText: 'נכון' }).click();
     }
     ok(await flow.locator('.ty-krow.is-done').count() >= 3, '«נכון» מקפל את השורה ל-✓', String(await flow.locator('.ty-krow.is-done').count()));
-    // ילדים: «השתנה» ⇒ «נולד ילד» בתוך השורה ⇒ שורה חדשה ברשימה
-    await rowCard('household.children').locator('.ty-seg button', { hasText: 'השתנה' }).click();
-    await rowCard('household.children').locator('.ty-chip', { hasText: 'נולד ילד' }).click();
-    ok(!(await rowCard('household.children').locator('.rec-field').count()), '«נולד ילד» — רק שם ותאריך, לא כל רשימת הילדים');
-    await rowCard('household.children').locator('.ty-kid input').first().fill('תום');
-    await rowCard('household.children').locator('.ty-kid input[type="date"]').fill('2025-05-01');
+    if (!mobile) {
+      // ילדים: «השתנה» ⇒ «נולד ילד» בתוך השורה ⇒ שורה חדשה ברשימה
+      await rowCard('household.children').locator('.ty-seg button', { hasText: 'השתנה' }).click();
+      await rowCard('household.children').locator('.ty-chip', { hasText: 'נולד ילד' }).click();
+      ok(!(await rowCard('household.children').locator('.rec-field').count()), '«נולד ילד» — רק שם ותאריך, לא כל רשימת הילדים');
+      await rowCard('household.children').locator('.ty-kid input').first().fill('תום');
+      await rowCard('household.children').locator('.ty-kid input[type="date"]').fill('2025-05-01');
+    }
     for (const k of await flow.locator('[data-confirm]').evaluateAll(els => els.filter(e => e.querySelector('.ty-seg') && !e.querySelector('[aria-pressed="true"]')).map(e => e.getAttribute('data-confirm')))) {
       await rowCard(k).locator('.ty-seg button', { hasText: 'נכון' }).click();
     }
     await shot(pp, 'known');
+    if (mobile) {
+      // ‼ 25.10.2026 · אין ילדים בתיק ⇒ קודם «יש / אין» (בלי כרטיס ריק ובלי «חסר» לפני שבחרו)
+      await next();
+      ok(await flow.locator('.rec-gate').count() === 1 && !(await flow.locator('.rec-card, .rec-add').count()) && !(await flow.locator('.rec-err').count()), 'ילדים: קודם «יש / אין», בלי כרטיס ריק ובלי «＋ עוד ילד»', await q());
+      ok(/ממשיכים לדוד/.test(await text(navBtn())), 'סוף פרק המשפחה — «ממשיכים לדוד»', await text(navBtn()));
+      await navBtn().click(); await pp.waitForTimeout(500);
+      ok(await flow.locator('.ty-ask-wrap.is-bad .rec-gate').count() === 1, 'בלי בחירה ⇒ מסומן «חסר כאן»');
+      await flow.locator('.rec-gate [data-gate="yes"]').click();
+      ok(await flow.locator('.rec-card').count() === 1, '«יש» ⇒ כרטיס ילד');
+      await shot(pp, 'kids-yes');
+      await flow.locator('.rec-gate [data-gate="no"]').click();
+      ok(!(await flow.locator('.rec-card').count()), '«אין» ⇒ בלי כרטיסים');
+    }
     await next();
 
-    // 290 · בן/בת הזוג בלי מין/תאריך לידה בכרטיס ⇒ שאלה אחת מוקדמת (בלי זה הזיכויים שלה לא מחושבים)
-    ok((await q()).includes('רחל') && await flow.locator('.rec-seg-btn', { hasText: 'אישה' }).count() > 0, 'פרטי בן/בת הזוג — אישה או גבר, תאריך לידה (290)', await q());
-    await flow.locator('.rec-seg-btn', { hasText: 'אישה' }).first().click();
-    await flow.locator('input[type="date"]').first().fill('1988-04-12');
-    await shot(pp, 'spouse-basics');
-    await next();
-
-    // המסכים של דוד
-    ok(await scr() === 'grid' && (await flow.getAttribute('data-person')) === 'client', 'המסך הבא: הריבועים של דוד', await scr());
-    ok((await q()) === 'מאיפה נכנס לך כסף ב-2025?', 'הכותרת אומרת «כסף»', await q());
-    ok(/דוד/.test(await text(flow.locator('.ty-person'))), 'שם האדם מעל הכותרת');
+    // פרק דוד — נפתח בשם בגדול
+    ok(await scr() === 'grid' && (await flow.getAttribute('data-person')) === 'client' && (await flow.getAttribute('data-part')) === 'client', 'המסך הבא: הריבועים של דוד, בפרק שלו', await scr());
+    ok(/דוד/.test(await text(flow.locator('.ty-opener'))), 'פתיחת הפרק — השם בגדול', await text(flow.locator('.ty-opener')));
+    ok((await q()) === 'מאיפה נכנס לך כסף ב-2025?', 'בלי מעסיק בתיק — «מאיפה נכנס» עם ריבוע משכורת', await q());
     ok(!(await flow.locator('[data-tile="household.familyChange"]').count()), 'אין ריבוע «שינוי במשפחה»');
     ok((await flow.locator('[data-tile="capital.newAccount"]').count()) === 1 && (await flow.locator('[data-tile="savings.withdrawal"]').count()) === 1, 'יש «חיסכון או מניות בבנק» ו«משיכה מקופה»');
     ok(/לא היה כלום/.test(await text(navBtn())), 'בלי סימון — הכפתור אומר «לא היה כלום — הבא»', await text(navBtn()));
@@ -165,11 +186,30 @@ async function runWidth(width) {
     await walkTo(async () => (await scr()) === 'grid');
     ok((await q()) === 'מה יכול להוריד לך מס?' && (await flow.getAttribute('data-person')) === 'client', '«מה יכול להוריד לך מס?» — של דוד', await q());
     ok(!(await flow.locator('[data-tile="household.creditChanges"]').count()), 'לדוד יש תואר בתיק — בלי ריבוע «סיום לימודים» כפול');
+    ok(/מוריד מס ב-2026/.test(await text(flow.locator('[data-tile="household.reserveDuty"]'))), 'מילואים כלוחם ב-2025 — «מוריד מס ב-2026»', await text(flow.locator('[data-tile="household.reserveDuty"]')));
     await flow.locator('[data-tile="donations.given"]').click();
     await shot(pp, 'grid-client-less');
     await next();
 
-    // המסכים של רחל
+    // «לימודים וצבא» של דוד — בסוף הפרק שלו, ממולא מהתיק
+    await walkTo(async () => /לימודים וצבא/.test(await q()));
+    ok(/לימודים וצבא/.test(await q()) && (await flow.getAttribute('data-part')) === 'client' && !(await flow.locator('.ty-group-card').count()), '«לימודים וצבא» של דוד — בפרק שלו', `${await q()} · ${await flow.getAttribute('data-part')}`);
+    ok(/ואז התמחות/.test(await text(flow)), 'לתואר 2022 — «ואז התמחות?»', (await text(flow)).slice(0, 200));
+    ok(/ממשיכים לרחל/.test(await text(navBtn())), 'סוף הפרק של דוד — «ממשיכים לרחל»', await text(navBtn()));
+    await flow.locator('.rec-seg-btn', { hasText: /^כן$/ }).first().click();
+    await flow.locator('.rec-card select').nth(1).selectOption('2023');
+    await flow.locator('.rec-card select').nth(2).selectOption('2024');
+    await shot(pp, 'studies-client');
+    await next();
+
+    // 290 · פרק רחל נפתח במין ותאריך הלידה שלה
+    ok((await flow.getAttribute('data-part')) === 'spouse' && /רחל/.test(await text(flow.locator('.ty-opener'))), 'פרק רחל — צבע אחר, השם בגדול', await flow.getAttribute('data-part'));
+    ok((await q()).includes('רחל') && await flow.locator('.rec-seg-btn', { hasText: 'אישה' }).count() > 0, 'פרטי בן/בת הזוג — בפתיחת הפרק שלה (290)', await q());
+    await flow.locator('.rec-seg-btn', { hasText: 'אישה' }).first().click();
+    await flow.locator('input[type="date"]').first().fill('1988-04-12');
+    await shot(pp, 'spouse-basics');
+    await next();
+
     await walkTo(async () => (await scr()) === 'grid' && (await flow.getAttribute('data-person')) === 'spouse');
     ok((await q()) === 'מאיפה נכנס לרחל כסף ב-2025?', 'המסך של רחל — בשמה', await q());
     await flow.locator('[data-tile="salary.worked"]').click();
@@ -179,24 +219,26 @@ async function runWidth(width) {
     ok((await q()) === 'מה יכול להוריד לרחל מס?', '«מה יכול להוריד לרחל מס?»', await q());
     ok(/לא היה כלום/.test(await text(navBtn())), 'ריק ⇒ «לא היה כלום — הבא»');
     await next();
+
+    // «לימודים וצבא» של רחל — אחרון בפרק שלה
+    await walkTo(async () => /לימודים וצבא/.test(await q()));
     ok(seen.some(t => t.endsWith(':מה הייתה ההכנסה?')), '«הכנסה אחרת» ⇒ «מה הייתה ההכנסה?» (בחירה)', seen.join(' | '));
     ok(seen.some(t => t.endsWith(':איפה רחל עבדה ב-2025?')), 'מקום עבודה: «איפה רחל עבדה ב-2025?»', seen.join(' | '));
-
-    // «לימודים וצבא» — מסך אחד לשניהם, ממולא מהתיק
-    await walkTo(async () => /לימודים וצבא/.test(await q()));
-    ok(/לימודים וצבא/.test(await q()) && (await flow.locator('.ty-group-card').count()) === 2, '«לימודים וצבא» — מסך אחד, כרטיס לכל אחד', `${await q()} · ${await flow.locator('.ty-group-card').count()}`);
-    ok(/מהתיק/.test(await text(flow.locator('.ty-group-card').nth(0))), 'מה שבתיק מסומן «מהתיק»');
-    ok(/שליחה למשרד/.test(await text(navBtn())), 'המסך האחרון — «שליחה למשרד»', await text(navBtn()));
-    const c0 = flow.locator('.ty-group-card').nth(0), c1 = flow.locator('.ty-group-card').nth(1);
-    ok(/ואז התמחות/.test(await text(c0)), 'לתואר 2022 — «ואז התמחות?»', (await text(c0)).slice(0, 200));
-    await c0.locator('.rec-seg-btn', { hasText: /^כן$/ }).click();
-    await c0.locator('select').nth(1).selectOption('2023');
-    await c0.locator('select').nth(2).selectOption('2024');
+    ok((await flow.getAttribute('data-part')) === 'spouse' && /מהתיק|צבא/.test(await text(flow)), '«לימודים וצבא» של רחל — בפרק שלה');
+    ok(/ממשיכים לסיכום/.test(await text(navBtn())), 'סוף הפרק של רחל — «ממשיכים לסיכום»', await text(navBtn()));
     await navBtn().click(); await pp.waitForTimeout(600);
-    ok(await flow.locator('.ty-group-card.is-bad').count() === 1 || await c1.locator('.has-err').count() > 0, 'חסר חודש השחרור ⇒ מסומן, לא נשלח');
+    ok(await flow.locator('.is-bad, .has-err').count() > 0, 'חסר חודש השחרור ⇒ מסומן, לא ממשיכים');
     ok(!(await flow.locator('[data-annual-docs]').count()), 'לא נשלח כשחסר');
-    await c1.locator('select').first().selectOption('08');
-    await shot(pp, 'studies');
+    await flow.locator('.rec-card select').first().selectOption('08');
+    await shot(pp, 'studies-spouse');
+    await next();
+
+    // «רגע לפני ששולחים»
+    ok(await scr() === 'review' && (await q()) === 'רגע לפני ששולחים', '«רגע לפני ששולחים»', `${await scr()} · ${await q()}`);
+    const rev = await text(flow);
+    ok((await flow.locator('.ty-rev').count()) === 3 && /דוד/.test(rev) && /רחל/.test(rev) && /תרומות/.test(rev), 'הסיכום לפי הפרקים, עם מה שסומן', rev.slice(0, 400));
+    ok(/שליחה למשרד/.test(await text(navBtn())), 'המסך האחרון — «שליחה למשרד»', await text(navBtn()));
+    await shot(pp, 'review');
     await navBtn().click();
     await pp.locator('.ty-flow[data-annual-docs]').waitFor({ timeout: 60000 }).catch(async (e) => { console.log('    [debug] ' + (await text(flow)).replace(/\s+/g, ' ').slice(0, 1200)); await shot(pp, 'send-stuck'); throw e; });
     await pp.waitForTimeout(800);
@@ -204,7 +246,7 @@ async function runWidth(width) {
     ok(/קיבלנו\. עכשיו המסמכים/.test(docs), '«קיבלנו. עכשיו המסמכים»', docs.slice(0, 200));
     ok(/\d+ מתוך \d+/.test(docs), 'מונה מסמכים', docs.slice(0, 300));
     ok(await flow.locator('.ty-docs-person .ty-person').count() >= 2, 'המסמכים לפי אדם');
-    for (const [re, m] of [[/אישור זכאות לתואר/, 'אישור זכאות לתואר (דוד)'], [/אישור סיום ההתמחות/, 'אישור התמחות'], [/תעודת השחרור/, 'תעודת שחרור (רחל)'], [/ספח/, 'ספח עם הילד החדש'], [/טופס 106/, 'טופס 106']])
+    for (const [re, m] of [[/אישור זכאות לתואר/, 'אישור זכאות לתואר (דוד)'], [/אישור סיום ההתמחות/, 'אישור התמחות'], [/תעודת השחרור/, 'תעודת שחרור (רחל)'], ...(mobile ? [] : [[/ספח/, 'ספח עם הילד החדש']]), [/טופס 106/, 'טופס 106']])
       ok(re.test(docs), `מסמך: ${m}`, docs.slice(0, 500));
     ok(/ביטוח לאומי — אנחנו מוציאים/.test(await text(flow.locator('[data-ours]'))), '«ביטוח לאומי — אנחנו מוציאים.»');
     await shot(pp, 'docs');
@@ -220,7 +262,7 @@ async function runWidth(width) {
     const note = await env.sql(`select count(*)::int n from public.tax_info_asks where client_id = '${id}' and office_note is not null`);
     ok(note[0].n === 0, 'אין הערות בטקסט חופשי', JSON.stringify(note));
     const opened = await env.sql(`select item_key, subject_role from public.tax_info_asks where client_id = '${id}' and item_key in ('household.childChange','household.newChildDocs','household.internshipDocs','household.releaseDocs','household.degreeDocs')`);
-    ok(['household.childChange', 'household.newChildDocs', 'household.internshipDocs', 'household.releaseDocs', 'household.degreeDocs'].every(k => opened.some(a => a.item_key === k)), 'השרת פתח את ההמשך (onChanged / onValue)', JSON.stringify(opened));
+    ok([...(mobile ? [] : ['household.childChange', 'household.newChildDocs']), 'household.internshipDocs', 'household.releaseDocs', 'household.degreeDocs'].every(k => opened.some(a => a.item_key === k)), 'השרת פתח את ההמשך (onChanged / onValue)', JSON.stringify(opened));
     const pub = await env.sql(`select item_key from public.tax_info_asks where client_id = '${id}' and state = 'published' and prompt->'input'->>'kind' <> 'file'`);
     ok(pub.length === 0, 'אחרי השליחה — אין שאלה פתוחה (רק מסמכים)', JSON.stringify(pub));
 

@@ -191,8 +191,10 @@ export const TESTS: TestCase[] = [
       assert(!!o && o.example === 'ב-2025' && !!o.hint, `${role}: ${JSON.stringify(o)}`);
       deepEqual(fus(o).map(f => `${f.itemKey}@${f.subjectRole}:${f.prompt.input.kind}`), [`household.reserveDays@${role}:record`, `household.reserveDocs@${role}:file`]);
     }
-    // לפני 2026 אין נקודות — לא נשאל
-    assert(!lessOf(sp).some(o => o.key === 'household.reserveDuty'), 'נשאל ב-2025');
+    // ‼ 25.10.2026 · ל-2025 אין נקודות — אבל ימי 2025 נותנים את הנקודות של 2026, ולכן שאלון 2025 שואל על 2025 עצמה
+    const r25 = lessOf(sp).find(o => o.key === 'household.reserveDuty');
+    assert(!!r25 && r25.example === 'ב-2025 · מוריד מס ב-2026', `2025: ${JSON.stringify(r25)}`);
+    equal(fus(r25)[0]?.prompt.title, 'כמה ימי מילואים כלוחם היו לך ב-2025?');
     deepEqual(keys(client(), 'household.reserveDays', { items: [{ days: 45 }] }), ['reserveCombatDaysPrevYear']);
     deepEqual(patchOf(plan(sp, 'household.reserveDays', { items: [{ days: 45 }] }, 'spouse')!.proposals[0]).spouse, { reserveCombatDaysPrevYear: 45 });
     assert(calcCreditPoints(client({ familyStatus: 'single', reserveCombatDaysPrevYear: 45 }), 2026, 2904).some(l => /מילואים/.test(l.description)), 'נקודות מילואים');

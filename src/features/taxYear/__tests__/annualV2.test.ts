@@ -65,7 +65,8 @@ export const TESTS: TestCase[] = [
     const grid = plan.find(e => e.itemKey === ANNUAL_GRID_KEY && e.subjectRole === 'client')!;
     const less = plan.find(e => e.itemKey === ANNUAL_LESS_KEY && e.subjectRole === 'spouse')!;
     if (grid.prompt.input.kind !== 'multi' || less.prompt.input.kind !== 'multi') throw new Error('אין רשת');
-    equal(grid.prompt.title, 'מאיפה נכנס לך כסף ב-2025?');
+    // ‼ 25.10.2026 · המעסיקים בתיק נשאלים במסך העבודה ⇒ «עוד»
+    equal(grid.prompt.title, 'מאיפה עוד נכנס לך כסף ב-2025?');
     equal(less.prompt.title, 'מה יכול להוריד לנועה מס?');
     equal(less.prompt.subjectName, 'נועה');
     equal(grid.prompt.subjectName, 'דני');

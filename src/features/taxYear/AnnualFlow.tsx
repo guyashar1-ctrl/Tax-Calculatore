@@ -6,6 +6,9 @@
 //   · לכל אדם שני מסכי ריבועים: «מאיפה נכנס לך כסף» ו«מה יכול להוריד לך מס» — בלי «של מי».
 //   · «?» בריבוע פותח שורת הסבר; כלום לא סומן ⇒ הכפתור אומר «לא היה כלום — הבא»; «משהו אחר?» — הערה למשרד.
 //   · «לימודים וצבא» — מסך אחד בסוף לכל בני הבית (flowDraft.ts › walkScreens).
+// ‼ 25.10.2026 · פרקים (docs/proposals/2026-10-25-annual-questionnaire-chapters.html, גיא אישר): המשפחה ← הלקוח ← בן/בת הזוג ←
+//   «רגע לפני ששולחים». צבע לכל פרק (גיא: «אהבתי מאוד שיש צבע לכל בן זוג»), שם בגדול בפתיחת פרק של אדם, ו«ממשיכים ל{שם}».
+//   «נשמר ✓» במקום שמור — לא דוחף את המסך (גיא: «המסך לא מפסיק לקפוץ»).
 //   · בלי הודעות שגיאה למטה: «הבא» מוביל למה שחסר, והוא רועד קלות עם «חסר כאן».
 // ‼ שום דבר לא נשלח ושום דבר לא ננעל עד «שליחה למשרד» (flowDraft.ts). הטיוטה נשמרת במכשיר ובשרת (saved_draft של שאלה פתוחה).
 // ‼ ההמשך שתשובה פותחת — מאותם צילומים שהשרת פותח; בשליחה השרת פותח אותם באמת, ואז נשלחות תשובותיהם (בסבבים, לפי הסדר).
@@ -14,11 +17,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import * as api from './api';
 import { DOCS } from './documents';
-import { ANNUAL_GRIDS, UNAVAILABLE_LABEL, type AskAnswer } from './asks';
+import { ANNUAL_GRIDS, ANNUAL_LESS_KEY, UNAVAILABLE_LABEL, gridTitle, workLineView, type AskAnswer } from './asks';
 import type { InfoAsk } from './types';
 import { checklistParent, screenAsks, sortAsks, type Screen } from './screens';
 import { CHECKLIST_LABEL, CHECKLIST_TITLE } from './catalog';
-import { addedEmployerDraft, askIdentity, confirmedDraft, draftToAnswer, expandWithDrafts, inlineOf, isVirtual, readyToSend, shownDraft, walkScreens, type Draft } from './flowDraft';
+import { answerText, askIdentity, confirmedDraft, draftToAnswer, expandWithDrafts, inlineOf, isVirtual, readyToSend, shownDraft, walkChapters, walkScreens, type Chapter, type Draft } from './flowDraft';
 import { cleanRecord, schemaFor, type RecordAnswer } from './records';
 import RecordEditor, { loadBankDirectory } from './RecordEditor';
 import { EntityEditor } from './TaxInfoFlow';
@@ -35,7 +38,8 @@ interface Props {
   onClose?: () => void;
 }
 
-type Step = { kind: 'known' } | Screen;
+type Step = { kind: 'known' } | { kind: 'review' } | Screen;
+type Part = Chapter | 'send';
 type Store = { v2: Record<string, Draft>; at: number; ours?: string[] };
 
 const isFile = (a: InfoAsk) => a.prompt.input.kind === 'file';
@@ -46,7 +50,7 @@ const NO_NAME = '';
 /** שם קצר לשורה במסך «זה עדיין נכון?» — הנושא, לא השאלה. */
 const ROW_LABEL: Record<string, string> = {
   'household.maritalAtYearEnd': 'המשפחה', 'household.children': 'ילדים', 'household.address': 'כתובת', 'household.settlement': 'יישוב',
-  'salary.employers': 'עבודה', 'salary.employerDetails': 'עבודה', 'business.active': 'עסק', 'rent.properties': 'נכסים מושכרים', 'capital.accounts': 'חשבונות השקעה',
+  'salary.employers': 'מקומות עבודה', 'salary.employerDetails': 'מקומות עבודה', 'business.active': 'עסק', 'rent.properties': 'נכסים מושכרים', 'capital.accounts': 'חשבונות השקעה',
   'filing.refundAccount': 'חשבון להחזר מס',
 };
 /** «השתנה» — ובכתובת «עברנו». */
@@ -61,6 +65,9 @@ function readLocal(key: string): Store | null {
 function writeLocal(key: string, v: Store | null) {
   try { if (v) localStorage.setItem(key, JSON.stringify(v)); else localStorage.removeItem(key); } catch { /* מצב פרטי — הטיוטה בשרת */ }
 }
+
+const WORK_KEYS = new Set(['salary.employers', 'salary.worked']);
+const PART_LABEL: Record<'family' | 'send', string> = { family: 'המשפחה', send: 'שליחה' };
 
 /** שורה ב«זה עדיין נכון?»: מה שמוצג מהתיק (אישור — השורות; רשומה ממולאת — הסיכום). */
 function rowValue(a: InfoAsk, draft?: Draft): string[] {
@@ -113,16 +120,23 @@ export default function AnnualFlow({ stepId, token, title, initialAsks, fetchAsk
       ? { ...a, prompt: { ...a.prompt, knownRow: false } } : a;
   }), drafts), [asks, drafts]);
   const grid = expanded.find(isGridAsk);
+  const walked = useMemo(() => walkChapters(expanded, opened), [expanded, opened]);
   const steps: Step[] = useMemo(() => {
-    const walk = walkScreens(expanded, opened);
+    const walk = walked.map(x => x.screen);
     // ‼ כשיש אישורים מהכרטיס — הם המסך הראשון («זה עדיין נכון?»); בלי אישורים — «מה כבר ידוע לנו» לתצוגה בלבד
     const hasConfirm = walk.some(s => s.kind === 'confirmAll' || (s.kind === 'ask' && s.ask.prompt.input.kind === 'confirm'));
     const known = !hasConfirm && grid && grid.state === 'published' && (grid.prompt.known?.length ?? 0) > 0 ? [{ kind: 'known' as const }] : [];
-    return [...known, ...walk];
-  }, [expanded, opened, grid]);
+    // ‼ 25.10.2026 · «רגע לפני ששולחים» — המסך האחרון; ממנו יוצאת השליחה
+    return [...known, ...walk, { kind: 'review' as const }];
+  }, [walked, grid]);
+  const known0 = steps[0]?.kind === 'known' ? 1 : 0;
+  const partAt = (k: number): Part => (steps[k]?.kind === 'review' ? 'send' : walked[k - known0]?.chapter ?? 'family');
+  const parts: Part[] = [...new Set(steps.map((_, k) => partAt(k)))];
+  const nameOf = (r: 'client' | 'spouse') => expanded.find(a => a.subjectRole === r && a.prompt.subjectName)?.prompt.subjectName ?? (r === 'client' ? 'אני' : 'בן/בת הזוג');
+  const partLabel = (p: Part) => (p === 'client' || p === 'spouse' ? nameOf(p) : PART_LABEL[p]);
   const [i, setI] = useState(() => {
     // חזרה מאותו קישור: למסך הראשון שעוד אין לו תשובה בטיוטה
-    const k = steps.findIndex(s => s.kind !== 'known' && screenAsks(s).some(a => a.state === 'published' && !drafts[askIdentity(a)]));
+    const k = steps.findIndex(s => s.kind !== 'known' && s.kind !== 'review' && screenAsks(s).some(a => a.state === 'published' && !drafts[askIdentity(a)]));
     return k < 0 ? Math.max(0, steps.length - 1) : (k === 1 && steps[0].kind === 'known' ? 0 : k);
   });
 
@@ -156,10 +170,29 @@ export default function AnnualFlow({ stepId, token, title, initialAsks, fetchAsk
   const progress = Math.round((idx / Math.max(1, steps.length)) * 100);
   const go = (n: number) => { setTried(false); setErr(null); setHelp(null); setI(Math.max(0, n)); window.scrollTo?.({ top: 0 }); };
 
+  // ‼ «נשמר ✓» תמיד במקומו (שקוף כשלא נשמר) — הופעה ונעלמות לא מזיזות את המסך
+  const savedMark = <span className={`ty-saved${saved ? ' is-on' : ''}`} aria-live="polite">{saved ? 'נשמר ✓' : ''}</span>;
+  const curPart = phase === 'docs' ? 'send' : partAt(idx);
   const top = (
     <>
-      <div className="ty-flow-top"><span /><span className={`ty-saved${saved ? ' is-on' : ''}`} aria-live="polite">{saved ? 'נשמר ✓' : ''}</span></div>
-      <div className="ty-progress" role="progressbar" aria-valuenow={phase === 'docs' ? 100 : progress} aria-valuemin={0} aria-valuemax={100} aria-label="התקדמות"><i style={{ width: `${phase === 'docs' ? 100 : progress}%` }} /></div>
+      <div className="ty-flow-top"><span />{savedMark}</div>
+      {parts.length > 2 ? (
+        <div className="ty-parts" role="progressbar" aria-valuenow={phase === 'docs' ? 100 : progress} aria-valuemin={0} aria-valuemax={100} aria-label="התקדמות">
+          {parts.map(p => {
+            const mine = steps.map((_, k) => k).filter(k => partAt(k) === p);
+            const at = parts.indexOf(p) - parts.indexOf(curPart);
+            const pct = phase === 'docs' || at < 0 ? 100 : at > 0 ? 0 : Math.round(((mine.indexOf(idx) + 1) / Math.max(1, mine.length)) * 100);
+            return (
+              <div key={p} className={`ty-part${at === 0 ? ' is-cur' : at < 0 ? ' is-done' : ''}`} data-part={p}>
+                <span className="ty-part-bar"><i style={{ width: `${pct}%` }} /></span>
+                <span className="ty-part-l">{partLabel(p)}</span>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="ty-progress" role="progressbar" aria-valuenow={phase === 'docs' ? 100 : progress} aria-valuemin={0} aria-valuemax={100} aria-label="התקדמות"><i style={{ width: `${phase === 'docs' ? 100 : progress}%` }} /></div>
+      )}
       {preview && <div className="ty-note">תצוגה בלבד — כך זה ייראה ללקוח. אין כאן שליחה.</div>}
     </>
   );
@@ -175,7 +208,7 @@ export default function AnnualFlow({ stepId, token, title, initialAsks, fetchAsk
     const inl = inlineOf(expanded, a);
     return !!draftToAnswer(a, d) && inl.every(x => !!dr[askIdentity(x)] && !!draftToAnswer(x, dr[askIdentity(x)]));
   };
-  const screenOkIn = (dr: Record<string, Draft>, s: Step) => s.kind === 'known' || s.kind === 'checklist'
+  const screenOkIn = (dr: Record<string, Draft>, s: Step) => s.kind === 'known' || s.kind === 'review' || s.kind === 'checklist'
     || (s.kind === 'confirmAll' ? s.asks.every(a => rowOkIn(dr, a)) : screenAsks(s).every(a => isGridAsk(a) || answeredIn(dr, a)));
   const rowOk = (a: InfoAsk) => rowOkIn(drafts, a);
 
@@ -225,13 +258,16 @@ export default function AnnualFlow({ stepId, token, title, initialAsks, fetchAsk
   const sendLabel = (
     <><svg className="ty-send-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12l16-8-6 16-3-6z" /></svg>{busy ? 'שולח…' : 'שליחה למשרד'}</>
   );
+  // ‼ סוף פרק — הכפתור אומר לאן ממשיכים («ממשיכים לדין», «ממשיכים לסיכום»)
+  const nextPart = !last && partAt(idx + 1) !== curPart ? partAt(idx + 1) : null;
+  const partGo = nextPart && (nextPart === 'send' ? 'ממשיכים לסיכום' : `ממשיכים ל${partLabel(nextPart)}`);
   const nav = (onNext: () => void, label?: string, quiet = false) => (
     <>
       {err && <div className="ty-err" role="alert">{err}</div>}
       <div className="ty-nav">
         <button type="button" className="btn btn-ghost" disabled={idx === 0 || busy} onClick={() => go(idx - 1)}>הקודם</button>
-        <button type="button" className={`btn btn-primary${quiet ? ' is-quiet' : ''}`} disabled={busy || (last && preview)} onClick={onNext} data-annual-send={last ? '' : undefined}>
-          {last ? sendLabel : label ?? 'הבא'}
+        <button type="button" className={`btn btn-primary${quiet ? ' is-quiet' : ''}`} disabled={busy || (last && preview)} onClick={onNext} data-annual-send={last ? '' : undefined} data-part-go={partGo ? nextPart ?? '' : undefined}>
+          {last ? sendLabel : partGo ? (quiet ? `לא היה כלום — ${partGo}` : partGo) : label ?? 'הבא'}
         </button>
       </div>
     </>
@@ -287,7 +323,7 @@ export default function AnnualFlow({ stepId, token, title, initialAsks, fetchAsk
       </li>
     );
     return (
-      <div className="ty-flow" aria-live="polite" data-finish data-annual-docs ref={flowRef}>
+      <div className="ty-flow" aria-live="polite" data-finish data-annual-docs data-part="send" ref={flowRef}>
         {top}
         <p className="ty-q">{left ? 'קיבלנו. עכשיו המסמכים' : done.length ? 'הכול הועלה. תודה!' : 'קיבלנו. תודה!'}</p>
         {total > 0 && <p className="ty-q-sub" data-doc-count>{done.length} מתוך {total}{left ? ' · אפשר גם אחר כך, מאותו קישור' : ''}</p>}
@@ -314,7 +350,7 @@ export default function AnnualFlow({ stepId, token, title, initialAsks, fetchAsk
   if (step.kind === 'known' && grid) {
     const gd = drafts[askIdentity(grid)] ?? {};
     return (
-      <div className="ty-flow" data-screen="known" ref={flowRef}>
+      <div className="ty-flow" data-screen="known" data-part={curPart} ref={flowRef}>
         {top}
         <p className="ty-q">{title}</p>
         <p className="ty-q-sub">5 דקות. הכול נשמר.</p>
@@ -334,6 +370,52 @@ export default function AnnualFlow({ stepId, token, title, initialAsks, fetchAsk
     );
   }
 
+  // ── פתיחת פרק של אדם: שם בגדול; בשאר המסכים של הפרק — השם בשבב קטן ──
+  const personPart = curPart === 'client' || curPart === 'spouse' ? curPart : null;
+  const partSize = steps.filter((_, k) => partAt(k) === curPart).length;
+  const personHead = personPart && (partAt(idx - 1) !== personPart
+    ? (
+      <div className="ty-opener" data-opener={personPart}>
+        <span className="ty-opener-av" aria-hidden="true">{partLabel(personPart)[0]}</span>
+        <span><b>{partLabel(personPart)}</b><small>{personPart === 'client' ? 'עכשיו עליך' : `עכשיו על ${partLabel(personPart)}`} · {partSize === 1 ? 'מסך אחד' : `${partSize} מסכים קצרים`}</small></span>
+      </div>
+    )
+    : <span className={`ty-person${personPart === 'spouse' ? ' is-p2' : ''}`}><i aria-hidden="true">{partLabel(personPart)[0]}</i>{partLabel(personPart)}</span>);
+
+  // ── 25.10.2026 · «רגע לפני ששולחים» — מה ענית, לפי אותם פרקים; «שינוי» חוזר לתחילת הפרק ──
+  if (step.kind === 'review') {
+    const answerOf = (a: InfoAsk) => {
+      if (a.state !== 'published') return 'נשלח קודם';
+      const d = shownDraft(a, drafts[askIdentity(a)]);
+      if (a.prompt.input.kind === 'confirm' || a.prompt.knownRow) return d.choice === 'changed' ? 'עודכן' : d.choice === 'yes' ? 'נכון' : '';
+      const t = answerText(a, d);
+      return t === 'אף אחד מאלה' ? 'כלום' : t;
+    };
+    const labelOf = (a: InfoAsk) => (isGridAsk(a) ? (a.itemKey === ANNUAL_LESS_KEY ? 'מוריד מס' : 'עוד כסף')
+      : a.prompt.input.kind === 'confirm' || a.prompt.knownRow ? rowLabel(a) : a.prompt.title);
+    return (
+      <div className="ty-flow" data-screen="review" data-part={curPart} ref={flowRef}>
+        {top}
+        <p className="ty-q">רגע לפני ששולחים</p>
+        {parts.filter(p => p !== 'send').map(p => {
+          const at = steps.findIndex((_, k) => partAt(k) === p);
+          const rows = steps.flatMap((s, k) => (partAt(k) !== p || s.kind === 'known' || s.kind === 'review' ? [] : screenAsks(s)))
+            .map(a => [labelOf(a), answerOf(a)] as const).filter(([, v]) => !!v);
+          return (
+            <section key={p} className="ty-rev" data-part={p}>
+              <div className="ty-rev-h">
+                <span className="ty-opener-av" aria-hidden="true">{p === 'family' ? '✱' : partLabel(p)[0]}</span>{partLabel(p)}
+                <button type="button" className="ty-link" onClick={() => go(at)}>שינוי</button>
+              </div>
+              <ul>{rows.map(([l, v], k) => <li key={k}><span>{l}</span><b>{v}</b></li>)}</ul>
+            </section>
+          );
+        })}
+        {nav(() => void send())}
+      </div>
+    );
+  }
+
   // ── «זה עדיין נכון?» — כל שורה: «נכון» מקפל ל-✓, «השתנה» נפתח בתוכה ──
   const scr = step as Screen;
   if (scr.kind === 'confirmAll') {
@@ -347,16 +429,21 @@ export default function AnnualFlow({ stepId, token, title, initialAsks, fetchAsk
       const ns = walkScreens(expandWithDrafts(asks, nd), opened);
       const at = ns.findIndex(s => screenAsks(s).some(a => a.id === list[0].id));
       const to = (at >= 0 ? at : idx) + 1;
-      if (to >= ns.length) { void send(nd); return; }
+      if (to >= ns.length) { go(ns.length + known0); return; }
       go(to);
     };
+    const year = list[0].taxYear;
+    const cTitle = parts.length <= 2 ? `הפרטים לשנת ${year} נכונים?`
+      : !personPart ? `המשפחה ב-${year} — עדיין נכון?`
+      : list.every(a => WORK_KEYS.has(a.itemKey)) ? `העבודה של ${partLabel(personPart)} ב-${year}` : `${partLabel(personPart)} ב-${year} — עדיין נכון?`;
     return (
-      <div className="ty-flow" data-screen="confirmAll" ref={flowRef}>
+      <div className="ty-flow" data-screen="confirmAll" data-part={curPart} ref={flowRef}>
         {top}
-        <p className="ty-q" id="q-confirm-all">הפרטים לשנת {list[0].taxYear} נכונים?</p>
+        {personHead}
+        <p className="ty-q" id="q-confirm-all">{cTitle}</p>
         {idx === 0 && <p className="ty-q-sub">5 דקות. הכול נשמר.</p>}
         <ul className="ty-krows" aria-labelledby="q-confirm-all">
-          {[...list].sort((x, y) => rowRank(x) - rowRank(y)).map(a => <KnownRow key={a.id} ask={a} drafts={drafts} putDrafts={putDrafts} inline={inlineOf(expanded, a)} bad={tried && !rowOk(a)} preview={preview} />)}
+          {[...list].sort((x, y) => rowRank(x) - rowRank(y)).map(a => <KnownRow key={a.id} ask={a} drafts={drafts} putDrafts={putDrafts} inline={inlineOf(expanded, a)} bad={tried && !rowOk(a)} preview={preview} hideWho={!!personPart} />)}
         </ul>
         {nav(next, list.some(a => drafts[askIdentity(a)]?.choice === 'changed') ? 'שמירת התיקונים והמשך' : 'הכול נכון, ממשיכים')}
       </div>
@@ -377,14 +464,14 @@ export default function AnnualFlow({ stepId, token, title, initialAsks, fetchAsk
       const ns = [...(steps[0]?.kind === 'known' ? [{ kind: 'known' as const }] : []), ...walkScreens(expandWithDrafts(asks, nd), opened)];
       const at = ns.findIndex(s => s.kind !== 'known' && screenAsks(s).some(x => askIdentity(x) === askIdentity(lead)));
       const to = (at >= 0 ? at : idx) + 1;
-      if (to >= ns.length) { void send(nd); return; }
+      if (to >= ns.length) { go(ns.length); return; }
       go(to);
     };
     const title = (CHECKLIST_TITLE[scr.parent] ?? '').split('{entity}').join('העסק').split('{year}').join(String(lead.taxYear));
     return (
-      <div className="ty-flow" data-screen="checklist" data-person={lead.subjectRole} ref={flowRef}>
+      <div className="ty-flow" data-screen="checklist" data-person={lead.subjectRole} data-part={curPart} ref={flowRef}>
         {top}
-        {lead.prompt.subjectName && <span className={`ty-person${lead.subjectRole === 'spouse' ? ' is-p2' : ''}`}><i aria-hidden="true">{lead.prompt.subjectName[0]}</i>{lead.prompt.subjectName}</span>}
+        {personHead ?? (lead.prompt.subjectName && <span className={`ty-person${lead.subjectRole === 'spouse' ? ' is-p2' : ''}`}><i aria-hidden="true">{lead.prompt.subjectName[0]}</i>{lead.prompt.subjectName}</span>)}
         <p className="ty-q" id={`q-${lead.id}`}>{title}</p>
         <div className="ty-checks" role="group" aria-labelledby={`q-${lead.id}`}>
           {list.map(a => (
@@ -419,19 +506,20 @@ export default function AnnualFlow({ stepId, token, title, initialAsks, fetchAsk
     const ns = [...(steps[0]?.kind === 'known' ? [{ kind: 'known' as const }] : []), ...walkScreens(expandWithDrafts(asks, nd), opened)];
     const at = ns.findIndex(s => s.kind !== 'known' && screenAsks(s).some(a => askIdentity(a) === askIdentity(first)));
     const to = (at >= 0 ? at : idx) + 1;
-    if (to >= ns.length) { void send(nd); return; }
+    if (to >= ns.length) { go(ns.length); return; }
     go(to);
   };
   const person = first.prompt.subjectName;
+  const qTitle = isGrid && first.prompt.input.kind === 'multi' ? gridTitle(first.itemKey, first.prompt.title, first.prompt.input.options) : first.prompt.title;
   return (
-    <div className="ty-flow" data-screen={isGrid ? 'grid' : scr.kind === 'group' ? 'group' : first.prompt.input.kind} data-person={isGrid ? first.subjectRole : undefined} ref={flowRef}>
+    <div className="ty-flow" data-screen={isGrid ? 'grid' : scr.kind === 'group' ? 'group' : first.prompt.input.kind} data-person={isGrid ? first.subjectRole : undefined} data-part={curPart} ref={flowRef}>
       {top}
       {first.prompt.correction && <div className="ty-correction" role="note"><b>המשרד ביקש לתקן:</b> {first.prompt.correction}</div>}
-      {isGrid && person && <span className={`ty-person${first.subjectRole === 'spouse' ? ' is-p2' : ''}`}><i aria-hidden="true">{person[0]}</i>{person}</span>}
-      <p className="ty-q" id={`q-${first.id}`}>{first.prompt.title}</p>
-      {!isGrid && scr.kind === 'ask' && (first.prompt.subjectName || first.prompt.periodText) && (
+      {personHead ?? (isGrid && person && <span className={`ty-person${first.subjectRole === 'spouse' ? ' is-p2' : ''}`}><i aria-hidden="true">{person[0]}</i>{person}</span>)}
+      <p className="ty-q" id={`q-${first.id}`}>{qTitle}</p>
+      {!isGrid && scr.kind === 'ask' && ((first.prompt.subjectName && !personPart) || first.prompt.periodText) && (
         <p className="ty-q-meta">
-          {first.prompt.subjectName && <span className="ty-tag">{first.prompt.subjectName}</span>}
+          {first.prompt.subjectName && !personPart && <span className="ty-tag">{first.prompt.subjectName}</span>}
           {first.prompt.periodText && <span className="ty-tag is-period">{first.prompt.periodText}</span>}
         </p>
       )}
@@ -465,27 +553,22 @@ export default function AnnualFlow({ stepId, token, title, initialAsks, fetchAsk
 }
 
 // ── שורה ב«זה עדיין נכון?» ──────────────────────────────────────────────────────────────────────────────────
-function KnownRow({ ask, drafts, putDrafts, inline, bad, preview }: {
-  ask: InfoAsk; drafts: Record<string, Draft>; putDrafts: (p: Record<string, Draft>) => void; inline: InfoAsk[]; bad: boolean; preview: boolean;
+function KnownRow({ ask, drafts, putDrafts, inline, bad, preview, hideWho }: {
+  ask: InfoAsk; drafts: Record<string, Draft>; putDrafts: (p: Record<string, Draft>) => void; inline: InfoAsk[]; bad: boolean; preview: boolean; hideWho?: boolean;
 }) {
   const id = askIdentity(ask);
   const d = drafts[id] ?? {};
-  const value = rowValue(ask, d);
+  const raw = rowValue(ask, d);
+  // ‼ 25.10.2026 · עבודה: «עד אוגוסט» במקום תאריכי ISO, ו«מביטוח לאומי» פעם אחת בראש השורה
+  const work = WORK_KEYS.has(ask.itemKey) && ask.prompt.input.kind === 'confirm' ? raw.map(l => workLineView(l, ask.taxYear)) : null;
+  const value = work ? work.map(w => [w.name, w.when].filter(Boolean).join(' · ')) : raw;
+  const fromNi = !!work?.some(w => w.ni);
   const label = rowLabel(ask);
-  const who = ask.prompt.subjectName;
+  const who = hideWho ? undefined : ask.prompt.subjectName;
   const rowRef = useRef<HTMLLIElement>(null);
   const input = ask.prompt.input;
   const set = (p: Draft) => putDrafts({ [id]: { ...d, ...p } });
   const edit = input.kind === 'confirm' ? input.edit : input.kind === 'record' ? { schema: input.schema, initial: input.initial, context: input.context } : undefined;
-  const addEmployer = edit?.schema === 'employer' ? (
-    <button type="button" className="rec-add" aria-label={`הוספת מעסיק${who ? ` · ${who}` : ''}`} onClick={() => {
-      set(addedEmployerDraft(ask, d));
-      window.requestAnimationFrame(() => {
-        const cards = rowRef.current?.querySelectorAll('.rec-card');
-        if (cards?.length) cards[cards.length - 1].querySelector<HTMLElement>('input,select')?.focus();
-      });
-    }}>＋ הוספת מעסיק</button>
-  ) : null;
   if (ask.state !== 'published') {
     return <li className="ty-krow is-done" data-confirm={ask.itemKey}><span className="ty-krow-tick" aria-hidden="true">✓</span><span className="ty-krow-t"><b>{label}</b>נשלח קודם</span></li>;
   }
@@ -497,7 +580,6 @@ function KnownRow({ ask, drafts, putDrafts, inline, bad, preview }: {
           <span className="ty-krow-tick" aria-hidden="true">✓</span>
           <span className="ty-krow-t"><b>{label}{who ? ` · ${who}` : ''}</b>{value.join(' · ')}</span>
         </button>
-        {addEmployer}
       </li>
     );
   }
@@ -524,13 +606,13 @@ function KnownRow({ ask, drafts, putDrafts, inline, bad, preview }: {
   const setKid = (patch: Record<string, string>) => set({ record: { items: [...rec.items.slice(0, -1), { ...kid, ...patch }] } });
   return (
     <li ref={rowRef} className={`ty-krow-card${bad ? ' is-bad' : ''}`} data-confirm={ask.itemKey}>
-      <div className="ty-krow-l">{label}{who && <span className="ty-who">{who}</span>}</div>
-      <div className="ty-krow-v">{value.length ? value.map((l, k) => <span key={k}>{l}</span>) : <span>אין אצלנו פרטים</span>}</div>
+      <div className="ty-krow-l">{label}{who && <span className="ty-who">{who}</span>}{fromNi && <span className="ty-src">מביטוח לאומי</span>}</div>
+      <div className="ty-krow-v">{work ? work.map((w, k) => <span key={k} className="ty-krow-line"><span>{w.name}</span>{w.when && <em>{w.when}</em>}</span>)
+        : value.length ? value.map((l, k) => <span key={k}>{l}</span>) : <span>אין אצלנו פרטים</span>}</div>
       <div className="ty-seg" role="group" aria-label={`${label}: נכון או השתנה`}>
         <button type="button" aria-pressed={false} onClick={() => set(confirmedDraft(ask, d))}>נכון</button>
         <button type="button" aria-pressed={d.choice === 'changed'} onClick={() => set({ choice: 'changed' })}>{CHANGE_LABEL[ask.itemKey] ?? 'השתנה'}</button>
       </div>
-      {d.choice !== 'changed' && addEmployer}
       {d.choice === 'changed' && (
         <div className="ty-krow-sub">
           {inline.map(x => x.prompt.input.kind === 'multi' && (
