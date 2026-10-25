@@ -11,6 +11,7 @@ import type { Client, RepresentationRequest, RepSignatureDocument, SignatureValu
 import { useDocumentDB } from '../hooks/useIndexedDB';
 import { useAuth } from '../hooks/useAuth';
 import { supabase } from '../lib/supabase';
+import { repRequestFromDb } from '../lib/dbMappers';
 import { signatureDocumentsOf, withLegacyMirror } from '../utils/repDocuments';
 import { getRequestSigners } from '../utils/repSigners';
 import { shaamSubmissions, requestScope, peopleFromClient } from '../utils/repScope';
@@ -53,10 +54,18 @@ export default function StampAndSendShaam({
   /** הוחתם עכשיו ⇒ השליחה יוצאת לבד. טופס שהוחתם קודם — כפתור רגיל, בלי הפעלה עצמית. */
   const [armed, setArmed] = useState(false);
   const [autoDone, setAutoDone] = useState<Set<string>>(() => new Set());
+  /**
+   * ‼ הבקשה המלאה מהשרת (25.10, ליאת ואוריה): ב«בקשות» הבקשה מגיעה מרשימה «רזה» בלי
+   * signature_values (useRepresentationRequests, lean) — בלי החתימות של הלקוחות. חדר
+   * החתימה הציג אותם ריקים, והשמירה כתבה רק את החותמת ומחקה אותן. לכן חוזרים לשרת
+   * לפני פתיחת החדר, ושומרים רק מעליה.
+   */
+  const [full, setFull] = useState<RepresentationRequest | null>(null);
 
+  const base = full ?? request;
   const view: RepresentationRequest = local
-    ? { ...request, ...withLegacyMirror(local.docs), signatureValues: local.values }
-    : request;
+    ? { ...base, ...withLegacyMirror(local.docs), signatureValues: local.values }
+    : base;
   const docs = signatureDocumentsOf(view);
   const stamped = docs.length > 0 && docs.every(d => !!d.signedPdfStoredId);
   const nextDoc = docs.find(d => !d.signedPdfStoredId) ?? null;
@@ -93,7 +102,17 @@ export default function StampAndSendShaam({
     setError('');
     setBusy(true);
     try {
-      setRoom(await loadStampRoom(db, doc, await branding()));
+      const { data, error: fetchErr } = await supabase.from('representation_requests').select('*').eq('id', request.id).single();
+      if (fetchErr || !data) throw new Error('לא הצלחתי לטעון את הבקשה המלאה - נסו שוב.');
+      const fresh = repRequestFromDb(data);
+      // ‼ טופס שהלקוחות חתמו בלי החתימות שלהם — לא פותחים חדר שיחתום ויצרוב עותק חסר.
+      const clientFields = (signatureDocumentsOf(fresh).find(d => d.key === doc.key) ?? doc).fields
+        .filter(f => f.kind === 'signature' && f.signerId !== 'accountant' && f.signerId !== 'static');
+      const missing = clientFields.filter(f => !fresh.signatureValues?.[f.id]);
+      if (missing.length > 0) throw new Error('החתימות של הלקוחות לא נמצאו בבקשה - לא נפתח חדר חתימה. פנו לתמיכה.');
+      setFull(fresh);
+      setLocal(null);
+      setRoom(await loadStampRoom(db, signatureDocumentsOf(fresh).find(d => d.key === doc.key) ?? doc, await branding()));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -106,7 +125,8 @@ export default function StampAndSendShaam({
     setBusy(true);
     try {
       const out = await stampAndStore(db, view, docs, room, values, fields);
-      await onSaveSignedPdf(request, out.values, out.docs);
+      // ‼ שומרים מעל הבקשה המלאה (base) — לא מעל העותק הרזה שהגיע מהרשימה.
+      await onSaveSignedPdf(base, out.values, out.docs);
       setLocal({ docs: out.docs, values: out.values });
       const next = out.docs.find(d => !d.signedPdfStoredId);
       if (next) {
