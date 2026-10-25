@@ -12,7 +12,7 @@
 // ‼ 154 שלא נפתחה מסיבה שאינה התחברות/חלונית ⇒ ממשיכים ל-134 כמו קודם, ומדווחים
 // שהשנים לא נקראו. התחברות/חלונית ⇒ עוצרים, כמו תמיד.
 import {
-  attach, detach, openAdvancesInfo, openTaxYearsInfo, readRepresentedList,
+  attach, detach, openAdvancesInfo, openTaxYearsInfo, readRepresentedList, readDebitAuthorization181, GMF_181_MAIN_PATH,
   extractIncomeTaxFileFacts, verifyFileDetailsFor,
 } from '../browserSession.mjs';
 import { parseTaxYears, openYears } from '../gmf154.mjs';
@@ -77,6 +77,19 @@ export async function run(ctx, input) {
     // ‼ אין כאן שער נפרד של פורטל (probeServerSession): מוכנות GMF אינה
     // נגזרת ממוכנות הפורטל. הבדיקה התפעולית — נתיב, שדה סיסמה, חומת אימות —
     // כבר קיימת בפותחי השאילתות, והיא הסמכות היחידה כאן.
+    // ‼ כל שאילתת GMF היא אפליקציה נפרדת, ומעבר ביניהן עולה 20–35 ש׳ (נמדד 25.10.2026).
+    // הלשונית נשארת על 181 בסוף כל קריאה — ולכן כשהיא שם, «קיום הרשאה» נקראת קודם,
+    // ורק אז 154: מעבר אחד בכל קריאה ולא שניים.
+    let da181 = null;
+    const read181 = async () => {
+      const t181 = Date.now();
+      da181 = await readDebitAuthorization181(conn.page, fileNumber);
+      ctx.log(da181.ok
+        ? `181 «קיום הרשאה»: ${da181.text}${da181.code != null ? ` (קוד ${da181.code})` : ''} · ${Math.round((Date.now() - t181) / 1000)} ש׳`
+        : `181 «קיום הרשאה» לא נקרא (${da181.reason})`);
+    };
+    const on181 = conn.page.context().pages().some((p) => { try { return new URL(p.url()).pathname.startsWith(GMF_181_MAIN_PATH); } catch { return false; } });
+    if (on181) await read181();
     ctx.log(`קורא «מידע אודות שנות מס» (154) · ${fileNumber.length} ספרות`);
     const opened154 = await openWithRelogin(ctx, conn.page, () => openTaxYearsInfo(conn.page, fileNumber));
     stopOnAuth(opened154);
@@ -172,6 +185,15 @@ export async function run(ctx, input) {
     } else {
       ctx.log(`רשימת מיוצגים לא נקראה (${rl.reason})`);
       unavailable.push({ key: 'representedList', reason: rl.reason });
+    }
+
+    // ‼ 25.10.2026 · הרשאה לחיוב בלי רשימת המיוצגים: לשונית «קיום הרשאה» ב-181,
+    // באותה מערכת גבייה שכבר מחוברת (גיא: «למה ההרשאה לחיוב שוב לא עבדה?»).
+    // רשימת המיוצגים (כשמחוברת) גוברת: יש בה גם פרטי החשבון.
+    if (fields.debitAuthorization === undefined) {
+      if (!da181) await read181();
+      if (da181.ok) fields.debitAuthorization = da181.text;
+      else unavailable.push({ key: 'debitAuthorization181', reason: da181.reason });
     }
 
     ctx.log(`נקראו ${Object.keys(fields).length} שדות · חסרים/דו-משמעיים: ${unavailable.length}`);

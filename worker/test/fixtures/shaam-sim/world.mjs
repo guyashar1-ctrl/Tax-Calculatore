@@ -169,7 +169,11 @@ export class SimPage {
         return;
       }
       if (this.fields['#mavarShilta'] === '134') this.path = '/gmf-134/main/knisa';
-      else if (this.fields['#mavarShilta'] === '181') this.path = '/gmf-181/main/main181';
+      else if (this.fields['#mavarShilta'] === '181') {
+        this.path = '/gmf-181/main/main181';
+        // ‼ «קיום הרשאה» (25.10.2026): בלי תשובת getPrtReshet בעולם המדומה — נכשל מיד, לא ממתין.
+        this.#rejectWaiters();
+      }
       return;
     }
     if (sel === '#btnContinue') {

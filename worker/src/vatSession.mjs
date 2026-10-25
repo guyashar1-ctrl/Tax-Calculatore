@@ -39,17 +39,25 @@ export function personName(raw) {
 const STEP_TIMEOUT_MS = 60000;
 
 /**
- * לשונית מע״מ שכבר פתוחה — ואם אין, הלשונית שקיבלנו מנווטת לתפריט.
- * ‼ לא פותחים לשונית שנייה: מערכות הגבייה של שע״ם חד-סשן, ולשונית
- * נוספת על אותה מערכת מפילה את הראשונה (ראה reuseOpenSystemPage).
+ * לשונית מע״מ שכבר פתוחה — ואם אין, לשונית **חדשה** לתפריט.
+ * ‼ לא שתי לשוניות על מע״מ: מערכות הגבייה של שע״ם חד-סשן, ולשונית נוספת על
+ * אותה מערכת מפילה את הראשונה (ראה reuseOpenSystemPage). אבל מע״מ ו-GMF הן שתי
+ * מערכות: כשהן חלקו לשונית, כל קריאת מס הכנסה העיפה את מע״מ, והקריאה הבאה
+ * פתחה אותה מאפס (~35 ש׳, נמדד 25.10.2026).
+ *
+ * ‼ `osekNumber` — כשהלשונית בתפריט, מזינים את המספר **שם** (נשאר בתפריט, ~3 ש׳)
+ * ורק אז נכנסים ל«פרטי עוסק»: הכניסה נוחתת ישר על העוסק. בלי עוסק נבחר היא
+ * נוחתת על מסך ריק, ואז צריך שתי הגשות (~30 ש׳ נוספות).
  */
-export async function openVatWorkPage(page) {
+export async function openVatWorkPage(page, osekNumber) {
   const found = await findOrOpenVat(page);
   if (!found.ok || OSEK_DETAILS_PATH.test(found.pathname)) return found;
-  // ‼ בתפריט הראשי הזנת מספר נשארת בתפריט (אין לשוניות) — נכנסים קודם
-  // ל«פרטי עוסק» דרך הקישור של התפריט עצמו (נצפה 25.10.2026: מפנה ל-
-  // /EMHANOSEK/PirteyOsekPirteyIsum.aspx). בלי עוסק נבחר נוחתים במסך ריק,
-  // ו-openOsek יודע להתחיל משם.
+  if (osekNumber) {
+    const onMenu = await openOsek(found.page, osekNumber);
+    if (!onMenu.ok) return { ok: false, reason: onMenu.reason, detail: onMenu.detail, pathname: found.pathname };
+  }
+  // ‼ בתפריט הראשי הזנת מספר נשארת בתפריט (אין לשוניות) — נכנסים ל«פרטי עוסק»
+  // דרך הקישור של התפריט עצמו (נצפה 25.10.2026: מפנה ל-/EMHANOSEK/PirteyOsekPirteyIsum.aspx).
   await found.page.goto(OSEK_DETAILS_URL, { waitUntil: 'commit', timeout: STEP_TIMEOUT_MS }).catch(() => {});
   const deadline = Date.now() + STEP_TIMEOUT_MS;
   let st = null;
@@ -80,6 +88,8 @@ async function findOrOpenVat(page) {
   for (const p of page.context().pages()) {
     try { if (new URL(p.url()).pathname.startsWith('/taxes-login/')) return { ok: false, reason: 'login_required', pathname: new URL(p.url()).pathname }; } catch { /* about:blank */ }
   }
+  // לשונית משלה (ראה למעלה). הלשונית הראשונה נשארת על מה שהיה בה (GMF).
+  page = await page.context().newPage();
   await page.goto(VAT_URL, { waitUntil: 'domcontentloaded', timeout: 30000 }).catch(() => {});
   const s = await settlePage(page);
   if (!VAT_ANY_PATH.test(s.pathname)) return { ok: false, reason: 'unexpected_destination', pathname: s.pathname };

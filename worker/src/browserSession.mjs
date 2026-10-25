@@ -1040,6 +1040,73 @@ export async function openTaxYearsInfo(page, fileNumber, { maxPages = GMF_154_MA
   return { ok: true, page: work, pathname: data.pathname, head: head.body, pages, user, steps };
 }
 
+// ─── 181 · «קיום הרשאה» — הרשאה לחיוב במס הכנסה ───────────────────────────
+// ‼ נצפה חי 25.10.2026: לשונית «קיום הרשאה» במסך 181 (פרטי תיק) מבקשת מהשרת
+// getPrtHarshatHesbon ומציגה תג אחד («אין הרשאה»). זה המקור כשרשימת המיוצגים
+// (מערכת רישום הייצוג, התחברות נפרדת) לא מחוברת. ‼ פונים דרך המסך עצמו ולא ישירות
+// ל-API: הבקשה נושאת אסימון (shaam-auth) שהמסך מחשב לכל בקשה.
+export const GMF_181_MAIN_PATH = '/gmf-181/main/main181';
+const GMF_181_HARSHA_API = '/gmf181Api/api/gmf181/getPrtHarshatHesbon';
+const GMF_181_RESHET_API = '/gmf181Api/api/gmf181/getPrtReshet';
+const GMF_181_HARSHA_TAB = 'קיום הרשאה';
+
+/** תוחם המתנה בזמן משלנו — לא סומכים רק על timeout של מי שמחזיר את ההבטחה. */
+const within = (p, ms) => {
+  let t;
+  return Promise.race([p, new Promise((r) => { t = setTimeout(() => r(null), ms); })]).finally(() => clearTimeout(t));
+};
+
+/** פותח 181 מהכותרת של מסך GMF קיים, ועובר ללשונית «קיום הרשאה». קורא בלבד. */
+export async function readDebitAuthorization181(page, fileNumber) {
+  const work = await pickPageOn(page.context(), '/gmf-', GMF_TIK_INPUT);
+  if (!work) return { ok: false, reason: 'gmf_page_missing' };
+  const modal = await readGmfBlockingModal(work);
+  if (modal.blocked) return { ok: false, reason: 'blocked_by_modal', modalTitle: modal.title };
+  if (!(await work.$(GMF_SHILTA_INPUT))) return { ok: false, reason: 'header_fields_missing' };
+  const tikSet = await fillAndVerify(work, GMF_TIK_INPUT, fileNumber);
+  const qSet = await fillAndVerify(work, GMF_SHILTA_INPUT, GMF_QUERY_FILE_DETAILS);
+  if (!tikSet.ok || !qSet.ok) return { ok: false, reason: 'header_value_not_applied' };
+  const submit = work.locator(GMF_HEADER_SUBMIT).first();
+  if (!(await submit.count())) return { ok: false, reason: 'header_submit_missing' };
+  // ‼ ממתינים לתשובת השרת **לתיק הזה** (getPrtReshet עם misTik שלו) — לא לכתובת:
+  // כשהלשונית כבר על 181 של לקוח אחר, הכתובת לא משתנה והמסך הקודם עוד מוצג.
+  const num = String(Number(fileNumber));
+  const reshetP = work.waitForResponse((r) => {
+    try { return new URL(r.url()).pathname === GMF_181_RESHET_API && (r.request().postData() ?? '').includes(num); } catch { return false; }
+  }, { timeout: 40000 }).catch(() => null);
+  try {
+    await submit.click({ timeout: 10000 });
+  } catch (e) {
+    return { ok: false, reason: 'submit_click_blocked', detail: String(e).slice(0, 120) };
+  }
+  if (!(await within(reshetP, 40000))) return { ok: false, reason: 'file_not_loaded', pathname: new URL(work.url()).pathname };
+  const tab = work.locator('button.nav-link', { hasText: GMF_181_HARSHA_TAB }).first();
+  try { await tab.waitFor({ timeout: 20000 }); } catch {
+    return { ok: false, reason: 'harsha_tab_missing', pathname: new URL(work.url()).pathname };
+  }
+  // ‼ לשונית שכבר פעילה לא מבקשת שוב מהשרת — עוברים קודם ללשונית אחרת, כדי שהתג
+  // שנקרא יהיה תמיד מהתשובה של התיק הזה.
+  if ((await tab.getAttribute('aria-selected').catch(() => null)) === 'true') {
+    await work.locator('button.nav-link').first().click({ timeout: 5000 }).catch(() => {});
+  }
+  const resP = captureJson(work, GMF_181_HARSHA_API, 20000);
+  await tab.click({ timeout: 8000 }).catch(() => {});
+  const res = await within(resP, 20000);
+  if (!res?.body) return { ok: false, reason: 'harsha_not_captured' };
+  // התשובה הגיעה; התג מצויר רגע אחריה.
+  let text = '';
+  for (let i = 0; i < 20 && !text; i++) {
+    text = await work.evaluate((name) => {
+      const btn = [...document.querySelectorAll('button.nav-link')].find((b) => (b.innerText || '').trim() === name);
+      const panel = btn ? document.getElementById(`${btn.id}-panel`) : null;
+      return panel ? (panel.innerText || '').replace(/\s+/g, ' ').trim() : '';
+    }, GMF_181_HARSHA_TAB).catch(() => '');
+    if (!text) await work.waitForTimeout(250);
+  }
+  if (!text) return { ok: false, reason: 'harsha_empty', code: res?.body?.kodHarshaHesbon ?? null };
+  return { ok: true, text, code: res?.body?.kodHarshaHesbon ?? null };
+}
+
 /**
  * מחלץ את שדות ראש התיק ממסך 134.
  *

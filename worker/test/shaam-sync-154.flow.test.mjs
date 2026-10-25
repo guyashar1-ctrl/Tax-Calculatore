@@ -34,7 +34,7 @@ test('אין מקדמות פעילות ⇒ 154 בלבד, בלי 134', async () =
   const queries = connected(sample154({ sugDrisha: 'לא נדרש' }));
   const r = await sync.run(ctx(), { fileNumber: FILE });
   assert.equal(r.result.query, '154');
-  assert.deepEqual(queries, ['154']);
+  assert.deepEqual(queries, ['154', '181'], '181 — «קיום הרשאה» כשרשימת המיוצגים לא מחוברת');
   assert.equal(r.result.fields.taxOffice, '26 - רחובות');
   assert.equal(r.result.fields.advanceStatus, 'no_advance');
   assert.equal(r.result.fields.balance, '1000');
@@ -56,7 +56,7 @@ test('מקדמות פעילות ⇒ 154 ואז 134; ראש התיק מ-154', asy
   const queries = connected(sample154({ sugDrisha: 'שעור דו' }));
   const r = await sync.run(ctx(), { fileNumber: FILE });
   assert.equal(r.result.query, '154+134');
-  assert.deepEqual(queries, ['154', '134']);
+  assert.deepEqual(queries, ['154', '134', '181']);
   assert.equal(r.result.fields.taxOffice, '26 - רחובות');
   assert.equal(r.result.fields.balance, '1000', 'היתרה מ-154, לא «יתרה» של 134');
   assert.ok(r.result.filing);
@@ -66,7 +66,7 @@ test('154 לא נפתחת ⇒ 134 כמו קודם, ו«השנים לא נקרא�
   const queries = connected(null);
   const r = await sync.run(ctx(), { fileNumber: FILE });
   assert.equal(r.result.query, '134');
-  assert.deepEqual(queries, ['154', '134']);
+  assert.deepEqual(queries, ['154', '134', '181']);
   assert.equal(r.result.fields.taxOffice, '26 - רחובות');
   assert.equal(r.result.filing, undefined);
   assert.ok(r.result.unavailable.some((u) => u.key === 'taxYears'));
@@ -101,7 +101,7 @@ test('ה-JSON של 154 לא הגיע בזמן ⇒ רענון אחד של המס�
   world.gmf154Slow = true;
   const r = await sync.run(ctx(), { fileNumber: FILE });
   assert.equal(r.result.query, '154');
-  assert.deepEqual(queries, ['154']);
+  assert.deepEqual(queries, ['154', '181']);
   assert.ok(r.result.filing);
 });
 

@@ -109,8 +109,21 @@ function noteBlocked(reason) {
   else log('✓ הזהות פנויה — חוזר לתפוס עבודה');
 }
 
+// ‼ 25.10.2026 · שני מסלולים במקביל: ב״ל רצה בחלון Chrome משלה, ולכן אין סיבה
+// שתחכה לשע״ם (יישור קו מלא לקח ~4 דקות בתור אחד). בכל מסלול — משימה אחת
+// בכל רגע, כמו קודם: בשע״ם אין שתי משימות על אותו חלון.
+const laneOf = (actionType) => (actionType.startsWith('btl.') ? 'btl' : 'shaam');
+const running = { shaam: null, btl: null };
+const busy = () => !!(running.shaam || running.btl);
+
+/**
+ * תופס משימה למסלול פנוי ומריץ אותה ברקע. ‼ ל-claim נשלחים רק סוגי הפעולות של
+ * המסלולים הפנויים — כך claim_action_types בשרת אומר בדיוק מה המחשב מוכן לקחת.
+ */
 async function tick() {
-  const actionTypes = ONLY_ACTIONS.length ? supportedActionTypes().filter(a => ONLY_ACTIONS.includes(a)) : supportedActionTypes();
+  const all = ONLY_ACTIONS.length ? supportedActionTypes().filter(a => ONLY_ACTIONS.includes(a)) : supportedActionTypes();
+  const actionTypes = all.filter(a => !running[laneOf(a)]);
+  if (!actionTypes.length) return false;
   const j = await claim(USER_ID, WORKER_ID, actionTypes, LEASE_SECONDS).catch((e) => {
     log('✗ claim נכשל (רשת?):', e?.message ?? e);
     return { ok: false };
@@ -119,17 +132,20 @@ async function tick() {
   if (j?.ok) noteBlocked(null);
   if (j?.job) {
     const job = normalizeJob(j.job);
+    const lane = laneOf(job.actionType);
     log(`▶ תפסתי משימה ${job.id} · ${job.actionType} · ניסיון #${job.attempts}`);
-    await runJob(job);
-    // חיבור/ניתוק משנים את מצב הנורית — לא ממתינים למחזור הבדיקה הרגיל.
-    if (job.actionType.startsWith('shaam.')) invalidateConnectionCache();
-    // ‼ ב״ל: סבב מיידי, כדי שחלון שנפתח עכשיו על מסך הכניסה ייכנס מיד
-    // להמתנה הצפופה (btlLoginWatch.mjs) ולא רק בעוד עד 30 שניות.
-    if (job.actionType.startsWith('btl.')) checkBtlSoon();
-    return true; // רץ עוד סבב מיד — אולי יש עוד עבודה בתור
+    running[lane] = runJob(job).catch((e) => log('✗ שגיאה בהרצה:', e?.message ?? e)).finally(() => {
+      running[lane] = null;
+      // חיבור/ניתוק משנים את מצב הנורית — לא ממתינים למחזור הבדיקה הרגיל.
+      if (job.actionType.startsWith('shaam.')) invalidateConnectionCache();
+      // ‼ ב״ל: סבב מיידי, כדי שחלון שנפתח עכשיו על מסך הכניסה ייכנס מיד
+      // להמתנה הצפופה (btlLoginWatch.mjs) ולא רק בעוד עד 30 שניות.
+      if (job.actionType.startsWith('btl.')) checkBtlSoon();
+    });
+    return true; // רץ עוד סבב מיד — אולי יש עבודה למסלול השני
   }
   // אין עבודה — פעימת נוכחות ריקה, כדי ש-PIVO ידע שהמחשב הזה חי
-  await heartbeat(USER_ID, WORKER_ID, null, LEASE_SECONDS, version()).catch(() => { /* לא קריטי */ });
+  if (!busy()) await heartbeat(USER_ID, WORKER_ID, null, LEASE_SECONDS, version()).catch(() => { /* לא קריטי */ });
   return false;
 }
 
@@ -154,13 +170,21 @@ async function main() {
   log(`תשאול כל ${POLL_SECONDS}s · חכירה ${LEASE_SECONDS}s`);
   while (!stopping) {
     const found = await tick();
+    if (found) continue;
+    if (busy()) {
+      // ‼ ניטור החיבור לא רץ בזמן שמשימה נוגעת ב-Chrome — שניהם היו מתחרים על
+      // אותו חלון. ממתינים שמסלול יתפנה, או שנייה כדי לתפוס עבודה למסלול השני.
+      await Promise.race([sleep(1000), ...Object.values(running).filter(Boolean)]);
+      continue;
+    }
     // ניטור החיבור רץ באותה לולאה ולא בטיימר נפרד — כדי ששני הדברים לא
     // ייגעו ב-Chrome בו-זמנית ויתחרו על אותו חיבור CDP.
     await tickConnectionMonitor(USER_ID, WORKER_ID, log, { scope: MONITOR_SCOPE }).catch((e) =>
       log('ניטור חיבור נכשל:', e?.message ?? e));
     // ‼ 2 שניות בזמן המתנה להתחברות לב״ל ומיד אחריה — ראה btlLoginWatch.mjs.
-    if (!found && !stopping) await sleep(monitorSleepMs(POLL_SECONDS * 1000));
+    if (!stopping) await sleep(monitorSleepMs(POLL_SECONDS * 1000));
   }
+  await Promise.all(Object.values(running).filter(Boolean));
   await pdfLoop;
   log('להתראות.');
 }

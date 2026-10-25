@@ -26,9 +26,11 @@ export async function run(ctx, input) {
   if (!conn.ok) throw new NeedsHumanError(NOT_READY, 'shaam_connection_not_ready');
   try {
     const t0 = Date.now();
-    const opened = await openVatWorkPage(conn.page);
-    ctx.log(`מע״מ: ${opened.ok ? (opened.reused ? 'לשונית קיימת' : 'נפתח תפריט') : `לא מוכנה (${opened.reason})`} · ${opened.pathname ?? ''}`);
-    if (!opened.ok) {
+    const opened = await openVatWorkPage(conn.page, osekNumber);
+    ctx.log(`מע״מ: ${opened.ok ? (opened.reused ? 'לשונית קיימת' : 'נפתחה לשונית') : `לא נפתחה (${opened.reason})`} · ${opened.pathname ?? ''} · ${Math.round((Date.now() - t0) / 1000)} ש׳`);
+    // ‼ מספר שהוזן בתפריט ונדחה («לא קיים») מגיע כ-osek_not_found — אותה הודעה כמו למטה.
+    const osek = opened.ok ? await openOsek(opened.page, osekNumber) : opened;
+    if (!osek.ok && !opened.ok && osek.reason !== 'osek_not_found') {
       if (opened.reason === 'login_required' || opened.reason === 'unexpected_destination') {
         throw new NeedsHumanError(NOT_READY, 'shaam_connection_not_ready');
       }
@@ -36,7 +38,6 @@ export async function run(ctx, input) {
     }
     const page = opened.page;
 
-    const osek = await openOsek(page, osekNumber);
     if (!osek.ok) {
       if (osek.reason === 'login_required') throw new NeedsHumanError(NOT_READY, 'shaam_connection_not_ready');
       if (osek.reason === 'osek_not_found') {

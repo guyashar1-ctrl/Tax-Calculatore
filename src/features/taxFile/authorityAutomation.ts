@@ -300,10 +300,13 @@ function wealthFiledText(raw: string): string | null {
   return f ? `הוגשה ${f.on}${f.year ? ` · לשנת ${f.year}` : ''}` : null;
 }
 
-/** «קיימת · 12-170-48047» ⇒ 'true' · «אין הרשאה» ⇒ 'false' (רשימת מיוצגים). כל טקסט אחר — לא ממופה. */
+/**
+ * «קיימת · 12-170-48047» (רשימת מיוצגים) / «יש הרשאה - מאומתת» (181 «קיום הרשאה», נצפה
+ * 25.10.2026) ⇒ 'true' · «אין הרשאה» (שניהם) ⇒ 'false'. כל טקסט אחר — לא ממופה.
+ */
 function mapDebitAuthorization(raw: string): string | null {
   const t = raw.replace(/\s+/g, ' ').trim();
-  if (/^קיימת/.test(t)) return 'true';
+  if (/^קיימת/.test(t) || /^יש הרשאה/.test(t)) return 'true';
   if (t === 'אין הרשאה') return 'false';
   return null;
 }
@@ -521,8 +524,11 @@ function interpretShaam134(
 
     const raw = spec.applies && !spec.applies(fields) ? '' : (fields[spec.source] ?? '').trim();
     if (raw === '' && OPTIONAL_SOURCES[spec.source] && !OPTIONAL_SOURCES[spec.source](fields)) {
-      const skippedReason = spec.source === 'debitAuthorization'
-        ? representedListSkipText(unavailable.find(u => u.key === 'representedList')?.reason) : undefined;
+      // ‼ מ-25.10.2026 «קיום הרשאה» ב-181 היא המקור כשהרשימה לא מחוברת — כשגם היא לא
+      // נקראה, זו הסיבה שמוצגת (ולא «פורטל המייצגים לא היה מחובר»).
+      const skippedReason = spec.source !== 'debitAuthorization' ? undefined
+        : unavailable.some(u => u.key === 'debitAuthorization181') ? 'לא נבדק — מסך «קיום הרשאה» (181) לא נקרא'
+        : representedListSkipText(unavailable.find(u => u.key === 'representedList')?.reason);
       return { fieldKey, label, status: 'unsupported', currentValue, ...(skippedReason ? { skippedReason } : {}) };
     }
     if (raw === '') {

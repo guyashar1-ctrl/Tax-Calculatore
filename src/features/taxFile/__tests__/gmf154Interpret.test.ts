@@ -157,6 +157,11 @@ export const TESTS: TestCase[] = [
     equal(known.authorityDisplay, 'One Zero — הבנק הדיגיטלי · סניף 1 · חשבון 223167724');
     equal(read({ debitAuthorization: 'קיימת · 99-5-1' }).authorityDisplay, 'בנק 99 · סניף 5 · חשבון 1', 'קוד לא מוכר — המספר');
     equal(read({ debitAuthorization: 'אין הרשאה' }, client({ incomeTaxDebitAuthorization: false })).status, 'match');
+    // 181 «קיום הרשאה» (נצפה 25.10.2026): «יש הרשאה - מאומתת» / «אין הרשאה».
+    equal(read({ debitAuthorization: 'יש הרשאה - מאומתת' }, client({ incomeTaxDebitAuthorization: true })).status, 'match');
+    const no181 = read({ debitAuthorization: 'אין הרשאה' }, client({ incomeTaxDebitAuthorization: true }));
+    equal(no181.status, 'changed');
+    equal(no181.authorityValue, 'false');
     equal(read({ taxOffice: 'x' }).status, 'unsupported', 'מערכת הייצוג לא הייתה מחוברת');
     const skipped = (reason: string) => spec.interpret!(
       { id: 'j', status: 'succeeded', result: { fields: { taxOffice: 'x' }, unavailable: [{ key: 'representedList', reason }] } } as unknown as AutomationJob,
