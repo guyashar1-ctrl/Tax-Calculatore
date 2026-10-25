@@ -44,18 +44,20 @@ try {
     await page.goto(`${env.portalUrl()}#q=${step}`, { waitUntil: 'domcontentloaded' });
     const flow = page.locator('.ty-flow');
     await flow.locator('[data-confirm="salary.employerDetails"]').first().waitFor({ timeout: 40000 });
+    // ‼ 25.10.2026 · פרקים: העבודה של כל אדם — בפרק שלו (דוד קודם, רחל אחריו)
     const text = await flow.innerText();
-    ok(text.includes('המעסיק מביטוח לאומי') && text.includes('המעסיק של רחל'), `${width}: both NI employers appear for confirmation`);
+    ok(text.includes('המעסיק מביטוח לאומי') && !text.includes('המעסיק של רחל'), `${width}: the client's NI employer opens his chapter (spouse's in hers)`);
     ok(!text.includes('מעסיק משנת 2026'), `${width}: future employer excluded from 2025`);
-    ok(text.includes('מועד הסיום לא ידוע'), `${width}: unknown end is not shown as still employed`);
     ok(await flow.locator('.rec-field').count() === 0, `${width}: known details require no typing`);
     ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${width}: no horizontal overflow`);
     await page.screenshot({ path: resolve(shots, `known-${width}.png`), fullPage: true });
     await flow.locator('[data-confirm="salary.employerDetails"]').first().getByRole('button', { name: 'נכון', exact: true }).click();
-    await flow.getByRole('button', { name: 'עבודה: נכון — לפתוח שוב', exact: true }).first().click();
+    await flow.getByRole('button', { name: 'מקומות עבודה: נכון — לפתוח שוב', exact: true }).first().click();
     ok(await flow.getAttribute('data-screen') === 'confirmAll' && await flow.locator('.rec-field').count() === 0, `${width}: reopening one approved row keeps the confirmation screen`);
     const clientRow = flow.locator('[data-confirm="salary.employerDetails"]').first();
-    await clientRow.getByRole('button', { name: 'הוספת מעסיק · דוד', exact: true }).click();
+    // ‼ 25.10.2026 · «＋ מעסיק» רק אחרי «השתנה»
+    await clientRow.locator('.ty-seg').getByRole('button', { name: 'השתנה', exact: true }).click();
+    await clientRow.locator('.rec-add').click();
     const employerCards = clientRow.locator('.rec-card');
     ok(await employerCards.count() === 2 && await employerCards.first().locator('input').first().inputValue() === 'המעסיק מביטוח לאומי', `${width}: direct add preserves known employer`);
     await employerCards.last().locator('input').first().fill('מעסיק נוסף לדוד');
@@ -63,6 +65,14 @@ try {
     ok(await employerCards.last().locator('select').last().inputValue() === 'unknown', `${width}: new employer has no assumed employment end`);
     await clientRow.locator('.ty-seg').getByRole('button', { name: 'נכון', exact: true }).click();
     await flow.getByRole('button', { name: 'הכול נכון, ממשיכים', exact: true }).click();
+    // פרק רחל: העבודה שלה, ואז «רגע לפני ששולחים»
+    const toSpouse = flow.locator('[data-part-go=spouse]');
+    await toSpouse.waitFor({ timeout: 15000 }); await toSpouse.click();
+    await flow.locator('[data-confirm="salary.employerDetails"]').first().waitFor();
+    ok((await flow.innerText()).includes('המעסיק של רחל') && await flow.getAttribute('data-part') === 'spouse', `${width}: the spouse's NI employer in her chapter`);
+    ok((await flow.innerText()).includes('מועד הסיום לא ידוע'), `${width}: unknown end is not shown as still employed`);
+    await flow.locator('[data-confirm="salary.employerDetails"]').first().getByRole('button', { name: 'נכון', exact: true }).click();
+    await flow.locator('[data-part-go=send]').click();
     await flow.locator('[data-annual-send]').waitFor();
     await page.waitForTimeout(1300);
     const saved = (await env.sql(`select saved_draft from public.tax_info_asks where step_id='${step}' and item_key='annual.whatHappened'`))[0].saved_draft;
@@ -71,10 +81,9 @@ try {
     await env.sql(`update public.clients set ni_occupations='[]',spouse_ni_occupations='[]' where id='${id}'`);
     await page.reload({ waitUntil: 'domcontentloaded' });
     await flow.locator('[data-annual-send]').waitFor({ timeout: 30000 });
-    await flow.getByRole('button', { name: 'הקודם', exact: true }).click();
-    await flow.locator('[data-confirm="salary.employerDetails"]').first().waitFor();
+    for (let k = 0; k < 4 && !(await flow.innerText()).includes('המעסיק מביטוח לאומי'); k++) { await flow.getByRole('button', { name: 'הקודם', exact: true }).click(); await page.waitForTimeout(300); }
     ok((await flow.innerText()).includes('המעסיק מביטוח לאומי'), `${width}: saved approval survives source changes and reload`);
-    await flow.getByRole('button', { name: 'הכול נכון, ממשיכים', exact: true }).click();
+    for (let k = 0; k < 4 && !(await flow.locator('[data-annual-send]').count()); k++) { await flow.locator('.ty-nav .btn-primary').click(); await page.waitForTimeout(400); }
     await flow.locator('[data-annual-send]').click();
     await page.locator('.ty-flow[data-finish]').waitFor({ timeout: 30000 });
     const facts = await env.sql(`select value,status from public.tax_year_facts where client_id='${id}' and request_id='${parent}' and item_key='salary.employerDetails'`);

@@ -228,6 +228,7 @@
       "invariants": [],
       "globs": [
         "src/features/taxYear/**",
+        "src/utils/creditPoints.ts",
         "supabase/2*-*annual*.sql"
       ],
       "suites": [
