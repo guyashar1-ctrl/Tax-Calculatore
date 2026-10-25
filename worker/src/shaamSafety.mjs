@@ -143,6 +143,12 @@ export async function captureDiagnostics(page, stage) {
         .map((e) => digits(clean(e.textContent))).filter(Boolean).slice(0, 25),
       dialogOpen: !!document.querySelector('[role=dialog], .modal:not([style*="display: none"])'),
       hasPasswordField: !!document.querySelector('input[type=password]'),
+      // ‼ 26.10.2026 (ליאת): «רישום ייצוג» נראה ריק — בלי אלה לא ידענו אם הדף לא נטען או נטען
+      // למשהו אחר. כותרת המסמך, מצב הטעינה, אורך הטקסט ומספר המסגרות — בלי טקסט של לקוח.
+      title: digits(clean(document.title)).slice(0, 80),
+      readyState: document.readyState,
+      textLength: (document.body?.innerText || '').trim().length,
+      frames: document.querySelectorAll('iframe, frame').length,
     };
   }).catch((e) => ({ error: String(e).slice(0, 200) }));
   return { stage, ...snap };

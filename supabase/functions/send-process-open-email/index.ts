@@ -28,6 +28,7 @@ import {
 } from "../_shared/stepTemplates.ts";
 import { classifyResendResponse, testTransportAllowed, resendEmailsUrl } from "../_shared/resendResult.ts";
 import { completeWithOneRetry, previewGuard, previewGuardText } from "../_shared/noticeOutcome.ts";
+import { REP_PORTAL_CARD_FIXED } from "../_shared/repTemplates.ts";
 
 // ‼ ספק הדואר — Resend בייצור; ב-staging אפשר ספק מדומה שקולט (resendEmailsUrl).
 const RESEND_EMAILS = resendEmailsUrl(Deno.env.get("RESEND_API_URL"), Deno.env.get("SUPABASE_URL") ?? "");
@@ -57,6 +58,23 @@ interface NoticeItem { stepId: string; stepType: string; title?: string; isDocum
  * מסמך שהמשרד שלח — אותו כלל שהדף האישי מפעיל. ‼ «צילום תעודה לרשות המסים»
  * (208) נושא resources של הלקוח, אבל הוא פעולה שממתינה — לא מסמך שנשלח.
  */
+/**
+ * ‼ 26.10.2026 (גיא, המייל לליאת): המייל הוא רשימה קצרה — שורה לבקשה, בלי ההסבר שלה; ההוראות בדף.
+ * כרטיס הזירוז האופציונלי (הכותרת הקבועה) — אחרון, כמו בדף.
+ * אישור ב״ל של בן/בת זוג נושא את מספר האסמכתא בשורה עצמה: complete_client_notice (296)
+ * רושם «ההוראות נשלחו» אצלו רק כשהמספר במייל.
+ */
+const isOptional = (i: { key?: string; label?: string } | undefined) =>
+  !!i && i.key === "rep_approval" && i.label === REP_PORTAL_CARD_FIXED.title;
+const optionalLast = (a: { key?: string; label?: string } | undefined, b: { key?: string; label?: string } | undefined) =>
+  Number(isOptional(a)) - Number(isOptional(b));
+function shortLine(p: PortalItem | undefined, fallback: string): string {
+  const title = String(p?.label || fallback || "").trim();
+  if (p?.kind !== "ni_approval") return "· " + title;
+  const ref = (p.refs ?? []).find(r => /אסמכתא/.test(String(r.label ?? "")) && String(r.value ?? "").trim() && r.value !== "—");
+  return "· " + title + (ref ? ` · אסמכתא ${String(ref.value).trim()}` : "");
+}
+
 const isSentDoc = (i: PortalItem) =>
   Array.isArray(i.resources) && i.resources.length > 0 && i.kind !== "identity_confirm";
 
@@ -262,12 +280,10 @@ Deno.serve(async (req: Request) => {
 
     // ── מה נכתב במייל ───────────────────────────────────────────────────────
     const line = (title: string, sub?: string) => "· " + title.trim() + (sub ? ` - ${String(sub).trim()}` : "");
-    const itemLine = (it: NoticeItem) => {
-      const p = it.portalKey ? byKey.get(it.portalKey) : undefined;
-      return line(String(p?.label || it.title || ""), p?.sub);
-    };
+    const itemLine = (it: NoticeItem) => shortLine(it.portalKey ? byKey.get(it.portalKey) : undefined, String(it.title || ""));
+    items = [...items].sort((a, b) => optionalLast(byKey.get(String(a.portalKey)), byKey.get(String(b.portalKey))));
     const listedKeys = new Set(items.map(i => i.portalKey).filter(Boolean) as string[]);
-    const otherActions = actions.filter(a => !a.key || !listedKeys.has(String(a.key)));
+    const otherActions = actions.filter(a => !a.key || !listedKeys.has(String(a.key))).sort(optionalLast);
 
     let event: EmailEvent;
     let requestList = "";
@@ -285,7 +301,7 @@ Deno.serve(async (req: Request) => {
         return json({ error: "nothing_to_say", detail: { message: "אין בקשות שממתינות ללקוח ואין עבודה בטיפולנו - אין על מה להודיע." } }, 400);
       }
       // יש מה שממתין ⇒ נוסח status_update_actions, והרשימה בגוף המייל.
-      requestList = actions.map(a => line(String(a.label || ""), a.sub)).join("\n");
+      requestList = [...actions].sort(optionalLast).map(a => shortLine(a, "")).join("\n");
     } else {
       const docs = items.filter(i => i.isDocument);
       const reqs = items.filter(i => !i.isDocument);
@@ -366,7 +382,7 @@ Deno.serve(async (req: Request) => {
       afterCta += block("ומה בטיפולנו", statusList);
     }
     if ((event === "process_open" || event === "documents_sent") && otherActions.length > 0) {
-      afterCta += block("ועוד דברים שממתינים לכם בדף", otherActions.map(a => line(String(a.label || ""), a.sub)).join("\n"));
+      afterCta += block("ועוד דברים שממתינים לכם בדף", otherActions.map(a => shortLine(a, "")).join("\n"));
     }
     if (event === "documents_sent" && stillOnboarding && officeItems.length > 0) {
       // ‼ «אין צורך בפעולה» רק כשאין בדף שום דבר שממתין ללקוח (onboardingStatusText).
@@ -412,36 +428,8 @@ Deno.serve(async (req: Request) => {
         </td></tr>`;
     }
 
-    // ── 296 · אישור ב"ל של בן/בת זוג בלי מייל משלו — במייל הדף, בשמו ועם האסמכתא שלו ─
-    // ‼ complete_client_notice (296) רושם «ההוראות נשלחו» אצלו רק אם המספר באמת במייל.
-    let niPersonHtml = "";
-    if (kind !== "update") {
-      const f = emailFont(brand);
-      for (const it of items) {
-        const p = it.portalKey ? byKey.get(it.portalKey) : undefined;
-        if (p?.kind !== "ni_approval" || !p.forPerson) continue;
-        const refs = (p.refs ?? []).filter(r => String(r.value ?? "").trim() && r.value !== "—");
-        if (refs.length === 0) continue;
-        const [ref, ...more] = refs;
-        niPersonHtml += `
-        <tr><td dir="rtl" align="right" style="text-align:right;padding:18px 40px 6px;">
-          <div style="border:1.5px solid ${brand.accent};border-radius:${brand.radius + 2}px;padding:18px 18px 20px;background:${brand.pageBg};">
-            <div style="font-family:${f};text-align:right;font-size:12.5px;font-weight:700;color:${brand.accent};">מה צריך מ${esc(p.forPerson)}</div>
-            <div style="font-family:${f};text-align:right;font-size:18px;font-weight:700;color:${brand.ink};padding-top:3px;">אישור ייפוי הכוח בביטוח הלאומי</div>
-            <div style="font-family:${f};text-align:right;font-size:14px;color:${brand.muted};line-height:1.7;padding-top:4px;">את ייפוי הכוח של ${esc(p.forPerson)} כבר הזנו בביטוח הלאומי. נשאר רק האישור של ${esc(p.forPerson)} - לכל אחד מבני הזוג מספר אסמכתא נפרד ואישור נפרד.</div>
-            <div style="border:1px solid ${brand.border};border-radius:${brand.radius}px;padding:14px;background:#ffffff;margin-top:10px;">
-              <div style="font-family:${f};text-align:center;font-size:12.5px;color:${brand.muted};">${esc(String(ref.label ?? "מספר האסמכתא"))}</div>
-              <div dir="ltr" style="font-family:${f};text-align:center;font-size:30px;font-weight:700;letter-spacing:.06em;color:${brand.accent};padding-top:2px;">${esc(String(ref.value))}</div>
-              ${more.map(m => `<div style="font-family:${f};text-align:center;font-size:13.5px;color:#8A4B00;padding-top:6px;">${esc(String(m.label ?? ""))} <strong style="color:#7A3E00;">${esc(String(m.value))}</strong></div>`).join("")}
-            </div>
-            <div style="font-family:${f};text-align:right;font-size:14px;color:${brand.muted};line-height:1.85;padding-top:12px;">
-              <strong style="color:${brand.ink};">באתר:</strong> נכנסים ל<a href="${esc(NI_SITE)}" style="color:${brand.accent};font-weight:700;">${esc(NI_SITE_LABEL)}</a>, מקלידים את תעודת הזהות של ${esc(p.forPerson)} ואת מספר האסמכתא, מזדהים בכרטיס אשראי או בטלפון/מייל המעודכנים בביטוח הלאומי, ומאשרים.<br />
-              <strong style="color:${brand.ink};">בטלפון:</strong> <span dir="ltr">${esc(NI_PHONE)}</span> (מענה קולי) - עם מספר האסמכתא.
-            </div>
-          </div>
-        </td></tr>`;
-      }
-    }
+    // ‼ 296 → 26.10 · אישור ב"ל של בן/בת הזוג הוא שורה ברשימה (עם האסמכתא) — לא כרטיס גדול עם הוראות.
+    const niPersonHtml = "";
 
     const waiting = kind === "new" ? items.filter(i => !i.isDocument).length + otherActions.length
       : kind === "reminder" ? items.length : actions.length;

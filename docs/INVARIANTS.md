@@ -73,6 +73,11 @@
 - **SQL:** `create_automation_job_after` מחזיר משימה פתוחה קיימת לאותו אדם (272).
 - **מוכיח:** `runAll.test.ts`, F9 · **בדיקה חיה:** INV-AUTO-02.
 
+### INV-AUTO-04 · פעולה שממתינה מאחורי «פתיחה» לא יוצאת כשהפתיחה נכשלה
+- **הכלל:** משימה שנכנסה לתור מאחורי `shaam.ensure_capability` / `shaam.connect` / `btl.connect` (create_automation_job_after) משתחררת רק אם הפתיחה הצליחה; פתיחה שנכשלה ⇒ הממתינה `skipped` עם הסיבה, ולא נוצרת משימה שתיעצר על אותו מסך. שרשרת של שתי פעולות עצמאיות (בדיקת ב״ל של אדם ואז של השני) משתחררת גם בכישלון. ליאת, 26.10.2026.
+- **SQL:** `_release_automation_job_followups` (301).
+- **מוכיח:** `scripts/test-301-followup-after-failed-opening.mjs` (5 בדיקות).
+
 ### INV-AUTO-03 · קלט לעובד בהזנת ייצוג — ממקום אחד
 - **קוד:** `features/representation/repAutomationInputs.ts`. הכפתור הבודד בשע״ם, הכפתור הבודד בב״ל ו«הפעל הכול» קוראים ממנו.
 

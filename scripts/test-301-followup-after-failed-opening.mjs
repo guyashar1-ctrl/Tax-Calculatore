@@ -1,0 +1,11 @@
+import { readFileSync } from 'node:fs';
+import { resolve, dirname } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const config = process.argv[2] ? resolve(process.argv[2]) : root;
+const { writeStaging, assertTriggersEnabled } = await import(pathToFileURL(resolve(config, 'scripts/staging-lib.mjs')));
+await assertTriggersEnabled();
+const rows = await writeStaging(readFileSync(resolve(root, 'scripts/sql/301-test-followup-after-failed-opening.sql'), 'utf8'));
+if (!Array.isArray(rows) || rows.length < 5 || rows.some(r => !r.ok)) throw Error(JSON.stringify(rows));
+console.log(`${rows.length} passed; all staging fixtures rolled back.`);
+for (const row of rows) console.log(`PASS ${row.name}`);

@@ -356,7 +356,9 @@
 .rep2-person .is-wait { color: var(--ink-2); }
 .rep2-person .is-warn { color: #8A4B00; }
 .rep2-person .is-red { color: var(--err, #b42318); }
-.rep2-act { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; position: relative; }
+/* ‼ 26.10 · רוחב תחום: הודעה ארוכה מתחת לכפתור נשברת לשורות — לא מרחיבה את העמודה ודוחקת את המצב. */
+.rep2-act { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; position: relative; max-width: 300px; min-width: 0; }
+.rep2-act .rep-track-next-err { text-align: start; overflow-wrap: anywhere; }
 .rep2-hint { font-size: var(--fs-12); color: var(--ink-3); max-width: 260px; text-align: end; }
 .rep2-hint.is-err { color: var(--err, #b42318); }
 .rep2-confirm {

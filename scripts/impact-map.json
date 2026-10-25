@@ -48,7 +48,8 @@
       "invariants": [
         "INV-AUTO-01",
         "INV-AUTO-02",
-        "INV-AUTO-03"
+        "INV-AUTO-03",
+        "INV-AUTO-04"
       ],
       "globs": [
         "src/components/RunAllAutomations.tsx",
@@ -58,11 +59,18 @@
         "src/lib/automationJob*.ts",
         "src/hooks/useAutomation*.ts",
         "supabase/2*-*automation*.sql",
-        "supabase/2*-*run-all*.sql"
+        "supabase/2*-*run-all*.sql",
+        "supabase/3*-*followup*.sql",
+        "src/components/ShaamNextActionButton.tsx",
+        "src/components/ShaamStopNotice.tsx"
       ],
       "suites": [
         {
           "script": "staging-test-job-followups-270.mjs",
+          "run": true
+        },
+        {
+          "script": "test-301-followup-after-failed-opening.mjs",
           "run": true
         }
       ]

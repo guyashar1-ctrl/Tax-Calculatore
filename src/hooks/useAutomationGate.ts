@@ -81,6 +81,19 @@ export interface AutomationGate {
   notice: { tone: 'wait' | 'error'; text: string } | null;
 }
 
+/**
+ * ‼ 26.10.2026 (ליאת): «רישום ייצוג» נשאר דף ריק בשע״ם ונכשל אחרי שתי התאוששויות
+ * (transient_recovery_exhausted). זו תקלה זמנית בצד שע״ם, לא באג שצריך «לדווח» — אומרים את זה.
+ */
+export function openingFailureText(raw: string, legacyLayer: string | null): string {
+  if (/transient_recovery_exhausted/.test(raw)) {
+    const layer = /רישום הייצוג|representation/.test(raw) ? 'רישום הייצוג' : 'המערכת';
+    return `הדף של ${layer} בשע״ם לא נטען (נשאר ריק). זו בדרך כלל תקלה זמנית בשע״ם — נסו שוב בעוד כמה דקות.`;
+  }
+  if (legacyLayer) return `לא הצלחתי לפתוח את ${legacyLayer} בחלון שע״ם. לחצו שוב כדי לנסות.`;
+  return raw || 'לא הצלחתי לפתוח את המערכת בשע״ם. לחצו שוב כדי לנסות.';
+}
+
 /** שכבות שע״ם שנפתחות בנפרד — שם קצר לטקסט שבכפתור. */
 const LAYER_NAMES: Record<string, string> = {
   representation: 'רישום הייצוג', vat: 'מע״מ', nikui: 'מערכת הניכויים', gmf: 'גביית מס הכנסה',
@@ -171,9 +184,7 @@ export function useAutomationGate(capability: string): AutomationGate {
         // ‼ עובד ישן כותב «שחזור representation לא הצליח (…)» — לא מציגים לרו"ח שם טכני.
         const raw = job.errorDetail ?? '';
         const legacy = /^שחזור (\w+) לא הצליח/.exec(raw);
-        setNotice({ tone: 'error', text: legacy
-          ? `לא הצלחתי לפתוח את ${LAYER_NAMES[legacy[1]] ?? 'המערכת'} בחלון שע״ם. לחצו שוב כדי לנסות.`
-          : raw || 'לא הצלחתי לפתוח את המערכת בשע״ם. לחצו שוב כדי לנסות.' });
+        setNotice({ tone: 'error', text: openingFailureText(raw, legacy ? (LAYER_NAMES[legacy[1]] ?? 'המערכת') : null) });
       } else if (job.status === 'needs_human') {
         setNotice({ tone: 'wait', text: job.needsHuman || 'חלון שע״ם ממתין לך — אחרי ההתחברות אמשיך לבד.' });
       }

@@ -72,7 +72,9 @@ try {
   const pv = await call({ clientId: cid, kind: 'new', preview: true });
   const html = pv.json?.html ?? pv.json?.preview?.html ?? '';
   ok('preview succeeds', pv.status === 200, pv.text.slice(0, 300));
-  ok('preview carries the spouse card with his reference number', html.includes('70000002') && html.includes('מה צריך מישראל'), html.slice(0, 200));
+  // 26.10 · המייל רשימה קצרה: שורה לאישור של ישראל עם האסמכתא שלו — בלי כרטיס ההוראות הגדול.
+  ok('preview lists the spouse approval with his reference number', html.includes('אסמכתא 70000002') && !html.includes('מה צריך מישראל'), html.slice(0, 200));
+  ok('preview has no long instructions (they live on the page)', !html.includes('מזדהים בכרטיס אשראי'));
   const before = await one(`select execution->'nationalInsuranceSpouse'->>'instructionsSentAt' as at from public.representation_requests where id = '${rid}'`);
   ok('preview writes nothing', !before?.at);
 
