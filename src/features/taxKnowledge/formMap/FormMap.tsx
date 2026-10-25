@@ -21,7 +21,24 @@ import { computeReturn, emptyDraft } from '../../annualReturn/engine';
 import { Breakdown } from '../../annualReturn/SourceEntry';
 import type { ReturnField, ReturnOutputs } from '../../annualReturn/types';
 import { nis } from '../../taxEstimate/parts';
+import FIELD_PRACTICE from './fieldPractice.json';
 import './formMap.css';
+
+/** «חשוב לזכור» לסעיף — הערת פרקטיקה עם מקור (נבדקה 25.10.2026, לשנת המס 2025). replace — מחליפה את «טעות נפוצה» שבמודל. */
+interface FieldPractice { slug: string; key: string; mistake?: string; tip?: string; replace?: boolean; source?: { label: string; url?: string; locator?: string } }
+const practiceOf = (slug: string, key: string) => (FIELD_PRACTICE as FieldPractice[]).find(p => p.slug === slug && p.key === key);
+// ‼ נוסח השאלון נכתב לדף הלקוח («{name}», «{entity}») — בדף הסעיף של המשרד הוא נקרא בנוסח ניטרלי, לא «…»
+const NEUTRAL: Record<string, string> = { name: 'הלקוח', entity: 'המשלם', spouse: 'בן/בת הזוג', prevYear: 'השנה הקודמת', since: 'הפעם הקודמת', year: 'שנת המס', period: 'התקופה' };
+const neutral = (s: string | undefined) => (s ?? '').replace(/\{([a-zA-Z]+)\}/g, (_, k: string) => NEUTRAL[k] ?? 'הלקוח');
+/** סעיף ← הכלי שמחשב אותו. היישובים, נקודות הזיכוי וב״ל — הסעיפים שנבדקו מול הכלים (25.10.2026). */
+const FIELD_TOOLS: Record<string, Record<string, string[]>> = {
+  '1301': { settlements: ['F254', 'F255', 'F256', 'F257', 'F285', 'F286'], wizard: ['F194', 'F208', 'F209', 'F210', 'F211', 'F212', 'F213', 'F234', 'F283'], ni: ['F186', 'F304'] },
+};
+const TOOL_LINK: Record<string, string> = { settlements: 'לבדיקת היישוב ושיעור ההטבה', wizard: 'למחשבון נקודות הזיכוי', ni: 'לחישוב דמי הביטוח הלאומי' };
+const toolOf = (field: MapField) => {
+  const m = FIELD_TOOLS[field.slug] ?? {};
+  return Object.keys(m).find(k => m[k].includes(field.key)) ?? (/יישוב/.test(field.label) ? 'settlements' : '');
+};
 
 interface Props {
   domain: 'annual' | 'wealth';
@@ -34,6 +51,10 @@ interface Props {
   onLearn: (topicId: string) => void;
   /** קוד שנפתח מבחוץ (למשל ‎…/map1301?code=158‎). */
   initialCode?: string;
+  /** פתיחת כלי עבודה מתוך סעיף (יישובים, נקודות זיכוי, ב״ל). בלי — אין קישור לכלי. */
+  onOpenTool?: (toolId: string) => void;
+  /** שנת המס שנבחרה באזור — כשאין עדיין טופס לשנה הזו, אומרים שמוצג הטופס של השנה שפורסמה. */
+  year?: number;
 }
 
 type Sel = { slug: FormSlug; markerId?: string; fieldKey?: string } | null;
@@ -57,7 +78,7 @@ export const returnFieldOf = (ret: ReturnCtx | null, code: string, role?: Role):
 const ZOOMS = [1, 1.5, 2, 3];
 const nameOf = (c: Client) => `${c.firstName ?? ''} ${c.lastName ?? ''}`.trim() || 'לקוח';
 
-export default function FormMap({ domain, clients = [], contextClient = null, onBackToClient, canLearn, onLearn, initialCode }: Props) {
+export default function FormMap({ domain, clients = [], contextClient = null, onBackToClient, canLearn, onLearn, initialCode, onOpenTool, year }: Props) {
   const forms = formsOfDomain(domain);
   const [slug, setSlug] = useState<FormSlug>(forms[0].slug);
   const [page, setPage] = useState(1);
@@ -75,11 +96,15 @@ export default function FormMap({ domain, clients = [], contextClient = null, on
   const hits = useMemo(() => findFields(q), [q]);
   const stageRef = useRef<HTMLDivElement>(null);
   const detailRef = useRef<HTMLDivElement>(null);
-  // ‼ הגדלה שומרת על מה שבמרכז החלון — בלי זה ההגדלה קופצת לקצה השמאלי של הטופס (העמוד LTR בגאומטריה)
+  // ‼ הגדלה שומרת על מה שבמרכז החלון — בלי זה ההגדלה קופצת לקצה השמאלי של הטופס (העמוד LTR בגאומטריה).
+  //   כשנבחר שדה בעמוד — ההגדלה מתמרכזת עליו, כדי שהשדה שקוראים עליו לא יברח מהחלון.
   const centerRef = useRef<{ x: number; y: number } | null>(null);
+  const selMarker = sel?.markerId ? markers.find(m => m.id === sel.markerId) : undefined;
   const setZoomKeep = (next: number) => {
     const st = stageRef.current;
-    if (st) centerRef.current = { x: (st.scrollLeft + st.clientWidth / 2) / st.scrollWidth, y: (st.scrollTop + st.clientHeight / 2) / st.scrollHeight };
+    if (st) centerRef.current = selMarker && selMarker.page === page
+      ? { x: selMarker.box[0] + selMarker.box[2] / 2, y: selMarker.box[1] + selMarker.box[3] / 2 }
+      : { x: (st.scrollLeft + st.clientWidth / 2) / st.scrollWidth, y: (st.scrollTop + st.clientHeight / 2) / st.scrollHeight };
     setZoom(next);
   };
   useLayoutEffect(() => {
@@ -88,7 +113,6 @@ export default function FormMap({ domain, clients = [], contextClient = null, on
     st.scrollLeft = c.x * st.scrollWidth - st.clientWidth / 2; st.scrollTop = c.y * st.scrollHeight - st.clientHeight / 2;
     centerRef.current = null;
   }, [zoom]);
-  const selMarker = sel?.markerId ? markers.find(m => m.id === sel.markerId) : undefined;
   const selFields: { field: MapField; role?: Role }[] = selMarker ? selMarker.fields
     : sel?.fieldKey ? unplaced.filter(u => u.field.key === sel.fieldKey).map(u => ({ field: u.field })) : [];
   // תשובות השאלון של הלקוח (קריאה בלבד) — 1301 לשנת 2025; הצהרת הון — כל השנים (ההצהרה ליום מסוים)
@@ -150,9 +174,13 @@ export default function FormMap({ domain, clients = [], contextClient = null, on
   }, [initialCode, domain]);
   // בטלפון: ההסבר יושב מתחת לטופס — מביאים אותו לעין אחרי בחירה
   // ‼ בטלפון ההסבר הוא גיליון שמכסה את חצי המסך התחתון — השדה שנבחר עולה לרבע העליון, כדי שיישאר גלוי מעליו
+  // המיקוד עובר לכותרת הסעיף שנבחר — קורא מסך מתחיל מהשם, והמקלדת ממשיכה מההסבר
+  useEffect(() => {
+    if (!sel) return;
+    requestAnimationFrame(() => (detailRef.current?.querySelector<HTMLElement>('.fm-card-t') ?? detailRef.current)?.focus({ preventScroll: true }));
+  }, [sel]);
   useEffect(() => {
     if (!sel || !window.matchMedia?.('(max-width: 900px)').matches) return;
-    detailRef.current?.focus({ preventScroll: true });
     const el = sel.markerId ? stageRef.current?.querySelector<HTMLElement>(`[data-marker="${sel.markerId}"]`) : null;
     if (!el) return;
     const stage = stageRef.current!;
@@ -162,13 +190,16 @@ export default function FormMap({ domain, clients = [], contextClient = null, on
     window.scrollBy({ top: top - window.innerHeight * 0.22 });
   }, [sel]);
 
-  const formTitle = MAP_FORM_BY_SLUG[slug].formId === '1219' ? 'טופס 1219 — הצהרת הון' : L.title;
+  const formTitle = MAP_FORM_BY_SLUG[slug].formId === '1219' ? 'טופס 1219 — הצהרת הון' : /^d/.test(L.title) ? `טופס ${L.title}` : L.title;
+  // ‼ אין שימוש שקט בטופס של שנה אחרת: נבחרה 2026 והטופס ל-2026 טרם פורסם ⇒ אומרים את זה ליד הכותרת
+  const otherYear = year && L.taxYear && year !== L.taxYear && slug !== '1219' && slug !== '116d' ? year : null;
 
   return (
     <section className="fm" data-form-map={slug} aria-label={`מפת ${formTitle}`}>
       <header className="fm-head">
         <div className="fm-title-row">
           <h3 className="fm-title">{formTitle}{L.taxYear && slug !== '1219' ? ` · שנת המס ${L.taxYear}` : ''}</h3>
+          {otherYear && <span className="fm-year-note" data-fm-year-note>נבחרה {otherYear}: מוצג טופס {L.taxYear}, הטופס ל־{otherYear} טרם פורסם</span>}
           <a className="fm-src" href={L.source.pdf} target="_blank" rel="noreferrer">הטופס הרשמי (PDF)</a>
         </div>
         <p className="fm-lead">
@@ -269,7 +300,7 @@ export default function FormMap({ domain, clients = [], contextClient = null, on
                 const st = stateOfMarker(m);
                 const rv = valueOfMarker(m);
                 const f = m.fields[0];
-                const name = f ? `${f.field.label}${f.role && ROLE_SHORT[f.role] ? ` — ${ROLE_SHORT[f.role]}` : ''}` : 'טרם נכתב';
+                const name = f ? `${f.field.label}${f.role && ROLE_SHORT[f.role] ? ` — ${ROLE_SHORT[f.role]}` : ''}` : 'בלי הסבר במאגר';
                 return (
                   <button key={m.id} type="button" data-marker={m.id} data-code={m.code}
                     className={`fm-mk is-${m.fields[0]?.role ?? 'none'}${m.byLabel ? ' by-label' : ''}${st ? ` st-${st}` : ''}${rv ? ' has-val' : ''}${sel?.markerId === m.id ? ' is-sel' : ''}${m.fields.length ? '' : ' is-empty'}`}
@@ -295,9 +326,10 @@ export default function FormMap({ domain, clients = [], contextClient = null, on
                 <span className="fm-code" dir="ltr">{selMarker?.code || selFields[0]?.field.codes.map(c => c.code).join(' / ') || 'בלי קוד'}</span>
                 <button type="button" className="fm-x" onClick={() => setSel(null)} aria-label="סגור את ההסבר">✕</button>
               </div>
-              {selFields.length === 0 && <p className="kn-small">קוד {selMarker?.code} מודפס בטופס, אבל אין לו עדיין הסבר במערכת — <b>טרם נכתב</b>.</p>}
+              {selFields.length === 0 && <p className="kn-small">קוד {selMarker?.code} מודפס בטופס, אבל אין לו עדיין הסבר במאגר. אין להסיק מהכותרת לבדה איך למלא.</p>}
+              {sel.fieldKey && !sel.markerId && <p className="kn-xs kn-muted" data-fm-no-marker>אין לסעיף סימון מאומת בתמונה — ההסבר מלא גם בלי הסימון.</p>}
               {selFields.map(({ field, role }) => (
-                <FieldCard key={field.key} field={field} role={role} client={client} facts={yearFacts} canLearn={canLearn} onLearn={onLearn} onOpenForm={s2 => { setSlug(s2); setPage(1); setSel(null); }}
+                <FieldCard key={field.key} field={field} role={role} client={client} facts={yearFacts} canLearn={canLearn} onLearn={onLearn} onOpenTool={onOpenTool} onOpenForm={s2 => { setSlug(s2); setPage(1); setSel(null); }}
                   ret={retCtx} spouseName={client?.spouseFirstName || client?.spouse?.firstName || 'בן/בת הזוג'} clientName={client?.firstName || 'הלקוח'} />
               ))}
             </>
@@ -347,18 +379,29 @@ function Hint({ markers, unplaced }: { markers: number; unplaced: number }) {
   );
 }
 
-function FieldCard({ field, role, client, facts, canLearn, onLearn, onOpenForm, ret, spouseName, clientName }: { field: MapField; role?: Role; client: Client | null; facts: YearFact[]; canLearn: (id: string) => boolean; onLearn: (id: string) => void; onOpenForm: (slug: FormSlug) => void; ret: ReturnCtx | null; spouseName: string; clientName: string }) {
+function FieldCard({ field, role, client, facts, canLearn, onLearn, onOpenForm, onOpenTool, ret, spouseName, clientName }: { field: MapField; role?: Role; client: Client | null; facts: YearFact[]; canLearn: (id: string) => boolean; onLearn: (id: string) => void; onOpenForm: (slug: FormSlug) => void; onOpenTool?: (toolId: string) => void; ret: ReturnCtx | null; spouseName: string; clientName: string }) {
   const ex = explainOf(field);
   const code = role && role !== 'form' ? field.codes.find(c => c.role === role)?.code : field.codes[0]?.code;
   const rv = field.slug === '1301' && code ? returnFieldOf(ret, code, role) : undefined;
   const src = sourcesOf(field);
-  const topics = learnTopicsOf(field).filter(t => canLearn(t.id));
+  // ‼ «ללמוד» — רק נושא שהסעיף באמת מדבר עליו (קוד, או מילה משם הנושא בסעיף); אחרת — המחברת של הטופס עצמו
+  const hay = `${field.label} ${field.instruction ?? ''} ${ex.what ?? ''}`;
+  const speaks = (title: string) => title.split(/\s+/).some(w => w.length > 2 && hay.includes(w.replace(/^ה/, '')));
+  const all = learnTopicsOf(field).filter(t => canLearn(t.id));
+  const relevant = all.filter(t => t.how === 'code' || speaks(t.title));
+  const home = field.slug === '1219' ? 'wealth' : 'annualReturn';
+  const topics = relevant.length ? relevant : all.filter(t => t.id === home).concat(all.some(t => t.id === home) || !canLearn(home) ? [] : [{ id: home, title: field.slug === '1219' ? 'הצהרת הון' : 'הכנת הדוח: מהמסמך לשדה', how: 'default' as const }]);
   const st = client ? clientStateOf(field, client, facts, 2025, role) : null;
+  const practice = practiceOf(field.slug, field.key);
+  const modelMistake = ex.mistake && ex.mistake !== '—' && !practice?.replace ? ex.mistake : undefined;
+  const tool = onOpenTool ? toolOf(field) : '';
+  const strongQ = src.questions.filter(x => x.strong);
+  const moreQ = src.questions.filter(x => !x.strong);
   const [allQ, setAllQ] = useState(false);
-  const qs = allQ ? src.questions : src.questions.slice(0, 3);
+  const fromFile = !!(src.file || src.annexInfo?.length || src.draft);
   return (
     <article className="fm-card" data-fm-field={field.key}>
-      <h4 className="fm-card-t">{field.label}{field.wealth?.isNew ? <span className="fm-new"> · סעיף חדש בטופס 12.2024</span> : null}</h4>
+      <h4 className="fm-card-t" tabIndex={-1}>{field.label}{field.wealth?.isNew ? <span className="fm-new"> · סעיף חדש בטופס 12.2024</span> : null}</h4>
       <p className="fm-card-meta">
         טופס {field.formId}{field.slug === '1219' ? '' : ' · 2025'}
         {field.part && field.slug === '1301' ? ` · חלק ${field.part}` : ''}{field.section && field.slug !== '1219' ? ` · ${field.slug === '1301' ? 'סעיף ' : ''}${field.section}` : ''}
@@ -382,31 +425,45 @@ function FieldCard({ field, role, client, facts, canLearn, onLearn, onOpenForm, 
       {ret && !rv && field.slug === '1301' && field.kind === 'amount' && <p className="kn-xs kn-muted" data-fm-return-empty>אין סכום בשדה הזה בדוח {ret.year} (אין שורות מקור שמובילות אליו).</p>}
 
       <h5 className="fm-h">מה ממלאים</h5>
-      <p className="fm-p">{ex.what ?? <span className="fm-gap">טרם נכתב</span>}{ex.what && ex.status && !field.wealth ? <> <ClaimTag status={ex.status} /></> : null}</p>
-      {ex.meaning && !ex.what && <><h5 className="fm-h">מה זה אומר</h5><p className="fm-p">{ex.meaning}</p></>}
+      <p className="fm-p">{ex.what ?? ex.meaning ?? <span className="fm-gap">הסבר מפורט עדיין חסר במאגר. אין להסיק מהכותרת לבדה איך למלא.</span>}{ex.what && ex.status && !field.wealth ? <> <ClaimTag status={ex.status} /></> : null}</p>
 
-      <h5 className="fm-h">מאיפה המידע מגיע</h5>
-      <ul className="fm-src-list">
-        <li><span className="fm-src-k">מסמך</span>{src.documents.length ? src.documents.map(d => d.label).join(' · ') : <span className="kn-muted">אין מסמך שנקבע לשדה</span>}</li>
-        {src.questions.length > 0 && (
-          <li><span className="fm-src-k">{field.slug === '1301' && !src.questions.some(x => x.strong) ? 'בשאלון — באותו חלק בדוח' : 'בשאלון'}</span>
-            <ul className="fm-q">{qs.map(x => <li key={x.item.key} title={x.item.question?.replace(/{[a-z]+}/g, '…')}>{x.item.label}<span className="kn-muted"> · {x.area}</span></li>)}</ul>
-            {src.questions.length > 3 && <button type="button" className="kn-link kn-xs" onClick={() => setAllQ(v => !v)}>{allQ ? 'פחות' : `ועוד ${src.questions.length - 3}`}</button>}
-          </li>
-        )}
-        {src.file && <li><span className="fm-src-k">בתיק</span>{src.file.label}{src.file.note ? ` — ${src.file.note}` : ''}</li>}
-        {src.annexInfo?.map(a => <li key={a.label}><span className="fm-src-k">{a.source}</span>{a.label}{a.note ? ` — ${a.note}` : ''}</li>)}
-        {src.draft && <li><span className="fm-src-k">בטיוטת הדוח</span>{src.draft}</li>}
-      </ul>
+      {(modelMistake || practice?.mistake || practice?.tip) && (
+        <section className="fm-practice" data-fm-practice={practice ? field.key : undefined}>
+          {(modelMistake || (practice?.mistake && (practice.replace || !modelMistake))) && <h5 className="fm-h">חשוב לזכור</h5>}
+          {modelMistake && <p className="fm-p">{modelMistake}</p>}
+          {practice?.mistake && (practice.replace || !modelMistake) && <p className="fm-p">{practice.mistake}</p>}
+          {practice?.tip && <><h5 className="fm-h">טריק מעשי</h5><p className="fm-p">{practice.tip}</p></>}
+          {practice?.source && (
+            <p className="kn-xs kn-muted">מקור: {practice.source.url ? <a href={practice.source.url} target="_blank" rel="noreferrer">{practice.source.label}</a> : practice.source.label}{practice.source.locator ? ` · ${practice.source.locator}` : ''}</p>
+          )}
+        </section>
+      )}
 
-      {(ex.check || ex.mistake) && (
+      {ex.check && <><h5 className="fm-h">לפני שמסיימים</h5><p className="fm-p">{ex.check}</p></>}
+      {field.uncertain && <p className="fm-p fm-warn">הקריאה של השדה הזה מהטופס לא ודאית — לבדוק מול הטופס.</p>}
+
+      {fromFile && (
         <>
-          <h5 className="fm-h">לבדוק</h5>
-          {ex.check && <p className="fm-p">{ex.check}</p>}
-          {ex.mistake && <p className="fm-p fm-warn">טעות נפוצה: {ex.mistake}</p>}
+          <h5 className="fm-h">מאיפה המידע מגיע</h5>
+          <ul className="fm-src-list">
+            {src.file && <li><span className="fm-src-k">בתיק</span>{src.file.label}{src.file.note ? ` — ${src.file.note}` : ''}</li>}
+            {src.annexInfo?.map(a => <li key={a.label}><span className="fm-src-k">{a.source}</span>{a.label}{a.note ? ` — ${a.note}` : ''}</li>)}
+            {src.draft && <li><span className="fm-src-k">בטיוטת הדוח</span>{src.draft}</li>}
+          </ul>
         </>
       )}
-      {field.uncertain && <p className="fm-p fm-warn">הקריאה של השדה הזה מהטופס לא ודאית — לבדוק מול הטופס.</p>}
+
+      <details className="fm-asks" data-fm-asks>
+        <summary>מה לבקש מהלקוח{src.documents.length || strongQ.length ? ` · ${[src.documents.length ? (src.documents.length === 1 ? 'מסמך אחד' : `${src.documents.length} מסמכים`) : '', strongQ.length ? (strongQ.length === 1 ? 'שאלה אחת' : `${strongQ.length} שאלות`) : ''].filter(Boolean).join(', ')}` : ''}</summary>
+        {src.documents.length > 0 && <><h6 className="fm-h6">מסמכים</h6><ul className="fm-q">{src.documents.map(d => <li key={d.label}>{neutral(d.label)}</li>)}</ul></>}
+        {strongQ.length > 0 && <><h6 className="fm-h6">שאלות</h6><ul className="fm-q">{strongQ.map(x => <li key={x.item.key}>{neutral(x.item.question ?? x.item.label)}</li>)}</ul></>}
+        {moreQ.length > 0 && (allQ
+          ? <><h6 className="fm-h6">שאלות נוספות {field.slug === '1301' ? 'באותו חלק בדוח' : 'בתחום'}</h6><ul className="fm-q">{moreQ.map(x => <li key={x.item.key}>{neutral(x.item.question ?? x.item.label)}<span className="kn-muted"> · {x.area}</span></li>)}</ul></>
+          : <button type="button" className="kn-link kn-xs" onClick={() => setAllQ(true)}>עוד {moreQ.length === 1 ? 'שאלה אחת' : `${moreQ.length} שאלות`} {field.slug === '1301' ? 'באותו חלק בדוח' : 'בתחום'}</button>)}
+        {!src.documents.length && !src.questions.length && <p className="kn-xs kn-muted">לא קושרו לסעיף מסמך או שאלה במאגר.</p>}
+      </details>
+
+      {tool && <p className="fm-related" data-fm-tool={tool}><button type="button" className="kn-link" onClick={() => onOpenTool!(tool)}>{TOOL_LINK[tool]} ←</button></p>}
 
       {relatedFormsOf(field).map(r => (
         <p key={r.slug} className="fm-related" data-fm-related={r.slug}>
@@ -417,7 +474,7 @@ function FieldCard({ field, role, client, facts, canLearn, onLearn, onOpenForm, 
       <div className="fm-learn">
         {topics.map(t => (
           <button key={t.id} type="button" className="btn btn-secondary btn-sm" onClick={() => onLearn(t.id)} data-fm-learn={t.id}>
-            ללמוד לעומק: {t.title} ←
+            ללמוד: {t.title} ←
           </button>
         ))}
         {field.guidePage ? <span className="kn-xs kn-muted">בחוברת «דע זכויותיך וחובותיך» 2025: עמ׳ {field.guidePage - 2}</span> : null}

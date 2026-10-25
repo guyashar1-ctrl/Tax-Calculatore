@@ -25,20 +25,20 @@ export const NI_TOC: TocItem[] = [
 
 // ‼ ערכי ב״ל במרשם קיימים רק ל-2026, בביסוס רשמי (דף השיעורים ודף החישוב של ב״ל).
 // לכן גם המחשבון וגם הדוגמאות מחושבים לשנה הזו — לא מספרים בטקסט.
-const EX_YEAR = 2026;
-const Q = (monthly: number) => niSelfEmployedQuarter({ year: EX_YEAR, quarterlyIncome: monthly * 3 }).value;
-const pct = (id: string) => `${+(num(id, EX_YEAR) * 100).toFixed(2)}%`;
 const n = (x: number) => x.toLocaleString('he-IL', { maximumFractionDigits: 1 });
 
 /**
  * ‼ ב״ל מפרסמת את הנוסחה הרבעונית רק למעל הסף. מתחת לסף calc מחשב הכנסה ÷ (1 + מופחת×0.52)
  * — נגזר מאותו כלל, לא מפורסם, ותלוי גם בהכנסה המזערית שלא נבדקת כאן — לכן אין תוצאה.
  */
-const belowThreshold = (r: { base: number; regularPart: number }) => r.regularPart === 0 && r.base < num('ni.se.reducedThreshold', EX_YEAR) * 3;
-
 export default function NiBody({ year, view }: TopicBodyProps) {
+const EX_YEAR = year;
+const Q = (monthly: number) => niSelfEmployedQuarter({ year: EX_YEAR, quarterlyIncome: monthly * 3 }).value;
+const pct = (id: string) => `${+(num(id, EX_YEAR) * 100).toFixed(2)}%`;
+
+const belowThreshold = (r: { base: number; regularPart: number }) => r.regularPart === 0 && r.base < num('ni.se.reducedThreshold', EX_YEAR) * 3;
   const [monthly, setMonthly] = useState(12_000);
-  const r = useMemo(() => niSelfEmployedQuarter({ year: EX_YEAR, quarterlyIncome: monthly * 3 }), [monthly]);
+  const r = useMemo(() => niSelfEmployedQuarter({ year: EX_YEAR, quarterlyIncome: monthly * 3 }), [monthly,year]);
   const learn = view !== 'apply';
   const apply = view !== 'learn';
 
@@ -50,7 +50,7 @@ export default function NiBody({ year, view }: TopicBodyProps) {
   return (
     <>
       {learn && <>
-        {year !== EX_YEAR && <p className="kn-soft">הערכים בנושא הזה לשנת {EX_YEAR} — ערכי {year} לא הוזנו למרשם.</p>}
+        {year===2025 && <p className="kn-soft">הספים לשנת 2025. בדוגמאות ובמחשבון הרבעוני שיעור הבריאות המלא הוא 5.17%, החל מפברואר 2025. בינואר היה 5.16%; לחודש זה עוברים לכלי ביטוח לאומי ובוחרים ינואר. אין זו תוצאת חיוב לשנת 2025 כולה.</p>}
 
         <Sec id="ni-0" title="מושגי יסוד">
           <p className="kn-small kn-muted" style={{ margin: 0 }}>המושגים שחוזרים בכל הנושא. מי שמכיר אותם — יכול לדלג ל«על איזו הכנסה».</p>
@@ -77,7 +77,7 @@ export default function NiBody({ year, view }: TopicBodyProps) {
         </Sec>
 
         <Sec id="ni-3" title="מחשבון רבעוני — הנוסחה של ב״ל">
-          <p className="kn-small kn-muted" style={{ margin: 0 }}>בסיס = (הכנסה לרבעון + סף×3×0.52×(רגיל − מופחת)) ÷ (1 + רגיל×0.52). לעצמאי שזה עיסוקו היחיד, לפני גיל פרישה, עם בסיס מעל הסף. דוגמת ב״ל: 12,000 לחודש ← בסיס 34,690 ← 3,864 לרבעון.</p>
+          <p className="kn-small kn-muted" style={{ margin: 0 }}>בסיס = (הכנסה לרבעון + סף×3×0.52×(רגיל − מופחת)) ÷ (1 + רגיל×0.52). לעצמאי שזה עיסוקו היחיד, לפני גיל פרישה, עם בסיס מעל הסף. דוגמת אתר ב״ל היא לשנת 2026: 12,000 לחודש ← בסיס 34,690 ← 3,864 לרבעון. התוצאה כאן משתמשת בספי השנה שנבחרה.</p>
           <div className="kn-sim">
             <div className="kn-page" style={{ gap: 12 }}>
               <NumField id="ni-m" label="הכנסה חודשית (לפני הפחתות)" value={monthly} onChange={setMonthly} max={60_000} step={100} />
@@ -87,7 +87,7 @@ export default function NiBody({ year, view }: TopicBodyProps) {
               </div>
             </div>
             <div className="kn-page" style={{ gap: 10 }}>
-              {r.ok && r.value && belowThreshold(r.value) ? (
+              {monthly > niMonthly('ni.se.maxIncome',EX_YEAR,Infinity) ? <div className="kn-blocked" role="status">הקלט מחוץ לטווח המחשבון הרבעוני הזה. מאמתים בסיס ותקרה לפי המעמד; <a href="#tool/ni">לכלי השיעורים והחישוב מבסיס שנקבע</a>.</div> : r.ok && r.value && belowThreshold(r.value) ? (
                 <div className="kn-blocked" role="status"><strong>אין תוצאה: </strong>הבסיס מתחת לסף השיעור המופחת (<RV id="ni.se.reducedThreshold" year={EX_YEAR} /> לחודש). ב״ל מפרסמת נוסחה רק למעל הסף; מתחת לו הבסיס נגזר (הכנסה ÷ (1 + שיעור מופחת × 52%)) ותלוי גם בהכנסה המזערית — לכן לא מוצג כתוצאה. <ClaimTag status="open" /></div>
               ) : r.ok && r.value ? (
                 <>
@@ -121,7 +121,7 @@ export default function NiBody({ year, view }: TopicBodyProps) {
                 { label: `לאומי: ${pct('ni.se.lowRateNi')} ו-${pct('ni.se.highRateNi')}`, value: fmtNis(ex1.ni) },
                 { label: `בריאות: ${pct('ni.se.lowRateHealth')} ו-${pct('ni.se.highRateHealth')}`, value: fmtNis(ex1.health) },
               ]}
-              answer={<>{fmtNis(ex1.total)} לרבעון — כמו בדף של ב״ל.</>}
+              answer={<>{fmtNis(ex1.total)} לרבעון; ההשוואה המספרית לדף ב״ל מתאימה לשנת 2026.</>}
               note="הבסיס נמוך מההכנסה כי חלק מדמי הביטוח הלאומי מופחת ממנה. בגלל זה מחלקים ב-(1 + רגיל×0.52) ולא סתם מכפילים." />}
             {ex1 && ex2 && <SolveFirst level="יישום" status="verified" title="2. הכנסה גבוהה יותר"
               facts={<>עצמאית שההכנסה שלה לב״ל 25,000 ₪ לחודש.</>}
@@ -162,17 +162,17 @@ export default function NiBody({ year, view }: TopicBodyProps) {
 
         <Sec id="ni-5" title="מה לא מחושב כאן">
           <ul className="kn-small" style={{ margin: 0, paddingInlineStart: 18 }}>
-            <li>בסיס מתחת לסף השיעור המופחת — הנוסחה הרבעונית לא מתאימה לו, ולכן אין תוצאה. <ClaimTag status="open" /></li>
-            <li>הכנסה מזערית (<RV id="ni.se.minIncome" year={EX_YEAR} /> לחודש) ותקרת ההכנסה (<RV id="ni.se.maxIncome" year={EX_YEAR} />). <ClaimTag status="open" /></li>
-            <li>מי שהגיע לגיל פרישה, מתחת לגיל 18, או מקבל קצבת אזרח ותיק — שיעורים אחרים. <ClaimTag status="open" /></li>
-            <li>עיסוקים מעורבים (שכיר ועצמאי) ועסק משותף לבני זוג. <ClaimTag status="open" /></li>
+            <li>מתחת לסף המופחת: לעצמאי רגיל שזה עיסוקו היחיד, בגיל העבודה ובכפוף למינימום, הבסיס הוא Y÷(1+0.52×שיעור ב״ל מופחת). באבטיפוס ענף חישוב זה טרם מומש. <ClaimTag status="verified" /></li>
+            <li>מפעילים בסיס מזערי של <RV id="ni.se.minIncome" year={EX_YEAR} /> לחודש ותקרה של <RV id="ni.se.maxIncome" year={EX_YEAR} />, לפי המעמד ותקופות העיסוק. אלה גבולות דין; המחשבון כאן אינו מפעיל אותם אוטומטית. <ClaimTag status="verified" /></li>
+            <li>גיל ומעמד משנים את הטבלה: מתחת ל־18, אחרי גיל הפרישה ועם/בלי קצבת אזרח ותיק אינם מחושבים כשיעור גיל העבודה הרגיל. <a href="https://www.btl.gov.il/English%20Homepage/Insurance/Ratesandamount/Pages/Selfemployedperson.aspx" target="_blank" rel="noreferrer">לטבלאות הרשמיות לפי מעמד ↗</a> <ClaimTag status="verified" /></li>
+            <li>בשכיר ועצמאי מצרפים את המעמדות לצורך המדרגות והתקרה, ובודקים כיצד נוצל השיעור המופחת בשכר. בעסק משותף נדרשת חלוקת ההכנסה המאושרת בב״ל; רישום במס הכנסה אינו מחליף אותה. המחשבון הלימודי כאן אינו מחשב את השילוב. <ClaimTag status="interpretation" /></li>
           </ul>
           <div className="kn-box kn-small">
             <strong>עצמאית בחופשת לידה (R05)</strong>
             <ul style={{ margin: 0, paddingInlineStart: 18 }}>
               <li>דמי הלידה אינם חלק מבסיס דמי הביטוח של העסק. ב״ל מנכה מהם במקור בשיעור עובד, ולא גובה מקדמות בחודשי הלידה <ClaimTag status="verified" />.</li>
               <li>חודשים אחרי הלידה בלי עבודה ובלי דמי לידה: כל עוד לא הודיעה לב״ל שהפסיקה לעבוד — היא עצמאית, ומחויבת לפחות בהכנסה המזערית (סעיף 5 לחוק) <ClaimTag status="verified" />. אחרי הודעה: נשואה לבן זוג מבוטח — פטורה; אחרת — כמי שאינו עובד (266 ₪ לחודש ב-2026) <ClaimTag status="verified" />.</li>
-              <li>בדוח: דמי הלידה — 250 (עצמאית). דמי ביטוח שנוכו מדמי הלידה — לא מוסיפים ל-030 אוטומטית; אין מקור שמכיר בכך <ClaimTag status="open" />.</li>
+              <li>בדוח: דמי הלידה — 250 (עצמאית). דמי ביטוח שנוכו מדמי הלידה — בודקים זכאות לפי 47א, רכיב קרן מתאים ואישור שמונע כפל עם התשלומים השנתיים. ניכוי עובד רגיל, בריאות וקנס אינם מתווספים; DF לבדו אינו אישור לניכוי <ClaimTag status="interpretation" />.</li>
             </ul>
           </div>
         </Sec>

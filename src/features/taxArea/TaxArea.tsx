@@ -4,7 +4,7 @@
 //   «ידע מקצועי» — עמוד לכל תחום (דוח שנתי, פנסיה, ב״ל…), ובתוכו הנושאים והכלים של התחום, לא רשימה ארוכה אחת.
 // ‼ הכתובת קובעת (‎#/tax/…‎, areaModel.ts) — «אחורה» בדפדפן חוזר לעמוד הקודם, גם בין המרחבים.
 // ‼ 21.10.2026 (הצעה מאושרת docs/proposals/2026-10-21-tax-area-reimagined.html): בלי מסילה. בראש — מתג אחד
-//   «עבודות לקוח | ידע מקצועי»; «ידע מקצועי» נפתח בשאלה (AskHome), ותחום/נושא/כלי — עם פירורים ושנת מס.
+//   «עבודות לקוח | ידע מקצועי»; «ידע מקצועי» נפתח בספרייה (AskHome, 25.10), ותחום/נושא/כלי — עם פירורים ושנת מס.
 
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import type { Client } from '../../types';
@@ -35,7 +35,7 @@ import FormMap from '../taxKnowledge/formMap/FormMap';
 import { useTaxWork } from '../taxYear/useTaxWork';
 import {
   DOMAIN_BY_ID, MODE_LABEL, WORK_BY_ID,
-  askAreasOf, domainOf, formatAreaPath, itemOf, parseAreaPath, type AreaPath, type DomainId, type DomainItem, type PlannedItem,
+  askAreasOf, clampYear, defaultYearFor, domainOf, formatAreaPath, itemOf, parseAreaPath, reportSeasonYear, type AreaPath, type DomainId, type DomainItem, type PlannedItem,
 } from './areaModel';
 import './taxArea.css';
 
@@ -61,18 +61,21 @@ interface Props {
 export default function TaxArea({ path, onPath, freshnessTaskExists, onCreateFreshnessTask, clients, contextTopic = null, contextClientId = null, onOpenClient }: Props) {
   const p = useMemo(() => parseAreaPath(path), [path]);
   const work = useTaxWork(clients);
-  const [year, setYear] = useState<number>(2026);
+  // ‼ 25.10.2026: שנה שנבחרה ביד נשמרת; אחרת — לפי סוג העמוד (defaultYearFor), ומתיק לקוח — שנת הדוח שלו
+  const [chosenYear, setYear] = useState<number | null>(null);
   const [lastWork, setLastWork] = useState<string>(p.mode === 'work' ? formatAreaPath(p) : 'work/all');
   const [lastLearn, setLastLearn] = useState<string>(p.mode === 'learn' ? formatAreaPath(p) : 'learn');
   useEffect(() => { if (p.mode === 'work') setLastWork(formatAreaPath(p)); else setLastLearn(formatAreaPath(p)); }, [p]);
   // ‼ כניסה מתיק לקוח לנושא — נשארים בהקשר הלקוח כל עוד הנושא הזה פתוח
   const ctxClient = useMemo(() => (contextClientId && p.mode === 'learn' && p.item === contextTopic ? clients.find(c => c.id === contextClientId) ?? null : null), [clients, contextClientId, contextTopic, p]);
+  const year = chosenYear ?? (ctxClient ? clampYear(reportSeasonYear(), AVAILABLE_YEARS) : defaultYearFor(p, AVAILABLE_YEARS));
 
   const go = (next: AreaPath | string) => {
     onPath(typeof next === 'string' ? next : formatAreaPath(next));
     window.scrollTo({ top: 0 });
   };
   const openTopic = (id: string) => go({ mode: 'learn', domain: domainOf(id), item: id });
+  const openTool = (id: string) => { const d = domainOf(id); if (d) go({ mode: 'learn', domain: d, item: id }); };
   const canLearn = (id: string) => !!domainOf(id);
   const data = TAX_YEARS.find(t => t.year === year)!;
   const yearSelect = (
@@ -131,7 +134,7 @@ export default function TaxArea({ path, onPath, freshnessTaskExists, onCreateFre
       case 'map1301': return (
         <>
           <FormMap domain="annual" clients={clients} contextClient={ctxClient} onBackToClient={ctxClient ? () => onOpenClient(ctxClient.id, 'taxfile') : undefined}
-            canLearn={canLearn} onLearn={openTopic} />
+            canLearn={canLearn} onLearn={openTopic} onOpenTool={openTool} year={year} />
           <details className="ta-control" data-map-control>
             <summary>בקרת הטופס: מה השתנה מול 2024, כיסוי לפי חלקים ומוכנות לקוח</summary>
             <Map1301 onOpenTopic={openTopic} clients={clients} contextClientId={contextClientId} onOpenClient={id => onOpenClient(id, 'taxfile')} />
@@ -156,7 +159,7 @@ export default function TaxArea({ path, onPath, freshnessTaskExists, onCreateFre
       );
     }
     if (!domain) return <AskHome onGo={go} onOpenTopic={openTopic} moved={p.mode === 'learn' && !!p.moved} />;
-    if (!item) return <>{crumbs}<DomainPage d={domain.id} year={year} onGo={go} counts={work.counts} focusValues={p.mode === 'learn' ? p.values : undefined} yearSelect={yearSelect} clients={clients} canLearn={canLearn} onLearn={openTopic} /></>;
+    if (!item) return <>{crumbs}<DomainPage d={domain.id} year={year} onGo={go} counts={work.counts} focusValues={p.mode === 'learn' ? p.values : undefined} focusCode={p.mode === 'learn' ? p.code : undefined} yearSelect={yearSelect} clients={clients} canLearn={canLearn} onLearn={openTopic} onOpenTool={openTool} /></>;
     if (item.kind === 'topic') {
       return (
         <>
@@ -199,9 +202,9 @@ export default function TaxArea({ path, onPath, freshnessTaskExists, onCreateFre
 // ‼ «דוח שנתי» ו«הצהרת הון»: הטופס הרשמי עצמו עם הסימונים (FormMap) הוא העמוד.
 const FORM_DOMAINS: Partial<Record<DomainId, 'annual' | 'wealth'>> = { annual: 'annual', wealth: 'wealth' };
 
-function DomainPage({ d, year, onGo, counts, focusValues, yearSelect, clients, canLearn, onLearn }: {
-  d: DomainId; year: number; onGo: (p: AreaPath) => void; counts: ReturnType<typeof useTaxWork>['counts']; focusValues?: string; yearSelect: ReactNode;
-  clients: Client[]; canLearn: (id: string) => boolean; onLearn: (id: string) => void;
+function DomainPage({ d, year, onGo, counts, focusValues, focusCode, yearSelect, clients, canLearn, onLearn, onOpenTool }: {
+  d: DomainId; year: number; onGo: (p: AreaPath) => void; counts: ReturnType<typeof useTaxWork>['counts']; focusValues?: string; focusCode?: string; yearSelect: ReactNode;
+  clients: Client[]; canLearn: (id: string) => boolean; onLearn: (id: string) => void; onOpenTool: (id: string) => void;
 }) {
   const dom = DOMAIN_BY_ID[d];
   // ‼ אותו מקור ואותו רכיב כמו בשלב «מה מבקשים מהלקוח» של מסלול הלימוד — הכמויות והפירוט נגזרים מאותה רשימה.
@@ -249,7 +252,7 @@ function DomainPage({ d, year, onGo, counts, focusValues, yearSelect, clients, c
       {formDomain && (
         <section aria-labelledby="ta-form-h" data-domain-form>
           <h3 className="ta-sec-h" id="ta-form-h">{formDomain === 'annual' ? 'הטופס — שדה אחר שדה' : 'טופס 1219 — שורה אחר שורה'}</h3>
-          <FormMap key={formDomain} domain={formDomain} clients={clients} canLearn={canLearn} onLearn={onLearn} />
+          <FormMap key={`${formDomain}.${focusCode ?? ''}`} domain={formDomain} clients={clients} canLearn={canLearn} onLearn={onLearn} onOpenTool={onOpenTool} year={year} initialCode={focusCode} />
           {formDomain === 'annual' && (
             <p className="ta-form-more"><button type="button" className="ta-link" onClick={() => onGo({ mode: 'learn', domain: d, item: 'map1301' })} data-domain-control>בקרת הטופס: מה השתנה מול 2024, כיסוי לפי חלקים ומוכנות לקוח ←</button></p>
           )}

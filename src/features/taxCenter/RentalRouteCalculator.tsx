@@ -343,7 +343,7 @@ export default function RentalRouteCalculator({ taxData, year }: Props) {
             <div key={r.key} className={`rr-route ${isBest ? 'is-best' : ''}`}>
               <div className="rr-route-head">
                 <span className="rr-route-title">{r.title}</span>
-                {isBest && <span className="rr-route-best">המס הנמוך ביותר</span>}
+                {isBest && <span className="rr-route-best">הנמוך בחלופות שחושבו</span>}
               </div>
               <div className="rr-route-body">
                 <div className="rr-amount">{fmt(r.taxAnnual)}</div>

@@ -7,7 +7,7 @@
 
 import { test, equal, assert, deepEqual } from '../../../testkit/tinyTest';
 import type { TestCase } from '../../../testkit/tinyTest';
-import { DOMAINS, DOMAIN_BY_ID, MODE_LABEL, WORK_SECTIONS, askAreasOf, domainOf, formatAreaPath, itemOf, parseAreaPath } from '../areaModel';
+import { DOMAINS, DOMAIN_BY_ID, MODE_LABEL, WORK_SECTIONS, askAreasOf, clampYear, defaultYearFor, domainOf, formatAreaPath, itemOf, parseAreaPath, reportSeasonYear } from '../areaModel';
 import { askAreasView, clientAsksFor, countsText, sumCounts, topicAskAreaIds } from '../../taxKnowledge/learnPath';
 import { ITEMS } from '../../taxYear/catalog';
 import { TOPICS } from '../../taxKnowledge/topics';
@@ -67,7 +67,8 @@ export const TESTS: TestCase[] = [
     assert(!!n, 'יש פסקה');
     const all = n!.points.map(p => p.text).join(' ');
     for (const w of ['בשנת המס, לא היום', '4440', '5329', 'לא ידוע']) assert(all.includes(w), w);
-    assert(n!.points.some(p => p.status === 'open' && /גירושין/.test(p.text)), 'שנת הגירושין — פתוח');
+    // 25.10.2026: שנת הגירושין/הפטירה הוכרעה לפי סעיף 41 (נקודות יחסיות) — מוצגת עם הסעיף, לא כפתוחה
+    assert(n!.points.some(p => /גירושין/.test(p.text) && /41/.test(p.text)), 'שנת הגירושין — לפי סעיף 41');
     for (const d of DOMAINS) for (const x of d.notes ?? []) for (const p of x.points) assert(['verified', 'interpretation', 'open'].includes(p.status), p.text);
   }),
 
@@ -174,5 +175,24 @@ export const TESTS: TestCase[] = [
       assert(!existing.has(x.label), `${x.label} כבר קיים`);
     }
     equal(new Set(all.map(a => a.x.label)).size, all.length);
+  }),
+  // 25.10.2026 — החלטת גיא: שנת ברירת המחדל לפי סוג העבודה
+  test('שנת ברירת המחדל: סיכומים וטפסים — עונת הדוחות; כלים שוטפים — השנה השוטפת', () => {
+    const years = [2026, 2025, 2024];
+    const oct26 = new Date(2026, 9, 25), mar27 = new Date(2027, 2, 31), apr27 = new Date(2027, 3, 1);
+    equal(reportSeasonYear(oct26), 2025);
+    equal(reportSeasonYear(mar27), 2025, 'עד 31.3.2027 — עדיין דוחות 2025');
+    equal(reportSeasonYear(apr27), 2026);
+    equal(defaultYearFor({ mode: 'learn', domain: 'annual' }, years, oct26), 2025, 'עמוד הטופס');
+    equal(defaultYearFor(parseAreaPath('learn/savings/pensionSE'), years, oct26), 2025, 'נושא לימוד');
+    equal(defaultYearFor(parseAreaPath('learn/ni/ni'), years, oct26), 2026, 'ב״ל — כלי שוטף');
+    equal(defaultYearFor(parseAreaPath('learn/credits/settlements'), years, oct26), 2026, 'יישובים — כלי שוטף');
+    equal(defaultYearFor({ mode: 'learn', domain: 'ni' }, years, oct26), 2026, 'תחום בלי טופס');
+    equal(clampYear(2027, years), 2026, 'שנה בלי נתונים ⇒ האחרונה שיש, לא שנה מומצאת');
+  }),
+  test('קוד סעיף בכתובת: ‎learn/annual/c/158‎ נשמר בהלוך-חזור, ורק בתחום עם טופס', () => {
+    deepEqual(parseAreaPath('learn/annual/c/158'), { mode: 'learn', domain: 'annual', code: '158' });
+    equal(formatAreaPath(parseAreaPath('learn/annual/c/158')), 'learn/annual/c/158');
+    deepEqual(parseAreaPath('learn/ni/c/158'), { mode: 'learn', domain: 'ni' });
   }),
 ];

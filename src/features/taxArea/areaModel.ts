@@ -101,9 +101,9 @@ export const DOMAINS: DomainDef[] = [
     // ‼ 16.10 (מצב משפחתי לפי שנת המס, src/utils/familyStatusYear.ts): החישוב לפי המצב בשנת המס, לא היום.
     notes: [{ id: 'familyYear', title: 'מצב משפחתי בשנת המס: מה קובע ומתי', where: 'בכרטיס הלקוח: תיק מס ← «משפחה וזכאות» — המצב ושנת האירוע.', points: [
       { text: 'המצב המשפחתי בדוח הוא המצב בשנת המס, לא היום. «נשוי» לעניין מס — נשוי לפי המרשם, שחי יחד ומנהל משק בית משותף; «פרוד» — רק אחרי עדכון מרשם רשות המסים בטופס 4440 (מדריך 1301 לשנת 2025, «מצב משפחתי», עמ׳ 10).', status: 'verified' },
-      { text: 'לכן כל חישוב ב-PIVO שואל את הכרטיס מתי המצב התחיל: שנת הנישואין, שנת הגירושין ברבנות או שנת הפטירה.', status: 'interpretation' },
+      { text: 'לשנת שינוי מצב משפחתי דרושים תאריך האירוע המלא וזהות בן הזוג הרשום, לצד מצב ההחזקה והכלכלה של הילדים ואופן החישוב והדיווח. שנת האירוע לבדה אינה מספיקה להפעלת החלוקה החודשית שבסעיף 41. אם חסרים נתוני התחולה, אין לאשר אוטומטית תוצאת סוף שנה.', status: 'interpretation' },
       { text: 'בשנת הנישואין (או כשחזרו ממצב פרודים) בני הזוג בוחרים דוח משותף או נפרד, ומצהירים על כך לפני ההגשה בטופס 5329 — באזור האישי או בפורטל המייצגים. בלי הצהרה הדוח לא ישודר (שם, «בני זוג», עמ׳ 5).', status: 'verified' },
-      { text: 'שנת הגירושין ושנת הפטירה: לא נמצא כלל רשמי לחלוקת השנה. PIVO מחשב לפי המצב בסוף השנה ומציג שאלה פתוחה.', status: 'open' },
+      { text: 'שנת גירושין או פטירה אינה נקבעת אוטומטית לפי המצב ב־31.12. סעיף 41 קובע לבן זוג שאינו הרשום, שהיה נשוי חלק מהשנה, נקודות יחסיות לפי חודשי התקופות ובכפוף לסעיפים הנזכרים בו. סעיף 40(ב)(3) כולל גם ילד שאחד מהוריו נפטר בשנת המס. בודקים תאריך מלא, בן זוג רשום, אופן חישוב, ילדים והחזקה; אין להחיל חלוקה חודשית על כל אדם וכל הטבה בלי בדיקת תחולה. עד שהמחשבון תומך בכך, חישוב לשנת האירוע לפי מצב סוף השנה טעון התאמה מקצועית.', status: 'interpretation' },
       { text: 'כשהשנה לא רשומה בכרטיס — המצב לשנה קודמת «לא ידוע»: החישוב מסומן «לבדיקה» ואינו מאושר. לא מנחשים.', status: 'interpretation' },
     ] }] },
   { id: 'salary', label: 'שכירים ושכר', what: 'הכנסה ממשכורת: שווי שימוש ברכב, שכר מינימום, ריבית על הלוואה מהמעביד ודיווח ניכויים.',
@@ -210,7 +210,7 @@ export function domainOf(itemId: string): DomainId | undefined {
 export type AreaPath =
   | { mode: 'work'; section: WorkSection }
   /** values — קבוצת ערכים שנפתחת בעמוד התחום (‎learn/<domain>/v/<group>‎). moved — הגיעו מקישור ישן ל«ערכים לפי נושא». */
-  | { mode: 'learn'; domain?: DomainId; item?: string; values?: string; moved?: true };
+  | { mode: 'learn'; domain?: DomainId; item?: string; values?: string; moved?: true; code?: string };
 
 export const DEFAULT_AREA_PATH: AreaPath = { mode: 'work', section: 'all' };
 
@@ -228,6 +228,8 @@ export function parseAreaPath(raw: string | undefined): AreaPath {
     }
     const dom = DOMAIN_BY_ID[a as DomainId];
     if (b === 'v') return c && valueGroup(dom.id, c) ? { mode: 'learn', domain: dom.id, values: c } : { mode: 'learn', domain: dom.id };
+    // ‎learn/annual/c/158‎ — עמוד התחום עם הטופס, והסעיף בקוד הזה מאותר בו (מהחיפוש בספרייה)
+    if (b === 'c') return c && /^[0-9א-ת]{2,5}$/.test(c) && FORM_DOMAIN_IDS.has(dom.id) ? { mode: 'learn', domain: dom.id, code: c } : { mode: 'learn', domain: dom.id };
     return b && dom.items.some(i => i.id === b) ? { mode: 'learn', domain: dom.id, item: b } : { mode: 'learn', domain: dom.id };
   }
   if (mode === 'work') return { mode: 'work', section: (a && WORK_BY_ID[a as WorkSection] ? a : 'all') as WorkSection };
@@ -237,7 +239,34 @@ export function parseAreaPath(raw: string | undefined): AreaPath {
 export function formatAreaPath(p: AreaPath): string {
   if (p.mode === 'work') return `work/${p.section}`;
   if (p.domain && p.values && !p.item) return `learn/${p.domain}/v/${p.values}`;
+  if (p.domain && p.code && !p.item) return `learn/${p.domain}/c/${p.code}`;
   return ['learn', p.domain, p.domain ? p.item : undefined].filter(Boolean).join('/');
+}
+
+/** תחומים שהעמוד שלהם הוא הטופס הרשמי עצמו (מפת הטופס). */
+export const FORM_DOMAIN_IDS = new Set<DomainId>(['annual', 'wealth']);
+
+// ── שנת המס שנפתחת (החלטת גיא, 25.10.2026) ─────────────────────────────────────────────
+// ‼ סיכומים, טפסים והדוח — שנת עונת הדוחות: 2025 עד 31.3.2027. כלים שוטפים (ב״ל, יישובים, מדרגות, נקודות זיכוי,
+//   מועדים) — השנה השוטפת. שנה שנבחרה ביד נשמרת; כניסה מתיק לקוח — שנת הדוח שלו. אין שימוש שקט בשנה אחרת.
+/** שנת הדוחות שבעונה: מאפריל ועד סוף מרץ שאחריו — הדוח על השנה הקודמת. */
+export function reportSeasonYear(today = new Date()): number {
+  return today.getMonth() >= 3 ? today.getFullYear() - 1 : today.getFullYear() - 2;
+}
+/** השנה הקרובה ביותר שיש לה נתונים — לא קופצים קדימה לשנה שאין עליה מידע. */
+export function clampYear(y: number, years: number[]): number {
+  if (years.includes(y)) return y;
+  const below = years.filter(x => x <= y);
+  return below.length ? Math.max(...below) : Math.min(...years);
+}
+export function defaultYearFor(p: AreaPath, years: number[], today = new Date()): number {
+  const report = clampYear(reportSeasonYear(today), years);
+  const current = clampYear(today.getFullYear(), years);
+  if (p.mode !== 'learn' || !p.domain) return current;
+  const it = itemOf(p);
+  if (!it) return FORM_DOMAIN_IDS.has(p.domain) ? report : current;
+  if (it.kind === 'topic') return report;
+  return it.id === 'map1301' ? report : current;
 }
 
 /** הפריט בתחום שנפתח, או undefined כשמוצג עמוד התחום עצמו. */

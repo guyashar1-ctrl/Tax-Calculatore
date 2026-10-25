@@ -1050,7 +1050,8 @@ export function settlementListStatus(year: number): { listYear: number; fallback
 }
 
 export function getEligibleSettlements(year: number): EligibleSettlement[] {
-  return settlementListStatus(year).listYear === 2026 ? ELIGIBLE_SETTLEMENTS_2026_CURRENT : ELIGIBLE_SETTLEMENTS_2025;
+  if(year!==2025&&year!==2026)return [];
+  return year===2026?ELIGIBLE_SETTLEMENTS_2026_CURRENT:ELIGIBLE_SETTLEMENTS_2025;
 }
 
 // ─── אילת — חוק אזור סחר חופשי באילת (חוק נפרד, לא סעיף 11) ─────────────────
@@ -1097,17 +1098,15 @@ export const EASTERN_CONFRONTATION_LINE = {
 } as const;
 
 /** האם יישוב נמצא ברשימת קו העימות המזרחי (לשנים שבתוקף) */
-export function findEasternConfrontationSettlement(query: string, year: number): boolean {
-  if (!(EASTERN_CONFRONTATION_LINE.validYears as readonly number[]).includes(year)) return false;
-  const q = query.replace(/["'׳״]/g, '').trim();
-  return EASTERN_CONFRONTATION_LINE.settlements.some(s => {
-    const n = s.replace(/["'׳״]/g, '');
-    return n === q || n.includes(q) || q.includes(n);
-  });
+export function findEasternConfrontationSettlement(query:string,year:number):boolean {
+  // Published locality list audited for2026; statutory route also exists2027 but needs that year locality check.
+  if(year!==2026)return false;
+  const norm=(s:string)=>s.replace(/["'׳״]/g,'').replace(/[־-]/g,' ').replace(/\s+/g,' ').trim();
+  const q=norm(query);return !!q&&EASTERN_CONFRONTATION_LINE.settlements.some(s=>norm(s)===q);
 }
 
 // ─── מיפוי מזהים ישנים (נשמרו בתיקי לקוחות) → שם רשמי ─────────────────────
-// מזהים שאינם כאן היו שייכים ליישובים שאינם זכאים כלל — ההפניה תוסר בעדינות.
+// מזהה שלא פוענח מחייב זיהוי מחדש; אין להסיק ממנו אי־זכאות ואין לשנות תיק לקוח אוטומטית.
 export const LEGACY_SETTLEMENT_ID_MAP: Record<string, string> = {
   "arad": "ערד",
   "dimona": "דימונה",
@@ -1157,7 +1156,7 @@ export const LEGACY_SETTLEMENT_ID_MAP: Record<string, string> = {
   "metula": "מטולה",
   "kfar-yuval": "יובל",
   "rosh-pina": "ראש פינה",
-  "migdal-haemek": "מגדל",
+  // migdal-haemek: unresolved legacy identity; no automatic substitution.
   "tiberias": "טבריה",
   "karmiel": "כרמיאל",
   "peki-in": "פקיעין (בוקייעה)",
@@ -1172,7 +1171,7 @@ export const LEGACY_SETTLEMENT_ID_MAP: Record<string, string> = {
   "tarshiha": "מעלות-תרשיחא",
   "bustan-hagalil": "בוסתן הגליל",
   "julis": "ג'ולס",
-  "mghar": "מג'ד אל־כרום",
+  // mghar: unresolved legacy identity; no automatic substitution.
   "deir-hanna": "דיר חנא",
   "arrabe": "עראבה",
   "sakhnin": "סח'נין",
@@ -1201,7 +1200,7 @@ export const LEGACY_SETTLEMENT_ID_MAP: Record<string, string> = {
 
 /**
  * מאתר יישוב לפי הערך השמור אצל הלקוח — שם רשמי, או מזהה ישן (slug),
- * או שם בכתיב שונה. מחזיר undefined אם היישוב אינו זכאי.
+ * או שם בכתיב שונה. מחזיר undefined אם לא נמצאה התאמה מאומתת; אין זו קביעת אי־זכאות.
  */
 export function resolveSettlement(idOrName: string, year: number): EligibleSettlement | undefined {
   if (!idOrName) return undefined;
@@ -1209,7 +1208,7 @@ export function resolveSettlement(idOrName: string, year: number): EligibleSettl
   const direct = list.find(s => s.name === idOrName);
   if (direct) return direct;
   const legacyName = LEGACY_SETTLEMENT_ID_MAP[idOrName];
-  if (legacyName === 'אילת') {
+  if ((year===2025||year===2026) && legacyName === 'אילת') {
     return { name: EILAT_BENEFIT.name, score: 0, ratePercent: EILAT_BENEFIT.ratePercent, ceilingAnnual: EILAT_BENEFIT.ceilingAnnual };
   }
   if (legacyName) return list.find(s => s.name === legacyName);
@@ -1228,6 +1227,6 @@ export function searchSettlements(query: string, year: number): EligibleSettleme
   if (!q) return [];
   const list = getEligibleSettlements(year);
   const results = list.filter(s => s.name.includes(q));
-  if ('אילת'.includes(q)) results.unshift({ name: EILAT_BENEFIT.name, score: 0, ratePercent: EILAT_BENEFIT.ratePercent, ceilingAnnual: EILAT_BENEFIT.ceilingAnnual });
+  if ((year===2025||year===2026) && 'אילת'.includes(q)) results.unshift({ name: EILAT_BENEFIT.name, score: 0, ratePercent: EILAT_BENEFIT.ratePercent, ceilingAnnual: EILAT_BENEFIT.ceilingAnnual });
   return results.slice(0, 12);
 }

@@ -39,6 +39,8 @@ export const TESTS: TestCase[] = [
   test('2027 — רשימת 2026 מסומנת fallback', () => {
     equal(settlementListStatus(2027).fallback, true);
     equal(settlementListStatus(2026).fallback, false);
-    equal(getEligibleSettlements(2027), ELIGIBLE_SETTLEMENTS_2026_CURRENT);
+    // 25.10.2026: שנה בלי רשימה שפורסמה אינה מקבלת בשקט את רשימת 2026 — הרשימה ריקה והמסך אומר זאת
+    equal(getEligibleSettlements(2027).length, 0);
+    equal(ELIGIBLE_SETTLEMENTS_2026_CURRENT.length > 0, true);
   }),
 ];

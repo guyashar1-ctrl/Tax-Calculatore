@@ -7,7 +7,7 @@ import { studyFundLimit } from '../../taxRules/calc';
 import { ruleView, num } from '../../taxRules/registry';
 import { RV, Problems, fmtNis } from '../RuleBits';
 import { Sec, Quiz, Walk, NumField, type TopicBodyProps, type TocItem } from './shared';
-import { Glossary, Thinking, Mistakes, SolveFirst, Legend } from './lesson';
+import { Glossary, Thinking, Mistakes, SolveFirst, ClaimTag, Legend } from './lesson';
 import { STUDY_FUND_LESSON } from './lessons';
 
 export const STUDY_FUND_TOC: TocItem[] = [
@@ -74,10 +74,10 @@ export default function StudyFundBody({ year, ctx, view }: TopicBodyProps) {
           <div className="kn-box"><span className="kn-eyebrow now">עכשיו · בשנת ההפקדה</span><strong>ניכוי מההכנסה החייבת</strong>
             <p className="kn-small" style={{ margin: 0 }}>עד <RV id="sf.se.rate" year={year} /> מ«ההכנסה הקובעת» — ההכנסה החייבת מהעסק — עד תקרה של <RV id="sf.se.ceiling" year={year} /> בשנה. שווה בכסף: הניכוי כפול שיעור המס השולי.</p></div>
           <div className="kn-box"><span className="kn-eyebrow later">בעתיד · במשיכה</span><strong>פטור ממס רווחי הון</strong>
-            <p className="kn-small" style={{ margin: 0 }}>רווחים על «הפקדה מוטבת» פטורים במשיכה כדין. תקרת ההפקדה המוטבת: <RV id="sf.se.exemptDeposit" year={year} /> בשנה — ממקור משני, לא לחישוב.</p></div>
+            <p className="kn-small" style={{ margin: 0 }}>רווחים על «הפקדה מוטבת» פטורים במשיכה כדין. תקרת ההפקדה המוטבת: <RV id="sf.se.exemptDeposit" year={year} /> בשנה. הסכום השנתי מאומת בלוח העזר; הפטור מותנה במשיכה לפי הדין.</p></div>
         </div>
         <div className="kn-prose">
-          <p><strong>שני המספרים לא מדברים זה עם זה.</strong> הפקדה מעל מרחב הניכוי לא מורידה מס היום, אבל עשויה ליהנות מהפטור. הפקדה מעל התקרה המוטבת — לא נהנית מכלום.</p>
+          <p><strong>שני המספרים לא מדברים זה עם זה.</strong> הפקדה מעל מרחב הניכוי לא מורידה מס היום, אבל עשויה ליהנות מהפטור. מעל התקרה המוטבת אין פטור על הרווחים מכוח תקרה זו; המס נבחן בעת המשיכה לפי הדין.</p>
           <p>מי שגם שכיר, והמעביד מפקיד לו לקרן, «השתמש» בחלק מהתקרה. אותה תקרה לא ניתנת פעמיים.</p>
         </div>
       </Sec>
@@ -87,7 +87,7 @@ export default function StudyFundBody({ year, ctx, view }: TopicBodyProps) {
         <Thinking steps={STUDY_FUND_LESSON.thinking} year={year} />
       </Sec>
 
-      <Sec id="sf-3" title="מחשבון להמחשה">
+      <Sec id="sf-3" title="מחשבון להמחשה"><p className="kn-small"><b>עסק זעיר:</b> מזינים הכנסה חייבת מהעסק לפני ניכוי הקרן; בפרשנות המשולבת של 87ד ו־17(5א), זו ההכנסה לאחר ה־30%, ולא המחזור. לדוגמה, מחזור 100,000 ללא רכיבים נוספים נותן בסיס 70,000 ועד 3,150 ₪ לניכוי. לא אותרה דוגמת רשות מפורשת לחישוב זה. <ClaimTag status="interpretation" /> <a href="#book/microBusiness/mb-30">לכלל ולמקור ←</a></p>
         <p className="kn-small kn-muted" style={{ margin: 0 }}>משנים נתונים ורואים לאן הולך כל שקל. שנת מס {year}.{ctx ? ` מולא לפי התיק של ${ctx.name} במה שידוע; השאר — להשלים.` : ''}</p>
         <div className="kn-sim">
           <div className="kn-page" style={{ gap: 12 }}>
@@ -116,7 +116,7 @@ export default function StudyFundBody({ year, ctx, view }: TopicBodyProps) {
                     <span className="kn-seg-later" style={{ flexBasis: `${(exemptOnly / depScale) * 100}%` }}>{exemptOnly / depScale > 0.14 ? fmtNis(exemptOnly) : ''}</span>
                     <span className="kn-seg-none" style={{ flexBasis: `${(none / depScale) * 100}%` }}>{none / depScale > 0.12 ? fmtNis(none) : ''}</span>
                   </div>
-                  <div className="kn-legend" style={{ marginTop: 6 }}><span><i className="kn-seg-now" />מנוכה עכשיו</span><span><i className="kn-seg-later" />פטור בעתיד בלבד (משני)</span><span><i className="kn-seg-none" />בלי הטבה</span></div>
+                  <div className="kn-legend" style={{ marginTop: 6 }}><span><i className="kn-seg-now" />מנוכה עכשיו</span><span><i className="kn-seg-later" />פטור על הרווחים במשיכה כדין</span><span><i className="kn-seg-none" />בלי הטבה</span></div>
                 </div>
                 <div className="kn-explain" aria-live="polite">
                   {sal > 0 ? `המעביד כבר מפקיד על ${fmtNis(sal)}, ולכן מהתקרה נשארו ${fmtNis(Math.max(0, v.ceiling - v.usedByEmployer))}. ` : 'אין מעביד שמפקיד לקרן — כל התקרה פתוחה. '}
@@ -171,7 +171,7 @@ export default function StudyFundBody({ year, ctx, view }: TopicBodyProps) {
           { title: 'כמה נשאר מהתקרה', value: `${fmtNis(walk.ceiling)} − ${fmtNis(walkSal)} = ${fmtNis(walk.ceiling - walk.usedByEmployer)}`, note: 'התקרה השנתית של «הכנסה קובעת» פחות המשכורת.' },
           { title: 'משווים להכנסה מהעסק', value: `min(${fmtNis(walkBiz)}, ${fmtNis(walk.ceiling - walk.usedByEmployer)}) = ${fmtNis(walk.cap)}`, note: 'זה «סכום התקרה» — הבסיס לניכוי כעצמאי.' },
           { title: 'הניכוי המרבי', value: `${fmtNis(walk.cap)} × 4.5% = ${fmtNis(walk.maxDeduction)}`, note: ctx?.mixed ? 'זה מרחב ההפקדה שמוריד מס השנה.' : 'כמו בדוגמה במדריך: 4,718 ₪.' },
-          { title: 'ומה עם הפקדה גבוהה יותר?', value: `עד ${fmtNis(exempt)}`, note: 'מעל מרחב הניכוי ההפקדה לא מורידה מס היום. עד התקרה המוטבת הרווחים עשויים להיות פטורים (מקור משני).' },
+          { title: 'ומה עם הפקדה גבוהה יותר?', value: `עד ${fmtNis(exempt)}`, note: 'מעל מרחב הניכוי ההפקדה לא מורידה מס היום. עד התקרה המוטבת הרווחים עשויים להיות פטורים במשיכה כדין.' },
         ]} />}
       </Sec>
 
@@ -180,7 +180,7 @@ export default function StudyFundBody({ year, ctx, view }: TopicBodyProps) {
           <div className="kn-box"><strong>עד 31.12</strong><span className="kn-small">הפקדה בינואר שייכת לשנה הבאה. אין הפקדה רטרואקטיבית.</span></div>
           <div className="kn-box"><strong>משיכה פטורה</strong><span className="kn-small"><RV id="sf.liquidity" year={year} /></span></div>
           <div className="kn-box"><strong>ממתי נספר הוותק?</strong><span className="kn-small">תאריך ההפקדה או תחילת השנה — <RV id="sf.seniorityStart" year={year} />. לא להבטיח ללקוח תאריך.</span></div>
-          <div className="kn-box"><strong>«שעון ותק» — קרן חדשה בסכום סמלי כל שנה</strong><span className="kn-small">מופיע בחומרי המשרד. אין עמדה רשמית שנבדקה — שאלה לבדיקה, לא המלצה.</span></div>
+          <div className="kn-box"><strong>«שעון ותק» — קרן חדשה בסכום סמלי כל שנה</strong><span className="kn-small">תשלום ראשון אמיתי יכול להתחיל תקופת ותק גם בלי הפקדה שנתית רצופה; בודקים תנאי פתיחה ותאריך נזילות בקרן. פתיחת חשבונות אינה מכפילה תקרות מס, ולאחר משיכה חלים כללי סגירת החשבון לתשלומים.</span></div>
           <div className="kn-box is-no"><strong>לא כפרקטיקה: פיצול לכמה קרנות ופדיון בשנים נפרדות «כדי שלא יצליבו»</strong><span className="kn-small">התקרה היא לפי היחיד והשנה, לא לפי קופה. הסתמכות על היעדר הצלבה אינה זכות. PIVO יתריע על הפקדה מעל התקרה ולא יציע פיצול.</span></div>
         </div>
       </Sec>

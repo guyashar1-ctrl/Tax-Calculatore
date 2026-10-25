@@ -302,16 +302,16 @@ async function run(vp) {
     const w = page.locator('[data-form-map="1219"]');
     ok(await w.isVisible() && await w.locator('.fm-mk').count() >= 5, 'הצהרת הון: טופס 1219 עם סימון על שורות הסיכום');
     await w.locator('[data-code="30"]').click(); await sleep(400);
-    ok(/בנקים/.test(await text(page.locator('[data-fm-detail]'))) && /טעות נפוצה/.test(await text(page.locator('[data-fm-detail]'))), '1219 שורה 30: מה רושמים, מסמך, בדיקה וטעות נפוצה');
+    ok(/בנקים/.test(await text(page.locator('[data-fm-detail]'))) && /חשוב לזכור/.test(await text(page.locator('[data-fm-detail]'))), '1219 שורה 30: מה רושמים, מסמך, בדיקה ו«חשוב לזכור»');
     await shot(page, `${vp}-08-wealth-1219`);
     if (mobile) ok(await noHScroll(page), 'טלפון: הצהרת הון בלי גלילה הצידה');
 
-    // ── 5. «ידע מקצועי» נפתח בשאלה (AskHome, 21.10) ──
+    // ── 5. «ידע מקצועי» נפתח בספרייה, עם החיפוש בראשה (25.10; קודם — בשאלה, 21.10) ──
     await go(page, '/tax/learn');
     const askIn = page.locator('[data-ask-input]');
     ok(await page.locator('[data-ask-home]').isVisible() && await askIn.isVisible(), 'ידע מקצועי: נפתח בתיבת שאלה');
     ok(await page.locator('[data-domain-card]').count() >= 8, 'ידע מקצועי: כרטיס לכל תחום');
-    ok(await page.locator('[data-ask-example]').count() === 3 && await page.locator('[data-ask-inbox]').isVisible() && await page.locator('[data-ask-update]').isVisible(), 'בדף הבית: שלוש דוגמאות, «מה אני לומד» ו«עדכון הידע»');
+    ok(await page.locator('[data-ask-start]').count() === 5 && await page.locator('[data-book-item]').count() > 10 && await page.locator('[data-ask-inbox]').isVisible() && await page.locator('[data-ask-update]').isVisible(), 'בדף הבית: «להתחיל מכאן», המחברות עם הנושאים והכלים, «מה אני לומד» ו«עדכון הידע»');
     if (mobile) ok(await noHScroll(page), 'טלפון: דף הבית של הידע בלי גלילה הצידה');
     await shot(page, `${vp}-05-learn-home`);
     // בזמן הקלדה — מה כתוב אצלנו, מיד וללא Enter
@@ -334,11 +334,18 @@ async function run(vp) {
     await askIn.fill('זזזזזז קקקקקק'); await sleep(500);
     ok(/לא נמצא אצלנו/.test(await text(page.locator('.ak-results'))), 'בלי כלל: «לא נמצא אצלנו» ו-Enter שומר לעדכון הבא', await text(page.locator('.ak-results')));
     await page.locator('.ak-clear').click(); await sleep(300);
-    // דוגמה בלחיצה — ממלאת ומראה מה כתוב אצלנו
-    const ex = page.locator('[data-ask-example]').first();
-    const exText = (await text(ex)).trim();
-    await ex.click(); await sleep(800);
-    ok(await askIn.inputValue() === exText && await page.locator('[data-ask-hit]').count() > 0, 'דוגמה: לחיצה ממלאת את התיבה ומראה מה כתוב אצלנו', exText);
+    // «להתחיל מכאן» — פותח את הכלי עצמו
+    await page.locator('[data-ask-start]', { hasText: 'הוצאות מוכרות' }).click(); await sleep(800);
+    ok(/\/expenses$/.test(await page.evaluate(() => location.hash)), '«להתחיל מכאן»: «הוצאות מוכרות» פותח את הכלי', await page.evaluate(() => location.hash));
+    // חיפוש: נושאים וכלים קודם, וקוד סעיף פותח את הטופס על הסעיף
+    await go(page, '/tax/learn');
+    await askIn.fill('יישובים'); await sleep(500);
+    ok(await page.locator('[data-ask-item="settlements"]').count() === 1, 'חיפוש «יישובים»: הכלי ברשימת «נושאים וכלים»');
+    await askIn.fill('158'); await sleep(500);
+    const f158 = page.locator('[data-ask-field^="1301:158"]').first();
+    ok(await f158.count() === 1, 'חיפוש «158»: הסעיף בטופס 1301');
+    await f158.click(); await sleep(1200);
+    ok(/\/tax\/learn\/annual\/c\/158$/.test(await page.evaluate(() => location.hash)) && await page.locator('[data-fm-detail] [data-fm-field]').count() > 0, 'לחיצה על הסעיף: הטופס נפתח וההסבר של 158 מוצג', await page.evaluate(() => location.hash));
     // ערך לשנה בזמן הקלדה
     await go(page, '/tax/learn');
     await askIn.fill('מס רכישה'); await sleep(500);
@@ -455,7 +462,7 @@ async function run(vp) {
     ok(/\d+ ערכים/.test(await text(reBtn)), 'בכותרת הקבוצה: כמה ערכים יש בה', await text(reBtn));
     await reBtn.click(); await sleep(250);
     const reText = await text(rentP.locator('#kn-val-rent-realEstate'));
-    ok((await reBtn.getAttribute('aria-expanded')) === 'true' && reText.includes('מס רכישה - דירה יחידה') && reText.includes('תקרת פטור שבח'), 'פתיחה במקום: מס רכישה ומס שבח בתחום שכר דירה ונדל״ן', reText.slice(0, 200));
+    ok((await reBtn.getAttribute('aria-expanded')) === 'true' && reText.includes('מס רכישה - דירה יחידה') && reText.includes('תקרת שווי מכירה לפטור'), 'פתיחה במקום: מס רכישה ומס שבח בתחום שכר דירה ונדל״ן', reText.slice(0, 200));
     const rentRule = rentP.locator('[data-value-row="rule.core.rentalExemption"]');
     ok(await rentRule.count() === 1 && /5,654|5654/.test(await text(rentRule)) && await rentRule.locator('.kn-basis').count() === 1, 'פטור שכ״ד — מהמרשם, עם תג ביסוס', await text(rentRule));
     ok(await rentP.locator('[data-value-row="realEstate.rentExempt"]').count() === 0, 'השורה הישנה של פטור שכ״ד לא מוצגת שוב (אותו מספר פעם אחת)');
@@ -480,7 +487,8 @@ async function run(vp) {
     await shot(page, `${vp}-10-companies`);
     const saP = await openDomain('salary');
     await saP.locator('[data-value-group="car"] .kn-ask-toggle').click(); await sleep(250);
-    ok((await text(saP)).includes('תקרת מחיר מחירון'), 'שכירים ושכר: שווי שימוש ברכב');
+    // 25.10.2026: השם לפי התקנות — «מחיר מתואם לצרכן», לא «מחיר מחירון»
+    ok((await text(saP)).includes('תקרת מחיר מתואם לצרכן'), 'שכירים ושכר: שווי שימוש ברכב');
     // ‼ 16.10: מה שחסר — גלוי ומקופל, לא מוסתר ולא נראה כמו כלי שעובד
     ok(Number(await saP.locator('[data-planned-tools]').getAttribute('data-planned-tools')) >= 2, 'שכירים: «כלים שעוד לא נבנו» (תחשיבי שכר, רכב)');
     const bizP = await openDomain('business');
@@ -494,7 +502,8 @@ async function run(vp) {
     ok((await pe.locator('.kn-ask-toggle').getAttribute('aria-expanded')) === 'true', 'קישור ‎learn/savings/v/pensionExtra‎ פותח את הקבוצה');
     ok(await page.evaluate(() => !!document.activeElement?.closest('[data-value-group="pensionExtra"]')), 'הפוקוס על הקבוצה שנפתחה');
     const peText = await text(pe);
-    ok(peText.includes('תקרת סעיף 47') && peText.includes('לפיצויים') && /לא במרשם/.test(peText), 'שתי השורות שהוסתרו — גלויות, עם ההערה שלא במרשם', peText.slice(0, 300));
+    // 25.10.2026: שתי השורות נבדקו מול לוחות העזר — תקרת השכר לתגמולים ותקרת הפיצויים, כל אחת עם מקור
+    ok(peText.includes('לתגמולים') && peText.includes('לפיצויים') && /מקור ובדיקה/.test(peText), 'הפקדות מעסיק: שתי התקרות גלויות, עם מקור', peText.slice(0, 300));
     ok((await text(page.locator('[data-domain="savings"]'))).includes('פרישה ופיצויים'), 'פנסיה, השתלמות ופרישה: פרישה ופיצויים');
 
     // קישור ישן ל«ערכים לפי נושא»: דף הבית של הידע, עם שורת הסבר אחת
@@ -510,7 +519,8 @@ async function run(vp) {
     // ‼ 16.10 מצב משפחתי בשנת המס — פסקה בתחום «נקודות זיכוי ומדרגות»
     const crP = await openDomain('credits');
     const famNote = crP.locator('[data-domain-note="familyYear"]');
-    ok(await famNote.locator('li').count() === 5 && await famNote.locator('.kn-claim.open').count() === 1 && /5329/.test(await text(famNote)), 'נקודות זיכוי: «מצב משפחתי בשנת המס» — חמש נקודות, שנת הגירושין/פטירה פתוחה');
+    // 25.10.2026: שנת הגירושין/הפטירה הוכרעה לפי סעיף 41 — אין עוד נקודה «פתוחה»
+    ok(await famNote.locator('li').count() === 5 && await famNote.locator('.kn-claim.open').count() === 0 && /41/.test(await text(famNote)), 'נקודות זיכוי: «מצב משפחתי בשנת המס» — חמש נקודות, שנת השינוי לפי סעיף 41');
     if (mobile) ok(await noHScroll(page), 'טלפון: עמוד נקודות זיכוי בלי גלילה הצידה');
     await famNote.scrollIntoViewIfNeeded(); await shot(page, `${vp}-16-family-year`);
     // ‼ 16.10 דמי לידה: נושא בתחום «ביטוח לאומי», הפניה מ«דוח שנתי» ומ«שכירים», ומסלול לימוד מלא

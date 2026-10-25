@@ -86,7 +86,7 @@ export default function PensionBody({ year, ctx, view }: TopicBodyProps) {
 
   const learn = view !== 'apply';
   const apply = view !== 'learn';
-  const ex1 = A(100_000, 10_000), ex2 = A(100_000, 14_500), ex3 = A(200_000, 25_000);
+  const ex1 = A(100_000, 10_000), ex2 = A(100_000, 14_500), ex3 = A(200_000, 23_000);
   const ceilNonWork = num('pen.qualifying.nonWork', EX_YEAR);
 
   return (
@@ -124,7 +124,7 @@ export default function PensionBody({ year, ctx, view }: TopicBodyProps) {
             </div>
           </div>
           <div className="kn-explain" aria-live="polite">{verdict ?? 'ענו על שלוש השאלות כדי לראות את המסלול.'}</div>
-          <p className="kn-xs kn-muted" style={{ margin: 0 }}>האם רכיב הפיצויים של המעביד נספר ברף — לא הוכרע. הפקדות לא עוברות בין בני זוג לצורך עמית מוטב.</p>
+          <p className="kn-xs kn-muted" style={{ margin: 0 }}>רכיב הפיצויים שבשדה 248/249 נכלל ברף עמית מוטב; תשלומי אובדן כושר עבודה מוחרגים. מקור: מדריך 2025, סעיף 59. הפקדות לא עוברות בין בני זוג לצורך עמית מוטב.</p>
         </Sec>
 
         <Sec id="pn-4" title="מחשבון מסלול א׳ — למי שאין לו משכורת">
@@ -140,7 +140,7 @@ export default function PensionBody({ year, ctx, view }: TopicBodyProps) {
                 <>
                   <div className="kn-two">
                     <div className="kn-box"><span className="kn-eyebrow now">ניכוי</span><span className="kn-big">{fmtNis(trackA.value.deduction)}</span><span className="kn-xs kn-muted">בסיס {fmtNis(trackA.value.baseDeduction)} + תוספת {fmtNis(trackA.value.extraDeduction)}</span></div>
-                    <div className="kn-box"><span className="kn-eyebrow later">לזיכוי (35%)</span><span className="kn-big">{fmtNis(trackA.value.toCredit)}</span><span className="kn-xs kn-muted">היתרה עוברת לחישוב הזיכוי, עד התקרה שלו (לא מחושב כאן)</span></div>
+                    <div className="kn-box"><span className="kn-eyebrow later">יתרה לבדיקת זיכוי</span><span className="kn-big">{fmtNis(trackA.value.toCredit)}</span><span className="kn-xs kn-muted">זהו סכום הפקדה שנותר לבדיקה. הזיכוי עצמו לא חושב כאן; נדרשת בדיקת התקרה והזכאות.</span></div>
                   </div>
                   <div className="kn-explain">הכנסה מזכה {fmtNis(trackA.value.qualifying)}{income > trackA.value.qualifying ? ` (התקרה — ההכנסה מעליה לא נספרת)` : ''}. {pctOf('pen.trackA.baseRate')} ממנה מנוכים. ההפקדה מעל {pctOf('pen.trackA.extraThreshold')} מזכה בתוספת של עד {pctOf('pen.trackA.extraRate')} — כאן {fmtNis(trackA.value.extraDeduction)}.</div>
                   <Problems problems={trackA.problems} soft />
@@ -177,7 +177,7 @@ export default function PensionBody({ year, ctx, view }: TopicBodyProps) {
               answer={<>ניכוי {fmtNis(ex2.deduction)}; {fmtNis(ex2.toCredit)} לזיכוי.</>}
               note="למה ההפקדה מעל 12% מקבלת תוספת: כדי לעודד הפקדה גבוהה — הניכוי עולה עד 11% מההכנסה המזכה." />}
             {ex3 && <SolveFirst level="מתקדם" status="verified" title="3. הכנסה מעל התקרה"
-              facts={<>עצמאית בת 45, בלי משכורת, הכנסה חייבת 200,000 ₪. הפקידה 25,000 ₪. ההפקדות לטובתה ({fmtNis(25_000)}) מתחת לרף עמית מוטב של {EX_YEAR}.</>}
+              facts={<>עצמאית בת 45, בלי משכורת, הכנסה חייבת 200,000 ₪. הפקידה 23,000 ₪. ההפקדות לטובתה ({fmtNis(23_000)}) מתחת לרף עמית מוטב של {EX_YEAR}.</>}
               ask="מה בסיס החישוב, וכמה מנוכה?"
               steps={[
                 { label: 'ההכנסה המזכה נעצרת בתקרה', value: `min(200,000, ${fmtNis(ceilNonWork)}) = ${fmtNis(ex3.qualifying)}` },
@@ -200,7 +200,7 @@ export default function PensionBody({ year, ctx, view }: TopicBodyProps) {
             <p><strong>במדרגה נמוכה מ-35% הזיכוי עשוי להיות שווה יותר</strong>, ובמדרגה גבוהה — הניכוי. המדריך מציין שבהכנסה חייבת נמוכה מ-269,280 ₪ (2025) כדאי לשקול רישום לזיכוי. <ClaimTag status="verified" /></p>
             <p>כשרושמים בסעיף 53, החלק שלא נוכה עובר אוטומטית לחישוב הזיכוי. רישום בסעיף 76 בלבד — רק זיכוי. <ClaimTag status="verified" /></p>
             <p>לזיכוי יש תקרה אחת, <b>משותפת לפנסיה ולביטוח חיים</b> (45א(ד)): 7% מהכנסת עבודה ועוד 5% מהכנסה אחרת, ולא פחות מ-2,268. הפנסיה ממלאת אותה קודם, וביטוח החיים מקבל את היתרה — כך פרסמה רשות המסים. לכן שכיר שמפקיד 6% ממשכורת של יותר מכ-136,000 לא מקבל זיכוי על ריסק פרטי. התקרה לא מחושבת במחשבון כאן, אבל מחושבת בהערכת המס, עם ההסבר <ClaimTag status="verified" />.</p>
-            <p>עמית מוטב — תקרה אחרת (45א(ה)): בלי הכנסה מבוטחת 5% מההכנסה החייבת עד 232,800, בלי תקרה נפרדת לביטוח חיים; עם הכנסה מבוטחת — 7% ממנה ועוד 5% מהשאר. <b>פתוח:</b> האם ביטוח החיים נכנס גם לחלק שאינו מבוטח. הערכת המס מחשבת את החלק שאינו שנוי במחלוקת ומציגה את ההפרש בנפרד <ClaimTag status="open" />.</p>
+            <p>עמית מוטב — תקרה אחרת (45א(ה)): בלי הכנסה מבוטחת 5% מההכנסה החייבת עד 232,800, בלי תקרה נפרדת לביטוח חיים; עם הכנסה מבוטחת — 7% ממנה ועוד 5% מהשאר. בשכיר עמית מוטב עם הכנסה נוספת בודקים גם את ניצול היתרה בתקרה הכוללת לביטוח חיים ואת תת־התקרה של 5% מהמבוטחת. הקצאת ביטוח החיים לרכיב ההכנסה האחרת היא פרשנות, ולא נמצאה לה דוגמת רשות מלאה. מציגים שתי חלופות בנייר עבודה ומבררים את הפרש הזיכוי בתיק; הגבלת המנוע לרכיב המבוטח היא מדיניות שמרנית, לא איסור מפורש בחוק <ClaimTag status="interpretation" />.</p>
           </div>
         </Sec>
 
@@ -234,7 +234,7 @@ export default function PensionBody({ year, ctx, view }: TopicBodyProps) {
           <div className="kn-inform">
             <div><b>בשאלון ללקוח</b><span>אישור שנתי מכל קופה (לקצבה), תשלום לאובדן כושר עבודה, תאריך לידה, והאם יש גם משכורת.</span></div>
             <div><b>בטופס 1301 (2025)</b><span>סעיף 53 — 135/180 (ניכוי). סעיף 76 — 268/269 (זיכוי). סעיפים 58 ו־59 — הכנסה מבוטחת והפקדות מעביד מה-106.</span></div>
-            <div><b>בחישוב</b><span>מסלול א׳ ומסלול ב׳, משכורת מבוטחת ושאינה מבוטחת, וגיל 50 עם משכורת ובלעדיה — מחושבים בהערכת המס, יחד עם התקרה המשותפת לביטוח חיים. לא מחושב: משכורת מעל 291,000 עם חלק לא מבוטח מגיל 50, ועמית מוטב בן 50 שבוחר מסלול א׳ — המערכת מציגה «אין תוצאה» לתרחיש הזה ולא מספר חלקי.</span></div>
+            <div><b>בחישוב</b><span>מזהים מסלול, הכנסה מבוטחת ושאינה מבוטחת, גיל בתחילת השנה ותקרות משותפות לפנסיה ולביטוח חיים. בדוגמה מורכבת עורכים נייר עבודה ומשווים חלופות; אין להסיק מהסבר הדין שהמחשבון הלימודי או הערכת המס תומכים בכל צירוף. את תחום החישוב מאמתים במחשבון שבו משתמשים.</span></div>
           </div>
           <ol className="kn-small kn-steps">
             <li>לבקש מהלקוח את האישור השנתי מכל קופה לקצבה, ולוודא שההפקדות שם הן כעמית עצמאי.</li>

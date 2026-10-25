@@ -52,17 +52,17 @@ const STEPS: { t: string; who: string; check: string; out: string; status: Claim
  *  מוכרע בתיק על ידי רו"ח ומתועד בבקשה («בסיס הרישום»); אין «מדיניות» שמכריעה במקומו. */
 const PROFESSIONAL: { t: string; rule: string; status: ClaimStatus; open?: string; ex: string }[] = [
   { t: 'קופות, פנסיה, השתלמות, ביטוח עם חיסכון', rule: 'סכום כל ההפקדות, בלי רווחים — כלשון הטופס. «כל ההפקדות» כולל מעסיק ופיצויים (פרשנות).', status: 'verified',
-    open: 'האם פקיד השומה מקבל «חלק העובד בלבד» — נוהג בלי מקור רשמי.', ex: 'שכיר: הפקדות עובד 80,000, מעסיק 100,000, פיצויים 60,000 ← 240,000 ₪.' },
+    open: 'פועלים לפי כלל ההפקדות שבטופס, עם אישור ייעודי ופירוט רכיבים. בסיס קודם שונה מצריך גישור מתועד; אין לבחור חלק עובד בלבד רק כמנהג משרד.', ex: 'שכיר: הפקדות עובד 80,000, מעסיק 100,000, פיצויים 60,000 ← 240,000 ₪.' },
   { t: 'רכוש קבוע בעסק בלי מאזן', rule: 'עלות מקורית ותאריך רכישה; לא עלות מופחתת.', status: 'verified', ex: 'מחשב שנקנה ב-12,000 ונפחת ל-4,000 ← 12,000 ₪.' },
   { t: 'נכסים שנקנו במט״ח', rule: 'עלות במט״ח, ובשקלים לפי השער ביום התשלום.', status: 'verified', ex: 'מניות ב-10,000$ בשער 3.6 ← 36,000 ₪, גם אם השער היום 3.7.' },
   { t: 'יתרות בנק ומזומן במט״ח', rule: 'היתרה במט״ח לפי התדפיס ליום ההצהרה.', status: 'verified',
-    open: 'באיזה שער מתרגמים — הטופס לא קובע. הנוהג: שער יציג ליום ההצהרה, עם הערה בנספח.', ex: '5,000€ בחשבון ביום ההצהרה.' },
+    open: 'לעלות נכס במט״ח חל שער יום התשלום; יתרה נוכחית בבנק מוצגת בשקלים לפי שער יום ההצהרה כפרשנות מתועדת, עם סכום המט״ח והפרש השער בגישור. זו אינה הוראת שער מפורשת בטופס.', ex: '5,000€ בחשבון ביום ההצהרה.' },
   { t: 'הלוואות ומשכנתאות', rule: 'קרן בלבד, בלי ריבית שטרם שולמה; נכס בתשלומים — מחיר מלא והיתרה כחוב.', status: 'verified',
-    open: 'הפרשי הצמדה על הקרן. כל דרך תקינה רק אם ההשוואה מוסיפה את ההצמדה בהתאם (שולמה או נצברה).', ex: 'משכנתא: קרן 600,000 פחות החזרי קרן 90,000 ← 510,000 ₪.' },
+    open: 'מפרידים באישור בין קרן, הצמדה וריבית. היוון הצמדה לקרן נבדק לפי החוזה ומוצג בגילוי; הטיפול בהצמדה שלא הוונה דורש בירור. עקביות בהשוואה אינה היתר לבחור סכום חוב.', ex: 'משכנתא: קרן 600,000 פחות החזרי קרן 90,000 ← 510,000 ₪.' },
   { t: 'תכולה, תכשיטים ואספנות', rule: 'פריט־פריט בעלות ותאריך. אין סף רשמי.', status: 'verified',
     open: 'מאיזה סכום מפרטים פריט קטן — שיקול מהותיות של רו״ח בתיק, לא כלל.', ex: 'ערך כינון מפוליסת ביטוח — רק אומדן, ועם גילוי שזה אומדן.' },
   { t: 'רכב', rule: 'רכב פרטי — חלק א׳ בעלות; רכב ברכוש הקבוע של עסק בלי מאזן — חלק ג׳; לא פעמיים.', status: 'verified',
-    open: 'רכב צמוד או ליסינג — אם לגלות בחלק ד׳ 3.', ex: 'רכב שנתבע עליו פחת בעסק ← חלק ג׳ בלבד.' },
+    open: 'רכב מעסיק או ליסינג תפעולי שמוחזק אצל הלקוח מתאים לגילוי בחלק ד׳ 3 כרכוש שאינו בבעלותו. בליסינג מימוני בודקים זכויות וחוב בחוזה.', ex: 'רכב שנתבע עליו פחת בעסק ← חלק ג׳ בלבד.' },
   { t: 'ילדים קטינים ונכסים משותפים', rule: 'ילדים שבשנת המס טרם מלאו להם 18; נכס משותף לבני הזוג — פעם אחת במלואו; עם אחר — לפי החלק.', status: 'verified', ex: 'חשבון משותף עם הורה: החלק שלך בחלק א׳, והחשבון כולו בחלק ד׳ 2 (זכות חתימה).' },
   { t: 'הצהרה קודמת בבסיס אחר', rule: 'בחלק ד׳ 4 — ההון נטו כפי שהוצהר. הנוכחית — לפי הטופס. בהשוואה: גישור בסיס, ואז השינוי האמיתי; הפרש הבסיס בנפרד, עם הסבר וראיה.', status: 'interpretation',
     open: 'נוהל רשמי לתיקון הצהרה — לא נמצא. נכס שלא הוצהר בקודמת הוא השמטה, לא שינוי בסיס: לבירור רו״ח.', ex: 'הקודמת: קופות לפי חלק העובד 200,000; הנוכחית לפי כל ההפקדות. הקודמת מחושבת מחדש ל-410,000, והפרש 210,000 מוצג כהפרש בסיס — לא כגידול הון.' },
@@ -111,7 +111,7 @@ export default function WealthBody({ view }: TopicBodyProps) {
                 <div className="kn-box"><span className="kn-eyebrow">המועד במכתב לא יכול להיות לפני</span><span className="kn-big">{he(r.value)}</span><span className="kn-xs kn-muted"><RV id="wealth.deadlineDays" year={2025} /> מהמאוחר מבין תאריך הדרישה ויום ההצהרה (סעיף 135(1)(א)). זו רצפה לבקרה — המועד המחייב הוא זה שכתוב בדרישה.</span></div>
               ) : <Problems problems={r.problems} />}
               <p className="kn-small" style={{ margin: 0 }}>בלי מכתב דרישה אין מועד מחייב. ארכה — לבקשת הנישום, או ארכה כללית שהרשות מפרסמת לתקופה מסוימת (למשל הצהרות 2023–2024 שמועדן חל בין 1.2.2026 ל-29.6.2026 הוארכו עד 30.6.2026). <ClaimTag status="verified" /> ארכה «אוטומטית» קבועה עם הדוח השנתי לא נמצאה. <ClaimTag status="open" /></p>
-              <p className="kn-small" style={{ margin: 0 }}>מועד שחל בשבת או בחג — לא נמצא כלל שדוחה מועד שכתוב במכתב. <ClaimTag status="open" /> הספירה מתאריך הדרישה ולא מיום הקבלה <ClaimTag status="interpretation" />.</p>
+              <p className="kn-small" style={{ margin: 0 }}>בחישוב תקופה חל סעיף 10 לחוק הפרשנות: יום ההתחלה אינו נמנה, וימי מנוחה אינם נכללים כשהם בסוף התקופה. במועד קלנדרי שנקבע בדרישה או בארכה, מאמתים את תחולת הכלל ואת תנאי ההודעה. <ClaimTag status="interpretation" /> הספירה מתאריך הדרישה ולא מיום הקבלה <ClaimTag status="interpretation" />.</p>
             </div>
           </div>
         </Sec>
@@ -139,38 +139,25 @@ export default function WealthBody({ view }: TopicBodyProps) {
           <ul className="kn-small" style={{ margin: 0, paddingInlineStart: 18 }}>
             {WEALTH_PARTS.map(p => <li key={p.id}><strong>{p.title}</strong> <span className="kn-xs kn-muted">שדות {p.fields}</span> — {p.rows.map(r => r.title).join(' · ')}</li>)}
           </ul>
-          <p className="kn-xs kn-muted">מספור השדות במערכת המקוונת (מקוון בלבד מ-1.1.2027) לא נבדק — דורש הזדהות <ClaimTag status="open" />.</p>
+          <p className="kn-xs kn-muted">הסימונים כאן הם לטופס 1219 המצולם. בעת הגשה מקוונת מתאימים לגרסת המסך בפועל ושומרים אישור קליטה; לא מניחים שמספרי השדות במסך זהים לצילום. <ClaimTag status="interpretation" />.</p>
         </Sec>
         <Sec id="wd-think" title="איך חושבים — סדר העבודה">
           <Thinking steps={WEALTH_LESSON.thinking} year={2025} />
         </Sec>
 
-        <Sec id="wd-4" title="איך רושמים">
-          <div className="kn-page" style={{ gap: 6 }}>
-            <p className="kn-small" style={{ margin: 0 }}><strong>כללי:</strong> <RV id="wealth.costBasis" year={2025} /></p>
-            <p className="kn-small" style={{ margin: 0 }}><strong>פרטים מדברי ההסבר:</strong> <RV id="wealth.recordingDetails" year={2025} /></p>
-            <p className="kn-small" style={{ margin: 0 }}><strong>קופות:</strong> <RV id="wealth.funds" year={2025} /> <ClaimTag status="verified" /> «רק חלק העובד» — נוהג בלי מקור רשמי <ClaimTag status="open" /></p>
-            <p className="kn-small" style={{ margin: 0 }}><strong>רכוש קבוע בעסק בלי מאזן:</strong> <RV id="wealth.businessAssets" year={2025} /></p>
-            <p className="kn-small" style={{ margin: 0 }}><strong>מט״ח:</strong> <RV id="wealth.foreignCurrency" year={2025} /> — השער ליתרות בנק: <ClaimTag status="open" /></p>
-            <p className="kn-small" style={{ margin: 0 }}><strong>חובות:</strong> <RV id="wealth.liabilities" year={2025} /></p>
-            <p className="kn-small" style={{ margin: 0 }}><strong>הצהרה קודמת בבסיס אחר:</strong> <RV id="wealth.basisChange" year={2025} /> — הגישור בהשוואה: <ClaimTag status="interpretation" /></p>
-            <p className="kn-small" style={{ margin: 0 }}><strong>ני״ע:</strong> <RV id="wealth.securities" year={2025} /></p>
-            <p className="kn-small" style={{ margin: 0 }}><strong>הגשה:</strong> <RV id="wealth.onlineSystem" year={2025} /> · <strong>מ-2027:</strong> <RV id="wealth.onlineSystem" year={2027} /></p>
-            <p className="kn-small" style={{ margin: 0 }}><strong>מתי «הוגשה»:</strong> <RV id="wealth.filedEvidence" year={2025} /></p>
-          </div>
-        </Sec>
+        <Sec id="wd-4" title="איך רושמים"><p className="kn-small">מתחילים בעלות וביתרות ליום ההצהרה. לכל סוג נתון יש בסיס רישום ואסמכתה; פותחים את הכלל שצריך ושומרים את החישוב בתיק.</p><div className="wealth-recording-groups"><details className="wealth-recording-group" open><summary>עלות ורישום נכסים</summary><div><p className="kn-small" style={{ margin: 0 }}><strong>כללי:</strong> <RV id="wealth.costBasis" year={2025} /></p><p className="kn-small" style={{ margin: 0 }}><strong>פרטים מדברי ההסבר:</strong> <RV id="wealth.recordingDetails" year={2025} /></p><p className="kn-small" style={{ margin: 0 }}><strong>רכוש קבוע בעסק בלי מאזן:</strong> <RV id="wealth.businessAssets" year={2025} /></p><p className="kn-small" style={{ margin: 0 }}><strong>ני״ע:</strong> <RV id="wealth.securities" year={2025} /></p></div></details><details className="wealth-recording-group"><summary>קופות וחיסכון</summary><div><p className="kn-small" style={{ margin: 0 }}><strong>קופות:</strong> <RV id="wealth.funds" year={2025} /> <ClaimTag status="verified" /> «רק חלק העובד» — נוהג בלי מקור רשמי <ClaimTag status="open" /></p></div></details><details className="wealth-recording-group"><summary>יתרות במט״ח</summary><div><p className="kn-small" style={{ margin: 0 }}><strong>מט״ח:</strong> <RV id="wealth.foreignCurrency" year={2025} /> — יתרות ליום ההצהרה: תרגום בשער אותו יום כפרשנות מתועדת, עם סכום המט״ח ופירוט בגישור <ClaimTag status="interpretation" /></p></div></details><details className="wealth-recording-group"><summary>חובות והלוואות</summary><div><p className="kn-small" style={{ margin: 0 }}><strong>חובות:</strong> <RV id="wealth.liabilities" year={2025} /></p></div></details><details className="wealth-recording-group"><summary>מעבר מבסיס של הצהרה קודמת</summary><div><p className="kn-small" style={{ margin: 0 }}><strong>הצהרה קודמת בבסיס אחר:</strong> <RV id="wealth.basisChange" year={2025} /> — הגישור בהשוואה: <ClaimTag status="interpretation" /></p></div></details><details className="wealth-recording-group"><summary>הגשה ואישור קליטה</summary><div><p className="kn-small" style={{ margin: 0 }}><strong>הגשה:</strong> <RV id="wealth.onlineSystem" year={2025} /> · <strong>מ-2027:</strong> <RV id="wealth.onlineSystem" year={2027} /></p><p className="kn-small" style={{ margin: 0 }}><strong>מתי «הוגשה»:</strong> <RV id="wealth.filedEvidence" year={2025} /></p></div></details></div></Sec>
 
-        <Sec id="wd-5" title="השוואת הון">
-          <div className="kn-prose">
-            <p><RV id="wealth.comparison" year={2025} /></p>
-            <p><strong>טבלאות המחיה:</strong> <RV id="wealth.livingTables" year={2023} /></p>
-          </div>
+<Sec id="wd-5" title="השוואת הון">
+          
           <div className="kn-inform">
             <div><b>1. גידול בהון</b><span>הון נטו עכשיו פחות הון נטו בהצהרה הקודמת — אחרי שהקודמת חושבה מחדש לבסיס של הנוכחית. הפרש הבסיס מוצג בנפרד, לא כגידול.</span></div>
             <div><b>2. ועוד שימושים</b><span>מס, ביטוח לאומי, ריבית והצמדה, מתנות שנתת — כסף שיצא ולא נשאר.</span></div>
             <div><b>3. פחות מקורות</b><span>הכנסות שדווחו ותקבולים פטורים. הלוואה אינה מקור.</span></div>
             <div><b>4. מה שנשאר למחיה</b><span>משווים להוצאות המחיה מהטבלה, ועוד שכר דירה, ריבית והצמדה בפועל.</span></div>
-          </div>
+          </div><details className="wealth-method"><summary>העמקה: בסיס ההשוואה וטבלאות המחיה</summary><div className="kn-prose">
+            <p><RV id="wealth.comparison" year={2025} /></p>
+            <p><strong>טבלאות המחיה:</strong> <RV id="wealth.livingTables" year={2023} /></p>
+          </div></details>
           <p className="kn-xs kn-muted" style={{ margin: 0 }}>אין נוסחה רשמית; זה המבנה המעשי מהפסיקה ומהחומרים. <ClaimTag status="interpretation" /> מוסכמת הסימן: כאן חיובי = לא מוסבר (בפתרון של הקורס הסימן הפוך).</p>
           <div className="kn-solves">
             <SolveFirst level="יישום" status="interpretation" title="השוואה בין שתי הצהרות"

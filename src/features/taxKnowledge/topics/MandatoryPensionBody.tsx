@@ -6,7 +6,7 @@
 import { useState } from 'react';
 import { ruleView, num } from '../../taxRules/registry';
 import { pensionTrackA } from '../../taxRules/calc';
-import { RV, fmtNis } from '../RuleBits';
+import { RV } from '../RuleBits';
 import { Sec, Quiz, NumField, type TopicBodyProps, type TocItem } from './shared';
 import { Glossary, Thinking, Mistakes, SolveFirst, ClaimTag, Legend } from './lesson';
 import { MANDATORY_LESSON } from './lessonsMore';
@@ -28,20 +28,23 @@ const pctOf = (id: string, y: number) => `${+(num(id, y) * 100).toFixed(2)}%`;
 function obligation(income: number, half: number, lowRate: number, highRate: number) {
   const lowBase = Math.min(Math.max(income, 0), half);
   const highBase = Math.min(Math.max(income - half, 0), half);
-  const low = Math.round(lowBase * lowRate);
-  const high = Math.round(highBase * highRate);
+  const low = lowBase * lowRate;
+  const high = highBase * highRate;
   return { lowBase, highBase, low, high, total: low + high, above: Math.max(income - 2 * half, 0) };
 }
 const ob = (income: number) => obligation(income, num('pen.mandatory.halfWage', EX_YEAR), num('pen.mandatory.lowRate', EX_YEAR), num('pen.mandatory.highRate', EX_YEAR));
 
 export default function MandatoryPensionBody({ year, view }: TopicBodyProps) {
   const [income, setIncome] = useState(120_000);
+  const [salaryPaid,setSalaryPaid]=useState(0),[selfPaid,setSelfPaid]=useState(0);
+  const money=(n:number)=>n.toLocaleString("he-IL",{style:"currency",currency:"ILS",maximumFractionDigits:2});
   const hv = ruleView('pen.mandatory.halfWage', year);
   const half = typeof hv?.entry?.value === 'number' ? hv.entry.value : 0;
   const lowRate = Number(ruleView('pen.mandatory.lowRate', year)?.entry?.value ?? 0);
   const highRate = Number(ruleView('pen.mandatory.highRate', year)?.entry?.value ?? 0);
   const live = obligation(income, half, lowRate, highRate);
-  const weak = !hv?.exactYear || hv?.entry?.basis !== 'primary' || !ruleView('pen.mandatory.lowRate', year)?.exactYear;
+  const remaining=Math.max(0,live.total-salaryPaid-selfPaid);
+  const weak = !hv?.exactYear || !ruleView('pen.mandatory.lowRate', year)?.exactYear;
   const learn = view !== 'apply';
   const apply = view !== 'learn';
 
@@ -74,58 +77,58 @@ export default function MandatoryPensionBody({ year, view }: TopicBodyProps) {
 
         <Sec id="mp-2" title="כמה חייבים להפקיד">
           <p className="kn-small kn-muted" style={{ margin: 0 }}><RV id="pen.mandatory.rates" year={year} />. מחצית השכר הממוצע: <RV id="pen.mandatory.halfWage" year={year} /> בשנה.</p>
-          <div className="kn-sim">
+          <p className="kn-small kn-muted">מזינים את בסיס ההכנסה לפי החוק, לפני הקיזוזים והניכויים האישיים המפורטים בפרק. החישוב מניח שהחובה חלה; גיל ותקופת הרישום נבדקים בנפרד.</p><div className="kn-sim">
             <NumField id="mp-inc" label="הכנסה חייבת בהפקדה (שנתי)" value={income} onChange={setIncome} max={250_000} step={500} />
-            <div className="kn-page" style={{ gap: 8 }}>
+            <div className="mandatory-paid-fields"><label>הפקדות בשל המשכורת המבוטחת<input type="number" min="0" step="0.01" value={salaryPaid} onChange={e=>setSalaryPaid(Math.max(0,+e.target.value))}/></label><label>הפקדות עצמאיות שכבר שולמו השנה<input type="number" min="0" step="0.01" value={selfPaid} onChange={e=>setSelfPaid(Math.max(0,+e.target.value))}/></label></div><div className="mandatory-remaining" role="status"><span>יתרה להשלמה</span><strong>{money(remaining)}</strong><small>החובה לפי ההכנסה, פחות ההפקדות הרלוונטיות ששולמו. מחשבים ללא עיגול ביניים; התצוגה מעוגלת לאגורות.</small></div><div className="kn-page" style={{ gap: 8 }}>
               <div className="kn-two">
-                <div className="kn-box"><span className="kn-eyebrow">חובה</span><span className="kn-big">{fmtNis(live.total)}</span><span className="kn-xs kn-muted">{fmtNis(live.low)} בשיעור <RV id="pen.mandatory.lowRate" year={year} /> + {fmtNis(live.high)} בשיעור <RV id="pen.mandatory.highRate" year={year} /></span></div>
-                <div className="kn-box"><span className="kn-eyebrow now">בלי חובה</span><span className="kn-big">{fmtNis(live.above)}</span><span className="kn-xs kn-muted">ההכנסה שמעל השכר הממוצע. תקרת ההטבות — ראו «פנסיה לעצמאי».</span></div>
+                <div className="kn-box"><span className="kn-eyebrow">חובה לפני הפקדות</span><span className="kn-big">{money(live.total)}</span><span className="kn-xs kn-muted">{money(live.low)} בשיעור <RV id="pen.mandatory.lowRate" year={year} /> + {money(live.high)} בשיעור <RV id="pen.mandatory.highRate" year={year} /></span></div>
+                <div className="kn-box"><span className="kn-eyebrow now">בלי חובה</span><span className="kn-big">{money(live.above)}</span><span className="kn-xs kn-muted">ההכנסה שמעל השכר הממוצע. תקרת ההטבות — ראו «פנסיה לעצמאי».</span></div>
               </div>
-              {weak && <p className="kn-soft">מחצית השכר הממוצע ל-{year} — חושבה מנתון ב״ל, לא מהמדריך. המחשה בלבד.</p>}
+              {weak && <p className="kn-soft">מחצית השכר הממוצע ל-{year} נגזרת מהשכר הרשמי לפי סעיף 2 לב״ל ומהגדרת החוק. החובה מחושבת לפני הפקדות, והיתרה לאחר ההפקדות שהוזנו. תחולת החובה והחריגים נבדקות בנפרד האישיים.</p>}
             </div>
           </div>
         </Sec>
 
         <Sec id="mp-ex" title="דוגמאות פתורות">
-          <p className="kn-small kn-muted" style={{ margin: 0 }}>מהקל לקשה, לפי ערכי {EX_YEAR} (המדריך הרשמי). מחצית השכר הממוצע: {fmtNis(halfEx)}; השכר הממוצע: {fmtNis(2 * halfEx)}.</p>
+          <p className="kn-small kn-muted" style={{ margin: 0 }}>מהקל לקשה, לפי ערכי {EX_YEAR} (המדריך הרשמי). מחצית השכר הממוצע: {money(halfEx)}; השכר הממוצע: {money(2 * halfEx)}.</p>
           <div className="kn-solves">
             <SolveFirst level="יסוד" status="verified" title="1. הכנסה במדרגה הראשונה"
-              facts={<>עצמאי בן 35, הכנסה שנתית מהעסק {fmtNis(60_000)}.</>}
+              facts={<>עצמאי בן 35, הכנסה שנתית מהעסק {money(60_000)}.</>}
               ask="כמה הוא חייב להפקיד לקצבה?"
               steps={[
-                { label: `כל ההכנסה מתחת ל-${fmtNis(halfEx)}`, value: fmtNis(ex1.lowBase) },
-                { label: `× ${pctOf('pen.mandatory.lowRate', EX_YEAR)}`, value: fmtNis(ex1.low) },
-                { label: 'מדרגה שנייה', value: fmtNis(ex1.high) },
+                { label: `כל ההכנסה מתחת ל-${money(halfEx)}`, value: money(ex1.lowBase) },
+                { label: `× ${pctOf('pen.mandatory.lowRate', EX_YEAR)}`, value: money(ex1.low) },
+                { label: 'מדרגה שנייה', value: money(ex1.high) },
               ]}
-              answer={<>{fmtNis(ex1.total)} בשנה.</>} />
+              answer={<>{money(ex1.total)} בשנה.</>} />
             <SolveFirst level="יישום" status="verified" title="2. הכנסה בשתי המדרגות"
-              facts={<>עצמאית בת 42, הכנסה שנתית {fmtNis(120_000)}.</>}
+              facts={<>עצמאית בת 42, הכנסה שנתית {money(120_000)}.</>}
               ask="כמה היא חייבת להפקיד?"
               steps={[
-                { label: `מדרגה ראשונה: ${fmtNis(ex2.lowBase)} × ${pctOf('pen.mandatory.lowRate', EX_YEAR)}`, value: fmtNis(ex2.low) },
-                { label: `מדרגה שנייה: (120,000 − ${fmtNis(halfEx)}) × ${pctOf('pen.mandatory.highRate', EX_YEAR)}`, value: fmtNis(ex2.high) },
-                { label: 'סה״כ', value: fmtNis(ex2.total) },
+                { label: `מדרגה ראשונה: ${money(ex2.lowBase)} × ${pctOf('pen.mandatory.lowRate', EX_YEAR)}`, value: money(ex2.low) },
+                { label: `מדרגה שנייה: (120,000 − ${money(halfEx)}) × ${pctOf('pen.mandatory.highRate', EX_YEAR)}`, value: money(ex2.high) },
+                { label: 'סה״כ', value: money(ex2.total) },
               ]}
-              answer={<>{fmtNis(ex2.total)} בשנה — לא {pctOf('pen.mandatory.highRate', EX_YEAR)} מכל ההכנסה ({fmtNis(120_000 * num('pen.mandatory.highRate', EX_YEAR))}).</>} />
+              answer={<>{money(ex2.total)} בשנה — לא {pctOf('pen.mandatory.highRate', EX_YEAR)} מכל ההכנסה ({money(120_000 * num('pen.mandatory.highRate', EX_YEAR))}).</>} />
             <SolveFirst level="מתקדם" status="verified" title="3. הכנסה מעל השכר הממוצע"
-              facts={<>עצמאי בן 50, הכנסה שנתית {fmtNis(200_000)}.</>}
+              facts={<>עצמאי בן 50, הכנסה שנתית {money(200_000)}.</>}
               ask="על איזה חלק מההכנסה יש חובה, וכמה?"
               steps={[
-                { label: 'מדרגה ראשונה (עד מחצית השכר הממוצע)', value: fmtNis(ex3.low) },
-                { label: `מדרגה שנייה — רק עד השכר הממוצע (${fmtNis(ex3.highBase)})`, value: fmtNis(ex3.high) },
-                { label: `מעל ${fmtNis(2 * halfEx)} — בלי חובה`, value: fmtNis(ex3.above) },
+                { label: 'מדרגה ראשונה (עד מחצית השכר הממוצע)', value: money(ex3.low) },
+                { label: `מדרגה שנייה — רק עד השכר הממוצע (${money(ex3.highBase)})`, value: money(ex3.high) },
+                { label: `מעל ${money(2 * halfEx)} — בלי חובה`, value: money(ex3.above) },
               ]}
-              answer={<>{fmtNis(ex3.total)} בשנה. זה גם הסכום המרבי של החובה ב-{EX_YEAR}, לכל הכנסה גבוהה יותר.</>} />
+              answer={<>{money(ex3.total)} בשנה. זה גם הסכום המרבי של החובה ב-{EX_YEAR}, לכל הכנסה גבוהה יותר.</>} />
             {ex4 && <SolveFirst level="מתקדם" status="verified" title="4. החובה מול הטבת המס"
-              facts={<>העצמאית מדוגמה 2: בלי משכורת, מתחת לגיל 50, לא עמית מוטבת. היא הפקידה בדיוק את החובה — {fmtNis(ex2.total)}.</>}
+              facts={<>העצמאית מדוגמה 2: בלי משכורת, מתחת לגיל 50, לא עמית מוטבת. היא הפקידה בדיוק את החובה — {money(ex2.total)}.</>}
               ask="כמה מההפקדה מנוכה, וכמה עובר לזיכוי? האם «מיצתה את ההטבה»?"
               steps={[
-                { label: `מסלול א׳: ניכוי בסיסי ${pctOf('pen.trackA.baseRate', EX_YEAR)} × 120,000`, value: fmtNis(ex4.baseDeduction) },
-                { label: `תוספת: ההפקדה לא עולה על ${pctOf('pen.trackA.extraThreshold', EX_YEAR)} מההכנסה`, value: fmtNis(ex4.extraDeduction) },
-                { label: 'ניכוי', value: fmtNis(ex4.deduction) },
-                { label: 'עובר לחישוב הזיכוי', value: fmtNis(ex4.toCredit) },
+                { label: `מסלול א׳: ניכוי בסיסי ${pctOf('pen.trackA.baseRate', EX_YEAR)} × 120,000`, value: money(ex4.baseDeduction) },
+                { label: `תוספת: ההפקדה לא עולה על ${pctOf('pen.trackA.extraThreshold', EX_YEAR)} מההכנסה`, value: money(ex4.extraDeduction) },
+                { label: 'ניכוי', value: money(ex4.deduction) },
+                { label: 'עובר לחישוב הזיכוי', value: money(ex4.toCredit) },
               ]}
-              answer={<>ניכוי {fmtNis(ex4.deduction)}, ו-{fmtNis(ex4.toCredit)} לזיכוי. היא <strong>לא</strong> מיצתה את ההטבה: הפקדה גבוהה מ-{pctOf('pen.trackA.extraThreshold', EX_YEAR)} מההכנסה הייתה מזכה בתוספת ניכוי.</>}
+              answer={<>ניכוי {money(ex4.deduction)}, ו-{money(ex4.toCredit)} לזיכוי. היא <strong>לא</strong> מיצתה את ההטבה: הפקדה גבוהה מ-{pctOf('pen.trackA.extraThreshold', EX_YEAR)} מההכנסה הייתה מזכה בתוספת ניכוי.</>}
               note="החישוב לפי נושא «פנסיה לעצמאי» (מסלול א׳, מדריך 2025). תקרת הזיכוי לא מחושבת כאן." />}
           </div>
         </Sec>
@@ -133,9 +136,9 @@ export default function MandatoryPensionBody({ year, view }: TopicBodyProps) {
         <Sec id="mp-3" title="מי חייב, מי פטור, ומה אם לא מפקידים">
           <div className="kn-two">
             <div className="kn-box"><strong>גיל <ClaimTag status="verified" /></strong><span className="kn-small">מגיל 21 ועד גיל פרישה מוקדמת. מי שמלאו לו 55 ביום 1.1.2017 — פטור.</span></div>
-            <div className="kn-box"><strong>הפקדות כשכיר <ClaimTag status="open" /></strong><span className="kn-small">«הפקדות כשכיר מנוכות מהחובה», «פטור מלא כשההפקדה כשכיר מגיעה לסכום מסוים» — טענות במסמכי המשרד, לא נבדקו במקור רשמי.</span></div>
+            <div className="kn-box"><strong>הפקדות כשכיר <ClaimTag status="verified" /></strong><span className="kn-small">סעיף 3(ב): הפקדות בשל ההכנסה המבוטחת מקטינות את החובה מהעסק. אין סכום פטור אחיד; אם הפקדות השכיר מכסות את החובה האישית, אין צורך בהשלמה כעצמאי.</span></div>
             <div className="kn-box"><strong>קנס <ClaimTag status="verified" /></strong><span className="kn-small"><RV id="pen.mandatory.fine" year={EX_YEAR} /> (מדריך 2025), אחרי התראה שלא נענתה. צמוד למדד לפי החוק.</span></div>
-            <div className="kn-box"><strong>סכום מעודכן ואכיפה <ClaimTag status="open" /></strong><span className="kn-small">הודעה על הקנס המוצמד ל-2025 ול-2026 לא נמצאה. היקף האכיפה בפועל — לא אומת.</span></div>
+            <div className="kn-box"><strong>סכום מעודכן ואכיפה <ClaimTag status="interpretation" /></strong><span className="kn-small">בתיק עובדים לפי הסכום והמועד שבהתראה. 500 ₪ הוא סכום הבסיס בחוק; הסכום המוצמד ל-2025/2026 והיקף האכיפה בפועל לא אומתו.</span></div>
           </div>
         </Sec>
 
@@ -147,9 +150,9 @@ export default function MandatoryPensionBody({ year, view }: TopicBodyProps) {
           <Quiz items={[
             { level: 'יסוד', q: 'פנסיית חובה וקרן השתלמות — האם הפקדה לקרן השתלמות נספרת לחובה?', options: [{ text: 'כן', right: false }, { text: 'לא — החובה היא לקופת גמל לקצבה', right: true }], why: 'החובה היא להפקיד לקצבה.' },
             { level: 'יסוד', q: 'עצמאי בן 20. האם החובה חלה עליו?', options: [{ text: 'כן', right: false }, { text: 'לא — היא מתחילה בגיל 21', right: true }], why: 'החובה מגיל 21 ועד גיל פרישה מוקדמת.' },
-            { level: 'יישום', q: `הכנסה ${fmtNis(100_000)} ב-${EX_YEAR}. איזה חישוב נכון?`, options: [{ text: `${pctOf('pen.mandatory.highRate', EX_YEAR)} × 100,000`, right: false }, { text: `${pctOf('pen.mandatory.lowRate', EX_YEAR)} עד ${fmtNis(halfEx)}, ו-${pctOf('pen.mandatory.highRate', EX_YEAR)} על השאר`, right: true }], why: `שתי מדרגות. כאן: ${fmtNis(ob(100_000).total)}.` },
+            { level: 'יישום', q: `הכנסה ${money(100_000)} ב-${EX_YEAR}. איזה חישוב נכון?`, options: [{ text: `${pctOf('pen.mandatory.highRate', EX_YEAR)} × 100,000`, right: false }, { text: `${pctOf('pen.mandatory.lowRate', EX_YEAR)} עד ${money(halfEx)}, ו-${pctOf('pen.mandatory.highRate', EX_YEAR)} על השאר`, right: true }], why: `שתי מדרגות. כאן: ${money(ob(100_000).total)}.` },
             { level: 'יישום', q: 'לקוח הפקיד את מלוא החובה. האם קיבל את מלוא הטבת המס?', options: [{ text: 'כן', right: false }, { text: 'לא בהכרח — תקרת ההטבה היא חישוב אחר', right: true }], why: 'ראו דוגמה 4: בהכנסה של 120,000 החובה נמוכה מסף התוספת בניכוי.' },
-            { level: 'מתקדם', q: 'לקוחה שכירה־עצמאית: המעביד מפקיד לה לפנסיה. האם מקזזים את זה מהחובה כעצמאית?', options: [{ text: 'כן, זה הכלל', right: false }, { text: 'לא הוכרע — מציגים את שני המספרים ולא מקזזים', right: true }], why: 'הקיזוז הוא טענה במסמכי המשרד שלא נבדקה במקור רשמי.' },
+            { level: 'מתקדם', q: 'החובה מהעסק היא 8,000 ₪; הפקדות בשל השכר המבוטח הן 5,000 ₪; כבר שולמו כעצמאית 1,000 ₪. כמה נותר להשלים?', options: [{ text: '2,000 ₪', right: true }, { text: '7,000 ₪ — מתעלמים מהפקדות השכיר', right: false }], why: 'לפי סעיף 3(ב), מפחיתים את הפקדות השכיר; אחר כך את ההפקדה העצמאית שכבר שולמה. 8,000 פחות 5,000 פחות 1,000 = 2,000.' },
           ]} />
         </Sec>
       </>}
@@ -159,13 +162,13 @@ export default function MandatoryPensionBody({ year, view }: TopicBodyProps) {
           <div className="kn-inform">
             <div><b>בדוח השנתי</b><span>אין שדה לחובה עצמה. ההפקדה נרשמת בסעיפי הפנסיה (ניכוי וזיכוי) — ראו «פנסיה לעצמאי».</span></div>
             <div><b>בשאלון ללקוח</b><span>תאריך לידה, הכנסה צפויה מהעסק, אישור שנתי מכל קופה לקצבה, והאם יש גם משכורת.</span></div>
-            <div><b>בחישוב</b><span>החובה מחושבת לפי מחצית השכר הממוצע של השנה. ב-2026 הנתון נגזר — המחשה בלבד. קיזוז הפקדות כשכיר — לא.</span></div>
+            <div><b>בחישוב</b><span>החובה מחושבת לפי מחצית השכר הממוצע של השנה. הבסיס לשנה שנבחרה: <RV id="pen.mandatory.halfWage" year={year} /> (נגזר מהשכר הממוצע ומהגדרת החוק; שונה בין 2025 ל־2026). המחשבון מציג גם חובה לפני הפקדות וגם יתרה להשלמה; מפחיתים הפקדות שכיר לפי סעיף 3(ב).</span></div>
           </div>
           <ol className="kn-small kn-steps">
             <li>לבדוק שהחובה חלה: גיל 21 ומעלה, לפני גיל פרישה מוקדמת, ולא מי שמלאו לו 55 ביום 1.1.2017.</li>
             <li>לחשב את החובה לפי ההכנסה הצפויה מהעסק, בשתי המדרגות.</li>
             <li>לבקש מהלקוח את האישור השנתי מהקופה, ולהשוות את ההפקדות כעצמאי לחובה.</li>
-            <li>אם יש גם משכורת — להציג את ההפקדות כשכיר בנפרד, בלי לקזז, ולסמן שהשאלה פתוחה.</li>
+            <li>אם יש משכורת — לרכז הפקדות בשל ההכנסה המבוטחת ולהפחיתן מהחובה לפי סעיף 3(ב); להשלים רק את היתרה החיובית אחרי הפקדות עצמאיות שכבר שולמו.</li>
             <li>בנפרד מהחובה: לבדוק אם כדאי להפקיד יותר בגלל הטבת המס, לפי נושא «פנסיה לעצמאי».</li>
             <li>לומר ללקוח מה חובה ומה כדאי — שני משפטים נפרדים.</li>
           </ol>

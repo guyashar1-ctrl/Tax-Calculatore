@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { TaxYearData, Gender } from '../../types';
 import {
   calcCreditPointsV2,
@@ -61,15 +61,15 @@ export default function CreditPointsWizard({ taxData, year }: Props) {
   const [paysAlimonyToEx, setPaysAlimonyToEx] = useState(false);
   // שירות
   const [serviceKind, setServiceKind] = useState<'military' | 'national'>('military');
-  const [serviceMonths, setServiceMonths] = useState(32);
-  const [releaseYear, setReleaseYear] = useState(year - 1);
+  const [serviceMonths, setServiceMonths] = useState(0);
+  const [releaseYear, setReleaseYear] = useState(0);
   const [releaseMonth, setReleaseMonth] = useState(1);
   // מילואים
   const [reserveDays, setReserveDays] = useState(0);
   // תארים
   const [degrees, setDegrees] = useState<(DegreeInfo & { key: number })[]>([]);
   // עלייה
-  const [aliyahYear, setAliyahYear] = useState(year - 1);
+  const [aliyahYear, setAliyahYear] = useState(0);
   const [aliyahMonth, setAliyahMonth] = useState(1);
   // נכות
   const [disabilityQualifies, setDisabilityQualifies] = useState(false);
@@ -80,6 +80,7 @@ export default function CreditPointsWizard({ taxData, year }: Props) {
   const [settlement, setSettlement] = useState<EligibleSettlement | null>(null);
   // בן/בת זוג
   const [spouseEligible, setSpouseEligible] = useState(false);
+  useEffect(() => { setSettlement(null); setSettlementQuery(''); }, [year]);
 
   const toggleCard = (key: CardKey) => {
     setActive(prev => {
@@ -89,17 +90,17 @@ export default function CreditPointsWizard({ taxData, year }: Props) {
       return next;
     });
     if (key === 'children' && children.length === 0) {
-      setChildren([{ key: ++childSeq, birthYear: year - 4 }]);
+      setChildren([{ key: ++childSeq, birthYear: NaN }]);
     }
     if (key === 'degree' && degrees.length === 0) {
-      setDegrees([{ key: ++childSeq, kind: 'bachelor', endYear: year - 1, studyYears: 3 }]);
+      setDegrees([{ key: ++childSeq, kind: 'bachelor', endYear: NaN, studyYears: 3 }]);
     }
   };
 
   const profile: CreditProfile = useMemo(() => ({
     year,
     gender,
-    children: active.has('children') ? children : [],
+    children: active.has('children') ? children.filter(c => ((x:number)=>Number.isFinite(x)&&x>1900)(c.birthYear)) : [],
     parentRole: parentRole === 'auto'
       ? (gender === 'female' ? 'allowanceParent' : 'otherParent')
       : parentRole,
@@ -109,11 +110,11 @@ export default function CreditPointsWizard({ taxData, year }: Props) {
     custodialSeparatedParent: active.has('family') && custodialSeparated,
     paysAlimonyToEx: active.has('family') && paysAlimonyToEx,
     service: active.has('service')
-      ? { kind: serviceKind, months: serviceMonths, releaseYear, releaseMonth }
+      && serviceMonths > 0 && ((x:number)=>Number.isFinite(x)&&x>1900)(releaseYear) ? { kind: serviceKind, months: serviceMonths, releaseYear, releaseMonth }
       : undefined,
     reserveCombatDaysPrevYear: active.has('reserve') ? reserveDays : undefined,
-    degrees: active.has('degree') ? degrees : [],
-    isNewImmigrant: active.has('immigrant'),
+    degrees: active.has('degree') ? degrees.filter(d => ((x:number)=>Number.isFinite(x)&&x>1900)(d.endYear)) : [],
+    isNewImmigrant: active.has('immigrant') && ((x:number)=>Number.isFinite(x)&&x>1900)(aliyahYear),
     aliyahYear: active.has('immigrant') ? aliyahYear : undefined,
     aliyahMonth: active.has('immigrant') ? aliyahMonth : undefined,
     qualifiesForDisabilityExemption: active.has('disability') && disabilityQualifies,
@@ -133,17 +134,18 @@ export default function CreditPointsWizard({ taxData, year }: Props) {
     [profile, taxData.creditPointValue],
   );
 
+  const settlementSourceConflict=active.has("settlement")&&year===2026&&!!settlement&&["יושיביה","צאלים"].includes(settlement.name)&&annualIncome>180000;
   const settlementResult = useMemo(() => {
-    if (!active.has('settlement') || !settlement) return null;
+    if (!active.has('settlement') || !settlement || settlementSourceConflict) return null;
     return calcSettlementCredit(
       settlement.ratePercent, settlement.ceilingAnnual,
       annualIncome, settlement.name,
     );
-  }, [active, settlement, annualIncome]);
+  }, [active, settlement, annualIncome, settlementSourceConflict]);
 
   // מס משוער לניתוח ניצול (אם הוזנה הכנסה)
   const taxAnalysis = useMemo(() => {
-    if (annualIncome <= 0) return null;
+    if (annualIncome <= 0 || result.disabilityExemption?.eligible || settlementSourceConflict) return null;
     let remaining = annualIncome, tax = 0, prev = 0;
     for (const b of taxData.incomeTaxBrackets) {
       if (remaining <= 0) break;
@@ -158,7 +160,7 @@ export default function CreditPointsWizard({ taxData, year }: Props) {
     const credits = result.totalValueNIS + (settlementResult?.credit ?? 0);
     const final = Math.max(0, tax - credits) + surtax;
     return { taxBefore: tax, credits, final, unused: Math.max(0, credits - tax) };
-  }, [annualIncome, taxData, result, settlementResult]);
+  }, [annualIncome, taxData, result, settlementResult, settlementSourceConflict]);
 
   const secStyle: React.CSSProperties = { borderTop: '1px solid var(--gray-100)', paddingTop: '1rem', marginTop: '1rem' };
   const secTitle: React.CSSProperties = { fontWeight: 600, fontSize: '15px', marginBottom: '.6rem' };
@@ -236,7 +238,7 @@ export default function CreditPointsWizard({ taxData, year }: Props) {
                 <div key={c.key} style={{ display: 'flex', gap: '.6rem', alignItems: 'flex-end', flexWrap: 'wrap', marginBottom: '.5rem' }}>
                   <div className="form-group" style={{ marginBottom: 0 }}>
                     <label>שנת לידה - ילד/ה {i + 1}</label>
-                    <input type="number" min={year - 19} max={year} value={c.birthYear}
+                    <input type="number" min={year - 19} max={year} value={Number.isFinite(c.birthYear) ? c.birthYear : ''} placeholder="שנת לידה"
                       onChange={e => setChildren(arr => arr.map(x => x.key === c.key ? { ...x, birthYear: +e.target.value } : x))}
                       style={{ width: 110 }} />
                   </div>
@@ -250,7 +252,7 @@ export default function CreditPointsWizard({ taxData, year }: Props) {
                 </div>
               ))}
               <button type="button" className="btn btn-secondary"
-                onClick={() => setChildren(arr => [...arr, { key: ++childSeq, birthYear: year }])}>
+                onClick={() => setChildren(arr => [...arr, { key: ++childSeq, birthYear: NaN }])}>
                 + הוספת ילד/ה
               </button>
               {children.some(c => year - c.birthYear === 1) && (
@@ -297,11 +299,11 @@ export default function CreditPointsWizard({ taxData, year }: Props) {
                 </div>
                 <div className="form-group" style={{ marginBottom: 0 }}>
                   <label>חודשי שירות</label>
-                  <input type="number" min={0} max={60} value={serviceMonths} onChange={e => setServiceMonths(+e.target.value)} style={{ width: 90 }} />
+                  <input type="number" min={0} max={60} value={serviceMonths || ''} placeholder="חודשים" onChange={e => setServiceMonths(+e.target.value)} style={{ width: 90 }} />
                 </div>
                 <div className="form-group" style={{ marginBottom: 0 }}>
                   <label>שנת שחרור</label>
-                  <input type="number" min={year - 4} max={year} value={releaseYear} onChange={e => setReleaseYear(+e.target.value)} style={{ width: 100 }} />
+                  <input type="number" min={year - 4} max={year} value={releaseYear || ''} placeholder="שנה" onChange={e => setReleaseYear(+e.target.value)} style={{ width: 100 }} />
                 </div>
                 <div className="form-group" style={{ marginBottom: 0 }}>
                   <label>חודש שחרור</label>
@@ -346,7 +348,7 @@ export default function CreditPointsWizard({ taxData, year }: Props) {
                   </div>
                   <div className="form-group" style={{ marginBottom: 0 }}>
                     <label>שנת סיום</label>
-                    <input type="number" min={2010} max={year} value={d.endYear} style={{ width: 100 }}
+                    <input type="number" min={2010} max={year} value={Number.isFinite(d.endYear) ? d.endYear : ''} placeholder="שנת סיום" style={{ width: 100 }}
                       onChange={e => setDegrees(arr => arr.map(x => x.key === d.key ? { ...x, endYear: +e.target.value } : x))} />
                   </div>
                   {(d.kind === 'bachelor' || d.kind === 'vocational') && d.endYear >= 2023 && (
@@ -361,7 +363,7 @@ export default function CreditPointsWizard({ taxData, year }: Props) {
                 </div>
               ))}
               <button type="button" className="btn btn-secondary"
-                onClick={() => setDegrees(arr => [...arr, { key: ++childSeq, kind: 'bachelor', endYear: year - 1, studyYears: 3 }])}>
+                onClick={() => setDegrees(arr => [...arr, { key: ++childSeq, kind: 'bachelor', endYear: NaN, studyYears: 3 }])}>
                 + הוספת תואר/תעודה
               </button>
               <div style={{ fontSize: '13px', color: 'var(--gray-500)', marginTop: '.4rem' }}>
@@ -379,7 +381,7 @@ export default function CreditPointsWizard({ taxData, year }: Props) {
               <div style={{ display: 'flex', gap: '.75rem', flexWrap: 'wrap' }}>
                 <div className="form-group" style={{ marginBottom: 0 }}>
                   <label>שנת עלייה</label>
-                  <input type="number" min={year - 6} max={year} value={aliyahYear} onChange={e => setAliyahYear(+e.target.value)} style={{ width: 100 }} />
+                  <input type="number" min={year - 6} max={year} value={aliyahYear || ''} placeholder="שנת עלייה" onChange={e => setAliyahYear(+e.target.value)} style={{ width: 100 }} />
                 </div>
                 <div className="form-group" style={{ marginBottom: 0 }}>
                   <label>חודש עלייה</label>
@@ -438,7 +440,7 @@ export default function CreditPointsWizard({ taxData, year }: Props) {
                         style={{ padding: '.45rem .75rem', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--gray-100)' }}>
                         <span>{s.name}</span>
                         <span style={{ color: 'var(--green-dark)', fontWeight: 600, fontSize: '13px' }}>
-                          {s.ratePercent}% עד {fmt(s.ceilingAnnual)}
+                          {(year===2026&&["יושיביה","צאלים"].includes(s.name))?'14% · תקרה במחלוקת':<>{s.ratePercent}% עד {fmt(s.ceilingAnnual)}</>}
                         </span>
                       </div>
                     ))}
@@ -452,7 +454,7 @@ export default function CreditPointsWizard({ taxData, year }: Props) {
               </div>
               {settlement && (
                 <div className="alert alert-info" style={{ fontSize: '13px', marginBottom: 0 }}>
-                  {settlement.name}: זיכוי <strong>{settlement.ratePercent}%</strong> מההכנסה מיגיעה אישית, עד תקרה <strong>{fmt(settlement.ceilingAnnual)}</strong> לשנה.
+                  {settlementSourceConflict?<>{settlement.name}: קיים פער בין מקורות; פירוט בסיכום למטה. החישוב נעצר.</>:<>{settlement.name}: זיכוי <strong>{settlement.ratePercent}%</strong> מההכנסה מיגיעה אישית, עד תקרה <strong>{fmt(settlement.ceilingAnnual)}</strong> לשנה.</>}
                   {annualIncome <= 0 && ' הזינו הכנסה שנתית למעלה כדי לראות את שווי הזיכוי.'}
                 </div>
               )}
@@ -505,9 +507,10 @@ export default function CreditPointsWizard({ taxData, year }: Props) {
               ))}
             </div>
 
+            {settlementSourceConflict&&<p className="kn-soft" role="status">ליושיביה ולצאלים יש פער בין חוברת 2026 (14% עד 213,240 ₪) לבין חלופות החוק: 12% עד 213,240 ₪ במסלול הרגיל, או 14% עד 180,000 ₪ במסלול התקומה, בבחירה בין הטבות. מעל 180,000 ₪ לא מוצג כאן זיכוי או מס לתשלום עד בירור הפער. <a href="https://www.capitax.co.il/Attachments/31032026-1.pdf" target="_blank" rel="noreferrer">החוק — עמ׳466</a></p>}
             {settlementResult && (
               <div style={{ marginTop: '.6rem', padding: '.5rem .7rem', background: 'var(--green-light, var(--chip-green-bg))', borderRadius: 8, fontSize: '13px' }}>
-                <strong>+ זיכוי יישוב מוטב: {fmt(settlementResult.credit)}</strong>
+                <strong>+ זיכוי לפי הכנסה, לפני הגבלה למס: {fmt(settlementResult.credit)}</strong>
                 <div style={{ fontSize: '12px', color: 'var(--gray-600)', marginTop: '.2rem' }}>{settlementResult.explanation}</div>
               </div>
             )}
@@ -518,6 +521,7 @@ export default function CreditPointsWizard({ taxData, year }: Props) {
               </div>
             )}
 
+            {result.disabilityExemption?.eligible && annualIncome > 0 && <p className="kn-soft" role="status">לא מוצג מס לתשלום עם פטור 9(5). נדרש חישוב פרטני לפי אישור הנכות, תאריכי התחולה, סוגי ההכנסה והתקרות. הסכומים לעיל הם תקרות שנתיות, ולא פטור מחושב להכנסה שהוזנה.</p>}
             {taxAnalysis && (
               <div style={{ marginTop: '.75rem', borderTop: '2px solid var(--gray-100)', paddingTop: '.6rem', fontSize: '14px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
@@ -527,7 +531,7 @@ export default function CreditPointsWizard({ taxData, year }: Props) {
                   <span>סך זיכויים:</span><strong>−{fmt(Math.min(taxAnalysis.credits, taxAnalysis.taxBefore))}</strong>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 600, fontSize: '15px' }}>
-                  <span>מס לתשלום:</span><span>{fmt(taxAnalysis.final)}</span>
+                  <span>אומדן מס על ההכנסה שהוזנה:</span><span>{fmt(taxAnalysis.final)}</span>
                 </div>
                 {taxAnalysis.unused > 0 && (
                   <div style={{ marginTop: '.4rem', fontSize: '12px', color: 'var(--warn)' }}>

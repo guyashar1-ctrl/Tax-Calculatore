@@ -1,4 +1,6 @@
-// ─── «ידע מקצועי» — קודם השאלה, אחר כך התשובה (21.10.2026) ───────────────────────────
+// ─── «ידע מקצועי» — הספרייה, עם החיפוש בראשה (25.10.2026; קודם: «קודם השאלה», 21.10) ─────────────
+// ‼ החלטת גיא (25.10): הבית של «ידע מקצועי» הוא הספרייה — להתחיל מכאן, המחברות לפי תחום, כלים ונתונים. בחיפוש — נושאים
+//   וכלים קודם, אחריהם סעיפים בטפסים לפי קוד או שם, ואז הכללים והערכים.
 // ‼ הצעה מאושרת: docs/proposals/2026-10-21-tax-area-reimagined.html. גיא: «כמה שפחות מילים — החוויה מסבירה».
 // ‼ בזמן ההקלדה — «מה כתוב אצלנו» מיד (localSearch, בלי רשת). Enter — תשובה מנוסחת מהשרת, רק מכללים, עם הכללים.
 //   התשובה עולה כסף — לכן רק בלחיצה, לא בכל הקשה. אין תשובה ⇒ אומרים את זה, והשאלה נכנסת לעדכון הבא.
@@ -9,7 +11,8 @@ import Modal from '../../../components/ui/Modal';
 import { useToast } from '../../../components/ui/Toast';
 import { ClaimTag, CLAIM_LABEL } from '../claim';
 import type { KnowledgeRule } from '../corpus/types';
-import { DOMAINS, DOMAIN_BY_ID, type AreaPath } from '../../taxArea/areaModel';
+import { DOMAINS, DOMAIN_BY_ID, type AreaPath, type DomainId } from '../../taxArea/areaModel';
+import { findFields } from '../formMap/model';
 import { searchValues } from '../domainValues';
 import { RULESET_VERSION } from '../../taxRules/registry';
 import { searchRules } from './localSearch';
@@ -19,7 +22,26 @@ import { addInbox, askQuestion, listInbox, logQuestion, openQuestions, removeInb
 import { buildUpdatePrompt } from './updatePrompt';
 import './ask.css';
 
-const EXAMPLES = ['קרן השתלמות לעוסק זעיר', 'תקרת עסק זעיר 2026', 'פנסיה וקרן השתלמות בעסק זעיר — דוח מלא או מקוצר?'];
+/** «להתחיל מכאן» — מה שפותחים הכי הרבה בעבודה השוטפת. */
+const START: { label: string; to: AreaPath }[] = [
+  { label: 'הדוח השנתי — סעיף אחר סעיף', to: { mode: 'learn', domain: 'annual' } },
+  { label: 'לוח מועדים', to: { mode: 'learn', domain: 'reference', item: 'deadlines' } },
+  { label: 'הוצאות מוכרות', to: { mode: 'learn', domain: 'business', item: 'expenses' } },
+  { label: 'ניהול ספרים', to: { mode: 'learn', domain: 'business', item: 'bookkeeping' } },
+  { label: 'הצהרת הון', to: { mode: 'learn', domain: 'wealth' } },
+];
+// ‼ צורות עבריות: «בפנסיה», «והשתלמות», «הוצאות» ⇐ אותו נושא. תחילית אחת וסיומת רבים — לא גזירה מלאה
+const stems = (w: string) => {
+  const out = new Set([w]);
+  if (w.length >= 4 && /^[הובלמכ]/.test(w)) out.add(w.slice(1));
+  for (const x of [...out]) if (x.length >= 5 && /(ות|ים)$/.test(x)) out.add(x.slice(0, -2));
+  return [...out];
+};
+const matchesAll = (hay: string, q: string) => {
+  const words = q.split(/\s+/).filter(w => w.length >= 2 && !/^20\d\d$/.test(w));
+  return words.length > 0 && words.every(w => stems(w).some(s => hay.includes(s)));
+};
+const formDomainOf = (slug: string): DomainId => (slug === '1219' ? 'wealth' : 'annual');
 const MARK: Record<'yes' | 'no' | 'info', string> = { yes: '✓', no: '✕', info: 'i' };
 
 let corpusPromise: Promise<KnowledgeRule[]> | null = null;
@@ -51,6 +73,13 @@ export default function AskHome({ onGo, onOpenTopic, moved }: Props) {
   const typing = q.trim();
   const hits = useMemo(() => (typing && rules.length ? searchRules(rules, typing, 6) : []), [rules, typing]);
   const valueHits = useMemo(() => (typing ? searchValues(typing.split(/\s+/)).slice(0, 4) : []), [typing]);
+  // נושאים וכלים קודם — שם הפריט, מטרתו ושם התחום
+  const itemHits = useMemo(() => (typing.length >= 2 ? DOMAINS.flatMap(d => d.items.filter(i => matchesAll(`${i.label} ${i.purpose} ${d.label}`, typing)).map(i => ({ d, i }))).slice(0, 6) : []), [typing]);
+  const fieldHits = useMemo(() => {
+    if (typing.length < 2 && !/^\d+$/.test(typing)) return [];
+    const seen = new Set<string>();
+    return findFields(typing, 12).filter(h => { const k = `${h.slug}.${h.field.key}`; if (seen.has(k)) return false; seen.add(k); return true; }).slice(0, 4);
+  }, [typing]);
   const active = !!typing || !!asked;
 
   async function ask(text: string) {
@@ -86,17 +115,17 @@ export default function AskHome({ onGo, onOpenTopic, moved }: Props) {
   return (
     <div className={`ak${active ? ' is-active' : ''}`} data-ask-home>
       <div className="ak-hero">
-        <h2 className="ak-h">מה תרצה לדעת?</h2>
+        <h2 className="ak-h">ספריית הידע</h2>
         <form className="ak-ask" role="search" onSubmit={e => { e.preventDefault(); void ask(q); }}>
           <svg className="ak-ask-ic" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" strokeWidth="2" /><path d="m20 20-3.5-3.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
-          <input ref={inputRef} value={q} onChange={e => setQ(e.target.value)} placeholder="שאל במילים שלך" aria-label="שאלה מקצועית" enterKeyHint="search" autoComplete="off" data-ask-input />
+          <input ref={inputRef} value={q} onChange={e => setQ(e.target.value)} placeholder="נושא, שאלה או קוד בטופס" aria-label="חיפוש בידע המקצועי" enterKeyHint="search" autoComplete="off" data-ask-input />
           {q && <button type="button" className="ak-clear" onClick={clear} aria-label="ניקוי">✕</button>}
           {AVAILABLE.askAi && <button type="submit" className="ak-go" disabled={q.trim().length < 2} aria-label="קבל תשובה" data-ask-go>
             <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M19 12H5m6-6-6 6 6 6" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" /></svg>
           </button>}
         </form>
         {!active && (
-          <div className="ak-tries">{EXAMPLES.map(x => <button key={x} type="button" onClick={() => void ask(x)} data-ask-example>{x}</button>)}</div>
+          <nav className="ak-tries" aria-label="להתחיל מכאן">{START.map(x => <button key={x.label} type="button" onClick={() => onGo(x.to)} data-ask-start>{x.label}</button>)}</nav>
         )}
       </div>
 
@@ -153,6 +182,37 @@ export default function AskHome({ onGo, onOpenTopic, moved }: Props) {
             </div>
           )}
 
+          {(itemHits.length > 0 || fieldHits.length > 0) && (!answer?.answerable || stale) && (
+            <section className="ak-local" aria-label="נושאים, כלים וסעיפים">
+              {itemHits.length > 0 && <>
+                <h4 className="ak-sub">נושאים וכלים</h4>
+                <ul className="ak-list">
+                  {itemHits.map(({ d, i }) => (
+                    <li key={i.id}>
+                      <button type="button" onClick={() => onGo({ mode: 'learn', domain: d.id, item: i.id })} data-ask-item={i.id}>
+                        <span className="ak-hit-t">{i.label}</span>
+                        <span className="ak-hit-w">{i.kind === 'topic' ? 'מסלול לימוד' : 'כלי'} · {d.label}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </>}
+              {fieldHits.length > 0 && <>
+                <h4 className="ak-sub">סעיפים בטפסים</h4>
+                <ul className="ak-list">
+                  {fieldHits.map(h => (
+                    <li key={`${h.slug}.${h.field.key}`}>
+                      <button type="button" onClick={() => onGo(h.code ? { mode: 'learn', domain: formDomainOf(h.slug), code: h.code } : { mode: 'learn', domain: formDomainOf(h.slug) })} data-ask-field={`${h.slug}:${h.code || h.field.key}`}>
+                        <span className="ak-hit-t">{h.field.label}</span>
+                        <span className="ak-hit-w">טופס {h.formId}{h.code ? <> · קוד <bdi>{h.code}</bdi></> : null}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </>}
+            </section>
+          )}
+
           {(hits.length > 0 || valueHits.length > 0) && (!answer?.answerable || stale) && (
             <section className="ak-local" aria-label="מה כתוב אצלנו">
               <h4 className="ak-sub">אצלנו בידע</h4>
@@ -177,22 +237,29 @@ export default function AskHome({ onGo, onOpenTopic, moved }: Props) {
               {AVAILABLE.askAi && (!asked || stale) ? <p className="ak-hint">Enter — לתשובה מנוסחת</p> : null}
             </section>
           )}
-          {typing && !hits.length && !valueHits.length && rules.length > 0 && (!asked || stale) && <p className="ak-hint">{AVAILABLE.askAi ? 'Enter — לתשובה מנוסחת מכל הכללים' : 'לא נמצא אצלנו. Enter — לשמור את השאלה לעדכון הבא'}</p>}
+          {typing && !hits.length && !valueHits.length && !itemHits.length && !fieldHits.length && rules.length > 0 && (!asked || stale) && <p className="ak-hint">{AVAILABLE.askAi ? 'Enter — לתשובה מנוסחת מכל הכללים' : 'לא נמצא אצלנו. Enter — לשמור את השאלה לעדכון הבא'}</p>}
         </div>
       )}
 
       {!active && (
         <>
           <section className="ak-sect" aria-labelledby="ak-dom-h">
-            <h3 className="ak-sect-h" id="ak-dom-h">תחומים</h3>
-            <div className="ak-domains">
-              {DOMAINS.map(d => (
-                <button key={d.id} type="button" className="ak-dom" onClick={() => onGo({ mode: 'learn', domain: d.id })} data-domain-card={d.id}>
-                  <b>{d.label}</b>
-                  <span>{d.items.length ? `${d.items.length} ${d.items.length === 1 ? 'נושא או כלי' : 'נושאים וכלים'}` : 'בבנייה'}</span>
-                </button>
+            <h3 className="ak-sect-h" id="ak-dom-h">המחברות</h3>
+            <div className="ak-books">
+              {DOMAINS.filter(d => d.items.length).map(d => (
+                <section key={d.id} className="ak-book" data-book={d.id}>
+                  <button type="button" className="ak-book-h" onClick={() => onGo({ mode: 'learn', domain: d.id })} data-domain-card={d.id}>{d.label} ←</button>
+                  <ul>
+                    {d.items.filter(i => i.id !== 'map1301' && i.id !== 'maintenance').map(i => (
+                      <li key={i.id}><button type="button" onClick={() => onGo({ mode: 'learn', domain: d.id, item: i.id })} data-book-item={i.id}>{i.label}<small>{i.kind === 'topic' ? 'לימוד' : 'כלי'}</small></button></li>
+                    ))}
+                  </ul>
+                </section>
               ))}
             </div>
+            {DOMAINS.some(d => !d.items.length) && (
+              <p className="ak-building">בבנייה: {DOMAINS.filter(d => !d.items.length).map((d, n) => <span key={d.id}>{n ? ' · ' : ''}<button type="button" className="ak-link" onClick={() => onGo({ mode: 'learn', domain: d.id })} data-domain-card={d.id}>{d.label}</button></span>)}</p>
+            )}
           </section>
           <div className="ak-two">
             <Inbox items={inbox} onChanged={reloadSide} onToast={showToast} />

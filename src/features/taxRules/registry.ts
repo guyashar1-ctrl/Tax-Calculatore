@@ -123,7 +123,7 @@ export const RULESET_VERSION: string = (() => {
 
 export function formatRuleValue(view: RuleView | undefined): string {
   const e = view?.entry;
-  if (!e) return '—';
+  if (!e || !view?.exactYear) return view ? 'אין ערך לשנה המבוקשת' : '—';
   if (typeof e.value === 'string') return e.value;
   switch (view.rule.unit) {
     case '₪': return e.value.toLocaleString('he-IL') + ' ₪';

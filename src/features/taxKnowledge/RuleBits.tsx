@@ -21,12 +21,13 @@ export function BasisTag({ basis, label }: { basis: Basis; label?: string }) {
 export function RV({ id, year }: { id: string; year: number }) {
   const v = ruleView(id, year);
   if (!v?.entry) return <span className="kn-basis unverified">אין ערך</span>;
+  if (!v.exactYear) return <span className="kn-rv kn-rv-prior" title={`ערך לשנת ${v.entry.taxYear} — טרם נקבע ערך ל-${year}`}>{typeof v.entry.value === 'number' ? <strong>{formatRuleValue({...v,exactYear:true})}</strong> : formatRuleValue({...v,exactYear:true})}{String(formatRuleValue({...v,exactYear:true})).includes('₪')&&<span className="kn-year-chip"> (ערך {v.entry.taxYear})</span>}</span>;
   const weak = v.entry.basis !== 'primary' || !v.exactYear;
   const why = !v.exactYear ? `ערך לשנת ${v.entry.taxYear} — אין ערך ל-${year}` : BASIS_LABEL[v.entry.basis];
   return (
     <span className="kn-rv" title={why}>
       {typeof v.entry.value === 'number' ? <strong>{formatRuleValue(v)}</strong> : formatRuleValue(v)}
-      {weak && <span className={`kn-basis ${v.exactYear ? v.entry.basis : 'secondary'}`} aria-label={why}> {GLYPH[v.exactYear ? v.entry.basis : 'secondary']}</span>}
+      {v.exactYear && /מוקפא/.test(String((v.entry as any).note || '')) && <span className="kn-year-chip"> (מוקפא)</span>}{weak && <span className={`kn-basis ${v.exactYear ? v.entry.basis : 'secondary'}`} aria-label={why}> {GLYPH[v.exactYear ? v.entry.basis : 'secondary']}</span>}
     </span>
   );
 }

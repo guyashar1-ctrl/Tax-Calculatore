@@ -46,21 +46,21 @@ export default function ExpenseDetail({ topic, onBack }: Props) {
   const conf = topic.confidence ? CONFIDENCE_META[topic.confidence.level] : null;
 
   return (
-    <div className="ed-page">
+    <div className="ed-page"><p className="kn-small kn-muted">נבדק ב־25.10.2026 · שנת התחולה והמקורות בתוך ההסבר</p>
       {/* ── זהות הנושא ─────────────────────────────────────────────────────── */}
       <header className="ed-head">
         <div className="ed-head-main">
           <div className="ed-title-row">
             <span className="ed-emoji">{topic.icon}</span>
-            <h2 className="ed-title">{topic.title}</h2>
+            <h2 className="ed-title" tabIndex={-1}>{topic.title}</h2>
             <span className={`ed-risk tone-${risk.tone}`}>{risk.label}</span>
           </div>
           <p className="ed-summary">{topic.summary}</p>
-          {topic.riskNote && <div className="ed-meta">{topic.riskNote}</div>}
-          {conf && (
+          {topic.riskNote && topic.riskNote!==topic.summary && <div className="ed-meta">{topic.riskNote}</div>}
+          {conf && topic.confidence!.level === 'low' && (
             <div className={`ed-meta tone-${conf.tone}`}>
               {conf.label}
-              {topic.confidence!.level !== 'high' && <> - {topic.confidence!.reason}</>}
+ - {topic.confidence!.reason}
             </div>
           )}
         </div>
@@ -86,10 +86,10 @@ export default function ExpenseDetail({ topic, onBack }: Props) {
       </div>
 
       {/* מה להגיד ללקוח — הדבר היחיד שנשלף באמצע שיחה, ולכן הוא הבולט במסך */}
-      <section className="ed-say">
+      {topic.clientAnswer !== topic.summary && <section className="ed-say">
         <div className="ed-say-label">מה להגיד ללקוח</div>
         <p className="ed-say-text">{topic.clientAnswer}</p>
-      </section>
+      </section>}
 
       <Section icon="🏛️" title="מס הכנסה - הדין המלא" defaultOpen>
         <Bullets items={topic.incomeTax.detail} />
@@ -142,7 +142,7 @@ export default function ExpenseDetail({ topic, onBack }: Props) {
               <div className="ed-item-head">
                 {s.name}{s.ref && <span className="ed-ref"> · {s.ref}</span>}
               </div>
-              <div className="ed-item-body">{s.gist}</div>
+              <div className="ed-item-body"><SourceText text={s.gist} url={(s as typeof s & {url?:string}).url}/></div>
             </div>
           ))}
         </div>
@@ -198,3 +198,5 @@ export default function ExpenseDetail({ topic, onBack }: Props) {
     </div>
   );
 }
+
+function SourceText({text,url}:{text:string,url?:string}){const match=text.match(/https?:\/\/[^\s]+/);const href=url?.match(/^https?:\/\//)?url:match?.[0];if(!href)return <>{text}</>;const body=match?text.replace(match[0],""):text;return <>{body} <a href={href} target="_blank" rel="noreferrer">פתיחת המקור ↗</a></>}

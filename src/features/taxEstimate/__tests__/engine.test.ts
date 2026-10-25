@@ -254,8 +254,8 @@ export const TESTS: TestCase[] = [
     assert(y27.blockers.some(b => b.code === 'rule_not_verified' || b.code === 'no_tax_data'), JSON.stringify(y27.blockers));
     const y25 = computeEstimate(draft(), { client: client(), taxYear: 2025 });
     const ni25 = adv(y25, 'ni').annualDue;
-    assert(!isNum(ni25) && ni25.why.includes('2025'), JSON.stringify(ni25));
-    assert(y25.limits.some(l => l.includes('47א')), 'ניכוי 47א בלי שיעורי ב״ל — מגבלה גלויה');
+    // 25.10.2026: שיעורי ב״ל 2025 נוספו מחוזר 1498 — החישוב קיים גם ל־2025
+    assert(isNum(ni25), JSON.stringify(ni25));
   }),
   test('תיאום כפול ויישור פתוח — חוסמים; תיאום נפרד מהספרים', () => {
     const o = computeEstimate(draft({

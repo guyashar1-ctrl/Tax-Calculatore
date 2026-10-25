@@ -12,6 +12,11 @@ export interface LegalSource {
   name: string;
   ref?: string;
   gist: string;
+  /** official text, when the research located one */
+  url?: string;
+  /** how and when the source was read (research provenance, 25.10.2026) */
+  readMethod?: string;
+  readAt?: string;
 }
 
 export interface CaseLawEntry {
@@ -20,6 +25,7 @@ export interface CaseLawEntry {
   whyItMatters: string;
   practicalImplication: string;
   summary: string;
+  url?: string;
 }
 
 export interface CircularEntry {

@@ -16,7 +16,7 @@ import { num } from '../../taxRules/registry';
 import { AVAILABLE, NOT_RELEASED } from '../availability';
 
 export const ADVANCES_TOC: TocItem[] = [
-  { id: 'ad-open', label: 'מה פתוח', view: 'learn' }, { id: 'ad-0', label: 'מושגי יסוד', view: 'learn' },
+  { id: 'ad-open', label: 'חריגים ובדיקות', view: 'learn' }, { id: 'ad-0', label: 'מושגי יסוד', view: 'learn' },
   { id: 'ad-2', label: 'חודש חתך', view: 'learn' }, { id: 'ad-3', label: 'ארבעה תאריכים', view: 'learn' },
   { id: 'ad-think', label: 'איך חושבים', view: 'learn' }, { id: 'ad-4', label: 'מס הכנסה מול ב״ל', view: 'learn' },
   { id: 'ad-ex', label: 'דוגמאות פתורות', view: 'learn' }, { id: 'ad-mis', label: 'טעויות נפוצות', view: 'learn' },
@@ -54,8 +54,8 @@ export default function AdvancesBody({ year, view }: TopicBodyProps) {
   return (
     <>
       {learn && <>
-        <Sec id="ad-open" title="מה פתוח — לפני הכול">
-          <p className="kn-small" style={{ margin: 0 }}>זה נושא מחקר. חלק מהשאלות החשובות בו <strong>לא הוכרעו</strong>, והמערכת לא מחשבת לפיהן. כדאי לדעת אותן לפני שלומדים את השאר. <ClaimTag status="open" /></p>
+        <Sec id="ad-open" title="מה מחשבים ומה בודקים בדרישה">
+          <p className="kn-small" style={{ margin: 0 }}>מקדמה היא תשלום על החשבון. לומדים להפריד תחזית, שינוי מקדמה והפרשי חיוב; חישוב קרן אינו קובע מעצמו את ההצמדה, הריבית והקנס. בדיקת ההודעה בפועל משלימה את נייר העבודה. <ClaimTag status="interpretation" /></p>
           <div className="kn-two">
             {openItems.map(i => (
               <div key={i.id} className="kn-box">
@@ -113,11 +113,11 @@ export default function AdvancesBody({ year, view }: TopicBodyProps) {
           </div>
           {effective <= cutoff && <p className="kn-xs kn-muted" style={{ margin: 0 }}>השינוי חל לפני סוף תקופת הנתונים — אפשרי (למשל בקשה שהוגשה מוקדם), אבל ההערכה עצמה עדיין נשענת על הנתונים עד {MONTHS[cutoff - 1]}.</p>}
           <div className="kn-page" style={{ gap: 6 }}>
-            <div className="kn-small"><strong>מס הכנסה</strong> — המקדמה החדשה חלה מ{MONTHS[effective - 1]}. על החודשים שלפניו אין דרישה כשהלקוח ביקש את ההעלאה: אפשר להשלים מרצון, ואין ריבית או קנס בתוך השנה <ClaimTag status="verified" />. הגדלה בידי פקיד השומה (180(ב)) — האם נדרשים גם החודשים שעברו, לא פורסם <ClaimTag status="open" />.</div>
+            <div className="kn-small"><strong>מס הכנסה</strong> — המקדמה החדשה חלה מ{MONTHS[effective - 1]}. על החודשים שלפניו אין דרישה כשהלקוח ביקש את ההעלאה: אפשר להשלים מרצון, ואין חיוב פיגורים על השלמה מרצון כשאין דרישת מקדמות שלא נפרעה. אם הייתה הקטנה לא מוצדקת, חלה בדיקת 190(א)(2), לרבות ריבית והצמדה מאמצע השנה. <ClaimTag status="verified" />. הגדלה בידי פקיד השומה (180(ב)) — האם נדרשים גם החודשים שעברו, לא פורסם <ClaimTag status="open" />.</div>
             <div className="kn-months" role="img" aria-label={`מס הכנסה: ${past} חודשים שאפשר להשלים מרצון, ${13 - effective} חודשים במקדמה החדשה`}>
               {MONTHS.map((m, i) => <span key={m} className={i < past ? 'unknownretro' : 'newrate'}>{m}</span>)}
             </div>
-            <div className="kn-small"><strong>ביטוח לאומי</strong> — התיקון חל מינואר: גם החודשים שלפני {MONTHS[effective - 1]} מחושבים מחדש, וההפרש מחויב בנפרד («הגדלת מקדמות») <ClaimTag status="verified" />. הצמדה מהמועדים המקוריים — צפויה <ClaimTag status="interpretation" />; ריבית — אין; קנס — רק אם החיוב לא שולם במועד שב״ל קבע <ClaimTag status="open" />.</div>
+            <div className="kn-small"><strong>ביטוח לאומי</strong> — התיקון חל מינואר: גם החודשים שלפני {MONTHS[effective - 1]} מחושבים מחדש, וההפרש מחויב בנפרד («הגדלת מקדמות») <ClaimTag status="verified" />. הצמדה מהמועדים המקוריים — צפויה <ClaimTag status="interpretation" />; ריבית — אין; קנס — בודקים את סוג החיוב ואת מועדו החוקי; אין הבטחה שהמועד החדש מבטל חיוב לפי המועדים המקוריים <ClaimTag status="open" />.</div>
             <div className="kn-months" role="img" aria-label={`ביטוח לאומי: ${past} חודשים שבהם צפויה השלמה, ${13 - effective} חודשים במקדמה החדשה`}>
               {MONTHS.map((m, i) => <span key={m} className={i < past ? 'catchup' : 'newrate'}>{m}</span>)}
             </div>
@@ -127,10 +127,10 @@ export default function AdvancesBody({ year, view }: TopicBodyProps) {
           <div className="kn-box kn-small">
             <strong>אם משנים מקדמה — ארבעה דברים נפרדים, לא אחד</strong>
             <ul style={{ margin: 0, paddingInlineStart: 18 }}>
-              <li><strong>הפרש (הקרן):</strong> בב״ל — חיוב «הגדלת מקדמות» = ההפרש × החודשים שעברו, במועד שב״ל קובע. במס הכנסה — אין דרישה; השלמה מרצון = הפרש השיעור × המחזור שכבר דווח.</li>
+              <li><strong>הפרש (הקרן):</strong> בב״ל — אומדן «הגדלת מקדמות» = הפרש החיוב לתקופות העיסוק הרלוונטיות; חיוב סופי לפי פירוט הרשות, במועד שב״ל קובע. במס הכנסה — אין דרישה; השלמה מרצון = הפרש השיעור × המחזור שכבר דווח.</li>
               <li><strong>הצמדה:</strong> בב״ל — צפויה מהמועד המקורי של כל חודש (תקנה 6(ב)); לא אושרה ברשות ולא מחושבת. במס הכנסה — אין בתוך השנה; על יתרה אחרי 31.12 — לפי 187.</li>
               <li><strong>ריבית:</strong> בב״ל — אין, אלא בהסדר תשלומים. במס הכנסה — 4% על יתרה מ-1.1, עם הקלה (187א): תשלום עד 31.1 — פטור מלא; בפברואר — חצי; במרץ — רבע.</li>
-              <li><strong>קנס:</strong> בב״ל — רק אם החיוב לא שולם במועדו (364). במס הכנסה — אין על השלמה; קנס 190(א)(1) רק על מקדמה שנדרשה ולא שולמה יותר מ-7 ימים; 0.2% לשבוע אינו חל על מקדמות.</li>
+              <li><strong>קנס:</strong> בב״ל — לפי מועד החיוב החוקי וסוג ההפרש (364); בהגדלת מקדמות לא קובעים אפס אוטומטית על התקופות הקודמות. במס הכנסה — אין על השלמה; קנס 190(א)(1) רק על מקדמה שנדרשה ולא שולמה יותר מ-7 ימים; 0.2% לשבוע אינו חל על מקדמות.</li>
               <li><strong>פתוח:</strong> הגדלה בידי פקיד השומה (180(ב)) — האם נשלחת דרישה גם לחודשים שעברו. בודקים במכתב ההגדלה וב-134. מקדמה לפי סכום קבוע — ההשלמה = הפרש הסכום × התקופות.</li>
             </ul>
             <span className="kn-xs kn-muted">מקורות: פקודה 175, 180, 187, 187א, 190 (ויקיטקסט) ומדריך 2025 סעיף 10ד; תקנות המקדמות 6(ב), חוק הביטוח הלאומי 345, 364, 368(ב); שאלות ותשובות ב״ל וטופס 672. <ClaimTag status="verified" /></span>
@@ -241,7 +241,7 @@ export default function AdvancesBody({ year, view }: TopicBodyProps) {
           </ol>
         </Sec>
 
-        <Sec id="ad-5" title="מה עוד פתוח לפני שמחשבים">
+        <Sec id="ad-5" title="מתי נדרש בירור חיוב">
           <ul className="kn-small" style={{ margin: 0, paddingInlineStart: 18, display: 'flex', flexDirection: 'column', gap: 4 }}>
             <li>מס הכנסה: הגדלה בידי פקיד השומה (180(ב)) — האם נדרשים גם החודשים שעברו (הוראת ביצוע 4/94 לא פורסמה). צווי הגדלת מקדמות ל-2025 ול-2026 (סעיף 181א) — לא נמצאו.</li>
             <li>ביטוח לאומי: קנס על «הגדלת מקדמות» — לא פורסם אם נגבה מהמועדים המקוריים. ההצמדה — צפויה, ולא מחושבת כי תלויה במדד.</li>

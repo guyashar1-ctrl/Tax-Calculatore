@@ -65,6 +65,10 @@ interface Props {
 }
 
 const clientName = (c: Client) => `${c.firstName ?? ''} ${c.lastName ?? ''}`.trim() || 'לקוח';
+// ‼ 25.10.2026: השלב האחרון שנפתח בכל נושא — נוחות למשתמש בדפדפן הזה בלבד; בלי אחסון — פשוט אין «להמשיך»
+const STAGE_KEY = (id: string) => `pivo.topicStage.${id}`;
+const readStage = (id: string): Stage | null => { try { return (localStorage.getItem(STAGE_KEY(id)) as Stage | null) ?? null; } catch { return null; } };
+const saveStage = (id: string, s: Stage) => { try { localStorage.setItem(STAGE_KEY(id), s); } catch { /* אין אחסון — אין «להמשיך» */ } };
 
 export default function TopicPage({ topicId, year, clients = [], context, onBackToClient, onOpenClient, onOpenTopic, workLinks = [] }: Props) {
   const topic = TOPIC_BY_ID[topicId];
@@ -74,7 +78,9 @@ export default function TopicPage({ topicId, year, clients = [], context, onBack
   const stageRef = useRef<HTMLHeadingElement>(null);
   // ‼ מתוך תיק לקוח נכנסים ל«מה עושים בתיק» — שם מה שעושים עם הלקוח; אחרת מההתחלה.
   const [stage, setStage] = useState<Stage>(context ? 'next' : 'what');
-  useEffect(() => { setStage(context ? 'next' : 'what'); }, [topicId, context]);
+  const [resume, setResume] = useState<Stage | null>(null);
+  useEffect(() => { setStage(context ? 'next' : 'what'); setResume(context ? null : readStage(topicId)); }, [topicId, context]);
+  useEffect(() => { if (!context && stage !== 'what') saveStage(topicId, stage); }, [topicId, stage, context]);
 
   const secStage = useMemo(() => new Map((entry?.toc ?? []).map(t => [t.id, stageOfSection(t)])), [entry]);
   const asks = useMemo(() => clientAsksFor(topicId), [topicId]);
@@ -118,7 +124,7 @@ export default function TopicPage({ topicId, year, clients = [], context, onBack
   const prev = idx > 0 ? shown[idx - 1] : undefined;
   const next = idx < shown.length - 1 ? shown[idx + 1] : undefined;
   const pick = (s: Stage) => {
-    setStage(s);
+    setStage(s); setResume(null);
     rootRef.current?.scrollIntoView({ block: 'start', behavior: 'auto' });
     // ‼ מעבר שלב מקלדת — הפוקוס עובר לכותרת השלב, כדי שקורא מסך ישמע איפה הוא
     requestAnimationFrame(() => {
@@ -177,6 +183,9 @@ export default function TopicPage({ topicId, year, clients = [], context, onBack
             <span>{st.basis}.</span>
             {topic.gaps.length > 0 && <button type="button" className="kn-link" onClick={() => pick('except')}>השאלות הפתוחות ←</button>}
           </div>
+          {resume && resume !== active && shown.some(s => s.id === resume) && (
+            <button type="button" className="kn-link kn-resume" onClick={() => pick(resume)} data-kn-resume={resume}>להמשיך מ«{shown.find(s => s.id === resume)!.label}» ←</button>
+          )}
           <ol className="kn-path" aria-label="מסלול הלימוד">
             {shown.map((s, i) => {
               return (
@@ -254,6 +263,13 @@ export default function TopicPage({ topicId, year, clients = [], context, onBack
           </section>
         )}
 
+        {!next && shown.length > 1 && (
+          <div className="kn-done" data-kn-done>
+            <strong>סיימת את המסלול של «{topic.title}»</strong>
+            <span className="kn-small">{shown.length} שלבים. אפשר לחזור לכל שלב מהשורה למעלה.</span>
+            {shown.some(s => s.id === 'practice') && active !== 'practice' && <button type="button" className="btn btn-secondary btn-sm" onClick={() => pick('practice')}>לתרגול ←</button>}
+          </div>
+        )}
         <nav className="kn-path-foot" aria-label="מעבר בין שלבים">
           {prev ? <button type="button" className="btn btn-secondary" onClick={() => pick(prev.id)}>→ {prev.label}</button> : <span />}
           {next && <button type="button" className="btn btn-primary" onClick={() => pick(next.id)} data-stage-next>{next.label} ←</button>}

@@ -123,7 +123,7 @@ export const TESTS: TestCase[] = [
 
   test('כלל לא מאומת וכלל שאינו לחישוב נחסמים תמיד, גם בהמחשה', () => {
     const unverified = ALL_RULES.filter(r => r.values.some(v => v.basis === 'unverified'));
-    assert(unverified.length > 0, 'יש במרשם כללים לא מאומתים (למשל תחילת הוותק בקרן)');
+    // 25.10.2026: המחקר אימת את הכלל האחרון שהיה לא מאומת; המנגנון נבדק על כל כלל לא מאומת שיתווסף
     for (const r of unverified) {
       const y = r.values.find(v => v.basis === 'unverified')!.taxYear;
       const { hard } = gate([r.id], y, {}, 'illustration');

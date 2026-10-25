@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect, useRef } from 'react';
 import { EXPENSE_TOPICS } from '../../../data/expenseKnowledge';
 import {
   IncomeTaxVerdict,
@@ -18,10 +18,13 @@ interface Props {
 
 export default function ExpenseKnowledge({ initialTopicId = null }: Props) {
   const [query, setQuery] = useState('');
+  const [showFilters,setShowFilters]=useState(false);
   const [itFilter, setItFilter] = useState<IncomeTaxVerdict | 'all'>('all');
   const [vatFilter, setVatFilter] = useState<VatVerdict | 'all'>('all');
   const [riskFilter, setRiskFilter] = useState<RiskLevel | 'all'>('all');
-  const [selectedId, setSelectedId] = useState<string | null>(initialTopicId);
+  const [selectedId, setSelectedIdState] = useState<string | null>(initialTopicId||decodeURIComponent(location.hash.split('/')[2]||'')||null);
+  const setSelectedId=(id:string|null)=>{location.hash='#tool/expenses'+(id?'/'+encodeURIComponent(id):'')};
+  useEffect(()=>{const sync=()=>{if(!location.hash.startsWith('#tool/expenses'))return;setSelectedIdState(decodeURIComponent(location.hash.split('/')[2]||'')||null)};addEventListener('hashchange',sync);return()=>removeEventListener('hashchange',sync)},[]);
 
   const filtered = useMemo(() => {
     let list = searchExpenseTopics(EXPENSE_TOPICS, query);
@@ -32,6 +35,7 @@ export default function ExpenseKnowledge({ initialTopicId = null }: Props) {
     return query.trim() ? list : [...list].sort((a, b) => a.title.localeCompare(b.title, 'he'));
   }, [query, itFilter, vatFilter, riskFilter]);
 
+  const firstEntry=useRef(true);useEffect(()=>{if(firstEntry.current){firstEntry.current=false;return}window.scrollTo(0,0);document.querySelector<HTMLElement>(selectedId?'.ed-title':'.ek-page input')?.focus({preventScroll:true})},[selectedId]);
   const selected = selectedId ? EXPENSE_TOPICS.find(t => t.id === selectedId) : null;
 
   if (selected) {
@@ -52,7 +56,7 @@ export default function ExpenseKnowledge({ initialTopicId = null }: Props) {
   );
 
   return (
-    <div className="ek-page">
+    <div className="ek-page"><p className="kn-soft">מאגר 2025–2026 · שנת התחולה והתנאים מופיעים בכל נושא.</p>
       {/* חיפוש */}
       <div className="card">
         <div className="card-body">
@@ -62,13 +66,14 @@ export default function ExpenseKnowledge({ initialTopicId = null }: Props) {
               <input
                 type="text"
                 value={query}
-                autoFocus
+                aria-label="חיפוש הוצאה במאגר"
                 placeholder='נסו: "חליפה", "מסעדה", "עובד מהבית", "קפה", "אייפון", "כביש 6"...'
                 onChange={e => setQuery(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter') handleSearchEnter(); }}
                 style={{ fontSize: '15px' }}
               />
             </div>
+<button type="button" className="ek-filter-toggle" aria-expanded={showFilters} onClick={()=>setShowFilters(v=>!v)}>סינון לפי מס, מע״מ וסיכון {showFilters?'−':'+'}</button><div className={"ek-filters"+(showFilters?" is-open":"")}>
             <div className="form-group" style={{ marginBottom: 0 }}>
               <label>מס הכנסה</label>
               <select value={itFilter} onChange={e => setItFilter(e.target.value as IncomeTaxVerdict | 'all')}>
@@ -96,7 +101,7 @@ export default function ExpenseKnowledge({ initialTopicId = null }: Props) {
                 ))}
               </select>
             </div>
-          </div>
+</div>          </div>
           {query.trim() && filtered.length > 0 && (
             <div className="ek-hint">
               Enter יפתח את ההתאמה הראשונה: <strong>{filtered[0].icon} {filtered[0].title}</strong>
@@ -125,7 +130,7 @@ export default function ExpenseKnowledge({ initialTopicId = null }: Props) {
               <button key={t.id} type="button" onClick={() => setSelectedId(t.id)} className="ek-row">
                 <div className="ek-cell-name">
                   <span className="ek-name">{t.icon} {t.title}</span>
-                  <span className="ek-source">{t.mainSource}</span>
+                  
                 </div>
                 {verdict(INCOME_TAX_VERDICT_META[t.incomeTax.verdict], t.incomeTax.shortLabel)}
                 {verdict(VAT_VERDICT_META[t.vat.verdict], t.vat.shortLabel)}
@@ -144,8 +149,8 @@ export default function ExpenseKnowledge({ initialTopicId = null }: Props) {
       </div>
 
       <div className="alert alert-info">
-        התוכן אומת מול פקודת מס הכנסה, חוק מע"מ, התקנות, חוזרי רשות המסים ופסיקה מעשית (יולי 2026).
-        הוא כלי עזר מקצועי - לא תחליף לשיקול דעת במקרה קונקרטי. פריטים המסומנים "לאמת" דורשים בדיקה נוספת.
+        56 הנושאים נבדקו מחדש ב־25.10.2026. מקורות, תנאים וגבולות הבדיקה מפורטים בכל מאמר.
+        הוא כלי עזר מקצועי - לא תחליף לשיקול דעת במקרה קונקרטי. שתי הקלות במתנות עובדים שלא אותר להן מקור ראשוני מסומנות במפורש.
       </div>
     </div>
   );

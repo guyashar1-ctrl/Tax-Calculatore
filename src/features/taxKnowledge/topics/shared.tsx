@@ -30,28 +30,21 @@ export function Sec({ id, title, children }: { id: string; title: string; childr
 export interface QuizItem { q: string; options: { text: string; right: boolean }[]; why: string; level?: 'יסוד' | 'יישום' | 'מתקדם' }
 
 /** תרגול קצר. ‼ לא נשמר ולא נמדד — כלי לעצמי, לא מבחן. */
+function quizOrder(q:string,n:number){const h=(s:string)=>{let x=2166136261;for(const ch of s)x=Math.imul(x^ch.charCodeAt(0),16777619);return x>>>0};return Array.from({length:n},(_,i)=>i).sort((a,b)=>h(q+'|'+a)-h(q+'|'+b))}
 export function Quiz({ items }: { items: QuizItem[] }) {
-  const [picked, setPicked] = useState<Record<number, number>>({});
-  return (
-    <div className="kn-page" style={{ gap: 10 }}>
-      <p className="kn-xs kn-muted" style={{ margin: 0 }}>לתרגול בלבד. לא נשמר ולא נמדד.</p>
-      {items.map((it, qi) => {
-        const p = picked[qi];
-        const right = p !== undefined && it.options[p].right;
-        return (
-          <div key={qi} className="kn-q">
-            <strong className="kn-small">{qi + 1}. {it.q}{it.level ? <span className="kn-level" style={{ marginInlineStart: 8 }}>{it.level}</span> : null}</strong>
-            {it.options.map((o, oi) => (
-              <button key={oi} type="button" aria-pressed={p === oi}
-                className={`btn btn-secondary kn-opt ${p === oi ? (o.right ? 'is-right' : 'is-wrong') : ''}`}
-                onClick={() => setPicked(s => ({ ...s, [qi]: oi }))}>{o.text}</button>
-            ))}
-            <div aria-live="polite">{p !== undefined && <p className="kn-small" style={{ margin: 0 }}>{right ? 'נכון. ' : 'לא בדיוק. '}{it.why}</p>}</div>
-          </div>
-        );
-      })}
-    </div>
-  );
+ const [picked,setPicked]=useState<Record<number,number>>({});
+ const [qi,setQi]=useState(0);
+ const it=items[qi],p=picked[qi],right=p!==undefined&&it.options[p].right,order=quizOrder(it.q,it.options.length);
+ const answered=Object.keys(picked).length,correct=Object.entries(picked).filter(([i,o])=>items[+i].options[o].right).length,wrong=items.map((_,i)=>i).filter(i=>picked[i]!==undefined&&!items[i].options[picked[i]].right);
+ const move=(next:number)=>{setQi(next);requestAnimationFrame(()=>document.querySelector<HTMLElement>('.focused-quiz .kn-q')?.focus())};
+ return <div className="kn-page focused-quiz" style={{gap:14}}>
+  <div className="quiz-position"><span>שאלה {qi+1} מתוך {items.length}</span><span>תרגול · ללא ציון</span></div>
+  <div className="kn-q" tabIndex={-1}><strong className="kn-small">{it.q}{it.level?<span className="kn-level" style={{marginInlineStart:8}}>{it.level}</span>:null}</strong>
+  <div role="radiogroup" aria-label={it.q}>{order.map(oi=>{const o=it.options[oi];return <label key={oi} className={`kn-opt ${p===oi?(o.right?'is-right':'is-wrong'):p!==undefined&&o.right?'is-answer':''}`}><input type="radio" name={'practice-'+it.q} checked={p===oi} onChange={()=>setPicked(s=>({...s,[qi]:oi}))}/><span>{o.text}</span></label>})}</div>
+  <div aria-live="polite">{p!==undefined&&<p className="kn-small quiz-feedback">{right?'נכון. ':'התשובה הנכונה מסומנת. '}{it.why}</p>}</div></div>
+  {qi===items.length-1&&answered===items.length&&<div className="quiz-recap" role="status"><b>{correct} מתוך {items.length} נכונות</b>{wrong.length>0&&<span>לחזור אל: {wrong.map(i=><button key={i} onClick={()=>move(i)}>שאלה {i+1}</button>)}</span>}</div>}
+  <nav className="quiz-navigation" aria-label="ניווט בתרגול"><button disabled={qi===0} onClick={()=>move(qi-1)}>→ השאלה הקודמת</button>{qi<items.length-1&&<button onClick={()=>move(qi+1)}>{p===undefined?'לדלג כרגע':'לשאלה הבאה'} ←</button>}</nav>
+ </div>;
 }
 
 /** הסבר צעד אחר צעד, עם «להציג הכל» למי שמעדיף לקרוא. */
@@ -89,7 +82,7 @@ export function NumField({ id, label, value, onChange, min = 0, max, step = 1 }:
   return (
     <label className="kn-field" htmlFor={id}>
       <span>{label}: <output htmlFor={id}>{Math.round(value).toLocaleString('he-IL')} ₪</output></span>
-      <input id={id} type="range" min={min} max={max} step={step} value={value} onChange={e => onChange(+e.target.value)} />
+      <input aria-label={label+" — סכום מדויק"} type="number" min={min} max={max} step={step} value={value} onChange={e => onChange(Math.max(min,+e.target.value))} /><input id={id} type="range" min={min} max={max} step={step} value={value} onChange={e => onChange(+e.target.value)} />
     </label>
   );
 }

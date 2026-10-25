@@ -276,3 +276,46 @@
 .kn-table td { padding: 4px 8px; border-top: 1px solid var(--bd); vertical-align: top; }
 .kn-table td:first-child { font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; }
 .kn-result { margin: 6px 0 0; padding: 8px 12px; border-radius: 10px; background: var(--soft, var(--s4)); font-weight: 600; }
+
+/* ── שיעורים ומחשבונים בנושא (25.10.2026) ───────────────────────────────── */
+/* תרגול: שאלה אחת בכל פעם, התשובה הנכונה מסומנת אחרי בחירה, וסיכום בסוף */
+.focused-quiz label.kn-opt { display: flex; align-items: start; gap: 10px; cursor: pointer; min-height: 44px; padding: 12px; background: var(--card); border: 1px solid var(--bd); border-radius: 6px; margin-top: 8px; line-height: 1.8; font-size: 14px; }
+.focused-quiz label.kn-opt input[type=radio] { appearance: auto; accent-color: var(--br); flex: none; width: 17px; height: 17px; margin: 5px 0 0; padding: 0; min-width: 17px; }
+.focused-quiz label.kn-opt:has(input:focus-visible) { outline: 3px solid var(--focus-ring); outline-offset: 3px; }
+.focused-quiz label.kn-opt.is-answer { border-color: var(--ok); }
+.quiz-position, .quiz-navigation { display: flex; justify-content: space-between; gap: 12px; font-size: 12px; color: var(--tx2); }
+.quiz-navigation button { min-height: 44px; font: inherit; color: var(--br); border: 1px solid var(--bd); background: var(--soft); border-radius: 6px; padding: 10px 13px; cursor: pointer; }
+.quiz-navigation button:disabled { opacity: .4; cursor: default; }
+.quiz-feedback { padding-top: 16px; line-height: 1.85; font-size: 14px; }
+.quiz-recap { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; padding: 12px 14px; border-radius: 12px; background: var(--soft); font-size: 14px; }
+.quiz-recap button { background: none; border: 0; color: var(--br); font: inherit; font-size: 13px; min-height: 36px; padding: 0 6px; cursor: pointer; }
+
+/* פנסיית חובה: כמה שולם, כמה נשאר */
+.mandatory-paid-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 18px 0; }
+.mandatory-paid-fields label { display: flex; flex-direction: column; gap: 8px; font-size: 12px; color: var(--tx2); line-height: 1.7; min-width: 0; }
+.mandatory-paid-fields input { min-width: 0; max-width: 100%; width: 100%; min-height: 44px; border: 1px solid var(--bd); border-radius: 6px; padding: 9px 12px; font: inherit; font-size: 16px; background: var(--card); color: var(--tx); }
+.mandatory-remaining { padding: 22px; background: var(--chip-green-bg); border: 1px solid var(--bd); border-radius: 8px; display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px; }
+.mandatory-remaining > span { font-size: 12px; color: var(--tx2); }
+.mandatory-remaining strong { font-size: 30px; line-height: 1.3; color: var(--tx); font-variant-numeric: tabular-nums; }
+.mandatory-remaining small { font-size: 12px; line-height: 1.8; color: var(--tx2); }
+@media (max-width: 460px) {
+  .mandatory-paid-fields { grid-template-columns: 1fr; }
+  .mandatory-remaining { padding: 18px; }
+  .mandatory-remaining strong { font-size: 27px; }
+}
+
+.micro-deadline-note { padding: 18px; background: var(--soft); border-inline-start: 3px solid var(--br); line-height: 1.9; font-size: 13px; }
+
+/* הצהרת הון: איך רושמים — קבוצות שנפתחות */
+.wealth-recording-group { border-bottom: 1px solid var(--hairline-2); padding: 15px 0; }
+.wealth-recording-group > summary { font-size: 16px; font-weight: 600; color: var(--tx); cursor: pointer; min-height: 44px; display: flex; align-items: center; justify-content: space-between; }
+.wealth-recording-group > summary::after { content: '+'; font-weight: 400; color: var(--tx2); }
+.wealth-recording-group[open] > summary::after { content: '−'; }
+.wealth-recording-group > div { display: grid; gap: 17px; padding: 10px 0 18px; }
+.wealth-method { padding: 14px 0; margin: 12px 0; }
+.wealth-method summary { min-height: 44px; cursor: pointer; color: var(--br); }
+
+/* מסלול הנושא (25.10.2026): להמשיך מהמקום שעצרו, וסיום המסלול */
+.kn-resume { align-self: flex-start; font-size: 13px; min-height: 36px; }
+.kn-done { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; margin: 18px 0 0; padding: 12px 14px; border-radius: 12px; background: var(--chip-green-bg); }
+.kn-done strong { font-size: 15px; }

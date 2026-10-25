@@ -107,7 +107,7 @@ export const INSURERS: InstitutionEntry[] = [
 ];
 
 export const CRYPTO_EXCHANGES: InstitutionEntry[] = [
-  { id: 'cx-bit2c', label: 'Bit2C', aliases: ['ביט2סי'] },
+  { id: 'cx-bit2c', label: 'Bit2C', aliases: ['ביט 2סי'] },
   { id: 'cx-bitsofgold', label: 'Bits of Gold', aliases: ['ביטס אוף גולד'] },
   { id: 'cx-binance', label: 'Binance', aliases: ['ביננס'] },
   { id: 'cx-coinbase', label: 'Coinbase', aliases: ['קוינבייס'] },

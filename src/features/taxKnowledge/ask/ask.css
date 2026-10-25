@@ -135,3 +135,17 @@
   .ak-hero, .ak-h, .ak-dom { transition: none; }
 }
 .ak-ask input:focus, .ak-ask input:focus-visible { outline: none; box-shadow: none; }
+
+/* הספרייה (25.10.2026): המחברות לפי תחום — שם התחום ומתחתיו הנושאים והכלים */
+.ak-books { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
+.ak-book { background: var(--card); border: 1px solid var(--bd); border-radius: 14px; padding: 12px 14px; }
+.ak-book-h { font: inherit; font-size: 15px; font-weight: 650; color: var(--tx); background: none; border: 0; padding: 0; min-height: 36px; cursor: pointer; text-align: start; }
+.ak-book-h:hover { color: var(--br); }
+.ak-book ul { list-style: none; margin: 4px 0 0; padding: 0; }
+.ak-book li + li { border-top: 1px solid var(--hairline-2); }
+.ak-book li button { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; width: 100%; font: inherit; font-size: 14px; color: var(--tx); background: none; border: 0; padding: 8px 0; min-height: 40px; cursor: pointer; text-align: start; }
+.ak-book li button:hover { color: var(--br); }
+.ak-book li small { font-size: 12px; color: var(--tx3); white-space: nowrap; }
+.ak-building { margin: 12px 2px 0; font-size: 13px; color: var(--tx3); }
+.ak-building .ak-link { font-size: 13px; min-height: 32px; }
+@media (max-width: 560px) { .ak-books { grid-template-columns: 1fr; } }

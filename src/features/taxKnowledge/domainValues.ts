@@ -59,8 +59,8 @@ export const DOMAIN_VALUES: Record<DomainId, ValueGroup[]> = {
     { id: 'retirement', title: legacyGroup('retirement').title, subtitle: legacyGroup('retirement').subtitle, refs: all('retirement'), ...from('retirement') },
     // ‼ שתי השורות האלה הוסתרו עם הקבוצה כולה כשפנסיה וקרן השתלמות עברו לנושאים (10.10) — אבל אין להן ערך במרשם.
     //   מוצגות כמו שהן, עם ההערה; לא «אומתו» מחדש בהעברה.
-    { id: 'pensionExtra', title: 'תקרות שעוד לא במרשם הכללים', subtitle: 'מהטבלה הקודמת של פנסיה וגמל',
-      note: 'השורות האלה לא עברו לנושאי הלימוד ולמרשם הכללים, ולכן אין להן ביסוס לכל ערך. לא נבדקו מחדש בהעברה — לאמת לפני שימוש.',
+    { id: 'pensionExtra', title: 'הפקדות מעסיק — תקרת שכר ורכיב פיצויים', subtitle: 'הבחנה בין 3(ה3) לניכוי 47',
+      note: 'סכומים נפרדים לתגמולים ולפיצויים; שנת המס והמקור מופיעים בכל שורה.',
       refs: [L('pension', 'sec47Ceiling'), L('pension', 'severanceEmployer')], sources: legacyGroup('pension').sources },
   ],
   ni: [],

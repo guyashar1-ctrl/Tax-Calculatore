@@ -123,7 +123,7 @@ export function SolveFirst({ title, facts, ask, steps, answer, note, status, lev
       {!open ? (
         <button type="button" className="btn btn-secondary btn-sm" style={{ alignSelf: 'flex-start' }} onClick={() => setOpen(true)} aria-expanded={false}>נסו לבד — ואז להציג פתרון</button>
       ) : (
-        <div className="kn-solution" aria-live="polite">
+        <div className="kn-solution" aria-live="polite"><button type="button" className="btn btn-secondary btn-sm" onClick={()=>setOpen(false)} aria-expanded={true}>לסגור את הפתרון ולנסות שוב</button>
           <ol>{steps.map((s, i) => <li key={i}><span>{s.label}</span><span className="kn-walk-num" dir="ltr">{s.value}</span></li>)}</ol>
           <div className="kn-explain"><strong>תשובה: </strong>{answer}</div>
           {note && <p className="kn-xs kn-muted" style={{ margin: 0 }}>{note}</p>}

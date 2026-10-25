@@ -134,3 +134,14 @@
 .fm-hit-v { color: rgba(21, 128, 61, 1); }
 .fm-ret { display: grid; gap: 4px; padding: 6px 8px; margin: 4px 0; border-radius: 8px; background: rgba(21, 128, 61, .08); }
 .fm-ret .fm-h { margin: 0; }
+
+/* הסעיף (25.10.2026): «חשוב לזכור» עם מקור, «מה לבקש מהלקוח» מקופל, ושנה שנבחרה בלי טופס משלה */
+.fm-practice { margin: 8px 0 0; padding: 8px 10px; border-radius: 8px; background: var(--soft); border-inline-start: 3px solid var(--br); }
+.fm-practice .fm-h:first-child { margin-top: 0; }
+.fm-practice a { color: var(--br); }
+.fm-asks { margin: 10px 0 0; font-size: var(--fs-13); }
+.fm-asks > summary { cursor: pointer; min-height: 36px; display: flex; align-items: center; font-weight: 600; color: var(--tx); }
+.fm-h6 { margin: 6px 0 0; font-size: var(--fs-12); font-weight: 600; color: var(--tx2); }
+.fm-year-note { font-size: var(--fs-12); color: var(--warn); }
+.fm-card-t:focus { outline: none; }
+/* המיקוד בכותרת הוא לקורא מסך — לא מסגרת על הכותרת */

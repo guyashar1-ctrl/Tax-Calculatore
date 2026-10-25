@@ -41,7 +41,7 @@ export const MATERNITY_TOC: TocItem[] = [
   { id: 'ml-what', label: 'מה זה ולמי רלוונטי', view: 'learn' },
   { id: 'ml-field', label: 'באיזה שדה בדוח', view: 'learn' },
   { id: 'ml-ex', label: 'דוגמה פתורה: לידה שחוצה שנה', view: 'learn' },
-  { id: 'ml-exc', label: 'חריגים ומה פתוח', view: 'learn' },
+  { id: 'ml-exc', label: 'חריגים והתאמות', view: 'learn' },
   { id: 'ml-docs', label: 'מסמכים ומה מבקשים', view: 'learn' },
   { id: 'ml-quiz', label: 'תרגול', view: 'learn' },
   { id: 'ml-116c', label: 'איך ממלאים 116ג — צעד אחר צעד', view: 'apply' },
@@ -153,8 +153,8 @@ export default function MaternityBody({ year, view }: TopicBodyProps) {
             <div className="kn-row" style={{ flexWrap: 'wrap', gap: 8 }}>
               <label className="kn-field">מתאריך<input type="date" value={from} onChange={e => setFrom(e.target.value)} data-ml-from /></label>
               <label className="kn-field">עד תאריך<input type="date" value={to} onChange={e => setTo(e.target.value)} data-ml-to /></label>
-              <label className="kn-field">דמי לידה (₪)<input type="number" inputMode="decimal" value={amount} onChange={e => setAmount(+e.target.value || 0)} data-ml-amount /></label>
-              <label className="kn-field">מס שנוכה (₪)<input type="number" inputMode="decimal" value={tax} onChange={e => setTax(+e.target.value || 0)} data-ml-tax /></label>
+              <label className="kn-field">דמי לידה (₪)<input type="number" min="0" inputMode="decimal" value={amount} onChange={e => setAmount(Math.max(0,+e.target.value || 0))} data-ml-amount /></label>
+              <label className="kn-field">מס שנוכה (₪)<input type="number" min="0" inputMode="decimal" value={tax} onChange={e => setTax(Math.max(0,+e.target.value || 0))} data-ml-tax /></label>
             </div>
             {rows.length ? (
               <table className="kn-tbl" data-ml-result>
@@ -166,16 +166,16 @@ export default function MaternityBody({ year, view }: TopicBodyProps) {
           </div>
         </Sec>
 
-        <Sec id="ml-exc" title="חריגים ומה פתוח">
+        <Sec id="ml-exc" title="חריגים והתאמות">
           <ul className="kn-small">
             <li><b>מתי הפריסה כדאית:</b> רק כשבשנת הקבלה ההכנסה (עם דמי הלידה) מגיעה למדרגה גבוהה מבשנה האחרת. משווים את <b>סך המס בשתי השנים</b> בשתי החלופות — הכול בשנת הקבלה מול חלוקה לפי ימים — ושמים לב לנקודות זיכוי שלא ינוצלו בשנה חלשה. בלי הכנסה צפויה בשנה האחרת — אין על מה לחשב. <ClaimTag status="interpretation" /></li>
             <li><b>עם דחיית נקודת זיכוי ללידה (116ד)</b> — שתי ההחלטות מעבירות מס לאותה שנה; לחשב אותן יחד. <ClaimTag status="interpretation" /></li>
             <li><b>קדימה מול אחורה:</b> קדימה — מסמנים «כן» בדוח של שנת הקבלה ומצרפים 116ג; בשנה העוקבת מדווחים את החלק שלה. אחורה — אין סימון ב-1301: מגישים או מתקנים את הדוח של השנה הקודמת עם החלק המשויך ומצרפים 116ג. <ClaimTag status="interpretation" /></li>
             <li><b>מי שלא חייבת בדוח:</b> הפריסה נעשית דרך בקשת החזר לשתי השנים, או שהיא בוחרת במסלול החייבים ומתחייבת בדוח לשנה העוקבת (חוזר 2/2022, סעיף 7.1ב). <ClaimTag status="verified" /></li>
             <li><b>מילואים:</b> לפי החוזר (סעיף 7א) — פריסה אחורה בלבד, ולא קדימה. <ClaimTag status="interpretation" /></li>
-            <li><b>שכירה וגם עצמאית — 250 או 194?</b> לא נמצא מקור שמכריע. הצעה: לפצל לפי חלקי הבסיס בהודעת ב״ל (בדוגמה 23,886 מעסק מול 10,350 משכר); כשהאישור של ב״ל מסווג אחרת — הוא גובר. <ClaimTag status="open" /></li>
-            <li><b>הפרשי דמי לידה</b> ששולמו בשנה אחרת (בעיקר לעצמאית אחרי שומה) — אין הוראה מפורשת. לכל תשלום — תאריך, תקופה וסכום בנפרד; לא לפצל אוטומטית. <ClaimTag status="open" /></li>
-            <li><b>030 מדמי הביטוח שנוכו מדמי הלידה</b> — שאילתת DF מציגה אותם, האישור השנתי לא; לא מוסיפים אוטומטית. <ClaimTag status="open" /></li>
+            <li><b>שכירה וגם עצמאית — 250 או 194?</b> מדווחים לפי מקור ההכנסה: רכיב מעסק ב-250/270 ורכיב משכר ששולם ישירות ב-194/196; רכיב הכלול ב-106 לא נרשם שוב. הפיצול נשען על סכומי הזכאות לכל מעמד בהודעת ב״ל ובהתאמה לאישור השנתי. יחס הכנסות הבסיס לבדו הוא אומדן, בגלל תקרות ותקופות אכשרה שונות. <ClaimTag status="interpretation" /></li>
+            <li><b>הפרשי דמי לידה</b> ששולמו בשנה אחרת — ברירת המחדל היא שנת הקבלה בפועל. שומרים תאריך, תקופת זכאות, ברוטו ומס לכל תשלום; ייחוס לשנת זכאות אחרת מחייב בדיקת בקשת פריסה והמסמכים, ואינו אוטומטי. <ClaimTag status="interpretation" /></li>
+            <li><b>030 מדמי הביטוח שנוכו מדמי הלידה</b> — ניכוי רגיל של שכירה אינו מתווסף ל-030. בעצמאית בודקים רכיב ביטוח העומד ב-47א, אסמכתה והיעדר כפל עם אישור התשלומים; בריאות וקנס אינם נכללים. במקרה ספק מבקשים פירוט ואישור, ולא מוסיפים סכום מ-DF לבדו. <ClaimTag status="interpretation" /></li>
           </ul>
           <strong className="kn-small">טעויות נפוצות</strong>
           <Mistakes items={MATERNITY_LESSON.mistakes} year={year} />
@@ -184,7 +184,7 @@ export default function MaternityBody({ year, view }: TopicBodyProps) {
         <Sec id="ml-docs" title="מסמכים ומה מבקשים">
           <ul className="kn-small">
             <li><b>אישור שנתי למס הכנסה — «תקבולי אמהות»</b> (ברוטו ומס שנוכה). המשרד יכול להפיק אותו ב«מערכת ייצוג לקוחות» של ב״ל. <ClaimTag status="interpretation" /></li>
-            <li><b>הודעת החישוב של ב״ל</b> עם התקופה («מ… עד…») ומספר הימים — מהלקוחה. מאיפה בדיוק מורידים אותה באזור האישי — <ClaimTag status="open" />.</li>
+            <li><b>הודעת החישוב של ב״ל</b> עם התקופה («מ… עד…») ומספר הימים — מהלקוחה. מבקשים מהלקוחה את הודעת ההחלטה/חישוב התביעה מהשירות האישי. שם תפריט מדויק לא נצפה, ולכן לא מוצג כאן מסלול מסכים מומצא. <ClaimTag status="interpretation" /></li>
             <li><b>116ג חתום</b> — כשמבקשים פריסה.</li>
           </ul>
           <p className="kn-small"><b>הנוסח ללקוחה:</b> «ההודעה מביטוח לאומי על חישוב דמי הלידה — עם התאריכים "מ… עד…" ומספר הימים».</p>
@@ -229,7 +229,7 @@ export default function MaternityBody({ year, view }: TopicBodyProps) {
             <li>חוזר מס הכנסה 2/2022 «סעיף 8(ג) — פריסת הכנסה», סעיפים 7 ו-7א (עדכון 07.04.2024). <ClaimTag status="interpretation" /> מקור משני (עותק).</li>
             <li>טופס 116ג, גרסה 12.2023, ודברי ההסבר (סעיף 9). <ClaimTag status="verified" /></li>
             <li>חוק ביטוח לאומי ס׳ 50 (תקופות), 53(ד) (ניכוי מס); אתר ב״ל — דמי לידה (ערכי 2026). <ClaimTag status="verified" /></li>
-            <li>המחקר: <code>docs/tax-foundation/research/ni-benefits-withholding-2026-10-16.md</code> (R04, R05, C16, C21) ו-<code>spreading-deferral-continuity-2026-10-16.md</code> (§2 ו-§3).</li>
+            <li><a href="https://www.gov.il/BlobFolder/policy/inst-08-2026/he/IncomeTax_inst-08-2026.pdf" target="_blank" rel="noreferrer">הוראת ביצוע 08/2026 — פריסת דמי לידה ואסמכתאות ↗</a></li>
           </ul>
         </Sec>
       )}

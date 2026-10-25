@@ -2,13 +2,13 @@ import { useState, useMemo } from 'react';
 import { TaxYearData } from '../types';
 import { AVAILABLE } from '../features/taxKnowledge/availability';
 
-const fmt = (n: number) => '\u20AA' + Math.round(n).toLocaleString('he-IL');
+const fmt = (n: number) => Math.round(n).toLocaleString('he-IL') + ' ₪';
 const fmtPct = (n: number) => n.toFixed(2) + '%';
 
 // ─── Employer NI Rates — changed with Amendment 252 (Feb 2025) ──────────────
 function getEmployerRates(year: number) {
-  if (year >= 2025) return { niLow: 4.51, niHigh: 7.60, healthLow: 3.35, healthHigh: 5.17 };
-  return { niLow: 3.55, niHigh: 7.60, healthLow: 3.35, healthHigh: 5.17 };
+  if (year >= 2025) return { niLow: 4.51, niHigh: 7.60, healthLow: 0, healthHigh: 0 };
+  return { niLow: 3.55, niHigh: 7.60, healthLow: 0, healthHigh: 0 };
 }
 
 // ─── Styles ──────────────────────────────────────────────────────────────────
@@ -170,12 +170,12 @@ function InfoSection({ title, children, defaultOpen = false }: {
   const [open, setOpen] = useState(defaultOpen);
   return (
     <div className="card" style={{ marginBottom: '1rem' }}>
-      <div style={collapsibleHeaderStyle} onClick={() => setOpen(!open)}>
+      <button type="button" aria-expanded={open} className="ni-disclosure-toggle" style={{ ...collapsibleHeaderStyle, width: "100%", border: 0, borderRadius: 0, textAlign: "right" }} onClick={() => setOpen(!open)}>
         <span style={{ fontWeight: 600, fontSize: 'var(--fs-15)', color: 'var(--gray-800)' }}>{title}</span>
         <span style={{ fontSize: 'var(--fs-17)', color: 'var(--gray-400)', transition: 'transform .2s', transform: open ? 'rotate(180deg)' : 'rotate(0)' }}>
           &#9660;
         </span>
-      </div>
+      </button>
       {open && <div className="card-body" style={{ fontSize: 'var(--fs-14)', lineHeight: 1.8, color: 'var(--gray-700)' }}>{children}</div>}
     </div>
   );
@@ -201,7 +201,11 @@ interface Props {
   year: number;
 }
 
-export default function NIReferenceSection({ taxData, year }: Props) {
+export default function NIReferenceSection({ taxData: incomingData, year }: Props) {
+ const [healthPeriod,setHealthPeriod]=useState('feb');
+ const isJan2025=year===2025&&healthPeriod==='jan';
+ const taxData={...incomingData, employeeNI:{...incomingData.employeeNI,healthHighRate:isJan2025?5.16:5.17},selfEmployedNI:{...incomingData.selfEmployedNI,healthHighRate:isJan2025?5.16:5.17},passiveNI:{...incomingData.passiveNI,healthLowRate:isJan2025?5.16:5.17,healthHighRate:isJan2025?5.16:5.17}};
+ const periodMonths=year===2025?(isJan2025?1:11):12;
   // ── Derived thresholds ──
   const avgWage = taxData.niAverageWage;
   const threshold60 = taxData.niThreshold60Monthly;
@@ -225,7 +229,8 @@ export default function NIReferenceSection({ taxData, year }: Props) {
 
   // ── NI Calculation Engine ──
   const calcResult: CalcResult | null = useMemo(() => {
-    if (monthlyIncome <= 0 && passiveIncome <= 0) return null;
+    if (['combined','employeeAndSE','employeeAndNonQual'].includes(calcType)) return null;
+    if (monthlyIncome <= 0 && passiveIncome <= 0 && calcType!=='nonWorking' && calcType!=='nonQualifying') return null;
 
     const steps: string[] = [];
     let ni = 0;
@@ -238,7 +243,7 @@ export default function NIReferenceSection({ taxData, year }: Props) {
       if (cappedIncome <= threshold60) {
         niCalc = cappedIncome * (taxData.employeeNI.lowRate / 100);
         healthCalc = cappedIncome * (taxData.employeeNI.healthLowRate / 100);
-        steps.push(`הכנסה ${fmt(cappedIncome)} עד 60% מהשכר הממוצע: ב"ל ${fmtPct(taxData.employeeNI.lowRate)}, בריאות ${fmtPct(taxData.employeeNI.healthLowRate)}`);
+        steps.push(`הכנסה ${fmt(cappedIncome)} עד מדרגת הגבייה המופחתת: ב"ל ${fmtPct(taxData.employeeNI.lowRate)}, בריאות ${fmtPct(taxData.employeeNI.healthLowRate)}`);
       } else {
         const lowPart = threshold60;
         const highPart = cappedIncome - threshold60;
@@ -266,7 +271,7 @@ export default function NIReferenceSection({ taxData, year }: Props) {
       if (cappedIncome <= threshold60) {
         niCalc = cappedIncome * (taxData.selfEmployedNI.lowRate / 100);
         healthCalc = cappedIncome * (taxData.selfEmployedNI.healthLowRate / 100);
-        steps.push(`הכנסה ${fmt(cappedIncome)} עד 60% מהשכר הממוצע: ב"ל ${fmtPct(taxData.selfEmployedNI.lowRate)}, בריאות ${fmtPct(taxData.selfEmployedNI.healthLowRate)}`);
+        steps.push(`הכנסה ${fmt(cappedIncome)} עד מדרגת הגבייה המופחתת: ב"ל ${fmtPct(taxData.selfEmployedNI.lowRate)}, בריאות ${fmtPct(taxData.selfEmployedNI.healthLowRate)}`);
       } else {
         const lowPart = threshold60;
         const highPart = cappedIncome - threshold60;
@@ -281,55 +286,18 @@ export default function NIReferenceSection({ taxData, year }: Props) {
       return { ni: niCalc, health: healthCalc };
     };
 
-    const calcNonQualifying = (income: number) => {
-      let niCalc = 0, healthCalc = 0;
-      const cappedIncome = Math.min(income, maxIncome);
-
-      if (cappedIncome <= threshold25) {
-        steps.push(`הכנסה עד 25% מהשכר הממוצע (${fmt(threshold25)}) - פטור`);
-        return { ni: 0, health: 0 };
-      }
-
-      if (cappedIncome <= threshold50) {
-        const taxable = cappedIncome - threshold25;
-        niCalc = taxable * (taxData.selfEmployedNI.lowRate / 100);
-        healthCalc = taxable * (taxData.selfEmployedNI.healthLowRate / 100);
-        steps.push(`הכנסה מ-${fmt(threshold25)} עד ${fmt(cappedIncome)}: שיעור מופחת`);
-      } else {
-        const lowPart = threshold50 - threshold25;
-        const highPart = cappedIncome - threshold50;
-        niCalc = lowPart * (taxData.selfEmployedNI.lowRate / 100) + highPart * (taxData.selfEmployedNI.highRate / 100);
-        healthCalc = lowPart * (taxData.selfEmployedNI.healthLowRate / 100) + highPart * (taxData.selfEmployedNI.healthHighRate / 100);
-        steps.push(`חלק מופחת (${fmt(threshold25)} עד ${fmt(threshold50)}): שיעור מופחת`);
-        steps.push(`חלק מלא (${fmt(threshold50)} עד ${fmt(cappedIncome)}): שיעור מלא`);
-      }
-      return { ni: niCalc, health: healthCalc };
-    };
-
     const calcPassive = (income: number) => {
-      let niCalc = 0, healthCalc = 0;
-      const cappedIncome = Math.min(income, maxIncome);
-
-      if (cappedIncome <= threshold25) {
-        steps.push(`הכנסה פסיבית עד 25% מהשכר הממוצע (${fmt(threshold25)}) - פטור`);
-        return { ni: 0, health: 0 };
-      }
-
-      if (cappedIncome <= threshold60) {
-        const taxable = cappedIncome - threshold25;
-        niCalc = taxable * (taxData.selfEmployedNI.lowRate / 100);
-        healthCalc = taxable * (taxData.selfEmployedNI.healthLowRate / 100);
-        steps.push(`הכנסה פסיבית מ-${fmt(threshold25)} עד ${fmt(cappedIncome)}: שיעור מופחת`);
-      } else {
-        const lowPart = threshold60 - threshold25;
-        const highPart = cappedIncome - threshold60;
-        niCalc = lowPart * (taxData.selfEmployedNI.lowRate / 100) + highPart * (taxData.selfEmployedNI.highRate / 100);
-        healthCalc = lowPart * (taxData.selfEmployedNI.healthLowRate / 100) + highPart * (taxData.selfEmployedNI.healthHighRate / 100);
-        steps.push(`חלק מופחת (${fmt(threshold25)} עד ${fmt(threshold60)}): שיעור מופחת`);
-        steps.push(`חלק מלא (${fmt(threshold60)} עד ${fmt(cappedIncome)}): שיעור מלא`);
-      }
-      return { ni: niCalc, health: healthCalc };
+      // BTL published example: first subtract25%, then apply the reduced band to the remainder.
+      const base=Math.min(Math.max(0,income-threshold25),maxIncome);
+      const low=Math.min(base,threshold60),high=Math.max(0,base-threshold60);
+      const ni=low*taxData.passiveNI.lowRate/100+high*taxData.passiveNI.highRate/100;
+      const health=low*taxData.passiveNI.healthLowRate/100+high*taxData.passiveNI.healthHighRate/100;
+      steps.push('בסיס אחרי הפחתת הסכום הפטור: '+fmt(base)+'; מופחת '+fmt(low)+'; רגיל '+fmt(high));
+      // The published nonwork example is an estimate, without a345 circular deduction.
+      if(ni+health<minNI)return {ni:Math.max(0,minNI-(year===2026?123:120)),health:year===2026?123:120};
+      return {ni,health};
     };
+    const calcNonQualifying=calcPassive;
 
     let deduction52 = 0;
 
@@ -343,13 +311,13 @@ export default function NIReferenceSection({ taxData, year }: Props) {
         const r = calcSelfEmployed(monthlyIncome);
         ni = r.ni; health = r.health;
         deduction52 = ni * 0.52;
-        steps.push(`ניכוי 52% מדמי ביטוח לאומי: ${fmt(deduction52)} (ניתן לניכוי ממס הכנסה)`);
+        steps.push(`אומדן רכיב 52% מדמי הביטוח: ${fmt(deduction52)}. הניכוי במס הכנסה דורש בדיקת 47א, אישור תשלומים וזכאות; אינו נובע אוטומטית מהאומדן.`);
         break;
       }
       case 'nonQualifying': {
         const r = calcNonQualifying(monthlyIncome);
         ni = r.ni; health = r.health;
-        if (ni + health < minNI && monthlyIncome > 0) {
+        if (false) {
           steps.push(`סכום מינימלי: ${fmt(minNI)} (גבוה מהחישוב)`);
           ni = minNI - health;
           if (ni < 0) { ni = 0; health = minNI; }
@@ -359,7 +327,7 @@ export default function NIReferenceSection({ taxData, year }: Props) {
       case 'nonWorking': {
         const r = calcPassive(monthlyIncome);
         ni = r.ni; health = r.health;
-        if (ni + health < minNI && monthlyIncome > 0) {
+        if (false) {
           steps.push(`סכום מינימלי: ${fmt(minNI)} (גבוה מהחישוב)`);
           ni = minNI - health;
           if (ni < 0) { ni = 0; health = minNI; }
@@ -408,7 +376,7 @@ export default function NIReferenceSection({ taxData, year }: Props) {
     }
 
     const total = ni + health;
-    const monthFactor = (calcType === 'selfEmployed' || calcType === 'nonQualifying') ? activeMonths : 12;
+    const monthFactor = Math.min(periodMonths, (calcType === 'selfEmployed' || calcType === 'nonQualifying') ? activeMonths : periodMonths);
     const annual = total * monthFactor;
 
     // Employer portion (for display only)
@@ -428,6 +396,9 @@ export default function NIReferenceSection({ taxData, year }: Props) {
 
   return (
     <div style={{ direction: 'rtl' }}>
+<p className="kn-soft">קלט במצב «מקביל ל־12 חודשים» מחולק ב־12; זו אינה הכנסה בפועל לתקופת פעילות קצרה. לתקופה קצרה מזינים בסיס חודשי ואת חודשי הפעילות. תושב ישראל מגיל 18 עד גיל פרישה, ללא מעמד מיוחד. הכנסה עצמאית: בסיס שכבר נקבע לדמי ביטוח, אחרי הפחתות 345. הכנסה שלא מעבודה: אומדן לפי דוגמת ב״ל, ורק לאחר שבודקים שההכנסה אכן חייבת. המעסיק משלם ביטוח לאומי בלבד.</p>
+ {year===2025&&<label className="year">תקופת חיוב<select aria-label="תקופת חיוב בשנת 2025" value={healthPeriod} onChange={e=>setHealthPeriod(e.target.value)}><option value="jan">ינואר 2025 — בריאות מלא 5.16%</option><option value="feb">פברואר עד דצמבר 2025 — בריאות מלא 5.17%</option></select></label>}
+ <p className="kn-small"><a href="https://www.btl.gov.il/Insurance/Rates/Pages/לעובדים%20שכירים.aspx" target="_blank" rel="noreferrer">שיעורי שכיר</a> · <a href="https://www.btl.gov.il/Insurance/HozrimBituah/Hozrim/מקדמות%20ודמי%20ביטוח%20לעצמאים%202025.pdf" target="_blank" rel="noreferrer">חוזר 1498 לשנת 2025</a>{year===2026?<span className="kn-year-chip"> · שיעורי שכיר ל־2026 לפי חוזר 2025 — לאימות</span>:null} · <a href="https://www.btl.gov.il/Insurance/Rates/Pages/מי%20שאינם%20עובדים%20ובעלי%20הכנסה%20שלא%20מעבודה.aspx" target="_blank" rel="noreferrer">הכנסה שלא מעבודה</a></p>
       {/* ═══════════════ PART 1: Stat Cards ═══════════════ */}
       <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))' }}>
         <div className="stat-card blue">
@@ -436,7 +407,7 @@ export default function NIReferenceSection({ taxData, year }: Props) {
           <div className="stat-sub">{year}</div>
         </div>
         <div className="stat-card green">
-          <div className="stat-label">60% מהשכר הממוצע</div>
+          <div className="stat-label">מדרגת הגבייה המופחתת</div>
           <div className="stat-value" style={{ fontSize: 'var(--fs-20)' }}>{fmt(threshold60)}</div>
           <div className="stat-sub">סף שיעור מופחת</div>
         </div>
@@ -470,10 +441,10 @@ export default function NIReferenceSection({ taxData, year }: Props) {
                   <tr>
                     <th style={{ ...greenHeader, width: '30%' }}></th>
                     <th style={greenSubHeader}>
-                      עד 60% מהשכר הממוצע<br />(שיעור מופחת)
+                      עד מדרגת הגבייה המופחתת<br />(שיעור מופחת)
                     </th>
                     <th style={greenSubHeader}>
-                      מעל 60% עד ההכנסה המרבית<br />(שיעור מלא)
+                      מעל המדרגה המופחתת עד ההכנסה המרבית<br />(שיעור מלא)
                     </th>
                   </tr>
                 </thead>
@@ -492,11 +463,6 @@ export default function NIReferenceSection({ taxData, year }: Props) {
                     <td style={rowLabelStyle}>בריאות - חלק עובד</td>
                     <td style={cellStyle}>{fmtPct(taxData.employeeNI.healthLowRate)}</td>
                     <td style={cellStyle}>{fmtPct(taxData.employeeNI.healthHighRate)}</td>
-                  </tr>
-                  <tr>
-                    <td style={rowLabelStyle}>בריאות - חלק מעסיק</td>
-                    <td style={cellStyle}>{fmtPct(employer.healthLow)}</td>
-                    <td style={cellStyle}>{fmtPct(employer.healthHigh)}</td>
                   </tr>
                   <tr style={totalRowStyle}>
                     <td style={{ ...rowLabelStyle, ...totalRowStyle }}>סה"כ חלק עובד</td>
@@ -524,10 +490,10 @@ export default function NIReferenceSection({ taxData, year }: Props) {
                   <tr>
                     <th style={{ ...greenHeader, width: '30%' }}></th>
                     <th style={greenSubHeader}>
-                      עד 60% מהשכר הממוצע<br />(שיעור מופחת)
+                      עד מדרגת הגבייה המופחתת<br />(שיעור מופחת)
                     </th>
                     <th style={greenSubHeader}>
-                      מעל 60% עד ההכנסה המרבית<br />(שיעור מלא)
+                      מעל המדרגה המופחתת עד ההכנסה המרבית<br />(שיעור מלא)
                     </th>
                   </tr>
                 </thead>
@@ -556,7 +522,7 @@ export default function NIReferenceSection({ taxData, year }: Props) {
                 גם עצמאי שהכנסתו נמוכה יותר ישלם לפחות <strong>{fmt(Math.round(threshold25 * (taxData.selfEmployedNI.lowRate + taxData.selfEmployedNI.healthLowRate) / 100))}/חודש</strong>.
               </div>
               <div className="alert alert-info" style={{ marginBottom: 0 }}>
-                <span>52% מדמי הביטוח הלאומי (ללא דמי בריאות) מוכרים כניכוי ממס הכנסה (סעיף 17(5))</span>
+                <span>הפחתת 52% מבסיס ב״ל לפי 345 אינה זהה אוטומטית לניכוי במס הכנסה; שם בודקים 47א, תשלומים בפועל וחריג עסק זעיר.</span>
               </div>
             </div>
             <AxisDiagram zones={[
@@ -567,116 +533,17 @@ export default function NIReferenceSection({ taxData, year }: Props) {
           </div>
         </div>
 
-        {/* ── C. עצמאי שאינו עונה להגדרה ── */}
-        <div className="card">
-          <div className="card-body">
-            <div style={sectionTitleStyle}>ג. עצמאי שאינו עונה להגדרה</div>
-            <div className="table-wrap">
-              <table style={tableStyle}>
-                <thead>
-                  <tr>
-                    <th style={{ ...greenHeader, width: '25%' }}></th>
-                    <th style={greenSubHeader}>
-                      עד 25% מהשכר הממוצע<br />({fmt(threshold25)})
-                    </th>
-                    <th style={greenSubHeader}>
-                      25% עד 50%<br />({fmt(threshold25)}-{fmt(threshold50)})
-                    </th>
-                    <th style={greenSubHeader}>
-                      מעל 50% עד מרבית<br />({fmt(threshold50)}-{fmt(maxIncome)})
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td style={rowLabelStyle}>דמי ביטוח לאומי</td>
-                    <td style={cellStyle}>0%</td>
-                    <td style={cellStyle}>{fmtPct(taxData.selfEmployedNI.lowRate)}</td>
-                    <td style={cellStyle}>{fmtPct(taxData.selfEmployedNI.highRate)}</td>
-                  </tr>
-                  <tr>
-                    <td style={rowLabelStyle}>דמי ביטוח בריאות</td>
-                    <td style={cellStyle}>0%</td>
-                    <td style={cellStyle}>{fmtPct(taxData.selfEmployedNI.healthLowRate)}</td>
-                    <td style={cellStyle}>{fmtPct(taxData.selfEmployedNI.healthHighRate)}</td>
-                  </tr>
-                  <tr style={totalRowStyle}>
-                    <td style={{ ...rowLabelStyle, ...totalRowStyle }}>סה"כ</td>
-                    <td style={{ ...cellStyle, ...totalRowStyle }}>0%</td>
-                    <td style={{ ...cellStyle, ...totalRowStyle }}>{fmtPct(taxData.selfEmployedNI.lowRate + taxData.selfEmployedNI.healthLowRate)}</td>
-                    <td style={{ ...cellStyle, ...totalRowStyle }}>{fmtPct(taxData.selfEmployedNI.highRate + taxData.selfEmployedNI.healthHighRate)}</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-            <div className="alert alert-warning" style={{ marginTop: '.75rem' }}>
-              <span>תשלום מינימלי חודשי: {fmt(minNI)}</span>
-            </div>
-            <AxisDiagram zones={[
-              { from: 0, to: threshold25, label: 'פטור', color: 'var(--bd-strong)', rate: '0%' },
-              { from: threshold25, to: threshold50, label: 'מופחת', color: 'var(--br)', rate: fmtPct(taxData.selfEmployedNI.lowRate + taxData.selfEmployedNI.healthLowRate) },
-              { from: threshold50, to: maxIncome, label: 'מלא', color: 'var(--warn)', rate: fmtPct(taxData.selfEmployedNI.highRate + taxData.selfEmployedNI.healthHighRate) },
-              { from: maxIncome, to: null, label: 'פטור', color: 'var(--bd-strong)' },
-            ]} />
-          </div>
-        </div>
-
-        {/* ── D. הכנסה שאינה מעבודה ── */}
-        <div className="card">
-          <div className="card-body">
-            <div style={sectionTitleStyle}>ד. הכנסה שאינה מעבודה (פסיבית)</div>
-            <div className="table-wrap">
-              <table style={tableStyle}>
-                <thead>
-                  <tr>
-                    <th style={{ ...greenHeader, width: '25%' }}></th>
-                    <th style={greenSubHeader}>
-                      עד 25% מהשכר הממוצע<br />({fmt(threshold25)})
-                    </th>
-                    <th style={greenSubHeader}>
-                      25% עד 60%<br />({fmt(threshold25)}-{fmt(threshold60)})
-                    </th>
-                    <th style={greenSubHeader}>
-                      מעל 60% עד מרבית<br />({fmt(threshold60)}-{fmt(maxIncome)})
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td style={rowLabelStyle}>דמי ביטוח לאומי</td>
-                    <td style={cellStyle}>0%</td>
-                    <td style={cellStyle}>{fmtPct(taxData.selfEmployedNI.lowRate)}</td>
-                    <td style={cellStyle}>{fmtPct(taxData.selfEmployedNI.highRate)}</td>
-                  </tr>
-                  <tr>
-                    <td style={rowLabelStyle}>דמי ביטוח בריאות</td>
-                    <td style={cellStyle}>0%</td>
-                    <td style={cellStyle}>{fmtPct(taxData.selfEmployedNI.healthLowRate)}</td>
-                    <td style={cellStyle}>{fmtPct(taxData.selfEmployedNI.healthHighRate)}</td>
-                  </tr>
-                  <tr style={totalRowStyle}>
-                    <td style={{ ...rowLabelStyle, ...totalRowStyle }}>סה"כ</td>
-                    <td style={{ ...cellStyle, ...totalRowStyle }}>0%</td>
-                    <td style={{ ...cellStyle, ...totalRowStyle }}>{fmtPct(taxData.selfEmployedNI.lowRate + taxData.selfEmployedNI.healthLowRate)}</td>
-                    <td style={{ ...cellStyle, ...totalRowStyle }}>{fmtPct(taxData.selfEmployedNI.highRate + taxData.selfEmployedNI.healthHighRate)}</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-            <div className="alert alert-info" style={{ marginTop: '.75rem' }}>
-              <span>הכנסה פסיבית: שכ"ד, ריבית, דיבידנד, פנסיה מוקדמת ועוד</span>
-            </div>
-            <AxisDiagram zones={[
-              { from: 0, to: threshold25, label: 'פטור', color: 'var(--bd-strong)', rate: '0%' },
-              { from: threshold25, to: threshold60, label: 'מופחת', color: 'var(--br)', rate: fmtPct(taxData.selfEmployedNI.lowRate + taxData.selfEmployedNI.healthLowRate) },
-              { from: threshold60, to: maxIncome, label: 'מלא', color: 'var(--warn)', rate: fmtPct(taxData.selfEmployedNI.highRate + taxData.selfEmployedNI.healthHighRate) },
-              { from: maxIncome, to: null, label: 'פטור', color: 'var(--bd-strong)' },
-            ]} />
-          </div>
-        </div>
-      </div>
-
-      {/* ═══════════════ PART 3: NI Calculator ═══════════════ */}
+        <div className="card"><div className="card-body">
+ <div style={sectionTitleStyle}>ג. הכנסה שלא מעבודה ועצמאי שאינו עונה להגדרה</div>
+ <p>תחילה בודקים שההכנסה חייבת ומפחיתים {fmt(threshold25)} לחודש. את היתרה מחלקים למדרגות שלהלן; אין מדרגה נפרדת של 50% למי שאינו עונה להגדרה.</p>
+ <div className="table-wrap"><table style={tableStyle}><thead><tr><th style={greenHeader}>רכיב</th><th style={greenSubHeader}>יתרה עד {fmt(threshold60)}</th><th style={greenSubHeader}>יתרה מעל המדרגה עד התקרה</th></tr></thead><tbody>
+ <tr><td style={rowLabelStyle}>ביטוח לאומי</td><td style={cellStyle}>{fmtPct(taxData.passiveNI.lowRate)}</td><td style={cellStyle}>{fmtPct(taxData.passiveNI.highRate)}</td></tr>
+ <tr><td style={rowLabelStyle}>ביטוח בריאות</td><td style={cellStyle}>{fmtPct(taxData.passiveNI.healthLowRate)}</td><td style={cellStyle}>{fmtPct(taxData.passiveNI.healthHighRate)}</td></tr>
+ <tr><td style={rowLabelStyle}>סך הכול</td><td style={cellStyle}>{fmtPct(taxData.passiveNI.lowRate+taxData.passiveNI.healthLowRate)}</td><td style={cellStyle}>{fmtPct(taxData.passiveNI.highRate+taxData.passiveNI.healthHighRate)}</td></tr>
+ </tbody></table></div>
+ <p className="kn-small">מי שאינו עובד וללא פטור: לא פחות מ־{fmt(minNI)} לחודש. ריבית ודיבידנד בשיעור מוגבל ושכירות מגורים פסיבית נבדקים לפטור; פנסיה מוקדמת נבדקת בטבלה שלה. האומדן כאן לפי דוגמת ב״ל, לפני התאמה אפשרית לפי 345.</p>
+ </div></div></div>
+ {/* ═══════════════ PART 3: NI Calculator ═══════════════ */}
       <div className="ni-calc">
         <div className="ni-calc-head">
           <span style={{ fontSize: 'var(--fs-17)', fontWeight: 600 }}>מחשבון ביטוח לאומי - {year}</span>
@@ -712,7 +579,7 @@ export default function NIReferenceSection({ taxData, year }: Props) {
                   <button type="button" onClick={() => { if (incomeMode === 'monthly') { setIncomeMode('annual'); setIncomeInput(incomeInput * 12); } }}
                     style={{ padding: '.15rem .5rem', border: 'none', borderRight: '1px solid var(--bd-strong)', cursor: 'pointer', fontFamily: 'inherit',
                       background: incomeMode === 'annual' ? 'var(--info)' : 'var(--card)', color: incomeMode === 'annual' ? 'var(--card)' : 'var(--tx2)' }}>
-                    שנתי
+                    מקביל ל־12 חודשים
                   </button>
                 </span>
               </label>
@@ -762,7 +629,7 @@ export default function NIReferenceSection({ taxData, year }: Props) {
                     <button type="button" onClick={() => { if (incomeModeSecondary === 'monthly') { setIncomeModeSecondary('annual'); setSecondaryInput(secondaryInput * 12); } }}
                       style={{ padding: '.15rem .5rem', border: 'none', borderRight: '1px solid var(--bd-strong)', cursor: 'pointer', fontFamily: 'inherit',
                         background: incomeModeSecondary === 'annual' ? 'var(--info)' : 'var(--card)', color: incomeModeSecondary === 'annual' ? 'var(--card)' : 'var(--tx2)' }}>
-                      שנתי
+                      מקביל ל־12 חודשים
                     </button>
                   </span>
                 </label>
@@ -781,6 +648,7 @@ export default function NIReferenceSection({ taxData, year }: Props) {
             )}
           </div>
 
+{['combined','employeeAndSE','employeeAndNonQual'].includes(calcType)&&<div className="kn-blocked" role="status"><strong>בהכנסות מעורבות בונים חישוב משולב.</strong> השכר צורך את המדרגה המופחתת ואת התקרה לפני ההכנסות הנוספות. לא מחברים שני חישובים נפרדים. <a href="#book/niSelfEmployed/ni-5">לכללי המעמדות והבסיס</a> · <a href="https://www.btl.gov.il/Insurance/National%20Insurance/type_list/Self_Employed/Pages/default.aspx" target="_blank" rel="noreferrer">לדפי ב״ל ולמחשבון הרשמי</a></div>}
           {calcResult && (
             <div>
               {/* Results table */}
@@ -796,7 +664,7 @@ export default function NIReferenceSection({ taxData, year }: Props) {
                   </thead>
                   <tbody>
                     <tr style={{ borderBottom: '1px solid var(--s2)' }}>
-                      <td style={{ padding: '.5rem .75rem', fontWeight: 600 }}>חודשי (חלק עובד)</td>
+                      <td style={{ padding: '.5rem .75rem', fontWeight: 600 }}>חודשי — המבוטח</td>
                       <td style={{ padding: '.5rem .75rem', textAlign: 'center', fontWeight: 600, color: 'var(--br)' }}>{fmt(calcResult.ni)}</td>
                       <td style={{ padding: '.5rem .75rem', textAlign: 'center', fontWeight: 600, color: 'var(--chip-teal-tx)' }}>{fmt(calcResult.health)}</td>
                       <td style={{ padding: '.5rem .75rem', textAlign: 'center', fontWeight: 600, color: 'var(--info)', fontSize: 'var(--fs-15)' }}>{fmt(calcResult.total)}</td>
@@ -805,14 +673,14 @@ export default function NIReferenceSection({ taxData, year }: Props) {
                       <tr style={{ borderBottom: '1px solid var(--s2)', background: 'var(--s2)' }}>
                         <td style={{ padding: '.5rem .75rem', fontWeight: 500, color: 'var(--tx2)' }}>חודשי (חלק מעסיק)</td>
                         <td style={{ padding: '.5rem .75rem', textAlign: 'center', color: 'var(--tx2)' }}>{fmt(calcResult.employerNI)}</td>
-                        <td style={{ padding: '.5rem .75rem', textAlign: 'center', color: 'var(--tx2)' }}>{fmt(calcResult.employerHealth)}</td>
+                        <td style={{ padding: '.5rem .75rem', textAlign: 'center', color: 'var(--tx2)' }}>—</td>
                         <td style={{ padding: '.5rem .75rem', textAlign: 'center', color: 'var(--tx2)', fontWeight: 600 }}>{fmt(calcResult.employerNI + calcResult.employerHealth)}</td>
                       </tr>
                     )}
                     <tr style={{ background: 'var(--chip-teal-bg)', fontWeight: 600 }}>
-                      <td style={{ padding: '.6rem .75rem' }}>שנתי (עובד × {(calcType === 'selfEmployed' || calcType === 'nonQualifying') ? activeMonths : 12})</td>
-                      <td style={{ padding: '.6rem .75rem', textAlign: 'center', color: 'var(--br)' }}>{fmt(calcResult.ni * ((calcType === 'selfEmployed' || calcType === 'nonQualifying') ? activeMonths : 12))}</td>
-                      <td style={{ padding: '.6rem .75rem', textAlign: 'center', color: 'var(--chip-teal-tx)' }}>{fmt(calcResult.health * ((calcType === 'selfEmployed' || calcType === 'nonQualifying') ? activeMonths : 12))}</td>
+                      <td style={{ padding: '.6rem .75rem' }}>לתקופה בהכנסה קבועה (× {Math.min(periodMonths,(calcType === 'selfEmployed' || calcType === 'nonQualifying') ? activeMonths : periodMonths)} חודשים)</td>
+                      <td style={{ padding: '.6rem .75rem', textAlign: 'center', color: 'var(--br)' }}>{fmt(calcResult.ni * Math.min(periodMonths,(calcType === 'selfEmployed' || calcType === 'nonQualifying') ? activeMonths : periodMonths))}</td>
+                      <td style={{ padding: '.6rem .75rem', textAlign: 'center', color: 'var(--chip-teal-tx)' }}>{fmt(calcResult.health * Math.min(periodMonths,(calcType === 'selfEmployed' || calcType === 'nonQualifying') ? activeMonths : periodMonths))}</td>
                       <td style={{ padding: '.6rem .75rem', textAlign: 'center', color: 'var(--info)', fontSize: 'var(--fs-17)' }}>{fmt(calcResult.annual)}</td>
                     </tr>
                   </tbody>
@@ -822,7 +690,7 @@ export default function NIReferenceSection({ taxData, year }: Props) {
               {/* 52% deduction highlight */}
               {calcResult.deduction52 !== undefined && (
                 <div className="ni-note">
-                  <strong>ניכוי 52% מב"ל:</strong> {fmt(calcResult.deduction52)}/חודש | {fmt(calcResult.deduction52 * ((calcType === 'selfEmployed' || calcType === 'nonQualifying') ? activeMonths : 12))}/שנה - ניתן לניכוי ממס הכנסה (סעיף 17(5))
+                  <strong>ניכוי 52% מב"ל:</strong> {fmt(calcResult.deduction52)}/חודש | {fmt(calcResult.deduction52 * Math.min(periodMonths,(calcType === 'selfEmployed' || calcType === 'nonQualifying') ? activeMonths : periodMonths))}/לתקופה - אומדן רכיב 52%; הניכוי בפועל לפי 47א, אישור תשלומים ותנאי הזכאות
                 </div>
               )}
 
@@ -846,166 +714,14 @@ export default function NIReferenceSection({ taxData, year }: Props) {
 
       {/* ═══════════════ PART 4: Reference Information ═══════════════ */}
 
-      <InfoSection title="1. הגדרת עצמאי לצורכי ביטוח לאומי" defaultOpen>
-        <p style={{ marginBottom: '.75rem' }}>עובד עצמאי מוגדר בחוק הביטוח הלאומי כמי שעונה על אחד מהתנאים הבאים:</p>
-        <ul style={{ paddingRight: '1.5rem', marginBottom: '.75rem' }}>
-          <li><strong>תנאי א':</strong> מי שעוסק במשלח ידו 20 שעות בשבוע לפחות בממוצע</li>
-          <li><strong>תנאי ב':</strong> הכנסתו החודשית ממשלח ידו עולה על 50% מהשכר הממוצע ({fmt(avgWage * 0.5)})</li>
-          <li><strong>תנאי ג':</strong> מי שעוסק במשלח ידו 12 שעות בשבוע לפחות בממוצע, והכנסתו ממשלח ידו עולה על 15% מהשכר הממוצע ({fmt(avgWage * 0.15)})</li>
-        </ul>
-        <p>מי שלא עונה לאף אחד מהתנאים הנ"ל מסווג כ"עצמאי שאינו עונה להגדרה" ומשלם שיעורים שונים.</p>
-      </InfoSection>
-
-      <InfoSection title="2. מבוטח שאינו עובד שכיר ואינו עובד עצמאי">
-        <p style={{ marginBottom: '.75rem' }}>
-          מבוטח שאינו עובד שכיר ואינו עונה להגדרת "עובד עצמאי" חייב בתשלום דמי ביטוח מינימליים.
-        </p>
-        <ul style={{ paddingRight: '1.5rem', marginBottom: '.75rem' }}>
-          <li>התשלום המינימלי החודשי: <strong>{fmt(minNI)}</strong></li>
-          <li>התשלום כולל דמי ביטוח לאומי ודמי ביטוח בריאות</li>
-          <li>חובת תשלום חלה גם על מי שאין לו הכנסה כלל (אלא אם קיים פטור כגון עקרת בית)</li>
-          <li>דוגמאות: סטודנט, מובטל, אדם שאינו עובד, בעל הכנסות פסיביות בלבד</li>
-        </ul>
-      </InfoSection>
-
-      <InfoSection title="3. הכנסות שאינן חייבות בדמי ביטוח (סעיף 350)">
-        <p style={{ marginBottom: '.75rem' }}>הכנסות הפטורות מדמי ביטוח לאומי לפי סעיף 350(א) לחוק:</p>
-        <ul style={{ paddingRight: '1.5rem', marginBottom: '.75rem' }}>
-          <li><strong>דיבידנד:</strong> הכנסה מדיבידנד לפי סעיף 125ב לפקודה (דיבידנד בשיעור מס מוגבל) - פטורה מדמי ביטוח</li>
-          <li><strong>רווח הון:</strong> רווח הון ממכירת ני"ע, נכסים ועוד - פטור מדמי ביטוח</li>
-          <li><strong>ריבית:</strong> הכנסה מריבית לפי סעיף 125ג לפקודה (ריבית בשיעור מס מוגבל) - פטורה מדמי ביטוח</li>
-          <li><strong>שכירות פטורה:</strong> החלק הפטור ממס משכ"ד למגורים (חוק 1990, שדה 332; תקרה {fmt(taxData.rentalExemptMonthly)}/חודש) - פטור מדמי ביטוח (350(א)(7))</li>
-          <li><strong>שכירות 10%:</strong> הכנסה משכ"ד למגורים במסלול 10% (סעיף 122, שדה 222) - פטורה מדמי ביטוח</li>
-          <li><strong>לא פטור:</strong> החלק <strong>החייב</strong> במס - מסלול רגיל, או פטור חלקי מעל התקרה (שדה 059) - «הכנסה שלא מעבודה» וחייב בדמי ביטוח: מפחיתים 52% מדמי הביטוח (345) ו-25% מהשכר הממוצע לחודש (348 - הפחתה, לא מצוק), והיתרה בשיעורי הכנסה שלא מעבודה. רישום בשדה 167 במקום 059 הוא סיווג שגוי ואינו משנה את החבות. מקבל קצבת אזרח ותיק - פטור (351(ב))</li>
-          <li><strong>קצבאות ביטוח לאומי:</strong> קצבת זקנה, שאירים, נכות ועוד - פטורות</li>
-        </ul>
-        <div className="alert alert-warning">
-          <span>שימו לב: הכנסות שאינן פטורות לפי סעיף 350 חייבות בדמי ביטוח גם אם הן "פסיביות" - למשל שכ"ד במסלול רגיל, פנסיה מוקדמת, תמלוגים.</span>
-        </div>
-      </InfoSection>
-
-      <InfoSection title="4. סדר חיוב בהכנסות מעורבות">
-        <p style={{ marginBottom: '.75rem' }}>
-          כאשר למבוטח מספר סוגי הכנסות, החיוב בדמי ביטוח נעשה לפי סדר עדיפויות:
-        </p>
-        <ol style={{ paddingRight: '1.5rem', marginBottom: '.75rem' }}>
-          <li><strong>הכנסה כשכיר</strong> - נגבית ראשונה, על ידי המעסיק</li>
-          <li><strong>הכנסה כעצמאי</strong> - נגבית שנית, מעל ההכנסה כשכיר</li>
-          <li><strong>הכנסה שלא מעבודה</strong> - נגבית שלישית (שכ"ד במסלול רגיל, תמלוגים וכד')</li>
-          <li><strong>הכנסה מפנסיה מוקדמת</strong> - נגבית אחרונה</li>
-        </ol>
-        <div className="alert alert-info">
-          <span>
-            תקרת ההכנסה המרבית החייבת ({fmt(maxIncome)}/חודש) היא תקרה משולבת לכל סוגי ההכנסות יחד.
-            כלומר, אם הכנסתך כשכיר כבר הגיעה לתקרה - לא תשלם דמי ביטוח על הכנסות נוספות.
-          </span>
-        </div>
-      </InfoSection>
-
-      <InfoSection title="5. ניכוי 52% מדמי ביטוח לאומי לעצמאי">
-        <p style={{ marginBottom: '.75rem' }}>
-          עצמאי זכאי לנכות 52% מדמי הביטוח הלאומי ששילם (ללא דמי ביטוח בריאות) כהוצאה מוכרת לצורכי מס הכנסה.
-        </p>
-        <ul style={{ paddingRight: '1.5rem', marginBottom: '.75rem' }}>
-          <li>הניכוי חל רק על החלק של דמי ביטוח לאומי (לא כולל דמי בריאות)</li>
-          <li>הניכוי מקטין את ההכנסה החייבת לצורכי מס הכנסה</li>
-          <li>למעשה, אם שיעור המס השולי הוא 47%, החיסכון בפועל הוא 52% * 47% = כ-24.4% מדמי הב"ל</li>
-          <li>הניכוי מתבצע בדו"ח השנתי (מקדמות לא מביאות זאת בחשבון)</li>
-        </ul>
-        <div className="ni-note">
-          <strong>דוגמה:</strong> עצמאי ששילם {fmt(1000)} דמי ב"ל בחודש, יכול לנכות {fmt(520)} מההכנסה החייבת.
-          בשיעור מס שולי 47%, החיסכון: {fmt(244)} בחודש.
-        </div>
-      </InfoSection>
-
-      <InfoSection title="6. מעמד תושבות וביטוח לאומי">
-        <p style={{ marginBottom: '.75rem' }}>
-          תושב ישראל חייב בתשלום דמי ביטוח לאומי ודמי בריאות גם אם הוא שוהה בחו"ל.
-        </p>
-        <ul style={{ paddingRight: '1.5rem', marginBottom: '.75rem' }}>
-          <li><strong>שהייה מעל שנתיים:</strong> ניתן לאבד מעמד תושבות לצורכי ביטוח לאומי. המוסד לביטוח לאומי בוחן את מרכז החיים</li>
-          <li><strong>שהייה מעל 5 שנים:</strong> בדיקה מעמיקה יותר של מעמד התושבות</li>
-          <li><strong>חזרה לישראל:</strong> מי שאיבד תושבות ומבקש לחזור לביטוח בריאות עשוי להידרש לתקופת המתנה ותשלום רטרואקטיבי</li>
-          <li><strong>תשלום בחו"ל:</strong> תושב ישראל השוהה בחו"ל וממשיך לשלם דמי ביטוח - שומר על זכויותיו</li>
-        </ul>
-      </InfoSection>
-
-      <InfoSection title='7. עקרת/עקר בית - פטור מדמי ביטוח'>
-        <p style={{ marginBottom: '.75rem' }}>
-          לפי סעיפים 342, 351, 335 לחוק הביטוח הלאומי:
-        </p>
-        <ul style={{ paddingRight: '1.5rem', marginBottom: '.75rem' }}>
-          <li>אישה נשואה שאינה עובדת כשכירה ואינה עצמאית - פטורה מדמי ביטוח לאומי</li>
-          <li>הפטור חל גם על דמי ביטוח בריאות (בן/בת הזוג משלמ/ת עבורה)</li>
-          <li>אם יש לה הכנסה פסיבית (שכ"ד, ריבית) - עדיין חל הפטור כל עוד ההכנסה אינה מעבודה</li>
-          <li>חשוב: הפטור חל רק על מי שבן/בת הזוג תושב/ת ישראל ומבוטח/ת בביטוח לאומי</li>
-        </ul>
-        <div className="alert alert-info">
-          <span>
-            פסיקה עדכנית: בתי הדין הרחיבו את הפטור גם לגברים ("עקר בית") בנסיבות דומות, בהתאם לעקרון השוויון.
-          </span>
-        </div>
-      </InfoSection>
-
-      <InfoSection title="8. גיל פרישה וזכאות">
-        <p style={{ marginBottom: '.75rem' }}>
-          גיל הפרישה וגיל הזכאות משפיעים על חובת תשלום דמי ביטוח:
-        </p>
-        <ul style={{ paddingRight: '1.5rem', marginBottom: '.75rem' }}>
-          <li><strong>עד גיל 18:</strong> פטור מדמי ביטוח. אם עובד כשכיר - המעסיק משלם חלקו בלבד</li>
-          <li><strong>גיל 18 עד גיל פרישה:</strong> חובת תשלום מלאה (גיל פרישה: 67 לגברים, 65 לנשים בשנת 2026)</li>
-          <li><strong>גיל פרישה עד גיל זכאות:</strong> שיעורים מופחתים, פטור על הכנסות שאינן מעבודה עד לתקרה</li>
-          <li><strong>מעל גיל זכאות (70):</strong> פטור מדמי ביטוח לאומי. חובת דמי בריאות בלבד (על הכנסה מעבודה)</li>
-        </ul>
-        <div className="table-wrap" style={{ marginTop: '.75rem' }}>
-          <table style={tableStyle}>
-            <thead>
-              <tr>
-                <th style={greenHeader}>קבוצת גיל</th>
-                <th style={greenHeader}>ביטוח לאומי</th>
-                <th style={greenHeader}>ביטוח בריאות</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td style={rowLabelStyle}>עד 18</td>
-                <td style={cellStyle}>פטור</td>
-                <td style={cellStyle}>פטור</td>
-              </tr>
-              <tr>
-                <td style={rowLabelStyle}>18 - גיל פרישה</td>
-                <td style={cellStyle}>חובה</td>
-                <td style={cellStyle}>חובה</td>
-              </tr>
-              <tr>
-                <td style={rowLabelStyle}>פרישה - זכאות</td>
-                <td style={cellStyle}>מופחת / פטור חלקי</td>
-                <td style={cellStyle}>חובה</td>
-              </tr>
-              <tr>
-                <td style={rowLabelStyle}>מעל גיל זכאות (70)</td>
-                <td style={cellStyle}>פטור</td>
-                <td style={cellStyle}>חובה (מעבודה בלבד)</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </InfoSection>
-
-      <InfoSection title="9. דמי לידה לעצמאית">
-        <p style={{ marginBottom: '.75rem' }}>
-          עצמאית הזכאית לדמי לידה מחושבת לפי השכר הגבוה מבין:
-        </p>
-        <ul style={{ paddingRight: '1.5rem', marginBottom: '.75rem' }}>
-          <li><strong>שנת הלידה:</strong> הכנסה חייבת בדמי ביטוח ב-3 החודשים שקדמו ללידה (חלקי 3)</li>
-          <li><strong>השנה הקודמת:</strong> הכנסה חייבת בדמי ביטוח ב-12 החודשים שקדמו ל-3 החודשים האחרונים (חלקי 12)</li>
-        </ul>
-        <div className="ni-note">
-          <strong>טיפ מקסום:</strong> ניתן להגדיל את דמי הלידה על ידי הגדלת המקדמות לביטוח לאומי ב-3 החודשים שלפני הלידה.
-          המוסד לביטוח לאומי יחשב לפי הגבוה מבין שתי התקופות, כך שהגדלה זמנית לא תפגע.
-          יש לוודא שהמקדמות משולמות בזמן ושההכנסה המדווחת תואמת.
-        </div>
-      </InfoSection>
+      <InfoSection title="איך מסווגים את ההכנסה" defaultOpen>
+ <p>עובד עצמאי: 20 שעות בממוצע בשבוע, או הכנסה לפחות 50% מהשכר הממוצע הרלוונטי, או 12 שעות לפחות והכנסה לפחות 15%. מי שאינו עונה להגדרה נחשב בעל הכנסה שלא מעבודה לעניין חיוב וזכאות; אין לו מדרגת 50% נפרדת.</p>
+ <a href="https://www.btl.gov.il/Insurance/National%20Insurance/type_list/Self_Employed/pages/default.aspx" target="_blank" rel="noreferrer">להגדרה הרשמית ולסכומים העדכניים</a>
+ </InfoSection>
+ <InfoSection title="שכירות, גמלאות ומקרים מיוחדים">
+ <p>שכירות מגורים פסיבית למגורים בישראל עשויה להיות פטורה מב״ל גם במסלול מס הכנסה רגיל. שדה בדוח אינו יוצר את הפטור; בודקים את השימוש והאופי ושומרים אסמכתאות.</p>
+ <p><a href="#tool/rental">מסלולי שכירות</a> · <a href="#book/maternity/plan">דמי לידה</a> · <a href="#book/niSelfEmployed/ni-5">גיל, מעמד והכנסות מעורבות</a> · <a href="#book/niSelfEmployed/ni-6">תשלומי ב״ל והדוח השנתי</a></p>
+ </InfoSection>
     </div>
   );
 }
