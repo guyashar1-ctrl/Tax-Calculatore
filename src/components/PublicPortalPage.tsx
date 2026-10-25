@@ -62,6 +62,8 @@ const PortalTokenCtx = createContext<string>('');
 /** ‼ 22.10.2026 · «הדבר הבא» הוא סימון על הבקשה עצמה ברשימה — לא כרטיס נפרד שחוזר על הכותרת שלה.
  *  tag — רק כשיש יותר מבקשה אחת (בקשה יחידה היא ממילא הדבר הבא). */
 const PortalNextCtx = createContext<{ key: string; due?: string; tag: boolean } | null>(null);
+/** שם המשרד — להודעה שהלקוח מעביר לבן/בת הזוג (ב״ל). */
+const PortalFirmCtx = createContext<string>('');
 
 function usePortal() {
   const mode = useContext(PortalModeCtx);
@@ -1187,6 +1189,22 @@ function RequestGuide({ item, brand }: {
  * אחת — האסמכתא והמועד — ושני כפתורים: לאתר, ו«אישרתי» (299). ההוראות מאחורי «איך עושים?».
  * «אישרתי» אינו סוגר: המשרד בודק מול ב״ל, והבקשה נסגרת רק כשהבדיקה מוצאת אישור.
  */
+/**
+ * ‼ 25.10.2026 (גיא, ליאת ואוריה): לבן/בת הזוג אין מייל ואין דף משלו — בעל הכרטיס מעביר לו.
+ * ההודעה: מה לאשר, האסמכתא, המועד, הקישור לאתר ב״ל, וההוראות. בלי טוקן ובלי קישור לדף האישי.
+ */
+export function niForwardText(item: Pick<PortalItem, 'forPerson' | 'refs' | 'linkUrl' | 'noteAfter'>, firmName: string): string {
+  const ref = (item.refs ?? []).find(r => /אסמכתא/.test(r.label))?.value;
+  const due = (item.refs ?? []).find(r => /עד/.test(r.label))?.value;
+  const first = (item.forPerson ?? '').trim().split(/\s+/)[0];
+  return [
+    `${first ? first + ', ' : ''}צריך לאשר בביטוח הלאומי את ייפוי הכוח${firmName ? ' ל' + firmName : ''}.`,
+    [ref && `אסמכתא: ${ref}`, due && `עד ${due}`].filter(Boolean).join(' · '),
+    item.linkUrl ? `לאישור: ${item.linkUrl}` : '',
+    item.noteAfter ?? '',
+  ].filter(Boolean).join('\n');
+}
+
 function NiApprovalBlock({ item, brand, accent, onDone }: {
   item: PortalItem;
   brand: { ink: string; muted: string; border: string; radius: number };
@@ -1198,6 +1216,9 @@ function NiApprovalBlock({ item, brand, accent, onDone }: {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [simulated, setSimulated] = useState(false);
+  const [forwarded, setForwarded] = useState<string | null>(null);
+  const firmName = useContext(PortalFirmCtx);
+  const forFirst = (item.forPerson ?? '').trim().split(/\s+/)[0];
   const ref = (item.refs ?? []).find(r => /אסמכתא/.test(r.label))?.value;
   const due = (item.refs ?? []).find(r => /עד/.test(r.label))?.value;
   const checking = item.declareState === 'checking' || simulated;
@@ -1213,6 +1234,19 @@ function NiApprovalBlock({ item, brand, accent, onDone }: {
     if (!res.ok) { setError('לא הצלחנו לשמור. אפשר לנסות שוב.'); return; }
     actions.notifyAccountant();
     onDone();
+  }
+
+  /** טלפון ⇒ חלון השיתוף (וואטסאפ, מייל…); מחשב ⇒ ההודעה מועתקת להדבקה. */
+  async function forward() {
+    const text = niForwardText(item, firmName);
+    const nav = typeof navigator !== 'undefined' ? navigator : undefined;
+    try {
+      if (nav?.share && /Android|iPhone|iPad/i.test(nav.userAgent)) { await nav.share({ text }); return; }
+      await nav?.clipboard?.writeText(text);
+      setForwarded(`ההודעה הועתקה — אפשר להדביק ל${forFirst} בוואטסאפ או במייל`);
+    } catch (e) {
+      if ((e as { name?: string })?.name !== 'AbortError') setForwarded('לא הצלחנו להעתיק. אפשר לצלם את הכרטיס ולשלוח.');
+    }
   }
 
   const linkBtn: React.CSSProperties = {
@@ -1254,8 +1288,14 @@ function NiApprovalBlock({ item, brand, accent, onDone }: {
                 {busy ? 'שומר…' : item.forPerson ? `${item.forPerson} אישר/ה ✓` : 'אישרתי ✓'}
               </button>
             )}
+            {forFirst && (
+              <button type="button" onClick={() => void forward()} disabled={readOnly} style={declareBtn}>
+                לשלוח ל{forFirst}
+              </button>
+            )}
           </div>
           {error && <div style={{ fontSize: 12.5, color: '#9a3b1f', marginTop: 6 }}>{error}</div>}
+          {forwarded && <div role="status" style={{ fontSize: 12.5, color: brand.muted, marginTop: 6 }}>{forwarded}</div>}
         </>
       )}
       {(item.noteAfter || item.assurance) && (
@@ -1978,6 +2018,7 @@ export function PortalView({ data, token = '', preview = false, embed = false, o
     <PortalModeCtx.Provider value={mode}>
     <PortalActionsCtx.Provider value={portalActions}>
     <PortalTokenCtx.Provider value={token}>
+    <PortalFirmCtx.Provider value={data.firmName ?? ''}>
     <div className={`pp-page${embed ? ' is-embed' : ''}`} style={page}>
       <div className="pp-card" style={card}>
         <Header />
@@ -2098,6 +2139,7 @@ export function PortalView({ data, token = '', preview = false, embed = false, o
         </div>
       </div>
     </div>
+    </PortalFirmCtx.Provider>
     </PortalTokenCtx.Provider>
     </PortalActionsCtx.Provider>
     </PortalModeCtx.Provider>

@@ -17,7 +17,7 @@ import {
   type PortalFilingItem, type PortalFilingsData,
 } from '../portalFilingsModel';
 import { PortalFilingsSection } from '../PortalFilings';
-import { PortalView } from '../../PublicPortalPage';
+import { PortalView, niForwardText } from '../../PublicPortalPage';
 import type { PortalData, PortalItem } from '../../PublicPortalPage';
 
 const filed = (year: number, filedOn: string): { year: number; items: PortalFilingItem[] } =>
@@ -174,5 +174,18 @@ export const TESTS: TestCase[] = [
       equal(loaded, null, 'בצפייה בבקשה — בלי «הדוחות שלך»');
       assert(!called, 'בלי fetch');
     } finally { g.fetch = realFetch; }
+  }),
+  test('ב״ל לבן זוג בלי מייל: «לשלוח לאוריה» + הודעה עם אסמכתא, מועד וקישור — בלי קישור לדף', () => {
+    const item: PortalItem = { bucket: 'action', key: 'authrep_s', kind: 'ni_approval', label: 'אוריה מנחם — אישור ייפוי הכוח בביטוח הלאומי',
+      forPerson: 'אוריה מנחם', actionKind: 'portal', actionValue: 's', linkUrl: 'https://www.btl.gov.il/x',
+      refs: [{ label: 'אסמכתא', value: '75791152' }, { label: 'לאשר עד', value: '20.12.2026' }] };
+    const text = niForwardText(item, 'רו״ח לדוגמה');
+    assert(text.startsWith('אוריה, צריך לאשר בביטוח הלאומי את ייפוי הכוח לרו״ח לדוגמה.'), text);
+    assert(text.includes('אסמכתא: 75791152 · עד 20.12.2026') && text.includes('לאישור: https://www.btl.gov.il/x'), text);
+    assert(!/portal=|token/i.test(text), 'בלי טוקן של הדף');
+    const html = renderToStaticMarkup(createElement(PortalView, { data: portalData([item]), mode: 'sample' }));
+    assert(html.includes('לשלוח לאוריה'), 'הכפתור בכרטיס של אוריה');
+    const own = renderToStaticMarkup(createElement(PortalView, { data: portalData([{ ...item, forPerson: undefined, key: 'authrep_c' }]), mode: 'sample' }));
+    assert(!own.includes('לשלוח ל'), 'בכרטיס של בעלת הכרטיס — אין למי להעביר');
   }),
 ];

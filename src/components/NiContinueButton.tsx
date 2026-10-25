@@ -1,10 +1,13 @@
-// ─── «המשך» בביטוח לאומי — שורה אחת לשני בני הזוג, כפתור אחד ──────────────────
-// גיא (25.10.2026): «בלחיצת כפתור אני מבין מה קורה עם ביטוח לאומי ומפעיל את האוטומציה».
-// לכל אדם הצעד הבא שלו: לא הוזן ⇒ הזנה · יש אסמכתא ⇒ הוראות · נשלח ⇒ בדיקה אם אישר · פג ⇒
-// הזנה מחדש. האוטומציות יוצאות כשרשרת (runChain, 270): משימה פתוחה אחת מכל סוג לכרטיס
+// ─── ביטוח לאומי בשורת «ייצוג מול הרשויות» — שורה אחת לשני בני הזוג ────────────
+// גיא (25.10.2026, ליאת ואוריה): «ככה ניתן לבדוק אם התקבל או לא?». «המשך» ערבב בדיקה עם מייל.
+// מעכשיו כל כפתור אומר מה הוא עושה:
+//   · «בדוק בביטוח לאומי» — לכל מי שיש לו אסמכתא ועוד לא אושר (קריאה בלבד). התוצאה נכתבת
+//     בשורה: מה ב״ל אמר ומתי נבדק (syncedAt, 195).
+//   · «הזן בביטוח לאומי» — רק למי שלא הוזן או שהאסמכתא שלו פגה.
+//   · «שלח ל{שם} את ההוראות» — קישור קטן, רק כשההוראות טרם נשלחו; פותח את חלון השליחה
+//     (תצוגה מקדימה) — ‼ מייל ללקוח לעולם לא יוצא בלי שהרו"ח רואה.
+// האוטומציות יוצאות כשרשרת (runChain, 270): משימה פתוחה אחת מכל סוג לכרטיס
 // (automation_jobs_open_unique), ולכן השני נכנס לתור אחרי הראשון — לא נבלע.
-// ‼ מייל ללקוח לעולם לא יוצא בלי שהרו"ח רואה: כשיש הוראות לשלוח, הלחיצה הראשונה מראה מה
-// יקרה, ו«בצע» פותח את חלון השליחה (עם התצוגה המקדימה) — האוטומציות כבר בדרך.
 
 import { useState } from 'react';
 import type { Client, NiTracking, PersonRole } from '../types';
@@ -17,14 +20,15 @@ import { startAutomationJob } from '../lib/automationJobStart';
 import { createAutomationJob, cancelAutomationJob, fetchLatestAutomationJob, jobIsLive } from '../lib/automationJobs';
 import { createAutomationJobAfter } from '../lib/automationFollowups';
 
-export type NiNextKind = 'enter' | 'check' | 'send' | null;
-
 export interface NiPersonNext {
   role: PersonRole;
   first: string;
   track?: NiTracking;
-  next: NiNextKind;
-  /** «שלח»: מייל הדף (בן/בת זוג בלי מייל, 296) או מייל ייעודי — מפתח הקבוצה ב«שלח בקשות». */
+  /** יש אסמכתא ולא אושר ⇒ נכלל ב«בדוק בביטוח לאומי». */
+  check?: boolean;
+  /** לא הוזן / האסמכתא פגה ⇒ «הזן בביטוח לאומי». */
+  enter?: boolean;
+  /** ההוראות טרם נשלחו: מפתח הקבוצה ב«שלח בקשות» ('owner' = מייל הדף של בעל הכרטיס, 296). */
   sendFocus?: string;
 }
 
@@ -35,113 +39,105 @@ const deps = {
   after: createAutomationJobAfter,
 };
 
-/** מה «המשך» יעשה — במילים, לאישור לפני מייל. */
-export function niContinueLines(persons: NiPersonNext[]): string[] {
-  return persons.flatMap(p => p.next === 'check' ? [`בדיקה בביטוח לאומי אם ${p.first} אישר/ה`]
-    : p.next === 'enter' ? [`הזנת ייפוי הכוח של ${p.first} בביטוח לאומי`]
-    : p.next === 'send' ? [p.sendFocus === 'owner' ? `ההוראות של ${p.first} — במייל הדף (נפתח חלון השליחה)` : `מייל עם ההוראות ל${p.first} (נפתח חלון השליחה)`]
-    : []);
+/** «נבדק היום 14:20» / «נבדק 24.10 09:05» / «עוד לא נבדק» — מתי ב״ל נקרא לאחרונה לאדם הזה. */
+export function niLastCheck(track: NiTracking | undefined, now: Date = new Date()): string {
+  const d = track?.syncedAt ? new Date(track.syncedAt) : null;
+  if (!d || Number.isNaN(d.getTime())) return 'עוד לא נבדק';
+  const two = (n: number) => String(n).padStart(2, '0');
+  const hm = `${two(d.getHours())}:${two(d.getMinutes())}`;
+  return d.toDateString() === now.toDateString() ? `נבדק היום ${hm}` : `נבדק ${two(d.getDate())}.${two(d.getMonth() + 1)} ${hm}`;
 }
 
-/** הכיתוב הקצר מתחת לכפתור. */
-export function niContinueHint(persons: NiPersonNext[]): string {
-  const checks = persons.filter(p => p.next === 'check').length;
-  const enters = persons.filter(p => p.next === 'enter').length;
-  const sends = persons.filter(p => p.next === 'send');
-  const viaPage = sends.filter(p => p.sendFocus === 'owner');
-  const direct = sends.filter(p => p.sendFocus !== 'owner');
-  return [
-    enters ? 'הזנה' : null,
-    checks ? (checks > 1 ? 'בדיקה לשניהם' : 'בדיקה') : null,
-    viaPage.length ? `ההוראות של ${viaPage.map(p => p.first).join(' ושל ')} במייל הדף` : null,
-    direct.length ? `מייל ל${direct.map(p => p.first).join(' ול')}` : null,
-  ].filter(Boolean).join(' + ');
+/** קישורי «שלח ל… את ההוראות» — אחד לכל נמען (בן זוג בלי מייל ⇒ דרך הדף של בעל הכרטיס). */
+export function niSendLinks(persons: NiPersonNext[], ownerFirst: string): { focus: string; label: string }[] {
+  const out: { focus: string; label: string }[] = [];
+  for (const p of persons) {
+    if (!p.sendFocus || out.some(l => l.focus === p.sendFocus)) continue;
+    const to = p.sendFocus === 'owner' ? ownerFirst : p.first;
+    out.push({ focus: p.sendFocus, label: `שלח ל${to} את ההוראות` });
+  }
+  return out;
 }
 
 interface Props {
   client: Client;
   spouseClient?: Client;
   persons: NiPersonNext[];
+  /** השם הפרטי של בעל הכרטיס — הנמען של מייל הדף. */
+  ownerFirst: string;
   /** פותח את «שלח בקשות» על הקבוצה הזאת. */
   onSend: (focusKey: string) => void;
   onChanged?: () => void;
 }
 
-export default function NiContinueButton({ client, spouseClient, persons, onSend, onChanged }: Props) {
+export default function NiContinueButton({ client, spouseClient, persons, ownerFirst, onSend, onChanged }: Props) {
   const createGate = useAutomationGate(BTL_CREATE_REPRESENTATION_ACTION_TYPE);
   const checkGate = useAutomationGate(BTL_CHECK_REPRESENTATION_ACTION_TYPE);
-  const [confirm, setConfirm] = useState(false);
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState<'check' | 'enter' | null>(null);
   const [note, setNote] = useState<{ tone: 'ok' | 'err'; text: string } | null>(null);
 
-  const actionable = persons.filter(p => p.next);
-  if (actionable.length === 0) return null;
-  const sends = actionable.filter(p => p.next === 'send');
-  const hint = niContinueHint(actionable);
+  const toCheck = persons.filter(p => p.check);
+  const toEnter = persons.filter(p => p.enter);
+  const links = niSendLinks(persons, ownerFirst);
+  if (!toCheck.length && !toEnter.length && !links.length) return null;
 
-  function buildSteps(): { steps: RunAllStep[]; errors: string[] } {
-    const steps: RunAllStep[] = [];
+  function steps(kind: 'check' | 'enter'): { steps: RunAllStep[]; errors: string[] } {
+    const out: RunAllStep[] = [];
     const errors: string[] = [];
-    for (const p of actionable) {
-      if (p.next === 'check') {
+    for (const p of kind === 'check' ? toCheck : toEnter) {
+      if (kind === 'check') {
         const person = niPersons(client, spouseClient).find(x => x.role === p.role);
-        if (!person?.idNumber || !p.track?.referenceNumber) { errors.push(`${p.first}: אין אסמכתא לבדיקה`); continue; }
-        steps.push({ key: `check:${p.role}`, actionType: BTL_CHECK_REPRESENTATION_ACTION_TYPE, who: p.role,
+        if (!person?.idNumber || !p.track?.referenceNumber) { errors.push(`${p.first}: חסרים ת.ז. או אסמכתא`); continue; }
+        out.push({ key: `check:${p.role}`, actionType: BTL_CHECK_REPRESENTATION_ACTION_TYPE, who: p.role,
           input: { role: p.role, idNumber: person.idNumber, referenceNumber: p.track.referenceNumber } });
-      } else if (p.next === 'enter') {
+      } else {
         const built = niCreateInput(client, p.role, spouseClient);
         if (!built.ok) { errors.push(`${p.first}: ${built.error}`); continue; }
-        steps.push({ key: `enter:${p.role}`, actionType: BTL_CREATE_REPRESENTATION_ACTION_TYPE, who: p.role, input: built.input });
+        out.push({ key: `enter:${p.role}`, actionType: BTL_CREATE_REPRESENTATION_ACTION_TYPE, who: p.role, input: built.input });
       }
     }
-    return { steps, errors };
+    return { steps: out, errors };
   }
 
-  async function runAutomations(steps: RunAllStep[]) {
-    const results = (await Promise.all(chainsOf(steps).map(c => runChain(client.id, c, deps)))).flat();
-    const failed = results.filter(r => r.kind === 'error' || r.kind === 'needs_confirm');
-    setNote(failed.length
-      ? { tone: 'err', text: failed.map(r => r.kind === 'needs_confirm' ? 'ניסיון קודם נעצר באמצע — ממשיכים מ«פירוט»' : `לא יצא (${(r as { error: string }).error})`).join(' · ') }
-      : { tone: 'ok', text: 'יצא למחשב המשרד — המצב יתעדכן כאן' });
-    onChanged?.();
-  }
-
-  function execute() {
-    setConfirm(false);
+  function run(kind: 'check' | 'enter') {
     setNote(null);
-    const { steps, errors } = buildSteps();
+    const { steps: list, errors } = steps(kind);
     if (errors.length) setNote({ tone: 'err', text: errors.join(' · ') });
+    if (!list.length) return;
     const go = async () => {
-      setBusy(true);
-      try { if (steps.length) await runAutomations(steps); } finally { setBusy(false); }
+      setBusy(kind);
+      try {
+        const results = (await Promise.all(chainsOf(list).map(c => runChain(client.id, c, deps)))).flat();
+        const failed = results.filter(r => r.kind === 'error' || r.kind === 'needs_confirm');
+        setNote(failed.length
+          ? { tone: 'err', text: failed.map(r => r.kind === 'needs_confirm' ? 'ניסיון קודם נעצר באמצע — ממשיכים מ«פירוט»' : `לא יצא (${(r as { error: string }).error})`).join(' · ') }
+          : { tone: 'ok', text: kind === 'check' ? 'בודק בביטוח לאומי — התוצאה תופיע כאן' : 'מזין בביטוח לאומי — האסמכתא תופיע כאן' });
+        onChanged?.();
+      } finally { setBusy(null); }
     };
-    if (steps.length) {
-      // ‼ אותו שער כמו בכל כפתור ב״ל: בלי חיבור — נפתחת ההתחברות, והשרשרת יוצאת לבד אחריה.
-      const gate = steps.some(s => s.actionType === BTL_CREATE_REPRESENTATION_ACTION_TYPE) ? createGate : checkGate;
-      gate.runOrConnect(() => void go());
-    }
-    if (sends.length) onSend(sends[0].sendFocus ?? `ni:${sends[0].role}`);
+    // ‼ אותו שער כמו בכל כפתור ב״ל: בלי חיבור — נפתחת ההתחברות, והשרשרת יוצאת לבד אחריה.
+    (kind === 'enter' ? createGate : checkGate).runOrConnect(() => void go());
   }
 
   const gateNotice = createGate.notice ?? checkGate.notice;
   const connecting = createGate.connecting || checkGate.connecting;
   return (
     <div className="rep2-act">
-      <button type="button" className="btn btn-sm btn-primary btn-automation" disabled={busy || connecting}
-        onClick={() => (sends.length ? setConfirm(c => !c) : execute())}>
-        {busy ? 'שולח…' : connecting ? 'מתחבר לביטוח לאומי…' : 'המשך'}
-      </button>
-      {hint && !confirm && <span className="rep2-hint">{hint}</span>}
-      {confirm && (
-        <div className="rep2-confirm" role="dialog" aria-label="מה «המשך» יעשה">
-          <b>«המשך» יעשה עכשיו:</b>
-          <ol>{niContinueLines(actionable).map(t => <li key={t}>{t}</li>)}</ol>
-          <div className="rep2-confirm-acts">
-            <button type="button" className="btn btn-sm btn-primary" onClick={execute}>בצע</button>
-            <button type="button" className="btn btn-sm btn-secondary" onClick={() => setConfirm(false)}>ביטול</button>
-          </div>
-        </div>
+      {toCheck.length > 0 && (
+        <button type="button" className="btn btn-sm btn-primary btn-automation" disabled={!!busy || connecting}
+          onClick={() => run('check')}>
+          {busy === 'check' ? 'שולח…' : connecting ? 'מתחבר לביטוח לאומי…' : 'בדוק בביטוח לאומי'}
+        </button>
       )}
+      {toEnter.length > 0 && (
+        <button type="button" className={`btn btn-sm ${toCheck.length ? 'btn-secondary' : 'btn-primary btn-automation'}`}
+          disabled={!!busy || connecting} onClick={() => run('enter')}>
+          {busy === 'enter' ? 'שולח…' : `הזן בביטוח לאומי${toEnter.length === 1 && persons.length > 1 ? ` (${toEnter[0].first})` : ''}`}
+        </button>
+      )}
+      {links.map(l => (
+        <button key={l.focus} type="button" className="rep2-link" onClick={() => onSend(l.focus)}>{l.label}</button>
+      ))}
       {note && <span className={`rep2-hint ${note.tone === 'err' ? 'is-err' : ''}`}>{note.text}</span>}
       {gateNotice && <span className={`rep2-hint ${gateNotice.tone === 'error' ? 'is-err' : ''}`}>{gateNotice.text}</span>}
     </div>
