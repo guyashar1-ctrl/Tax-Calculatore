@@ -6,7 +6,7 @@
 //
 // ‼ פנייה אחת: אין ניסיון חוזר פנימי. כשל ⇒ עוצרים ומדווחים.
 import { attach, detach } from '../browserSession.mjs';
-import { openVatWorkPage, openOsek, readOsekTabs } from '../vatSession.mjs';
+import { openVatWorkPage, openOsek, readOsekTabs, personName } from '../vatSession.mjs';
 import { NeedsHumanError, PermanentError } from '../errors.mjs';
 
 export const actionType = 'shaam.sync_vat_file';
@@ -64,6 +64,13 @@ export async function run(ctx, input) {
       if (text) fields[key] = text;
       else unavailable.push({ key, reason: text === null ? 'missing' : 'empty' });
     }
+    // ‼ כמו במס הכנסה: המייצג הראשי מול המשתמש המחובר, לפי השם. השם הגולמי
+    // של המחובר לא נשמר בתוצאה — רק ההכרעה.
+    const mainRep = personName(fields.mainRepresentativeRaw);
+    const me = personName(fields.loggedInUser);
+    if (mainRep) fields.mainRepresentative = mainRep;
+    if (mainRep && me) fields.representedByMe = mainRep === me ? 'yes' : 'no';
+    delete fields.loggedInUser;
     ctx.log(`נקראו ${Object.keys(fields).length} שדות · חסרים: ${unavailable.length} · ${Math.round((Date.now() - t0) / 1000)} ש׳`);
     if (unavailable.length) ctx.log('לא נקרא: ' + JSON.stringify(unavailable));
     if (Object.keys(fields).length === 0) {

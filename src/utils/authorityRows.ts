@@ -336,7 +336,7 @@ export function buildAuthorityRows(
     // ‼ «מספר עוסק» ו«ייצוג» נגזרים מ-taxFiles ולכן נשארים לקריאה — בדיוק
     // כמו «מספר תיק» במס הכנסה. שאר השדות הם עובדות מנוהלות עם מסלול
     // כתיבה קיים, ולכן נערכים במקום.
-    facts.push({ k: 'מספר עוסק', v: num || EMPTY, taxFileNumberAuthority: 'vat' });
+    facts.push({ k: 'מספר עוסק', v: num || EMPTY, taxFileNumberAuthority: 'vat', ...(num ? { syncKey: 'vatFileNumber' } : {}) });
     facts.push({ k: 'סוג תיק', v: client.vatFileType || EMPTY, editKey: 'vatFileType' });
     facts.push({ k: 'תאריך פתיחה', v: client.vatOpeningDate ? shortDate(client.vatOpeningDate) : EMPTY, editKey: 'vatOpeningDate' });
     facts.push({ k: 'ענף עיקרי', v: client.vatPrimaryIndustry || EMPTY, editKey: 'vatPrimaryIndustry' });
@@ -352,8 +352,8 @@ export function buildAuthorityRows(
     // בן/בת הזוג ופעם מהתיק עצמו — ושתי שורות באותו שם באותו כרטיס נקראות
     // כסתירה.
     facts.push(rep
-      ? { k: 'ייצוג', v: rep, tone: rep === 'ייצוג פעיל' ? 'ok' : undefined }
-      : vatViaSpouse ? { k: 'ייצוג', v: vatViaSpouse, tone: 'ok' } : { k: 'ייצוג', v: EMPTY });
+      ? { k: 'ייצוג', v: rep, tone: rep === 'ייצוג פעיל' ? 'ok' : undefined, syncKey: 'vatRepresentation' }
+      : vatViaSpouse ? { k: 'ייצוג', v: vatViaSpouse, tone: 'ok' } : { k: 'ייצוג', v: EMPTY, syncKey: 'vatRepresentation' });
 
     rows.push({
       authority: 'vat', name: TAX_AUTHORITY_LABELS.vat,

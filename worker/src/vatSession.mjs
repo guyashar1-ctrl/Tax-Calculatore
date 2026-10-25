@@ -26,9 +26,15 @@ const TITLE_OSEK = 'PirteyOsekTitle1_EmTwbCtlPirteyOsekTitle_TdMisOsek';
 export const VAT_TABS = [
   { link: 'LinkButton0', page: 'PirteyOsekPirteyIsum.aspx', fields: { fileType: 'lblSugTik', openingDate: 'lblTPticha', primaryIndustry: 'lblAnafRashi' } },
   { link: 'LinkButton1', page: 'PirteyOsekMeafyeneyDivuah.aspx', fields: { reportingFrequency: 'lblDivuahTkufati', lastReport: 'lblDohAharon' } },
-  { link: 'LinkButton2', page: 'PirteyOsekKtovot.aspx', fields: { debitAuthorization: 'lblHrsha' } },
+  // «מייצג ראשי: 314667346 ישר גיא» — ו-userName בראש כל מסך: «ישר גיא 25/10/2026 CB4».
+  { link: 'LinkButton2', page: 'PirteyOsekKtovot.aspx', fields: { debitAuthorization: 'lblHrsha', mainRepresentativeRaw: 'lblMyzg1', loggedInUser: 'userName' } },
 ];
 const BALANCE_FIELDS = { balanceTotal: 'lblYitra', balanceDebit: 'lblSachHovot', balanceCredit: 'lblSachHehzerim' };
+
+/** «314667346 ישר גיא» / «ישר גיא 25/10/2026 CB4» ⇒ «ישר גיא» — השם בלבד. */
+export function personName(raw) {
+  return String(raw ?? '').split(/\s+/).filter(w => w && !/\d/.test(w) && !/^[A-Z]{1,3}\d*$/.test(w)).join(' ');
+}
 
 const STEP_TIMEOUT_MS = 60000;
 

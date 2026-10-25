@@ -972,6 +972,35 @@ export function vatOsekInput(client: Client): { osekNumber: string } | { blocked
   return { blocked: 'אין מספר עוסק בכרטיס — ממלאים אותו בשורת «מספר עוסק» ואז קוראים משע״ם.' };
 }
 
+/**
+ * שדות לקריאה בלבד, כמו במס הכנסה (SHAAM_READ_ONLY_KEYS):
+ *   · מספר עוסק — העובד פותח רק את המספר שנשלח ומוודא אותו בכותרת ⇒ תואם לכרטיס = ירוק.
+ *   · ייצוג — «מייצג ראשי» הוא המשתמש המחובר ⇒ ירוק; מייצג אחר ⇒ שורת מידע «מייצג נוסף».
+ */
+export const VAT_READ_ONLY_KEYS = ['vatFileNumber', 'vatRepresentation'] as const;
+
+function interpretVatReadOnly(fieldKey: string, job: AutomationJob, client: Client): AuthorityFieldResult | null {
+  const fields = ((job.result ?? {}) as { fields?: Record<string, string> }).fields ?? {};
+  if (fieldKey === 'vatFileNumber') {
+    const card = vatOsekInput(client);
+    const asked = String((job.input as { osekNumber?: unknown })?.osekNumber ?? '');
+    if (!('osekNumber' in card) || !asked) return null;
+    return digits9(card.osekNumber) === digits9(asked)
+      ? { fieldKey, label: 'מספר עוסק', status: 'match', currentValue: card.osekNumber }
+      : null;
+  }
+  if (fieldKey === 'vatRepresentation') {
+    const rep = (fields.mainRepresentative ?? '').trim();
+    if (!rep || !fields.representedByMe) return null;
+    const active = (client.taxFiles ?? []).some(f => f.authority === 'vat' && f.repStatus === 'active');
+    // ‼ מערכת מע״מ פותחת רק תיק שמייצגים — ולכן כשהראשי הוא מישהו אחר, אנחנו המייצג הנוסף.
+    return fields.representedByMe === 'yes'
+      ? { fieldKey, label: 'ייצוג', status: active ? 'match' : 'info', currentValue: '', authorityDisplay: 'מייצג ראשי', showOnMatch: true }
+      : { fieldKey, label: 'ייצוג', status: 'info', currentValue: '', authorityDisplay: `מייצג נוסף · ראשי: ${rep}` };
+  }
+  return null;
+}
+
 function interpretShaamVat(
   job: AutomationJob | null, client: Client, supportedKeys: readonly string[],
 ): AuthorityFieldResult[] {
@@ -979,6 +1008,10 @@ function interpretShaamVat(
     ? (job.result as { fields?: Record<string, string> } | undefined)?.fields
     : undefined;
   return supportedKeys.map((fieldKey) => {
+    if ((VAT_READ_ONLY_KEYS as readonly string[]).includes(fieldKey)) {
+      return (job?.status === 'succeeded' && interpretVatReadOnly(fieldKey, job, client))
+        || { fieldKey, label: fieldKey, status: 'unsupported', currentValue: '' };
+    }
     const spec = VAT_FIELD_SOURCES[fieldKey];
     const label = EDIT_FIELD_BY_KEY[fieldKey]?.label ?? fieldKey;
     const currentValue = currentRaw(client, fieldKey);
@@ -1042,7 +1075,7 @@ export const AUTHORITY_AUTOMATION: Partial<Record<TaxAuthority, AuthorityAutomat
     actionType: SHAAM_SYNC_VAT_ACTION_TYPE,
     capability: SHAAM_READ_VAT,
     sourceRef: 'shaam-vat',
-    supportedFieldKeys: new Set(Object.keys(VAT_FIELD_SOURCES)),
+    supportedFieldKeys: new Set([...Object.keys(VAT_FIELD_SOURCES), ...VAT_READ_ONLY_KEYS]),
     buildInput: (client) => {
       const res = vatOsekInput(client);
       return 'osekNumber' in res ? { input: { osekNumber: res.osekNumber } } : res;

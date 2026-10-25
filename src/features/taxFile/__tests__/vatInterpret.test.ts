@@ -4,10 +4,11 @@ import { test, equal } from '../../../testkit/tinyTest';
 import type { TestCase } from '../../../testkit/tinyTest';
 import type { Client } from '../../../types';
 import type { AutomationJob } from '../../../types/automation';
-import { AUTHORITY_AUTOMATION, VAT_FIELD_SOURCES, vatOsekInput } from '../authorityAutomation';
+import { AUTHORITY_AUTOMATION, VAT_FIELD_SOURCES, VAT_READ_ONLY_KEYS, vatOsekInput } from '../authorityAutomation';
 
 const spec = AUTHORITY_AUTOMATION.vat!;
 const KEYS = Object.keys(VAT_FIELD_SOURCES);
+const RO = [...VAT_READ_ONLY_KEYS] as string[];
 const job = (fields: Record<string, string>): AutomationJob =>
   ({ id: 'j', status: 'succeeded', result: { fields } } as unknown as AutomationJob);
 const client = (over: Partial<Client> = {}): Client => ({ firstName: 'א', lastName: 'ב', ...over } as unknown as Client);
@@ -21,6 +22,23 @@ const LICENSED = {
 };
 
 export const TESTS: TestCase[] = [
+  test('מספר עוסק שנפתח = המספר בכרטיס ⇒ ירוק; ייצוג ראשי של המחובר ⇒ ירוק', () => {
+    const c = client({ taxFiles: [{ id: '1', authority: 'vat', fileNumber: '314667346', owner: 'client', repStatus: 'active' }] } as Partial<Client>);
+    const j = { id: 'j', status: 'succeeded', input: { osekNumber: '314667346' },
+      result: { fields: { ...LICENSED, mainRepresentative: 'ישר גיא', representedByMe: 'yes' } } } as unknown as AutomationJob;
+    const r = new Map(spec.interpret!(j, c, RO).map(x => [x.fieldKey, x]));
+    equal(r.get('vatFileNumber')!.status, 'match');
+    equal(r.get('vatRepresentation')!.status, 'match');
+    equal(r.get('vatRepresentation')!.authorityDisplay, 'מייצג ראשי');
+  }),
+  test('מייצג ראשי אחר ⇒ «מייצג נוסף» כשורת מידע, בלי הצעה', () => {
+    const c = client({ taxFiles: [{ id: '1', authority: 'vat', fileNumber: '209132901', owner: 'client', repStatus: 'active' }] } as Partial<Client>);
+    const j = { id: 'j', status: 'succeeded', input: { osekNumber: '209132901' },
+      result: { fields: { ...LICENSED, mainRepresentative: 'כהן דנה', representedByMe: 'no' } } } as unknown as AutomationJob;
+    const rep = spec.interpret!(j, c, RO).find(x => x.fieldKey === 'vatRepresentation')!;
+    equal(rep.status, 'info');
+    equal(rep.authorityDisplay, 'מייצג נוסף · ראשי: כהן דנה');
+  }),
   test('עוסק מורשה, כרטיס ריק ⇒ הצעה לכל שבעת השדות בערכי PIVO', () => {
     const r = run(LICENSED);
     equal(r.get('vatFileType')!.authorityValue, 'עוסק מורשה');
