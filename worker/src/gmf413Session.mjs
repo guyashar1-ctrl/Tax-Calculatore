@@ -7,7 +7,7 @@
 // ‼ מה משנה מצב ברשות ומה לא:
 //   · כרטיס, «הדפסת העתק אישור», «הנפקת אישור» (פתיחת הטופס), «בדיקה» (Pch/chkIsr) — קריאה בלבד.
 //   · «עדכון» בחלונית שאחרי «בדיקה» (Pidk/IdkunIsr) — **ההנפקה עצמה**. לפניו markExternalAttempt.
-import { GMF_URL, pickPageOn, settlePage, snapPage, readGmfBlockingModal } from './browserSession.mjs';
+import { GMF_URL, settlePage, snapPage, readGmfBlockingModal } from './browserSession.mjs';
 
 export const GMF_413_URL = 'https://shaam.taxes.gov.il/gmf-413/';
 const PATH_413 = '/gmf-413';
@@ -64,20 +64,21 @@ async function dismissInfoModal(page) {
 }
 
 /**
- * לשונית ל-413: לשונית שכבר על 413, אחרת **לשונית חדשה** באותו חלון (אותו סשן).
- * ‼ לא מנווטים את לשונית GMF של הקריאה: היא נשארת על 181, וכך הקריאה הבאה חוסכת
- * מעבר אפליקציה (20–35 ש׳). המתקשר סוגר את הלשונית כש-created.
+ * לשונית ל-413: **תמיד לשונית חדשה** באותו חלון (אותו סשן), שהמתקשר סוגר בסוף (created).
+ * ‼ לא לוקחים לשונית 413 קיימת — גיא עובד ב-413 בעצמו (ראה gmfWorkTab, 25.10.2026), ולא
+ * מנווטים את לשונית GMF של הקריאה: היא נשארת על 181, וכך הקריאה הבאה חוסכת מעבר אפליקציה.
  * ‼ מסך הכניסה של GMF / קוד חד-פעמי ⇒ gmf_not_ready (לא נוגעים ברצף כניסה).
  */
 export async function open413(page) {
-  const context = page.context();
-  let work = await pickPageOn(context, PATH_413, null);
-  let created = false;
-  if (!work) {
-    work = await context.newPage();
-    created = true;
-    await work.goto(GMF_413_URL, { waitUntil: 'domcontentloaded', timeout: 30000 }).catch(() => {});
-  }
+  const work = await page.context().newPage();
+  await work.goto(GMF_413_URL, { waitUntil: 'domcontentloaded', timeout: 30000 }).catch(() => {});
+  const r = await toEntry(work);
+  if (!r.ok) await work.close().catch(() => {});
+  return r.ok ? { ok: true, page: work, created: true } : r;
+}
+
+/** מחזיר את הלשונית **הזו** למסך הכניסה של 413 (בין כרטיסים / אחרי הנפקה). */
+async function toEntry(work) {
   if (!pathOf(work).startsWith(ENTRY_PATH)) {
     const link = work.locator(MENU_ENTRY_LINK).first();
     await dismissInfoModal(work);
@@ -87,14 +88,10 @@ export async function open413(page) {
   await work.waitForSelector(ENTITY_INPUT, { timeout: 30000 }).catch(() => {});
   const s = await settlePage(work, { idleMs: 10000, watchMs: 1500 });
   if (s.hasPasswordField || !s.pathname.startsWith(PATH_413)) {
-    if (created) await work.close().catch(() => {});
     return { ok: false, reason: 'gmf_not_ready', pathname: s.pathname };
   }
-  if (!(await work.$(ENTITY_INPUT))) {
-    if (created) await work.close().catch(() => {});
-    return { ok: false, reason: 'entry_screen_missing', pathname: s.pathname };
-  }
-  return { ok: true, page: work, created };
+  if (!(await work.$(ENTITY_INPUT))) return { ok: false, reason: 'entry_screen_missing', pathname: s.pathname };
+  return { ok: true, page: work };
 }
 
 /**
@@ -104,7 +101,7 @@ export async function open413(page) {
 export async function openCard(work, entity, kind) {
   const card = CARDS[kind];
   if (!pathOf(work).startsWith(ENTRY_PATH)) {
-    const back = await open413(work);
+    const back = await toEntry(work);
     if (!back.ok) return back;
   }
   const modal = await readGmfBlockingModal(work);
@@ -292,10 +289,10 @@ export async function issueBookkeeping(work, { markAttempt }) {
   return confirmIssue(work, markAttempt);
 }
 
-/** חוזרים למסך הכניסה (אחרי הנפקה / בין כרטיסים). */
+/** חוזרים למסך הכניסה (אחרי הנפקה / בין כרטיסים) — באותה לשונית. */
 export async function backToEntry(work) {
   await dismissInfoModal(work);
-  return open413(work);
+  return toEntry(work);
 }
 
 export { snapPage, GMF_URL };
