@@ -1926,21 +1926,20 @@ export default function OnboardingTab({
       if (m.stuck && !m.autoAction) return { ...base, text: 'PIVO נתקע (בפירוט)', tone: 'red' as const };
       if (track?.referenceNumber) {
         const checked = niLastCheck(track);
-        const sendFocus = m.readyToSend && !m.withSignature ? niSendFocus(role) : undefined;
         // 299 · הלקוח סימן «אישרתי» בדף — בדיקת ב״ל יצאה אוטומטית; אם כבר רצה ולא מצאה — אומרים.
         const declaredAt = step?.payload?.clientDeclaredAt as string | undefined;
         if (declaredAt) {
           const checkedAfter = !!track.syncedAt && new Date(track.syncedAt) > new Date(declaredAt);
           return checkedAfter
-            ? { ...base, check: true, sendFocus, text: `${first} סימן/ה שאישר/ה — ב״ל עוד לא מראה אישור · ${checked}`, tone: 'red' as const }
-            : { ...base, check: true, sendFocus, text: `${first} סימן/ה שאישר/ה · PIVO בודק בב״ל`, tone: 'wait' as const };
+            ? { ...base, check: true, text: `${first} סימן/ה שאישר/ה — ב״ל עוד לא מראה אישור · ${checked}`, tone: 'red' as const }
+            : { ...base, check: true, text: `${first} סימן/ה שאישר/ה · PIVO בודק בב״ל`, tone: 'wait' as const };
         }
         if (m.withSignature) return { ...base, check: true, text: `ההוראות יוצאות עם בקשת החתימה · ${checked}`, tone: 'wait' as const };
         const said = track.externalState && track.externalState !== 'approved'
           ? (track.externalState === 'unknown' && track.rawExternalState ? track.rawExternalState : NI_EXTERNAL_STATE_LABELS[track.externalState])
           : 'ממתין לאישור';
         const bad = track.externalState === 'not_found' || track.externalState === 'cancelled';
-        return { ...base, check: true, sendFocus, text: `${said} · ${checked}`, tone: bad ? 'red' as const : 'wait' as const };
+        return { ...base, check: true, text: `${said} · ${checked}`, tone: bad ? 'red' as const : 'wait' as const };
       }
       if (track?.enteredAt) return { ...base, text: 'הוזן · ממתין לאסמכתא', tone: 'wait' as const };
       return { ...base, enter: true, text: 'טרם הוזן בביטוח לאומי', tone: 'wait' as const };
@@ -1958,8 +1957,7 @@ export default function OnboardingTab({
             </span>
           ))}
         </div>
-        <NiContinueButton client={client} spouseClient={spouseClient} persons={persons} ownerFirst={partNames.client}
-          onSend={key => setSendRequestsFocus(key)}
+        <NiContinueButton client={client} spouseClient={spouseClient} persons={persons}
           onChanged={() => { void onNiInstructionsSent?.(); refresh?.(); setReadyTick(t => t + 1); }} />
       </div>
     );

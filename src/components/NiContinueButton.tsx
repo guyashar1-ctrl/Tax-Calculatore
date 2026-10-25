@@ -4,8 +4,7 @@
 //   · «בדוק בביטוח לאומי» — לכל מי שיש לו אסמכתא ועוד לא אושר (קריאה בלבד). התוצאה נכתבת
 //     בשורה: מה ב״ל אמר ומתי נבדק (syncedAt, 195).
 //   · «הזן בביטוח לאומי» — רק למי שלא הוזן או שהאסמכתא שלו פגה.
-//   · «שלח ל{שם} את ההוראות» — קישור קטן, רק כשההוראות טרם נשלחו; פותח את חלון השליחה
-//     (תצוגה מקדימה) — ‼ מייל ללקוח לעולם לא יוצא בלי שהרו"ח רואה.
+// ‼ שליחת ההוראות — רק מכרטיס «הדף של {שם}» בראש «בקשות» (גיא: קישור שני לאותו חלון מיותר).
 // האוטומציות יוצאות כשרשרת (runChain, 270): משימה פתוחה אחת מכל סוג לכרטיס
 // (automation_jobs_open_unique), ולכן השני נכנס לתור אחרי הראשון — לא נבלע.
 
@@ -28,8 +27,6 @@ export interface NiPersonNext {
   check?: boolean;
   /** לא הוזן / האסמכתא פגה ⇒ «הזן בביטוח לאומי». */
   enter?: boolean;
-  /** ההוראות טרם נשלחו: מפתח הקבוצה ב«שלח בקשות» ('owner' = מייל הדף של בעל הכרטיס, 296). */
-  sendFocus?: string;
 }
 
 const deps = {
@@ -48,29 +45,14 @@ export function niLastCheck(track: NiTracking | undefined, now: Date = new Date(
   return d.toDateString() === now.toDateString() ? `נבדק היום ${hm}` : `נבדק ${two(d.getDate())}.${two(d.getMonth() + 1)} ${hm}`;
 }
 
-/** קישורי «שלח ל… את ההוראות» — אחד לכל נמען (בן זוג בלי מייל ⇒ דרך הדף של בעל הכרטיס). */
-export function niSendLinks(persons: NiPersonNext[], ownerFirst: string): { focus: string; label: string }[] {
-  const out: { focus: string; label: string }[] = [];
-  for (const p of persons) {
-    if (!p.sendFocus || out.some(l => l.focus === p.sendFocus)) continue;
-    const to = p.sendFocus === 'owner' ? ownerFirst : p.first;
-    out.push({ focus: p.sendFocus, label: `שלח ל${to} את ההוראות` });
-  }
-  return out;
-}
-
 interface Props {
   client: Client;
   spouseClient?: Client;
   persons: NiPersonNext[];
-  /** השם הפרטי של בעל הכרטיס — הנמען של מייל הדף. */
-  ownerFirst: string;
-  /** פותח את «שלח בקשות» על הקבוצה הזאת. */
-  onSend: (focusKey: string) => void;
   onChanged?: () => void;
 }
 
-export default function NiContinueButton({ client, spouseClient, persons, ownerFirst, onSend, onChanged }: Props) {
+export default function NiContinueButton({ client, spouseClient, persons, onChanged }: Props) {
   const createGate = useAutomationGate(BTL_CREATE_REPRESENTATION_ACTION_TYPE);
   const checkGate = useAutomationGate(BTL_CHECK_REPRESENTATION_ACTION_TYPE);
   const [busy, setBusy] = useState<'check' | 'enter' | null>(null);
@@ -78,8 +60,7 @@ export default function NiContinueButton({ client, spouseClient, persons, ownerF
 
   const toCheck = persons.filter(p => p.check);
   const toEnter = persons.filter(p => p.enter);
-  const links = niSendLinks(persons, ownerFirst);
-  if (!toCheck.length && !toEnter.length && !links.length) return null;
+  if (!toCheck.length && !toEnter.length) return null;
 
   function steps(kind: 'check' | 'enter'): { steps: RunAllStep[]; errors: string[] } {
     const out: RunAllStep[] = [];
@@ -135,9 +116,6 @@ export default function NiContinueButton({ client, spouseClient, persons, ownerF
           {busy === 'enter' ? 'שולח…' : `הזן בביטוח לאומי${toEnter.length === 1 && persons.length > 1 ? ` (${toEnter[0].first})` : ''}`}
         </button>
       )}
-      {links.map(l => (
-        <button key={l.focus} type="button" className="rep2-link" onClick={() => onSend(l.focus)}>{l.label}</button>
-      ))}
       {note && <span className={`rep2-hint ${note.tone === 'err' ? 'is-err' : ''}`}>{note.text}</span>}
       {gateNotice && <span className={`rep2-hint ${gateNotice.tone === 'error' ? 'is-err' : ''}`}>{gateNotice.text}</span>}
     </div>

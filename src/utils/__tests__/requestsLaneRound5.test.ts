@@ -15,7 +15,7 @@ import {
   groupWaitingState, lamed, moreMineLabel, MINE_STATE_TEXT, repShortAction, rowStateFor,
 } from '../requestPresentation';
 import { authRepRowModel, niTrackNeedsSend } from '../authorityRepresentationRow';
-import { niLastCheck, niSendLinks } from '../../components/NiContinueButton';
+import { niLastCheck } from '../../components/NiContinueButton';
 import { niCancelledText } from '../niPersons';
 import { subjectRoleOf } from '../../components/clientTabs/InlineComposer';
 import { hideStepDoneText } from '../../features/flows/api';
@@ -162,22 +162,12 @@ export const TESTS: TestCase[] = [
       track: { referenceNumber: '1', instructionsSentAt: '2026-10-01', deadline: '2026-11-01' } }).state?.text, 'ממתין ללקוח');
   }),
 
-  // ── 25.10: «בדוק בביטוח לאומי» — מתי נבדק, ומייל ההוראות כקישור נפרד ─────────────
-  test('ב״ל במשרד: «נבדק היום HH:MM» / תאריך / «עוד לא נבדק»; קישור שליחה אחד לכל נמען', () => {
+  // ── 25.10: «בדוק בביטוח לאומי» — מתי נבדק (השליחה רק מכרטיס הדף) ──────────────────
+  test('ב״ל במשרד: «נבדק היום HH:MM» / תאריך / «עוד לא נבדק»', () => {
     const now = new Date(2026, 9, 25, 18, 0);
     equal(niLastCheck({ referenceNumber: '1', syncedAt: new Date(2026, 9, 25, 14, 5).toISOString() }, now), 'נבדק היום 14:05');
     equal(niLastCheck({ referenceNumber: '1', syncedAt: new Date(2026, 9, 24, 9, 0).toISOString() }, now), 'נבדק 24.10 09:00');
     equal(niLastCheck({ referenceNumber: '1' }, now), 'עוד לא נבדק');
-    // בן זוג בלי מייל ⇒ ההוראות שלו במייל הדף של ליאת — וגם שלה ⇒ קישור אחד.
-    deepEqual(niSendLinks([
-      { role: 'client', first: 'ליאת', sendFocus: 'owner' },
-      { role: 'spouse', first: 'אוריה', sendFocus: 'owner', check: true },
-    ], 'ליאת'), [{ focus: 'owner', label: 'שלח לליאת את ההוראות' }]);
-    // בן זוג עם מייל ⇒ אליו; מי שכבר קיבל ⇒ בלי קישור.
-    deepEqual(niSendLinks([
-      { role: 'client', first: 'ליאת', check: true },
-      { role: 'spouse', first: 'אוריה', sendFocus: 'ni:spouse' },
-    ], 'ליאת'), [{ focus: 'ni:spouse', label: 'שלח לאוריה את ההוראות' }]);
   }),
 
   // ── 296: בן/בת זוג בלי מייל — ההוראות יוצאות במייל הדף ───────────────────────
