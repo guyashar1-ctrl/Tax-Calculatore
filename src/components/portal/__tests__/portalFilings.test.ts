@@ -152,7 +152,7 @@ export const TESTS: TestCase[] = [
     equal(count(html, 'הדבר הבא'), 1, 'סימון אחד');
     assert(/data-pp-key="docs" data-pp-next=""/.test(html), 'בלי מועדים — הראשון מסומן');
     equal(count(html, '>מסמכים שביקשנו<'), 1); equal(count(html, '>הדוח השנתי 2025<'), 1);
-    assert(html.includes('יש 2 בקשות שממתינות לך'), 'שורת הסיכום נשארת כשיש יותר מאחת');
+    assert(!html.includes('ממתינות לך'), 'בלי שורת סיכום — הבקשות עצמן הן הדף (25.10)');
     const one = renderToStaticMarkup(createElement(PortalView, { data: portalData([items[1]]), mode: 'sample' }));
     equal(count(one, '>הדוח השנתי 2025<'), 1, 'בקשה אחת — פעם אחת בלבד');
     assert(!one.includes('הדבר הבא') && !one.includes('יש בקשה אחת שממתינה לך'), 'בקשה יחידה — בלי סימון ובלי שורה שחוזרת עליה');

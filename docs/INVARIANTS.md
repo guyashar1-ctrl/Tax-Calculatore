@@ -56,6 +56,12 @@
 - **קוד:** `authRepRowModel.viaPage` + `niViaPage` ב-`OnboardingTab` (אותו תנאי: `spouse` ו-`spouseEmail` ריק), הכרטיס «מה צריך מ…» ב-`send-process-open-email`.
 - **מוכיח:** `scripts/test-296-ni-spouse-page.mjs` (22 בדיקות), `scripts/staging-test-296-ni-page-email.mjs` (מקצה לקצה, מסלול בדיקה), `requestsLaneRound5.test.ts` (296).
 
+### INV-REP-08 · «אישרתי» בב״ל מהדף = הצהרה + בדיקה, לא סגירה
+- **הכלל:** «אישרתי» בכרטיס ב״ל בדף (גם «{שם} אישר/ה» לבן/בת הזוג) רושם `clientDeclaredAt` על הבקשה של אותו אדם, שורה ביומן, ומכניס בדיקת ב״ל (קריאה בלבד) לתור — או «המשך» אחרי בדיקה פתוחה של האדם השני. הבקשה **לא** נסגרת מההצהרה; רק אישור שהבדיקה מצאה (`confirmedAt`) סוגר. בדיקה שרצה אחרי ההצהרה ולא מצאה ⇒ בדף «עוד לא רואים», במשרד אדום. לחיצה חוזרת בתוך 2 דקות לא מוסיפה בדיקה. הכרעת גיא 25.10.2026.
+- **SQL:** `_portal_ni_declare` (299, לא חשופה ל-anon), ההזרקות ב-`portal_submit_step` וב-`_portal_step_items` (`actionKind/actionValue/declaredAt/declareState`).
+- **קוד:** `NiApprovalBlock` ב-`PublicPortalPage` (הכפתור רק כשהשרת שלח `actionValue`), `niLinePersons` ב-`OnboardingTab`.
+- **מוכיח:** `scripts/test-299-ni-client-declared.mjs` (16 בדיקות).
+
 ## אוטומציה — משימות מול רשויות
 
 ### INV-AUTO-01 · פעולה משנה ברשות: ניסיון אחד; «המשך» נכנס לתור רק כשהקודמת הסתיימה (לא מ«ממתין לך»)

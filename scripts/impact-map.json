@@ -140,7 +140,9 @@
     {
       "name": "ביטוח לאומי: מסלולים, ביטול, בן/בת זוג",
       "invariants": [
-        "INV-REP-05"
+        "INV-REP-05",
+        "INV-REP-07",
+        "INV-REP-08"
       ],
       "globs": [
         "src/utils/niPersons.ts",
@@ -165,6 +167,10 @@
         },
         {
           "script": "staging-test-296-ni-page-email.mjs",
+          "run": true
+        },
+        {
+          "script": "test-299-ni-client-declared.mjs",
           "run": true
         }
       ]

@@ -1922,6 +1922,14 @@ export default function OnboardingTab({
       if (m.live) return { ...base, next: null, text: 'PIVO עובד בביטוח לאומי…', tone: 'wait' as const };
       if (m.expired) return { ...base, next: 'enter' as const, text: 'האסמכתא פגה — צריך להזין מחדש', tone: 'red' as const };
       if (m.stuck && !m.autoAction) return { ...base, next: null, text: 'PIVO נתקע (בפירוט)', tone: 'red' as const };
+      // 299 · הלקוח סימן «אישרתי» בדף — בדיקת ב״ל יצאה אוטומטית; אם כבר רצה ולא מצאה — אומרים.
+      const declaredAt = step?.payload?.clientDeclaredAt as string | undefined;
+      if (declaredAt && (m.sent || track?.referenceNumber)) {
+        const checkedAfter = !!track?.syncedAt && new Date(track.syncedAt) > new Date(declaredAt);
+        return checkedAfter
+          ? { ...base, next: 'check' as const, text: `${first} אמר/ה שאישר/ה — ב״ל עוד לא מראה אישור`, tone: 'red' as const }
+          : { ...base, next: 'check' as const, text: `${first} אומר/ת שאישר/ה · PIVO בודק בב״ל`, tone: 'wait' as const };
+      }
       if (m.sent) return { ...base, next: 'check' as const, text: `ממתין לאישור של ${first}`, tone: 'wait' as const };
       if (m.withSignature) return { ...base, next: null, text: 'ההוראות יוצאות עם בקשת החתימה', tone: 'wait' as const };
       if (m.readyToSend) return { ...base, next: 'send' as const, sendFocus: niSendFocus(role),

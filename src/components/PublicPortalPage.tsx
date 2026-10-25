@@ -32,8 +32,7 @@ import PaperlessQuestions from '../features/requests/PaperlessQuestions';
 import { paperlessAnswerError, type PaperlessAnswers } from '../features/requests/paperlessAnswers';
 import HomeOfficeForm from '../features/requests/HomeOfficeForm';
 import type { ValidHomeOffice } from '../features/requests/homeOffice';
-import { groupPortalItems, portalChildTitle, portalGroupStatus, portalPinnedGroup, type PortalGroup } from '../features/requests/requestGroups';
-import { lamed } from '../utils/requestPresentation';
+import { groupPortalItems, portalChildTitle, portalGroupStatus, portalPinnedGroup } from '../features/requests/requestGroups';
 import IdentityFlexPicker from '../features/identity/IdentityFlexPicker';
 import type { IdDocKind, IdPartsManifest } from '../features/identity/idFlex';
 import {
@@ -199,6 +198,9 @@ export interface PortalItem {
   refs?: { label: string; value: string }[];
   /** משפט הסגירה שאחרי הטבלה, לפני הפעולות. */
   noteAfter?: string;
+  /** 299 · «אישרתי» בב״ל: מתי הלקוח סימן, ומה הבדיקה מצאה מאז ('checking' / 'not_seen'). */
+  declaredAt?: string;
+  declareState?: 'checking' | 'not_seen';
   /** יש כאן פריט שאפשר להעלות אליו קובץ. */
   canUpload?: boolean;
   /** טקסט הכפתור שהרו"ח בחר לבקשה החופשית. */
@@ -772,7 +774,7 @@ function ActionItem({ item, brand, accent, last, onDone }: {
           )}
         </div>
       ) : niApproval ? (
-        <NiApprovalBlock item={item} brand={brand} accent={accent} />
+        <NiApprovalBlock item={item} brand={brand} accent={accent} onDone={onDone} />
       ) : guide ? (
         <div style={{ marginTop: 11 }}>
           <GuideBlock item={item} brand={brand} accent={accent} onDone={onDone} />
@@ -1180,29 +1182,95 @@ function RequestGuide({ item, brand }: {
  * 224 · אישור ייפוי הכוח בביטוח הלאומי. הסדר הוא סדר השאלות של מי שקורא דף
  * משותף: של מי זה (המשפט הירוק), איזה מספר ועד מתי, איך — ואז הכפתור.
  */
-function NiApprovalBlock({ item, brand, accent }: {
+/**
+ * ‼ 25.10.2026 (גיא: «רוצה להימנע ממלל מיותר. שיכנס לעמוד שלו וישר יוכל לבצע»): הכרטיס הוא שורה
+ * אחת — האסמכתא והמועד — ושני כפתורים: לאתר, ו«אישרתי» (299). ההוראות מאחורי «איך עושים?».
+ * «אישרתי» אינו סוגר: המשרד בודק מול ב״ל, והבקשה נסגרת רק כשהבדיקה מוצאת אישור.
+ */
+function NiApprovalBlock({ item, brand, accent, onDone }: {
   item: PortalItem;
   brand: { ink: string; muted: string; border: string; radius: number };
   accent: string;
+  onDone: () => void;
 }) {
+  const { actions, readOnly } = usePortal();
+  const [howOpen, setHowOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [simulated, setSimulated] = useState(false);
+  const ref = (item.refs ?? []).find(r => /אסמכתא/.test(r.label))?.value;
+  const due = (item.refs ?? []).find(r => /עד/.test(r.label))?.value;
+  const checking = item.declareState === 'checking' || simulated;
+  const notSeen = item.declareState === 'not_seen';
+
+  async function declare() {
+    if (readOnly || !item.actionValue) return;
+    setBusy(true);
+    setError(null);
+    const res = await actions.submitStep(item.actionValue, {});
+    setBusy(false);
+    if (res.simulated) { setSimulated(true); return; }
+    if (!res.ok) { setError('לא הצלחנו לשמור. אפשר לנסות שוב.'); return; }
+    actions.notifyAccountant();
+    onDone();
+  }
+
+  const linkBtn: React.CSSProperties = {
+    display: 'inline-block', textDecoration: 'none', fontSize: 13.5, fontWeight: 600,
+    padding: '9px 16px', color: '#fff', background: accent, borderRadius: brand.radius,
+  };
+  const declareBtn: React.CSSProperties = {
+    display: 'inline-block', cursor: readOnly || busy ? 'default' : 'pointer', fontSize: 13.5, fontWeight: 600,
+    padding: '9px 16px', borderRadius: brand.radius, color: accent, background: 'transparent',
+    border: `1px solid ${brand.border}`, opacity: readOnly || busy ? .55 : 1,
+  };
   return (
-    <div style={{ marginTop: 9, display: 'grid', gap: 8 }}>
-      {item.assurance && (
-        <div style={{ fontSize: 13, lineHeight: 1.6, color: '#2f6b4f' }}>
-          <span aria-hidden="true">✓ </span>{item.assurance}
+    <div style={{ marginTop: 4 }}>
+      {(ref || due) && (
+        <div style={{ fontSize: 13, color: brand.muted }}>
+          {ref && <>אסמכתא <span dir="ltr" style={{ color: brand.ink, fontWeight: 650 }}>{ref}</span></>}
+          {ref && due && ' · '}{due && <>עד {due}</>}
         </div>
       )}
-      <RequestGuide item={item} brand={brand} />
-      {item.linkUrl && (
-        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
-          <a href={item.linkUrl} target="_blank" rel="noopener noreferrer" style={{
-            display: 'inline-block', textDecoration: 'none', fontSize: 13.5, fontWeight: 600,
-            padding: '9px 18px', color: '#fff', background: accent, borderRadius: brand.radius,
-          }}>
-            {item.linkLabel || 'לפתיחת הקישור'} ←
-          </a>
-          <LinkHostNote url={item.linkUrl} brand={brand} />
+      {checking ? (
+        <div role="status" style={{ fontSize: 13, color: '#2f6b4f', marginTop: 8 }}>
+          תודה! נוודא מול ביטוח לאומי ונעדכן כאן.
         </div>
+      ) : (
+        <>
+          {notSeen && (
+            <div role="status" style={{ fontSize: 13, color: '#9a3b1f', marginTop: 8 }}>
+              עוד לא רואים את האישור בביטוח לאומי — אולי התהליך לא הסתיים?
+            </div>
+          )}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
+            {item.linkUrl && (
+              <a href={item.linkUrl} target="_blank" rel="noopener noreferrer" data-pp-primary style={linkBtn}>
+                לאישור באתר ↗
+              </a>
+            )}
+            {item.actionKind === 'portal' && item.actionValue && (
+              <button type="button" onClick={() => void declare()} disabled={readOnly || busy} style={declareBtn}>
+                {busy ? 'שומר…' : item.forPerson ? `${item.forPerson} אישר/ה ✓` : 'אישרתי ✓'}
+              </button>
+            )}
+          </div>
+          {error && <div style={{ fontSize: 12.5, color: '#9a3b1f', marginTop: 6 }}>{error}</div>}
+        </>
+      )}
+      {(item.noteAfter || item.assurance) && (
+        <>
+          <button type="button" onClick={() => setHowOpen(o => !o)} aria-expanded={howOpen} style={{
+            background: 'none', border: 'none', padding: '8px 0 0', cursor: 'pointer', fontSize: 12.5,
+            color: brand.muted, textDecoration: 'underline', textUnderlineOffset: 3,
+          }}>איך עושים?</button>
+          {howOpen && (
+            <div style={{ fontSize: 12.5, lineHeight: 1.65, color: brand.muted, marginTop: 6, whiteSpace: 'pre-line' }}>
+              {item.assurance && <div style={{ color: '#2f6b4f', marginBottom: 4 }}>{item.assurance}</div>}
+              {item.noteAfter}
+            </div>
+          )}
+        </>
       )}
     </div>
   );
@@ -1729,6 +1797,8 @@ export function PortalView({ data, token = '', preview = false, embed = false, o
   );
   // 280 · «הדוחות שלך» — נטען דרך PortalActions (חי לפי טוקן · דוגמה מקומית · תצוגה במשרד לפי כרטיס), ומתרענן עם הדף.
   const [filings, setFilings] = useState<PortalFilingsData | null>(null);
+  /** 25.10.2026 · «⋯» — מה שאינו דורש פעולה (בטיפולנו, הושלם, מסמכים שנפתחו, הדוחות). סגור כברירת מחדל. */
+  const [moreOpen, setMoreOpen] = useState(false);
   useEffect(() => {
     let cancelled = false;
     portalActions.loadFilings().then(f => { if (!cancelled) setFilings(f); }, () => { if (!cancelled) setFilings(null); });
@@ -1828,9 +1898,6 @@ export function PortalView({ data, token = '', preview = false, embed = false, o
     othersByPerson.set(i.forPerson, [...(othersByPerson.get(i.forPerson) ?? []), i]);
   }
   const others = [...othersByPerson.entries()].map(([name, items]) => ({ name, items }));
-  /** הכותרת בלי «יאיר — » — בשורת הסיכום השם כבר נאמר. */
-  const otherTitle = (i: PortalItem) => i.forPerson && i.label.startsWith(`${i.forPerson} — `)
-    ? i.label.slice(i.forPerson.length + 3) : i.label;
   const { groups: itemGroups } = groupPortalItems(data.items.filter(i =>
     !isSentDoc(i) && i.kind !== 'message' && !isDoneLegacyDoc(i) && !i.forPerson));
   const groupedKeys = new Set(itemGroups.flatMap(g => g.items.map(i => i.key)));
@@ -1853,9 +1920,6 @@ export function PortalView({ data, token = '', preview = false, embed = false, o
     i.bucket === 'done' && !isSentDoc(i) && !isDoneLegacyDoc(i) && free(i));
   /** מה ממתין ללקוח — בשורה אחת מעל הכול (גם בתוך קבוצות). */
   const waitingForYou = [...actions, ...itemGroups.flatMap(g => g.items.filter(i => i.bucket === 'action'))];
-  const renderGroup = (x: { g: PortalGroup<PortalItem>; st: ReturnType<typeof portalGroupStatus> }) => (
-    <PortalGroupCard key={`g-${x.g.key}`} group={x.g} status={x.st} brand={brand} accent={accent} onDone={reload} />
-  );
 
   /**
    * בית אחד לכל מה שהמשרד שלח — שנפתח ושלא. הלקוח מחפש מסמך, לא בקשה,
@@ -1882,7 +1946,6 @@ export function PortalView({ data, token = '', preview = false, embed = false, o
     .sort((a, b) => Number(b.files.some(f => !f.opened)) - Number(a.files.some(f => !f.opened)));
   const unopenedCount = docGroups.reduce(
     (n, g) => n + g.files.filter(f => !f.opened).length, 0);
-  const hasUnopenedDoc = unopenedCount > 0;
   const firstName = data.clientFirstName;
 
   /* ‼ 280 · «הדבר הבא» — אחד מהפריטים שכבר ב«מה צריך ממך» (בסדר שבו הם מוצגים), עם המועד הקרוב ביותר לפי
@@ -1893,6 +1956,23 @@ export function PortalView({ data, token = '', preview = false, embed = false, o
   const nextCtx = next ? { key: next.item.key, due: next.due, tag: waitingForYou.length > 1 } : null;
   // הבקשה הבאה ראשונה ברשימה (כשהיא לא בתוך קבוצה)
   const actionsInOrder = next ? [...actions].sort((x, y) => Number(y.key === next.item.key) - Number(x.key === next.item.key)) : actions;
+  /* ‼ 25.10.2026 (גיא: «שיכנס לעמוד שלו וישר יוכל לבצע»; «מה שבטיפולנו והושלם — ממש להוריד אותם,
+     רק ... שיפתח»). בדף רק מה שצריך לעשות — גם מה שבתוך קבוצה (ייצוג, פייפרלס) עולה לרשימה אחת,
+     בלי כרטיס קבוצה מעליו. כל השאר — בטיפולנו, בהמשך, הושלם, מסמכים שכבר נפתחו, הדוחות — מאחורי «⋯». */
+  const groupActions = [...(representationCard ? [representationCard] : []), ...groupsIn('action')]
+    .flatMap(x => x.g.items.filter(i => i.bucket === 'action' && !i.forPerson));
+  const doList = [...groupActions, ...actionsInOrder];
+  const restOffice = [
+    ...groupCards.flatMap(x => x.g.items.filter(i => i.bucket === 'office' || i.bucket === 'future')),
+    ...office, ...future,
+  ];
+  const restDone = [
+    ...groupCards.flatMap(x => x.g.items.filter(i => i.bucket === 'done')),
+    ...done,
+  ];
+  const freshDocGroups = docGroups.filter(g => g.files.some(f => !f.opened));
+  const openedDocGroups = docGroups.filter(g => !g.files.some(f => !f.opened));
+  const hasMore = restOffice.length > 0 || restDone.length > 0 || openedDocGroups.length > 0 || !!filings;
 
   return (
     <PortalModeCtx.Provider value={mode}>
@@ -1902,79 +1982,62 @@ export function PortalView({ data, token = '', preview = false, embed = false, o
       <div className="pp-card" style={card}>
         <Header />
 
-        <div style={{ fontSize: 19, fontWeight: 650, color: brand.ink, marginBottom: 3 }}>
-          שלום{firstName ? ` ${firstName}` : ''},
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
+          <div style={{ flex: 1, fontSize: 19, fontWeight: 650, color: brand.ink }}>
+            שלום{firstName ? ` ${firstName}` : ''},
+          </div>
+          {/* ‼ 25.10.2026 · «⋯» — בטיפולנו, בהמשך, הושלם, מסמכים שנפתחו והדוחות. לא בדף עצמו. */}
+          {hasMore && (
+            <PortalMoreButton open={moreOpen} onToggle={() => setMoreOpen(o => !o)} brand={brand} />
+          )}
         </div>
 
-        {/* ‼ 05.10 · שורת סיכום אחת: מה ממתין לך עכשיו — גם כשזה בתוך קבוצה.
-            ‼ 224 · ומה ממתין לבן/בת הזוג, בשמו — הדף והמייל משותפים לזוג.
-            ‼ 22.10 · בקשה אחת שממתינה (ואין לאדם אחר) — הרשימה מיד מתחת אומרת אותה; השורה הייתה חוזרת עליה. */}
-        {((waitingForYou.length > 1) || others.length > 0) && (
-          <div role="status" style={{
-            margin: '12px 0 4px', padding: '11px 14px', borderRadius: brand.radius + 2, fontSize: 13.5, lineHeight: 1.55,
-            background: brand.pageBg, color: brand.ink, border: `1px solid ${brand.border}`,
-          }}>
-            {waitingForYou.length === 1
-              ? <>יש בקשה אחת שממתינה לך: <strong>{portalChildTitle(waitingForYou[0])}</strong>.</>
-              : waitingForYou.length > 1 ? <>יש {waitingForYou.length} בקשות שממתינות לך.</> : null}
-            {others.map(o => (
-              <span key={o.name}>
-                {waitingForYou.length > 0 ? ' ' : ''}
-                {o.items.length === 1
-                  ? <>{waitingForYou.length > 0 ? `ומ${o.name}: ` : `יש בקשה אחת שממתינה ${lamed(o.name)}: `}<strong>{otherTitle(o.items[0])}</strong>.</>
-                  : <>{waitingForYou.length > 0 ? `ו${o.items.length} בקשות שממתינות ${lamed(o.name)}.` : `יש ${o.items.length} בקשות שממתינות ${lamed(o.name)}.`}</>}
-              </span>
-            ))}
+        {moreOpen && hasMore && (
+          <div data-pp-more style={{ margin: '8px 0 6px', padding: '4px 14px 10px', border: `1px solid ${brand.border}`, borderRadius: brand.radius + 2 }}>
+            {restOffice.length > 0 && (
+              <>
+                <div style={{ ...sectionTitle, marginTop: 10 }}>בטיפולנו</div>
+                {restOffice.map(item => (
+                  <div key={item.key} style={{ padding: '7px 0', borderTop: `1px solid ${brand.border}`, fontSize: 13.5, color: brand.ink }}>
+                    {item.label}
+                    {item.sub && <div style={{ fontSize: 12, color: brand.muted, marginTop: 2, lineHeight: 1.5 }}>{item.sub}</div>}
+                  </div>
+                ))}
+              </>
+            )}
+            {openedDocGroups.length > 0 && (
+              <>
+                <div style={{ ...sectionTitle, marginTop: 14 }}>מסמכים מהמשרד</div>
+                {openedDocGroups.map(g => g.files.map(f => (
+                  <DocumentRow key={f.key} file={f} brand={brand} accent={accent} onDone={reload} />
+                )))}
+              </>
+            )}
+            <PortalFilingsSection data={filings} fallbackFirstName={firstName} />
+            <DoneFold names={restDone.map(i => portalChildTitle(i))} brand={brand} gap={10} />
           </div>
         )}
-        {representationCard && (
-          <PortalNextCtx.Provider value={nextCtx}>
-            {renderGroup(representationCard)}
-          </PortalNextCtx.Provider>
-        )}
-        {actions.length > 0 || groupsIn('action').length > 0 ? (
+
+        {doList.length > 0 ? (
           <>
-            <div style={{ ...sectionTitle, color: accent, marginTop: 16, marginBottom: 8 }}>מה צריך ממך</div>
+            <div style={{ ...sectionTitle, color: accent, marginTop: 14, marginBottom: 8 }}>מה צריך ממך</div>
             <PortalNextCtx.Provider value={nextCtx}>
-              {groupsIn('action').map(renderGroup)}
-              {actionsInOrder.map((item, i) => (
+              {doList.map((item, i) => (
                 <ActionItem key={item.key} item={item} brand={brand} accent={accent}
-                  last={i === actionsInOrder.length - 1} onDone={reload} />
+                  last={i === doList.length - 1} onDone={reload} />
               ))}
             </PortalNextCtx.Provider>
           </>
-        ) : representationCard?.st.tone === 'action' ? null : hasUnopenedDoc ? (
-          /* ‼ מוביל במה שרלוונטי, לא בהיעדר חובות. "אין לך משימות" ראשון
-             נקרא כ"אין כאן שום דבר בשבילי" — גם כשמיד מתחתיו מחכה מסמך
-             שהמשרד שלח. מסמך שטרם נפתח אינו חובה, אבל הוא כן הדבר הרלוונטי
-             ביותר על המסך, והפתיחה שלו היא הצעד הטבעי הבא. */
-          <div style={{ fontSize: 15, fontWeight: 550, color: brand.ink, margin: '18px 0 4px' }}>
-            {unopenedCount === 1
-              ? 'המשרד שלח לך מסמך חדש.'
-              : `המשרד שלח לך ${unopenedCount} מסמכים חדשים.`}
+        ) : others.length === 0 && freshDocGroups.length === 0 ? (
+          <div style={{ fontSize: 14, color: brand.muted, margin: '16px 0 4px' }}>
+            {restOffice.length === 0 && restDone.length > 0 ? `הכול הושלם${firstName ? `, ${firstName}` : ''} 🎉` : 'אין כרגע משהו שדורש את טיפולך.'}
           </div>
-        ) : (done.length > 0 || groupsIn('done').length > 0)
-            && !representationCard && future.length === 0 && office.length === 0
-            && groupsIn('office').length === 0 && groupsIn('future').length === 0 && others.length === 0 ? (
-          /* ‼ "הכול הושלם" רק כשבאמת אין המשך. עם שלב עתידי נעול או עם משהו
-             שבטיפולנו זה היה שקר קטן שמייצר פנייה: הלקוח קורא שסיים, ואז
-             נפתח לו עוד שלב. מסמך שטרם נפתח כבר נתפס בענף שמעל. */
-          <div style={{ fontSize: 15, color: brand.ink, margin: '18px 0 4px' }}>
-            הכול הושלם{firstName ? `, ${firstName}` : ''} 🎉
-          </div>
-        ) : (
-          /* ‼ המשפט הרגוע שמור למצב שבו באמת אין מה לעשות **ואין שום דבר
-             חדש**: לא חובות, ולא מסמך שממתין לעיון. */
-          <div style={{ fontSize: 13.5, color: brand.muted, margin: '18px 0 4px' }}>
-            אין כרגע משהו שדורש את טיפולך.
-          </div>
-        )}
+        ) : null}
 
-        {/* ── מה צריך מ{שם} (224) ─────────────────────────────────────────
-            ‼ אותו משקל כמו «מה צריך ממך» ומיד אחריו: שני אנשים, שתי רשימות. */}
+        {/* ── מה צריך מ{שם} (224) — אותו משקל כמו «מה צריך ממך» ומיד אחריו. */}
         {others.map(o => (
           <div key={`for-${o.name}`}>
-            <div style={{ ...sectionTitle, color: accent, marginTop: 20, marginBottom: 8 }}>מה צריך מ{o.name}</div>
+            <div style={{ ...sectionTitle, color: accent, marginTop: 18, marginBottom: 8 }}>מה צריך מ{o.name}</div>
             {o.items.map((item, i) => (
               <ActionItem key={item.key} item={item} brand={brand} accent={accent}
                 last={i === o.items.length - 1} onDone={reload} />
@@ -1982,165 +2045,46 @@ export function PortalView({ data, token = '', preview = false, embed = false, o
           </div>
         ))}
 
-        {/* ── הודעה מהמשרד ────────────────────────────────────────────────
-            ‼ מלל בלבד, בלי שום פקד: אין כאן מה לאשר ואין מה לפתוח. היא
-            יושבת מתחת ל"מה צריך ממך" כדי לא להתחרות בו, ומעל השאר כדי
-            שתיקרא. יורדת מהדף כשהמשרד סוגר אותה. */}
+        {/* ── הודעה מהמשרד — מלל שהמשרד כתב ללקוח, בלי פקדים. */}
         {messages.length > 0 && (
           <>
-            <div style={{ ...sectionTitle, marginTop: (actions.length > 0 || others.length > 0) ? 20 : 16 }}>
-              {messages.length === 1 ? 'הודעה מהמשרד' : 'הודעות מהמשרד'}
-            </div>
+            <div style={{ ...sectionTitle, marginTop: 18 }}>{messages.length === 1 ? 'הודעה מהמשרד' : 'הודעות מהמשרד'}</div>
             {messages.map(item => {
-              // ‼ כותרת שחוזרת על כותרת הקטע היא רעש: "הודעה מהמשרד" פעמיים
-              // זה בדיוק מה שנראה כמו תקלה. שם אמיתי — כן מוצג.
               const named = item.label && item.label !== MESSAGE_DEFAULT_TITLE;
               return (
-                <div key={item.key} style={{
-                  padding: '13px 15px', marginBottom: 8,
-                  background: brand.cardBg, border: `1px solid ${brand.border}`,
-                  borderRadius: brand.radius + 2,
-                }}>
+                <div key={item.key} style={{ padding: '12px 14px', marginBottom: 8, background: brand.cardBg, border: `1px solid ${brand.border}`, borderRadius: brand.radius + 2 }}>
                   {(named || (officeView && (item.draft || item.removing))) && (
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                      {named && (
-                        <span style={{ flex: 1, fontSize: 14, fontWeight: 600, color: brand.ink }}>
-                          {item.label}
-                        </span>
-                      )}
+                      {named && <span style={{ flex: 1, fontSize: 14, fontWeight: 600, color: brand.ink }}>{item.label}</span>}
                       {officeView && item.draft && <DraftChip />}
                       {officeView && item.removing && <RemovingChip />}
                     </div>
                   )}
-                  {item.note && (
-                    <p style={{
-                      margin: 0, fontSize: 13, lineHeight: 1.7,
-                      color: brand.ink, whiteSpace: 'pre-line',
-                    }}>{item.note}</p>
-                  )}
-                  {/* ‼ הרחבה קטנה: הודעה שנושאת קישור חיצוני (למשל אתר
-                      ביטוח לאומי) — לא כפתור פעולה, אין כאן מה "לאשר". */}
+                  {item.note && <p style={{ margin: 0, fontSize: 13, lineHeight: 1.7, color: brand.ink, whiteSpace: 'pre-line' }}>{item.note}</p>}
                   {item.linkUrl && (
                     <a href={item.linkUrl} target="_blank" rel="noopener noreferrer"
-                      style={{
-                        display: 'inline-block', marginTop: 8, textDecoration: 'none',
-                        fontSize: 13, fontWeight: 600, color: accent,
-                      }}>
+                      style={{ display: 'inline-block', marginTop: 8, textDecoration: 'none', fontSize: 13, fontWeight: 600, color: accent }}>
                       {item.linkLabel || 'לפתיחת הקישור'} ←
                     </a>
                   )}
-                  {item.linkUrl && <LinkHostNote url={item.linkUrl} brand={brand} />}
                 </div>
               );
             })}
           </>
         )}
 
-        {/* ── מסמכים מהמשרד ───────────────────────────────────────────────
-            ‼ שורות, לא כרטיסים: כרטיס עם כפתור נקרא כמטלה, וזו בדיוק
-            המשמעות ההפוכה. אין כאן כותרת פנימית לבקשה — היא הייתה חוזרת על
-            כותרת הקטע. המשקל הוויזואלי נמוך מ"מה צריך ממך" (הכותרת אפורה
-            ולא בצבע ההדגשה), כדי שסדר הסריקה יישאר: קודם מה שצריך ממני. */}
-        {docGroups.length > 0 && (
+        {/* ── מסמך חדש מהמשרד (טרם נפתח) — זה כן מקומו בדף; מה שנפתח עובר ל«⋯». */}
+        {freshDocGroups.length > 0 && (
           <>
-            <div style={{ ...sectionTitle, marginTop: (actions.length > 0 || others.length > 0 || messages.length > 0) ? 20 : 16 }}>
-              מסמכים מהמשרד
-            </div>
-            {docGroups.map(g => (
+            <div style={{ ...sectionTitle, marginTop: 18 }}>{unopenedCount === 1 ? 'מסמך חדש מהמשרד' : 'מסמכים חדשים מהמשרד'}</div>
+            {freshDocGroups.map(g => (
               <div key={g.key}>
-                {/* המילים שצורפו לקבצים — הקשר, לא הוראה. */}
-                {g.note && (
-                  <p style={{
-                    margin: '6px 0 2px', fontSize: 12.5, lineHeight: 1.7,
-                    color: brand.muted, whiteSpace: 'pre-line',
-                  }}>{g.note}</p>
-                )}
-                {g.files.map(f => (
-                  <DocumentRow key={f.key} file={f} brand={brand} accent={accent}
-                    onDone={reload} />
-                ))}
+                {g.note && <p style={{ margin: '6px 0 2px', fontSize: 12.5, lineHeight: 1.7, color: brand.muted, whiteSpace: 'pre-line' }}>{g.note}</p>}
+                {g.files.map(f => <DocumentRow key={f.key} file={f} brand={brand} accent={accent} onDone={reload} />)}
               </div>
             ))}
           </>
         )}
-
-        {/* ── הדוחות שלך (280) ─────────────────────────────────────────────
-            לכל שנה: מה, של מי, עד מתי ומה המצב — לפי רשימות שע״ם שהמשרד קלט. בלי שורות — לא מוצג. */}
-        <PortalFilingsSection data={filings} fallbackFirstName={firstName} />
-
-        {/* ── בטיפול המשרד ────────────────────────────────────────────────
-            מה שאנחנו עושים עכשיו. שקט ובלי פקדים — זו תשובה לשאלה "ומה
-            עכשיו?", לא עוד רשימת מטלות. */}
-        {(office.length > 0 || groupsIn('office').length > 0) && (
-          <>
-            <div style={{ ...sectionTitle, marginTop: (actions.length > 0 || others.length > 0 || messages.length > 0 || docGroups.length > 0) ? 20 : 16 }}>
-              בטיפול המשרד
-            </div>
-            {groupsIn('office').map(renderGroup)}
-            {office.map(item => (
-              <div key={item.key} style={{
-                display: 'flex', alignItems: 'flex-start', gap: 8,
-                padding: '10px 0', borderTop: `1px solid ${brand.border}`,
-              }}>
-                <span aria-hidden="true" style={{ fontSize: 12, lineHeight: '20px', opacity: .55 }}>●</span>
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ fontSize: 14, color: brand.ink }}>
-                    {item.label}
-                    {officeView && item.draft && <DraftChip />}
-                    {officeView && item.removing && <RemovingChip />}
-                  </div>
-                  {item.sub && (
-                    <div style={{ fontSize: 12, color: brand.muted, marginTop: 2, lineHeight: 1.55 }}>
-                      {item.sub}
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))}
-          </>
-        )}
-
-        {/* ── בהמשך: שלבים שפורסמו ועדיין נעולים ──────────────────────────
-            שקט בכוונה — אפור, בלי כפתור, בלי מסגרת מודגשת. זו מפת דרכים,
-            לא רשימת מטלות: אסור שתתחרה ב"מה צריך ממך" שמעליה. */}
-        {(future.length > 0 || groupsIn('future').length > 0) && (
-          <>
-            <div style={{ ...sectionTitle, marginTop: (actions.length > 0 || others.length > 0 || office.length > 0 || messages.length > 0 || docGroups.length > 0) ? 20 : 16 }}>
-              בהמשך - ייפתח אוטומטית
-            </div>
-            {groupsIn('future').map(renderGroup)}
-            {future.map(item => (
-              <div key={item.key} style={{
-                display: 'flex', alignItems: 'flex-start', gap: 8,
-                padding: '10px 0', borderTop: `1px solid ${brand.border}`,
-              }}>
-                <span aria-hidden="true" style={{ fontSize: 12, lineHeight: '20px', opacity: .5 }}>🔒</span>
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ fontSize: 14, color: brand.muted }}>
-                    {item.label}
-                    {officeView && item.draft && <DraftChip />}
-                    {officeView && item.removing && <RemovingChip />}
-                  </div>
-                  {item.sub && (
-                    <div style={{ fontSize: 12, color: brand.muted, opacity: .85, marginTop: 2 }}>
-                      {item.sub}
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))}
-            <div style={{ fontSize: 11.5, color: brand.muted, opacity: .8, marginTop: 8 }}>
-              אין מה לעשות עם אלה עכשיו - הם ייפתחו כאן מעצמם.
-            </div>
-          </>
-        )}
-
-        {/* ‼ תזכורת שקטה שכבר קרה משהו — לא רשימה. "מה קורה עכשיו" הוא
-            השאלה של העמוד הזה; "מה קרה" שייך לרו"ח בלבד. */}
-        {/* ‼ 19.10.2026 (גיא): מה שהושלם לא תופס מקום — קבוצה שהושלמה כולה ובקשה שהושלמה יורדות לשורה שקטה אחת
-            «מה שכבר סיימנו (N)», שנפתחת לרשימת שמות. קודם כל קבוצה שהושלמה עמדה ככרטיס גדול. */}
-        <DoneFold names={[...groupsIn('done').map(x => x.g.title), ...done.map(i => portalChildTitle(i))]} brand={brand}
-          gap={(actions.length > 0 || future.length > 0 || office.length > 0 || docGroups.length > 0) ? 16 : 4} />
 
         {/* ‼ «מסמכים שימושיים» בוטל: מסמך שנפתח נשאר במקום שבו הוא היה,
             תחת «מסמכים מהמשרד», עם סימון שקט. שני קטעים לאותם קבצים אילצו
@@ -2160,78 +2104,26 @@ export function PortalView({ data, token = '', preview = false, embed = false, o
   );
 }
 
-/**
- * קבוצה קבועה בדף האישי (05.10) — כותרת עם מצב, ומתחת כל בקשה בשורה משלה, בסדר קבוע.
- * ‼ בקשה שממתינה ללקוח — אותו ActionItem כמו בשורה בודדת (אותם טפסים ופעולות); השאר —
- * שורה שקטה עם המצב שלה. בלי פקדים של המשרד ובלי הערות פנימיות: רק מה שהשרת שלח לדף.
- */
-function PortalGroupCard({ group, status, brand, accent, onDone }: {
-  group: PortalGroup<PortalItem>;
-  status: ReturnType<typeof portalGroupStatus>;
-  brand: { ink: string; muted: string; border: string; radius: number; cardBg: string; pageBg: string };
-  accent: string; onDone: () => void;
+/** «מה שכבר סיימנו (N)» — שורה שקטה אחת בתחתית הדף; נפתחת לרשימת השמות. אין בה פעולות. */
+/** «⋯» ליד הברכה — פותח את מה שאינו דורש פעולה. בלי מלל בדף עצמו (גיא, 25.10.2026). */
+function PortalMoreButton({ open, onToggle, brand }: {
+  open: boolean; onToggle: () => void; brand: { muted: string; border: string; radius: number };
 }) {
-  const { readOnly } = usePortal();
-  const [open, setOpen] = useState(status.tone === 'action');
-  const hint = status.tone === 'action' ? group.summary
-    : status.tone === 'office' ? 'בטיפול המשרד · אין צורך בפעולה שלך'
-    : status.tone === 'future' ? 'ייפתח בהמשך'
-    : group.summary;
-  const tagColor = status.tone === 'action' ? accent : status.tone === 'done' ? '#2f6b4f' : brand.muted;
-  const actionKids = group.items.filter(i => i.bucket === 'action');
-  // ‼ 19.10.2026: בקבוצה פעילה — רק מה שעוד פתוח; מה שהושלם מאחורי «ועוד N שכבר הושלמו».
-  const [doneShown, setDoneShown] = useState(false);
-  const doneKids = status.tone === 'done' ? [] : group.items.filter(i => i.bucket === 'done');
-  const shownItems = doneKids.length && !doneShown ? group.items.filter(i => i.bucket !== 'done') : group.items;
   return (
-    <section className="pp-group" data-group={group.key} style={{
-      border: `1px solid ${brand.border}`, borderRadius: brand.radius + 4, background: brand.cardBg, marginBottom: 10, overflow: 'hidden',
-    }}>
-      <button type="button" className="pp-group-head" aria-expanded={open} onClick={() => setOpen(o => !o)}
-        style={{ color: brand.ink, borderBottom: open ? `1px solid ${brand.border}` : 'none' }}>
-        <span className="pp-group-namecol">
-          <span className="pp-group-name">{group.title}</span>
-          <span className="pp-group-hint" style={{ color: brand.muted }}>{hint}</span>
-        </span>
-        <span className="pp-group-tag" style={{ color: tagColor }}>{status.tag}</span>
-        <span className="pp-group-chev" aria-hidden="true" style={{ color: brand.muted }}>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
-        </span>
-      </button>
-      {open && (
-        <div className="pp-group-kids" style={{ background: brand.pageBg }}>
-          {shownItems.map(it => it.bucket === 'action'
-            ? <ActionItem key={it.key} item={{ ...it, label: portalChildTitle(it) }} brand={brand} accent={accent}
-                last={it === actionKids[actionKids.length - 1]} onDone={onDone} />
-            : (
-              <div key={it.key} className="pp-group-kid" style={{ background: brand.cardBg, border: `1px solid ${brand.border}`, borderRadius: brand.radius + 2 }}>
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ fontSize: 14, fontWeight: 600, color: it.bucket === 'future' ? brand.muted : brand.ink }}>
-                    {portalChildTitle(it)}
-                    {readOnly && it.draft && <DraftChip />}
-                    {readOnly && it.removing && <RemovingChip />}
-                  </div>
-                  {it.sub && <div style={{ fontSize: 12.5, color: brand.muted, marginTop: 2, lineHeight: 1.55 }}>{it.sub}</div>}
-                </div>
-                <span className="pp-group-kid-tag" style={{ color: it.bucket === 'done' ? '#2f6b4f' : brand.muted }}>
-                  {it.bucket === 'done' ? 'הושלם' : it.bucket === 'office' ? 'בטיפול המשרד' : 'בהמשך'}
-                </span>
-              </div>
-            ))}
-          {doneKids.length > 0 && (
-            <button type="button" className="pp-done-more" aria-expanded={doneShown} onClick={() => setDoneShown(v => !v)}
-              style={{ color: brand.muted }}>
-              {doneShown ? 'הסתר את מה שהושלם' : `ועוד ${doneKids.length === 1 ? 'אחד שכבר הושלם' : `${doneKids.length} שכבר הושלמו`}`}
-            </button>
-          )}
-        </div>
-      )}
-    </section>
+    <button type="button" onClick={onToggle} aria-expanded={open}
+      aria-label={open ? 'סגירה' : 'עוד — מה בטיפולנו ומה כבר הושלם'}
+      title={open ? 'סגירה' : 'מה בטיפולנו ומה כבר הושלם'}
+      style={{
+        flexShrink: 0, minWidth: 40, height: 36, borderRadius: brand.radius, cursor: 'pointer',
+        border: `1px solid ${brand.border}`, background: open ? brand.border : 'transparent',
+        color: brand.muted, fontSize: 20, lineHeight: 1, padding: '0 10px',
+      }}>
+      {open ? '×' : '⋯'}
+    </button>
   );
 }
 
-/** «מה שכבר סיימנו (N)» — שורה שקטה אחת בתחתית הדף; נפתחת לרשימת השמות. אין בה פעולות. */
-function DoneFold({ names, brand, gap }: { names: string[]; brand: { muted: string; border: string; ink: string }; gap: number }) {
+function DoneFold({ names, brand, gap }:{ names: string[]; brand: { muted: string; border: string; ink: string }; gap: number }) {
   const [open, setOpen] = useState(false);
   if (!names.length) return null;
   return (
