@@ -387,7 +387,11 @@ export default function AnnualFlow({ stepId, token, title, initialAsks, fetchAsk
     const answerOf = (a: InfoAsk) => {
       if (a.state !== 'published') return 'נשלח קודם';
       const d = shownDraft(a, drafts[askIdentity(a)]);
-      if (a.prompt.input.kind === 'confirm' || a.prompt.knownRow) return d.choice === 'changed' ? 'עודכן' : d.choice === 'yes' ? 'נכון' : '';
+      // ‼ גיא (25.10): «במקום נכון — שיהיה כתוב המידע». מה שאושר ⇒ מה שידוע (אותו טקסט כמו ב«זה עדיין נכון?»); שינוי ⇒ מה שנכתב
+      if (a.prompt.input.kind === 'confirm' || a.prompt.knownRow) {
+        if (d.choice === 'changed') return answerText(a, d) || 'עודכן';
+        return d.choice === 'yes' ? rowValue(a).join(' · ') || 'נכון' : '';
+      }
       const t = answerText(a, d);
       return t === 'אף אחד מאלה' ? 'כלום' : t;
     };

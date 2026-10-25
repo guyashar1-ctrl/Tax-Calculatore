@@ -172,9 +172,12 @@ export default function AnnualWorkspace({ client, step, year, data, busy, run, s
   }, `נשלח לחתימה — מופיע בדף של ${firstName}. המייל, אם צריך — מ«הדף של ${firstName}».`);
   // ‼ הקובץ החתום: כשכולם חתמו — נבנה מהצילום ומהחתימות שבשרת, נשמר במסמכים של הלקוח (פעם אחת)
   const storing = useRef(false);
+  // ‼ ניסיון שנכשל (הכניסה עוד לא נטענה אחרי רענון, רשת) — עוד שני ניסיונות לבד; רק אחריהם הודעה
+  const [storeTry, setStoreTry] = useState(0);
   useEffect(() => {
     if (!signing || signing.state !== 'signed' || signing.signedDocumentId || storing.current) return;
     storing.current = true;
+    let failed = true;
     void (async () => {
       try {
         const { data: u } = await supabase.auth.getUser();
@@ -183,14 +186,23 @@ export default function AnnualWorkspace({ client, step, year, data, busy, run, s
         const sha = await sha256Hex(bytes);
         const path = `${u.user.id}/${client.id}/arsign-${signing.id}-v${signing.version}`;
         const up = await supabase.storage.from('client-documents').upload(path, new Blob([bytes as BlobPart], { type: 'application/pdf' }), { contentType: 'application/pdf', upsert: true });
-        if (up.error) { setMsg('הקובץ החתום לא נשמר — ננסה שוב בפתיחה הבאה'); return; }
+        if (up.error) return;
         const r = await storeSigned(signing.id, path, bytes.length, sha);
-        if (!r.ok) setMsg('הקובץ החתום לא נשמר — ננסה שוב בפתיחה הבאה');
+        if (!r.ok) return;
+        failed = false;
         await refreshSigning();
-      } finally { storing.current = false; }
+      } catch (e) {
+        console.warn('annual signed set', e);
+      } finally {
+        storing.current = false;
+        if (failed) {
+          if (storeTry < 2) window.setTimeout(() => setStoreTry(n => n + 1), 3000);
+          else setMsg('הקובץ החתום לא נשמר — ננסה שוב בפתיחה הבאה');
+        }
+      }
     })();
     /* eslint-disable-next-line react-hooks/exhaustive-deps */
-  }, [signing?.id, signing?.state, signing?.signedDocumentId]);
+  }, [signing?.id, signing?.state, signing?.signedDocumentId, storeTry]);
   const openSigned = async () => {
     if (!signing?.signedDocumentId) return;
     const f = await loadDocumentFile(signing.signedDocumentId);
@@ -203,6 +215,30 @@ export default function AnnualWorkspace({ client, step, year, data, busy, run, s
   } as never), 'סומן שבורר');
 
   const groups: Who[] = married ? ['client', 'spouse', 'home'] : ['client', 'home'];
+  const isMine = (m: Material) => m.state === 'here' || m.state === 'mine';
+  const matRow = (m: Material, withName = false) => (
+    <div key={m.key} className={`aw-mat is-${m.state}`} data-aw-mat={m.docKind ?? ''} data-state={m.state}>
+      <span className="aw-ic" aria-hidden="true" dangerouslySetInnerHTML={{ __html: `<svg viewBox="0 0 24 24">${ICON[m.state]}</svg>` }} />
+      <span className="aw-t"><b>{m.title}</b>{withName
+        ? <small><span className="aw-who" data-who={m.who}>{nameOf(m.who)}</span>{m.sub && m.sub !== 'אצלך' ? ` · ${m.sub}` : ''}</small>
+        : m.sub && <small>{m.sub}</small>}</span>
+      {(m.state === 'here' || (m.state === 'mine' && m.enterable)) && <button type="button" className="aw-act" onClick={() => setEntry(m)} data-aw-enter>{m.state === 'mine' ? 'הכנה' : 'הזנה'}</button>}
+      {m.state === 'done' && m.enterable && <button type="button" className="aw-link" onClick={() => setEntry(m)}>תיקון</button>}
+      {m.state === 'got' && m.evidence?.documentId && <button type="button" className="aw-link" onClick={() => setEntry(m)}>צפייה</button>}
+      {m.state === 'wait' && <span className="aw-tag">ממתין</span>}
+      {m.state === 'done' && !m.enterable && <span className="aw-tag is-ok">✓</span>}
+    </div>
+  );
+  const oykRow = (
+    <div key="oyk">
+      <div className={`aw-mat ${oykDone ? 'is-done' : 'is-mine'}`} data-aw-oyk>
+        <span className="aw-ic" aria-hidden="true" dangerouslySetInnerHTML={{ __html: `<svg viewBox="0 0 24 24">${ICON[oykDone ? 'done' : 'mine']}</svg>` }} />
+        <span className="aw-t"><b>{oyk.length === 1 ? oyk[0].label : 'תשלומים על חשבון והפסדים'}</b><small>{oykDone ? 'נרשם' : 'רק אתה יודע'}</small></span>
+        <button type="button" className={oykDone ? 'aw-link' : 'aw-act'} onClick={() => setExtra(extra === 'oyk' ? null : 'oyk')} aria-expanded={extra === 'oyk'}>{oykDone ? 'תיקון' : 'הזנה'}</button>
+      </div>
+      {extra === 'oyk' && <div className="aw-inline"><OykInputs client={client} year={year} stepId={step.id} fields={oyk} facts={data.facts.filter(f => f.taxYear === year)} busy={busy} run={run} /></div>}
+    </div>
+  );
   const annexes = out ? neededAnnexes(out) : [];
 
   return (
@@ -234,61 +270,52 @@ export default function AnnualWorkspace({ client, step, year, data, busy, run, s
         <section className="aw-mats" aria-labelledby="aw-mats-h">
           <div className="aw-col-h"><h4 id="aw-mats-h">חומרים</h4><small data-aw-open>{sent ? (mats.filter(m => m.state !== 'done' && m.state !== 'got').length + openExtras ? `${mats.filter(m => m.state !== 'done' && m.state !== 'got').length + openExtras} פתוחים` : 'הכול הוזן') : ''}</small></div>
           {!sent && <p className="aw-empty">כשהשאלון יישלח ל{firstName}, המסמכים יופיעו כאן.</p>}
+          {/* ‼ גיא (25.10): «אני לא רואה בממשק את הדברים שאני צריך לעשות» — כל מה שבידיים שלך למעלה, במקום אחד; מתחת — מה שממתין מהלקוח */}
+          {sent && (
+            <div className="aw-grp aw-minebox" data-who="mine" data-aw-mine={mine}>
+              <div className="aw-grp-h"><i aria-hidden="true">✓</i>אצלך{mine ? ` · ${mine}` : ''}</div>
+              {!mine && <p className="aw-empty" data-aw-mine-empty>אין לך מה לעשות כרגע.</p>}
+              {mats.filter(isMine).map(m => matRow(m, true))}
+              {oyk.length > 0 && !oykDone && oykRow}
+              {notes.map(a => (
+                <div key={a.id} className="aw-mat is-mine" data-aw-hint>
+                  <span className="aw-ic" aria-hidden="true" dangerouslySetInnerHTML={{ __html: `<svg viewBox="0 0 24 24">${ICON.mine}</svg>` }} />
+                  <span className="aw-t"><b>«{a.officeNote}»</b><small>{a.prompt.subjectName ?? firstName}</small></span>
+                  <button type="button" className="aw-act" disabled={busy} onClick={() => void run(() => tyApi.resolveNote(a.id), 'סומן שנסגר')}>סגור</button>
+                </div>
+              ))}
+              {unlisted.map(f => (
+                <div key={f.id} className="aw-mat is-mine" data-aw-unlisted={f.subjectRole}>
+                  <span className="aw-ic" aria-hidden="true" dangerouslySetInnerHTML={{ __html: `<svg viewBox="0 0 24 24">${ICON.mine}</svg>` }} />
+                  <span className="aw-t"><b>לברר עם {nameOf(f.subjectRole === 'spouse' ? 'spouse' : 'client')}: הכנסה אחרת</b><small>שלא ברשימה</small></span>
+                  <button type="button" className="aw-act" disabled={busy} onClick={() => void markDecision(`unlisted-${f.subjectRole}`)}>בורר</button>
+                </div>
+              ))}
+              {officeRest.length > 0 && (
+                <div className="aw-mat is-mine" data-aw-office-rest={officeRest.map(s => `${s.item.key}:${s.subjectRole}:${s.entityKind ?? ""}:${s.entityRef ?? ""}`).join(",")}>
+                  <span className="aw-ic" aria-hidden="true" dangerouslySetInnerHTML={{ __html: `<svg viewBox="0 0 24 24">${ICON.mine}</svg>` }} />
+                  <span className="aw-t"><b>להשלים במשרד{officeRest.length > 1 ? ` · ${officeRest.length}` : ''}</b><small>{officeRest.slice(0, 2).map(s => s.item.label).join(' · ')}{officeRest.length > 2 ? ` ועוד ${officeRest.length - 2}` : ''}</small></span>
+                  <button type="button" className="aw-act" onClick={onOfficeTodo}>להשלים</button>
+                </div>
+              )}
+              {plan.needsDecision.map(({ fact, plan: p }) => (
+                <div key={fact.id} className="aw-mat is-mine" data-aw-decide>
+                  <span className="aw-ic" aria-hidden="true" dangerouslySetInnerHTML={{ __html: `<svg viewBox="0 0 24 24">${ICON.mine}</svg>` }} />
+                  <span className="aw-t"><b>{ITEM_BY_KEY[fact.itemKey]?.label ?? 'שינוי בתיק'}</b><small>{p.lines[0] ?? 'צריך החלטה לפני העדכון בתיק'}</small></span>
+                  <button type="button" className="aw-link" onClick={() => onAdvanced(true)}>להחליט</button>
+                </div>
+              ))}
+            </div>
+          )}
           {groups.map(w => {
-            const list = mats.filter(m => m.who === w);
-            const extrasHere = w === 'home';
-            if (!list.length && !(extrasHere && (oyk.length || notes.length || unlisted.length || plan.needsDecision.length || officeRest.length))) return null;
+            const list = mats.filter(m => m.who === w && !isMine(m));
+            const oykHere = w === 'home' && oyk.length > 0 && oykDone;
+            if (!list.length && !oykHere) return null;
             return (
               <div key={w} className="aw-grp" data-who={w}>
                 <div className="aw-grp-h"><i aria-hidden="true">{w === 'home' ? '✱' : nameOf(w)[0]}</i>{nameOf(w)}</div>
-                {list.map(m => (
-                  <div key={m.key} className={`aw-mat is-${m.state}`} data-aw-mat={m.docKind ?? ''} data-state={m.state}>
-                    <span className="aw-ic" aria-hidden="true" dangerouslySetInnerHTML={{ __html: `<svg viewBox="0 0 24 24">${ICON[m.state]}</svg>` }} />
-                    <span className="aw-t"><b>{m.title}</b>{m.sub && <small>{m.sub}</small>}</span>
-                    {(m.state === 'here' || (m.state === 'mine' && m.enterable)) && <button type="button" className="aw-act" onClick={() => setEntry(m)} data-aw-enter>{m.state === 'mine' ? 'הכנה' : 'הזנה'}</button>}
-                    {m.state === 'done' && m.enterable && <button type="button" className="aw-link" onClick={() => setEntry(m)}>תיקון</button>}
-                    {m.state === 'got' && m.evidence?.documentId && <button type="button" className="aw-link" onClick={() => setEntry(m)}>צפייה</button>}
-                    {m.state === 'wait' && <span className="aw-tag">ממתין</span>}
-                    {m.state === 'mine' && !m.enterable && <span className="aw-tag">אצלך</span>}
-                    {m.state === 'done' && !m.enterable && <span className="aw-tag is-ok">✓</span>}
-                  </div>
-                ))}
-                {extrasHere && oyk.length > 0 && (
-                  <div className={`aw-mat ${oykDone ? 'is-done' : 'is-mine'}`} data-aw-oyk>
-                    <span className="aw-ic" aria-hidden="true" dangerouslySetInnerHTML={{ __html: `<svg viewBox="0 0 24 24">${ICON[oykDone ? 'done' : 'mine']}</svg>` }} />
-                    <span className="aw-t"><b>{oyk.length === 1 ? oyk[0].label : 'תשלומים על חשבון והפסדים'}</b><small>{oykDone ? 'נרשם' : 'רק אתה יודע'}</small></span>
-                    <button type="button" className={oykDone ? 'aw-link' : 'aw-act'} onClick={() => setExtra(extra === 'oyk' ? null : 'oyk')} aria-expanded={extra === 'oyk'}>{oykDone ? 'תיקון' : 'הזנה'}</button>
-                  </div>
-                )}
-                {extrasHere && extra === 'oyk' && <div className="aw-inline"><OykInputs client={client} year={year} stepId={step.id} fields={oyk} facts={data.facts.filter(f => f.taxYear === year)} busy={busy} run={run} /></div>}
-                {extrasHere && notes.map(a => (
-                  <div key={a.id} className="aw-mat is-mine" data-aw-hint>
-                    <span className="aw-ic" aria-hidden="true" dangerouslySetInnerHTML={{ __html: `<svg viewBox="0 0 24 24">${ICON.mine}</svg>` }} />
-                    <span className="aw-t"><b>«{a.officeNote}»</b><small>{a.prompt.subjectName ?? firstName}</small></span>
-                    <button type="button" className="aw-act" disabled={busy} onClick={() => void run(() => tyApi.resolveNote(a.id), 'סומן שנסגר')}>סגור</button>
-                  </div>
-                ))}
-                {extrasHere && unlisted.map(f => (
-                  <div key={f.id} className="aw-mat is-mine" data-aw-unlisted={f.subjectRole}>
-                    <span className="aw-ic" aria-hidden="true" dangerouslySetInnerHTML={{ __html: `<svg viewBox="0 0 24 24">${ICON.mine}</svg>` }} />
-                    <span className="aw-t"><b>לברר עם {nameOf(f.subjectRole === 'spouse' ? 'spouse' : 'client')}: הכנסה אחרת</b><small>שלא ברשימה</small></span>
-                    <button type="button" className="aw-act" disabled={busy} onClick={() => void markDecision(`unlisted-${f.subjectRole}`)}>בורר</button>
-                  </div>
-                ))}
-                {extrasHere && officeRest.length > 0 && (
-                  <div className="aw-mat is-mine" data-aw-office-rest={officeRest.map(s => `${s.item.key}:${s.subjectRole}:${s.entityKind ?? ""}:${s.entityRef ?? ""}`).join(",")}>
-                    <span className="aw-ic" aria-hidden="true" dangerouslySetInnerHTML={{ __html: `<svg viewBox="0 0 24 24">${ICON.mine}</svg>` }} />
-                    <span className="aw-t"><b>להשלים במשרד{officeRest.length > 1 ? ` · ${officeRest.length}` : ''}</b><small>{officeRest.slice(0, 2).map(s => s.item.label).join(' · ')}{officeRest.length > 2 ? ` ועוד ${officeRest.length - 2}` : ''}</small></span>
-                    <button type="button" className="aw-act" onClick={onOfficeTodo}>להשלים</button>
-                  </div>
-                )}
-                {extrasHere && plan.needsDecision.map(({ fact, plan: p }) => (
-                  <div key={fact.id} className="aw-mat is-mine" data-aw-decide>
-                    <span className="aw-ic" aria-hidden="true" dangerouslySetInnerHTML={{ __html: `<svg viewBox="0 0 24 24">${ICON.mine}</svg>` }} />
-                    <span className="aw-t"><b>{ITEM_BY_KEY[fact.itemKey]?.label ?? 'שינוי בתיק'}</b><small>{p.lines[0] ?? 'צריך החלטה לפני העדכון בתיק'}</small></span>
-                    <button type="button" className="aw-link" onClick={() => onAdvanced(true)}>להחליט</button>
-                  </div>
-                ))}
+                {list.map(m => matRow(m))}
+                {oykHere && oykRow}
               </div>
             );
           })}

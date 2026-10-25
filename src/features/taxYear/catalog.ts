@@ -622,7 +622,7 @@ export const ANNUAL_TILE_HELP: Record<string, string> = {
   'capital.newAccount': 'גם בלי מכירה. עו״ש רגיל — לא.',
   'salary.equity': 'גם אם נמכרו — רק כאן, לא ב«מכירה».',
   'savings.withdrawal': 'כסף שיצא מקופה: פיצויים בעזיבה, משיכה מוקדמת, סגירת קופה.',
-  'business.started': 'עוסק פטור או מורשה, או עבודה בחשבוניות.',
+  'business.started': 'עוסק פטור או מורשה, או עבודה בחשבוניות. את הדוח אנחנו מפיקים.',
   'income.other': 'כל הכנסה שלא ברשימה — גם חד-פעמית.',
   'foreign.income': 'גם חשבון בלי פעילות.',
   'sales.sold': 'גם החלפה בין מטבעות קריפטו.',
@@ -682,7 +682,8 @@ ITEMS.push(
   { key: 'business.started', area: 'business', label: 'עסק או עבודה בחשבוניות (כשאין עסק בתיק)', kind: 'screener', per: 'person', who: 'client', purposes: ['annual'], coveredBy: 'business.active', cardKeys: ['businesses'],
     question: 'האם {name} עבד/ה השנה כעצמאי/ת או עם חשבוניות?', why: 'הכנסה מעסק מדווחת בדוח — גם בשנה הראשונה', input: 'yesno', covers: { parts: ['ג'] },
     officeNext: 'לפתוח עסק בכרטיס (סוג עוסק, ניהול ספרים); 6111 / רווח והפסד; ביטוח לאומי עצמאי ומקדמות' },
-  { key: 'business.startedDocs', area: 'business', label: 'חשבוניות וקבלות של העסק', kind: 'document', per: 'person', who: 'client', purposes: ['annual'], after: 'business.started',
+  // ‼ 25.10.2026 גיא: «חשבוניות וקבלות — לא צריך, אני מפיק לו מהאפליקציה של פייפרלס» ⇒ המשרד, לא הלקוח
+  { key: 'business.startedDocs', area: 'business', label: 'רווח והפסד מפייפרלס', kind: 'document', per: 'person', who: 'office', purposes: ['annual'], after: 'business.started',
     question: 'החשבוניות והקבלות של העסק ב-{year}', why: 'מהן המשרד בונה את דוח העסק', input: 'file', docKind: 'annualPnl', knownBasis: DOC_KNOWN },
   { key: 'household.aliyah', area: 'household', label: 'עלייה או חזרה לישראל (נקודות עולה, פטור תושב חוזר)', kind: 'screener', per: 'person', who: 'client', purposes: ['annual'],
     question: 'האם {name} עלה/תה לארץ או חזר/ה אליה אחרי שנים בחו״ל?', why: 'עולים ותושבים חוזרים מקבלים נקודות זיכוי ופטורים לכמה שנים', input: 'yesno', covers: { parts: ['יג'] },

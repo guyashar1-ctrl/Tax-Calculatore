@@ -5,19 +5,55 @@
 
 import { LAYOUTS, MAP_FORMS, markersOf, type Box, type FormSlug, type Role } from '../taxKnowledge/formMap/model';
 import type { ReturnField, ReturnOutputs } from './types';
+import PAGE1 from '../taxForms/data/form1301-2025.page1-fill.json';
 
 const personOf = (r: Role | undefined): ReturnField['person'] | undefined => (r === 'registered' ? 'client' : r === 'spouse' ? 'spouse' : r === 'joint' ? 'joint' : undefined);
 const nis = (n: number) => Math.round(n).toLocaleString('he-IL');
 
-/** הערך שנכתב בשדה: סכום · ✕ לתיבה מסומנת · טקסט קצר. ריק — לא כותבים. */
+/** הערך שנכתב בשדה: סכום · X לתיבה מסומנת (כמו «סמן X» בטופס; ✕ לא קיים בגופן של ה-PDF) · טקסט קצר. ריק — לא כותבים. */
 export function fieldText(f: ReturnField | undefined): string {
   if (!f) return '';
   if (f.kind === 'amount') return typeof f.amount === 'number' && f.amount !== 0 ? nis(f.amount) : '';
-  if (f.kind === 'checkbox') return f.checked ? '✕' : '';
+  if (f.kind === 'checkbox') return f.checked ? 'X' : '';
   return (f.text ?? '').trim();
 }
 
-export interface PageValue { key: string; code: string; box: Box; text: string; kind: ReturnField['kind'] }
+export interface PageValue { key: string; code: string; box: Box; text: string; kind: ReturnField['kind']; center?: boolean }
+
+const ymdToHe = (s: string) => (/^\d{4}-\d{2}-\d{2}/.test(s) ? s.slice(0, 10).split('-').reverse().join('.') : s);
+
+/**
+ * ‼ גיא (25.10): «ב-1301 אני לא רואה שהוא מילא את הנתונים שכבר יש לו — הפרטים היבשים וכל הסימונים».
+ *   עמוד 1: פרטים אישיים ותיבות סימון — מאותם שדות שהמנוע כבר מפיק לקובץ (formCoverage.produced, מזהי F###),
+ *   לתאים שנמדדו מהטופס הרשמי (form1301-2025.page1-fill.json). שדה שאין לנו — נשאר ריק.
+ */
+function page1Values(out: ReturnOutputs): PageValue[] {
+  const prod = new Map((out.formCoverage?.produced ?? []).filter(f => /^F\d{3}$/.test(f.code)).map(f => [f.code, f]));
+  const txt = (k: string) => {
+    const f = prod.get(k);
+    const t = (f?.text ?? '').trim();
+    if (!t) return '';
+    if (k === 'F061' || k === 'F066') return ymdToHe(t);
+    // תיק ניכויים — הספרה 9 מודפסת בתא
+    if (k === 'F083' || k === 'F090') return t.replace(/^9/, '');
+    return t;
+  };
+  const res: PageValue[] = [];
+  for (const [key, box] of Object.entries(PAGE1.text)) {
+    let text: string;
+    if (key === 'F094:branch' || key === 'F094:bank') {
+      const v = txt('F094').replace(/\D/g, '');
+      text = v.length === 5 ? (key === 'F094:bank' ? v.slice(0, 2) : v.slice(2)) : '';
+    } else text = key.split('+').map(txt).filter(Boolean).join(' · ');
+    if (text) res.push({ key: `p1-${key}`, code: key, box: box as Box, text, kind: 'text' });
+  }
+  for (const [key, box] of Object.entries(PAGE1.check)) {
+    if (prod.get(key)?.checked) res.push({ key: `p1-${key}`, code: key, box: box as Box, text: 'X', kind: 'checkbox', center: true });
+  }
+  const fs = PAGE1.familyStatus[txt('F067') as keyof typeof PAGE1.familyStatus];
+  if (fs) res.push({ key: 'p1-F067', code: 'F067', box: fs as Box, text: 'X', kind: 'checkbox', center: true });
+  return res;
+}
 
 /** הערכים על עמוד: כל סימון בעמוד עם הקוד והטור שלו ⇒ השדה מהמנוע. ‼ רק 1301 — לנספחים אין עדיין מיפוי קוד ⇒ שדה. */
 export function valuesOnPage(slug: FormSlug, page: number, out: ReturnOutputs): PageValue[] {
@@ -33,7 +69,7 @@ export function valuesOnPage(slug: FormSlug, page: number, out: ReturnOutputs): 
     const text = fieldText(f);
     if (text) res.push({ key: m.id, code: m.code, box: m.box, text, kind: f!.kind });
   }
-  return res;
+  return page === 1 ? [...res, ...page1Values(out)] : res;
 }
 
 /** כל העמודים של טופס, לפי הסדר. */

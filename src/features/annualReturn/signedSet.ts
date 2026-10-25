@@ -38,7 +38,7 @@ async function officialPages(doc: PDFDocument, ctx: Awaited<ReturnType<typeof cr
     if (!values) continue;
     const anns = valuesOnPage(slug, i + 1, s.snapshot.out).map((v, k): Annotation => ({
       id: `v${i}-${k}`, pageId: 'p', kind: 'text', xPct: v.box[0], yPct: v.box[1], widthPct: v.box[2], heightPct: v.box[3],
-      color: '#0b3a8c', text: v.text, fontPct: Math.min(0.0105, v.box[3] * 0.8), align: 'right', bold: true,
+      color: '#0b3a8c', text: v.text, fontPct: Math.min(0.0105, v.box[3] * 0.8), align: v.center ? 'center' : 'right', bold: true,
     }));
     if (anns.length) await drawAnnotations(page, anns, ctx, visibleBox(page));
   }

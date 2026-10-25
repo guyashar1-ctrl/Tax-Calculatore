@@ -419,11 +419,13 @@ export const ANNUAL_FOLLOW: Record<string, string[]> = {
   // ‼ 290 · נכות ועלייה: קודם הפרטים לכרטיס (אחוז וממתי · מעמד, חודש ושנה), ואחר כך המסמך
   'special.disability': ['special.disabilityDetails', 'special.disabilityCert'], 'household.creditChanges': [] /* 21.10.2026 · studiesAsk — מסך «לימודים וצבא» */,
   'foreign.income': ['foreign.statements'], 'sales.sold': ['sales.docs'],
-  'savings.withdrawal': ['savings.withdrawalDocs'], 'business.started': ['business.startedDocs'],
+  'savings.withdrawal': ['savings.withdrawalDocs'], 'business.started': [] /* 25.10.2026 · רווח והפסד — המשרד מפייפרלס */,
   'household.aliyah': ['household.aliyahDetails', 'household.aliyahDocs'], 'household.relativeCare': ['household.relativeCareDocs'],
   // ‼ 290 · מילואים כלוחם/ת ⇒ כמה ימים (לכרטיס) ואז האישור מצה״ל
   'household.reserveDuty': ['household.reserveDays', 'household.reserveDocs'],
 };
+/** מה המשרד מוציא בעצמו כשמסמנים את הריבוע — שורה אחת בסוף השאלון («אנחנו מוציאים בעצמנו»). */
+const OURS: Record<string, string[]> = { 'niBenefits.received': ['האישור השנתי מביטוח לאומי'], 'business.started': ['דוח רווח והפסד של העסק'] };
 /** כותרת למסמך שנפתח מהרשת לישות שעוד אין לה שם — «מכל מעסיק», לא «מהמעסיק החדש». */
 const GRID_DOC_TITLE: Record<string, string> = {
   'salary.form106': 'טופס 106 — מכל מעסיק',
@@ -504,7 +506,7 @@ function annualTile(key: string, role: SubjectRole, ctx: AskCtx): MultiOption {
   return {
     key, role, label: it.tile!, ...(example ? { example } : {}), group: ANNUAL_TILE_LESS.has(key) ? 'less' : 'in',
     ...(ANNUAL_TILE_HELP[key] ? { hint: ANNUAL_TILE_HELP[key] } : {}),
-    ...(key === 'niBenefits.received' ? { ours: ['האישור השנתי מביטוח לאומי'] } : {}),
+    ...(OURS[key] ? { ours: OURS[key] } : {}),
     ...(followUps.length ? { followUps } : {}),
     ...(mineLast ? { note: `ב-${ctx.lastYear!.year}: ${ctx.lastYear!.tiles[key]}`, preset: true } : {}),
   };
@@ -634,7 +636,7 @@ function buildMultiEntry(statuses: ItemStatus[], ctx: AskCtx): AskPlanEntry | nu
       : key === 'special.disability' && deathYear ? `שלך — של ${spouseNameOf(c)} נשאל בנפרד` : ANNUAL_TILE_EXAMPLE[key];
     const base = { ...base0, label: key === 'household.familyChange' ? `שינוי במשפחה ב-${ctx.taxYear}` : base0.label,
       ...(example ? { example } : {}), group: (ANNUAL_TILE_LESS.has(key) ? 'less' : 'in') as 'less' | 'in',
-      ...(key === 'niBenefits.received' ? { ours: ['האישור השנתי מביטוח לאומי'] } : {}) };
+      ...(OURS[key] ? { ours: OURS[key] } : {}) };
     // ‼ 19.10.2026 · אירוע שכבר בכרטיס בשנת הדוח (אלמן/ה מ-{שנה}) — האריח מסומן ופותח ישר את הענף, בלי «מה קרה?»
     const known = key === 'household.familyChange' ? knownFamilyEvent(c, ctx.taxYear) : null;
     if (known) {

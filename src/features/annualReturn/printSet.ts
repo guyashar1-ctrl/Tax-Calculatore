@@ -26,7 +26,7 @@ export function setContents(out: ReturnOutputs, mats: Material[]): SetPart[] {
 function formPagesHtml(slug: FormSlug, out: ReturnOutputs, origin: string): string {
   return pagesOf(slug).map(pg => {
     const vals = valuesOnPage(slug, pg.n, out).map(v =>
-      `<span class="v" style="left:${v.box[0] * 100}%;top:${v.box[1] * 100}%;width:${v.box[2] * 100}%;height:${v.box[3] * 100}%">${esc(v.text)}</span>`).join('');
+      `<span class="v${v.center ? ' m' : ''}"${/[א-ת]/.test(v.text) ? ' dir="rtl"' : ''} style="left:${v.box[0] * 100}%;top:${v.box[1] * 100}%;width:${v.box[2] * 100}%;height:${v.box[3] * 100}%">${esc(v.text)}</span>`).join('');
     return `<section class="pg form"><div class="paper" style="aspect-ratio:${pg.w}/${pg.h}"><img src="${origin}${pg.img}" alt="">${vals}</div></section>`;
   }).join('');
 }
@@ -79,6 +79,7 @@ export async function openPrintSet(p: PrintInput): Promise<'ok' | 'blocked'> {
     ul{font-size:12.5px;padding-inline-start:18px}
     .paper{position:relative;width:100%}.paper img{display:block;width:100%}
     .v{position:absolute;display:flex;align-items:center;justify-content:flex-end;font:600 9.5px/1 "Segoe UI",Arial;color:#0b3a8c;padding:0 2px;direction:ltr;overflow:hidden;white-space:nowrap}
+    .v[dir=rtl]{direction:rtl;justify-content:flex-start}.v.m{justify-content:center;padding:0;font-size:8px}
     .doc img{display:block;max-width:100%;max-height:265mm;margin:0 auto}.cap{font-size:11px;color:#666;margin:0 0 4px}
   </style></head><body>${summary}${formPagesHtml('1301', out, origin)}${annexHtml}${docs.join('')}
   <script>window.onload=()=>{Promise.all([...document.images].map(i=>i.complete?1:new Promise(r=>{i.onload=i.onerror=r}))).then(()=>setTimeout(()=>window.print(),300))}</script></body></html>`;

@@ -9,7 +9,7 @@ import type { ItemStatus } from '../taxYear/picture';
 import { DOCS } from '../taxYear/documents';
 import { ITEM_BY_KEY } from '../taxYear/catalog';
 import { cardUpdateFor, updatesCard, type CardUpdatePlan } from '../taxYear/recordToCard';
-import { templateFor } from './docTemplates';
+import { entitiesFor, templateFor } from './docTemplates';
 import type { ReturnField, ReturnOutputs } from './types';
 
 /** של מי: הלקוח, בן/בת הזוג, או משותף. */
@@ -92,12 +92,15 @@ export function materialsOf(input: { client: Client; year: number; stepId: strin
   for (const s of statuses.filter(x => x.item.who === 'office' && x.item.kind === 'document' && x.state !== 'notApplicable')) {
     const kind = s.item.docKind;
     if (kind && out.some(m => m.docKind === kind && m.subjectRole === s.subjectRole && (m.entityRef ?? '') === (s.entityRef ?? '') && m.state !== 'wait')) continue;
-    const enterable = !!(kind && templateFor(kind as never, year));
+    const t = kind ? templateFor(kind as never, year) : undefined;
+    // ‼ מסמך לעסק כשהעסק עוד לא בכרטיס (ריבוע «עבדתי עם חשבוניות») — אין לאן להקליד; קודם פותחים את העסק בכרטיס
+    const noEntity = t?.template.per === 'business' && !s.entityRef && entitiesFor(t.template, client, s.subjectRole === 'spouse' ? 'spouse' : 'client').length === 0;
+    const enterable = !!t && !noEntity;
     const done = s.state === 'known';
     const ent = s.entityLabel && s.entityLabel !== client.firstName ? ` · ${s.entityLabel}` : '';
     out.push({ key: `office-${s.item.key}|${s.subjectRole}|${s.entityRef ?? ''}`, who: whoOf(s.subjectRole), title: `${s.item.label}${ent}`, docKind: kind, enterable,
       state: done ? 'done' : s.state === 'notYetAvailable' ? 'wait' : 'mine', subjectRole: s.subjectRole, entityRef: s.entityRef,
-      sub: done ? 'הוזן' : s.state === 'notYetAvailable' ? (s.requestableFrom ? `אפשר מ-${s.requestableFrom.slice(0, 10).split('-').reverse().join('.')}` : 'עוד לא זמין') : 'אצלך' });
+      sub: done ? 'הוזן' : s.state === 'notYetAvailable' ? (s.requestableFrom ? `אפשר מ-${s.requestableFrom.slice(0, 10).split('-').reverse().join('.')}` : 'עוד לא זמין') : noEntity ? 'לפתוח את העסק בכרטיס ולהפיק מפייפרלס' : 'אצלך' });
   }
   return out;
 }

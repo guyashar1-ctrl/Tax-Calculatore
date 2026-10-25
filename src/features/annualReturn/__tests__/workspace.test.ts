@@ -61,6 +61,14 @@ export const TESTS: TestCase[] = [
     equal(m.length, 1);
     equal(`${m[0].who}:${m[0].state}:${m[0].enterable}`, 'spouse:mine:true');
   }),
+  test('«עבדתי עם חשבוניות» ⇒ רווח והפסד אצל המשרד (לא אצל הלקוח); העסק לא בכרטיס ⇒ קודם לפתוח אותו, בלי «הכנה»', () => {
+    const it = ITEM_BY_KEY['business.startedDocs'];
+    equal(it.who, 'office');
+    const s = { item: it, subjectRole: 'spouse', state: 'missing' } as unknown as ItemStatus;
+    const m = mats([], [], [], [s]);
+    equal(`${m[0].who}:${m[0].state}:${m[0].enterable}`, 'spouse:mine:false');
+    assert(/פייפרלס/.test(m[0].sub ?? ''), m[0].sub ?? '');
+  }),
   test('מוכן להדפסה רק כשאין ממתין ואין מה להקליד', () => {
     const a = fileAsk('a1', 'form106');
     assert(!isReady(mats([a], [])), 'מוכן כשחסר מסמך');
@@ -89,6 +97,20 @@ export const TESTS: TestCase[] = [
     const v = vals.find(x => x.code === '158');
     equal(v?.text, (96400).toLocaleString('he-IL'));
     equal(valuesOnPage('1320', 1, out).length, 0);
+  }),
+  test('עמוד 1 של 1301: הפרטים מהכרטיס בתאים שלהם, X בתיבות שסומנו ובמצב המשפחתי; שדה ריק — לא נכתב', () => {
+    const T = (code: string, text: string) => ({ code, kind: 'text', text, person: 'client' });
+    const out = { fields: [], formCoverage: { produced: [T('F057', '123456782'), T('F061', '1990-04-12'), T('F067', 'נשוי/אה'), T('F083', '912345678'),
+      T('F094', '12800'), T('F087', 'דין עיצובים'), T('F072', ''), { code: 'F001', kind: 'checkbox', checked: true, person: 'client' }] } } as unknown as ReturnOutputs;
+    const v = Object.fromEntries(valuesOnPage('1301', 1, out).map(x => [x.code, x.text]));
+    equal(v.F057, '123456782');
+    equal(v.F061, '12.04.1990');
+    equal(v.F083, '12345678', 'הספרה 9 מודפסת בתא');
+    equal(`${v['F094:bank']}|${v['F094:branch']}`, '12|800');
+    equal(v['F080+F087'], 'דין עיצובים');
+    equal(v.F001, 'X');
+    equal(v.F067, 'X');
+    assert(!('F072' in v), 'שדה ריק נכתב');
   }),
   test('ההערכה: החזר / לתשלום / «חסרים נתונים» כשחסר מקור; האחוז מבדיקת הכיסוי', () => {
     const mk = (balance: number, incomplete = false) => ({ household: { balance, incomplete }, formCoverage: { counts: { relevant: 50, filled: 20 } } }) as unknown as ReturnOutputs;

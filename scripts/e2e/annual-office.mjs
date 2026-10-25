@@ -229,6 +229,12 @@ async function runWidth(width) {
     }
     ok(found > 0 && /96,400/.test(await text(ws.locator('[data-aw-val="158"], [data-aw-val="172"]'))), 'בטופס 1301 עצמו — 96,400 בשדה');
     await shot(page, 'office-form');
+    // 4ב · עמוד 1: הפרטים מהכרטיס בתאים (שם, שם משפחה); מצב משפחתי — רק כשהוא ידוע לשנה (25.10)
+    await pagesBtns.nth(0).click();
+    await page.waitForTimeout(300);
+    const p1 = { F059: await text(ws.locator('[data-aw-val="F059"]')), F058: await text(ws.locator('[data-aw-val="F058"]')), F067: await text(ws.locator('[data-aw-val="F067"]')) };
+    ok(p1.F059.includes('דוד') && p1.F058.length > 0 && (p1.F067 === '' || p1.F067 === 'X'), 'עמוד 1: שם ושם משפחה בתאים', JSON.stringify(p1));
+    await shot(page, 'office-p1');
 
     // 5 · «כלים מתקדמים» — המסך הקודם עדיין שם
     await ws.locator('[data-aw-advanced]').click();

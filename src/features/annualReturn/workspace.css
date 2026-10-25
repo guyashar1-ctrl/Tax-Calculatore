@@ -18,6 +18,13 @@
 .aw-grp[data-who="home"] { --pc: var(--chip-green-tx); }
 .aw-grp-h { display: flex; align-items: center; gap: 7px; margin: 0 2px 6px; font-size: var(--fs-13); font-weight: 700; color: var(--tx2); }
 .aw-grp-h i { inline-size: 20px; block-size: 20px; border-radius: 50%; background: var(--pc); color: var(--card); display: grid; place-items: center; font-style: normal; font-size: 11px; }
+/* «אצלך» — מה שבידיים של המשרד, למעלה ובמקום אחד (25.10) */
+.aw-minebox { --pc: var(--br); background: var(--soft); border-radius: 14px; padding: 10px 10px 4px; margin-bottom: 14px; }
+.aw-minebox .aw-grp-h { color: var(--br-strong, var(--br)); font-size: var(--fs-14); }
+.aw-minebox .aw-empty { margin: 2px 2px 8px; }
+.aw-who { font-weight: 700; color: var(--chip-blue-tx); }
+.aw-who[data-who="spouse"] { color: var(--chip-violet-tx); }
+.aw-who[data-who="home"] { color: var(--chip-green-tx); }
 .aw-mat { display: flex; align-items: center; gap: 10px; background: var(--card); border: 1px solid var(--bd); border-radius: 12px; padding: 9px 11px; margin-bottom: 6px; }
 .aw-ic { inline-size: 30px; block-size: 30px; border-radius: 9px; background: var(--soft); display: grid; place-items: center; flex-shrink: 0; }
 .aw-ic svg { inline-size: 17px; block-size: 17px; stroke: var(--br); fill: none; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
@@ -56,7 +63,7 @@
 .aw-sec-h i { inline-size: 8px; block-size: 8px; border-radius: 50%; background: var(--pc); }
 .aw-line { display: flex; align-items: center; gap: 8px; padding: 4px 14px; font-size: var(--fs-14); }
 .aw-line .l { flex: 1; min-width: 0; color: var(--txc, var(--tx)); }
-.aw-line .s { font-size: var(--fs-12); color: var(--tx3); white-space: nowrap; }
+.aw-line .s { font-size: var(--fs-12); color: var(--tx3); white-space: nowrap; max-inline-size: 30%; overflow: hidden; text-overflow: ellipsis; }
 .aw-line .c { font-size: var(--fs-12); color: var(--tx3); font-variant-numeric: tabular-nums; min-inline-size: 28px; text-align: end; }
 .aw-line .v { font-weight: 600; font-variant-numeric: tabular-nums; min-inline-size: 92px; text-align: end; direction: ltr; border-radius: 6px; padding: 1px 5px; transition: background-color .6s ease; }
 .aw-line .v.is-lit, .aw-val.is-lit { background: var(--chip-green-bg); }
@@ -68,6 +75,8 @@
 .aw-pages button[aria-pressed="true"] { border-color: var(--br); color: var(--br); background: var(--soft); }
 .aw-paper { position: relative; inline-size: 100%; background: #fff; border: 1px solid var(--bd); }
 .aw-paper img { display: block; inline-size: 100%; block-size: auto; user-select: none; }
+.aw-val.is-mark { justify-content: center; padding: 0; font-size: clamp(6px, .8vw, 9px); }
+.aw-val[dir="rtl"] { direction: rtl; justify-content: flex-start; }
 .aw-val { position: absolute; display: flex; align-items: center; justify-content: flex-end; padding: 0 2px; font: 600 clamp(7px, 1.05vw, 11px)/1 system-ui, sans-serif; color: #0b3a8c; direction: ltr; overflow: hidden; white-space: nowrap; border-radius: 2px; transition: background-color .6s ease; }
 
 .aw-adv { border-top: 1px dashed var(--bd); padding-top: 8px; }
