@@ -117,7 +117,7 @@ const AUTH_OPTS = ['קיימת', 'אין הרשאה'];
  * (utils/authorityFlags.ts) — יתרה חיובית היא חוב. בלי ההסבר הזה בשדה עצמו,
  * רו"ח שיקליד חוב כמספר שלילי יקבל "יתרת זכות" בתמונת המצב.
  */
-const BALANCE_NOTE = 'כפי שמופיע בפורטל: מספר חיובי = חוב, שלילי = יתרת זכות, 0 = אין יתרה.';
+const BALANCE_NOTE = 'מספר חיובי = הלקוח חייב (לתשלום), שלילי = לזכות הלקוח, 0 = אין יתרה.';
 
 const INSTITUTIONS: Record<InstitutionKey, InstitutionConfig> = {
   btl: {

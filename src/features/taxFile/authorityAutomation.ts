@@ -38,6 +38,7 @@ import {
 } from '../nationalInsurance/niIncome';
 import type { NiIncomeSection } from '../nationalInsurance/niIncome';
 import { BTL_REPRESENTATION_KEY, BTL_ID_KEY } from '../nationalInsurance/btlFieldKeys';
+import { balanceWords } from '../../utils/balanceWords';
 
 /**
  * מי בדיוק, ברמת אדם — הנושא שהמשימה שואלת עליו (154). ‼ קיים כדי שרשות
@@ -371,6 +372,7 @@ export const SHAAM_134_FIELD_SOURCES: Record<string, Shaam134FieldSource> = {
   // קופסת יתרה כלל ⇒ סמן ניטרלי בלי הצעה — **לא** 0 מומצא, ולא אדום.
   incomeTaxBalance: {
     source: 'balance', normalize: mapBalance,
+    display: (v) => balanceWords(Number(v))?.text ?? v,
     businessValue: (f) => (advanceBusinessState(f) ? 'info' : null),
   },
   // ‼ «מצב דיווחים» — ראה interpretReportingStatus (התראה בלבד).
@@ -947,7 +949,7 @@ function interpretBtlFile(
         push({
           fieldKey: k, label: k, status: cur != null && Number(cur) === n ? 'match' : 'changed',
           currentValue: String(cur ?? ''),
-          authorityDisplay: n === 0 ? 'אין יתרה' : n > 0 ? `חוב ${ils(n)}` : `יתרת זכות ${ils(n)}`,
+          authorityDisplay: balanceWords(n)!.text,
           authorityValue: String(n), patchValue: n,
           provenance: b.source === 'header' ? 'כותרת המבוטח' : 'מצב חשבון ← לפי ימי ערך ריאלי',
           ...person,
@@ -1021,7 +1023,7 @@ export const VAT_FIELD_SOURCES: Record<string, { sources: string[]; map: (f: Rec
       const n = Math.abs(Number(debit)) - Math.abs(Number(credit));
       const total = f.balanceTotal ? mapBalance(f.balanceTotal) : null;
       if (total !== null && Math.abs(Number(total)) !== Math.abs(n)) return null;
-      const display = n === 0 ? '0' : `${Math.abs(n).toLocaleString('he-IL')} ₪ ${n > 0 ? 'חוב' : 'זכות'}`;
+      const display = balanceWords(n)!.text;
       return { value: String(n), display };
     },
   },

@@ -99,7 +99,9 @@ export function parseTaxYears({ head, pages, fileNumber, user }) {
   const hov = num(t.yitratHov);
   const zhut = num(t.yitratZhut);
   // ‼ חיובי = חוב, שלילי = זכות — אותה מוסכמה כמו בשדה «יתרה» בכרטיס.
-  if (hov !== null && zhut !== null) fields.balance = String(hov - zhut);
+  // ‼ 26.10.2026 · שע״ם מחזירה את יתרת הזכות **כמספר שלילי** (יובל גרוסמן: yitratHov 0, yitratZhut
+  // −17176) — «חוב פחות זכות» הפך אותה ל«חוב 17,176». ערכים מוחלטים, כמו במע״מ.
+  if (hov !== null && zhut !== null) fields.balance = String(Math.abs(hov) - Math.abs(zhut));
 
   const advance = advanceStateOf(t.sugDrisha);
   if (advance !== 'active') {

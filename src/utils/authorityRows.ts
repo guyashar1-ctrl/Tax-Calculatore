@@ -29,6 +29,7 @@ import type { NiExecutionByRole, NiRepresentationAction } from './niPersons';
 import { registeredFileInfo } from '../features/annualReport/profile';
 import { incomeTaxFileType } from '../data/incomeTaxFileTypes';
 import { reportingStatusOk } from './reportingStatus';
+import { balanceWords } from './balanceWords';
 
 const PERSON_AUTHORITY: Partial<Record<TaxAuthority, 'vat' | 'withholding' | 'nationalInsurance'>> = {
   vat: 'vat', deductions: 'withholding', national_insurance: 'nationalInsurance',
@@ -144,13 +145,8 @@ function money(n?: number | null): string {
   return `${Math.abs(Math.round(n)).toLocaleString('he-IL')} ₪`;
 }
 
-/** חיובי = חוב, שלילי = זכות, 0 = אין. אותה מוסכמת כמו במסך יישור הקו. */
-function balanceText(n?: number | null): { text: string; tone: 'warn' | 'ok' } | null {
-  if (n == null || Number.isNaN(n)) return null;
-  if (n > 0) return { text: `חוב ${money(n)}`, tone: 'warn' };
-  if (n < 0) return { text: `יתרת זכות ${money(n)}`, tone: 'ok' };
-  return { text: 'אין יתרה', tone: 'ok' };
-}
+/** חיובי = הלקוח חייב, שלילי = לזכות הלקוח, 0 = אין — במילים, מקור אחד (balanceWords). */
+const balanceText = (n?: number | null) => balanceWords(n);
 
 function authText(v?: boolean): { text: string; tone: 'warn' | 'ok' } | null {
   if (v == null) return null;
@@ -430,7 +426,7 @@ export function buildAuthorityRows(
       summary: join([client.vatFileType, freq ? `דיווח ${freq}` : null,
         client.vatLastReportPeriod ? `דוח אחרון ${client.vatLastReportPeriod}` : null])
         || vatViaSpouse || 'טרם נאספו נתונים',
-      exception: (client.vatBalance ?? 0) > 0 ? { text: `חוב ${money(client.vatBalance)}`, tone: 'high' } : null,
+      exception: (client.vatBalance ?? 0) > 0 ? { text: balanceWords(client.vatBalance)!.text, tone: 'high' } : null,
       facts,
       present: !!num || !!client.vatFileType || !!client.vatOpeningDate || !!client.vatPrimaryIndustry
         || !!freq || !!client.vatLastReportPeriod || !!bal || !!auth || !!rep || !!vatViaSpouse,

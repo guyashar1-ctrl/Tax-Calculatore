@@ -26,6 +26,7 @@ import { computeAuthorityFlags, actionableFlagCount } from '../../utils/authorit
 import type { AuthorityFlag } from '../../utils/authorityFlags';
 import { shortDate } from '../../utils/clientDerived';
 import { reportingStatusOk } from '../../utils/reportingStatus';
+import { balanceWords } from '../../utils/balanceWords';
 
 const ORDER: InstitutionKey[] = ['btl', 'vat', 'income'];
 
@@ -64,8 +65,8 @@ interface Row {
 /** יתרה: חיובי = חוב, שלילי = זכות, 0 = תקין. אותה מוסכמת כמו במחולל הדגלים. */
 function balanceRow(label: string, value: number | undefined, diffKey: string): Row | null {
   if (value == null) return null;
-  if (value > 0) return { k: label, v: `חוב של ${money(value)}`, tone: 'warn', diffKey, formatPrev: formatMoneyPrev };
-  if (value < 0) return { k: label, v: `יתרת זכות ${money(value)}`, diffKey, formatPrev: formatMoneyPrev };
+  if (value > 0) return { k: label, v: balanceWords(value)!.text, tone: 'warn', diffKey, formatPrev: formatMoneyPrev };
+  if (value < 0) return { k: label, v: balanceWords(value)!.text, diffKey, formatPrev: formatMoneyPrev };
   return { k: label, v: 'אין יתרה', tone: 'ok', diffKey, formatPrev: formatMoneyPrev };
 }
 

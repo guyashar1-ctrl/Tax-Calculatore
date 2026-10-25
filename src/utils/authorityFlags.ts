@@ -80,7 +80,7 @@ function balanceFlags(client: Client): AuthorityFlag[] {
       out.push({
         key: `debt_${b.key}`,
         severity: 'high',
-        title: `חוב ${b.authority} - ${money(b.value)}`,
+        title: `${b.authority}: לתשלום ${money(b.value)}`,
         why: 'יתרה לחובה כפי שנרשמה ביישור הקו. לבדוק את מקור החוב ולתאם תשלום או הסדר.',
         actions: ['task'],
         taskTitle: `טיפול בחוב ${b.authority} (${money(b.value)})`,
@@ -89,7 +89,7 @@ function balanceFlags(client: Client): AuthorityFlag[] {
       out.push({
         key: `credit_${b.key}`,
         severity: 'info',
-        title: `יתרת זכות ${b.authority} - ${money(b.value)}`,
+        title: `${b.authority}: לזכות הלקוח ${money(b.value)}`,
         why: 'ייתכן שמגיע החזר או שניתן לקזז מול חיוב עתידי.',
         actions: [],
       });

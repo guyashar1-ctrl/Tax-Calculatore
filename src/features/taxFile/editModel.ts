@@ -25,6 +25,7 @@ import { engagementFromDb } from '../../lib/dbMappers';
 import { currentEngagement } from '../../utils/engagementSelectors';
 import { kindHoldPending, type KindHold } from '../../types/onboarding';
 import { retryKindHoldErrorText as kindHoldRetryErrorText } from '../flows/api';
+import { balanceWords } from '../../utils/balanceWords';
 
 export type FamilyKey = 'auth' | 'income' | 'family' | 'assets' | 'deductions' | 'foreign';
 
@@ -168,7 +169,7 @@ export const EDIT_SECTIONS: EditSection[] = [
     id: 'authIncomeTax', family: 'auth', title: 'מס הכנסה — תפעולי',
     summary: c => join(
       c.pitAdvancePercent != null && `מקדמות ${c.pitAdvancePercent}%`,
-      c.incomeTaxBalance === 0 ? 'אין יתרה' : c.incomeTaxBalance ? `חוב ${money(c.incomeTaxBalance)}` : '',
+      c.incomeTaxBalance != null ? balanceWords(c.incomeTaxBalance)?.text ?? '' : '',
     ) || UNKNOWN,
     fields: [
       // ‼ ארבעת אלה הוצגו בכרטיס «מול הרשויות» אך לא היה להם שדה עריכה בשום
@@ -187,7 +188,7 @@ export const EDIT_SECTIONS: EditSection[] = [
       { key: 'pitAdvanceFrequency', label: 'תדירות מקדמות', kind: 'select', authority: true, governed: true,
         options: [['monthly', 'חודשי'], ['bi_monthly', 'דו-חודשי']] },
       { key: 'incomeTaxBalance', label: 'יתרה', kind: 'money', authority: true, governed: true,
-        note: 'חיובי = חוב · שלילי = יתרת זכות' },
+        note: 'חיובי = הלקוח חייב (לתשלום) · שלילי = לזכות הלקוח' },
       { key: 'withholdingStatus', label: 'ניכוי מס במקור', kind: 'select', authority: true, governed: true,
         options: [['exempt', 'פטור מניכוי'], ['rates', 'שיעורים לפי פעילות'], ['none', 'אין אישור תקף']],
         note: 'הערך הקנוני. הצ׳קבוקס הישן ירד מהעריכה (153).' },

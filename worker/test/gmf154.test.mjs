@@ -20,6 +20,8 @@ test('יתרה = סך יתרת חוב פחות סך יתרת זכות (חיוב�
   assert.equal(parse(sample154({ hov: 1200, zhut: 200 })).fields.balance, '1000');
   assert.equal(parse(sample154({ hov: 0, zhut: 4430 })).fields.balance, '-4430');
   assert.equal(parse(sample154({ hov: 0, zhut: 0 })).fields.balance, '0');
+  // ‼ נצפה חי 26.10.2026: שע״ם מחזירה זכות כמספר שלילי — עדיין «לזכות הלקוח», לא חוב.
+  assert.equal(parse(sample154({ hov: 0, zhut: -17176 })).fields.balance, '-17176');
 });
 
 test('חייב ולא הוגש — רק «חייב בהגשה» בלי תאריך הגשה; לא «לא חייב» ולא «שנה לא קיימת»', () => {

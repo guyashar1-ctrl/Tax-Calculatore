@@ -8,6 +8,7 @@ import type { Client } from '../../../types';
 import type { AutomationJob } from '../../../types/automation';
 import { buildAuthorityRows, certificateRatesShort } from '../../../utils/authorityRows';
 import { AUTHORITY_AUTOMATION, certificateEntityInput } from '../authorityAutomation';
+import { balanceWords } from '../../../utils/balanceWords';
 
 const base = (over: Partial<Client> = {}): Client => ({
   id: 'c1', firstName: 'גיא', lastName: 'ישר', idNumber: '314667346', familyStatus: 'single',
@@ -85,6 +86,13 @@ export const TESTS: TestCase[] = [
     } } as Partial<Client>);
     equal(fact(both, 'ניהול ספרים').certAction, undefined);
     equal((fact(both, 'ניהול ספרים').sub ?? [])[0], 'שע״ם: לא ניתן להנפיק אישור גופים - לא קיים תיק מע״מ');
+  }),
+  test('יתרה במילים: לתשלום / לזכות הלקוח / אין יתרה — גם בכרטיס מס הכנסה', () => {
+    equal(balanceWords(17176)!.text, 'לתשלום 17,176 ₪');
+    equal(balanceWords(-17176)!.text, 'לזכות הלקוח 17,176 ₪');
+    equal(balanceWords(0)!.text, 'אין יתרה');
+    equal(fact(base({ incomeTaxBalance: -17176 } as Partial<Client>), 'יתרה').v, 'לזכות הלקוח 17,176 ₪');
+    equal(fact(base({ incomeTaxBalance: 500 } as Partial<Client>), 'יתרה').tone, 'warn');
   }),
   test('שיעורים שונים — כל סעיף בשמו', () => {
     equal(certificateRatesShort({ status: 'valid', rates: [{ section: 'שירותים', rate: 5 }, { section: 'שכר', rate: 10 }] }), '5% שירותים · 10% שכר');
