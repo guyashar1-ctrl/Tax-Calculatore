@@ -101,6 +101,7 @@ export const TESTS: TestCase[] = [
     const input = AUTHORITY_AUTOMATION.income_tax!.buildInput!(couple);
     equal((input as { input: Record<string, unknown> }).input.certEntity, '314667346');
     equal((input as { input: Record<string, unknown> }).input.fileNumber, '209422500');
+    equal((input as { input: Record<string, unknown> }).input.issueMissing, true, 'מהכפתור — מנפיק מה שחסר');
     assert('blocked' in certificateEntityInput(base({ taxFiles: [] } as Partial<Client>)), 'שכיר — אין אישורים');
   }),
   test('«מספר תיק» בזוג: רשום על בן/בת הזוג — שם ות.ז. מתחת', () => {
@@ -124,6 +125,14 @@ export const TESTS: TestCase[] = [
     const none = read({ ok: true, status: 'none', message: 'לא ניתן להנפיק אישור גופים - לא קיים תיק מע״מ' });
     equal(none.status, 'info');
     equal(none.authorityDisplay, 'לא ניתן להנפיק אישור גופים - לא קיים תיק מע״מ');
+  }),
+  test('אישור שהונפק אחרי הקריאה ⇒ תואם, בלי «ממתין לאישור יזום» הישן', () => {
+    const job = { id: 'j', status: 'succeeded', finishedAt: '2026-10-25T22:23:17Z', input: { fileNumber: '1' },
+      result: { fields: {}, certificates: { bookkeeping: { ok: true, status: 'none', statusText: 'ממתין לאישור יזום' } } } } as unknown as AutomationJob;
+    const c = base({ bookStatus: 'kosher', fieldMeta: { bookStatus: certMeta({ status: 'valid', checkedAt: '2026-10-25T22:25:39Z' }) } } as Partial<Client>);
+    const r = AUTHORITY_AUTOMATION.income_tax!.interpret!(job, c, ['bookStatus'])[0];
+    equal(r.status, 'match');
+    equal(r.authorityDisplay, undefined);
   }),
   test('בדיקת התיק: 413 גובר על kodIsur של 154 ומוצג תואם', () => {
     const job = { id: 'j', status: 'succeeded', input: { fileNumber: '1' },

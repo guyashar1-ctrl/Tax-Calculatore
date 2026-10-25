@@ -462,6 +462,17 @@ function interpretShaamReadOnly(fieldKey: string, job: AutomationJob, client: Cl
     }
     return { fieldKey, label: 'ייצוג', status: 'info', currentValue: '', authorityDisplay: `מייצג נוסף · ראשי: ${rep}` };
   }
+  // ‼ 26.10.2026 · אישור שנשמר בכרטיס **אחרי** הקריאה (הנפקה בלחיצה) — הוא המצב, לא הקריאה הישנה.
+  // בלי זה נשארה מתחת לשורה «שע״ם: ממתין לאישור יזום» אחרי שהאישור כבר הונפק ונשמר.
+  const newerCert = (key: 'withholdingStatus' | 'bookStatus') => {
+    const cert = (client.fieldMeta?.[key] as { cert?: { status?: string; checkedAt?: string } } | undefined)?.cert;
+    const jobAt = job.finishedAt ?? job.updatedAt;
+    return cert?.status === 'valid' && !!cert.checkedAt && !!jobAt && new Date(cert.checkedAt) > new Date(jobAt);
+  };
+  if ((fieldKey === 'withholdingStatus' || fieldKey === 'bookStatus') && newerCert(fieldKey)) {
+    return { fieldKey, label: fieldKey === 'bookStatus' ? 'ניהול ספרים' : 'ניכוי מס במקור', status: 'match',
+      currentValue: String((client as unknown as Record<string, unknown>)[fieldKey] ?? '') };
+  }
   if (fieldKey === 'withholdingStatus') {
     // ‼ 297 · כשנקרא 413 — זה המקור: השרת כבר כתב את האישור לכרטיס (record_authority_certificate).
     const w = (job.result as { certificates?: { withholding?: { ok?: boolean; status?: string; statusText?: string; ratesText?: string; validUntil?: string } } } | undefined)
@@ -1137,9 +1148,11 @@ export const AUTHORITY_AUTOMATION: Partial<Record<TaxAuthority, AuthorityAutomat
       const res = incomeTaxFileInput(client);
       // ‼ 297 · 413 (אישורי ניכוי וניהול ספרים) לפי ת.ז. של בעל העסק — העוסק במע״מ, לא מספר
       // התיק במס הכנסה (בתיק משותף שרשום על בן/בת הזוג הם שונים). בלי עסק — לא קוראים 413.
+      // ‼ 26.10.2026 (גיא: «למה זה לא פשוט מנפיק אישור?»): מהכפתור הזה — מה שחסר מונפק באותה ריצה
+      // (issueMissing), בשיעור הנמוך ביותר שמותר. קריאה ממסלול נבנית בשרת ולא מקבלת את הדגל.
       const cert = certificateEntityInput(client);
       return 'fileNumber' in res
-        ? { input: { fileNumber: res.fileNumber, ...('certEntity' in cert ? { certEntity: cert.certEntity } : {}) } }
+        ? { input: { fileNumber: res.fileNumber, ...('certEntity' in cert ? { certEntity: cert.certEntity, issueMissing: true } : {}) } }
         : res;
     },
     interpret: interpretShaam134,

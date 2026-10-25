@@ -22,7 +22,8 @@ import { parseRepresentedList, incomeTaxFieldsFrom } from '../representedList.mj
 import { NeedsHumanError, PermanentError } from '../errors.mjs';
 import { isGmfLoginPath, reloginGmf, gmfReloginMessage, noteFirstPasswordLanding } from '../gmfRelogin.mjs';
 import { open413 } from '../gmf413Session.mjs';
-import { readAndSaveCertificates } from '../certificates413.mjs';
+import { processCertificates } from '../certificateFlow.mjs';
+import { progressTracker } from '../shaamSafety.mjs';
 
 export const actionType = 'shaam.sync_income_tax_file';
 
@@ -219,7 +220,16 @@ export async function run(ctx, input) {
         } else {
           tab = opened.created ? opened.page : null;
           if (opened.via) ctx.log('413 נפתחה מהתפריט («איתור שאילתא»)');
-          certificates = await readAndSaveCertificates(ctx, opened.page, certEntity);
+          // ‼ 26.10.2026 (גיא: «למה זה לא פשוט מנפיק אישור?»): מהכפתור בתיק המס (issueMissing) — מה
+          // שחסר מונפק כאן, באותה לשונית. ממסלול (שרת) הדגל לא נשלח ⇒ קריאה בלבד.
+          const issue = input?.issueMissing === true;
+          const done = await processCertificates(ctx, opened.page, certEntity, issue ? { issue, progress: progressTracker(ctx) } : {});
+          certificates = done.summary;
+          if (done.failures.length) ctx.log(`413: ${done.failures.join(' ')}`);
+          if (done.unknown) {
+            ctx.log(`413: ${done.unknown}`);
+            unavailable.push({ key: 'certificates', reason: 'external_outcome_unknown' });
+          }
           ctx.log(`413: ${Math.round((Date.now() - t413) / 1000)} ש׳`);
         }
       } catch (e) {

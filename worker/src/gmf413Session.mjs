@@ -140,8 +140,10 @@ async function toEntry(work, { navigate = true, waitMs = 30000 } = {}) {
     if (await link.isVisible().catch(() => false)) await link.click({ timeout: 8000 }).catch(() => {});
     else await work.goto(GMF_413_URL, { waitUntil: 'domcontentloaded', timeout: 30000 }).catch(() => {});
   }
-  await work.waitForSelector(ENTITY_INPUT, { timeout: waitMs }).catch(() => {});
-  const s = await settlePage(work, { idleMs: 10000, watchMs: 1500 });
+  // ‼ 26.10.2026 · ממתינים לשדה עצמו, לא ל«רשת שקטה»: מסכי שע״ם כמעט אף פעם לא שקטים, וכל המתנה
+  // כזו עלתה 8–10 ש׳ (גיא: «תהפוך את הכול ליותר מהיר»). רק כשהשדה לא הופיע — התייצבות קצרה לסיווג.
+  const found = await work.waitForSelector(ENTITY_INPUT, { timeout: waitMs }).then(() => true).catch(() => false);
+  const s = found ? await snapPage(work) : await settlePage(work, { idleMs: 3000, watchMs: 800 });
   if (s.hasPasswordField || !s.pathname.startsWith(PATH_413)) {
     return { ok: false, reason: 'gmf_not_ready', pathname: s.pathname };
   }
@@ -179,11 +181,16 @@ export async function openCard(work, entity, kind) {
     return { ok: false, reason: 'card_click_blocked', detail: String(e).slice(0, 120) };
   }
   const res = await within(resP, 45000);
-  await work.waitForURL((u) => !new URL(u).pathname.startsWith(ENTRY_PATH), { timeout: 15000 }).catch(() => {});
-  await settlePage(work, { idleMs: 8000, watchMs: 800 });
+  // המסך עובר לתפריט/לטופס — או נשאר בכניסה עם הודעת סירוב. מה שקורה קודם, בלי המתנה עיוורת.
+  let text = '';
+  for (let i = 0; i < 60 && pathOf(work).startsWith(ENTRY_PATH); i++) {
+    text = await errorText(work);
+    if (text) break;
+    await work.waitForTimeout(250);
+  }
   if (pathOf(work).startsWith(ENTRY_PATH)) {
     // ‼ נשארנו במסך הכניסה ⇒ שע״ם סירבה (למשל «לא ניתן להנפיק אישור גופים - לא קיים תיק מע״מ»).
-    const text = await errorText(work);
+    if (!text) text = await errorText(work);
     return { ok: false, reason: text ? 'refused' : 'card_not_opened', text };
   }
   if (!res?.body) return { ok: false, reason: 'data_not_captured' };
@@ -227,6 +234,7 @@ export async function printCopy(work) {
  */
 async function fillRates(work, plan) {
   const rows = work.locator('tbody[formarrayname="hkts"] tr:has(input[formcontrolname="txtAhuzHkt"])');
+  if (plan.rows.length) await rows.first().waitFor({ timeout: 10000 }).catch(() => {});
   const count = await rows.count();
   if (count !== plan.rows.length) return { ok: false, reason: 'form_changed', detail: `rows=${count} plan=${plan.rows.length}` };
   for (let i = 0; i < count; i++) {
@@ -258,8 +266,10 @@ async function reachForm(work) {
     await work.locator('div.divbutton_round:has-text("הנפקת אישור")').first().click({ timeout: 10000 }).catch(() => {});
     await work.waitForURL((u) => new URL(u).pathname.startsWith(FORM_PATH), { timeout: 20000 }).catch(() => {});
   }
-  await settlePage(work, { idleMs: 8000, watchMs: 800 });
+  await work.waitForSelector('button:has-text("בדיקה")', { timeout: 15000 }).catch(() => {});
   if (!pathOf(work).startsWith(FORM_PATH)) return { ok: false, reason: 'form_missing', pathname: pathOf(work) };
+  // «כדאי לדעת» נפתחת רגע אחרי הטופס (ngAfterViewInit) — נותנים לה הזדמנות קצרה להופיע.
+  await work.waitForSelector('ngb-modal-window', { timeout: 1500 }).catch(() => {});
   await dismissInfoModal(work);
   return { ok: true };
 }

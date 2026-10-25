@@ -4,7 +4,7 @@
 // הכרטיס אומרת מה שע״ם אומרת, עם הקובץ כראיה.
 import { putCertificate } from './apiClient.mjs';
 import { parseIshur, ratesText } from './gmf413.mjs';
-import { openCard, printCopy, backToEntry } from './gmf413Session.mjs';
+import { openCard, printCopy } from './gmf413Session.mjs';
 
 export const CERT_KINDS = ['withholding', 'bookkeeping'];
 export const CERT_LABEL = { withholding: 'ניכוי מס במקור', bookkeeping: 'ניהול ספרים' };
@@ -75,34 +75,4 @@ export async function saveOne(ctx, read, extra = {}) {
   });
   if (!r?.ok) ctx.log(`413 ${CERT_LABEL[read.info.kind]}: השמירה בשרת נכשלה (${r?.error ?? 'unknown'})`);
   return r;
-}
-
-/**
- * קריאת שני האישורים ושמירתם. מחזיר תקציר לתוצאת המשימה.
- * ‼ לא זורק: 413 היא תוספת לקריאת התיק — כשל בה נרשם ב-unavailable ולא מפיל את השאר.
- */
-export async function readAndSaveCertificates(ctx, work, entity) {
-  const summary = {};
-  for (const kind of CERT_KINDS) {
-    const read = await readOne(work, entity, kind, ctx.log);
-    if (!read.ok) {
-      summary[kind] = { ok: false, reason: read.reason, ...(read.text ? { text: read.text } : {}) };
-      ctx.log(`413 ${CERT_LABEL[kind]}: לא נקרא (${read.reason}${read.text ? ` · ${read.text}` : ''})`);
-      // ‼ שע״ם סירבה לפתוח את הכרטיס עם הודעה — זו תשובה, לא כשל: נשמרת בכרטיס.
-      if (read.reason === 'refused' && read.text) {
-        const saved = await saveMessage(ctx, kind, { message: read.text, blocked: true });
-        summary[kind] = { ok: true, status: 'none', message: read.text, blocked: true, saved: !!saved?.ok };
-      }
-    } else {
-      const saved = await saveOne(ctx, read);
-      summary[kind] = {
-        ok: true, status: read.info.valid ? 'valid' : 'none', statusText: read.info.statusText,
-        validUntil: read.info.validUntil, ratesText: ratesText(read.info.rates),
-        documentId: saved?.documentId ?? null, saved: !!saved?.ok,
-        ...(read.printError ? { printError: read.printError } : {}),
-      };
-    }
-    await backToEntry(work);
-  }
-  return summary;
 }
