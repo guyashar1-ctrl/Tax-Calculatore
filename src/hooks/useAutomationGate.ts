@@ -14,6 +14,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { createAutomationJob, cancelAutomationJob } from '../lib/automationJobs';
+import { createAutomationJobAfter } from '../lib/automationFollowups';
 import { automationJobFromDb } from '../lib/dbMappers';
 import {
   SHAAM_CONNECT_ACTION_TYPE, BTL_CONNECT_ACTION_TYPE, SHAAM_ENSURE_CAPABILITY_ACTION_TYPE,
@@ -66,8 +67,13 @@ export interface AutomationGate {
   unverified: boolean;
   /** אין עובד — לחיצה לא יכולה לפתוח חלון, רק להסביר. */
   workerOffline: boolean;
-  /** מריץ אם מוכן; אחרת פותח התחברות ומריץ לבד כשתהיה מוכנה. */
-  runOrConnect: (run: () => void) => void;
+  /**
+   * מריץ אם מוכן; אחרת פותח התחברות ומריץ לבד כשתהיה מוכנה.
+   * ‼ chain (25.10.2026, ליאת — «יותר מדי איטי»): כששכבה אחת חסרה (למשל רישום הייצוג), הפעולה
+   * עצמה נכנסת לתור **מיד אחרי** משימת הפתיחה (create_automation_job_after) — השרת משחרר אותה
+   * ברגע שהפתיחה מסתיימת, בלי לחכות שהמסך יראה «מוכן» (עד ~30 שניות של דיווח מצב).
+   */
+  runOrConnect: (run: () => void, chain?: { clientId: string; actionType: string; input: Record<string, unknown> }) => void;
   /**
    * 25.10.2026 (ליאת): מה קורה עם פתיחת השכבה החסרה — במילים, לא «ממתין לחיבור…» בלי סוף.
    * 'wait' = ממתינים לרו"ח בחלון שע״ם (נמשיך לבד) · 'error' = לא נפתחה; לחיצה נוספת מנסה שוב.
@@ -95,6 +101,8 @@ export function useAutomationGate(capability: string): AutomationGate {
   const [notice, setNotice] = useState<AutomationGate['notice']>(null);
   /** משימת השחזור הנקודתי שהכפתור הזה יצר — כדי לדעת אם נכשלה או ממתינה לרו"ח. */
   const [ensureJobId, setEnsureJobId] = useState<string | null>(null);
+  /** הפעולה כבר בתור מאחורי משימת הפתיחה (chain) — לא מריצים אותה שוב. */
+  const chained = useRef(false);
 
   // ‼ 27.09.2026: בזמן ההמתנה — שואלים כל 2 שניות, **גם כשהלשונית מוסתרת**.
   // הספק (ShaamReadinessProvider) לא מושך כשהלשונית ברקע, וזה בדיוק המצב
@@ -115,6 +123,14 @@ export function useAutomationGate(capability: string): AutomationGate {
   // ‼ הרגע שבו החיבור הפך מוכן — לא לפי ה-job של ההתחברות אלא לפי המוכנות
   // עצמה (אותו מקור שהופך את הנורית לירוקה). ריצה אחת, ואז שוכחים.
   useEffect(() => {
+    if (cap.ready && !pending.current && chained.current) {
+      // השכבה מוכנה והפעולה כבר שוחררה בשרת — רק מפסיקים לחכות.
+      chained.current = false;
+      setConnecting(false);
+      setNotice(null);
+      setEnsureJobId(null);
+      return;
+    }
     if (!cap.ready || !pending.current) return;
     const run = pending.current;
     pending.current = null;
@@ -133,6 +149,21 @@ export function useAutomationGate(capability: string): AutomationGate {
       const { data } = await supabase.from('automation_jobs').select('*').eq('id', ensureJobId).maybeSingle();
       if (stop || !data) return;
       const job = automationJobFromDb(data);
+      // ‼ פעולה ששורשרה אחרי הפתיחה כבר שוחררה בשרת (גם אם הפתיחה נכשלה — היא פותחת את
+      // השכבה בעצמה); מכאן המצב הוא של הפעולה עצמה, והכפתור שלה מציג אותו.
+      if (chained.current && (job.status === 'succeeded' || job.status === 'failed')) {
+        chained.current = false;
+        setConnecting(false);
+        setEnsureJobId(null);
+        setNotice(null);
+        return;
+      }
+      if (job.status === 'succeeded' && !pending.current) {
+        setConnecting(false);
+        setEnsureJobId(null);
+        setNotice(null);
+        return;
+      }
       if (job.status === 'failed' || job.status === 'cancelled') {
         pending.current = null;
         setConnecting(false);
@@ -152,7 +183,7 @@ export function useAutomationGate(capability: string): AutomationGate {
     return () => { stop = true; clearInterval(t); };
   }, [ensureJobId, connecting]);
 
-  const runOrConnect = useCallback((run: () => void) => {
+  const runOrConnect = useCallback((run: () => void, chain?: { clientId: string; actionType: string; input: Record<string, unknown> }) => {
     if (cap.ready) { run(); return; }
     if (offline) {
       // ‼ בלי עובד אין למי לפתוח חלון — זו ההודעה היחידה שנשארת «הודעה».
@@ -173,11 +204,18 @@ export function useAutomationGate(capability: string): AutomationGate {
       ? createAutomationJob(null, SHAAM_ENSURE_CAPABILITY_ACTION_TYPE, { capability: cap.missingLayer, takeover: true })
           .then(r => (r.ok ? { ok: true as const, jobId: r.job?.id ?? null } : { ok: false as const, error: r.error }))
       : startAuthorityConnect(authority).then(r => ({ ...r, jobId: null as string | null }));
-    void start.then(r => {
+    void start.then(async r => {
       if (r.ok) {
         if (layerName) {
           setEnsureJobId(r.jobId ?? null);
-          setNotice({ tone: 'wait', text: `פותח את ${layerName} בחלון שע״ם — אם תתבקש התחברות, השלימו אותה שם, ואמשיך לבד.` });
+          // ‼ שרשור: הפעולה בתור מאחורי הפתיחה — לא מריצים אותה שוב כשהמסך יראה «מוכן».
+          if (chain && r.jobId) {
+            const after = await createAutomationJobAfter(chain.clientId, chain.actionType, chain.input, r.jobId);
+            if (after.ok) { pending.current = null; chained.current = true; }
+          }
+          setNotice({ tone: 'wait', text: chain
+            ? `פותח את ${layerName} בחלון שע״ם, והפעולה יוצאת מיד אחריו. אם תתבקש התחברות — השלימו אותה שם.`
+            : `פותח את ${layerName} בחלון שע״ם — אם תתבקש התחברות, השלימו אותה שם, ואמשיך לבד.` });
         } else {
           showToast(CONNECT_TOAST[authority]);
         }

@@ -81,6 +81,14 @@ export default function ShaamNextActionButton({
     prev.current = st;
   }, [hook.job, submission.key, onChanged]);
 
+  // ‼ שרשור (gate chain): הפעולה שוחררה בשרת ברגע שהפתיחה הסתיימה — כשההמתנה נגמרת, קוראים
+  // את המשימה מחדש, אחרת הכפתור לא יודע שהיא כבר רצה (הקריאה החוזרת פועלת רק כשיש משימה ידועה).
+  const wasConnecting = useRef(false);
+  useEffect(() => {
+    if (wasConnecting.current && !gate.connecting) void hook.reload();
+    wasConnecting.current = gate.connecting;
+  }, [gate.connecting, hook]);
+
   // ‼ ההפעלה העצמית (autoRun) — פעם אחת, אחרי שהמשימה האחרונה נטענה (כדי לראות ניסיון
   // שנעצר באמצע), דרך אותה לחיצה שמוגדרת למטה (autoClick).
   const autoClick = useRef<(() => void) | null>(null);
@@ -116,43 +124,27 @@ export default function ShaamNextActionButton({
     if (r?.code === 'requires_acknowledgement') setConfirmRetry(true);
   };
 
-  async function run(acknowledgeExternal = false) {
-    setLocalError(null);
-    setConfirmRetry(false);
-    if (!linkedClient) {
-      setLocalError('אין כרטיס לקוח מקושר לבקשה — אי אפשר להרכיב את הפרטים לשע״ם.');
-      return;
-    }
+  /** הקלט לעובד — אותו קלט ללחיצה ולשרשור אחרי פתיחת השכבה (gate.runOrConnect chain). */
+  function buildInput(): { ok: true; input: Record<string, unknown> } | { ok: false; error: string } {
+    if (!linkedClient) return { ok: false, error: 'אין כרטיס לקוח מקושר לבקשה — אי אפשר להרכיב את הפרטים לשע״ם.' };
     const person = shaamPersonFacts(request, linkedClient, submission.target);
 
     if (action!.kind === 'create') {
       const built = shaamCreateInput(request, linkedClient, submission, married, tracking);
-      if (!built.ok) {
-        setLocalError(built.error);
-        return;
-      }
-      await hook.run(built.input, { acknowledgeExternal }).then(afterStart);
-      return;
+      return built.ok ? { ok: true, input: built.input } : { ok: false, error: built.error };
     }
 
     if (action!.kind === 'submit') {
       const doc = signatureDocumentsOf(request).find(d => d.key === submission.key)
         ?? signatureDocumentsOf(request)[0];
-      if (!doc?.signedPdfStoredId) {
-        setLocalError('הטופס החתום של ההגשה הזאת עדיין לא נשמר — אין מה לשדר.');
-        return;
-      }
+      if (!doc?.signedPdfStoredId) return { ok: false, error: 'הטופס החתום של ההגשה הזאת עדיין לא נשמר — אין מה לשדר.' };
       // ‼ מספר בקשה אינו תנאי: כשהוא לא מוצג ברשימה, העובד מאתר את הבקשה
       // לפי ישות + שם ועוצר לפני העלאה אם הייחוס אינו חד-משמעי.
-      if (!shaamRequestExists(tracking)) {
-        setLocalError('הבקשה בשע״ם טרם נמצאה — הריצו קודם «בדוק קבלת הייצוג».');
-        return;
-      }
+      if (!shaamRequestExists(tracking)) return { ok: false, error: 'הבקשה בשע״ם טרם נמצאה — הריצו קודם «בדוק קבלת הייצוג».' };
       if (!tracking?.requestNumber && !person.idNumber.replace(/\D/g, '')) {
-        setLocalError('אין תעודת זהות תקינה לאדם הזה בכרטיס — אי אפשר לאתר את הבקשה בשע״ם.');
-        return;
+        return { ok: false, error: 'אין תעודת זהות תקינה לאדם הזה בכרטיס — אי אפשר לאתר את הבקשה בשע״ם.' };
       }
-      await hook.run({
+      return { ok: true, input: {
         submissionKey: submission.key,
         role: submission.target,
         requestNumber: tracking?.requestNumber ?? '',
@@ -163,8 +155,7 @@ export default function ShaamNextActionButton({
         // ועוצר לפני העלאה אם שע״ם מציגה את התיבה והדגל חסר.
         spouseSignatureConfirmed: spouseSignatureProof(request, linkedClient, doc, married).ok,
         alreadySubmittedAt: tracking?.submittedAt ?? null,
-      }, { acknowledgeExternal }).then(afterStart);
-      return;
+      } };
     }
 
     // check
@@ -172,19 +163,30 @@ export default function ShaamNextActionButton({
     // שבשבילו הבדיקה קיימת — בקשה שהוזנה בשע״ם בלי ש-PIVO יודעת עליה
     // (הזנה ידנית, למשל). היא מוצאת את מספר הבקשה לבד לפי הישות, ולא
     // דורשת מהרו"ח להעתיק אותו ידנית. entityId לבדו מספיק.
-    if (!person.idNumber.replace(/\D/g, '')) {
-      setLocalError('אין תעודת זהות תקינה לאדם הזה בכרטיס — אין לפי מה לבדוק.');
-      return;
-    }
-    await hook.run({
+    if (!person.idNumber.replace(/\D/g, '')) return { ok: false, error: 'אין תעודת זהות תקינה לאדם הזה בכרטיס — אין לפי מה לבדוק.' };
+    return { ok: true, input: {
       submissionKey: submission.key,
       role: submission.target,
       requestNumber: tracking?.requestNumber ?? '',
       entityId: person.idNumber.replace(/\D/g, ''),
       // ‼ ראיית שיוך כשאין עדיין מספר בקשה — ראה attributeRows/matchRegisteredPersonName.
       personName: person.name,
-    }, { acknowledgeExternal }).then(afterStart);
+    } };
   }
+
+  async function run(acknowledgeExternal = false) {
+    setLocalError(null);
+    setConfirmRetry(false);
+    const built = buildInput();
+    if (!built.ok) { setLocalError(built.error); return; }
+    await hook.run(built.input, { acknowledgeExternal }).then(afterStart);
+  }
+
+  /** שרשור הפעולה אחרי פתיחת השכבה החסרה — רק לחיצה רגילה (לא «נסה שוב» אחרי ניסיון שנגע ברשות). */
+  const chainFor = () => {
+    const built = buildInput();
+    return built.ok && linkedClient ? { clientId: linkedClient.id, actionType, input: built.input } : undefined;
+  };
 
   const busyLabel = action.kind === 'create' ? 'פותח בקשה…'
     : action.kind === 'submit' ? 'משדר…' : 'בודק…';
@@ -205,7 +207,7 @@ export default function ShaamNextActionButton({
     // בלי מחשב עבודה / פעולה מושבתת / נתון חסר / משימה שכבר רצה — הכפתור נשאר, עם ההסבר שלו.
     if (action.disabled || missingData || running || gate.workerOffline) return;
     if (stop?.mayHaveActed) { setConfirmRetry(true); return; }
-    gate.runOrConnect(() => void run());
+    gate.runOrConnect(() => void run(), chainFor());
   };
   const title = action.disabled ? action.reason
     : missingData ? missingData
@@ -228,9 +230,9 @@ export default function ShaamNextActionButton({
           // יכול להריץ בלי אישור (196) — קודם הוא ביקש, נדחה בשקט, וההודעה
           // נמחקה. עכשיו הוא פותח את האישור עצמו; «כן, נסה שוב» הוא ההרשאה.
           if (stop?.mayHaveActed) { setConfirmRetry(true); return; }
-          gate.runOrConnect(() => void run());
+          gate.runOrConnect(() => void run(), chainFor());
         }}>
-        {hook.busy ? busyLabel : gate.connecting ? (gate.notice ? 'ממתין לך בחלון שע״ם…' : 'פותח בשע״ם…') : action.label}
+        {hook.busy ? busyLabel : gate.connecting ? 'פותח בשע״ם…' : action.label}
       </button>
       {/* ‼ 25.10.2026 · מה עוצר, במילים — ממתין לך בחלון שע״ם, או לא נפתח (ולחיצה נוספת מנסה שוב). */}
       {gate.notice && !running && (
