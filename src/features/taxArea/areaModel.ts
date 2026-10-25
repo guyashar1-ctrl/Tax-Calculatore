@@ -210,7 +210,8 @@ export function domainOf(itemId: string): DomainId | undefined {
 export type AreaPath =
   | { mode: 'work'; section: WorkSection }
   /** values — קבוצת ערכים שנפתחת בעמוד התחום (‎learn/<domain>/v/<group>‎). moved — הגיעו מקישור ישן ל«ערכים לפי נושא». */
-  | { mode: 'learn'; domain?: DomainId; item?: string; values?: string; moved?: true; code?: string };
+  /** sub — מה שנבחר בתוך כלי או נושא (מאמר הוצאה, פעילות בניהול ספרים): ‎learn/<domain>/<item>/<sub>‎. */
+  | { mode: 'learn'; domain?: DomainId; item?: string; values?: string; moved?: true; code?: string; sub?: string };
 
 export const DEFAULT_AREA_PATH: AreaPath = { mode: 'work', section: 'all' };
 
@@ -230,7 +231,8 @@ export function parseAreaPath(raw: string | undefined): AreaPath {
     if (b === 'v') return c && valueGroup(dom.id, c) ? { mode: 'learn', domain: dom.id, values: c } : { mode: 'learn', domain: dom.id };
     // ‎learn/annual/c/158‎ — עמוד התחום עם הטופס, והסעיף בקוד הזה מאותר בו (מהחיפוש בספרייה)
     if (b === 'c') return c && /^[0-9א-ת]{2,5}$/.test(c) && FORM_DOMAIN_IDS.has(dom.id) ? { mode: 'learn', domain: dom.id, code: c } : { mode: 'learn', domain: dom.id };
-    return b && dom.items.some(i => i.id === b) ? { mode: 'learn', domain: dom.id, item: b } : { mode: 'learn', domain: dom.id };
+    if (b && dom.items.some(i => i.id === b)) return c ? { mode: 'learn', domain: dom.id, item: b, sub: safeDecode(c) } : { mode: 'learn', domain: dom.id, item: b };
+    return { mode: 'learn', domain: dom.id };
   }
   if (mode === 'work') return { mode: 'work', section: (a && WORK_BY_ID[a as WorkSection] ? a : 'all') as WorkSection };
   return DEFAULT_AREA_PATH;
@@ -240,8 +242,11 @@ export function formatAreaPath(p: AreaPath): string {
   if (p.mode === 'work') return `work/${p.section}`;
   if (p.domain && p.values && !p.item) return `learn/${p.domain}/v/${p.values}`;
   if (p.domain && p.code && !p.item) return `learn/${p.domain}/c/${p.code}`;
-  return ['learn', p.domain, p.domain ? p.item : undefined].filter(Boolean).join('/');
+  // ‼ sub מקודד כאן — שם פעילות כמו «פאב / בר» מכיל «/», והכתובת מפוצלת לפי «/» בכל שכבה
+  return ['learn', p.domain, p.domain ? p.item : undefined, p.domain && p.item && p.sub ? encodeURIComponent(p.sub) : undefined].filter(Boolean).join('/');
 }
+
+const safeDecode = (s: string) => { try { return decodeURIComponent(s); } catch { return s; } };
 
 /** תחומים שהעמוד שלהם הוא הטופס הרשמי עצמו (מפת הטופס). */
 export const FORM_DOMAIN_IDS = new Set<DomainId>(['annual', 'wealth']);

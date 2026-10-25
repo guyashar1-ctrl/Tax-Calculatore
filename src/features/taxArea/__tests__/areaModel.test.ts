@@ -195,4 +195,13 @@ export const TESTS: TestCase[] = [
     equal(formatAreaPath(parseAreaPath('learn/annual/c/158')), 'learn/annual/c/158');
     deepEqual(parseAreaPath('learn/ni/c/158'), { mode: 'learn', domain: 'ni' });
   }),
+  // 26.10.2026: הכלים כתבו ‎#tool/…‎ (מההדמיה) — כתובת שהאפליקציה לא מכירה, והמשתמש נזרק מ«מס». הבחירה בכלי — בתוך הכתובת של «מס»
+  test('בחירה בתוך כלי: ‎learn/business/bookkeeping/<פעילות>‎ — גם שם עם «/» חוזר שלם', () => {
+    const p = { mode: 'learn' as const, domain: 'business' as const, item: 'bookkeeping', sub: 'פאב / בר' };
+    const s = formatAreaPath(p);
+    equal(s.split('/').length, 4, 'ה-«/» שבשם מקודד, לא מפצל את הכתובת');
+    deepEqual(parseAreaPath(s), p);
+    deepEqual(parseAreaPath('learn/business/expenses/vehicle'), { mode: 'learn', domain: 'business', item: 'expenses', sub: 'vehicle' });
+    deepEqual(parseAreaPath('learn/business/expenses'), { mode: 'learn', domain: 'business', item: 'expenses' });
+  }),
 ];

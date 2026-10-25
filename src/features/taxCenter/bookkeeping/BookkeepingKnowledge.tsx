@@ -21,7 +21,8 @@ const chip = (_bg: string, color: string): React.CSSProperties => ({ display: 'i
 
 type View = 'wizard' | 'addenda' | 'dictionary' | 'rules';
 
-export default function BookkeepingKnowledge() {
+/** selected — שם הפעילות מהכתובת (‎learn/business/bookkeeping/<פעילות>‎); בחירה מעדכנת את הכתובת דרך onSelect. */
+export default function BookkeepingKnowledge({ selected = null, onSelect }: { selected?: string | null; onSelect?: (label: string | null) => void } = {}) {
   const [view, setView] = useState<View>('wizard');
   const [openAddendum, setOpenAddendum] = useState<string | null>(null);
   const firstBookEntry=useRef(true);useEffect(()=>{if(firstBookEntry.current){firstBookEntry.current=false;return}const intro=document.querySelector<HTMLElement>('.work-tool-bookkeeping .bk-intro');intro?.scrollIntoView({block:'start'});document.querySelector<HTMLElement>(openAddendum?'[data-book-addendum]':'.work-tool-bookkeeping .tabs [aria-pressed=true]')?.focus({preventScroll:true})},[view,openAddendum]);
@@ -52,7 +53,7 @@ export default function BookkeepingKnowledge() {
         ))}
       </div>
 
-      {view === 'wizard' && <Wizard onOpenAddendum={id => { setOpenAddendum(id); setView('addenda'); }} />}
+      {view === 'wizard' && <Wizard selected={selected} onSelect={onSelect} onOpenAddendum={id => { setOpenAddendum(id); setView('addenda'); }} />}
       {view === 'addenda' && (openAddendum
         ? <AddendumDetail addendum={getAddendum(openAddendum)!} onBack={() => setOpenAddendum(null)} />
         : <AddendaGrid onOpen={setOpenAddendum} />)}
@@ -64,7 +65,7 @@ export default function BookkeepingKnowledge() {
 
 // ─── האשף ────────────────────────────────────────────────────────────────────
 
-function Wizard({ onOpenAddendum }: { onOpenAddendum: (id: string) => void }) {
+function Wizard({ onOpenAddendum, selected = null, onSelect }: { onOpenAddendum: (id: string) => void; selected?: string | null; onSelect?: (label: string | null) => void }) {
   const [query, setQuery] = useState('');
   const [picked, setPicked] = useState<BusinessTypeEntry | null>(null);
   const [showQuestions, setShowQuestions] = useState(false);
@@ -85,7 +86,14 @@ function Wizard({ onOpenAddendum }: { onOpenAddendum: (id: string) => void }) {
     (manualTier && addendum?.tiers.find(t => t.id === manualTier)) ||
     autoTier;
 
-  useEffect(()=>{const sync=()=>{const seg=decodeURIComponent(location.hash.split('/')[2]||'');const hit=seg?BUSINESS_TYPES.find(b=>b.label===seg)||null:null;if(hit&&hit.label!==picked?.label){setPicked(hit);setTurnover('');setEmployees('');setManualTier(null);setBookFacts({})}else if(!seg&&picked&&BUSINESS_TYPES.some(b=>b.label===picked.label))reset()};sync();addEventListener('hashchange',sync);return()=>removeEventListener('hashchange',sync)},[picked]);
+  const choose = (label: string | null) => { if (onSelect) onSelect(label); else if (label) setPicked(BUSINESS_TYPES.find(b => b.label === label) ?? null); else reset(); };
+  useEffect(() => {
+    if (!onSelect) return;
+    const hit = selected ? BUSINESS_TYPES.find(b => b.label === selected) ?? null : null;
+    if (hit && hit.label !== picked?.label) { setPicked(hit); setTurnover(''); setEmployees(''); setManualTier(null); setBookFacts({}); }
+    else if (!selected && picked && BUSINESS_TYPES.some(b => b.label === picked.label)) reset();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected]);
   function reset() {
     setPicked(null); setQuery(''); setTurnover(''); setEmployees(''); setManualTier(null); setShowQuestions(false);setBookFacts({});
   }
@@ -108,7 +116,7 @@ function Wizard({ onOpenAddendum }: { onOpenAddendum: (id: string) => void }) {
           {results.map(e => {
             const a = getAddendum(e.addendumId)!;
             return (
-              <div key={e.label} role="button" tabIndex={0} aria-label={e.label} onKeyDown={event=>{if(event.target===event.currentTarget&&(event.key==='Enter'||event.key===' ')){event.preventDefault();location.hash='#tool/bookkeeping/'+encodeURIComponent(e.label)}}} onClick={() => {location.hash='#tool/bookkeeping/'+encodeURIComponent(e.label)}}
+              <div key={e.label} role="button" tabIndex={0} aria-label={e.label} onKeyDown={event=>{if(event.target===event.currentTarget&&(event.key==='Enter'||event.key===' ')){event.preventDefault();choose(e.label)}}} onClick={() => choose(e.label)}
                 style={{ ...card, cursor: 'pointer', padding: '.7rem .9rem', display: 'flex', gap: '.6rem', alignItems: 'center' }}>
                 <span style={{ fontSize: '20px' }}>{a.icon}</span>
                 <div style={{ minWidth: 0 }}>
@@ -158,7 +166,7 @@ function Wizard({ onOpenAddendum }: { onOpenAddendum: (id: string) => void }) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: '.9rem' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '.5rem' }}>
         <div style={{ fontSize: '14px' }}>
-          <button className="bk-link" onClick={()=>{if(location.hash.split('/')[2])location.hash='#tool/bookkeeping';else reset()}}>← חיפוש חדש</button>
+          <button className="bk-link" onClick={() => { if (selected) choose(null); else reset(); }}>← חיפוש חדש</button>
         </div>
         <button onClick={() => onOpenAddendum(addendum!.id)}
           className="btn btn-secondary btn-sm">

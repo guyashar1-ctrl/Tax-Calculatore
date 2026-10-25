@@ -120,10 +120,13 @@ export default function TaxArea({ path, onPath, freshnessTaskExists, onCreateFre
     label: `${WORK_BY_ID[k].label}${work.counts[k].open ? ` (${work.counts[k].open})` : ''}`, onOpen: () => go({ mode: 'work', section: k }),
   })) : []);
 
+  // מה שנבחר בתוך הכלי — בכתובת, כדי ש«אחורה» ורענון יחזירו לאותו מקום
+  const sub = p.mode === 'learn' ? p.sub ?? null : null;
+  const setSub = (s: string | null) => { if (p.mode === 'learn') go({ mode: 'learn', domain: p.domain, item: p.item, sub: s ?? undefined }); };
   const toolBody = (t: Tool) => {
     switch (t) {
-      case 'expenses': return <ExpenseKnowledge initialTopicId={null} />;
-      case 'bookkeeping': return <BookkeepingKnowledge />;
+      case 'expenses': return <ExpenseKnowledge selected={sub} onSelect={setSub} />;
+      case 'bookkeeping': return <BookkeepingKnowledge selected={sub} onSelect={setSub} />;
       case 'wizard': return <CreditPointsWizard taxData={data} year={year} />;
       case 'rental': return <RentalRouteCalculator taxData={data} year={year} />;
       case 'incomeTax': return <IncomeTaxPanel taxData={data} year={year} />;

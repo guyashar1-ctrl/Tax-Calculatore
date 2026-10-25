@@ -12,19 +12,20 @@ import {
 import ExpenseDetail from './ExpenseDetail';
 
 interface Props {
-  /** נושא שנפתח מיד עם הכניסה — כשמגיעים לכאן מקישור ממסך אחר */
-  initialTopicId?: string | null;
+  /** המאמר שפתוח — מהכתובת (‎learn/business/expenses/<id>‎). בלי onSelect הבחירה נשארת מקומית. */
+  selected?: string | null;
+  onSelect?: (id: string | null) => void;
 }
 
-export default function ExpenseKnowledge({ initialTopicId = null }: Props) {
+export default function ExpenseKnowledge({ selected: selectedFromPath = null, onSelect }: Props) {
   const [query, setQuery] = useState('');
   const [showFilters,setShowFilters]=useState(false);
   const [itFilter, setItFilter] = useState<IncomeTaxVerdict | 'all'>('all');
   const [vatFilter, setVatFilter] = useState<VatVerdict | 'all'>('all');
   const [riskFilter, setRiskFilter] = useState<RiskLevel | 'all'>('all');
-  const [selectedId, setSelectedIdState] = useState<string | null>(initialTopicId||decodeURIComponent(location.hash.split('/')[2]||'')||null);
-  const setSelectedId=(id:string|null)=>{location.hash='#tool/expenses'+(id?'/'+encodeURIComponent(id):'')};
-  useEffect(()=>{const sync=()=>{if(!location.hash.startsWith('#tool/expenses'))return;setSelectedIdState(decodeURIComponent(location.hash.split('/')[2]||'')||null)};addEventListener('hashchange',sync);return()=>removeEventListener('hashchange',sync)},[]);
+  const [localId, setLocalId] = useState<string | null>(selectedFromPath);
+  const selectedId = onSelect ? selectedFromPath : localId;
+  const setSelectedId = (id: string | null) => (onSelect ? onSelect(id) : setLocalId(id));
 
   const filtered = useMemo(() => {
     let list = searchExpenseTopics(EXPENSE_TOPICS, query);
