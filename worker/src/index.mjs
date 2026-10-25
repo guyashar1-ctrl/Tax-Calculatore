@@ -115,12 +115,16 @@ function noteBlocked(reason) {
 const laneOf = (actionType) => (actionType.startsWith('btl.') ? 'btl' : 'shaam');
 const running = { shaam: null, btl: null };
 const busy = () => !!(running.shaam || running.btl);
+// ‼ מסלול שהתפנה אחרי ש-tick כבר שאל (כשהמסלול עוד היה תפוס) — שואלים שוב לפני
+// ניטור החיבור. בלי זה הניטור נכנס בדיוק בין קריאה לקריאה (~20 ש׳, נמדד 25.10.2026).
+let freedSinceClaim = false;
 
 /**
  * תופס משימה למסלול פנוי ומריץ אותה ברקע. ‼ ל-claim נשלחים רק סוגי הפעולות של
  * המסלולים הפנויים — כך claim_action_types בשרת אומר בדיוק מה המחשב מוכן לקחת.
  */
 async function tick() {
+  freedSinceClaim = false;
   const all = ONLY_ACTIONS.length ? supportedActionTypes().filter(a => ONLY_ACTIONS.includes(a)) : supportedActionTypes();
   const actionTypes = all.filter(a => !running[laneOf(a)]);
   if (!actionTypes.length) return false;
@@ -136,6 +140,7 @@ async function tick() {
     log(`▶ תפסתי משימה ${job.id} · ${job.actionType} · ניסיון #${job.attempts}`);
     running[lane] = runJob(job).catch((e) => log('✗ שגיאה בהרצה:', e?.message ?? e)).finally(() => {
       running[lane] = null;
+      freedSinceClaim = true;
       // חיבור/ניתוק משנים את מצב הנורית — לא ממתינים למחזור הבדיקה הרגיל.
       if (job.actionType.startsWith('shaam.')) invalidateConnectionCache();
       // ‼ ב״ל: סבב מיידי, כדי שחלון שנפתח עכשיו על מסך הכניסה ייכנס מיד
@@ -177,6 +182,7 @@ async function main() {
       await Promise.race([sleep(1000), ...Object.values(running).filter(Boolean)]);
       continue;
     }
+    if (freedSinceClaim) continue;
     // ניטור החיבור רץ באותה לולאה ולא בטיימר נפרד — כדי ששני הדברים לא
     // ייגעו ב-Chrome בו-זמנית ויתחרו על אותו חיבור CDP.
     await tickConnectionMonitor(USER_ID, WORKER_ID, log, { scope: MONITOR_SCOPE }).catch((e) =>
