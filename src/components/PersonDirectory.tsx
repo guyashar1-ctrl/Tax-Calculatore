@@ -95,6 +95,15 @@ interface Props {
 
 const TAB_KEY = 'pivo.people.tab';
 
+type PeopleTab = 'people' | 'archive' | 'contacts';
+
+function savedTab(): PeopleTab {
+  try {
+    const t = sessionStorage.getItem(TAB_KEY);
+    return t === 'archive' || t === 'contacts' ? t : 'people';
+  } catch { return 'people'; }
+}
+
 const STAGE_NOW_TITLE: Record<string, string> = {
   lead: 'ליד',
   quoted: 'הצעת מחיר',
@@ -106,26 +115,7 @@ const STAGE_NOW_TITLE: Record<string, string> = {
 export default function PersonDirectory(p: Props) {
   const [query, setQuery] = useState('');
   const isContactId = (id: string | null) => !!id && (id === NEW_CONTACT_ID || !!p.contactsApi?.contacts.some(c => c.id === id));
-  const [tabRaw, setTabRaw] = useState<'people' | 'contacts'>(() => {
-    if (isContactId(p.quickViewId)) return 'contacts';
-    try { return sessionStorage.getItem(TAB_KEY) === 'contacts' ? 'contacts' : 'people'; } catch { return 'people'; }
-  });
-  // ‼ קישור ישיר למגירה פותח את הלשונית שלה, גם אם נבחרה אחרת: איש קשר ⇒ «אנשי קשר»,
-  //   לקוח/ליד (למשל הליד שנוצר בהפרדה) ⇒ «לקוחות ולידים».
-  const tab = !p.contactsApi ? 'people'
-    : isContactId(p.quickViewId) ? 'contacts'
-      : p.quickViewId ? 'people' : tabRaw;
-  const setTab = (t: 'people' | 'contacts') => {
-    setTabRaw(t);
-    try { sessionStorage.setItem(TAB_KEY, t); } catch { /* רק נוחות */ }
-    if (p.quickViewId) p.onQuickView(null);
-  };
-  // מגירה שנפתחה מקישור קובעת את הלשונית גם אחרי שנסגרת — לא קופצים חזרה ללשונית אחרת.
-  useEffect(() => {
-    if (tab === tabRaw) return;
-    setTabRaw(tab);
-    try { sessionStorage.setItem(TAB_KEY, tab); } catch { /* רק נוחות */ }
-  }, [tab, tabRaw]);
+  const [tabRaw, setTabRaw] = useState<PeopleTab>(() => (isContactId(p.quickViewId) ? 'contacts' : savedTab()));
   const [splitNames, setSplitNames] = useState<Record<string, string>>({});
   const [splitBusy, setSplitBusy] = useState<string | null>(null);
   const [chargeDialogFor, setChargeDialogFor] = useState<Client | null>(null);
@@ -136,11 +126,42 @@ export default function PersonDirectory(p: Props) {
     () => buildPersonRows(p.clients, p.leads, p.charges, p.meetingCues),
     [p.clients, p.leads, p.charges, p.meetingCues],
   );
-  const visible = useMemo(() => searchPersonRows(rows, query), [rows, query]);
   const selected = useMemo(
     () => (p.quickViewId ? rows.find(r => r.id === p.quickViewId) ?? null : null),
     [rows, p.quickViewId],
   );
+  const archivedRows = useMemo(() => rows.filter(r => r.hidden), [rows]);
+  // ‼ «אנשי קשר» ירדו מהמסך (גיא, 25.10.2026: «כרגע לא צריך»). הלשונית חוזרת רק אם
+  //   כבר נשמר איש קשר — כדי שלא יישאר מידע בלי דרך אליו.
+  const hasContacts = !!p.contactsApi && p.contactsApi.contacts.length > 0;
+
+  // ‼ קישור ישיר למגירה פותח את הלשונית שלה, גם אם נבחרה אחרת: איש קשר ⇒ «אנשי קשר»;
+  //   אדם בארכיון נשאר ב«ארכיון» אם משם הגיעו; כל אדם אחר ⇒ «פעילים».
+  const forcedTab: PeopleTab | null = isContactId(p.quickViewId) ? 'contacts'
+    : selected ? (selected.hidden && tabRaw !== 'people' ? 'archive' : 'people')
+      : null;
+  const wantedTab = forcedTab ?? tabRaw;
+  const tab: PeopleTab = wantedTab === 'archive' && archivedRows.length === 0 ? 'people'
+    : wantedTab === 'contacts' && !(p.contactsApi && (hasContacts || forcedTab === 'contacts')) ? 'people'
+      : wantedTab;
+  const setTab = (t: PeopleTab) => {
+    setTabRaw(t);
+    try { sessionStorage.setItem(TAB_KEY, t); } catch { /* רק נוחות */ }
+    if (p.quickViewId) p.onQuickView(null);
+  };
+  // מגירה שנפתחה מקישור קובעת את הלשונית גם אחרי שנסגרת — לא קופצים חזרה ללשונית אחרת.
+  // ‼ רק מגירה — לא הנפילה ל«פעילים» כשהארכיון עוד לא נטען, שהייתה מוחקת את הבחירה השמורה.
+  useEffect(() => {
+    if (!forcedTab || forcedTab === tabRaw) return;
+    setTabRaw(forcedTab);
+    try { sessionStorage.setItem(TAB_KEY, forcedTab); } catch { /* רק נוחות */ }
+  }, [forcedTab, tabRaw]);
+
+  const visible = useMemo(() => {
+    if (tab !== 'archive') return searchPersonRows(rows, query);
+    return query.trim() ? searchPersonRows(archivedRows, query) : archivedRows;
+  }, [tab, rows, archivedRows, query]);
+  const showTabs = archivedRows.length > 0 || tab === 'contacts' || hasContacts;
   const newSelfIntakeCount = useMemo(
     () => rows.filter(r => r.kind === 'lead' && r.lead?.source === 'self_intake' && r.lead.status === 'new').length,
     [rows],
@@ -396,14 +417,22 @@ export default function PersonDirectory(p: Props) {
         </div>
       </header>
 
-      {p.contactsApi && (
+      {/* ‼ אין ארכיון ואין אנשי קשר ⇒ אין לשוניות בכלל — לשונית יחידה היא רעש. */}
+      {showTabs && (
         <div className="pd-tabs" role="tablist" aria-label="מי ברשימה">
           <button type="button" role="tab" className="pd-tab" aria-selected={tab === 'people'} onClick={() => setTab('people')}>
-            לקוחות ולידים
+            פעילים <span className="pd-count">({rows.length - archivedRows.length})</span>
           </button>
-          <button type="button" role="tab" className="pd-tab" aria-selected={tab === 'contacts'} onClick={() => setTab('contacts')}>
-            אנשי קשר <span className="pd-count">({p.contactsApi.contacts.length})</span>
-          </button>
+          {archivedRows.length > 0 && (
+            <button type="button" role="tab" className="pd-tab" aria-selected={tab === 'archive'} onClick={() => setTab('archive')}>
+              ארכיון <span className="pd-count">({archivedRows.length})</span>
+            </button>
+          )}
+          {p.contactsApi && (hasContacts || tab === 'contacts') && (
+            <button type="button" role="tab" className="pd-tab" aria-selected={tab === 'contacts'} onClick={() => setTab('contacts')}>
+              אנשי קשר <span className="pd-count">({p.contactsApi.contacts.length})</span>
+            </button>
+          )}
         </div>
       )}
 
@@ -428,8 +457,8 @@ export default function PersonDirectory(p: Props) {
           onMovedToLead={p.onContactMovedToLead} />
       )}
 
-      {tab === 'people' && <>
-      {newSelfIntakeCount > 0 && (
+      {tab !== 'contacts' && <>
+      {tab === 'people' && newSelfIntakeCount > 0 && (
         <div className="pd-notice">
           {newSelfIntakeCount === 1
             ? 'התקבלה הגשה חדשה מקישור מילוי הפרטים - ממתינה לטיפול.'
@@ -438,7 +467,7 @@ export default function PersonDirectory(p: Props) {
       )}
 
       <div className="pd-listhead">
-        כל האנשים <span className="pd-count">({visible.length})</span>
+        {tab === 'archive' ? 'בארכיון' : 'כל האנשים'} <span className="pd-count">({visible.length})</span>
       </div>
 
       <div>
@@ -478,15 +507,17 @@ export default function PersonDirectory(p: Props) {
         ))}
       </div>
 
-      {visible.length === 0 && (
-        <div className="pd-empty">
-          <h3>לא מצאנו אדם מתאים</h3>
-          <p>אפשר להוסיף אדם חדש או לשלוח לו קישור למילוי פרטים.</p>
-        </div>
-      )}
+      {visible.length === 0 && (tab === 'archive'
+        ? <div className="pd-empty"><h3>לא מצאנו בארכיון</h3></div>
+        : (
+          <div className="pd-empty">
+            <h3>לא מצאנו אדם מתאים</h3>
+            <p>אפשר להוסיף אדם חדש או לשלוח לו קישור למילוי פרטים.</p>
+          </div>
+        ))}
       </>}
 
-      {tab === 'people' && selected && (() => {
+      {tab !== 'contacts' && selected && (() => {
         const content = quickViewContent(selected);
         return (
           <Sheet onClose={() => p.onQuickView(null)} ariaLabel="תצוגה מהירה">

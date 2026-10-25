@@ -10,7 +10,7 @@
 import { test, equal, assert, deepEqual } from '../../../testkit/tinyTest';
 import type { TestCase } from '../../../testkit/tinyTest';
 import {
-  autoKind, buildDirectory, defaultWho, guestsPayload, isCompanion, knownTag, newPersonFate, peopleFromPaste,
+  WHO_OPTIONS, autoKind, buildDirectory, defaultWho, guestsPayload, isCompanion, knownTag, newPersonFate, peopleFromPaste,
   peopleProblems, searchDirectory, type Person,
 } from '../peoplePicker';
 import { clashesWith, slotsOfDay } from '../DayStrip';
@@ -64,10 +64,13 @@ export const TESTS: TestCase[] = [
     equal(newPersonFate(withClient, 1, 'work'), 'יישמר כליד');
     equal(newPersonFate([known('david@x.com'), { email: 'b@x.com', name: '', who: 'none' }], 1, 'work'), 'לא יישמר — רק מוזמן');
   }),
-  test('«מי זה?» מוצע: ליד כשאין אף אחד או שהראשון ליד; איש מקצוע ליד לקוח', () => {
+  test('«מי זה?» מוצע: ליד כשאין אף אחד או שהראשון ליד; רק מוזמן ליד לקוח', () => {
     equal(defaultWho([]), 'lead');
     equal(defaultWho([known('avi@x.com')]), 'lead');
-    equal(defaultWho([known('david@x.com')]), 'contact');
+    equal(defaultWho([known('david@x.com')]), 'none');
+  }),
+  test('«איש מקצוע» אינו בבחירה — אין לשונית «אנשי קשר» שבה יופיע', () => {
+    deepEqual(WHO_OPTIONS.map(o => o.who), ['lead', 'none']);
   }),
   test('מה חסר: אף אחד; ליד או איש קשר בלי שם. «רק מוזמן» בלי שם — בסדר', () => {
     equal(peopleProblems([]).length, 1);
