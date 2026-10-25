@@ -146,6 +146,7 @@ import TestAlignmentStatus from './components/clientTabs/__TestAlignmentStatus';
 import TestTaxFileV6 from './components/clientTabs/__TestTaxFileV6';
 import TestFamilyStatusYear from './components/__TestFamilyStatusYear';
 import TestBtlSync from './components/authorities/__TestBtlSync';
+import TestVatSync from './components/authorities/__TestVatSync';
 import TestJourneyBall from './components/clientTabs/__TestJourneyBall';
 import TestPortalPreview from './components/clientTabs/__TestPortalPreview';
 import TestCaseComposer from './components/clientTabs/__TestCaseComposer';
@@ -464,6 +465,9 @@ export default function App() {
   }
   if (import.meta.env.DEV && typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('test-taxfile')) {
     return <TestTaxFileV6 />;
+  }
+  if (import.meta.env.DEV && typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('test-vat-sync')) {
+    return <TestVatSync />;
   }
   if (import.meta.env.DEV && typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('test-btl-sync')) {
     return <TestBtlSync />;

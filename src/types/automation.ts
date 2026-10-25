@@ -171,6 +171,10 @@ export const SHAAM_OPEN_INCOME_TAX_ACTION_TYPE = 'shaam.open_income_tax';
 export const SHAAM_OPEN_CLIENT_FILE_ACTION_TYPE = 'shaam.open_client_file';
 /** «קרא משע״ם» — שאילתה 154 (ו-134 כשיש מקדמות פעילות): ראש התיק, יתרה, שנות מס והצהרת הון. */
 export const SHAAM_SYNC_INCOME_TAX_ACTION_TYPE = 'shaam.sync_income_tax_file';
+/** «קריאת תיק מע״מ מהשע״ם» — «פרטי עוסק» במערכת הגבייה של מע״מ (שלוש לשוניות). */
+export const SHAAM_SYNC_VAT_ACTION_TYPE = 'shaam.sync_vat_file';
+/** ‼ שם אחד לכפתור בכרטיס ולעמוד האוטומציות. לא פעולת מסלול (FLOW_ACTIONS). */
+export const SHAAM_SYNC_VAT_ACTION_NAME = 'קריאת תיק מע״מ מהשע״ם';
 /** «עדכן נתונים מביטוח לאומי» — קריאת תיק המבוטח לכל אדם (קריאה בלבד). */
 export const BTL_SYNC_FILE_ACTION_TYPE = 'btl.sync_file';
 /** 168: שחזור נקודתי — "הכן רק capability X", לא warm-up מלא. ראה פרק 16 §16.1. */

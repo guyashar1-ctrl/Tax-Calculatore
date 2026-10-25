@@ -56,8 +56,8 @@ export const TESTS: TestCase[] = [
       equal(r.trigger.length > 5, true, `${r.id} trigger`);
       equal(r.effect.length > 5, true, `${r.id} effect`);
     }
-    // מע״מ — עדיין אין פעולה; לא שורה ברשימה
-    equal(rows.some(r => r.id === 'vat-read'), false);
+    // מע״מ — קריאת «פרטי עוסק» היא שורה כמו כל פעולת קריאה
+    equal(rows.some(r => r.id === 'vat-read'), true);
     equal(rows.filter(r => r.group === 'authority').length, AUTOMATION_ACTIONS.filter(a => a.actionType).length);
   }),
 
@@ -299,7 +299,7 @@ export const TESTS: TestCase[] = [
     deepEqual(resolveAutomationFocus('shaam-sync', known), { row: 'shaam-sync' });
     deepEqual(resolveAutomationFocus('onboarding', known), { row: 'intake' });
     deepEqual(resolveAutomationFocus('authority', known), { group: 'authority' });
-    equal(resolveAutomationFocus('vat-read', known), null, 'מע״מ אינו שורה');
+    deepEqual(resolveAutomationFocus('vat-read', known), { row: 'vat-read' });
     equal(resolveAutomationFocus(null, known), null);
   }),
   // ── סבב תיקונים 4.10 ────────────────────────────────────────────────────

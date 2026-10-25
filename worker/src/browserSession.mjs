@@ -321,6 +321,13 @@ export const GMF_PATH = '/gmf-main-menu';
 // כלומר הסיסמה לבדה אינה ניתנת לשימוש עם זהות אחרת כאן.
 export const VAT_URL = 'https://shaam.taxes.gov.il/emhanmainmenu';
 export const VAT_PATH = '/emhanmainmenu';
+/**
+ * ‼ כל מסך של מערכת הגבייה של מע״מ: התפריט, וגם «פרטי עוסק» שיושב תחת
+ * /EMHANOSEK/ (באותו סשן; נצפה 25.10.2026). בלי זה לשונית שעומדת על פרטי
+ * עוסק נחשבה «לא במע״מ», והבדיקה ניווטה לשונית **שנייה** לתפריט — וזו
+ * מערכת חד-סשן.
+ */
+export const VAT_ANY_PATH = /^\/(emhanmainmenu|emhanosek)\//i;
 
 /**
  * מחזיר לשונית שכבר עומדת על המערכת במצב שמיש — ואם יש כזו, לא מנווטים.
@@ -335,7 +342,7 @@ async function reuseOpenSystemPage(context, pathPrefix, evaluate) {
   for (const p of context.pages()) {
     let path;
     try { path = new URL(p.url()).pathname; } catch { continue; }
-    if (!path.startsWith(pathPrefix)) continue;
+    if (pathPrefix instanceof RegExp ? !pathPrefix.test(path) : !path.startsWith(pathPrefix)) continue;
     let s;
     try { s = await snapPage(p); } catch { continue; }
     const verdict = evaluate(s);
@@ -349,21 +356,21 @@ async function reuseOpenSystemPage(context, pathPrefix, evaluate) {
 /** קריאה זולה, בלי ניווט: רק אם הדף כבר עומד על מע״מ. */
 export async function readVatOnCurrentPage(page) {
   const s = await snapPage(page);
-  if (!s.pathname.startsWith(VAT_PATH)) return { onVat: false, ready: null };
+  if (!VAT_ANY_PATH.test(s.pathname)) return { onVat: false, ready: null };
   return { onVat: true, ready: !s.hasPasswordField, pathname: s.pathname };
 }
 
 // ‼ במע״מ הכתובת אינה משתנה בין מחובר ללא־מחובר (WebForms, action="./"),
 // ולכן שדה הסיסמה הוא הסימן היחיד. נצפה בפועל.
 const vatState = (s) => {
-  if (!s.pathname.startsWith(VAT_PATH)) return { ready: false, reason: 'unexpected_destination' };
+  if (!VAT_ANY_PATH.test(s.pathname)) return { ready: false, reason: 'unexpected_destination' };
   if (s.hasPasswordField) return { ready: false, reason: 'login_required' };
   return { ready: true, reason: 'menu' };
 };
 
 /** מנווט למע״מ ומחזיר את מצבה אחרי התייצבות. משאיר את הדפדפן שם. */
 export async function openVatAndCheck(page) {
-  const reused = await reuseOpenSystemPage(page.context(), VAT_PATH, vatState);
+  const reused = await reuseOpenSystemPage(page.context(), VAT_ANY_PATH, vatState);
   if (reused) return reused;
   await page.goto(VAT_URL, { waitUntil: 'domcontentloaded', timeout: 25000 }).catch(() => {});
   const s = await settlePage(page);

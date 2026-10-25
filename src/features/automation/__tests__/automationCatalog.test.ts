@@ -22,7 +22,7 @@ const job = (p: Partial<AutomationJob>): AutomationJob => ({
 
 // מה שהעובד יודע להריץ (worker/src/dispatcher.mjs) — רשימה סגורה, מועתקת במכוון.
 const WORKER_HANDLERS = new Set([
-  'shaam.sync_income_tax_file', 'shaam.create_representation', 'shaam.submit_poa', 'shaam.check_representation',
+  'shaam.sync_income_tax_file', 'shaam.sync_vat_file', 'shaam.create_representation', 'shaam.submit_poa', 'shaam.check_representation',
   'btl.sync_file', 'btl.create_representation', 'btl.check_representation',
 ]);
 
@@ -35,11 +35,12 @@ export const TESTS: TestCase[] = [
     excludes(AUTOMATION_ACTION_TYPES, 'shaam.open_client_file');
   }),
 
-  test('מע״מ מוצג כ«עוד לא קיים» — בלי action_type ובלי הבטחה', () => {
+  test('מע״מ: קריאת «פרטי עוסק» בלחיצה, קריאה בלבד, נוחתת בכרטיס מע״מ', () => {
     const vat = AUTOMATION_ACTIONS.find(a => a.system === 'vat')!;
-    equal(vat.actionType, null);
-    equal(vat.mode, 'עוד לא קיים');
-    equal(vat.manual, null);
+    equal(vat.actionType, 'shaam.sync_vat_file');
+    equal(vat.effect, 'read');
+    equal(vat.automatic, null);
+    equal(vat.clientTarget, 'taxfile:vat');
   }),
 
   test('«לבד» רק איפה שיש מנגנון בשרת: בדיקה אחרי שליחה, והמשך שליחה כשמסמך הגיע', () => {

@@ -16,10 +16,12 @@
 import type { Client, NiIncomeEntry, NiIncomeList, NiInsuranceBasis, NiOccupation, PersonRole, TaxAuthority } from '../../types';
 import { NI_FACT_KEYS } from '../../types';
 import type { AutomationJob } from '../../types/automation';
-import { SHAAM_SYNC_INCOME_TAX_ACTION_TYPE, BTL_SYNC_FILE_ACTION_TYPE } from '../../types/automation';
+import {
+  SHAAM_SYNC_INCOME_TAX_ACTION_TYPE, BTL_SYNC_FILE_ACTION_TYPE, SHAAM_SYNC_VAT_ACTION_TYPE, SHAAM_SYNC_VAT_ACTION_NAME,
+} from '../../types/automation';
 import { FLOW_ACTION_NAMES } from '../flows/types';
 import { SHAAM_READ_134, SHAAM_READ_VAT, BTL_READ_FILE } from '../../hooks/shaamReadiness';
-import { EDIT_FIELD_BY_KEY, editFieldValue } from './editModel';
+import { EDIT_FIELD_BY_KEY, editFieldValue, cardDealerKind } from './editModel';
 import { incomeTaxFileType } from '../../data/incomeTaxFileTypes';
 import { niPersons, niEditable } from '../../utils/niPersons';
 import { incomeTaxFileInput } from './incomeTaxFileInput';
@@ -877,6 +879,129 @@ function interpretBtlFile(
   return out;
 }
 
+// ─── מע״מ — «פרטי עוסק» במערכת הגבייה ─────────────────────────────────────
+
+/** ערך מנורמל לשדה מע״מ. null ⇒ הטקסט לא ממופה — מוצג כלשונו, בלי הצעה. */
+type VatValue = { value: string; display: string; patch?: unknown } | null;
+
+/**
+ * מפתח השדה בכרטיס ⇄ מה שהעובד החזיר. ‼ כל צורה כאן נצפתה חי (25.10.2026,
+ * חמישה עוסקים); טקסט אחר לא ממופה, ועדיף לא להציע מאשר לנחש.
+ */
+export const VAT_FIELD_SOURCES: Record<string, { sources: string[]; map: (f: Record<string, string>) => VatValue }> = {
+  // «52 - עוסק מורשה,נמנה על» / «48 - עוסק מורשה». הערך הנשמר הוא התווית
+  // שבאפשרויות של השדה (editModel), ולכן ממפים לפי המילים ולא לפי הקוד.
+  vatFileType: {
+    sources: ['fileType'],
+    map: (f) => {
+      const t = f.fileType.replace(/\s+/g, ' ');
+      const value = /עוסק מורשה/.test(t) ? 'עוסק מורשה' : /עוסק פטור/.test(t) ? 'עוסק פטור' : null;
+      return value ? { value, display: t } : null;
+    },
+  },
+  // «12/05/2026» ⇒ 2026-05-12.
+  vatOpeningDate: {
+    sources: ['openingDate'],
+    map: (f) => {
+      const m = f.openingDate.trim().match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+      return m ? { value: `${m[3]}-${m[2]}-${m[1]}`, display: f.openingDate.trim() } : null;
+    },
+  },
+  // «6921 - ראיית חשבון» — נשמר כמו ששע״ם מציגה (שדה טקסט חופשי).
+  vatPrimaryIndustry: {
+    sources: ['primaryIndustry'],
+    map: (f) => ({ value: f.primaryIndustry.trim(), display: f.primaryIndustry.trim() }),
+  },
+  // «דו חודשי» / «לא חייב» נצפו. ‼ «לא חייב» הוא ניקוי השדה (null): לטיפוס
+  // יש רק חודשי/דו-חודשי, ואין בו ערך «אין» להמציא.
+  vatFrequency: {
+    sources: ['reportingFrequency'],
+    map: (f) => {
+      const t = f.reportingFrequency.replace(/[\s-]+/g, ' ').trim();
+      if (t === 'דו חודשי') return { value: 'bi_monthly', display: 'דו-חודשי' };
+      if (t === 'חודשי') return { value: 'monthly', display: 'חודשי' };
+      if (t === 'לא חייב') return { value: '', display: 'לא חייב בדיווח תקופתי', patch: null };
+      return null;
+    },
+  },
+  // «08/2026» — התקופה האחרונה שהוגש עליה דוח, כמו ששע״ם מציגה.
+  vatLastReportPeriod: {
+    sources: ['lastReport'],
+    map: (f) => (/^\d{2}\/\d{4}$/.test(f.lastReport.trim())
+      ? { value: f.lastReport.trim(), display: f.lastReport.trim() } : null),
+  },
+  // ‼ «סך יתרות חוב» פחות «סך יתרות זכות» — בלי לנחש את הסימן של «סך יתרה»
+  // (בכל מה שנצפה כולם היו 0). חיובי=חוב, כמו balanceText. «סך יתרה» משמש
+  // רק לאימות: ערך מוחלט שונה ⇒ לא מציעים.
+  vatBalance: {
+    sources: ['balanceDebit', 'balanceCredit'],
+    map: (f) => {
+      const debit = mapBalance(f.balanceDebit);
+      const credit = mapBalance(f.balanceCredit);
+      if (debit === null || credit === null) return null;
+      const n = Math.abs(Number(debit)) - Math.abs(Number(credit));
+      const total = f.balanceTotal ? mapBalance(f.balanceTotal) : null;
+      if (total !== null && Math.abs(Number(total)) !== Math.abs(n)) return null;
+      const display = n === 0 ? '0' : `${Math.abs(n).toLocaleString('he-IL')} ₪ ${n > 0 ? 'חוב' : 'זכות'}`;
+      return { value: String(n), display };
+    },
+  },
+  // «קיימת הרשאה פעילה-מאומתת» / «לא קיימת הרשאה פעילה» (לשונית «מידע נוסף»).
+  vatDebitAuthorization: {
+    sources: ['debitAuthorization'],
+    map: (f) => {
+      const t = f.debitAuthorization.replace(/\s+/g, ' ').trim();
+      if (/^לא קיימת הרשאה/.test(t)) return { value: 'false', display: 'אין הרשאה' };
+      if (/^קיימת הרשאה פעילה/.test(t)) return { value: 'true', display: t };
+      return null;
+    },
+  },
+};
+
+/**
+ * מספר העוסק: מה שרשום בתיק המע״מ של הכרטיס. ‼ בלעדיו — ת.ז., ורק לעוסק
+ * יחיד (מורשה/פטור): אצלו מספר העוסק הוא מספר הזהות. לחברה אין ניחוש.
+ */
+export function vatOsekInput(client: Client): { osekNumber: string } | { blocked: string } {
+  const digits = (s: string | undefined) => (s ?? '').replace(/\D/g, '');
+  const files = (client.taxFiles ?? []).filter(t => t.authority === 'vat');
+  const explicit = digits((files.find(t => t.owner === 'client') ?? files[0])?.fileNumber);
+  if (explicit) return { osekNumber: explicit };
+  const kind = cardDealerKind(client);
+  if ((kind === 'licensed' || kind === 'exempt') && digits(client.idNumber)) return { osekNumber: digits(client.idNumber) };
+  return { blocked: 'אין מספר עוסק בכרטיס — ממלאים אותו בשורת «מספר עוסק» ואז קוראים משע״ם.' };
+}
+
+function interpretShaamVat(
+  job: AutomationJob | null, client: Client, supportedKeys: readonly string[],
+): AuthorityFieldResult[] {
+  const fields = job?.status === 'succeeded'
+    ? (job.result as { fields?: Record<string, string> } | undefined)?.fields
+    : undefined;
+  return supportedKeys.map((fieldKey) => {
+    const spec = VAT_FIELD_SOURCES[fieldKey];
+    const label = EDIT_FIELD_BY_KEY[fieldKey]?.label ?? fieldKey;
+    const currentValue = currentRaw(client, fieldKey);
+    if (!spec || !fields) return { fieldKey, label, status: 'unsupported', currentValue };
+    if (spec.sources.some(s => !(fields[s] ?? '').trim())) {
+      return { fieldKey, label, status: 'failed', currentValue, error: 'שע״ם לא החזירה ערך לשדה הזה.' };
+    }
+    const authorityRaw = spec.sources.map(s => fields[s].trim()).join(' · ');
+    const mapped = spec.map(fields);
+    if (!mapped) {
+      return { fieldKey, label, status: 'failed', currentValue, authorityRaw, error: 'הערך לא ניתן למיפוי אוטומטי — יש להזין ידנית.' };
+    }
+    const same = mapped.value === currentValue.trim()
+      // ‼ «0» מול 0 בתיק, או 1,200 מול 1200 — אותו מספר.
+      || (fieldKey === 'vatBalance' && currentValue.trim() !== '' && Number(currentValue) === Number(mapped.value));
+    return {
+      fieldKey, label, status: same ? 'match' : 'changed', currentValue, authorityRaw,
+      authorityValue: mapped.value, authorityDisplay: mapped.display,
+      patchValue: 'patch' in mapped ? mapped.patch : undefined,
+    };
+  });
+}
+
 /**
  * ‼ הרשומה לכל רשות — מקום אחד. רשות שאינה כאן אינה מקבלת פקד בכותרת
  * (אין מה להריץ ואין מה להבטיח). ב״ל רשומה עם available:false בכוונה:
@@ -907,26 +1032,22 @@ export const AUTHORITY_AUTOMATION: Partial<Record<TaxAuthority, AuthorityAutomat
     },
   },
   // ─── מע״מ ──────────────────────────────────────────────────────────────────
-  // ‼ מצב אמיתי (3.9.2026): המשטח המאומת של מע״מ (`/emhanmainmenu`) נגיש
-  // לצופה — הוא מנווט אליו ומדווח מוכנות — אבל **תפריט ראשי בלבד**. אין
-  // handler קריאה (`worker/src/handlers/` מכיל שע״ם-134 ו-btl.connect/disconnect
-  // בלבד), אין מסך תיק עוסק שנצפה, ואין ולו עוגן שדה אחד מוכח. אפס משימות
-  // קריאה למע״מ רצו אי פעם.
-  //
-  // ‼ ולכן `available:false` ו-`supportedFieldKeys` ריק — לא כפתור שמבטיח
-  // קריאה שאין. ברגע שייבנה ה-handler, החיבור כאן הוא הצהרה: actionType,
-  // supportedFieldKeys, ו-interpret. שום שינוי במסך.
+  // ‼ shaam.sync_vat_file (worker/src/handlers/shaamSyncVatFile.mjs) קורא את
+  // «פרטי עוסק» במערכת הגבייה של מע״מ — שלוש לשוניות, נצפו חי 25.10.2026.
   vat: {
     authority: 'vat',
-    actionLabel: 'קריאת תיק מע״מ מהשע״ם',
+    actionLabel: SHAAM_SYNC_VAT_ACTION_NAME,
     sourceLabel: 'שע״ם',
-    available: false,
+    available: true,
+    actionType: SHAAM_SYNC_VAT_ACTION_TYPE,
     capability: SHAAM_READ_VAT,
     sourceRef: 'shaam-vat',
-    supportedFieldKeys: new Set<string>(),
-    unavailableReason:
-      'קריאה אוטומטית ממע״מ עדיין לא נבנתה: מערכת הגבייה נגישה לצופה בתפריט הראשי, '
-      + 'אבל אין עדיין מסך תיק עוסק שנצפה ואין עוגני שדה מוכחים.',
+    supportedFieldKeys: new Set(Object.keys(VAT_FIELD_SOURCES)),
+    buildInput: (client) => {
+      const res = vatOsekInput(client);
+      return 'osekNumber' in res ? { input: { osekNumber: res.osekNumber } } : res;
+    },
+    interpret: interpretShaamVat,
   },
 
   // ─── ביטוח לאומי ───────────────────────────────────────────────────────────

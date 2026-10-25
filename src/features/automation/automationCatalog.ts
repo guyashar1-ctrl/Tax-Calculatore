@@ -18,7 +18,7 @@ import type { AutomationJob } from '../../types/automation';
 import {
   SHAAM_SYNC_INCOME_TAX_ACTION_TYPE, SHAAM_CREATE_REPRESENTATION_ACTION_TYPE, SHAAM_SUBMIT_POA_ACTION_TYPE,
   SHAAM_CHECK_REPRESENTATION_ACTION_TYPE, BTL_SYNC_FILE_ACTION_TYPE, BTL_CREATE_REPRESENTATION_ACTION_TYPE,
-  BTL_CHECK_REPRESENTATION_ACTION_TYPE,
+  BTL_CHECK_REPRESENTATION_ACTION_TYPE, SHAAM_SYNC_VAT_ACTION_TYPE, SHAAM_SYNC_VAT_ACTION_NAME,
 } from '../../types/automation';
 import { FLOW_ACTION_NAMES } from '../flows/types';
 
@@ -76,7 +76,7 @@ export interface AutomationAction {
  * בתיק המס (שם תוצאת הקריאה והכפתור לקרוא שוב), מרכז הייצוג (הזנה, הגשה, בדיקת
  * קבלה), או המייל עצמו ב«פעילות». המעטפת (App) היא שמממשת את הנחיתה.
  */
-export type ClientTarget = 'taxfile:income_tax' | 'taxfile:national_insurance' | 'rep-center' | `log:${string}`;
+export type ClientTarget = 'taxfile:income_tax' | 'taxfile:vat' | 'taxfile:national_insurance' | 'rep-center' | `log:${string}`;
 
 const NEEDS_WORKER = 'מחשב עבודה פעיל, ו-PIVO פתוח בו';
 const NEEDS_SHAAM = 'חיבור לשע״ם (כפתור «שע״ם» בכותרת — כרטיס חכם וקוד). בלי חיבור, הלחיצה פותחת את ההתחברות וממשיכה כשהיא מוכנה';
@@ -140,17 +140,17 @@ export const AUTOMATION_ACTIONS: AutomationAction[] = [
     clientTab: 'journey', clientTarget: 'rep-center',
   },
   {
-    id: 'vat-read', system: 'vat', actionType: null,
-    name: 'קריאת תיק מע״מ או ניכויים',
-    short: 'אין עדיין פעולה במערכות האלה.',
-    effect: 'none', mode: 'עוד לא קיים', modeAuto: false,
-    trigger: 'עוד לא קיים',
-    what: 'החיבור לשע״ם מכין גם את מערכות מע״מ ומגן (ניכויים), אבל אין עדיין פעולה שקוראת או מבצעת בהן. ייפוי כוח למע״מ ולניכויים עובר ב«הזנת ייפוי כוח בשע״ם».',
-    manual: null,
+    id: 'vat-read', system: 'vat', actionType: SHAAM_SYNC_VAT_ACTION_TYPE,
+    name: SHAAM_SYNC_VAT_ACTION_NAME,
+    short: 'קורא את «פרטי עוסק» במע״מ — סוג תיק, פתיחה, ענף, תדירות, דוח אחרון, יתרה והרשאה — ומשווה לכרטיס.',
+    effect: 'read', mode: 'בלחיצה', modeAuto: false,
+    trigger: 'בלחיצה, בלשונית «תיק מס» של הלקוח',
+    what: 'נכנס ל«פרטי עוסק» במערכת הגבייה של מע״מ וקורא שלוש לשוניות: פרטי רישום, מאפייני דיווח ומידע נוסף. לא משנה דבר בשע״ם, ולא כותב לכרטיס לבד. בניכויים (מגן) — עדיין אין פעולה.',
+    manual: `«${SHAAM_SYNC_VAT_ACTION_NAME}» בכרטיס מע״מ, בלשונית «תיק מס» של הלקוח.`,
     automatic: null,
-    needs: [],
-    results: 'בכרטיס מע״מ בלשונית «תיק מס» — הכפתור מסומן «עוד לא נבנה».',
-    clientTab: 'taxfile',
+    needs: [NEEDS_WORKER, NEEDS_SHAAM, 'מספר עוסק בכרטיס (לעוסק יחיד — ת.ז. מספיקה)'],
+    results: 'בלשונית «תיק מס», בכרטיס מע״מ: כל שדה מול מה שבשע״ם — שינוי נכנס לכרטיס רק כשמאשרים אותו.',
+    clientTab: 'taxfile', clientTarget: 'taxfile:vat',
   },
   {
     id: 'btl-sync', system: 'btl', actionType: BTL_SYNC_FILE_ACTION_TYPE,
@@ -281,6 +281,7 @@ function succeeded(job: AutomationJob): Omit<RunSummary, 'auto'> {
         ? { label: 'הוזן — התקבלה אסמכתא', tone: 'ok' }
         : { label: 'הסתיימה', tone: 'muted' };
     case SHAAM_SYNC_INCOME_TAX_ACTION_TYPE:
+    case SHAAM_SYNC_VAT_ACTION_TYPE:
     case BTL_SYNC_FILE_ACTION_TYPE:
       return { label: 'הנתונים נקראו', tone: 'ok', note: 'שינויים נכנסים לכרטיס רק באישור.' };
     default:
