@@ -61,7 +61,7 @@ import { useFirmProfile } from './hooks/useFirmProfile';
 import { useMeetings } from './features/meetings/useMeetings';
 import MeetingDialog, { type MeetingDialogMode } from './features/meetings/MeetingDialog';
 import UpcomingMeetings from './features/meetings/UpcomingMeetings';
-import CalendarPage from './features/meetings/CalendarPage';
+const CalendarPage = lazy(() => import('./features/meetings/CalendarPage'));
 import { meetingCueByPerson, upcomingMeetings, meetingWhen } from './features/meetings/meetingModel';
 import { useFailedNotifications } from './hooks/useFailedNotifications';
 import { useLivePulse } from './hooks/useLivePulse';
@@ -69,9 +69,10 @@ import { useLeads } from './hooks/useLeads';
 import { useQuotations } from './hooks/useQuotations';
 import { useCharges } from './hooks/useCharges';
 import { useQuotationCatalog } from './hooks/useQuotationCatalog';
-import QuotationsPipeline from './components/quotations/QuotationsPipeline';
+const QuotationsPipeline = lazy(() => import('./components/quotations/QuotationsPipeline'));
 import LeadsPanel, { LeadForm } from './components/quotations/LeadsPanel';
-import QuotationBuilder, { type SaveDraftPayload } from './components/quotations/QuotationBuilder';
+import type { SaveDraftPayload } from './components/quotations/QuotationBuilder';
+const QuotationBuilder = lazy(() => import('./components/quotations/QuotationBuilder'));
 import ReleaseLetterDialog from './components/quotations/ReleaseLetterDialog';
 import { RELEASE_MATERIALS, readReleaseDraft, releaseTemplateFrom } from './utils/releaseLetter';
 import { unfiledBlocking } from './types/onboarding';
@@ -83,28 +84,28 @@ import { useContacts } from './features/contacts/useContacts';
 import { deriveQuotationBrand } from './components/quotations/quotationBranding';
 import { calcTotals } from './utils/quotationCalc';
 import { buildQuotationEmailHtml } from './utils/quotationEmailHtml';
-import { generateQuotationPdf } from './utils/quotationPdf';
 import type { Lead, Quotation, QuotationKind } from './types/quotations';
-import FirmProfileConsole from './components/FirmProfileConsole';
+const FirmProfileConsole = lazy(() => import('./components/FirmProfileConsole'));
 import type { FirmProfile } from './types/firmProfile';
 import { SAMPLE_CLIENTS } from './data/sampleClients';
 import type { ClientSaveMeta } from './hooks/useClients';
 import { SAMPLE_TASKS } from './data/sampleTasks';
 import ClientList from './components/ClientList';
-import PersonDirectory from './components/PersonDirectory';
-import ClientWorkspace, { type TabId as ClientTabId } from './components/ClientWorkspace';
+const PersonDirectory = lazy(() => import('./components/PersonDirectory'));
+import type { TabId as ClientTabId } from './components/ClientWorkspace';
+const ClientWorkspace = lazy(() => import('./components/ClientWorkspace'));
 import { unseenUploadsByClient } from './utils/prevAccountantInbox';
 import { useOnboarding } from './hooks/useOnboarding';
 import EmailPreviewDialog from './components/EmailActivity/EmailPreviewDialog';
-import TaxCalculator from './components/TaxCalculator';
-import DocumentManager from './components/DocumentManager';
+const TaxCalculator = lazy(() => import('./components/TaxCalculator'));
+const DocumentManager = lazy(() => import('./components/DocumentManager'));
 import { enrichClientsWithWorkspace } from './data/sampleClientWorkspace';
 // ‼ ידע המס נטען רק כשנכנסים אליו: הקטלוגים והשיעורים (כ-750KB) לא יושבים בחבילה שכל מסך טוען.
 const TaxArea = lazy(() => import('./features/taxArea/TaxArea'));
 import { buildQuarterlyFreshnessTask, markFreshnessCreationAttempted, quarterlyTaskExists } from './data/freshnessTask';
-import RepresentationRequestForm from './components/RepresentationRequestForm';
-import RepresentationFillForm from './components/RepresentationFillForm';
-import RepresentationRequestReview from './components/RepresentationRequestReview';
+const RepresentationRequestForm = lazy(() => import('./components/RepresentationRequestForm'));
+const RepresentationFillForm = lazy(() => import('./components/RepresentationFillForm'));
+const RepresentationRequestReview = lazy(() => import('./components/RepresentationRequestReview'));
 // TaskBoard.tsx (הלוח הישן, קיבוץ new/in_progress/done) הוחלף ב-M3 ב-TasksWorkspace
 // (שלושת הדליים הקנוניים: לטיפולי/ממתין לאחרים/הושלמו). הקובץ הישן נשאר ללא
 // ייבוא — קוד מת שממתין לניקוי.
@@ -112,7 +113,7 @@ import RepresentationRequestReview from './components/RepresentationRequestRevie
 // ל-DocumentsWorkspace, אבל מסך המסמכים הגלובלי (view === 'documents') עדיין
 // מרנדר אותו. אל תמחק אותו בהסתמך על ההערה הזו.
 import TasksWorkspace from './components/TasksWorkspace';
-import VisionPage from './components/VisionPage';
+const VisionPage = lazy(() => import('./components/VisionPage'));
 import { visionClients } from './components/visionOffice';
 import TaskForm from './components/TaskForm';
 import LoginScreen from './components/LoginScreen';
@@ -122,57 +123,57 @@ import RepresentationOnboardingDialog, { CreateRepresentationInput } from './com
 import SpouseToClientDialog from './components/clientTabs/SpouseToClientDialog';
 import { spouseDisplayName } from './features/annualReport/profile';
 import { withLegacyMirror } from './utils/repDocuments';
-import OnboardingPage from './components/OnboardingPage';
-import SpouseFillPage from './components/SpouseFillPage';
-import PublicIntakePage from './components/PublicIntakePage';
-import PublicPortalPage from './components/PublicPortalPage';
-import PublicReleasePage from './components/PublicReleasePage';
-import PublicQuotationPage from './components/PublicQuotationPage';
-import PublicParticipantPage from './components/PublicParticipantPage';
-import PublicApplyPage from './components/PublicApplyPage';
-import TestSignaturePage from './components/signatureRequest/__TestSignaturePage';
-import TestSigningRoom from './components/signatureRequest/__TestSigningRoom';
-import TestExecutionCenter from './components/signatureRequest/__TestExecutionCenter';
-import TestIdentityFlexPicker from './features/identity/__TestIdentityFlexPicker';
-import TestRepDocs from './components/signatureRequest/__TestRepDocs';
-import TestPoaReadiness from './components/signatureRequest/__TestPoaReadiness';
-import TestOnboarding from './components/clientTabs/__TestOnboarding';
-import TestJourney from './components/clientTabs/__TestJourney';
-import TestRequests from './components/clientTabs/__TestRequests';
-import DemoHub from './components/__DemoHub';
-import FlowsDemo from './prototypes/flows/FlowsDemo';
-import TestInstitutions from './components/clientTabs/__TestInstitutions';
-import TestAlignmentStatus from './components/clientTabs/__TestAlignmentStatus';
-import TestTaxFileV6 from './components/clientTabs/__TestTaxFileV6';
-import TestFamilyStatusYear from './components/__TestFamilyStatusYear';
-import TestBtlSync from './components/authorities/__TestBtlSync';
-import TestVatSync from './components/authorities/__TestVatSync';
-import TestJourneyBall from './components/clientTabs/__TestJourneyBall';
-import TestPortalPreview from './components/clientTabs/__TestPortalPreview';
-import TestCaseComposer from './components/clientTabs/__TestCaseComposer';
-import TestQuotations from './components/__TestQuotations';
-import TestDeferred from './components/quotations/__TestDeferred';
-import TestAgreement from './components/clientTabs/__TestAgreement';
-import TestBuilder from './components/quotations/__TestBuilder';
-import TestSignDone from './components/ui/__TestSignDone';
-import TestFirmNotifications from './components/__TestFirmNotifications';
-import TestRepresentationSettings from './components/__TestRepresentationSettings';
-import TestRepDialog from './components/__TestRepDialog';
-import TestStartRepresentation from './components/__TestStartRepresentation';
-import TestSpouseLink from './components/__TestSpouseLink';
-import TestAddRequestDialog from './components/__TestAddRequestDialog';
-import TestRegisteredSpouse from './components/__TestRegisteredSpouse';
-import TestPoaStamp from './components/__TestPoaStamp';
-import TestLinkedScreens from './components/linkedScreens/__TestLinkedScreens';
-import TestShaamRepresentation from './components/__TestShaamRepresentation';
-import PublicSignPage from './components/PublicSignPage';
-import PublicSmartFormSignPage from './features/smartForms/PublicSmartFormSignPage';
+const OnboardingPage = lazy(() => import('./components/OnboardingPage'));
+const SpouseFillPage = lazy(() => import('./components/SpouseFillPage'));
+const PublicIntakePage = lazy(() => import('./components/PublicIntakePage'));
+const PublicPortalPage = lazy(() => import('./components/PublicPortalPage'));
+const PublicReleasePage = lazy(() => import('./components/PublicReleasePage'));
+const PublicQuotationPage = lazy(() => import('./components/PublicQuotationPage'));
+const PublicParticipantPage = lazy(() => import('./components/PublicParticipantPage'));
+const PublicApplyPage = lazy(() => import('./components/PublicApplyPage'));
+const TestSignaturePage = lazy(() => import('./components/signatureRequest/__TestSignaturePage'));
+const TestSigningRoom = lazy(() => import('./components/signatureRequest/__TestSigningRoom'));
+const TestExecutionCenter = lazy(() => import('./components/signatureRequest/__TestExecutionCenter'));
+const TestIdentityFlexPicker = lazy(() => import('./features/identity/__TestIdentityFlexPicker'));
+const TestRepDocs = lazy(() => import('./components/signatureRequest/__TestRepDocs'));
+const TestPoaReadiness = lazy(() => import('./components/signatureRequest/__TestPoaReadiness'));
+const TestOnboarding = lazy(() => import('./components/clientTabs/__TestOnboarding'));
+const TestJourney = lazy(() => import('./components/clientTabs/__TestJourney'));
+const TestRequests = lazy(() => import('./components/clientTabs/__TestRequests'));
+const DemoHub = lazy(() => import('./components/__DemoHub'));
+const FlowsDemo = lazy(() => import('./prototypes/flows/FlowsDemo'));
+const TestInstitutions = lazy(() => import('./components/clientTabs/__TestInstitutions'));
+const TestAlignmentStatus = lazy(() => import('./components/clientTabs/__TestAlignmentStatus'));
+const TestTaxFileV6 = lazy(() => import('./components/clientTabs/__TestTaxFileV6'));
+const TestFamilyStatusYear = lazy(() => import('./components/__TestFamilyStatusYear'));
+const TestBtlSync = lazy(() => import('./components/authorities/__TestBtlSync'));
+const TestVatSync = lazy(() => import('./components/authorities/__TestVatSync'));
+const TestJourneyBall = lazy(() => import('./components/clientTabs/__TestJourneyBall'));
+const TestPortalPreview = lazy(() => import('./components/clientTabs/__TestPortalPreview'));
+const TestCaseComposer = lazy(() => import('./components/clientTabs/__TestCaseComposer'));
+const TestQuotations = lazy(() => import('./components/__TestQuotations'));
+const TestDeferred = lazy(() => import('./components/quotations/__TestDeferred'));
+const TestAgreement = lazy(() => import('./components/clientTabs/__TestAgreement'));
+const TestBuilder = lazy(() => import('./components/quotations/__TestBuilder'));
+const TestSignDone = lazy(() => import('./components/ui/__TestSignDone'));
+const TestFirmNotifications = lazy(() => import('./components/__TestFirmNotifications'));
+const TestRepresentationSettings = lazy(() => import('./components/__TestRepresentationSettings'));
+const TestRepDialog = lazy(() => import('./components/__TestRepDialog'));
+const TestStartRepresentation = lazy(() => import('./components/__TestStartRepresentation'));
+const TestSpouseLink = lazy(() => import('./components/__TestSpouseLink'));
+const TestAddRequestDialog = lazy(() => import('./components/__TestAddRequestDialog'));
+const TestRegisteredSpouse = lazy(() => import('./components/__TestRegisteredSpouse'));
+const TestPoaStamp = lazy(() => import('./components/__TestPoaStamp'));
+const TestLinkedScreens = lazy(() => import('./components/linkedScreens/__TestLinkedScreens'));
+const TestShaamRepresentation = lazy(() => import('./components/__TestShaamRepresentation'));
+const PublicSignPage = lazy(() => import('./components/PublicSignPage'));
+const PublicSmartFormSignPage = lazy(() => import('./features/smartForms/PublicSmartFormSignPage'));
 import ErrorBoundary from './components/ErrorBoundary';
 import LegacyMigrationBanner from './components/LegacyMigrationBanner';
 import FailedNotificationsBanner from './components/FailedNotificationsBanner';
 import DemoBar from './components/demo/DemoBar';
 import { useAuth } from './hooks/useAuth';
-import AnnualReport from './features/annualReport/AnnualReport';
+const AnnualReport = lazy(() => import('./features/annualReport/AnnualReport'));
 
 type View = AppRouteView;
 
@@ -2565,6 +2566,8 @@ export default function App() {
         .from('documents').select('id').eq('id', `engagement-${q.id}`).maybeSingle();
       if (already) return;
       const snap = q.snapshot;
+      // pdf-lib והגופנים (כ-600KB) נטענים רק כשמפיקים — לא בכל כניסה.
+      const { generateQuotationPdf } = await import('./utils/quotationPdf');
       const bytes = await generateQuotationPdf({
         quotationNumber: q.quotationNumber,
         recipientName: snap?.recipientName ?? '',
@@ -2896,6 +2899,8 @@ export default function App() {
 
       <main className={view === 'vision' ? 'main main--bleed' : 'main'}>
         <ErrorBoundary resetKey={view}>
+        {/* ‼ 25.10.2026 · כל מסך נטען רק כשנכנסים אליו (lazy) — הכותרת נשארת בזמן הטעינה. */}
+        <Suspense fallback={<div className="card" role="status" style={{ padding: '1rem' }}>טוען…</div>}>
         <LegacyMigrationBanner knownClientIds={new Set(clients.map(c => c.id))} />
         <FailedNotificationsBanner failures={failedNotifications} />
 
@@ -3364,6 +3369,7 @@ export default function App() {
             />
           )
         )}
+        </Suspense>
         </ErrorBoundary>
       </main>
 

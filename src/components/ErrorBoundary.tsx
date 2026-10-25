@@ -4,6 +4,7 @@
 // להיות class component — אין hook מקביל.
 
 import { Component, ErrorInfo, ReactNode } from 'react';
+import { isStaleChunkError, reloadForNewVersion } from '../lib/staleChunk';
 
 interface Props {
   children: ReactNode;
@@ -25,6 +26,8 @@ export default class ErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error, info: ErrorInfo) {
     console.error('ErrorBoundary caught:', error, info.componentStack);
+    // מסך שהקובץ שלו נמחק בשחרור (לשונית ישנה) — מרעננים לגרסה החדשה במקום הודעת שגיאה.
+    if (isStaleChunkError(error)) reloadForNewVersion();
   }
 
   componentDidUpdate(prev: Props) {

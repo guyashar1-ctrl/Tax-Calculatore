@@ -25,9 +25,20 @@
         } catch (e) { /* אין גישה לאחסון — נשארים בברירת המחדל הבהירה */ }
       })();
     </script>
+    <style>
+      /* ‼ 25.10.2026 · מופיע מיד, לפני שהקוד ירד — לא מסך לבן ריק. React מחליף אותו כשהוא עולה. */
+      .boot-loading { min-height: 60vh; display: flex; align-items: center; justify-content: center; gap: 10px;
+        font: 500 15px/1.4 Heebo, system-ui, sans-serif; color: #6b7280; }
+      .boot-loading::before { content: ''; width: 16px; height: 16px; border-radius: 50%;
+        border: 2px solid currentColor; border-top-color: transparent; animation: boot-spin .8s linear infinite; }
+      @keyframes boot-spin { to { transform: rotate(360deg); } }
+      @media (prefers-reduced-motion: reduce) { .boot-loading::before { animation: none; } }
+      [data-theme="dark"] body { background: #131619; }
+      [data-theme="dark"] .boot-loading { color: #9aa3ad; }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root"><div class="boot-loading" role="status">טוען…</div></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
