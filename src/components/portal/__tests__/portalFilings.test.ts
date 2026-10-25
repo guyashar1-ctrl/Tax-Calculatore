@@ -19,6 +19,7 @@ import {
 import { PortalFilingsSection } from '../PortalFilings';
 import { PortalView, niForwardText } from '../../PublicPortalPage';
 import type { PortalData, PortalItem } from '../../PublicPortalPage';
+import { REP_PORTAL_CARD_FIXED } from '../../../../supabase/functions/_shared/repTemplates.ts';
 
 const filed = (year: number, filedOn: string): { year: number; items: PortalFilingItem[] } =>
   ({ year, items: [{ kind: 'annual', role: 'client', person: 'דוד', filedOn, status: 'filed' }] });
@@ -187,5 +188,20 @@ export const TESTS: TestCase[] = [
     assert(html.includes('לשלוח לאוריה'), 'הכפתור בכרטיס של אוריה');
     const own = renderToStaticMarkup(createElement(PortalView, { data: portalData([{ ...item, forPerson: undefined, key: 'authrep_c' }]), mode: 'sample' }));
     assert(!own.includes('לשלוח ל'), 'בכרטיס של בעלת הכרטיס — אין למי להעביר');
+  }),
+  test('26.10 · הדף נפתח כרשימה קצרה: שורה לבקשה, בלי הכפתורים; האופציונלי אחרון ואינו «הדבר הבא»', () => {
+    const items: PortalItem[] = [
+      { bucket: 'action', key: 'rep_approval', kind: 'declare', label: REP_PORTAL_CARD_FIXED.title, actionKind: 'portal', actionValue: 'r1', note: 'באזור האישי מסמנים' },
+      { bucket: 'action', key: 'docs', label: 'להעלות 2 מסמכים', actionKind: 'portal', actionValue: 'd1', kind: 'documents', checklist: [
+        { key: 'a', label: 'א', done: true }, { key: 'b', label: 'ב', done: false }] },
+      { bucket: 'action', key: 'authrep_s', kind: 'ni_approval', label: 'אוריה — אישור ייפוי הכוח בביטוח הלאומי', forPerson: 'אוריה',
+        actionKind: 'portal', actionValue: 's', linkUrl: 'https://www.btl.gov.il/x', refs: [{ label: 'אסמכתא', value: '75791152' }] },
+    ];
+    const html = renderToStaticMarkup(createElement(PortalView, { data: portalData(items), mode: 'sample' }));
+    const rows = html.match(/data-pp-row/g) ?? [];
+    equal(rows.length, 3, 'שורה לכל בקשה, גם של אוריה');
+    assert(!html.includes('לאישור באתר') && !html.includes('באזור האישי מסמנים'), 'הכפתורים וההוראות רק אחרי לחיצה');
+    assert(html.indexOf('>להעלות 2 מסמכים<') < html.indexOf(`>${REP_PORTAL_CARD_FIXED.title}<`), 'האופציונלי אחרי מה שנדרש');
+    assert(/data-pp-key="docs" data-pp-next=""/.test(html), '«הדבר הבא» — מה שנדרש, לא הזירוז');
   }),
 ];

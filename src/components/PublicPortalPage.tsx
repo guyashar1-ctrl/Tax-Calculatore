@@ -652,10 +652,13 @@ function progressLine(item: PortalItem): string | undefined {
  * הרו"ח הקודם נפתחים רק בלחיצה. גרסה קודמת פרשה את כל השורות תמיד — שבע
  * שורות מסמכים גלויות מיד הן בדיוק העומס שהמודל המאוחד בא לצמצם.
  */
-function ActionItem({ item, brand, accent, last, onDone }: {
+function ActionItem({ item, brand, accent, last, onDone, collapsed = false, onToggle }: {
   item: PortalItem; last: boolean;
   brand: { ink: string; muted: string; border: string; radius: number; cardBg: string };
   accent: string; onDone: () => void;
+  /** ‼ 26.10.2026 (גיא): הדף נפתח כרשימה קצרה — שורה אחת לבקשה, לחיצה פותחת. */
+  collapsed?: boolean;
+  onToggle?: () => void;
 }) {
   const { actions, readOnly, sample } = usePortal();
   // ‼ 13.10.2026 · רענון כשהשאלון פתוח (#q=<בקשה>) — חוזרים לאותו מסך שאלון
@@ -715,12 +718,31 @@ function ActionItem({ item, brand, accent, last, onDone }: {
       background: brand.cardBg, border: `1px solid ${isNext && nx?.tag ? accent : brand.border}`, borderRadius: brand.radius + 2,
     }}>
       {isNext && nx?.tag && <div style={{ fontSize: 12, fontWeight: 650, color: accent, marginBottom: 3 }}>הדבר הבא</div>}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <span style={{ flex: 1, fontSize: 14.5, fontWeight: 650, color: brand.ink }}>{item.label}</span>
-        {readOnly && item.draft && <DraftChip />}
-        {readOnly && item.removing && <RemovingChip />}
-      </div>
-      {prog && <div style={{ fontSize: 12.5, color: brand.muted, marginTop: 3 }}>{prog}</div>}
+      {onToggle ? (
+        <button type="button" onClick={onToggle} aria-expanded={!collapsed} data-pp-row style={{
+          display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: 0, margin: 0,
+          background: 'none', border: 'none', cursor: 'pointer', textAlign: 'start', font: 'inherit', color: 'inherit',
+        }}>
+          <span style={{ flex: 1, minWidth: 0 }}>
+            <span style={{ display: 'block', fontSize: 14.5, fontWeight: 650, color: brand.ink }}>{item.label}</span>
+            {prog && <span style={{ display: 'block', fontSize: 12.5, color: brand.muted, marginTop: 3 }}>{prog}</span>}
+          </span>
+          {readOnly && item.draft && <DraftChip />}
+          {readOnly && item.removing && <RemovingChip />}
+          <span aria-hidden="true" style={{ flexShrink: 0, fontSize: 13, color: brand.muted, transform: collapsed ? 'none' : 'rotate(-90deg)', transition: 'transform .15s' }}>‹</span>
+        </button>
+      ) : (
+        <>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ flex: 1, fontSize: 14.5, fontWeight: 650, color: brand.ink }}>{item.label}</span>
+            {readOnly && item.draft && <DraftChip />}
+            {readOnly && item.removing && <RemovingChip />}
+          </div>
+          {prog && <div style={{ fontSize: 12.5, color: brand.muted, marginTop: 3 }}>{prog}</div>}
+        </>
+      )}
+
+      {!collapsed && (<>
 
       {/* ‼ הרשמה לפייפרלס אינה "נפתחת" — היא קישור החוצה ואישור, ולכן היא
           מוצגת ישירות ולא מאחורי כפתור פתיחה. */}
@@ -848,6 +870,7 @@ function ActionItem({ item, brand, accent, last, onDone }: {
             prefill={item.prefill} brand={brand} accent={accent} onDone={onDone} />
         </div>
       )}
+      </>)}
     </div>
   );
 }
@@ -1839,6 +1862,14 @@ export function PortalView({ data, token = '', preview = false, embed = false, o
   const [filings, setFilings] = useState<PortalFilingsData | null>(null);
   /** 25.10.2026 · «⋯» — מה שאינו דורש פעולה (בטיפולנו, הושלם, מסמכים שנפתחו, הדוחות). סגור כברירת מחדל. */
   const [moreOpen, setMoreOpen] = useState(false);
+  /**
+   * ‼ 26.10.2026 (גיא): הדף נפתח כרשימה קצרה — שורה לבקשה, אחת פתוחה בכל פעם.
+   * undefined = הלקוח עוד לא בחר: בקשה יחידה פתוחה מעצמה; רענון בתוך שאלון/טופס (#q / #form) חוזר אליו.
+   */
+  const [openKey, setOpenKey] = useState<string | null | undefined>(() => {
+    const fromHash = openTaxInfoFromHash() ?? openClientFormFromHash();
+    return fromHash ? data.items.find(i => i.actionValue === fromHash)?.key : undefined;
+  });
   useEffect(() => {
     let cancelled = false;
     portalActions.loadFilings().then(f => { if (!cancelled) setFilings(f); }, () => { if (!cancelled) setFilings(null); });
@@ -1990,8 +2021,9 @@ export function PortalView({ data, token = '', preview = false, embed = false, o
 
   /* ‼ 280 · «הדבר הבא» — אחד מהפריטים שכבר ב«מה צריך ממך» (בסדר שבו הם מוצגים), עם המועד הקרוב ביותר לפי
      «הדוחות שלך»; בלי מועד — הראשון. הכפתור פותח את אותה בקשה ברשימה, באותו כפתור שלה — לא עותק שלה. */
-  const next = pickNextAction(
-    [...groupCards.filter(x => x.st.tone === 'action').flatMap(x => x.g.items.filter(i => i.bucket === 'action')), ...actions],
+  // ‼ 26.10 · «הדבר הבא» לעולם אינו הכרטיס האופציונלי כשיש משהו שבאמת נדרש.
+  const nextPool = [...groupCards.filter(x => x.st.tone === 'action').flatMap(x => x.g.items.filter(i => i.bucket === 'action' && !i.forPerson)), ...actions];
+  const next = pickNextAction(nextPool.some(i => !optionalLast(i)) ? nextPool.filter(i => !optionalLast(i)) : nextPool,
     dueByStep(filings));
   const nextCtx = next ? { key: next.item.key, due: next.due, tag: waitingForYou.length > 1 } : null;
   // הבקשה הבאה ראשונה ברשימה (כשהיא לא בתוך קבוצה)
@@ -2001,7 +2033,8 @@ export function PortalView({ data, token = '', preview = false, embed = false, o
      בלי כרטיס קבוצה מעליו. כל השאר — בטיפולנו, בהמשך, הושלם, מסמכים שכבר נפתחו, הדוחות — מאחורי «⋯». */
   const groupActions = [...(representationCard ? [representationCard] : []), ...groupsIn('action')]
     .flatMap(x => x.g.items.filter(i => i.bucket === 'action' && !i.forPerson));
-  const doList = [...groupActions, ...actionsInOrder];
+  // ‼ 26.10 · אופציונלי בסוף גם כשהוא בתוך קבוצה (כרטיס הזירוז יושב בקבוצת הייצוג).
+  const doList = [...groupActions, ...actionsInOrder].sort((a, b) => optionalLast(a) - optionalLast(b));
   const restOffice = [
     ...groupCards.flatMap(x => x.g.items.filter(i => i.bucket === 'office' || i.bucket === 'future')),
     ...office, ...future,
@@ -2013,6 +2046,12 @@ export function PortalView({ data, token = '', preview = false, embed = false, o
   const freshDocGroups = docGroups.filter(g => g.files.some(f => !f.opened));
   const openedDocGroups = docGroups.filter(g => !g.files.some(f => !f.opened));
   const hasMore = restOffice.length > 0 || restDone.length > 0 || openedDocGroups.length > 0 || !!filings;
+  const allRows = [...doList, ...others.flatMap(o => o.items)];
+  const openRow = openKey === undefined ? (allRows.length === 1 ? allRows[0].key : null) : openKey;
+  const rowProps = (item: PortalItem) => ({
+    collapsed: openRow !== item.key,
+    onToggle: () => setOpenKey(openRow === item.key ? null : item.key),
+  });
 
   return (
     <PortalModeCtx.Provider value={mode}>
@@ -2065,7 +2104,7 @@ export function PortalView({ data, token = '', preview = false, embed = false, o
             <PortalNextCtx.Provider value={nextCtx}>
               {doList.map((item, i) => (
                 <ActionItem key={item.key} item={item} brand={brand} accent={accent}
-                  last={i === doList.length - 1} onDone={reload} />
+                  last={i === doList.length - 1} onDone={reload} {...rowProps(item)} />
               ))}
             </PortalNextCtx.Provider>
           </>
@@ -2081,7 +2120,7 @@ export function PortalView({ data, token = '', preview = false, embed = false, o
             <div style={{ ...sectionTitle, color: accent, marginTop: 18, marginBottom: 8 }}>מה צריך מ{o.name}</div>
             {o.items.map((item, i) => (
               <ActionItem key={item.key} item={item} brand={brand} accent={accent}
-                last={i === o.items.length - 1} onDone={reload} />
+                last={i === o.items.length - 1} onDone={reload} {...rowProps(item)} />
             ))}
           </div>
         ))}
