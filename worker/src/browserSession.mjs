@@ -808,7 +808,7 @@ export async function openAdvancesInfo(page, fileNumber) {
 
   const context = page.context();
   // כל מסך GMF משמש כנקודת התחלה; אחרת מנווטים לתפריט.
-  let work = await pickPageOn(context, '/gmf-', GMF_TIK_INPUT);
+  let work = await gmfStartPage(page);
   if (work) {
     note(`start:reuse ${new URL(work.url()).pathname}`);
   } else {
@@ -976,6 +976,60 @@ export async function readRepresentedList(context, fileNumber) {
   return { ok: true, body: res.body, post: res.post };
 }
 
+// ─── לשונית העבודה של מס הכנסה ─────────────────────────────────────────────
+// ‼ 25.10.2026 · הקריאה לקחה את הלשונית הראשונה שעל GMF, ובלי כזו — ניווטה את
+// הלשונית הראשונה בחלון. כך הדוח 413 שגיא עבד עליו עבר למסך הכניסה. מעכשיו לקריאות
+// מס הכנסה יש לשונית משלהן, מסומנת בשם (window.name נשמר בניווט באותו אתר), והן
+// לא בוחרות ולא מזיזות לשונית אחרת. שתי לשוניות GMF חיות יחד (נצפה: 413 + 181).
+const GMF_WORK_TAB = 'pivo-gmf-work';
+
+async function isGmfWorkTab(p) {
+  try { return (await p.evaluate(() => window.name)) === GMF_WORK_TAB; } catch { return false; }
+}
+
+/** המסכים שהקריאה עצמה עוברת בהם (תפריט/כניסה, 154, 134, 181) — כל מסך GMF אחר הוא של הרו"ח. */
+const GMF_WORKER_PATHS = /^\/gmf-(main-menu|154|134|181)(\/|$)/;
+const pathOf = (p) => { try { return new URL(p.url()).pathname; } catch { return ''; } };
+
+/**
+ * הלשונית של קריאות מס הכנסה: המסומנת; אחרת לשונית GMF על התפריט/הכניסה (לא מסך
+ * עבודה — כך גם הסיסמה השנייה אחרי התחברות מוזנת בלשונית אחת); אחרת חדשה.
+ * ‼ לשונית מסומנת שהרו"ח העביר למסך אחר (למשל 413) — עברה אליו: מוותרים עליה.
+ */
+export async function gmfWorkTab(context) {
+  for (const p of context.pages()) {
+    if (!(await isGmfWorkTab(p))) continue;
+    const path = pathOf(p);
+    if (path.startsWith('/gmf-') && !GMF_WORKER_PATHS.test(path)) {
+      await p.evaluate(() => { window.name = ''; }).catch(() => {});
+      continue;
+    }
+    return p;
+  }
+  for (const p of context.pages()) {
+    if (!pathOf(p).startsWith(GMF_PATH)) continue;
+    await p.evaluate((n) => { window.name = n; }, GMF_WORK_TAB).catch(() => {});
+    return p;
+  }
+  const p = await context.newPage();
+  await p.goto(GMF_URL, { waitUntil: 'domcontentloaded', timeout: 25000 }).catch(() => {});
+  await p.evaluate((n) => { window.name = n; }, GMF_WORK_TAB).catch(() => {});
+  return p;
+}
+
+/**
+ * מאיפה שאילתה מתחילה. לשונית העבודה — רק היא (null ⇒ לנווט אותה, לא לבחור אחרת);
+ * כל קורא אחר — כמו קודם, הלשונית הראשונה שעל GMF עם שדה מספר תיק.
+ */
+async function gmfStartPage(page) {
+  if (await isGmfWorkTab(page)) {
+    let path = '';
+    try { path = new URL(page.url()).pathname; } catch { /* about:blank */ }
+    return path.startsWith('/gmf-') && (await page.$(GMF_TIK_INPUT)) ? page : null;
+  }
+  return pickPageOn(page.context(), '/gmf-', GMF_TIK_INPUT);
+}
+
 /**
  * פותח את 154 עבור מספר תיק ומחזיר את תשובות ה-JSON (ראש + עמוד לכל 5 שנים).
  * ‼ אותה התחלה כמו openAdvancesInfo: הלשונית שכבר על GMF, הכותרת קיימת בכל
@@ -986,7 +1040,7 @@ export async function openTaxYearsInfo(page, fileNumber, { maxPages = GMF_154_MA
   const note = (s) => { steps.push(s); };
 
   const context = page.context();
-  let work = await pickPageOn(context, '/gmf-', GMF_TIK_INPUT);
+  let work = await gmfStartPage(page);
   if (work) {
     note(`start:reuse ${new URL(work.url()).pathname}`);
   } else {
@@ -1080,7 +1134,7 @@ const within = (p, ms) => {
 
 /** פותח 181 מהכותרת של מסך GMF קיים, ועובר ללשונית «קיום הרשאה». קורא בלבד. */
 export async function readDebitAuthorization181(page, fileNumber) {
-  const work = await pickPageOn(page.context(), '/gmf-', GMF_TIK_INPUT);
+  const work = await gmfStartPage(page);
   if (!work) return { ok: false, reason: 'gmf_page_missing' };
   const modal = await readGmfBlockingModal(work);
   if (modal.blocked) return { ok: false, reason: 'blocked_by_modal', modalTitle: modal.title };

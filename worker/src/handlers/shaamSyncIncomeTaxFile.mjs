@@ -13,6 +13,7 @@
 // שהשנים לא נקראו. התחברות/חלונית ⇒ עוצרים, כמו תמיד.
 import {
   attach, detach, openAdvancesInfo, openTaxYearsInfo, readRepresentedList, readDebitAuthorization181, GMF_181_MAIN_PATH,
+  gmfWorkTab,
   extractIncomeTaxFileFacts, verifyFileDetailsFor,
 } from '../browserSession.mjs';
 import { parseTaxYears, openYears } from '../gmf154.mjs';
@@ -80,18 +81,21 @@ export async function run(ctx, input) {
     // ‼ כל שאילתת GMF היא אפליקציה נפרדת, ומעבר ביניהן עולה 20–35 ש׳ (נמדד 25.10.2026).
     // הלשונית נשארת על 181 בסוף כל קריאה — ולכן כשהיא שם, «קיום הרשאה» נקראת קודם,
     // ורק אז 154: מעבר אחד בכל קריאה ולא שניים.
+    // ‼ לשונית משלה — לא נוגעים בלשונית שהרו"ח עובד בה (ראה gmfWorkTab).
+    const tab = await gmfWorkTab(conn.page.context());
     let da181 = null;
     const read181 = async () => {
       const t181 = Date.now();
-      da181 = await readDebitAuthorization181(conn.page, fileNumber);
+      da181 = await readDebitAuthorization181(tab, fileNumber);
       ctx.log(da181.ok
         ? `181 «קיום הרשאה»: ${da181.text}${da181.code != null ? ` (קוד ${da181.code})` : ''} · ${Math.round((Date.now() - t181) / 1000)} ש׳`
         : `181 «קיום הרשאה» לא נקרא (${da181.reason})`);
     };
-    const on181 = conn.page.context().pages().some((p) => { try { return new URL(p.url()).pathname.startsWith(GMF_181_MAIN_PATH); } catch { return false; } });
+    let on181 = false;
+    try { on181 = new URL(tab.url()).pathname.startsWith(GMF_181_MAIN_PATH); } catch { /* about:blank */ }
     if (on181) await read181();
     ctx.log(`קורא «מידע אודות שנות מס» (154) · ${fileNumber.length} ספרות`);
-    const opened154 = await openWithRelogin(ctx, conn.page, () => openTaxYearsInfo(conn.page, fileNumber));
+    const opened154 = await openWithRelogin(ctx, tab, () => openTaxYearsInfo(tab, fileNumber));
     stopOnAuth(opened154);
 
     const unavailable = [];
@@ -122,7 +126,7 @@ export async function run(ctx, input) {
     const need134 = !years || years.advance === 'active';
     if (need134) {
       ctx.log(`קורא «מקדמות — פרטי דרישה ודיווח» (134)${years ? ' · יש מקדמות פעילות' : ''}`);
-      const opened = await openWithRelogin(ctx, conn.page, () => openAdvancesInfo(conn.page, fileNumber));
+      const opened = await openWithRelogin(ctx, tab, () => openAdvancesInfo(tab, fileNumber));
       stopOnAuth(opened);
       if (!opened.ok) {
         if (!years) throw new PermanentError(`לא הצלחתי לפתוח את מסך המקדמות (${opened.reason}).`, opened.reason);

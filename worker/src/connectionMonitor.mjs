@@ -66,7 +66,7 @@ import {
   isOnWorkScreen, peekShaamProgress,
 } from './browserSession.mjs';
 import {
-  attachBtl, detachBtl, classifyBtlAuth, probeBtlSession, pickBtlPage, peekBtlConnected,
+  attachBtl, detachBtl, classifyBtlAuth, probeBtlSession, pickBtlPage, peekBtlConnected, onBtlGate,
 } from './btlSession.mjs';
 // ‼ אותו כלל המתנה משמש גם את שע״ם (27.09.2026) — הפונקציות טהורות וכלליות;
 // רק השמות נולדו בב״ל.
@@ -88,6 +88,8 @@ let lastCheck = 0;
 let lastProbe = 0;
 let lastSubNav = 0;
 let lastBtlProbe = 0;
+/** הכתובת שבדיקת השרת האחרונה אמרה עליה «פג» — ראה checkBtl. */
+let btlExpiredHref = null;
 let shaamReported = null;
 let gmfReported = null;
 let vatReported = null;
@@ -194,15 +196,26 @@ async function checkBtl(now, log) {
   try {
     const page = await pickBtlPage(conn.context, conn.page);
     const local = await classifyBtlAuth(page);
+    const href = page.url();
+    // מעבר בשער הכניסה = התחברות אמיתית התחילה — הדף הישן כבר לא רלוונטי.
+    if (onBtlGate(href)) btlExpiredHref = null;
     let btl = local.connected ? true : (btlReported ?? false);
 
-    if (now - lastBtlProbe >= SERVER_PROBE_MS) {
+    // ‼ 25.10.2026 · דף שנראה מחובר אינו ראיה: החלון הציג דף ישן אחרי שהסשן פג
+    // בשרת (fetch('/') ⇒ /my.policy, והדף עצמו 404), והנורית קפצה ל«מחובר» כל
+    // כמה שניות — בין בדיקות השרת שאמרו «פג». לכן העלאה ל«מחובר» מאושרת מיד
+    // מול השרת, ודף ששרת כבר אמר עליו «פג» לא מעלה בכלל.
+    const raising = local.connected && !btlReported;
+    if (raising && href === btlExpiredHref) btl = false;
+    if ((raising && href !== btlExpiredHref) || now - lastBtlProbe >= SERVER_PROBE_MS) {
       lastBtlProbe = now;
       const probe = await probeBtlSession(page);
       if (probe.ok) {
         btl = probe.connected;
+        btlExpiredHref = probe.connected ? null : href;
         log(`בדיקת סשן ביטוח לאומי: ${probe.connected ? 'חי' : 'פג'} · ${probe.detail}`);
       } else {
+        if (raising) btl = false;
         log(`בדיקת סשן ביטוח לאומי נכשלה: ${probe.detail}`);
       }
     }
@@ -225,7 +238,8 @@ async function peekBtlLogin(now, log) {
     return false;
   }
   try {
-    const connected = await peekBtlConnected(conn.context);
+    // ‼ הדף ששרת כבר אמר עליו «פג» אינו «התחברות» — ראה checkBtl.
+    const connected = await peekBtlConnected(conn.context, btlExpiredHref);
     btlWatch = afterBtlPeek(btlWatch, now, { connected, windowOpen: true });
     if (connected) log('ביטוח לאומי: זוהתה התחברות — מדווח מיד');
     return connected;

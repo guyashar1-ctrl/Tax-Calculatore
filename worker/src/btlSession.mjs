@@ -185,9 +185,11 @@ export async function pickBtlPage(context, fallback) {
  * שניות בזמן שהרו"ח מקליד קוד משתמש וקוד חד-פעמי (btlLoginWatch.mjs), וניווט
  * באמצע היה מוחק לו את מה שהקליד.
  */
-export async function peekBtlConnected(context) {
+export async function peekBtlConnected(context, ignoreHref = null) {
   for (const p of context.pages()) {
     if (!p.url().startsWith(BTL_ORIGIN)) continue;
+    // דף ששרת כבר אמר עליו «פג» (דף ישן בחלון) — לא «התחברות».
+    if (ignoreHref && p.url() === ignoreHref) continue;
     let s;
     try { s = await snapPage(p); } catch { continue; }
     if (btlState(s).connected) return true;

@@ -222,6 +222,11 @@ export class SimPage {
 
   async evaluate(fn, arg) {
     const src = fn.toString();
+    // ‼ לשונית העבודה של מס הכנסה מסומנת ב-window.name (gmfWorkTab, 25.10.2026).
+    if (src.includes('window.name')) {
+      if (arg !== undefined) { this.windowName = arg; return undefined; }
+      return this.windowName ?? '';
+    }
     const onLogin = this.onGmfLogin();
     if (src.includes('שם משתמש')) {
       return {
