@@ -45,6 +45,11 @@ export async function openVatWorkPage(page) {
     const s = await snapPage(p);
     if (!s.hasPasswordField && (await p.$('#' + OSEK_INPUT))) return { ok: true, page: p, reused: true, pathname: s.pathname };
   }
+  // ‼ לשונית על מסכי הכניסה = הרו"ח באמצע התחברות (או שצריך להתחבר). לא
+  // מנווטים: בקשה לשרת בזמן מסך הקוד החד-פעמי מחזירה אותו להתחלה.
+  for (const p of page.context().pages()) {
+    try { if (new URL(p.url()).pathname.startsWith('/taxes-login/')) return { ok: false, reason: 'login_required', pathname: new URL(p.url()).pathname }; } catch { /* about:blank */ }
+  }
   await page.goto(VAT_URL, { waitUntil: 'domcontentloaded', timeout: 30000 }).catch(() => {});
   const s = await settlePage(page);
   if (!VAT_ANY_PATH.test(s.pathname)) return { ok: false, reason: 'unexpected_destination', pathname: s.pathname };
@@ -61,14 +66,16 @@ async function screenState(page) {
       pathname: location.pathname,
       osek: t(ids.title),
       error: t(ids.error) || null,
-      hasPassword: !!document.querySelector('input[type=password]'),
+      // ‼ סשן שפג מפנה את הלשונית למסך הכניסה (/taxes-login/…/otpCts, נצפה
+      // 25.10.2026) — זה «צריך להתחבר», לא תקלה במסך.
+      hasPassword: !!document.querySelector('input[type=password]') || !new RegExp(ids.vatPath, 'i').test(location.pathname),
       complete: document.readyState === 'complete',
       // ‼ «פרטי עוסק» ריק: אין עוסק בכותרת, אין שגיאה, והשדה ריק. נצפה
       // (25.10.2026) כשהלשונית עמדה פתוחה לילה שלם: ה-postback הראשון רק
       // «מאפס» את המסך, והשני כבר פותח את העוסק.
       blank: !t(ids.title) && !t(ids.error) && !(document.getElementById(ids.input)?.value ?? '').trim(),
     };
-  }, { title: TITLE_OSEK, error: OSEK_ERROR, input: OSEK_INPUT }).catch(() => null);
+  }, { title: TITLE_OSEK, error: OSEK_ERROR, input: OSEK_INPUT, vatPath: VAT_ANY_PATH.source }).catch(() => null);
 }
 
 /** מפעיל postback בלחיצת DOM, וממתין עד שהתנאי על המסך מתקיים. */
@@ -104,7 +111,10 @@ export async function openOsek(page, osekNumber) {
       el.value = v;
       return el.value;
     }, { id: OSEK_INPUT, v: osekNumber }).catch(() => null);
-    if (set !== osekNumber) return { ok: false, reason: 'osek_value_not_applied' };
+    if (set !== osekNumber) {
+      const now = await screenState(page);
+      return { ok: false, reason: now?.hasPassword ? 'login_required' : 'osek_value_not_applied' };
+    }
     // ‼ שגיאה ישנה («לא קיים») עלולה להישאר על המסך עד שהתשובה מגיעה —
     // מכריעים רק לפי מספר שהשתנה או שגיאה במסך שכבר אינו המסך הקודם.
     const was = prev;
