@@ -11,7 +11,7 @@ import {
   openGmfAndCheck, openVatAndCheck, openNikuiAndCheck,
   openRepresentationAndCheck, attemptRepresentationLoginConfirm,
   readGmfOnCurrentPage, readVatOnCurrentPage, readNikuiOnCurrentPage, readRepresentationOnCurrentPage,
-  readGmfLoginForm, pickPageOn, GMF_LOGIN_PATH,
+  readGmfLoginForm, pickPageOn, GMF_LOGIN_PATH, vatTab,
   ensureWithBoundedRecovery,
   isOnWorkScreen,
 } from './browserSession.mjs';
@@ -105,8 +105,10 @@ async function firstReadyGmfTab(context) {
   return null;
 }
 async function ensureVat(page) {
-  const initial = await openVatAndCheck(page);
-  const r = await ensureWithBoundedRecovery(page, { initial, readCurrent: readVatOnCurrentPage, reopen: openVatAndCheck });
+  // ‼ בלשונית של מע״מ, לא בלשונית הראשונה (שם עובדת GMF) — ראה vatTab.
+  const tab = await vatTab(page.context());
+  const initial = await openVatAndCheck(tab);
+  const r = await ensureWithBoundedRecovery(tab, { initial, readCurrent: readVatOnCurrentPage, reopen: openVatAndCheck });
   return mapLegacyResult(r);
 }
 async function ensureNikui(page) {

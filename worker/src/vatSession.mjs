@@ -15,7 +15,7 @@
 //     ולכן ממתינים ל**תוכן** (מספר העוסק בכותרת), לא לניווט ולא לשעון.
 //   · click של Playwright נתקע על הקישורים האלה (המתנה ל«יציב» שלא מגיעה);
 //     click של ה-DOM מפעיל אותו postback בדיוק.
-import { settlePage, snapPage, VAT_URL, VAT_ANY_PATH } from './browserSession.mjs';
+import { settlePage, snapPage, vatTab, VAT_URL, VAT_ANY_PATH } from './browserSession.mjs';
 
 const OSEK_INPUT = 'HstTikim1_EmTwbCtlHstTikim_TxtMisOsek';
 const OSEK_SUBMIT = 'HstTikim1_EmTwbCtlHstTikim_BtnSubmit';
@@ -76,24 +76,29 @@ const OSEK_DETAILS_URL = 'https://shaam.taxes.gov.il/emhanmainmenu/EmTwbMavarPag
 const OSEK_DETAILS_PATH = /^\/emhanosek\//i;
 
 async function findOrOpenVat(page) {
-  for (const p of page.context().pages()) {
-    let path;
-    try { path = new URL(p.url()).pathname; } catch { continue; }
-    if (!VAT_ANY_PATH.test(path)) continue;
-    const s = await snapPage(p);
-    if (!s.hasPasswordField && (await p.$('#' + OSEK_INPUT))) return { ok: true, page: p, reused: true, pathname: s.pathname };
-  }
   // ‼ לשונית על מסכי הכניסה = הרו"ח באמצע התחברות (או שצריך להתחבר). לא
   // מנווטים: בקשה לשרת בזמן מסך הקוד החד-פעמי מחזירה אותו להתחלה.
   for (const p of page.context().pages()) {
     try { if (new URL(p.url()).pathname.startsWith('/taxes-login/')) return { ok: false, reason: 'login_required', pathname: new URL(p.url()).pathname }; } catch { /* about:blank */ }
   }
-  // לשונית משלה (ראה למעלה). הלשונית הראשונה נשארת על מה שהיה בה (GMF).
-  page = await page.context().newPage();
+  // לשונית משלה (vatTab). הלשונית הראשונה נשארת על מה שהיה בה (GMF).
+  page = await vatTab(page.context());
+  const now = await snapPage(page);
+  if (VAT_ANY_PATH.test(now.pathname)) {
+    // ‼ מע״מ מבקשת את הסיסמה שלה — לא פותחים לשונית נוספת ולא מנווטים מעליה.
+    if (now.hasPasswordField) {
+      await page.bringToFront().catch(() => {});
+      return { ok: false, reason: 'vat_password_required', pathname: now.pathname };
+    }
+    if (await page.$('#' + OSEK_INPUT)) return { ok: true, page, reused: true, pathname: now.pathname };
+  }
   await page.goto(VAT_URL, { waitUntil: 'domcontentloaded', timeout: 30000 }).catch(() => {});
   const s = await settlePage(page);
   if (!VAT_ANY_PATH.test(s.pathname)) return { ok: false, reason: 'unexpected_destination', pathname: s.pathname };
-  if (s.hasPasswordField) return { ok: false, reason: 'login_required', pathname: s.pathname };
+  if (s.hasPasswordField) {
+    await page.bringToFront().catch(() => {});
+    return { ok: false, reason: 'vat_password_required', pathname: s.pathname };
+  }
   if (!(await page.$('#' + OSEK_INPUT))) return { ok: false, reason: 'osek_input_missing', pathname: s.pathname };
   return { ok: true, page, reused: false, pathname: s.pathname };
 }

@@ -31,6 +31,13 @@ export async function run(ctx, input) {
     // ‼ מספר שהוזן בתפריט ונדחה («לא קיים») מגיע כ-osek_not_found — אותה הודעה כמו למטה.
     const osek = opened.ok ? await openOsek(opened.page, osekNumber) : opened;
     if (!osek.ok && !opened.ok && osek.reason !== 'osek_not_found') {
+      if (opened.reason === 'vat_password_required') {
+        throw new NeedsHumanError(
+          'מע״מ מבקשת את הסיסמה שלה (פעם אחת אחרי כל התחברות לשע״ם). הזינו אותה בלשונית מע״מ שבחלון שע״ם — '
+          + 'או בחרו את הסיסמה השמורה — ואז הריצו שוב.',
+          'vat_password_required',
+        );
+      }
       if (opened.reason === 'login_required' || opened.reason === 'unexpected_destination') {
         throw new NeedsHumanError(NOT_READY, 'shaam_connection_not_ready');
       }

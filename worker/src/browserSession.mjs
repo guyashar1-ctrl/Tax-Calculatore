@@ -353,6 +353,28 @@ async function reuseOpenSystemPage(context, pathPrefix, evaluate) {
   return null;
 }
 
+/**
+ * הלשונית של מע״מ — זו שכבר פתוחה, ואם אין, לשונית חדשה (ריקה).
+ * ‼ מע״מ ו-GMF הן שתי מערכות: כשחלקו לשונית, כל קריאת מס הכנסה העיפה את מע״מ
+ * (25.10.2026). לא שתי לשוניות על מע״מ — היא חד-סשן.
+ */
+export async function vatTab(context) {
+  for (const p of context.pages()) {
+    try { if (VAT_ANY_PATH.test(new URL(p.url()).pathname)) return p; } catch { /* about:blank */ }
+  }
+  return context.newPage();
+}
+
+/** כמו readVatOnCurrentPage, על לשונית מע״מ כלשהי — לא רק הראשונה. בלי ניווט. */
+export async function readVatOnAnyPage(context) {
+  for (const p of context.pages()) {
+    let path;
+    try { path = new URL(p.url()).pathname; } catch { continue; }
+    if (VAT_ANY_PATH.test(path)) return readVatOnCurrentPage(p);
+  }
+  return { onVat: false, ready: null };
+}
+
 /** קריאה זולה, בלי ניווט: רק אם הדף כבר עומד על מע״מ. */
 export async function readVatOnCurrentPage(page) {
   const s = await snapPage(page);

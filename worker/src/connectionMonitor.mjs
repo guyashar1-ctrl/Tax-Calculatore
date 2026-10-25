@@ -60,7 +60,7 @@
 import {
   attach, detach, classifyShaamAuth, probeServerSession,
   readGmfOnCurrentPage, openGmfAndCheck, readGmfLoginForm, attemptGmfLoginConfirm,
-  readVatOnCurrentPage,
+  readVatOnAnyPage,
   readNikuiOnCurrentPage,
   readRepresentationOnCurrentPage,
   isOnWorkScreen, peekShaamProgress,
@@ -342,7 +342,8 @@ export async function tickConnectionMonitor(userId, workerId, log, { scope = 'al
           onGmf = await readGmfOnCurrentPage(conn.page);
         }
       }
-      const onVat = await readVatOnCurrentPage(conn.page);
+      // ‼ למע״מ לשונית משלה (vatTab) — מחפשים אותה בכל הלשוניות, לא רק בראשונה.
+      const onVat = await readVatOnAnyPage(conn.page.context());
       const onNikui = await readNikuiOnCurrentPage(conn.page);
       const onRepresentation = await readRepresentationOnCurrentPage(conn.page);
 
