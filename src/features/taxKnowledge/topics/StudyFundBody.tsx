@@ -87,7 +87,7 @@ export default function StudyFundBody({ year, ctx, view }: TopicBodyProps) {
         <Thinking steps={STUDY_FUND_LESSON.thinking} year={year} />
       </Sec>
 
-      <Sec id="sf-3" title="מחשבון להמחשה"><p className="kn-small"><b>עסק זעיר:</b> מזינים הכנסה חייבת מהעסק לפני ניכוי הקרן; בפרשנות המשולבת של 87ד ו־17(5א), זו ההכנסה לאחר ה־30%, ולא המחזור. לדוגמה, מחזור 100,000 ללא רכיבים נוספים נותן בסיס 70,000 ועד 3,150 ₪ לניכוי. לא אותרה דוגמת רשות מפורשת לחישוב זה. <ClaimTag status="interpretation" /> <a href="#book/microBusiness/mb-30">לכלל ולמקור ←</a></p>
+      <Sec id="sf-3" title="מחשבון להמחשה"><p className="kn-small"><b>עסק זעיר:</b> מזינים הכנסה חייבת מהעסק לפני ניכוי הקרן; בפרשנות המשולבת של 87ד ו־17(5א), זו ההכנסה לאחר ה־30%, ולא המחזור. לדוגמה, מחזור 100,000 ללא רכיבים נוספים נותן בסיס 70,000 ועד 3,150 ₪ לניכוי. לא אותרה דוגמת רשות מפורשת לחישוב זה. <ClaimTag status="interpretation" /> <a href="#/tax/learn/business/microBusiness/mb-30">לכלל ולמקור ←</a></p>
         <p className="kn-small kn-muted" style={{ margin: 0 }}>משנים נתונים ורואים לאן הולך כל שקל. שנת מס {year}.{ctx ? ` מולא לפי התיק של ${ctx.name} במה שידוע; השאר — להשלים.` : ''}</p>
         <div className="kn-sim">
           <div className="kn-page" style={{ gap: 12 }}>

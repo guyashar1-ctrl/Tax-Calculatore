@@ -648,7 +648,7 @@ export default function NIReferenceSection({ taxData: incomingData, year }: Prop
             )}
           </div>
 
-{['combined','employeeAndSE','employeeAndNonQual'].includes(calcType)&&<div className="kn-blocked" role="status"><strong>בהכנסות מעורבות בונים חישוב משולב.</strong> השכר צורך את המדרגה המופחתת ואת התקרה לפני ההכנסות הנוספות. לא מחברים שני חישובים נפרדים. <a href="#book/niSelfEmployed/ni-5">לכללי המעמדות והבסיס</a> · <a href="https://www.btl.gov.il/Insurance/National%20Insurance/type_list/Self_Employed/Pages/default.aspx" target="_blank" rel="noreferrer">לדפי ב״ל ולמחשבון הרשמי</a></div>}
+{['combined','employeeAndSE','employeeAndNonQual'].includes(calcType)&&<div className="kn-blocked" role="status"><strong>בהכנסות מעורבות בונים חישוב משולב.</strong> השכר צורך את המדרגה המופחתת ואת התקרה לפני ההכנסות הנוספות. לא מחברים שני חישובים נפרדים. <a href="#/tax/learn/ni/niSelfEmployed/ni-5">לכללי המעמדות והבסיס</a> · <a href="https://www.btl.gov.il/Insurance/National%20Insurance/type_list/Self_Employed/Pages/default.aspx" target="_blank" rel="noreferrer">לדפי ב״ל ולמחשבון הרשמי</a></div>}
           {calcResult && (
             <div>
               {/* Results table */}
@@ -720,7 +720,7 @@ export default function NIReferenceSection({ taxData: incomingData, year }: Prop
  </InfoSection>
  <InfoSection title="שכירות, גמלאות ומקרים מיוחדים">
  <p>שכירות מגורים פסיבית למגורים בישראל עשויה להיות פטורה מב״ל גם במסלול מס הכנסה רגיל. שדה בדוח אינו יוצר את הפטור; בודקים את השימוש והאופי ושומרים אסמכתאות.</p>
- <p><a href="#tool/rental">מסלולי שכירות</a> · <a href="#book/maternity/plan">דמי לידה</a> · <a href="#book/niSelfEmployed/ni-5">גיל, מעמד והכנסות מעורבות</a> · <a href="#book/niSelfEmployed/ni-6">תשלומי ב״ל והדוח השנתי</a></p>
+ <p><a href="#/tax/learn/rent/rental">מסלולי שכירות</a> · <a href="#/tax/learn/ni/maternity">דמי לידה</a> · <a href="#/tax/learn/ni/niSelfEmployed/ni-5">גיל, מעמד והכנסות מעורבות</a> · <a href="#/tax/learn/ni/niSelfEmployed/ni-6">תשלומי ב״ל והדוח השנתי</a></p>
  </InfoSection>
     </div>
   );

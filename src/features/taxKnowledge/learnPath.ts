@@ -158,3 +158,69 @@ export function plainStatus(status: 'usable' | 'research', basis: Basis, gaps: n
   return { label: `אפשר ללמוד ולעבוד לפיו${points}`, tone: basis === 'primary' && gaps === 0 ? 'ok' : 'check', basis: basisText[basis],
     canCalc: basis === 'primary' ? 'המחשבונים כאן נשענים על ערכים רשמיים לשנה.' : 'המחשבונים עובדים; ערך שאינו רשמי מסומן לידו — לאמת לפני הגשה.' };
 }
+
+// ── יחידות לימוד, יישום ושנת הקריאה (26.10.2026, ההדמיה המאושרת 25.10) ─────────────────────────────
+// ‼ גיא אישר: נושא נלמד ביחידות — שלב אחד בכל פעם, «לשלב הבא», סימון «נקרא» ומפת היחידה; לצדו «הסיכום המקצועי»
+//   ו«יישום בתיק» כמצבים של אותו נושא, לא עמודים נפרדים. היחידות לנושאים הגדולים נקבעו בהדמיה; לשאר — שלושה סעיפים ליחידה.
+export interface LearnUnit { name: string; ids: string[] }
+
+const UNIT_PLAN: Record<string, { names: string[]; ids: string[][] }> = {
+  pensionSE: { names: ['להבין ניכוי וזיכוי', 'לבחור מסלול ולחשב', 'להתמודד עם חריגים וליישם'], ids: [['pn-0', 'pn-2', 'pn-think'], ['pn-3', 'pn-4', 'pn-ex'], ['pn-5', 'pn-6', 'pn-mis', 'pn-8', 'pn-7']] },
+  microBusiness: { names: ['להבין למי המסלול מתאים', 'להבין את החישוב ואת המעבר', 'לדווח ולבדוק דוגמאות', 'לתרגל וליישם בתיק'], ids: [['mb-0', 'mb-1', 'mb-el'], ['mb-30', 'mb-to', 'mb-think', 'mb-2'], ['mb-ov', 'mb-cool', 'mb-rep', 'mb-ni', 'mb-ex', 'mb-tbl'], ['mb-3', 'mb-mis', 'mb-8', 'mb-4', 'mb-5']] },
+  annualReturn: { names: ['לבנות את חבילת הדיווח', 'להגיע מהמסמך לסעיף', 'לבדוק, לתרגל ולסיים'], ids: [['ar-flow', 'ar-gloss', 'ar-annex'], ['ar-docs', 'ar-code', 'ar-think', 'ar-spouses'], ['ar-ex', 'ar-mis', 'ar-quiz', 'ar-manual', 'ar-set']] },
+  wealth: { names: ['להכיר את ההצהרה', 'לבנות תמונת הון', 'לבקר את הנתונים', 'ליישם ולבדוק מקורות'], ids: [['wd-0', 'wd-2', 'wd-3'], ['wd-fields', 'wd-think', 'wd-4'], ['wd-5', 'wd-mis', 'wd-8'], ['wd-6', 'wd-prof', 'wd-t', 'wd-dec']] },
+};
+
+/** היחידות של הנושא. ‼ כל סעיף בגוף הנושא נמצא ביחידה אחת בדיוק — סעיף שלא שובץ נכנס ליחידה האחרונה, לא נעלם. */
+export function unitsOf(topicId: string, toc: TocItem[]): LearnUnit[] {
+  const known = new Set(toc.map(t => t.id));
+  const plan = UNIT_PLAN[topicId];
+  const units: LearnUnit[] = plan
+    ? plan.ids.map((ids, i) => ({ name: plan.names[i], ids: ids.filter(id => known.has(id)) })).filter(u => u.ids.length)
+    : Array.from({ length: Math.ceil(toc.length / 3) }, (_, i) => toc.slice(i * 3, i * 3 + 3)).map(chunk => ({ name: chunk[0].label, ids: chunk.map(t => t.id) }));
+  const placed = new Set(units.flatMap(u => u.ids));
+  const rest = toc.filter(t => !placed.has(t.id)).map(t => t.id);
+  if (rest.length && units.length) units[units.length - 1] = { ...units[units.length - 1], ids: [...units[units.length - 1].ids, ...rest] };
+  return units;
+}
+
+const APPLY_LABEL = /מה עושים בתיק|הכנת הדוח ביד|התהליך ביד|מילון הסיווג/;
+/** הסעיף של «יישום בתיק» — מה עושים עם הלקוח. undefined כשאין לנושא סעיף כזה. */
+export function applyStepOf(toc: TocItem[]): TocItem | undefined {
+  return toc.find(t => APPLY_LABEL.test(t.label)) ?? toc.find(t => t.view === 'apply');
+}
+/** הדרך ללמידה לפי הסדר — בלי סעיף היישום, שהוא מצב משלו («המשך» לא נופל לתוכו באמצע). */
+export function courseStepsOf(topicId: string, toc: TocItem[]): TocItem[] {
+  const apply = applyStepOf(toc)?.id;
+  const byId = new Map(toc.map(t => [t.id, t]));
+  return unitsOf(topicId, toc).flatMap(u => u.ids).filter(id => id !== apply).map(id => byId.get(id)!).filter(Boolean);
+}
+/** סוג השלב — שורת הכותרת הקטנה מעל השלב. */
+export function stepKind(t: TocItem): string {
+  if (/תרגול|quiz/.test(`${t.label} ${t.id}`)) return 'תרגול';
+  if (/דוגמ/.test(t.label)) return 'דוגמה פתורה';
+  if (/מחשבון/.test(t.label)) return 'מחשבון לימודי';
+  if (/מושגי יסוד/.test(t.label)) return 'מושגי יסוד';
+  if (t.view === 'apply') return 'יישום';
+  if (/איך חושבים/.test(t.label)) return 'דרך החשיבה';
+  return 'הסבר מקצועי';
+}
+/** זמן משוער — «כ־5 דקות» לשלב. */
+export function unitMinutes(n: number): string {
+  return n <= 1 ? 'כ־5 דקות' : n === 2 ? 'כ־10 דקות' : `כ־${(n - 1) * 5} עד ${n * 5} דקות`;
+}
+
+// ‼ סעיף שנכתב לשנה מסוימת (הדוגמאות, המדריך של אותה שנה) נקרא באותה שנה — עם תג «קבועה», לא בשנה שנבחרה בשקט
+const CHAPTER_YEAR: Record<string, number> = {
+  'sf-4': 2025, 'sf-5': 2025, 'sf-7': 2025, 'pn-ex': 2025,
+  'mp-0': 2025, 'mp-think': 2025, 'mp-ex': 2025, 'mp-3': 2025, 'mp-mis': 2025, 'mp-8': 2025,
+  'ad-0': 2026, 'ad-think': 2026, 'ad-ex': 2026, 'ad-mis': 2026, 'ad-7': 2026, 'ad-4': 2026,
+};
+const TOPIC_YEAR: Record<string, number> = { annualReturn: 2025, form6111: 2025, maternity: 2025, advances: 2026 };
+/** השנה שבה קוראים את הנושא/הסעיף: קבועה כשהתוכן נכתב לשנה אחת, אחרת השנה שנבחרה. */
+export function readingPeriod(topicId: string, section: string | null | undefined, chosenYear: number): { year: number; fixed: boolean } {
+  if (TOPIC_YEAR[topicId]) return { year: TOPIC_YEAR[topicId], fixed: true };
+  if (section && CHAPTER_YEAR[section]) return { year: CHAPTER_YEAR[section], fixed: true };
+  return { year: chosenYear, fixed: false };
+}
+export const CHAPTER_YEAR_IDS = Object.keys(CHAPTER_YEAR);

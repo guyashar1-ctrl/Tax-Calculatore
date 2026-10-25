@@ -35,6 +35,10 @@ import { ExtractedClientData } from './utils/geminiVision';
 import { useDocumentDB } from './hooks/useIndexedDB';
 import { useTheme } from './hooks/useTheme';
 import { PivoMark } from './components/PivoMark';
+// ‼ ‎?office-app‎ וגרסת הניסיון — המסד המדומה מותקן לפני כל טעינה. עד 26.10.2026 זה קרה כתופעת לוואי של ייבוא
+//   מסך בדיקה (__TestFirmNotifications); כשהמסכים נטענים לפי הצורך — ההדגמה נפתחה במסך כניסה.
+import { FAKE_ACTIVE, installFakeBackend } from './components/office/__fakeBackend';
+if (FAKE_ACTIVE) installFakeBackend();
 import Icon from './components/ui/Icon';
 import AuthorityConnectionButtons from './components/AuthorityConnectionButtons';
 import { ShaamReadinessProvider } from './hooks/shaamReadiness';

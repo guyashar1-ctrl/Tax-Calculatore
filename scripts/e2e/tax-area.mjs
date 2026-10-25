@@ -165,7 +165,9 @@ async function run(vp) {
     // שורה ⇒ «בקשות» של הלקוח
     await page.locator('[data-wo-row]', { hasText: 'מיכל' }).first().click(); await sleep(1500);
     const h = await page.evaluate(() => location.hash);
-    ok(h === '#/client/sample-2/journey', 'לחיצה על שורה פותחת את «בקשות» של הלקוח', h);
+    // ‼ מאז שהכתובת נושאת את הבקשה שבמיקוד (‎…/journey/<step>‎) — גם היא בסדר
+    ok(/^#\/client\/sample-2\/journey(\/[^/]+)?$/.test(h), 'לחיצה על שורה פותחת את «בקשות» של הלקוח', h);
+    await page.locator('.cw-tab.active').waitFor({ timeout: 15000 }).catch(() => {});
     const tabOn = await text(page.locator('.cw-tab.active'));
     ok(/^בקשות/.test(tabOn.trim()), 'הלשונית הפעילה: «בקשות»', tabOn);
     await shot(page, `${vp}-02-client-requests`);
@@ -385,30 +387,28 @@ async function run(vp) {
     await page.locator('[data-domain-item="pensionSE"]').click(); await sleep(700);
     const st = await text(page.locator('[data-kn-state]'));
     ok(/אפשר ללמוד|בבירור/.test(st) && /(ממקור|חושבו|לא אומת|רשמי)/.test(st), 'מצב הנושא במילים: מה אפשר ומה הביסוס', st);
-    const stages = await page.locator('[data-stage-btn]').allInnerTexts();
-    ok(stages.length >= 7, 'מסלול הלימוד: שלבים', stages.join(' | '));
-    const secs = {};
-    const visible = await page.locator('[data-stage-btn]').evaluateAll(bs => bs.map(b => b.dataset.stageBtn));
-    ok(!visible.includes('read'), 'פנסיה לעצמאי: אין שלב «מסמכים» — אין לו תוכן בנושא (לא כופים שמונה שלבים)', visible.join());
+    // ‼ 26.10.2026: שלושה מצבים (ללמוד · הסיכום · יישום בתיק), יחידות ושלב אחד בכל פעם — במקום שמונה שלבים
+    ok(await page.locator('[data-kn-mode]').count() === 3 && await page.locator('[data-kn-unit]').count() === 3, 'נושא: שלושה מצבים ושלוש יחידות לימוד');
     ok(/שאלות מקצועיות פתוחות/.test(st), 'מצב הנושא: «שאלות מקצועיות פתוחות», לא «נקודות לבדיקה»', st);
-    for (const s of ['what', 'ask', 'calc', 'except', 'next']) {
-      await page.locator(`[data-stage-btn="${s}"]`).first().click(); await sleep(250);
-      secs[s] = await page.locator('.kn-topic .kn-sec').count();
-      if (s === 'ask') ok(/פנסיה|קרן השתלמות|הפקד/.test(await text(page.locator('.kn-asks'))), '«מה מבקשים מהלקוח»: מהשאלון', (await text(page.locator('.kn-asks'))).slice(0, 200));
-      if (s === 'calc') { await shot(page, `${vp}-07-topic-calc`); ok(await page.locator('[data-kn-gaps-note]').count() === 1, '«איך מחשבים»: השאלות הפתוחות מוצגות גם כאן'); }
-      if (s === 'except') ok(/אלה לא הערות קריאה/.test(await text(page.locator('[data-kn-gaps]'))), '«חריגים ושאלות פתוחות»: פער מוצג כשאלה שלא הוכרעה');
-    }
-    ok(secs.calc > 0 && secs.next > 0 && secs.what >= 1, 'כל שלב מציג את הסעיפים שלו', JSON.stringify(secs));
-    ok(await page.evaluate(() => document.activeElement?.classList.contains('kn-stage-h')), 'מקלדת: אחרי מעבר שלב הפוקוס בכותרת השלב');
-    await page.locator('[data-stage-next]').click(); await sleep(250);
-    ok((await page.locator('.kn-topic').getAttribute('data-stage')) === 'practice', '«הבא» מתקדם לשלב הבא');
-    await page.locator('[data-stage-btn="next"]').first().click(); await sleep(250);
+    await page.locator('[data-kn-open="asks"]').first().click(); await sleep(300);
+    ok(/פנסיה|קרן השתלמות|הפקד/.test(await text(page.locator('[role="dialog"] .kn-asks'))), '«מה מבקשים מהלקוח»: מהשאלון', (await text(page.locator('[role="dialog"]'))).slice(0, 200));
+    await page.keyboard.press('Escape'); await sleep(250);
+    await page.locator('[data-kn-open="gaps"]').first().click(); await sleep(300);
+    ok(/שעוד לא הוכרעה במקור רשמי/.test(await text(page.locator('[data-kn-gaps]'))), '«שאלות פתוחות»: פער מוצג כשאלה שלא הוכרעה');
+    await page.keyboard.press('Escape'); await sleep(250);
+    await page.locator('[data-kn-unit="2"]').click(); await sleep(400);
+    ok(await page.locator('[data-view="lesson"] .kn-sec').count() === 1 && /\/pensionSE\/pn-3$/.test(await page.evaluate(() => location.hash)), 'יחידה 2: שלב אחד, והשלב בכתובת', await page.evaluate(() => location.hash));
+    await shot(page, `${vp}-07-topic-calc`);
+    ok(await page.evaluate(() => document.activeElement?.classList.contains('kn-lesson-h')), 'מקלדת: אחרי מעבר שלב הפוקוס בכותרת השלב');
+    await page.locator('[data-stage-next]').click(); await sleep(300);
+    ok(/\/pensionSE\/pn-4$/.test(await page.evaluate(() => location.hash)), '«לשלב הבא» מתקדם לשלב הבא');
+    await page.locator('[data-kn-mode="apply"]').first().click(); await sleep(300);
     const wl = page.locator('#kn-clients button', { hasText: 'דוחות שנתיים' });
     ok(await wl.count() > 0, '«מה עושים בתיק»: קישור לעבודות מהסוג הזה');
     await wl.first().click(); await sleep(600);
     ok((await page.evaluate(() => location.hash)) === '#/tax/work/annual', 'מהידע לעבודה — עמוד הדוחות');
     await page.goBack(); await sleep(700);
-    ok((await page.evaluate(() => location.hash)) === '#/tax/learn/savings/pensionSE' && await page.locator('[data-topic="pensionSE"]').count() === 1, '«אחורה» בדפדפן חוזר לנושא');
+    ok((await page.evaluate(() => location.hash)) === '#/tax/learn/savings/pensionSE/apply' && await page.locator('[data-topic="pensionSE"][data-view="apply"]').count() === 1, '«אחורה» בדפדפן חוזר לנושא — לאותו מצב');
     // פירורים במקום מסילה: «ידע מקצועי › תחום», ושנת המס בפירורים
     const crumbs = page.locator('.ta2-crumbs');
     const crumbTxt = await crumbs.locator('.kn-crumb').allInnerTexts();
@@ -530,22 +530,24 @@ async function run(vp) {
     }
     await page.locator('[data-see-also-item="maternity"]').click(); await sleep(800);
     ok((await page.evaluate(() => location.hash)) === '#/tax/learn/ni/maternity' && await page.locator('[data-topic="maternity"]').count() === 1, 'ההפניה נוחתת בנושא, בתחום שלו');
-    const mlStages = await page.locator('[data-stage-btn]').evaluateAll(b => b.map(x => x.dataset.stageBtn).join(','));
-    ok(mlStages === 'what,ask,read,calc,except,next,practice,sources', 'דמי לידה: כל שמונת השלבים', mlStages);
+    // ‼ 26.10.2026: יחידות ושלב אחד בכל פעם — כל שלב בכתובת משלו
+    ok(await page.locator('[data-kn-unit]').count() >= 3 && await page.locator('[data-kn-fixed-year="2025"]').count() >= 1, 'דמי לידה: יחידות לימוד, ושנת מס 2025 קבועה');
+    const mlGo = async (s) => { await go(page, `/tax/learn/ni/maternity/${s}`); await page.locator(`[data-section="${s}"], [data-view="apply"]`).first().waitFor({ timeout: 15000 }); };
+    await mlGo('ml-what');
     ok(/מענק לידה/.test(await text(page.locator('#ml-what'))), '«מה זה»: גם מה לא כאן (מענק לידה פטור)');
-    await page.locator('[data-stage-btn="calc"]').first().click(); await sleep(300);
+    await mlGo('ml-ex');
     const calcT = await text(page.locator('[data-ml-result]'));
     ok(/9,129\.6/.test(calcT) && /30,812\.4/.test(calcT) && /58\.5/.test(calcT) && /197\.5/.test(calcT), 'מחשבון: נייר העבודה — 24/81 ימים', calcT);
     ok(await page.locator('#ml-ex img').evaluateAll(a => a.length === 2 && a.every(i => i.complete && i.naturalWidth > 0)), 'הדוגמה: הודעת ב״ל והאישור השנתי נטענו');
     await page.locator('[data-ml-from]').fill('2024-11-01'); await page.locator('[data-ml-to]').fill('2025-02-13'); await sleep(300);
     ok((await page.locator('[data-ml-result] [data-ml-year]').evaluateAll(r => r.map(x => x.children[1].textContent).join('/'))) === '61/44', 'מחשבון: הדוגמה מ«דע זכויותיך» — 61/44');
     await shot(page, `${vp}-14-maternity-calc`);
-    await page.locator('[data-stage-btn="except"]').first().click(); await sleep(300);
+    await mlGo('ml-exc');
     ok(await page.locator('#ml-exc .kn-claim, #ml-exc [class*="claim"]').count() > 0 && /250 או 194/.test(await text(page.locator('#ml-exc'))), '«חריגים»: המקרה המשולב — פתוח, במפורש');
-    await page.locator('[data-stage-btn="next"]').first().click(); await sleep(300);
+    await mlGo('ml-116c');
     ok(await page.locator('[data-ml-steps] li').count() === 5 && await page.locator('#ml-116c img').evaluate(i => i.complete && i.naturalWidth > 0), '116ג צעד אחר צעד, עם הטופס שמולא');
     await shot(page, `${vp}-15-maternity-116c`);
-    await page.locator('[data-stage-btn="sources"]').first().click(); await sleep(300);
+    await mlGo('ml-src');
     ok(/חוזר מס הכנסה 2\/2022/.test(await text(page.locator('#ml-src'))), '«מקורות»: הסעיף של הנושא מוצג');
     if (mobile) ok(await noHScroll(page), 'טלפון: נושא דמי לידה בלי גלילה הצידה');
 

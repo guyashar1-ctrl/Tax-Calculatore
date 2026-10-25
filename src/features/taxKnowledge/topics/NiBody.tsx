@@ -87,7 +87,7 @@ const belowThreshold = (r: { base: number; regularPart: number }) => r.regularPa
               </div>
             </div>
             <div className="kn-page" style={{ gap: 10 }}>
-              {monthly > niMonthly('ni.se.maxIncome',EX_YEAR,Infinity) ? <div className="kn-blocked" role="status">הקלט מחוץ לטווח המחשבון הרבעוני הזה. מאמתים בסיס ותקרה לפי המעמד; <a href="#tool/ni">לכלי השיעורים והחישוב מבסיס שנקבע</a>.</div> : r.ok && r.value && belowThreshold(r.value) ? (
+              {monthly > niMonthly('ni.se.maxIncome',EX_YEAR,Infinity) ? <div className="kn-blocked" role="status">הקלט מחוץ לטווח המחשבון הרבעוני הזה. מאמתים בסיס ותקרה לפי המעמד; <a href="#/tax/learn/ni/ni">לכלי השיעורים והחישוב מבסיס שנקבע</a>.</div> : r.ok && r.value && belowThreshold(r.value) ? (
                 <div className="kn-blocked" role="status"><strong>אין תוצאה: </strong>הבסיס מתחת לסף השיעור המופחת (<RV id="ni.se.reducedThreshold" year={EX_YEAR} /> לחודש). ב״ל מפרסמת נוסחה רק למעל הסף; מתחת לו הבסיס נגזר (הכנסה ÷ (1 + שיעור מופחת × 52%)) ותלוי גם בהכנסה המזערית — לכן לא מוצג כתוצאה. <ClaimTag status="open" /></div>
               ) : r.ok && r.value ? (
                 <>

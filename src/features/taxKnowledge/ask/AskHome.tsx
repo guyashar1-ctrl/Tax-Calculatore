@@ -11,7 +11,8 @@ import Modal from '../../../components/ui/Modal';
 import { useToast } from '../../../components/ui/Toast';
 import { ClaimTag, CLAIM_LABEL } from '../claim';
 import type { KnowledgeRule } from '../corpus/types';
-import { DOMAINS, DOMAIN_BY_ID, type AreaPath, type DomainId } from '../../taxArea/areaModel';
+import { DOMAINS, DOMAIN_BY_ID, parseAreaPath, type AreaPath, type DomainId } from '../../taxArea/areaModel';
+import { readLastRead } from '../readingMarks';
 import { findFields } from '../formMap/model';
 import { searchValues } from '../domainValues';
 import { RULESET_VERSION } from '../../taxRules/registry';
@@ -64,6 +65,7 @@ export default function AskHome({ onGo, onOpenTopic, moved }: Props) {
   const [questions, setQuestions] = useState<OpenQuestion[]>([]);
   const [updating, setUpdating] = useState(false);
   const seq = useRef(0);
+  const [last] = useState(readLastRead);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { void loadCorpus().then(setRules); }, []);
@@ -128,6 +130,12 @@ export default function AskHome({ onGo, onOpenTopic, moved }: Props) {
           <nav className="ak-tries" aria-label="להתחיל מכאן">{START.map(x => <button key={x.label} type="button" onClick={() => onGo(x.to)} data-ask-start>{x.label}</button>)}</nav>
         )}
       </div>
+
+      {last && !active && (
+        <button type="button" className="ak-resume" onClick={() => onGo(parseAreaPath(last.path))} data-ask-resume>
+          <span>להמשיך מהמקום האחרון</span><b>{last.title}</b><span aria-hidden="true">←</span>
+        </button>
+      )}
 
       {moved && !active && <p className="ak-moved" role="status">«ערכים לפי נושא» עברו לעמודי התחומים — תחת «ערכים לשנה».</p>}
 

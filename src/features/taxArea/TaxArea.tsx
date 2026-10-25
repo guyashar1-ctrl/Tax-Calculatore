@@ -18,7 +18,9 @@ import IncomeTaxPanel from '../taxCenter/IncomeTaxPanel';
 import BookkeepingKnowledge from '../taxCenter/bookkeeping/BookkeepingKnowledge';
 import { FreshnessBadge, FreshnessPanel } from '../taxCenter/DataFreshness';
 import { TOOL_DATASET, type Tool } from '../taxCenter/taxCenterNav';
-import TopicPage from '../taxKnowledge/TopicPage';
+import TopicPage, { BODIES } from '../taxKnowledge/TopicPage';
+import { readingPeriod } from '../taxKnowledge/learnPath';
+import { saveLastRead } from '../taxKnowledge/readingMarks';
 import Map1301 from '../taxKnowledge/Map1301';
 import Maintenance from '../taxKnowledge/Maintenance';
 import { TOPIC_BY_ID } from '../taxKnowledge/topics';
@@ -62,7 +64,9 @@ export default function TaxArea({ path, onPath, freshnessTaskExists, onCreateFre
   const p = useMemo(() => parseAreaPath(path), [path]);
   const work = useTaxWork(clients);
   // ‼ 25.10.2026: שנה שנבחרה ביד נשמרת; אחרת — לפי סוג העמוד (defaultYearFor), ומתיק לקוח — שנת הדוח שלו
-  const [chosenYear, setYear] = useState<number | null>(null);
+  // שנה שנבחרה ביד נשמרת גם ברענון (בלשונית הזו בלבד)
+  const [chosenYear, setChosenYear] = useState<number | null>(() => { try { const v = Number(sessionStorage.getItem('pivo.tax.year')); return AVAILABLE_YEARS.includes(v) ? v : null; } catch { return null; } });
+  const setYear = (y: number) => { setChosenYear(y); try { sessionStorage.setItem('pivo.tax.year', String(y)); } catch { /* בלי אחסון — רק עד הרענון */ } };
   const [lastWork, setLastWork] = useState<string>(p.mode === 'work' ? formatAreaPath(p) : 'work/all');
   const [lastLearn, setLastLearn] = useState<string>(p.mode === 'learn' ? formatAreaPath(p) : 'learn');
   useEffect(() => { if (p.mode === 'work') setLastWork(formatAreaPath(p)); else setLastLearn(formatAreaPath(p)); }, [p]);
@@ -86,6 +90,17 @@ export default function TaxArea({ path, onPath, freshnessTaskExists, onCreateFre
 
   const item = itemOf(p);
   const domain = p.mode === 'learn' && p.domain ? DOMAIN_BY_ID[p.domain] : undefined;
+  const sub = p.mode === 'learn' ? p.sub ?? null : null;
+  // ‼ סעיף שנכתב לשנה אחת — הנושא מציג «שנת מס X · קבועה», ואין בורר שנה שמבטיח משהו אחר
+  const fixedYear = item?.kind === 'topic' && readingPeriod(item.id, sub, year).fixed;
+  // «להמשיך מהמקום האחרון» בספרייה — הנושא, ואם נפתח — הסיכום או השלב
+  useEffect(() => {
+    if (item?.kind !== 'topic') return;
+    const t = TOPIC_BY_ID[item.id];
+    const where = sub === 'summary' ? 'הסיכום המקצועי' : sub === 'apply' ? 'יישום בתיק' : sub ? BODIES[item.id]?.toc.find(x => x.id === sub)?.label : undefined;
+    if (t) saveLastRead({ path: formatAreaPath(p), title: where ? `${t.title} · ${where}` : t.title });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [item?.id, sub]);
 
   // ── המתג בראש: שני מרחבים, וכל אחד חוזר לעמוד האחרון שהיה בו; לחיצה על המרחב הפעיל — לדף הבית שלו ──
   const modes = (
@@ -112,7 +127,7 @@ export default function TaxArea({ path, onPath, freshnessTaskExists, onCreateFre
         <button type="button" className="kn-crumb" onClick={() => go({ mode: 'learn' })}>{MODE_LABEL.learn}</button>
         {item && <><span aria-hidden="true"> › </span><button type="button" className="kn-crumb" onClick={() => go({ mode: 'learn', domain: p.domain })}>{domain!.label}</button></>}
       </span>
-      <label className="ta2-year">שנת מס{yearSelect}</label>
+      {!fixedYear && <label className="ta2-year">שנת מס{yearSelect}</label>}
     </div>
   ) : null;
 
@@ -121,7 +136,6 @@ export default function TaxArea({ path, onPath, freshnessTaskExists, onCreateFre
   })) : []);
 
   // מה שנבחר בתוך הכלי — בכתובת, כדי ש«אחורה» ורענון יחזירו לאותו מקום
-  const sub = p.mode === 'learn' ? p.sub ?? null : null;
   const setSub = (s: string | null) => { if (p.mode === 'learn') go({ mode: 'learn', domain: p.domain, item: p.item, sub: s ?? undefined }); };
   const toolBody = (t: Tool) => {
     switch (t) {
@@ -170,7 +184,9 @@ export default function TaxArea({ path, onPath, freshnessTaskExists, onCreateFre
           <TopicPage key={item.id} topicId={item.id} year={year} clients={clients}
             context={ctxClient ? { id: ctxClient.id, name: `${ctxClient.firstName ?? ''} ${ctxClient.lastName ?? ''}`.trim(), client: ctxClient } : null}
             onBackToClient={ctxClient ? () => onOpenClient(ctxClient.id, 'taxfile') : undefined}
-            onOpenClient={id => onOpenClient(id, 'taxfile')} onOpenTopic={openTopic} workLinks={workLinksFor(domain.id)} />
+            onOpenClient={id => onOpenClient(id, 'taxfile')} onOpenTopic={openTopic} workLinks={workLinksFor(domain.id)}
+            section={sub} onSection={setSub}
+            onOpenForm={t => go(t.code ? { mode: 'learn', domain: t.domain, code: t.code } : { mode: 'learn', domain: t.domain })} />
         </>
       );
     }

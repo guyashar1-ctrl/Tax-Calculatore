@@ -149,3 +149,9 @@
 .ak-building { margin: 12px 2px 0; font-size: 13px; color: var(--tx3); }
 .ak-building .ak-link { font-size: 13px; min-height: 32px; }
 @media (max-width: 560px) { .ak-books { grid-template-columns: 1fr; } }
+
+/* «להמשיך מהמקום האחרון» (26.10.2026) */
+.ak-resume { display: flex; align-items: baseline; gap: 10px; width: 100%; max-width: 640px; margin: 0 auto 18px; text-align: start; font: inherit; font-size: 14px; color: var(--tx); background: var(--card); border: 1px solid var(--bd); border-radius: 12px; padding: 12px 16px; min-height: 48px; cursor: pointer; }
+.ak-resume span:first-child { color: var(--tx3); font-size: 13px; white-space: nowrap; }
+.ak-resume b { font-weight: 600; flex: 1; min-width: 0; }
+.ak-resume:hover { border-color: var(--soft-bd); }

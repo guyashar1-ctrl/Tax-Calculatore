@@ -7,7 +7,7 @@
 
 import { test, equal, assert } from '../../../testkit/tinyTest';
 import type { TestCase } from '../../../testkit/tinyTest';
-import { STAGES, visibleStages, clientAsksFor, documentsFor, plainStatus, stageOfSection, type Stage } from '../learnPath';
+import { STAGES, visibleStages, clientAsksFor, documentsFor, plainStatus, stageOfSection, type Stage, unitsOf, courseStepsOf, applyStepOf, readingPeriod, CHAPTER_YEAR_IDS, stepKind } from '../learnPath';
 import { TOPICS } from '../topics';
 import { STUDY_FUND_TOC } from '../topics/StudyFundBody';
 import { PENSION_TOC } from '../topics/PensionBody';
@@ -21,6 +21,7 @@ import { FORM6111_TOC } from '../topics/Form6111Body';
 import { MATERNITY_TOC } from '../topics/MaternityBody';
 import { DEALER_TOC } from '../topics/DealerTypeBody';
 import TOPIC_PAGE from '../TopicPage.tsx?raw';
+import { readdirSync, readFileSync, statSync } from 'node:fs';
 
 const TOCS = { studyFund: STUDY_FUND_TOC, pensionSE: PENSION_TOC, mandatoryPension: MANDATORY_TOC, niSelfEmployed: NI_TOC, advances: ADVANCES_TOC,
   wealth: WEALTH_TOC, microBusiness: MICRO_TOC, annualReturn: ANNUAL_TOC, form6111: FORM6111_TOC, maternity: MATERNITY_TOC, dealerType: DEALER_TOC } as const;
@@ -92,6 +93,40 @@ export const TESTS: TestCase[] = [
   test('פער מקצועי מוצג כשאלה פתוחה — לא כ«נקודה לבדיקה» או הערת קריאה', () => {
     assert(!/נקודות? לבדיקה|נקודה אחת/.test(plainStatus('usable', 'primary', 2).label), 'בלי «נקודות לבדיקה»');
     assert(plainStatus('research', 'primary', 2).label.includes('2 שאלות מקצועיות פתוחות'), 'גם בנושא בבירור');
-    assert(TOPIC_PAGE.includes('data-kn-gaps-note') && TOPIC_PAGE.includes('אלה לא הערות קריאה'), 'הפערים מוצגים גם בחישוב ובתיק, עם הסבר');
+    // 26.10.2026: הפערים — בראש הנושא, ב«יישום בתיק» ובחלון «שאלות פתוחות» עם ההסבר שחישוב שתלוי בהם לא כאן
+    assert(TOPIC_PAGE.includes('data-kn-gaps-note') && TOPIC_PAGE.includes('שעוד לא הוכרעה במקור רשמי') && TOPIC_PAGE.includes('חישוב שתלוי בה — לא כאן'), 'הפערים מוצגים גם בתיק, עם הסבר');
+  }),
+  // ── 26.10.2026: יחידות לימוד, «יישום בתיק» ושנת הקריאה (ההדמיה המאושרת 25.10) ──
+  test('יחידות: כל סעיף בכל נושא נמצא ביחידה אחת בדיוק, ואין יחידה ריקה', () => {
+    for (const [id, toc] of Object.entries(TOCS)) {
+      const units = unitsOf(id, toc);
+      const all = units.flatMap(u => u.ids);
+      equal(all.length, toc.length, `${id}: מספר הסעיפים ביחידות`);
+      equal(new Set(all).size, toc.length, `${id}: אין סעיף פעמיים`);
+      assert(units.every(u => u.ids.length > 0 && u.name.trim().length > 0), `${id}: יחידה ריקה או בלי שם`);
+    }
+  }),
+  test('«המשך» עובר על הלימוד בלי סעיף היישום, ולכל נושא שיש בו «מה עושים בתיק» — יישום', () => {
+    for (const [id, toc] of Object.entries(TOCS)) {
+      const apply = applyStepOf(toc);
+      const steps = courseStepsOf(id, toc);
+      assert(!apply || !steps.some(s => s.id === apply.id), `${id}: היישום אינו שלב ב«המשך»`);
+      equal(steps.length, toc.length - (apply ? 1 : 0), `${id}: כל השאר בדרך`);
+      assert(steps.every(s => stepKind(s).length > 0), id);
+    }
+    for (const id of ['pensionSE', 'studyFund', 'annualReturn', 'wealth', 'microBusiness']) assert(!!applyStepOf(TOCS[id as keyof typeof TOCS]), `${id}: יש סעיף יישום`);
+  }),
+  test('שנת קריאה: סעיף שנכתב לשנה אחת — קבועה; השנה הקבועה מצביעה על סעיף שקיים', () => {
+    const ids = new Set(Object.values(TOCS).flatMap(t => t.map(x => x.id)));
+    for (const s of CHAPTER_YEAR_IDS) assert(ids.has(s), `סעיף עם שנה קבועה שאינו קיים: ${s}`);
+    equal(readingPeriod('annualReturn', null, 2026).year, 2025);
+    equal(readingPeriod('advances', 'summary', 2025).year, 2026);
+    equal(readingPeriod('pensionSE', 'pn-ex', 2026).fixed, true);
+    equal(readingPeriod('pensionSE', 'pn-0', 2026).fixed, false, 'סעיף רגיל — השנה שנבחרה');
+  }),
+  test('אין כתובות מההדמיה (‎#book/‎, ‎#tool/‎) בקוד — הן זורקות מ«מס»', () => {
+    const walk = (d: string): string[] => readdirSync(d).flatMap(n => { const p = d + '/' + n; return statSync(p).isDirectory() ? (/__tests__|node_modules/.test(n) ? [] : walk(p)) : /\.(tsx?|jsx?)$/.test(n) ? [p] : []; });
+    const bad = walk(process.cwd() + '/src').filter(f => /["'`]#(book|tool)\//.test(readFileSync(f, 'utf8')));
+    equal(bad.join(', '), '');
   }),
 ];
