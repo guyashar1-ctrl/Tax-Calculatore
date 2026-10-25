@@ -38,6 +38,30 @@ const STEP_TIMEOUT_MS = 60000;
  * נוספת על אותה מערכת מפילה את הראשונה (ראה reuseOpenSystemPage).
  */
 export async function openVatWorkPage(page) {
+  const found = await findOrOpenVat(page);
+  if (!found.ok || OSEK_DETAILS_PATH.test(found.pathname)) return found;
+  // ‼ בתפריט הראשי הזנת מספר נשארת בתפריט (אין לשוניות) — נכנסים קודם
+  // ל«פרטי עוסק» דרך הקישור של התפריט עצמו (נצפה 25.10.2026: מפנה ל-
+  // /EMHANOSEK/PirteyOsekPirteyIsum.aspx). בלי עוסק נבחר נוחתים במסך ריק,
+  // ו-openOsek יודע להתחיל משם.
+  await found.page.goto(OSEK_DETAILS_URL, { waitUntil: 'commit', timeout: STEP_TIMEOUT_MS }).catch(() => {});
+  const deadline = Date.now() + STEP_TIMEOUT_MS;
+  let st = null;
+  while (Date.now() < deadline) {
+    await found.page.waitForTimeout(700);
+    st = await screenState(found.page);
+    if (st?.hasPassword) return { ok: false, reason: 'login_required', pathname: st.pathname };
+    if (st?.complete && OSEK_DETAILS_PATH.test(st.pathname) && (await found.page.$('#' + OSEK_INPUT))) {
+      return { ...found, pathname: st.pathname };
+    }
+  }
+  return { ok: false, reason: 'osek_details_timeout', pathname: st?.pathname };
+}
+
+const OSEK_DETAILS_URL = 'https://shaam.taxes.gov.il/emhanmainmenu/EmTwbMavarPage.aspx?cur=2&KodMaarecet=60000000&KodPage=100';
+const OSEK_DETAILS_PATH = /^\/emhanosek\//i;
+
+async function findOrOpenVat(page) {
   for (const p of page.context().pages()) {
     let path;
     try { path = new URL(p.url()).pathname; } catch { continue; }
