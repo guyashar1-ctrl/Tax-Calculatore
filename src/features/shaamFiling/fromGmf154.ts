@@ -4,6 +4,8 @@
 //   כל הכללים בשרת (שיוך, השוואה לקיים, מצב); כאן רק בונים את האצווה.
 // ‼ מה נכנס: דוח שנתי «חייב בהגשה» בלי תאריך הגשה (פתוח); שנה שכבר יש לה שורה — כדי שהגשה תעדכן אותה;
 //   ודרישות הצהרת הון. שנים שהוגשו ושלא היו פתוחות — לא: 20 שורות «הוגש» לכל לקוח היו מציפות את התיק.
+// ‼ הון: «דרישה עד …» = פתוחה עם מועד; «הענות …» = **הוגשה** בתאריך הזה (25.10.2026) — שורה «הוגשה»,
+//   ודרישה פתוחה מאותה שנה נסגרת בה. הצהרת הון היא אחת לכמה שנים, ולכן «הוגשה» לא מציפה.
 // ‼ טהור.
 
 import type { Batch, BatchRow, BatchSource } from './parse/batch';
@@ -91,7 +93,9 @@ export function batchFromGmf154(filing: Gmf154Filing, o: {
     .filter(w => w.year && w.due && !o.listWealthYears?.has(String(w.year)))
     .map((w, i) => ({
       sourceKey: 'gmf154:wealth', line: i + 1, fileNumber: file, name, yearShown: String(w.year),
-      legalDue: w.due!, legalDueRaw: w.text, problems: [],
+      // ‼ ב«הענות» העובד מחזיר ב-due את תאריך ההגשה — לא מועד.
+      ...(/^הענות\s/.test(w.text.trim()) ? { filedOn: w.due!, filedOnRaw: w.text } : { legalDue: w.due!, legalDueRaw: w.text }),
+      problems: [],
     }));
 
   if (!annual.length && !wealth.length) return null;

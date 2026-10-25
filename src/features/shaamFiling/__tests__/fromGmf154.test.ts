@@ -2,6 +2,7 @@
 import { deepEqual, equal, assert, test, type TestCase } from '../../../testkit/tinyTest';
 import { batchFromGmf154, filingSummaryText, gmf154Filing, openReturnYears, GMF154_SOURCE_NAME, isGmf154Source, type Gmf154Filing, type Gmf154Year } from '../fromGmf154';
 import { listName, sourceText } from '../model';
+import { shaamStatus } from '../planShaam';
 
 const year = (y: number, required: Gmf154Year['required'], over: Partial<Gmf154Year> = {}): Gmf154Year => ({
   year: y, page: 1, required, requiredRaw: '', filedOn: null, filedRaw: null,
@@ -50,6 +51,17 @@ export const TESTS: TestCase[] = [
     const kept = batchFromGmf154(filing(), { ...opts, listWealthYears: new Set(['2025']) })!;
     equal(kept.rows.filter(r => r.sourceKey === 'gmf154:wealth').length, 0);
     equal(kept.sources.some(s => s.kind === 'wealth'), false);
+  }),
+  test('הצהרת הון «הענות» ⇒ שורה «הוגשה» בתאריך ההגשה, בלי מועד', () => {
+    // ‼ כך החזיר העובד ב-25.10.2026.
+    const b = batchFromGmf154(filing({ years: [], wealth: [{ year: 2019, text: 'הענות 22/07/2020', due: '2020-07-22', passed: false }] }), opts)!;
+    const w = b.rows.find(r => r.sourceKey === 'gmf154:wealth')!;
+    equal(w.filedOn, '2020-07-22');
+    equal(w.filedOnRaw, 'הענות 22/07/2020');
+    equal(w.legalDue, undefined);
+    equal(shaamStatus('wealth', w, b.sources[0].group), 'filed');
+    const demand = batchFromGmf154(filing(), opts)!.rows.find(r => r.sourceKey === 'gmf154:wealth')!;
+    equal(shaamStatus('wealth', demand), 'open', 'דרישה — פתוחה');
   }),
   test('מקור בלי קובץ: manual, שם קבוע, sha לפי הריצה (קליטה חוזרת של אותה ריצה — אותו מקור)', () => {
     const b = batchFromGmf154(filing(), opts)!;

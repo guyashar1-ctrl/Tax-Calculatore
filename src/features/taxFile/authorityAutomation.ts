@@ -108,6 +108,8 @@ export interface AuthorityFieldResult {
   provenance?: string;
   /** מה השתבש — ב-failed בלבד. משפט אחד. */
   error?: string;
+  /** למה השדה לא נבדק בריצה הזו — ב-unsupported, כשהסיבה ידועה (למשל פורטל המייצגים לא מחובר). */
+  skippedReason?: string;
   /**
    * למי השדה שייך (154) — חובה לכל תוצאה שמגיעה מרשות ברמת-אדם (ב"ל).
    * ‼ חסר ⇒ הרשות ברמת תא משפחתי/כרטיס (מס הכנסה) ואין עמימות מלכתחילה.
@@ -274,14 +276,27 @@ function advanceBusinessState(
 }
 
 /**
- * «דרישה עד 31/12/2026 · שנת 2025» ⇒ 'true' · «אין דרישה» ⇒ 'false'. ‼ רק שתי
- * הצורות שנצפו ב-154; כל טקסט אחר לא ממופה — מוצג כלשונו, בלי הצעה.
+ * «דרישה עד 31/12/2026 · שנת 2025» ⇒ 'true' · «אין דרישה» / «הענות 22/07/2020 · שנת 2019» ⇒ 'false'.
+ * ‼ «הענות» = ההצהרה **הוגשה** בתאריך הזה (נצפה ב-154, 25.10.2026) — אין דרישה פתוחה, והתאריך
+ * אינו מועד. כל טקסט אחר לא ממופה — מוצג כלשונו, בלי הצעה.
  */
 function mapWealthDemand(raw: string): string | null {
   const t = raw.replace(/\s+/g, ' ').trim();
   if (/^דרישה עד \d{2}\/\d{2}\/\d{4}/.test(t)) return 'true';
-  if (t === 'אין דרישה') return 'false';
+  if (t === 'אין דרישה' || wealthFiled(t)) return 'false';
   return null;
+}
+
+/** «הענות 22/07/2020 · שנת 2019» ⇒ { on: '22.07.2020', year: '2019' }. אחרת null. */
+export function wealthFiled(raw: string): { on: string; year?: string } | null {
+  const m = raw.replace(/\s+/g, ' ').trim().match(/^הענות (\d{2})\/(\d{2})\/(\d{4})(?: · שנת (\d{4}))?/);
+  return m ? { on: `${m[1]}.${m[2]}.${m[3]}`, year: m[4] } : null;
+}
+
+/** מה רואים מתחת לשדה כשההצהרה האחרונה הוגשה: «הוגשה 22.07.2020 · לשנת 2019». */
+function wealthFiledText(raw: string): string | null {
+  const f = wealthFiled(raw);
+  return f ? `הוגשה ${f.on}${f.year ? ` · לשנת ${f.year}` : ''}` : null;
 }
 
 /** «קיימת · 12-170-48047» ⇒ 'true' · «אין הרשאה» ⇒ 'false' (רשימת מיוצגים). כל טקסט אחר — לא ממופה. */
@@ -320,7 +335,9 @@ interface Shaam134FieldSource {
   /** איך מציגים את ערך הרשות לרו"ח. ברירת מחדל: הגולמי. */
   display?: (value: string, raw: string) => string;
   /** להציג את ערך הרשות גם כשתואם (ירוק). */
-  showOnMatch?: (value: string) => boolean;
+  showOnMatch?: (value: string, raw: string) => boolean;
+  /** המקור תקף רק כש… — אחרת הוא נחשב ריק (ואז businessValue מכריע). */
+  applies?: (fields: Record<string, string>) => boolean;
 }
 
 /**
@@ -363,15 +380,21 @@ export const SHAAM_134_FIELD_SOURCES: Record<string, Shaam134FieldSource> = {
   },
   // ‼ הצהרת הון מ-154 בלבד. «אין דרישה» הוא תוצאה: אין דרישה פתוחה לפי שע״ם.
   // ריצה ישנה בלי המפתח ⇒ «לא נבדק» (ריק בלי מצב עסקי), לא כישלון.
+  // «הענות» ⇒ אין דרישה פתוחה, ומתחת לשדה מתי הוגשה ההצהרה האחרונה — גם כשתואם.
   capitalDeclarationRequired: {
     source: 'wealthDemand', normalize: mapWealthDemand,
+    display: (_v, raw) => { const filed = wealthFiledText(raw); return filed ? `אין דרישה פתוחה · ${filed}` : raw; },
+    showOnMatch: (_v, raw) => !!wealthFiled(raw),
   },
   // ‼ «אין דרישה» ⇒ אין מועד: ירוק כשהשדה ריק, והצעה לנקות כשנרשם מועד (22.10.2026, גיא).
+  // ‼ «הענות» — העובד מחזיר את תאריך ההגשה ב-wealthDemandDue; זה **לא** מועד, ולכן כמו «אין דרישה».
   // דרישה בטקסט לא מוכר בלי מועד — סמן ניטרלי.
   capitalDeclarationDeadline: {
     source: 'wealthDemandDue',
+    applies: (f) => !wealthFiled(f.wealthDemand ?? ''),
     display: (v) => v.split('-').reverse().join('.'),
-    businessValue: (f) => (f.wealthDemand === 'אין דרישה' ? { value: '', display: 'אין דרישה', patch: null } : f.wealthDemand ? 'info' : null),
+    businessValue: (f) => (f.wealthDemand === 'אין דרישה' || wealthFiled(f.wealthDemand ?? '')
+      ? { value: '', display: 'אין דרישה פתוחה', patch: null } : f.wealthDemand ? 'info' : null),
   },
 };
 
@@ -379,6 +402,18 @@ export const SHAAM_134_FIELD_SOURCES: Record<string, Shaam134FieldSource> = {
  * מקורות שלא תמיד נקראים — ריצה בלעדיהם היא «לא נבדק», לא כשל: הון מ-154 (ריצה ישנה),
  * הרשאה לחיוב מ«רשימת מיוצגים» (רק כשמערכת הייצוג מחוברת).
  */
+/**
+ * למה «רשימת מיוצגים» לא נקראה — מתחת ל«הרשאה לחיוב», כדי ש«—» לא ייקרא «אין הרשאה».
+ * ‼ הקריאה לא נכנסת לפורטל המייצגים בעצמה (גיא, 23.10.2026) — ולכן הצעד הוא לחבר ולקרוא שוב.
+ */
+export function representedListSkipText(reason: string | undefined): string | undefined {
+  if (!reason) return undefined;
+  if (reason === 'representation_not_connected' || reason === 'representation_login_required') {
+    return 'לא נבדק — פורטל המייצגים לא היה מחובר';
+  }
+  return 'לא נבדק — רשימת המיוצגים לא נקראה';
+}
+
 const OPTIONAL_SOURCES: Record<string, (f: Record<string, string>) => boolean> = {
   wealthDemand: (f) => f.wealthDemand !== undefined,
   wealthDemandDue: (f) => f.wealthDemand !== undefined,
@@ -483,9 +518,11 @@ function interpretShaam134(
     if (!spec || !fields) return { fieldKey, label, status: 'unsupported', currentValue };
     if (fieldKey === 'incomeTaxReportingStatus') return interpretReportingStatus(fields, label, currentValue);
 
-    const raw = (fields[spec.source] ?? '').trim();
+    const raw = spec.applies && !spec.applies(fields) ? '' : (fields[spec.source] ?? '').trim();
     if (raw === '' && OPTIONAL_SOURCES[spec.source] && !OPTIONAL_SOURCES[spec.source](fields)) {
-      return { fieldKey, label, status: 'unsupported', currentValue };
+      const skippedReason = spec.source === 'debitAuthorization'
+        ? representedListSkipText(unavailable.find(u => u.key === 'representedList')?.reason) : undefined;
+      return { fieldKey, label, status: 'unsupported', currentValue, ...(skippedReason ? { skippedReason } : {}) };
     }
     if (raw === '') {
       const business = spec.businessValue?.(fields) ?? null;
@@ -500,7 +537,7 @@ function interpretShaam134(
           fieldKey, label, status: same ? 'match' : 'changed', currentValue,
           authorityValue: business.value, authorityDisplay: business.display,
           patchValue: 'patch' in business ? business.patch : undefined,
-          provenance: advanceBusinessState(fields)?.raw, group: spec.group,
+          provenance: spec.group === 'advances' ? advanceBusinessState(fields)?.raw : undefined, group: spec.group,
         };
       }
       const why = unavailable.find(u => u.key === spec.source)?.reason;
@@ -520,7 +557,7 @@ function interpretShaam134(
     const base = {
       fieldKey, label, currentValue, authorityRaw: raw, authorityDisplay: spec.display?.(normalized, raw) ?? raw,
       authorityValue: normalized, hint, group: spec.group,
-      ...(spec.showOnMatch?.(normalized) ? { showOnMatch: true } : {}),
+      ...(spec.showOnMatch?.(normalized, raw) ? { showOnMatch: true } : {}),
     };
     // ‼ ההשוואה היא בין הערכים המנורמלים, ולכן «0» של שע״ם מול «0» בתיק
     // הוא **תואם**, ואפס אינו מקרה מיוחד. שדה ריק בתיק («—») מול ערך

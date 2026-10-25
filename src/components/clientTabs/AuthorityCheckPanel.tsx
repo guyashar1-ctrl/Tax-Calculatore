@@ -57,6 +57,10 @@ export function FieldAuthorityLine({ field, sourceLabel }: { field: AuthorityFie
       </div>
     );
   }
+  // ‼ לא נבדק מסיבה ידועה (פורטל המייצגים לא מחובר) — בלי תגית הרשות: הרשות לא אמרה כלום.
+  if (field.status === 'unsupported' && field.skippedReason) {
+    return <div className="txf-authline is-info">{field.skippedReason}</div>;
+  }
   // ‼ מצב עסקי עם ראיה משלו (למשל «מופיע ברשימת המיוצגים») — שורה ניטרלית.
   // מצב עסקי בלי ראיה משלו מוסבר פעם אחת בקבוצה, כמו קודם.
   if (field.status === 'info' && field.authorityDisplay) {

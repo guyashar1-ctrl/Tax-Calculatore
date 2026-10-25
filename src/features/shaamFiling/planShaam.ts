@@ -30,7 +30,8 @@ export function matchClient(clients: PlanClient[], file: string, name?: string):
 
 export function shaamStatus(kind: string, r: BatchRow, group?: string): 'open' | 'filed' | 'context' {
   if (kind === 'annual') return r.filedOn ? 'filed' : r.required === true && !r.noAssessment ? 'open' : 'context';
-  return group === 'filed_fine' || group === 'filed_no_fine' ? 'filed' : 'open';
+  // ‼ 295: תאריך הגשה בשורה (154 «הענות») ⇒ הוגשה, גם בלי קבוצת AHZM.
+  return group === 'filed_fine' || group === 'filed_no_fine' || r.filedOn ? 'filed' : 'open';
 }
 export const valuesOf = (r: BatchRow, group?: string) => JSON.stringify([r.name || null, r.office || null, r.fileType || null, r.section || null, r.branch || null,
   r.required ?? null, r.legalDueRaw || null, r.filedOnRaw || null, !!r.noAssessment, group ?? null]);

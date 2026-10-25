@@ -41,8 +41,25 @@ export const TESTS: TestCase[] = [
     const due = r.get('capitalDeclarationDeadline')!;
     equal(due.status, 'changed');
     equal(due.patchValue, null);
-    equal(due.authorityDisplay, 'אין דרישה');
+    equal(due.authorityDisplay, 'אין דרישה פתוחה');
     equal(run({ wealthDemand: 'אין דרישה' }).get('capitalDeclarationDeadline')!.status, 'match');
+  }),
+  test('«הענות» (הוגשה) ⇒ אין דרישה פתוחה, תאריך ההגשה מתחת לשדה, ואינו מועד', () => {
+    // ‼ כך בדיוק החזיר העובד ב-25.10.2026: התאריך של ההגשה גם ב-wealthDemandDue.
+    const read = { wealthDemand: 'הענות 22/07/2020 · שנת 2019', wealthDemandDue: '2020-07-22' };
+    const r = run(read, client({ capitalDeclarationDeadline: '2020-07-22' }));
+    const req = r.get('capitalDeclarationRequired')!;
+    equal(req.status, 'changed');
+    equal(req.authorityValue, 'false');
+    equal(req.authorityDisplay, 'אין דרישה פתוחה · הוגשה 22.07.2020 · לשנת 2019');
+    const due = r.get('capitalDeclarationDeadline')!;
+    equal(due.status, 'changed', 'מועד שנרשם בטעות ⇒ הצעה לנקות');
+    equal(due.patchValue, null);
+    equal(due.provenance, undefined, 'לא ראיה של המקדמות');
+    const ok = run(read, client({ capitalDeclarationRequired: false }));
+    equal(ok.get('capitalDeclarationRequired')!.status, 'match');
+    equal(ok.get('capitalDeclarationRequired')!.showOnMatch, true, 'מתי הוגשה — גם כשירוק');
+    equal(ok.get('capitalDeclarationDeadline')!.status, 'match');
   }),
   test('טקסט לא מוכר ⇒ לא ממופה ולא מוצע', () => {
     const r = run({ wealthDemand: 'הוגשה · שנת 2024' });
@@ -141,6 +158,12 @@ export const TESTS: TestCase[] = [
     equal(read({ debitAuthorization: 'קיימת · 99-5-1' }).authorityDisplay, 'בנק 99 · סניף 5 · חשבון 1', 'קוד לא מוכר — המספר');
     equal(read({ debitAuthorization: 'אין הרשאה' }, client({ incomeTaxDebitAuthorization: false })).status, 'match');
     equal(read({ taxOffice: 'x' }).status, 'unsupported', 'מערכת הייצוג לא הייתה מחוברת');
+    const skipped = (reason: string) => spec.interpret!(
+      { id: 'j', status: 'succeeded', result: { fields: { taxOffice: 'x' }, unavailable: [{ key: 'representedList', reason }] } } as unknown as AutomationJob,
+      client(), ['incomeTaxDebitAuthorization'])[0];
+    equal(skipped('representation_not_connected').skippedReason, 'לא נבדק — פורטל המייצגים לא היה מחובר', '«—» לא נקרא «אין הרשאה»');
+    equal(skipped('filters_active').skippedReason, 'לא נבדק — רשימת המיוצגים לא נקראה');
+    equal(read({ taxOffice: 'x' }).skippedReason, undefined, 'ריצה ישנה בלי סיבה — בלי שורה');
   }),
   test('ייצוג: «ראשי»/«נוסף» מ«רשימת מיוצגים» גוברים על ההסקה', () => {
     const c = client({ taxFiles: [{ id: 't', authority: 'income_tax', owner: 'client', repStatus: 'active', fileNumber: '1' }] as Client['taxFiles'] });
