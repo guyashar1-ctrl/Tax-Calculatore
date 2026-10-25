@@ -21,6 +21,9 @@ const API_PRINT = '/gmfHdpsIsrApi/api/Phdps/hdpsIsr';
 const ENTITY_INPUT = '#mezahe';
 const ENTITY_RADIO = '#rbYeshut';
 const MENU_ENTRY_LINK = '#menu-link-1';
+/** «איתור שאילתא» בכותרת של כל מסך GMF (תפריט, 413, …) והכפתור שלה — נצפה בשניהם. */
+const QUERY_INPUT = '#mavarShilta';
+const QUERY_SUBMIT = '#gmfBtnGoTo, #gmfBtnHmse';
 
 /** כותרת הכרטיס במסך הכניסה ו-kodPeula שהוא שולח. */
 const CARDS = {
@@ -70,22 +73,74 @@ async function dismissInfoModal(page) {
  * ‼ מסך הכניסה של GMF / קוד חד-פעמי ⇒ gmf_not_ready (לא נוגעים ברצף כניסה).
  */
 export async function open413(page) {
-  const work = await page.context().newPage();
+  const context = page.context();
+  const work = await context.newPage();
   await work.goto(GMF_413_URL, { waitUntil: 'domcontentloaded', timeout: 30000 }).catch(() => {});
-  const r = await toEntry(work);
-  if (!r.ok) await work.close().catch(() => {});
-  return r.ok ? { ok: true, page: work, created: true } : r;
+  const direct = await toEntry(work, { navigate: false, waitMs: 15000 });
+  if (direct.ok) return { ok: true, page: work, created: true };
+  // ‼ נצפה בייצור 25.10.2026 11:46: אחרי ש-GMF ביקשה שוב את הסיסמה השנייה, הכתובת הישירה של 413
+  // בלשונית חדשה לא נחתה על מסך הכניסה של 413 (הבוקר — כן, כי 413 כבר נפתחה באותו סשן). פותחים
+  // אותה כמו אדם: מהתפריט, «איתור שאילתא» = 413 ← «מעבר לשאילתא». ייתכן שזה פותח לשונית נוספת.
+  const via = await openFromMenu(context, work);
+  if (!via.ok) {
+    await work.close().catch(() => {});
+    return { ...via, directPath: direct.pathname };
+  }
+  if (via.page !== work) await work.close().catch(() => {});
+  return { ok: true, page: via.page, created: true, via: 'menu' };
 }
 
-/** מחזיר את הלשונית **הזו** למסך הכניסה של 413 (בין כרטיסים / אחרי הנפקה). */
-async function toEntry(work) {
-  if (!pathOf(work).startsWith(ENTRY_PATH)) {
+/** «איתור שאילתא» 413 מתפריט GMF בלשונית `work`. מחזיר את הלשונית שבה נפתחה 413. */
+async function openFromMenu(context, work) {
+  if (!pathOf(work).startsWith('/gmf-') || !(await work.$(QUERY_INPUT))) {
+    await work.goto(GMF_URL, { waitUntil: 'domcontentloaded', timeout: 30000 }).catch(() => {});
+    await work.waitForSelector(QUERY_INPUT, { timeout: 20000 }).catch(() => {});
+  }
+  const s = await settlePage(work, { idleMs: 10000, watchMs: 1000 });
+  if (s.hasPasswordField || s.pathname.includes('/login') || !s.pathname.startsWith('/gmf-')) {
+    return { ok: false, reason: 'gmf_not_ready', pathname: s.pathname };
+  }
+  const modal = await readGmfBlockingModal(work);
+  if (modal.blocked) return { ok: false, reason: 'blocked_by_modal', modalTitle: modal.title };
+  await work.fill(QUERY_INPUT, '');
+  await work.fill(QUERY_INPUT, '413');
+  if ((await work.$eval(QUERY_INPUT, (e) => e.value).catch(() => '')) !== '413') {
+    return { ok: false, reason: 'query_not_applied', pathname: s.pathname };
+  }
+  const popup = context.waitForEvent('page', { timeout: 20000 }).catch(() => null);
+  try {
+    await work.locator(QUERY_SUBMIT).first().click({ timeout: 10000 });
+  } catch (e) {
+    return { ok: false, reason: 'query_click_blocked', detail: String(e).slice(0, 120) };
+  }
+  // לשונית חדשה, או אותה לשונית שעברה ל-413 — מה שקורה קודם.
+  const target = await Promise.race([
+    popup,
+    work.waitForURL((u) => new URL(u).pathname.startsWith(PATH_413), { timeout: 20000 }).then(() => work).catch(() => null),
+  ]);
+  const page = target ?? (pathOf(work).startsWith(PATH_413) ? work : null);
+  if (!page) return { ok: false, reason: 'menu_query_no_413', pathname: pathOf(work) };
+  await page.waitForLoadState('domcontentloaded', { timeout: 20000 }).catch(() => {});
+  const r = await toEntry(page, { navigate: false });
+  if (!r.ok) {
+    if (page !== work) await page.close().catch(() => {});
+    return r;
+  }
+  return { ok: true, page };
+}
+
+/**
+ * מחזיר את הלשונית **הזו** למסך הכניסה של 413 (בין כרטיסים / אחרי הנפקה).
+ * @param navigate false — רק להמתין ולבדוק (פתיחה ראשונה), בלי ניווט נוסף.
+ */
+async function toEntry(work, { navigate = true, waitMs = 30000 } = {}) {
+  if (navigate && !pathOf(work).startsWith(ENTRY_PATH)) {
     const link = work.locator(MENU_ENTRY_LINK).first();
     await dismissInfoModal(work);
     if (await link.isVisible().catch(() => false)) await link.click({ timeout: 8000 }).catch(() => {});
     else await work.goto(GMF_413_URL, { waitUntil: 'domcontentloaded', timeout: 30000 }).catch(() => {});
   }
-  await work.waitForSelector(ENTITY_INPUT, { timeout: 30000 }).catch(() => {});
+  await work.waitForSelector(ENTITY_INPUT, { timeout: waitMs }).catch(() => {});
   const s = await settlePage(work, { idleMs: 10000, watchMs: 1500 });
   if (s.hasPasswordField || !s.pathname.startsWith(PATH_413)) {
     return { ok: false, reason: 'gmf_not_ready', pathname: s.pathname };

@@ -214,10 +214,11 @@ export async function run(ctx, input) {
       try {
         const opened = await open413(conn.page);
         if (!opened.ok) {
-          ctx.log(`413 לא נפתחה (${opened.reason})`);
+          ctx.log(`413 לא נפתחה (${opened.reason} · ${opened.pathname ?? '?'}${opened.directPath ? ` · ישיר: ${opened.directPath}` : ''})`);
           unavailable.push({ key: 'certificates', reason: opened.reason });
         } else {
           tab = opened.created ? opened.page : null;
+          if (opened.via) ctx.log('413 נפתחה מהתפריט («איתור שאילתא»)');
           certificates = await readAndSaveCertificates(ctx, opened.page, certEntity);
           ctx.log(`413: ${Math.round((Date.now() - t413) / 1000)} ש׳`);
         }
