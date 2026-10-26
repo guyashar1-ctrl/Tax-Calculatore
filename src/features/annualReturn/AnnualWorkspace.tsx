@@ -33,6 +33,7 @@ import { supabase } from '../../lib/supabase';
 import type { FormSlug } from '../taxKnowledge/formMap/model';
 import './workspace.css';
 import { useAutoAccept } from '../taxYear/useAutoAccept';
+import { niOfficeChecks } from '../taxYear/niRegistrations';
 import { FormView, Ring, Summary } from './ReturnView';
 
 type Run = (fn: () => Promise<unknown>, done?: string) => Promise<boolean>;
@@ -121,11 +122,14 @@ export default function AnnualWorkspace({ client, step, year, data, busy, run, s
   const notes = asks.filter(a => a.officeNote && !a.noteResolvedAt);
   const unlisted = data.facts.filter(f => f.taxYear === year && f.itemKey === 'income.unlisted' && f.answer === 'value' && f.status !== 'rejected' && f.status !== 'superseded'
     && !data.facts.some(d => d.itemKey === 'annual.officeDecision' && (d.value as { decision?: string } | undefined)?.decision === `unlisted-${f.subjectRole}`));
+  // ‼ 26.10.2026 · התשובה סותרת את מה שרשום בביטוח לאומי (עצמאי ⇒ «לא»; סיים/ה תואר ⇒ עדיין סטודנט/ית) — «לברר», עד «בורר»
+  const decided = (k: string) => data.facts.some(d => d.itemKey === 'annual.officeDecision' && (d.value as { decision?: string } | undefined)?.decision === k);
+  const niChecks = niOfficeChecks(client, data.facts, year).filter(x => !decided(x.key));
   // ‼ מה שהמשרד משלים ואינו מסמך להקלדה ואינו «רק אתה יודע» (הצהרות, מסלול לנכס, פרטים לטופס…) — שורה אחת לעורכים הקיימים
   //   מקדמות / ניכוי במקור / ב״ל כעצמאי / הפסדים — רק ב«רק אתה יודע» (ושם רק למי שזה נוגע לו); נושא אחד = שורה אחת גם לשני בני הזוג
   const officeRest = [...new Map(officeTodo.filter(s => s.item.kind !== 'document' && !TEMPLATE_ITEMS.has(s.item.key) && !OYK_KEYS.has(s.item.key))
     .map(s => [s.item.key, s])).values()];
-  const openExtras = (oyk.length && !oykDone ? 1 : 0) + notes.length + unlisted.length + plan.needsDecision.length + (officeRest.length ? 1 : 0);
+  const openExtras = (oyk.length && !oykDone ? 1 : 0) + notes.length + unlisted.length + niChecks.length + plan.needsDecision.length + (officeRest.length ? 1 : 0);
   const ready = sent && !filling && isReady(mats) && openExtras === 0;
 
   const [entry, setEntry] = useState<Material | null>(null);
@@ -273,6 +277,13 @@ export default function AnnualWorkspace({ client, step, year, data, busy, run, s
                   <span className="aw-ic" aria-hidden="true" dangerouslySetInnerHTML={{ __html: `<svg viewBox="0 0 24 24">${ICON.mine}</svg>` }} />
                   <span className="aw-t"><b>לברר עם {nameOf(f.subjectRole === 'spouse' ? 'spouse' : 'client')}: הכנסה אחרת</b><small>שלא ברשימה</small></span>
                   <button type="button" className="aw-act" disabled={busy} onClick={() => void markDecision(`unlisted-${f.subjectRole}`)}>בורר</button>
+                </div>
+              ))}
+              {niChecks.map(x => (
+                <div key={x.key} className="aw-mat is-mine" data-aw-ni-check={x.key}>
+                  <span className="aw-ic" aria-hidden="true" dangerouslySetInnerHTML={{ __html: `<svg viewBox="0 0 24 24">${ICON.mine}</svg>` }} />
+                  <span className="aw-t"><b>{x.title}</b><small>{x.sub}</small></span>
+                  <button type="button" className="aw-act" disabled={busy} onClick={() => void markDecision(x.key)}>בורר</button>
                 </div>
               ))}
               {officeRest.length > 0 && (

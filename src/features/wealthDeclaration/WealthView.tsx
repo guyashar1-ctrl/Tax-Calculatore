@@ -1,7 +1,7 @@
 // ─── הצהרת הון: הסיכום והטופס עצמו — אותו רכיב במשרד ובדף האישי (26.10.2026) ─────────────────────────────────
 // ‼ הלקוח רואה וחותם בדיוק על מה שהמשרד ראה (הצילום מהשרת); במשרד — מהחישוב החי.
 import { useState } from 'react';
-import { pagesOf } from '../annualReturn/formPages';
+import { fitFontCqw, pagesOf } from '../annualReturn/formPages';
 import { wealthValuesOnPage, type WealthFigures } from './engine';
 import '../annualReturn/workspace.css';
 
@@ -67,7 +67,7 @@ export function WealthFormView({ d }: { d: WealthViewData }) {
           <img src={pg.img} alt={`1219 — עמוד ${pg.n}`} draggable={false} />
           {vals.map(v => (
             <span key={v.key} className="aw-val" data-wd-val={v.code}
-              style={{ left: `${v.box[0] * 100}%`, top: `${v.box[1] * 100}%`, width: `${v.box[2] * 100}%`, height: `${v.box[3] * 100}%` }}>{v.text}</span>
+              style={{ left: `${v.box[0] * 100}%`, top: `${v.box[1] * 100}%`, width: `${v.box[2] * 100}%`, height: `${v.box[3] * 100}%`, fontSize: `${fitFontCqw(v.box, v.text, pg.w / pg.h)}cqw` }}>{v.text}</span>
           ))}
         </div>
       )}

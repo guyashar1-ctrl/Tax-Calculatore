@@ -234,6 +234,9 @@ async function runWidth(width) {
     await page.waitForTimeout(300);
     const p1 = { F059: await text(ws.locator('[data-aw-val="F059"]')), F058: await text(ws.locator('[data-aw-val="F058"]')), F067: await text(ws.locator('[data-aw-val="F067"]')) };
     ok(p1.F059.includes('דוד') && p1.F058.length > 0 && (p1.F067 === '' || p1.F067 === 'X'), 'עמוד 1: שם ושם משפחה בתאים', JSON.stringify(p1));
+    // ‼ 27.10: כל ערך נכנס לתא שלו — בלי חיתוך ובלי גלישה (גודל האות לפי התא בעמוד)
+    const cut = await ws.locator('.aw-val').evaluateAll(els => els.filter(e => e.scrollWidth > e.clientWidth + 1 || e.scrollHeight > e.clientHeight + 1).map(e => e.dataset.awVal + ':' + e.textContent));
+    ok(cut.length === 0, 'עמוד 1: כל ערך נכנס לתא שלו', cut.join(' | '));
     await shot(page, 'office-p1');
 
     // 5 · «כלים מתקדמים» — המסך הקודם עדיין שם

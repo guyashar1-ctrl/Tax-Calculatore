@@ -10,6 +10,7 @@ import { DOCS } from '../taxYear/documents';
 import { ITEM_BY_KEY } from '../taxYear/catalog';
 import { cardUpdateFor, updatesCard, type CardUpdatePlan } from '../taxYear/recordToCard';
 import { entitiesFor, templateFor } from './docTemplates';
+import { niSelfEmployedSince } from '../taxYear/niRegistrations';
 import type { ReturnField, ReturnOutputs } from './types';
 
 /** של מי: הלקוח, בן/בת הזוג, או משותף. */
@@ -88,6 +89,9 @@ export function materialsOf(input: { client: Client; year: number; stepId: strin
     out.push({ key: `ev-${ev.id}`, who: whoOf(ev.subjectRole), title: `${docLabel(ev.docKind)}${ent ? ` · ${ent}` : ''}`, state: done ? 'done' : 'here', docKind: ev.docKind, enterable,
       evidence: ev, subjectRole: ev.subjectRole, entityRef: ev.entityRef, sub: done ? 'הוזן' : ev.fileName ?? 'הגיע' });
   }
+  // ‼ 26.10.2026 · המקור — רק במשרד: «לפי ביטוח לאומי: עצמאי מ-06.2025»
+  const niSince = (r: SubjectRole) => { const p = r === 'spouse' ? 'spouse' : 'client'; const d = niSelfEmployedSince(client, p, year);
+    return d === undefined ? '' : `לפי ביטוח לאומי: עצמאי${d ? ` מ-${d.slice(5, 7)}.${d.slice(0, 4)}` : ''} · `; };
   // מסמכים שהמשרד מוציא או מכין (who: 'office') — רווח והפסד, אישור שנתי מביטוח לאומי…
   for (const s of statuses.filter(x => x.item.who === 'office' && x.item.kind === 'document' && x.state !== 'notApplicable')) {
     const kind = s.item.docKind;
@@ -100,7 +104,7 @@ export function materialsOf(input: { client: Client; year: number; stepId: strin
     const ent = s.entityLabel && s.entityLabel !== client.firstName ? ` · ${s.entityLabel}` : '';
     out.push({ key: `office-${s.item.key}|${s.subjectRole}|${s.entityRef ?? ''}`, who: whoOf(s.subjectRole), title: `${s.item.label}${ent}`, docKind: kind, enterable,
       state: done ? 'done' : s.state === 'notYetAvailable' ? 'wait' : 'mine', subjectRole: s.subjectRole, entityRef: s.entityRef,
-      sub: done ? 'הוזן' : s.state === 'notYetAvailable' ? (s.requestableFrom ? `אפשר מ-${s.requestableFrom.slice(0, 10).split('-').reverse().join('.')}` : 'עוד לא זמין') : noEntity ? 'לפתוח את העסק בכרטיס ולהפיק מפייפרלס' : 'אצלך' });
+      sub: done ? 'הוזן' : s.state === 'notYetAvailable' ? (s.requestableFrom ? `אפשר מ-${s.requestableFrom.slice(0, 10).split('-').reverse().join('.')}` : 'עוד לא זמין') : noEntity ? `${niSince(s.subjectRole)}לפתוח את העסק בכרטיס ולהפיק מפייפרלס` : 'אצלך' });
   }
   return out;
 }

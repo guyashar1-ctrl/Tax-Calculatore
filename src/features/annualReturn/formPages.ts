@@ -68,6 +68,20 @@ function page1Values(out: ReturnOutputs): PageValue[] {
   return res;
 }
 
+/**
+ * ‼ גיא (27.10): «תראה את הטקסט שהודבק בדוח» — מספר התיק עלה על הכותרת, שם המשפחה גלש לתא הסמוך, תאריך הלידה נחתך ל-«99».
+ *   גודל האות נקבע לפי התא בעמוד, לא לפי המסך: עד 1.05% מגובה העמוד ו-72% מגובה התא, ומתכווץ עד שכל הטקסט נכנס לרוחב התא.
+ *   אותו חישוב במסך, בהדפסה וב-PDF החתום. התוצאה — שבר מגובה העמוד; aspect = רוחב/גובה העמוד.
+ */
+export function fitFontPct(box: Box, text: string, aspect: number): number {
+  const byHeight = Math.min(0.0105, box[3] * 0.72);
+  const room = box[2] * aspect - 0.004;
+  const byWidth = room / (Math.max(1, [...text].length) * 0.6);
+  return Math.max(0.004, Math.min(byHeight, byWidth));
+}
+/** אותו גודל ביחידות של רוחב העמוד (cqw) — במסך ובהדפסה העמוד הוא ה-container. */
+export const fitFontCqw = (box: Box, text: string, aspect: number) => +(fitFontPct(box, text, aspect) / aspect * 100).toFixed(3);
+
 /** הערכים על עמוד: כל סימון בעמוד עם הקוד והטור שלו ⇒ השדה מהמנוע. ‼ רק 1301 — לנספחים אין עדיין מיפוי קוד ⇒ שדה. */
 export function valuesOnPage(slug: FormSlug, page: number, out: ReturnOutputs): PageValue[] {
   if (slug !== '1301') return [];

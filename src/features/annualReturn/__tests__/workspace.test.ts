@@ -11,7 +11,8 @@ import type { Evidence, InfoAsk, YearFact } from '../../taxYear/types';
 import type { ItemStatus } from '../../taxYear/picture';
 import { ITEM_BY_KEY } from '../../taxYear/catalog';
 import { autoAcceptPlan, balanceText, filledPct, isReady, materialsOf, type Material } from '../workspace';
-import { valuesOnPage } from '../formPages';
+import { fitFontPct, valuesOnPage } from '../formPages';
+import PAGE1 from '../../taxForms/data/form1301-2025.page1-fill.json';
 import { markersOf } from '../../taxKnowledge/formMap/model';
 import type { ReturnOutputs } from '../types';
 
@@ -125,5 +126,14 @@ export const TESTS: TestCase[] = [
     equal(balanceText(mk(1200)), `לתשלום ${(1200).toLocaleString('he-IL')} ₪`);
     equal(balanceText(mk(500, true)), null);
     equal(filledPct(mk(0)), 40);
+  }),
+  test('עמוד 1: הטקסט נכנס לתא — תאריך לידה, מייל ארוך, מספר תיק; לא גדל מעבר לגובה התא', () => {
+    const A4 = 210 / 297;
+    const fits = (box: number[], t: string) => { const fp = fitFontPct(box as [number, number, number, number], t, A4); return [...t].length * 0.6 * fp <= box[2] * A4 - 0.004 + 1e-9 && fp <= box[3] * 0.72 + 1e-9; };
+    assert(fits(PAGE1.text.F061, '14.03.1999'), 'תאריך לידה');
+    assert(fits(PAGE1.text.F069, 'michal.long.name.example@gmail.com'), 'מייל ארוך');
+    assert(fits(PAGE1.text.F055, '123456782'), 'מספר תיק');
+    assert(fits(PAGE1.text.F058, 'גרוסמן-אשר בן דוד'), 'שם משפחה ארוך');
+    equal(fitFontPct(PAGE1.text.F069 as [number, number, number, number], 'a@b.co', A4), 0.0105);
   }),
 ];

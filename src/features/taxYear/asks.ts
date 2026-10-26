@@ -20,6 +20,7 @@ import { periodOfRequest, periodWords, propertySpan, accountSpan, spanText } fro
 import { DEALER_KIND_LABELS } from '../taxFile/editModel';
 import { familyStatusEventYear } from '../../utils/familyStatusYear';
 import { questionnaireClient } from './knownClient';
+import { niSelfEmployedSince, niStudentUntil } from './niRegistrations';
 
 const FAMILY: Record<string, [string, string, string]> = {
   single: ['רווק', 'רווקה', 'רווק/ה'], married: ['נשוי', 'נשואה', 'נשוי/אה'], divorced: ['גרוש', 'גרושה', 'גרוש/ה'],
@@ -503,12 +504,18 @@ function annualTile(key: string, role: SubjectRole, ctx: AskCtx): MultiOption {
   const who = ctx.lastYear?.tilePeople?.[key];
   const mineLast = !!ctx.lastYear?.tiles[key] && !spouseOnlyInDeathYear(ctx, key)
     && (who?.length ? who.includes(role as 'client' | 'spouse') || who.includes('joint') : role === 'client');
+  // ‼ 26.10.2026 · מה שרשום בביטוח לאומי — בלי מקור אצל הלקוח (גיא: «הוא לא צריך לדעת»): עצמאי ⇒ «עסק» מסומן מראש;
+  //   סטודנט ⇒ הריבוע של הלימודים ממוקד בתואר (niRegistrations.ts)
+  const person = role === 'client' || role === 'spouse' ? role : null;
+  const niBiz = key === 'business.started' && !!person && niSelfEmployedSince(ctx.client, person, ctx.taxYear) !== undefined;
+  const niStudent = key === 'household.creditChanges' && !!person && niStudentUntil(ctx.client, person, ctx.taxYear) !== undefined;
   return {
-    key, role, label: it.tile!, ...(example ? { example } : {}), group: ANNUAL_TILE_LESS.has(key) ? 'less' : 'in',
+    key, role, label: niStudent ? 'סיום התואר' : it.tile!, ...(example ? { example } : {}), group: ANNUAL_TILE_LESS.has(key) ? 'less' : 'in',
     ...(ANNUAL_TILE_HELP[key] ? { hint: ANNUAL_TILE_HELP[key] } : {}),
     ...(OURS[key] ? { ours: OURS[key] } : {}),
     ...(followUps.length ? { followUps } : {}),
     ...(mineLast ? { note: `ב-${ctx.lastYear!.year}: ${ctx.lastYear!.tiles[key]}`, preset: true } : {}),
+    ...(niBiz ? { preset: true } : {}),
   };
 }
 
@@ -530,11 +537,14 @@ export function studiesAsk(role: SubjectRole, ctx: AskCtx, fromCard = false): Mu
   const it = ITEM_BY_KEY['household.studies'];
   const p = promptFor({ subjectRole: role, item: it, area: it.area, state: 'missing', detail: '', facts: [], evidence: [], askable: true } as ItemStatus, ctx);
   const doc = (key: string, title: string) => ({ itemKey: key, subjectRole: role, prompt: { ...promptFor({ subjectRole: role, item: ITEM_BY_KEY[key], area: 'household', state: 'missing', detail: '', facts: [], evidence: [], askable: true } as ItemStatus, ctx), title, templateVersion: CATALOG_VERSION } });
-  const initial = fromCard ? initialFromCard('studies', ctx.client, role) : [];
+  const student = (role === 'client' || role === 'spouse') && niStudentUntil(ctx.client, role, ctx.taxYear) !== undefined;
+  const fromCardItems = fromCard ? initialFromCard('studies', ctx.client, role) : [];
+  // ‼ 26.10.2026 · רשום/ה כסטודנט/ית ⇒ השאלה ממוקדת בתואר (בלי מקור): «תואר» כבר נבחר, נשארת השנה
+  const initial = fromCardItems.length ? fromCardItems : student ? [{ kind: 'ba' }] : [];
   const input = p.input.kind === 'record' ? { ...p.input, ...(initial.length ? { initial } : {}) } : p.input;
   return {
     itemKey: 'household.studies', subjectRole: role,
-    prompt: { ...p, input, templateVersion: CATALOG_VERSION, ...(fromCard && initial.length ? { hint: 'מהתיק — אפשר לתקן' } : {}),
+    prompt: { ...p, ...(student && !fromCardItems.length ? { title: 'מתי סיימת את התואר?' } : {}), input, templateVersion: CATALOG_VERSION, ...(fromCard && fromCardItems.length ? { hint: 'מהתיק — אפשר לתקן' } : {}),
       onValue: [
         { field: 'kind', in: ['ba', 'ma', 'pro'], ask: doc('household.degreeDocs', 'אישור זכאות לתואר או תעודת המקצוע') },
         { field: 'kind', in: ['army'], ask: doc('household.releaseDocs', 'תעודת השחרור') },
@@ -647,7 +657,8 @@ function buildMultiEntry(statuses: ItemStatus[], ctx: AskCtx): AskPlanEntry | nu
       : (ANNUAL_FOLLOW[key] ?? []).map((k, i) => annualFollowUp(k, role, ctx, i)).filter((x): x is MultiFollowUp => !!x);
     // ‼ 20.10.2026 · בשנת הפטירה, מה שהיה בדוח הקודם רק של בן/בת הזוג (קצבה, פטור נכות) שייך לענף הפטירה — לא אריח של הלקוח
     const last = spouseOnlyInDeathYear(ctx, key) ? undefined : ctx.lastYear?.tiles[key];
-    return { ...base, ...(followUps.length ? { followUps } : {}), ...(last ? { note: `ב-${ctx.lastYear!.year}: ${last}`, preset: true } : {}) };
+    const niBiz = key === 'business.started' && (['client', 'spouse'] as const).some(pp => (pp === 'client' || married) && niSelfEmployedSince(c, pp, ctx.taxYear) !== undefined);
+    return { ...base, ...(followUps.length ? { followUps } : {}), ...(last ? { note: `ב-${ctx.lastYear!.year}: ${last}`, preset: true } : {}), ...(niBiz ? { preset: true } : {}) };
   }).sort((a, b) => (order.indexOf(a.key) + 1 || 99) - (order.indexOf(b.key) + 1 || 99));
   const why = item.why ?? '';
   return {

@@ -4,7 +4,7 @@
 import { PDFDocument, type PDFPage } from 'pdf-lib';
 import { createBurnContext, drawAnnotations, visibleBox, type Annotation } from '../../utils/pdfAnnotations';
 import type { FormSlug } from '../taxKnowledge/formMap/model';
-import { annexValues, pagesOf, slugOfForm, valuesOnPage } from './formPages';
+import { annexValues, fitFontPct, pagesOf, slugOfForm, valuesOnPage } from './formPages';
 import { balanceText, neededAnnexes, summaryRows } from './workspace';
 import { isWealthSnap, type Signing, type WealthSnapshot } from './signing';
 import { wealthValuesOnPage } from '../wealthDeclaration/engine';
@@ -41,10 +41,16 @@ async function officialPages(doc: PDFDocument, ctx: Awaited<ReturnType<typeof cr
   for (let i = 0; i < copied.length; i++) {
     const page = doc.addPage(copied[i]);
     if (!vals) continue;
-    const anns = vals(i + 1).map((v, k): Annotation => ({
-      id: `v${i}-${k}`, pageId: 'p', kind: 'text', xPct: v.box[0], yPct: v.box[1], widthPct: v.box[2], heightPct: v.box[3],
-      color: '#0b3a8c', text: v.text, fontPct: Math.min(0.0105, v.box[3] * 0.8), align: v.center ? 'center' : 'right', bold: true,
-    }));
+    const { width, height } = page.getSize();
+    const anns = vals(i + 1).map((v, k): Annotation => {
+      const fontPct = fitFontPct(v.box, v.text, width / height);
+      // באמצע התא לגובה (האותיות נכתבות מראש התיבה)
+      const yPct = Math.max(v.box[1], v.box[1] + v.box[3] / 2 - fontPct * 0.46);
+      return {
+        id: `v${i}-${k}`, pageId: 'p', kind: 'text', xPct: v.box[0], yPct, widthPct: v.box[2], heightPct: v.box[3],
+        color: '#0b3a8c', text: v.text, fontPct, align: v.center ? 'center' : 'right', bold: true,
+      };
+    });
     if (anns.length) await drawAnnotations(page, anns, ctx, visibleBox(page));
   }
 }

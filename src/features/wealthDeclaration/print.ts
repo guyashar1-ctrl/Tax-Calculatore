@@ -1,6 +1,6 @@
 // ─── הצהרת הון: הדפסה — עמוד סיכום ואז 1219 הרשמי עם הסכומים (26.10.2026) ───────────────────────────────────────
 // ‼ מהצילום (אותו מקור כמו החתימה) — מה שמודפס הוא מה שהלקוח רואה וחותם עליו.
-import { pagesOf } from '../annualReturn/formPages';
+import { fitFontCqw, pagesOf } from '../annualReturn/formPages';
 import type { WealthSnapshot } from '../annualReturn/signing';
 import { wealthValuesOnPage } from './engine';
 
@@ -33,7 +33,7 @@ export function printWealthSet(w: WealthSnapshot): 'ok' | 'blocked' {
   const rows = wealthSummaryRows(w);
   const pages = pagesOf('1219').map(pg => {
     const vals = wealthValuesOnPage(pg.n, w).map(v =>
-      `<span class="v" style="left:${v.box[0] * 100}%;top:${v.box[1] * 100}%;width:${v.box[2] * 100}%;height:${v.box[3] * 100}%">${esc(v.text)}</span>`).join('');
+      `<span class="v" style="left:${v.box[0] * 100}%;top:${v.box[1] * 100}%;width:${v.box[2] * 100}%;height:${v.box[3] * 100}%;font-size:${fitFontCqw(v.box, v.text, pg.w / pg.h)}cqw">${esc(v.text)}</span>`).join('');
     return `<section class="pg form"><div class="paper" style="aspect-ratio:${pg.w}/${pg.h}"><img src="${origin}${pg.img}" alt="">${vals}</div></section>`;
   }).join('');
   const html = `<!doctype html><html lang="he" dir="rtl"><head><meta charset="utf-8"><title>הצהרת הון ליום ${he(w.asOf)} — ${esc(names)}</title><style>
@@ -44,7 +44,7 @@ export function printWealthSet(w: WealthSnapshot): 'ok' | 'blocked' {
     table{width:100%;border-collapse:collapse;font-size:13px}td{padding:4px;border-bottom:1px solid #eee}
     td.n{text-align:left;direction:ltr;font-variant-numeric:tabular-nums;white-space:nowrap}td.c{color:#777;font-size:11.5px;width:40px}
     tr.s td{font-weight:700;border-top:1px solid #ccc}
-    .paper{position:relative;width:100%}.paper img{display:block;width:100%}
+    .paper{position:relative;width:100%;container-type:inline-size}.paper img{display:block;width:100%}
     .v{position:absolute;display:flex;align-items:center;justify-content:flex-end;font:600 9.5px/1 "Segoe UI",Arial;color:#0b3a8c;padding:0 2px;direction:ltr;overflow:hidden;white-space:nowrap}
   </style></head><body>
   <section class="pg"><h1>הצהרת הון ליום ${he(w.asOf)}</h1><p class="who">${esc(names)}</p>

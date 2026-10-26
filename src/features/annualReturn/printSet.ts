@@ -3,7 +3,7 @@
 //   שהלקוח העלה, עמוד-עמוד (PDF ⇒ תמונות). שום דבר לא נשלח ולא נשמר מכאן.
 import { LAYOUTS, type FormSlug } from '../taxKnowledge/formMap/model';
 import type { ReturnOutputs } from './types';
-import { annexValues, pagesOf, slugOfForm, valuesOnPage } from './formPages';
+import { annexValues, fitFontCqw, pagesOf, slugOfForm, valuesOnPage } from './formPages';
 import { balanceText, neededAnnexes, summaryRows, type Material } from './workspace';
 import { fileAsImages, loadDocumentFile } from './docFile';
 
@@ -26,7 +26,7 @@ export function setContents(out: ReturnOutputs, mats: Material[]): SetPart[] {
 function formPagesHtml(slug: FormSlug, out: ReturnOutputs, origin: string): string {
   return pagesOf(slug).map(pg => {
     const vals = valuesOnPage(slug, pg.n, out).map(v =>
-      `<span class="v${v.center ? ' m' : ''}"${/[א-ת]/.test(v.text) ? ' dir="rtl"' : ''} style="left:${v.box[0] * 100}%;top:${v.box[1] * 100}%;width:${v.box[2] * 100}%;height:${v.box[3] * 100}%">${esc(v.text)}</span>`).join('');
+      `<span class="v${v.center ? ' m' : ''}"${/[א-ת]/.test(v.text) ? ' dir="rtl"' : ''} style="left:${v.box[0] * 100}%;top:${v.box[1] * 100}%;width:${v.box[2] * 100}%;height:${v.box[3] * 100}%;font-size:${fitFontCqw(v.box, v.text, pg.w / pg.h)}cqw">${esc(v.text)}</span>`).join('');
     return `<section class="pg form"><div class="paper" style="aspect-ratio:${pg.w}/${pg.h}"><img src="${origin}${pg.img}" alt="">${vals}</div></section>`;
   }).join('');
 }
@@ -77,9 +77,9 @@ export async function openPrintSet(p: PrintInput): Promise<'ok' | 'blocked'> {
     table{width:100%;border-collapse:collapse;font-size:12.5px}td{padding:3px 4px;border-bottom:1px solid #eee}
     td.n{text-align:left;direction:ltr;font-variant-numeric:tabular-nums;white-space:nowrap}td.c,td.s{color:#777;font-size:11.5px;white-space:nowrap}
     ul{font-size:12.5px;padding-inline-start:18px}
-    .paper{position:relative;width:100%}.paper img{display:block;width:100%}
+    .paper{position:relative;width:100%;container-type:inline-size}.paper img{display:block;width:100%}
     .v{position:absolute;display:flex;align-items:center;justify-content:flex-end;font:600 9.5px/1 "Segoe UI",Arial;color:#0b3a8c;padding:0 2px;direction:ltr;overflow:hidden;white-space:nowrap}
-    .v[dir=rtl]{direction:rtl;justify-content:flex-start}.v.m{justify-content:center;padding:0;font-size:8px}
+    .v[dir=rtl]{direction:rtl;justify-content:flex-start}.v.m{justify-content:center;padding:0}
     .doc img{display:block;max-width:100%;max-height:265mm;margin:0 auto}.cap{font-size:11px;color:#666;margin:0 0 4px}
   </style></head><body>${summary}${formPagesHtml('1301', out, origin)}${annexHtml}${docs.join('')}
   <script>window.onload=()=>{Promise.all([...document.images].map(i=>i.complete?1:new Promise(r=>{i.onload=i.onerror=r}))).then(()=>setTimeout(()=>window.print(),300))}</script></body></html>`;

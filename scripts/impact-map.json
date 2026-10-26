@@ -302,6 +302,11 @@
           "note": "הדוח השנתי במשרד («חומרים» ליד «הדוח»), בדפדפן מול staging — דורש שרת: STAGING_ENV_DIR=… node scripts/e2e/annual-office.mjs --base=http://localhost:<port> --widths=1280,390"
         },
         {
+          "script": "e2e/annual-ni-registrations.mjs",
+          "run": false,
+          "note": "רישום בביטוח לאומי בשאלון (עצמאי מסומן מראש, «סיום התואר», «לבדוק מול ביטוח לאומי») — דורש שרת: STAGING_ENV_DIR=… node scripts/e2e/annual-ni-registrations.mjs --base=http://localhost:<port> --widths=1280,390"
+        },
+        {
           "script": "e2e/annual-r2.mjs",
           "run": false,
           "note": "בדפדפן מול staging — דורש שרת: STAGING_ENV_DIR=… node scripts/e2e/annual-r2.mjs --base=http://localhost:<port> --widths=1280,390,360"

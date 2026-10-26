@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import type { ReturnOutputs } from "./types";
 import { summaryRows } from "./workspace";
-import { annexValues, pagesOf, slugOfForm, valuesOnPage } from "./formPages";
+import { annexValues, fitFontCqw, pagesOf, slugOfForm, valuesOnPage } from "./formPages";
 import type { FormSlug } from "../taxKnowledge/formMap/model";
 import "./workspace.css";
 
@@ -69,7 +69,7 @@ export function FormView({ slug, out, lit }: { slug: FormSlug; out: ReturnOutput
           <img src={pg.img} alt={`${formId} — עמוד ${pg.n}`} draggable={false} />
           {vals.map(v => (
             <span key={v.key} className={`aw-val${lit.has(v.code) ? ' is-lit' : ''}${v.center ? ' is-mark' : ''}`} data-aw-val={v.code} dir={HEB.test(v.text) ? 'rtl' : undefined}
-              style={{ left: `${v.box[0] * 100}%`, top: `${v.box[1] * 100}%`, width: `${v.box[2] * 100}%`, height: `${v.box[3] * 100}%` }}>{v.text}</span>
+              style={{ left: `${v.box[0] * 100}%`, top: `${v.box[1] * 100}%`, width: `${v.box[2] * 100}%`, height: `${v.box[3] * 100}%`, fontSize: `${fitFontCqw(v.box, v.text, pg.w / pg.h)}cqw` }}>{v.text}</span>
           ))}
         </div>
       )}
