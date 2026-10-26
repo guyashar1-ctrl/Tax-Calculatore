@@ -764,6 +764,8 @@ export interface StepPayload {
    */
   authorizationCreatedAt?: string;
   cardEnteredAt?: string;
+  /** 302 · הלקוח סימן בדף «הזנתי את הכרטיס» — הצהרה שלו; cardEnteredAt נשאר מה שהרו"ח ראה. */
+  cardDeclaredAt?: string;
   retainerChargedAt?: string;
   /**
    * קישור חיצוני שהבקשה פותחת (מדריך הווידאו של פייפרלס). ‼ מקביל ל-

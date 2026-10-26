@@ -97,6 +97,12 @@
 - **מי צורך:** `sync_intake_step_from_sessions` (פתיחה מחדש של שאלון שפורסם ⇒ ממתין ללקוח), `requestAttention.ts` (אצל מי הכדור).
 - **מוכיח:** `staging-test-draft-reaches-page-276.mjs` (D1–D2 לכל סוג, Q1–Q2). (בלי בדיקה חיה: הטריגר מונע את המצב התקוע.)
 
+### INV-REQ-03 · «הזנתי את הכרטיס» בפייפרלס = הצהרה של הלקוח; «הוזן» — רק המשרד
+- **הכלל:** הלחיצה בדף רושמת `cardDeclaredAt` על שלב התשלום (גם כשהוא נעול — לפני בדיקת locked, ולשלב הזה בלבד), שורה ביומן ו-needs_attention; הכרטיס יורד ל«בטיפולנו». `cardEnteredAt` נכתב רק מ«הכרטיס נקלט ✓» במשרד (אין חיבור לפייפרלס). הסדר ידני — לא ניתן לסימון. גיא, 26.10.2026.
+- **SQL:** `_portal_paperless_card_declare` (302, לא חשופה), ההפניה ב-`portal_submit_step`, הענפים ב-`_portal_step_items` (retainer_card).
+- **קוד:** `stepAttention` (retainer_authorization ⇒ «לטיפולך»), `ConnectionBody` ו-`RetainerStepCard` ב-`OnboardingTab`.
+- **מוכיח:** `scripts/test-302-paperless-card-declared.mjs` (11 בדיקות), `requestsLaneRound5.test.ts` (302).
+
 ### INV-REQ-02 · פייפרלס נפתח באישור ההצעה — גם בעסק חדש; רק החיבור לרשות המסים מחכה לפתיחת התיקים
 - **הכלל:** הגבייה עוברת בפייפרלס (גיא, 23.10.2026), ולכן ההרשמה, החיבור והכרטיס לא מחכים לשום בקשה אחרת חוץ מהשרשרת של עצמם. «חיבור פייפרלס לרשות המסים» מחכה גם לחיבור וגם לפתיחת התיקים (מספרי הקצאה בלי תיק — אין). הסדר בדף ובמייל הראשון — פייפרלס ראשון — הוא נתון של המסלול (sortIndex), לא כלל בשרת.
 - **SQL:** `generate_onboarding_steps` (בלי נעילה של `paperless_invite`, 289 §1), הטריגר `z_paperless_tax_authority_waits_for_files` (289 §2 — כל נתיבי היצירה, גם 132), `portal_lock_reason` (כל ההורים החוסמים).

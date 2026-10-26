@@ -332,6 +332,7 @@
       "name": "פייפרלס: תשובות משותפות במשרד ובדף האישי",
       "globs": [
         "supabase/292-paperless-shared-questions.sql",
+        "supabase/302-paperless-card-client-declared.sql",
         "src/features/requests/paperlessAnswers.ts",
         "src/features/requests/PaperlessQuestions.tsx",
         "src/lib/dbMappers.ts",
@@ -341,6 +342,10 @@
       "suites": [
         {
           "script": "test-292-paperless-shared-questions.mjs",
+          "run": true
+        },
+        {
+          "script": "test-302-paperless-card-declared.mjs",
           "run": true
         }
       ]

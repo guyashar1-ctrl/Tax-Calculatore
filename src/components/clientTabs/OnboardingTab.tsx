@@ -4740,6 +4740,8 @@ function ConnectionBody({ path, softwareName, step, client, retainer, busy, onRu
     .every(i => i.done);
 
   const cardItem = items.find(i => i.key === CARD_ENTERED_KEY);
+  const cardDeclaredAt = String(retainer?.payload.cardDeclaredAt ?? '');
+  const clientFirst = (client.firstName || '').trim().split(/\s+/)[0] || 'הלקוח';
 
   function toggle(item: StepChecklistItem) {
     const next = items.map(x => x.key === item.key ? { ...x, done: !x.done } : x);
@@ -4789,10 +4791,16 @@ function ConnectionBody({ path, softwareName, step, client, retainer, busy, onRu
                 }}>
                   {item.label}
                   {waiting && <span style={{ color: 'var(--ink-4)' }}>· אחרי ארבעת הסעיפים שמעל</span>}
+                  {/* 302 · הלקוח סימן «הזנתי את הכרטיס» בדף — הצהרה שלו; האישור הוא מה שראית בפייפרלס. */}
+                  {!item.done && cardDeclaredAt && (
+                    <span style={{ color: 'var(--accent, #2557c7)', fontWeight: 600 }}>
+                      · {clientFirst} סימן/ה שהזין/ה ({formatDate(cardDeclaredAt, 'list')})
+                    </span>
+                  )}
                   {!item.done && cardStepReady && (
                     <button type="button" className="btn btn-sm btn-primary" disabled={busy}
                       title="לסמן אחרי שראית בפייפרלס שהלקוח הזין כרטיס - זה מה שמשחרר את הרשאת התשלום"
-                      onClick={onCardEntered}>סמן כבוצע</button>
+                      onClick={onCardEntered}>{cardDeclaredAt ? 'הכרטיס נקלט ✓' : 'סמן כבוצע'}</button>
                   )}
                 </span>
               </div>
@@ -4973,6 +4981,8 @@ function RetainerStepCard(p: RetainerCardProps) {
   const { step, stepById, busy, highlight } = p;
   const authorizationCreatedAt = String(step.payload.authorizationCreatedAt ?? '');
   const cardEnteredAt = String(step.payload.cardEnteredAt ?? '');
+  /** 302 · הלקוח סימן בדף «הזנתי את הכרטיס» — הצהרה שלו, לא ראיה. */
+  const cardDeclaredAt = String(step.payload.cardDeclaredAt ?? '');
   const retainerChargedAt = String(step.payload.retainerChargedAt ?? '');
 
   const locked = step.status === 'locked';
@@ -4999,7 +5009,9 @@ function RetainerStepCard(p: RetainerCardProps) {
   /* ‼ v3: המסד אומר "אצלי", אבל מי שמחזיק את הכדור הוא פייפרלס — היא מבקשת
      מהלקוח כרטיס. משפט המצב אומר את זה במקום "ממתין". */
   const waitingLabel = !manual && isStepOpen(step.status) && step.status !== 'locked'
-    ? `ממתינים ש${p.client.firstName || 'הלקוח'} יזין/תזין כרטיס אשראי בפייפרלס`
+    ? (cardDeclaredAt && !cardEnteredAt
+      ? `${p.client.firstName || 'הלקוח'} סימן/ה שהזין/ה — לוודא בפייפרלס` // 302
+      : !cardEnteredAt ? `ממתינים ש${p.client.firstName || 'הלקוח'} יזין/תזין כרטיס אשראי בפייפרלס` : undefined)
     : undefined;
 
   return (
@@ -5087,6 +5099,8 @@ function RetainerStepCard(p: RetainerCardProps) {
           <div style={cardNote}>
             {!authorizationCreatedAt
               ? <>הלקוח מחובר לפייפרלס. מה שפותח את בקשת הכרטיס אצלו הוא עדכון הריטיינר לתשלום בכרטיס אשראי - הסעיף הרביעי ברשימת החיבור, ואפשר לסמן אותו גם כאן.</>
+              : !cardEnteredAt && cardDeclaredAt
+                ? <>{(p.client.firstName || 'הלקוח').trim().split(/\s+/)[0]} סימן/ה בדף שהזין/ה את הכרטיס ({formatDate(cardDeclaredAt, 'list')}). לוודא בפייפרלס ולאשר.</>
               : !cardEnteredAt
                 ? <>הריטיינר עודכן בפייפרלס לתשלום בכרטיס אשראי ({formatDate(authorizationCreatedAt, 'list')}). הלקוח רואה בדף האישי שפייפרלס תבקש ממנו כרטיס, וגם שייתכן חיוב אימות בסך 1 ₪. כשתראה בפייפרלס שהכרטיס הוזן - לסמן כאן.</>
                 : !retainerChargedAt
@@ -5113,7 +5127,7 @@ function RetainerStepCard(p: RetainerCardProps) {
                 <button type="button" className="btn btn-sm btn-primary" disabled={busy}
                   title="לסמן אחרי שראית בפייפרלס שהכרטיס של הלקוח הוזן"
                   onClick={() => p.onRun('note', { cardEnteredAt: new Date().toISOString(), note: 'הכרטיס של הלקוח הוזן בפייפרלס' })}>
-                  הכרטיס הוזן
+                  {cardDeclaredAt ? 'הכרטיס נקלט ✓' : 'הכרטיס הוזן'}
                 </button>
               )}
 

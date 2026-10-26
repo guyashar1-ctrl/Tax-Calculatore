@@ -216,4 +216,11 @@ export const TESTS: TestCase[] = [
     equal(formatRoute({ view: 'firmProfile', officeFocus: 'request:x' }), '/firm');
     deepEqual(parseHash('#/firm/library'), { view: 'firmProfile', officePage: 'library' });
   }),
+  // ── 302: «הזנתי את הכרטיס» בדף ⇒ אצלך לוודא; עד אז — ממתין לפייפרלס ──────────────
+  test('302 · הלקוח סימן שהזין כרטיס ⇒ התשלום החודשי «לטיפולך»; בלי סימון — ממתין לפייפרלס', () => {
+    const base = { stepType: 'retainer_authorization' as const, status: 'pending' as const, ball: 'me' as const };
+    equal(stepAttention(st({ ...base, payload: { authorizationCreatedAt: '2026-10-20' } })).kind, 'waiting');
+    deepEqual(stepAttention(st({ ...base, payload: { authorizationCreatedAt: '2026-10-20', cardDeclaredAt: '2026-10-26' } })), { kind: 'mine', tone: 'blue' });
+    equal(stepAttention(st({ ...base, payload: { authorizationCreatedAt: '2026-10-20', cardDeclaredAt: '2026-10-26', cardEnteredAt: '2026-10-26' } })).kind, 'waiting');
+  }),
 ];

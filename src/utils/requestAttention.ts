@@ -202,6 +202,8 @@ export function stepAttention(step: OnboardingStep, ctx: AttentionContext = {}):
       // ‼ המסד אומר "אצלי", אבל מי שמחזיק את הכדור הוא פייפרלס (מבקשת מהלקוח
       // כרטיס). "הסדר ידני" הוא באמת עבודה של המשרד — נשאר לטיפולי.
       if (step.payload?.method === 'manual_arrangement') return { kind: 'mine', tone: 'blue' };
+      // ‼ 302 · הלקוח סימן «הזנתי את הכרטיס» — עכשיו זה אצלך: לוודא בפייפרלס ולאשר.
+      if (step.payload?.cardDeclaredAt && !step.payload?.cardEnteredAt) return { kind: 'mine', tone: 'blue' };
       return { kind: 'waiting', tone: 'gray', waitingOn: 'paperless' };
 
     case 'custom_request':
