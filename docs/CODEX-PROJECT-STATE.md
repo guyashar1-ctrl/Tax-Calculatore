@@ -1580,3 +1580,9 @@ User requests end-of-office-flow extraction guides with annotated screenshots, m
 - בדיקת מסלול אמיתית עם נתוני דמה בלבד בשרת 61927: תיק דוד -> פנסיה -> לימוד/סיכום/יישום -> 1301/135 -> חזרה לאותו תיק; ב-390 שלוש לשוניות גלויות ואין גלילת רוחב. ניקוי הקשר מאפס לקוח ושחרור הבחירה. חיפוש 158 -> annual/f/1301/F111/158. הוספת חומר בדוי נשמרה והופיעה מיד; backend הדמה אינו נותן status DB ברירת מחדל ולכן מונה waiting ופרומפט העדכון לא אומתו במסלול הדמה. API השמירה הקיים לא השתנה. אין שגיאות/אזהרות קונסול במסלול הסופי.
 - ראיות מקומיות מוחרגות: docs/evidence/knowledge-approved-20261027 (שתי רשימות 206, final-client-journey.json, library-final-1280.png, topic-client-390.png). סקריפט E2E עודכן אך לא הורץ ב-Playwright חיצוני; בדיקות UI ב-CUA בלבד. פירוט: docs/KNOWLEDGE-APPROVED-EXPERIENCE-2026-10-27.md.
 - בזמן כתיבת הרשומה: לפני push; אין עדיין טענת פריסה חיה. הרצת pre-push המלאה ואימות הפריסה יירשמו בהשלמת השחרור.
+
+#### השלמת שחרור — 27.10.2026
+- קוד: 2e3ab33ca2ca230aa979f06bc89dc07fc32f706a נדחף ל-master. כל hook ה-pre-push עבר ללא דילוג: tsc, יחידה, staging-test-knowledge-answer והכללים החיים בייצור (קריאה בלבד).
+- Vercel דיווח success לקומיט הזה: https://vercel.com/guyashar1-3735s-projects/accountant-crm/23mpyqKGK28TfpKxpFrCU1VDT12g. לאחר רענון האתר החי קובץ הכניסה השתנה מ-main-Bmnj1ffh.js ל-main-BjXHRu4W.js. קישור: https://crm.yasharcpa.co.il/#/tax/learn.
+- גבול האימות: הדפדפן המחובר ל-Codex באתר החי הציג מסך Google. לא בוצע ניסיון התחברות, לא נפתחו תיקי אמת ולא נטענת בדיקת UI מאומתת אחרי כניסה לייצור. המסלולים המפורטים לעיל נבדקו בדפדפן על אותו קוד עם נתוני הדגמה מבודדים.
+- אין קוד לא שמור מהמשימה. נשארו קובצי QA/תצורת שרת מקומיים לא מנוהלים בעותק המבודד; לא צורפו לפרסום. שרת ההתנסות הסופי 61927 נשאר זמין. קובץ הפניית Git כפול בעל שם לא תקין master (1) הועבר בהזזה הפיכה אל .git/codex-ref-backups/origin-master-duplicate-20261027.txt; origin/master האמיתי לא שונה עקב התיקון.
