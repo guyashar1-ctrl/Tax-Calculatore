@@ -51,7 +51,7 @@ export const TESTS: TestCase[] = [
 
   // ‼ 21.10.2026 (הצעה מאושרת): בלי מסילה — מתג אחד בראש. העמוד תמיד גלוי (has-tool קבוע), גם בטלפון.
   test('בלי מסילה: מתג «עבודות לקוח | ידע מקצועי» בראש, והעמוד תמיד גלוי', () => {
-    assert(CENTER_SOURCE.includes('"tax-center tax-area ta2 has-tool"'), 'has-tool קבוע — כלל הטלפון לא מסתיר את העמוד');
+    assert(CENTER_SOURCE.includes('tax-center tax-area ta2 has-tool'), 'has-tool קבוע — כלל הטלפון לא מסתיר את העמוד');
     assert(!CENTER_SOURCE.includes('pg-rail') && !CENTER_SOURCE.includes('setPhoneList'), 'אין מסילה ואין רשימה בטלפון');
     assert(CENTER_SOURCE.includes('className="ta2-modes"'), 'המתג בראש');
   }),

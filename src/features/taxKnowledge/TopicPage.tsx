@@ -31,9 +31,11 @@ import MaternityBody, { MATERNITY_TOC, MATERNITY_LESSON } from './topics/Materni
 import { ANNUAL_LESSON, FORM6111_LESSON } from './topics/lessonsReports';
 import ClientAsksPanel from './ClientAsksPanel';
 import ShaamGuide from '../shaamFiling/ShaamGuide';
-import { applyStepOf, clientAsksFor, courseStepsOf, documentsFor, plainStatus, readingPeriod, stepKind, unitMinutes, unitsOf } from './learnPath';
+import { applyStepOf, clientAsksFor, courseStepsOf, documentsFor, plainStatus, readingPeriod, stepKind, unitMinutes, learningUnitsOf, topicViewOf } from './learnPath';
 import { useReadingMarks } from './readingMarks';
 import { clearHighlight, markPassage, peekHighlight } from './searchHighlight';
+import KnowledgeArt from './KnowledgeArt';
+import { libraryEntry } from './libraryModel';
 import './knowledge.css';
 import './learnPath.css';
 
@@ -99,7 +101,7 @@ export default function TopicPage({ topicId, year, clients = [], context, onBack
   const topic = TOPIC_BY_ID[topicId];
   const entry = BODIES[topicId];
   const toc = useMemo(() => entry?.toc ?? [], [entry]);
-  const units = useMemo(() => unitsOf(topicId, toc), [topicId, toc]);
+  const units = useMemo(() => learningUnitsOf(topicId, toc), [topicId, toc]);
   const steps = useMemo(() => courseStepsOf(topicId, toc), [topicId, toc]);
   const apply = useMemo(() => applyStepOf(toc), [toc]);
   const asks = useMemo(() => clientAsksFor(topicId), [topicId]);
@@ -116,9 +118,7 @@ export default function TopicPage({ topicId, year, clients = [], context, onBack
 
   // ‼ מתוך תיק לקוח נכנסים ל«יישום בתיק» — שם מה שעושים עם הלקוח
   const hasApply = !!apply || workLinks.length > 0 || !!topic?.appliesTo;
-  const current = sec ?? (context && hasApply ? 'apply' : null);
-  const view: 'plan' | 'summary' | 'apply' | 'lesson' =
-    current === 'summary' ? 'summary' : current === 'apply' || (apply && current === apply.id) ? 'apply' : current && toc.some(t => t.id === current) ? 'lesson' : 'plan';
+  const { current, view } = topicViewOf(sec, !!context, hasApply, toc);
 
   useEffect(() => {
     // מעבר מצב/שלב — לראש הנושא, והמיקוד לכותרת (קורא מסך שומע איפה הוא)
@@ -135,6 +135,7 @@ export default function TopicPage({ topicId, year, clients = [], context, onBack
 
   if (!topic || !entry) return <p className="kn-muted">הנושא לא נמצא.</p>;
   const { Body, lesson } = entry;
+  const presentation = libraryEntry(topicId);
   const period = readingPeriod(topicId, view === 'lesson' ? current : view, year);
   const y = period.year;
   const basis = weakestBasis(topic.ruleIds, y);
@@ -188,7 +189,7 @@ export default function TopicPage({ topicId, year, clients = [], context, onBack
   };
   const modes = (
     <nav className="kn-modes" aria-label="אופן השימוש בנושא">
-      <button type="button" aria-current={view === 'plan' || view === 'lesson' ? 'page' : undefined} onClick={() => go(null)} data-kn-mode="learn">ללמוד את הנושא</button>
+      <button type="button" aria-current={view === 'plan' || view === 'lesson' ? 'page' : undefined} onClick={() => go('plan')} data-kn-mode="learn">ללמוד את הנושא</button>
       <button type="button" aria-current={view === 'summary' ? 'page' : undefined} onClick={() => go('summary')} data-kn-mode="summary">הסיכום המקצועי</button>
       {hasApply && <button type="button" aria-current={view === 'apply' ? 'page' : undefined} onClick={() => go('apply')} data-kn-mode="apply">יישום בתיק</button>}
     </nav>
@@ -200,9 +201,13 @@ export default function TopicPage({ topicId, year, clients = [], context, onBack
   const header = (
     <header className="kn-head">
       {ctxBar}
-      <span className="kn-xs kn-muted">{AREA_LABEL[topic.area]}</span>
-      <h1 className="kn-title" tabIndex={-1} ref={view === 'lesson' ? undefined : headRef}>{topic.title}</h1>
-      <p className="kn-lead">{topic.lead}</p>
+      <div className={`kn-heading-row tone-${presentation?.hue ?? 'blue'}`}>
+        <div className="kn-heading-art"><KnowledgeArt name={presentation?.icon} /></div>
+        <div><p className="kl-eyeline">{AREA_LABEL[topic.area]}</p>
+          <h1 className="kn-title" tabIndex={-1} ref={view === 'lesson' ? undefined : headRef}>{presentation?.name ?? topic.title}</h1>
+          <p className="kn-lead">{topic.lead}</p>
+        </div>
+      </div>
       <div className={`kn-state is-${st.tone}`} data-kn-state>
         <strong>{st.label}</strong>
         <span>{st.basis}.</span>
@@ -274,7 +279,7 @@ export default function TopicPage({ topicId, year, clients = [], context, onBack
             {lesson ? (
               <>
                 <ol className="kn-summary-points">
-                  {lesson.mustKnow.map((p, i) => <li key={i}><Txt text={p.text} year={y} /> <ClaimTag status={p.status} /></li>)}
+                  {lesson.mustKnow.map((p, i) => <li key={i}><div><Txt text={p.text} year={y} /> <ClaimTag status={p.status} /></div></li>)}
                 </ol>
                 {lesson.mistakes.length > 0 && (
                   <details className="kn-summary-mistakes">
@@ -297,7 +302,7 @@ export default function TopicPage({ topicId, year, clients = [], context, onBack
               </>
             ) : <p className="kn-small kn-muted">לנושא הזה אין עדיין סיכום — הלימוד המלא במפת הלימוד.</p>}
             {legend}
-            <p><button type="button" className="btn btn-primary" onClick={() => go(null)}>ללמוד את הנושא ←</button></p>
+            <p><button type="button" className="btn btn-primary" onClick={() => go('plan')}>ללמוד את הנושא ←</button></p>
             {contextLinks}
           </section>
         </article>
@@ -338,7 +343,7 @@ export default function TopicPage({ topicId, year, clients = [], context, onBack
             </section>
           )}
           <nav className="kn-path-foot" aria-label="מעבר">
-            <button type="button" className="btn btn-secondary" onClick={() => go(null)}>→ ללמוד את הנושא</button>
+            <button type="button" className="btn btn-secondary" onClick={() => go('plan')}>→ ללמוד את הנושא</button>
             <button type="button" className="btn btn-secondary" onClick={() => go('summary')}>הסיכום המקצועי</button>
           </nav>
           {legend}
@@ -373,7 +378,7 @@ export default function TopicPage({ topicId, year, clients = [], context, onBack
       <div className="kn-topic kn-topic-v2" ref={rootRef} data-topic={topicId} data-view="lesson" data-section={current}>
         <div className="kn-lesson-grid">
           <aside className="kn-unit-compass" aria-label="מפת היחידה">
-            <button type="button" className="kn-link" onClick={() => go(null)}>→ מפת הלימוד</button>
+            <button type="button" className="kn-link" onClick={() => go('plan')}>→ מפת הלימוד</button>
             <p className="kn-xs kn-muted">יחידה {ui + 1} מתוך {units.length}</p>
             <h2 className="kn-unit-name">{unit.name}</h2>
             {unitSteps}
@@ -393,7 +398,7 @@ export default function TopicPage({ topicId, year, clients = [], context, onBack
               <span className="kn-xs kn-muted">שלב {stepIdx + 1} מתוך {unit.ids.length}</span>
               {fixedYear}
             </div>
-            {mapOpen && <nav className="kn-unit-map" aria-label="שלבי היחידה"><button type="button" className="kn-link" onClick={() => go(null)}>→ כל היחידות בנושא</button>{unitSteps}</nav>}
+            {mapOpen && <nav className="kn-unit-map" aria-label="שלבי היחידה"><button type="button" className="kn-link" onClick={() => go('plan')}>→ כל היחידות בנושא</button>{unitSteps}</nav>}
             <div className="kn-dots" aria-label={`שלב ${stepIdx + 1} מתוך ${unit.ids.length}`}>
               {unit.ids.map(id => <button key={id} type="button" aria-label={label(id)} aria-current={id === current ? 'step' : undefined} className={id === current ? 'is-current' : done.includes(id) ? 'is-read' : ''} onClick={() => go(id)} />)}
             </div>
@@ -411,7 +416,7 @@ export default function TopicPage({ topicId, year, clients = [], context, onBack
               </section>
             )}
             <nav className="kn-path-foot" aria-label="מעבר בין שלבים">
-              <button type="button" className="btn btn-secondary" onClick={() => go(prevStep ? prevStep.id : null)}>→ {prevStep ? 'השלב הקודם' : 'מפת הלימוד'}</button>
+              <button type="button" className="btn btn-secondary" onClick={() => go(prevStep ? prevStep.id : 'plan')}>→ {prevStep ? 'השלב הקודם' : 'מפת הלימוד'}</button>
               {nextStep && <button type="button" className="btn btn-primary" onClick={() => { mark(current); go(nextStep.id); }} data-stage-next>{stepIdx === unit.ids.length - 1 ? 'ליחידה הבאה' : 'לשלב הבא'} ←</button>}
             </nav>
             {legend}

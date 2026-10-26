@@ -313,14 +313,15 @@ async function run(vp) {
     await go(page, '/tax/learn');
     const askIn = page.locator('[data-ask-input]');
     ok(await page.locator('[data-ask-home]').isVisible() && await askIn.isVisible(), 'ידע מקצועי: נפתח בתיבת שאלה');
-    ok(await page.locator('[data-domain-card]').count() >= 8, 'ידע מקצועי: כרטיס לכל תחום');
-    ok(await page.locator('[data-ask-start]').count() === 5 && await page.locator('[data-book-item]').count() > 10 && await page.locator('[data-ask-inbox]').isVisible() && await page.locator('[data-ask-update]').isVisible(), 'בדף הבית: «להתחיל מכאן», המחברות עם הנושאים והכלים, «מה אני לומד» ו«עדכון הידע»');
+    ok(await page.locator('.kl-subject').count() >= 15, 'ידע מקצועי: כרטיסי נושאים עם תיאור, לימוד ונתוני עזר');
+    await page.locator('.kl-material-desk > summary').click();
+    ok(await page.locator('[data-ask-start]').count() === 5 && await page.locator('[data-book-item]').count() > 10 && await page.locator('[data-ask-inbox]').isVisible() && await page.locator('[data-ask-update]').isVisible(), 'כל המחברות נגישות, וחומר חדש ועדכון הידע נשמרו בתוך אזור נפתח');
     if (mobile) ok(await noHScroll(page), 'טלפון: דף הבית של הידע בלי גלילה הצידה');
     await shot(page, `${vp}-05-learn-home`);
     // בזמן הקלדה — מה כתוב אצלנו, מיד וללא Enter
     await askIn.fill('קרן השתלמות לעוסק זעיר'); await sleep(600);
     ok(await page.locator('[data-ask-hit^="microBusiness."]').count() > 0, 'הקלדה «קרן השתלמות לעוסק זעיר»: תוצאה מקומית מהנושא «עסק זעיר» (בלי Enter)', (await page.locator('[data-ask-hit]').evaluateAll(e => e.map(x => x.dataset.askHit))).join());
-    ok(await page.locator('[data-ask-unavailable], [data-ask-answer], [data-ask-thinking]').count() === 0 && await page.locator('[data-domain-card]').count() === 0, 'לפני Enter: אין תשובה מנוסחת, וכרטיסי התחומים פינו מקום');
+    ok(await page.locator('[data-ask-unavailable], [data-ask-answer], [data-ask-thinking]').count() === 0 && await page.locator('.kl-subject').count() === 0, 'לפני Enter: אין תשובה מנוסחת, וכרטיסי הנושאים פינו מקום');
     await shot(page, `${vp}-05b-ask-typing`);
     if (mobile) ok(await noHScroll(page), 'טלפון: תוצאות בזמן הקלדה בלי גלילה הצידה');
     await page.locator('[data-ask-hit^="microBusiness."]').first().click(); await sleep(800);
@@ -333,7 +334,7 @@ async function run(vp) {
     ok(await page.locator('[data-ask-hit]').count() > 0 && await page.locator('[data-ask-unavailable], [data-ask-answer], [data-ask-thinking]').count() === 0, 'Enter: מה שכתוב אצלנו נשאר — בלי «לא זמין» ובלי המתנה', await text(page.locator('.ak-results')));
     await shot(page, `${vp}-05c-ask-enter`);
     await page.locator('.ak-clear').click(); await sleep(300);
-    ok(await askIn.inputValue() === '' && await page.locator('[data-domain-card]').count() >= 8, '✕ מנקה את השאלה וחוזר לתחומים');
+    ok(await askIn.inputValue() === '' && await page.locator('.kl-subject').count() >= 15, '✕ מנקה את השאלה וחוזר לספרייה');
     // שאלה בלי שום כלל — אומרים את זה במקום ריק
     await askIn.fill('זזזזזז קקקקקק'); await sleep(500);
     ok(/לא נמצא אצלנו/.test(await text(page.locator('.ak-results'))), 'בלי כלל: «לא נמצא אצלנו» ו-Enter שומר לעדכון הבא', await text(page.locator('.ak-results')));
@@ -349,7 +350,7 @@ async function run(vp) {
     const f158 = page.locator('[data-ask-field^="1301:158"]').first();
     ok(await f158.count() === 1, 'חיפוש «158»: הסעיף בטופס 1301');
     await f158.click(); await sleep(1200);
-    ok(/\/tax\/learn\/annual\/c\/158$/.test(await page.evaluate(() => location.hash)) && await page.locator('[data-fm-detail] [data-fm-field]').count() > 0, 'לחיצה על הסעיף: הטופס נפתח וההסבר של 158 מוצג', await page.evaluate(() => location.hash));
+    ok(/\/tax\/learn\/annual\/f\/1301\/.+\/158$/.test(await page.evaluate(() => location.hash)) && await page.locator('[data-fm-detail] [data-fm-field]').count() > 0, 'לחיצה על הסעיף: הטופס והסעיף המדויק של 158 נפתחים', await page.evaluate(() => location.hash));
     // ערך לשנה בזמן הקלדה
     await go(page, '/tax/learn');
     await askIn.fill('מס רכישה'); await sleep(500);
@@ -370,6 +371,7 @@ async function run(vp) {
     // «עדכון הידע» — חלון עם שלוש שורות תוכנית
     await go(page, '/tax/learn');
     if (!(await page.locator('[data-ask-run]').count())) { await page.locator('.ak-clear').click(); await sleep(300); } // אותה כתובת ⇒ אין טעינה מחדש; השאלה האחרונה עוד בתיבה
+    if (!(await page.locator('[data-ask-run]').isVisible())) await page.locator('.kl-material-desk > summary').click();
     await page.locator('[data-ask-run]').click(); await sleep(500);
     ok(await page.locator('[data-ask-plan]').isVisible() && await page.locator('[data-ask-plan] > div').count() === 3 && await page.locator('[data-ask-copy]').isVisible(), '«עדכן עכשיו»: חלון עם שלוש שורות תוכנית וכפתור «העתק את הפרומט»', await text(page.locator('[data-ask-plan]')));
     await shot(page, `${vp}-05d-ask-update`);
@@ -380,7 +382,8 @@ async function run(vp) {
 
     // ── 6. ידע מקצועי: תחום ← נושא ← שלבים ──
     await go(page, '/tax/learn');
-    await page.locator('[data-domain-card="savings"]').click(); await sleep(500);
+    await page.locator('.kl-navigation button', { hasText: 'כלים ונתונים' }).click();
+    await page.locator('.kl-reference-directory a[href$="/savings"]').click(); await sleep(500);
     ok((await page.evaluate(() => location.hash)) === '#/tax/learn/savings', 'הכתובת: ‎#/tax/learn/savings‎');
     const dp = await text(page.locator('[data-domain="savings"]'));
     ok(dp.includes('מתי רלוונטי') && dp.includes('מה מבקשים מהלקוח') && dp.includes('ללמוד לעומק') && dp.includes('פנסיה לעצמאי') && dp.includes('העבודות אצל הלקוחות'), 'עמוד תחום: מה, מתי, מה מבקשים, ללמוד לעומק, עבודות', dp.slice(0, 400));
@@ -422,7 +425,8 @@ async function run(vp) {
     ok((await page.locator('.ta2-crumbs .kn-crumb').allInnerTexts()).join('|') === 'ידע מקצועי' && await page.locator('.ta2-crumbs .ta2-year select').isVisible(), 'בעמוד תחום: פירור «ידע מקצועי» ושנת מס');
     await page.locator('.ta2-crumbs .kn-crumb').click(); await sleep(500);
     ok((await page.evaluate(() => location.hash)) === '#/tax/learn' && await page.locator('[data-ask-home]').isVisible(), 'פירור «ידע מקצועי» ← דף הבית של הידע');
-    await page.locator('[data-domain-card="ni"]').click(); await sleep(500);
+    await page.locator('.kl-navigation button', { hasText: 'כלים ונתונים' }).click();
+    await page.locator('.kl-reference-directory a[href$="/ni"]').click(); await sleep(500);
     ok((await page.evaluate(() => location.hash)) === '#/tax/learn/ni' && await page.locator('[data-domain="ni"]').isVisible(), 'כרטיס תחום «ביטוח לאומי» ← עמוד התחום');
     await page.locator('[data-domain-item="ni"]').click(); await sleep(500);
     ok((await page.evaluate(() => location.hash)) === '#/tax/learn/ni/ni' && await page.locator('.ta2-crumbs .ta2-year select').isVisible(), 'כלי «שיעורים ותקרות»: כתובת, פירורים ושנת מס');
@@ -586,7 +590,7 @@ async function run(vp) {
       await dp2.locator('[data-form-map] [data-fm-page="2"]').click(); await sleep(500);
       await dp2.locator('[data-form-map] [data-code="158"]').scrollIntoViewIfNeeded(); await dp2.locator('[data-form-map] [data-code="158"]').click(); await sleep(500);
       const dc = await dp2.locator('[data-fm-detail]').evaluate(el => { const c = getComputedStyle(el); const pEl = el.querySelector('.fm-p'); return { bg: c.backgroundColor, fg: pEl ? getComputedStyle(pEl).color : '' }; });
-      ok(lum(dc.bg) < 0.2 && lum(dc.fg) > 0.5, 'מצב כהה: ההסבר קריא (רקע כהה, טקסט בהיר)', JSON.stringify(dc));
+      ok(lum(dc.bg) > 0.8 && lum(dc.fg) < 0.3, 'מצב כהה: אזור הידע נשאר בהיר וקריא כמו ההדמיה, בלי לשנות את סקירת העבודות', JSON.stringify(dc));
       ok(await dp2.locator('[data-form-map] .fm-page img').first().evaluate(i => i.complete && i.naturalWidth > 0), 'מצב כהה: הטופס עצמו נשאר לבן וקריא (תמונה)');
       if (mobile) ok(await noHScroll(dp2), 'מצב כהה, טלפון: בלי גלילה הצידה');
       await shot(dp2, `${vp}-21-dark-form`);

@@ -189,6 +189,19 @@ const APPLY_LABEL = /מה עושים בתיק|הכנת הדוח ביד|התהל�
 export function applyStepOf(toc: TocItem[]): TocItem | undefined {
   return toc.find(t => APPLY_LABEL.test(t.label)) ?? toc.find(t => t.view === 'apply');
 }
+/** A client entry may default to application; an explicit learning choice must always override that default. */
+export function topicViewOf(section: string | null, hasClient: boolean, hasApply: boolean, toc: TocItem[]) {
+  const current = section ?? (hasClient && hasApply ? 'apply' : null);
+  const view: 'plan' | 'summary' | 'apply' | 'lesson' = current === 'summary' ? 'summary'
+    : current === 'apply' || (!!applyStepOf(toc) && current === applyStepOf(toc)!.id) ? 'apply'
+    : current && toc.some(t => t.id === current) ? 'lesson' : 'plan';
+  return { current, view };
+}
+/** Visible learning units; the application chapter has its own mode and does not inflate reading progress. */
+export function learningUnitsOf(topicId: string, toc: TocItem[]): LearnUnit[] {
+  const applyId = applyStepOf(toc)?.id;
+  return unitsOf(topicId, toc).map(u => ({ ...u, ids: u.ids.filter(id => id !== applyId) })).filter(u => u.ids.length);
+}
 /** הדרך ללמידה לפי הסדר — בלי סעיף היישום, שהוא מצב משלו («המשך» לא נופל לתוכו באמצע). */
 export function courseStepsOf(topicId: string, toc: TocItem[]): TocItem[] {
   const apply = applyStepOf(toc)?.id;

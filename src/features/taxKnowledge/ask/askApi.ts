@@ -6,6 +6,8 @@ import { supabase } from '../../../lib/supabase';
 import type { ClaimStatus } from '../claim';
 import type { KnowledgeRule } from '../corpus/types';
 
+export const INBOX_CHANGED = 'pivo:knowledge-inbox-changed';
+
 export interface AnswerLine { mark: 'yes' | 'no' | 'info'; title: string; detail: string; ruleIds: string[]; status?: ClaimStatus }
 export interface Answer { answerable: boolean; lines: AnswerLine[]; why: string; missing?: string; status: ClaimStatus | null; rules: KnowledgeRule[] }
 export type AskResult =

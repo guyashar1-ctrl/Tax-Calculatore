@@ -145,7 +145,7 @@ export default function FormMap({ domain, clients = [], contextClient = null, on
   const focus = useMemo(() => (domain === 'annual' && contextClient ? readFocus() : null), [domain, contextClient]);
   const [q, setQ] = useState(initialCode ?? (focus && focus.clientId === contextClient?.id ? focus.code ?? '' : ''));
   const [clientId, setClientId] = useState<string>(contextClient?.id ?? '');
-  useEffect(() => { if (contextClient) setClientId(contextClient.id); }, [contextClient]);
+  useEffect(() => { setClientId(contextClient?.id ?? ''); }, [contextClient]);
   const client = clients.find(c => c.id === clientId) ?? (contextClient?.id === clientId ? contextClient : null);
   const L = LAYOUTS[slug];
   const pages = printed ? PRINTED_6111.pages : L.pages;
@@ -369,7 +369,7 @@ export default function FormMap({ domain, clients = [], contextClient = null, on
             {(clients.length > 0 || contextClient) && (
               <label className="fm-client" htmlFor={`fm-c-${domain}`}>
                 <span>מצב השדות אצל לקוח</span>
-                <select id={`fm-c-${domain}`} value={clientId} onChange={e => setClientId(e.target.value)} data-fm-client>
+                <select id={`fm-c-${domain}`} value={clientId} onChange={e => setClientId(e.target.value)} disabled={!!contextClient} title={contextClient ? 'הלקוח נקבע לפי התיק שממנו נפתח הידע. אפשר לצאת מההקשר בראש העמוד.' : undefined} data-fm-client>
                   <option value="">בלי לקוח</option>
                   {contextClient && !clients.some(c => c.id === contextClient.id) && <option value={contextClient.id}>{nameOf(contextClient)}</option>}
                   {clients.map(c => <option key={c.id} value={c.id}>{nameOf(c)}</option>)}

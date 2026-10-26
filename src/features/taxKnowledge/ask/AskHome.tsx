@@ -15,13 +15,14 @@ import { DOMAINS, DOMAIN_BY_ID, domainOf, parseAreaPath, type AreaPath, type Dom
 import { readLastRead } from '../readingMarks';
 import { highlightNext, takeSearchFocus } from '../searchHighlight';
 import { BODIES } from '../TopicPage';
+import KnowledgeCatalog from '../KnowledgeCatalog';
 import { findFields } from '../formMap/model';
 import { searchValues } from '../domainValues';
 import { RULESET_VERSION } from '../../taxRules/registry';
 import { searchRules } from './localSearch';
 import { bidiText } from './bidiText';
 import { AVAILABLE } from '../availability';
-import { addInbox, askQuestion, listInbox, logQuestion, openQuestions, removeInbox, type AskResult, type InboxItem, type OpenQuestion } from './askApi';
+import { addInbox, askQuestion, INBOX_CHANGED, listInbox, logQuestion, openQuestions, removeInbox, type AskResult, type InboxItem, type OpenQuestion } from './askApi';
 import { buildUpdatePrompt } from './updatePrompt';
 import './ask.css';
 
@@ -74,7 +75,7 @@ export default function AskHome({ onGo, onOpenTopic, moved }: Props) {
   // «חיפוש» / Ctrl+K מעמוד אחר — הסמן בתיבה
   useEffect(() => { if (takeSearchFocus()) inputRef.current?.focus(); }, []);
   const reloadSide = () => { void listInbox().then(setInbox); void openQuestions().then(setQuestions); };
-  useEffect(reloadSide, []);
+  useEffect(() => { reloadSide(); window.addEventListener(INBOX_CHANGED, reloadSide); return () => window.removeEventListener(INBOX_CHANGED, reloadSide); }, []);
 
   const typing = q.trim();
   const hits = useMemo(() => (typing && rules.length ? searchRules(rules, typing, 6) : []), [rules, typing]);
@@ -127,8 +128,8 @@ export default function AskHome({ onGo, onOpenTopic, moved }: Props) {
 
   return (
     <div className={`ak${active ? ' is-active' : ''}`} data-ask-home>
-      <div className="ak-hero">
-        <h2 className="ak-h">ספריית הידע</h2>
+      <div className="ak-hero kl-intro">
+        <div><p className="kl-eyeline">PIVO / ידע מקצועי</p><h1 className="ak-h">ספריית הידע</h1><p className="kl-intro-line">סיכומים מסודרים, לימוד מעמיק וכלי עבודה.</p></div>
         <form className="ak-ask" role="search" onSubmit={e => { e.preventDefault(); void ask(q); }}>
           <svg className="ak-ask-ic" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" strokeWidth="2" /><path d="m20 20-3.5-3.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
           <input ref={inputRef} value={q} onChange={e => setQ(e.target.value)} placeholder="נושא, שאלה או קוד בטופס" aria-label="חיפוש בידע המקצועי" enterKeyHint="search" autoComplete="off" data-ask-input />
@@ -137,14 +138,11 @@ export default function AskHome({ onGo, onOpenTopic, moved }: Props) {
             <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M19 12H5m6-6-6 6 6 6" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" /></svg>
           </button>}
         </form>
-        {!active && (
-          <nav className="ak-tries" aria-label="להתחיל מכאן">{START.map(x => <button key={x.label} type="button" onClick={() => onGo(x.to)} data-ask-start>{x.label}</button>)}</nav>
-        )}
       </div>
 
       {last && !active && (
         <button type="button" className="ak-resume" onClick={() => onGo(parseAreaPath(last.path))} data-ask-resume>
-          <span>להמשיך מהמקום האחרון</span><b>{last.title}</b><span aria-hidden="true">←</span>
+          <span className="kl-resume-symbol" aria-hidden="true">↶</span><span><small>המקום האחרון שקראת</small><b>{last.title}</b></span><span>ממשיכים מכאן <span aria-hidden="true">←</span></span>
         </button>
       )}
 
@@ -221,7 +219,7 @@ export default function AskHome({ onGo, onOpenTopic, moved }: Props) {
                 <ul className="ak-list">
                   {fieldHits.map(h => (
                     <li key={`${h.slug}.${h.field.key}`}>
-                      <button type="button" onClick={() => onGo(h.code ? { mode: 'learn', domain: formDomainOf(h.slug), code: h.code } : { mode: 'learn', domain: formDomainOf(h.slug) })} data-ask-field={`${h.slug}:${h.code || h.field.key}`}>
+                      <button type="button" onClick={() => onGo({ mode: 'learn', domain: formDomainOf(h.slug), form: h.slug, field: h.field.key, ...(h.code ? { mark: h.code } : {}) })} data-ask-field={`${h.slug}:${h.code || h.field.key}`}>
                         <span className="ak-hit-t">{h.field.label}</span>
                         <span className="ak-hit-w">טופס {h.formId}{h.code ? <> · קוד <bdi>{h.code}</bdi></> : null}</span>
                       </button>
@@ -262,28 +260,12 @@ export default function AskHome({ onGo, onOpenTopic, moved }: Props) {
 
       {!active && (
         <>
-          <section className="ak-sect" aria-labelledby="ak-dom-h">
-            <h3 className="ak-sect-h" id="ak-dom-h">המחברות</h3>
-            <div className="ak-books">
-              {DOMAINS.filter(d => d.items.length).map(d => (
-                <section key={d.id} className="ak-book" data-book={d.id}>
-                  <button type="button" className="ak-book-h" onClick={() => onGo({ mode: 'learn', domain: d.id })} data-domain-card={d.id}>{d.label} ←</button>
-                  <ul>
-                    {d.items.filter(i => i.id !== 'map1301' && i.id !== 'maintenance').map(i => (
-                      <li key={i.id}><button type="button" onClick={() => onGo({ mode: 'learn', domain: d.id, item: i.id })} data-book-item={i.id}>{i.label}<small>{i.kind === 'topic' ? 'לימוד' : 'כלי'}</small></button></li>
-                    ))}
-                  </ul>
-                </section>
-              ))}
-            </div>
-            {DOMAINS.some(d => !d.items.length) && (
-              <p className="ak-building">בבנייה: {DOMAINS.filter(d => !d.items.length).map((d, n) => <span key={d.id}>{n ? ' · ' : ''}<button type="button" className="ak-link" onClick={() => onGo({ mode: 'learn', domain: d.id })} data-domain-card={d.id}>{d.label}</button></span>)}</p>
-            )}
-          </section>
-          <div className="ak-two">
+          <KnowledgeCatalog onGo={onGo} />
+          <nav className="kl-shortcuts" aria-label="קיצורי דרך לעבודה">{START.map(x => <button key={x.label} type="button" onClick={() => onGo(x.to)} data-ask-start>{x.label} ←</button>)}</nav>
+          <details className="kl-material-desk"><summary>מה אני לומד ועדכון הידע{(inbox?.filter(i => i.status === 'waiting').length ?? 0) + questions.length > 0 && <span> · {(inbox?.filter(i => i.status === 'waiting').length ?? 0) + questions.length} ממתינים</span>}</summary><div className="ak-two">
             <Inbox items={inbox} onChanged={reloadSide} onToast={showToast} />
             <UpdateCard rules={rules} inbox={inbox ?? []} questions={questions} onOpen={() => setUpdating(true)} />
-          </div>
+          </div></details>
         </>
       )}
 

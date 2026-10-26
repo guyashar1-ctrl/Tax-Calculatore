@@ -1570,3 +1570,13 @@ User requests end-of-office-flow extraction guides with annotated screenshots, m
 - Checks each stage: tsc clean; unit 2248/0; corpus --check 0; `scripts/e2e/tax-area.mjs` desktop+390+360 = 506/0; stage probes (topic, nav, material, tools, client file with seeded demo row, forms QA 165/0) all green at 1280/390/360, 0 console errors.
 - SHAAM hub decisions released the same day — see the entry «רשימות שע״ם … (305)» above (production migration applied after Guy's explicit approval).
 - Not ported on purpose: knowledge links inside the work overview rows (Guy removed «ללמוד» there on 21.10; the client-file rows carry it instead).
+
+### 2026-10-27 — Codex: חוויית הידע שאושרה, על בסיס עבודת Claude
+- אישור גיא: לממש את כל הידע כמו המחשת ב׳, לשמור תוכן ויכולות Claude ואת עיצוב יתר המערכת. Claude אישר שעצר. בסיס: origin/master df109259, עותק מבודד tmp/knowledge-approved-ui, ענף codex/knowledge-approved-ui. העותק הראשי הישן לא הוחלף.
+- הוחזרו כרטיסי הספרייה המאוירים, תיאורים, תחומים, התקדמות והמשך קריאה; נוסף אינדקס כלים/נתונים ואינדקס דוחות/נספחים/הון. דפי הנושא בשלושת המצבים מקבלים את שפת ההדמיה. כל ה-CSS תחום לידע; מעטפת שאר המערכת נשמרה.
+- נשמרו 11 מחברות/125 פרקים, 8 כלים, 11 תחומים, 14 מפות טופס/717 הסברים, 6111 מודפס, 9 מסמכי מקור, 56 הוצאות ו-857 כללי חיפוש. אין החלפת תוכן, מחקר דין חדש, DB, שע״ם או שינוי בקשות. המגבלות המקצועיות ושנות התחולה נשמרו; אין אישור גורף לכל הדין.
+- ניווט: לימוד מפורש בהקשר לקוח פותח plan (תוקן null שחזר ליישום); הקשר ושנת העבודה נשמרים לנושאים קשורים/טפסים/כלים. יציאה מנקה את הלקוח מהמפה. חיפוש 158 פותח את השדה המדויק. חומר חדש מרענן את הרשימה מיד.
+- QA: tsc נקי; Vite build עבר; 2281 בדיקות יחידה עברו, 0 נכשלו; corpus --check: 857. שתי ביקורות מקור עצמאיות ותיקוניהן. CUA עבר על 206 כתובות ב-360 ועל 206 ב-1280 (כולל כל 125 הפרקים): כותרת/טעינה/רוחב/מצבים. תוקנו רוחב 1219 וטבלאות מסמכים. זו אינה בדיקה מקצועית חדשה של כל טענה או של כל מצב בכל מחשבון.
+- בדיקת מסלול אמיתית עם נתוני דמה בלבד בשרת 61927: תיק דוד -> פנסיה -> לימוד/סיכום/יישום -> 1301/135 -> חזרה לאותו תיק; ב-390 שלוש לשוניות גלויות ואין גלילת רוחב. ניקוי הקשר מאפס לקוח ושחרור הבחירה. חיפוש 158 -> annual/f/1301/F111/158. הוספת חומר בדוי נשמרה והופיעה מיד; backend הדמה אינו נותן status DB ברירת מחדל ולכן מונה waiting ופרומפט העדכון לא אומתו במסלול הדמה. API השמירה הקיים לא השתנה. אין שגיאות/אזהרות קונסול במסלול הסופי.
+- ראיות מקומיות מוחרגות: docs/evidence/knowledge-approved-20261027 (שתי רשימות 206, final-client-journey.json, library-final-1280.png, topic-client-390.png). סקריפט E2E עודכן אך לא הורץ ב-Playwright חיצוני; בדיקות UI ב-CUA בלבד. פירוט: docs/KNOWLEDGE-APPROVED-EXPERIENCE-2026-10-27.md.
+- בזמן כתיבת הרשומה: לפני push; אין עדיין טענת פריסה חיה. הרצת pre-push המלאה ואימות הפריסה יירשמו בהשלמת השחרור.

@@ -35,6 +35,8 @@ import { SOURCE_DOCS } from '../taxKnowledge/sourceDocs';
 import { weakestBasis } from '../taxRules/registry';
 import WorkOverview from './WorkOverview';
 import AskHome from '../taxKnowledge/ask/AskHome';
+import KnowledgeDirectory from '../taxKnowledge/KnowledgeDirectory';
+import { libraryEntry } from '../taxKnowledge/libraryModel';
 import { ShaamFilingPanel } from '../shaamFiling';
 import FormMap from '../taxKnowledge/formMap/FormMap';
 import DocCards from '../taxKnowledge/topics/DocCards';
@@ -45,6 +47,7 @@ import {
   advanceTrail, askAreasOf, clampYear, defaultYearFor, domainOf, formatAreaPath, itemOf, parseAreaPath, reportSeasonYear, returnTargetOf, type AreaPath, type DomainId, type DomainItem, type PlannedItem,
 } from './areaModel';
 import './taxArea.css';
+import '../taxKnowledge/knowledgeExperience.css';
 
 // ── מסגרת לכל כלי (26.10.2026, ההדמיה המאושרת): מה הכלי מחשב ומה לא, מקור רשמי לעיון, וההסבר בתחום שלו ──
 // ‼ «תחום השימוש» אומר מתי התוצאה אינה תשובה — לא הסתייגות כללית. מאגר משולב (הוצאות, ניהול ספרים) — השנה בכל פריט.
@@ -112,7 +115,10 @@ export default function TaxArea({ path, onPath, freshnessTaskExists, onCreateFre
   const [lastLearn, setLastLearn] = useState<string>(p.mode === 'learn' ? formatAreaPath(p) : 'learn');
   useEffect(() => { if (p.mode === 'work') setLastWork(formatAreaPath(p)); else setLastLearn(formatAreaPath(p)); }, [p]);
   // ‼ כניסה מתיק לקוח לנושא — נשארים בהקשר הלקוח כל עוד הנושא הזה פתוח
-  const ctxClient = useMemo(() => (contextClientId && p.mode === 'learn' && p.item === contextTopic ? clients.find(c => c.id === contextClientId) ?? null : null), [clients, contextClientId, contextTopic, p]);
+  const contextKey = `${contextClientId ?? ''}:${contextTopic ?? ''}:${contextYear ?? ''}`;
+  const [releasedContext, setReleasedContext] = useState<string | null>(null);
+  // The client follows a reading journey into related topics, search, tools and forms, until explicitly leaving its context.
+  const ctxClient = useMemo(() => (contextClientId && p.mode === 'learn' && releasedContext !== contextKey ? clients.find(c => c.id === contextClientId) ?? null : null), [clients, contextClientId, contextKey, releasedContext, p.mode]);
   // ‼ מתיק לקוח — שנת העבודה שלו (מהשורה, אחרת עונת הדוחות); אחרת שנה שנבחרה, ואחרת לפי סוג העמוד
   const year = ctxClient ? clampYear(contextYear ?? reportSeasonYear(), AVAILABLE_YEARS) : chosenYear ?? defaultYearFor(p, AVAILABLE_YEARS);
 
@@ -120,11 +126,11 @@ export default function TaxArea({ path, onPath, freshnessTaskExists, onCreateFre
     onPath(typeof next === 'string' ? next : formatAreaPath(next));
     window.scrollTo({ top: 0 });
   };
-  const openTopic = (id: string) => go({ mode: 'learn', domain: domainOf(id), item: id });
+  const openTopic = (id: string) => go({ mode: 'learn', domain: domainOf(id), item: id, sub: 'plan' });
   const openTool = (id: string) => { const d = domainOf(id); if (d) go({ mode: 'learn', domain: d, item: id }); };
   const canLearn = (id: string) => !!domainOf(id);
   const data = TAX_YEARS.find(t => t.year === year)!;
-  const yearSelect = (
+  const yearSelect = ctxClient ? <span title="שנת העבודה שממנה נפתח הידע">{year} · שנת העבודה</span> : (
     <select value={year} onChange={e => setYear(+e.target.value)} aria-label="שנת מס">
       {AVAILABLE_YEARS.map(y => <option key={y} value={y}>{y}</option>)}
     </select>
@@ -140,7 +146,8 @@ export default function TaxArea({ path, onPath, freshnessTaskExists, onCreateFre
     if (item?.kind !== 'topic') return;
     const t = TOPIC_BY_ID[item.id];
     const where = sub === 'summary' ? 'הסיכום המקצועי' : sub === 'apply' ? 'יישום בתיק' : sub ? BODIES[item.id]?.toc.find(x => x.id === sub)?.label : undefined;
-    if (t) saveLastRead({ path: formatAreaPath(p), title: where ? `${t.title} · ${where}` : t.title });
+    const title = libraryEntry(item.id)?.name ?? t?.title;
+    if (title) saveLastRead({ path: formatAreaPath(p), title: where ? `${title} · ${where}` : title });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [item?.id, sub]);
 
@@ -152,7 +159,7 @@ export default function TaxArea({ path, onPath, freshnessTaskExists, onCreateFre
           <button key={m} type="button" className={`ta2-mode${p.mode === m ? ' is-on' : ''}`} aria-pressed={p.mode === m}
             onClick={() => {
               if (p.mode !== m) { onPath(m === 'work' ? lastWork : lastLearn); window.scrollTo({ top: 0 }); }
-              else if (p.mode === 'learn' && p.domain) go({ mode: 'learn' });
+              else if (p.mode === 'learn' && (p.domain || p.directory)) go({ mode: 'learn' });
               else if (p.mode === 'work' && p.section !== 'all') go({ mode: 'work', section: 'all' });
             }} data-mode={m}>
             {MODE_LABEL[m]}
@@ -173,6 +180,7 @@ export default function TaxArea({ path, onPath, freshnessTaskExists, onCreateFre
   }, [path]);
   const backLabel = (target: string) => {
     const b = parseAreaPath(target);
+    if (b.mode === 'learn' && b.directory) return b.directory === 'tools' ? 'חזרה לכלים ולנתונים' : 'חזרה לדוחות והצהרת הון';
     if (b.mode !== 'learn' || !b.domain) return '';
     if (b.code) return `חזרה לטופס ${b.domain === 'wealth' ? '1219' : '1301'} · קוד ${b.code}`;
     if (b.form) {
@@ -197,7 +205,7 @@ export default function TaxArea({ path, onPath, freshnessTaskExists, onCreateFre
   };
   // ── חיפוש מכל עמוד: הכפתור ו-Ctrl+K פותחים את הספרייה עם הסמן בתיבה ──
   const openSearch = () => {
-    if (p.mode === 'learn' && !p.domain) { document.querySelector<HTMLInputElement>('[data-ask-input]')?.focus(); return; }
+    if (p.mode === 'learn' && !p.domain && !p.directory) { document.querySelector<HTMLInputElement>('[data-ask-input]')?.focus(); return; }
     requestSearchFocus(); go({ mode: 'learn' });
   };
   useEffect(() => {
@@ -214,8 +222,6 @@ export default function TaxArea({ path, onPath, freshnessTaskExists, onCreateFre
         {item && <><span aria-hidden="true"> › </span><button type="button" className="kn-crumb" onClick={() => go({ mode: 'learn', domain: p.domain })}>{domain!.label}</button></>}
       </span>
       <span className="ta2-crumb-tools">
-        <button type="button" className="ta2-search" onClick={openSearch} aria-label="חיפוש בידע המקצועי (Ctrl+K)" data-ta-search>⌕ חיפוש</button>
-        <button type="button" className="ta2-search" onClick={() => setMaterial(materialContext())} aria-label="הוספת חומר או שאלה על העמוד הזה" data-ta-material>＋ חומר חדש</button>
         {!fixedYear && <label className="ta2-year">שנת מס{yearSelect}</label>}
       </span>
     </div>
@@ -243,7 +249,7 @@ export default function TaxArea({ path, onPath, freshnessTaskExists, onCreateFre
       // ‼ 16.10: הטופס עצמו עם הסימונים, מול תיק הלקוח שנכנסו ממנו; הבקרה הישנה (מה השתנה, כיסוי, מוכנות) — מקופלת מתחת
       case 'map1301': return (
         <>
-          <FormMap domain="annual" clients={clients} contextClient={ctxClient} onBackToClient={ctxClient ? () => onOpenClient(ctxClient.id, 'taxfile') : undefined}
+          <FormMap key={ctxClient?.id ?? 'reference'} domain="annual" clients={clients} contextClient={ctxClient} onBackToClient={ctxClient ? () => onOpenClient(ctxClient.id, 'taxfile') : undefined}
             canLearn={canLearn} onLearn={openTopic} onOpenTool={openTool} year={year} onAddMaterial={seed => setMaterial(materialContext(seed))} />
           <details className="ta-control" data-map-control>
             <summary>בקרת הטופס: מה השתנה מול 2024, כיסוי לפי חלקים ומוכנות לקוח</summary>
@@ -268,8 +274,9 @@ export default function TaxArea({ path, onPath, freshnessTaskExists, onCreateFre
         </>
       );
     }
+    if (p.directory) return <KnowledgeDirectory kind={p.directory} onGo={go} />;
     if (!domain) return <AskHome onGo={go} onOpenTopic={openTopic} moved={p.mode === 'learn' && !!p.moved} />;
-    if (!item) return <>{crumbs}<DomainPage d={domain.id} year={year} onGo={go} counts={work.counts} focusValues={p.mode === 'learn' ? p.values : undefined} focusCode={p.mode === 'learn' ? p.code : undefined} yearSelect={yearSelect} clients={clients} canLearn={canLearn} onLearn={openTopic} onOpenTool={openTool} onAddMaterial={seed => setMaterial(materialContext(seed))}
+    if (!item) return <>{crumbs}<DomainPage d={domain.id} year={year} onGo={go} counts={work.counts} focusValues={p.mode === 'learn' ? p.values : undefined} focusCode={p.mode === 'learn' ? p.code : undefined} yearSelect={yearSelect} clients={clients} contextClient={ctxClient} onBackToClient={ctxClient ? () => onOpenClient(ctxClient.id, 'taxfile') : undefined} canLearn={canLearn} onLearn={openTopic} onOpenTool={openTool} onAddMaterial={seed => setMaterial(materialContext(seed))}
       focus={p.mode === 'learn' ? { form: p.form, field: p.field, mark: p.mark, doc: p.doc } : {}}
       onField={v => onPath(formatAreaPath({ mode: 'learn', domain: domain.id, ...v }))}
       onOpenDomain={id => { if (DOMAIN_BY_ID[id as DomainId]) go({ mode: 'learn', domain: id as DomainId }); }} /></>;
@@ -292,7 +299,7 @@ export default function TaxArea({ path, onPath, freshnessTaskExists, onCreateFre
         <div className="pg-head">
           <div className="pg-head-main">
             {crumbs}
-            <div className="pg-title pg-title-lg">{item.label}</div>
+            <h1 className="pg-title pg-title-lg">{item.label}</h1>
             <div className="pg-status">{item.purpose}</div>
             {ds && <div className="tc-head-fresh"><FreshnessBadge datasetId={ds} /></div>}
           </div>
@@ -317,8 +324,19 @@ export default function TaxArea({ path, onPath, freshnessTaskExists, onCreateFre
   })();
 
   return (
-    <div className="tax-center tax-area ta2 has-tool" data-tax-area data-mode={p.mode}>
-      {modes}
+    <div className={`tax-center tax-area ta2 has-tool${p.mode === 'learn' ? ' pivo-light' : ''}`} data-tax-area data-mode={p.mode}>
+      <div className={p.mode === 'learn' ? 'kl-topbar' : undefined}>{modes}{p.mode === 'learn' && <div className="kl-actions">
+        <button type="button" onClick={openSearch} aria-label="חיפוש בידע המקצועי (Ctrl+K)" data-ta-search><span aria-hidden="true">⌕</span><span className="kl-action-name">חיפוש</span></button>
+        <button type="button" onClick={() => setMaterial(materialContext())} aria-label="הוספת חומר או שאלה על העמוד הזה" data-ta-material><span aria-hidden="true">＋</span><span className="kl-action-name">חומר חדש</span></button>
+      </div>}</div>
+      {p.mode === 'learn' && <div className="kl-navigation">
+        <nav aria-label="ניווט בידע המקצועי">
+          <button type="button" aria-current={!p.domain && !p.directory ? 'page' : undefined} onClick={() => go({ mode: 'learn' })}>ספריית הידע</button>
+          <button type="button" aria-current={p.directory === 'tools' || item?.kind === 'tool' ? 'page' : undefined} onClick={() => go({ mode: 'learn', directory: 'tools' })}>כלים ונתונים</button>
+          <button type="button" aria-current={p.directory === 'forms' || (!!domain && !item && ['annual', 'wealth'].includes(domain.id)) ? 'page' : undefined} onClick={() => go({ mode: 'learn', directory: 'forms' })}>דוחות והצהרת הון</button>
+        </nav>
+      </div>}
+      {ctxClient && <div className="kl-client-context" data-knowledge-context><span>עיון מתוך התיק של <strong>{`${ctxClient.firstName ?? ''} ${ctxClient.lastName ?? ''}`.trim()}</strong> · {year}</span><div><button type="button" onClick={() => onOpenClient(ctxClient.id, 'taxfile')}>חזרה לתיק ←</button><button type="button" onClick={() => setReleasedContext(contextKey)} aria-label="המשך עיון ללא הקשר של לקוח">×</button></div></div>}
       <div className="pg-pane ta2-pane">{returnBar}{pane}</div>
       {material && <AddMaterial context={material} onClose={() => setMaterial(null)} />}
     </div>
@@ -330,9 +348,10 @@ export default function TaxArea({ path, onPath, freshnessTaskExists, onCreateFre
 // ‼ «דוח שנתי» ו«הצהרת הון»: הטופס הרשמי עצמו עם הסימונים (FormMap) הוא העמוד.
 const FORM_DOMAINS: Partial<Record<DomainId, 'annual' | 'wealth'>> = { annual: 'annual', wealth: 'wealth' };
 
-function DomainPage({ d, year, onGo, counts, focusValues, focusCode, yearSelect, clients, canLearn, onLearn, onOpenTool, focus, onField, onOpenDomain, onAddMaterial }: {
+function DomainPage({ d, year, onGo, counts, focusValues, focusCode, yearSelect, clients, contextClient, onBackToClient, canLearn, onLearn, onOpenTool, focus, onField, onOpenDomain, onAddMaterial }: {
   d: DomainId; year: number; onGo: (p: AreaPath) => void; counts: ReturnType<typeof useTaxWork>['counts']; focusValues?: string; focusCode?: string; yearSelect: ReactNode;
   clients: Client[]; canLearn: (id: string) => boolean; onLearn: (id: string) => void; onOpenTool: (id: string) => void;
+  contextClient?: Client | null; onBackToClient?: () => void;
   /** הטופס, הסעיף והמסמך מהכתובת (‎f/…‎ · ‎d/…‎). onField — בחירה בטופס, בלי לגלול לראש העמוד. */
   focus: { form?: string; field?: string; mark?: string; doc?: string }; onField: (v: { form?: string; field?: string; mark?: string }) => void; onOpenDomain: (id: string) => void;
   /** «＋ שאלה או חומר על הסעיף» — אותו «＋ חומר חדש», עם הסעיף כהקשר. */
@@ -381,14 +400,15 @@ function DomainPage({ d, year, onGo, counts, focusValues, focusCode, yearSelect,
   return (
     <div className={`ta-domain-page${formDomain ? ' has-form' : ''}`} data-domain={d}>
       <header className="ta-page-head">
-        <h2 className="tw-h">{dom.label}</h2>
+        <h1 className="tw-h">{dom.label}</h1>
         <p className="tw-lead">{dom.what}</p>
         <p className="ta-when"><b>מתי רלוונטי:</b> {dom.when}</p>
       </header>
+      <div className={!formDomain ? 'kl-domain-sheet' : undefined}>
       {formDomain && (
         <section aria-labelledby="ta-form-h" data-domain-form>
           <h3 className="ta-sec-h" id="ta-form-h">{formDomain === 'annual' ? 'הטופס — שדה אחר שדה' : 'טופס 1219 — שורה אחר שורה'}</h3>
-          <FormMap key={formDomain} domain={formDomain} clients={clients} canLearn={canLearn} onLearn={onLearn} onOpenTool={onOpenTool} year={year} initialCode={focusCode}
+          <FormMap key={`${formDomain}:${contextClient?.id ?? 'reference'}`} domain={formDomain} clients={clients} contextClient={contextClient} onBackToClient={onBackToClient} canLearn={canLearn} onLearn={onLearn} onOpenTool={onOpenTool} year={year} initialCode={focusCode}
             initialForm={focus.form} initialField={focus.field} initialMark={focus.mark} onSelectField={onField} onOpenDomain={onOpenDomain} onAddMaterial={onAddMaterial} />
           {formDomain === 'annual' && (
             <p className="ta-form-more">
@@ -477,6 +497,7 @@ function DomainPage({ d, year, onGo, counts, focusValues, focusCode, yearSelect,
           ))}</div>
         </section>
       )}
+      </div>
     </div>
   );
 }

@@ -213,7 +213,7 @@ export type AreaPath =
   /** values — קבוצת ערכים שנפתחת בעמוד התחום (‎learn/<domain>/v/<group>‎). moved — הגיעו מקישור ישן ל«ערכים לפי נושא». */
   /** sub — מה שנבחר בתוך כלי או נושא (מאמר הוצאה, פעילות בניהול ספרים): ‎learn/<domain>/<item>/<sub>‎. */
   /** form/field/mark — טופס וסעיף במפת הטופס: ‎learn/<domain>/f/<form>[/<field>[/<קוד>]]‎. doc — מסמך מקור: ‎learn/annual/d/<id>‎. */
-  | { mode: 'learn'; domain?: DomainId; item?: string; values?: string; moved?: true; code?: string; sub?: string; form?: string; field?: string; mark?: string; doc?: string };
+  | { mode: 'learn'; directory?: 'tools' | 'forms'; domain?: DomainId; item?: string; values?: string; moved?: true; code?: string; sub?: string; form?: string; field?: string; mark?: string; doc?: string };
 
 export const DEFAULT_AREA_PATH: AreaPath = { mode: 'work', section: 'all' };
 
@@ -222,6 +222,7 @@ export function parseAreaPath(raw: string | undefined): AreaPath {
   const [mode, a, b, c, fieldPart, markPart] = (raw ?? '').split('/').filter(Boolean);
   if (mode === 'learn') {
     if (!a) return { mode: 'learn' };
+    if (a === 'tools' || a === 'forms') return { mode: 'learn', directory: a };
     // ‼ «ערכים לפי נושא» ירד (15.10) — קישור ישן נוחת בדף הבית, עם ההסבר לאן עבר כל נושא
     if ((a === 'reference' && b === 'topics') || a === 'topics') return { mode: 'learn', moved: true };
     // קישור ישן לנושא בלי תחום (‎learn/pensionSE‎) — נוחת בתחום שלו
@@ -250,6 +251,7 @@ export function parseAreaPath(raw: string | undefined): AreaPath {
 
 export function formatAreaPath(p: AreaPath): string {
   if (p.mode === 'work') return `work/${p.section}`;
+  if (p.directory) return `learn/${p.directory}`;
   if (p.domain && p.values && !p.item) return `learn/${p.domain}/v/${p.values}`;
   if (p.domain && p.code && !p.item) return `learn/${p.domain}/c/${p.code}`;
   if (p.domain && p.form && !p.item) return ['learn', p.domain, 'f', p.form, p.field ? encodeURIComponent(p.field) : undefined, p.field ? p.mark : undefined].filter(Boolean).join('/');
@@ -294,6 +296,7 @@ export function defaultYearFor(p: AreaPath, years: number[], today = new Date())
 export function pageKeyOf(path: string): string {
   const p = parseAreaPath(path);
   if (p.mode !== 'learn') return 'work';
+  if (p.directory) return p.directory;
   if (!p.domain) return 'home';
   return p.item ? `${p.domain}/${p.item}` : p.code || p.form ? `${p.domain}/c` : p.doc ? `${p.domain}/d` : p.domain;
 }
@@ -309,7 +312,7 @@ export function advanceTrail(trail: string[], next: string): string[] {
 export function returnTargetOf(trail: string[]): string | null {
   if (trail.length < 2) return null;
   const back = trail[trail.length - 2], cur = parseAreaPath(trail[trail.length - 1]), b = parseAreaPath(back);
-  if (b.mode !== 'learn' || !b.domain) return null;
+  if (b.mode !== 'learn' || (!b.domain && !b.directory)) return null;
   if (cur.mode === 'learn' && cur.item && !b.item && !b.code && !b.form && !b.doc && b.domain === cur.domain) return null;
   return back;
 }

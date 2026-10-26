@@ -7,7 +7,7 @@ import { useState } from 'react';
 import Modal from '../../../components/ui/Modal';
 import { useToast } from '../../../components/ui/Toast';
 import { DOMAINS, type DomainId } from '../../taxArea/areaModel';
-import { addInbox } from './askApi';
+import { addInbox, INBOX_CHANGED } from './askApi';
 
 const SOURCE_KINDS = ['שאלה מהשטח', 'חומר מהקורס', 'חוזר או הוראת ביצוע', 'פסק דין', 'פרסום של רשות', 'מאמר מקצועי', 'אחר'] as const;
 const YEARS = ['2025', '2026', 'ליום ההצהרה', 'לא תלוי שנה'] as const;
@@ -40,6 +40,7 @@ export default function AddMaterial({ context, onClose }: { context: MaterialCon
     const r = await addInbox(t, files, materialNote({ label: context.label, year, domainLabel, kind }, text));
     setBusy(false);
     if (!r.ok) { setErr(`לא נשמר: ${r.error}`); return; }
+    window.dispatchEvent(new Event(INBOX_CHANGED));
     showToast('נשמר ב«מה אני לומד» — ייבדק בעדכון הבא');
     onClose();
   }
