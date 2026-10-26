@@ -155,3 +155,14 @@
 .ak-resume span:first-child { color: var(--tx3); font-size: 13px; white-space: nowrap; }
 .ak-resume b { font-weight: 600; flex: 1; min-width: 0; }
 .ak-resume:hover { border-color: var(--soft-bd); }
+
+/* «＋ חומר חדש» (26.10.2026) */
+.ak-am { display: grid; gap: 12px; }
+.ak-am-ctx { display: flex; gap: 8px; align-items: baseline; margin: 0; padding: 8px 12px; border-radius: 10px; background: var(--soft); font-size: 13px; }
+.ak-am-ctx span { color: var(--tx3); }
+.ak-am-f { display: grid; gap: 4px; font-size: 13px; color: var(--tx2); }
+.ak-am-f input, .ak-am-f textarea, .ak-am-f select { font: inherit; font-size: 15px; color: var(--tx); background: var(--card); border: 1px solid var(--bd); border-radius: 8px; padding: 8px 10px; min-height: 40px; }
+.ak-am-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.ak-am-err { color: var(--err); margin: 0; }
+.ak-am-foot { display: flex; justify-content: flex-end; gap: 8px; }
+@media (max-width: 560px) { .ak-am-row { grid-template-columns: 1fr; } }

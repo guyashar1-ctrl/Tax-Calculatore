@@ -22,6 +22,7 @@ import TopicPage, { BODIES } from '../taxKnowledge/TopicPage';
 import { readingPeriod } from '../taxKnowledge/learnPath';
 import { saveLastRead } from '../taxKnowledge/readingMarks';
 import { requestSearchFocus } from '../taxKnowledge/searchHighlight';
+import AddMaterial, { type MaterialContext } from '../taxKnowledge/ask/AddMaterial';
 import Map1301 from '../taxKnowledge/Map1301';
 import Maintenance from '../taxKnowledge/Maintenance';
 import { TOPIC_BY_ID } from '../taxKnowledge/topics';
@@ -138,6 +139,15 @@ export default function TaxArea({ path, onPath, freshnessTaskExists, onCreateFre
     if (!it) return `חזרה ל«${DOMAIN_BY_ID[b.domain].label}»`;
     return it.kind === 'topic' ? `חזרה ל«${it.label}»` : `חזרה לכלי «${it.label}»`;
   };
+  // ── «＋ חומר חדש» מכל עמוד — עם המקום שבו עלה (נושא/שלב/כלי/טופס) ושנת המס ──
+  const [material, setMaterial] = useState<MaterialContext | null>(null);
+  const materialContext = (seed?: string): MaterialContext => {
+    const d = p.mode === 'learn' ? p.domain : undefined;
+    const it = itemOf(p);
+    const where = it?.kind === 'topic' && sub ? (sub === 'summary' ? 'הסיכום המקצועי' : sub === 'apply' ? 'יישום בתיק' : BODIES[it.id]?.toc.find(x => x.id === sub)?.label) : undefined;
+    const label = it ? `${it.label}${where ? ` · ${where}` : ''}` : p.mode === 'learn' && p.code ? `טופס ${d === 'wealth' ? '1219' : '1301'} · קוד ${p.code}` : d ? DOMAIN_BY_ID[d].label : 'הידע המקצועי';
+    return { label, domain: d, year: d === 'wealth' ? 'ליום ההצהרה' : String(year), seed };
+  };
   // ── חיפוש מכל עמוד: הכפתור ו-Ctrl+K פותחים את הספרייה עם הסמן בתיבה ──
   const openSearch = () => {
     if (p.mode === 'learn' && !p.domain) { document.querySelector<HTMLInputElement>('[data-ask-input]')?.focus(); return; }
@@ -158,6 +168,7 @@ export default function TaxArea({ path, onPath, freshnessTaskExists, onCreateFre
       </span>
       <span className="ta2-crumb-tools">
         <button type="button" className="ta2-search" onClick={openSearch} aria-label="חיפוש בידע המקצועי (Ctrl+K)" data-ta-search>⌕ חיפוש</button>
+        <button type="button" className="ta2-search" onClick={() => setMaterial(materialContext())} aria-label="הוספת חומר או שאלה על העמוד הזה" data-ta-material>＋ חומר חדש</button>
         {!fixedYear && <label className="ta2-year">שנת מס{yearSelect}</label>}
       </span>
     </div>
@@ -247,6 +258,7 @@ export default function TaxArea({ path, onPath, freshnessTaskExists, onCreateFre
     <div className="tax-center tax-area ta2 has-tool" data-tax-area data-mode={p.mode}>
       {modes}
       <div className="pg-pane ta2-pane">{returnBar}{pane}</div>
+      {material && <AddMaterial context={material} onClose={() => setMaterial(null)} />}
     </div>
   );
 }

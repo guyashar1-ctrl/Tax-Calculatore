@@ -13,6 +13,7 @@ import { claimsFromHtml } from '../corpus/htmlClaims';
 import corpus from '../corpus/corpus.json';
 import type { KnowledgeRule } from '../corpus/types';
 import { normWord, searchRules } from '../ask/localSearch';
+import { materialNote } from '../ask/AddMaterial';
 import { buildUpdatePrompt } from '../ask/updatePrompt';
 
 const RULES = corpus as KnowledgeRule[];
@@ -61,5 +62,11 @@ export const TESTS: TestCase[] = [
     assert(p.includes('[q1]'), 'שאלה פתוחה');
     assert(p.includes('גבולות הסבב הזה') && !p.includes('\nגבולות: אין commit'), 'הגבול הוחלף');
     assert(p.includes('node scripts/knowledge-corpus.mjs'), 'בניית המאגר');
+  }),
+  // 26.10.2026: חומר חדש נשמר עם המקום שבו עלה — שורת הקשר אחת, ואחריה הטקסט
+  test('«＋ חומר חדש»: ההקשר (מאיפה, שנה, תחום, סוג) בשורה הראשונה של ההערה', () => {
+    const n = materialNote({ label: 'פנסיה לעצמאי · מושגי יסוד', year: '2025', domainLabel: 'פנסיה, השתלמות ופרישה', kind: 'חומר מהקורס' }, ' צילום שקף 12 ');
+    equal(n, 'מתוך: פנסיה לעצמאי · מושגי יסוד · שנת מס: 2025 · תחום: פנסיה, השתלמות ופרישה · סוג: חומר מהקורס\nצילום שקף 12');
+    equal(materialNote({ label: 'X', year: 'לא תלוי שנה', kind: 'אחר' }, '  '), 'מתוך: X · שנת מס: לא תלוי שנה · סוג: אחר');
   }),
 ];

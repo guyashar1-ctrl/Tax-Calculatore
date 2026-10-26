@@ -51,7 +51,8 @@ export async function listInbox(): Promise<InboxItem[] | null> {
 }
 
 /** ‼ קודם הקבצים (לתיקייה של הפריט), ואז השורה עם רשימתם — אין עדכון של שורה אחרי שנוצרה. */
-export async function addInbox(title: string, files: File[]): Promise<{ ok: boolean; error?: string }> {
+/** note — ההקשר שבו עלה החומר (מאיפה, שנת מס, תחום, סוג) והטקסט; נכנס לפרומפט העדכון. */
+export async function addInbox(title: string, files: File[], note?: string): Promise<{ ok: boolean; error?: string }> {
   const { data: u } = await supabase.auth.getUser();
   const uid = u.user?.id;
   if (!uid) return { ok: false, error: 'לא מחובר' };
@@ -64,7 +65,7 @@ export async function addInbox(title: string, files: File[]): Promise<{ ok: bool
     if (error) return { ok: false, error: `${f.name}: ${error.message}` };
     saved.push({ path, name: f.name, size: f.size });
   }
-  const { error } = await supabase.from('knowledge_inbox').insert({ id, title: title.trim(), files: saved });
+  const { error } = await supabase.from('knowledge_inbox').insert({ id, title: title.trim(), files: saved, ...(note ? { note } : {}) });
   if (error) {
     if (saved.length) await supabase.storage.from('knowledge-inbox').remove(saved.map(s => s.path));
     return { ok: false, error: error.message };
