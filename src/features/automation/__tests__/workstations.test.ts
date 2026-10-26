@@ -13,6 +13,16 @@ const w = (id: string, seenAgo: number, status: WorkstationRow['status'] = {}, e
   ({ workerId: id, lastSeenAt: ago(seenAgo), status, capabilities: ['shaam', 'btl'], ...extra });
 
 export const TESTS: TestCase[] = [
+  test('306 · פייפרלס — רק מחשב שקיבל את היכולת במפורש; המצב ממנו', () => {
+    const p = workstationPicture([w('A', 5, { paperless: { connected: true } }), w('B', 5, {}, { capabilities: ['shaam', 'btl', 'paperless'] })], NOW);
+    equal(p.paperlessOffline, false);
+    equal(p.status.paperless, undefined, 'מחשב בלי היכולת לא מכתיב את מצב פייפרלס');
+    const q = workstationPicture([w('C', 5, { paperless: { connected: true } }, { capabilities: ['shaam', 'btl', 'paperless'] })], NOW);
+    equal(q.status.paperless?.connected, true);
+    equal(workstationPicture([w('D', 5)], NOW).paperlessOffline, true, 'בלי מחשב עם היכולת ⇒ לא זמין');
+    equal(workstationPicture([w('E', 5, {}, { capabilities: [] })], NOW).paperlessOffline, true, 'רשימה ריקה אינה «הכול» לפייפרלס');
+  }),
+
   test('6 · פעימה ישנה ⇒ המחשב לא נחשב זמין', () => {
     const p = workstationPicture([w('A', 600, { shaam: { connected: true } })], NOW);
     equal(p.noWorkstation, true);

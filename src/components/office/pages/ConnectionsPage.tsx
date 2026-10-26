@@ -27,6 +27,7 @@ type Tone = 'on' | 'off' | 'warn';
 // שם הרשות שכבר בכותרת הכרטיס. היה כאן «עדכון נתונים…» — שם שלישי לאותה קריאה.
 const SHAAM_ENABLES = 'קריאת תיק מס הכנסה, הזנת ייפוי כוח, שליחת הטופס החתום ובדיקת קבלת הייצוג';
 const BTL_ENABLES = 'קריאת התיק, הזנת ייפוי כוח ובדיקת קבלת הייצוג';
+const PAPERLESS_ENABLES = 'הקמת לקוח שנרשם (ריטיינר לפי ההסכם) ובדיקת כרטיס אשראי כל בוקר';
 
 function selected(profile: FirmProfile): ShaamWarmupCapability[] {
   const configured = ((profile.settings ?? {}).shaamWarmup as { capabilities?: unknown } | undefined)?.capabilities;
@@ -56,12 +57,13 @@ export default function ConnectionsPage({ draft, setDraft, focus, go }: {
   const workerOn = !r.workerOffline || !r.btlWorkerOffline;
   const shaamOn = !r.workerOffline && !!st.shaam?.connected;
   const btlOn = !r.btlWorkerOffline && !!st.btl?.connected;
+  const paperlessOn = !r.paperlessWorkerOffline && !!st.paperless?.connected;
   const sel = selected(draft);
   const [pairing, setPairing] = useState(false);
   // ‼ «התחברות» כאן לוחץ על הכפתור שבכותרת; בלי משוב מקומי הלחיצה נראתה
   // כאילו לא קרה כלום. מה שקורה בפועל (חלון, קוד, «מחובר») — בכפתור למעלה.
-  const [requested, setRequested] = useState<{ shaam?: boolean; btl?: boolean }>({});
-  const connect = (a: 'shaam' | 'btl') => { requestAuthorityConnect(a); setRequested(r => ({ ...r, [a]: true })); };
+  const [requested, setRequested] = useState<{ shaam?: boolean; btl?: boolean; paperless?: boolean }>({});
+  const connect = (a: 'shaam' | 'btl' | 'paperless') => { requestAuthorityConnect(a); setRequested(r => ({ ...r, [a]: true })); };
   // ‼ ‎'login:<חיבור>'‎ — מ«אוטומציות», כשריצה ממתינה להתחברות: נוחתים על החיבור עצמו,
   // בלי לפתוח את טבלת «מה מוכן» (זו נפתחת רק מהכתובת הישנה ‎#/firm/shaamWarmup‎ = 'shaam').
   const target = focus?.startsWith('login:') ? focus.slice(6) : focus;
@@ -173,11 +175,24 @@ export default function ConnectionsPage({ draft, setDraft, focus, go }: {
         <li className="of-conn" data-focus={focusOf('paperless')}>
           <div className="of-conn-head">
             <h2 className="of-conn-name">פייפרלס</h2>
-            <Status tone={invite ? 'off' : 'warn'}>{invite ? 'קישור הזמנה בלבד' : 'חסר קישור הזמנה'}</Status>
+            {/* 306 · החלון במחשב המשרד (304) — אותו מצב כמו הכפתור «פייפרלס» בכותרת. */}
+            {r.paperlessWorkerOffline ? <Status tone="warn">לא זמין</Status>
+              : paperlessOn ? <Status tone="on">מחובר</Status> : requested.paperless ? <Status tone="warn">מתחבר…</Status> : <Status tone="off">לא מחובר</Status>}
           </div>
-          <p className="of-conn-what">
-            אין חיבור לחשבון שלך שם. PIVO שולח ללקוח את קישור ההזמנה שלך, ואת ההתקדמות מסמנים בבקשות של הלקוח.
-          </p>
+          <p className="of-conn-what">{paperlessOn ? 'מאפשר: ' : 'בלי חיבור אין: '}{PAPERLESS_ENABLES}.</p>
+          {r.paperlessWorkerOffline ? (
+            <p className="of-conn-todo">צריך מחשב עבודה פעיל שמחזיק את חלון הפייפרלס.</p>
+          ) : !paperlessOn && (requested.paperless ? (
+            <p className="of-conn-todo" role="status">
+              <b>מתחבר.</b> בחלון הפייפרלס במחשב העבודה: המייל והקוד מהנייד. ההתקדמות — בכפתור «פייפרלס» למעלה.
+            </p>
+          ) : (
+            <div className="of-conn-acts">
+              <button type="button" className="btn btn-primary btn-sm" onClick={() => connect('paperless')}>התחברות לפייפרלס</button>
+              <span className="of-muted">נפתח חלון במחשב העבודה — שם מזינים מייל וקוד מהנייד.</span>
+            </div>
+          ))}
+          {!invite && <p className="of-conn-todo">חסר קישור ההזמנה שלך — PIVO שולח אותו ללקוח בבקשת ההרשמה.</p>}
           <PaperlessLinkField value={paperlessInviteUrl(draft)} onChange={v => setDraft(d => withPaperlessInviteUrl(d, v))} />
         </li>
       </ul>

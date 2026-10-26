@@ -4513,6 +4513,15 @@ input.pg-search:focus { box-shadow: 0 0 0 2px var(--focus-ring); border-color: t
 .authconn-dot.is-pulse{animation:authconn-pulse 1.2s ease-in-out infinite}
 @media (prefers-reduced-motion: reduce){.authconn-dot.is-pulse{animation:none}}
 @keyframes authconn-pulse{0%,100%{opacity:1}50%{opacity:.35}}
+/* 306 · שלושה כפתורים (שע״ם · ב״ל · פייפרלס) בטלפון צר: שם מקוצר, בשורה אחת, בלי לדחוף את העמוד */
+.authconn-short{display:none}
+.authconn-btn{white-space:nowrap}
+@media (max-width:420px){
+  .authconn{gap:.3rem;margin-inline-start:.3rem}
+  .authconn-btn{padding:.2rem .45rem}
+  .authconn-btn .authconn-full{display:none}
+  .authconn-btn .authconn-short{display:inline}
+}
 
 /* פופאובר עוגן קטן — התוכן ההקשרי היחיד: נפתח לבד ב-needs_you/failed,
    בלחיצה ב-ready/offline. אף פעם לא צמוד-קבע לכותרת. */

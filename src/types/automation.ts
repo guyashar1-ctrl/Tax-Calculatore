@@ -118,6 +118,8 @@ export interface AutomationWorkerStatus {
   /** 168: מערכת רישום ייצוג — סשן נפרד לגמרי, לא נגזר מ-shaam/gmf/vat/nikui. */
   representation?: { ready: boolean; checkedAt?: string };
   btl?: AuthorityConnection;
+  /** 304 · חלון הפייפרלס במחשב המשרד — מחובר = לשונית האפליקציה, לא מסך הכניסה. */
+  paperless?: AuthorityConnection;
 }
 
 /** הרשויות שמוצגות בכותרת. לכל אחת חלון ייעודי משלה ונורית עצמאית. */
@@ -233,6 +235,9 @@ export const SHAAM_WARMUP_CAPABILITY_LABELS: Record<ShaamWarmupCapability, strin
 export const BTL_CONNECT_ACTION_TYPE = 'btl.connect';
 /** לחיצה כשמחובר — סוגרת את חלון ביטוח לאומי הייעודי. */
 export const BTL_DISCONNECT_ACTION_TYPE = 'btl.disconnect';
+/** 306 · «פייפרלס» בכותרת — פותח את החלון הייעודי על מסך הכניסה / סוגר אותו. */
+export const PAPERLESS_CONNECT_ACTION_TYPE = 'paperless.connect';
+export const PAPERLESS_DISCONNECT_ACTION_TYPE = 'paperless.disconnect';
 /**
  * "הזן ייפוי כוח בביטוח לאומי" — לאדם אחד (154): מיוצגים → ייפוי כוח →
  * הוספת ייפוי כוח מבוטח. ‼ input: `{ role, idNumber, firstName, lastName,

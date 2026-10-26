@@ -410,6 +410,10 @@
       "name": "פייפרלס לבד (304): הקמה, ריטיינר לפי ההסכם, בדיקת כרטיס — שרת, עובד ומסך",
       "globs": [
         "supabase/304-paperless-automation.sql",
+        "supabase/306-paperless-header-connection.sql",
+        "src/components/AuthorityConnectionButtons.tsx",
+        "src/hooks/useAuthorityConnections.ts",
+        "src/features/automation/workstations.ts",
         "scripts/sql/test-304-paperless-automation.sql",
         "src/features/paperless/**",
         "worker/src/paperless*.mjs",

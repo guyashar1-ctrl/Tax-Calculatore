@@ -135,7 +135,8 @@ import type { ClientFormKey } from '../../features/smartForms/clientForms/types'
 import SendRequestsDialog from './SendRequestsDialog';
 import { useReadyToSend, readyRecipientCount } from '../../hooks/useReadyToSend';
 import { useAutomationJob } from '../../hooks/useAutomationJobs';
-import { PaperlessPivoLine } from '../../features/paperless/PaperlessPivoLine';
+import { PaperlessCheckNow, PaperlessPivoLine } from '../../features/paperless/PaperlessPivoLine';
+import { usePaperlessPivo } from '../../features/paperless/usePaperlessPivo';
 import { BTL_CHECK_REPRESENTATION_ACTION_TYPE, BTL_CREATE_REPRESENTATION_ACTION_TYPE } from '../../types/automation';
 import type { AutomationJob } from '../../types/automation';
 import {
@@ -994,6 +995,17 @@ export default function OnboardingTab({
       setBusyStepId(null);
     }
     refresh?.();
+  }
+
+  /** 306 · הסימון הידני מתפריט ⋯ — אותן חותמות בדיוק כמו הכפתורים שהיו בכרטיסים. */
+  async function runManualPaperless(step: OnboardingStep, m: ManualPaperlessMark) {
+    if (m.kind === 'connection_card') return markCardEntered(step);
+    if (m.kind === 'card') {
+      return run(step, 'note', { cardEnteredAt: new Date().toISOString(), note: 'הכרטיס של הלקוח הוזן בפייפרלס (סימון ידני)' });
+    }
+    return run(step, 'complete', {
+      completionMethod: 'manual', retainerChargedAt: new Date().toISOString(), note: 'הריטיינר חויב (סימון ידני)',
+    });
   }
 
   /**
@@ -2182,6 +2194,8 @@ export default function OnboardingTab({
                  נמעכו לעמודה של מילה אחת. עכשיו זו שכבה מרחפת מעל הכרטיס. */
               const menuOpen = menuStepId === step.id;
               const mi = 'ob-menu-item';
+              // 306 · הסימון הידני של הכרטיס/החיוב — רק כאן, אחרי «בדוק בפייפרלס» שבכרטיס עצמו.
+              const manualPaperless = manualPaperlessMark(step, retainerStep);
               const menuDropdown = (
                 <>
                   {/* ‼ "עריכת תהליך" מעלה את חצי הסידור אל השורה עצמה. במנוחה
@@ -2266,6 +2280,13 @@ export default function OnboardingTab({
                                 </button>
                               )}
 
+                              {manualPaperless && (
+                                <button type="button" role="menuitem" className={mi} disabled={busy}
+                                  title="בלי בדיקה בפייפרלס — למקרה שחלון הפייפרלס במחשב המשרד לא זמין"
+                                  onClick={() => { setMenuStepId(null); void runManualPaperless(step, manualPaperless); }}>
+                                  {manualPaperless.label}
+                                </button>
+                              )}
                               <div className="ob-menu-sep" />
 
                               {/* ‼ שתי שמירות שונות ולכן שתי שורות: הבקשה הזאת
@@ -2316,6 +2337,11 @@ export default function OnboardingTab({
                 : null;
               const menuLinks = isStepOpen(step.status) ? (
                 <span className="rl-links">
+                  {manualPaperless && (
+                    <button type="button" className="rl-link" disabled={busy}
+                      title="בלי בדיקה בפייפרלס — למקרה שחלון הפייפרלס במחשב המשרד לא זמין"
+                      onClick={() => void runManualPaperless(step, manualPaperless)}>{manualPaperless.label}</button>
+                  )}
                   {waitingCompleteLabel && (
                     <button type="button" className="rl-link" disabled={busy}
                       onClick={() => void run(step, 'complete')}>{waitingCompleteLabel}</button>
@@ -4518,7 +4544,7 @@ function PaperlessStepCard(p: PaperlessCardProps) {
             <ConnectionBody path={path} softwareName={String(step.payload.softwareName ?? '')}
               step={step} client={p.client} retainer={p.retainer} busy={busy} onRun={p.onRun}
               invite={[...stepById.values()].find(s => s.stepType === 'paperless_invite' && s.status !== 'cancelled')}
-              onRetainerCardSet={p.onRetainerCardSet} onCardEntered={p.onCardEntered} />
+              onRetainerCardSet={p.onRetainerCardSet} />
           )}
 
           <div style={{ display: 'flex', gap: '.35rem', flexWrap: 'wrap', marginTop: '.55rem', alignItems: 'center' }}>
@@ -4698,7 +4724,7 @@ function InviteBody({ path, status, questionsPending, awaitingPublish, step, cli
  * ‼ הת״ז ושם העסק מוצגים כאן להעתקה — מכרטיס הלקוח עצמו. אין עותק שלהם על
  * השלב: מה שיוצג הוא תמיד מה שבכרטיס, גם אם תוקן אחרי שהשלב נוצר.
  */
-function ConnectionBody({ path, softwareName, step, client, retainer, busy, onRun, onRetainerCardSet, onCardEntered, invite }: {
+function ConnectionBody({ path, softwareName, step, client, retainer, busy, onRun, onRetainerCardSet, invite }: {
   path?: PaperlessStatus;
   softwareName: string;
   step: OnboardingStep;
@@ -4711,9 +4737,10 @@ function ConnectionBody({ path, softwareName, step, client, retainer, busy, onRu
   onRun: (action: string, payload?: Record<string, unknown>) => void;
   /** סימון "עדכנתי את הריטיינר לכרטיס" — חושף ללקוח את ההנחיה להזין כרטיס. */
   onRetainerCardSet: () => void;
-  /** סימון "הלקוח הזין כרטיס" — סוגר את החיבור ומשחרר את הרשאת התשלום. */
-  onCardEntered: () => void;
 }) {
+  // ‼ 306 · לפני כל return — hook. המשימות של PIVO בפייפרלס ללקוח הזה, משותפות לשורת
+  // PIVO ול«בדוק בפייפרלס» שבסעיף הכרטיס.
+  const pivo = usePaperlessPivo(client.id);
   if (path === 'not_applicable') {
     return (
       <div style={cardNote}>
@@ -4770,7 +4797,7 @@ function ConnectionBody({ path, softwareName, step, client, retainer, busy, onRu
     <div style={cardNote}>
       <div style={{ marginBottom: '.45rem' }}>{intro}</div>
 
-      <PaperlessPivoLine clientId={client.id} step={step} retainer={retainer}
+      <PaperlessPivoLine pivo={pivo} step={step} retainer={retainer}
         open={isStepOpen(step.status)} onKeepPaperlessAmount={keepPaperlessAmount} />
 
       <div style={{
@@ -4811,11 +4838,8 @@ function ConnectionBody({ path, softwareName, step, client, retainer, busy, onRu
                       · {clientFirst} סימן/ה שהזין/ה ({formatDate(cardDeclaredAt, 'list')})
                     </span>
                   )}
-                  {!item.done && cardStepReady && (
-                    <button type="button" className="btn btn-sm btn-primary" disabled={busy}
-                      title="לסמן אחרי שראית בפייפרלס שהלקוח הזין כרטיס - זה מה שמשחרר את הרשאת התשלום"
-                      onClick={onCardEntered}>{cardDeclaredAt ? 'הכרטיס נקלט ✓' : 'סמן כבוצע'}</button>
-                  )}
+                  {/* 306 · PIVO בודק בפייפרלס במקום סימון ידני; הסימון הידני — בתפריט ⋯ בלבד. */}
+                  {!item.done && cardStepReady && <PaperlessCheckNow pivo={pivo} quietWhileRunning />}
                 </span>
                 {item.done && retainer?.payload.cardEnteredBy === 'pivo' && <PivoMark at={item.doneAt} />}
               </div>
@@ -4856,9 +4880,7 @@ function ConnectionBody({ path, softwareName, step, client, retainer, busy, onRu
               : 'הכרטיס הוזן וההקמה בפייפרלס הושלמה. ההמשך בכרטיס התשלום החודשי - החיוב עצמו.')
             : items.find(i => i.key === RETAINER_CARD_KEY)?.done
               // 304 · ריטיינר ש-PIVO הגדיר נבדק כל בוקר — הסימון יגיע לבד.
-              ? (retainer?.payload.authorizationBy === 'pivo'
-                ? 'הריטיינר עודכן לכרטיס - פייפרלס מבקשת מהלקוח את הכרטיס, והוא רואה על כך הנחיה בדף האישי. PIVO יסמן כאן לבד כשהכרטיס יופיע בפייפרלס, וכרטיס התשלום החודשי ייפתח.'
-                : 'הריטיינר עודכן לכרטיס - מכאן פייפרלס מבקשת מהלקוח את הכרטיס, והוא רואה על כך הנחיה בדף האישי. כשתראה שהכרטיס הוזן - לסמן כאן, וכרטיס התשלום החודשי ייפתח.')
+              ? 'הריטיינר עודכן לכרטיס - פייפרלס מבקשת מהלקוח את הכרטיס, והוא רואה על כך הנחיה בדף האישי. PIVO בודק בפייפרלס כל בוקר ומסמן כאן לבד כשהכרטיס מופיע, וכרטיס התשלום החודשי נפתח.'
               : 'אחרי עדכון הריטיינר פייפרלס תבקש מהלקוח את הכרטיס. הסימון שהוא הוזן הוא מה שיפתח את כרטיס התשלום החודשי.'}
       </div>
 
@@ -4871,6 +4893,23 @@ function ConnectionBody({ path, softwareName, step, client, retainer, busy, onRu
       <PaperlessSettingsReview step={step} client={client} busy={busy} onRun={onRun} />
     </div>
   );
+}
+
+/** 306 · מה מותר לסמן ידנית מ-⋯ (במקום הכפתורים שהוחלפו ב«בדוק בפייפרלס»). */
+type ManualPaperlessMark = { kind: 'connection_card' | 'card' | 'charged'; label: string };
+function manualPaperlessMark(step: OnboardingStep, retainer?: OnboardingStep): ManualPaperlessMark | null {
+  if (!isStepOpen(step.status) || step.status === 'locked') return null;
+  if (step.stepType === 'paperless_connection') {
+    if (!retainer || retainer.payload.method === 'manual_arrangement') return null;
+    if (!retainer.payload.authorizationCreatedAt || retainer.payload.cardEnteredAt) return null;
+    return { kind: 'connection_card', label: 'סימון ידני: הלקוח הזין כרטיס' };
+  }
+  if (step.stepType === 'retainer_authorization' && step.payload.method !== 'manual_arrangement'
+      && step.payload.authorizationCreatedAt) {
+    if (!step.payload.cardEnteredAt) return { kind: 'card', label: 'סימון ידני: הכרטיס הוזן' };
+    if (!step.payload.retainerChargedAt) return { kind: 'charged', label: 'סימון ידני: הריטיינר חויב' };
+  }
+  return null;
 }
 
 /** «PIVO · היום 09:14» ליד סעיף שסומן ממה שנראה בפייפרלס (304) — לא מקו חוצה. */
@@ -5016,6 +5055,7 @@ interface RetainerCardProps {
 
 function RetainerStepCard(p: RetainerCardProps) {
   const { step, stepById, busy, highlight } = p;
+  const pivo = usePaperlessPivo(p.client.id);
   const authorizationCreatedAt = String(step.payload.authorizationCreatedAt ?? '');
   const cardEnteredAt = String(step.payload.cardEnteredAt ?? '');
   /** 302 · הלקוח סימן בדף «הזנתי את הכרטיס» — הצהרה שלו, לא ראיה. */
@@ -5137,11 +5177,11 @@ function RetainerStepCard(p: RetainerCardProps) {
             {!authorizationCreatedAt
               ? <>הלקוח מחובר לפייפרלס. מה שפותח את בקשת הכרטיס אצלו הוא עדכון הריטיינר לתשלום בכרטיס אשראי - הסעיף הרביעי ברשימת החיבור, ואפשר לסמן אותו גם כאן.</>
               : !cardEnteredAt && cardDeclaredAt
-                ? <>{(p.client.firstName || 'הלקוח').trim().split(/\s+/)[0]} סימן/ה בדף שהזין/ה את הכרטיס ({formatDate(cardDeclaredAt, 'list')}). לוודא בפייפרלס ולאשר.</>
+                ? <>{(p.client.firstName || 'הלקוח').trim().split(/\s+/)[0]} סימן/ה בדף שהזין/ה את הכרטיס ({formatDate(cardDeclaredAt, 'list')}). PIVO בודק בפייפרלס ומסמן לבד כשהכרטיס מופיע.</>
               : !cardEnteredAt
-                ? <>הריטיינר עודכן בפייפרלס לתשלום בכרטיס אשראי ({formatDate(authorizationCreatedAt, 'list')}). הלקוח רואה בדף האישי שפייפרלס תבקש ממנו כרטיס, וגם שייתכן חיוב אימות בסך 1 ₪. כשתראה בפייפרלס שהכרטיס הוזן - לסמן כאן.</>
+                ? <>הריטיינר עודכן בפייפרלס לתשלום בכרטיס אשראי ({formatDate(authorizationCreatedAt, 'list')}). הלקוח רואה בדף האישי שפייפרלס תבקש ממנו כרטיס, וגם שייתכן חיוב אימות בסך 1 ₪. PIVO בודק בפייפרלס כל בוקר ומסמן לבד כשהכרטיס מופיע.</>
                 : !retainerChargedAt
-                  ? <>הכרטיס הוזן {formatDate(cardEnteredAt, 'list')}. נשאר לחייב את הריטיינר שסוכם - ואז לסמן כאן. זה מה שסוגר את השלב.</>
+                  ? <>הכרטיס הוזן {formatDate(cardEnteredAt, 'list')}. נשאר שהריטיינר יחויב - PIVO רואה את החיוב בפייפרלס וסוגר את השלב לבד.</>
                   : <>הריטיינר חויב {formatDate(retainerChargedAt, 'list')}.</>}
           </div>
 
@@ -5158,26 +5198,11 @@ function RetainerStepCard(p: RetainerCardProps) {
                 </button>
               )}
 
-              {/* ‼ "ראיתי בפייפרלס" ולא "הלקוח אישר": הלקוח אינו מאשר כאן
-                  שהזין כרטיס, ולכן מה שנרשם הוא מה שגיא ראה בפועל. */}
-              {authorizationCreatedAt && !cardEnteredAt && (
-                <button type="button" className="btn btn-sm btn-primary" disabled={busy}
-                  title="לסמן אחרי שראית בפייפרלס שהכרטיס של הלקוח הוזן"
-                  onClick={() => p.onRun('note', { cardEnteredAt: new Date().toISOString(), note: 'הכרטיס של הלקוח הוזן בפייפרלס' })}>
-                  {cardDeclaredAt ? 'הכרטיס נקלט ✓' : 'הכרטיס הוזן'}
-                </button>
-              )}
-
-              {/* ‼ הפעולה שסוגרת את השלב היא החיוב עצמו — לא ההרשאה ולא
-                  הכרטיס. עד היום הקליטה נסגרה בלי שאיש אמר שהכסף נגבה. */}
-              {cardEnteredAt && (
-                <button type="button" className="btn btn-sm btn-primary" disabled={busy}
-                  onClick={() => p.onRun('complete', {
-                    completionMethod: 'manual',
-                    retainerChargedAt: new Date().toISOString(),
-                    note: 'הריטיינר חויב',
-                  })}>הריטיינר חויב</button>
-              )}
+              {/* ‼ 306 · «בדוק בפייפרלס» במקום «הכרטיס הוזן» / «הכרטיס נקלט ✓» / «הריטיינר חויב»:
+                  PIVO קורא את הטבלה, והשרת מסמן מה שנראה (cardEnteredAt, retainerChargedAt + סגירה).
+                  ‼ הפעולה שסוגרת את השלב עדיין היא החיוב עצמו — לא ההרשאה ולא הכרטיס.
+                  סימון ידני — בתפריט ⋯ בלבד, למקרה שהחלון במחשב המשרד לא זמין. */}
+              {authorizationCreatedAt && <PaperlessCheckNow pivo={pivo} />}
             </div>
           )}
 

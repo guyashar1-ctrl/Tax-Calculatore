@@ -87,3 +87,25 @@ export function conflictText(c: PaperlessConflict): string {
   const there = c.paperlessBeforeVat != null ? `${c.paperlessBeforeVat.toLocaleString('he-IL')} ₪ + מע״מ` : 'סכום אחר';
   return `בפייפרלס כבר מוגדר ${there}, ובהסכם ${agreed}. PIVO לא שינה.`;
 }
+
+/**
+ * מה הבדיקה האחרונה בפייפרלס ראתה — לשורה שליד «בדוק בפייפרלס».
+ * ‼ «עוד אין כרטיס» הוא מה שנראה בקריאה; לא כישלון ולא «הלקוח לא הזין».
+ */
+export function lastCheckText(job: AutomationJob | null, fmt: (iso?: string) => string): { text: string; running: boolean } | null {
+  if (!job) return null;
+  if (job.status === 'queued' || job.status === 'running') return { text: 'בודק בפייפרלס…', running: true };
+  if (job.status === 'needs_human') {
+    return { text: (job.errorCode ?? '').startsWith('awaiting_paperless') ? 'צריך להתחבר לפייפרלס — הבדיקה תמשיך לבד' : 'הבדיקה נעצרה', running: false };
+  }
+  if (job.status === 'failed') return { text: `הבדיקה לא הצליחה${job.errorDetail ? `: ${job.errorDetail.split(/(?<=[.!?])\s/)[0]}` : ''}`, running: false };
+  if (job.status !== 'succeeded') return null;
+  const o = ((job.result ?? {}) as Record<string, unknown>).observed as Record<string, unknown> | undefined;
+  const at = fmt(job.finishedAt ?? job.updatedAt);
+  const charged = Array.isArray(o?.chargedPeriods) && o!.chargedPeriods.length > 0;
+  const what = !o?.inRetainer ? 'הלקוח לא נמצא בטבלת הריטיינר'
+    : o.cardEntered && charged ? 'הכרטיס הוזן והחודש חויב'
+    : o.cardEntered ? 'הכרטיס הוזן · החודש עוד לא חויב'
+    : 'עוד אין כרטיס בפייפרלס';
+  return { text: `PIVO בדק ${at} · ${what}`, running: false };
+}

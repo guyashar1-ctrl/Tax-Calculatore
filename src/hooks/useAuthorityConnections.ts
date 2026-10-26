@@ -7,6 +7,8 @@ import {
   SHAAM_DISCONNECT_ACTION_TYPE,
   BTL_CONNECT_ACTION_TYPE,
   BTL_DISCONNECT_ACTION_TYPE,
+  PAPERLESS_CONNECT_ACTION_TYPE,
+  PAPERLESS_DISCONNECT_ACTION_TYPE,
 } from '../types/automation';
 import type { AutomationJob } from '../types/automation';
 import { useShaamReadiness } from './shaamReadiness';
@@ -41,15 +43,16 @@ export interface AuthorityConnState extends DerivedConnState {
  */
 export function useAuthorityConnections(userId: string | undefined) {
   const readiness = useShaamReadiness();
-  const { status, workerOffline, btlWorkerOffline } = readiness;
+  const { status, workerOffline, btlWorkerOffline, paperlessWorkerOffline } = readiness;
   const [shaamJob, setShaamJob] = useState<AutomationJob | null>(null);
   const [btlJob, setBtlJob] = useState<AutomationJob | null>(null);
-  const [busy, setBusy] = useState<'shaam' | 'btl' | null>(null);
+  const [paperlessJob, setPaperlessJob] = useState<AutomationJob | null>(null);
+  const [busy, setBusy] = useState<'shaam' | 'btl' | 'paperless' | null>(null);
   // ‼ השגיאה נושאת איתה את שם הרשות. `busy` אינו מספיק: הוא מתאפס באותה
   // מנת עדכון שבה השגיאה נקבעת, ולכן ברגע הרינדור כבר אי אפשר לדעת ממנו מי
   // נכשל — וכשל של ביטוח לאומי היה מוצג ככשל של שע״ם. זו שגיאת יצירה
   // מקומית (ה-RPC עצמו נכשל) — לא נוצרה משימה כלל, ולכן אין לה job id.
-  const [uiError, setUiError] = useState<{ authority: 'shaam' | 'btl'; text: string } | null>(null);
+  const [uiError, setUiError] = useState<{ authority: 'shaam' | 'btl' | 'paperless'; text: string } | null>(null);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // ‼ "המשימה שאני התחלתי בלשונית הזאת" — לא job id כלשהו. משימת failed
@@ -58,6 +61,7 @@ export function useAuthorityConnections(userId: string | undefined) {
   // (חלון אמיתי ממתין, לא משנה מי לחץ) — ראה derivePhase.
   const shaamJobIdRef = useRef<string | null>(null);
   const btlJobIdRef = useRef<string | null>(null);
+  const paperlessJobIdRef = useRef<string | null>(null);
 
   // ‼ המוכנות **אינה** נקראת כאן. היא מגיעה מ-ShaamReadinessProvider, מקור
   // האמת היחיד שגם פקדי השדות קוראים ממנו. כשהיו שני מקורות, הכותרת הייתה
@@ -80,7 +84,7 @@ export function useAuthorityConnections(userId: string | undefined) {
     // כפתוחה וחסם יצירה, והכותרת לא ידעה שיש מה לבטל.
     const jobRes = await supabase.from('automation_jobs').select('*')
       .is('client_id', null)
-      .in('action_type', [SHAAM_CONNECT_ACTION_TYPE, BTL_CONNECT_ACTION_TYPE])
+      .in('action_type', [SHAAM_CONNECT_ACTION_TYPE, BTL_CONNECT_ACTION_TYPE, PAPERLESS_CONNECT_ACTION_TYPE])
       .or(jobStatusFilter())
       .order('created_at', { ascending: false });
     const rows = (jobRes.data ?? []).map(automationJobFromDb);
@@ -91,6 +95,7 @@ export function useAuthorityConnections(userId: string | undefined) {
     const nextBtl = selectAuthorityJob(BTL_CONNECT_ACTION_TYPE, rows);
     setShaamJob(prev => keepIfSame(prev, nextShaam));
     setBtlJob(prev => keepIfSame(prev, nextBtl));
+    setPaperlessJob(prev => keepIfSame(prev, selectAuthorityJob(PAPERLESS_CONNECT_ACTION_TYPE, rows)));
     // ‼ המוכנות **אינה** נמשכת כאן. הספק מושך אותה בעצמו באותו קצב, ומשיכה
     // שנייה כאן רק הכפילה את התעבורה — וגם קשרה בין השניים, וזו הייתה
     // הלולאה. משיכה יזומה כן נשארת ב-start(), אחרי לחיצה אמיתית.
@@ -120,6 +125,8 @@ export function useAuthorityConnections(userId: string | undefined) {
   const ready = readiness.ready;
   // ‼ לביטוח לאומי אין שכבות משנה, ולכן "מחובר" הוא כל הסיפור.
   const btlConnected = !btlWorkerOffline && !!status.btl?.connected;
+  // 306 · פייפרלס — כמו ב״ל: מחובר = לשונית האפליקציה בחלון שבמחשב המשרד.
+  const paperlessConnected = !paperlessWorkerOffline && !!status.paperless?.connected;
 
   // ‼ derivePhase עברה ל-authorityConnectionModel.ts (מודל טהור, נבדק ב-node
   // דרך scripts/test-authority-connection-model.ts) — כולל שמירת בדיקת
@@ -137,6 +144,13 @@ export function useAuthorityConnections(userId: string | undefined) {
     job: btlJob,
     localError: uiError?.authority === 'btl' ? uiError.text : null,
     isOwnJobId: (id) => btlJobIdRef.current === id,
+  });
+  const paperlessState = derivePhase({
+    connected: paperlessConnected,
+    workerOffline: paperlessWorkerOffline,
+    job: paperlessJob,
+    localError: uiError?.authority === 'paperless' ? uiError.text : null,
+    isOwnJobId: (id) => paperlessJobIdRef.current === id,
   });
 
   // ‼ 168: הוסר במכוון — כאן ישב הבאג שפרק 16 מצביע עליו: הדפדפן ביטל job
@@ -168,7 +182,7 @@ export function useAuthorityConnections(userId: string | undefined) {
   // mustCancelBeforeStart מבטלת גם 'running' שהחכירה שלו פקעה — עובד שנהרג
   // באמצע ההתחברות השאיר אותה 'running' לנצח, והכפתור לא עשה כלום.
   const start = useCallback(async (
-    authority: 'shaam' | 'btl',
+    authority: 'shaam' | 'btl' | 'paperless',
     actionType: string,
     open: AutomationJob | null,
     clearStale: boolean,
@@ -184,7 +198,8 @@ export function useAuthorityConnections(userId: string | undefined) {
     // מה שחשוב הוא שהלשונית הזאת "מכירה" את המשימה, לא מי בדיוק יצר אותה.
     if (r.ok && r.job) {
       if (authority === 'shaam') shaamJobIdRef.current = r.job.id;
-      else btlJobIdRef.current = r.job.id;
+      else if (authority === 'btl') btlJobIdRef.current = r.job.id;
+      else paperlessJobIdRef.current = r.job.id;
     }
     if (!r.ok) setUiError({ authority, text: r.error ?? 'לא הצלחתי ליצור את הפעולה' });
     await Promise.all([refresh(), refreshReadiness()]);
@@ -224,14 +239,25 @@ export function useAuthorityConnections(userId: string | undefined) {
     () => start('btl', BTL_DISCONNECT_ACTION_TYPE, null, false),
     [start],
   );
+  const connectPaperless = useCallback(
+    () => start('paperless', PAPERLESS_CONNECT_ACTION_TYPE, paperlessJob, true),
+    [start, paperlessJob],
+  );
+  const disconnectPaperless = useCallback(
+    () => start('paperless', PAPERLESS_DISCONNECT_ACTION_TYPE, null, false),
+    [start],
+  );
 
   return {
     shaam: { ...shaamState, busy: busy === 'shaam', workerOffline } as AuthorityConnState,
     btl: { ...btlState, busy: busy === 'btl', workerOffline: btlWorkerOffline } as AuthorityConnState,
+    paperless: { ...paperlessState, busy: busy === 'paperless', workerOffline: paperlessWorkerOffline } as AuthorityConnState,
     connect,
     disconnect,
     connectBtl,
     disconnectBtl,
+    connectPaperless,
+    disconnectPaperless,
     cancelRunningShaam,
     deferShaamCapability,
     shaamJob,

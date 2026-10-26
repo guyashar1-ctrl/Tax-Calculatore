@@ -30,7 +30,7 @@ interface Props {
   userId: string | undefined;
 }
 
-type Authority = 'shaam' | 'btl';
+type Authority = 'shaam' | 'btl' | 'paperless';
 
 /** אירוע חלון: «התחברות» מעמוד «חיבורים» — מפעיל את הכפתור שבכותרת. */
 export const AUTHORITY_CONNECT_EVENT = 'pivo:authority-connect';
@@ -38,7 +38,12 @@ export function requestAuthorityConnect(authority: Authority) {
   window.dispatchEvent(new CustomEvent(AUTHORITY_CONNECT_EVENT, { detail: { authority } }));
 }
 
-const AUTHORITY_LABEL: Record<Authority, string> = { shaam: 'שע״ם', btl: 'ביטוח לאומי' };
+const AUTHORITY_LABEL: Record<Authority, string> = { shaam: 'שע״ם', btl: 'ביטוח לאומי', paperless: 'פייפרלס' };
+/** 306 · בטלפון צר (CSS) — כדי ששלושה כפתורים ייכנסו בשורה אחת. */
+const AUTHORITY_SHORT: Record<Authority, string> = { shaam: 'שע״ם', btl: 'ב״ל', paperless: 'פייפרלס' };
+/** «מחובר ל…» / «התנתק מ…» — בשם הרשות, לא בתנאי לכל אחת. */
+const AUTHORITY_TO: Record<Authority, string> = { shaam: 'לשע״ם', btl: 'לביטוח לאומי', paperless: 'לפייפרלס' };
+const AUTHORITY_FROM: Record<Authority, string> = { shaam: 'משע״ם', btl: 'מביטוח לאומי', paperless: 'מפייפרלס' };
 
 const PHASE_CLASS: Record<ConnPhase, string> = {
   idle: '',
@@ -57,10 +62,13 @@ const NEEDS_YOU_COPY: Record<string, string> = {
   awaiting_vat_auth: 'בחלון שע״ם: הזינו את הסיסמה של מערכת מע״מ. PIVO תמשיך לבד.',
   awaiting_nikui_auth: 'בחלון שע״ם: הזינו את הסיסמה של מערכת מגן (ניכויים). PIVO תמשיך לבד.',
   awaiting_btl_auth: 'בחלון ביטוח לאומי: הזינו קוד משתמש וסיסמה, ואת הקוד שנשלח לנייד. PIVO תמשיך לבד.',
+  // 306 · פייפרלס: החלון במחשב המשרד; ההקמות והבדיקות שממתינות ממשיכות לבד אחרי הכניסה.
+  awaiting_paperless_auth: 'בחלון הפייפרלס במחשב המשרד: הזינו את המייל ואת הקוד שנשלח לנייד. PIVO תמשיך לבד.',
 };
 const NEEDS_YOU_FALLBACK: Record<Authority, string> = {
   shaam: 'חלון שע״ם ממתין לך.',
   btl: 'חלון ביטוח לאומי ממתין לך.',
+  paperless: 'חלון הפייפרלס ממתין לך.',
 };
 
 /** 168: "3/4 מוכנות" — רק לשע״ם, שבה יש פירוק ל-capabilities; לב״ל אין שכבות משנה. */
@@ -75,13 +83,15 @@ function tooltipFor(authority: Authority, state: AuthorityConnState, summary: { 
     case 'idle':
       return authority === 'shaam'
         ? 'לא מחובר לשע״ם · לחיצה פותחת את חלון ההתחברות'
-        : 'לא מחובר לביטוח לאומי · לחיצה פותחת את מערכת ייצוג לקוחות';
+        : authority === 'btl'
+          ? 'לא מחובר לביטוח לאומי · לחיצה פותחת את מערכת ייצוג לקוחות'
+          : 'לא מחובר לפייפרלס · לחיצה פותחת את חלון הכניסה במחשב המשרד';
     case 'connecting':
-      return `${authority === 'shaam' ? 'מכין את סביבת העבודה' : 'מתחבר לביטוח לאומי'}…${warmupCountFor(authority, summary)}`;
+      return `${authority === 'shaam' ? 'מכין את סביבת העבודה' : `מתחבר ${AUTHORITY_TO[authority]}`}…${warmupCountFor(authority, summary)}`;
     case 'needs_you':
-      return `${authority === 'shaam' ? 'חלון שע״ם ממתין לך' : 'חלון ביטוח לאומי ממתין לך'}${warmupCountFor(authority, summary)}`;
+      return `${NEEDS_YOU_FALLBACK[authority].replace(/\.$/, '')}${warmupCountFor(authority, summary)}`;
     case 'ready':
-      return authority === 'shaam' ? 'מחובר לשע״ם' : 'מחובר לביטוח לאומי';
+      return `מחובר ${AUTHORITY_TO[authority]}`;
     case 'failed':
       return 'החיבור לא הצליח · לחיצה מנסה שוב';
   }
@@ -114,9 +124,12 @@ function ConnPopover({ children, onClose }: PopoverProps) {
 
 export default function AuthorityConnectionButtons({ userId }: Props) {
   const {
-    shaam, btl, connect, disconnect, connectBtl, disconnectBtl,
+    shaam, btl, paperless, connect, disconnect, connectBtl, disconnectBtl, connectPaperless, disconnectPaperless,
     cancelRunningShaam, deferShaamCapability, shaamWarmupSummary, shaamJob,
   } = useAuthorityConnections(userId);
+  const stateOf: Record<Authority, AuthorityConnState> = { shaam, btl, paperless };
+  const connectOf: Record<Authority, () => Promise<unknown>> = { shaam: connect, btl: connectBtl, paperless: connectPaperless };
+  const disconnectOf: Record<Authority, () => Promise<unknown>> = { shaam: disconnect, btl: disconnectBtl, paperless: disconnectPaperless };
 
   // ‼ פרק 16 §16.1.1: setup/repair חד-פעמי (אין credential שמור בכלל) נבדל
   // מ"ממתין לך" רגיל (יש credential, סתם עוד לא הוזן/פג) — לא אותה הודעה.
@@ -133,15 +146,15 @@ export default function AuthorityConnectionButtons({ userId }: Props) {
   // ‼ מאותחל ל-'idle' ולא לפאזה הראשונה שחושבה: אם העמוד נטען מחדש באמצע
   // needs_you אמיתי (חלון עדיין פתוח וממתין), זו עדיין כניסה טרייה שראויה
   // לפופאובר, לא רק לרחף מעליה כדי לגלות.
-  const prevPhase = useRef<{ shaam: ConnPhase; btl: ConnPhase }>({ shaam: 'idle', btl: 'idle' });
+  const prevPhase = useRef<Record<Authority, ConnPhase>>({ shaam: 'idle', btl: 'idle', paperless: 'idle' });
 
   // ‼ פופאובר נפתח לבד רק בכניסה ל-needs_you/failed, ונסגר לבד כשעוזבים
   // אותם — לא בכל poll. "הכניסה האחרונה מנצחת": אם שתי הרשויות נכנסות
   // למצב שדורש תשומת לב, השנייה משתלטת על הפתיחה האוטומטית, הראשונה
   // נשארת נגישה בלחיצה.
   useEffect(() => {
-    (['shaam', 'btl'] as const).forEach((authority) => {
-      const state = authority === 'shaam' ? shaam : btl;
+    (['shaam', 'btl', 'paperless'] as const).forEach((authority) => {
+      const state = stateOf[authority];
       const prev = prevPhase.current[authority];
       const next = state.phase;
       if (prev !== next) {
@@ -153,7 +166,7 @@ export default function AuthorityConnectionButtons({ userId }: Props) {
       }
       prevPhase.current[authority] = next;
     });
-  }, [shaam, btl]);
+  }, [shaam, btl, paperless]);
 
   // סגירה בלחיצה מחוץ לאזור הכפתורים/פופאובר.
   useEffect(() => {
@@ -169,11 +182,11 @@ export default function AuthorityConnectionButtons({ userId }: Props) {
   // שני. כך ההתקדמות וההוראות («בחלון שע״ם: בחרו אישור דיגיטלי…») מופיעות
   // באותו מקום, ומצב אחד בלבד מנהל את החיבור.
   const clickRef = useRef<(a: Authority) => void>(() => {});
-  clickRef.current = (a: Authority) => handleClick(a, a === 'shaam' ? shaam : btl);
+  clickRef.current = (a: Authority) => handleClick(a, stateOf[a]);
   useEffect(() => {
     const h = (e: Event) => {
       const a = (e as CustomEvent<{ authority?: string }>).detail?.authority;
-      if (a === 'shaam' || a === 'btl') clickRef.current(a);
+      if (a === 'shaam' || a === 'btl' || a === 'paperless') clickRef.current(a);
     };
     window.addEventListener(AUTHORITY_CONNECT_EVENT, h);
     return () => window.removeEventListener(AUTHORITY_CONNECT_EVENT, h);
@@ -199,7 +212,7 @@ export default function AuthorityConnectionButtons({ userId }: Props) {
     }
     // idle או failed — לחיצה על העיגול עצמו מנסה להתחבר, בלי שער פופאובר.
     setOpenPopover(null);
-    void (authority === 'shaam' ? connect() : connectBtl());
+    void connectOf[authority]();
   }
 
   /** 168: פירוט N/M — רק לשע״ם, ורק כשיש יותר מ-capability מוכנה אחת לדווח עליה. */
@@ -274,7 +287,7 @@ export default function AuthorityConnectionButtons({ userId }: Props) {
           <button
             type="button"
             className="authconn-popover-btn"
-            onClick={() => { void (authority === 'shaam' ? connect() : connectBtl()); }}
+            onClick={() => { void connectOf[authority](); }}
           >
             הבא את החלון לחזית
           </button>
@@ -284,16 +297,16 @@ export default function AuthorityConnectionButtons({ userId }: Props) {
     if (state.phase === 'ready') {
       return (
         <>
-          <p>{authority === 'shaam' ? 'מחובר לשע״ם' : 'מחובר לביטוח לאומי'}</p>
+          <p>{`מחובר ${AUTHORITY_TO[authority]}`}</p>
           <button
             type="button"
             className="authconn-popover-btn"
             onClick={() => {
               setOpenPopover(null);
-              void (authority === 'shaam' ? disconnect() : disconnectBtl());
+              void disconnectOf[authority]();
             }}
           >
-            {authority === 'shaam' ? 'התנתק משע״ם' : 'התנתק מביטוח לאומי'}
+            {`התנתק ${AUTHORITY_FROM[authority]}`}
           </button>
         </>
       );
@@ -308,7 +321,7 @@ export default function AuthorityConnectionButtons({ userId }: Props) {
             className="authconn-popover-btn"
             onClick={() => {
               setOpenPopover(null);
-              void (authority === 'shaam' ? connect() : connectBtl());
+              void connectOf[authority]();
             }}
           >
             נסה שוב
@@ -334,7 +347,8 @@ export default function AuthorityConnectionButtons({ userId }: Props) {
           onClick={() => handleClick(authority, state)}
         >
           <span className={`authconn-dot${state.phase === 'connecting' ? ' is-pulse' : ''}`} aria-hidden="true" />
-          <span>{label}</span>
+          <span className="authconn-full">{label}</span>
+          <span className="authconn-short" aria-hidden="true">{AUTHORITY_SHORT[authority]}</span>
         </button>
         {openPopover === authority && (
           <ConnPopover onClose={() => setOpenPopover(null)}>
@@ -349,6 +363,7 @@ export default function AuthorityConnectionButtons({ userId }: Props) {
     <div className="authconn" ref={containerRef}>
       {renderButton('shaam', shaam)}
       {renderButton('btl', btl)}
+      {renderButton('paperless', paperless)}
     </div>
   );
 }

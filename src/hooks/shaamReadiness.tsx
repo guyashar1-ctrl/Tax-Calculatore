@@ -176,6 +176,8 @@ export interface ShaamReadiness {
   workerOffline: boolean;
   /** אותו דבר לביטוח לאומי — בנפרד. */
   btlWorkerOffline: boolean;
+  /** 306 · ולפייפרלס — רק מחשב שמחזיק את החלון. */
+  paperlessWorkerOffline: boolean;
   status: AutomationWorkerStatus;
   /** מה חוסם — משפט אחד לרו"ח. null כשמוכן. */
   blockedReason: string | null;
@@ -197,6 +199,7 @@ const FALLBACK: ShaamReadiness = {
   ready: false,
   workerOffline: true,
   btlWorkerOffline: true,
+  paperlessWorkerOffline: true,
   status: {},
   blockedReason: UNKNOWN_REASON,
   capability: () => ({ ready: false, blockedReason: UNKNOWN_REASON }),
@@ -216,6 +219,7 @@ export function ShaamReadinessProvider({ userId, children }: { userId?: string; 
   const [status, setStatus] = useState<AutomationWorkerStatus>({});
   const [workerOffline, setWorkerOffline] = useState(true);
   const [btlWorkerOffline, setBtlWorkerOffline] = useState(true);
+  const [paperlessWorkerOffline, setPaperlessWorkerOffline] = useState(true);
   const [selectedLayers, setSelectedLayers] = useState<ShaamLayer[]>(DEFAULT_WARMUP_LAYERS);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -246,6 +250,7 @@ export function ShaamReadinessProvider({ userId, children }: { userId?: string; 
     if (!userId) {
       setWorkerOffline(true);
       setBtlWorkerOffline(true);
+      setPaperlessWorkerOffline(true);
       setStatus(prev => (Object.keys(prev).length === 0 ? prev : {}));
       return;
     }
@@ -263,12 +268,14 @@ export function ShaamReadinessProvider({ userId, children }: { userId?: string; 
     const next: AutomationWorkerStatus = picture.status;
     setWorkerOffline(stale);
     setBtlWorkerOffline(picture.btlOffline);
+    setPaperlessWorkerOffline(picture.paperlessOffline);
     // ‼ שומרים את הזהות כשהתוכן זהה. אובייקט חדש בכל משיכה הוא ערך חדש
     // בכל הקוראים, וזה מה שהפך פעימה של 4 שניות לרינדור של כל העץ.
     setStatus(prev => (JSON.stringify(prev) === JSON.stringify(next) ? prev : next));
     const verdict = [
       stale, freshLayer(next.gmf), freshLayer(next.vat), freshLayer(next.nikui), freshLayer(next.representation),
       !!next.shaam?.connected, !!next.shaam?.bootstrapped, !!next.btl?.connected, picture.btlOffline,
+      !!next.paperless?.connected, picture.paperlessOffline,
     ].join('|');
     if (verdict !== verdictRef.current) {
       verdictRef.current = verdict;
@@ -366,11 +373,11 @@ export function ShaamReadinessProvider({ userId, children }: { userId?: string; 
       return { ready: false, blockedReason: LAYER_REASON[missing], missingLayer: missing, unverified };
     }
 
-    return { ready, workerOffline, btlWorkerOffline, status, blockedReason, capability, selectedLayers: warmupLayers, warmupSummary, refresh };
+    return { ready, workerOffline, btlWorkerOffline, paperlessWorkerOffline, status, blockedReason, capability, selectedLayers: warmupLayers, warmupSummary, refresh };
     // ‼ verdictTick נמצא כאן בכוונה אף שאינו נקרא בגוף: הוא מה שמכריח חישוב
     // מחדש כששכבה התיישנה בזמן בלי ששום שדה השתנה.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status, workerOffline, btlWorkerOffline, refresh, verdictTick, selectedLayers]);
+  }, [status, workerOffline, btlWorkerOffline, paperlessWorkerOffline, refresh, verdictTick, selectedLayers]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

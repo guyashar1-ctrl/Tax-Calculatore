@@ -21,6 +21,8 @@ import * as btlCheckRepresentation from './handlers/btlCheckRepresentation.mjs';
 import * as btlSyncFile from './handlers/btlSyncFile.mjs';
 import * as paperlessSetupClient from './handlers/paperlessSetupClient.mjs';
 import * as paperlessCheckCard from './handlers/paperlessCheckCard.mjs';
+import * as paperlessConnect from './handlers/paperlessConnect.mjs';
+import * as paperlessDisconnect from './handlers/paperlessDisconnect.mjs';
 
 const HANDLERS = [
   devTestAutomation, shaamDetect, shaamCheckAuth,
@@ -38,6 +40,8 @@ const HANDLERS = [
   // פייפרלס (304): הקמה + ריטיינר לפי ההסכם — לבד, ניסיון אחד (הכרעת גיא 26.10.2026);
   // בדיקת כרטיס/חיוב — קריאה בלבד.
   paperlessSetupClient, paperlessCheckCard,
+  // 306 · «פייפרלס» בכותרת: פתיחת החלון להתחברות / סגירתו.
+  paperlessConnect, paperlessDisconnect,
 ];
 
 const byActionType = new Map(HANDLERS.map((h) => [h.actionType, h]));

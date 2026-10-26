@@ -7,7 +7,7 @@
 import { test, equal } from '../../../testkit/tinyTest';
 import type { TestCase } from '../../../testkit/tinyTest';
 import type { AutomationJob } from '../../../types/automation';
-import { conflictText, pivoPaperlessState } from '../pivoPaperless';
+import { conflictText, lastCheckText, pivoPaperlessState } from '../pivoPaperless';
 
 const job = (p: Partial<AutomationJob>): AutomationJob => ({
   id: 'j', userId: 'u', clientId: 'c', actionType: 'paperless.setup_client', input: {},
@@ -69,5 +69,16 @@ export const TESTS: TestCase[] = [
     const card = pivoPaperlessState({ setupJob: job({}), checkJob: null, step: step(),
       retainer: { payload: { authorizationCreatedAt: 'a', cardEnteredAt: '2026-10-28T04:45:00Z', cardEnteredBy: 'pivo' } } });
     equal(card.kind, 'cardEntered');
+  }),
+  test('306 · «בדוק בפייפרלס»: מה הבדיקה האחרונה ראתה — במילים, בלי «נכשל» על «עוד אין כרטיס»', () => {
+    const f = () => 'היום 07:45';
+    const c = (p: Partial<AutomationJob>) => lastCheckText(job({ actionType: 'paperless.check_card', ...p }), f);
+    equal(lastCheckText(null, f), null);
+    equal(c({ status: 'running' })?.running, true);
+    equal(c({ result: { observed: { inRetainer: true, cardEntered: false } } })?.text, 'PIVO בדק היום 07:45 · עוד אין כרטיס בפייפרלס');
+    equal(c({ result: { observed: { inRetainer: true, cardEntered: true } } })?.text, 'PIVO בדק היום 07:45 · הכרטיס הוזן · החודש עוד לא חויב');
+    equal(c({ result: { observed: { inRetainer: true, cardEntered: true, chargedPeriods: ['2610'] } } })?.text, 'PIVO בדק היום 07:45 · הכרטיס הוזן והחודש חויב');
+    equal(c({ result: { observed: { inRetainer: false } } })?.text, 'PIVO בדק היום 07:45 · הלקוח לא נמצא בטבלת הריטיינר');
+    equal(c({ status: 'needs_human', errorCode: 'awaiting_paperless_auth' })?.text, 'צריך להתחבר לפייפרלס — הבדיקה תמשיך לבד');
   }),
 ];

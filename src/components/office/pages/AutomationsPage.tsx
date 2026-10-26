@@ -96,8 +96,7 @@ interface Attn { key: string; row: AutoRow; text: string; clientId?: string; eve
 const CONNECT_LINK: Record<NonNullable<RowEvent['connect']>, { focus: string; text: string }> = {
   shaam: { focus: 'login:shaam', text: 'להתחברות לשע״ם ←' },
   btl: { focus: 'login:btl', text: 'להתחברות לביטוח לאומי ←' },
-  // 304 · אין לפייפרלס כפתור בכותרת: מתחברים בחלון שבמחשב המשרד, וההקמה ממשיכה לבד.
-  paperless: { focus: 'login:worker', text: 'להתחבר בחלון הפייפרלס במחשב המשרד ←' },
+  paperless: { focus: 'login:paperless', text: 'להתחברות לפייפרלס ←' },
   worker: { focus: 'login:worker', text: 'למחשב העבודה ←' },
 };
 

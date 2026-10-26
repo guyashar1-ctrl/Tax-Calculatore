@@ -4,22 +4,11 @@
 // ‼ הכפתורים קוראים לפונקציות בשרת (start_paperless_setup / check_paperless_now) —
 // הקלט (ת״ז, הסכום) נקבע שם, לא בדפדפן.
 
-import { useState } from 'react';
-import { supabase } from '../../lib/supabase';
-import { useAutomationJob } from '../../hooks/useAutomationJobs';
-import { PAPERLESS_CHECK_CARD_ACTION_TYPE, PAPERLESS_SETUP_CLIENT_ACTION_TYPE } from '../../types/automation';
 import type { OnboardingStep } from '../../types/onboarding';
-import { conflictText, pivoPaperlessState } from './pivoPaperless';
+import { conflictText, lastCheckText, pivoPaperlessState } from './pivoPaperless';
+import type { PaperlessPivo } from './usePaperlessPivo';
 
-const START_ERRORS: Record<string, string> = {
-  no_signed_amount: 'אין הסכם חתום עם סכום חודשי — אין לפי מה להגדיר את הריטיינר.',
-  missing_id_number: 'חסר מספר זהות בכרטיס הלקוח.',
-  no_open_setup: 'ההקמה בפייפרלס כבר סגורה.',
-  nothing_to_check: 'אין מה לבדוק — התשלום החודשי כבר הושלם.',
-  forbidden: 'אין הרשאה ללקוח הזה.',
-};
-
-const fmt = (iso?: string) => {
+export const fmt = (iso?: string) => {
   if (!iso) return '';
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '';
@@ -43,8 +32,9 @@ const tag: React.CSSProperties = {
   background: 'var(--info-bg)', color: 'var(--info)', flex: 'none',
 };
 
-export function PaperlessPivoLine({ clientId, step, retainer, open, onKeepPaperlessAmount }: {
-  clientId: string;
+export function PaperlessPivoLine({ pivo, step, retainer, open, onKeepPaperlessAmount }: {
+  /** המשימות והפעולות — usePaperlessPivo, משותף עם «בדוק בפייפרלס» שבאותו כרטיס. */
+  pivo: PaperlessPivo;
   step: OnboardingStep;
   retainer?: OnboardingStep;
   /** ההקמה פתוחה — רק אז מציעים «הקם בפייפרלס». */
@@ -52,24 +42,8 @@ export function PaperlessPivoLine({ clientId, step, retainer, open, onKeepPaperl
   /** «הסכום בפייפרלס נכון, להשאיר» — סימון ידני של סעיף הריטיינר וניקוי הפער. */
   onKeepPaperlessAmount: () => void;
 }) {
-  const setup = useAutomationJob(clientId, PAPERLESS_SETUP_CLIENT_ACTION_TYPE);
-  const check = useAutomationJob(clientId, PAPERLESS_CHECK_CARD_ACTION_TYPE);
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-
-  const state = pivoPaperlessState({ setupJob: setup.job, checkJob: check.job, step, retainer });
-
-  async function call(fn: 'start_paperless_setup' | 'check_paperless_now', args: Record<string, unknown>) {
-    setBusy(true);
-    setErr(null);
-    const { data, error } = await supabase.rpc(fn, args);
-    setBusy(false);
-    const r = (data ?? {}) as { ok?: boolean; error?: string };
-    if (error || !r.ok) { setErr(START_ERRORS[r.error ?? ''] ?? 'הפעולה לא נשלחה — נסו שוב.'); return; }
-    await Promise.all([setup.reload(), check.reload()]);
-  }
-  const startSetup = (override = false) => call('start_paperless_setup', { p_client_id: clientId, p_override_amount: override });
-  const checkNow = () => call('check_paperless_now', { p_client_id: clientId });
+  const { busy, error: err, startSetup, checkNow } = pivo;
+  const state = pivoPaperlessState({ setupJob: pivo.setupJob, checkJob: pivo.checkJob, step, retainer });
 
   const btn = (label: string, onClick: () => void, primary = false) => (
     <button type="button" className={`btn btn-sm ${primary ? 'btn-primary' : 'btn-secondary'}`} disabled={busy} onClick={onClick}>{label}</button>
@@ -147,5 +121,27 @@ export function PaperlessPivoLine({ clientId, step, retainer, open, onKeepPaperl
       {body}
       {err && <div role="alert" style={{ color: 'var(--danger)', fontSize: '.9em', marginTop: '-.3rem', marginBottom: '.5rem' }}>{err}</div>}
     </>
+  );
+}
+
+/**
+ * 306 · «בדוק בפייפרלס» — במקום «סמן כבוצע» / «הכרטיס נקלט ✓» / «הריטיינר חויב».
+ * PIVO קורא את טבלת הריטיינר; מה שנראה מסמן לבד (השרת), ומה שלא — נאמר כמו שהוא.
+ * סימון ידני נשאר רק בתפריט ⋯, למקרה שהחלון במחשב המשרד לא זמין.
+ */
+export function PaperlessCheckNow({ pivo, quietWhileRunning = false }: {
+  pivo: PaperlessPivo;
+  /** בכרטיס שיש בו שורת PIVO — «בודק…» כבר כתוב שם; לא פעמיים. */
+  quietWhileRunning?: boolean;
+}) {
+  const last = lastCheckText(pivo.checkJob, fmt);
+  return (
+    <span style={{ display: 'inline-flex', gap: '.45rem', alignItems: 'baseline', flexWrap: 'wrap' }}>
+      <button type="button" className="btn btn-sm btn-primary" disabled={pivo.busy || !!last?.running}
+        title="PIVO קורא עכשיו את טבלת הריטיינר בפייפרלס. כרטיס שהוזן או חודש שחויב — מסומנים לבד."
+        onClick={() => void pivo.checkNow()}>בדוק בפייפרלס</button>
+      {last && !(quietWhileRunning && last.running) && <span role="status" style={{ fontSize: '.88em', color: 'var(--ink-3)' }}>{last.text}</span>}
+      {pivo.error && <span role="alert" style={{ fontSize: '.88em', color: 'var(--danger)' }}>{pivo.error}</span>}
+    </span>
   );
 }

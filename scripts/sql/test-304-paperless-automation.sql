@@ -214,6 +214,19 @@ begin
   out := out || jsonb_build_object('t', '9ב.3 PIVO ראה את הכרטיס ⇒ cardEnteredAt ו«לטיפולך» יורד', 'pass',
     vj->>'cardEnteredAt' is not null and not (select needs_attention from public.onboarding_steps where id = ret3), 'got', vj);
 
+  -- ── 11 · (306) «פייפרלס» בכותרת: התחברות כמו ב״ל ───────────────────────────
+  out := out || jsonb_build_object('t', '11.1 connect = פעולת התחברות; connect/disconnect לא צריכות חיבור', 'pass',
+    public.automation_job_is_interactive('paperless.connect') and not public.automation_job_is_interactive('paperless.check_card')
+    and not public.automation_job_needs_session('paperless.connect') and not public.automation_job_needs_session('paperless.disconnect')
+    and public.automation_job_needs_session('paperless.check_card'), 'got', null);
+  insert into public.automation_jobs (user_id, client_id, action_type, input, status, claimed_by, error_code)
+  values (uid, null, 'paperless.connect', '{}', 'needs_human', 'qa304-worker', 'awaiting_paperless_auth') returning id into job;
+  res := public.report_worker_status(uid, 'qa304-worker', '{"paperless":{"connected":false}}'::jsonb);
+  out := out || jsonb_build_object('t', '11.2 לא מחובר ⇒ ממתינה', 'pass', (select status from public.automation_jobs where id = job) = 'needs_human', 'got', res);
+  res := public.report_worker_status(uid, 'qa304-worker', '{"paperless":{"connected":true}}'::jsonb);
+  out := out || jsonb_build_object('t', '11.3 מחובר ⇒ ההתחברות ממשיכה לבד', 'pass',
+    (select status from public.automation_jobs where id = job) = 'running' and res->'resumed' ? job, 'got', res);
+
   -- ── 10 · הרשאות ──────────────────────────────────────────────────────────────
   out := out || jsonb_build_object('t', '10.1 anon לא מריץ כלום; authenticated רק את שני הכפתורים', 'pass',
     not has_function_privilege('anon', 'public.start_paperless_setup(text, boolean)', 'execute')

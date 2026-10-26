@@ -26,6 +26,8 @@ export interface WorkstationPicture {
   /** אין מחשב חי עם יכולת שע״ם / ב״ל. */
   shaamOffline: boolean;
   btlOffline: boolean;
+  /** 306 · אין מחשב חי שמחזיק את חלון הפייפרלס (יכולת מפורשת בלבד). */
+  paperlessOffline: boolean;
   /** המצב המאוחד: שכבות שע״ם מהמחשב הטוב לשע״ם, ב״ל מהטוב לב״ל. */
   status: AutomationWorkerStatus;
   /** כמה מחשבים חיים — לתצוגה בלבד. */
@@ -57,16 +59,23 @@ export function workstationPicture(rows: WorkstationRow[], now: number = Date.no
   const btlCandidates = live.filter(w => has(w, 'btl'))
     .sort((a, b) => Number(!!b.status?.btl?.connected) - Number(!!a.status?.btl?.connected) || byRecency(a, b));
 
+  // ‼ פייפרלס — רק מחשב שקיבל את היכולת במפורש (304): שם החלון והכניסה.
+  const paperlessCandidates = live.filter(w => !!w.capabilities?.includes('paperless'))
+    .sort((a, b) => Number(!!b.status?.paperless?.connected) - Number(!!a.status?.paperless?.connected) || byRecency(a, b));
+
   const status: AutomationWorkerStatus = {};
   const bestShaam = shaamCandidates[0]?.status ?? null;
   if (bestShaam) for (const k of SHAAM_KEYS) if (bestShaam[k]) (status as Record<string, unknown>)[k] = bestShaam[k];
   const bestBtl = btlCandidates[0]?.status ?? null;
   if (bestBtl?.btl) status.btl = bestBtl.btl;
+  const bestPaperless = paperlessCandidates[0]?.status ?? null;
+  if (bestPaperless?.paperless) status.paperless = bestPaperless.paperless;
 
   return {
     noWorkstation: live.length === 0,
     shaamOffline: shaamCandidates.length === 0,
     btlOffline: btlCandidates.length === 0,
+    paperlessOffline: paperlessCandidates.length === 0,
     status,
     liveCount: live.length,
   };
