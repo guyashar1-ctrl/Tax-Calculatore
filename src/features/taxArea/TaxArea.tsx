@@ -43,6 +43,40 @@ import {
 } from './areaModel';
 import './taxArea.css';
 
+// ── מסגרת לכל כלי (26.10.2026, ההדמיה המאושרת): מה הכלי מחשב ומה לא, מקור רשמי לעיון, וההסבר בתחום שלו ──
+// ‼ «תחום השימוש» אומר מתי התוצאה אינה תשובה — לא הסתייגות כללית. מאגר משולב (הוצאות, ניהול ספרים) — השנה בכל פריט.
+const TOOL_META: Partial<Record<Tool, { type: string; scope: string; source: string; mixed?: boolean }>> = {
+  wizard: { type: 'חישוב', scope: 'החישוב מניח מצב משפחתי קבוע לאורך השנה. אירוע משפחתי, דחייה נפרדת לכל ילד ותקופות זכאות מיוחדות דורשים בדיקה פרטנית.', source: 'https://www.btl.gov.il/Laws1/00_0103_000000.pdf' },
+  rental: { type: 'השוואת מסלולים', scope: 'משווים מסלולי מס הכנסה לפי הנתונים שהוזנו. סיווג עסק, שימוש בנכס וביטוח לאומי נבדקים בנפרד.', source: 'https://www.btl.gov.il/Laws1/00_0103_000000.pdf' },
+  incomeTax: { type: 'טבלאות וחישוב', scope: 'שיעורי המס אינם לבדם שומה סופית. זיכויים, פטורים ומס נוסף נבחנים לפי סוג ההכנסה והתיק.', source: 'https://www.gov.il/he/departments/topics/income_tax/govil-landing-page' },
+  ni: { type: 'טבלאות וחישוב', scope: 'מגדירים תחילה את סוג המבוטח, מקור ההכנסה והתקופה. ההפחתה בבסיס דמי הביטוח והניכוי בדוח המס הן בדיקות נפרדות.', source: 'https://www.btl.gov.il/Insurance/Rates/Pages/default.aspx' },
+  settlements: { type: 'איתור נתונים', scope: 'הופעה ברשימה אינה בדיקת תושבות. האומדן לפי הכנסה מוגבל למס החל על ההכנסה המזכה; חיפוש בלי התאמה אינו קביעת אי־זכאות.', source: 'https://www.gov.il/he/departments/topics/income_tax/govil-landing-page' },
+  expenses: { type: 'מדריך עבודה', scope: 'מאגר עיון משולב לשנים 2025 ו־2026. הדוגמאות והתקרות נבחנות לפי השנה שמצוינת בכל פריט.', source: 'https://www.btl.gov.il/Laws1/00_0103_000000.pdf', mixed: true },
+  bookkeeping: { type: 'מדריך ואיתור', scope: 'מאגר עיון משולב לשנים 2025 ו־2026. תנאי הענף המלאים ושנת התחולה קודמים לתוצאת האשף; נתון חסר אינו אפס.', source: 'https://www.gov.il/he/departments/topics/income_tax/govil-landing-page', mixed: true },
+  deadlines: { type: 'לוח עזר', scope: 'לוח כללי אינו מחליף דרישה אישית, ארכה למייצג או עדכון רשמי. את חובות הלקוחות והמועדים שנקלטו מנהלים בתיקים.', source: 'https://www.gov.il/he/departments/israel_tax_authority/govil-landing-page' },
+};
+
+/** נקודות זיכוי בשנה שהיה בה אירוע משפחתי — לא מחשבים כאן את שנת האירוע (סעיף 41), אומרים מה כן. */
+function CreditEventScope({ children, onOpenDomain }: { children: ReactNode; onOpenDomain: () => void }) {
+  const [event, setEvent] = useState(false);
+  return (
+    <>
+      <section className="ta-credit-scope" data-credit-scope>
+        <label><input type="checkbox" checked={event} onChange={e => setEvent(e.target.checked)} data-credit-event /> בשנת המס היו נישואין, גירושין, פרידה או פטירה של בן/בת זוג</label>
+        {event ? (
+          <div role="status">
+            <h3>כאן צריך חישוב לפי תקופות ותחולה</h3>
+            <p>סעיף 41 קובע חלוקה חודשית בנסיבות המנויות בו לבן זוג שאינו הרשום שהיה נשוי חלק מהשנה. סעיף 40(ב)(3) כולל גם ילד שאחד מהוריו נפטר בשנת המס. תאריך האירוע המלא, זהות בן הזוג הרשום, הילדים ואופן החישוב נבדקים יחד.</p>
+            <p>המחשבון אינו מחשב את שנת האירוע. מכינים נייר עבודה לפי הסעיפים; המצב ב־31.12 לבדו אינו תשובה לחישוב השנתי.</p>
+            <button type="button" className="kn-link" onClick={onOpenDomain}>להסבר ולמקורות על שנת האירוע ←</button>
+          </div>
+        ) : <p className="kn-xs kn-muted">המחשבון מניח מצב משפחתי קבוע לאורך השנה. דחיית נקודה לכל ילד, דחייה לשנת הלידה ותקופות זכאות מיוחדות — מחוץ למחשבון.</p>}
+      </section>
+      {!event && children}
+    </>
+  );
+}
+
 /** כלים שאינם תלויים בשנת המס. */
 const YEARLESS = new Set<Tool>(['expenses', 'bookkeeping', 'map1301']);
 
@@ -187,7 +221,7 @@ export default function TaxArea({ path, onPath, freshnessTaskExists, onCreateFre
     switch (t) {
       case 'expenses': return <ExpenseKnowledge selected={sub} onSelect={setSub} />;
       case 'bookkeeping': return <BookkeepingKnowledge selected={sub} onSelect={setSub} />;
-      case 'wizard': return <CreditPointsWizard taxData={data} year={year} />;
+      case 'wizard': return <CreditEventScope onOpenDomain={() => go({ mode: 'learn', domain: 'credits' })}><CreditPointsWizard taxData={data} year={year} /></CreditEventScope>;
       case 'rental': return <RentalRouteCalculator taxData={data} year={year} />;
       case 'incomeTax': return <IncomeTaxPanel taxData={data} year={year} />;
       case 'ni': return <NIReferenceSection taxData={data} year={year} />;
@@ -249,6 +283,18 @@ export default function TaxArea({ path, onPath, freshnessTaskExists, onCreateFre
           {!YEARLESS.has(item.id) && <label className="tc-year">שנת מס{yearSelect}</label>}
         </div>
         {ds && <div className="ta-tool-fresh"><FreshnessBadge datasetId={ds} /></div>}
+        {TOOL_META[item.id] && (
+          <div className="ta-tool-meta" data-tool-meta={item.id}>
+            <span className="kn-xs kn-eyebrow">{TOOL_META[item.id]!.type}{TOOL_META[item.id]!.mixed ? ' · מאגר משולב, השנה מצוינת בפריט' : ''}</span>
+            <details><summary>תחום השימוש והמקורות</summary>
+              <p>{TOOL_META[item.id]!.scope}</p>
+              <a href={TOOL_META[item.id]!.source} target="_blank" rel="noreferrer">מקור רשמי לעיון ↗</a>
+              <p className="kn-xs kn-muted">קישור לתשתית הדין או לרשות. הפניות ממוקדות — ליד הטבלה או ההסבר.</p>
+            </details>
+            <button type="button" className="kn-link" onClick={() => go({ mode: 'learn', domain: domain.id })}>הסבר ונתונים קשורים ←</button>
+            {item.id === 'deadlines' && <button type="button" className="kn-link" onClick={() => go({ mode: 'work', section: 'all' })}>קליטת חובות לקוחות משע״ם ←</button>}
+          </div>
+        )}
         {toolBody(item.id)}
       </>
     );

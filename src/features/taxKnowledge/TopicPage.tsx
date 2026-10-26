@@ -30,6 +30,7 @@ import Form6111Body, { FORM6111_TOC } from './topics/Form6111Body';
 import MaternityBody, { MATERNITY_TOC, MATERNITY_LESSON } from './topics/MaternityBody';
 import { ANNUAL_LESSON, FORM6111_LESSON } from './topics/lessonsReports';
 import ClientAsksPanel from './ClientAsksPanel';
+import ShaamGuide from '../shaamFiling/ShaamGuide';
 import { applyStepOf, clientAsksFor, courseStepsOf, documentsFor, plainStatus, readingPeriod, stepKind, unitMinutes, unitsOf } from './learnPath';
 import { useReadingMarks } from './readingMarks';
 import { clearHighlight, markPassage, peekHighlight } from './searchHighlight';
@@ -89,7 +90,9 @@ const LESSON_FORMS: Record<string, { label: string; target: (section: string) =>
 };
 const REPORTING_STEP = /field|116c|code|docs|do$|apply|map|ar-/;
 
-type Overlay = 'sources' | 'asks' | 'gaps' | null;
+type Overlay = 'sources' | 'asks' | 'gaps' | 'shaam' | null;
+/** נושאים שהיישום שלהם מתחיל בשאלה מי חייב להגיש — מדריך ההפקה משע״ם נפתח מהם. */
+const SHAAM_GUIDE_TOPICS = new Set(['annualReturn', 'wealth', 'microBusiness']);
 
 export default function TopicPage({ topicId, year, clients = [], context, onBackToClient, onOpenClient, onOpenTopic, workLinks = [], section = null, onSection, onOpenForm }: Props) {
   const topic = TOPIC_BY_ID[topicId];
@@ -229,7 +232,8 @@ export default function TopicPage({ topicId, year, clients = [], context, onBack
   const form1301 = topic.form1301.length ? <span>בטופס 1301 (2025): {topic.form1301.map(f => `חלק ${f.part}, סעיף ${f.section}`).join(' · ')}</span> : null;
 
   const overlays = overlay && (
-    <Modal title={overlay === 'sources' ? 'מקורות ותחולה' : overlay === 'asks' ? 'מה מבקשים מהלקוח' : 'שאלות מקצועיות פתוחות'} onClose={() => setOverlay(null)} width={720}>
+    <Modal title={overlay === 'sources' ? 'מקורות ותחולה' : overlay === 'asks' ? 'מה מבקשים מהלקוח' : overlay === 'shaam' ? 'מי חייב להגיש ומתי — הפקת רשימות משע״ם' : 'שאלות מקצועיות פתוחות'} onClose={() => setOverlay(null)} width={720}>
+      {overlay === 'shaam' && <ShaamGuide initial={topicId === 'wealth' ? 'wealth' : 'annual'} />}
       {overlay === 'sources' && (
         <div className="kn-sec" id="kn-sources">
           {topic.ruleIds.length > 0 ? <SourcesTable ruleIds={topic.ruleIds} year={y} /> : <p className="kn-small kn-muted">המקורות של הנושא כתובים בגוף הסעיפים.</p>}
@@ -315,6 +319,7 @@ export default function TopicPage({ topicId, year, clients = [], context, onBack
                 <SecFilter.Provider value={id => id === apply.id}><Body year={y} ctx={bodyCtx} /></SecFilter.Provider>
               </div>
               {lessonForms(apply.id, true)}
+              {SHAAM_GUIDE_TOPICS.has(topicId) && <p><button type="button" className="kn-link" onClick={() => setOverlay('shaam')} data-kn-shaam-guide>מי חייב להגיש ומתי? הפקת רשימות משע״ם ←</button></p>}
               <div className="kn-read-mark">
                 <button type="button" className="btn btn-secondary btn-sm" aria-pressed={applyDone} onClick={() => mark(apply.id, !applyDone)} data-kn-mark>{applyDone ? '✓ נקרא · ביטול הסימון' : 'לסמן כנקרא'}</button>
                 {!saved && <span className="kn-xs kn-muted" role="status">הסימון לא נשמר בדפדפן הזה.</span>}

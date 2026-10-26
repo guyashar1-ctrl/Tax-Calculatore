@@ -187,3 +187,15 @@
 .ta2-search:hover { color: var(--tx); border-color: var(--soft-bd); }
 .ta2-return { margin: 0 0 8px; }
 .ta2-return .kn-link { font-size: 13px; min-height: 36px; }
+
+/* מסגרת הכלי ונקודות זיכוי בשנת אירוע (26.10.2026) */
+.ta-tool-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 16px; margin: 4px 0 12px; font-size: 13px; }
+.ta-tool-meta details { flex-basis: 100%; order: 2; }
+.ta-tool-meta summary { cursor: pointer; min-height: 36px; display: inline-flex; align-items: center; color: var(--tx2); }
+.ta-tool-meta details p { margin: 4px 0; line-height: 1.7; max-width: 70ch; }
+.ta-tool-meta .kn-link { min-height: 36px; }
+.ta-credit-scope { margin: 0 0 14px; padding: 12px 14px; border: 1px solid var(--bd); border-radius: 12px; background: var(--card); }
+.ta-credit-scope label { display: flex; gap: 10px; align-items: flex-start; font-size: 14px; cursor: pointer; min-height: 36px; }
+.ta-credit-scope input { margin-top: 4px; width: 18px; height: 18px; flex: none; }
+.ta-credit-scope h3 { margin: 8px 0 4px; font-size: 15px; }
+.ta-credit-scope p { margin: 4px 0; line-height: 1.7; }
