@@ -10,6 +10,7 @@ import type { OnboardingStep } from '../../types/onboarding';
 import type { Evidence, YearFact } from '../taxYear/types';
 import { RULESET_VERSION } from '../taxRules/registry';
 import { RULES } from '../taxRules/rules';
+import * as tyApi from '../taxYear/api';
 import { useDocumentStore } from '../../hooks/useDocumentStore';
 import { computeEstimate, annualFor, forecastFor, MONTH_HE, IT_CORE_RULES } from './engine';
 import { buildDraft, cardAdvances, reconciliationsNeeded } from './prefill';
@@ -83,6 +84,16 @@ export default function EstimatePanel({ client, step, year, cutoffMonth, facts, 
   const [showAllBlockers, setShowAllBlockers] = useState(false);
   const links = useKnowledgeLink();
   const [opened, setOpened] = useState<Set<string>>(new Set());
+  // ‼ 26.10.2026 · «ביצוע בפועל» — הערכה ≠ המלצה ≠ ביצוע: המשרד מסמן שהמלצה בוצעה (estimate.applied), עם התאריך
+  const [applied, setApplied] = useState<Record<string, string>>({});
+  const appliedAt = (key: string): string | undefined => applied[key] ?? (facts.find(f => f.itemKey === 'estimate.applied' && f.status !== 'rejected' && f.status !== 'superseded'
+    && (f.value as { key?: string } | undefined)?.key === key)?.value as { at?: string } | undefined)?.at;
+  const markApplied = async (key: string, title: string, version: number) => {
+    const at = today();
+    const r = await tyApi.recordFact(client.id, { taxYear: year, itemKey: 'estimate.applied', subjectRole: 'couple', periodKind: 'year', periodFrom: `${year}-01-01`, periodTo: `${year}-12-31`,
+      answer: 'value', value: { key, title, version, at }, basis: 'actual', requestId: step.id } as never);
+    if ((r as { ok?: boolean }).ok !== false) setApplied(x => ({ ...x, [key]: at }));
+  };
   const pre = useMemo(() => buildDraft({ client, taxYear: year, cutoffMonth, facts, evidence, today: today() }), [client, year, cutoffMonth, facts, evidence]);
   // ‼ נשוי/אה בשנת המס (לא היום) — קובע אם יש בן/בת זוג בשורות ובחלוקה
   const marriedInYear = clientForTaxYear(client, year).familyStatus === 'married';
@@ -528,10 +539,13 @@ export default function EstimatePanel({ client, step, year, cutoffMonth, facts, 
           <details className="ty-details" id="te-followups" open={editingApproved || undefined}>
             <summary><b>משימות המשך</b><span>{fu.length} מגרסה {approved.version} · המלצה, לא ביצוע</span></summary>
             <div className="ty-details-body te-lines">
-              <p className="ty-note">מה נשאר לעשות אחרי האישור. המערכת לא משנה מקדמות ברשות ולא שולחת דבר — כל אחד מאלה הוא משימה במשרד.</p>
+              <p className="ty-note">מה נשאר לעשות אחרי האישור. המערכת לא משנה מקדמות ברשות ולא שולחת דבר — כל אחד מאלה הוא משימה במשרד. אחרי שביצעת — «סימון שבוצע» (נשמר עם התאריך).</p>
               {fu.map(f => (
                 <div key={f.key} className="te-row">
                   <span>{f.title}<small className="te-src"> · {f.why}</small></span>
+                  {(() => { const at = appliedAt(f.key); return at
+                    ? <span className="ty-chip green" data-te-applied={f.key}>בוצע בפועל · {he(at)}</span>
+                    : <button type="button" className="btn btn-sm btn-ghost" data-te-apply={f.key} onClick={() => void markApplied(f.key, f.title, approved.version)}>סימון שבוצע</button>; })()}
                   {links?.createTask && (opened.has(f.key)
                     ? <span className="ty-chip green">נפתח</span>
                     : <button type="button" className="btn btn-sm btn-ghost" onClick={() => { links.createTask!(f.title); setOpened(s0 => new Set(s0).add(f.key)); }}>פתח משימה</button>)}

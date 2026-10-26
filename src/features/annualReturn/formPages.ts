@@ -28,7 +28,7 @@ const ymdToHe = (s: string) => (/^\d{4}-\d{2}-\d{2}/.test(s) ? s.slice(0, 10).sp
  *   לתאים שנמדדו מהטופס הרשמי (form1301-2025.page1-fill.json). שדה שאין לנו — נשאר ריק.
  */
 function page1Values(out: ReturnOutputs): PageValue[] {
-  const prod = new Map((out.formCoverage?.produced ?? []).filter(f => /^F\d{3}$/.test(f.code)).map(f => [f.code, f]));
+  const prod = new Map((out.formCoverage?.produced ?? []).filter(f => /^F\d{3}(\.options)?$/.test(f.code)).map(f => [f.code, f]));
   const txt = (k: string) => {
     const f = prod.get(k);
     const t = (f?.text ?? '').trim();
@@ -48,6 +48,19 @@ function page1Values(out: ReturnOutputs): PageValue[] {
     if (text) res.push({ key: `p1-${key}`, code: key, box: box as Box, text, kind: 'text' });
   }
   for (const [key, box] of Object.entries(PAGE1.check)) {
+    if (prod.get(key)?.checked) res.push({ key: `p1-${key}`, code: key, box: box as Box, text: 'X', kind: 'checkbox', center: true });
+  }
+  for (const [key, byRole] of Object.entries(PAGE1.perPerson)) {
+    for (const f of out.fields.filter(x => x.code === key && x.kind === 'checkbox')) {
+      const box = byRole[f.person === 'spouse' ? 'spouse' : 'client'];
+      res.push({ key: `p1-${key}-${f.person}`, code: key, box: box as Box, text: 'X', kind: 'checkbox', center: true });
+    }
+  }
+  if (prod.get('F012')?.checked) for (const o of (prod.get('F012.options')?.text ?? '').split(',').filter(Boolean)) {
+    const box = PAGE1.options.F012[o as keyof typeof PAGE1.options.F012];
+    if (box) res.push({ key: `p1-F012-${o}`, code: 'F012', box: box as Box, text: 'X', kind: 'checkbox', center: true });
+  }
+  for (const [key, box] of Object.entries(PAGE1.yes)) {
     if (prod.get(key)?.checked) res.push({ key: `p1-${key}`, code: key, box: box as Box, text: 'X', kind: 'checkbox', center: true });
   }
   const fs = PAGE1.familyStatus[txt('F067') as keyof typeof PAGE1.familyStatus];

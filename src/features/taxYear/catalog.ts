@@ -669,6 +669,8 @@ export const CHECKLIST_LABEL: Record<string, string> = {
 };
 const NONE: Purpose[] = [];
 ITEMS.push(
+  // ‼ 26.10.2026 · הערכת מס: «ביצוע בפועל» — המשרד מסמן שהמלצה בוצעה (ומתי). לא שאלה ללקוח ולא קלט לחישוב; ההבחנה הערכה ≠ המלצה ≠ ביצוע
+  { key: 'estimate.applied', area: 'payments', label: 'המלצה מההערכה — בוצעה בפועל', kind: 'detail', per: 'couple', who: 'office', purposes: NONE },
   { key: 'annual.whatHappened', area: 'special', label: 'מאיפה נכנס כסף בשנה (מסך הריבועים, לכל אדם)', kind: 'screener', per: 'couple', who: 'client', purposes: NONE, input: 'multi',
     question: 'מאיפה נכנס ל{name} כסף ב-{year}?', why: 'מה שתסמנו — נבקש עליו את המסמך המתאים. מה שלא תסמנו — לא נשאל.' },
   { key: 'annual.lessTax', area: 'special', label: 'מה יכול להוריד מס (מסך הריבועים השני, לכל אדם)', kind: 'screener', per: 'couple', who: 'client', purposes: NONE, input: 'multi',

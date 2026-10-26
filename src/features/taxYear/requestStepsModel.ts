@@ -61,6 +61,14 @@ export function deriveRequestSteps(row: WorkRow, pendingToCard: number, opts: { 
       : { key: 'card', title: 'הדוח', line: 'הכנה, אישורך וחתימת הלקוח — אחרי התשובות והמסמכים', tone: 'idle' };
     return { chip: closed ? undefined : chip, steps: [answers, report] };
   }
+  // ‼ 26.10.2026 · הצהרת הון והערכת מס — כמו הדוח השנתי: התשובות נכנסות לבד; הצעד השני הוא ההצהרה / ההערכה עצמה
+  if (row.kind === 'wealth' || row.kind === 'estimate') {
+    const title = row.kind === 'wealth' ? 'ההצהרה' : 'ההערכה';
+    const second: RequestStepView = closed && row.parent.status !== 'cancelled'
+      ? { key: 'card', title, line: 'הושלם', tone: 'ok' }
+      : { key: 'card', title, line: row.kind === 'wealth' ? 'סכום לכל סעיף, אישורך וחתימת הלקוח — אחרי התשובות והמסמכים' : 'ההערכה, אישורך והסיכום ללקוח — אחרי התשובות', tone: 'idle' };
+    return { chip: closed ? undefined : chip, steps: [answers, second] };
+  }
   const card: RequestStepView = pendingToCard > 0
     ? { key: 'card', title: 'לתיק', line: `${count(pendingToCard, 'עדכון אחד ממתין', 'עדכונים ממתינים')} לאישורך בתיק המס`, tone: 'new' }
     : closed && row.parent.status !== 'cancelled'

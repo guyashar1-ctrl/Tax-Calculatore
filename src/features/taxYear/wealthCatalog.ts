@@ -39,7 +39,8 @@ export const WEALTH_ITEMS: InfoItem[] = [
   // ── מי בהצהרה ──
   { key: 'wealth.household', area: 'wPeople', label: 'מי נכלל בהצהרה', kind: 'confirm', per: 'couple', who: 'client', purposes: W,
     question: 'מי נכלל בהצהרה', why: 'נכללים בן/בת הזוג (נשואים שמנהלים משק בית משותף) והילדים שבשנת ההצהרה טרם מלאו להם 18', input: 'confirm', cardKeys: ['familyStatus', 'children'] },
-  { key: 'wealth.spouseSeparate', area: 'wPeople', label: 'בן/בת הזוג מגיש/ה הצהרה נפרדת', kind: 'detail', per: 'couple', who: 'office', purposes: W,
+  // ‼ 26.10.2026 · חריג — לא משימה בכל הצהרה (rare: נפתח רק כשהמשרד מסמן)
+  { key: 'wealth.spouseSeparate', area: 'wPeople', label: 'בן/בת הזוג מגיש/ה הצהרה נפרדת', kind: 'detail', per: 'couple', who: 'office', purposes: W, rare: true,
     why: 'מותר, עם הצהרה חתומה של בן/בת הזוג. משנה מה נכלל ומי חותם.' },
 
   // ── נדל״ן ──
@@ -56,7 +57,9 @@ export const WEALTH_ITEMS: InfoItem[] = [
     why: 'דרך הרכישה קובעת איך רושמים: דירה בתשלומים — המחיר המלא, והיתרה כחוב; ירושה או מתנה — 1 ₪', input: 'text' },
   { key: 'wealth.realEstate.docs', area: 'wRealEstate', label: 'מסמכי הנכסים', kind: 'document', per: 'couple', who: 'client', purposes: W, after: 'wealth.realEstate.has',
     question: 'חוזה, נסח טאבו, וקבלות על העלויות הנלוות ועל שיפוצים', why: 'נרשם בעלות: מחיר, עו״ד, תיווך, מס רכישה ושיפורים', input: 'file', docKind: 'realEstateDocs' },
-  total('wealth.realEstate.total', 'wRealEstate', 'עלות הנדל״ן ליום ההצהרה (סיכום המשרד)'),
+  total('wealth.realEstate.total', 'wRealEstate', 'עלות הנדל״ן בארץ ליום ההצהרה (סיכום המשרד)'),
+  // ‼ 26.10.2026 · סכום לכל סעיף בחלק א׳ של 1219 (wealthDeclaration/engine.ts SECTIONS) — כדי שהסיכומים 200/210/220/800 ייגזרו לבד
+  total('wealth.realEstateAbroad.total', 'wRealEstate', 'עלות הנדל״ן בחו״ל ליום ההצהרה (סיכום המשרד)'),
 
   // ── בנקים ──
   { key: 'wealth.bank.accounts', area: 'wBank', label: 'החשבונות', kind: 'detail', per: 'couple', who: 'client', purposes: W,
@@ -68,6 +71,7 @@ export const WEALTH_ITEMS: InfoItem[] = [
   { key: 'wealth.bank.foreign', area: 'wBank', label: 'חשבונות בחו״ל שבכרטיס', kind: 'confirm', per: 'couple', who: 'client', purposes: W, onlyIfOnCard: true,
     question: 'החשבונות בחו״ל', why: 'נכללים בהצהרה כמו חשבון בארץ', input: 'confirm', cardKeys: ['foreignAccounts'] },
   total('wealth.bank.total', 'wBank', 'יתרות הבנקים ליום ההצהרה (סיכום המשרד)'),
+  total('wealth.crypto.total', 'wDigital', 'עלות הנכסים הדיגיטליים ליום ההצהרה (סיכום המשרד)'),
 
   // ── נכסים דיגיטליים ──
   { key: 'wealth.crypto.has', area: 'wDigital', label: 'מטבעות דיגיטליים', kind: 'screener', per: 'person', who: 'client', purposes: W, cardKeys: ['hasCrypto'],
@@ -123,6 +127,9 @@ export const WEALTH_ITEMS: InfoItem[] = [
   { key: 'wealth.vehicles.docs', area: 'wVehicles', label: 'רישיון ומסמכי קנייה', kind: 'document', per: 'couple', who: 'client', purposes: W, after: 'wealth.vehicles.has',
     question: 'צילום רישיון הרכב והסכם הקנייה', why: 'העלות מהסכם הקנייה', input: 'file', docKind: 'vehicleDocs' },
 
+  total('wealth.loansGiven.total', 'wLoansGiven', 'יתרת ההלוואות שנתתם ליום ההצהרה (סיכום המשרד)'),
+  total('wealth.vehicles.total', 'wVehicles', 'עלות כלי הרכב ליום ההצהרה (סיכום המשרד)'),
+
   // ── תכשיטים ותכולה ──
   { key: 'wealth.valuables.has', area: 'wValuables', label: 'תכשיטים ואספנות', kind: 'screener', per: 'person', who: 'client', purposes: W,
     question: 'האם ל{name} יש תכשיטים, זהב, אוספים או אומנות?', coupleQuestion: 'האם למישהו מכם יש תכשיטים, זהב, אוספים או אומנות?',
@@ -131,6 +138,10 @@ export const WEALTH_ITEMS: InfoItem[] = [
     question: 'רשימת תכולת הבית עם עלות ותאריך קנייה משוערים, או דוח שמאי מהביטוח',
     followupQuestion: 'מה נקנה לבית מאז ההצהרה הקודמת, עם עלות ותאריך',
     why: 'התכולה נרשמת בעלות; פירוט שלה משפיע גם על טבלת המחיה בהשוואה', input: 'file', docKind: 'valuablesList' },
+
+  total('wealth.valuables.total', 'wValuables', 'עלות התכשיטים, הזהב והאספנות ליום ההצהרה (סיכום המשרד)'),
+  total('wealth.homeContents.total', 'wValuables', 'עלות תכולת הבית ליום ההצהרה (סיכום המשרד)'),
+  total('wealth.other.total', 'wPartD', 'רכוש אחר ליום ההצהרה (סיכום המשרד)'),
 
   // ── התחייבויות ──
   { key: 'wealth.mortgage.has', area: 'wLiabilities', label: 'משכנתא והלוואות מבנק', kind: 'screener', per: 'person', who: 'client', purposes: W,
@@ -141,7 +152,8 @@ export const WEALTH_ITEMS: InfoItem[] = [
     question: 'האם {name} לווה כסף ממשפחה או מחברים?', coupleQuestion: 'האם מישהו מכם לווה כסף ממשפחה או מחברים?', why: 'חוב נרשם בנפרד מהנכסים', input: 'yesno' },
   { key: 'wealth.loansReceived.details', area: 'wLiabilities', label: 'פרטי ההלוואות שהתקבלו', kind: 'detail', per: 'couple', who: 'client', purposes: W, after: 'wealth.loansReceived.has',
     question: 'ממי, מתי, כמה נשאר להחזיר, והאם יש הסכם', why: 'כמו הלוואה שנתתם — עם תיעוד', input: 'text' },
-  total('wealth.liabilities.total', 'wLiabilities', 'יתרת ההתחייבויות ליום ההצהרה (סיכום המשרד)'),
+  total('wealth.liabilities.total', 'wLiabilities', 'התחייבויות לבנקים ולמוסדות ליום ההצהרה (סיכום המשרד)'),
+  total('wealth.loansReceived.total', 'wLiabilities', 'הלוואות שלקחתם מאחרים ליום ההצהרה (סיכום המשרד)'),
 
   // ── עסקים וחברות ──
   { key: 'wealth.business.books', area: 'wBusiness', label: 'נתוני העסק ליום ההצהרה', kind: 'detail', per: 'business', who: 'office', purposes: W,

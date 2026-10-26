@@ -155,6 +155,8 @@ export function buildFile1301(o: ReturnOutputs, ctx: { client: Client; draft: Re
   };
   for (const f of o.fields) {
     const c = codeFor(f);
+    // ‼ «F###.options» — פירוט לעמוד הטופס בלבד (איזו תיבה), לא שדה בקובץ
+    if (f.code.includes('.')) continue;
     if (!c) { if (!IN_HEADER.has(f.code) && !CHILD_GROUPS.some(g => g.ids.includes(f.code)) && !/^F(19[3-9]|23[0-9]|24[0-2]|26[8-9]|27[0-9]|28[0-9]|290)$/.test(f.code)) notInFile.push(`${f.code} ${f.label.slice(0, 40)}`); continue; }
     if (f.kind === 'amount') pushCode(c, String(Math.round(Math.max(0, f.amount ?? 0))));
     else if (f.kind === 'checkbox') pushCode(c, c === '233' || c === '234' ? '2' : '1');

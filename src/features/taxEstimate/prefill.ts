@@ -139,6 +139,9 @@ export function buildDraft(input: { client: Client; taxYear: number; cutoffMonth
   };
   const text = (itemKey: string, entityRef?: string) => accepted.find(f => f.itemKey === itemKey && (entityRef == null || f.entityRef === entityRef) && typeof f.value === 'string');
 
+  const clientForecast = (v: string, at: string): IncomeLine['client'] => v === 'same'
+    ? { method: 'runRate', assumption: 'בערך אותו קצב כמו עד עכשיו — לפי הלקוח', at }
+    : { method: 'manual', assumption: v === 'more' ? 'יותר הכנסות מאשר עד עכשיו — לפי הלקוח; הסכום — של המשרד' : v === 'less' ? 'פחות הכנסות מאשר עד עכשיו — לפי הלקוח; הסכום — של המשרד' : v, at };
   const lines: IncomeLine[] = [];
   // ‼ «לא קיים בשנה» לפי התאריכים בתיק — אבל סגירה אינה בהכרח היעדר תקבולים מאוחרים (גבייה, משכורת אחרונה, פיצויים)
   const periodHint = (label: string, per: NonNullable<IncomeLine['period']>) =>
@@ -160,7 +163,8 @@ export function buildDraft(input: { client: Client; taxYear: number; cutoffMonth
       id: `biz-${b.id}`, person, source: 'business', entityRef: b.id, label: b.name || 'עסק', period: per,
       ...zeroBefore(per), ...(f ? { actualToCutoff: f.value, actualSource: src(f.fact), actualFrom: src(f.fact).provenance } : {}),
       ...(turnover != null ? { turnoverToCutoff: turnover } : {}), ...(customerWithheld != null ? { withheldToCutoff: customerWithheld } : {}),
-      client: fc ? { method: 'manual', assumption: fc.value as string, at: fc.createdAt } : undefined,
+      // ‼ 26.10.2026 · תשובת הלקוח היא נתון, לא הערה: «בערך אותו דבר» ⇒ לפי הקצב עד עכשיו; «יותר/פחות» ⇒ המשרד קובע את הסכום
+      client: fc ? clientForecast(fc.value as string, fc.createdAt) : undefined,
     });
   }
   for (const e of client.employers ?? []) {

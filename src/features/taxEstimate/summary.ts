@@ -5,6 +5,7 @@
 import { MONTH_HE, annualFor, forecastFor } from './engine';
 import type { EstimateDraft, EstimateOutputs, Person } from './types';
 import { isNum } from './types';
+import { ruleView } from '../taxRules/registry';
 
 export interface SummaryInput {
   clientName: string;
@@ -36,6 +37,14 @@ export interface SummaryModel {
   open: string[];
   openNote?: string;
   advances: { who: string; authority: string; now: string; recommended: string; note?: string }[];
+  /** 26.10.2026 · שורה אחת: כמה צפוי בסוף השנה במס הכנסה ובביטוח לאומי יחד — אם לא משנים כלום, ולפי ההמלצה. */
+  bottomLine?: { now: string; nowTone?: 'due' | 'credit'; reco?: string; recoTone?: 'due' | 'credit'; parts: string[] };
+  /** 26.10.2026 · «מה מומלץ לעשות» — לכל פעולה: מה, כמה, מתי, למה, איך, ומה ההשלכות. המלצה — לא ביצוע. */
+  actions: { title: string; amount?: string; when?: string; why: string; how?: string; implication?: string }[];
+  /** הערכה ≠ המלצה ≠ ביצוע בפועל. */
+  layers: string[];
+  /** המקורות שהחישוב נשען עליהם (שם המקור והמפרסם). */
+  sources: string[];
   nowVsLater: string[];
   assumptions: string[];
   gaps: string[];
@@ -111,6 +120,19 @@ export function buildSummary(x: SummaryInput): SummaryModel {
         'ב״ל גובה אותם לפי השומה — אין מקדמה בהערכה הזו'] });
   }
 
+  // ── 26.10.2026 · שורה תחתונה: מס הכנסה + ביטוח לאומי, אם לא משנים כלום ולפי ההמלצה ──
+  const niAdv = o.advances.filter(a => a.authority === 'ni' && isNum(a.balanceAtCurrent));
+  const niNow = niAdv.reduce((t, a) => t + (a.balanceAtCurrent as { value: number }).value, 0);
+  const niReco = niAdv.reduce((t, a) => t + (isNum(a.balanceAtRecommended) ? (a.balanceAtRecommended as { value: number }).value : (a.balanceAtCurrent as { value: number }).value), 0);
+  const hasReco = o.advances.some(a => a.recommended != null && !a.belowChangeThreshold);
+  const tone = (v: number): 'due' | 'credit' | undefined => (v > 0 ? 'due' : v < 0 ? 'credit' : undefined);
+  const bottomLine: SummaryModel['bottomLine'] = h.partial ? undefined : {
+    now: bal(h.balanceAtCurrent + niNow), nowTone: tone(h.balanceAtCurrent + niNow),
+    ...(hasReco ? { reco: bal(h.balanceAtRecommended + niReco), recoTone: tone(h.balanceAtRecommended + niReco) } : {}),
+    parts: [`מס הכנסה: ${bal(h.balanceAtCurrent)}${hasReco ? ` (לפי ההמלצה: ${bal(h.balanceAtRecommended)})` : ''}`,
+      ...(niAdv.length ? [`ביטוח לאומי: ${bal(niNow)}${hasReco ? ` (לפי ההמלצה: ${bal(niReco)})` : ''}`] : [])],
+  };
+
   const fmt = (v: number | undefined, unit: string) => (v == null ? '—' : unit === '%' ? `${v}% מהמחזור` : unit === '₪ לחודש' ? `${nis(v)} לחודש` : `${nis(v)} לתקופה`);
   const advances = o.advances.filter(a => a.recommended != null || a.current != null).map(a => ({
     who: who(a.person),
@@ -119,6 +141,46 @@ export function buildSummary(x: SummaryInput): SummaryModel {
     recommended: a.recommended == null ? 'ללא שינוי' : fmt(a.recommended, a.unit),
     note: a.belowChangeThreshold ? 'השינוי קטן — אין צורך לעדכן' : a.recommended != null && a.current != null && a.recommended < a.current && a.authority === 'ni' ? 'הקטנת מקדמת ב״ל עלולה להשפיע על גמלאות' : undefined,
   }));
+
+  // ── 26.10.2026 · מה מומלץ לעשות: מה, כמה, מתי, למה, איך, ומה ההשלכות ──
+  const AUTH = (a: { authority: 'it' | 'ni' }) => (a.authority === 'it' ? 'מס הכנסה' : 'ביטוח לאומי');
+  const nextDate = (a: { authority: 'it' | 'ni'; person: Person }) => (o.cashflow ?? []).find(c => c.authority === a.authority && c.person === a.person && c.kind === 'advance' && c.date)?.date;
+  const CHARGE: Record<string, string> = { difference: 'הפרש', linkage: 'הצמדה', interest: 'ריבית', fine: 'קנס' };
+  const STATUS: Record<string, string> = { computed: '', estimate: 'אומדן', expected: 'צפוי — לא אושר ברשות', explain: 'הסבר בלבד' };
+  const actions: SummaryModel['actions'] = [];
+  for (const a of o.advances.filter(y => y.recommended != null && !y.belowChangeThreshold && y.current !== y.recommended)) {
+    const tag = a.person === 'spouse' ? ` (${who('spouse')})` : '';
+    const atNow = a.authority === 'it' ? h.balanceAtCurrent : isNum(a.balanceAtCurrent) ? (a.balanceAtCurrent as { value: number }).value : undefined;
+    const atReco = a.authority === 'it' ? h.balanceAtRecommended : isNum(a.balanceAtRecommended) ? (a.balanceAtRecommended as { value: number }).value : undefined;
+    const d = nextDate(a);
+    actions.push({
+      title: `לעדכן את מקדמת ${AUTH(a)}${tag}`,
+      amount: `${fmt(a.recommended, a.unit)} (היום ${fmt(a.current, a.unit)})`,
+      when: d ? `מהתשלום של ${heDate(d)}` : 'מהתקופה הבאה',
+      why: atNow == null ? 'כדי שהמקדמות יכסו את החבות הצפויה' : `במקדמה של היום: ${bal(atNow)} בסוף השנה${atReco != null ? `; לפי ההמלצה: ${bal(atReco)}` : ''}`,
+      how: a.whereToChange,
+      implication: [...(a.changeCharges ?? []).filter(c => c.amount || c.status !== 'computed').map(c => `${CHARGE[c.kind]}: ${c.amount ? `כ-${nis(c.amount)}` : c.text}${STATUS[c.status] ? ` (${STATUS[c.status]})` : ''}`),
+        ...(a.authority === 'ni' && a.current != null && a.recommended! < a.current ? ['הקטנת מקדמת ב״ל עלולה להשפיע על גובה קצבאות (דמי לידה, מילואים, פגיעה בעבודה)'] : [])].join(' · ') || undefined,
+    });
+  }
+  for (const a of o.advances.filter(y => isNum(y.catchUp) && (y.catchUp as { value: number }).value > 0)) {
+    const c = (o.cashflow ?? []).find(x => x.authority === a.authority && x.person === a.person && x.kind === 'catchUp');
+    actions.push({
+      title: `להשלים לחודשים שעברו — ${AUTH(a)}${a.person === 'spouse' ? ` (${who('spouse')})` : ''}`,
+      amount: nis((a.catchUp as { value: number }).value),
+      when: c?.date ? `עד ${heDate(c.date)}` : 'בהקדם',
+      why: 'המקדמות ששולמו עד היום נמוכות ממה שהחבות דורשת',
+      how: a.authority === 'it' ? 'תשלום על חשבון בפורטל רשות המסים או דרך המייצג' : 'תשלום לפי דרישת «הגדלת מקדמות» של ב״ל',
+      implication: a.authority === 'it' ? 'מקטין הפרשי הצמדה וריבית בדוח השנתי' : 'בלי השלמה — ב״ל גובה את ההפרש בחיוב נפרד או בשומה',
+    });
+  }
+  const layers = [
+    'הערכה: המספרים כאן הם אומדן של המשרד לפי הנתונים ביום האישור — לא חיוב ולא שומה של רשות.',
+    actions.length ? 'המלצה: הפעולות ב«מה מומלץ לעשות». שום דבר לא השתנה ברשויות עד שהמשרד מבצע — ורק אחרי אישורך.' : 'המלצה: אין צורך לשנות מקדמות כרגע.',
+    'ביצוע בפועל: המשרד מעדכן מולך מה בוצע ומתי. תשלום מתבצע רק על ידך.',
+  ];
+  // ── המקורות: כל כלל שנכנס לחישוב — שם המקור והמפרסם, בלי כפילויות ──
+  const sources = [...new Set((o.usedRules ?? []).map(u => { const v = ruleView(u.ruleId, u.taxYear); return v?.source ? `${v.source.label} — ${v.source.publisher}` : ''; }).filter(Boolean))];
 
   const nowVsLater: string[] = [];
   const catchUps = o.advances.filter(a => isNum(a.catchUp));
@@ -184,7 +246,7 @@ export function buildSummary(x: SummaryInput): SummaryModel {
     // ‼ תרחיש פתוח לא מוצג כתוצאה סופית — גם בדף הלקוח (גיא, 14.10.2026)
     open: (o.openQuestions ?? []).map(q => q.text),
     openNote: o.openQuestions?.length ? 'חלק מהחישוב תלוי בשאלה מקצועית שעוד לא הוכרעה — ראו «מה עוד לא הוכרע». הסכומים לפי ההנחה שמפורטת שם.' : undefined,
-    advances, nowVsLater, assumptions, gaps, savings, micro, incomes, adjustments, checks, schedule,
+    advances, nowVsLater, assumptions, gaps, savings, micro, incomes, adjustments, checks, schedule, bottomLine, actions, layers, sources,
     disclaimer: 'זהו אומדן של המשרד לפי הנתונים שהיו בידינו ביום האישור, ואינו חיוב או שומה של רשות המסים או של ביטוח לאומי. שינוי בהכנסות משנה את התוצאה — עדכנו אותנו.',
   };
 }
@@ -209,6 +271,7 @@ h1{font-size:22px;margin:0 0 4px;text-wrap:balance}h2{font-size:16px;margin:22px
 table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}th,td{text-align:start;padding:6px 8px;border-bottom:1px solid var(--bd)}th{color:var(--mut);font-weight:600}
 .wrap{overflow-x:auto}.warn{border:1px solid var(--due);color:var(--due);border-radius:10px;padding:8px 12px;margin-top:12px}
 ul{padding-inline-start:20px;margin:0}li{margin:3px 0}footer{margin-top:28px;color:var(--mut);font-size:13px}
+.bl{border:1px solid var(--bd);border-radius:12px;padding:10px 14px;margin-top:14px}.bl h2{margin-top:0}.bl p{margin:0 0 4px}.act{border:1px solid var(--bd);border-radius:10px;padding:8px 12px;margin:6px 0;display:flex;flex-direction:column;gap:2px}.act span{color:var(--mut);font-size:13.5px}
 h3{font-size:14px;margin:12px 0 4px}details{margin-top:6px}details summary{cursor:pointer;color:var(--mut);font-size:13px}
 details.row{border-bottom:1px solid var(--bd);padding:6px 0;margin:0}details.row summary{display:flex;justify-content:space-between;gap:12px;color:var(--fg);font-size:15px}
 details.row summary b{font-variant-numeric:tabular-nums;white-space:nowrap}details.row ul,details.row p{margin:6px 0 0}
@@ -218,6 +281,9 @@ details.row summary b{font-variant-numeric:tabular-nums;white-space:nowrap}detai
 <h1>${esc(m.title)}</h1><p class="sub">${esc(m.subtitle)}${officeName ? ` · ${esc(officeName)}` : ''}</p><p class="per">${esc(m.period)}</p>
 ${m.partial ? `<p class="warn">${esc(m.partial)}</p>` : ''}
 ${m.openNote ? `<p class="warn">${esc(m.openNote)}</p>` : ''}
+${m.bottomLine ? `<section class="bl"><h2>בשורה אחת — מס הכנסה וביטוח לאומי יחד</h2><p>אם לא משנים כלום: <b class="${m.bottomLine.nowTone ?? ''}">${esc(m.bottomLine.now)}</b>${m.bottomLine.reco ? ` · לפי ההמלצה: <b class="${m.bottomLine.recoTone ?? ''}">${esc(m.bottomLine.reco)}</b>` : ''}</p><ul>${li(m.bottomLine.parts)}</ul></section>` : ''}
+${(m.actions ?? []).length ? `<section><h2>מה מומלץ לעשות</h2>${m.actions.map(a => `<div class="act"><b>${esc(a.title)}${a.amount ? ` — ${esc(a.amount)}` : ''}</b>${a.when ? `<span>מתי: ${esc(a.when)}</span>` : ''}<span>למה: ${esc(a.why)}</span>${a.how ? `<span>איך: ${esc(a.how)}</span>` : ''}${a.implication ? `<span>השלכות: ${esc(a.implication)}</span>` : ''}</div>`).join('')}</section>` : ''}
+${sec('הערכה, המלצה וביצוע', m.layers ?? [])}
 <div class="fig">${m.headline.map(h => `<div><span>${esc(h.label)}</span><b class="${h.tone ?? ''}">${esc(h.value)}</b>${h.detail?.length ? `<details><summary>ממה זה מורכב</summary><ul>${li(h.detail)}</ul></details>` : ''}</div>`).join('')}</div>
 ${m.advances.length ? `<section><h2>מקדמות — היום והמלצה</h2><div class="wrap"><table><thead><tr><th>מקדמה</th><th>היום</th><th>מומלץ מהתקופה הבאה</th><th></th></tr></thead><tbody>${m.advances.map(a => `<tr><td>${esc(a.authority)} · ${esc(a.who)}</td><td>${esc(a.now)}</td><td><b>${esc(a.recommended)}</b></td><td>${esc(a.note ?? '')}</td></tr>`).join('')}</tbody></table></div></section>` : ''}
 ${sec('מה עכשיו ומה בהמשך', m.nowVsLater)}
@@ -230,6 +296,7 @@ ${sec('חיסכון ופנסיה — אפשרויות לשקול', m.savings)}
 ${sec('על מה ההערכה נשענת', m.assumptions)}
 ${sec('מה עוד לא הוכרע', m.open)}
 ${sec('מה חסר', m.gaps)}
+${sec('מקורות', m.sources ?? [])}
 <footer>${esc(m.disclaimer)}</footer>
 </main></body></html>`;
 }

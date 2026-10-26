@@ -4,7 +4,8 @@
 import { useEffect, useState } from 'react';
 import SignaturePad from '../../components/SignaturePad';
 import { EmptySignatureError, trimSignature } from '../smartForms/signatureImage';
-import { portalGetSigning, portalSign, signErrorText, type PortalSigning, type Role } from './signing';
+import { isWealthSnap, portalGetSigning, portalSign, signErrorText, type PortalSigning, type Role } from './signing';
+import { WealthFormView, WealthSummary, wealthHeadline } from '../wealthDeclaration/WealthView';
 import { balanceText, neededAnnexes } from './workspace';
 import { slugOfForm } from './formPages';
 import { FormView, Summary } from './ReturnView';
@@ -13,7 +14,7 @@ import type { FormSlug } from '../taxKnowledge/formMap/model';
 export default function AnnualSignScreen({ stepId, token, onClose }: { stepId: string; token: string; onClose: () => void }) {
   const [v, setV] = useState<PortalSigning | null>(null);
   const [err, setErr] = useState<string | null>(null);
-  const [tab, setTab] = useState<'sum' | FormSlug>('sum');
+  const [tab, setTab] = useState<'sum' | '1219' | FormSlug>('sum');
   const [decl, setDecl] = useState(false);
   const [png, setPng] = useState('');
   const [busy, setBusy] = useState(false);
@@ -27,11 +28,15 @@ export default function AnnualSignScreen({ stepId, token, onClose }: { stepId: s
   if (err && !v) return <p role="alert" className="as-msg">{err}</p>;
   if (!v) return <p className="as-msg">טוען…</p>;
 
-  const out = v.snapshot.out;
+  const snap = v.snapshot;
+  // ‼ 300 · אותו מסך לחתימה על הצהרת הון — הסיכום ו-1219 במקום 1301
+  const wealth = isWealthSnap(snap) ? snap : null;
+  const out = isWealthSnap(snap) ? null : snap.out;
   const signedAll = v.state === 'signed';
   const next = v.signers.find(g => !g.signed);
-  const bal = balanceText(out);
-  const annexes = neededAnnexes(out);
+  const bal = wealth ? `הון נטו: ${wealthHeadline(wealth).net}` : out ? balanceText(out) : null;
+  const annexes = out ? neededAnnexes(out) : [];
+  const what = wealth ? 'ההצהרה' : 'הדוח';
   const sign = async (role: Role) => {
     setBusy(true); setErr(null);
     try {
@@ -53,20 +58,22 @@ export default function AnnualSignScreen({ stepId, token, onClose }: { stepId: s
         <div className="as-thanks" role="status">
           <span className="as-ok" aria-hidden="true">✓</span>
           <div><b>{signedAll ? 'נחתם. תודה!' : `תודה, ${thanks}`}</b>
-            <p>{signedAll ? 'המשרד יגיש את הדוח.' : next ? `עכשיו ${next.name} — כאן, או מהדף בכל מכשיר.` : ''}</p></div>
+            <p>{signedAll ? `המשרד יגיש את ${what}.` : next ? `עכשיו ${next.name} — כאן, או מהדף בכל מכשיר.` : ''}</p></div>
         </div>
       )}
-      {!thanks && signedAll && <div className="as-thanks"><span className="as-ok" aria-hidden="true">✓</span><div><b>הדוח נחתם</b><p>המשרד יגיש אותו.</p></div></div>}
+      {!thanks && signedAll && <div className="as-thanks"><span className="as-ok" aria-hidden="true">✓</span><div><b>{wealth ? 'ההצהרה נחתמה' : 'הדוח נחתם'}</b><p>המשרד יגיש {wealth ? 'אותה' : 'אותו'}.</p></div></div>}
 
       <div className="aw-card">
-        {bal && <div className="as-bal"><small>הערכה</small><b>{bal}</b></div>}
-        <div className="aw-tabs" role="tablist" aria-label="הדוח">
-          <button type="button" role="tab" aria-selected={tab === 'sum'} onClick={() => setTab('sum')}>עמוד ריכוז</button>
-          <button type="button" role="tab" aria-selected={tab === '1301'} onClick={() => setTab('1301')} data-as-tab="1301">1301</button>
+        {bal && <div className="as-bal"><small>{wealth ? `ליום ${wealth.asOf.split('-').reverse().join('.')}` : 'הערכה'}</small><b>{bal}</b></div>}
+        <div className="aw-tabs" role="tablist" aria-label={what}>
+          <button type="button" role="tab" aria-selected={tab === 'sum'} onClick={() => setTab('sum')}>{wealth ? 'סיכום' : 'עמוד ריכוז'}</button>
+          {wealth ? <button type="button" role="tab" aria-selected={tab === '1219'} onClick={() => setTab('1219')} data-as-tab="1219">1219</button>
+            : <button type="button" role="tab" aria-selected={tab === '1301'} onClick={() => setTab('1301')} data-as-tab="1301">1301</button>}
           {annexes.map(a => { const s = slugOfForm(a.formId); return s ? <button key={a.formId} type="button" role="tab" aria-selected={tab === s} onClick={() => setTab(s)}>{a.formId}</button> : null; })}
         </div>
-        {tab === 'sum' ? <Summary out={out} lit={new Set()} firstName={v.snapshot.names.client} spouseName={v.snapshot.names.spouse ?? ''} married={!!v.snapshot.names.spouse} />
-          : <FormView slug={tab} out={out} lit={new Set()} />}
+        {wealth ? (tab === 'sum' ? <WealthSummary d={wealth} /> : <WealthFormView d={wealth} />)
+          : out && (tab === 'sum' ? <Summary out={out} lit={new Set()} firstName={snap.names.client} spouseName={snap.names.spouse ?? ''} married={!!snap.names.spouse} />
+          : <FormView slug={tab} out={out} lit={new Set()} />)}
       </div>
 
       {!signedAll && next && (
@@ -74,7 +81,7 @@ export default function AnnualSignScreen({ stepId, token, onClose }: { stepId: s
           <span className={`as-who${next.role === 'spouse' ? ' is-p2' : ''}`}><i aria-hidden="true">{next.name[0]}</i>החתימה של {next.name}</span>
           <label className="as-decl">
             <input type="checkbox" checked={decl} onChange={e => setDecl(e.target.checked)} data-as-decl />
-            <span>{next.gender === 'f' ? 'אני מצהירה' : 'אני מצהיר'} שהפרטים בדוח נכונים ומלאים.</span>
+            <span>{next.gender === 'f' ? 'אני מצהירה' : 'אני מצהיר'} שהפרטים ב{wealth ? 'הצהרה' : 'דוח'} נכונים ומלאים.</span>
           </label>
           <div className="as-pad"><SignaturePad value={png} onChange={setPng} height={150} /></div>
           {err && <p role="alert" className="as-err">{err}</p>}

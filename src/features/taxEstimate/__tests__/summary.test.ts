@@ -18,6 +18,20 @@ const draft: EstimateDraft = {
 };
 
 export const TESTS: TestCase[] = [
+  test('26.10 · שורה אחת (מ״ה + ב״ל), «מה מומלץ לעשות» עם כמה/מתי/למה/איך/השלכות, הערכה≠המלצה≠ביצוע, ומקורות', () => {
+    const outputs = computeEstimate(draft, { client, taxYear: 2026 });
+    const m = buildSummary({ clientName: 'דוד כהן', taxYear: 2026, version: 3, draft, outputs });
+    assert(!!m.bottomLine && m.bottomLine.parts.some(x => x.startsWith('מס הכנסה:')) && m.bottomLine.parts.some(x => x.startsWith('ביטוח לאומי:')), JSON.stringify(m.bottomLine));
+    const upd = m.actions.find(x => x.title.includes('מקדמת מס הכנסה'));
+    assert(!!upd && !!upd.amount && /היום 5%/.test(upd.amount) && !!upd.when && /בסוף השנה/.test(upd.why), JSON.stringify(upd));
+    const cu = m.actions.find(x => x.title.startsWith('להשלים'));
+    assert(!!cu && cu.amount!.includes('9,000') && !!cu.how, JSON.stringify(cu));
+    equal(m.layers.length, 3);
+    assert(m.layers[0].startsWith('הערכה') && m.layers[1].startsWith('המלצה') && m.layers[2].startsWith('ביצוע בפועל'), JSON.stringify(m.layers));
+    assert(m.sources.length > 0 && m.sources.every(x => !/core.|it.|ni./.test(x)), JSON.stringify(m.sources));
+    const html = summaryHtml(m);
+    assert(html.includes('בשורה אחת') && html.includes('מה מומלץ לעשות') && html.includes('מקורות'), 'חסר בקובץ');
+  }),
   test('הסיכום: תוצאה, מקדמות היום מול מומלץ, השלמה עכשיו, יתרה בדוח השנתי, הנחות וחלופת קרן השתלמות', () => {
     const outputs = computeEstimate(draft, { client, taxYear: 2026 });
     const m = buildSummary({ clientName: 'דוד כהן', taxYear: 2026, version: 3, approvedAt: '2026-10-11T10:00:00Z', draft, outputs });

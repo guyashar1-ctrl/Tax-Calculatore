@@ -7,7 +7,7 @@
 //   · «הדפסת הסט» — עמוד ריכוז ← 1301 ← נספחים ← אסמכתאות (printSet.ts).
 // ‼ כל מה שהיה כאן קודם (פס השלבים, «פירוט», גרסאות, הכרעות שנת פטירה, הקובץ לשידור) — ב«כלים מתקדמים», לא נמחק.
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { Client } from '../../types';
 import type { OnboardingStep } from '../../types/onboarding';
 import type { ProposedFact } from '../../types/taxFacts';
@@ -16,7 +16,6 @@ import * as tyApi from '../taxYear/api';
 import type { ItemStatus } from '../taxYear/picture';
 import type { SubjectRole } from '../taxYear/types';
 import { ITEM_BY_KEY } from '../taxYear/catalog';
-import { cardUpdateFor } from '../taxYear/recordToCard';
 import { OykInputs, oykCurrent, oykFields } from '../taxYear/AnnualSummary';
 import type { EstimateVersion } from '../taxEstimate/types';
 import { computeReturn } from './engine';
@@ -24,7 +23,7 @@ import { initialDraft } from './AnnualReturnPanel';
 import * as api from './api';
 import { DOC_TEMPLATES, entitiesFor, linesToSave, missingRequired, templateFor, type LineValues } from './docTemplates';
 import type { ReturnDraft, ReturnOutputs } from './types';
-import { autoAcceptPlan, balanceText, filledPct, isReady, materialsOf, neededAnnexes, type Material, type Who } from './workspace';
+import { balanceText, filledPct, isReady, materialsOf, neededAnnexes, type Material, type Who } from './workspace';
 import { slugOfForm } from './formPages';
 import { loadDocumentFile, isPdf, type LoadedFile } from './docFile';
 import { openPrintSet, setContents } from './printSet';
@@ -33,6 +32,7 @@ import { buildSignedSetPdf, sha256Hex } from './signedSet';
 import { supabase } from '../../lib/supabase';
 import type { FormSlug } from '../taxKnowledge/formMap/model';
 import './workspace.css';
+import { useAutoAccept } from '../taxYear/useAutoAccept';
 import { FormView, Ring, Summary } from './ReturnView';
 
 type Run = (fn: () => Promise<unknown>, done?: string) => Promise<boolean>;
@@ -52,7 +52,8 @@ interface Props {
   onAdvanced: (open: boolean) => void;
   /** מה שהמשרד משלים (picture.officeTodo) — ומה שפותח את העורכים הקיימים שלו («כלים מתקדמים» ← «להשלים במשרד»). */
   officeTodo: ItemStatus[];
-  onOfficeTodo: () => void;
+  /** העורך של המשרד לפריטים האלה — נפתח בתוך «אצלך» (לא במסך הקודם). */
+  renderOffice: (statuses: ItemStatus[]) => ReactNode;
 }
 
 /** פריטים שהמספרים שלהם נכנסים מהקלדת מסמך (106, 867, קופות, רו״ה…) — כבר שורות ב«חומרים». */
@@ -66,7 +67,7 @@ const ICON: Record<Material['state'], string> = {
   done: '<path d="M6 12.5l4 4 8-9"/>',
 };
 
-export default function AnnualWorkspace({ client, step, year, data, busy, run, statuses, applyCard, advancedOpen, onAdvanced, officeTodo, onOfficeTodo }: Props) {
+export default function AnnualWorkspace({ client, step, year, data, busy, run, statuses, applyCard, advancedOpen, onAdvanced, officeTodo, renderOffice }: Props) {
   const firstName = client.firstName || 'הלקוח';
   const married = client.familyStatus === 'married' || !!client.spouse;
   const spouseName = client.spouseFirstName || client.spouse?.firstName || 'בן/בת הזוג';
@@ -110,24 +111,7 @@ export default function AnnualWorkspace({ client, step, year, data, busy, run, s
   const sent = asks.length > 0;
 
   // ── ‼ התשובות נכנסות לבד: אחרי שהלקוח סיים, פעם אחת לכל מצב — עדכון התיק (מה שאפשר עד הסוף) ואישור התשובות ──
-  const plan = useMemo(() => autoAcceptPlan(client, data.facts, step.id), [client, data.facts, step.id]);
-  const autoKey = useRef('');
-  useEffect(() => {
-    if (filling || busy || (!plan.card.length && !plan.accept.length)) return;
-    const key = [...plan.card.map(c => c.fact.id), ...plan.accept.map(f => f.id)].sort().join(',');
-    if (autoKey.current === key) return;
-    autoKey.current = key;
-    void run(async () => {
-      // ‼ כל עדכון נבנה על הכרטיס שאחרי הקודם (290) — אחרת השני נראה «הכרטיס השתנה בינתיים»
-      let cur = client;
-      for (const { fact } of plan.card) {
-        const p = cardUpdateFor(cur, fact.itemKey, fact.value, { factId: fact.id, itemKey: fact.itemKey, year: fact.taxYear }, fact.subjectRole);
-        if (p?.proposals.length) { const a = await applyCard(p.proposals, `tax_year_fact:${fact.id}`); if (a.client) cur = a.client; }
-      }
-      const ids = [...plan.card.map(c => c.fact.id), ...plan.accept.map(f => f.id)];
-      return ids.length ? tyApi.decideFacts(ids, 'accept') : { ok: true };
-    });
-  }, [plan, filling, busy, run, client, applyCard]);
+  const plan = useAutoAccept({ client, facts: data.facts, stepId: step.id, filling, busy, run, applyCard });
 
   const mats = useMemo(() => materialsOf({ client, year, stepId: step.id, asks: data.asks, evidence: data.evidence, facts: data.facts, statuses }), [client, year, step.id, data, statuses]);
   // «רק אתה יודע» — מקדמות, ניכוי במקור, ב״ל כעצמאי, הפסדים מועברים (אותם שדות כמו בסיכום הקודם)
@@ -145,7 +129,7 @@ export default function AnnualWorkspace({ client, step, year, data, busy, run, s
   const ready = sent && !filling && isReady(mats) && openExtras === 0;
 
   const [entry, setEntry] = useState<Material | null>(null);
-  const [extra, setExtra] = useState<'oyk' | null>(null);
+  const [extra, setExtra] = useState<'oyk' | 'office' | null>(null);
   const [tab, setTab] = useState<'sum' | FormSlug>('sum');
   const [showSet, setShowSet] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
@@ -295,9 +279,10 @@ export default function AnnualWorkspace({ client, step, year, data, busy, run, s
                 <div className="aw-mat is-mine" data-aw-office-rest={officeRest.map(s => `${s.item.key}:${s.subjectRole}:${s.entityKind ?? ""}:${s.entityRef ?? ""}`).join(",")}>
                   <span className="aw-ic" aria-hidden="true" dangerouslySetInnerHTML={{ __html: `<svg viewBox="0 0 24 24">${ICON.mine}</svg>` }} />
                   <span className="aw-t"><b>להשלים במשרד{officeRest.length > 1 ? ` · ${officeRest.length}` : ''}</b><small>{officeRest.slice(0, 2).map(s => s.item.label).join(' · ')}{officeRest.length > 2 ? ` ועוד ${officeRest.length - 2}` : ''}</small></span>
-                  <button type="button" className="aw-act" onClick={onOfficeTodo}>להשלים</button>
+                  <button type="button" className="aw-act" onClick={() => setExtra(extra === 'office' ? null : 'office')} aria-expanded={extra === 'office'}>להשלים</button>
                 </div>
               )}
+              {officeRest.length > 0 && extra === 'office' && <div className="aw-inline ty-office-inline" data-aw-office-panel>{renderOffice(officeRest)}</div>}
               {plan.needsDecision.map(({ fact, plan: p }) => (
                 <div key={fact.id} className="aw-mat is-mine" data-aw-decide>
                   <span className="aw-ic" aria-hidden="true" dangerouslySetInnerHTML={{ __html: `<svg viewBox="0 0 24 24">${ICON.mine}</svg>` }} />

@@ -141,3 +141,7 @@
 .ar-entry-line { display: grid; gap: 2px; min-width: 0; }
 .ar-problems { margin: 0; padding-inline-start: 1.2em; color: var(--chip-red-tx, #991b1b); font-size: var(--fs-13); }
 @media (max-width: 560px) { .ar-line > .ar-num { min-width: 0; } .ar-table th:nth-child(3), .ar-table td:nth-child(3) { display: none; } }
+
+/* 26.10.2026 · המצב והשליחה בלחיצה — שורה אחת שנשברת בטלפון, הכפתור לא על הטקסט */
+.te-top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+.te-top > span { flex: 1 1 220px; min-width: 0; }

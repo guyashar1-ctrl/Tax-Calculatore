@@ -188,7 +188,11 @@ export function buildCoverage(c: Ctx): FormCoverage {
           put(e, { need: c.bizPersons.length ? 'required' : 'notRelevant', state: c.bizPersons.length ? 'filled' : 'notRelevant', value: has, source: 'מסלול העסק לשנה (עסק זעיר)', produce: true });
           continue;
         }
-        case 'F012': { const rel = !!(client.isNewImmigrant || client.isReturningResident || sp?.isNewImmigrant || sp?.isReturningResident); put(e, { need: rel ? 'required' : 'notRelevant', state: rel ? 'filled' : 'notRelevant', value: rel, source: 'עולה / תושב חוזר — מהכרטיס', produce: true }); continue; }
+        case 'F012': { const rel = !!(client.isNewImmigrant || client.isReturningResident || sp?.isNewImmigrant || sp?.isReturningResident); put(e, { need: rel ? 'required' : 'notRelevant', state: rel ? 'filled' : 'notRelevant', value: rel, source: 'עולה / תושב חוזר — מהכרטיס', produce: true });
+          // ‼ בטופס שלוש תיבות (עולה חדש / תושב חוזר ותיק / תושב חוזר) — איזו מהן, לעמוד הטופס (F012.options); הקובץ קורא רק את F012
+          if (rel) { const opts = [client.isNewImmigrant || sp?.isNewImmigrant ? 'new' : '', (client.isReturningResident || sp?.isReturningResident) ? (client.isReturningResidentVeteran ? 'veteran' : 'returning') : ''].filter(Boolean);
+            produced.push({ code: 'F012.options', part: e.part, label: e.label, person: 'client', kind: 'text', text: opts.join(','), source: { kind: 'card', text: 'עולה / תושב חוזר — מהכרטיס' } }); }
+          continue; }
         case 'F013': case 'F014': {
           const p = e.id === 'F013' ? client : sp; const rel = !!(p?.isNewImmigrant || p?.isReturningResident);
           if (!rel) { notRel(e, 'לא עולה / תושב חוזר'); continue; }

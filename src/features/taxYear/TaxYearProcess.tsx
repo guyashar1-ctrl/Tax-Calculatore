@@ -21,6 +21,8 @@ import * as api from './api';
 import type { Evidence, FactBasis, Purpose } from './types';
 import AnnualSummary from './AnnualSummary';
 import AnnualWorkspace from '../annualReturn/AnnualWorkspace';
+import WealthWorkspace from '../wealthDeclaration/WealthWorkspace';
+import { useAutoAccept } from './useAutoAccept';
 import TaxInfoFlow from './TaxInfoFlow';
 import WealthDeclarationPanel, { previousByArea, wealthSubtitle, type WealthPayload } from './WealthDeclarationPanel';
 import QuestionnaireMap from './QuestionnaireMap';
@@ -242,6 +244,11 @@ export default function TaxYearProcess({ client, step, infoStep, onClose, onChan
     `נפתחה ${formatDate(step.createdAt)}`,
   ].join(' · ');
 
+  // ‼ 26.10.2026 · הערכת מס: התשובות נכנסות לבד (אותו כלל כמו בדוח השנתי ובהצהרת ההון — useAutoAccept)
+  const estAsks = purpose === 'estimate' ? (data?.asks ?? []).filter(a => a.parentStepId === step.id && a.state !== 'cancelled') : [];
+  const estFilling = estAsks.some(a => a.state === 'published' && a.prompt.input.kind !== 'file');
+  useAutoAccept({ client, facts: data?.facts ?? [], stepId: step.id, filling: estFilling, busy, run, applyCard, enabled: purpose === 'estimate' && !!data && isOpenStep(step) });
+
   if (!data || !picture || !review) {
     if (embedded) return <div className="ty-inline" data-ty-inline>{err ? <div className="ty-err" role="alert">לא ניתן לטעון: {err}</div> : <div className="ty-note">טוען…</div>}</div>;
     return (
@@ -260,13 +267,15 @@ export default function TaxYearProcess({ client, step, infoStep, onClose, onChan
   // ‼ 19.10.2026 · דוח שנתי: שאלות שנוספו בעקבות התשובות (למשל פרטי דמי לידה) או טיוטות — «הכן ופרסם» בלחיצה אחת מהסיכום,
   //   בלי לפתוח את «פירוט מלא». אותו מנוע (buildAskPlan) ואותן קריאות כמו «להכין» + «לפרסם» למטה; בלי מייל.
   const annualCtx = { client, taxYear: year, purpose, cutoffMonth: p.cutoffMonth, asOfDate: p.asOfDate, declKind: p.kind, previousByArea: prevArea };
-  const annualMorePlan = purpose === 'annual' ? buildAskPlan(askable, annualCtx) : [];
-  const annualMore = purpose === 'annual' && isOpenStep(step) && !legacyAnnual ? {
+  // ‼ 26.10.2026 · הצהרת הון — אותו «שליחה בלחיצה אחת» (גיא: «אותם עקרונות כמו הדוח השנתי»)
+  const sendsInOne = purpose === 'annual' || purpose === 'wealth' || purpose === 'estimate';
+  const annualMorePlan = sendsInOne ? buildAskPlan(askable, annualCtx) : [];
+  const annualMore = sendsInOne && isOpenStep(step) && !legacyAnnual ? {
     count: annualMorePlan.length + drafts.length,
     run: () => run(async () => {
       // ‼ 263 · שאלון ראשון בבקשה הזו כשיש ללקוח שאלון אחר פתוח ⇒ כלום לא נוסף (הוספה לשאלון שכבר בדף — מותרת)
       if (!waitingAsks.length) {
-        const blocker = await questionnaireBlocker(client.id, { stepType: 'annual_return', stepId: step.id, taxYear: year });
+        const blocker = await questionnaireBlocker(client.id, { stepType: purpose === 'wealth' ? 'wealth_declaration' : purpose === 'estimate' ? 'tax_estimate' : 'annual_return', stepId: step.id, taxYear: year });
         if (blocker) return { ok: false, error: QUESTIONNAIRE_OPEN, openQuestionnaire: blocker };
       }
       let infoId = infoStep?.id;
@@ -336,8 +345,11 @@ export default function TaxYearProcess({ client, step, infoStep, onClose, onChan
               ב«פירוט מלא» (הדמיה מאושרת docs/proposals/2026-10-19-simple-annual-questionnaire.html). */}
           {purpose === 'annual' && data && <AnnualWorkspace client={client} step={step} year={year} data={data} busy={busy} run={run} statuses={picture.statuses} applyCard={applyCard}
             advancedOpen={annualAdv} onAdvanced={setAnnualAdv} officeTodo={picture.officeTodo}
-            onOfficeTodo={() => { setAnnualAdv(true); setPick('office'); setFullOpen(true); requestAnimationFrame(() => fullRef.current?.scrollIntoView({ block: 'start' })); }} />}
-          <div hidden={purpose === 'annual' && !annualAdv} data-annual-advanced={purpose === 'annual' ? '' : undefined}>
+            renderOffice={list => <OfficePanel client={client} statuses={list} evidence={data.evidence} facts={data.facts} busy={busy} purpose={purpose} year={year} cutoff={p.cutoffMonth} asOf={p.asOfDate} stepId={step.id} run={run} applyCard={applyCard} />} />}
+          {purpose === 'wealth' && data && <WealthWorkspace client={client} step={step} year={year} data={data} busy={busy} run={run} statuses={picture.statuses} applyCard={applyCard}
+            officeTodo={picture.officeTodo} sendMore={annualMore} prevFacts={prevFacts} advancedOpen={annualAdv} onAdvanced={setAnnualAdv}
+            renderOffice={list => <OfficePanel client={client} statuses={list} evidence={data.evidence} facts={data.facts} busy={busy} purpose={purpose} year={year} cutoff={p.cutoffMonth} asOf={p.asOfDate} stepId={step.id} run={run} applyCard={applyCard} />} />}
+          <div hidden={(purpose === 'annual' || purpose === 'wealth') && !annualAdv} data-annual-advanced={purpose === 'annual' || purpose === 'wealth' ? '' : undefined}>
           {purpose === 'annual' && data && <AnnualSummary client={client} step={step} year={year} data={data} busy={busy} run={run} more={annualMore} onClientPersisted={onClientPersisted}
             legacy={legacyAnnual && isOpenStep(step) ? { reopen: () => run(() => reopenAnnualInNewVersion(client, step.id, year), `הבקשה הקודמת נסגרה ונשמרה בהיסטוריה, ונפתחה «דוח שנתי ${year}» חדשה — בשורה שלה ב«בקשות». בלי מייל.`) } : undefined}
             officeTodo={picture.officeTodo.length ? { count: picture.officeTodo.length, open: () => { setPick('office'); setFullOpen(true); requestAnimationFrame(() => fullRef.current?.scrollIntoView({ block: 'start' })); } } : undefined}
@@ -350,6 +362,13 @@ export default function TaxYearProcess({ client, step, infoStep, onClose, onChan
             <div className="ty-note" role="note">{prevFacts.length
               ? `ההצהרה הקודמת במערכת (ליום ${formatDate(prevAsOf)}): ${prevFacts.length} נתונים מאושרים. השאלות ללקוח שואלות מה השתנה מאז, ומציגות מה הוצהר — הנתונים הישנים לא מועתקים ליום החדש.`
               : `ההצהרה הקודמת (ליום ${formatDate(prevAsOf)}) לא הוכנה במערכת — הבסיס הוא מה שנרשם ב«ההצהרה הקודמת» למעלה.`}</div>
+          )}
+          {purpose === 'estimate' && isOpenStep(step) && (
+            <div className="ty-note te-top" data-te-top role="status">
+              <span data-te-status>{!estAsks.length ? 'השאלון ללקוח עוד לא נשלח' : estFilling ? `${firstName} באמצע השאלון` : 'התשובות של הלקוח נכנסו — הן מעדכנות את הכרטיס ואת ההערכה'}</span>
+              {annualMore && annualMore.count > 0 && !estFilling && <button type="button" className="btn btn-sm btn-primary" disabled={busy} data-te-send-q onClick={() => void annualMore.run()}>
+                {estAsks.length ? (annualMore.count === 1 ? 'שליחת שאלה נוספת' : `שליחת ${annualMore.count} שאלות נוספות`) : `שליחת השאלון ל${firstName}`}</button>}
+            </div>
           )}
           {purpose === 'estimate' && EstimatePanel && <EstimatePanel client={client} step={step} year={year} cutoffMonth={p.cutoffMonth ?? 12} facts={data.facts} evidence={data.evidence} />}
           {purpose === 'intake' && openIntake && (

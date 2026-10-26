@@ -112,6 +112,13 @@ export const TESTS: TestCase[] = [
     equal(v.F067, 'X');
     assert(!('F072' in v), 'שדה ריק נכתב');
   }),
+  test('עמוד 1: עסק זעיר — בריבוע של האדם; עולה/תושב חוזר — בתיבה של האפשרות; פריסת דמי לידה — «כן»', () => {
+    const out = { fields: [{ code: 'F010', kind: 'checkbox', checked: true, person: 'spouse' }], formCoverage: { produced: [
+      { code: 'F012', kind: 'checkbox', checked: true, person: 'client' }, { code: 'F012.options', kind: 'text', text: 'new,veteran', person: 'client' },
+      { code: 'F026', kind: 'checkbox', checked: true, person: 'client' }] } } as unknown as ReturnOutputs;
+    const keys = valuesOnPage('1301', 1, out).map(v => v.key).sort().join(',');
+    equal(keys, 'p1-F010-spouse,p1-F012-new,p1-F012-veteran,p1-F026');
+  }),
   test('ההערכה: החזר / לתשלום / «חסרים נתונים» כשחסר מקור; האחוז מבדיקת הכיסוי', () => {
     const mk = (balance: number, incomplete = false) => ({ household: { balance, incomplete }, formCoverage: { counts: { relevant: 50, filled: 20 } } }) as unknown as ReturnOutputs;
     equal(balanceText(mk(-3420.4)), `החזר ${(3420).toLocaleString('he-IL')} ₪`);

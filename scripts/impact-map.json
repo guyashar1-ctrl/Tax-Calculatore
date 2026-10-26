@@ -2,6 +2,39 @@
   "_doc": "מפת השפעה לבדיקה שלפני push (scripts/pre-push-check.mjs). קובץ שהשתנה ⇒ הבדיקות של התחום שלו. run=true ⇒ רצה ועוצרת אם נכשלה; run=false ⇒ תזכורת בלבד (עד שהבדיקה תאומת כירוקה ותעבור ל-true). הגרסה המכנית של CLAUDE.md §12.5. תחום חדש בלי שורה כאן ⇒ אזהרה.",
   "areas": [
     {
+      "name": "הצהרת הון והערכת מס: מסך המשרד, סכומים לכל סעיף ב-1219, חתימה בדף האישי, סיכום ההערכה (300)",
+      "invariants": [],
+      "globs": [
+        "src/features/wealthDeclaration/**",
+        "src/features/taxEstimate/**",
+        "src/features/taxYear/wealthCatalog.ts",
+        "src/features/taxYear/useAutoAccept.ts",
+        "supabase/303-*.sql",
+        "scripts/staging-test-wealth-303.mjs"
+      ],
+      "suites": [
+        {
+          "script": "staging-test-wealth-303.mjs",
+          "run": true,
+          "note": "300 · פריטי הסכום, חתימה על הצהרת הון, הדוח השנתי לא נפגע"
+        },
+        {
+          "script": "staging-test-annual-signing-298.mjs",
+          "run": true
+        },
+        {
+          "script": "e2e/wealth-office.mjs",
+          "run": false,
+          "note": "בדפדפן מול staging — דורש שרת: STAGING_ENV_DIR=… node scripts/e2e/wealth-office.mjs --base=http://localhost:<port> --widths=1280,390"
+        },
+        {
+          "script": "e2e/estimate-office.mjs",
+          "run": false,
+          "note": "בדפדפן מול staging — דורש שרת: STAGING_ENV_DIR=… node scripts/e2e/estimate-office.mjs --base=http://localhost:<port> --widths=1280,390"
+        }
+      ]
+    },
+    {
       "name": "ייצוג: בן/בת הזוג הרשום/ה, חתימות, הגשות בשע״ם",
       "invariants": [
         "INV-REP-01",

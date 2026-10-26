@@ -155,3 +155,17 @@
 .as-btn { flex: 1; border: 0; border-radius: 10px; padding: 12px 16px; font: inherit; font-weight: 700; font-size: 15px; background: var(--br); color: #fff; cursor: pointer; min-block-size: 46px; }
 .as-btn:disabled { opacity: .4; cursor: default; }
 .as-later { border: 0; background: none; color: var(--tx2); font: inherit; font-weight: 600; padding: 10px 6px; cursor: pointer; }
+
+/* ── 300 · הצהרת הון ── */
+.wd-sum .aw-sum-h { padding: 8px 14px 2px; font-size: var(--fs-12); font-weight: 700; color: var(--tx3); }
+.wd-sum .aw-line.is-total { font-weight: 700; border-top: 1px solid var(--bd); margin-top: 2px; padding-top: 6px; }
+.wd-miss { font-style: normal; color: var(--danger); font-weight: 600; }
+.wd-sheet { display: flex; flex-direction: column; gap: 6px; }
+.wd-sec { display: flex; align-items: center; gap: 8px; background: var(--card); border: 1px solid var(--bd); border-radius: 12px; padding: 7px 10px; }
+.wd-sec .l { flex: 1; min-width: 0; font-size: var(--fs-14); font-weight: 600; }
+.wd-sec .l small { display: block; font-weight: 500; color: var(--tx2); font-size: var(--fs-12); }
+.wd-sec .c { font-size: var(--fs-12); color: var(--tx3); min-inline-size: 26px; text-align: end; }
+.wd-sec input { inline-size: 120px; border: 1.5px solid var(--bd-strong); border-radius: 9px; padding: 6px 8px; font: inherit; text-align: end; font-variant-numeric: tabular-nums; min-block-size: 38px; background: var(--card); color: var(--tx); }
+.wd-sec.is-done { background: var(--chip-green-bg); border-color: transparent; }
+.wd-sec .v { font-weight: 700; font-variant-numeric: tabular-nums; direction: ltr; }
+@media (max-width: 520px) { .wd-sec { flex-wrap: wrap; } .wd-sec input { inline-size: 100%; } }
