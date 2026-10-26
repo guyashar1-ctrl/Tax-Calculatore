@@ -20,22 +20,25 @@ import {
   SHAAM_CHECK_REPRESENTATION_ACTION_TYPE, BTL_SYNC_FILE_ACTION_TYPE, BTL_CREATE_REPRESENTATION_ACTION_TYPE,
   BTL_CHECK_REPRESENTATION_ACTION_TYPE, SHAAM_SYNC_VAT_ACTION_TYPE, SHAAM_SYNC_VAT_ACTION_NAME,
   SHAAM_ISSUE_CERTIFICATES_ACTION_TYPE, SHAAM_ISSUE_CERTIFICATES_ACTION_NAME,
+  PAPERLESS_SETUP_CLIENT_ACTION_TYPE, PAPERLESS_CHECK_CARD_ACTION_TYPE,
 } from '../../types/automation';
 import { FLOW_ACTION_NAMES } from '../flows/types';
 
-export type AutomationSystemId = 'shaam' | 'vat' | 'btl';
+export type AutomationSystemId = 'shaam' | 'vat' | 'btl' | 'paperless';
 
 export interface AutomationSystem {
   id: AutomationSystemId;
   title: string;
   /** איזה חיבור בכותרת הפעולות האלה צריכות. */
-  connection: 'shaam' | 'btl';
+  connection: 'shaam' | 'btl' | 'paperless';
 }
 
 export const AUTOMATION_SYSTEMS: AutomationSystem[] = [
   { id: 'shaam', title: 'שע״ם · מס הכנסה וייפוי כוח', connection: 'shaam' },
   { id: 'vat', title: 'שע״ם · מע״מ וניכויים', connection: 'shaam' },
   { id: 'btl', title: 'ביטוח לאומי', connection: 'btl' },
+  // 304 · לא רשות — הכלי של המשרד. החלון במחשב המשרד, כמו ב״ל.
+  { id: 'paperless', title: 'פייפרלס', connection: 'paperless' },
 ];
 
 export interface AutomationAction {
@@ -206,6 +209,34 @@ export const AUTOMATION_ACTIONS: AutomationAction[] = [
     results: 'בכרטיס ביטוח לאומי ובמרכז הייצוג: הסטטוס שנקרא ומתי.',
     clientTab: 'journey', clientTarget: 'rep-center',
   },
+  // ‼ 304 (הכרעת גיא 26.10.2026): ההקמה בפייפרלס רצה לבד — חריגה מודעת מ«משנה ⇒ בלחיצה»,
+  // כי פייפרלס אינה רשות. ההגנות: ניסיון אחד, לא דורס, הסכום רק מההסכם החתום.
+  {
+    id: 'paperless-setup', system: 'paperless', actionType: PAPERLESS_SETUP_CLIENT_ACTION_TYPE,
+    name: 'הקמה בפייפרלס',
+    short: 'מקים את הלקוח בפייפרלס ומגדיר את הריטיינר לפי ההסכם.',
+    effect: 'change', mode: 'לבד', modeAuto: true,
+    trigger: 'כשהלקוח נרשם לפייפרלס, או «הקם בפייפרלס» בבקשה',
+    what: 'בכרטיס העוסק: מספר עוסק ושם העסק (רק אם ריקים). בעסק של המשרד: «משיכת עוסקים», סליקת אשראי והסכום החודשי שבהסכם החתום. סכום או אמצעי תשלום אחרים שכבר מוגדרים — לא משנה, ומראה לך את הפער.',
+    manual: '«הקם בפייפרלס» בבקשה «הקמת העסק בפייפרלס», בלשונית «בקשות».',
+    automatic: 'כשההרשמה לפייפרלס הושלמה (הלקוח אישר בדף או שסימנת «נרשם») ויש הסכם חתום עם סכום חודשי.',
+    needs: [NEEDS_WORKER, 'חלון הפייפרלס במחשב המשרד מחובר (מייל וקוד לנייד)', 'ת״ז בכרטיס והסכם חתום'],
+    results: 'בבקשה «הקמת העסק בפייפרלס»: כל סעיף שבוצע מסומן «PIVO» עם השעה, וביומן «פעילות».',
+    clientTab: 'journey',
+  },
+  {
+    id: 'paperless-card', system: 'paperless', actionType: PAPERLESS_CHECK_CARD_ACTION_TYPE,
+    name: 'בדיקת כרטיס אשראי בפייפרלס',
+    short: 'כל בוקר: האם הלקוח הזין כרטיס, והאם החודש חויב.',
+    effect: 'read', mode: 'לבד', modeAuto: true,
+    trigger: 'כל בוקר, ללקוחות שהריטיינר שלהם הוגדר ועוד לא חויבו — ומיד כשהלקוח מסמן «הזנתי את הכרטיס»',
+    what: 'קורא את טבלת הריטיינר בעסק של המשרד. כרטיס שהוזן ⇒ «הכרטיס הוזן» וההקמה נסגרת; החודש חויב ⇒ התשלום החודשי הושלם. לא משנה דבר בפייפרלס.',
+    manual: '«בדוק עכשיו» בבקשה «הקמת העסק בפייפרלס».',
+    automatic: 'כל בוקר ב-07:45, ומיד כשהלקוח מסמן בדף האישי «הזנתי את הכרטיס».',
+    needs: [NEEDS_WORKER, 'חלון הפייפרלס במחשב המשרד מחובר'],
+    results: 'בבקשה ובכרטיס התשלום החודשי, ומייל אליך כשהכרטיס הוזן.',
+    clientTab: 'journey',
+  },
 ];
 
 export const AUTOMATION_ACTION_TYPES: string[] = AUTOMATION_ACTIONS
@@ -248,7 +279,9 @@ export const runOutcomeUnknown = (job: Pick<AutomationJob, 'errorCode'>) => UNKN
 export function runIsAuto(job: Pick<AutomationJob, 'input'>): boolean {
   const input = (job.input ?? {}) as Record<string, unknown>;
   return input.reason === 'post_submission_reconciliation' || input.reason === 'flow_stage_opened'
-    || input.resumeReason === 'required_documents_arrived';
+    || input.resumeReason === 'required_documents_arrived'
+    // 304 · פייפרלס: ההקמה כשהלקוח נרשם, והבדיקה של כל בוקר.
+    || input.reason === 'signed_up' || input.reason === 'daily' || input.reason === 'client_declared';
 }
 
 export function runTime(job: Pick<AutomationJob, 'finishedAt' | 'updatedAt' | 'createdAt'>): string {
@@ -300,6 +333,16 @@ function succeeded(job: AutomationJob): Omit<RunSummary, 'auto'> {
         ? { label: 'הונפק בשע״ם ונשמר במסמכים', tone: 'ok' }
         : { label: 'כבר היו אישורים בתוקף — נשמרו במסמכים', tone: 'muted' };
     }
+    case PAPERLESS_SETUP_CLIENT_ACTION_TYPE:
+      return r.conflict
+        ? { label: 'בפייפרלס כבר מוגדר משהו אחר — לא שונה', tone: 'warn', note: 'הפער מוצג בבקשה, לבדיקתך.' }
+        : { label: 'הוקם בפייפרלס לפי ההסכם', tone: 'ok' };
+    case PAPERLESS_CHECK_CARD_ACTION_TYPE: {
+      const o = (r.observed ?? {}) as Record<string, unknown>;
+      if (!o.inRetainer) return { label: 'נקרא: הלקוח לא בטבלת הריטיינר', tone: 'warn' };
+      if (Array.isArray(o.chargedPeriods) && o.chargedPeriods.length && o.cardEntered) return { label: 'נקרא: הכרטיס הוזן והחודש חויב', tone: 'ok' };
+      return o.cardEntered ? { label: 'נקרא: הכרטיס הוזן', tone: 'ok' } : { label: 'נקרא: עוד אין כרטיס', tone: 'muted' };
+    }
     case SHAAM_SYNC_INCOME_TAX_ACTION_TYPE:
     case SHAAM_SYNC_VAT_ACTION_TYPE:
     case BTL_SYNC_FILE_ACTION_TYPE:
@@ -314,10 +357,10 @@ function succeeded(job: AutomationJob): Omit<RunSummary, 'auto'> {
  * null — לא ממתינה להתחברות. ‼ מה שצריך כאן הוא להתחבר, לא לפתוח את הלקוח:
  * אחרי ההתחברות הריצה ממשיכה לבד.
  */
-export function runAwaitsLogin(job: Pick<AutomationJob, 'status' | 'errorCode'>): 'shaam' | 'btl' | null {
+export function runAwaitsLogin(job: Pick<AutomationJob, 'status' | 'errorCode'>): 'shaam' | 'btl' | 'paperless' | null {
   const code = job.errorCode ?? '';
   if (job.status !== 'needs_human' || !code.startsWith('awaiting_') || !code.endsWith('_auth')) return null;
-  return code.startsWith('awaiting_btl') ? 'btl' : 'shaam';
+  return code.startsWith('awaiting_btl') ? 'btl' : code.startsWith('awaiting_paperless') ? 'paperless' : 'shaam';
 }
 
 const STALE_WORKER_NOTE: Record<string, string> = {

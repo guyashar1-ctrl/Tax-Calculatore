@@ -74,6 +74,7 @@ import {
   initialBtlWatch, afterBtlCheck, btlPeekDue, afterBtlPeek, loopSleepMs,
 } from './btlLoginWatch.mjs';
 import { reportStatus } from './apiClient.mjs';
+import { attachPaperless, detachPaperless, pickPaperlessPage, classifyPaperlessUrl, isPaperlessDebugUp } from './paperlessSession.mjs';
 import { hostIdleSeconds } from './hostActivity.mjs';
 import {
   tryGmfAutoLogin, resetGmfAutoLogin, presentGmfLoginToHuman,
@@ -96,6 +97,7 @@ let vatReported = null;
 let nikuiReported = null;
 let representationReported = null;
 let btlReported = null;
+let paperlessReported = null;
 /** ההמתנה להתחברות לב״ל — ראה btlLoginWatch.mjs. */
 let btlWatch = initialBtlWatch();
 /**
@@ -222,6 +224,23 @@ async function checkBtl(now, log) {
     return { connected: btl, windowOpen: true };
   } finally {
     await detachBtl(conn.browser);
+  }
+}
+
+/**
+ * הנורית של פייפרלס (304) — חלון שלישי, פורט 9224. ‼ מחובר = לשונית האפליקציה
+ * על ‎/admin‎. כניסה שפגה בשרת מתגלה במשימה עצמה (401 ⇒ האפליקציה עוברת למסך
+ * הכניסה ⇒ ממתין לרו"ח), ובסבב שאחריה הנורית יורדת. חלון סגור אינו תקלה.
+ */
+async function checkPaperless() {
+  if (!(await isPaperlessDebugUp())) return { connected: false, windowOpen: false };
+  const conn = await attachPaperless();
+  if (!conn.ok) return { connected: false, windowOpen: conn.reason === 'blocked' };
+  try {
+    const page = await pickPaperlessPage(conn.context);
+    return { connected: classifyPaperlessUrl(page.url()).connected, windowOpen: true };
+  } finally {
+    await detachPaperless(conn.browser);
   }
 }
 
@@ -448,6 +467,10 @@ export async function tickConnectionMonitor(userId, workerId, log, { scope = 'al
   const btlCheck = await checkBtl(now, log).catch(() => ({ connected: false, windowOpen: false }));
   const btl = btlCheck.connected;
   btlWatch = afterBtlCheck(btlWatch, now, { ...btlCheck, wasConnected: !!btlReported });
+  // ‼ מערכת שלישית, עצמאית: כשל כאן לא נוגע בשתי האחרות.
+  const paperless = (await checkPaperless().catch(() => ({ connected: false }))).connected;
+  if (paperless !== paperlessReported) log(`פייפרלס: ${paperless ? 'מחובר' : 'מנותק'}`);
+  paperlessReported = paperless;
 
   if (shaam !== shaamReported || gmf !== gmfReported || vat !== vatReported
     || nikui !== nikuiReported || representation !== representationReported || btl !== btlReported) {
@@ -481,6 +504,7 @@ export async function tickConnectionMonitor(userId, workerId, log, { scope = 'al
     nikui: { ready: nikui, checkedAt: stamp(nikuiCheckedAtMs) },
     representation: { ready: representation, checkedAt: stamp(representationCheckedAtMs) },
     btl: { connected: btl, checkedAt: at },
+    paperless: { connected: paperless, checkedAt: at },
   }).catch(() => null);
   if (statusResult?.resumed?.length) {
     log(`חידשתי jobs שממתינים ל-capability שהתפנתה: ${statusResult.resumed.join(', ')}`);

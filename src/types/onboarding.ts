@@ -451,6 +451,8 @@ export interface StepChecklistItem {
   optional?: boolean;
   /** כל המסמכים שהצטברו לפריט (פריט רשות מקבל כמה). */
   documentIds?: string[];
+  /** 304 · הסעיף סומן על ידי PIVO (מה שנראה בפייפרלס), לא בלחיצה של המשרד. */
+  by?: 'pivo';
   /** מתי הועלה הקובץ האחרון — לפריט שנשאר פתוח אין doneAt. */
   lastUploadAt?: string;
   /** הפריט נוסף אחרי שהמכתב כבר נשלח (בקשת המשך). */

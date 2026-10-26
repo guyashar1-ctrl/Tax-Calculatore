@@ -405,6 +405,17 @@
         "src/components/authorities/CertificateAction.tsx"
       ],
       "suites": [{ "script": "staging-test-413-certificates.mjs", "run": true }]
+    },
+    {
+      "name": "פייפרלס לבד (304): הקמה, ריטיינר לפי ההסכם, בדיקת כרטיס — שרת, עובד ומסך",
+      "globs": [
+        "supabase/304-paperless-automation.sql",
+        "scripts/sql/test-304-paperless-automation.sql",
+        "src/features/paperless/**",
+        "worker/src/paperless*.mjs",
+        "worker/src/handlers/paperless*.mjs"
+      ],
+      "suites": [{ "script": "staging-test-paperless-304.mjs", "run": true }]
     }
   ],
   "watched": [

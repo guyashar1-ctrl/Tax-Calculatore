@@ -1,0 +1,288 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>פייפרלס לבד</title>
+<style>
+  :root{
+    --page:#f8f7f5; --card:#fff; --bd:#e2e4e7; --bd2:#d3d6da; --tx:#25282d; --txc:#4b5058; --tx2:#63686f; --tx3:#8e949b;
+    --br:#3f5f8f; --soft:#e8eef5; --soft-bd:#c6d4e6; --s1:#fafaf9; --s2:#f3f2f0; --ok:#24654e; --ok-bg:#eaf4ef; --ok-bd:#bfdccd;
+    --warn:#8a5b0f; --warn-bg:#fbf3e4; --warn-bd:#ecd9b0; --late:#9a3b1f; --late-bg:#fbeee9; --late-bd:#efc9bc;
+  }
+  *{box-sizing:border-box} html,body{margin:0}
+  body{font-family:"Segoe UI","Heebo",Arial,system-ui,sans-serif;background:var(--page);color:var(--tx);font-size:15px;line-height:1.5}
+  button{font:inherit;color:inherit;cursor:pointer}
+  .wrap{max-width:980px;margin:0 auto;padding:18px 16px 60px}
+  .flag{display:inline-block;background:var(--warn-bg);color:var(--warn);border:1px solid var(--warn-bd);border-radius:999px;padding:2px 10px;font-size:12.5px;font-weight:600}
+  h1{font-size:22px;margin:8px 0 4px} h2{font-size:17px;margin:0 0 8px} h3{font-size:15px;margin:0 0 6px}
+  .lead{color:var(--txc);margin:0 0 14px;max-width:760px}
+  .tabs{display:flex;gap:2px;border-bottom:1px solid var(--bd);margin-bottom:16px;overflow-x:auto}
+  .tab{border:0;background:none;padding:10px 12px;border-bottom:2px solid transparent;color:var(--tx2);font-weight:600;white-space:nowrap}
+  .tab[aria-selected=true]{color:var(--br);border-bottom-color:var(--br)}
+  .pane{display:none}.pane.on{display:block}
+  .seg{display:inline-flex;flex-wrap:wrap;border:1px solid var(--bd2);border-radius:10px;overflow:hidden;margin:0 8px 12px 0}
+  .seg button{border:0;background:#fff;padding:7px 12px;font-weight:600;font-size:13.5px;color:var(--tx2)}
+  .seg button[aria-pressed=true]{background:var(--br);color:#fff}
+  .note{font-size:13px;color:var(--tx2);margin:0 0 10px;max-width:760px}
+  .box{background:#fff;border:1px solid var(--bd);border-radius:12px;padding:14px 16px;margin:0 0 14px;max-width:760px}
+  .box ul,.box ol{margin:6px 0 2px;padding-inline-start:20px;color:var(--txc)} .box li{margin:3px 0}
+  .box.q{border-color:var(--warn-bd);background:var(--warn-bg)}
+  .tag{display:inline-block;font-size:12px;font-weight:600;border-radius:999px;padding:1px 9px;background:var(--s2);color:var(--tx2)}
+  .tag.prod{background:var(--warn-bg);color:var(--warn)} .tag.ok{background:var(--ok-bg);color:var(--ok)} .tag.no{background:var(--late-bg);color:var(--late)} .tag.pv{background:var(--soft);color:var(--br)}
+
+  /* compare: today vs PIVO */
+  .cmp{display:grid;grid-template-columns:1fr 1fr;gap:12px;max-width:860px}
+  .col h3{display:flex;gap:8px;align-items:center}
+  .stp{background:#fff;border:1px solid var(--bd);border-radius:10px;padding:8px 12px;margin-bottom:6px;font-size:14px;display:flex;gap:10px}
+  .stp .n{color:var(--tx3);font-weight:700;min-width:34px;font-size:12.5px;padding-top:1px}
+  .stp.auto{background:var(--soft);border-color:var(--soft-bd)}
+  .stp.you{background:var(--warn-bg);border-color:var(--warn-bd)}
+  .stp.money{background:var(--ok-bg);border-color:var(--ok-bd)}
+
+  /* mock: request group in the client card */
+  .stage{max-width:760px;transition:max-width .2s}
+  .stage.phone{max-width:390px;border:1px solid var(--bd2);border-radius:24px;padding:14px 10px;background:var(--page)}
+  .demo{display:inline-block;font-size:11.5px;font-weight:700;color:var(--warn);background:var(--warn-bg);border:1px solid var(--warn-bd);border-radius:999px;padding:1px 8px;margin-bottom:8px}
+  .grp{background:#fff;border:1px solid var(--bd);border-radius:14px;overflow:hidden}
+  .grp-h{padding:12px 16px;border-bottom:1px solid var(--bd);display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center}
+  .grp-h b{font-size:16px}
+  .grp-h .sum{font-size:13px;color:var(--tx2)}
+  .rq{padding:12px 16px;border-bottom:1px solid var(--bd)}
+  .rq:last-child{border-bottom:0}
+  .rq-t{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:center}
+  .rq-t .t{font-weight:700}
+  .pv-line{margin-top:8px;border-radius:10px;padding:9px 12px;font-size:13.5px;display:flex;gap:8px;align-items:flex-start}
+  .pv-line .tag{flex:none;margin-top:1px}
+  .pv-line.run{background:var(--soft);color:var(--br)}
+  .pv-line.ok{background:var(--ok-bg);color:var(--ok)}
+  .pv-line.wait{background:var(--s2);color:var(--txc)}
+  .pv-line.you{background:var(--warn-bg);color:var(--warn);border:1px solid var(--warn-bd)}
+  .pv-line.bad{background:var(--late-bg);color:var(--late);border:1px solid var(--late-bd)}
+  .spin{width:12px;height:12px;border:2px solid var(--soft-bd);border-top-color:var(--br);border-radius:50%;display:inline-block;animation:sp 1s linear infinite;flex:none;margin-top:4px}
+  @keyframes sp{to{transform:rotate(360deg)}}
+  @media (prefers-reduced-motion:reduce){.spin{animation:none}}
+  .ck{list-style:none;margin:8px 0 0;padding:0;font-size:13.5px}
+  .ck li{display:flex;gap:8px;padding:3px 0;color:var(--txc)}
+  .ck .b{width:18px;text-align:center;font-weight:700;flex:none}
+  .ck li.done .b{color:var(--ok)} .ck li.todo .b{color:var(--tx3)} .ck li.now .b{color:var(--br)}
+  .ck .who{font-size:12px;color:var(--tx3);margin-inline-start:auto;white-space:nowrap}
+  .btn{border:0;border-radius:9px;background:var(--br);color:#fff;font-weight:700;padding:7px 13px;white-space:nowrap;font-size:13.5px}
+  .btn.ghost{background:#fff;color:var(--br);border:1px solid var(--soft-bd)}
+  .money{font-weight:700}
+  .acts{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+
+  table{border-collapse:collapse;width:100%;background:#fff;border:1px solid var(--bd);border-radius:12px;overflow:hidden;font-size:14px}
+  th,td{text-align:right;padding:9px 12px;border-bottom:1px solid var(--bd);vertical-align:top} th{background:var(--s1);color:var(--tx2);font-size:12.5px}
+  .scroll{overflow-x:auto;max-width:860px}
+  @media (max-width:640px){ .cmp{grid-template-columns:1fr} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <span class="flag">הצעה, עוד לא נבנתה · נתוני דמה</span>
+  <h1>פייפרלס לבד</h1>
+  <p class="lead">לקוח נרשם לפייפרלס, ו־PIVO מקים אותו שם ומגדיר את הריטיינר לפי ההצעה שאושרה. כשהלקוח מזין כרטיס, PIVO רואה את זה לבד. בלי סיבוב ידני ובלי לזכור.</p>
+
+  <div class="tabs" role="tablist">
+    <button class="tab" role="tab" aria-selected="true" data-p="p1">מה הבנתי מהסרטון</button>
+    <button class="tab" role="tab" aria-selected="false" data-p="p2">איך זה ייראה אצלך</button>
+    <button class="tab" role="tab" aria-selected="false" data-p="p3">שלב 2: נתונים חשבונאיים</button>
+    <button class="tab" role="tab" aria-selected="false" data-p="p4">מה ייכלל</button>
+  </div>
+
+  <!-- 1 · what I understood -->
+  <section class="pane on" id="p1">
+    <p class="note">מהסרטון «פייפרלס עסק חדש» (3 דקות, בלי קול). משמאל: מה ש־PIVO יעשה במקומך.</p>
+    <div class="cmp">
+      <div class="col">
+        <h3>היום, ידני <span class="tag">כ־3 דקות ללקוח</span></h3>
+        <div class="stp"><span class="n">0:30</span><span>בתיק הלקוח בפייפרלס ← «נתונים כלליים» ← מספר עוסק (ת״ז)</span></div>
+        <div class="stp"><span class="n">0:50</span><span>חזרה ל־PIVO, לסמן ✓ ת״ז ו־✓ שם העסק</span></div>
+        <div class="stp"><span class="n">1:25</span><span>«החלפת משתמש» לעסק שלך</span></div>
+        <div class="stp"><span class="n">1:45</span><span>עסקאות ← ריטיינר ← «משיכת עוסקים»</span></div>
+        <div class="stp"><span class="n">2:10</span><span>הלקוח החדש ← אמצעי תשלום «סליקת אשראי»</span></div>
+        <div class="stp"><span class="n">2:30</span><span>לבדוק ב־PIVO כמה סוכם, ולהזין 250 / 295</span></div>
+        <div class="stp"><span class="n">2:45</span><span>חזרה ל־PIVO, לסמן ✓ משיכת עוסקים</span></div>
+        <div class="stp"><span class="n">אח״כ</span><span>להיכנס שוב ושוב ולבדוק אם בעמודת «כ״א» יש ✓</span></div>
+      </div>
+      <div class="col">
+        <h3>עם PIVO <span class="tag pv">לבד</span></h3>
+        <div class="stp you"><span class="n">לקוח</span><span>לוחץ «נרשמתי» בדף האישי (או שאתה מסמן שנרשם)</span></div>
+        <div class="stp auto"><span class="n">PIVO</span><span>מוצא אותו ברשימת העוסקים ומזין ת״ז ושם עסק</span></div>
+        <div class="stp auto"><span class="n">PIVO</span><span>בעסק שלך: ריטיינר ← משיכת עוסקים ← סליקת אשראי ← הסכום מההצעה</span></div>
+        <div class="stp auto"><span class="n">PIVO</span><span>קורא בחזרה ומוודא שנשמר. ✓ בכל סעיף, עם «PIVO» והשעה</span></div>
+        <div class="stp auto"><span class="n">PIVO</span><span>בודק כל בוקר את עמודת «כ״א» עד שהכרטיס מוזן</span></div>
+        <div class="stp money"><span class="n">✓</span><span>«הכרטיס הוזן», והלקוח בגבייה החודשית</span></div>
+      </div>
+    </div>
+    <div class="box" style="margin-top:14px">
+      <h3>שני דברים שראיתי בסרטון</h3>
+      <ul>
+        <li><b>שם העסק נשאר ריק בפייפרלס</b>, אבל ב־PIVO הוא סומן כבוצע. PIVO יסמן ✓ רק אחרי שראה את השם נשמר.</li>
+        <li>בטבלת הריטיינר, <b>עמודת «כ״א»</b> מסומנת ✓ אצל לקוח שהזין כרטיס וריקה אצל הלקוחה החדשה. על העמודה הזו PIVO יסתמך כדי לדעת שהכרטיס הוזן.</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- 2 · mock -->
+  <section class="pane" id="p2">
+    <div class="seg" role="group" aria-label="תצוגה">
+      <button aria-pressed="true" data-v="desk">מחשב</button>
+      <button aria-pressed="false" data-v="phone">טלפון</button>
+    </div>
+    <div class="seg" role="group" aria-label="מצב" id="stateSeg">
+      <button aria-pressed="true" data-s="run">1 · PIVO מקים</button>
+      <button aria-pressed="false" data-s="wait">2 · ממתין לכרטיס</button>
+      <button aria-pressed="false" data-s="done">3 · הכרטיס הוזן</button>
+      <button aria-pressed="false" data-s="login">צריך אותך: התחברות</button>
+      <button aria-pressed="false" data-s="diff">סכום שונה בפייפרלס</button>
+      <button aria-pressed="false" data-s="unknown">לא ידוע אם נשמר</button>
+    </div>
+    <p class="note" id="stateNote"></p>
+    <div class="stage" id="stage">
+      <span class="demo">דוגמה — לא לקוח אמיתי</span>
+      <div class="grp">
+        <div class="grp-h"><b>פייפרלס · ישראל ישראלי</b><span class="sum" id="grpSum"></span></div>
+        <div class="rq">
+          <div class="rq-t"><span class="t">הרשמה לפייפרלס</span><span class="tag ok">הושלם · הלקוח אישר בדף · 26.10</span></div>
+        </div>
+        <div class="rq">
+          <div class="rq-t"><span class="t">הקמת העסק בפייפרלס</span><span class="tag" id="setupTag"></span></div>
+          <div id="pvLine"></div>
+          <ul class="ck" id="ck"></ul>
+          <div class="acts" id="acts"></div>
+        </div>
+        <div class="rq">
+          <div class="rq-t"><span class="t">תשלום חודשי בכרטיס אשראי</span><span class="tag" id="cardTag"></span></div>
+          <div id="cardLine"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3 · stage 2 -->
+  <section class="pane" id="p3">
+    <div class="box q">
+      <b>לא נכלל בביצוע הזה.</b> הכיוון בלבד, כדי שהשלב הראשון ייבנה כך שיתאים לו.
+    </div>
+    <p class="note">אחרי יישור קו ברשויות והערכת מס ראשונית, הנתונים כבר נמצאים בתיק המס ב־PIVO. «בדיקת ההגדרות בפייפרלס» מפסיקה להיות סימון ידני: PIVO קורא מה מוגדר בפייפרלס ומציג אותו ליד מה שידוע ב־PIVO.</p>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>בפייפרלס («נתונים חשבונאיים»)</th><th>ב־PIVO היום</th><th>מתי ידוע</th></tr></thead>
+        <tbody>
+          <tr><td>סוג העסק</td><td>סוג העוסק בתיק המס</td><td>מההצעה</td></tr>
+          <tr><td>סוג מכר (שירות / סחורה)</td><td><span class="tag no">לא נשמר היום</span></td><td>שאלה בשאלון, אם נחליט</td></tr>
+          <tr><td>אחוז ותדירות מקדמות</td><td>מקדמות מ״ה בתיק המס</td><td>אחרי יישור קו (134)</td></tr>
+          <tr><td>אחוז משרד ביתי</td><td>האחוז שאישרת בפרטי העסק</td><td>אחרי «פרטי העסק»</td></tr>
+          <tr><td>אחוז ניכוי במקור</td><td>אישור הניכוי של הלקוח</td><td>אחרי יישור קו</td></tr>
+          <tr><td>ביטוח לאומי + תשלום אוטומטי</td><td>מקדמת ב״ל חודשית</td><td>אחרי יישור קו בב״ל</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="note" style="margin-top:10px">ההחלטה מה קורה כשיש פער (PIVO מעדכן לבד או מציע לך) — כשנגיע לשלב 2.</p>
+  </section>
+
+  <!-- 4 · scope -->
+  <section class="pane" id="p4">
+    <div class="box">
+      <h3>מה ייבנה</h3>
+      <ol>
+        <li><b>פייפרלס כמערכת שלישית</b> ב«אוטומציות», ליד ביטוח לאומי ושע״ם, עם חלון Chrome משלו במחשב המשרד.</li>
+        <li><b>«הקמה בפייפרלס»</b> רצה לבד ברגע שההרשמה הושלמה ויש הצעה מאושרת: ת״ז, שם עסק, משיכת עוסקים, סליקת אשראי והסכום מההסכם (לפני מע״מ וכולל מע״מ, כפי שנחתמו).</li>
+        <li><b>«בדיקת כרטיס»</b>: קריאה בלבד, כל בוקר עד שהכרטיס מוזן. כשמופיע ✓ ב«כ״א», PIVO מסמן «הכרטיס הוזן» ומודיע לך.</li>
+        <li>ללקוחות שההקמה שלהם כבר פתוחה היום, כפתור <b>«הקם בפייפרלס»</b> שמריץ את אותה הקמה. אין הרצה אוטומטית רטרואקטיבית.</li>
+      </ol>
+    </div>
+    <div class="box">
+      <h3>הגנות</h3>
+      <ul>
+        <li><b>חריגה מודעת:</b> היום ב־PIVO «פעולה שמשנה משהו אצל רשות — תמיד בלחיצה». פייפרלס אינה רשות אלא הכלי שלך, ולפי ההחלטה שלך ההקמה רצה לבד. הכלל לגבי רשויות לא משתנה.</li>
+        <li><b>לא דורס:</b> אם בפייפרלס כבר מוגדרים סכום או אמצעי תשלום אחרים, PIVO לא משנה אותם ומעביר אליך לבדיקה.</li>
+        <li><b>ניסיון אחד:</b> אם החיבור נפל באמצע, המצב הוא «לא ידוע אם נשמר». PIVO לא מנסה שוב בעיוורון; קודם בודק מה נשמר.</li>
+        <li><b>התחברות:</b> PIVO לא מזין קודים. כשהחיבור לפייפרלס פג, אתה רואה «צריך אותך: להתחבר» ומתחבר פעם אחת, וההקמה ממשיכה לבד.</li>
+        <li>PIVO לא מחייב ולא מוחק דבר בפייפרלס. הוא רק מגדיר את הריטיינר; החיוב עצמו נשאר בהרצה החודשית של פייפרלס.</li>
+      </ul>
+    </div>
+    <div class="box q">
+      <h3>מה עוד לא ידוע (ייבדק בתחילת הבנייה)</h3>
+      <ul>
+        <li><b>לא הצלחתי לצפות בפייפרלס חי:</b> הכתובת paperless.tax חסומה בדפדפנים שלי. הצעד הראשון בבנייה הוא צפייה לקריאה בלבד מחלון ה־Chrome במחשב המשרד: המסכים, הכפתורים, ומה קורה כשלקוח עוד לא נמשך. אם המציאות שונה ממה שבסרטון, PIVO יותאם אליה.</li>
+        <li>כמה זמן נשמרת ההתחברות לפייפרלס, והאם הקוד יכול להגיע למייל במקום לטלפון.</li>
+        <li>מה מאחורי הקישור «פייפרלס API» בעסק שלך. אם יש ממשק רשמי, הוא עדיף על עבודה דרך המסך.</li>
+        <li>אם בטבלה רואים גם שהחודש חויב בפועל, PIVO יסמן גם «חויב». אם לא — זה נשאר סימון שלך.</li>
+      </ul>
+    </div>
+    <div class="box">
+      <h3>מה יוצא לאוויר</h3>
+      <ul>
+        <li><span class="tag prod">אתר</span> המצבים החדשים בבקשת ההקמה ובעמוד האוטומציות.</li>
+        <li><span class="tag prod">מסד בייצור</span> סוגי המשימות החדשים, וההפעלה האוטומטית כשההרשמה הושלמה. עם גיבוי לפני.</li>
+        <li><span class="tag prod">מחשב המשרד</span> עדכון העובד וחלון Chrome חדש לפייפרלס. תתבקש להתחבר בו פעם אחת.</li>
+        <li>ההקמה האמיתית הראשונה תרוץ על לקוח אמיתי רק אחרי שהצפייה החיה אישרה את המסכים; אדווח לך על הלקוח הראשון.</li>
+      </ul>
+    </div>
+  </section>
+</div>
+
+<script>
+  const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+  $$('.tab').forEach(t=>t.onclick=()=>{
+    $$('.tab').forEach(x=>x.setAttribute('aria-selected',x===t));
+    $$('.pane').forEach(p=>p.classList.toggle('on',p.id===t.dataset.p));
+  });
+  $$('[data-v]').forEach(b=>b.onclick=()=>{
+    $$('[data-v]').forEach(x=>x.setAttribute('aria-pressed',x===b));
+    $('#stage').classList.toggle('phone',b.dataset.v==='phone');
+  });
+
+  const ITEMS=['מספר זהות בפייפרלס','שם העסק','משיכת עוסקים','ריטיינר: סליקת אשראי · <span class="money">250 ₪ + מע״מ = 295 ₪</span>','הלקוח הזין כרטיס'];
+  const line=(cls,tag,txt,spin)=>`<div class="pv-line ${cls}">${spin?'<span class="spin" aria-hidden="true"></span>':''}<span class="tag pv">PIVO</span><span>${txt}</span></div>`;
+  const S={
+    run:{note:'הלקוח לחץ «נרשמתי» לפני דקה. PIVO כבר עובד בפייפרלס, ואתה לא צריך לעשות כלום.',
+      sum:'הקמה בפייפרלס · PIVO עובד', tag:['','PIVO עובד'], done:2, now:2,
+      line:line('run','','מקים בפייפרלס · משיכת עוסקים…',true), acts:'',
+      card:['','בהמשך'], cardLine:''},
+    wait:{note:'ההקמה הסתיימה. פייפרלס שולחת ללקוח בקשה להזין כרטיס, ו־PIVO בודק כל בוקר.',
+      sum:'ממתין לכרטיס של ישראל · יום 2', tag:['','ממתין ללקוח'], done:4, now:-1,
+      line:line('ok','','הוקם בפייפרלס היום 09:14 · הסכום לפי ההצעה (מס׳ 2026-030)'), acts:'',
+      card:['','ממתין ללקוח'], cardLine:line('wait','','נבדק היום 07:00 · עוד אין כרטיס בפייפרלס')},
+    done:{note:'ביום שהכרטיס מופיע בפייפרלס, PIVO מסמן לבד ומודיע לך. מכאן הלקוח בגבייה החודשית.',
+      sum:'הושלם · בגבייה החודשית', tag:['ok','הושלם'], done:5, now:-1,
+      line:line('ok','','הוקם בפייפרלס 26.10 09:14'), acts:'',
+      card:['ok','הכרטיס הוזן · 28.10'], cardLine:line('ok','','PIVO ראה ✓ בעמודת «כ״א» · 28.10 07:00')},
+    login:{note:'ההתחברות לפייפרלס פגה. זה המצב היחיד שבו צריך אותך, ולחיצה אחת מספיקה; ההקמה ממשיכה מעצמה אחרי שתתחבר.',
+      sum:'צריך אותך: להתחבר לפייפרלס', tag:['','ממתין לך'], done:0, now:-1,
+      line:line('you','','צריך להתחבר לפייפרלס במחשב המשרד. אחרי ההתחברות ההקמה תמשיך לבד.'), acts:'<button class="btn">פתח את פייפרלס במחשב המשרד</button>',
+      card:['','בהמשך'], cardLine:''},
+    diff:{note:'PIVO לא דורס מה שמישהו כבר הגדיר. הוא משאיר כמו שהוא ומראה לך את הפער.',
+      sum:'לבדיקתך: סכום שונה בפייפרלס', tag:['','ממתין לך'], done:3, now:-1,
+      line:line('you','','בפייפרלס כבר מוגדר 200 ₪ + מע״מ, ובהסכם 250 ₪ + מע״מ. PIVO לא שינה.'), acts:'<button class="btn">עדכן בפייפרלס ל־250</button><button class="btn ghost">200 נכון, להשאיר</button>',
+      card:['','בהמשך'], cardLine:''},
+    unknown:{note:'החיבור נפל בדיוק בזמן השמירה. PIVO לא מנסה שוב בעיוורון; הוא קורא קודם מה נשמר בפייפרלס.',
+      sum:'לא ידוע אם נשמר', tag:['','בבדיקה'], done:3, now:3,
+      line:line('you','','לא ידוע אם הריטיינר נשמר. PIVO בודק בפייפרלס לפני שממשיך.'), acts:'<button class="btn ghost">בדוק עכשיו</button>',
+      card:['','בהמשך'], cardLine:''}
+  };
+  function show(k){
+    const s=S[k];
+    $$('[data-s]').forEach(x=>x.setAttribute('aria-pressed',x.dataset.s===k));
+    $('#stateNote').textContent=s.note;
+    $('#grpSum').textContent=s.sum;
+    const t=$('#setupTag'); t.className='tag '+s.tag[0]; t.textContent=s.tag[1];
+    $('#pvLine').innerHTML=s.line;
+    $('#ck').innerHTML=ITEMS.map((x,i)=>{
+      const st=i<s.done?'done':i===s.now?'now':'todo';
+      const b=st==='done'?'✓':st==='now'?'…':'○';
+      const who=st==='done'?(i===4?'PIVO ראה · 28.10':'PIVO · 09:14'):'';
+      return `<li class="${st}"><span class="b">${b}</span><span>${x}</span><span class="who">${who}</span></li>`;
+    }).join('');
+    $('#acts').innerHTML=s.acts;
+    const c=$('#cardTag'); c.className='tag '+s.card[0]; c.textContent=s.card[1];
+    $('#cardLine').innerHTML=s.cardLine;
+  }
+  $$('[data-s]').forEach(b=>b.onclick=()=>show(b.dataset.s));
+  show('run');
+</script>
+</body>
+</html>

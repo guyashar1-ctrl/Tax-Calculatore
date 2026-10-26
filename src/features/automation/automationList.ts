@@ -27,7 +27,7 @@ export const AUTO_GROUPS: { id: AutoGroupId; title: string }[] = [
   { id: 'client', title: 'מיילים שיוצאים לבד' },
   { id: 'office', title: 'הודעות אליך' },
   { id: 'card', title: 'נפתח לבד בכרטיס הלקוח' },
-  { id: 'authority', title: 'פעולות מול הרשויות' },
+  { id: 'authority', title: 'פעולות מול הרשויות ופייפרלס' },
 ];
 
 export type ResultTone = 'ok' | 'warn' | 'bad' | 'muted' | 'live';
@@ -257,7 +257,8 @@ export function automationRows(inp: RowsInput): AutoRow[] {
       id: a.id, group: 'authority', name: a.name,
       trigger: actionTrigger(a, a.actionType ? u.actions[a.actionType] : undefined),
       effect: a.short,
-      state: a.effect === 'read' ? { label: 'קורא בלבד', tone: 'manual' } : { label: 'משנה אצל הרשות', tone: 'manual' },
+      state: a.effect === 'read' ? { label: 'קורא בלבד', tone: 'manual' }
+        : { label: a.system === 'paperless' ? 'משנה בפייפרלס' : 'משנה אצל הרשות', tone: 'manual' },
       source: { type: 'jobs', actionType: a.actionType! },
       uses: a.flow && a.actionType ? (u.actions[a.actionType] ?? []) : undefined,
       action: a,
@@ -451,7 +452,7 @@ export interface RowEvent {
    * במסלול שלא רצה כי אין חיבור / מחשב העבודה כבוי. ‼ לקישור «להתחברות» — לא
    * לפתוח את הלקוח ולחפש שם.
    */
-  connect?: 'shaam' | 'btl' | 'worker';
+  connect?: 'shaam' | 'btl' | 'paperless' | 'worker';
 }
 
 export type NoticeStatus = 'queued' | 'claimed' | 'sending' | 'sent' | 'failed' | 'unknown' | 'cancelled' | 'skipped';
@@ -629,7 +630,7 @@ export function waitEvent(w: FlowWait, reasonText: Record<string, string>): RowE
   const why = w.reason ? reasonText[w.reason] : undefined;
   const attention = w.auto && !WAIT_BY_CHOICE.has(w.reason ?? '');
   const connect: RowEvent['connect'] = w.reason === 'worker_offline' ? 'worker'
-    : w.reason === 'not_connected' ? (w.actionType.startsWith('btl.') ? 'btl' : 'shaam') : undefined;
+    : w.reason === 'not_connected' ? (w.actionType.startsWith('btl.') ? 'btl' : w.actionType.startsWith('paperless.') ? 'paperless' : 'shaam') : undefined;
   return {
     id: `w:${w.runId}:${w.itemKey}`,
     tone: attention ? 'warn' : 'muted',

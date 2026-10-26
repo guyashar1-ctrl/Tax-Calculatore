@@ -25,6 +25,7 @@ const WORKER_HANDLERS = new Set([
   'shaam.sync_income_tax_file', 'shaam.sync_vat_file', 'shaam.create_representation', 'shaam.submit_poa', 'shaam.check_representation',
   'shaam.issue_annual_certificates',
   'btl.sync_file', 'btl.create_representation', 'btl.check_representation',
+  'paperless.setup_client', 'paperless.check_card',
 ]);
 
 export const TESTS: TestCase[] = [
@@ -44,11 +45,27 @@ export const TESTS: TestCase[] = [
     equal(vat.clientTarget, 'taxfile:vat');
   }),
 
-  test('«לבד» רק איפה שיש מנגנון בשרת: בדיקה אחרי שליחה, והמשך שליחה כשמסמך הגיע', () => {
+  test('«לבד» רק איפה שיש מנגנון בשרת: בדיקה אחרי שליחה, המשך שליחה כשמסמך הגיע, ופייפרלס (304)', () => {
     const auto = AUTOMATION_ACTIONS.filter(a => a.automatic).map(a => a.actionType);
-    equal(auto.length, 2);
+    equal(auto.length, 4);
     includes(auto, 'shaam.check_representation');
     includes(auto, 'shaam.submit_poa');
+    includes(auto, 'paperless.setup_client');
+    includes(auto, 'paperless.check_card');
+  }),
+
+  test('304 · פייפרלס: ההקמה משנה (בפייפרלס, לא ברשות), הבדיקה קוראת; הסיבות של השרת = «לבד»', () => {
+    const setup = AUTOMATION_ACTIONS.find(a => a.actionType === 'paperless.setup_client')!;
+    equal(setup.system, 'paperless');
+    equal(setup.effect, 'change');
+    equal(AUTOMATION_ACTIONS.find(a => a.actionType === 'paperless.check_card')!.effect, 'read');
+    equal(runIsAuto({ input: { reason: 'signed_up' } }), true);
+    equal(runIsAuto({ input: { reason: 'daily' } }), true);
+    equal(runIsAuto({ input: { reason: 'office_click' } }), false);
+    equal(runAwaitsLogin({ status: 'needs_human', errorCode: 'awaiting_paperless_auth' }), 'paperless');
+    equal(summarizeRun(job({ actionType: 'paperless.setup_client', result: { conflict: { agreedBeforeVat: 250 } } })).tone, 'warn');
+    equal(summarizeRun(job({ actionType: 'paperless.check_card', result: { observed: { inRetainer: true, cardEntered: true } } })).label, 'נקרא: הכרטיס הוזן');
+    equal(summarizeRun(job({ actionType: 'paperless.check_card', result: { observed: { inRetainer: false } } })).tone, 'warn');
   }),
 
   test('לא ידוע אם נקלט — אף פעם לא «הסתיימה», גם בסטטוס succeeded', () => {

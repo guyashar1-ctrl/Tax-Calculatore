@@ -91,6 +91,14 @@ export const ACCOUNTANT_NOTIFICATIONS: AccountantNotificationDef[] = [
     defaultOn: true,
   },
   {
+    // 304 · PIVO ראה בטבלת הריטיינר בפייפרלס שהלקוח הזין כרטיס — מכאן הגבייה החודשית רצה.
+    kind: 'paperless_card_entered',
+    label: 'לקוח הזין כרטיס אשראי בפייפרלס',
+    hint: 'PIVO בודק כל בוקר בטבלת הריטיינר. מייל אחד, ביום שהכרטיס מופיע.',
+    group: 'הלקוח',
+    defaultOn: true,
+  },
+  {
     kind: 'client_request_completed',
     label: 'לקוח השלים בקשה',
     hint: 'כשכל הפריטים בבקשה סומנו, והבקשה נסגרה מצד הלקוח.',

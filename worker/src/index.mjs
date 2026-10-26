@@ -112,9 +112,11 @@ function noteBlocked(reason) {
 // ‼ 25.10.2026 · שני מסלולים במקביל: ב״ל רצה בחלון Chrome משלה, ולכן אין סיבה
 // שתחכה לשע״ם (יישור קו מלא לקח ~4 דקות בתור אחד). בכל מסלול — משימה אחת
 // בכל רגע, כמו קודם: בשע״ם אין שתי משימות על אותו חלון.
-const laneOf = (actionType) => (actionType.startsWith('btl.') ? 'btl' : 'shaam');
-const running = { shaam: null, btl: null };
-const busy = () => !!(running.shaam || running.btl);
+// פייפרלס (304) — חלון שלישי, מסלול שלישי.
+const laneOf = (actionType) => (actionType.startsWith('btl.') ? 'btl'
+  : actionType.startsWith('paperless.') ? 'paperless' : 'shaam');
+const running = { shaam: null, btl: null, paperless: null };
+const busy = () => !!(running.shaam || running.btl || running.paperless);
 // ‼ מסלול שהתפנה אחרי ש-tick כבר שאל (כשהמסלול עוד היה תפוס) — שואלים שוב לפני
 // ניטור החיבור. בלי זה הניטור נכנס בדיוק בין קריאה לקריאה (~20 ש׳, נמדד 25.10.2026).
 let freedSinceClaim = false;

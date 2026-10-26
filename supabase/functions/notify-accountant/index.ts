@@ -475,6 +475,21 @@ async function buildEmail(
     };
   }
 
+  if (kind === "paperless_card_entered") {
+    return {
+      subject: `💳 ${name} - הכרטיס הוזן בפייפרלס`,
+      html: buildBrandedEmail(brand, {
+        heading: "הכרטיס הוזן בפייפרלס",
+        bodyHtml: esc(`PIVO ראה בטבלת הריטיינר ש${name} הזין כרטיס אשראי - מכאן הוא נכלל בגבייה החודשית בפייפרלס.`),
+        extraHtml: card(brand, row(brand, "לקוח", name)),
+        ctaLabel: "לכרטיס הלקוח",
+        ctaHref: `${appUrl}/`,
+        ctaArrow: true,
+        footerTagline: "התראה אוטומטית מ-PIVO",
+      }),
+    };
+  }
+
   if (kind === "client_request_completed") {
     const { data: s } = await admin.from("onboarding_steps").select("*").eq("id", n.step_id).maybeSingle();
     if (!s) return null;

@@ -135,6 +135,7 @@ import type { ClientFormKey } from '../../features/smartForms/clientForms/types'
 import SendRequestsDialog from './SendRequestsDialog';
 import { useReadyToSend, readyRecipientCount } from '../../hooks/useReadyToSend';
 import { useAutomationJob } from '../../hooks/useAutomationJobs';
+import { PaperlessPivoLine } from '../../features/paperless/PaperlessPivoLine';
 import { BTL_CHECK_REPRESENTATION_ACTION_TYPE, BTL_CREATE_REPRESENTATION_ACTION_TYPE } from '../../types/automation';
 import type { AutomationJob } from '../../types/automation';
 import {
@@ -4755,9 +4756,22 @@ function ConnectionBody({ path, softwareName, step, client, retainer, busy, onRu
     if (item.key === RETAINER_CARD_KEY && !item.done) onRetainerCardSet();
   }
 
+  /** «הסכום בפייפרלס נכון, להשאיר» — אותו סימון כמו לחיצה על סעיף הריטיינר, ומנקה את הפער. */
+  function keepPaperlessAmount() {
+    const next = items.map(x => x.key === RETAINER_CARD_KEY ? { ...x, done: true } : x);
+    onRun('note', {
+      checklist: next, paperlessConflict: null,
+      note: 'הסכום שמוגדר בפייפרלס אושר כנכון - נשאר כמו שהוא',
+    });
+    onRetainerCardSet();
+  }
+
   return (
     <div style={cardNote}>
       <div style={{ marginBottom: '.45rem' }}>{intro}</div>
+
+      <PaperlessPivoLine clientId={client.id} step={step} retainer={retainer}
+        open={isStepOpen(step.status)} onKeepPaperlessAmount={keepPaperlessAmount} />
 
       <div style={{
         display: 'grid', gap: '.2rem', marginBottom: '.5rem',
@@ -4803,6 +4817,7 @@ function ConnectionBody({ path, softwareName, step, client, retainer, busy, onRu
                       onClick={onCardEntered}>{cardDeclaredAt ? 'הכרטיס נקלט ✓' : 'סמן כבוצע'}</button>
                   )}
                 </span>
+                {item.done && retainer?.payload.cardEnteredBy === 'pivo' && <PivoMark at={item.doneAt} />}
               </div>
             );
           }
@@ -4822,6 +4837,7 @@ function ConnectionBody({ path, softwareName, step, client, retainer, busy, onRu
                 {item.label}
                 {blocked && <span style={{ color: 'var(--ink-4)' }}> · אחרי שלושת הסעיפים שמעל</span>}
               </span>
+              {item.done && item.by === 'pivo' && <PivoMark at={item.doneAt} />}
             </label>
           );
         })}
@@ -4834,9 +4850,15 @@ function ConnectionBody({ path, softwareName, step, client, retainer, busy, onRu
         {!cardItem
           ? 'אחרי «סיימתי» נפתח כרטיס התשלום החודשי, ושם ממשיכים: הכרטיס שהלקוח מזין, והחיוב עצמו.'
           : cardItem.done
-            ? 'הכרטיס הוזן וההקמה בפייפרלס הושלמה. ההמשך בכרטיס התשלום החודשי - החיוב עצמו.'
+            // ‼ 304 · הכרטיס יכול להיות מסומן (PIVO ראה אותו) כשההקמה עוד פתוחה — שומר ההקמה (220).
+            ? (isStepOpen(step.status)
+              ? 'הכרטיס הוזן. ההקמה תסומן כהושלמה כשיושלם מה שעוד חסר בה, וכרטיס התשלום החודשי ייפתח.'
+              : 'הכרטיס הוזן וההקמה בפייפרלס הושלמה. ההמשך בכרטיס התשלום החודשי - החיוב עצמו.')
             : items.find(i => i.key === RETAINER_CARD_KEY)?.done
-              ? 'הריטיינר עודכן לכרטיס - מכאן פייפרלס מבקשת מהלקוח את הכרטיס, והוא רואה על כך הנחיה בדף האישי. כשתראה שהכרטיס הוזן - לסמן כאן, וכרטיס התשלום החודשי ייפתח.'
+              // 304 · ריטיינר ש-PIVO הגדיר נבדק כל בוקר — הסימון יגיע לבד.
+              ? (retainer?.payload.authorizationBy === 'pivo'
+                ? 'הריטיינר עודכן לכרטיס - פייפרלס מבקשת מהלקוח את הכרטיס, והוא רואה על כך הנחיה בדף האישי. PIVO יסמן כאן לבד כשהכרטיס יופיע בפייפרלס, וכרטיס התשלום החודשי ייפתח.'
+                : 'הריטיינר עודכן לכרטיס - מכאן פייפרלס מבקשת מהלקוח את הכרטיס, והוא רואה על כך הנחיה בדף האישי. כשתראה שהכרטיס הוזן - לסמן כאן, וכרטיס התשלום החודשי ייפתח.')
               : 'אחרי עדכון הריטיינר פייפרלס תבקש מהלקוח את הכרטיס. הסימון שהוא הוזן הוא מה שיפתח את כרטיס התשלום החודשי.'}
       </div>
 
@@ -4848,6 +4870,21 @@ function ConnectionBody({ path, softwareName, step, client, retainer, busy, onRu
 
       <PaperlessSettingsReview step={step} client={client} busy={busy} onRun={onRun} />
     </div>
+  );
+}
+
+/** «PIVO · היום 09:14» ליד סעיף שסומן ממה שנראה בפייפרלס (304) — לא מקו חוצה. */
+function PivoMark({ at }: { at?: string }) {
+  const d = at ? new Date(at) : null;
+  const when = d && !Number.isNaN(d.getTime())
+    ? (d.toDateString() === new Date().toDateString()
+      ? `היום ${d.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}`
+      : `${d.getDate()}.${d.getMonth() + 1}`)
+    : '';
+  return (
+    <span style={{ marginInlineStart: 'auto', fontSize: '.8em', color: 'var(--info)', whiteSpace: 'nowrap', textDecoration: 'none' }}>
+      PIVO{when ? ` · ${when}` : ''}
+    </span>
   );
 }
 
