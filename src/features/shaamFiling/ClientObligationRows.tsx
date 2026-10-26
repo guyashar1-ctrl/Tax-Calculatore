@@ -6,7 +6,7 @@
 import { useEffect, useState } from 'react';
 import type { Client } from '../../types';
 import { useObligations } from './useObligations';
-import { dmy, obligationDueText, obligationTitle, sourceText, stateLine, stepIsOpen, type Obligation } from './model';
+import { dmy, obligationDueText, obligationTitle, sourceText, stateLine, stepIsOpen, obligationYear, type Obligation } from './model';
 import { filingSummaryText, gmf154Filing } from './fromGmf154';
 import { useAutomationJob } from '../../hooks/useAutomationJobs';
 import { SHAAM_SYNC_INCOME_TAX_ACTION_TYPE } from '../../types/automation';
@@ -17,12 +17,14 @@ import './shaamFiling.css';
 export interface ClientObligationRowsProps {
   client: Client;
   onOpenRequests?: (clientId: string, stepId: string) => void;
+  /** «ללמוד ←» — הידע על החובה (דוח שנתי / הצהרת הון), בשנה של השורה. בלי — אין קישור. */
+  onLearn?: (topicId: 'annualReturn' | 'wealth', year: number | null) => void;
   onChanged?: () => void;
   /** כמה חובות פתוחות מוצגות — כדי ש«אין דוח או הצהרה פתוחים» שמעליהן לא יסתור אותן. */
   onOpenCount?: (n: number) => void;
 }
 
-export default function ClientObligationRows({ client, onOpenRequests, onChanged, onOpenCount }: ClientObligationRowsProps) {
+export default function ClientObligationRows({ client, onOpenRequests, onChanged, onOpenCount, onLearn }: ClientObligationRowsProps) {
   const { obligations, load } = useObligations(client.id);
   const [opening, setOpening] = useState<Obligation[] | null>(null);
   const rows = (obligations ?? []).filter(o => o.state !== 'dismissed' && o.state !== 'needs_review');
@@ -59,6 +61,7 @@ export default function ClientObligationRows({ client, onOpenRequests, onChanged
               </span>
               <span className="shf-row-act">
                 <span className={`shf-chip${live ? '' : ' blue'}`}>{stateLine(o)}</span>
+                {onLearn && <button type="button" className="shf-link" onClick={() => onLearn(o.kind === 'wealth' ? 'wealth' : 'annualReturn', obligationYear(o))} data-sf-learn={o.id}>ללמוד</button>}
                 {live && onOpenRequests
                   ? <button type="button" className="shf-link" onClick={() => onOpenRequests(client.id, o.stepId!)}>לבקשה ←</button>
                   : <button type="button" className="btn btn-sm btn-secondary" onClick={() => setOpening([o])} data-sf-client-open={o.id}>פתח בקשה</button>}

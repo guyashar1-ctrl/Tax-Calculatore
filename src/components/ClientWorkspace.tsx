@@ -124,7 +124,7 @@ interface Props {
   // פתיחת הדוח השנתי לשנה מסוימת (מתוך תמונת המס בכרטיס)
   onOpenAnnualReport?: (clientId: string, taxYear: number) => void;
   /** נושא בידע המס, בהקשר הלקוח (למשל קרן השתלמות מתוך שורת הפנסיה). */
-  onOpenKnowledge?: (topicId: string, clientId: string) => void;
+  onOpenKnowledge?: (topicId: string, clientId: string, year?: number) => void;
   // לשונית הפתיחה — למי שהגיע לכאן בשביל דבר מסוים (למשל מסמכי הייצוג)
   initialTab?: TabId;
   /**
@@ -1056,7 +1056,7 @@ export default function ClientWorkspace({
             onOpenRequest={openRequestRow}
             onSendQuestionnaire={() => setIntakeModalOpen(true)}
             /* ‼ 10.10.2026: מהשורה בתיק לנושא בידע המס — והנושא חוזר לכאן. */
-            onOpenKnowledge={onOpenKnowledge && client.id ? (topicId: string) => onOpenKnowledge(topicId, client.id) : undefined}
+            onOpenKnowledge={onOpenKnowledge && client.id ? (topicId: string, year?: number) => onOpenKnowledge(topicId, client.id, year) : undefined}
             /* ‼ `onOpenDetails` ו-`onEditFamily` **אינם מועברים יותר, בכוונה.**
                שניהם ניווטו לעורך «התיק» הישן — מסך עם עשרים קבוצות שדות
                שהציג את עצמו כרשומה מקצועית שנייה. יש משטח אחד לתיק המס:

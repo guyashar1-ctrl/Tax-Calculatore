@@ -1,7 +1,7 @@
 // שאילתה 154 → אצווה ל«מרשימות שע״ם» (250). ‼ נתוני דמה — אותו מבנה שהעובד מחזיר (worker/src/gmf154.mjs).
 import { deepEqual, equal, assert, test, type TestCase } from '../../../testkit/tinyTest';
 import { batchFromGmf154, filingSummaryText, gmf154Filing, openReturnYears, GMF154_SOURCE_NAME, isGmf154Source, type Gmf154Filing, type Gmf154Year } from '../fromGmf154';
-import { listName, sourceText } from '../model';
+import { listName, obligationYear, sourceText } from '../model';
 import { shaamStatus } from '../planShaam';
 
 const year = (y: number, required: Gmf154Year['required'], over: Partial<Gmf154Year> = {}): Gmf154Year => ({
@@ -95,5 +95,11 @@ export const TESTS: TestCase[] = [
     equal(listName(o), 'מידע אודות שנות מס (154)');
     equal(sourceText(o), 'מקור: שע״ם · מידע אודות שנות מס (154) · נקרא 21.10.2026');
     equal(listName({ kind: 'annual' }), 'מעקב הגשת דוחות (IDOM)');
+  }),
+  // 26.10.2026: «ללמוד» משורת הגשה בתיק — הידע נפתח בשנה של השורה
+  test('שנת השורה: «2025», תאריך הצהרה «31.12.2024» ⇒ 2024, בלי שנה ⇒ null', () => {
+    equal(obligationYear({ yearShown: '2025' }), 2025);
+    equal(obligationYear({ yearShown: '31.12.2024' }), 2024);
+    equal(obligationYear({ yearShown: '' }), null);
   }),
 ];

@@ -71,7 +71,8 @@ interface Props {
   /** פותח את אותו חלון "שלח שאלון" שכבר קיים בכותרת התיק — לא נבנה מנגנון שני. */
   onSendQuestionnaire: () => void;
   /** נושא בידע המס בהקשר הלקוח — הנושא מציג «חזרה לתיק». */
-  onOpenKnowledge?: (topicId: string) => void;
+  /** year — שנת העבודה שממנה נכנסים (שורת הגשה); הידע נפתח בה. */
+  onOpenKnowledge?: (topicId: string, year?: number) => void;
   /**
    * עריכת פרטי הלקוח המלאים. ‼ זו הייתה לשונית עמיתה בשם "התיק", והיא ירדה:
    * שתי רשומות מקצועיות זו לצד זו הכריחו את הרו"ח לבחור ביניהן. היכולת
@@ -1368,7 +1369,7 @@ export default function TaxFileTab({
       <div className="txf-sect" style={{ padding: '.6rem .8rem' }}>
         {/* ‼ «הוסף לתיק» מתוך שנת המס יוצר הצעה — רשימת ההצעות כאן מתרעננת מיד, לא רק בטעינה הבאה */}
         <TaxYearsSection client={client} onChanged={() => { onRequestsChanged?.(); void refresh(); }} onClientPersisted={onClientPersisted} onOpenRequest={onOpenRequest} shaamOpen={shaamOpen} />
-        <ClientObligationRows client={client} onOpenRequests={(_clientId, stepId) => onOpenRequest?.(stepId)} onChanged={() => { onRequestsChanged?.(); void refresh(); }} onOpenCount={setShaamOpen} />
+        <ClientObligationRows client={client} onOpenRequests={(_clientId, stepId) => onOpenRequest?.(stepId)} onLearn={onOpenKnowledge ? (t, y) => onOpenKnowledge(t, y ?? undefined) : undefined} onChanged={() => { onRequestsChanged?.(); void refresh(); }} onOpenCount={setShaamOpen} />
       </div>
 
       {/* ═══ תמונת המס ═════════════════════════════════════════════════════

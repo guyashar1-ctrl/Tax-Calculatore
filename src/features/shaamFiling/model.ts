@@ -193,3 +193,9 @@ export function planCounts(plan: PlanRow[]): ImportCounts {
   }
   return c;
 }
+
+/** שנת המס של השורה: «2025», או תאריך ההצהרה («31.12.2024») — השנה שבו. */
+export function obligationYear(o: Pick<Obligation, 'yearShown'>): number | null {
+  const m = String(o.yearShown ?? '').match(/(20\d\d)(?!.*20\d\d)/);
+  return m ? Number(m[1]) : null;
+}

@@ -780,7 +780,7 @@ export default function App() {
     t && t !== 'dossier' ? (t as ClientTabId) : undefined;
   // לשונית הפתיחה של כרטיס הלקוח — נקבעת רק כשהגיעו אליו בשביל דבר מסוים
   /** נושא ידע שנפתח מתוך תיק המס של לקוח (ולקוח ההקשר, לחזרה). */
-  const [knowledgeJump, setKnowledgeJump] = useState<{ topicId: string; clientId: string } | null>(null);
+  const [knowledgeJump, setKnowledgeJump] = useState<{ topicId: string; clientId: string; year?: number } | null>(null);
   const [clientInitialTab, setClientInitialTab] = useState<ClientTabId | undefined>(
     clientTabFromRoute(initialRoute.clientTab)
   );
@@ -3082,7 +3082,7 @@ export default function App() {
               setAnnualRoute({ clientId, taxYear });
               setView('annualReport');
             }}
-            onOpenKnowledge={(topicId, clientId) => { setKnowledgeJump({ topicId, clientId }); setTaxPath(formatAreaPath({ mode: 'learn', domain: domainOf(topicId), item: topicId })); setView('reference'); }}
+            onOpenKnowledge={(topicId, clientId, year) => { setKnowledgeJump({ topicId, clientId, year }); setTaxPath(formatAreaPath({ mode: 'learn', domain: domainOf(topicId), item: topicId })); setView('reference'); }}
             initialTab={clientInitialTab}
             focusRequest={clientFocus}
             onFocusConsumed={() => { replaceNextRoute.current = true; setClientFocus(null); }}
@@ -3182,6 +3182,7 @@ export default function App() {
             clients={clients}
             contextTopic={knowledgeJump?.topicId ?? null}
             contextClientId={knowledgeJump?.clientId ?? null}
+            contextYear={knowledgeJump?.year ?? null}
             onOpenClient={(id: string, tab?: ClientTabId, focusStepId?: string) => { setKnowledgeJump(null); setSelectedId(id); setClientInitialTab(tab === 'onboarding' && journeyUi ? 'journey' : tab ?? 'taxfile'); setClientFocus(focusStepId ? { stepId: focusStepId, tick: Date.now() } : null); setView('form'); }}
           />
           </Suspense>

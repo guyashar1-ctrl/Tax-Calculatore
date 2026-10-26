@@ -92,11 +92,13 @@ interface Props {
   /** נושא שנפתח מתוך תיק לקוח — לחזרה ולמילוי מה שידוע. */
   contextTopic?: string | null;
   contextClientId?: string | null;
+  /** שנת העבודה שממנה נכנסו (שורת הגשה בתיק) — גוברת על שנה שנבחרה קודם. */
+  contextYear?: number | null;
   /** ‼ 16.10: 'journey' = לשונית «בקשות» של הלקוח; focusStepId — הבקשה שממנה הגיעו (המיקוד לשורה — בצד הבקשות). */
   onOpenClient: (clientId: string, tab?: 'taxfile' | 'docs' | 'journey', focusStepId?: string) => void;
 }
 
-export default function TaxArea({ path, onPath, freshnessTaskExists, onCreateFreshnessTask, clients, contextTopic = null, contextClientId = null, onOpenClient }: Props) {
+export default function TaxArea({ path, onPath, freshnessTaskExists, onCreateFreshnessTask, clients, contextTopic = null, contextClientId = null, contextYear = null, onOpenClient }: Props) {
   const p = useMemo(() => parseAreaPath(path), [path]);
   const work = useTaxWork(clients);
   // ‼ 25.10.2026: שנה שנבחרה ביד נשמרת; אחרת — לפי סוג העמוד (defaultYearFor), ומתיק לקוח — שנת הדוח שלו
@@ -108,7 +110,8 @@ export default function TaxArea({ path, onPath, freshnessTaskExists, onCreateFre
   useEffect(() => { if (p.mode === 'work') setLastWork(formatAreaPath(p)); else setLastLearn(formatAreaPath(p)); }, [p]);
   // ‼ כניסה מתיק לקוח לנושא — נשארים בהקשר הלקוח כל עוד הנושא הזה פתוח
   const ctxClient = useMemo(() => (contextClientId && p.mode === 'learn' && p.item === contextTopic ? clients.find(c => c.id === contextClientId) ?? null : null), [clients, contextClientId, contextTopic, p]);
-  const year = chosenYear ?? (ctxClient ? clampYear(reportSeasonYear(), AVAILABLE_YEARS) : defaultYearFor(p, AVAILABLE_YEARS));
+  // ‼ מתיק לקוח — שנת העבודה שלו (מהשורה, אחרת עונת הדוחות); אחרת שנה שנבחרה, ואחרת לפי סוג העמוד
+  const year = ctxClient ? clampYear(contextYear ?? reportSeasonYear(), AVAILABLE_YEARS) : chosenYear ?? defaultYearFor(p, AVAILABLE_YEARS);
 
   const go = (next: AreaPath | string) => {
     onPath(typeof next === 'string' ? next : formatAreaPath(next));
