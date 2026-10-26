@@ -37,11 +37,11 @@ Ask Guy which business process or automation he wants to improve first. Inspect 
 
 ## Decision log / review evidence
 
-### 2026-10-26 — ‼ בעבודה (נעצר לבקשת גיא, «אמשיך כשאחזור»): מייל קצר + תקלת «רישום ייצוג»
+### 2026-10-26 — מייל קצר + תקלת «רישום ייצוג» (שוחרר: אתר 1d6b8366, Edge send-process-open-email v22 בייצור, 301 בייצור)
 - **בייצור כבר:** מיגרציה 301 (`_release_automation_job_followups` — פעולה מאחורי פתיחה שנכשלה לא יוצאת), גיבוי `backup_r301_20261026`, אומת. Edge `send-process-open-email` גרסה 22 **ב-staging בלבד**.
 - **קומיט מקומי לא נדחף** (ענף feat/rep-stamp-send-ni-per-person, worktree scratchpad/ro): useAutomationGate (`openingFailureText`), ShaamStopNotice (בלי כפילות), requestsSurface.css (`.rep2-act` max 300px), send-process-open-email (רשימה קצרה, אסמכתא בשורת בן הזוג, אופציונלי אחרון), worker/src/shaamSafety.mjs (אבחון: title/readyState/textLength/frames), 301 + test-301, impact-map, INV-AUTO-04.
 - **למה לא נדחף:** ה-hook עצר — `staging-test-notices-edge.mjs` ו-prod-invariants נכשלו על `fetch failed` (רשת). כל אחד עבר קודם בנפרד (22/22).
-- **להמשך:** להריץ שוב את ה-hook ⇒ לדחוף ⇒ לפרוס `send-process-open-email` לייצור (`deploy-edge-function.mjs prod …` אם הוורקפלו לא פורס) ⇒ לאמת. העובד: השינוי באבחון ייכנס בהפעלה הבאה.
+- **שוחרר 26.10:** ה-hook עבר בהרצה חוזרת (123 ש׳), נדחף 1d6b8366, האתר נפרס (success), `send-process-open-email` נפרס ידנית לייצור (גרסה 22 — הוורקפלו לא פרס). **פתוח:** אבחון העובד ייכנס בהפעלה הבאה של העובד; סיבת הדף הריק ב«רישום ייצוג» בצד שע״ם לא אומתה חי.
 
 ### 2026-10-26 — הדף האישי נפתח כרשימה קצרה · בלי «שלח ל… את ההוראות» בשורת ב״ל (גיא, סרטון הדף של ליאת; «יש כבר את זה בדף בקשות»)
 - **c0ed4f97:** שורת ב״ל במשרד — רק מה ב״ל אמר, מתי נבדק, «בדוק בביטוח לאומי» / «הזן». השליחה רק מכרטיס «הדף של {שם}».
