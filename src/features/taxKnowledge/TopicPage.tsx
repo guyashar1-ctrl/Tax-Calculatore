@@ -32,6 +32,7 @@ import { ANNUAL_LESSON, FORM6111_LESSON } from './topics/lessonsReports';
 import ClientAsksPanel from './ClientAsksPanel';
 import { applyStepOf, clientAsksFor, courseStepsOf, documentsFor, plainStatus, readingPeriod, stepKind, unitMinutes, unitsOf } from './learnPath';
 import { useReadingMarks } from './readingMarks';
+import { clearHighlight, markPassage, peekHighlight } from './searchHighlight';
 import './knowledge.css';
 import './learnPath.css';
 
@@ -119,6 +120,11 @@ export default function TopicPage({ topicId, year, clients = [], context, onBack
     // מעבר מצב/שלב — לראש הנושא, והמיקוד לכותרת (קורא מסך שומע איפה הוא)
     rootRef.current?.scrollIntoView({ block: 'start', behavior: 'auto' });
     requestAnimationFrame(() => headRef.current?.focus({ preventScroll: true }));
+    // הגיעו מתוצאת חיפוש — הקטע עצמו מסומן
+    const hit = peekHighlight();
+    if (!hit) return;
+    const t = window.setTimeout(() => { if (rootRef.current) markPassage(rootRef.current, hit); clearHighlight(); }, 350);
+    return () => window.clearTimeout(t);
   }, [current]);
 
   const touching = useMemo(() => (topic?.appliesTo ? clients.map(c => ({ c, a: topic.appliesTo!(c) })).filter(x => x.a !== 'no') : []), [clients, topic]);

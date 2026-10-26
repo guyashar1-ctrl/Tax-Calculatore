@@ -7,7 +7,7 @@
 
 import { test, equal, assert, deepEqual } from '../../../testkit/tinyTest';
 import type { TestCase } from '../../../testkit/tinyTest';
-import { DOMAINS, DOMAIN_BY_ID, MODE_LABEL, WORK_SECTIONS, askAreasOf, clampYear, defaultYearFor, domainOf, formatAreaPath, itemOf, parseAreaPath, reportSeasonYear } from '../areaModel';
+import { DOMAINS, DOMAIN_BY_ID, MODE_LABEL, WORK_SECTIONS, advanceTrail, returnTargetOf, askAreasOf, clampYear, defaultYearFor, domainOf, formatAreaPath, itemOf, parseAreaPath, reportSeasonYear } from '../areaModel';
 import { askAreasView, clientAsksFor, countsText, sumCounts, topicAskAreaIds } from '../../taxKnowledge/learnPath';
 import { ITEMS } from '../../taxYear/catalog';
 import { TOPICS } from '../../taxKnowledge/topics';
@@ -203,5 +203,20 @@ export const TESTS: TestCase[] = [
     deepEqual(parseAreaPath(s), p);
     deepEqual(parseAreaPath('learn/business/expenses/vehicle'), { mode: 'learn', domain: 'business', item: 'expenses', sub: 'vehicle' });
     deepEqual(parseAreaPath('learn/business/expenses'), { mode: 'learn', domain: 'business', item: 'expenses' });
+  }),
+  // 26.10.2026: «חזרה ל…» — לעמוד שממנו הגיעו, לא לפירור
+  test('שביל החזרה: נושא ← טופס ← חזרה לנושא באותו מצב; שלבים באותו נושא לא מוסיפים צעד', () => {
+    let tr = advanceTrail([], 'learn');
+    tr = advanceTrail(tr, 'learn/savings/pensionSE');
+    equal(returnTargetOf(tr), null, 'מהספרייה — אין «חזרה» (הפירורים מספיקים)');
+    tr = advanceTrail(tr, 'learn/savings/pensionSE/pn-0');
+    tr = advanceTrail(tr, 'learn/savings/pensionSE/apply');
+    equal(tr.length, 2, 'שלבים באותו נושא מחליפים זה את זה');
+    tr = advanceTrail(tr, 'learn/annual/c/135');
+    equal(returnTargetOf(tr), 'learn/savings/pensionSE/apply', 'מהטופס — חזרה לנושא, לאותו מצב');
+    tr = advanceTrail(tr, 'learn/savings/pensionSE/apply');
+    equal(tr.length, 2, 'חזרה לעמוד הקודם מקצרת את השביל');
+    tr = advanceTrail(['learn', 'learn/savings'], 'learn/savings/pensionSE');
+    equal(returnTargetOf(tr), null, 'מהתחום שלו — הפירור כבר שם');
   }),
 ];

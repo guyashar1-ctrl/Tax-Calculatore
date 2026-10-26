@@ -180,3 +180,10 @@
 .ta2-crumbs { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-top: 8px; }
 .ta2-year { display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; font-size: var(--fs-13, 13px); color: var(--ink-3, var(--tx2)); }
 .ta2-year select { font: inherit; padding: 4px 8px; border-radius: 8px; border: 1px solid var(--bd); background: var(--card); color: var(--tx); }
+
+/* חיפוש מכל עמוד ו«חזרה ל…» (26.10.2026) */
+.ta2-crumb-tools { display: inline-flex; align-items: center; gap: 10px; margin-inline-start: auto; }
+.ta2-search { font: inherit; font-size: 13px; color: var(--tx2); background: var(--card); border: 1px solid var(--bd); border-radius: 999px; padding: 4px 12px; min-height: 36px; cursor: pointer; }
+.ta2-search:hover { color: var(--tx); border-color: var(--soft-bd); }
+.ta2-return { margin: 0 0 8px; }
+.ta2-return .kn-link { font-size: 13px; min-height: 36px; }

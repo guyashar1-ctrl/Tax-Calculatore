@@ -274,6 +274,32 @@ export function defaultYearFor(p: AreaPath, years: number[], today = new Date())
   return it.id === 'map1301' ? report : current;
 }
 
+// ── «חזרה ל…» (26.10.2026) ─────────────────────────────────────────────────────────────────
+// ‼ מהטופס ל«ללמוד» וחזרה — לאותו עמוד, גם כשהגיעו אליו מכמה כיוונים. «אחורה» בדפדפן נשאר; זו החזרה הגלויה.
+/** הזהות של עמוד לצורך «חזרה»: תחום/פריט (בלי השלב שבתוכו), או הטופס על קוד. */
+export function pageKeyOf(path: string): string {
+  const p = parseAreaPath(path);
+  if (p.mode !== 'learn') return 'work';
+  if (!p.domain) return 'home';
+  return p.item ? `${p.domain}/${p.item}` : p.code ? `${p.domain}/c` : p.domain;
+}
+/** השביל אחרי מעבר: אותו עמוד — מחליף; העמוד הקודם — חזרה; דף הבית — מתחילים מחדש. */
+export function advanceTrail(trail: string[], next: string): string[] {
+  const key = pageKeyOf(next);
+  if (key === 'home' || key === 'work') return [next];
+  if (trail.length && pageKeyOf(trail[trail.length - 1]) === key) return [...trail.slice(0, -1), next];
+  if (trail.length > 1 && pageKeyOf(trail[trail.length - 2]) === key) return [...trail.slice(0, -2), next];
+  return [...trail, next].slice(-12);
+}
+/** לאן «חזרה» — רק כשזה לא דף הבית ולא התחום שבפירורים (שם כבר יש קישור). */
+export function returnTargetOf(trail: string[]): string | null {
+  if (trail.length < 2) return null;
+  const back = trail[trail.length - 2], cur = parseAreaPath(trail[trail.length - 1]), b = parseAreaPath(back);
+  if (b.mode !== 'learn' || !b.domain) return null;
+  if (cur.mode === 'learn' && cur.item && !b.item && !b.code && b.domain === cur.domain) return null;
+  return back;
+}
+
 /** הפריט בתחום שנפתח, או undefined כשמוצג עמוד התחום עצמו. */
 export function itemOf(p: AreaPath): DomainItem | undefined {
   if (p.mode !== 'learn' || !p.domain || !p.item) return undefined;

@@ -6,7 +6,7 @@
 // ‼ 21.10.2026 (הצעה מאושרת docs/proposals/2026-10-21-tax-area-reimagined.html): בלי מסילה. בראש — מתג אחד
 //   «עבודות לקוח | ידע מקצועי»; «ידע מקצועי» נפתח בספרייה (AskHome, 25.10), ותחום/נושא/כלי — עם פירורים ושנת מס.
 
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { Client } from '../../types';
 import { TAX_YEARS, AVAILABLE_YEARS } from '../../data/taxData';
 import NIReferenceSection from '../../components/NIReferenceSection';
@@ -21,6 +21,7 @@ import { TOOL_DATASET, type Tool } from '../taxCenter/taxCenterNav';
 import TopicPage, { BODIES } from '../taxKnowledge/TopicPage';
 import { readingPeriod } from '../taxKnowledge/learnPath';
 import { saveLastRead } from '../taxKnowledge/readingMarks';
+import { requestSearchFocus } from '../taxKnowledge/searchHighlight';
 import Map1301 from '../taxKnowledge/Map1301';
 import Maintenance from '../taxKnowledge/Maintenance';
 import { TOPIC_BY_ID } from '../taxKnowledge/topics';
@@ -37,7 +38,7 @@ import FormMap from '../taxKnowledge/formMap/FormMap';
 import { useTaxWork } from '../taxYear/useTaxWork';
 import {
   DOMAIN_BY_ID, MODE_LABEL, WORK_BY_ID,
-  askAreasOf, clampYear, defaultYearFor, domainOf, formatAreaPath, itemOf, parseAreaPath, reportSeasonYear, type AreaPath, type DomainId, type DomainItem, type PlannedItem,
+  advanceTrail, askAreasOf, clampYear, defaultYearFor, domainOf, formatAreaPath, itemOf, parseAreaPath, reportSeasonYear, returnTargetOf, type AreaPath, type DomainId, type DomainItem, type PlannedItem,
 } from './areaModel';
 import './taxArea.css';
 
@@ -120,6 +121,34 @@ export default function TaxArea({ path, onPath, freshnessTaskExists, onCreateFre
     </div>
   );
 
+  // ── «חזרה ל…» — העמוד שממנו הגיעו (טופס, כלי, נושא אחר), לא רק «אחורה» בדפדפן ──
+  const trailRef = useRef<string[]>([]);
+  const [backTo, setBackTo] = useState<string | null>(null);
+  useEffect(() => {
+    if (p.mode !== 'learn') { trailRef.current = []; setBackTo(null); return; }
+    trailRef.current = advanceTrail(trailRef.current, formatAreaPath(p));
+    setBackTo(returnTargetOf(trailRef.current));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [path]);
+  const backLabel = (target: string) => {
+    const b = parseAreaPath(target);
+    if (b.mode !== 'learn' || !b.domain) return '';
+    if (b.code) return `חזרה לטופס ${b.domain === 'wealth' ? '1219' : '1301'} · קוד ${b.code}`;
+    const it = itemOf(b);
+    if (!it) return `חזרה ל«${DOMAIN_BY_ID[b.domain].label}»`;
+    return it.kind === 'topic' ? `חזרה ל«${it.label}»` : `חזרה לכלי «${it.label}»`;
+  };
+  // ── חיפוש מכל עמוד: הכפתור ו-Ctrl+K פותחים את הספרייה עם הסמן בתיבה ──
+  const openSearch = () => {
+    if (p.mode === 'learn' && !p.domain) { document.querySelector<HTMLInputElement>('[data-ask-input]')?.focus(); return; }
+    requestSearchFocus(); go({ mode: 'learn' });
+  };
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); openSearch(); } };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  });
+
   // ── הכותרת והפירורים ──
   const crumbs = p.mode === 'learn' && p.domain ? (
     <div className="kn-crumbs ta-crumbs ta2-crumbs">
@@ -127,8 +156,14 @@ export default function TaxArea({ path, onPath, freshnessTaskExists, onCreateFre
         <button type="button" className="kn-crumb" onClick={() => go({ mode: 'learn' })}>{MODE_LABEL.learn}</button>
         {item && <><span aria-hidden="true"> › </span><button type="button" className="kn-crumb" onClick={() => go({ mode: 'learn', domain: p.domain })}>{domain!.label}</button></>}
       </span>
-      {!fixedYear && <label className="ta2-year">שנת מס{yearSelect}</label>}
+      <span className="ta2-crumb-tools">
+        <button type="button" className="ta2-search" onClick={openSearch} aria-label="חיפוש בידע המקצועי (Ctrl+K)" data-ta-search>⌕ חיפוש</button>
+        {!fixedYear && <label className="ta2-year">שנת מס{yearSelect}</label>}
+      </span>
     </div>
+  ) : null;
+  const returnBar = p.mode === 'learn' && backTo ? (
+    <div className="ta2-return"><button type="button" className="kn-link" onClick={() => go(backTo)} data-ta-return>→ {backLabel(backTo)}</button></div>
   ) : null;
 
   const workLinksFor = (d?: DomainId) => (d ? DOMAIN_BY_ID[d].workKinds.filter(k => WORK_BY_ID[k]).map(k => ({
@@ -211,7 +246,7 @@ export default function TaxArea({ path, onPath, freshnessTaskExists, onCreateFre
   return (
     <div className="tax-center tax-area ta2 has-tool" data-tax-area data-mode={p.mode}>
       {modes}
-      <div className="pg-pane ta2-pane">{pane}</div>
+      <div className="pg-pane ta2-pane">{returnBar}{pane}</div>
     </div>
   );
 }

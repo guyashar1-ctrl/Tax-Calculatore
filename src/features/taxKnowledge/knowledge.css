@@ -319,3 +319,7 @@
 .kn-resume { align-self: flex-start; font-size: 13px; min-height: 36px; }
 .kn-done { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; margin: 18px 0 0; padding: 12px 14px; border-radius: 12px; background: var(--chip-green-bg); }
 .kn-done strong { font-size: 15px; }
+
+/* הקטע שתוצאת החיפוש הובילה אליו (26.10.2026) */
+.kn-search-hit { background: var(--chip-yellow-bg); box-shadow: 0 0 0 4px var(--chip-yellow-bg); border-radius: 4px; transition: background .6s, box-shadow .6s; }
+@media (prefers-reduced-motion: reduce) { .kn-search-hit { transition: none; } }

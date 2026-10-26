@@ -11,8 +11,10 @@ import Modal from '../../../components/ui/Modal';
 import { useToast } from '../../../components/ui/Toast';
 import { ClaimTag, CLAIM_LABEL } from '../claim';
 import type { KnowledgeRule } from '../corpus/types';
-import { DOMAINS, DOMAIN_BY_ID, parseAreaPath, type AreaPath, type DomainId } from '../../taxArea/areaModel';
+import { DOMAINS, DOMAIN_BY_ID, domainOf, parseAreaPath, type AreaPath, type DomainId } from '../../taxArea/areaModel';
 import { readLastRead } from '../readingMarks';
+import { highlightNext, takeSearchFocus } from '../searchHighlight';
+import { BODIES } from '../TopicPage';
 import { findFields } from '../formMap/model';
 import { searchValues } from '../domainValues';
 import { RULESET_VERSION } from '../../taxRules/registry';
@@ -69,6 +71,8 @@ export default function AskHome({ onGo, onOpenTopic, moved }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { void loadCorpus().then(setRules); }, []);
+  // «חיפוש» / Ctrl+K מעמוד אחר — הסמן בתיבה
+  useEffect(() => { if (takeSearchFocus()) inputRef.current?.focus(); }, []);
   const reloadSide = () => { void listInbox().then(setInbox); void openQuestions().then(setQuestions); };
   useEffect(reloadSide, []);
 
@@ -106,8 +110,15 @@ export default function AskHome({ onGo, onOpenTopic, moved }: Props) {
   }
   const clear = () => { seq.current++; setQ(''); setAsked(null); setResult(null); inputRef.current?.focus(); };
 
+  // ‼ הכלל נבנה מסעיף בדף הנושא (‎<נושא>.<סעיף>.…‎) — פותחים את השלב הזה ומסמנים את הקטע; כלל משכבת הלימוד — בסיכום
   const openRule = (r: KnowledgeRule) => {
-    if (r.topic) onOpenTopic(r.topic);
+    const d = r.topic ? domainOf(r.topic) : undefined;
+    if (r.topic && d) {
+      const sec = r.id.split('.')[1];
+      const sub = BODIES[r.topic]?.toc.some(t => t.id === sec) ? sec : r.kind === 'lesson' ? 'summary' : undefined;
+      highlightNext(r.text);
+      onGo({ mode: 'learn', domain: d, item: r.topic, ...(sub ? { sub } : {}) });
+    } else if (r.topic) onOpenTopic(r.topic);
     else if (r.domain) onGo({ mode: 'learn', domain: r.domain });
   };
 

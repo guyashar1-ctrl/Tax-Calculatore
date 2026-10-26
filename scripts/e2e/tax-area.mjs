@@ -323,7 +323,8 @@ async function run(vp) {
     await shot(page, `${vp}-05b-ask-typing`);
     if (mobile) ok(await noHScroll(page), 'טלפון: תוצאות בזמן הקלדה בלי גלילה הצידה');
     await page.locator('[data-ask-hit^="microBusiness."]').first().click(); await sleep(800);
-    ok(/^#\/tax\/learn\/[a-z]+\/microBusiness$/.test(await page.evaluate(() => location.hash)) && await page.locator('[data-topic="microBusiness"]').count() === 1, 'לחיצה על תוצאה פותחת את הנושא «עסק זעיר»', await page.evaluate(() => location.hash));
+    // ‼ 26.10.2026: התוצאה נפתחת בשלב שהכלל כתוב בו (‎…/microBusiness/<שלב>‎), והקטע מסומן
+    ok(/^#\/tax\/learn\/[a-z]+\/microBusiness(\/[a-z0-9-]+)?$/.test(await page.evaluate(() => location.hash)) && await page.locator('[data-topic="microBusiness"]').count() === 1, 'לחיצה על תוצאה פותחת את הנושא «עסק זעיר»', await page.evaluate(() => location.hash));
     // ‼ 22.10: תשובה מנוסחת כבויה (AVAILABLE.askAi) — אין כפתור «קבל תשובה», ו-Enter לא מחליף את מה שכתוב אצלנו
     await go(page, '/tax/learn');
     ok(await page.locator('[data-ask-go]').count() === 0, 'אין כפתור «קבל תשובה» כשהתשובה המנוסחת כבויה');
