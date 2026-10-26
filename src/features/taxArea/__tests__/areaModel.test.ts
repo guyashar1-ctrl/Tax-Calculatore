@@ -238,4 +238,17 @@ export const TESTS: TestCase[] = [
     tr = advanceTrail(['learn', 'learn/savings'], 'learn/savings/pensionSE');
     equal(returnTargetOf(tr), null, 'מהתחום שלו — הפירור כבר שם');
   }),
+  test('שביל החזרה: סעיף בטופס הוא עמוד הטופס; מסמך ← סעיף ← חזרה למסמך; סעיף ← נושא ← חזרה לסעיף', () => {
+    let tr = advanceTrail(['learn'], 'learn/annual/f/1301/F030/158');
+    tr = advanceTrail(tr, 'learn/annual/f/1301/F185/135');
+    equal(tr.length, 2, 'מעבר בין סעיפים באותו טופס מחליף');
+    tr = advanceTrail(tr, 'learn/annual/c/158');
+    equal(tr.length, 2, 'קוד וסעיף — אותו עמוד');
+    tr = advanceTrail(['learn'], 'learn/annual/d/106');
+    tr = advanceTrail(tr, 'learn/annual/f/1301/F030/158');
+    equal(returnTargetOf(tr), 'learn/annual/d/106', 'מהמסמך לסעיף — חזרה למסמך');
+    tr = advanceTrail(['learn'], 'learn/annual/f/1301/F185/135');
+    tr = advanceTrail(tr, 'learn/annual/annualReturn');
+    equal(returnTargetOf(tr), 'learn/annual/f/1301/F185/135', 'מהסעיף לנושא באותו תחום — חזרה לסעיף');
+  }),
 ];

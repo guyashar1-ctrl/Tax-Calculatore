@@ -290,12 +290,12 @@ export function defaultYearFor(p: AreaPath, years: number[], today = new Date())
 
 // ── «חזרה ל…» (26.10.2026) ─────────────────────────────────────────────────────────────────
 // ‼ מהטופס ל«ללמוד» וחזרה — לאותו עמוד, גם כשהגיעו אליו מכמה כיוונים. «אחורה» בדפדפן נשאר; זו החזרה הגלויה.
-/** הזהות של עמוד לצורך «חזרה»: תחום/פריט (בלי השלב שבתוכו), או הטופס על קוד. */
+/** הזהות של עמוד לצורך «חזרה»: תחום/פריט (בלי השלב שבתוכו), הטופס (על קוד או על סעיף), או מסמך מקור. */
 export function pageKeyOf(path: string): string {
   const p = parseAreaPath(path);
   if (p.mode !== 'learn') return 'work';
   if (!p.domain) return 'home';
-  return p.item ? `${p.domain}/${p.item}` : p.code ? `${p.domain}/c` : p.domain;
+  return p.item ? `${p.domain}/${p.item}` : p.code || p.form ? `${p.domain}/c` : p.doc ? `${p.domain}/d` : p.domain;
 }
 /** השביל אחרי מעבר: אותו עמוד — מחליף; העמוד הקודם — חזרה; דף הבית — מתחילים מחדש. */
 export function advanceTrail(trail: string[], next: string): string[] {
@@ -310,7 +310,7 @@ export function returnTargetOf(trail: string[]): string | null {
   if (trail.length < 2) return null;
   const back = trail[trail.length - 2], cur = parseAreaPath(trail[trail.length - 1]), b = parseAreaPath(back);
   if (b.mode !== 'learn' || !b.domain) return null;
-  if (cur.mode === 'learn' && cur.item && !b.item && !b.code && b.domain === cur.domain) return null;
+  if (cur.mode === 'learn' && cur.item && !b.item && !b.code && !b.form && !b.doc && b.domain === cur.domain) return null;
   return back;
 }
 

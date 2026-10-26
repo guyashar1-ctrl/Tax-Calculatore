@@ -38,6 +38,7 @@ import AskHome from '../taxKnowledge/ask/AskHome';
 import { ShaamFilingPanel } from '../shaamFiling';
 import FormMap from '../taxKnowledge/formMap/FormMap';
 import DocCards from '../taxKnowledge/topics/DocCards';
+import { MAP_FORM_BY_SLUG, fieldsOf, type FormSlug } from '../taxKnowledge/formMap/model';
 import { useTaxWork } from '../taxYear/useTaxWork';
 import {
   DOMAIN_BY_ID, MODE_LABEL, WORK_BY_ID,
@@ -174,6 +175,13 @@ export default function TaxArea({ path, onPath, freshnessTaskExists, onCreateFre
     const b = parseAreaPath(target);
     if (b.mode !== 'learn' || !b.domain) return '';
     if (b.code) return `חזרה לטופס ${b.domain === 'wealth' ? '1219' : '1301'} · קוד ${b.code}`;
+    if (b.form) {
+      const slug = b.form as FormSlug;
+      const formId = MAP_FORM_BY_SLUG[slug]?.formId ?? b.form;
+      const label = b.field && MAP_FORM_BY_SLUG[slug] ? fieldsOf(slug).find(f => f.key === b.field)?.label : undefined;
+      return `חזרה לטופס ${formId}${b.mark ? ` · קוד ${b.mark}` : label ? ` · ${label}` : ''}`;
+    }
+    if (b.doc) return `חזרה למסמך «${SOURCE_DOCS.find(x => x.id === b.doc)?.title.split(' — ')[0] ?? b.doc}»`;
     const it = itemOf(b);
     if (!it) return `חזרה ל«${DOMAIN_BY_ID[b.domain].label}»`;
     return it.kind === 'topic' ? `חזרה ל«${it.label}»` : `חזרה לכלי «${it.label}»`;
