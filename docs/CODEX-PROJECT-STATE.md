@@ -37,6 +37,11 @@ Ask Guy which business process or automation he wants to improve first. Inspect 
 
 ## Decision log / review evidence
 
+### 2026-10-26 — «הזנתי את הכרטיס» בפייפרלס (302) (גיא: «אולי כאן כן ניתן לה לאשר? ככה לוודא שהיא לא פספסה»; אישר את ההצעה ואת השינוי במסד)
+- **אתר (b045f54a):** ב-`OnboardingTab` — בהקמת פייפרלס «· {שם} סימן/ה שהזין/ה (תאריך)» + «הכרטיס נקלט ✓» (אותה חותמת cardEnteredAt כמו קודם); בכרטיס התשלום — הערה ושורת מצב תואמות; `stepAttention` ⇒ «לטיפולך».
+- **מסד 302 (גרסה 20261026081634, גיבוי `backup_r302_20261026`):** `_portal_paperless_card_declare` (לא חשופה) — `cardDeclaredAt`, יומן, needs_attention; ההפניה ב-`portal_submit_step` **לפני** בדיקת locked (שלב התשלום נעול בזמן הזה); בדף — declare עם שורה אחת וכפתור, ואחרי הלחיצה «בטיפולנו». החלה ראשונה נחסמה ע״י בקרת ההרשאות; הוחל אחרי אישור מפורש של גיא. INV-REQ-03.
+- **בדיקות:** tsc · יחידה 2243/0 · `test-302` 11/11 ב-staging · דפדפן ב-staging (לקוח qa302ui, נמחק): הדף, «⋯», כרטיס התשלום, רשימת ההקמה (המסלול של ליאת) — «הכרטיס נקלט ✓» מעביר ל«הריטיינר חויב». בייצור: הכרטיס של ליאת = declare עם הכפתור, הניתוב לפני locked, `assert_domain_function_invariants()` = ok.
+
 ### 2026-10-26 — מייל קצר + תקלת «רישום ייצוג» (שוחרר: אתר 1d6b8366, Edge send-process-open-email v22 בייצור, 301 בייצור)
 - **בייצור כבר:** מיגרציה 301 (`_release_automation_job_followups` — פעולה מאחורי פתיחה שנכשלה לא יוצאת), גיבוי `backup_r301_20261026`, אומת. Edge `send-process-open-email` גרסה 22 **ב-staging בלבד**.
 - **קומיט מקומי לא נדחף** (ענף feat/rep-stamp-send-ni-per-person, worktree scratchpad/ro): useAutomationGate (`openingFailureText`), ShaamStopNotice (בלי כפילות), requestsSurface.css (`.rep2-act` max 300px), send-process-open-email (רשימה קצרה, אסמכתא בשורת בן הזוג, אופציונלי אחרון), worker/src/shaamSafety.mjs (אבחון: title/readyState/textLength/frames), 301 + test-301, impact-map, INV-AUTO-04.
