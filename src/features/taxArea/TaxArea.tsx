@@ -282,7 +282,7 @@ export default function TaxArea({ path, onPath, freshnessTaskExists, onCreateFre
             onBackToClient={ctxClient ? () => onOpenClient(ctxClient.id, 'taxfile') : undefined}
             onOpenClient={id => onOpenClient(id, 'taxfile')} onOpenTopic={openTopic} workLinks={workLinksFor(domain.id)}
             section={sub} onSection={setSub}
-            onOpenForm={t => go(t.code ? { mode: 'learn', domain: t.domain, code: t.code } : { mode: 'learn', domain: t.domain })} />
+            onOpenForm={t => go(t.form ? { mode: 'learn', domain: t.domain, form: t.form } : t.code ? { mode: 'learn', domain: t.domain, code: t.code } : { mode: 'learn', domain: t.domain })} />
         </>
       );
     }

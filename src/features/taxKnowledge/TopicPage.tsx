@@ -57,7 +57,7 @@ export interface TopicContextClient { id: string; name: string; client: Client }
 export interface TopicWorkLink { label: string; onOpen: () => void }
 
 /** פתיחת הטופס המסומן מתוך הלימוד — הדוח או הצהרת ההון, ואם יש — על הקוד. */
-export interface FormTarget { domain: 'annual' | 'wealth'; code?: string }
+export interface FormTarget { domain: 'annual' | 'wealth'; code?: string; form?: string }
 
 interface Props {
   topicId: string;
@@ -87,8 +87,9 @@ const LESSON_FORMS: Record<string, { label: string; target: (section: string) =>
   wealth: [{ label: '1219 — הצהרת ההון המסומנת', target: () => ({ domain: 'wealth' }) }],
   annualReturn: [{ label: '1301 — הדוח המסומן', target: () => ({ domain: 'annual' }) }],
   microBusiness: [{ label: '1301 — דיווח במסלול מלא', target: () => ({ domain: 'annual' }) }],
+  form6111: [{ label: '6111 — הטופס המקורי המלא', target: () => ({ domain: 'annual', form: '6111' }) }],
 };
-const REPORTING_STEP = /field|116c|code|docs|do$|apply|map|ar-/;
+const REPORTING_STEP = /field|116c|code|docs|do$|apply|map|ar-|f6-what|f6-who|f6-struct|f6-dict/;
 
 type Overlay = 'sources' | 'asks' | 'gaps' | 'shaam' | null;
 /** נושאים שהיישום שלהם מתחיל בשאלה מי חייב להגיש — מדריך ההפקה משע״ם נפתח מהם. */
