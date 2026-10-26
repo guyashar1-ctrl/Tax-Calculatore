@@ -244,7 +244,7 @@ export default function TaxArea({ path, onPath, freshnessTaskExists, onCreateFre
       case 'map1301': return (
         <>
           <FormMap domain="annual" clients={clients} contextClient={ctxClient} onBackToClient={ctxClient ? () => onOpenClient(ctxClient.id, 'taxfile') : undefined}
-            canLearn={canLearn} onLearn={openTopic} onOpenTool={openTool} year={year} />
+            canLearn={canLearn} onLearn={openTopic} onOpenTool={openTool} year={year} onAddMaterial={seed => setMaterial(materialContext(seed))} />
           <details className="ta-control" data-map-control>
             <summary>בקרת הטופס: מה השתנה מול 2024, כיסוי לפי חלקים ומוכנות לקוח</summary>
             <Map1301 onOpenTopic={openTopic} clients={clients} contextClientId={contextClientId} onOpenClient={id => onOpenClient(id, 'taxfile')} />
@@ -269,7 +269,7 @@ export default function TaxArea({ path, onPath, freshnessTaskExists, onCreateFre
       );
     }
     if (!domain) return <AskHome onGo={go} onOpenTopic={openTopic} moved={p.mode === 'learn' && !!p.moved} />;
-    if (!item) return <>{crumbs}<DomainPage d={domain.id} year={year} onGo={go} counts={work.counts} focusValues={p.mode === 'learn' ? p.values : undefined} focusCode={p.mode === 'learn' ? p.code : undefined} yearSelect={yearSelect} clients={clients} canLearn={canLearn} onLearn={openTopic} onOpenTool={openTool}
+    if (!item) return <>{crumbs}<DomainPage d={domain.id} year={year} onGo={go} counts={work.counts} focusValues={p.mode === 'learn' ? p.values : undefined} focusCode={p.mode === 'learn' ? p.code : undefined} yearSelect={yearSelect} clients={clients} canLearn={canLearn} onLearn={openTopic} onOpenTool={openTool} onAddMaterial={seed => setMaterial(materialContext(seed))}
       focus={p.mode === 'learn' ? { form: p.form, field: p.field, mark: p.mark, doc: p.doc } : {}}
       onField={v => onPath(formatAreaPath({ mode: 'learn', domain: domain.id, ...v }))}
       onOpenDomain={id => { if (DOMAIN_BY_ID[id as DomainId]) go({ mode: 'learn', domain: id as DomainId }); }} /></>;
@@ -330,11 +330,13 @@ export default function TaxArea({ path, onPath, freshnessTaskExists, onCreateFre
 // ‼ «דוח שנתי» ו«הצהרת הון»: הטופס הרשמי עצמו עם הסימונים (FormMap) הוא העמוד.
 const FORM_DOMAINS: Partial<Record<DomainId, 'annual' | 'wealth'>> = { annual: 'annual', wealth: 'wealth' };
 
-function DomainPage({ d, year, onGo, counts, focusValues, focusCode, yearSelect, clients, canLearn, onLearn, onOpenTool, focus, onField, onOpenDomain }: {
+function DomainPage({ d, year, onGo, counts, focusValues, focusCode, yearSelect, clients, canLearn, onLearn, onOpenTool, focus, onField, onOpenDomain, onAddMaterial }: {
   d: DomainId; year: number; onGo: (p: AreaPath) => void; counts: ReturnType<typeof useTaxWork>['counts']; focusValues?: string; focusCode?: string; yearSelect: ReactNode;
   clients: Client[]; canLearn: (id: string) => boolean; onLearn: (id: string) => void; onOpenTool: (id: string) => void;
   /** הטופס, הסעיף והמסמך מהכתובת (‎f/…‎ · ‎d/…‎). onField — בחירה בטופס, בלי לגלול לראש העמוד. */
   focus: { form?: string; field?: string; mark?: string; doc?: string }; onField: (v: { form?: string; field?: string; mark?: string }) => void; onOpenDomain: (id: string) => void;
+  /** «＋ שאלה או חומר על הסעיף» — אותו «＋ חומר חדש», עם הסעיף כהקשר. */
+  onAddMaterial?: (seed: string) => void;
 }) {
   const dom = DOMAIN_BY_ID[d];
   // ‼ אותו מקור ואותו רכיב כמו בשלב «מה מבקשים מהלקוח» של מסלול הלימוד — הכמויות והפירוט נגזרים מאותה רשימה.
@@ -387,7 +389,7 @@ function DomainPage({ d, year, onGo, counts, focusValues, focusCode, yearSelect,
         <section aria-labelledby="ta-form-h" data-domain-form>
           <h3 className="ta-sec-h" id="ta-form-h">{formDomain === 'annual' ? 'הטופס — שדה אחר שדה' : 'טופס 1219 — שורה אחר שורה'}</h3>
           <FormMap key={formDomain} domain={formDomain} clients={clients} canLearn={canLearn} onLearn={onLearn} onOpenTool={onOpenTool} year={year} initialCode={focusCode}
-            initialForm={focus.form} initialField={focus.field} initialMark={focus.mark} onSelectField={onField} onOpenDomain={onOpenDomain} />
+            initialForm={focus.form} initialField={focus.field} initialMark={focus.mark} onSelectField={onField} onOpenDomain={onOpenDomain} onAddMaterial={onAddMaterial} />
           {formDomain === 'annual' && (
             <p className="ta-form-more">
               {!focus.doc && <><button type="button" className="kn-link" onClick={() => onGo({ mode: 'learn', domain: d, doc: SOURCE_DOCS[0].id })} data-domain-docs>מסמכי מקור: מהמסמך לשדה ←</button><br /></>}
