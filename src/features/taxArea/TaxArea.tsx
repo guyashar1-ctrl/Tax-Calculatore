@@ -31,11 +31,13 @@ import ClientAsksPanel from '../taxKnowledge/ClientAsksPanel';
 import { ClaimTag } from '../taxKnowledge/claim';
 import DomainValues, { DeadlinesTool } from '../taxKnowledge/DomainValuesPanel';
 import { valueGroupsOf } from '../taxKnowledge/domainValues';
+import { SOURCE_DOCS } from '../taxKnowledge/sourceDocs';
 import { weakestBasis } from '../taxRules/registry';
 import WorkOverview from './WorkOverview';
 import AskHome from '../taxKnowledge/ask/AskHome';
 import { ShaamFilingPanel } from '../shaamFiling';
 import FormMap from '../taxKnowledge/formMap/FormMap';
+import DocCards from '../taxKnowledge/topics/DocCards';
 import { useTaxWork } from '../taxYear/useTaxWork';
 import {
   DOMAIN_BY_ID, MODE_LABEL, WORK_BY_ID,
@@ -259,7 +261,10 @@ export default function TaxArea({ path, onPath, freshnessTaskExists, onCreateFre
       );
     }
     if (!domain) return <AskHome onGo={go} onOpenTopic={openTopic} moved={p.mode === 'learn' && !!p.moved} />;
-    if (!item) return <>{crumbs}<DomainPage d={domain.id} year={year} onGo={go} counts={work.counts} focusValues={p.mode === 'learn' ? p.values : undefined} focusCode={p.mode === 'learn' ? p.code : undefined} yearSelect={yearSelect} clients={clients} canLearn={canLearn} onLearn={openTopic} onOpenTool={openTool} /></>;
+    if (!item) return <>{crumbs}<DomainPage d={domain.id} year={year} onGo={go} counts={work.counts} focusValues={p.mode === 'learn' ? p.values : undefined} focusCode={p.mode === 'learn' ? p.code : undefined} yearSelect={yearSelect} clients={clients} canLearn={canLearn} onLearn={openTopic} onOpenTool={openTool}
+      focus={p.mode === 'learn' ? { form: p.form, field: p.field, mark: p.mark, doc: p.doc } : {}}
+      onField={v => onPath(formatAreaPath({ mode: 'learn', domain: domain.id, ...v }))}
+      onOpenDomain={id => { if (DOMAIN_BY_ID[id as DomainId]) go({ mode: 'learn', domain: id as DomainId }); }} /></>;
     if (item.kind === 'topic') {
       return (
         <>
@@ -317,9 +322,11 @@ export default function TaxArea({ path, onPath, freshnessTaskExists, onCreateFre
 // ‼ «דוח שנתי» ו«הצהרת הון»: הטופס הרשמי עצמו עם הסימונים (FormMap) הוא העמוד.
 const FORM_DOMAINS: Partial<Record<DomainId, 'annual' | 'wealth'>> = { annual: 'annual', wealth: 'wealth' };
 
-function DomainPage({ d, year, onGo, counts, focusValues, focusCode, yearSelect, clients, canLearn, onLearn, onOpenTool }: {
+function DomainPage({ d, year, onGo, counts, focusValues, focusCode, yearSelect, clients, canLearn, onLearn, onOpenTool, focus, onField, onOpenDomain }: {
   d: DomainId; year: number; onGo: (p: AreaPath) => void; counts: ReturnType<typeof useTaxWork>['counts']; focusValues?: string; focusCode?: string; yearSelect: ReactNode;
   clients: Client[]; canLearn: (id: string) => boolean; onLearn: (id: string) => void; onOpenTool: (id: string) => void;
+  /** הטופס, הסעיף והמסמך מהכתובת (‎f/…‎ · ‎d/…‎). onField — בחירה בטופס, בלי לגלול לראש העמוד. */
+  focus: { form?: string; field?: string; mark?: string; doc?: string }; onField: (v: { form?: string; field?: string; mark?: string }) => void; onOpenDomain: (id: string) => void;
 }) {
   const dom = DOMAIN_BY_ID[d];
   // ‼ אותו מקור ואותו רכיב כמו בשלב «מה מבקשים מהלקוח» של מסלול הלימוד — הכמויות והפירוט נגזרים מאותה רשימה.
@@ -357,6 +364,10 @@ function DomainPage({ d, year, onGo, counts, focusValues, focusCode, yearSelect,
   const seeAlso = (dom.seeAlso ?? []).filter(x => TOPIC_BY_ID[x.id] && domainOf(x.id));
   const works = dom.workKinds.filter(k => WORK_BY_ID[k]);
   const hasValues = valueGroupsOf(d).length > 0;
+  // מסמך מקור מהכתובת — הכרטיס נפתח מתחת לטופס, ומובא לעין
+  const docRef = useRef<HTMLElement>(null);
+  // ‼ אחרי שהטופס שמעליו התעדכן לכתובת (הוא משנה גובה) — אחרת הכרטיס נדחף מחוץ לעין
+  useEffect(() => { if (focus.doc) requestAnimationFrame(() => requestAnimationFrame(() => docRef.current?.scrollIntoView({ block: 'start' }))); }, [focus.doc]);
   return (
     <div className={`ta-domain-page${formDomain ? ' has-form' : ''}`} data-domain={d}>
       <header className="ta-page-head">
@@ -367,10 +378,23 @@ function DomainPage({ d, year, onGo, counts, focusValues, focusCode, yearSelect,
       {formDomain && (
         <section aria-labelledby="ta-form-h" data-domain-form>
           <h3 className="ta-sec-h" id="ta-form-h">{formDomain === 'annual' ? 'הטופס — שדה אחר שדה' : 'טופס 1219 — שורה אחר שורה'}</h3>
-          <FormMap key={`${formDomain}.${focusCode ?? ''}`} domain={formDomain} clients={clients} canLearn={canLearn} onLearn={onLearn} onOpenTool={onOpenTool} year={year} initialCode={focusCode} />
+          <FormMap key={formDomain} domain={formDomain} clients={clients} canLearn={canLearn} onLearn={onLearn} onOpenTool={onOpenTool} year={year} initialCode={focusCode}
+            initialForm={focus.form} initialField={focus.field} initialMark={focus.mark} onSelectField={onField} onOpenDomain={onOpenDomain} />
           {formDomain === 'annual' && (
-            <p className="ta-form-more"><button type="button" className="ta-link" onClick={() => onGo({ mode: 'learn', domain: d, item: 'map1301' })} data-domain-control>בקרת הטופס: מה השתנה מול 2024, כיסוי לפי חלקים ומוכנות לקוח ←</button></p>
+            <p className="ta-form-more">
+              {!focus.doc && <><button type="button" className="kn-link" onClick={() => onGo({ mode: 'learn', domain: d, doc: SOURCE_DOCS[0].id })} data-domain-docs>מסמכי מקור: מהמסמך לשדה ←</button><br /></>}
+              <button type="button" className="ta-link" onClick={() => onGo({ mode: 'learn', domain: d, item: 'map1301' })} data-domain-control>בקרת הטופס: מה השתנה מול 2024, כיסוי לפי חלקים ומוכנות לקוח ←</button>
+            </p>
           )}
+        </section>
+      )}
+      {d === 'annual' && focus.doc && (
+        <section aria-labelledby="ta-doc-h" ref={docRef} data-domain-doc={focus.doc}>
+          <div className="ta-doc-head">
+            <h3 className="ta-sec-h" id="ta-doc-h">מסמך מקור — מהמסמך לשדה</h3>
+            <button type="button" className="kn-link" onClick={() => onGo({ mode: 'learn', domain: d })} data-domain-doc-close>סגירה</button>
+          </div>
+          <DocCards selected={focus.doc} onSelect={id => onGo({ mode: 'learn', domain: d, doc: id })} idPrefix="ta" />
         </section>
       )}
       {(tools.length > 0 || plannedTools.length > 0) && (

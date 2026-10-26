@@ -13,6 +13,7 @@ import { AREAS, type AreaId } from '../taxYear/catalog';
 import { WEALTH_AREAS } from '../taxYear/wealthCatalog';
 import { valueGroup } from '../taxKnowledge/domainValues';
 import type { ClaimStatus } from '../taxKnowledge/claim';
+import { SOURCE_DOCS } from '../taxKnowledge/sourceDocs';
 
 export type AreaMode = 'work' | 'learn';
 export const MODE_LABEL: Record<AreaMode, string> = { work: 'עבודות לקוחות', learn: 'ידע מקצועי' };
@@ -211,13 +212,14 @@ export type AreaPath =
   | { mode: 'work'; section: WorkSection }
   /** values — קבוצת ערכים שנפתחת בעמוד התחום (‎learn/<domain>/v/<group>‎). moved — הגיעו מקישור ישן ל«ערכים לפי נושא». */
   /** sub — מה שנבחר בתוך כלי או נושא (מאמר הוצאה, פעילות בניהול ספרים): ‎learn/<domain>/<item>/<sub>‎. */
-  | { mode: 'learn'; domain?: DomainId; item?: string; values?: string; moved?: true; code?: string; sub?: string };
+  /** form/field/mark — טופס וסעיף במפת הטופס: ‎learn/<domain>/f/<form>[/<field>[/<קוד>]]‎. doc — מסמך מקור: ‎learn/annual/d/<id>‎. */
+  | { mode: 'learn'; domain?: DomainId; item?: string; values?: string; moved?: true; code?: string; sub?: string; form?: string; field?: string; mark?: string; doc?: string };
 
 export const DEFAULT_AREA_PATH: AreaPath = { mode: 'work', section: 'all' };
 
 /** ‎"work/annual"‎ · ‎"learn/savings/pensionSE"‎ — מה שאחרי ‎#/tax/‎. קטע לא מוכר נופל לראש המרחב, לא לשגיאה. */
 export function parseAreaPath(raw: string | undefined): AreaPath {
-  const [mode, a, b, c] = (raw ?? '').split('/').filter(Boolean);
+  const [mode, a, b, c, fieldPart, markPart] = (raw ?? '').split('/').filter(Boolean);
   if (mode === 'learn') {
     if (!a) return { mode: 'learn' };
     // ‼ «ערכים לפי נושא» ירד (15.10) — קישור ישן נוחת בדף הבית, עם ההסבר לאן עבר כל נושא
@@ -231,6 +233,14 @@ export function parseAreaPath(raw: string | undefined): AreaPath {
     if (b === 'v') return c && valueGroup(dom.id, c) ? { mode: 'learn', domain: dom.id, values: c } : { mode: 'learn', domain: dom.id };
     // ‎learn/annual/c/158‎ — עמוד התחום עם הטופס, והסעיף בקוד הזה מאותר בו (מהחיפוש בספרייה)
     if (b === 'c') return c && /^[0-9א-ת]{2,5}$/.test(c) && FORM_DOMAIN_IDS.has(dom.id) ? { mode: 'learn', domain: dom.id, code: c } : { mode: 'learn', domain: dom.id };
+    // ‎learn/annual/f/1301/F117/201‎ — הטופס, הסעיף והסימון (הקוד) שנבחרו; ‎f/6111‎ — טופס בלי סעיף
+    if (b === 'f') {
+      if (!c || !FORM_SLUG_RE.test(c) || !FORM_DOMAIN_IDS.has(dom.id)) return { mode: 'learn', domain: dom.id };
+      const field = fieldPart ? safeDecode(fieldPart) : '';
+      if (!field) return { mode: 'learn', domain: dom.id, form: c };
+      return markPart && /^\d{1,4}$/.test(markPart) ? { mode: 'learn', domain: dom.id, form: c, field, mark: markPart } : { mode: 'learn', domain: dom.id, form: c, field };
+    }
+    if (b === 'd') return c && dom.id === 'annual' && SOURCE_DOCS.some(x => x.id === c) ? { mode: 'learn', domain: dom.id, doc: c } : { mode: 'learn', domain: dom.id };
     if (b && dom.items.some(i => i.id === b)) return c ? { mode: 'learn', domain: dom.id, item: b, sub: safeDecode(c) } : { mode: 'learn', domain: dom.id, item: b };
     return { mode: 'learn', domain: dom.id };
   }
@@ -242,6 +252,8 @@ export function formatAreaPath(p: AreaPath): string {
   if (p.mode === 'work') return `work/${p.section}`;
   if (p.domain && p.values && !p.item) return `learn/${p.domain}/v/${p.values}`;
   if (p.domain && p.code && !p.item) return `learn/${p.domain}/c/${p.code}`;
+  if (p.domain && p.form && !p.item) return ['learn', p.domain, 'f', p.form, p.field ? encodeURIComponent(p.field) : undefined, p.field ? p.mark : undefined].filter(Boolean).join('/');
+  if (p.domain && p.doc && !p.item) return `learn/${p.domain}/d/${p.doc}`;
   // ‼ sub מקודד כאן — שם פעילות כמו «פאב / בר» מכיל «/», והכתובת מפוצלת לפי «/» בכל שכבה
   return ['learn', p.domain, p.domain ? p.item : undefined, p.domain && p.item && p.sub ? encodeURIComponent(p.sub) : undefined].filter(Boolean).join('/');
 }
@@ -250,6 +262,8 @@ const safeDecode = (s: string) => { try { return decodeURIComponent(s); } catch 
 
 /** תחומים שהעמוד שלהם הוא הטופס הרשמי עצמו (מפת הטופס). */
 export const FORM_DOMAIN_IDS = new Set<DomainId>(['annual', 'wealth']);
+/** מזהה טופס במפה: ‎1301‎ · ‎1399y‎ · ‎116d‎ · ‎6111‎ — מזהה שאינו במפה נופל בה לטופס הראשי. */
+const FORM_SLUG_RE = /^\d{3,4}[a-z]?$/;
 
 // ── שנת המס שנפתחת (החלטת גיא, 25.10.2026) ─────────────────────────────────────────────
 // ‼ סיכומים, טפסים והדוח — שנת עונת הדוחות: 2025 עד 31.3.2027. כלים שוטפים (ב״ל, יישובים, מדרגות, נקודות זיכוי,

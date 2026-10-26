@@ -12,7 +12,7 @@
 .fm-more select { min-height: 32px; border-radius: 999px; padding: 2px 10px; font-size: var(--fs-13); }
 .fm-more.is-on select { border-color: var(--br); font-weight: 600; }
 .fm-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-.fm-chip.is-on { border-color: var(--br); color: var(--tx); font-weight: 600; background: var(--soft, var(--card)); }
+.fm-chip.is-on, .fm-chip[aria-pressed="true"] { border-color: var(--br); color: var(--tx); font-weight: 600; background: var(--soft, var(--card)); }
 .fm-chip:focus-visible, .fm-pg:focus-visible, .fm-zb:focus-visible, .fm-hit:focus-visible, .fm-mk:focus-visible, .fm-x:focus-visible { outline: 2px solid var(--br); outline-offset: 2px; }
 
 .fm-tools { display: flex; gap: 10px; flex-wrap: wrap; align-items: end; }
@@ -77,7 +77,7 @@
 .fm-sw.st-missing { border-color: rgba(220, 38, 38, .85); background: rgba(220, 38, 38, .12); }
 .fm-sw.st-office { border-color: rgba(100, 116, 139, .7); background: rgba(100, 116, 139, .1); }
 
-.fm-detail { position: sticky; top: 12px; max-block-size: calc(100vh - 24px); overflow: auto; padding: 12px 14px; border: 1px solid var(--bd); border-radius: 12px; background: var(--card); outline: none; }
+.fm-detail { overflow: auto; padding: 12px 14px; border: 1px solid var(--bd); border-radius: 12px; background: var(--card); outline: none; }
 .fm-detail-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
 .fm-x { inline-size: 36px; block-size: 36px; border: 0; border-radius: 8px; background: transparent; color: var(--tx2); font: inherit; font-size: 16px; cursor: pointer; }
 .fm-hint p { margin: 0 0 6px; }
@@ -113,6 +113,10 @@
   .fm-stage { max-block-size: 70vh; }
   /* ‼ ההסבר כגיליון מלמטה — הטופס נשאר גלוי מעליו, וסוגרים ב-✕ */
   .fm-detail { position: static; max-block-size: none; }
+  .fm-side { position: static; max-block-size: none; overflow: visible; }
+  /* בחיפוש — התוצאות מעל הטופס, ליד תיבת החיפוש */
+  .fm-side.has-q { order: -1; }
+  .fm-chip, .fm-pg, .fm-more select { min-height: 40px; }
   .fm-detail.is-open { position: fixed; inset-inline: 0; bottom: 0; top: auto; z-index: 60; max-block-size: 58vh; border-radius: 14px 14px 0 0; box-shadow: 0 -8px 24px rgba(0, 0, 0, .18); padding-bottom: max(12px, env(safe-area-inset-bottom)); }
   .fm-find input { inline-size: 7.5rem; }
   .fm-un-group ul { columns: 1; }
@@ -145,3 +149,37 @@
 .fm-year-note { font-size: var(--fs-12); color: var(--warn); }
 .fm-card-t:focus { outline: none; }
 /* המיקוד בכותרת הוא לקורא מסך — לא מסגרת על הכותרת */
+
+/* רשימת הסעיפים ליד הטופס, הסעיף הקודם/הבא והמקור (26.10.2026) */
+.fm-side { position: sticky; top: 12px; max-block-size: calc(100vh - 24px); overflow: auto; display: grid; gap: 10px; align-content: start; min-width: 0; }
+.fm-detail:not(.is-open) { display: none; }
+.fm-list { display: grid; gap: 6px; padding: 10px 12px; border: 1px solid var(--bd); border-radius: 12px; background: var(--card); min-width: 0; }
+.fm-list p { margin: 0; }
+.fm-scope { display: flex; flex-wrap: wrap; gap: 6px; }
+.fm-part select { inline-size: 100%; min-height: 36px; font-size: var(--fs-13); }
+.fm-rows { list-style: none; margin: 0; padding: 0; display: grid; }
+.fm-row { inline-size: 100%; min-height: 44px; display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 8px; align-items: center; text-align: start; padding: 6px 4px; border: 0; border-bottom: 1px solid var(--bd); background: transparent; color: inherit; font: inherit; cursor: pointer; }
+.fm-row .fm-code { grid-row: span 2; align-self: start; }
+.fm-row-t { font-size: var(--fs-13); font-weight: 600; line-height: 1.45; overflow-wrap: anywhere; }
+.fm-row-p { font-size: var(--fs-12); color: var(--tx3); }
+.fm-row-p:empty { display: none; }
+.fm-row[aria-current="true"] { background: var(--soft); box-shadow: inset 3px 0 0 var(--br); }
+@media (hover: hover) { .fm-row:hover { background: var(--soft); } }
+.fm-row:focus-visible { outline: 2px solid var(--br); outline-offset: -2px; }
+.fm-rows.is-other .fm-row-t { font-weight: 500; color: var(--br); }
+.fm-rows-h { padding-top: 6px; }
+.fm-nav { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--bd); }
+.fm-prov { margin: 10px 0 0; font-size: var(--fs-13); }
+.fm-prov > summary { cursor: pointer; min-height: 36px; display: flex; align-items: center; color: var(--tx2); }
+.fm-prov p { margin: 4px 0 0; }
+.fm-prov-list { margin: 4px 0 0; padding-inline-start: 18px; display: grid; gap: 4px; }
+.fm-prov a, .fm-printed a { color: var(--br); }
+.ta-doc-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.kn-doc-src { margin-top: 4px; }
+.kn-doc-src > summary { cursor: pointer; min-height: 36px; display: flex; align-items: center; color: var(--tx2); }
+.kn-doc-src p { margin: 4px 0 0; }
+@media (max-width: 900px) {
+  .fm-nav .btn { min-height: 40px; }
+  .ta-doc-head .kn-link { min-height: 40px; }
+}
+[data-domain-doc] { scroll-margin-top: 72px; }

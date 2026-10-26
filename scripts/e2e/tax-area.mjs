@@ -222,8 +222,9 @@ async function run(vp) {
     // אתר שדה לפי קוד — כל ההתאמות
     const find = page.locator('[data-form-map] [data-fm-find]').first();
     await find.fill('40'); await sleep(300);
-    const hits = await page.locator('[data-fm-hit]').allInnerTexts();
-    ok(hits.length >= 3 && hits.some(x => /1301/.test(x)) && hits.some(x => /1399י/.test(x)) && hits.some(x => /1219/.test(x)), 'קוד «40»: כל ההתאמות (1301, 1399י, 1219) — לא אחת בשקט', hits.map(x => x.replace(/\n/g, ' ')).join(' || '));
+    // ‼ 26.10: רשימה אחת — התאמות בטופס הזה (בלי שם הטופס), ובטפסים אחרים «נמצא בטופס X: …»
+    const hits = await page.locator('[data-fm-hit]').evaluateAll(e => e.map(x => `${x.dataset.fmHit} ${x.innerText}`));
+    ok(hits.length >= 3 && hits.some(x => /^1301:/.test(x)) && hits.some(x => /1399י/.test(x)) && hits.some(x => /1219/.test(x)), 'קוד «40»: כל ההתאמות (1301, 1399י, 1219) — לא אחת בשקט', hits.map(x => x.replace(/\n/g, ' ')).join(' || '));
     await shot(page, `${vp}-05-find-code`);
     await find.fill('42'); await sleep(300);
     const h42 = page.locator('[data-fm-hit="1301:042"]');

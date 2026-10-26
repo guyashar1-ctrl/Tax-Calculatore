@@ -8,7 +8,8 @@ import catalogJson from '../../taxForms/data/form1301-2025.catalog.json';
 import { Sec, Quiz, type TopicBodyProps, type TocItem } from './shared';
 import { Glossary, Thinking, Mistakes, SolveFirst, Legend, ClaimTag } from './lesson';
 import { ANNUAL_LESSON } from './lessonsReports';
-import { SOURCE_DOCS, ANNEX_NEEDS } from '../sourceDocs';
+import { ANNEX_NEEDS } from '../sourceDocs';
+import DocCards from './DocCards';
 import { ROLE_SHORT, docLabel, explainOf, findFields } from '../formMap/model';
 
 export const ANNUAL_TOC: TocItem[] = [
@@ -52,39 +53,6 @@ function AnnexFinder() {
             <li className="kn-xs kn-muted">תמיד: 1301 עצמו, ואישורי ניכוי במקור לכל סכום שנוכה. בהגשה מקוונת מלאה — נספחים ששודרו (6111, 1399י, 1322, 1324) לא מצרפים שוב.</li>
           </ul>
         )}
-      </div>
-    </div>
-  );
-}
-
-function DocCards() {
-  const [id, setId] = useState(SOURCE_DOCS[0].id);
-  const d = SOURCE_DOCS.find(x => x.id === id)!;
-  return (
-    <div className="kn-page" style={{ gap: 10 }}>
-      <label className="kn-field kn-doc-pick" htmlFor="ar-doc">מסמך
-        <select id="ar-doc" value={id} onChange={e => setId(e.target.value)}>{SOURCE_DOCS.map(x => <option key={x.id} value={x.id}>{x.title}</option>)}</select>
-      </label>
-      <div className="kn-doc-tabs" role="tablist" aria-label="מסמכי מקור">
-        {SOURCE_DOCS.map(x => <button key={x.id} type="button" role="tab" aria-selected={x.id === id} className={x.id === id ? 'is-on' : ''} onClick={() => setId(x.id)}>{x.title.split(' — ')[0]}</button>)}
-      </div>
-      <div className="kn-doc" aria-live="polite">
-        <h3 className="kn-doc-title">{d.title}</h3>
-        <p className="kn-small" style={{ margin: 0 }}>{d.what}</p>
-        <p className="kn-xs kn-muted" style={{ margin: 0 }}>מי מנפיק: {d.issuer}</p>
-        <div><strong className="kn-small">1. זיהוי</strong><ul className="kn-small">{d.identify.map(x => <li key={x}>{x}</li>)}</ul></div>
-        <div><strong className="kn-small">2 ו-3. מה במסמך ⇐ לאיזה שדה</strong>
-          <div className="kn-tbl-wrap"><table className="kn-tbl">
-            <thead><tr><th>מה במסמך</th><th>קוד (רשום/בן־בת זוג)</th><th>הערה</th><th /></tr></thead>
-            <tbody>{d.rows.map(r => <tr key={r.what}><td>{r.what}</td><td style={{ whiteSpace: 'nowrap', fontWeight: 700 }}>{r.code}</td><td className="kn-xs">{r.note ?? ''}</td><td><ClaimTag status={r.status} /></td></tr>)}</tbody>
-          </table></div>
-        </div>
-        <div><strong className="kn-small">4. בדיקת המשרד</strong><ul className="kn-small">{d.check.map(x => <li key={x}>{x}</li>)}</ul></div>
-        <div className="kn-two">
-          <div><strong className="kn-small">טעויות נפוצות</strong><ul className="kn-small">{d.mistakes.map(x => <li key={x}>{x}</li>)}</ul></div>
-          <div><strong className="kn-small">כשהמסמך חסר או חלקי</strong><ul className="kn-small">{d.missing.map(x => <li key={x}>{x}</li>)}</ul></div>
-        </div>
-        <p className="kn-xs kn-muted" style={{ margin: 0 }}>איך מבקשים: {d.askAs}</p>
       </div>
     </div>
   );

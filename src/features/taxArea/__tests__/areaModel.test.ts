@@ -195,6 +195,25 @@ export const TESTS: TestCase[] = [
     equal(formatAreaPath(parseAreaPath('learn/annual/c/158')), 'learn/annual/c/158');
     deepEqual(parseAreaPath('learn/ni/c/158'), { mode: 'learn', domain: 'ni' });
   }),
+  // 26.10.2026: הסעיף שנבחר במפת הטופס — בכתובת, כדי ש«אחורה» ורענון יחזירו אליו
+  test('סעיף בכתובת: ‎learn/annual/f/<טופס>/<סעיף>/<קוד>‎ חוזר שלם, ורק בתחום עם טופס', () => {
+    for (const s of ['learn/annual/f/1301/F117/201', 'learn/annual/f/1321/1321.2', 'learn/annual/f/6111', 'learn/wealth/f/1219/1219.a.1', 'learn/annual/f/1399y/1399y.3/40']) {
+      equal(formatAreaPath(parseAreaPath(s)), s, s);
+    }
+    deepEqual(parseAreaPath('learn/annual/f/1301/F117/201'), { mode: 'learn', domain: 'annual', form: '1301', field: 'F117', mark: '201' });
+    deepEqual(parseAreaPath('learn/annual/f/1301'), { mode: 'learn', domain: 'annual', form: '1301' });
+    deepEqual(parseAreaPath('learn/annual/f/1301/F117/xyz'), { mode: 'learn', domain: 'annual', form: '1301', field: 'F117' }, 'קוד לא מספרי — בלי סימון');
+    deepEqual(parseAreaPath('learn/ni/f/1301/F117'), { mode: 'learn', domain: 'ni' }, 'תחום בלי טופס');
+    deepEqual(parseAreaPath('learn/annual/f/<script>'), { mode: 'learn', domain: 'annual' }, 'מזהה טופס לא תקין');
+    const p = { mode: 'learn' as const, domain: 'annual' as const, form: '1301', field: 'F/1' };
+    deepEqual(parseAreaPath(formatAreaPath(p)), p, '«/» במזהה הסעיף מקודד');
+  }),
+  test('מסמך מקור בכתובת: ‎learn/annual/d/<מסמך>‎ — רק מסמך שקיים, ורק בדוח השנתי', () => {
+    deepEqual(parseAreaPath('learn/annual/d/106'), { mode: 'learn', domain: 'annual', doc: '106' });
+    equal(formatAreaPath(parseAreaPath('learn/annual/d/btl-se')), 'learn/annual/d/btl-se');
+    deepEqual(parseAreaPath('learn/annual/d/nope'), { mode: 'learn', domain: 'annual' });
+    deepEqual(parseAreaPath('learn/wealth/d/106'), { mode: 'learn', domain: 'wealth' });
+  }),
   // 26.10.2026: הכלים כתבו ‎#tool/…‎ (מההדמיה) — כתובת שהאפליקציה לא מכירה, והמשתמש נזרק מ«מס». הבחירה בכלי — בתוך הכתובת של «מס»
   test('בחירה בתוך כלי: ‎learn/business/bookkeeping/<פעילות>‎ — גם שם עם «/» חוזר שלם', () => {
     const p = { mode: 'learn' as const, domain: 'business' as const, item: 'bookkeeping', sub: 'פאב / בר' };
