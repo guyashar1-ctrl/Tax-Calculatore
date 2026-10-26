@@ -65,6 +65,10 @@ export interface SourceSummary {
   uploadedAt: string;
   hasFile?: boolean;
   sha256?: string;
+  /** 305 · יש מה לבטל (ההעלאה נרשמה אחרי 305 ולא בוטלה). */
+  canUndo?: boolean;
+  undoneAt?: string;
+  undo?: UndoSummary;
 }
 
 /** שורה בתוכנית הקליטה שהשרת מחזיר (_shaam_plan). */
@@ -198,4 +202,48 @@ export function planCounts(plan: PlanRow[]): ImportCounts {
 export function obligationYear(o: Pick<Obligation, 'yearShown'>): number | null {
   const m = String(o.yearShown ?? '').match(/(20\d\d)(?!.*20\d\d)/);
   return m ? Number(m[1]) : null;
+}
+
+// ─── 305 · קליטה שנכתבת מיד, וביטול העלאה (26.10.2026) ─────────────────────────────────────────────
+/** מה הקליטה עשתה (shaam_filing_import → summary). */
+export interface ImportSummary { written: number; unchanged: number; review: number; opened: number; linked: number; needDay: number; openFailed: number }
+/** מה הביטול עשה (undo_shaam_filing_source). */
+export interface UndoSummary {
+  deleted: number; restored: number; cancelledRequests: number; gone?: number;
+  kept: { obligationId: string; clientId?: string; reason: string }[];
+  keptRequests: { stepId: string; clientId?: string; reason: string }[];
+}
+
+/** «נכתבו לתיקים 5 · לבדיקה 1 · נפתחו בקשות 2» — שלושת הראשונים תמיד, השאר רק כשיש. */
+export function importSummaryParts(s: ImportSummary): string[] {
+  return [
+    `נכתבו לתיקים ${s.written}`,
+    `לבדיקה ${s.review}`,
+    `נפתחו בקשות ${s.opened}`,
+    s.linked ? `קושרו לבקשה קיימת ${s.linked}` : '',
+    s.unchanged ? `ללא שינוי ${s.unchanged}` : '',
+    s.needDay ? `הצהרות הון — ממתינות ליום הצהרה ${s.needDay}` : '',
+    s.openFailed ? `בקשות שלא נפתחו ${s.openFailed}` : '',
+  ].filter(Boolean);
+}
+
+/** מיזוג ביטולים (כמה קבצים באותה העלאה). */
+export function mergeUndo(list: UndoSummary[]): UndoSummary {
+  return list.reduce<UndoSummary>((a, u) => ({
+    deleted: a.deleted + (u.deleted ?? 0), restored: a.restored + (u.restored ?? 0), cancelledRequests: a.cancelledRequests + (u.cancelledRequests ?? 0),
+    gone: (a.gone ?? 0) + (u.gone ?? 0), kept: [...a.kept, ...(u.kept ?? [])], keptRequests: [...a.keptRequests, ...(u.keptRequests ?? [])],
+  }), { deleted: 0, restored: 0, cancelledRequests: 0, gone: 0, kept: [], keptRequests: [] });
+}
+
+/** «בוטלה: 4 נמחקו · 1 הוחזרה · בקשה 1 בוטלה · נשארו 2 (כבר טופלו)». ‼ «נשארו» — מה שאדם עשה בו או שהעלאה חדשה יותר אישרה. */
+export function undoSummaryText(u: UndoSummary): string {
+  const kept = new Set(u.kept.map(k => k.obligationId)).size;
+  const keptReq = new Set(u.keptRequests.map(k => k.stepId)).size;
+  return ['בוטלה', [
+    u.deleted ? `${u.deleted} נמחקו` : '',
+    u.restored ? `${u.restored} הוחזרו לקודם` : '',
+    u.cancelledRequests ? `${u.cancelledRequests === 1 ? 'בקשה אחת בוטלה' : `${u.cancelledRequests} בקשות בוטלו`}` : '',
+    kept ? `נשארו ${kept} (טופלו או עודכנו אחר כך)` : '',
+    keptReq ? `${keptReq === 1 ? 'בקשה אחת שכבר עבדו עליה נשארה' : `${keptReq} בקשות שכבר עבדו עליהן נשארו`}` : '',
+  ].filter(Boolean).join(' · ') || 'לא היה מה להחזיר'].join(': ');
 }

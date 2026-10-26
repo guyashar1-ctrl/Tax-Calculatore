@@ -21,6 +21,11 @@
 .shf-chip.red { background: var(--chip-red-bg); color: var(--chip-red-tx); }
 .shf-err { padding: 8px 12px; border-radius: 10px; background: var(--err-bg); color: var(--err); font-size: var(--fs-13); }
 .shf-ok { padding: 8px 12px; border-radius: 10px; background: var(--ok-bg); color: var(--ok); font-size: var(--fs-13); display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+/* 303 · סיכום הקליטה: «נכתבו לתיקים 5 · לבדיקה 1 · נפתחו בקשות 2» — חלקים שנשברים שלמים בטלפון */
+.shf-summary { display: inline-flex; flex-wrap: wrap; gap: 4px 0; flex: 1 1 auto; min-inline-size: 0; }
+.shf-summary-part + .shf-summary-part::before { content: "·"; margin-inline: 6px; opacity: .6; }
+.shf-ok .shf-inline { margin-inline-start: auto; }
+.shf-row.is-undone .shf-row-main > b { text-decoration: line-through; opacity: .7; }
 
 /* מה להפיק + מדריך */
 .shf-what { display: flex; flex-direction: column; gap: 10px; border-top: 1px solid var(--bd); padding-top: 10px; }

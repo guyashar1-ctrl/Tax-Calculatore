@@ -1,9 +1,12 @@
 // ─── «הפקת דוחות משע״ם והעלאה» — מקטע ב«מס › עבודות לקוחות › כל העבודות» (16.10.2026) ───────────────
 // הכרעת מיקום (גיא + הסשן המנהל, 16.10): כאן, ולא בדף הסיום של הקליטה ולא בדף הלקוח הציבורי.
-// ‼ ארבעה חלקים, רשימה אחת: (1) מה להפיק + מדריך מסומן, (2) העלאת PDF אחד או כמה → תצוגת קליטה → «שמירה לתיקים»,
-//   (3) חובות פתוחות בלי בקשה — «חייב · טרם נפתח» עם «פתח בקשה» / «פתח בקשות לכולם» (או ShaamOpenRows ברשימת
-//   העבודות עצמה, hideOpenRows), (4) לבדיקה והיסטוריה — מקופלים.
-// ‼ «שמירה לתיקים» היא אישור התוצר: רק שורות מזוהות נכתבות לתיק; לא ודאיות נשמרות «לבדיקה» בלי כתיבה לתיק.
+// ‼ ארבעה חלקים, רשימה אחת: (1) מה להפיק + מדריך מסומן, (2) העלאת PDF אחד או כמה → נכתב לתיקים מיד, עם סיכום,
+//   (3) חובות פתוחות בלי בקשה — «חייב · טרם נפתח» עם «פתח בקשה» (או ShaamOpenRows ברשימת העבודות עצמה, hideOpenRows),
+//   (4) לבדיקה, היסטוריה וקבצים שנקלטו — מקופלים.
+// ‼ 305 (החלטות גיא 25.10.2026): אין שלב אישור. מזוהים נכתבים לתיקים מיד; לא ודאי — «לבדיקה», בלי כתיבה לתיק;
+//   חובת דוח שנתי פתוחה חדשה פותחת בקשה פנימית לבד (בשרת, אותה פונקציה כמו «פתח בקשה»: לא בדף, בלי מייל).
+//   כל העלאה ניתנת לביטול («ביטול ההעלאה») — מה שאדם כבר עבד עליו נשאר, והסיכום אומר את זה.
+//   «פתח בקשה» נשאר רק למה שעוד צריך: הצהרת הון (יום ההצהרה נבחר במפורש), שורה אחרי בדיקה, או פתיחה שנכשלה.
 // ‼ הקובץ המקורי (רשימת לקוחות רבים) עולה לדלי הפרטי של המשרד — לא לתיק לקוח ולא לדף האישי.
 
 import { useMemo, useRef, useState } from 'react';
@@ -12,8 +15,8 @@ import { ArrowChain } from '../../components/ui/ArrowPath';
 import { readShaamFile } from './parse/readPdf';
 import { buildBatch, coverageText, fileVerdict, uncheckedWealthGroups, type Batch, type Coverage, type ParsedFile } from './parse/batch';
 import { WEALTH_GROUP_LABEL, type WealthGroup } from './parse/parseShaam';
-import { confirmGroupEmpty, previewImport, requestCopy, resolveObligation, saveImport, uploadSource, type PreviewResult } from './api';
-import { COPY_TEXT, MATCH_TEXT, sourceShort, REVIEW_TEXT, copyState, dmy, needsRequest, obligationDueText, obligationTitle, planCounts, sourceText, stateLine, type Obligation, type PlanRow } from './model';
+import { confirmGroupEmpty, requestCopy, resolveObligation, saveImport, undoSource, uploadSource, type ImportResult } from './api';
+import { COPY_TEXT, MATCH_TEXT, sourceShort, REVIEW_TEXT, copyState, dmy, importSummaryParts, mergeUndo, needsRequest, obligationDueText, obligationTitle, sourceText, stateLine, undoSummaryText, type Obligation, type PlanRow, type UndoSummary } from './model';
 import { useObligations } from './useObligations';
 import { isGmf154Source } from './fromGmf154';
 import ShaamGuide from './ShaamGuide';
@@ -33,7 +36,7 @@ export interface ShaamFilingPanelProps {
 const CHANGE_TEXT: Record<PlanRow['change'], string> = { new: 'חדש', updated: 'עודכן', unchanged: 'ללא שינוי', older: 'ישן מהקיים — לא עודכן', duplicate: 'כפול באצווה', invalid: 'לא נקרא' };
 const nameOfClient = (c?: Client) => (c ? `${c.firstName ?? ''} ${c.lastName ?? ''}`.trim() || 'לקוח' : '');
 
-type Phase = 'idle' | 'reading' | 'review' | 'saving' | 'saved';
+type Phase = 'idle' | 'reading' | 'saving' | 'saved';
 
 export default function ShaamFilingPanel({ clients, onOpenRequests, onChanged, hideOpenRows }: ShaamFilingPanelProps) {
   const { obligations, sources, err, load } = useObligations();
@@ -47,23 +50,45 @@ export default function ShaamFilingPanel({ clients, onOpenRequests, onChanged, h
   const raw = useRef(new Map<string, File>());
   const [batch, setBatch] = useState<Batch | null>(null);
   const [coverage, setCoverage] = useState<Coverage[]>([]);
-  const [preview, setPreview] = useState<PreviewResult | null>(null);
   const [mode, setMode] = useState<'routine' | 'intake'>('routine');
   const [error, setError] = useState<string | null>(null);
-  const [saved, setSaved] = useState<{ counts: Record<string, number>; review: number; matched: number } | null>(null);
+  const [result, setResult] = useState<ImportResult | null>(null);
   const [drag, setDrag] = useState(false);
   const [opening, setOpening] = useState<Obligation[] | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const reset = () => { setPhase('idle'); setFiles([]); raw.current.clear(); setBatch(null); setCoverage([]); setPreview(null); setError(null); setSaved(null); };
+  const reset = () => { setPhase('idle'); setFiles([]); raw.current.clear(); setBatch(null); setCoverage([]); setResult(null); setError(null); };
+
+  // ‼ אין «שמירה לתיקים»: הקריאה נגמרת ⇒ הקובץ לדלי הפרטי ⇒ shaam_filing_import. השרת מחליט מה נכתב ומה «לבדיקה».
+  const save = async (b: Batch, parsed: ParsedFile[]) => {
+    setPhase('saving'); setError(null);
+    try {
+      const withPaths: Batch = { ...b, sources: b.sources.map(s => ({ ...s })) };
+      for (const f of parsed) {
+        if (!f.sha256 || f.error) continue;
+        const file = raw.current.get(f.key);
+        if (!file) continue;
+        // אותו קובץ כבר שמור אצל המשרד — לא מעלים שוב (הנתיב נקבע לפי התוכן)
+        const known = sources.find(s => s.sha256 === f.sha256 && s.hasFile);
+        const u = known ? { path: undefined } : await uploadSource(file, f.sha256);
+        if ('error' in u && u.error) throw new Error(`שמירת הקובץ «${f.fileName}» נכשלה (${u.error}) — לא נקלט דבר`);
+        if (u.path) for (const s of withPaths.sources) if (s.key === f.key || s.key.startsWith(`${f.key}#`)) s.storagePath = u.path;
+      }
+      const r = await saveImport(withPaths);
+      if (!r.ok) throw new Error(r.error ?? 'save_failed');
+      setResult(r);
+      setPhase('saved');
+      await load();
+      onChanged?.();
+    } catch (e) { setError(`הקליטה נכשלה: ${(e as Error).message}`); setPhase('saved'); }
+  };
 
   const addFiles = async (list: FileList | File[]) => {
     const arr = [...list];
     if (!arr.length) return;
-    setError(null); setSaved(null); setPhase('reading');
-    // ‼ אחרי שמירה (או בפעם הראשונה) — אצווה חדשה; בתוך סקירה — מוסיפים לאותה אצווה
-    const next = phase === 'review' ? [...files] : [];
-    if (phase !== 'review') raw.current.clear();
+    setError(null); setResult(null); setPhase('reading');
+    raw.current.clear();
+    const next: ParsedFile[] = [];
     for (const [k, f] of arr.entries()) {
       setProgress({ name: f.name, done: 0, total: 0, file: k + 1, files: arr.length });
       const pf = await readShaamFile(f, (done, total) => setProgress({ name: f.name, done, total, file: k + 1, files: arr.length }));
@@ -75,68 +100,23 @@ export default function ShaamFilingPanel({ clients, onOpenRequests, onChanged, h
     setFiles(next);
     const b = buildBatch(next);
     setBatch(b.batch); setCoverage(b.coverage);
-    if (b.batch.rows.length) {
-      try {
-        const p = await previewImport(b.batch);
-        if (!p.ok) throw new Error(p.error ?? 'preview_failed');
-        setPreview(p);
-      } catch (e) { setError(`הבדיקה מול התיקים נכשלה: ${(e as Error).message}. נסו שוב.`); setPreview(null); }
-    } else setPreview({ ok: true, plan: [], names: {} });
-    setPhase('review');
-  };
-
-  const removeFile = (key: string) => {
-    const next = files.filter(f => f.key !== key);
-    raw.current.delete(key);
-    setFiles(next);
-    if (!next.length) { reset(); return; }
-    const b = buildBatch(next);
-    setBatch(b.batch); setCoverage(b.coverage);
-    void previewImport(b.batch).then(setPreview).catch(e => setError((e as Error).message));
-  };
-
-  const save = async () => {
-    if (!batch) return;
-    setPhase('saving'); setError(null);
-    try {
-      // 1 · הקבצים המקוריים לדלי הפרטי של המשרד
-      const withPaths: Batch = { ...batch, sources: batch.sources.map(s => ({ ...s })) };
-      for (const f of files) {
-        if (!f.sha256 || f.error) continue;
-        const file = raw.current.get(f.key);
-        if (!file) continue;
-        // אותו קובץ כבר שמור אצל המשרד — לא מעלים שוב (הנתיב נקבע לפי התוכן)
-        const known = sources.find(s => s.sha256 === f.sha256 && s.hasFile);
-        const u = known ? { path: undefined } : await uploadSource(file, f.sha256);
-        if ('error' in u && u.error) throw new Error(`שמירת הקובץ «${f.fileName}» נכשלה (${u.error}) — לא נקלט דבר`);
-        if (u.path) for (const s of withPaths.sources) if (s.key === f.key || s.key.startsWith(`${f.key}#`)) s.storagePath = u.path;
-      }
-      // 2 · השורות לתיקים
-      const r = await saveImport(withPaths);
-      if (!r.ok) throw new Error(r.error ?? 'save_failed');
-      const c = planCounts(r.plan);
-      setSaved({ counts: r.counts, review: c.review, matched: c.matched });
-      setPhase('saved');
-      await load();
-      onChanged?.();
-    } catch (e) { setError((e as Error).message); setPhase('review'); }
+    if (b.batch.rows.length || b.batch.sources.some(s => s.status === 'empty_confirmed')) await save(b.batch, next);
+    else setPhase('saved');
   };
 
   const verdicts = files.map(fileVerdict);
-  const plan = preview?.plan ?? [];
-  const counts = planCounts(plan);
-  // קבוצה שנבדקה בהעלאה קודמת ב-14 הימים האחרונים — נחשבת נבדקה (עם התאריך); אחרת «לא נבדקה»
+  const plan = result?.plan ?? [];
+  // קבוצה שנבדקה בהעלאה קודמת ב-14 הימים האחרונים — נחשבת נבדקה (עם התאריך); אחרת «לא נבדקה». ‼ העלאה שבוטלה — לא.
   const recentCut = new Date(Date.now() - 14 * 864e5).toISOString().slice(0, 10);
   const recent = new Map<WealthGroup, string>();
-  for (const s of sources) if (s.kind === 'wealth' && s.group && (s.producedOn ?? s.uploadedAt.slice(0, 10)) >= recentCut && !recent.has(s.group)) recent.set(s.group, s.producedOn ?? s.uploadedAt.slice(0, 10));
+  for (const s of sources) if (s.kind === 'wealth' && s.group && !(s.undoneAt && !s.canUndo) && (s.producedOn ?? s.uploadedAt.slice(0, 10)) >= recentCut && !recent.has(s.group)) recent.set(s.group, s.producedOn ?? s.uploadedAt.slice(0, 10));
   const unchecked = uncheckedWealthGroups(coverage, mode).filter(g => !recent.has(g));
   const recentChecked = uncheckedWealthGroups(coverage, mode).filter(g => recent.has(g));
   const showUnchecked = coverage.some(c => c.list.startsWith('wealth:')) || mode === 'intake';
-  const saveable = plan.some(p => ['new', 'updated', 'unchanged'].includes(p.change)) || !!batch?.sources.some(s => s.status === 'empty_confirmed');
-  const canSave = !!batch && !!preview && phase === 'review' && saveable;
+  const batchSources = Object.values(result?.sources ?? {});
   const rowView = (p: PlanRow) => {
     const r = batch?.rows[p.i - 1];
-    const who = p.clientId ? (preview?.names[p.clientId] ?? nameOfClient(byId.get(p.clientId))) : r?.name ?? '';
+    const who = (p.clientId ? nameOfClient(byId.get(p.clientId)) : '') || r?.name || '';
     const src = r ? batch?.sources.find(s => s.key === r.sourceKey) : undefined;
     return { r, who, kind: src?.kind ?? 'annual', group: src?.group };
   };
@@ -173,29 +153,38 @@ export default function ShaamFilingPanel({ clients, onOpenRequests, onChanged, h
       {(phase === 'idle' || phase === 'saved') && (
         <div className={`shf-drop${drag ? ' is-drag' : ''}`} onDragOver={e => { e.preventDefault(); setDrag(true); }} onDragLeave={() => setDrag(false)}
           onDrop={e => { e.preventDefault(); setDrag(false); void addFiles(e.dataTransfer.files); }} data-sf-drop>
-          <span>גוררים לכאן PDF אחד או כמה (גם קובץ עם כמה עמודים) — או <button type="button" className="shf-link" onClick={() => inputRef.current?.click()}>בוחרים קבצים</button></span>
-          <small className="shf-muted">הקובץ נקרא במחשב שלך. נשמר רק ב«שמירה לתיקים», בתיקייה פרטית של המשרד — לא בתיק לקוח.</small>
+          <span>גוררים לכאן PDF אחד או כמה — או <button type="button" className="shf-link" onClick={() => inputRef.current?.click()}>בוחרים קבצים</button></span>
+          <small className="shf-muted">מה שזוהה נכתב לתיקים מיד, ואפשר לבטל. הקובץ נשמר בתיקייה פרטית של המשרד — לא בתיק לקוח.</small>
         </div>
       )}
 
-      {phase === 'reading' && progress && (
+      {(phase === 'reading' || phase === 'saving') && (
         <div className="shf-progress" role="status" data-sf-progress>
-          קורא {progress.files > 1 ? `קובץ ${progress.file} מתוך ${progress.files} · ` : ''}«{progress.name}»{progress.total ? ` · עמוד ${progress.done} מתוך ${progress.total}` : '…'}
-          <span className="shf-bar"><i style={{ inlineSize: `${progress.total ? Math.round((progress.done / progress.total) * 100) : 5}%` }} /></span>
+          {phase === 'saving' ? 'כותב לתיקים…' : progress ? <>קורא {progress.files > 1 ? `קובץ ${progress.file} מתוך ${progress.files} · ` : ''}«{progress.name}»{progress.total ? ` · עמוד ${progress.done} מתוך ${progress.total}` : '…'}</> : 'קורא…'}
+          {phase === 'reading' && progress && <span className="shf-bar"><i style={{ inlineSize: `${progress.total ? Math.round((progress.done / progress.total) * 100) : 5}%` }} /></span>}
         </div>
       )}
 
-      {error && <div className="shf-err" role="alert" data-sf-error>{error}</div>}
-
-      {phase === 'saved' && saved && (
-        <div className="shf-ok" role="status" data-sf-saved>
-          נשמר לתיקים: {saved.matched} שורות מזוהות{saved.counts.new ? ` · ${saved.counts.new} חדשות` : ''}{saved.counts.updated ? ` · ${saved.counts.updated} עודכנו` : ''}{saved.counts.unchanged ? ` · ${saved.counts.unchanged} ללא שינוי` : ''}{saved.review ? ` · ${saved.review} לבדיקה (לא נכתבו לתיק)` : ''}{saved.counts.older ? ` · ${saved.counts.older} מקובץ ישן — לא דרסו` : ''}.
-          <button type="button" className="shf-link" onClick={reset}>סגירה</button>
+      {error && (
+        <div className="shf-err" role="alert" data-sf-error>{error}{' '}
+          {batch && <button type="button" className="shf-link" onClick={() => void save(batch, files)}>נסה שוב</button>}
         </div>
       )}
 
-      {(phase === 'review' || phase === 'saving') && (
-        <div className="shf-review" data-sf-review>
+      {phase === 'saved' && (
+        <div className="shf-review" data-sf-result>
+          {result?.summary && (
+            <div className="shf-ok" role="status" data-sf-saved>
+              <span className="shf-summary">{importSummaryParts(result.summary).map((t, k) => <span key={k} className="shf-summary-part">{t}</span>)}</span>
+              <span className="shf-inline">
+                {batchSources.length > 0 && <UndoUpload sourceIds={batchSources} onDone={() => { void load(); onChanged?.(); }} />}
+                <button type="button" className="shf-link" onClick={reset}>סגירה</button>
+              </span>
+            </div>
+          )}
+          {!result && !error && (
+            <p className="shf-muted">{files.length ? 'אין בקבצים שורות שאפשר לקלוט.' : 'לא נקרא אף קובץ.'} <button type="button" className="shf-link" onClick={reset}>סגירה</button></p>
+          )}
           <ul className="shf-files">
             {verdicts.map(v => (
               <li key={v.key} className={`shf-file is-${v.tone}`} data-sf-file={v.tone}>
@@ -204,11 +193,9 @@ export default function ShaamFilingPanel({ clients, onOpenRequests, onChanged, h
                   <span>{v.label}</span>
                   {v.messages.map((m, k) => <small key={k}>{m}</small>)}
                 </div>
-                <button type="button" className="shf-link" disabled={phase === 'saving'} onClick={() => removeFile(v.key)} aria-label={`הסרת ${v.fileName}`}>הסרה</button>
               </li>
             ))}
           </ul>
-          <div className="shf-add-more"><button type="button" className="shf-link" disabled={phase === 'saving'} onClick={() => inputRef.current?.click()}>＋ עוד קובץ</button></div>
 
           {coverage.length > 0 && (
             <div className="shf-coverage" data-sf-coverage>
@@ -230,17 +217,9 @@ export default function ShaamFilingPanel({ clients, onOpenRequests, onChanged, h
           )}
 
           {plan.length > 0 && (
-            <>
-              <div className="shf-counts" data-sf-counts>
-                <span className="shf-chip blue">זוהו {counts.matched}</span>
-                <span className="shf-chip">חדשים {counts.new}</span>
-                <span className="shf-chip">עודכנו {counts.updated}</span>
-                <span className="shf-chip">ללא שינוי {counts.unchanged}</span>
-                {counts.review > 0 && <span className="shf-chip amber">לבדיקה {counts.review}</span>}
-                {counts.older > 0 && <span className="shf-chip">מקובץ ישן {counts.older}</span>}
-                {counts.invalid > 0 && <span className="shf-chip red">לא נקראו {counts.invalid}</span>}
-              </div>
-              <ul className="shf-plan" aria-label="מה יישמר">
+            <details className="shf-details" data-sf-plan-details>
+              <summary><b>פירוט השורות</b> <span className="shf-chip">{plan.length}</span></summary>
+              <ul className="shf-plan" aria-label="מה נקלט">
                 {plan.map(p => {
                   const v = rowView(p);
                   if (!v.r) return null;
@@ -257,16 +236,8 @@ export default function ShaamFilingPanel({ clients, onOpenRequests, onChanged, h
                   );
                 })}
               </ul>
-            </>
+            </details>
           )}
-          {!plan.length && batch && !batch.rows.length && (
-            <p className="shf-muted">{batch.sources.some(s => s.status === 'empty_confirmed') ? 'אין שורות לקליטה — רק אישור שהקבוצה נבדקה וריקה.' : 'אין בקבצים שורות שאפשר לקלוט.'}</p>
-          )}
-          <div className="shf-actions">
-            <button type="button" className="btn btn-primary" disabled={!canSave} onClick={() => void save()} data-sf-save>{phase === 'saving' ? 'שומר…' : 'שמירה לתיקים'}</button>
-            <button type="button" className="btn btn-secondary" disabled={phase === 'saving'} onClick={reset}>ביטול</button>
-            <small className="shf-muted">רק שורות שזוהו נכתבות לתיק. «לבדיקה» נשמרות ברשימת הטיפול למטה, בלי כתיבה לתיק. לא נפתחות בקשות ולא יוצא מייל.</small>
-          </div>
         </div>
       )}
 
@@ -294,8 +265,13 @@ export default function ShaamFilingPanel({ clients, onOpenRequests, onChanged, h
         <details className="shf-details" data-sf-sources>
           <summary><b>קבצים שנקלטו</b> <span className="shf-chip">{uploaded.length}</span></summary>
           <ul className="shf-rows">{uploaded.map(s => (
-            <li key={s.id} className="shf-row"><span className="shf-row-main"><b dir="auto">{s.fileName}</b>
-              <small>{s.kind === 'annual' ? `דוחות שנתיים${s.taxYear ? ` ${s.taxYear}` : ''}` : `הצהרות הון · ${s.group ? WEALTH_GROUP_LABEL[s.group] : ''}`}{s.producedOn ? ` · הופקה ${dmy(s.producedOn)}` : ''} · נקלט {dmy(s.uploadedAt)}{s.status === 'empty_confirmed' ? ' · נבדקה וריקה' : ''}{s.method === 'manual' ? ' · אישור ידני' : ''}{s.note ? ` · ${s.note}` : ''}</small></span></li>
+            <li key={s.id} className={`shf-row${s.undoneAt && !s.canUndo ? ' is-undone' : ''}`} data-sf-source={s.id}>
+              <span className="shf-row-main"><b dir="auto">{s.fileName}</b>
+                <small>{s.kind === 'annual' ? `דוחות שנתיים${s.taxYear ? ` ${s.taxYear}` : ''}` : `הצהרות הון · ${s.group ? WEALTH_GROUP_LABEL[s.group] : ''}`}{s.producedOn ? ` · הופקה ${dmy(s.producedOn)}` : ''} · נקלט {dmy(s.uploadedAt)}{s.status === 'empty_confirmed' ? ' · נבדקה וריקה' : ''}{s.method === 'manual' ? ' · אישור ידני' : ''}{s.note ? ` · ${s.note}` : ''}</small>
+                {s.undoneAt && !s.canUndo && <small className="shf-muted" data-sf-undone>{s.undo ? undoSummaryText(s.undo) : 'בוטלה'} · {dmy(s.undoneAt)}</small>}
+              </span>
+              {s.canUndo && <span className="shf-row-act"><UndoUpload sourceIds={[s.id]} onDone={() => { void load(); onChanged?.(); }} /></span>}
+            </li>
           ))}</ul>
         </details>
       )}
@@ -305,6 +281,45 @@ export default function ShaamFilingPanel({ clients, onOpenRequests, onChanged, h
           onDone={() => { void load(); onChanged?.(); }} />
       )}
     </section>
+  );
+}
+
+/**
+ * «ביטול ההעלאה» — לכל מקור (או לכל הקבצים של העלאה אחת). ‼ שאלה אחת לפני: מה יימחק ומה נשאר.
+ * השרת מחליט (undo_shaam_filing_source); כאן רק הסיכום שהוא מחזיר.
+ */
+function UndoUpload({ sourceIds, onDone }: { sourceIds: string[]; onDone: () => void }) {
+  const [state, setState] = useState<'idle' | 'asking' | 'busy'>('idle');
+  const [done, setDone] = useState<UndoSummary | null>(null);
+  const [msg, setMsg] = useState<string | null>(null);
+  const run = async () => {
+    setState('busy'); setMsg(null);
+    const out: UndoSummary[] = [];
+    try {
+      for (const id of sourceIds) {
+        const r = await undoSource(id);
+        if (!r.ok) { setMsg(r.error === 'not_recorded' ? 'העלאה מלפני 26.10 — לא נרשם מה נכתב ממנה, ולכן אי אפשר לבטל אותה' : `הביטול נכשל (${r.error})`); continue; }
+        const u = (r.already ? r.summary : r) as UndoSummary | undefined;
+        if (u) out.push(u);
+      }
+    } catch (e) { setMsg(`הביטול נכשל (${(e as Error).message})`); }
+    setState('idle');
+    if (out.length) { setDone(mergeUndo(out)); onDone(); }
+  };
+  if (done) return <span className="shf-chip" role="status" data-sf-undo-result>{undoSummaryText(done)}</span>;
+  return (
+    <span className="shf-inline" data-sf-undo>
+      {state === 'idle' && <button type="button" className="shf-link" onClick={() => setState('asking')} data-sf-undo-ask>ביטול ההעלאה</button>}
+      {state === 'asking' && (
+        <>
+          <span>מה שנכתב מהקובץ יימחק או יחזור לקודם, ובקשות שנפתחו ממנו ועוד לא נגעו בהן — יבוטלו.</span>
+          <button type="button" className="btn btn-sm btn-secondary" onClick={() => void run()} data-sf-undo-confirm>כן, לבטל</button>
+          <button type="button" className="shf-link" onClick={() => setState('idle')}>לא</button>
+        </>
+      )}
+      {state === 'busy' && <span className="shf-muted">מבטל…</span>}
+      {msg && <small className="shf-warn">{msg}</small>}
+    </span>
   );
 }
 

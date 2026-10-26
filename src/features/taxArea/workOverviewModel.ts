@@ -134,9 +134,9 @@ export function agoText(iso: string, today: string): string {
   return `ב-${dmy(iso)}`;
 }
 
-/** הקליטה האחרונה משע״ם — כולל קריאת 154 מיישור הקו. */
-export function lastShaamUpdate(sources: Pick<SourceSummary, 'uploadedAt'>[]): string | undefined {
-  return sources.reduce<string | undefined>((max, s) => (s.uploadedAt && (!max || s.uploadedAt > max) ? s.uploadedAt : max), undefined);
+/** הקליטה האחרונה משע״ם — כולל קריאת 154 מיישור הקו. ‼ 305 · העלאה שבוטלה כולה אינה «עודכן». */
+export function lastShaamUpdate(sources: Pick<SourceSummary, 'uploadedAt' | 'undoneAt' | 'canUndo'>[]): string | undefined {
+  return sources.filter(s => !(s.undoneAt && !s.canUndo)).reduce<string | undefined>((max, s) => (s.uploadedAt && (!max || s.uploadedAt > max) ? s.uploadedAt : max), undefined);
 }
 
 // ── «עונת הדוחות» — מחובות ההגשה שנקלטו משע״ם (250) ───────────────────────────────────────────────

@@ -4,7 +4,7 @@
 
 import { supabase } from '../../lib/supabase';
 import type { Batch } from './parse/batch';
-import type { Obligation, PlanRow, SourceSummary } from './model';
+import type { ImportSummary, Obligation, PlanRow, SourceSummary, UndoSummary } from './model';
 import type { WealthGroup } from './parse/parseShaam';
 
 type Rpc = <T>(name: string, args: Record<string, unknown>) => Promise<T>;
@@ -31,7 +31,13 @@ async function rpc<T>(name: string, args: Record<string, unknown>): Promise<T> {
 export interface PreviewResult { ok: boolean; error?: string; plan: PlanRow[]; names: Record<string, string> }
 export const previewImport = (batch: Batch) => rpc<PreviewResult>('shaam_filing_preview', { p_batch: batch });
 
-export interface ImportResult { ok: boolean; error?: string; counts: Record<string, number>; plan: PlanRow[] }
+// ‼ 305 · נכתב מיד: מזוהים לתיקים, לא ודאי «לבדיקה», וחובה פתוחה חדשה (דוח שנתי) פותחת בקשה פנימית — בשרת.
+export interface ImportResult {
+  ok: boolean; error?: string; counts: Record<string, number>; plan: PlanRow[]; sources?: Record<string, string>;
+  summary?: ImportSummary;
+  opened?: { obligationId: string; clientId: string; stepId: string; created: boolean }[];
+  openFailed?: { obligationId: string; clientId: string; error: string }[];
+}
 export const saveImport = (batch: Batch) => rpc<ImportResult>('shaam_filing_import', { p_batch: batch });
 
 export interface ListResult { ok: boolean; obligations: Obligation[]; sources: SourceSummary[] }
@@ -44,6 +50,10 @@ export const linkObligationStep = (id: string, stepId: string) =>
   rpc<{ ok: boolean; error?: string; already?: boolean }>('link_shaam_obligation_step', { p_id: id, p_step_id: stepId });
 
 export const requestCopy = (id: string) => rpc<{ ok: boolean; error?: string; stepId?: string; already?: boolean }>('request_shaam_filing_copy', { p_id: id });
+
+/** 305 · «ביטול ההעלאה» — מחזיר בדיוק את מה שהמקור עשה; מה שאדם כבר עבד עליו נשאר (kept). קריאה שנייה — already. */
+export const undoSource = (sourceId: string) =>
+  rpc<{ ok: boolean; error?: string; already?: boolean; summary?: UndoSummary } & Partial<UndoSummary>>('undo_shaam_filing_source', { p_source_id: sourceId });
 
 export const confirmGroupEmpty = (group: WealthGroup, note?: string) =>
   rpc<{ ok: boolean; error?: string }>('confirm_shaam_group_empty', { p_group: group, p_note: note ?? null });

@@ -80,6 +80,7 @@ export const TABLE_SCOPES: Record<string, TableScope> = {
   // 250 · חובות הגשה שנקלטו מרשימות שע״ם ומקורות הקליטה (הקובץ עצמו בדלי office-imports)
   shaam_filing_sources: { kind: "user_id" },
   shaam_filing_obligations: { kind: "user_id" },
+  shaam_filing_source_effects: { kind: "user_id" }, // 305 · מה כל העלאה עשתה — הבסיס ל«ביטול ההעלאה»
   // 281 · «ידע מקצועי»: השאלות שנשאלו ו«מה אני לומד» (הקבצים עצמם בדלי knowledge-inbox)
   knowledge_questions: { kind: "user_id" },
   knowledge_inbox: { kind: "user_id" },
