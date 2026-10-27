@@ -1,5 +1,5 @@
 /* Approved knowledge illustration, inside the live application. Every rule is scoped to knowledge. */
-.tax-area[data-mode='learn'] {
+.tax-area.ta2 {
   --kl-ink: #203b57; --kl-muted: #66778c; --kl-line: #dfe5ef; --kl-paper: #fff; --kl-bg: #f6f7fc;
   --tx: var(--kl-ink); --tx2: #586a80; --tx3: #66778c; --txc: #34475c;
   --br: #345e91; --accent: #345e91; --soft: #edf2fa; --soft-bd: #d2dfef;

@@ -121,15 +121,16 @@ export default function TopicPage({ topicId, year, clients = [], context, onBack
   const { current, view } = topicViewOf(sec, !!context, hasApply, toc);
 
   useEffect(() => {
-    // מעבר מצב/שלב — לראש הנושא, והמיקוד לכותרת (קורא מסך שומע איפה הוא)
-    rootRef.current?.scrollIntoView({ block: 'start', behavior: 'auto' });
+    // Reading a unit opens at its content. Overview modes retain the shared page header.
+    if (view === 'lesson') rootRef.current?.scrollIntoView({ block: 'start', behavior: 'auto' });
+    else window.scrollTo({ top: 0, behavior: 'instant' });
     requestAnimationFrame(() => headRef.current?.focus({ preventScroll: true }));
     // הגיעו מתוצאת חיפוש — הקטע עצמו מסומן
     const hit = peekHighlight();
     if (!hit) return;
     const t = window.setTimeout(() => { if (rootRef.current) markPassage(rootRef.current, hit); clearHighlight(); }, 350);
     return () => window.clearTimeout(t);
-  }, [current]);
+  }, [current, view]);
 
   const touching = useMemo(() => (topic?.appliesTo ? clients.map(c => ({ c, a: topic.appliesTo!(c) })).filter(x => x.a !== 'no') : []), [clients, topic]);
 

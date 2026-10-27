@@ -1,0 +1,70 @@
+/* One shell for work and knowledge. The mode switch must not move when its value changes. */
+.tax-area.ta2[data-mode] {
+  --tax-content-width: 1160px;
+  padding: 0 32px 48px;
+  background: var(--kl-bg);
+  color: var(--kl-ink);
+  border-radius: 16px;
+  min-width: 0;
+}
+.tax-area.ta2[data-mode] .kl-topbar {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  max-width: var(--tax-content-width); margin: 0 auto; min-height: 74px;
+}
+.tax-area.ta2[data-mode] .ta2-top { padding: 14px 0 10px; }
+.tax-area.ta2[data-mode] .ta2-modes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); width: 244px; }
+.tax-area.ta2[data-mode] .ta2-mode { min-height: 44px; padding: 6px 12px; font-size: 14px; white-space: nowrap; }
+.tax-area.ta2[data-mode] .ta2-pane { max-width: var(--tax-content-width); padding: 26px 0 0; }
+.tax-area.ta2[data-mode='work'] .ta2-pane { padding-top: 0; }
+.tax-area.ta2[data-mode] .kl-navigation { max-width: var(--tax-content-width); height: 49px; }
+.tax-area.ta2[data-mode] .tax-page-context { position: relative; margin: 0 0 8px; min-height: 44px; }
+.tax-area.ta2[data-mode] .tax-page-bar { margin: 0; min-height: 44px; }
+.tax-area.ta2[data-mode] .tax-page-context:has(.ta2-return) .ta-crumb-trail { display: none; }
+.tax-area.ta2[data-mode] .tax-page-context:has(.ta2-return) .ta2-crumb-tools { margin-inline-start: auto; }
+.tax-area.ta2[data-mode] .tax-page-context .ta2-return { position: absolute; inset-inline-start: 0; top: 0; max-width: 65%; margin: 0; }
+.tax-area.ta2[data-mode] .tax-page-context .ta2-return button { min-height: 44px; max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.tax-area.ta2[data-mode] :is(.kl-intro h1, .wov-title, .ta-page-head h1, .kn-head .kn-title, .pg-head .pg-title) {
+  margin: 0 0 10px; padding: 0; font-size: 32px; font-weight: 650;
+  line-height: 1.4; letter-spacing: -.5px; color: var(--kl-ink); text-align: start;
+}
+.tax-area.ta2[data-mode] :is(.kl-intro, .ta-page-head, .pg-head, .kn-head) { padding-top: 0; margin-top: 0; }
+.tax-area.ta2[data-mode] .kl-intro { align-items: flex-start; }
+.tax-area.ta2[data-mode] .kl-intro .kl-eyeline,
+.tax-area.ta2[data-mode] .kn-head .kl-eyeline { display: none; }
+.tax-area.ta2[data-mode] .kn-heading-row { flex-direction: row-reverse; align-items: flex-start; }
+.tax-area.ta2[data-mode] .kn-heading-row > div:last-child { flex: 1; min-width: 0; }
+.tax-area.ta2[data-mode] .kn-state { margin-inline-start: 0; }
+.tax-area.ta2[data-mode='work'] .wov-tabs {
+  width: 100%; flex-wrap: nowrap; gap: 24px; min-height: 49px;
+  border-bottom: 1px solid var(--kl-line); overflow-x: auto;
+}
+.tax-area.ta2[data-mode='work'] .wov-tabs button {
+  min-height: 48px; padding: 8px 0; flex: none; border: 0; border-radius: 0;
+  background: none; color: var(--kl-muted); white-space: nowrap; font-size: 14px;
+}
+.tax-area.ta2[data-mode='work'] .wov-tabs button.is-on { color: var(--kl-ink); box-shadow: inset 0 -2px #345e91; }
+.tax-area.ta2[data-mode='work'] .wov-n { margin-inline-start: 6px; }
+.tax-area.ta2[data-mode='work'] .tax-page-context { margin: 26px 0 24px; }
+.tax-area.ta2[data-mode='work'] .wov-owner { margin: 0; min-height: 44px; }
+.tax-area.ta2[data-mode='work'] .wov-head { margin: 0 0 24px; align-items: flex-start; min-height: 45px; }
+.tax-area.ta2[data-mode='work'] .wov-title { margin-bottom: 0; }
+.tax-area.ta2[data-mode='work'] .wov-tools { margin: 0 0 20px; }
+.tax-area.ta2[data-mode='work'] .wov-find { margin-inline-start: 0; }
+@media (max-width: 1100px) {
+  .tax-area.ta2[data-mode] { padding-inline: 22px; }
+}
+@media (max-width: 700px) {
+  .tax-area.ta2[data-mode] { padding: 0 16px 30px; border-radius: 0; margin-inline: -16px; width: calc(100% + 32px); }
+  .tax-area.ta2[data-mode] .kl-topbar { gap: 8px; }
+  .tax-area.ta2[data-mode] .ta2-mode { padding-inline: 12px; font-size: 12px; }
+  .tax-area.ta2[data-mode] .ta2-modes { width: 220px; }
+  .tax-area.ta2[data-mode] .kl-navigation { height: 45px; }
+  .tax-area.ta2[data-mode] .ta2-pane { padding-top: 22px; }
+  .tax-area.ta2[data-mode='work'] .ta2-pane { padding-top: 0; }
+  .tax-area.ta2[data-mode='work'] .wov-tabs { min-height: 45px; gap: 18px; }
+  .tax-area.ta2[data-mode='work'] .wov-tabs button { font-size: 12px; min-height: 44px; }
+  .tax-area.ta2[data-mode='work'] .tax-page-context { margin-top: 22px; }
+  .tax-area.ta2[data-mode] :is(.kl-intro h1, .wov-title, .ta-page-head h1, .kn-head .kn-title, .pg-head .pg-title) { font-size: 27px; }
+  .tax-area.ta2[data-mode='work'] .wov-head { min-height: 38px; }
+  .tax-area.ta2[data-mode='work'] .wov-find { width: 100%; max-width: none; }
+}

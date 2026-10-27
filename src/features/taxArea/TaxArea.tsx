@@ -50,6 +50,7 @@ import {
 } from './areaModel';
 import './taxArea.css';
 import '../taxKnowledge/knowledgeExperience.css';
+import './taxShell.css';
 
 // ── מסגרת לכל כלי (26.10.2026, ההדמיה המאושרת): מה הכלי מחשב ומה לא, מקור רשמי לעיון, וההסבר בתחום שלו ──
 // ‼ «תחום השימוש» אומר מתי התוצאה אינה תשובה — לא הסתייגות כללית. מאגר משולב (הוצאות, ניהול ספרים) — השנה בכל פריט.
@@ -237,14 +238,15 @@ export default function TaxArea({ path, onPath, freshnessTaskExists, onCreateFre
   });
 
   // ── הכותרת והפירורים ──
-  const crumbs = p.mode === 'learn' && p.domain ? (
-    <div className="kn-crumbs ta-crumbs ta2-crumbs">
+  const crumbs = p.mode === 'learn' ? (
+    <div className="kn-crumbs ta-crumbs ta2-crumbs tax-page-bar">
       <span className="ta-crumb-trail">
         <button type="button" className="kn-crumb" onClick={() => go({ mode: 'learn' })}>{MODE_LABEL.learn}</button>
+        {p.directory && <span> › {p.directory === 'tools' ? 'כלים ונתונים' : 'דוחות והצהרת הון'}</span>}
         {item && <><span aria-hidden="true"> › </span><button type="button" className="kn-crumb" onClick={() => go({ mode: 'learn', domain: p.domain })}>{domain!.label}</button></>}
       </span>
       <span className="ta2-crumb-tools">
-        {!fixedYear && <label className="ta2-year">שנת מס{yearSelect}</label>}
+        {p.domain && !fixedYear && <label className="ta2-year">שנת מס{yearSelect}</label>}
       </span>
     </div>
   ) : null;
@@ -300,14 +302,13 @@ export default function TaxArea({ path, onPath, freshnessTaskExists, onCreateFre
     }
     if (p.directory) return <KnowledgeDirectory kind={p.directory} onGo={go} />;
     if (!domain) return <AskHome onGo={go} onOpenTopic={openTopic} moved={p.mode === 'learn' && !!p.moved} />;
-    if (!item) return <>{crumbs}<DomainPage d={domain.id} year={['annual', 'wealth'].includes(domain.id) ? workYear ?? year : year} onGo={go} counts={work.counts} focusValues={p.mode === 'learn' ? p.values : undefined} focusCode={p.mode === 'learn' ? p.code : undefined} yearSelect={yearSelect} clients={clients} contextClient={ctxClient} onBackToClient={ctxClient ? () => openContextClient(ctxClient.id) : undefined} canLearn={canLearn} onLearn={openTopic} onOpenTool={openTool} onAddMaterial={seed => setMaterial(materialContext(seed))}
+    if (!item) return <><DomainPage d={domain.id} year={['annual', 'wealth'].includes(domain.id) ? workYear ?? year : year} onGo={go} counts={work.counts} focusValues={p.mode === 'learn' ? p.values : undefined} focusCode={p.mode === 'learn' ? p.code : undefined} yearSelect={yearSelect} clients={clients} contextClient={ctxClient} onBackToClient={ctxClient ? () => openContextClient(ctxClient.id) : undefined} canLearn={canLearn} onLearn={openTopic} onOpenTool={openTool} onAddMaterial={seed => setMaterial(materialContext(seed))}
       focus={p.mode === 'learn' ? { form: p.form, field: p.field, mark: p.mark, doc: p.doc } : {}}
       onField={v => onPath(formatAreaPath({ mode: 'learn', domain: domain.id, ...v }))}
       onOpenDomain={id => { if (DOMAIN_BY_ID[id as DomainId]) go({ mode: 'learn', domain: id as DomainId }); }} /></>;
     if (item.kind === 'topic') {
       return (
         <>
-          {crumbs}
           <TopicPage key={item.id} topicId={item.id} year={year} clients={clients}
             context={ctxClient ? { id: ctxClient.id, name: `${ctxClient.firstName ?? ''} ${ctxClient.lastName ?? ''}`.trim(), client: ctxClient } : null}
             onBackToClient={ctxClient ? () => openContextClient(ctxClient.id) : undefined}
@@ -322,7 +323,6 @@ export default function TaxArea({ path, onPath, freshnessTaskExists, onCreateFre
       <>
         <div className="pg-head">
           <div className="pg-head-main">
-            {crumbs}
             <h1 className="pg-title pg-title-lg">{item.label}</h1>
             <div className="pg-status">{item.purpose}</div>
             {ds && <div className="tc-head-fresh"><FreshnessBadge datasetId={ds} /></div>}
@@ -362,7 +362,7 @@ export default function TaxArea({ path, onPath, freshnessTaskExists, onCreateFre
       </div>}
       {ctxClient && <div className="kl-client-context" data-knowledge-context><span>{origin ? 'עיון מתוך העבודות · ' : 'עיון מתוך התיק של '}<strong>{`${ctxClient.firstName ?? ''} ${ctxClient.lastName ?? ''}`.trim()}</strong> · {origin?.period || year}</span><div>{origin && <button type="button" onClick={() => go(origin.path)}>חזרה לעבודות ←</button>}<button type="button" onClick={() => openContextClient(ctxClient.id)}>{origin ? 'לתיק ←' : 'חזרה לתיק ←'}</button><button type="button" onClick={() => { setReleasedContext(externalKey); setWorkOrigin(null); try { sessionStorage.removeItem(ORIGIN_KEY); } catch { /* optional storage */ } }} aria-label="המשך עיון ללא הקשר של לקוח">×</button></div></div>}
       {unsupportedWorkYear && <p className="ta-work-year-warning" role="status">העבודה מתייחסת לשנת {workYear}. החומר הזמין מוצג לעיון לפי השנה שמצוינת בו; אין להחיל עליו אוטומטית נתונים או חישוב משנה אחרת.</p>}
-      <div className="pg-pane ta2-pane">{returnBar}{pane}</div>
+      <div className="pg-pane ta2-pane">{p.mode === 'learn' && <div className="tax-page-context">{crumbs}{returnBar}</div>}{pane}</div>
       {material && <AddMaterial context={material} onClose={() => setMaterial(null)} />}
     </div>
   );
