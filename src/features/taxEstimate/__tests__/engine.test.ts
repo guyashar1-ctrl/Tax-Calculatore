@@ -78,7 +78,7 @@ export const TESTS: TestCase[] = [
   // ביד: שנתי 270,000 + 270,000/9×3 = 360,000. ב״ל: רבעון 90,000 ⇒ בסיס 85,312.8; לאומי 9,013.7, בריאות 3,962.3
   //   ⇒ 12,976 לרבעון, 51,904 לשנה. ניכוי 47א: 52% × 36,055 = 18,749 ⇒ חייב 341,251.
   //   מס: 57,684 עד 301,200 + 40,051 × 35% = 71,702 − 2.25 × 2,904 (6,534) = 65,168.
-  //   שיעור מקדמה: 65,168 ÷ מחזור 400,000 = 16.29% ⇒ 16.3%. ב״ל: 51,904 ÷ 12 = 4,325.
+  //   שיעור מקדמה: 65,168 ÷ מחזור 400,000 = 16.29% ⇒ 16.5% (מינימום, מעוגל כלפי מעלה לחצי אחוז). ב״ל: 51,904 ÷ 12 = 4,325 ⇒ 4,350 (ל-50 ₪).
   test('א׳ עצמאי עד ספטמבר + תחזית: מס, ב״ל ומקדמות — מול חישוב ידני', () => {
     const d = draft();
     equal(forecastFor(d.lines[0], d), 90_000);
@@ -90,15 +90,15 @@ export const TESTS: TestCase[] = [
     near(o.persons[0].incomeTax, want, 2, 'מס הכנסה');
     near(val(o.persons[0].niSelfEmployed), refNiAnnual(360_000).total, 4, 'ב״ל שנתי');
     const it = adv(o, 'it'), ni = adv(o, 'ni');
-    equal(it.recommended, Math.ceil((want / 400_000) * 1000) / 10);
-    equal(it.recommended, 16.3);
-    equal(it.futureAtRecommended, 16_300);        // 16.3% × 100,000 מחזור צפוי
+    equal(it.recommended, Math.ceil((want / 400_000) * 200) / 2);
+    equal(it.recommended, 16.5);
+    equal(it.futureAtRecommended, 16_500);        // 16.5% × 100,000 מחזור צפוי
     equal(it.futureAtCurrent, 5_000);             // 5% × 100,000
-    equal(ni.recommended, 4_325);
+    equal(ni.recommended, 4_350);
     equal(ni.balanceAtCurrent && val(ni.balanceAtCurrent), 51_904 - 27_000 - 9_000);
     equal(o.household.balanceAtCurrent, o.household.annualLiability - 5_000);
-    assert(it.explain.some(e => e.includes('16.3%')) && ni.explain.length > 0, 'שורות הסבר לבדיקה ידנית');
-    assert(o.nextAction.includes('16.3%') && o.nextAction.includes('(היום 5%)'), o.nextAction);
+    assert(it.explain.some(e => e.includes('16.5%')) && ni.explain.length > 0, 'שורות הסבר לבדיקה ידנית');
+    assert(o.nextAction.includes('16.5%') && o.nextAction.includes('(היום 5%)'), o.nextAction);
   }),
   test('עסק שנפתח באמצע השנה: הקצב לפי החודשים שבאמת נמדדו', () => {
     const d = draft({ lines: [biz({ actualToCutoff: 80_000, actualMonths: 4 })] });
@@ -113,7 +113,7 @@ export const TESTS: TestCase[] = [
     near(o.persons[0].incomeTax, all, 2, 'חבות כוללת');
     const it = adv(o, 'it');
     near(val(it.annualDue), all - noBiz, 3, 'מס שנובע מהעסק');
-    equal(it.recommended, Math.ceil(((all - noBiz) / 140_000) * 1000) / 10);
+    equal(it.recommended, Math.ceil(((all - noBiz) / 140_000) * 200) / 2);
     equal(o.household.withheldAnnual, 20_000);
     equal(o.household.balanceAtCurrent, Math.round(all) - 20_000 - Math.round(0.05 * 40_000) + (o.household.balanceAtCurrent - (Math.round(all) - 20_000 - 2_000)));
     near(o.household.balanceAtCurrent, all - 20_000 - 2_000, 2, 'יתרה במקדמה הנוכחית');
@@ -219,7 +219,7 @@ export const TESTS: TestCase[] = [
     const o = computeEstimate(draft({ it: { via: 'manual', readOn: '2026-10-10', method: 'fixed', fixedPerPeriod: 4_000, frequency: 2, periods: [] } }), Y);
     const it = adv(o, 'it');
     equal(it.unit, '₪ לתקופה');
-    near(it.recommended!, refIt({ business: 360_000, points: 2.25 }) / 10, 1, 'לתשלום — עשירית מהמס שנובע מהעסק');
+    equal(it.recommended, Math.ceil(refIt({ business: 360_000, points: 2.25 }) / 10 / 10) * 10); // עשירית מהמס שנובע מהעסק, מעוגלת כלפי מעלה ל-10 ₪
     equal(it.schedule.map(s => s.period).join(','), '2026-10,2026-11'); // אחרי החתך (ספטמבר): אוקטובר ונובמבר; אין תשלום בדצמבר ובינואר
     equal((o.cashflow ?? []).filter(c => c.authority === 'it' && c.kind === 'advance').map(c => c.date).join(','), '2026-10-15,2026-11-15');
     assert(it.explain.some(e => e.includes('10 תשלומים')), it.explain.join(' | '));

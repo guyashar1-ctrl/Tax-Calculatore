@@ -175,7 +175,9 @@ export type RecordSchemaId = 'children' | 'address' | 'bank' | 'employer' | 'pro
   // 23.10.2026 · 290: עלייה או חזרה (מעמד, חודש ושנה) ואחוזי נכות (אחוז וממתי) — לכל אדם
   | 'aliyah' | 'disability'
   // 290 · בן/בת הזוג (מין ותאריך לידה), ימי מילואים כלוחם, ילד עם מוגבלות, מזונות ילדים
-  | 'spouseBasics' | 'reserveDays' | 'childDisability' | 'childSupport';
+  | 'spouseBasics' | 'reserveDays' | 'childDisability' | 'childSupport'
+  // 27.10.2026 · הערכת מס: הצפי עד סוף השנה — אישור, או הערכה לכל חודש שנשאר (בקשת הצפי אחרי המשיכה מפייפרלס)
+  | 'forecastMonths';
 
 /**
  * 16.10.2026 · קלט מובנה «של מי / איפה» (שלב 2 של «בקשה אחת לתיק המס»): כל שדה סגור — מי (אני / בן/בת הזוג /

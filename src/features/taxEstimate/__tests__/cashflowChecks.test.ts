@@ -42,9 +42,9 @@ export const TESTS: TestCase[] = [
     const o = computeEstimate(draft(), Y);
     const it = (o.cashflow ?? []).filter(x => x.authority === 'it' && x.kind === 'advance');
     equal(it.map(x => x.date).join(','), '2026-11-15,2026-12-15,2027-01-15');
-    // מחזור צפוי 100,000 לשלושה חודשים ⇒ 33,333 לחודש; 5% היום = 1,667; ההמלצה 16.3% = 5,433
+    // מחזור צפוי 100,000 לשלושה חודשים ⇒ 33,333 לחודש; 5% היום = 1,667; ההמלצה 16.5% (מעוגלת כלפי מעלה) = 5,500
     near(it[0].current, 1_667, 1, 'מ״ה היום לחודש');
-    near(it[0].recommended, 5_433, 1, 'מ״ה מומלץ לחודש');
+    near(it[0].recommended, 5_500, 1, 'מ״ה מומלץ לחודש');
     const ni = (o.cashflow ?? []).filter(x => x.authority === 'ni' && x.kind === 'advance');
     equal(ni.length, 3);
     equal(ni[0].date, '2026-11-15');

@@ -22,6 +22,7 @@ import type { Evidence, FactBasis, Purpose } from './types';
 import AnnualSummary from './AnnualSummary';
 import AnnualWorkspace from '../annualReturn/AnnualWorkspace';
 import WealthWorkspace from '../wealthDeclaration/WealthWorkspace';
+import EstimateWorkspace from '../taxEstimate/EstimateWorkspace';
 import { useAutoAccept } from './useAutoAccept';
 import TaxInfoFlow from './TaxInfoFlow';
 import WealthDeclarationPanel, { previousByArea, wealthSubtitle, type WealthPayload } from './WealthDeclarationPanel';
@@ -349,7 +350,11 @@ export default function TaxYearProcess({ client, step, infoStep, onClose, onChan
           {purpose === 'wealth' && data && <WealthWorkspace client={client} step={step} year={year} data={data} busy={busy} run={run} statuses={picture.statuses} applyCard={applyCard}
             officeTodo={picture.officeTodo} sendMore={annualMore} prevFacts={prevFacts} advancedOpen={annualAdv} onAdvanced={setAnnualAdv}
             renderOffice={list => <OfficePanel client={client} statuses={list} evidence={data.evidence} facts={data.facts} busy={busy} purpose={purpose} year={year} cutoff={p.cutoffMonth} asOf={p.asOfDate} stepId={step.id} run={run} applyCard={applyCard} />} />}
-          <div hidden={(purpose === 'annual' || purpose === 'wealth') && !annualAdv} data-annual-advanced={purpose === 'annual' || purpose === 'wealth' ? '' : undefined}>
+          {/* ‼ 27.10.2026 · הערכת מס: מסך אחד — שאלון ← פייפרלס ← הצפי של הלקוח ← הערכה והמלצה
+              (docs/proposals/2026-10-27-tax-estimate.html); כל מה שהיה כאן — ב«כלים מתקדמים» */}
+          {purpose === 'estimate' && data && <EstimateWorkspace client={client} step={step} year={year} cutoffMonth={p.cutoffMonth ?? 12} data={data} busy={busy}
+            sendMore={annualMore} advancedOpen={annualAdv} onAdvanced={setAnnualAdv} onChanged={() => { void reload(); onChanged(); }} />}
+          <div hidden={(purpose === 'annual' || purpose === 'wealth' || purpose === 'estimate') && !annualAdv} data-annual-advanced={purpose === 'annual' || purpose === 'wealth' || purpose === 'estimate' ? '' : undefined}>
           {purpose === 'annual' && data && <AnnualSummary client={client} step={step} year={year} data={data} busy={busy} run={run} more={annualMore} onClientPersisted={onClientPersisted}
             legacy={legacyAnnual && isOpenStep(step) ? { reopen: () => run(() => reopenAnnualInNewVersion(client, step.id, year), `הבקשה הקודמת נסגרה ונשמרה בהיסטוריה, ונפתחה «דוח שנתי ${year}» חדשה — בשורה שלה ב«בקשות». בלי מייל.`) } : undefined}
             officeTodo={picture.officeTodo.length ? { count: picture.officeTodo.length, open: () => { setPick('office'); setFullOpen(true); requestAnimationFrame(() => fullRef.current?.scrollIntoView({ block: 'start' })); } } : undefined}

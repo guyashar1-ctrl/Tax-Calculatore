@@ -54,7 +54,7 @@ export const TESTS: TestCase[] = [
     const o = computeEstimate({ ...draft([{ ...biz(100_000), turnoverForecast: 100_000, office: { method: 'runRate' }, chosen: 'office' }]), cutoffMonth: 6, preparedOn: '2026-07-10',
       it: { via: 'manual', readOn: '2026-07-01', method: 'fixed', fixedPerPeriod: 2_000, frequency: 1, periods: [] }, ni: { via: 'manual', readOn: '2026-07-01', monthlyAdvance: 2_000, paidToCutoff: 12_000 } }, { client: client({ niType: 'selfEmployed' } as Partial<Client>), taxYear: 2026 });
     const it = o.advances.find(a => a.authority === 'it')!;
-    near(it.recommended!, (it.annualDue as { value: number }).value / 10, 1, 'עשירית');
+    near(it.recommended!, Math.ceil((it.annualDue as { value: number }).value / 10 / 10) * 10, 0.01, 'עשירית, מעוגלת כלפי מעלה ל-10 ₪');
     equal(it.schedule.map(s => s.period.slice(5)).join(','), '07,08,09,10,11');
   }),
 

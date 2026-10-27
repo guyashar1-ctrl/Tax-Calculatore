@@ -6,7 +6,7 @@ import { useMemo, useState } from 'react';
 import type { Client } from '../../types';
 import { useDocumentStore } from '../../hooks/useDocumentStore';
 import { MONTH_HE } from './engine';
-import { identityMatches, parse134, parseEsna, parsePnl, parseTable, pnlToCutoff, readXlsx } from './importers';
+import { identityMatches, parse134, parseEsna, parsePnl, parseTable, pnlLinePatch, pnlToCutoff, readXlsx } from './importers';
 import type { PeriodImport, PnlImport } from './importers';
 import { PERSON, nis, perHe, today } from './parts';
 import type { AuthorityPeriod, EstimateDraft, Person, SourceRef } from './types';
@@ -73,10 +73,8 @@ export default function ImportPanel({ client, year, draft, onApply }: {
     setBusy(true);
     const src = await saveSource('רווח והפסד');
     setBusy(false);
-    onApply(d => ({ ...d, lines: d.lines.map(l => l.id === line.id ? {
-      ...l, actualToCutoff: Math.round(cut.profit), turnoverToCutoff: Math.round(cut.turnover),
-      actualMonths: cut.monthsMeasured && cut.monthsMeasured < closed ? cut.monthsMeasured : undefined, actualSource: src, actualFrom: 'import',
-    } : l), cutoffMonth: closed }), `רו״ה נקלט ל«${line.label}»: רווח ${nis(cut.profit)} ומחזור ${nis(cut.turnover)} עד סוף ${MONTH_HE[closed]} (לפני תיאומים)`);
+    onApply(d => ({ ...d, lines: d.lines.map(l => l.id === line.id ? { ...l, ...pnlLinePatch(pnl, closed, today()), actualSource: src, actualFrom: 'import' } : l), cutoffMonth: closed }),
+      `רו״ה נקלט ל«${line.label}»: רווח ${nis(cut.profit)} ומחזור ${nis(cut.turnover)} עד סוף ${MONTH_HE[closed]} (לפני תיאומים)`);
     reset();
   };
   const applyPeriods = async () => {

@@ -1,0 +1,99 @@
+/* הערכת מס במשרד — הדמיה מאושרת docs/proposals/2026-10-27-tax-estimate.html */
+.ew { display: flex; flex-direction: column; gap: 12px; }
+.ew-top { display: flex; align-items: center; gap: 10px 14px; flex-wrap: wrap; }
+.ew-steps { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; flex: 1; min-width: 0; }
+.ew-steps > span { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: #92979e; white-space: nowrap; }
+.ew-steps > span > b { width: 14px; height: 1.5px; background: #d6d3cc; }
+.ew-steps i { width: 20px; height: 20px; border-radius: 50%; border: 1.5px solid #d6d3cc; display: grid; place-items: center; font-style: normal; font-size: 11px; }
+.ew-steps .is-done { color: #24654e; }
+.ew-steps .is-done i { background: #24654e; border-color: #24654e; color: #fff; }
+.ew-steps .is-cur { color: #25282d; }
+.ew-steps .is-cur i { border-color: #3f5f8f; color: #3f5f8f; }
+.ew-act { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-inline-start: auto; }
+.ew-pill { font-size: 13px; font-weight: 600; color: #24654e; background: #e9f4ee; border-radius: 999px; padding: 3px 10px; white-space: nowrap; }
+.ew-pill.grey { color: #666b72; background: #efede8; }
+.ew-wait { margin: 0; font-size: 13.5px; color: #4b5058; background: #edf2f8; border-radius: 10px; padding: 9px 12px; }
+.ew-card { background: #fff; border: 1px solid #e4e2dd; border-radius: 14px; padding: 16px 18px; display: flex; flex-direction: column; gap: 6px; }
+.ew-h3 { margin: 0 0 6px; font-size: 15px; display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.ew-h3 small { font-weight: 500; color: #666b72; font-size: 13px; }
+.ew-hero small { color: #666b72; font-size: 13.5px; }
+.ew-big { font-size: 32px; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -.5px; }
+.ew-big.is-due { color: #9a3b2c; }
+.ew-big.is-ok { color: #24654e; }
+.ew-big.is-wait { font-size: 18px; color: #92979e; font-weight: 600; letter-spacing: 0; }
+.ew-parts { display: flex; gap: 8px; flex-wrap: wrap; }
+.ew-parts span { font-size: 13px; color: #4b5058; background: #f4f2ee; border-radius: 8px; padding: 2px 9px; font-variant-numeric: tabular-nums; }
+.ew-lnk { align-self: flex-start; border: 0; background: none; color: #3f5f8f; font: inherit; font-weight: 600; font-size: 13.5px; padding: 4px 0 0; cursor: pointer; }
+.ew-bd > div { display: flex; justify-content: space-between; gap: 10px; font-size: 13.5px; color: #4b5058; padding: 4px 0; border-bottom: 1px dashed #ebe8e2; }
+.ew-bd b { font-variant-numeric: tabular-nums; font-weight: 600; color: #25282d; }
+.ew-ie { display: grid; grid-template-columns: 70px 1fr; gap: 6px 12px; align-items: center; }
+.ew-lb { font-size: 14px; font-weight: 600; }
+.ew-track { position: relative; height: 26px; background: #f1efeb; border-radius: 7px; }
+.ew-track .a, .ew-track .f { position: absolute; top: 0; bottom: 0; transition: width .45s cubic-bezier(.23, 1, .32, 1), right .45s cubic-bezier(.23, 1, .32, 1); }
+.ew-track .a { right: 0; border-radius: 0 7px 7px 0; background: #3f5f8f; }
+.ew-track .f { border-radius: 7px 0 0 7px; background: repeating-linear-gradient(135deg, #b9c7dc 0 5px, #d3dce9 5px 10px); }
+.ew-track.is-exp .a { background: #8e949b; }
+.ew-track.is-exp .f { background: repeating-linear-gradient(135deg, #c9ccd0 0 5px, #dfe1e3 5px 10px); }
+.ew-track.is-flat .a { background: #c9ccd0; border-radius: 7px; }
+.ew-ceil { position: absolute; top: -5px; bottom: -5px; width: 0; border-left: 2px dashed #8a5b0f; }
+.ew-nums { grid-column: 2; display: flex; gap: 14px; font-size: 13px; color: #666b72; margin: -2px 0 6px; flex-wrap: wrap; font-variant-numeric: tabular-nums; }
+.ew-nums b { color: #25282d; font-weight: 600; }
+.ew-legend { display: flex; gap: 14px; font-size: 12.5px; color: #666b72; flex-wrap: wrap; align-items: center; }
+.ew-legend i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: -1px; margin-inline-end: 5px; }
+.ew-legend .ia { background: #3f5f8f; }
+.ew-legend .if { background: repeating-linear-gradient(135deg, #b9c7dc 0 3px, #d3dce9 3px 6px); }
+.ew-basis { margin-inline-start: auto; font-weight: 600; color: #4b5058; }
+.ew-adj { margin-top: 8px; border-top: 1px solid #f0eee9; padding-top: 10px; }
+.ew-adj-h { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; margin-bottom: 4px; font-size: 14px; }
+.ew-adj-h small { color: #666b72; font-size: 12.5px; }
+.ew-adj table { width: 100%; border-collapse: collapse; font-size: 13.5px; font-variant-numeric: tabular-nums; }
+.ew-adj th { font-size: 12px; color: #666b72; font-weight: 600; text-align: start; padding: 5px 6px; border-bottom: 1px solid #e4e2dd; }
+.ew-adj td { padding: 6px; border-bottom: 1px dashed #ebe8e2; vertical-align: top; }
+.ew-adj td small { display: block; color: #92979e; font-size: 12px; }
+.ew-adj th:not(:first-child), .ew-adj td:not(:first-child) { text-align: left; white-space: nowrap; }
+.ew-adj td.neg { color: #9a3b2c; }
+.ew-adj td.rcg { font-weight: 600; }
+.ew-adj tfoot td { font-weight: 700; border-bottom: 0; border-top: 1px solid #d6d3cc; }
+.ew-mute { font-size: 12.5px; color: #92979e; margin: 6px 0 0; }
+.ew-empty { color: #92979e; font-size: 14px; margin: 0; }
+.ew-profit { display: flex; justify-content: space-between; margin-top: 6px; padding-top: 10px; border-top: 1px solid #f0eee9; font-size: 14px; }
+.ew-profit b { font-variant-numeric: tabular-nums; }
+.ew-note { font-size: 13px; border-radius: 9px; padding: 7px 10px; margin: 4px 0 0; }
+.ew-note.is-ok { background: #e9f4ee; color: #24654e; }
+.ew-note.is-bad { background: #fbefec; color: #9a3b2c; font-weight: 600; }
+.ew-rec { display: flex; align-items: center; gap: 6px 12px; padding: 10px 0; border-top: 1px solid #f0eee9; flex-wrap: wrap; }
+.ew-rec:first-of-type { border-top: 0; padding-top: 0; }
+.ew-auth { width: 110px; font-weight: 600; font-size: 14px; flex-shrink: 0; }
+.ew-chg { font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums; flex: 1; min-width: 160px; }
+.ew-chg em { font-style: normal; color: #92979e; font-weight: 500; text-decoration: line-through; font-size: 15px; }
+.ew-chg i { font-style: normal; color: #92979e; font-weight: 400; margin: 0 6px; }
+.ew-chg u { text-decoration: none; font-size: 13px; color: #666b72; font-weight: 500; }
+.ew-min { font-size: 13px; font-weight: 600; color: #666b72; }
+.ew-cu { font-size: 13px; font-weight: 600; border-radius: 8px; padding: 3px 9px; background: #fbefec; color: #9a3b2c; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ew-cu.is-cr { background: #e9f4ee; color: #24654e; }
+.ew-where { width: 100%; font-size: 12.5px; color: #92979e; }
+.ew-after { margin: 6px 0 0; padding-top: 10px; border-top: 1px solid #f0eee9; font-size: 14px; color: #24654e; font-weight: 600; }
+.ew-wi { display: flex; align-items: center; gap: 12px; padding: 6px 0; }
+.ew-wi label { flex: 1; display: grid; grid-template-columns: 140px 1fr; align-items: center; gap: 0 12px; font-size: 14px; font-weight: 600; }
+.ew-wi label small { grid-row: 2; font-weight: 500; color: #666b72; font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.ew-wi input[type='range'] { grid-column: 2; grid-row: 1 / span 2; width: 100%; accent-color: #3f5f8f; height: 28px; }
+.ew-sv { width: 110px; font-size: 13.5px; font-weight: 700; color: #24654e; text-align: left; font-variant-numeric: tabular-nums; }
+.ew-sv.is-zero { color: #92979e; font-weight: 500; }
+.ew-cap { font-size: 12.5px; color: #92979e; margin: 0; }
+.ew-missing ul { margin: 0; padding-inline-start: 20px; font-size: 13.5px; color: #4b5058; }
+.ew-src { font-size: 12.5px; color: #92979e; text-align: center; margin: 0; }
+@media (max-width: 560px) {
+  .ew-card { padding: 14px; }
+  .ew-big { font-size: 27px; }
+  .ew-ie { grid-template-columns: 1fr; gap: 4px; }
+  .ew-nums { grid-column: 1; }
+  .ew-lb { margin-top: 6px; }
+  .ew-act { margin-inline-start: 0; width: 100%; }
+  .ew-act .btn { flex: 1; }
+  .ew-auth { width: 100%; }
+  .ew-adj td, .ew-adj th { padding: 5px 3px; }
+  .ew-wi label { grid-template-columns: 1fr; }
+  .ew-wi input[type='range'] { grid-column: 1; grid-row: 3; }
+  .ew-basis { margin-inline-start: 0; }
+}
+@media (prefers-reduced-motion: reduce) { .ew-track .a, .ew-track .f { transition: none; } }

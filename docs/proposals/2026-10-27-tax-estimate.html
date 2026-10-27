@@ -1,0 +1,747 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>הערכת מס — הדמיה</title>
+<style>
+  :root{
+    --page:#f6f5f2; --card:#fff; --bd:#e4e2dd; --bd2:#d6d3cc;
+    --tx:#25282d; --txc:#4b5058; --tx2:#666b72; --tx3:#92979e;
+    --br:#3f5f8f; --br-soft:#edf2f8;
+    --ok:#24654e; --ok-bg:#e9f4ee; --due:#9a3b2c; --due-bg:#fbefec; --warn:#8a5b0f; --warn-bg:#fbf3e4; --danger:#9b2c2c;
+    --c0:#4d6b5c; --c0-soft:#edf3ef; --c1:#3f5f8f; --c1-soft:#edf2f8; --c2:#7a4f8f; --c2-soft:#f4eef7; --c3:#6b7079; --c3-soft:#f0efec;
+    --acc:var(--c1); --acc-soft:var(--c1-soft);
+  }
+  *{box-sizing:border-box}
+  [hidden]{display:none!important}
+  html,body{margin:0}
+  body{font-family:"Segoe UI","Heebo",Arial,system-ui,sans-serif;background:var(--page);color:var(--tx);font-size:15px;line-height:1.5}
+  button,input{font:inherit;color:inherit}
+  button{cursor:pointer}
+  .wrap{max-width:980px;margin:0 auto;padding:18px 16px 60px}
+  .flag{display:inline-block;background:var(--warn-bg);color:var(--warn);border:1px solid #ecd9b0;border-radius:999px;padding:2px 10px;font-size:12.5px;font-weight:600}
+  h1{font-size:23px;margin:8px 0 4px}
+  .lead{color:var(--txc);margin:0 0 12px;max-width:720px}
+  details.scope{background:#fff;border:1px solid var(--bd);border-radius:12px;padding:10px 14px;margin:0 0 10px;max-width:720px}
+  details.scope summary{cursor:pointer;font-weight:600;color:var(--br)}
+  details.scope ul{margin:8px 0 2px;padding-inline-start:20px;color:var(--txc);font-size:14px}
+  details.scope li{margin:4px 0}
+  .tools{display:flex;gap:8px;align-items:center;margin:14px 0 10px;flex-wrap:wrap}
+  .seg{display:inline-flex;border:1px solid var(--bd2);border-radius:999px;overflow:hidden;background:#fff}
+  .seg button{border:0;background:none;padding:5px 13px;font-size:13px;font-weight:600;color:var(--tx2);transition:background .2s,color .2s}
+  .seg button[aria-pressed=true]{background:var(--br);color:#fff}
+  .restart{border:0;background:none;color:var(--br);font-weight:600;font-size:13px}
+
+  /* ═════ מסך ההערכה ═════ */
+  .app{background:var(--page);border:1px solid var(--bd);border-radius:16px;overflow:hidden;max-width:760px;margin-inline:auto;transition:max-width .3s cubic-bezier(.23,1,.32,1)}
+  .app.phone{max-width:390px}
+  .top{background:#fff;border-bottom:1px solid var(--bd);padding:14px 20px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+  .top h2{margin:0;font-size:19px}
+  .top .who{color:var(--tx2);font-size:14px}
+  .top .act{margin-inline-start:auto;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .app.phone .top .act{margin-inline-start:0;width:100%}
+  .app.phone .top .act .btn{flex:1}
+  .pill{font-size:13px;font-weight:600;color:var(--ok);background:var(--ok-bg);border-radius:999px;padding:3px 10px;white-space:nowrap}
+  .pill.grey{color:var(--tx2);background:#efede8}
+  .btn{border:0;border-radius:10px;padding:10px 16px;font-weight:700;background:var(--br);color:#fff;transition:background .2s,opacity .2s,transform .1s}
+  .btn:active{transform:scale(.97)}
+  .lnk{border:0;background:none;color:var(--br);font-weight:600;font-size:13.5px;padding:0}
+  .body{padding:18px 20px 22px;display:flex;flex-direction:column;gap:14px}
+  .app.phone .body{padding:14px}
+  .card{background:#fff;border:1px solid var(--bd);border-radius:14px;padding:16px 18px}
+  .wait{font-size:13.5px;color:var(--txc);background:var(--br-soft);border-radius:10px;padding:9px 12px}
+
+  .hero small{display:block;color:var(--tx2);font-size:13.5px}
+  .hero .big{font-size:34px;font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:-.5px;transition:color .3s}
+  .app.phone .hero .big{font-size:28px}
+  .hero .big.due{color:var(--due)}
+  .hero .big.ok{color:var(--ok)}
+  .parts{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
+  .parts span{font-size:13px;color:var(--txc);background:#f4f2ee;border-radius:8px;padding:2px 9px;font-variant-numeric:tabular-nums}
+  .more{margin-top:8px}
+  .breakdown{display:grid;grid-template-rows:0fr;transition:grid-template-rows .3s cubic-bezier(.23,1,.32,1)}
+  .breakdown.open{grid-template-rows:1fr}
+  .breakdown>div{overflow:hidden}
+  .bl{display:flex;justify-content:space-between;gap:10px;font-size:13.5px;color:var(--txc);padding:4px 0;border-bottom:1px dashed #ebe8e2}
+  .bl:first-child{margin-top:10px}
+  .bl b{font-variant-numeric:tabular-nums;font-weight:600;color:var(--tx)}
+
+  .h3{margin:0 0 10px;font-size:15px;display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+  .h3 small{font-weight:500;color:var(--tx2);font-size:13px}
+
+  /* הכנסות והוצאות */
+  .ie{display:grid;grid-template-columns:70px 1fr;gap:6px 12px;align-items:center}
+  .ie .lb{font-size:14px;font-weight:600}
+  .track{position:relative;height:26px;background:#f1efeb;border-radius:7px;overflow:visible}
+  .track .a,.track .f{position:absolute;top:0;bottom:0;transition:width .45s cubic-bezier(.23,1,.32,1),right .45s cubic-bezier(.23,1,.32,1)}
+  .track .a{right:0;border-radius:0 7px 7px 0;background:var(--br)}
+  .track .f{border-radius:7px 0 0 7px;background:repeating-linear-gradient(135deg,#b9c7dc 0 5px,#d3dce9 5px 10px)}
+  .track.exp .a{background:#8e949b}
+  .track.exp .f{background:repeating-linear-gradient(135deg,#c9ccd0 0 5px,#dfe1e3 5px 10px)}
+  .track.flat .a{background:#c9ccd0;border-radius:7px}
+  .ceil{position:absolute;top:-5px;bottom:-5px;width:0;border-left:2px dashed var(--warn);transition:left .45s cubic-bezier(.23,1,.32,1)}
+  .nums{grid-column:2;display:flex;gap:14px;font-size:13px;color:var(--tx2);margin:-2px 0 6px;flex-wrap:wrap;font-variant-numeric:tabular-nums}
+  .nums b{color:var(--tx);font-weight:600}
+  .legend{display:flex;gap:14px;font-size:12.5px;color:var(--tx2);margin-top:6px;flex-wrap:wrap;align-items:center}
+  .legend i{display:inline-block;width:12px;height:12px;border-radius:3px;vertical-align:-1px;margin-inline-end:5px}
+  .legend .ia{background:var(--br)}
+  .legend .if{background:repeating-linear-gradient(135deg,#b9c7dc 0 3px,#d3dce9 3px 6px)}
+  .legend .basis{margin-inline-start:auto;font-weight:600;color:var(--txc)}
+  /* טבלת ההתאמות */
+  .adjt{margin-top:12px;border-top:1px solid #f0eee9;padding-top:10px}
+  .adjt-h{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin-bottom:4px;font-size:14px}
+  .adjt-h small{color:var(--tx2);font-size:12.5px}
+  .adjt table{width:100%;border-collapse:collapse;font-size:13.5px;font-variant-numeric:tabular-nums}
+  .adjt th{font-size:12px;color:var(--tx2);font-weight:600;text-align:start;padding:5px 6px;border-bottom:1px solid var(--bd)}
+  .adjt td{padding:6px;border-bottom:1px dashed #ebe8e2;vertical-align:top}
+  .adjt td small{display:block;color:var(--tx3);font-size:12px}
+  .adjt th:not(:first-child),.adjt td:not(:first-child){text-align:left;white-space:nowrap}
+  .adjt td.neg{color:var(--due)}
+  .adjt td.rcg{font-weight:600}
+  .adjt tfoot td{font-weight:700;border-bottom:0;border-top:1px solid var(--bd2)}
+  .adjt .mute{font-size:12.5px;color:var(--tx3);margin-top:6px}
+  .empty{color:var(--tx3);font-size:14px;margin:4px 0 2px}
+  /* שלבי העבודה */
+  .steps{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+  .steps span{display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600;color:var(--tx3);white-space:nowrap}
+  .steps span i{width:20px;height:20px;border-radius:50%;border:1.5px solid var(--bd2);display:grid;place-items:center;font-style:normal;font-size:11px;transition:background .25s,border-color .25s,color .25s}
+  .steps span.done{color:var(--ok)}
+  .steps span.done i{background:var(--ok);border-color:var(--ok);color:#fff}
+  .steps span.cur{color:var(--tx)}
+  .steps span.cur i{border-color:var(--br);color:var(--br)}
+  .steps b{width:14px;height:1.5px;background:var(--bd2)}
+  .pull{border:0;background:none;color:var(--br);font-weight:600;font-size:12.5px;padding:0;margin-inline-start:6px}
+  .profit{display:flex;justify-content:space-between;margin-top:10px;padding-top:10px;border-top:1px solid #f0eee9;font-size:14px}
+  .profit b{font-variant-numeric:tabular-nums}
+  .note{font-size:13px;border-radius:9px;padding:7px 10px;margin-top:10px}
+  .note.ok{background:var(--ok-bg);color:var(--ok)}
+  .note.bad{background:var(--due-bg);color:var(--due);font-weight:600}
+
+  /* ההמלצה */
+  .rec{display:flex;align-items:center;gap:12px;padding:10px 0;border-top:1px solid #f0eee9;flex-wrap:wrap}
+  .rec:first-child{border-top:0;padding-top:0}
+  .rec .auth{width:104px;font-weight:600;font-size:14px;flex-shrink:0}
+  .app.phone .rec .auth{width:100%}
+  .rec .chg{font-size:18px;font-weight:700;font-variant-numeric:tabular-nums;flex:1;min-width:150px}
+  .rec .chg em{font-style:normal;color:var(--tx3);font-weight:500;text-decoration:line-through;font-size:15px}
+  .rec .chg i{font-style:normal;color:var(--tx3);font-weight:400;margin:0 6px}
+  .rec .chg .min{font-size:13px;font-weight:600;color:var(--tx2)}
+  .rec .chg u{text-decoration:none;font-size:13px;color:var(--tx2);font-weight:500}
+  .rec .cu{font-size:13px;font-weight:600;border-radius:8px;padding:3px 9px;background:var(--due-bg);color:var(--due);font-variant-numeric:tabular-nums;white-space:nowrap}
+  .rec .cu.cr{background:var(--ok-bg);color:var(--ok)}
+  .rec .where{width:100%;font-size:12.5px;color:var(--tx3);margin-top:-4px}
+  .after{display:flex;align-items:center;gap:8px;margin-top:10px;padding-top:10px;border-top:1px solid #f0eee9;font-size:14px;color:var(--ok);font-weight:600}
+  .after svg{width:18px;height:18px;stroke:var(--ok);fill:none;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+
+  .wi{display:grid;grid-template-columns:150px 1fr 120px;align-items:center;gap:12px;padding:8px 0}
+  .app.phone .wi{grid-template-columns:1fr auto;row-gap:2px}
+  .app.phone .wi input{grid-column:1 / -1;grid-row:2}
+  .wi label{font-size:14px;font-weight:600}
+  .wi label small{display:block;font-weight:500;color:var(--tx2);font-size:12.5px;font-variant-numeric:tabular-nums}
+  .wi input[type=range]{width:100%;accent-color:var(--br);height:28px}
+  .wi .sv{font-size:13.5px;font-weight:700;color:var(--ok);text-align:left;font-variant-numeric:tabular-nums}
+  .wi .sv.zero{color:var(--tx3);font-weight:500}
+  .cap{font-size:12.5px;color:var(--tx3);margin:2px 0 0;min-height:1em}
+  .src{font-size:12.5px;color:var(--tx3);text-align:center}
+
+  /* ═════ השאלון (כמו בדוח השנתי) ═════ */
+  .qwrap{display:flex;justify-content:center}
+  .phonef{width:390px;max-width:100%;background:#16181c;border-radius:34px;padding:9px;box-shadow:0 10px 30px rgba(0,0,0,.16)}
+  .screen{background:#f6f5f2;border-radius:26px;height:740px;overflow:hidden;display:flex;flex-direction:column}
+  .c-head{background:#fff;border-bottom:1px solid #eceae6;padding:12px 16px 10px}
+  .c-top{display:flex;justify-content:space-between;align-items:center;height:20px;font-size:12.5px;color:var(--tx2);font-weight:600}
+  .saved{color:var(--ok);opacity:0;transition:opacity .25s ease;width:60px;text-align:left}
+  .saved.on{opacity:1}
+  .chs{display:flex;gap:6px;margin-top:9px}
+  .ch{flex:1;min-width:0}
+  .ch .bar{height:5px;background:#ebe9e5;border-radius:9px;overflow:hidden}
+  .ch .bar i{display:block;height:100%;width:0;border-radius:9px;transition:width .35s ease}
+  .ch span{display:block;font-size:11.5px;color:var(--tx3);margin-top:4px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .ch.cur span{color:var(--tx)}
+  .c-body{flex:1;overflow-y:auto;padding:18px 16px 14px}
+  .c-foot{background:#fff;border-top:1px solid #eceae6;padding:10px 16px 14px;display:flex;gap:10px;align-items:center}
+  .q{font-size:21px;font-weight:700;line-height:1.3;margin:0 0 14px}
+  .qs{color:var(--tx2);font-size:14px;margin:-10px 0 14px}
+  .qbtn{border:0;border-radius:12px;padding:13px 18px;font-weight:700;font-size:16px;background:var(--acc);color:#fff;flex:1;transition:background .25s}
+  .qbtn[disabled]{opacity:.4;cursor:default}
+  .ghost{border:0;background:none;color:var(--tx2);font-weight:600;padding:10px 6px}
+  .ghost[disabled]{opacity:.35;cursor:default}
+  .in{animation:in .28s cubic-bezier(.23,1,.32,1)}
+  @keyframes in{from{opacity:0;transform:translateX(-14px)}to{opacity:1;transform:none}}
+  .back{animation:back .28s cubic-bezier(.23,1,.32,1)}
+  @keyframes back{from{opacity:0;transform:translateX(14px)}to{opacity:1;transform:none}}
+  .opener{display:flex;align-items:center;gap:10px;margin:0 0 14px;animation:pop .4s cubic-bezier(.3,1.5,.5,1)}
+  @keyframes pop{from{transform:scale(.85);opacity:0}to{transform:none;opacity:1}}
+  .av{width:40px;height:40px;border-radius:50%;background:var(--acc);color:#fff;display:grid;place-items:center;font-weight:700;font-size:18px;flex-shrink:0}
+  .opener b{display:block;font-size:17px}
+  .opener small{color:var(--tx2);font-size:13px}
+  .kn{background:#fff;border:1px solid #e6e3de;border-radius:14px;padding:12px 14px;margin-bottom:10px}
+  .kn-h{display:flex;justify-content:space-between;align-items:center;gap:8px}
+  .kn-l{font-size:13px;color:var(--tx2);font-weight:600}
+  .srcs{font-size:11.5px;color:var(--tx3);font-weight:600;background:#f1efeb;border-radius:999px;padding:1px 8px}
+  .kn-v{font-size:15px;margin:3px 0 10px}
+  .seg2{display:inline-flex;border:1.5px solid #e0ddd6;border-radius:10px;overflow:hidden}
+  .seg2 button{border:0;background:#fff;padding:7px 16px;font-size:14px;font-weight:600;color:var(--tx2)}
+  .seg2 button+button{border-inline-start:1.5px solid #e0ddd6}
+  .seg2 button[aria-pressed=true]{background:var(--acc);color:#fff}
+  .chips{display:flex;flex-wrap:wrap;gap:7px}
+  .chip{border:1.5px solid #e0ddd6;background:#fff;border-radius:999px;padding:6px 13px;font-size:14px;font-weight:600}
+  .chip[aria-pressed=true]{border-color:var(--acc);background:var(--acc-soft);color:var(--acc)}
+  .yn{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
+  .yn.three{grid-template-columns:1fr 1fr 1fr}
+  .yn button{display:flex;flex-direction:column;align-items:center;gap:6px;border:1.5px solid #e0ddd6;background:#fff;border-radius:16px;padding:14px 8px 12px;font-weight:700;font-size:15px;transition:border-color .15s,background .15s,transform .1s}
+  .yn button:active{transform:scale(.98)}
+  .yn button[aria-pressed=true]{border-color:var(--acc);background:var(--acc-soft);color:var(--acc)}
+  .yn svg{width:28px;height:28px;stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;color:var(--acc)}
+  .tiles{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:12px}
+  .tile{position:relative;background:#fff;border:1.5px solid #e4e1db;border-radius:14px;transition:border-color .15s,background .15s,transform .1s;text-align:start;display:flex;flex-direction:column;align-items:flex-start;gap:5px;padding:12px 12px 11px;min-height:92px}
+  .tile:active{transform:scale(.98)}
+  .tile.on{border-color:var(--acc);background:var(--acc-soft)}
+  .ic{position:relative;display:inline-block}
+  .ic svg{width:27px;height:27px;stroke:var(--acc);fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+  .ic .ok{position:absolute;bottom:-3px;left:-7px;width:17px;height:17px;border-radius:50%;background:var(--acc);color:#fff;font-size:10.5px;font-weight:700;display:grid;place-items:center;border:2px solid #fff;transform:scale(0);transition:transform .18s cubic-bezier(.3,1.6,.5,1)}
+  .tile.on .ic .ok{transform:scale(1)}
+  .tile b{font-size:14.5px;line-height:1.3}
+  .tile small{font-size:12.5px;color:var(--tx2);line-height:1.35}
+  .follow{background:#fff;border:1.5px solid var(--acc);border-radius:14px;padding:12px 14px;margin:0 0 12px;animation:in .25s ease}
+  .follow p{margin:0 0 8px;font-weight:700;font-size:15px}
+  .step{display:inline-flex;align-items:center;border:1.5px solid #e0ddd6;border-radius:12px;overflow:hidden;background:#fff}
+  .step button{border:0;background:#f4f2ee;width:42px;height:42px;font-size:20px;font-weight:700;color:var(--acc)}
+  .step output{min-width:110px;text-align:center;font-size:17px;font-weight:700;font-variant-numeric:tabular-nums}
+  .mchart{display:flex;gap:3px;align-items:flex-end;margin:10px 0 8px}
+  .mchart div{flex:1;min-width:0;display:flex;flex-direction:column;align-items:stretch}
+  .mchart i{display:block;background:var(--acc);border-radius:3px 3px 0 0}
+  .mchart i.f{background:repeating-linear-gradient(135deg,#b9c7dc 0 4px,#d3dce9 4px 8px)}
+  .mchart.exp i{background:#8e949b}
+  .mchart.exp i.f{background:repeating-linear-gradient(135deg,#c9ccd0 0 4px,#dfe1e3 4px 8px)}
+  .mchart span{font-size:9.5px;color:var(--tx3);text-align:center;margin-top:3px;white-space:nowrap;overflow:hidden}
+  .mrow{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:4px 0}
+  .mrow span{font-weight:600;font-size:14.5px}
+  .step.sm button{width:38px;height:38px;font-size:18px}
+  .step.sm output{min-width:96px;font-size:15.5px}
+  .know{background:#fff;border:1px solid #e6e3de;border-radius:14px;padding:12px 14px;margin-bottom:14px;font-size:14px}
+  .know div{display:flex;justify-content:space-between;padding:2px 0}
+  .know b{font-variant-numeric:tabular-nums}
+  .sum{background:#fff;border:1px solid #e6e3de;border-radius:14px;margin-bottom:10px;overflow:hidden}
+  .sum-h{display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid #f0eee9;font-weight:700}
+  .sum-h .av{width:26px;height:26px;font-size:13px}
+  .sum ul{list-style:none;margin:0;padding:6px 14px 10px}
+  .sum li{display:flex;justify-content:space-between;gap:10px;padding:4px 0;font-size:14px}
+  .sum li span{color:var(--tx2)}
+  .doc{display:flex;gap:10px;align-items:center;background:#fff;border:1px solid #e6e3de;border-radius:14px;padding:11px 12px;margin-bottom:8px}
+  .doc .t{flex:1;min-width:0}
+  .doc b{display:block;font-size:14.5px}
+  .doc span{font-size:12.5px;color:var(--tx2)}
+  .up{border:0;background:var(--c1);color:#fff;border-radius:10px;padding:8px 13px;font-weight:700;font-size:13.5px;white-space:nowrap}
+  .up.done{background:var(--ok-bg);color:var(--ok)}
+  .okc{width:56px;height:56px;border-radius:50%;background:var(--ok-bg);color:var(--ok);display:grid;place-items:center;font-size:26px;margin:30px auto 8px;font-weight:700;animation:pop .35s cubic-bezier(.3,1.6,.5,1)}
+
+  .toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%) translateY(20px);background:#25282d;color:#fff;border-radius:10px;padding:9px 16px;font-size:14px;opacity:0;transition:opacity .25s,transform .25s cubic-bezier(.23,1,.32,1);z-index:9;pointer-events:none}
+  .toast.on{opacity:1;transform:translateX(-50%)}
+  @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+  @media (max-width:760px){ .app{max-width:none!important} .tools .view{display:none} }
+  .app.phone .ie{grid-template-columns:1fr;gap:4px}
+  .app.phone .ie .nums{grid-column:1}
+  .app.phone .ie .lb{margin-top:6px}
+  .app.phone .adjt td,.app.phone .adjt th{padding:5px 3px}
+  @media (max-width:430px){
+    .ie{grid-template-columns:1fr;gap:4px} .ie .nums{grid-column:1} .ie .lb{margin-top:6px} .adjt td,.adjt th{padding:5px 3px} .hero .big{font-size:27px} .body{padding:14px}
+    .phonef{padding:0;background:none;box-shadow:none;border-radius:0} .screen{border-radius:16px;border:1px solid var(--bd)}
+  }
+  @media (max-width:0px){ .phonef{padding:0;background:none;box-shadow:none;border-radius:0} .screen{border-radius:16px;border:1px solid var(--bd)} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <span class="flag">הדמיה — נתוני דמה, לא לקוח אמיתי</span>
+  <h1>הערכת מס — מספר אחד, המלצה אחת</h1>
+  <p class="lead">אותו מסך לכל מצב. ארבעה שלבים: שאלון ← פייפרלס ← הצפי של הלקוח ← הערכה והמלצה.</p>
+  <details class="scope">
+    <summary>מה ייכלל בביצוע</summary>
+    <ul>
+      <li><b>1. השאלון — כמו בדוח השנתי:</b> פרקים לפי אדם עם צבע, «זה עדיין נכון?» על מה שבתיק, מסכי ריבועים, בלי טקסט חופשי. בתוכו: «הכול כבר בפייפרלס?» — ואם לא, להעלות עכשיו. התשובות נכנסות לכרטיס ולהערכה לבד.</li>
+      <li><b>2. פייפרלס:</b> אתה מפעיל «משוך מפייפרלס» (קריאה בלבד) — ההכנסות וההוצאות עד החודש האחרון שנרשם במלואו. כל קוד מיון מתורגם לפי נוהל קבוע, וההתאמות מתבצעות לבד ומוצגות בטבלה: בספרים · התאמה · מוכרת. רכוש קבוע ופחת — בשלב הבא.</li>
+      <li><b>3. הצפי של הלקוח:</b> מיד אחרי המשיכה יוצאת אליו בקשה בדף: «לפי הקצב שלך — עד דצמבר כ-X». הוא רואה עמודה לכל חודש עד עכשיו, ומאשר — או קובע הערכה לכל חודש שנשאר בכפתורי ± (בלי להקליד). הוא רואה את המספרים כמו בספרים שלו; ההתאמות — רק אצלך.</li>
+      <li><b>4. הערכה והמלצה:</b> ברגע שאישר — מוכנות אצלך, בלי שלב ביניים.</li>
+      <li><b>לקוח חדש:</b> אין עדיין נתונים — השאלון שואל כמה צפוי, ומשם ישר להערכה.</li>
+      <li><b>עסק זעיר ועוסק פטור — רק אצלך:</b> קו התקרה, כמה נשאר עד אליה, ומה קורה כשחוצים (לא זעיר; פטור עובר למורשה). הלקוח רואה רק את המספרים שלו. 30% קבוע במקום הוצאות (בלי טבלת התאמות).</li>
+      <li><b>ההמלצה מעוגלת כלפי מעלה:</b> אצלך «לפחות», אצל הלקוח «כ-». מ״ה לחצי אחוז, ב״ל ל-50 ₪ — עד שנראה מה כל פורטל מקבל.</li>
+      <li><b>ההמלצה מתחילת השנה:</b> שיעור או מקדמה חדשים מינואר, וההפרש על החודשים שעברו — מחושב לבד.</li>
+      <li><b>«מה אם»:</b> קרן השתלמות ופנסיה, באותו מנוע חישוב.</li>
+      <li>המסך הנוכחי (שאלות לאישור, רשימות «חסרים», «איך עושים ביד») עובר ל«כלים מתקדמים». השינוי ברשות — אצלך, כמו היום.</li>
+      <li>שחרור: האתר, ומשיכת פייפרלס בעובד (קריאה בלבד). ייתכן שינוי מסד קטן לבקשת הצפי — עם גיבוי, כמו תמיד.</li>
+      <li><b>לבדיקה לפני הביצוע:</b> איזה דוח מושכים מפייפרלס (צפייה חיה, קריאה בלבד); הנוהל — מה מסמל כל קוד ומה ההתאמה שלו (האחוזים כאן להמחשה); הכלל המדויק של ההפרש לחודשים שעברו (מ״ה וב״ל); בסיס ב״ל לעסק זעיר; מה כל פורטל מקבל בשינוי מקדמות (שיעור עם עשרוני? בב״ל — סכום, או הכנסה משוערת שממנה נגזרת המקדמה).</li>
+    </ul>
+  </details>
+
+  <div class="tools">
+    <div class="seg" role="group" aria-label="מה רואים">
+      <button data-who="office" aria-pressed="true">במשרד</button>
+      <button data-who="q" aria-pressed="false">מה ישראל ממלא</button>
+      <button data-who="client" aria-pressed="false">הדף של ישראל</button>
+    </div>
+    <div class="seg" role="group" aria-label="סוג לקוח">
+      <button data-kind="old" aria-pressed="true">לקוח ותיק</button>
+      <button data-kind="new" aria-pressed="false">לקוח חדש</button>
+      <button data-kind="micro" aria-pressed="false">עסק זעיר</button>
+    </div>
+    <div class="seg view" role="group" aria-label="תצוגה">
+      <button data-view="desk" aria-pressed="true">מחשב</button>
+      <button data-view="phone" aria-pressed="false">טלפון</button>
+    </div>
+    <button class="restart" id="restart">התחל מחדש</button>
+  </div>
+
+  <!-- ═════ מסך ההערכה (משרד / דף הלקוח) ═════ -->
+  <div class="app" id="app">
+    <div class="top">
+      <h2>הערכת מס 2026</h2>
+      <span class="who" id="who">ישראל ישראלי</span>
+      <div class="act" id="act"></div>
+    </div>
+    <div class="body">
+      <div class="steps" id="steps" hidden></div>
+      <div class="wait" id="waitNote" hidden></div>
+      <div class="card hero">
+        <small id="heroLbl"></small>
+        <div class="big" id="big"></div>
+        <div class="parts" id="parts"></div>
+        <div class="more"><button class="lnk" id="moreBtn" aria-expanded="false">ממה זה מורכב</button></div>
+        <div class="breakdown" id="bd"><div id="bdIn"></div></div>
+      </div>
+
+      <div class="card">
+        <h3 class="h3" id="ieH"></h3>
+        <div class="ie" id="ie"></div>
+        <div class="legend" id="legend"></div>
+        <div id="adjT"></div>
+        <div class="profit" id="profitRow"><span id="profitL">רווח צפוי לשנה</span><b id="profit"></b></div>
+        <div id="ieNote"></div>
+      </div>
+
+      <div class="card">
+        <h3 class="h3" id="recH"></h3>
+        <div id="recs"></div>
+        <div class="after"><svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span id="afterTx"></span></div>
+      </div>
+
+      <div class="card">
+        <h3 class="h3">מה אם&nbsp;<span id="wiWho">תפקיד</span>&nbsp;עד 31.12</h3>
+        <div class="wi">
+          <label for="sf">קרן השתלמות<small id="sfV">0 ₪</small></label>
+          <input type="range" id="sf" min="0" max="20000" step="500" value="0">
+          <div class="sv zero" id="sfS">—</div>
+        </div>
+        <div class="wi">
+          <label for="pn">פנסיה<small id="pnV">0 ₪</small></label>
+          <input type="range" id="pn" min="0" max="30000" step="500" value="0">
+          <div class="sv zero" id="pnS">—</div>
+        </div>
+        <p class="cap" id="cap"></p>
+      </div>
+      <p class="src" id="src"></p>
+    </div>
+  </div>
+
+  <!-- ═════ השאלון בדף האישי ═════ -->
+  <div class="qwrap" id="qwrap" hidden>
+    <div class="phonef"><div class="screen">
+      <div class="c-head">
+        <div class="c-top"><span id="ctop">הערכת מס 2026 · שאלון</span><span class="saved" id="saved">נשמר ✓</span></div>
+        <div class="chs" id="chs"></div>
+      </div>
+      <div class="c-body" id="cbody"></div>
+      <div class="c-foot" id="cfoot"></div>
+    </div></div>
+  </div>
+</div>
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+const $ = id => document.getElementById(id);
+const nis = n => Math.round(n).toLocaleString('he-IL') + ' ₪';
+const reduce = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+// ── נתוני דמה לכל סוג לקוח ──
+const KIND = {
+  old:   { actual: 300000, expActual: 107000, months: 9, curRate: 5,   niCur: 1450, src: 'רווח והפסד מפייפרלס עד ספטמבר', credit: 0,    mr: { sf: .31, pn: .33 } },
+  new:   { actual: 0,      expActual: 0,      months: 0, curRate: null, niCur: null, src: 'מהשאלון',                         credit: 0,    mr: { sf: .31, pn: .33 } },
+  micro: { actual: 85000, expActual: null,   months: 9, curRate: 1,   niCur: 450,  src: 'חשבוניות מפייפרלס עד ספטמבר',      credit: 5500, mr: { sf: .10, pn: .35 } },
+};
+// מפייפרלס — לפי חודש, ינואר–ספטמבר (נתוני דמה; סכומם = actual / expActual)
+const MONTHLY = {
+  old:   { inc: [28000, 31000, 35000, 30000, 33000, 36000, 29000, 38000, 40000], exp: [11000, 12000, 11500, 12500, 11000, 13000, 11000, 12000, 13000], step: { inc: 2000, exp: 1000 } },
+  micro: { inc: [8000, 9500, 10000, 9000, 8500, 10500, 9000, 10000, 10500], exp: null, step: { inc: 1000 } },
+};
+const MONTHS = ['ינו', 'פבר', 'מרץ', 'אפר', 'מאי', 'יונ', 'יול', 'אוג', 'ספט', 'אוק', 'נוב', 'דצמ'];
+const MONTHS_FULL = ['ינואר', 'פברואר', 'מרץ', 'אפריל', 'מאי', 'יוני', 'יולי', 'אוגוסט', 'ספטמבר', 'אוקטובר', 'נובמבר', 'דצמבר'];
+const CEIL = 122833;
+// ‼ לפי הנוהל: כל קוד מיון ← התאמה קבועה. אין בחירה ידנית — רק תצוגה (האחוזים להמחשה)
+const ADJ = [
+  { name: 'רכב', book: 12000, add: 6600, rule: 'מוכר 45%' },
+  { name: 'כיבוד', book: 3000, add: 600, rule: 'מוכר 80%' },
+  { name: 'קנסות', book: 400, add: 400, rule: 'לא מוכר' },
+];
+const st = { who: 'office', kind: 'old', view: 'desk', flow: 'q', open: false,
+  q: { i: 0, newInc: 420000, newExp: 140000, upl: null, excl: 'no', family: {}, me: ['biz'], less: ['pension'], penAmt: 6000, sp: ['salary'], slip: false, sent: false,
+       incA: null, expA: null, incM: null, expM: null } };
+
+// לקוח חדש — אין משיכה ואין צפי לאשר: מהשאלון ישר להערכה
+const flowOf = () => st.kind === 'new' && (st.flow === 'answered' || st.flow === 'pulled') ? 'ready' : st.flow;
+const pulled = () => !['q', 'waiting', 'answered'].includes(flowOf());
+const confirmed = () => ['ready', 'published', 'done'].includes(flowOf());
+// הצפי לפי הקצב: ממוצע חודשי × 12 — ההצעה שהלקוח מאשר או משנה
+const proj = k => ({ inc: k.actual / k.months * 12, exp: k.expActual ? k.expActual / k.months * 12 : null });
+
+function calc() {
+  const k = KIND[st.kind], q = st.q;
+  let inc, incF, exp, expF;
+  if (st.kind === 'new') { inc = 0; incF = q.newInc; exp = 0; expF = q.newExp; }
+  else {
+    const p = proj(k), own = confirmed();
+    // הלקוח שינה ⇒ הצפי = סכום ההערכה שלו לכל חודש שנשאר
+    const sum = a => a.reduce((s, v) => s + v, 0);
+    inc = k.actual; incF = own && q.incA === 'chg' ? sum(q.incM) : p.inc - inc;
+    if (st.kind === 'micro') { exp = null; expF = null; }
+    else { exp = k.expActual; expF = own && q.expA === 'chg' ? sum(q.expM) : p.exp - exp; }
+  }
+  // ההוצאה המוכרת = הספרים פחות ההתאמות — באותו יחס גם על הצפי שהלקוח אישר
+  const adjSum = st.kind === 'old' ? ADJ.reduce((s, a) => s + a.add, 0) : 0;
+  const ratio = exp ? (exp - adjSum) / exp : 1;
+  if (exp) { exp = exp * ratio; expF = expF * ratio; }
+  const turnover = inc + incF;
+  const microOk = st.kind === 'micro' && turnover <= CEIL && q.excl === 'no';
+  const expenses = st.kind === 'micro' ? (microOk ? turnover * .3 : turnover * .22) : (exp + expF);
+  const profit = turnover - expenses;
+  const sf = +$('sf').value, pn = +$('pn').value;
+  const sfSave = Math.min(sf, 12600) * k.mr.sf, pnSave = Math.min(pn, 24000) * k.mr.pn;
+  const it = Math.max(0, profit * .105 - k.credit - sfSave - pnSave);
+  // ‼ מעגלים כלפי מעלה — מינימום שסוגר את השנה בלי חוב (מ״ה: חצי אחוז; ב״ל: 50 ₪). מה כל פורטל מקבל — לבדיקה
+  const rate = Math.ceil(it / turnover * 200) / 2;
+  const niReq = Math.ceil(profit * .0849 / 12 / 50) * 50;
+  const r = { inc, incF, exp, expF, turnover, expenses, profit, microOk, sf, pn, sfSave, pnSave, it, rate, niReq, ni: niReq * 12, adjSum };
+  if (k.curRate != null) {
+    r.itDebt = it - turnover * k.curRate / 100; r.niDebt = (niReq - k.niCur) * 12;
+    r.total = r.itDebt + r.niDebt; r.itCu = (rate - k.curRate) / 100 * inc; r.niCu = (niReq - k.niCur) * k.months;
+  }
+  return r;
+}
+
+let shown = null;
+function count(el, to, fmt) {
+  const from = shown ?? to; shown = to;
+  if (reduce() || from === to) { el.textContent = fmt(to); return; }
+  const t0 = performance.now(), dur = 320;
+  const step = t => { const k = Math.min(1, (t - t0) / dur), e = 1 - Math.pow(1 - k, 3); el.textContent = fmt(from + (to - from) * e); if (k < 1) requestAnimationFrame(step); };
+  requestAnimationFrame(step);
+}
+
+const STEPS_OLD = [['שאלון', ['q', 'waiting']], ['פייפרלס', ['answered']], ['הצפי של ישראל', ['pulled']], ['הערכה והמלצה', ['ready', 'published']]];
+const STEPS_NEW = [['שאלון', ['q', 'waiting']], ['הערכה והמלצה', ['ready', 'published']]];
+
+function renderEstimate() {
+  const c = calc(), k = KIND[st.kind], office = st.who === 'office', fresh = st.kind === 'new', micro = st.kind === 'micro';
+  const F = flowOf();
+  $('app').classList.toggle('phone', st.view === 'phone');
+  $('who').textContent = office ? 'ישראל ישראלי' : '';
+  $('wiWho').textContent = office ? 'יפקיד' : 'תפקיד';
+  // הדף של ישראל מציג את המצב הסופי; במשרד — לפי השלב
+  const hasData = !office || (fresh ? confirmed() : pulled());
+
+  // ── שלבי העבודה (משרד) ──
+  const steps = fresh ? STEPS_NEW : STEPS_OLD, cur = F === 'done' ? steps.length : steps.findIndex(s => s[1].includes(F));
+  $('steps').hidden = !office;
+  $('steps').innerHTML = steps.map(([n], i) => `${i ? '<b></b>' : ''}<span class="${i < cur ? 'done' : i === cur ? 'cur' : ''}"><i>${i < cur ? '✓' : i + 1}</i>${n}</span>`).join('');
+  const wn = $('waitNote');
+  const wait = !office || confirmed() ? '' : fresh ? 'לפי מה שבתיק — עד שישראל יענה' : pulled() ? 'הצפי כאן לפי הקצב — עד שישראל יאשר או ישנה' : 'לפי מה שבתיק — עד המשיכה מפייפרלס';
+  wn.hidden = !wait; wn.textContent = wait;
+
+  // ── המספר ──
+  const big = $('big');
+  if (fresh) {
+    $('heroLbl').textContent = office ? 'צפוי לשנה הראשונה' : 'צפוי לשלם השנה';
+    big.className = 'big';
+    count(big, c.it + c.ni, v => 'כ-' + nis(v));
+    $('parts').innerHTML = `<span>מס הכנסה ${nis(c.it)}</span><span>ביטוח לאומי ${nis(c.ni)}</span>`;
+  } else {
+    $('heroLbl').textContent = office ? 'אם לא משנים כלום — בסוף השנה' : 'אם לא נשנה כלום — בסוף 2026';
+    big.className = 'big ' + (c.total > 0 ? 'due' : 'ok');
+    count(big, Math.abs(c.total), v => (c.total > 0 ? 'חוב של כ-' : 'זכות של כ-') + nis(v));
+    const p = x => (x >= 0 ? nis(x) : 'זכות ' + nis(-x));
+    $('parts').innerHTML = `<span>מס הכנסה ${p(c.itDebt)}</span><span>ביטוח לאומי ${p(c.niDebt)}</span>`;
+  }
+  const rows = [['רווח צפוי לשנה', nis(c.profit)], ['מס הכנסה צפוי', nis(c.it)], ['ביטוח לאומי צפוי', nis(c.ni)]];
+  if (!fresh) rows.push(['מקדמות מס הכנסה בשיעור הנוכחי', nis(c.turnover * k.curRate / 100)], ['ביטוח לאומי בקצב הנוכחי', nis(k.niCur * 12)]);
+  $('bdIn').innerHTML = rows.map(r => `<div class="bl"><span>${r[0]}</span><b>${r[1]}</b></div>`).join('');
+  $('bd').classList.toggle('open', st.open);
+  $('moreBtn').setAttribute('aria-expanded', st.open);
+
+  // ── הכנסות והוצאות ──
+  ['legend', 'adjT', 'profitRow', 'ieNote'].forEach(id => $(id).hidden = !hasData);
+  if (!hasData) {
+    $('ieH').innerHTML = 'הכנסות והוצאות';
+    $('ie').innerHTML = `<p class="empty" style="grid-column:1/-1">${fresh ? 'יופיע אחרי השאלון' : 'יופיע אחרי המשיכה מפייפרלס'}</p>`;
+  } else renderIE(c, k, office, fresh, micro);
+  renderRecAndAct(c, k, office, fresh, micro, F);
+}
+
+function renderIE(c, k, office, fresh, micro) {
+  $('ieH').innerHTML = fresh ? 'הכנסות והוצאות <small>צפי לשנה</small>' : `הכנסות והוצאות <small>${k.src}${office ? ` · נמשך 27.10<button class="pull" id="pull">↻ משוך שוב</button>` : ''}</small>`;
+  const pb = $('pull'); if (pb) pb.onclick = () => toast('נמשך שוב מפייפרלס');
+  // התקרה (עסק זעיר / עוסק פטור) — עניין של המשרד; הלקוח רואה רק את המספרים שלו
+  const ceilOn = micro && office;
+  const max = Math.max(c.turnover, ceilOn ? CEIL * 1.08 : 0);
+  const pc = v => (v / max * 100).toFixed(2) + '%';
+  const bar = (cls, a, f) => `<div class="track ${cls}"><div class="a" style="width:${pc(a)}"></div><div class="f" style="right:${pc(a)};width:${pc(f)}"></div>${ceilOn && cls === '' ? `<div class="ceil" style="left:${(100 - CEIL / max * 100).toFixed(2)}%" title="תקרת עסק זעיר ועוסק פטור"></div>` : ''}</div>`;
+  let html = `<span class="lb">הכנסות</span>${bar('', c.inc, c.incF)}<div class="nums">${fresh ? '' : `<span>עד עכשיו <b>${nis(c.inc)}</b></span>`}<span>צפי לשנה <b>${nis(c.turnover)}</b></span>${ceilOn ? `<span>תקרה ${nis(CEIL)}</span>` : ''}</div>`;
+  if (micro) html += `<span class="lb">הוצאות</span><div class="track flat"><div class="a" style="width:${pc(c.expenses)}"></div></div><div class="nums"><span>${!office ? 'מוכרות' : c.microOk ? '30% קבוע — עסק זעיר' : 'לפי הוצאות בפועל'} · <b>${nis(c.expenses)}</b></span></div>`;
+  else html += `<span class="lb">הוצאות</span>${bar('exp', c.exp, c.expF)}<div class="nums">${fresh ? '' : `<span>עד עכשיו <b>${nis(c.exp)}</b></span>`}<span>צפי לשנה <b>${nis(c.inc ? c.exp + c.expF : c.expF)}</b></span>${!fresh ? '<span>מוכרות, אחרי התאמות</span>' : ''}</div>`;
+  $('ie').innerHTML = html;
+  const q = st.q, changed = q.incA === 'chg' || (!micro && q.expA === 'chg');
+  const basis = fresh ? 'לפי השאלון של ישראל' : !confirmed() ? 'צפי לפי הקצב' : !office ? 'הצפי שלך' : changed ? 'הצפי של ישראל — שינה' : 'הצפי של ישראל — אישר';
+  $('legend').innerHTML = fresh ? `<span class="basis">${basis}</span>` : `<span><i class="ia"></i>ינואר–ספטמבר, בפועל</span><span><i class="if"></i>אוקטובר–דצמבר, צפי</span><span class="basis">${basis}</span>`;
+  // ── טבלת ההתאמות (משרד, לקוח עם הוצאות בפועל) ──
+  const n = v => Math.round(v).toLocaleString('he-IL');
+  const rest = k.expActual - ADJ.reduce((s, a) => s + a.book, 0);
+  $('adjT').innerHTML = office && st.kind === 'old' ? `<div class="adjt">
+    <div class="adjt-h"><b>התאמות לספרים</b><small>ינואר–ספטמבר · ₪ · לפי נוהל קודי המיון</small></div>
+    <table><thead><tr><th>הוצאה</th><th>בספרים</th><th>התאמה</th><th>מוכרת</th></tr></thead><tbody>
+    ${ADJ.map(a => `<tr><td>${a.name}<small>${a.rule}</small></td><td>${n(a.book)}</td><td class="neg" dir="ltr">−${n(a.add)}</td><td class="rcg">${n(a.book - a.add)}</td></tr>`).join('')}
+    <tr><td>שאר ההוצאות<small>בלי התאמה</small></td><td>${n(rest)}</td><td>—</td><td class="rcg">${n(rest)}</td></tr>
+    </tbody><tfoot><tr><td>סה״כ</td><td>${n(k.expActual)}</td><td class="neg" dir="ltr">−${n(c.adjSum)}</td><td>${n(k.expActual - c.adjSum)}</td></tr></tfoot></table>
+    <div class="mute">רכוש קבוע ופחת — בשלב הבא</div></div>` : '';
+  $('profit').textContent = nis(c.profit);
+  $('ieNote').innerHTML = !ceilOn ? '' : c.microOk
+    ? `<div class="note ok">מתחת לתקרה — עסק זעיר ועוסק פטור גם השנה · נשארו ${nis(CEIL - c.turnover)}</div>`
+    : `<div class="note bad">${c.turnover > CEIL ? `הצפי חוצה את התקרה ב-${nis(c.turnover - CEIL)} — השנה לא עסק זעיר (מס לפי הוצאות בפועל), ועוסק פטור עובר למורשה` : 'לפי התשובה בשאלון — השנה לא עסק זעיר'}</div>`;
+}
+
+function renderRecAndAct(c, k, office, fresh, micro, F) {
+  // ── ההמלצה ──
+  const where = office ? '<div class="where">משנים בפורטל של הרשות — אתה מגיש</div>' : '';
+  // במשרד — «לפחות» (מעוגל כלפי מעלה); אצל הלקוח — «כ-»
+  const pre = office ? '<span class="min">לפחות</span> ' : 'כ-';
+  const pct = r => (r % 1 ? r.toFixed(1) : r) + '%';
+  if (fresh) {
+    $('recH').innerHTML = `${office ? 'מקדמות לקבוע' : 'המקדמות שלך'} <small>מהחודש הראשון</small>`;
+    $('recs').innerHTML =
+      `<div class="rec"><span class="auth">מס הכנסה</span><span class="chg">${pre}${pct(c.rate)} <u>מהמחזור</u></span>${where}</div>` +
+      `<div class="rec"><span class="auth">ביטוח לאומי</span><span class="chg">${pre}${nis(c.niReq)} <u>לחודש</u></span>${where}</div>`;
+    $('afterTx').textContent = office ? 'מעוגל כלפי מעלה — השנה נסגרת בלי חוב' : 'ככה השנה נסגרת מאוזנת';
+  } else {
+    $('recH').innerHTML = `${office ? 'ההמלצה' : 'מה נעשה'} <small>מתחילת השנה</small>`;
+    const cu = v => Math.abs(v) < 50 ? '' : `<span class="cu ${v < 0 ? 'cr' : ''}">${v > 0 ? 'הפרש לתשלום' : 'זיכוי'} ינואר–ספטמבר: ${nis(Math.abs(v))}</span>`;
+    const same = (a, b) => Math.abs(a - b) < .05;
+    $('recs').innerHTML =
+      `<div class="rec"><span class="auth">מס הכנסה</span><span class="chg">${same(c.rate, k.curRate) ? `${k.curRate}% <u>מהמחזור — בלי שינוי</u>` : `<em>${k.curRate}%</em><i>←</i>${pre}${pct(c.rate)} <u>מהמחזור</u>`}</span>${same(c.rate, k.curRate) ? '' : cu(Math.round(c.itCu))}${same(c.rate, k.curRate) ? '' : where}</div>` +
+      `<div class="rec"><span class="auth">ביטוח לאומי</span><span class="chg">${c.niReq === k.niCur ? `${nis(k.niCur)} <u>לחודש — בלי שינוי</u>` : `<em>${nis(k.niCur)}</em><i>←</i>${pre}${nis(c.niReq)} <u>לחודש</u>`}</span>${c.niReq === k.niCur ? '' : cu(c.niCu) + where}</div>`;
+    $('afterTx').textContent = office ? 'מעוגל כלפי מעלה — השנה נסגרת בלי חוב' : 'כך לא יצטבר חוב בסוף השנה';
+  }
+
+  // ── מה אם ──
+  $('sfV').textContent = nis(c.sf); $('pnV').textContent = nis(c.pn);
+  const sv = (el, s) => { el.textContent = s ? 'חוסך ' + nis(s) : '—'; el.classList.toggle('zero', !s); };
+  sv($('sfS'), c.sfSave); sv($('pnS'), c.pnSave);
+  $('cap').textContent = c.sf > 12600 ? `מעל ${nis(12600)} בקרן השתלמות — אין חיסכון נוסף` : c.pn > 24000 ? `מעל ${nis(24000)} בפנסיה — אין חיסכון נוסף` : micro && office ? 'בעסק זעיר החיסכון קטן יותר — המס כבר נמוך' : '';
+
+  // ── פעולה ──
+  const act = $('act');
+  if (!office) act.innerHTML = F === 'done' ? '<span class="pill">המקדמות עודכנו · 27.10</span>' : '';
+  else if (F === 'q') {
+    act.innerHTML = '<button class="btn" id="sendQ">שלח שאלון לישראל</button>';
+    $('sendQ').onclick = () => { st.flow = 'waiting'; toast('השאלון בדף של ישראל — בלי מייל'); render(); };
+  } else if (F === 'waiting') {
+    act.innerHTML = '<span class="pill grey">השאלון אצל ישראל</span><button class="lnk" id="goQ">לענות בתור ישראל ←</button>';
+    $('goQ').onclick = () => { st.who = 'q'; dir = 'in'; render(); };
+  } else if (F === 'answered') {
+    act.innerHTML = `<span class="pill">השאלון נענה</span><button class="btn" id="pull2">משוך מפייפרלס</button>`;
+    $('pull2').onclick = () => { st.flow = 'pulled'; shown = null; toast('נמשך עד ספטמבר · הצפי יצא לדף של ישראל'); render(); };
+  } else if (F === 'pulled') {
+    act.innerHTML = '<span class="pill grey">הצפי אצל ישראל</span><button class="lnk" id="goP">לאשר בתור ישראל ←</button>';
+    $('goP').onclick = () => { st.who = 'q'; dir = 'in'; render(); };
+  } else if (F === 'ready') {
+    act.innerHTML = `<span class="pill">${fresh ? 'התשובות נכנסו' : 'ישראל אישר את הצפי'}</span><button class="btn" id="pub">פרסם בדף של ישראל</button>`;
+    $('pub').onclick = () => { st.flow = 'published'; toast('בדף של ישראל — בלי מייל'); render(); };
+  } else if (F === 'published') {
+    act.innerHTML = '<span class="pill grey">בדף של ישראל</span><button class="btn" id="done">עדכנתי את המקדמות</button>';
+    $('done').onclick = () => { st.flow = 'done'; toast('הבקשה הושלמה'); render(); };
+  } else act.innerHTML = '<span class="pill">המקדמות עודכנו · 27.10</span>';
+  $('src').textContent = office ? (fresh ? 'מהשאלון של ישראל' : `${k.src} · מקדמות משע״ם ומב״ל · 26.10`) : 'הערכה של המשרד, לא חיוב של הרשות';
+}
+
+// ═════ השאלון ═════
+const ICON = {
+  biz: '<rect x="4" y="7" width="16" height="12" rx="2"/><path d="M9 7V5h6v2M4 12h16"/>',
+  salary: '<rect x="3" y="6" width="18" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/>',
+  ni: '<path d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6z"/>',
+  rent: '<path d="M4 11l8-6 8 6v9H4z"/><path d="M10 20v-5h4v5"/>',
+  abroad: '<circle cx="12" cy="12" r="8"/><path d="M4 12h16M12 4c2.5 2.5 2.5 13.5 0 16M12 4c-2.5 2.5-2.5 13.5 0 16"/>',
+  sale: '<path d="M4 13l7-7h6v6l-7 7z"/><circle cx="14" cy="10" r="1.3"/>',
+  pension: '<path d="M6 20V9l6-5 6 5v11"/><path d="M10 20v-6h4v6"/>',
+  study: '<path d="M3 9l9-4 9 4-9 4z"/><path d="M7 11v5c3 2 7 2 10 0v-5"/>',
+  life: '<path d="M12 20s-7-4.5-7-10a4 4 0 0 1 7-2.5A4 4 0 0 1 19 10c0 5.5-7 10-7 10z"/>',
+  donate: '<path d="M12 21V11M8 7a4 4 0 0 1 8 0c0 3-4 4-4 4s-4-1-4-4z"/>',
+};
+const ME_IN = [['biz', 'העסק', 'ישראלי ייעוץ', true], ['salary', 'משכורת', 'עבודה כשכיר'], ['ni', 'דמי לידה, מילואים או אבטלה', ''], ['rent', 'השכרת דירה', ''], ['abroad', 'הכנסה מחוץ לישראל', ''], ['sale', 'מכירה של נכס', 'דירה, מניות, קריפטו']];
+const LESS = [['pension', 'הפקדה לפנסיה', 'בעצמך, לא דרך מעסיק'], ['study', 'קרן השתלמות', 'בעצמך'], ['life', 'ביטוח חיים', 'פרטי'], ['donate', 'תרומות', 'למוסד מוכר']];
+const SP_IN = [['salary', 'משכורת', 'גן הילדים «חרצית»', true], ['biz', 'עסק', ''], ['ni', 'דמי לידה, מילואים או אבטלה', ''], ['rent', 'השכרת דירה', '']];
+
+function screens() {
+  const s = [{ id: 'fam', ch: 0 }, { id: 'meIn', ch: 1 }];
+  if (st.q.me.includes('biz')) s.push({ id: 'biz', ch: 1 });
+  s.push({ id: 'less', ch: 1 }, { id: 'sp', ch: 2 }, { id: 'send', ch: 3 });
+  return s;
+}
+const CH = [['המשפחה', 'c0'], ['ישראל', 'c1'], ['ישראלה', 'c2'], ['שליחה', 'c3']];
+let dir = 'in';
+
+function tileHtml(list, sel, grp) {
+  return '<div class="tiles">' + list.map(([id, b, sm, card]) => `<button class="tile ${sel.includes(id) ? 'on' : ''}" data-tile="${grp}:${id}" aria-pressed="${sel.includes(id)}"><span class="ic"><svg viewBox="0 0 24 24">${ICON[id]}</svg><span class="ok">✓</span></span><b>${b}</b>${sm || card ? `<small>${card ? 'מהתיק · ' : ''}${sm}</small>` : ''}</button>`).join('') + '</div>';
+}
+const stepper = (key, v, stepv) => `<div class="step"><button data-step="${key}:-${stepv}" aria-label="פחות">−</button><output>${nis(v)}</output><button data-step="${key}:${stepv}" aria-label="יותר">+</button></div>`;
+
+// ═════ הצפי — בקשה שנייה, יוצאת לבד אחרי המשיכה מפייפרלס ═════
+const r10 = v => Math.round(v / 1000) * 1000;
+function renderP() {
+  const k = KIND[st.kind], q = st.q, p = proj(k), micro = st.kind === 'micro';
+  $('qwrap').style.setProperty('--acc', 'var(--c1)');
+  $('qwrap').style.setProperty('--acc-soft', 'var(--c1-soft)');
+  $('ctop').textContent = 'הערכת מס 2026 · הצפי שלך';
+  $('chs').innerHTML = '';
+  const body = $('cbody');
+  if (confirmed()) {
+    body.innerHTML = `<div class="${dir}"><div class="okc">✓</div><p class="q" style="text-align:center">תודה!</p><p class="qs" style="text-align:center;margin-top:-6px">ההערכה מוכנה. נעדכן אותך כשהמקדמות יעודכנו.</p></div>`;
+    $('cfoot').innerHTML = ''; return;
+  }
+  const m = MONTHLY[st.kind], sum = a => a.reduce((s, v) => s + v, 0);
+  // כל חודש עד עכשיו, והחודשים שנשארו: לפי הקצב — או לפי ההערכה שלו לכל חודש
+  const line = (key, label) => {
+    const a = q[key + 'A'], past = m[key], left = 12 - past.length;
+    const fut = a === 'chg' ? q[key + 'M'] : Array(left).fill(sum(past) / past.length);
+    const all = past.concat(fut), max = Math.max(...all), year = sum(all);
+    const chart = `<div class="mchart ${key}">${all.map((v, i) => `<div><i class="${i >= past.length ? 'f' : ''}" style="height:${Math.round(v / max * 54)}px"></i><span>${MONTHS[i]}</span></div>`).join('')}</div>`;
+    return `<div class="kn"><div class="kn-h"><span class="kn-l">${label}</span><span class="srcs">מפייפרלס</span></div>${chart}
+      <div class="kn-v">עד ספטמבר <b>${nis(sum(past))}</b><br>${a === 'chg' ? `לפי ההערכה שלך — לכל השנה <b>${nis(year)}</b>` : `אם הקצב יימשך — לכל השנה <b>כ-${nis(r10(year))}</b>`}</div>
+      <div class="seg2"><button data-pa="${key}:ok" aria-pressed="${a === 'ok'}">נכון</button><button data-pa="${key}:chg" aria-pressed="${a === 'chg'}">יהיה אחרת</button></div>
+      ${a === 'chg' ? `<p class="qs" style="margin:12px 0 4px">כמה לדעתך בכל חודש?</p>` + fut.map((v, j) => `<div class="mrow"><span>${MONTHS_FULL[past.length + j]}</span><div class="step sm"><button data-ms="${key}:${j}:-${m.step[key]}" aria-label="פחות">−</button><output>${nis(v)}</output><button data-ms="${key}:${j}:${m.step[key]}" aria-label="יותר">+</button></div></div>`).join('') : ''}</div>`;
+  };
+  body.innerHTML = `<div class="${dir}"><p class="q">עד סוף השנה — זה נראה נכון?</p><p class="qs">מסומן בפסים — לפי הקצב שלך</p>
+    ${line('inc', 'הכנסות')}${micro ? '' : line('exp', 'הוצאות')}</div>`;
+  const ready = q.incA && (micro || q.expA);
+  $('cfoot').innerHTML = `<button class="qbtn" id="pSend" ${ready ? '' : 'disabled'}>שליחה</button>`;
+  $('pSend').onclick = () => { st.flow = 'ready'; shown = null; dir = 'in'; toast('הצפי נכנס — ההערכה מוכנה במשרד'); renderP(); };
+  body.querySelectorAll('[data-pa]').forEach(b => b.onclick = () => {
+    const [key, a] = b.dataset.pa.split(':'); q[key + 'A'] = a;
+    if (a === 'chg' && q[key + 'M'] == null) { const past = m[key]; q[key + 'M'] = Array(12 - past.length).fill(r10(sum(past) / past.length)); }
+    saved(); keep();
+  });
+  body.querySelectorAll('[data-ms]').forEach(b => b.onclick = () => { const [key, j, d] = b.dataset.ms.split(':'); q[key + 'M'][j] = Math.max(0, q[key + 'M'][j] + +d); saved(); keep(); });
+}
+
+function renderQ() {
+  if (st.kind !== 'new' && pulled()) return renderP();
+  $('ctop').textContent = 'הערכת מס 2026 · שאלון';
+  const q = st.q, list = screens();
+  if (q.i >= list.length) q.i = list.length - 1;
+  const cur = list[q.i];
+  const [chName, chVar] = CH[cur.ch];
+  const root = document.documentElement.style;
+  $('qwrap').style.setProperty('--acc', `var(--${chVar})`);
+  $('qwrap').style.setProperty('--acc-soft', `var(--${chVar}-soft)`);
+  // פסי פרקים
+  $('chs').innerHTML = CH.map(([n, v], ci) => {
+    const inCh = list.filter(x => x.ch === ci), done = list.slice(0, q.i).filter(x => x.ch === ci).length + (q.sent && ci === 3 ? 1 : 0);
+    const w = ci < cur.ch || q.sent ? 100 : ci === cur.ch ? Math.max(12, done / inCh.length * 100) : 0;
+    return `<div class="ch ${ci === cur.ch ? 'cur' : ''}"><div class="bar"><i style="width:${w}%;background:var(--${v})"></i></div><span>${n}</span></div>`;
+  }).join('');
+  let h = '', next = 'המשך';
+  const opener = (letter, name, sub) => `<div class="opener"><span class="av">${letter}</span><div><b>${name}</b><small>${sub}</small></div></div>`;
+  if (q.sent) {
+    h = `<div class="okc">✓</div><p class="q" style="text-align:center">נשלח, תודה!</p><p class="qs" style="text-align:center;margin-top:-6px">${st.kind === 'new' ? 'ההערכה מתעדכנת עכשיו.' : 'בקרוב נבקש ממך לאשר את הצפי עד סוף השנה.'}</p>`;
+    $('cfoot').innerHTML = '';
+  } else if (cur.id === 'fam') {
+    const rows = [['נשואים', 'ישראל וישראלה'], ['ילדים', '2 · נולדו ב-2015 וב-2019'], ['גרים ב', 'חריש']];
+    h = `<p class="q">זה עדיין נכון?</p><p class="qs">מה שכבר בתיק שלכם</p>` + rows.map(([l, v], ri) => {
+      const a = q.family[ri];
+      return `<div class="kn"><div class="kn-h"><span class="kn-l">${l}</span><span class="srcs">מהתיק</span></div><div class="kn-v">${v}</div><div class="seg2"><button data-fam="${ri}:ok" aria-pressed="${a === 'ok'}">נכון</button><button data-fam="${ri}:chg" aria-pressed="${a === 'chg'}">השתנה</button></div>${a === 'chg' ? '<div class="qs" style="margin:8px 0 0">כאן נפתחת השאלה של מה שהשתנה — כמו בדוח השנתי</div>' : ''}</div>`;
+    }).join('');
+  } else if (cur.id === 'meIn') {
+    h = opener('י', 'ישראל', 'קודם אתה, עד הסוף') + `<p class="q">מאיפה נכנס לך כסף השנה?</p><p class="qs">מסומן — מה שכבר ידוע לנו</p>` + tileHtml(ME_IN, q.me, 'me');
+  } else if (cur.id === 'biz') {
+    if (st.kind === 'new') {
+      h = `<p class="q">כמה בערך תכניס השנה בעסק?</p><p class="qs">לפני הוצאות. מספר עגול זה מספיק</p>${stepper('newInc', q.newInc, 20000)}<p class="q" style="margin-top:22px">וכמה בערך יהיו ההוצאות?</p>${stepper('newExp', q.newExp, 10000)}`;
+    } else {
+      const micro = st.kind === 'micro';
+      // ‼ כאן לא שואלים על הצפי — הוא נשאל אחרי המשיכה מפייפרלס, עם המספרים של הלקוח
+      h = `<p class="q">ההכנסות וההוצאות של 2026</p><p class="qs">מהן נבנה את ההערכה</p>
+        <p class="qs" style="margin:0 0 8px;color:var(--tx);font-weight:700;font-size:15px">${micro ? 'כל החשבוניות של השנה — כבר בפייפרלס?' : 'כל החשבוניות והקבלות של השנה — כבר בפייפרלס?'}</p>
+        <div class="yn"><button data-upl="all" aria-pressed="${q.upl === 'all'}">כן, הכול שם</button><button data-upl="later" aria-pressed="${q.upl === 'later'}">עוד לא</button></div>
+        ${q.upl === 'later' ? `<div class="follow"><p>אפשר להעלות עכשיו</p><div class="doc" style="margin:0;border:0;padding:0"><div class="t"><b>${micro ? 'חשבוניות' : 'קבלות וחשבוניות'}</b><span>צילום או קובץ — נכנס ישר לפייפרלס</span></div><button class="up ${q.uplDone ? 'done' : ''}" data-upld>${q.uplDone ? 'הועלו ✓' : 'העלאה'}</button></div></div>` : ''}
+        ${micro ? `<p class="qs" style="margin:6px 0 8px;color:var(--tx);font-weight:700;font-size:15px">השנה — העסקת עובדים, קיבלת תשלום מהמעסיק שלך, או יותר מרבע מההכנסות מקרוב משפחה?</p><div class="yn"><button data-excl="yes" aria-pressed="${q.excl === 'yes'}">כן</button><button data-excl="no" aria-pressed="${q.excl === 'no'}">לא</button></div>` : ''}`;
+    }
+  } else if (cur.id === 'less') {
+    h = `<p class="q">מה יכול להוריד לך מס?</p><p class="qs">השנה, עד עכשיו</p>` + tileHtml(LESS, q.less, 'less') +
+      (q.less.includes('pension') ? `<div class="follow"><p>כמה הפקדת לפנסיה עד עכשיו?</p>${stepper('penAmt', q.penAmt, 1000)}</div>` : '');
+  } else if (cur.id === 'sp') {
+    h = opener('י', 'ישראלה', 'עכשיו ישראלה') + `<p class="q">מאיפה נכנס לך כסף השנה?</p><p class="qs">מסומן — מה שכבר ידוע לנו</p>` + tileHtml(SP_IN, q.sp, 'sp');
+  } else if (cur.id === 'send') {
+    const lbl = (L, ids) => L.filter(x => ids.includes(x[0])).map(x => x[1]).join(', ') || 'אין';
+    const bizLine = st.kind === 'new' ? `<li><span>צפי לשנה</span>${nis(q.newInc)} הכנסות</li>` : `<li><span>בפייפרלס</span>${q.upl === 'all' ? 'הכול שם' : q.uplDone ? 'הועלה עכשיו' : 'עוד לא'}</li>`;
+    h = `<p class="q">רגע לפני ששולחים</p>
+      <div class="sum"><div class="sum-h"><span class="av" style="background:var(--c1)">י</span>ישראל</div><ul><li><span>הכנסות</span>${lbl(ME_IN, q.me)}</li>${q.me.includes('biz') ? bizLine : ''}<li><span>מוריד מס</span>${lbl(LESS, q.less)}</li></ul></div>
+      <div class="sum"><div class="sum-h"><span class="av" style="background:var(--c2)">י</span>ישראלה</div><ul><li><span>הכנסות</span>${lbl(SP_IN, q.sp)}</li></ul></div>
+      ${q.sp.includes('salary') ? `<div class="doc"><div class="t"><b>התלוש האחרון של ישראלה</b><span>ממנו נקרא כמה הרוויחה ונוכה עד עכשיו</span></div><button class="up ${q.slip ? 'done' : ''}" data-slip>${q.slip ? 'הועלה ✓' : 'העלאה'}</button></div>` : ''}`;
+    next = 'שליחה';
+  }
+  if (!q.sent) {
+    $('cfoot').innerHTML = `<button class="ghost" id="qBack" ${q.i === 0 ? 'disabled' : ''}>→ חזרה</button><button class="qbtn" id="qNext">${next}</button>`;
+    $('qBack').onclick = () => { q.i--; dir = 'back'; renderQ(); };
+    $('qNext').onclick = () => {
+      if (cur.id === 'send') { q.sent = true; st.flow = st.kind === 'new' ? 'ready' : 'answered'; toast('התשובות נכנסו לכרטיס ולהערכה'); }
+      else { q.i++; dir = 'in'; }
+      renderQ();
+    };
+  }
+  const body = $('cbody');
+  body.innerHTML = `<div class="${dir}">${h}</div>`;
+  body.scrollTop = 0;
+  // אירועים
+  body.querySelectorAll('[data-tile]').forEach(b => b.onclick = () => { const [g, id] = b.dataset.tile.split(':'); const arr = q[g]; const i = arr.indexOf(id); i < 0 ? arr.push(id) : arr.splice(i, 1); saved(); keep(); });
+  body.querySelectorAll('[data-fam]').forEach(b => b.onclick = () => { const [ri, a] = b.dataset.fam.split(':'); q.family[ri] = a; saved(); keep(); });
+  body.querySelectorAll('[data-upl]').forEach(b => b.onclick = () => { q.upl = b.dataset.upl; saved(); keep(); });
+  body.querySelectorAll('[data-upld]').forEach(b => b.onclick = () => { q.uplDone = true; saved(); keep(); });
+  body.querySelectorAll('[data-excl]').forEach(b => b.onclick = () => { q.excl = b.dataset.excl; saved(); keep(); });
+  body.querySelectorAll('[data-step]').forEach(b => b.onclick = () => { const [key, d] = b.dataset.step.split(':'); q[key] = Math.max(0, q[key] + +d); saved(); keep(); });
+  body.querySelectorAll('[data-slip]').forEach(b => b.onclick = () => { q.slip = true; saved(); keep(); });
+}
+function keep() { const t = $('cbody').scrollTop; dir = ''; renderQ(); $('cbody').scrollTop = t; }
+let svT;
+function saved() { const s = $('saved'); s.classList.add('on'); clearTimeout(svT); svT = setTimeout(() => s.classList.remove('on'), 1100); }
+
+function render() {
+  document.querySelectorAll('[data-who]').forEach(b => b.setAttribute('aria-pressed', b.dataset.who === st.who));
+  document.querySelectorAll('[data-kind]').forEach(b => b.setAttribute('aria-pressed', b.dataset.kind === st.kind));
+  document.querySelectorAll('[data-view]').forEach(b => b.setAttribute('aria-pressed', b.dataset.view === st.view));
+  const qv = st.who === 'q';
+  $('app').hidden = qv; $('qwrap').hidden = !qv;
+  if (qv) renderQ(); else renderEstimate();
+}
+
+let tt;
+function toast(t) { const el = $('toast'); el.textContent = t; el.classList.add('on'); clearTimeout(tt); tt = setTimeout(() => el.classList.remove('on'), 1900); }
+
+document.querySelectorAll('[data-who]').forEach(b => b.onclick = () => { st.who = b.dataset.who; shown = null; dir = 'in'; render(); });
+document.querySelectorAll('[data-kind]').forEach(b => b.onclick = () => { st.kind = b.dataset.kind; shown = null; st.q.i = Math.min(st.q.i, screens().length - 1); render(); });
+document.querySelectorAll('[data-view]').forEach(b => b.onclick = () => { st.view = b.dataset.view; render(); });
+$('moreBtn').onclick = () => { st.open = !st.open; render(); };
+$('sf').oninput = render; $('pn').oninput = render;
+$('restart').onclick = () => {
+  Object.assign(st, { who: 'office', kind: 'old', flow: 'q', open: false });
+  Object.assign(st.q, { i: 0, upl: null, uplDone: false, excl: 'no', family: {}, me: ['biz'], less: ['pension'], penAmt: 6000, sp: ['salary'], slip: false, sent: false, newInc: 420000, newExp: 140000, incA: null, expA: null, incM: null, expM: null });
+  $('sf').value = 0; $('pn').value = 0; shown = null; render();
+};
+render();
+</script>
+</body>
+</html>

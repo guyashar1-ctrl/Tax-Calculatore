@@ -132,6 +132,13 @@ export const STUDY_KINDS = [{ value: 'ba', label: 'תואר ראשון' }, { val
 const LIVES = [
   { value: 'withUs', label: 'גר/ה איתנו' }, { value: 'otherParent', label: 'אצל ההורה השני' }, { value: 'shared', label: 'משמורת משותפת' },
 ];
+/** 27.10.2026 · הצפי שהלקוח שלח, בשורה אחת (למשרד ולתשובות שנשלחו). */
+export function forecastSummary(r: RecordValue): string {
+  const total = (m: unknown, y: unknown) => (Array.isArray(m) ? m.reduce<number>((a, v) => a + (Number(v) || 0), 0) : Number(y) || 0);
+  const side = (label: string, a: unknown, m: unknown, y: unknown) =>
+    a === 'ok' ? `${label}: לפי הקצב` : a === 'chg' ? `${label}: ${total(m, y).toLocaleString('he-IL')} ₪ עד סוף השנה` : '';
+  return [side('הכנסות', r.incA, r.incM, r.incY), side('הוצאות', r.expA, r.expM, r.expY)].filter(Boolean).join(' · ');
+}
 /** ‼ 290 · «איפה גר/ה» ⇔ משמורת בתיק (Child.custody): 'spouse' בכרטיס של הורה שאינו נשוי = ההורה השני. */
 export const CUSTODY_OF_LIVES: Record<string, 'self' | 'spouse' | 'shared'> = { withUs: 'self', otherParent: 'spouse', shared: 'shared' };
 const LIVES_OF_CUSTODY: Record<string, string> = { self: 'withUs', spouse: 'otherParent', shared: 'shared' };
@@ -437,6 +444,11 @@ export function schemaFor(id: RecordSchemaId, c?: Client, ctx?: Record<string, s
         summary: r => [label(kids, r.child), str(r.monthly) ? `${Number(r.monthly).toLocaleString('he-IL')} ₪ בחודש` : ''].filter(Boolean).join(' · '),
       };
     }
+    // ‼ 27.10.2026 · הצפי עד סוף השנה — מסך משלו (ForecastMonthsEditor), בלי שדות טופס; הבדיקה ב-validateRecord
+    case 'forecastMonths': return {
+      id, noun: 'צפי', addLabel: '', multiple: false, fields: [],
+      summary: r => forecastSummary(r),
+    };
     case 'maternityAmounts': return {
       id, noun: 'סכומים', addLabel: '', multiple: false,
       fields: [
@@ -523,6 +535,11 @@ export function validateRecord(schema: RecordSchema, r: RecordValue): Record<str
     const a = r.startDate as DatedValue | undefined; const b = r.endDate as DatedValue | undefined;
     if (a?.precision === 'month' && b?.precision === 'month' && (b.date ?? '') < (a.date ?? '')) err.endDate = 'הסיום לפני ההתחלה';
   }
+  if (schema.id === 'forecastMonths') {
+    const okSide = (a: unknown, m: unknown, y: unknown) => a === 'ok' || (a === 'chg' && ((Array.isArray(m) && m.every(v => Number(v) >= 0)) || Number(y) >= 0));
+    if (!okSide(r.incA, r.incM, r.incY)) err.incA = 'חסר';
+    if (r.needsExp && !okSide(r.expA, r.expM, r.expY)) err.expA = 'חסר';
+  }
   // ‼ 16.10.2026 · תקופה: הסיום לא לפני ההתחלה
   if (schema.id === 'maternityPeriod' && !err.from && !err.to && str(r.from) && str(r.to) && str(r.to) < str(r.from)) err.to = 'הסיום לפני ההתחלה';
   return err;
@@ -541,6 +558,15 @@ export const padCode = (v: unknown, w: number) => (str(v) ? str(v).padStart(w, '
 
 /** ניקוי לפני שליחה: שדות מוסתרים יורדים, קודים מקבלים אפסים מובילים, שמות בנק/סניף מהמאגר נשמרים לצד הקוד. */
 export function cleanRecord(schema: RecordSchema, r: RecordValue, dir?: BankDirectory | null): RecordValue {
+  // ‼ 27.10.2026 · הצפי — בלי שדות טופס: נשמרים רק המפתחות שלו, מספרים שלמים ולא שליליים
+  if (schema.id === 'forecastMonths') {
+    const side = (a: unknown) => (a === 'ok' || a === 'chg' ? a : undefined);
+    const nums = (m: unknown) => (Array.isArray(m) ? m.slice(0, 12).map(v => Math.max(0, Math.round(Number(v) || 0))) : undefined);
+    const num = (v: unknown) => (v == null || v === '' ? undefined : Math.max(0, Math.round(Number(v) || 0)));
+    const out: RecordValue = { incA: side(r.incA), expA: side(r.expA), incM: r.incA === 'chg' ? nums(r.incM) : undefined, expM: r.expA === 'chg' ? nums(r.expM) : undefined,
+      incY: num(r.incY), expY: num(r.expY) };
+    return Object.fromEntries(Object.entries(out).filter(([, v]) => v !== undefined));
+  }
   const out: RecordValue = {};
   for (const f of schema.fields) {
     if (f.showIf && !f.showIf(r)) continue;

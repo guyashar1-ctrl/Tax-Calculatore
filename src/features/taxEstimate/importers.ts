@@ -196,6 +196,21 @@ export function pnlToCutoff(p: PnlImport, closedThrough: number) {
   };
 }
 
+/**
+ * 27.10.2026 · מה נכנס לשורת העסק מרו״ה — אותו דבר מקליטה ידנית וממשיכה מפייפרלס: הסכומים עד החתך, החודשים
+ * (לצפי שהלקוח מאשר) וקטגוריות ההוצאה (להתאמות לפי הנוהל).
+ */
+export function pnlLinePatch(p: PnlImport, closedThrough: number, today: string) {
+  const cut = pnlToCutoff(p, closedThrough);
+  return {
+    actualToCutoff: Math.round(cut.profit), turnoverToCutoff: Math.round(cut.turnover),
+    actualMonths: cut.monthsMeasured && cut.monthsMeasured < closedThrough ? cut.monthsMeasured : undefined,
+    months: p.months.filter(x => x.m <= closedThrough).map(x => ({ m: x.m, income: x.income, expenses: x.expenses })),
+    bookCategories: p.expenseCategories.map(c => ({ label: c.label, toCutoff: Math.round(c.toMonth(closedThrough)) })).filter(c => c.toCutoff !== 0),
+    pulledAt: today,
+  };
+}
+
 // ── 134 / ESNA ──
 const PERIOD_RE = /^(?:(\d{1,2})\s*[-–]\s*)?(\d{1,2})\/(\d{4})$|^(\d{4})[/-](\d{1,2})$/;
 function periodOf(cell: string): string | undefined {

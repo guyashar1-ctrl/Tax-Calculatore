@@ -49,6 +49,9 @@ export function whereToChange(a: Pick<AuthorityAdvance, 'authority' | 'current' 
 const PERSON_HE: Record<Person, string> = { client: 'הלקוח', spouse: 'בן/בת הזוג' };
 /** מקדמה בסכום קבוע: 10 תשלומים שווים, פברואר עד נובמבר (it.advances.methods — מדריך 2025 פרק ח ס׳ 1ב; 175(א)). */
 const FIXED_PAYMENTS = 10;
+/** 27.10.2026 · עיגול ההמלצה כלפי מעלה: מ״ה — חצי אחוז מהמחזור / 10 ₪ לתשלום קבוע; ב״ל — 50 ₪ לחודש. */
+export const ADVANCE_STEP = { itRate: 0.5, itFixed: 10, ni: 50 } as const;
+const ceilTo = (v: number, step: number) => Math.round(Math.ceil(v / step - 1e-9) * step * 100) / 100;
 
 /** מס הכנסה ליבה: הכללים שחייבים מקור ראשי (או הכרעה) כדי שהחבות תיראה כמספר. */
 export const IT_CORE_RULES = ['core.creditPoint', 'core.surtaxThreshold', 'core.incomeTaxBrackets'];
@@ -690,9 +693,10 @@ export function computeEstimate(draft: EstimateDraft, ctx: Ctx, opts: { extraStu
     const share = remaining.size ? unpaid.length / remaining.size : 0;
     const turnoverForFuture = remainingTurnover * share;
     const current = method === 'turnoverRate' ? it?.ratePct : method === 'fixed' ? it?.fixedPerPeriod : undefined;
+    // ‼ 27.10.2026 · גיא: ההמלצה היא מינימום, מעוגלת כלפי מעלה (ADVANCE_STEP) — כדי שהשנה תיסגר בלי חוב ושיהיה מספר שהפורטל מקבל
     const recommended = itDue == null ? undefined
-      : method === 'turnoverRate' ? (annualTurnover > 0 ? Math.ceil((itDue / annualTurnover) * 1000) / 10 : undefined)
-      : method === 'fixed' ? r0(itDue / FIXED_PAYMENTS) : undefined;
+      : method === 'turnoverRate' ? (annualTurnover > 0 ? ceilTo((itDue / annualTurnover) * 100, ADVANCE_STEP.itRate) : undefined)
+      : method === 'fixed' ? ceilTo(itDue / FIXED_PAYMENTS, ADVANCE_STEP.itFixed) : undefined;
     const futureOf = (v?: number) => v == null ? 0 : method === 'turnoverRate' ? (v / 100) * turnoverForFuture : method === 'fixed' ? v * unpaid.length : 0;
     const fCur = futureOf(current), fRec = futureOf(recommended);
     const per = unpaid.length ? turnoverForFuture / unpaid.length : 0;
@@ -701,7 +705,7 @@ export function computeEstimate(draft: EstimateDraft, ctx: Ctx, opts: { extraStu
     if (withB != null && withoutB != null) {
       explain.push(`מס${who} עם העסק ${nis(withB)} − בלי העסק ${nis(withoutB)} = מס שנובע מהעסק ${nis(businessTax!)}`);
       if (custWithheld) explain.push(`פחות ניכוי במקור מלקוחות ${nis(custWithheld)} = ${nis(itDue!)} לכיסוי במקדמות`);
-      if (method === 'turnoverRate' && annualTurnover > 0) explain.push(`${nis(itDue!)} ÷ מחזור שנתי ${nis(annualTurnover)} (עד החתך ${nis(turnoverToCutoff)} + צפוי ${nis(remainingTurnover)}) = ${recommended}% מהמחזור (מעוגל למעלה לעשירית)`);
+      if (method === 'turnoverRate' && annualTurnover > 0) explain.push(`${nis(itDue!)} ÷ מחזור שנתי ${nis(annualTurnover)} (עד החתך ${nis(turnoverToCutoff)} + צפוי ${nis(remainingTurnover)}) = ${recommended}% מהמחזור (מעוגל כלפי מעלה לחצי אחוז — מינימום)`);
       if (method === 'fixed') explain.push(`${nis(itDue!)} ÷ ${FIXED_PAYMENTS} תשלומים (15 בפברואר עד 15 בנובמבר) = ${nis(recommended ?? 0)} לתשלום`);
       explain.push(`שולם עד החתך ${nis(paidPast)}${paidFuture ? ` ומראש ${nis(paidFuture)}` : ''}; בשיעור המומלץ מהתקופה הבאה — עוד ${nis(fRec)}. מה שחסר בגלל החודשים שעברו — השלמה נפרדת או בדוח השנתי`);
       if (microOnly && (method === 'none' || method === 'unknown')) explain.push(`עסק זעיר: אין חיוב אוטומטי במקדמות (87ו). כדי לא להגיע לחוב — מקדמה מרצון של כ-${nis(Math.max(0, itDue! - paidPast - paidFuture))} עד סוף השנה, או תיאום מס מעודכן`);
@@ -738,7 +742,7 @@ export function computeEstimate(draft: EstimateDraft, ctx: Ctx, opts: { extraStu
     const niPaid = (ni?.paidToCutoff ?? sum((ni?.periods ?? []).filter(x => x.period <= cutP && x.paid != null).map(x => x.paid!)))
       + sum(draft.payments.filter(x => x.authority === 'ni' && x.person === p && x.period <= cutP).map(x => x.amount));
     const cur = ni?.monthlyAdvance;
-    const rec = 'value' in niDue ? niDue.value / 12 : undefined;
+    const rec = 'value' in niDue ? ceilTo(niDue.value / 12, ADVANCE_STEP.ni) : undefined;
     let thr = 0.1;
     try { use('ni.advances.changeThreshold'); thr = num('ni.advances.changeThreshold', year); } catch { /* 10% — טופס 672 */ }
     const niCu = catchUpFor(catchUps.find(c => c.authority === 'ni' && c.person === p), ni ?? {}, cutP, 1, year);
@@ -768,7 +772,7 @@ export function computeEstimate(draft: EstimateDraft, ctx: Ctx, opts: { extraStu
       belowChangeThreshold: cur != null && rec != null && cur > 0 ? Math.abs(rec - cur) / cur < thr : false,
       schedule: [],
       explain: 'value' in niDue ? [
-        `דמי ביטוח לשנה${who} ${nis(niDue.value)} (${microNoNi.has(p) ? 'עסק זעיר: על ההכנסה אחרי 30%, בלי 47א' : niStatus[p]?.kind === 'nonWork' ? 'עצמאי שאינו עונה להגדרה — כהכנסה שלא מעבודה' : 'הנוסחה הרבעונית של ב״ל'} על הכנסה מעסק ${nis(S[p].business + S[p].adj)}${niPensionCut(p) > 0 && !microNoNi.has(p) ? ` פחות הניכוי לקופת גמל ${nis(niPensionCut(p))} (סעיף 345)` : ''}${niPart?.nwIncome && niStatus[p]?.kind !== 'nonWork' ? `, ועל שכ״ד חייב` : ''}) ÷ 12 = ${nis(rec ?? 0)} לחודש`,
+        `דמי ביטוח לשנה${who} ${nis(niDue.value)} (${microNoNi.has(p) ? 'עסק זעיר: על ההכנסה אחרי 30%, בלי 47א' : niStatus[p]?.kind === 'nonWork' ? 'עצמאי שאינו עונה להגדרה — כהכנסה שלא מעבודה' : 'הנוסחה הרבעונית של ב״ל'} על הכנסה מעסק ${nis(S[p].business + S[p].adj)}${niPensionCut(p) > 0 && !microNoNi.has(p) ? ` פחות הניכוי לקופת גמל ${nis(niPensionCut(p))} (סעיף 345)` : ''}${niPart?.nwIncome && niStatus[p]?.kind !== 'nonWork' ? `, ועל שכ״ד חייב` : ''}) ÷ 12, מעוגל כלפי מעלה ל-50 ₪ = ${nis(rec ?? 0)} לחודש (מינימום)`,
         ...(niSplit ? [`מזה ביטוח לאומי ${nis(niSplit.ni)} ודמי ביטוח בריאות ${nis(niSplit.health)} — רק דמי הביטוח הלאומי מותרים בניכוי 52% ממס הכנסה (47א)`] : []),
         ...(niStatus[p] ? [`המעמד בב״ל: ${niStatus[p].text}`] : []),
         `שולם עד החתך ${nis(niPaid)}; במקדמה הנוכחית עוד ${nis((cur ?? 0) * (12 - cutoff))}`,

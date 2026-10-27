@@ -9,6 +9,7 @@ import type { Client } from '../../types';
 import type { RecordSchemaId } from './types';
 import type { DatedValue } from './temporal';
 import AddressFields from '../../components/ui/AddressFields';
+import ForecastMonthsEditor from './ForecastMonthsEditor';
 import { composeAddress, splitAddress } from '../../utils/ilAddress';
 import { PRECISION_LABEL, emptyRecordFor, monthInKey, schemaFor, validateRecord, type BankDirectory, type RecordAnswer, type RecordField, type RecordValue } from './records';
 
@@ -51,6 +52,9 @@ export default function RecordEditor({ schemaId, client, context, value, onChang
   };
   const remove = (i: number) => onChange({ items: items.filter((_, k) => k !== i), none: false });
   const add = () => onChange({ items: [...items, emptyRecordFor(schema)], none: false });
+
+  // ‼ 27.10.2026 · הצפי עד סוף השנה — מסך משלו (עמודה לכל חודש, ± לכל חודש שנשאר), לא טופס שדות
+  if (schemaId === 'forecastMonths') return <ForecastMonthsEditor context={context} value={value} onChange={onChange} disabled={disabled} showErrors={showErrors} />;
 
   return (
     <div className="rec" data-record={schemaId}>

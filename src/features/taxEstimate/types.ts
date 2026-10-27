@@ -84,6 +84,15 @@ export interface IncomeLine {
   capitalKind?: CapitalKind;
   /** הכנסה שאינה מיגיעה אישית (שכ״ד, הון, אחר) אצל בן הזוג עם היגיעה הנמוכה: מותר רק לרכוש מלפני הנישואים / מירושה (66(ב)). */
   attribution?: 'premarital' | 'inherited';
+  /**
+   * 27.10.2026 · עסק: הרו״ה לפי חודש (פייפרלס) — הכנסות והוצאות לפי הספרים, לפני התאמות. undefined = לא נקלט.
+   * ‼ ממנו נגזרים הצפי שהלקוח מאשר (בקשת הצפי) וההתאמות (adjustmentRules.ts) — לא מוזנים ביד.
+   */
+  months?: { m: number; income?: number; expenses?: number }[];
+  /** קטגוריות ההוצאה בספרים עד סוף החתך — בסיס להתאמות לפי הנוהל. */
+  bookCategories?: { label: string; toCutoff: number }[];
+  /** מתי נקלט הרו״ה (YYYY-MM-DD). */
+  pulledAt?: string;
 }
 
 export type CapitalKind = 'gains' | 'dividend' | 'dividendSubstantial' | 'interestUnlinked' | 'interestLinked' | 'interestOwnCompany';
@@ -152,6 +161,8 @@ export interface Adjustment {
   /** חיובי = מגדיל הכנסה חייבת. */
   amount: number;
   reason: string;
+  /** 27.10.2026 · נגזר מהנוהל (adjustmentRules.ts) בכל חישוב — לא נערך ביד. */
+  auto?: { rule: string; bookToCutoff: number; adjToCutoff: number };
 }
 
 /** תקופת דיווח ברשות (134 / ESNA). */

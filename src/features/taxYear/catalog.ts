@@ -290,10 +290,10 @@ export const ITEMS: InfoItem[] = [
     question: 'השנה — האם {entity} העסיק עובדים, קיבל תשלום ממי שמעסיק אותך כשכיר, או קיבל יותר מרבע מההכנסות מקרוב משפחה או ממעסיק לשעבר?', why: 'כל אחד מאלה שולל את הניכוי של 30% לעסק זעיר', input: 'yesno' },
   { key: 'business.microCoordination', area: 'business', label: 'עסק זעיר: אישור תיאום מס לשנה', kind: 'document', per: 'person', who: 'client', purposes: BOTH, after: 'business.microRegistration', rare: true,
     question: 'אישור תיאום המס לשנה הזו (מהאזור האישי)', why: 'בלי תיאום במהלך השנה אין דיווח מקוצר — רק דוח שנתי מלא', input: 'file', docKind: 'taxCoordination', knownBasis: DOC_KNOWN },
-  { key: 'business.forecast', area: 'business', label: 'צפי לשאר השנה', kind: 'amount', per: 'business', who: 'client', purposes: ['estimate'], after: 'business.active',
+  { key: 'business.forecast', area: 'business', label: 'צפי לשאר השנה', kind: 'amount', per: 'business', who: 'client', purposes: [] /* 27.10.2026 · הצפי נשאל אחרי המשיכה — business.forecastMonths */, after: 'business.active',
     question: 'מה צפוי ב{entity} עד סוף השנה, לעומת מה שהיה עד עכשיו?', why: 'ההערכה משלבת את מה שכבר קרה עם מה שצפוי', input: 'choice',
     options: [{ value: 'more', label: 'יותר הכנסות' }, { value: 'same', label: 'בערך אותו דבר' }, { value: 'less', label: 'פחות הכנסות' }], knownBasis: { estimate: ['forecast'] } },
-  { key: 'business.oneOffs', area: 'business', label: 'הכנסות או הוצאות חד־פעמיות', kind: 'amount', per: 'business', who: 'client', purposes: ['estimate'], after: 'business.active',
+  { key: 'business.oneOffs', area: 'business', label: 'הכנסות או הוצאות חד־פעמיות', kind: 'amount', per: 'business', who: 'client', purposes: [] /* 27.10.2026 · נכלל בצפי לכל חודש */, after: 'business.active',
     question: 'האם היו השנה ב{entity} הכנסה או הוצאה גדולה שלא תחזור? אם כן — מה וכמה', why: 'אירוע חד־פעמי לא מוכפל בקצב שנתי', input: 'yesno', knownBasis: { estimate: ['actual', 'forecast'] } },
 
   // ── ביטוח לאומי ──
@@ -671,6 +671,13 @@ const NONE: Purpose[] = [];
 ITEMS.push(
   // ‼ 26.10.2026 · הערכת מס: «ביצוע בפועל» — המשרד מסמן שהמלצה בוצעה (ומתי). לא שאלה ללקוח ולא קלט לחישוב; ההבחנה הערכה ≠ המלצה ≠ ביצוע
   { key: 'estimate.applied', area: 'payments', label: 'המלצה מההערכה — בוצעה בפועל', kind: 'detail', per: 'couple', who: 'office', purposes: NONE },
+  // ‼ 27.10.2026 · הערכת מס בארבעה שלבים (docs/proposals/2026-10-27-tax-estimate.html): בשאלון — «הכול בפייפרלס?»;
+  //   הצפי נשאל רק אחרי המשיכה, עם המספרים של הלקוח (בקשה שהמשרד מוסיף — FORECAST_ITEM, forecastFlow.ts), לא בשאלון.
+  { key: 'business.inPaperless', area: 'business', label: 'כל החשבוניות והקבלות של השנה — בפייפרלס', kind: 'detail', per: 'business', who: 'client', purposes: ['estimate'], after: 'business.active',
+    question: 'כל החשבוניות והקבלות של השנה ב{entity} — כבר בפייפרלס?', why: 'מהן נמשוך את ההכנסות וההוצאות עד עכשיו. מה שחסר — אפשר להעלות עכשיו באפליקציה של פייפרלס', input: 'choice',
+    options: [{ value: 'all', label: 'כן, הכול שם' }, { value: 'later', label: 'עוד לא — אעלה עכשיו לפייפרלס' }], knownBasis: { estimate: ['actual_to_date'] } },
+  { key: 'business.forecastMonths', area: 'business', label: 'הצפי עד סוף השנה — לפי הקצב או לכל חודש', kind: 'amount', per: 'business', who: 'client', purposes: NONE, input: 'record',
+    question: 'עד סוף השנה — זה נראה נכון?', why: 'זו הערכה שלך: לפי הקצב עד עכשיו, או מה שאתה יודע על החודשים הבאים' },
   { key: 'annual.whatHappened', area: 'special', label: 'מאיפה נכנס כסף בשנה (מסך הריבועים, לכל אדם)', kind: 'screener', per: 'couple', who: 'client', purposes: NONE, input: 'multi',
     question: 'מאיפה נכנס ל{name} כסף ב-{year}?', why: 'מה שתסמנו — נבקש עליו את המסמך המתאים. מה שלא תסמנו — לא נשאל.' },
   { key: 'annual.lessTax', area: 'special', label: 'מה יכול להוריד מס (מסך הריבועים השני, לכל אדם)', kind: 'screener', per: 'couple', who: 'client', purposes: NONE, input: 'multi',
