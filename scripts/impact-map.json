@@ -267,6 +267,7 @@
         "supabase/281-*.sql",
         "scripts/knowledge-*.mjs",
         "src/features/taxKnowledge/ask/*",
+        "src/features/taxKnowledge/formMap/*",
         "src/features/taxKnowledge/corpus/*"
       ],
       "suites": [

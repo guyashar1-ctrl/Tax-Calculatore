@@ -203,6 +203,7 @@ export default function FormMap({ domain, clients = [], contextClient = null, on
     (async () => {
       try {
         const reqs = await loadReturnRequests(client.id);
+        // The map is for 2025: an open request from another year is not a fallback.
         const pick = reqs.find(r => r.open && r.taxYear === 2025) ?? reqs.find(r => r.taxYear === 2025);
         if (!pick) { if (alive) setRet({ clientId: client.id, ctx: null }); return; }
         const [vs, data] = await Promise.all([loadReturns(pick.stepId).catch(() => []), loadYearData(client.id, pick.taxYear)]);
