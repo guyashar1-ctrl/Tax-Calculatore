@@ -104,6 +104,8 @@ interface Props {
    */
   onSave: (client: Client, meta?: ClientSaveMeta) => void | Promise<void>;
   onCancel: () => void;
+  /** Contextual return when this client was opened from the approved work hub. */
+  onBackToWork?: () => void;
   onDelete: (id: string, opts?: { force?: boolean }) => void;
   /** העברה לארכיון והחזרה ממנו — הכתיבה היחידה של שלב הכרטיס מהמסך */
   onSetLifecycleStage?: (id: string, stage: LifecycleStage) => Promise<void>;
@@ -245,6 +247,7 @@ export default function ClientWorkspace({
   tasks,
   onSave,
   onCancel,
+  onBackToWork,
   onDelete,
   onSetLifecycleStage,
   onAddTaskForClient,
@@ -806,8 +809,8 @@ export default function ClientWorkspace({
       {/* ─── Header קבוע ───────────────────────────────────────── */}
       <div className="cw-header">
         <div className="cw-header-top">
-          <button className="ui-linkbtn cw-back" onClick={onCancel}>
-            <Icon name="chevron-start" size={13} /> לקוחות
+          <button className="ui-linkbtn cw-back" onClick={() => { if (onBackToWork) { if (dirty && !window.confirm('יש שינויים לא שמורים. לחזור לעבודות בלי לשמור?')) return; onBackToWork(); } else onCancel(); }}>
+            <Icon name="chevron-start" size={13} /> {onBackToWork ? 'חזרה לעבודות' : 'לקוחות'}
           </button>
 
           <div className="cw-identity">

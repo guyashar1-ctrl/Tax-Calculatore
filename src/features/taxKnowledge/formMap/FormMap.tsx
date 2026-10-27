@@ -146,7 +146,9 @@ export default function FormMap({ domain, clients = [], contextClient = null, on
   const [q, setQ] = useState(initialCode ?? (focus && focus.clientId === contextClient?.id ? focus.code ?? '' : ''));
   const [clientId, setClientId] = useState<string>(contextClient?.id ?? '');
   useEffect(() => { setClientId(contextClient?.id ?? ''); }, [contextClient]);
-  const client = clients.find(c => c.id === clientId) ?? (contextClient?.id === clientId ? contextClient : null);
+  // The 1301 map reads 2025 facts. A work opened for another year must not silently use them.
+  const otherClientYear = year != null && (domain === 'annual' ? year !== 2025 : ![2025, 2026].includes(year));
+  const client = otherClientYear ? null : clients.find(c => c.id === clientId) ?? (contextClient?.id === clientId ? contextClient : null);
   const L = LAYOUTS[slug];
   const pages = printed ? PRINTED_6111.pages : L.pages;
   const markers = useMemo(() => (printed ? [] : markersOf(slug)), [slug, printed]);
@@ -201,7 +203,7 @@ export default function FormMap({ domain, clients = [], contextClient = null, on
     (async () => {
       try {
         const reqs = await loadReturnRequests(client.id);
-        const pick = reqs.find(r => r.open && r.taxYear === 2025) ?? reqs.find(r => r.open) ?? reqs.find(r => r.taxYear === 2025);
+        const pick = reqs.find(r => r.open && r.taxYear === 2025) ?? reqs.find(r => r.taxYear === 2025);
         if (!pick) { if (alive) setRet({ clientId: client.id, ctx: null }); return; }
         const [vs, data] = await Promise.all([loadReturns(pick.stepId).catch(() => []), loadYearData(client.id, pick.taxYear)]);
         const cur = vs.find(v => v.status === 'draft') ?? [...vs].reverse().find(v => v.status === 'approved');
@@ -328,7 +330,7 @@ export default function FormMap({ domain, clients = [], contextClient = null, on
       <header className="fm-head">
         <div className="fm-title-row">
           <h3 className="fm-title">{formTitle}{taxYear && (printed || slug !== '1219') ? ` · שנת המס ${taxYear}` : ''}</h3>
-          {otherYear && <span className="fm-year-note" data-fm-year-note>נבחרה {otherYear}: מוצג טופס {taxYear}, הטופס ל־{otherYear} טרם פורסם</span>}
+          {otherYear && <span className="fm-year-note" data-fm-year-note>נבחרה {otherYear}: מוצג טופס {taxYear}; הטופס לשנה שנבחרה אינו במאגר הזה</span>}
           {printed
             ? <a className="fm-src" href={PRINTED_6111.pdf} target="_blank" rel="noreferrer">הטופס (עותק נגיש, PDF)</a>
             : <a className="fm-src" href={L.source.pdf} target="_blank" rel="noreferrer">הטופס הרשמי (PDF)</a>}
@@ -378,6 +380,7 @@ export default function FormMap({ domain, clients = [], contextClient = null, on
             )}
           </div>
         )}
+        {otherClientYear && clientId && <p className="fm-year-note" data-fm-client-year-note>נתוני הלקוח לשנה אחרת אינם מוצגים על הטופס הזה. המפה זמינה לעיון בלבד.</p>}
         {contextClient && onBackToClient && (
           <p className="fm-ctx">מוצג מול התיק של <b>{nameOf(contextClient)}</b>{retCtx ? <> · ערכי הדוח לשנת {retCtx.year} ({retCtx.version ? `גרסה ${retCtx.version}` : 'טיוטה שטרם נשמרה'}, {retCtx.outputs.fields.filter(f => f.kind === 'amount').length} סכומים) על הטופס</> : ret && !ret.ctx && !ret.err ? ' · אין לו בקשת «דוח שנתי» — המפה מראה את מצב הכרטיס בלבד' : ''} · <button type="button" className="kn-link" onClick={onBackToClient}>חזרה לתיק</button></p>
         )}

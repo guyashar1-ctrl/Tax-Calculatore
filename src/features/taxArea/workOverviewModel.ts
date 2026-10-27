@@ -151,7 +151,8 @@ export const SEASON_ORDER: SeasonPart[] = ['filed', 'mine', 'client', 'noRequest
 export interface Season { year: number; total: number; counts: Record<SeasonPart, number> }
 
 const counted = (o: Obligation) => o.kind === 'annual' && o.required !== false && !['needs_review', 'dismissed', 'context'].includes(o.state);
-const isFiled = (o: Obligation) => o.shaamStatus === 'filed' || o.state === 'filed_per_shaam' || o.state === 'history' || !!o.filedOn;
+// Current server classification wins over a historical date retained after an import is undone.
+const isFiled = (o: Obligation) => o.state === 'filed_per_shaam' || o.state === 'history';
 
 export function seasonPartOf(o: Obligation, bucketOfStep: (stepId: string) => WorkRow['bucket'] | undefined): SeasonPart {
   if (isFiled(o)) return 'filed';

@@ -109,17 +109,18 @@ async function run(vp) {
 
     // ── 3. «עבודות» — סקירה בלבד: אצלי / אצל הלקוח / הכול (הכרעת גיא 16.10 · עיצוב מחדש 21.10) ──
     const wo = page.locator('[data-work-overview]');
-    const tabN = async (t) => Number((await text(wo.locator(`[data-wo-tab="${t}"] .wov-n`))).trim());
-    const rowsOf = async (t) => { await wo.locator(`[data-wo-tab="${t}"]`).click(); await sleep(250); return wo.locator('[data-wo-row]'); };
-    ok((await wo.locator('[data-wo-tab="mine"]').getAttribute('aria-pressed')) === 'true', 'ברירת המחדל: «אצלי»');
-    const nAll = await tabN('all'), nMine = await tabN('mine'), nClient = await tabN('client');
-    ok(nAll === 3 && nMine + nClient === nAll, 'המספרים: הכול = 3 עבודות פתוחות (דוד, מיכל, אורית) = אצלי + אצל הלקוח', `${nMine}/${nClient}/${nAll}`);
-    ok(await wo.locator('[data-wo-row]').count() === nMine, 'אצלי: כמות השורות = המספר שעל הלשונית', `${await wo.locator('[data-wo-row]').count()} מול ${nMine}`);
-    ok(!(await wo.getByRole('button', { name: /^＋|הסר…|^פתח$|פרסם/ }).count()), 'אין פעולות בסקירה: לא «＋», לא «פתח», לא «הסר», לא «פרסם»');
-    ok((await wo.locator('[data-wo-group]').first().getAttribute('data-wo-group')) === 'overdue', 'אצלי: «באיחור» הוא הקבוצה הראשונה');
+    const tabN = async (t) => Number((await text(wo.locator(`[data-wo-kind="${t}"] .wov-n`))).trim());
+    const rowsOf = async (t) => { await wo.locator('[data-wo-owner]').selectOption(t); await sleep(250); return wo.locator('[data-wo-row]'); };
+    ok((await wo.locator('[data-wo-kind="all"]').getAttribute('aria-pressed')) === 'true', 'ברירת המחדל: כל סוגי העבודות');
+    ok((await wo.locator('[data-wo-owner]').inputValue()) === 'all', 'ברירת המחדל: אצל כולם');
+    const nAll = await tabN('all');
+    ok(nAll === 3, 'המספרים: הכול = שלוש עבודות פתוחות', nAll);
+    ok(await wo.locator('[data-wo-row]').count() === nAll, 'המספר והרשימה תואמים');
+    ok(!(await wo.getByRole('button', { name: /^＋|הסר…|^פתח$|פרסם/ }).count()), 'אין פרסום או מחיקה בסקירה');
+    ok((await wo.locator('[data-wo-group]').first().getAttribute('data-wo-group')) === 'overdue', 'באיחור הוא הקבוצה הראשונה');
     const late = await text(wo.locator('[data-wo-group="overdue"] [data-wo-row]').first());
-    ok(/דוד כהן/.test(late) && /באיחור 1[23] ימים/.test(late), 'באיחור — דוד, עם מספר הימים', late.replace(/\n/g, ' · '));
-    ok(await wo.locator('[data-wo-row][data-wo-due="overdue"]').count() === 1 && (await wo.locator('[data-wo-row]').first().getAttribute('data-wo-due')) === 'overdue', 'השורה הראשונה ברשימה היא זו שבאיחור');
+    ok(/דוד כהן/.test(late) && /באיחור 1[23] ימים/.test(late), 'האיחור של דוד גלוי', late.replace(/\n/g, ' · '));
+    ok(await wo.locator('[data-work-knowledge]').count() > 0, 'ידע מקצועי נגיש מהשורה');
     await shot(page, `${vp}-01-work-overview`);
     // איחור מוצג בכל לשונית; עבודה בלי איחור — רק בלשונית של מי שהכדור אצלו
     await rowsOf('client');
@@ -130,7 +131,7 @@ async function run(vp) {
     ok(!(await wo.locator('[data-wo-bucket="cancelled"], [data-wo-bucket="done"]').count()), 'שבוטלו / הושלמו אינן ברשימה הראשית');
     // «בוטלו» — מאחורי הקישור הקטן בתחתית, עם הסיבה
     const cancelBtn = wo.locator('[data-wo-closed="cancelled"]');
-    ok(await cancelBtn.count() === 1 && /\(1\)/.test(await text(cancelBtn)), 'בתחתית: «בוטלו (1)»', await text(cancelBtn));
+    ok(await cancelBtn.count() === 1 && /1/.test(await text(cancelBtn)), 'בתחתית: «בוטלו (1)»', await text(cancelBtn));
     await cancelBtn.click(); await sleep(300);
     const canc = await text(wo.locator('ul[aria-label="בוטלו"]'));
     ok(/נטשה/.test(canc) && await wo.locator('ul[aria-label="בוטלו"] [data-wo-bucket="cancelled"]').count() === 1, '«בוטלו»: העבודה שבוטלה (נטשה) מוצגת', canc);
@@ -159,7 +160,7 @@ async function run(vp) {
     // סוג אחד: קישור ישן ‎#/tax/work/annual‎ — הסקירה מסוננת, עם תג שאפשר להסיר
     await go(page, '/tax/work/annual');
     await rowsOf('all');
-    ok(await page.locator('[data-work-overview][data-section="annual"] [data-wo-section-chip]').count() === 1, '‎#/tax/work/annual‎: תג הסינון «דוחות שנתיים»', await text(page.locator('[data-wo-section-chip]')));
+    ok(await page.locator('[data-work-overview][data-section="annual"] [data-wo-kind="annual"]').count() === 1, '‎#/tax/work/annual‎: תג הסינון «דוחות שנתיים»', await text(page.locator('[data-wo-kind="annual"]')));
     ok(await page.locator('[data-work-overview][data-section="annual"] [data-wo-row]').count() === 2, '‎#/tax/work/annual‎: רק הדוחות השנתיים (2)');
     if (mobile) ok(await noHScroll(page), 'טלפון: סקירה מסוננת בלי גלילה הצידה');
     // שורה ⇒ «בקשות» של הלקוח
@@ -174,7 +175,7 @@ async function run(vp) {
     await page.goBack(); await sleep(900);
     ok((await page.evaluate(() => location.hash)) === '#/tax/work/annual', '«אחורה» חוזר לסקירה');
     // התג מסיר את הסינון ← «הכול»
-    await page.locator('[data-wo-section-chip]').click(); await sleep(500);
+    await page.locator('[data-wo-kind="all"] > span').click(); await sleep(500);
     ok((await page.evaluate(() => location.hash)) === '#/tax/work/all' && await page.locator('[data-work-overview][data-section="all"]').isVisible() && !(await page.locator('[data-wo-section-chip]').count()), 'לחיצה על התג מסירה את הסינון ← «הכול»');
 
     // ── 4. מפת הטופס — 1301 עם סימון על כל שדה (16.10) ──
@@ -583,14 +584,14 @@ async function run(vp) {
       await go(dp2, '/tax/work/all');
       ok((await dp2.evaluate(() => document.documentElement.dataset.theme)) === 'dark', 'מצב כהה: הממשק כהה');
       const woC = await dp2.locator('[data-wo-row]').first().evaluate(el => { const c = getComputedStyle(el); return { bg: c.backgroundColor, fg: c.color }; });
-      ok(lum(woC.bg) < 0.2 && lum(woC.fg) > 0.5, 'מצב כהה: שורות הסקירה כהות והטקסט בהיר', JSON.stringify(woC));
+      ok(lum(woC.bg) > 0.8 && lum(woC.fg) < 0.3, 'מצב כהה: ריכוז העבודות נשאר גיליון בהיר כמו ההדמיה', JSON.stringify(woC));
       await shot(dp2, `${vp}-20-dark-overview`);
       await go(dp2, '/tax/learn/annual');
       await dp2.locator('[data-form-map] [data-fm-client]').selectOption('sample-1'); await sleep(800);
       await dp2.locator('[data-form-map] [data-fm-page="2"]').click(); await sleep(500);
       await dp2.locator('[data-form-map] [data-code="158"]').scrollIntoViewIfNeeded(); await dp2.locator('[data-form-map] [data-code="158"]').click(); await sleep(500);
       const dc = await dp2.locator('[data-fm-detail]').evaluate(el => { const c = getComputedStyle(el); const pEl = el.querySelector('.fm-p'); return { bg: c.backgroundColor, fg: pEl ? getComputedStyle(pEl).color : '' }; });
-      ok(lum(dc.bg) > 0.8 && lum(dc.fg) < 0.3, 'מצב כהה: אזור הידע נשאר בהיר וקריא כמו ההדמיה, בלי לשנות את סקירת העבודות', JSON.stringify(dc));
+      ok(lum(dc.bg) > 0.8 && lum(dc.fg) < 0.3, 'מצב כהה: אזור הידע נשאר בהיר וקריא כמו ההדמיה, בקו אחיד עם ריכוז העבודות', JSON.stringify(dc));
       ok(await dp2.locator('[data-form-map] .fm-page img').first().evaluate(i => i.complete && i.naturalWidth > 0), 'מצב כהה: הטופס עצמו נשאר לבן וקריא (תמונה)');
       if (mobile) ok(await noHScroll(dp2), 'מצב כהה, טלפון: בלי גלילה הצידה');
       await shot(dp2, `${vp}-21-dark-form`);

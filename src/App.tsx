@@ -781,6 +781,11 @@ export default function App() {
   // לשונית הפתיחה של כרטיס הלקוח — נקבעת רק כשהגיעו אליו בשביל דבר מסוים
   /** נושא ידע שנפתח מתוך תיק המס של לקוח (ולקוח ההקשר, לחזרה). */
   const [knowledgeJump, setKnowledgeJump] = useState<{ topicId: string; clientId: string; year?: number } | null>(null);
+  const [taxWorkReturn, setTaxWorkReturn] = useState<{ clientId: string; path: string } | null>(() => {
+    try { const r = JSON.parse(sessionStorage.getItem('pivo.tax.work-return') || 'null'); return typeof r?.clientId === 'string' && typeof r?.path === 'string' && r.path.startsWith('work/') ? r : null; } catch { return null; }
+  });
+  useEffect(() => { try { sessionStorage.setItem('pivo.tax.work-return', JSON.stringify(taxWorkReturn)); } catch { /* navigation works without storage */ } }, [taxWorkReturn]);
+  useEffect(() => { if (!['form', 'reference', 'annualReport'].includes(view)) setTaxWorkReturn(null); }, [view]);
   const [clientInitialTab, setClientInitialTab] = useState<ClientTabId | undefined>(
     clientTabFromRoute(initialRoute.clientTab)
   );
@@ -3059,6 +3064,7 @@ export default function App() {
             tasks={tasks}
             onSave={handleSave}
             onCancel={handleCancelForm}
+            onBackToWork={taxWorkReturn?.clientId === selectedId ? () => { setTaxPath(taxWorkReturn.path); setKnowledgeJump(null); setView('reference'); } : undefined}
             onDelete={handleDelete}
             onSetLifecycleStage={async (id, stage) => { await setClientLifecycleStage(id, stage); }}
             onAddTaskForClient={(clientId, presetTitle) => openNewTaskModal(clientId, presetTitle)}
@@ -3183,7 +3189,7 @@ export default function App() {
             contextTopic={knowledgeJump?.topicId ?? null}
             contextClientId={knowledgeJump?.clientId ?? null}
             contextYear={knowledgeJump?.year ?? null}
-            onOpenClient={(id: string, tab?: ClientTabId, focusStepId?: string) => { setKnowledgeJump(null); setSelectedId(id); setClientInitialTab(tab === 'onboarding' && journeyUi ? 'journey' : tab ?? 'taxfile'); setClientFocus(focusStepId ? { stepId: focusStepId, tick: Date.now() } : null); setView('form'); }}
+            onOpenClient={(id: string, tab?: ClientTabId, focusStepId?: string, workReturnPath?: string) => { setTaxWorkReturn(previous => workReturnPath ? { clientId: id, path: workReturnPath } : previous?.clientId === id ? previous : null); setKnowledgeJump(null); setSelectedId(id); setClientInitialTab(tab === 'onboarding' && journeyUi ? 'journey' : tab ?? 'taxfile'); setClientFocus(focusStepId ? { stepId: focusStepId, tick: Date.now() } : null); setView('form'); }}
           />
           </Suspense>
         )}

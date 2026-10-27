@@ -102,5 +102,6 @@ export const TESTS: TestCase[] = [
     equal(s.total, 7);
     deepEqual(s.counts, { filed: 2, mine: 1, client: 1, noRequest: 2, other: 1 });
     equal(seasonOf([ob({ kind: 'wealth' }), ob({ state: 'needs_review' })], bucket), null, 'בלי חובות דוח שנתי — אין כרטיס');
+    equal(seasonOf([ob({ state: 'open', filedOn: '2026-06-01' })], bucket)!.counts.filed, 0, 'ביטול קליטה: תאריך היסטורי אינו מסמן הגשה נוכחית');
   }),
 ];

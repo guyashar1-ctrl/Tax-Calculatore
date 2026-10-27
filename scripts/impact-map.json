@@ -298,10 +298,12 @@
       ]
     },
     {
-      "name": "«מס»: מתג, «עבודות» וסקירת העבודות (ממשק בלבד — e2e: scripts/e2e/tax-area.mjs)",
+      "name": "«מס»: ריכוז העבודות ומעברים לידע ולתיק (ממשק — e2e: scripts/e2e/tax-area.mjs; בדיקה בפועל גם ב-CUA)",
       "invariants": [],
       "globs": [
-        "src/features/taxArea/*"
+        "src/features/taxArea/*",
+        "src/components/ClientWorkspace.tsx",
+        "src/App.tsx"
       ],
       "suites": []
     },

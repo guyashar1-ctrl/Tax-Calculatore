@@ -4,7 +4,7 @@
 // ‼ הצהרת הון: שע״ם מציג שנה בלבד. יום ההצהרה נבחר כאן במפורש — לא מומר מהשנה בשקט.
 // ‼ כשל חלקי: כל שורה בנפרד; «נסה שוב» רק לשורות שנכשלו (השרת אידמפוטנטי — עבודה קיימת מקושרת, לא נוצרת שנייה).
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Client } from '../../types';
 import { createWork } from '../taxYear/workCreate';
 import { linkObligationStep } from './api';
@@ -15,16 +15,37 @@ interface Props {
   clients: Client[];
   onClose: () => void;
   onDone: (opened: { obligationId: string; clientId: string; stepId: string }[]) => void;
+  onOpenRequests?: (clientId: string, stepId: string) => void;
 }
 type Res = { ok: boolean; stepId?: string; created?: boolean; error?: string } | 'running';
 
 const ERR: Record<string, string> = { client_not_found: 'הכרטיס לא נמצא', forbidden: 'אין הרשאה לכרטיס', step_mismatch: 'הבקשה לא תואמת לחובה', bad_date: 'תאריך לא תקין', bad_year: 'שנה לא תקינה' };
 
-export default function OpenRequestsDialog({ obligations, clients, onClose, onDone }: Props) {
+export default function OpenRequestsDialog({ obligations, clients, onClose, onDone, onOpenRequests }: Props) {
   const byId = useMemo(() => new Map(clients.map(c => [c.id, c])), [clients]);
   const [asOf, setAsOf] = useState<Record<string, string>>({});
   const [res, setRes] = useState<Record<string, Res>>({});
   const [busy, setBusy] = useState(false);
+  const panel = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const opener = document.activeElement as HTMLElement | null;
+    const overflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    panel.current?.querySelector<HTMLElement>('input[data-sf-asof], button:not([disabled])')?.focus();
+    return () => { document.body.style.overflow = overflow; if (opener?.isConnected) opener.focus(); };
+  }, []);
+  useEffect(() => {
+    const key = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { e.stopPropagation(); if (!busy) onClose(); return; }
+      if (e.key !== 'Tab') return;
+      const nodes = [...(panel.current?.querySelectorAll<HTMLElement>('button:not([disabled]), input:not([disabled]), select:not([disabled]), a[href]') ?? [])].filter(n => n.offsetParent !== null);
+      if (!nodes.length) return;
+      if (e.shiftKey && document.activeElement === nodes[0]) { e.preventDefault(); nodes[nodes.length - 1].focus(); }
+      else if (!e.shiftKey && document.activeElement === nodes[nodes.length - 1]) { e.preventDefault(); nodes[0].focus(); }
+    };
+    document.addEventListener('keydown', key, true);
+    return () => document.removeEventListener('keydown', key, true);
+  }, [busy, onClose]);
   const nameOf = (o: Obligation) => { const c = o.clientId ? byId.get(o.clientId) : undefined; return c ? `${c.firstName ?? ''} ${c.lastName ?? ''}`.trim() : o.clientName ?? 'לקוח'; };
   const needDate = (o: Obligation) => o.kind === 'wealth' && !asOf[o.id];
   const ready = obligations.filter(o => !needDate(o));
@@ -60,7 +81,7 @@ export default function OpenRequestsDialog({ obligations, clients, onClose, onDo
 
   return (
     <div className="modal-backdrop shf-backdrop" onClick={e => { if (e.target === e.currentTarget && !busy) onClose(); }}>
-      <div className="modal shf-modal" role="dialog" aria-modal="true" aria-labelledby="shf-open-h" data-sf-open-dialog>
+      <div className="modal shf-modal" role="dialog" aria-modal="true" aria-labelledby="shf-open-h" data-sf-open-dialog ref={panel}>
         <div className="modal-head">
           <h3 id="shf-open-h">{obligations.length === 1 ? 'פתיחת בקשה' : `פתיחת ${obligations.length} בקשות`}</h3>
           <button type="button" className="btn btn-sm btn-ghost" disabled={busy} onClick={onClose} aria-label="סגירה">✕</button>
@@ -95,7 +116,7 @@ export default function OpenRequestsDialog({ obligations, clients, onClose, onDo
                   <div className="shf-open-res" aria-live="polite">
                     {r === 'running' && <span className="shf-muted">פותח…</span>}
                     {r && r !== 'running' && (r.ok
-                      ? <span className="shf-chip green" data-sf-open-result="ok">{r.created ? 'נפתחה · השאלות בטיוטה' : 'קושרה לבקשה קיימת'}</span>
+                      ? <><span className="shf-chip green" data-sf-open-result="ok">{r.created ? 'נפתחה · השאלות בטיוטה' : 'קושרה לבקשה קיימת'}</span>{r.stepId && o.clientId && onOpenRequests && <button type="button" className="shf-link" onClick={() => onOpenRequests(o.clientId!, r.stepId!)}>לבקשה ←</button>}</>
                       : <span className="shf-chip red" data-sf-open-result="fail">{r.stepId ? (r.error ?? 'נכשל') : (ERR[r.error ?? ''] ?? `נכשל${r.error ? ` (${r.error})` : ''}`)}</span>)}
                   </div>
                 </li>

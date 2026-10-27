@@ -270,8 +270,10 @@ try {
   // ── 8 · rollback ──
   console.log('8 · rollback-305');
   await writeStaging(RB);
-  const [fns] = await rows(`select md5(p.prosrc) m from pg_proc p where p.proname = 'shaam_filing_import'`);
-  const [lst] = await rows(`select md5(p.prosrc) m from pg_proc p where p.proname = 'shaam_filing_list'`);
+  // Git on Windows checks the rollback out with CRLF; SQL250 above is normalized to LF.
+  // Compare identical source bodies using the same line endings on both sides.
+  const [fns] = await rows(`select md5(replace(p.prosrc, chr(13), '')) m from pg_proc p where p.proname = 'shaam_filing_import'`);
+  const [lst] = await rows(`select md5(replace(p.prosrc, chr(13), '')) m from pg_proc p where p.proname = 'shaam_filing_list'`);
   const [gone] = await rows(`select count(*)::int n from pg_proc where proname in ('undo_shaam_filing_source','_shaam_filing_import','_shaam_auto_open','_shaam_gmf154_batch','_shaam_filing_from_gmf154_job','_shaam_auto_request_untouched')`);
   const [trg] = await rows(`select count(*)::int n from pg_trigger where tgname = 'trg_shaam_filing_from_gmf154_job'`);
   ok(fns.m === bodyMd5(SQL250, 'shaam_filing_import') && lst.m === bodyMd5(SQL250, 'shaam_filing_list'), 'אחרי rollback: shaam_filing_import ו-shaam_filing_list = הגוף של 250', { fns, lst });
