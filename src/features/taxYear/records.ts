@@ -132,6 +132,36 @@ export const STUDY_KINDS = [{ value: 'ba', label: 'תואר ראשון' }, { val
 const LIVES = [
   { value: 'withUs', label: 'גר/ה איתנו' }, { value: 'otherParent', label: 'אצל ההורה השני' }, { value: 'shared', label: 'משמורת משותפת' },
 ];
+/**
+ * 27.10.2026 · הצהרת הון — «טופס רמת חיים» של רשות המסים (מה שלוח 5 של הוצאות המחיה **לא** כולל, ולכן הנישום מצהיר).
+ * לשנה, בערך. שכר דירה והחזר משכנתא — לחודש (לא בלוחות; הריבית נגזרת מהחזר המשכנתא — bridge.ts).
+ */
+export const LIFE_COSTS = [
+  { key: 'home', label: 'אחזקת הדירה', hint: 'חשמל, מים, ארנונה, גז' }, { key: 'repairs', label: 'שיפוצים ותיקונים', hint: '' },
+  { key: 'help', label: 'עוזרת בית', hint: '' }, { key: 'abroad', label: 'נסיעות לחו״ל', hint: '' },
+  { key: 'car', label: 'אחזקת רכב', hint: 'דלק, ביטוח, טיפולים' }, { key: 'education', label: 'חינוך', hint: 'גן, בית ספר, חוגים' },
+  { key: 'events', label: 'אירועים משפחתיים', hint: '' }, { key: 'health', label: 'רפואה פרטית', hint: '' },
+  { key: 'comms', label: 'טלפון ואינטרנט', hint: 'כולל טלוויזיה' },
+] as const;
+export const MONEY_IN = [
+  { key: 'inherit', label: 'ירושה' }, { key: 'gift', label: 'מתנה' }, { key: 'loan', label: 'הלוואה שקיבלתם' },
+  { key: 'sale', label: 'מכירת נכס או רכב' }, { key: 'comp', label: 'פיצויים או קצבה פטורה' }, { key: 'win', label: 'זכייה' },
+] as const;
+export const MONEY_OUT = [
+  { key: 'giftOut', label: 'מתנות שנתתם' }, { key: 'kids', label: 'עזרה לילדים' }, { key: 'donate', label: 'תרומות גדולות' },
+] as const;
+const nisText = (n: number) => `${Math.round(n).toLocaleString('he-IL')} ₪`;
+export function lifeSummary(r: RecordValue): string {
+  const c = (r.costs ?? {}) as Record<string, number>;
+  const parts = LIFE_COSTS.filter(x => Number(c[x.key]) > 0).map(x => `${x.label} ${nisText(c[x.key])}`);
+  if (Number(r.rentMonthly) > 0) parts.push(`שכר דירה ${nisText(Number(r.rentMonthly))} לחודש`);
+  if (Number(r.mortgageMonthly) > 0) parts.push(`משכנתא ${nisText(Number(r.mortgageMonthly))} לחודש`);
+  return parts.join(' · ');
+}
+export function flowsSummary(r: RecordValue, kinds: readonly { key: string; label: string }[]): string {
+  return ((r.flows ?? []) as { kind: string; amount: number; year: number }[]).map(f => `${kinds.find(k => k.key === f.kind)?.label ?? f.kind} ${nisText(f.amount)} (${f.year})`).join(' · ');
+}
+
 /** 27.10.2026 · הצפי שהלקוח שלח, בשורה אחת (למשרד ולתשובות שנשלחו). */
 export function forecastSummary(r: RecordValue): string {
   const total = (m: unknown, y: unknown) => (Array.isArray(m) ? m.reduce<number>((a, v) => a + (Number(v) || 0), 0) : Number(y) || 0);
@@ -280,6 +310,38 @@ export function schemaFor(id: RecordSchemaId, c?: Client, ctx?: Record<string, s
         { key: 'owner', label: 'של מי', type: 'choice', options: owner },
       ],
       summary: r => [str(r.country), label(FOREIGN_KINDS, r.kind), str(r.institution), r.owner ? `של ${label(owner, r.owner)}` : ''].filter(Boolean).join(' · '),
+    };
+    // ‼ 27.10.2026 · הצהרת הון — מטקסט חופשי לשדות (הדמיה מאושרת: «בלי טקסט חופשי»)
+    case 'loan': return {
+      id, noun: 'הלוואה', addLabel: '＋ עוד הלוואה', multiple: true,
+      fields: [
+        { key: 'name', label: ctx?.direction === 'in' ? 'ממי' : 'למי', type: 'text', required: true, half: true },
+        { key: 'relation', label: 'הקשר', type: 'choice', required: true, options: [{ value: 'family', label: 'משפחה' }, { value: 'friend', label: 'חבר/ה' }, { value: 'business', label: 'עסקי' }, { value: 'other', label: 'אחר' }] },
+        { key: 'year', label: 'באיזו שנה', type: 'number', required: true, half: true },
+        { key: 'balance', label: 'כמה נשאר להחזיר (₪)', type: 'number', required: true, half: true },
+        ...(ctx?.direction === 'in' ? [{ key: 'contract', label: 'יש הסכם בכתב?', type: 'choice' as const, options: [{ value: 'yes', label: 'כן' }, { value: 'no', label: 'לא' }] }] : []),
+      ],
+      summary: r => [str(r.name), r.year ? `מ-${str(r.year)}` : '', r.balance !== undefined && r.balance !== '' ? `נשאר ${Number(r.balance).toLocaleString('he-IL')} ₪` : ''].filter(Boolean).join(' · '),
+    };
+    case 'ownedVehicle': return {
+      id, noun: 'רכב', addLabel: '＋ עוד רכב', multiple: true,
+      fields: [
+        { key: 'kind', label: 'סוג', type: 'choice', required: true, options: [{ value: 'car', label: 'רכב' }, { value: 'moto', label: 'אופנוע' }, { value: 'boat', label: 'כלי שייט' }, { value: 'plane', label: 'כלי טייס' }] },
+        { key: 'model', label: 'יצרן ודגם', type: 'text', required: true, half: true },
+        { key: 'year', label: 'שנת ייצור', type: 'number', required: true, half: true },
+        { key: 'plate', label: 'מספר רישוי', type: 'digits', maxLength: 8, half: true },
+        { key: 'price', label: 'מחיר קנייה (₪)', type: 'number', required: true, half: true },
+        { key: 'business', label: 'רשום בעסק?', type: 'choice', options: [{ value: 'no', label: 'לא' }, { value: 'yes', label: 'כן' }] },
+      ],
+      summary: r => [str(r.model), str(r.year), r.price !== undefined && r.price !== '' ? `${Number(r.price).toLocaleString('he-IL')} ₪` : ''].filter(Boolean).join(' · '),
+    };
+    case 'safeBox': return {
+      id, noun: 'כספת', addLabel: '＋ עוד', multiple: true,
+      fields: [
+        { key: 'where', label: 'איפה (בנק / סניף / אחר)', type: 'text', required: true },
+        { key: 'owner', label: 'של מי מה שבפנים', type: 'choice', required: true, options: OWNER(c) },
+      ],
+      summary: r => [str(r.where), r.owner ? `של ${label(OWNER(c), r.owner)}` : ''].filter(Boolean).join(' · '),
     };
     case 'vehicle': return {
       id, noun: 'רכב', addLabel: '＋ עוד רכב', multiple: true,
@@ -449,6 +511,10 @@ export function schemaFor(id: RecordSchemaId, c?: Client, ctx?: Record<string, s
       id, noun: 'צפי', addLabel: '', multiple: false, fields: [],
       summary: r => forecastSummary(r),
     };
+    // ‼ 27.10.2026 · הצהרת הון — הגישור: ריבועים וסכומים (WealthSinceEditors), בלי שדות טופס ובלי טקסט חופשי
+    case 'lifeCosts': return { id, noun: 'רמת חיים', addLabel: '', multiple: false, fields: [], summary: r => lifeSummary(r) };
+    case 'moneyIn': return { id, noun: 'מה נכנס', addLabel: '', multiple: false, fields: [], noneLabel: 'לא היה', gate: { yes: 'היה', no: 'לא היה' }, summary: r => flowsSummary(r, MONEY_IN) };
+    case 'moneyOut': return { id, noun: 'מה יצא', addLabel: '', multiple: false, fields: [], noneLabel: 'לא היה', gate: { yes: 'היה', no: 'לא היה' }, summary: r => flowsSummary(r, MONEY_OUT) };
     case 'maternityAmounts': return {
       id, noun: 'סכומים', addLabel: '', multiple: false,
       fields: [
@@ -535,6 +601,8 @@ export function validateRecord(schema: RecordSchema, r: RecordValue): Record<str
     const a = r.startDate as DatedValue | undefined; const b = r.endDate as DatedValue | undefined;
     if (a?.precision === 'month' && b?.precision === 'month' && (b.date ?? '') < (a.date ?? '')) err.endDate = 'הסיום לפני ההתחלה';
   }
+  if (schema.id === 'lifeCosts' && !Object.values((r.costs ?? {}) as Record<string, unknown>).some(v => Number(v) > 0) && !(Number(r.rentMonthly) > 0) && !(Number(r.mortgageMonthly) > 0)) err.costs = 'חסר';
+  if ((schema.id === 'moneyIn' || schema.id === 'moneyOut') && !(Array.isArray(r.flows) && r.flows.length && (r.flows as { amount?: unknown; year?: unknown }[]).every(f => Number(f.amount) > 0 && Number(f.year) > 1900))) err.flows = 'חסר';
   if (schema.id === 'forecastMonths') {
     const okSide = (a: unknown, m: unknown, y: unknown) => a === 'ok' || (a === 'chg' && ((Array.isArray(m) && m.every(v => Number(v) >= 0)) || Number(y) >= 0));
     if (!okSide(r.incA, r.incM, r.incY)) err.incA = 'חסר';
@@ -558,6 +626,17 @@ export const padCode = (v: unknown, w: number) => (str(v) ? str(v).padStart(w, '
 
 /** ניקוי לפני שליחה: שדות מוסתרים יורדים, קודים מקבלים אפסים מובילים, שמות בנק/סניף מהמאגר נשמרים לצד הקוד. */
 export function cleanRecord(schema: RecordSchema, r: RecordValue, dir?: BankDirectory | null): RecordValue {
+  // ‼ 27.10.2026 · הגישור בהצהרת הון — רק המפתחות שלו, סכומים שלמים ולא שליליים
+  const amt = (v: unknown) => Math.max(0, Math.round(Number(v) || 0));
+  if (schema.id === 'lifeCosts') {
+    const costs = Object.fromEntries(Object.entries((r.costs ?? {}) as Record<string, unknown>).filter(([k, v]) => LIFE_COSTS.some(c => c.key === k) && amt(v) > 0).map(([k, v]) => [k, amt(v)]));
+    return { costs, ...(amt(r.rentMonthly) ? { rentMonthly: amt(r.rentMonthly) } : {}), ...(amt(r.mortgageMonthly) ? { mortgageMonthly: amt(r.mortgageMonthly) } : {}) };
+  }
+  if (schema.id === 'moneyIn' || schema.id === 'moneyOut') {
+    const kinds = schema.id === 'moneyIn' ? MONEY_IN : MONEY_OUT;
+    return { flows: ((r.flows ?? []) as { kind?: unknown; amount?: unknown; year?: unknown }[]).filter(f => kinds.some(k => k.key === f.kind))
+      .slice(0, 20).map(f => ({ kind: String(f.kind), amount: amt(f.amount), year: amt(f.year) })) };
+  }
   // ‼ 27.10.2026 · הצפי — בלי שדות טופס: נשמרים רק המפתחות שלו, מספרים שלמים ולא שליליים
   if (schema.id === 'forecastMonths') {
     const side = (a: unknown) => (a === 'ok' || a === 'chg' ? a : undefined);

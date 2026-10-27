@@ -108,3 +108,26 @@ export function firstOpenScreen(screens: Screen[]): number {
 }
 
 export const screenAsks = (s: Screen): InfoAsk[] => (s.kind === 'ask' ? [s.ask] : s.asks);
+
+// ── 27.10.2026 · הצהרת הון בפרקים (docs/proposals/2026-10-27-wealth-declaration.html) ─────────────────────────────
+// ‼ המשפחה · מה יש לכם · רמת חיים · מה נכנס — הסדר והצבע של כל פרק (כמו בדוח השנתי). רק כשכל השאלות של הצהרת הון.
+export type WealthPart = 'family' | 'have' | 'living' | 'flows';
+export const WEALTH_PARTS: { id: WealthPart; label: string }[] = [
+  { id: 'family', label: 'המשפחה' }, { id: 'have', label: 'מה יש לכם' }, { id: 'living', label: 'רמת חיים' }, { id: 'flows', label: 'מה נכנס' },
+];
+export const isWealthQuestionnaire = (asks: InfoAsk[]) => asks.length > 0 && asks.some(a => a.itemKey.startsWith('wealth.'))
+  && asks.every(a => a.itemKey.startsWith('wealth.') || a.itemKey.startsWith('household.'));
+export function wealthPartOf(s: Screen): WealthPart {
+  const k = screenAsks(s)[0]?.itemKey ?? '';
+  if (s.kind === 'confirmAll' || k.startsWith('household.') || k === 'wealth.household') return 'family';
+  if (k === 'wealth.since.living') return 'living';
+  if (k === 'wealth.since.sources' || k === 'wealth.since.uses') return 'flows';
+  return 'have';
+}
+/** המסכים לפי הפרקים (יציב בתוך כל פרק); שאלון אחר — כמו שהוא. */
+export function orderScreens(asks: InfoAsk[], opened: ReadonlySet<string>): Screen[] {
+  const sc = buildScreens(asks, opened);
+  if (!isWealthQuestionnaire(asks)) return sc;
+  const rank = (s: Screen) => WEALTH_PARTS.findIndex(p => p.id === wealthPartOf(s));
+  return sc.map((s, i) => ({ s, i })).sort((a, b) => rank(a.s) - rank(b.s) || a.i - b.i).map(x => x.s);
+}

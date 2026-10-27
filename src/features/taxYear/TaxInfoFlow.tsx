@@ -24,7 +24,7 @@ import { answerValid, cleanRecord, schemaFor, type RecordAnswer } from './record
 import { loadBankDirectory } from './RecordEditor';
 import { WHO_OPTIONS, cleanEntity, entityValid, validateEntity, type EntityItem } from './entities';
 import { INSTITUTION_LISTS, searchInstitutions, type InstitutionListId } from '../../data/institutions';
-import { buildScreens, firstOpenScreen, screenAsks, type Screen } from './screens';
+import { firstOpenScreen, isWealthQuestionnaire, orderScreens, screenAsks, WEALTH_PARTS, wealthPartOf, type Screen } from './screens';
 import DocPartsPicker from '../identity/DocPartsPicker';
 import './taxYear.css';
 
@@ -89,7 +89,7 @@ export default function TaxInfoFlow({ stepId, token, previewClientId, previewAsk
       setAsks(v.asks);
       setDraft(Object.fromEntries(v.asks.filter(a => a.savedDraft).map(a => [a.id, a.savedDraft as Draft])));
       // ‼ חזרה אחרי «שמירה ויציאה»: למסך הראשון שעוד לא נענה. כשנשארו רק מסמכים — ישר לרשימת המסמכים
-      const sc = buildScreens(v.asks, new Set());
+      const sc = orderScreens(v.asks, new Set());
       const firstNew = firstOpenScreen(sc);
       setI(firstNew < 0 ? 0 : firstNew);
       setFinished(sc.length > 0 && firstNew < 0);
@@ -97,7 +97,7 @@ export default function TaxInfoFlow({ stepId, token, previewClientId, previewAsk
   };
   useEffect(() => { void load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [stepId, token, previewClientId]);
 
-  const screens = useMemo(() => (asks ? buildScreens(asks, opened) : []), [asks, opened]);
+  const screens = useMemo(() => (asks ? orderScreens(asks, opened) : []), [asks, opened]);
 
   if (err && !asks) return <div className="ty-err" role="alert">לא ניתן לטעון את השאלות. נסו שוב מאוחר יותר.</div>;
   if (!asks) return <div className="ty-note">טוען…</div>;
@@ -160,6 +160,15 @@ export default function TaxInfoFlow({ stepId, token, previewClientId, previewAsk
   const screen = screens[idx];
   const doneCount = screens.filter(screenDone).length;
   const progress = Math.round((doneCount / screens.length) * 100);
+  // ‼ 27.10.2026 · הצהרת הון בפרקים — צבע לכל פרק (taxYear.css › data-part), כמו בדוח השנתי
+  const wealthMode = isWealthQuestionnaire(asks);
+  const PART_CSS = { family: 'family', have: 'client', living: 'spouse', flows: 'flows' } as const;
+  const part = wealthMode && screen ? PART_CSS[wealthPartOf(screen)] : undefined;
+  const parts = wealthMode ? WEALTH_PARTS.filter(p => screens.some(s => wealthPartOf(s) === p.id)).map(p => {
+    const inP = screens.filter(s => wealthPartOf(s) === p.id), cur = !!screen && wealthPartOf(screen) === p.id;
+    const done = inP.filter(screenDone).length;
+    return { ...p, cur, done: done === inP.length, w: done === inP.length ? 100 : Math.max(cur ? 12 : 0, Math.round((done / inP.length) * 100)) };
+  }) : [];
   // ‼ בלי לחתוך לפי אורך הרשימה הנוכחית: אחרי מסך האישור ומסך הרשת רשימת המסכים מתארכת, ו-idx נחתך בעת הרינדור
   const go = (n: number) => { setSaved(null); setTried(false); setI(Math.max(0, n)); };
   /** קדימה — רק למסכים שעוד לא נענו. מסמך «אעלה בהמשך» אינו «שאלה פתוחה» — הוא ברשימת המסמכים בסיום. */
@@ -173,7 +182,7 @@ export default function TaxInfoFlow({ stepId, token, previewClientId, previewAsk
   // ‼ 19.10.2026 · אחרי מסך הרשת הרשימה משתנה (האישורים נענו ויוצאים ממסך האישור המקובץ, ושאלות ההמשך נוספות) — idx הישן
   //   כבר לא מצביע על אותו מסך. ממשיכים מהמקום של השאלה שנענתה ברשימה החדשה, כך ששאלות ההמשך באות מיד אחריה.
   const advance = (list: InfoAsk[], openedNow = opened, fromAskId?: string) => {
-    const sc = buildScreens(list, openedNow);
+    const sc = orderScreens(list, openedNow);
     const at = fromAskId ? sc.findIndex(x => screenAsks(x).some(a => a.id === fromAskId)) : -1;
     advanceIn(sc, at >= 0 ? at : idx);
   };
@@ -182,7 +191,11 @@ export default function TaxInfoFlow({ stepId, token, previewClientId, previewAsk
       <div className="ty-flow-top">
         <span>{title}</span><span>{idx + 1} מתוך {screens.length}</span>
       </div>
-      <div className="ty-progress" role="progressbar" aria-valuenow={progress} aria-valuemin={0} aria-valuemax={100} aria-label="התקדמות"><i style={{ width: `${progress}%` }} /></div>
+      {parts.length > 1 ? (
+        <div className="ty-parts" role="progressbar" aria-valuenow={progress} aria-valuemin={0} aria-valuemax={100} aria-label="התקדמות">
+          {parts.map(p => <span key={p.id} className={`ty-part${p.cur ? " is-cur" : ""}${p.done ? " is-done" : ""}`} data-part={PART_CSS[p.id]}><span className="ty-part-bar"><i style={{ width: `${p.w}%` }} /></span><span className="ty-part-l">{p.label}</span></span>)}
+        </div>
+      ) : <div className="ty-progress" role="progressbar" aria-valuenow={progress} aria-valuemin={0} aria-valuemax={100} aria-label="התקדמות"><i style={{ width: `${progress}%` }} /></div>}
       {preview && <div className="ty-note">תצוגה בלבד — כך זה ייראה ללקוח. אין כאן שליחה.</div>}
     </>
   );
@@ -195,7 +208,7 @@ export default function TaxInfoFlow({ stepId, token, previewClientId, previewAsk
       const ok = list.filter(a => marks[a.id] !== 'changed');
       const nextOpened = new Set([...opened, ...changed.map(a => a.id)]);
       setDraft(d => ({ ...d, ...Object.fromEntries(changed.map(a => [a.id, { ...d[a.id], choice: 'changed' }])) }));
-      if (preview) { setOpened(nextOpened); const scp = buildScreens(asks, nextOpened); const tp = scp.findIndex(s => s.kind === 'ask' && changed.some(a => a.id === s.ask.id)); if (tp >= 0) go(tp); else advanceIn(scp, idx); return; }
+      if (preview) { setOpened(nextOpened); const scp = orderScreens(asks, nextOpened); const tp = scp.findIndex(s => s.kind === 'ask' && changed.some(a => a.id === s.ask.id)); if (tp >= 0) go(tp); else advanceIn(scp, idx); return; }
       setBusy(true); setErr(null);
       // ‼ בזה אחר זה (לא במקביל): כל תשובה היא שורה בשרת; מה שנשלח נשאר שלוח גם אם הבאה נכשלת
       const sent: string[] = [];
@@ -210,12 +223,12 @@ export default function TaxInfoFlow({ stepId, token, previewClientId, previewAsk
       if (failed) { setAsks(nextAsks); setErr('השליחה נכשלה — נסו שוב'); return; }
       setAsks(nextAsks); setOpened(nextOpened);
       // ‼ «יש שינוי» ⇒ קודם השורות שסומנו (העריכה שלהן), ורק אחר כך ממשיכים
-      const sc = buildScreens(nextAsks, nextOpened);
+      const sc = orderScreens(nextAsks, nextOpened);
       const target = sc.findIndex(s => s.kind === 'ask' && changed.some(a => a.id === s.ask.id));
       if (target >= 0) go(target); else advanceIn(sc, idx);
     };
     return (
-      <div className="ty-flow" data-screen="confirmAll">
+      <div className="ty-flow" data-screen="confirmAll" data-part={part}>
         {top}
         <p className="ty-q" id="q-confirm-all">מה שכבר ידוע לנו — נכון?</p>
         <p className="ty-hint">זה מה שרשום אצלנו. אם הכול נכון — ממשיכים. אם משהו השתנה — סמנו «יש שינוי» ונתקן יחד בשורה הבאה.</p>
@@ -332,7 +345,7 @@ export default function TaxInfoFlow({ stepId, token, previewClientId, previewAsk
   const names = entCtx;
 
   return (
-    <div className="ty-flow" data-screen={kind}>
+    <div className="ty-flow" data-screen={kind} data-part={part}>
       {top}
 
       {ask.prompt.correction && (

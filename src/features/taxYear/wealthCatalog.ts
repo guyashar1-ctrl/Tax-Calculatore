@@ -176,10 +176,13 @@ export const WEALTH_ITEMS: InfoItem[] = [
   { key: 'wealth.prevDeclaration', area: 'wSinceLast', label: 'ההצהרה הקודמת', kind: 'document', per: 'couple', who: 'office', purposes: W, declKind: 'followup',
     why: 'הבסיס להשוואה: התאריך, ההון נטו ובסיס הרישום. נשמרת כמו שהוגשה — גם אם נמצאה בה טעות', docKind: 'prevWealthDeclaration' },
   { key: 'wealth.since.sources', area: 'wSinceLast', label: 'כסף שהתקבל', kind: 'detail', per: 'couple', who: 'client', purposes: W, declKind: 'followup',
-    question: 'מאז ההצהרה הקודמת: ירושה, מתנה, זכייה, פיצויים או מכירת נכס? כמה ומתי', why: 'מקורות כסף שמסבירים גידול בהון', input: 'text' },
+    // ‼ 27.10.2026 · מטקסט חופשי לריבועים וסכומים (WealthSinceEditors) — נכנסים ישר לגישור (wealthDeclaration/bridge.ts)
+    question: 'מאז ההצהרה הקודמת — נכנס לכם כסף שלא מהעבודה?', why: 'מקורות כסף שמסבירים גידול בהון — גם כסף שכבר הוצא', input: 'record' },
   { key: 'wealth.since.uses', area: 'wSinceLast', label: 'כסף שיצא', kind: 'detail', per: 'couple', who: 'client', purposes: W, declKind: 'followup',
-    question: 'מאז ההצהרה הקודמת: מתנות שנתתם, עזרה לילדים בגירים או תרומות גדולות?', why: 'כסף שיצא ואינו בהוצאות המחיה', input: 'text' },
-  { key: 'wealth.since.living', area: 'wSinceLast', label: 'משק הבית בכל שנה', kind: 'detail', per: 'couple', who: 'client', purposes: W, declKind: 'followup',
-    question: 'כמה נפשות גרו בבית בכל שנה, האם גרתם בשכירות, וכמה שכר דירה וריבית על הלוואות שילמתם',
-    why: 'כדי לבחור את טבלת המחיה המתאימה, ולהוסיף מה שאינו כלול בה', input: 'text' },
+    question: 'מאז ההצהרה הקודמת — יצא כסף שלא להוצאות הבית?', why: 'כסף שיצא ואינו בהוצאות המחיה', input: 'record' },
+  { key: 'wealth.since.living', area: 'wSinceLast', label: 'רמת חיים', kind: 'detail', per: 'couple', who: 'client', purposes: W, declKind: 'followup',
+    question: 'איך אתם חיים — בשנה רגילה?',
+    why: 'לוח הוצאות המחיה של רשות המסים לא כולל את אלה — מה שתסמנו נכנס להסבר הגידול בהון', input: 'record' },
+  // ‼ 27.10.2026 · הגישור: הכנסה ומס לכל שנה בין ההצהרות — משע״ם (המשרד; בהמשך — קריאה אוטומטית). עובדה אחת ליום ההצהרה.
+  { key: 'wealth.bridge.income', area: 'wSinceLast', label: 'הכנסה ומס לכל שנה — משע״ם', kind: 'amount', per: 'couple', who: 'office', purposes: [], declKind: 'followup' },
 ];

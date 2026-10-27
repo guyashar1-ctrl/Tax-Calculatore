@@ -1,0 +1,47 @@
+/* הצהרת הון — המספר האחד והגישור (docs/proposals/2026-10-27-wealth-declaration.html) */
+.wb-card { background: #fff; border: 1px solid #e4e2dd; border-radius: 14px; padding: 16px 18px; margin-bottom: 12px; }
+.wb-hero small { display: block; color: #666b72; font-size: 13.5px; }
+.wb-big { font-size: 32px; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -.5px; }
+.wb-big.is-due { color: #9a3b2c; } .wb-big.is-warn { color: #8a5b0f; } .wb-big.is-ok { color: #24654e; }
+.wb-big.is-wait { font-size: 18px; color: #92979e; font-weight: 600; letter-spacing: 0; }
+.wb-parts { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
+.wb-parts span { font-size: 13px; color: #4b5058; background: #f4f2ee; border-radius: 8px; padding: 2px 9px; font-variant-numeric: tabular-nums; }
+.wb-note { font-size: 12.5px; color: #92979e; margin: 6px 0 0; }
+.wb-h3 { margin: 0 0 10px; font-size: 15px; display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.wb-h3 small { font-weight: 500; color: #666b72; font-size: 13px; }
+.wb-cmp { display: grid; grid-template-columns: 110px 1fr; gap: 6px 12px; align-items: center; margin-bottom: 6px; }
+.wb-cmp .lb { font-size: 14px; font-weight: 600; }
+.wb-cmp .v { grid-column: 2; font-size: 13px; color: #666b72; margin: -2px 0 4px; font-variant-numeric: tabular-nums; }
+.wb-cmp .v b { color: #25282d; }
+.wb-track { position: relative; height: 26px; background: #f1efeb; border-radius: 7px; }
+.wb-track i { position: absolute; top: 0; bottom: 0; right: 0; border-radius: 7px; transition: width .45s cubic-bezier(.23, 1, .32, 1); }
+.wb-track .act { background: #3f5f8f; } .wb-track .exp { background: #7d9a8b; }
+.wb-track .gap { background: repeating-linear-gradient(135deg, #e7b9ae 0 5px, #f3d6cf 5px 10px); }
+.wb-wf { margin-top: 8px; border-top: 1px solid #f0eee9; }
+.wb-r { display: grid; grid-template-columns: 22px 1fr auto; gap: 8px; align-items: baseline; padding: 8px 0; border-bottom: 1px dashed #ebe8e2; font-size: 14px; }
+.wb-r .s { font-weight: 700; color: #92979e; text-align: center; }
+.wb-r .t small { display: block; color: #92979e; font-size: 12.5px; }
+.wb-r b { font-variant-numeric: tabular-nums; }
+.wb-r.tot { border-bottom: 0; border-top: 1px solid #d6d3cc; font-weight: 700; }
+.wb-src { display: inline-block; font-style: normal; font-size: 11.5px; color: #666b72; background: #f1efeb; border-radius: 999px; padding: 0 7px; margin-inline-start: 4px; font-weight: 600; white-space: nowrap; }
+.wb-src.client { background: #f4eef7; color: #7a4f8f; } .wb-src.shaam { background: #edf2f8; color: #3f5f8f; }
+.wb-src.table { background: #e9f4ee; color: #24654e; } .wb-src.decl { background: #f8efe6; color: #a0612a; }
+.wb-lnk { border: 0; background: none; color: #3f5f8f; font: inherit; font-weight: 600; font-size: 12.5px; padding: 0; margin-inline-start: 6px; cursor: pointer; }
+.wb-t { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; margin: 4px 0 8px; }
+.wb-t th { font-size: 12px; color: #666b72; font-weight: 600; text-align: start; padding: 5px 6px; border-bottom: 1px solid #e4e2dd; }
+.wb-t td { padding: 5px 6px; border-bottom: 1px dashed #ebe8e2; }
+.wb-t th:not(:first-child), .wb-t td:not(:first-child) { text-align: left; white-space: nowrap; }
+.wb-t td small { display: block; color: #92979e; font-size: 11.5px; }
+.wb-t input { width: 96px; border: 1.5px solid #d6d3cc; border-radius: 8px; padding: 4px 6px; text-align: left; font: inherit; }
+.wb-why { margin-top: 12px; background: #fbf3e4; border-radius: 12px; padding: 12px 14px; }
+.wb-why p { margin: 0 0 8px; font-weight: 700; color: #8a5b0f; font-size: 14px; }
+.wb-why ul { margin: 0 0 10px; padding-inline-start: 18px; font-size: 13.5px; color: #4b5058; }
+.wb-ok { font-size: 13px; border-radius: 9px; padding: 7px 10px; margin: 10px 0 0; background: #e9f4ee; color: #24654e; }
+.wb-pill { font-size: 13px; font-weight: 600; color: #666b72; background: #efede8; border-radius: 999px; padding: 3px 10px; }
+@media (max-width: 560px) {
+  .wb-card { padding: 14px; }
+  .wb-big { font-size: 27px; }
+  .wb-cmp { grid-template-columns: 1fr; gap: 3px; } .wb-cmp .v { grid-column: 1; }
+  .wb-t td, .wb-t th { padding: 4px 3px; } .wb-t input { width: 74px; }
+}
+@media (prefers-reduced-motion: reduce) { .wb-track i { transition: none; } }

@@ -10,6 +10,7 @@ import type { RecordSchemaId } from './types';
 import type { DatedValue } from './temporal';
 import AddressFields from '../../components/ui/AddressFields';
 import ForecastMonthsEditor from './ForecastMonthsEditor';
+import { LifeCostsEditor, MoneyFlowsEditor } from './WealthSinceEditors';
 import { composeAddress, splitAddress } from '../../utils/ilAddress';
 import { PRECISION_LABEL, emptyRecordFor, monthInKey, schemaFor, validateRecord, type BankDirectory, type RecordAnswer, type RecordField, type RecordValue } from './records';
 
@@ -55,6 +56,9 @@ export default function RecordEditor({ schemaId, client, context, value, onChang
 
   // ‼ 27.10.2026 · הצפי עד סוף השנה — מסך משלו (עמודה לכל חודש, ± לכל חודש שנשאר), לא טופס שדות
   if (schemaId === 'forecastMonths') return <ForecastMonthsEditor context={context} value={value} onChange={onChange} disabled={disabled} showErrors={showErrors} />;
+  // ‼ 27.10.2026 · הצהרת הון — הגישור: ריבועים וסכומים, לא טופס
+  if (schemaId === 'lifeCosts') return <LifeCostsEditor value={value} onChange={onChange} disabled={disabled} showErrors={showErrors} />;
+  if (schemaId === 'moneyIn' || schemaId === 'moneyOut') return <MoneyFlowsEditor kind={schemaId === 'moneyIn' ? 'in' : 'out'} context={context} value={value} onChange={onChange} disabled={disabled} showErrors={showErrors} />;
 
   return (
     <div className="rec" data-record={schemaId}>

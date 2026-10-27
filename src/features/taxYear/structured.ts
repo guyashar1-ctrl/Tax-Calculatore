@@ -8,6 +8,9 @@ import { accountSpan, answeredRelevance, entityRelevance, propertySpan, type Per
 
 /** פריט ← סכמת רשומה. פריט אישור (confirm): «משהו השתנה» פותח את הרשומה עם מה שבתיק. פריט פרטים: הרשומה היא השאלה. */
 export const RECORD_OF: Record<string, RecordSchemaId> = {
+  // 27.10.2026 · הצהרת הון — הגישור (WealthSinceEditors)
+  'wealth.since.living': 'lifeCosts', 'wealth.since.sources': 'moneyIn', 'wealth.since.uses': 'moneyOut',
+  'wealth.bank.accounts': 'account', 'wealth.loansGiven.details': 'loan', 'wealth.loansReceived.details': 'loan', 'wealth.vehicles.details': 'ownedVehicle', 'wealth.partD.details': 'safeBox',
   'household.children': 'children', 'intake.children': 'children', 'intake.address': 'address', 'household.address': 'address',
   'salary.employers': 'employer', 'intake.employers': 'employer', 'salary.employerDetails': 'employer', 'intake.employerDetails': 'employer',
   'intake.business': 'business', 'intake.businessDetails': 'business',

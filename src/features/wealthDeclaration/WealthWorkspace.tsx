@@ -18,6 +18,7 @@ import { buildSignedSetPdf, sha256Hex } from '../annualReturn/signedSet';
 import { loadDocumentFile } from '../annualReturn/docFile';
 import { supabase } from '../../lib/supabase';
 import { computeWealth, SECTION_KEYS, type SectionValue } from './engine';
+import { BRIDGE_INCOME, BridgeCard, incomesOf, useBridge, WealthHero } from './BridgeView';
 import { WealthFormView, WealthSummary, wealthHeadline } from './WealthView';
 import { printWealthSet } from './print';
 import '../annualReturn/workspace.css';
@@ -143,6 +144,20 @@ export default function WealthWorkspace({ client, step, year, data, busy, run, s
   };
 
   const head = wealthHeadline(snap);
+  // ── הגישור (הצהרת המשך): ההתחייבויות בקודמת — רק כשהוכנה במערכת (להפרדת הריבית מהחזר המשכנתא) ──
+  const prevAsOf = p.kind === 'followup' ? p.previous?.asOfDate : undefined;
+  const prevLiab = useMemo(() => (prevAsOf && prevFacts.length ? computeWealth(prevFacts, prevAsOf).liabilities : null), [prevAsOf, prevFacts]);
+  const bridge = useBridge(client, data.facts, step.id, asOf, out, prevAsOf, prevLiab);
+  // «שאל את …» — שאלה אחת לדף: עוד משהו שנכנס מאז ההצהרה הקודמת (אותה שאלה מובנית, עם הסכום שחסר הסבר)
+  const askedGap = asks.some(a => a.itemKey === 'wealth.since.sources' && a.state === 'published');
+  const askGap = () => void run(async () => {
+    const gap = Math.round((bridge?.gap ?? 0) / 1000) * 1000;
+    const r = await tyApi.addAsks(step.id, [{ itemKey: 'wealth.since.sources', subjectRole: 'couple',
+      prompt: { title: `חסר הסבר לכ-${gap.toLocaleString('he-IL')} ₪ — נכנס לכם עוד משהו מאז ההצהרה הקודמת?`, why: 'מכירה, מתנה או הלוואה שלא נרשמו מסבירים גידול בהון',
+        input: { kind: 'record', schema: 'moneyIn', context: { toYear: asOf.slice(0, 4) } } } }]);
+    if (!r.ok) return r;
+    return tyApi.publishInfo(r.infoStepId);
+  }, `השאלה בדף של ${firstName} — בלי מייל`);
   const groups: Who[] = married ? ['client', 'spouse', 'home'] : ['client', 'home'];
   const matRow = (m: Material, withName = false) => (
     <div key={m.key} className={`aw-mat is-${m.state}`} data-aw-mat={m.docKind ?? ''} data-state={m.state}>
@@ -181,6 +196,17 @@ export default function WealthWorkspace({ client, step, year, data, busy, run, s
         </div>
       )}
       {msg && <p className="aw-msg" role="status">{msg}</p>}
+
+      {/* ‼ 27.10.2026 · המספר האחד והגישור (docs/proposals/2026-10-27-wealth-declaration.html) — מעל ההצהרה */}
+      <WealthHero b={bridge} out={out} firstName={firstName} />
+      {bridge && p.previous?.asOfDate && (
+        <BridgeCard b={bridge} prevAsOf={p.previous.asOfDate} asOf={asOf} prevTotal={out.previous?.total ?? null} nowTotal={out.total} firstName={firstName} busy={busy}
+          asked={askedGap} onAsk={sent ? askGap : undefined}
+          onSaveIncome={(y, income, tax) => run(() => tyApi.recordFact(client.id, {
+            taxYear: year, itemKey: BRIDGE_INCOME, subjectRole: 'couple', periodKind: 'as_of', periodTo: asOf, answer: 'value', basis: 'final', requestId: step.id,
+            value: { years: { ...Object.fromEntries(incomesOf(data.facts, asOf).map(i => [i.year, { income: i.income, tax: i.tax }])), [y]: { income, tax } } },
+          } as never), `נרשם: ${y}`)} />
+      )}
 
       <div className="aw-grid">
         <section className="aw-mats" aria-labelledby="wd-mats-h">

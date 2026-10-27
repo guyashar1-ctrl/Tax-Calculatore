@@ -292,7 +292,10 @@ function promptForRaw(s: ItemStatus, ctx: AskCtx): AskPrompt {
   }
   // ‼ רשומה מובנית: פרטים (מעסיק, נכס, חשבון…) ושאלות התחולה — שדות נפרדים
   if (schema && (it.kind === 'detail' || it.input === 'record')) {
-    const context: Record<string, string> = { ...people, ...(isPeriodItem(it.key) ? (period && period.from === period.to ? { day: '1' } : { periodNoun: 'השנה' }) : {}) };
+    const context: Record<string, string> = { ...people, ...(isPeriodItem(it.key) ? (period && period.from === period.to ? { day: '1' } : { periodNoun: 'השנה' }) : {}),
+      // 27.10.2026 · הצהרת הון — «באיזו שנה» עד שנת ההצהרה
+      ...(schema === 'moneyIn' || schema === 'moneyOut' ? { toYear: (ctx.asOfDate ?? String(ctx.taxYear)).slice(0, 4) } : {}),
+      ...(it.key === 'wealth.loansReceived.details' ? { direction: 'in' } : {}) };
     // ‼ 13.10.2026 (גיא): בתיק ידוע שהאדם רשום כעוסק אבל העסק עצמו לא רשום — מציגים את מה שידוע ומבקשים להשלים
     const dealer = it.key === 'intake.businessDetails' ? dealerOf(c, role) : null;
     const lead = dealer ? `רשום/ה אצלנו כ${DEALER_KIND_LABELS[dealer]}. ` : '';

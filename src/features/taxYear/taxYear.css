@@ -686,6 +686,9 @@ button.rp-cell:disabled { cursor: default; }
 .ty-part[data-part="family"] { --pc: var(--chip-green-tx); }
 .ty-part[data-part="client"] { --pc: var(--chip-blue-tx); }
 .ty-part[data-part="spouse"] { --pc: var(--chip-violet-tx); }
+/* 27.10.2026 · הצהרת הון — «מה נכנס» בכתום */
+.ty-part[data-part="flows"] { --pc: #a0612a; }
+.ty-flow[data-part="flows"] { --br: #a0612a; --br-strong: #8a5323; --soft: #f8efe6; --accent-fill: #a0612a; --on-accent-fill: #fff; }
 .ty-part-bar { display: block; height: 6px; border-radius: 99px; background: var(--s3); overflow: hidden; }
 .ty-part-bar > i { display: block; height: 100%; border-radius: 99px; background: var(--pc); transition: width 300ms cubic-bezier(.23, 1, .32, 1); }
 .ty-part-l { display: block; margin-top: .25rem; font-size: var(--fs-12); font-weight: 600; color: var(--tx3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
