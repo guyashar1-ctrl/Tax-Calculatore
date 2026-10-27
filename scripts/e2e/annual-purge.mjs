@@ -236,6 +236,9 @@ async function runWidth(width) {
       (select count(*)::int from public.tax_info_asks where client_id = '${id}') asks,
       (select count(*)::int from public.tax_work_trash where client_id = '${id}') trash`))[0];
     ok(after.steps === 0 && after.asks === 0 && after.trash === 2, '⋯ ← «מחק לגמרי»: גם הדוח החדש נמחק, בלי זכר', JSON.stringify(after));
+    // ‼ 27.10.2026 (307) · מה שהשאלון הכניס לכרטיס — הוחזר; הצעות שנשארו בלי מקור — נמחקו
+    const cardLeft = (await env.sql(`select count(*)::int n from public.tax_fact_changes where client_id = '${id}' and source_ref like 'tax_year_fact:%' and status in ('accepted','pending')`))[0].n;
+    ok(cardLeft === 0, 'אחרי «מחק לגמרי»: אין עדכון כרטיס או הצעה שנשארו מהשאלון', cardLeft);
     await page.locator('.rl-name', { hasText: 'דוח שנתי 2025' }).first().waitFor({ state: 'detached', timeout: 15000 }).catch(() => {});
     ok(!(await page.locator('.rl-name', { hasText: 'דוח שנתי 2025' }).count()), 'השורה ירדה מ«בקשות»');
     ok((await env.sql(`select count(*)::int n from public.email_messages where client_id = '${id}'`))[0].n === 0, 'לא יצא מייל');

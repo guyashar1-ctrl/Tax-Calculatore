@@ -291,6 +291,8 @@ export const removeTaxWork = (stepId: string, mode: 'delete' | 'cancel', reason?
 export const restoreTaxWork = (stepId: string) =>
   call<{ asksBack: number; asksKept: number }>('restore_tax_work', { p_step_id: stepId });
 // ── 266 · «מחק לגמרי» — לבדיקות על הלקוח עצמו: גם התשובות, הקבצים וההזנה (עותק נסתר בשרת). dryRun = רק הספירה ──
-export type PurgeCounts = { answers: number; asks: number; facts: number; files: number; returns: number; estimates: number };
+// ‼ 307 · card* — עדכוני כרטיס מהעבודה: מוחזרים (undo), נשארים כי שונו מאז (kept), הצעות שנמחקות (dropped)
+export type PurgeCounts = { answers: number; asks: number; facts: number; files: number; returns: number; estimates: number;
+  cardUndo?: number; cardKept?: number; cardDropped?: number };
 export const purgeTaxWork = (stepId: string, dryRun = false) =>
   call<{ counts: PurgeCounts; dryRun?: boolean }>('purge_tax_work', { p_step_id: stepId, p_dry_run: dryRun });

@@ -35,6 +35,30 @@
       ]
     },
     {
+      "name": "«מחק לגמרי» (266/307): מחיקת עבודת מס לבדיקות — גם מה שהשאלון הכניס לכרטיס חוזר, והצעות בלי מקור נמחקות",
+      "invariants": [],
+      "globs": [
+        "supabase/266-purge-tax-work.sql",
+        "supabase/307-purge-reverts-card.sql",
+        "src/features/taxYear/RemoveWorkDialog.tsx",
+        "src/features/taxYear/recordToCard.ts",
+        "src/features/taxYear/useAutoAccept.ts",
+        "scripts/staging-test-purge-card-307.mjs"
+      ],
+      "suites": [
+        {
+          "script": "staging-test-purge-card-307.mjs",
+          "run": true,
+          "note": "307 · החזרת הכרטיס, שרשרת spouse, שדה ששונה מאז נשאר, field_meta, עותק נסתר"
+        },
+        {
+          "script": "e2e/annual-purge.mjs",
+          "run": false,
+          "note": "בדפדפן מול staging — דורש שרת"
+        }
+      ]
+    },
+    {
       "name": "ייצוג: בן/בת הזוג הרשום/ה, חתימות, הגשות בשע״ם",
       "invariants": [
         "INV-REP-01",

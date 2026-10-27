@@ -86,7 +86,10 @@ export default function RemoveWorkDialog({ stepId, title, onClose, onDone, purge
     ...(purge.answers ? [`${purge.answers} תשובות`] : []),
     ...(purge.files ? [`${purge.files} קבצים שהועלו`] : []),
     ...(purge.facts ? ['מה שהוזן'] : []),
+    ...(purge.cardUndo ? [`${purge.cardUndo} עדכונים שנכנסו לכרטיס`] : []),
+    ...(purge.cardDropped ? [`${purge.cardDropped} הצעות לכרטיס`] : []),
   ] : [];
+  const purgeStays = ['שאר הכרטיס', ...(purge?.cardKept ? [`${purge.cardKept} שדות בכרטיס ששונו אחר כך`] : []), 'יומן המיילים'];
   const canDelete = state?.mode === 'delete';
   const isRestore = state?.mode === 'none' && state.restorable;
   return (
@@ -126,7 +129,7 @@ export default function RemoveWorkDialog({ stepId, title, onClose, onDone, purge
               {pick === 'purge' && purge && (
                 <div className="rw-cols" data-rw-purge-list>
                   <div><b className="rw-h">נמחק</b><ul>{purgeGoes.map(x => <li key={x}>{x}</li>)}</ul></div>
-                  <div><b className="rw-h">נשאר</b><ul><li>הכרטיס</li><li>יומן המיילים</li></ul></div>
+                  <div><b className="rw-h">נשאר</b><ul>{purgeStays.map(x => <li key={x}>{x}</li>)}</ul></div>
                 </div>
               )}
               {state.mode !== 'none' && pick !== 'purge' && (
