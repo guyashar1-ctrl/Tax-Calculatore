@@ -34,7 +34,7 @@ export default function ShaamStopNotice({
       <div style={{ fontWeight: 600 }}>{stop.title}</div>
       <div>{stop.next}</div>
       {/* ‼ 26.10 · «מסך לא צפוי» — ההודעה של העובד חוזרת על הכותרת במילים אחרות; פעם אחת מספיק. */}
-      {workerMessage && stop.kind !== 'unexpected_screen' && (
+      {workerMessage && stop.kind !== 'unexpected_screen' && stop.kind !== 'page_not_loaded' && (
         <div style={{ color: 'var(--ink-3)', marginTop: '.2rem' }}>{workerMessage}</div>
       )}
       {/* ‼ המשפט הזה הוא הלב: הרו"ח צריך לדעת שייתכן שמשהו כן קרה בצד

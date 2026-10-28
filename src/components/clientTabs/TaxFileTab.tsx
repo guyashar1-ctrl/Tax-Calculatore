@@ -12,7 +12,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import SmartFilingsNote from '../../features/smartForms/SmartFilingsNote';
 import { supabase } from '../../lib/supabase';
-import type { Client, RentalTaxTrack, TaxAuthority, NiTracking } from '../../types';
+import type { Client, RentalTaxTrack, TaxAuthority, NiTracking, RepresentationRequest } from '../../types';
 import { FAMILY_STATUS_LABELS, FAMILY_STATUS_YEAR_LABELS } from '../../types';
 import { FAMILY_STATUS_YEAR_KEY, familyStatusDisplay, familyStatusEventYear, familyStatusYearProblem } from '../../utils/familyStatusYear';
 import FamilyStatusYearField from '../FamilyStatusYearField';
@@ -124,6 +124,8 @@ interface Props {
   onFocusConsumed?: () => void;
   /** השרת פתח בקשות (שחרור הבקשות שחיכו לסוג העוסק) — לרענן את «בקשות». */
   onRequestsChanged?: () => void;
+  /** בקשת הייצוג — «בדוק אם נקלט» רץ בשורת מס הכנסה (29.10). */
+  repRequest?: RepresentationRequest;
   /**
    * 16.10.2026 · «כל עבודה היא בקשה»: «השלם עם הלקוח» ו«דוחות והצהרות» נוחתים בשורת הבקשה
    * ב«בקשות» (שם העבודה נפתחת בתוך השורה), לא במסך תהליך שלישי.
@@ -254,7 +256,7 @@ export default function TaxFileTab({
   onClientPersisted, onOpenKnowledge, onOpenDetails,
   onRunAlignment, alignBusy, onOpenDetailedAlignment, alignedAt, steps, onCreateTask, onCreateRequest, creatingRequestKey,
   onOpenRepresentation, onAddNiTarget, onOpenRequestStep, onUpdateClientFields, onNiInstructionsSent, niExecution,
-  focusField, onFocusConsumed, onRequestsChanged, onOpenRequest,
+  focusField, onFocusConsumed, onRequestsChanged, onOpenRequest, repRequest,
 }: Props) {
   const { pending, refresh, acceptFact, rejectFact, recordManualEdit } = useTaxFacts(client.id || undefined);
   // חובות פתוחות «מרשימות שע״ם» — כדי ש«דוחות והצהרות» לא יגיד «אין … פתוחים» מעליהן.
@@ -1265,6 +1267,8 @@ export default function TaxFileTab({
         onFactsChanged={refresh}
         onOpenSpouseClient={onOpenSpouseClient}
         onOpenRepresentation={onOpenRepresentation}
+        repRequest={repRequest}
+        onRepChanged={onRequestsChanged}
         onAddNiTarget={onAddNiTarget}
         onOpenRequestStep={onOpenRequestStep}
         onSendNiInstructions={setNiInstructionsFor}

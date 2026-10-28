@@ -39,6 +39,8 @@ export type ShaamStopKind =
   | 'verification_rejected'
   /** מסך לא מזוהה. הקוד צריך תיקון לפני ניסיון נוסף. */
   | 'unexpected_screen'
+  /** הדף בשע״ם נשאר ריק — תקלה זמנית אצלם, לא באג. */
+  | 'page_not_loaded'
   /** חסר חיבור לשע״ם. */
   | 'not_connected'
   /** 204 · השידור ממתין למסמך ששע״ם דורשת — לא תקלה, ולא «נסה שוב». */
@@ -123,6 +125,17 @@ export function shaamStopState(job: AutomationJob | null | undefined): ShaamStop
       title: 'המסך בשע״ם אינו זה שציפינו לו',
       next: 'לא נלחץ שום דבר. דווחו על כך — האוטומציה תתוקן לפני ניסיון נוסף.',
       mayHaveActed: touched, allowDirectRetry: false, suggestCheck: touched,
+    };
+  }
+  // ‼ 29.10.2026 · העובד מבחין עכשיו בדף ריק (isBlankScreen) — «נסו שוב בעוד כמה דקות», לא «דווחו».
+  if (code === 'page_not_loaded') {
+    return {
+      kind: 'page_not_loaded',
+      title: 'הדף בשע״ם לא נטען',
+      next: touched
+        ? 'זו בדרך כלל תקלה זמנית בשע״ם. כבר הייתה פנייה לשע״ם, ולכן הריצו קודם «בדוק קבלת הייצוג».'
+        : 'זו בדרך כלל תקלה זמנית בשע״ם. שום דבר לא נשלח — נסו שוב בעוד כמה דקות.',
+      mayHaveActed: touched, allowDirectRetry: !touched, suggestCheck: touched,
     };
   }
   if (code === 'entity_verification_failed') {

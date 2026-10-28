@@ -21,6 +21,7 @@ import { shaamPreSigningDocs, shaamClientDocumentsPending } from '../features/re
 import { loadStampRoom, stampAndStore, type Branding, type StampRoomState } from '../features/representation/stampDocument';
 import SigningRoom from './signatureRequest/SigningRoom';
 import ShaamNextActionButton from './ShaamNextActionButton';
+import ShaamReceiptCheck from './ShaamReceiptCheck';
 
 interface Props {
   request: RepresentationRequest;
@@ -92,26 +93,7 @@ export default function StampAndSendShaam({
 
   // ‼ 25.10.2026 · אחרי ההגשה — אותו מקום, הצעד הבא: «בדוק אם נקלט» (בדיקה בלבד, לא משדרת).
   if (view.status === 'awaiting_authorities') {
-    const checks = submissions
-      .map(sub => ({ sub, action: shaamRepresentationAction(view.status, view.execution?.shaam?.[sub.key], true) }))
-      .filter(x => x.action?.kind === 'check');
-    if (checks.length === 0) return null;
-    return (
-      <>
-        {checks.map(({ sub, action }) => (
-          <div key={sub.key}>
-            {checks.length > 1 && sub.title && (
-              <div style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)', marginBottom: '.2rem' }}>{sub.title}</div>
-            )}
-            <ShaamNextActionButton
-              request={view} linkedClient={linkedClient} submission={sub} action={action ? { ...action, label: 'בדוק אם נקלט' } : action}
-              tracking={view.execution?.shaam?.[sub.key]} married={people.married}
-              onChanged={onChanged} className="btn btn-sm" errorClassName={errorClassName}
-            />
-          </div>
-        ))}
-      </>
-    );
+    return <ShaamReceiptCheck request={view} linkedClient={linkedClient} onChanged={onChanged} errorClassName={errorClassName} />;
   }
 
   if (view.status !== 'awaiting_stamp' || docs.length === 0) return null;

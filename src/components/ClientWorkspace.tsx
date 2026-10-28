@@ -1085,6 +1085,7 @@ export default function ClientWorkspace({
             onCreateRequest={(flag) => void createFlagRequest(flag)}
             creatingRequestKey={creatingRequestKey}
             onOpenRepresentation={onOpenRepresentation ? () => onOpenRepresentation(client.id) : undefined}
+            repRequest={repRequest}
             onAddNiTarget={onAddNiTarget ? (role) => onAddNiTarget(client.id, role) : undefined}
             onOpenRequestStep={onOpenRequestStep ? () => onOpenRequestStep(client.id) : undefined}
             onUpdateClientFields={onUpdateClientFields ? (patch) => onUpdateClientFields(client.id, patch) : undefined}

@@ -13,8 +13,9 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { createAutomationJob, cancelAutomationJob } from '../lib/automationJobs';
+import { createAutomationJob, cancelAutomationJob, fetchLatestAutomationJob, jobIsLive } from '../lib/automationJobs';
 import { createAutomationJobAfter } from '../lib/automationFollowups';
+import { releaseStaleOpenJob } from '../lib/automationJobStart';
 import { automationJobFromDb } from '../lib/dbMappers';
 import {
   SHAAM_CONNECT_ACTION_TYPE, BTL_CONNECT_ACTION_TYPE, SHAAM_ENSURE_CAPABILITY_ACTION_TYPE,
@@ -220,9 +221,19 @@ export function useAutomationGate(capability: string): AutomationGate {
         if (layerName) {
           setEnsureJobId(r.jobId ?? null);
           // ‼ שרשור: הפעולה בתור מאחורי הפתיחה — לא מריצים אותה שוב כשהמסך יראה «מוכן».
+          // ‼ 29.10 · משימה ישנה שנתקעה («ממתין לך») נסגרת קודם — אחרת השרת מחזיר אותה
+          // כ«כבר קיימת» ושום דבר לא רץ. לא נסגרה (למשל נגעה בשע״ם ודורשת אישור) ⇒
+          // לא משרשרים; הפעולה רצה כשהשכבה מוכנה, ושם מוצג מה עוצר.
           if (chain && r.jobId) {
-            const after = await createAutomationJobAfter(chain.clientId, chain.actionType, chain.input, r.jobId);
-            if (after.ok) { pending.current = null; chained.current = true; }
+            const released = await releaseStaleOpenJob(
+              { fetchLatest: fetchLatestAutomationJob, cancel: cancelAutomationJob, isLive: jobIsLive },
+              { clientId: chain.clientId, actionType: chain.actionType },
+            );
+            const after = released.ok
+              ? await createAutomationJobAfter(chain.clientId, chain.actionType, chain.input, r.jobId)
+              : null;
+            const answeredByStale = !!after?.ok && 'job' in after && !!after.already && !jobIsLive(after.job);
+            if (after?.ok && !answeredByStale) { pending.current = null; chained.current = true; }
           }
           setNotice({ tone: 'wait', text: chain
             ? `פותח את ${layerName} בחלון שע״ם, והפעולה יוצאת מיד אחריו. אם תתבקש התחברות — השלימו אותה שם.`

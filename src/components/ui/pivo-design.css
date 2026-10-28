@@ -4475,6 +4475,9 @@ input.pg-search:focus { box-shadow: 0 0 0 2px var(--focus-ring); border-color: t
 .txf-qt-err{grid-column:1/-1;font-size:11px;color:var(--err)}
 /* פרק 17: שורת מצב/שגיאה מתחת ל«הפעולה הבאה» בעמודת רשות במרכז ביצוע הייצוג */
 .rep-track-next-err{font-size:var(--fs-12);color:var(--err);line-height:1.5}
+/* 29.10 · «בדוק אם נקלט» (ShaamReceiptCheck) — עטיפה לכל הגשה שמקבלת את יישור העמודה: הכפתור בקצה, לא לפי הטקסט שמתחתיו. */
+.shaam-check-item{display:flex;flex-direction:column;align-items:inherit;gap:4px;min-width:0}
+.shaam-check-who{font-size:var(--fs-12);color:var(--ink-3)}
 
 @media (max-width:640px){
   .txf-qtable-head{display:none}
@@ -4879,6 +4882,9 @@ input.pg-search:focus { box-shadow: 0 0 0 2px var(--focus-ring); border-color: t
 .txf-row-headwrap{display:flex;align-items:stretch}
 .txf-row-headwrap .txf-row-head{flex:1;min-width:0}
 .txf-row-act{display:flex;align-items:center;padding-inline-end:14px;flex:none}
+/* 29.10 · «בדוק אם נקלט» בשורת מס הכנסה — הכפתור בקצה, ההערה האפורה מתחתיו בלי להרחיב את השורה. */
+.txf-row-act .shaam-check-item{align-items:flex-end;max-width:260px}
+.txf-detail-read{display:flex;margin:2px 0 10px}
 .txf-check-btn{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;
   border:1px solid var(--bd);border-radius:7px;background:var(--card);color:var(--ink-2);
   font:inherit;font-size:var(--fs-12);cursor:pointer;white-space:nowrap}

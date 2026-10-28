@@ -154,6 +154,15 @@ export async function captureDiagnostics(page, stage) {
   return { stage, ...snap };
 }
 
+/** בלי כותרת, כפתור, שדה, חלון או טקסט — הדף לא נטען. */
+export function isBlankScreen(d) {
+  if (!d || d.error) return false;
+  const none = (a) => !a || a.length === 0;
+  return none(d.headings) && none(d.buttons) && none(d.fieldLabels)
+    && !d.dialogOpen && !d.hasPasswordField
+    && (typeof d.textLength !== 'number' || d.textLength < 30);
+}
+
 /**
  * מסך לא מזוהה ⇒ עצירה, עם ראיות בלוג ועם הודעה אנושית במסך.
  *
@@ -161,6 +170,15 @@ export async function captureDiagnostics(page, stage) {
  * הטכני נשאר ב-`errorDetail` וביומן העובד.
  */
 export function unknownScreenError(operation, stage, diagnostics) {
+  // ‼ 29.10.2026 (ליאת, 25.10): דף ריק אינו «מסך שלא הכרנו» — שע״ם לא טענה אותו. «דווחו,
+  // האוטומציה תתוקן» היה שולח לחפש באג שאין. אותה מחלקת שגיאה (196 לא משתנה), קוד אחר.
+  if (isBlankScreen(diagnostics)) {
+    return new NeedsHumanError(
+      `${operation} נעצרה: הדף בשע״ם לא נטען (נשאר ריק) בשלב «${stage}». ` +
+      'זו בדרך כלל תקלה זמנית בשע״ם. במסך הזה לא נלחץ שום דבר. נסו שוב בעוד כמה דקות.',
+      'page_not_loaded',
+    );
+  }
   const seen = (diagnostics.headings ?? []).slice(0, 3).join(' · ')
     || (diagnostics.buttons ?? []).slice(0, 4).join(' · ')
     || 'מסך לא מזוהה';

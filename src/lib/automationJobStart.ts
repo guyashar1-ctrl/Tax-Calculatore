@@ -38,27 +38,43 @@ export interface StartJobResult {
   error?: string;
 }
 
+export type ReleaseStaleResult =
+  | { ok: true; replacedJobId?: string }
+  | { ok: false; code: 'fetch_failed' | 'requires_acknowledgement' | 'cancel_failed'; job?: AutomationJob; error?: string };
+
+/**
+ * סוגרת משימה פתוחה-אבל-לא-חיה של (לקוח, פעולה) — כדי שלחיצה חדשה לא «תיענה» על ידיה.
+ * ‼ 29.10.2026 (ליאת): «בדוק אם נקלט» דרך השרשור (create_automation_job_after) קיבל את
+ * הבדיקה התקועה מ-25.10 כ«כבר קיימת», ושום בדיקה לא רצה. אותו כלל משמש עכשיו את שני הנתיבים.
+ */
+export async function releaseStaleOpenJob(
+  deps: Pick<StartJobDeps, 'fetchLatest' | 'cancel' | 'isLive'>,
+  { clientId, actionType, acknowledgeExternal = false }:
+    { clientId: string; actionType: string; acknowledgeExternal?: boolean },
+): Promise<ReleaseStaleResult> {
+  const existing = await deps.fetchLatest(clientId, actionType);
+  if (existing.error) return { ok: false, code: 'fetch_failed', error: existing.error };
+  const prev = existing.job;
+  if (!prev || !OPEN_AUTOMATION_STATUSES.has(prev.status) || deps.isLive(prev)) return { ok: true };
+  const c = await deps.cancel(prev.id, acknowledgeExternal === true);
+  if (!c.ok) {
+    // ‼ לא ממשיכים ליצירה: האינדקס הייחודי היה מחזיר את הישנה, והלחיצה
+    // הייתה «מצליחה» בלי שקרה דבר.
+    return c.error === 'external_attempt_requires_acknowledgement'
+      ? { ok: false, code: 'requires_acknowledgement', job: prev, error: c.error }
+      : { ok: false, code: 'cancel_failed', job: prev, error: c.error };
+  }
+  return { ok: true, replacedJobId: prev.id };
+}
+
 export async function startAutomationJob(
   deps: StartJobDeps,
   { clientId, actionType, input, acknowledgeExternal = false }:
     { clientId: string; actionType: string; input: Record<string, unknown>; acknowledgeExternal?: boolean },
 ): Promise<StartJobResult> {
-  const existing = await deps.fetchLatest(clientId, actionType);
-  if (existing.error) return { ok: false, code: 'fetch_failed', error: existing.error };
-
-  let replacedJobId: string | undefined;
-  const prev = existing.job;
-  if (prev && OPEN_AUTOMATION_STATUSES.has(prev.status) && !deps.isLive(prev)) {
-    const c = await deps.cancel(prev.id, acknowledgeExternal === true);
-    if (!c.ok) {
-      // ‼ לא ממשיכים ליצירה: האינדקס הייחודי היה מחזיר את הישנה, והלחיצה
-      // הייתה «מצליחה» בלי שקרה דבר.
-      return c.error === 'external_attempt_requires_acknowledgement'
-        ? { ok: false, code: 'requires_acknowledgement', job: prev, error: c.error }
-        : { ok: false, code: 'cancel_failed', job: prev, error: c.error };
-    }
-    replacedJobId = prev.id;
-  }
+  const released = await releaseStaleOpenJob(deps, { clientId, actionType, acknowledgeExternal });
+  if (!released.ok) return { ok: false, code: released.code, job: released.job, error: released.error };
+  const replacedJobId = released.replacedJobId;
 
   const r = await deps.create(clientId, actionType, input);
   if (!r.ok) return { ok: false, code: 'create_failed', error: r.error, replacedJobId };

@@ -65,6 +65,22 @@ export const TESTS: TestCase[] = [
     equal(s?.allowDirectRetry, false);
   }),
 
+  // ‼ 29.10 (ליאת 25.10): דף ריק בשע״ם — תקלה זמנית, לא «דווחו».
+  test('9א · דף שלא נטען — ניסיון נוסף מותר כשלא נגענו, בלי «דווחו»', () => {
+    const s = shaamStopState(job({ errorCode: 'page_not_loaded', progress: {} }));
+    equal(s?.kind, 'page_not_loaded');
+    equal(s?.mayHaveActed, false);
+    equal(s?.allowDirectRetry, true);
+    assert(!/דווח/.test(`${s?.title} ${s?.next}`), 'בלי «דווחו»');
+  }),
+
+  test('9א · דף שלא נטען אחרי שכבר פנינו — קודם בודקים', () => {
+    const s = shaamStopState(job({ errorCode: 'page_not_loaded', progress: touched }));
+    equal(s?.mayHaveActed, true);
+    equal(s?.allowDirectRetry, false);
+    equal(s?.suggestCheck, true);
+  }),
+
   test('3 · אימות ישות שנדחה — לא ננסה שוב, בודקים מול הלקוח', () => {
     const s = shaamStopState(job({ errorCode: 'entity_verification_failed' }));
     equal(s?.kind, 'verification_rejected');

@@ -6,7 +6,7 @@
 import type { AutomationJob } from '../../types/automation';
 import { test, equal, assert } from '../../testkit/tinyTest';
 import type { TestCase } from '../../testkit/tinyTest';
-import { startAutomationJob, startJobMessage, type StartJobDeps } from '../automationJobStart';
+import { startAutomationJob, startJobMessage, releaseStaleOpenJob, type StartJobDeps } from '../automationJobStart';
 import { jobIsLive } from '../automationJobLease';
 
 /** מסד מדומה עם אותם חוקים כמו השרת: פתוחה אחת לכל (לקוח, פעולה); 196. */
@@ -126,5 +126,31 @@ export const TESTS: TestCase[] = [
     const r = await startAutomationJob(db.deps, ARGS);
     equal(r.code, 'fetch_failed');
     assert(!db.calls.includes('create'), 'לא נקראה יצירה');
+  }),
+
+  // ‼ 29.10 (ליאת): בדיקה תקועה מ-25.10 «ענתה» על הלחיצה בשרשור ושום בדיקה לא רצה.
+  test('שרשור: בדיקה תקועה (needs_human, לא נגעה) נסגרת לפני שמשרשרים חדשה', async () => {
+    const stuck = { ...UNKNOWN, actionType: 'shaam.check_representation', progress: {}, errorCode: 'shaam_unexpected_screen' } as unknown as AutomationJob;
+    const db = fakeDb([stuck]);
+    const r = await releaseStaleOpenJob(db.deps, { clientId: 'c1', actionType: 'shaam.check_representation' });
+    equal(r.ok, true);
+    equal(r.ok && r.replacedJobId, '6cb22ea9');
+    equal(db.jobs[0].status, 'cancelled', 'נשארת בהיסטוריה כמבוטלת');
+    equal(db.calls.join(','), 'fetch,cancel:false');
+  }),
+
+  test('שרשור: פעולה שנגעה בשע״ם — לא נסגרת בלי אישור, ולא משרשרים', async () => {
+    const db = fakeDb([{ ...UNKNOWN }]);
+    const r = await releaseStaleOpenJob(db.deps, { clientId: 'c1', actionType: 'shaam.submit_poa' });
+    equal(r.ok, false);
+    equal(!r.ok && r.code, 'requires_acknowledgement');
+    equal(db.jobs[0].status, 'needs_human');
+  }),
+
+  test('שרשור: אין משימה פתוחה — אין מה לסגור', async () => {
+    const db = fakeDb([{ ...UNKNOWN, status: 'succeeded' } as unknown as AutomationJob]);
+    const r = await releaseStaleOpenJob(db.deps, { clientId: 'c1', actionType: 'shaam.submit_poa' });
+    equal(r.ok, true);
+    equal(db.calls.join(','), 'fetch');
   }),
 ];

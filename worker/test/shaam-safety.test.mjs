@@ -179,3 +179,24 @@ test('6 · כל הודעת עצירה אומרת מה נעשה, ושלא ינו�
   assert.match(msg, /לא ידוע אם הרשות קלטה/, 'אומרת שייתכן שקרה משהו בצד שע״ם');
   assert.match(msg, /לא תנסה שוב/, 'אומרת שלא יהיה ניסיון אוטומטי');
 });
+
+// ── 9א. דף ריק ⇒ «לא נטען», לא «מסך לא מזוהה» (29.10.2026, ליאת 25.10) ─────
+
+test('9א · דף ריק — תקלה זמנית בשע״ם, בלי «דווחו»', () => {
+  const blank = {
+    stage: 'פתיחת מערכת רישום הייצוג', url: 'https://shaam.taxes.gov.il/srmyzgipuykoach/', hash: '',
+    headings: [], buttons: [], fieldLabels: [], dialogOpen: false, hasPasswordField: false,
+  };
+  const e = unknownScreenError('בדיקת קבלת הייצוג', 'פתיחת מערכת רישום הייצוג', blank);
+  assert.ok(e instanceof NeedsHumanError, '196 לא משתנה — אותה מחלקה');
+  assert.equal(e.code, 'page_not_loaded');
+  assert.match(e.message, /לא נטען/);
+  assert.doesNotMatch(e.message, /דווח/);
+  // עם טקסט על המסך — זה כבר לא «ריק»
+  const withText = { ...blank, textLength: 400 };
+  assert.equal(unknownScreenError('x', 'y', withText).code, 'shaam_unexpected_screen');
+  // חלון פתוח — לא ריק
+  assert.equal(unknownScreenError('x', 'y', { ...blank, dialogOpen: true }).code, 'shaam_unexpected_screen');
+  // האבחון עצמו נכשל — לא מנחשים «ריק»
+  assert.equal(unknownScreenError('x', 'y', { error: 'boom' }).code, 'shaam_unexpected_screen');
+});

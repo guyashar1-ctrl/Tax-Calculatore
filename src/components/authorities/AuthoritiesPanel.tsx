@@ -20,7 +20,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import type { Client, TaxAuthority, NiOccupation } from '../../types';
+import type { Client, TaxAuthority, NiOccupation, RepresentationRequest } from '../../types';
 import { TAX_AUTHORITY_LABELS } from '../../types';
 import type { TaxFactChange, ProposedFact } from '../../types/taxFacts';
 import type { AutomationJob } from '../../types/automation';
@@ -51,6 +51,7 @@ import { TRow, SrcLine } from '../clientTabs/taxFileRows';
 import { OccupationsEditor, newOccupationRow } from '../clientTabs/InstitutionAlignment';
 import type { OccupationDraft } from '../clientTabs/InstitutionAlignment';
 import NiNextActionButton from '../NiNextActionButton';
+import ShaamReceiptCheck from '../ShaamReceiptCheck';
 import AuthorityFieldHelp from './AuthorityFieldHelp';
 import { useBtlIncomeReads } from '../../hooks/useBtlIncomeReads';
 import { loadOccupationsWindowStart } from '../../features/nationalInsurance/occupationsWindow';
@@ -70,6 +71,10 @@ export interface AuthoritiesPanelProps {
   onOpenSpouseClient?: (clientId: string) => void;
   /** «המשך במרכז הייצוג» בשורת ייצוג ב"ל. */
   onOpenRepresentation?: () => void;
+  /** בקשת הייצוג — כדי ש«בדוק אם נקלט» ירוץ כאן בשורת מס הכנסה, ולא רק יעביר מסך. */
+  repRequest?: RepresentationRequest;
+  /** הבדיקה בשע״ם הסתיימה — המארח מרענן את הבקשה והכרטיס. */
+  onRepChanged?: () => void;
   /** «בקש ייצוג» לרשות×אדם — יוצר את הבקשה במשטח "בקשות" (157). */
   onAddNiTarget?: (role: 'client' | 'spouse') => Promise<{ error: string | null; stepId?: string }>;
   /** אחרי שנוצרה בקשה — קפיצה למשטח "בקשות", שם היא חיה. */
@@ -116,7 +121,7 @@ export default function AuthoritiesPanel({
   client, spouseClient, niExecution, alignedAt, onClientPersisted, onFactsChanged,
   onOpenSpouseClient, onOpenRepresentation, onAddNiTarget, onOpenRequestStep,
   onSendNiInstructions, onNiInstructionsSent, onOpenDetailed, emptyState, hideRepresentationPlaceholder, hideNiRepresentationActions,
-  jobOverrides,
+  jobOverrides, repRequest, onRepChanged,
 }: AuthoritiesPanelProps) {
   const { acceptFact, recordManualEdit, refresh: refreshFacts } = useTaxFacts(client.id || undefined);
   const [openRows, setOpenRows] = useState<Set<string>>(new Set());
@@ -519,6 +524,17 @@ export default function AuthoritiesPanel({
           inputRes && 'input' in inputRes && Array.isArray(inputRes.input.subjects)
             ? (inputRes.input.subjects as { role: string }[]).map(s => s.role) : [],
         );
+        const readButton = spec ? (
+          <AuthorityCheckButton label={spec.actionLabel} capability={spec.capability ?? ''}
+            running={running} onRun={() => runCheck()} unavailableReason={unavailable} inputBlockedReason={inputBlocked} />
+        ) : null;
+        // ‼ 29.10.2026 (גיא): כפתור אחד בשורה. כל עוד הייצוג מול שע״ם בתהליך, הכפתור הוא
+        // הצעד של הייצוג; «קריאת תיק…» עוברת לפירוט השורה. ייצוג פעיל ⇒ אין צעד, והקריאה חוזרת לראש.
+        const repOwnsHead = row.authority === 'income_tax' && !!shaamRepAction && !hideRepresentationPlaceholder;
+        const receiptCheck = repOwnsHead && repRequest && client.id && repRequest.status === 'awaiting_authorities'
+          ? <ShaamReceiptCheck request={repRequest} linkedClient={client} onChanged={onRepChanged}
+              className="txf-check-btn" errorClassName="txf-check-note" />
+          : null;
 
         const renderValue = (f: AuthorityRowFact, editing: boolean, owner: 'client' | 'spouse') => {
           const def = f.editKey ? EDIT_FIELD_BY_KEY[f.editKey] : undefined;
@@ -561,17 +577,17 @@ export default function AuthoritiesPanel({
             onToggle={toggleRow}
             action={
               <>
-                {spec && (
-                  <AuthorityCheckButton label={spec.actionLabel} capability={spec.capability ?? ''}
-                    running={running} onRun={() => runCheck()} unavailableReason={unavailable} inputBlockedReason={inputBlocked} />
-                )}
+                {spec && !repOwnsHead && readButton}
+                {/* ‼ 29.10.2026 (ליאת): אחרי ההגשה — «בדוק אם נקלט» רץ כאן, אותו רכיב כמו
+                    בשורת «ייצוג מול הרשויות» ב«בקשות» (קריאה בלבד). */}
+                {repOwnsHead && receiptCheck}
                 {/* ‼ פרק 17/194: תא הפעולה של שע״ם. האוטומציה עצמה רצה
                     במרכז ביצוע הייצוג — שם יושבים הבקשה, ההגשות, הטפסים
                     והחתימות שהיא צריכה. כאן מוצגת **אותה תווית בדיוק**
                     (מאותה נגזרת), והלחיצה מביאה לשם. ‼ בכוונה לא משוכפלת
                     כאן פעולה שנייה מול רשות: שני כפתורים שמריצים את אותה
                     פעולה משני מסכים הם בדיוק איך נוצרות בקשות כפולות. */}
-                {row.authority === 'income_tax' && shaamRepAction && !hideRepresentationPlaceholder && (
+                {repOwnsHead && !receiptCheck && (
                   <button type="button" className="txf-check-btn btn-automation"
                     disabled={!onOpenRepresentation}
                     title={onOpenRepresentation
@@ -738,6 +754,9 @@ export default function AuthoritiesPanel({
                 })}
               </div>
             )}
+
+            {/* ‼ 29.10 · הצעד של הייצוג תפס את ראש השורה — הקריאה מהרשות זמינה כאן, בפירוט. */}
+            {repOwnsHead && readButton && !cardEditing && <div className="txf-detail-read">{readButton}</div>}
 
             {/* ‼ סיכום הבדיקה פעם אחת לכרטיס: מה נבדק, כמה שינויים, כפתור
                 אישור אחד — גם שגיאת ריצה וגם סיבת חסימה, לא ליד כל שדה. */}

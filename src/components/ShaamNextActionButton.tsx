@@ -256,7 +256,14 @@ export default function ShaamNextActionButton({
 
       {/* ‼ הפאנל חי ברכיב משלו (ShaamStopNotice) — אותה תצוגה
           בכל מקום, וניתנת להצגה ולבדיקה בלי משימה אמיתית. */}
-      {stop && (
+      {/* ‼ 29.10.2026 (ליאת): בדיקה (קריאה בלבד) שלא הושלמה — שורה אפורה אחת, עד הבדיקה הבאה.
+          לא פאנל אדום ולא «בכל זאת לנסות שוב»: הכפתור עצמו הוא הניסיון הבא, ושום דבר לא שונה בשע״ם. */}
+      {stop && !running && !gate.connecting && action.kind === 'check' && !stop.mayHaveActed && (
+        <div className={errorClassName} style={{ color: 'var(--ink-3)' }} title={job?.needsHuman ?? job?.errorDetail ?? undefined}>
+          הבדיקה הקודמת לא הושלמה: {stop.title}
+        </div>
+      )}
+      {stop && !running && !gate.connecting && !(action.kind === 'check' && !stop.mayHaveActed) && (
         <ShaamStopNotice
           stop={stop}
           workerMessage={job?.needsHuman ?? undefined}
