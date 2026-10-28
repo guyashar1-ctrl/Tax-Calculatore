@@ -82,13 +82,15 @@
         "src/components/Representation*.tsx",
         "src/components/ShaamNextActionButton.tsx",
         "src/components/StampAndSendShaam.tsx",
+        "src/components/ShaamReceiptCheck.tsx",
         "src/components/clientTabs/OnboardingTab.tsx",
         "supabase/2*-*registered*.sql",
         "supabase/2*-*signature*.sql",
         "supabase/2*-*shaam*.sql",
         "supabase/2*-*rep-*.sql",
         "worker/src/handlers/shaam*.mjs",
-        "worker/src/shaamRepresentationSession.mjs"
+        "worker/src/shaamRepresentationSession.mjs",
+        "worker/src/shaamSafety.mjs"
       ],
       "suites": [
         {
@@ -371,6 +373,7 @@
         "src/utils/authorityRows.ts",
         "src/components/authorities/AuthoritiesPanel.tsx",
         "src/components/clientTabs/AuthorityCheckPanel.tsx",
+        "src/components/clientTabs/TaxFileTab.tsx",
         "src/components/clientTabs/InstitutionAlignment.tsx",
         "src/features/shaamFiling/**",
         "worker/src/gmf154.mjs",
