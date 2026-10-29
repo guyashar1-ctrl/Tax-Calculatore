@@ -25,7 +25,7 @@ export type MaintenanceScope = PromptScope | { kind: 'topic'; topicId: string } 
 /** טפסים שהמערכת מכירה — לפרומפט «טופס לשנה חדשה». */
 export const NEW_FORM_TARGETS: { formId: string; label: string; touches: string }[] = [
   { formId: '1301', label: '1301 — הדוח השנתי ליחיד (ונספחיו)', touches: 'taxForms/data/form1301-<שנה>.catalog.json, annexes-<שנה>.catalog.json, annex-info-<שנה>.json, form1301.ts (FORM_VERSIONS, שדות ממופים), coverage1301.ts, sourceDocs.ts (קודים), topics.ts (FIELD_MAP_*), שאלוני שנת המס (features/taxYear/catalog.ts)' },
-  { formId: '6111', label: '6111 — דוחות כספיים מקודדים', touches: 'expenseDictionary.ts (קודי 6111 לשנה), Form6111Body.tsx (מבנה וספים), כלל form6111.threshold' },
+  { formId: '6111', label: '6111 — דוחות כספיים מקודדים', touches: 'expenseDictionary.ts (מחקר קודי 6111 לשנה), bookkeeping/handbookData.ts (מדיניות המיון המשרדית, בלי לשנות אוטומטית), Form6111Body.tsx (מבנה וספים), כלל form6111.threshold' },
   { formId: '1320', label: '1320 — נספח א (עסק)', touches: 'expenseDictionary.ts (שורות 1320), annex-info-<שנה>.json' },
   { formId: '1322', label: '1322/1325 — ני״ע ורווח הון', touches: 'sourceDocs.ts (867, ברוקר), annexes-<שנה>.catalog.json' },
   { formId: '1324', label: '1324 — נספח ד (חו״ל)', touches: 'sourceDocs.ts (ברוקר), annexes-<שנה>.catalog.json' },
@@ -61,7 +61,7 @@ function buildNewFormPrompt(formId: string, taxYear: number): string {
 - גרסה חדשה (FORM_VERSIONS עם supersedes); הקודמת והמיפוי שלה נשארים — דוח של השנה הקודמת ממשיך לפיהם.
 - רכיבים שנוגעים בטופס הזה: ${t?.touches ?? 'לפי grep על מספר הטופס'}.
 - ערכים חדשים: RuleValue לשנה עם basis, sourceId, locator, checkedAt. תיקון לאותה שנה — revisions, לא מחיקה.
-- מילון הסיווג (expenseDictionary.ts, היום לשנת ${DICTIONARY_TAX_YEAR}, ${DICTIONARY.length} קטגוריות) — גרסה לשנה; סכומים משתנים (1,380 נייד, 240 מתנות, תקרות לינה, תקרת אכ״ע) נבדקים מחדש.
+- מיפוי המחקר (expenseDictionary.ts, היום לשנת ${DICTIONARY_TAX_YEAR}, ${DICTIONARY.length} קטגוריות) — גרסה לשנה; תורת המיון המשרדית נשמרת בנפרד ב-bookkeeping/handbookData.ts ומשותפת לכל הממשקים. אין להחליף מדיניות משרדית מתוך מחקר בלי החלטה מפורשת; סכומים משתנים (1,380 נייד, 240 מתנות, תקרות לינה, תקרת אכ״ע) נבדקים מחדש.
 - אסור: לשנות תשובות לקוח, עובדות שנתיות, הערכות או דוחות שאושרו, נתוני ייצור. שינוי שמשפיע על גרסה מאושרת — «נדרשת בדיקה» (reviewNeeded / changesSinceApproval), לא חישוב מחדש שקט.
 
 4. השפעה — לכל שינוי

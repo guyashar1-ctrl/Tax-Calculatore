@@ -15,7 +15,7 @@ export type OfficePageId =
   | 'taxWork'
   | 'profile' | 'team'
   | 'library' | 'flows' | 'pricing'
-  | 'emails' | 'automations' | 'connections';
+  | 'emails' | 'bookkeeping' | 'automations' | 'connections';
 
 export interface OfficePageDef {
   id: OfficePageId;
@@ -48,7 +48,8 @@ export const OFFICE_PAGES: OfficePageDef[] = [
   { id: 'flows', label: 'כללי פתיחה', blurb: 'מתי פותחים בקשות — למי, מה, ואיך זה מגיע ללקוח.' },
   { id: 'pricing', label: 'הצעות מחיר', blurb: 'שירותים, מחירים ותבניות הצעה.' },
   { id: 'emails', label: 'מיילים', blurb: 'הנוסח של כל מייל, ומה נשלח.' },
-  { id: 'automations', label: 'אוטומציות', blurb: 'מה קורה לבד, מה מפעיל את זה, ומה קרה בפעם האחרונה.' },
+  { id: 'bookkeeping', label: 'תורת הנהלת החשבונות', blurb: 'טבלת המיון המשרדית — מה בוחרים ואיך מכירים בהוצאה.' },
+  { id: 'automations', label: 'פעולות ואוטומציות', blurb: 'מה הפעולה עושה ואיך מפעילים אותה.' },
   { id: 'connections', label: 'חיבורים', blurb: 'יומן Google, שע״ם, ביטוח לאומי, מחשב העבודה ופייפרלס.' },
 ];
 

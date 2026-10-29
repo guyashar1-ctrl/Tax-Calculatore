@@ -28,6 +28,7 @@ import { FlowsPage } from './office/pages/FlowsPage';
 import EmailsPage from './office/pages/EmailsPage';
 import ConnectionsPage from './office/pages/ConnectionsPage';
 import AutomationsPage from './office/pages/AutomationsPage';
+import BookkeepingHandbook from '../features/bookkeeping/BookkeepingHandbook';
 import ClientPicker from './office/pages/ClientPicker';
 import type { ActivityFilter } from './office/pages/activityFilter';
 import Modal from './ui/Modal';
@@ -164,8 +165,8 @@ export default function FirmProfileConsole({ profile, clients, onSave, page: rou
 
   const def = pageDef(shown);
   // ‼ «מסלולים» תמיד ברוחב מלא: הבונה ו«מה יקרה» יושבים זה לצד זה במחשב.
-  // «אוטומציות» — שלוש עמודות (מה קורה · מה מפעיל · תוצאה אחרונה) צריכות רוחב.
-  const wide = ((shown === 'profile' || shown === 'emails') && pageWide) || shown === 'flows' || shown === 'automations';
+  // טבלת המיון וקטלוג הפעולות משתמשים ברוחב המלא של עמוד המשרד.
+  const wide = ((shown === 'profile' || shown === 'emails') && pageWide) || shown === 'flows' || shown === 'automations' || shown === 'bookkeeping';
 
   return (
     <div className="of" dir="rtl">
@@ -231,6 +232,7 @@ export default function FirmProfileConsole({ profile, clients, onSave, page: rou
               clients={clients} onOpenClient={onOpenClient ? id => onOpenClient(id, 'log') : undefined}
               focus={focus} logFilter={logFilter} onClearLogFilter={() => setLogFilter(null)} onWide={setPageWide} go={go} />
           )}
+          {shown === 'bookkeeping' && <BookkeepingHandbook />}
           {shown === 'automations' && (
             <AutomationsPage key={`automations-${focus ?? ''}`} clients={clients} focus={focus} go={go}
               onOpenClient={onOpenClient ? (id, tab, target) => onOpenClient(id, target === 'rep-center' ? 'rep-center' : tab) : undefined}

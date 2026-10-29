@@ -39,10 +39,10 @@ const entry = (stepType: string, extra: Partial<DefaultEntry> = {}): DefaultEntr
 
 export const TESTS: TestCase[] = [
   // ── מבנה ─────────────────────────────────────────────────────────────────
-  test('שמונה יעדים, כל אחד פעם אחת, וכל אחד עם שורה שאומרת מה יש בו', () => {
+  test('תשעה יעדים, כל אחד פעם אחת, וכל אחד עם שורה שאומרת מה יש בו', () => {
     // ‼ 14.10.2026: «עבודת מס» עברה ל«מס» ← «עבודות לקוחות» (features/taxArea) — כבר לא עמוד במשרד
-    equal(OFFICE_PAGES.length, 8);
-    deepEqual(OFFICE_PAGES.map(p => p.id), ['profile', 'team', 'library', 'flows', 'pricing', 'emails', 'automations', 'connections']);
+    equal(OFFICE_PAGES.length, 9);
+    deepEqual(OFFICE_PAGES.map(p => p.id), ['profile', 'team', 'library', 'flows', 'pricing', 'emails', 'bookkeeping', 'automations', 'connections']);
     const ids = OFFICE_PAGES.map(p => p.id);
     equal(new Set(ids).size, ids.length, 'אין עמוד כפול');
     for (const p of OFFICE_PAGES) equal(p.blurb.length > 10, true, `לעמוד ${p.id} יש שורת הסבר`);

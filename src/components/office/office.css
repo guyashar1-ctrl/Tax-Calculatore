@@ -689,3 +689,8 @@ button.of-var:focus-visible { outline: 2px solid var(--focus-ring); outline-offs
   .of-al-body .of-arow > .of-link { flex-basis: 100%; min-height: 32px; }
   .of-autop-uses li .of-link { min-height: 32px; display: inline-flex; align-items: center; }
 }
+
+/* בכותרת של עמודי המשרד: לשמור את החשבון נגיש גם ב-360px. */
+@media (max-width: 400px) {
+  .app:has(.of) > .header { gap: 8px; }
+}

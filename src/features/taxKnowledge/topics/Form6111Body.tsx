@@ -5,6 +5,7 @@
 import { useMemo, useState } from 'react';
 import { Sec, Quiz, type TopicBodyProps, type TocItem } from './shared';
 import { Glossary, Thinking, Mistakes, Legend, ClaimTag } from './lesson';
+import BookkeepingHandbook from '../../bookkeeping/BookkeepingHandbook';
 import { FORM6111_LESSON } from './lessonsReports';
 import { DICTIONARY, DICT_GROUP_HE, DICTIONARY_TAX_YEAR, dictionaryTsv, type DictGroup } from '../expenseDictionary';
 
@@ -22,7 +23,7 @@ const STRUCT = [
   ['רווח לפני מס', '—', '6666 (עובר ל-100)'], ['דוח התאמה למס', '100 עד 600', '370 · 400 · 500'], ['מאזן (חובה לחברה)', '7110 עד 9980', '8888 = 9999'],
 ];
 
-function Dictionary() {
+function TaxReferenceDictionary() {
   const [q, setQ] = useState('');
   const [g, setG] = useState<DictGroup | ''>('');
   const [msg, setMsg] = useState('');
@@ -46,7 +47,7 @@ function Dictionary() {
         <button type="button" className="btn btn-secondary btn-sm" onClick={() => void copy()}>העתק לטבלה ({shown.length})</button>
       </div>
       {msg && <p className="kn-xs kn-muted" role="status" style={{ margin: 0 }}>{msg}</p>}
-      <p className="kn-xs kn-muted" style={{ margin: 0 }}>קודי {DICTIONARY_TAX_YEAR}. «המלצה» = מיפוי מקצועי מוצע כאשר אין קוד ייעודי. בודקים את מהות העסקה; המשרד קובע אחידות בשמות ובמיפוי. שם בפייפרלס — יתווסף כשתתקבל רשימת הקטגוריות.</p>
+      <p className="kn-xs kn-muted" style={{ margin: 0 }}>מחקר מס לשנת {DICTIONARY_TAX_YEAR}: קודי דוח, מס הכנסה ומע״מ. קוד הדוח אינו הוראה לבחירת שם המיון בפייפרלס. מיון הוצאות בפייפרלס נעשה רק לפי תורת המשרד שלמעלה.</p>
       <div className="kn-dict" aria-live="polite">
         {shown.map(e => (
           <details key={e.key} className="kn-dict-row">
@@ -70,7 +71,7 @@ function Dictionary() {
 }
 
 const QUIZ = [
-  { q: 'מנוי Claude לעבודת המשרד — מה הקוד ב-6111?', options: [{ text: '3620 פרסום', right: false }, { text: '3680 משרדיות', right: true }, { text: '8050 מחשבים', right: false }], why: 'מנוי שוטף לתוכנה הוא הוצאה, לא נכס. בטופס אין קוד ל-SaaS — המלצת המחקר 3680, עד החלטת המשרד.', level: 'יסוד' as const },
+  { q: 'מנוי Claude לעבודת המשרד — מה הקוד ב-6111?', options: [{ text: '3620 פרסום', right: false }, { text: '3680 תוכנות ושירותים', right: true }, { text: '8050 מחשבים', right: false }], why: 'מנוי שוטף לתוכנה הוא הוצאה, לא נכס. בטופס אין קוד ל-SaaS — מדיניות המשרד היא 3680 «תוכנות ושירותים», עם משני לפי מקור הספק והמסמך.', level: 'יסוד' as const },
   { q: 'חשבונית אחת מ-Google: Ads ו-Workspace. איך מסווגים?', options: [{ text: 'כולה פרסום', right: false }, { text: 'מפצלים: Ads לפרסום, Workspace לתוכנה', right: true }, { text: 'כולה תוכנה', right: false }], why: 'הסיווג לפי מהות כל שורה, לא לפי הספק.', level: 'יישום' as const },
   { q: 'עסק ללא חריג, שמחזורו הרלוונטי לחובת 6111 הוא 255,000 ₪ לפני מע״מ בשיעור 18%: האם הוא מעל הסף?', options: [{ text: 'כן — כולל מע״מ זה 300,900', right: true }, { text: 'לא — מתחת ל-256,410 שבטופס', right: false }, { text: 'תלוי בהכרעת המשרד', right: false }], why: '255,000 × 1.18 = 300,900 ₪, מעל 300,000 כולל מע״מ. בשאלה הוגדר שזה המחזור הרלוונטי; בתיק אמיתי בודקים גם את השנה והחריגים.', level: 'מתקדם' as const },
 ];
@@ -108,7 +109,7 @@ export default function Form6111Body({ view }: TopicBodyProps) {
         <Sec id="f6-quiz" title="תרגול"><Quiz items={QUIZ} /></Sec>
       </>}
       {apply && <>
-        <Sec id="f6-dict" title="מילון הסיווג — לפייפרלס ולמשרד"><Dictionary /></Sec>
+        <Sec id="f6-dict" title="סיווג הוצאות — תורת המשרד ומחקר המס"><BookkeepingHandbook /><details className="bk-notes"><summary>כללי מס ומיפוי ל־6111 — מחקר מקצועי</summary><TaxReferenceDictionary /></details></Sec>
         <Sec id="f6-split" title="פיצול, שימוש מעורב וחילופי שנים">
           <ul className="kn-small">
             <li><b>פיצול לפי מהות:</b> קבלת סופר עם דלק, כיבוד ומוצרים פרטיים; חשבון סלולר עם חבילה ותשלום על מכשיר — שורה לכל מהות.</li>
