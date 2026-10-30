@@ -1,6 +1,6 @@
 // ─── «ספריית מסמכים» — קבצים קבועים לשליחה, וטפסים רשמיים שממולאים מהתיק ─────
-// שתי קבוצות, כל אחת עם פעולה אחת ברורה: «＋ קובץ» / «פתיחה». פעולות משניות (שינוי שם,
-// החלפה, הסרה) בתפריט ⋯ ובאישור במקום — לא שורות הסבר קבועות.
+// שתי קבוצות, כל אחת עם פעולה אחת ברורה: «＋ קובץ» / «פתיחה». ‼ 30.10.2026: בשורה שם ו«צפייה» בלבד
+// (LibRow, כמו «בקשות»); פתיחת הקובץ, שליחה, שינוי שם, החלפה והסרה — בלחיצה על השורה.
 // ‼ הקבצים נשמרים בטיוטת המשרד; «שמירה» של המשרד היא שמכניסה אותם לשימוש.
 // ‼ טופס ללקוח לא נפתח מכאן — רק מהלקוח: «בקשות» ← «בקשה חדשה». כאן מנהלים את התבנית.
 // ‼ (1.10.2026) כל שינוי נגזר מהטיוטה העדכנית ולא מהעותק שברינדור: העלאה
@@ -26,6 +26,7 @@ import type { ClientFormKey } from '../../features/smartForms/clientForms/types'
 import { assetRef, type AssetRef } from './officeModel';
 import { UsedIn, focusOfUse, type GoFn, type LibraryUse } from './pages/library/usedIn';
 import PreviewButton from '../../features/requestPreview/PreviewButton';
+import { LibRow, useOneOpen } from './pages/library/LibRow';
 import './clientDocs.css';
 
 const MAX_BYTES = 10 * 1024 * 1024;
@@ -39,38 +40,6 @@ function FileGlyph({ tone = 'doc' }: { tone?: 'doc' | 'form' }) {
         {tone === 'form' ? <><path d="M6 8.2h4.5M6 10.4h4.5M6 12.4h2.5" /></> : <path d="M6 9h4.5M6 11.2h3" />}
       </svg>
     </span>
-  );
-}
-
-/** תפריט ⋯ קטן — נסגר בלחיצה מחוצה לו או ב-Esc, והפוקוס חוזר לכפתור. */
-function RowMenu({ label, items }: { label: string; items: { label: string; sub?: string; danger?: boolean; onSelect: () => void }[] }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  const btn = useRef<HTMLButtonElement>(null);
-  useEffect(() => {
-    if (!open) return;
-    const down = (e: MouseEvent) => { if (!ref.current?.contains(e.target as Node)) setOpen(false); };
-    const key = (e: KeyboardEvent) => { if (e.key === 'Escape') { setOpen(false); btn.current?.focus(); } };
-    document.addEventListener('mousedown', down);
-    document.addEventListener('keydown', key);
-    ref.current?.querySelector<HTMLButtonElement>('[role=menuitem]')?.focus();
-    return () => { document.removeEventListener('mousedown', down); document.removeEventListener('keydown', key); };
-  }, [open]);
-  return (
-    <div className="cdx-menu" ref={ref}>
-      <button ref={btn} type="button" className="cdx-iconbtn" aria-label={`פעולות נוספות · ${label}`} aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(o => !o)}>⋯</button>
-      {open && (
-        <div className="cdx-menu-pop" role="menu">
-          {items.map(it => (
-            <button key={it.label} type="button" role="menuitem" className={`cdx-menu-item${it.danger ? ' is-danger' : ''}`}
-              onClick={() => { setOpen(false); it.onSelect(); }}>
-              <span>{it.label}</span>
-              {it.sub && <small>{it.sub}</small>}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
   );
 }
 
@@ -97,6 +66,7 @@ export default function ClientDocumentsSection({ profile, saved, setDraft, noteU
   const [busyId, setBusyId] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
+  const [openKey, toggleOpen] = useOneOpen();
   const [newLabel, setNewLabel] = useState('');
   const [renaming, setRenaming] = useState<{ id: string; label: string } | null>(null);
   const [removing, setRemoving] = useState<string | null>(null);
@@ -182,13 +152,42 @@ export default function ClientDocumentsSection({ profile, saved, setDraft, noteU
 
         {docs.length === 0 && !adding && <div className="cdx-empty">עוד אין קבצים.</div>}
 
-        <ul className="cdx-list">
+        <ul className="lr-list">
           {docs.map(d => {
             const pending = pendingOf(d);
             const uses = usesOf(d.id);
             const replace = () => { replaceFor.current = d.id; replaceInput.current?.click(); };
+            // ‼ 30.10.2026: בשפה של «בקשות» — שם ו«צפייה»; פתיחת הקובץ, שליחה, שינוי שם, החלפה והסרה — בלחיצה על השורה.
+            if (renaming?.id !== d.id && removing !== d.id) {
+              const rowId = `lb-doc-${d.id}`;
+              return (
+                <LibRow key={d.id} id={rowId} marker="file" name={d.label} open={openKey === rowId} onToggle={() => toggleOpen(rowId)}
+                  side={onPreview ? <PreviewButton name={d.label} onClick={() => onPreview({ id: d.id, label: d.label })} /> : undefined}>
+                  <p>
+                    {busyId === d.id ? 'מעלה גרסה חדשה…' : <>
+                      <bdi>{d.fileName}</bdi> · {fmtDate(d.at)}{d.history?.length ? (d.history.length === 1 ? ' · גרסה קודמת אחת' : ` · ${d.history.length} גרסאות קודמות`) : ''}
+                    </>}
+                    {pending && <span className="cdx-chip">{pending}</span>}
+                  </p>
+                  {uses.length > 0 && <p><UsedIn uses={uses} go={go} loading={false} /></p>}
+                  <div className="lr-acts">
+                    <a className="btn btn-ghost btn-sm" href={d.url} target="_blank" rel="noopener noreferrer">פתיחת הקובץ</a>
+                    {onSendToClient && (
+                      <button type="button" className="btn btn-secondary btn-sm"
+                        disabled={!!pending} title={pending ? 'אפשר לשלוח אחרי «שמירה»' : undefined}
+                        onClick={() => onSendToClient({ id: d.id, label: d.label, fileName: d.fileName })}>
+                        שליחה ללקוח
+                      </button>
+                    )}
+                    <button type="button" className="of-link" onClick={() => setRenaming({ id: d.id, label: d.label })}>שינוי שם</button>
+                    <button type="button" className="of-link" onClick={replace}>החלפת קובץ</button>
+                    <button type="button" className="of-link" onClick={() => setRemoving(d.id)}>הסרה מהספרייה</button>
+                  </div>
+                </LibRow>
+              );
+            }
             return (
-              <li key={d.id} className="cdx-row">
+              <li key={d.id} className="cdx-row lr">
                 <FileGlyph />
                 {renaming?.id === d.id ? (
                   <div className="cdx-rename">
@@ -234,36 +233,7 @@ export default function ClientDocumentsSection({ profile, saved, setDraft, noteU
                       onClick={() => { setDraft(p => ({ ...p, settings: withRemovedDocument(p, d.id) })); setRemoving(null); }}>הסרה</button>
                     <button type="button" className="btn btn-ghost btn-sm" onClick={() => setRemoving(null)} autoFocus>ביטול</button>
                   </div>
-                ) : (
-                  <>
-                    <div className="cdx-main">
-                      <div className="cdx-title">{d.label}</div>
-                      <div className="cdx-meta">
-                        {busyId === d.id ? 'מעלה גרסה חדשה…' : <>
-                          <bdi>{d.fileName}</bdi> · {fmtDate(d.at)}{d.history?.length ? (d.history.length === 1 ? ' · גרסה קודמת אחת' : ` · ${d.history.length} גרסאות קודמות`) : ''}
-                        </>}
-                        {pending && <span className="cdx-chip">{pending}</span>}
-                      </div>
-                      {/* «בשימוש ב» בשורה עצמה — כמו בבקשות, ולא רשימה נפרדת שחוזרת על שמות הקבצים. */}
-                      {uses.length > 0 && <div className="cdx-meta"><UsedIn uses={uses} go={go} loading={false} /></div>}
-                    </div>
-                    {/* ‼ «צפייה» שמורה למה שהלקוח מקבל (הבקשה בדף שלו); הקובץ עצמו — «פתיחת הקובץ». */}
-                    {onPreview && <PreviewButton name={d.label} onClick={() => onPreview({ id: d.id, label: d.label })} />}
-                    <a className="btn btn-ghost btn-sm" href={d.url} target="_blank" rel="noopener noreferrer">פתיחת הקובץ</a>
-                    {onSendToClient && (
-                      <button type="button" className="btn btn-secondary btn-sm"
-                        disabled={!!pending} title={pending ? 'אפשר לשלוח אחרי «שמירה»' : undefined}
-                        onClick={() => onSendToClient({ id: d.id, label: d.label, fileName: d.fileName })}>
-                        שליחה ללקוח
-                      </button>
-                    )}
-                    <RowMenu label={d.label} items={[
-                      { label: 'שינוי שם', sub: 'השם שהלקוח רואה', onSelect: () => setRenaming({ id: d.id, label: d.label }) },
-                      { label: 'החלפת קובץ', sub: 'אחרי שמירה — ייפתח גם בבקשות שכבר נשלחו', onSelect: replace },
-                      { label: 'הסרה מהספרייה', danger: true, onSelect: () => setRemoving(d.id) },
-                    ]} />
-                  </>
-                )}
+                ) : null}
               </li>
             );
           })}
@@ -282,30 +252,29 @@ export default function ClientDocumentsSection({ profile, saved, setDraft, noteU
         <div className="cdx-group-head">
           <h3 id="cdx-forms">טפסים רשמיים</h3>
         </div>
-        <ul className="cdx-list">
-          <li className="cdx-row">
-            <FileGlyph tone="form" />
-            <div className="cdx-main">
-              <div className="cdx-title">דין וחשבון רב שנתי (6101) <span className="cdx-sub">ביטוח לאומי</span></div>
-              <div className="cdx-meta">
-                {/* גרסת המיפוי וכמות השדות — בתוך «הגדרת הטופס»; כאן רק מה שעוזר ביום־יום. */}
-                הלקוח ממלא בדף האישי, ואתה מקבל PDF מוכן
-                {draftOpen && <span className="cdx-chip">שינויים שעוד לא הופעלו</span>}
-              </div>
+        <ul className="lr-list">
+          <LibRow id="lb-form-btl6101" marker="form" name="דין וחשבון רב שנתי (6101)"
+            side={<span className="lr-quiet">ביטוח לאומי</span>}
+            open={openKey === 'lb-form-btl6101'} onToggle={() => toggleOpen('lb-form-btl6101')}>
+            {/* גרסת המיפוי וכמות השדות — בתוך «הגדרת הטופס»; כאן רק מה שעוזר ביום־יום. */}
+            <p>הלקוח ממלא בדף האישי, ואתה מקבל PDF מוכן.
+              {draftOpen && <span className="cdx-chip">שינויים שעוד לא הופעלו</span>}</p>
+            <div className="lr-acts">
+              <button type="button" className="btn btn-secondary btn-sm" onClick={() => setManagerOpen(true)}>הגדרת הטופס</button>
             </div>
-            <button type="button" className="btn btn-secondary btn-sm" onClick={() => setManagerOpen(true)}>הגדרת הטופס</button>
-          </li>
+          </LibRow>
           {(['ita-4440', 'vat-821'] as ClientFormKey[]).map(k => {
             const def = CLIENT_FORMS[k];
+            const rowId = `lb-form-${k}`;
             return (
-              <li key={k} className="cdx-row">
-                <FileGlyph tone="form" />
-                <div className="cdx-main">
-                  <div className="cdx-title">{def.template.title} <span className="cdx-sub">{def.authorityLabel}</span></div>
-                  <div className="cdx-meta">מה שבכרטיס ממולא, הלקוח משלים את השאר בדף האישי, רואה את הטופס המלא וחותם</div>
+              <LibRow key={k} id={rowId} marker="form" name={def.template.title}
+                side={<span className="lr-quiet">{def.authorityLabel}</span>}
+                open={openKey === rowId} onToggle={() => toggleOpen(rowId)}>
+                <p>מה שבכרטיס ממולא; הלקוח משלים את השאר בדף האישי, רואה את הטופס המלא וחותם.</p>
+                <div className="lr-acts">
+                  <button type="button" className="btn btn-secondary btn-sm" onClick={() => setClientFormOpen(k)}>הגדרת הטופס</button>
                 </div>
-                <button type="button" className="btn btn-secondary btn-sm" onClick={() => setClientFormOpen(k)}>הגדרת הטופס</button>
-              </li>
+              </LibRow>
             );
           })}
         </ul>

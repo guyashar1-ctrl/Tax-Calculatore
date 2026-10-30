@@ -99,7 +99,7 @@ async function openLibrary(page, base = STAGING) {
   await page.goto('about:blank');
   await page.goto(`${base}${base === DEMO ? '?office-app' : ''}#/firm/library`, { waitUntil: 'domcontentloaded' });
   await page.waitForSelector('.lb', { timeout: 60000 });
-  await page.waitForSelector('.lb-row, .lb-group-card', { timeout: 30000 });
+  await page.waitForSelector('.lr', { timeout: 30000 });
   await page.waitForTimeout(1200);
 }
 const sheetVisible = (page) => page.locator('[data-testid=rp-sheet]').count().then(n => n > 0);
@@ -141,18 +141,18 @@ if (ONLY.has('a') || ONLY.has('b')) {
     S = state;
     await openLibrary(page);
     // פותחים את כל הקבוצות כדי שהילדים יופיעו
-    for (const h of await page.$$('.lb-group-card .rg-head[aria-expanded="false"]')) await h.click().catch(() => {});
+    for (const h of await page.$$('.lr-group > .lr-line .lr-hit[aria-expanded="false"]')) await h.click().catch(() => {});
     await page.waitForTimeout(300);
     const buttons = await page.$$eval('[data-testid=rp-view-btn]', els => els.map(e => e.getAttribute('aria-label')));
     ok(`יש «צפייה» בכל שורה (${buttons.length} כפתורים)`, buttons.length >= 20, buttons.length);
-    const rows = await page.$$eval('.lb-row, .lb-group-card', els => els.map(e => ({ id: e.id, name: e.querySelector('.lb-name, .rg-name')?.textContent ?? '' })));
+    const rows = await page.$$eval('.lr', els => els.map(e => ({ id: e.id, name: e.querySelector('.lr-name')?.textContent ?? '' })));
     const namesWithoutBtn = [];
     for (const r of rows) {
-      const has = await page.$(`#${r.id} [data-testid=rp-view-btn], #${r.id} .lb-name-btn`);
+      const has = await page.$(`#${r.id} [data-testid=rp-view-btn], #${r.id} .lr-warn`);
       if (!has) namesWithoutBtn.push(r.name);
     }
     ok('אין שורה בספרייה בלי «צפייה»', namesWithoutBtn.length === 0, namesWithoutBtn.join(' | '));
-    const deadKids = await page.$$eval('.lb-kid', els => els.filter(k => !k.querySelector('[data-testid=rp-view-btn]')).map(k => k.querySelector('.lb-kid-name')?.textContent));
+    const deadKids = await page.$$eval('.lr-kid', els => els.filter(k => !k.querySelector('button.lr-kid-name')).map(k => k.querySelector('.lr-kid-name')?.textContent));
     ok('ילד בקבוצה — לכל אחד «צפייה» (אין שורה מתה)', deadKids.length === 0, deadKids.join(' | '));
 
     if (width === WIDTHS[0] || ONLY.has('a')) {
@@ -489,10 +489,10 @@ if (ONLY.has('f')) {
   section('f · רגרסיה — הספרייה');
   const { page, state } = await newPage({ width: 1280 });
   await openLibrary(page);
-  const total = await page.locator('.lb-row, .lb-group-card').count();
+  const total = await page.locator('.lr').count();
   await page.fill('.lb-search', 'מילואים');
   await page.waitForTimeout(500);
-  const filtered = await page.locator('.lb-row, .lb-group-card').count();
+  const filtered = await page.locator('.lr').count();
   ok('חיפוש «מילואים» מסנן לשורה אחת', filtered === 1 && total > 1, `${filtered}/${total}`);
   await viewBtn(page, 'תביעת מילואים בביטוח לאומי').click(); await waitLoaded(page);
   ok('צפייה על תוצאת חיפוש', /מילואים/.test(await page.locator('.fl-sheet-title').innerText()));
@@ -502,7 +502,8 @@ if (ONLY.has('f')) {
   const idx = page.locator('.lb-index-btn').nth(2);
   if (await idx.count()) { await idx.click(); await page.waitForTimeout(300); }
   ok('אינדקס האותיות קיים ועובד', await page.locator('.lb-index-btn').count() > 1);
-  await page.locator('.lb-row .lb-edit', { hasText: 'עריכה' }).first().click();
+  await page.locator('.lr-list > .lr .lr-hit').first().click();
+  await page.locator('.lr.is-open .lr-acts button', { hasText: 'עריכה' }).first().click();
   await page.waitForSelector('.lb-editor, [role=dialog]', { timeout: 10000 }).catch(() => {});
   ok('עורך הבקשה נפתח', await page.locator('.lb-editor, .fl-sheet, [role=dialog]').count() > 0);
   ok('אפס שגיאות קונסול ברגרסיה', state.errors.length === 0, state.errors.slice(0, 3).join(' | '));
@@ -798,7 +799,8 @@ if (ONLY.has('j')) {
 
     // (3) עורך הבקשה בספרייה: הכרטיס האמיתי, וטיוטה בלי שמירה
     await openLibrary(page);
-    await page.locator('.lb-row .lb-edit', { hasText: 'עריכה' }).first().click();
+    await page.locator('.lr-list > .lr .lr-hit').first().click();
+  await page.locator('.lr.is-open .lr-acts button', { hasText: 'עריכה' }).first().click();
     await page.waitForSelector('[data-testid=lb-live-card]', { timeout: 25000 });
     await page.waitForTimeout(600);
     ok(`(${width}) בעורך: הכרטיס האמיתי של הדף האישי (לא תצוגה מקרבת)`, await page.locator('[data-testid=lb-live-card] .pp-item').count() > 0);
@@ -838,7 +840,7 @@ if (ONLY.has('k')) {
     const external = [];
     page.on('request', r => { const u = new URL(r.url()); if (!/^(localhost|127\.0\.0\.1)(:|$)/.test(u.host) && !/fonts\.(googleapis|gstatic)\.com$/.test(u.host)) external.push(`${r.method()} ${u.host}${u.pathname}`); });
     await openLibrary(page, DEMO);
-    for (const h of await page.$$('.lb-group-card .rg-head[aria-expanded="false"]')) await h.click().catch(() => {});
+    for (const h of await page.$$('.lr-group > .lr-line .lr-hit[aria-expanded="false"]')) await h.click().catch(() => {});
     await page.waitForTimeout(300);
     const labels = [...new Set(await page.$$eval('[data-testid=rp-view-btn]', els => els.map(e => e.getAttribute('aria-label'))))];
     ok(`(${width}) בהדגמה יש «צפייה» בשורות הספרייה (${labels.length})`, labels.length >= 8, labels.length);

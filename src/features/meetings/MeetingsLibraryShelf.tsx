@@ -6,6 +6,8 @@
 import { useState } from 'react';
 import type { FirmProfile } from '../../types/firmProfile';
 import { MEETING_KINDS, type MeetingKind } from '../../../supabase/functions/_shared/meetingInvite';
+import { LibRow, useOneOpen } from '../../components/office/pages/library/LibRow';
+import PreviewButton from '../requestPreview/PreviewButton';
 import MeetingTemplateDrawer, { MEETING_TEMPLATE_TITLES, MEETING_TEMPLATE_WHEN, isMeetingTemplateCustom } from './MeetingTemplateDrawer';
 
 /** focus ‏'meetings:intro' / 'meetings:work' — פותח את החלון של הנוסח (מקישור «עריכת הנוסח» בחלון הפגישה). */
@@ -23,6 +25,7 @@ export default function MeetingsLibraryShelf({ draft, saveNow, focusKind, onEmai
 }) {
   const [open, setOpen] = useState<{ kind: MeetingKind; tab: 'edit' | 'preview' } | null>(
     focusKind ? { kind: focusKind, tab: 'edit' } : null);
+  const [openKey, toggleOpen] = useOneOpen(focusKind ? `lb-meeting-${focusKind}` : null);
 
   return (
     <>
@@ -30,37 +33,30 @@ export default function MeetingsLibraryShelf({ draft, saveNow, focusKind, onEmai
         מה מקבל מי שמוזמן לפגישה ב-Google Meet. הנוסח נשמר כאן פעם אחת: אותו נוסח מוצג בחלון הפגישה לפני
         «שלח זימון», והוא מה שיוצא מהיומן שלך.
       </p>
-      <ul className="lb-list lb-cards">
+      {/* ‼ 30.10.2026: בשפה של «בקשות» (LibRow) — שם ו«צפייה» בשורה; מתי יוצא ו«עריכה» בלחיצה. */}
+      <ul className="lr-list">
         {MEETING_KINDS.map(kind => {
           const title = MEETING_TEMPLATE_TITLES[kind];
           const custom = isMeetingTemplateCustom(draft, kind);
+          const rowId = `lb-meeting-${kind}`;
           return (
-            <li key={kind} id={`lb-meeting-${kind}`} className={`lb-row${focusKind === kind ? ' is-focus' : ''}`}>
-              <div className="lb-row-title">
-                <button type="button" className="lb-name lb-name-btn" aria-label={`צפייה: ${title}`}
-                  onClick={() => setOpen({ kind, tab: 'preview' })}>{title}</button>
-                <span className="lb-preset">{custom ? 'הנוסח שלך' : 'נוסח המערכת'}</span>
-              </div>
-              <div className="lb-acts">
-                <button type="button" className="btn btn-ghost btn-sm" aria-label={`צפייה: ${title}`}
-                  onClick={() => setOpen({ kind, tab: 'preview' })}>צפייה</button>
-                <button type="button" className="btn btn-secondary btn-sm lb-edit" aria-label={`עריכה: ${title}`}
+            <LibRow key={kind} id={rowId} marker="meet" name={title} highlight={focusKind === kind}
+              open={openKey === rowId} onToggle={() => toggleOpen(rowId)}
+              side={<PreviewButton name={title} onClick={() => setOpen({ kind, tab: 'preview' })} />}>
+              <p>{MEETING_TEMPLATE_WHEN[kind]}</p>
+              <p className="lr-k">{custom ? 'הנוסח שלך.' : 'נוסח המערכת — עדיין לא שינית אותו.'}</p>
+              <div className="lr-acts">
+                <button type="button" className="btn btn-secondary btn-sm" aria-label={`עריכה: ${title}`}
                   disabled={!saveNow} onClick={() => setOpen({ kind, tab: 'edit' })}>עריכה</button>
               </div>
-              <div className="lb-row-meta">{MEETING_TEMPLATE_WHEN[kind]}</div>
-            </li>
+            </LibRow>
           );
         })}
-        <li className="lb-row">
-          <div className="lb-row-title">
-            <span className="lb-name">שינוי מועד וביטול</span>
-            <span className="lb-preset">Google שולח</span>
-          </div>
-          <div className="lb-row-meta">
-            Google שולח עדכון או הודעת ביטול לכל המוזמנים. בשינוי מועד ההזמנה יוצאת בנוסח שכאן, ובראשה שורת
-            העדכון והשורה שכתבת בחלון «שינוי מועד».
-          </div>
-        </li>
+        <LibRow id="lb-meeting-move" marker="meet" name="שינוי מועד וביטול" side={<span className="lr-quiet">Google שולח</span>}
+          open={openKey === 'lb-meeting-move'} onToggle={() => toggleOpen('lb-meeting-move')}>
+          <p>Google שולח עדכון או הודעת ביטול לכל המוזמנים. בשינוי מועד ההזמנה יוצאת בנוסח שכאן, ובראשה שורת
+            העדכון והשורה שכתבת בחלון «שינוי מועד».</p>
+        </LibRow>
       </ul>
       {onEmails && (
         <p className="of-muted">

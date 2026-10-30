@@ -239,3 +239,48 @@
 @media (max-width: 640px) {
   .lb-shelf-head .lb-search { flex: 1 1 100%; order: 3; }
 }
+
+/* ═══ 30.10.2026 · בשפה של «בקשות» — נקודה, שם, מילה אחת; הכול בלחיצה (LibRow) ═══ */
+.lr-list { list-style: none; margin: 0; padding: 0; background: var(--surface-0); border: 1px solid var(--hairline-2); border-radius: 12px; overflow: hidden; }
+.lr { border-top: 1px solid var(--hairline-2); scroll-margin-top: 90px; transition: background-color 600ms ease; }
+.lr-list > .lr:first-child { border-top: 0; }
+.lr.is-focus { background: var(--chip-yellow-bg); }
+.lr-line { display: flex; align-items: center; gap: 8px; min-height: 50px; padding: 0 12px 0 10px; }
+.lr-line:hover { background: var(--surface-1); }
+.lr-hit { flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px; padding: 12px 4px; border: 0; background: none; font: inherit; color: inherit; text-align: start; cursor: pointer; }
+.lr-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--ink-4); opacity: .55; flex: none; }
+.lr-ring { width: 11px; height: 11px; border-radius: 50%; border: 2px solid var(--ink-3); flex: none; box-sizing: border-box; }
+.lr-ic { min-width: 30px; font-size: 11px; font-weight: 600; color: var(--ink-3); text-align: center; flex: none; }
+.lr-name { min-width: 0; font-size: var(--fs-14); font-weight: 600; color: var(--ink-1); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lr-mini { display: inline-flex; gap: 3px; margin-inline-start: 2px; flex: none; }
+.lr-mini i { width: 6px; height: 6px; border-radius: 50%; background: var(--ink-4); opacity: .45; }
+.lr-side { flex: none; display: inline-flex; align-items: center; }
+.lr-side .rp-view { padding-inline: 6px; }
+.lr-warn { font-size: var(--fs-13); font-weight: 600; color: var(--chip-amber-tx); }
+.lr-quiet { font-size: var(--fs-13); color: var(--ink-3); }
+.lr-chev { flex: none; width: 26px; height: 26px; display: grid; place-items: center; border: 0; background: none; color: var(--ink-4); border-radius: 6px; cursor: pointer; transition: transform 200ms ease; }
+.lr.is-open > .lr-line .lr-chev { transform: rotate(180deg); }
+.lr-det { padding: 0 16px 14px; padding-inline-start: 43px; font-size: var(--fs-13); color: var(--ink-2); line-height: 1.6; }
+.lr-det p { margin: 3px 0; }
+.lr-det .lr-k { color: var(--ink-3); }
+.lr-acts { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 10px; align-items: center; }
+.lr-gap { margin-top: 8px; padding: 6px 10px; border-radius: 8px; background: var(--chip-amber-bg); color: var(--chip-amber-tx); }
+/* קבוצה = נקודה אחרי נקודה */
+.lr-chain { list-style: none; margin: 0; padding: 4px 0; background: var(--surface-2); border-top: 1px solid var(--hairline-2); }
+.lr-kid { position: relative; display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 6px 16px; padding-inline-start: 36px; }
+.lr-kid::before { content: ""; position: absolute; inset-inline-start: 40px; top: 0; bottom: 0; width: 2px; background: var(--hairline-1); }
+.lr-kid:first-child::before { top: 50%; }
+.lr-kid:last-child::before { bottom: 50%; }
+.lr-kid > .lr-dot { position: relative; z-index: 1; width: 10px; height: 10px; opacity: 1; background: var(--ink-4); box-shadow: 0 0 0 3px var(--surface-2); }
+.lr-kid-name { flex: 1; min-width: 0; border: 0; background: none; padding: 0; font: inherit; font-size: var(--fs-14); font-weight: 500; color: var(--ink-1); text-align: start; cursor: pointer; }
+span.lr-kid-name { cursor: default; }
+button.lr-kid-name:hover { text-decoration: underline; text-underline-offset: 3px; }
+.lr-who { font-size: var(--fs-12); color: var(--ink-3); white-space: nowrap; }
+.lr-kid-act { font-size: var(--fs-12); white-space: nowrap; }
+.lr-foot { display: flex; flex-wrap: wrap; gap: 6px 16px; padding: 10px 16px 12px; padding-inline-start: 36px; border-top: 1px solid var(--hairline-2); font-size: var(--fs-13); }
+.lr-section { display: flex; align-items: baseline; gap: 8px; margin: 22px 2px 8px; font-size: var(--fs-14); font-weight: 600; color: var(--ink-2); }
+.lr-section .lr-n { font-weight: 500; color: var(--ink-4); }
+@media (max-width: 520px) {
+  .lr-who { display: none; }
+  .lr-det { padding-inline-start: 16px; }
+}

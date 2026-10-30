@@ -30,6 +30,11 @@
 // ‼ (16.10.2026, «פחות עומס») עמוד אחד במקום שלוש לשוניות: «בקשות», «מסמכים» ו«פגישות» הם מקטעים
 //   מקופלים באותו עמוד (בקשות — פתוח). קבוצות מקופלות. בשורה פעולה אחת גלויה (עריכה / «מתי נפתחת?»);
 //   לחיצה על השם = «צפייה». תוויות שחזרו בכל שורה («בקשה אחת», «נוסח קבוע של המערכת») ירדו.
+//
+// ‼ (30.10.2026, הדמיה מאושרת docs/proposals/2026-10-30-library-simple.html) בשפה של «בקשות»:
+//   בקשות בודדות למעלה, «קבוצות» מתחת (הקבועות + מה שהמשרד בנה אצל לקוח — כלל work_group).
+//   בשורה נקודה, שם ומילה אחת («צפייה» / «חסר»); כל השאר בלחיצה (LibRow). קבוצה = נקודה אחרי
+//   נקודה. בלי אינדקס אותיות ובלי תגיות. אותה שורה גם ב«מסמכים» וב«פגישות».
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import type { FirmProfile } from '../../../types/firmProfile';
 import type { AssetRef, OfficePageId } from '../officeModel';
@@ -38,19 +43,19 @@ import { loadRequestTemplates, templateForRef, type RequestTemplate } from '../.
 import { documentLibrary } from '../../../lib/clientGuide';
 import { CATALOG_STEP_TYPES } from '../../../types/journeyDefaults';
 import { loadOfficeFlows } from '../../../features/flows/api';
-import type { OfficeFlow } from '../../../features/flows/types';
+import { FLOW_ACTION_TYPES, STEP_ACTION_NAMES, actionTypeOf, type OfficeFlow } from '../../../features/flows/types';
 import {
-  actorText, autoLabel, autoWhenText, canBeInFlow, editsInIntake, gapsLineText, gapText, groupByLetter,
-  GROUP_FROM, isPreset, matchesQuery, normalizeForSearch, searchTextOf, seesText, sortByName, systemTypeOf,
+  actorText, autoLabel, autoWhenText, canBeInFlow, editsInIntake, gapsLineText, gapText,
+  isPreset, matchesQuery, normalizeForSearch, searchTextOf, seesText, sortByName, systemTypeOf,
 } from './library/libraryModel';
 import {
   UsedIn, byDoc, byLibraryRow, bySystem, flowItemFocus, flowStageFocus, libraryUses, type LibraryUse,
 } from './library/usedIn';
 import RequestEditor from './library/RequestEditor';
 import type { AutoRow } from './library/AutoSection';
-import GroupEntry, { type GroupChildModel } from './library/GroupEntry';
-import NameView from './library/NameView';
-import { GROUP_ORDER, REQUEST_GROUPS, type RequestGroupKey } from '../../../features/requests/requestGroups';
+import { LibGroup, LibRow, useOneOpen, type ChainKid } from './library/LibRow';
+import PreviewButton from '../../../features/requestPreview/PreviewButton';
+import { GROUP_ACTOR_LABEL, GROUP_ORDER, REQUEST_GROUPS, type GroupActor, type RequestGroupKey } from '../../../features/requests/requestGroups';
 import RequestPreviewSheet from '../../../features/requestPreview/RequestPreviewSheet';
 import type { EditHint } from '../../../features/requestPreview/registry';
 import { parseViewFocus, resolveFocus, targetKey, targetOfTemplate, targetToFocus, type PreviewTarget, type Selection } from '../../../features/requestPreview/targets';
@@ -60,6 +65,17 @@ import './library.css';
 import '../../../features/requests/requestGroups.css';
 
 export { libraryUses, type LibraryUse } from './library/usedIn';
+
+/** בקשה בתוך קבוצה קבועה — מה היא, מי עושה, והפעולה שלה (עריכה / «מתי נפתחת?»). */
+interface GroupChildModel {
+  key: string;
+  title: string;
+  hint: string;
+  actor: GroupActor;
+  when?: string | null;
+  action?: { label: string; onClick: () => void; aria?: string } | null;
+  onPreview?: () => void;
+}
 
 // ‼ (07.10.2026, הדמיה מאושרת) «פגישות» — נוסח ההזמנות שיוצאות מהיומן (features/meetings).
 type Shelf = 'requests' | 'documents' | 'meetings';
@@ -216,8 +232,31 @@ export default function LibraryPage({ draft, saved, setDraft, saveNow, noteUploa
   const gapEntries = useMemo(() => entries.filter(e => e.kind === 'template' && gapText(e.t)), [entries]);
   const shownEntries = useMemo(() => (term ? entries.filter(e => matchesQuery(e.hay, term)) : onlyGaps && gapEntries.length > 0 ? gapEntries : entries),
     [entries, term, onlyGaps, gapEntries]);
-  const entryGroups = useMemo(() => (shownEntries.length >= GROUP_FROM ? groupByLetter(shownEntries)
-    : shownEntries.length ? [{ letter: '', items: shownEntries }] : []), [shownEntries]);
+  // ‼ 30.10.2026: בקשות בודדות למעלה, קבוצות מתחת (כמו «בקשות» של הלקוח).
+  const singles = useMemo(() => shownEntries.filter(e => e.kind !== 'group'), [shownEntries]);
+  const groupEntries = useMemo(() => shownEntries.filter(e => e.kind === 'group'), [shownEntries]);
+  const [openKey, toggleOpen, setOpenKey] = useOneOpen();
+
+  /** (312) קבוצה שהמשרד בנה אצל לקוח — כלל ידני עם seed_key 'work_group'. */
+  const officeGroups = useMemo(() => flowList.filter(f => f.status === 'active' && f.trigger === 'manual' && f.seedKey === 'work_group'), [flowList]);
+  const officeKids = useCallback((f: OfficeFlow): ChainKid[] => (f.definition?.stages ?? []).flatMap(st => st.items).map(it => {
+    const ref = it.ref;
+    if (ref.kind === 'template') {
+      const t = templates ? templateForRef(templates, ref.templateId) : null;
+      return { key: it.key, title: t?.name ?? it.snapshot?.title ?? 'בקשה שנמחקה מהספרייה', who: t ? actorText(t) : '',
+        onPreview: t ? () => openView(targetOfTemplate(t)) : undefined };
+    }
+    if (ref.kind === 'action') {
+      const type = actionTypeOf(ref);
+      return { key: it.key, title: STEP_ACTION_NAMES[type] ?? 'פעולה מול רשות',
+        who: (FLOW_ACTION_TYPES as readonly string[]).includes(type) ? 'PIVO — לבד' : 'בלחיצה שלך' };
+    }
+    if (ref.kind === 'document') return { key: it.key, title: docs.find(d => d.id === ref.docId)?.label ?? it.snapshot?.title ?? 'מסמך', who: 'הלקוח פותח' };
+    return { key: it.key, title: autoLabel(ref.stepType), who: '' };
+  }), [templates, docs, openView]);
+  const shownOfficeGroups = useMemo(() => (term
+    ? officeGroups.filter(f => matchesQuery(normalizeForSearch([f.name, ...officeKids(f).map(k => k.title)].join(' ')), term))
+    : officeGroups), [officeGroups, officeKids, term]);
 
   /** הבקשות שבקבוצה — כל אחת עם הפעולה שמתאימה לה. */
   const kidsOf = (g: RequestGroupKey): GroupChildModel[] => REQUEST_GROUPS[g].members.map(m => {
@@ -286,6 +325,7 @@ export default function LibraryPage({ draft, saved, setDraft, saveNow, noteUploa
       if (!el) return;
       el.scrollIntoView({ block: 'center' });
       setHighlight(key);
+      setOpenKey(key);
     });
   }, [focus, templates, landOn]);
   useEffect(() => {
@@ -386,97 +426,96 @@ export default function LibraryPage({ draft, saved, setDraft, saveNow, noteUploa
                 עוד אין בקשות בספרייה. «בקשה לספרייה» — והיא תופיע כאן, ל<button type="button" className="of-link" onClick={() => go('flows')}>מסלולים</button> ול<span className="lb-nowrap">«בקשה חדשה»</span> בכרטיס הלקוח.
               </p>
             )}
-            {/* ‼ ספרייה גדולה: אינדקס אותיות במקום גלילה על מאה שורות. נשאר צמוד למעלה עד סוף
-                הרשימה — אחרי קפיצה לאות, האות הבאה במרחק נגיעה. */}
-            <div className="lb-az">
-            {entryGroups.length > 1 && (
-              <nav className="lb-index" aria-label="קפיצה לפי אות">
-                {entryGroups.map(g => (
-                  <button key={g.letter} type="button" className="lb-index-btn"
-                    aria-label={`${g.letter} — ${g.items.length === 1 ? 'בקשה אחת' : `${g.items.length} בקשות`}`}
-                    onClick={() => document.getElementById(`lb-letter-${g.letter}`)?.scrollIntoView({ block: 'start' })}>
-                    {g.letter}
-                  </button>
-                ))}
-              </nav>
-            )}
-            {entryGroups.map(g => (
-              <section key={g.letter || 'all'} className="lb-letter-group" aria-label={g.letter ? `אות ${g.letter}` : 'בקשות'}>
-                {g.letter && <h2 className="lb-letter" id={`lb-letter-${g.letter}`}>{g.letter}</h2>}
-                <ul className="lb-list lb-cards">
-                  {g.items.map(e => {
-                    if (e.kind === 'group') {
-                      const rowId = `lb-group-${e.key}`;
-                      return (
-                        <li key={rowId} className="lb-group-li">
-                          <GroupEntry groupKey={e.key} kids={kidsOf(e.key)} rowId={rowId} highlight={highlight === rowId}
-                            onPreview={() => openView({ kind: 'group', group: e.key, name: REQUEST_GROUPS[e.key].title })}
-                            defaultOpen={!!term}
-                            onRules={() => go('flows', e.key === 'representation' ? 'representation' : 'onboarding')} />
-                        </li>
-                      );
-                    }
-                    if (e.kind === 'system') {
-                      const r = e.row;
-                      const rowId = `lb-auto-${r.stepType}`;
-                      const off = autoKnown && !r.inFlow;
-                      return (
-                        <li key={rowId} id={rowId} className={`lb-row${highlight === rowId ? ' is-focus' : ''}`}>
-                          <div className="lb-row-title">
-                            <NameView name={r.label} onClick={() => openView({ kind: 'system', stepType: r.stepType, name: r.label })} />
-                            <span className="lb-preset">של המערכת</span>
-                          </div>
-                          <div className="lb-acts">
-                            <button type="button" className="btn btn-secondary btn-sm lb-edit"
-                              aria-label={`מתי נפתחת: ${r.label}`} onClick={() => go('flows', r.focus ?? addFocus)}>מתי נפתחת?</button>
-                          </div>
-                          <div className="lb-row-meta lb-segs">
-                            <span className="lb-seg">{off ? 'לא בכלל הקליטה — נפתחת רק ידנית מכרטיס הלקוח' : r.when}</span>
-                          </div>
-                        </li>
-                      );
-                    }
-                    const { t, uses } = e;
-                    const gap = gapText(t);
-                    const route = intakeRoute(t, uses);
-                    // ‼ הנוסח שבשורה לא מגיע לאף לקוח — לא מציגים אותו (ולא «נוסח מוכן») כאילו הוא מה שהלקוח רואה.
-                    const sees = route ? null : seesText(t);
-                    const actor = actorText(t);
-                    const rowId = `lb-req-${t.id}`;
+            {/* ‼ 30.10.2026 (גיא): בקשות בודדות למעלה, קבוצות מתחת — כמו «בקשות» של הלקוח. בשורה נקודה,
+                שם ומילה אחת; כל השאר בלחיצה. בלי אינדקס אותיות (יש חיפוש). */}
+            {singles.length > 0 && (
+              <ul className="lr-list">
+                {singles.map(e => {
+                  if (e.kind === 'system') {
+                    const r = e.row;
+                    const rowId = `lb-auto-${r.stepType}`;
+                    const off = autoKnown && !r.inFlow;
+                    const preview = () => openView({ kind: 'system', stepType: r.stepType, name: r.label });
                     return (
-                      <li key={t.id} id={rowId} className={`lb-row${highlight === rowId ? ' is-focus' : ''}`}>
-                        <div className="lb-row-title">
-                          <NameView name={t.name} onClick={() => openView(targetOfTemplate(t))} />
-                          {!route && isPreset(t) && <span className="lb-preset">נוסח מוכן</span>}
+                      <LibRow key={rowId} id={rowId} name={r.label} open={openKey === rowId} onToggle={() => toggleOpen(rowId)}
+                        highlight={highlight === rowId} side={<PreviewButton name={r.label} onClick={preview} />}>
+                        <p>{off ? 'לא בכלל הקליטה — נפתחת רק ידנית מכרטיס הלקוח' : r.when}</p>
+                        <p className="lr-k">בקשה של המערכת — הנוסח קבוע.</p>
+                        <div className="lr-acts">
+                          <button type="button" className="btn btn-secondary btn-sm" aria-label={`מתי נפתחת: ${r.label}`}
+                            onClick={() => go('flows', r.focus ?? addFocus)}>מתי נפתחת?</button>
                         </div>
-                        <div className="lb-acts">
-                          {route ? (
-                            <button type="button" className="btn btn-secondary btn-sm lb-edit"
-                              aria-label={`עריכה במסלול הקליטה: ${t.name}`} onClick={() => go('flows', route)}>עריכה ←</button>
-                          ) : (
-                            <button type="button" className="btn btn-secondary btn-sm lb-edit"
-                              aria-label={`עריכה: ${t.name}`} onClick={() => setEditing({ template: t })}>עריכה</button>
-                          )}
-                        </div>
-                        <div className="lb-row-meta lb-segs">
-                          {sees && <span className="lb-seg lb-sees">{sees}</span>}
-                          <span className="lb-seg lb-actor">{actor}</span>
-                          {!usesUnknown && (
-                            <span className="lb-seg lb-row-used">
-                              <UsedIn uses={uses} go={go} loading={false}
-                                none={route ? 'לא במסלול הקליטה — לא נפתחת לבד' : canBeInFlow(t) ? undefined : 'רק מכרטיס הלקוח'} />
-                            </span>
-                          )}
-                        </div>
-                        {gap && <div className="lb-row-meta lb-gap">{gap}</div>}
-                      </li>
+                      </LibRow>
+                    );
+                  }
+                  if (e.kind !== 'template') return null;
+                  const { t, uses } = e;
+                  const gap = gapText(t);
+                  const route = intakeRoute(t, uses);
+                  // ‼ הנוסח שבשורה לא מגיע לאף לקוח — לא מציגים אותו (ולא «נוסח מוכן») כאילו הוא מה שהלקוח רואה.
+                  const sees = route ? null : seesText(t);
+                  const rowId = `lb-req-${t.id}`;
+                  const preview = () => openView(targetOfTemplate(t));
+                  return (
+                    <LibRow key={t.id} id={rowId} name={t.name} open={openKey === rowId} onToggle={() => toggleOpen(rowId)}
+                      highlight={highlight === rowId}
+                      side={gap ? <span className="lr-warn">חסר</span> : <PreviewButton name={t.name} onClick={preview} />}>
+                      {sees && <p>{sees}</p>}
+                      <p>{actorText(t)}</p>
+                      {!usesUnknown && (
+                        <p><UsedIn uses={uses} go={go} loading={false}
+                          none={route ? 'לא במסלול הקליטה — לא נפתחת לבד' : canBeInFlow(t) ? undefined : 'רק מכרטיס הלקוח'} /></p>
+                      )}
+                      {!route && isPreset(t) && <p className="lr-k">נוסח מוכן של PIVO — אפשר לערוך אותו למשרד.</p>}
+                      {gap && <div className="lr-gap">{gap}</div>}
+                      <div className="lr-acts">
+                        <PreviewButton name={t.name} onClick={preview} />
+                        {route ? (
+                          <button type="button" className="btn btn-secondary btn-sm"
+                            aria-label={`עריכה במסלול הקליטה: ${t.name}`} onClick={() => go('flows', route)}>עריכה ←</button>
+                        ) : (
+                          <button type="button" className="btn btn-secondary btn-sm"
+                            aria-label={`עריכה: ${t.name}`} onClick={() => setEditing({ template: t })}>עריכה</button>
+                        )}
+                      </div>
+                    </LibRow>
+                  );
+                })}
+              </ul>
+            )}
+
+            {(groupEntries.length > 0 || shownOfficeGroups.length > 0) && (
+              <>
+                <h2 className="lr-section">קבוצות <span className="lr-n">{groupEntries.length + shownOfficeGroups.length}</span></h2>
+                <ul className="lr-list">
+                  {shownOfficeGroups.map(f => {
+                    const rowId = `lb-flow-${f.id}`;
+                    return (
+                      <LibGroup key={rowId} id={rowId} name={f.name} kids={officeKids(f)}
+                        open={openKey === rowId} onToggle={() => toggleOpen(rowId)}
+                        foot={<button type="button" className="of-link"
+                          onClick={() => go('flows', flowStageFocus({ flowId: f.id, stageKey: f.definition.stages[0]?.key ?? '' }))}>
+                          מתי נפתחת ← כללי פתיחה</button>} />
+                    );
+                  })}
+                  {groupEntries.map(e => {
+                    if (e.kind !== 'group') return null;
+                    const rowId = `lb-group-${e.key}`;
+                    const title = REQUEST_GROUPS[e.key].title;
+                    return (
+                      <LibGroup key={rowId} id={rowId} name={title} highlight={highlight === rowId}
+                        // ‼ «מתי נפתחת?» נאמר פעם אחת בתחתית הקבוצה — לא בכל נקודה.
+                        kids={kidsOf(e.key).map(k => ({ key: k.key, title: k.title, who: GROUP_ACTOR_LABEL[k.actor], onPreview: k.onPreview,
+                          action: k.action?.label === 'מתי נפתחת?' ? null : k.action }))}
+                        open={openKey === rowId || !!term} onToggle={() => toggleOpen(rowId)}
+                        side={<PreviewButton name={title} onClick={() => openView({ kind: 'group', group: e.key, name: title })} />}
+                        foot={<button type="button" className="of-link"
+                          onClick={() => go('flows', e.key === 'representation' ? 'representation' : 'onboarding')}>מתי נפתחת ←</button>} />
                     );
                   })}
                 </ul>
-              </section>
-            ))}
-            </div>
-
+              </>
+            )}
           </>
         )
       )}

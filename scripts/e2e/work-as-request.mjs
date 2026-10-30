@@ -520,8 +520,8 @@ async function run(width) {
       await go(page, env.libraryUrl());
       await page.waitForSelector('[data-shelf]', { timeout: 30000 });
       ok(await page.locator('[data-shelf]').count() === 3 && await page.locator('.lb-toolbar .of-seg').count() === 0, `[${tag}] ספרייה: «בקשות / מסמכים / פגישות» — מקטעים בעמוד אחד, לא לשוניות`);
-      ok(await page.locator('.lb-group-card[data-open="true"]').count() === 0, `[${tag}] ספרייה: הקבוצות מקופלות`);
-      const multi = await page.$$eval('.lb-row', rs => rs.filter(r => r.querySelectorAll('.lb-acts button').length > 1).length);
+      ok(await page.locator('.lr-group.is-open').count() === 0, `[${tag}] ספרייה: הקבוצות מקופלות`);
+      const multi = await page.$$eval('.lr', rs => rs.filter(r => r.querySelectorAll(':scope > .lr-line .lr-side button').length > 1).length);
       ok(multi === 0, `[${tag}] ספרייה: פעולה אחת גלויה בכל שורה (השם = «צפייה»)`, String(multi));
       await page.locator('[data-shelf="documents"] .lb-shelf-btn').click();
       await page.waitForSelector('.cdx-row, .cdx-empty, .of-empty', { timeout: 15000 }).catch(() => {});
