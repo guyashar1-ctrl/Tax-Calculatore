@@ -1,0 +1,412 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>הערכת מס פשוטה — הדמיה</title>
+<style>
+  :root{
+    --page:#f6f5f2; --card:#fff; --bd:#e4e2dd; --bd2:#d6d3cc;
+    --tx:#25282d; --txc:#4b5058; --tx2:#666b72; --tx3:#92979e;
+    --br:#3f5f8f; --br-strong:#334f78; --br-soft:#edf2f8;
+    --ok:#24654e; --ok-bg:#e9f4ee; --due:#9a3b2c; --due-bg:#fbefec; --warn:#8a5b0f; --warn-bg:#fbf3e4;
+    --automation-fill:#b8437d; --automation-hover:#9d3468; --automation-text:#a63b72; --automation-soft:#fbe9f2; --automation-soft-bd:#e9b7cf;
+  }
+  *{box-sizing:border-box}
+  [hidden]{display:none!important}
+  html,body{margin:0}
+  body{font-family:"Segoe UI","Heebo",Arial,system-ui,sans-serif;background:var(--page);color:var(--tx);font-size:15px;line-height:1.5}
+  button,input{font:inherit;color:inherit}
+  button{cursor:pointer}
+  .wrap{max-width:900px;margin:0 auto;padding:18px 16px 60px}
+  .flag{display:inline-block;background:var(--warn-bg);color:var(--warn);border:1px solid #ecd9b0;border-radius:999px;padding:2px 10px;font-size:12.5px;font-weight:600}
+  h1{font-size:23px;margin:8px 0 4px}
+  .lead{color:var(--txc);margin:0 0 12px}
+  .tools{display:flex;gap:8px;align-items:center;margin:12px 0;flex-wrap:wrap}
+  .seg{display:inline-flex;border:1px solid var(--bd2);border-radius:999px;overflow:hidden;background:#fff}
+  .seg button{border:0;background:none;padding:5px 12px;font-size:13px;font-weight:600;color:var(--tx2);transition:background .2s,color .2s}
+  .seg button[aria-pressed=true]{background:var(--br);color:#fff}
+
+  .app{background:var(--page);border:1px solid var(--bd);border-radius:16px;overflow:hidden;max-width:720px;margin-inline:auto;transition:max-width .3s cubic-bezier(.23,1,.32,1)}
+  .app.phone{max-width:390px}
+  .top{background:#fff;border-bottom:1px solid var(--bd);padding:14px 18px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .top h2{margin:0;font-size:19px}
+  .top .who{color:var(--tx2);font-size:14px}
+  .pill{margin-inline-start:auto;font-size:13px;font-weight:600;color:var(--tx2);background:#efede8;border-radius:999px;padding:3px 10px;white-space:nowrap}
+  .pill.ok{color:var(--ok);background:var(--ok-bg)}
+  .pill.wait{color:var(--br);background:var(--br-soft)}
+  .body{padding:16px 18px 20px;display:flex;flex-direction:column;gap:12px}
+  .app.phone .body{padding:12px}
+
+  .card{background:#fff;border:1px solid var(--bd);border-radius:14px;padding:14px 16px}
+  .card.dim{background:#faf9f7}
+  .ch{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+  .num{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;font-size:13px;font-weight:700;background:var(--br-soft);color:var(--br);flex:none}
+  .num.done{background:var(--ok-bg);color:var(--ok)}
+  .ch h3{margin:0;font-size:16.5px}
+  .ch .sub{color:var(--tx2);font-size:13.5px}
+  .ch .end{margin-inline-start:auto}
+
+  .rows{display:flex;flex-direction:column}
+  .row{display:flex;align-items:center;gap:10px;padding:9px 0;border-top:1px solid #efede8;flex-wrap:wrap}
+  .row:first-child{border-top:0}
+  .row .k{flex:1 1 170px;color:var(--txc)}
+  .row .v{font-weight:700;font-variant-numeric:tabular-nums}
+  .row .v small{font-weight:400;color:var(--tx2)}
+  .src{font-size:12px;color:var(--automation-text);background:var(--automation-soft);border:1px solid var(--automation-soft-bd);border-radius:999px;padding:1px 8px;white-space:nowrap}
+  .src.card-src{color:var(--tx2);background:#f3f2ef;border-color:var(--bd)}
+  .src.client{color:var(--br);background:var(--br-soft);border-color:#cfdbea}
+
+  .btn{border:0;border-radius:10px;padding:9px 15px;font-weight:700;background:var(--br);color:#fff;transition:background .2s,transform .1s}
+  .btn:hover{background:var(--br-strong)}
+  .btn:active{transform:scale(.97)}
+  .btn.auto{background:var(--automation-fill)}
+  .btn.auto:hover{background:var(--automation-hover)}
+  .btn.sm{padding:5px 11px;font-size:13.5px;border-radius:8px}
+  .lnk{border:0;background:none;color:var(--br);font-weight:600;font-size:13.5px;padding:0}
+  .muted{color:var(--tx2);font-size:13.5px}
+  .note{font-size:13.5px;color:var(--txc);background:var(--br-soft);border-radius:10px;padding:8px 12px}
+
+  .answers li{margin:3px 0}
+  .answers{margin:4px 0 0;padding-inline-start:18px;color:var(--txc)}
+
+  .res{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .app.phone .res{grid-template-columns:1fr}
+  .rbox{border:1px solid var(--bd);border-radius:12px;padding:10px 12px}
+  .rbox .lab{color:var(--tx2);font-size:13.5px}
+  .rbox .big{font-size:26px;font-weight:700;font-variant-numeric:tabular-nums;color:var(--due)}
+  .rbox .was{color:var(--tx2);font-size:13px}
+  .gap{margin-top:10px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;font-weight:600}
+  details.how{margin-top:10px}
+  details.how summary{cursor:pointer;color:var(--br);font-weight:600;font-size:13.5px}
+  .calc{margin-top:6px;font-size:13.5px;color:var(--txc)}
+  .calc div{display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px dashed #ecebe7;font-variant-numeric:tabular-nums}
+  .calc div:last-child{border:0;font-weight:700;color:var(--tx)}
+  .actions{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:10px}
+
+  /* ═════ הדף של הלקוח ═════ */
+  .cp-top{background:#fff;border-bottom:1px solid var(--bd);padding:14px 16px}
+  .cp-top b{font-size:17px}
+  .steps{display:flex;gap:6px;margin-top:8px}
+  .steps i{height:4px;flex:1;border-radius:4px;background:#e7e5e0}
+  .steps i.on{background:var(--br)}
+  .q{font-size:18px;font-weight:700;margin:0 0 4px}
+  .so-far{background:#f3f2ef;border-radius:10px;padding:8px 12px;font-size:14px;color:var(--txc);margin:8px 0}
+  .so-far b{color:var(--tx)}
+  .months{display:flex;flex-direction:column;gap:6px;margin-top:6px}
+  .m{display:flex;align-items:center;gap:10px}
+  .m span{width:64px;color:var(--txc)}
+  .m input{flex:1;min-width:0;border:1px solid var(--bd2);border-radius:9px;padding:8px 10px;text-align:left;direction:ltr;font-variant-numeric:tabular-nums;font-size:16px}
+  .tot{display:flex;justify-content:space-between;margin-top:10px;padding-top:8px;border-top:1px solid var(--bd);font-weight:700}
+  .tot small{font-weight:400;color:var(--tx2)}
+  .box{display:flex;flex-direction:column;gap:8px;margin-top:8px}
+  .opt{border:1px solid var(--bd2);border-radius:12px;padding:10px 12px;background:#fff;transition:border-color .2s,background .2s}
+  .opt.on{border-color:var(--br);background:var(--br-soft)}
+  .opt label{display:flex;gap:10px;align-items:center;cursor:pointer;font-weight:600}
+  .opt input[type=checkbox]{width:18px;height:18px;accent-color:var(--br)}
+  .opt .more{margin-top:8px;display:flex;gap:8px;align-items:center}
+  .opt .more input{width:150px;border:1px solid var(--bd2);border-radius:8px;padding:6px 8px;font-size:16px}
+  .opt .more span{color:var(--tx2);font-size:13.5px}
+  .full{width:100%;margin-top:12px;padding:12px}
+  .thanks{text-align:center;padding:26px 10px}
+  .thanks .ic{font-size:34px}
+  .todo{border:1px solid var(--bd);border-radius:12px;padding:12px 14px;background:#fff}
+  .todo .big{font-size:22px;font-weight:700}
+  .fam{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+  .fam .f{display:flex;align-items:center;gap:10px;border:1px solid var(--bd);border-radius:10px;padding:8px 12px;background:#fff}
+  .fam .f b{flex:1}
+  .fam .f span{color:var(--tx2);font-size:13.5px}
+  .addc{border:1px dashed var(--bd2);background:none;border-radius:10px;padding:7px;color:var(--br);font-weight:600}
+  .two{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+  .two label{display:flex;flex-direction:column;gap:4px;color:var(--txc);font-size:14px}
+  .two input,.two select{border:1px solid var(--bd2);border-radius:9px;padding:8px 10px;font-size:16px;background:#fff;font-variant-numeric:tabular-nums}
+  .tag-new{font-size:12px;font-weight:700;color:var(--warn);background:var(--warn-bg);border-radius:999px;padding:1px 8px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <span class="flag">הדמיה · מספרים לדוגמה</span>
+  <h1>הערכת מס — אנחנו, הלקוח, התוצאה</h1>
+  <p class="lead">מסך אחד. מה שידוע מגיע לבד, הלקוח עונה בדף שלו, והתוצאה יוצאת.</p>
+
+  <div class="tools">
+    <div class="seg" id="track">
+      <button aria-pressed="true" data-t="old">עסק קיים</button>
+      <button aria-pressed="false" data-t="new">עסק חדש</button>
+    </div>
+    <div class="seg" id="view">
+      <button aria-pressed="true" data-v="office">המשרד</button>
+      <button aria-pressed="false" data-v="client">מה הלקוח רואה</button>
+    </div>
+    <div class="seg" id="stage">
+      <button aria-pressed="true" data-s="0">1 · התחלה</button>
+      <button aria-pressed="false" data-s="1">2 · בדף שלו</button>
+      <button aria-pressed="false" data-s="2">3 · ענה</button>
+      <button aria-pressed="false" data-s="3">4 · פורסם</button>
+    </div>
+    <div class="seg" id="size">
+      <button aria-pressed="true" data-z="pc">מחשב</button>
+      <button aria-pressed="false" data-z="phone">טלפון</button>
+    </div>
+  </div>
+
+  <!-- ═════ המשרד ═════ -->
+  <div class="app" id="office">
+    <div class="top">
+      <h2 id="title">הערכת מס 2026</h2><span class="who" id="who">גיא ישר · עוסק מורשה</span>
+      <span class="pill" id="pill">לא התחיל</span>
+    </div>
+    <div class="body">
+
+      <!-- 1 · אנחנו -->
+      <section class="card">
+        <div class="ch"><span class="num" id="n1">1</span><div><h3>מה אנחנו מביאים</h3><div class="sub" id="sub1">לבד, מהרשויות ומפייפרלס</div></div></div>
+        <div class="rows" data-only="old">
+          <div class="row"><span class="k">מקדמות מס הכנסה</span><span class="v">5% מהמחזור <small>· 9,000 ₪ עד היום</small></span><span class="src">⚡ שע״ם</span></div>
+          <div class="row"><span class="k">מקדמות ביטוח לאומי</span><span class="v">1,100 ₪ לחודש</span><span class="src">⚡ ביטוח לאומי</span></div>
+          <div class="row">
+            <span class="k">הכנסות והוצאות ינו׳–ספט׳</span>
+            <span data-pnl="empty"><button class="btn auto sm" id="pull">⚡ משוך מפייפרלס</button></span>
+            <span data-pnl="full" hidden><span class="v">180,000 <small>הכנסות</small> · 45,000 <small>הוצאות</small></span> <span class="src">⚡ פייפרלס</span></span>
+          </div>
+        </div>
+        <div class="rows" data-only="new" hidden>
+          <div class="row"><span class="k">תיק במס הכנסה</span><span class="v">עוד לא נפתח <small>· אין מקדמות</small></span><span class="src">⚡ שע״ם</span></div>
+          <div class="row"><span class="k">ביטוח לאומי</span><span class="v">עוד לא רשום כעצמאי</span><span class="src">⚡ ביטוח לאומי</span></div>
+          <div class="row"><span class="k">הכנסות עד היום</span><span class="v">אין — העסק עוד לא התחיל</span></div>
+        </div>
+      </section>
+
+      <!-- 2 · הלקוח -->
+      <section class="card">
+        <div class="ch"><span class="num" id="n2">2</span><div><h3 id="h2">מה גיא משלים</h3><div class="sub">המשפחה ונקודות הזיכוי, וכמה ייכנס</div></div></div>
+        <div id="s2a">
+          <div class="actions" style="margin-top:0">
+            <button class="btn" id="publishQ">פרסם בדף של גיא</button>
+            <button class="lnk" id="mailToo">וגם שלח לו מייל</button>
+          </div>
+        </div>
+        <div id="s2b" hidden><div class="note"><span id="waitTxt">בדף של גיא מ-30.10 · עוד לא ענה</span> <button class="lnk" style="margin-inline-start:8px">שלח תזכורת במייל</button></div></div>
+        <div id="s2c" hidden>
+          <div class="rows" data-only="old">
+            <div class="row"><span class="k">נקודות זיכוי</span><span class="v">4.75 <small>· נשוי, 3 ילדים (אחד נולד השנה), תואר ראשון</small></span><span class="src client">מהשאלון</span></div>
+            <div class="row"><span class="k">צפי לכל השנה</span><span class="v">250,000 <small>הכנסות</small> · 60,000 <small>הוצאות</small></span><span class="src client">מהשאלון</span></div>
+            <div class="row"><span class="k">הכנסה נוספת</span><span class="v">אין</span><span class="src client">מהשאלון</span></div>
+          </div>
+          <div class="rows" data-only="new" hidden>
+            <div class="row"><span class="k">נקודות זיכוי</span><span class="v">2.75 <small>· אישה, רווקה, בלי ילדים</small></span><span class="src client">מהשאלון</span></div>
+            <div class="row"><span class="k">העסק מתחיל</span><span class="v">דצמבר 2026</span><span class="src client">מהשאלון</span></div>
+            <div class="row"><span class="k">צפי בחודש</span><span class="v">15,000 <small>הכנסות</small> · 3,000 <small>הוצאות</small></span><span class="src client">מהשאלון</span></div>
+            <div class="row"><span class="k">הכנסה נוספת</span><span class="v">אין</span><span class="src client">מהשאלון</span></div>
+          </div>
+          <p class="muted" style="margin:6px 0 0">התשובות נכנסו לתיק לבד.</p>
+        </div>
+      </section>
+
+      <!-- 3 · התוצאה -->
+      <section class="card dim" id="c3">
+        <div class="ch"><span class="num" id="n3">3</span><div><h3 id="h3">התוצאה</h3><div class="sub" id="c3sub">תופיע כשגיא יענה</div></div></div>
+        <div id="resBody" hidden>
+          <div class="res">
+            <div class="rbox"><div class="lab">מס הכנסה</div><div class="big" id="rIt">לפחות 6%</div><div class="was" id="rItWas">מהמחזור · היום 5%</div></div>
+            <div class="rbox"><div class="lab">ביטוח לאומי</div><div class="big" id="rNi">לפחות 1,750 ₪</div><div class="was" id="rNiWas">לחודש · היום 1,100</div></div>
+          </div>
+          <div class="gap" data-only="old"><span>להשלים על החודשים שעברו</span><span style="color:var(--due)">כ-1,800 ₪</span></div>
+          <div class="note" data-only="new" hidden style="margin-top:10px">נכנס לבד לפתיחת התיקים: השיעור — לבקשת פתיחת התיק במס הכנסה, וההכנסה הצפויה — לטופס 6101 בביטוח לאומי.</div>
+          <details class="how"><summary>איך חישבנו</summary>
+            <div class="calc" data-only="old">
+              <div><span>הכנסות לכל השנה</span><span>250,000</span></div>
+              <div><span>הוצאות מוכרות</span><span>−56,000</span></div>
+              <div><span>רווח</span><span>194,000</span></div>
+              <div><span>מס לפי המדרגות, אחרי 4.75 נקודות זיכוי</span><span>14,400</span></div>
+              <div><span>מס הכנסה · ביטוח לאומי לחודש</span><span>כ-<bdi dir="ltr">5.8%</bdi> · 1,720 ₪</span></div>
+            </div>
+            <div class="calc" data-only="new" hidden>
+              <div><span>שנה מלאה של העסק (15,000 × 12)</span><span>180,000</span></div>
+              <div><span>הוצאות</span><span>−36,000</span></div>
+              <div><span>רווח מהעסק</span><span>144,000</span></div>
+              <div><span>מס, אחרי 2.75 נקודות זיכוי</span><span>10,200</span></div>
+              <div><span>מס הכנסה · ביטוח לאומי לחודש</span><span>כ-<bdi dir="ltr">5.7%</bdi> · 1,240 ₪</span></div>
+            </div>
+          </details>
+          <div class="actions" id="pubRes">
+            <button class="btn" id="publishRes">פרסם את ההמלצה בדף של גיא</button>
+          </div>
+          <div class="note" id="pubDone" hidden>פורסם בדף של גיא · את השינוי מול הרשויות אתה מגיש</div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <!-- ═════ הדף של הלקוח ═════ -->
+  <div class="app phone" id="client" hidden>
+    <div class="cp-top"><b id="cpTitle">הערכת מס 2026</b><div class="muted">משרד ישר · רו״ח</div>
+      <div class="steps" id="cpSteps"><i></i><i></i><i></i><i></i></div>
+    </div>
+    <div class="body">
+      <div id="cpNone" class="card muted">עוד לא פורסם. לחץ «פרסם בדף של …» במסך המשרד.</div>
+
+      <!-- מסך 1 · המשפחה -->
+      <div class="card" data-cp="1" hidden>
+        <p class="q">המשפחה שלך השנה</p>
+        <p class="muted" style="margin:0">מילאנו ממה שיש אצלנו. תקן אם משהו לא נכון.</p>
+        <div class="fam" data-only="old">
+          <div class="f"><b>נשוי לרות</b><button class="lnk">שנה</button></div>
+          <div class="f"><b>נועה</b><span>2019</span><button class="lnk">שנה</button></div>
+          <div class="f"><b>איתי</b><span>2022</span><button class="lnk">שנה</button></div>
+          <div class="f" id="baby" hidden><b>ילד/ה חדש/ה</b><span>אוגוסט 2026</span><span class="tag-new">חדש</span></div>
+          <button class="addc" id="addChild">＋ נולד ילד</button>
+          <div class="f"><b>גר בתל אביב</b><button class="lnk">שנה</button></div>
+        </div>
+        <div class="fam" data-only="new" hidden>
+          <div class="f"><b>רווקה</b><button class="lnk">שנה</button></div>
+          <button class="addc">＋ ילד</button>
+          <div class="f"><b>גרה בחיפה</b><button class="lnk">שנה</button></div>
+        </div>
+        <button class="btn full" data-next>נכון, המשך</button>
+      </div>
+
+      <!-- מסך 2 · מה מזכה -->
+      <div class="card" data-cp="2" hidden>
+        <p class="q">מה מתאים לך?</p>
+        <p class="muted" style="margin:0">כל אחד מאלה מוריד מס.</p>
+        <div class="box opts">
+          <div class="opt" data-more="מה ומתי סיימת"><label><input type="checkbox"> סיימתי תואר או לימודי מקצוע</label></div>
+          <div class="opt" data-more="תאריך שחרור"><label><input type="checkbox"> השתחררתי מצבא או משירות לאומי (3 השנים האחרונות)</label></div>
+          <div class="opt" data-more="כמה ימים"><label><input type="checkbox"> מילואים כלוחם</label></div>
+          <div class="opt" data-more="מתי"><label><input type="checkbox"> עליתי או חזרתי לישראל</label></div>
+          <div class="opt" data-more="איזה ילד"><label><input type="checkbox"> ילד עם מוגבלות</label></div>
+          <div class="opt" data-none><label><input type="checkbox"> אף אחד מאלה</label></div>
+        </div>
+        <button class="btn full" data-next>המשך</button>
+      </div>
+
+      <!-- מסך 3 · כמה תכניס -->
+      <div class="card" data-cp="3" hidden>
+        <div data-only="old">
+          <p class="q">כמה תכניס עד סוף השנה?</p>
+          <div class="so-far">עד היום (ינו׳–ספט׳): <b>180,000 ₪</b> · בערך 20,000 בחודש</div>
+          <div class="months">
+            <div class="m"><span>אוקטובר</span><input value="20,000" inputmode="numeric" data-m></div>
+            <div class="m"><span>נובמבר</span><input value="20,000" inputmode="numeric" data-m></div>
+            <div class="m"><span>דצמבר</span><input value="20,000" inputmode="numeric" data-m></div>
+          </div>
+          <div class="tot"><span>כל השנה</span><span id="tot">240,000 ₪</span></div>
+          <p class="muted" style="margin:6px 0 0">מילאנו לפי הקצב שלך. שנה אם אתה צופה אחרת.</p>
+        </div>
+        <div data-only="new" hidden>
+          <p class="q">העסק החדש</p>
+          <div class="two">
+            <label>מתי מתחילה<select><option>דצמבר 2026</option><option>ינואר 2027</option></select></label>
+            <label>הכנסות בחודש, בערך<input value="15,000" inputmode="numeric" id="nIn"></label>
+            <label>הוצאות בחודש, בערך<input value="3,000" inputmode="numeric" id="nEx"></label>
+          </div>
+          <div class="tot"><span>שנה מלאה</span><span id="nTot">180,000 ₪</span></div>
+        </div>
+        <button class="btn full" data-next>המשך</button>
+      </div>
+
+      <!-- מסך 4 · הכנסות נוספות -->
+      <div class="card" data-cp="4" hidden>
+        <p class="q">יש לך השנה הכנסה נוספת?</p>
+        <div class="box opts">
+          <div class="opt" data-more="משכורת בחודש ועד מתי"><label><input type="checkbox"> משכורת</label></div>
+          <div class="opt" data-more="כמה, בערך"><label><input type="checkbox"> מביטוח לאומי (לידה, מילואים, אבטלה)</label></div>
+          <div class="opt" data-more="שכירות בחודש"><label><input type="checkbox"> השכרת דירה</label></div>
+          <div class="opt" data-more="מחיר המכירה"><label><input type="checkbox"> מכרתי דירה או נכס</label></div>
+          <div class="opt" data-none><label><input type="checkbox"> אין</label></div>
+        </div>
+        <button class="btn full" id="send">שלח</button>
+      </div>
+
+      <div id="cpThanks" class="card thanks" hidden><div class="ic">✓</div><b>תודה, קיבלנו</b><p class="muted">נחזור אליך עם ההמלצה כאן בדף.</p></div>
+
+      <div id="cpDone" hidden>
+        <div class="todo">
+          <div class="muted">מה לעשות</div>
+          <p style="margin:4px 0 8px;font-weight:700" id="doneHead">המקדמות שלך מנובמבר</p>
+          <div>מס הכנסה: <span class="big">כ-<bdi dir="ltr" id="dIt">6%</bdi></span> <span class="muted">מהמחזור</span></div>
+          <div>ביטוח לאומי: <span class="big" id="dNi">כ-1,750 ₪</span> <span class="muted">לחודש</span></div>
+          <p class="muted" style="margin:8px 0 0">אנחנו מעדכנים מול הרשויות. אין צורך לעשות דבר.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  let stage = 0, pulled = false, view = 'office', track = 'old', cpStep = 1;
+  const $ = id => document.getElementById(id);
+  const press = (seg, attr, val) => seg.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', b.dataset[attr] === String(val)));
+  const T = {
+    old: { name: 'גיא', who: 'גיא ישר · עוסק מורשה', title: 'הערכת מס 2026', h3: 'התוצאה', sub1: 'לבד, מהרשויות ומפייפרלס',
+      it: 'לפחות 6%', itWas: 'מהמחזור · היום 5%', ni: 'לפחות 1,750 ₪', niWas: 'לחודש · היום 1,100', dIt: '6%', dNi: 'כ-1,750 ₪', doneHead: 'המקדמות שלך מנובמבר' },
+    new: { name: 'דנה', who: 'דנה לוי · עסק חדש', title: 'מקדמות לעסק חדש', h3: 'המקדמות לפתיחת התיק', sub1: 'יישור קו: מה רשום היום ברשויות',
+      it: 'לפחות 6%', itWas: 'מהמחזור · שנה מלאה', ni: 'לפחות 1,250 ₪', niWas: 'לחודש · מתחילת העסק', dIt: '6%', dNi: 'כ-1,250 ₪', doneHead: 'המקדמות מתחילת העסק' },
+  };
+  function render(){
+    const t = T[track];
+    press($('track'), 't', track); press($('stage'), 's', stage); press($('view'), 'v', view);
+    document.querySelectorAll('[data-only]').forEach(e => e.hidden = e.dataset.only !== track);
+    $('office').hidden = view !== 'office'; $('client').hidden = view !== 'client';
+    $('who').textContent = t.who; $('title').textContent = t.title; $('cpTitle').textContent = t.title; $('sub1').textContent = t.sub1;
+    $('h2').textContent = `מה ${t.name} משלים/ה`; $('h3').textContent = t.h3;
+    $('publishQ').textContent = `פרסם בדף של ${t.name}`; $('publishRes').textContent = `פרסם את ההמלצה בדף של ${t.name}`;
+    $('waitTxt').textContent = `בדף של ${t.name} מ-30.10 · עוד לא ענה/תה`;
+    $('pubDone').textContent = `פורסם בדף של ${t.name} · את השינוי מול הרשויות אתה מגיש`;
+    $('rIt').textContent = t.it; $('rItWas').textContent = t.itWas; $('rNi').textContent = t.ni; $('rNiWas').textContent = t.niWas;
+    $('dIt').textContent = t.dIt; $('dNi').textContent = t.dNi; $('doneHead').textContent = t.doneHead;
+
+    const known = track === 'new' || pulled || stage >= 2;
+    document.querySelectorAll('[data-pnl]').forEach(e => e.hidden = (e.dataset.pnl === 'full') !== known);
+    const mark = (id, ok, n) => { $(id).classList.toggle('done', ok); $(id).textContent = ok ? '✓' : n; };
+    mark('n1', known, 1); mark('n2', stage >= 2, 2); mark('n3', stage === 3, 3);
+    $('s2a').hidden = stage !== 0; $('s2b').hidden = stage !== 1; $('s2c').hidden = stage < 2;
+    const ready = stage >= 2 && known;
+    $('resBody').hidden = !ready; $('c3').classList.toggle('dim', !ready);
+    $('c3sub').textContent = ready ? 'מינימום, מעוגל כלפי מעלה' : (stage >= 2 ? 'חסר: הכנסות והוצאות מפייפרלס' : `תופיע כש${t.name} יענה/תענה`);
+    $('pubRes').hidden = stage === 3; $('pubDone').hidden = stage !== 3;
+    const pill = $('pill');
+    pill.className = 'pill' + (stage === 1 ? ' wait' : stage >= 2 ? ' ok' : '');
+    pill.textContent = ['לא התחיל', `ממתין ל${t.name}`, 'מוכן להמלצה', 'פורסם'][stage];
+
+    $('cpNone').hidden = stage !== 0;
+    document.querySelectorAll('[data-cp]').forEach(e => e.hidden = !(stage === 1 && +e.dataset.cp === cpStep));
+    $('cpThanks').hidden = stage !== 2; $('cpDone').hidden = stage !== 3;
+    [...$('cpSteps').children].forEach((s, i) => s.className = (stage >= 2 || i < cpStep) ? 'on' : '');
+    $('cpSteps').hidden = stage === 0 || stage === 3;
+  }
+  const seg = (id, fn) => $(id).onclick = e => { const b = e.target.closest('button'); if (b) { fn(b.dataset); render(); } };
+  seg('track', d => { track = d.t; });
+  seg('stage', d => { stage = +d.s; cpStep = 1; if (stage >= 2) pulled = true; });
+  seg('view', d => { view = d.v; });
+  $('size').onclick = e => { const b = e.target.closest('button'); if (!b) return; press($('size'), 'z', b.dataset.z); $('office').classList.toggle('phone', b.dataset.z === 'phone'); };
+  $('pull').onclick = () => { pulled = true; render(); };
+  $('publishQ').onclick = $('mailToo').onclick = () => { stage = 1; cpStep = 1; render(); };
+  $('publishRes').onclick = () => { stage = 3; render(); };
+  document.querySelectorAll('[data-next]').forEach(b => b.onclick = () => { cpStep++; render(); });
+  $('send').onclick = () => { stage = 2; render(); };
+  $('addChild').onclick = () => { $('baby').hidden = false; $('addChild').hidden = true; };
+
+  const num = v => +String(v).replace(/\D/g, '') || 0, fmt = n => n.toLocaleString('he-IL') + ' ₪';
+  document.querySelectorAll('[data-m]').forEach(i => i.oninput = () => {
+    $('tot').textContent = fmt(180000 + [...document.querySelectorAll('[data-m]')].reduce((s, x) => s + num(x.value), 0));
+  });
+  $('nIn').oninput = () => { $('nTot').textContent = fmt(num($('nIn').value) * 12); };
+  document.querySelectorAll('.opts').forEach(box => box.querySelectorAll('.opt').forEach(o => {
+    const cb = o.querySelector('input');
+    cb.onchange = () => {
+      const none = o.hasAttribute('data-none');
+      box.querySelectorAll('.opt').forEach(x => {
+        if (x === o || !cb.checked || (!none && !x.hasAttribute('data-none'))) return;
+        x.querySelector('input').checked = false; x.classList.remove('on'); x.querySelector('.more')?.remove();
+      });
+      o.classList.toggle('on', cb.checked);
+      if (o.dataset.more && cb.checked && !o.querySelector('.more')) o.insertAdjacentHTML('beforeend', `<div class="more"><input><span>${o.dataset.more}</span></div>`);
+      if (!cb.checked) o.querySelector('.more')?.remove();
+    };
+  }));
+  render();
+</script>
+</body>
+</html>

@@ -25,6 +25,7 @@ export const RECORD_OF: Record<string, RecordSchemaId> = {
   'family.death': 'deathEvent', 'family.divorce': 'divorceEvent', 'family.marriage': 'marriageEvent',
   'household.studies': 'studies',
   'household.aliyahDetails': 'aliyah', 'special.disabilityDetails': 'disability',
+  'salary.estimate': 'salaryEstimate',
   'household.spouseBasics': 'spouseBasics', 'household.reserveDays': 'reserveDays', 'household.disabledChildDetails': 'childDisability', 'family.childSupport': 'childSupport', 'filing.fatherName': 'fatherName',
   'period.property': 'period', 'period.account': 'period', 'wealth.period.property': 'period', 'wealth.period.account': 'period',
 };

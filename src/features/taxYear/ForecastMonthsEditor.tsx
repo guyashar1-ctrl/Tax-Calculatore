@@ -25,6 +25,8 @@ export interface ForecastContext {
   /** הצעה לשנה לעסק חדש (מהשאלון / מהכרטיס), אם יש. */
   newInc?: number;
   newExp?: number;
+  /** 30.10.2026 · עסק חדש: היום (YYYY-MM-DD) — ממנו נבנית בחירת החודש שבו העסק מתחיל. */
+  today?: string;
 }
 
 export function parseForecastContext(ctx?: Record<string, string>): ForecastContext | null {
@@ -99,6 +101,32 @@ export default function ForecastMonthsEditor({ context, value, onChange, disable
   const set = (patch: RecordValue) => onChange({ items: [{ ...r, needsExp, ...patch }], none: false });
   const missing = showErrors && (!r.incA || (needsExp && !r.expA));
 
+  if (c.cutoff === 0 && c.today) {
+    // ‼ 30.10.2026 · עסק חדש (הדמיה מאושרת docs/proposals/2026-10-30-tax-estimate-simple.html): מתי מתחיל, וכמה בחודש.
+    //   המקדמה היא אחוז מהמחזור — לכן מחשבים לשנה מלאה של העסק (incY/expY = בחודש × 12), לא רק לחודשים שנשארו בשנה.
+    const y0 = Number(c.today.slice(0, 4)), m0 = Number(c.today.slice(5, 7)) - 1;
+    const starts = Array.from({ length: 13 }, (_, k) => new Date(Date.UTC(y0, m0 + k - 1, 1)).toISOString().slice(0, 7));
+    const incMo = Math.round(Number(r.incY ?? 0) / 12), expMo = Math.round(Number(r.expY ?? 0) / 12);
+    const start = (r.start as string | undefined) ?? starts[1];
+    const put = (patch: { start?: string; inc?: number; exp?: number }) => {
+      const i = patch.inc ?? incMo, e = patch.exp ?? expMo;
+      set({ start: patch.start ?? start, incA: 'chg', incY: i * 12, ...(needsExp ? { expA: 'chg', expY: e * 12 } : {}) });
+    };
+    const label = (ym: string) => `${MONTHS_FULL[Number(ym.slice(5, 7)) - 1]} ${ym.slice(0, 4)}`;
+    return (
+      <div className="fm" data-record-forecast data-fm-new>
+        <label className="fm-start">מתי העסק מתחיל?
+          <select value={start} disabled={disabled} onChange={e => put({ start: e.target.value })} data-fm-start>
+            {starts.map(ym => <option key={ym} value={ym}>{label(ym)}</option>)}
+          </select>
+        </label>
+        <YearOnly label="הכנסות בחודש, בערך" value={incMo} step={1000} disabled={disabled} onChange={v => put({ inc: v })} />
+        {needsExp && <YearOnly label="הוצאות בחודש, בערך" value={expMo} step={500} disabled={disabled} onChange={v => put({ exp: v })} />}
+        <p className="fm-text">שנה מלאה: <b>{nis(incMo * 12)}</b> הכנסות{needsExp ? <> · <b>{nis(expMo * 12)}</b> הוצאות</> : null}</p>
+        {showErrors && !r.incA && <p className="ty-err" role="alert">לבחור כמה בערך בחודש</p>}
+      </div>
+    );
+  }
   if (c.cutoff === 0) {
     const inc = Number(r.incY ?? c.newInc ?? 0), exp = Number(r.expY ?? c.newExp ?? 0);
     return (

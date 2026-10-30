@@ -3,7 +3,8 @@ import { test, equal, assert } from '../../../testkit/tinyTest';
 import type { TestCase } from '../../../testkit/tinyTest';
 import type { YearFact } from '../../taxYear/types';
 import type { EstimateDraft, IncomeLine } from '../types';
-import { adjustmentRows, deriveDraft, FORECAST_ITEM, forecastAnswerOf, incomeExpenses, suggestedMonths } from '../forecastFlow';
+import { adjustmentRows, deriveDraft, FORECAST_ITEM, forecastAnswerOf, incomeExpenses, suggestedMonths, withClientAnswers } from '../forecastFlow';
+import type { Client } from '../../../types';
 import { recognizedOf, ruleFor } from '../adjustmentRules';
 import { cleanRecord, forecastSummary, schemaFor, validateRecord } from '../../taxYear/records';
 
@@ -87,5 +88,51 @@ export const TESTS: TestCase[] = [
     const sent = cleanRecord(schemaFor('forecastMonths'), { incA: 'chg', incM: [30_000, 30_000, 40_000.4, -5], expA: 'ok', needsExp: true, junk: 1 });
     equal(JSON.stringify(sent), JSON.stringify({ incA: 'chg', expA: 'ok', incM: [30_000, 30_000, 40_000, 0] }));
     equal(forecastAnswerOf([fact([sent])], line())?.answer.incA, 'chg');
+  }),
+  // ── 30.10.2026 · הערכת מס פשוטה (docs/proposals/2026-10-30-tax-estimate-simple.html) ──
+  test('משכורת וב״ל «בערך» מהשאלון — שורות בהערכה; משכורת מהתיק בלי סכום מוחלפת', () => {
+    const c = { id: 'c', firstName: 'גיא', businessTransfer: true, pitAdvancePercent: 5 } as unknown as Client;
+    const sal = { ...fact([{ monthly: 9_000, months: 12 }], 'pending'), id: 's1', itemKey: 'salary.estimate', entityKind: undefined, entityRef: undefined };
+    const ni = { ...fact([], 'accepted'), id: 'n1', itemKey: 'niBenefits.estimate', value: 6_000, entityKind: undefined, entityRef: undefined };
+    const emp: IncomeLine = { id: 'sal-e1', person: 'client', source: 'salary', entityRef: 'e1', label: 'משכורת · מעסיק' };
+    const d = withClientAnswers({ ...draft(line()), lines: [line(), emp] }, [sal, ni], c, '2026-10-30');
+    assert(!d.lines.some(l => l.id === 'sal-e1'), 'המשכורת מהתיק בלי סכום נשארה');
+    const s = d.lines.find(l => l.id === 'sal-est-client')!;
+    equal(s.actualToCutoff, 81_000);
+    equal(s.client?.amount, 27_000);
+    equal(d.lines.find(l => l.id === 'ni-est-client')?.actualToCutoff, 6_000);
+    equal(d.newBusiness, undefined);
+  }),
+  test('עסק חדש: שורה לעסק, צפי לשנה מלאה מהלקוח, מקדמה לפי מחזור — ובלי לדרוש קריאות מהרשויות', () => {
+    const c = { id: 'c', firstName: 'דנה', businessTransfer: false, hasPreviousAccountant: false } as unknown as Client;
+    const ans = cleanRecord(schemaFor('forecastMonths'), { incA: 'chg', incY: 180_000, expA: 'chg', expY: 36_000, start: '2026-12', needsExp: true });
+    equal(JSON.stringify(ans), JSON.stringify({ incA: 'chg', expA: 'chg', incY: 180_000, expY: 36_000, start: '2026-12' }));
+    equal(forecastSummary(ans), 'מתחיל ב-12.2026 · הכנסות 15,000 ₪ בחודש · הוצאות 3,000 ₪ בחודש');
+    const f = { ...fact([ans]), entityKind: undefined, entityRef: undefined };
+    const base: EstimateDraft = { ...draft(line()), lines: [], it: { via: 'manual', method: 'unknown', frequency: 1, periods: [] } };
+    const d = deriveDraft(base, [f], '2026-10-30', c);
+    equal(d.newBusiness?.start, '2026-12');
+    const l = d.lines.find(x => x.id === 'biz-new')!;
+    equal(l.turnoverForecast, 180_000);
+    equal(l.client?.amount, 144_000);
+    equal(l.actualToCutoff, 0);
+    equal(d.it.method, 'turnoverRate');
+    // שהלקוח כבר לא «עסק חדש» (נפתח תיק עם מקדמות) — השורה הזמנית והסימון יורדים
+    const after = deriveDraft(d, [f], '2026-10-30', { ...c, pitAdvancePercent: 6 } as Client);
+    assert(!after.lines.some(x => x.id === 'biz-new') && !after.newBusiness, 'נשאר עסק חדש');
+  }),
+  test('משכורת בערך: חודשים בין 1 ל-12, וחובה סכום', () => {
+    const s = schemaFor('salaryEstimate');
+    equal(Object.keys(validateRecord(s, { monthly: 9_000, months: 12 })).length, 0);
+    assert(!!validateRecord(s, { monthly: 9_000, months: 13 }).months, '13 חודשים');
+    assert(!!validateRecord(s, { months: 6 }).monthly, 'בלי סכום');
+  }),
+  test('נגזר פעמיים — אותה טיוטה (אחרת «ההמלצה בדף» נראית כאילו השתנתה)', () => {
+    const c = { id: 'c', firstName: 'דנה', businessTransfer: false, hasPreviousAccountant: false } as unknown as Client;
+    const f = { ...fact([{ incA: 'chg', incY: 180_000, expA: 'chg', expY: 36_000, start: '2026-12' }]), entityKind: undefined, entityRef: undefined };
+    const sal = { ...fact([{ monthly: 9_000, months: 12 }]), id: 's1', itemKey: 'salary.estimate', entityKind: undefined, entityRef: undefined };
+    const base: EstimateDraft = { ...draft(line()), lines: [], it: { via: 'manual', method: 'unknown', frequency: 1, periods: [] } };
+    const once = deriveDraft(base, [f, sal], '2026-10-30', c);
+    equal(JSON.stringify(deriveDraft(once, [f, sal], '2026-10-30', c)), JSON.stringify(once));
   }),
 ];

@@ -4,8 +4,10 @@
 // ‼ הצפי הוא של הלקוח: המערכת מציעה לפי הקצב (ממוצע חודשי), והוא מאשר או קובע לכל חודש שנשאר. עד שענה —
 //   החישוב לפי הקצב, מסומן כך. ההוצאות שהלקוח רואה — כמו בספרים; ההתאמות חלות על הצפי שאישר, רק במשרד.
 import type { YearFact } from '../taxYear/types';
+import type { Client } from '../../types';
 import type { Adjustment, EstimateDraft, IncomeLine } from './types';
 import { recognizedOf, ruleFor } from './adjustmentRules';
+import { businessSituationOf } from '../../utils/businessSituation';
 
 export const FORECAST_ITEM = 'business.forecastMonths';
 const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0);
@@ -22,6 +24,8 @@ export interface ForecastAnswer {
   /** עסק חדש (בלי חודשים בפועל): סכום לשנה. */
   incY?: number;
   expY?: number;
+  /** 30.10.2026 · עסק חדש: החודש שבו מתחיל (YYYY-MM). */
+  start?: string;
 }
 
 /** החודשים בפועל עד החתך — רק מה שנקלט. */
@@ -78,8 +82,77 @@ export function adjustmentRows(line: IncomeLine, cutoffMonth: number) {
   });
 }
 
+// ── 30.10.2026 · הערכת מס פשוטה (docs/proposals/2026-10-30-tax-estimate-simple.html) ─────────────────────────────
+// ‼ גם אלה נגזרים בכל חישוב מהתשובות — לא נשמרים ביד: משכורת בערך, ביטוח לאומי בערך, ועסק חדש.
+
+/** תשובה אחרונה לפריט ולאדם (ממתינה או מאושרת — נכנסת לבד). */
+function latest(facts: YearFact[], itemKey: string, role: string): YearFact | undefined {
+  return facts.filter(f => f.itemKey === itemKey && f.subjectRole === role && f.answer === 'value' && (f.status === 'accepted' || f.status === 'pending'))
+    .sort((a, b) => String(b.createdAt ?? '').localeCompare(String(a.createdAt ?? '')))[0];
+}
+
+/**
+ * עסק חדש — המשרד פותח את התיקים (מצב העסק בכרטיס), עוד אין מקדמות במס הכנסה ואין רו״ה. המקדמות נקבעות לשנה מלאה של העסק:
+ * המקדמה היא אחוז מהמחזור, ולכן השנה המלאה נותנת את השיעור הנכון; בב״ל — הסכום לחודש.
+ */
+export function isNewBusiness(client: Pick<Client, 'businessTransfer' | 'hasPreviousAccountant' | 'pitAdvancePercent'>, draft: Pick<EstimateDraft, 'lines'>): boolean {
+  return businessSituationOf(client) === 'new' && client.pitAdvancePercent == null && !draft.lines.some(l => l.source === 'business' && l.months?.length);
+}
+
+/**
+ * שורה נגזרת — במקומה אם כבר קיימת. ‼ הסדר נשמר: גרסה שמורה ונגזרת שוב חייבת לצאת זהה, אחרת «ההמלצה בדף» נראית
+ *   כאילו השתנתה (השוואת התוצאות בין הגרסה המאושרת לחישוב שעל המסך).
+ */
+const upsert = (lines: IncomeLine[], line: IncomeLine) => (lines.some(l => l.id === line.id) ? lines.map(l => (l.id === line.id ? line : l)) : [...lines, line]);
+
+/** מהתשובות לטיוטה: משכורת וב״ל בערך, ועסק חדש (שורה, צפי לשנה מלאה, שיטת מקדמה). */
+export function withClientAnswers(draft: EstimateDraft, facts: YearFact[], client: Client, today: string): EstimateDraft {
+  const cutoff = draft.cutoffMonth;
+  let lines = draft.lines;
+  for (const p of ['client', 'spouse'] as const) {
+    const sal = latest(facts, 'salary.estimate', p);
+    const s = ((sal?.value as { items?: { monthly?: unknown; months?: unknown }[] } | undefined)?.items ?? [])[0];
+    const monthly = Number(s?.monthly), months = Math.min(12, Math.max(0, Math.round(Number(s?.months))));
+    if (sal && monthly > 0 && months > 0) {
+      // ‼ התשובה היא «בערך, לשנה» — מתחלקת שווה בין מה שעבר למה שנשאר. משכורת מהתיק בלי סכום — מוחלפת בה
+      const year = monthly * months, to = r0((year * cutoff) / 12);
+      lines = upsert(lines.filter(l => !(l.source === 'salary' && l.person === p && l.actualToCutoff == null && l.id !== `sal-est-${p}`)), {
+        id: `sal-est-${p}`, person: p, source: 'salary', label: 'משכורת', actualToCutoff: to, actualFrom: 'client', actualSource: { factId: sal.id, provenance: 'client' },
+        client: { method: 'manual', amount: r0(year - to), assumption: `${monthly.toLocaleString('he-IL')} ₪ בחודש × ${months} חודשים — לפי הלקוח`, at: sal.createdAt?.slice(0, 10) ?? today }, chosen: 'client',
+      });
+    }
+    const ni = latest(facts, 'niBenefits.estimate', p);
+    const amt = Number(ni?.value);
+    if (ni && amt > 0) {
+      lines = upsert(lines, {
+        id: `ni-est-${p}`, person: p, source: 'other', label: 'מביטוח לאומי', actualToCutoff: r0(amt), actualFrom: 'client', actualSource: { factId: ni.id, provenance: 'client' },
+        client: { method: 'none', assumption: 'מה שהתקבל השנה — לפי הלקוח', at: ni.createdAt?.slice(0, 10) ?? today }, chosen: 'client',
+      });
+    }
+  }
+  // ‼ כבר לא עסק חדש (נפתח תיק עם מקדמות, או נקלט רו״ה) — בלי השורה הזמנית ובלי הסימון שנשמר בגרסה קודמת
+  if (!isNewBusiness(client, { lines })) return { ...draft, lines: lines.filter(l => l.id !== 'biz-new'), newBusiness: undefined };
+  if (!lines.some(l => l.source === 'business')) {
+    lines = [...lines, { id: 'biz-new', person: 'client', source: 'business', label: 'העסק החדש', period: { actual: 'out', forecast: 'in' } }];
+  }
+  let start: string | undefined;
+  lines = lines.map(l => {
+    if (l.source !== 'business' || l.months?.length) return l;
+    const got = forecastAnswerOf(facts, l);
+    const a = got?.answer;
+    if (a?.start) start = a.start;
+    const base = { ...l, actualToCutoff: l.actualToCutoff ?? 0, turnoverToCutoff: l.turnoverToCutoff ?? 0, actualFrom: l.actualFrom ?? ('client' as const) };
+    if (!got || a?.incY == null) return base;
+    const side = { method: 'manual' as const, amount: r0(a.incY - (a.expY ?? 0)), at: got.at ?? today, assumption: 'שנה מלאה של העסק — לפי הלקוח' };
+    return { ...base, client: side, chosen: 'client' as const, turnoverForecast: r0(a.incY) };
+  });
+  const it = draft.it.method === 'unknown' || draft.it.method === 'none' ? { ...draft.it, method: 'turnoverRate' as const, ratePct: undefined } : draft.it;
+  return { ...draft, lines, it, newBusiness: { ...(start ? { start } : {}) } };
+}
+
 /** הטיוטה עם הצפי וההתאמות שנגזרים מהרו״ה ומתשובת הלקוח. שורה בלי רו״ה — כמו שהיא. */
-export function deriveDraft(draft: EstimateDraft, facts: YearFact[], today: string): EstimateDraft {
+export function deriveDraft(draft0: EstimateDraft, facts: YearFact[], today: string, client?: Client): EstimateDraft {
+  const draft = client ? withClientAnswers(draft0, facts, client, today) : draft0;
   const cutoff = draft.cutoffMonth;
   const rest = Math.max(0, 12 - cutoff);
   let adjustments = draft.adjustments.filter(a => !a.auto);

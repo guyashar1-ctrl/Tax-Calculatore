@@ -81,12 +81,14 @@ export const TESTS: TestCase[] = [
   test('ממידע קיים: ילדים, מעסיק ועסק מהכרטיס — לאישור, לא לשאלה; בן/בת הזוג בנפרד', () => {
     const p = pic({ client: married });
     equal(st(p, 'household.children', 'couple')?.state, 'fromCard');
-    equal(st(p, 'salary.employers', 'client')?.state, 'fromCard');
-    equal(st(p, 'salary.employers', 'spouse')?.state, 'fromCard');
-    const lines = promptFor(st(p, 'salary.employers', 'spouse')!, { client: married, taxYear: 2026, purpose: 'estimate' });
+    // ‼ 30.10.2026 · הערכת מס פשוטה: המעסיקים לא מאושרים בהערכה (נשאלת רק משכורת בערך) — בדוח השנתי כן
+    const pa = pic({ client: married, purpose: 'annual' });
+    equal(st(pa, 'salary.employers', 'client')?.state, 'fromCard');
+    equal(st(pa, 'salary.employers', 'spouse')?.state, 'fromCard');
+    const lines = promptFor(st(pa, 'salary.employers', 'spouse')!, { client: married, taxYear: 2026, purpose: 'annual' });
     assert(lines.input.kind === 'confirm' && lines.input.lines.join() === 'בית חולים', JSON.stringify(lines.input));
     equal(lines.subjectName, 'מיכל');
-    assert(p.toConfirm.length >= 4, 'רשימת אישור');
+    assert(pa.toConfirm.length >= 4, 'רשימת אישור');
     // מעביד, עסק, נכס וחשבון — יעד נפרד לכל אחד
     // 16.10.2026 · הערכה בלי מסמכים: התלוש לא נשאל; היעד לכל מעסיק נשאר בפריט הסכומים (משרד)
     assert(!st(p, 'salary.payslipToDate', 'spouse', 'e2'), 'תלוש בהערכה');
@@ -116,7 +118,7 @@ export const TESTS: TestCase[] = [
     const g = groupForReview([prev, changed], []);
     equal(g.individual.length, 1);
     assert(g.individual[0].conflict!.includes('5,000'), g.individual[0].conflict!);
-    const s = st(pic({ client: client(), facts: [fact({ itemKey: 'donations.given' }), prev, changed] }), 'donations.amount', 'client');
+    const s = st(pic({ client: client(), purpose: 'annual', facts: [fact({ itemKey: 'donations.given' }), prev, changed] }), 'donations.amount', 'client');
     equal(s?.state, 'pendingReview');
     assert(!!s?.conflict, 'סתירה מסומנת');
     const asked = fact({ itemKey: 'household.children', subjectRole: 'couple', status: 'pending', clientAssertion: 'changed', value: { changed: true, note: 'נולד יואב' } });
@@ -126,20 +128,20 @@ export const TESTS: TestCase[] = [
   // ── מהערכה לדוח שנתי ──
   test('הערכה עד ספטמבר → דוח שנתי: לא שואלים מחדש; «מה השתנה מאז» לתחום ומסמך סופי', () => {
     const ctx = { client: married, taxYear: 2026, purpose: 'estimate' as const, cutoffMonth: 9 };
-    const s = st(pic({ client: married }), 'donations.given', 'client')!;
+    // ‼ 30.10.2026 · הערכת מס פשוטה: תרומות כבר לא בהערכה — אותו מנגנון, על ביטוח לאומי (שנשאל בשתיהן)
+    const s = st(pic({ client: married }), 'niBenefits.received', 'client')!;
     const r = answerToFacts(newAsk(s, ctx, { id: 'a', stepId: 's', parentStepId: 'p', now: TODAY }), { kind: 'yes' }, ctx, TODAY);
     equal(r.facts[0].basis, 'actual_to_date');
     equal(r.facts[0].periodTo, '2026-09-30');
     const facts = r.facts.map(f => ({ ...f, id: id(), createdAt: TODAY, status: 'accepted' }) as YearFact);
     const est = pic({ client: married, facts, cutoffMonth: 9 });
-    equal(st(est, 'donations.given', 'client')?.state, 'known');
+    equal(st(est, 'niBenefits.received', 'client')?.state, 'known');
     const ann = pic({ client: married, facts, purpose: 'annual', today: '2027-03-15' });
-    equal(st(ann, 'donations.given', 'client')?.state, 'partial');
-    assert(!ann.toAsk.some(x => x.item.key === 'donations.given' && x.subjectRole === 'client'), 'שאלת הפתיחה לא נשאלת שוב');
-    const since = st(ann, 'donations.changesSince', 'couple');
+    equal(st(ann, 'niBenefits.received', 'client')?.state, 'partial');
+    assert(!ann.toAsk.some(x => x.item.key === 'niBenefits.received' && x.subjectRole === 'client'), 'שאלת הפתיחה לא נשאלת שוב');
+    const since = st(ann, 'niBenefits.changesSince', 'couple');
     equal(since?.state, 'missing');
     assert(promptFor(since!, { client: married, taxYear: 2026, purpose: 'annual' }).title.includes('ספטמבר'), 'הניסוח מציין מאז מתי');
-    equal(st(ann, 'donations.receipts', 'client')?.state, 'missing');
   }),
 
   // ── מסמך חסר או שטרם זמין ──
@@ -195,13 +197,13 @@ export const TESTS: TestCase[] = [
     equal(st(pic({ client: married, purpose: 'annual', facts: [zero] }), 'rent.income', 'couple', 'p1')?.state, 'known');
   }),
   test('לא שואלים פעמיים: פריט שנשלח ועוד לא נענה, או תשובה שממתינה', () => {
-    const s = st(pic({ client: married }), 'donations.given', 'client')!;
+    const s = st(pic({ client: married }), 'niBenefits.received', 'client')!;
     const ask = newAsk(s, { client: married, taxYear: 2026, purpose: 'estimate' }, { id: 'q', stepId: 's', parentStepId: 'p', now: TODAY });
     const p1 = pic({ client: married, asks: [{ ...ask, state: 'published' }] });
-    equal(st(p1, 'donations.given', 'client')?.state, 'asked');
-    assert(!p1.toAsk.some(x => x.item.key === 'donations.given' && x.subjectRole === 'client'), 'נשאל שוב');
-    const p2 = pic({ client: married, facts: [fact({ itemKey: 'donations.given', status: 'pending' })] });
-    assert(!p2.toAsk.some(x => x.item.key === 'donations.given' && x.subjectRole === 'client'), 'ממתינה — נשאל שוב');
+    equal(st(p1, 'niBenefits.received', 'client')?.state, 'asked');
+    assert(!p1.toAsk.some(x => x.item.key === 'niBenefits.received' && x.subjectRole === 'client'), 'נשאל שוב');
+    const p2 = pic({ client: married, facts: [fact({ itemKey: 'niBenefits.received', status: 'pending' })] });
+    assert(!p2.toAsk.some(x => x.item.key === 'niBenefits.received' && x.subjectRole === 'client'), 'ממתינה — נשאל שוב');
   }),
 
   // ── שנה לסכום מהכרטיס — רק עם ראיה ──
@@ -250,42 +252,36 @@ export const TESTS: TestCase[] = [
     assert(!st(p, 'special.trust'), 'נאמנות בלי סימון');
     assert(!!st(pic({ client: married, purpose: 'annual', taxYear: 2025, openedRare: ['special.trust'] }), 'special.trust', 'spouse'), 'נאמנות אחרי סימון');
   }),
-  test('זוג: שאלה אחת «מי מכם?» לכל תחום; העובדות נשמרות לכל אחד; הכרטיס עונה — לא שואלים', () => {
+  // ‼ 30.10.2026 · הערכת מס פשוטה (docs/proposals/2026-10-30-tax-estimate-simple.html): לזוג — מסכים לכל אדם כמו בדוח השנתי,
+  //   לא «מי מכם?» לכל תחום. נשאל רק מה שמזיז את המקדמות: המשפחה, מה מוריד מס, הכנסה נוספת.
+  test('הערכה לזוג: «מה מתאים» ו«הכנסה נוספת» לכל אדם; בלי תרומות, מכירות או «עבדת כשכיר» כשהמעסיקים בתיק', () => {
     const ctx = { client: married, taxYear: 2026, purpose: 'estimate' as const, cutoffMonth: 9 };
     const p = pic({ client: married, cutoffMonth: 9 });
     const plan = buildAskPlan([...p.toConfirm, ...p.toAsk], ctx);
-    // זוג עם שתי משכורות, עסק, נכס מושכר וחשבון השקעות: 7 אישורים מהכרטיס, 7 שאלות פתיחה לזוג, ושאלות לכל עסק/נכס/חשבון/מעסיק.
-    // ‼ 11.10.2026: +1 בכוונה — «שינוי שמזכה בהנחה» (תואר/שחרור/יישוב שאינם בכרטיס). בלעדיה תואר חדש לא נשאל לעולם.
-    // ‼ 30.10.2026: +1 בכוונה — «חברה בשליטה» עברה מהמשרד ללקוח (הלקוח יודע אם יש לו חברה)
-    assert(plan.length <= 23, `${plan.length} שאלות לזוג עם עסק, נכס וחשבון`);
-    equal(plan.filter(e => e.subjectRole === 'couple' && e.prompt.input.kind === 'who').length, 7);
-    assert(plan.some(e => e.itemKey === 'companies.controlled'), 'חברה בשליטה — שאלה ללקוח');
-    assert(!plan.some(e => ['business.assetDocs', 'sales.transaction', 'sales.docs'].includes(e.itemKey)), 'שאלת המשך לפני שאלת הפתיחה');
-    const don = plan.filter(e => e.itemKey === 'donations.given');
-    equal(don.length, 1);
-    equal(don[0].subjectRole, 'couple');
-    assert(don[0].prompt.input.kind === 'who' && don[0].prompt.input.spouseName === 'מיכל', 'שמות בני הזוג בשאלה');
-    // מעסיקים בכרטיס ⇒ אין «עבדת כשכיר?», רק אישור הרשימה
-    assert(!plan.some(e => e.itemKey === 'salary.worked'), 'נשאל «עבדת כשכיר» למרות שהמעסיקים בכרטיס');
-    // תואר/שחרור/יישוב בלי נתון בכרטיס — לא נשאלים כאישור; במקומם שאלה אחת על שינוי שמזכה
+    assert(plan.length <= 16, `${plan.length} שאלות לזוג עם עסק, נכס וחשבון`);
+    equal(plan.filter(e => e.prompt.input.kind === 'who').length, 0);
+    for (const k of ['donations.given', 'sales.sold', 'foreign.income', 'savings.selfDeposits', 'business.active', 'business.inPaperless', 'salary.employers'])
+      assert(!plan.some(e => e.itemKey === k), `נשאל ${k} בהערכה`);
+    const less = plan.filter(e => e.itemKey === 'annual.lessTax');
+    equal(less.map(e => e.subjectRole).join(','), 'client,spouse');
+    assert(less.every(e => e.prompt.input.kind === 'multi' && e.prompt.input.options.some(o => o.key === 'household.creditChanges')), 'שינוי שמזכה — ריבוע');
+    assert(less[1].prompt.title.includes('מיכל'), less[1].prompt.title);
+    // מעסיקים בכרטיס ⇒ אין ריבוע «משכורת», אבל המשכורת בערך נשאלת לכל אחד
+    assert(!plan.some(e => e.itemKey === 'annual.whatHappened' && e.prompt.input.kind === 'multi' && e.prompt.input.options.some(o => o.key === 'salary.worked')), 'ריבוע משכורת למרות שהמעסיקים בכרטיס');
+    equal(plan.filter(e => e.itemKey === 'salary.estimate').map(e => e.subjectRole).sort().join(','), 'client,spouse');
+    // תואר/שחרור/יישוב בלי נתון בכרטיס — לא נשאלים כאישור
     assert(!plan.some(e => ['household.degree', 'household.release'].includes(e.itemKey)), 'נשאל על תואר בלי נתון בכרטיס');
-    equal(plan.filter(e => e.itemKey === 'household.creditChanges').length, 1);
-    // תשובה «מיכל» → עובדה «כן» למיכל ו«לא» לנועה
-    const ask = { id: 'w', clientId: 'c1', taxYear: 2026, stepId: 's', parentStepId: 'p', itemKey: 'donations.given', subjectRole: 'couple' as const, prompt: don[0].prompt, state: 'published' as const, createdAt: TODAY };
-    const r = answerToFacts(ask, { kind: 'who', value: 'spouse' }, ctx, TODAY);
+    // «מי מכם?» (הצהרת הון, קליטה) — עובדה «כן» למי שנבחר ו«לא» לשני
+    const ask = { id: 'w', clientId: 'c1', taxYear: 2026, stepId: 's', parentStepId: 'p', itemKey: 'donations.given', subjectRole: 'couple' as const,
+      prompt: { templateVersion: 'x', title: 'מי מכם?', why: '', input: { kind: 'who' as const, clientName: 'נועה', spouseName: 'מיכל' } }, state: 'published' as const, createdAt: TODAY };
+    const r = answerToFacts(ask, { kind: 'who', value: 'spouse' }, { ...ctx, purpose: 'annual' }, TODAY);
     equal(r.facts.map(f => `${f.subjectRole}:${f.answer}`).join(','), 'client:no,spouse:value');
-    // השאלה לזוג מסומנת «נשלח» אצל שני האנשים — לא נשאלת שוב
-    const after = pic({ client: married, asks: [ask] });
-    equal(['client', 'spouse'].map(r2 => st(after, 'donations.given', r2)?.state).join(','), 'asked,asked');
   }),
-  test('רכוש קבוע ועסקאות הון נאספים כבר עכשיו (לא נדחים לשלב 4)', () => {
+  test('הערכת מס: רכוש קבוע ועסקאות הון לא נשאלים (נאספים בדוח השנתי)', () => {
     const p = pic({ client: married, purpose: 'estimate' });
-    equal(st(p, 'business.assetsChanged', 'client', 'b1')?.state, 'missing');
-    equal(st(p, 'sales.sold', 'client')?.state, 'missing');
-    // 16.10.2026 · מסמכי העסקה — בדוח (בהערכה אין מסמכים); פרטי העסקה — כבר בהערכה
-    const withSale = pic({ client: married, purpose: 'estimate', facts: [fact({ itemKey: 'sales.sold', status: 'pending' })] });
-    equal(st(withSale, 'sales.transaction', 'client', 'new')?.state, 'missing');
-    assert(!st(withSale, 'sales.docs', 'client', 'new'), 'מסמך בהערכה');
+    assert(!st(p, 'business.assetsChanged', 'client', 'b1'), 'רכוש קבוע בהערכה');
+    assert(!st(p, 'sales.sold', 'client'), 'מכירה בהערכה');
+    equal(st(pic({ client: married, purpose: 'annual' }), 'sales.sold', 'client')?.state, 'missing');
     equal(st(pic({ client: married, purpose: 'annual', facts: [fact({ itemKey: 'sales.sold', status: 'pending' })] }), 'sales.docs', 'client', 'new')?.state, 'missing');
     assert(ITEM_BY_KEY['savings.selfDeposits'].calcBlockedBy === 'pen.age50Cap', 'גיל 50 חוסם חישוב, לא איסוף');
   }),

@@ -167,6 +167,11 @@ export function forecastSummary(r: RecordValue): string {
   const total = (m: unknown, y: unknown) => (Array.isArray(m) ? m.reduce<number>((a, v) => a + (Number(v) || 0), 0) : Number(y) || 0);
   const side = (label: string, a: unknown, m: unknown, y: unknown) =>
     a === 'ok' ? `${label}: לפי הקצב` : a === 'chg' ? `${label}: ${total(m, y).toLocaleString('he-IL')} ₪ עד סוף השנה` : '';
+  // ‼ 30.10.2026 · עסק חדש: מתי מתחיל, ובחודש (השנה המלאה = × 12)
+  if (typeof r.start === 'string') {
+    const mo = (y: unknown) => (Number(y) > 0 ? `${Math.round(Number(y) / 12).toLocaleString('he-IL')} ₪ בחודש` : '');
+    return [`מתחיל ב-${r.start.slice(5, 7)}.${r.start.slice(0, 4)}`, mo(r.incY) && `הכנסות ${mo(r.incY)}`, mo(r.expY) && `הוצאות ${mo(r.expY)}`].filter(Boolean).join(' · ');
+  }
   return [side('הכנסות', r.incA, r.incM, r.incY), side('הוצאות', r.expA, r.expM, r.expY)].filter(Boolean).join(' · ');
 }
 /** ‼ 290 · «איפה גר/ה» ⇔ משמורת בתיק (Child.custody): 'spouse' בכרטיס של הורה שאינו נשוי = ההורה השני. */
@@ -512,6 +517,15 @@ export function schemaFor(id: RecordSchemaId, c?: Client, ctx?: Record<string, s
         summary: r => [label(kids, r.child), str(r.monthly) ? `${Number(r.monthly).toLocaleString('he-IL')} ₪ בחודש` : ''].filter(Boolean).join(' · '),
       };
     }
+    // ‼ 30.10.2026 · הערכת מס פשוטה — משכורת בערך: בחודש, וכמה חודשים השנה (כולל מה שעוד יבוא)
+    case 'salaryEstimate': return {
+      id, noun: 'משכורת', addLabel: '', multiple: false,
+      fields: [
+        { key: 'monthly', label: 'ברוטו בחודש (₪)', type: 'number', required: true, half: true },
+        { key: 'months', label: 'כמה חודשים השנה?', type: 'number', required: true, half: true, hint: 'כולל החודשים שעוד יבואו' },
+      ],
+      summary: r => [str(r.monthly) ? `${Number(r.monthly).toLocaleString('he-IL')} ₪ בחודש` : '', str(r.months) ? `${str(r.months)} חודשים` : ''].filter(Boolean).join(' · '),
+    };
     // ‼ 27.10.2026 · הצפי עד סוף השנה — מסך משלו (ForecastMonthsEditor), בלי שדות טופס; הבדיקה ב-validateRecord
     case 'forecastMonths': return {
       id, noun: 'צפי', addLabel: '', multiple: false, fields: [],
@@ -609,6 +623,10 @@ export function validateRecord(schema: RecordSchema, r: RecordValue): Record<str
   }
   if (schema.id === 'lifeCosts' && !Object.values((r.costs ?? {}) as Record<string, unknown>).some(v => Number(v) > 0) && !(Number(r.rentMonthly) > 0) && !(Number(r.mortgageMonthly) > 0)) err.costs = 'חסר';
   if ((schema.id === 'moneyIn' || schema.id === 'moneyOut') && !(Array.isArray(r.flows) && r.flows.length && (r.flows as { amount?: unknown; year?: unknown }[]).every(f => Number(f.amount) > 0 && Number(f.year) > 1900))) err.flows = 'חסר';
+  if (schema.id === 'salaryEstimate') {
+    if (!err.monthly && !(Number(r.monthly) > 0)) err.monthly = 'חסר';
+    if (!err.months && !(Number.isInteger(Number(r.months)) && Number(r.months) >= 1 && Number(r.months) <= 12)) err.months = 'בין 1 ל-12';
+  }
   if (schema.id === 'forecastMonths') {
     const okSide = (a: unknown, m: unknown, y: unknown) => a === 'ok' || (a === 'chg' && ((Array.isArray(m) && m.every(v => Number(v) >= 0)) || Number(y) >= 0));
     if (!okSide(r.incA, r.incM, r.incY)) err.incA = 'חסר';
@@ -648,8 +666,10 @@ export function cleanRecord(schema: RecordSchema, r: RecordValue, dir?: BankDire
     const side = (a: unknown) => (a === 'ok' || a === 'chg' ? a : undefined);
     const nums = (m: unknown) => (Array.isArray(m) ? m.slice(0, 12).map(v => Math.max(0, Math.round(Number(v) || 0))) : undefined);
     const num = (v: unknown) => (v == null || v === '' ? undefined : Math.max(0, Math.round(Number(v) || 0)));
+    // ‼ 30.10.2026 · עסק חדש: החודש שבו מתחיל (YYYY-MM) — ההכנסות וההוצאות לשנה מלאה (incY/expY)
+    const start = typeof r.start === 'string' && /^\d{4}-(0[1-9]|1[0-2])$/.test(r.start) ? r.start : undefined;
     const out: RecordValue = { incA: side(r.incA), expA: side(r.expA), incM: r.incA === 'chg' ? nums(r.incM) : undefined, expM: r.expA === 'chg' ? nums(r.expM) : undefined,
-      incY: num(r.incY), expY: num(r.expY) };
+      incY: num(r.incY), expY: num(r.expY), start };
     return Object.fromEntries(Object.entries(out).filter(([, v]) => v !== undefined));
   }
   const out: RecordValue = {};

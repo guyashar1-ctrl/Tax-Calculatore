@@ -15,7 +15,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { DOCS } from './documents';
 import * as api from './api';
-import { ANNUAL_GRID_KEY, UNAVAILABLE_LABEL, type AskAnswer } from './asks';
+import { ANNUAL_GRIDS, UNAVAILABLE_LABEL, type AskAnswer } from './asks';
 import AnnualFlow from './AnnualFlow';
 import type { EntityField, EntitySpec, InfoAsk, UnavailableCode } from './types';
 import { livePortalActions } from '../../components/portal/portalActions';
@@ -103,7 +103,7 @@ export default function TaxInfoFlow({ stepId, token, previewClientId, previewAsk
   if (!asks) return <div className="ty-note">טוען…</div>;
   if (asks.length === 0) return <div className="ty-note">אין כרגע שאלות פתוחות.</div>;
   // ‼ 20.10.2026 · הדוח השנתי — השאלון החדש (טיוטה עד «שליחה», מסמכים בסוף; AnnualFlow.tsx). שאר השאלונים — כאן, כמו קודם.
-  if (asks.some(a => a.itemKey === ANNUAL_GRID_KEY)) return <AnnualFlow stepId={stepId} token={token} title={title} initialAsks={asks} fetchAsks={fetchAsks} onClose={onClose} />;
+  if (asks.some(a => ANNUAL_GRIDS.includes(a.itemKey))) return <AnnualFlow stepId={stepId} token={token} title={title} initialAsks={asks} fetchAsks={fetchAsks} onClose={onClose} />;
 
   const upload = async (ask: InfoAsk, file: File, manifest?: unknown): Promise<string | null> => {
     if (preview) return 'בתצוגה מקדימה אין העלאה';

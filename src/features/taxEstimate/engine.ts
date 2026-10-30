@@ -590,7 +590,7 @@ export function computeEstimate(draft: EstimateDraft, ctx: Ctx, opts: { extraStu
     return {
       person: p, salary: r0(S[p].salary), businessBooks: r0(S[p].business), adjustments: r0(S[p].adj), businessTaxable: r0(S[p].business + S[p].adj),
       rent: r0(S[p].rent), capital: r0(S[p].capital), other: r0(S[p].other),
-      incomeTax: r ? r0(itFor(p, true) ?? 0) : 0, creditPoints: r?.totalCreditPoints ?? 0, surtax: r0((r?.surtax ?? 0) + (r?.surtaxCapitalExtra ?? 0)),
+      incomeTax: r ? r0(itFor(p, true) ?? 0) : 0, creditPoints: r?.totalCreditPoints ?? 0, creditLines: r ? r.creditPointLines.filter(l => l.points).map(l => ({ description: l.description, points: l.points })) : undefined, surtax: r0((r?.surtax ?? 0) + (r?.surtaxCapitalExtra ?? 0)),
       salaryWithheld: r0(withheld(p, ['salary', 'capital', 'business'])), niSelfEmployed: niOf[p].se, niNonWork: niOf[p].nw, niSplit: niOf[p].split, niStatus: niStatus[p]?.text,
       pension: caps[p]?.pensionCalc,
       breakdown: r ? { taxable: r0(r.taxableIncome), deductions: r0(r.totalDeductions), niDeduction: r0(r.niDeductionFromIncomeTax), creditPointsValue: r0(r.totalCreditValue), donationCredit: r0(r.donationCredit),
@@ -1016,10 +1016,15 @@ export function computeEstimate(draft: EstimateDraft, ctx: Ctx, opts: { extraStu
           : 'לאשר את ההערכה — המקדמות והניכויים מכסים את החבות המשוערת');
   if (persons.some(p => S[p].business > 0 && !microNoNi.has(p))) limits.push('ניכוי 52% מדמי ב״ל (47א): בדוח השנתי — לפי התשלומים בפועל בשנה (עע״מ 624/20 קירשבלום; מ-2025 בניכוי החזרים שהתקבלו). כאן — לפי החבות המשוערת לשנה');
   if (draft.lines.some(l => l.source === 'capital')) limits.push('הכנסה הונית: השיעור לפי סוג כל שורה; רווח הון — הריאלי (בלי הסכום האינפלציוני). קיזוז הפסדים, ריבית שנצמחה לפני 2012 ובעל מניות מהותי במכירה — ביד');
-  if (cutoff < 12) limits.push(`נתוני אמת עד סוף ${MONTH_HE[cutoff]}; ${12 - cutoff} החודשים הבאים — תחזית שאושרה`);
+  if (cutoff < 12 && !draft.newBusiness) limits.push(`נתוני אמת עד סוף ${MONTH_HE[cutoff]}; ${12 - cutoff} החודשים הבאים — תחזית שאושרה`);
+  // ‼ 30.10.2026 · עסק חדש: עוד אין תיק ואין מקדמות — אין מה לקרוא מ-134 או מב״ל, והמעמד בב״ל ייקבע בפתיחת התיק (6101).
+  //   מה שחוסם רק בגלל קריאה מהרשות — לא חוסם כאן. השנה המלאה של העסק היא הבסיס (forecastFlow.ts › withClientAnswers).
+  const NEW_BIZ_SKIP = /^(it_not_read|it_method_unknown|it_periods_missing|ni_not_read|ni_paid_missing|ni_status_)/;
+  const shown = draft.newBusiness ? blockers.filter(b => !NEW_BIZ_SKIP.test(b.code)) : blockers;
+  if (draft.newBusiness) limits.push('עסק חדש: המקדמות מחושבות לשנה מלאה של העסק, לפי מה שהלקוח צופה בחודש');
 
   return {
-    taxYear: year, cutoffMonth: cutoff, persons: personResults, household, advances, micro, savings, blockers, partial, limits, openQuestions: openQuestions.length ? openQuestions : undefined,
+    taxYear: year, cutoffMonth: cutoff, persons: personResults, household, advances, micro, savings, blockers: shown, partial, limits, openQuestions: openQuestions.length ? openQuestions : undefined,
     cashflow: household.incomplete ? [] : buildCashflow(advances, draft, year), alignment, checks,
     ...(spouseCmp ? { spouseCalc: { applies: spouseCmp.applies, separate: spouseCmp.separate, jointLow: spouseCmp.joint.low, jointHigh: spouseCmp.joint.high, household: spouseCmp.household, open: spouseCmp.openBecause } } : {}),
     usedRules: [...used.values()], rulesetVersion: RULESET_VERSION, nextAction,

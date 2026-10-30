@@ -327,6 +327,11 @@ export interface EstimateDraft {
   decisions: OfficeDecision[];
   /** מהערכת המשרד — הערה חופשית שנשמרת עם הגרסה. */
   note?: string;
+  /**
+   * 30.10.2026 · עסק חדש (המשרד פותח את התיקים): נגזר בכל חישוב (forecastFlow.ts › withClientAnswers) — לא נשמר ביד.
+   * המקדמות לשנה מלאה של העסק; אין קריאות 134 / ב״ל לדרוש. start — החודש שבו העסק מתחיל, לפי הלקוח.
+   */
+  newBusiness?: { start?: string };
 }
 
 /** רכיב שאינו מחושב — עם הסיבה. מוצג במקום מספר. */
@@ -346,6 +351,8 @@ export interface PersonResult {
   other: number;
   incomeTax: number;
   creditPoints: number;
+  /** 30.10.2026 · ממה מורכבות נקודות הזיכוי (מהכרטיס, שהשאלון מעדכן) — להצגה במשרד. */
+  creditLines?: { description: string; points: number }[];
   surtax: number;
   salaryWithheld: number;
   /** דמי ב״ל ובריאות על ההכנסה מעסק (עצמאי). ‼ 16.10.2026: בסיס אחרי ניכוי הפנסיה (345); המעמד — מהכרטיס. */

@@ -27,6 +27,7 @@ import { BtlNow, formatDay, formatIl, type WorkspaceCtx } from './ui';
 import { loadBtlPortalRecord, type BtlPortalRecord } from '../../nationalInsurance/btlPortalRecord';
 import { useBtlIncomeReads } from '../../../hooks/useBtlIncomeReads';
 import { useActiveTemplate, useTemplateVersion } from '../mapping';
+import { latestNewBusinessEstimate, newBusinessFigures } from '../../taxEstimate/api';
 import '../smartForms.css';
 
 type Step = 'purpose' | 'data' | 'review' | 'sign' | 'submit';
@@ -117,8 +118,15 @@ export default function Btl6101Workspace({ filingId, client: clientProp, onClose
   const subjectRole: 'client' | 'spouse' = filing?.subjectRole === 'spouse' ? 'spouse' : 'client';
   const incomeReads = useBtlIncomeReads(clientProp.id, undefined, subjectRole === 'spouse');
   const btlIncomeRead = incomeReads[subjectRole] ?? null;
-  const resolved = useMemo(() => resolve6101({ client, purposes, entered, confirmed, asOf, flags, professional, btlRecord: subjectRecord, btlIncomeRead, subjectRole }),
-    [client, purposes, entered, confirmed, asOf, flags, professional, subjectRecord, btlIncomeRead, subjectRole]);
+  // ‼ 30.10.2026 · עסק חדש: ההכנסה הצפויה מהערכת המקדמות שאושרה (taxEstimate/api.ts)
+  const [nbEstimate, setNbEstimate] = useState<{ monthlyIncome?: number; start?: string; at?: string } | undefined>();
+  useEffect(() => {
+    let live = true;
+    void latestNewBusinessEstimate(clientProp.id).then(v => { if (live) setNbEstimate(v ? newBusinessFigures(v, subjectRole) : undefined); });
+    return () => { live = false; };
+  }, [clientProp.id, subjectRole]);
+  const resolved = useMemo(() => resolve6101({ client, purposes, entered, confirmed, asOf, flags, professional, btlRecord: subjectRecord, btlIncomeRead, subjectRole, newBusinessEstimate: nbEstimate }),
+    [client, purposes, entered, confirmed, asOf, flags, professional, subjectRecord, btlIncomeRead, subjectRole, nbEstimate]);
 
   // ── שמירה אוטומטית (רק טיוטה) ──
   const saveTimer = useRef<number | null>(null);

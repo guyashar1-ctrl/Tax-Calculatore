@@ -43,3 +43,19 @@ export async function loadClientDocuments(clientId: string): Promise<{ id: strin
   const { data } = await supabase.from('documents').select('id, file_name, description, uploaded_at').eq('client_id', clientId).order('uploaded_at', { ascending: false }).limit(80);
   return ((data ?? []) as Row[]).map(r => ({ id: String(r.id), label: String(r.description || r.file_name || 'מסמך'), date: r.uploaded_at ? String(r.uploaded_at).slice(0, 10) : undefined }));
 }
+
+/**
+ * 30.10.2026 · עסק חדש: ההערכה האחרונה שאושרה ללקוח (draft.newBusiness) — ממנה ההכנסה הצפויה בטופס 6101 והשיעור לפתיחת התיק.
+ * ‼ רק גרסה מאושרת: טיוטה אינה מספר שהמשרד עומד מאחוריו.
+ */
+export async function latestNewBusinessEstimate(clientId: string): Promise<EstimateVersion | null> {
+  const { data, error } = await supabase.from('tax_estimates').select('*').eq('client_id', clientId).eq('status', 'approved').order('approved_at', { ascending: false }).limit(5);
+  if (error) return null;
+  return ((data ?? []) as Row[]).map(fromRow).find(v => !!v.draft?.newBusiness) ?? null;
+}
+/** מה עובר מההערכה לפתיחת התיקים: הכנסה בחודש (רווח לשנה ÷ 12), השיעור במס הכנסה, ומתי העסק מתחיל. */
+export function newBusinessFigures(v: EstimateVersion, person: 'client' | 'spouse' = 'client') {
+  const p = v.outputs?.persons.find(x => x.person === person);
+  const it = v.outputs?.advances.find(a => a.authority === 'it' && a.person === person);
+  return { monthlyIncome: p ? Math.round(p.businessTaxable / 12) : undefined, itRate: it?.recommended, start: v.draft.newBusiness?.start, at: v.approvedAt?.slice(0, 10) };
+}

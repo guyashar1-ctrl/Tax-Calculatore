@@ -123,6 +123,11 @@ export interface Resolve6101Input {
   btlIncomeRead?: NiIncomeRead | null;
   /** על מי ההגשה (ברירת מחדל: הלקוח). קובע של מי עובדות ההכנסה והראיה. */
   subjectRole?: PersonRole;
+  /**
+   * 30.10.2026 · עסק חדש: מההערכה שאושרה (docs/proposals/2026-10-30-tax-estimate-simple.html) — ההכנסה הצפויה בחודש
+   * (רווח לשנה מלאה ÷ 12) ומתי העסק מתחיל, לפי הלקוח. ‼ נגזר — לאישור, לא «מאומת».
+   */
+  newBusinessEstimate?: { monthlyIncome?: number; start?: string; at?: string };
 }
 
 /**
@@ -479,6 +484,12 @@ export function resolve6101(input: Resolve6101Input): Resolve6101Result {
     if (b.netIncome != null) hint('monthlyIncome', `בכרטיס: רווח שנתי בעסק «${b.name}» ${b.netIncome.toLocaleString('en-US')} ₪ — לא מומר לחודשי`);
   }
   if (btl.declaredIncomeMonthly != null) hint('monthlyIncome', `בכרטיס: הכנסה חודשית מוצהרת ${btl.declaredIncomeMonthly.toLocaleString('en-US')} ₪${btl.declaredIncomeSource ? ` (${btl.declaredIncomeSource})` : ''}`);
+  // ‼ 30.10.2026 · עסק חדש: ההכנסה הצפויה מהערכת המקדמות שאושרה — נכנסת לבד, ונשארת לאישור
+  const nbe = input.newBusinessEstimate;
+  if (purposes.includes('start') && nbe?.monthlyIncome != null && nbe.monthlyIncome > 0) {
+    put('monthlyIncome', String(nbe.monthlyIncome), 'derived', 'הערכת מס · מקדמות לעסק חדש', { note: `לפי מה שהלקוח צופה${nbe.at ? ` (אושר ${formDate(nbe.at)})` : ''} — לאישור` });
+  }
+  if (purposes.includes('start') && nbe?.start && !client.vatOpeningDate) hint('startDate', `בהערכת המס: העסק מתחיל ב-${nbe.start.slice(5, 7)}.${nbe.start.slice(0, 4)} (חודש בלבד)`);
   // (207) החיוב השנתי בב"ל לפי סיווג — בדיקת עקביות לטבלת השנתיים (רמז, לא ערך).
   for (const y of ((rec.annualContributions?.value as BtlYears | undefined)?.years ?? [])) {
     if (y.year < year - 2 || y.year > year) continue;

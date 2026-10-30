@@ -687,6 +687,11 @@ ITEMS.push(
     options: [{ value: 'all', label: 'כן, הכול שם' }, { value: 'later', label: 'עוד לא — אעלה עכשיו לפייפרלס' }], knownBasis: { estimate: ['actual_to_date'] } },
   { key: 'business.forecastMonths', area: 'business', label: 'הצפי עד סוף השנה — לפי הקצב או לכל חודש', kind: 'amount', per: 'business', who: 'client', purposes: NONE, input: 'record',
     question: 'עד סוף השנה — זה נראה נכון?', why: 'זו הערכה שלך: לפי הקצב עד עכשיו, או מה שאתה יודע על החודשים הבאים' },
+  // ‼ 30.10.2026 · הערכת מס פשוטה (docs/proposals/2026-10-30-tax-estimate-simple.html): מה שנפתח מריבוע «הכנסה נוספת» — סכום אחד, בלי מסמך
+  { key: 'salary.estimate', area: 'salary', label: 'משכורת בערך — לחודש ולכמה חודשים', kind: 'amount', per: 'person', who: 'client', purposes: ['estimate'], after: 'salary.worked', input: 'record',
+    question: 'בערך כמה משכורת ברוטו בחודש?', why: 'כך המשכורת נכנסת לחישוב המס של השנה' },
+  { key: 'niBenefits.estimate', area: 'niBenefits', label: 'כמה התקבל השנה מביטוח לאומי, בערך', kind: 'amount', per: 'person', who: 'client', purposes: ['estimate'], after: 'niBenefits.received', input: 'amount',
+    question: 'בערך כמה קיבלת השנה מביטוח לאומי?', why: 'הכסף הזה חייב במס כמו משכורת' },
   { key: 'annual.whatHappened', area: 'special', label: 'מאיפה נכנס כסף בשנה (מסך הריבועים, לכל אדם)', kind: 'screener', per: 'couple', who: 'client', purposes: NONE, input: 'multi',
     question: 'מאיפה נכנס ל{name} כסף ב-{year}?', why: 'מה שתסמנו — נבקש עליו את המסמך המתאים. מה שלא תסמנו — לא נשאל.' },
   { key: 'annual.lessTax', area: 'special', label: 'מה יכול להוריד מס (מסך הריבועים השני, לכל אדם)', kind: 'screener', per: 'couple', who: 'client', purposes: NONE, input: 'multi',
@@ -888,6 +893,23 @@ for (const i of ITEMS) if (ANNUAL_TILES[i.key]) i.tile = ANNUAL_TILES[i.key];
 for (const i of ITEMS) if (i.input === 'file') i.purposes = i.purposes.filter(p => p !== 'estimate');
 /** פריטי מסמך שירדו מהערכת המס (לדוח ולבדיקות). */
 export const ESTIMATE_DOCS_REMOVED = ITEMS.filter(i => i.input === 'file').length;
+/**
+ * ‼ 30.10.2026 · הערכת מס פשוטה (גיא: «אני מכניס קצת נתונים, הוא את השאר — וזהו»). הלקוח נשאל רק: המשפחה ונקודות הזיכוי,
+ *   כמה יכניס עד סוף השנה (business.forecastMonths, אחרי פייפרלס), והכנסה נוספת. נכס או חשבון שכבר בתיק — שאלת הסכום שלו.
+ *   שאר שאלות הלקוח יוצאות מההערכה (נשארות לדוח השנתי). פריטי המשרד לא משתנים.
+ */
+export const ESTIMATE_CLIENT_ITEMS = new Set([
+  'household.maritalAtYearEnd', 'household.children', 'household.settlement', 'household.address', 'household.degree', 'household.release',
+  'household.creditChanges', 'household.spouseBasics', 'household.noIncomeSpouse', 'household.aliyah', 'household.aliyahDetails', 'household.reserveDuty', 'household.reserveDays',
+  'salary.worked', 'salary.estimate', 'niBenefits.received', 'niBenefits.estimate',
+  'rent.properties', 'rent.income', 'capital.accounts', 'capital.estimate', 'period.property', 'period.account',
+]);
+for (const i of ITEMS) {
+  if (i.who !== 'client') continue;
+  const keep = ESTIMATE_CLIENT_ITEMS.has(i.key);
+  if (keep && !i.purposes.includes('estimate')) i.purposes = [...i.purposes, 'estimate'];
+  if (!keep && i.purposes.includes('estimate')) i.purposes = i.purposes.filter(p => p !== 'estimate');
+}
 // הכנה להצהרת הון (230) — אותו מנגנון, תכלית 'wealth' (wealthCatalog.ts).
 AREAS.push(...WEALTH_AREAS);
 ITEMS.push(...WEALTH_ITEMS);

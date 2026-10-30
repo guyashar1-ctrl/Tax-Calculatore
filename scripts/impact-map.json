@@ -12,6 +12,7 @@
         "supabase/303-*.sql",
         "supabase/308-*.sql",
         "supabase/309-*.sql",
+        "supabase/314-*.sql",
         "src/features/taxYear/WealthSinceEditors.tsx",
         "src/features/taxYear/ForecastMonthsEditor.tsx",
         "scripts/staging-test-wealth-303.mjs"
@@ -37,9 +38,9 @@
           "note": "בדפדפן מול staging — דורש שרת: STAGING_ENV_DIR=… node scripts/e2e/wealth-office.mjs --base=http://localhost:<port> --widths=1280,390"
         },
         {
-          "script": "e2e/estimate-four-steps.mjs",
+          "script": "e2e/estimate-simple.mjs",
           "run": false,
-          "note": "בדפדפן מול staging — דורש שרת: STAGING_ENV_DIR=… node scripts/e2e/estimate-four-steps.mjs --base=http://localhost:<port> --widths=1280,390"
+          "note": "בדפדפן מול staging — דורש שרת: STAGING_ENV_DIR=… node scripts/e2e/estimate-simple.mjs --base=http://localhost:<port> --widths=1280,390"
         }
       ]
     },

@@ -24,7 +24,9 @@ export type Screen =
 // ‼ 22.10.2026 · ילדים וכתובת שאין בתיק — מיד אחרי «זה עדיין נכון?» (פרטי המשפחה יחד), לא אחרי כל הכסף
 // ‼ 290 · מין ותאריך הלידה של בן/בת הזוג — גם הם עם פרטי המשפחה, מוקדם
 const FAMILY_FIRST = ['household.children', 'household.address', 'household.spouseBasics'];
-const RANK = (a: InfoAsk) => (a.prompt.input.kind === 'confirm' || a.prompt.knownRow ? 0 : FAMILY_FIRST.includes(a.itemKey) ? 0.5 : a.prompt.input.kind === 'multi' && GRID_KEYS.includes(a.itemKey) ? 1
+// ‼ 30.10.2026 · הערכת מס: הצפי של העסק — עם מסכי הריבועים של האדם (אחרי «מה מתאים לך», לפני «הכנסה נוספת»; prompt.order 0.5)
+const FORECAST_KEY = 'business.forecastMonths';
+const RANK = (a: InfoAsk) => (a.prompt.input.kind === 'confirm' || a.prompt.knownRow ? 0 : FAMILY_FIRST.includes(a.itemKey) ? 0.5 : a.itemKey === FORECAST_KEY ? 1 : a.prompt.input.kind === 'multi' && GRID_KEYS.includes(a.itemKey) ? 1
   : a.prompt.input.kind === 'file' ? 4 : (ITEM_BY_KEY[a.itemKey]?.after || a.prompt.input.kind === 'who' || a.prompt.input.kind === 'multi') ? 2 : 3);
 export const sortAsks = (asks: InfoAsk[]) => [...asks].sort((a, b) => RANK(a) - RANK(b) || (a.prompt.order ?? 0) - (b.prompt.order ?? 0));
 

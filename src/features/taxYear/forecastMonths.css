@@ -27,3 +27,6 @@
 .fm-step-lg output { min-width: 120px; font-size: 17px; }
 .fm-q { font-size: 16px; font-weight: 700; margin: 0 0 10px; }
 @media (prefers-reduced-motion: reduce) { .fm-chart i { transition: none; } }
+/* 30.10.2026 · עסק חדש: מתי מתחיל */
+.fm-start { display: flex; flex-direction: column; gap: 6px; font-size: 16px; font-weight: 700; }
+.fm-start select { font: inherit; font-weight: 400; font-size: 16px; padding: 9px 10px; border: 1px solid var(--line, #d6d3cc); border-radius: 10px; background: var(--surface-0, #fff); color: inherit; }

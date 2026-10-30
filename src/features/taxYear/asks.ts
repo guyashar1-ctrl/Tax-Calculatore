@@ -227,7 +227,7 @@ export function promptFor(s: ItemStatus, ctx: AskCtx): AskPrompt {
       ...(onCard.length ? { context: { ...p.input.context, additionalEmployer: '1' } } : {}) } };
   }
   // חשבון להחזר, ילדים וכתובת של היום — בלי תג «בשנת 2025» (הכתובת «היום» והתג סתרו זה את זה)
-  if (ctx.purpose === 'annual' && ['filing.refundAccount', 'household.children', 'household.address'].includes(s.item.key)) return { ...p, periodText: undefined };
+  if ((ctx.purpose === 'annual' || ctx.purpose === 'estimate') && ['filing.refundAccount', 'household.children', 'household.address'].includes(s.item.key)) return { ...p, periodText: undefined };
   return p;
 }
 
@@ -236,7 +236,7 @@ function promptForRaw(s: ItemStatus, ctx: AskCtx): AskPrompt {
   const c = ctx.client;
   // ‼ 21.10.2026 · סבב 2: בדוח השנתי של זוג — גם השורות והמסמכים של הלקוח עצמו נושאים את שמו («טופס 106 · ישראל»)
   const subjName = s.subjectRole === 'spouse' ? (c.spouseFirstName || c.spouse?.firstName || 'בן/בת הזוג')
-    : ctx.purpose === 'annual' && c.familyStatus === 'married' && s.subjectRole === 'client' && c.firstName ? c.firstName : undefined;
+    : (ctx.purpose === 'annual' || ctx.purpose === 'estimate') && c.familyStatus === 'married' && s.subjectRole === 'client' && c.firstName ? c.firstName : undefined;
   const fill = (t: string) => fillTemplate(t, c, s.subjectRole)
     .split('{year}').join(String(ctx.taxYear)).split('{spouse}').join(c.spouseFirstName || c.spouse?.firstName || 'בן/בת הזוג')
     .split('{entity}').join(s.entityLabel ?? '')
@@ -260,7 +260,7 @@ function promptForRaw(s: ItemStatus, ctx: AskCtx): AskPrompt {
   // ‼ בדף האישי אין כרטיס — שמות בני הזוג (לבחירת «על שם מי») נשמרים בשאלה עצמה
   const people: Record<string, string> = { clientName: c.firstName || 'אני', ...(c.familyStatus === 'married' ? { spouseName: c.spouseFirstName || c.spouse?.firstName || 'בן/בת הזוג', married: '1' } : {}),
     // ‼ 20.10.2026 · מעסיק בדוח השנתי: חודשים בתוך השנה בלבד (records.ts › 'monthIn')
-    ...(ctx.purpose === 'annual' && (schema === 'employer' || schema === 'studies' || schema === 'aliyah' || schema === 'disability') ? { taxYear: String(ctx.taxYear) } : {}),
+    ...((ctx.purpose === 'annual' || ctx.purpose === 'estimate') && (schema === 'employer' || schema === 'studies' || schema === 'aliyah' || schema === 'disability') ? { taxYear: String(ctx.taxYear) } : {}),
     // ‼ 290 · בחירת ילד (ילד עם מוגבלות, מזונות ילדים) — הילדים שבתיק נשמרים בשאלה עצמה
     ...(schema === 'childDisability' || schema === 'childSupport' ? { kids: kidsContext(c) } : {}) };
   if (it.kind === 'confirm' || (s.state === 'fromCard' && it.cardKeys)) {
@@ -303,7 +303,7 @@ function promptForRaw(s: ItemStatus, ctx: AskCtx): AskPrompt {
     const card = !it.onlyNew && !isPeriodItem(it.key) ? initialFromCard(schema, c, role, ctx.purpose === 'annual' || ctx.purpose === 'estimate' ? ctx.taxYear : undefined) : [];
     const initial = dealer ? [{ ...(card[0] ?? {}), dealer: dealer === 'licensed' ? 'murshe' : dealer === 'exempt' ? 'patur' : dealer === 'company' ? 'company' : '' }] : card.length ? card : undefined;
     const complete = !!initial?.length && answerValid(schemaFor(schema, undefined, context), { items: initial });
-    return { ...base, title: `${lead}${fillP(qText ?? it.label)}`, ...(ctx.purpose === 'annual' && complete ? { knownRow: true } : {}), input: { kind: 'record', schema, ...(initial ? { initial } : {}), ...(Object.keys(context).length ? { context } : {}) } };
+    return { ...base, title: `${lead}${fillP(qText ?? it.label)}`, ...((ctx.purpose === 'annual' || ctx.purpose === 'estimate') && complete ? { knownRow: true } : {}), input: { kind: 'record', schema, ...(initial ? { initial } : {}), ...(Object.keys(context).length ? { context } : {}) } };
   }
   if (it.input === 'amount') return { ...base, title: fillP(qText ?? it.label), input: { kind: 'amount' } };
   if (it.input === 'text') return { ...base, title: fillP(qText ?? it.label), input: { kind: 'text' } };
@@ -343,7 +343,7 @@ export function buildAskPlan(statuses: ItemStatus[], ctx0: AskCtx): AskPlanEntry
   const married = c.familyStatus === 'married';
   // ‼ 16.10.2026 · היכרות: כל שאלות הפתיחה — מסך רשת אחד «סמנו מה יש לכם» (קיבוץ; העובדות נשמרות לכל מפתח)
   // ‼ 21.10.2026 · סבב 2: בדוח השנתי — מסכי ריבועים לכל אדם (כסף שנכנס · מה מוריד מס); בהיכרות — מסך אחד
-  const grids = ctx.purpose === 'intake' || ctx.purpose === 'annual' ? buildMultiEntries(statuses, ctx) : [];
+  const grids = ctx.purpose === 'intake' || ctx.purpose === 'annual' ? buildMultiEntries(statuses, ctx) : ctx.purpose === 'estimate' ? estimateGrids(statuses, ctx) : [];
   for (const g of grids) for (const s of g.statuses) used.add(s);
   const pushGrids = () => { if (grids.length && !out.includes(grids[0])) out.push(...grids); };
   for (const s of statuses) {
@@ -379,8 +379,55 @@ export function buildAskPlan(statuses: ItemStatus[], ctx0: AskCtx): AskPlanEntry
     });
   }
   pushGrids();
-  return ctx.purpose === 'annual' ? annualRows(out, ctx) : out;
+  return ctx.purpose === 'annual' || ctx.purpose === 'estimate' ? annualRows(out, ctx) : out;
 }
+
+// ── 30.10.2026 · הערכת מס פשוטה (הדמיה מאושרת docs/proposals/2026-10-30-tax-estimate-simple.html) ─────────────────
+// ‼ אותו שאלון כמו הדוח השנתי (פרקים לפי אדם, «זה עדיין נכון?» למשפחה), רק קצר: לכל אדם «מה מתאים לך?» (נקודות זיכוי)
+//   ו«הכנסה נוספת» — וכל ריבוע פותח סכום אחד, בלי מסמך. אותם מפתחות מסך כמו בדוח השנתי, כדי שהדף יציג אותו דבר.
+const ESTIMATE_LESS = ['household.creditChanges', 'household.reserveDuty', 'household.aliyah'];
+const ESTIMATE_IN = ['salary.worked', 'niBenefits.received'];
+const ESTIMATE_FOLLOW: Record<string, string[]> = {
+  'salary.worked': ['salary.estimate'], 'niBenefits.received': ['niBenefits.estimate'],
+  'household.reserveDuty': ['household.reserveDays'], 'household.aliyah': ['household.aliyahDetails'],
+};
+function estimateGrids(statuses: ItemStatus[], ctx: AskCtx): AskPlanEntry[] {
+  const c = ctx.client;
+  const tiles = statuses.filter(s => [...ESTIMATE_LESS, ...ESTIMATE_IN].includes(s.item.key) && s.state === 'missing' && !s.entityRef);
+  if (!tiles.length) return [];
+  const people: SubjectRole[] = c.familyStatus === 'married' && knownFamilyEvent(c, ctx.taxYear) !== 'death' ? ['client', 'spouse'] : ['client'];
+  // ‼ מי שלימודים או שחרור שלו כבר בתיק — מסך «לימודים וצבא» ממולא (annualRows); הריבוע מיותר אצלו
+  const cardStudies = new Set(statuses.filter(s => s.item.key === 'household.degree' || s.item.key === 'household.release').map(s => s.subjectRole));
+  const out: AskPlanEntry[] = [];
+  for (const role of people) {
+    for (const gridKey of [ANNUAL_LESS_KEY, ANNUAL_GRID_KEY]) {
+      const less = gridKey === ANNUAL_LESS_KEY;
+      const mine = tiles.filter(s => (less ? ESTIMATE_LESS : ESTIMATE_IN).includes(s.item.key) && (s.item.per === 'couple' || s.subjectRole === role)
+        && !(s.item.key === 'household.creditChanges' && (cardStudies.has(role) || cardStudies.has('couple'))));
+      const keys = (less ? ESTIMATE_LESS : ESTIMATE_IN).filter(k => mine.some(s => s.item.key === k));
+      if (!keys.length) continue;
+      const options = keys.map(key => {
+        const t = annualTile(key, role, ctx);
+        const followUps = key === 'household.creditChanges' ? [withoutDocs(studiesAsk(role, ctx))]
+          : (ESTIMATE_FOLLOW[key] ?? []).map((k, i) => annualFollowUp(k, role, ctx, i)).filter((x): x is MultiFollowUp => !!x);
+        return { ...t, ...(key === 'niBenefits.received' ? { example: 'לידה, מילואים, אבטלה' } : {}), ours: undefined, followUps: followUps.length ? followUps : undefined };
+      });
+      const item = ITEM_BY_KEY[gridKey];
+      const p = promptFor({ subjectRole: role, item, area: item.area, state: 'missing', detail: '', facts: [], evidence: [], askable: true } as ItemStatus, ctx);
+      const to = p.subjectName ? `ל${p.subjectName}` : 'לך';
+      out.push({
+        key: `${gridKey}|${role}`, statuses: mine, itemKey: gridKey, subjectRole: role,
+        prompt: { templateVersion: CATALOG_VERSION, title: less ? `מה מתאים ${to}?` : `יש ${to} השנה הכנסה נוספת?`,
+          why: less ? 'כל אחד מאלה מוריד מס.' : 'מה שתסמנו — נשאל רק כמה, בערך.', ...(p.subjectName ? { subjectName: p.subjectName } : {}),
+          input: { kind: 'multi', options }, addressee: addresseeOf(c), order: out.length },
+        label: `${less ? 'מה מוריד מס' : 'הכנסה נוספת'} · ${p.subjectName ?? c.firstName ?? 'הלקוח'} · ${options.length} ריבועים`,
+      });
+    }
+  }
+  return out;
+}
+/** בהערכה לא מבקשים מסמכים: «לימודים וצבא» בלי האישור שנפתח לפי הבחירה. */
+const withoutDocs = (f: MultiFollowUp): MultiFollowUp => ({ ...f, prompt: { ...f.prompt, onValue: undefined } });
 
 // ── 16.10.2026 · מסך הרשת «סמנו מה יש לכם» ─────────────────────────────────────────────────────────
 // ‼ אריח = שאלת פתיחה (tile). לזוג נשוי, שאלת פתיחה לאדם הופכת לשאלה של משק הבית («מישהו מכם») — העובדה
@@ -569,12 +616,16 @@ function annualRows(plan: AskPlanEntry[], ctx: AskCtx): AskPlanEntry[] {
   const out: AskPlanEntry[] = [];
   const studied = new Set<string>();
   const ev = knownFamilyEvent(c, ctx.taxYear);
+  // ‼ 30.10.2026 · בהערכת מס — אותן שורות, בלי מסמכים ובלי ענפי הדוח השנתי (מה שנפתח רק מעדכן את הכרטיס)
+  const est = ctx.purpose === 'estimate';
+  const bare = (o: MultiOption): MultiOption => ({ ...o, followUps: undefined });
   for (const e of plan) {
     if (e.itemKey === 'household.degree' || e.itemKey === 'household.release') {
       for (const role of (e.subjectRole === 'couple' ? ['client', 'spouse'] : [e.subjectRole]) as SubjectRole[]) {
         if (studied.has(role)) continue;
         studied.add(role);
-        const s = studiesAsk(role, ctx, true);
+        const s0 = studiesAsk(role, ctx, true);
+        const s = est ? withoutDocs(s0) : s0;
         out.push({ key: `household.studies|${role}|`, statuses: e.statuses, itemKey: s.itemKey, subjectRole: role, prompt: s.prompt, label: `לימודים וצבא · ${role === 'spouse' ? spouseNameOf(c) : c.firstName ?? 'הלקוח'}` });
       }
       continue;
@@ -583,21 +634,21 @@ function annualRows(plan: AskPlanEntry[], ctx: AskCtx): AskPlanEntry[] {
       const b = familyBranches(ctx);
       const known = ev ? b[ev] : null;
       const inline = branchAsk('household.familyEvent', 'couple', ctx, 0, { inline: true, title: 'מה קרה?',
-        input: { kind: 'multi', options: c.familyStatus === 'married' ? [{ ...b.divorce, label: 'נפרדנו' }, b.death] : [b.marriage, b.divorce] } });
-      out.push({ ...e, prompt: { ...e.prompt, ...(known?.followUps?.length ? { onYes: known.followUps } : {}), ...(inline ? { onChanged: [inline] } : {}) } });
+        input: { kind: 'multi', options: (c.familyStatus === 'married' ? [{ ...b.divorce, label: 'נפרדנו' }, b.death] : [b.marriage, b.divorce]).map(o => (est ? bare(o) : o)) } });
+      out.push({ ...e, prompt: { ...e.prompt, ...(known?.followUps?.length && !est ? { onYes: known.followUps } : {}), ...(inline ? { onChanged: [inline] } : {}) } });
       continue;
     }
     if (e.prompt.input.kind === 'confirm' && e.itemKey === 'household.children') {
       const inline = branchAsk('household.childChange', 'couple', ctx, 0, { inline: true, title: 'מה השתנה?', input: { kind: 'multi', options: [
-        opt('household.newChild', 'couple', 'נולד ילד', [branchAsk('household.newChildDocs', 'couple', ctx, 20)]),
+        opt('household.newChild', 'couple', 'נולד ילד', est ? [] : [branchAsk('household.newChildDocs', 'couple', ctx, 20)]),
         // ‼ 290 · איזה ילד, ולמי הנקודות — לכרטיס; ואז האישור
-        opt('household.disabledChild', 'couple', 'ילד עם מוגבלות', [branchAsk('household.disabledChildDetails', 'couple', ctx, 20.5), branchAsk('household.disabledChildDocs', 'couple', ctx, 21)]),
+        opt('household.disabledChild', 'couple', 'ילד עם מוגבלות', [branchAsk('household.disabledChildDetails', 'couple', ctx, 20.5), est ? null : branchAsk('household.disabledChildDocs', 'couple', ctx, 21)]),
       ] } });
       out.push({ ...e, prompt: { ...e.prompt, ...(inline ? { onChanged: [inline] } : {}) } });
       continue;
     }
     if (e.prompt.input.kind === 'confirm' && e.itemKey === 'household.address') {
-      const cert = branchAsk('household.addressCert', 'couple', ctx, 22);
+      const cert = est ? null : branchAsk('household.addressCert', 'couple', ctx, 22);
       out.push({ ...e, prompt: { ...e.prompt, ...(cert ? { onChanged: [cert] } : {}) } });
       continue;
     }

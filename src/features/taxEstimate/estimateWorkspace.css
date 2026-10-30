@@ -97,3 +97,42 @@
   .ew-basis { margin-inline-start: 0; }
 }
 @media (prefers-reduced-motion: reduce) { .ew-track .a, .ew-track .f { transition: none; } }
+
+/* ── 30.10.2026 · אנחנו · הלקוח · התוצאה (docs/proposals/2026-10-30-tax-estimate-simple.html) ── */
+.ew3-top { display: flex; align-items: center; gap: 10px; }
+.ew3-top b { font-size: 16px; }
+.ew3-top .ew-pill { margin-inline-start: auto; }
+.ew-pill.wait { color: #3f5f8f; background: #edf2f8; }
+.ew3-head { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 4px; }
+.ew3-head .ew-h3 { margin: 0; }
+.ew3-num { width: 24px; height: 24px; flex: none; border-radius: 50%; display: grid; place-items: center; font-size: 13px; font-weight: 700; background: #edf2f8; color: #3f5f8f; }
+.ew3-num.is-done { background: #e9f4ee; color: #24654e; }
+.ew3-sub { color: #666b72; font-size: 13.5px; }
+.ew-card.is-dim { background: #faf9f7; }
+.ew3-rows { display: flex; flex-direction: column; }
+.ew3-row { display: flex; align-items: center; gap: 6px 10px; padding: 9px 0; border-top: 1px solid #efede8; flex-wrap: wrap; }
+.ew3-row:first-child { border-top: 0; }
+.ew3-k { flex: 1 1 160px; color: #4b5058; font-size: 14px; }
+.ew3-v { font-weight: 700; font-variant-numeric: tabular-nums; font-size: 14.5px; }
+.ew3-v small { font-weight: 400; color: #666b72; font-size: 13px; }
+.ew3-end { display: inline-flex; }
+.ew-miss { color: #92979e; font-weight: 600; }
+.ew-src-chip { font-size: 12px; font-weight: 600; color: var(--automation-text, #a63b72); background: var(--automation-soft, #fbe9f2); border: 1px solid var(--automation-soft-bd, #e9b7cf); border-radius: 999px; padding: 1px 8px; white-space: nowrap; }
+.ew-src-chip.is-plain { color: #666b72; background: #f3f2ef; border-color: #e4e2dd; }
+.ew-src-chip.is-client { color: #3f5f8f; background: #edf2f8; border-color: #cfdbea; }
+.ew3-acts { display: flex; align-items: center; gap: 8px 14px; flex-wrap: wrap; }
+.ew-lnk.ew-inline { padding: 0; margin-inline-start: 10px; }
+.ew-lnk.ew-adv { color: #666b72; font-weight: 500; }
+.ew3-pull { display: flex; flex-direction: column; gap: 8px; border-top: 1px solid #efede8; padding-top: 10px; }
+.ew3-res { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; }
+.ew3-box { border: 1px solid #e4e2dd; border-radius: 12px; padding: 10px 12px; display: flex; flex-direction: column; }
+.ew3-lab { color: #666b72; font-size: 13.5px; }
+.ew3-big { font-size: 24px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.ew3-big.is-due { color: #9a3b2c; }
+.ew3-was { color: #666b72; font-size: 13px; }
+.ew3-gap { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; font-weight: 600; padding: 4px 0; }
+.ew3-gap b { color: #9a3b2c; font-variant-numeric: tabular-nums; }
+.ew3-how summary { cursor: pointer; color: #3f5f8f; font-weight: 600; font-size: 13.5px; }
+.ew3-how[open] summary { margin-bottom: 6px; }
+.ew-missing b { font-size: 14px; }
+.ew-missing ul { margin: 4px 0; padding-inline-start: 18px; font-size: 13.5px; color: #4b5058; }

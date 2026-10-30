@@ -303,4 +303,15 @@ export const TESTS: TestCase[] = [
     assert(String((r.hints.incomeBefore ?? []).join(' ')).includes('הכנסה להגדרה 9,000'), 'הכנסה להגדרה 9,000');
     equal(r.btl.currentSelfEmployed?.btlDetail?.definitionRule?.averageWagePct, 15);
   }),
+  // ‼ 30.10.2026 · עסק חדש: ההכנסה הצפויה מהערכת המקדמות שאושרה (docs/proposals/2026-10-30-tax-estimate-simple.html)
+  test('6101 · עסק חדש: «הכנסה חודשית» מההערכה שאושרה — נגזר, לאישור; רק כשמתחילים כעצמאי', () => {
+    const r = resolve6101({ client: FX_FULL, purposes: ['start'], entered: {}, asOf: '2026-10-30', newBusinessEstimate: { monthlyIncome: 12_000, at: '2026-10-30' } });
+    equal(r.data.monthlyIncome, '12000');
+    equal(r.fields.monthlyIncome.status, 'derived');
+    assert(/הערכת מס/.test(r.fields.monthlyIncome.sourceLabel ?? ''), r.fields.monthlyIncome.sourceLabel ?? '');
+    const typed = resolve6101({ client: FX_FULL, purposes: ['start'], entered: { monthlyIncome: '9000' }, asOf: '2026-10-30', newBusinessEstimate: { monthlyIncome: 12_000 } });
+    equal(typed.data.monthlyIncome, '9000');
+    const change = resolve6101({ client: FX_FULL, purposes: ['change'], entered: {}, asOf: '2026-10-30', newBusinessEstimate: { monthlyIncome: 12_000 } });
+    assert(change.data.monthlyIncome !== '12000', 'בשינוי (לא התחלה) — לא מההערכה');
+  }),
 ];

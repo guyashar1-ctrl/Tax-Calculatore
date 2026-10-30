@@ -131,6 +131,7 @@ import PrerequisiteGate, { PREREQUISITE_FIELD_LABELS, type PrerequisitePerson } 
 import NiNextActionButton from '../NiNextActionButton';
 import Btl6101Workspace from '../../features/smartForms/btl6101/Btl6101Workspace';
 import TaxYearProcess from '../../features/taxYear/TaxYearProcess';
+import NewBusinessAdvancesNote from '../../features/taxEstimate/NewBusinessAdvancesNote';
 import RequestSteps, { requestStepsViews, useRequestStepsData } from '../../features/taxYear/RequestSteps';
 import RemoveWorkDialog from '../../features/taxYear/RemoveWorkDialog';
 import { workTitle } from '../../features/taxYear/taxWork';
@@ -2219,12 +2220,13 @@ export default function OnboardingTab({
                     stepById={stepById}
                     highlight={highlightStepId === step.id}
                     name={pl.title}
-                    statusLabel={status}
+                    /* ‼ 30.10.2026 · הערכת מס: המצב — בשבב ובשלושת החלקים שבתוכה (docs/proposals/2026-10-30-tax-estimate-simple.html) */
+                    statusLabel={step.stepType === 'tax_estimate' && isStepOpen(step.status) ? '' : status}
                     state={rs?.view.chip}
                     /* ‼ 21.10.2026 · דוח שנתי: מצב אחד — השבב בשורה ופס השלבים בתוכה (AnnualSummary). בלי כרטיסי
-                       «תשובות הלקוח» / «הדוח» ובלי שורת מצב כפולה בגוף (ההדמיה המאושרת 2026-10-21). */
-                    below={rs && isStepOpen(step.status) && step.stepType !== 'annual_return' ? <RequestSteps view={rs.view} /> : undefined}
-                    hideFacts={step.stepType === 'annual_return'}
+                       «תשובות הלקוח» / «הדוח» ובלי שורת מצב כפולה בגוף (ההדמיה המאושרת 2026-10-21). כך גם הערכת המס (30.10). */
+                    below={rs && isStepOpen(step.status) && step.stepType !== 'annual_return' && step.stepType !== 'tax_estimate' ? <RequestSteps view={rs.view} /> : undefined}
+                    hideFacts={step.stepType === 'annual_return' || step.stepType === 'tax_estimate'}
                     menu={!embedded && isStepOpen(step.status) ? (
                       <span className="rl-links">
                         <button type="button" className="rl-link is-danger" onClick={() => setRemoveTax({ id: step.id, title: workTitle(step) })} data-remove-tax-work>הסר…</button>
@@ -2240,7 +2242,8 @@ export default function OnboardingTab({
                         infoStep={info}
                         onClientPersisted={onClientPersisted}
                         onClose={() => setOpenRowId(null)} onChanged={() => refresh?.()} onRemoved={setTaxNotice}
-                        onOpenRequest={id => requestFocus({ stepId: id })} />
+                        onOpenRequest={id => requestFocus({ stepId: id })}
+                        onSendMail={() => { void Promise.resolve(reloadReady()).then(() => setEmailAfterAdd(true)); }} />
                     ) : null}
                   </JourneyRow>
                 );
@@ -3091,6 +3094,8 @@ export default function OnboardingTab({
                   {/* ‼ הסימון הידני נשאר גם כשהלקוח או הרו״ח הקודם מעלים בעצמם:
                       חומרים מגיעים גם בוואטסאפ ובמייל, ואי אפשר לתלות את המעקב
                       בערוץ אחד בלבד (הכרעת גיא 2026-08-05). */}
+                  {/* ‼ 30.10.2026 · עסק חדש: השיעור וההכנסה הצפויה מהערכת המקדמות שאושרה */}
+                  {step.stepType === 'file_opening' && <NewBusinessAdvancesNote clientId={step.clientId} />}
                   {checklist.length > 0 && (
                     <div style={{ marginTop: '.4rem', display: 'flex', flexDirection: 'column', gap: '.15rem' }}>
                       {checklist.map(item => (
