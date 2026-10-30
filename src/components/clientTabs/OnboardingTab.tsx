@@ -72,13 +72,15 @@ import Sheet from '../ui/Sheet';
 import './requestsSurface.css';
 import '../../features/requests/requestGroups.css';
 import {
-  buildStepGroups, groupPinsFirst, groupProgress, groupStatus, memberDef, REQUEST_GROUPS,
+  buildStepGroups, groupProgress, groupStatus, memberDef, REQUEST_GROUPS,
   type GroupChildView, type StepGroup,
 } from '../../features/requests/requestGroups';
 import { paperlessSignupEvidence, connectionIntro, paperlessSettingsItems, settingsReviewCount, type SettingsReview, type SettingsReviewKey } from '../../features/requests/paperlessEvidence';
 import { deriveHomeOffice, homeOfficeLine, type HomeOfficeHistory, type HomeOfficeState } from '../../features/requests/homeOffice';
 import { paperlessOfficeWait } from '../../features/requests/officeWait';
 import { useHomeOffice } from '../../features/requests/useHomeOffice';
+import { moveEntry, sortEntries, type ListEntry } from '../../features/requests/listOrder';
+import { useListDrag } from '../../features/requests/useListDrag';
 import HomeOfficePanel from '../../features/requests/HomeOfficePanel';
 import { confirmHomeOfficeInPaperless } from '../../features/requests/api';
 import {
@@ -141,6 +143,7 @@ import { BTL_CHECK_REPRESENTATION_ACTION_TYPE, BTL_CREATE_REPRESENTATION_ACTION_
 import type { AutomationJob } from '../../types/automation';
 import {
   stepAttention, isManualInternal, hasRedRequest, requestRows, rowSummary, niRidesWithSignature, onClientPageSince,
+  awaitingOfficeAck,
   isCreationProblem, isLegacyInternalReview,
   hasCurrentNiStep as hasCurrentNiStepOf, niTrackOnlyRoles as niTrackOnlyRolesOf, niSendWithoutStepRoles,
   type Attention, type AttentionContext, type WaitingOn,
@@ -649,6 +652,14 @@ export default function OnboardingTab({
   const [rowNote, setRowNote] = useState<{ stepId: string; text: string; err: boolean } | null>(null);
   /** תוצאה שאין לה שורה להיות בה (השורה נסגרה בלי שורה אחרת במקומה) — מעל הרשימה. */
   const [listNote, setListNote] = useState<{ text: string; err: boolean } | null>(null);
+  /** 310 · «סימון שהושלם» שכבר נלחץ — יורד מהרשימה מיד, לפני שהשרת חוזר. */
+  const [ackedLocal, setAckedLocal] = useState<ReadonlySet<string>>(() => new Set());
+  /** 310 · הסדר אחרי גרירה — עד שהסדר החדש חוזר מהשרת (אחרת השורה קופצת חזרה לרגע). */
+  const [orderOverride, setOrderOverride] = useState<string[] | null>(null);
+  const orderSaving = useRef(false);
+  const listRef = useRef<HTMLDivElement | null>(null);
+  /** הפריטים כפי שהם מוצגים עכשיו — לגרירה (נבנים בזמן הרינדור של הרשימה). */
+  const entriesRef = useRef<ListEntry[]>([]);
   /** «הוספת הערה» — שדה בתוך הבקשה הפתוחה, במקום חלון הדפדפן. */
   const [noteDraft, setNoteDraft] = useState<{ stepId: string; text: string; busy?: boolean; error?: string } | null>(null);
   /**
@@ -749,6 +760,38 @@ export default function OnboardingTab({
     return [...base, ...extras].map(s =>
       optimisticPatches[s.id] ? { ...s, ...optimisticPatches[s.id] } : s);
   }, [steps, clientId, optimisticSteps, optimisticPatches]);
+
+  /* ── 310 · ירוק עד «סימון שהושלם», וסדר בגרירה ─────────────────────────────── */
+  // הסדר מהשרת הגיע ⇒ הסדר המקומי כבר לא נחוץ (אבל לא באמצע שמירה — אז הוא עוד הישן).
+  useEffect(() => { if (!orderSaving.current) setOrderOverride(null); }, [steps]);
+  /** הלקוח (או PIVO) השלים, והמשרד עוד לא סימן — נשאר ברשימה, ירוק. */
+  const isGreen = (s: OnboardingStep) => awaitingOfficeAck(s) && !ackedLocal.has(s.id);
+  async function ackSteps(ids: string[]) {
+    setAckedLocal(prev => new Set([...prev, ...ids]));
+    const { data, error } = await supabase.rpc('ack_onboarding_steps', { p_step_ids: ids });
+    if (error || !(data as { ok?: boolean } | null)?.ok) {
+      setAckedLocal(prev => { const n = new Set(prev); ids.forEach(id => n.delete(id)); return n; });
+      setListNote({ err: true, text: 'הסימון לא נשמר. נסו שוב.' });
+      return;
+    }
+    refresh?.();
+  }
+  /** גרירה: הפריט נוחת במקום היעד, והסדר נשמר חי — גם בדף של הלקוח. */
+  async function dropEntry(fromKey: string, toKey: string) {
+    const ids = moveEntry(entriesRef.current, fromKey, toKey, orderOverride ?? clientSteps.map(s => s.id));
+    if (!ids) return;
+    const before = orderOverride;
+    orderSaving.current = true;
+    setOrderOverride(ids);
+    const { data, error } = await supabase.rpc('set_onboarding_steps_order', { p_client_id: clientId, p_ids: ids });
+    orderSaving.current = false;
+    if (error || !(data as { ok?: boolean } | null)?.ok) {
+      setOrderOverride(before);
+      setListNote({ err: true, text: 'הסדר החדש לא נשמר. נסו שוב.' });
+      return;
+    }
+    refresh?.();
+  }
 
   /* ‼ בקשה אוטומטית (⚡ מייל) שהופעלה — «בוצע» רק כשהיומן לא אומר «לא ידוע אם יצא».
      send-step-email רושם שורה 'unknown' (עם step_id) ומשאיר את התביעה, כדי שלא ייצא פעמיים;
@@ -1230,8 +1273,10 @@ export default function OnboardingTab({
   }, [depEdges]);
   // ‼ התג סופר **תהליכים** — בדיוק השורות שהרשימה מציגה כחולות/אדומות (אותו קיבוץ,
   // אותן תלויות). ייצוג עם שני חלקים שדורשים אותך = 1.
+  // ‼ 310: ועוד כל ירוק שמחכה ל«סימון שהושלם» — אותו כלל כמו countRequestsNeedingMe.
   const attentionN = requestRows(clientSteps, attnCtx, depParents)
-    .filter(r => rowSummary(r, attnCtx).attn.kind === 'mine').length;
+    .filter(r => rowSummary(r, attnCtx).attn.kind === 'mine').length
+    + clientSteps.filter(isGreen).length;
   const attentionRed = hasRedRequest(clientSteps, attnCtx);
   useEffect(() => { onAttentionSummary?.({ n: attentionN, red: attentionRed }); }, [onAttentionSummary, attentionN, attentionRed]);
   /** "עדכן את דף הלקוח" — הפעולה היחידה ברמת הדף. הבחירה (רק לעדכן / לעדכן
@@ -1243,6 +1288,8 @@ export default function OnboardingTab({
   const [editingStepId, setEditingStepId] = useState<string | null>(null);
   /** מצב עריכה — אותו מסך, פקדי ↑↓⋯ ותצורה נחשפים; במצב רגיל רק פעולה אחת. */
   const [editing, setEditing] = useState(false);
+  // 310 · גרירה — כבויה במצב עריכה (שם ↑↓ ממשיכים לעבוד כמו קודם).
+  useListDrag(listRef, !!embedded && !editing, (from, to) => void dropEntry(from, to));
   const [discarding, setDiscarding] = useState(false);
   /** מתג הפאנל המוטבע: חי (ברירת מחדל, אמין) מול אחרי עדכון. */
   const [sidebarPreviewMode, setSidebarPreviewMode] = useState<PortalPreviewMode>('live');
@@ -1508,8 +1555,9 @@ export default function OnboardingTab({
     ? buildStepGroups(visibleSteps)
     : { groups: [] as StepGroup[], grouped: new Set<string>() };
 
+  // ‼ 310: מה שמחכה ל«סימון שהושלם» עוד לא היסטוריה — הוא ברשימה, ירוק.
   const doneSteps = visibleSteps.filter(
-    s => !isStepOpen(s.status) && !releaseAnchor.some(a => a.id === s.id) && !groupedIds.has(s.id));
+    s => !isStepOpen(s.status) && !isGreen(s) && !releaseAnchor.some(a => a.id === s.id) && !groupedIds.has(s.id));
 
   /**
    * הזזת שורה בסדר התצוגה. מסדרים את כל הפתוחות, לא רק את מה שמסונן.
@@ -3417,6 +3465,31 @@ export default function OnboardingTab({
             {body}
           </div>
         );
+        /** 310 · ירוק: הלקוח (או PIVO) השלים — נשאר כאן, במקומו, עד «סימון שהושלם». */
+        const greenItem = (s: OnboardingStep, name?: string) => {
+          const answers = s.stepType === 'custom_request' ? requestAnswers(s.payload.requirements) : [];
+          return (
+            <div key={s.id} id={`ob-step-${s.id}`} className={`rl-item is-review${highlightStepId === s.id ? ' is-highlight' : ''}`}>
+              <span className="rl-dot" aria-hidden="true" />
+              <div className="rl-row">
+                <div className="rl-line">
+                  <div className="rl-hit is-static">
+                    <span className="rl-name">{name ?? representationPartLabel(s, partNames) ?? rowTitle(s)}</span>
+                    <span className="rl-state is-green">{s.completedAt ? `הושלם · ${formatDate(s.completedAt, 'list')}` : 'הושלם'}</span>
+                  </div>
+                  <div className="rl-act">
+                    {onOpenDocuments && s.stepType === 'client_documents' && (
+                      <button type="button" className="btn btn-sm btn-ghost" onClick={() => onOpenDocuments()}>למסמכים</button>
+                    )}
+                    <button type="button" className="btn btn-sm btn-primary" data-ack={s.id}
+                      onClick={() => void ackSteps([s.id])}>סימון שהושלם</button>
+                  </div>
+                </div>
+                {answers.length > 0 && <div className="rl-sub">{answers.join(' · ')}</div>}
+              </div>
+            </div>
+          );
+        };
 
         /* ── «לפי רשות ואדם» — הפירוט בתוך «ייצוג מול הרשויות» ─────────────────
            ‼ כל חלק שומר את המצב, שורת ה-PIVO, שער הפרטים, «בדוק קבלת הייצוג»,
@@ -3673,7 +3746,9 @@ export default function OnboardingTab({
           }));
           // ‼ 15.10: בקשה שסומנה «תוסר בפרסום» לא בסטטוס הקבוצה (לא «השלב הבא»); היא עדיין מוצגת בפירוט.
           const status = groupStatus(kids.filter(k => !k.s.pendingCancel).map(k => k.view), groupProgress(g.steps));
-          const open = groupOpenPref[g.key] ?? status.tone !== 'done';
+          // ‼ 310: קבוצה שהושלמה ויש בה ירוק — עוד לא היסטוריה: נשארת ברשימה, פתוחה, עם «סימון שהושלם».
+          const greens = g.steps.filter(isGreen);
+          const open = groupOpenPref[g.key] ?? (status.tone !== 'done' || greens.length > 0);
           for (const k of kids) {
             groupNamesMap.set(k.s.id, k.view.title);
             const hint = childHint(k.s, g);
@@ -3687,11 +3762,15 @@ export default function OnboardingTab({
             }
           }
           const red = kids.some(k => isStepOpen(k.s.status) && attnOf(k.s).tone === 'red');
+          const allGreen = status.tone === 'done' && greens.length > 0;
           return {
+            key: `group-${g.key}`,
+            ids: g.steps.map(s => s.id),
             tone: status.tone,
+            active: status.tone !== 'done' || greens.length > 0,
             rank: status.rank === 0 ? (red ? 0 : 1) : status.rank === 1 ? 2 : status.rank === 2 ? 3 : 4,
             node: (
-              <section key={`group-${g.key}`} className={`rg-group is-${status.tone}`} data-open={open ? 'true' : 'false'}
+              <section key={`group-${g.key}`} className={`rg-group is-${allGreen ? 'review' : status.tone}`} data-open={open ? 'true' : 'false'}
                 data-group={g.key} aria-label={g.title}>
                 <button type="button" className="rg-head" aria-expanded={open} onClick={() => setGroupOpen(g.key, !open)}>
                   <span className="rg-namecol">
@@ -3703,15 +3782,24 @@ export default function OnboardingTab({
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
                   </span>
                 </button>
+                {/* ‼ 310: הכול הושלם ויש מה לסמן — כפתור אחד לכל הקבוצה. */}
+                {allGreen && (
+                  <div className="rg-ackbar">
+                    <button type="button" className="btn btn-sm btn-primary" data-ack-group={g.key}
+                      onClick={() => void ackSteps(greens.map(s => s.id))}>סימון שהושלם</button>
+                  </div>
+                )}
                 {open && (() => {
                   // ‼ 19.10.2026 (גיא): מה שהושלם לא תופס מקום — בקבוצה פעילה רואים רק את הפתוח, והשאר מאחורי «ועוד N שהושלמו».
                   //   קבוצה שכולה הושלמה (יושבת ב«הושלמו») — מציגה הכול, היא כבר היסטוריה.
-                  const isOpenKid = (k: typeof kids[number]) => isStepOpen(k.s.status);
-                  const doneKids = status.tone === 'done' ? [] : kids.filter(k => !isOpenKid(k));
+                  //   ‼ 310: ירוק נחשב «פתוח» — הוא מחכה לעין שלך, ולכן לא מתקפל.
+                  const isOpenKid = (k: typeof kids[number]) => isStepOpen(k.s.status) || isGreen(k.s);
+                  const doneKids = status.tone === 'done' && !greens.length ? [] : kids.filter(k => !isOpenKid(k));
                   const shownKids = doneKids.length && !groupDoneShown[g.key] ? kids.filter(isOpenKid) : kids;
                   return (
                     <div className="rg-kids">
-                      {shownKids.map(k => flowItem(k.s, renderStep(k.s), isStepOpen(k.s.status) ? attnOf(k.s) : { kind: 'done', tone: 'gray' }))}
+                      {shownKids.map(k => isGreen(k.s) ? greenItem(k.s, k.view.title)
+                        : flowItem(k.s, renderStep(k.s), isStepOpen(k.s.status) ? attnOf(k.s) : { kind: 'done', tone: 'gray' }))}
                       {doneKids.length > 0 && (
                         <button type="button" className="rg-more" aria-expanded={!!groupDoneShown[g.key]}
                           onClick={() => setGroupDoneShown(p => ({ ...p, [g.key]: !p[g.key] }))}>
@@ -3727,10 +3815,13 @@ export default function OnboardingTab({
         };
         const groupPlaced = stepGroups.map(renderGroup);
 
-        type Placed = { key: string; step: OnboardingStep; attn: Attention; node: React.ReactNode; kind: ClientFacingRow['kind'] };
+        type Placed = { key: string; ids: string[]; step: OnboardingStep; attn: Attention; node: React.ReactNode; kind: ClientFacingRow['kind'] };
+        /** כל הבקשות ששורה מחזיקה — כדי שגרירה תזיז את כולן יחד. */
+        const rowIds = (row: ClientFacingRow): string[] =>
+          [...new Set([row.primary.id, ...row.members.map(m => m.id), ...row.children.flatMap(rowIds)])];
         const placed: Placed[] = clientRows.map(row => {
           const sum = summarize(row);
-          return { key: row.primary.id, step: row.primary, attn: sum.attn, node: renderRow(row), kind: row.kind };
+          return { key: row.primary.id, ids: rowIds(row), step: row.primary, attn: sum.attn, node: renderRow(row), kind: row.kind };
         });
 
         /* ── «ייצוג מול הרשויות» — אותה מעטפת קבוצה (05.10, סבב 2) ─────────────────── */
@@ -3749,13 +3840,18 @@ export default function OnboardingTab({
           const counted = [...kids, ...(opts.countAlso ?? [])];
           const views = counted.filter(k => !k.pendingCancel).map(k => ({ id: k.id, title: repTitle(k), ...childWho(k) }) as GroupChildView);
           const status = groupStatus(views, groupProgress(counted));
-          const open = groupOpenPref.representation ?? status.tone !== 'done';
+          // ‼ 310: כמו בכל קבוצה — ירוק מחזיק את הייצוג ברשימה עד «סימון שהושלם».
+          const greens = kids.filter(isGreen);
+          const allGreen = status.tone === 'done' && greens.length > 0;
+          const open = groupOpenPref.representation ?? (status.tone !== 'done' || greens.length > 0);
           const red = kids.some(k => isStepOpen(k.status) && attnOf(k).tone === 'red');
           return {
+            ids: kids.map(k => k.id),
             tone: status.tone,
+            active: status.tone !== 'done' || greens.length > 0,
             rank: status.rank === 0 ? (red ? 0 : 1) : status.rank === 1 ? 2 : status.rank === 2 ? 3 : 4,
             node: (
-              <section key="group-representation" className={`rg-group is-${status.tone}`} data-open={open ? 'true' : 'false'}
+              <section key="group-representation" className={`rg-group is-${allGreen ? 'review' : status.tone}`} data-open={open ? 'true' : 'false'}
                 data-group="representation" aria-label={REQUEST_GROUPS.representation.title}>
                 <button type="button" className="rg-head" aria-expanded={open} onClick={() => setGroupOpen('representation', !open)}>
                   <span className="rg-namecol">
@@ -3767,16 +3863,24 @@ export default function OnboardingTab({
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
                   </span>
                 </button>
+                {allGreen && (
+                  <div className="rg-ackbar">
+                    <button type="button" className="btn btn-sm btn-primary" data-ack-group="representation"
+                      onClick={() => void ackSteps(greens.map(s => s.id))}>סימון שהושלם</button>
+                  </div>
+                )}
                 {open && (() => {
                   // ‼ 19.10.2026: כמו בכל קבוצה — רק הפתוח, והשאר מאחורי «ועוד N שהושלמו» (לא בקבוצה שכולה הושלמה).
                   const rest = kids.filter(k => !parentNode || k.stepType !== 'representation');
-                  const doneKids = status.tone === 'done' ? [] : rest.filter(k => !isStepOpen(k.status));
-                  const shown = doneKids.length && !groupDoneShown.representation ? rest.filter(k => isStepOpen(k.status)) : rest;
+                  const live = (k: OnboardingStep) => isStepOpen(k.status) || isGreen(k);
+                  const doneKids = status.tone === 'done' && !greens.length ? [] : rest.filter(k => !live(k));
+                  const shown = doneKids.length && !groupDoneShown.representation ? rest.filter(live) : rest;
                   return (
                     <div className="rg-kids">
                       {parentNode}
                       {(status.tone === 'done' || groupDoneShown.representation) && opts.extra}
-                      {shown.map(k => flowItem(k, renderStep(k), isStepOpen(k.status) ? attnOf(k) : { kind: 'done', tone: 'gray' }))}
+                      {shown.map(k => isGreen(k) ? greenItem(k, repTitle(k))
+                        : flowItem(k, renderStep(k), isStepOpen(k.status) ? attnOf(k) : { kind: 'done', tone: 'gray' }))}
                       {doneKids.length > 0 && (
                         <button type="button" className="rg-more" aria-expanded={!!groupDoneShown.representation}
                           onClick={() => setGroupDoneShown(p => ({ ...p, representation: !p.representation }))}>
@@ -3801,31 +3905,41 @@ export default function OnboardingTab({
                   </div>
                 </div>)),
             }) : null;
-        /* ייצוג פתוח — ראשון (23.10); ייצוג שהושלם — ל«הושלמו» כמו כל קבוצה (groupPinsFirst, 25.10).
-           שאר הרשימה: דורש טיפול → לטיפולי → אצל אחרים → נעול, ובתוך דרגה לפי sort_order. */
-        const rank = (p: Placed) => p.attn.kind === 'mine' ? (p.attn.tone === 'red' ? 0 : 1)
-          : p.attn.waitingOn === 'locked' ? 3 : 2;
+        /* ── 310 · הסדר הוא הסדר של המשרד (הדמיה שאושרה 29.10) ───────────────────
+           ‼ בלי מיון לפי דחיפות: מה שעליך מסומן בנקודה ובכפתור ובתג הלשונית, והסדר הוא
+           הסדר שנקבע בגרירה — אותו סדר בדף של הלקוח (build_client_portal ממיין לפי sort_order).
+           קבוצה היא פריט אחד, במקום של הבקשה הראשונה שלה. מה שהלקוח השלים (ירוק) נשאר
+           במקום שלו עד «סימון שהושלם»; קבוצה שהושלמה ונראתה — ל«הושלמו». */
+        type Entry = ListEntry & { node: React.ReactNode };
+        const entries: Entry[] = [];
         const repDoneNodes: React.ReactNode[] = [];
-        const ordered = [
-          ...placed.flatMap((p, i) => {
-            if (p.kind === 'representation') {
-              // ‼ הבקשה הפתוחה — השורה הקיימת (עם «לפי רשות ואדם») בתוך מעטפת הקבוצה.
-              const g = renderRepGroup(flowItem(p.step, p.node, p.attn), [p.step, ...repGroupParts], {
-                countAlso: visibleSteps.filter(x => x.status !== 'cancelled' && isRepresentationPart(x) && ofCurrentRequest(x) && !isCreationProblem(x)),
-              });
-              if (!groupPinsFirst('representation', g.tone === 'done')) { repDoneNodes.push(g.node); return []; }
-              return [{ r: -1, i, node: g.node, isGroup: true }];
-            }
-            return [{ r: isRepresentationPart(p.step) || p.step.stepType === 'rep_client_approval' ? -1 : rank(p),
-              i, node: flowItem(p.step, p.node, p.attn), isGroup: false }];
-          }),
-          ...groupPlaced.filter(g => g.tone !== 'done').map((g, i) => ({ r: g.rank, i: -100 + i, node: g.node, isGroup: true })),
-          ...(repGroupPlaced && groupPinsFirst('representation', repGroupPlaced.tone === 'done')
-            ? [{ r: -1, i: -50, node: repGroupPlaced.node, isGroup: true }] : []),
-        ].sort((a, b) => a.r - b.r || a.i - b.i);
-        if (repGroupPlaced && !groupPinsFirst('representation', repGroupPlaced.tone === 'done')) repDoneNodes.push(repGroupPlaced.node);
+        for (const p of placed) {
+          if (p.kind === 'representation') {
+            // ‼ הבקשה הפתוחה — השורה הקיימת (עם «לפי רשות ואדם») בתוך מעטפת הקבוצה.
+            const g = renderRepGroup(flowItem(p.step, p.node, p.attn), [p.step, ...repGroupParts], {
+              countAlso: visibleSteps.filter(x => x.status !== 'cancelled' && isRepresentationPart(x) && ofCurrentRequest(x) && !isCreationProblem(x)),
+            });
+            if (!g.active) { repDoneNodes.push(g.node); continue; }
+            entries.push({ key: 'group-representation', stepIds: [...new Set([...p.ids, ...g.ids])], node: g.node });
+            continue;
+          }
+          entries.push({ key: p.key, stepIds: p.ids, node: flowItem(p.step, p.node, p.attn) });
+        }
+        for (const g of groupPlaced) if (g.active) entries.push({ key: g.key, stepIds: g.ids, node: g.node });
+        if (repGroupPlaced) {
+          if (repGroupPlaced.active) entries.push({ key: 'group-representation', stepIds: repGroupPlaced.ids, node: repGroupPlaced.node });
+          else repDoneNodes.push(repGroupPlaced.node);
+        }
+        // ירוק בודד — בקשה שהושלמה ואינה בתוך קבוצה.
+        for (const s of visibleSteps) {
+          if (!isGreen(s) || groupedIds.has(s.id) || repGroupedIds.has(s.id) || foldedRepPart(s)
+              || releaseAnchor.some(a => a.id === s.id) || entries.some(e => e.stepIds.includes(s.id))) continue;
+          entries.push({ key: s.id, stepIds: [s.id], node: greenItem(s) });
+        }
+        const ordered = sortEntries(entries, orderOverride ?? clientSteps.map(s => s.id));
+        entriesRef.current = ordered;
         // ‼ קבוצה שהושלמה היא היסטוריה (INV-REQ-03) — הייצוג ראשון גם ב«הושלמו», לפי GROUP_ORDER.
-        completedGroupNodes.push(...repDoneNodes, ...groupPlaced.filter(g => g.tone === 'done').map(g => g.node));
+        completedGroupNodes.push(...repDoneNodes, ...groupPlaced.filter(g => !g.active).map(g => g.node));
         /* ‼ «2 ממתינים לדוד» בשורת המסלול נספר לפי השורות שכאן: תהליך מקופל הוא שורה
            אחת, ומצבו — של השורה כולה (summarizeRow), בדיוק מה שהשורה מציגה. */
         const rowTop = new Map<string, OnboardingStep>();
@@ -3864,10 +3978,9 @@ export default function OnboardingTab({
                 <button type="button" className="rl-link-s" onClick={() => setListNote(null)} aria-label="סגירת ההודעה">✕</button>
               </p>
             )}
-            <div className="rl-list rg-cards">
-              {ordered.filter(x => x.r === -1).map(x => x.node)}
+            <div className="rl-list rg-cards" ref={listRef}>
               {/* ‼ ידוע שיש רו״ח קודם ואין מסלול — פותחים את אותו מסלול בדיוק
-                  (create_onboarding_request). החלטה של המשרד ⇒ אחרי הייצוג. */}
+                  (create_onboarding_request). החלטה של המשרד — בראש הרשימה. */}
               {needsPrevTrack && (
                 <div className="rl-item is-mine">
                   <span className="rl-dot" aria-hidden="true" />
@@ -3890,7 +4003,10 @@ export default function OnboardingTab({
                   </div>
                 </div>
               )}
-              {ordered.filter(x => x.r !== -1).map(x => x.node)}
+              {/* ‼ 310: כל פריט נגרר כגוש אחד (useListDrag). display: contents — העטיפה לא משנה את העיצוב. */}
+              {ordered.map(x => (
+                <div key={x.key} className="rl-drag" data-drag-key={x.key}>{x.node}</div>
+              ))}
               {ordered.length === 0 && !needsPrevTrack && !loading && (
                 <div className="rl-empty">
                   אין בקשות פתוחות.{' '}
