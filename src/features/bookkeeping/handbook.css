@@ -27,3 +27,8 @@
 
 .bk-table th,.bk-table td { white-space:normal; }
 .bk-table caption { position:absolute; width:1px; height:1px; padding:0; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }
+
+/* במחשב כל חמש העמודות נכנסות לטור התוכן, גם עם תפריט צד או זום.
+   בטלפון נשמרת טבלה רחבה עם גלילה מקומית. */
+@media (min-width: 761px) { .bk-table { min-width: 0; } }
+@media (max-width: 760px) { .bk-mobile-hint { display: block; } }
