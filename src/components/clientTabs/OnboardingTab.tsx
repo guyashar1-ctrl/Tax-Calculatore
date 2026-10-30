@@ -87,6 +87,7 @@ import {
 } from '../../features/requests/workGroups';
 import AutomationStepButton from '../../features/requests/AutomationStepButton';
 import { automationOf } from '../../features/requests/automationSteps';
+import DocumentViewLink from '../../features/requests/DocumentViewLink';
 import { useListDrag } from '../../features/requests/useListDrag';
 import HomeOfficePanel from '../../features/requests/HomeOfficePanel';
 import { confirmHomeOfficeInPaperless } from '../../features/requests/api';
@@ -3093,23 +3094,37 @@ export default function OnboardingTab({
                   {checklist.length > 0 && (
                     <div style={{ marginTop: '.4rem', display: 'flex', flexDirection: 'column', gap: '.15rem' }}>
                       {checklist.map(item => (
-                        <label key={item.key} style={{
-                          display: 'flex', alignItems: 'center', gap: '.4rem',
-                          fontSize: 'var(--fs-13)', color: item.done ? 'var(--ink-3)' : 'var(--ink-2)',
-                        }}>
-                          <input
-                            type="checkbox"
-                            checked={item.done}
-                            disabled={busy || locked}
-                            onChange={() => toggleChecklistItem(step, item)}
-                          />
-                          <span style={{ textDecoration: item.done ? 'line-through' : undefined }}>{item.label}</span>
+                        <div key={item.key} style={{ display: 'flex', alignItems: 'center', gap: '.4rem' }}>
+                          <label style={{
+                            display: 'flex', alignItems: 'center', gap: '.4rem',
+                            fontSize: 'var(--fs-13)', color: item.done ? 'var(--ink-3)' : 'var(--ink-2)',
+                          }}>
+                            <input
+                              type="checkbox"
+                              checked={item.done}
+                              disabled={busy || locked}
+                              onChange={() => toggleChecklistItem(step, item)}
+                            />
+                            <span style={{ textDecoration: item.done ? 'line-through' : undefined }}>{item.label}</span>
+                          </label>
+                          {/* ‼ 30.10 (גיא): «הועלה» בלי דרך לראות — עכשיו «צפה» פותח את הקובץ עצמו.
+                              מחוץ ל-label, כדי שהלחיצה לא תסמן/תבטל את הפריט. */}
                           {item.documentId && (
-                            <span style={{ color: 'var(--ink-4)', fontSize: 'var(--fs-12)' }}>· הועלה</span>
+                            <span style={{ color: 'var(--ink-4)', fontSize: 'var(--fs-12)' }}>
+                              · <DocumentViewLink documentId={item.documentId} title={item.label} />
+                            </span>
                           )}
-                        </label>
+                        </div>
                       ))}
                     </div>
+                  )}
+                  {/* ‼ 30.10 (גיא): בקשה שהיא קישור (מדריך, סרטון) — הקישור עצמו גלוי כשפותחים את השורה. */}
+                  {typeof (step.payload as { clientLinkUrl?: unknown }).clientLinkUrl === 'string'
+                    && /^https?:\/\//.test((step.payload as { clientLinkUrl: string }).clientLinkUrl) && (
+                    <a className="ui-linkbtn" style={{ display: 'inline-block', marginTop: '.4rem' }}
+                      href={(step.payload as { clientLinkUrl: string }).clientLinkUrl} target="_blank" rel="noopener noreferrer">
+                      {typeof step.payload.clientTitle === 'string' && step.payload.clientTitle ? `${step.payload.clientTitle} ↗` : 'פתיחת הקישור ↗'}
+                    </a>
                   )}
                   {/* ‼ מה חסר ואיך ממשיכים — השרת כתב את זה כשפתח את המשימה (215). */}
                   {spouseConfirm && typeof step.payload.officeNote === 'string' && (
