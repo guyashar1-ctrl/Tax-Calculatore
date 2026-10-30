@@ -70,8 +70,6 @@ interface Props {
   embedded?: boolean;
   /** 263 · «לבקשה ←» מהודעת «יש ל… שאלון פתוח» — השורה של השאלון הפתוח ב«בקשות». */
   onOpenRequest?: (stepId: string) => void;
-  /** 30.10.2026 · הערכת מס: «וגם שלח לו מייל» — המגש של «שלח בקשות» (מייל אחד, גלוי, בבחירה). */
-  onSendMail?: () => void;
 }
 
 const STATE_CHIP: Record<string, { label: string; tone: string }> = {
@@ -86,7 +84,7 @@ const target = (s: { entityLabel?: string; subjectRole: string }, c: Client) =>
   : s.subjectRole === 'spouse' ? (c.spouseFirstName || c.spouse?.firstName || 'בן/בת הזוג') + (s.entityLabel && s.entityLabel !== (c.spouseFirstName || c.spouse?.firstName) ? ` · ${s.entityLabel}` : '')
   : s.entityLabel && s.entityLabel !== c.firstName ? s.entityLabel : '';
 
-export default function TaxYearProcess({ client, step, infoStep, onClose, onChanged, onClientPersisted, onRemoved, embedded, onOpenRequest, onSendMail }: Props) {
+export default function TaxYearProcess({ client, step, infoStep, onClose, onChanged, onClientPersisted, onRemoved, embedded, onOpenRequest }: Props) {
   const purpose: Purpose = step.stepType === 'tax_estimate' ? 'estimate' : step.stepType === 'wealth_declaration' ? 'wealth' : step.stepType === 'tax_file_intake' ? 'intake' : 'annual';
   // ‼ 254 (17.10.2026) · «היכרות שנשלחת לבד»: בשורת הקליטה ב«בקשות» אין «הוסף שאלות» ואין «פרסם» — מה שהתמונה
   //   אומרת לשאול נוסף ומתפרסם בדף של הלקוח בפעולה אחת בשרת (ensure_tax_file_intake עם השאלות), אידמפוטנטית.
@@ -357,7 +355,7 @@ export default function TaxYearProcess({ client, step, infoStep, onClose, onChan
           {/* ‼ 27.10.2026 · הערכת מס: מסך אחד — שאלון ← פייפרלס ← הצפי של הלקוח ← הערכה והמלצה
               (docs/proposals/2026-10-27-tax-estimate.html); כל מה שהיה כאן — ב«כלים מתקדמים» */}
           {purpose === 'estimate' && data && <EstimateWorkspace client={client} step={step} year={year} cutoffMonth={p.cutoffMonth ?? 12} data={data} busy={busy}
-            sendMore={annualMore} onSendMail={onSendMail} advancedOpen={annualAdv} onAdvanced={setAnnualAdv} onChanged={() => { void reload(); onChanged(); }} />}
+            sendMore={annualMore} onClientPersisted={onClientPersisted} advancedOpen={annualAdv} onAdvanced={setAnnualAdv} onChanged={() => { void reload(); onChanged(); }} />}
           <div hidden={(purpose === 'annual' || purpose === 'wealth' || purpose === 'estimate') && !annualAdv} data-annual-advanced={purpose === 'annual' || purpose === 'wealth' || purpose === 'estimate' ? '' : undefined}>
           {purpose === 'annual' && data && <AnnualSummary client={client} step={step} year={year} data={data} busy={busy} run={run} more={annualMore} onClientPersisted={onClientPersisted}
             legacy={legacyAnnual && isOpenStep(step) ? { reopen: () => run(() => reopenAnnualInNewVersion(client, step.id, year), `הבקשה הקודמת נסגרה ונשמרה בהיסטוריה, ונפתחה «דוח שנתי ${year}» חדשה — בשורה שלה ב«בקשות». בלי מייל.`) } : undefined}

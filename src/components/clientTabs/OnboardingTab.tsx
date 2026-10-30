@@ -2242,8 +2242,7 @@ export default function OnboardingTab({
                         infoStep={info}
                         onClientPersisted={onClientPersisted}
                         onClose={() => setOpenRowId(null)} onChanged={() => refresh?.()} onRemoved={setTaxNotice}
-                        onOpenRequest={id => requestFocus({ stepId: id })}
-                        onSendMail={() => { void Promise.resolve(reloadReady()).then(() => setEmailAfterAdd(true)); }} />
+                        onOpenRequest={id => requestFocus({ stepId: id })} />
                     ) : null}
                   </JourneyRow>
                 );

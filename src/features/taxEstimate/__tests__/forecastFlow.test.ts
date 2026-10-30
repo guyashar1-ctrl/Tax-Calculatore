@@ -135,4 +135,18 @@ export const TESTS: TestCase[] = [
     const once = deriveDraft(base, [f, sal], '2026-10-30', c);
     equal(JSON.stringify(deriveDraft(once, [f, sal], '2026-10-30', c)), JSON.stringify(once));
   }),
+  test('«קרא שוב»: קריאה חדשה מהרשות בכרטיס נכנסת לחישוב — והתקופות שנקלטו ביד נשמרות', () => {
+    const c = { id: 'c', firstName: 'גיא', businessTransfer: true, pitAdvancePercent: 7, pitAdvanceFrequency: 'monthly', niAdvanceMonthly: 2_000,
+      fieldMeta: { pitAdvancePercent: { source: 'shaam', syncedAt: '2026-10-30T08:00:00Z' }, niAdvanceMonthly: { source: 'shaam', syncedAt: '2026-10-30T08:00:00Z' } } } as unknown as Client;
+    const old: EstimateDraft = { ...draft(line()), it: { via: 'automation', readOn: '2026-10-01', method: 'turnoverRate', ratePct: 5, frequency: 1, periods: [{ period: '2026-01', state: 'reported', paid: 1_500 }] }, ni: { via: 'automation', readOn: '2026-10-01', monthlyAdvance: 1_450, paidToCutoff: 13_050 } };
+    const d = withClientAnswers(old, [], c, '2026-10-30');
+    equal(d.it.ratePct, 7);
+    equal(d.it.readOn, '2026-10-30');
+    equal(d.it.periods.length, 1);
+    equal(d.ni.monthlyAdvance, 2_000);
+    equal(d.ni.paidToCutoff, 13_050);
+    // קריאה ישנה מזו שבטיוטה — לא דורסת
+    const stale = withClientAnswers({ ...old, it: { ...old.it, readOn: '2026-11-15' } }, [], c, '2026-10-30');
+    equal(stale.it.ratePct, 5);
+  }),
 ];

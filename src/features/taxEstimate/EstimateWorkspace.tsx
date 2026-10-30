@@ -2,7 +2,7 @@
 // ‼ הדמיה מאושרת: docs/proposals/2026-10-30-tax-estimate-simple.html (גיא: «אני מכניס קצת נתונים, הוא את השאר — וזהו»).
 //   שלושה חלקים: מה אנחנו מביאים (מקדמות מהרשויות, רו״ה מפייפרלס) · מה הלקוח משלים (בדף שלו) · התוצאה.
 //   כל השאר (חוסמים מפורטים, קליטות, יישור, גרסאות) — ב«כלים מתקדמים» (EstimatePanel), לא נמחק.
-// ‼ «פרסם בדף של X» מפרסם בלי מייל; המייל — רק בבחירה, מאותו מגש של «שלח בקשות» (onSendMail).
+// ‼ «פרסם בדף של X» מפרסם בלי מייל. ‼ אין כאן שום כפתור מייל (גיא, 30.10): מייל יוצא רק מ«שלח בקשות» — לכל הדף, לא מבקשה בודדת.
 // ‼ אותו מנוע ואותן גרסאות (231/232): «פרסם את ההמלצה» = שמירה + אישור + פרסום. PIVO לא משנה מקדמות —
 //   «עדכנתי את המקדמות» רק רושם שבוצע (estimate.applied).
 // ‼ עסק חדש (המשרד פותח את התיקים): יישור קו מול הרשויות, הלקוח צופה בחודש, והמקדמות — לשנה מלאה (forecastFlow.ts).
@@ -19,7 +19,9 @@ import * as api from './api';
 import { cardSnapshot } from '../taxFile/hub';
 import ImportPanel from './ImportPanel';
 import AutomationStepButton from '../requests/AutomationStepButton';
-import { AUTOMATION_STEP_ACTIONS } from '../requests/automationSteps';
+import { supabase } from '../../lib/supabase';
+import { clientFromDb } from '../../lib/dbMappers';
+import { AUTOMATION_STEP_ACTIONS, type AutomationStepAction } from '../requests/automationSteps';
 import { BTL_SYNC_FILE_ACTION_TYPE, SHAAM_SYNC_INCOME_TAX_ACTION_TYPE } from '../../types/automation';
 import { adjustmentRows, deriveDraft, FORECAST_ITEM, forecastAnswerOf, incomeExpenses, isNewBusiness } from './forecastFlow';
 import { he, nis, today, uid } from './parts';
@@ -38,8 +40,8 @@ interface Props {
   busy: boolean;
   /** השאלון בלחיצה אחת — אותו מנוע כמו בדוח השנתי (TaxYearProcess). */
   sendMore?: { count: number; run: () => Promise<boolean> };
-  /** «וגם שלח לו מייל» — פותח את המגש של «שלח בקשות» (מייל אחד, גלוי, בבחירה). */
-  onSendMail?: () => void;
+  /** אחרי «קרא שוב» — הכרטיס נקרא מחדש מהמסד (כמו בכרטיסי הרשויות בתיק המס), כדי שהמקדמה ו«נבדק ב-» יתעדכנו. */
+  onClientPersisted?: (c: Client) => void;
   advancedOpen: boolean;
   onAdvanced: (open: boolean) => void;
   onChanged: () => void;
@@ -54,7 +56,7 @@ const resultKey = (o: EstimateOutputs) => JSON.stringify([o.household.annualLiab
 const SHAAM_READ = AUTOMATION_STEP_ACTIONS.find(a => a.type === SHAAM_SYNC_INCOME_TAX_ACTION_TYPE)!;
 const BTL_READ = AUTOMATION_STEP_ACTIONS.find(a => a.type === BTL_SYNC_FILE_ACTION_TYPE)!;
 
-export default function EstimateWorkspace({ client, step, year, cutoffMonth, data, busy, sendMore, onSendMail, advancedOpen, onAdvanced, onChanged }: Props) {
+export default function EstimateWorkspace({ client, step, year, cutoffMonth, data, busy, sendMore, onClientPersisted, advancedOpen, onAdvanced, onChanged }: Props) {
   const firstName = client.firstName || 'הלקוח';
   const [versions, setVersions] = useState<EstimateVersion[] | null>(null);
   const [draft, setDraft] = useState<EstimateDraft | null>(null);
@@ -146,16 +148,17 @@ export default function EstimateWorkspace({ client, step, year, cutoffMonth, dat
   };
   const act = async (fn: () => Promise<unknown>, done: string) => {
     setWorking(true); setErr(null); setFlash(null);
-    try { await fn(); setFlash(done); await load(); onChanged(); }
+    try { await fn(); if (done) setFlash(done); await load(); onChanged(); }
     catch (e) { setErr((e as Error).message); }
     finally { setWorking(false); }
   };
   const toAsk = (sendMore?.count ?? 0) > 0 || biz.some(l => (l.months?.length || fresh) && !fAsks.some(a => !l.entityRef || a.entityRef === l.entityRef));
-  const publishQ = (mail: boolean) => act(async () => {
-    if (sendMore && sendMore.count > 0 && !(await sendMore.run())) throw new Error('השאלון לא פורסם — הסיבה למעלה');
+  // ‼ השאלון יוצא דרך sendMore — והוא כבר מודיע «פורסם בדף של X — בלי מייל» (TaxYearProcess). כאן — רק כשיצא רק הצפי.
+  const viaSendMore = !!sendMore && sendMore.count > 0;
+  const publishQ = () => act(async () => {
+    if (viaSendMore && !(await sendMore!.run())) throw new Error('השאלון לא פורסם — הסיבה למעלה');
     await askForecast(eff);
-    if (mail) onSendMail?.();
-  }, mail ? `פורסם בדף של ${firstName} — המייל: במגש שנפתח` : `פורסם בדף של ${firstName} — בלי מייל`);
+  }, viaSendMore ? '' : `פורסם בדף של ${firstName} — בלי מייל`);
   const onPulled = (f: (d: EstimateDraft) => EstimateDraft) => act(async () => {
     const next = f(draft!);
     await save(next);
@@ -192,7 +195,13 @@ export default function EstimateWorkspace({ client, step, year, cutoffMonth, dat
     : eff.it.method === 'fixed' && eff.it.fixedPerPeriod != null ? `${nis(eff.it.fixedPerPeriod)} לתשלום`
     : eff.it.method === 'none' ? 'אין מקדמות' : null;
   const niText = eff.ni.monthlyAdvance != null ? `${nis(eff.ni.monthlyAdvance)} לחודש` : null;
-  const sourceOr = (readOn: string | undefined, label: string, btn: React.ReactNode) => readOn ? <span className="ew-src-chip" title={`נבדק ${he(readOn)}`}>⚡ {label}</span> : btn;
+  // ‼ אחרי קריאה מהרשות — הכרטיס נקרא מחדש מהמסד (כמו AuthoritiesPanel), והמקדמה נכנסת לחישוב (forecastFlow › withCardAdvances)
+  const afterRead = () => {
+    void supabase.from('clients').select('*').eq('id', client.id).maybeSingle().then(({ data: row }) => {
+      if (row) onClientPersisted?.(clientFromDb(row));
+      onChanged();
+    });
+  };
 
   // ── 2 · מה הלקוח משלים ──
   const persons = out.persons.filter(p => p.person === 'client' || (client.familyStatus === 'married' && p.creditPoints > 0));
@@ -224,15 +233,15 @@ export default function EstimateWorkspace({ client, step, year, cutoffMonth, dat
         <div className="ew3-rows">
           {fresh ? (<>
             <Row k="תיק במס הכנסה" v={<>{client.incomeTaxFileType ? 'פתוח' : 'עוד לא נפתח'} <small>· אין מקדמות</small></>}
-              end={<AutomationStepButton action={SHAAM_READ} client={client} onDone={onChanged} />} />
+              end={<AutomationStepButton action={SHAAM_READ} client={client} onDone={afterRead} />} />
             <Row k="ביטוח לאומי" v={niSelfEmployedSince(client, 'client', year) ? 'רשום כעצמאי' : 'עוד לא רשום כעצמאי'}
-              end={<AutomationStepButton action={BTL_READ} client={client} onDone={onChanged} />} />
+              end={<AutomationStepButton action={BTL_READ} client={client} onDone={afterRead} />} />
             <Row k="הכנסות עד היום" v={eff.newBusiness?.start ? `העסק מתחיל ב-${MONTH_HE[Number(eff.newBusiness.start.slice(5, 7))]} ${eff.newBusiness.start.slice(0, 4)}` : 'אין — העסק עוד לא התחיל'} />
           </>) : (<>
             <Row k="מקדמות מס הכנסה" v={itText ? <>{itText}{itCur?.paidPast ? <small> · {nis(itCur.paidPast)} עד היום</small> : null}</> : <span className="ew-miss">לא נקרא</span>}
-              end={sourceOr(eff.it.readOn, 'שע״ם', <AutomationStepButton action={SHAAM_READ} client={client} onDone={onChanged} />)} />
+              end={<ReadCheck readOn={eff.it.readOn} action={SHAAM_READ} client={client} onDone={afterRead} />} />
             <Row k="מקדמות ביטוח לאומי" v={niText ?? <span className="ew-miss">לא נקרא</span>}
-              end={sourceOr(eff.ni.readOn, 'ביטוח לאומי', <AutomationStepButton action={BTL_READ} client={client} onDone={onChanged} />)} />
+              end={<ReadCheck readOn={eff.ni.readOn} action={BTL_READ} client={client} onDone={afterRead} />} />
             {biz.map(l => {
               const x = l.months?.length ? incomeExpenses(eff, l) : null;
               return <Row key={l.id} k={`${biz.length > 1 ? `${l.label} · ` : 'הכנסות והוצאות '}ינו׳–${MONTH_HE[cut].slice(0, 4)}׳`}
@@ -256,15 +265,13 @@ export default function EstimateWorkspace({ client, step, year, cutoffMonth, dat
         <PartHead n={2} done={answered} title={`מה ${firstName} משלים/ה`} sub={fresh ? 'המשפחה ונקודות הזיכוי, ומה צפוי בעסק' : 'המשפחה ונקודות הזיכוי, וכמה ייכנס'} />
         {stage === 'q' && (toAsk ? (
           <div className="ew3-acts">
-            <button type="button" className="btn btn-primary" disabled={busy || working} data-ew-publish-q onClick={() => void publishQ(false)}>פרסם בדף של {firstName}</button>
-            {onSendMail && <button type="button" className="ew-lnk" disabled={busy || working} data-ew-publish-mail onClick={() => void publishQ(true)}>וגם שלח לו מייל</button>}
+            <button type="button" className="btn btn-primary" disabled={busy || working} data-ew-publish-q onClick={() => void publishQ()}>פרסם בדף של {firstName}</button>
           </div>
         ) : <p className="ew-mute">אין מה לשאול את {firstName} — הכול כבר בתיק.</p>)}
         {stage === 'waiting' && (
           <p className="ew-wait" data-ew-waiting data-ew-qstate={questionnaireState(asks)}>
             {/* ‼ «עוד לא התחיל» עד שיש טיוטה בשרת; «באמצע השאלון» — כשהתחיל (questionnaireState, 30.10) */}
-            {questionnaireState(asks) === 'filling' ? questionnaireText('filling', firstName) : <>בדף של {firstName}{publishedOn ? ` מ-${he(publishedOn)}` : ''} · עוד לא התחיל/ה</>}
-            {onSendMail && <button type="button" className="ew-lnk ew-inline" onClick={onSendMail}>שלח תזכורת במייל</button>}</p>
+            {questionnaireState(asks) === 'filling' ? questionnaireText('filling', firstName) : <>בדף של {firstName}{publishedOn ? ` מ-${he(publishedOn)}` : ''} · עוד לא התחיל/ה</>}</p>
         )}
         {answered && (
           <div className="ew3-rows" data-ew-answers>
@@ -342,6 +349,24 @@ function PartHead({ n, done, title, sub }: { n: number; done: boolean; title: st
       <span className={`ew3-num${done ? ' is-done' : ''}`} aria-hidden="true">{done ? '✓' : n}</span>
       <div><h3 className="ew-h3">{title}</h3><span className="ew3-sub">{sub}</span></div>
     </div>
+  );
+}
+
+/**
+ * 30.10.2026 · גיא: «לבדוק מתי עודכנו לאחרונה המקדמות». ליד המקדמה: «נבדק DD.MM» (מתי קראנו מהרשות) ו«קרא שוב» —
+ * אותה קריאה כמו בכרטיסי הרשויות בתיק המס, בוורוד של האוטומציה. קריאה ישנה מחודש — בכתום. לא נקרא — «קרא מ…».
+ * ‼ «מתי המקדמה שונתה ברשות» (תאריך העדכון במסך 134) עוד לא נקרא אוטומטית — שלב נפרד, אחרי צפייה במסך החי.
+ */
+function ReadCheck({ readOn, action, client, onDone }: { readOn?: string; action: AutomationStepAction; client: Client; onDone: () => void }) {
+  if (!readOn) return <AutomationStepButton action={action} client={client} onDone={onDone} />;
+  const days = Math.floor((Date.parse(today()) - Date.parse(readOn)) / 86_400_000);
+  return (
+    <span className="ew3-read" data-ew-read={action.type}>
+      <span className={`ew3-read-on${days > 30 ? ' is-old' : ''}`} title={days > 30 ? `נבדק לפני ${days} ימים` : undefined}>
+        נבדק {days <= 0 ? 'היום' : `${readOn.slice(8, 10)}.${readOn.slice(5, 7)}`}
+      </span>
+      <AutomationStepButton action={{ ...action, act: 'קרא שוב' }} client={client} onDone={onDone} />
+    </span>
   );
 }
 

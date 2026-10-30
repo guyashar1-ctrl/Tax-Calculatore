@@ -136,13 +136,13 @@ async function scenario(width, kind) {
     ok(/תופיע כש/.test(await text(part('result'))), 'התוצאה: «תופיע כשדוד יענה»');
     const pubQ = ew.locator('[data-ew-publish-q]');
     ok(/^פרסם בדף של /.test((await text(pubQ)).trim()), '«פרסם בדף של דוד» — לא «שלח שאלון»', await text(pubQ));
-    ok(await ew.locator('[data-ew-publish-mail]').count() === 1, '«וגם שלח לו מייל» — בבחירה, ליד');
+    ok(!/מייל/.test((await text(ew)).replace(/בלי מייל/g, '')), 'אין בהערכה שום כפתור מייל — מייל רק מ«שלח בקשות»', (await text(ew)).replace(/\s+/g, ' ').slice(0, 200));
     const [st] = await env.sql(`select id from public.onboarding_steps where client_id = '${id}' and step_type = 'tax_estimate' and status <> 'cancelled' order by created_at desc limit 1`);
 
     if (kind === 'a') {
       const ours = await text(part('ours'));
       ok(/5% מהמחזור/.test(ours) && /1,450/.test(ours), 'מקדמות מהרשויות: 5% · 1,450 ₪', ours.replace(/\s+/g, ' ').slice(0, 300));
-      ok(/⚡ שע״ם/.test(ours), 'מקור: «⚡ שע״ם» (ורוד)');
+      ok(await part('ours').locator('[data-ew-read]').count() === 2 && /נבדק 20.10/.test(ours) && (ours.match(/קרא שוב/g) ?? []).length === 2, '«נבדק 20.10» + «קרא שוב» בשתי השורות', ours.replace(/\s+/g, ' ').slice(0, 300));
       await ew.locator('[data-ew-pull]').click();
       await ew.locator('textarea').first().fill(PNL);
       await ew.getByRole('button', { name: /^קלוט לשורה/ }).click();
@@ -159,6 +159,8 @@ async function scenario(width, kind) {
     // 2 · «פרסם בדף של דוד» — בלי מייל
     await pubQ.click();
     ok(await waitStage('waiting') === 'waiting', '«ממתין לדוד»', await stage() + ' ' + (await text(ew.locator('.ty-err'))));
+    await sleep(800);
+    ok(await page.getByText(/פורסם בדף של .* — בלי מייל/).count() === 1, 'הודעה אחת «פורסם בדף… — בלי מייל», לא שתיים', String(await page.getByText(/פורסם בדף של .* — בלי מייל/).count()));
     for (let k = 0; k < 20 && !(await env.sql(`select 1 from public.tax_info_asks where client_id='${id}' and item_key='business.forecastMonths' and state <> 'cancelled'`)).length; k++) await sleep(1000);
     const asks = await env.sql(`select item_key, subject_role, state from public.tax_info_asks where client_id='${id}' and state <> 'cancelled' order by created_at`);
     const keys = asks.map(a => a.item_key);

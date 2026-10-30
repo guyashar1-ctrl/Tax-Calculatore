@@ -136,3 +136,7 @@
 .ew3-how[open] summary { margin-bottom: 6px; }
 .ew-missing b { font-size: 14px; }
 .ew-missing ul { margin: 4px 0; padding-inline-start: 18px; font-size: 13.5px; color: #4b5058; }
+/* 30.10.2026 · «נבדק DD.MM» + «קרא שוב» ליד המקדמה */
+.ew3-read { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.ew3-read-on { font-size: 13px; color: #666b72; white-space: nowrap; }
+.ew3-read-on.is-old { color: #8a5b0f; background: #fbf3e4; border-radius: 999px; padding: 1px 8px; font-weight: 600; }

@@ -8,6 +8,7 @@ import type { Client } from '../../types';
 import type { Adjustment, EstimateDraft, IncomeLine } from './types';
 import { recognizedOf, ruleFor } from './adjustmentRules';
 import { businessSituationOf } from '../../utils/businessSituation';
+import { cardAdvances } from './prefill';
 
 export const FORECAST_ITEM = 'business.forecastMonths';
 const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0);
@@ -105,8 +106,24 @@ export function isNewBusiness(client: Pick<Client, 'businessTransfer' | 'hasPrev
  */
 const upsert = (lines: IncomeLine[], line: IncomeLine) => (lines.some(l => l.id === line.id) ? lines.map(l => (l.id === line.id ? line : l)) : [...lines, line]);
 
+/**
+ * 30.10.2026 · «קרא שוב» ליד המקדמה: קריאה מהרשות שבכרטיס, חדשה (או באותו יום) מזו שבטיוטה — נכנסת לחישוב.
+ * ‼ מה שנקלט ביד בטיוטה (תקופות 134, תשלומים בב״ל) נשמר; מתעדכנים רק השיעור/המקדמה ומועד הבדיקה.
+ */
+export function withCardAdvances(draft: EstimateDraft, client: Client): EstimateDraft {
+  const card = cardAdvances(client);
+  const newer = (c?: { readOn?: string }, d?: { readOn?: string }) => !!c?.readOn && (!d?.readOn || c.readOn >= d.readOn);
+  return {
+    ...draft,
+    ...(card.it && newer(card.it, draft.it) ? { it: { ...draft.it, ...card.it, periods: draft.it.periods } } : {}),
+    ...(card.ni && newer(card.ni, draft.ni) ? { ni: { ...draft.ni, ...card.ni } } : {}),
+    ...(card.niSpouse && draft.niSpouse && newer(card.niSpouse, draft.niSpouse) ? { niSpouse: { ...draft.niSpouse, ...card.niSpouse } } : {}),
+  };
+}
+
 /** מהתשובות לטיוטה: משכורת וב״ל בערך, ועסק חדש (שורה, צפי לשנה מלאה, שיטת מקדמה). */
-export function withClientAnswers(draft: EstimateDraft, facts: YearFact[], client: Client, today: string): EstimateDraft {
+export function withClientAnswers(draft0: EstimateDraft, facts: YearFact[], client: Client, today: string): EstimateDraft {
+  const draft = withCardAdvances(draft0, client);
   const cutoff = draft.cutoffMonth;
   let lines = draft.lines;
   for (const p of ['client', 'spouse'] as const) {
