@@ -474,6 +474,12 @@ export function schemaFor(id: RecordSchemaId, c?: Client, ctx?: Record<string, s
       ],
       summary: r => [label(GENDERS, r.gender), he(r.birthDate) && `נולד/ה ${he(r.birthDate)}`].filter(Boolean).join(' · '),
     };
+    // ‼ 30.10.2026 · שם האב — שדה בטופס 1301 (חלק ב׳) שאין לו מקום בכרטיס; נשאל בשאלון השנתי במקום שהמשרד יקליד
+    case 'fatherName': return {
+      id, noun: 'שם האב', addLabel: '', multiple: false,
+      fields: [{ key: 'name', label: 'שם האב', type: 'text', required: true, maxLength: 40 }],
+      summary: r => str(r.name),
+    };
     // ‼ 290 · סעיף 39ב — ימי מילואים כלוחם בשנה שלפני שנת המס
     case 'reserveDays': return {
       id, noun: 'ימים', addLabel: '', multiple: false,

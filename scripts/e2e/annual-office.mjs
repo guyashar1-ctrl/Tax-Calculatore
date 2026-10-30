@@ -104,6 +104,8 @@ async function answerAll(pp) {
     if (await flow.locator('.rec-seg-btn', { hasText: 'אישה' }).count() && await flow.locator('input[type="date"]').count()) { await flow.locator('.rec-seg-btn', { hasText: 'אישה' }).first().click(); await flow.locator('input[type="date"]').first().fill('1988-04-12'); await next(); continue; }
     // 25.10.2026 · «יש / אין» לפני הכרטיסים (ילדים, מעסיקים) — «אין»
     if (await flow.locator('.rec-gate [data-gate="no"]').count()) { await flow.locator('.rec-gate [data-gate="no"]').first().click(); await next(); continue; }
+    // 30.10.2026 · 315 · «מה שם האב של …?» — שדה טקסט אחד
+    if (/שם האב/.test(title) && await flow.locator('input:not([type]), input[type="text"]').count()) { await flow.locator('input:not([type]), input[type="text"]').first().fill('משה'); await next(); continue; }
     if (await flow.locator('.ty-choice', { hasText: /^לא$/ }).count()) { await flow.locator('.ty-choice', { hasText: /^לא$/ }).first().click(); await next(); continue; }
     const first = flow.locator('.ty-choice').first();
     if (await first.count()) { await first.click(); await next(); continue; }
@@ -191,6 +193,9 @@ async function runWidth(width) {
     let pend = pend0;
     for (let k = 0; k < 20 && pend > 0; k++) { await page.waitForTimeout(1000); pend = (await env.sql(`select count(*)::int n from public.tax_year_facts where client_id='${id}' and request_id='${st.id}' and status='pending' and source='portal'`))[0].n; }
     ok(pend === 0, 'התשובות נכנסו לבד — בלי לחיצה על «אשר»', `pending=${pend}`);
+    // 315 · שם האב נענה בשאלון — לכל אחד מבני הזוג, ונכנס לבד (לא «אצלך»)
+    const fathers = await env.sql(`select subject_role, value->'items'->0->>'name' n from public.tax_year_facts where client_id='${id}' and item_key='filing.fatherName' and status='accepted' order by subject_role`);
+    ok(fathers.map(r => `${r.subject_role}:${r.n}`).join(',') === 'client:משה,spouse:משה', 'שם האב מהשאלון — לשניהם', JSON.stringify(fathers));
     ok(!(await ws.getByRole('button', { name: /^אשר/ }).count()), 'אין כפתור «אשר» במסך');
     await page.waitForTimeout(1500);
     await shot(page, 'office-main');

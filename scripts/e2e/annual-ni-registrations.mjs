@@ -127,6 +127,8 @@ async function answerAll(pp) {
     if (await flow.locator('.rec-seg-btn', { hasText: 'אישה' }).count() && await flow.locator('input[type="date"]').count()) { await flow.locator('.rec-seg-btn', { hasText: 'אישה' }).first().click(); await flow.locator('input[type="date"]').first().fill('1988-04-12'); await next(); continue; }
     // 25.10.2026 · «יש / אין» לפני הכרטיסים (ילדים, מעסיקים) — «אין»
     if (await flow.locator('.rec-gate [data-gate="no"]').count()) { await flow.locator('.rec-gate [data-gate="no"]').first().click(); await next(); continue; }
+    // 30.10.2026 · 315 · «מה שם האב של …?» — שדה טקסט אחד
+    if (/שם האב/.test(title) && await flow.locator('input:not([type]), input[type="text"]').count()) { await flow.locator('input:not([type]), input[type="text"]').first().fill('משה'); await next(); continue; }
     if (await flow.locator('.ty-choice', { hasText: /^לא$/ }).count()) { await flow.locator('.ty-choice', { hasText: /^לא$/ }).first().click(); await next(); continue; }
     const first = flow.locator('.ty-choice').first();
     if (await first.count()) { await first.click(); await next(); continue; }

@@ -45,7 +45,9 @@ export const TESTS: TestCase[] = [
     equal(plan.filter(e => e.itemKey === ANNUAL_GRID_KEY || e.itemKey === ANNUAL_LESS_KEY).map(e => `${e.itemKey}@${e.subjectRole}`).join(','),
       `${ANNUAL_GRID_KEY}@client,${ANNUAL_LESS_KEY}@client,${ANNUAL_GRID_KEY}@spouse,${ANNUAL_LESS_KEY}@spouse`);
     equal(plan.filter(e => e.itemKey === 'salary.form106').map(e => e.entityRef).sort().join(','), 'e1,e2');
-    assert(plan.length <= 14, `${plan.length} שאלות`);
+    // ‼ 30.10.2026: +2 בכוונה — «שם האב» לכל אחד מבני הזוג (שדה בטופס 1301 שהמשרד הקליד עד עכשיו)
+    assert(plan.length <= 16, `${plan.length} שאלות`);
+    equal(plan.filter(e => e.itemKey === 'filing.fatherName').map(e => e.subjectRole).sort().join(','), 'client,spouse');
   }),
   test('מה שידוע מהכרטיס (ביטוח חיים) — אישור «זה מה שידוע לנו», והכותרת היא הנושא', () => {
     const ins = planFor(client()).find(e => e.itemKey === 'savings.insurance' && e.subjectRole === 'client');

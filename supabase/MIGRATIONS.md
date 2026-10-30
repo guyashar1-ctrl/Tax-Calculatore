@@ -724,3 +724,6 @@ order by version;
 
 ## 306 · «פייפרלס» בכותרת, ליד שע״ם וביטוח לאומי (26.10.2026, באישור גיא)
 `paperless.connect` (פותח את החלון הייעודי במחשב המשרד על מסך הכניסה ומחכה — `awaiting_paperless_auth`) ו-`paperless.disconnect` (סוגר אותו), כמו ב״ל: `automation_job_is_interactive` + `automation_job_needs_session` (גופי 203 + פייפרלס), ו-`report_worker_status` (גוף 304) מחדש `paperless.connect` כשהנורית ירוקה. במסך: כפתור שלישי בכותרת, כרטיס «פייפרלס» ב«חיבורים», ו«בדוק בפייפרלס» במקום «סמן כבוצע» / «הכרטיס נקלט ✓» / «הריטיינר חויב» (סימון ידני — רק בקישורי ⋯). בדיקה: `scripts/staging-test-paperless-304.mjs` (סעיף 11). חזרה: `scripts/sql/306/rollback-306.sql`.
+
+## 315 · «שם האב» בשאלון השנתי (30.10.2026, באישור גיא: «כן — תעביר את שם האב לשאלון, כולל השינוי הקטן במסד (עם גיבוי ובדיקה)»)
+`_tax_year_items` + `filing.fatherName` ('detail') — בלי הרישום השרת דוחה את השאלה, ולכן הוחל לפני הקוד. נבנה מהרשימה שבמסד (342 ⇒ 343), הרשאות ובעלים ללא שינוי. staging + ייצור 30.10 (גרסה 20261030090404); גיבוי: `C:/Users/guyas/PIVO/backups/father-name-20261030` (backup_fathername_20261030). חזרה: `scripts/sql/315/rollback-315.sql`.

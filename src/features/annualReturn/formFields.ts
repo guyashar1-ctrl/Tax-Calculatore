@@ -129,6 +129,14 @@ export function buildCoverage(c: Ctx): FormCoverage {
   const sp = client.spouse;
   const decl = objFact(c, 'filing.declarations');
   const ident = objFact(c, 'filing.identity');
+  // ‼ 30.10.2026 · שם האב מהשאלון (filing.fatherName, לכל אדם); תיקון של המשרד (filing.identity) גובר
+  const fatherOf = (role: 'client' | 'spouse') => {
+    const own = ident[role === 'client' ? 'fatherName' : 'spouseFatherName'];
+    if (typeof own === 'string' && own.trim()) return { v: own.trim(), src: 'שם האב (המשרד)' };
+    const r = accepted(c, 'filing.fatherName', role)[0]?.value as { items?: { name?: unknown }[] } | undefined;
+    const n = typeof r?.items?.[0]?.name === 'string' ? (r.items[0].name as string).trim() : '';
+    return n ? { v: n, src: 'שם האב — מהשאלון' } : null;
+  };
   const refund = objFact(c, 'filing.refundAccount');
   const hasSpouseInReport = c.persons.includes('spouse');
   const byCode = new Map<string, ReturnField[]>();
@@ -254,13 +262,13 @@ export function buildCoverage(c: Ctx): FormCoverage {
         case 'F057': fromCard(e, client.idNumber, 'ת״ז — כרטיס'); continue;
         case 'F058': fromCard(e, client.lastName, 'שם משפחה — כרטיס'); continue;
         case 'F059': fromCard(e, client.firstName, 'שם פרטי — כרטיס'); continue;
-        case 'F060': fromCard(e, ident.fatherName, 'שם האב (לא נשמר בכרטיס)', { fix: 'identity' }); continue;
+        case 'F060': { const f = fatherOf('client'); fromCard(e, f?.v, f?.src ?? 'שם האב (לא נשמר בכרטיס)', { fix: 'identity' }); continue; }
         case 'F061': fromCard(e, client.birthDate, 'תאריך לידה — כרטיס'); continue;
         case 'F062': case 'F063': case 'F064': case 'F065': case 'F066': {
           if (!spouseRel) { notRel(e, 'לא נשוי/אה'); continue; }
           const v = e.id === 'F062' ? (client.spouseIdNumber || sp?.idNumber) : e.id === 'F063' ? (client.spouseLastName || sp?.lastName) : e.id === 'F064' ? (client.spouseFirstName || sp?.firstName)
-            : e.id === 'F065' ? ident.spouseFatherName : sp?.birthDate;
-          fromCard(e, v, e.id === 'F065' ? 'שם האב של בן/בת הזוג (לא נשמר בכרטיס)' : 'פרטי בן/בת הזוג — כרטיס', { fix: e.id === 'F065' ? 'identity' : 'card' });
+            : e.id === 'F065' ? fatherOf('spouse')?.v : sp?.birthDate;
+          fromCard(e, v, e.id === 'F065' ? (fatherOf('spouse')?.src ?? 'שם האב של בן/בת הזוג (לא נשמר בכרטיס)') : 'פרטי בן/בת הזוג — כרטיס', { fix: e.id === 'F065' ? 'identity' : 'card' });
           continue;
         }
         case 'F067': { const m: Record<string, string> = { single: 'רווק/ה', married: 'נשוי/אה', divorced: 'גרוש/ה', widowed: 'אלמן/ה', singleParent: 'גרוש/ה / הורה יחיד' };

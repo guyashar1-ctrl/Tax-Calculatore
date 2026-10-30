@@ -168,7 +168,10 @@ export default function AnnualWorkspace({ client, step, year, data, busy, run, s
   const officeRest = [...new Map(officeTodo.filter(s => s.item.kind !== 'document' && !TEMPLATE_ITEMS.has(s.item.key) && !OYK_KEYS.has(s.item.key))
     .map(s => [s.item.key, s])).values()];
   // ‼ 30.10.2026 · מה שהטופס עוד צריך ואין לו מקור (שם האב, ניהול ספרים, קוד לדוקטורט) — שורה אחת עם העורכים המובנים, בלי «פירוט»
-  const formRest = (out?.formCoverage.rows ?? []).filter(r => (r.fix === 'identity' || r.fix === 'declaration') && r.state === 'missing');
+  // שם האב שנשאל בשאלון — אצל הלקוח, לא «אצלך» (עד שהשאלה בוטלה)
+  const fatherAsked = asks.some(a => a.itemKey === 'filing.fatherName');
+  const formRest = (out?.formCoverage.rows ?? []).filter(r => (r.fix === 'identity' || r.fix === 'declaration') && r.state === 'missing'
+    && !(fatherAsked && (r.id === 'F060' || r.id === 'F065')));
   const openExtras = (oyk.length && !oykDone ? 1 : 0) + notes.length + unlisted.length + niChecks.length + plan.needsDecision.length + officeRest.length + (formRest.length ? 1 : 0) + depOpen;
   const ready = sent && !filling && isReady(mats) && openExtras === 0;
 

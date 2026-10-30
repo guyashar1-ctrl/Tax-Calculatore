@@ -552,7 +552,10 @@ export const ITEMS: InfoItem[] = [
   //   (annualReturn/formFields.ts). מה שבאמת חסר (שם האב, קוד לדוקטורט, תאריך עלייה) — שורה משלו ב«אצלך» עם העורך המובנה
   //   (AnnualWorkspace › formRest). העובדות עצמן נשארות — הצהרה/תיקון של המשרד גוברים.
   { key: 'filing.declarations', area: 'filing', label: 'הצהרות ותיבות סימון בהגשה', kind: 'detail', per: 'couple', who: 'office', purposes: [], covers: { parts: ['א', 'ב', 'ז'] } },
-  // ‼ פער כרטיס מתועד: פרטים שהטופס דורש והכרטיס עוד לא מחזיק (שם האב, תאריכי עלייה/חזרה)
+  // ‼ 30.10.2026 · שם האב — שאלה ללקוח בשאלון השנתי (לכל אדם), לא הקלדה במשרד. נשמר כעובדה של השנה (לא בכרטיס — נתון של טופס אחד)
+  { key: 'filing.fatherName', area: 'filing', label: 'שם האב', kind: 'detail', per: 'person', who: 'client', purposes: ['annual'], input: 'record',
+    question: 'מה שם האב של {name}?', why: 'שם האב נדרש בטופס הדוח השנתי', covers: { parts: ['ב'] } },
+  // ‼ פער כרטיס מתועד: פרטים שהטופס דורש והכרטיס עוד לא מחזיק (תאריכי עלייה/חזרה; שם האב — כשהמשרד מתקן ביד)
   { key: 'filing.identity', area: 'filing', label: 'פרטים לטופס שהכרטיס לא מחזיק', kind: 'detail', per: 'couple', who: 'office', purposes: [], covers: { parts: ['ב', 'יג'] } },
 ];
 

@@ -140,6 +140,10 @@ export const TESTS: TestCase[] = [
     const f15 = o.formCoverage.rows.find(r => r.id === 'F015');
     equal(f15?.state, 'filled'); equal(f15?.value, false);
     assert(o.blockers.some(b => /לא ידוע אם יש/.test(b.text)), 'שאלת פתיחה שלא נענתה = «לא ידוע», לא «אין»');
+    // ‼ 30.10.2026 · שם האב מהשאלון (filing.fatherName) ממלא את F060 — בלי הקלדה במשרד
+    const o2 = computeReturn({ client, draft: draft(), facts: [...f, fact('filing.fatherName', 'client', { items: [{ name: 'משה' }] })], evidence: [] });
+    const f60 = o2.formCoverage.rows.find(r => r.id === 'F060');
+    equal(f60?.state, 'filled'); equal(f60?.value, 'משה');
   }),
   test('הגיליון: סטטוס מדויק, בדיקת כיסוי, מה לא מופק; נפתח מחדש זהה (כולל טקסט)', () => {
     const client = baseCard({ employers: [{ id: 'em1', name: 'חברה' }], properties: [{ id: 'p1', address: 'הרצל 1', isRented: true, rentalTaxTrack: 'regular' }] } as unknown as Partial<Client>);

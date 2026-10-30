@@ -176,6 +176,8 @@ export type RecordSchemaId = 'children' | 'address' | 'bank' | 'employer' | 'pro
   | 'aliyah' | 'disability'
   // 290 · בן/בת הזוג (מין ותאריך לידה), ימי מילואים כלוחם, ילד עם מוגבלות, מזונות ילדים
   | 'spouseBasics' | 'reserveDays' | 'childDisability' | 'childSupport'
+  // 30.10.2026 · שם האב לטופס 1301 — לכל אדם
+  | 'fatherName'
   // 27.10.2026 · הערכת מס: הצפי עד סוף השנה — אישור, או הערכה לכל חודש שנשאר (בקשת הצפי אחרי המשיכה מפייפרלס)
   | 'forecastMonths'
   // 27.10.2026 · הצהרת הון — הגישור: רמת חיים (טופס רמת חיים), מה נכנס ומה יצא מאז ההצהרה הקודמת
