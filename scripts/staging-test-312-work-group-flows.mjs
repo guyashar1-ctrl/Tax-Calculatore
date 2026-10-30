@@ -7,9 +7,11 @@
  *
  *   שימוש: node scripts/staging-test-312-work-group-flows.mjs
  */
-import { sql, STAGING_REF } from './staging-lib.mjs';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { sql, STAGING_REF, ROOT } from './staging-lib.mjs';
 
-const UID = process.env.STAGING_USER_ID;
+const UID = readFileSync(resolve(ROOT, 'STAGING_USER_ID'), 'utf8').trim();
 if (!/^[0-9a-f-]{36}$/i.test(UID ?? '')) { console.error('✗ חסר STAGING_USER_ID'); process.exit(1); }
 
 const expect = {
