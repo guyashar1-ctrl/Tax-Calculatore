@@ -66,6 +66,14 @@ import '../../../features/requests/requestGroups.css';
 
 export { libraryUses, type LibraryUse } from './library/usedIn';
 
+/** המסמכים שבקשת «מסמכים» מבקשת — לפי הסדר. ריק = לא בקשת מסמכים. */
+function docListOf(t: RequestTemplate): string[] {
+  const e = t.entries?.[0];
+  if (!e || e.stepType !== 'client_documents') return [];
+  const list = (e.payload as { checklist?: { label?: unknown }[] } | undefined)?.checklist ?? [];
+  return list.map(x => String(x.label ?? '').trim()).filter(Boolean);
+}
+
 /** בקשה בתוך קבוצה קבועה — מה היא, מי עושה, והפעולה שלה (עריכה / «מתי נפתחת?»). */
 interface GroupChildModel {
   key: string;
@@ -233,7 +241,10 @@ export default function LibraryPage({ draft, saved, setDraft, saveNow, noteUploa
   const shownEntries = useMemo(() => (term ? entries.filter(e => matchesQuery(e.hay, term)) : onlyGaps && gapEntries.length > 0 ? gapEntries : entries),
     [entries, term, onlyGaps, gapEntries]);
   // ‼ 30.10.2026: בקשות בודדות למעלה, קבוצות מתחת (כמו «בקשות» של הלקוח).
-  const singles = useMemo(() => shownEntries.filter(e => e.kind !== 'group'), [shownEntries]);
+  // ‼ 30.10 (גיא): בקשת מסמכים עם כמה מסמכים («מסמכים מהלקוח») מוצגת מסמך אחרי מסמך — בין הקבוצות.
+  const isDocBundle = (e: Entry) => e.kind === 'template' && docListOf(e.t).length >= 2;
+  const singles = useMemo(() => shownEntries.filter(e => e.kind !== 'group' && !isDocBundle(e)), [shownEntries]);
+  const docBundles = useMemo(() => shownEntries.filter(isDocBundle), [shownEntries]);
   const groupEntries = useMemo(() => shownEntries.filter(e => e.kind === 'group'), [shownEntries]);
   const [openKey, toggleOpen, setOpenKey] = useOneOpen();
 
@@ -484,10 +495,28 @@ export default function LibraryPage({ draft, saved, setDraft, saveNow, noteUploa
               </ul>
             )}
 
-            {(groupEntries.length > 0 || shownOfficeGroups.length > 0) && (
+            {(groupEntries.length > 0 || shownOfficeGroups.length > 0 || docBundles.length > 0) && (
               <>
-                <h2 className="lr-section">קבוצות <span className="lr-n">{groupEntries.length + shownOfficeGroups.length}</span></h2>
+                <h2 className="lr-section">קבוצות <span className="lr-n">{groupEntries.length + shownOfficeGroups.length + docBundles.length}</span></h2>
                 <ul className="lr-list">
+                  {docBundles.map(e => {
+                    if (e.kind !== 'template') return null;
+                    const { t, uses } = e;
+                    const rowId = `lb-req-${t.id}`;
+                    const route = intakeRoute(t, uses);
+                    return (
+                      <LibGroup key={rowId} id={rowId} name={t.name} highlight={highlight === rowId}
+                        kids={docListOf(t).map((label, i) => ({ key: `d${i}`, title: label, who: 'הלקוח מעלה' }))}
+                        open={openKey === rowId || !!term} onToggle={() => toggleOpen(rowId)}
+                        side={<PreviewButton name={t.name} onClick={() => openView(targetOfTemplate(t))} />}
+                        foot={<>
+                          {!usesUnknown && <UsedIn uses={uses} go={go} loading={false} />}
+                          {route
+                            ? <button type="button" className="of-link" onClick={() => go('flows', route)}>עריכה ←</button>
+                            : <button type="button" className="of-link" onClick={() => setEditing({ template: t })}>עריכה</button>}
+                        </>} />
+                    );
+                  })}
                   {shownOfficeGroups.map(f => {
                     const rowId = `lb-flow-${f.id}`;
                     return (
