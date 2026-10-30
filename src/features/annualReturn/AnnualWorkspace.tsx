@@ -133,7 +133,7 @@ export default function AnnualWorkspace({ client, step, year, data, busy, run, s
 
   // ‼ 30.10.2026 · «דוח פחת מהספרים» ו«טבלת הפחת של השנה הקודמת» (מסמכים להקלדה) ⇒ דוח הפחת עצמו (1342), שורה לכל עסק
   const mats = useMemo(() => materialsOf({ client, year, stepId: step.id, asks: data.asks, evidence: data.evidence, facts: data.facts, statuses })
-    .filter(m => !/^office-business.(depreciation|priorDepreciation)|/.test(m.key)), [client, year, step.id, data, statuses]);
+    .filter(m => !m.key.startsWith('office-business.depreciation|') && !m.key.startsWith('office-business.priorDepreciation|')), [client, year, step.id, data, statuses]);
   const depBiz = (client.businesses ?? []).filter(b => !b.isClosed && (draft?.persons ?? ['client']).includes(b.belongsToSpouse ? 'spouse' : 'client')
     && draft?.micro[b.id]?.track !== 'micro');
   const depOf = (id: string): { table?: DepTable; carried?: DepTable } => ({ table: draft?.depreciation?.[id], carried: carryForward(priorDep?.[id], year - 1) });
