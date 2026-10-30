@@ -534,12 +534,13 @@
       ]
     },
     {
-      "name": "תורת הנהלת החשבונות וקטלוג פעולות המשרד — ממשק ותיעוד בלבד",
+      "name": "תורת הנהלת החשבונות, «חשבונאות ומס» (הנהלת חשבונות, גבייה, פרומפט לקלוד) וקטלוג פעולות המשרד — ממשק ותיעוד בלבד",
       "invariants": [
         "INV-OFFICE-BOOKS-01"
       ],
       "globs": [
         "src/features/bookkeeping/**",
+        "src/features/accounting/**",
         "src/features/taxKnowledge/topics/Form6111Body.tsx",
         "src/components/FirmProfileConsole.tsx",
         "src/components/office/officeModel.ts",

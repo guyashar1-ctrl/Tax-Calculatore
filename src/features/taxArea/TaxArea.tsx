@@ -15,6 +15,10 @@ import ExpenseKnowledge from '../taxCenter/expenses/ExpenseKnowledge';
 import RentalRouteCalculator from '../taxCenter/RentalRouteCalculator';
 import SettlementLookup from '../taxCenter/SettlementLookup';
 import IncomeTaxPanel from '../taxCenter/IncomeTaxPanel';
+import BookkeepingHandbook from '../bookkeeping/BookkeepingHandbook';
+import { BookkeepingWorkspace, BillingWorkspace } from '../accounting/AccountingWorkspace';
+import type { Engagement } from '../../types/onboarding';
+import type { AdditionalCharge } from '../../types/charges';
 import BookkeepingKnowledge from '../taxCenter/bookkeeping/BookkeepingKnowledge';
 import { FreshnessBadge, FreshnessPanel } from '../taxCenter/DataFreshness';
 import { TOOL_DATASET, type Tool } from '../taxCenter/taxCenterNav';
@@ -34,7 +38,7 @@ import { valueGroupsOf } from '../taxKnowledge/domainValues';
 import { SOURCE_DOCS } from '../taxKnowledge/sourceDocs';
 import { weakestBasis } from '../taxRules/registry';
 import WorkOverview, { type WorkKnowledgeMode } from './WorkOverview';
-import { topicForWork, type HubRow } from './workHubModel';
+import { HUB_KINDS, topicForWork, type HubRow } from './workHubModel';
 import AskHome from '../taxKnowledge/ask/AskHome';
 import KnowledgeDirectory from '../taxKnowledge/KnowledgeDirectory';
 import { libraryEntry } from '../taxKnowledge/libraryModel';
@@ -98,13 +102,15 @@ interface Props {
   freshnessTaskExists: boolean;
   onCreateFreshnessTask: () => void;
   clients: Client[];
+  clientsLoading?: boolean; clientsError?: boolean;
+  engagements?: Engagement[]; charges?: AdditionalCharge[]; accountingLoading?: boolean; accountingError?: boolean;
   /** נושא שנפתח מתוך תיק לקוח — לחזרה ולמילוי מה שידוע. */
   contextTopic?: string | null;
   contextClientId?: string | null;
   /** שנת העבודה שממנה נכנסו (שורת הגשה בתיק) — גוברת על שנה שנבחרה קודם. */
   contextYear?: number | null;
   /** ‼ 16.10: 'journey' = לשונית «בקשות» של הלקוח; focusStepId — הבקשה שממנה הגיעו (המיקוד לשורה — בצד הבקשות). */
-  onOpenClient: (clientId: string, tab?: 'taxfile' | 'docs' | 'journey', focusStepId?: string, workReturnPath?: string) => void;
+  onOpenClient: (clientId: string, tab?: 'taxfile' | 'docs' | 'journey' | 'pay', focusStepId?: string, workReturnPath?: string) => void;
 }
 
 interface WorkReadingOrigin { clientId: string; topic: string; year: number | null; period: string; path: string; rowId: string; externalKey: string }
@@ -113,7 +119,7 @@ function readWorkOrigin(): WorkReadingOrigin | null {
   try { const o = JSON.parse(sessionStorage.getItem(ORIGIN_KEY) || 'null'); return o && typeof o.clientId === 'string' && typeof o.path === 'string' && o.path.startsWith('work/') && typeof o.rowId === 'string' ? o : null; } catch { return null; }
 }
 
-export default function TaxArea({ path, onPath, freshnessTaskExists, onCreateFreshnessTask, clients, contextTopic = null, contextClientId = null, contextYear = null, onOpenClient }: Props) {
+export default function TaxArea({ path, onPath, freshnessTaskExists, onCreateFreshnessTask, clients, contextTopic = null, contextClientId = null, contextYear = null, onOpenClient, engagements = [], charges = [], accountingLoading = false, accountingError = false, clientsLoading = false, clientsError = false }: Props) {
   const p = useMemo(() => parseAreaPath(path), [path]);
   const work = useTaxWork(clients);
   // ‼ 25.10.2026: שנה שנבחרה ביד נשמרת; אחרת — לפי סוג העמוד (defaultYearFor), ומתיק לקוח — שנת הדוח שלו
@@ -122,7 +128,7 @@ export default function TaxArea({ path, onPath, freshnessTaskExists, onCreateFre
   const setYear = (y: number) => { setChosenYear(y); try { sessionStorage.setItem('pivo.tax.year', String(y)); } catch { /* בלי אחסון — רק עד הרענון */ } };
   const [lastWork, setLastWork] = useState<string>(p.mode === 'work' ? formatAreaPath(p) : 'work/all');
   const [lastLearn, setLastLearn] = useState<string>(p.mode === 'learn' ? formatAreaPath(p) : 'learn');
-  useEffect(() => { if (p.mode === 'work') setLastWork(formatAreaPath(p)); else setLastLearn(formatAreaPath(p)); }, [p]);
+  useEffect(() => { if (p.mode === 'work') setLastWork(formatAreaPath(p)); else if (p.mode === 'learn') setLastLearn(formatAreaPath(p)); }, [p]);
   // ‼ כניסה מתיק לקוח לנושא — נשארים בהקשר הלקוח כל עוד הנושא הזה פתוח
   const externalKey = `${contextClientId ?? ''}:${contextTopic ?? ''}:${contextYear ?? ''}`;
   const [workOrigin, setWorkOrigin] = useState<WorkReadingOrigin | null>(readWorkOrigin);
@@ -177,11 +183,11 @@ export default function TaxArea({ path, onPath, freshnessTaskExists, onCreateFre
   // ── המתג בראש: שני מרחבים, וכל אחד חוזר לעמוד האחרון שהיה בו; לחיצה על המרחב הפעיל — לדף הבית שלו ──
   const modes = (
     <div className="ta2-top">
-      <div className="ta2-modes" role="group" aria-label="מס">
-        {(['work', 'learn'] as const).map(m => (
+      <div className="ta2-modes" role="group" aria-label="חשבונאות ומס">
+        {(['work', 'billing', 'learn'] as const).map(m => (
           <button key={m} type="button" className={`ta2-mode${p.mode === m ? ' is-on' : ''}`} aria-pressed={p.mode === m}
             onClick={() => {
-              if (p.mode !== m) { onPath(m === 'work' ? lastWork : lastLearn); window.scrollTo({ top: 0 }); }
+              if (p.mode !== m) { onPath(m === 'work' ? lastWork : m === 'billing' ? 'billing' : lastLearn); window.scrollTo({ top: 0 }); }
               else if (p.mode === 'learn' && (p.domain || p.directory)) go({ mode: 'learn' });
               else if (p.mode === 'work' && p.section !== 'all') go({ mode: 'work', section: 'all' });
             }} data-mode={m}>
@@ -203,7 +209,7 @@ export default function TaxArea({ path, onPath, freshnessTaskExists, onCreateFre
   }, [path]);
   const backLabel = (target: string) => {
     const b = parseAreaPath(target);
-    if (b.mode === 'learn' && b.directory) return b.directory === 'tools' ? 'חזרה לכלים ולנתונים' : 'חזרה לדוחות והצהרת הון';
+    if (b.mode === 'learn' && b.directory) return b.directory === 'handbook' ? 'חזרה לתורת הנהלת החשבונות' : b.directory === 'tools' ? 'חזרה לכלים ולנתונים' : 'חזרה לדוחות והצהרת הון';
     if (b.mode !== 'learn' || !b.domain) return '';
     if (b.code) return `חזרה לטופס ${b.domain === 'wealth' ? '1219' : '1301'} · קוד ${b.code}`;
     if (b.form) {
@@ -242,7 +248,7 @@ export default function TaxArea({ path, onPath, freshnessTaskExists, onCreateFre
     <div className="kn-crumbs ta-crumbs ta2-crumbs tax-page-bar">
       <span className="ta-crumb-trail">
         <button type="button" className="kn-crumb" onClick={() => go({ mode: 'learn' })}>{MODE_LABEL.learn}</button>
-        {p.directory && <span> › {p.directory === 'tools' ? 'כלים ונתונים' : 'דוחות והצהרת הון'}</span>}
+        {p.directory && <span> › {p.directory === 'handbook' ? 'תורת הנהלת החשבונות' : p.directory === 'tools' ? 'כלים ונתונים' : 'דוחות והצהרת הון'}</span>}
         {item && <><span aria-hidden="true"> › </span><button type="button" className="kn-crumb" onClick={() => go({ mode: 'learn', domain: p.domain })}>{domain!.label}</button></>}
       </span>
       <span className="ta2-crumb-tools">
@@ -288,6 +294,9 @@ export default function TaxArea({ path, onPath, freshnessTaskExists, onCreateFre
   };
 
   const pane = (() => {
+    if (p.mode === 'billing') return <BillingWorkspace clients={clients} engagements={engagements} charges={charges} loading={accountingLoading || clientsLoading} error={accountingError || clientsError} onOpenClient={id => onOpenClient(id, 'pay')} />;
+    if (p.mode === 'learn' && p.directory === 'handbook') return <><div className="acw-handbook-entry"><div><h1>תורת הנהלת החשבונות</h1><p>טבלת המיון המאושרת — מקור אחד לעבודה ולהוראות קלוד.</p></div><button type="button" onClick={() => go('work/bookkeeping')}>חזרה להנהלת חשבונות</button></div><BookkeepingHandbook /></>;
+    if (p.mode === 'work' && p.section === 'bookkeeping') return <><nav className="acw-header-tabs" aria-label="סוג העבודה">{HUB_KINDS.filter(k => k.id !== 'intake').map(k => <button key={k.id} type="button" aria-pressed={k.id === 'bookkeeping'} onClick={() => go('work/' + k.id)}>{k.label}</button>)}</nav><BookkeepingWorkspace clients={clients} loading={clientsLoading} error={clientsError} onHandbook={() => go('learn/handbook')} onOpenClient={id => onOpenClient(id, 'journey')} /></>;
     if (p.mode === 'work') {
       return (
         <>
@@ -300,8 +309,8 @@ export default function TaxArea({ path, onPath, freshnessTaskExists, onCreateFre
         </>
       );
     }
-    if (p.directory) return <KnowledgeDirectory kind={p.directory} onGo={go} />;
-    if (!domain) return <AskHome onGo={go} onOpenTopic={openTopic} moved={p.mode === 'learn' && !!p.moved} />;
+    if (p.directory && p.directory !== 'handbook') return <KnowledgeDirectory kind={p.directory} onGo={go} />;
+    if (!domain) return <><div className="acw-handbook-entry"><div><strong>תורת הנהלת החשבונות</strong><p>טבלת המיון המשרדית, קודים משניים ואופן ההכרה.</p></div><button type="button" onClick={() => go('learn/handbook')}>פתיחת תורת הנהלת החשבונות</button></div><AskHome onGo={go} onOpenTopic={openTopic} moved={p.mode === 'learn' && !!p.moved} /></>;
     if (!item) return <><DomainPage d={domain.id} year={['annual', 'wealth'].includes(domain.id) ? workYear ?? year : year} onGo={go} counts={work.counts} focusValues={p.mode === 'learn' ? p.values : undefined} focusCode={p.mode === 'learn' ? p.code : undefined} yearSelect={yearSelect} clients={clients} contextClient={ctxClient} onBackToClient={ctxClient ? () => openContextClient(ctxClient.id) : undefined} canLearn={canLearn} onLearn={openTopic} onOpenTool={openTool} onAddMaterial={seed => setMaterial(materialContext(seed))}
       focus={p.mode === 'learn' ? { form: p.form, field: p.field, mark: p.mark, doc: p.doc } : {}}
       onField={v => onPath(formatAreaPath({ mode: 'learn', domain: domain.id, ...v }))}
@@ -355,6 +364,7 @@ export default function TaxArea({ path, onPath, freshnessTaskExists, onCreateFre
       </div>}</div>
       {p.mode === 'learn' && <div className="kl-navigation">
         <nav aria-label="ניווט בידע המקצועי">
+          <button type="button" aria-current={p.directory === 'handbook' ? 'page' : undefined} onClick={() => go('learn/handbook')}>תורת הנהלת החשבונות</button>
           <button type="button" aria-current={!p.domain && !p.directory ? 'page' : undefined} onClick={() => go({ mode: 'learn' })}>ספריית הידע</button>
           <button type="button" aria-current={p.directory === 'tools' || item?.kind === 'tool' ? 'page' : undefined} onClick={() => go({ mode: 'learn', directory: 'tools' })}>כלים ונתונים</button>
           <button type="button" aria-current={p.directory === 'forms' || (!!domain && !item && ['annual', 'wealth'].includes(domain.id)) ? 'page' : undefined} onClick={() => go({ mode: 'learn', directory: 'forms' })}>דוחות והצהרת הון</button>

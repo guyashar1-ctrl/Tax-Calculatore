@@ -15,7 +15,7 @@ export interface HubRow {
   dueDate?: string; dueKind?: string; days?: number; copyMissing: boolean;
 }
 export const HUB_KINDS = [
-  { id: 'all', label: 'הכול' }, { id: 'annual', label: 'דוחות שנתיים' },
+  { id: 'all', label: 'הכול' }, { id: 'bookkeeping', label: 'הנהלת חשבונות' }, { id: 'annual', label: 'דוחות שנתיים' },
   { id: 'wealth', label: 'הצהרות הון' }, { id: 'estimate', label: 'הערכות מס' },
   { id: 'intake', label: 'קליטה והשלמת תיק' },
 ] as const;

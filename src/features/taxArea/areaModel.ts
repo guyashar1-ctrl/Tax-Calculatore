@@ -15,16 +15,17 @@ import { valueGroup } from '../taxKnowledge/domainValues';
 import type { ClaimStatus } from '../taxKnowledge/claim';
 import { SOURCE_DOCS } from '../taxKnowledge/sourceDocs';
 
-export type AreaMode = 'work' | 'learn';
-export const MODE_LABEL: Record<AreaMode, string> = { work: 'עבודות לקוחות', learn: 'ידע מקצועי' };
+export type AreaMode = 'work' | 'learn' | 'billing';
+export const MODE_LABEL: Record<AreaMode, string> = { work: 'עבודות לקוחות', billing: 'גבייה', learn: 'ידע מקצועי' };
 export const MODE_HINT: Record<AreaMode, string> = {
   // ‼ 16.10 (הכרעת גיא): סקירה בלבד — העבודה עצמה ב«בקשות» של הלקוח
   work: 'סקירה: מה פתוח אצל כל לקוח ומה המועד. העבודה עצמה — ב«בקשות» של הלקוח',
   learn: 'ללמוד תחום מההתחלה ועד עבודה בתיק — גם בלי המערכת',
+  billing: 'מחירי ההסכם והמצב שנבדק בפייפרלס — הגבייה עדיין אינה פעילה',
 };
 
 // ── עבודות לקוחות ──────────────────────────────────────────────────────────────
-export type WorkSection = 'all' | WorkKind;
+export type WorkSection = 'all' | WorkKind | 'bookkeeping';
 export interface WorkSectionDef {
   id: WorkSection;
   label: string;
@@ -40,6 +41,7 @@ export interface WorkSectionDef {
 
 export const WORK_SECTIONS: WorkSectionDef[] = [
   { id: 'all', label: 'כל העבודות', lead: 'סקירה של כל העבודות הפתוחות — איחורים ומועדים קרובים בראש.', howToOpen: 'כל סוג נפתח מהעמוד שלו או מתיק הלקוח.' },
+  { id: 'bookkeeping', label: 'הנהלת חשבונות', lead: 'ריכוז הלקוחות, תורת המיון והכנת הוראות לקלוד; בדיקת הממתינים טרם חוברה.', howToOpen: 'בוחרים לקוחות ומכינים הוראות; לא מופעלת קליטה בפייפרלס.' },
   { id: 'intake', label: 'קליטה והשלמת תיק', lead: 'פרטים קבועים שחסרים בתיק המס של לקוח חדש — שאלון השלמה, מסמכים ואישור בתיק.', howToOpen: 'נפתחת מתיק הלקוח: «עדכון ויישור קו» ← «הכן שאלון השלמה».', domain: 'annual' },
   { id: 'annual', label: 'דוחות שנתיים', lead: 'איסוף המידע והמסמכים לדוח של שנה — גם לשנה קודמת.', howToOpen: '«＋ דוח שנתי» — ללקוח אחד או לכמה, עם מקור ומועד.', domain: 'annual', addKind: 'annual' },
   { id: 'wealth', label: 'הצהרות הון', lead: 'הצהרה ליום מסוים — ראשונה או המשך, עם המועד שבדרישה.', howToOpen: '«＋ הצהרת הון» — ללקוח אחד או לכמה, עם המכתב אם התקבל.', domain: 'wealth', addKind: 'wealth' },
@@ -210,19 +212,21 @@ export function domainOf(itemId: string): DomainId | undefined {
 // ── הכתובת ─────────────────────────────────────────────────────────────────────
 export type AreaPath =
   | { mode: 'work'; section: WorkSection }
+  | { mode: 'billing' }
   /** values — קבוצת ערכים שנפתחת בעמוד התחום (‎learn/<domain>/v/<group>‎). moved — הגיעו מקישור ישן ל«ערכים לפי נושא». */
   /** sub — מה שנבחר בתוך כלי או נושא (מאמר הוצאה, פעילות בניהול ספרים): ‎learn/<domain>/<item>/<sub>‎. */
   /** form/field/mark — טופס וסעיף במפת הטופס: ‎learn/<domain>/f/<form>[/<field>[/<קוד>]]‎. doc — מסמך מקור: ‎learn/annual/d/<id>‎. */
-  | { mode: 'learn'; directory?: 'tools' | 'forms'; domain?: DomainId; item?: string; values?: string; moved?: true; code?: string; sub?: string; form?: string; field?: string; mark?: string; doc?: string };
+  | { mode: 'learn'; directory?: 'tools' | 'forms' | 'handbook'; domain?: DomainId; item?: string; values?: string; moved?: true; code?: string; sub?: string; form?: string; field?: string; mark?: string; doc?: string };
 
 export const DEFAULT_AREA_PATH: AreaPath = { mode: 'work', section: 'all' };
 
 /** ‎"work/annual"‎ · ‎"learn/savings/pensionSE"‎ — מה שאחרי ‎#/tax/‎. קטע לא מוכר נופל לראש המרחב, לא לשגיאה. */
 export function parseAreaPath(raw: string | undefined): AreaPath {
   const [mode, a, b, c, fieldPart, markPart] = (raw ?? '').split('/').filter(Boolean);
+  if (mode === 'billing') return { mode: 'billing' };
   if (mode === 'learn') {
     if (!a) return { mode: 'learn' };
-    if (a === 'tools' || a === 'forms') return { mode: 'learn', directory: a };
+    if (a === 'tools' || a === 'forms' || a === 'handbook') return { mode: 'learn', directory: a };
     // ‼ «ערכים לפי נושא» ירד (15.10) — קישור ישן נוחת בדף הבית, עם ההסבר לאן עבר כל נושא
     if ((a === 'reference' && b === 'topics') || a === 'topics') return { mode: 'learn', moved: true };
     // קישור ישן לנושא בלי תחום (‎learn/pensionSE‎) — נוחת בתחום שלו
@@ -250,6 +254,7 @@ export function parseAreaPath(raw: string | undefined): AreaPath {
 }
 
 export function formatAreaPath(p: AreaPath): string {
+  if (p.mode === 'billing') return 'billing';
   if (p.mode === 'work') return `work/${p.section}`;
   if (p.directory) return `learn/${p.directory}`;
   if (p.domain && p.values && !p.item) return `learn/${p.domain}/v/${p.values}`;

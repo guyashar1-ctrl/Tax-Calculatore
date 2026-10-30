@@ -28,7 +28,6 @@ import { FlowsPage } from './office/pages/FlowsPage';
 import EmailsPage from './office/pages/EmailsPage';
 import ConnectionsPage from './office/pages/ConnectionsPage';
 import AutomationsPage from './office/pages/AutomationsPage';
-import BookkeepingHandbook from '../features/bookkeeping/BookkeepingHandbook';
 import ClientPicker from './office/pages/ClientPicker';
 import type { ActivityFilter } from './office/pages/activityFilter';
 import Modal from './ui/Modal';
@@ -174,7 +173,7 @@ export default function FirmProfileConsole({ profile, clients, onSave, page: rou
         <nav className="of-nav" aria-label="עמודי המשרד">
           <h1 className="of-nav-title">המשרד</h1>
           <ul className="of-nav-list">
-            {OFFICE_PAGES.map(p => {
+            {OFFICE_PAGES.filter(p => p.id !== 'bookkeeping').map(p => {
               const current = shown === p.id;
               const unsaved = dirtyPages.has(p.id);
               return (
@@ -232,7 +231,7 @@ export default function FirmProfileConsole({ profile, clients, onSave, page: rou
               clients={clients} onOpenClient={onOpenClient ? id => onOpenClient(id, 'log') : undefined}
               focus={focus} logFilter={logFilter} onClearLogFilter={() => setLogFilter(null)} onWide={setPageWide} go={go} />
           )}
-          {shown === 'bookkeeping' && <BookkeepingHandbook />}
+          {shown === 'bookkeeping' && <div><p>תורת הנהלת החשבונות עברה לחשבונאות ומס · ידע מקצועי.</p><a href="#/tax/learn/handbook">פתיחת תורת הנהלת החשבונות</a></div>}
           {shown === 'automations' && (
             <AutomationsPage key={`automations-${focus ?? ''}`} clients={clients} focus={focus} go={go}
               onOpenClient={onOpenClient ? (id, tab, target) => onOpenClient(id, target === 'rep-center' ? 'rep-center' : tab) : undefined}

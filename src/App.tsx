@@ -648,7 +648,7 @@ export default function App() {
     return map;
   }, [leads]);
   const { quotations, loading: quotationsLoading, error: quotationsError, addQuotation, updateQuotation, cancelQuotation, deleteQuotation, refreshQuotations } = useQuotations(user?.id);
-  const { charges, addCharge, markChargePaid } = useCharges(user?.id);
+  const { charges, loading: chargesLoading, error: chargesError, addCharge, markChargePaid } = useCharges(user?.id);
   const { services: catalogServices, templates: quotationTemplates } = useQuotationCatalog(user?.id);
   const failedNotifications = useFailedNotifications(user?.id);
 
@@ -2661,14 +2661,14 @@ export default function App() {
         { id: 'calendar', label: 'יומן' },
         // ‼ (14.10.2026, גיא) «מס» — אזור אחד: «עבודות לקוחות» (היה «עבודת מס» בתוך «המשרד») ו«ידע מקצועי»
         // (היה «ידע מס»). שמות שונים, אותו מקום. מגיעים אליו גם מתוך תיק המס של לקוח.
-        { id: 'reference', label: 'מס' },
+        { id: 'reference', label: 'חשבונאות ומס' },
       ]
     : [
         { id: 'tasks', label: 'משימות', badge: openTasksCount > 0 ? openTasksCount : undefined },
         { id: 'list', label: 'לקוחות' },
         { id: 'quotations', label: 'הצעות ולידים' },
         { id: 'calendar', label: 'יומן' },
-        { id: 'reference', label: 'מס' },
+        { id: 'reference', label: 'חשבונאות ומס' },
       ];
 
   return (
@@ -3181,6 +3181,12 @@ export default function App() {
           <Suspense fallback={<div className="card" role="status" style={{ padding: '1rem' }}>טוען…</div>}>
           <TaxArea
             path={taxPath}
+            clientsLoading={clientsLoading}
+            clientsError={!!clientsError}
+            engagements={onboarding.engagements}
+            charges={charges}
+            accountingLoading={onboarding.loading || chargesLoading}
+            accountingError={!!onboarding.error || !!chargesError}
             onPath={setTaxPath}
             onBack={() => setView('list')}
             freshnessTaskExists={quarterlyTaskExists(tasks)}
