@@ -4,7 +4,7 @@
 // ‼ שלב נעול מוצג ולא מוסתר: התלות ("הרשאת תשלום רק אחרי חיבור פייפרלס")
 // היא כלל עסקי שהרו"ח צריך לראות, אחרת הוא מחפש שלב שנעלם.
 
-import { createContext, Fragment, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { createContext, Fragment, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import StampAndSendShaam from '../StampAndSendShaam';
 import NiContinueButton, { niLastCheck, type NiPersonNext } from '../NiContinueButton';
 import { allDocumentsStamped } from '../../utils/repDocuments';
@@ -79,7 +79,11 @@ import { paperlessSignupEvidence, connectionIntro, paperlessSettingsItems, setti
 import { deriveHomeOffice, homeOfficeLine, type HomeOfficeHistory, type HomeOfficeState } from '../../features/requests/homeOffice';
 import { paperlessOfficeWait } from '../../features/requests/officeWait';
 import { useHomeOffice } from '../../features/requests/useHomeOffice';
-import { moveEntry, sortEntries, type ListEntry } from '../../features/requests/listOrder';
+import { reorderWithin, sortEntries, type ListEntry } from '../../features/requests/listOrder';
+import {
+  createWorkGroup, dissolveWorkGroup, loadWorkGroups, renameWorkGroup, workGroupErrorText,
+  type BuiltinGroupKey, type PickMember, type WorkGroup,
+} from '../../features/requests/workGroups';
 import { useListDrag } from '../../features/requests/useListDrag';
 import HomeOfficePanel from '../../features/requests/HomeOfficePanel';
 import { confirmHomeOfficeInPaperless } from '../../features/requests/api';
@@ -658,8 +662,39 @@ export default function OnboardingTab({
   const [orderOverride, setOrderOverride] = useState<string[] | null>(null);
   const orderSaving = useRef(false);
   const listRef = useRef<HTMLDivElement | null>(null);
-  /** הפריטים כפי שהם מוצגים עכשיו — לגרירה (נבנים בזמן הרינדור של הרשימה). */
-  const entriesRef = useRef<ListEntry[]>([]);
+  /** הפריטים כפי שהם מוצגים עכשיו, לפי רמה ('root' / מזהה קבוצה) — לגרירה ולסימון. */
+  const scopesRef = useRef(new Map<string, ListEntry[]>());
+  /* ── 311 · קבוצות של המשרד ───────────────────────────────────────────────── */
+  const [workGroups, setWorkGroups] = useState<WorkGroup[]>([]);
+  /** הנקודות שסומנו לחיבור — באותה רמה, לפי סדר הסימון. */
+  const [pick, setPick] = useState<{ scope: string; keys: string[] } | null>(null);
+  /** השם של הקבוצה החדשה (מופיע אחרי «לחבר»). */
+  const [pickName, setPickName] = useState<string | null>(null);
+  const [pickBusy, setPickBusy] = useState(false);
+  const [wgOpen, setWgOpen] = useState<Record<string, boolean>>({});
+  const [renaming, setRenaming] = useState<{ id: string; name: string } | null>(null);
+  const arcRef = useRef<SVGPathElement | null>(null);
+  /* הקשת שמחברת את הנקודות שסומנו — לפי סדר הסימון, בשוליים, כדי לא לעבור דרך נקודות אחרות. */
+  useLayoutEffect(() => {
+    const path = arcRef.current, list = listRef.current;
+    if (!path || !list) return;
+    if (!pick || pick.keys.length < 2) { path.setAttribute('d', ''); return; }
+    const box = list.getBoundingClientRect();
+    const pts = pick.keys
+      .map(k => list.querySelector<HTMLElement>(`[data-drag-key="${CSS.escape(k)}"][data-drag-scope="${CSS.escape(pick.scope)}"]`))
+      .map(w => w?.firstElementChild?.querySelector(':scope > .rl-dot'))
+      .filter((d): d is Element => !!d)
+      .map(d => { const r = d.getBoundingClientRect(); return [r.left + r.width / 2 - box.left, r.top + r.height / 2 - box.top]; });
+    path.setAttribute('d', pts.map((q, i) => i
+      ? `C ${pts[i - 1][0] + 22} ${pts[i - 1][1]}, ${q[0] + 22} ${q[1]}, ${q[0]} ${q[1]}`
+      : `M ${q[0]} ${q[1]}`).join(' '));
+  });
+  useEffect(() => {
+    if (!pick) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && pickName === null) setPick(null); };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [pick, pickName]);
   /** «הוספת הערה» — שדה בתוך הבקשה הפתוחה, במקום חלון הדפדפן. */
   const [noteDraft, setNoteDraft] = useState<{ stepId: string; text: string; busy?: boolean; error?: string } | null>(null);
   /**
@@ -776,10 +811,18 @@ export default function OnboardingTab({
     }
     refresh?.();
   }
-  /** גרירה: הפריט נוחת במקום היעד, והסדר נשמר חי — גם בדף של הלקוח. */
-  async function dropEntry(fromKey: string, toKey: string) {
-    const ids = moveEntry(entriesRef.current, fromKey, toKey, orderOverride ?? clientSteps.map(s => s.id));
-    if (!ids) return;
+  /**
+   * גרירה: הפריט נוחת במקום היעד, והסדר נשמר חי — גם בדף של הלקוח.
+   * ‼ 311: בתוך קבוצה רק הבקשות שלה מתחלפות, במקומות שלהן (reorderWithin).
+   */
+  async function dropEntry(fromKey: string, toKey: string, scope: string) {
+    const list = scopesRef.current.get(scope) ?? [];
+    const from = list.findIndex(e => e.key === fromKey), to = list.findIndex(e => e.key === toKey);
+    if (from < 0 || to < 0 || from === to) return;
+    const next = list.slice();
+    const [moved] = next.splice(from, 1);
+    next.splice(from < to ? next.findIndex(e => e.key === toKey) + 1 : next.findIndex(e => e.key === toKey), 0, moved);
+    const ids = reorderWithin(orderOverride ?? clientSteps.map(s => s.id), next.flatMap(e => e.stepIds));
     const before = orderOverride;
     orderSaving.current = true;
     setOrderOverride(ids);
@@ -790,6 +833,72 @@ export default function OnboardingTab({
       setListNote({ err: true, text: 'הסדר החדש לא נשמר. נסו שוב.' });
       return;
     }
+    refresh?.();
+  }
+
+  /* ── 311 · נקודות ← «לחבר» ← שם ─────────────────────────────────────────── */
+  const reloadWorkGroups = async () => {
+    const g = await loadWorkGroups(clientId);
+    if (g) setWorkGroups(prev => (JSON.stringify(prev) === JSON.stringify(g) ? prev : g));
+  };
+  useEffect(() => { void reloadWorkGroups(); }, [clientId, steps]); // eslint-disable-line react-hooks/exhaustive-deps
+  const workGroupIds = useMemo(() => new Set(workGroups.map(g => g.id)), [workGroups]);
+  /** בקשה בתוך קבוצה של המשרד (או בפייפרלס/רו״ח קודם שנכנסו לקבוצה) — מוצגת שם, לא ברשימה הכללית. */
+  const inWorkGroup = (s: OnboardingStep) => !!s.workGroupId && workGroupIds.has(s.workGroupId);
+  /** הנקודה (שורה / קבוצה) נלחצה: מסמנים או מבטלים. רמה אחרת ⇒ מתחילים מחדש. */
+  const togglePick = (key: string, scope: string) => {
+    setPickName(null);
+    setPick(p => {
+      if (!p || p.scope !== scope) return { scope, keys: [key] };
+      const keys = p.keys.includes(key) ? p.keys.filter(k => k !== key) : [...p.keys, key];
+      return keys.length ? { scope, keys } : null;
+    });
+  };
+  /** מה השרת צריך לדעת על כל נקודה שסומנה. */
+  const pickMembers = (keys: string[], scope: string): PickMember[] => {
+    const list = scopesRef.current.get(scope) ?? [];
+    return keys.flatMap((k): PickMember[] => {
+      if (k.startsWith('wg-')) {
+        const g = workGroups.find(x => `wg-${x.id}` === k);
+        if (!g) return [];
+        return [g.builtinKey ? { kind: 'builtin', key: g.builtinKey } : { kind: 'group', id: g.id }];
+      }
+      if (k === 'group-paperless') return [{ kind: 'builtin', key: 'paperless' }];
+      if (k === 'group-prevAccountant') return [{ kind: 'builtin', key: 'prevAccountant' as BuiltinGroupKey }];
+      return (list.find(e => e.key === k)?.stepIds ?? []).map(id => ({ kind: 'step' as const, id }));
+    });
+  };
+  async function connectPicked() {
+    if (!pick || pickName === null || !pickName.trim()) return;
+    setPickBusy(true);
+    const members = pickMembers(pick.keys, pick.scope);
+    const r = await createWorkGroup(clientId, pickName.trim(), members);
+    setPickBusy(false);
+    if (!r.ok) { setListNote({ err: true, text: workGroupErrorText(r.error) }); return; }
+    setPick(null); setPickName(null);
+    if (r.groupId) {
+      const gid = r.groupId;
+      setWgOpen(o => ({ ...o, [gid]: true }));
+      // הבקשות נכנסות לקבוצה על המסך מיד — עד שהרענון מהשרת מגיע.
+      setOptimisticPatches(prev => ({
+        ...prev,
+        ...Object.fromEntries(members.flatMap(m => (m.kind === 'step' ? [[m.id, { ...prev[m.id], workGroupId: gid }]] : []))),
+      }));
+    }
+    await reloadWorkGroups();
+    refresh?.();
+  }
+  async function saveRename() {
+    if (!renaming || !renaming.name.trim()) return;
+    const r = await renameWorkGroup(renaming.id, renaming.name.trim());
+    if (!r.ok) { setListNote({ err: true, text: workGroupErrorText(r.error) }); return; }
+    setRenaming(null);
+    await reloadWorkGroups();
+  }
+  async function dissolve(groupId: string) {
+    const r = await dissolveWorkGroup(groupId);
+    if (!r.ok) { setListNote({ err: true, text: workGroupErrorText(r.error) }); return; }
+    await reloadWorkGroups();
     refresh?.();
   }
 
@@ -1289,7 +1398,7 @@ export default function OnboardingTab({
   /** מצב עריכה — אותו מסך, פקדי ↑↓⋯ ותצורה נחשפים; במצב רגיל רק פעולה אחת. */
   const [editing, setEditing] = useState(false);
   // 310 · גרירה — כבויה במצב עריכה (שם ↑↓ ממשיכים לעבוד כמו קודם).
-  useListDrag(listRef, !!embedded && !editing, (from, to) => void dropEntry(from, to));
+  useListDrag(listRef, !!embedded && !editing && !pick, (from, to, scope) => void dropEntry(from, to, scope));
   const [discarding, setDiscarding] = useState(false);
   /** מתג הפאנל המוטבע: חי (ברירת מחדל, אמין) מול אחרי עדכון. */
   const [sidebarPreviewMode, setSidebarPreviewMode] = useState<PortalPreviewMode>('live');
@@ -1552,12 +1661,13 @@ export default function OnboardingTab({
      שלהן — פתוחות, נעולות ושהושלמו — בסדר קבוע. מה שבקבוצה לא «עובר» ל«הושלמו» ולא מופיע
      פעמיים. הקבוצה היא תצוגה: כל בקשה בה שומרת מחזור, כפתורים והיסטוריה משלה. */
   const { groups: stepGroups, grouped: groupedIds } = embedded
-    ? buildStepGroups(visibleSteps)
+    // ‼ 311: פייפרלס / רו״ח קודם שנכנסו לקבוצה של המשרד — מוצגים בתוכה, לא כאן.
+    ? buildStepGroups(visibleSteps.filter(s => !inWorkGroup(s)))
     : { groups: [] as StepGroup[], grouped: new Set<string>() };
 
   // ‼ 310: מה שמחכה ל«סימון שהושלם» עוד לא היסטוריה — הוא ברשימה, ירוק.
   const doneSteps = visibleSteps.filter(
-    s => !isStepOpen(s.status) && !isGreen(s) && !releaseAnchor.some(a => a.id === s.id) && !groupedIds.has(s.id));
+    s => !isStepOpen(s.status) && !isGreen(s) && !inWorkGroup(s) && !releaseAnchor.some(a => a.id === s.id) && !groupedIds.has(s.id));
 
   /**
    * הזזת שורה בסדר התצוגה. מסדרים את כל הפתוחות, לא רק את מה שמסונן.
@@ -3436,7 +3546,8 @@ export default function OnboardingTab({
       )}
 
       {(() => {
-        const openVisible = visibleSteps.filter(s => isStepOpen(s.status));
+        // ‼ 311: מה שבתוך קבוצה של המשרד מוצג בקבוצה — לא כשורה בפני עצמה.
+        const openVisible = visibleSteps.filter(s => isStepOpen(s.status) && !inWorkGroup(s));
         /* ‼ משימה פנימית יורדת מהרשימה ועולה ב«עבודה פנימית» — אחרת היא נקראת
            כבקשה מהלקוח. */
         /* ‼ סבב 3: משימת משרד שנפתחה במקום אישור אישי של בן/בת הזוג היא חלק
@@ -3461,7 +3572,8 @@ export default function OnboardingTab({
                   : attn.waitingOn === 'locked' || step.status === 'locked' ? 'is-locked' : 'is-wait',
             ].join(' ')}
           >
-            <span className="rl-dot" aria-hidden="true" />
+            {/* ‼ 311: הנקודה היא גם הכפתור לסימון — כמה נקודות ← «לחבר». */}
+            <button type="button" className="rl-dot" aria-label={`סימון ${rowTitle(step)}`} />
             {body}
           </div>
         );
@@ -3470,7 +3582,7 @@ export default function OnboardingTab({
           const answers = s.stepType === 'custom_request' ? requestAnswers(s.payload.requirements) : [];
           return (
             <div key={s.id} id={`ob-step-${s.id}`} className={`rl-item is-review${highlightStepId === s.id ? ' is-highlight' : ''}`}>
-              <span className="rl-dot" aria-hidden="true" />
+              <button type="button" className="rl-dot" aria-label={`סימון ${name ?? rowTitle(s)}`} />
               <div className="rl-row">
                 <div className="rl-line">
                   <div className="rl-hit is-static">
@@ -3772,6 +3884,8 @@ export default function OnboardingTab({
             node: (
               <section key={`group-${g.key}`} className={`rg-group is-${allGreen ? 'review' : status.tone}`} data-open={open ? 'true' : 'false'}
                 data-group={g.key} aria-label={g.title}>
+                {/* ‼ 311: גם קבוצה היא נקודה — אפשר לחבר אותה לקבוצה אחרת. */}
+                <button type="button" className="rl-dot rg-dot" aria-label={`סימון ${REQUEST_GROUPS[g.key].title}`} />
                 <button type="button" className="rg-head" aria-expanded={open} onClick={() => setGroupOpen(g.key, !open)}>
                   <span className="rg-namecol">
                     <span className="rg-name">{REQUEST_GROUPS[g.key].title}</span>
@@ -3911,6 +4025,11 @@ export default function OnboardingTab({
            קבוצה היא פריט אחד, במקום של הבקשה הראשונה שלה. מה שהלקוח השלים (ירוק) נשאר
            במקום שלו עד «סימון שהושלם»; קבוצה שהושלמה ונראתה — ל«הושלמו». */
         type Entry = ListEntry & { node: React.ReactNode };
+        /** עטיפה לכל פריט: מפתח ורמה לגרירה ולסימון (display: contents — בלי שינוי בעיצוב). */
+        const wrapEntry = (e: Entry, scope: string) => (
+          <div key={e.key} className="rl-drag" data-drag-key={e.key} data-drag-scope={scope}
+            data-picked={pick?.scope === scope && pick.keys.includes(e.key) ? '' : undefined}>{e.node}</div>
+        );
         const entries: Entry[] = [];
         const repDoneNodes: React.ReactNode[] = [];
         for (const p of placed) {
@@ -3930,16 +4049,109 @@ export default function OnboardingTab({
           if (repGroupPlaced.active) entries.push({ key: 'group-representation', stepIds: repGroupPlaced.ids, node: repGroupPlaced.node });
           else repDoneNodes.push(repGroupPlaced.node);
         }
+        /* ── 311 · קבוצות של המשרד — נקודות שחוברו, עם שם, אולי בתוך קבוצה ──────────
+           ‼ בפנים: כל בקשה כשורה מלאה (אותו כרטיס, אותם כפתורים), בסדר שנקבע בגרירה.
+           קבוצה קבועה שנכנסה (פייפרלס / רו״ח קודם) — אותו מראה כמו בחוץ (renderGroup). */
+        scopesRef.current = new Map();
+        const orderIds = orderOverride ?? clientSteps.map(s => s.id);
+        const wgDirect = (gid: string) => visibleSteps.filter(s => s.workGroupId === gid);
+        const wgLeaves = (gid: string): OnboardingStep[] => [
+          ...wgDirect(gid), ...workGroups.filter(c => c.parentGroupId === gid).flatMap(c => wgLeaves(c.id))];
+        const renderWorkGroup = (g: WorkGroup): Entry & { active: boolean } => {
+          const leaves = wgLeaves(g.id);
+          const greens = leaves.filter(isGreen);
+          const anyOpen = leaves.some(s => isStepOpen(s.status));
+          const active = anyOpen || greens.length > 0;
+          const base = { key: `wg-${g.id}`, stepIds: leaves.map(s => s.id), active };
+          if (g.builtinKey) {
+            const sg = buildStepGroups(leaves).groups[0];
+            return { ...base, node: sg ? renderGroup(sg).node : null };
+          }
+          const kids: Entry[] = sortEntries([
+            ...wgDirect(g.id).map(s => ({
+              key: s.id, stepIds: [s.id],
+              node: isGreen(s) ? greenItem(s)
+                : flowItem(s, renderStep(s), isStepOpen(s.status) ? attnOf(s) : { kind: 'done', tone: 'gray' }),
+            })),
+            ...workGroups.filter(c => c.parentGroupId === g.id).map(renderWorkGroup),
+          ], orderIds);
+          scopesRef.current.set(g.id, kids);
+          const isLive = (e: Entry) => e.stepIds.some(id => { const s = leaves.find(x => x.id === id); return !!s && (isStepOpen(s.status) || isGreen(s)); });
+          const doneKids = anyOpen || greens.length ? kids.filter(e => !isLive(e)) : [];
+          const shown = doneKids.length && !groupDoneShown[base.key] ? kids.filter(isLive) : kids;
+          const nextOpen = sortEntries(leaves.filter(s => isStepOpen(s.status)).map(s => ({ key: s.id, stepIds: [s.id] })), orderIds)[0];
+          const nextStep = nextOpen && leaves.find(s => s.id === nextOpen.key);
+          const mineNow = leaves.some(s => isStepOpen(s.status) && attnOf(s).kind === 'mine');
+          const tone = !anyOpen && greens.length ? 'review' : mineNow ? 'mine' : anyOpen ? 'wait' : 'done';
+          const open = wgOpen[g.id] ?? active;
+          const doneN = leaves.filter(s => !isStepOpen(s.status)).length;
+          return {
+            ...base,
+            node: (
+              <section key={base.key} className={`rg-group wg-group is-${tone}`} data-open={open ? 'true' : 'false'} aria-label={g.name}>
+                <button type="button" className="rl-dot rg-dot" aria-label={`סימון ${g.name}`} />
+                <button type="button" className="rg-head" aria-expanded={open} onClick={() => setWgOpen(o => ({ ...o, [g.id]: !open }))}>
+                  <span className="rg-namecol">
+                    <span className="rg-name">{g.name}</span>
+                    {nextStep && <span className="rg-hint">{groupNamesMap.get(nextStep.id) ?? rowTitle(nextStep)}</span>}
+                  </span>
+                  <span className={`rg-tag is-${tone === 'review' ? 'done' : tone}`}>{doneN}/{leaves.length}</span>
+                  <span className="rg-chev" aria-hidden="true">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
+                  </span>
+                </button>
+                {tone === 'review' && (
+                  <div className="rg-ackbar">
+                    <button type="button" className="btn btn-sm btn-primary" onClick={() => void ackSteps(greens.map(s => s.id))}>סימון שהושלם</button>
+                  </div>
+                )}
+                {open && (
+                  <div className="rg-kids">
+                    {shown.map(e => wrapEntry(e, g.id))}
+                    {doneKids.length > 0 && (
+                      <button type="button" className="rg-more" aria-expanded={!!groupDoneShown[base.key]}
+                        onClick={() => setGroupDoneShown(p => ({ ...p, [base.key]: !p[base.key] }))}>
+                        {groupDoneShown[base.key] ? 'הסתר את מה שהושלם' : `ועוד ${doneKids.length === 1 ? 'אחת שהושלמה' : `${doneKids.length} שהושלמו`}`}
+                      </button>
+                    )}
+                    <div className="wg-foot">
+                      {renaming?.id === g.id ? (
+                        <>
+                          <input className="wg-name-input" value={renaming.name} autoFocus aria-label="שם הקבוצה"
+                            onChange={ev => setRenaming({ id: g.id, name: ev.target.value })}
+                            onKeyDown={ev => { if (ev.key === 'Enter') void saveRename(); if (ev.key === 'Escape') setRenaming(null); }} />
+                          <button type="button" className="ui-linkbtn" disabled={!renaming.name.trim()} onClick={() => void saveRename()}>שמירה</button>
+                          <button type="button" className="ui-linkbtn" onClick={() => setRenaming(null)}>ביטול</button>
+                        </>
+                      ) : (
+                        <>
+                          <button type="button" className="ui-linkbtn" onClick={() => setRenaming({ id: g.id, name: g.name })}>שינוי שם</button>
+                          <button type="button" className="ui-linkbtn" onClick={() => void dissolve(g.id)}
+                            title="הבקשות נשארות — רק החיבור ביניהן יורד">פירוק הקבוצה</button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </section>
+            ),
+          };
+        };
+        const wgDone: React.ReactNode[] = [];
+        for (const g of workGroups.filter(x => x.parentGroupId === null)) {
+          const e = renderWorkGroup(g);
+          if (e.active || !e.stepIds.length) { if (e.stepIds.length) entries.push(e); } else wgDone.push(e.node);
+        }
         // ירוק בודד — בקשה שהושלמה ואינה בתוך קבוצה.
         for (const s of visibleSteps) {
-          if (!isGreen(s) || groupedIds.has(s.id) || repGroupedIds.has(s.id) || foldedRepPart(s)
+          if (!isGreen(s) || inWorkGroup(s) || groupedIds.has(s.id) || repGroupedIds.has(s.id) || foldedRepPart(s)
               || releaseAnchor.some(a => a.id === s.id) || entries.some(e => e.stepIds.includes(s.id))) continue;
           entries.push({ key: s.id, stepIds: [s.id], node: greenItem(s) });
         }
-        const ordered = sortEntries(entries, orderOverride ?? clientSteps.map(s => s.id));
-        entriesRef.current = ordered;
+        const ordered = sortEntries(entries, orderIds);
+        scopesRef.current.set('root', ordered);
         // ‼ קבוצה שהושלמה היא היסטוריה (INV-REQ-03) — הייצוג ראשון גם ב«הושלמו», לפי GROUP_ORDER.
-        completedGroupNodes.push(...repDoneNodes, ...groupPlaced.filter(g => !g.active).map(g => g.node));
+        completedGroupNodes.push(...repDoneNodes, ...groupPlaced.filter(g => !g.active).map(g => g.node), ...wgDone);
         /* ‼ «2 ממתינים לדוד» בשורת המסלול נספר לפי השורות שכאן: תהליך מקופל הוא שורה
            אחת, ומצבו — של השורה כולה (summarizeRow), בדיוק מה שהשורה מציגה. */
         const rowTop = new Map<string, OnboardingStep>();
@@ -3978,7 +4190,18 @@ export default function OnboardingTab({
                 <button type="button" className="rl-link-s" onClick={() => setListNote(null)} aria-label="סגירת ההודעה">✕</button>
               </p>
             )}
-            <div className="rl-list rg-cards" ref={listRef}>
+            {/* ‼ 311: לחיצה על נקודה מסמנת אותה (שורה או קבוצה שלמה — רק הנקודה של הפריט עצמו,
+                לא נקודה של שורה בתוך פייפרלס/ייצוג). הייצוג לא מתחבר — מרכז הייצוג מנהל אותו. */}
+            <div className={`rl-list rg-cards${pick ? ' is-picking' : ''}`} ref={listRef}
+              onClick={e => {
+                const dot = (e.target as Element).closest('.rl-dot');
+                const wrapEl = dot?.closest<HTMLElement>('[data-drag-key]');
+                if (!dot || !wrapEl || dot.closest('.rl-item, .rg-group') !== wrapEl.firstElementChild) return;
+                const key = wrapEl.dataset.dragKey!;
+                if (key === 'group-representation') { setListNote({ err: false, text: 'הייצוג נשאר קבוצה בפני עצמה — מרכז הייצוג מנהל אותו.' }); return; }
+                togglePick(key, wrapEl.dataset.dragScope ?? 'root');
+              }}>
+              <svg className="rl-pickarc" aria-hidden="true"><path ref={arcRef} d="" /></svg>
               {/* ‼ ידוע שיש רו״ח קודם ואין מסלול — פותחים את אותו מסלול בדיוק
                   (create_onboarding_request). החלטה של המשרד — בראש הרשימה. */}
               {needsPrevTrack && (
@@ -4004,9 +4227,7 @@ export default function OnboardingTab({
                 </div>
               )}
               {/* ‼ 310: כל פריט נגרר כגוש אחד (useListDrag). display: contents — העטיפה לא משנה את העיצוב. */}
-              {ordered.map(x => (
-                <div key={x.key} className="rl-drag" data-drag-key={x.key}>{x.node}</div>
-              ))}
+              {ordered.map(x => wrapEntry(x, 'root'))}
               {ordered.length === 0 && !needsPrevTrack && !loading && (
                 <div className="rl-empty">
                   אין בקשות פתוחות.{' '}
@@ -4014,6 +4235,29 @@ export default function OnboardingTab({
                 </div>
               )}
             </div>
+
+            {/* ── 311 · «לחבר» — מופיע רק כשסימנת נקודה ───────────────────────────── */}
+            {pick && (
+              <div className="rl-pickbar" role="region" aria-label="חיבור נקודות">
+                {pickName === null ? (
+                  <>
+                    <span className="rl-pickbar-n">{pick.keys.length < 2 ? 'עוד נקודה אחת לפחות' : `${pick.keys.length} נקודות`}</span>
+                    <button type="button" className="btn btn-sm btn-primary" disabled={pick.keys.length < 2}
+                      onClick={() => setPickName('')}>לחבר</button>
+                    <button type="button" className="rl-pickbar-x" onClick={() => setPick(null)}>ביטול</button>
+                  </>
+                ) : (
+                  <>
+                    <input className="rl-pickbar-name" value={pickName} autoFocus placeholder="שם לקבוצה" aria-label="שם לקבוצה"
+                      onChange={ev => setPickName(ev.target.value)}
+                      onKeyDown={ev => { if (ev.key === 'Enter') void connectPicked(); if (ev.key === 'Escape') setPickName(null); }} />
+                    <button type="button" className="btn btn-sm btn-primary" disabled={!pickName.trim() || pickBusy}
+                      onClick={() => void connectPicked()}>{pickBusy ? 'שומר…' : 'שמירה'}</button>
+                    <button type="button" className="rl-pickbar-x" onClick={() => { setPick(null); setPickName(null); }}>ביטול</button>
+                  </>
+                )}
+              </div>
+            )}
 
             {/* ── המסלולים שרצים אצל הלקוח — שורה לכל ריצה, מתחת לבקשות ─────────
                 ‼ «איפה אנחנו ומה הבא». עצירה, גרסאות, הצעות וצירוף בקשה לשלב —

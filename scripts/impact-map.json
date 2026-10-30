@@ -199,7 +199,7 @@
       ]
     },
     {
-      "name": "בקשות: טיוטה, «פרסם בדף», הדף האישי; ירוק עד «סימון שהושלם» וסדר בגרירה (310)",
+      "name": "בקשות: טיוטה, «פרסם בדף», הדף האישי; ירוק עד «סימון שהושלם» וסדר בגרירה (310); קבוצות של המשרד (311)",
       "invariants": [
         "INV-REQ-01",
         "INV-REQ-03"
@@ -213,7 +213,10 @@
         "src/utils/requestAttention.ts",
         "src/features/requests/listOrder.ts",
         "src/features/requests/useListDrag.ts",
-        "scripts/staging-test-310-ack-order.mjs"
+        "scripts/staging-test-310-ack-order.mjs",
+        "supabase/311-client-work-groups.sql",
+        "src/features/requests/workGroups.ts",
+        "scripts/staging-test-311-work-groups.mjs"
       ],
       "suites": [
         {
@@ -224,6 +227,11 @@
           "script": "staging-test-310-ack-order.mjs",
           "run": true,
           "note": "310 · לקוח סיים ⇒ ירוק; המשרד סגר ⇒ נראה; סימון רק לבעלים; גרירה כותבת sort_order חי ומנקה pending"
+        },
+        {
+          "script": "staging-test-311-work-groups.mjs",
+          "run": true,
+          "note": "311 · לחבר/שם/קינון/פייפרלס בתוך קבוצה/פירוק; נעולה אחרי שהושלמה נפתחת; רמות מעורבות ומשתמש אחר נחסמים"
         }
       ]
     },

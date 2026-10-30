@@ -53,3 +53,13 @@ export function moveEntry(
   const seen = new Set(shown);
   return [...shown, ...allIds.filter(id => !seen.has(id))];
 }
+
+/**
+ * 311 · גרירה בתוך קבוצה: רק הבקשות של הקבוצה מתחלפות ביניהן — באותם «מקומות»
+ * שהיו להן בסדר הכללי. כל השאר (מה שמחוץ לקבוצה) לא זז.
+ */
+export function reorderWithin(allIds: readonly string[], subOrder: readonly string[]): string[] {
+  const inSub = new Set(subOrder);
+  const queue = subOrder.filter(id => allIds.includes(id));
+  return allIds.map(id => (inSub.has(id) ? queue.shift()! : id));
+}

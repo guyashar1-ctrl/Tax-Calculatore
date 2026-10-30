@@ -39,6 +39,8 @@ export const TABLE_SCOPES: Record<string, TableScope> = {
   additional_charges: { kind: "user_id" },
   // בקשות ומסלולים
   representation_requests: { kind: "user_id" },
+  // 311: קבוצות של המשרד אצל לקוח — לפני הבקשות שמפנות אליהן (work_group_id).
+  client_work_groups: { kind: "user_id" },
   onboarding_steps: { kind: "user_id" },
   onboarding_step_dependencies: { kind: "user_id" },
   onboarding_events: { kind: "user_id" },

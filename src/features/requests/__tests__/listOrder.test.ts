@@ -1,6 +1,6 @@
 // ─── סדר הרשימה ב«בקשות»: גרירה, קבוצה כגוש, ירוק עד סימון (310) ───
 import { test, equal, assert, type TestCase } from '../../../testkit/tinyTest';
-import { entryPosition, moveEntry, sortEntries, type ListEntry } from '../listOrder';
+import { entryPosition, moveEntry, reorderWithin, sortEntries, type ListEntry } from '../listOrder';
 import { awaitingOfficeAck, countRequestsNeedingMe } from '../../../utils/requestAttention';
 import type { OnboardingStep } from '../../../types/onboarding';
 
@@ -37,6 +37,11 @@ export const TESTS: TestCase[] = [
     equal(entryPosition(E('g', 'g2', 'g1'), order), 1);
     equal(entryPosition(E('n', 'new'), order), Number.POSITIVE_INFINITY);
     equal(sortEntries([E('c', 'c'), E('a', 'a'), E('n', 'new'), E('g', 'g1')], all).map(e => e.key).join(','), 'a,g,c,n');
+  }),
+  test('גרירה בתוך קבוצה — רק הבקשות שלה מתחלפות, במקומות שלהן', () => {
+    // הקבוצה: g1,g2 (במקומות 1,3); בחוץ: a, c
+    equal(reorderWithin(['a', 'g1', 'c', 'g2'], ['g2', 'g1']).join(','), 'a,g2,c,g1');
+    equal(reorderWithin(['a', 'g1', 'c'], ['g1']).join(','), 'a,g1,c');
   }),
   test('ירוק עד סימון: רק הושלם + null מפורש', () => {
     assert(awaitingOfficeAck(step({ status: 'completed', officeAckAt: null })), 'הלקוח השלים — ירוק');

@@ -19,12 +19,12 @@ type Drag = {
 /**
  * @param listRef  — המכל של הרשימה (שורשי הפריטים בתוכו).
  * @param enabled  — כבוי במצב עריכה (↑↓ שם) או כשיש פחות משני פריטים.
- * @param onDrop   — (מה זז, על מה נחת). אותו פריט / שום יעד ⇒ לא נקרא.
+ * @param onDrop   — (מה זז, על מה נחת, באיזו רמה: 'root' או מזהה הקבוצה). אותו פריט / שום יעד ⇒ לא נקרא.
  */
 export function useListDrag(
   listRef: React.RefObject<HTMLElement | null>,
   enabled: boolean,
-  onDrop: (fromKey: string, toKey: string) => void,
+  onDrop: (fromKey: string, toKey: string, scope: string) => void,
 ) {
   const dropRef = useRef(onDrop);
   dropRef.current = onDrop;
@@ -57,7 +57,7 @@ export function useListDrag(
       const control = e.target.closest(INTERACTIVE);
       if (control && !control.matches(ROW_HIT)) return;
       const wrap = wrapOf(e.target);
-      if (!wrap || !list.contains(wrap)) return;
+      if (!wrap || !list.contains(wrap) || e.target.closest('.rl-dot')) return;   // הנקודה = סימון, לא גרירה
       d = { key: wrap.dataset.dragKey!, wrap, x: e.clientX, y: e.clientY, touch: e.pointerType !== 'mouse', on: false, over: null };
       if (d.touch) d.timer = window.setTimeout(start, HOLD_MS);
     };
@@ -71,16 +71,19 @@ export function useListDrag(
       }
       clearMarks();
       const over = wrapOf(document.elementFromPoint(e.clientX, e.clientY));
-      d.over = over && over !== d.wrap && list.contains(over) ? over.dataset.dragKey! : null;
+      // ‼ 311: גוררים רק בתוך אותה רמה — בתוך הקבוצה, או בין הפריטים שבראש הרשימה.
+      d.over = over && over !== d.wrap && list.contains(over)
+        && over.dataset.dragScope === d.wrap.dataset.dragScope ? over.dataset.dragKey! : null;
       if (d.over) over!.setAttribute('data-drop', '');
     };
     const up = () => {
       if (!d) return;
       const { on, key, over } = d;
+      const scope = d.wrap.dataset.dragScope ?? 'root';
       end();
       if (!on) return;
       eatClick = true;                          // הלחיצה שמגיעה אחרי שחרור הגרירה — לא פותחת שורה
-      if (over) dropRef.current(key, over);
+      if (over) dropRef.current(key, over, scope);
     };
     const click = (e: MouseEvent) => {
       if (!eatClick) return;

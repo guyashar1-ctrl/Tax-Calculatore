@@ -887,6 +887,8 @@ export interface OnboardingStep {
    * `undefined` = מסד בלי העמודה (לפני 310) — נחשב נראה, כדי שלא ייצבע הכול בירוק.
    */
   officeAckAt?: string | null;
+  /** 311: הקבוצה של המשרד שהבקשה בתוכה (client_work_groups). null/חסר = לא בקבוצה. */
+  workGroupId?: string | null;
   createdAt?: string;
   updatedAt?: string;
 }

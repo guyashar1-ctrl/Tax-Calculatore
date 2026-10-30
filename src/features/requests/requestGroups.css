@@ -6,11 +6,12 @@
 
 /* ── הרשימה במלבנים ─────────────────────────────────────────────────────────── */
 .rl-list.rg-cards { border-top: 0; display: grid; gap: 10px; }
-.rl-list.rg-cards > .rl-item {
+/* ‼ 310: כל פריט עטוף ב-.rl-drag (display: contents) לגרירה — הבורר עובר גם דרכו. */
+.rl-list.rg-cards > .rl-item, .rl-list.rg-cards > .rl-drag > .rl-item {
   border: 1px solid var(--hairline-1); border-radius: 9px; background: var(--surface-0);
   padding: 4px 14px 4px 12px;
 }
-.rl-list.rg-cards > .rl-item.is-red { border-color: color-mix(in srgb, var(--err) 35%, var(--hairline-1)); }
+.rl-list.rg-cards > .rl-item.is-red, .rl-list.rg-cards > .rl-drag > .rl-item.is-red { border-color: color-mix(in srgb, var(--err) 35%, var(--hairline-1)); }
 
 /* ── קבוצה ──────────────────────────────────────────────────────────────────── */
 .rg-group { border: 1px solid var(--hairline-1); border-radius: 9px; background: var(--surface-0); overflow: hidden; }
@@ -36,11 +37,11 @@
 @media (prefers-reduced-motion: reduce) { .rg-chev svg { transition: none; } }
 
 .rg-kids { display: grid; gap: 8px; padding: 10px; background: var(--surface-2); }
-.rg-kids > .rl-item {
+.rg-kids > .rl-item, .rg-kids > .rl-drag > .rl-item {
   border: 1px solid var(--hairline-1); border-radius: 7px; background: var(--surface-0); padding: 2px 12px 2px 10px;
 }
-.rg-kids > .rl-item .rl-line { min-height: 52px; }
-.rg-kids > .rl-item .rl-name { font-size: var(--fs-14); }
+.rg-kids > .rl-item .rl-line, .rg-kids > .rl-drag > .rl-item .rl-line { min-height: 52px; }
+.rg-kids > .rl-item .rl-name, .rg-kids > .rl-drag > .rl-item .rl-name { font-size: var(--fs-14); }
 .rg-foot { padding: 10px 16px 12px; font-size: var(--fs-12); color: var(--ink-3); display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; }
 
 @media (min-width: 641px) {
@@ -51,7 +52,8 @@
   .rg-head .rg-tag { grid-row: 2; grid-column: 1; }
   .rg-head .rg-chev { grid-column: 2; grid-row: 1 / 3; }
   .rg-kids { padding: 8px; }
-  .rl-list.rg-cards > .rl-item, .rg-kids > .rl-item { padding-inline: 10px 8px; }
+  .rl-list.rg-cards > .rl-item, .rg-kids > .rl-item,
+  .rl-list.rg-cards > .rl-drag > .rl-item, .rg-kids > .rl-drag > .rl-item { padding-inline: 10px 8px; }
 }
 
 /* ── עבודה מהבית ───────────────────────────────────────────────────────────── */
