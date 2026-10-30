@@ -100,4 +100,5 @@ for (const [k, want] of Object.entries(expect)) {
   console.log(`${ok ? '✓' : '✗'} ${k}: ${JSON.stringify(res[k])}${ok ? '' : `  (ציפינו ${JSON.stringify(want)})`}`);
 }
 console.log(bad ? `✗ ${bad} נכשלו` : `✓ ${Object.keys(expect).length} עברו · rolled back`);
-process.exit(bad ? 1 : 0);
+// ‼ exitCode ולא exit(): בווינדוס exit() באמצע סגירת חיבור הרשת מפיל את libuv — וקוד היציאה יוצא «נכשל».
+process.exitCode = bad ? 1 : 0;
