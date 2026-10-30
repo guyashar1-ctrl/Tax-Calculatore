@@ -114,6 +114,10 @@
 - **הכלל:** קבוצה או בקשה שהושלמו כולן אינן תופסות מקום בין מה שפתוח (גיא, 19.10) — הן יורדות ל«הושלמו» בלשונית «בקשות» במשרד ול«מה שכבר סיימנו» בדף הלקוח. הייצוג ננעץ ראשון כל עוד יש בו משהו פתוח (23.10); כשהושלם — יורד כמו כל השאר (גיא: 24.10 בדף, 25.10 במשרד — «ככלל במערכת», לא תיקון למסך אחד). ב«הושלמו» הייצוג ראשון לפי `GROUP_ORDER`.
 - **קוד:** `groupPinsFirst` (`features/requests/requestGroups.ts`) — המקום היחיד שמחליט מה ננעץ, לשני המשטחים. דף: `portalPinnedGroup` → `PortalView` (`PublicPortalPage.tsx`) — `DoneFold` (אותו רכיב לדף החי, לצפייה בספרייה ולתצוגה במשרד). משרד: `OnboardingTab.tsx` — `ordered` / `completedGroupNodes`. משטח חדש שמציג קבוצות — קורא ל-`groupPinsFirst`, לא `key === 'representation'`.
 - **מוכיח:** `run-unit-tests.mjs requestGroups` («ייצוג פתוח ננעץ בראש; ייצוג שהושלם לא ננעץ» · «המשרד: אותו כלל»).
+- **עדכון 30.10.2026 (310, הדמיה שאושרה `docs/proposals/2026-10-29-requests-dots-v2.html`):**
+  - **במשרד הסדר הוא הסדר שגיא קובע בגרירה** (`set_onboarding_steps_order` ⇒ `sort_order` חי). שום דבר לא ננעץ ולא ממוין לפי דחיפות; קבוצה היא פריט אחד במקום הבקשה הראשונה שלה (`features/requests/listOrder.ts`). בדף הלקוח הייצוג הפתוח עדיין ננעץ (`portalPinnedGroup`), ושאר הסדר — אותו `sort_order`.
+  - **«הושלם» = הושלם ונראה.** מה שהלקוח או PIVO השלימו (`office_ack_at` ריק) נשאר במקומו, ירוק, עם «סימון שהושלם» (`ack_onboarding_steps`), ונספר בתג; רק אז יורד ל«הושלמו». קבוצה שכולה הושלמה ויש בה ירוק — נשארת עם כפתור אחד לכולה. מה שהמשרד עצמו סגר — נראה מיד (טריגר לפי `auth.uid()`). השחרור של הבקשה הבאה **לא** מחכה לסימון.
+  - **קוד:** `awaitingOfficeAck` (`utils/requestAttention.ts`) — המקום היחיד; `OnboardingTab.tsx` — `greenItem`, `entries`/`sortEntries`, `useListDrag`. **מוכיח:** `run-unit-tests.mjs listOrder`, `scripts/staging-test-310-ack-order.mjs`.
 
 ## אבטחה
 

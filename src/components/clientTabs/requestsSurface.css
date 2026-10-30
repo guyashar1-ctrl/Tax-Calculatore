@@ -383,3 +383,20 @@
   .rep2-hint { text-align: start; max-width: none; }
   .rep2-confirm { max-width: none; }
 }
+
+/* ── 310 · ירוק עד «סימון שהושלם», וגרירה (הדמיה שאושרה 29.10) ─────────────── */
+/* ירוק = הלקוח (או PIVO) השלים, והמשרד עוד לא סימן שראה. */
+.rl-item.is-review > .rl-dot { background: var(--ok); }
+.rl-item.is-review.is-highlight { animation: rl-flash 2.4s ease; }
+.rl-state.is-green { color: var(--ok); font-weight: 600; }
+.rg-group.is-review .rg-tag { color: var(--ok); font-weight: 600; }
+.rg-ackbar { display: flex; justify-content: flex-end; padding: 2px 12px 8px; }
+/* העטיפה של כל פריט נגרר — לא תופסת מקום, רק נושאת את המפתח. */
+.rl-drag { display: contents; }
+.rl-list.is-dragging { cursor: grabbing; user-select: none; -webkit-user-select: none; }
+.rl-drag[data-dragging] > * { opacity: .45; }
+.rl-drag[data-drop] > * { box-shadow: inset 0 3px 0 var(--accent); }
+@media (max-width: 640px) {
+  .rg-ackbar { padding-inline: 8px; }
+  .rg-ackbar > .btn { width: 100%; }
+}

@@ -882,6 +882,11 @@ export interface OnboardingStep {
   completedBy?: string;
   completedAt?: string;
   verifiedAt?: string;
+  /**
+   * 310: מתי המשרד ראה שהבקשה הושלמה. `null` על בקשה שהושלמה = ירוק, עד «סימון שהושלם».
+   * `undefined` = מסד בלי העמודה (לפני 310) — נחשב נראה, כדי שלא ייצבע הכול בירוק.
+   */
+  officeAckAt?: string | null;
   createdAt?: string;
   updatedAt?: string;
 }

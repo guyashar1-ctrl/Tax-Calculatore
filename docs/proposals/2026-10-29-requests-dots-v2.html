@@ -1,0 +1,901 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>בקשות — נקודות, קבוצות ואוטומציות</title>
+<style>
+:root{
+  --desk:#edecea; --page:#f8f7f5; --card:#fff; --bd:#e2e4e7; --bd2:#d3d6da;
+  --tx:#25282d; --txc:#4b5058; --tx2:#63686f; --tx3:#8e949b;
+  --br:#3f5f8f; --br2:#34507a; --soft:#e8eef5; --softbd:#c6d4e6;
+  --ok:#24654e; --okbg:#eaf4ef; --warn:#8a5b0f; --warnbg:#fbf3e4; --err:#a63a3a;
+  --s1:#f5f4f2; --s4:#fafaf9;
+  --r:12px; --ease:cubic-bezier(.2,.8,.2,1);
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{font-family:"Segoe UI","Heebo",Arial,system-ui,sans-serif;background:var(--desk);color:var(--tx);font-size:14.5px;line-height:1.5;-webkit-font-smoothing:antialiased}
+button,input{font:inherit;color:inherit}
+button{cursor:pointer;background:none;border:0;padding:0}
+:focus-visible{outline:2px solid var(--br);outline-offset:2px;border-radius:6px}
+
+/* ── סרגל ההדמיה (לא חלק מהמוצר) ── */
+.demo{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;justify-content:center;padding:10px 16px 6px;font-size:12.5px;color:var(--tx2)}
+.demo b{font-weight:600;color:var(--tx)}
+.seg{display:inline-flex;background:#e3e2df;border-radius:9px;padding:2px}
+.seg button{padding:4px 11px;border-radius:7px;color:var(--tx2);font-size:12.5px;white-space:nowrap}
+.seg button[aria-pressed=true]{background:#fff;color:var(--tx);box-shadow:0 1px 2px rgba(0,0,0,.08)}
+.demo .reset{color:var(--tx2);text-decoration:underline;text-underline-offset:3px}
+.why{text-align:center;color:var(--tx2);font-size:12.5px;padding:0 16px 10px;min-height:20px}
+
+/* ── המסגרת ── */
+.frame{position:relative;margin:0 auto 24px;width:calc(100% - 32px);max-width:1180px;height:calc(100vh - 92px);min-height:620px;background:var(--page);border:1px solid var(--bd2);border-radius:14px;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 10px 40px rgba(30,35,45,.08);transition:max-width .35s var(--ease),border-radius .35s}
+.frame.phone{max-width:390px;height:800px;max-height:calc(100vh - 92px);border-radius:30px;border:8px solid #1f2227}
+
+/* סרגל עליון של המערכת */
+.app-top{display:flex;align-items:center;gap:22px;height:52px;padding:0 20px;background:var(--card);border-bottom:1px solid var(--bd);flex:none}
+.logo{display:flex;align-items:center;gap:8px;font-weight:800;letter-spacing:.5px;color:var(--br)}
+.logo i{width:24px;height:24px;border-radius:7px;background:var(--br);display:inline-block;position:relative}
+.logo i::after{content:"";position:absolute;inset:7px;border-radius:50%;background:#fff}
+.nav{display:flex;gap:4px}
+.nav span{padding:6px 12px;border-radius:8px;color:var(--tx2);font-size:14px}
+.nav .on{background:var(--soft);color:var(--br);font-weight:600}
+.nav em{font-style:normal;font-size:11px;background:var(--br);color:#fff;border-radius:9px;padding:0 6px;margin-inline-start:6px}
+.app-top .sp{flex:1}
+.me{width:30px;height:30px;border-radius:50%;background:#dfe5ee;color:var(--br);font-weight:700;display:grid;place-items:center;font-size:13px}
+.srch{color:var(--tx3);font-size:13px;border:1px solid var(--bd);border-radius:8px;padding:4px 12px;min-width:200px}
+
+.scroll{flex:1;overflow-y:auto;overflow-x:hidden}
+.page{max-width:900px;margin:0 auto;padding:18px 24px 80px}
+
+/* כותרת הלקוח */
+.back{color:var(--tx2);font-size:13px}
+.back:hover{color:var(--br)}
+.who{display:flex;align-items:center;gap:14px;margin-top:10px}
+.av{width:44px;height:44px;border-radius:50%;background:#dfe5ee;color:var(--br);font-weight:700;display:grid;place-items:center;flex:none}
+.nm{font-size:21px;font-weight:700;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.badge{font-size:12px;font-weight:600;color:var(--ok);background:var(--okbg);border-radius:20px;padding:1px 10px}
+.idr{color:var(--tx3);font-size:13px;display:flex;gap:14px;flex-wrap:wrap}
+.idr bdi{direction:ltr}
+.who .sp{flex:1}
+.icon-btn{width:34px;height:34px;border-radius:9px;color:var(--tx2);display:grid;place-items:center;font-size:18px}
+.icon-btn:hover{background:var(--s1)}
+
+.tabs{display:flex;gap:26px;margin-top:16px;border-bottom:1px solid var(--bd);overflow-x:auto;scrollbar-width:none}
+.tabs::-webkit-scrollbar{display:none}
+.tabs button{padding:9px 0 10px;color:var(--tx2);white-space:nowrap;border-bottom:2px solid transparent;margin-bottom:-1px}
+.tabs button[aria-selected=true]{color:var(--tx);font-weight:600;border-color:var(--tx)}
+.tabs em{font-style:normal;font-size:11px;font-weight:700;background:var(--br);color:#fff;border-radius:9px;padding:0 6px;margin-inline-start:6px}
+
+/* ראש הרשימה */
+.lh{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:22px 0 6px}
+.lh h1{margin:0;font-size:15px;font-weight:600;color:var(--tx2)}
+.add{display:inline-flex;align-items:center;gap:6px;color:var(--br);font-weight:600;padding:6px 10px;border-radius:8px}
+.add:hover{background:var(--soft)}
+.add b{font-size:17px;line-height:1}
+
+/* ── שורה ── */
+.sec{margin-top:22px}
+.sec-h{display:flex;align-items:baseline;gap:8px;font-size:12.5px;font-weight:700;color:var(--tx3);letter-spacing:.2px;padding:0 4px 6px}
+.sec-h span{font-weight:500}
+.list{background:var(--card);border:1px solid var(--bd);border-radius:var(--r);overflow:hidden}
+.row{position:relative;display:flex;align-items:center;gap:14px;padding:13px 16px;min-height:58px;border-top:1px solid var(--bd);transition:background .15s}
+.list>.row:first-child,.list>.grp:first-child>.row{border-top:0}
+.row:hover{background:var(--s4)}
+.hit{position:absolute;inset:0;z-index:1;border-radius:0}
+.hit:focus-visible{outline-offset:-2px}
+.mk{width:10px;height:10px;border-radius:50%;flex:none;border:2px solid var(--tx3)}
+.mk.mine{background:var(--br);border-color:var(--br)}
+.mk.wait{border-color:var(--bd2);background:transparent}
+.mk.stuck{border-color:var(--warn);background:var(--warnbg)}
+.mk.later{border:0;width:10px;height:10px;background:none;position:relative}
+.mk.later::before{content:"";position:absolute;inset:1px 1px;border:1.5px dashed var(--tx3);border-radius:50%}
+.mk.done{border:0;background:var(--ok);position:relative}
+.mk.done::after{content:"";position:absolute;inset:3px 3.5px 3.5px 3.5px;border:solid #fff;border-width:0 0 1.6px 1.6px;transform:rotate(-45deg) translate(0,-1px)}
+.mk.draft{border-color:var(--br);background:var(--soft)}
+.main{flex:1;min-width:0}
+.t{font-weight:600;color:var(--tx)}
+.t .subj{font-weight:500;color:var(--tx2)}
+.s{color:var(--tx2);font-size:13px;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.s.warn{color:var(--warn)}
+.side{display:flex;align-items:center;gap:14px;flex:none}
+.meta{color:var(--tx3);font-size:13px;white-space:nowrap}
+.go{position:relative;z-index:2;background:var(--br);color:#fff;font-weight:600;font-size:13.5px;border-radius:9px;padding:7px 16px;white-space:nowrap;transition:background .15s,transform .1s}
+.go:hover{background:var(--br2)} .go:active{transform:scale(.97)}
+.go.quiet{background:var(--card);color:var(--warn);border:1px solid #ecd9b0}
+.go.quiet:hover{background:var(--warnbg)}
+.row.is-done .t{color:var(--tx2);font-weight:500}
+.row.flash{animation:flash 2.2s var(--ease)}
+@keyframes flash{0%,35%{background:var(--soft)}100%{background:transparent}}
+.dots{display:flex;gap:3px;margin-top:5px}
+.dots i{width:16px;height:4px;border-radius:2px;background:var(--bd)}
+.dots i.on{background:var(--ok)}
+.dots i.cur{background:var(--br)}
+.chev{color:var(--tx3);font-size:12px;transition:transform .2s var(--ease)}
+.grp.open .chev{transform:rotate(180deg)}
+.kids{display:none;background:var(--s4)}
+.grp.open .kids{display:block}
+.kids .row{padding-inline-start:40px;min-height:50px}
+.kids .t{font-weight:500}
+.chip{font-size:12px;color:var(--tx2);background:var(--s1);border-radius:20px;padding:2px 10px;white-space:nowrap}
+.chip.me{color:var(--br);background:var(--soft);font-weight:600}
+.chip.cl{color:var(--txc)}
+.chip.au{color:var(--txc);background:#efedf3}
+.chip.warn{color:var(--warn);background:var(--warnbg)}
+
+.more{display:block;margin:14px auto 0;color:var(--tx2);font-size:13.5px;padding:6px 12px;border-radius:8px}
+.more:hover{background:var(--s1)}
+.done-list{display:none;margin-top:8px}
+.done-list.on{display:block}
+
+/* כיוון ב — סינון */
+.filters{display:flex;gap:6px;margin:4px 0 12px;overflow-x:auto;scrollbar-width:none}
+.filters::-webkit-scrollbar{display:none}
+.filters button{border:1px solid var(--bd);background:var(--card);border-radius:20px;padding:4px 12px;font-size:13px;color:var(--tx2);white-space:nowrap}
+.filters button span{color:var(--tx3);margin-inline-start:4px}
+.filters button[aria-pressed=true]{border-color:var(--tx);color:var(--tx);font-weight:600}
+.empty{padding:40px 16px;text-align:center;color:var(--tx3)}
+
+/* כיוון ג — נושאים כשרשרת */
+.topic{background:var(--card);border:1px solid var(--bd);border-radius:var(--r);margin-top:14px;overflow:hidden}
+.topic-h{display:flex;align-items:center;justify-content:space-between;padding:14px 16px 4px}
+.topic-h h3{margin:0;font-size:15.5px}
+.chain .row{border-top:0;min-height:52px;padding-block:9px}
+.chain .row::before{content:"";position:absolute;inset-inline-start:20px;top:0;bottom:0;width:2px;background:var(--bd)}
+.chain .row:first-child::before{top:50%}
+.chain .row:last-child::before{bottom:50%}
+.chain .row:only-child::before{display:none}
+.chain .mk{position:relative;z-index:0;box-shadow:0 0 0 4px var(--card)}
+.chain .row:hover .mk{box-shadow:0 0 0 4px var(--s4)}
+.chain .grp .kids .row::before{display:none}
+.topic.closed .chain{display:none}
+.topic.closed .topic-h{padding-bottom:14px}
+
+/* מגש השליחה */
+.bundle .t{color:var(--br)}
+
+/* ── מגירה ── */
+.scrim{position:absolute;inset:0;background:rgba(25,30,38,.18);opacity:0;pointer-events:none;transition:opacity .25s;z-index:20}
+.scrim.on{opacity:1;pointer-events:auto}
+.drawer{position:absolute;top:0;bottom:0;inset-inline-end:0;width:min(440px,100%);background:var(--card);box-shadow:0 0 40px rgba(20,25,35,.16);transform:translateX(-104%);transition:transform .32s var(--ease);z-index:21;display:flex;flex-direction:column}
+.drawer.on{transform:none}
+.dr-h{display:flex;align-items:flex-start;gap:10px;padding:18px 20px 6px}
+.dr-h h2{margin:0;font-size:19px;line-height:1.3;flex:1}
+.dr-h h2 .subj{font-weight:500;color:var(--tx2)}
+.dr-b{flex:1;overflow-y:auto;padding:0 20px 20px}
+.state{display:flex;align-items:center;gap:8px;margin-top:2px;font-weight:600}
+.state.mine{color:var(--br)} .state.wait{color:var(--txc)} .state.stuck{color:var(--warn)} .state.done{color:var(--ok)} .state.later{color:var(--tx2)} .state.draft{color:var(--br)}
+.lede{color:var(--tx2);margin:2px 0 0}
+.blk{margin-top:22px}
+.blk h4{margin:0 0 8px;font-size:12.5px;color:var(--tx3);font-weight:700}
+.need{list-style:none;margin:0;padding:0}
+.need li{display:flex;gap:10px;align-items:center;padding:6px 0}
+.need li .mk{width:9px;height:9px}
+.need li.ok{color:var(--tx2)}
+.docs{display:flex;flex-direction:column;gap:6px}
+.doc{display:flex;align-items:center;gap:10px;border:1px solid var(--bd);border-radius:10px;padding:8px 10px;text-align:start}
+.doc:hover{border-color:var(--softbd);background:var(--s4)}
+.doc i{width:28px;height:34px;border-radius:4px;background:linear-gradient(180deg,#eef1f5,#e1e6ed);flex:none;position:relative}
+.doc i::after{content:"";position:absolute;left:6px;right:6px;top:9px;height:2px;background:#c5ceda;box-shadow:0 5px 0 #c5ceda,0 10px 0 #c5ceda}
+.doc b{font-weight:600;display:block;font-size:13.5px}
+.doc small{color:var(--tx3)}
+.path{display:flex;flex-direction:column;gap:2px}
+.path button{display:flex;align-items:center;gap:10px;padding:7px 8px;margin-inline:-8px;border-radius:8px;text-align:start}
+.path button:hover{background:var(--s1)}
+.path .lbl{color:var(--tx3);font-size:12.5px;width:46px;flex:none}
+.hist{color:var(--tx3);font-size:13px;margin:0;padding:0;list-style:none}
+.hist li{padding:2px 0}
+.lnk{color:var(--br);font-size:13.5px}
+.lnk:hover{text-decoration:underline}
+.dr-f{display:flex;gap:10px;align-items:center;padding:14px 20px;border-top:1px solid var(--bd)}
+.btn{background:var(--br);color:#fff;font-weight:600;border-radius:10px;padding:10px 20px;transition:background .15s,transform .1s}
+.btn:hover{background:var(--br2)} .btn:active{transform:scale(.97)}
+.btn2{color:var(--txc);font-weight:600;border:1px solid var(--bd2);border-radius:10px;padding:9px 16px;background:var(--card)}
+.btn2:hover{background:var(--s1)}
+.dr-f .sp{flex:1}
+.menu{position:relative}
+.menu-pop{position:absolute;bottom:42px;inset-inline-end:0;background:var(--card);border:1px solid var(--bd);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.12);padding:4px;min-width:170px;display:none}
+.menu-pop.on{display:block}
+.menu-pop button{display:block;width:100%;text-align:start;padding:8px 12px;border-radius:7px}
+.menu-pop button:hover{background:var(--s1)}
+.menu-pop .danger{color:var(--err)}
+
+/* ── חלון (שליחה / בקשה חדשה) ── */
+.sheet{position:absolute;left:50%;top:50%;width:min(480px,calc(100% - 32px));max-height:calc(100% - 60px);transform:translate(-50%,-46%) scale(.98);opacity:0;pointer-events:none;background:var(--card);border-radius:16px;box-shadow:0 20px 60px rgba(20,25,35,.22);z-index:22;display:flex;flex-direction:column;transition:opacity .2s,transform .25s var(--ease)}
+.sheet.on{opacity:1;pointer-events:auto;transform:translate(-50%,-50%)}
+.sh-h{display:flex;align-items:center;padding:18px 20px 8px}
+.sh-h h2{margin:0;font-size:18px;flex:1}
+.sh-b{overflow-y:auto;padding:4px 20px 16px}
+.rcp{border:1px solid var(--bd);border-radius:12px;padding:14px}
+.rcp-h{display:flex;justify-content:space-between;gap:10px;align-items:baseline}
+.rcp-h b{font-size:15px}
+.rcp-h small{color:var(--tx3)}
+.rcp ul{margin:10px 0 0;padding:0;list-style:none}
+.rcp li{display:flex;align-items:center;gap:10px;padding:5px 0}
+.rcp li .x{margin-inline-start:auto;color:var(--tx3);font-size:13px}
+.rcp li .x:hover{color:var(--err)}
+.note{color:var(--tx3);font-size:13px;margin-top:10px}
+.q{width:100%;border:1px solid var(--bd2);border-radius:10px;padding:10px 12px;background:var(--s4)}
+.q:focus{outline:2px solid var(--softbd);background:#fff}
+.cat-h{font-size:12.5px;color:var(--tx3);font-weight:700;margin:16px 0 4px}
+.cat{display:flex;align-items:center;gap:10px;padding:10px 8px;margin-inline:-8px;border-radius:10px}
+.cat:hover{background:var(--s4)}
+.cat .main b{font-weight:600}
+.cat .main small{display:block;color:var(--tx3);font-size:12.5px}
+.pp{display:flex;gap:4px}
+.pp button{border:1px solid var(--bd2);border-radius:8px;padding:4px 10px;font-size:13px;font-weight:600;color:var(--br);background:var(--card)}
+.pp button:hover{background:var(--soft);border-color:var(--softbd)}
+
+/* לשונית אחרת */
+.ph{padding:60px 16px;text-align:center;color:var(--tx3)}
+
+/* הודעה */
+.toast{position:absolute;bottom:20px;left:50%;transform:translate(-50%,20px);opacity:0;background:#25282d;color:#fff;border-radius:12px;padding:10px 14px 10px 16px;font-size:14px;display:flex;gap:14px;align-items:center;transition:all .25s var(--ease);pointer-events:none;z-index:40;max-width:calc(100% - 32px)}
+.toast.on{opacity:1;transform:translate(-50%,0);pointer-events:auto}
+.toast button{color:#9fc0ff;font-weight:600;white-space:nowrap}
+
+/* ── טלפון ── */
+.phone .app-top{gap:12px;padding:0 14px}
+.phone .nav,.phone .srch{display:none}
+.phone .page{padding:12px 14px 80px}
+.phone .nm{font-size:18px}
+.phone .av{width:38px;height:38px}
+.phone .tabs{gap:20px}
+.phone .row{padding:12px 14px;gap:12px;align-items:flex-start}
+.phone .row .mk{margin-top:6px}
+.phone .side{flex-direction:column;align-items:flex-end;gap:6px}
+.mm{display:none}
+.phone .mm{display:block;margin-top:4px}
+.phone .mm .meta{font-size:12.5px}
+.phone .side>.meta,.phone .side>.chip{display:none}
+.phone .s{white-space:normal}
+.phone .go{padding:6px 12px;font-size:13px}
+.phone .kids .row{padding-inline-start:30px}
+.phone .chain .row::before{inset-inline-start:18px}
+.phone .drawer{width:100%}
+.phone .sheet{top:auto;bottom:0;left:0;right:0;width:100%;transform:translateY(30px);border-radius:18px 18px 0 0;max-height:88%}
+.phone .sheet.on{transform:none}
+.phone .lh h1{font-size:14px}
+
+@media (max-width:640px){
+  .frame{width:100%;height:calc(100vh - 92px);border-radius:0;border-width:0}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+<style>
+/* ── נקודות: לוחצים על הנקודה כדי לחבר ── */
+.pin{position:relative;z-index:2;display:grid;place-items:center;width:30px;height:30px;margin:-10px;border-radius:50%;flex:none}
+.pin:hover .mk{transform:scale(1.35)}
+.mk{transition:transform .15s}
+.mk.ring{width:16px;height:16px;border:2px solid var(--tx);background:var(--card)}
+.mk.ring.mine{border-color:var(--br)} .mk.ring.done{border-color:var(--ok);background:var(--card)} .mk.ring.done::after{display:none}
+.mk.ring.stuck{border-color:var(--warn)} .mk.ring.wait,.mk.ring.later{border-color:var(--tx3)}
+.mk.run{border-color:var(--automation-fill);background:var(--automation-soft);animation:pulse 1s infinite}
+@keyframes pulse{50%{box-shadow:0 0 0 5px rgba(184,67,125,.22)}}
+.row.sel{background:#eef2f8}
+.row.sel .mk{background:var(--br);border-color:var(--br);box-shadow:0 0 0 5px rgba(63,95,143,.2)}
+.row.sel .mk::after{display:none}
+#view{position:relative}
+#selSvg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:3}
+#selSvg path{fill:none;stroke:var(--br);stroke-width:2.5;stroke-linecap:round;stroke-dasharray:4 6}
+.kids{position:relative}
+.kids::before{content:"";position:absolute;inset-inline-start:44px;top:28px;bottom:28px;width:2px;background:var(--tx);opacity:.14}
+.kids .kids .row{padding-inline-start:64px}
+.kids .kids::before{inset-inline-start:68px}
+.phone .kids::before{inset-inline-start:34px}
+.phone .kids .kids .row{padding-inline-start:50px}
+.phone .kids .kids::before{inset-inline-start:54px}
+/* ורוד = פעולה ש-PIVO מבצעת אוטומטית — אותם טוקנים וכללים כמו btn-automation במערכת (pivo-design.css) */
+:root{--automation-fill:#b8437d;--automation-hover:#9d3468;--on-automation-fill:#fff;--automation-text:#a63b72;--automation-soft:#fbe9f2;--automation-soft-bd:#e9b7cf}
+.go.auto,.btn.auto{background:var(--automation-fill);border:1px solid var(--automation-fill);color:var(--on-automation-fill);font-weight:500}
+.go.auto:hover,.btn.auto:hover{background:var(--automation-hover);border-color:var(--automation-hover)}
+.btn.auto:focus-visible,.go.auto:focus-visible{outline:2px solid var(--automation-fill)}
+.ax{color:var(--automation-text);font-size:12px;margin-inline-end:5px}
+.chip.run{color:var(--automation-text);background:var(--automation-soft)}
+.state.run{color:var(--automation-text)}
+.dots i.run{background:var(--automation-fill)}
+.selbar{position:absolute;left:50%;bottom:18px;transform:translate(-50%,24px);opacity:0;pointer-events:none;display:flex;align-items:center;gap:10px;background:#25282d;color:#fff;border-radius:14px;padding:7px 7px 7px 14px;box-shadow:0 10px 30px rgba(0,0,0,.2);transition:all .25s var(--ease);z-index:15;white-space:nowrap}
+.selbar.on{opacity:1;transform:translate(-50%,0);pointer-events:auto}
+.selbar .ok{background:#fff;color:var(--tx);font-weight:600;border-radius:9px;padding:7px 16px}
+.selbar .ok:disabled{opacity:.4;cursor:default}
+.selbar .no{color:#c9ccd1;padding:7px 10px}
+.toast{width:max-content}
+/* הלקוח סיים — ירוק, עד «סימון שהושלם» */
+.mk.review{background:var(--ok);border-color:var(--ok)}
+.mk.ring.review{border-color:var(--ok);background:var(--okbg)}
+.chip.ok{color:var(--ok);background:var(--okbg)}
+/* גרירה לשינוי סדר */
+.row.drop{box-shadow:inset 0 3px 0 var(--br)}
+.row.dragging{opacity:.45}
+/* פשוט: מילה בצד, «＋ חדש» בסוף הרשימה */
+.meta.warn{color:var(--warn)} .meta.runm{color:var(--automation-text)}
+.addrow{display:block;width:100%;text-align:start;padding:14px 16px 14px 16px;padding-inline-start:44px;color:var(--tx3);border-top:1px solid var(--bd)}
+.addrow:hover{color:var(--br)}
+.side .pv-l{position:relative;z-index:2}
+/* צפייה בדף של הלקוח */
+.pv{background:var(--page);border:1px solid var(--bd);border-radius:16px;padding:18px 16px}
+.pv h3{margin:0 0 2px;font-size:17px}
+.pv p{margin:0 0 12px;color:var(--tx2);font-size:13.5px}
+.pv-i{display:flex;justify-content:space-between;align-items:center;gap:10px;background:#fff;border:1px solid var(--bd);border-radius:12px;padding:11px 14px;margin-top:8px}
+.pv-i small{color:var(--tx3)}
+.pv-new{font-size:11px;font-weight:700;color:#fff;background:var(--br);border-radius:6px;padding:1px 7px}
+.t input{font:inherit;font-weight:600;border:0;border-bottom:2px solid var(--br);outline:0;background:transparent;padding:0;width:min(240px,100%);position:relative;z-index:2}
+</style>
+</head>
+<body>
+
+<div class="demo" role="toolbar" aria-label="הדמיה">
+  <span><b>הדמיה</b> · נתוני דמה</span>
+  <span class="seg" id="cliSeg" role="group" aria-label="לקוח">
+    <button data-c="noa" aria-pressed="true">נועה · לקוחה פעילה</button>
+    <button data-c="dana" aria-pressed="false">דנה · ההצעה אושרה עכשיו</button>
+  </span>
+  <span class="seg" id="devSeg" role="group" aria-label="מכשיר">
+    <button data-v="desk" aria-pressed="true">מחשב</button>
+    <button data-v="phone" aria-pressed="false">טלפון</button>
+  </span>
+  <button class="reset" id="reset">התחלה מחדש</button>
+</div>
+<div class="why" id="why"></div>
+
+<div class="frame" id="frame">
+  <div class="app-top">
+    <div class="logo"><i></i>PIVO</div>
+    <nav class="nav"><span class="on">לקוחות</span><span>משימות<em>7</em></span></nav>
+    <div class="sp"></div>
+    <div class="srch">חיפוש לקוח…</div>
+    <div class="me">ג</div>
+  </div>
+
+  <div class="scroll" id="scroll">
+    <div class="page">
+      <button class="back" data-toast="חזרה לרשימת הלקוחות">→ לקוחות</button>
+      <div class="who">
+        <div class="av" id="av"></div>
+        <div>
+          <div class="nm"><span id="nm"></span> <span class="badge" id="badge"></span></div>
+          <div class="idr" id="idr"></div>
+        </div>
+        <div class="sp"></div>
+        <button class="icon-btn" aria-label="פעולות נוספות" data-toast="ארכיון · מחיקת לקוח">⋯</button>
+      </div>
+      <div class="tabs" role="tablist" id="tabs">
+        <button role="tab" aria-selected="true" data-tab="req">בקשות<em id="tabBadge"></em></button>
+        <button role="tab" aria-selected="false" data-tab="tax">תיק מס</button>
+        <button role="tab" aria-selected="false" data-tab="docs">מסמכים</button>
+        <button role="tab" aria-selected="false" data-tab="pay">הסכם ותשלומים</button>
+        <button role="tab" aria-selected="false" data-tab="log">פעילות</button>
+      </div>
+      <div id="view"></div>
+    </div>
+  </div>
+
+  <div class="selbar" id="selbar"><span id="selN"></span><button class="ok" id="joinBtn">לחבר</button><button class="no" id="selNo">ביטול</button></div>
+  <div class="scrim" id="scrim"></div>
+  <aside class="drawer" id="drawer" role="dialog" aria-modal="true" aria-labelledby="drTitle" tabindex="-1">
+    <div class="dr-h"><h2 id="drTitle"></h2><button class="icon-btn" id="drClose" aria-label="סגירה">✕</button></div>
+    <div class="dr-b" id="drBody"></div>
+    <div class="dr-f" id="drFoot"></div>
+  </aside>
+  <div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="shTitle">
+    <div class="sh-h"><h2 id="shTitle"></h2><button class="icon-btn" id="shClose" aria-label="סגירה">✕</button></div>
+    <div class="sh-b" id="shBody"></div>
+    <div class="dr-f" id="shFoot"></div>
+  </div>
+  <div class="toast" id="toast" role="status" aria-live="polite"><span id="toastTx"></span><button id="toastUndo" hidden>ביטול</button></div>
+</div>
+
+<script>
+/* ═══ נתוני דמה ═══
+   st: mine · wait · run (המערכת עובדת) · later · done · draft
+   auto: 'read'/'self' רץ לבד כשמגיע תורו · 'write' עוצר אצלך עם כפתור בשם הפעולה (כתיבה ברשות)
+   review: הלקוח סיים — ירוק, נשאר ברשימה עד «סימון שהושלם»
+   סדר בקבוצה: נקודה מחכה לנקודה שלפניה. קבוצה בתוך קבוצה רצה במקביל, בקצב שלה. */
+const CLIENTS = {
+  noa:{name:'נועה לוי', first:'נועה', av:'נל', badge:'מיוצגת', idr:'<span>ת.ז. 000000018</span><bdi>050-000-0000</bdi><span>חיפה</span>'},
+  dana:{name:'דנה כהן', first:'דנה', av:'דכ', badge:'לקוחה חדשה', idr:'<span>ת.ז. 000000026</span><bdi>052-000-0000</bdi><span>רמת גן</span>'},
+};
+const SEEDS = {
+noa: [
+  {id:'pp', title:'פייפרלס', group:['pp1','pp2','pp3','pp4']},
+  {id:'pp1', parent:'pp', title:'הזמנה לפייפרלס', st:'done', doneAt:'24.10'},
+  {id:'pp2', parent:'pp', title:'פרטי העסק', st:'done', doneAt:'25.10'},
+  {id:'pp3', parent:'pp', title:'מדריך פייפרלס', st:'done', doneAt:'25.10'},
+  {id:'pp4', parent:'pp', title:'חיבור חשבון הבנק', st:'wait', who:'client', days:3, sub:'נועה צריכה לאשר בפייפרלס'},
+  {id:'docs', title:'מסמכים לפתיחת העסק', st:'review', doneAt:'אתמול', who:'client', sub:'נועה השלימה',
+    docs:[{n:'אישור ניהול חשבון',d:'28.10'},{n:'רישיון נהיגה',d:'25.10'},{n:'תעודת זהות',d:'25.10'}]},
+  {id:'open', title:'פתיחת תיק עוסק זעיר', st:'mine', who:'me', since:'מ-22.10', act:'לפתוח תיק', done:'התיק נפתח',
+    lede:'פותחים את התיק, ומסמנים כאן כשנפתח.'},
+  {id:'books', title:'אישורי ניכוי וניהול ספרים', auto:'write', st:'later', who:'me', when:'בהמשך', act:'הנפק אישורים', runText:'מנפיק בשע״ם…', done:'האישורים הונפקו'},
+  {id:'rep', title:'ייצוג', group:['rep1','rep2','rep3','rep4']},
+  {id:'rep1', parent:'rep', title:'מס הכנסה', st:'done', doneAt:'20.10'},
+  {id:'rep2', parent:'rep', title:'מע״מ', st:'done', doneAt:'20.10'},
+  {id:'rep3', parent:'rep', title:'ביטוח לאומי', subj:'נועה', st:'done', doneAt:'21.10'},
+  {id:'rep4', parent:'rep', title:'ביטוח לאומי', subj:'עידו', st:'wait', who:'client', days:5, sub:'עידו צריך לאשר באזור האישי'},
+  {id:'annual', title:'דוח שנתי 2025', st:'mine', who:'me', since:'מ-24.10', sub:'השאלון מלא · 6 מסמכים הגיעו',
+    act:'להכין דוח', run:'toast', runMsg:'נפתח מסך הדוח השנתי, התשובות והמסמכים כבר בפנים'},
+  {id:'wealth', title:'הצהרת הון 2025', st:'wait', who:'client', days:18, stuck:true, sub:'2 תזכורות, עדיין בלי תגובה'},
+  {id:'est', title:'הערכת מס 2026', st:'wait', who:'client', days:2, sub:'נועה ממלאת צפי חודשי'},
+  {id:'ni', title:'עדכון מקדמות ביטוח לאומי', st:'wait', who:'auth', auth:'ביטוח לאומי', days:6, sub:'הוגש 23.10'},
+  {id:'adv', title:'דוח מקדמות נובמבר', st:'later', who:'me', when:'1.11', sub:'נפתח לבד ב-1.11'},
+  {id:'q', title:'שאלון הדוח השנתי 2025', st:'done', doneAt:'24.10'},
+  {id:'quote', title:'הצעת מחיר 2026', st:'done', doneAt:'15.10'},
+  {id:'d1', title:'אישור ניכוי במקור 2026', kind:'send', st:'draft'},
+  {id:'d2', title:'טופס 106 לשנת 2025', subj:'עידו', kind:'ask', st:'draft'},
+],
+dana: [
+  {id:'mz', title:'פתיחת עוסק זעיר', group:['pz','mz1','mz2','mz3','mz4']},
+  {id:'pz', parent:'mz', title:'פייפרלס', group:['pz1','pz2']},
+  {id:'pz1', parent:'pz', title:'הזמנה לפייפרלס', st:'wait', who:'client', days:0, sub:'נשלח לבד כשההצעה אושרה'},
+  {id:'pz2', parent:'pz', title:'הקמת העסק בפייפרלס', auto:'self', st:'later', who:'me', when:'אחרי ההרשמה', runText:'מקים בפייפרלס…', done:'העסק הוקם בפייפרלס'},
+  {id:'mz1', parent:'mz', title:'מסמכים לפתיחת העסק', st:'wait', who:'client', days:0, sub:'נשלח לבד כשההצעה אושרה',
+    sim:[{n:'אישור ניהול חשבון',d:'היום'},{n:'רישיון נהיגה',d:'היום'},{n:'תעודת זהות',d:'היום'}]},
+  {id:'mz2', parent:'mz', title:'פתיחת תיק עוסק זעיר', st:'later', who:'me', when:'אחרי המסמכים', act:'לפתוח תיק', done:'התיק נפתח',
+    lede:'פותחים את התיק, ומסמנים כאן כשנפתח.'},
+  {id:'mz3', parent:'mz', title:'קריאת התיק משע״ם', auto:'read', st:'later', who:'me', when:'אחרי פתיחת התיק', runText:'קורא משע״ם…', done:'התיק נקרא משע״ם'},
+  {id:'mz4', parent:'mz', title:'אישורי ניכוי וניהול ספרים', auto:'write', st:'later', who:'me', when:'אחרי הקריאה', act:'הנפק אישורים', runText:'מנפיק בשע״ם…', done:'האישורים הונפקו'},
+  {id:'rp', title:'ייצוג', group:['rp1','rp2']},
+  {id:'rp1', parent:'rp', title:'חתימה על ייפוי כוח', st:'wait', who:'client', days:0, sub:'נשלח לבד כשההצעה אושרה'},
+  {id:'rp2', parent:'rp', title:'ייפוי כוח בשע״ם', auto:'write', st:'later', who:'me', when:'אחרי החתימה', act:'הזן ייפוי כוח בשע״ם', runText:'מזין בשע״ם…', done:'ייפוי הכוח הוזן בשע״ם'},
+  {id:'dq', title:'הצעת מחיר 2026', st:'done', doneAt:'היום'},
+]};
+const CATALOG = [
+  {n:'טופס 106', d:'משכר', kind:'ask', per:true},
+  {n:'אישור הפקדות לפנסיה', d:'לזיכוי ולניכוי', kind:'ask', per:true},
+  {n:'דוחות בנק לשנה', d:'כל החשבונות', kind:'ask'},
+  {n:'אישור ניכוי במקור', d:'מהתיק', kind:'send'},
+  {n:'הדוח השנתי לחתימה', d:'PDF מהדוח', kind:'send'},
+  {n:'פגישה', d:'שיחה ב-Meet', kind:'do', act:'לקבוע', done:'נקבעה'},
+  {n:'קריאת התיק משע״ם', d:'רץ לבד', kind:'auto', auto:'read', runText:'קורא משע״ם…', done:'התיק נקרא משע״ם'},
+  {n:'קריאת התיק בביטוח לאומי', d:'רץ לבד', kind:'auto', auto:'read', runText:'קורא מביטוח לאומי…', done:'התיק נקרא מביטוח לאומי'},
+  {n:'אישורי ניכוי וניהול ספרים', d:'הנפקה בשע״ם · בלחיצה שלך', kind:'auto', auto:'write', act:'הנפק אישורים', runText:'מנפיק בשע״ם…', done:'האישורים הונפקו'},
+];
+const BUILTIN_FLOWS = [
+  {n:'העברה מרו״ח קודם', steps:[{t:'פרטי רו״ח קודם',who:'client'},{t:'מכתב העברת טיפול',who:'me',act:'לשלוח מכתב',done:'נשלח'},{t:'קבלת החומרים',who:'client'}]},
+  {n:'הצהרת הון', steps:[{t:'קריאת הכנסות משע״ם',who:'me',auto:'read',runText:'קורא משע״ם…',done:'ההכנסות נקראו'},{t:'שאלון ההון',who:'client'},{t:'בדיקת הפער',who:'me',act:'לבדוק',done:'נבדק'}]},
+];
+const WHY = {
+  noa:'לחיצה על נקודות ← «לחבר». גרירת שורה ← סדר חדש.',
+  dana:'ההצעה אושרה והכול יצא לבד. נסו: לפתוח את «מסמכים…» ← «הדמיה: דנה השלימה», ולהמשיך בשרשרת.',
+};
+const BUILTIN_IDS = ['pp','rep','rp','pz'];
+
+let items, S = {c:'noa', dev:'desk'}, flows = [], uid = 0;
+const $ = s => document.querySelector(s);
+const byId = id => items.find(i => i.id === id);
+const C = () => CLIENTS[S.c];
+function load(c){
+  S = {c, dev:S.dev, tab:'req', filter:'all', exp:{}, showDone:false, flash:null, sel:[], selParent:null, naming:null};
+  items = JSON.parse(JSON.stringify(SEEDS[c]));
+  if (c === 'dana') S.exp = {mz:true};
+  closeAll(); $('#toast').classList.remove('on'); render(); $('#scroll').scrollTop = 0;
+}
+function reset(){ flows = []; load(S.c); }
+
+/* ═══ מצב ═══ */
+// review = הלקוח סיים: ירוק, נשאר ברשימה עד «סימון שהושלם». השלב הבא לא מחכה לסימון.
+const ORDER = ['mine','review','draft','run','wait','later'];
+const finished = k => k.st === 'done' || k.st === 'review';
+function kidsOf(g){ return g.group.map(byId); }
+function leafs(g){ return kidsOf(g).flatMap(k => k.group ? leafs(k) : [k]); }
+function activeKid(g){ const L = leafs(g); for (const s of ORDER) { const f = L.find(k => k.st === s && (s !== 'wait' || k.stuck)) || L.find(k => k.st === s); if (f) return f; } return null; }
+function status(it){ if (!it.group) return it.st; const a = activeKid(it); return a ? (a.st === 'draft' ? 'mine' : a.st) : 'done'; }
+const isOn = it => ['mine','review'].includes(status(it));
+const isStuck = it => it.group ? !!(activeKid(it) || {}).stuck : !!it.stuck;
+const drafts = () => items.filter(i => i.st === 'draft');
+const tops = () => items.filter(i => !i.parent && i.st !== 'draft');
+function whoLabel(it){
+  const a = it.group ? activeKid(it) : it;
+  if (!a) return '';
+  if (a.st === 'mine') return 'עליך';
+  if (a.st === 'review') return 'הושלם · ' + a.doneAt;
+  if (a.st === 'draft') return 'מוכן לשליחה';
+  if (a.st === 'run') return a.runText || 'רץ';
+  if (a.st === 'wait') return a.who === 'auth' ? 'אצל ' + a.auth : 'אצל ' + (a.subj || C().first);
+  if (a.st === 'later') return a.when;
+  return a.doneAt;
+}
+function metaText(it){
+  const a = it.group ? (activeKid(it) || it) : it;
+  if (a.st === 'mine') return a.since || '';
+  if (a.st === 'review') return 'הושלם · ' + a.doneAt;
+  if (a.st === 'run') return a.runText || 'רץ';
+  if (a.st === 'wait') return whoLabel(it) + ' · ' + (a.days === 0 ? 'היום' : a.days + ' ימים');
+  if (a.st === 'later') return a.when;
+  if (a.st === 'done') return a.doneAt;
+  return '';
+}
+function urgency(it){
+  const s = status(it), a = it.group ? activeKid(it) : it;
+  if (s === 'mine') return 0;
+  if (isStuck(it)) return 1;
+  if (s === 'run') return 1.5;
+  if (s === 'wait') return 2 + (100 - (a.days || 0)) / 1000;
+  if (s === 'later') return 3;
+  return 4;
+}
+function around(it){
+  const g = it.parent && byId(it.parent); if (!g) return {};
+  const seq = g.group.filter(k => !byId(k).group), i = seq.indexOf(it.id);
+  return {g, prev: byId(seq[i-1]), next: byId(seq[i+1])};
+}
+
+/* ═══ שורות ═══ */
+function mk(cls){ return `<span class="mk ${cls}" aria-hidden="true"></span>`; }
+function pin(it, cls){ return `<button class="pin" data-pin="${it.id}" aria-pressed="${S.sel.includes(it.id)}" aria-label="סימון ${it.title}">${mk(cls)}</button>`; }
+function subj(it){ return it.subj ? `<span class="subj"> · ${it.subj}</span>` : ''; }
+function ax(it){ return ''; }   // בלי ברק — הכפתור הוורוד והטקסט הוורוד בזמן ריצה כבר אומרים «אוטומציה»
+function rowHTML(it, o = {}){
+  if (it.group) return groupHTML(it, o);
+  const s = it.st, cls = s === 'wait' && it.stuck ? 'stuck' : s;
+  const sub = '';
+  const side = s === 'review' ? '' : sideHTML(it);   // הכפתור «סימון שהושלם» כבר אומר את זה
+  const act = s === 'mine' && it.act ? `<button class="go ${it.auto?'auto':''}" data-act="${it.id}">${it.act}</button>`
+    : s === 'review' ? `<button class="go" data-fn="ack" data-id="${it.id}">סימון שהושלם</button>`
+    : s === 'wait' && it.stuck ? `<button class="go quiet" data-fn="remind" data-id="${it.id}">תזכורת</button>` : '';
+  return `<div class="row ${s==='done'?'is-done':''} ${S.flash===it.id?'flash':''} ${S.sel.includes(it.id)?'sel':''}" data-row="${it.id}" data-par="${it.parent||'root'}">
+    <button class="hit" data-open="${it.id}" aria-label="${it.title}${it.subj?' · '+it.subj:''}"></button>
+    ${pin(it, cls)}
+    <div class="main"><div class="t">${ax(it)}${it.title}${subj(it)}</div>${sub?`<div class="s ${it.stuck?'warn':''}">${sub}</div>`:''}<div class="mm">${side}</div></div>
+    <div class="side">${side}${act}</div>
+  </div>`;
+}
+/* מילה אחת בצד, בלי תגיות. כשיש כפתור — הכפתור אומר הכול. */
+function sideHTML(it){
+  const s = status(it), a = it.group ? activeKid(it) : it;
+  let t = '';
+  if (s === 'review') t = 'הושלם';
+  else if (s === 'run') t = a.runText || 'רץ';
+  else if (s === 'wait') t = whoLabel(it) + (a.stuck ? ' · ' + a.days + ' ימים' : '');
+  else if (s === 'later') t = a.when;
+  else if (s === 'done' && !it.group) t = a.doneAt;
+  return t ? `<span class="meta ${isStuck(it) ? 'warn' : s === 'run' ? 'runm' : ''}">${t}</span>` : '';
+}
+function groupHTML(it, o){
+  const L = leafs(it), s = status(it), a = activeKid(it);
+  const doneN = L.filter(finished).length;
+  const dots = L.map(k => `<i class="${finished(k)?'on':k.st==='run'?'run':k.st==='mine'?'cur':''}"></i>`).join('');
+  const allIn = L.every(finished) && L.some(k => k.st === 'review');
+  const sub = !allIn && a && s !== 'done' ? `${a.title}${a.subj?' · '+a.subj:''}` : '';
+  const act = allIn ? `<button class="go" data-fn="ack" data-id="${it.id}">סימון שהושלם</button>`
+    : a && a.st === 'mine' && a.act ? `<button class="go ${a.auto?'auto':''}" data-act="${a.id}">${a.act}</button>` : '';
+  const side = act ? '' : sideHTML(it);
+  const open = !!S.exp[it.id];
+  const title = S.naming === it.id ? `<input id="gName" placeholder="שם לקבוצה" aria-label="שם לקבוצה">` : it.title;
+  return `<div class="grp ${open?'open':''}">
+    <div class="row ${s==='done'?'is-done':''} ${S.flash===it.id?'flash':''} ${S.sel.includes(it.id)?'sel':''}" data-row="${it.id}" data-par="${it.parent||'root'}">
+      <button class="hit" data-exp="${it.id}" aria-expanded="${open}" aria-label="${it.title}, ${doneN} מתוך ${L.length}"></button>
+      ${pin(it, 'ring ' + (allIn ? 'review' : s==='wait'&&isStuck(it)?'stuck':s))}
+      <div class="main"><div class="t">${title} <span class="subj">${doneN}/${L.length}</span></div>
+        ${sub?`<div class="s">${sub}</div>`:''}<div class="mm">${side}</div></div>
+      <div class="side">${side}${act}<span class="chev" aria-hidden="true">▾</span></div>
+    </div>
+    <div class="kids">${kidsOf(it).map(k => rowHTML(k, {kid:true})).join('')}</div>
+  </div>`;
+}
+/* «לשלוח» שולח ללקוח את הדף שלו — מייל אחד עם הקישור. «צפייה» מראה את הדף לפני. */
+function bundleHTML(){
+  const d = drafts(); if (!d.length || S.sel.length) return '';
+  return `<div class="row bundle ${S.flash==='bundle'?'flash':''}" data-row="bundle">
+    <button class="hit" data-fn2="preview" aria-label="צפייה בדף של ${C().first}"></button>
+    ${mk('draft')}
+    <div class="main"><div class="t">הדף של ${C().first}</div><div class="s">${d.length === 1 ? 'דבר אחד חדש' : d.length + ' חדשים'}</div></div>
+    <div class="side"><button class="lnk pv-l" data-fn2="preview">צפייה</button><button class="go" data-fn2="send">לשלוח</button></div>
+  </div>`;
+}
+
+/* ═══ הרשימה (גרסה 2) ═══ */
+function viewB(){
+  // רשימה אחת, בסדר שקבעת בגרירה — אותו סדר בדף של הלקוח. מה שעליך מסומן בכפתור ובתג הלשונית.
+  const rows = tops().filter(i => status(i)!=='done').map(i => rowHTML(i));
+  const b = bundleHTML(); if (b) rows.unshift(b);
+  const done = tops().filter(i => status(i)==='done');
+  const showDone = S.showDone || S.sel.length;
+  return `<div class="list" style="margin-top:18px">${rows.join('')}<button class="addrow" id="addBtn">＋ חדש</button></div>`
+    + (done.length ? `<button class="more" id="moreBtn" aria-expanded="${!!showDone}">${showDone?'הסתרת ההושלמו':'הושלמו '+done.length}</button>
+      <div class="done-list ${showDone?'on':''}"><div class="list">${done.map(i => rowHTML(i)).join('')}</div></div>` : '')
+    + `<svg id="selSvg"><path id="selPath" d=""/></svg>`;
+}
+function head(){ return `<div class="lh"><span></span><button class="add" id="addBtn"><b>＋</b> חדש</button></div>`; }
+
+function render(){
+  $('#frame').classList.toggle('phone', S.dev==='phone');
+  document.querySelectorAll('#cliSeg button').forEach(b => b.setAttribute('aria-pressed', b.dataset.c===S.c));
+  document.querySelectorAll('#devSeg button').forEach(b => b.setAttribute('aria-pressed', b.dataset.v===S.dev));
+  document.querySelectorAll('#tabs button').forEach(b => b.setAttribute('aria-selected', b.dataset.tab===S.tab));
+  $('#why').textContent = WHY[S.c];
+  $('#av').textContent = C().av; $('#nm').textContent = C().name; $('#badge').textContent = C().badge; $('#idr').innerHTML = C().idr;
+  const n = tops().filter(isOn).length + (drafts().length?1:0);
+  $('#tabBadge').textContent = n; $('#tabBadge').hidden = !n;
+  $('#selbar').classList.toggle('on', S.sel.length > 0);
+  $('#selN').textContent = S.sel.length < 2 ? 'עוד נקודה אחת לפחות' : `${S.sel.length} נקודות`;
+  $('#joinBtn').disabled = S.sel.length < 2;
+  if (S.tab !== 'req') { $('#view').innerHTML = `<div class="ph">ההדמיה מראה רק את «בקשות».</div>`; return; }
+  $('#view').innerHTML = viewB();
+  drawSel();
+  if (S.naming) {
+    const i = $('#gName'); i.focus();
+    const done = () => { if (!S.naming) return; const g = byId(S.naming); S.naming = null; g.title = i.value.trim() || 'קבוצה'; saveFlow(g); S.flash = g.id; render();
+      toast(`«${g.title}» נשמרה כמסלול. אפשר לבחור אותה ב«＋ חדש» ובהצעת המחיר`, true); };
+    i.onkeydown = e => { if (e.key === 'Enter') done(); };
+    i.onblur = done;
+  }
+  if (S.flash) { const f = S.flash; setTimeout(() => { if (S.flash===f) S.flash = null; }, 2300); }
+}
+/* הקו שמחבר את הנקודות שסומנו, לפי סדר הסימון */
+function drawSel(){
+  const p = $('#selPath'); if (!p) return;
+  if (S.sel.length < 2) { p.setAttribute('d', ''); return; }
+  const v = $('#view').getBoundingClientRect();
+  const pts = S.sel.map(id => document.querySelector(`[data-pin="${id}"]`)).filter(Boolean).map(el => { const r = el.getBoundingClientRect(); return [r.left + r.width/2 - v.left, r.top + r.height/2 - v.top]; });
+  // קשת בשוליים — כדי שהקו לא יעבור דרך נקודות שלא סומנו
+  p.setAttribute('d', pts.map((q, i) => i ? `C ${pts[i-1][0]+26} ${pts[i-1][1]}, ${q[0]+26} ${q[1]}, ${q[0]} ${q[1]}` : `M ${q[0]} ${q[1]}`).join(' '));
+}
+
+/* ═══ חיבור נקודות ═══ */
+function pinTap(id){
+  const it = byId(id), par = it.parent || 'root';
+  if (S.selParent && S.selParent !== par) S.sel = [];     // מחברים נקודות מאותה רמה
+  S.selParent = par;
+  const i = S.sel.indexOf(id); i >= 0 ? S.sel.splice(i, 1) : S.sel.push(id);
+  if (!S.sel.length) S.selParent = null;
+  render();
+}
+function join(){
+  snapshot();
+  // מה שכבר הושלם קודם; השאר לפי סדר הסימון
+  const fin = x => ['done','review'].includes(status(byId(x)));
+  const ids = S.sel.filter(fin).concat(S.sel.filter(x => !fin(x)));
+  const par = S.selParent === 'root' ? null : byId(S.selParent);
+  const g = {id:'g' + (++uid), title:'', group:ids};
+  if (par) { g.parent = par.id; const at = Math.min(...ids.map(x => par.group.indexOf(x))); par.group = par.group.filter(x => !ids.includes(x)); par.group.splice(at, 0, g.id); }
+  ids.forEach(x => byId(x).parent = g.id);
+  items.splice(items.indexOf(byId(ids[0])), 0, g);
+  advance(g);
+  S.sel = []; S.selParent = null; S.naming = g.id; S.exp[g.id] = true; S.flash = g.id; render();
+}
+/* מה שעוד לא התחיל ותורו הגיע — נפתח. מה שכבר רץ — לא נעצר. */
+function advance(g){
+  let prevDone = true;
+  kidsOf(g).forEach(k => {
+    if (k.group) return;                               // קבוצה פנימית רצה בקצב שלה
+    if (k.st === 'later' && prevDone && k.when !== '1.11') wake(k);
+    prevDone = finished(k);                            // מה שהלקוח השלים פותח את הבא, גם לפני הסימון שלך
+  });
+}
+function saveFlow(g){
+  flows = flows.filter(f => f.n !== g.title);
+  flows.unshift({n:g.title, mine:true, steps:leafs(g).map(k => ({t:k.title, who:k.who || 'client', act:k.act, done:k.done, auto:k.auto, runText:k.runText}))});
+}
+
+/* ═══ מגירה ═══ */
+function stateLine(it){
+  const s = it.st, cls = s==='wait'&&it.stuck ? 'stuck' : s;
+  const txt = s==='mine' ? 'עליך' + (it.since ? ' · ' + it.since : '') : s==='run' ? (it.runText || 'רץ')
+    : s==='wait' ? metaText(it) : s==='later' ? 'ייפתח ' + (/^\d/.test(it.when) ? 'ב-' + it.when : it.when)
+    : s==='done' || s==='review' ? 'הושלם · ' + it.doneAt : 'מוכן לשליחה';
+  return `<div class="state ${cls==='review'?'done':cls}">${mk(cls)}${txt}</div>`;
+}
+let lastFocus = null;
+function openDrawer(id){
+  const it = byId(id); if (!it) return;
+  if (!$('#drawer').contains(document.activeElement)) lastFocus = document.activeElement;
+  $('#drTitle').innerHTML = ax(it) + it.title + subj(it);
+  let b = stateLine(it);
+  if (it.sub && it.st !== 'done') b += `<p class="lede ${it.stuck?'warn':''}">${it.sub}</p>`;
+  if (it.lede && it.st === 'mine') b += `<p class="lede">${it.lede}</p>`;
+  if (it.auto && it.st !== 'done') b += `<p class="lede">${it.auto === 'write' ? 'כותב ברשות, ולכן מחכה ללחיצה שלך. משם הכול לבד.' : 'רץ לבד כשמגיע תורו.'}</p>`;
+  if (it.docs) b += `<div class="blk"><h4>מה הגיע</h4><div class="docs">${it.docs.map(d => `<button class="doc" data-toast="נפתח המסמך: ${d.n}"><i></i><span><b>${d.n}</b><small>הגיע ${d.d} · נשמר במסמכים</small></span></button>`).join('')}</div></div>`;
+  const {g, prev, next: nxt} = around(it);
+  if (g && (prev || nxt)) b += `<div class="blk"><h4>${g.title}</h4><div class="path">
+      ${prev ? `<button data-jump="${prev.id}"><span class="lbl">לפני</span>${mk(prev.st)}<span>${prev.title}</span></button>` : ''}
+      ${nxt ? `<button data-jump="${nxt.id}"><span class="lbl">הבא</span>${mk(nxt.st)}<span>${ax(nxt)}${nxt.title}${nxt.st==='mine'?' — עליך':''}</span></button>` : ''}
+    </div></div>`;
+  if (it.st === 'wait' && it.who === 'client') b += `<div class="blk"><button class="lnk" data-toast="נפתח הדף של ${C().first}, כפי שהיא רואה אותו">מה ${it.subj||C().first} רואה ←</button></div>`;
+  $('#drBody').innerHTML = b;
+  let f = '';
+  if (it.st === 'mine') f += it.run === 'toast' ? `<button class="btn" data-toast="${it.runMsg}">${it.act}</button>`
+    : it.auto === 'write' ? `<button class="btn auto" data-fn="fire" data-id="${id}">${it.act}</button>`
+    : `<button class="btn" data-fn="complete" data-id="${id}">${it.done || 'סימון שהושלם'}</button>`;
+  if (it.st === 'wait' && it.who === 'client') f += S.c === 'dana'
+    ? `<button class="btn2" data-fn="clientDone" data-id="${id}" style="border-style:dashed">הדמיה: ${C().first} השלימה</button>`
+    : `<button class="${it.stuck?'btn':'btn2'}" data-fn="remind" data-id="${id}">שליחת תזכורת</button>`;
+  if (it.st === 'review') f += `<button class="btn" data-fn="ack" data-id="${id}">סימון שהושלם</button>`;
+  if (finished(it) && nxt && nxt.st === 'mine') f += `<button class="${it.st==='review'?'btn2':'btn'}" data-jump="${nxt.id}">להמשיך: ${nxt.title}</button>`;
+  $('#drFoot').innerHTML = f; $('#drFoot').hidden = !f;
+  $('#scrim').classList.add('on'); $('#drawer').classList.add('on'); $('#drawer').focus({preventScroll:true});
+}
+function closeDrawer(){
+  const was = $('#drawer').classList.contains('on');
+  $('#drawer').classList.remove('on'); if (!$('#sheet').classList.contains('on')) $('#scrim').classList.remove('on');
+  if (was && lastFocus && document.body.contains(lastFocus)) lastFocus.focus({preventScroll:true});
+}
+function closeSheet(){ $('#sheet').classList.remove('on'); $('#shFoot').hidden = false; if (!$('#drawer').classList.contains('on')) $('#scrim').classList.remove('on'); }
+function closeAll(){ closeDrawer(); closeSheet(); }
+function showSheet(title, body, foot){
+  $('#shTitle').textContent = title; $('#shBody').innerHTML = body; $('#shFoot').innerHTML = foot || ''; $('#shFoot').hidden = !foot;
+  $('#scrim').classList.add('on'); $('#sheet').classList.add('on');
+}
+
+/* ═══ שרשרת: נגמר ← הבא נפתח; אוטומציה של קריאה רצה לבד ═══ */
+let undoSnap = null;
+function snapshot(){ undoSnap = JSON.stringify({items, flows}); }
+function wake(k){
+  if (k.auto === 'read' || k.auto === 'self') { run(k); return; }
+  if (k.who === 'me') { k.st = 'mine'; k.sub = ''; }
+  else { k.st = 'wait'; k.days = 0; k.sub = 'נשלח לבד · היום'; }
+}
+function run(k){
+  k.st = 'run'; k.sub = '';
+  setTimeout(() => { if (k.st !== 'run') return; finish(k, k.done || 'הסתיים', true); }, 1800);
+}
+function finish(it, msg, quiet, st){
+  it.st = st || 'done'; it.doneAt = 'היום'; it.stuck = false;
+  it.sub = st === 'review' ? C().first + ' השלימה' : '';
+  const g = it.parent && byId(it.parent);
+  if (g) advance(g);
+  const seq = g ? g.group.map(byId).filter(k => !k.group) : [], nx = seq.slice(seq.indexOf(it) + 1).find(k => !finished(k));
+  S.flash = g ? topOf(g).id : it.id; if (g) S.exp[g.id] = true;
+  if (!quiet) closeDrawer();
+  render();
+  const what = nx && nx.st !== 'later' && nx.st !== 'done' ? `. הבא: ${nx.title}${nx.st==='mine'?' — עליך':nx.st==='run'?' — '+(nx.runText||'רץ'):' — יצא ל'+C().first}` : '';
+  toast(msg + what, !quiet);
+}
+function topOf(g){ let x = g; while (x.parent) x = byId(x.parent); return x; }
+const FN = {
+  complete(id){ snapshot(); const it = byId(id); finish(it, it.done || 'הושלם'); },
+  fire(id){ const it = byId(id); run(it); closeDrawer(); S.flash = it.parent ? topOf(byId(it.parent)).id : id; render(); toast(it.runText || 'רץ'); },
+  clientDone(id){ snapshot(); const it = byId(id); if (it.sim) it.docs = it.sim; finish(it, C().first + ' השלימה', false, 'review'); },
+  ack(id){
+    snapshot(); const it = byId(id);
+    (it.group ? leafs(it) : [it]).forEach(k => { if (k.st === 'review') { k.st = 'done'; k.sub = ''; } });
+    closeDrawer(); render(); toast('סומן שהושלם · נמצא ב«הושלמו»', true);
+  },
+  remind(id){ const it = byId(id); it.sub = 'תזכורת נשלחה היום'; it.stuck = false; S.flash = it.parent || id; closeDrawer(); render(); toast('התזכורת נשלחה ונרשמה בפעילות'); },
+};
+function doAct(id){
+  if (id === 'bundle') return openTray();
+  const it = byId(id);
+  if (it.run === 'toast') return toast(it.runMsg);
+  openDrawer(id);
+}
+function openTray(){
+  const d = drafts(); if (!d.length) return;
+  showSheet('שליחה ל' + C().first,
+    `<div class="rcp"><div class="rcp-h"><b>${C().name}</b><small>${S.c}@example.com</small></div>
+    <ul>${d.map(x => `<li>${mk('draft')}<span>${x.kind==='send'?'שולחים: ':'מבקשים: '}${x.title}${x.subj?' <span style="color:var(--tx2)">· '+x.subj+'</span>':''}</span></li>`).join('')}</ul></div>
+    <p class="note">מייל אחד, והכול מופיע בדף האישי שלה.</p>`,
+    `<button class="btn" data-fn2="send">שליחה</button><span class="sp"></span><button class="btn2" id="shCancel">לא עכשיו</button>`);
+}
+function send(){
+  snapshot();
+  drafts().forEach(x => { x.st = 'wait'; x.who = 'client'; x.days = 0; x.sub = ''; });
+  closeSheet(); render(); toast(`נשלח ל${C().first} מייל עם הקישור לדף שלה`, true);
+}
+/* הדף כפי שהלקוח רואה אותו: מה שחדש, ומה שעוד מחכה לו */
+function preview(){
+  const onPage = items.filter(i => !i.group && (i.st === 'draft' || (i.st === 'wait' && i.who === 'client')));
+  const card = i => `<div class="pv-i"><span>${i.title}${i.subj ? ' · ' + i.subj : ''}</span>${i.st === 'draft' ? '<span class="pv-new">חדש</span>' : ''}</div>`;
+  const got = onPage.filter(i => i.kind === 'send'), need = onPage.filter(i => i.kind !== 'send');
+  showSheet('הדף של ' + C().first,
+    `<div class="pv"><h3>שלום ${C().first}</h3>
+      ${need.length ? `<p>מה שצריך ממך</p>${need.map(card).join('')}` : ''}
+      ${got.length ? `<p style="margin-top:16px">מה שקיבלת</p>${got.map(card).join('')}` : ''}</div>`,
+    `<button class="btn" data-fn2="send">לשלוח</button><span class="sp"></span><button class="btn2" id="shCancel">סגירה</button>`);
+}
+function openCatalog(){
+  const allFlows = () => flows.concat(BUILTIN_FLOWS.filter(b => !flows.some(f => f.n === b.n)));
+  const row = c => `<div class="cat"><div class="main"><b>${c.n}</b><small>${c.d}</small></div>
+    ${c.per ? `<div class="pp"><button data-pick="${c.n}" data-p="">${C().first}</button><button data-pick="${c.n}" data-p="עידו">עידו</button></div>`
+            : `<div class="pp"><button data-pick="${c.n}" data-p="">הוספה</button></div>`}</div>`;
+  const frow = f => `<div class="cat"><div class="main"><b>${f.n}</b><small>${f.steps.map(s => s.t).join(' ← ')}</small></div><div class="pp"><button data-flow="${f.n}">לפתוח</button></div></div>`;
+  const draw = q => {
+    const sec = (h, list) => list.length ? `<div class="cat-h">${h}</div>${list.join('')}` : '';
+    const has = c => !q || c.n.includes(q) || (c.d || '').includes(q);
+    $('#catList').innerHTML = sec('מסלולים', allFlows().filter(has).map(frow))
+      + sec('לבקש מ' + C().first, CATALOG.filter(c => c.kind === 'ask' && has(c)).map(row))
+      + sec('לשלוח ל' + C().first, CATALOG.filter(c => c.kind === 'send' && has(c)).map(row))
+      + sec('לעשות במשרד', CATALOG.filter(c => c.kind === 'do' && has(c)).map(row))
+      + sec('אוטומציות', CATALOG.filter(c => c.kind === 'auto' && has(c)).map(row))
+      || '<div class="empty">לא נמצא</div>';
+  };
+  showSheet('חדש', `<input class="q" id="catQ" placeholder="מה צריך?" autocomplete="off"><div id="catList"></div>`);
+  draw(''); $('#catQ').addEventListener('input', e => draw(e.target.value.trim()));
+  setTimeout(() => $('#catQ').focus(), 50);
+}
+function pick(n, p){
+  const c = CATALOG.find(x => x.n === n);
+  const it = {id:'n' + (++uid), title:n, subj:p || undefined, kind:c.kind, auto:c.auto, act:c.act, done:c.done, runText:c.runText};
+  items.push(it); closeSheet();
+  if (c.auto === 'read') { it.who = 'me'; run(it); toast(it.runText); }
+  else if (c.kind === 'do' || c.auto === 'write') { Object.assign(it, {st:'mine', who:'me'}); toast('נוסף. עליך'); }
+  else { it.st = 'draft'; toast('נוסף. מוכן לשליחה, שום דבר עוד לא יצא'); }
+  S.flash = it.st === 'draft' ? 'bundle' : it.id; render();
+}
+function openFlow(name){
+  snapshot();
+  const f = flows.concat(BUILTIN_FLOWS).find(x => x.n === name);
+  const g = {id:'g' + (++uid), title:f.n, group:[]};
+  f.steps.forEach(s => { const k = {id:'k' + (++uid), parent:g.id, title:s.t, who:s.who, act:s.act || (s.who==='me' && !s.auto ? 'להתחיל' : undefined), done:s.done, auto:s.auto, runText:s.runText, st:'later', when:'בתור'}; g.group.push(k.id); items.push(k); });
+  items.unshift(g); advance(g); closeSheet(); S.exp[g.id] = true; S.flash = g.id; render();
+  toast(`«${f.n}» נפתח. מה שללקוח יצא לבד`, true);
+}
+
+/* ═══ הודעה ═══ */
+let tm;
+function toast(msg, undo){
+  $('#toastTx').textContent = msg; $('#toastUndo').hidden = !undo;
+  $('#toast').classList.add('on'); clearTimeout(tm); tm = setTimeout(() => $('#toast').classList.remove('on'), undo ? 5500 : 3000);
+}
+$('#toastUndo').addEventListener('click', () => { if (undoSnap) { const o = JSON.parse(undoSnap); items = o.items; flows = o.flows; undoSnap = null; S.naming = null; closeAll(); render(); } $('#toast').classList.remove('on'); });
+
+/* ═══ אירועים ═══ */
+document.addEventListener('click', e => {
+  const t = e.target.closest('button'); if (!t) return;
+  const d = t.dataset;
+  if (d.c) { if (d.c !== S.c) load(d.c); return; }
+  if (d.v) { S.dev = d.v; render(); return; }
+  if (t.id === 'reset') { reset(); toast('ההדמיה התחילה מחדש'); return; }
+  if (d.tab) { S.tab = d.tab; closeAll(); render(); return; }
+  if (d.pin) { pinTap(d.pin); return; }
+  if (t.id === 'joinBtn') { if (S.sel.length > 1) join(); return; }
+  if (t.id === 'selNo') { S.sel = []; S.selParent = null; render(); return; }
+  if (d.act) { e.stopPropagation(); doAct(d.act); return; }
+  if (d.open) { openDrawer(d.open); return; }
+  if (d.exp) { if (S.naming !== d.exp) { S.exp[d.exp] = !S.exp[d.exp]; render(); } return; }
+  if (d.filter) { S.filter = d.filter; render(); return; }
+  if (d.jump) { openDrawer(d.jump); return; }
+  if (d.fn) { FN[d.fn](d.id); return; }
+  if (d.fn2 === 'send') { send(); return; }
+  if (d.fn2 === 'preview') { preview(); return; }
+  if (d.flow) { openFlow(d.flow); return; }
+  if (d.pick !== undefined) { pick(d.pick, d.p); return; }
+  if (t.id === 'addBtn') { openCatalog(); return; }
+  if (t.id === 'moreBtn') { S.showDone = !S.showDone; render(); return; }
+  if (t.id === 'drClose') { closeDrawer(); return; }
+  if (t.id === 'shClose' || t.id === 'shCancel') { closeSheet(); return; }
+  if (d.toast) { toast(d.toast); return; }
+});
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Escape' || e.target.tagName === 'INPUT') return;
+  if ($('#sheet').classList.contains('on')) closeSheet();
+  else if ($('#drawer').classList.contains('on')) closeDrawer();
+  else if (S.sel.length) { S.sel = []; S.selParent = null; render(); }
+});
+$('#scrim').addEventListener('click', closeAll);
+addEventListener('resize', drawSel);
+
+/* ═══ שינוי סדר: גוררים שורה למעלה או למטה, באותה רמה ═══ */
+let rd = null, eatClick = false;
+document.addEventListener('pointerdown', e => {
+  if (e.button > 0 || !e.target.classList.contains('hit')) return;
+  const row = e.target.closest('.row[data-par]'); if (!row) return;
+  rd = {row, id:row.dataset.row, par:row.dataset.par, y:e.clientY, on:false};
+});
+document.addEventListener('pointermove', e => {
+  if (!rd) return;
+  if (!rd.on) { if (Math.abs(e.clientY - rd.y) < 8) return; rd.on = true; rd.row.classList.add('dragging'); }
+  document.querySelectorAll('.row.drop').forEach(r => r.classList.remove('drop'));
+  const over = document.elementsFromPoint(e.clientX, e.clientY).map(x => x.closest && x.closest('.row[data-par]')).find(r => r && r !== rd.row && r.dataset.par === rd.par);
+  rd.over = over && over.dataset.row; if (over) over.classList.add('drop');
+});
+document.addEventListener('pointerup', () => {
+  if (!rd) return;
+  const d = rd; rd = null;
+  if (!d.on) return;
+  eatClick = true; d.row.classList.remove('dragging');
+  document.querySelectorAll('.row.drop').forEach(r => r.classList.remove('drop'));
+  if (!d.over) return;
+  snapshot();
+  if (d.par === 'root') { const it = byId(d.id); items.splice(items.indexOf(it), 1); items.splice(items.indexOf(byId(d.over)), 0, it); }
+  else { const g = byId(d.par); g.group.splice(g.group.indexOf(d.id), 1); g.group.splice(g.group.indexOf(d.over), 0, d.id); advance(g); }
+  S.flash = d.id; render();
+  toast(`הסדר עודכן — גם בדף של ${C().first}`, true);
+});
+document.addEventListener('click', e => { if (eatClick) { eatClick = false; e.stopPropagation(); e.preventDefault(); } }, true);
+
+load('noa');
+</script>
+</body>
+</html>

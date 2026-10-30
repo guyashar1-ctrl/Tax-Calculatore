@@ -88,6 +88,16 @@ export function isOnRequestsSurface(step: Pick<OnboardingStep, 'stepType' | 'sta
 }
 
 /**
+ * 310 · הושלם, והמשרד עוד לא סימן שראה — ירוק ברשימה, עם «סימון שהושלם».
+ * ‼ רק `null` מפורש: `undefined` הוא מסד בלי העמודה, ושם הכול נחשב נראה.
+ * ‼ הבקשה הבאה נפתחת בלי לחכות לסימון — זו עין של המשרד, לא שער.
+ */
+export function awaitingOfficeAck(step: Pick<OnboardingStep, 'stepType' | 'status' | 'officeAckAt'>): boolean {
+  return (step.status === 'completed' || step.status === 'verified')
+    && step.officeAckAt === null && isOnRequestsSurface(step);
+}
+
+/**
  * שלב שמוצג כשורה ברשימת הבקשות (ולא ב«עבודה פנימית»): כל מה שעל המשטח, חוץ
  * ממשימה פנימית — אבל משימת האישור האישי ו«לא נוצרה» הן כן שורות.
  * ‼ אותה הגדרה לתג, לשולחן, ל«מה עכשיו» ולרשימה עצמה.
@@ -328,7 +338,9 @@ export function withVirtualParts(sum: RowSummary, row: ClientFacingRow, ctx: Att
  * פנימית אינם נספרים — הם לא בקשות מלקוח, ואי אפשר לפתוח אותם מהתג.
  */
 export function countRequestsNeedingMe(steps: OnboardingStep[], ctx: AttentionContext = {}): number {
-  return requestRows(steps, ctx).filter(r => rowSummary(r, ctx).attn.kind === 'mine').length;
+  // ‼ 310: מה שהלקוח השלים ומחכה ל«סימון שהושלם» — גם הוא «לטיפולי», כדי שלא יתפספס.
+  return requestRows(steps, ctx).filter(r => rowSummary(r, ctx).attn.kind === 'mine').length
+    + steps.filter(awaitingOfficeAck).length;
 }
 
 /** האם יש בקשה במצב בעיה אמיתית (אדום) — לתג ולמסך המשימות. */

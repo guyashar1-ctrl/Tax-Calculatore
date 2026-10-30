@@ -369,6 +369,8 @@ export function stepFromDb(row: Record<string, any>): OnboardingStep {
   // ו-undefined פירושו «נתון ישן בלי עמודה» — כך טיוטות אמיתיות נראו כמפורסמות
   // (בלי «טיוטה» ובלי בקשה לפרסם). שומרים את ה-null.
   if ('published_at' in row && row.published_at === null) s.publishedAt = null;
+  // ‼ 310: אותו דבר ל«המשרד ראה» — null הוא «ירוק עד סימון», ואסור שיהפוך ל-undefined («אין עמודה»).
+  if ('office_ack_at' in row && row.office_ack_at === null) s.officeAckAt = null;
   if (!s.payload) s.payload = {};
   if (s.needsAttention === undefined) s.needsAttention = false;
   return s;
