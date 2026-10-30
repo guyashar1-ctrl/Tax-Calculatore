@@ -23,6 +23,7 @@ import { WealthFormView, WealthSummary, wealthHeadline } from './WealthView';
 import { printWealthSet } from './print';
 import '../annualReturn/workspace.css';
 import { useAutoAccept } from '../taxYear/useAutoAccept';
+import { questionnaireState, questionnaireText } from '../taxYear/questionnaireState';
 
 type ApplyCard = (proposals: ProposedFact[], sourceRef: string) => Promise<{ ok: boolean; client?: Client; error?: string }>;
 interface Props {
@@ -96,8 +97,8 @@ export default function WealthWorkspace({ client, step, year, data, busy, run, s
   const snap = wealthSnapshot(out, { year, clientName: firstName, spouseName: married ? spouseName : undefined, docs: docsDone });
   const changed = !!(signing && snapshotKey(signing.snapshot) !== snapshotKey(snap));
   const pendingNames = signing ? signing.signers.filter(g => !signing.signed[g.role]).map(g => g.name) : [];
-  const status0 = !sent ? 'השאלון עוד לא נשלח' : filling ? `${firstName} באמצע השאלון` : ready ? 'הכול מוכן'
-    : [waiting ? `ממתין ל-${waiting} מ${firstName}` : '', mine ? `${mine} אצלך` : ''].filter(Boolean).join(' · ') || 'הכול מוכן';
+  const status0 = questionnaireText(questionnaireState(asks), firstName) ?? (ready ? 'הכול מוכן'
+    : [waiting ? `ממתין ל-${waiting} מ${firstName}` : '', mine ? `${mine} אצלך` : ''].filter(Boolean).join(' · ') || 'הכול מוכן');
   const status = !signing ? status0 : changed ? 'ההצהרה השתנתה מאז החתימה' : signing.state === 'signed' ? (signing.signers.length > 1 ? 'שניהם חתמו' : 'נחתמה')
     : `נשלחה לחתימה · ממתין ל${pendingNames.join(' ול')}`;
   const send = () => void run(async () => {

@@ -22,7 +22,7 @@ import { computeReturn } from './engine';
 import { initialDraft } from './AnnualReturnPanel';
 import * as api from './api';
 import { DOC_TEMPLATES, entitiesFor, linesToSave, missingRequired, templateFor, type LineValues } from './docTemplates';
-import type { ReturnDraft, ReturnOutputs } from './types';
+import type { ReturnDraft, ReturnOutputs, ReturnVersion } from './types';
 import { balanceText, filledPct, isReady, materialsOf, neededAnnexes, type Material, type Who } from './workspace';
 import { slugOfForm } from './formPages';
 import { loadDocumentFile, isPdf, type LoadedFile } from './docFile';
@@ -33,8 +33,14 @@ import { supabase } from '../../lib/supabase';
 import type { FormSlug } from '../taxKnowledge/formMap/model';
 import './workspace.css';
 import { useAutoAccept } from '../taxYear/useAutoAccept';
+import { questionnaireState, questionnaireText } from '../taxYear/questionnaireState';
 import { niOfficeChecks } from '../taxYear/niRegistrations';
 import { FormView, Ring, Summary } from './ReturnView';
+import { DeclarationsEditor, IdentityEditor } from './ReturnEditors';
+import Depreciation1342Editor from './Depreciation1342Editor';
+import { carryForward, compute1342, isDone1342, type DepTable } from './depreciation1342';
+import { cardSnapshot } from '../taxFile/hub';
+import { sliceYear } from './facts';
 
 type Run = (fn: () => Promise<unknown>, done?: string) => Promise<boolean>;
 type ApplyCard = (items: ProposedFact[], sourceRef: string) => Promise<{ ok: boolean; error?: string; client?: Client }>;
@@ -59,6 +65,12 @@ interface Props {
 
 /** פריטים שהמספרים שלהם נכנסים מהקלדת מסמך (106, 867, קופות, רו״ה…) — כבר שורות ב«חומרים». */
 const TEMPLATE_ITEMS = new Set(Object.values(DOC_TEMPLATES).flat().flatMap(t => t.lines.map(l => l.itemKey)));
+/** «פרטים לטופס» — שם קצר לכל שורת טופס שעוד אין לה מקור. */
+const FORM_REST_NAME: Record<string, string> = {
+  F060: 'שם האב', F065: 'שם האב', F069: 'מיקוד', F238: 'חודש השחרור', F239: 'חודשי שירות', F240: 'קוד התואר',
+  F013: 'תאריך העלייה', F014: 'תאריך העלייה', F235: 'תאריך העלייה', F236: 'תאריך העלייה', F237: 'תאריך החזרה',
+  F048: 'ניהול ספרים', F049: 'ניהול ספרים', F051: 'ניהול ספרים', F053: 'ניהול ספרים',
+};
 const OYK_KEYS = new Set(['payments.advances', 'payments.withholding', 'payments.niPaid', 'carryForward.balances']);
 const ICON: Record<Material['state'], string> = {
   wait: '<circle cx="12" cy="12" r="8"/><path d="M12 8v4l2.5 1.5"/>',
@@ -77,12 +89,17 @@ export default function AnnualWorkspace({ client, step, year, data, busy, run, s
   // ── הטיוטה של הדוח (233) — כמו פאנל הדוח: הגרסה הפתוחה, או טיוטה ראשונה מהתיק ──
   const [draft, setDraft] = useState<ReturnDraft | null>(null);
   const [estimate, setEstimate] = useState<EstimateVersion | undefined>();
+  // ‼ 30.10.2026 · הגרסאות (לבסיס השמירה של דוח הפחת) והפחת של השנה הקודמת (נכסים שעוברים לבד)
+  const [versions, setVersions] = useState<ReturnVersion[]>([]);
+  const [priorDep, setPriorDep] = useState<ReturnDraft['depreciation']>();
   useEffect(() => {
     let alive = true;
     void (async () => {
-      const [vs, est] = await Promise.all([api.loadReturns(step.id).catch(() => []), api.loadApprovedEstimate(client.id, year).catch(() => undefined)]);
+      const [vs, est, prior] = await Promise.all([api.loadReturns(step.id).catch(() => []), api.loadApprovedEstimate(client.id, year).catch(() => undefined),
+        api.loadPriorDepreciation(client.id, year - 1).catch(() => undefined)]);
       if (!alive) return;
       const cur = vs.find(v => v.status === 'draft') ?? [...vs].reverse().find(v => v.status === 'approved');
+      setVersions(vs); setPriorDep(prior);
       setEstimate(est); setDraft(cur ? cur.draft : initialDraft(client, year, est));
     })();
     return () => { alive = false; };
@@ -114,7 +131,28 @@ export default function AnnualWorkspace({ client, step, year, data, busy, run, s
   // ── ‼ התשובות נכנסות לבד: אחרי שהלקוח סיים, פעם אחת לכל מצב — עדכון התיק (מה שאפשר עד הסוף) ואישור התשובות ──
   const plan = useAutoAccept({ client, facts: data.facts, stepId: step.id, filling, busy, run, applyCard });
 
-  const mats = useMemo(() => materialsOf({ client, year, stepId: step.id, asks: data.asks, evidence: data.evidence, facts: data.facts, statuses }), [client, year, step.id, data, statuses]);
+  // ‼ 30.10.2026 · «דוח פחת מהספרים» ו«טבלת הפחת של השנה הקודמת» (מסמכים להקלדה) ⇒ דוח הפחת עצמו (1342), שורה לכל עסק
+  const mats = useMemo(() => materialsOf({ client, year, stepId: step.id, asks: data.asks, evidence: data.evidence, facts: data.facts, statuses })
+    .filter(m => !/^office-business.(depreciation|priorDepreciation)|/.test(m.key)), [client, year, step.id, data, statuses]);
+  const depBiz = (client.businesses ?? []).filter(b => !b.isClosed && (draft?.persons ?? ['client']).includes(b.belongsToSpouse ? 'spouse' : 'client')
+    && draft?.micro[b.id]?.track !== 'micro');
+  const depOf = (id: string): { table?: DepTable; carried?: DepTable } => ({ table: draft?.depreciation?.[id], carried: carryForward(priorDep?.[id], year - 1) });
+  const depOpen = depBiz.filter(b => !isDone1342(depOf(b.id).table, year)).length;
+  const saveDep = async (bizId: string, t: DepTable) => {
+    if (!draft) return false;
+    const next: ReturnDraft = { ...draft, depreciation: { ...(draft.depreciation ?? {}), [bizId]: t } };
+    const o = computeReturn({ client, draft: next, facts: data.facts, evidence: data.evidence,
+      estimate: estimate?.outputs ? { version: estimate.version, cutoffMonth: estimate.draft.cutoffMonth, outputs: estimate.outputs } : undefined });
+    const inputFacts = [...sliceYear(data.facts, year).full.map(f => ({ id: f.id, value: f.value })), ...cardSnapshot(client)];
+    let ok = false;
+    await run(async () => {
+      const r = await api.saveReturn(step.id, next, o, inputFacts, api.baseOf(versions));
+      if (!r.ok) { setMsg(r.error === 'conflict' ? 'מישהו שמר את הדוח בינתיים — רעננו ונסו שוב' : r.error === 'request_closed' ? 'הבקשה סגורה — לא נשמר' : 'דוח הפחת לא נשמר'); return r; }
+      ok = true; setDraft(next); setVersions(await api.loadReturns(step.id).catch(() => versions)); setMsg(null);
+      return r;
+    }, 'דוח הפחת נשמר — שורה 17 בנספח 1320 עודכנה');
+    return ok;
+  };
   // «רק אתה יודע» — מקדמות, ניכוי במקור, ב״ל כעצמאי, הפסדים מועברים (אותם שדות כמו בסיכום הקודם)
   const businesses = (client.businesses ?? []).filter(b => !b.isClosed);
   const oyk = oykFields(client, businesses.map(b => (b.belongsToSpouse ? 'spouse' : 'client')));
@@ -129,19 +167,21 @@ export default function AnnualWorkspace({ client, step, year, data, busy, run, s
   //   מקדמות / ניכוי במקור / ב״ל כעצמאי / הפסדים — רק ב«רק אתה יודע» (ושם רק למי שזה נוגע לו); נושא אחד = שורה אחת גם לשני בני הזוג
   const officeRest = [...new Map(officeTodo.filter(s => s.item.kind !== 'document' && !TEMPLATE_ITEMS.has(s.item.key) && !OYK_KEYS.has(s.item.key))
     .map(s => [s.item.key, s])).values()];
-  const openExtras = (oyk.length && !oykDone ? 1 : 0) + notes.length + unlisted.length + niChecks.length + plan.needsDecision.length + (officeRest.length ? 1 : 0);
+  // ‼ 30.10.2026 · מה שהטופס עוד צריך ואין לו מקור (שם האב, ניהול ספרים, קוד לדוקטורט) — שורה אחת עם העורכים המובנים, בלי «פירוט»
+  const formRest = (out?.formCoverage.rows ?? []).filter(r => (r.fix === 'identity' || r.fix === 'declaration') && r.state === 'missing');
+  const openExtras = (oyk.length && !oykDone ? 1 : 0) + notes.length + unlisted.length + niChecks.length + plan.needsDecision.length + officeRest.length + (formRest.length ? 1 : 0) + depOpen;
   const ready = sent && !filling && isReady(mats) && openExtras === 0;
 
   const [entry, setEntry] = useState<Material | null>(null);
-  const [extra, setExtra] = useState<'oyk' | 'office' | null>(null);
+  const [extra, setExtra] = useState<string | null>(null);
   const [tab, setTab] = useState<'sum' | FormSlug>('sum');
   const [showSet, setShowSet] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
   const waiting = mats.filter(m => m.state === 'wait').length;
   const mine = mats.filter(m => m.state === 'here' || m.state === 'mine').length + openExtras;
-  const status0 = !sent ? 'השאלון עוד לא נשלח' : filling ? `${firstName} באמצע השאלון` : ready ? 'הכול מוכן'
-    : [waiting ? `ממתין ל-${waiting} מ${firstName}` : '', mine ? `${mine} אצלך` : ''].filter(Boolean).join(' · ') || 'הכול מוכן';
+  const status0 = questionnaireText(questionnaireState(asks), firstName) ?? (ready ? 'הכול מוכן'
+    : [waiting ? `ממתין ל-${waiting} מ${firstName}` : '', mine ? `${mine} אצלך` : ''].filter(Boolean).join(' · ') || 'הכול מוכן');
 
   // ── 297 · חתימת הלקוח על הסט: «שליחה לחתימה» = האישור של המשרד; «נחתם» — רק מהשרת ──
   const [signing, setSigning] = useState<Signing | null>(null);
@@ -227,6 +267,27 @@ export default function AnnualWorkspace({ client, step, year, data, busy, run, s
       {extra === 'oyk' && <div className="aw-inline"><OykInputs client={client} year={year} stepId={step.id} fields={oyk} facts={data.facts.filter(f => f.taxYear === year)} busy={busy} run={run} /></div>}
     </div>
   );
+  // ── 30.10.2026 · דוח הפחת (1342) — שורה לכל עסק; פתוח ב«אצלך», גמור — בקבוצה של בעל העסק ──
+  const depRow = (bizId: string, bizName?: string) => {
+    const { table, carried } = depOf(bizId);
+    const done = isDone1342(table, year);
+    const c = compute1342(table ?? carried, year);
+    const k = `dep:${bizId}`;
+    const n = (k: number) => (k === 1 ? 'נכס אחד' : `${k} נכסים`);
+    const sub = table?.none ? 'אין רכוש קבוע' : table ? `${n(table.assets.length)} · פחת השנה ₪${c.total.toLocaleString('he-IL')}`
+      : carried?.assets.length ? `${n(carried.assets.length)} מהשנה הקודמת · טופס 1342` : 'טופס 1342';
+    return (
+      <div key={k}>
+        <div className={`aw-mat ${done ? 'is-done' : 'is-mine'}`} data-aw-dep={bizId} data-state={done ? 'done' : 'mine'}>
+          <span className="aw-ic" aria-hidden="true" dangerouslySetInnerHTML={{ __html: `<svg viewBox="0 0 24 24">${ICON[done ? 'done' : 'mine']}</svg>` }} />
+          <span className="aw-t"><b>דוח פחת{bizName ? ` · ${bizName}` : ''}</b><small>{sub}</small></span>
+          <button type="button" className={done ? 'aw-link' : 'aw-act'} onClick={() => setExtra(extra === k ? null : k)} aria-expanded={extra === k}>{done ? 'תיקון' : 'פתיחה'}</button>
+        </div>
+        {extra === k && <div className="aw-inline" data-aw-dep-panel><Depreciation1342Editor year={year} table={table} carried={carried} busy={busy}
+          onSave={t => saveDep(bizId, t)} onClose={() => setExtra(null)} /></div>}
+      </div>
+    );
+  };
   const annexes = out ? neededAnnexes(out) : [];
 
   return (
@@ -264,6 +325,7 @@ export default function AnnualWorkspace({ client, step, year, data, busy, run, s
               <div className="aw-grp-h"><i aria-hidden="true">✓</i>אצלך{mine ? ` · ${mine}` : ''}</div>
               {!mine && <p className="aw-empty" data-aw-mine-empty>אין לך מה לעשות כרגע.</p>}
               {mats.filter(isMine).map(m => matRow(m, true))}
+              {depBiz.filter(b => !isDone1342(depOf(b.id).table, year)).map(b => depRow(b.id, b.name))}
               {oyk.length > 0 && !oykDone && oykRow}
               {notes.map(a => (
                 <div key={a.id} className="aw-mat is-mine" data-aw-hint>
@@ -286,14 +348,35 @@ export default function AnnualWorkspace({ client, step, year, data, busy, run, s
                   <button type="button" className="aw-act" disabled={busy} onClick={() => void markDecision(x.key)}>בורר</button>
                 </div>
               ))}
-              {officeRest.length > 0 && (
-                <div className="aw-mat is-mine" data-aw-office-rest={officeRest.map(s => `${s.item.key}:${s.subjectRole}:${s.entityKind ?? ""}:${s.entityRef ?? ""}`).join(",")}>
-                  <span className="aw-ic" aria-hidden="true" dangerouslySetInnerHTML={{ __html: `<svg viewBox="0 0 24 24">${ICON.mine}</svg>` }} />
-                  <span className="aw-t"><b>להשלים במשרד{officeRest.length > 1 ? ` · ${officeRest.length}` : ''}</b><small>{officeRest.slice(0, 2).map(s => s.item.label).join(' · ')}{officeRest.length > 2 ? ` ועוד ${officeRest.length - 2}` : ''}</small></span>
-                  <button type="button" className="aw-act" onClick={() => setExtra(extra === 'office' ? null : 'office')} aria-expanded={extra === 'office'}>להשלים</button>
+              {/* ‼ 30.10.2026 · בלי «להשלים במשרד» מקובץ: כל פריט שנשאר — שורה משלו, עם העורך שלו */}
+              {officeRest.map(s => {
+                const k = `office:${s.item.key}:${s.subjectRole}:${s.entityRef ?? ''}`;
+                return (
+                  <div key={k}>
+                    <div className="aw-mat is-mine" data-aw-office-item={`${s.item.key}:${s.subjectRole}:${s.entityKind ?? ''}:${s.entityRef ?? ''}`}>
+                      <span className="aw-ic" aria-hidden="true" dangerouslySetInnerHTML={{ __html: `<svg viewBox="0 0 24 24">${ICON.mine}</svg>` }} />
+                      <span className="aw-t"><b>{s.item.label}</b><small>{s.entityLabel ?? (s.subjectRole === 'spouse' ? spouseName : s.subjectRole === 'client' ? firstName : 'משותף')}</small></span>
+                      <button type="button" className="aw-act" onClick={() => setExtra(extra === k ? null : k)} aria-expanded={extra === k}>השלמה</button>
+                    </div>
+                    {extra === k && <div className="aw-inline ty-office-inline" data-aw-office-panel>{renderOffice([s])}</div>}
+                  </div>
+                );
+              })}
+              {formRest.length > 0 && out && (
+                <div>
+                  <div className="aw-mat is-mine" data-aw-form-rest={formRest.map(r => r.id).join(',')}>
+                    <span className="aw-ic" aria-hidden="true" dangerouslySetInnerHTML={{ __html: `<svg viewBox="0 0 24 24">${ICON.mine}</svg>` }} />
+                    <span className="aw-t"><b>פרטים לטופס</b><small>{[...new Set(formRest.map(r => FORM_REST_NAME[r.id] ?? r.label))].join(' · ')}</small></span>
+                    <button type="button" className="aw-act" onClick={() => setExtra(extra === 'form' ? null : 'form')} aria-expanded={extra === 'form'}>השלמה</button>
+                  </div>
+                  {extra === 'form' && (
+                    <div className="aw-inline" data-aw-form-panel>
+                      <IdentityEditor client={client} year={year} facts={data.facts} rows={out.formCoverage.rows} run={run} requestId={step.id} />
+                      <DeclarationsEditor client={client} year={year} facts={data.facts} rows={out.formCoverage.rows} run={run} requestId={step.id} />
+                    </div>
+                  )}
                 </div>
               )}
-              {officeRest.length > 0 && extra === 'office' && <div className="aw-inline ty-office-inline" data-aw-office-panel>{renderOffice(officeRest)}</div>}
               {plan.needsDecision.map(({ fact, plan: p }) => (
                 <div key={fact.id} className="aw-mat is-mine" data-aw-decide>
                   <span className="aw-ic" aria-hidden="true" dangerouslySetInnerHTML={{ __html: `<svg viewBox="0 0 24 24">${ICON.mine}</svg>` }} />
@@ -306,11 +389,13 @@ export default function AnnualWorkspace({ client, step, year, data, busy, run, s
           {groups.map(w => {
             const list = mats.filter(m => m.who === w && !isMine(m));
             const oykHere = w === 'home' && oyk.length > 0 && oykDone;
-            if (!list.length && !oykHere) return null;
+            const depHere = depBiz.some(b => (b.belongsToSpouse ? 'spouse' : 'client') === w && isDone1342(depOf(b.id).table, year));
+            if (!list.length && !oykHere && !depHere) return null;
             return (
               <div key={w} className="aw-grp" data-who={w}>
                 <div className="aw-grp-h"><i aria-hidden="true">{w === 'home' ? '✱' : nameOf(w)[0]}</i>{nameOf(w)}</div>
                 {list.map(m => matRow(m))}
+                {depBiz.filter(b => (b.belongsToSpouse ? 'spouse' : 'client') === w && isDone1342(depOf(b.id).table, year)).map(b => depRow(b.id, b.name))}
                 {oykHere && oykRow}
               </div>
             );

@@ -11,6 +11,7 @@ import type { Person } from '../taxEstimate/types';
 import { CATALOG_1301_2025, ANNEX_CATALOG_2025 } from '../taxForms/coverage1301';
 import type { ReturnField, ReturnDraft } from './types';
 import type { FamilyStatusInYear } from '../../utils/familyStatusYear';
+import { compute1342 } from './depreciation1342';
 
 export type Need = 'required' | 'applies' | 'optional' | 'notRelevant' | 'office';
 export type RowState = 'filled' | 'missing' | 'notSupported' | 'notRelevant' | 'office' | 'empty';
@@ -151,14 +152,29 @@ export function buildCoverage(c: Ctx): FormCoverage {
       source: has ? src : `חסר: ${src}`, fix: has ? undefined : opts.fix ?? 'card', person: opts.person, code: opts.code, produce: true });
   };
   const notRel = (e: Entry, why: string) => put(e, { need: 'notRelevant', state: 'notRelevant', source: why });
+  /** הצהרה שהכרטיס עונה עליה — סעיף 9(5): נכות 90% ומעלה; גמלה ממשרד הביטחון / פעולות איבה — לפי סוג הנכות. */
+  const cardDecl = (id: string): { value: boolean; why: string } | undefined => {
+    const ppl = [client, ...(married && sp ? [sp] : [])] as { disabilityPercentage?: number; disabilityType?: string }[];
+    if (id === 'F022' && ppl.some(p => (p.disabilityPercentage ?? 0) >= 90)) return { value: true, why: 'נכות 90% ומעלה — מהכרטיס' };
+    if (id === 'F052' && typeof bookAns('register') === 'boolean') return { value: bookAns('register') as boolean, why: 'מניהול הספרים ב-1320' };
+    if (id === 'F023' && ppl.some(p => (p.disabilityPercentage ?? 0) >= 90 && /ביטחון|איבה/.test(p.disabilityType ?? ''))) return { value: true, why: 'נכות ממשרד הביטחון / פעולות איבה — מהכרטיס' };
+    return undefined;
+  };
+  /** ניהול הספרים — מתשובות «ניהול ספרים» בנספח 1320 (רווח והפסד, אצל המשרד). */
+  const bookAnswers = Object.values(c.draft.books ?? {}).map(b => (b as { answers?: Record<string, unknown> }).answers ?? {});
+  const bookAns = (k: string) => bookAnswers.map(a => a[k]).find(v => v !== undefined && v !== '');
   const office = (e: Entry, why: string) => put(e, { need: 'office', state: 'office', source: why });
+  // ‼ 30.10.2026 · גיא: «אצלי רק רו״ה, הפסדים ופחת — את השאר השאלון סוגר». הצהרה שאין לה סימן בשאלון או בכרטיס — «לא» לבד
+  //   (ריבוע שלא מסומן בטופס = לא). הלקוח חותם על הסט, וההצהרות בתוכו. הצהרת משרד שנשמרה גוברת.
   const declRow = (e: Entry, d: typeof DECLARATIONS[number]) => {
     if (!d.when(c)) return notRel(e, 'לא חל לפי הנתונים');
     const sc = d.screener ? screener(c, d.screener) : 'unknown';
-    const v = sc !== 'unknown' ? sc === 'yes' : typeof decl[e.id] === 'boolean' ? (decl[e.id] as boolean) : undefined;
-    if (v === undefined) return put(e, { need: 'required', state: 'missing', source: 'הצהרה בהגשה — לסמן כן/לא', fix: 'declaration' });
+    const saved = typeof decl[e.id] === 'boolean' ? (decl[e.id] as boolean) : undefined;
+    const card = cardDecl(e.id);
+    const v = sc !== 'unknown' ? sc === 'yes' : saved ?? card?.value ?? false;
     if (v && d.unsupportedIfYes) return put(e, { need: 'required', state: 'notSupported', value: true, source: 'סומן «כן» — הנושא אינו נתמך בהכנה האוטומטית (נספח/כלל)' });
-    put(e, { need: 'required', state: 'filled', value: v, source: sc !== 'unknown' ? `שאלת פתיחה בשנת המס (${d.screener})` : 'הצהרת משרד בשנת המס', produce: true });
+    put(e, { need: 'required', state: 'filled', value: v, produce: true,
+      source: sc !== 'unknown' ? `שאלת פתיחה בשנת המס (${d.screener})` : saved !== undefined ? 'הצהרת משרד בשנת המס' : card ? card.why : 'לבד: «לא» — אין סימן בשאלון או בכרטיס' });
   };
 
   // ── מקורות הכנסה שהשנה צריכה לדעת עליהם: שאלת פתיחה שלא נענתה = «לא ידוע», לא «אין» ──
@@ -178,9 +194,11 @@ export function buildCoverage(c: Ctx): FormCoverage {
         case 'F002': put(e, { need: 'required', state: 'filled', value: !(married && hasSpouseInReport), source: 'נגזר ממי שבדוח', produce: true }); continue;
         case 'F004': case 'F005': {
           if (!married || hasSpouseInReport) { notRel(e, married ? 'בן/בת הזוג בדוח' : 'לא נשוי/אה'); continue; }
-          const v = typeof decl[e.id] === 'boolean' ? decl[e.id] as boolean : e.id === 'F005' && client.spouseWorking === false && client.fieldMeta?.spouseWorking ? true : undefined;
-          if (v === undefined) put(e, { need: 'required', state: 'missing', source: 'נשוי/אה ובן/בת הזוג לא בדוח — מגיש/ה בנפרד, או שאין לו/ה הכנסה?', fix: 'declaration' });
-          else put(e, { need: 'required', state: 'filled', value: v, source: 'הצהרת משרד', produce: true });
+          // ‼ לבד: בן/בת הזוג לא בדוח — «אין הכנסה» כשבכרטיס אין לו/ה עבודה או עסק, אחרת «מגיש/ה דוח נפרד»
+          const spouseEarns = client.spouseWorking === true || (client.businesses ?? []).some(b => !b.isClosed && b.belongsToSpouse);
+          const saved = typeof decl[e.id] === 'boolean' ? decl[e.id] as boolean : undefined;
+          put(e, { need: 'required', state: 'filled', value: saved ?? (e.id === 'F005' ? !spouseEarns : spouseEarns), produce: true,
+            source: saved !== undefined ? 'הצהרת משרד' : spouseEarns ? 'לבד: לבן/בת הזוג יש עבודה או עסק בכרטיס — מגיש/ה בנפרד' : 'לבד: אין לבן/בת הזוג הכנסה בכרטיס' });
           continue;
         }
         case 'F010': case 'F011': {
@@ -210,8 +228,11 @@ export function buildCoverage(c: Ctx): FormCoverage {
           if (!c.bizPersons.length) { notRel(e, 'אין עסק'); continue; }
           const v = decl[e.id];
           if (e.id === 'F050') { const ex = client.vatStatus === 'exemptDealer'; put(e, { need: 'required', state: 'filled', value: ex, source: 'סוג העוסק — מהכרטיס', produce: true }); continue; }
-          if (v === undefined || v === '') put(e, { need: 'required', state: 'missing', source: 'ניהול ספרים — לפי הוראות ניהול ספרים (המשרד)', fix: 'declaration' });
-          else put(e, { need: 'required', state: 'filled', value: v as string | boolean, source: 'הצהרת משרד', produce: true });
+          const dbl = bookAns('double');
+          const auto = e.id === 'F051' && typeof dbl === 'boolean' ? { v: dbl ? 'כפולה' : 'חד צידית', why: 'מניהול הספרים ב-1320' }
+            : e.id === 'F053' ? { v: 'computer', why: 'לבד: ממוחשב' } : undefined;
+          if ((v === undefined || v === '') && !auto) put(e, { need: 'required', state: 'missing', source: 'ניהול ספרים — לפי הוראות ניהול ספרים (המשרד)', fix: 'declaration' });
+          else put(e, { need: 'required', state: 'filled', value: (v === undefined || v === '' ? auto!.v : v) as string | boolean, source: v === undefined || v === '' ? auto!.why : 'הצהרת משרד', produce: true });
           continue;
         }
         case 'F054': { if (!c.bizPersons.length) { notRel(e, 'אין עסק'); continue; } const t = c.fields.filter(f => f.code === '238' || f.code === '239').reduce((a, f) => a + (f.amount ?? 0), 0); put(e, { need: 'required', state: 'filled', value: t > 256_410, source: 'נגזר מהמחזור (238/239)', produce: true }); continue; }
@@ -318,9 +339,8 @@ export function buildCoverage(c: Ctx): FormCoverage {
       case 'F268': {
         if (!married || !hasSpouseInReport) return notRel(e, 'רק בחישוב נפרד של בני זוג');
         const v = decl['F007'];
-        put(e, v === undefined ? { need: 'required', state: 'missing', source: 'מקור הכנסה משותף (66(ד)) — הצהרה', fix: 'declaration', code }
-          : v ? { need: 'required', state: 'notSupported', source: 'מקור הכנסה משותף — לא נתמך', code }
-          : { need: 'required', state: 'filled', value: '2', source: 'אין מקור הכנסה משותף', code, produce: true });
+        put(e, v ? { need: 'required', state: 'notSupported', source: 'מקור הכנסה משותף — לא נתמך', code }
+          : { need: 'required', state: 'filled', value: '2', source: v === undefined ? 'לבד: אין מקור הכנסה משותף' : 'אין מקור הכנסה משותף', code, produce: true });
         return;
       }
       case 'F269': put(e, { need: 'required', state: 'filled', value: '1', source: 'חישוב נפרד/יחיד — כך מחשב המנוע (כל אדם עם הכנסותיו)', produce: true }); return;
@@ -332,7 +352,6 @@ export function buildCoverage(c: Ctx): FormCoverage {
         return;
       }
       case 'F271': {
-        if (decl['F042'] === undefined) return put(e, { need: 'required', state: 'missing', source: 'עסקאות עם צדדים קשורים בחו״ל (F042) — הצהרה', fix: 'declaration', code });
         const any = yes('F042') || screener(c, 'special.reportablePosition') === 'yes';
         put(e, any ? { need: 'required', state: 'notSupported', source: 'פעולה חייבת בדיווח / מחירי העברה — לא נתמך', code } : { need: 'required', state: 'filled', value: '9', source: 'אין', code, produce: true });
         return;
@@ -383,7 +402,7 @@ export function buildCoverage(c: Ctx): FormCoverage {
     const childBandIdx = (id: string, first: number) => Number(id.slice(1)) - first;
     switch (true) {
       case e.id === 'F193': { const s = screener(c, 'special.nonResident'); put(e, s === 'unknown' ? { need: 'required', state: 'missing', source: 'תושבות לא אושרה לשנה', fix: 'yearFact', code } : s === 'yes' ? { need: 'required', state: 'notSupported', source: 'תושב חוץ', code } : { need: 'required', state: 'filled', value: true, source: 'תושב ישראל', code, produce: true }); return; }
-      case e.id === 'F194': case e.id === 'F195': { if (!married) return notRel(e, 'לא נשוי/אה'); const v = decl[e.id]; put(e, v === undefined ? { need: 'required', state: 'missing', source: e.id === 'F194' ? 'נקודות בן/בת זוג בחישוב נפרד — הצהרת משרד' : 'בן/בת הזוג עוזר/ת בעסק — הצהרת משרד', fix: 'declaration', code } : { need: 'required', state: 'filled', value: v as boolean, source: 'הצהרת משרד', code, produce: true }); return; }
+      case e.id === 'F194': case e.id === 'F195': { if (!married) return notRel(e, 'לא נשוי/אה'); const v = decl[e.id]; put(e, { need: 'required', state: 'filled', value: (v ?? false) as boolean, source: v === undefined ? 'לבד: «לא»' : 'הצהרת משרד', code, produce: true }); return; }
       case /^F(19[6-9]|20[0-1])$/.test(e.id): case /^F(20[2-7])$/.test(e.id): {
         const reg = Number(e.id.slice(1)) <= 201, b = childBandIdx(e.id, reg ? 196 : 202);
         if (!reg && !married) return notRel(e, 'לא נשוי/אה');
@@ -402,22 +421,26 @@ export function buildCoverage(c: Ctx): FormCoverage {
       case /^F22[0-5]$/.test(e.id): { if (client.familyStatus !== 'singleParent') return notRel(e, 'לא הורה יחיד'); put(e, { need: 'required', state: 'notSupported', source: '«ילד להורה אחד» — לא נקבע מהכרטיס (אין סימון הורה שני רשום)', code }); return; }
       case /^F22[6-9]$/.test(e.id): { const born = kids.some(k => Number((k.birthDate || '').slice(0, 4)) === year); if (!born) return notRel(e, 'לא נולד ילד בשנה'); put(e, { need: 'required', state: 'notSupported', source: 'דחיית נקודה (116ד) — לא נתמך', code }); return; }
       case e.id === 'F230': put(e, client.familyStatus === 'singleParent' ? { need: 'required', state: 'filled', value: true, source: 'הורה יחיד — כרטיס', code, produce: true } : { need: 'notRelevant', state: 'notRelevant', source: 'לא הורה יחיד' }); return;
-      case e.id === 'F231': if (client.familyStatus !== 'singleParent') return notRel(e, 'לא הורה יחיד'); put(e, decl[e.id] === undefined ? { need: 'required', state: 'missing', source: 'משק בית משותף עם יחיד אחר — הצהרה', fix: 'declaration' } : { need: 'required', state: 'filled', value: decl[e.id] as boolean, source: 'הצהרת משרד', produce: true }); return;
+      case e.id === 'F231': if (client.familyStatus !== 'singleParent') return notRel(e, 'לא הורה יחיד'); put(e, { need: 'required', state: 'filled', value: (decl[e.id] ?? false) as boolean, source: decl[e.id] === undefined ? 'לבד: «לא»' : 'הצהרת משרד', produce: true }); return;
       case e.id === 'F232': { const rel = client.familyStatus === 'divorced' && kids.length > 0; put(e, rel ? { need: 'required', state: 'filled', value: true, source: 'גרוש/ה עם ילדים — השתתפות בכלכלה (כרטיס; לאמת)', code, produce: true } : { need: 'notRelevant', state: 'notRelevant', source: 'לא חל' }); return; }
       case e.id === 'F233': { const rel = kids.some(k => (k.monthlyAlimonyPaid ?? 0) > 0) && married; put(e, rel ? { need: 'required', state: 'notSupported', source: 'מזונות לבן זוג לשעבר — לא נתמך', code } : { need: 'notRelevant', state: 'notRelevant', source: 'לא חל' }); return; }
       case e.id === 'F234': { const n = kids.filter(k => k.hasDisability).length; put(e, n ? { need: 'required', state: 'filled', value: n, source: 'ילדים עם מוגבלות — כרטיס', code, produce: true } : { need: 'notRelevant', state: 'notRelevant', source: 'אין' }); return; }
       case e.id === 'F235': case e.id === 'F236': { const p = e.id === 'F235' ? client : sp; if (!p?.isNewImmigrant) return notRel(e, 'לא עולה'); fromCard(e, ident[e.id === 'F235' ? 'aliyahDate' : 'spouseAliyahDate'], 'תאריך העלייה (בכרטיס רק השנה)', { fix: 'identity' }); return; }
       case e.id === 'F237': { if (!client.isReturningResident && !sp?.isReturningResident) return notRel(e, 'לא תושב חוזר'); fromCard(e, ident.returningDate, 'תאריך החזרה', { fix: 'identity', code }); return; }
       case e.id === 'F238': case e.id === 'F239': {
-        const rows2: [Person, boolean | undefined, number | undefined, string, string][] = [['client', client.completedIdf || client.completedNationalService, client.idfReleaseYear || client.nationalServiceYear, 'releaseDate', 'serviceMonths'],
-          ['spouse', sp?.completedIdf || sp?.completedNationalService, sp?.idfReleaseYear || sp?.nationalServiceYear, 'spouseReleaseDate', 'spouseServiceMonths']];
+        // ‼ 30.10.2026 · חודש השחרור וחודשי השירות — מהכרטיס (השאלון כותב אותם: «לימודים וצבא»); filing.identity רק כשהמשרד תיקן ביד
+        type Army = { idfReleaseMonth?: number | null; serviceMonths?: number | null };
+        const rows2: [Person, boolean | undefined, number | undefined, string, string, Army | undefined][] = [['client', client.completedIdf || client.completedNationalService, client.idfReleaseYear || client.nationalServiceYear, 'releaseDate', 'serviceMonths', client as Army],
+          ['spouse', sp?.completedIdf || sp?.completedNationalService, sp?.idfReleaseYear || sp?.nationalServiceYear, 'spouseReleaseDate', 'spouseServiceMonths', (sp ?? undefined) as Army | undefined]];
         let any = false;
-        for (const [p, did, yr, dk, mk] of rows2) {
+        for (const [p, did, yr, dk, mk, card] of rows2) {
           if (!did || !yr || yr < year - 3 || (p === 'spouse' && !married)) continue;
           any = true;
-          const v = e.id === 'F238' ? ident[dk] : ident[mk];
+          const fromCardV = e.id === 'F238' ? (card?.idfReleaseMonth ? `${String(card.idfReleaseMonth).padStart(2, '0')}${yr}` : undefined) : (card?.serviceMonths || undefined);
+          const own = e.id === 'F238' ? ident[dk] : ident[mk];
+          const v = own != null && own !== '' ? own : fromCardV;
           put(e, { need: 'required', state: v != null && v !== '' ? 'filled' : 'missing', value: v as string | number | undefined, person: p, code: p === 'client' ? e.codes?.registered ?? undefined : e.codes?.spouse ?? undefined,
-            source: v != null && v !== '' ? 'פרטי שחרור (filing.identity)' : `חסר: ${e.id === 'F238' ? 'חודש השחרור' : 'חודשי שירות'} — בכרטיס רק שנה (החישוב מניח 24 חודשים)`, fix: v != null && v !== '' ? undefined : 'identity', produce: true });
+            source: own != null && own !== '' ? 'פרטי שחרור (המשרד)' : v != null ? 'פרטי שחרור — מהכרטיס' : `חסר: ${e.id === 'F238' ? 'חודש השחרור' : 'חודשי שירות'} — בכרטיס רק שנה (החישוב מניח 24 חודשים)`, fix: v != null && v !== '' ? undefined : 'identity', produce: true });
         }
         if (!any) notRel(e, 'אין שחרור ב-3 השנים שלפני');
         return;
@@ -430,7 +453,9 @@ export function buildCoverage(c: Ctx): FormCoverage {
           if (!r) continue;
           const code2 = p === 'client' ? e.codes?.registered ?? undefined : e.codes?.spouse ?? undefined;
           if (e.id === 'F242') { notRel(e, 'התמחות — לא בכרטיס'); continue; }
-          const v = e.id === 'F240' ? ident[p === 'client' ? 'degreeCode' : 'spouseDegreeCode'] : (p === 'client' ? client.academicDegreeYear : sp?.academicDegreeYear);
+          // ‼ 30.10.2026 · קוד התואר מסוג התואר בכרטיס (ראשון = 1, שני = 2); דוקטורט — המשרד בוחר (3 רפואה/שיניים או 4 מסלול ישיר)
+          const kind = (p === 'client' ? client : sp)?.academicDegreeType;
+          const v = e.id === 'F240' ? ident[p === 'client' ? 'degreeCode' : 'spouseDegreeCode'] ?? (kind === 'bachelor' ? '1' : kind === 'master' ? '2' : undefined) : (p === 'client' ? client.academicDegreeYear : sp?.academicDegreeYear);
           put(e, { need: 'required', state: v ? 'filled' : 'missing', value: v as string | number | undefined, person: p, code: code2, source: v ? (e.id === 'F240' ? 'קוד לפי טופס 119' : 'שנת הסיום — כרטיס') : 'חסר קוד התואר לפי טופס 119', fix: v ? undefined : 'identity', produce: true });
         }
         return;
@@ -450,7 +475,12 @@ export function buildCoverage(c: Ctx): FormCoverage {
     const done = c.annex1320?.find(a => a.entityRef === b.id);
     annexes.push({ formId: '1320', title: title('1320'), need: 'required', reason: `${b.name || 'עסק'} — הכנסה מעסק`, entityRef: b.id,
       produced: done?.complete ? 'full' : books ? 'partial' : 'none', note: done?.complete ? 'שורות רווח והפסד, ניהול ספרים ותיאומים — הושלמו' : done?.problems.join(' · ') || 'חסרות שורות רווח והפסד (1320) לפי הספרים' });
-    if ((done?.lines['17'] ?? 0) > 0) annexes.push({ formId: '1342', title: title('1342'), need: 'required', reason: `${b.name || 'עסק'} — פחת (שורה 17)`, produced: 'none', note: 'פירוט רכוש קבוע — לא נתמך', entityRef: b.id });
+    const depT = c.draft.depreciation?.[b.id];
+    if ((done?.lines['17'] ?? 0) > 0 || (depT && !depT.none && depT.assets.length)) {
+      const probs = depT ? compute1342(depT, c.year).problems : [];
+      annexes.push({ formId: '1342', title: title('1342'), need: 'required', reason: `${b.name || 'עסק'} — פחת (שורה 17)`, entityRef: b.id,
+        produced: !depT ? 'none' : probs.length ? 'partial' : 'full', note: !depT ? 'פירוט רכוש קבוע — למלא את דוח הפחת' : probs.join(' · ') || 'פירוט הנכסים והפחת — הושלם' });
+    }
     if ((done?.lines['21'] ?? 0) > 0) annexes.push({ formId: '1343', title: title('1343'), need: 'required', reason: `${b.name || 'עסק'} — ניכוי נוסף בשל פחת (שורה 21)`, produced: 'none', note: 'לא נתמך', entityRef: b.id });
     if (books?.answers['double'] === true) annexes.push({ formId: '6111', title: 'דוח מותאם לרשות המסים (6111)', need: 'required', reason: `${b.name || 'עסק'} — הנהלת חשבונות כפולה`, produced: 'none', note: 'משודר בנפרד, מקוון בלבד — לא מופק במערכת', entityRef: b.id });
   }
@@ -460,9 +490,11 @@ export function buildCoverage(c: Ctx): FormCoverage {
   //   (מחזור שכולו ב-18%); מחזור פטור / אפס / שנה קודמת — ההצהרה של המשרד מכריעה.
   const turnoverAll = c.fields.filter(f => f.code === '238' || f.code === '239').reduce((a, f) => a + (f.amount ?? 0), 0);
   if (bizList.length && turnoverAll > 254_237 && !annexes.some(a => a.formId === '6111')) {
-    const v = decl['X6111'];
-    rows.push({ id: 'X6111', part: 'א', label: 'חייב בטופס 6111 (דוח מותאם) — מחזור מעל הסף', kind: 'yesno', need: 'required', state: v === undefined ? 'missing' : 'filled', value: v as boolean | undefined,
-      source: v === undefined ? 'הצהרה: האם חייב ב-6111 — מחזור כולל מע״מ מעל 300,000 (בשנת הדוח או בשנה הקודמת)' : 'הצהרת משרד', fix: v === undefined ? 'declaration' : undefined });
+    // ‼ 30.10.2026 · לבד: המחזור כבר מעל הסף ⇒ «חייב». עוסק פטור — לפי המחזור כפי שהוא (בלי מע״מ), מול 300,000. הצהרת משרד גוברת.
+    const auto = client.vatStatus === 'exemptDealer' ? turnoverAll >= 300_000 : true;
+    const v = (decl['X6111'] ?? auto) as boolean;
+    rows.push({ id: 'X6111', part: 'א', label: 'חייב בטופס 6111 (דוח מותאם) — מחזור מעל הסף', kind: 'yesno', need: 'required', state: 'filled', value: v,
+      source: decl['X6111'] === undefined ? 'לבד: מחזור מעל הסף (300,000 כולל מע״מ)' : 'הצהרת משרד' });
     if (v === true) annexes.push({ formId: '6111', title: 'דוח מותאם לרשות המסים (6111)', need: 'required', reason: 'חייב ב-6111 (הצהרת משרד)', produced: 'none', note: 'משודר בנפרד, מקוון בלבד — לא מופק במערכת' });
   }
   const rentTracks = new Set((client.properties ?? []).filter(p => p.isRented).map(p => p.rentalTaxTrack ?? client.rentalTaxTrack ?? 'unknown'));

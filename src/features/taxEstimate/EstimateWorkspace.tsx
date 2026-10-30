@@ -20,6 +20,7 @@ import { he, nis, today, uid } from './parts';
 import type { AuthorityAdvance, EstimateDraft, EstimateOutputs, EstimateVersion, IncomeLine } from './types';
 import { isNum } from './types';
 import './estimateWorkspace.css';
+import { questionnaireState, questionnaireText } from '../taxYear/questionnaireState';
 
 type Stage = 'q' | 'waiting' | 'answered' | 'pulled' | 'ready' | 'published' | 'done';
 
@@ -189,7 +190,7 @@ export default function EstimateWorkspace({ client, step, year, cutoffMonth, dat
     if (stage === 'q') return sendMore && sendMore.count > 0
       ? <button type="button" className="btn btn-primary" disabled={busy || working} data-ew-send onClick={() => void sendMore.run()}>שלח שאלון ל{firstName}</button>
       : <span className="ew-pill grey">אין עוד מה לשאול</span>;
-    if (stage === 'waiting') return <span className="ew-pill grey">השאלון אצל {firstName}</span>;
+    if (stage === 'waiting') return <span className="ew-pill grey" data-ew-qstate={questionnaireState(qAsks)}>{questionnaireText(questionnaireState(qAsks), firstName)}</span>;
     if (stage === 'answered') return <><span className="ew-pill">השאלון נענה</span><button type="button" className="btn btn-primary" disabled={working} data-ew-pull onClick={() => setPulling(true)}>משוך מפייפרלס</button></>;
     if (stage === 'pulled') return <span className="ew-pill grey">הצפי אצל {firstName}</span>;
     if (stage === 'ready') return <><span className="ew-pill">{biz.length ? `${firstName} אישר/ה את הצפי` : 'התשובות נכנסו'}</span>

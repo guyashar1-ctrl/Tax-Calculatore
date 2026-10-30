@@ -100,7 +100,7 @@ export const TESTS: TestCase[] = [
     equal(field(o, '284'), 18_000); equal(o.annex1321?.net, 18_000);
     equal(fileOk(o, client, d).issues.length, 0);
   }),
-  test('לא נתמך ⇒ «גיליון עבודה חלקי»: שכ״ד במסלול הרגיל (1321 + פחת), חו״ל, פחת בעסק (1342), 6111; השלמה מקצועית לא סוגרת', () => {
+  test('לא נתמך ⇒ «גיליון עבודה חלקי»: שכ״ד במסלול הרגיל (1321 + פחת), חו״ל, 6111; השלמה מקצועית לא סוגרת. פחת בעסק — דוח הפחת (1342)', () => {
     const client = baseCard({ employers: [{ id: 'em1', name: 'חברה' }], properties: [{ id: 'p1', address: 'הרצל 1', isRented: true, rentalTaxTrack: 'regular' }] } as unknown as Partial<Client>);
     const facts = [fact('salary.amounts', 'client', { gross: 100_000, withheld: 8_000 }, { entityRef: 'em1' }), fact('rent.income', 'couple', 48_000, { entityRef: 'p1' }), ...filingFacts()];
     const o = computeReturn({ client, draft: draft(), facts, evidence: [] });
@@ -114,19 +114,31 @@ export const TESTS: TestCase[] = [
     equal(o2.status, 'partialWorksheet', why(o2));
     equal(o2.household.manualTax, 0);
     assert(o2.limits.some(l => /נסגר רק במימוש/.test(l)), o2.limits.join(' | '));
-    // פחת בספרים ⇒ 1342
+    // ‼ 30.10.2026 · פחת בספרים בלי דוח פחת ⇒ חסר («למלא את דוח הפחת»), לא «לא נתמך»; עם דוח פחת ⇒ שורה 17 = סה״כ 1342, הנספח מלא
     const c3 = baseCard({ businesses: [BIZ] } as unknown as Partial<Client>);
-    const o3 = computeReturn({ client: c3, draft: draft({ books: { bz1: booksFor(200_000, 150_000, { lines: { '1': 200_000, '9': 45_000, '17': 5_000 } }) } }),
-      facts: [fact('business.profit', 'client', { profit: 150_000, turnover: 200_000 }, { entityRef: 'bz1' }), fact('payments.niPaid', 'client', 10_000), ...filingFacts()], evidence: [] });
-    equal(o3.status, 'partialWorksheet', why(o3));
-    assert(o3.unsupported.some(u => /1342/.test(u.text)), why(o3));
+    const facts3 = [fact('business.profit', 'client', { profit: 150_000, turnover: 200_000 }, { entityRef: 'bz1' }), fact('payments.niPaid', 'client', 10_000), ...filingFacts()];
+    const books3 = booksFor(200_000, 150_000, { lines: { '1': 200_000, '9': 45_000, '17': 5_000 } });
+    const o3 = computeReturn({ client: c3, draft: draft({ books: { bz1: books3 } }), facts: facts3, evidence: [] });
+    equal(o3.status, 'internalDraft', why(o3));
+    assert(!o3.unsupported.some(u => /1342/.test(u.text)) && o3.blockers.some(b => b.text.includes('דוח הפחת (1342)')), why(o3));
+    // מחשב 15,000 ב-33% מינואר ⇒ 4,950; ריהוט 1,000 ב-6% מיולי (6 חודשים) ⇒ 30 — יחד 4,980 בשורה 17 (במקום 5,000 מרו״ה)
+    const dep = { bz1: { assets: [{ id: 'a1', name: 'מחשב', acquired: '2025-01', cost: 15_000, rate: 33, accumulated: 0 }, { id: 'a2', name: 'כיסא', acquired: '2025-07', cost: 1_000, rate: 6, accumulated: 0 }] } };
+    const o4 = computeReturn({ client: c3, draft: draft({ books: { bz1: books3 }, depreciation: dep }), facts: facts3, evidence: [] });
+    assert(!o4.blockers.some(b => /1342/.test(b.text)) && !o4.unsupported.some(u => /1342/.test(u.text)), why(o4));
+    const a1342 = o4.annexes.find(a => a.formId === '1342');
+    equal(a1342?.status, 'filled'); equal(a1342?.rows.reduce((s, r) => s + (r.amount ?? 0), 0), 4_980);
+    equal(o4.annexes.find(a => a.formId === '1320')?.rows.find(r => r.label.startsWith('17.'))?.amount, 4_980);
   }),
-  test('חסר נתון ⇒ טיוטה פנימית, לא «חלקי»: הצהרה שלא סומנה, שם אב, חשבון להחזר, שאלת פתיחה', () => {
+  // ‼ 30.10.2026 · הצהרה שלא סומנה אינה חסר — «לא» לבד (ריבוע לא מסומן בטופס); שם אב וחשבון להחזר עדיין חוסמים
+  test('חסר נתון ⇒ טיוטה פנימית, לא «חלקי»: שם אב, חשבון להחזר, שאלת פתיחה; הצהרה שלא סומנה — «לא» לבד', () => {
     const client = baseCard({ employers: [{ id: 'em1', name: 'חברה' }] } as unknown as Partial<Client>);
     const f = [fact('salary.amounts', 'client', { gross: 100_000, withheld: 30_000 }, { entityRef: 'em1' })];
     const o = computeReturn({ client, draft: draft(), facts: f, evidence: [] });
     equal(o.status, 'internalDraft');
-    for (const code of ['cov_declarations', 'cov_identity', 'cov_refund']) assert(o.blockers.some(b => b.code === code), `${code}: ${why(o)}`);
+    for (const code of ['cov_identity', 'cov_refund']) assert(o.blockers.some(b => b.code === code), `${code}: ${why(o)}`);
+    assert(!o.blockers.some(b => b.code === 'cov_declarations'), `הצהרות לא חוסמות: ${why(o)}`);
+    const f15 = o.formCoverage.rows.find(r => r.id === 'F015');
+    equal(f15?.state, 'filled'); equal(f15?.value, false);
     assert(o.blockers.some(b => /לא ידוע אם יש/.test(b.text)), 'שאלת פתיחה שלא נענתה = «לא ידוע», לא «אין»');
   }),
   test('הגיליון: סטטוס מדויק, בדיקת כיסוי, מה לא מופק; נפתח מחדש זהה (כולל טקסט)', () => {

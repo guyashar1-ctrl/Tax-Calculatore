@@ -256,8 +256,10 @@ export const TESTS: TestCase[] = [
     const plan = buildAskPlan([...p.toConfirm, ...p.toAsk], ctx);
     // זוג עם שתי משכורות, עסק, נכס מושכר וחשבון השקעות: 7 אישורים מהכרטיס, 7 שאלות פתיחה לזוג, ושאלות לכל עסק/נכס/חשבון/מעסיק.
     // ‼ 11.10.2026: +1 בכוונה — «שינוי שמזכה בהנחה» (תואר/שחרור/יישוב שאינם בכרטיס). בלעדיה תואר חדש לא נשאל לעולם.
-    assert(plan.length <= 22, `${plan.length} שאלות לזוג עם עסק, נכס וחשבון`);
+    // ‼ 30.10.2026: +1 בכוונה — «חברה בשליטה» עברה מהמשרד ללקוח (הלקוח יודע אם יש לו חברה)
+    assert(plan.length <= 23, `${plan.length} שאלות לזוג עם עסק, נכס וחשבון`);
     equal(plan.filter(e => e.subjectRole === 'couple' && e.prompt.input.kind === 'who').length, 7);
+    assert(plan.some(e => e.itemKey === 'companies.controlled'), 'חברה בשליטה — שאלה ללקוח');
     assert(!plan.some(e => ['business.assetDocs', 'sales.transaction', 'sales.docs'].includes(e.itemKey)), 'שאלת המשך לפני שאלת הפתיחה');
     const don = plan.filter(e => e.itemKey === 'donations.given');
     equal(don.length, 1);

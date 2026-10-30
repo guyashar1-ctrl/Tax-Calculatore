@@ -130,8 +130,8 @@ async function runWidth(width) {
 
     // 2 · «שליחת השאלון» בלחיצה אחת
     await ws.locator('[data-wd-send-q]').click();
-    await page.waitForFunction(() => /באמצע השאלון|ממתין/.test(document.querySelector('[data-wd-status]')?.textContent ?? ''), null, { timeout: 40000 }).catch(() => {});
-    ok(/באמצע השאלון|ממתין/.test(await text(ws.locator('[data-wd-status]'))), 'נשלח בלחיצה אחת — הלקוח באמצע השאלון', await text(ws.locator('[data-wd-status]')));
+    await page.waitForFunction(() => /באמצע השאלון|עוד לא התחיל|ממתין/.test(document.querySelector('[data-wd-status]')?.textContent ?? ''), null, { timeout: 40000 }).catch(() => {});
+    ok(/באמצע השאלון|עוד לא התחיל|ממתין/.test(await text(ws.locator('[data-wd-status]'))), 'נשלח בלחיצה אחת — הלקוח באמצע השאלון', await text(ws.locator('[data-wd-status]')));
     const sentMail = (await env.sql(`select count(*)::int n from public.email_messages where to_email in (select email from public.clients where id='${id}') and created_at > now() - interval '10 minutes'`))[0].n;
     ok(sentMail === 0, 'לא יצא מייל בשליחת השאלון');
 

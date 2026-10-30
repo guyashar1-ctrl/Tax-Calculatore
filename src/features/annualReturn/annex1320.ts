@@ -2,7 +2,8 @@
 // ‼ השורות לפי הנספח לשנת 2025 (annexes-2025.catalog.json): 1 הכנסות · 2א–2ד עלות המכירות · 3א–17 הוצאות ·
 //   18 סה״כ · 19 הכנסות פחות הוצאות · 20 התאמת הוצאות שאינן מותרות (+) · 21 ניכוי נוסף בשל פחת (−) · 22 הכנסה חייבת.
 // ‼ שורות רו״ה מוקצות לשורות הנספח בהצעה לפי מילות מפתח — והמשרד מאשר. שורה שלא הוקצתה = הנספח לא מלא.
-// ‼ פחת (17) מחייב 1342 ושורה 21 מחייבת 1343 — שניהם לא נתמכים, ולכן הנספח «מלא» רק בלעדיהם.
+// ‼ פחת (17) מחייב 1342 — מ-30.10.2026 נבנה במערכת (depreciation1342.ts): כשיש טבלת פחת לעסק, שורה 17 = סה״כ הפחת שלה.
+//   שורה 21 מחייבת 1343 — לא נתמך, ולכן הנספח «מלא» רק בלעדיה.
 
 import type { Books1320 } from './types';
 import type { PnlImport } from '../taxEstimate/importers';
@@ -49,13 +50,14 @@ export function booksFromPnl(p: PnlImport, prev?: Books1320): Books1320 {
 }
 
 /** השורות הסופיות: הקצאות רו״ה + הזנה ידנית, ושורות מחושבות. */
-export function compute1320(b: Books1320, ctx: { profitFact?: number; label: string }): { lines: Record<string, number>; complete: boolean; problems: string[] } {
+export function compute1320(b: Books1320, ctx: { profitFact?: number; label: string; depreciation?: { total: number; problems: string[] } }): { lines: Record<string, number>; complete: boolean; problems: string[] } {
   const lines: Record<string, number> = {};
   for (const l of LINES_1320) if (!l.derived && b.lines[l.key] != null) lines[l.key] = b.lines[l.key];
   // שורות רו״ה שהוקצו מצטברות לשורה (מעל הזנה ידנית לאותה שורה — לא שתיהן)
   const assigned = (b.imported ?? []).filter(x => x.line);
   for (const k of new Set(assigned.map(x => x.line!))) lines[k] = assigned.filter(x => x.line === k).reduce((a, x) => a + x.total, 0);
   if (lines['7'] != null && b.carAllowed != null) lines['7'] = b.carAllowed; // שורה 7 נרשמת בחלק המותר לפי תקנות הרכב
+  if (ctx.depreciation) lines['17'] = ctx.depreciation.total; // שורה 17 = סה״כ נספח 1342 (מעל שורת «פחת» מרו״ה)
   const v = (k: string) => lines[k] ?? 0;
   lines['2d'] = v('2a') + v('2b') - v('2c');
   lines['18'] = lines['2d'] + EXPENSE_LINES.reduce((a, k) => a + v(k), 0);
@@ -72,7 +74,8 @@ export function compute1320(b: Books1320, ctx: { profitFact?: number; label: str
   if (v('11') > 0 && !b.landlord?.trim()) problems.push('שורה 11 — שכירות: חסרים פרטי המשכיר (סעיף ד׳)');
   if (v('20') > 0 && !b.addBackNote?.trim()) problems.push('שורה 20 — חסר פירוט ההוצאות שאינן מותרות (סעיף ה׳)');
   if (ctx.profitFact != null && Math.abs(lines['19'] - ctx.profitFact) > 1) problems.push(`שורה 19 (${Math.round(lines['19']).toLocaleString('he-IL')}) שונה מהרווח לפי הספרים בשנת המס (${Math.round(ctx.profitFact).toLocaleString('he-IL')})`);
-  // ‼ 17 / 21 מחייבים נספחים שלא נתמכים — הנספח אינו «מלא» גם כשהשורות מולאו
-  const complete = problems.length === 0 && v('17') === 0 && v('21') === 0;
+  for (const pr of ctx.depreciation?.problems ?? []) problems.push(`פחת (1342): ${pr}`);
+  // ‼ 17 בלי טבלת פחת (1342) / 21 (1343, לא נתמך) — הנספח אינו «מלא» גם כשהשורות מולאו
+  const complete = problems.length === 0 && (v('17') === 0 || !!ctx.depreciation) && v('21') === 0;
   return { lines, complete, problems };
 }

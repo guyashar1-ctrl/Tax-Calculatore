@@ -51,6 +51,7 @@ import { withOneRound } from './oneRound';
 import QuestionnaireOpenNotice from './QuestionnaireOpenNotice';
 import { parseOpenQuestionnaire, questionnaireOpenText, QUESTIONNAIRE_OPEN, type OpenQuestionnaire } from './oneQuestionnaire';
 import { buildQuestionTree, countsLine, TREE_MARK } from './questionTree';
+import { questionnaireState, questionnaireText } from './questionnaireState';
 
 interface Props {
   client: Client;
@@ -370,7 +371,7 @@ export default function TaxYearProcess({ client, step, infoStep, onClose, onChan
           )}
           {purpose === 'estimate' && isOpenStep(step) && (
             <div className="ty-note te-top" data-te-top role="status">
-              <span data-te-status>{!estAsks.length ? 'השאלון ללקוח עוד לא נשלח' : estFilling ? `${firstName} באמצע השאלון` : 'התשובות של הלקוח נכנסו — הן מעדכנות את הכרטיס ואת ההערכה'}</span>
+              <span data-te-status>{questionnaireText(questionnaireState(estAsks), firstName) ?? 'התשובות של הלקוח נכנסו — הן מעדכנות את הכרטיס ואת ההערכה'}</span>
               {annualMore && annualMore.count > 0 && !estFilling && <button type="button" className="btn btn-sm btn-primary" disabled={busy} data-te-send-q onClick={() => void annualMore.run()}>
                 {estAsks.length ? (annualMore.count === 1 ? 'שליחת שאלה נוספת' : `שליחת ${annualMore.count} שאלות נוספות`) : `שליחת השאלון ל${firstName}`}</button>}
             </div>
@@ -846,10 +847,12 @@ function OfficePanel({ client, statuses, evidence, facts, busy, purpose, year, c
   run: (fn: () => Promise<unknown>, done?: string) => Promise<boolean>; applyCard: ApplyCard;
 }) {
   const [all, setAll] = useState(false);
+  // ‼ 30.10.2026 · פריט אחד מתוך «אצלך» (AnnualWorkspace) — רק העורך, בלי כותרת והסבר
+  const one = statuses.length === 1;
   return (
     <>
-      <h3>להשלים במשרד: {statuses.length} פריטים</h3>
-      <p className="ty-why">{purpose === 'intake' ? 'עדכון הכרטיס מתשובות שאושרו, הוספת ישויות חדשות לתיק, ויישור קו מול הרשויות. כל עדכון נשמר עם המקור וההיסטוריה.' : 'סכומים ממסמכים שאושרו, מסלולים והחלטות של המשרד. נשמר כמאושר, עם המסמך כשיש.'}</p>
+      {!one && <h3>להשלים במשרד: {statuses.length} פריטים</h3>}
+      {!one && <p className="ty-why">{purpose === 'intake' ? 'עדכון הכרטיס מתשובות שאושרו, הוספת ישויות חדשות לתיק, ויישור קו מול הרשויות. כל עדכון נשמר עם המקור וההיסטוריה.' : 'סכומים ממסמכים שאושרו, מסלולים והחלטות של המשרד. נשמר כמאושר, עם המסמך כשיש.'}</p>}
       <div className="ty-rows">{(all ? statuses : statuses.slice(0, 8)).map(s => <OfficeLine key={`${s.item.key}|${s.subjectRole}|${s.entityRef ?? ''}`} s={s} client={client} evidence={evidence} facts={facts} busy={busy} purpose={purpose} year={year} cutoff={cutoff} asOf={asOf} stepId={stepId} run={run} applyCard={applyCard} />)}</div>
       {statuses.length > 8 && !all && <div><button type="button" className="btn btn-sm btn-ghost" onClick={() => setAll(true)}>הצג את כל {statuses.length}</button></div>}
     </>

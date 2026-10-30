@@ -1,0 +1,342 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>דוח שנתי · מה נשאר אצלך</title>
+<style>
+:root {
+  --bg: #f6f5f3; --card: #fff; --bd: #e2e4e7; --bd-strong: #d3d6da;
+  --tx: #25282d; --txc: #4b5058; --tx2: #63686f; --tx3: #8e949b;
+  --br: #3f5f8f; --br-strong: #34507a; --soft: #e8eef5; --s3: #f1f0ee;
+  --warn: #8a5b0f; --warn-bg: #fbf3e4;
+  --chip-blue-bg: #e3ebf5; --chip-blue-tx: #2c4468;
+  --chip-green-bg: #e4f1ea; --chip-green-tx: #1e5942;
+  --chip-violet-bg: #eee9f6; --chip-violet-tx: #55337d;
+  --chip-amber-bg: #f8efdc; --chip-amber-tx: #7a4f0d;
+  --automation-fill: #b8437d; --automation-soft: #fbe9f2; --automation-text: #a63b72;
+  --fs-12: 12px; --fs-13: 13px; --fs-14: 14px; --fs-15: 15px; --fs-17: 17px;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--tx); font: 14px/1.5 system-ui, "Segoe UI", Arial, sans-serif; }
+.mock-bar { background: var(--warn-bg); color: var(--warn); font-size: var(--fs-13); padding: 8px 16px; text-align: center; font-weight: 600; }
+.wrap { max-width: 1120px; margin: 0 auto; padding: 18px 16px 60px; }
+h1 { font-size: 20px; margin: 4px 0 4px; }
+.lead { color: var(--txc); margin: 0 0 14px; max-width: 760px; }
+.switch { display: inline-flex; border: 1px solid var(--bd-strong); border-radius: 999px; overflow: hidden; margin-bottom: 14px; background: var(--card); }
+.switch button { border: 0; background: none; font: inherit; font-size: var(--fs-13); font-weight: 600; padding: 6px 14px; cursor: pointer; color: var(--tx2); }
+.switch button[aria-pressed="true"] { background: var(--br); color: #fff; }
+
+.stage { display: flex; justify-content: center; }
+.frame { width: 100%; transition: width .25s ease; }
+.frame.is-phone { width: 390px; border: 10px solid #1f2125; border-radius: 34px; background: var(--bg); padding: 10px 8px; }
+
+.req { background: var(--card); border: 1px solid var(--bd); border-radius: 16px; padding: 14px 16px; }
+.req-top { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+.req-top h3 { margin: 0; font-size: var(--fs-17); display: flex; align-items: center; gap: 8px; }
+.req-top h3 i { width: 9px; height: 9px; border-radius: 50%; background: var(--br); display: inline-block; }
+.status { color: var(--tx2); font-size: var(--fs-14); }
+.status b { color: var(--tx); font-weight: 600; }
+.new { font-size: var(--fs-12); font-weight: 700; color: var(--chip-green-tx); background: var(--chip-green-bg); border-radius: 999px; padding: 1px 8px; }
+.grid { display: grid; grid-template-columns: minmax(300px, 420px) 1fr; gap: 16px; align-items: start; }
+.is-phone .grid { grid-template-columns: 1fr; }
+.col-h { display: flex; align-items: baseline; gap: 8px; margin: 0 2px 8px; }
+.col-h h4 { margin: 0; font-size: var(--fs-15); }
+.col-h small { color: var(--tx2); font-size: var(--fs-13); }
+
+.mine { background: var(--soft); border-radius: 14px; padding: 10px 10px 4px; margin-bottom: 14px; }
+.grp-h { display: flex; align-items: center; gap: 7px; margin: 2px 2px 8px; font-size: var(--fs-14); font-weight: 700; color: var(--br-strong); }
+.grp-h i { width: 20px; height: 20px; border-radius: 50%; background: var(--br); color: #fff; display: grid; place-items: center; font-style: normal; font-size: 11px; }
+.sub-h { font-size: var(--fs-12); font-weight: 700; color: var(--tx2); margin: 10px 4px 6px; }
+.mat { display: flex; align-items: center; gap: 10px; background: var(--card); border: 1px solid var(--bd); border-radius: 12px; padding: 9px 11px; margin-bottom: 6px; }
+.ic { width: 30px; height: 30px; border-radius: 9px; background: var(--soft); display: grid; place-items: center; flex-shrink: 0; }
+.ic svg { width: 17px; height: 17px; stroke: var(--br); fill: none; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.mat.is-done .ic { background: var(--chip-green-bg); } .mat.is-done .ic svg { stroke: var(--chip-green-tx); }
+.mat.is-wait .ic { background: var(--s3); } .mat.is-wait .ic svg { stroke: var(--tx3); }
+.t { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.t b { font-size: var(--fs-14); font-weight: 600; line-height: 1.3; }
+.t small { font-size: var(--fs-12); color: var(--tx2); }
+.act { border: 1.5px solid var(--br); background: var(--card); color: var(--br); border-radius: 9px; padding: 5px 12px; font: inherit; font-weight: 700; font-size: var(--fs-13); cursor: pointer; white-space: nowrap; min-height: 34px; }
+.act.primary { background: var(--br); color: #fff; }
+.tag { font-size: var(--fs-12); font-weight: 600; color: var(--tx3); white-space: nowrap; }
+.tag.ok { color: var(--chip-green-tx); }
+.inline { background: var(--card); border: 1px dashed var(--bd-strong); border-radius: 12px; padding: 12px; margin: -2px 0 8px; }
+.inline[hidden] { display: none; }
+
+.fields { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 10px; }
+.is-phone .fields { grid-template-columns: 1fr; }
+.f { display: flex; flex-direction: column; gap: 3px; font-size: var(--fs-13); color: var(--txc); }
+.f input, .f select { font: inherit; font-size: var(--fs-14); border: 1px solid var(--bd-strong); border-radius: 8px; padding: 7px 9px; background: #fff; color: var(--tx); min-height: 38px; }
+.f input.num { direction: ltr; text-align: right; font-variant-numeric: tabular-nums; }
+.row-end { display: flex; justify-content: flex-start; gap: 8px; margin-top: 10px; align-items: center; flex-wrap: wrap; }
+.note { font-size: var(--fs-12); color: var(--tx3); }
+
+/* פחת */
+.dep { width: 100%; border-collapse: collapse; font-size: var(--fs-13); }
+.dep th { text-align: right; font-weight: 600; color: var(--tx2); font-size: var(--fs-12); padding: 4px 6px; border-bottom: 1px solid var(--bd); white-space: nowrap; }
+.dep td { padding: 5px 6px; border-bottom: 1px solid var(--s3); vertical-align: middle; }
+.dep td.n { direction: ltr; text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.dep td.calc { color: var(--chip-green-tx); font-weight: 600; }
+.dep input, .dep select { font: inherit; font-size: var(--fs-13); border: 1px solid var(--bd-strong); border-radius: 7px; padding: 4px 6px; width: 100%; min-width: 70px; background: #fff; }
+.dep input.num { direction: ltr; text-align: right; }
+.dep tfoot td { font-weight: 700; border-bottom: 0; }
+.carried { font-size: var(--fs-12); color: var(--chip-blue-tx); background: var(--chip-blue-bg); border-radius: 999px; padding: 0 7px; white-space: nowrap; }
+.scroll-x { overflow-x: auto; }
+/* בטלפון: נכס = כרטיס */
+.dep-wrap { container-type: inline-size; }
+.dep-cards { display: none; }
+@container (max-width: 560px) { .dep-wrap .scroll-x { display: none; } .dep-cards { display: block; } }
+.dcard { border: 1px solid var(--bd); border-radius: 10px; padding: 8px 10px; margin-bottom: 8px; }
+.dcard .fields { grid-template-columns: 1fr; }
+.dcard .f input, .dcard .f select { width: 100%; min-width: 0; }
+.dcard h5 { margin: 0 0 6px; font-size: var(--fs-14); display: flex; justify-content: space-between; gap: 6px; }
+.dcard dl { margin: 0; display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; font-size: var(--fs-13); }
+.dcard dt { color: var(--tx2); } .dcard dd { margin: 0; direction: ltr; text-align: right; font-variant-numeric: tabular-nums; }
+.dcard dd.calc { color: var(--chip-green-tx); font-weight: 700; }
+
+/* «הדוח» */
+.card { background: var(--card); border: 1px solid var(--bd); border-radius: 14px; overflow: hidden; }
+.rep-top { display: flex; align-items: center; gap: 14px; padding: 12px 14px; border-bottom: 1px solid var(--bd); }
+.ring { width: 60px; height: 60px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; background: conic-gradient(var(--chip-green-tx) 0 17%, var(--s3) 17% 100%); position: relative; }
+.ring::before { content: ""; position: absolute; inset: 6px; background: var(--card); border-radius: 50%; }
+.ring span { position: relative; }
+.est small { display: block; color: var(--tx2); font-size: var(--fs-12); }
+.est b { font-size: 18px; }
+.rep-body { padding: 12px 14px; color: var(--tx2); font-size: var(--fs-13); }
+
+/* מה יצא מ«אצלך» */
+.moved { margin-top: 22px; background: var(--card); border: 1px solid var(--bd); border-radius: 14px; padding: 14px 16px; }
+.moved h2 { font-size: var(--fs-15); margin: 0 0 4px; }
+.moved p { margin: 0 0 10px; color: var(--tx2); font-size: var(--fs-13); }
+.mv { display: grid; grid-template-columns: 1fr auto 1fr; gap: 6px 12px; align-items: center; font-size: var(--fs-14); }
+.is-phone ~ .moved .mv, .mv.narrow { grid-template-columns: 1fr; }
+.mv .from { color: var(--tx2); text-decoration: line-through; text-decoration-color: var(--tx3); }
+.mv .arrow { color: var(--tx3); }
+.pill { display: inline-block; font-size: var(--fs-12); font-weight: 700; border-radius: 999px; padding: 1px 9px; margin-inline-end: 6px; }
+.pill.q { background: var(--chip-violet-bg); color: var(--chip-violet-tx); }
+.pill.auto { background: var(--automation-soft); color: var(--automation-text); }
+.pill.card { background: var(--chip-blue-bg); color: var(--chip-blue-tx); }
+.mv-sep { grid-column: 1 / -1; border-top: 1px solid var(--s3); margin: 2px 0; }
+
+.scope { margin-top: 16px; background: var(--card); border: 1px solid var(--bd); border-radius: 14px; padding: 14px 16px; font-size: var(--fs-14); }
+.scope h2 { font-size: var(--fs-15); margin: 0 0 8px; }
+.scope ol { margin: 0; padding-inline-start: 20px; }
+.scope li { margin-bottom: 6px; }
+.scope .small { color: var(--tx2); font-size: var(--fs-13); }
+
+.toast { position: fixed; inset-inline: 0; bottom: 18px; margin: 0 auto; width: fit-content; max-width: calc(100% - 32px); background: var(--chip-green-bg); color: var(--chip-green-tx); border: 1px solid #c2ddcf; border-radius: 12px; padding: 10px 16px; font-weight: 600; box-shadow: 0 6px 20px rgba(0,0,0,.08); opacity: 0; transform: translateY(8px); transition: opacity .2s ease, transform .2s ease; pointer-events: none; }
+.toast.on { opacity: 1; transform: none; }
+.demo-actions { display: flex; gap: 8px; flex-wrap: wrap; margin: 0 0 12px; }
+.ghost { border: 1px solid var(--bd-strong); background: var(--card); border-radius: 9px; padding: 5px 12px; font: inherit; font-size: var(--fs-13); cursor: pointer; color: var(--txc); }
+@media (max-width: 720px) { .grid { grid-template-columns: 1fr; } .mv { grid-template-columns: 1fr; } .mv .arrow { display: none; } .fields { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="mock-bar">הדמיה · נתוני דוגמה (ישראל ישראלי — לא לקוח אמיתי) · זה לא המסך החי</div>
+<div class="wrap">
+  <h1>דוח שנתי — אצלך נשארים רק הדברים שלך</h1>
+  <p class="lead">רווח והפסד, דוח פחת, הפסדים מועברים ומה שאתה מוציא משע״ם וביטוח לאומי. בנוסף, הקלדת הסכומים מהמסמכים שהלקוח העלה, כשהשדות ליד המסמך. את כל השאר השאלון שואל או שהמערכת ממלאת לבד.</p>
+
+  <div class="switch" role="group" aria-label="תצוגה">
+    <button type="button" aria-pressed="true" data-view="desk">מחשב</button>
+    <button type="button" aria-pressed="false" data-view="phone">טלפון</button>
+  </div>
+  <div class="demo-actions">
+    <button type="button" class="ghost" id="stateBtn">הלקוח התחיל למלא ←</button>
+    <button type="button" class="ghost" id="delBtn">«מחק לגמרי» — איך נראית ההודעה</button>
+  </div>
+
+  <div class="stage"><div class="frame" id="frame">
+    <section class="req" aria-label="דוח שנתי 2025">
+      <div class="req-top">
+        <h3><i></i>דוח שנתי 2025</h3>
+        <span class="status" id="status"><b>נשלח לישראל</b> · עוד לא התחיל</span>
+      </div>
+
+      <div class="grid">
+        <div>
+          <div class="col-h"><h4>חומרים</h4><small id="openCount">4 פתוחים</small></div>
+
+          <div class="mine">
+            <div class="grp-h"><i>✓</i>אצלך · 3</div>
+
+            <div class="sub-h">ישראלי ייעוץ (דוגמה)</div>
+            <div class="mat" id="pnlRow">
+              <span class="ic"><svg viewBox="0 0 24 24"><path d="M4 19V5M4 19h16M8 15l4-4 3 3 5-6"/></svg></span>
+              <span class="t"><b>רווח והפסד</b><small id="pnlSub">מפייפרלס ← נספח 1320</small></span>
+              <button type="button" class="act" data-open="pnl">העלאה</button>
+            </div>
+            <div class="inline" id="pnl" hidden>
+              <p style="margin:0 0 8px">מעלים את הקובץ שהפקת מפייפרלס. השורות מתחלקות לבד לשורות נספח 1320, ואתה מתקן רק מה שצריך.</p>
+              <div class="row-end"><button type="button" class="act primary" id="pnlDone">נטען (הדמיה)</button><span class="note">קיים היום. בלי שינוי</span></div>
+            </div>
+
+            <div class="mat" id="depRow">
+              <span class="ic"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M4 10h16M10 10v10"/></svg></span>
+              <span class="t"><b>דוח פחת</b><small id="depSub">2 נכסים מהשנה הקודמת · טופס 1342</small></span>
+              <button type="button" class="act" data-open="dep">פתיחה</button>
+            </div>
+            <div class="inline dep-wrap" id="dep" hidden>
+              <div class="scroll-x">
+                <table class="dep" aria-label="דוח פחת — טופס 1342">
+                  <thead><tr><th>נכס</th><th>תאריך רכישה</th><th>עלות</th><th>שיעור</th><th>פחת נצבר עד השנה</th><th>פחת השנה</th><th>יתרה</th></tr></thead>
+                  <tbody id="depBody"></tbody>
+                  <tfoot><tr><td colspan="5">סה״כ פחת השנה ← שורה 17 בנספח 1320</td><td class="n calc" id="depTotal"></td><td></td></tr></tfoot>
+                </table>
+              </div>
+              <div class="dep-cards" id="depCards"></div>
+              <div class="row-end">
+                <button type="button" class="ghost" id="addAsset">＋ נכס שנקנה השנה</button>
+                <button type="button" class="act primary" id="depSave">שמירה</button>
+              </div>
+              <p class="note" style="margin:8px 0 0">נכס משנה קודמת עובר לבד, יחד עם הפחת שנצבר עליו. אתה מוסיף רק נכסים חדשים ובוחר שיעור. החישוב לבד. השיעורים לדוגמה בלבד, ובביצוע ייבדקו מול תקנות הפחת.</p>
+            </div>
+
+            <div class="sub-h">רק אתה יודע</div>
+            <div class="mat" id="oykRow">
+              <span class="ic"><svg viewBox="0 0 24 24"><path d="M12 3v18M7 8h7a3 3 0 010 6H8"/></svg></span>
+              <span class="t"><b>מקדמות, ניכוי במקור, ב״ל כעצמאי והפסדים מועברים</b><small id="oykSub">מה שאתה מוציא משע״ם ומביטוח לאומי</small></span>
+              <button type="button" class="act" data-open="oyk">הזנה</button>
+            </div>
+            <div class="inline" id="oyk" hidden>
+              <div class="fields">
+                <label class="f">מקדמות ששולמו ב-2025<input class="num" inputmode="numeric" placeholder="₪"></label>
+                <label class="f">ניכוי במקור (לא ממשכורת)<input class="num" inputmode="numeric" placeholder="₪"></label>
+                <label class="f">ביטוח לאומי כעצמאי<input class="num" inputmode="numeric" placeholder="₪"></label>
+                <label class="f">הפסדים מועברים משנים קודמות<input class="num" inputmode="numeric" placeholder="₪"></label>
+              </div>
+              <div class="row-end"><button type="button" class="act primary" id="oykDone">שמירה</button><span class="note">קיים היום. רק מאוחד לשורה אחת</span></div>
+            </div>
+
+            <div class="sub-h">מסמכים שהלקוח העלה</div>
+            <div class="mat is-wait">
+              <span class="ic"><svg viewBox="0 0 24 24"><path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5"/></svg></span>
+              <span class="t"><b>טופס 106 · מעסיק לדוגמה בע״מ</b><small>ממתין לישראל. כשיגיע: «הזנה», והשדות ליד המסמך</small></span>
+              <span class="tag">ממתין</span>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <div class="col-h"><h4>הדוח</h4><small>1301 ונספחים · מתמלא לבד</small></div>
+          <div class="card">
+            <div class="rep-top">
+              <div class="ring"><span>17%</span></div>
+              <div class="est"><small>הערכה כרגע</small><b>מאוזן</b></div>
+            </div>
+            <div class="rep-body">הצהרות הטופס מסומנות לבד: «לא», או «כן» כשהשאלון אומר זאת. פרטים כמו מיקוד, שירות צבאי ותואר נלקחים מהכרטיס.</div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div></div>
+
+  <section class="moved" aria-label="מה יצא מאצלך">
+    <h2>מה יוצא מ«אצלך», ולאן</h2>
+    <p>התיבה «להשלים במשרד», עם שדות «פירוט» ריקים, נעלמת.</p>
+    <div class="mv" id="mv">
+      <span class="from">הצהרות ותיבות סימון בהגשה</span><span class="arrow">←</span><span><span class="pill auto">לבד</span>«לא», או «כן» לפי השאלון והכרטיס</span>
+      <div class="mv-sep"></div>
+      <span class="from">מיקוד, חודשי שירות, קוד תואר</span><span class="arrow">←</span><span><span class="pill card">מהכרטיס</span>הלקוח כבר עונה עליהם בשאלון</span>
+      <div class="mv-sep"></div>
+      <span class="from">שם האב</span><span class="arrow">←</span><span><span class="pill q">שאלון</span>שאלה אחת, ליד הפרטים האישיים</span>
+      <div class="mv-sep"></div>
+      <span class="from">חברה בשליטה</span><span class="arrow">←</span><span><span class="pill q">שאלון</span>«יש לך חברה?» ורק אם כן — הפרטים</span>
+      <div class="mv-sep"></div>
+      <span class="from">«באמצע השאלון» מהרגע הראשון</span><span class="arrow">←</span><span><span class="pill auto">לבד</span>«עוד לא התחיל» עד שהלקוח באמת ממלא</span>
+    </div>
+  </section>
+
+  <section class="scope" aria-label="מה ייכלל בביצוע">
+    <h2>מה ייכלל בביצוע</h2>
+    <ol>
+      <li><b>שלב 1:</b> «עוד לא התחיל» (בדוח שנתי, בהצהרת הון ובהערכת מס, אותו משפט). הודעת המחיקה החדשה. «להשלים במשרד» יוצא. שם האב וחברה בשליטה עוברים לשאלון. מיקוד, שירות ותואר נלקחים מהכרטיס. ההצהרות מסומנות לבד.</li>
+      <li><b>שלב 2:</b> דוח פחת (טופס 1342): נכסים שעוברים משנה לשנה, החישוב לבד, והסכום נכנס לשורה 17 בנספח 1320.</li>
+      <li><b>לא משתנה:</b> רווח והפסד מפייפרלס, «רק אתה יודע», והזנת סכומים ליד המסמך. אלה קיימים, רק מסודרים במקום אחד.</li>
+    </ol>
+    <p class="small" style="margin:10px 0 0">דחיפה ל-master מעלה את השינוי לאתר החי. צפוי שינוי בקוד האתר בלבד, בלי שינוי במסד ובלי העובד במחשב המשרד. אם יתברר שצריך שינוי במסד, אחזור אליך לפני כן. לפני שההצהרות יסומנו לבד, אבדוק כל אחת מול הוראות טופס 1301 לשנת 2025.</p>
+  </section>
+</div>
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const frame = $('frame');
+  document.querySelectorAll('[data-view]').forEach(b => b.addEventListener('click', () => {
+    document.querySelectorAll('[data-view]').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+    frame.classList.toggle('is-phone', b.dataset.view === 'phone');
+    $('mv').classList.toggle('narrow', b.dataset.view === 'phone');
+  }));
+  document.querySelectorAll('[data-open]').forEach(b => b.addEventListener('click', () => {
+    const el = $(b.dataset.open); el.hidden = !el.hidden;
+  }));
+
+  let started = false;
+  $('stateBtn').addEventListener('click', () => {
+    started = !started;
+    $('status').innerHTML = started ? '<b>ישראל באמצע השאלון</b>' : '<b>נשלח לישראל</b> · עוד לא התחיל';
+    $('stateBtn').textContent = started ? '← חזרה ל«עוד לא התחיל»' : 'הלקוח התחיל למלא ←';
+  });
+  let t;
+  const toast = msg => { const el = $('toast'); el.textContent = msg; el.classList.add('on'); clearTimeout(t); t = setTimeout(() => el.classList.remove('on'), 3200); };
+  $('delBtn').addEventListener('click', () => toast('נמחק. דוח חדש יתחיל ממה שבכרטיס.'));
+
+  let open = 4;
+  const done = (row, sub, text, panel) => {
+    const r = $(row); if (r.classList.contains('is-done')) return;
+    r.classList.add('is-done'); $(sub).textContent = text; $(panel).hidden = true;
+    r.querySelector('.act').outerHTML = '<span class="tag ok">✓</span>';
+    open--; $('openCount').textContent = open + ' פתוחים';
+    document.querySelector('.grp-h').innerHTML = '<i>✓</i>אצלך · ' + (open - 1);
+  };
+  $('pnlDone').addEventListener('click', () => done('pnlRow', 'pnlSub', 'נטען · 14 שורות ב-1320', 'pnl'));
+  $('oykDone').addEventListener('click', () => done('oykRow', 'oykSub', 'הוזן', 'oyk'));
+
+  // ── פחת: נתוני דוגמה; פחת השנה = עלות × שיעור (נכס שנקנה השנה — לפי חודשים) ──
+  const RATES = [['מחשבים וציוד היקפי', 33], ['ריהוט וציוד משרדי', 7], ['רכב', 15], ['מבנה', 4]];
+  const assets = [
+    { name: 'מחשב נייד', date: '2024-03', cost: 8000, rate: 33, acc: 2420, carried: true },
+    { name: 'ריהוט משרדי', date: '2023-09', cost: 12000, rate: 7, acc: 1120, carried: true },
+  ];
+  const nis = v => '₪' + Math.round(v).toLocaleString('he-IL');
+  const yearDep = a => {
+    const [y, m] = (a.date || '2025-01').split('-').map(Number);
+    const months = y < 2025 ? 12 : y === 2025 ? 13 - (m || 1) : 0;
+    return Math.min(a.cost * a.rate / 100 * months / 12, Math.max(0, a.cost - a.acc));
+  };
+  const rateSel = (i, v) => '<select data-i="' + i + '" data-k="rate" aria-label="שיעור">' + RATES.map(([l, r]) => '<option value="' + r + '"' + (r === v ? ' selected' : '') + '>' + r + '% · ' + l + '</option>').join('') + '</select>';
+  const render = () => {
+    let total = 0;
+    $('depBody').innerHTML = assets.map((a, i) => {
+      const d = yearDep(a); total += d;
+      return '<tr><td>' + (a.carried ? a.name + ' <span class="carried">מהשנה הקודמת</span>' : '<input data-i="' + i + '" data-k="name" value="' + a.name + '" aria-label="שם הנכס">') + '</td>'
+        + '<td>' + (a.carried ? a.date.split('-').reverse().join('/') : '<input data-i="' + i + '" data-k="date" type="month" value="' + a.date + '" aria-label="תאריך רכישה">') + '</td>'
+        + '<td class="n">' + (a.carried ? nis(a.cost) : '<input class="num" data-i="' + i + '" data-k="cost" inputmode="numeric" value="' + (a.cost || '') + '" aria-label="עלות">') + '</td>'
+        + '<td>' + (a.carried ? a.rate + '%' : rateSel(i, a.rate)) + '</td>'
+        + '<td class="n">' + nis(a.acc) + '</td><td class="n calc">' + nis(d) + '</td><td class="n">' + nis(a.cost - a.acc - d) + '</td></tr>';
+    }).join('');
+    $('depTotal').textContent = nis(total);
+    $('depCards').innerHTML = assets.map((a, i) => {
+      const d = yearDep(a);
+      return '<div class="dcard"><h5><span>' + (a.carried ? a.name : '<input data-i="' + i + '" data-k="name" value="' + a.name + '" aria-label="שם הנכס" style="font:inherit;border:1px solid var(--bd-strong);border-radius:7px;padding:4px 6px">') + '</span>' + (a.carried ? '<span class="carried">מהשנה הקודמת</span>' : '') + '</h5>'
+        + (a.carried ? '' : '<div class="fields" style="margin-bottom:6px"><label class="f">תאריך רכישה<input data-i="' + i + '" data-k="date" type="month" value="' + a.date + '"></label><label class="f">עלות<input class="num" data-i="' + i + '" data-k="cost" inputmode="numeric" value="' + (a.cost || '') + '"></label><label class="f">שיעור' + rateSel(i, a.rate) + '</label></div>')
+        + '<dl>' + (a.carried ? '<dt>עלות · שיעור</dt><dd>' + nis(a.cost) + ' · ' + a.rate + '%</dd>' : '') + '<dt>נצבר עד השנה</dt><dd>' + nis(a.acc) + '</dd><dt>פחת השנה</dt><dd class="calc">' + nis(d) + '</dd><dt>יתרה</dt><dd>' + nis(a.cost - a.acc - d) + '</dd></dl></div>';
+    }).join('') + '<p class="note" style="margin:0">סה״כ פחת השנה: <b style="color:var(--chip-green-tx)">' + nis(total) + '</b> ← שורה 17 ב-1320</p>';
+    $('depSub').textContent = assets.length + ' נכסים · פחת השנה ' + nis(total);
+  };
+  const onEdit = e => {
+    const el = e.target; if (!el.dataset || el.dataset.i == null) return;
+    const a = assets[+el.dataset.i]; const k = el.dataset.k;
+    a[k] = k === 'cost' || k === 'rate' ? Number(String(el.value).replace(/[^\d]/g, '')) || 0 : el.value;
+    if (e.type === 'change') render();
+  };
+  $('dep').addEventListener('change', onEdit);
+  $('dep').addEventListener('input', e => { if (e.target.dataset && e.target.dataset.k === 'name') onEdit(e); });
+  $('addAsset').addEventListener('click', () => { assets.push({ name: 'נכס חדש', date: '2025-06', cost: 0, rate: 33, acc: 0 }); render(); });
+  $('depSave').addEventListener('click', () => done('depRow', 'depSub', $('depSub').textContent, 'dep'));
+  render();
+})();
+</script>
+</body>
+</html>

@@ -21,6 +21,7 @@ import { buildCoverage } from './formFields';
 import { compute1320, LINES_1320 } from './annex1320';
 import { DRAFT_FILL_1301 } from '../taxForms/coverage1301';
 import { asOfDate, clientForTaxYear, familyStatusForYear } from '../../utils/familyStatusYear';
+import { compute1342 } from './depreciation1342';
 
 const r0 = (n: number) => Math.round(n);
 const nis = (n: number) => `${Math.round(n).toLocaleString('he-IL')} ₪`;
@@ -381,14 +382,21 @@ export function computeReturn(input: ReturnInput): ReturnOutputs {
       gaps.push({ code: `annex1320_${l.entityRef}`, kind: 'data', text: `נספח 1320 (${l.label}): לקלוט רו״ה או להזין את שורות הנספח` });
       continue;
     }
-    const c13 = compute1320(books, { profitFact, label: l.label });
+    const depT = draft.depreciation?.[l.entityRef!];
+    const dep = depT ? compute1342(depT, draft.taxYear) : undefined;
+    const c13 = compute1320(books, { profitFact, label: l.label, depreciation: dep });
     annex1320.push({ entityRef: l.entityRef!, label: l.label, lines: c13.lines, complete: c13.complete, problems: c13.problems });
     annexes.push({ formId: '1320', title: annexTitle('1320'), reason: `${l.label} (${PERSON_HE[l.person]}) — נספח לכל עסק`, person: l.person, entityRef: l.entityRef,
       status: c13.complete ? 'filled' : 'partial',
       rows: LINES_1320.filter(x => c13.lines[x.key] != null && (c13.lines[x.key] !== 0 || x.derived)).map(x => ({ label: x.label, amount: c13.lines[x.key], source: { kind: 'calculation' as const, text: x.derived ? 'מחושב' : 'מהספרים (רו״ה / הזנת משרד)' } })),
       note: c13.problems.join(' · ') || undefined });
     for (const pr of c13.problems) gaps.push({ code: `annex1320_${l.entityRef}_${gaps.length}`, kind: /שונה מהרווח/.test(pr) ? 'control' : 'data', text: `נספח 1320 (${l.label}): ${pr}` });
-    if ((c13.lines['17'] ?? 0) > 0) gaps.push({ code: `annex1342_${l.entityRef}`, kind: 'annex', text: `פחת (שורה 17, ${l.label}) — נספח 1342 לא נתמך` });
+    // ‼ 30.10.2026 · 1342 במערכת: טבלת פחת ⇒ נספח עם שורה לכל נכס; פחת מרו״ה בלי טבלה ⇒ חסר (למלא את דוח הפחת), לא «לא נתמך»
+    if (dep && (dep.rows.length || depT?.none)) annexes.push({ formId: '1342', title: annexTitle('1342'), reason: `${l.label} (${PERSON_HE[l.person]}) — פחת (שורה 17)`, person: l.person, entityRef: l.entityRef,
+      status: dep.problems.length ? 'partial' : 'filled',
+      rows: dep.rows.map(r => ({ label: `${r.asset.name || 'נכס'} · ${r.asset.rate}% · נצבר ${Math.round(r.asset.accumulated).toLocaleString('he-IL')}`, amount: r.year, source: { kind: 'calculation' as const, text: r.asset.fromPrior ? 'מהשנה הקודמת' : 'הזנת משרד' } })),
+      note: dep.problems.join(' · ') || undefined });
+    else if ((c13.lines['17'] ?? 0) > 0) gaps.push({ code: `annex1342_${l.entityRef}`, kind: 'data', text: `פחת (שורה 17, ${l.label}) — למלא את דוח הפחת (1342)` });
     if ((c13.lines['21'] ?? 0) > 0) gaps.push({ code: `annex1343_${l.entityRef}`, kind: 'annex', text: `ניכוי נוסף בשל פחת (שורה 21, ${l.label}) — נספח 1343 לא נתמך` });
   }
   const capReadingsAll = persons.flatMap(p => CAP_KEYS.flatMap(k => cap[p].readings[k]));

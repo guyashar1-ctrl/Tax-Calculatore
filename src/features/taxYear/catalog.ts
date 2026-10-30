@@ -514,7 +514,9 @@ export const ITEMS: InfoItem[] = [
     question: 'הקבלות על התרומות', why: 'הזיכוי ניתן רק לפי קבלות', input: 'file', docKind: 'donationReceipts', knownBasis: DOC_KNOWN, covers: { parts: ['יד'] } },
 
   // ── חברות בשליטה — המשרד ──
-  { key: 'companies.controlled', area: 'companies', label: 'חברה בשליטה: דיבידנד, משיכות, חברה משפחתית', kind: 'screener', per: 'person', who: 'office', purposes: BOTH,
+  // ‼ 30.10.2026 · הלקוח יודע אם יש לו חברה — ריבוע בשאלון («חברה שלי»), לא משימה של המשרד
+  { key: 'companies.controlled', area: 'companies', label: 'חברה בשליטה: דיבידנד, משיכות, חברה משפחתית', kind: 'screener', per: 'person', who: 'client', purposes: BOTH,
+    question: 'האם {name} בעל/ת מניות בחברה (10% ומעלה)?', why: 'דיבידנד, משכורת או משיכות מחברה בשליטה מדווחים בדוח', input: 'yesno',
     cardKeys: ['isSubstantialShareholder', 'isFamilyCompanyMember', 'isForeignControllingShareholder'], covers: { parts: ['ד', 'ה', 'יא'] } },
 
   // ── תשלומים — המשרד ──
@@ -546,9 +548,12 @@ export const ITEMS: InfoItem[] = [
   // ── פרטים להגשה — רק לדוח ──
   { key: 'filing.refundAccount', area: 'filing', label: 'חשבון בנק להחזר', kind: 'detail', per: 'couple', who: 'client', purposes: ['annual'],
     question: 'לאיזה חשבון בנק להעביר החזר מס, אם יהיה?', why: 'רשות המסים מעבירה החזר רק לחשבון על שם בן הזוג הרשום', input: 'text', covers: { parts: ['לשימוש המשדר'] } },
-  { key: 'filing.declarations', area: 'filing', label: 'הצהרות ותיבות סימון בהגשה', kind: 'detail', per: 'couple', who: 'office', purposes: ['annual'], covers: { parts: ['א', 'ב', 'ז'] } },
-  // ‼ פער כרטיס מתועד: פרטים שהטופס דורש והכרטיס עוד לא מחזיק (שם האב, מיקוד, חודש שחרור וחודשי שירות, קוד תואר, תאריכי עלייה/חזרה)
-  { key: 'filing.identity', area: 'filing', label: 'פרטים לטופס שהכרטיס לא מחזיק', kind: 'detail', per: 'couple', who: 'office', purposes: ['annual'], covers: { parts: ['ב', 'יג'] } },
+  // ‼ 30.10.2026 · לא משימה של המשרד בשאלון (purposes ריק): ההצהרות מסומנות לבד ופרטי השחרור/התואר/המיקוד נלקחים מהכרטיס
+  //   (annualReturn/formFields.ts). מה שבאמת חסר (שם האב, קוד לדוקטורט, תאריך עלייה) — שורה משלו ב«אצלך» עם העורך המובנה
+  //   (AnnualWorkspace › formRest). העובדות עצמן נשארות — הצהרה/תיקון של המשרד גוברים.
+  { key: 'filing.declarations', area: 'filing', label: 'הצהרות ותיבות סימון בהגשה', kind: 'detail', per: 'couple', who: 'office', purposes: [], covers: { parts: ['א', 'ב', 'ז'] } },
+  // ‼ פער כרטיס מתועד: פרטים שהטופס דורש והכרטיס עוד לא מחזיק (שם האב, תאריכי עלייה/חזרה)
+  { key: 'filing.identity', area: 'filing', label: 'פרטים לטופס שהכרטיס לא מחזיק', kind: 'detail', per: 'couple', who: 'office', purposes: [], covers: { parts: ['ב', 'יג'] } },
 ];
 
 // «מה השתנה מאז» — לדוח השנתי, לתחום שידוע רק עד חודש החתך של ההערכה. שאלה אחת לתחום,
@@ -599,7 +604,7 @@ const ANNUAL_TILES: Record<string, string> = {
   'special.disability': 'אחוזי נכות', 'household.creditChanges': 'סיום לימודים או צבא',
   'household.aliyah': 'עלייה או חזרה לארץ', 'household.relativeCare': 'קרוב במוסד סיעודי',
   'household.alimonyPaid': 'מזונות לגרוש/ה', 'household.reserveDuty': 'מילואים כלוחם/ת',
-  'foreign.income': 'כסף בחו״ל', 'sales.sold': 'מכירה',
+  'foreign.income': 'כסף בחו״ל', 'sales.sold': 'מכירה', 'companies.controlled': 'חברה שלי',
 };
 /** שורת הדוגמה מתחת לריבוע. */
 export const ANNUAL_TILE_EXAMPLE: Record<string, string> = {
@@ -611,7 +616,7 @@ export const ANNUAL_TILE_EXAMPLE: Record<string, string> = {
   'special.disability': 'או מחלה קשה', 'household.creditChanges': 'מ-{since}',
   'household.aliyah': 'מ-{aliyahSince}', 'household.relativeCare': 'הורה, בן או בת זוג',
   'household.alimonyPaid': 'לבן או בת זוג קודמים', 'household.reserveDuty': 'ב-{reserveYear}{reserveNext}',
-  'foreign.income': 'עבודה, נכס או חשבון', 'sales.sold': 'דירה, מניות, קריפטו — גם בהפסד',
+  'foreign.income': 'עבודה, נכס או חשבון', 'sales.sold': 'דירה, מניות, קריפטו — גם בהפסד', 'companies.controlled': 'בעלות של 10% ומעלה',
 };
 /** «?» בריבוע — שורת הסבר אחת, רק בשאלון השנתי (ההסברים הארוכים ב-hints.ts משרתים גם את הערכת המס). */
 export const ANNUAL_TILE_HELP: Record<string, string> = {
@@ -626,6 +631,7 @@ export const ANNUAL_TILE_HELP: Record<string, string> = {
   'income.other': 'כל הכנסה שלא ברשימה — גם חד-פעמית.',
   'foreign.income': 'גם חשבון בלי פעילות.',
   'sales.sold': 'גם החלפה בין מטבעות קריפטו.',
+  'companies.controlled': 'חברה בע״מ שיש לך בה לפחות 10% מהמניות — גם אם לא קיבלת ממנה כסף השנה.',
   'donations.given': 'לעמותה מוכרת. קבלה דיגיטלית מספיקה.',
   'savings.selfDeposits': 'כעצמאים, בהוראת קבע, או מעבר למה שהמעסיק מפקיד. גם קרן השתלמות.',
   'savings.insurance': 'למשל ביטוח חיים למשכנתה. ביטוח דירה — לא.',

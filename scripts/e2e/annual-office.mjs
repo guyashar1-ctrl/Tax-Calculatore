@@ -163,7 +163,7 @@ async function runWidth(width) {
     const ws = page.locator('[data-annual-workspace]').first();
     await ws.waitFor({ timeout: 40000 });
     ok(await page.locator('[data-annual-summary]').first().isHidden(), 'הסיכום הקודם מוסתר (ב«כלים מתקדמים»)');
-    ok(/באמצע השאלון|ממתין/.test(await text(ws.locator('[data-aw-status]'))), 'המצב: הלקוח באמצע השאלון', await text(ws.locator('[data-aw-status]')));
+    ok(/באמצע השאלון|עוד לא התחיל|ממתין/.test(await text(ws.locator('[data-aw-status]'))), 'המצב: הלקוח באמצע השאלון', await text(ws.locator('[data-aw-status]')));
     const [st] = await env.sql(`select id from public.onboarding_steps where client_id = '${id}' and step_type = 'annual_return' and status <> 'cancelled'`);
 
     // 2 · הלקוח עונה ומעלה את המסמכים
@@ -269,13 +269,26 @@ async function runWidth(width) {
     for (let k = 0; k < 6; k++) { const b = ws.locator('[data-aw-note] button, [data-aw-unlisted] button').first(); if (!(await b.count())) break; await b.click(); await page.waitForTimeout(1200); }
     await page.waitForTimeout(1000);
     await shot(page, 'office-done');
-    console.log('    [office-rest] ' + await ws.locator('[data-aw-office-rest]').first().getAttribute('data-aw-office-rest').catch(() => ''));
+    // ‼ 30.10.2026 · בלי «להשלים במשרד» מקובץ: שורה לכל פריט (data-aw-office-item) ו«פרטים לטופס» (data-aw-form-rest)
+    const officeItems = async () => (await ws.locator('[data-aw-office-item]').evaluateAll(els => els.map(e => e.getAttribute('data-aw-office-item')))).filter(Boolean);
+    ok(!(await ws.locator('[data-aw-office-rest]').count()), 'אין «להשלים במשרד» מקובץ');
+    ok(!/הצהרות ותיבות סימון/.test(await text(ws.locator('.aw-minebox'))), 'הצהרות הטופס אינן משימה של המשרד');
+    console.log('    [office-items] ' + (await officeItems()).join(',') + ' · [form-rest] ' + (await ws.locator('[data-aw-form-rest]').first().getAttribute('data-aw-form-rest').catch(() => '')));
     console.log('    [status] ' + await text(ws.locator('[data-aw-status]')) + ' · ' + (await text(ws.locator('.aw-mats'))).replace(/\s+/g, ' ').slice(0, 300));
 
     // 6ב · «להשלים במשרד» — העורכים הקיימים אינם נושא הבדיקה הזו: עובדה מאושרת לכל פריט, כדי להגיע ל«מוכן»
-    const rest = await ws.locator('[data-aw-office-rest]').first().getAttribute('data-aw-office-rest', { timeout: 3000 }).catch(() => null);
-    if (rest) {
-      for (const it of rest.split(',')) {
+    const rest = (await officeItems()).join(',');
+    const formRest = await ws.locator('[data-aw-form-rest]').first().getAttribute('data-aw-form-rest', { timeout: 2000 }).catch(() => null);
+    if (formRest) {
+      // «פרטים לטופס»: נפתח עם העורכים המובנים (לא «פירוט»), וממלאים דרך המסד כמו שאר הפריטים
+      await ws.locator('[data-aw-form-rest] button').click();
+      ok(await ws.locator('[data-aw-form-panel] .ar-editor').count() > 0 && !(await ws.locator('[data-aw-form-panel] input[placeholder="פירוט"]').count()), '«פרטים לטופס» — שדות מובנים, בלי «פירוט»');
+      await env.sql(`insert into public.tax_year_facts (user_id, client_id, tax_year, item_key, subject_role, period_kind, period_from, period_to, answer, value, basis, source, status, request_id)
+        select user_id, id, 2025, k, 'couple', 'year', '2025-01-01', '2025-12-31', 'value', v::jsonb, 'declared', 'office', 'accepted', '${st.id}'
+        from public.clients, (values ('filing.identity', '{"fatherName":"משה","spouseFatherName":"אברהם","degreeCode":"3","spouseDegreeCode":"3"}'), ('filing.declarations', '{"F048":"60","F049":"2"}')) x(k, v) where id='${id}'`);
+    }
+    if (rest || formRest) {
+      for (const it of rest ? rest.split(',') : []) {
         const [key, role0, ek, er] = it.split(':');
         // ‼ שורה אחת לנושא — גם כשהוא לשני בני הזוג; ממלאים לשניהם
         for (const role of (role0 === 'client' || role0 === 'spouse') ? ['client', 'spouse'] : [role0])
@@ -288,7 +301,7 @@ async function runWidth(width) {
       await page.waitForTimeout(2500);
     }
 
-    console.log('    [after-seed] ' + await ws.locator('[data-aw-office-rest]').first().getAttribute('data-aw-office-rest', { timeout: 2000 }).catch(() => '(none)') + ' · ' + await text(ws.locator('[data-aw-open]')) + ' · ' + (await text(ws.locator('.aw-mats'))).replace(/s+/g, ' ').slice(0, 400));
+    console.log('    [after-seed] ' + ((await officeItems()).join(',') || '(none)') + ' · ' + await text(ws.locator('[data-aw-open]')) + ' · ' + (await text(ws.locator('.aw-mats'))).replace(/s+/g, ' ').slice(0, 400));
     // 6ג · 297 · שליחה לחתימה ⇒ הדף: שניהם חותמים ⇒ «נחתם» והקובץ החתום
     const sendSign = ws.locator('[data-aw-send-sign]');
     if (await sendSign.count()) {

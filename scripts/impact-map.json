@@ -384,6 +384,11 @@
           "note": "הדוח השנתי במשרד («חומרים» ליד «הדוח»), בדפדפן מול staging — דורש שרת: STAGING_ENV_DIR=… node scripts/e2e/annual-office.mjs --base=http://localhost:<port> --widths=1280,390"
         },
         {
+          "script": "e2e/annual-depreciation.mjs",
+          "run": false,
+          "note": "דוח הפחת (1342) ב«אצלך»: נכס מהשנה הקודמת עובר לבד, נכס חדש, שמירה בטיוטת הדוח — דורש שרת: STAGING_ENV_DIR=… node scripts/e2e/annual-depreciation.mjs --base=http://localhost:<port> --widths=1280,390"
+        },
+        {
           "script": "e2e/annual-ni-registrations.mjs",
           "run": false,
           "note": "רישום בביטוח לאומי בשאלון (עצמאי מסומן מראש, «סיום התואר», «לבדוק מול ביטוח לאומי») — דורש שרת: STAGING_ENV_DIR=… node scripts/e2e/annual-ni-registrations.mjs --base=http://localhost:<port> --widths=1280,390"
@@ -437,16 +442,24 @@
     },
     {
       "name": "שאלונים: אישור מידע קיים והוספת פרטים חסרים",
-      "invariants": ["INV-UX-01"],
+      "invariants": [
+        "INV-UX-01"
+      ],
       "globs": [
         "src/features/taxYear/**",
         "supabase/293-questionnaire-known-information.sql",
         "scripts/staging-test-known-information-293.mjs"
       ],
       "suites": [
-        { "script": "staging-test-known-information-293.mjs", "run": true },
-        { "script": "e2e/known-information.mjs", "run": false,
-          "note": "דפדפן מול staging, דורש שרת ו-STAGING_ENV_DIR; רוחבים 1280/390/360" }
+        {
+          "script": "staging-test-known-information-293.mjs",
+          "run": true
+        },
+        {
+          "script": "e2e/known-information.mjs",
+          "run": false,
+          "note": "דפדפן מול staging, דורש שרת ו-STAGING_ENV_DIR; רוחבים 1280/390/360"
+        }
       ]
     },
     {
@@ -492,7 +505,12 @@
         "worker/src/handlers/shaamIssueCertificates.mjs",
         "src/components/authorities/CertificateAction.tsx"
       ],
-      "suites": [{ "script": "staging-test-413-certificates.mjs", "run": true }]
+      "suites": [
+        {
+          "script": "staging-test-413-certificates.mjs",
+          "run": true
+        }
+      ]
     },
     {
       "name": "פייפרלס לבד (304): הקמה, ריטיינר לפי ההסכם, בדיקת כרטיס — שרת, עובד ומסך",
@@ -507,7 +525,12 @@
         "worker/src/paperless*.mjs",
         "worker/src/handlers/paperless*.mjs"
       ],
-      "suites": [{ "script": "staging-test-paperless-304.mjs", "run": true }]
+      "suites": [
+        {
+          "script": "staging-test-paperless-304.mjs",
+          "run": true
+        }
+      ]
     },
     {
       "name": "תורת הנהלת החשבונות וקטלוג פעולות המשרד — ממשק ותיעוד בלבד",

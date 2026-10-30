@@ -169,3 +169,34 @@
 .wd-sec.is-done { background: var(--chip-green-bg); border-color: transparent; }
 .wd-sec .v { font-weight: 700; font-variant-numeric: tabular-nums; direction: ltr; }
 @media (max-width: 520px) { .wd-sec { flex-wrap: wrap; } .wd-sec input { inline-size: 100%; } }
+
+/* ── 30.10.2026 · דוח הפחת (1342) בתוך «אצלך» — טבלה ברוחב, כרטיס לכל נכס בצר ── */
+.dp { container-type: inline-size; display: flex; flex-direction: column; gap: 8px; }
+.dp-table { inline-size: 100%; border-collapse: collapse; font-size: var(--fs-13); }
+.dp-table th { text-align: start; font-weight: 600; color: var(--tx2); font-size: var(--fs-12); padding: 4px 6px; border-bottom: 1px solid var(--bd); white-space: nowrap; }
+.dp-table td { padding: 5px 6px; border-bottom: 1px solid var(--s3); vertical-align: middle; }
+.dp-table tfoot td { font-weight: 700; border-bottom: 0; }
+.dp-n { direction: ltr; text-align: end; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.dp-calc { color: var(--chip-green-tx); font-weight: 700; }
+.dp input, .dp select { font: inherit; font-size: var(--fs-13); border: 1px solid var(--bd-strong); border-radius: 7px; padding: 4px 6px; background: var(--card); color: var(--tx); min-block-size: 34px; min-inline-size: 0; }
+.dp input[data-bad], .dp select[data-bad] { border-color: var(--danger, #b42318); }
+.dp-table input:not([type="checkbox"]):not([type="month"]) { inline-size: 100%; min-inline-size: 70px; }
+.dp-num { direction: ltr; text-align: end; }
+.dp-pct { inline-size: 56px !important; min-inline-size: 56px !important; margin-inline-start: 4px; }
+.dp-rate { display: inline-flex; align-items: center; gap: 4px; }
+.dp-carried { font-size: var(--fs-12); color: var(--chip-blue-tx); background: var(--chip-blue-bg); border-radius: 999px; padding: 0 7px; white-space: nowrap; }
+.dp-out { display: inline-flex; align-items: center; gap: 4px; font-size: var(--fs-12); color: var(--tx2); white-space: nowrap; }
+.dp-none, .dp-sum { margin: 0; font-size: var(--fs-13); color: var(--tx2); }
+.dp-sum b { color: var(--chip-green-tx); }
+.dp-err { margin: 0; font-size: var(--fs-13); color: var(--danger, #b42318); }
+.dp-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.dp-cards { display: none; }
+.dp-card { border: 1px solid var(--bd); border-radius: 10px; padding: 8px 10px; margin-bottom: 8px; display: flex; flex-direction: column; gap: 6px; }
+.dp-card-h { display: flex; justify-content: space-between; gap: 6px; font-size: var(--fs-14); }
+.dp-card dl { margin: 0; display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; font-size: var(--fs-13); }
+.dp-card dt { color: var(--tx2); }
+.dp-card dd { margin: 0; direction: ltr; text-align: end; font-variant-numeric: tabular-nums; }
+.dp-fields { display: grid; grid-template-columns: 1fr; gap: 6px; }
+.dp-fields label { display: flex; flex-direction: column; gap: 2px; font-size: var(--fs-12); color: var(--tx2); }
+.dp-fields input, .dp-fields select { inline-size: 100%; }
+@container (max-width: 600px) { .dp-wide { display: none; } .dp-cards { display: block; } }

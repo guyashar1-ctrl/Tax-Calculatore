@@ -66,6 +66,8 @@ export interface ReturnDraft {
   rent1321?: { singleApartment?: boolean; ownHousingRent?: number; props?: Record<string, { block?: string; parcel?: string; area?: string; floor?: string }> };
   /** נספח 1320 לכל עסק (לפי מזהה העסק בכרטיס). */
   books?: Record<string, Books1320>;
+  /** 30.10.2026 · נספח 1342 (פחת) לכל עסק — שורה 17 ב-1320 נגזרת ממנו (depreciation1342.ts). */
+  depreciation?: Record<string, import('./depreciation1342').DepTable>;
   /** עמית מוטב שבוחר חישוב «יחיד» (מסלול א׳) — סימון 233/234. */
   pensionTrack?: Partial<Record<Person, 'auto' | 'A'>>;
   /** ערכים ידניים מעל החישוב («#») — רק עם נימוק; הסכום המחושב נשמר לצידם. */

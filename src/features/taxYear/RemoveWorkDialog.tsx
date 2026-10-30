@@ -61,7 +61,7 @@ export default function RemoveWorkDialog({ stepId, title, onClose, onDone, purge
       const r = await api.purgeTaxWork(stepId);
       setBusy(false);
       if (!r.ok) { setErr(ERR[r.error] ?? `המחיקה נכשלה (${r.error})`); return; }
-      onDone('purged', 'נמחק. אפשר לפתוח מחדש.');
+      onDone('purged', 'נמחק. בפתיחה מחדש מתחילים ממה שבכרטיס.');
       return;
     }
     if (state.mode === 'none' && state.restorable && pick !== 'cancel') {

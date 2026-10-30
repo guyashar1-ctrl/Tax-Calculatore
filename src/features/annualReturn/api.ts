@@ -60,6 +60,15 @@ export const recordSourceLines = (clientId: string, lines: unknown[], target: { 
     p_client_id: clientId, p_evidence_id: target.evidenceId ?? null, p_evidence: target.evidence ?? null, p_lines: lines, p_replaces_evidence_id: target.replacesEvidenceId ?? null,
   });
 
+/** 30.10.2026 · טבלאות הפחת (1342) מהדוח של שנה קודמת — הגרסה המאושרת האחרונה, אחרת הטיוטה. לכל עסק. */
+export async function loadPriorDepreciation(clientId: string, taxYear: number): Promise<ReturnDraft['depreciation'] | undefined> {
+  const { data, error } = await supabase.from('annual_returns').select('status, version, draft').eq('client_id', clientId).eq('tax_year', taxYear).order('version');
+  if (error || !data?.length) return undefined;
+  const rows = data as { status: string; version: number; draft: ReturnDraft }[];
+  const pick = [...rows].reverse().find(r => r.status === 'approved') ?? [...rows].reverse().find(r => r.status === 'draft') ?? rows[rows.length - 1];
+  return pick?.draft?.depreciation;
+}
+
 /** בקשות «דוח שנתי» של הלקוח (לפתיחה ממפת הטופס): המזהה והשנה. */
 export async function loadReturnRequests(clientId: string): Promise<{ stepId: string; taxYear: number; open: boolean }[]> {
   const { data, error } = await supabase.from('onboarding_steps').select('id, status, payload').eq('client_id', clientId).eq('step_type', 'annual_return');

@@ -156,7 +156,7 @@ async function runWidth(width) {
 
     // 2 · שליחת השאלון ⇒ הלקוח עונה (כולל רמת חיים, מה נכנס, מה יצא)
     await ws.locator('[data-wd-send-q]').click();
-    await page.waitForFunction(() => /באמצע השאלון|ממתין/.test(document.querySelector('[data-wd-status]')?.textContent ?? ''), null, { timeout: 40000 }).catch(() => {});
+    await page.waitForFunction(() => /באמצע השאלון|עוד לא התחיל|ממתין/.test(document.querySelector('[data-wd-status]')?.textContent ?? ''), null, { timeout: 40000 }).catch(() => {});
     const pp = await ctx.newPage(); onErr(pp, 'portal');
     await pp.goto(env.portalUrl(), { waitUntil: 'domcontentloaded' });
     await pp.waitForFunction(() => document.body.innerText.includes('הצהרת הון'), null, { timeout: 30000 });
