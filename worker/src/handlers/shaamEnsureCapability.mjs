@@ -30,6 +30,11 @@ const BOOTSTRAP_REQUIRED =
   'זהו חיבור חדש לשע״ם: קודם התחברו מהכותרת (כרטיס+PIN, וכניסה למערכת גביית מס הכנסה). ' +
   'אחרי שהחיבור ירוק, אמשיך למערכת הזו לבד.';
 
+/** 30.10 · הדף עוד יורד משע״ם אחרי ההמתנה המלאה — אומרים את זה, לא «לחצו שוב». */
+export function stillLoadingText(layerName) {
+  return `שע״ם איטית כרגע: ${layerName} עדיין נטען אחרי 4 דקות. שום דבר לא נשלח — נסו שוב בעוד כמה דקות.`;
+}
+
 export async function preflight() {
   return { ok: true };
 }
@@ -88,6 +93,9 @@ export async function run(ctx, input = {}) {
         HUMAN_MESSAGE[capability] ?? SHAAM_AUTH_PENDING,
         `awaiting_${capability}_auth`,
       );
+    }
+    if (evidence?.reasonCode === 'still_loading') {
+      throw new PermanentError(stillLoadingText(CAPABILITY_NAME[capability] ?? capability), 'ensure_capability_unavailable');
     }
     throw new PermanentError(
       `לא הצלחתי לפתוח את ${CAPABILITY_NAME[capability] ?? capability} בחלון שע״ם (${evidence?.reasonCode ?? 'unknown'}). לחצו שוב כדי לנסות.`,

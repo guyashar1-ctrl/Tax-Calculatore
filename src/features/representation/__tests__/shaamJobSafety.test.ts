@@ -7,7 +7,7 @@ import type { AutomationJob } from '../../../types/automation';
 import { test, equal, assert } from '../../../testkit/tinyTest';
 import type { TestCase } from '../../../testkit/tinyTest';
 import {
-  shaamStopState, isShaamMutation, touchedShaam, SHAAM_MUTATION_ACTIONS,
+  shaamStopState, isShaamMutation, touchedShaam, SHAAM_MUTATION_ACTIONS, stoppedToday,
 } from '../shaamJobSafety';
 
 function job(over: Partial<AutomationJob> = {}): AutomationJob {
@@ -21,6 +21,15 @@ function job(over: Partial<AutomationJob> = {}): AutomationJob {
 const touched = { externalAttempt: { at: '2026-01-01T00:00:00Z', stage: 'upload_signed_form' } };
 
 export const TESTS: TestCase[] = [
+  test('30.10 · עצירה של בדיקה מוצגת רק ביום שבו נעצרה', () => {
+    const now = new Date(2026, 9, 30, 9, 0);
+    equal(stoppedToday(job({ finishedAt: new Date(2026, 9, 30, 6, 0).toISOString() }), now), true, 'הבוקר');
+    equal(stoppedToday(job({ finishedAt: new Date(2026, 9, 25, 10, 0).toISOString() }), now), false, 'לפני 5 ימים');
+    equal(stoppedToday(job({ updatedAt: new Date(2026, 9, 30, 8, 0).toISOString() }), now), true, 'needs_human בלי finishedAt — לפי העדכון');
+    equal(stoppedToday(job({ updatedAt: '' }), now), false, 'בלי תאריך — לא מציגים');
+    equal(stoppedToday(null, now), false);
+  }),
+
   test('הרשימה תואמת את מה שהשרת מגן עליו', () => {
     equal(isShaamMutation('shaam.create_representation'), true);
     equal(isShaamMutation('shaam.submit_poa'), true);

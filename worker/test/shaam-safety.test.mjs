@@ -200,3 +200,16 @@ test('9א · דף ריק — תקלה זמנית בשע״ם, בלי «דווחו
   // האבחון עצמו נכשל — לא מנחשים «ריק»
   assert.equal(unknownScreenError('x', 'y', { error: 'boom' }).code, 'shaam_unexpected_screen');
 });
+
+// ── 9ב. דף שעוד יורד (30.10.2026) ⇒ «שע״ם איטית», אותו קוד page_not_loaded ─────
+test('9ב · ריק כי עדיין נטען — אומרים «איטית», לא «תקלה»', () => {
+  const loading = {
+    stage: 'פתיחת מערכת רישום הייצוג', headings: [], buttons: [], fieldLabels: [],
+    dialogOpen: false, hasPasswordField: false, readyState: 'loading', textLength: 0,
+  };
+  const e = unknownScreenError('בדיקת קבלת הייצוג', 'פתיחת מערכת רישום הייצוג', loading);
+  assert.equal(e.code, 'page_not_loaded');
+  assert.match(e.message, /איטית/);
+  assert.match(e.message, /לא נלחץ שום דבר/);
+  assert.doesNotMatch(e.message, /דווח/);
+});

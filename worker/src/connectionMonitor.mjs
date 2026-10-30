@@ -76,6 +76,7 @@ import {
 import { reportStatus } from './apiClient.mjs';
 import { attachPaperless, detachPaperless, pickPaperlessPage, classifyPaperlessUrl, isPaperlessDebugUp } from './paperlessSession.mjs';
 import { hostIdleSeconds } from './hostActivity.mjs';
+import { warmRepresentationAssets } from './shaamAssetWarmup.mjs';
 import {
   tryGmfAutoLogin, resetGmfAutoLogin, presentGmfLoginToHuman,
   beginShaamLoginCycle, completeShaamLogin, gmfAutoAllowed,
@@ -96,6 +97,8 @@ let gmfReported = null;
 let vatReported = null;
 let nikuiReported = null;
 let representationReported = null;
+/** בדיקת השרת האחרונה אמרה שסשן הפורטל פג (ועוד לא אמרה «חי» מאז). */
+let portalServerExpired = false;
 let btlReported = null;
 let paperlessReported = null;
 /** ההמתנה להתחברות לב״ל — ראה btlLoginWatch.mjs. */
@@ -332,6 +335,8 @@ export async function tickConnectionMonitor(userId, workerId, log, { scope = 'al
       // בפועל. הורדה ל"מנותק" שמורה לבדיקת השרת.
       const local = await classifyShaamAuth(conn.page);
       shaam = local.authenticated ? true : (shaamReported ?? false);
+      // אותה אסימטריה: מה שמעלה את הפורטל ל«מחובר» מבטל גם את החסימה של רישום הייצוג.
+      if (local.authenticated) portalServerExpired = false;
 
       if (now - lastProbe >= SERVER_PROBE_MS) {
         lastProbe = now;
@@ -341,6 +346,7 @@ export async function tickConnectionMonitor(userId, workerId, log, { scope = 'al
           lastProbe = 0;
         } else if (probe.ok) {
           shaam = probe.authenticated;
+          portalServerExpired = !probe.authenticated;
           log(`בדיקת סשן פורטל: ${probe.authenticated ? 'חי' : 'פג'} · ${probe.detail}`);
           // ‼ רק אישור **מהשרת** שהסשן פג פותח מחזור חיים חדש — לא כשל רשת.
           if (!probe.authenticated && shaamReported) {
@@ -388,7 +394,15 @@ export async function tickConnectionMonitor(userId, workerId, log, { scope = 'al
       let gmfSeenNow = onGmf.ready === true;
       if (onVat.ready !== null) { vat = onVat.ready; vatCheckedAtMs = now; }
       if (onNikui.ready !== null) { nikui = onNikui.ready; nikuiCheckedAtMs = now; }
-      if (onRepresentation.ready !== null) { representation = onRepresentation.ready; representationCheckedAtMs = now; }
+      // ‼ 30.10.2026 · לשונית שעדיין מציגה את רשימת הבקשות אחרי שהשרת אמר שסשן הפורטל
+      // פג אינה ראיה — «ייצוג=מוכנה» נשאר דולק כל הלילה. רק אישור **מהשרת** חוסם (לא כותרת
+      // מקומית: Tier-B נמדדות בעצמן, ראה למעלה), עד שהשרת שוב אומר «חי».
+      if (onRepresentation.ready !== null) {
+        representation = onRepresentation.ready && !portalServerExpired;
+        representationCheckedAtMs = now;
+      } else if (portalServerExpired) {
+        representation = false;
+      }
 
       // ── בוטסטרפ יזום, GMF בלבד — החלטת מוצר מאושרת 23.09.2026 ──
       // ‼ מודל האימות המאושר: התחברות ראשית פעם אחת → הכנת אמצעי המשנה
@@ -436,6 +450,13 @@ export async function tickConnectionMonitor(userId, workerId, log, { scope = 'al
       // ‼ התחברות מלאה = הפורטל מחובר ו-GMF פתוחה, בלי שום מסך של הסיסמה
       // הראשונה ברקע. מכאן — סיסמה שנייה לבדה היא אוטומטית.
       if (shaam && gmfSeenNow && !firstPasswordNow && completeShaamLogin()) log(FULL_LOGIN_DONE_LOG);
+
+      // ‼ 30.10.2026 · קבצי רישום הייצוג מורדים מראש, כדי ש«בדוק אם נקלט» לא יחכה דקות
+      // לקובץ של 3.9MB. רק כשהחיבור מוכן ואין מסך כניסה — בקשת רקע בזמן כניסה שוברת אותה
+      // (ראה probeServerSession). לא מחכים לזה: זה רץ בתוך הדף.
+      if (shaam && gmf && !firstPasswordNow) {
+        await warmRepresentationAssets(conn.page, { log, now }).catch(() => {});
+      }
     } finally {
       await detach(conn.browser);
     }

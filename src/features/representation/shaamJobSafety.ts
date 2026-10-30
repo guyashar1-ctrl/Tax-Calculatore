@@ -222,6 +222,18 @@ export function shaamStopState(job: AutomationJob | null | undefined): ShaamStop
   };
 }
 
+/**
+ * ‼ 30.10.2026 (גיא): «הבדיקה הקודמת לא הושלמה» מלפני ארבעה ימים חזרה בכל רענון. בדיקה
+ * (קריאה בלבד) שנעצרה רלוונטית רק ביום שבו נעצרה — הכפתור עצמו הוא הניסיון הבא.
+ * ‼ רק לבדיקה: עצירה של פעולה שאולי כבר נגעה בשע״ם נשארת עד שמכריעים, בלי קשר לתאריך.
+ */
+export function stoppedToday(job: AutomationJob | null | undefined, now: Date = new Date()): boolean {
+  const at = job?.finishedAt ?? job?.updatedAt;
+  if (!at) return false;
+  const d = new Date(at);
+  return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate();
+}
+
 function isMutation(job: AutomationJob): boolean {
   return isShaamMutation(job.actionType);
 }

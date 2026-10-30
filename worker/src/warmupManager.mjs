@@ -37,7 +37,8 @@ export const HUMAN_MESSAGE = {
 };
 
 /** ממפה תוצאת gmfState/vatState/nikuiState הישנה (ready/reason) למילון המצבים החדש. */
-const UNAVAILABLE_REASONS = new Set(['unexpected_destination', 'transient_recovery_exhausted']);
+// ‼ still_loading (30.10) — שע״ם עוד שולחת את הדף אחרי 4 דקות: «לא זמינה כרגע», לא «דרוש אדם».
+const UNAVAILABLE_REASONS = new Set(['unexpected_destination', 'transient_recovery_exhausted', 'still_loading']);
 function mapLegacyResult(r) {
   if (r.ready) return { state: 'ready', reasonCode: r.reason, evidenceKind: 'dom_state' };
   if (UNAVAILABLE_REASONS.has(r.reason)) {

@@ -173,6 +173,14 @@ export function unknownScreenError(operation, stage, diagnostics) {
   // ‼ 29.10.2026 (ליאת, 25.10): דף ריק אינו «מסך שלא הכרנו» — שע״ם לא טענה אותו. «דווחו,
   // האוטומציה תתוקן» היה שולח לחפש באג שאין. אותה מחלקת שגיאה (196 לא משתנה), קוד אחר.
   if (isBlankScreen(diagnostics)) {
+    // ‼ 30.10.2026 · ריק כי שע״ם עוד שולחת את הדף (readyState='loading') — איטיות, לא מסך שבור.
+    if (diagnostics.readyState === 'loading') {
+      return new NeedsHumanError(
+        `${operation} נעצרה: שע״ם איטית כרגע — הדף עדיין נטען אחרי 4 דקות (שלב «${stage}»). ` +
+        'במסך הזה לא נלחץ שום דבר. נסו שוב בעוד כמה דקות.',
+        'page_not_loaded',
+      );
+    }
     return new NeedsHumanError(
       `${operation} נעצרה: הדף בשע״ם לא נטען (נשאר ריק) בשלב «${stage}». ` +
       'זו בדרך כלל תקלה זמנית בשע״ם. במסך הזה לא נלחץ שום דבר. נסו שוב בעוד כמה דקות.',

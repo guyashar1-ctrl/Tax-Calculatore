@@ -542,12 +542,17 @@ export async function readRepresentationOnCurrentPage(page) {
  */
 export async function openRepresentationAndCheck(page) {
   await page.goto(REPRESENTATION_URL, { waitUntil: 'domcontentloaded', timeout: 25000 }).catch(() => {});
+  // ‼ 30.10.2026 · goto מוותר אחרי 25 שניות, אבל הדף ממשיך לרדת — מחכים לו (ראה waitWhileLoading).
+  const load = await waitWhileLoading(page);
+  if (load.stillLoading) {
+    return { ready: false, reason: 'still_loading', pathname: REPRESENTATION_PATH, href: page.url(), load };
+  }
   await page.waitForTimeout(2500); // ‼ Angular hash routing — לא תמיד תחת networkidle
   await page.waitForLoadState('networkidle', { timeout: 12000 }).catch(() => {});
   const s = await snapRepresentation(page);
   let pathname = REPRESENTATION_PATH;
   try { pathname = new URL(s.href).pathname; } catch { /* about:blank וכדומה */ }
-  return { ready: s.ready, reason: s.reason, pathname, href: s.href };
+  return { ready: s.ready, reason: s.reason, pathname, href: s.href, load };
 }
 
 /**
@@ -685,15 +690,77 @@ const TRANSIENT_REASONS = new Set(['unexpected_destination', 'unknown_screen']);
 const RECOVERY_WAIT_MS = 3000;
 const RECOVERY_BUDGET_MS = 45_000;
 
-export async function ensureWithBoundedRecovery(page, { initial, readCurrent, reopen }) {
+// ─── דף שעדיין יורד — מחכים, לא מרעננים ────────────────────────────────────
+// ‼ 30.10.2026 · נמדד חי: מערכת רישום הייצוג טוענת ~170 סקריפטים סינכרוניים ב-<head>,
+// ובהם kendo.all.min.js (3.9MB, בלי דחיסה). בלי עותק במטמון ההורדה לקחה בין 16 שניות
+// ליותר מ-150, ובכל אותו זמן אין body (readyState='loading', בלי hash) — «דף ריק».
+// רענון באמצע מוחק את מה שירד ומתחיל מאפס, ולכן «ריק ← רענון ← פתיחה מחדש» לא
+// הסתיים אף פעם (25.10 ×2, 29.10 ×2). כל עוד המסמך בטעינה — זו לא תקלה, ממתינים.
+export const STILL_LOADING_MAX_MS = 240_000;
+
+/** מצב הטעינה של המסמך. null ⇒ לא ניתן לקרוא (ניווט באמצע / דף סגור). */
+export async function readLoadState(page) {
+  try {
+    const s = await page.evaluate(() => ({
+      readyState: document.readyState,
+      hasBody: !!document.body,
+      resources: performance.getEntriesByType('resource').length,
+    }));
+    return s && typeof s === 'object' && typeof s.readyState === 'string' ? s : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * ממתין כל עוד המסמך בטעינה, עד maxMs — בלי רענון ובלי ניווט.
+ * ‼ קריאה שנכשלה (null) אינה «נטען»: ניווט באמצע. מנסים שוב עד 3 פעמים ברצף.
+ */
+export async function waitWhileLoading(page, { maxMs = STILL_LOADING_MAX_MS, stepMs = 2000 } = {}) {
+  const start = Date.now();
+  let st = await readLoadState(page);
+  let misses = st ? 0 : 1;
+  while ((st?.readyState === 'loading' || (!st && misses < 3)) && Date.now() - start < maxMs) {
+    if (page.isClosed?.()) break;
+    await page.waitForTimeout(stepMs);
+    st = await readLoadState(page);
+    misses = st ? 0 : misses + 1;
+  }
+  return {
+    readyState: st?.readyState ?? null,
+    resources: st?.resources ?? null,
+    waitedMs: Date.now() - start,
+    stillLoading: st?.readyState === 'loading',
+  };
+}
+
+export async function ensureWithBoundedRecovery(page, { initial, readCurrent, reopen, loadMaxMs = STILL_LOADING_MAX_MS }) {
   let attempt = initial;
   let recoveries = 0;
-  const start = Date.now();
+  // ‼ זמן ההמתנה לדף שיורד לא נספר בתקציב ההתאוששות — הוא לא התאוששות.
+  let start = Date.now();
 
   const isAmbiguous = (r) => !r.ready && TRANSIENT_REASONS.has(r.reason);
 
+  /** הדף עוד יורד? ממתינים לו וקוראים אותו כמו שהוא. false ⇒ עדיין יורד אחרי ההמתנה המלאה. */
+  const settleLoading = async () => {
+    const t0 = Date.now();
+    const load = await waitWhileLoading(page, { maxMs: loadMaxMs });
+    start += Date.now() - t0;
+    if (load.stillLoading) return false;
+    if (load.waitedMs > 1000) {
+      const current = await readCurrent(page);
+      if (current.ready !== null) attempt = { ready: current.ready, reason: current.reason, pathname: current.pathname };
+    }
+    return true;
+  };
+
+  if (attempt.reason === 'still_loading') return { ...attempt, recoveries };
+
   while (isAmbiguous(attempt) && recoveries < 2 && Date.now() - start < RECOVERY_BUDGET_MS) {
     if (await isOnWorkScreen(page)) break; // ‼ לא נוגעים במסך שהרו"ח פתח
+    if (!(await settleLoading())) return { ...attempt, ready: false, reason: 'still_loading', recoveries };
+    if (!isAmbiguous(attempt)) break;
     recoveries++;
     await page.waitForTimeout(RECOVERY_WAIT_MS);
 
@@ -711,6 +778,10 @@ export async function ensureWithBoundedRecovery(page, { initial, readCurrent, re
     }
   }
 
+  if (recoveries > 0 && isAmbiguous(attempt) && !(await isOnWorkScreen(page))) {
+    // הפתיחה האחרונה (reopen) עוד יורדת — אותו כלל: ממתינים לה, לא מוותרים.
+    if (!(await settleLoading())) return { ...attempt, ready: false, reason: 'still_loading', recoveries };
+  }
   if (recoveries > 0 && isAmbiguous(attempt)) {
     // ‼ "לא זמינה כרגע" אמיתי — לא human_required. מוצה תקציב ההתאוששות,
     // לא התגלה challenge קונקרטי שדורש אדם.

@@ -26,7 +26,7 @@ import { shaamPersonFacts } from '../features/representation/shaamPersonFacts';
 import { shaamCreateInput } from '../features/representation/repAutomationInputs';
 import type { ShaamRepresentationAction } from '../features/taxFile/shaamRepresentationAction';
 import { signatureDocumentsOf } from '../utils/repDocuments';
-import { shaamStopState } from '../features/representation/shaamJobSafety';
+import { shaamStopState, stoppedToday } from '../features/representation/shaamJobSafety';
 import { spouseSignatureProof } from '../features/representation/shaamSpouseConfirmation';
 import ShaamStopNotice from './ShaamStopNotice';
 import ConfirmDialog from './ui/ConfirmDialog';
@@ -236,7 +236,8 @@ export default function ShaamNextActionButton({
       </button>
       {/* ‼ 25.10.2026 · מה עוצר, במילים — ממתין לך בחלון שע״ם, או לא נפתח (ולחיצה נוספת מנסה שוב). */}
       {gate.notice && !running && (
-        <div className={errorClassName} style={gate.notice.tone === 'wait' ? { color: 'var(--ink-2)' } : undefined}>
+        // ‼ 30.10 · פתיחה שלא הצליחה = שום דבר לא נשלח לשע״ם — שורה אפורה, לא אדום.
+        <div className={errorClassName} style={{ color: gate.notice.tone === 'wait' ? 'var(--ink-2)' : 'var(--ink-3)' }}>
           {gate.notice.text}
         </div>
       )}
@@ -258,7 +259,7 @@ export default function ShaamNextActionButton({
           בכל מקום, וניתנת להצגה ולבדיקה בלי משימה אמיתית. */}
       {/* ‼ 29.10.2026 (ליאת): בדיקה (קריאה בלבד) שלא הושלמה — שורה אפורה אחת, עד הבדיקה הבאה.
           לא פאנל אדום ולא «בכל זאת לנסות שוב»: הכפתור עצמו הוא הניסיון הבא, ושום דבר לא שונה בשע״ם. */}
-      {stop && !running && !gate.connecting && action.kind === 'check' && !stop.mayHaveActed && (
+      {stop && !running && !gate.connecting && !gate.notice && action.kind === 'check' && !stop.mayHaveActed && stoppedToday(job) && (
         <div className={errorClassName} style={{ color: 'var(--ink-3)' }} title={job?.needsHuman ?? job?.errorDetail ?? undefined}>
           הבדיקה הקודמת לא הושלמה: {stop.title}
         </div>

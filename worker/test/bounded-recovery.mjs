@@ -106,5 +106,74 @@ function fakePage({ pathname = '/other', hasPasswordField = false } = {}) {
   assertEq(reloadCalls, 0, '6c: לא בוצע אפילו reload אחד — לא נוגעים במסך שהרו"ח פתח');
 }
 
+// ── 7–10 (30.10.2026): דף שעדיין יורד — מחכים לו, לא מרעננים ─────────────────
+/** page שהמסמך שלו «בטעינה» עד שעוברות loadingTicks המתנות. */
+function loadingPage(loadingTicks) {
+  let ticks = 0;
+  const calls = { reload: 0 };
+  return {
+    calls,
+    url: () => 'https://example.test/srmyzgipuykoach/',
+    isClosed: () => false,
+    evaluate: async (fn) => (String(fn).includes('readyState')
+      ? { readyState: ticks < loadingTicks ? 'loading' : 'complete', hasBody: ticks >= loadingTicks, resources: 10 }
+      : false),
+    waitForLoadState: async () => {},
+    waitForTimeout: async (ms) => { ticks++; await new Promise((r) => setTimeout(r, Math.min(ms, 5))); },
+    reload: async () => { calls.reload++; },
+  };
+}
+
+{
+  // 7. «ריק» כי הדף עוד יורד, ואז נטען — בלי פתיחה מחדש.
+  const page = loadingPage(3);
+  let reopenCalls = 0;
+  const r = await ensureWithBoundedRecovery(page, {
+    initial: { ready: false, reason: 'unknown_screen' },
+    readCurrent: async () => ({ ready: true, reason: 'list_screen', pathname: '/srmyzgipuykoach/' }),
+    reopen: async () => { reopenCalls++; return { ready: true, reason: 'list_screen' }; },
+    loadMaxMs: 60_000,
+  });
+  assertEq(r.ready, true, '7a: הדף נטען אחרי המתנה');
+  assertEq(reopenCalls, 0, '7b: אין פתיחה מחדש');
+}
+
+{
+  // 8. עדיין יורד אחרי ההמתנה המלאה ⇒ still_loading, ואף רענון.
+  const page = loadingPage(Number.POSITIVE_INFINITY);
+  let reopenCalls = 0;
+  const r = await ensureWithBoundedRecovery(page, {
+    initial: { ready: false, reason: 'unknown_screen' },
+    readCurrent: async () => ({ ready: false, reason: 'unknown_screen' }),
+    reopen: async () => { reopenCalls++; return { ready: false, reason: 'unknown_screen' }; },
+    loadMaxMs: 40,
+  });
+  assertEq(r.reason, 'still_loading', '8a: מדווח «עדיין נטען», לא «מוצה»');
+  assertEq(page.calls.reload, 0, '8b: לא רוענן דף שעוד יורד — רענון מתחיל את ההורדה מאפס');
+  assertEq(reopenCalls, 0, '8c: לא נפתח מחדש');
+}
+
+{
+  // 9. הפתיחה עצמה כבר דיווחה still_loading ⇒ מחזירים אותו כמו שהוא.
+  const page = loadingPage(0);
+  const r = await ensureWithBoundedRecovery(page, {
+    initial: { ready: false, reason: 'still_loading' },
+    readCurrent: async () => ({ ready: true, reason: 'list_screen' }),
+    reopen: async () => ({ ready: true, reason: 'list_screen' }),
+  });
+  assertEq(r.reason, 'still_loading', '9a: still_loading מהפתיחה לא הופך לרענון');
+  assertEq(page.calls.reload, 0, '9b: אין רענון');
+}
+
+{
+  // 10. waitWhileLoading: מחכה עד שהמסמך נטען, ומדווח.
+  const { waitWhileLoading } = await import('../src/browserSession.mjs');
+  const done = await waitWhileLoading(loadingPage(2), { maxMs: 60_000, stepMs: 1 });
+  assertEq(done.stillLoading, false, '10a: נטען');
+  assertEq(done.readyState, 'complete', '10b: readyState=complete');
+  const stuck = await waitWhileLoading(loadingPage(Number.POSITIVE_INFINITY), { maxMs: 30, stepMs: 1 });
+  assertEq(stuck.stillLoading, true, '10c: עדיין בטעינה אחרי maxMs');
+}
+
 console.log(`\n${failures === 0 ? '✓ עבר' : `✗ נכשל (${failures})`}: ensureWithBoundedRecovery — bounded, no storms, positive-evidence, work-screen-safe.`);
 process.exit(failures === 0 ? 0 : 1);

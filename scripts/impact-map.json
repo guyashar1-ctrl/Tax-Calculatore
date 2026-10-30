@@ -90,7 +90,10 @@
         "supabase/2*-*rep-*.sql",
         "worker/src/handlers/shaam*.mjs",
         "worker/src/shaamRepresentationSession.mjs",
-        "worker/src/shaamSafety.mjs"
+        "worker/src/shaamSafety.mjs",
+        "worker/src/shaamAssetWarmup.mjs",
+        "worker/src/warmupManager.mjs",
+        "worker/src/connectionMonitor.mjs"
       ],
       "suites": [
         {

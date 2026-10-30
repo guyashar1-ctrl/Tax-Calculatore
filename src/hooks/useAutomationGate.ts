@@ -163,9 +163,10 @@ export function useAutomationGate(capability: string): AutomationGate {
       const { data } = await supabase.from('automation_jobs').select('*').eq('id', ensureJobId).maybeSingle();
       if (stop || !data) return;
       const job = automationJobFromDb(data);
-      // ‼ פעולה ששורשרה אחרי הפתיחה כבר שוחררה בשרת (גם אם הפתיחה נכשלה — היא פותחת את
-      // השכבה בעצמה); מכאן המצב הוא של הפעולה עצמה, והכפתור שלה מציג אותו.
-      if (chained.current && (job.status === 'succeeded' || job.status === 'failed')) {
+      // ‼ פעולה ששורשרה אחרי פתיחה שהצליחה כבר שוחררה בשרת; מכאן המצב הוא של הפעולה עצמה,
+      // והכפתור שלה מציג אותו. ‼ 30.10 · פתיחה שנכשלה **מדלגת** על הפעולה (301) — אז אין לה
+      // מצב משלה, והשורה כאן (למטה) היא היחידה שאומרת מה קרה. קודם הכפתור חזר למצבו בשקט.
+      if (chained.current && job.status === 'succeeded') {
         chained.current = false;
         setConnecting(false);
         setEnsureJobId(null);
@@ -179,6 +180,7 @@ export function useAutomationGate(capability: string): AutomationGate {
         return;
       }
       if (job.status === 'failed' || job.status === 'cancelled') {
+        chained.current = false;
         pending.current = null;
         setConnecting(false);
         setEnsureJobId(null);
