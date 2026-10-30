@@ -105,7 +105,7 @@ async function run(vp) {
 
     // ── 2. הישן: לא בתפריט ──
     ok(!(await page.locator('button', { hasText: /^עבודת מס$/ }).count()), 'אין יותר כפתור «עבודת מס» נפרד');
-    ok(await page.locator('nav button, header button').filter({ hasText: /^מס$/ }).count() > 0, 'בסרגל: «מס»');
+    ok(await page.locator('nav button, header button').filter({ hasText: /^חשבונאות ומס$/ }).count() > 0, 'בסרגל: «חשבונאות ומס»');
 
     // ── 3. «עבודות» — סקירה בלבד: אצלי / אצל הלקוח / הכול (הכרעת גיא 16.10 · עיצוב מחדש 21.10) ──
     const wo = page.locator('[data-work-overview]');
