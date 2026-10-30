@@ -196,20 +196,31 @@
       ]
     },
     {
-      "name": "בקשות: טיוטה, «פרסם בדף», הדף האישי",
+      "name": "בקשות: טיוטה, «פרסם בדף», הדף האישי; ירוק עד «סימון שהושלם» וסדר בגרירה (310)",
       "invariants": [
-        "INV-REQ-01"
+        "INV-REQ-01",
+        "INV-REQ-03"
       ],
       "globs": [
         "supabase/2*-*draft*.sql",
         "supabase/2*-*portal*.sql",
         "supabase/2*-*intake*.sql",
-        "src/components/flows/NoticeTray.tsx"
+        "supabase/310-requests-ack-and-order.sql",
+        "src/components/flows/NoticeTray.tsx",
+        "src/utils/requestAttention.ts",
+        "src/features/requests/listOrder.ts",
+        "src/features/requests/useListDrag.ts",
+        "scripts/staging-test-310-ack-order.mjs"
       ],
       "suites": [
         {
           "script": "staging-test-draft-reaches-page-276.mjs",
           "run": true
+        },
+        {
+          "script": "staging-test-310-ack-order.mjs",
+          "run": true,
+          "note": "310 · לקוח סיים ⇒ ירוק; המשרד סגר ⇒ נראה; סימון רק לבעלים; גרירה כותבת sort_order חי ומנקה pending"
         }
       ]
     },
