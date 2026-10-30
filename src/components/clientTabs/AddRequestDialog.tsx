@@ -238,7 +238,7 @@ export default function AddRequestDialog({ clientId, steps, processPublished, aw
   }, []);
   /** יש בכלל קליטה שאפשר לחסום את סגירתה. */
   const requiredApplies = intakeAcceptsRequired(intake);
-  const [mode, setMode] = useState<'catalog' | 'custom' | 'documents' | 'bank' | 'document' | 'authority_rep'>(
+  const [mode, setMode] = useState<'catalog' | 'custom' | 'task' | 'documents' | 'bank' | 'document' | 'authority_rep'>(
     presetDocuments?.length ? 'document' : 'catalog');
   const [busy, setBusy] = useState(false);
   const [authRepBusyRole, setAuthRepBusyRole] = useState<'client' | 'spouse' | null>(null);
@@ -250,6 +250,8 @@ export default function AddRequestDialog({ clientId, steps, processPublished, aw
    *  ‼ `ask` הוא מקור אחד לשלושה מקומות (שם אצלי, כותרת אצל הלקוח, תיאור
    *  הדרישה): הקלדת אותו טקסט שלוש פעמים היא בדיוק מה שהיה מסורבל כאן. */
   const [ask, setAsk] = useState('');
+  /** «משימה שלי» — מה צריך לעשות (משימה של המשרד, לא בדף של הלקוח). */
+  const [task, setTask] = useState('');
   const [askKind, setAskKind] = useState<CustomRequirementKind>('file');
   const [advanced, setAdvanced] = useState(false);
   const [clientTitle, setClientTitle] = useState('');
@@ -820,6 +822,7 @@ export default function AddRequestDialog({ clientId, steps, processPublished, aw
             {presetType ? STEP_TYPE_LABELS[presetType]
               : mode === 'catalog' ? 'בקשה חדשה'
               : mode === 'custom' ? 'בקשה חופשית'
+              : mode === 'task' ? 'משימה שלי'
               : mode === 'bank' ? BANK_DEBIT_TITLE
               : mode === 'document' ? 'שליחת מסמכים ללקוח'
               : mode === 'authority_rep' ? 'ייצוג ברשות - לאדם'
@@ -893,6 +896,13 @@ export default function AddRequestDialog({ clientId, steps, processPublished, aw
                 <span style={{ fontWeight: 600 }}>בקשה חופשית</span>
                 <span style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)' }}>
                   אתה מגדיר מה הלקוח צריך לעשות - לאשר, לענות, או להעלות
+                </span>
+              </button>
+              {/* ‼ משימה של המשרד — נקודה רגילה ברשימה, לא בדף של הלקוח ולא במייל (במקום «עבודה פנימית»). */}
+              <button type="button" disabled={busy} onClick={() => setMode('task')} style={rowBtn}>
+                <span style={{ fontWeight: 600 }}>משימה שלי</span>
+                <span style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)' }}>
+                  משהו שאתה צריך לעשות אצל הלקוח הזה — הלקוח לא רואה אותה
                 </span>
               </button>
 
@@ -1239,6 +1249,13 @@ export default function AddRequestDialog({ clientId, steps, processPublished, aw
             </>
           )}
 
+          {mode === 'task' && (
+            <label style={lbl}>
+              מה צריך לעשות
+              <input className="input" value={task} onChange={e => setTask(e.target.value)}
+                placeholder="למשל: להתקשר לרו״ח הקודם" autoFocus />
+            </label>
+          )}
           {mode === 'custom' && (
             <>
               <label style={lbl}>
@@ -1336,6 +1353,15 @@ export default function AddRequestDialog({ clientId, steps, processPublished, aw
             <button type="button" className="btn btn-primary" disabled={busy}
               onClick={() => { void create(presetType, {}); }}>
               {busy ? 'מוסיף…' : 'הוסף בקשה'}
+            </button>
+          )}
+          {mode === 'task' && (
+            <button type="button" className="btn btn-primary" disabled={busy || !task.trim()}
+              onClick={() => void create('custom_request', {
+                title: task.trim(), internalTask: true,
+                requirements: [{ key: 'done', kind: 'confirm', label: task.trim() }],
+              }, { owner: 'me' })}>
+              {busy ? 'מוסיף…' : 'הוסף משימה'}
             </button>
           )}
           {mode === 'custom' && !presetType && (

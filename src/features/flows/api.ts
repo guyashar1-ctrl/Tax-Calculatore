@@ -303,7 +303,8 @@ export const hideStepFromClient = (stepId: string) =>
 
 /** המשפט אחרי «הסתר מהדף» שהצליח — מה קרה, ואם המשימה חזרה אליך. */
 export function hideStepDoneText(o: { backToOffice?: boolean }, clientName: string): string {
-  return `הוסתרה מהדף של ${clientName} — עברה ל«עבודה פנימית»${o.backToOffice ? ' וחזרה אליך' : ''}`;
+  // ‼ 30.10: «עבודה פנימית» הוסרה — המשימה נשארת ברשימה, רק הלקוח כבר לא רואה אותה.
+  return `הוסתרה מהדף של ${clientName} — נשארה ברשימה כמשימה שלך${o.backToOffice ? ' וחזרה אליך' : ''}`;
 }
 
 /** הקודים ש-hide_step_from_client מחזירה בפועל (216 §9). */

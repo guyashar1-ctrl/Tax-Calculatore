@@ -193,7 +193,9 @@ export const isRepresentationUpgrade = (s: Pick<OnboardingStep, 'stepType'>): bo
  * והשדרוג אינו חוסם אותה (גם בשרת — required_for_close=false).
  */
 export const SURFACE_HIDDEN_OFFICE_TYPES: OnboardingStepType[] =
-  LEGACY_AUTO_OFFICE_TYPES.filter(t => t !== 'representation_upgrade');
+  // ‼ 30.10 (גיא): גם «פתיחת תיקים ברשויות» גלויה — שורה עם שלושת התיקים, שאפשר לחבר לקבוצה
+  //   (למשל «פתיחת עוסק זעיר»). עדיין לא חוסמת את סגירת הקליטה (LEGACY_AUTO_OFFICE_TYPES).
+  LEGACY_AUTO_OFFICE_TYPES.filter(t => t !== 'representation_upgrade' && t !== 'file_opening');
 
 /**
  * שלבים שמסך אחר מנהל, ולכן אינם מוצגים במשטח הבקשות **בשום קטע** — לא
@@ -284,6 +286,7 @@ export function buildClientFacingRows(
     // ‼ הורה שנסגר אינו שורה פתוחה; חלק שנסגר — כמו כל בקשה שהושלמה.
     || (s.stepType === 'representation' && isStepOpen(s.status))
     || s.stepType === 'authority_representation'
+    || s.stepType === 'file_opening'
     || isRepresentationUpgrade(s)));
   const byType = new Map<OnboardingStepType, OnboardingStep>();
   for (const s of pool) if (!byType.has(s.stepType)) byType.set(s.stepType, s);

@@ -54,6 +54,8 @@ interface Props {
   /** דריסת יומן המיילים — לבדיקת המסך עם נתונים מדומים, כמו ב-ClientEmailsList. */
   emailsOverride?: EmailMessage[];
   onOpenRepresentation?: () => void;
+  /** «למסמכים» בשורה ירוקה של «מסמכים מהלקוח» — לשונית המסמכים. */
+  onOpenDocuments?: (folderId?: string) => void;
   /** פותח את RepresentationOnboardingDialog עבור הכרטיס הזה — ללקוח שעדיין
    *  אין לו שום בקשת ייצוג (156). נפרד מ-onOpenRepresentation, שרק מנווט
    *  לבקשה קיימת ולא עושה כלום כשאין כזו. */
@@ -389,6 +391,7 @@ export default function JourneyTab(p: Props) {
           repSendPhase={p.repSendPhase}
           repFacts={p.repFacts}
           onOpenRepresentation={p.onOpenRepresentation}
+          onOpenDocuments={p.onOpenDocuments}
           onOpenTaxFile={p.onOpenTaxFile}
           niExecution={p.niExecution}
           spouseClient={p.spouseClient}
@@ -428,42 +431,8 @@ export default function JourneyTab(p: Props) {
         </div>
       )}
 
-      {/* ‼ עד כאן "תהליך" עונה על מה קורה עכשיו ומה הלאה. מתחת לזה ישב עד
-          עכשיו מרכז השליטה הישן (ClientCockpitTab) — אבל רק ללקוח פעיל,
-          ודווקא שם הוא הזיק: רצועת מונים ("6 משימות פתוחות · 3 עם מועד
-          קרוב"), רשימת משימות משרד שלישית, ועדכון "מה זז לאחרונה" שהוא
-          בדיוק מה ש"פעילות" מציגה. שלושתם ענו על שאלות ששאר המסך כבר ענה,
-          והפכו את התהליך ללוח מחוונים שצריך לעבור אותו כדי להגיע לעבודה.
-          ‼ מקטע "מיילים שנשלחו ללקוח" שהיה כאן הוסר מאותה סיבה בדיוק —
-          "פעילות" כבר מציגה תקשורת עם הלקוח (כולל מיילים) בציר זמן אחד,
-          וכפילות בין שני מסכים היא בדיוק מה שהמהלך הזה בא לתקן.
-          ראה docs/UX-CONVERGENCE-AUDIT-2026-08.md §6/§17 #4. נשארת רק
-          הערה מוצמדת — שורה שקטה כשיש, כפתור קטן כשאין, לא מקטע שלם. */}
-      {(
-        <>
-          {p.client.pinnedNote ? (
-            <div className="jt-panel jt-panel-quiet">
-              <div className="jt-panel-head">
-                <span className="jt-panel-title">הערה מוצמדת</span>
-                <button type="button" className="btn btn-sm btn-ghost"
-                  onClick={() => {
-                    const next = window.prompt('הערה מוצמדת:', p.client.pinnedNote ?? '');
-                    if (next !== null) p.onPinNote(next.trim());
-                  }}>עריכה</button>
-              </div>
-              <p className="jt-panel-body" style={{ whiteSpace: 'pre-wrap' }}>{p.client.pinnedNote}</p>
-            </div>
-          ) : (
-            <div>
-              <button type="button" className="btn btn-sm btn-ghost"
-                onClick={() => {
-                  const next = window.prompt('הערה מוצמדת:');
-                  if (next && next.trim()) p.onPinNote(next.trim());
-                }}>+ הערה מוצמדת</button>
-            </div>
-          )}
-        </>
-      )}
+      {/* ‼ 30.10 (גיא): «הערה מוצמדת» עלתה לראש תיק הלקוח (ClientWorkspace) — כשיש, גלויה מיד;
+          הוספה ועריכה מ-⋯ שליד השם. כאן, בתחתית «בקשות», היא נראתה ככפתור יתום. */}
 
       {/* ‼ «מה היה עד כה» הוסר ממשטח הבקשות. אותה היסטוריה בדיוק — הצעות
           שאושרו, בקשות שהושלמו, סגירת הקליטה — נקראת בלשונית «פעילות», שם

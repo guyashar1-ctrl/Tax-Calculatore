@@ -50,6 +50,9 @@ export const TESTS: TestCase[] = [
     assert(LEGACY_AUTO_OFFICE_TYPES.includes('representation_upgrade'), 'still in the close-gate list');
     equal(isStepRequiredForClose(upg()), false, 'non-blocking for close');
     assert(SURFACE_HIDDEN_OFFICE_TYPES.includes('kyc_identification'), 'other auto-office steps stay hidden');
+    // 30.10: פתיחת התיקים גלויה (אפשר לחבר לקבוצה), ועדיין לא חוסמת סגירה.
+    assert(!SURFACE_HIDDEN_OFFICE_TYPES.includes('file_opening'), 'file opening on the surface');
+    assert(LEGACY_AUTO_OFFICE_TYPES.includes('file_opening'), 'file opening still non-blocking');
   }),
   test('שדרוג לראשי: מקובץ תחת ההורה הפתוח (אחרון בחלקים); כשההורה נסגר — עומד לבד', () => {
     const rows = buildClientFacingRows([upg(), rep(), ni('ni-c', 'client')], undefined, { representationRequestId: REQ });
@@ -201,8 +204,8 @@ export const TESTS: TestCase[] = [
 
   // ── F4: «הסתר מהדף» — מה קרה, ואם המשימה חזרה אליך (backToOffice מהשרת) ──────
   test('«הסתר מהדף»: המשפט אומר לאן עברה, ו«וחזרה אליך» רק כשהשרת החזיר backToOffice', () => {
-    equal(hideStepDoneText({}, 'שרון'), 'הוסתרה מהדף של שרון — עברה ל«עבודה פנימית»');
-    equal(hideStepDoneText({ backToOffice: true }, 'שרון'), 'הוסתרה מהדף של שרון — עברה ל«עבודה פנימית» וחזרה אליך');
+    equal(hideStepDoneText({}, 'שרון'), 'הוסתרה מהדף של שרון — נשארה ברשימה כמשימה שלך');
+    equal(hideStepDoneText({ backToOffice: true }, 'שרון'), 'הוסתרה מהדף של שרון — נשארה ברשימה כמשימה שלך וחזרה אליך');
   }),
 
   // ── B5.1 / B5.2: הקישור מהשורה נוחת על הפריט במשרד ─────────────────────────────

@@ -482,6 +482,12 @@ export default function ClientWorkspace({
     setDirty(true);
   }
 
+  /** «הערה מוצמדת» — מ-⋯ שליד השם, או «עריכה» בשורה שבראש התיק. ריק = הסרה. */
+  function editPinnedNote() {
+    const next = window.prompt('הערה מוצמדת:', client.pinnedNote ?? '');
+    if (next !== null) update('pinnedNote', next.trim());
+  }
+
   function patch(partial: Partial<Client>) {
     setClient(c => ({ ...c, ...partial }));
     Object.keys(partial).forEach(k => dirtyKeys.current.add(k));
@@ -895,6 +901,9 @@ export default function ClientWorkspace({
                 >⋯</button>
                 {moreOpen && (
                   <div className="cw-more-menu">
+                    <button type="button" onClick={() => { setMoreOpen(false); editPinnedNote(); }}>
+                      {client.pinnedNote ? 'עריכת ההערה המוצמדת' : 'הערה מוצמדת'}
+                    </button>
                     {onNewMeeting && (
                       <button type="button" onClick={() => { setMoreOpen(false); onNewMeeting(client.id); }}>
                         קבע פגישה ב-Google Meet
@@ -943,6 +952,14 @@ export default function ClientWorkspace({
             )}
 
             {!isNew && nextMeetingLabel && <span className="cw-tag">{nextMeetingLabel}</span>}
+          </div>
+        )}
+
+        {/* ‼ 30.10 (גיא): «הערה מוצמדת» — שורה שקטה בראש התיק כשיש, גלויה בכל לשונית. */}
+        {!isNew && client.pinnedNote?.trim() && (
+          <div className="cw-pinned" role="note">
+            <span className="cw-pinned-text">{client.pinnedNote}</span>
+            <button type="button" className="ui-linkbtn" onClick={editPinnedNote}>עריכה</button>
           </div>
         )}
 
@@ -1008,6 +1025,7 @@ export default function ClientWorkspace({
             lead={lead}
             onEditLead={onEditLead}
             onOpenRepresentation={onOpenRepresentation ? () => onOpenRepresentation(client.id) : undefined}
+            onOpenDocuments={(folderId) => { tabPickedByUser.current = true; setDocsFolderId(folderId ?? null); setTab('docs'); }}
             onStartRepresentation={onStartRepresentation ? () => onStartRepresentation(client.id) : undefined}
             onPrepareReleaseLetter={onOpenReleaseLetter
               ? (stepId, mode) => onOpenReleaseLetter(client.id, stepId, mode) : undefined}

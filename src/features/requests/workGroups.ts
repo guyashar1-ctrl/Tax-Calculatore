@@ -3,6 +3,7 @@
 // גם פייפרלס / רו״ח קודם (builtinKey). אין לקבוצה סדר משלה — מקומה הוא של הבקשה
 // הראשונה שבה. כל כתיבה דרך פונקציה בשרת; הטבלה לקריאה בלבד מהדפדפן.
 import { supabase } from '../../lib/supabase';
+import { STEP_TYPE_LABELS, type OnboardingStepType } from '../../types/onboarding';
 
 export type BuiltinGroupKey = 'paperless' | 'prevAccountant';
 
@@ -86,6 +87,8 @@ export function saveAsRuleNote(name: string, r: SaveAsRuleResult): { text: strin
     if (r.error === 'from_rule' || r.error === 'nothing_to_save') return null;
     return { err: true, text: `הקבוצה נשמרה, אבל לא נשמרה ב«כללי פתיחה». נסו לשנות את שמה שוב.` };
   }
-  const without = r.skipped.length ? ` · לא בכלל: ${r.skipped.join(', ')}` : '';
+  // ‼ בקשת מערכת בלי כותרת חוזרת מהשרת כסוג (file_opening) — השם כמו ברשימה.
+  const names = r.skipped.map(x => STEP_TYPE_LABELS[x as OnboardingStepType] ?? x);
+  const without = names.length ? ` · לא בכלל: ${names.join(', ')}` : '';
   return { err: false, text: `«${name}» ${r.created ? 'נשמרה' : 'עודכנה'} גם ב«כללי פתיחה»${without}` };
 }

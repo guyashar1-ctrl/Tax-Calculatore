@@ -119,7 +119,7 @@ import PublishCasePrompt from './PublishCasePrompt';
 import InlineComposer, { neverOnClientPage, skipPayloadFor, skippedLabel } from './InlineComposer';
 import {
   SURFACE_HIDDEN_OFFICE_TYPES, buildClientFacingRows, CLIENT_FACING_TYPES, EXECUTION_OWNED_TYPES,
-  isManualInternalTask, isRepresentationPart, representationRequestOf, belongsToRepresentationRequest,
+  isRepresentationPart, representationRequestOf, belongsToRepresentationRequest,
   isStaleRepresentationPart, isShaamIdentityStep, isRepresentationUpgrade,
   rowNeedsGroupState,
   type ClientFacingRow, type RowSummary,
@@ -342,6 +342,11 @@ const RowOpenContext = createContext<{
    * עשרות כרטיסים מתמחים (JourneyRow) ואף אחד מהם לא צריך לדעת איך מסירים.
    */
   rowActions?: (step: OnboardingStep) => React.ReactNode;
+  /**
+   * 310 · ירוק: בקשה שהושלמה ועוד לא סומנה — הכפתור «סימון שהושלם» (ו«למסמכים») בשורה. ‼ השורה
+   * עצמה נשארת השורה הרגילה של הסוג, ולכן נפתחת ומראה מה הגיע. null = לא ירוקה.
+   */
+  greenAck?: (step: OnboardingStep) => React.ReactNode | null;
   /** 05.10 · עבודה מהבית (220) — לכרטיס «פרטי העסק» ולבדיקת ההגדרות בפייפרלס. */
   homeOffice?: {
     clientId: string; firstName: string; state: HomeOfficeState; history: HomeOfficeHistory | null;
@@ -814,6 +819,16 @@ export default function OnboardingTab({
     }
     refresh?.();
   }
+  /** 310 · מה ששורה ירוקה מציגה במקום הפעולה (RowOpenContext.greenAck). */
+  const greenAck = (s: OnboardingStep): React.ReactNode | null => !isGreen(s) ? null : (
+    <>
+      {onOpenDocuments && s.stepType === 'client_documents' && (
+        <button type="button" className="btn btn-sm btn-ghost" onClick={() => onOpenDocuments()}>למסמכים</button>
+      )}
+      <button type="button" className="btn btn-sm btn-primary" data-ack={s.id}
+        onClick={() => void ackSteps([s.id])}>סימון שהושלם</button>
+    </>
+  );
   /**
    * גרירה: הפריט נוחת במקום היעד, והסדר נשמר חי — גם בדף של הלקוח.
    * ‼ 311: בתוך קבוצה רק הבקשות שלה מתחלפות, במקומות שלהן (reorderWithin).
@@ -1011,7 +1026,6 @@ export default function OnboardingTab({
     const s = clientSteps.find(x => x.id === p.stepId);
     if (!s || (p.internal && !isManualInternal(s))) return;
     pendingFocusRef.current = null;
-    if (p.internal) setInternalOpenPref(true);
     window.setTimeout(() => focusStep(p.stepId), 60);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clientSteps, focusTick]);
@@ -1417,18 +1431,6 @@ export default function OnboardingTab({
   const [sidebarPreviewMode, setSidebarPreviewMode] = useState<PortalPreviewMode>('live');
   /** «מה הלקוח רואה» — מגירה לפי דרישה (במקום עמודה קבועה לצד הבקשות). */
   const [previewSheetOpen, setPreviewSheetOpen] = useState(false);
-  /**
-   * «עבודה פנימית» מקופלת. null = אוטומטי (נפתחת לבד רק כשמשימה פנימית דורשת
-   * טיפול); בחירה של גיא נשמרת בדפדפן הזה בלבד — נוחות, לא מצב.
-   */
-  const [internalOpenPref, setInternalOpenPref] = useState<boolean | null>(() => {
-    try {
-      const v = window.localStorage.getItem('pivo.requests.internalOpen');
-      return v === '1' ? true : v === '0' ? false : null;
-    } catch { return null; }
-  });
-  /** קומפוזר "משימה פנימית" — נפתח בתוך מקטע "העבודה שלי". */
-  const [internalComposerOpen, setInternalComposerOpen] = useState(false);
   /** חלון הסגירה — נפתח רק כשהשרת חוסם, ונסגר איתו. */
   const [closeGate, setCloseGate] = useState<CloseReadiness | null>(null);
   /**
@@ -2187,7 +2189,7 @@ export default function OnboardingTab({
       setRowNote({ stepId: step.id, text: hideStepErrorText(res.error), err: true });
       return;
     }
-    // ‼ השורה עוברת ל«עבודה פנימית» — שם היא נפתחת ומודגשת, עם המשפט שאומר מה קרה.
+    // ‼ השורה נשארת ברשימה (משימה שלך) — נפתחת ומודגשת, עם המשפט שאומר מה קרה.
     setRowNote({ stepId: step.id, text: hideStepDoneText(res, clientFirstOrClient), err: false });
     requestFocus({ stepId: step.id, internal: true });
     refresh?.();
@@ -3295,6 +3297,7 @@ export default function OnboardingTab({
       noteEditor: noteDraft ? { stepId: noteDraft.stepId, node: noteEditorNode } : null,
       groupNames: groupNamesMap,
       rowActions,
+      greenAck,
       homeOffice: {
         clientId, firstName: clientFirstOrClient, state: hoState, history: homeOfficeLoad.history,
         loading: homeOfficeLoad.loading, error: homeOfficeLoad.error, reload: homeOfficeLoad.reload,
@@ -3564,18 +3567,12 @@ export default function OnboardingTab({
       {(() => {
         // ‼ 311: מה שבתוך קבוצה של המשרד מוצג בקבוצה — לא כשורה בפני עצמה.
         const openVisible = visibleSteps.filter(s => isStepOpen(s.status) && !inWorkGroup(s));
-        /* ‼ משימה פנימית יורדת מהרשימה ועולה ב«עבודה פנימית» — אחרת היא נקראת
-           כבקשה מהלקוח. */
-        /* ‼ סבב 3: משימת משרד שנפתחה במקום אישור אישי של בן/בת הזוג היא חלק
-           מבקשה של הלקוח — ברשימה הראשית, לא מקופלת ב«עבודה פנימית».
-           ‼ סבב 4: וגם «לא נוצרה» — בעיה של המשרד, באדום ברשימה הראשית. */
-        /* ‼ 313: נקודת אוטומציה היא נקודה רגילה ברשימה (גם היא משימה של המשרד, לא בדף של הלקוח). */
-        const manualInternal = openVisible.filter(s => isManualInternalTask(s) && !isSpouseConfirmTask(s) && !isCreationProblem(s) && !automationOf(s));
+        /* ‼ 30.10 (גיא): «עבודה פנימית» הוסרה. משימה של המשרד (ידנית, אוטומציה, אישור אישי של
+           בן/בת הזוג, «לא נוצרה») היא נקודה רגילה ברשימה הראשית — הלקוח לא רואה אותה. */
         /* ‼ סבב 4: «ייצוג מול הרשויות» הוא תהליך אחד — ב"ל לכל אדם וצילום התעודה
            לשע״ם של אותה בקשת ייצוג יורדים לתוכו (clientFacingRows). */
         const clientRows = buildClientFacingRows(
-          [...openVisible, ...releaseAnchor].filter(s => !groupedIds.has(s.id) && !repGroupedIds.has(s.id))
-            .filter(s => !isManualInternalTask(s) || isSpouseConfirmTask(s) || isCreationProblem(s) || !!automationOf(s)),
+          [...openVisible, ...releaseAnchor].filter(s => !groupedIds.has(s.id) && !repGroupedIds.has(s.id)),
           depParents, { representationRequestId: client.representationRequestId ?? null });
 
         /** שורה אחת עם נקודת המצב: כחול = יש מה ללחוץ עכשיו · אדום = בעיה · אפור = אצל אחרים. */
@@ -3584,7 +3581,8 @@ export default function OnboardingTab({
             key={step.id}
             className={[
               'rl-item',
-              attn.kind === 'mine' && attn.tone === 'red' ? 'is-red'
+              isGreen(step) ? 'is-review'
+                : attn.kind === 'mine' && attn.tone === 'red' ? 'is-red'
                 : attn.kind === 'mine' ? 'is-mine'
                   : attn.waitingOn === 'locked' || step.status === 'locked' ? 'is-locked' : 'is-wait',
             ].join(' ')}
@@ -3594,31 +3592,9 @@ export default function OnboardingTab({
             {body}
           </div>
         );
-        /** 310 · ירוק: הלקוח (או PIVO) השלים — נשאר כאן, במקומו, עד «סימון שהושלם». */
-        const greenItem = (s: OnboardingStep, name?: string) => {
-          const answers = s.stepType === 'custom_request' ? requestAnswers(s.payload.requirements) : [];
-          return (
-            <div key={s.id} id={`ob-step-${s.id}`} className={`rl-item is-review${highlightStepId === s.id ? ' is-highlight' : ''}`}>
-              <button type="button" className="rl-dot" aria-label={`סימון ${name ?? rowTitle(s)}`} />
-              <div className="rl-row">
-                <div className="rl-line">
-                  <div className="rl-hit is-static">
-                    <span className="rl-name">{name ?? representationPartLabel(s, partNames) ?? rowTitle(s)}</span>
-                    <span className="rl-state is-green">{s.completedAt ? `הושלם · ${formatDate(s.completedAt, 'list')}` : 'הושלם'}</span>
-                  </div>
-                  <div className="rl-act">
-                    {onOpenDocuments && s.stepType === 'client_documents' && (
-                      <button type="button" className="btn btn-sm btn-ghost" onClick={() => onOpenDocuments()}>למסמכים</button>
-                    )}
-                    <button type="button" className="btn btn-sm btn-primary" data-ack={s.id}
-                      onClick={() => void ackSteps([s.id])}>סימון שהושלם</button>
-                  </div>
-                </div>
-                {answers.length > 0 && <div className="rl-sub">{answers.join(' · ')}</div>}
-              </div>
-            </div>
-          );
-        };
+        /** 310 · ירוק: הלקוח (או PIVO) השלים — נשאר כאן, במקומו, עד «סימון שהושלם».
+            ‼ אותה שורה כמו של הסוג (נפתחת ומראה מה הגיע); הכפתור והמצב — דרך greenAck בשורה. */
+        const greenItem = (s: OnboardingStep) => flowItem(s, renderStep(s), { kind: 'done', tone: 'gray' });
 
         /* ── «לפי רשות ואדם» — הפירוט בתוך «ייצוג מול הרשויות» ─────────────────
            ‼ כל חלק שומר את המצב, שורת ה-PIVO, שער הפרטים, «בדוק קבלת הייצוג»,
@@ -3929,7 +3905,7 @@ export default function OnboardingTab({
                   const shownKids = doneKids.length && !groupDoneShown[g.key] ? kids.filter(isOpenKid) : kids;
                   return (
                     <div className="rg-kids">
-                      {shownKids.map(k => isGreen(k.s) ? greenItem(k.s, k.view.title)
+                      {shownKids.map(k => isGreen(k.s) ? greenItem(k.s)
                         : flowItem(k.s, renderStep(k.s), isStepOpen(k.s.status) ? attnOf(k.s) : { kind: 'done', tone: 'gray' }))}
                       {doneKids.length > 0 && (
                         <button type="button" className="rg-more" aria-expanded={!!groupDoneShown[g.key]}
@@ -4010,7 +3986,7 @@ export default function OnboardingTab({
                     <div className="rg-kids">
                       {parentNode}
                       {(status.tone === 'done' || groupDoneShown.representation) && opts.extra}
-                      {shown.map(k => isGreen(k) ? greenItem(k, repTitle(k))
+                      {shown.map(k => isGreen(k) ? greenItem(k)
                         : flowItem(k, renderStep(k), isStepOpen(k.status) ? attnOf(k) : { kind: 'done', tone: 'gray' }))}
                       {doneKids.length > 0 && (
                         <button type="button" className="rg-more" aria-expanded={!!groupDoneShown.representation}
@@ -4191,13 +4167,6 @@ export default function OnboardingTab({
           return !a.waitingOn || a.waitingOn === 'client' || a.waitingOn === 'spouse' ? 'client' : 'external';
         };
 
-        const internalHot = manualInternal.some(s => attnOf(s).tone === 'red');
-        const internalOpen = internalOpenPref ?? internalHot;
-        const setInternalOpen = (v: boolean) => {
-          setInternalOpenPref(v);
-          try { window.localStorage.setItem('pivo.requests.internalOpen', v ? '1' : '0'); } catch { /* נוחות בלבד */ }
-        };
-
         return (
           <>
             {/* ‼ תוצאה של פעולה שהשורה שלה נסגרה בלי שורה במקומה («צור שוב» ⇒ «כבר קיימת»). */}
@@ -4296,46 +4265,6 @@ export default function OnboardingTab({
               bucketOf={flowBucket}
             />
 
-            {/* ── עבודה פנימית — מקופלת ───────────────────────────────────
-                ‼ משימות שהרו"ח הוסיף (יישור הקו עבר לתיק המס, 19.10.2026). לא מופיעות בדף הלקוח. */}
-            <section className="rl-fold">
-              <button type="button" className="rl-fold-head" aria-expanded={internalOpen}
-                onClick={() => setInternalOpen(!internalOpen)}>
-                <span className="rl-fold-title">עבודה פנימית</span>
-                {manualInternal.length > 0 && <span className="rl-fold-cnt">{manualInternal.length}</span>}
-                <span className="rl-fold-hint">לא מופיע בדף הלקוח</span>
-                <svg className="rl-fold-chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9" /></svg>
-              </button>
-              {internalOpen && (
-                <div className="rl-fold-body">
-                  {/* ‼ 19.10.2026 (גיא): «יישור קו ללקוח» ירד מכאן — הוא כלי בתיק המס («בצע יישור קו» בכרטיס «זהות ורשויות»),
-                      לא נפתח לבד ואינו בקשה. מסכי הרשות נפתחים מ«תצוגה מפורטת» בתיק וחוזרים אליו. */}
-                  {manualInternal.map(s => flowItem(s, renderStep(s)))}
-
-                  {/* ‼ משימה פנימית — נוצרת ידנית, ולעולם לא מופיעה בדף הלקוח. */}
-                  {internalComposerOpen ? (
-                    <InlineComposer
-                      clientId={clientId}
-                      intake={intake}
-                      initialOwner="me"
-                      existingSteps={clientSteps}
-                      prevAccountant={prevAccountant}
-                      onCancel={() => setInternalComposerOpen(false)}
-                      onSaved={created => {
-                        setInternalComposerOpen(false);
-                        setOptimisticSteps(prev => [...prev, created]);
-                        refresh?.();
-                      }}
-                    />
-                  ) : (
-                    <button type="button" className="rl-add-quiet"
-                      onClick={() => setInternalComposerOpen(true)}>
-                      ＋ משימה פנימית
-                    </button>
-                  )}
-                </div>
-              )}
-            </section>
           </>
         );
       })()}
@@ -7380,7 +7309,7 @@ function JourneyRow({ step, stepById, highlight, danger, statusLabel, noteLine, 
   menu: React.ReactNode;
   children: React.ReactNode;
 }) {
-  const { openId, toggle, depParents, depChildren, nestedByStep, requiredApplies, compact, attnByStep, firstNames, editing, childOpenId, toggleChild, groupViewByStep, nestedTitleByStep, autoEmailUnknown, awaitingPublish, blockNotes, rowNote, noteEditor, groupNames, rowActions } = useContext(RowOpenContext);
+  const { openId, toggle, depParents, depChildren, nestedByStep, requiredApplies, compact, attnByStep, firstNames, editing, childOpenId, toggleChild, groupViewByStep, nestedTitleByStep, autoEmailUnknown, awaitingPublish, blockNotes, rowNote, noteEditor, groupNames, rowActions, greenAck } = useContext(RowOpenContext);
   const isNested = useContext(NestedRowContext);
   /** סיבת החסימה (מהיומן) — רק כשהשלב באמת חסום. */
   const blockNote = step.status === 'blocked' ? blockNotes?.get(step.id) : undefined;
@@ -7479,10 +7408,12 @@ function JourneyRow({ step, stepById, highlight, danger, statusLabel, noteLine, 
     }));
     /* ‼ הכפתור של החלק המוביל — רק כשהשורה סגורה. פתוחה ⇒ החלק עצמו גלוי בפירוט עם הכפתור
        שלו, ושני כפתורים זהים זה מעל זה נראים כמו שתי פעולות שונות. */
-    const linePrimary = group && group.primary !== undefined ? (open ? null : group.primary) : primary;
+    /* ‼ 310 · ירוק: «סימון שהושלם» במקום הפעולה, והמצב «הושלם · תאריך» — השורה עצמה נפתחת כרגיל. */
+    const ack = greenAck?.(step) ?? null;
+    const linePrimary = ack ?? (group && group.primary !== undefined ? (open ? null : group.primary) : primary);
     /* ‼ כשיש כפתור שאומר מה לעשות, «לטיפולך» מיותר. אבל מצב שאומר משהו («לחתום ולהוסיף חותמת»,
        «חסרים פרטים»), או כפתור שרק פותח («פתח») — המצב נשאר גלוי. */
-    const showState = !(linePrimary && st.tone === 'blue' && st.text === MINE_STATE_TEXT && !group?.navOnly);
+    const showState = !!ack || !(linePrimary && st.tone === 'blue' && st.text === MINE_STATE_TEXT && !group?.navOnly);
     const facts = [
       locked ? lockHint(step, stepById, depParents?.get(step.id)) : draftForClient ? 'טיוטה' : (statusLabel ?? stepStatusLabel(step)),
       draftForClient ? null : progress, age ? `${age} במצב הזה` : null,
@@ -7515,7 +7446,9 @@ function JourneyRow({ step, stepById, highlight, danger, statusLabel, noteLine, 
                 {carried && <span className="rl-sub rl-carried">{carried}</span>}
               </span>
             ) : <span className="rl-name">{split.name}</span>}
-            {showState && <span className={`rl-state is-${st.tone}`}>{st.text}</span>}
+            {showState && (ack
+              ? <span className="rl-state is-green">{step.completedAt ? `הושלם · ${formatDate(step.completedAt, 'list')}` : 'הושלם'}</span>
+              : <span className={`rl-state is-${st.tone}`}>{st.text}</span>)}
           </button>
           {linePrimary ? <div className="rl-act">{linePrimary}</div> : !isNested && <span className="rl-act-slot" aria-hidden="true" />}
           {editing && !isNested && <div className="rl-edit">{menu}</div>}
