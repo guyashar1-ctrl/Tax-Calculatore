@@ -219,7 +219,11 @@
         "scripts/staging-test-311-work-groups.mjs",
         "supabase/312-work-group-flows.sql",
         "scripts/staging-test-312-work-group-flows.mjs",
-        "src/components/quotations/QuotationBuilder.tsx"
+        "src/components/quotations/QuotationBuilder.tsx",
+        "supabase/313-automation-dots.sql",
+        "scripts/staging-test-313-automation-dots.mjs",
+        "src/features/requests/automationSteps.ts",
+        "src/features/requests/AutomationStepButton.tsx"
       ],
       "suites": [
         {
@@ -240,6 +244,16 @@
           "script": "staging-test-312-work-group-flows.mjs",
           "run": true,
           "note": "312 · קבוצה ⇒ כלל (ספרייה בלי כפילות, שינוי שם = גרסה חדשה), כלל ⇒ קבוצה אצל לקוח, שורת הצעה פותחת פעם אחת, כשל נרשם; approve_quotation קוראת לכללים"
+        },
+        {
+          "script": "staging-test-313-automation-dots.mjs",
+          "run": true,
+          "note": "313 · נקודת אוטומציה: משימה של המשרד, קריאה רצה לבד רק כשהשער עובר, כתיבה רק בלחיצה, ריצה שהצליחה סוגרת (ירוק), בכלל — חוליה בשרשרת"
+        },
+        {
+          "script": "staging-test-flows-notices.mjs",
+          "run": true,
+          "note": "313 שינה את _flow_materialize/_flow_progress/flow_definition_error/get_client_flow_runs — המסלולים הקיימים בלי שינוי"
         }
       ]
     },

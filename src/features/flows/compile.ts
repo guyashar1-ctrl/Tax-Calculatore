@@ -16,7 +16,7 @@
 import type { DefaultEntry, DefaultVariant } from '../../types/journeyDefaults';
 import { CLIENT_KIND_ORDER, variantLabel } from '../../types/journeyDefaults';
 import type { ClientKind, FlowDefinition, FlowItem, FlowStage, When } from './types';
-import { FLOW_ACTION_TYPES, actionTypeOf } from './types';
+import { FLOW_ACTION_TYPES, STEP_ACTION_TYPES, actionTypeOf } from './types';
 
 /**
  * ‼ מה המחולל עושה כשלפריט אין רשימה משלו (system: {} ⇒ variants: []): journey_default_variant
@@ -77,6 +77,9 @@ export const REPEATABLE_STEP_TYPES = ['custom_request', 'client_documents'];
 export const hasPersonalConfirm = (payload: Record<string, unknown> | undefined) =>
   Array.isArray(payload?.requirements) && (payload!.requirements as { kind?: string }[]).some(r => r.kind === 'confirm');
 
+/** (313) פעולה מול רשות שאינה נקודה — רצה ברצועה, ואין לה «הושלם». נקודת אוטומציה (asStep) היא בקשה. */
+const plainAction = (i?: FlowItem) => !!i && i.ref.kind === 'action' && !i.asStep;
+
 /** יש במסלול פעולה מול רשות שמוגדרת «לבד» — ההפעלה צריכה הרשאה מפורשת. */
 export const hasAutoActions = (def: FlowDefinition) =>
   def.stages.some(s => s.items.some(i => i.ref.kind === 'action' && i.mode === 'auto'));
@@ -136,7 +139,8 @@ export function validateFlow(def: FlowDefinition, opts: { onboarding: boolean })
       if (opts.onboarding && item.ref.kind === 'system' && !item.fixed && factsOf(stage.when, item.when)) {
         issues.push({ itemKey: item.key, message: 'בקשת מערכת נוצרת לפי כללים קבועים — אפשר להגביל אותה רק לפי סוג לקוח' });
       }
-      if (item.ref.kind === 'action' && !(FLOW_ACTION_TYPES as readonly string[]).includes(actionTypeOf(item.ref))) {
+      if (item.ref.kind === 'action' && !(FLOW_ACTION_TYPES as readonly string[]).includes(actionTypeOf(item.ref))
+        && !(item.asStep && (STEP_ACTION_TYPES as readonly string[]).includes(actionTypeOf(item.ref)))) {
         issues.push({ itemKey: item.key, message: 'הפעולה הזו לא נתמכת במסלול' });
       }
       if (item.ref.kind === 'system' && !item.fixed) {
@@ -146,7 +150,7 @@ export function validateFlow(def: FlowDefinition, opts: { onboarding: boolean })
       if (item.perPerson && (opts.onboarding || item.ref.kind === 'system' || item.ref.kind === 'action')) {
         issues.push({ itemKey: item.key, message: '«גם לבן/בת הזוג» רק לבקשה מהספרייה במסלול ידני או שנתי' });
       }
-      if (item.after && (item.ref.kind === 'action' || items.get(item.after)?.item.ref.kind === 'action')) {
+      if (item.after && (plainAction(item) || plainAction(items.get(item.after)?.item))) {
         issues.push({ itemKey: item.key, message: 'פעולה מול רשות לא מחכה לפריט ואין מה לחכות לה' });
       }
       // ‼ מצב בלי מסמכים אינו «הלקוח לא יקבל כלום»: המחולל יוצר ממנו «להעלות 0 מסמכים» —
@@ -167,7 +171,7 @@ export function validateFlow(def: FlowDefinition, opts: { onboarding: boolean })
     const o = stage.opens;
     if (o.after === 'stage' && !stageKeys.has(o.stage)) issues.push({ stageKey: stage.key, message: 'נפתח אחרי שלב שלא קיים' });
     if (o.after === 'item' && !items.has(o.item)) issues.push({ stageKey: stage.key, message: 'נפתח אחרי פריט שלא קיים' });
-    if (o.after === 'item' && items.get(o.item)?.item.ref.kind === 'action') {
+    if (o.after === 'item' && plainAction(items.get(o.item)?.item)) {
       issues.push({ stageKey: stage.key, message: 'שלב לא נפתח אחרי פעולה מול רשות — אין לה «הושלם»' });
     }
     if (o.after === 'item' && items.get(o.item)?.stage.key === stage.key) {

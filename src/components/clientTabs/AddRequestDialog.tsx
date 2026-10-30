@@ -34,6 +34,7 @@ import { intakeAcceptsRequired, stepForCurrentWork, stepTypeTaken } from '../../
 import { supabase } from '../../lib/supabase';
 import type { Client, NiTracking } from '../../types';
 import { niPersons, niRepresentationAction, niRepresentationOf } from '../../utils/niPersons';
+import { ADD_AUTOMATION_ERROR_TEXT, AUTOMATION_STEP_ACTIONS, addAutomationStep } from '../../features/requests/automationSteps';
 import { loadOfficeFlows } from '../../features/flows/api';
 import { TRIGGER_LABELS, type FlowTrigger } from '../../features/flows/types';
 import { profileFromDb } from '../../lib/dbMappers';
@@ -637,6 +638,17 @@ export default function AddRequestDialog({ clientId, steps, processPublished, aw
     onClose();
   }
 
+  /** (313) אוטומציה כנקודה ברשימה — קריאה רצה לבד כשמגיע תורה, כתיבה מחכה לכפתור. */
+  async function addAutomation(actionType: string) {
+    setBusy(true);
+    setError(null);
+    const res = await addAutomationStep(clientId, actionType);
+    setBusy(false);
+    if (!res.ok) { setError(ADD_AUTOMATION_ERROR_TEXT[res.error] ?? 'ההוספה לא הצליחה. נסו שוב.'); return; }
+    onCreated();
+    onClose();
+  }
+
   /** התבנית יוצרת את הרצף שלם: מה שכבר קיים אצל הלקוח לא נוצר שוב, אלא
    *  משמש עוגן לתלות של השלב הבא — ולכן לחיצה חוזרת רק משלימה חסרים. */
   async function createPaperlessSequence() {
@@ -934,6 +946,22 @@ export default function AddRequestDialog({ clientId, steps, processPublished, aw
                   ))}
                 </>
               )}
+
+              {/* ── אוטומציות (313) ─────────────────────────────────────────
+                  ‼ נקודה רגילה ברשימה (משימה של המשרד, לא בדף של הלקוח). ההגדרה של
+                  כל פעולה — בעמוד «אוטומציות»; כאן רק מוסיפים אותה לתור. */}
+              <div style={{
+                fontSize: 'var(--fs-12)', color: 'var(--ink-4)',
+                marginTop: '.3rem', paddingTop: '.5rem', borderTop: '1px solid var(--hairline-2)',
+              }}>אוטומציות</div>
+              {AUTOMATION_STEP_ACTIONS.map(a => (
+                <button key={a.type} type="button" disabled={busy} style={rowBtn} onClick={() => void addAutomation(a.type)}>
+                  <span style={{ fontWeight: 600 }}>{a.name}</span>
+                  <span style={{ fontSize: 'var(--fs-12)', color: 'var(--ink-3)' }}>
+                    {a.mode === 'read' ? 'רץ לבד כשמגיע תורו' : `בלחיצה שלך — «${a.act}»`}
+                  </span>
+                </button>
+              ))}
             </>
           )}
 

@@ -85,6 +85,8 @@ import {
   saveAsRuleNote, saveWorkGroupAsRule,
   type BuiltinGroupKey, type PickMember, type WorkGroup,
 } from '../../features/requests/workGroups';
+import AutomationStepButton from '../../features/requests/AutomationStepButton';
+import { automationOf } from '../../features/requests/automationSteps';
 import { useListDrag } from '../../features/requests/useListDrag';
 import HomeOfficePanel from '../../features/requests/HomeOfficePanel';
 import { confirmHomeOfficeInPaperless } from '../../features/requests/api';
@@ -3005,7 +3007,10 @@ export default function OnboardingTab({
                     ? `בדף מ-${formatDate(pageSince, 'list')}`
                     : attn.kind === 'mine' && attn.tone === 'blue' && step.needsAttention && step.status === 'in_progress' && !isManualInternal(step)
                       ? `${clientFirstOrClient} סיים/ה — לבדיקה` : undefined}
-                  primary={genericPrimaryKey === 'ext' ? externalSend
+                  primary={embedded && step.status === 'pending' && automationOf(step)
+                    /* ‼ 313 · נקודת אוטומציה שהגיע תורה: הכפתור הוורוד בשם הפעולה (או «קורא…»). */
+                    ? <AutomationStepButton action={automationOf(step)!} client={client} spouseClient={spouseClient} onDone={refresh} />
+                    : genericPrimaryKey === 'ext' ? externalSend
                     : genericPrimaryKey === 'hide' ? hideBtn
                     : genericPrimaryKey === 'review' ? reviewBtn
                     : genericPrimaryKey === 'finish' ? finishBtn
@@ -3564,12 +3569,13 @@ export default function OnboardingTab({
         /* ‼ סבב 3: משימת משרד שנפתחה במקום אישור אישי של בן/בת הזוג היא חלק
            מבקשה של הלקוח — ברשימה הראשית, לא מקופלת ב«עבודה פנימית».
            ‼ סבב 4: וגם «לא נוצרה» — בעיה של המשרד, באדום ברשימה הראשית. */
-        const manualInternal = openVisible.filter(s => isManualInternalTask(s) && !isSpouseConfirmTask(s) && !isCreationProblem(s));
+        /* ‼ 313: נקודת אוטומציה היא נקודה רגילה ברשימה (גם היא משימה של המשרד, לא בדף של הלקוח). */
+        const manualInternal = openVisible.filter(s => isManualInternalTask(s) && !isSpouseConfirmTask(s) && !isCreationProblem(s) && !automationOf(s));
         /* ‼ סבב 4: «ייצוג מול הרשויות» הוא תהליך אחד — ב"ל לכל אדם וצילום התעודה
            לשע״ם של אותה בקשת ייצוג יורדים לתוכו (clientFacingRows). */
         const clientRows = buildClientFacingRows(
           [...openVisible, ...releaseAnchor].filter(s => !groupedIds.has(s.id) && !repGroupedIds.has(s.id))
-            .filter(s => !isManualInternalTask(s) || isSpouseConfirmTask(s) || isCreationProblem(s)),
+            .filter(s => !isManualInternalTask(s) || isSpouseConfirmTask(s) || isCreationProblem(s) || !!automationOf(s)),
           depParents, { representationRequestId: client.representationRequestId ?? null });
 
         /** שורה אחת עם נקודת המצב: כחול = יש מה ללחוץ עכשיו · אדום = בעיה · אפור = אצל אחרים. */

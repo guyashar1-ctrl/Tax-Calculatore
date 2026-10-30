@@ -15,7 +15,7 @@ import { LENS_KINDS, SAMPLE_FACTS, opensKey, systemGate, systemName, type Lens }
 import type { Verdict } from '../../../features/flows/conditions';
 import type { FlowDefinition, FlowItem, FlowStage, FlowTrigger, ItemRef, When } from '../../../features/flows/types';
 import { CLIENT_KIND_ORDER, metaFor, type ClientKind } from '../../../types/journeyDefaults';
-import { FLOW_ACTIONS, actionTypeOf } from '../../../features/flows/types';
+import { FLOW_ACTION_TYPES, STEP_ACTION_NAMES, actionTypeOf } from '../../../features/flows/types';
 import { templateEntryOwner } from '../../../utils/templateEntryOwner';
 
 // ── פעולות מול רשות ─────────────────────────────────────────────────────────
@@ -27,7 +27,8 @@ import { templateEntryOwner } from '../../../utils/templateEntryOwner';
  */
 export const actionRef = (type: string): ItemRef =>
   ({ kind: 'action', actionId: type, actionType: type }) as ItemRef;
-export const actionName = (type: string) => FLOW_ACTIONS.find(a => a.type === type)?.name ?? 'פעולה מול רשות';
+export const actionName = (type: string) => STEP_ACTION_NAMES[type] ?? 'פעולה מול רשות';
+const isReadAction = (i: FlowItem) => (FLOW_ACTION_TYPES as readonly string[]).includes(actionTypeOf(i.ref));
 
 /**
  * הגדרה כפי שהבונה עובד עליה: לכל פעולה מול רשות — שני השדות (actionRef).
@@ -420,19 +421,24 @@ export function mailRoute(item: FlowItem, lib: LibraryLookup, templates: Request
   return 'none';
 }
 
-export interface StageCounts { client: number; office: number; external: number; actionsAuto: number; actionsManual: number }
+export interface StageCounts {
+  client: number; office: number; external: number; actionsAuto: number; actionsManual: number;
+  /** (313) מתוכן — כתיבה ברשות (נקודה בלחיצה), לא קריאה. */
+  actionsWrite?: number;
+}
 
 /** «5 ללקוח · 1 לך · 2 לגורם חיצוני» — רק מה שייפתח (skip = מה שהעדשה או הספרייה מוציאות). */
 export function stageCounts(stage: FlowStage, templates: RequestTemplate[], skip: (i: FlowItem) => boolean = () => false): StageCounts {
-  const c: StageCounts = { client: 0, office: 0, external: 0, actionsAuto: 0, actionsManual: 0 };
+  const c: StageCounts = { client: 0, office: 0, external: 0, actionsAuto: 0, actionsManual: 0, actionsWrite: 0 };
   for (const i of stage.items) {
     if (skip(i)) continue;
     const a = itemActor(i, templates);
     if (a === 'client' || a === 'document') c.client++;
     else if (a === 'office') c.office++;
     else if (a === 'external') c.external++;
-    else if (i.mode === 'auto') c.actionsAuto++;
-    else c.actionsManual++;
+    // ‼ 313: נקודת קריאה (asStep) רצה לבד כשמגיע תורה; נקודת כתיבה — בלחיצה.
+    else if (i.mode === 'auto' || (i.asStep && isReadAction(i))) c.actionsAuto++;
+    else { c.actionsManual++; if (!isReadAction(i)) c.actionsWrite = (c.actionsWrite ?? 0) + 1; }
   }
   return c;
 }
@@ -451,7 +457,8 @@ export function countsText(c: StageCounts, conditional = 0): string {
   if (c.external) parts.push(`${c.external} לגורם חיצוני`);
   const acts = c.actionsAuto + c.actionsManual;
   if (acts) {
-    const what = acts === 1 ? 'קריאה מהרשות' : `${acts} קריאות מהרשות`;
+    const what = c.actionsWrite ? (acts === 1 ? 'פעולה מול רשות' : `${acts} פעולות מול רשות`)
+      : acts === 1 ? 'קריאה מהרשות' : `${acts} קריאות מהרשות`;
     parts.push(c.actionsManual === 0 ? `${what} — לבד, כשאפשר` : c.actionsAuto === 0 ? `${what} — בלחיצה שלך` : what);
   }
   return parts.length ? parts.join(' · ') : 'אין כאן כלום עדיין';

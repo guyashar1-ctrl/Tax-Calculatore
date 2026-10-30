@@ -9,7 +9,7 @@ import {
   ACTION_WAIT_REASON, RUN_STATUS_LABELS, creationReasonText, skipReasonText,
   type ClientFlowRun, type RunActionState, type RunMaterialized, type RunStage,
 } from '../../features/flows/api';
-import { DELIVERY_LABELS, FLOW_ACTION_NAMES, actionTypeOf } from '../../features/flows/types';
+import { DELIVERY_LABELS, STEP_ACTION_NAMES, actionTypeOf } from '../../features/flows/types';
 import { AUTOMATION_JOB_STATUS_LABELS, type AutomationJobStatus } from '../../types/automation';
 import { firstSentence } from '../../features/automation/automationCatalog';
 import { formatDate } from '../../utils/dateFormat';
@@ -146,7 +146,7 @@ export function runAutoPermitted(run: Pick<ClientFlowRun, 'stages'> & { autoActi
 
 /** פעולה מול רשות בתוך שלב — מה קרה בה ואם היא מחכה לך. */
 export function actionStatus(a: RunActionState, stageOpen: boolean, permitted?: boolean): ActionStatus {
-  const name = FLOW_ACTION_NAMES[actionTypeOf(a.ref)] ?? 'פעולה מול רשות';
+  const name = STEP_ACTION_NAMES[actionTypeOf(a.ref)] ?? 'פעולה מול רשות';
   let text: string;
   let waitsForYou = false;
   let failed = false;

@@ -438,3 +438,7 @@ button.rl-dot:focus-visible { outline: 2px solid var(--accent); outline-offset: 
   .rl-dot.rg-dot { top: 22px; }
 }
 @media (prefers-reduced-motion: reduce) { button.rl-dot:hover { transform: none; } }
+
+/* 313 · נקודת אוטומציה בזמן ריצה — הוורוד של המערכת, במקום הכפתור */
+.rl-auto-run{font-size:var(--fs-12);font-weight:600;color:var(--automation-text);white-space:nowrap}
+.rl-act .txf-check-btn{white-space:nowrap}

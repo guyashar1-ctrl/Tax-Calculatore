@@ -14,7 +14,7 @@
 
 import type { EmailMessage, EmailStatus } from '../../types/emailActivity';
 import {
-  DELIVERY_LABELS, FLOW_ACTION_NAMES, actionTypeOf, type Delivery, type FlowDefinition, type FlowItem, type OfficeFlow,
+  DELIVERY_LABELS, STEP_ACTION_NAMES, actionTypeOf, type Delivery, type FlowDefinition, type FlowItem, type OfficeFlow,
 } from '../flows/types';
 import { flowMoments, systemGate, systemName } from '../flows/preview';
 import { isEmptyWhen, onlyPhrase, whenParts } from '../flows/conditions';
@@ -314,7 +314,7 @@ export interface IntakeMoment { key: string; label: string; stages: IntakeStage[
 /** שם פריט בלי ספרייה טעונה — משם בקשת המערכת, משם הפעולה, או מהעותק. */
 export function itemShortTitle(i: FlowItem): string {
   if (i.ref.kind === 'system') return systemName(i.ref.stepType);
-  if (i.ref.kind === 'action') return FLOW_ACTION_NAMES[actionTypeOf(i.ref)] ?? 'פעולה מול רשות';
+  if (i.ref.kind === 'action') return STEP_ACTION_NAMES[actionTypeOf(i.ref)] ?? 'פעולה מול רשות';
   return i.snapshot?.title || (i.ref.kind === 'document' ? 'מסמך' : 'בקשה');
 }
 

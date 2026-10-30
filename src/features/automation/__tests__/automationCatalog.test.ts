@@ -12,7 +12,7 @@ import type { AutomationJob } from '../../../types/automation';
 import {
   AUTOMATION_ACTIONS, AUTOMATION_ACTION_TYPES, summarizeRun, runIsStale, runIsAuto, runAwaitsLogin,
 } from '../automationCatalog';
-import { FLOW_ACTION_NAMES, actionTypeOf as flowActionTypeOf } from '../../flows/types';
+import { FLOW_ACTION_NAMES, STEP_ACTION_TYPES, actionTypeOf as flowActionTypeOf } from '../../flows/types';
 
 const job = (p: Partial<AutomationJob>): AutomationJob => ({
   id: 'j', userId: 'u', clientId: 'c', actionType: 'btl.check_representation', input: {},
@@ -127,6 +127,8 @@ export const TESTS: TestCase[] = [
     equal(inFlow.map(a => a.actionType).sort().join(','), 'btl.sync_file,shaam.sync_income_tax_file');
     for (const a of inFlow) equal(a.effect, 'read', `${a.id} קורא בלבד`);
     equal(Object.keys(FLOW_ACTION_NAMES).sort().join(','), 'btl.sync_file,shaam.sync_income_tax_file');
+    // ‼ 313: כנקודה בשרשרת — גם הנפקת האישורים, ורק בלחיצה (_automation_step_kick לא מריץ כתיבה).
+    equal([...STEP_ACTION_TYPES].sort().join(','), 'btl.sync_file,shaam.issue_annual_certificates,shaam.sync_income_tax_file');
     equal(flowActionTypeOf({ kind: 'action', actionType: 'btl.sync_file' }), 'btl.sync_file');
     equal(flowActionTypeOf({ kind: 'action', actionId: 'shaam.sync_income_tax_file' }), 'shaam.sync_income_tax_file');
     equal(flowActionTypeOf({ kind: 'template' }), '');

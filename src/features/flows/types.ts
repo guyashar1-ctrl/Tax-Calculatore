@@ -11,6 +11,7 @@
 
 import type { ClientKind, DefaultVariant, FactKey as JourneyFactKey } from '../../types/journeyDefaults';
 import type { InstitutionKey } from '../../types/onboarding';
+import { SHAAM_ISSUE_CERTIFICATES_ACTION_NAME, SHAAM_ISSUE_CERTIFICATES_ACTION_TYPE } from '../../types/automation';
 
 export type { ClientKind };
 
@@ -31,6 +32,16 @@ export const FLOW_ACTIONS: { type: typeof FLOW_ACTION_TYPES[number]; name: strin
   { type: 'btl.sync_file', name: 'קריאת התיק בביטוח לאומי', system: 'ביטוח לאומי' },
 ];
 export const FLOW_ACTION_NAMES: Record<string, string> = Object.fromEntries(FLOW_ACTIONS.map(a => [a.type, a.name]));
+
+/**
+ * (313) פעולות שיכולות להיות נקודה בקבוצה / בכלל (פריט action עם asStep): הקריאות רצות לבד
+ * כשמגיע תורן, וכתיבה ברשות מחכה ללחיצה. ‼ זהה ל-_automation_step_name בשרת.
+ */
+export const STEP_ACTION_TYPES = [...FLOW_ACTION_TYPES, SHAAM_ISSUE_CERTIFICATES_ACTION_TYPE] as const;
+/** השם של כל פעולה שיכולה להיות נקודה — לתצוגה בכל מקום שמציג פריט action. */
+export const STEP_ACTION_NAMES: Record<string, string> = {
+  ...FLOW_ACTION_NAMES, [SHAAM_ISSUE_CERTIFICATES_ACTION_TYPE]: SHAAM_ISSUE_CERTIFICATES_ACTION_NAME,
+};
 
 /**
  * סוג הפעולה של פריט. ‼ השרת קורא ref.actionType (215); הגדרה ישנה בדפדפן
@@ -87,6 +98,8 @@ export interface FlowItem {
   /** לכל אדם במשק הבית: הלקוח, ובן/בת הזוג כשיש. הנושא נשמר כתפקיד. */
   perPerson?: boolean;
   dueInDays?: number | null;
+  /** (313) פעולה מול רשות שהיא נקודה — נוצרת כבקשה של המשרד, וחוליה בשרשרת. */
+  asStep?: boolean;
   /** פעולה מול רשות: 'auto' רק לפעולות קריאה, ורק אחרי הסכמת המשרד. */
   mode?: 'auto' | 'manual';
   /** מוצג במסלול כדי שיהיה מובן, אבל נוצר במנגנון אחר (ייצוג מההצעה). */

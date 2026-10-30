@@ -6,7 +6,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { loadClientFlowRuns, type ClientFlowRun } from '../features/flows/api';
-import { FLOW_ACTION_NAMES, actionTypeOf, type ItemRef } from '../features/flows/types';
+import { STEP_ACTION_NAMES, actionTypeOf, type ItemRef } from '../features/flows/types';
 import { systemName } from '../features/flows/preview';
 import { firstEntry, loadRequestTemplates, templateForRef, type RequestTemplate } from '../lib/requestTemplates';
 import { refPersonalConfirm, type PersonalConfirm } from '../components/flows/builder/model';
@@ -93,7 +93,7 @@ export function useFlowLibrary(enabled: boolean) {
           return t?.name ?? fallback ?? 'בקשה מהספרייה';
         }
         case 'document': return lib?.documents.get((ref as { docId: string }).docId) ?? fallback ?? 'מסמך מהספרייה';
-        case 'action': return FLOW_ACTION_NAMES[actionTypeOf(ref)] ?? fallback ?? 'פעולה מול רשות';
+        case 'action': return STEP_ACTION_NAMES[actionTypeOf(ref)] ?? fallback ?? 'פעולה מול רשות';
       }
     },
     // ‼ אותו כלל כמו בבונה (refPersonalConfirm) — גם מסמך מהספרייה כולל אישור אישי.
