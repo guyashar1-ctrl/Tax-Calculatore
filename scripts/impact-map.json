@@ -199,7 +199,7 @@
       ]
     },
     {
-      "name": "בקשות: טיוטה, «פרסם בדף», הדף האישי; ירוק עד «סימון שהושלם» וסדר בגרירה (310); קבוצות של המשרד (311)",
+      "name": "בקשות: טיוטה, «פרסם בדף», הדף האישי; ירוק עד «סימון שהושלם» וסדר בגרירה (310); קבוצות של המשרד (311); קבוצה = כלל, ושורת שירות בהצעה פותחת אותו (312)",
       "invariants": [
         "INV-REQ-01",
         "INV-REQ-03"
@@ -216,7 +216,10 @@
         "scripts/staging-test-310-ack-order.mjs",
         "supabase/311-client-work-groups.sql",
         "src/features/requests/workGroups.ts",
-        "scripts/staging-test-311-work-groups.mjs"
+        "scripts/staging-test-311-work-groups.mjs",
+        "supabase/312-work-group-flows.sql",
+        "scripts/staging-test-312-work-group-flows.mjs",
+        "src/components/quotations/QuotationBuilder.tsx"
       ],
       "suites": [
         {
@@ -232,6 +235,11 @@
           "script": "staging-test-311-work-groups.mjs",
           "run": true,
           "note": "311 · לחבר/שם/קינון/פייפרלס בתוך קבוצה/פירוק; נעולה אחרי שהושלמה נפתחת; רמות מעורבות ומשתמש אחר נחסמים"
+        },
+        {
+          "script": "staging-test-312-work-group-flows.mjs",
+          "run": true,
+          "note": "312 · קבוצה ⇒ כלל (ספרייה בלי כפילות, שינוי שם = גרסה חדשה), כלל ⇒ קבוצה אצל לקוח, שורת הצעה פותחת פעם אחת, כשל נרשם; approve_quotation קוראת לכללים"
         }
       ]
     },

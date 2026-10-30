@@ -66,3 +66,26 @@ export const renameWorkGroup = (groupId: string, name: string) =>
   call('rename_work_group', { p_group_id: groupId, p_name: name });
 export const dissolveWorkGroup = (groupId: string) =>
   call('dissolve_work_group', { p_group_id: groupId });
+
+/** (312, שלב 3) קבוצה שהמשרד בנה = כלל ב«כללי פתיחה» באותו שם. נקרא אחרי חיבור ושינוי שם —
+ *  השרת עולה לקבוצה העליונה, ומחזיר אילו בקשות לא נכנסו לכלל (פייפרלס, ייצוג, עבודה של המערכת). */
+export type SaveAsRuleResult =
+  | { ok: true; created: boolean; skipped: string[] }
+  | { ok: false; error: string };
+export async function saveWorkGroupAsRule(groupId: string): Promise<SaveAsRuleResult> {
+  const { data, error } = await supabase.rpc('save_work_group_as_flow', { p_group_id: groupId });
+  if (error) return { ok: false, error: 'network' };
+  const r = (data ?? {}) as { ok?: boolean; error?: string; created?: boolean; skipped?: unknown };
+  const skipped = Array.isArray(r.skipped) ? r.skipped.map(String) : [];
+  return r.ok ? { ok: true, created: !!r.created, skipped } : { ok: false, error: r.error ?? 'unknown' };
+}
+
+/** ההודעה אחרי השמירה ככלל. ‼ «from_rule» (קבוצה שנפתחה מכלל) ו«nothing_to_save» אינם תקלה — בלי הודעה. */
+export function saveAsRuleNote(name: string, r: SaveAsRuleResult): { text: string; err: boolean } | null {
+  if (!r.ok) {
+    if (r.error === 'from_rule' || r.error === 'nothing_to_save') return null;
+    return { err: true, text: `הקבוצה נשמרה, אבל לא נשמרה ב«כללי פתיחה». נסו לשנות את שמה שוב.` };
+  }
+  const without = r.skipped.length ? ` · לא בכלל: ${r.skipped.join(', ')}` : '';
+  return { err: false, text: `«${name}» ${r.created ? 'נשמרה' : 'עודכנה'} גם ב«כללי פתיחה»${without}` };
+}

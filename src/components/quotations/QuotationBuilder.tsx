@@ -55,6 +55,7 @@ import QuotationRepresentationEditor, {
 import type { RepAuthorityKind } from '../../types';
 import { findSpouseClient, resolvePersonAuthority, resolveIncomeTaxHousehold, spousePersonAuthorities } from '../../utils/personRepresentation';
 import Modal from '../ui/Modal';
+import { loadOfficeFlows } from '../../features/flows/api';
 import { isUnknownSendReply, unknownSendText } from '../../types/emailActivity';
 
 const MONTH_NAMES = ['ינואר', 'פברואר', 'מרץ', 'אפריל', 'מאי', 'יוני',
@@ -1339,6 +1340,33 @@ function OneTimePop({ services, items, futureIds, item, vatRate, onSave, onRemov
 
 /* ═══ לוחות ═══════════════════════════════════════════════════════════════ */
 
+type RuleOption = { id: string; name: string };
+
+/** (312) «באישור נפתח» — כלל מ«כללי פתיחה» שנפתח אצל הלקוח כשההצעה מאושרת. מוצג רק כשיש כללים. */
+function RulePick({ item, rules, onUpdate }: {
+  item: QuotationItem; rules: RuleOption[];
+  onUpdate: (id: string, p: Partial<QuotationItem>) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  if (rules.length === 0 && !item.flowId) return null;
+  // ‼ רוב השורות בלי כלל — קישור שקט, והבחירה נפתחת רק כשרוצים.
+  if (!item.flowId && !open) {
+    return <button type="button" className="qb-flowpick-link" onClick={() => setOpen(true)}>＋ כלל פתיחה באישור</button>;
+  }
+  const known = !item.flowId || rules.some(r => r.id === item.flowId);
+  return (
+    <label className="qb-flowpick">
+      באישור נפתח:
+      <select value={item.flowId ?? ''} aria-label={`כלל פתיחה באישור — ${item.name}`} autoFocus={open && !item.flowId}
+        onChange={e => { onUpdate(item.id, { flowId: e.target.value || undefined }); if (!e.target.value) setOpen(false); }}>
+        <option value="">בלי כלל</option>
+        {rules.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+        {!known && <option value={item.flowId}>כלל שכבר לא פעיל</option>}
+      </select>
+    </label>
+  );
+}
+
 /** כאן, ורק כאן, יושבת המכניקה: שנתי ÷ 12, פריסה, הנחה פר-שורה, שנות מס. */
 function ServicesPanel({ items, services, plan, deal, templateName, onUpdate, onRemove, onAdd, onClose }: {
   items: QuotationItem[]; services: ServiceCatalogItem[]; plan: BillingPlan; deal: Deal;
@@ -1351,6 +1379,14 @@ function ServicesPanel({ items, services, plan, deal, templateName, onUpdate, on
   const [search, setSearch] = useState('');
   const [yearsFor, setYearsFor] = useState<ServiceCatalogItem | null>(null);
   const [years, setYears] = useState<Set<number>>(new Set());
+  const [rules, setRules] = useState<RuleOption[]>([]);
+  useEffect(() => {
+    let live = true;
+    void loadOfficeFlows().then(r => {
+      if (live && r.ok) setRules(r.flows.filter(f => f.trigger === 'manual' && f.status === 'active').map(f => ({ id: f.id, name: f.name })));
+    });
+    return () => { live = false; };
+  }, []);
 
   const used = new Set(items.map(i => i.serviceId).filter(Boolean));
   // ‼ גם שירותים "כלולים" ניתנים להוספה: לקוח יכול לקבל ליווי עסקי ללא חיוב
@@ -1387,6 +1423,7 @@ function ServicesPanel({ items, services, plan, deal, templateName, onUpdate, on
                 : `${formatILS(itemFinalPrice(i))} לחודש`}
               {!isAnnualNature(i) && discountNote(i, ' לחודש')}
             </div>
+            <RulePick item={i} rules={rules} onUpdate={onUpdate} />
           </div>
           <div className="qb-sp">
             {/* ‼ השדה הוא המחיר הרגיל: שינוי בו אינו הנחה, וההנחה שכבר ניתנה
@@ -1424,6 +1461,7 @@ function ServicesPanel({ items, services, plan, deal, templateName, onUpdate, on
                   {i.category === 'annual' ? 'חיוב שנתי נפרד' : (i.clientNote || 'חיוב חד־פעמי')}
                   {discountNote(i, i.category === 'annual' ? ' לשנה' : '')}
                 </div>
+                <RulePick item={i} rules={rules} onUpdate={onUpdate} />
               </div>
               <div className="qb-sp">
                 <input type="number" min={0} value={r0(readPriceDiscount(i).price)} title="מחיר רגיל"
@@ -1447,7 +1485,10 @@ function ServicesPanel({ items, services, plan, deal, templateName, onUpdate, on
           <div className="qb-sect">ללא תוספת תשלום · {included.length}</div>
           {included.map(i => (
             <div className="qb-srow" key={i.id}>
-              <div className="qb-sn"><div className="qb-st">{itemDisplayName(i)}</div></div>
+              <div className="qb-sn">
+                <div className="qb-st">{itemDisplayName(i)}</div>
+                <RulePick item={i} rules={rules} onUpdate={onUpdate} />
+              </div>
               <button className="qb-x" onClick={() => onRemove(i.id)}>✕</button>
             </div>
           ))}

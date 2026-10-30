@@ -221,6 +221,8 @@ export interface QuotationItem {
   deferredChargeAmount?: number;
   clientNote?: string;        // מוצג ללקוח
   internalNote?: string;      // פנימי בלבד — לא נשלח ולא מודפס
+  /** (312) כלל ב«כללי פתיחה» שנפתח אצל הלקוח כשההצעה מאושרת — פעם אחת לשורה (_start_quote_flows). */
+  flowId?: string;
 }
 
 // שירות עתידי — לא כלול בהצעה, אבל המחיר ידוע מראש כדי שהלקוח לא יופתע

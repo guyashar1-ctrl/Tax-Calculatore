@@ -82,6 +82,7 @@ import { useHomeOffice } from '../../features/requests/useHomeOffice';
 import { reorderWithin, sortEntries, type ListEntry } from '../../features/requests/listOrder';
 import {
   createWorkGroup, dissolveWorkGroup, loadWorkGroups, renameWorkGroup, workGroupErrorText,
+  saveAsRuleNote, saveWorkGroupAsRule,
   type BuiltinGroupKey, type PickMember, type WorkGroup,
 } from '../../features/requests/workGroups';
 import { useListDrag } from '../../features/requests/useListDrag';
@@ -837,9 +838,10 @@ export default function OnboardingTab({
   }
 
   /* ── 311 · נקודות ← «לחבר» ← שם ─────────────────────────────────────────── */
-  const reloadWorkGroups = async () => {
+  const reloadWorkGroups = async (): Promise<WorkGroup[]> => {
     const g = await loadWorkGroups(clientId);
     if (g) setWorkGroups(prev => (JSON.stringify(prev) === JSON.stringify(g) ? prev : g));
+    return g ?? [];
   };
   useEffect(() => { void reloadWorkGroups(); }, [clientId, steps]); // eslint-disable-line react-hooks/exhaustive-deps
   const workGroupIds = useMemo(() => new Set(workGroups.map(g => g.id)), [workGroups]);
@@ -885,15 +887,24 @@ export default function OnboardingTab({
         ...Object.fromEntries(members.flatMap(m => (m.kind === 'step' ? [[m.id, { ...prev[m.id], workGroupId: gid }]] : []))),
       }));
     }
-    await reloadWorkGroups();
+    const groups = await reloadWorkGroups();
     refresh?.();
+    if (r.groupId) await saveAsRule(r.groupId, groups);
   }
   async function saveRename() {
     if (!renaming || !renaming.name.trim()) return;
     const r = await renameWorkGroup(renaming.id, renaming.name.trim());
     if (!r.ok) { setListNote({ err: true, text: workGroupErrorText(r.error) }); return; }
     setRenaming(null);
-    await reloadWorkGroups();
+    await saveAsRule(renaming.id, await reloadWorkGroups());
+  }
+  /** הקבוצה העליונה נשמרת ככלל — כדי שבפעם הבאה אפשר לפתוח אותה מ«＋ בקשה חדשה» או מהצעת מחיר. */
+  async function saveAsRule(groupId: string, groups: WorkGroup[]) {
+    const r = await saveWorkGroupAsRule(groupId);
+    let top = groups.find(g => g.id === groupId);
+    for (let i = 0; top?.parentGroupId && i < 20; i++) top = groups.find(g => g.id === top!.parentGroupId);
+    const note = saveAsRuleNote(top?.name ?? '', r);
+    if (note) setListNote(note);
   }
   async function dissolve(groupId: string) {
     const r = await dissolveWorkGroup(groupId);
