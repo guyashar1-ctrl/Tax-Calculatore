@@ -24,3 +24,4 @@
 .acw-quick{margin:10px 0 0}
 .acw-collect{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 0;border-top:1px solid var(--bd)}.acw-collect small{color:var(--ink-3);font-size:.8rem;flex-basis:100%}
 .acw-billing td:nth-child(3),.acw-billing td:nth-child(6){font-variant-numeric:tabular-nums}
+.acw .acw-sort{border:0;background:none;padding:0;min-height:auto;font:inherit;color:inherit;cursor:pointer;white-space:nowrap}.acw .acw-sort span{color:var(--ink-4);font-size:.75em}.acw th[aria-sort=ascending] .acw-sort span,.acw th[aria-sort=descending] .acw-sort span{color:var(--accent)}

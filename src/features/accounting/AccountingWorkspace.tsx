@@ -5,7 +5,7 @@ import type { AdditionalCharge } from '../../types/charges';
 import { formatILS } from '../../utils/quotationCalc';
 import { accountingAgreement, accountingName } from './accountingModel';
 import { bookkeepingAgentPrompt, rulesVersionLabel } from './bookkeepingPrompt';
-import { clientLedger, dueAtFiling, monthLabel, monthShort, periodToMonth, retainerClientFor, type RetainerSnapshot } from './billingLedger';
+import { clientLedger, dueAtFiling, monthLabel, monthShort, periodToMonth, retainerClientFor, type LedgerMonth, type RetainerSnapshot } from './billingLedger';
 import { matchPendingRows, readAgo, usePaperlessRead, type PendingReading } from './paperlessReads';
 import './accountingWorkspace.css';
 
@@ -61,14 +61,23 @@ export function BookkeepingWorkspace({ clients, loading = false, error = false, 
   </section>;
 }
 
-type Sort = 'amount_desc' | 'amount_asc' | 'name';
+type SortKey = 'name' | 'amount' | 'due';
+
+/** כותרת עמודה שממיינת: לחיצה ראשונה — מהגבוה (בשם: א׳–ת׳), לחיצה נוספת — הפוך. */
+function SortTh({ k, sort, onSort, children }: { k: SortKey; sort: { key: SortKey; dir: 1 | -1 }; onSort: (k: SortKey) => void; children: string }) {
+  const on = sort.key === k;
+  return <th aria-sort={on ? (sort.dir === 1 ? 'ascending' : 'descending') : 'none'}>
+    <button type="button" className="acw-sort" onClick={() => onSort(k)}>{children}<span aria-hidden="true">{on ? (sort.dir === 1 ? ' ▲' : ' ▼') : ' ↕'}</span></button>
+  </th>;
+}
 
 export function BillingWorkspace({ clients, engagements, charges, loading = false, error = false, onOpenClient }: {
   clients: Client[]; engagements: Engagement[]; charges: AdditionalCharge[]; loading?: boolean; error?: boolean; onOpenClient: (id: string) => void;
 }) {
   const [query, setQuery] = useState('');
-  const [sort, setSort] = useState<Sort>('amount_desc');
+  const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: 'amount', dir: -1 });
   const [picked, setPicked] = useState<string[]>([]);
+  const [chosenMonth, setChosenMonth] = useState<string | null>(null);
   const read = usePaperlessRead<RetainerSnapshot>('paperless.read_retainer');
   const snapshot = read.latest?.data ?? null;
   const period = periodToMonth(snapshot?.period ?? null);
@@ -79,42 +88,50 @@ export function BillingWorkspace({ clients, engagements, charges, loading = fals
     const ledger = clientLedger({ engagements, clientId: client.id, snapshot, retainer });
     return { client, agreement, retainer, ledger, due: dueAtFiling(charges, client.id, ledger) };
   }).filter(r => !r.agreement.shared && r.agreement.beforeVat != null), [clients, engagements, charges, snapshot]);
-  const shown = rows.filter(r => matches(r.client, query)).sort((a, b) => sort === 'name'
-    ? accountingName(a.client).localeCompare(accountingName(b.client), 'he')
-    : (sort === 'amount_desc' ? -1 : 1) * ((a.agreement.beforeVat ?? 0) - (b.agreement.beforeVat ?? 0)));
+  // ‼ החודש שבו עובדים: ברירת מחדל — חודש הגבייה בפייפרלס. חודש שעבר מראה מה קרה בו; לגבות אפשר רק בחודש הגבייה.
+  const months = useMemo(() => [...new Set(rows.flatMap(r => r.ledger.months.map(m => m.month)))].sort().reverse(), [rows]);
+  const month = chosenMonth && months.includes(chosenMonth) ? chosenMonth : (period ?? months[0] ?? null);
+  const value = (r: typeof rows[number], k: SortKey) => k === 'amount' ? (r.agreement.beforeVat ?? 0) : k === 'due' ? r.due.total : 0;
+  const shown = rows.filter(r => matches(r.client, query)).sort((a, b) => sort.key === 'name'
+    ? sort.dir * accountingName(a.client).localeCompare(accountingName(b.client), 'he')
+    : sort.dir * (value(a, sort.key) - value(b, sort.key)));
+  const onSort = (k: SortKey) => setSort(s => s.key === k ? { key: k, dir: (s.dir * -1) as 1 | -1 } : { key: k, dir: k === 'name' ? 1 : -1 });
   const chosen = rows.filter(r => picked.includes(r.client.id));
   const allShown = shown.length > 0 && shown.every(r => picked.includes(r.client.id));
+  const isPeriod = !!month && month === period;
   const status = read.open
     ? (read.open.status === 'needs_human' ? 'חלון הפייפרלס במחשב המשרד לא מחובר — התחברו בו, והבדיקה תמשיך לבד.' : 'בודק בפייפרלס…')
     : read.latest ? `נבדק ${readAgo(read.latest.readAt)}${period ? ` · חודש הגבייה בפייפרלס: ${monthLabel(period)}` : ''}` : 'עוד לא נבדק בפייפרלס.';
+  const cell = (m: LedgerMonth | undefined) => !m || m.state === 'unknown' ? '—'
+    : m.state === 'charged' ? <span className="acw-ok">נגבה{m.charged != null ? ` ${formatILS(m.charged)}` : ''}</span>
+    : m.state === 'open' ? 'טרם נגבה' : <span className="acw-warn">לא נגבה</span>;
   return <section className="acw" aria-label="גבייה">
     <header className="acw-head"><div><h1>גבייה</h1><p className="acw-sub" role="status">{status}</p></div>
       <div className="acw-actions"><button type="button" className="acw-primary" disabled={read.busy || read.unavailable} onClick={() => void read.start()}>{read.busy ? 'בודק…' : 'בדיקה בפייפרלס'}</button></div></header>
     {read.failed && <p className="acw-alert" role="alert">הבדיקה האחרונה לא הושלמה: {read.failed}</p>}
     {loading ? <p role="status">טוען הסכמים…</p> : error ? <p role="alert">לא ניתן לטעון את ההסכמים. אין להסיק שאין הסכם או חוב.</p> : !rows.length ? <p role="status">אין לקוחות עם הסכם תשלום.</p> : <>
       <div className="acw-actions acw-filters"><label className="acw-find"><span className="sr-only">חיפוש לקוח</span><input type="search" value={query} onChange={e => setQuery(e.target.value)} placeholder="חיפוש לקוח או ת.ז." /></label>
-        <label>מיון<select value={sort} onChange={e => setSort(e.target.value as Sort)}><option value="amount_desc">סכום — מהגבוה</option><option value="amount_asc">סכום — מהנמוך</option><option value="name">שם</option></select></label></div>
+        {months.length > 0 && <label>חודש<select value={month ?? ''} onChange={e => setChosenMonth(e.target.value)}>{months.map(m => <option key={m} value={m}>{monthLabel(m)}{m === period ? ' · לגבייה' : ''}</option>)}</select></label>}</div>
       {!shown.length ? <p role="status">לא נמצא לקוח. <button type="button" className="acw-inline" onClick={() => setQuery('')}>ניקוי</button></p> :
       <table className="acw-table acw-records acw-billing"><thead><tr>
         <th className="acw-check"><input type="checkbox" aria-label="בחירת כל הלקוחות שמוצגים" checked={allShown} onChange={e => { const ids = shown.map(r => r.client.id); setPicked(p => e.target.checked ? [...new Set([...p, ...ids])] : p.filter(id => !ids.includes(id))); }} /></th>
-        <th>לקוח</th><th>חודשי</th><th>כרטיס</th><th>{period ? monthLabel(period) : 'החודש'}</th><th>עם הגשת הדוח</th><th><span className="sr-only">פעולה</span></th></tr></thead>
+        <SortTh k="name" sort={sort} onSort={onSort}>לקוח</SortTh><SortTh k="amount" sort={sort} onSort={onSort}>חודשי</SortTh><th>כרטיס</th><th>{month ? monthLabel(month) : 'החודש'}</th><SortTh k="due" sort={sort} onSort={onSort}>עם הגשת הדוח</SortTh><th><span className="sr-only">פעולה</span></th></tr></thead>
         <tbody>{shown.map(({ client, agreement: a, retainer, ledger, due }) => {
-          const cur = ledger.current;
           const mismatch = retainer?.amountBeforeVat != null && a.beforeVat != null && Math.abs(retainer.amountBeforeVat - a.beforeVat) >= 0.01;
           return <tr key={client.id}>
             <td className="acw-check"><input type="checkbox" aria-label={`בחירת ${accountingName(client)}`} checked={picked.includes(client.id)} onChange={() => setPicked(p => p.includes(client.id) ? p.filter(x => x !== client.id) : [...p, client.id])} /></td>
             <th scope="row">{accountingName(client)}</th>
             <td data-label="חודשי">{formatILS(a.beforeVat!)} <small>+ מע״מ{a.withVat != null ? ` · ${formatILS(a.withVat)}` : ''}</small>{mismatch && <small className="acw-warn">בפייפרלס {formatILS(retainer!.amountBeforeVat!)}</small>}</td>
             <td data-label="כרטיס">{!snapshot ? '—' : !retainer ? <span className="acw-muted">לא בריטיינר</span> : retainer.cardEntered ? <span className="acw-ok">הוזן</span> : <span className="acw-warn">לא הוזן</span>}</td>
-            <td data-label={period ? monthLabel(period) : 'החודש'}>{!cur || cur.state === 'unknown' ? '—' : cur.state === 'charged' ? <span className="acw-ok">נגבה{cur.charged != null ? ` ${formatILS(cur.charged)}` : ''}</span> : cur.state === 'open' ? 'טרם נגבה' : <span className="acw-warn">לא נגבה</span>}</td>
-            <td data-label="עם הגשת הדוח">{due.total > 0 ? <>{formatILS(due.total)}{due.unpaidMonths.length > 0 && <small>{due.fromCharges > 0 ? `${formatILS(due.fromCharges)} + ` : ''}{due.unpaidMonths.map(m => monthShort(m.month)).join(', ')} לא נגבו</small>}</> : '—'}</td>
+            <td data-label={month ? monthLabel(month) : 'החודש'}>{cell(ledger.months.find(m => m.month === month))}</td>
+            <td data-label="עם הגשת הדוח">{due.total > 0 ? <>{formatILS(due.total)} <small>+ מע״מ{due.unpaidMonths.length > 0 ? ` · ${due.fromCharges > 0 ? `${formatILS(due.fromCharges)} + ` : ''}${due.unpaidMonths.map(m => monthShort(m.month)).join(', ')} לא נגבו` : ''}</small></> : '—'}</td>
             <td data-label="פעולה"><button type="button" className="acw-link" onClick={() => onOpenClient(a.ownerId ?? client.id)}>הסכם ותשלומים</button></td>
           </tr>;
         })}</tbody></table>}
       <div className="acw-collect">
         <span>{chosen.length ? `נבחרו ${chosen.length} · ${formatILS(chosen.reduce((s, r) => s + (r.agreement.beforeVat ?? 0), 0))} + מע״מ` : 'סמנו לקוחות לגבייה'}</span>
-        <button type="button" className="acw-primary" disabled aria-describedby="acw-collect-off">{`גבייה${period ? ` ל${monthShort(period)}` : ''}`}</button>
-        <small id="acw-collect-off">הגבייה תופעל בגבייה הראשונה שנעשה יחד.</small>
+        <button type="button" className="acw-primary" disabled aria-describedby="acw-collect-off">{`גבייה${month ? ` ל${monthShort(month)}` : ''}`}</button>
+        <small id="acw-collect-off">{month && period && !isPeriod ? `בפייפרלס גובים רק את חודש הגבייה — ${monthLabel(period)}.` : 'הגבייה תופעל בגבייה הראשונה שנעשה יחד.'}</small>
       </div>
     </>}
   </section>;
