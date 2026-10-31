@@ -29,18 +29,28 @@ const dashes = (runs: [number, number][], sep = ' ') => {
 
 // ── IDOM · «פירוט המיוצגים לשנת מס» — המסלול הנכון (עם «חייב בהגשה») ───────────────────────────────
 const IDOM_RUNS: [number, number][] = [[1, 5], [7, 16], [18, 27], [29, 32], [34, 36], [38, 39], [41, 43], [45, 66], [68, 76]];
+/** ‼ כפי שנצפה ב-PDF אמיתי (31.10.2026): «תאריך הגשה» — 9 מקפים לתאריך של 10 תווים (התו האחרון יושב ברווח), ו«שמ לא קימת». */
+const IDOM_RUNS_REAL: [number, number][] = [[1, 5], [7, 16], [18, 26], [28, 31], [33, 35], [37, 38], [40, 42], [44, 65], [67, 75]];
 export interface AnnualRow { file: string; name: string; required?: boolean; due?: string; filed?: string; section?: string; ft?: string; branch?: string; office?: string; noAssessment?: boolean }
 
-export function idomPage(o: { year: number; produced?: string; page?: number; rows: AnnualRow[] }): Cell[][] {
+export function idomPage(o: { year: number; produced?: string; page?: number; rows: AnnualRow[]; real?: boolean }): Cell[][] {
   const head: Cell[][] = [
     [[0, o.produced ?? '15/10/2026'], [11, 'MZQE'], [33, 'ע\'י: משרד דוגמה'], [61, 'IDOM'], [66, 'שע\'מ/מ\'ה-שומה/']],
     [[0, String(o.page ?? 1)], [4, 'דף:'], [22, String(o.year)], [28, 'פירוט המיוצגים לשנת מס'], [62, '000000000'], [72, 'מייצג:']],
     [[18, '====================================']],
-    [[2, 'חייב'], [7, 'מועד חוקי/'], [20, 'תאריך'], [29, 'סעיף']],
-    [[1, 'בהגשה'], [7, 'תאריך ארכה'], [21, 'הגשה'], [29, 'שומה'], [34, 'ס.ת'], [38, 'ח'], [41, 'פ.ש'], [47, 'שם משפחה ופרטי'], [68, 'מספר תיק']],
-    [[0, dashes(IDOM_RUNS)]],
+    ...(o.real ? [
+      [[2, 'חייב'], [7, 'מועד חוקי/'], [20, 'תאריך'], [28, 'סעיף']],
+      [[1, 'בהגשה'], [7, 'תאריך ארכה'], [21, 'הגשה'], [28, 'שומה'], [33, 'ס.ת'], [37, 'ח'], [40, 'פ.ש'], [47, 'שם משפחה ופרטי'], [67, 'מספר תיק']],
+    ] as Cell[][] : [
+      [[2, 'חייב'], [7, 'מועד חוקי/'], [20, 'תאריך'], [29, 'סעיף']],
+      [[1, 'בהגשה'], [7, 'תאריך ארכה'], [21, 'הגשה'], [29, 'שומה'], [34, 'ס.ת'], [38, 'ח'], [41, 'פ.ש'], [47, 'שם משפחה ופרטי'], [68, 'מספר תיק']],
+    ] as Cell[][]),
+    [[0, dashes(o.real ? IDOM_RUNS_REAL : IDOM_RUNS)]],
   ];
-  const body: Cell[][] = o.rows.map(r => r.noAssessment
+  const body: Cell[][] = o.real ? o.rows.map(r => r.noAssessment
+    ? [[18, 'שמ לא קימת'], [45, r.name], [67, r.file], [77, '_']]
+    : [[4, r.required ? 'ח' : ''], [7, r.due ?? ''], [18, r.filed ?? ''], [29, r.section ?? ''], [33, r.ft ?? ''], [37, r.branch ?? ''], [41, r.office ?? ''], [45, r.name], [67, r.file], [77, '_']])
+  : o.rows.map(r => r.noAssessment
     ? [[18, 'ש"מ לא קיימת'], [45, r.name], [68, r.file], [78, '_']]
     : [[4, r.required ? 'ח' : ''], [7, r.due ?? ''], [18, r.filed ?? ''], [30, r.section ?? ''], [34, r.ft ?? ''], [38, r.branch ?? ''], [41, r.office ?? ''], [45, r.name], [68, r.file], [78, '_']]);
   while (body.length < 14) body.push([[78, '_']]);

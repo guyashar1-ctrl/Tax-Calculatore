@@ -5,7 +5,7 @@
 
 import { loadPdf } from '../../../utils/pdfRender';
 import { itemsToGrid, type PdfTextItem } from './grid';
-import { parseGrid } from './parseShaam';
+import { parseScreens } from './parseShaam';
 import type { ParsedFile } from './batch';
 
 export const MAX_FILE_BYTES = 15 * 1024 * 1024;
@@ -39,7 +39,7 @@ export async function readShaamFile(file: File, onPage?: (done: number, total: n
         if (typeof it.str !== 'string' || !it.transform) continue;
         items.push({ x: it.transform[4], y: it.transform[5], width: it.width ?? 0, str: it.str, dir: it.dir as PdfTextItem['dir'] });
       }
-      pages.push(parseGrid(itemsToGrid(items)));
+      pages.push(...parseScreens(itemsToGrid(items)));
       onPage?.(i, n);
     }
     void doc.destroy();

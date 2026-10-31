@@ -136,12 +136,10 @@
   .shf-step-dot { min-height: 44px; }
 }
 
-/* תיבות העלאה (31.10.2026): תיבה לכל PDF משע״ם. ריקה = מקווקו; עדכנית (14 יום) = ירוקה. טלפון: שורה לכל תיבה. */
+/* תיבות העלאה (31.10.2026): שתי תיבות — דוחות שנתיים, הצהרות הון (קובץ אחד). ריקה = מקווקו; עדכנית (14 יום) = ירוקה. טלפון: שורה לכל תיבה. */
 .shf-panel.is-drag { outline: 2px dashed var(--br, var(--blue)); outline-offset: 4px; }
 .shf-lead b { color: var(--tx); font-weight: 600; font-variant-numeric: tabular-nums; }
-.shf-boxes { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
-.shf-boxes.is-two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-.shf-boxes-h { margin: 2px 0 -4px; font-size: var(--fs-12); font-weight: 600; color: var(--tx2); }
+.shf-boxes { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .shf-box { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 6px 8px; border: 1.5px dashed var(--bd-strong, var(--bd)); border-radius: 14px; background: var(--card); transition: border-color 150ms ease-out, background-color 150ms ease-out; }
 .shf-box-main { display: flex; flex-direction: column; align-items: center; gap: 6px; inline-size: 100%; padding: 10px 6px 4px; border: 0; border-radius: 10px; background: none; font: inherit; color: var(--tx); text-align: center; cursor: pointer; }
 .shf-box-main:disabled { cursor: progress; }
@@ -152,6 +150,7 @@
 .shf-box-t b { font-size: var(--fs-14); font-weight: 650; }
 .shf-box-t span { font-size: var(--fs-12); color: var(--tx2); }
 .shf-box-st { font-size: var(--fs-12); color: var(--tx3); }
+.shf-box-groups { display: flex; flex-wrap: wrap; justify-content: center; gap: 0 10px; font-size: var(--fs-12); color: var(--tx2); }
 .shf-box-acts { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; min-block-size: 32px; }
 .shf-box-acts .shf-link { font-size: var(--fs-12); color: var(--tx2); }
 .shf-box.is-done { border-style: solid; border-color: var(--chip-green-bd, var(--ok)); background: var(--ok-bg); }
@@ -162,14 +161,14 @@
 .shf-how { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; border-radius: 12px; background: var(--s2, var(--gray-50)); font-size: var(--fs-13); }
 .shf-how-top { display: flex; gap: 8px; align-items: center; justify-content: space-between; }
 .shf-how-shots { align-self: flex-start; }
-.shf-more { align-self: center; color: var(--tx2); }
 @media (max-width: 640px) {
-  .shf-boxes, .shf-boxes.is-two { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+  .shf-boxes { grid-template-columns: minmax(0, 1fr); gap: 8px; }
   .shf-box { flex-direction: row; align-items: center; gap: 4px; padding: 4px 6px 4px 4px; }
-  .shf-box-main { flex: 1 1 auto; min-inline-size: 0; display: grid; grid-template-columns: 34px minmax(0, 1fr); grid-template-areas: "ic t" "ic st"; column-gap: 10px; row-gap: 0; text-align: start; padding: 8px 6px; min-block-size: 56px; }
+  .shf-box-main { flex: 1 1 auto; min-inline-size: 0; display: grid; grid-template-columns: 34px minmax(0, 1fr); grid-template-areas: "ic t" "ic st" "ic gr"; column-gap: 10px; row-gap: 0; text-align: start; padding: 8px 6px; min-block-size: 56px; }
   .shf-box-ic { grid-area: ic; }
   .shf-box-t { grid-area: t; flex-direction: row; flex-wrap: wrap; gap: 0 6px; align-items: baseline; }
   .shf-box-st { grid-area: st; }
+  .shf-box-groups { grid-area: gr; justify-content: flex-start; }
   .shf-box-acts { flex-direction: column; align-items: flex-end; gap: 0; flex: none; }
   .shf-box-acts .shf-link { min-block-size: 36px; }
 }

@@ -119,6 +119,40 @@ function dashRuns(line: string): [number, number][] {
 }
 
 const cut = (line: string, [a, b]: [number, number]) => (line.slice(a, b + 1) ?? '').replace(/\|/g, ' ').trim();
+const inText = (ch?: string) => !!ch && ch !== ' ' && ch !== '|';
+/**
+ * ‼ ב-PDF אמיתי (31.10.2026) «תאריך הגשה» של 10 תווים מודפס מתחת ל-9 מקפים — התו האחרון יושב ברווח שבין העמודות.
+ * תא בשורת נתונים מתרחב לתוך הרווח שלידו כשיש בו תו — עד העמודה השכנה, לא לתוכה.
+ */
+function widen(line: string, runs: [number, number][], i: number): [number, number] {
+  let [a, b] = runs[i];
+  const lo = i > 0 ? runs[i - 1][1] + 1 : 0, hi = i + 1 < runs.length ? runs[i + 1][0] - 1 : line.length - 1;
+  // רק כשהטקסט של התא נוגע בקצה העמודה — כדי שהתו ברווח לא «יידבק» גם לעמודה השכנה
+  while (a - 1 >= lo && inText(line[a]) && inText(line[a - 1])) a--;
+  while (b + 1 <= hi && inText(line[b]) && inText(line[b + 1])) b++;
+  return [a, b];
+}
+
+/** מסך מסוף מתחיל בשורת הכותרת «שע״מ / AHZM / …» (או IDOM); מסך שלם תופס יותר משמונה שורות. */
+const SCREEN_TITLE = /\b(?:AHZM|IDOM)\b/;
+const MIN_SCREEN_LINES = 8;
+
+/**
+ * ‼ 31.10.2026 (נצפה בהקלטה של גיא + קובץ אמיתי): Copy על המסך הראשון, Copy Append על הבאים ו-Print Clipboard
+ * מדפיסים כמה מסכים זה מתחת לזה **באותו עמוד PDF**. כל מסך נקרא לבד, מהכותרת שלו ועד הכותרת הבאה.
+ * עמוד עם מסך אחד — כמו שהוא (כולל מה שמעל הכותרת).
+ */
+export function splitScreens(grid: Grid): Grid[] {
+  const starts: number[] = [];
+  grid.lines.forEach((l, i) => {
+    if (SCREEN_TITLE.test(toLogical(l)) && (!starts.length || i - starts[starts.length - 1] >= MIN_SCREEN_LINES)) starts.push(i);
+  });
+  if (starts.length < 2) return [grid];
+  return starts.map((s, k) => ({ ...grid, lines: grid.lines.slice(s, starts[k + 1] ?? grid.lines.length) }));
+}
+
+/** עמוד PDF → מסך אחד או כמה. */
+export const parseScreens = (grid: Grid): ParsedPage[] => splitScreens(grid).map(parseGrid);
 
 export function parseGrid(grid: Grid): ParsedPage {
   const problems: string[] = [];
@@ -193,7 +227,7 @@ export function parseGrid(grid: Grid): ParsedPage {
     const lg = toLogical(raw);
     if (/PF\d|ENTER|CLEAR/.test(lg)) break;
     line++;
-    const cell = (c: Col) => { const i = at(c); if (i < 0) return undefined; const v = cut(raw, runs[i]); return hasHebrew(v) ? toLogical(v) : v; };
+    const cell = (c: Col) => { const i = at(c); if (i < 0) return undefined; const v = cut(raw, widen(raw, runs, i)); return hasHebrew(v) ? toLogical(v) : v; };
     const fileRaw = (cell('fileNumber') ?? '').replace(/\s/g, '');
     const name = (cell('name') ?? '').replace(/\s+/g, ' ').trim();
     const rp: string[] = [];
@@ -201,7 +235,7 @@ export function parseGrid(grid: Grid): ParsedPage {
       if (!fileRaw && !name) continue;
       rp.push(fileRaw ? `מספר תיק לא תקין: ${fileRaw}` : 'שורה בלי מספר תיק');
     }
-    const noAssessment = /לא\s+קיימת/.test(lg);
+    const noAssessment = /לא\s+קי?ימת/.test(lg);   // ‼ שע״ם כותב «שמ לא קימת» (נצפה ב-PDF אמיתי, 31.10.2026)
     const r: ParsedRow = {
       line, fileNumber: fileRaw, name, problems: rp,
       office: cell('office') || undefined, fileType: cell('fileType') || undefined, section: noAssessment ? undefined : cell('section') || undefined,

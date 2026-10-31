@@ -1,7 +1,7 @@
 // ─── כמה קבצים / כמה עמודים → אצווה אחת לשרת + כיסוי (16.10.2026) ──────────────────────────────────
 // ‼ כיסוי: לכל רשימה (שנתי לפי שנה; הון לפי קבוצה) — אילו עמודים נקראו, האם ידוע כמה יש, מה חסר ומה כפול.
 //   עמוד כפול זהה — מתעלמים; עמוד כפול שונה — סתירה, ושתי הגרסאות לא נקלטות מאותו עמוד.
-//   «אין תיקים שבקשת» — הקבוצה נבדקה וריקה. קבוצה שלא הועלתה — «לא נבדקה» (היעדר קובץ אינו אישור לריק).
+//   «אין תיקים שבקשת» — הקבוצה נבדקה וריקה. קבוצת הון שלא באף קובץ הון באצווה — נבדקה וריקה (גיא, 31.10.2026).
 // ‼ טהור.
 
 import { WEALTH_GROUP_LABEL, type ListKind, type PageStatus, type ParsedPage, type ParsedRow, type WealthGroup } from './parseShaam';
@@ -54,7 +54,11 @@ export interface BatchSource {
   method?: 'pdf' | 'manual';
   key: string; fileName: string; sha256?: string; size?: number; storagePath?: string; kind: ListKind; group?: WealthGroup; taxYear?: number;
   producedRaw?: string; producedOn?: string; status: 'ok' | 'empty_confirmed' | 'partial'; pages: { page?: number; pageTotal?: number; status: PageStatus; rows: number }[];
+  note?: string;
 }
+
+const WEALTH_GROUPS: WealthGroup[] = ['unfiled_no_fine', 'unfiled_fine', 'filed_fine', 'filed_no_fine'];
+export const ABSENT_GROUP_NOTE = 'לא מופיעה בקובץ ההון — נחשבת נבדקה וריקה';
 export interface BatchRow extends Omit<ParsedRow, 'line'> { sourceKey: string; page?: number; line: number }
 export interface Batch { sources: BatchSource[]; rows: BatchRow[] }
 
@@ -129,7 +133,8 @@ export function buildBatch(files: ParsedFile[]): { batch: Batch; coverage: Cover
       sources.push({
         key: sourceKey, fileName: f.fileName, sha256: f.sha256 ? (byList.size > 1 ? `${f.sha256}#${lk}` : f.sha256) : undefined, size: f.size, storagePath: f.storagePath,
         kind: p0.kind!, group: p0.group, taxYear: p0.taxYear, producedRaw: p0.producedRaw, producedOn: p0.producedOn,
-        status: pages.every(p => p.status === 'empty_confirmed') ? 'empty_confirmed' : f.pages.length === pages.length ? 'ok' : 'partial',
+        // ‼ «חלקי» = בקובץ עמוד שלא נקרא; קובץ משותף עם כמה קבוצות (31.10) אינו חלקי
+        status: pages.every(p => p.status === 'empty_confirmed') ? 'empty_confirmed' : f.pages.every(p => p.status === 'ok' || p.status === 'empty_confirmed') ? 'ok' : 'partial',
         pages: pages.map(p => ({ page: p.page, pageTotal: p.pageTotal, status: p.status, rows: p.rows.length })),
       });
       for (const p of keep) for (const r of p.rows) { rows.push({ ...r, sourceKey, page: p.page }); c.rows++; }
@@ -150,13 +155,22 @@ export function buildBatch(files: ParsedFile[]): { batch: Batch; coverage: Cover
     for (let k = 1; k <= top; k++) if (!seen.includes(k)) missing.push(k);
     return { ...c, pagesSeen: seen, missing, rows: finalRows.filter(r => srcList.get(r.sourceKey) === c.listKey).length };
   });
+  // ‼ 31.10.2026 (גיא): הצהרות הון = קובץ אחד עם ארבע הקבוצות (Copy, Copy Append, Print Clipboard). קבוצה שהציגה
+  //   «אין תיקים שבקשת» לא מועתקת — לכן קבוצה שאינה באף קובץ הון באצווה נרשמת «נבדקה וריקה», צמודה לקובץ האחרון.
+  const wealth = sources.filter(s => s.kind === 'wealth').sort((a, b) => (b.producedOn ?? '').localeCompare(a.producedOn ?? ''));
+  const base = wealth[0];
+  if (base) {
+    const fileKey = base.key.split('#')[0], fileSha = base.sha256?.split('#')[0];
+    for (const g of WEALTH_GROUPS.filter(g => !wealth.some(s => s.group === g))) {
+      const lk = `wealth:${g}@${base.producedRaw ?? ''}`;
+      sources.push({
+        key: `${fileKey}#absent:${lk}`, fileName: base.fileName, sha256: fileSha ? `${fileSha}#absent:${lk}` : undefined, size: base.size, storagePath: base.storagePath,
+        kind: 'wealth', group: g, producedRaw: base.producedRaw, producedOn: base.producedOn, status: 'empty_confirmed', pages: [], note: ABSENT_GROUP_NOTE,
+      });
+      coverage.push({ listKey: lk, list: `wealth:${g}`, label: `הצהרות הון · ${WEALTH_GROUP_LABEL[g]}`, pagesSeen: [], missing: [], duplicates: [], conflicts: [], empty: true, rows: 0, producedOn: base.producedOn });
+    }
+  }
   return { batch: { sources, rows: finalRows }, coverage };
-}
-
-/** קבוצות הון שלא נבדקו באצווה הזו — «לא נבדקה». שתי הראשונות לתפעול שוטף; ארבע — בקליטה/יישור קו. */
-export function uncheckedWealthGroups(coverage: Coverage[], mode: 'routine' | 'intake'): WealthGroup[] {
-  const need: WealthGroup[] = mode === 'routine' ? ['unfiled_no_fine', 'unfiled_fine'] : ['unfiled_no_fine', 'unfiled_fine', 'filed_fine', 'filed_no_fine'];
-  return need.filter(g => !coverage.some(c => c.list === `wealth:${g}`));
 }
 
 export function coverageText(c: Coverage): string {

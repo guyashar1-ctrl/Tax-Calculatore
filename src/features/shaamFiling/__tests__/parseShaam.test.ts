@@ -2,8 +2,8 @@
 // ‼ ה-PDF האמיתי עצמו נבדק ב-scripts/e2e/shaam-filing-parse.mjs (מחוץ לריפו — פרטי לקוח).
 import { assert, deepEqual, equal, test, type TestCase } from '../../../testkit/tinyTest';
 import { flipRtl, itemsToGrid, toLogical } from '../parse/grid';
-import { classifyHeader, parseGrid, parseShaamDate } from '../parse/parseShaam';
-import { buildBatch, coverageText, fileVerdict, uncheckedWealthGroups, type ParsedFile } from '../parse/batch';
+import { classifyHeader, parseGrid, parseScreens, parseShaamDate } from '../parse/parseShaam';
+import { ABSENT_GROUP_NOTE, buildBatch, coverageText, fileVerdict, type ParsedFile } from '../parse/batch';
 import { ANNUAL_SAMPLE_ROWS, ahzmPage, idomLegacyPage, idomPage, itemsFromLines, type Cell } from '../__fixtures__/terminal';
 
 const parse = (lines: Cell[][]) => parseGrid(itemsToGrid(itemsFromLines(lines)));
@@ -109,20 +109,24 @@ export const TESTS: TestCase[] = [
     deepEqual([c.pagesSeen, c.pageTotal, c.missing, c.duplicates], [[1, 2], 3, [3], [2]]);
     assert(/חסרים 3/.test(coverageText(c)), coverageText(c));
     equal(batch.rows.length, 3, 'שתי הקבוצות הפתוחות מאוחדות, בלי השורה מהעמוד הכפול');
-    deepEqual(uncheckedWealthGroups(coverage, 'routine'), []);
-    deepEqual(uncheckedWealthGroups(coverage, 'intake'), ['filed_fine', 'filed_no_fine']);
+    deepEqual(coverage.filter(c => c.empty && !c.rows).map(c => c.list).sort(), ['wealth:filed_fine', 'wealth:filed_no_fine'], 'שתי הקבוצות שלא בקבצים — נבדקו וריקות');
     const conflict = buildBatch([file('a', [p(1, [{ file: '000000018', due: '30.11.2026' }])]), file('b', [p(1, [{ file: '000000018', due: '31.12.2026' }])])]);
     equal(conflict.batch.rows.length, 0, 'עמוד שהועלה פעמיים בתוכן שונה — לא נקלט');
     deepEqual(conflict.coverage[0].conflicts, [1]);
   }),
-  test('קבוצה שנייה חסרה — «לא נבדקה»; הודעת ריק מפורשת אינה כשל', () => {
+  test('קבוצת הון שלא בקובץ — נבדקה וריקה, צמודה לקובץ; הודעת ריק מפורשת אינה כשל', () => {
     const { coverage, batch } = buildBatch([
       file('a', [ahzmPage({ group: 'unfiled_no_fine', rows: [{ file: '000000018', name: 'דוגמה', year: '2025', due: '30.11.2026' }] })]),
     ]);
-    deepEqual(uncheckedWealthGroups(coverage, 'routine'), ['unfiled_fine']);
+    const absent = batch.sources.filter(s => s.note === ABSENT_GROUP_NOTE);
+    deepEqual(absent.map(s => s.group).sort(), ['filed_fine', 'filed_no_fine', 'unfiled_fine']);
+    assert(absent.every(s => s.status === 'empty_confirmed' && s.key.startsWith('a#') && s.sha256!.startsWith('a#') && s.fileName === 'a.pdf'), JSON.stringify(absent));
+    equal(new Set(absent.map(s => s.sha256)).size, 3, 'לכל קבוצה ריקה מזהה משלה');
+    equal(coverageText(coverage.find(c => c.list === 'wealth:unfiled_fine')!), 'נבדקה וריקה');
+    equal(buildBatch([file('y', [idomPage({ year: 2025, rows: ANNUAL_SAMPLE_ROWS })])]).batch.sources.length, 1, 'דוח שנתי לבד — בלי קבוצות הון');
     const withEmpty = buildBatch([file('a', [ahzmPage({ group: 'unfiled_no_fine', rows: [{ file: '000000018', name: 'דוגמה', year: '2025', due: '30.11.2026' }] })]),
       file('e', [ahzmPage({ group: 'unfiled_fine', rows: [], empty: true })])]);
-    deepEqual(uncheckedWealthGroups(withEmpty.coverage, 'routine'), []);
+    deepEqual(withEmpty.batch.sources.filter(s => s.note === ABSENT_GROUP_NOTE).map(s => s.group).sort(), ['filed_fine', 'filed_no_fine'], 'קבוצה שבקובץ אחר באצווה — לא «חסרה»');
     equal(withEmpty.batch.sources.find(s => s.key === 'e')!.status, 'empty_confirmed');
     equal(coverageText(withEmpty.coverage.find(c => c.list === 'wealth:unfiled_fine')!), 'נבדקה וריקה');
     equal(batch.rows.length, 1);
@@ -134,6 +138,32 @@ export const TESTS: TestCase[] = [
     const newer = idomPage({ year: 2025, produced: '20/10/2026', rows: [{ file: '000000018', name: 'דוגמה', required: true, due: '31/10/2026', filed: '18/10/2026' }] });
     const { batch } = buildBatch([file('old', [older]), file('new', [newer])]);
     deepEqual(batch.rows.map(r => [r.sourceKey, r.filedOn]), [['new', '2026-10-18'], ['old', undefined]]);
+  }),
+  test('IDOM בפריסה האמיתית: תאריך הגשה של 10 תווים מתחת ל-9 מקפים, ו«שמ לא קימת» — נקראים כמו בדוגמה', () => {
+    const key = (r: { fileNumber: string; required?: boolean; legalDue?: string; filedOn?: string; noAssessment?: boolean; section?: string; office?: string; problems: string[] }) =>
+      [r.fileNumber, r.required, r.legalDue, r.filedOn, !!r.noAssessment, r.section, r.office, r.problems.length].join('|');
+    const real = parse(idomPage({ year: 2025, rows: ANNUAL_SAMPLE_ROWS, real: true }));
+    const sample = parse(idomPage({ year: 2025, rows: ANNUAL_SAMPLE_ROWS }));
+    equal(real.status, 'ok');
+    deepEqual(real.rows.map(key), sample.rows.map(key));
+    assert(real.rows.some(r => r.filedOn === '2026-06-07') && real.rows.some(r => r.noAssessment), JSON.stringify(real.rows.map(key)));
+    equal(real.rows.filter(r => r.problems.length).length, 0, 'אף שורה לא נופלת ל«בדיקה» בגלל תאריך חתוך');
+  }),
+  test('Copy + Copy Append + Print Clipboard: כמה מסכים באותו עמוד PDF — כל מסך נקרא לבד', () => {
+    const w = (file: string) => ({ file, name: 'דוגמה', year: '2025', due: '30.11.2026' });
+    const lines: Cell[][] = [[[70, 'Page 1 of 1']], [], [],
+      ...ahzmPage({ group: 'unfiled_no_fine', produced: '31/10/26', rows: [w('000000018')] }), [],
+      ...ahzmPage({ group: 'filed_no_fine', produced: '31/10/26', rows: [w('000000026'), w('000000034')] }), [],
+      [[10, 'http://ctsiis.customers.in/printhod/prtclp.htm'], [70, '31/10/2026']]];
+    const pages = parseScreens(itemsToGrid(itemsFromLines(lines)));
+    deepEqual(pages.map(p => [p.status, p.group, p.rows.length, p.producedOn]), [['ok', 'unfiled_no_fine', 1, '2026-10-31'], ['ok', 'filed_no_fine', 2, '2026-10-31']]);
+    deepEqual(pages[1].rows.map(r => r.fileNumber), ['000000026', '000000034']);
+    const { batch } = buildBatch([{ key: 'c', fileName: 'c.pdf', size: 1, sha256: 'c', pages }]);
+    deepEqual(batch.sources.map(s => [s.group, s.status]).sort(), [['filed_fine', 'empty_confirmed'], ['filed_no_fine', 'ok'], ['unfiled_fine', 'empty_confirmed'], ['unfiled_no_fine', 'ok']]);
+    equal(batch.rows.length, 3);
+    const idom = parseScreens(itemsToGrid(itemsFromLines([...idomPage({ year: 2025, page: 1, rows: ANNUAL_SAMPLE_ROWS }), [], ...idomPage({ year: 2025, page: 2, rows: ANNUAL_SAMPLE_ROWS.slice(0, 1) })])));
+    deepEqual(idom.map(p => [p.status, p.page, p.rows.length]), [['ok', 1, ANNUAL_SAMPLE_ROWS.length], ['ok', 2, 1]], 'גם IDOM: שני עמודים של שע״ם בעמוד PDF אחד');
+    equal(parseScreens(itemsToGrid(itemsFromLines(ahzmPage({ group: 'unfiled_fine', rows: [w('000000042')] })))).length, 1, 'מסך אחד — כמו קודם');
   }),
   test('קובץ פגום — הודעה, לא נקלט', () => {
     const v = fileVerdict({ key: 'x', fileName: 'x.pdf', size: 10, pages: [], error: 'הקובץ פגום' });

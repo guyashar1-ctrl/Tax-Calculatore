@@ -69,6 +69,8 @@ export interface SourceSummary {
   canUndo?: boolean;
   undoneAt?: string;
   undo?: UndoSummary;
+  /** כמה שורות נקראו בכל עמוד/מסך של המקור (מהשרת, כמו שנשלח בקליטה). */
+  pages?: { rows?: number }[];
 }
 
 /** שורה בתוכנית הקליטה שהשרת מחזיר (_shaam_plan). */
