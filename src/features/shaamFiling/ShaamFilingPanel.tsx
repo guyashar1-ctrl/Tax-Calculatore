@@ -1,6 +1,9 @@
 // ─── «הפקת דוחות משע״ם והעלאה» — מקטע ב«מס › עבודות לקוחות › כל העבודות» (16.10.2026) ───────────────
 // הכרעת מיקום (גיא + הסשן המנהל, 16.10): כאן, ולא בדף הסיום של הקליטה ולא בדף הלקוח הציבורי.
-// ‼ ארבעה חלקים, רשימה אחת: (1) מה להפיק + מדריך מסומן, (2) העלאת PDF אחד או כמה → נכתב לתיקים מיד, עם סיכום,
+// ‼ 31.10.2026 (הדמיה מאושרת, docs/proposals/2026-10-31-shaam-upload-boxes.html): תיבה לכל PDF — 3 בשגרה, עוד 2 בקליטה.
+//   הקובץ קובע לאיזו תיבה הוא שייך (הקבוצה נקראת מתוכו), לא התיבה שנלחצה; כל קבצי ההעלאה — אצווה אחת כמו קודם.
+//   תיבה «עדכנית» = מקור שלא בוטל מ-14 הימים האחרונים (אותו כלל של «נבדקה בהעלאה קודמת»).
+// ‼ ארבעה חלקים, רשימה אחת: (1) תיבות + «איך מפיקים» לכל תיבה, (2) העלאת PDF אחד או כמה → נכתב לתיקים מיד, עם סיכום,
 //   (3) חובות פתוחות בלי בקשה — «חייב · טרם נפתח» עם «פתח בקשה» (או ShaamOpenRows ברשימת העבודות עצמה, hideOpenRows),
 //   (4) לבדיקה, היסטוריה וקבצים שנקלטו — מקופלים.
 // ‼ 305 (החלטות גיא 25.10.2026): אין שלב אישור. מזוהים נכתבים לתיקים מיד; לא ודאי — «לבדיקה», בלי כתיבה לתיק;
@@ -13,10 +16,10 @@ import { useMemo, useRef, useState } from 'react';
 import type { Client } from '../../types';
 import { ArrowChain } from '../../components/ui/ArrowPath';
 import { readShaamFile } from './parse/readPdf';
-import { buildBatch, coverageText, fileVerdict, uncheckedWealthGroups, type Batch, type Coverage, type ParsedFile } from './parse/batch';
+import { buildBatch, coverageText, fileVerdict, type Batch, type Coverage, type ParsedFile } from './parse/batch';
 import { WEALTH_GROUP_LABEL, type WealthGroup } from './parse/parseShaam';
 import { confirmGroupEmpty, requestCopy, resolveObligation, saveImport, undoSource, uploadSource, type ImportResult } from './api';
-import { COPY_TEXT, MATCH_TEXT, sourceShort, REVIEW_TEXT, copyState, dmy, importSummaryParts, mergeUndo, needsRequest, obligationDueText, obligationTitle, sourceText, stateLine, undoSummaryText, type Obligation, type PlanRow, type UndoSummary } from './model';
+import { COPY_TEXT, MATCH_TEXT, sourceShort, REVIEW_TEXT, copyState, dmy, importSummaryParts, mergeUndo, needsRequest, obligationDueText, obligationTitle, sourceText, stateLine, undoSummaryText, type Obligation, type PlanRow, type SourceSummary, type UndoSummary } from './model';
 import { useObligations } from './useObligations';
 import { isGmf154Source } from './fromGmf154';
 import ShaamGuide from './ShaamGuide';
@@ -38,19 +41,38 @@ const nameOfClient = (c?: Client) => (c ? `${c.firstName ?? ''} ${c.lastName ?? 
 
 type Phase = 'idle' | 'reading' | 'saving' | 'saved';
 
+/** תיבה = הפקה אחת בשע״ם: הדוחות השנתיים, או קבוצה אחת של הצהרות הון (AHZM מפיק קבוצה אחת בכל פעם). */
+type BoxKey = 'annual' | WealthGroup;
+const ROUTINE_BOXES: BoxKey[] = ['annual', 'unfiled_no_fine', 'unfiled_fine'];
+const INTAKE_BOXES: BoxKey[] = ['filed_fine', 'filed_no_fine'];
+const BOX_KIND: Record<WealthGroup, string> = {
+  unfiled_no_fine: 'לא הגישו · בלי קנס',
+  unfiled_fine: 'לא הגישו · עם קנס',
+  filed_fine: 'הגישו · עם קנס',
+  filed_no_fine: 'הגישו · בלי קנס',
+};
+const boxOf = (s: Pick<SourceSummary, 'kind' | 'group'>): BoxKey | undefined => (s.kind === 'annual' ? 'annual' : s.group);
+const boxTitle = (k: BoxKey) => (k === 'annual' ? 'דוחות שנתיים' : 'הצהרות הון');
+const howPath = (k: BoxKey, year: number) => (k === 'annual'
+  ? ['IDOM', 'אפשרות 4', 'סוג רשימה 1', `שנת מס ${year}`, 'כל המיוצגים = 1', 'Enter', 'PF8 עד העמוד האחרון']
+  : ['AHZM', `אזור 2: 1 ליד «${WEALTH_GROUP_LABEL[k]}»`, 'מיון: 1 ליד «מספר תיק»', 'Enter']);
+const sourceDay = (s: SourceSummary) => s.producedOn ?? s.uploadedAt.slice(0, 10);
+
 export default function ShaamFilingPanel({ clients, onOpenRequests, onChanged, hideOpenRows }: ShaamFilingPanelProps) {
   const { obligations, sources, err, load } = useObligations();
   // ‼ קריאות 154 מיישור הקו הן מקור בלי קובץ — לא «קובץ שנקלט».
   const uploaded = sources.filter(s => !isGmf154Source(s));
   const byId = useMemo(() => new Map(clients.map(c => [c.id, c])), [clients]);
-  const [guide, setGuide] = useState(false);
+  const [intake, setIntake] = useState(false);
+  /** פאנל אחד מתחת לתיבות: «איך מפיקים», «ריק בשע״ם» או «ביטול» — של תיבה אחת. */
+  const [panel, setPanel] = useState<{ box: BoxKey; kind: 'how' | 'empty' | 'undo'; sourceId?: string } | null>(null);
+  const [shots, setShots] = useState(false);
   const [phase, setPhase] = useState<Phase>('idle');
   const [progress, setProgress] = useState<{ name: string; done: number; total: number; file: number; files: number } | null>(null);
   const [files, setFiles] = useState<ParsedFile[]>([]);
   const raw = useRef(new Map<string, File>());
   const [batch, setBatch] = useState<Batch | null>(null);
   const [coverage, setCoverage] = useState<Coverage[]>([]);
-  const [mode, setMode] = useState<'routine' | 'intake'>('routine');
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<ImportResult | null>(null);
   const [drag, setDrag] = useState(false);
@@ -106,13 +128,24 @@ export default function ShaamFilingPanel({ clients, onOpenRequests, onChanged, h
 
   const verdicts = files.map(fileVerdict);
   const plan = result?.plan ?? [];
-  // קבוצה שנבדקה בהעלאה קודמת ב-14 הימים האחרונים — נחשבת נבדקה (עם התאריך); אחרת «לא נבדקה». ‼ העלאה שבוטלה — לא.
+  // תיבה עדכנית = מקור שלא בוטל מ-14 הימים האחרונים; היעדר קובץ אינו «ריקה» — רק «ריק בשע״ם» (אישור מפורש) או «אין תיקים שבקשת» בקובץ.
   const recentCut = new Date(Date.now() - 14 * 864e5).toISOString().slice(0, 10);
-  const recent = new Map<WealthGroup, string>();
-  for (const s of sources) if (s.kind === 'wealth' && s.group && !(s.undoneAt && !s.canUndo) && (s.producedOn ?? s.uploadedAt.slice(0, 10)) >= recentCut && !recent.has(s.group)) recent.set(s.group, s.producedOn ?? s.uploadedAt.slice(0, 10));
-  const unchecked = uncheckedWealthGroups(coverage, mode).filter(g => !recent.has(g));
-  const recentChecked = uncheckedWealthGroups(coverage, mode).filter(g => recent.has(g));
-  const showUnchecked = coverage.some(c => c.list.startsWith('wealth:')) || mode === 'intake';
+  const latest = new Map<BoxKey, SourceSummary>();
+  for (const s of uploaded) {
+    const k = boxOf(s);
+    if (!k || (s.undoneAt && !s.canUndo)) continue;
+    const cur = latest.get(k);
+    if (!cur || sourceDay(s) > sourceDay(cur) || (sourceDay(s) === sourceDay(cur) && s.uploadedAt > cur.uploadedAt)) latest.set(k, s);
+  }
+  const fresh = (k: BoxKey) => { const s = latest.get(k); return s && sourceDay(s) >= recentCut ? s : undefined; };
+  const annualYear = fresh('annual')?.taxYear ?? new Date().getFullYear() - 1;
+  const showIntake = intake || INTAKE_BOXES.some(k => fresh(k));
+  const boxes = showIntake ? [...ROUTINE_BOXES, ...INTAKE_BOXES] : ROUTINE_BOXES;
+  const doneCount = boxes.filter(k => fresh(k)).length;
+  const busy = phase === 'reading' || phase === 'saving';
+  const pick = () => inputRef.current?.click();
+  // רק עמודים חסרים / כפולים / סותרים — המצב של כל רשימה כבר בתיבה שלה
+  const coverageIssues = coverage.filter(c => c.missing.length || c.duplicates.length || c.conflicts.length);
   const batchSources = Object.values(result?.sources ?? {});
   const rowView = (p: PlanRow) => {
     const r = batch?.rows[p.i - 1];
@@ -125,40 +158,75 @@ export default function ShaamFilingPanel({ clients, onOpenRequests, onChanged, h
   const review = (obligations ?? []).filter(o => o.state === 'needs_review');
   const history = (obligations ?? []).filter(o => o.state === 'history' || o.state === 'filed_per_shaam');
 
+  const box = (k: BoxKey) => {
+    const s = fresh(k), last = latest.get(k);
+    const isNew = !!s && batchSources.includes(s.id);
+    const kind = k === 'annual' ? String(s?.taxYear ?? annualYear) : BOX_KIND[k];
+    const state = s
+      ? (s.status === 'empty_confirmed' ? `נבדק · ריק בשע״ם · ${dmy(sourceDay(s))}` : `עודכן ${dmy(sourceDay(s))}`)
+      : last ? `עודכן לאחרונה ${dmy(sourceDay(last))}` : 'עוד לא הועלה';
+    const on = (kind2: 'how' | 'empty' | 'undo') => setPanel(panel?.box === k && panel.kind === kind2 ? null : { box: k, kind: kind2, sourceId: s?.id });
+    return (
+      <li key={k} className={`shf-box${s ? ' is-done' : ''}${isNew ? ' is-new' : ''}`} data-sf-box={k} data-sf-box-state={s ? (s.status === 'empty_confirmed' ? 'empty' : 'done') : 'missing'}>
+        <button type="button" className="shf-box-main" disabled={busy} onClick={pick} aria-label={`העלאת PDF · ${boxTitle(k)} · ${kind} · ${state}`}>
+          <span className="shf-box-ic" aria-hidden="true">{s ? '✓' : <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" /><path d="M14 3v5h5" /></svg>}</span>
+          <span className="shf-box-t"><b>{boxTitle(k)}</b><span>{kind}</span></span>
+          <span className="shf-box-st">{state}</span>
+        </button>
+        <span className="shf-box-acts">
+          {!s && <button type="button" className="shf-link" aria-expanded={panel?.box === k && panel.kind === 'how'} onClick={() => on('how')} data-sf-how-open={k}>איך מפיקים</button>}
+          {!s && k !== 'annual' && <button type="button" className="shf-link" onClick={() => on('empty')} data-sf-empty-open={k}>ריק בשע״ם</button>}
+          {s?.canUndo && <button type="button" className="shf-link" onClick={() => on('undo')} data-sf-box-undo={k}>ביטול</button>}
+        </span>
+      </li>
+    );
+  };
+  const panelBox = panel?.box;
+
   return (
-    <section className="shf-panel" aria-labelledby="shf-h" data-shaam-filing-panel>
+    <section className={`shf-panel${drag ? ' is-drag' : ''}`} aria-labelledby="shf-h" data-shaam-filing-panel
+      onDragOver={e => { if (busy) return; e.preventDefault(); setDrag(true); }}
+      onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDrag(false); }}
+      onDrop={e => { e.preventDefault(); setDrag(false); if (!busy) void addFiles(e.dataTransfer.files); }} data-sf-drop>
       <header className="shf-head">
         <div>
           <h3 id="shf-h">הפקת דוחות משע״ם והעלאה</h3>
-          <p className="shf-lead">מפיקים בשע״ם את רשימת מעקב הדוחות השנתיים ואת דרישות הצהרות ההון, מעלים את ה-PDF — והמערכת מסמנת בתיק של כל לקוח מה נדרש ועד מתי.</p>
+          <p className="shf-lead" data-sf-count>{doneCount === boxes.length ? 'הכול עדכני' : <><b>{doneCount} מתוך {boxes.length}</b> קבצים · גוררים לכאן, והתיקים מתעדכנים לבד</>}</p>
         </div>
-        <div className="shf-head-actions">
-          <button type="button" className="btn btn-sm btn-secondary" aria-expanded={guide} onClick={() => setGuide(!guide)} data-sf-guide-toggle>{guide ? 'סגירת המדריך' : 'מה להפיק ואיך'}</button>
-          <button type="button" className="btn btn-sm btn-primary" disabled={phase === 'reading' || phase === 'saving'} onClick={() => inputRef.current?.click()} data-sf-upload>העלאת PDF</button>
-          <input ref={inputRef} type="file" accept="application/pdf,.pdf,image/*" multiple hidden onChange={e => { if (e.target.files) void addFiles(e.target.files); e.target.value = ''; }} data-sf-file-input />
-        </div>
+        <input ref={inputRef} type="file" accept="application/pdf,.pdf,image/*" multiple hidden onChange={e => { if (e.target.files) void addFiles(e.target.files); e.target.value = ''; }} data-sf-file-input />
       </header>
 
-      {guide && (
-        <div className="shf-what">
-          <ul className="shf-what-list">
-            <li><b>דוחות שנתיים:</b> <ArrowChain steps={['IDOM', 'אפשרות 4', 'סוג רשימה 1']} /> — לשנת המס הרצויה, כל המיוצגים. כל העמודים (PF8).</li>
-            <li><b>הצהרות הון — מעקב שוטף:</b> <ArrowChain steps={['AHZM', 'אזור 2 «רשימת דרישות»']} />, שתי הפקות: «לא הגישו ולא חייבים בקנס» ו«לא הגישו וחייבים בקנס».</li>
-            <li><b>הצהרות הון — קליטה / יישור קו:</b> בנוסף «הגישו וחייבים בקנס» ו«הגישו ולא חייבים בקנס».</li>
-          </ul>
-          <ShaamGuide />
+      <ul className="shf-boxes" aria-label="קבצים משע״ם">{ROUTINE_BOXES.map(box)}</ul>
+      {showIntake && <>
+        <h4 className="shf-boxes-h">קליטה / יישור קו</h4>
+        <ul className="shf-boxes is-two" aria-label="קבצים לקליטה">{INTAKE_BOXES.map(box)}</ul>
+      </>}
+
+      {panel && panelBox && (
+        <div className="shf-how" data-sf-panel={panel.kind}>
+          <div className="shf-how-top">
+            <b>{boxTitle(panelBox)} · {panelBox === 'annual' ? annualYear : BOX_KIND[panelBox]}</b>
+            <button type="button" className="shf-link" onClick={() => setPanel(null)}>סגירה</button>
+          </div>
+          {panel.kind === 'how' && <>
+            <ArrowChain steps={howPath(panelBox, annualYear)} />
+            <button type="button" className="shf-link shf-how-shots" aria-expanded={shots} onClick={() => setShots(!shots)} data-sf-guide-toggle>{shots ? 'הסתרת הצילומים' : 'מדריך עם צילומים'}</button>
+            {shots && <ShaamGuide key={panelBox === 'annual' ? 'annual' : 'wealth'} initial={panelBox === 'annual' ? 'annual' : 'wealth'} />}
+          </>}
+          {panel.kind === 'empty' && panelBox !== 'annual' && <EmptyGroup group={panelBox} onDone={() => { setPanel(null); void load(); }} onCancel={() => setPanel(null)} />}
+          {/* המקור נשמר בפתיחה — אחרי הביטול התיבה כבר לא עדכנית, והסיכום צריך להישאר */}
+          {panel.kind === 'undo' && panel.sourceId && <UndoUpload key={panel.sourceId} sourceIds={[panel.sourceId]} asking onCancel={() => setPanel(null)} onDone={() => { void load(); onChanged?.(); }} />}
         </div>
       )}
 
-      {(phase === 'idle' || phase === 'saved') && (
-        <div className={`shf-drop${drag ? ' is-drag' : ''}`} onDragOver={e => { e.preventDefault(); setDrag(true); }} onDragLeave={() => setDrag(false)}
-          onDrop={e => { e.preventDefault(); setDrag(false); void addFiles(e.dataTransfer.files); }} data-sf-drop>
-          <span>גוררים לכאן PDF אחד או כמה — או <button type="button" className="shf-link" onClick={() => inputRef.current?.click()}>בוחרים קבצים</button></span>
-          <small className="shf-muted">מה שזוהה נכתב לתיקים מיד, ואפשר לבטל. הקובץ נשמר בתיקייה פרטית של המשרד — לא בתיק לקוח.</small>
-        </div>
+      {!showIntake && (
+        <button type="button" className="shf-link shf-more" onClick={() => setIntake(true)} data-sf-intake>קליטה או יישור קו? עוד 2 קבצים</button>
+      )}
+      {intake && !INTAKE_BOXES.some(k => fresh(k)) && (
+        <button type="button" className="shf-link shf-more" onClick={() => setIntake(false)} data-sf-intake>רק מעקב שוטף (3 קבצים)</button>
       )}
 
-      {(phase === 'reading' || phase === 'saving') && (
+      {busy && (
         <div className="shf-progress" role="status" data-sf-progress>
           {phase === 'saving' ? 'כותב לתיקים…' : progress ? <>קורא {progress.files > 1 ? `קובץ ${progress.file} מתוך ${progress.files} · ` : ''}«{progress.name}»{progress.total ? ` · עמוד ${progress.done} מתוך ${progress.total}` : '…'}</> : 'קורא…'}
           {phase === 'reading' && progress && <span className="shf-bar"><i style={{ inlineSize: `${progress.total ? Math.round((progress.done / progress.total) * 100) : 5}%` }} /></span>}
@@ -185,34 +253,25 @@ export default function ShaamFilingPanel({ clients, onOpenRequests, onChanged, h
           {!result && !error && (
             <p className="shf-muted">{files.length ? 'אין בקבצים שורות שאפשר לקלוט.' : 'לא נקרא אף קובץ.'} <button type="button" className="shf-link" onClick={reset}>סגירה</button></p>
           )}
-          <ul className="shf-files">
-            {verdicts.map(v => (
-              <li key={v.key} className={`shf-file is-${v.tone}`} data-sf-file={v.tone}>
-                <div className="shf-file-main">
-                  <b dir="auto">{v.fileName}</b>
-                  <span>{v.label}</span>
-                  {v.messages.map((m, k) => <small key={k}>{m}</small>)}
-                </div>
-              </li>
-            ))}
-          </ul>
-
-          {coverage.length > 0 && (
-            <div className="shf-coverage" data-sf-coverage>
-              <h4>כיסוי</h4>
-              <ul>{coverage.map(c => <li key={c.listKey}><b>{c.label}</b> — {coverageText(c)}{c.producedOn ? ` · הופקה ${dmy(c.producedOn)}` : ''}</li>)}</ul>
-              {showUnchecked && (
-                <div className="shf-unchecked">
-                  <div className="shf-seg shf-seg-sm" role="radiogroup" aria-label="סוג הבדיקה">
-                    <button type="button" role="radio" aria-checked={mode === 'routine'} className={`shf-seg-btn${mode === 'routine' ? ' is-on' : ''}`} onClick={() => setMode('routine')}>מעקב שוטף</button>
-                    <button type="button" role="radio" aria-checked={mode === 'intake'} className={`shf-seg-btn${mode === 'intake' ? ' is-on' : ''}`} onClick={() => setMode('intake')}>קליטה / יישור קו</button>
+          {/* קובץ שנקרא בלי בעיה כבר מופיע בתיבה שלו — כאן רק מה שצריך תשומת לב */}
+          {verdicts.some(v => v.tone !== 'ok') && (
+            <ul className="shf-files">
+              {verdicts.filter(v => v.tone !== 'ok').map(v => (
+                <li key={v.key} className={`shf-file is-${v.tone}`} data-sf-file={v.tone}>
+                  <div className="shf-file-main">
+                    <b dir="auto">{v.fileName}</b>
+                    <span>{v.label}</span>
+                    {v.messages.map((m, k) => <small key={k}>{m}</small>)}
                   </div>
-                  {unchecked.length ? (
-                    <ul>{unchecked.map(g => <UncheckedGroup key={g} group={g} onConfirmed={() => void load()} />)}</ul>
-                  ) : <span className="shf-muted">כל קבוצות הצהרות ההון הנדרשות נבדקו.</span>}
-                  {recentChecked.map(g => <span key={g} className="shf-muted" data-sf-recent={g}>«{WEALTH_GROUP_LABEL[g]}» — נבדקה בהעלאה קודמת (הופקה {dmy(recent.get(g))})</span>)}
-                </div>
-              )}
+                </li>
+              ))}
+            </ul>
+          )}
+
+          {coverageIssues.length > 0 && (
+            <div className="shf-coverage" data-sf-coverage>
+              <h4>עמודים</h4>
+              <ul>{coverageIssues.map(c => <li key={c.listKey}><b>{c.label}</b> — {coverageText(c)}{c.producedOn ? ` · הופקה ${dmy(c.producedOn)}` : ''}</li>)}</ul>
             </div>
           )}
 
@@ -288,8 +347,8 @@ export default function ShaamFilingPanel({ clients, onOpenRequests, onChanged, h
  * «ביטול ההעלאה» — לכל מקור (או לכל הקבצים של העלאה אחת). ‼ שאלה אחת לפני: מה יימחק ומה נשאר.
  * השרת מחליט (undo_shaam_filing_source); כאן רק הסיכום שהוא מחזיר.
  */
-function UndoUpload({ sourceIds, onDone }: { sourceIds: string[]; onDone: () => void }) {
-  const [state, setState] = useState<'idle' | 'asking' | 'busy'>('idle');
+function UndoUpload({ sourceIds, onDone, asking, onCancel }: { sourceIds: string[]; onDone: () => void; /** נפתח ישר בשאלה («ביטול» בתיבה) */ asking?: boolean; onCancel?: () => void }) {
+  const [state, setState] = useState<'idle' | 'asking' | 'busy'>(asking ? 'asking' : 'idle');
   const [done, setDone] = useState<UndoSummary | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const run = async () => {
@@ -314,7 +373,7 @@ function UndoUpload({ sourceIds, onDone }: { sourceIds: string[]; onDone: () => 
         <>
           <span>מה שנכתב מהקובץ יימחק או יחזור לקודם, ובקשות שנפתחו ממנו ועוד לא נגעו בהן — יבוטלו.</span>
           <button type="button" className="btn btn-sm btn-secondary" onClick={() => void run()} data-sf-undo-confirm>כן, לבטל</button>
-          <button type="button" className="shf-link" onClick={() => setState('idle')}>לא</button>
+          <button type="button" className="shf-link" onClick={() => (onCancel ? onCancel() : setState('idle'))}>לא</button>
         </>
       )}
       {state === 'busy' && <span className="shf-muted">מבטל…</span>}
@@ -357,22 +416,23 @@ export function ShaamOpenRows({ obligations, clients, onOpen, onOpenRequests }: 
   );
 }
 
-function UncheckedGroup({ group, onConfirmed }: { group: WealthGroup; onConfirmed: () => void }) {
-  const [state, setState] = useState<'idle' | 'asking' | 'busy' | 'done'>('idle');
+/** «ריק בשע״ם» בתיבה — רק אחרי שאלה מפורשת: היעדר קובץ אינו «ריקה». */
+function EmptyGroup({ group, onDone, onCancel }: { group: WealthGroup; onDone: () => void; onCancel: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+  const run = async () => {
+    setBusy(true); setMsg(null);
+    const r = await confirmGroupEmpty(group, 'אושר בתיבה בחלון «עדכון משע״ם»').catch(e => ({ ok: false, error: (e as Error).message }));
+    setBusy(false);
+    if (r.ok) onDone(); else setMsg(`הרישום נכשל (${r.error ?? 'שגיאה'})`);
+  };
   return (
-    <li className="shf-unchecked-row" data-sf-unchecked={group}>
-      <span>«{WEALTH_GROUP_LABEL[group]}» — <b>לא נבדקה</b> (אין קובץ; היעדר קובץ אינו «ריקה»)</span>
-      {state === 'idle' && <button type="button" className="shf-link" onClick={() => setState('asking')}>בדקתי בשע״ם — ריקה</button>}
-      {state === 'asking' && (
-        <span className="shf-inline">
-          <span>שע״ם הציג «אין תיקים שבקשת» לקבוצה הזו?</span>
-          <button type="button" className="btn btn-sm btn-secondary" onClick={async () => { setState('busy'); const r = await confirmGroupEmpty(group, 'אושר במסך הקליטה'); setState(r.ok ? 'done' : 'idle'); if (r.ok) onConfirmed(); }}>כן, נרשום</button>
-          <button type="button" className="shf-link" onClick={() => setState('idle')}>לא</button>
-        </span>
-      )}
-      {state === 'busy' && <span className="shf-muted">רושם…</span>}
-      {state === 'done' && <span className="shf-chip green">נרשם: נבדקה וריקה (אישור ידני)</span>}
-    </li>
+    <span className="shf-inline" data-sf-empty={group}>
+      <span>שע״ם הציג «אין תיקים שבקשת» לקבוצה «{WEALTH_GROUP_LABEL[group]}»?</span>
+      <button type="button" className="btn btn-sm btn-secondary" disabled={busy} onClick={() => void run()} data-sf-empty-confirm>{busy ? 'רושם…' : 'כן, נרשום'}</button>
+      <button type="button" className="shf-link" disabled={busy} onClick={onCancel}>לא</button>
+      {msg && <small className="shf-warn">{msg}</small>}
+    </span>
   );
 }
 

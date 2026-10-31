@@ -1,0 +1,277 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>עדכון משע״ם — תיבות העלאה</title>
+<style>
+:root {
+  --desk:#edecea; --page:#f8f7f5; --card:#fff; --s2:#f3f2ef; --s3:#ecebe8; --bd:#e2e4e7; --bd-strong:#d3d6da;
+  --tx:#25282d; --tx2:#63686f; --tx3:#8e949b; --br:#3f5f8f; --br-strong:#34507a; --soft:#e8eef5; --soft-bd:#c6d4e6;
+  --ok:#24654e; --ok-bg:#eaf4ef; --warn:#8a5b0f; --warn-bg:#fbf3e4; --err:#a63a3a;
+  --chip-green-bg:#e4f1ea; --chip-green-tx:#1e5942; --chip-green-bd:#c2ddcf;
+  --chip-amber-bg:#f8efdc; --chip-amber-tx:#7a4f0d;
+  --chip-blue-bg:#e3ebf5; --chip-blue-tx:#2c4468;
+  --shadow-lg:0 18px 40px -24px rgba(28,30,34,.35), 0 4px 10px -6px rgba(28,30,34,.1);
+}
+* { box-sizing:border-box; }
+body { margin:0; background:var(--desk); color:var(--tx); font-family:'Heebo', system-ui, 'Segoe UI', Arial, sans-serif; font-size:14px; line-height:1.5; }
+button { font:inherit; color:inherit; }
+
+/* ── מסגרת ההדמיה (לא חלק מהמוצר) ── */
+.demo { max-inline-size:1100px; margin:0 auto; padding:20px 16px 48px; display:grid; grid-template-columns:minmax(0,1fr) 300px; gap:20px; align-items:start; }
+@media (max-width:900px){ .demo { grid-template-columns:minmax(0,1fr); } }
+.note { background:var(--card); border:1px solid var(--bd); border-radius:14px; padding:16px; font-size:13px; }
+.note h2 { margin:0 0 6px; font-size:15px; }
+.note h3 { margin:14px 0 4px; font-size:13px; }
+.note ul { margin:0; padding-inline-start:18px; }
+.note li { margin:2px 0; }
+.tag { display:inline-block; font-size:11px; font-weight:700; padding:1px 8px; border-radius:999px; background:var(--chip-amber-bg); color:var(--chip-amber-tx); margin-bottom:8px; }
+.ctrl { display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin-bottom:12px; font-size:12px; color:var(--tx2); }
+.ctrl button { border:1px solid var(--bd-strong); background:var(--card); border-radius:999px; padding:5px 12px; cursor:pointer; font-size:12px; min-height:32px; }
+.ctrl button.on { background:var(--tx); color:#fff; border-color:var(--tx); }
+.ctrl .sep { inline-size:1px; block-size:20px; background:var(--bd-strong); margin-inline:4px; }
+.stage { display:flex; justify-content:center; }
+.stage.phone { padding-top:8px; }
+.stage.phone .sheet { inline-size:390px; border-radius:22px 22px 0 0; }
+
+/* ── החלון ── */
+.sheet { container-type:inline-size; inline-size:min(620px,100%); background:var(--card); border-radius:18px; box-shadow:var(--shadow-lg); overflow:hidden; position:relative; }
+.sh-head { display:flex; align-items:flex-start; gap:12px; padding:18px 22px 4px; }
+.sh-head h1 { flex:1; margin:0; font-size:20px; font-weight:650; }
+.sh-sub { margin:2px 0 0; font-size:13px; color:var(--tx2); font-weight:400; }
+.sh-x { display:grid; place-items:center; inline-size:36px; block-size:36px; border:0; border-radius:50%; background:var(--s2); color:var(--tx2); cursor:pointer; flex:none; }
+.sh-body { padding:12px 22px 22px; display:flex; flex-direction:column; gap:12px; }
+.sh-body.drag { outline:2px dashed var(--br); outline-offset:-8px; border-radius:14px; }
+
+.count { font-variant-numeric:tabular-nums; color:var(--tx); font-weight:600; }
+
+.boxes { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; }
+.boxes.two { grid-template-columns:repeat(2,minmax(0,1fr)); }
+.box { position:relative; display:flex; flex-direction:column; gap:6px; min-block-size:150px; padding:14px 12px 10px; border:1.5px dashed var(--bd-strong); border-radius:14px; background:var(--card); text-align:center; align-items:center; justify-content:center; cursor:pointer; transition:border-color .15s, background .15s, transform .15s; }
+@media (hover:hover){ .box.is-empty:hover { border-color:var(--br); background:var(--soft); } }
+.box:focus-visible { outline:2px solid var(--br); outline-offset:2px; }
+.box .ic { inline-size:34px; block-size:34px; border-radius:10px; display:grid; place-items:center; background:var(--s2); color:var(--tx2); }
+.box .tt { display:flex; flex-direction:column; align-items:center; }
+.box b { font-size:14px; font-weight:650; }
+.box .kind { font-size:12px; color:var(--tx2); }
+.box .st { font-size:12px; color:var(--tx3); min-block-size:18px; }
+.box .acts { display:flex; gap:10px; justify-content:center; min-block-size:24px; }
+.lnk { background:none; border:0; padding:2px; color:var(--br); font-size:12px; cursor:pointer; text-decoration:underline; text-underline-offset:3px; }
+.lnk.quiet { color:var(--tx2); }
+.box.is-reading { border-style:solid; border-color:var(--soft-bd); background:var(--soft); cursor:default; }
+.bar { inline-size:80%; block-size:5px; border-radius:999px; background:var(--card); overflow:hidden; }
+.bar i { display:block; block-size:100%; inline-size:0; background:var(--br); transition:inline-size .9s ease-out; }
+.box.is-done { border-style:solid; border-color:var(--chip-green-bd); background:var(--ok-bg); cursor:default; }
+.box.is-done .ic { background:var(--ok); color:#fff; }
+.box.is-done .st { color:var(--ok); font-weight:600; }
+.box.flash { animation:flash .6s ease-out; }
+@keyframes flash { 0%{ transform:scale(.97); } 60%{ transform:scale(1.02); } 100%{ transform:none; } }
+
+.more { display:flex; justify-content:center; }
+.more .lnk { font-size:13px; }
+.intake-h { font-size:12px; color:var(--tx2); margin:2px 0 -4px; }
+
+.how { border-radius:12px; background:var(--s2); padding:10px 12px; font-size:13px; display:flex; flex-direction:column; gap:6px; }
+.how-top { display:flex; justify-content:space-between; gap:8px; align-items:center; }
+.chain { display:flex; flex-wrap:wrap; gap:4px 6px; align-items:center; }
+.chain span { background:var(--card); border:1px solid var(--bd); border-radius:8px; padding:2px 8px; white-space:nowrap; }
+.chain em { font-style:normal; color:var(--tx3); }
+
+.done-bar { display:flex; flex-wrap:wrap; gap:6px 10px; align-items:center; padding:9px 12px; border-radius:12px; background:var(--ok-bg); color:var(--ok); font-size:13px; }
+.done-bar .p + .p::before { content:"·"; margin-inline:6px; opacity:.6; }
+.done-bar .sp { flex:1; }
+
+.rest { border-top:1px solid var(--bd); padding-top:10px; display:flex; flex-direction:column; gap:2px; }
+.rest-row { display:flex; justify-content:space-between; align-items:center; padding:8px 4px; font-size:13px; color:var(--tx2); border-radius:8px; }
+.rest-row b { color:var(--tx); font-weight:600; }
+.pill { font-size:12px; font-weight:600; padding:1px 9px; border-radius:999px; background:var(--chip-amber-bg); color:var(--chip-amber-tx); }
+
+.toast { position:absolute; inset-inline:16px; inset-block-end:16px; padding:10px 14px; border-radius:12px; background:var(--tx); color:#fff; font-size:13px; box-shadow:var(--shadow-lg); opacity:0; transform:translateY(8px); transition:.2s; pointer-events:none; }
+.toast.on { opacity:1; transform:none; }
+
+/* טלפון: תיבות כשורות */
+@container (max-width:480px) {
+  .sh-head { padding:16px 16px 4px; }
+  .sh-body { padding:10px 16px 20px; }
+  .boxes, .boxes.two { grid-template-columns:minmax(0,1fr); gap:8px; }
+  .box { min-block-size:64px; flex-direction:row; text-align:start; justify-content:flex-start; padding:10px 12px; gap:10px; display:grid; grid-template-columns:34px minmax(0,1fr) auto; grid-template-areas:"ic t acts" "ic st acts"; row-gap:0; }
+  .box .ic { grid-area:ic; }
+  .box .tt { grid-area:t; display:block; }
+  .box .kind { display:inline; margin:0; }
+  .box .tt b::after { content:" · "; color:var(--tx3); font-weight:400; }
+  .box .st { grid-area:st; }
+  .box .bar { grid-area:st; inline-size:100%; align-self:center; }
+  .box .acts { grid-area:acts; flex-direction:column; gap:0; align-items:flex-end; }
+  .box .lnk { min-block-size:32px; }
+}
+</style>
+</head>
+<body>
+<div class="demo">
+  <main>
+    <div class="ctrl" aria-label="שליטה בהדמיה">
+      <span>נסה:</span>
+      <button type="button" data-demo="reset">מצב פתיחה</button>
+      <button type="button" data-demo="all">גרירת 3 קבצים יחד</button>
+      <button type="button" data-demo="wrong">קובץ בתיבה הלא נכונה</button>
+      <span class="sep"></span>
+      <button type="button" data-view="desk" class="on">מחשב</button>
+      <button type="button" data-view="phone">טלפון</button>
+    </div>
+    <div class="stage" id="stage">
+      <section class="sheet" role="dialog" aria-labelledby="t">
+        <header class="sh-head">
+          <div style="flex:1">
+            <h1 id="t">עדכון משע״ם</h1>
+            <p class="sh-sub" id="sub"></p>
+          </div>
+          <button type="button" class="sh-x" aria-label="סגירה">✕</button>
+        </header>
+        <div class="sh-body" id="body"></div>
+        <div class="toast" id="toast" role="status"></div>
+      </section>
+    </div>
+  </main>
+
+  <aside class="note">
+    <span class="tag">הדמיה — נתוני דמה</span>
+    <h2>תיבה לכל PDF</h2>
+    <ul>
+      <li>תיבה לכל קובץ: <b>3 בשגרה</b>, ובקליטה מתווספות 2.</li>
+      <li>כל תיבה מראה מתי עודכנה לאחרונה. מה שנבדק ב־14 הימים האחרונים נחשב כבר עדכני.</li>
+      <li>אפשר לגרור את כל הקבצים יחד, וכל קובץ ייכנס לתיבה שלו. גם קובץ שנגרר לתיבה הלא נכונה עובר לתיבה הנכונה, כי המערכת מזהה את הקבוצה מתוך הקובץ.</li>
+      <li>שע״ם הציג «אין תיקים שבקשת»? לוחצים «ריק בשע״ם» בתיבה.</li>
+      <li>«איך מפיקים» פותח את המסלול של אותה תיבה בלבד. המדריך עם הצילומים נשאר כמו שהוא.</li>
+    </ul>
+    <h3>מה יורד</h3>
+    <ul>
+      <li>הפסקה העליונה, שלוש הנקודות, כפתורי «העלאת PDF» ו«מה להפיק ואיך», ובחירת «מעקב שוטף / קליטה» אחרי ההעלאה.</li>
+    </ul>
+    <h3>מה לא משתנה</h3>
+    <ul>
+      <li>הקריאה והכתיבה לתיקים, «ביטול», «לבדיקה» והחובות הפתוחות.</li>
+    </ul>
+    <h3>מה יעלה לייצור</h3>
+    <ul>
+      <li>האתר בלבד. בלי שינוי במסד, בלי פונקציות שרת ובלי שינוי בעובד במחשב המשרד.</li>
+    </ul>
+  </aside>
+</div>
+
+<script>
+const doc = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg>';
+const check = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
+
+const BOXES = {
+  annual: { title:'דוחות שנתיים', kind:'2025', wealth:false, file:'IDOM_2025.pdf', rows:'31 לקוחות',
+    how:['IDOM','אפשרות 4','סוג רשימה 1','שנת מס 2025','כל המיוצגים = 1','Enter','PF8 עד העמוד האחרון'] },
+  g1: { title:'הצהרות הון', kind:'לא הגישו · בלי קנס', wealth:true, file:'AHZM_לא_הגישו_בלי_קנס.pdf', rows:'4 דרישות',
+    how:['AHZM','אזור 2: 1 ליד «לא הגישו ולא חייבים בקנס»','מיון: 1 ליד «מספר תיק»','Enter'] },
+  g2: { title:'הצהרות הון', kind:'לא הגישו · עם קנס', wealth:true, file:'AHZM_לא_הגישו_עם_קנס.pdf', rows:'1 דרישה',
+    how:['AHZM','אזור 2: 1 ליד «לא הגישו וחייבים בקנס»','מיון: 1 ליד «מספר תיק»','Enter'] },
+  g3: { title:'הצהרות הון', kind:'הגישו · עם קנס', wealth:true, intake:true, file:'AHZM_הגישו_עם_קנס.pdf', rows:'2 הצהרות',
+    how:['AHZM','אזור 2: 1 ליד «הגישו וחייבים בקנס»','מיון: 1 ליד «מספר תיק»','Enter'] },
+  g4: { title:'הצהרות הון', kind:'הגישו · בלי קנס', wealth:true, intake:true, file:'AHZM_הגישו_בלי_קנס.pdf', rows:'9 הצהרות',
+    how:['AHZM','אזור 2: 1 ליד «הגישו ולא חייבים בקנס»','מיון: 1 ליד «מספר תיק»','Enter'] },
+};
+const LAST = { annual:'12.10', g1:'12.10', g2:'12.10', g3:null, g4:null };
+
+let S;
+function initial(){ S = { intake:false, how:null, st:{ annual:'empty', g1:'empty', g2:'empty', g3:'empty', g4:'empty' }, meta:{}, flash:null }; }
+initial();
+
+const required = () => Object.keys(BOXES).filter(k => S.intake || !BOXES[k].intake);
+const ok = k => S.st[k] === 'done' || S.st[k] === 'none';
+
+function boxHtml(k){
+  const b = BOXES[k], st = S.st[k];
+  let state = '', acts = '';
+  if (st === 'empty') {
+    state = `<span class="st">${LAST[k] ? 'עודכן לאחרונה ' + LAST[k] : 'עוד לא הועלה'}</span>`;
+    acts = `<button type="button" class="lnk quiet" data-how="${k}">איך מפיקים</button>` + (b.wealth ? `<button type="button" class="lnk quiet" data-none="${k}">ריק בשע״ם</button>` : '');
+  } else if (st === 'reading') {
+    state = `<span class="bar"><i id="bar-${k}"></i></span>`;
+  } else if (st === 'done') {
+    state = `<span class="st">נקלט · ${b.rows}</span>`;
+    acts = `<button type="button" class="lnk quiet" data-undo="${k}">ביטול</button>`;
+  } else if (st === 'none') {
+    state = `<span class="st">נבדק · ריק בשע״ם</span>`;
+    acts = `<button type="button" class="lnk quiet" data-undo="${k}">ביטול</button>`;
+  }
+  const cls = st === 'empty' ? 'is-empty' : st === 'reading' ? 'is-reading' : 'is-done';
+  return `<div class="box ${cls}${S.flash === k ? ' flash' : ''}" ${st === 'empty' ? `role="button" tabindex="0" data-up="${k}" aria-label="העלאת ${b.title} ${b.kind}"` : ''}>
+    <span class="ic">${st === 'done' || st === 'none' ? check : doc}</span>
+    <span class="tt"><b>${b.title}</b><span class="kind">${b.kind}</span></span>
+    ${state}
+    <span class="acts">${acts}</span>
+  </div>`;
+}
+
+function render(){
+  const req = required(), n = req.filter(ok).length;
+  document.getElementById('sub').innerHTML = n === req.length
+    ? 'הכול עדכני'
+    : `<span class="count">${n} מתוך ${req.length}</span> קבצים · גוררים לכאן, והתיקים מתעדכנים לבד`;
+  let h = `<div class="boxes">${['annual','g1','g2'].map(boxHtml).join('')}</div>`;
+  if (S.intake) h += `<div class="intake-h">קליטה / יישור קו</div><div class="boxes two">${['g3','g4'].map(boxHtml).join('')}</div>`;
+  if (S.how) {
+    const b = BOXES[S.how];
+    h += `<div class="how"><div class="how-top"><b>${b.title} · ${b.kind}</b><button type="button" class="lnk quiet" data-how-close>סגירה</button></div>
+      <div class="chain">${b.how.map(s => `<span>${s}</span>`).join('<em>←</em>')}</div>
+      <div><button type="button" class="lnk">מדריך עם צילומים</button></div></div>`;
+  }
+  h += `<div class="more"><button type="button" class="lnk quiet" data-intake>${S.intake ? 'רק מעקב שוטף (3 קבצים)' : 'קליטה או יישור קו? עוד 2 קבצים'}</button></div>`;
+  if (n === req.length) h += `<div class="done-bar" role="status"><span class="p">נכתבו לתיקים 14</span><span class="p">לבדיקה 1</span><span class="p">נפתחו 2 בקשות</span><span class="sp"></span><button type="button" class="lnk" data-undo-all style="color:inherit">ביטול ההעלאה</button></div>`;
+  h += `<div class="rest">
+    <div class="rest-row"><b>לבדיקה</b><span class="pill">1</span></div>
+    <div class="rest-row"><b>חובות בלי בקשה</b><span class="pill">2</span></div>
+    <div class="rest-row"><span>היסטוריה וקבצים שנקלטו</span><span>›</span></div>
+  </div>`;
+  document.getElementById('body').innerHTML = h;
+  S.flash = null;
+}
+
+let toastT;
+function toast(t){ const el = document.getElementById('toast'); el.textContent = t; el.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => el.classList.remove('on'), 3200); }
+
+function upload(k, delay = 0){
+  S.st[k] = 'reading'; if (S.how === k) S.how = null; render();
+  requestAnimationFrame(() => requestAnimationFrame(() => { const bar = document.getElementById('bar-' + k); if (bar) bar.style.inlineSize = '100%'; }));
+  setTimeout(() => { S.st[k] = 'done'; S.flash = k; render(); }, 1000 + delay);
+}
+
+document.addEventListener('click', e => {
+  const t = e.target.closest('button, [data-up]'); if (!t) return;
+  const d = t.dataset;
+  if (d.up) upload(d.up);
+  else if (d.how) { S.how = S.how === d.how ? null : d.how; render(); }
+  else if ('howClose' in d) { S.how = null; render(); }
+  else if (d.none) { S.st[d.none] = 'none'; S.flash = d.none; render(); }
+  else if (d.undo) { S.st[d.undo] = 'empty'; render(); }
+  else if ('undoAll' in d) { for (const k of required()) S.st[k] = 'empty'; render(); toast('ההעלאה בוטלה. מה שכבר טופל בתיקים נשאר.'); }
+  else if ('intake' in d) { S.intake = !S.intake; render(); }
+  else if (d.demo === 'reset') { initial(); render(); }
+  else if (d.demo === 'all') {
+    initial(); const body = document.getElementById('body'); body.classList.add('drag');
+    setTimeout(() => { body.classList.remove('drag'); ['annual','g1','g2'].forEach((k, i) => upload(k, i * 350)); setTimeout(() => toast('3 קבצים · כל אחד נכנס לתיבה שלו'), 300); }, 500);
+  }
+  else if (d.demo === 'wrong') {
+    initial(); render();
+    const from = document.querySelector('[data-up="g1"]'); from.style.borderColor = 'var(--br)'; from.style.background = 'var(--soft)';
+    setTimeout(() => { upload('g2'); toast('הקובץ הוא «לא הגישו · עם קנס», אז הועבר לתיבה שלו'); }, 600);
+  }
+  else if (d.view) {
+    document.querySelectorAll('[data-view]').forEach(b => b.classList.toggle('on', b === t));
+    document.getElementById('stage').classList.toggle('phone', d.view === 'phone');
+  }
+});
+document.addEventListener('keydown', e => { const t = e.target.closest('[data-up]'); if (t && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); upload(t.dataset.up); } });
+const sheetBody = document.getElementById('body');
+sheetBody.addEventListener('dragover', e => { e.preventDefault(); sheetBody.classList.add('drag'); });
+sheetBody.addEventListener('dragleave', () => sheetBody.classList.remove('drag'));
+sheetBody.addEventListener('drop', e => { e.preventDefault(); sheetBody.classList.remove('drag'); required().filter(k => S.st[k] === 'empty').forEach((k, i) => upload(k, i * 350)); toast('כל קובץ נכנס לתיבה שלו'); });
+render();
+</script>
+</body>
+</html>
