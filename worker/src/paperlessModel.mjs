@@ -104,3 +104,56 @@ export function matchDealer(candidates, { idNumber, firstName, lastName }) {
   if (byName.length > 1) return { ambiguous: true };
   return { dealer: null };
 }
+
+/**
+ * הריטיינר כולו בקריאה אחת — לכל לקוח: כרטיס, סכום, וכל החודשים שיש להם שורה ב-/fees/get.
+ * ‼ חודש בלי שורה אינו «לא שולם» כאן — זו רק תצפית; הכלל (מה נחשב «לא נגבה») נקבע ב-PIVO,
+ *   מול חודש הגבייה הנוכחי (period) ומועד תחילת ההסכם.
+ */
+export function retainerSnapshot({ clients, fees, period = null, invoiceDate = null }) {
+  const all = Array.isArray(fees) ? fees : [];
+  return {
+    period: period != null ? String(period) : null,
+    invoiceDate: invoiceDate ?? null,
+    clients: (Array.isArray(clients) ? clients : []).map(c => {
+      const fee = c?.fee ?? {};
+      return {
+        idNumber: String(c?.sNumber ?? '').replace(/\D/g, ''),
+        name: String(c?.sBusinessName ?? '').trim(),
+        linked: !!c?.sPLID,
+        // 31 = סליקת אשראי (נצפה 26.10). קוד אחר לא תועד — לא מנחשים.
+        paymentMethod: Number(fee.iMonthlyFeePaymentType) === 31 ? 'credit' : (fee.iMonthlyFeePaymentType == null ? null : 'unknown'),
+        amountBeforeVat: num(fee.iMonthlyFee),
+        cardEntered: !!(fee.sCardSuffix || c?.Payment?.sCreditNumber),
+        fees: all.filter(f => f?.sClientID === c?.sID).map(f => ({
+          period: String(f.sPeriod),
+          amount: num(f.iFee),
+          charged: !!f.bCharged,
+          chargedAt: f.dtCharged ?? null,
+        })).sort((a, b) => a.period.localeCompare(b.period)),
+      };
+    }),
+  };
+}
+
+/**
+ * טבלת הממתינים של המשרד ⇒ שורה לכל לקוח. תאים: #, שם הלקוח, שם העסק, סוג עסק, כל המסמכים,
+ * לדיווח הקרוב, מנה״ח. שורת הסיכום (בלי שם) — הסה״כ שבטבלה.
+ */
+export function parsePendingRows(rows) {
+  const int = (s) => (/^\d+$/.test(String(s ?? '').trim()) ? Number(String(s).trim()) : null);
+  const clients = [];
+  let tableTotal = null;
+  for (const cells of Array.isArray(rows) ? rows : []) {
+    if (!Array.isArray(cells) || cells.length < 5) continue;
+    const [idx, name, business, type, all, upcoming] = cells;
+    if (int(idx) != null && String(name ?? '').trim() && int(all) != null) {
+      clients.push({ name: String(name).trim(), business: String(business ?? '').trim(), type: String(type ?? '').trim(), all: int(all), upcoming: int(upcoming) ?? 0 });
+    } else if (!String(name ?? '').trim()) {
+      const nums = cells.map(int).filter(n => n != null);
+      if (nums.length) tableTotal = nums[nums.length - 2] ?? nums[0];
+    }
+  }
+  const total = clients.reduce((s, c) => s + c.all, 0);
+  return { clients, total, tableTotal };
+}

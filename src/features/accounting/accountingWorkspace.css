@@ -17,3 +17,10 @@
 .acw-prompt textarea{font-size:.85rem;line-height:1.55;direction:rtl}
 .acw select{font:inherit;font-size:16px;border:1px solid var(--bd-strong);border-radius:8px;padding:8px 10px;min-height:42px;background:var(--surface-0);color:var(--ink-1)}
 .acw-filters{margin-top:14px}.acw-filters .acw-find{margin:0;flex:1 1 220px}
+.acw .acw-sub{margin:4px 0 0;font-size:.9rem;color:var(--ink-3)}
+.acw-alert{border-inline-start:3px solid var(--warn,#c98a1b);padding:5px 13px;font-size:.85rem;color:var(--ink-2)}
+.acw-ok{color:var(--success-text)}.acw-warn{color:var(--warn,#b7791f)}.acw-muted{color:var(--ink-3)}.acw-small{font-size:.8rem}
+.acw-table small.acw-warn{color:var(--warn,#b7791f)}
+.acw-quick{margin:10px 0 0}
+.acw-collect{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 0;border-top:1px solid var(--bd)}.acw-collect small{color:var(--ink-3);font-size:.8rem;flex-basis:100%}
+.acw-billing td:nth-child(3),.acw-billing td:nth-child(6){font-variant-numeric:tabular-nums}

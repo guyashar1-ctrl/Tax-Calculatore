@@ -541,6 +541,8 @@
       "globs": [
         "src/features/bookkeeping/**",
         "src/features/accounting/**",
+        "supabase/316-*.sql",
+        "src/components/clientTabs/AgreementPaymentsTab.tsx",
         "src/features/taxKnowledge/topics/Form6111Body.tsx",
         "src/components/FirmProfileConsole.tsx",
         "src/components/office/officeModel.ts",

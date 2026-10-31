@@ -197,10 +197,44 @@ export async function openRetainer(page) {
     }
   }, { timeout: 25000 });
   const feesRes = await feesWait;
-  const fees = (await feesRes.json())?.fees ?? [];
+  const feesJson = await feesRes.json();
+  const fees = feesJson?.fees ?? [];
   await page.locator('tr', { hasText: 'סכום לפני מעמ' }).first().waitFor({ timeout: 15000 }).catch(() => {});
   await page.waitForTimeout(800);
-  return { clients: Array.isArray(clients) ? clients : [], fees: Array.isArray(fees) ? fees : [] };
+  // ‼ sPeriod = חודש הגבייה הנוכחי בריטיינר ('YYMM'); dtTrans = תאריך החשבוניות של הריצה.
+  return {
+    clients: Array.isArray(clients) ? clients : [], fees: Array.isArray(fees) ? fees : [],
+    period: feesJson?.sPeriod != null ? String(feesJson.sPeriod) : null, invoiceDate: feesJson?.dtTrans ?? null,
+  };
+}
+
+/**
+ * «ממתינים» של המשרד — טבלת כל הממתינים (טבלה אחת: כל המסמכים + לדיווח הקרוב).
+ * ‼ הטבלה נבנית מנתונים שכבר נטענו בדף (בלי קריאת API משלה) — לכן קוראים את התאים.
+ * מחזיר שורות גולמיות (טקסט התאים) מכל העמודים, והמספר שבתפריט.
+ */
+export async function openPendingTable(page) {
+  await dismissModals(page);
+  // מתוך כרטיס עוסק תפריט המשרד מוסתר — חוזרים לרשימת העוסקים (דף של אותו הקשר).
+  if (!(await page.getByText('הגדרות', { exact: true }).first().isVisible().catch(() => false))) {
+    await page.goto(`https://${APP_HOST}/admin/users`, { waitUntil: 'domcontentloaded' });
+    await page.getByText('הגדרות', { exact: true }).first().waitFor({ timeout: 15000 });
+  }
+  const menu = page.locator('a, button, li').filter({ hasText: /^\s*ממתינים\s*\d*\s*$/ }).first();
+  const badgeText = (await menu.innerText().catch(() => '')).replace(/\D/g, '');
+  await menu.click({ timeout: 8000 });
+  await page.locator('tr', { hasText: 'כל המסמכים' }).first().waitFor({ timeout: 20000 });
+  await page.waitForTimeout(800);
+  const rows = [];
+  for (let pageNo = 0; pageNo < 30; pageNo++) {
+    const body = await page.locator('table tbody tr').evaluateAll(trs => trs.map(tr => [...tr.querySelectorAll('td,th')].map(td => td.innerText.trim())));
+    rows.push(...body);
+    const next = page.locator('.pagination li:not(.disabled) a[aria-label="Next"], .pagination li:not(.disabled) a:has-text("›")').first();
+    if (!(await next.count())) break;
+    await next.click();
+    await page.waitForTimeout(700);
+  }
+  return { rows, badge: badgeText ? Number(badgeText) : null, filterText: (await page.locator('main input[type="search"], main input[placeholder*="חיפוש"]').first().inputValue().catch(() => '')) };
 }
 
 /** שורת הלקוח בטבלה לפי השם המוצג. שתי שורות באותו שם ⇒ null + ambiguous. */

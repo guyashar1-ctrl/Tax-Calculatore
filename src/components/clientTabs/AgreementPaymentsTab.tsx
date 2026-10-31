@@ -23,6 +23,8 @@ import { currentEngagement, upcomingEngagement, previousEngagements } from '../.
 import { resolveBillingOwnership } from '../../utils/billingOwnership';
 import { clientDisplayName } from '../../features/annualReport/profile';
 import Modal from '../ui/Modal';
+import { clientLedger, dueAtFiling, monthLabel, monthShort, retainerClientFor, type Ledger, type RetainerSnapshot } from '../../features/accounting/billingLedger';
+import { readAgo, usePaperlessRead } from '../../features/accounting/paperlessReads';
 
 const VAT_RATE = 18;
 
@@ -70,6 +72,9 @@ export default function AgreementPaymentsTab({
   const [intentOpen, setIntentOpen] = useState(false);
   const [markingId, setMarkingId] = useState<string | null>(null);
   const [markError, setMarkError] = useState<string | null>(null);
+  const [feesOpen, setFeesOpen] = useState(false);
+  // ‼ 316: מה נקרא בריטיינר של פייפרלס — אותה קריאה של «גבייה». בלי קריאה ⇒ לא מוצג כלום.
+  const retainerRead = usePaperlessRead<RetainerSnapshot>('paperless.read_retainer');
 
   const clientCharges = useMemo(() => charges.filter(c => c.clientId === client.id), [charges, client.id]);
   const clientQuotations = useMemo(
@@ -186,6 +191,11 @@ export default function AgreementPaymentsTab({
   }
 
   const monthly = current.monthlyTotal ?? 0;
+  const snapshot = retainerRead.latest?.data ?? null;
+  const retainer = retainerClientFor(snapshot, client.idNumber);
+  const ledger = clientLedger({ engagements, clientId: client.id, snapshot, retainer });
+  const filing = dueAtFiling(charges, client.id, ledger);
+  const chargedMonths = ledger.months.filter(m => m.state === 'charged');
   // ‼ C6 (177): withVat מגיע מהשדה הקפוא על ההתקשרות — מה שהלקוח ראה וחתם
   // עליו בפועל, בלי תלות בשיעור המע"מ הנוכחי. התקשרות שקדמה למיגרציה
   // (השדה ריק) מקבלת הערכה חיה, מסומנת בפירוש כהערכה ולא כמה שנחתם.
@@ -242,7 +252,7 @@ export default function AgreementPaymentsTab({
       ) : null}
 
       {/* ③ מה עוד לגבות — קיים רק כשיש */}
-      {outstanding.length > 0 && (
+      {(outstanding.length > 0 || ledger.unpaid.length > 0) && (
         <>
           <hr className="ap-rule" />
           <div className="ap-label">מה עוד לגבות</div>
@@ -260,6 +270,18 @@ export default function AgreementPaymentsTab({
               </button>
             </div>
           ))}
+          {ledger.unpaid.length > 0 && (
+            <div className="ap-charge">
+              <div className="ap-charge-amt">{formatILS(ledger.unpaidTotal)}</div>
+              <div className="ap-charge-name">
+                <div>חודשים שלא נגבו · {ledger.unpaid.map(m => monthShort(m.month)).join(', ')}</div>
+                <div className="ap-charge-meta">מתווסף לתשלום עם הגשת הדוח · לפני מע״מ</div>
+              </div>
+            </div>
+          )}
+          {filing.total > 0 && (filing.unpaidMonths.length > 0 || filing.filing.length > 1) && (
+            <div className="ap-note">עם הגשת הדוח: <b>{formatILS(filing.total)}</b> + מע״מ</div>
+          )}
           {markError && <div className="ap-error">{markError}</div>}
         </>
       )}
@@ -283,6 +305,16 @@ export default function AgreementPaymentsTab({
         </div>
       )}
 
+      {snapshot && ledger.months.length > 0 && (
+        <div className="ap-history">
+          <span className="ap-history-k">חיובים בפייפרלס</span>
+          <span className="ap-history-v">
+            {!retainer ? 'לא נמצא בריטיינר' : `${chargedMonths.length} מתוך ${ledger.months.length} חודשים נגבו`} · נבדק {readAgo(retainerRead.latest!.readAt)}
+          </span>
+          <button type="button" className="ap-link" onClick={() => setFeesOpen(true)}>הצגה</button>
+        </div>
+      )}
+
       <div className="ap-hint">שכר חודשי ותשלומים חד־פעמיים מוצגים בנפרד - הם לא מתאחדים לסכום אחד.</div>
 
       {detailOpen && (
@@ -296,6 +328,7 @@ export default function AgreementPaymentsTab({
           previous={previous} quotationOf={quotationOf}
           onClose={() => setPrevOpen(false)} />
       )}
+      {feesOpen && <RetainerMonths ledger={ledger} onClose={() => setFeesOpen(false)} />}
       {historyOpen && (
         <PaymentHistory paid={paid} sourceLabel={sourceLabel} onClose={() => setHistoryOpen(false)} />
       )}
@@ -481,6 +514,21 @@ function IntentDialog({ current, onPick, onClose }: {
           מתחיל מההתקשרות הנוכחית{current?.monthlyTotal ? ` (${formatILS(current.monthlyTotal)} לחודש)` : ''} ומעדכן רק מה שהשתנה.
         </span>
       </button>
+    </Modal>
+  );
+}
+
+/* ─── החודשים בריטיינר של פייפרלס (316) — כפי שנקראו, בלי פרשנות נוספת ─────── */
+function RetainerMonths({ ledger, onClose }: { ledger: Ledger; onClose: () => void }) {
+  const label = { charged: 'נגבה', not_charged: 'לא נגבה — מתווסף להגשת הדוח', open: 'טרם נגבה (החודש בריטיינר)', unknown: 'לא ידוע' } as const;
+  return (
+    <Modal onClose={onClose} title="חיובים בפייפרלס">
+      {[...ledger.months].reverse().map(m => (
+        <div className="ap-detail-row" key={m.month}>
+          <div className="ap-detail-name">{monthLabel(m.month)}</div>
+          <div className="ap-detail-val">{m.state === 'charged' && m.charged != null ? `נגבה ${formatILS(m.charged)}` : label[m.state]}</div>
+        </div>
+      ))}
     </Modal>
   );
 }

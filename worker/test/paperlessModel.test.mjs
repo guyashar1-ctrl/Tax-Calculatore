@@ -114,3 +114,41 @@ test('עוסק: לפי ת״ז; אחרת לפי שם — רק כשיש בדיוק
   const other = [{ sID: 'd4', sFirstName: 'ישראלה', sFamilyName: 'ישראלי', sBusinessNumber: '000000059' }];
   assert.equal(matchDealer(other, { idNumber: '42', firstName: 'ישראלה', lastName: 'ישראלי' }).dealer, null);
 });
+
+// ── 316 · קריאת הריטיינר כולו וטבלת הממתינים ─────────────────────────────────
+import { retainerSnapshot, parsePendingRows } from '../src/paperlessModel.mjs';
+
+test('retainerSnapshot: לכל לקוח כרטיס, סכום וחודשים; חודש הגבייה נשמר', () => {
+  const clients = [
+    { sID: 'a', sNumber: '012345678', sBusinessName: 'עסק א', sPLID: 'p1', fee: { iMonthlyFee: 365, iMonthlyFeePaymentType: 31, sCardSuffix: '1234' } },
+    { sID: 'b', sNumber: '22', sBusinessName: 'עסק ב', fee: { iMonthlyFee: '', iMonthlyFeePaymentType: 7 } },
+  ];
+  const fees = [
+    { sClientID: 'a', sPeriod: '2609', iFee: 431, bCharged: true, dtCharged: '2026-09-27' },
+    { sClientID: 'a', sPeriod: '2608', iFee: 431, bCharged: true },
+    { sClientID: 'a', sPeriod: '2610', iFee: 431, bCharged: false },
+  ];
+  const s = retainerSnapshot({ clients, fees, period: 2610, invoiceDate: '2026-10-31' });
+  assert.equal(s.period, '2610');
+  assert.deepEqual(s.clients[0].fees.map(f => [f.period, f.charged]), [['2608', true], ['2609', true], ['2610', false]]);
+  assert.equal(s.clients[0].cardEntered, true);
+  assert.equal(s.clients[0].paymentMethod, 'credit');
+  assert.equal(s.clients[0].idNumber, '012345678');
+  assert.equal(s.clients[1].amountBeforeVat, null);
+  assert.equal(s.clients[1].paymentMethod, 'unknown');
+  assert.equal(s.clients[1].fees.length, 0);
+});
+
+test('parsePendingRows: שורה לכל לקוח, סה״כ מחושב ושורת הסיכום נפרדת', () => {
+  const rows = [
+    ['1', 'גרוסמן יובל', 'יובל גרוסמן', 'מורשה', '10', '0', ''],
+    ['2', 'סימנטוב אילן', 'אילן סימנטוב מספרה', 'פטור', '1', '0', ''],
+    ['', '', '', '', '11', '0', ''],
+  ];
+  const p = parsePendingRows(rows);
+  assert.equal(p.clients.length, 2);
+  assert.equal(p.total, 11);
+  assert.equal(p.tableTotal, 11);
+  assert.deepEqual(p.clients[1], { name: 'סימנטוב אילן', business: 'אילן סימנטוב מספרה', type: 'פטור', all: 1, upcoming: 0 });
+  assert.deepEqual(parsePendingRows([]).clients, []);
+});

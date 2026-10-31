@@ -86,14 +86,23 @@ const PERMANENT: string[] = [
 - בסוף: מה נשמר בפועל (עם אימות), מה לא נשמר ולמה, ומה נשאר פתוח.`,
 ];
 
-export interface PromptRun { clients: Client[]; preparedAt: Date }
+export interface PromptRun {
+  clients: Client[]; preparedAt: Date;
+  /** בדיקת הממתינים האחרונה ב-PIVO (316) — רקע בלבד; Claude בודק שוב חי. */
+  pending?: { readAt: string; countOf: (clientId: string) => number };
+}
 
-export function bookkeepingAgentPrompt({ clients, preparedAt }: PromptRun): string {
-  const when = preparedAt.toLocaleString('he-IL', { timeZone: 'Asia/Jerusalem', dateStyle: 'short', timeStyle: 'short' });
-  const list = clients.map((c, i) => `${i + 1}. ${accountingName(c)}${c.idNumber ? ` · ת.ז./ע.מ. ${c.idNumber}` : ''}`).join('\n');
+const shortTime = (d: Date) => d.toLocaleString('he-IL', { timeZone: 'Asia/Jerusalem', dateStyle: 'short', timeStyle: 'short' });
+
+export function bookkeepingAgentPrompt({ clients, preparedAt, pending }: PromptRun): string {
+  const list = clients.map((c, i) => `${i + 1}. ${accountingName(c)}${c.idNumber ? ` · ת.ז./ע.מ. ${c.idNumber}` : ''}`
+    + (pending ? ` · ממתינים בבדיקה האחרונה: ${pending.countOf(c.id)}` : '')).join('\n');
+  const background = pending
+    ? `- בדיקת הממתינים האחרונה ב-PIVO: ${shortTime(new Date(pending.readAt))}. רקע בלבד — מה שקובע הוא הבדיקה החיה בשלב 2.`
+    : '- הבחירה אינה מידע על ממתינים; הכמויות נבדקות חי בשלב 2.';
   return [
     '# הנהלת חשבונות בפייפרלס — הצעה לבקרת המשרד',
-    `## פרטי הריצה\n- הוכן: ${when}\n- גרסת תורת המיון: ${rulesVersionLabel()}\n- הלקוחות שנבחרו (${clients.length}):\n${list}\n- הבחירה אינה מידע על ממתינים; הכמויות נבדקות חי בשלב 2.`,
+    `## פרטי הריצה\n- הוכן: ${shortTime(preparedAt)}\n- גרסת תורת המיון: ${rulesVersionLabel()}\n- הלקוחות שנבחרו (${clients.length}):\n${list}\n${background}`,
     ...PERMANENT,
     `## תורת המיון (גרסה ${OFFICE_HANDBOOK.date}) — המקור היחיד לקוד ולשם המיון\n${handbookTsv(OFFICE_HANDBOOK.rows)}`,
   ].join('\n\n');

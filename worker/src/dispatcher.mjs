@@ -23,6 +23,8 @@ import * as paperlessSetupClient from './handlers/paperlessSetupClient.mjs';
 import * as paperlessCheckCard from './handlers/paperlessCheckCard.mjs';
 import * as paperlessConnect from './handlers/paperlessConnect.mjs';
 import * as paperlessDisconnect from './handlers/paperlessDisconnect.mjs';
+import * as paperlessReadRetainer from './handlers/paperlessReadRetainer.mjs';
+import * as paperlessReadPending from './handlers/paperlessReadPending.mjs';
 
 const HANDLERS = [
   devTestAutomation, shaamDetect, shaamCheckAuth,
@@ -42,6 +44,8 @@ const HANDLERS = [
   paperlessSetupClient, paperlessCheckCard,
   // 306 · «פייפרלס» בכותרת: פתיחת החלון להתחברות / סגירתו.
   paperlessConnect, paperlessDisconnect,
+  // 316 · קריאה בלבד: כל הריטיינר (גבייה) וטבלת הממתינים של המשרד (הנהלת חשבונות).
+  paperlessReadRetainer, paperlessReadPending,
 ];
 
 const byActionType = new Map(HANDLERS.map((h) => [h.actionType, h]));
