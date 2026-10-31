@@ -36,10 +36,20 @@ export const TESTS: TestCase[] = [
     assert(l.months.every(m => m.state === 'unknown'), 'unknown');
     equal(dueAtFiling([filing()], 'c1', l).total, 800);
   }),
-  test('לקוח שלא בריטיינר: חודשים שעברו נחשבים «לא נגבה» (הכלל חל על כולם)', () => {
+  test('גיא: בלי כרטיס — «לגבייה ישירה» עד סוף השנה, ורק מ-1.1 מתווסף להגשת הדוח', () => {
     const s = snap('2612', [], '999');
-    const l = clientLedger({ engagements: [eng({ monthlyTotal: 365 })], clientId: 'c1', snapshot: s, retainer: retainerClientFor(s, '123456789') });
-    equal(l.unpaid.length, 2); equal(l.unpaidTotal, 730);
+    const ledger = (today: string) => clientLedger({ engagements: [eng({ monthlyTotal: 200 })], clientId: 'c1', snapshot: s, retainer: retainerClientFor(s, '123456789'), today });
+    const dec = ledger('2026-12');
+    assert(dec.months.every(m => m.state === 'direct'), 'direct');
+    equal(dueAtFiling([filing()], 'c1', dec).total, 800);
+    const jan = ledger('2027-01');
+    deepEqual(jan.months.map(m => [m.month, m.state]), [['2026-10', 'not_charged'], ['2026-11', 'not_charged'], ['2026-12', 'not_charged'], ['2027-01', 'direct']]);
+    equal(dueAtFiling([filing()], 'c1', jan).total, 1400);
+  }),
+  test('כרטיס שלא הוזן בריטיינר = בלי כרטיס', () => {
+    const s: RetainerSnapshot = { ...snap('2611'), clients: [{ ...snap('2611').clients[0], cardEntered: false }] };
+    const l = clientLedger({ engagements: [eng()], clientId: 'c1', snapshot: s, retainer: retainerClientFor(s, '123456789'), today: '2026-11' });
+    equal(l.months[0].state, 'direct'); equal(l.unpaidTotal, 0);
   }),
   test('חיוב ששולם או חיוב שאינו של הדוח — לא בתשלום עם הגשת הדוח', () => {
     const l = clientLedger({ engagements: [eng()], clientId: 'c1', snapshot: null, retainer: null, today: '2026-10' });

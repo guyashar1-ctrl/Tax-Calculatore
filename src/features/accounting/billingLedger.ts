@@ -30,7 +30,8 @@ export function retainerClientFor(snapshot: RetainerSnapshot | null | undefined,
   return hits.length === 1 ? hits[0] : null;
 }
 
-export type MonthState = 'charged' | 'not_charged' | 'open' | 'unknown';
+/** direct = אין כרטיס בריטיינר — גובים ישירות מהלקוח. */
+export type MonthState = 'charged' | 'not_charged' | 'open' | 'direct' | 'unknown';
 export interface LedgerMonth { month: string; state: MonthState; agreed: number; charged: number | null; chargedAt: string | null }
 export interface Ledger { months: LedgerMonth[]; unpaid: LedgerMonth[]; unpaidTotal: number; current: LedgerMonth | null; period: string | null }
 
@@ -57,13 +58,17 @@ export function clientLedger({ engagements, clientId, snapshot, retainer, today 
   const period = periodToMonth(snapshot?.period ?? null);
   const empty: Ledger = { months: [], unpaid: [], unpaidTotal: 0, current: null, period };
   if (!now || !/^\d{4}-\d{2}$/.test(start)) return empty;
-  const end = period ?? today;
+  // ‼ כלל גיא (31.10.2026): בלי כרטיס בריטיינר (אמיר) — גובים ישירות; חודש שלא נגבה עובר להגשת הדוח
+  //   רק מ-1.1 של השנה שאחריו. עם כרטיס — מיד כשחודש הגבייה עבר אותו.
+  const noCard = !retainer?.cardEntered;
+  const end = noCard && period && today > period ? today : (period ?? today);
   if (start > end) return empty;
   const months = monthsBetween(start, end).map((month): LedgerMonth => {
     const e = currentEngagement(engagements, clientId, `${month}-15`) ?? now;
     const agreed = Number(e.monthlyTotal ?? 0);
     const fee = retainer?.fees.find(f => periodToMonth(f.period) === month && f.charged) ?? null;
-    const state: MonthState = !period ? 'unknown' : fee ? 'charged' : month < period ? 'not_charged' : 'open';
+    const late = noCard ? month.slice(0, 4) < today.slice(0, 4) : !!period && month < period;
+    const state: MonthState = !period ? 'unknown' : fee ? 'charged' : late ? 'not_charged' : noCard ? 'direct' : 'open';
     return { month, state, agreed, charged: fee?.amount ?? null, chargedAt: fee?.chargedAt ?? null };
   });
   const unpaid = months.filter(m => m.state === 'not_charged' && m.agreed > 0);

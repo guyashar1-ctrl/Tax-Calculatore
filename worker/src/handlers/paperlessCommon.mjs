@@ -1,7 +1,7 @@
 // paperlessCommon.mjs — חיבור לחלון הפייפרלס, משותף להקמה ולבדיקת הכרטיס.
 import {
   attachPaperless, detachPaperless, launchDedicatedPaperlessChrome, pickPaperlessPage,
-  classifyPaperlessUrl, focusPaperlessWindow, readParams,
+  classifyPaperlessUrl, focusPaperlessWindow, readParams, restorePaperlessWindow,
 } from '../paperlessSession.mjs';
 import { NeedsHumanError, PermanentError } from '../errors.mjs';
 
@@ -27,6 +27,7 @@ export async function connectPaperless(ctx) {
     throw new NeedsHumanError(PAPERLESS_AUTH_PENDING, 'awaiting_paperless_auth');
   }
   page.on('dialog', (d) => d.dismiss().catch(() => {}));
+  await restorePaperlessWindow(page, conn.browser);
   let params;
   try {
     params = await readParams(page);

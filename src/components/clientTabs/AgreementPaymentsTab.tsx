@@ -309,7 +309,7 @@ export default function AgreementPaymentsTab({
         <div className="ap-history">
           <span className="ap-history-k">חיובים בפייפרלס</span>
           <span className="ap-history-v">
-            {!retainer ? 'לא נמצא בריטיינר' : `${chargedMonths.length} מתוך ${ledger.months.length} חודשים נגבו`} · נבדק {readAgo(retainerRead.latest!.readAt)}
+            {!retainer?.cardEntered ? 'אין אשראי — גובים ישירות' : `${chargedMonths.length} מתוך ${ledger.months.length} חודשים נגבו`} · נבדק {readAgo(retainerRead.latest!.readAt)}
           </span>
           <button type="button" className="ap-link" onClick={() => setFeesOpen(true)}>הצגה</button>
         </div>
@@ -520,7 +520,7 @@ function IntentDialog({ current, onPick, onClose }: {
 
 /* ─── החודשים בריטיינר של פייפרלס (316) — כפי שנקראו, בלי פרשנות נוספת ─────── */
 function RetainerMonths({ ledger, onClose }: { ledger: Ledger; onClose: () => void }) {
-  const label = { charged: 'נגבה', not_charged: 'לא נגבה — מתווסף להגשת הדוח', open: 'טרם נגבה (החודש בריטיינר)', unknown: 'לא ידוע' } as const;
+  const label = { charged: 'נגבה', not_charged: 'לא נגבה — מתווסף להגשת הדוח', open: 'טרם נגבה (החודש בריטיינר)', direct: 'לגבייה ישירה — בלי אשראי; מ-1.1 מתווסף להגשת הדוח', unknown: 'לא ידוע' } as const;
   return (
     <Modal onClose={onClose} title="חיובים בפייפרלס">
       {[...ledger.months].reverse().map(m => (

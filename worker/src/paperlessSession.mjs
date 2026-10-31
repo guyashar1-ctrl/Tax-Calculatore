@@ -80,7 +80,24 @@ export async function attachPaperless() {
   }
 }
 
+// ‼ נצפה 31.10.2026: כשהחלון ממוזער Chrome לא מצייר אותו, ו-click של Playwright נתקע
+// («Timeout 8000ms»). לפני עבודה מחזירים לגודל רגיל, ובסוף ממזערים שוב כמו שהיה.
+const minimizedBy = new WeakMap();
+
+export async function restorePaperlessWindow(page, browser) {
+  try {
+    const cdp = await page.context().newCDPSession(page);
+    const { windowId, bounds } = await cdp.send('Browser.getWindowForTarget');
+    if (bounds?.windowState !== 'minimized') return;
+    await cdp.send('Browser.setWindowBounds', { windowId, bounds: { windowState: 'normal' } });
+    await page.waitForTimeout(600);
+    if (browser) minimizedBy.set(browser, { cdp, windowId });
+  } catch { /* בלי שליטה בחלון — ממשיכים כמו קודם */ }
+}
+
 export async function detachPaperless(browser) {
+  const was = browser && minimizedBy.get(browser);
+  if (was) await was.cdp.send('Browser.setWindowBounds', { windowId: was.windowId, bounds: { windowState: 'minimized' } }).catch(() => {});
   try { await browser?.close(); } catch { /* כבר נסגר */ }
 }
 
@@ -223,7 +240,10 @@ export async function openPendingTable(page) {
   const menu = page.locator('a, button, li').filter({ hasText: /^\s*ממתינים\s*\d*\s*$/ }).first();
   const badgeText = (await menu.innerText().catch(() => '')).replace(/\D/g, '');
   await menu.click({ timeout: 8000 });
-  await page.locator('tr', { hasText: 'כל המסמכים' }).first().waitFor({ timeout: 20000 });
+  // ‼ אין ממתינים ⇒ אין טבלה, רק «כל הכבוד. אין מסמכים הממתינים לקליטה» (נצפה 31.10.2026).
+  const empty = page.getByText('אין מסמכים הממתינים לקליטה').first();
+  await page.locator('tr', { hasText: 'כל המסמכים' }).first().or(empty).waitFor({ timeout: 20000 });
+  if (await empty.isVisible().catch(() => false)) return { rows: [], badge: badgeText ? Number(badgeText) : 0, filterText: '' };
   await page.waitForTimeout(800);
   const rows = [];
   for (let pageNo = 0; pageNo < 30; pageNo++) {
