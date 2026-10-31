@@ -31,3 +31,24 @@ test('periodLabel', () => {
   assert.equal(periodLabel(202607, 202607), '07/2026');
   assert.equal(periodLabel(998, 998), null);
 });
+
+// 31.10.2026 · ההחלטה והתשלומים (נצפה חי, קריאה בלבד; נתוני דמה)
+test('advanceDetailsFrom134: «עודכן ב», «חודש שינוי», ההחלטה, ותשלום לכל תקופה — בלי שורות הסיכום ובלי שם האדם', async () => {
+  const { advanceDetailsFrom134 } = await import('../src/gmf134.mjs');
+  const t = { ...tik134(), tDvc: 20260329, hodeshTchula: 202603, hodeshDrisha1: 202601, hachlata: 'דרישת שעור', sibatHachlataMsrd: 'הגדלה ע"פ בקשה', goremMdvc: 'מייצגים', shemMdvc: 'שם אדם' };
+  t.lstTkufot = t.lstTkufot.map((r) => (r.misMikForSchum ? { ...r, machzor: 20000, hiuv: 3000, tash: r.mazavDvc === 'דווח' ? 3000 : 0, nikuy: 0, tDvc: r.mazavDvc === 'דווח' ? 20260409 : 0 } : r));
+  t.lstTkufot.push({ misMikForSchum: null, tkufaMe: 999, tkufa: 0, machzor: 80000, hiuv: 12000, tash: 12000 });
+  const d = advanceDetailsFrom134(t);
+  assert.equal(d.updatedOn, '2026-03-29');
+  assert.equal(d.changeMonth, '2026-03');
+  assert.equal(d.firstMonth, '2026-01');
+  assert.equal(d.decision, 'דרישת שעור — הגדלה ע"פ בקשה');
+  assert.equal(d.updatedBy, 'מייצגים');
+  assert.ok(!JSON.stringify(d).includes('שם אדם'), 'שם האדם לא נשמר');
+  assert.equal(d.periods.length, 6);
+  assert.deepEqual(d.periods[0], { from: '2026-01', to: '2026-02', status: 'דווח', code: 1, turnover: 20000, charge: 3000, paid: 3000, withheld: 0, reportedOn: '2026-04-09' });
+  assert.equal(d.periods[5].status, 'טרם הגיע המועד');
+  assert.equal(d.periods[5].reportedOn, null);
+  assert.equal(advanceDetailsFrom134(null), null);
+  assert.equal(advanceDetailsFrom134({ tDvc: 0 }).updatedOn, null);
+});

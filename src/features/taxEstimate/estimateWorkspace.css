@@ -140,3 +140,5 @@
 .ew3-read { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .ew3-read-on { font-size: 13px; color: #666b72; white-space: nowrap; }
 .ew3-read-on.is-old { color: #8a5b0f; background: #fbf3e4; border-radius: 999px; padding: 1px 8px; font-weight: 600; }
+/* 31.10.2026 · «עודכן ברשות … · חל מ-…» מתחת למקדמה */
+.ew3-sub2 { flex-basis: 100%; font-size: 12.5px; color: #666b72; }

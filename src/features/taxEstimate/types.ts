@@ -194,6 +194,8 @@ export interface ItAdvanceSetup extends AuthorityReading {
   fixedPerPeriod?: number;
   /** חודשי או דו־חודשי. */
   frequency: 1 | 2;
+  /** 31.10.2026 · ההחלטה ברשות (134): מתי עודכנה, ממתי חלה, מה הוחלט ועל ידי מי (הסוג, לא שם). ≠ readOn. */
+  decision?: { updatedOn?: string; changeMonth?: string; text?: string; by?: string };
 }
 
 /** ב״ל: המקדמה החודשית הנוכחית ומה שולם. */
@@ -205,6 +207,9 @@ export interface NiAdvanceSetup {
   /** ההכנסה החודשית שעליה נשענת המקדמה בב״ל. */
   basisMonthlyIncome?: number;
   paidToCutoff?: number;
+  /** 31.10.2026 · מקריאת ב״ל: ממתי חלה המקדמה (YYYY-MM), ואיך חושב «שולם עד החתך» כשנגזר מהיתרה. */
+  chargedFrom?: string;
+  paidNote?: string;
   /** תשלומים לפי חודש — נדרש להשלמה שאינה מינואר. */
   periods?: { period: string; paid?: number; charged?: number }[];
   /** מקור המספרים כשנקראו מהכרטיס (קריאת ב״ל). */

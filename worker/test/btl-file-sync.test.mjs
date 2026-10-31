@@ -193,7 +193,9 @@ test('דמי ביטוח: «2026 / 7-9 בסיס : עצמאי 47,583 ד"ב : 2026/
     assert.equal(a.basisCategory, 'עצמאי');
     assert.equal(a.periodBasis, 47583, 'הבסיס לתקופה — לא ההכנסה');
     assert.equal(a.advanceMonthly, 2062);
+    assert.equal(a.chargedFrom, '2026-01', '«ד"ב : 2026/1» — החודש שממנו חלה המקדמה');
   }
+  assert.equal(parseAdvanceLine('2026 / 12-10 בסיסים , עובד 10,326 ד"ב : 0').chargedFrom, null, '«ד"ב : 0» הוא סכום, לא חודש');
   assert.equal(parseAdvanceLine(''), null);
   assert.equal(parseAdvanceLine('2026 / 7-9'), null, 'בלי בסיס וסכום ⇒ אין ערך');
 });

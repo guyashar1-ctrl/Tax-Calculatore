@@ -37,6 +37,13 @@ Ask Guy which business process or automation he wants to improve first. Inspect 
 
 ## Decision log / review evidence
 
+### 2026-10-31 — המקדמות מהרשויות לבד: «עודכן ברשות», התשלומים מ-134, וב״ל — ממתי חלה ויתרה (גיא: «מאשר את ההצעה — תבצע, כולל עדכון העובד במחשב המשרד»)
+- **צפייה חיה (קריאה בלבד, 31.10, יובל גרוסמן — הלקוח האמיתי היחיד עם מקדמות פעילות):** 134 בלשונית GMF של העובד (לשונית חדשה נוחתת על כניסה — הסשן של GMF הוא של הלשונית), הקלדה ולחיצה אמיתיות דרך CDP ברמת לשונית, בלי Page domain. תשובת `getTikData`: `tDvc` = «עודכן ב» (29/03/2026), `hodeshTchula` = «חודש שינוי», `hodeshDrisha1` = «חודש דרישה ראשון», `hachlata`+`sibatHachlataMsrd` = ההחלטה, `goremMdvc` = ע״י (הסוג; `shemMdvc` = שם אדם — לא נשמר); `lstTkufot[]`: `machzor/hiuv/tash/nikuy/tDvc` לכל תקופה; 998/999 = סיכום. העובד נשאר תקין; קבצי הנתונים הגולמיים נמחקו. ב״ל לא נפתח — הקריאה הקיימת כבר מביאה «ד"ב : 2026/1 סכום : 2062» והיתרה.
+- **העובד:** `worker/src/gmf134.mjs` › `advanceDetailsFrom134` ⇒ `result.advance134` ב-`shaam.sync_income_tax_file`; `btlFileSync.mjs` › `parseAdvanceLine` מחזיר גם `chargedFrom` (YYYY-MM). בדיקות: gmf134 + btl-file-sync; כל בדיקות העובד 382/0.
+- **PIVO:** `lib/automationJobs.ts` › `fetchAdvanceReads` (הקריאה האחרונה שהצליחה); `taxEstimate/authorityReads.ts` › `withAuthorityReads` — 134 ⇒ `it.periods` (לפי חודש הסיום) + `it.decision`; ב״ל ⇒ `ni.chargedFrom`, ו«שולם עד החתך» = מקדמה × חודשים רק כשהיתרה 0 והמקדמה חלה מינואר (`paidNote`, הנחה גלויה). קריאה ישנה מזו שבטיוטה לא דורסת. במסך: «עודכן ברשות DD.MM.YYYY · חל מ-MM/YYYY · {ההחלטה}» ו«חלה מ-… · יתרה 0 — הכול שולם», «שולם עד היום».
+- **התוצאה:** החסימות «תקופות בלי נתון ב-134» ו«חודשים בלי נתון תשלום» בב״ל נעלמות אחרי קריאה — «פרסם את ההמלצה» נפתח בעסק קיים (e2e).
+- בדיקות: tsc · יחידה 2366/0 (authorityReads.test.ts) · worker 382/0 · e2e estimate-simple (1280+390).
+
 ### 2026-10-30 — הערכת מס: בלי כפתורי מייל, הודעה אחת, «נבדק ב-…» + «קרא שוב» (גיא: «לא רוצה שום מיילים מפה… מיילים רק במקום אחד! לא מבקשה בודדת רק מכל העמוד»; «כן — תוריד את כפתורי המייל, תתקן את ההודעה הכפולה, ותוסיף נבדק ב-… עם קרא שוב»)
 - `EstimateWorkspace.tsx`: הוסרו «וגם שלח לו מייל» ו«שלח תזכורת במייל» (וגם `onSendMail` ב-TaxYearProcess/OnboardingTab). מייל — רק «שלח בקשות» לכל הדף.
 - ההודעה «פורסם בדף של X — בלי מייל» הופיעה פעמיים (sendMore ב-TaxYearProcess + ההערכה) — עכשיו פעם אחת.

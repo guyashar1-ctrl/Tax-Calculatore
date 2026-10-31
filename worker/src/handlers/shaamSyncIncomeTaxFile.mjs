@@ -17,7 +17,7 @@ import {
   extractIncomeTaxFileFacts, verifyFileDetailsFor,
 } from '../browserSession.mjs';
 import { parseTaxYears, openYears } from '../gmf154.mjs';
-import { reportingFrom134 } from '../gmf134.mjs';
+import { reportingFrom134, advanceDetailsFrom134 } from '../gmf134.mjs';
 import { parseRepresentedList, incomeTaxFieldsFrom } from '../representedList.mjs';
 import { NeedsHumanError, PermanentError } from '../errors.mjs';
 import { isGmfLoginPath, reloginGmf, gmfReloginMessage, noteFirstPasswordLanding } from '../gmfRelogin.mjs';
@@ -125,6 +125,7 @@ export async function run(ctx, input) {
 
     let fields = years ? { ...years.fields } : {};
     let advancePeriods = null;
+    let advance134 = null;
     let path = years ? opened154.pathname : null;
     const need134 = !years || years.advance === 'active';
     if (need134) {
@@ -164,6 +165,9 @@ export async function run(ctx, input) {
         // «מצב דיווחים» (דיווחי המקדמות) — מהמונה ומהתקופות של 134.
         // ‼ «מצב דיווחים» רק כשיש מקדמות פעילות. מקדמות שבוטלו / לא נדרשו ⇒ PIVO כותבת «אין מקדמות»
         // (23.10.2026: המונה של 134 אמר «אין דיווחים חסרים» על תיק שהמקדמות בו בוטלו).
+        // ‼ 31.10.2026 · ההחלטה (מתי עודכנה, ממתי חלה) והתשלומים לכל תקופה — מאותה תשובה, בלי ניווט נוסף
+        advance134 = advanceDetailsFrom134(opened.tik);
+        if (advance134?.updatedOn) ctx.log(`134: החלטת המקדמה עודכנה ${advance134.updatedOn}${advance134.changeMonth ? ` · חלה מ-${advance134.changeMonth}` : ""} · ${advance134.periods.length} תקופות`);
         const rep = fields.advanceStatus && fields.advanceStatus !== 'active' ? { status: null, periods: [] } : reportingFrom134(opened.tik);
         if (rep.status) {
           fields.reportingStatus = rep.status;
@@ -257,6 +261,7 @@ export async function run(ctx, input) {
         path, fields, unavailable,
         ...(years ? { filing: years.filing } : {}),
         ...(advancePeriods ? { advancePeriods } : {}),
+        ...(advance134 ? { advance134 } : {}),
         ...(representedList ? { representedList } : {}),
         ...(certificates ? { certificates } : {}),
       },

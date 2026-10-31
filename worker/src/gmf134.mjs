@@ -39,3 +39,32 @@ export function reportingFrom134(tik) {
     periods,
   };
 }
+
+// ─── 31.10.2026 · ההחלטה והתשלומים מאותה תשובה (נצפה חי 31.10.2026, קריאה בלבד) ───────────────────────────
+// ‼ השדות כפי שנצפו מול המסך: tDvc ⇔ «עודכן ב» (תאריך עדכון החלטת המקדמה, YYYYMMDD) · hodeshTchula ⇔ «חודש שינוי»
+//   · hodeshDrisha1 ⇔ «חודש דרישה ראשון» · hachlata + sibatHachlataMsrd ⇔ «החלטה» · goremMdvc ⇔ «ע״י» (הסוג בלבד —
+//   shemMdvc הוא שם של אדם, לא נשמר). לכל תקופה: machzor/hiuv/tash ⇔ מחזור/חיוב/תשלומים, tDvc ⇔ תאריך הדיווח.
+//   שורות tkufaMe 998/999 הן סיכום (בלי misMikForSchum) — לא תקופה.
+// ‼ «עודכן ב» אינו «נבדק ב»: הוא מתי הרשות שינתה את ההחלטה, לא מתי קראנו.
+const isoDay = (n) => { const s = String(n ?? ''); return /^\d{8}$/.test(s) && s !== '00000000' ? `${s.slice(0, 4)}-${s.slice(4, 6)}-${s.slice(6, 8)}` : null; };
+const isoMonth = (n) => { const s = String(n ?? ''); return /^\d{6}$/.test(s) && Number(s.slice(4, 6)) >= 1 && Number(s.slice(4, 6)) <= 12 ? `${s.slice(0, 4)}-${s.slice(4, 6)}` : null; };
+const money = (v) => (v == null || v === '' || !Number.isFinite(Number(v)) ? null : Number(v));
+const text = (v) => { const s = String(v ?? '').replace(/\s+/g, ' ').trim(); return s || null; };
+
+/** @returns {{ updatedOn: string|null, changeMonth: string|null, firstMonth: string|null, decision: string|null, updatedBy: string|null, periods: object[] } | null} */
+export function advanceDetailsFrom134(tik) {
+  if (!tik || typeof tik !== 'object') return null;
+  const decision = [text(tik.hachlata), text(tik.sibatHachlataMsrd)].filter(Boolean).join(' — ') || null;
+  const periods = (Array.isArray(tik.lstTkufot) ? tik.lstTkufot : [])
+    .filter((r) => r && r.misMikForSchum != null && isoMonth(r.tkufaMe) && isoMonth(r.tkufa))
+    .map((r) => ({
+      from: isoMonth(r.tkufaMe), to: isoMonth(r.tkufa),
+      status: text(r.mazavDvc), code: Number.isFinite(Number(r.kodMazavDvc)) ? Number(r.kodMazavDvc) : null,
+      turnover: money(r.machzor), charge: money(r.hiuv), paid: money(r.tash), withheld: money(r.nikuy),
+      reportedOn: isoDay(r.tDvc),
+    }));
+  return {
+    updatedOn: isoDay(tik.tDvc), changeMonth: isoMonth(tik.hodeshTchula), firstMonth: isoMonth(tik.hodeshDrisha1),
+    decision, updatedBy: text(tik.goremMdvc), periods,
+  };
+}

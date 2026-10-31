@@ -28,6 +28,8 @@ import { he, nis, today, uid } from './parts';
 import type { AuthorityAdvance, EstimateDraft, EstimateOutputs, EstimateVersion, IncomeLine } from './types';
 import './estimateWorkspace.css';
 import { questionnaireState, questionnaireText } from '../taxYear/questionnaireState';
+import { fetchAdvanceReads } from '../../lib/automationJobs';
+import { withAuthorityReads, type AdvanceReads } from './authorityReads';
 
 type Stage = 'q' | 'waiting' | 'answered' | 'published' | 'done';
 
@@ -75,6 +77,10 @@ export default function EstimateWorkspace({ client, step, year, cutoffMonth, dat
     } catch (e) { setErr((e as Error).message); setVersions([]); setDraft(pre.draft); }
   };
   useEffect(() => { void load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [step.id]);
+  // ‼ 31.10.2026 · מה שהקריאה מהרשויות מביאה לבד: ההחלטה והתשלומים מ-134, וב״ל — ממתי חלה המקדמה והיתרה (authorityReads.ts)
+  const [reads, setReads] = useState<AdvanceReads | undefined>();
+  const loadReads = () => { void fetchAdvanceReads(client.id, SHAAM_SYNC_INCOME_TAX_ACTION_TYPE, BTL_SYNC_FILE_ACTION_TYPE).then(setReads).catch(() => undefined); };
+  useEffect(loadReads, [client.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ‼ אותה טיוטה כמו ב«כלים מתקדמים», ועליה מה שנגזר מהרו״ה ומהתשובות (הצפי, ההתאמות, משכורת וב״ל בערך, עסק חדש)
   const eff = useMemo<EstimateDraft | null>(() => {
@@ -84,8 +90,8 @@ export default function EstimateWorkspace({ client, step, year, cutoffMonth, dat
       const same = had && had.books === n.books && had.vat === n.vat && had.it134 === n.it134;
       return { id: had?.id ?? uid(), lineId: n.lineId, what: 'turnover' as const, books: n.books, vat: n.vat, it134: n.it134, ...(same ? { decision: had!.decision, note: had!.note, decidedAt: had!.decidedAt } : {}) };
     });
-    return deriveDraft({ ...draft, reconciliations: recs }, data.facts, today(), client);
-  }, [draft, year, data.facts, client]);
+    return deriveDraft(withAuthorityReads({ ...draft, reconciliations: recs }, reads, year), data.facts, today(), client);
+  }, [draft, year, data.facts, client, reads]);
   const out = useMemo(() => (eff ? computeEstimate(eff, { client, taxYear: year }) : null), [eff, client, year]);
 
   if (!versions || !eff || !out) return <section className="ew"><p className="ty-note">טוען…</p></section>;
@@ -113,7 +119,7 @@ export default function EstimateWorkspace({ client, step, year, cutoffMonth, dat
 
   // ── פעולות ──
   const save = async (d: EstimateDraft) => {
-    const de = deriveDraft(d, data.facts, today(), client);
+    const de = deriveDraft(withAuthorityReads(d, reads, year), data.facts, today(), client);
     const o = computeEstimate(de, { client, taxYear: year });
     const vs = await api.loadEstimates(step.id);
     const r = await api.saveEstimate(step.id, de, o, [...pre.inputFacts, ...cardSnapshot(client)], api.baseOf(vs));
@@ -195,10 +201,16 @@ export default function EstimateWorkspace({ client, step, year, cutoffMonth, dat
     : eff.it.method === 'fixed' && eff.it.fixedPerPeriod != null ? `${nis(eff.it.fixedPerPeriod)} לתשלום`
     : eff.it.method === 'none' ? 'אין מקדמות' : null;
   const niText = eff.ni.monthlyAdvance != null ? `${nis(eff.ni.monthlyAdvance)} לחודש` : null;
+  // ‼ «עודכן ברשות» — מתי הרשות שינתה את ההחלטה (134), ו«חלה מ-» — מאיזה חודש; ≠ «נבדק» (מתי קראנו)
+  const ym = (s?: string) => (s ? `${s.slice(5, 7)}/${s.slice(0, 4)}` : '');
+  const itDecision = eff.it.decision;
+  const itSince = itDecision?.updatedOn ? `עודכן ברשות ${he(itDecision.updatedOn)}${itDecision.changeMonth ? ` · חל מ-${ym(itDecision.changeMonth)}` : ''}` : '';
+  const niSince = eff.ni.chargedFrom ? `חלה מ-${ym(eff.ni.chargedFrom)}` : '';
   // ‼ אחרי קריאה מהרשות — הכרטיס נקרא מחדש מהמסד (כמו AuthoritiesPanel), והמקדמה נכנסת לחישוב (forecastFlow › withCardAdvances)
   const afterRead = () => {
     void supabase.from('clients').select('*').eq('id', client.id).maybeSingle().then(({ data: row }) => {
       if (row) onClientPersisted?.(clientFromDb(row));
+      loadReads();
       onChanged();
     });
   };
@@ -238,9 +250,11 @@ export default function EstimateWorkspace({ client, step, year, cutoffMonth, dat
               end={<AutomationStepButton action={BTL_READ} client={client} onDone={afterRead} />} />
             <Row k="הכנסות עד היום" v={eff.newBusiness?.start ? `העסק מתחיל ב-${MONTH_HE[Number(eff.newBusiness.start.slice(5, 7))]} ${eff.newBusiness.start.slice(0, 4)}` : 'אין — העסק עוד לא התחיל'} />
           </>) : (<>
-            <Row k="מקדמות מס הכנסה" v={itText ? <>{itText}{itCur?.paidPast ? <small> · {nis(itCur.paidPast)} עד היום</small> : null}</> : <span className="ew-miss">לא נקרא</span>}
+            <Row k="מקדמות מס הכנסה" v={itText ? <>{itText}{itCur?.paidPast ? <small> · {nis(itCur.paidPast)} שולם עד היום</small> : null}</> : <span className="ew-miss">לא נקרא</span>}
+              sub={itSince ? <span title={[itDecision?.text, itDecision?.by && `ע״י ${itDecision.by}`].filter(Boolean).join(' · ')} data-ew-it-decision>{itSince}{itDecision?.text ? ` · ${itDecision.text}` : ''}</span> : undefined}
               end={<ReadCheck readOn={eff.it.readOn} action={SHAAM_READ} client={client} onDone={afterRead} />} />
-            <Row k="מקדמות ביטוח לאומי" v={niText ?? <span className="ew-miss">לא נקרא</span>}
+            <Row k="מקדמות ביטוח לאומי" v={niText ? <>{niText}{eff.ni.paidToCutoff != null ? <small> · {nis(eff.ni.paidToCutoff)} שולם עד היום</small> : null}</> : <span className="ew-miss">לא נקרא</span>}
+              sub={niSince || eff.ni.paidNote ? <span title={eff.ni.paidNote} data-ew-ni-since>{[niSince, eff.ni.paidNote ? 'יתרה 0 — הכול שולם' : ''].filter(Boolean).join(' · ')}</span> : undefined}
               end={<ReadCheck readOn={eff.ni.readOn} action={BTL_READ} client={client} onDone={afterRead} />} />
             {biz.map(l => {
               const x = l.months?.length ? incomeExpenses(eff, l) : null;
@@ -370,8 +384,8 @@ function ReadCheck({ readOn, action, client, onDone }: { readOn?: string; action
   );
 }
 
-function Row({ k, v, end }: { k: string; v: React.ReactNode; end?: React.ReactNode }) {
-  return <div className="ew3-row"><span className="ew3-k">{k}</span><span className="ew3-v">{v}</span>{end && <span className="ew3-end">{end}</span>}</div>;
+function Row({ k, v, end, sub }: { k: string; v: React.ReactNode; end?: React.ReactNode; sub?: React.ReactNode }) {
+  return <div className="ew3-row"><span className="ew3-k">{k}</span><span className="ew3-v">{v}</span>{end && <span className="ew3-end">{end}</span>}{sub && <span className="ew3-sub2">{sub}</span>}</div>;
 }
 
 function Missing({ out, advancedOpen, onAdvanced }: { out: EstimateOutputs; advancedOpen: boolean; onAdvanced: (open: boolean) => void }) {

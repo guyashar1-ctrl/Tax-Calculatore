@@ -439,12 +439,16 @@ export function parseAdvanceLine(text) {
   const amount = t.match(/סכום\s*:\s*(\d{1,3}(?:,\d{3})+|\d+)/)
     ?? t.match(/ד["״']?ב\s*:\s*(\d{1,3}(?:,\d{3})+|\d+)(?!\s*[\d,/])/);
   if (!amount) return null;
+  // ‼ 31.10.2026 · «ד"ב : 2026/1» — החודש שממנו חלה המקדמה (נצפה בשורה; המשמעות לפי המסך, לא מתועדת).
+  //   «ד"ב : 0» (בלי שנה/חודש) הוא הסכום, לא חודש.
+  const fromM = t.match(/ד["״']?ב\s*:\s*(\d{4})\s*\/\s*(\d{1,2})(?!\d)/);
+  const chargedFrom = fromM && Number(fromM[2]) >= 1 && Number(fromM[2]) <= 12 ? `${fromM[1]}-${String(fromM[2]).padStart(2, '0')}` : null;
   if (bases.length === 0) {
     // רק כשאין זכר לבסיס בשורה — «בסיס» שלא פוענח הוא כשל, לא «אין».
     if (basesText) return null;
     return {
       year, fromMonth, toMonth, months: toMonth - fromMonth + 1,
-      basisCategory: null, periodBasis: null, advanceMonthly: parseMoney(amount[1]), raw: t,
+      basisCategory: null, periodBasis: null, advanceMonthly: parseMoney(amount[1]), chargedFrom, raw: t,
     };
   }
   // הבסיס שעליו נגזרת המקדמה הוא של העצמאי; בלעדיו — הבסיס היחיד שנרשם.
@@ -454,6 +458,7 @@ export function parseAdvanceLine(text) {
     basisCategory: basis.category || null,
     periodBasis: basis.amount,
     advanceMonthly: parseMoney(amount[1]),
+    chargedFrom,
     ...(bases.length > 1 ? { bases } : {}),
     raw: t,
   };

@@ -151,3 +151,19 @@ export async function fetchAutomationWorkers(): Promise<{ workers: AutomationWor
   if (error) return { workers: [], error: error.message };
   return { workers: (data ?? []).map(automationWorkerFromDb) };
 }
+
+/**
+ * 31.10.2026 · הקריאות האחרונות שהצליחו — מה שהערכת המס צריכה מהן: ההחלטה והתשלומים מ-134 (advance134), ומב״ל
+ * המקדמה, ממתי חלה, והיתרה. ‼ רק מה שהצליח; קריאה שנכשלה אינה מבטלת קודמת.
+ */
+export async function fetchAdvanceReads(clientId: string, itType: string, niType: string): Promise<{ it134?: { at: string; value: unknown }; ni?: { at: string; persons: unknown } }> {
+  const pick = async (type: string, col: string) => {
+    const { data } = await supabase.from('automation_jobs').select(`finished_at, v:${col}`)
+      .eq('client_id', clientId).eq('action_type', type).eq('status', 'succeeded')
+      .order('finished_at', { ascending: false, nullsFirst: false }).limit(3);
+    const row = ((data ?? []) as { finished_at?: string; v?: unknown }[]).find(r => r.v != null && r.finished_at);
+    return row ? { at: row.finished_at!.slice(0, 10), v: row.v } : undefined;
+  };
+  const [it, ni] = await Promise.all([pick(itType, 'result->advance134'), pick(niType, 'result->persons')]);
+  return { ...(it ? { it134: { at: it.at, value: it.v } } : {}), ...(ni ? { ni: { at: ni.at, persons: ni.v } } : {}) };
+}

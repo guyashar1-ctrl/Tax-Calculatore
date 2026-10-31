@@ -99,6 +99,15 @@ async function scenario(width, kind) {
         pit_advance_percent = 5, pit_advance_frequency = 'monthly', ni_advance_monthly = 1450 where id = '${id}'`);
       await env.sql(`update public.clients set field_meta = coalesce(field_meta, '{}'::jsonb) || '{"pitAdvancePercent":{"source":"shaam","syncedAt":"2026-10-20T08:00:00Z"},"niAdvanceMonthly":{"source":"shaam","syncedAt":"2026-10-20T08:00:00Z"}}'::jsonb where id = '${id}'`)
         .catch(e => console.log('    (field_meta)', e.message.slice(0, 160)));
+      // 31.10.2026 · קריאות שהצליחו (במבנה שנצפה חי): 134 — ההחלטה והתשלומים; ב״ל — ממתי חלה המקדמה ויתרה 0
+      const p134 = Array.from({ length: 12 }, (_, i) => ({ from: `2026-${String(i + 1).padStart(2, '0')}`, to: `2026-${String(i + 1).padStart(2, '0')}`,
+        status: i < 9 ? 'דווח' : 'טרם הגיע המועד', code: i < 9 ? 1 : 15, turnover: i < 9 ? 30000 : 0, charge: i < 9 ? 1500 : 0, paid: i < 9 ? 1500 : 0, withheld: 0, reportedOn: null }));
+      const adv134 = { updatedOn: '2026-03-29', changeMonth: '2026-03', firstMonth: '2026-01', decision: 'דרישת שעור — הגדלה ע"פ בקשה', updatedBy: 'מייצגים', periods: p134 };
+      const btl = [{ role: 'client', ok: true, sections: { advance: { ok: true, value: { advanceMonthly: 1450, chargedFrom: '2026-01' } }, balance: { ok: true, value: 0 } } }];
+      await env.sql(`insert into public.automation_jobs (user_id, client_id, action_type, input, status, result, finished_at)
+        select user_id, id, 'shaam.sync_income_tax_file', '{}'::jsonb, 'succeeded', ${`$j$${JSON.stringify({ system: 'shaam', fields: {}, advance134: adv134 })}$j$`}::jsonb, '2026-10-20T09:00:00Z'::timestamptz from public.clients where id = '${id}'
+        union all select user_id, id, 'btl.sync_file', '{}'::jsonb, 'succeeded', ${`$j$${JSON.stringify({ system: 'btl', persons: btl })}$j$`}::jsonb, '2026-10-20T09:00:00Z'::timestamptz from public.clients where id = '${id}'`)
+        .catch(e => console.log('    (automation_jobs)', e.message.slice(0, 200)));
     } else {
       // עסק חדש: המשרד פותח את התיקים — אין עסק בכרטיס, אין מקדמות
       await env.sql(`update public.clients set businesses = '[]'::jsonb, employers = '[]'::jsonb, properties = '[]'::jsonb, family_status = 'single', spouse_first_name = null,
@@ -143,6 +152,9 @@ async function scenario(width, kind) {
       const ours = await text(part('ours'));
       ok(/5% מהמחזור/.test(ours) && /1,450/.test(ours), 'מקדמות מהרשויות: 5% · 1,450 ₪', ours.replace(/\s+/g, ' ').slice(0, 300));
       ok(await part('ours').locator('[data-ew-read]').count() === 2 && /נבדק 20.10/.test(ours) && (ours.match(/קרא שוב/g) ?? []).length === 2, '«נבדק 20.10» + «קרא שוב» בשתי השורות', ours.replace(/\s+/g, ' ').slice(0, 300));
+      ok(/עודכן ברשות 29\.03\.2026/.test(ours) && /חל מ-03\/2026/.test(ours), 'מ-134: «עודכן ברשות 29.03.2026 · חל מ-03/2026»', ours.replace(/\s+/g, ' ').slice(0, 300));
+      ok(/חלה מ-01\/2026/.test(ours) && /יתרה 0/.test(ours), 'מב״ל: «חלה מ-01/2026 · יתרה 0 — הכול שולם»', ours.replace(/\s+/g, ' ').slice(0, 300));
+      ok(/13,050/.test(ours) && /13,500/.test(ours), 'שולם עד היום: 1,500 × 9 = 13,500 במ״ה · 1,450 × 9 = 13,050 בב״ל', ours.replace(/\s+/g, ' ').slice(0, 300));
       await ew.locator('[data-ew-pull]').click();
       await ew.locator('textarea').first().fill(PNL);
       await ew.getByRole('button', { name: /^קלוט לשורה/ }).click();
@@ -219,6 +231,10 @@ async function scenario(width, kind) {
     ok(/רווח/.test(await text(res.locator('.ew3-how'))), '«איך חישבנו» נפתח');
     if (kind === 'a') ok(/אחזקת רכב/.test(await text(res.locator('[data-ew-adj]'))), 'טבלת ההתאמות — בתוך «איך חישבנו»');
     await shot(page, '2-result');
+    if (kind === 'a') {
+      const m0 = await text(ew.locator('[data-ew-missing]'));
+      ok(!/134|ב״ל: (חודשים|חויב)/.test(m0), 'אין עוד «חסר» על תקופות 134 ועל תשלומי ב״ל — נקראו לבד', m0);
+    }
     const pub = ew.locator('[data-ew-publish]');
     if (await pub.count() && await pub.isEnabled()) {
       await pub.click();
@@ -233,7 +249,8 @@ async function scenario(width, kind) {
       }
     } else {
       const miss = await text(ew.locator('[data-ew-missing]'));
-      ok(kind === 'a' && miss.length > 0, `«פרסם» חסום עם «חסר» גלוי${kind === 'b' ? ' — בעסק חדש לא אמור להיות חסום' : ''}`, miss);
+      ok(kind === 'a' && miss.length > 0, `«פרסם» חסום עם «חסר» גלוי (מה שנשאר: ${miss.split('\n').filter(l => l.length > 8).length})${kind === 'b' ? ' — בעסק חדש לא אמור להיות חסום' : ''}`, miss);
+      if (miss) console.log('    [חסר] ' + miss.replace(/\s+/g, ' ').slice(0, 300));
     }
     ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), 'המשרד — בלי גלילה לרוחב');
     const mail = (await env.sql(`select count(*)::int n from public.email_messages where client_id='${id}'`))[0].n;
@@ -245,6 +262,7 @@ async function scenario(width, kind) {
     ok(blocked.length === 0, 'אין פנייה לייצור או למארח זר', blocked.slice(0, 4).join(' | '));
     ok(consoleErrors.length === 0, 'בלי שגיאות בדפדפן', consoleErrors.slice(0, 4).join(' | '));
     await env.sql(`delete from public.tax_estimates where client_id='${id}'`).catch(() => {});
+    await env.sql(`delete from public.automation_jobs where client_id='${id}'`).catch(() => {});
     const c = await env.cleanup().catch(e => ({ left: -1, err: e.message }));
     ok(c.left === 0, 'ניקוי: לא נשארו שורות של לקוחות הבדיקה', JSON.stringify(c));
   }
