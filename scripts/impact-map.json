@@ -551,6 +551,17 @@
         "src/features/automation/actionGuide.ts"
       ],
       "suites": []
+    },
+    {
+      "name": "כיסוי הטפסים: רשימת הכיסוי הסגורה (1301, נספחים, 1219), מפת השדות שהמנוע ממלא (DRAFT_FILL_1301), קריאת המדריך",
+      "invariants": [
+        "INV-COVERAGE-01"
+      ],
+      "globs": [
+        "src/features/taxForms/**",
+        "src/features/taxForms/data/*.json"
+      ],
+      "suites": []
     }
   ],
   "watched": [
