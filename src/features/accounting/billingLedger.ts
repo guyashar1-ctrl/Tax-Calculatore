@@ -32,7 +32,8 @@ export function retainerClientFor(snapshot: RetainerSnapshot | null | undefined,
 
 /** direct = אין כרטיס בריטיינר — גובים ישירות מהלקוח. */
 export type MonthState = 'charged' | 'not_charged' | 'open' | 'direct' | 'unknown';
-export interface LedgerMonth { month: string; state: MonthState; agreed: number; charged: number | null; chargedAt: string | null }
+/** paidDirectly = הרו״ח סימן «שולם» (317) — לא חיוב בפייפרלס. */
+export interface LedgerMonth { month: string; state: MonthState; agreed: number; charged: number | null; chargedAt: string | null; paidDirectly?: boolean }
 export interface Ledger { months: LedgerMonth[]; unpaid: LedgerMonth[]; unpaidTotal: number; current: LedgerMonth | null; period: string | null }
 
 function monthsBetween(from: string, to: string): string[] {
@@ -50,8 +51,10 @@ function monthsBetween(from: string, to: string): string[] {
  * החודשים מתחילת ההסכם ועד חודש הגבייה הנוכחי בריטיינר. חודש שלפני חודש הגבייה ובלי חיוב ⇒ «לא נגבה»;
  * חודש הגבייה עצמו בלי חיוב ⇒ «פתוח». בלי בדיקה ⇒ הכול «לא ידוע» עד היום.
  */
-export function clientLedger({ engagements, clientId, snapshot, retainer, today = new Date().toISOString().slice(0, 7) }: {
-  engagements: Engagement[]; clientId: string; snapshot: RetainerSnapshot | null; retainer: RetainerClient | null; today?: string;
+export function clientLedger({ engagements, clientId, snapshot, retainer, direct = [], today = new Date().toISOString().slice(0, 7) }: {
+  engagements: Engagement[]; clientId: string; snapshot: RetainerSnapshot | null; retainer: RetainerClient | null;
+  /** חודשים שסומנו «שולם» ישירות (317) — של כל הלקוחות; מסוננים כאן. */
+  direct?: { clientId: string; month: string; amount: number | null; paidAt: string }[]; today?: string;
 }): Ledger {
   const now = currentEngagement(engagements, clientId);
   const start = (now?.billingStartMonth ?? now?.effectiveFrom ?? '').slice(0, 7);
@@ -67,6 +70,8 @@ export function clientLedger({ engagements, clientId, snapshot, retainer, today 
     const e = currentEngagement(engagements, clientId, `${month}-15`) ?? now;
     const agreed = Number(e.monthlyTotal ?? 0);
     const fee = retainer?.fees.find(f => periodToMonth(f.period) === month && f.charged) ?? null;
+    const paid = fee ? null : direct.find(d => d.clientId === clientId && d.month === month) ?? null;
+    if (paid) return { month, state: 'charged', agreed, charged: paid.amount, chargedAt: paid.paidAt, paidDirectly: true };
     const late = noCard ? month.slice(0, 4) < today.slice(0, 4) : !!period && month < period;
     const state: MonthState = !period ? 'unknown' : fee ? 'charged' : late ? 'not_charged' : noCard ? 'direct' : 'open';
     return { month, state, agreed, charged: fee?.amount ?? null, chargedAt: fee?.chargedAt ?? null };

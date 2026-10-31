@@ -25,6 +25,7 @@ import { clientDisplayName } from '../../features/annualReport/profile';
 import Modal from '../ui/Modal';
 import { clientLedger, dueAtFiling, monthLabel, monthShort, retainerClientFor, type Ledger, type RetainerSnapshot } from '../../features/accounting/billingLedger';
 import { readAgo, usePaperlessRead } from '../../features/accounting/paperlessReads';
+import { useDirectPayments } from '../../features/accounting/directPayments';
 
 const VAT_RATE = 18;
 
@@ -75,6 +76,7 @@ export default function AgreementPaymentsTab({
   const [feesOpen, setFeesOpen] = useState(false);
   // ‼ 316: מה נקרא בריטיינר של פייפרלס — אותה קריאה של «גבייה». בלי קריאה ⇒ לא מוצג כלום.
   const retainerRead = usePaperlessRead<RetainerSnapshot>('paperless.read_retainer');
+  const directPaid = useDirectPayments();
 
   const clientCharges = useMemo(() => charges.filter(c => c.clientId === client.id), [charges, client.id]);
   const clientQuotations = useMemo(
@@ -193,8 +195,9 @@ export default function AgreementPaymentsTab({
   const monthly = current.monthlyTotal ?? 0;
   const snapshot = retainerRead.latest?.data ?? null;
   const retainer = retainerClientFor(snapshot, client.idNumber);
-  const ledger = clientLedger({ engagements, clientId: client.id, snapshot, retainer });
+  const ledger = clientLedger({ engagements, clientId: client.id, snapshot, retainer, direct: directPaid.rows });
   const filing = dueAtFiling(charges, client.id, ledger);
+  const noCard = !!snapshot && !retainer?.cardEntered;
   const chargedMonths = ledger.months.filter(m => m.state === 'charged');
   // ‼ C6 (177): withVat מגיע מהשדה הקפוא על ההתקשרות — מה שהלקוח ראה וחתם
   // עליו בפועל, בלי תלות בשיעור המע"מ הנוכחי. התקשרות שקדמה למיגרציה
@@ -307,9 +310,9 @@ export default function AgreementPaymentsTab({
 
       {snapshot && ledger.months.length > 0 && (
         <div className="ap-history">
-          <span className="ap-history-k">חיובים בפייפרלס</span>
+          <span className="ap-history-k">{noCard ? 'גבייה ישירה' : 'חיובים בפייפרלס'}</span>
           <span className="ap-history-v">
-            {!retainer?.cardEntered ? 'אין אשראי — גובים ישירות' : `${chargedMonths.length} מתוך ${ledger.months.length} חודשים נגבו`} · נבדק {readAgo(retainerRead.latest!.readAt)}
+            {noCard ? `אין אשראי · ${chargedMonths.length} מתוך ${ledger.months.length} חודשים שולמו` : `${chargedMonths.length} מתוך ${ledger.months.length} חודשים נגבו · נבדק ${readAgo(retainerRead.latest!.readAt)}`}
           </span>
           <button type="button" className="ap-link" onClick={() => setFeesOpen(true)}>הצגה</button>
         </div>
@@ -328,7 +331,7 @@ export default function AgreementPaymentsTab({
           previous={previous} quotationOf={quotationOf}
           onClose={() => setPrevOpen(false)} />
       )}
-      {feesOpen && <RetainerMonths ledger={ledger} onClose={() => setFeesOpen(false)} />}
+      {feesOpen && <RetainerMonths ledger={ledger} noCard={noCard} payments={directPaid} clientId={client.id} onClose={() => setFeesOpen(false)} />}
       {historyOpen && (
         <PaymentHistory paid={paid} sourceLabel={sourceLabel} onClose={() => setHistoryOpen(false)} />
       )}
@@ -518,17 +521,29 @@ function IntentDialog({ current, onPick, onClose }: {
   );
 }
 
-/* ─── החודשים בריטיינר של פייפרלס (316) — כפי שנקראו, בלי פרשנות נוספת ─────── */
-function RetainerMonths({ ledger, onClose }: { ledger: Ledger; onClose: () => void }) {
-  const label = { charged: 'נגבה', not_charged: 'לא נגבה — מתווסף להגשת הדוח', open: 'טרם נגבה (החודש בריטיינר)', direct: 'לגבייה ישירה — בלי אשראי; מ-1.1 מתווסף להגשת הדוח', unknown: 'לא ידוע' } as const;
+/* ─── החודשים בריטיינר של פייפרלס (316) + «שולם» ידני ללקוח בלי אשראי (317) ─── */
+function RetainerMonths({ ledger, noCard, payments, clientId, onClose }: {
+  ledger: Ledger; noCard: boolean; payments: ReturnType<typeof useDirectPayments>; clientId: string; onClose: () => void;
+}) {
+  const label = { charged: 'נגבה', not_charged: 'לא שולם — מתווסף להגשת הדוח', open: 'טרם נגבה (החודש בריטיינר)', direct: 'טרם שולם', unknown: 'לא ידוע' } as const;
+  const [failed, setFailed] = useState(false);
+  const run = async (p: Promise<boolean>) => setFailed(!(await p));
   return (
-    <Modal onClose={onClose} title="חיובים בפייפרלס">
+    <Modal onClose={onClose} title={noCard ? 'גבייה ישירה' : 'חיובים בפייפרלס'}>
+      {noCard && <div className="ap-hint">אין אשראי בפייפרלס. חודש שלא סומן «שולם» עד 1.1 מתווסף לתשלום עם הגשת הדוח.</div>}
       {[...ledger.months].reverse().map(m => (
         <div className="ap-detail-row" key={m.month}>
           <div className="ap-detail-name">{monthLabel(m.month)}</div>
-          <div className="ap-detail-val">{m.state === 'charged' && m.charged != null ? `נגבה ${formatILS(m.charged)}` : label[m.state]}</div>
+          <div className="ap-detail-val">
+            {m.paidDirectly ? <>שולם ישירות · {fmtDate(m.chargedAt ?? undefined)} <button type="button" className="ap-link" disabled={payments.busy === m.month} onClick={() => void run(payments.unmark(clientId, m.month))}>ביטול</button></>
+              : m.state === 'charged' && m.charged != null ? `נגבה ${formatILS(m.charged)}`
+              : <>{label[m.state]}{noCard && (m.state === 'direct' || m.state === 'not_charged') && !payments.unavailable && (
+                  <> <button type="button" className="ap-link" disabled={payments.busy === m.month} onClick={() => void run(payments.mark(clientId, m.month, m.agreed || null))}>שולם</button></>
+                )}</>}
+          </div>
         </div>
       ))}
+      {failed && <div className="ap-hint" role="alert">לא נשמר. נסו שוב.</div>}
     </Modal>
   );
 }

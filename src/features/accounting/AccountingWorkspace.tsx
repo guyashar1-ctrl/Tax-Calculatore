@@ -7,6 +7,7 @@ import { accountingAgreement, accountingName } from './accountingModel';
 import { bookkeepingAgentPrompt, rulesVersionLabel } from './bookkeepingPrompt';
 import { clientLedger, dueAtFiling, monthLabel, monthShort, periodToMonth, retainerClientFor, type LedgerMonth, type RetainerSnapshot } from './billingLedger';
 import { matchPendingRows, readAgo, usePaperlessRead, type PendingReading } from './paperlessReads';
+import { useDirectPayments } from './directPayments';
 import './accountingWorkspace.css';
 
 const matches = (c: Client, q: string) => !q || `${accountingName(c)} ${c.idNumber ?? ''}`.includes(q.trim());
@@ -79,15 +80,16 @@ export function BillingWorkspace({ clients, engagements, charges, loading = fals
   const [picked, setPicked] = useState<string[]>([]);
   const [chosenMonth, setChosenMonth] = useState<string | null>(null);
   const read = usePaperlessRead<RetainerSnapshot>('paperless.read_retainer');
+  const directPaid = useDirectPayments();
   const snapshot = read.latest?.data ?? null;
   const period = periodToMonth(snapshot?.period ?? null);
   // ‼ רק מי שיש לו הסכם משלו (גיא 31.10). בן/בת זוג שמכוסה בהסכם של השני — לא שורה נוספת.
   const rows = useMemo(() => clients.map(client => {
     const agreement = accountingAgreement(client, clients, engagements);
     const retainer = retainerClientFor(snapshot, client.idNumber);
-    const ledger = clientLedger({ engagements, clientId: client.id, snapshot, retainer });
+    const ledger = clientLedger({ engagements, clientId: client.id, snapshot, retainer, direct: directPaid.rows });
     return { client, agreement, retainer, ledger, due: dueAtFiling(charges, client.id, ledger) };
-  }).filter(r => !r.agreement.shared && r.agreement.beforeVat != null), [clients, engagements, charges, snapshot]);
+  }).filter(r => !r.agreement.shared && r.agreement.beforeVat != null), [clients, engagements, charges, snapshot, directPaid.rows]);
   // ‼ החודש שבו עובדים: ברירת מחדל — חודש הגבייה בפייפרלס. חודש שעבר מראה מה קרה בו; לגבות אפשר רק בחודש הגבייה.
   const months = useMemo(() => [...new Set(rows.flatMap(r => r.ledger.months.map(m => m.month)))].sort().reverse(), [rows]);
   const month = chosenMonth && months.includes(chosenMonth) ? chosenMonth : (period ?? months[0] ?? null);
@@ -104,6 +106,7 @@ export function BillingWorkspace({ clients, engagements, charges, loading = fals
     ? (read.open.status === 'needs_human' ? 'חלון הפייפרלס במחשב המשרד לא מחובר — התחברו בו, והבדיקה תמשיך לבד.' : 'בודק בפייפרלס…')
     : read.latest ? `נבדק ${readAgo(read.latest.readAt)}${period ? ` · חודש הגבייה בפייפרלס: ${monthLabel(period)}` : ''}` : 'עוד לא נבדק בפייפרלס.';
   const cell = (m: LedgerMonth | undefined) => !m || m.state === 'unknown' ? '—'
+    : m.paidDirectly ? <span className="acw-ok">שולם ישירות</span>
     : m.state === 'charged' ? <span className="acw-ok">נגבה{m.charged != null ? ` ${formatILS(m.charged)}` : ''}</span>
     : m.state === 'open' ? 'טרם נגבה' : m.state === 'direct' ? 'לגבייה ישירה' : <span className="acw-warn">לא נגבה</span>;
   // ‼ בלי כרטיס בריטיינר אין מה לגבות בפייפרלס — לא ניתן לסמן (גיא 31.10).

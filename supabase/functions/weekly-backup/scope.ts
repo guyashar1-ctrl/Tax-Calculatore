@@ -37,6 +37,7 @@ export const TABLE_SCOPES: Record<string, TableScope> = {
   service_catalog: { kind: "user_id" },
   engagements: { kind: "user_id" },
   additional_charges: { kind: "user_id" },
+  retainer_direct_payments: { kind: "user_id" },
   // בקשות ומסלולים
   representation_requests: { kind: "user_id" },
   // 311: קבוצות של המשרד אצל לקוח — לפני הבקשות שמפנות אליהן (work_group_id).

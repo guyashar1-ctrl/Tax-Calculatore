@@ -46,6 +46,14 @@ export const TESTS: TestCase[] = [
     deepEqual(jan.months.map(m => [m.month, m.state]), [['2026-10', 'not_charged'], ['2026-11', 'not_charged'], ['2026-12', 'not_charged'], ['2027-01', 'direct']]);
     equal(dueAtFiling([filing()], 'c1', jan).total, 1400);
   }),
+  test('גיא: «שולם» ידני — החודש נגבה ולא עובר להגשת הדוח, גם אחרי 1.1', () => {
+    const s = snap('2612', [], '999');
+    const direct = [{ clientId: 'c1', month: '2026-11', amount: 200, paidAt: '2026-11-20' }, { clientId: 'other', month: '2026-10', amount: 200, paidAt: '2026-10-20' }];
+    const l = clientLedger({ engagements: [eng()], clientId: 'c1', snapshot: s, retainer: retainerClientFor(s, '123456789'), direct, today: '2027-01' });
+    const nov = l.months.find(m => m.month === '2026-11')!;
+    equal(nov.state, 'charged'); equal(nov.paidDirectly, true);
+    deepEqual(l.unpaid.map(m => m.month), ['2026-10', '2026-12']);
+  }),
   test('כרטיס שלא הוזן בריטיינר = בלי כרטיס', () => {
     const s: RetainerSnapshot = { ...snap('2611'), clients: [{ ...snap('2611').clients[0], cardEntered: false }] };
     const l = clientLedger({ engagements: [eng()], clientId: 'c1', snapshot: s, retainer: retainerClientFor(s, '123456789'), today: '2026-11' });
